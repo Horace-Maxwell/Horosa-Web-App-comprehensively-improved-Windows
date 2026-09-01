@@ -205,7 +205,7 @@ const PROMPT_CACHE_BP = '[[__CACHE_BP__]]';
 // 逐项之间不再靠 && 串联,增删一项不必改表达式,且各构建可按自身式法集裁剪本表。
 const QUICK_MOUNT_EXCLUDED_KEYS = ['qimen', 'huangli', 'tongshu'];
 
-const COMMON_PROVIDER_OPTION_KEYS = ['extraHeaders', 'extraBody', 'apiVersion', 'requestTimeoutMs'];
+const COMMON_PROVIDER_OPTION_KEYS = ['extraHeaders', 'extraBody', 'apiVersion', 'requestTimeoutMs', 'streamStallMs', 'streamMaxStreamMs'];
 const PROVIDER_OPTION_KEY_MAP = {
 	openai: [],
 	openrouter: [],
@@ -332,6 +332,8 @@ function buildProviderFormValues(profile){
 		extraHeadersText: JSON.stringify(providerOptions.extraHeaders || {}, null, 2),
 		extraBodyText: JSON.stringify(providerOptions.extraBody || {}, null, 2),
 		requestTimeoutMs: providerOptions.requestTimeoutMs || preset.requestTimeoutMs || 120000,
+		streamStallMs: providerOptions.streamStallMs || '',
+		streamMaxStreamMs: providerOptions.streamMaxStreamMs || '',
 		anthropicApiVersion: providerOptions.apiVersion || preset.anthropicApiVersion || '2023-06-01',
 		anthropicMaxTokens: providerOptions.max_tokens || preset.anthropicMaxTokens || '2048',
 		anthropicThinkingBudget: providerOptions.thinking && providerOptions.thinking.budget_tokens ? providerOptions.thinking.budget_tokens : '',
@@ -364,6 +366,15 @@ function buildProviderOptionsFromForm(values){
 	}
 	if(requestTimeoutMs){
 		providerOptions.requestTimeoutMs = requestTimeoutMs;
+	}
+	// [#77] 流式看门狗两参(毫秒;空=默认 180s/1800s;仅前端消费,后端剥离不下发上游)
+	const streamStallMs = parseNumberText(values.streamStallMs, '流式空闲上限', { integer: true });
+	if(streamStallMs){
+		providerOptions.streamStallMs = streamStallMs;
+	}
+	const streamMaxStreamMs = parseNumberText(values.streamMaxStreamMs, '流式总时长上限', { integer: true });
+	if(streamMaxStreamMs){
+		providerOptions.streamMaxStreamMs = streamMaxStreamMs;
 	}
 	if(providerType === 'anthropic'){
 		const maxTokens = parseNumberText(values.anthropicMaxTokens, 'Anthropic max tokens', { integer: true });
@@ -5812,8 +5823,14 @@ function AIAnalysisMain(props){
 									<Form.Item name="embeddingModels" label="Embedding 模型列表">
 										<TextArea rows={3} />
 									</Form.Item>
-									<Form.Item name="requestTimeoutMs" label="请求超时（毫秒）">
+									<Form.Item name="requestTimeoutMs" label="请求超时（毫秒）" extra="作用于连接与首响应头、以及非流式请求（测试连接/拉模型/取材料）；流式对话正文不受此限">
 										<Input />
+									</Form.Item>
+									<Form.Item name="streamStallMs" label="流式空闲上限（毫秒）" extra="连续无新内容多久判卡死，空=180000（3 分钟）；深思模型经中转网关频繁报「无新内容」可调大">
+										<Input placeholder="180000" />
+									</Form.Item>
+									<Form.Item name="streamMaxStreamMs" label="流式总时长上限（毫秒）" extra="单次生成绝对上限，空=1800000（30 分钟）；防龟速流永不收尾">
+										<Input placeholder="1800000" />
 									</Form.Item>
 								</Collapse.Panel>
 								<Collapse.Panel key="auth" header="鉴权定制（自定义请求头）" forceRender>

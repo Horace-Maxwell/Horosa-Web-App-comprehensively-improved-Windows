@@ -210,14 +210,21 @@ class HuangLiMain extends Component {
 	}
 
 	saveAISnapshot() {
-		const text = `${this.state.selectedDay ? buildHuangliSnapshotText(this.state.selectedDay) : ''}`.trim();
-		if (text) { saveModuleAISnapshot(MODULE, text); }
+		// [Z1·黄历择日] 加性 scope 化(奇门 DunJiaMain 同律):择日页内嵌实例传 techniqueScope=
+		// 'huanglizeri' 走独立快照槽,与 calendar 聚合实例(keep-alive 并存)互不竞写;缺省=原槽零回归。
+		// composeAiSnapshot:择日宿主拼「择日三段」(段头与 aiExport preset 逐字成对)。
+		const moduleKey = this.props.techniqueScope || MODULE;
+		let text = `${this.state.selectedDay ? buildHuangliSnapshotText(this.state.selectedDay) : ''}`.trim();
+		if (typeof this.props.composeAiSnapshot === 'function') {
+			try { text = `${this.props.composeAiSnapshot(text) || text}`; } catch (e) { /* composer 异常不拖快照 */ }
+		}
+		if (text) { saveModuleAISnapshot(moduleKey, text); }
 		return text;
 	}
 
 	handleSnapshotRefreshRequest(evt) {
 		const moduleName = evt && evt.detail ? evt.detail.module : '';
-		if (moduleName !== MODULE) { return; }
+		if (moduleName !== (this.props.techniqueScope || MODULE)) { return; }
 		const text = this.saveAISnapshot();
 		if (text && evt && evt.detail && typeof evt.detail === 'object') { evt.detail.snapshotText = text; }
 	}
@@ -248,8 +255,12 @@ class HuangLiMain extends Component {
 		return (
 			<div className='horosa-calendar-workbench' style={{ height }}>
 				<section className='horosa-calendar-board-panel horosa-huangli-board'>
+					{/* [六周月份底部裁切根修 2026-08-30] 这里传 '100%' 而非上面的 height 数字:
+					    面板自身有 padding14+border1(合 30px),日历拿外框数字会恰好高出面板
+					    内容盒 ⇒ 六周月(如 2026-08)末行底边被 overflow:hidden 裁掉、下方露空带
+					    (五周月余量大不显形)。100% 贴面板内容盒,按构造平账,不做算术。 */}
 					<NongLi
-						height={height}
+						height='100%'
 						date={this.state.date}
 						days={this.state.days}
 						prevDays={this.state.prevDays}
@@ -271,6 +282,8 @@ class HuangLiMain extends Component {
 						<div className='horosa-huangli-yearbtn'>
 							<XQButton variant='primary' onClick={()=> this.setState({ yearPanelOpen: true })}>年度吉日榜</XQButton>
 						</div>
+						{/* [Z1] 加性插槽:黄历择日宿主注入入口按钮;缺省 undefined 零渲染零回归 */}
+						{typeof this.props.renderExtraControls === 'function' ? this.props.renderExtraControls() : null}
 					</div>
 					<Divider />
 					<div className='horosa-calendar-selected'>

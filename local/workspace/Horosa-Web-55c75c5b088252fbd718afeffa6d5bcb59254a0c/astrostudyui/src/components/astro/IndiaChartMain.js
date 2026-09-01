@@ -2607,8 +2607,8 @@ class IndiaChartMain extends Component{
 									planetGlyphMode={opts.indiaPlanetDisplayMode}
 									counterClockwise={opts.indiaCounterClockwise}
 									lagnaRef={opts.indiaLagnaRef}
-									planetDisplay={this.props.planetDisplay}
-									lotsDisplay={this.props.lotsDisplay}
+									planetDisplay={this.props.planetDisplay || AstroConst.DEFAULT_OBJECTS}	/* 缺 props 兜默认集:曾回退「不过滤=全画」,择日内嵌宿主盘面被 33 个西占 Pars 淹没(用户实报) */
+									lotsDisplay={this.props.lotsDisplay || []}
 									showPlanetHouseInfo={false}
 									showAstroMeaning={false}
 									hook={hookEntry}
@@ -5431,6 +5431,8 @@ class IndiaChartMain extends Component{
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-india-redesign-layout">
 					<div className="horosa-astro-redesign-grid horosa-india-redesign-grid">
 						<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-india-input-panel">
+							{/* [择日宿主] 左栏插槽(主印度页不传=零渲染) */}
+							{typeof this.props.renderLeftExtra === 'function' ? this.props.renderLeftExtra() : null}
 							<div className="horosa-india-input-stack">
 								<div className="horosa-side-panel-heading">
 									<div>
@@ -5789,8 +5791,8 @@ class IndiaChartMain extends Component{
 										counterClockwise={indiaCounterClockwise}
 										lagnaRef={indiaLagnaRef}
 										overlayPoints={this.buildOverlayPoints()}
-										planetDisplay={this.props.planetDisplay}
-								lotsDisplay={this.props.lotsDisplay}
+										planetDisplay={this.props.planetDisplay || AstroConst.DEFAULT_OBJECTS}	/* 缺 props 兜默认集:曾回退「不过滤=全画」,择日内嵌宿主盘面被 33 个西占 Pars 淹没(用户实报) */
+								lotsDisplay={this.props.lotsDisplay || []}
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 								showAstroMeaning={this.props.showAstroMeaning}
 								hook={currentHook}

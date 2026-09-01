@@ -5,6 +5,7 @@ import * as AstroConst from '../../constants/AstroConst';
 import GLChart from './GLChart';
 import { chartDrawGuardEnabled } from '../../utils/perfFlags';
 import { buildChartDrawSig, sameChartDrawSig, watchChartSvgResize } from '../../utils/chartDrawGuard';
+import { getEffectiveScale } from '../../utils/zoomDomain';
 import * as SZConst from '../suzhan/SZConst';
 
 const SQUARE_SIDE_MIN = 620;
@@ -104,7 +105,11 @@ class GuoLaoChart extends Component{
 						bottomLimit = footerRect.top;
 					}
 				}
-				viewportRemainH = bottomLimit - rect.top - VIEWPORT_BOTTOM_GAP;
+				// [Tahoe 域混根修] rect.top 与 innerHeight 同属 rect/物理域,差值合法;但 side 是
+				// 布局域 px(svg 边长),写入前必须经 getEffectiveScale()(实测探针)除回布局域,
+				// 否则壳缩放≠1 时方盘边长跨域算错(z>1 超宽遮裁/z<1 偏小)。
+				const zScale = getEffectiveScale() || 1;
+				viewportRemainH = (bottomLimit - rect.top) / zScale - VIEWPORT_BOTTOM_GAP;
 			}
 		}
 
@@ -143,10 +148,11 @@ class GuoLaoChart extends Component{
 		}
 		let w = svgdom.clientWidth;
 		let h = svgdom.clientHeight;
-		if(h < 560 || w < 560){
+		// 早退只挡 0/极小值:560 级阈值在缩放档(布局宽=物理/z)下会把重绘路径整个挡死。
+		if(w < 200 || h < 200){
 			return;
 		}
-	
+
 		let orgx = w / 2;
 		let orgy = h / 2;
 		let delta = 30;

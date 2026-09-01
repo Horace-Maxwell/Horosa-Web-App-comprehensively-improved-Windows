@@ -1,5 +1,5 @@
 // [奇门择日 T3] 四本账哨兵:导航/储存/AI 挂载/AI 导出四套注册表在位 + 快照段头逐字成对 +
-// 键归一不受染。漏任一本 = 老用户静默缺功能(SKILL §v18 铁律);本测试把八账钉死。
+// 键归一不受染。漏任一本 = 老用户静默缺功能(加技法四本账铁律);本测试把八账钉死。
 import fs from 'fs';
 import path from 'path';
 import { ZERI_SUBTABS } from '../../../constants/SubTabRegistry';

@@ -190,3 +190,224 @@ describe('[V6-W3 闸4] kind ↔ 分派路径一致性(登错一处=齿轮静默�
 		expect(bad.length ? `分派口径错位:\n${bad.join('\n')}` : 'ok').toBe('ok');
 	});
 });
+
+// 🔴 闸6:A 类基线锚全局可变现值(Win Issue#76 根修契约,2026-08-29)。
+// 病理:紫微 builder 缺省回退全局单例 ZWEngineOptions,而 A 类基线曾锚裸 schema 默认——
+// 左栏(写单例)开了「紫云太岁入卦」后,挂载设置拨「关」恰等 schema 默认被 prune 剪空
+// → 走 live 快照(读单例=开)→ 挂载开关/地支输入均不生效、且左栏残留跨盘影响一切挂载文本。
+// 修法=schema 逐键补 globalCurrent(读同一单例,与 builder 回退口径 by construction 恒等)。
+describe('[闸6] A 类基线=全局单例现值(Issue#76)', ()=>{
+	const { ZWEngineOptions } = require('../../components/ziwei/ziweiOptions');
+	const { ZWSchool } = require('../../constants/ZWConst');
+	const { effectiveMountBaseline, pruneOptionsToNonDefault } = require('../techniqueMountSettings');
+
+	it('🔴 判别时刻:全局开太岁入卦→挂载拨0=真覆盖;全局默认→拨0=剪空(零回归)', ()=>{
+		const prev = ZWEngineOptions.taiSuiRuGua;
+		try{
+			ZWEngineOptions.taiSuiRuGua = true;	// 模拟左栏开过(单例=真值源)
+			const base = effectiveMountBaseline('ziwei', {});
+			expect(base.taiSuiRuGua).toBe(1);	// boolean→0/1 归一(prune 字符串比较域)
+			const opts = pruneOptionsToNonDefault('ziwei', { taiSuiRuGua: 0 }, base);
+			expect(opts.taiSuiRuGua).toBe(0);	// 关得掉=进 regen 覆盖
+			ZWEngineOptions.taiSuiRuGua = false;
+			const base2 = effectiveMountBaseline('ziwei', {});
+			const opts2 = pruneOptionsToNonDefault('ziwei', { taiSuiRuGua: 0 }, base2);
+			expect(opts2.taiSuiRuGua).toBe(undefined);	// 默认拨默认仍剪空=默认路径零变
+		}finally{
+			ZWEngineOptions.taiSuiRuGua = prev;
+		}
+	});
+
+	it('🔴 taiSuiRelatives 对象数组判别力(曾 `${x}`=[object Object] 同长列表零判别)', ()=>{
+		const prev = ZWEngineOptions.taiSuiRelatives;
+		try{
+			ZWEngineOptions.taiSuiRelatives = [{ branch: '午', role: '母', sex: 'female' }];
+			const base = effectiveMountBaseline('ziwei', {});
+			// 同长不同支的关系人必须判「不同」→ override 透传
+			const opts = pruneOptionsToNonDefault('ziwei', { taiSuiRelatives: '子:兄' }, base);
+			expect(Array.isArray(opts.taiSuiRelatives)).toBe(true);
+			expect(opts.taiSuiRelatives[0].branch).toBe('子');
+			// 逐字段相同(text 归一后)则剪空
+			const opts2 = pruneOptionsToNonDefault('ziwei', { taiSuiRelatives: '午:母:female' }, base);
+			expect(opts2.taiSuiRelatives).toBe(undefined);
+		}finally{
+			ZWEngineOptions.taiSuiRelatives = prev;
+		}
+	});
+
+	it('🔴 机械防漏:ziwei schema 凡单例同名键必带 globalCurrent 且返回值联动单例', ()=>{
+		const schema = TECHNIQUE_SETTINGS_SCHEMA.ziwei;
+		const MAPPED = { sihuaSchool: 'school@ZWSchool', ziweiXiaoxianYinyang: 'xiaoxianMode' };
+		const bad = [];
+		schema.fields.forEach((f)=>{
+			const engineKey = MAPPED[f.name] === 'school@ZWSchool' ? null : (MAPPED[f.name] || f.name);
+			const inEngine = engineKey ? Object.prototype.hasOwnProperty.call(ZWEngineOptions, engineKey) : (f.name === 'sihuaSchool');
+			if(!inEngine){
+				return;	// 非单例回退键(时间字段/运限选层/自定义表等)不要求——反向差在下一测兜改名滑出
+			}
+			if(typeof f.globalCurrent !== 'function'){
+				bad.push(`${f.name}: builder 回退全局单例但 schema 无 globalCurrent(基线退化裸默认=Issue#76 回潮)`);
+				return;
+			}
+			// 联动自证:拨动单例,globalCurrent 返回值必须跟着变(防写死常量的假 globalCurrent)
+			if(f.name === 'sihuaSchool'){
+				const prev = ZWSchool.school;
+				try{
+					ZWSchool.school = 'zhongzhou';
+					if(f.globalCurrent() !== 'zhongzhou'){ bad.push(`${f.name}: globalCurrent 不联动 ZWSchool`); }
+				}finally{ ZWSchool.school = prev; }
+			}else{
+				const prev = ZWEngineOptions[engineKey];
+				try{
+					const probe = typeof prev === 'boolean' ? !prev : (typeof prev === 'number' ? prev + 1 : `${prev}_probe`);
+					ZWEngineOptions[engineKey] = probe;
+					const got = f.globalCurrent();
+					const want = typeof probe === 'boolean' ? (probe ? 1 : 0) : probe;
+					if(`${got}` !== `${want}`){ bad.push(`${f.name}: globalCurrent(${got}) 不联动单例(${want})`); }
+				}finally{ ZWEngineOptions[engineKey] = prev; }
+			}
+		});
+		expect(bad.length ? bad.join('\n') : 'ok').toBe('ok');
+	});
+});
+
+// 🔴 闸7:regen 调用点透传完备(canping.dayunRule 实抓型,2026-08-29)。
+// 病型:builder 支持某 opts 键(schema 也暴露齿轮),但 regenerateChartTechniqueSnapshot 的
+// case 分支手写字面 opts 时漏传该键 → 齿轮拨了 override 也进不了 builder=死开关。
+// 闸1 抓不到:builder 与调用点同在 aiAnalysisContext.js,字面出现即保送(同文件盲区)。
+// 判据(零登记,纯源码抽取):对每个 A 类技法的 case 块,块内 `record.<field>` 引用集∪
+// 整包透传标记(buildChartXxxParams(record)/ForRecord(record) 无 opts/buildFieldObject(record))
+// 必须覆盖 schema 全部非时间齿轮字段;不覆盖=疑漏传红(豁免须落 EXEMPT 并写理由)。
+describe('[闸7] regen case 块 record.* 引用覆盖 schema 齿轮字段', ()=>{
+	const TIME_FIELD_NAMES = new Set(['timeAlg', 'dayBoundary', 'after23NewDay', 'lateZiHourUseNextDay', 'date', 'time', 'zone', 'lon', 'lat', 'gpsLon', 'gpsLat', 'ad', 'gender', 'pos']);
+	// 豁免:键确实不经 case 块字面透传(整包构参函数内部读/另一文件消费),登记时人工核实过。
+	const EXEMPT = {
+		// buildChartZiweiParams/buildChartBaziParams 整包构参(闸1+构参函数自身白名单覆盖)
+		// heluo 7 键:buildHeluoSnapshotForRecord(aiAnalysisContext ~2027-2033)**直读 record.***
+		// 组 heluoOpts,不经 case 块字面 opts——2026-08-29 逐键人工核实消费链在位(闸7 判据只扫
+		// case 块,builder 体内引用属合法第三形;新键若走此形须同来登记)。
+		'heluo.ziShuMode': 'builder 直读 record(2027)',
+		'heluo.jiGongMode': 'builder 直读 record(2028)',
+		'heluo.zhiZunEnabled': 'builder 直读 record(2029)',
+		'heluo.pureGanKunVariant': 'builder 直读 record(2030)',
+		'heluo.liunianStep2': 'builder 直读 record(2031)',
+		'heluo.liuYueMode': 'builder 直读 record(2032)',
+		'heluo.huangdiOffset': 'builder 直读 record(2033)',
+	};
+	it('🔴 逐技法 case 块透传完备(canping.dayunRule 曾漏=此处红)', ()=>{
+		const m = CTX_SRC.match(/export async function regenerateChartTechniqueSnapshot[\s\S]*?\n\}\n/);
+		expect(m ? 'found' : 'regen 函数未定位').toBe('found');
+		const body = m[0];
+		// case 块切分:case 'key': ... 到下一个 case/default
+		const caseRe = /case '([a-z0-9_]+)':/g;
+		const marks = [];
+		let mm;
+		while((mm = caseRe.exec(body))){ marks.push({ key: mm[1], idx: mm.index }); }
+		const blocks = {};
+		marks.forEach((mk, i)=>{
+			// 落穿链(case A: case B: 共块):向后并块直到出现实代码(非空白/注释)——
+			// 否则落穿前段切出空块,共享体键全部误报漏传(首跑实抓 profection/solararc 族)。
+			let end = i + 1 < marks.length ? marks[i + 1].idx : body.length;
+			let j = i + 1;
+			const isEmpty = (txt)=>!txt.replace(/case '[a-z0-9_]+':|\/\/[^\n]*|\s/g, '');
+			while(j < marks.length && isEmpty(body.slice(mk.idx, end))){
+				j += 1;
+				end = j < marks.length ? marks[j].idx : body.length;
+			}
+			blocks[mk.key] = body.slice(mk.idx, end);
+		});
+		const bad = [];
+		Object.keys(TECHNIQUE_SETTINGS_SCHEMA).forEach((key)=>{
+			const schema = TECHNIQUE_SETTINGS_SCHEMA[key];
+			if(!schema || schema.kind !== 'record' || !Array.isArray(schema.fields)){ return; }
+			const block = blocks[key];
+			if(!block){ return; }	// 不在 regen switch(astrochart 族等另有入口)——闸4 管分派
+			// 整包透传标记:构参函数(record)/ForRecord(record) 无 opts/buildFieldObject(record)/mergeOptionsIntoRecord
+			const wholesale = /buildChart\w+Params\(record\)|ForRecord\(record\)[^,]|buildFieldObject\(record\)/.test(block);
+			if(wholesale){ return; }
+			const used = new Set();
+			// [复审 F17①] 剥注释行再抽引用:一行「// record.foo 已在别处」曾可保送
+			const codeOnly = block.split('\n').filter((ln)=>!/^\s*\/\//.test(ln)).join('\n');
+			const useRe = /record\.([A-Za-z0-9_]+)/g;
+			let um;
+			while((um = useRe.exec(codeOnly))){ used.add(um[1]); }
+			schema.fields.forEach((f)=>{
+				if(TIME_FIELD_NAMES.has(f.name)){ return; }
+				if(EXEMPT[`${key}.${f.name}`]){
+					// [复审 F17④] 豁免反向自证:登记「builder 直读 record」的键必须真在
+					// aiAnalysisContext.js 出现 record.<field> 引用(防登记造假,REMOTE_CONSUMPTION 同律)
+					if(!new RegExp(`record\\.${f.name}\\b`).test(CTX_SRC)){
+						bad.push(`${key}.${f.name}: EXEMPT 登记为 builder 直读,但全文件无 record.${f.name} 引用(登记造假)`);
+					}
+					return;
+				}
+				if(!used.has(f.name)){
+					bad.push(`${key}.${f.name}: schema 暴露齿轮但 regen case 块无 record.${f.name} 引用(疑调用点漏传=死开关;真豁免须登记 EXEMPT+理由)`);
+				}
+			});
+		});
+		expect(bad.length ? bad.join('\n') : 'ok').toBe('ok');
+	});
+
+	it('🔴 反向差:ZWEngineOptions 每个键必须被 schema globalCurrent 键集覆盖(复审 F16:改名滑出防线)', ()=>{
+		const { ZWEngineOptions } = require('../../components/ziwei/ziweiOptions');
+		// fail-open 补丁:上一测按 schema→单例方向查,schema 键改名后查不到单例=静默豁免。
+		// 此测反向:单例每个键(显式豁免除外)必须 ∈ schema 带 globalCurrent 的字段名∪MAPPED 值。
+		const schema = TECHNIQUE_SETTINGS_SCHEMA.ziwei;
+		const covered = new Set();
+		schema.fields.forEach((f)=>{
+			if(typeof f.globalCurrent !== 'function'){ return; }
+			covered.add(f.name === 'ziweiXiaoxianYinyang' ? 'xiaoxianMode' : f.name);
+		});
+		// 显式豁免(挂载 schema 不暴露的引擎内部键;新增须人工核实后登记+理由)
+		const EXEMPT_ENGINE = new Set([
+			'taiSuiRelatives',	// schema 有(text 型)且带 globalCurrent——在 covered
+		]);
+		const bad = [];
+		Object.keys(ZWEngineOptions).forEach((k)=>{
+			if(covered.has(k) || EXEMPT_ENGINE.has(k)){ return; }
+			bad.push(`ZWEngineOptions.${k}: 单例键不被 schema globalCurrent 覆盖(改名滑出或漏暴露=Issue#76 无红灯回潮)`);
+		});
+		expect(bad.length ? bad.join('\n') : 'ok').toBe('ok');
+	});
+});
+
+// [闸6 扩展] 基线锚审计五病防回潮(2026-08-29 全技法审计:私有页.school/egypt 七轴/
+// planetaryarc.asporb 镜像型/suzhan.houseStartMode/日界族)——globalCurrent 存在+联动。
+describe('[闸6b] 审计五病 globalCurrent 在位且联动', ()=>{
+	const get = (tech, name)=>{
+		const schema = TECHNIQUE_SETTINGS_SCHEMA[tech];
+		return schema && schema.fields.find((f)=>f.name === name);
+	};
+	it('astrochart egypt_* 七轴全带 globalCurrent;suzhan 已滤死齿轮', ()=>{
+		const astro = TECHNIQUE_SETTINGS_SCHEMA.astrochart.fields.filter((f)=>f.name.startsWith('egypt_'));
+		expect(astro.length).toBeGreaterThanOrEqual(7);
+		astro.forEach((f)=>{ expect(typeof f.globalCurrent).toBe('function'); });
+		const su = TECHNIQUE_SETTINGS_SCHEMA.suzhan.fields.filter((f)=>f.name.startsWith('egypt_'));
+		expect(su.length).toBe(0);	// buildSuzhanSnapshotText 不产埃及段=死齿轮,已滤
+	});
+	it('日界族两键 globalCurrent 实时(载入期 default 冻结病)', ()=>{
+		const f = get('bazi', 'after23NewDay');
+		const g = get('bazi', 'lateZiHourUseNextDay');
+		expect(typeof f.globalCurrent).toBe('function');
+		expect(typeof g.globalCurrent).toBe('function');
+	});
+	it('suzhan.houseStartMode globalCurrent 读 localStorage 同源', ()=>{
+		const f = get('suzhan', 'houseStartMode');
+		expect(typeof f.globalCurrent).toBe('function');
+		try{
+			localStorage.setItem('suzhanHouseStartMode', '1');
+			expect(f.globalCurrent()).toBe(1);
+			localStorage.setItem('suzhanHouseStartMode', '0');
+			expect(f.globalCurrent()).toBe(0);
+		}finally{
+			localStorage.removeItem('suzhanHouseStartMode');
+		}
+	});
+	it('planetaryarc 无头 builder asporb 回退 transitOrbDefault(镜像型:builder 侧锚)', ()=>{
+		const fs2 = require('fs');
+		const path2 = require('path');
+		const src = fs2.readFileSync(path2.join(__dirname, '../../components/astro/AstroPlanetaryArc.js'), 'utf8');
+		expect(src.includes('? Number(o.asporb) : transitOrbDefault()')).toBe(true);
+	});
+});

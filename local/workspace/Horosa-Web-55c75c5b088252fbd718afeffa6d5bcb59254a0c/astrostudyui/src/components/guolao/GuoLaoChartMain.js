@@ -2065,7 +2065,7 @@ function buildGuolaoPatternSection(result, fields, params){
 	}
 }
 
-// AI 快照·相位段（右栏「相位」面板已显示但此前未导出）：复用 buildAspectRows，与盘面相位表同源；异常降级「无」。
+// AI 快照·相位段（右栏「相位」面板已显示但此前未导出）：复用 buildAspectRows，与盘面的相位表同源；异常降级「无」。
 export function buildGuolaoAspectSection(result){
 	try{
 		const chart = getChart(result);
@@ -2694,7 +2694,8 @@ class GuoLaoChartMain extends Component{
 				// 与右栏信息 Tabs 同吃 qizhengKinPan,这一次 setState 之后两栏全部画完。
 				markPanelReady('guolao');
 			});
-			if(pan && pan.snapshot){
+			// 🔴 全站共用槽只归主页实例写(择日内嵌实例写它=候选时刻内容污染主页槽,审查实抓)
+			if(pan && pan.snapshot && (this.props.techniqueScope || 'guolao') === 'guolao'){
 				saveModuleAISnapshot('guolao-qizhengkin', pan.snapshot, {
 					date: params.date,
 					time: params.time,
@@ -2947,7 +2948,14 @@ class GuoLaoChartMain extends Component{
 		}
 		const planetDisplay = this.props.planetDisplay;
 		const fields = this.props.fields;
-		saveModuleAISnapshotLazy('guolao', ()=>buildGuolaoSnapshotTextV2(p, r, planetDisplay, fields, this.state ? this.state.moiraRules : null), {
+		saveModuleAISnapshotLazy(this.props.techniqueScope || 'guolao', ()=>{
+			const base = buildGuolaoSnapshotTextV2(p, r, planetDisplay, fields, this.state ? this.state.moiraRules : null) || '';
+			// [Z7] 择日宿主经 composeAiSnapshot 拼接择时三段(scope 化,主七政页零影响)
+			if(typeof this.props.composeAiSnapshot === 'function'){
+				try{ return `${this.props.composeAiSnapshot(base) || base}`; }catch(e){ return base; }
+			}
+			return base;
+		}, {
 			date: p.date,
 			time: p.time,
 			zone: p.zone,
@@ -2964,13 +2972,16 @@ class GuoLaoChartMain extends Component{
 		const moduleName = evt && evt.detail ? evt.detail.module : '';
 		let text = '';
 		try{
-			if(moduleName === 'guolao'){
+			if(moduleName === (this.props.techniqueScope || 'guolao')){
 				const p = this.genParams();
 				const r = this.state ? this.state.chartObj : null;
 				if(p && r){
 					text = `${buildGuolaoSnapshotTextV2(p, r, this.props.planetDisplay, this.props.fields, this.state ? this.state.moiraRules : null) || ''}`.trim();
 				}
-			}else if(moduleName === 'guolao-qizhengkin'){
+			}else if(moduleName === 'guolao-qizhengkin' && (this.props.techniqueScope || 'guolao') === 'guolao'){
+				// 🔴 全站共用槽只归主页实例应答:择日内嵌实例(techniqueScope='qizhengzeri')在
+				// kinastro 档下也持 qizhengKinPan,双实例都答=后注册者用**择日候选时刻**内容
+				// 覆写 detail.snapshotText,主页「七政(七政)」导出被污染(审查实抓)。
 				const pan = this.state ? this.state.qizhengKinPan : null;
 				text = `${(pan && pan.snapshot) || ''}`.trim();
 			}else{
@@ -2978,6 +2989,9 @@ class GuoLaoChartMain extends Component{
 			}
 		}catch(e){
 			text = '';
+		}
+		if(text && moduleName === (this.props.techniqueScope || 'guolao') && typeof this.props.composeAiSnapshot === 'function'){
+			try{ text = `${this.props.composeAiSnapshot(text) || text}`; }catch(e){ /* 拼接失败用基底 */ }
 		}
 		if(text){
 			saveModuleAISnapshot(moduleName, text);
@@ -4307,6 +4321,8 @@ class GuoLaoChartMain extends Component{
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-guolao-redesign-layout">
 					<div className="horosa-astro-redesign-grid horosa-guolao-redesign-grid">
 						<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-guolao-input-panel">
+							{/* [择日宿主] 左栏插槽(主七政页不传=零渲染) */}
+							{typeof this.props.renderLeftExtra === 'function' ? this.props.renderLeftExtra() : null}
 							<GuoLaoInput
 								fields={this.props.fields}
 								onFieldsChange={this.onFieldsChange}

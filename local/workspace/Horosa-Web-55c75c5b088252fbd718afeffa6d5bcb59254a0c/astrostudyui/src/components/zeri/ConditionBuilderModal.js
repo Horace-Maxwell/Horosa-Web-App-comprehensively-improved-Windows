@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Modal, Dropdown, Menu } from 'antd';
+import { Modal, Dropdown, Menu, message } from 'antd';
 import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
 import * as AstroConst from '../../constants/AstroConst';
 import { getHousesOption } from '../comp/CompHelper';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import ConditionParamsForm from './ConditionParamsForm';
-import { CONDITION_TYPES, newLeaf, newGroup, JOINER_CN } from '../../divination/zeri/conditionTypes';
+import { CONDITION_TYPES, newLeaf, newGroup, JOINER_CN, auditTreeAgainstRegistry } from '../../divination/zeri/conditionTypes';
 import { formatGpsDms } from '../../divination/zeri/tianxingSnapshot';
 import { conditionSummary } from '../../divination/zeri/conditionGlyph';
 import { fetchChart } from '../../services/astro';
@@ -119,7 +119,7 @@ function MiniChartPopup({ params, title, onClose, display }){
 				{chartObj ? (
 					<div style={{ position: 'absolute', inset: 0 }}>
 						<AstroChart value={chartObj}
-							wheelArt={this.props.wheelArt}
+							wheelArt={(display || {}).wheelArt}	/* 🔴 函数组件禁用类式 props 访问(此处曾误写类式取 wheelArt——浮窗一开即崩 TypeError,用户实报;盘式经 previewDisplay 通道) */
 							chartDisplay={(display || {}).chartDisplay}
 							planetDisplay={(display || {}).planetDisplay}
 							lotsDisplay={(display || {}).lotsDisplay}
@@ -248,6 +248,13 @@ export default function ConditionBuilderModal({
 	};
 
 	const applyScheme = (rec) => {
+	// [F7 根修] 载入前审计值域:方案里的条件类/选项值可能已随版本演进被删——
+	// 那类行会静默恒不命中(needValues 只拦空、compile 不查值域、evaluate includes 恒 false)。
+	// 审计只提示不拦载入:用户看得见哪些行失效,自行改设;静默才是事故。
+	const __schemeIssues = (rec && rec.tree) ? auditTreeAgainstRegistry(rec.tree, CONDITION_TYPES) : [];
+	if(__schemeIssues.length){
+		message.warning(`方案「${rec && rec.name ? rec.name : ''}」有 ${__schemeIssues.length} 处已失效设置:${__schemeIssues.slice(0, 2).join(';')}${__schemeIssues.length > 2 ? ';…' : ''}`, 8);
+	}
 		if(rec && rec.tree){ onTreeChange(rec.tree); }
 		if(rec && rec.config){ onCfgChange({ ...cfg, ...rec.config }); }
 		setSelectedPath(null);
@@ -371,7 +378,7 @@ export default function ConditionBuilderModal({
 	const zodiacValue = AstroConst.zodiacSelectValue(cfg.zodiacal || 0, cfg.siderealAyanamsa || '');
 
 	const editView = (
-		<div style={{ display: 'grid', gridTemplateColumns: '560px minmax(0, 1fr)', gap: 12, height: 620 }}>
+		<div style={{ display: 'grid', gridTemplateColumns: '560px minmax(0, 1fr)', gap: 12, height: 'clamp(560px, calc(100vh - 220px), 900px)' }}>
 			{/* 左列(用户规格:时间段·地点·盘面居左上角;动作排+开始搜索同一行) */}
 			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
 				<div style={{ padding: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
@@ -493,7 +500,7 @@ export default function ConditionBuilderModal({
 	);
 
 	const resultView = (
-		<div style={{ height: 620, display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => setView('edit')} disabled={scanning}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>搜索结果</span>
@@ -521,6 +528,7 @@ export default function ConditionBuilderModal({
 					<span style={{ flex: 1 }}>结束(点击=结束时刻起盘)</span>
 					<span style={{ width: 76, textAlign: 'right' }}>时长</span>
 					<span style={{ width: 64, textAlign: 'center' }}>详情</span>
+					<span style={{ width: 52 }}>盘</span>{/* 行内多「盘」列,表头必须等宽占位——缺列致两 flex 列压窄整行左移(用户实报错位) */}
 					<span style={{ width: 52, textAlign: 'center' }}>概览</span>
 				</div>
 				{(!results || !results.length) && !scanning ? (
@@ -589,7 +597,7 @@ export default function ConditionBuilderModal({
 	};
 
 	const schemesView = (
-		<div style={{ height: 620, display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => { setView('edit'); setSchemeMsg(''); }}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>方案管理</span>
@@ -649,9 +657,11 @@ export default function ConditionBuilderModal({
 		<Modal
 			title="天星择日·征象搜索"
 			open={open}
+			wrapClassName="horosa-zeri-workbench-modal"	/* X 近白(暗底 antd 默认近黑隐形——九工作台同修,天星曾漏) */
+			getContainer={false}	/* 原地渲染:冻结页 body portal Modal 关不掉(九工作台同修) */
 			onCancel={onClose}
 			footer={null}
-			width={1180}
+			width={1400}
 			centered
 			destroyOnClose={false}
 		>

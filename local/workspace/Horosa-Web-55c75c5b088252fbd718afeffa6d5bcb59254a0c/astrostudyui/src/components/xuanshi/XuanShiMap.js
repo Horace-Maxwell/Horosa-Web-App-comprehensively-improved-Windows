@@ -38,6 +38,13 @@ export default class XuanShiMap extends React.Component {
 	componentDidMount() {
 		this.load();
 		window.addEventListener('resize', this._onResize);
+		// [Tahoe 订阅补齐] 容器 RO:窗口事件断链引擎/容器变窗口不变的场景都能驱动 echarts 重排。
+		try {
+			if (typeof ResizeObserver !== 'undefined' && this._mapEl.current) {
+				this._hostRO = new ResizeObserver(this._onResize);
+				this._hostRO.observe(this._mapEl.current);
+			}
+		} catch (e) { this._hostRO = null; }
 		// 主题切换 → 重渲底图配色(参考用 reload,这里就地重渲更顺滑)
 		try {
 			this._themeObs = new MutationObserver(() => this.renderChart());
@@ -47,6 +54,7 @@ export default class XuanShiMap extends React.Component {
 
 	componentWillUnmount() {
 		window.removeEventListener('resize', this._onResize);
+		if (this._hostRO) { try { this._hostRO.disconnect(); } catch (e) { /* noop */ } this._hostRO = null; }
 		if (this._themeObs) { this._themeObs.disconnect(); }
 		if (this._chart) { this._chart.dispose(); this._chart = null; }
 	}

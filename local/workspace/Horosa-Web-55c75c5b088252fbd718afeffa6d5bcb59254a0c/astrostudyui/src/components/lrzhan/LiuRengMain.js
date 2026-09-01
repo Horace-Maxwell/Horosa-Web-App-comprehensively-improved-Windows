@@ -370,7 +370,7 @@ function buildMetaRows(obj){
 	return res;
 }
 
-const DA_GE_META = {
+export const DA_GE_META = {
 	yuanshou: {
 		key: 'yuanshou',
 		name: '元首',
@@ -482,7 +482,7 @@ const COURSE_TO_DAGE_KEY = {
 	'无亲课': 'wuyi',
 };
 
-const XIAO_JU_META = {
+export const XIAO_JU_META = {
 	yinv: {
 		key: 'yinv',
 		name: '泆女',
@@ -2917,10 +2917,13 @@ function collectTianHeEvidence(context, a, b){
 	return uniqueStrings(evidence);
 }
 
-function buildLiuRengReferenceContext(liureng, chartObj, guirengType, runyear, castOverride, extraOpts){
-	const layout = buildLiuRengLayout(chartObj, guirengType, castOverride);
-	const keData = buildKeData(layout, chartObj);
-	const sanChuan = buildSanChuanData(layout, keData.raw, chartObj, castOverride);
+export function buildLiuRengReferenceContext(liureng, chartObj, guirengType, runyear, castOverride, extraOpts){
+	// [W2 择日全谱轮] extraOpts.prebuilt={layout,keData,sanChuan}:扫描侧已用同函数起过课,
+	// 直供跳过重算(不传=原路径,主页零波及)。
+	const pb = extraOpts && extraOpts.prebuilt ? extraOpts.prebuilt : null;
+	const layout = pb && pb.layout ? pb.layout : buildLiuRengLayout(chartObj, guirengType, castOverride);
+	const keData = pb && pb.keData ? pb.keData : buildKeData(layout, chartObj);
+	const sanChuan = pb && pb.sanChuan ? pb.sanChuan : buildSanChuanData(layout, keData.raw, chartObj, castOverride);
 	const nongli = chartObj && chartObj.nongli ? chartObj.nongli : {};
 	const dayGanZi = nongli && nongli.dayGanZi ? nongli.dayGanZi : '';
 	const dayGan = dayGanZi.substr(0, 1);
@@ -3130,7 +3133,7 @@ function buildLiuRengReferenceContext(liureng, chartObj, guirengType, runyear, c
 	};
 }
 
-function matchDaGeReferences(context){
+export function matchDaGeReferences(context){
 	if(!context){
 		return [];
 	}
@@ -3153,7 +3156,7 @@ function matchDaGeReferences(context){
 	])];
 }
 
-function matchXiaoJuReferences(context){
+export function matchXiaoJuReferences(context){
 	if(!context){
 		return [];
 	}
@@ -4027,7 +4030,8 @@ export function computeQiXY(castMethod, chartObj, yueEff, opts){
 }
 
 // 汇总：起课法 + 换将 + 分昼夜 → castOverride {yue,timeZhi,isDiurnal}；全默认返回 null（零回归）。
-function buildLiuRengCastOverride(chartObj, opts){
+// (export 供择日概览浮窗同源构造——概览盘口径必须=主页盘口径,勿另写平行实现)
+export function buildLiuRengCastOverride(chartObj, opts){
 	opts = opts || {};
 	if(!chartObj || !chartObj.nongli){
 		return null;
@@ -4062,7 +4066,7 @@ function buildLiuRengCastOverride(chartObj, opts){
 	return { yue: X, timeZhi: Y, isDiurnal, actualYue: yueEff, seHaiOpts, yinyangSystem };
 }
 
-function buildLiuRengLayout(chartObj, guirengType, castOverride){
+export function buildLiuRengLayout(chartObj, guirengType, castOverride){
 	if(!chartObj || !chartObj.nongli || !chartObj.nongli.time){
 		return null;
 	}
@@ -4192,7 +4196,7 @@ const LIURENG_GODS_INFLIGHT = new Map();
 const LIURENG_RUNYEAR_MEM = new Map();
 const LIURENG_RUNYEAR_INFLIGHT = new Map();
 
-function buildKeData(layout, chartObj){
+export function buildKeData(layout, chartObj){
 	const result = {
 		raw: [],
 		lines: [],
@@ -4232,7 +4236,7 @@ function buildKeData(layout, chartObj){
 	return result;
 }
 
-function buildSanChuanData(layout, keRaw, chartObj, castOverride){
+export function buildSanChuanData(layout, keRaw, chartObj, castOverride){
 	if(!layout || !keRaw || keRaw.length !== 4 || !chartObj || !chartObj.nongli){
 		return null;
 	}
@@ -4589,6 +4593,8 @@ class LiuRengInputPanel extends Component{
 						<div className="horosa-side-panel-subtitle">时间、地点与起课选项</div>
 					</div>
 				</div>
+				{/* [择日宿主] 左栏插槽(主六壬页不传=零渲染;prop 经 renderInputPanel 铺入切片) */}
+				{typeof p.renderLeftExtra === 'function' ? p.renderLeftExtra() : null}
 				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 					<LiuRengInput
 						fields={p.fields}
@@ -5120,10 +5126,16 @@ class LiuRengMain extends Component{
 				...liurengBenmingXingnian(appliedBirth, appliedRunYear),
 			}
 		);
-		if(typeof window !== 'undefined'){
+		// 🔴 全局兜底变量只归主页实例写(extractLiuRengContent 第三优先级消费它;择日内嵌
+		// 实例每次起课覆写=主六壬导出降级链吃到择日候选时刻内容,审查实抓)
+		if(typeof window !== 'undefined' && (this.props.techniqueScope || 'liureng') === 'liureng'){
 			window.__horosa_liureng_snapshot_text = snapshotText;
 		}
-		saveModuleAISnapshot('liureng', snapshotText, {
+		// [Z5] 择日宿主 scope 化:独立快照槽+composeAiSnapshot 拼接择时三段(主页零影响)
+		if(typeof this.props.composeAiSnapshot === 'function'){
+			try{ snapshotText = `${this.props.composeAiSnapshot(snapshotText) || snapshotText}`; }catch(e){ /* 拼接失败用基底 */ }
+		}
+		saveModuleAISnapshot(this.props.techniqueScope || 'liureng', snapshotText, {
 			date: saveParams.date,
 			time: saveParams.time,
 			zone: saveParams.zone,
@@ -5499,7 +5511,9 @@ class LiuRengMain extends Component{
 	// 打开已存事盘时把课盘数据+每技法设置整体回放(与 太乙/奇门/卦占 同范式);
 	// cid|updateTime 去重防重复回放;快照原样回写(保存时刻的真值,零重算漂移)。
 	restoreFromCurrentCase(force){
-		const saved = getKentangSavedCasePayload('liureng');
+		// 🔴 按本实例 scope 取事盘(曾硬编码 'liureng':择日宿主实例也吃主六壬事盘——初始盘
+		// 被劫持+事盘快照原样冲进 'liurengzeri' 槽,审查实抓;DunJiaMain scope 判同律)
+		const saved = getKentangSavedCasePayload(this.props.techniqueScope || 'liureng');
 		if(!saved || !saved.payload){
 			return false;
 		}
@@ -5527,7 +5541,7 @@ class LiuRengMain extends Component{
 		}
 		this.setState(next, ()=>{
 			if(p.snapshot){
-				saveModuleAISnapshot('liureng', p.snapshot);
+				saveModuleAISnapshot(this.props.techniqueScope || 'liureng', p.snapshot);
 			}
 		});
 		return true;
@@ -5544,7 +5558,7 @@ class LiuRengMain extends Component{
 		}
 		const displayRunYear = resolveDisplayRunYear(this.state.runyear, getAppliedBirth(this.state), flds);
 		const divTime = `${flds.date.value.format('YYYY-MM-DD')} ${flds.time.value.format('HH:mm:ss')}`;
-		const snapshot = loadModuleAISnapshot('liureng');
+		const snapshot = loadModuleAISnapshot(this.props.techniqueScope || 'liureng');
 		const payload = {
 			module: 'liureng',
 			snapshot: snapshot,
@@ -5999,7 +6013,7 @@ class LiuRengMain extends Component{
 
 	handleSnapshotRefreshRequest(evt){
 		const moduleName = evt && evt.detail ? evt.detail.module : '';
-		if(moduleName !== 'liureng'){
+		if(moduleName !== (this.props.techniqueScope || 'liureng')){
 			return;
 		}
 		const snapshotText = this.saveLiuRengAISnapshot(null, this.state.liureng, this.state.runyear, this.state.wuxing, this.state.guireng);
@@ -6013,6 +6027,7 @@ class LiuRengMain extends Component{
 	renderInputPanel(){
 		return (
 			<LiuRengInputPanel
+				renderLeftExtra={this.props.renderLeftExtra}
 				fields={this.props.fields}
 				onFieldsChange={this.onFieldsChange}
 				onStepSelect={this.prefetchStepSelect}

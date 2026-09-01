@@ -1,0 +1,17 @@
+diff --git a/astropy/tests/test_qizheng_election_scan.py b/astropy/tests/test_qizheng_election_scan.py
+index 08791d1f..59c4385a 100644
+--- a/astropy/tests/test_qizheng_election_scan.py
++++ b/astropy/tests/test_qizheng_election_scan.py
+@@ -152,7 +152,11 @@ def test_rahu_is_ascending_node_mainline():
+     node_lon = res[0] % 360.0
+     m = _ctx().moment(JD_ANCHOR)
+     assert abs(m.lon('罗睺') - node_lon) < 1e-9
+-    assert abs((m.lon('计都') - node_lon - 180.0) % 360.0) < 1e-9
++    # horosa_circular_delta_assert_v1(Windows 侧测试修;建议上游化):对冲断言必须用圆距,
++    # 裸 (Δ-180)%360 在精确对冲时随 libm 尾差落 0+ε 或 360-ε 两侧 —— Windows 实测
++    # 359.99999999999994(=360-6e-14,产品值正确、断言模界脆断;alcabitius 同族平台尾差)。
++    _ketu_delta = (m.lon('计都') - node_lon - 180.0) % 360.0
++    assert min(_ketu_delta, 360.0 - _ketu_delta) < 1e-9
+ 
+ 
+ def test_ziqi_is_purple_cloud_28y():

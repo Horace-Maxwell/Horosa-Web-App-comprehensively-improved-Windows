@@ -228,8 +228,9 @@ function clamp(val, min, max){
 }
 
 function getViewportHeight(){
-	// 🔴 innerHeight/documentElement.clientHeight 恒报物理域;壳缩放<1 时当布局高用会
-	// 把整页配矮。走壳缩放感知的布局视口高(1:1 恒等)。
+	// 🔴 innerHeight/documentElement.clientHeight 恒报物理域;壳缩放≠1 时当布局高用会
+	// 把整页配矮(底部死带)。走 getLayoutViewportHeight —— 它**直接量** fixed 铺满元素,
+	// 不做任何缩放换算,故与引擎的 zoom 语义无关(2026-08-27 根修,见 zoomDomain)。
 	if(typeof window !== 'undefined' && Number.isFinite(window.innerHeight) && window.innerHeight > 0){
 		return getLayoutViewportHeight();
 	}

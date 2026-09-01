@@ -19,7 +19,11 @@
 import fs from 'fs';
 import path from 'path';
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'SanShiUnitedMain.js'), 'utf8');
+// 盘面绘制已单源迁至 SanshiUnitedBoard(择日概览共享;2026-08-30)——渲染锚(outerShift 等
+// renderLiuRengMarks 体内常量)在 Board;数据/布局纯函数(getOuterLabelLayout 等)仍在 Main。
+// SRC=两文件拼接:既有锚不因迁移改语义,新增渲染改动也逃不出扫描面。
+const SRC = fs.readFileSync(path.join(__dirname, '..', 'SanShiUnitedMain.js'), 'utf8')
+	+ '\n' + fs.readFileSync(path.join(__dirname, '..', 'SanshiUnitedBoard.js'), 'utf8');
 const FLAGS = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'utils', 'perfFlags.js'), 'utf8');
 
 describe('三式外圈随时间校正(horosa_sanshi_outer_follow_time_v1)', () => {

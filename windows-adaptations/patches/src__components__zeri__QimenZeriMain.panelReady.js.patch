@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/zeri/QimenZeriMain.js b/astrostudyui/src/components/zeri/QimenZeriMain.js
-index b9ab71b4..987b096f 100644
+index cde84478..eb05c619 100644
 --- a/astrostudyui/src/components/zeri/QimenZeriMain.js
 +++ b/astrostudyui/src/components/zeri/QimenZeriMain.js
-@@ -16,6 +16,9 @@ import { newQimenLeaf, newQimenGroup, compileQimenTree } from '../../divination/
+@@ -17,6 +17,9 @@ import { newQimenLeaf, newQimenGroup, compileQimenTree } from '../../divination/
  import { scanQimen, explainQimenAt, buildQimenScanSeeds } from '../../divination/zeri/qimenScanEngine';
  import { buildQimenZeriSnapshotExtra } from '../../divination/zeri/qimenZeriSnapshot';
  import { qimenZeriSchemeStore } from '../../divination/zeri/schemeStore';
@@ -12,7 +12,7 @@ index b9ab71b4..987b096f 100644
  
  function initialTree(){
  	return { ...newQimenGroup('all'), children: [newQimenLeaf('pattern_ji')] };
-@@ -279,15 +282,17 @@ export default class QimenZeriMain extends Component{
+@@ -284,15 +287,17 @@ export default class QimenZeriMain extends Component{
  			if(this.unmounted){
  				return;
  			}

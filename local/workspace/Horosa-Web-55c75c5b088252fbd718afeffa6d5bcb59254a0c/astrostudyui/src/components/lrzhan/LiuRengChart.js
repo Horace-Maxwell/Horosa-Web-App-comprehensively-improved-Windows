@@ -1,5 +1,5 @@
 import * as d3 from 'd3';
-import { Component } from 'react';
+import React, { Component } from 'react';
 import { Modal } from 'antd';
 import {randomStr, setupFloatingTooltip} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';

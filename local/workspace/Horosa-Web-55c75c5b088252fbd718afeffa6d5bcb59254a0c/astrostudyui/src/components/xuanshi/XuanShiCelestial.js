@@ -71,6 +71,7 @@ export default class XuanShiCelestial extends React.Component {
 
 	componentWillUnmount() {
 		if (this._decadeChart) { this._decadeChart.dispose(); this._decadeChart = null; }
+		if (this._hostRO) { try { this._hostRO.disconnect(); } catch (e) { /* noop */ } this._hostRO = null; }
 		if (this._onResize) { window.removeEventListener('resize', this._onResize); }
 	}
 
@@ -105,6 +106,13 @@ export default class XuanShiCelestial extends React.Component {
 			})),
 		});
 		window.addEventListener('resize', this._onResize);
+		// [Tahoe 订阅补齐] 容器 RO 与 window resize 双通道(事件断链引擎下 RO 兜底)。
+		try {
+			if (typeof ResizeObserver !== 'undefined' && !this._hostRO) {
+				this._hostRO = new ResizeObserver(this._onResize);
+				this._hostRO.observe(el);
+			}
+		} catch (e) { this._hostRO = null; }
 	}
 
 	renderDecadeChart() {

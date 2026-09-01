@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/__tests__/__snapshots__/storageRegistryCompleteness.test.js.snap b/astrostudyui/src/utils/__tests__/__snapshots__/storageRegistryCompleteness.test.js.snap
-index d0ee4cc5..0426decf 100644
+index 879ad74c..7240ac9c 100644
 --- a/astrostudyui/src/utils/__tests__/__snapshots__/storageRegistryCompleteness.test.js.snap
 +++ b/astrostudyui/src/utils/__tests__/__snapshots__/storageRegistryCompleteness.test.js.snap
 @@ -15,6 +15,7 @@ Array [
@@ -9,4 +9,4 @@ index d0ee4cc5..0426decf 100644
 +  "horosa.boot.lastChart.v1 :: device-local :: backup=false",
    "horosa.chart.classicalGlobals.v1 :: settings :: backup=true",
    "horosa.chart.divinationJudgeGlobals.v1 :: settings :: backup=true",
-   "horosa.compat.hasFallback :: device-local :: backup=false",
+   "horosa.compat.alignZoom :: device-local :: backup=false",

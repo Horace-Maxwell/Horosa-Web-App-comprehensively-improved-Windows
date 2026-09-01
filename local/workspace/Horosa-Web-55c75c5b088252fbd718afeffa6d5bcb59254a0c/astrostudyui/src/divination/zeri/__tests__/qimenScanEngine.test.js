@@ -59,8 +59,8 @@ describe('T2① 冻结基线锚 + 晚子时两档', ()=>{
 		expect(row.start).toBe('2026-05-15 00:00');
 		expect(row.end).toBe('2026-05-15 01:00');
 		expect(row.durationMin).toBe(60);
-		// pick=起点+1 分钟内缩(边界分钟在显示管线的真太阳时实现下可能落界外侧,天星 ε 同理)
-		expect(row.pick).toBe('2026-05-15 00:01:00');
+		// pick=起点+3 分钟内缩([十三轮] 60s→180s:跨链口径实现差兜底,EoT 简式 vs swiss 曾差 89s 穿透 60s)
+		expect(row.pick).toBe('2026-05-15 00:03:00');
 	}, 30000);
 	test('after23=1(23点换日):子时跨 midnight 并为一行,起于前日 23:00', async ()=>{
 		const res = await run(

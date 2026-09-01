@@ -46,7 +46,8 @@ class AstroDoubleChart extends Component{
 
 		let w = svgdom.clientWidth;
 		let h = svgdom.clientHeight;
-		if(h < 560 || w < 560){
+		// 早退只挡 0/极小值:560 级阈值在缩放档(布局宽=物理/z)下会把 resize 重绘路径整个挡死。
+		if(w < 200 || h < 200){
 			return;
 		}
 

@@ -500,7 +500,7 @@ function buildZiWeiSnapshotText(params, result){
 		const direction = house.direction && house.direction.length === 2 ? `${house.direction[0]}~${house.direction[1]}` : '';
 		const collected = collectHouseStars(house);
 		const stars = collected.list;
-		// 星文本内联庙旺档「星名(四化)·档」—— AI 报告要义要求「依庙旺论强弱」,快照必须真给庙旺
+		// 星文本内联庙旺档「星名(四化)·档」—— AI 分析判读要求「依庙旺论强弱」,快照必须真给庙旺
 		// (曾恒缺失=让模型臆造);不加表列,preflight[121] 表头断言零触。
 		const starText = stars.length > 0
 			? stars.map((starName)=>{
@@ -712,7 +712,9 @@ export async function buildZiweiSnapshotForParams(params){
 	const prevEngine = {};
 	let hasEngineOverride = false;
 	ZW_ENGINE_SWITCH_KEYS.forEach((k)=>{
-		if(params[k] !== undefined && params[k] !== null && `${params[k]}` !== ''){
+		// 空数组放行(挂载侧清空关系人=显式覆盖成 [];`${[]}`==='' 曾把它当缺省吃掉,
+		// 全局残留清不掉——复审 F2 附带缺口)
+		if(params[k] !== undefined && params[k] !== null && (Array.isArray(params[k]) || `${params[k]}` !== '')){
 			prevEngine[k] = ZWEngineOptions[k];
 			ZWEngineOptions[k] = params[k];
 			hasEngineOverride = true;
@@ -1126,7 +1128,14 @@ class ZiWeiMain extends Component{
 		// 惰性构建:12 宫×星曜×四化遍历挪出排盘关键路径(params/result 为本函数局部量,闭包安全;
 		// builder 读的全局流派 ZWConst.ZWSchool 若在 idle 前被切换,切换路径必经 requestZiWei
 		// 重排 → 新 save 覆盖本 pending,latest-wins 兜底)。
-		saveModuleAISnapshotLazy('ziwei', ()=>buildZiWeiSnapshotText(params, result), {
+		saveModuleAISnapshotLazy(this.props.techniqueScope || 'ziwei', ()=>{
+			const base = buildZiWeiSnapshotText(params, result) || '';
+			// [Z4] 择日宿主经 composeAiSnapshot 拼接择时三段(scope 化,主紫微页零影响)
+			if(typeof this.props.composeAiSnapshot === 'function'){
+				try{ return `${this.props.composeAiSnapshot(base) || base}`; }catch(e){ return base; }
+			}
+			return base;
+		}, {
 			date: params.date,
 			time: params.time,
 			zone: params.zone,
@@ -1479,7 +1488,7 @@ class ZiWeiMain extends Component{
 	// params=genParams(this.props.fields)+period=buildPeriodFromLuckSel()(盘面当前所选运限,故 period 段随盘面保真)。
 	handleSnapshotRefreshRequest(evt){
 		const moduleName = evt && evt.detail ? evt.detail.module : '';
-		if(moduleName !== 'ziwei'){
+		if(moduleName !== (this.props.techniqueScope || 'ziwei')){
 			return;
 		}
 		const result = this.state ? this.state.result : null;
@@ -1495,8 +1504,11 @@ class ZiWeiMain extends Component{
 		}catch(e){
 			text = '';
 		}
+		if(text && typeof this.props.composeAiSnapshot === 'function'){
+			try{ text = `${this.props.composeAiSnapshot(text) || text}`; }catch(e){ /* 拼接失败用基底 */ }
+		}
 		if(text){
-			saveModuleAISnapshot('ziwei', text);
+			saveModuleAISnapshot(this.props.techniqueScope || 'ziwei', text);
 			if(evt && evt.detail && typeof evt.detail === 'object'){
 				evt.detail.snapshotText = text;
 			}
@@ -1590,6 +1602,8 @@ class ZiWeiMain extends Component{
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-ziwei-redesign-layout">
 					<div className="horosa-astro-redesign-grid horosa-ziwei-redesign-grid">
 						<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-ziwei-input-panel">
+							{/* [择日宿主] 左栏插槽(主紫微页不传=零渲染) */}
+							{typeof this.props.renderLeftExtra === 'function' ? this.props.renderLeftExtra() : null}
 							<ZiWeiInput
 								fields={this.props.fields}
 								onFieldsChange={this.onFieldsChange}

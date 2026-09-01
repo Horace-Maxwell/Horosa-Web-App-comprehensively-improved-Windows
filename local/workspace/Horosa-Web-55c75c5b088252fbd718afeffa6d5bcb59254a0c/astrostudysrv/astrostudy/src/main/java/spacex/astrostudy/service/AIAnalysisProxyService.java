@@ -1736,6 +1736,9 @@ public class AIAnalysisProxyService {
 			.uri(URI.create(url))
 			.POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8));
 		// streaming exchanges: only cap when the user set an explicit timeout; otherwise let slow local LLMs run (connectTimeout still guards connect)
+		// [#77 语义注] JDK HttpRequest.timeout 对 ofInputStream 流式响应只管到「响应头到达」
+		// (future 完成即取消计时,流体阶段不受它掐)——与前端 withTimeout 同语义。流体阶段的
+		// 保护全在前端双看门狗(streamStallMs 空闲/streamMaxStreamMs 总长,见 aianalysis.js)。
 		if(timeoutMs > 0){
 			builder.timeout(Duration.ofMillis(timeoutMs));
 		}
@@ -1960,6 +1963,8 @@ public class AIAnalysisProxyService {
 				|| "extraBody".equals(key)
 				|| "apiVersion".equals(key)
 				|| "requestTimeoutMs".equals(key)
+				|| "streamStallMs".equals(key)      // [#77] 前端流式空闲看门狗参数——绝不下发上游
+				|| "streamMaxStreamMs".equals(key)  // [#77] 前端流式总时长上限参数——绝不下发上游
 				|| "embeddingModel".equals(key)
 				|| "authHeaderName".equals(key)
 				|| "authPrefix".equals(key)) {

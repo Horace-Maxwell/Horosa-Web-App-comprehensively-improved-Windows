@@ -270,8 +270,23 @@ export async function requestAIAnalysisChatStream(values, handlers = {}){
 	//      推理模型「只思考不出 token」时该节永远转圈、且 concurrency=1 下卡死整份报告。
 	//   修①:看门狗只在「真有内容 token(delta 事件)」时重置 —— 心跳不再续命,故「只心跳不出 token」超过 STALL_MS 即 fail-fast。
 	//   修②:另设不可重置的 MAX_STREAM_MS 绝对上限,兜「token 龟速但永不收尾」。两者皆 → 抛错 → 上层标 failed → 队列推进,绝不永久挂起。
-	const STALL_MS = Number(handlers.stallMs) > 0 ? Number(handlers.stallMs) : 90000;
-	const MAX_STREAM_MS = Number(handlers.maxStreamMs) > 0 ? Number(handlers.maxStreamMs) : 300000;
+	// [#77 根修] 三层超时语义(Windows 仓 issue「GLM/qwen 回答卡在一半提示超时/思考过久提示重试」):
+	//   连接+首响应头 = withTimeout(requestTimeoutMs,默认 120s;流体阶段 timer 已清不受管)
+	//   空闲看门狗 STALL = 距上个真产出 token(delta/reasoning)的上限——默认 90s→180s(深思模型
+	//     经部分中转网关思考期不流式转发,90s 真空即误杀;心跳仍不续命,fail-fast 语义不变)
+	//   总时长 MAX = 不可续命绝对上限——默认 300s→1800s(旧值把「健康产出中的长思考+长文」一并
+	//     掐死=issue「卡在一半」主因;定位回「防 token 龟速永不收尾」的兜底,STALL 已盖无产出情形)
+	// 优先级:handlers 显式(报告管线) > providerOptions.streamStallMs/streamMaxStreamMs(用户
+	// 高级参数,毫秒) > 默认。两键仅前端消费,后端剥离绝不下发上游。
+	const po = (values && values.providerOptions) || {};
+	const pickMs = (explicit, optVal, defVal)=>{
+		if(Number(explicit) > 0){ return Number(explicit); }
+		const v = Number(optVal);
+		if(Number.isFinite(v) && v >= 1000){ return Math.min(v, 7200000); }
+		return defVal;
+	};
+	const STALL_MS = pickMs(handlers.stallMs, po.streamStallMs, 180000);
+	const MAX_STREAM_MS = pickMs(handlers.maxStreamMs, po.streamMaxStreamMs, 1800000);
 	let stalled = false;
 	let hardTimedOut = false;
 	let watchdog = null;
@@ -310,10 +325,10 @@ export async function requestAIAnalysisChatStream(values, handlers = {}){
 			const err = new Error('已停止生成'); err.name = 'AbortError'; throw err;
 		}
 		if(stalled){
-			throw new Error('AI 响应长时间无新内容(疑似上游卡住或只发心跳),已停止等待。可点「重新生成」重试。');
+			throw new Error(`AI 响应连续 ${Math.round(STALL_MS / 1000)} 秒无新内容(疑似上游卡住或网关思考期不流式转发),已停止等待。深思模型可在提供商高级参数「流式空闲上限」调大;可点「重新生成」重试。`);
 		}
 		if(hardTimedOut){
-			throw new Error('AI 单次生成超时(可能上游卡住),已停止等待。可点「重新生成」重试。');
+			throw new Error(`AI 单次生成超过总时长上限 ${Math.round(MAX_STREAM_MS / 60000)} 分钟,已停止等待。超长任务可在提供商高级参数「流式总时长上限」调大;可点「重新生成」重试。`);
 		}
 		parser.end();
 		if(handlers.onDone){

@@ -254,6 +254,8 @@ export default class QimenZeriMain extends Component{
 			? buildQimenScanSeeds(startYear, endYear, geoParams.zone)
 			: {};
 		this._scanUiJson = this.currentUiJson();
+		// 冻结 UI 树:详情面「设定」列用它配冻结判读树(活树被增删后按序配对会错位,审查实抓)
+		this._scanUiTree = JSON.parse(JSON.stringify(this.state.tree));
 		try{
 			qimenZeriSchemeStore.pushHistory({ cfg, geo, options }, this.state.tree);
 		}catch(e){
@@ -360,7 +362,7 @@ export default class QimenZeriMain extends Component{
 				cfg: this._scanCfg || this.state.cfg,
 				geo: this._scanGeo || this.state.geo,
 				options: this._scanOptions || this.state.draftOptions,
-				tree: this.state.tree,
+				tree: this._scanUiTree || this.state.tree,	// 冻结树:与命中行同源(活树曾致条件描述≠结果,复审 F5)
 				results: this.state.results,
 				truncated: this.state.truncated,
 			});
@@ -436,6 +438,7 @@ export default class QimenZeriMain extends Component{
 					onOptionsChange={this.onDraftOptionsChange}
 					onReloadFromBoard={this.reloadFromBoard}
 					tree={this.state.tree}
+					frozenTree={this._scanUiTree}
 					onTreeChange={(tree)=>this.setState({ tree })}
 					onRun={this.runSearch}
 					onCancelScan={this.cancelScan}

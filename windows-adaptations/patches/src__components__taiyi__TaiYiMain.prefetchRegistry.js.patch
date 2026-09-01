@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/taiyi/TaiYiMain.js b/astrostudyui/src/components/taiyi/TaiYiMain.js
-index 9de5789f..8e0cc464 100644
+index 77b4421a..d319cce4 100644
 --- a/astrostudyui/src/components/taiyi/TaiYiMain.js
 +++ b/astrostudyui/src/components/taiyi/TaiYiMain.js
 @@ -9,6 +9,8 @@ import DateTime from '../comp/DateTime';
@@ -11,15 +11,7 @@ index 9de5789f..8e0cc464 100644
  import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
  import { geoNameFieldPatch } from '../../utils/geoName';
  import { resolveGeoZone } from '../../utils/timezone';
-@@ -84,6 +86,7 @@ function buildTaiYiNongliParamsPure(flds, options) {
- // after23NewDay 取 defaultAfter23NewDay() —— 与组件构造时 state.options 的初值同一口径,
- // 故 key/body 与用户首点逐字节一致。
- // 🔴 绝不预热 /taiyi/pan:它吃 stage-1 结果 + 组件态(积年/流派),提前构不出同键。
-+// silent(fetchPreciseNongli 内置)、丢结果、绝不 dispatch/setState;失败静默。
- export async function warmTaiYiStage1(fields) {
- 	try {
- 		if (!fields || !fields.date || !fields.date.value || !fields.date.value.format) {
-@@ -573,6 +576,9 @@ class TaiYiMain extends Component {
+@@ -575,6 +577,9 @@ class TaiYiMain extends Component {
  		const ov = pan ? applyTaiyiSchool(pan, nextOptions.school) : { pan, overrides: null };
  		const displayPan = ov.pan || pan;
  		this.setState({ pan: displayPan, schoolOverrides: ov.overrides, selectedPalace: null, loading: false }, () => {
@@ -27,15 +19,17 @@ index 9de5789f..8e0cc464 100644
 +			// 故本次 setState 落定 = 中栏+右栏画完。双 rAF 由 markPanelReady 内部完成。
 +			markPanelReady('taiyi');
  			if (displayPan) {
- 				saveModuleAISnapshotLazy('taiyi', ()=>buildTaiyiSnapshotText(displayPan));
- 			}
-@@ -1526,40 +1532,55 @@ class TaiYiMain extends Component {
+ 				// [Z3·太乙择日] 加性 scope 化(奇门/黄历/八字同律):择日页内嵌实例走独立快照槽+composer。
+ 				saveModuleAISnapshotLazy(this.props.techniqueScope || 'taiyi', ()=>{
+@@ -1169,42 +1174,57 @@ class TaiYiMain extends Component {
+ 			tabKeys.push('life');
+ 		}
  		const activeKey = tabKeys.indexOf(this.state.rightPanelTab) >= 0 ? this.state.rightPanelTab : 'overview';
++		// horosa_freeze_subtabs_v1:右栏六页签 keep-alive,原先每次父重渲(切时间/改选项/换页签)
++		// 都把六个面板的 renderPalaceRows/renderSectionRows 全跑一遍。函数式 FreezeSubTab:
++		// 非激活时既不求值也不 reconcile;切回时拿本轮最新 children 立即渲一帧(不卸载、不闪烁)。
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-taiyi-tabs">
-+				{/* horosa_freeze_subtabs_v1:右栏六页签 keep-alive,原先每次父重渲(切时间/改选项/换页签)
-+				    都把六个面板的 renderPalaceRows/renderSectionRows 全跑一遍。函数式 FreezeSubTab:
-+				    非激活时既不求值也不 reconcile;切回时拿本轮最新 children 立即渲一帧(不卸载、不闪烁)。 */}
  				<TabPane tab="概览" key="overview">
 -					<div className="horosa-taiyi-overview-stack">
 -						{this.renderInfoRows()}

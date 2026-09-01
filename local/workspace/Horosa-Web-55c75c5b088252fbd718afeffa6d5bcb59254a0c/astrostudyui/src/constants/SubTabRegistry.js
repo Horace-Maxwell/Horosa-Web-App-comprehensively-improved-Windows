@@ -24,7 +24,9 @@ export const AUX_SUBTABS = [
 export const CNYIBU_SUBTABS = ['suzhan', 'jinkou', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'geomancy', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong', 'lingqi'];
 
 // 择日(工具组主导航模块;首档=数组第一项,新增择日技法尾部追加 + ZeriMain TabPane 成对)。
-export const ZERI_SUBTABS = ['tianxing', 'qimenzeri'];
+export const ZERI_SUBTABS = ['tianxing', 'qimenzeri',
+	'huanglizeri', 'bazizeri', 'taiyizeri', 'ziweizeri', 'liurengzeri', 'sanshizeri', 'qizhengzeri', 'indiazeri',
+];
 
 // 命·传统(参考类)。
 export const CNTRADITION_SUBTABS = ['guasym', 'cuangong12', 'pithy'];

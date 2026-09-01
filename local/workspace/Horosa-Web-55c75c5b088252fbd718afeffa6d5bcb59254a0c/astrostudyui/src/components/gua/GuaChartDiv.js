@@ -4,6 +4,7 @@ import { Row, Col, } from 'antd';
 import {randomStr,} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import GuaChart from './GuaChart';
+import { watchChartSvgResize } from '../../utils/chartDrawGuard';
 
 export default class GuaChartDiv extends Component{
 	constructor(props) {
@@ -65,11 +66,15 @@ export default class GuaChartDiv extends Component{
 	componentDidMount(){
 		window.addEventListener('resize', this.handleResize)
 		d3.select('body').append('div').attr('id', this.state.tooltipId);
+		// [Tahoe 订阅补齐] 容器尺寸变化(侧栏收合/缩放档切换/窗口事件断链引擎)也要重画:
+		// RO 不依赖 window resize 事件链;GuaChart.draw 只读 clientWidth 不写 svg 尺寸,自观察无循环。
+		this._svgWatchDetach = watchChartSvgResize(this.state.chartid, this.drawChart);
 		this.drawChart();
 	}
 
 	componentWillUnmount() {
 		window.removeEventListener('resize', this.handleResize)
+		if(this._svgWatchDetach){ this._svgWatchDetach(); this._svgWatchDetach = null; }
 		d3.select('#' + this.state.tooltipId).remove();
 	}
 

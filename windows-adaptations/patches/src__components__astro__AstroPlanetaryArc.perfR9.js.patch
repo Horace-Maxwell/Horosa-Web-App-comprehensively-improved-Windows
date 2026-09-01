@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroPlanetaryArc.js b/astrostudyui/src/components/astro/AstroPlanetaryArc.js
-index d235add4..24453b71 100644
+index 52033502..705aebed 100644
 --- a/astrostudyui/src/components/astro/AstroPlanetaryArc.js
 +++ b/astrostudyui/src/components/astro/AstroPlanetaryArc.js
 @@ -12,6 +12,7 @@ import { buildStarAndLotPositionLines, buildHouseCuspLines, buildPredictiveBirth
@@ -10,7 +10,7 @@ index d235add4..24453b71 100644
  import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
  import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
  
-@@ -188,6 +189,8 @@ class AstroPlanetaryArc extends Component{
+@@ -190,6 +191,8 @@ class AstroPlanetaryArc extends Component{
  		if(params.dirZone){ dt.setZone(params.dirZone); }
  		if(!this._mounted) return;
  		this.setState({ dirChart: result, params: { ...params, datetime: dt } }, () => {

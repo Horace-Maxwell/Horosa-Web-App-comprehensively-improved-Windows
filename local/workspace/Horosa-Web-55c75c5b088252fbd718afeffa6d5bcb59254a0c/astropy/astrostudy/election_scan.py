@@ -73,6 +73,7 @@ CONDITION_TYPES = {
     'fixed_star': {'category': 'continuous', 'required': ('star', 'target', 'orb')},
     'planetary_hour': {'category': 'generative', 'required': ('kind', 'planet')},
     'lifespan_state': {'category': 'boolean', 'required': ('item',)},
+    'cusp_state': {'category': 'continuous', 'required': ('house',)},
 }
 # 预留扩展位(设计留档,实现后才准入上表): in_sign / in_house / reception /
 # mutual_reception / rulership / besieged / dignity_state / considerations /
@@ -941,16 +942,14 @@ def _resolve_point(point, ctx):
         return lon_fn, decl_fn, 361.0  # 周日运动:一天一整圈
     if kind == 'lot':
         lot = str(point.get('id') or 'fortuna').lower()
-        if lot != 'fortuna':
-            raise ValueError('lot 点暂支持 fortuna(福点)')
+        # [W8 全谱轮] 四希腊点放开(lot_lon 早已实现 spirit/basis/exaltation——原拒单=纯值域收窄)
+        if lot not in ('fortuna', 'spirit', 'basis', 'exaltation'):
+            raise ValueError('lot 点支持 fortuna/spirit/basis/exaltation')
 
-        def lon_fn(m):
-            sun = m.planet('Sun')
-            moon = m.planet('Moon')
-            diurnal = m.horizontal('Sun')['altitudeTrue'] > 0
-            if diurnal:
-                return _norm360(m.asc() + moon['lon'] - sun['lon'])
-            return _norm360(m.asc() + sun['lon'] - moon['lon'])
+        def lon_fn(m, _lot=lot):
+            # [W8] 统一走 ElectionMoment.lot_lon(四点同源缓存;原地硬算 fortuna 公式会把
+            # spirit/basis/exaltation 全算成福点)
+            return m.lot_lon(_lot)
 
         def decl_fn(m, _lf=lon_fn):
             return _ecl_lon_to_decl(m.jd, _lf(m))
@@ -1868,6 +1867,26 @@ def _eval_chart_shape(params, ctx, domain):
     return true_intervals(pred, jd0, jd1, _b_step(list(pool)))
 
 
+def _eval_cusp_state(params, ctx, domain):
+    """[W8 全谱轮] 宫头状态:mode=in_sign(第 N 宫头落座∈signs)/near_boundary(距座界 ≤orb°)。
+    供数=ElectionMoment.houses()(极区回退 Porphyry 同主排盘策略);considerations 的
+    asc_near_boundary 只盖 ASC 一轴,此类覆盖任意宫头。"""
+    house = int(params.get('house') or 1)
+    mode = params.get('mode') or 'in_sign'
+    signs = set(int(x) for x in (params.get('signs') or []))
+    orb = float(params.get('orb') or 3.0)
+    idx = max(1, min(12, house)) - 1
+
+    def pred(jd):
+        cusps = ctx.moment(jd).houses()
+        lon = cusps[idx] if idx < len(cusps) else cusps[0]
+        if mode == 'near_boundary':
+            off = lon % 30.0
+            return off <= orb or off >= 30.0 - orb
+        return int(lon // 30.0) in signs
+    return true_intervals(pred, domain[0], domain[1], 4.0 / 1440.0)
+
+
 _EVALUATORS = {
     'aspect': _eval_aspect,
     'in_sign': _eval_in_sign,
@@ -1884,6 +1903,7 @@ _EVALUATORS = {
     'aspect_pattern': _eval_pattern,
     'chart_shape': _eval_chart_shape,
     'day_window': _eval_day_window,
+    'cusp_state': _eval_cusp_state,
 }
 
 

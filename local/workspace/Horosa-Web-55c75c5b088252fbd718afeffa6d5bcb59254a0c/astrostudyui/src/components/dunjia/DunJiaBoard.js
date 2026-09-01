@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import React, { Component } from 'react';
 import { Popover } from 'antd';
 import { BaZiColor, ZhiColor } from '../../msg/bazimsg';
 import sealedImage from '../../assets/sealed.png';

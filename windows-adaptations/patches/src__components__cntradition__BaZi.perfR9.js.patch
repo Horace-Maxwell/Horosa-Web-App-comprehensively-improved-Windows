@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZi.js b/astrostudyui/src/components/cntradition/BaZi.js
-index ccbfe7ae..db45e406 100644
+index 4756cdc6..297b8ade 100644
 --- a/astrostudyui/src/components/cntradition/BaZi.js
 +++ b/astrostudyui/src/components/cntradition/BaZi.js
 @@ -1,5 +1,6 @@
@@ -28,7 +28,7 @@ index ccbfe7ae..db45e406 100644
  const BaZiOptKey = 'baziopt';
  const BAZI_CORE_ENDPOINT = '/bazi/birth';
  const BAZI_DIRECT_ENDPOINT = '/bazi/direct';
-@@ -871,9 +883,18 @@ class BaZi extends Component{
+@@ -917,9 +929,18 @@ class BaZi extends Component{
  		});
  	}
  
@@ -48,7 +48,7 @@ index ccbfe7ae..db45e406 100644
  		});
  	}
  
-@@ -905,6 +926,32 @@ class BaZi extends Component{
+@@ -951,6 +972,32 @@ class BaZi extends Component{
  		return params;
  	}
  
@@ -81,7 +81,7 @@ index ccbfe7ae..db45e406 100644
  	async prefetchBazi(fields){
  		if(fields === undefined || fields === null){
  			return;
-@@ -941,7 +988,14 @@ class BaZi extends Component{
+@@ -987,7 +1034,14 @@ class BaZi extends Component{
  			flowSelection: this.state.currentBaziKey === currentBaziKey ? this.state.flowSelection : null,
  		};
  
@@ -97,7 +97,7 @@ index ccbfe7ae..db45e406 100644
  		// 惰性构建:快照文本拼装挪出排盘关键路径(params/result 为局部量,闭包安全)。
  		// 须带 school（断命流派）→ 否则不触发 refresh 的场景 AI 快照恒标「传统综合」(与 handleSnapshotRefreshRequest 同口径)。
  		const snapshotParams = { ...params, school: (this.state.baziOpt || {}).school, shenshaGroups: (this.state.baziOpt || {}).shenshaGroups };
-@@ -1067,11 +1121,11 @@ class BaZi extends Component{
+@@ -1124,11 +1178,11 @@ class BaZi extends Component{
  		}
  		let tabHeight = height - 20;
  
@@ -112,16 +112,16 @@ index ccbfe7ae..db45e406 100644
  		const isFineChart = this.state.chartStyle === 'fine' || this.state.chartStyle === 'ancient';
  		const isLegacyUi = this.state.baziOpt && this.state.baziOpt.uiMode === 'legacy';
  		const chartHeight = typeof height === 'number' ? Math.max(360, Math.round(height * 0.62)) : height;
-@@ -1082,7 +1136,7 @@ class BaZi extends Component{
- 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-bazi-redesign-layout">
- 					<div className="horosa-astro-redesign-grid horosa-bazi-redesign-grid">
+@@ -1141,7 +1195,7 @@ class BaZi extends Component{
  						<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-bazi-input-panel">
+ 							{/* [择日宿主] 左栏插槽:择日入口板块(主八字页不传=零渲染) */}
+ 							{typeof this.props.renderLeftExtra === 'function' ? this.props.renderLeftExtra() : null}
 -							<CnTraditionInput
 +							<MemoCnTraditionInput
  								fields={this.props.fields}
  								baziOpt={this.state.baziOpt}
  								onFieldsChange={this.onFieldsChange}
-@@ -1107,7 +1161,7 @@ class BaZi extends Component{
+@@ -1166,7 +1220,7 @@ class BaZi extends Component{
  										/>
  									</div>
  									<div className="horosa-bazi-main-flow-slot">

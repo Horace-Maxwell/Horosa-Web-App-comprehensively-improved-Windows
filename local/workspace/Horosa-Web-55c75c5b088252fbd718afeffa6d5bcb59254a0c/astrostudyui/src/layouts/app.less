@@ -12439,6 +12439,16 @@
         font-weight: 760;
     }
 
+    /* [择日工作台] Modal 关闭钮可见性:antd 默认 rgba(0,0,0,.45) 在暗色 Modal 头上隐形
+       (用户实报「到这个页面之后无法返回」——X 一直在 54×54 原位只是黑对黑看不见)。 */
+    .horosa-zeri-workbench-modal .ant-modal-close {
+        color: var(--horosa-text, #d8cdb8) !important;
+    }
+    .horosa-zeri-workbench-modal .ant-modal-close:hover,
+    .horosa-zeri-workbench-modal .ant-modal-close:focus {
+        color: #ffffff !important;
+    }
+
     .horosa-liureng-meta-modal .ant-modal-close {
         color: var(--horosa-astro-muted, #a7a096);
     }

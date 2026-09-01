@@ -229,4 +229,31 @@ describe('T1④ 基线盘断言 + canon + matchMode', ()=>{
 		expect(evalLeaf(pan, 'pillar_ganzhi', { pillar: 'time', gans: [], zhis: ['子'] }).pass).toBe(true);
 		expect(evalLeaf(pan, 'pillar_ganzhi', { pillar: 'time', gans: ['乙'], zhis: [] }).pass).toBe(false);
 	});
+	test('🔴 [W3 全谱轮] 6 新类正反双判(锚盘 2026-01-01 12:30 dump 实跑:反吟局·月令水·巽宫死门囚·日禄卯·旬首甲戌·日空申酉)', ()=>{
+		const p = panAt('2026-01-01', '12:30:00');
+		const ctx = makeQimenEvalCtx(p);
+		const ev = (type, params)=>QIMEN_CONDITION_TYPES[type].evaluate(p, params, ctx);
+		// 旺衰:巽宫(palaceNum=1)死门囚/宫木相
+		expect(ev('wang_shuai', { road: 'door', states: ['囚'], palaces: ['1'], matchMode: 'any' }).pass).toBe(true);
+		expect(ev('wang_shuai', { road: 'door', states: ['旺'], palaces: ['1'], matchMode: 'any' }).pass).toBe(false);
+		expect(ev('wang_shuai', { road: 'gong', states: ['相'], palaces: ['1'], matchMode: 'any' }).pass).toBe(true);
+		// 伏反吟局:反吟
+		expect(ev('fuyin_ju', { value: '反吟' }).pass).toBe(true);
+		expect(ev('fuyin_ju', { value: 'none' }).pass).toBe(false);
+		expect(ev('fuyin_ju', { value: '伏吟' }).pass).toBe(false);
+		// 神煞:日禄卯/日德申
+		expect(ev('qm_shensha', { name: '日禄', values: ['卯'] }).pass).toBe(true);
+		expect(ev('qm_shensha', { name: '日禄', values: ['午'] }).pass).toBe(false);
+		expect(ev('qm_shensha', { name: '日德', values: ['申'] }).pass).toBe(true);
+		// 空亡:日空申酉(showAllKong 恒开后四柱档有值)
+		expect(ev('kong_all', { dim: 'rikong', values: ['申'] }).pass).toBe(true);
+		expect(ev('kong_all', { dim: 'rikong', values: ['子'] }).pass).toBe(false);
+		expect(ev('kong_all', { dim: 'day', values: ['酉'] }).pass).toBe(true);
+		// 旬首/符头:甲戌
+		expect(ev('xun_shou', { dim: 'xunShou', values: ['甲戌'] }).pass).toBe(true);
+		expect(ev('xun_shou', { dim: 'xunShou', values: ['甲子'] }).pass).toBe(false);
+		// 暗干:anGanMode 默认关=各宫空,恒不命中(开关档语义;开启路径由主页盘测试盖)
+		expect(ev('an_ganzhi', { dim: 'anGan', values: ['甲'], palaces: [], matchMode: 'any' }).pass).toBe(false);
+	});
+
 });

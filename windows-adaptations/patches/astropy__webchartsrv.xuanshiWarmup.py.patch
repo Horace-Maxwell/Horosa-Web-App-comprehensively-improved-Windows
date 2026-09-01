@@ -1,5 +1,5 @@
 diff --git a/astropy/websrv/webchartsrv.py b/astropy/websrv/webchartsrv.py
-index 8e1935a5..a2361504 100644
+index 0b5bdcbd..de878e0f 100644
 --- a/astropy/websrv/webchartsrv.py
 +++ b/astropy/websrv/webchartsrv.py
 @@ -20,6 +20,7 @@ import cherrypy
@@ -48,7 +48,7 @@ index 8e1935a5..a2361504 100644
  
  # Ensure flatlib is resolvable from bundled sources.
  _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
-@@ -72,6 +104,28 @@ CORE_SERVICE_SPECS = [
+@@ -76,6 +108,31 @@ CORE_SERVICE_SPECS = [
  ]
  
  
@@ -63,7 +63,10 @@ index 8e1935a5..a2361504 100644
 +# 引擎前返回;_LazyMountedService 每服务锁防双载。**新增 CORE 服务必须显式决定门前/门后**
 +# —— 发布链的门前键集白名单断言会拦住未决定的新键。
 +# kill-switch:HOROSA_ELECTIONSCAN_POSTGATE=0 ⇒ electionscan 回门前 tier-3(v3.7.0 原样)。
-+POST_GATE_CORE_PREWARM_KEYS = {'electionscan'}
++# [v3.10.0 +Z7/Z8] qizheng/india 择日扫描与 electionscan 同型:重冷 import 链(qizheng 走
++# flatlib/swisseph,india 走 jyotish_engine ~10k LOC)、/scan ping 短路在触碰引擎前返回、
++# 分钟级长任务只由显式「搜索」触发 —— 按 #89 显式决定:门后。共用同一 kill-switch。
++POST_GATE_CORE_PREWARM_KEYS = {'electionscan', 'qizhengelectionscan', 'indiaelectionscan'}
 +
 +
 +def _electionscan_postgate_enabled():
@@ -77,7 +80,7 @@ index 8e1935a5..a2361504 100644
  def _core_lazy_enabled():
      return os.environ.get('HOROSA_CORE_LAZY', '1') not in ('0', 'false', 'no', 'off')
  
-@@ -88,7 +142,12 @@ def mount_core_services():
+@@ -92,7 +149,12 @@ def mount_core_services():
  def prewarm_core_services():
      loaded = 0
      failed = 0
@@ -90,7 +93,7 @@ index 8e1935a5..a2361504 100644
          try:
              app = cherrypy.tree.apps.get(spec["mount"])
              root = getattr(app, "root", None)
-@@ -101,11 +160,34 @@ def prewarm_core_services():
+@@ -105,11 +167,34 @@ def prewarm_core_services():
              traceback.print_exc()
      return loaded, failed
  
@@ -125,7 +128,7 @@ index 8e1935a5..a2361504 100644
  
  
  
-@@ -209,7 +291,12 @@ class WebChartSrv:
+@@ -213,7 +298,12 @@ class WebChartSrv:
              _geoerr = validate_geo(data)
              if _geoerr:
                  return jsonpickle.encode(_geoerr, unpicklable=False)
@@ -139,7 +142,7 @@ index 8e1935a5..a2361504 100644
  
              _cls_tokens = push_classical_request(data)
              _pt0 = time.perf_counter() if _PY_CHART_TIMING else 0.0
-@@ -727,7 +814,12 @@ def _run_warmups():
+@@ -731,7 +821,12 @@ def _run_warmups():
      elif _par_env == '1':
          _parallel = True
      else:
@@ -153,7 +156,7 @@ index 8e1935a5..a2361504 100644
      # [R4-P3a] PD 入并行组开关。🔴 缺省【关】(2026-08-03 同会话 ladder 实测定档):script 档
      # (untrusted 并行)PD 入组=并行窗四线程,与同窗 JVM 引导抢核【双输】——py 门开 1440→1857ms、
      # java_http_ready 2528→3551ms(R3「温启并行双输回串行」同族形态,冷启档同样成立)。
-@@ -754,6 +846,66 @@ def _run_warmups():
+@@ -758,6 +853,66 @@ def _run_warmups():
      # [R4-P0 观察位] 门开绝对时刻显式化(改前基线里门开时刻要靠 warmup 末段推算)。
      ledger_mark('py.gate_open', t0=_PY_T0)
      STARTUP_GATE.set()

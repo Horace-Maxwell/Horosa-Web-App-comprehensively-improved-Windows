@@ -252,6 +252,14 @@ export const ANALYSIS_TECHNIQUE_LABELS = {
 	election: '择日盘',
 	tianxing: '天星择日',
 	qimenzeri: '奇门择日',
+	huanglizeri: '黄历择日',
+	bazizeri: '八字择日',
+	taiyizeri: '太乙择日',
+	ziweizeri: '紫微择日',
+	liurengzeri: '六壬择日',
+	sanshizeri: '三式择日',
+	qizhengzeri: '七政择日',
+	indiazeri: '印度择日',
 	mundane: '世俗盘',
 	canping: '邵子参评数',
 	zhengchuan: '神数正传',
@@ -522,7 +530,8 @@ function buildFieldObject(record){
 		simpleAsp: { value: record.simpleAsp !== undefined && record.simpleAsp !== null ? record.simpleAsp : 0 },
 		virtualPointReceiveAsp: { value: record.virtualPointReceiveAsp !== undefined && record.virtualPointReceiveAsp !== null ? record.virtualPointReceiveAsp : 0 },
 		doubingSu28: { value: record.doubingSu28 !== undefined && record.doubingSu28 !== null ? Number(record.doubingSu28) : 0 },
-		// 宿占人事十二宫起宫(ASC起盘 0 / 八字起盘 1):优先读 record(存盘/挂载重算),缺省回退 0=现状。
+		// 宿占人事十二宫起宫:优先读 record(存盘/挂载重算),缺省回退 localStorage 全局现值
+		// (schema globalCurrent 同源;旧注释写「回退 0」与实现不符——基线锚审计顺手账改正)。
 		houseStartMode: { value: record.houseStartMode !== undefined && record.houseStartMode !== null ? Number(record.houseStartMode) : ((typeof localStorage !== 'undefined' && parseInt(localStorage.getItem('suzhanHouseStartMode'), 10) === 1) ? 1 : 0) },
 		predictive: { value: 1 },
 		showPdBounds: { value: 1 },
@@ -2896,8 +2905,9 @@ export async function regenerateChartTechniqueSnapshot(record, key){
 		}
 		case 'canping':
 			// 邵子参评数（数算）：纯前端，按本盘出生四柱起本命 + 大运。
-			// 挂载齿轮可调 取法(明法/古法) → record.method → opts（未改时 undefined，builder 回默认 ming=现状）。
-			return await buildCanpingSnapshotForRecord(record, { method: record.method });
+			// 挂载齿轮可调 取法(明法/古法)+大运排法三档 → record.* → opts(未改时 undefined,builder 回默认=现状)。
+			// 🔴 dayunRule 曾漏传(builder 支持、调用点只传 method → 齿轮拨大运档不生效,审计实抓)。
+			return await buildCanpingSnapshotForRecord(record, { method: record.method, dayunRule: record.dayunRule });
 		case 'zhengchuan':
 			// 神数正传（数算）：纯前端。挂载齿轮可调 流派/求测时辰/父母年龄/元运/虚岁 → record.* → opts。
 			// 未改时 undefined，builder 回默认（铁板 + 本人时柱作求测时辰）＝现状。

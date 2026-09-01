@@ -292,6 +292,14 @@ const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	'election',
 	'tianxing',
 	'qimenzeri',
+	'huanglizeri',
+	'bazizeri',
+	'taiyizeri',
+	'ziweizeri',
+	'liurengzeri',
+	'sanshizeri',
+	'qizhengzeri',
+	'indiazeri',
 	'bazi',
 	'ziwei',
 	'suzhan',
@@ -354,11 +362,19 @@ const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	// v44 补:六壬[七政]/果老[虚实][本命化曜] 三段(键已在册,union 自动并入自定义)。
 	'calendar',
 	// 黄历二子技法(独立键新增于本版;v<44 老档无此键 → 循环体只并入已存在的非空数组,零强推)
-	'huangli', 'tongshu',
+	'huangli', 'huanglizeri', 'tongshu',
 	// 天星择日(征象搜索;新技法键只加键、两把版本闸恒不动——老用户本无自定义走 preset 全量)
 	'tianxing',
 	// 奇门择日(找局;同 tianxing 只加键纪律)
 	'qimenzeri',
+	'huanglizeri',
+	'bazizeri',
+	'taiyizeri',
+	'ziweizeri',
+	'liurengzeri',
+	'sanshizeri',
+	'qizhengzeri',
+	'indiazeri',
 ];
 const AI_EXPORT_PLANET_INFO_DEFAULT = {
 	showHouse: 1,
@@ -511,6 +527,14 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'election', label: '择日盘' },
 	{ key: 'tianxing', label: '天星择日' },
 	{ key: 'qimenzeri', label: '奇门择日' },
+	{ key: 'huanglizeri', label: '黄历择日' },
+	{ key: 'bazizeri', label: '八字择日' },
+	{ key: 'taiyizeri', label: '太乙择日' },
+	{ key: 'ziweizeri', label: '紫微择日' },
+	{ key: 'liurengzeri', label: '六壬择日' },
+	{ key: 'sanshizeri', label: '三式择日' },
+	{ key: 'qizhengzeri', label: '七政择日' },
+	{ key: 'indiazeri', label: '印度择日' },
 	{ key: 'calendar', label: '黄历' },
 	// 黄历二子技法独立键:calendar=页面聚合快照(四子并出),huangli/tongshu=各自模块快照单技法
 	// 导出(与 jieqi 总/分并存同构);挂载「起课时间」源亦复用同一 preset 做内容勾选。
@@ -805,6 +829,22 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 // 奇门择日 = 奇门 17 段全量(单一真值源:qimen 段表改动自动跟随) + 择日三段。
 // 🔒 三个追加段头与 src/divination/zeri/qimenZeriSnapshot.js 逐字成对(四同步)。
 AI_EXPORT_PRESET_SECTIONS.qimenzeri = [...AI_EXPORT_PRESET_SECTIONS.qimen, '择日搜索配置', '择日条件', '命中时辰'];
+// [Z1] 黄历择日 = 黄历日课快照段(选中日) + 择吉三段(段头与 huangliZeriSnapshot builder 🔒逐字成对)。
+AI_EXPORT_PRESET_SECTIONS.huanglizeri = [...(AI_EXPORT_PRESET_SECTIONS.huangli || []), '择吉搜索配置', '择吉条件', '命中日段'];
+// [Z2] 八字择日 = 八字快照段(bazi 段表单源自动跟随) + 择时三段(段头与 baziZeriSnapshot builder 🔒逐字成对)。
+AI_EXPORT_PRESET_SECTIONS.bazizeri = [...(AI_EXPORT_PRESET_SECTIONS.bazi || []), '择时搜索配置', '择时条件', '命中时段'];
+// [Z3] 太乙择日 = 太乙快照段(taiyi 段表单源自动跟随) + 择时三段(段头与 taiyiZeriSnapshot builder 🔒逐字成对)。
+AI_EXPORT_PRESET_SECTIONS.taiyizeri = [...(AI_EXPORT_PRESET_SECTIONS.taiyi || []), '择时搜索配置', '择时条件', '命中时段'];
+// [Z4] 紫微择日 = 紫微快照段(ziwei 段表单源自动跟随) + 择时三段(段头与 ziweiZeriSnapshot builder 🔒逐字成对)。
+AI_EXPORT_PRESET_SECTIONS.ziweizeri = [...(AI_EXPORT_PRESET_SECTIONS.ziwei || []), '择时搜索配置', '择时条件', '命中时段'];
+// [Z5] 六壬择日 = 六壬快照段(liureng 段表单源自动跟随) + 择时三段(段头与 liurengZeriSnapshot builder 🔒逐字成对)。
+AI_EXPORT_PRESET_SECTIONS.liurengzeri = [...(AI_EXPORT_PRESET_SECTIONS.liureng || []), '择时搜索配置', '择时条件', '命中时段'];
+// [Z6] 三式择日 = 三式合一快照段(sanshiunited 段表单源自动跟随) + 择时三段(段头与 sanshiZeriSnapshot builder 🔒逐字成对)。
+AI_EXPORT_PRESET_SECTIONS.sanshizeri = [...(AI_EXPORT_PRESET_SECTIONS.sanshiunited || []), '择时搜索配置', '择时条件', '命中时段'];
+// [Z7] 七政择日 = 七政快照段(guolao 段表单源自动跟随) + 择时三段(段头与 qizhengZeriSnapshot builder 🔒逐字成对)。
+AI_EXPORT_PRESET_SECTIONS.qizhengzeri = [...(AI_EXPORT_PRESET_SECTIONS.guolao || []), '择时搜索配置', '择时条件', '命中时段'];
+// [Z8] 印度择日 = 择时三段自足(印度页 A 类星盘系无 module 快照槽,盘全文见主印度页——builder 段头🔒逐字成对)。
+AI_EXPORT_PRESET_SECTIONS.indiazeri = ['择时搜索配置', '择时条件', '命中时段'];
 
 // 自检用:返回所有「有 preset 段表」的技法 key。配合测试断言 preset key ⊆ AI_EXPORT_TECHNIQUES,
 // 堵住「有 preset 却没登记进 AI_EXPORT_TECHNIQUES → 在导出设置下拉隐身 + 不被 getAIExportAuditMatrix 自检」的回归
@@ -1298,6 +1338,14 @@ function snapshotModuleKeyByContextKey(key){
 	}
 	const map = {
 		huangli: 'calendar-huangli',
+		huanglizeri: 'huanglizeri',
+		bazizeri: 'bazizeri',
+		taiyizeri: 'taiyizeri',
+		ziweizeri: 'ziweizeri',
+		liurengzeri: 'liurengzeri',
+		sanshizeri: 'sanshizeri',
+		qizhengzeri: 'qizhengzeri',
+		indiazeri: 'indiazeri',
 		tongshu: 'calendar-tongshu',
 		wuzhao: 'wuzhao',
 		taixuan: 'taixuan',
@@ -2834,10 +2882,35 @@ function resolveContextByAstroState(){
 		case 'sanshiunited':
 			return { key: 'sanshiunited', displayName: '三式合一', domain: 'sanshiunited' };
 		case 'zeri':
-			// 择日页按子技法分流(store 兜底根治:「择日」是两子技法名的子串,DOM 启发式易串成辅盘择日盘)
-			return subTab === 'qimenzeri'
-				? { key: 'qimenzeri', displayName: '奇门择日' }
-				: { key: 'tianxing', displayName: '天星择日' };
+			// 择日页按子技法分流(store 兜底根治:「择日」是子技法名的子串,DOM 启发式易串成辅盘择日盘)
+			if(subTab === 'qimenzeri'){
+				return { key: 'qimenzeri', displayName: '奇门择日' };
+			}
+			if(subTab === 'huanglizeri'){
+				return { key: 'huanglizeri', displayName: '黄历择日' };
+			}
+			if(subTab === 'bazizeri'){
+				return { key: 'bazizeri', displayName: '八字择日' };
+			}
+			if(subTab === 'taiyizeri'){
+				return { key: 'taiyizeri', displayName: '太乙择日' };
+			}
+			if(subTab === 'ziweizeri'){
+				return { key: 'ziweizeri', displayName: '紫微择日' };
+			}
+			if(subTab === 'liurengzeri'){
+				return { key: 'liurengzeri', displayName: '六壬择日' };
+			}
+			if(subTab === 'sanshizeri'){
+				return { key: 'sanshizeri', displayName: '三式择日' };
+			}
+			if(subTab === 'qizhengzeri'){
+				return { key: 'qizhengzeri', displayName: '七政择日' };
+			}
+			if(subTab === 'indiazeri'){
+				return { key: 'indiazeri', displayName: '印度择日' };
+			}
+			return { key: 'tianxing', displayName: '天星择日' };
 		case 'calendar': {
 			// [E-2] 按当前子 tab 分流:老黄历/通书 → 独立键(preset/挂载早有,导出链曾不可达=两键
 			// 设置面可勾恒无效);农历主 tab 与日子馆仍走 calendar 聚合(rizi 无独立 preset 键)。
@@ -3068,8 +3141,8 @@ const AI_EXPORT_TECHNIQUE_GROUPS = [
 	] },
 	{ title: '中式命理', keys: ['bazi', 'ziwei', 'guolao', 'qizhengkin', 'indiachart', 'heluo', 'canping', 'zhengchuan', 'yizhangjing', 'xianqin', 'cetian', 'shaozi', 'tieban', 'fendjing', 'beiji', 'nanji', 'chunzi', 'suzhan',
 	] },
-	{ title: '占卜术数', keys: ['sixyao', 'tongshefa', 'liureng', 'jinkou', 'qimen', 'qimenzeri', 'sanshiunited', 'taiyi', 'huangji', 'wuzhao', 'taixuan', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'lingqi', 'fengshui',
-		'calendar', 'huangli', 'tongshu'] },
+	{ title: '占卜术数', keys: ['sixyao', 'tongshefa', 'liureng', 'jinkou', 'qimen', 'qimenzeri', 'bazizeri', 'taiyizeri', 'ziweizeri', 'liurengzeri', 'sanshizeri', 'qizhengzeri', 'indiazeri', 'sanshiunited', 'taiyi', 'huangji', 'wuzhao', 'taixuan', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'lingqi', 'fengshui',
+		'calendar', 'huangli', 'huanglizeri', 'tongshu'] },
 ];
 
 export function listAIExportTechniqueSettingGroups(){
@@ -3191,7 +3264,7 @@ function getExtractorKindByExportKey(key){
 		|| exportKey === 'bazi' || exportKey === 'ziwei' || exportKey === 'horary' || exportKey === 'election'
 		|| exportKey === 'tianxing' || exportKey === 'qimenzeri'
 		|| exportKey === 'canping' || exportKey === 'heluo' || exportKey === 'zhengchuan'
-		|| exportKey === 'yizhangjing' || exportKey === 'calendar' || exportKey === 'huangli' || exportKey === 'tongshu'){
+		|| exportKey === 'yizhangjing' || exportKey === 'calendar' || exportKey === 'huangli' || exportKey === 'tongshu' || exportKey === 'huanglizeri' || exportKey === 'bazizeri' || exportKey === 'taiyizeri' || exportKey === 'ziweizeri' || exportKey === 'liurengzeri' || exportKey === 'sanshizeri' || exportKey === 'qizhengzeri' || exportKey === 'indiazeri'){
 		return `module:${snapshotModuleKeyByContextKey(exportKey)}`;
 	}
 	if(exportKey === 'taiyi'){
@@ -6216,9 +6289,13 @@ function getCandidateExportKeys(context){
 	if(topInfo.includes('三式合一') && !hasPrimarySpecific){
 		keys.push('sanshiunited', 'qimen', 'jinkou', 'liureng', 'sixyao', 'tongshefa', 'taiyi');
 	}
+	// 🔴 「XX择日」上下文不走主技法分支(否则 taiyi/liureng 等旧快照排在 zeri 专名键前,
+	// 降级路径串台——审查实抓;zeri 专名链在下方 else-if 梯)。互斥判必须写 indexOf('择日')<0,
+	// 勿写 !includes('择日')——preflight [222-229] 用「includes('择日') && !hasPrimarySpecific」
+	// 定位裸「择日」分支行号,!includes 形会被子串穿透误定位(踩过)。
 	if((topInfo.includes('易与三式') || topInfo.includes('其他术数') || topInfo.includes('六爻')
 		|| topInfo.includes('六壬') || topInfo.includes('金口诀') || topInfo.includes('遁甲') || topInfo.includes('太乙')
-		|| topInfo.includes('皇极') || topInfo.includes('五兆') || topInfo.includes('太玄') || topInfo.includes('荆诀') || topInfo.includes('神易')) && !hasPrimarySpecific){
+		|| topInfo.includes('皇极') || topInfo.includes('五兆') || topInfo.includes('太玄') || topInfo.includes('荆诀') || topInfo.includes('神易')) && topInfo.indexOf('择日') < 0 && !hasPrimarySpecific){
 		keys.push('suzhan', 'sixyao', 'jinkou', 'liureng', 'qimen', 'taiyi', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu');
 	}
 	if((topInfo.includes('数算') || topInfo.includes('邵子') || topInfo.includes('铁板') || topInfo.includes('鬼谷') || topInfo.includes('北极') || topInfo.includes('南极') || topInfo.includes('蠢子')) && !hasPrimarySpecific){
@@ -6230,7 +6307,7 @@ function getCandidateExportKeys(context){
 	if(topInfo.includes('策天') && !hasPrimarySpecific){
 		keys.push('cetian');
 	}
-	if((topInfo.includes('八字紫微') || topInfo.includes('八字') || topInfo.includes('紫微')) && !hasPrimarySpecific){
+	if((topInfo.includes('八字紫微') || topInfo.includes('八字') || topInfo.includes('紫微')) && topInfo.indexOf('择日') < 0 && !hasPrimarySpecific){
 		keys.push('bazi', 'ziwei');
 	}
 	if(topInfo.includes('量化盘') && !hasPrimarySpecific){
@@ -6239,8 +6316,24 @@ function getCandidateExportKeys(context){
 	if(topInfo.includes('卜卦') && !hasPrimarySpecific){
 		keys.push('horary');
 	}
-	if(topInfo.includes('奇门择日') && !hasPrimarySpecific){
-		// 「择日」是「天星择日/奇门择日」的子串——两专属分支必须先行,否则 zeri 页上下文被串成辅盘择日盘
+	if(topInfo.includes('黄历择日') && !hasPrimarySpecific){
+		// 「择日」是各子技法名的子串——专属分支必须先行,否则 zeri 页上下文被串成辅盘择日盘
+		keys.push('huanglizeri');
+	}else if(topInfo.includes('八字择日') && !hasPrimarySpecific){
+		keys.push('bazizeri');
+	}else if(topInfo.includes('太乙择日') && !hasPrimarySpecific){
+		keys.push('taiyizeri');
+	}else if(topInfo.includes('紫微择日') && !hasPrimarySpecific){
+		keys.push('ziweizeri');
+	}else if(topInfo.includes('六壬择日') && !hasPrimarySpecific){
+		keys.push('liurengzeri');
+	}else if(topInfo.includes('三式择日') && !hasPrimarySpecific){
+		keys.push('sanshizeri');
+	}else if(topInfo.includes('七政择日') && !hasPrimarySpecific){
+		keys.push('qizhengzeri');
+	}else if(topInfo.includes('印度择日') && !hasPrimarySpecific){
+		keys.push('indiazeri');
+	}else if(topInfo.includes('奇门择日') && !hasPrimarySpecific){
 		keys.push('qimenzeri');
 	}else if(topInfo.includes('天星择日') && !hasPrimarySpecific){
 		keys.push('tianxing');

@@ -4,17 +4,18 @@
 // 差异仅三点:条件注册表=QIMEN_CONDITION_TYPES(本地求值);参数区=奇门 22 参数子集(死开关裁剪:
 // 仅收板面生效项);结果表多「局」列,概览浮窗=DunJiaBoard 迷你盘。
 import { useState, useEffect, useRef } from 'react';
-import { Modal, Dropdown, Menu } from 'antd';
+import { Modal, Dropdown, Menu, message } from 'antd';
 import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import ConditionParamsForm from './ConditionParamsForm';
 import { formatGpsDms } from '../../divination/zeri/tianxingSnapshot';
-import { JOINER_CN } from '../../divination/zeri/conditionTypes';
+import { JOINER_CN, auditTreeAgainstRegistry } from '../../divination/zeri/conditionTypes';
 import {
 	QIMEN_CONDITION_TYPES, newQimenLeaf, newQimenGroup, qimenLeafSummary,
 } from '../../divination/zeri/qimenConditionTypes';
 import { qimenZeriSchemeStore } from '../../divination/zeri/schemeStore';
 import QimenMiniBoardPopup from './QimenMiniBoardPopup';
+import ZeriRowBadge from './ZeriRowBadge';
 import {
 	PAIPAN_OPTIONS, QIJU_METHOD_OPTIONS, SCHOOL_OPTIONS, ZHISHI_OPTIONS, YUEJIA_QIJU_OPTIONS,
 	KONG_MODE_OPTIONS, MA_MODE_OPTIONS, YIXING_OPTIONS, TIME_ALG_OPTIONS, DAY_SWITCH_OPTIONS, ZHIRUN_LEAP_OPTIONS,
@@ -36,6 +37,16 @@ function downloadJson(text, filename){
 
 const Option = XQSelect.Option;
 const OptGroup = XQSelect.OptGroup;
+
+// 类别序:显式优先序+注册表新类别自动追加(W0 基建;原内联硬数组=新类别静默吞)。
+const QIMEN_CATEGORY_ORDER = (()=>{
+	const seen = ['格局', '盘面', '纲要', '四柱'];
+	Object.keys(QIMEN_CONDITION_TYPES).forEach((k)=>{
+		const c = QIMEN_CONDITION_TYPES[k].category;
+		if(c && !seen.includes(c)){ seen.push(c); }
+	});
+	return seen;
+})();
 
 const JOINER_OPTIONS = [
 	{ value: 'all', label: '且 AND' },
@@ -137,7 +148,7 @@ function dateStrOf(d){ return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pa
 
 export default function QimenZeriWorkbench({
 	open, onClose, cfg, onCfgChange, geo, onGeoChange, options, onOptionsChange, onReloadFromBoard,
-	tree, onTreeChange, onRun, onCancelScan, onPickInterval, onExplain, previewCtx, scanEpoch, resultsStale,
+	tree, frozenTree, onTreeChange, onRun, onCancelScan, onPickInterval, onExplain, previewCtx, scanEpoch, resultsStale,
 	scanning, progress, results, truncated, scanErr,
 }){
 	const [draftType, setDraftType] = useState('pattern_ji');
@@ -203,6 +214,13 @@ export default function QimenZeriWorkbench({
 	};
 
 	const applyScheme = (rec) => {
+	// [F7 根修] 载入前审计值域:方案里的条件类/选项值可能已随版本演进被删——
+	// 那类行会静默恒不命中(needValues 只拦空、compile 不查值域、evaluate includes 恒 false)。
+	// 审计只提示不拦载入:用户看得见哪些行失效,自行改设;静默才是事故。
+	const __schemeIssues = (rec && rec.tree) ? auditTreeAgainstRegistry(rec.tree, QIMEN_CONDITION_TYPES) : [];
+	if(__schemeIssues.length){
+		message.warning(`方案「${rec && rec.name ? rec.name : ''}」有 ${__schemeIssues.length} 处已失效设置:${__schemeIssues.slice(0, 2).join(';')}${__schemeIssues.length > 2 ? ';…' : ''}`, 8);
+	}
 		if(rec && rec.tree){ onTreeChange(rec.tree); }
 		if(rec && rec.config){
 			if(rec.config.cfg){ onCfgChange({ ...cfg, ...rec.config.cfg }); }
@@ -365,7 +383,7 @@ export default function QimenZeriWorkbench({
 		: (geo && geo.gpsLat !== undefined && geo.gpsLat !== null ? `📍 ${formatGpsDms(geo.gpsLon, geo.gpsLat)}` : '选择地点…');
 
 	const editView = (
-		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 620 }}>
+		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 'clamp(560px, calc(100vh - 220px), 900px)' }}>
 			{/* 左列(主操作区,加宽):时间范围·地点·参数 / 构造条件 / 连接门 / 动作排 */}
 			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
 				<div style={{ padding: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
@@ -382,10 +400,12 @@ export default function QimenZeriWorkbench({
 						<input type="time" className="horosa-native-date" style={{ width: 86 }} value={cfg.endTime}
 							onChange={(e) => onCfgChange({ ...cfg, endTime: e.target.value })} />
 						{/* 快捷档整簇右贴边:与下行「编辑参数」右缘对齐(用户圈报右侧参差) */}
-						<span style={{ flex: 1 }} />
-						{[['今日', 1], ['3天', 3], ['7天', 7], ['30天', 30]].map(([label, days]) => (
-							<XQButton key={label} size="small" onClick={() => applyPreset(days)}>{label}</XQButton>
-						))}
+						{/* 预设钮组:整组 nowrap+marginLeft:auto——flex:1 占位与 wrap 互斥(占位吃掉行尾宽把单钮挤成孤行,用户圈报) */}
+						<span style={{ display: 'inline-flex', gap: 6, marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+							{[['今日', 1], ['3天', 3], ['7天', 7], ['30天', 30]].map(([label, days]) => (
+								<XQButton key={label} size="small" onClick={() => applyPreset(days)}>{label}</XQButton>
+							))}
+						</span>
 					</div>
 					{/* 行2:地点(度分+方位) + 时区 + 从主盘重载 | 编辑参数 */}
 					<div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -414,7 +434,7 @@ export default function QimenZeriWorkbench({
 						<XQSelect size="small" style={{ minWidth: 150 }} value={draftType}
 							onChange={(v) => resetDraft(v)} dropdownMatchSelectWidth={false}
 							getPopupContainer={(t) => t.closest('.ant-modal-body') || t.parentElement}>
-							{['格局', '盘面', '纲要', '四柱'].map((cat) => (
+							{QIMEN_CATEGORY_ORDER.map((cat) => (
 								<OptGroup label={cat} key={cat}>
 									{Object.entries(QIMEN_CONDITION_TYPES).filter(([, spec]) => spec.category === cat).map(([key, spec]) => (
 										<Option key={key} value={key}>{spec.label}</Option>
@@ -482,7 +502,7 @@ export default function QimenZeriWorkbench({
 	);
 
 	const resultView = (
-		<div style={{ height: 620, display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => setView('edit')} disabled={scanning}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>找局结果</span>
@@ -511,6 +531,7 @@ export default function QimenZeriWorkbench({
 					<span style={{ width: 64, textAlign: 'right' }}>时长</span>
 					<span style={{ width: 118, textAlign: 'center' }}>局</span>
 					<span style={{ width: 64, textAlign: 'center' }}>详情</span>
+					<span style={{ width: 52 }}>盘</span>{/* 行内多「盘」列,表头必须等宽占位——缺列致两 flex 列压窄整行左移(用户实报错位) */}
 					<span style={{ width: 52, textAlign: 'center' }}>概览</span>
 				</div>
 				{(!results || !results.length) && !scanning ? (
@@ -528,7 +549,7 @@ export default function QimenZeriWorkbench({
 								{row.durationMin >= 90 ? `${(row.durationMin / 60).toFixed(1)}小时` : `${Math.round(row.durationMin)}分`}
 							</span>
 							<span style={{ width: 118, textAlign: 'center', fontSize: 12 }}>
-								<span style={{ padding: '1px 8px', borderRadius: 10, background: 'rgba(212,175,55,.12)', border: '1px solid rgba(212,175,55,.35)' }}>{row.juText || '—'}</span>
+								<ZeriRowBadge text={row.juText} />
 							</span>
 							<span style={{ width: 64, textAlign: 'center' }}>
 								<XQButton size="small" onClick={() => {
@@ -558,7 +579,7 @@ export default function QimenZeriWorkbench({
 								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).loading ? <div style={{ fontSize: 12, opacity: 0.6 }}>判读中…</div> : null}
 								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).err ? <div style={{ fontSize: 12, color: '#e5484d' }}>{explainMap[`${scanEpoch || 0}:${i}`].err}</div> : null}
 								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).tree
-									? renderExplainNode(explainMap[`${scanEpoch || 0}:${i}`].tree, collectUiLeaves(tree, []), { i: 0 }, 0)
+									? renderExplainNode(explainMap[`${scanEpoch || 0}:${i}`].tree, collectUiLeaves(frozenTree || tree, []), { i: 0 }, 0)
 									: null}
 							</div>
 						) : null}
@@ -582,7 +603,7 @@ export default function QimenZeriWorkbench({
 	};
 
 	const schemesView = (
-		<div style={{ height: 620, display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => { setView('edit'); setSchemeMsg(''); }}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>方案管理</span>
@@ -650,9 +671,13 @@ export default function QimenZeriWorkbench({
 				</div>
 			)}
 			open={open}
+			wrapClassName="horosa-zeri-workbench-modal"
+			getContainer={false}	/* 🔴 原地渲染(勿挂 body portal):工作台开着切走子页时,FreezeInactive 冻结组件树
+				但 body portal 的 Modal 漏在外面——X 点击的 setState 发生在冻结树里不重渲染,Modal 永远
+				关不掉(用户「无法返回」真相之二,真机三 Modal 叠加实抓);原地渲染随页冻结一起隐藏。 */
 			onCancel={onClose}
 			footer={null}
-			width={1180}
+			width={1400}
 			centered
 			destroyOnClose={false}
 			maskClosable={false}

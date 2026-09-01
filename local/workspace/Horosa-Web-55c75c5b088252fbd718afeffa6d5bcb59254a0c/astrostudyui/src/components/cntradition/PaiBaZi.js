@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import React, { Component } from 'react';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Row, Col, Divider } from 'antd';
 import { XQButton as Button } from '../xq-ui';

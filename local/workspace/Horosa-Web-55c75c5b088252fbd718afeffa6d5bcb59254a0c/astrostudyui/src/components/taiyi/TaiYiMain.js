@@ -17,6 +17,7 @@ import { resolveGeoZone } from '../../utils/timezone';
 import XQIcon from '../xq-icons';
 import { computeTaiyiShuli, shuliTone } from './core/taiyiShuli';
 import { computeGeju } from './core/taiyiGeju';
+import TaiyiBoardSvg, { TAIYI_FONT } from './TaiyiBoardSvg';
 import { computeVictory, computeFenye, computeShenSuan, computeTaisuiAlias, TAIYI_GONG_INFO, activeDoorJixiong, computeEhui, shenMeaning, computeSanyuan, computeLimitYun, computeShiJing, computeWuziyuan, computeHeShen } from './core/taiyiDuanfa';
 import { computeTaiyiNayin } from './core/taiyiNayin';
 import { applyTaiyiSchool, DEFAULT_TAIYI_SCHOOL, TAIYI_SCHOOL_OPTIONS, normalizeTaiyiSchool, dunOfKook } from './core/taiyiSchool';
@@ -41,15 +42,11 @@ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 
 const { Option } = Select;
 const { TabPane } = Tabs;
-const LAYER2_NUMS = ['二', '七', '六', '一', '八', '三', '四', '九'];
-const LAYER3_BRANCH_GUA = ['午', '未', '坤', '申', '酉', '戌', '乾', '亥', '子', '丑', '艮', '寅', '卯', '辰', '巽', '巳'];
 // 按 12地支+4卦固定分野（从午位开始顺时针）
 // 午大威，子地主
 // 🔴 索引 1–7 曾整体错位一位(「大义」被塞到未位,把天道…阴德逐格挤下,亥位丢「大义」);
 // 标准序=单一真值表(地主子/阳德丑/和德艮/吕申寅/高丛卯/太阳辰/大炅巽/大神巳/大威午/
 // 天道未/大武坤/武德申/太簇酉/阴主戌/阴德乾/大义亥),按 LAYER3 支序(自午起)排列。
-const LAYER4_FIXED = ['大威', '天道', '大武', '武德', '太簇', '阴主', '阴德', '大义', '地主', '阳德', '和德', '吕申', '高丛', '太阳', '大炅', '大神'];
-const TAIYI_FONT = '"SimHei", "Heiti SC", "Microsoft YaHei", sans-serif';
 const PRECISE_NONGLI_TIMEOUT_MS = 3500;
 
 function withTimeout(promise, timeoutMs) {
@@ -86,7 +83,6 @@ function buildTaiYiNongliParamsPure(flds, options) {
 // after23NewDay 取 defaultAfter23NewDay() —— 与组件构造时 state.options 的初值同一口径,
 // 故 key/body 与用户首点逐字节一致。
 // 🔴 绝不预热 /taiyi/pan:它吃 stage-1 结果 + 组件态(积年/流派),提前构不出同键。
-// silent(fetchPreciseNongli 内置)、丢结果、绝不 dispatch/setState;失败静默。
 export async function warmTaiYiStage1(fields) {
 	try {
 		if (!fields || !fields.date || !fields.date.value || !fields.date.value.format) {
@@ -344,16 +340,21 @@ class TaiYiMain extends Component {
 	// 此前缺此监听 → 显示有盘却报「当前页面没有可导出文本」,Win 用户实测)。
 	handleSnapshotRefreshRequest(evt){
 		const moduleName = evt && evt.detail ? evt.detail.module : '';
-		if(moduleName !== 'taiyi'){
+		if(moduleName !== (this.props.techniqueScope || 'taiyi')){
 			return;
 		}
 		const pan = this.state ? this.state.pan : null;
 		if(!pan){
 			return;
 		}
-		const snapshotText = `${buildTaiyiSnapshotText(pan) || ''}`.trim();
+		let snapshotText = `${buildTaiyiSnapshotText(pan) || ''}`.trim();
+		// 🔴 择日宿主 compose 必须包在**每条**产出路径上(refresh 直答优先级最高——曾唯独
+		// 此路漏包:择日页导出/挂载拿到裸太乙文本,择时三段永不出现且覆写完整快照,审查实抓)
+		if(snapshotText && typeof this.props.composeAiSnapshot === 'function'){
+			try{ snapshotText = `${this.props.composeAiSnapshot(snapshotText) || snapshotText}`; }catch(e){ /* 保底裸文本 */ }
+		}
 		if(snapshotText){
-			saveModuleAISnapshot('taiyi', snapshotText);
+			saveModuleAISnapshot(this.props.techniqueScope || 'taiyi', snapshotText);
 			if(evt && evt.detail && typeof evt.detail === 'object'){
 				evt.detail.snapshotText = snapshotText;
 			}
@@ -580,7 +581,14 @@ class TaiYiMain extends Component {
 			// 故本次 setState 落定 = 中栏+右栏画完。双 rAF 由 markPanelReady 内部完成。
 			markPanelReady('taiyi');
 			if (displayPan) {
-				saveModuleAISnapshotLazy('taiyi', ()=>buildTaiyiSnapshotText(displayPan));
+				// [Z3·太乙择日] 加性 scope 化(奇门/黄历/八字同律):择日页内嵌实例走独立快照槽+composer。
+				saveModuleAISnapshotLazy(this.props.techniqueScope || 'taiyi', ()=>{
+					const base = buildTaiyiSnapshotText(displayPan);
+					if(typeof this.props.composeAiSnapshot === 'function'){
+						try{ return `${this.props.composeAiSnapshot(base) || base}`; }catch(e){ return base; }
+					}
+					return base;
+				});
 			}
 		});
 	}
@@ -643,7 +651,9 @@ class TaiYiMain extends Component {
 	}
 
 	restoreFromCurrentCase(force) {
-		const saved = getKentangSavedCasePayload('taiyi');
+		// 🔴 按本实例 scope 取事盘(曾硬编码 'taiyi':择日宿主实例也吃主太乙事盘——初始盘
+		// 被劫持+事盘快照冲进 'taiyizeri' 槽,审查实抓;DunJiaMain scope 判同律)
+		const saved = getKentangSavedCasePayload(this.props.techniqueScope || 'taiyi');
 		if (!saved || !saved.payload) {
 			return false;
 		}
@@ -666,7 +676,13 @@ class TaiYiMain extends Component {
 		}, () => {
 			if (this.state.pan) {
 				const pan = this.state.pan;
-				saveModuleAISnapshotLazy('taiyi', ()=>buildTaiyiSnapshotText(pan));
+				saveModuleAISnapshotLazy(this.props.techniqueScope || 'taiyi', ()=>{
+					const base = buildTaiyiSnapshotText(pan);
+					if(typeof this.props.composeAiSnapshot === 'function'){
+						try{ return `${this.props.composeAiSnapshot(base) || base}`; }catch(e){ return base; }
+					}
+					return base;
+				});
 			}
 		});
 		return true;
@@ -781,390 +797,16 @@ class TaiYiMain extends Component {
 	}
 
 	renderLeft() {
-		const pan = this.state.pan;
-		if (!pan) {
-			return <div className="horosa-taiyi-empty horosa-taiyi-board-empty">暂无太乙盘数据</div>;
-		}
-		const width = 860;
-		const height = 720;
-		const centerX = 430;
-		const centerY = 360;
-		const r0 = 78;
-		const r1 = 124;
-		const r2 = 172;
-		const r3 = 222;
-		const r4 = 304;
-		const stroke = 'var(--horosa-border-strong, #111)';
-		const textColor = 'var(--horosa-text, #111)';
-		const textWeight = '500';
-			const palaceInfo = {};
-			(pan.palaces || []).forEach((p) => {
-				palaceInfo[p.palace] = p.items || [];
-			});
-			const layer5 = LAYER3_BRANCH_GUA.map((p) => (palaceInfo[p] ? palaceInfo[p].slice(0) : []));
-			const pillars = pan && pan.ganzhi ? pan.ganzhi : {};
-			const panOptions = pan && pan.options ? pan.options : {};
-			const topLeftInfo = [
-				`农历：${pan.lunarText || '—'}`,
-				`直接时间：${pan.clockTime || '—'}　真太阳时：${pan.realSunTime || '—'}`,
-				`年柱：${pillars.year || '—'}　月柱：${pillars.month || '—'}`,
-				`日柱：${pillars.day || '—'}　时柱：${pillars.time || '—'}`,
-				`节气：${pan.jiedelta || '—'}`,
-				`计法：${panOptions.styleLabel || '—'}　古法：${panOptions.methodLabel || panOptions.accumLabel || '—'}`,
-				`年号：${pan.reignYear || this.getSectionValue('年號')}`,
-				`纪元：${pan.calendarEra || pan.jiyuan || this.getSectionValue('紀元')}`,
-			];
-			const topMetaX = 14;
-			const topMetaY = 4;
-			const topMetaLineHeight = 17;
-			const topMetaFontSize = 13;
-			const bottomRightInfo = [
-				`积数:${pan.accNum}`,
-				`命式:${pan.zhao}`,
-				`局:${pan.kook ? pan.kook.text : ''}`,
-				`定算:${pan.setCal}`,
-				`主算:${pan.homeCal}`,
-			`客算:${pan.awayCal}`,
-			`太乙数:${pan.taiyiNum}`,
-		];
-		// 顶部「农历」行裁切·结构性根治(2026-06-12,用户三度实告):
-		// 历史上这里给 svg 加过「按实测可视盒算的显式像素 width/height」想兜底遮挡,但那恰恰是裁切之源——
-		// 测量在 flex 布局/窗口缩放下易过期偏大,svg 元素遂超出 wrap,而 wrap align-items:center 居中 +
-		// overflow:hidden → 顶部(农历行)被切。彻底删除内联像素覆盖:svg 只靠 viewBox + preserveAspectRatio
-		// 'xMidYMid meet' + CSS width/height:100%。meet 的定义即「整个 viewBox 等比缩放至完全装入视口」,
-		// svg 元素 == 容器尺寸(100%)永不溢出 → 数学上不可能裁切,宽高比不符时四周留白居中。无需任何 JS 测量。
-		const boardSvgStyle = { background: 'transparent', textRendering: 'geometricPrecision' };
-		// 第二道硬保险:viewBox 顶部留 24 单位 padding(底部 8)。农历行画在 y=4,几乎贴 viewBox 顶 →
-		// meet 缩放后顶部 padding 被压成 ~1px,矮窗下随时可能被亚像素/字体上沿吃掉。把 viewBox 上沿
-		// 抬到 -24,农历行上方恒有 28 单位空白,任何缩放比下都映射成肉眼可见的安全余量,绝不贴顶。
-		const VB_PAD_TOP = 24;
-		const VB_PAD_BOTTOM = 8;
-		const boardViewBox = `0 ${-VB_PAD_TOP} ${width} ${height + VB_PAD_TOP + VB_PAD_BOTTOM}`;
+		// 盘面绘制单源迁至 TaiyiBoardSvg(择日概览共享);此壳只装配实例态,JSX 与迁出前逐节点等价。
 		return (
-			<div className="horosa-taiyi-board-canvas" ref={this.boardHostRef}>
-					<div className="horosa-taiyi-board-svg-wrap">
-						<svg
-							className="horosa-taiyi-board-svg"
-							viewBox={boardViewBox}
-							preserveAspectRatio="xMidYMid meet"
-							style={boardSvgStyle}
-						>
-							<circle cx={centerX} cy={centerY} r={r0} fill="none" stroke={stroke} strokeWidth="2.5" />
-							<circle cx={centerX} cy={centerY} r={r1} fill="none" stroke={stroke} strokeWidth="2" />
-							<circle cx={centerX} cy={centerY} r={r2} fill="none" stroke={stroke} strokeWidth="2" />
-							<circle cx={centerX} cy={centerY} r={r3} fill="none" stroke={stroke} strokeWidth="2" />
-							<circle cx={centerX} cy={centerY} r={r4} fill="none" stroke={stroke} strokeWidth="2.5" />
-
-								<text
-									x={topMetaX}
-									y={topMetaY}
-									textAnchor="start"
-									dominantBaseline="hanging"
-									fill={textColor}
-									stroke="none"
-									fontSize={topMetaFontSize}
-									fontWeight={textWeight}
-									fontFamily={TAIYI_FONT}
-								>
-									{topLeftInfo.map((line, lineIdx) => (
-										<tspan key={`ty_meta_${lineIdx}`} x={topMetaX} dy={lineIdx === 0 ? 0 : topMetaLineHeight}>
-											{line}
-										</tspan>
-									))}
-								</text>
-								<text
-									x={width - 20}
-									y={height - 20 - ((bottomRightInfo.length - 1) * 20)}
-									textAnchor="end"
-									dominantBaseline="hanging"
-									fill={textColor}
-									stroke="none"
-									fontSize="15"
-									fontWeight={textWeight}
-									fontFamily={TAIYI_FONT}
-								>
-									{bottomRightInfo.map((line, lineIdx) => (
-										<tspan key={`ty_meta_bottom_${lineIdx}`} x={width - 20} dy={lineIdx === 0 ? 0 : 20}>
-											{line}
-										</tspan>
-									))}
-								</text>
-
-							{LAYER2_NUMS.map((_, idx) => {
-								const angle = -112.5 + idx * 45;
-								const p1 = this.polarPoint(centerX, centerY, r0, angle);
-								const p2 = this.polarPoint(centerX, centerY, r1, angle);
-								return (
-									<line
-										key={`l2_line_${idx}`}
-										x1={p1.x}
-										y1={p1.y}
-										x2={p2.x}
-										y2={p2.y}
-										stroke={stroke}
-										strokeWidth="1.8"
-									/>
-								);
-							})}
-
-							{LAYER3_BRANCH_GUA.map((_, idx) => {
-								const angle = -101.25 + idx * 22.5;
-								const p1 = this.polarPoint(centerX, centerY, r1, angle);
-								const p2 = this.polarPoint(centerX, centerY, r4, angle);
-								return (
-									<line
-										key={`l345_line_${idx}`}
-										x1={p1.x}
-										y1={p1.y}
-										x2={p2.x}
-										y2={p2.y}
-										stroke={stroke}
-										strokeWidth="1.5"
-									/>
-								);
-							})}
-
-								<text
-									x={centerX}
-									y={centerY - 12}
-									textAnchor="middle"
-									dominantBaseline="middle"
-									fill={textColor}
-									stroke="none"
-									fontSize="48"
-									fontWeight={textWeight}
-									fontFamily={TAIYI_FONT}
-								>
-									五
-							</text>
-								<text
-									x={centerX}
-									y={centerY + 30}
-									textAnchor="middle"
-									dominantBaseline="middle"
-									fill={textColor}
-									stroke="none"
-									fontSize="34"
-									fontWeight={textWeight}
-									fontFamily={TAIYI_FONT}
-								>
-									中宫
-							</text>
-
-							{LAYER2_NUMS.map((txt, idx) => {
-								const angle = -90 + idx * 45;
-								const p = this.polarPoint(centerX, centerY, (r0 + r1) / 2, angle);
-								return (
-									<text
-										key={`l2_txt_${txt}_${idx}`}
-										x={p.x}
-										y={p.y}
-										textAnchor="middle"
-											dominantBaseline="middle"
-											fill={textColor}
-											stroke="none"
-											fontSize="36"
-											fontWeight={textWeight}
-											fontFamily={TAIYI_FONT}
-										>
-											{txt}
-									</text>
-								);
-							})}
-
-							{LAYER3_BRANCH_GUA.map((txt, idx) => {
-								const angle = -90 + idx * 22.5;
-								const p = this.polarPoint(centerX, centerY, (r1 + r2) / 2, angle);
-								return (
-									<text
-										key={`l3_txt_${txt}_${idx}`}
-										x={p.x}
-										y={p.y}
-										textAnchor="middle"
-											dominantBaseline="middle"
-											fill={textColor}
-											stroke="none"
-											fontSize="34"
-											fontWeight={textWeight}
-											fontFamily={TAIYI_FONT}
-										>
-											{txt}
-									</text>
-								);
-							})}
-
-							{LAYER4_FIXED.map((txt, idx) => {
-								const angle = -90 + idx * 22.5;
-								const p = this.polarPoint(centerX, centerY, (r2 + r3) / 2, angle);
-								return (
-									<text
-										key={`l4_txt_${txt}_${idx}`}
-										x={p.x}
-										y={p.y}
-										textAnchor="middle"
-											dominantBaseline="middle"
-											fill={textColor}
-											stroke="none"
-											fontSize="23"
-											fontWeight={textWeight}
-											fontFamily={TAIYI_FONT}
-										>
-											{txt}
-									</text>
-								);
-							})}
-
-							{layer5.map((lines, idx) => {
-								const angle = -90 + idx * 22.5;
-								const p = this.polarPoint(centerX, centerY, (r3 + r4) / 2, angle);
-								const merged = (lines || []).filter(Boolean).slice(0, 3);
-								const fontSize = merged.length >= 3 ? 14 : (merged.length === 2 ? 15 : 16);
-								const lineHeight = merged.length >= 3 ? 16 : 17;
-								const firstDy = -((merged.length - 1) * lineHeight) / 2;
-								if (!merged.length) {
-									return null;
-								}
-								return (
-									<text
-										key={`l5_txt_${idx}`}
-										x={p.x}
-										y={p.y}
-										textAnchor="middle"
-											dominantBaseline="middle"
-											fill={textColor}
-											stroke="none"
-											fontSize={fontSize}
-											fontWeight={textWeight}
-											fontFamily={TAIYI_FONT}
-										>
-										{merged.map((ln, lnIdx) => (
-											<tspan key={`l5_tspan_${idx}_${lnIdx}`} x={p.x} dy={lnIdx === 0 ? firstDy : lineHeight}>
-												{ln}
-											</tspan>
-										))}
-									</text>
-								);
-							})}
-
-							{/* P0-7 盘面增强(由「盘面标注」开关控制):太乙落宫高亮 + 八正宫分野(门·州·绝气) + 文昌/始击主客配色 + 中宫注 */}
-							{pan && this.state.options.showBoardMark && (() => {
-								const ZHENG_ANGLE = { 午: -90, 坤: -45, 酉: 0, 乾: 45, 子: 90, 艮: 135, 卯: 180, 巽: 225 };
-								const ZHENG_NUM = { 午: 2, 坤: 7, 酉: 6, 乾: 1, 子: 8, 艮: 3, 卯: 4, 巽: 9 };
-								const ringAngle = (ps) => { const i = LAYER3_BRANCH_GUA.indexOf(ps); return i < 0 ? null : -90 + i * 22.5; };
-								const els = [];
-								// 正宫落点→绝气(分野底染色)。淡填八正宫扇区,气象一目了然(最底层,opacity 极低不压盘)。
-								const QI_FILL = { 绝阳: 'var(--horosa-danger, #c0563a)', 绝阴: 'var(--horosa-info, #4a7fb5)', 绝气: 'var(--horosa-text-muted, #8a8a8a)', 易气: 'var(--horosa-accent, #d7ad69)', 和: 'var(--horosa-ok, #5a9367)' };
-								const sectorPath = (ang) => {
-									const a0 = ang - 11.25, a1 = ang + 11.25;
-									const s1 = this.polarPoint(centerX, centerY, r1, a0), s2 = this.polarPoint(centerX, centerY, r4, a0);
-									const s3 = this.polarPoint(centerX, centerY, r4, a1), s4 = this.polarPoint(centerX, centerY, r1, a1);
-									return `M${s1.x},${s1.y} L${s2.x},${s2.y} A${r4},${r4} 0 0 1 ${s3.x},${s3.y} L${s4.x},${s4.y} A${r1},${r1} 0 0 0 ${s1.x},${s1.y} Z`;
-								};
-								Object.keys(ZHENG_ANGLE).forEach((ps) => {
-									const info = TAIYI_GONG_INFO[ZHENG_NUM[ps]];
-									const col = info && QI_FILL[info.qi];
-									if (col) { els.push(<path key={`ty-qi-${ps}`} d={sectorPath(ZHENG_ANGLE[ps])} fill={col} fillOpacity="0.05" stroke="none" />); }
-								});
-								// 主客配色微染:主方(文昌+主大将正宫)金、客方(始击+客大将)蓝(叠在分野底染之上,opacity 低)。
-								const tintSector = (ps, color, key) => { const ang = ringAngle(ps); if (ang === null) { return; } els.push(<path key={key} d={sectorPath(ang)} fill={color} fillOpacity="0.08" stroke="none" />); };
-								tintSector(pan.skyeyes, 'var(--horosa-accent, #d7ad69)', 'tint-wc');
-								tintSector(pan.homeGeneralPalace, 'var(--horosa-accent, #d7ad69)', 'tint-hg');
-								tintSector(pan.sf, 'var(--horosa-info, #4a7fb5)', 'tint-sj');
-								tintSector(pan.awayGeneralPalace, 'var(--horosa-info, #4a7fb5)', 'tint-ag');
-								const tA = ZHENG_ANGLE[pan.taiyiPalace];
-								if (tA !== undefined) {
-									const a0 = tA - 11.25, a1 = tA + 11.25;
-									const q1 = this.polarPoint(centerX, centerY, r1, a0), q2 = this.polarPoint(centerX, centerY, r4, a0);
-									const q3 = this.polarPoint(centerX, centerY, r4, a1), q4 = this.polarPoint(centerX, centerY, r1, a1);
-									els.push(<path key="ty-hl" d={`M${q1.x},${q1.y} L${q2.x},${q2.y} A${r4},${r4} 0 0 1 ${q3.x},${q3.y} L${q4.x},${q4.y} A${r1},${r1} 0 0 0 ${q1.x},${q1.y} Z`} fill="var(--horosa-accent, #d7ad69)" fillOpacity="0.14" stroke="var(--horosa-accent, #d7ad69)" strokeWidth="1.5" />);
-								}
-								Object.keys(ZHENG_ANGLE).forEach((ps) => {
-									const info = TAIYI_GONG_INFO[ZHENG_NUM[ps]];
-									if (!info) { return; }
-									const fyAng = ZHENG_ANGLE[ps];
-									const pp = this.polarPoint(centerX, centerY, r4 + 18, fyAng);
-									const fyCos = Math.cos(fyAng * Math.PI / 180);
-									const fyAnchor = fyCos > 0.35 ? 'start' : (fyCos < -0.35 ? 'end' : 'middle');
-									els.push(<text key={`ty-fy-${ps}`} x={pp.x} y={pp.y} textAnchor={fyAnchor} dominantBaseline="middle" fill="var(--horosa-text-muted, #8a8a8a)" stroke="none" fontSize="11" fontFamily={TAIYI_FONT}>{`${info.men}·${info.zhou}·${info.qi}`}</text>);
-								});
-								// 目/将 markers:四目(昌/击/计/定)内环 r4+40、主客大将外环 r4+62,分环避重叠;r=8 小圆+白字。
-								const mark = (ps, color, lb, key, rad) => {
-									const ang = ringAngle(ps); if (ang === null) { return; }
-									const pp = this.polarPoint(centerX, centerY, rad, ang);
-									els.push(<circle key={`ty-mk-${key}`} cx={pp.x} cy={pp.y} r="8" fill={color} />);
-									els.push(<text key={`ty-mkt-${key}`} x={pp.x} y={pp.y} textAnchor="middle" dominantBaseline="middle" fill="#fff" stroke="none" fontSize="10.5" fontFamily={TAIYI_FONT}>{lb}</text>);
-								};
-								mark(pan.skyeyes, 'var(--horosa-accent, #d7ad69)', '昌', 'wc', r4 + 40);
-								mark(pan.sf, 'var(--horosa-info, #4a7fb5)', '击', 'sj', r4 + 40);
-								mark(pan.jigod, 'var(--horosa-text-muted, #8a8a8a)', '计', 'js', r4 + 40);   // 计神(中性)
-								mark(pan.se, 'var(--horosa-text-soft, #6c6c6c)', '定', 'dm', r4 + 40);       // 定目(次要)
-								mark(pan.homeGeneralPalace, 'var(--horosa-accent, #d7ad69)', '主', 'hg', r4 + 62);   // 主大将(金·外环)
-								mark(pan.awayGeneralPalace, 'var(--horosa-info, #4a7fb5)', '客', 'ag', r4 + 62);     // 客大将(蓝·外环)
-								// P1-5 格局连线:太乙↔文昌/始击/主客大将,凶色虚线(掩=同宫描圈,对=长虚线,击=大将连线);「关」为数理关系无落点、不连线。
-								const POS_OF = { 太乙: pan.taiyiPalace, 文昌: pan.skyeyes, 始击: pan.sf, 主大将: pan.homeGeneralPalace, 客大将: pan.awayGeneralPalace };
-								const boardAngle = (ps) => { const i = LAYER3_BRANCH_GUA.indexOf(ps); return i < 0 ? null : -90 + i * 22.5; };
-								this.gejuOf(pan).forEach((g, gi) => {
-									const fp = POS_OF[g.from], tp = POS_OF[g.to];
-									const fa = boardAngle(fp), ta = boardAngle(tp);
-									if (fp == null || tp == null || fa === null || ta === null) { return; }
-									const rr = (r1 + r2) / 2;
-									if (fp === tp) {
-										const c = this.polarPoint(centerX, centerY, rr, fa);
-										els.push(<circle key={`gj-${gi}`} cx={c.x} cy={c.y} r="28" fill="none" stroke="var(--horosa-danger, #c0563a)" strokeWidth="2" strokeDasharray="4 3" />);
-									} else {
-										const a = this.polarPoint(centerX, centerY, rr, fa), b = this.polarPoint(centerX, centerY, rr, ta);
-										els.push(<line key={`gj-${gi}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="var(--horosa-danger, #c0563a)" strokeWidth="2" strokeDasharray={g.kind === 'dui' ? '9 5' : '4 3'} />);
-									}
-								});
-								els.push(<text key="ty-zz" x={centerX} y={centerY + 56} textAnchor="middle" dominantBaseline="middle" fill="var(--horosa-text-muted, #8a8a8a)" stroke="none" fontSize="13" fontFamily={TAIYI_FONT}>考治不居</text>);
-								// 图例(右下角):昌/击/计/定/主/客 markers 释义 + 分野气色。停放 viewBox 右下空白,不压盘面。
-								const LEGEND = [['昌', 'var(--horosa-accent, #d7ad69)', '文昌'], ['击', 'var(--horosa-info, #4a7fb5)', '始击'], ['计', 'var(--horosa-text-muted, #8a8a8a)', '计神'], ['定', 'var(--horosa-text-soft, #6c6c6c)', '定目'], ['主', 'var(--horosa-accent, #d7ad69)', '主大将'], ['客', 'var(--horosa-info, #4a7fb5)', '客大将']];
-								const lgX = width - 96, lgY0 = 44;
-								LEGEND.forEach(([lb, col, desc], li) => {
-									const ly = lgY0 + li * 20;
-									els.push(<circle key={`lg-c-${li}`} cx={lgX} cy={ly} r="7" fill={col} />);
-									els.push(<text key={`lg-l-${li}`} x={lgX} y={ly} textAnchor="middle" dominantBaseline="middle" fill="#fff" stroke="none" fontSize="9.5" fontFamily={TAIYI_FONT}>{lb}</text>);
-									els.push(<text key={`lg-d-${li}`} x={lgX + 13} y={ly} dominantBaseline="middle" fill="var(--horosa-text-muted, #8a8a8a)" stroke="none" fontSize="11" fontFamily={TAIYI_FONT}>{desc}</text>);
-								});
-								return els;
-							})()}
-
-							{/* P1-5 宫位点击(由「盘面标注」开关控制):16 透明命中扇区 + 信息面板(驻神/正间/门州气/格局/主事) */}
-							{pan && this.state.options.showBoardMark && (() => {
-								const els = [];
-								const ZN = { 午: 2, 坤: 7, 酉: 6, 乾: 1, 子: 8, 艮: 3, 卯: 4, 巽: 9 };
-								const POS = { 太乙: pan.taiyiPalace, 文昌: pan.skyeyes, 始击: pan.sf, 主大将: pan.homeGeneralPalace, 客大将: pan.awayGeneralPalace, 计神: pan.jigod, 定目: pan.se };
-								const sel = this.state.selectedPalace;
-								for (let idx = 0; idx < 16; idx++) {
-									const a0 = -90 + idx * 22.5 - 11.25, a1 = -90 + idx * 22.5 + 11.25;
-									const q1 = this.polarPoint(centerX, centerY, r1, a0), q2 = this.polarPoint(centerX, centerY, r4, a0);
-									const q3 = this.polarPoint(centerX, centerY, r4, a1), q4 = this.polarPoint(centerX, centerY, r1, a1);
-									const on = sel === idx;
-									els.push(<path key={`hit-${idx}`} d={`M${q1.x},${q1.y} L${q2.x},${q2.y} A${r4},${r4} 0 0 1 ${q3.x},${q3.y} L${q4.x},${q4.y} A${r1},${r1} 0 0 0 ${q1.x},${q1.y} Z`} fill={on ? 'var(--horosa-accent, #d7ad69)' : '#ffffff'} fillOpacity={on ? 0.12 : 0} stroke={on ? 'var(--horosa-accent, #d7ad69)' : 'none'} strokeWidth="1.5" style={{ cursor: 'pointer' }} onClick={() => this.setState({ selectedPalace: on ? null : idx })} />);
-								}
-								if (sel !== null && sel >= 0) {
-									const lp = LAYER3_BRANCH_GUA[sel], shen = LAYER4_FIXED[sel], isZ = sel % 2 === 0;
-									const info = isZ ? TAIYI_GONG_INFO[ZN[lp]] : null;
-									const zhu = (layer5[sel] || []).filter(Boolean);
-									const gj = this.gejuOf(pan).filter((g) => POS[g.from] === lp || POS[g.to] === lp);
-									const roles = Object.keys(POS).filter((k) => POS[k] === lp);
-									const ln = [`${lp}·${shen}（${isZ ? '正宫' : '间神'}）${roles.length ? '  ←' + roles.join('/') : ''}`];
-									const sm = shenMeaning(lp);
-									if (sm) { ln.push(`主事:${sm}`); }
-									if (info) { ln.push(`${ZN[lp]}${info.gua}·${info.men}·${info.zhou}·${info.qi}`); }
-									if (zhu.length) { ln.push(`驻神:${zhu.join('、').slice(0, 22)}`); }
-									if (gj.length) { ln.push(`格局:${gj.map((g) => g.name).join('、')}`); }
-									// 弹窗锚到 viewBox 最底空白条(原 by=height-24-bh 偏上、压住盘面下半);下移到底部并贴左下角,
-									// 圆盘在 860×720 里两侧/底部留白处停放,最大化减少对盘面的遮挡(点同宫可关闭)。
-									const bw = 320, bh = ln.length * 20 + 16, bx = 10, by = height + VB_PAD_BOTTOM - bh - 4;
-									els.push(<rect key="pp-bg" x={bx} y={by} width={bw} height={bh} rx="8" fill="var(--horosa-surface-raised, #16140f)" fillOpacity="0.96" stroke="var(--horosa-accent, #d7ad69)" strokeWidth="1.2" />);
-									els.push(<text key="pp-tx" x={bx + 12} y={by + 20} fill="var(--horosa-text, #e8e2d2)" stroke="none" fontSize="14" fontFamily={TAIYI_FONT}>{ln.map((t, i) => <tspan key={i} x={bx + 12} dy={i === 0 ? 0 : 20}>{t}</tspan>)}</text>);
-								}
-								return els;
-							})()}
-						</svg>
-					</div>
-			</div>
+			<TaiyiBoardSvg
+				pan={this.state.pan}
+				showBoardMark={this.state.options.showBoardMark}
+				selectedPalace={this.state.selectedPalace}
+				onSelectPalace={(v) => this.setState({ selectedPalace: v })}
+				boardHostRef={this.boardHostRef}
+				gejuList={this.gejuOf(this.state.pan)}
+			/>
 		);
 	}
 
@@ -1187,7 +829,9 @@ class TaiYiMain extends Component {
 					<div className="horosa-side-panel-subtitle">时间、地点与起盘选项</div>
 				</div>
 
-{/* [观象P1] 太乙左栏分段:时间地点(不折叠)/盘式选项(折叠记忆) */}
+{/* [择日宿主] 左栏插槽(主太乙页不传=零渲染) */}
+				{typeof this.props.renderLeftExtra === 'function' ? this.props.renderLeftExtra() : null}
+				{/* [观象P1] 太乙左栏分段:时间地点(不折叠)/盘式选项(折叠记忆) */}
 				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 				<SpaceTimePanel
 					fields={fields}
@@ -1530,11 +1174,11 @@ class TaiYiMain extends Component {
 			tabKeys.push('life');
 		}
 		const activeKey = tabKeys.indexOf(this.state.rightPanelTab) >= 0 ? this.state.rightPanelTab : 'overview';
+		// horosa_freeze_subtabs_v1:右栏六页签 keep-alive,原先每次父重渲(切时间/改选项/换页签)
+		// 都把六个面板的 renderPalaceRows/renderSectionRows 全跑一遍。函数式 FreezeSubTab:
+		// 非激活时既不求值也不 reconcile;切回时拿本轮最新 children 立即渲一帧(不卸载、不闪烁)。
 		return (
 			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-taiyi-tabs">
-				{/* horosa_freeze_subtabs_v1:右栏六页签 keep-alive,原先每次父重渲(切时间/改选项/换页签)
-				    都把六个面板的 renderPalaceRows/renderSectionRows 全跑一遍。函数式 FreezeSubTab:
-				    非激活时既不求值也不 reconcile;切回时拿本轮最新 children 立即渲一帧(不卸载、不闪烁)。 */}
 				<TabPane tab="概览" key="overview">
 					<FreezeSubTab active={activeKey === 'overview'}>{()=>(
 						<div className="horosa-taiyi-overview-stack">

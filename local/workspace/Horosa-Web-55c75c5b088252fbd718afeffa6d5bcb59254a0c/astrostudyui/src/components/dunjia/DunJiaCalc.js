@@ -2759,6 +2759,7 @@ export function calcDunJia(fields, nongli, options, context){
 		kongWangPalaces: kongWangMeta.palaces,
 		yiMa: yiMaMeta,
 		shenSha: buildQimenShenSha(ganzhi, isDiurnal),
+		isDiurnal,	// [十一轮] 择日 plateKey diurnal 掩位供数(shenSha 昼夜口径同源;纯附加键)
 		cells,
 		xunkong,
 		options: {

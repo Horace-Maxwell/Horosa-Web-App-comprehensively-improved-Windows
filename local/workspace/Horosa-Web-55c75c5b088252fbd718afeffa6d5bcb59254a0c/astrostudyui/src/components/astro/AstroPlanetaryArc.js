@@ -106,7 +106,9 @@ export async function buildPlanetaryArcSnapshotText(chartObj, opts){
 		const o = { ...PLANETARY_ARC_DEFAULT_OPTS, ...(opts && typeof opts === 'object' ? opts : {}) };
 		const arcSource = ARC_SOURCES.indexOf(o.arcSource) >= 0 ? o.arcSource : AstroConst.MOON;
 		const datetime = `${o.datetime || ''}`.trim() || todayStr();
-		const asporb = (o.asporb !== undefined && o.asporb !== null && `${o.asporb}` !== '' && Number.isFinite(Number(o.asporb))) ? Number(o.asporb) : 1;
+		// [基线锚审计 病3·镜像型] 缺省回退 transitOrbDefault()(schema globalCurrent 同源;曾静态 1:
+		// 全局 3° 时挂载拨 3 想同步页面被剪空,无头却按 1° 算——两端各执一词)。
+		const asporb = (o.asporb !== undefined && o.asporb !== null && `${o.asporb}` !== '' && Number.isFinite(Number(o.asporb))) ? Number(o.asporb) : transitOrbDefault();
 		const params = { ...natalParams(chartObj), datetime, asporb, arcSource };
 		const data = await request(`${Constants.ServerRoot}/predict/planetaryarc`, { body: JSON.stringify(params) });
 		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复

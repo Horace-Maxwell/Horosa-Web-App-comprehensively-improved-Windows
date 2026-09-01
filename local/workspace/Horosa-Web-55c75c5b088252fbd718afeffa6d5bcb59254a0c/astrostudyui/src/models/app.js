@@ -13,8 +13,9 @@ import { normalizeAppearanceMode } from '../utils/appearance';
 import { normalizeDayBoundary, DAY_BOUNDARY_AFTER23, normalizeLateZiHourMode, LATE_ZI_HOUR_NEXT_DAY } from '../utils/dayBoundary';
 
 const MinWorkspaceHeight = 660;
-// 🔴 预留必须与 layouts/app.js 的容器口径同值(header 72;contentStyle=calc(100% - 72px)):
-// 旧值 88 比容器多扣 16px → 全站每页底部恒定 16px 空白栏(容器 886 vs 工作区 870 实测)。
+// 页头预留量。**仅供兜底路径**(容器量不到时才按整窗视口减页头)——主路径已改为直接量
+// #mainContent,页头占位天然含在容器高度里,不再依赖这个魔数。
+// 保留它的历史教训:旧值 88 比容器多扣 16px,曾造成全站每页底部恒定 16px 空白栏。
 const WorkspaceReservedHeight = 72;
 const ChartDisplayDefaultsVersion = 2;
 const PlanetDisplayDefaultsVersion = 2;
@@ -732,19 +733,7 @@ export default {
             if(!Array.isArray(aspects)){
                 aspects = AstroConst.DEFAULT_ASPECTS;
             }
-            const syncWorkspaceHeight = (extraPayload = {})=>{
-                // 🔴 壳级 CSS zoom 下 clientHeight 报物理视口值,布局域真值须除以缩放。
-                // [Tahoe 根治] 改用 zoomDomain 的**实测**有效缩放单源(此前是就地读
-                // localStorage 声明值的复制品;声明≠生效的引擎上按声明除会反向错位)。
-                let shellZoom = 1;
-                try{
-                    // eslint-disable-next-line global-require
-                    const { getEffectiveScale } = require('../utils/zoomDomain');
-                    const s = getEffectiveScale();
-                    if(s && s > 0){ shellZoom = s; }
-                }catch(e){ /* ignore */ }
-                const nextViewportHeight = Math.round(document.documentElement.clientHeight / shellZoom);
-                const h = normalizeWorkspaceHeight(nextViewportHeight);
+            const dispatchWorkspaceHeight = (h, extraPayload)=>{
                 if(h < MinWorkspaceHeight){
                     return;
                 }
@@ -763,6 +752,41 @@ export default {
                     },
                 });
             };
+            const syncWorkspaceHeight = (extraPayload = {})=>{
+                // 🔴 2026-08-27 根修:工作区高度**直接量容器**,不再由「视口 ÷ 缩放」推导。
+                //
+                // 事故:旧机(缩放 0.8)全站底部一大条死带。前两版都栽在同一处——把
+                // 「rect 缩放」当成「布局缩放」。真机实测(WebKit,物理视口 720、z=0.8):
+                //     documentElement.clientHeight = 720   ← 仍报物理值
+                //     窗口实际给的布局空间       = 900   ← 720/0.8
+                //     1000px 元素量得 rect 宽    = 1000  ← rect 不反映缩放 ⇒ 探针测得 1
+                // 于是算成 720÷1=720(真值 900),内容只填窗口的 0.8 ⇒ 死带。
+                //
+                // 正解不是「认出引擎再分支」(永远漏掉下一个引擎),而是根本不去问缩放:
+                // #mainContent 是版面的真实容器,它的 clientHeight 天生就是布局域值,
+                // 任何 zoom 语义下都直接成立。顺带把 WorkspaceReservedHeight 这个魔数也
+                // 消掉——容器本身已含掉页头占位,而那个魔数曾因与容器口径差 16px 造成过
+                // 「全站每页底部恒定 16px 空白栏」(同族的第一次事故)。
+                // 决策本身是纯函数(zoomDomain.resolveWorkspaceHeight),便于按三种引擎语义
+                // 当真值表直接单测——原先这段埋在订阅里,任何测试都碰不到。
+                try{
+                    // eslint-disable-next-line global-require
+                    const { measureLayoutViewport, resolveWorkspaceHeight } = require('../utils/zoomDomain');
+                    const el = document.getElementById('mainContent');
+                    const vp = measureLayoutViewport();
+                    return dispatchWorkspaceHeight(resolveWorkspaceHeight({
+                        containerHeight: el ? el.clientHeight : null,
+                        layoutViewportHeight: vp ? vp.height : null,
+                        physicalClientHeight: document.documentElement.clientHeight,
+                        reserved: WorkspaceReservedHeight,
+                        min: MinWorkspaceHeight,
+                    }), extraPayload);
+                }catch(e){ /* 模块异常时走下面老路径,不让版面因此整个失效 */ }
+                return dispatchWorkspaceHeight(
+                    normalizeWorkspaceHeight(document.documentElement.clientHeight),
+                    extraPayload,
+                );
+            };
 
             let resizeTimer = null;
             const handleResize = ()=>{
@@ -775,6 +799,39 @@ export default {
                 }, 80);
             };
             window.addEventListener('resize', handleResize);
+
+            // [Tahoe 三保险] WKWebView 有 window resize 缺席前科(macOS 26 实报拖窗不重排);
+            // visualViewport 是独立事件源,复用同一 80ms 去抖入口——健康引擎上只是同一次
+            // 变化多进一次去抖=零成本,事件断链引擎上是第三保险(RO 是第二)。
+            let vvHandler = null;
+            try{
+                if(typeof window.visualViewport !== 'undefined' && window.visualViewport){
+                    vvHandler = handleResize;
+                    window.visualViewport.addEventListener('resize', vvHandler);
+                }
+            }catch(e){ vvHandler = null; }
+
+            // 🔴 直接观察容器本身。window resize 只覆盖"窗口变了"这一种成因,漏掉
+            // 缩放档切换、页头高度变化、栏位折叠等——而死带恰恰是"容器变了但没重算"。
+            // 观察容器则不问成因,尺寸一动就跟。resize 监听保留作兜底(容器未挂载时仍需它)。
+            let workspaceRO = null;
+            const attachWorkspaceObserver = ()=>{
+                if(workspaceRO || typeof ResizeObserver === 'undefined'){ return; }
+                const el = document.getElementById('mainContent');
+                if(!el){ return; }
+                try{
+                    workspaceRO = new ResizeObserver(handleResize);
+                    workspaceRO.observe(el);
+                }catch(e){ workspaceRO = null; }
+            };
+            // 容器由 React 稍后挂载,首帧未必在;短暂重试到挂上为止(上限内,失败也只是退回 resize 兜底)
+            attachWorkspaceObserver();
+            let roTries = 0;
+            const roTimer = workspaceRO ? null : setInterval(()=>{
+                roTries += 1;
+                attachWorkspaceObserver();
+                if(workspaceRO || roTries > 40){ clearInterval(roTimer); }
+            }, 100);
 
             syncWorkspaceHeight({
                 aspects: aspects,
@@ -813,6 +870,12 @@ export default {
             }catch(e){ /* 恢复是优化不是功能,失败静默回空白默认态 */ }
 
             return ()=>{
+                if(roTimer){ clearInterval(roTimer); }
+                if(workspaceRO){ try{ workspaceRO.disconnect(); }catch(e){ /* ignore */ } workspaceRO = null; }
+                if(vvHandler){
+                    try{ window.visualViewport.removeEventListener('resize', vvHandler); }catch(e){ /* ignore */ }
+                    vvHandler = null;
+                }
                 window.removeEventListener('resize', handleResize);
                 if(resizeTimer){
                     clearTimeout(resizeTimer);

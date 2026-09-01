@@ -1,0 +1,66 @@
+diff --git a/astrostudyui/src/utils/__tests__/layoutDomainStaticGuard.test.js b/astrostudyui/src/utils/__tests__/layoutDomainStaticGuard.test.js
+index d44b2da5..5692e7a1 100644
+--- a/astrostudyui/src/utils/__tests__/layoutDomainStaticGuard.test.js
++++ b/astrostudyui/src/utils/__tests__/layoutDomainStaticGuard.test.js
+@@ -10,7 +10,6 @@
+ // 严禁只为「让测试变绿」而加豁免 —— 理由必须能自证。
+ const fs = require('fs');
+ const path = require('path');
+-const { execSync } = require('child_process');
+ 
+ const SRC = path.resolve(__dirname, '..', '..');
+ // 壳内三页(启动/诊断/偏好)。这次事故里它们的密度探测犯了同样的错,却因为不在任何
+@@ -20,21 +19,41 @@ const SHELL_WEB = path.resolve(SRC, '..', '..', '..', 'Horosa_Desktop_Installer'
+ const EXEMPT = [];
+ 
+ // 「视口读数 ÷ 标识符/调用」。除以数字字面量(如 /2 居中)是正常算术,不在此列。
+-const PATTERN = '(clientHeight|clientWidth|innerHeight|innerWidth)[[:space:]]*/[[:space:]]*[a-zA-Z_$]';
++// horosa_win_shell_free_scan_v1(Windows 侧移植适配;popupAlign 两守卫同判例,建议上游化 Mac):
++// 原 `execSync("grep -rnaE …")` 在 Windows 走 cmd.exe —— 单引号 include 原样到达 grep(匹配不到
++// 任何文件)、grep 本身未必在 cmd 的 PATH 上;T1 自证会红(诚实),但守卫必须双平台真扫描。
++// 换纯 Node 等价扫描,语义逐条对齐:-r 递归 ≡ walk;--include ≡ 扩展名滤;POSIX [[:space:]] ≡ \s;
++// -a 二进制当文本 ≡ Node utf8 读;输出仍 {file,line,text} 且 file 用 POSIX 分隔符 + './' 前缀
++// (与 grep 相对路径输出形一致,T1/T2 的 indexOf 判据零改动)。
++const SCAN_RE = /(clientHeight|clientWidth|innerHeight|innerWidth)\s*\/\s*[a-zA-Z_$]/;
+ 
+ function scanDir(dir, includes){
+ 	if(!fs.existsSync(dir)){ return []; }
+-	let out = '';
+-	try{
+-		// -a:仓内曾有裸 NUL 字节导致 grep 判二进制而整文件失明(FL 已落账)
+-		out = execSync(`grep -rnaE ${includes} ${JSON.stringify(PATTERN)} .`, { cwd: dir, encoding: 'utf8' });
+-	}catch(e){
+-		out = e.stdout || '';   // grep 无命中 exit 1
+-	}
+-	return out.split('\n').filter(Boolean).map((line) => {
+-		const m = /^([^:]+):(\d+):(.*)$/.exec(line);
+-		return m ? { file: m[1], line: Number(m[2]), text: m[3] } : null;
+-	}).filter(Boolean);
++	const exts = Array.from(includes.matchAll(/\*(\.\w+)/g)).map((m) => m[1]);
++	const files = [];
++	(function walk(d){
++		let ents = [];
++		try{ ents = fs.readdirSync(d, { withFileTypes: true }); }catch(e){ return; }
++		ents.forEach((ent) => {
++			const full = path.join(d, ent.name);
++			if(ent.isDirectory()){
++				if(ent.name === 'node_modules'){ return; }
++				walk(full);
++			}else if(exts.some((x) => ent.name.endsWith(x))){
++				files.push(full);
++			}
++		});
++	})(dir);
++	const hits = [];
++	files.forEach((full) => {
++		let src = '';
++		try{ src = fs.readFileSync(full, 'utf8'); }catch(e){ return; }
++		const rel = './' + path.relative(dir, full).split(path.sep).join('/');
++		src.split('\n').forEach((text, i) => {
++			if(SCAN_RE.test(text)){ hits.push({ file: rel, line: i + 1, text }); }
++		});
++	});
++	return hits;
+ }
+ 
+ // 注释行不算违规(踩过两次:哨兵是纯文本 grep,不分代码与注释)

@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 3.9.5
+version: 3.10.0
 date-released: 2026-07-04
 authors:
   - given-names: Horace
@@ -12,7 +12,7 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v3.9.5 beta is a local-first metaphysics workstation. This release overhauls
+  Horosa for Windows v3.10.0 beta is a local-first metaphysics workstation. This release overhauls
   the horary chart: the judgement elements are wired through end to end, perfection modes and
   timing are completed, a "whose matter is it" person selector turns the quesited house by the
   classical derived-house rule (asking about a spouse's career = the tenth from the seventh = the

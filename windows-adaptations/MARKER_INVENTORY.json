@@ -61,6 +61,9 @@
   "horosa_chartfree_strip_crlf_v1": {
    "astrostudyui/src/utils/__tests__/chartFreeContract.test.js": 1
   },
+  "horosa_circular_delta_assert_v1": {
+   "astropy/tests/test_qizheng_election_scan.py": 1
+  },
   "horosa_city_db_idle_preload_v1": {
    "astrostudyui/src/pages/index.js": 1
   },
@@ -454,7 +457,7 @@
    "astrostudyui/src/models/astro.js": 1
   },
   "horosa_sanshi_render_slice_v1": {
-   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 13
+   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 9
   },
   "horosa_sanshi_render_smoke_v1": {
    "astrostudyui/src/components/sanshi/__tests__/sanshiRenderSmoke.test.js": 1
@@ -538,6 +541,9 @@
    "astrostudyui/src/utils/perfFlags.js": 1,
    "astrostudyui/src/utils/stepPrefetchArm.js": 1
   },
+  "horosa_taiyi_boardsvg_shenmeaning_import_v1": {
+   "astrostudyui/src/components/taiyi/TaiyiBoardSvg.js": 1
+  },
   "horosa_trusted_env_shape_v1": {
    "astropy/websrv/webchartsrv.py": 1
   },
@@ -567,6 +573,7 @@
    "astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js": 1
   },
   "horosa_win_shell_free_scan_v1": {
+   "astrostudyui/src/utils/__tests__/layoutDomainStaticGuard.test.js": 1,
    "astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js": 1,
    "astrostudyui/src/utils/__tests__/popupAlignZoomGuard.test.js": 1
   },

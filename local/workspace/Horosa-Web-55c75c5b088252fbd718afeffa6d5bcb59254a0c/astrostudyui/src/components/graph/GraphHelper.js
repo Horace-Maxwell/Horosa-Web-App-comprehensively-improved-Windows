@@ -8,14 +8,18 @@ export function drawTextH(svgowner, data, x, y, w, h, margin, color, weight, bgc
 	let firstmargin = (w - fsz * data.length - margin*(data.length - 1)) / 2 + fsz/2;
 	let firstmarginY = (h - fsz) / 2 + fsz/2;
 
+	// [去描边] color 参数=文字填色(fill)。历史上被写进 text 的 stroke(描边)且不设 fill
+	// → 黑填充+彩描边叠印,小字号笔画粘连发糊(用户实报十二神看不清)——文字一律填色渲染。
 	let stroke = 'var(--horosa-text, #000000)';
 	if(color){
 		stroke = color;
 	}
 
-	let fontweight = 100;
+	// [去描边] 旧渲染的描边≈人工加粗一档,低字重(100/240)的视觉差全被描边淹没;
+	// 改填色后设 500 下限折算回字重,>500 的显式强调保留层级。
+	let fontweight = 500;
 	if(weight){
-		fontweight = weight;
+		fontweight = Math.max(weight, 500);
 	}
 
 	let rv = 3;
@@ -55,7 +59,8 @@ export function drawTextH(svgowner, data, x, y, w, h, margin, color, weight, bgc
 		.attr("text-anchor", "middle")
 		.attr('rx', rv).attr('ry', rv)
 		.attr('font-weight', fontweight)
-		.attr('stroke', stroke)
+		.attr('fill', stroke)
+		.attr('stroke', 'none')
 		.attr('font-size', function(d, idx){
 			return fsz + 'px';
 		})
@@ -76,7 +81,8 @@ export function drawTextH(svgowner, data, x, y, w, h, margin, color, weight, bgc
 		.attr("text-anchor", "middle")
 		.attr('rx', rv).attr('ry', rv)
 		.attr('font-weight', fontweight)
-		.attr('stroke', stroke)
+		.attr('fill', stroke)
+		.attr('stroke', 'none')
 		.attr('font-size', function(d, idx){
 			return fsz + 'px';
 		})
@@ -100,14 +106,18 @@ export function drawTextV(svgowner, data, x, y, w, h, margin, color, weight, bgc
 	let firstmargin = (h - (fsz + margin) * data.length) / 2 + fsz/2 + margin;
 	let firstmarginX = (w - fsz) / 2 + fsz/2;
 
+	// [去描边] color 参数=文字填色(fill)。历史上被写进 text 的 stroke(描边)且不设 fill
+	// → 黑填充+彩描边叠印,小字号笔画粘连发糊(用户实报十二神看不清)——文字一律填色渲染。
 	let stroke = 'var(--horosa-text, #000000)';
 	if(color){
 		stroke = color;
 	}
 
-	let fontweight = 100;
+	// [去描边] 旧渲染的描边≈人工加粗一档,低字重(100/240)的视觉差全被描边淹没;
+	// 改填色后设 500 下限折算回字重,>500 的显式强调保留层级。
+	let fontweight = 500;
 	if(weight){
-		fontweight = weight;
+		fontweight = Math.max(weight, 500);
 	}
 
 	let rv = 3;
@@ -147,7 +157,8 @@ export function drawTextV(svgowner, data, x, y, w, h, margin, color, weight, bgc
 		.attr("text-anchor", "middle")
 		.attr('rx', rv).attr('ry', rv)
 		.attr('font-weight', fontweight)
-		.attr('stroke', stroke)
+		.attr('fill', stroke)
+		.attr('stroke', 'none')
 		.attr('font-size', function(d, idx){
 			return fsz + 'px';
 		})
@@ -168,7 +179,8 @@ export function drawTextV(svgowner, data, x, y, w, h, margin, color, weight, bgc
 		.attr("text-anchor", "middle")
 		.attr('rx', rv).attr('ry', rv)
 		.attr('font-weight', fontweight)
-		.attr('stroke', stroke)
+		.attr('fill', stroke)
+		.attr('stroke', 'none')
 		.attr('font-size', function(d, idx){
 			return fsz + 'px';
 		})

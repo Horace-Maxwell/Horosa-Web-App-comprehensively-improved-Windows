@@ -383,7 +383,7 @@ class JyotishEngine:
     # 响应 dasha 体积大降。前端切体系会重取(带新 dashaSystem)。
     _DASHA_TREE_SYSTEMS = ('vimshottari', 'yogini', 'ashtottari', 'tribhagi')
 
-    # 年长五档白名单(权威 §10.1.5):儒略(默认)/格里/Savana/回归/恒星。
+    # 年长五档白名单(古法权威口径):儒略(默认)/格里/Savana/回归/恒星。
     _DASHA_YEAR_CHOICES = (365.25, 365.2425, 360.0, 365.2422, 365.2563)
     # 类级默认:兜住 __new__ 直构(仓内 pytest 直构即如此)与任何绕过 __init__ 的路径。
     dasha_year_days = 365.25
@@ -562,7 +562,7 @@ class JyotishEngine:
                 varg = bool(d1o and _is_varg(d1o.lon, 9))
                 own = o.sign in OWN_SIGNS.get(pid, set())
                 mult = 3 if (exalt or retro) else (2 if (own or varg) else 1)        # 多数派(默认):庙旺/逆×3·自座/vargottama×2·取最高
-                mult_bphs = 3 if (exalt or own) else 1                               # BPHS-literal §7.4:svakṣetra 入×3组,略逆/vargottama
+                mult_bphs = 3 if (exalt or own) else 1                               # BPHS-literal:svakṣetra 入×3组,略逆/vargottama
                 mult_mul = (6 if ((exalt or retro) and (own or varg))               # Sārāvalī 相乘:×3 与 ×2 合并 →×6
                             else (3 if (exalt or retro) else (2 if (own or varg) else 1)))
                 y = base_y * mult
@@ -824,13 +824,13 @@ class JyotishEngine:
     def _ayurdaya_harana(self, full_table=None, method_label='Piṇḍāyu', raw_total=None,
                          satruksetra_exemption='retrograde', base_map=None,
                          apply_krurodaya=True, neecha_half=False):
-        """Āyurdāya haraṇa(减)逐项 — 07_ayurdaya §7.5 全文档规则。施于 Piṇḍāyu(度式)或 Nisargāyu:
+        """Āyurdāya haraṇa(减)逐项 — 古法减寿全规则。施于 Piṇḍāyu(度式)或 Nisargāyu:
         敌座(Śatrukṣetra)⅓ 与合日(Astangata)½ 只取大者(BPHS 43.22 max;逆行免敌座、金/土免合日);
         Chakrapata 可见半球(自 Lagna 12/11/10/9/8/7 宫)凶星按表损·吉星半,独立连乘;
         Krurodaya(凶升 Lagna)对总和一次(式A 角分/21600 默认、式B navāṁśa/108 变体);
         +Lagna_Ayu=(Lagna 座内角分)/200;末 ×360/365 Savana→Solar。
         『做成不同流派选项』:未减(全期/Rath)vs 施减(技术/Sārāvalī)·Krurodaya A/B。
-        full_table=贡献满寿表(Piṇḍāyu 默认);raw_total 给「全期派原值」(Nisargāyu=120,§7.3 设为开关)。
+        full_table=贡献满寿表(Piṇḍāyu 默认);raw_total 给「全期派原值」(Nisargāyu=120,按流派开关)。
         恒 D1 算。零回归:纯新增子键。"""
         try:
             if full_table is None:
@@ -914,7 +914,7 @@ class JyotishEngine:
                     'dignityHarana': round(dignity_harana, 3), 'house': house,
                     'chakrapata': round(chakra, 4), 'reducedYears': round(reduced, 3),
                 })
-            # Krurodaya 缓和(07§7.5):吉星望 Lagna → 减半(吉星在7宫冲、或木星在5/9宫特殊相;Indira 例 Moon 望致 Saturn 减半)。
+            # Krurodaya 缓和(古法):吉星望 Lagna → 减半(吉星在7宫冲、或木星在5/9宫特殊相;Indira 例 Moon 望致 Saturn 减半)。
             kruro_mitigated = False
             if krurodaya_planet:
                 for bp in (const.JUPITER, const.VENUS, const.MERCURY, const.MOON):
@@ -940,7 +940,7 @@ class JyotishEngine:
             SOLAR = 360.0 / 365.0
             final_a = sum_reduced - kruro_a + lagna_ayu
             final_b = sum_reduced - kruro_b + lagna_ayu
-            # 全期派原值:Nisargāyu 用 raw_total(=120,§7.3 不施缩放/haraṇa);Piṇḍāyu 无 raw→用 scaled 未减和。
+            # 全期派原值:Nisargāyu 用 raw_total(=120,全期派不施缩放/haraṇa);Piṇḍāyu 无 raw→用 scaled 未减和。
             full_base = raw_total if raw_total is not None else base_sum
             profiles = [
                 {'key': 'noharana', 'label': '未减·全期派(传承)',
@@ -984,7 +984,7 @@ class JyotishEngine:
                 mid = (mid + 180.0) % 360.0
             sidx = sign_index_from_lon(mid)
             sign = const.LIST_SIGNS[sidx]
-            # D150 Nāḍiāṃśa(每座 30°/150 = 0°12′):奇座顺/偶座逆(五支§4.4)。
+            # D150 Nāḍiāṃśa(每座 30°/150 = 0°12′):奇座顺/偶座逆(五支古法)。
             # 专名表(Vasudha/Vaishnavi… 150 名)所给文档仅列 3 例 → 号位先显,名 blocked 不臆造。
             def _nadiamsa(lon):
                 psidx = sign_index_from_lon(lon)
@@ -1135,7 +1135,7 @@ class JyotishEngine:
             return {'available': False, 'reason': str(exc)}
 
     def sensitive_points(self):
-        """敏感点 Sphuta(§20.5/§17.5/§22.5):生育点 + Gandanta/Sandhi 界位 + 死亡指示点
+        """敏感点 Sphuta(古法三类):生育点 + Gandanta/Sandhi 界位 + 死亡指示点
         (仅风险标注)+ Mrityu Bhaga(表空即 None,待录入)。纯派生,失败整块置 None
         由 compute() 的逐键 try/except 兜住。"""
         from astrostudy.india import sensitive_points as sp
@@ -1164,7 +1164,7 @@ class JyotishEngine:
 
     def shashtiamsa(self):
         """D60 Ṣaṣṭyāṃśa(六十分盘)吉凶:各曜本命经度落第几个 0°30′ 段(1..60),
-        奇象顺/偶象神名逆序(deity=61−段);Krūra(恶段)24 个 → 凶,余吉(09_chartcasting §D60)。
+        奇象顺/偶象神名逆序(deity=61−段);Krūra(恶段)24 个 → 凶,余吉(D60 古法)。
         神名全表(Ghora/Rakshasa/Deva… 60 名,Santhanam BPHS)已落地;显段号+神名+吉凶+D60 落座。
         恒以本命 D1 经度算(与所绘分盘无关)。零回归:纯新增 compute 键。"""
         try:
@@ -1203,7 +1203,7 @@ class JyotishEngine:
             return {'available': False, 'reason': str(exc)}
 
     def varga_variants(self):
-        """分盘变体对照(09_chartcasting §9.2):D2/D3/D24/D30 各流派下落座可异。
+        """分盘变体对照(古籍分盘章):D2/D3/D24/D30 各流派下落座可异。
         标准 Parāśara 为默认;另列 D2 Parivṛtti·D3 Parivṛtti/Jagannātha·D24 Narasiṃha(偶座逆)·D30 等分。
         含 D2 Kashinatha(依源座主星)、D3 Somanatha(奇顺偶逆),公式 _agentA_chartcasting.md。
         恒以本命 D1 经度算;同曜在各方案落座并列,differs 标差异。零回归:纯新增 compute 键。"""
@@ -1471,7 +1471,7 @@ class JyotishEngine:
 
     def graha_maitri(self):
         """敌友 Pañcadhā Maitrī(复合五分敌友 7×7 矩阵,非对称)+ Jaimini Rāśi Dṛṣṭi 座相(12×12)。
-        恒 D1。古籍第 6 章:自然(§6.1 Table7)×临时(§6.2 2/3/4/10/11/12宫=友)→ 复合 5 档(§6.3)。
+        恒 D1。古籍关系章:自然友敌表 × 临时(2/3/4/10/11/12 宫=友)→ 复合 5 档。
         算法在 primitives(natural/tatkalika/compound_relation),此处只组矩阵。"""
         try:
             from astrostudy.india.primitives import (
@@ -1507,7 +1507,7 @@ class JyotishEngine:
                         'compound': comp, 'compoundCn': COMP_CN.get(comp, '—'),
                     })
                 matrix.append({'planet': a, 'planetLabel': PLANET_CN.get(a, a), 'cells': cells})
-            # Jaimini Rāśi Dṛṣṭi 座相(每座照见的座) — §4.3。
+            # Jaimini Rāśi Dṛṣṭi 座相(每座照见的座) — Jaimini 古法。
             SIGNS = [const.ARIES, const.TAURUS, const.GEMINI, const.CANCER, const.LEO, const.VIRGO,
                      const.LIBRA, const.SCORPIO, const.SAGITTARIUS, const.CAPRICORN, const.AQUARIUS, const.PISCES]
             rasi_matrix = []
@@ -1532,7 +1532,7 @@ class JyotishEngine:
             return {'available': False}
 
     def outer_planets(self):
-        """外行星 Ur/Ne/Pl(虚星,古籍§3.1)。内核已算,补输出供副星面板;以当前显示盘算。"""
+        """外行星 Ur/Ne/Pl(虚星,古籍补编)。内核已算,补输出供副星面板;以当前显示盘算。"""
         try:
             out = []
             for pid, label in [(const.URANUS, '天王 Ur'), (const.NEPTUNE, '海王 Ne'), (const.PLUTO, '冥王 Pl')]:
@@ -1561,7 +1561,7 @@ class JyotishEngine:
         except Exception:
             nk['detail'] = None
         # 28 宿口径(G6):纯增量键,显示/择吉专用。27 宿编号与全部 Dasha/Varga 计算不受影响
-        # (Abhijit 恒不入 Vimshottari —— 权威 §4.3 与 primitives 注释同口径)。
+        # (Abhijit 恒不入 Vimshottari —— 权威口径,与 primitives 注释一致)。
         try:
             from astrostudy.india.primitives import is_abhijit, nakshatra_number_28, ABHIJIT_LABEL
             nk['isAbhijit'] = bool(is_abhijit(lon))
@@ -3091,7 +3091,7 @@ class JyotishEngine:
             result['horaTable'] = self.hora_table()
             # Choghadia 民用择时(昼夜各 8 段;P1;新增键,零回归)。
             result['choghadia'] = self.choghadia_table()
-            # Panchaka 五忌(§24.2):((Tithi+Vara+Nakshatra+Lagna)×2)%9 → 1死/2火/4王/6盗/8病为忌。
+            # Panchaka 五忌:((Tithi+Vara+Nakshatra+Lagna)×2)%9 → 1死/2火/4王/6盗/8病为忌。
             try:
                 pan = self.panchanga()
                 tithi_n = (pan.get('tithi') or {}).get('index')
@@ -3112,7 +3112,7 @@ class JyotishEngine:
                     }
             except Exception:
                 pass
-            # Abhijit Muhurta(§24.2):全日 15 昼须臾之第 8(正午前后),除周三外通用大吉。
+            # Abhijit Muhurta(古法):全日 15 昼须臾之第 8(正午前后),除周三外通用大吉。
             try:
                 wd = self.perchart.dateTime.date.dayofweek()   # 0=周日..3=周三
                 result['abhijit'] = {

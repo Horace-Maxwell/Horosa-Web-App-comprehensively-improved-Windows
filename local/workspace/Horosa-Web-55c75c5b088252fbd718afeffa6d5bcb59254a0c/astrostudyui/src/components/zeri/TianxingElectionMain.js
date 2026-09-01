@@ -99,16 +99,19 @@ export default class TianxingElectionMain extends Component{
 		const p = this.props;
 		const c = this._previewDisplayCache;
 		if(c && c.chartDisplay === p.chartDisplay && c.planetDisplay === p.planetDisplay
-			&& c.lotsDisplay === p.lotsDisplay && c.showAstroMeaning === p.showAstroMeaning){
+			&& c.lotsDisplay === p.lotsDisplay && c.showAstroMeaning === p.showAstroMeaning
+			&& c.wheelArt === p.wheelArt){
 			return c.value;
 		}
 		const value = {
 			chartDisplay: p.chartDisplay, planetDisplay: p.planetDisplay,
 			lotsDisplay: p.lotsDisplay, showAstroMeaning: p.showAstroMeaning,
+			wheelArt: p.wheelArt,	// 概览浮窗盘式(曾只从顶层传、Modal 签名未接=断链)
 		};
 		this._previewDisplayCache = {
 			chartDisplay: p.chartDisplay, planetDisplay: p.planetDisplay,
-			lotsDisplay: p.lotsDisplay, showAstroMeaning: p.showAstroMeaning, value,
+			lotsDisplay: p.lotsDisplay, showAstroMeaning: p.showAstroMeaning,
+			wheelArt: p.wheelArt, value,
 		};
 		return value;
 	}

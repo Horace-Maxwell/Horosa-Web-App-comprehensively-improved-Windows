@@ -1045,7 +1045,15 @@ class BaZi extends Component{
 		// 惰性构建:快照文本拼装挪出排盘关键路径(params/result 为局部量,闭包安全)。
 		// 须带 school（断命流派）→ 否则不触发 refresh 的场景 AI 快照恒标「传统综合」(与 handleSnapshotRefreshRequest 同口径)。
 		const snapshotParams = { ...params, school: (this.state.baziOpt || {}).school, shenshaGroups: (this.state.baziOpt || {}).shenshaGroups };
-		saveModuleAISnapshotLazy('bazi', ()=>buildBaziSnapshotText(snapshotParams, result), {
+		// [Z2·八字择日] 加性 scope 化:择日页内嵌实例传 techniqueScope='bazizeri' 走独立快照槽
+		// (keep-alive 与主八字页并存互不竞写);composeAiSnapshot 由择日宿主拼「择时三段」。缺省=原槽零回归。
+		saveModuleAISnapshotLazy(this.props.techniqueScope || 'bazi', ()=>{
+			const base = buildBaziSnapshotText(snapshotParams, result);
+			if(typeof this.props.composeAiSnapshot === 'function'){
+				try{ return `${this.props.composeAiSnapshot(base) || base}`; }catch(e){ return base; }
+			}
+			return base;
+		}, {
 			date: params.date,
 			time: params.time,
 			zone: params.zone,
@@ -1108,7 +1116,7 @@ class BaZi extends Component{
 	// params=this.genParams(this.props.fields)(当前左栏参数)、result=this.state.result(当前渲染的盘)。只补监听,不动显示/计算。
 	handleSnapshotRefreshRequest(evt){
 		const moduleName = evt && evt.detail ? evt.detail.module : '';
-		if(moduleName !== 'bazi'){
+		if(moduleName !== (this.props.techniqueScope || 'bazi')){
 			return;
 		}
 		let text = '';
@@ -1121,7 +1129,10 @@ class BaZi extends Component{
 			text = '';
 		}
 		if(text){
-			saveModuleAISnapshot('bazi', text);
+			if(typeof this.props.composeAiSnapshot === 'function'){
+				try{ text = `${this.props.composeAiSnapshot(text) || text}`; }catch(e){ /* composer 异常不拖快照 */ }
+			}
+			saveModuleAISnapshot(this.props.techniqueScope || 'bazi', text);
 			if(evt && evt.detail && typeof evt.detail === 'object'){
 				evt.detail.snapshotText = text;
 			}
@@ -1182,6 +1193,8 @@ class BaZi extends Component{
 				<div className="horosa-astro-layout horosa-astro-redesign-layout horosa-bazi-redesign-layout">
 					<div className="horosa-astro-redesign-grid horosa-bazi-redesign-grid">
 						<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-bazi-input-panel">
+							{/* [择日宿主] 左栏插槽:择日入口板块(主八字页不传=零渲染) */}
+							{typeof this.props.renderLeftExtra === 'function' ? this.props.renderLeftExtra() : null}
 							<MemoCnTraditionInput
 								fields={this.props.fields}
 								baziOpt={this.state.baziOpt}

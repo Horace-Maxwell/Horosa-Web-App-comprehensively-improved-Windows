@@ -14,7 +14,7 @@ import {
 } from './data/ziweiTables';
 import { getActiveSiHuaGan } from '../../constants/ZWConst';
 import { ZWEngineOptions, collectEngineOpts } from './ziweiOptions';
-import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
+import { buildLocalBaziResult, buildLocalNongliLite } from '../../utils/baziLunarLocal';
 import { placeShangShi, placeKuiYue } from './ziweiSchools';
 
 const HUA = ['禄', '权', '科', '忌'];
@@ -389,6 +389,30 @@ export function calcZiwei(birth, options = {}){
 		lateZiHourUseNextDay: lz.lateZiHourUseNextDay,
 	};
 	const r = buildLocalBaziResult(params);
+	return buildChartFromBazi(r, birth, options);
+}
+
+// [Z4·择日] 轻量入口:农历核走 buildLocalNongliLite(无百年大运推演;calcZiwei 全量核 91ms/盘
+// 实测,重头在 buildLocalBaziResult 的 yun/daYunList——本命盘 13 步安星本身纯查表 <1ms)。
+// 组装体与 calcZiwei 同一 buildChartFromBazi(判定同源单源,主安星逻辑修正两口自动跟);
+// 差异仅农历供数层,产出 chart 无 r.yun 大运依赖(assembleNatalChart 不读)。
+// 🔴 不支持 lateZi='dual'(双盘人工比对是本命场景;择日候选时刻用单方案,调用方 validate)。
+export function calcZiweiFromLite(birth, options = {}){
+	const lz = (options.lateZi && options.lateZi !== 'global' && options.lateZi !== 'dual') ? lateZiParams(options.lateZi) : { after23NewDay: options.after23NewDay, lateZiHourUseNextDay: options.lateZiHourUseNextDay };
+	const params = {
+		date: birth.date, time: birth.time, zone: birth.zone, lon: birth.lon, lat: birth.lat,
+		gpsLon: birth.gpsLon, gpsLat: birth.gpsLat, ad: birth.ad != null ? birth.ad : 1,
+		gender: birth.gender,
+		timeAlg: options.timeAlg != null ? options.timeAlg : 0,
+		after23NewDay: lz.after23NewDay,
+		lateZiHourUseNextDay: lz.lateZiHourUseNextDay,
+	};
+	const r = buildLocalNongliLite(params);
+	return buildChartFromBazi(r, birth, options);
+}
+
+// 共同组装体:buildLocal(Bazi|NongliLite) 产物 → 完整 chart(nongli 键谱两路同构=buildNongli 同函数)。
+function buildChartFromBazi(r, birth, options){
 	const nl = r.bazi.nongli;
 	const fc = r.bazi.fourColumns;
 	// 定年界线(古法§1.6):默认 lichun(立春,= fourColumns.year,现状口径);lunar_1_1=正月初一(yearGZByLunar)。
@@ -415,5 +439,9 @@ export function calcZiwei(birth, options = {}){
 	});
 	chart.nongli = nl;
 	chart.fourColumns = fc;
+	// [Z4] 安星实际锚(择日 plateKey 消费):calendar/ziwei 两基准下安星真正用的月/闰/日——
+	// plateKey 若绕过此锚直读 nl.ziweiDayNum,在 calendar 基准+晚子时进位窗(23 点段)与
+	// 判定面(日历日)不同构 → 23 点段被折进次日行(行内同盘探针实抓)。
+	chart.anchorMD = { m: zwMonth, leap: !!zwLeap, d: zwDay, yg: yg };
 	return chart;
 }

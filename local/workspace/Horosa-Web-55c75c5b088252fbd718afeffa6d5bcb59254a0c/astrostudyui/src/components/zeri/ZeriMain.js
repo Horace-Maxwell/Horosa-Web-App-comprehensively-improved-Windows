@@ -5,6 +5,14 @@ import { randomStr } from '../../utils/helper';
 import { ZERI_SUBTABS, rememberSubTab } from '../../constants/SubTabRegistry';
 import TianxingElectionMain from './TianxingElectionMain';
 import QimenZeriMain from './QimenZeriMain';
+import HuangliZeriMain from './HuangliZeriMain';
+import BaziZeriMain from './BaziZeriMain';
+import TaiyiZeriMain from './TaiyiZeriMain';
+import ZiweiZeriMain from './ZiweiZeriMain';
+import LiurengZeriMain from './LiurengZeriMain';
+import SanshiZeriMain from './SanshiZeriMain';
+import QizhengZeriMain from './QizhengZeriMain';
+import IndiaZeriMain from './IndiaZeriMain';
 
 const TabPane = Tabs.TabPane;
 
@@ -139,6 +147,30 @@ export default class ZeriMain extends Component{
 								chart={this.props.chart}
 								dispatch={this.props.dispatch}
 							/>
+						</TabPane>
+						<TabPane tab="黄历择日" key="huanglizeri">
+							<HuangliZeriMain height={childHeight} />
+						</TabPane>
+						<TabPane tab="八字择日" key="bazizeri">
+							<BaziZeriMain height={childHeight} />
+						</TabPane>
+						<TabPane tab="太乙择日" key="taiyizeri">
+							<TaiyiZeriMain height={childHeight} />
+						</TabPane>
+						<TabPane tab="紫微择日" key="ziweizeri">
+							<ZiweiZeriMain height={childHeight} />
+						</TabPane>
+						<TabPane tab="六壬择日" key="liurengzeri">
+							<LiurengZeriMain height={childHeight} />
+						</TabPane>
+						<TabPane tab="三式择日" key="sanshizeri">
+							<SanshiZeriMain height={childHeight} />
+						</TabPane>
+						<TabPane tab="七政择日" key="qizhengzeri">
+							<QizhengZeriMain height={childHeight} />
+						</TabPane>
+						<TabPane tab="印度择日" key="indiazeri">
+							<IndiaZeriMain height={childHeight} />
 						</TabPane>
 					</Tabs>
 				</div>

@@ -153,3 +153,54 @@ export const qimenZeriSchemeStore = makeSchemeStore({
 	exportFormat: 'horosa-qimen-zeri-schemes',
 	mismatchMsg: '不是奇门择日方案导出文件',
 });
+
+// ── [Z1] 黄历择日专属实例(独立键+独立导出格式头,跨技法互导必拒同律) ──
+export const huangliZeriSchemeStore = makeSchemeStore({
+	storageKey: 'horosa.zeri.huangli.schemes.v1',
+	exportFormat: 'horosa-huangli-zeri-schemes',
+	mismatchMsg: '不是黄历择日方案文件',
+});
+
+// ── [Z2] 八字择日专属实例 ──
+export const baziZeriSchemeStore = makeSchemeStore({
+	storageKey: 'horosa.zeri.bazi.schemes.v1',
+	exportFormat: 'horosa-bazi-zeri-schemes',
+	mismatchMsg: '不是八字择日方案文件',
+});
+
+// ── [Z3] 太乙择日专属实例 ──
+export const taiyiZeriSchemeStore = makeSchemeStore({
+	storageKey: 'horosa.zeri.taiyi.schemes.v1',
+	exportFormat: 'horosa-taiyi-zeri-schemes',
+	mismatchMsg: '不是太乙择日方案文件',
+});
+
+export const ziweiZeriSchemeStore = makeSchemeStore({
+	storageKey: 'horosa.zeri.ziwei.schemes.v1',
+	exportFormat: 'horosa-ziwei-zeri-schemes',
+	mismatchMsg: '不是紫微择日方案文件',
+});
+
+export const liurengZeriSchemeStore = makeSchemeStore({
+	storageKey: 'horosa.zeri.liureng.schemes.v1',
+	exportFormat: 'horosa-liureng-zeri-schemes',
+	mismatchMsg: '不是六壬择日方案文件',
+});
+
+export const sanshiZeriSchemeStore = makeSchemeStore({
+	storageKey: 'horosa.zeri.sanshi.schemes.v1',
+	exportFormat: 'horosa-sanshi-zeri-schemes',
+	mismatchMsg: '不是三式择日方案文件',
+});
+
+export const qizhengZeriSchemeStore = makeSchemeStore({
+	storageKey: 'horosa.zeri.qizheng.schemes.v1',
+	exportFormat: 'horosa-qizheng-zeri-schemes',
+	mismatchMsg: '不是七政择日方案文件',
+});
+
+export const indiaZeriSchemeStore = makeSchemeStore({
+	storageKey: 'horosa.zeri.india.schemes.v1',
+	exportFormat: 'horosa-india-zeri-schemes',
+	mismatchMsg: '不是印度择日方案文件',
+});

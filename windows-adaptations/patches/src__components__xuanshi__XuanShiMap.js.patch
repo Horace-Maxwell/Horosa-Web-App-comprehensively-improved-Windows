@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/xuanshi/XuanShiMap.js b/astrostudyui/src/components/xuanshi/XuanShiMap.js
-index f865d11..31f7efe 100644
+index b1ed1b02..c9f62c2b 100644
 --- a/astrostudyui/src/components/xuanshi/XuanShiMap.js
 +++ b/astrostudyui/src/components/xuanshi/XuanShiMap.js
 @@ -1,6 +1,6 @@

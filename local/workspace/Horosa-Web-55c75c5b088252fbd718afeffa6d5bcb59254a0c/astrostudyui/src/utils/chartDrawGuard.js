@@ -75,3 +75,33 @@ export function watchChartSvgResize(chartid, redraw){
 		pending = false;
 	};
 }
+
+// host(parentElement)版:适用于「draw 会改写 svg 自身尺寸」的盘——观察 svg 自身会自触发循环
+// (六壬 LiuRengChart 实证过的坑),观察宿主容器则尺寸信号只来自布局变化。其余语义同上。
+export function watchChartHostResize(chartid, redraw){
+	if(typeof ResizeObserver === 'undefined' || typeof document === 'undefined' || !chartid || typeof redraw !== 'function'){
+		return ()=>{};
+	}
+	const svgdom = document.getElementById(chartid);
+	const host = svgdom ? svgdom.parentElement : null;
+	if(!host){
+		return ()=>{};
+	}
+	let pending = false;
+	let rafHandle = 0;
+	const schedule = (typeof requestAnimationFrame === 'function') ? requestAnimationFrame : (cb)=>setTimeout(cb, 16);
+	const ro = new ResizeObserver(()=>{
+		if(pending){ return; }
+		pending = true;
+		rafHandle = schedule(()=>{
+			pending = false;
+			try{ redraw(); }catch(e){ /* 重画失败不上抛:下一次真实更新仍会画 */ }
+		});
+	});
+	try{ ro.observe(host); }catch(e){ return ()=>{}; }
+	return ()=>{
+		try{ ro.disconnect(); }catch(e){ /* noop */ }
+		if(pending && rafHandle && typeof cancelAnimationFrame === 'function'){ cancelAnimationFrame(rafHandle); }
+		pending = false;
+	};
+}

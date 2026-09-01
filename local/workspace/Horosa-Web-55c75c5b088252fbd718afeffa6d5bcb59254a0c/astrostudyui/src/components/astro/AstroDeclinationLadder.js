@@ -36,9 +36,22 @@ class AstroDeclinationLadder extends Component{
 		this.measure = this.measure.bind(this);
 	}
 
-	componentDidMount(){ this.measure(); if(typeof window !== 'undefined'){ window.addEventListener('resize', this.measure); } }
+	componentDidMount(){
+		this.measure();
+		if(typeof window !== 'undefined'){ window.addEventListener('resize', this.measure); }
+		// [Tahoe 订阅补齐] 容器 RO:量的是 ref 容器宽(由外层布局决定,measure 不改它,无循环)。
+		try{
+			if(typeof ResizeObserver !== 'undefined' && this.ref.current){
+				this._hostRO = new ResizeObserver(this.measure);
+				this._hostRO.observe(this.ref.current);
+			}
+		}catch(e){ this._hostRO = null; }
+	}
 	componentDidUpdate(){ this.measure(); }
-	componentWillUnmount(){ if(typeof window !== 'undefined'){ window.removeEventListener('resize', this.measure); } }
+	componentWillUnmount(){
+		if(typeof window !== 'undefined'){ window.removeEventListener('resize', this.measure); }
+		if(this._hostRO){ try{ this._hostRO.disconnect(); }catch(e){ /* noop */ } this._hostRO = null; }
+	}
 
 	measure(){
 		if(this.ref.current){

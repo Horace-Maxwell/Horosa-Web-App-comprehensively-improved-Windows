@@ -18,7 +18,9 @@
 
 import * as AstroConst from '../constants/AstroConst';
 import { classicalGlobalValue } from './classicalChartGlobals';
-import { EGYPT_SCHOOL_AXES, EGYPT_SCHOOL_DEFAULT } from '../divination/data/egyptianSchools';
+import { ZWEngineOptions } from '../components/ziwei/ziweiOptions';
+import { ZWSchool } from '../constants/ZWConst';
+import { EGYPT_SCHOOL_AXES, EGYPT_SCHOOL_DEFAULT, currentEgyptSchool } from '../divination/data/egyptianSchools';
 import { safeLocalStorageSet } from '../utils/safeStorage';
 import {
 	SUPPORTED_PD_METHODS,
@@ -127,9 +129,11 @@ const PD_METHOD_OPTIONS = SUPPORTED_PD_METHODS.map((value)=>({ value, label: PD_
 const PD_TIME_KEY_OPTIONS = SUPPORTED_PD_TIME_KEYS.map((value)=>({ value, label: PD_TIME_KEY_LABELS[value] || value }));
 
 // 日界 + 晚子时（八字/紫微/太乙等共用；从 TIME_FIELDS 抽出以便单独复用）。默认 === 各 builder 现状。
+// [基线锚审计 病5] default 是模块载入期求值的一次性快照,builder 却实时读全局——会话内改
+// 全局日界后基线冻在旧值,齿轮拨回旧档被 prune 剪空(9 技法共用字段)。globalCurrent 实时求值根治。
 const DAY_BOUNDARY_FIELDS = [
-	{ name: 'after23NewDay', label: '日界（日柱换日）', type: 'select', options: DAY_BOUNDARY_OPTIONS, default: defaultAfter23NewDay(), group: '时间换算' },
-	{ name: 'lateZiHourUseNextDay', label: '晚子时·时柱进次日', type: 'switch', options: ON_OFF, default: defaultLateZiHourUseNextDay(), group: '时间换算' },
+	{ name: 'after23NewDay', label: '日界（日柱换日）', type: 'select', options: DAY_BOUNDARY_OPTIONS, default: defaultAfter23NewDay(), globalCurrent: ()=>defaultAfter23NewDay(), group: '时间换算' },
+	{ name: 'lateZiHourUseNextDay', label: '晚子时·时柱进次日', type: 'switch', options: ON_OFF, default: defaultLateZiHourUseNextDay(), globalCurrent: ()=>defaultLateZiHourUseNextDay(), group: '时间换算' },
 ];
 // 起课时间换算共用组（紫微/数算/神数等 2 档 timeAlg 技法），默认全部 === buildFieldObject 现状。
 const TIME_FIELDS = [
@@ -865,11 +869,14 @@ const ASTRO_CHART_FIELDS = [
 	{ name: 'useStoredOrbs', label: '沿用本盘自定义容许度', type: 'switch', options: ON_OFF, default: 0, group: '容许度' },
 	// ── 埃及历七轴(随盘键 egypt_*):快照链 egyptSchoolFromFields 优先消费;
 	// 默认档不下发(localcharts 只捕获非默认轴),挂载改此组=只改【埃及历】段口径 ──
+	// [基线锚审计 病2] globalCurrent=currentEgyptSchool 现值:builder(astroAiSnapshot:1717)缺
+	// fields 键时回退的正是它——旧档/导入档无 egypt 键+全局改过,拨回默认档曾被剪空(全默认不可表达)。
 	...EGYPT_SCHOOL_AXES.map((ax) => ({
 		name: 'egypt_' + ax.key,
 		label: '埃及·' + ax.label,
 		type: 'select',
 		default: EGYPT_SCHOOL_DEFAULT[ax.key],
+		globalCurrent: () => (currentEgyptSchool() || {})[ax.key],
 		group: '埃及历',
 		options: ax.options.map((o) => ({ value: o.value, label: o.label })),
 	})),
@@ -1277,8 +1284,14 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	indiachart: { kind: 'record', fields: INDIA_CHART_FIELDS, emptyHint: '印度盘按出生信息起盘，可调岁差制/分宫制。' },
 	// 宿占=占星起盘 + 宿盘专属「人事十二宫起宫」(ASC起盘/八字公式起盘,SZConst.SZHouseStart_*);
 	// 独立拼 fields(不污染 astrochart 共用的 ASTRO_CHART_FIELDS)。默认 0=八字公式起盘=现状。
-	suzhan: { kind: 'record', fields: [...ASTRO_CHART_FIELDS, {
-		name: 'houseStartMode', label: '人事十二宫起盘', type: 'select', default: 0, group: '排盘',
+	// [基线锚审计 病4+死齿轮账] houseStartMode 的 builder 回退读 localStorage('suzhanHouseStartMode')
+	// (aiAnalysisContext buildFieldObject:564)——globalCurrent 同源,旧档缺键+全局曾选 ASC 时拨回
+	// 默认档不再被剪空;埃及历七轴对宿占是死齿轮(buildSuzhanSnapshotText 不产【埃及历】段),
+	// 从共享 ASTRO_CHART_FIELDS 过滤掉,免误导。
+	suzhan: { kind: 'record', fields: [...ASTRO_CHART_FIELDS.filter((f)=>!`${f.name}`.startsWith('egypt_')), {
+		name: 'houseStartMode', label: '人事十二宫起盘', type: 'select', default: 0,
+		globalCurrent: ()=>((typeof localStorage !== 'undefined' && parseInt(localStorage.getItem('suzhanHouseStartMode'), 10) === 1) ? 1 : 0),
+		group: '排盘',
 		options: [{ value: 0, label: '八字公式起盘（默认）' }, { value: 1, label: 'ASC起盘' }],
 	}] },
 	// 演禽/策天：经 ken 后端按出生时间起盘（纯命盘类、无事盘）。
@@ -1576,7 +1589,7 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 		...TIME_FIELDS,
 		// 四化流派:进快照(切流派改星曜四化标注 + 后端格局判定)。merge 进 record.sihuaSchool →
 		// buildChartZiweiParams 挂上 params.sihuaSchool → buildZiweiSnapshotForParams 临时切单例复算(用毕还原)。
-		{ name: 'sihuaSchool', label: '四化流派', type: 'select', default: 'beipai', group: '流派', options: [
+		{ name: 'sihuaSchool', label: '四化流派', type: 'select', default: 'beipai', globalCurrent: ()=>ziweiGlobalValue('sihuaSchool'), group: '流派', options: [
 			{ value: 'beipai', label: '通用·飞星（默认）' },
 			{ value: 'zhongzhou', label: '中州派' },
 			{ value: 'quanshu', label: '全书系' },
@@ -1589,39 +1602,39 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 			placeholder: '{"甲":["廉贞","破军","武曲","太阳"],...} 留空=用本机表' },
 		// 传本/排盘开关(本地引擎):任一非默认 → buildZiweiSnapshotForParams 临时覆盖 ZWEngineOptions 并以本地引擎重排盘+重算格局,
 		// 使挂载/导出快照与该盘传本设置一致;全默认(缺省·被 pruneOptionsToNonDefault 剪掉不进 record)=回退全局单例=现状逐字节一致。
-		{ name: 'daxianSpan', label: '大限跨度', type: 'select', default: 10, group: '传本', options: ZW_DAXIAN_SPAN_OPTIONS },
-		{ name: 'tianmaBasis', label: '天马依据', type: 'select', default: 'month', group: '传本', options: ZW_TIANMA_BASIS_OPTIONS },
-		{ name: 'starSet', label: '星集', type: 'select', default: 'full', group: '传本', options: ZW_STAR_SET_OPTIONS },
-		{ name: 'sanPan', label: '观察盘(三盘)', type: 'select', default: 'tian', group: '传本', options: ZW_SANPAN_OPTIONS },
-		{ name: 'shangShi', label: '天伤天使', type: 'select', default: 'fixed', group: '传本', options: ZW_SHANGSHI_OPTIONS },
-		{ name: 'leapMonth', label: '闰月归月', type: 'select', default: 'mid_split', group: '传本', options: ZW_LEAP_MONTH_OPTIONS },
-		{ name: 'lateZi', label: '晚子时', type: 'select', default: 'global', group: '传本', options: ZW_LATE_ZI_OPTIONS },
-		{ name: 'yearBoundary', label: '定年界线', type: 'select', default: 'lichun', group: '传本', options: ZW_YEAR_BOUNDARY_OPTIONS },
-		{ name: 'huoling', label: '火铃', type: 'select', default: 'sanhe', group: '传本', options: ZW_HUOLING_OPTIONS },
-		{ name: 'kongNaming', label: '空劫命名', type: 'select', default: 'modern', group: '传本', options: ZW_KONG_NAMING_OPTIONS },
-		{ name: 'brightnessSource', label: '星曜亮度', type: 'select', default: 'zi_jian', group: '传本', options: ZW_BRIGHTNESS_SOURCE_OPTIONS },
+		{ name: 'daxianSpan', label: '大限跨度', type: 'select', default: 10, globalCurrent: ()=>ziweiGlobalValue('daxianSpan'), group: '传本', options: ZW_DAXIAN_SPAN_OPTIONS },
+		{ name: 'tianmaBasis', label: '天马依据', type: 'select', default: 'month', globalCurrent: ()=>ziweiGlobalValue('tianmaBasis'), group: '传本', options: ZW_TIANMA_BASIS_OPTIONS },
+		{ name: 'starSet', label: '星集', type: 'select', default: 'full', globalCurrent: ()=>ziweiGlobalValue('starSet'), group: '传本', options: ZW_STAR_SET_OPTIONS },
+		{ name: 'sanPan', label: '观察盘(三盘)', type: 'select', default: 'tian', globalCurrent: ()=>ziweiGlobalValue('sanPan'), group: '传本', options: ZW_SANPAN_OPTIONS },
+		{ name: 'shangShi', label: '天伤天使', type: 'select', default: 'fixed', globalCurrent: ()=>ziweiGlobalValue('shangShi'), group: '传本', options: ZW_SHANGSHI_OPTIONS },
+		{ name: 'leapMonth', label: '闰月归月', type: 'select', default: 'mid_split', globalCurrent: ()=>ziweiGlobalValue('leapMonth'), group: '传本', options: ZW_LEAP_MONTH_OPTIONS },
+		{ name: 'lateZi', label: '晚子时', type: 'select', default: 'global', globalCurrent: ()=>ziweiGlobalValue('lateZi'), group: '传本', options: ZW_LATE_ZI_OPTIONS },
+		{ name: 'yearBoundary', label: '定年界线', type: 'select', default: 'lichun', globalCurrent: ()=>ziweiGlobalValue('yearBoundary'), group: '传本', options: ZW_YEAR_BOUNDARY_OPTIONS },
+		{ name: 'huoling', label: '火铃', type: 'select', default: 'sanhe', globalCurrent: ()=>ziweiGlobalValue('huoling'), group: '传本', options: ZW_HUOLING_OPTIONS },
+		{ name: 'kongNaming', label: '空劫命名', type: 'select', default: 'modern', globalCurrent: ()=>ziweiGlobalValue('kongNaming'), group: '传本', options: ZW_KONG_NAMING_OPTIONS },
+		{ name: 'brightnessSource', label: '星曜亮度', type: 'select', default: 'zi_jian', globalCurrent: ()=>ziweiGlobalValue('brightnessSource'), group: '传本', options: ZW_BRIGHTNESS_SOURCE_OPTIONS },
 		// [B14] 亮度=自定义时的随盘亮度表(JSON,形状 {"星":{"支":"档"}};档=庙旺得地利平闲不陷)。
 		// 留空=custom 档回落本机编辑器所存表;builder 端 normalizeBrightnessCustomTable 校验,坏值不注入。
 		{ name: 'brightnessCustomTable', label: '自定义亮度表(JSON,配合亮度=自定义)', type: 'text', default: '', group: '传本',
 			placeholder: '{"紫微":{"子":"平","丑":"庙"},...} 留空=用本机表' },
-		{ name: 'lifeMasterBy', label: '命主取法', type: 'select', default: 'year_branch', group: '传本', options: ZW_LIFE_MASTER_BY_OPTIONS },
-		{ name: 'changshengStart', label: '长生十二神起法', type: 'select', default: 'shui_tu', group: '传本', options: ZW_CHANGSHENG_START_OPTIONS },
-		{ name: 'changshengDirection', label: '长生顺逆', type: 'select', default: 'yinyang', group: '传本', options: ZW_CHANGSHENG_DIRECTION_OPTIONS },
-		{ name: 'kongwangStyle', label: '空亡星式', type: 'select', default: 'double', group: '传本', options: ZW_KONGWANG_STYLE_OPTIONS },
-		{ name: 'kuiYue', label: '魁钺歌诀', type: 'select', default: 'jia_wu_geng', group: '传本', options: ZW_KUIYUE_OPTIONS },
-		{ name: 'liuYueBasis', label: '流月起法', type: 'select', default: 'doujun', group: '传本', options: ZW_LIU_YUE_BASIS_OPTIONS },
-		{ name: 'liunianSihuaGan', label: '流年四化取干', type: 'select', default: 'year_gan', group: '传本', options: ZW_LIUNIAN_SIHUA_GAN_OPTIONS },
+		{ name: 'lifeMasterBy', label: '命主取法', type: 'select', default: 'year_branch', globalCurrent: ()=>ziweiGlobalValue('lifeMasterBy'), group: '传本', options: ZW_LIFE_MASTER_BY_OPTIONS },
+		{ name: 'changshengStart', label: '长生十二神起法', type: 'select', default: 'shui_tu', globalCurrent: ()=>ziweiGlobalValue('changshengStart'), group: '传本', options: ZW_CHANGSHENG_START_OPTIONS },
+		{ name: 'changshengDirection', label: '长生顺逆', type: 'select', default: 'yinyang', globalCurrent: ()=>ziweiGlobalValue('changshengDirection'), group: '传本', options: ZW_CHANGSHENG_DIRECTION_OPTIONS },
+		{ name: 'kongwangStyle', label: '空亡星式', type: 'select', default: 'double', globalCurrent: ()=>ziweiGlobalValue('kongwangStyle'), group: '传本', options: ZW_KONGWANG_STYLE_OPTIONS },
+		{ name: 'kuiYue', label: '魁钺歌诀', type: 'select', default: 'jia_wu_geng', globalCurrent: ()=>ziweiGlobalValue('kuiYue'), group: '传本', options: ZW_KUIYUE_OPTIONS },
+		{ name: 'liuYueBasis', label: '流月起法', type: 'select', default: 'doujun', globalCurrent: ()=>ziweiGlobalValue('liuYueBasis'), group: '传本', options: ZW_LIU_YUE_BASIS_OPTIONS },
+		{ name: 'liunianSihuaGan', label: '流年四化取干', type: 'select', default: 'year_gan', globalCurrent: ()=>ziweiGlobalValue('liunianSihuaGan'), group: '传本', options: ZW_LIUNIAN_SIHUA_GAN_OPTIONS },
 		// 流派叠层显示(纯后处理,开则挂载/导出快照注入对应 ground-truth 段:童限/三限/气数位/借宫/太岁)。默认全关=现状。
-		{ name: 'childLimit', label: '童限', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
-		{ name: 'zhongxian', label: '沈氏三限', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
-		{ name: 'huoPan', label: '活盘(太极点)', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
-		{ name: 'qishuWei', label: '河洛气数位', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
-		{ name: 'borrowPalace', label: '中州借宫', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
-		{ name: 'taiSuiRuGua', label: '紫云太岁入卦', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
-		{ name: 'flowLuanXi', label: '流鸾流喜', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
-		{ name: 'flowHuoLing', label: '流火流铃', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
-		{ name: 'flowShenshaOnChart', label: '流年神煞上盘', type: 'switch', default: 0, group: '流派叠层', options: ON_OFF },
-		{ name: 'taiSuiRelatives', label: '太岁关系人(支[:角色[:性别]],如 午:母:female 子)', type: 'text', default: '', group: '流派叠层',
+		{ name: 'childLimit', label: '童限', type: 'switch', default: 0, globalCurrent: ()=>ziweiGlobalValue('childLimit'), group: '流派叠层', options: ON_OFF },
+		{ name: 'zhongxian', label: '沈氏三限', type: 'switch', default: 0, globalCurrent: ()=>ziweiGlobalValue('zhongxian'), group: '流派叠层', options: ON_OFF },
+		{ name: 'huoPan', label: '活盘(太极点)', type: 'switch', default: 0, globalCurrent: ()=>ziweiGlobalValue('huoPan'), group: '流派叠层', options: ON_OFF },
+		{ name: 'qishuWei', label: '河洛气数位', type: 'switch', default: 0, globalCurrent: ()=>ziweiGlobalValue('qishuWei'), group: '流派叠层', options: ON_OFF },
+		{ name: 'borrowPalace', label: '中州借宫', type: 'switch', default: 0, globalCurrent: ()=>ziweiGlobalValue('borrowPalace'), group: '流派叠层', options: ON_OFF },
+		{ name: 'taiSuiRuGua', label: '紫云太岁入卦', type: 'switch', default: 0, globalCurrent: ()=>ziweiGlobalValue('taiSuiRuGua'), group: '流派叠层', options: ON_OFF },
+		{ name: 'flowLuanXi', label: '流鸾流喜', type: 'switch', default: 0, globalCurrent: ()=>ziweiGlobalValue('flowLuanXi'), group: '流派叠层', options: ON_OFF },
+		{ name: 'flowHuoLing', label: '流火流铃', type: 'switch', default: 0, globalCurrent: ()=>ziweiGlobalValue('flowHuoLing'), group: '流派叠层', options: ON_OFF },
+		{ name: 'flowShenshaOnChart', label: '流年神煞上盘', type: 'switch', default: 0, globalCurrent: ()=>ziweiGlobalValue('flowShenshaOnChart'), group: '流派叠层', options: ON_OFF },
+		{ name: 'taiSuiRelatives', label: '太岁关系人(支[:角色[:性别]],如 午:母:female 子)', type: 'text', default: '', globalCurrent: ()=>ziweiGlobalValue('taiSuiRelatives'), group: '流派叠层',
 			// text→[{branch,role,sex}] 归一(与 live UI 同结构):否则 buildZiweiOverlayLines/taiSuiRuGua 的 Array.isArray 判死、挂载侧太岁入卦段静默丢失。
 			// [P2e] 文法扩展 `支[:角色[:性别]]`;裸支向后兼容(role/sex 空)。
 			normalize: (v)=>{ if(Array.isArray(v)){ return v; } const bs = `${v == null ? '' : v}`.split(/[,，\s]+/).map((x)=>x.trim()).filter(Boolean); return bs.map((tok)=>{ const seg = tok.split(/[:：]/); return { branch: seg[0], role: seg[1] || '', sex: seg[2] || '' }; }); } },
@@ -1631,7 +1644,7 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 		// 全空(默认)=不追加[运限]段=现状(守「默认即现状」,逐字节一致)。总段数上限~50,超限截断+提示行。
 		// 小限顺逆(P1-B):流年段「小限：」行的宫序方向(ZWLuckPanel buildXiaoxianItems 消费;
 		// 曾只读全局 localStorage,schema 放出 liunianSel 却调不到顺逆口径 → 半截可控)。
-		{ name: 'ziweiXiaoxianYinyang', label: '小限顺逆', type: 'select', default: '0', group: '运限', options: [
+		{ name: 'ziweiXiaoxianYinyang', label: '小限顺逆', type: 'select', default: '0', globalCurrent: ()=>ziweiGlobalValue('xiaoxianMode'), group: '运限', options: [
 			{ value: '0', label: '男顺女逆（默认）' }, { value: '1', label: '阳男阴女顺(中州)' },
 		] },
 		{ name: 'daxianSel', label: '大限(命盘宫位序0–11,可多选)', type: 'multiselect', default: [], group: '运限', options: ZIWEI_DAXIAN_OPTIONS },
@@ -1888,6 +1901,16 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	] },
 	// 老黄历:纯日期确定复算,无齿轮
 	huangli: { kind: 'sectionsOnly', reason: '老黄历按起课日期确定复算,无可调参数;内容勾选照常。' },
+	// [Z1] 黄历择日:日课判定同 huangli 零参数;择吉三段随宿主快照槽实时产出,内容勾选照常。
+	huanglizeri: { kind: 'sectionsOnly', reason: '黄历择日日课零可调参数;择吉配置/条件/命中随快照实时产出。' },
+	// [Z2] 八字择日:盘面口径随宿主工作台(与主八字页同枚举),快照槽实时产出;挂载复算不适用。
+	bazizeri: { kind: 'sectionsOnly', reason: '八字择日盘面口径由择日工作台冻结,快照(八字全文+择时三段)实时产出;内容勾选照常。' },
+	taiyizeri: { kind: 'sectionsOnly', reason: '太乙择日盘面口径由择日工作台冻结,快照(太乙全文+择时三段)实时产出;内容勾选照常。' },
+	ziweizeri: { kind: 'sectionsOnly', reason: '紫微择日盘面口径由择日工作台冻结,快照(紫微全文+择时三段)实时产出;内容勾选照常。' },
+	liurengzeri: { kind: 'sectionsOnly', reason: '六壬择日盘面口径由择日工作台冻结,快照(六壬全文+择时三段)实时产出;内容勾选照常。' },
+	sanshizeri: { kind: 'sectionsOnly', reason: '三式择日盘面口径由择日工作台冻结,快照(三式合一全文+择时三段)实时产出;内容勾选照常。' },
+	qizhengzeri: { kind: 'sectionsOnly', reason: '七政择日盘面口径由择日工作台冻结,快照(七政全文+择时三段)实时产出;内容勾选照常。' },
+	indiazeri: { kind: 'sectionsOnly', reason: '印度择日挂载=择时三段自足(印度页星盘系无独立快照槽;印度盘全文用主印度页挂载)。' },
 	// 通书择日:齿轮落 payload.tongshu(regenerate 读 {...defaults, ...p.tongshu} —— 该读点此前无任何写入方)
 	tongshu: { kind: 'payload', optionsPath: 'tongshu', group: '通书择日', fields: [
 		{ name: 'school', label: '流派', type: 'select', default: 'donggong', options: [
@@ -2112,7 +2135,9 @@ function normalizeArrayForCompare(v){
 	if(!Array.isArray(v)){
 		return v;
 	}
-	return [...v].map((x)=>`${x}`).sort().join(',');
+	// 对象元素必须 JSON 化:`${x}`='[object Object]' 对 taiSuiRelatives 这类对象数组零判别
+	// (不同关系人列表被误判相同而剪空,审查实抓 Issue#76 输入地支不生效的一半病因)。
+	return [...v].map((x)=>(x && typeof x === 'object' ? JSON.stringify(x) : `${x}`)).sort().join(',');
 }
 
 // 把一份「可能含默认值」的 options 收敛为「只保留与默认不同的项」（默认即现状：空对象 = 不覆盖）。
@@ -2126,6 +2151,23 @@ function normalizeArrayForCompare(v){
 // [V6 二轮复查] 「现状默认」单源:field.globalCurrent(全局仓种子键——页面种子=全局现值、
 // 存盘「值==种子不落键」,record 缺键的真实语义=「随全局」而非内建 schema 默认;15 键族
 // westNodeType 系+古典口径 10 键)优先于 field.default。prune 比较锚与抽屉基线显示共用。
+// [Issue#76 根修] 紫微 A 类基线锚=全局单例现值(ZWEngineOptions/ZWSchool),非裸 schema 默认。
+// builder 缺省回退的正是这两个单例——基线读同一变量 = 与回退口径 by construction 恒等:
+// 左栏(全局)开了太岁入卦时,挂载拨「关」若锚 schema 默认(0)会被 prune 剪空 → 走 live
+// 快照(读全局=开)→ 开关不生效(Win Issue#76 用户实锤;WP-1 termsVariant 同型病)。
+// switch 型单例存 boolean、schema 用 0/1 —— 归一到 0/1(prune 是字符串化比较,'true'≠'1'会假 override)。
+function ziweiGlobalValue(key){
+	const v = key === 'sihuaSchool' ? (ZWSchool && ZWSchool.school) : (ZWEngineOptions ? ZWEngineOptions[key] : undefined);
+	if(v === undefined || v === null){ return undefined; }
+	if(typeof v === 'boolean'){ return v ? 1 : 0; }
+	// 对象数组(taiSuiRelatives)必须转文本形:text 字段的抽屉输入框 `${value}` 渲染,
+	// 数组直出=显示 [object Object] 且用户一编辑就切出垃圾关系人(复审 F2 实抓)。
+	if(Array.isArray(v)){
+		return v.map((r)=>(r && typeof r === 'object' ? [r.branch, r.role, r.sex].filter(Boolean).join(':') : `${r}`)).join(' ');
+	}
+	return v;
+}
+
 function fieldCurrentDefault(field){
 	if(field && typeof field.globalCurrent === 'function'){
 		try{

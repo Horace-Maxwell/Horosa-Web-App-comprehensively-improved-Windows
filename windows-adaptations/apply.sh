@@ -336,6 +336,8 @@ apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/components/tarot/__tes
 # 修 = 换成纯 Node 等价扫描(fs 递归 + 同义正则 + relPosix 归一),语义逐条对齐、判据零放宽,
 # 并做了注入式自证(注入未换算写回点 → 精确报出 file:line;还原即绿)。
 apply_patch horosa_win_shell_free_scan_v1  astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js src__utils____tests____popupAlignStaticGuard.winShellFree.test.js.patch
+# [v3.10.0] 上游新版面域静态守卫同族三例(execSync grep 在 cmd.exe 下失效;T1 自证在 Windows 红):同判例改纯 Node。
+apply_patch horosa_win_shell_free_scan_v1  astrostudyui/src/utils/__tests__/layoutDomainStaticGuard.test.js src__utils____tests____layoutDomainStaticGuard.winShellFree.test.js.patch
 apply_patch horosa_win_shell_free_scan_v1  astrostudyui/src/utils/__tests__/popupAlignZoomGuard.test.js src__utils____tests____popupAlignZoomGuard.winShellFree.test.js.patch
 # Mac v3.9.0 新增的小成图 [XCT-2]:它刻意「绕 Tabs 惰性」直取 pane 产物做内容断言,而我方
 # horosa_freeze_subtabs_v1 把 TabPane 内容包进了 render-prop(非激活目不求值)⇒ 直取得到
@@ -554,7 +556,14 @@ apply_patch horosa_prefetch_registry_v1 astrostudyui/src/components/auxchart/Aux
 # [#94] 同 ZiWeiMain:v3.8.0 上游已带 prefetch_registry,守卫改用本文件上游还没有的 panel_ready。
 apply_patch horosa_panel_ready_v1 astrostudyui/src/components/dunjia/DunJiaMain.js         src__components__dunjia__DunJiaMain.prefetchRegistry.js.patch
 apply_patch horosa_sanshi_render_slice_v1 astrostudyui/src/components/sanshi/SanShiUnitedMain.js   src__components__sanshi__SanShiUnitedMain.prefetchRegistry.js.patch
-apply_patch horosa_prefetch_registry_v1 astrostudyui/src/components/taiyi/TaiYiMain.js           src__components__taiyi__TaiYiMain.prefetchRegistry.js.patch
+# [#94 三连击,v3.10.0] TaiYiMain 守卫由 horosa_prefetch_registry_v1(v3.7.1 起被上游收编,
+# 本轮上游首碰该文件即触发整补丁静默跳过,FreezeSubTab/markPanelReady 双丢,总账门兑现)
+# 换为补丁独有 horosa_freeze_subtabs_v1(上游 TaiYiMain 恒不含;R4 已成对入 SENT)。
+apply_patch horosa_freeze_subtabs_v1 astrostudyui/src/components/taiyi/TaiYiMain.js           src__components__taiyi__TaiYiMain.prefetchRegistry.js.patch
+# [v3.10.0] 上游新文件 TaiyiBoardSvg 用 shenMeaning 未 import(触发即 ReferenceError,绑定门实抓);建议上游化。
+apply_patch horosa_taiyi_boardsvg_shenmeaning_import_v1 astrostudyui/src/components/taiyi/TaiyiBoardSvg.js src__components__taiyi__TaiyiBoardSvg.shenMeaningImport.js.patch
+# [v3.10.0] 上游新对冲断言模界脆断(精确对冲随 libm 尾差落 0+ε/360-ε 两侧,Windows 实测 360-6e-14):改圆距形;建议上游化。
+apply_patch horosa_circular_delta_assert_v1 astropy/tests/test_qizheng_election_scan.py astropy__tests__test_qizheng_election_scan.circularDelta.py.patch
 # 步进预取金标:任务序(近端优先 + 技法端点先于同向 chart)、技法登记方收到【已步进】的 fields
 # (旧版传基准 fields = 预取当前那张盘 = 白打)、每个任务必须自带 path 声明。
 apply_patch stepPrefetchFastFirst "astrostudyui/src/utils/__tests__/stepPrefetch.test.js"  src__utils____tests____stepPrefetch.prefetchRegistry.test.js.patch

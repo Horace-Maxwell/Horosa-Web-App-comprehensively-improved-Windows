@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/utils/storageKeyRegistry.js b/astrostudyui/src/utils/storageKeyRegistry.js
-index 3e0dd8e3..6d7693ca 100644
+index 47164413..5d570cc0 100644
 --- a/astrostudyui/src/utils/storageKeyRegistry.js
 +++ b/astrostudyui/src/utils/storageKeyRegistry.js
-@@ -114,6 +114,10 @@ export const STORAGE_KEY_REGISTRY = [
+@@ -124,6 +124,10 @@ export const STORAGE_KEY_REGISTRY = [
  	{ key: 'horosa.map.consent.v1', kind: 'device-local', backup: false, label: '地图加载同意(设备+当下决定,不迁移)' },
  	{ key: 'horosa.shell.zoom', kind: 'device-local', backup: false, label: '壳层缩放(屏幕相关)' },
  	{ key: 'horosa.window.size.v1', kind: 'device-local', backup: false, label: '窗口尺寸(屏幕相关)' },

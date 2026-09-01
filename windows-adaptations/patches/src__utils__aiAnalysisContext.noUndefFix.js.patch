@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/aiAnalysisContext.js b/astrostudyui/src/utils/aiAnalysisContext.js
-index c4bc1c4b..aecdf35b 100644
+index 48bdcfe9..2f576853 100644
 --- a/astrostudyui/src/utils/aiAnalysisContext.js
 +++ b/astrostudyui/src/utils/aiAnalysisContext.js
 @@ -146,7 +146,11 @@ import { calculate as heluoCalc, daYun as heluoDaYun, judge as heluoJudge, build

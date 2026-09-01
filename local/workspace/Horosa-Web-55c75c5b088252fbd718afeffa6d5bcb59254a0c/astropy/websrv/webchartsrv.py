@@ -101,6 +101,10 @@ CORE_SERVICE_SPECS = [
     {"key": "planetarium", "mount": "/planetarium", "module": "websrv.webplanetariumsrv", "class_name": "PlanetariumSrv"},
     # 天星择日·征象搜索(Calculate 侧;动盘侧=qizhengelection)。
     {"key": "electionscan", "mount": "/electionscan", "module": "websrv.webelectionscansrv", "class_name": "ElectionScanSrv"},
+    # [Z7] 七政择日·征象扫描(qizheng_election_scan;与天星 electionscan 同形薄壳)。
+    {"key": "qizhengelectionscan", "mount": "/qizhengelectionscan", "module": "websrv.webqizhengelectionscansrv", "class_name": "QizhengElectionScanSrv"},
+    # [Z8] 印度择日·征象扫描(india_election_scan;同形薄壳)。
+    {"key": "indiaelectionscan", "mount": "/indiaelectionscan", "module": "websrv.webindiaelectionscansrv", "class_name": "IndiaElectionScanSrv"},
 ]
 
 
@@ -115,7 +119,10 @@ CORE_SERVICE_SPECS = [
 # 引擎前返回;_LazyMountedService 每服务锁防双载。**新增 CORE 服务必须显式决定门前/门后**
 # —— 发布链的门前键集白名单断言会拦住未决定的新键。
 # kill-switch:HOROSA_ELECTIONSCAN_POSTGATE=0 ⇒ electionscan 回门前 tier-3(v3.7.0 原样)。
-POST_GATE_CORE_PREWARM_KEYS = {'electionscan'}
+# [v3.10.0 +Z7/Z8] qizheng/india 择日扫描与 electionscan 同型:重冷 import 链(qizheng 走
+# flatlib/swisseph,india 走 jyotish_engine ~10k LOC)、/scan ping 短路在触碰引擎前返回、
+# 分钟级长任务只由显式「搜索」触发 —— 按 #89 显式决定:门后。共用同一 kill-switch。
+POST_GATE_CORE_PREWARM_KEYS = {'electionscan', 'qizhengelectionscan', 'indiaelectionscan'}
 
 
 def _electionscan_postgate_enabled():

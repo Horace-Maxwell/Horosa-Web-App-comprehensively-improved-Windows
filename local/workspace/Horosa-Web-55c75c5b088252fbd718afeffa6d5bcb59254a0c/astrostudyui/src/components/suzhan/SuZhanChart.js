@@ -6,6 +6,7 @@ import * as SZConst from './SZConst';
 import SZChart from './SZChart';
 import { chartDrawGuardEnabled } from '../../utils/perfFlags';
 import { buildChartDrawSig, sameChartDrawSig, chartDrawnAtNonZeroSize } from '../../utils/chartDrawGuard';
+import { getEffectiveScale } from '../../utils/zoomDomain';
 
 const SQUARE_SIDE_MIN = 480;
 const SQUARE_SIDE_MAX = 1280;
@@ -74,12 +75,23 @@ class SuZhanChart extends Component{
 		if(svgdom){
 			const parent = svgdom.parentElement;
 			const panel = svgdom.closest ? (svgdom.closest('.horosa-suzhan-chart-panel') || parent) : parent;
-			const panelRect = panel && panel.getBoundingClientRect ? panel.getBoundingClientRect() : null;
-			const parentRect = parent && parent.getBoundingClientRect ? parent.getBoundingClientRect() : null;
-			const panelW = panel ? Math.floor(panelRect && panelRect.width ? panelRect.width : panel.clientWidth) : 0;
-			const panelH = panel ? Math.floor(panelRect && panelRect.height ? panelRect.height : panel.clientHeight) : 0;
-			const parentW = parent ? Math.floor(parentRect && parentRect.width ? parentRect.width : parent.clientWidth) : 0;
-			const parentH = parent ? Math.floor(parentRect && parentRect.height ? parentRect.height : parent.clientHeight) : 0;
+			// [Tahoe 域混根修] 容器量宽高用布局域读数(clientWidth/clientHeight)优先;rect 域
+			// (getBoundingClientRect)在壳缩放≠1 时已被 zoom 缩放,直接当布局 px 用=方盘边长
+			// 算错(z>1 超宽遮裁/z<1 偏小)。clientWidth 为 0 的罕见兜底才用 rect,且必须经
+			// getEffectiveScale()(实测探针,非声明值)换回布局域。
+			const zScale = getEffectiveScale() || 1;
+			const layoutSize = (el, kind)=>{
+				if(!el){ return 0; }
+				const direct = kind === 'w' ? el.clientWidth : el.clientHeight;
+				if(direct > 0){ return Math.floor(direct); }
+				const r = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+				const rv = r ? (kind === 'w' ? r.width : r.height) : 0;
+				return rv > 0 ? Math.floor(rv / zScale) : 0;
+			};
+			const panelW = layoutSize(panel, 'w');
+			const panelH = layoutSize(panel, 'h');
+			const parentW = layoutSize(parent, 'w');
+			const parentH = layoutSize(parent, 'h');
 			let viewportRemainH = 0;
 			const viewportH = window.innerHeight || document.documentElement.clientHeight || 0;
 			if(viewportH > 0){
@@ -92,7 +104,9 @@ class SuZhanChart extends Component{
 						bottomLimit = footerRect.top;
 					}
 				}
-				viewportRemainH = bottomLimit - rect.top - VIEWPORT_BOTTOM_GAP;
+				// rect.top 与 innerHeight 同属 rect/物理域,差值合法;但写进 candidates(布局域
+				// px,最终成为 svg 边长)前必须除回布局域,GAP 是布局语义常量放在除后减。
+				viewportRemainH = (bottomLimit - rect.top) / zScale - VIEWPORT_BOTTOM_GAP;
 			}
 			const candidates = [];
 			const pushCandidate = (v)=>{
@@ -173,10 +187,11 @@ class SuZhanChart extends Component{
 		}
 		let w = svgdom.clientWidth;
 		let h = svgdom.clientHeight;
-		if(h < 560 || w < 560){
+		// 早退只挡 0/极小值:560 级阈值在缩放档(布局宽=物理/z)下会把重绘路径整个挡死。
+		if(w < 200 || h < 200){
 			return;
 		}
-	
+
 		let orgx = w / 2;
 		let orgy = h / 2;
 		let delta = 30;

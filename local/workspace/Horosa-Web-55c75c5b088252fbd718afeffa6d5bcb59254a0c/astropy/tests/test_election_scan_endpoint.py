@@ -91,6 +91,7 @@ def _default_leaf_for(t):
         'classical_pattern': {'pattern': 'overcoming', 'over': 'any', 'under': 'any', 'aspectKind': 'any'},
         'eminence_level': {'op': 'gte', 'value': 0},
         'lifespan_state': {'item': 'kurios_is', 'method': 'ptolemy', 'planet': 'Sun'},
+        'cusp_state': {'house': 10, 'mode': 'in_sign', 'signs': [0, 1, 2, 3, 4, 5]},
         'antiscia': {'planet': 'Moon', 'kind': 'antiscia', 'target': {'kind': 'planet', 'id': 'Venus'}, 'orb': 3},
         'fixed_star': {'star': 'Regulus', 'target': {'kind': 'planet', 'id': 'Moon'}, 'orb': 3},
         'planetary_hour': {'kind': 'hour_ruler', 'planet': 'Sun'},

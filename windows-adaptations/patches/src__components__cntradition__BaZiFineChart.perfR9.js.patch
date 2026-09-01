@@ -1,9 +1,9 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZiFineChart.js b/astrostudyui/src/components/cntradition/BaZiFineChart.js
-index c57bf420..2c837168 100644
+index 7b48b24e..b23c37d5 100644
 --- a/astrostudyui/src/components/cntradition/BaZiFineChart.js
 +++ b/astrostudyui/src/components/cntradition/BaZiFineChart.js
 @@ -1,4 +1,5 @@
- import { Component } from 'react';
+ import React, { Component } from 'react';
 +import { chartSCUEnabled } from '../../utils/perfFlags';
  import { BaZiMsg } from '../../msg/bazimsg';
  import { getSelfZuo, hiddenStemsOf, xunKongOf } from '../../utils/baziLunarLocal';

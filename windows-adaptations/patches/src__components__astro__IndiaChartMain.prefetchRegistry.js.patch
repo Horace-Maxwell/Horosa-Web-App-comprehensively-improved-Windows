@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/IndiaChartMain.js b/astrostudyui/src/components/astro/IndiaChartMain.js
-index e1c8c41..980b9a2 100644
+index 6bc1ef08..1bea8604 100644
 --- a/astrostudyui/src/components/astro/IndiaChartMain.js
 +++ b/astrostudyui/src/components/astro/IndiaChartMain.js
 @@ -1,5 +1,8 @@

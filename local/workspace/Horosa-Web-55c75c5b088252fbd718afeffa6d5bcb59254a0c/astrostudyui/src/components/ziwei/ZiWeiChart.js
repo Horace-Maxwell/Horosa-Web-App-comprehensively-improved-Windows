@@ -1,5 +1,5 @@
 import * as d3 from 'd3';
-import { Component } from 'react';
+import React, { Component } from 'react';
 import {randomStr, setupFloatingTooltip} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import { chartDrawGuardEnabled, chartSCUEnabled } from '../../utils/perfFlags';
@@ -82,10 +82,12 @@ class ZiWeiChart extends Component{
 		}
 		let w = svgdom.clientWidth;
 		let h = svgdom.clientHeight;
-		if(h < 560 || w < 560){
+		// 早退只挡 0 尺寸/极小值:560 级阈值在缩放档下(布局宽=物理/z)会把 resize 路径整个挡死
+		// (z=1.8 时中栏布局宽必<560,缩窗后永不重画)——与六壬 LiuRengChart 同病同修,收到 200。
+		if(w < 200 || h < 200){
 			return;
 		}
-	
+
 		this.scheduleDrawChart();
 	}
 
@@ -112,14 +114,17 @@ class ZiWeiChart extends Component{
 		const viewport = svgdom.parentElement;
 		const panel = viewport ? viewport.parentElement : null; // .horosa-chart-stage
 		const source = panel || viewport;
-		if(source === undefined || source === null || typeof source.getBoundingClientRect !== 'function'){
+		if(source === undefined || source === null || typeof source.offsetWidth !== 'number'){
 			return svgdom.clientWidth > 0 && svgdom.clientHeight > 0;
 		}
 
-		const rect = source.getBoundingClientRect();
+		// [Tahoe 域混根修] 量容器必须用布局域读数(offsetWidth/offsetHeight,border-box),
+		// 绝不用 getBoundingClientRect:rect 域在壳缩放(html zoom)≠1 时已被缩放,把 rect 值
+		// 写回 style.width(布局域 px)=跨域写错尺寸(z>1 盘面超宽被两侧遮裁/z<1 偏小)。
+		// 读写同域直量,任何 zoom 引擎语义下 by construction 成立;z=1 时与旧 rect 写法逐值相等。
 		const pad = 14; // 留出 stage 内边距,避免压边/触发滚动(不超出上下边界)
-		const w = Math.floor(rect.width - pad);
-		const h = Math.floor(rect.height - pad);
+		const w = Math.floor(source.offsetWidth - pad);
+		const h = Math.floor(source.offsetHeight - pad);
 		if(w <= 0 || h <= 0){
 			return svgdom.clientWidth > 0 && svgdom.clientHeight > 0;
 		}

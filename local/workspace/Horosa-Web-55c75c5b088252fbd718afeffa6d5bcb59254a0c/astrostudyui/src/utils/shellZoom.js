@@ -36,33 +36,35 @@ export function getShellZoom(){
 	return s !== null ? s : 1;
 }
 
-// 布局视口高:innerHeight 恒报物理 CSS px(不随 html zoom),布局域真值须除以壳缩放。
-// 1:1 时除 1=恒等。
+// 布局视口尺寸:窗口到底给了多少**布局**像素。
 //
-// 🔴 [Tahoe 根治] 除数从**声明值**(getShellZoom:query/localStorage)改为**实测值**
-// (zoomDomain.getEffectiveScale:探针实测引擎到底缩放了没有)。两者在正常路径相等,
-// 行为一字不变;而在「壳声明了缩放但引擎未生效」的环境(旧 WKWebView 疑似如此)下,
-// 按声明值除会制造反向错位——那是一个可能一直存在的隐患,改实测后自动消失。
-// getShellZoom() 语义与签名保持不变(它表达"用户选的档位",别处在用)。
-// 惰性 require 破循环:zoomDomain 反过来要用本模块的 getShellZoom 作声明值回落。
-function effectiveScale(){
+// 🔴 2026-08-27 根修。此前的写法是 `innerHeight / 实测缩放`,而那个"实测缩放"量的是
+// **rect 缩放**——旧 MacBook(Safari 26.2)上 rect 根本不反映 zoom,探针恒测得 1,
+// 于是等于没除,整页被配矮 ⇒ 奇门 / 三式合一两页与主工作区同款底部死带。
+//
+// 正解不是换个更准的缩放值,而是**根本不去问缩放**:一个 position:fixed;inset:0 的
+// 元素,其 offsetWidth/offsetHeight 就是布局视口尺寸,在任何 zoom 语义下都直接成立。
+// 实测(物理 720):z=0.7/0.8/0.9/1.2/1.8 → 1029/900/800/600/400,恰为 720/z。
+// 详见 zoomDomain.measureLayoutViewport 的注释与 layoutDomainGuard 三引擎真值表。
+function layoutViewport(){
 	try{
 		// eslint-disable-next-line global-require
-		const { getEffectiveScale } = require('./zoomDomain');
-		const s = getEffectiveScale();
-		return (s && s > 0) ? s : 1;
-	}catch(e){
-		const z = getShellZoom();
-		return z || 1;
-	}
+		const { measureLayoutViewport } = require('./zoomDomain');
+		return measureLayoutViewport();
+	}catch(e){ return null; }
 }
 
 export function getLayoutViewportHeight(){
-	return Math.round(window.innerHeight / effectiveScale());
+	const vp = layoutViewport();
+	if(vp && vp.height > 0){ return vp.height; }
+	// 量不到(未布局/SSR)时退物理读数:缩放≠1 时偏小,但偏小只是版面略紧,好过拿错值。
+	try{ return Math.round(window.innerHeight) || 0; }catch(e){ return 0; }
 }
 
 export function getLayoutViewportWidth(){
-	return Math.round(window.innerWidth / effectiveScale());
+	const vp = layoutViewport();
+	if(vp && vp.width > 0){ return vp.width; }
+	try{ return Math.round(window.innerWidth) || 0; }catch(e){ return 0; }
 }
 
 export const SHELL_ZOOM_STORAGE_KEY = KEY;

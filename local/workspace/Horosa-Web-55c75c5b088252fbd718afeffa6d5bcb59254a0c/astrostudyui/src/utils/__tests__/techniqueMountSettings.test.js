@@ -38,6 +38,14 @@ import { SU28_MODE_GROUPS } from '../../components/guolao/guolaoData';
 // 卦象/figure/牌面恒冻结(payload.gua / seedMode:manual+seed),判读口径重算恒安全。
 const SECTIONS_ONLY = ['tongshefa', 'mundane',
 	'huangli',
+	'huanglizeri', // [Z1] 黄历择日:日课零可调参数(与 huangli 同理),择吉三段随快照实时产出
+	'bazizeri', // [Z2] 八字择日:口径随工作台冻结,快照实时产出
+	'taiyizeri', // [Z3] 太乙择日:同律
+	'ziweizeri', // [Z4] 紫微择日:同律
+	'liurengzeri', // [Z5] 六壬择日:同律
+	'sanshizeri', // [Z6] 三式择日:同律
+	'qizhengzeri', // [Z7] 七政择日:同律
+	'indiazeri', // [Z8] 印度择日:三段自足同族
 	'relative', // [D2] 合盘:两盘技法只读(快照单源=合盘页,选项在合盘页改即重存)
 	'tianxing', // 天星择日:征象搜索结果为一次性产物,按存档快照直读不按时间复算(v3.7.0 并入)
 	'qimenzeri', // 奇门择日:找局结果为一次性产物,按存档快照直读不按时间复算(与 tianxing 同范式)
