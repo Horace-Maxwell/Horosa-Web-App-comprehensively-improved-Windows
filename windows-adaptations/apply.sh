@@ -387,6 +387,10 @@ echo "== 38. issue #65/#68 线上事故根治(三式打不开 / 3D 全屏失效;
 # ② 两个常设回归守卫(纯新增测试文件,随 overlay 落地)
 cp "$OV/files/astrostudyui/src/components/sanshi/__tests__/sanshiRenderSmoke.test.js" "$WS/astrostudyui/src/components/sanshi/__tests__/sanshiRenderSmoke.test.js" && ok "sanshiRenderSmoke.test.js"
 cp "$OV/files/astrostudyui/src/components/astro3d/__tests__/fullscreenState.test.js" "$WS/astrostudyui/src/components/astro3d/__tests__/fullscreenState.test.js" && ok "fullscreenState.test.js"
+# ③ horosa_technique_open_smoke_v1(v3.11.0 覆盖补丁,issue #83 大六壬打不开):全技法首屏挂载冒烟 —— 面板表从 pages/index.js
+#    现读(上游新增技法页自动入覆盖面),逐页 jsdom 真挂载;全仓此前无一用例 mount 过技法主面板(#98/#83 同一个洞)。
+mkdir -p "$WS/astrostudyui/src/pages/__tests__"
+cp "$OV/files/astrostudyui/src/pages/__tests__/techniqueOpenSmoke.test.js" "$WS/astrostudyui/src/pages/__tests__/techniqueOpenSmoke.test.js" && ok "techniqueOpenSmoke.test.js"
 
 echo "== 26. PERF-R9 前端:交互跨度观测 + L1 真 LRU(纯观测/纯修 bug,功能零降级;跨平台,建议上游化 Mac) =="
 # ① horosa_interaction_span_v1 —— 端到端「点击 → 中栏+右栏画完」测量。改之前这套观测**量不出**

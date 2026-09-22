@@ -4714,7 +4714,7 @@ class LiuRengInputPanel extends Component{
 							    选「直接时间」即与三式合一六壬层(时柱取自吃 timeAlg 的奇门)同口径。 */}
 							<label className="horosa-liureng-select-field">
 								<span>时间算法</span>
-								<Select value={this.state.timeAlg} onChange={this.onTimeAlgChange} dropdownMatchSelectWidth={false}>
+								<Select value={p.timeAlg} onChange={p.onTimeAlgChange} dropdownMatchSelectWidth={false}>
 									<Option value={0}>真太阳时（默认）</Option>
 									<Option value={1}>直接时间</Option>
 								</Select>
@@ -6197,6 +6197,8 @@ class LiuRengMain extends Component{
 				onBirthChange={this.onBirthChange}
 				wuxing={this.state.wuxing}
 				guireng={this.state.guireng}
+				timeAlg={this.state.timeAlg}
+				onTimeAlgChange={this.onTimeAlgChange}
 				castMethod={this.state.castMethod}
 				yueJiangMethod={this.state.yueJiangMethod}
 				xuanShiZhi={this.state.xuanShiZhi}

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/lrzhan/LiuRengMain.js b/astrostudyui/src/components/lrzhan/LiuRengMain.js
-index da395df6..c7a70727 100644
+index da395df6..c800c69d 100644
 --- a/astrostudyui/src/components/lrzhan/LiuRengMain.js
 +++ b/astrostudyui/src/components/lrzhan/LiuRengMain.js
 @@ -1,8 +1,10 @@
@@ -131,7 +131,7 @@ index da395df6..c7a70727 100644
 +							    选「直接时间」即与三式合一六壬层(时柱取自吃 timeAlg 的奇门)同口径。 */}
 +							<label className="horosa-liureng-select-field">
 +								<span>时间算法</span>
-+								<Select value={this.state.timeAlg} onChange={this.onTimeAlgChange} dropdownMatchSelectWidth={false}>
++								<Select value={p.timeAlg} onChange={p.onTimeAlgChange} dropdownMatchSelectWidth={false}>
 +									<Option value={0}>真太阳时（默认）</Option>
 +									<Option value={1}>直接时间</Option>
 +								</Select>
@@ -422,7 +422,7 @@ index da395df6..c7a70727 100644
  	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
  	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
  	// 收益:宿主因无关状态重渲时,本重组件整树不再白跑。关 chartSCU 开关 = 恒重渲旧行为。
-@@ -5980,159 +6181,44 @@ class LiuRengMain extends Component{
+@@ -5980,159 +6181,46 @@ class LiuRengMain extends Component{
  		}
  	}
  
@@ -594,6 +594,8 @@ index da395df6..c7a70727 100644
 +				onBirthChange={this.onBirthChange}
 +				wuxing={this.state.wuxing}
 +				guireng={this.state.guireng}
++				timeAlg={this.state.timeAlg}
++				onTimeAlgChange={this.onTimeAlgChange}
 +				castMethod={this.state.castMethod}
 +				yueJiangMethod={this.state.yueJiangMethod}
 +				xuanShiZhi={this.state.xuanShiZhi}
@@ -619,7 +621,7 @@ index da395df6..c7a70727 100644
  		);
  	}
  
-@@ -6143,8 +6229,8 @@ class LiuRengMain extends Component{
+@@ -6143,8 +6231,8 @@ class LiuRengMain extends Component{
  			xiaojuMainItems,
  			xiaojuReferenceItems,
  			overviewItems,
@@ -630,7 +632,7 @@ index da395df6..c7a70727 100644
  		} = refData;
  		const ctx = refBundle && refBundle.context ? refBundle.context : null;
  		// 「小局」已并入「格局」tab(旧 key 'xiaoju' 归一到 'dage',免旧状态落空白页)
-@@ -6156,8 +6242,14 @@ class LiuRengMain extends Component{
+@@ -6156,8 +6244,14 @@ class LiuRengMain extends Component{
  				onChange={(key)=>this.setState({ rightPanelTab: key })}
  				animated={false}
  			>
@@ -646,7 +648,7 @@ index da395df6..c7a70727 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{refSummary ? (
  							<Card size='small' style={{ marginBottom: 8, background: 'var(--horosa-panel-soft, #fafafa)' }}>
-@@ -6206,7 +6298,11 @@ class LiuRengMain extends Component{
+@@ -6206,7 +6300,11 @@ class LiuRengMain extends Component{
  					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="信息" key="meta">
@@ -659,7 +661,7 @@ index da395df6..c7a70727 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{metaItems && metaItems.length ? metaItems.map((group)=>(
  							<Card key={`meta_${group.title}`} size='small' style={{ marginBottom: 8 }} title={group.title}>
-@@ -6225,13 +6321,16 @@ class LiuRengMain extends Component{
+@@ -6225,13 +6323,16 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -679,7 +681,7 @@ index da395df6..c7a70727 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{xiaojuReferenceItems.length ? xiaojuReferenceItems.map((item)=>(
  							<Card key={`ref_${item.key}`} size='small' style={{ marginBottom: 8 }}>
-@@ -6255,7 +6354,7 @@ class LiuRengMain extends Component{
+@@ -6255,7 +6356,7 @@ class LiuRengMain extends Component{
  					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="概览" key="overview">
@@ -688,7 +690,7 @@ index da395df6..c7a70727 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{this.renderShenShaSection(ctx)}
  						{overviewItems.length ? overviewItems.map((item, idx)=>(
-@@ -6282,13 +6381,21 @@ class LiuRengMain extends Component{
+@@ -6282,13 +6383,21 @@ class LiuRengMain extends Component{
  					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="占断" key="zhanduan">
@@ -713,7 +715,7 @@ index da395df6..c7a70727 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{qizhengItems && qizhengItems.length ? (
  							<Card size='small'>
-@@ -6342,7 +6449,8 @@ class LiuRengMain extends Component{
+@@ -6342,7 +6451,8 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -723,7 +725,7 @@ index da395df6..c7a70727 100644
  				</TabPane>
  			</Tabs>
  		);
-@@ -6528,13 +6636,12 @@ class LiuRengMain extends Component{
+@@ -6528,13 +6638,12 @@ class LiuRengMain extends Component{
  			refContext.sanChuanText ? `三传：${refContext.sanChuanText}` : '',
  			refContext.dayGanZi ? `日干支：${refContext.dayGanZi}` : '',
  		].filter(Boolean).join('；');
@@ -738,7 +740,7 @@ index da395df6..c7a70727 100644
  						</div>
  						<div className="horosa-chart-stage horosa-chart-stage-redesign horosa-liureng-chart-panel xq-chart-renderer xq-chart-renderer-liureng">
  							<div className="horosa-liureng-chart-host">
-@@ -6562,14 +6669,18 @@ class LiuRengMain extends Component{
+@@ -6562,14 +6671,18 @@ class LiuRengMain extends Component{
  									<div className="horosa-side-panel-subtitle">大格、小局与参考条目</div>
  								</div>
  							</div>

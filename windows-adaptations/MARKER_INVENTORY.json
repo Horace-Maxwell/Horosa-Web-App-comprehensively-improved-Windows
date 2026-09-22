@@ -538,6 +538,9 @@
    "astrostudyui/src/utils/perfFlags.js": 1,
    "astrostudyui/src/utils/stepPrefetchArm.js": 1
   },
+  "horosa_technique_open_smoke_v1": {
+   "astrostudyui/src/pages/__tests__/techniqueOpenSmoke.test.js": 1
+  },
   "horosa_trusted_env_shape_v1": {
    "astropy/websrv/webchartsrv.py": 1
   },
