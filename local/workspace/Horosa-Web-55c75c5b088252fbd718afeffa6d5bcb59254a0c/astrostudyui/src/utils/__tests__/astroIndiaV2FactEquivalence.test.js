@@ -219,7 +219,15 @@ const FIXTURE = { jyotish: {
 } };
 
 const baseOut = baseline(FIXTURE);
-const curOut = current(FIXTURE);
+// [Q-135/T-43] 卡拉卡段首行「方案：7/8 卡拉卡,共 N 行」是表化后新增的方案标注(基线散文无此行):事实比对前剥掉,其余逐行零丢失照旧。
+function stripSchemeLine(out){
+	const o = { ...(out || {}) };
+	Object.keys(o).forEach((k)=>{
+		if(Array.isArray(o[k]) && o[k].length && /^方案：/.test(`${o[k][0]}`)){ o[k] = o[k].slice(1); }
+	});
+	return o;
+}
+const curOut = stripSchemeLine(current(FIXTURE));
 const sectionKeys = Object.keys(baseOut);
 
 describe('印占 v2 表化 · fact 等价（值零丢失证明）', ()=>{
@@ -244,7 +252,7 @@ describe('印占 v2 表化 · fact 等价（值零丢失证明）', ()=>{
 		const mutated = JSON.parse(JSON.stringify(FIXTURE));
 		mutated.jyotish.jaimini.charaKarakas[0].karakaDegree = 99.999;
 		mutated.jyotish.jaimini.charaKarakas[0].signlon = 99.999;
-		const curMut = current(mutated);
+		const curMut = stripSchemeLine(current(mutated));
 		const KEY = '卡拉卡（8 Chara Karakas）';
 		// 未改前:现行 vs 基线 等价(基准成立)。
 		expect(factRows(curOut[KEY])).toEqual(factRows(baseOut[KEY]));

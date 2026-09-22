@@ -55,8 +55,8 @@ const STATION_MODE_OPTIONS = [
 	{ value: 'off', label: '关（仅逆行 R 标）' },
 	{ value: 'exactWindow', label: '距留点 ≤1 日' },
 	{ value: 'distance', label: '距留点黄经 ≤2′' },
-	{ value: 'absSpeed', label: '日速 <1′' },
-	{ value: 'relSpeed', label: '日速 <3% 均速' },
+	{ value: 'absSpeed', label: '日速 <1′（绝对阈；三王星恒近留）' },   // [Q-299/T-288 ⑤]
+	{ value: 'relSpeed', label: '日速 <3% 均速（相对阈）' },
 ];
 const ECLIPSE_TIME_OPTIONS = [
 	{ value: 'max', label: '食甚时刻' },
@@ -123,7 +123,7 @@ const VULCAN_OPTIONS = [
 const RAY_OPTIONS = [
 	{ value: 'off', label: '关' },
 	{ value: 'equal', label: '等权' },
-	{ value: 'weighted', label: '加权' },
+	{ value: 'weighted', label: '加权（光体×3·水金火×2）' },   // [Q-299/T-288 ③] 与实现同文
 ];
 // [WP-6] 返照专项。
 const SOLAR_RETURN_VARIANT_OPTIONS = [
@@ -231,14 +231,29 @@ class ChartDisplaySelector extends Component{
 	// ── /chart 级古典参数统一写链：全局仓(持久化+广播,辅盘/合盘/分至盘热同步) + app UI 记忆
 	// (termsVariant 等既有键保持双写兼容) + astro fields(主盘) + fetchByFields 重排。
 	// 默认值零回归(fieldsToParams 条件透传,默认不下发)。──
-	applyClassicalField(key, val, appMirror){
+	// extraFields(可选):随本键一并写入 fields 的伴生键({k: value});[Q-254/T-236] 自定义界表保存后表体写回 fields。
+	applyClassicalField(key, val, appMirror, extraFields){
 		setClassicalChartGlobal(key, val);
 		if(!this.props.dispatch){ this.forceUpdate(); return; }
 		if(appMirror){
 			this.props.dispatch({ type: 'app/save', payload: { [key]: val } });
 		}
+		// [Q-254/T-230] 三分制单源=fields.triplicity(排盘真值);app.tripSystem 退为镜像 —— 抽屉改档同步镜像,
+		// 否则流派预设反查与「三分主星」页初值仍按旧 app.tripSystem 走,与排盘尊贵表分叉。
+		if(key === 'triplicity' && val){
+			this.props.dispatch({ type: 'app/save', payload: { tripSystem: val } });
+		}
+		// [Q-252/T-218] 合盘四子盘 / 分至盘 / 13 宫等嵌入宿主给的是子盘 fields(date/time.value 缺、经纬换成合盘点或节气日),
+		// 以它为底 astro/save 会整包替换本命 fields → fieldsToParams 抛错、此后本命页改设置全抛。嵌入态只写全局仓
+		// (持久化 + 广播,本命 / 辅盘 / 合盘 / 分至盘按既有热同步各自重排),不回写本命 fields。
+		if(this.props.classicalWriteBack === false){ this.forceUpdate(); return; }
 		const flds = { ...(this.props.fields || {}) };
 		flds[key] = { value: val, name: [key] };
+		const delta = { [key]: { value: val, name: [key] } };
+		Object.keys(extraFields || {}).forEach((k) => {
+			flds[k] = { value: extraFields[k], name: [k] };
+			delta[k] = { value: extraFields[k], name: [k] };
+		});
 		this.props.dispatch({ type: 'astro/save', payload: { fields: flds } });
 		// 触发重算（fieldsToParams 条件透传→/chart）;缺核心字段（未起盘）时 fetchByFields 自身有护栏。
 		// [R4-B5b] 经选项通道调度(leading 立发+250ms trailing 并帧):连改 5 档古典参数
@@ -247,7 +262,7 @@ class ChartDisplaySelector extends Component{
 		if(flds.date && flds.time && flds.lat && flds.lon){
 			scheduleOptionDispatch((payload)=>{
 				this.props.dispatch({ type: 'astro/fetchByFields', payload });
-			}, { [key]: { value: val, name: [key] } }, ()=>({ ...(this.props.fields || {}) }));
+			}, delta, ()=>({ ...(this.props.fields || {}) }));
 		}
 		this.forceUpdate();
 	}
@@ -281,6 +296,37 @@ class ChartDisplaySelector extends Component{
 	}
 
 	// fields 优先、全局仓兜底（fields 无该键时显示全局偏好——重启后未起盘也能正确回显）。
+	// [Q-254/T-236] 当前生效的自定义界表:fields 随盘表体优先(请求体取表同序),缺=null(编辑器回落本机仓)。
+	effectiveCustomTerms(){
+		const f = this.props.fields || {};
+		const day = f.customTermsDay && f.customTermsDay.value;
+		if(!Array.isArray(day) || day.length !== 12){ return null; }
+		const night = f.customTermsNight && f.customTermsNight.value;
+		return { day, night: Array.isArray(night) && night.length === 12 ? night : null };
+	}
+
+	// [Q-254/T-236] fields 是否随盘带历元两参(有则本盘不随槽位变,管理器据此提示)。
+	fieldsHaveUserAyan(){
+		const f = this.props.fields || {};
+		const t0 = Number(f.userAyanT0 && f.userAyanT0.value);
+		const deg = Number(f.userAyanDeg && f.userAyanDeg.value);
+		return Number.isFinite(t0) && t0 > 0 && Number.isFinite(deg);
+	}
+
+	// [Q-254/T-236] 历元槽改动(编辑/换当前槽):当前黄道为「恒星 · 自定义」时按新槽历元重排(此前只 forceUpdate 抽屉,
+	// 界表保存会重排而历元不会);fields 随盘带历元 → 写回新当前槽两参(否则 fields 两参恒压槽位、改槽永不生效)。
+	onAyanSlotsChanged(store){
+		const f = this.props.fields || {};
+		const ayan = f.siderealAyanamsa && f.siderealAyanamsa.value;
+		if(`${ayan}` !== 'user' || !this.props.dispatch || this.props.classicalWriteBack === false){ this.forceUpdate(); return; }
+		const slots = store && Array.isArray(store.slots) ? store.slots : [];
+		const cur = (store && store.current !== undefined && store.current !== null) ? slots[store.current] : null;
+		// 无当前槽 → 清空随盘两参(fieldsToParams/存盘均按 isFinite 闸拦 null),后端回落 Lahiri 与提示一致。
+		const extra = cur && Number.isFinite(Number(cur.t0)) && Number.isFinite(Number(cur.deg))
+			? { userAyanT0: Number(cur.t0), userAyanDeg: Number(cur.deg) } : { userAyanT0: null, userAyanDeg: null };
+		this.applyClassicalField('siderealAyanamsa', 'user', false, extra);
+	}
+
 	fieldOr(key){
 		const f = this.props.fields && this.props.fields[key];
 		if(f && f.value !== undefined && f.value !== null){ return f.value; }
@@ -358,9 +404,10 @@ class ChartDisplaySelector extends Component{
 
 		const renderOpt = (opt)=>{
 			const checked = currentDisplay.includes(opt);
+			const hint = AstroText.ChartOptionHint ? AstroText.ChartOptionHint[opt + ''] : null;   // [Q-255/AS-23] 父条件注明
 			return (
 				<XQCheckItem key={opt} checked={checked} onClick={()=>this.changeChartOption(opt, !checked)}>
-					<span className="horosa-selector-label">{AstroText.ChartOptionText[opt + '']}</span>
+					<span className="horosa-selector-label" title={hint || undefined}>{AstroText.ChartOptionText[opt + '']}{hint ? <span style={{ opacity: 0.55, fontSize: 11, marginLeft: 4 }}>※</span> : null}</span>
 				</XQCheckItem>
 			);
 		};
@@ -549,7 +596,8 @@ class ChartDisplaySelector extends Component{
 								'空亡计三王星',
 								vocIncludeOuterOn,
 								(on)=>this.applyClassicalField('vocIncludeOuter', on ? 1 : 0),
-								vocMode === 'classic' ? { disabled: true, hint: '仅非 1647 口径生效' } : null
+								// [Q-254/T-226 ③] 「四座豁免」档走 1647 基判,三王星开关同样无效 → 一并置灰(并不下发)。
+								(vocMode === 'classic' || vocMode === 'exempt4') ? { disabled: true, hint: vocMode === 'exempt4' ? '四座豁免档按 1647 基判,不计三王星' : '仅非 1647 口径生效' } : null
 							)}
 						</XQCheckList>
 					</div>
@@ -565,7 +613,7 @@ class ChartDisplaySelector extends Component{
 						</div>
 						<XQCheckList columns={2}>
 							{boolItem('lotrev', '福点按昼夜反转（关则恒昼式）', lotReversalOn, (on)=>this.applyClassicalField('lotReversal', on ? 1 : 0, true))}
-							{boolItem('hermrev', '七星点按昼夜反转（关则恒同式 · 批判本校勘）', hermeticLotsReversalOn, (on)=>this.applyClassicalField('hermeticLotsReversal', on ? 1 : 0))}
+							{boolItem('hermrev', '六星点按昼夜反转（福点另设 · 关则恒同式 · 批判本校勘）', hermeticLotsReversalOn, (on)=>this.applyClassicalField('hermeticLotsReversal', on ? 1 : 0))}
 							{boolItem('lotsdoc', '四点文档序公式（婚·子·友·疾）', lotsDocReverseOn, (on)=>this.applyClassicalField('lotsDocReverse', on ? 1 : 0))}
 							{boolItem('fatheralt', '父点土星伏时替代式（Dorotheus 系）', lotFatherCombustAltOn, (on)=>this.applyClassicalField('lotFatherCombustAlt', on ? 1 : 0))}
 						</XQCheckList>
@@ -578,7 +626,7 @@ class ChartDisplaySelector extends Component{
 									onChange={(val)=>this.applyClassicalField('orbSystem', val)}>
 									{ORB_SYSTEM_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
 								</XQSelect>)}
-							{cell('发光体 · 四轴轨加成',
+							{cell('发光体轨加成',
 								<XQSegmented value={luminaryOrbBonus} options={LUM_BONUS_OPTIONS} onChange={(e)=>this.applyClassicalField('luminaryOrbBonus', e && e.target ? e.target.value : e)} />)}
 							{cell('行运相位容许度（推运族初值）',
 								<XQSegmented value={transitOrb} options={TRANSIT_ORB_OPTIONS} onChange={(e)=>{ setClassicalChartGlobal('transitOrb', e && e.target ? e.target.value : e); this.forceUpdate(); }} />)}
@@ -664,11 +712,13 @@ class ChartDisplaySelector extends Component{
 				{/* [WP-7] 两个自定义 Modal(常挂条件渲染;保存后 forceUpdate 刷新回显)。 */}
 				{this.state.termsEditorOpen ? (
 					<TermsEditor open onClose={()=>this.setState({ termsEditorOpen: false })}
-						onSaved={()=>{ this.applyClassicalField('termsVariant', 4, true); }} />
+						effective={this.effectiveCustomTerms()}
+						onSaved={(tbl)=>{ this.applyClassicalField('termsVariant', 4, true, tbl ? { customTermsDay: tbl.day, customTermsNight: tbl.night || null } : undefined); }} />
 				) : null}
 				{this.state.ayanMgrOpen ? (
 					<CustomAyanamsaManager open onClose={()=>this.setState({ ayanMgrOpen: false })}
-						onChanged={()=>this.forceUpdate()} />
+						fieldsPinned={this.fieldsHaveUserAyan()}
+						onChanged={(store)=>this.onAyanSlotsChanged(store)} />
 				) : null}
 				<div className="horosa-selector-section">
 					<XQSectionTitle>解释与计算</XQSectionTitle>

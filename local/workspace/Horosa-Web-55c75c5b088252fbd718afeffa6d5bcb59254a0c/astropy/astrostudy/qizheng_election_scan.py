@@ -124,6 +124,10 @@ class QizhengScanContext(object):
         return name
 
 
+# [Q-269/T-255] 四余别名:js 条件表(dignity_seven 等)与 guolao_const 七态表用单字键,内核按全名取位。
+_BODY_ALIAS = {'计': '计都', '罗': '罗睺', '炁': '紫炁', '孛': '月孛', '計': '计都', '羅': '罗睺', '氣': '紫炁'}
+
+
 class QizhengMoment(object):
     __slots__ = ('jd', 'ctx', '_lon', '_speed', '_hor', '_asc')
 
@@ -136,6 +140,7 @@ class QizhengMoment(object):
         self._asc = None
 
     def _calc(self, body):
+        body = _BODY_ALIAS.get(body, body)
         if body in _SWE:
             res, _f = swisseph.calc_ut(self.jd, _SWE[body], swisseph.FLG_SWIEPH | swisseph.FLG_SPEED)
             return _norm360(res[0]), res[3]
@@ -157,6 +162,7 @@ class QizhengMoment(object):
         raise ValueError('unknown body: {0!r}'.format(body))
 
     def lon(self, body):
+        body = _BODY_ALIAS.get(body, body)   # [Q-269/T-255] 条件表用单字「计/罗/炁/孛」,内核用全名 → 别名归一(此前 unknown body 整次搜索报错)
         v = self._lon.get(body)
         if v is None:
             v, sp = self._calc(body)
@@ -165,6 +171,7 @@ class QizhengMoment(object):
         return v
 
     def speed(self, body):
+        body = _BODY_ALIAS.get(body, body)
         if body not in self._speed:
             self.lon(body)
         return self._speed[body]
@@ -277,7 +284,11 @@ def _eval_speed_state(params, ctx, domain):
         if state == 'direct':
             return sp > 0.0
         if state == 'stationary':
-            return abs(sp) <= (thr or 0.02)
+            # [Q-271/ZC-20] 五星「留」与主七政页同阈(guolao_const.QIZHENG_SPEED_SPEC 逐曜 stat:金 .15/木 .07/水 .10/火 .20/土 .05;
+            # 此前恒 0.02 → 扫描留窗远窄于盘面标「留」的时段);月孛/紫炁无谱仍用 threshold(缺省 0.02)。显式传 threshold 仍优先。
+            if thr:
+                return abs(sp) <= thr
+            return abs(sp) <= (spec['stat'] if spec else 0.02)
         # [W7] 迟/速两档(js starMotionState 同判据:非留态下 |v|<slow=迟、|v|>fast=速;仅五星有谱)
         if state in ('slow', 'fast'):
             if not spec:
@@ -356,20 +367,41 @@ def _eval_body_rel(params, ctx, domain):
     return true_intervals(pred, domain[0], domain[1], step)
 
 
+_LICHUN_CACHE = {}
+
+
+def _lichun_jd(year):
+    """公历 year 年真立春(太阳视黄经 315°)的儒略日(UT);牛顿迭代自 2/4 0h UT 起,误差 < 1 分钟。按年缓存。"""
+    if year in _LICHUN_CACHE:
+        return _LICHUN_CACHE[year]
+    try:
+        jd = swisseph.julday(year, 2, 4, 0.0)
+        for _ in range(12):
+            lon, speed = swisseph.calc_ut(jd, swisseph.SUN, swisseph.FLG_SWIEPH | swisseph.FLG_SPEED)[0][0:4:3]
+            delta = ((315.0 - lon + 180.0) % 360.0) - 180.0
+            if abs(delta) < 1e-5:
+                break
+            jd += delta / (speed if speed else 0.9856)
+    except Exception:
+        jd = swisseph.julday(year, 2, 4, 0.0)
+    _LICHUN_CACHE[year] = jd
+    return jd
+
+
 def _eval_hua_lu(params, ctx, domain):
     """化曜(年干禄主等)落宫/宿:年干由候选时刻立春界推;禄主=HUAYAO_A[年干]。"""
     wants = set(params.get('values') or [])
     where = params.get('where') or 'gong'
 
     def pred(jd):
-        # 年干:粗取公历年立春(2/4)界;误差窗(2/3-2/5)按 jd 精算成本高,先近似+详情注记
+        # [Q-422/T-386] 年干按真立春(太阳黄经 315°)时刻定界:此前按公历 2/4 0 时粗界,2/4 0 时~真立春(2/3 晚–2/5 早)窗口内
+        # 判定错一年,与主七政页(盘面八字年柱)分叉。立春时刻按年缓存(牛顿迭代,一年一次)。
         rec = date_time_from_jd(jd, ctx.zone)
         # 负年(天文纪年 '-1044-02-01')安全解析:rsplit 保号位,勿用 [:4] 截断
         d_part = rec['datetime'].split(' ')[0]
         seg = d_part.rsplit('-', 2)
         y = int(seg[0])
-        md = seg[1] + '-' + seg[2]
-        if md < '02-04':
+        if jd < _lichun_jd(y):
             y -= 1
         gan = '甲乙丙丁戊己庚辛壬癸'[(y - 4) % 10]
         star = gc.HUAYAO_A.get(gan)

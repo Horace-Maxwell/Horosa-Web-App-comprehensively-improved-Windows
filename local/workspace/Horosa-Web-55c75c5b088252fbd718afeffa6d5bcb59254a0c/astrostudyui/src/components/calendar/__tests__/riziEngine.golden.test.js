@@ -2,12 +2,18 @@
 import { personBazi, hehunPair, buildPersonalizedDates } from '../riziEngine';
 
 // 甲子年(1984,鼠)/庚午(1990,马,冲子)/乙丑(1985,牛,子丑六合)/戊辰(1988,龙,申子辰三合)。
-const A = personBazi({ date: '1984-06-01', time: '1984-06-01 10:00:00', gender: 1 });
-const B = personBazi({ date: '1990-08-01', time: '1990-08-01 10:00:00', gender: 0 });
-const C = personBazi({ date: '1985-06-01', time: '1985-06-01 10:00:00', gender: 0 });
-const D = personBazi({ date: '1988-06-01', time: '1988-06-01 10:00:00', gender: 1 });
+// [Q-272] time 只传 HH:mm:ss(页面同形);此前夹具复制页面「整串当 time」的错形态,时柱恒子时。
+const A = personBazi({ date: '1984-06-01', time: '10:00:00', gender: 1 });
+const B = personBazi({ date: '1990-08-01', time: '10:00:00', gender: 0 });
+const C = personBazi({ date: '1985-06-01', time: '10:00:00', gender: 0 });
+const D = personBazi({ date: '1988-06-01', time: '10:00:00', gender: 1 });
 
 describe('日子馆 · 八字抽取', () => {
+	test('[Q-272] 时柱真取时刻:1990-05-18 10:00 → 丁巳(整串误传形恒得子时)', () => {
+		expect(personBazi({ date: '1990-05-18', time: '10:00:00', gender: 1 }).hourGZ).toBe('丁巳');
+		expect(A.hourGZ.charAt(1)).toBe('巳');
+		expect(B.hourGZ.charAt(1)).toBe('巳');
+	});
 	test('年命生肖 / 用神喜忌就位', () => {
 		expect(A.yearZhi).toBe('子');
 		expect(A.shengxiao).toBe('鼠');

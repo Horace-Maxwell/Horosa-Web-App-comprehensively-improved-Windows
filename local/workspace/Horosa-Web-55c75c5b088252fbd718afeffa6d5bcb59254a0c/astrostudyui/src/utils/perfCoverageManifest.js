@@ -173,7 +173,7 @@ const KENTANG_MODULES = {
 	taiyi:           { page: 'taiyi',    policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'done' } },
 	jinkou:          { page: 'cnyibu',   policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'done' } },
 	wangji:          { page: 'cnyibu',   policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'done' } },
-	wuzhao:          { page: 'cnyibu',   policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'done' } },
+	wuzhao:          { page: 'cnyibu',   policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'done' } },   // [Q-210] 随机诸式请求体带 castSeed → 同体确定
 	taixuan:         { page: 'cnyibu',   policy: 'seedInBody',    axes: { netCache: 'done', stepPrefetch: 'na:蓍法种子在体(服务端 random.seed(body.seed),同 body 确定可缓存;预取恐钉死起课,禁)' } },
 	jingjue:         { page: 'cnyibu',   policy: 'seedInBody',    axes: { netCache: 'done', stepPrefetch: 'na:揲蓍种子在体(同上,可缓存不可预取)' } },
 	shenyishu:       { page: 'cnyibu',   policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'done' } },

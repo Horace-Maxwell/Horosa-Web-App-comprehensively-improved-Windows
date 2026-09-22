@@ -43,7 +43,11 @@ describe('前缀缓存断点标记 · 前后端契约', ()=>{
 
 	it('分层:挥发层键固定为检索命中与近期对话，且仅在两层俱全时才插断点', ()=>{
 		// 稳定层必须整体在前、挥发层在后,否则前缀跨轮改变=缓存永不命中。
-		expect(fe).toMatch(/_volatileKeys\s*=\s*\{\s*'retrieved-context':\s*1,\s*'recent-history':\s*1\s*\}/);
+		// 挥发层表改由裁剪引擎单源导出(VOLATILE_LAYER_KEYS),发送侧不再各写一份字面量:
+		// 契约不变(仍是「检索命中 / 近期对话 = 挥发」),只是单源化 —— 故这里锁「取自单源」+「单源表内容」两头。
+		expect(fe).toMatch(/_volatileKeys\s*=\s*VOLATILE_LAYER_KEYS/);
+		const ctx = fs.readFileSync(path.join(__dirname, '..', 'aiAnalysisContext.js'), 'utf8');
+		expect(ctx).toMatch(/export const VOLATILE_LAYER_KEYS\s*=\s*\{[^}]*'retrieved-context':\s*1[^}]*'recent-history':\s*1[^}]*\}/);
 		// 仅 anthropic / openai 家族走分层;两层俱全才插标记(缺一层插了也无意义)。
 		expect(fe).toMatch(/_stableL\.length\s*&&\s*_volatileL\.length/);
 		expect(fe).toMatch(/join\(`\\n\\n\$\{PROMPT_CACHE_BP\}\\n\\n`\)/);
@@ -51,7 +55,9 @@ describe('前缀缓存断点标记 · 前后端契约', ()=>{
 
 	it('不走分层时与旧拼法逐字同式（零回归）', ()=>{
 		// else 分支必须仍是「全部层按 title\ncontent 拼、\n\n 相连、trim」——与 buildPromptContext 同式。
-		expect(fe).toMatch(/_sysJoined\s*=\s*_joinLayers\(clipDetail\.kept\)/);
+		// 不走分层时仍是「全部保留层按 title\ncontent 拼」——现由 _stableL.concat(_volatileL) 表达(= clipDetail.kept 的同一集合,
+		// 只是先稳定后挥发;两类接口家族由此统一次序,不支持缓存的家族只是不插断点)。
+		expect(fe).toMatch(/_sysJoined\s*=\s*_joinLayers\(_stableL\.concat\(_volatileL\)\)/);
 		expect(fe).toMatch(/_joinLayers\s*=\s*\(arr\)=>arr\.map\(\(item\)=>`\$\{item\.title\}\\n\$\{item\.content\}`\)\.join\('\\n\\n'\)\.trim\(\)/);
 	});
 });

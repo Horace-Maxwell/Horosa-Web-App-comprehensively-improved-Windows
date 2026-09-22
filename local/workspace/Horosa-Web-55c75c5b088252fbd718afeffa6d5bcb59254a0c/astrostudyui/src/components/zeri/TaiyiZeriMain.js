@@ -123,7 +123,14 @@ export default class TaiyiZeriMain extends Component{
 		return JSON.stringify({ cfg: this.state.cfg, geo: this.state.geo, options: this.state.options, tree: this.state.tree });
 	}
 
-	buildGeoParams(geo){
+	// [Q-585/T-?] 性别跟随工作台口径 options.sex(1=男 / 0=女):此前写死 1,内嵌太乙页左栏一改性别,
+	//   盘按新值算(坤造·女)而宿主下拉仍显男;再选男时 fields 不变 → 不触发重排,回不到男。
+	genderOf(options){
+		const o = options || this.state.options || {};
+		return Number(o.sex) === 0 ? 0 : 1;
+	}
+
+	buildGeoParams(geo, options){
 		const g = geo || {};
 		return {
 			zone: g.zone !== undefined && g.zone !== null ? g.zone : '+08:00',
@@ -132,7 +139,7 @@ export default class TaiyiZeriMain extends Component{
 			gpsLon: g.gpsLon,
 			gpsLat: g.gpsLat,
 			ad: g.ad !== undefined ? g.ad : 1,
-			gender: 1,
+			gender: this.genderOf(options),
 		};
 	}
 
@@ -149,7 +156,7 @@ export default class TaiyiZeriMain extends Component{
 		}
 		const cfg = { ...this.state.cfg };
 		const geo = { ...(this.state.geo || {}) };
-		const options = { ...(this.state.options || {}) };
+		const options = this.effectiveScanOptions();
 		this._scanCfg = cfg;
 		this._scanGeo = geo;
 		this._scanOptions = options;
@@ -174,7 +181,7 @@ export default class TaiyiZeriMain extends Component{
 		try{
 			const res = await scanTaiyi({
 				cfg,
-				geoParams: this.buildGeoParams(geo),
+				geoParams: this.buildGeoParams(geo, options),   // [Q-585] 性别跟随本次扫描口径
 				options,
 				tree: compiled,
 				signal: this._abort.signal,
@@ -219,19 +226,52 @@ export default class TaiyiZeriMain extends Component{
 			const frozen = this.buildFields(true);
 			this._fieldsKey = JSON.stringify([this.state.pickText, this.state.geo, this.state.options]);
 			this._fieldsMemo = frozen;
-			if(this.taiyiHook && typeof this.taiyiHook.fun === 'function'){
-				this.taiyiHook.fun(frozen);
-			}
+			// [挂载自检 F-37] 先回写工作台口径(tn)到太乙页左栏,再起盘:显示盘/母快照=扫描判定口径。
+			this.applyWorkbenchCalibre().then(()=>{
+				if(this.taiyiHook && typeof this.taiyiHook.fun === 'function'){
+					this.taiyiHook.fun(frozen);
+				}
+			});
+		});
+	}
+
+	// [Q-268/T-261] 扫描口径 = 内嵌太乙页当前流派六轴(school)/十精(tenching)/转盘(rotation) + 工作台 tn:
+	// 此前扫描恒默认流派(只变显示盘),流派三轴非默认时 4014/4380 盘判定与所见相反。时基/盘式仍按引擎定谳
+	// (钟表时·时计,见 computeTaiyiScanPan 注)。
+	effectiveScanOptions(){
+		const h = this.taiyiHook;
+		let page = null;
+		try{ page = (h && typeof h.getOptions === 'function') ? h.getOptions() : null; }catch(e){ page = null; }
+		const fromPage = {};
+		if(page && typeof page === 'object'){
+			if(page.school && typeof page.school === 'object'){ fromPage.school = { ...page.school }; }
+			if(page.tenching !== undefined && page.tenching !== null){ fromPage.tenching = page.tenching; }
+			if(page.rotation !== undefined && page.rotation !== null){ fromPage.rotation = page.rotation; }
+		}
+		return { ...fromPage, ...(this.state.options || {}) };
+	}
+
+	// [挂载自检 F-37] 工作台口径 → 母组件左栏(hook.applyOptions);母组件未挂 hook 时静默(旧行为)。
+	applyWorkbenchCalibre(){
+		const o = this._scanOptions || this.state.options || {};
+		const partial = {};
+		if(o.tn !== undefined && o.tn !== null && `${o.tn}` !== ''){ partial.tn = Number(o.tn); }
+		const h = this.taiyiHook;
+		return (h && typeof h.applyOptions === 'function' && Object.keys(partial).length) ? h.applyOptions(partial) : Promise.resolve();
+	}
+
+	// [Q-453] 同步引擎直算(快照前 N 行判读树与工作台「详情▼」同源);explainRow 保持 Promise 形给工作台。
+	explainRowSync(row){
+		return explainTaiyiAt({
+			geoParams: this.buildGeoParams(this._scanGeo || this.state.geo, this._scanOptions || this.state.options),   // [Q-585]
+			options: this._scanOptions || this.state.options || {},
+			tree: this._scanTree,
+			t: row.pick || `${row.start}:00`,
 		});
 	}
 
 	explainRow(row){
-		return Promise.resolve(explainTaiyiAt({
-			geoParams: this.buildGeoParams(this._scanGeo || this.state.geo),
-			options: this._scanOptions || this.state.options || {},
-			tree: this._scanTree,
-			t: row.pick || `${row.start}:00`,
-		}));
+		return Promise.resolve(this.explainRowSync(row));
 	}
 
 	composeAiSnapshot(baseText){
@@ -242,6 +282,7 @@ export default class TaiyiZeriMain extends Component{
 				tree: this._scanUiTree || this.state.tree,	// 冻结树:与命中行同源(活树曾致条件描述≠结果,复审 F5)
 				results: this.state.results,
 				truncated: this.state.truncated,
+				explainAt: (row)=>this.explainRowSync(row),   // [Q-453] 前 N 行判读树(全局可配)
 			});
 			return extra ? `${baseText ? `${baseText}\n\n` : ''}${extra}` : baseText;
 		}catch(e){
@@ -279,7 +320,7 @@ export default class TaiyiZeriMain extends Component{
 			gpsLat: mkField(geo.gpsLat),
 			gpsLon: mkField(geo.gpsLon),
 			pos: mkField(geo.pos || ''),
-			gender: mkField(1),
+			gender: mkField(this.genderOf(o)),   // [Q-585] 跟随工作台 options.sex
 			after23NewDay: mkField(o.after23NewDay !== undefined ? o.after23NewDay : 0),
 			lateZiHourUseNextDay: mkField(o.lateZiHourUseNextDay !== undefined ? o.lateZiHourUseNextDay : 1),
 		};
@@ -296,6 +337,7 @@ export default class TaiyiZeriMain extends Component{
 						hook={this.taiyiHook}
 						height={this.props.height ? this.props.height - 40 : undefined}
 						techniqueScope="taiyizeri"
+						dispatch={this.props.dispatch}   /* [挂载自检 F-36] 存档钮此前在宿主内是死钮(不传 dispatch → openKentangCaseDrawer 早退) */
 						composeAiSnapshot={this.composeAiSnapshot}
 						renderLeftExtra={this.renderLeftExtra}
 					/>
@@ -311,7 +353,9 @@ export default class TaiyiZeriMain extends Component{
 					onOptionsChange={(options)=>this.setState({ options })}
 					tree={this.state.tree}
 					frozenTree={this._scanUiTree}
-					onPreviewPan={(d, t)=>computeTaiyiScanPan(this.buildGeoParams(this._scanGeo || this.state.geo), { ...(this._scanOptions || this.state.options || {}) }, d, t)}
+					previewGeo={this._scanGeo || this.state.geo}   /* [Q-271/ZC-22] 冻结地点:概览口径=扫描口径 */
+					previewOptions={this._scanOptions || this.state.options}   /* [Q-271/ZC-22] 冻结参数:搜索后改参数不改旧结果行的盘 */
+					onPreviewPan={(d, t)=>computeTaiyiScanPan(this.buildGeoParams(this._scanGeo || this.state.geo, this._scanOptions || this.effectiveScanOptions()), { ...(this._scanOptions || this.effectiveScanOptions()) }, d, t)}   /* [Q-585] */
 					onTreeChange={(tree)=>this.setState({ tree })}
 					onRun={this.runSearch}
 					onCancelScan={this.cancelScan}

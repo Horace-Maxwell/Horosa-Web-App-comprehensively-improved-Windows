@@ -251,47 +251,6 @@ export function preventEnterPress(e){
 	}
 }
 
-export function getUserIP(onNewIP) { //  onNewIp - your listener function for new IPs
-	//compatibility for firefox and chrome
-	let myPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
-	if(myPeerConnection === undefined || myPeerConnection === null){
-		onNewIP('127.0.0.1');
-		return;
-	}
-	let pc = new myPeerConnection({
-		iceServers: []
-	}),
-	noop = function () { },
-	localIPs = {},
-	ipRegex = /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/g ;
-
-	function iterateIP(ip) {
-		if (!localIPs[ip]) onNewIP(ip);
-		localIPs[ip] = true;
-	}
-
-	//create a bogus data channel
-	pc.createDataChannel("");
-
-	// create offer and set local description
-	pc.createOffer().then(function (sdp) {
-		sdp.sdp.split('\n').forEach(function (line) {
-			if (line.indexOf('candidate') < 0) return;
-			line.match(ipRegex).forEach(iterateIP);
-		});
-
-		pc.setLocalDescription(sdp, noop, noop);
-	}).catch(function (reason) {
-		// An error occurred, so handle the failure to connect
-	});
-
-	//sten for candidate events
-	pc.onicecandidate = function (ice) {
-		if (!ice || !ice.candidate || !ice.candidate.candidate || !ice.candidate.candidate.match(ipRegex)) return;
-		ice.candidate.candidate.match(ipRegex).forEach(iterateIP);
-	};
-}
-
 export function handleError(err) {
 	innerHandleError(err);
 }
@@ -751,7 +710,7 @@ export function genHtml(tipobj, needpadding, forceRich){
 	if(!useRich){
 		return genHtmlLegacy(tipobj, needpadding);
 	}
-	let parts = ['<div style="max-width:560px;max-height:62vh;overflow-y:auto;white-space:normal;">'];
+	let parts = ['<div style="max-width:560px;max-height:calc(62 * var(--horosa-lvh, 1vh));overflow-y:auto;white-space:normal;">'];
 	if(tipobj.title){
 		parts.push(`<div style="font-size:17px;line-height:24px;font-weight:700;color:var(--horosa-text, #1f1f1f);">${renderTooltipInlineBoldHtml(tipobj.title)}</div>`);
 		parts.push('<div style="border-top:1px solid var(--horosa-border, #d9d9d9);margin:6px 0 8px;"></div>');
@@ -802,8 +761,8 @@ export function setupFloatingTooltip(divTooltip, overrideStyles){
 		'z-index': '2600',
 		'pointer-events': 'none',
 		width: '560px',
-		'max-width': 'min(560px, calc(100vw - 28px))',
-		'max-height': 'min(460px, calc(100vh - 28px))',
+		'max-width': 'min(560px, calc(100 * var(--horosa-lvw, 1vw) - 28px))',
+		'max-height': 'min(460px, calc(100 * var(--horosa-lvh, 1vh) - 28px))',
 		padding: '14px 16px',
 		font: '14px/1.6 "PingFang SC", "Microsoft YaHei", sans-serif',
 		// 铁律:悬浮层背景必须绝对不透明——surface-solid 是纯色(亮 #ffffff/暗 #090b0e),

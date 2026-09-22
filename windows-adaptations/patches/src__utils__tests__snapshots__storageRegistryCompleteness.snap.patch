@@ -1,10 +1,10 @@
 diff --git a/astrostudyui/src/utils/__tests__/__snapshots__/storageRegistryCompleteness.test.js.snap b/astrostudyui/src/utils/__tests__/__snapshots__/storageRegistryCompleteness.test.js.snap
-index 879ad74c..7240ac9c 100644
+index d4131f7d..aa5b3073 100644
 --- a/astrostudyui/src/utils/__tests__/__snapshots__/storageRegistryCompleteness.test.js.snap
 +++ b/astrostudyui/src/utils/__tests__/__snapshots__/storageRegistryCompleteness.test.js.snap
-@@ -15,6 +15,7 @@ Array [
-   "horosa.astro.customTerms.v1 :: settings :: backup=true",
+@@ -48,6 +48,7 @@ Array [
    "horosa.astroTimeline.v1 :: settings :: backup=true",
+   "horosa.babylon.settings.v1 :: settings :: backup=true",
    "horosa.backup.lastResult :: device-local :: backup=false",
 +  "horosa.boot.lastChart.v1 :: device-local :: backup=false",
    "horosa.chart.classicalGlobals.v1 :: settings :: backup=true",

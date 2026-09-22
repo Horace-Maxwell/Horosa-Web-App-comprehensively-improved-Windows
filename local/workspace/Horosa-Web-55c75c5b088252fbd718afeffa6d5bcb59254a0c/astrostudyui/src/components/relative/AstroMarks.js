@@ -94,7 +94,7 @@ class AstroMarks extends Component{
 					<TabPane tab={chartATitle} key="chartA">
 						{
 							canRenderA ? (
-									<AstroChartMain 
+									<AstroChartMain embeddedSubChart 
 										value={chartAobj} 
 									fields={fieldsA} 
 									hidedateselector={1}
@@ -109,6 +109,10 @@ class AstroMarks extends Component{
 										onChange={this.props.onChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
+										showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* [Q-253/T-223] 四键补传:弹层显示值与主页同源 */
+										voidClassical={this.props.voidClassical}
+										planetListStyle={this.props.planetListStyle}
+										aspects={this.props.aspects}
 									/>
 							) : (
 								<div style={{padding: 16}}>请先选择星盘A和星盘B，再查看马克斯盘。</div>
@@ -119,7 +123,7 @@ class AstroMarks extends Component{
 					<TabPane tab={chartBTitle} key="chartB">
 						{
 							canRenderB ? (
-									<AstroChartMain 
+									<AstroChartMain embeddedSubChart 
 										value={chartBobj} 
 									fields={fieldsB} 
 									hidedateselector={1}
@@ -134,6 +138,10 @@ class AstroMarks extends Component{
 										onChange={this.props.onChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
+										showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* [Q-253/T-223] 四键补传:弹层显示值与主页同源 */
+										voidClassical={this.props.voidClassical}
+										planetListStyle={this.props.planetListStyle}
+										aspects={this.props.aspects}
 									/>
 							) : (
 								<div style={{padding: 16}}>请先选择星盘A和星盘B，再查看马克斯盘。</div>

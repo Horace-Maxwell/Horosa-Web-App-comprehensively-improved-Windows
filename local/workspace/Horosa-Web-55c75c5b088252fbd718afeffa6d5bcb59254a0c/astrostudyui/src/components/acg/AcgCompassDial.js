@@ -26,7 +26,9 @@ class AcgCompassDial extends Component {
 	render() {
 		const { planets, colors, lineVisible, onClose } = this.props;
 		if (!planets) return null;
-		const H = typeof this.props.height === 'number' ? Math.max(this.props.height, 420) : 660;
+		// 数值高 = 旧口径(带 420 底线);非数值(地图页改 100% 定高链后传 '100%')= 直接跟随地图盒(本面板绝对定位在地图同一个相对定位列里),
+		// 盘面 svg 走 preserveAspectRatio=meet 自适应,右侧列表自带滚动 —— 不再可能比地图高出一截被外层裁掉。
+		const H = typeof this.props.height === 'number' ? Math.max(this.props.height, 420) : (this.props.height || 660);
 		const dark = (typeof document !== 'undefined' && document.documentElement.getAttribute('data-horosa-appearance') === 'dark');
 		const ring = dark ? '#5b4b2c' : '#9a7b3f';
 		const ringSoft = dark ? '#3d3320' : '#c6ab74';

@@ -70,6 +70,21 @@ describe('[Z6] 🔴 程序化合并层(键集恒等+freeze+分派+失败注记)'
 		expect(SANSHI_SHARED_TIME_KEYS).toEqual(['timeAlg', 'after23NewDay', 'lateZiHourUseNextDay']);
 	});
 
+	it('🔴 [Q-271/ZC-14] 奇门家播种键(暗干等)经 splitter 透传:anGanMode 开 → 三式盘奇门宫格有暗干;关 → 空', ()=>{
+		const { QM_SEED_KEYS } = require('../sanshiOptionSplit');
+		expect(QM_SEED_KEYS).toEqual(expect.arrayContaining(['anGanMode', 'showAnZhi', 'godsPreset', 'jiGongMode', 'shiftZhiFuMode']));
+		expect(splitSanshiOptions({ anGanMode: 'dipan', showAnZhi: true }).qimen).toEqual({ anGanMode: 'dipan', showAnZhi: true });
+		const off = anchorPan({});
+		const on = anchorPan({ anGanMode: 'dipan' });
+		const anGanCells = (pan)=>((pan && pan.qimen && pan.qimen.cells) || []).filter((c)=>c && c.anGan).length;
+		expect(anGanCells(off)).toBe(0);
+		expect(anGanCells(on)).toBeGreaterThan(0);
+		// 同一条件叶在两盘上可分辨(暗干十干任一)
+		const leaf = { dim: 'anGan', values: ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'], palaces: [], matchMode: 'any' };
+		expect(SANSHI_CONDITION_TYPES.qm_an_ganzhi.evaluate(off, leaf, makeSanshiZeriEvalCtx(off)).pass).toBe(false);
+		expect(SANSHI_CONDITION_TYPES.qm_an_ganzhi.evaluate(on, leaf, makeSanshiZeriEvalCtx(on)).pass).toBe(true);
+	});
+
 	it('🔴 判别:merged 键经 splitter 透传确变各家盘(ty tn 67/19+lr 贵人流派 巳/丑)', ()=>{
 		const a = anchorPan();
 		const b = anchorPan({ taiyiAccum: 1 });

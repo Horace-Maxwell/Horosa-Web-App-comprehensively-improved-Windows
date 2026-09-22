@@ -14,7 +14,7 @@ export const DIVINATION_JUDGE_EVENT = 'horosa:divination-judge-globals-changed';
 
 // 默认值 = HORARY_PARAM_SPEC 各键的 classical 零回归值。
 export const DIVINATION_JUDGE_DEFAULTS = {
-	combustMitigateSameSign: true,    // 燃烧限同座（异座不判燃烧;判读层专属,后端 sunPos/phase 不看同座）
+	combustMitigateSameSign: false,   // 燃烧限同座（异座不判燃烧;判读层专属,后端 sunPos/phase 不看同座）[Q-144 裁决 2026-09-18] 全局缺省改关=与择日引擎缺省(chartFacts 门 === true)一致,拨开即真下发;卜卦按流派(classical 档学理绑定 true 不受此影响)
 	antiscia: true,                   // 映点参与判读（隐合/隐冲;显示层映点恒开,后端 antisciaOrb 另管）
 };
 

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroExtraReturns.js b/astrostudyui/src/components/astro/AstroExtraReturns.js
-index d3488b4..2d77e07 100644
+index b630a17e..433e6dc7 100644
 --- a/astrostudyui/src/components/astro/AstroExtraReturns.js
 +++ b/astrostudyui/src/components/astro/AstroExtraReturns.js
 @@ -14,6 +14,7 @@ const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentL
@@ -10,7 +10,7 @@ index d3488b4..2d77e07 100644
  
  const Option = Select.Option;
  const BODIES = [
-@@ -111,7 +112,8 @@ class AstroExtraReturns extends Component{
+@@ -115,7 +116,8 @@ class AstroExtraReturns extends Component{
  		this.setState({ loading: true });
  		const r = await fetchReturns(this.props.value, this.state.body, this.state.count);
  		if(!this._mounted) return;

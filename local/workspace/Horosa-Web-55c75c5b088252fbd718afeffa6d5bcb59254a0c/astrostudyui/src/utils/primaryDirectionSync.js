@@ -150,6 +150,23 @@ export function pdMethodOfPair(projection, frame){
 	return hit || null;
 }
 
+// [Q-165/T-98] (投影,分宫)与方法一致性单源(主限法盘页 + 无头 primarydirchart 共用):
+//   显式 pair 与方法反查一致 → 用显式;方法有单维等价且不一致 → 按方法推导;方法为自由组合(反查 null)→ 保留显式 pair。
+//   此前请求恒显式带 pdFrame,后端 frame 优先 → 改「方法」对外圈宫头零效果,快照标 Placidus 宫头仍 Alcabitius。
+export function pdPairParamsFor(method, explicitProjection, explicitFrame){
+	const proj = explicitProjection || DEFAULT_PD_PROJECTION;
+	const frame = explicitFrame || DEFAULT_PD_FRAME;
+	const m = method || '';
+	if(!m || pdMethodOfPair(proj, frame) === m){
+		return { pdProjection: proj, pdFrame: frame };
+	}
+	const pair = pdPairOfMethod(m);
+	if(!pair || !pair[0]){
+		return { pdProjection: proj, pdFrame: frame };
+	}
+	return { pdProjection: pair[0], pdFrame: pair[1] || frame };
+}
+
 export function getPdMethodLabel(value){
 	if(value && PD_METHOD_LABELS[value]){
 		return PD_METHOD_LABELS[value];

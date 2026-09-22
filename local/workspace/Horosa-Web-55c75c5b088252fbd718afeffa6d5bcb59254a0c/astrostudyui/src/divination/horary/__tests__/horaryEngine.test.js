@@ -33,18 +33,34 @@ describe('runHorary 流派 opts 贯通', () => {
 	});
 });
 
+// [Q-146/T-53] 口径改动同步:classic(1647)分支此前直读后端 isVOC 旗,而那面旗是后端按**全局**
+// 空亡口径算的 —— 流派绑定 classic(或择日显式选 1647)时判读实际吃全局值。现改为与其余五口径同源,
+// 按同一张相位表自算(月对表内星无入相/正合托勒密相位即空)。下面的判别向量随之从「拨旗」改成「改相位表」。
 describe('月空 VOC 流派模式', () => {
+	// 月有入相(fixture 恒有一条三合土星):自算口径 → 非空。旗仍拨成 true,用来证明「旗不再决定 classic」。
 	function vocFixtureFacts(){
 		const r = clone(buildMockResult());
-		findObj(r, 'Moon').isVOC = true;   // 月巨蟹 7°,后端标空
+		findObj(r, 'Moon').isVOC = true;   // 月巨蟹 7°,后端旗标空(与相位表相反,专为反证)
 		return buildFacts(r);
 	}
-	test('classic:后端 isVOC 原样 → 空', () => {
+	// 月无任何入相/正合:自算口径 → 空。
+	function vocEmptyApplyFacts(){
+		const r = clone(buildMockResult());
+		findObj(r, 'Moon').isVOC = false;   // 旗标不空,同样不该被 classic 采信
+		r.aspects.normalAsp.Moon.Applicative = [];
+		r.aspects.normalAsp.Moon.Exact = [];
+		return buildFacts(r);
+	}
+	test('classic:按相位表自算——月有入相 → 不空(后端旗为 true 也不采信)', () => {
 		const f = vocFixtureFacts();
+		expect(moonReport(f, { vocMode: 'classic' }).voc).toBe(false);
+	});
+	test('classic:月无任何入相/正合 → 空(后端旗为 false 也不采信)', () => {
+		const f = vocEmptyApplyFacts();
 		expect(moonReport(f, { vocMode: 'classic' }).voc).toBe(true);
 	});
-	test('exempt4(中世纪):月落巨蟹(豁免座) → 不作空亡', () => {
-		const f = vocFixtureFacts();
+	test('exempt4(中世纪):月落巨蟹(豁免座)且本为空 → 不作空亡', () => {
+		const f = vocEmptyApplyFacts();
 		const rep = moonReport(f, { vocMode: 'exempt4' });
 		expect(rep.voc).toBe(false);
 		expect(rep.findings.some((x) => x.key === 'voc_exempt')).toBe(true);
@@ -52,6 +68,12 @@ describe('月空 VOC 流派模式', () => {
 	test('kenodromia(希腊化):月有对七曜入相(三合土星) → 非空', () => {
 		const f = vocFixtureFacts();
 		expect(moonReport(f, { vocMode: 'kenodromia' }).voc).toBe(false);
+	});
+	test('相位表缺失(老快照/纯 stub)时回落后端旗:不因取不到表凭空判空', () => {
+		const r = clone(buildMockResult());
+		findObj(r, 'Moon').isVOC = true;
+		delete r.aspects;
+		expect(moonReport(buildFacts(r), { vocMode: 'classic' }).voc).toBe(true);
 	});
 	test('opts 不传 = 字节不变(等价 classic)', () => {
 		const f = vocFixtureFacts();

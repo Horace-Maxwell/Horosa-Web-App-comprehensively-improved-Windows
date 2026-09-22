@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""第二轮 bug 修复回归:格局分析的相位容许度须与星图所绘一致(moiety,非固定 8°),
+"""bug 修复回归:格局分析的相位容许度须与星图所绘一致(moiety,非固定 8°),
 极区行星时须优雅返回 None。皆为 feral 同坑(固定容许度偏离 app 引擎)的延伸修复。"""
 import os
 import sys
@@ -50,7 +50,7 @@ def test_distribution_hemispheres_by_horizon_not_longitude():
     pc = PerChart(p)
     asc = pc.chart.get('Asc').lon
     mc = pc.chart.get('MC').lon
-    bodies = [q for q in astroextra.chart_points(pc, include_angles=False) if q['id'] in astroextra.DEFAULT_EVENT_PLANETS]
+    bodies = [q for q in astroextra.chart_points(pc, include_angles=False) if q['id'] in astroextra.DISTRIBUTION_BODIES]   # [Q-557] 只计七政
     exp_below = sum(1 for q in bodies if ((q['lon'] - asc) % 360.0) < 180.0)
     exp_east = sum(1 for q in bodies if ((q['lon'] - mc) % 360.0) < 180.0)
     d = astroextra.analyze_chart({'date': '1990/05/15', 'time': '14:30:00', 'zone': '+08:00', 'lat': '31N14', 'lon': '121E29', 'ad': 1, 'hsys': 1})['distribution']['hemispheres']
@@ -59,3 +59,16 @@ def test_distribution_hemispheres_by_horizon_not_longitude():
     # 证明确实改了:本盘按黄经口径 below 计数与按地平不同。
     lon_below = sum(1 for q in bodies if 0 <= q['lon'] < 180)
     assert exp_below != lon_below, '本盘地平口径应与旧黄经口径不同(否则测不出回归)'
+
+
+def test_distribution_counts_classical_seven_only():
+    # [Q-557/T-519] 分布权重三组各只计七政:总和恒 7(此前含天海冥=10);显式 ids 仍可扩。
+    d = astroextra.analyze_chart({'date': '1990/05/15', 'time': '14:30:00', 'zone': '+08:00', 'lat': '31N14', 'lon': '121E29', 'ad': 1, 'hsys': 1})['distribution']
+    assert sum(d['elements'].values()) == 7
+    assert sum(d['modes'].values()) == 7
+    assert d['hemispheres']['above'] + d['hemispheres']['below'] == 7
+    from astrostudy.perchart import PerChart
+    pc = PerChart(astroextra.base_params({'date': '1990/05/15', 'time': '14:30:00', 'zone': '+08:00', 'lat': '31N14', 'lon': '121E29', 'ad': 1, 'hsys': 1}))
+    pts = astroextra.chart_points(pc, include_angles=True)
+    d10 = astroextra.distribution(pts, None, None, ids=astroextra.DEFAULT_EVENT_PLANETS)
+    assert sum(d10['elements'].values()) == 10

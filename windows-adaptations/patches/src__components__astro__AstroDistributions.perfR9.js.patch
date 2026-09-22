@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/astro/AstroDistributions.js b/astrostudyui/src/components/astro/AstroDistributions.js
-index 906e78e..d6df6b8 100644
+index 187b8148..90734034 100644
 --- a/astrostudyui/src/components/astro/AstroDistributions.js
 +++ b/astrostudyui/src/components/astro/AstroDistributions.js
-@@ -11,6 +11,7 @@ import * as AstroText from '../../constants/AstroText';
+@@ -12,6 +12,7 @@ import * as AstroText from '../../constants/AstroText';
  import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
  import UpdatingBadge from '../common/UpdatingBadge';
  import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
@@ -10,7 +10,7 @@ index 906e78e..d6df6b8 100644
  
  const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
  const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
-@@ -126,7 +127,8 @@ class AstroDistributions extends Component {
+@@ -127,7 +128,8 @@ class AstroDistributions extends Component {
  				this.setState({ loading: false, requestKey: k });
  				return;
  			}

@@ -17,6 +17,7 @@ import { sanshiZeriSchemeStore } from '../../divination/zeri/schemeStore';
 import { buildLrChartLite } from '../../divination/zeri/liurengLocal';
 import { fetchChart } from '../../services/astro';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+import { QM_SEED_KEYS } from '../../divination/zeri/sanshiOptionSplit';
 
 function pad2(n){
 	return n < 10 ? `0${n}` : `${n}`;
@@ -76,7 +77,7 @@ export default class SanshiZeriMain extends Component{
 			// 换日/晚子时/时基;昼夜=日出方程自动判,非档位)。
 			// merged 平铺 options(splitSanshiOptions 单源拆三家;键名与三式主页 schema 同律):
 			// 六壬 guirengType/yueMode+太乙 taiyiAccum+奇门盘式键+共享日界,全在工作台可调。
-			options: { guirengType: 0, yueMode: 'zhongqi', taiyiAccum: 0, after23NewDay: defaultAfter23NewDay(), lateZiHourUseNextDay: defaultLateZiHourUseNextDay(), timeAlg: 0 },	// 日界=全局现值(复审 F8 同族)
+			options: { guirengType: 2, yueMode: 'zhongqi', taiyiAccum: 0, after23NewDay: defaultAfter23NewDay(), lateZiHourUseNextDay: defaultLateZiHourUseNextDay(), timeAlg: 0 },	// 日界=全局现值(复审 F8 同族)
 			natal: null,          // 用事人本命(resolveNatal 产物;选填,解锁本命组条件)
 			natalInput: { date: '', time: '12:00', zone: '+08:00', gender: 1 },
 			tree: initialTree(),
@@ -237,7 +238,9 @@ export default class SanshiZeriMain extends Component{
 		}
 		const cfg = { ...this.state.cfg };
 		const geo = { ...(this.state.geo || {}) };
-		const options = { ...(this.state.options || {}) };
+		// [Q-271/ZC-14] 奇门家播种:内嵌三式页当前奇门引擎 options 打底(暗干/暗支/八神/寄宫/移星等左栏档随扫描),
+		// 工作台 13 键覆盖其上(与奇门择日「遁甲页全部 options」同律;hook 未挂时=旧行为)。
+		const options = { ...this.seedQimenOptions(), ...(this.state.options || {}) };
 		const natal = this.state.natal ? { ...this.state.natal } : null;
 		this._scanCfg = cfg;
 		this._scanGeo = geo;
@@ -248,7 +251,7 @@ export default class SanshiZeriMain extends Component{
 		// 冻结 UI 树:详情面「设定」列用它配冻结判读树(活树被增删后按序配对会错位,审查实抓)
 		this._scanUiTree = JSON.parse(JSON.stringify(this.state.tree));
 		try{
-			sanshiZeriSchemeStore.pushHistory({ cfg, geo, options, natal }, this.state.tree);
+			sanshiZeriSchemeStore.pushHistory({ cfg, geo, options, natal, natalInput: this.state.natalInput }, this.state.tree);
 		}catch(e){
 			// 历史落盘失败不阻断
 		}
@@ -302,17 +305,48 @@ export default class SanshiZeriMain extends Component{
 		const raw = (which === 'end' ? (row.pickEnd || row.end) : (row.pick || row.start)) || row.start;
 		const text = raw.length === 16 ? `${raw}:00` : raw;
 		this.setState({ pickText: text, searchOpen: false }, ()=>{
-			this.requestChartAndPlot(true);
+			// [挂载自检 F-37] 先回写工作台口径到三式页 options,再拉底盘起盘:显示盘/母快照=扫描判定口径。
+			this.applyWorkbenchCalibre().then(()=>this.requestChartAndPlot(true));
 		});
 	}
 
-	explainRow(row){
-		return Promise.resolve(explainSanshiAt({
+	// [Q-271/ZC-14] 从内嵌三式页取奇门家播种键(QM_SEED_KEYS 白名单;undefined 不写)。
+	seedQimenOptions(){
+		const h = this.sanshiHook;
+		const qm = (h && typeof h.getQimenOptions === 'function') ? h.getQimenOptions() : null;
+		const out = {};
+		if(!qm || typeof qm !== 'object'){ return out; }
+		QM_SEED_KEYS.forEach((k)=>{ if(qm[k] !== undefined){ out[k] = qm[k]; } });
+		return out;
+	}
+
+	// [挂载自检 F-37] 工作台口径 → 三式页 options(hook.applyOptions):六壬 guirengType→guireng / yueMode→yueJiangMethod /
+	// yinyangSystem 原名;奇门 paiPanType/qijuMethod/school/zhiShiType/kongMode/yimaMode/timeAlg 原名;太乙 taiyiAccum 原名
+	// (与 sanshiOptionSplit 同一改名规则)。母组件未挂 hook 时静默(旧行为)。
+	applyWorkbenchCalibre(){
+		const o = this._scanOptions || this.state.options || {};
+		const partial = {};
+		if(o.guirengType !== undefined && o.guirengType !== null && `${o.guirengType}` !== ''){ partial.guireng = Number(o.guirengType); }
+		if(o.yueMode !== undefined){ partial.yueJiangMethod = o.yueMode === 'jieqi' ? 'jieqi' : 'zhongqi'; }
+		['yinyangSystem', 'paiPanType', 'qijuMethod', 'school', 'zhiShiType', 'kongMode', 'yimaMode', 'taiyiAccum', 'timeAlg', 'after23NewDay', 'lateZiHourUseNextDay'].forEach((k)=>{
+			if(o[k] !== undefined && o[k] !== null && `${o[k]}` !== ''){ partial[k] = o[k]; }
+		});
+		const h = this.sanshiHook;
+		return (h && typeof h.applyOptions === 'function' && Object.keys(partial).length) ? h.applyOptions(partial) : Promise.resolve();
+	}
+
+	// [Q-453] 同步引擎直算(快照前 N 行判读树与工作台「详情▼」同源);explainRow 保持 Promise 形给工作台。
+	explainRowSync(row){
+		return explainSanshiAt({
 			geoParams: this.buildGeoParams(this._scanGeo || this.state.geo),
 			options: { ...(this._scanOptions || this.state.options || {}), _natal: this._scanNatal },
 			tree: this._scanTree,
 			t: row.pick || `${row.start}:00`,
-		}));
+		});
+	}
+
+	explainRow(row){
+		return Promise.resolve(this.explainRowSync(row));
 	}
 
 	composeAiSnapshot(baseText){
@@ -324,6 +358,7 @@ export default class SanshiZeriMain extends Component{
 				tree: this._scanUiTree || this.state.tree,	// 冻结树:与命中行同源(活树曾致条件描述≠结果,复审 F5)
 				results: this.state.results,
 				truncated: this.state.truncated,
+				explainAt: (row)=>this.explainRowSync(row),   // [Q-453] 前 N 行判读树(全局可配)
 			});
 			return extra ? `${baseText ? `${baseText}\n\n` : ''}${extra}` : baseText;
 		}catch(e){
@@ -366,6 +401,7 @@ export default class SanshiZeriMain extends Component{
 						hook={this.sanshiHook}
 						height={this.props.height ? this.props.height - 40 : undefined}
 						techniqueScope="sanshizeri"
+						dispatch={this.props.dispatch}   /* [挂载自检 F-36] 存档钮此前在宿主内是死钮 */
 						composeAiSnapshot={this.composeAiSnapshot}
 						renderLeftExtra={this.renderLeftExtra}
 					/>
@@ -388,8 +424,11 @@ export default class SanshiZeriMain extends Component{
 						return n;
 					}}
 					onClearNatal={()=>this.setState({ natal: null })}
+					onRestoreNatal={(n)=>this.setState({ natal: n || null })}   /* [Q-271/ZC-21] 方案载入回灌本命 */
 					tree={this.state.tree}
 					frozenTree={this._scanUiTree}
+					previewGeo={this._scanGeo || this.state.geo}   /* [Q-271/ZC-22] 冻结地点:概览口径=扫描口径 */
+					previewOptions={this._scanOptions || this.state.options}   /* [Q-271/ZC-22] 冻结参数:搜索后改参数不改旧结果行的盘 */
 					onPreviewPan={(d, t)=>{
 						const y = Number(`${d}`.slice(0, 4));
 						const zone = ((this._scanGeo || this.state.geo) || {}).zone || '+08:00';

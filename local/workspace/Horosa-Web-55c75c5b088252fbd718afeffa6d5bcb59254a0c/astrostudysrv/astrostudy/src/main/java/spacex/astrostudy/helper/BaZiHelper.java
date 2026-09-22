@@ -687,17 +687,22 @@ public class BaZiHelper {
 		int ganremainder = YearGanRemainderInv.get(gan);
 		int ziremainder = YearZiRemainderInv.get(zi);
 		
+		// [Q-304/T-294] 公元前:显示年为负(无 0 年,BC1=-1),干支按天文年(BC 年 +1)取正余数(floorMod);
+		// 此前 year % 10 对负年得负余数永远匹配不上(除庚申),一直递减到 int 回卷(约 21 亿次)才命中 → 请求线程空转。
 		int year = fromyear;
-		int ganrem = year % 10;
-		int zirem = year % 12;
+		int ganrem = Math.floorMod(year < 0 ? year + 1 : year, 10);
+		int zirem = Math.floorMod(year < 0 ? year + 1 : year, 12);
+		int guard = 0;
 		while(ganrem != ganremainder || zirem != ziremainder) {
 			if(desc) {
 				year--;				
 			}else {
 				year++;
 			}
-			ganrem = year % 10;
-			zirem = year % 12;
+			if(year == 0) { year = desc ? -1 : 1; }   // 跨过不存在的 0 年
+			ganrem = Math.floorMod(year < 0 ? year + 1 : year, 10);
+			zirem = Math.floorMod(year < 0 ? year + 1 : year, 12);
+			if(++guard > 120) { break; }   // 60 年内必命中;护栏防死循环
 		}
 		
 		return year;
@@ -830,9 +835,10 @@ public class BaZiHelper {
 		int cnt = 0;
 		String date = null;
 		int fromyear = fromYear == 0 ? -1 : fromYear;
+		int windows = 0;
 		do {
 			date = getBirth(desc, fromyear, yearGanzi, monthGanzi, dayGanzi, timeGanzi);
-			if(date != null) {
+			if(date != null && cnt < count) {
 				dates[cnt++] = date;
 			}
 			if(desc) {
@@ -840,7 +846,9 @@ public class BaZiHelper {
 			}else {
 				fromyear += 60;
 			}			
-		}while(cnt < count || date == null);
+			// [Q-304] 上界:最多扫 200 个六十年窗(1.2 万年);此前 cnt 达上限后仍可能写越界,且 date 恒 null 时无限循环
+			if(++windows > 200) { break; }
+		}while(cnt < count);
 		
 		return dates;
 	}

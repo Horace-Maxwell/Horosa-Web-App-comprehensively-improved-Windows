@@ -9,7 +9,7 @@ import {
 	babylonChartParams, chartToLons, babylonBirthJdn, buildBabylonSnapshotText,
 	fetchBabylonEphemeris, digestBabylonEphemeris, computeNaKur,
 } from '../../utils/babylonAiSnapshot';
-import { PRODUCTS, SCHEME_ORDER, BABYLON_SCHEMES, schemeOf, judgeOpts, BABYLON_PARAM_SPEC } from '../../divination/babylon/babylonSchools';
+import { PRODUCTS, SCHEME_ORDER, BABYLON_SCHEMES, schemeOf, judgeOpts, BABYLON_PARAM_SPEC, schemeAffectsTab, schemeVaryingKeysForTab, schemeVaryingKeysElsewhere, schemeKeyLabel } from '../../divination/babylon/babylonSchools';   // [Q-346] 派系是否作用于本页 / [Q-150] 作用范围逐条自证
 import { buildHoroscope } from '../../divination/babylon/horoscope';
 import BabylonHoroscope from './BabylonHoroscope';
 import BabylonEphemeris from './BabylonEphemeris';
@@ -20,6 +20,9 @@ import BabylonEae from './BabylonEae';
 import BabylonAlmanac from './BabylonAlmanac';
 import BabylonHemerology from './BabylonHemerology';
 import './babylon.less';
+// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+import { visualFloorPx } from '../../utils/zoomDomain';
+import { definePageSettings } from '../../utils/pageSettingsStore';
 
 const TabPane = Tabs.TabPane;
 
@@ -46,13 +49,25 @@ async function fetchSiderealChart(params){
 	return req;
 }
 
+// 排盘设置跨会话保留(用户实报同类:设置改了之后每次重开软件都要重设):派系 + 逐项参数覆盖层
+// (稀疏:只存显式改过的项,缺席 = 跟随派系;换派系时覆盖层清空,与界面同一条规矩)。当前页签是视图态,不保留。
+// 本页不回灌事盘、不接宿主下发口径,这两个 handler 是改派系 / 参数的唯一入口。
+export const BABYLON_PAGE_SETTINGS = definePageSettings('horosa.babylon.settings.v1', {
+	schemeId: { def: 'swissA10', oneOf: SCHEME_ORDER },
+	overrides: { type: 'map', sparse: true, keys: BABYLON_PARAM_SPEC.reduce((acc, p)=>{
+		const vals = (p.options || []).map((o)=>o.value);
+		acc[p.key] = { def: vals[0], oneOf: vals };
+		return acc;
+	}, {}) },
+});
+
 class BabylonMain extends Component{
 	constructor(props){
 		super(props);
 		this.state = {
 			currentTab: 'horoscope',
-			schemeId: 'swissA10',
-			overrides: {},
+			schemeId: BABYLON_PAGE_SETTINGS.load().schemeId,     // 上次亲手选的派系(没存过 = swissA10)
+			overrides: BABYLON_PAGE_SETTINGS.load().overrides,   // 上次亲手改的逐项覆盖(没存过 = 空)
 			chartObj: null,
 		};
 		this.unmounted = false;
@@ -115,12 +130,14 @@ class BabylonMain extends Component{
 	// 页面侧存模块 AI 快照(AI 导出当前页/挂载候选;meta=生辰签名防串盘)。
 	// 抽成方法供两处调用:首拍(裸 digest,即时可用)+ NA/KUR 回填补拍(终值)。
 	saveBabylonSnapshot(result, params, jdn, ephemDigest){
+		// [Q-150/T-58] 留存末次入参:改派系 / 改参数后要能就地补拍(否则 AI 导出当前页恒是换盘那刻的旧派系)。
+		this._lastSnapInputs = { result, params, jdn };
 		try{
 			const lons = chartToLons(result);
 			if(jdn && lons.sun !== undefined){
 				const bab = buildHoroscope(lons, jdn, this.effectiveOpts());
 				const sc = schemeOf(this.state.schemeId);
-				const text = buildBabylonSnapshotText(bab, { ...this.effectiveOpts(), schemeCn: sc.cn, ephemDigest });
+				const text = buildBabylonSnapshotText(bab, { ...this.effectiveOpts(), schemeCn: sc.cn, ephemDigest, lons });   // [Q-443] lons 供数理星历段锚
 				if(text){
 					saveModuleAISnapshot('babylon', text, {
 						date: params.date, time: params.time, zone: params.zone,
@@ -132,9 +149,21 @@ class BabylonMain extends Component{
 	}
 
 	changeTab(key){ this.setState({ currentTab: key }); }
-	changeScheme(id){ this.setState({ schemeId: id, overrides: {} }); }
+	// [Q-150/T-58] 改派系 / 改参数此前只 setState,模块快照仍停在 refresh() 那刻 →
+	// 页面显示新派系、「AI 导出当前页」却是旧派系,直到换盘才自愈。就地补拍(纯前端重算,不重排盘)。
+	resaveSnapshotAfterOpts(){
+		const last = this._lastSnapInputs;
+		if(!last || !last.result){ return; }
+		this.saveBabylonSnapshot(last.result, last.params, last.jdn, this.state.ephemDigest);
+	}
+	changeScheme(id){
+		BABYLON_PAGE_SETTINGS.save({ schemeId: id, overrides: {} });   // 换派系连同「清空覆盖层」一起落盘
+		this.setState({ schemeId: id, overrides: {} }, () => this.resaveSnapshotAfterOpts());
+	}
 	changeOverride(key, value){
-		this.setState({ overrides: { ...this.state.overrides, [key]: value } });
+		const overrides = { ...this.state.overrides, [key]: value };
+		BABYLON_PAGE_SETTINGS.save({ overrides });
+		this.setState({ overrides }, () => this.resaveSnapshotAfterOpts());
 	}
 
 	// 当前有效派系参数(scheme 默认 ∪ 用户覆盖)
@@ -151,6 +180,11 @@ class BabylonMain extends Component{
 	renderSchemePanel(tab){
 		const opts = this.effectiveOpts();
 		const specVisible = BABYLON_PARAM_SPEC.filter((p) => p.appliesTo.indexOf(tab) >= 0 && p.key !== 'ephemerisSource');
+		// [Q-346/T-327] 三档派系只在 位置源 / 分至规范 上有分歧(其余键三档全同),所以只有个人星盘与数理星历两页
+		// 真受影响。其余六页此前照样渲染一个可切的派系下拉,切了什么都不变 —— 现在照直说明,不假装它有用。
+		const schemeLive = schemeAffectsTab(tab);
+		const schemeHere = schemeVaryingKeysForTab(tab);             // [Q-150] 本页真吃哪几条
+		const schemeElsewhere = schemeVaryingKeysElsewhere(tab);     // [Q-150] 其余几条各在哪页生效
 		return (
 			<div className="horosa-babylon-card horosa-babylon-scheme-card">
 				<div className="horosa-babylon-card-title">派系</div>
@@ -161,6 +195,20 @@ class BabylonMain extends Component{
 					options={SCHEME_ORDER.map((id) => ({ value: id, label: BABYLON_SCHEMES[id].cn }))}
 					onChange={(v) => this.changeScheme(v)}
 				/>
+				{schemeLive ? null : (
+					<div className="horosa-babylon-scheme-note" style={{ fontSize: 11, opacity: 0.6, marginTop: 6, lineHeight: 1.5 }}>
+						本页不受派系影响(三档只在「位置源 / 分至规范」上有差异,本页两项都不读);切派系是为别的页签准备的。
+					</div>
+				)}
+				{/* [Q-150/T-58] 派系只部分作用于本页时说清边界:个人星盘只吃「分至规范」,
+				    位置源只在「数理星历」页生效——本页七曜位置恒取现代实位,别让「派系:System A」被读成换了位置算法。 */}
+				{schemeLive && schemeElsewhere.length ? (
+					<div className="horosa-babylon-scheme-note" style={{ fontSize: 11, opacity: 0.6, marginTop: 6, lineHeight: 1.5 }}>
+						本页只受「{schemeHere.map(schemeKeyLabel).join(' / ')}」影响;
+						{schemeElsewhere.map((x)=>`「${x.label}」只在${x.tabs.map((t)=>`「${t}」`).join('、')}页生效`).join(';')}
+						——本页行星位置恒取现代实位。
+					</div>
+				) : null}
 				{specVisible.map((p) => (
 					<div key={p.key} className="horosa-babylon-scheme-row">
 						<span className="lbl">{p.label}</span>
@@ -180,7 +228,7 @@ class BabylonMain extends Component{
 
 	render(){
 		const height = this.props.height ? this.props.height : 760;
-		const childHeight = Math.max(360, height - 44);
+		const childHeight = Math.max(visualFloorPx(360), height - 44);
 		const opts = this.effectiveOpts();
 		const lons = chartToLons(this.state.chartObj);
 		const jdn = babylonBirthJdn(this.props.fields);

@@ -29,7 +29,7 @@ function DoctrineMen({ men, rows, defaultOpen }){
 				{open ? '▾' : '▸'} {men} <span style={{ color: C.muted, fontWeight: 400 }}>({rows.length} 条)</span>
 			</div>
 			{open ? (
-				<div style={{ maxHeight: '40vh', overflowY: 'auto', border: `1px solid ${C.line}`, borderRadius: 8, padding: '6px 10px', fontSize: 12, lineHeight: 1.8 }}>
+				<div style={{ maxHeight: 'calc(40 * var(--horosa-lvh, 1vh))', overflowY: 'auto', border: `1px solid ${C.line}`, borderRadius: 8, padding: '6px 10px', fontSize: 12, lineHeight: 1.8 }}>
 					{rows.map((r, i) => {
 						const showSrc = r.source && r.source !== lastSrc;
 						lastSrc = r.source || lastSrc;

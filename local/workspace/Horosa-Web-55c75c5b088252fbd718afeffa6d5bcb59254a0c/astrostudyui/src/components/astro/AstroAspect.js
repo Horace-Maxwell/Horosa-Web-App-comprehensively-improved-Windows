@@ -149,14 +149,20 @@ class AstroAspect extends Component{
 				rows.push(this.aspPill(key + 'a' + asp.id, key, asp, '入相', 'applying'));
 			}
 
-			let aspary = obj.Exact.map((elm)=>{
-				return elm;
-			});
-			for(let idx=0; idx<obj.Separative.length; idx++){
-				aspary.push(obj.Separative[idx]);
+			// [Q-254/T-227] 正合(引擎 |orbDir|<0.3 → Exact,不分入离)单列「正合」,不再与离相拼作「离相」;
+			// 「只显入相」不隐藏正合(它既非入相也非离相,处于精确之刻),离相误差上限亦不作用于它。
+			for(let idx=0; idx<obj.Exact.length; idx++){
+				let asp = obj.Exact[idx];
+				if((!pars.has(asp.id)) && asp.id.indexOf('Pars') >= 0){
+					continue;
+				}
+				if((!planets.has(asp.id))){
+					continue;
+				}
+				rows.push(this.aspPill(key + 'e' + asp.id, key, asp, '正合', 'exact'));
 			}
-			for(let idx=0; idx<aspary.length; idx++){
-				let asp = aspary[idx];
+			for(let idx=0; idx<obj.Separative.length; idx++){
+				let asp = obj.Separative[idx];
 				if((!pars.has(asp.id)) && asp.id.indexOf('Pars') >= 0){
 					continue;
 				}
@@ -164,7 +170,7 @@ class AstroAspect extends Component{
 					continue;
 				}
 				if(onlyApplying){
-					continue;   // 只显入相:离相/正相(离相段)整体不入行
+					continue;   // 只显入相:离相整体不入行
 				}
 				if(sepCap > 0 && Number(asp.orb) > sepCap){
 					continue;   // 离相误差超上限

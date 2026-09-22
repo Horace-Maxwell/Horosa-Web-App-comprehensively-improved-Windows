@@ -167,11 +167,50 @@ describe('AI 四同步补齐 16 项 GAP — 用户名条目逐一覆盖', ()=>{
 		expect(out).toContain('命主星：');
 	});
 
-	it('FIX-1 宫神星(houseRows) 出现在主宰星链', ()=>{
+	// [#79] 分宫制宫神星表自 [主宰星链] 拆出成独立段;[主宰星链] 改挂整宫制宫主表 + 判读口径行(宫主/主宰口径=整宫制=nR)。
+	const sliceSec = (content, title)=>{
+		const hit = `${content}`.split('\n\n').find((p)=>p.indexOf(`[${title}]\n`) === 0 || p === `[${title}]`);
+		return hit ? hit.split('\n').slice(1) : null;
+	};
+	it('FIX-1/#79 分宫制宫神星表(houseRows)=独立段:标题带当前分宫制名,表行 GFM;[主宰星链] 不再挂分宫表', ()=>{
 		const out = buildAstroSnapshotContent(fullChart, null);
-		expect(out).toContain('宫神星(houseRows)');
+		const sec = sliceSec(out, '分宫制宫神星表');
+		expect(sec).toBeTruthy();
+		expect(sec[0]).toMatch(/^◆ 当前分宫制(\(.+\))?宫神星表\(houseRows\)$/);
+		expect(sec[1]).toBe('| 宫 | 宫头座 | 宫主 | 宫主落宫 | 宫主落座 |');
 		// [v2 表化重钉] v1 行「1宫(座)：宫主 X 落 …」→ GFM 表行「| 1宫 | 座 | 宫主 | 落宫 | 落座 |」。
-		expect(out).toMatch(/\| 1宫 \| [^|\n]+ \| [^|\n]+ \| [^|\n]+ \| [^|\n]+ \|/);
+		expect(sec.join('\n')).toMatch(/\| 1宫 \| [^|\n]+ \| [^|\n]+ \| [^|\n]+ \| [^|\n]+ \|/);
+		expect(sliceSec(out, '主宰星链').join('\n')).not.toContain('houseRows');
+	});
+
+	it('#79 [主宰星链] = 链行 + 判读口径行 + 整宫制宫主表(自上升牡羊起算:1宫牡羊→火 落第一宫 牡羊;8宫天蝎→火 同落)', ()=>{
+		const out = buildAstroSnapshotContent(fullChart, null);
+		const sec = sliceSec(out, '主宰星链');
+		expect(sec).toBeTruthy();
+		const calibre = sec.findIndex((l)=>l.indexOf('判读口径：') === 0);
+		expect(calibre).toBeGreaterThan(0);
+		expect(sec[calibre]).toContain('整宫制');
+		expect(sec[calibre]).toContain('nR');
+		expect(sec[calibre]).toContain('[分宫制宫神星表]');
+		expect(sec[calibre + 1]).toBe('◆ 整宫制宫主表(wholeSignRulers)');
+		expect(sec[calibre + 2]).toBe('| 宫 | 整宫星座 | 宫主 | 宫主落宫(整宫) | 宫主落座 |');
+		const rows = sec.slice(calibre + 4);
+		expect(rows).toHaveLength(12);
+		expect(rows[0]).toBe('| 1宫 | 牡羊 | 火 | 第一宫 | 牡羊 |');
+		expect(rows[7]).toBe('| 8宫 | 天蝎 | 火 | 第一宫 | 牡羊 |');
+		// 夹具宫头只给 1/4/7/10 四宫 → 分宫表 4 行;整宫表恒 12 行(两表不同源)
+		expect(sliceSec(out, '分宫制宫神星表').slice(3)).toHaveLength(4);
+	});
+
+	it('#79 上升整宫制盘(params.hsys=0):分宫制段折叠成一行说明、零表格;福点整宫制(24)不折叠', ()=>{
+		const whole = { ...fullChart, params: { ...fullChart.params, hsys: '0' } };
+		const out = buildAstroSnapshotContent(whole, null);
+		expect(sliceSec(out, '分宫制宫神星表')).toEqual(['当前分宫制即整宫制：宫神星表与[主宰星链]段「◆ 整宫制宫主表(wholeSignRulers)」逐行相同，不再重复列出。']);
+		expect(sliceSec(out, '主宰星链').join('\n')).toContain('◆ 整宫制宫主表(wholeSignRulers)');
+		const fortuna = { ...fullChart, params: { ...fullChart.params, hsys: 24 } };
+		const secF = sliceSec(buildAstroSnapshotContent(fortuna, null), '分宫制宫神星表');
+		expect(secF[0]).toBe('◆ 当前分宫制(福点整宫制)宫神星表(houseRows)');
+		expect(secF.length).toBeGreaterThan(3);
 	});
 
 	it('FIX-7 月宿 nakshatra 出现在行星段', ()=>{

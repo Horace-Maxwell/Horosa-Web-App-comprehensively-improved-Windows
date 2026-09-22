@@ -10,6 +10,8 @@ import { ColorTheme, ReaderThemeKey, ReaderFontSizeKey,ReaderScrollTopKey, Reade
 import styles from '../../css/styles.less';
 import { XQDrawer, XQSelect } from '../xq-ui';
 import XQIcon from '../xq-icons';
+import { getEffectiveScale } from '../../utils/zoomDomain';
+import { getLayoutViewportWidth, getLayoutViewportHeight } from '../../utils/shellZoom';
 
 const { Title, Paragraph, Text } = Typography;
 const { Option } = XQSelect;
@@ -516,15 +518,18 @@ class BookReader extends Component{
 		const full = checkFullScreen();
 		this.fullScreen = full;
 		if(full){
-			divdom.style.width = Math.max(1, window.innerWidth || divdom.clientWidth) + 'px';
-			divdom.style.height = Math.max(1, window.innerHeight || divdom.clientHeight) + 'px';
+			// 全屏态视口尺寸走布局域实测(innerWidth/Height 是物理域,壳缩放≠1 时写成 CSS px 会差 z 倍)。
+			divdom.style.width = Math.max(1, getLayoutViewportWidth() || divdom.clientWidth) + 'px';
+			divdom.style.height = Math.max(1, getLayoutViewportHeight() || divdom.clientHeight) + 'px';
 			return;
 		}
 		divdom.style.width = '';
 		divdom.style.height = '';
+		// [Tahoe 域混根修·2026-09-17 用户 APP 实报「放大后盘面不随之缩小、被下端遮挡」] 量容器只用布局域读数(clientWidth/clientHeight);rect 域在标准化 zoom 引擎下已×z,当布局 px 用=盘面大 z 倍被裁(旧引擎 rect=布局值故不显)。
+		const zScale = getEffectiveScale() || 1;
 		const rect = divdom.getBoundingClientRect ? divdom.getBoundingClientRect() : null;
-		this.readerWidth = Math.max(1, Math.round((rect && rect.width) || divdom.clientWidth));
-		this.readerHeight = Math.max(1, Math.round((rect && rect.height) || divdom.clientHeight));
+		this.readerWidth = Math.max(1, Math.round(divdom.clientWidth || ((rect && rect.width) || 0) / zScale));
+		this.readerHeight = Math.max(1, Math.round(divdom.clientHeight || ((rect && rect.height) || 0) / zScale));
 	}
 
 	isScrollEnd(){

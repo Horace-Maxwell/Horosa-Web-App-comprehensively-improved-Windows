@@ -128,7 +128,7 @@ input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 
 /* modal */
 .mask{position:fixed;inset:0;background:rgba(5,7,18,.62);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
 .mask.on{opacity:1;pointer-events:auto}
-.drawer{position:fixed;top:0;right:0;height:100%;width:min(780px,96vw);background:var(--bg2);border-left:1px solid var(--line);box-shadow:var(--shadow);transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);z-index:50;display:flex;flex-direction:column}
+.drawer{position:fixed;top:0;right:0;height:100%;width:min(780px,calc(96 * var(--lvw, 1vw)));background:var(--bg2);border-left:1px solid var(--line);box-shadow:var(--shadow);transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);z-index:50;display:flex;flex-direction:column}
 .drawer.on{transform:none}
 .dh{padding:22px 26px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .dh h2{font-family:var(--serif);margin:0;font-size:28px;font-weight:600;line-height:1.1}
@@ -504,6 +504,8 @@ function openDetail(id){
 function closeDetail(){$('mask').classList.remove('on');$('drawer').classList.remove('on');$('drawer').setAttribute('aria-hidden','true');}
 function importChart(r){
   const chart={cid:r.cid,name:r.name,birth:r.birth_chart,zone:r.zone,lat:r.lat,lon:r.lon,gpsLat:r.gpsLat,gpsLon:r.gpsLon,pos:r.pos,gender:r.gender,isPub:0,doubingSu28:0,group:['Astrodatabank',r.rodden||''],creator:'local'};
+  // [Q-378/T-358] 时辰未知(has_time=0)入库写备注(与 AI 建档「出生时辰未知,按正午 12:00 建档」同形),否则入库后与普通命盘无异。
+  if(!r.has_time){chart.memo='出生时辰未知,按正午 12:00 建档;上升/宫位不可用';}
   if(EMBEDDED){window.parent.postMessage({type:'astrodata:importChart',chart},'*');toast(T().imported);return;}
   navigator.clipboard.writeText(JSON.stringify({format:'horosa-local-charts',version:1,total:1,charts:[chart]},null,2)).then(()=>toast(T().copied)).catch(()=>toast(T().copied));
 }
@@ -543,6 +545,32 @@ function wireEvents(){
     if(!$('drawer').classList.contains('on')&&document.activeElement.tagName!=='INPUT'){if(e.key==='ArrowRight')go(1);if(e.key==='ArrowLeft')go(-1);}
   });
 }
+(function initZoom(){
+  // 宿主缩放接力:宿主(星阙壳)对自身 documentElement 做 CSS zoom 后,标准化 zoom 引擎里内嵌 iframe 的
+  // 视口按物理尺寸计 CSS px、再整体缩放 ⇒ 本页只画到 z 倍宽高(缩小留白 / 放大被裁)。宿主把 iframe
+  // 反缩放到有效 1,并把 z 经 URL 初值(防首帧)+ postMessage(⌘± 换档)交给本页自己 zoom。
+  // 同时把实测布局视口发布成 --lvw/--lvh(fixed 探针,不认引擎),样式里用它替代 vw/vh。
+  var url=new URLSearchParams(location.search);
+  function publishLV(){
+    try{
+      var b=document.body;if(!b)return;
+      var p=document.createElement('div');p.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;visibility:hidden;pointer-events:none';
+      b.appendChild(p);var w=p.offsetWidth,h=p.offsetHeight;b.removeChild(p);
+      var d=document.documentElement;
+      if(w>0&&h>0){d.style.setProperty('--lvw',(w/100)+'px');d.style.setProperty('--lvh',(h/100)+'px');}
+      else{d.style.removeProperty('--lvw');d.style.removeProperty('--lvh');}
+    }catch(_){}
+  }
+  function applyZoom(v){
+    var z=Number(v);var d=document.documentElement;
+    if(z&&z>0&&isFinite(z)&&Math.abs(z-1)>=0.001){d.style.zoom=String(z);}else{d.style.zoom='';}
+    publishLV();
+  }
+  var z0=url.get('zoom');if(z0)applyZoom(z0);
+  window.addEventListener('message',function(e){var d=e&&e.data;if(d&&d.type==='astrodata:setZoom')applyZoom(d.zoom);});
+  window.addEventListener('resize',publishLV);
+  if(document.body)publishLV();else document.addEventListener('DOMContentLoaded',publishLV);
+})();
 (function initTheme(){
   var url=new URLSearchParams(location.search);
   if(EMBEDDED){

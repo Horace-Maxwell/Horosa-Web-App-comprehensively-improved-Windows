@@ -1,10 +1,10 @@
-// [第六轮独立审计 2026-08-18] 占星设置全键「透传终局合同」——行为级四面:
+// [独立审计 2026-08-18] 占星设置全键「透传终局合同」——行为级四面:
 // ① 随盘清单完备性:RECORD_FIELDS_RESTORE_MANIFEST ⊇ spec 全键(漏一键=该设置不随盘存档)
 // ② 随盘 roundtrip:全 spec 键非默认 → capture 逐键落 → 以捕获值再构 send 载荷逐键仍在(存→载→发等值链)
 // ③ 判读全局层:classical 仓判读键逐键非默认 → judgeLayerOverrides() 逐键出现(卜卦/择日 AI 挂载共此层)
 // ④ AI 挂载再生构参:aiAnalysisContext.fieldParams 必 spread classicalBackendOverridesFromFields(单源锚,
 //    防回退手写键列表);挂载走主盘同链,行为面由 ② 的 send 函数全键覆盖。
-// 背景:五轮复审(65 项)后第六轮行为级压测同日在引擎面(:8899 真打)逐键证活 49/51,
+// 背景:多轮复审(65 项)后行为级压测同日在引擎面(:8899 真打)逐键证活 49/51,
 // 两死档(saturnExalt20 exaltDeg 零消费 / polarMcMode swap 分支实测不可达)已于 2026-08-18 拍板删档,全链退场。
 import fs from 'fs';
 import path from 'path';

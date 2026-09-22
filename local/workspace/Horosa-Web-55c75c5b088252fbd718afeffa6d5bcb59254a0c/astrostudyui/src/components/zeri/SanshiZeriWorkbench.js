@@ -4,6 +4,8 @@
 // ②构造条件:51 类跨式混排(lr_/qm_/ty_ 前缀,OptGroup 按「家名·类别」分组)。
 // 结果表「三家」列(课名·奇门局·太乙局)。
 import { useState, useEffect, useRef } from 'react';
+import { saveBlobSmart } from '../../utils/aiAnalysisExport';
+import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // [Q-478] 空数字框统一校验
 import { Modal, Dropdown, Menu, message } from 'antd';
 import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
 import ConditionParamsForm from './ConditionParamsForm';
@@ -21,19 +23,13 @@ import {
 } from '../../divination/zeri/sanshiZeriConditionTypes';
 import { sanshiZeriSchemeStore } from '../../divination/zeri/schemeStore';
 import { defaultAfter23NewDay } from '../../utils/dayBoundary';
+import { TAIYI_ACCUM_OPTIONS } from '../taiyi/core/TaiYiCore';
 
+// [Q-410] 单源保存(桌面壳保存桥选目录;浏览器 <a download>);取消 / 失败静默不报成功(本处本就无成功提示)。
 function downloadJson(text, filename){
 	try{
-		const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = filename;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		setTimeout(() => URL.revokeObjectURL(url), 800);
-	}catch(e){ /* 下载失败静默(受限 webview 环境) */ }
+		return saveBlobSmart(filename, new Blob([text], { type: 'application/json;charset=utf-8' }));
+	}catch(e){ return null; /* 受限 webview 环境静默 */ }
 }
 
 const Option = XQSelect.Option;
@@ -119,8 +115,8 @@ const CATEGORY_ORDER = (()=>{
 
 export default function SanshiZeriWorkbench({
 	open, onClose, cfg, onCfgChange, geo, onGeoChange, options, onOptionsChange,
-	natal, natalInput, onNatalInputChange, onResolveNatal, onClearNatal,
-	tree, frozenTree, onPreviewPan, onPreviewExplain, previewGeo, onTreeChange, onRun, onCancelScan, onPickInterval, onExplain, scanEpoch, resultsStale,
+	natal, natalInput, onNatalInputChange, onResolveNatal, onClearNatal, onRestoreNatal,
+	tree, frozenTree, onPreviewPan, onPreviewExplain, previewGeo, previewOptions, onTreeChange, onRun, onCancelScan, onPickInterval, onExplain, scanEpoch, resultsStale,
 	scanning, progress, results, truncated, scanErr,
 }){
 	const [draftType, setDraftType] = useState('lr_ke_name');	// 🔴 初值必须是合并注册表键(lr_ 前缀;曾抄紫微裸键=首开未知条件,审查实抓)
@@ -163,7 +159,8 @@ export default function SanshiZeriWorkbench({
 
 	const draftLeaf = { kind: 'leaf', type: draftType, negate: draftNegate, params: draftParams };
 	const draftSpec = SANSHI_CONDITION_TYPES[draftType] || {};
-	const draftError = draftSpec.validate ? draftSpec.validate(draftParams) : '';
+	// [Q-478/T-440] 空数字框先判(与表单红框同一判据),再走各类型自校验。
+	const draftError = emptyNumberFieldError(draftSpec, draftParams) || (draftSpec.validate ? draftSpec.validate(draftParams) : '');
 
 	const appendTargetPath = selectedIsGroup ? selectedPath : [];
 	const doAdd = () => {
@@ -195,6 +192,9 @@ export default function SanshiZeriWorkbench({
 			if(rec.config.cfg){ onCfgChange({ ...cfg, ...rec.config.cfg }); }
 			if(rec.config.geo && typeof onGeoChange === 'function'){ onGeoChange({ ...(geo || {}), ...rec.config.geo }); }
 			if(rec.config.options && typeof onOptionsChange === 'function'){ onOptionsChange({ ...(options || {}), ...rec.config.options }); }
+			// [Q-271/ZC-21] 保存/历史都写了 natal(+natalInput),载入此前只回灌 cfg/geo/options → 含本命组条件的方案载入后恒判假。
+			if(rec.config.natalInput && typeof onNatalInputChange === 'function'){ onNatalInputChange({ ...(natalInput || {}), ...rec.config.natalInput }); }
+			if(Object.prototype.hasOwnProperty.call(rec.config, 'natal') && typeof onRestoreNatal === 'function'){ onRestoreNatal(rec.config.natal || null); }
 		}
 		setSelectedPath(null);
 	};
@@ -312,7 +312,7 @@ export default function SanshiZeriWorkbench({
 	};
 
 	const editView = (
-		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 'clamp(560px, calc(100vh - 220px), 900px)' }}>
+		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)' }}>
 			{/* 左列(主操作区):时间范围 / 构造条件 / 连接门 / 动作排 —— 黄历日课与经纬/时刻无关,无地点·参数区 */}
 			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
 				<div style={{ padding: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
@@ -342,15 +342,17 @@ export default function SanshiZeriWorkbench({
 						{/* 三段参数(merged 平铺,splitSanshiOptions 单源拆三家;各键判别力由各家金标证) */}
 						{[
 							{ key: 'yueMode', label: '六壬·月将', dv: 'zhongqi', options: [{ value: 'zhongqi', label: '中气(太阳过宫)' }, { value: 'jieqi', label: '按节换将' }] },
-							{ key: 'guirengType', label: '六壬·贵人', dv: 0, options: [{ value: 0, label: '六壬法' }, { value: 1, label: '遁甲法' }, { value: 2, label: '星占法' }, { value: 3, label: '甲戊兼牛羊' }, { value: 4, label: '干合阳阴贵' }] },
+							{ key: 'guirengType', label: '六壬·贵人', dv: 2, options: [{ value: 0, label: '六壬法' }, { value: 1, label: '遁甲法' }, { value: 2, label: '星占法' }, { value: 3, label: '甲戊兼牛羊' }, { value: 4, label: '干合阳阴贵' }] },
 							{ key: 'yinyangSystem', label: '六壬·阴阳系', dv: 'danmu', options: [{ value: 'danmu', label: '旦暮系' }, { value: 'yinyang', label: '阴阳系' }] },
-							{ key: 'paiPanType', label: '奇门·类型', dv: 0, options: PAIPAN_OPTIONS },
-							{ key: 'qijuMethod', label: '奇门·取局', dv: 'chaibu', options: QIJU_METHOD_OPTIONS },
+							// [Q-268/T-262] dv = 引擎缺省(计算面 calcDunJia:paiPanType 3 时家 / qijuMethod zhirun 置闰 / kongMode·yimaMode 'day'),
+							// 此前显示年家·拆补·0 ≠ 实际扫描口径,且 0 不在空亡/驿马值域内显示为空
+							{ key: 'paiPanType', label: '奇门·类型', dv: 3, options: PAIPAN_OPTIONS },
+							{ key: 'qijuMethod', label: '奇门·取局', dv: 'zhirun', options: QIJU_METHOD_OPTIONS },
 							{ key: 'school', label: '奇门·盘式', dv: '转盘', options: SCHOOL_OPTIONS },
 							{ key: 'zhiShiType', label: '奇门·值使', dv: 0, options: ZHISHI_OPTIONS },
-							{ key: 'kongMode', label: '奇门·空亡', dv: 0, options: KONG_MODE_OPTIONS },
-							{ key: 'yimaMode', label: '奇门·驿马', dv: 0, options: MA_MODE_OPTIONS },
-							{ key: 'taiyiAccum', label: '太乙·公式', dv: 0, options: [{ value: 0, label: '通行' }, { value: 1, label: '古法一' }, { value: 2, label: '古法二' }, { value: 3, label: '古法三' }] },
+							{ key: 'kongMode', label: '奇门·空亡', dv: 'day', options: KONG_MODE_OPTIONS },
+							{ key: 'yimaMode', label: '奇门·驿马', dv: 'day', options: MA_MODE_OPTIONS },
+							{ key: 'taiyiAccum', label: '太乙·积年算法', dv: 0, options: TAIYI_ACCUM_OPTIONS.map((o)=>({ value: o.value, label: o.label })) },   // [Q-271/ZC-23] 档名复用主太乙页
 							{ key: 'timeAlg', label: '时间(奇门)', dv: 0, options: TIME_ALG_OPTIONS },
 							{ key: 'after23NewDay', label: '换日', dv: defaultAfter23NewDay(), options: DAY_SWITCH_OPTIONS },	// dv=全局现值(复审 F8 同族)
 							{ key: 'lateZiHourUseNextDay', label: '晚子时干', dv: 1, options: [{ value: 1, label: '次日干' }, { value: 0, label: '当日干' }] },
@@ -452,7 +454,7 @@ export default function SanshiZeriWorkbench({
 						<input placeholder="方案名…" value={schemeName} style={{ width: 128 }}
 							onChange={(e) => setSchemeName(e.target.value)} />
 						<XQButton size="small" disabled={!schemeName.trim()} onClick={() => {
-							const r = sanshiZeriSchemeStore.saveScheme(schemeName, { cfg, geo, options, natal }, tree);
+							const r = sanshiZeriSchemeStore.saveScheme(schemeName, { cfg, geo, options, natal, natalInput }, tree);   // [Q-271/ZC-21] 本命随方案存取
 							if(r.ok){ setSchemeName(''); setSchemeTick(schemeTick + 1); }
 						}}>保存方案</XQButton>
 						<Dropdown overlay={schemeMenu} trigger={['click']}>
@@ -467,7 +469,7 @@ export default function SanshiZeriWorkbench({
 	);
 
 	const resultView = (
-		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => setView('edit')} disabled={scanning}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>择时结果</span>
@@ -566,7 +568,7 @@ export default function SanshiZeriWorkbench({
 	};
 
 	const schemesView = (
-		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => { setView('edit'); setSchemeMsg(''); }}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>方案管理</span>
@@ -648,7 +650,7 @@ export default function SanshiZeriWorkbench({
 			{previewRow ? (
 				<ZeriMiniPanPopup
 					geo={previewGeo || geo}	/* 冻结地点优先:概览口径=扫描口径(活 geo 曾致扫后改地点概览错盘) */
-					techOptions={options}	/* 三家参数经 splitSanshiOptions 拆分——概览三段真盘口径=扫描口径 */
+					techOptions={previewOptions || options}	/* [Q-271/ZC-22] 冻结参数优先:概览口径=扫描口径(活 options 曾致扫后改参数概览错盘) */
 					tech="sanshi"
 					row={previewRow}
 					computePan={typeof onPreviewPan === 'function' ? onPreviewPan : null}

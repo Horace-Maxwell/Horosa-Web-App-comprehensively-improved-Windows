@@ -1,5 +1,5 @@
 diff --git a/astropy/tests/test_qizheng_election_scan.py b/astropy/tests/test_qizheng_election_scan.py
-index 08791d1f..59c4385a 100644
+index f687d8d0..2dbfed6a 100644
 --- a/astropy/tests/test_qizheng_election_scan.py
 +++ b/astropy/tests/test_qizheng_election_scan.py
 @@ -152,7 +152,11 @@ def test_rahu_is_ascending_node_mainline():

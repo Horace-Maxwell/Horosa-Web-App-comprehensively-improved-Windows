@@ -120,8 +120,8 @@ export function renderMeaningContent(tip){
 		<div
 			style={{
 				width: 560,
-				maxWidth: 'min(560px, calc(100vw - 28px))',
-				maxHeight: 'min(460px, calc(100vh - 28px))',
+				maxWidth: 'min(560px, calc(100 * var(--horosa-lvw, 1vw) - 28px))',
+				maxHeight: 'min(460px, calc(100 * var(--horosa-lvh, 1vh) - 28px))',
 				overflowY: 'auto',
 				overflowX: 'hidden',
 				whiteSpace: 'normal',

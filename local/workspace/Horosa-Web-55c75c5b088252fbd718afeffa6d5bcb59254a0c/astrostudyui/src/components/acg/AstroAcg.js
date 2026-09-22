@@ -11,7 +11,11 @@ import { markPanelReady } from '../../utils/perfMark';
 import DateTimeInfo from '../comp/DateTimeInfo';
 import * as Constants from '../../utils/constants';
 import AstroLinesSelector from './AstroLinesSelector';
-import { getAllLines, hasAsteroidLine } from './AcgHelper';
+import { getAllLines, getAsteroidLines, hasAsteroidLine } from './AcgHelper';
+import { definePageSettings } from '../../utils/pageSettingsStore';
+import { convertLatStrToDegree, convertLonStrToDegree } from '../astro/AstroHelper';   // [Q-151/AX-15①]
+import { dstAwareZoneAt } from '../../utils/timezone';
+import * as AstroConst from '../../constants/AstroConst';
 import { XQButton, XQCheckItem, XQCheckList, XQDatePicker, XQDrawer, XQPanel, XQSegmented, XQSelect, XQSwitch } from '../xq-ui';
 
 // 全 25 宫制(后端 HSYS_MAP 已备 23 友好名 + 单字码透传;落点报告高纬失效自动回退 Porphyry)。
@@ -58,6 +62,26 @@ const AYANAMSA_OPTIONS = [
 	['j2000', 'J2000'], ['j1900', 'J1900'], ['b1950', 'B1950'],
 ];
 
+// [Q-151/AX-15①] B 盘时区:此前 relZone 只读不写、恒随 A 盘时区 → B 盘出生在异时区时按 A 时区钟面解释。
+//   现:手填 relZone(+HH:MM)优先;否则按 B 盘经纬(relPos)+ B 盘生日推含夏令时的 UTC 偏移;皆无才随 A 盘。
+export function resolveRelZone(relZone, relPos, relDate, fallbackZone){
+	const manual = `${relZone || ''}`.trim();
+	if(/^[+-]\d{2}:\d{2}$/.test(manual)){ return manual; }
+	const pos = `${relPos || ''}`.trim().split(/\s+/);
+	if(pos.length === 2 && /^\d+(?:\.\d+)?[nsNS]\d*/.test(pos[0]) && /^\d+(?:\.\d+)?[ewEW]\d*/.test(pos[1])){
+		const lat = convertLatStrToDegree(pos[0]);
+		const lon = convertLonStrToDegree(pos[1]);
+		if(Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180){
+			try{
+				const ds = relDate && typeof relDate.format === 'function' ? relDate.format('YYYY-MM-DD') : undefined;
+				const info = dstAwareZoneAt(lat, lon, ds);
+				if(info && info.offset){ return info.offset; }
+			}catch(e){ /* 推断失败 → 随 A 盘 */ }
+		}
+	}
+	return fallbackZone;
+}
+
 function fieldsToParams(fields) {
 	return {
 		ad: fields.date.value.ad,
@@ -73,10 +97,60 @@ function fieldsToParams(fields) {
 	};
 }
 
+const ACG_ANGLE_CONST = { asc: AstroConst.ASC, desc: AstroConst.DESC, mc: AstroConst.MC, ic: AstroConst.IC };
+
+// 地图设置跨会话保留(用户实报同类:设置改了之后每次重开软件都要重设)。本页此前零落盘:投影 / 样式 / 三十来个图层与口径
+// 每次重开全回出厂值。不保留:CCG 目标时刻、关系盘 B 盘资料、自定义阿拉伯点、落点报告与各抽屉开合(输入 / 视图态)。
+//
+// 落盘方式与别的页不同 —— 本页改设置的入口有三十多个(toggle / cycle* / changeCalc / changeGeodetic / 内联 setState …),
+// 且**没有任何非用户入口会改这些键**(不回灌事盘、不接受宿主下发口径:这一条由登记表合同机械看守),
+// 所以在 componentDidUpdate 里统一比对「保留键」的前后值,变了就落盘;新加一个图层开关只要进 schema 就自动保留。
+const bool = (def)=>({ def });
+export const ACG_PAGE_SETTINGS = definePageSettings('horosa.acg.settings.v1', {
+	lines: { type: 'list', def: getAllLines(), oneOf: getAllLines().concat(getAsteroidLines()) },
+	projection: { def: 'equirect', oneOf: ['equirect', 'mercator', 'orthographic'] },
+	mapStyle: { def: 'classic', oneOf: Object.keys(STYLES) },
+	showLabels: bool(true),
+	showGeo: bool(true),
+	showLS: bool(false),
+	showAspects: bool(false),
+	showPoints: bool(false),
+	showMidpoints: bool(false),
+	showLots: bool(false),
+	showCrossings: bool(false),
+	showCuspLines: bool(false),
+	showStars: bool(false),
+	showStarParans: bool(false),
+	showTreasure: bool(false),
+	showZones: bool(false),
+	zoneWidth: { def: 600, type: 'number', min: 400, max: 800 },
+	showGeodetic: bool(false),
+	geodetic: { def: 'sepharial', oneOf: ['sepharial', 'mcrae', 'johndro'] },
+	geodeticVar: { def: 'longitude', oneOf: ['longitude', 'ra'] },
+	geodeticZero: { def: '', type: 'string', maxLen: 12 },
+	hsys: { def: 'placidus', oneOf: HSYS_OPTIONS.map((o)=>o[0]) },
+	orb: { def: 2, type: 'number', min: 0.5, max: 6 },
+	mode: { def: 'mundo', oneOf: ['mundo', 'zodiac'] },
+	coord: { def: 'geo', oneOf: ['geo', 'helio', 'topo'] },
+	posType: { def: 'apparent', oneOf: ['apparent', 'true', 'j2000'] },
+	horizon: { def: 'geometric', oneOf: ['geometric', 'apparent'] },
+	nodeType: { def: 'mean', oneOf: ['mean', 'true'] },
+	lilithType: { def: 'mean', oneOf: ['mean', 'true', 'intp', 'body'] },
+	draconic: { def: 'off', oneOf: ['off', 'mean', 'true'] },
+	harmonic: { def: 1, oneOf: [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 16] },
+	vibration: bool(false),
+	showVibration: bool(false),
+	midpointMode: { def: 'zodiac', oneOf: ['zodiac', 'mundo'] },
+	ayanamsa: { def: '', oneOf: AYANAMSA_OPTIONS.map((o)=>o[0]) },
+	lsMode: { def: 'great', oneOf: ['great', 'rhumb'] },
+	paranMode: { def: 'off', oneOf: ['off', 'lum', 'all'] },
+});
+
 class AstroAcg extends Component {
 	constructor(props) {
 		super(props);
-		const lines = getAllLines();
+		const savedAcg = ACG_PAGE_SETTINGS.load();   // 上次亲手设的地图设置(没存过 = 各键出厂值,与下面字面量逐个相同)
+		const lines = savedAcg.lines;
 
 		this.state = {
 			acgData: null,
@@ -107,6 +181,7 @@ class AstroAcg extends Component {
 			relDate: null,        // B 盘出生日期(moment)
 			relTime: '12:00:00',  // B 盘出生时间
 			relPos: '',           // B 盘经纬(如 39n54 116e23;空=同 A 地)
+			relZone: '',          // [Q-151/AX-15①] B 盘时区(+HH:MM;空=按 B 盘经纬推断,无经纬随 A 盘)
 			hsys: 'placidus',     // 落点报告十二宫尖的宫制(§15)
 			showGeodetic: false,  // 地理等价线(§7)
 			geodetic: 'sepharial', // 地理等价流派:sepharial/mcrae/johndro
@@ -136,6 +211,7 @@ class AstroAcg extends Component {
 			pointOpen: false,
 			pointLoading: false,
 			clickMarker: null,
+			...savedAcg,            // 保留键以保存值为准(lines 同时决定上面的 linesSet)
 		};
 
 		this.unmounted = false;
@@ -204,6 +280,11 @@ class AstroAcg extends Component {
 			pointReport,
 			paranMode: this.state.paranMode,
 			showStarParans: this.state.showStars && this.state.showStarParans,   // 双 opt-in 口径同 AcgD3Map
+			// [Q-440/T-403] 本地空间线 / 地理等价线 两图层是纯渲染开关(数据恒在后端响应里):开着才进快照,
+			// 0°♈ 子午线自定义值不在后端 meta 里,随 uiState 带过去(空=流派缺省)。
+			showLS: !!this.state.showLS,
+			showGeodetic: !!this.state.showGeodetic,
+			geodeticZero: this.state.geodeticZero || '',
 		};
 	}
 
@@ -218,7 +299,9 @@ class AstroAcg extends Component {
 	}
 
 	toggle(key) {
-		this.setState({ [key]: !this.state[key] });
+		// [Q-440] 纯渲染图层开关(本地空间线/地理等价线)切换后同步 AI 快照 uiState(同交映开关之例)。
+		const sync = (key === 'showLS' || key === 'showGeodetic') ? this.syncSnapshotUi : undefined;
+		this.setState({ [key]: !this.state[key] }, sync);
 	}
 
 	changeLines(vals) {
@@ -300,7 +383,7 @@ class AstroAcg extends Component {
 			p.relMode = this.state.relMode;
 			p.relDate = this.state.relDate.format('YYYY/MM/DD');
 			p.relTime = this.state.relTime || '12:00:00';
-			p.relZone = this.state.relZone || p.zone;   // B 盘时区(缺→随 A 盘)
+			p.relZone = resolveRelZone(this.state.relZone, this.state.relPos, this.state.relDate, p.zone);   // [Q-151/AX-15①] 手填 → 随 B 盘地点 → 随 A 盘
 			const pos = (this.state.relPos || '').trim().split(/\s+/);
 			if (pos.length === 2) { p.relLat = pos[0]; p.relLon = pos[1]; }
 		}
@@ -321,7 +404,9 @@ class AstroAcg extends Component {
 	async pickMundane(kind) {
 		if (!kind) return;
 		try {
-			const params = { kind, direction: 'next', fromDate: fieldsToParams(this.props.fields).date };
+			// zone 随本命时区下发:后端把事件时刻换算成该时区钟面再回(T-49:此前回 UT、前端原样当本命钟面写进 CCG,事件地图偏移时区小时数)
+			const _fp = fieldsToParams(this.props.fields);
+			const params = { kind, direction: 'next', fromDate: _fp.date, zone: _fp.zone };
 			const data = await request(`${Constants.ServerRoot}/location/acgevent`, { body: JSON.stringify(params) });
 			if (this.unmounted) return;
 			if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
@@ -417,6 +502,14 @@ class AstroAcg extends Component {
 		}
 	}
 
+	// 保留键前后值一比,变了就落盘(见文件头 ACG_PAGE_SETTINGS 注)。lines 是数组,每次改都换新引用,引用比较即可。
+	componentDidUpdate(prevProps, prevState) {
+		if (prevState === this.state) return;
+		const patch = {};
+		ACG_PAGE_SETTINGS.fields.forEach((k) => { if (prevState[k] !== this.state[k]) patch[k] = this.state[k]; });
+		if (Object.keys(patch).length) ACG_PAGE_SETTINGS.save(patch);
+	}
+
 	componentDidMount() {
 		this.unmounted = false;
 		this.requestAcg(this.genParams());
@@ -426,8 +519,9 @@ class AstroAcg extends Component {
 
 	render() {
 		const fields = this.props.fields;
-		let height = this.props.height ? this.props.height : 760;
-		height = height - 50;
+		// 此前地图高 =(工作区高 − 50)px:常数与工具条真实高不等(按钮多、窄窗折行时更高),地图底边十几像素被外层裁掉。
+		// 改为纵向 flex:工具条按内容定高,地图吃剩余空间(宿主 100%,AcgD3Map 自带 ResizeObserver 直接量宿主),任何缩放 / 窗高零常数。
+		const height = '100%';
 		const dt = fields.date ? fields.date.value : null;
 		const s = this.state;
 		const btn = (label, onClick, active) => (
@@ -455,8 +549,8 @@ class AstroAcg extends Component {
 		);
 
 		return (
-			<div className="horosa-acg-page xq-chart-renderer xq-chart-renderer-locastro">
-				<Row align="middle">
+			<div className="horosa-acg-page xq-chart-renderer xq-chart-renderer-locastro" style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+				<Row align="middle" style={{ flex: '0 0 auto' }}>
 					<Col span={7}>
 						<DateTimeInfo value={dt} />
 					</Col>
@@ -474,8 +568,8 @@ class AstroAcg extends Component {
 						</XQSelect>
 					</Col>
 				</Row>
-				<Row>
-					<Col span={24} style={{ position: 'relative' }}>
+				<Row style={{ flex: '1 1 0', minHeight: 0 }}>
+					<Col span={24} style={{ position: 'relative', height: '100%', minHeight: 0 }}>
 						<AcgD3Map
 							value={s.acgData}
 							fields={fields}
@@ -508,6 +602,7 @@ class AstroAcg extends Component {
 						{s.lsDialOpen && s.acgData && s.acgData.planets ? (
 							<AcgCompassDial
 								planets={s.acgData.planets}
+								lineVisible={(pk, field) => s.linesSet.has(`${pk}:${ACG_ANGLE_CONST[field]}`)}   /* [Q-151/AX-15④] 罗盘随行星线选择(与 AcgD3Map.lineVisible 同键形) */
 								height={height}
 								colors={acgColors(typeof document !== 'undefined' && document.documentElement.getAttribute('data-horosa-appearance') === 'dark')}
 								onClose={() => this.setState({ lsDialOpen: false })}
@@ -604,7 +699,7 @@ class AstroAcg extends Component {
 					{sec('衍生线型', '只对已选中主线的行星绘制', (
 						<>
 							<XQCheckList columns={2} style={{ marginTop: 2 }}>
-								<XQCheckItem checked={s.showAspects} onClick={() => this.toggle('showAspects')}>相位线 60/90/120</XQCheckItem>
+								<XQCheckItem checked={s.showAspects} onClick={() => this.toggle('showAspects')}>相位线 60/90/120/45/135</XQCheckItem>
 								<XQCheckItem checked={s.showPoints} onClick={() => this.toggle('showPoints')}>东西点·天顶·映点</XQCheckItem>
 								<XQCheckItem checked={s.showMidpoints} onClick={() => this.toggle('showMidpoints')}>中点线</XQCheckItem>
 								<XQCheckItem checked={s.showLots} onClick={() => this.toggle('showLots')}>福点 / 精神点</XQCheckItem>
@@ -652,7 +747,9 @@ class AstroAcg extends Component {
 					{sec('落点分析', '点击地图任意地点出落点报告;容许度=线偏差阈值', (
 						row('容许度 orb', (
 							<span style={{ display: 'flex', alignItems: 'center', gap: 8, width: 180 }}>
-								<Slider min={0.5} max={6} step={0.5} value={s.orb} onChange={(v) => this.setState({ orb: v })} style={{ flex: 1 }} />
+								<Slider min={0.5} max={6} step={0.5} value={s.orb} onChange={(v) => this.setState({ orb: v })}
+									onAfterChange={() => { const m = this.state.clickMarker; if (m) this.onMapClick(m.lat, m.lon); }}   /* [Q-151/AX-15③] 改容许度即重算已选落点(与宫制/恒星读数同律) */
+									style={{ flex: 1 }} />
 								<span style={{ fontSize: 12, opacity: 0.7, minWidth: 28 }}>{s.orb}°</span>
 							</span>
 						))
@@ -694,6 +791,11 @@ class AstroAcg extends Component {
 							{s.relMode ? row('B 盘经纬', (
 								<Input size="small" value={s.relPos} placeholder="如 40n43 74w00" style={{ width: 176 }}
 									onChange={(e) => this.setState({ relPos: e.target.value })}
+									onBlur={() => this.requestAcg(this.genParams())} />
+							)) : null}
+							{s.relMode ? row('B 盘时区', (
+								<Input size="small" value={s.relZone} placeholder="留空=按 B 盘经纬推断" title="格式 +HH:MM(如 -05:00);留空则按 B 盘经纬与生日推断(含夏令时),无经纬时随 A 盘" style={{ width: 176 }}
+									onChange={(e) => this.setState({ relZone: e.target.value })}
 									onBlur={() => this.requestAcg(this.genParams())} />
 							)) : null}
 							{s.relMode === 'synastry' ? row('关系交叉 / 派状', (

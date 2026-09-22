@@ -14,11 +14,36 @@ function readJSON(key) {
 }
 
 // 供搜索页调用:把一次检索写入近探历史(去重 + 限 20 条;走 safeStorage,跨重启持久、配额满不丢)
-export function pushSearchHistory(q) {
+// [Q-494/T-456] 近探历史此前只存关键词,重放时又写死「正史」并清空四维 →
+// 野载或带维度的那次检索回不去(切「野载」+「狐」再点近探,出来的是正史结果)。
+// 现连同那次检索的完整选择(传统 + 朝代/术数/史书/证据)一起存;旧条目没有 sel,重放时按老口径兜底。
+export function pushSearchHistory(q, sel) {
 	if (!q || !`${q}`.trim()) { return; }
 	const list = readJSON(HIST_KEY).filter((h) => h && h.q !== q);
-	list.unshift({ q: `${q}`.trim(), ts: Date.now() });
+	const entry = { q: `${q}`.trim(), ts: Date.now() };
+	if (sel && typeof sel === 'object') {
+		entry.sel = {
+			tradition: sel.tradition || '',
+			q: `${q}`.trim(),
+			dynasty: Array.isArray(sel.dynasty) ? sel.dynasty : [],
+			technique: Array.isArray(sel.technique) ? sel.technique : [],
+			history: Array.isArray(sel.history) ? sel.history : [],
+			evidence: sel.evidence || '',
+		};
+	}
+	list.unshift(entry);
 	safeJsonStringifyToStorage(HIST_KEY, list.slice(0, 20));
+}
+
+// 近探行的副标:让人一眼看出这条是不是带维度/野载(否则点下去结果不同会以为坏了)。
+export function searchHistoryFacetHint(h) {
+	const sel = h && h.sel;
+	if (!sel) { return ''; }
+	const parts = [];
+	if (sel.tradition && sel.tradition !== '正史') { parts.push(sel.tradition); }
+	const dims = ['dynasty', 'technique', 'history'].reduce((n, k) => n + ((sel[k] || []).length), 0) + (sel.evidence ? 1 : 0);
+	if (dims) { parts.push(`${dims} 维`); }
+	return parts.join(' · ');
 }
 
 const QUICKLINKS = [
@@ -64,7 +89,7 @@ export default class XuanShiDesk extends React.Component {
 					<span className="xuanshi-crumb" onClick={() => this.props.onHome && this.props.onHome()}>首页</span>
 					<span className="xuanshi-crumb-sep">/</span><span>我的</span>
 				</div>
-				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,3.4vw,38px)' }}>案头</h1>
+				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,calc(3.4 * var(--horosa-lvw, 1vw)),38px)' }}>案头</h1>
 				<div className="xuanshi-section-sub" style={{ margin: '8px 0 0' }}>私藏 · 检索 · 今日所遇。</div>
 
 				{/* 今日精选 */}
@@ -120,8 +145,9 @@ export default class XuanShiDesk extends React.Component {
 							{history.length ? (
 								<div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
 									{history.map((h, i) => (
-										<div key={i} className="xuanshi-cityrow" style={{ borderBottom: 'none', padding: '4px 8px' }} onClick={() => (this.props.onSearchHistory ? this.props.onSearchHistory(h.q) : this.nav('search'))}>
+										<div key={i} className="xuanshi-cityrow" style={{ borderBottom: 'none', padding: '4px 8px' }} onClick={() => (this.props.onSearchHistory ? this.props.onSearchHistory(h) : this.nav('search'))}>
 											<span className="xuanshi-stat-sub" style={{ fontSize: 13, color: 'var(--ink-soft)' }}>⌕ {h.q}</span>
+											{searchHistoryFacetHint(h) ? <span className="xuanshi-chip is-ink" style={{ marginLeft: 6 }}>{searchHistoryFacetHint(h)}</span> : null}
 										</div>
 									))}
 								</div>

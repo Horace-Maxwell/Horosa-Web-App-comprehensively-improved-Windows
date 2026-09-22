@@ -1,0 +1,19 @@
+# 前端源面清单:决定 dist / dist-file 字节的全部受控输入(路径相对 astrostudyui/,一行一个;# 开头为注释)。
+# 三处同读这一份,不各写各的:
+#   · scripts/write-build-info.js   —— 构建时判「工作树是否干净」(脏 = 产物对不上任何提交)
+#   · 发布自检的构建指纹门           —— 产物的构建提交与当前 HEAD 之间,这些路径零差异才算「可对应」
+#   · 打包产物前端冒烟               —— 同一判据
+# 只列「会改变产物字节」的东西:源码、静态资源、依赖清单与锁、构建配置、构建前后处理脚本。
+# 审计 / 评测 / 数据生成类脚本不进清单(改它们不该逼着重建前端)。
+src
+public
+package.json
+package-lock.json
+.umirc.js
+scripts/patch-dom-align-zoom.js
+scripts/patch_quill_domnodeinserted.js
+scripts/scrub-build-paths.js
+scripts/inject-preload.js
+scripts/write-build-info.js
+scripts/check-chunk-dup.js
+scripts/fe-source-paths.txt

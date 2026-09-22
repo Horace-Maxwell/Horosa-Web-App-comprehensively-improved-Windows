@@ -1,8 +1,9 @@
 import { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { Popover, Modal } from 'antd';
+import { Modal } from 'antd';
 import AstroChart from '../astro/AstroChart';
 import PlusMinusTime from '../astro/PlusMinusTime';
+import TimeFieldTrigger from '../comp/QuickTimeField';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
@@ -40,6 +41,28 @@ function writeStoredWheelArt(wheelArt){
 		const json = localStorage.getItem(Constants.GlobalSetupKey);
 		const cfg = json ? JSON.parse(json) : {};
 		cfg.wheelArt = AstroConst.normalizeWheelArt(wheelArt);
+		safeLocalStorageSet(Constants.GlobalSetupKey, JSON.stringify(cfg));
+	}catch(e){
+		// 存储不可用时静默:本会话内 state 仍生效。
+	}
+}
+
+// 外环样式跨会话:与上面盘面美术同一条路(同一 globalSetup 存储、同一归一化)。
+function readStoredChartStyle(){
+	try{
+		const json = localStorage.getItem(Constants.GlobalSetupKey);
+		const cfg = json ? JSON.parse(json) : null;
+		return cfg ? cfg.chartStyle : undefined;
+	}catch(e){
+		return undefined;
+	}
+}
+
+function writeStoredChartStyle(chartStyle){
+	try{
+		const json = localStorage.getItem(Constants.GlobalSetupKey);
+		const cfg = json ? JSON.parse(json) : {};
+		cfg.chartStyle = AstroConst.normalizeChartStyle ? AstroConst.normalizeChartStyle(chartStyle) : chartStyle;
 		safeLocalStorageSet(Constants.GlobalSetupKey, JSON.stringify(cfg));
 	}catch(e){
 		// 存储不可用时静默:本会话内 state 仍生效。
@@ -128,9 +151,17 @@ class DivinationChartShell extends Component{
 			chart: null,
 			busy: false,
 			err: null,
-			chartStyle: AstroConst.normalizeChartStyle ? AstroConst.normalizeChartStyle(undefined) : 'current',
+			// [Q-150/T-61] 外环样式初值此前恒 normalizeChartStyle(undefined),不读全局 → 占星页设的样式在三页失效;
+			// 宿主(辅盘)补传后以全局值开盘,之后由 componentDidUpdate 跟随全局变更。
+			// 宿主没传(如天星择日)时自己读全局 —— 与下面盘面美术的兜底同律;否则这类宿主页改了外环样式、写进了全局,重开却读不回。
+			chartStyle: AstroConst.normalizeChartStyle
+				? AstroConst.normalizeChartStyle(props.chartStyle !== undefined && props.chartStyle !== null ? props.chartStyle : readStoredChartStyle())
+				: 'current',
 			// 盘面美术:非 connect 组件,挂载时从 globalSetup 读跨会话值;变更走 changeWheelArt(有 dispatch 则同步 app model)。
-			wheelArt: readStoredWheelArt(),
+			// [Q-150/T-61] 宿主传了就以宿主(= app model 全局)为准,两处同源。
+			wheelArt: props.wheelArt !== undefined && props.wheelArt !== null
+				? AstroConst.normalizeWheelArt(props.wheelArt)
+				: readStoredWheelArt(),
 			extra: props.initialExtra || {},
 			glossaryOpen: false,
 		};
@@ -148,9 +179,15 @@ class DivinationChartShell extends Component{
 		this.castNow = this.castNow.bind(this);
 		this.setExtra = this.setExtra.bind(this);
 		this.setTimeDt = this.setTimeDt.bind(this);
+		this.quickCommitTime = this.quickCommitTime.bind(this);
 		this.patchFields = this.patchFields.bind(this);
 		this.handleStepSelect = this.handleStepSelect.bind(this);
 		this._lastStepSel = null;   // 选步长 5s 去重态(同 unit 反复点不重复排队)
+	}
+
+	// 双击时间字段键入 14 位数字 → 与弹窗「确定」同路(changeTime → patchFields 重取盘)
+	quickCommitTime(dt){
+		this.changeTime({ time: dt, ad: dt.ad, confirmed: true });
 	}
 
 	setTimeDt(dt){
@@ -224,10 +261,21 @@ class DivinationChartShell extends Component{
 		}
 	}
 
-	componentDidUpdate(){
+	// [Q-150/T-61] 壳此前只在构造时读一次全局美术:停在卜卦/择日/世俗页时改「设置→星盘设置」的
+	// 盘面美术 / 外环样式,app model 变了而本页不动(左栏下拉也仍显旧值),要重挂载才跟上。
+	// 改为订阅宿主透传的全局值——只在全局值本身发生变化(prev→next)时同步,页内手动改的档位不被回冲。
+	componentDidUpdate(prevProps){
 		// (PERF-R12 W3b-Z5 评估后不做:同一挂载期第二次「应用案例」正是靠这里轮询新 caseVersion
 		// 被拾起 —— 任何「已应用即跳过」式守卫都会吞掉它 = 功能降级;每 update 一次 localStorage
 		// 读是它换来的正确性成本,保留。)
+		if(prevProps && prevProps.wheelArt !== this.props.wheelArt && this.props.wheelArt !== undefined && this.props.wheelArt !== null){
+			const nextArt = AstroConst.normalizeWheelArt(this.props.wheelArt);
+			if(nextArt !== this.state.wheelArt){ this.setState({ wheelArt: nextArt }); }
+		}
+		if(prevProps && prevProps.chartStyle !== this.props.chartStyle && this.props.chartStyle !== undefined && this.props.chartStyle !== null){
+			const nextStyle = AstroConst.normalizeChartStyle ? AstroConst.normalizeChartStyle(this.props.chartStyle) : this.props.chartStyle;
+			if(nextStyle !== this.state.chartStyle){ this.setState({ chartStyle: nextStyle }); }
+		}
 		this.applyRestoreIfAny();
 	}
 
@@ -276,11 +324,19 @@ class DivinationChartShell extends Component{
 				if(settings[k] !== undefined && settings[k] !== null){ patch[k] = settings[k]; }
 			});
 		}
+		// 还原基线(宿主页给):事盘里**没有**的设置键回出厂值,而不是留着本机保存的偏好。
+		// 本页的缺省现在跨会话保留(可能已被改成别的流派 / 宫制 / 判读参数),而存案只记「当时显式有的键」——
+		// 按出厂口径存下的旧案不带流派键,不回出厂就会被按你现在的流派改判、AI 快照也跟着错。
+		const baseline = this.props.restoreBaseline || null;
+		if(baseline && baseline.fields){
+			Object.keys(baseline.fields).forEach((k)=>{ if(patch[k] === undefined){ patch[k] = baseline.fields[k]; } });
+		}
 		// 问题类别(horary) / 用事类型(election) + 通用 extra(世俗盘 ingress* 等) 还原到 extra。
 		const ex = (c.payload && c.payload.extra && typeof c.payload.extra === 'object') ? { ...c.payload.extra } : {};
 		if(c.payload && c.payload.questionCategory){ ex.questionCategory = c.payload.questionCategory; }
 		if(c.payload && c.payload.topicId){ ex.topicId = c.payload.topicId; }
-		if(Object.keys(ex).length){ this.setExtra(ex); }
+		const exAll = (baseline && baseline.extra) ? { ...baseline.extra, ...ex } : ex;
+		if(Object.keys(exAll).length){ this.setExtra(exAll); }
 		if(Object.keys(patch).length){
 			this.patchFields(patch);
 			return true;
@@ -433,6 +489,13 @@ class DivinationChartShell extends Component{
 		// XQSegmented 的 onChange 传的是事件 e（非裸值），须取 e.target.value，否则 chartStyle 变成事件对象、normalize 永远兜回 current → 样式无效。
 		const chartStyle = val && val.target ? val.target.value : val;
 		this.setState({ chartStyle });
+		// 与同卡的「盘面美术」、占星主页的同名控件同一口径:写进全局星盘设置 → 重开软件仍在。
+		// (此前只改本壳 state:辅盘三页改了外环样式,重开即回全局旧值,而旁边的盘面美术却留得住。)
+		if(this.props.dispatch){
+			this.props.dispatch({ type: 'app/save', payload: { chartStyle } });
+		}else{
+			writeStoredChartStyle(chartStyle);
+		}
 	}
 
 	changeWheelArt(val){
@@ -443,6 +506,14 @@ class DivinationChartShell extends Component{
 			this.props.dispatch({ type: 'app/save', payload: { wheelArt } });
 		}else{
 			writeStoredWheelArt(wheelArt);
+		}
+	}
+
+	// 用户亲手改了本壳左栏的盘面字段(黄道 / 宫制)→ 告诉宿主页,由宿主决定要不要跨会话保留。
+	// 只在这两个控件的 onChange 里调;载入事盘回灌、换流派联动、全局古典参数热同步都走 patchFields,不经这里。
+	notifyUserFieldChange(patch){
+		if(typeof this.props.onUserFieldChange === 'function'){
+			try{ this.props.onUserFieldChange(patch); }catch(e){ /* 宿主落盘失败不影响本次改动 */ }
 		}
 	}
 
@@ -475,12 +546,7 @@ class DivinationChartShell extends Component{
 				{!this.props.hideTime ? (
 					<div className="horosa-field-block">
 						<div className="horosa-field-label">时间</div>
-						<Popover content={timeEditor} trigger="click" placement="rightTop" overlayClassName="horosa-time-adjust-popover">
-							<button type="button" className="horosa-unified-field">
-								<XQIcon name="clock" />
-								<span>{timeText}</span>
-							</button>
-						</Popover>
+						<TimeFieldTrigger value={dt} zone={fields.zone ? fields.zone.value : undefined} timeText={timeText} popoverContent={timeEditor} onQuickCommit={this.quickCommitTime} />
 						<div className="horosa-time-adjust-inline">
 							<PlusMinusTime value={dt} onChange={this.changeTime} onStepSelect={this.handleStepSelect} adjustOnly />
 						</div>
@@ -512,7 +578,9 @@ class DivinationChartShell extends Component{
 				</XQSideSection>
 
 				{typeof this.props.renderLeftExtra === 'function'
-					? this.props.renderLeftExtra({ extra: this.state.extra, setExtra: this.setExtra, fields, chart: this.state.chart, setTime: this.setTimeDt, patchFields: this.patchFields })
+					// [Q-345] wheelArt 透传:非经典美术(方形盘)走 AstroWheelArtChart,不读 horaryOverlay / keyPlanets / hideBodies,
+					// 子页据此把只影响圆盘的勾选置灰(与本壳「外环样式」同一手法)。
+					? this.props.renderLeftExtra({ extra: this.state.extra, setExtra: this.setExtra, fields, chart: this.state.chart, setTime: this.setTimeDt, patchFields: this.patchFields, wheelArt: this.state.wheelArt })
 					: null}
 
 				<XQSideSection iconName={sideSectionIcon('school')} title="盘面参数" storageKey="divination.chartopts" className="horosa-side-input-section">
@@ -522,7 +590,7 @@ class DivinationChartShell extends Component{
 						<XQSelect style={{ width: '100%' }} size="small"
 							value={AstroConst.zodiacSelectValue(fields.zodiacal ? fields.zodiacal.value : 0, fields.siderealAyanamsa && fields.siderealAyanamsa.value)}
 							dropdownMatchSelectWidth={false}
-							onChange={(val)=>{ const p = AstroConst.parseZodiacSelectValue(val); this.patchFields({ zodiacal: p.zodiacal, siderealAyanamsa: p.siderealAyanamsa }); }}>
+							onChange={(val)=>{ const p = AstroConst.parseZodiacSelectValue(val); const patch = { zodiacal: p.zodiacal, siderealAyanamsa: p.siderealAyanamsa }; this.notifyUserFieldChange(patch); this.patchFields(patch); }}>
 							{AstroConst.groupOptions(AstroConst.buildZodiacOptions()).map((grp)=>(
 								<OptGroup label={grp.group} key={grp.group}>
 									{grp.items.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
@@ -534,14 +602,16 @@ class DivinationChartShell extends Component{
 						<div className="horosa-field-label">宫制</div>
 						<XQSelect style={{ width: '100%' }} size="small"
 							value={fields.hsys ? fields.hsys.value : 0}
-							onChange={(val)=>this.changeField('hsys', val)}>
+							onChange={(val)=>{ this.notifyUserFieldChange({ hsys: val }); this.changeField('hsys', val); }}>
 							{getHousesOption(true)}
 						</XQSelect>
 					</div>
 				</div>
 
-				<div className="horosa-chart-style-block" style={{ marginTop: 12 }}>
-					<div className="horosa-side-section-title">星盘样式</div>
+				{/* [用户实报 2026-09-17·APP] 辅盘左栏「盘面参数」里的「星盘样式」小标题多余(与上方黄道/宫制同属一卡,
+				    标题只挤占一行还压着「外环样式」),按用户要求去掉;两个字段紧接黄道/宫制网格之下(仅此辅盘壳,
+				    占星主页左栏那张独立的「星盘样式」卡不动)。 */}
+				<div className="horosa-chart-style-block" style={{ marginTop: 7 }}>
 					<div className="horosa-field-grid">
 						<div className="horosa-field-block" title={this.state.wheelArt === AstroConst.WHEEL_ART_CLASSIC ? undefined : '方形盘不分外环样式,仅经典圆盘下生效'}>
 							<div className="horosa-field-label">外环样式</div>
@@ -631,7 +701,7 @@ class DivinationChartShell extends Component{
 				</div>
 				{this.state.glossaryOpen ? (
 					<Modal title="术语速查（西洋卜卦/择日）" open={this.state.glossaryOpen} onCancel={() => this.setState({ glossaryOpen: false })} footer={null} width={480}>
-						<div style={{ maxHeight: '62vh', overflow: 'auto' }}>
+						<div style={{ maxHeight: 'calc(62 * var(--horosa-lvh, 1vh))', overflow: 'auto' }}>
 							{Object.keys(GLOSSARY).map((id) => (
 								<div key={id} style={{ padding: '6px 2px', borderBottom: '1px dashed rgba(148,163,184,.2)', fontSize: 13, lineHeight: 1.65 }}>
 									<b>{GLOSSARY[id].cn}</b>：{GLOSSARY[id].def}

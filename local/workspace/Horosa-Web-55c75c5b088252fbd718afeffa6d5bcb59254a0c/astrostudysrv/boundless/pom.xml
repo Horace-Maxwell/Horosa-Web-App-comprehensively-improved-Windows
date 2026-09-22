@@ -15,7 +15,7 @@
 		<mybatisplus.version>3.5.3.1</mybatisplus.version>
 		<aspectj.version>1.9.3</aspectj.version>
 		<slf4j.version>1.7.30</slf4j.version>
-		<log4j.version>2.14.1</log4j.version>
+		<log4j.version>2.17.2</log4j.version>
 		<netty.version>4.1.89.Final</netty.version>
 		<junit.version>4.12</junit.version>
 		<druid.version>1.2.16</druid.version>

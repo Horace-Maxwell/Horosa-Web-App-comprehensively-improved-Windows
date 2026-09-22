@@ -599,8 +599,11 @@ class JyotishEngine:
                 },
                 'methodSelection': '强者定法:Lagna 强→Aṁśāyu、Sun 强→Piṇḍāyu、Moon 强→Nisargāyu(以 bala 比强;本视图列候选不自动选)。',
                 'haranaNote': 'haraṇa 减(敌座⅓/合日½/Chakrapata/Krurodaya)门派分歧大;基础值未施,见下 harana 块的流派选项。',
-                'harana': self._ayurdaya_harana(),
-                'haranaNisarga': self._ayurdaya_harana(self.NISARGAYU_YEARS, 'Nisargāyu', raw_total=120.0),
+                # [Q-130/T-38] 敌座豁免开关此前只进判读卡(ayurdaya_final),基础视图这两处 haraṇa 恒按缺省
+                # 'retrograde' 算 → 同页两卡口径不一、快照「寿命基础」不跟开关。与判读卡同源读 dasha_variants。
+                'harana': self._ayurdaya_harana(satruksetra_exemption=(self.dasha_variants or {}).get('satruksetraExemption', 'retrograde')),
+                'haranaNisarga': self._ayurdaya_harana(self.NISARGAYU_YEARS, 'Nisargāyu', raw_total=120.0,
+                                                       satruksetra_exemption=(self.dasha_variants or {}).get('satruksetraExemption', 'retrograde')),
             }
         except Exception as exc:
             return {'available': False, 'reason': str(exc)}
@@ -655,7 +658,7 @@ class JyotishEngine:
                 return {'savanaYears': round(sav, 2), 'solarYears': round(sav * SOLAR, 2)}
             pind_h = self._ayurdaya_harana(satruksetra_exemption=satru)
             finals = {'pindayu': _final_of(pind_h)}
-            nis_mode = dv.get('nisargayuHarana', 'none')
+            nis_mode = dv.get('nisargayuHarana', 'pindayu_like')   # [Q-139] 缺省同 Pindayu 施减(与 dasha_variants 缺省同源)
             nis_h = self._ayurdaya_harana(self.NISARGAYU_YEARS, 'Nisargāyu', raw_total=120.0,
                                           satruksetra_exemption=satru)
             finals['nisargayu'] = _final_of(nis_h, no_harana=(nis_mode == 'none'), raw_total=120.0)
@@ -973,8 +976,12 @@ class JyotishEngine:
         =(λRahu+λMoon)/2,若两点黄经差 >180° 则 +180°(取短弧)。落座/宫 = 业力焦点/应期。
         缺月/罗睺 → available False(不臆造)。零回归:纯新增 compute 键。"""
         try:
-            moon = self.moon
-            rahu = safe_get(self.chart, const.NORTH_NODE)
+            # [Q-393②/T-376 2026-09-18] Bhrigu Bindu 是 D1 量(帮助:标准恒星盘、绝对黄经):恒取 d1_chart 的月亮与罗睺,
+            # 不随所绘分盘(D9 等伪黄经)漂移;chartnum==1 时 d1_chart≡chart,字节不变。同座合 / 木星推进沿用同一 D1 点。
+            moon = self.d1_moon if self.d1_moon is not None else self.moon
+            rahu = safe_get(self.d1_chart, const.NORTH_NODE)
+            if rahu is None:
+                rahu = safe_get(self.chart, const.NORTH_NODE)
             if moon is None or rahu is None:
                 return {'available': False, 'reason': 'missing_moon_or_rahu'}
             m = float(moon.lon) % 360.0
@@ -993,11 +1000,12 @@ class JyotishEngine:
                     raw = 149
                 num = (raw + 1) if (psidx % 2 == 0) else (150 - raw)   # 奇座(0基偶)顺、偶座逆
                 return num, psidx
+            # [Q-393②] 纳迪全段按 D1(帮助:计算型 Nāḍī 用标准恒星盘):D150 / 同座合 / 木星推进同 BB 恒取 d1_chart
             d150 = []
             for pid in (const.SUN, const.MOON, const.MARS, const.MERCURY,
                         const.JUPITER, const.VENUS, const.SATURN,
                         const.NORTH_NODE, const.SOUTH_NODE):
-                pobj = safe_get(self.chart, pid)
+                pobj = safe_get(self.d1_chart, pid)
                 if pobj is None:
                     continue
                 plon = float(pobj.lon) % 360.0
@@ -1021,7 +1029,7 @@ class JyotishEngine:
             by_sign = {}
             plon_map = {}
             for pid in nine:
-                pobj = safe_get(self.chart, pid)
+                pobj = safe_get(self.d1_chart, pid)
                 if pobj is None:
                     continue
                 plon_map[pid] = float(pobj.lon) % 360.0
@@ -1069,7 +1077,7 @@ class JyotishEngine:
             # ── A2:木星逐座推进时间轴(默认每座 1 木星年;各 Bhrigu 派年数不同 → 标版本)──
             JUPITER_YEARS_PER_SIGN = 1.0
             jup_prog = None
-            jup = safe_get(self.chart, const.JUPITER)
+            jup = safe_get(self.d1_chart, const.JUPITER)
             if jup is not None:
                 import datetime as _dt
                 start_sidx = sign_index_from_lon(float(jup.lon))
@@ -3407,6 +3415,8 @@ class JyotishEngine:
             inputs['moon_nak_name'] = mk['name']
             inputs['moon_pada'] = mk['pada']
             inputs['moon_nak_progress'] = mk['progress']
+        # [Q-131/T-39] AK 优先判据须知道 Chara Kāraka 方案(7 卡拉卡=剔罗睺):此前 rasi_dasha 恒按 8 曜含罗睺取 AK。
+        inputs['karakaScheme'] = self.karaka_scheme
         try:
             return build_rasi_dashas(inputs)
         except Exception:

@@ -1,5 +1,5 @@
 diff --git a/vendor/kintaiyi/src/kintaiyi/config.py b/vendor/kintaiyi/src/kintaiyi/config.py
-index 5cd81a8c..40944881 100644
+index b23c9562..e861be5e 100644
 --- a/vendor/kintaiyi/src/kintaiyi/config.py
 +++ b/vendor/kintaiyi/src/kintaiyi/config.py
 @@ -363,12 +363,23 @@ def cal_des(num):

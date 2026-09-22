@@ -416,3 +416,45 @@ describe('buildBabylonSnapshotText 微黄道段', () => {
 		expect(AI_EXPORT_PRESET_SECTIONS.babylon).toContain('微黄道');
 	});
 });
+
+// [Q-443/T-406] 三页签候选段(默认关):数理星历 / 吉日历 / 年历预测。
+describe('buildBabylonSnapshotText 三页签候选段(Q-443)', () => {
+	const { buildBabylonSnapshotText, buildBabylonEphemerisSection } = require('../../../utils/babylonAiSnapshot');
+	const { AI_EXPORT_PRESET_SECTIONS, getAIExportDefaultOffSet } = require('../../../utils/aiExport');
+	const { buildHoroscope } = require('../horoscope');
+	const { jupiterSeriesA, jupiterSeriesB } = require('../mathAstro');
+	const JDN = 2451545;
+	const lons = { moon: 65, sun: 72.5, jupiter: 258, venus: 130, mercury: 75, saturn: 95, mars: 285 };
+
+	it('三段恒随 bab 产出;数理星历五星序列自本盘黄经推演(与 mathAstro 同源),lons 缺则只出月列', () => {
+		const bab = buildHoroscope(lons, JDN, {});
+		const text = buildBabylonSnapshotText(bab, { lons });
+		['[数理星历]', '[吉日历]', '[年历预测]'].forEach((h) => expect(text).toContain(h));
+		const jA = jupiterSeriesA(258, 8);
+		expect(text).toContain(`| 1 | ${jA[0].lon.toFixed(2)}° |`);
+		expect(text).toContain(`| 8 | ${jA[7].lon.toFixed(2)}° |`);
+		expect(text).toMatch(/◆ 木星（System A）/);
+		expect(text).toContain('◆ 月亮多列星历');
+		expect(text).toContain('出生日:第 ');
+		expect(text).toContain('本盘目标年取数（S.E.');
+		expect(text).not.toMatch(/undefined|NaN/);
+		const noLons = buildBabylonEphemerisSection(bab, {}, {});
+		expect(noLons.some((l) => l.startsWith('◆ 木星'))).toBe(false);
+		expect(noLons.some((l) => l.startsWith('◆ 月亮多列'))).toBe(true);
+	});
+	it('派系「位置源=System B」改木星序列(锯齿函数)→ 段文随变', () => {
+		const bab = buildHoroscope(lons, JDN, {});
+		const a = buildBabylonSnapshotText(bab, { lons, ephemerisSource: 'swiss' });
+		const b = buildBabylonSnapshotText(bab, { lons, ephemerisSource: 'systemB' });
+		expect(b).toMatch(/◆ 木星（System B）/);
+		const jB = jupiterSeriesB(258, 8);
+		expect(b).toContain(`| 2 | ${jB[1].lon.toFixed(2)}° |`);
+		expect(a).not.toBe(b);
+	});
+	it('三段已登记 preset 且均为默认关候选段', () => {
+		const preset = AI_EXPORT_PRESET_SECTIONS.babylon;
+		const off = getAIExportDefaultOffSet('babylon');
+		['数理星历', '吉日历', '年历预测'].forEach((n) => { expect(preset).toContain(n); expect(off.has(n)).toBe(true); });
+		['起盘信息', '七曜按宫', '微黄道'].forEach((n) => expect(off.has(n)).toBe(false));
+	});
+});

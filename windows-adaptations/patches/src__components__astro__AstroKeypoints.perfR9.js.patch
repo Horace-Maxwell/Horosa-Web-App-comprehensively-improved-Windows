@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/astro/AstroKeypoints.js b/astrostudyui/src/components/astro/AstroKeypoints.js
-index dd5dd88..9b76361 100644
+index f0827c3b..0d2ac92d 100644
 --- a/astrostudyui/src/components/astro/AstroKeypoints.js
 +++ b/astrostudyui/src/components/astro/AstroKeypoints.js
-@@ -7,6 +7,7 @@ import { buildKeypoints, buildKeypointsSnapshotText, RELEASE_MODES, KEYPOINTS_DE
- import { symbolWithMeaning } from './AstroExtraCommon';
+@@ -8,6 +8,7 @@ import { symbolWithMeaning } from './AstroExtraCommon';
  import { XQSelect as Select } from '../xq-ui';
  import styles from '../../css/styles.less';
+ import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const Option = Select.Option;
  
-@@ -29,7 +30,11 @@ class AstroKeypoints extends Component{
+@@ -30,7 +31,11 @@ class AstroKeypoints extends Component{
  	componentDidUpdate(prevProps){
  		if(prevProps.value !== this.props.value || prevProps.showAstroMeaning !== this.props.showAstroMeaning){
  			this.rebuild();

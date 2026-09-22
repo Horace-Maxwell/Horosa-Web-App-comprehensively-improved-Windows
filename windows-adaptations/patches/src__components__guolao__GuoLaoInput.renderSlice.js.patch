@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/guolao/GuoLaoInput.js b/astrostudyui/src/components/guolao/GuoLaoInput.js
-index 7bf56b7f..f8abf6be 100644
+index 03d71a19..a9a516b7 100644
 --- a/astrostudyui/src/components/guolao/GuoLaoInput.js
 +++ b/astrostudyui/src/components/guolao/GuoLaoInput.js
 @@ -1,4 +1,5 @@
@@ -8,7 +8,7 @@ index 7bf56b7f..f8abf6be 100644
  import { safeLocalStorageSet } from '../../utils/safeStorage';
  import {convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
  import { dstAwareZoneAt } from '../../utils/timezone';
-@@ -56,6 +57,14 @@ class GuoLaoInput extends Component{
+@@ -64,6 +65,14 @@ class GuoLaoInput extends Component{
  		this.toggleAspect = this.toggleAspect.bind(this);
  	}
  

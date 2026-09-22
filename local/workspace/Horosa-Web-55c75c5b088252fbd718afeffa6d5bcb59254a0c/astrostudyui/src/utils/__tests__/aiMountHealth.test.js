@@ -11,7 +11,9 @@ import {
 describe('[F2] contextWindowForModel / contextCharBudgetForModel', ()=>{
 	test('现役四家命中窗口;未知模型 null', ()=>{
 		expect(contextWindowForModel('claude-fable-5')).toBe(200000);
-		expect(contextWindowForModel('claude-sonnet-5')).toBe(200000);
+		// [Q-043/M-54] Sonnet 5 官方 1M 窗口:细分档排在兜底 `claude-` 之前才命中(find 取第一条命中,不是最长匹配)
+		expect(contextWindowForModel('claude-sonnet-5')).toBe(1000000);
+		expect(contextWindowForModel('claude-opus-5')).toBe(200000);   // 判别向量:其余 claude 仍走兜底 200K
 		expect(contextWindowForModel('gpt-5.6')).toBe(400000);
 		expect(contextWindowForModel('gemini-3.1-pro')).toBe(1048576);
 		expect(contextWindowForModel('deepseek-v4-flash')).toBe(131072);
@@ -20,11 +22,16 @@ describe('[F2] contextWindowForModel / contextCharBudgetForModel', ()=>{
 		expect(contextWindowForModel('')).toBe(null);
 	});
 
-	test('未知模型 → 保底(=旧常量,零回归);大窗口 → cap 封顶', ()=>{
+	test('未知模型 → 保底;大窗口 → cap 封顶', ()=>{
 		expect(contextCharBudgetForModel('my-secret-model', { floorChars: AI_CONTEXT_MAX_CHARS })).toBe(AI_CONTEXT_MAX_CHARS);
-		const big = contextCharBudgetForModel('claude-fable-5', { floorChars: AI_CONTEXT_MAX_CHARS });
-		expect(big).toBe(60000);   // 200k 窗口按分摊远超 cap → 封顶
-		expect(contextCharBudgetForModel('gemini-3.1-pro', {})).toBe(60000);
+		// [#80] 算法断言显式给 capChars,不再钉缺省值 —— 否则抬顶时这条测试跟着漂,
+		// 判不出「封顶逻辑还在不在」(缺省值本身的哨兵在 aiContextBudget case7/case10)。
+		const CAP = 60000;
+		expect(contextCharBudgetForModel('claude-fable-5', { floorChars: AI_CONTEXT_MAX_CHARS, capChars: CAP })).toBe(CAP);
+		expect(contextCharBudgetForModel('gemini-3.1-pro', { capChars: CAP })).toBe(CAP);
+		// 缺省顶已抬到 120000:同样两个大窗口模型恰好取到新顶(缺省翻转的字节判据)。
+		expect(contextCharBudgetForModel('claude-fable-5', { floorChars: AI_CONTEXT_MAX_CHARS })).toBe(120000);
+		expect(contextCharBudgetForModel('gemini-3.1-pro', {})).toBe(120000);
 	});
 
 	test('Ollama 小窗口按 num_ctx 实算(低于保底,防静默截断)', ()=>{

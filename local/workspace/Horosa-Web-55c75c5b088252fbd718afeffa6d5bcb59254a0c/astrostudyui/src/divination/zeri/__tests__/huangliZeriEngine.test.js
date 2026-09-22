@@ -26,6 +26,40 @@ describe('[Z1] 注册表契约', ()=>{
 		});
 	});
 
+	it('🔴 [Q-271/ZC-19] 每类 defaults 的 multiselect 值必在该字段 options 值域内(缺省值出域=新加即恒假)', ()=>{
+		Object.keys(HUANGLI_CONDITION_TYPES).forEach((k)=>{
+			const s = HUANGLI_CONDITION_TYPES[k];
+			(s.fields || []).forEach((f)=>{
+				if(f.kind !== 'multiselect' && f.kind !== 'select'){ return; }
+				if(!Array.isArray(f.options) || !f.options.length){ return; }
+				const domain = new Set(f.options.map((o)=>`${o && o.value !== undefined ? o.value : o}`));
+				const dv = s.defaults ? s.defaults[f.key] : undefined;
+				const vals = Array.isArray(dv) ? dv : (dv === undefined || dv === null || dv === '' ? [] : [dv]);
+				vals.forEach((v)=>{ expect({ type: k, field: f.key, value: v, inDomain: domain.has(`${v}`) }).toEqual({ type: k, field: f.key, value: v, inDomain: true }); });
+			});
+		});
+		// [Q-271/ZC-18] 用事词同义展开:2026-01-01 宜「理发」/「移徙」类以异名出现 → 字面词命中(与通书用事裁决同表)
+		const d = D1();
+		const yiHas = (w)=>ev('yi_has', { values: [w], matchMode: 'any' }).pass;
+		const has = (w)=>(d.yi || []).includes(w);
+		if(has('理发')){ expect(yiHas('剃头')).toBe(true); }
+		if(has('移徙')){ expect(yiHas('迁徙')).toBe(true); }
+		if(has('立券')){ expect(yiHas('立契')).toBe(true); }
+		expect(yiHas('剃头')).toBe(has('理发') || has('剃头'));
+		// [Q-271/ZC-25] 吉时数上限 7;三垣派留空=全判;非交节日不再显示限定节气
+		expect(HUANGLI_CONDITION_TYPES.good_hour.fields.find((f)=>f.key === 'minCount').max).toBe(7);
+		expect(HUANGLI_CONDITION_TYPES.tongshu_star.validate({ school: 'sanyuan', names: [] })).toBe('');
+		expect(HUANGLI_CONDITION_TYPES.tongshu_star.validate({ school: 'donggong', names: [] })).not.toBe('');
+		expect(ev('tongshu_star', { school: 'sanyuan', names: [] }).pass).toBe(ev('tongshu_star', { school: 'sanyuan', names: ['任意'] }).pass);
+		const jqVals = HUANGLI_CONDITION_TYPES.jieqi_day.fields.find((f)=>f.key === 'values');
+		expect(jqVals.showIf({ mode: 'not' })).toBe(false);
+		expect(jqVals.showIf({ mode: 'is' })).toBe(true);
+		expect(HUANGLI_CONDITION_TYPES.xiu_detail.defaults.values).toEqual(['东青龙']);
+		expect(HUANGLI_CONDITION_TYPES.xiongsha_not.defaults.values).toContain('致死');
+		// 缺省值在 2026-01-01 锚日可判(不再恒假):东青龙判面 / 避凶煞净日
+		expect(typeof ev('xiu_detail', HUANGLI_CONDITION_TYPES.xiu_detail.defaults).pass).toBe('boolean');
+	});
+
 	it('值域同源非空(建除12/黄黑道值神12/宿28/六曜6/生肖12/用事词表>50)', ()=>{
 		const { JIANCHU_NAMES, TIANSHEN_NAMES, XIU_NAMES, LIUYAO_NAMES, SHENGXIAO_NAMES, HUANGLI_TERM_OPTIONS } = require('../huangliZeriConditionTypes');
 		expect(JIANCHU_NAMES.length).toBe(12);

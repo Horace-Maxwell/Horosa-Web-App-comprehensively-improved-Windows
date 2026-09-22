@@ -106,7 +106,7 @@ function guardRegisteredKey(key){
 	}
 	const env = typeof process !== 'undefined' && process.env ? process.env.NODE_ENV : '';
 	if(env === 'test'){
-		throw new Error(`[storageKeyRegistry] 未登记存储键:${key} —— 先到 storageKeyRegistry.js 分类登记。kind 决策树:用户亲手创建的内容→user-data;设置/偏好→settings;可再生缓存→cache;设备绑定(迁移标志/窗口尺寸/性能旗标)→device-local。标错 cache=用户数据被排除备份外(丢数据),拿不准就标 settings(多带无害)。详见 docs/DATA_MANAGEMENT_PLAYBOOK.md §2`);
+		throw new Error(`[storageKeyRegistry] 未登记存储键:${key} —— 先到 storageKeyRegistry.js 分类登记。kind 决策树:用户亲手创建的内容→user-data;设置/偏好→settings;可再生缓存→cache;设备绑定(迁移标志/窗口尺寸/性能旗标)→device-local。标错 cache=用户数据被排除备份外(丢数据),拿不准就标 settings(多带无害)。详见 docs/数据管理规范 §2`);
 	}
 	if(env === 'development' && typeof console !== 'undefined' && console.error){
 		console.error(`[storageKeyRegistry] 未登记存储键:${key}(不入备份面)——去 storageKeyRegistry.js 登记,kind 决策树见文件头`);

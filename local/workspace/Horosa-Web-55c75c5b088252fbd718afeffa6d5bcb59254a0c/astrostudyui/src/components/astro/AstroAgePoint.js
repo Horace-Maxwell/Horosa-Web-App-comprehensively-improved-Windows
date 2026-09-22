@@ -22,10 +22,30 @@ function apName(id){
 	return AstroText.AstroTxtMsg[id] || `${id}`;
 }
 
+// [Q-184/T-103] 一行内多颗合本命:后端 points[i].aspects=[{aspectTo,aspectAge}](精确穿越岁数);旧字段 aspectTo 仅首颗 → 兼容回退。
+function rowAspects(p){
+	if(!p){ return []; }
+	if(Array.isArray(p.aspects) && p.aspects.length){ return p.aspects; }
+	return p.aspectTo ? [{ aspectTo: p.aspectTo, aspectAge: p.aspectAge }] : [];
+}
+// 关键岁数全集:后端 crossings(按岁升序,精确岁数);旧后端无此字段 → 由 points 行的 aspects 拼出。
+function keyCrossings(ap, points){
+	if(ap && Array.isArray(ap.crossings) && ap.crossings.length){ return ap.crossings; }
+	const out = [];
+	(points || []).forEach((p)=>{ rowAspects(p).forEach((a)=>out.push({ age: Number.isFinite(Number(a.aspectAge)) ? Number(a.aspectAge) : p.age, aspectTo: a.aspectTo })); });
+	return out;
+}
+function fmtAge(v){
+	const n = Number(v);
+	if(!Number.isFinite(n)){ return `${v}`; }
+	return Number.isInteger(n) ? `${n}` : n.toFixed(2).replace(/\.?0+$/, '');
+}
+
 // 年龄推进点 AI 快照(无头):内部 fetch /predict/agepoint,与组件同口径。aiAnalysisContext 复算用。
 export async function buildAgePointSnapshotText(chartObj){
 	if(!chartObj){ return ''; }
 	let points = [];
+	let crossings = [];
 	try{
 		const data = await request(`${Constants.ServerRoot}/predict/agepoint`, {
 			body: JSON.stringify({ ...chartParams(chartObj) }),
@@ -33,6 +53,7 @@ export async function buildAgePointSnapshotText(chartObj){
 		});
 		const r = unwrapResult(data) || {};
 		points = (r.agepoint && r.agepoint.points) ? r.agepoint.points : [];
+		crossings = keyCrossings(r.agepoint, points);
 	}catch(e){
 		return '';
 	}
@@ -42,17 +63,18 @@ export async function buildAgePointSnapshotText(chartObj){
 	lines.push(...birthHeaderLines(chartObj));
 	lines.push('[年龄推进点（Age Point / Huber）]');
 	lines.push('年龄点自上升点起，沿 Koch 宫顺行，每宫 6 年、72 年回归上升；落于本命星处（合相）为人生关键节点。');
-	const keyAges = points.filter((p) => p.aspectTo);
-	if(keyAges.length){
+	// [Q-184/T-103] 关键岁数=宫内线性插值的连续穿越解(精确岁数),此前只在整岁取点 ±1° 判合 → 漏报。
+	if(crossings.length){
 		lines.push('');
-		lines.push('关键岁数（合本命）：' + keyAges.map((p) => `${p.age}岁合${apName(p.aspectTo)}`).join('；'));
+		lines.push('关键岁数（合本命，精确穿越岁数）：' + crossings.map((c) => `${fmtAge(c.age)}岁合${apName(c.aspectTo)}`).join('；'));
 	}
 	lines.push('');
-	lines.push('| 年龄 | 落座 | 宫 | 合本命 |');
+	lines.push('| 年龄 | 落座 | 宫 | 合本命（穿越岁数） |');
 	lines.push('| --- | --- | --- | --- |');
 	points.forEach((p)=>{
 		const sign = `${apName(p.sign)}${(p.signlon !== undefined && p.signlon !== null) ? ' ' + p.signlon + '°' : ''}`;
-		lines.push(`| ${p.age}岁 | ${sign} | ${p.house}宫 | ${p.aspectTo ? apName(p.aspectTo) : '—'} |`);
+		const asp = rowAspects(p).map((a) => `${apName(a.aspectTo)}${Number.isFinite(Number(a.aspectAge)) ? `(${fmtAge(a.aspectAge)}岁)` : ''}`).join('、');
+		lines.push(`| ${p.age}岁 | ${sign} | ${p.house}宫 | ${asp || '—'} |`);
 	});
 	// [YB] 尾部 [当前时点]+[方法说明];定位行=当前年龄对应的年龄点行(取 age≤当前年龄的最大行)。
 	const extraLines = [];
@@ -66,7 +88,8 @@ export async function buildAgePointSnapshotText(chartObj){
 		});
 		if(curPoint){
 			const curSign = `${apName(curPoint.sign)}${(curPoint.signlon !== undefined && curPoint.signlon !== null) ? ' ' + curPoint.signlon + '°' : ''}`;
-			extraLines.push(`当前年龄点：${curPoint.age}岁 落${curSign}，第${curPoint.house}宫${curPoint.aspectTo ? `，合本命${apName(curPoint.aspectTo)}` : ''}`);
+			const curAsp = rowAspects(curPoint).map((a) => `${apName(a.aspectTo)}${Number.isFinite(Number(a.aspectAge)) ? `(${fmtAge(a.aspectAge)}岁)` : ''}`).join('、');
+			extraLines.push(`当前年龄点：${curPoint.age}岁 落${curSign}，第${curPoint.house}宫${curAsp ? `，合本命${curAsp}` : ''}`);
 		}
 	}
 	const tail = [...currentMomentLines(chartObj, extraLines), ...methodNoteLines('agepoint')];
@@ -135,7 +158,7 @@ class AstroAgePoint extends Component {
 		const r = this.state.result || {};
 		const ap = r.agepoint || {};
 		const points = ap.points || [];
-		const keyAges = points.filter((p) => p.aspectTo);
+		const keyAges = keyCrossings(ap, points);   // [Q-184/T-103] 精确穿越岁数(连续解),非整岁邻域采样
 		const height = this.props.height ? this.props.height - 20 : 700;
 		const sym = (id) => astroSymbol(id);
 		return (
@@ -145,10 +168,10 @@ class AstroAgePoint extends Component {
 						<div className="horosa-info-card-title">年龄推进点（Age Point / Huber）</div>
 						{keyAges.length > 0 && (
 							<div style={{ marginBottom: 10, fontSize: 13, lineHeight: '22px' }}>
-								<span style={{ opacity: 0.7, marginRight: 6 }}>关键岁数（合本命）：</span>
-								{keyAges.map((p, i) => (
+								<span style={{ opacity: 0.7, marginRight: 6 }}>关键岁数（合本命·精确穿越岁数）：</span>
+								{keyAges.map((c, i) => (
 									<span key={i} style={{ display: 'inline-block', marginRight: 10, whiteSpace: 'nowrap' }}>
-										<b>{p.age}</b> 岁 合 <span style={{ fontFamily: 'AstroFont' }}>{sym(p.aspectTo)}</span>
+										<b>{fmtAge(c.age)}</b> 岁 合 <span style={{ fontFamily: 'AstroFont' }}>{sym(c.aspectTo)}</span>
 									</span>
 								))}
 							</div>
@@ -160,7 +183,16 @@ class AstroAgePoint extends Component {
 								{ key: 'age', title: '年龄', render: (v) => `${v} 岁` },
 								{ key: 'sign', title: '落座', render: (v, row) => <span><span style={{ fontFamily: 'AstroFont', marginRight: 4 }}>{sym(v)}</span>{row.signlon}°</span> },
 								{ key: 'house', title: '宫', render: (v) => `${v} 宫` },
-								{ key: 'aspectTo', title: '合本命', render: (v) => (v ? <span style={{ fontFamily: 'AstroFont', color: '#c0392b' }}>{sym(v)}</span> : '—') },
+								{ key: 'aspectTo', title: '合本命（穿越岁数）', render: (v, row) => {
+									const asps = rowAspects(row);
+									if(!asps.length){ return '—'; }
+									return asps.map((a, i) => (
+										<span key={i} style={{ marginRight: 6, whiteSpace: 'nowrap' }}>
+											<span style={{ fontFamily: 'AstroFont', color: '#c0392b' }}>{sym(a.aspectTo)}</span>
+											{Number.isFinite(Number(a.aspectAge)) ? <span style={{ opacity: 0.75, marginLeft: 2 }}>{fmtAge(a.aspectAge)}岁</span> : null}
+										</span>
+									));
+								} },
 							]}
 						/>
 						<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>年龄点自上升点起，沿 Koch 宫顺行，每宫 6 年、72 年回归上升；落于本命星处（合相）为人生关键节点。</div>

@@ -69,7 +69,7 @@ class AstroTimeSpace extends Component{
 
 		return (
 			<div style={{height: height}}>
-					<AstroChartMain
+					<AstroChartMain embeddedSubChart
 						value={resobj} 
 					fields={fields} 
 					hidedateselector={1}
@@ -84,6 +84,10 @@ class AstroTimeSpace extends Component{
 						onChange={this.props.onChange}
 						showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 						showAstroMeaning={this.props.showAstroMeaning}
+						showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* [Q-253/T-223] 四键补传:弹层显示值与主页同源 */
+						voidClassical={this.props.voidClassical}
+						planetListStyle={this.props.planetListStyle}
+						aspects={this.props.aspects}
 					/>
 			</div>
 		);

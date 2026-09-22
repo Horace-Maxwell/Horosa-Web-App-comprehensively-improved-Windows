@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js b/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js
-index 8c22a8a0..15800d51 100644
+index 479f0e67..1c69f462 100644
 --- a/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js
 +++ b/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js
 @@ -18,6 +18,8 @@ import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../util
@@ -11,7 +11,7 @@ index 8c22a8a0..15800d51 100644
  
  const TabPane = Tabs.TabPane;
  const STORE_KEY = 'horosa.xiaoliuren.settings.v1';
-@@ -118,6 +120,7 @@ class XiaoLiuRenMain extends Component {
+@@ -123,6 +125,7 @@ class XiaoLiuRenMain extends Component {
  		this.onTimeChanged = this.onTimeChanged.bind(this);
  		this.changeGeo = this.changeGeo.bind(this);
  	}
@@ -19,17 +19,18 @@ index 8c22a8a0..15800d51 100644
  	componentDidMount(){
  		// [issue#74 同类] 农历桥回包履约(与灵棋/飞宫同律):域外年首拍快照缺农历/四柱行,
  		// 只 forceUpdate 不重存则缓存/事盘恒缺——桥契约「远程回包后由订阅方重存快照补全」。
-@@ -220,7 +223,8 @@ class XiaoLiuRenMain extends Component {
+@@ -231,8 +234,9 @@ class XiaoLiuRenMain extends Component {
  		}
  		const ke = qiKe({ m, d, h, school: settings.school });
  		if(!ke){ return this.setState({ error: '三数非法,不可起课', ke: null }); }
--		this.setState({ ke, error: '' }, ()=>this.saveSnap());
 +		// horosa_panel_ready_v1:ke 落定 = 六宫课盘(中栏)与三传断语(右栏)画完的那一次 setState。
-+		this.setState({ ke, error: '' }, ()=>{ markPanelReady('cnyibu'); this.saveSnap(); });
+ 		// [Q-208/T-167] 起课当下记下三数来源(占时/手录),随快照与存档走;载档只重排、不改此来因。
+-		this.setState({ ke, error: '', numsFrom: inputs.useTime ? 'time' : 'manual' }, ()=>this.saveSnap());
++		this.setState({ ke, error: '', numsFrom: inputs.useTime ? 'time' : 'manual' }, ()=>{ markPanelReady('cnyibu'); this.saveSnap(); });
  	}
  	// 改流派:课(三数)冻结,按新环重排三传(重排≠重起——三数不变)。
  	setSetting(key, val){
-@@ -431,41 +435,56 @@ class XiaoLiuRenMain extends Component {
+@@ -443,41 +447,56 @@ class XiaoLiuRenMain extends Component {
  			</div>
  		);
  		return (

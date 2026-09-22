@@ -6,6 +6,7 @@ import request from '../../utils/request';
 import { XQButton, XQInput, XQModal, XQPagination, XQSearch, XQTable } from '../xq-ui';
 import XQIcon from '../xq-icons';
 
+import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 class BookList extends Component{
 
 	constructor(props) {
@@ -246,7 +247,7 @@ class BookList extends Component{
 			},
 		}];
 
-		let tbly = this.props.height ? this.props.height - 130 : document.documentElement.clientHeight - 130;
+		let tbly = this.props.height ? this.props.height - 130 : getLayoutViewportHeight() - 130;
 
 		let pageSize = this.state.pageSize;
 		let pageIndex = this.state.pageIndex;

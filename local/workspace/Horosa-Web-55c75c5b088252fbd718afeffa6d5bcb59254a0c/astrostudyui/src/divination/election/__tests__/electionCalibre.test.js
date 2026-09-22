@@ -79,10 +79,16 @@ describe('④ moduleSet:白名单外核心模块不计入总分', () => {
 });
 
 describe('⑤ 空亡口径随流派解算', () => {
-	it('月无任何入相时:kenodromia 判空出红线,默认 classic(后端 isVOC=false)不出', () => {
+	// [Q-146/T-53] 判别向量重做:classic(1647)不再读后端 isVOC 旗(那面旗按全局口径算),
+	// 改为按同一张相位表自算。两档的真差别因此落在**目标星集**上:
+	//   classic —— 相位表里任一星与月成入相/正合托勒密相位即不空(表内含四轴/交点等非七政点);
+	//   kenodromia —— 只看对七政(±三王)的入相。
+	// 故判别盘 = 月只对「非七政点」有入相:classic 不空、kenodromia 空。
+	it('月只对非七政点入相时:kenodromia 判空出红线,classic(1647 全点集)不出', () => {
 		const mk = () => {
 			const r = buildMockResult();
-			r.aspects.normalAsp.Moon.Applicative = [];   // 抽走月入相 → 30°法必空
+			r.aspects.normalAsp.Moon.Applicative = [{ id: 'Asc', asp: 60, orb: 1.2 }];
+			r.aspects.normalAsp.Moon.Exact = [];
 			return r;
 		};
 		const a = runElection(mk(), 'marriage');
@@ -92,6 +98,13 @@ describe('⑤ 空亡口径随流派解算', () => {
 		// 希腊化档(vocMode=kenodromia 学理绑定)同样出
 		const hel = runElection(mk(), 'marriage', null, null, { westSchool: 'hellenistic' });
 		expect(hel.hard_flags.some((f) => f.id === 'moon_void_of_course')).toBe(true);
+	});
+	it('月对任何星都无入相时:classic 自己也判空(此前读旗 → 旗 false 就不出,与 1647 相反)', () => {
+		const r = buildMockResult();
+		r.aspects.normalAsp.Moon.Applicative = [];
+		r.aspects.normalAsp.Moon.Exact = [];
+		const a = runElection(r, 'marriage');
+		expect(a.hard_flags.some((f) => f.id === 'moon_void_of_course')).toBe(true);
 	});
 });
 
@@ -121,5 +134,31 @@ describe('⑥ sectWeight 真消费 + ⑦ 宿锚变体', () => {
 		expect(o.vocMode).toBe('exempt4');                      // 页面覆盖压流派
 		const skip = resolveElectionParams('hellenistic', null, { vocMode: '' });
 		expect(skip.vocMode).toBe('kenodromia');                // ''=随流派
+	});
+});
+
+// [Q-295/T-282] 用星集=七曜为纲 → 三王星红线降为注记(此前只看流派 modernPlanets,现代主流档 + 页面选七曜时仍全额扣分)。
+describe('⑧ bodySet=classical7:三王星红线仅注记', () => {
+	const withUranusOnAsc = () => {
+		const r = buildMockResult();
+		const u = r.chart.objects.find((o) => o.id === 'Uranus');
+		u.house = 'House1';
+		r.houseMap.House2.planets = [];
+		r.houseMap.House1.planets = ['Venus', 'Uranus'];
+		return r;
+	};
+	it('现代主流档默认(modern10)天王 1 宫=high;页面覆盖 bodySet=classical7 → info 且附七曜说明', () => {
+		const a = runElection(withUranusOnAsc(), 'marriage');
+		const fa = a.hard_flags.find((f) => f.id === 'uranus_on_angle_1_7');
+		expect(fa && fa.severity).toBe('high');
+		const b = runElection(withUranusOnAsc(), 'marriage', null, null, { electionParams: { bodySet: 'classical7' } });
+		const fb = b.hard_flags.find((f) => f.id === 'uranus_on_angle_1_7');
+		expect(fb && fb.severity).toBe('info');
+		expect(fb.message).toMatch(/七曜为纲/);
+		// 流派本身 annotate 档(希腊化)的既有措辞不变
+		const c = runElection(withUranusOnAsc(), 'marriage', null, null, { westSchool: 'hellenistic' });
+		const fc = c.hard_flags.find((f) => f.id === 'uranus_on_angle_1_7');
+		expect(fc && fc.severity).toBe('info');
+		expect(fc.message).toMatch(/本流派仅注记/);
 	});
 });

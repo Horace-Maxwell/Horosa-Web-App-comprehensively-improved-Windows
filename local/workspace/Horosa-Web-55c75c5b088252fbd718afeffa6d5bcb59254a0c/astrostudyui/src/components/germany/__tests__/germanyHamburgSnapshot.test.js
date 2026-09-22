@@ -87,3 +87,37 @@ describe('量化盘 汉堡学派快照段(WP-8)', () => {
 		expect(new RegExp(forbidden.join('|') + '|§|《|》').test(text)).toBe(false);
 	});
 });
+
+// [Q-442/T-405] 六宫框全表(不受汉堡门控)与校时预览段。
+describe('量化盘 快照 · 六宫框落宫全表 / 校时预览(Q-442)', () => {
+	const { buildHouseFramesSection, buildRectifySection } = require('../AstroMidpoint');
+	const { MC, ASC, JUPITER } = require('../../../constants/AstroConst');
+	const pts = [{ id: SUN, lon: 10 }, { id: MOON, lon: 100 }, { id: MC, lon: 270 }, { id: ASC, lon: 0 }];
+	const eq = (first) => Array.from({ length: 12 }, (_, i) => ((first + i * 30) % 360 + 360) % 360);
+	const result = { houseFrames: { frames: {
+		meridian: { cusps: eq(0), placements: { [SUN]: 1, [MOON]: 4, [MC]: 10, [ASC]: 1 } },
+		sun: { cusps: eq(280) },              // 无 placements → 前端按 cusps 定宫(太阳 10°:宫头 280/310/340/10 → 落 4 宫)
+		earth: { cusps: eq(180), placements: { [SUN]: 7 } },
+	} } };
+	it('页签开着(classic 默认)即出全框×全点表,与汉堡门控无关;placements 缺则按 cusps 定宫', () => {
+		const lines = buildHouseFramesSection({ school: 'classic', showHouseFrames: true }, result, pts);
+		expect(lines[0]).toBe('[六宫框落宫]');
+		expect(lines[2]).toBe('| 点 | 子午局 | 太阳局 | 地球局 |');
+		expect(lines).toContain('| 日 | 1 | 4 | 7 |');
+		expect(lines).toContain('| 月 | 4 | 7 | 10 |');   // 地球局无该点 placements → 按 cusps 定宫
+		expect(buildHamburgLines({ school: 'classic', showHouseFrames: true }, pts, result, 1)).toEqual([]);
+	});
+	it('页签关(showHouseFrames=false)或无 frames → 空', () => {
+		expect(buildHouseFramesSection({ showHouseFrames: false }, result, pts)).toEqual([]);
+		expect(buildHouseFramesSection({ showHouseFrames: true }, {}, pts)).toEqual([]);
+	});
+	it('校时预览:无事件不产段;有事件 → 弧°与命中(轴→因子·角距)与 rectificationHits 同源,命中合计行', () => {
+		expect(buildRectifySection({ rectifyEvents: [] }, { date: '1990/01/01', time: '12:00:00' }, pts)).toEqual([]);
+		// 出生 1990-01-01,事件 2000-01-01 ≈ 10 年 → Naibod 弧 ≈ 9.86°;MC 270+9.86=279.86 vs 木星 280 → 90°盘角距 0.14 命中
+		const p2 = pts.concat([{ id: JUPITER, lon: 280 }]);
+		const lines = buildRectifySection({ rectifyEvents: [{ label: '升职', date: '2000-01-01', type: 'career' }], orb: 1, dialBase: 90, saKey: 'naibod' }, { date: '1990/01/01', time: '12:00:00' }, p2);
+		expect(lines[0]).toBe('[校时预览]');
+		expect(lines).toContainEqual(expect.stringMatching(/^\| 升职 \| 事业 \| 2000-01-01 \| 9\.8\d \| .*MC→木·0\.1\d°/));
+		expect(lines[lines.length - 1]).toMatch(/^命中合计：\d+$/);
+	});
+});

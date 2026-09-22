@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/__tests__/classicalParamSpec.contract.test.js b/astrostudyui/src/utils/__tests__/classicalParamSpec.contract.test.js
-index a5d2c0ea..3de4c0f7 100644
+index cc76e8d4..05473a5d 100644
 --- a/astrostudyui/src/utils/__tests__/classicalParamSpec.contract.test.js
 +++ b/astrostudyui/src/utils/__tests__/classicalParamSpec.contract.test.js
 @@ -196,7 +196,14 @@ describe('横向复制点全等(第三闸/回显白名单/PD 收缩/卜卦构参

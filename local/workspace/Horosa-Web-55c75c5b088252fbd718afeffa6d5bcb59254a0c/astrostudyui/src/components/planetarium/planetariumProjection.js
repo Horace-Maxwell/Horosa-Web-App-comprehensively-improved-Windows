@@ -128,6 +128,63 @@ function galacticToEquatorial(l, b) {
 	return { ra: normalizeDegrees(radToDeg(ra)), decl: radToDeg(dec) };
 }
 
+// ── 岁差:J2000 平赤道 → 当日平赤道(Meeus《天文算法》21.3 / 21.4,IAU 1976 系数)。────────────
+// 星表(BSC5)、星座连线 / 界、星官、三垣数据全是 J2000 历元;不做岁差就和「当日历元」的日月行星 / 二十八宿距星
+// 同屏两套历元(当代差 ~0.35°,公元 1000 年差十几度)。只做平岁差:章动(≤17″)与光行差(≤20″)对天文馆视觉
+// 精度可忽略(星点直径量级以下),暂不加,帮助文档如实说明。
+function precessionAnglesJ2000ToDate(jd) {
+	const T = (Number(jd) - 2451545.0) / 36525;
+	const zeta = (2306.2181 * T + 0.30188 * T * T + 0.017998 * T * T * T) / 3600;
+	const z = (2306.2181 * T + 1.09468 * T * T + 0.018203 * T * T * T) / 3600;
+	const theta = (2004.3109 * T - 0.42665 * T * T - 0.041833 * T * T * T) / 3600;
+	return { zeta, z, theta };
+}
+
+// 3×3 旋转矩阵(行主序 9 元素):J2000 直角赤道向量 → 当日直角赤道向量。热路径(8404 星逐帧)用它,
+// 每帧只算一次三角函数,逐星只做 9 次乘加 + 一次 atan2/asin。
+function precessionMatrixJ2000ToDate(jd) {
+	const a = precessionAnglesJ2000ToDate(jd);
+	const cz = Math.cos(degToRad(a.zeta)), sz = Math.sin(degToRad(a.zeta));
+	const cZ = Math.cos(degToRad(a.z)), sZ = Math.sin(degToRad(a.z));
+	const ct = Math.cos(degToRad(a.theta)), st = Math.sin(degToRad(a.theta));
+	// P = Rz(-z) · Ry(θ) · Rz(-ζ)(Meeus 21.4 的矩阵形式)
+	return [
+		cz * ct * cZ - sz * sZ, -sz * ct * cZ - cz * sZ, -st * cZ,
+		cz * ct * sZ + sz * cZ, -sz * ct * sZ + cz * cZ, -st * sZ,
+		cz * st, -sz * st, ct,
+	];
+}
+
+// 把 J2000 (ra, decl) 按矩阵转到当日历元,结果写进 out({ra, decl}),不分配新对象(热路径零 GC)。
+function applyPrecessionMatrixInto(m, ra, decl, out) {
+	const raR = degToRad(ra);
+	const decR = degToRad(decl);
+	const cd = Math.cos(decR);
+	const x = cd * Math.cos(raR);
+	const y = cd * Math.sin(raR);
+	const zz = Math.sin(decR);
+	const x2 = m[0] * x + m[1] * y + m[2] * zz;
+	const y2 = m[3] * x + m[4] * y + m[5] * zz;
+	const z2 = m[6] * x + m[7] * y + m[8] * zz;
+	out.ra = normalizeDegrees(radToDeg(Math.atan2(y2, x2)));
+	out.decl = radToDeg(Math.asin(clamp(z2, -1, 1)));
+	return out;
+}
+
+// 便捷版:J2000 (ra, decl) → 当日历元 {ra, decl}(度)。
+function precessJ2000ToDate(ra, decl, jd) {
+	if (!Number.isFinite(Number(ra)) || !Number.isFinite(Number(decl)) || !Number.isFinite(Number(jd))) {
+		return null;
+	}
+	return applyPrecessionMatrixInto(precessionMatrixJ2000ToDate(jd), Number(ra), Number(decl), { ra: 0, decl: 0 });
+}
+
+// 数据项是否为 J2000 历元坐标:星表星(kind=catalogStar)、连线 / 星官 / 三垣等静态数据(epoch='J2000')。
+// 投影时先岁差到当日;投影产物记 raJ2000/declJ2000 作基底、epoch 改 'date',再投影时从基底重算 → 幂等不叠加。
+function isJ2000Item(item) {
+	return !!item && (item.epoch === 'J2000' || item.kind === 'catalogStar' || Number.isFinite(Number(item.raJ2000)));
+}
+
 // Equatorial (ra/decl) -> horizontal (alt/az) for the observer at `jd`.
 // `altitudeAppa` is the apparent (refracted) altitude — what toSkyVector uses —
 // matching swisseph; `altitudeTrue` is the geometric altitude. Azimuth keeps the
@@ -164,6 +221,18 @@ function equatorialToHorizontal(ra, decl, jd, observer, applyRefraction = true) 
 function projectedEquatorialItem(item, jd, observer, applyRefraction = true) {
 	let ra = item && item.ra;
 	let decl = item && item.decl;
+	let j2000 = null;
+	if (isJ2000Item(item) && Number.isFinite(Number(jd))) {
+		// J2000 数据:以 raJ2000/declJ2000(首次投影时即原 ra/decl)为基底做岁差 → 当日历元;重复投影不叠加。
+		const baseRa = Number.isFinite(Number(item.raJ2000)) ? Number(item.raJ2000) : Number(ra);
+		const baseDecl = Number.isFinite(Number(item.declJ2000)) ? Number(item.declJ2000) : Number(decl);
+		const p = precessJ2000ToDate(baseRa, baseDecl, jd);
+		if (p) {
+			j2000 = { raJ2000: baseRa, declJ2000: baseDecl };
+			ra = p.ra;
+			decl = p.decl;
+		}
+	}
 	if ((!Number.isFinite(Number(ra)) || !Number.isFinite(Number(decl))) && item && item.lon !== undefined) {
 		const eq = eclipticToEquatorial(item.lon, item.lat || 0, jd);
 		if (eq) {
@@ -177,6 +246,7 @@ function projectedEquatorialItem(item, jd, observer, applyRefraction = true) {
 	}
 	return {
 		...item,
+		...(j2000 ? { ...j2000, epoch: 'date' } : {}),
 		ra,
 		decl,
 		...pos,
@@ -238,6 +308,11 @@ export {
 	atmosphericRefractionDeg,
 	eclipticToEquatorial,
 	galacticToEquatorial,
+	precessionAnglesJ2000ToDate,
+	precessionMatrixJ2000ToDate,
+	applyPrecessionMatrixInto,
+	precessJ2000ToDate,
+	isJ2000Item,
 	equatorialToHorizontal,
 	projectedEquatorialItem,
 	localSiderealDeg,

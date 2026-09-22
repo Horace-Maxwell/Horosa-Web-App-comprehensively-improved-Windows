@@ -2,6 +2,7 @@ import React, { Component } from 'react';   // 显式引 React:模块级 JSX 常
 import { markPanelReady } from '../../utils/perfMark';
 import { Input, Checkbox, Popover } from 'antd';   // Input 仅供 TextArea(所问之事)解构
 import PlusMinusTime from '../astro/PlusMinusTime';
+import TimeFieldTrigger from '../comp/QuickTimeField';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { shortOptionLabel } from '../../utils/shortOptionLabel';
 import { XQSelect, XQSideSection, XQSegmented, XQButton } from '../xq-ui';
@@ -11,10 +12,13 @@ import GeoCoordModal from '../amap/GeoCoordModal';
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
 import { judgeLayerOverrides } from '../../utils/judgeLayerOverrides';
+import { WHEEL_ART_CLASSIC, normalizeWheelArt, CHART_TERM } from '../../constants/AstroConst';   // [Q-345] 盘面美术分叉判据 / [Q-150] 界环开关判据
 import { geoNameRawPatch } from '../../utils/geoName';
 import DateTime from '../comp/DateTime';
 import HoraryJudgment from './HoraryJudgment';
 import { buildHoraryOverlay } from './horaryOverlayData';
+import { definePageSettings } from '../../utils/pageSettingsStore';
+import { shellFieldSchema, seedShellFromSaved } from '../../utils/divinationShellSettings';
 import {
 	HORARY_SCHOOLS, HORARY_SCHOOL_ORDER, HORARY_PARAM_SPEC, HORARY_PARAM_BY_KEY,
 	horaryBackendFields, presetOf, schoolOf, overrideCount, horaryJudgeOpts,
@@ -97,7 +101,40 @@ const FIVE_MOMENTS_HELP = (
 	</div>
 );
 
+// 排盘设置跨会话保留(用户实报:排盘设置改了之后每次重开软件都要重设)。只收口径与显示偏好:
+// 流派 / 判读参数覆盖层(稀疏:只存显式改过的项,缺席 = 跟随流派预设)/ 盘面叠层四开关与征象宫聚焦 / 黄道 / 宫制。
+// 不收每一问的输入:所问之事、问题类别、问谁的事、问者性别、起盘阵营与问卜者时地、真诚自评、体貌合上升、事件盘。
+// (「问谁的事 / 问者性别」在界面上与判读参数同写一个覆盖层;它们不在 schema 的子键里 → 落盘时自动被丢弃。)
+// 宫制随流派联动:换流派时连同该流派的宫制一起落盘,所以库里的宫制永远与库里的流派自洽;之后再手改宫制才是覆盖。
+const HORARY_INPUT_PARAM_KEYS = ['personScope', 'querentGender'];
+export const HORARY_PAGE_SETTINGS = definePageSettings('horosa.horary.settings.v1', {
+	horarySchool: { def: 'classical', oneOf: HORARY_SCHOOL_ORDER },
+	horaryOverrides: { type: 'map', sparse: true, keys: HORARY_PARAM_SPEC.reduce((acc, p)=>{
+		if(p.scope !== 'horary' || HORARY_INPUT_PARAM_KEYS.indexOf(p.key) >= 0){ return acc; }
+		acc[p.key] = p.type === 'switch' ? { def: false } : { def: p.default, oneOf: (p.options || []).map((o)=>o.value) };
+		return acc;
+	}, {}) },
+	chartFocus: { def: true },
+	overlayPerfection: { def: true },
+	overlayAntiscia: { def: true },
+	overlayTerms: { def: true },
+	overlayStars: { def: true },
+	...shellFieldSchema(horaryBackendFields('classical').hsys),   // 黄道 / 恒星黄道岁差 / 宫制(出厂 = 经典主流的宫制)
+});
 // 当前生效流派：优先用户显式所选(extra.horarySchool)；否则据当前宫制反推(老盘 hsys:0 → 希腊化，不误标)。
+// 库里保存的流派(没存过 / 不认识 = 出厂的经典主流)。
+function savedHorarySchoolId(){
+	const id = HORARY_PAGE_SETTINGS.loadSaved().horarySchool;
+	return (id && HORARY_SCHOOLS[id]) ? id : 'classical';
+}
+// 判读参数落盘:只落用户这次亲手改的那一个键,以库里已保存的覆盖层为底 —— 界面上当前那张覆盖层可能刚被一份
+// 事盘回灌过,整张存下去就把事盘里的其它覆盖项也存成了你的缺省。「与预设相同 = 撤销该覆盖」按**库里那个流派**的
+// 预设判(库里的覆盖层是相对库里的流派而言的;当前盘的流派可能是事盘带来的另一档)。
+export function persistHoraryOverride(key, val){
+	const ssc = schoolOf(savedHorarySchoolId());
+	const presetVal = ssc.backend[key] !== undefined ? ssc.backend[key] : ssc.judge[key];
+	HORARY_PAGE_SETTINGS.saveMapEntry('horaryOverrides', key, presetVal === val ? undefined : val);
+}
 function activeSchoolId(extra, fields){
 	if(extra && extra.horarySchool && HORARY_SCHOOLS[extra.horarySchool]){ return extra.horarySchool; }
 	return presetOf(fields);
@@ -230,8 +267,9 @@ class HoraryMain extends Component{
 								<div className="horosa-field-label" style={{ fontSize: 12 }}>问卜者时刻</div>
 								{/* 与主时间同款点选调时器(用户定版:不逼手动敲数字)。存储仍是 timeText
 								    字符串(事件盘 extra 兼容零变),仅输入方式换 Popover+PlusMinusTime。 */}
-								<Popover trigger="click" placement="rightTop" overlayClassName="horosa-time-adjust-popover"
-									content={(
+								<TimeFieldTrigger showIcon={false} style={{ width: '100%' }} value={this.campQuerentDt(args)}
+									timeText={qs.timeText || '点选时刻'}
+									popoverContent={(
 										<div className="horosa-time-popover">
 											<PlusMinusTime
 												value={this.campQuerentDt(args)}
@@ -240,11 +278,8 @@ class HoraryMain extends Component{
 													if(dt && dt.format){ setQuerent({ timeText: dt.format('YYYY-MM-DD HH:mm:ss') }); }
 												}} />
 										</div>
-									)}>
-									<button type="button" className="horosa-unified-field" style={{ width: '100%' }}>
-										<span>{qs.timeText || '点选时刻'}</span>
-									</button>
-								</Popover>
+									)}
+									onQuickCommit={(dt)=>setQuerent({ timeText: dt.format('YYYY-MM-DD HH:mm:ss') })} />
 							</div>
 							<div className="horosa-field-block" style={{ marginBottom: 0 }}>
 								<div className="horosa-field-label" style={{ fontSize: 12 }}>问卜者地点</div>
@@ -282,8 +317,11 @@ class HoraryMain extends Component{
 		// 🔴 回显必须与判读引擎同口径:含全局层(星盘设置改过的键),否则面板显示值
 		// 与实际生效值分叉(判读走 horaryJudgeOpts 四层,全局层在流派差异之前)。
 		const effective = { ...sc.backend, ...sc.judge, ...judgeLayerOverrides(), ...overrides };
-		// tradition 七档为 1(古典星集)时后端不产三王星——includeOuter 勾了也是空转,禁用+注明。
-		const outerAvailable = Number(effective.tradition) === 0;
+		// [Q-145/T-52] 旧注释的前提不成立:后端 `perchart.py` 的 tradition 写死 False、全仓无人从请求读它 →
+		//   **任何流派预设下三王星都在盘**,古典星集只是前端显示过滤。据错误前提把「判读计三王星」在 6/7 个
+		//   流派里置灰,等于把一个真实可用的判读开关锁死。现放开(不再置灰),hover 里说清「古典预设下盘面
+		//   默认不显示三王星,但判读仍可计入」。后端按 tradition 真裁星是另一档(会改多页盘面),未做。
+		const outerAvailable = true;
 		// 扁平两桶（用户定版:去组标题只留字段标签一层）:选择项按组序排入两列网格,布尔项一行一个芯片。
 		const selects = []; const bools = [];
 		PANEL_GROUP_ORDER.forEach((name) => {
@@ -297,6 +335,7 @@ class HoraryMain extends Component{
 			// 与预设值相同 → 视为撤销该覆盖（保持「已自定义 N 项」诚实）。
 			const presetVal = sc.backend[p.key] !== undefined ? sc.backend[p.key] : sc.judge[p.key];
 			if(presetVal === val){ delete next[p.key]; }
+			persistHoraryOverride(p.key, val);   // 只落这一个键(见函数注);界面上的整张覆盖层照旧走 setExtra
 			setExtra({ horaryOverrides: next });
 			if(p.sendToBackend){
 				const cur = fields && fields[p.key] && fields[p.key].value !== undefined ? fields[p.key].value : undefined;
@@ -310,6 +349,9 @@ class HoraryMain extends Component{
 					<div style={{ fontSize: 12, opacity: 0.8 }}>当前：<b>{sc.cn}</b>{n > 0 ? ` ·（已自定义 ${n} 项）` : ''}</div>
 					{n > 0 ? (
 						<XQButton size="small" onClick={()=>{
+							// 库里:覆盖层清空,宫制回到**库里那个流派**的宫制(下面会把本盘宫制拨回流派值;只清覆盖层不动宫制,
+							// 重开软件宫制又回到先前手改的那个 —— 与刚点的「恢复本档默认」相左)。库里的宫制恒与库里的流派自洽。
+							HORARY_PAGE_SETTINGS.save({ horaryOverrides: {}, hsys: horaryBackendFields(savedHorarySchoolId()).hsys });
 							setExtra({ horaryOverrides: {} });
 							const bf = horaryBackendFields(schoolId);
 							const patch = {};
@@ -345,7 +387,10 @@ class HoraryMain extends Component{
 						const disabled = parentOff || outerDead;
 						// 停用原因走 title(hover)而非行内文本:窄栏下这串补充必被 ellipsis 截掉,
 						// 且「左栏不放大段解释」是定则——置灰本身已表达不可用,原因 hover 可得。
-						const hint = parentOff ? '须先开「撤回作独立破坏」' : (outerDead ? '需三王星入盘:流派预设切「现代心理」' : '');
+						// [Q-145/T-52] 三王星:古典预设只影响盘面显示,判读计不计由本开关定(不再置灰)。
+						const outerNote = p.key === 'includeOuter' && Number(effective.tradition) !== 0
+							? '古典星集预设只影响盘面显示;判读是否计入三王星由本开关定' : '';
+						const hint = parentOff ? '须先开「撤回作独立破坏」' : (outerDead ? '需三王星入盘:流派预设切「现代心理」' : outerNote);
 						return (
 							<Checkbox key={p.key} className={chipCls(p.label)} disabled={disabled} title={hint || undefined} checked={!!effective[p.key]} onChange={(e)=>setParam(p, !!(e && e.target && e.target.checked))}>
 								{p.label}{changedMark(p)}
@@ -360,6 +405,14 @@ class HoraryMain extends Component{
 	renderLeftExtra(args){
 		const { extra, setExtra, fields, patchFields } = args;
 		const schoolId = activeSchoolId(extra, fields);
+		// [Q-345] 盘面美术非经典圆盘=方形盘(AstroWheelArtChart),该组件不读 keyPlanets / horaryOverlay
+		// → 五个「只画在圆盘上」的叠层勾选此时勾不勾都一样,置灰 + title 说明(与壳内「外环样式」同一手法)。
+		const wheelSquare = normalizeWheelArt(args.wheelArt) !== WHEEL_ART_CLASSIC;
+		const wheelHint = wheelSquare ? '方形盘不画判读叠层,仅经典圆盘下生效' : undefined;
+		// [Q-150/T-59] 「界限环按界主着色」画的是界限环的内缘色条:星盘设置里「界」显示环没开(缺省即关)时
+		// 盘面根本没有这圈环,勾不勾 SVG 逐字节相同 → 条件不可达,置灰并说明去哪开。
+		const termRingOn = Array.isArray(this.props.chartDisplay) && this.props.chartDisplay.indexOf(CHART_TERM) >= 0;
+		const termsHint = wheelHint || (termRingOn ? undefined : '需先在「设置 → 星盘设置」开启「界」显示环');
 		return (
 			<>
 			<XQSideSection iconName={sideSectionIcon('target')} title="卜卦设置" storageKey="horary.opts" className="horosa-side-input-section">
@@ -377,9 +430,11 @@ class HoraryMain extends Component{
 							value={schoolId}
 							dropdownMatchSelectWidth={false}
 							onChange={(val)=>{
+								// 换流派连同「清空覆盖层 + 该流派的宫制」一起落盘(库里的宫制恒与库里的流派自洽)
+								HORARY_PAGE_SETTINGS.save({ horarySchool: val, horaryOverrides: {}, hsys: horaryBackendFields(val).hsys });
 								setExtra({ horarySchool: val, horaryOverrides: {} });
-								// 后端字段联动:换宫制/界/星群/双子界序/福点反转 → patchFields 自动重排盘;
-								// 仅当与当前值不同才 patch(避免无谓重取)。tripSystem 前端判读消费,不下发。
+								// 后端字段联动:换宫制/界/星群/双子界序/福点反转/三分集 → patchFields 自动重排盘;
+								// 仅当与当前值不同才 patch(避免无谓重取)。tripSystem 映射为 triplicity 随档下发。
 								const bf = horaryBackendFields(val);
 								const patch = {};
 								Object.keys(bf).forEach((k) => {
@@ -416,7 +471,7 @@ class HoraryMain extends Component{
 									onChange={(val)=>{
 										const next = { ...ov };
 										if(val === sp.default){ delete next[k]; } else { next[k] = val; }
-										setExtra({ horaryOverrides: next });
+										setExtra({ horaryOverrides: next });   // 每一问的输入:不落盘
 									}}>
 									{(sp.options || []).map((o)=>(<Option key={String(o.value)} value={o.value}>{o.label}</Option>))}
 								</XQSelect>
@@ -426,8 +481,8 @@ class HoraryMain extends Component{
 				</div>
 				{this.renderCampBlock(args)}
 				<div className="horosa-horary-option-card">
-					<Checkbox className="horosa-chip-full" checked={extra.chartFocus !== false}
-						onChange={(e)=>setExtra({ chartFocus: !!(e && e.target && e.target.checked) })}>
+					<Checkbox className="horosa-chip-full" disabled={wheelSquare} title={wheelHint} checked={extra.chartFocus !== false}
+						onChange={(e)=>{ const v = !!(e && e.target && e.target.checked); HORARY_PAGE_SETTINGS.save({ chartFocus: v }); setExtra({ chartFocus: v }); }}>
 						盘面聚焦征象宫
 					</Checkbox>
 					<Checkbox checked={extra.sincerityConfirmed !== false}
@@ -444,20 +499,20 @@ class HoraryMain extends Component{
 						事件盘（客观时刻）
 					</Checkbox>
 					{/* [二期] 判读叠层四子层(默认开;说明详帮助·卜卦盘) */}
-					<Checkbox className="horosa-chip-full" checked={extra.overlayPerfection !== false}
-						onChange={(e)=>setExtra({ overlayPerfection: !!(e && e.target && e.target.checked) })}>
+					<Checkbox className="horosa-chip-full" disabled={wheelSquare} title={wheelHint} checked={extra.overlayPerfection !== false}
+						onChange={(e)=>{ const v = !!(e && e.target && e.target.checked); HORARY_PAGE_SETTINGS.save({ overlayPerfection: v }); setExtra({ overlayPerfection: v }); }}>
 						盘面完成法连线
 					</Checkbox>
-					<Checkbox checked={extra.overlayAntiscia !== false}
-						onChange={(e)=>setExtra({ overlayAntiscia: !!(e && e.target && e.target.checked) })}>
+					<Checkbox disabled={wheelSquare} title={wheelHint} checked={extra.overlayAntiscia !== false}
+						onChange={(e)=>{ const v = !!(e && e.target && e.target.checked); HORARY_PAGE_SETTINGS.save({ overlayAntiscia: v }); setExtra({ overlayAntiscia: v }); }}>
 						盘面映点标记
 					</Checkbox>
-					<Checkbox className="horosa-chip-full" checked={extra.overlayTerms !== false}
-						onChange={(e)=>setExtra({ overlayTerms: !!(e && e.target && e.target.checked) })}>
+					<Checkbox className="horosa-chip-full" disabled={wheelSquare || !termRingOn} title={termsHint} checked={extra.overlayTerms !== false}
+						onChange={(e)=>{ const v = !!(e && e.target && e.target.checked); HORARY_PAGE_SETTINGS.save({ overlayTerms: v }); setExtra({ overlayTerms: v }); }}>
 						界限环按界主着色
 					</Checkbox>
-					<Checkbox className="horosa-chip-full" checked={extra.overlayStars !== false}
-						onChange={(e)=>setExtra({ overlayStars: !!(e && e.target && e.target.checked) })}>
+					<Checkbox className="horosa-chip-full" disabled={wheelSquare} title={wheelHint} checked={extra.overlayStars !== false}
+						onChange={(e)=>{ const v = !!(e && e.target && e.target.checked); HORARY_PAGE_SETTINGS.save({ overlayStars: v }); setExtra({ overlayStars: v }); }}>
 						恒星命中轮缘标注
 					</Checkbox>
 				</div>
@@ -487,22 +542,39 @@ class HoraryMain extends Component{
 			}} />;
 	}
 
+	constructor(props){
+		super(props);
+		// 壳只在构造时读 defaults / initialExtra,这里算一次即可(引用恒定,不扰动壳的渲染守卫)。
+		// 没存过任何设置时:defaults = 经典主流全量后端字段、initialExtra = { questionCategory } —— 与此前逐字相同。
+		const school = HORARY_PAGE_SETTINGS.loadSaved().horarySchool || 'classical';
+		this._seed = seedShellFromSaved(HORARY_PAGE_SETTINGS,
+			{ zodiacal: 0, ...horaryBackendFields(school) },
+			{ questionCategory: 'general' },
+			['horarySchool', 'horaryOverrides', 'chartFocus', 'overlayPerfection', 'overlayAntiscia', 'overlayTerms', 'overlayStars'],
+			{ zodiacal: 0, ...horaryBackendFields('classical') });   // 出厂 = 经典主流那一档(载入旧案时缺键回这里,见 restoreBaseline)
+	}
+
 	render(){
 		return (
 			<DivinationChartShell
 				title="卜卦盘"
+				wheelArt={this.props.wheelArt}   /* [Q-150/T-61] 盘面美术 / 外环样式随「设置→星盘设置」全局变更(壳内订阅同步) */
+				chartStyle={this.props.chartStyle}
 				kicker="起卦设置"
 				pageClass="horosa-horary-page"
 				// 默认档(经典主流)后端字段全量播种:首帧排盘即带 termsVariant:2/lotReversal:0 等,
 				// 使盘面(后端界主/尊贵/福点)与判读(前端 school 口径)从第一发请求起就一致
 				// (此前只播 hsys → 默认档盘面按埃及界/福点夜反转、判读按经典传本/不反转,潜在错位)。
-				defaults={{ zodiacal: 0, ...horaryBackendFields('classical') }}
-				// 全局古典参数热同步白名单:流派学理绑定键(界系/双子界序/福点反转/宫制/星群)
-				// 恒以流派为准,只放行未被流派区分的四键随「设置→星盘设置」全局变更。
-				globalSyncKeys={['westNodeType', 'sectBuffer', 'leoBoundFirst', 'triplicity',
+				defaults={this._seed.defaults}
+				// 全局古典参数热同步白名单:流派学理绑定键(界系/双子界序/福点反转/宫制/星群/三分集)
+				// 恒以流派为准,只放行未被流派区分的键随「设置→星盘设置」全局变更。
+				// [Q-296/T-280 ②] triplicity 改随流派 tripSystem 下发(horaryBackendFields),不再随全局热同步。
+				globalSyncKeys={['westNodeType', 'sectBuffer', 'leoBoundFirst',
 					'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'antisciaOrb', 'fixedStarOrb', 'fixedStarOrbMode', 'vocMode', 'vocIncludeOuter',
 					'stationMarking']}
-				initialExtra={{ questionCategory: 'general' }}
+				initialExtra={this._seed.initialExtra}
+				restoreBaseline={this._seed.restoreBaseline}   /* 载入事盘:事盘里没有的设置键回出厂值,不沿用本机保存的偏好 */
+				onUserFieldChange={(patch)=>HORARY_PAGE_SETTINGS.save(patch)}   /* 壳左栏亲手改黄道 / 宫制 → 落盘 */
 				fields={this.props.fields}
 				height={this.props.height}
 				chartDisplay={this.props.chartDisplay}

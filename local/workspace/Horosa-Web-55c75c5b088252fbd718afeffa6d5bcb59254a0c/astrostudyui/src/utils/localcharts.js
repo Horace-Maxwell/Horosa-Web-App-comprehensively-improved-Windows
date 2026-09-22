@@ -1,4 +1,5 @@
 import { currentEgyptSchool, egyptSchoolToRecordValues } from '../divination/data/egyptianSchools';
+import { emitAutomationEvent } from './aiAgent/automation/events';
 import { createLocalRecordStore, nowStr, normalizeGroup, normalizePayload } from './localRecordStore';
 
 const LocalChartsKey = 'horosa.localCharts.v1';
@@ -39,6 +40,11 @@ export function listLocalChartTags(){
 
 export function getPagedLocalCharts(params){
 	return store.getPaged(params);
+}
+
+// 按 cid 直查(内核 cid 索引 O(1);不过滤归档,与 list().find 口径一致)
+export function getLocalChart(cid){
+	return store.getByCid(cid);
 }
 
 export function buildLocalChartRecord(values){
@@ -226,6 +232,15 @@ export function buildLocalChartRecord(values){
 		indiaVargaVariant: values.indiaVargaVariant !== undefined && values.indiaVargaVariant !== null ? values.indiaVargaVariant : undefined,
 		indiaDashaVariants: values.indiaDashaVariants !== undefined && values.indiaDashaVariants !== null ? values.indiaDashaVariants : undefined,
 		indiaVarshaLat: values.indiaVarshaLat !== undefined && values.indiaVarshaLat !== null ? values.indiaVarshaLat : undefined,
+		// [挂载自检 F-45] 三旗盘 opt-in 与问事 Praśna 六键(页面 castPrashna/toggleTripataki 写进 fields):此前不落库 →
+		// 存盘即丢,重开/AI 挂载读不到(preset「Tripataki 宿距三旗」「问事 Praśna」对挂载恒死)。仅在 values 提供时落库。
+		indiaTripataki: values.indiaTripataki !== undefined && values.indiaTripataki !== null && values.indiaTripataki !== '' ? values.indiaTripataki : undefined,
+		indiaPrashnaTime: values.indiaPrashnaTime !== undefined && values.indiaPrashnaTime !== null && values.indiaPrashnaTime !== '' ? `${values.indiaPrashnaTime}` : undefined,
+		indiaPrashnaNumber: values.indiaPrashnaNumber !== undefined && values.indiaPrashnaNumber !== null && values.indiaPrashnaNumber !== '' ? values.indiaPrashnaNumber : undefined,
+		indiaPrashnaMatter: values.indiaPrashnaMatter !== undefined && values.indiaPrashnaMatter !== null && values.indiaPrashnaMatter !== '' ? `${values.indiaPrashnaMatter}` : undefined,
+		indiaPrashnaSchools: values.indiaPrashnaSchools !== undefined && values.indiaPrashnaSchools !== null && values.indiaPrashnaSchools !== '' ? values.indiaPrashnaSchools : undefined,
+		indiaPrashnaCuspMode: values.indiaPrashnaCuspMode !== undefined && values.indiaPrashnaCuspMode !== null && values.indiaPrashnaCuspMode !== '' ? `${values.indiaPrashnaCuspMode}` : undefined,
+		indiaPrashnaPrimaryHouse: values.indiaPrashnaPrimaryHouse !== undefined && values.indiaPrashnaPrimaryHouse !== null && values.indiaPrashnaPrimaryHouse !== '' ? values.indiaPrashnaPrimaryHouse : undefined,
 		indiaVarshaLon: values.indiaVarshaLon !== undefined && values.indiaVarshaLon !== null ? values.indiaVarshaLon : undefined,
 		indiaKarakaScheme: values.indiaKarakaScheme !== undefined && values.indiaKarakaScheme !== null ? (values.indiaKarakaScheme + '') : undefined,
 		indiaYuddhaCriterion: values.indiaYuddhaCriterion !== undefined && values.indiaYuddhaCriterion !== null ? (values.indiaYuddhaCriterion + '') : undefined,
@@ -276,7 +291,10 @@ export function buildLocalChartRecord(values){
 }
 
 export function upsertLocalChart(values){
-	return store.upsert(values);
+	const __saved = store.upsert(values);
+	// [P4] 自动化事件:存档后广播(引擎默认关;emit 永不抛错、不阻塞保存)
+	try{ emitAutomationEvent('record.saved', { kind: 'chart', cid: __saved && __saved.cid ? __saved.cid : (values && values.cid) }); }catch(e){ /* noop */ }
+	return __saved;
 }
 
 export function removeLocalChart(cid){
@@ -314,6 +332,11 @@ export function pinLocalChart(cid, tier){
 // [V5-D1/D2/D3] 归档/星标/使用足迹(内核管理字段;全链保真由未知键保全承载)。
 export function flagLocalChart(cid, field, on){
 	return store.setFlag(cid, field, on);
+}
+
+// [批五] 整体改写标签列表(AI 加标签工具与其撤销;不刷新 updateTime)
+export function setLocalChartTags(cid, tags){
+	return store.setTags(cid, tags);
 }
 
 export function touchLocalChart(cid){

@@ -10,7 +10,9 @@ import { loadBootChartSnapshot } from '../utils/bootChartRestore';
 import * as AstroConst from '../constants/AstroConst';
 import { setTmDelta } from '../utils/request';
 import { normalizeAppearanceMode } from '../utils/appearance';
+import { CONTAINER_HEIGHT_SANITY_MIN } from '../utils/zoomDomain';
 import { normalizeDayBoundary, DAY_BOUNDARY_AFTER23, normalizeLateZiHourMode, LATE_ZI_HOUR_NEXT_DAY } from '../utils/dayBoundary';
+import { normalizeZeriSnapshotMaxRows, normalizeZeriSnapshotExplainRows, ZERI_SNAPSHOT_MAX_ROWS_DEFAULT, ZERI_SNAPSHOT_EXPLAIN_ROWS_DEFAULT } from '../utils/zeriSnapshotPrefs';
 
 const MinWorkspaceHeight = 660;
 // 页头预留量。**仅供兜底路径**(容器量不到时才按整窗视口减页头)——主路径已改为直接量
@@ -106,6 +108,9 @@ function normalizeGlobalSetup(setup){
     normalized.indiaChartStyle = AstroConst.normalizeIndiaChartStyle(normalized.indiaChartStyle);
     normalized.dayBoundary = normalizeDayBoundary(normalized.dayBoundary);
     normalized.lateZiHourMode = normalizeLateZiHourMode(normalized.lateZiHourMode);
+    // [Q-452/Q-453] 择日 AI 快照命中清单上限 / 附判读树行数(缺省 60 / 3)
+    normalized.zeriSnapshotMaxRows = normalizeZeriSnapshotMaxRows(normalized.zeriSnapshotMaxRows);
+    normalized.zeriSnapshotExplainRows = normalizeZeriSnapshotExplainRows(normalized.zeriSnapshotExplainRows);
     return normalized;
 }
 
@@ -206,6 +211,8 @@ export default {
         tripSystem: 'Dorothean',           // 三分体系(默认多罗特 = 三分主星页现状默认)
         dayBoundary: DAY_BOUNDARY_AFTER23,
         lateZiHourMode: LATE_ZI_HOUR_NEXT_DAY,
+        zeriSnapshotMaxRows: ZERI_SNAPSHOT_MAX_ROWS_DEFAULT,          // [Q-452] 择日快照命中清单上限(缺省 60=现状)
+        zeriSnapshotExplainRows: ZERI_SNAPSHOT_EXPLAIN_ROWS_DEFAULT,  // [Q-453] 前 N 行附判读树(缺省 3;0=不附)
         chartDisplayDefaultsVersion: ChartDisplayDefaultsVersion,
         planetDisplayDefaultsVersion: PlanetDisplayDefaultsVersion,
 
@@ -291,6 +298,8 @@ export default {
                 tripSystem: st.tripSystem,
                 dayBoundary: st.dayBoundary,
                 lateZiHourMode: st.lateZiHourMode,
+                zeriSnapshotMaxRows: st.zeriSnapshotMaxRows,
+                zeriSnapshotExplainRows: st.zeriSnapshotExplainRows,
                 chartDisplayDefaultsVersion: ChartDisplayDefaultsVersion,
                 planetDisplayDefaultsVersion: PlanetDisplayDefaultsVersion,
             };
@@ -734,7 +743,9 @@ export default {
                 aspects = AstroConst.DEFAULT_ASPECTS;
             }
             const dispatchWorkspaceHeight = (h, extraPayload)=>{
-                if(h < MinWorkspaceHeight){
+                // 🔴 这里曾是 `h < MinWorkspaceHeight(660) → 不派发`:缩放 1.5 档容器只有 595 时,正确的高度反而被拦下,
+                // 页根停在旧值/地板值 → 底部被裁(FL-20260906-30)。合理性下限只挡未布局/过渡态的垃圾值。
+                if(!(h >= CONTAINER_HEIGHT_SANITY_MIN)){
                     return;
                 }
                 // 箭头函数内不可 yield;此处 getStore() 渲染期快照即可(下一行本就有 astro 存在性守卫)

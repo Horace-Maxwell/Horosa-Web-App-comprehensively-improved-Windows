@@ -35,6 +35,10 @@ import { safeLocalStorageSet } from './safeStorage';
 //   safeLocalStorageSet('horosa.perf.netResultCache', '0')        // 请求结果 L3 持久缓存(IndexedDB,跨重启 0 往返)
 //   safeLocalStorageSet('horosa.perf.bootGate', '0')              // [B1] early 导航后端探活门(关=请求直发,未起时报错重试)
 //   safeLocalStorageSet('horosa.perf.rsaSessionKey', '0')         // [A2] RSA 会话密钥复用(关=每请求重算 2048 位模幂)
+//   safeLocalStorageSet('horosa.perf.recordStoreFastWrite', '0')  // [P0-S5] 记录库写路径:逐记录序列化缓存+装饰排序+缓存对象身份保持(关=整库 stringify/parse 旧路径)
+//   safeLocalStorageSet('horosa.perf.sourcesCache', '0')          // [P0-S2] AI 分析源列表指纹缓存+引用稳定+单条 O(1) 查找(关=每次全建新数组)
+//   safeLocalStorageSet('horosa.perf.agentBatchSelect', '0')      // AI 助手批量建档只在批尾选中末条(关=逐条选中)
+//   safeLocalStorageSet('horosa.perf.contextCachePrune', '0')     // [P0-S4] AI 源上下文缓存条数上限裁剪(关=缓存只增不减)
 // 恢复:对应 key removeItem 或设 '1'。
 
 function flagEnabled(key){
@@ -46,6 +50,12 @@ function flagEnabled(key){
 		// localStorage 不可用时按默认开
 	}
 	return true;
+}
+
+// [P0-S4] AI 分析源上下文缓存(IndexedDB context_cache)条数上限裁剪:按写计数触发,超过上限时沿
+// updatedAt 索引删最旧(命中记录会被触摸续命)。关=不裁剪,回到「缓存只增不减」的旧行为。
+export function contextCachePruneEnabled(){
+	return flagEnabled('horosa.perf.contextCachePrune');
 }
 
 export function lazySnapshotBuildEnabled(){
@@ -144,6 +154,22 @@ export function rsaSessionKeyEnabled(){
 	// [A2] :9999 请求体加密的 AES 钥+RSA 密文会话内复用(每会话一次 2048 位模幂,
 	// 旧式=每请求一次、主线程)。关=逐请求随机钥(字节行为回旧)。Java 侧零改动。
 	return flagEnabled('horosa.perf.rsaSessionKey');
+}
+
+// [P0-S5] 命盘/事盘记录库写路径的纯 CPU 优化(储存字节与旧路径恒等):
+//   ① 逐记录序列化缓存(WeakMap<记录对象, JSON 串>):一次写只序列化新建/合并的 1-2 条,其余记录直接拼串;
+//   ② 排序装饰-排序-去装饰:每记录 Date.parse 一次(旧比较器每次比较各 parse 两次);
+//   ③ 写后缓存对象身份保持:未触碰记录跨写仍是同一对象(读缓存共享引用契约不变)。
+// 关=回到整库 JSON.stringify + JSON.parse(text) 全量路径;失败/quota 分支两态同码。
+export function recordStoreFastWriteEnabled(){
+	return flagEnabled('horosa.perf.recordStoreFastWrite');
+}
+
+// [P0-S2] AI 分析「可挂载源」列表(listAnalysisSources)指纹缓存:按记录指纹复用 entry 对象、
+// 记录集无变化时返回同一数组引用(setState 同引用免重渲),findAnalysisSourceById 单条经内核 cid 索引 O(1) 查找。
+// 关=每次全建新数组/新 entry 对象(旧行为)。
+export function sourcesCacheEnabled(){
+	return flagEnabled('horosa.perf.sourcesCache');
 }
 
 export function aiBodyEncryptEnabled(){
@@ -297,6 +323,12 @@ export function stepSelectPrefetchEnabled(){
 	return flagEnabled('horosa.perf.stepSelectPrefetch');
 }
 
+// AI 助手批量建档(同一轮 / 同一队列里连续多条 create_chart_record / create_case_record 串行写入):
+// 开=各条只登记 cid,批尾对最后一条成功建档 refreshSources+selectSource 一次;
+// 关=逐条刷新并选中(分析源焦点随每条建档跳动的旧行为)。单条建档两态同形,不受本开关影响。
+export function agentBatchSelectEnabled(){
+	return flagEnabled('horosa.perf.agentBatchSelect');
+}
 // ═══ Windows-only 闸族(与上游同步时整块保全,哨兵逐函数钉;上游收编某项后按 #49 就地删行) ═══
 // 关闭方法同上:safeLocalStorageSet(对应键名, '0') 后刷新。
 // (措辞刻意不把首参写成带引号字面量 —— [V4] 存储键穷举哨兵机械扫描 set/get 调用的引号

@@ -11,7 +11,7 @@ import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/modu
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import TechniqueErrorBoundary from '../common/TechniqueErrorBoundary';
 import { buildReading } from './engine/reading';
-import { getDeck, listDeckGroups, getDeckCards, DEFAULT_DECK } from './engine/deckRegistry';
+import { getDeck, listDeckGroups, getDeckCards, DEFAULT_DECK, listDeckIds, hasDeck } from './engine/deckRegistry';
 import { displayNameCn, displayNameEn, astroLine, cardMeaning, correspondenceSuffix } from './engine/cardSchema';
 import { SPREADS, DEFAULT_SPREAD, orientationLabel, SPREAD_GROUPS } from './engine/spreads';
 import { yesNo, quintessence, theosophicalGroups, countingChain, birthCards, yearCard, majorByNumber, synthesizeText, pairings, clarifier } from './engine/verdict';
@@ -35,6 +35,7 @@ import { courtSignDetect, COURT_READING_RULES, COURT_CHARACTER_NOTE } from './de
 import { buildDailySeed, appendDailyLog, dailyStats, loadDailyLog, saveDailyLog } from './engine/dailyCourse';
 import { decanTimingOf } from './engine/timingMethods';
 import CardDetailDrawer from './CardDetailDrawer';
+import { definePageSettings } from '../../utils/pageSettingsStore';
 
 const { TabPane } = Tabs;
 const { Option, OptGroup } = Select;
@@ -127,13 +128,67 @@ function deckDefaults(deckId){
 	};
 }
 
+// 排盘设置跨会话保留(用户实报:排盘设置改了之后每次重开软件都要重设)。只收口径与显示偏好:
+// 牌组 / 牌阵 / 牌面样式 / 种子来源 / 盘面开关 / 读法体系各项 / 定局法 / 精华牌口径 / 计时法。
+// 所问、手动种子、指示牌(随问卜人的性别年龄星座)、生日牌的生日是每一局的输入,不进。
+// 逆位 / 元素尊位 / 字母路径变体 / 显示进阶对应 / 牌义体系五项**随牌组吸附**:换牌组时连同吸附后的值一起落盘,
+// 读回时以「该牌组缺省」垫底、保存值盖上 —— 所以库里的五项永远与库里的牌组自洽。
+// 事盘回灌(restoreFromCurrentCase)与「复现」按钮把种子来源改成手动,都走 setState,不经这里。
+export const TAROT_PAGE_SETTINGS = definePageSettings('horosa.tarot.settings.v1', {
+	deckId: { def: DEFAULT_DECK, oneOf: listDeckIds() },
+	spreadType: { def: DEFAULT_SPREAD, oneOf: Object.keys(SPREADS) },
+	artStyle: { def: 'symbol', oneOf: ['symbol', 'image'] },
+	// 「手动种子」离不开逐局输入(种子数,不保留):只留法不留数,重开后种子是 0,而本页一打开就自动抽一次 ——
+	// 每次重开都是同一副「种子 0」的牌。所以手动不进候选(选了照常用,只是不记;库里仍是上一次选的「生辰 / 随机」)。
+	seedMode: { def: 'birth', oneOf: ['birth', 'random'] },
+	useReversals: { def: true },
+	useDignities: { def: false },
+	variant: { def: 'A', oneOf: ['A', 'B', 'C'] },
+	showCorrespondences: { def: false },
+	meaningSystem: { def: 'manual', oneOf: ['manual', 'waite', 'degrees'] },
+	showBottomCard: { def: false },
+	showCutCard: { def: false },
+	majorsOverlay: { def: false },
+	includeBlank: { def: false },
+	courtElementSystem: { def: 'gd', oneOf: ['gd', 'alt'] },
+	courtZodiacSystem: { def: 'gd_span', oneOf: ['gd_span', 'simple'] },
+	edVersion: { def: 'modern', oneOf: ['modern', 'mathers'] },
+	reversalMode: { def: 'stored', oneOf: REVERSAL_MODE_GROUPS.reduce((acc, g)=>acc.concat(g.items), []) },
+	reversalGen: { def: 'shuffle', oneOf: ['shuffle', 'fingers3', 'all'] },
+	astroModern: { def: false },
+	suitElementSwap: { def: false },
+	crossingUpright: { def: true },
+	ookTable: { def: 'standard', oneOf: ['standard', 'sephira'] },
+	dummettOrder: { def: 'C', oneOf: ['A', 'B', 'C'] },
+	verdictMode: { def: 'majority', oneOf: YESNO_MODES },
+	quintMode: { def: 'standard', oneOf: ['standard', 'fool22'] },
+	timingMethod: { def: 'suit_unit', oneOf: TIMING_METHODS },
+	timingUnit: { def: '周', oneOf: ['天', '周', '月'] },
+});
+// 读回:牌组不认识 → 缺省牌组;牌阵不在该牌组允许表里 → 与换牌组同一条回落;随牌组吸附的五项以该牌组缺省垫底。
+// 什么都没存过时返回的就是原来的出厂值(缺省牌组 + 缺省牌阵 + 牌组缺省),零回归。
+function savedTarotState(){
+	const sv = TAROT_PAGE_SETTINGS.loadSaved();
+	const deckId = sv.deckId && hasDeck(sv.deckId) ? sv.deckId : DEFAULT_DECK;
+	const dd = deckDefaults(deckId);
+	const deck = getDeck(deckId);
+	const allowed = (deck && deck.caps && deck.caps.spreads) || Object.keys(SPREADS);
+	let spreadType = sv.spreadType || DEFAULT_SPREAD;
+	if(sv.spreadType && allowed.indexOf(spreadType) < 0){ spreadType = allowed[0] || DEFAULT_SPREAD; }   // 没单独存过牌组时也要查(缺省牌组同样有允许表):否则下拉显示允许表第一项、实际却按存下的那个牌阵抽
+	const out = { ...sv, deckId, spreadType };
+	const snap = { useReversals: dd.reversals, useDignities: dd.dignities, variant: dd.variant, showCorrespondences: dd.showCorrespondences, meaningSystem: dd.meaningSystem };
+	Object.keys(snap).forEach((k)=>{ if(out[k] === undefined){ out[k] = snap[k]; } });
+	return out;
+}
 
 // AI 快照(snapshotRef:'case'):优先 opts,其次已存案例 payload.options,重算 reading → 富文本。
 export async function buildTarotSnapshotForFields(fields, opts){
 	try{
 		const o = opts || {};
 		let { deckId, spreadType, seed, question, settings } = o;
-		if(seed === undefined || seed === null){
+		// [挂载自检 T-1·P1] 页面当前事盘兜底只服务技法页自身导出(snapshotRef:'case');AI 挂载无头路径传 noPageFallback,
+		// 旧档无 seed 时返回 ''(missing)而不是读「页面当前载入的另一个事盘」= 张冠李戴。
+		if((seed === undefined || seed === null) && !o.noPageFallback){
 			const saved = getKentangSavedCasePayload('tarot');
 			const so = saved && saved.payload && saved.payload.options ? saved.payload.options : null;
 			if(so){ deckId = so.deckId; spreadType = so.spreadType; seed = so.seed; question = so.question; settings = so.settings; }
@@ -189,6 +244,7 @@ class TarotMain extends Component{
 			// [自由起盘] 本地时间地理草稿(null=跟主命盘;非空=用户左栏自选:「出生信息」种子按此时地算,亦入事盘)。
 			localFields: null,
 			detailCard: null, // TP6 单卡详情面板当前牌(null=关)
+			...savedTarotState(),   // 上次亲手设的口径(没存过 = 上面的出厂值原样)
 		};
 		this.unmounted = false;
 		['drawCards', 'clickReproduce', 'clickSaveCase', 'restoreFromCurrentCase', 'setRightPanelTab', 'changeSpread', 'changeDeck', 'handleSnapshotRefreshRequest', 'applyRecompute', 'changeVerdictMode', 'onTimeChanged', 'changeGeo'].forEach((m) => { this[m] = this[m].bind(this); });
@@ -223,7 +279,7 @@ class TarotMain extends Component{
 		const reading = this.state ? this.state.reading : null;
 		if(!reading){ return; }
 		let text = '';
-		try{ text = `${buildReadingText(reading, this.state.question) || ''}`.trim(); }catch(e){ text = ''; }
+		try{ text = `${buildReadingText(reading, this.state.question, { clarifier: !!this.state.clarifierShown }) || ''}`.trim(); }catch(e){ text = ''; }
 		if(text){
 			saveModuleAISnapshot('tarot', text);
 			if(evt && evt.detail && typeof evt.detail === 'object'){ evt.detail.snapshotText = text; }
@@ -240,13 +296,14 @@ class TarotMain extends Component{
 			// v3.9.3 塔罗升「卜」一级导航 ⇒ 归属键随迁 'cnyibu' → 'tarot'(#75 归属键契约:
 			// 键错配会把塔罗的交互记到聚合页名下,P5 观测门按 navigationPages 键索引也会漏)。
 			markPanelReady('tarot');
-			saveModuleAISnapshotLazy('tarot', () => buildReadingText(this.state.reading, this.state.question));
+			saveModuleAISnapshotLazy('tarot', () => buildReadingText(this.state.reading, this.state.question, { clarifier: !!this.state.clarifierShown }));
 		});
 	}
 
 	// [X1] 定局法切换:牌(seed 所出)冻结不重抽,仅按新 mode 重建 reading.settings 并重存快照
 	// (旧版只 setState → UI 活算新 mode、快照仍旧 mode,两处 Yes/No 可相互矛盾)。
 	changeVerdictMode(mode){
+		TAROT_PAGE_SETTINGS.save({ verdictMode: mode });
 		this.setState({ verdictMode: mode }, () => {
 			const seed = this.state.lastSeed;
 			if(seed !== undefined && seed !== null && seed !== ''){ this.applyRecompute(); return; }
@@ -254,7 +311,7 @@ class TarotMain extends Component{
 			if(r && r.settings){
 				const reading = { ...r, settings: { ...r.settings, verdictMode: mode } };
 				this.setState({ reading }, () => {
-					saveModuleAISnapshotLazy('tarot', () => buildReadingText(this.state.reading, this.state.question));
+					saveModuleAISnapshotLazy('tarot', () => buildReadingText(this.state.reading, this.state.question, { clarifier: !!this.state.clarifierShown }));
 				});
 			}
 		});
@@ -309,10 +366,16 @@ class TarotMain extends Component{
 		// 牌阵:若当前牌阵不在新牌组允许列表 → 回落该牌组首个允许牌阵
 		const allowed = (deck.caps && deck.caps.spreads) || Object.keys(SPREADS);
 		const spreadType = allowed.indexOf(this.state.spreadType) >= 0 ? this.state.spreadType : (allowed[0] || DEFAULT_SPREAD);
-		this.setState({ deckId, spreadType, useReversals: dd.reversals, useDignities: dd.dignities, variant: dd.variant, showCorrespondences: dd.showCorrespondences, meaningSystem: dd.meaningSystem }, () => this.applyRecompute());
+		const patch = { deckId, spreadType, useReversals: dd.reversals, useDignities: dd.dignities, variant: dd.variant, showCorrespondences: dd.showCorrespondences, meaningSystem: dd.meaningSystem };
+		// 换牌组连同吸附后的五项一起落盘。牌阵不跟着落:这里的 spreadType 取自当前 state,可能是刚载入的事盘带来的,
+		// 不是你亲手选的;库里那份牌阵若不在新牌组的允许表里,读回时自有同一条回落(savedTarotState)。
+		const { spreadType: _omitSpread, ...persistPatch } = patch;
+		TAROT_PAGE_SETTINGS.save(persistPatch);
+		this.setState(patch, () => this.applyRecompute());
 	}
-	changeSpread(spreadType){ this.setState({ spreadType }, () => this.applyRecompute()); }
-	changeSetting(patch){ this.setState(patch, () => this.applyRecompute()); }
+	changeSpread(spreadType){ TAROT_PAGE_SETTINGS.save({ spreadType }); this.setState({ spreadType }, () => this.applyRecompute()); }
+	// 通用设置入口:落盘只收 schema 里的键 —— 指示牌 / 生日这类输入也走这里,但不在 schema 里,自动被忽略。
+	changeSetting(patch){ TAROT_PAGE_SETTINGS.save(patch); this.setState(patch, () => this.applyRecompute()); }
 
 	drawCards(){
 		const seed = resolveSeed(this.state.seedMode, this.state.manualSeed, this.activeFields());
@@ -360,7 +423,7 @@ class TarotMain extends Component{
 					settings: settingsFromState(this.state),
 				},
 				reading: this.state.reading,
-				snapshot: buildReadingText(this.state.reading, this.state.question),
+				snapshot: buildReadingText(this.state.reading, this.state.question, { clarifier: !!this.state.clarifierShown }),
 			},
 		});
 	}
@@ -643,6 +706,12 @@ class TarotMain extends Component{
 		);
 	}
 
+	// [Q-225/T-184] 当前牌阵张数 < 4 → 「大牌加盖」引擎门槛不可达,置灰并说明
+	isSmallSpread(){
+		const sp = SPREADS[this.state.spreadType];
+		return !!(sp && Array.isArray(sp.positions) && sp.positions.length < 4);
+	}
+
 	renderInputPanel(){
 		const s = this.state;
 		const caps = this.caps();
@@ -723,7 +792,7 @@ class TarotMain extends Component{
 				{deckHasRealArt(s.deckId) ? (
 					<div className="horosa-tarot-field">
 						<label>牌面样式</label>
-						<XQSegmented value={s.artStyle} onChange={(e) => this.setState({ artStyle: e.target.value })} options={[{ label: '简约符号', value: 'symbol' }, { label: '真实牌面', value: 'image' }]} />
+						<XQSegmented value={s.artStyle} onChange={(e) => { TAROT_PAGE_SETTINGS.save({ artStyle: e.target.value }); this.setState({ artStyle: e.target.value }); }} options={[{ label: '简约符号', value: 'symbol' }, { label: '真实牌面', value: 'image' }]} />
 						{s.artStyle === 'image' && deckArtIsMajorsOnly(s.deckId) && deck && deck.size > 22 ? (
 							<div style={{ fontSize: 11, lineHeight: 1.45, marginTop: 4, color: 'var(--horosa-astro-muted, #8fa0b9)' }}>真实牌面仅 22 大牌;花色小牌无公有领域单卡图,以符号呈现。需全 78 张真实牌面请用 RWS。</div>
 						) : null}
@@ -747,7 +816,10 @@ class TarotMain extends Component{
 						<Checkbox checked={!!s.showCutCard} onChange={(e) => this.changeSetting({ showCutCard: e.target.checked })}>切牌(心态)</Checkbox>
 					) : null}
 					{caps.readingMethod === 'tarot' ? (
-						<Checkbox checked={!!s.majorsOverlay} onChange={(e) => this.changeSetting({ majorsOverlay: e.target.checked })}>大牌加盖</Checkbox>
+						/* [Q-225/T-184 用户裁决 ①] 引擎门槛:仅四张及以上牌阵(达四张大牌或过半)才加盖 → 1–3 张牌阵置灰并说明,不再默默无效 */
+						<Checkbox checked={!!s.majorsOverlay} disabled={!!this.isSmallSpread()}
+							title={this.isSmallSpread() ? '仅四张及以上牌阵可用(大牌达四张或过半时加盖)' : '大牌达四张或过半时,每张大牌自余牌加盖一张小牌'}
+							onChange={(e) => this.changeSetting({ majorsOverlay: e.target.checked })}>大牌加盖{this.isSmallSpread() ? '（四张以上牌阵）' : ''}</Checkbox>
 					) : null}
 					{caps.blank ? (
 						<Checkbox checked={!!s.includeBlank} onChange={(e) => this.changeSetting({ includeBlank: e.target.checked })}>空白牌(79张)</Checkbox>
@@ -900,6 +972,8 @@ class TarotMain extends Component{
 									<Select value={s.sig.sign} onChange={(v) => this.changeSetting({ sig: { ...s.sig, sign: v } })} size="small" style={{ width: '100%' }} placeholder="选择星座">
 										{SIGN_KEYS.map((k) => (<Option value={k} key={k}>{SIGN_CN[k]}</Option>))}
 									</Select>
+									{/* [Q-223/T-189·FT-33②] 自动指示牌以星座定元素/宫廷牌:未选星座时引擎回 null(等同「不使用」),此前无任何提示 */}
+									{!s.sig.sign ? <div className="horosa-tarot-line" style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>未选星座时「自动」无法定指示牌，等同「不使用」——请选星座或改「手动指定」</div> : null}
 								</div>
 							</>
 						) : null}
@@ -923,7 +997,7 @@ class TarotMain extends Component{
 				<XQSideSection iconName={sideSectionIcon('input')} title="种子与所问" storageKey="tarot.seed" className="horosa-side-input-section">
 				<div className="horosa-tarot-field">
 					<label>种子来源</label>
-					<Select value={s.seedMode} onChange={(v) => this.setState({ seedMode: v })} size="small" style={{ width: '100%' }}>
+					<Select value={s.seedMode} onChange={(v) => { TAROT_PAGE_SETTINGS.save({ seedMode: v }); this.setState({ seedMode: v }); }} size="small" style={{ width: '100%' }}>
 						<Option value="birth">出生信息(可复现)</Option>
 						<Option value="manual">手动数字</Option>
 						<Option value="random">随机</Option>
@@ -1328,7 +1402,7 @@ class TarotMain extends Component{
 				})()}
 				<div className="horosa-info-card">
 					<div className="horosa-info-card-title">澄清牌 Clarifier</div>
-					<Button size="small" onClick={() => this.setState({ clarifierShown: !this.state.clarifierShown })}>{this.state.clarifierShown ? '收起澄清牌' : '抽一张澄清牌'}</Button>
+					<Button size="small" onClick={() => this.setState({ clarifierShown: !this.state.clarifierShown }, () => this.applyRecompute())}>{this.state.clarifierShown ? '收起澄清牌' : '抽一张澄清牌'}</Button>
 					{cl ? <div className="horosa-tarot-line" style={{ marginTop: 6 }}>{displayNameCn(cl, deck)}（{displayNameEn(cl, deck)}）— {cardMeaning(cl, false, this.state.meaningSystem, this.state.reversalMode)}</div> : null}
 				</div>
 			</div>
@@ -1391,11 +1465,11 @@ class TarotMain extends Component{
 	}
 
 	render(){
-		const height = this.props.height ? this.props.height : 760;
-		const contentHeight = typeof height === 'number' ? Math.max(height - 8, 320) : height;
+		// 页高走 100% 定高链(样式见 .horosa-tarot-page:纵向 flex —— 三栏吃剩余空间、底部快捷栏按自身高)。
+		// 此前页根内联「工作区高 − 8」px 且三栏 height:100% 占满整页,自渲的快捷栏被挤到页根之外、整条落在视口下方看不见。
 		return (
 			<TechniqueErrorBoundary label="塔罗">
-				<div className="horosa-cnyibu-technique horosa-tarot-page" style={{ height: contentHeight }}>
+				<div className="horosa-cnyibu-technique horosa-tarot-page">
 					<div className="horosa-tarot-layout">
 						<div className="horosa-tarot-col-left">{this.renderInputPanel()}</div>
 						<div className="horosa-tarot-col-center">{this.renderCenter()}</div>

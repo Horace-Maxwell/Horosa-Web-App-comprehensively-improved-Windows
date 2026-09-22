@@ -41,6 +41,31 @@ def computeLevelInfo(sign, startDate: Datetime, levelIdx):
     }
     return res
 
+def _truncateLevel(node, maxDays):
+    """[Q-362/T-343] 把子期(含其下级列表)截到父期剩余天数:days 取 min(原, 剩余),越界下级整段剔除、跨界下级递归同截;
+    被截的节点打 truncated=True(前端树节点与快照据此标「截」)。"""
+    if not node or maxDays is None:
+        return
+    if node.get('days', 0) > maxDays:
+        node['days'] = maxDays
+        node['truncated'] = True
+    subs = node.get('sublevel')
+    if not subs:
+        return
+    kept = []
+    offset = 0
+    for child in subs:
+        if offset >= maxDays:
+            break
+        cdays = child.get('days', 0)
+        if offset + cdays > maxDays:
+            _truncateLevel(child, maxDays - offset)
+            cdays = child.get('days', 0)
+        kept.append(child)
+        offset += cdays
+    node['sublevel'] = kept
+
+
 def computeLevel(startSign, startDate: Datetime, levelIdx, stopLevelIdx, zone):
     if levelIdx > stopLevelIdx or stopLevelIdx > 3 or stopLevelIdx < 0 or levelIdx < 0:
         return None
@@ -60,6 +85,11 @@ def computeLevel(startSign, startDate: Datetime, levelIdx, stopLevelIdx, zone):
 
         days = sublevelObj['days']
         daydelta = days if cnt + days < totaldays else totaldays - cnt + 1
+        # [Q-362/T-343] 末段子期溢出父期时此前只让游标少走,子项 days 仍是全长、其下级也按全长铺开 →
+        # 每个 L1 的最后一个 L2 讫日超出所属 L1 90-390 天(前端「当前所处」末期讫日 = date + days 同错)。
+        # 改为按父期剩余天数截断(下级同截)并打 truncated 标。
+        if cnt + days >= totaldays:
+            _truncateLevel(sublevelObj, max(totaldays - cnt, 0))
         nextDate = Datetime.fromJD(nextDate.jd + daydelta, zone)
         cnt = cnt + daydelta
         sublevel.append(sublevelObj)

@@ -9,6 +9,8 @@ import { signRequest } from '../utils/request';
 import { encryptRSA } from '../utils/rsahelper';
 import { NeedEncrypt } from '../utils/constants';
 import { aiBodyEncryptEnabled } from '../utils/perfFlags';
+import { DEFAULT_STREAM_STALL_MS, DEFAULT_STREAM_MAX_MS } from '../utils/aiStreamLimits';
+import { normalizeUsage } from '../utils/aiChat/status';
 
 function safeParseJson(text, defVal = null){
 	try{
@@ -18,11 +20,35 @@ function safeParseJson(text, defVal = null){
 	}
 }
 
-// 尊重用户在 providerOptions.requestTimeoutMs 配置的超时(1s~10min),否则回退 120s。
+// [Q-411/M-157] 请求超时单源钳位:用户填的 providerOptions.requestTimeoutMs 钳到 [1s, 10min],前端等待
+//   与下发给后端的数**同一个**(此前前端 <1000 改用 120000、>600000 封顶,而 Java 原值直用 → 填 500 时 Java 0.5 秒超时、
+//   前端等 120 秒;填 900000 时两层各一套)。留空仍各走缺省(前端 120s / ollama 180s;后端非流式 60s、流式不封顶)。
+export const REQUEST_TIMEOUT_MIN_MS = 1000;
+export const REQUEST_TIMEOUT_MAX_MS = 600000;
+export function clampRequestTimeoutMs(raw){
+	if(raw === undefined || raw === null || `${raw}`.trim() === ''){ return null; }
+	const n = Number(raw);
+	if(!Number.isFinite(n) || n <= 0){ return null; }
+	return Math.min(Math.max(Math.round(n), REQUEST_TIMEOUT_MIN_MS), REQUEST_TIMEOUT_MAX_MS);
+}
+// 出站前把 values.providerOptions.requestTimeoutMs 改写成钳位后的数(无值/非法值则剥掉),后端与前端同数。
+export function withClampedRequestTimeout(values){
+	if(!values || !values.providerOptions || typeof values.providerOptions !== 'object'){ return values; }
+	if(!Object.prototype.hasOwnProperty.call(values.providerOptions, 'requestTimeoutMs')){ return values; }
+	const raw = values.providerOptions.requestTimeoutMs;
+	const clamped = clampRequestTimeoutMs(raw);
+	if(clamped === null){
+		const { requestTimeoutMs, ...rest } = values.providerOptions;
+		return { ...values, providerOptions: rest };
+	}
+	if(clamped === raw){ return values; }
+	return { ...values, providerOptions: { ...values.providerOptions, requestTimeoutMs: clamped } };
+}
+// 尊重用户在 providerOptions.requestTimeoutMs 配置的超时(钳到 1s~10min),否则回退 120s。
 function resolveRequestTimeout(values){
-	const raw = values && values.providerOptions ? Number(values.providerOptions.requestTimeoutMs) : NaN;
-	if(Number.isFinite(raw) && raw >= 1000){
-		return Math.min(raw, 600000);
+	const clamped = clampRequestTimeoutMs(values && values.providerOptions ? values.providerOptions.requestTimeoutMs : null);
+	if(clamped !== null){
+		return clamped;
 	}
 	// v1.16-BB6: Ollama 本地首次模型加载慢(20s+),默认 timeout 给 180s 避免假阴性诊断
 	const pt = values && values.providerType;
@@ -173,7 +199,8 @@ function withTimeout(promiseFactory, timeoutMs, externalSignal){
 	});
 }
 
-async function requestJson(url, values, options = {}){
+async function requestJson(url, rawValues, options = {}){
+	const values = withClampedRequestTimeout(rawValues);   // [Q-411/M-157] 后端拿到的超时数与前端等待同源
 	return withTimeout(async (signal)=>{
 		const bodyText = JSON.stringify(values || {});
 		const response = await fetch(url, {
@@ -222,13 +249,30 @@ export function requestEmbeddingVectors(values){
 	});
 }
 
-export function requestAIAnalysisChat(values){
+// [Q1] options.signal:非流式短调用(判官/编排规划与综合/联网检索)同样能被用户的「停止」中止——
+// requestJson 的 withTimeout(…, options.signal) 才是真正的中止入口,只传 timeoutMs 则前面「传了 signal」也中止不了任何请求
+export function requestAIAnalysisChat(values, options){
+	const signal = options && options.signal ? options.signal : undefined;
 	return requestJson(`${ServerRoot}/aianalysis/chat`, values, {
 		timeoutMs: resolveRequestTimeout(values),
+		signal,
 	});
 }
 
-export async function requestAIAnalysisChatStream(values, handlers = {}){
+// [P7 出站②] 联网检索:引擎与 Key 逐次带上(后端不落库不写日志);默认关,开关未开时页面根本不调
+export function requestWebSearch(values, options){
+	const signal = options && options.signal ? options.signal : undefined;
+	return requestJson(`${ServerRoot}/aianalysis/websearch`, values, { timeoutMs: 25000, signal });
+}
+
+// [批三① 出站③] 网页读取:同联网检索一样只经 Java 端点(前端零直连;守卫/有界/转文本都在后端);30s + signal
+export function requestWebFetch(values, options){
+	const signal = options && options.signal ? options.signal : undefined;
+	return requestJson(`${ServerRoot}/aianalysis/webfetch`, values, { timeoutMs: 30000, signal });
+}
+
+export async function requestAIAnalysisChatStream(rawValues, handlers = {}){
+	const values = withClampedRequestTimeout(rawValues);   // [Q-411/M-157]
 	const response = await withTimeout(async (signal)=>{
 		const bodyText = JSON.stringify(values || {});
 		const rsp = await fetch(`${ServerRoot}/aianalysis/chat/stream`, {
@@ -285,8 +329,8 @@ export async function requestAIAnalysisChatStream(values, handlers = {}){
 		if(Number.isFinite(v) && v >= 1000){ return Math.min(v, 7200000); }
 		return defVal;
 	};
-	const STALL_MS = pickMs(handlers.stallMs, po.streamStallMs, 180000);
-	const MAX_STREAM_MS = pickMs(handlers.maxStreamMs, po.streamMaxStreamMs, 1800000);
+	const STALL_MS = pickMs(handlers.stallMs, po.streamStallMs, DEFAULT_STREAM_STALL_MS);   // [D42] 缺省单源 aiStreamLimits(手册文案同源插值)
+	const MAX_STREAM_MS = pickMs(handlers.maxStreamMs, po.streamMaxStreamMs, DEFAULT_STREAM_MAX_MS);
 	let stalled = false;
 	let hardTimedOut = false;
 	let watchdog = null;
@@ -301,7 +345,11 @@ export async function requestAIAnalysisChatStream(values, handlers = {}){
 		// 内容 token(delta)与思维链 token(reasoning)都算「真有产出」→ 续命空闲看门狗(心跳/usage 不算)。
 		// ⚠️ reasoning 必须续命:推理模型(o系/R1/deepseek-r1)可先纯思考 >90s 再出正文,
 		//    若只认 delta,长思考期看门狗会在 STALL_MS 误杀流(报「长时间无新内容」),正是思考档要支持的场景。
-		if(event && (event.type === 'delta' || event.type === 'reasoning')){ armWatchdog(); }
+		// 工具调用帧(tool_call_start/tool_call)同样是真产出:模型先出长参数再出正文时不得被空闲看门狗误杀。
+		if(event && (event.type === 'delta' || event.type === 'reasoning' || event.type === 'tool_call' || event.type === 'tool_call_start' || event.type === 'tool_call_delta')){ armWatchdog(); }
+		// [I1] usage 事件的唯一入口:各家缓存计量别名在这里折成 cache_read_input_tokens 一次,
+		// 下游(protocol.mergeUsage / 状态栏 deriveUsage / 目标任务 / A/B 分析器)一律吃归一后的值,不各自认别名。
+		if(event && event.type === 'usage'){ event.json = normalizeUsage(event.json); }
 		if(handlers.onEvent){
 			handlers.onEvent(event);
 		}

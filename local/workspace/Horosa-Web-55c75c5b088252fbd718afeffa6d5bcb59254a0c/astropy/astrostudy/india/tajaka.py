@@ -241,13 +241,13 @@ def _hl(*pairs):
 HADDA_LORDS = {
     const.ARIES: _hl((6, const.JUPITER), (12, const.VENUS), (20, const.MERCURY), (25, const.MARS), (30, const.SATURN)),
     const.TAURUS: _hl((8, const.VENUS), (14, const.MERCURY), (22, const.JUPITER), (27, const.SATURN), (30, const.MARS)),
-    const.GEMINI: _hl((6, const.MERCURY), (12, const.VENUS), (17, const.JUPITER), (24, const.MARS), (30, const.SATURN)),
+    const.GEMINI: _hl((6, const.MERCURY), (12, const.JUPITER), (17, const.VENUS), (24, const.MARS), (30, const.SATURN)),   # T-28:6–17° 木金原互换,按埃及界改正
     const.CANCER: _hl((7, const.MARS), (13, const.VENUS), (19, const.MERCURY), (26, const.JUPITER), (30, const.SATURN)),
     const.LEO: _hl((6, const.JUPITER), (11, const.VENUS), (18, const.SATURN), (24, const.MERCURY), (30, const.MARS)),
     const.VIRGO: _hl((7, const.MERCURY), (17, const.VENUS), (21, const.JUPITER), (28, const.MARS), (30, const.SATURN)),
     const.LIBRA: _hl((6, const.SATURN), (14, const.MERCURY), (21, const.JUPITER), (28, const.VENUS), (30, const.MARS)),
     const.SCORPIO: _hl((7, const.MARS), (11, const.VENUS), (19, const.MERCURY), (24, const.JUPITER), (30, const.SATURN)),
-    const.SAGITTARIUS: _hl((12, const.JUPITER), (17, const.VENUS), (21, const.MERCURY), (26, const.MARS), (30, const.SATURN)),
+    const.SAGITTARIUS: _hl((12, const.JUPITER), (17, const.VENUS), (21, const.MERCURY), (26, const.SATURN), (30, const.MARS)),   # T-28:21–30° 火土原互换,按埃及界改正
     const.CAPRICORN: _hl((7, const.MERCURY), (14, const.JUPITER), (22, const.VENUS), (26, const.SATURN), (30, const.MARS)),
     const.AQUARIUS: _hl((7, const.MERCURY), (13, const.VENUS), (20, const.JUPITER), (25, const.MARS), (30, const.SATURN)),
     const.PISCES: _hl((12, const.VENUS), (16, const.JUPITER), (19, const.MERCURY), (28, const.MARS), (30, const.SATURN)),
@@ -806,7 +806,10 @@ def patyayini_dasa(planet_lons, lagna_lon, year_days=None, lagna_point='degree')
     相邻差 = patyamsa，期长(日) = 年长 × patyamsa / Σpatyamsa（Σ = 最大 krisamsa）。
 
     输入：年度盘七曜黄经 + lagna 黄经。返回 {'order':[{ref,krisamsa,patyamsa,days}], 'totalDays'}。
-    第一项（最小 krisamsa）无 patyamsa（不占期）。
+    [Q-122/T-30 2026-09-18 原典核对] 第一项(最小 krisamsa)的 patyamsa = 其自身 krisamsa(Charak《Textbook of
+    Varshaphala》p.47「The dasha lord with the minimum Krishamshas has the same value for its Patyamshas」;
+    Raman《Varshaphal》Art.49「not omitting the position of the planet having the lowest number of degrees」),
+    故 Σpatyamsa = 最大 krisamsa(与本 docstring 首句一致)。此前首项取 0、Σ = max − min,座内度数最小者恒 0 天。
     """
     year_len = _TAJAKA_YEAR_DAYS if year_days is None else float(year_days)
     lagna_kris = 0.0 if lagna_point == 'cusp' else _signlon(lagna_lon)
@@ -815,12 +818,12 @@ def patyayini_dasa(planet_lons, lagna_lon, year_days=None, lagna_point='degree')
         if p in planet_lons:
             rows.append({'ref': p, 'krisamsa': _signlon(planet_lons[p])})
     rows.sort(key=lambda r: r['krisamsa'])
-    total_patyamsa = rows[-1]['krisamsa'] - rows[0]['krisamsa'] if len(rows) > 1 else 0.0
+    total_patyamsa = rows[-1]['krisamsa'] if rows else 0.0   # Σ = 最大 krisamsa(首项占自身份额)
     out = []
     prev = None
     for r in rows:
         if prev is None:
-            patyamsa = 0.0
+            patyamsa = r['krisamsa']          # 首项:自身 krisamsa
         else:
             patyamsa = r['krisamsa'] - prev
         prev = r['krisamsa']

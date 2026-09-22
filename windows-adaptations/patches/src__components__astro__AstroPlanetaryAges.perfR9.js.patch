@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/astro/AstroPlanetaryAges.js b/astrostudyui/src/components/astro/AstroPlanetaryAges.js
-index 239aab2..560bf10 100644
+index d19ddb74..e399402d 100644
 --- a/astrostudyui/src/components/astro/AstroPlanetaryAges.js
 +++ b/astrostudyui/src/components/astro/AstroPlanetaryAges.js
-@@ -9,6 +9,7 @@ import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
- import { buildPlanetaryAges, buildPlanetaryAgesSnapshotText, } from '../../utils/planetaryAges';
+@@ -10,6 +10,7 @@ import { buildPlanetaryAges, buildPlanetaryAgesSnapshotText, } from '../../utils
  import { PLANETARY_YEARS } from '../../divination/data/hellenisticData';
  import styles from '../../css/styles.less';
+ import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 +import { markPanelReady } from '../../utils/perfMark';
  
  // 行星年四档：七政各有通用的四档年数（小/中/大/极大），按迦勒底序由土至月排列。
  const YEAR_BAND_ORDER = [
-@@ -98,6 +99,8 @@ class AstroPlanetaryAges extends Component{
+@@ -100,6 +101,8 @@ class AstroPlanetaryAges extends Component{
  
  	componentDidUpdate(prevProps){
  		if(prevProps.value !== this.props.value){

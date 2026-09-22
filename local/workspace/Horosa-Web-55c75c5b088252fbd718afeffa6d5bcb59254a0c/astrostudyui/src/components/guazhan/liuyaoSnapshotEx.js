@@ -106,7 +106,32 @@ export function zhanleiLines(a, guaName){
 	const out = ['[占类断语]'];
 	const lore = guaName ? guaLoreOf(guaName) : null;
 	if(lore){ out.push(`历史占例：${lore.who}${lore.event},${lore.result}`); }
-	if(a && a.gufa && a.gufa.sixteenPos){ out.push(`十六变：第${a.gufa.sixteenPos.step}变·${a.gufa.sixteenPos.vname}`); }
+	// [Q-205/T-152] 古法进阶引擎产七项、断诀页也画七卡,快照此前只取「十六变」一行 —— 开了齿轮
+	// 等于只多一行,其余六项 AI 完全看不到。按页面同口径逐项摘要(缺项不产行;齿轮关=整段零增)。
+	if(a && a.gufa){
+		const gf = a.gufa;
+		if(gf.sixteenPos){ out.push(`十六变：第${gf.sixteenPos.step}变·${gf.sixteenPos.vname}${gf.sixteenPos.duan ? `(${gf.sixteenPos.duan})` : ''}`); }
+		if(gf.shengJiang && gf.shengJiang.upYao && gf.shengJiang.downYao){
+			const sj = gf.shengJiang;
+			out.push(`升降(${sj.zhongqi})：${sj.upYao.name}=第${sj.upYao.pos}爻(${sj.upYao.zhi})${sj.upMatch ? '·得度' : '·阴阳反度(主退损)'}；${sj.downYao.name}=第${sj.downYao.pos}爻(${sj.downYao.zhi})${sj.keSheng ? `；动爻第${sj.keSheng.fromPos}爻克升爻,应${sj.keSheng.atZhi}月凶` : ''}`);
+		}
+		if(gf.guaSheng && (gf.guaSheng.hits || []).length){
+			out.push(`卦生：卦身${gf.guaSheng.body}(${gf.guaSheng.bodyWx})生${gf.guaSheng.target} → ${gf.guaSheng.hits.map((h)=>`第${h.pos}爻${h.liuqin}${h.liushen ? `(${h.liushen})` : ''}`).join('、')}`);
+		}
+		if(gf.zhiFu && Array.isArray(gf.zhiFu.perFu) && gf.zhiFu.perFu.length){
+			out.push(`直符四建：${gf.zhiFu.perFu.map((f)=>`${f.jian}${f.name}(${f.zhi}${f.wuxing})${(f.yaoPos || []).length ? `临第${f.yaoPos.join('/')}爻` : '不上卦'}`).join('；')}${gf.zhiFu.noneOn ? '；四直皆不上卦(所为先聚后相抛)' : ''}`);
+		}
+		if(gf.sanXian && Array.isArray(gf.sanXian.seg) && gf.sanXian.seg.length){
+			out.push(`三限荣枯：${gf.sanXian.seg.map((sg)=>`${sg.side}·第${sg.pos}爻${sg.zhi}${sg.wuxing}${sg.liuqin}管${sg.years}年${sg.moving ? '·动' : ''}`).join('；')}`);
+		}
+		if(gf.baJie && gf.baJie.map){
+			const m = gf.baJie.map;
+			out.push(`八节卦气(${gf.baJie.jie})：${Object.keys(m).map((k)=>`${k}${m[k]}`).join(' ')}${gf.baJie.neiTai ? `；内卦气=${gf.baJie.neiTai.state || '—'}${gf.baJie.neiTai.isTai ? '(内胎之象)' : ''}` : ''}`);
+		}
+		if(gf.pastFuture && Array.isArray(gf.pastFuture.perYao) && gf.pastFuture.perYao.length){
+			out.push(`过去未来(以卦身为界)：${gf.pastFuture.perYao.map((x)=>`${x.pos}爻${x.phase}`).join('、')}`);
+		}
+	}
 	// WP-6:《断易天机》断语库按占测事项【有界摘要】入快照(总断门纲领 + 命中门 top-N,硬上限 20 条,每条带出处)。
 	// 缓存已由 GuaZhanMain mount 预热(loadDoctrine);未载则省略(不阻断同步快照)。
 	const askType = a && a.settings && a.settings.askType;

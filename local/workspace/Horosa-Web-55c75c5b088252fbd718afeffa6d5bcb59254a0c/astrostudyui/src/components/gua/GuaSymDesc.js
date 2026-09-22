@@ -4,6 +4,7 @@ import DoubleMeiyiGuaSym from './DoubleMeiyiGuaSym';
 import GuaSym from './GuaSym';
 import GuaChartDiv from './GuaChartDiv';
 import { safeLocalStorageGet, safeLocalStorageSet, safeLocalStorageRemove } from '../../utils/safeStorage';
+import { getLayoutViewportWidth, getLayoutViewportHeight } from '../../utils/shellZoom';
 
 const guaDataKey = 'guaData';
 
@@ -178,47 +179,52 @@ export default class GuaSymDesc extends Component{
     }
 
     render(){
-		let height = this.props.height ? this.props.height : document.documentElement.clientHeight;
+		let height = this.props.height ? this.props.height : getLayoutViewportHeight();
         let namedom = this.genGuaNamDom();
         let nameInverseDom = this.genGuaInverseNamDom();
         let meiyiheight = height + 20;
 
+        // fill = 充满父容器(见 GuaSym 注)。列数断点一律看**布局域**宽:documentElement.clientWidth 是物理域,
+        // 壳放大档(如 1.8)物理 1728 而布局只有 960,按物理宽判 >1000 会硬排四列把每列挤成 200 出头。z=1 两者相等,零变化。
+        const fill = !!this.props.fill;
         let span = 8;
-        let width = document.documentElement.clientWidth;
+        let width = getLayoutViewportWidth();
         if(width > 1000){
             span = 6;
         }
+        const colStyle = fill ? { height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' } : undefined;
+        const headStyle = fill ? { flex: 'none' } : undefined;
 
         return (
-            <div>
-                <Row gutter={16}>
-                    <Col span={span*2}>
-                        <DoubleMeiyiGuaSym height={meiyiheight} 
+            <div style={fill ? { height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' } : undefined}>
+                <Row gutter={16} style={fill ? { flex: '1 1 0', minHeight: 0 } : undefined}>
+                    <Col span={span*2} style={fill ? { height: '100%', minHeight: 0 } : undefined}>
+                        <DoubleMeiyiGuaSym height={meiyiheight} fill={fill}
                             onData={this.onDataChanged}
                             onChange={this.onStatChanged}
                             value={this.state.allData}
                             newValue={this.state.newValue}
                         />
                     </Col>
-                    <Col span={span}>
-                        <Row gutter={8}>
+                    <Col span={span} style={colStyle}>
+                        <Row gutter={8} style={headStyle}>
                             <Col span={6}>
                                 <GuaChartDiv value={this.state.data} height={30} width={40} />
                             </Col>
                             <Col span={18}>{namedom}</Col>
                         </Row>
-                        <GuaSym height={height} value={this.state.data} />
+                        <GuaSym height={height} value={this.state.data} fill={fill} />
                     </Col>
                     {
                         span == 6 && (
-                            <Col span={span}>
-                                <Row gutter={8}>
+                            <Col span={span} style={colStyle}>
+                                <Row gutter={8} style={headStyle}>
                                     <Col span={6}>
                                         <GuaChartDiv value={this.state.dataInverse} height={30} width={40} />
                                     </Col>
                                     <Col span={18}>{nameInverseDom}</Col>
                                 </Row>
-                                <GuaSym height={height} value={this.state.dataInverse} />
+                                <GuaSym height={height} value={this.state.dataInverse} fill={fill} />
                             </Col>    
                         )
                     }

@@ -67,7 +67,8 @@ class LatInput extends Component{
 			let val = this.state.defValue;
 			let parts = this.takeParts();
 			if(parts.length > 0){
-				val = parts[1] + parts[0] + value;
+				// [Q-426/T-392] 度数已到上限 90° 时分只能是 00。
+				val = parts[1] + parts[0] + (Number(parts[1]) >= 90 ? '00' : value);
 			}
 			this.props.onChange(val)	
 		}
@@ -78,10 +79,12 @@ class LatInput extends Component{
 			let val = this.state.defValue;
 			let parts = this.takeParts();
 			if(parts.length > 0){
+				// [Q-426/T-392] 清空度数框保留原度数(此前写回固定 26°);度数达上限 90° 时分钳为 00(否则可组合出 90°59′ 越界坐标)。
 				if(value === undefined || value === null || value === '' || isNaN(value)){
-					val = '26' + parts[0] + parts[2];
+					val = parts[1] + parts[0] + parts[2];
 				}else{
-					val = value + parts[0] + parts[2];
+					const d = Math.max(0, Math.min(90, Number(value)));
+					val = d + parts[0] + (d >= 90 ? '00' : parts[2]);
 				}
 			}
 			this.props.onChange(val)
@@ -103,7 +106,7 @@ class LatInput extends Component{
 
 		let parts = this.takeParts();
 		let latdir = 'n';
-		let deg = 16;
+		let deg = 26;   // [Q-426] 渲染兜底与取值兜底(26)一致
 		let degmin = '04';
 		if(parts.length > 0){
 			latdir = parts[0];

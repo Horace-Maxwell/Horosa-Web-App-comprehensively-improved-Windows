@@ -3,8 +3,9 @@ import { Spin, Empty, Pagination, Select, Input, InputNumber } from 'antd';
 import echarts from './echartsCore';
 import { fetchCelestial, fetchMicrochronology, fetchDecadeOmens, fetchCelestialEvent } from '../../services/xuanshi';
 import { marked } from 'marked';
-import { resolveChartDate, collapseSoftBreaks } from './xuanshiDate';
+import { resolveChartDate, collapseSoftBreaks, celestialCalendarLabel, celestialDateWithCalendar } from './xuanshiDate';   // [Q-495/T-457] 日期按来源标历法
 import XuanShiStar from './XuanShiStar';
+import { fixedPopupFrame } from '../../utils/zoomDomain';
 
 // 天象事件收藏项(kind=celestial,案头可回跳星象大典)
 function celBookmarkItem(e) {
@@ -41,12 +42,14 @@ export default class XuanShiCelestial extends React.Component {
 
 	// 悬停详情卡(对齐参考:日期 / 原文 / 白话译文 / 来源 / 事件ID),定位贴行右侧、越界翻左
 	showHover(e, ev) {
-		const rect = e.currentTarget.getBoundingClientRect();
+		// 悬停卡是 position:fixed:锚点 rect(视觉域)先换到布局域,再与布局视口 / 卡宽(CSS 尺寸)同域比较;z=1 时逐值不变。
+		const frame = fixedPopupFrame();
+		const rect = frame.rect(e.currentTarget.getBoundingClientRect());
 		const W = 360;
 		let left = rect.right + 12;
-		if (left + W > window.innerWidth - 12) { left = rect.left - W - 12; }
+		if (left + W > frame.viewportWidth - 12) { left = rect.left - W - 12; }
 		if (left < 12) { left = 12; }
-		const top = Math.min(Math.max(12, rect.top), window.innerHeight - 240);
+		const top = Math.min(Math.max(12, rect.top), frame.viewportHeight - 240);
 		this.setState({ hover: ev, hoverPos: { left, top } });
 	}
 	hideHover() { this.setState({ hover: null }); }
@@ -70,6 +73,7 @@ export default class XuanShiCelestial extends React.Component {
 	}
 
 	componentWillUnmount() {
+		clearTimeout(this._yearTimer);
 		if (this._decadeChart) { this._decadeChart.dispose(); this._decadeChart = null; }
 		if (this._hostRO) { try { this._hostRO.disconnect(); } catch (e) { /* noop */ } this._hostRO = null; }
 		if (this._onResize) { window.removeEventListener('resize', this._onResize); }
@@ -134,6 +138,7 @@ export default class XuanShiCelestial extends React.Component {
 	}
 
 	async load() {
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
 		this.setState({ loading: true, err: '' });
 		try {
 			const r = await fetchCelestial({
@@ -147,7 +152,7 @@ export default class XuanShiCelestial extends React.Component {
 				in_chapter: this.state.inChapter !== '' ? this.state.inChapter : undefined,
 				q: this.state.q || undefined,
 				page: this.state.page, page_size: 20,
-			});
+			}); if(__seq !== this._loadSeq){ return; }
 			this.setState({
 				events: r.events || r.items || [], total: r.total || 0, pages: r.pages || 0,
 				// global_summary 恒为全库口径(KPI/筛选器选项源);仅首拉或缺失时落库,后续筛选不覆盖
@@ -157,14 +162,22 @@ export default class XuanShiCelestial extends React.Component {
 		this.persist();
 	}
 
-	setFilter(patch) { this.setState({ ...patch, page: 1 }, () => this.load()); }
+	// [Q-496/T-458] 起年 / 终年每敲一位就发一次请求 → 年份键防抖 450ms(其它筛选照旧即时);配合 load 序号守卫
+	setFilter(patch) {
+		const yearKey = !!(patch && (Object.prototype.hasOwnProperty.call(patch, 'yearFrom') || Object.prototype.hasOwnProperty.call(patch, 'yearTo')));
+		this.setState({ ...patch, page: 1 }, () => {
+			if(yearKey){ clearTimeout(this._yearTimer); this._yearTimer = setTimeout(() => this.load(), 450); }
+			else{ this.load(); }
+		});
+	}
 
 	// 十年密度下钻:取该年代逐年天象(微年表);再点同一年代则收起
 	async loadMicro(decade) {
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
 		if (this.state.microDecade === decade) { this.setState({ microDecade: null, micro: null }); return; }
 		this.setState({ microDecade: decade, micro: null, microLoading: true, microPage: 1 });
 		try {
-			const r = await fetchMicrochronology({ decade }); // 该年代全部事件(不受列表 omen 过滤影响)
+			const r = await fetchMicrochronology({ decade }); if(__seq !== this._loadSeq){ return; } // 该年代全部事件(不受列表 omen 过滤影响)
 			// 源数据同一天象在多个 topic CSV 各存一份(原文最多重复 32 次)→ 按(原文+日期)去重
 			const seen = new Set();
 			const events = (r.events || []).filter((e) => { const k = `${e.original || e.interpretation || ''}|${e.modern_date_disp || e.date_phrase || ''}`; if (seen.has(k)) { return false; } seen.add(k); return true; });
@@ -336,7 +349,7 @@ export default class XuanShiCelestial extends React.Component {
 			<div>
 				<span className="xuanshi-link" onClick={() => this.setState({ selected: null })}>← 返回</span>
 				<div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginTop: 12 }}>
-						<h2 className="xuanshi-display is-h2" style={{ margin: 0 }}>{d.omen || '天象'} · {d.dynasty || ''}{d.modern_date_disp ? ` · ${d.modern_date_disp}` : ''}</h2>
+						<h2 className="xuanshi-display is-h2" style={{ margin: 0 }}>{d.omen || '天象'} · {d.dynasty || ''}{d.modern_date_disp ? ` · ${celestialDateWithCalendar(d)}` : ''}</h2>
 						<XuanShiStar item={celBookmarkItem(d)} />
 					</div>
 				<div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '10px 0 18px' }}>
@@ -355,7 +368,8 @@ export default class XuanShiCelestial extends React.Component {
 							if (!rd) { return null; }
 							return (
 								<div style={{ marginTop: 14 }}>
-									<div className="xuanshi-hint" style={{ marginBottom: 8 }}>{rd.exact ? `公历 ${rd.md}` : `${rd.disp}(按年份最早)`} —— 排此历史日之盘(按朝代都城近似经纬)</div>
+									{/* [Q-487/T-449] 近似日期(月级/年级/年段)标「约」并说明起盘取法,不再冒充精确日。 */}
+									<div className="xuanshi-hint" style={{ marginBottom: 8 }}>{rd.exact ? `公历 ${rd.disp}${rd.calendar === 'julian' ? `（儒略历 ${rd.md} 起盘）` : ''}` : `${rd.disp}（${rd.note || '按年份最早'}${rd.calendar === 'julian' ? '·儒略历' : ''}）`} —— 排此历史日之盘(按朝代都城近似经纬·都城地方平时)</div>
 									<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
 										<span className="xuanshi-btn is-primary" onClick={() => this.props.onChartLink(d, 'astrochart')}>排此日 · 占星盘</span>
 										<span className="xuanshi-btn" onClick={() => this.props.onChartLink(d, 'guolao')}>排此日 · 七政四余</span>
@@ -374,7 +388,7 @@ export default class XuanShiCelestial extends React.Component {
 							{metaText('主体', d.subject)}
 							{metaText('动作', d.action)}
 							{metaText('对象', d.target)}
-							{metaText('公历', d.modern_date_disp || d.modern_date)}
+							{metaText(celestialCalendarLabel(d) || '公历', d.modern_date_disp || d.modern_date)}
 							{metaText('主题', d.routing_theme)}
 						</aside>
 					) : null}
@@ -403,7 +417,7 @@ export default class XuanShiCelestial extends React.Component {
 					<span className="xuanshi-crumb" onClick={() => this.props.onHome && this.props.onHome()}>首页</span>
 					<span className="xuanshi-crumb-sep">/</span><span>星象大典</span>
 				</div>
-				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,3.4vw,38px)' }}>星象大典</h1>
+				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,calc(3.4 * var(--horosa-lvw, 1vw)),38px)' }}>星象大典</h1>
 				<div className="xuanshi-section-sub" style={{ maxWidth: 920, margin: '8px 0 0' }}>
 					汇集正史天文、灾异、微年表、流星形态与社会交叉记录，统一归一到 <b style={{ color: 'var(--ink)' }}>朝代 × 天象类 × 史书 × 公历时间</b> 视图。
 					全库 <b style={{ color: 'var(--vermilion)' }}>{(sm.total || 0).toLocaleString()}</b> 事件 · <b>{(sm.with_year || 0).toLocaleString()}</b> 可推公历年 · <b>{(sm.has_crosswalk || 0).toLocaleString()}</b> 已做同日近日交叉 · <b>{(sm.in_chapter || 0).toLocaleString()}</b> 已入正式章稿
@@ -460,7 +474,7 @@ export default class XuanShiCelestial extends React.Component {
 									<div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6, paddingRight: 22 }}>
 										<span className="xuanshi-chip is-vermilion">{e.omen}</span>
 										{e.dynasty ? <span className="xuanshi-chip is-ink">{e.dynasty}</span> : null}
-										{e.modern_date_disp ? <span className="xuanshi-chip is-gold">{e.modern_date_disp}</span> : null}
+										{e.modern_date_disp ? <span className="xuanshi-chip is-gold" title={celestialCalendarLabel(e) === '儒略历' ? '史料所载儒略历日期(1582-10-15 改历之前);带儒略日的条目才是格里历' : undefined}>{celestialDateWithCalendar(e)}</span> : null}
 									</div>
 									<div className="xuanshi-stat-sub" style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--ink-soft)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
 										{e.original || e.interpretation || e.date_phrase || ''}
@@ -480,7 +494,7 @@ export default class XuanShiCelestial extends React.Component {
 				{this.state.hover ? (
 					<div className="xuanshi-micro-hover" style={this.state.hoverPos ? { left: this.state.hoverPos.left, top: this.state.hoverPos.top } : undefined}>
 						{this.state.hover.omen ? <span className="xuanshi-chip is-jade" style={{ marginBottom: 8, display: 'inline-block' }}>{this.state.hover.omen}</span> : null}
-						<div className="xuanshi-mh-field"><div className="k">日期</div><div className="v">{this.state.hover.date_phrase || '—'}{this.state.hover.modern_date_disp ? ` · 公历 ${this.state.hover.modern_date_disp}` : ''}</div></div>
+						<div className="xuanshi-mh-field"><div className="k">日期</div><div className="v">{this.state.hover.date_phrase || '—'}{this.state.hover.modern_date_disp ? ` · ${celestialDateWithCalendar(this.state.hover, { prefix: true })}` : ''}</div></div>
 						{this.state.hover.original ? <div className="xuanshi-mh-field"><div className="k">原文</div><div className="v" style={{ fontFamily: 'var(--xs-serif)' }}>{collapseSoftBreaks(this.state.hover.original)}</div></div> : null}
 						{this.state.hover.modern && !nearSame(this.state.hover.modern, this.state.hover.original) ? <div className="xuanshi-mh-field"><div className="k">白话译文</div><div className="v" style={{ borderLeft: '3px solid var(--jade)', paddingLeft: 8 }}>{collapseSoftBreaks(this.state.hover.modern)}</div></div> : null}
 						{this.state.hover.interpretation ? <div className="xuanshi-mh-field"><div className="k">解读</div><div className="v" style={{ color: 'var(--jade)' }}>{collapseSoftBreaks(this.state.hover.interpretation)}</div></div> : null}

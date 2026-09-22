@@ -541,3 +541,13 @@ def test_sun_horizon_polar_day_and_night():
     below_n = _scan(night, {'type': 'considerations', 'params': {'item': 'sun_below_horizon'}})
     assert above_n == []
     assert len(below_n) == 1 and abs(below_n[0]['durationMin'] - 3 * 1440.0) < 2.0
+
+
+def test_considerations_early_deg_zero_is_not_default():
+    """[Q-271/ZC-27] 初度阈填 0 = 合法值(只看末度),此前 `or 3.0` 把 0 当缺省 → 「月在座初」仍含 0–3°。
+    早度段:earlyDeg=0 → 无区间;earlyDeg=3 → 有区间;两者可分辨。"""
+    base = {'startDate': '2024/04/07', 'endDate': '2024/04/14'}
+    zero = _scan(base, {'type': 'considerations', 'params': {'item': 'moon_early_sign', 'earlyDeg': 0}})
+    three = _scan(base, {'type': 'considerations', 'params': {'item': 'moon_early_sign', 'earlyDeg': 3}})
+    assert not zero, zero
+    assert three

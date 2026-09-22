@@ -1,12 +1,18 @@
 package boundless.log;
 
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -154,137 +160,166 @@ public class AppLoggers {
 		if(now == today){
 			return;
 		}
-		changeLogFile();
+		// 先推进日期再换文件:换文件抛错也不能让之后每分钟无限重试(每次重试都会再建一批 appender)
 		today = now;
+		try{
+			changeLogFile();
+		}catch(Exception e){
+			QueueLog.error(ErrorLogger, e, "changeLogFile failed");
+		}
 	}
 	
-	// HOROSA_LOG_BASEDIR_REV log_basedir_v1 —— Windows 桌面日志目录解析修复。
-	// 根因:log4j2.xml 的 basedir 模板 `${env:HOME:-${sys:user.home}}/...` 经程序化
-	// getStrSubstitutor().getVariableResolver().lookup("basedir") 取出时**不做变量替换**,返回字面模板串;
-	// POSIX 文件系统容忍 `${}` 作目录名(mac/linux 上"能用"),NTFS 直接拒绝 → error/warn/info/debug/perf/access
-	// 六个程序化 appender 在 Windows 全部创建失败(启动报错刷屏 + perf 分段计时/错误日志静默丢失)。
-	// 修法:优先读启动器传入的 -Dhorosa.log.basedir(桌面壳一直在传,此前无人读);缺省回落原 lookup;
-	// 若 lookup 结果仍含未解析的 "${" 再回落 user.home(与 XML 模板的既有语义一致)。
-	// 任一平台无该 -D 时行为与原实现一致 → 服务器/mac 部署零变化。
-	// 常量兼作重建 jar 的存在性哨兵标记(release_selfcheck 验 jar 内含此串,防止同步冲掉本修复)。
+	/** 变量解析失败时的兜底目录尾巴,与 log4j2.xml 里 basedir 的缺省口径一致。 */
+	private static final String FALLBACK_BASEDIR_TAIL = "/.horosa-logs/astrostudyboot";
+
+	/** 「日志根/」之后紧跟的日期目录段 yyyy/MM/dd/。 */
+	private static final Pattern DATE_DIR_HEAD = Pattern.compile("^\\d{4}/\\d{2}/\\d{2}/");
+
+	/**
+	 * 解析后的日志根目录(恒以 / 结尾)。
+	 * 直接 lookup("basedir") 拿到的是 Properties 里的原始串(log4j 2.17.1 起属性值存原文,
+	 * 形如 ${env:HOME:-${sys:user.home}}/...,不递归替换),拿它拼路径会在进程 CWD 下造出同名字面目录;
+	 * 必须经 StrSubstitutor 递归替换,替换失败或仍含 ${ 时退回 user.home 下的缺省目录。
+	 */
+	// HOROSA_LOG_BASEDIR_REV log_basedir_v1 —— Windows 桌面日志目录:启动器(桌面壳 / 本地版脚本)传入的
+	// -Dhorosa.log.basedir 优先(Java 日志与壳日志同落应用数据目录 logs/,诊断导出与「打开日志目录」都指向那里);
+	// 无该 -D 时走下面上游的 ${basedir} 递归替换 + user.home 兜底,行为与上游逐字一致 → 服务器/mac 部署零变化。
+	// 常量兼作重建 jar 的存在性哨兵标记(release_selfcheck 验发货 jar 内含此串,防止同步冲掉本残差)。
 	public static final String HOROSA_LOG_BASEDIR_REV = "log_basedir_v1";
 
-	private static String resolveBaseDir(){
+	static String resolvedBaseDir(){
 		String prop = System.getProperty("horosa.log.basedir");
 		if(!StringUtility.isNullOrEmpty(prop)){
-			return prop.replace('\\', '/');
+			String p = prop.replace('\\', '/');
+			return p.endsWith("/") ? p : p + "/";
 		}
-		String basedir = config.getStrSubstitutor().getVariableResolver().lookup("basedir");
-		if(!StringUtility.isNullOrEmpty(basedir) && basedir.indexOf("${") < 0){
-			return basedir;
+		String b = null;
+		try{
+			b = config.getStrSubstitutor().replace("${basedir}");
+		}catch(Exception e){
+			b = null;
 		}
-		String home = System.getProperty("user.home");
-		if(StringUtility.isNullOrEmpty(home)){
-			return basedir;
+		if(StringUtility.isNullOrEmpty(b) || b.indexOf("${") >= 0){
+			b = System.getProperty("user.home") + FALLBACK_BASEDIR_TAIL;
 		}
-		return home.replace('\\', '/') + "/.horosa-logs/astrostudyboot";
+		return b.endsWith("/") ? b : b + "/";
+	}
+
+	/**
+	 * 取「日志根/yyyy/MM/dd/」之后的相对尾巴(如 error/error.log、all/other_%d{yyyyMMdd_HH}_%i.log);
+	 * 路径不在日志根下或日期段形状不符则返回 null,调用方跳过——绝不再按固定长度硬切。
+	 */
+	static String tailUnderDateDir(String path, String basedir){
+		if(StringUtility.isNullOrEmpty(path) || StringUtility.isNullOrEmpty(basedir)){
+			return null;
+		}
+		String base = basedir.endsWith("/") ? basedir : basedir + "/";
+		if(!path.startsWith(base)){
+			return null;
+		}
+		String rest = path.substring(base.length());
+		Matcher m = DATE_DIR_HEAD.matcher(rest);
+		if(!m.find()){
+			return null;
+		}
+		String tail = rest.substring(m.end());
+		return tail.length() == 0 ? null : tail;
 	}
 
 	public static String getBaseDir(){
-		String basedir = resolveBaseDir();
-		basedir = StringUtility.isNullOrEmpty(basedir) ? "/" : basedir;
-		if(!basedir.endsWith("/")){
-			basedir = basedir + "/";
-		}
+		return resolvedBaseDir();
+	}
 
-		return basedir;
+	private static boolean attachedToAnyLogger(Map<String, LoggerConfig> logconfigs, String key){
+		for(LoggerConfig logconf : logconfigs.values()){
+			if(logconf.getAppenders().get(key) instanceof RollingFileAppender){
+				return true;
+			}
+		}
+		return false;
 	}
 	
 	synchronized public static void changeLogFile(){
 		AbstractConfiguration conf = (AbstractConfiguration)config;
-		String basedir = resolveBaseDir();
-		basedir = StringUtility.isNullOrEmpty(basedir) ? "/" : basedir;
-		if(!basedir.endsWith("/")){
-			basedir = basedir + "/";
-		}
+		String basedir = resolvedBaseDir();
 
 		Map<String, LoggerConfig> logconfigs = conf.getLoggers();
-
+		
 		Map<String, Appender> appenders = conf.getAppenders();
-		Map<String, Appender> tmpappenders = new HashMap<String, Appender>();
+		Map<String, RollingFileAppender> tmpappenders = new HashMap<String, RollingFileAppender>();
+		
+		Date now = new Date();
+		StringBuilder commdir = new StringBuilder(basedir);
+		commdir.append(FormatUtility.formatDateTime(now, "yyyy/MM/dd")).append("/");
 
 		for(Map.Entry<String, Appender> entry : appenders.entrySet()){
 			String key = entry.getKey();
 			Appender app = entry.getValue();
 
-			if(app instanceof RollingFileAppender){
-				RollingFileAppender rollapp = (RollingFileAppender)app;
-				// HOROSA_LOG_BASEDIR_REV 守卫:按日重建只处理"basedir/yyyy/MM/dd/..."布局的 appender
-				// (即本类 createLog 建的那批)。XML 里定义的 appender 前缀不同,原 substring 位置数学会
-				// 越界或切出垃圾路径 → 可能"停旧未建新"造成日志静默丢失;跳过它们(其自身 filePattern
-				// 的按小时滚动不受影响)。
-				String curfn = rollapp.getFileName();
-				String curpattern = rollapp.getFilePattern();
-				if(curfn == null || curpattern == null
-						|| !curfn.startsWith(basedir) || !curpattern.startsWith(basedir)
-						|| curfn.length() < basedir.length() + 11
-						|| curpattern.length() < basedir.length() + 11){
-					continue;
-				}
-				String fn = curfn.substring(basedir.length() + 11);
-				String pattern = curpattern.substring(basedir.length() + 11);
-				
-				Date now = new Date();
-				StringBuilder commdir = new StringBuilder(basedir);
-				commdir.append(FormatUtility.formatDateTime(now, "yyyy/MM/dd")).append("/");
-				
+			if(!(app instanceof RollingFileAppender)){
+				continue;
+			}
+			// 没挂到任何 logger 上的 appender 不换(建了也没人写,只会白开一个文件句柄)
+			if(!attachedToAnyLogger(logconfigs, key)){
+				continue;
+			}
+			RollingFileAppender rollapp = (RollingFileAppender)app;
+			String fn = tailUnderDateDir(rollapp.getFileName(), basedir);
+			String pattern = tailUnderDateDir(rollapp.getFilePattern(), basedir);
+			if(fn == null || pattern == null){
+				continue;
+			}
+			try{
 				RollingFileAppender appender = RollingFileAppender.newBuilder()
 						.withFileName(commdir.toString() + fn).withFilePattern(commdir.toString() + pattern)
 						.withPolicy(rollapp.getTriggeringPolicy()).withBufferedIo(false).withImmediateFlush(true)
 						.setLayout(rollapp.getLayout()).setName(key).setConfiguration(config)
 						.build();
+				if(appender == null){
+					QueueLog.error(ErrorLogger, "changeLogFile rebuild appender returned null: " + key);
+					continue;
+				}
 				appender.addFilter(rollapp.getFilter());
 				tmpappenders.put(key, appender);
+			}catch(Exception e){
+				QueueLog.error(ErrorLogger, e, "changeLogFile rebuild appender failed: " + key);
 			}
 		}
 		
-		Map<String, Appender> oldapps = new HashMap<String, Appender>();
-		for(Map.Entry<String, LoggerConfig> entry : logconfigs.entrySet()){
-			LoggerConfig logconf = entry.getValue();
-			for(Map.Entry<String, Appender> appentry : logconf.getAppenders().entrySet()){
-				String appkey = appentry.getKey();
-				Appender app = appentry.getValue();
-				if(!(app instanceof RollingFileAppender)){
-					continue;
+		// 逐个换成新一天的实例:先把旧实例从所有 logger 与配置注册表摘下并停掉(注册表里那份通常
+		// 就是挂着的那份,按实例去重、每个旧实例只 stop 一次——重复 stop 会把共享文件管理器的引用计数
+		// 减到 0,误关刚起的新实例),再挂新实例并登记回注册表,让 getAppenders() 与 logger 上挂的一致。
+		Set<Appender> stopped = Collections.newSetFromMap(new IdentityHashMap<Appender, Boolean>());
+		for(Map.Entry<String, RollingFileAppender> entry : tmpappenders.entrySet()){
+			String key = entry.getKey();
+			RollingFileAppender newapp = entry.getValue();
+			List<LoggerConfig> owners = new ArrayList<LoggerConfig>();
+			List<Appender> olds = new ArrayList<Appender>();
+			for(LoggerConfig logconf : logconfigs.values()){
+				Appender attached = logconf.getAppenders().get(key);
+				if(attached instanceof RollingFileAppender){
+					owners.add(logconf);
+					olds.add(attached);
 				}
-				oldapps.put(appkey, app);
 			}
-		}
-		
-		Set<String> newappset = new HashSet<String>();
-		for(Map.Entry<String, LoggerConfig> entry : logconfigs.entrySet()){
-			LoggerConfig logconf = entry.getValue();
-			for(Map.Entry<String, Appender> appentry : logconf.getAppenders().entrySet()){
-				String appkey = appentry.getKey();
-				Appender logapp = appentry.getValue();
-				if(!(logapp instanceof RollingFileAppender)){
-					continue;
+			try{
+				Appender registered = conf.getAppender(key);
+				conf.removeAppender(key);
+				if(registered != null){
+					stopped.add(registered);
 				}
-				// HOROSA_LOG_BASEDIR_REV 守卫(下半段):上面被跳过的 appender 不在 tmpappenders 里,
-				// 若不在此同步跳过,get(appkey)==null 会在 stop 旧 appender 之后 NPE → 日志静默丢失。
-				if(!tmpappenders.containsKey(appkey)){
-					continue;
+				for(Appender old : olds){
+					if(stopped.add(old)){
+						old.stop();
+					}
 				}
-				if(newappset.contains(appkey)){
-					logconf.removeAppender(appkey);
-					logconf.addAppender(tmpappenders.get(appkey), logconf.getLevel(), logconf.getFilter());
-					continue;
-				}
-				
-				Appender app = oldapps.get(appkey);
-				app.stop();
-				logconf.removeAppender(appkey);
-
-				Appender newapp = tmpappenders.get(appkey);
 				newapp.start();
-				
-				logconf.addAppender(newapp, logconf.getLevel(), logconf.getFilter());
-				newappset.add(appkey);
+				for(LoggerConfig owner : owners){
+					owner.addAppender(newapp, owner.getLevel(), owner.getFilter());
+				}
+				config.addAppender(newapp);
+			}catch(Exception e){
+				QueueLog.error(ErrorLogger, e, "changeLogFile swap appender failed: " + key);
 			}
 		}
 		
@@ -294,13 +329,7 @@ public class AppLoggers {
 	
 	private static Tuple<Logger, org.apache.logging.log4j.core.Logger> createLog(String logdir, String name, Level level){
 		AbstractConfiguration conf = (AbstractConfiguration)config;
-		// HOROSA_LOG_BASEDIR_REV:这里是六个程序化 appender(error/warn/info/debug/perf/access + 派生的
-		// imgtoken/reqbody 等)的创建主现场 —— 必须走 resolveBaseDir(),否则拿到未替换的字面模板,NTFS 直接拒绝。
-		String basedir = resolveBaseDir();
-		basedir = StringUtility.isNullOrEmpty(basedir) ? "/" : basedir;
-		if(!basedir.endsWith("/")){
-			basedir = basedir + "/";
-		}
+		String basedir = resolvedBaseDir();
 		
 		if(logdir.startsWith("/")){
 			logdir = logdir.substring(1);

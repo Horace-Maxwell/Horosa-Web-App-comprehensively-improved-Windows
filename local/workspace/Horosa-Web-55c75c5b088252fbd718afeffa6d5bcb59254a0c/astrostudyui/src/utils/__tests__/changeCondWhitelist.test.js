@@ -83,6 +83,9 @@ describe('changeCond 白名单完备性(L3)', () => {
 	it('通道分叉锁:applyClassicalField 走 classicalChartGlobal 独立通道(有意不过 changeCond,防误统一造成回归)', () => {
 		const sel = strip(fs.readFileSync(SELECTOR, 'utf8'));
 		expect(sel.includes('setClassicalChartGlobal')).toBe(true);
-		expect(/applyClassicalField[\s\S]{0,600}fetchByFields/.test(sel)).toBe(true);
+		// [Q-252/T-218] 该函数中间插了「嵌入子盘只写全局仓、不回写本命 fields」的早退分支 ⇒ 窗口放宽到 1400;
+		//   判别面不变(仍是「同一函数体内走 astro/fetchByFields 而非 changeCond」)。
+		expect(/applyClassicalField[\s\S]{0,1400}fetchByFields/.test(sel)).toBe(true);
+		expect(sel.includes("this.props.classicalWriteBack === false")).toBe(true);   // 嵌入态只写全局仓的分叉在位
 	});
 });

@@ -220,6 +220,7 @@ class FeiGongMain extends Component {
 				useDayGZ: o.useDayGZ !== undefined ? !!o.useDayGZ : this.state.inputs.useDayGZ,
 				zhi: o.zhi !== undefined && o.zhi !== null ? o.zhi : this.state.inputs.zhi,
 				num: o.num !== undefined ? o.num : this.state.inputs.num,
+				yearZhi: o.yearZhi !== undefined && o.yearZhi !== null ? o.yearZhi : this.state.inputs.yearZhi,
 				dayGan: o.inputDayGan !== undefined && o.inputDayGan !== null ? o.inputDayGan : this.state.inputs.dayGan,
 				dayZhi: o.inputDayZhi !== undefined && o.inputDayZhi !== null ? o.inputDayZhi : this.state.inputs.dayZhi,
 			},
@@ -242,8 +243,12 @@ class FeiGongMain extends Component {
 		if(this.state.localFields){
 			nl = deriveNongliUniversalSync(this.state.localFields) || {};
 		}else{
+			// [Q-390/T-372 2026-09-18 用户裁决 A] 占时口径 左栏 > 全局 > 真太阳时:未动左栏时主盘 chart.nongli 是 Java /chart 钉真太阳时的,
+			// 全局时间算法为直接 / 平太阳时(≠0)时改按全局 fields 本地派生(与动过左栏的分支同源),同一时刻占时不再随「是否动过左栏」翻转。
+			const gf = this.props.fields || {};
+			const galg = gf.timeAlg && gf.timeAlg.value !== undefined && gf.timeAlg.value !== null ? Number(gf.timeAlg.value) : 0;
 			const chart = (this.props.value && this.props.value.chart) || {};
-			nl = chart.nongli || {};
+			nl = (galg !== 0 && gf.date && gf.time) ? (deriveNongliUniversalSync(gf) || chart.nongli || {}) : (chart.nongli || {});
 		}
 		const b = nl.bazi || {};
 		const cell = (zhu, which)=>(b[zhu] && b[zhu][which] && b[zhu][which].cell) || undefined;
@@ -310,6 +315,9 @@ class FeiGongMain extends Component {
 					koujing: this.state.settings.heKuiKoujing,
 					qiMode: this.state.settings.qiMode,
 					useDayGZ: inputs.useDayGZ, zhi: inputs.zhi, num: inputs.num,
+					// [Q-208/T-164] 生年支同属「当初怎么起的」四式之一,此前只有 zhi/num 进档、yearZhi 漏存
+					// → 以年命佈局起的案例载回后左栏恒显「子」,与中栏之局自相矛盾。
+					yearZhi: inputs.yearZhi,
 					inputDayGan: inputs.dayGan, inputDayZhi: inputs.dayZhi,
 				},
 				qiZhi: ju ? ju.qiZhi : null,      // 🔴 冻结起支(重算只重排,绝不重起)
@@ -364,7 +372,7 @@ class FeiGongMain extends Component {
 						options={[{ value: 'auto', label: `随盘(${c.dayGan || '?'}${c.dayZhi || '?'})` }, { value: 'manual', label: '手动' }]}/>)}
 					{settings.qiMode === 'yearZhi' ? this.field('生年支', (
 						<Select size="small" style={{ width: '100%' }} value={inputs.yearZhi || '子'} onChange={(v)=>this.setState({ inputs: { ...inputs, yearZhi: v } })} options={ZHI.map((z)=>({ value: z, label: z }))}/>
-					), '以命主生年地支起局(引擎 yearZhi 模式)') : null}
+					), '手选命主生年地支后以该支起局(不自动读命盘出生年,需自行选定)') : null}
 					{settings.qiMode === 'zhi' ? this.field('支', (
 						<Select size="small" style={{ width: '100%' }} value={inputs.zhi} onChange={(v)=>this.setState({ inputs: { ...inputs, zhi: v } })} options={ZHI.map((z)=>({ value: z, label: z }))}/>
 					)) : null}

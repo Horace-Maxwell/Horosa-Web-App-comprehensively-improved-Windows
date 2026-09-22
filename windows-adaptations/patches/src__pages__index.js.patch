@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/pages/index.js b/astrostudyui/src/pages/index.js
-index fb955423..75d9f70f 100644
+index 746aad2c..3f5565e8 100644
 --- a/astrostudyui/src/pages/index.js
 +++ b/astrostudyui/src/pages/index.js
 @@ -21,6 +21,11 @@ import AstroChartMain from '../components/astro/AstroChartMain';
@@ -42,7 +42,7 @@ index fb955423..75d9f70f 100644
  const CalendarMain = lazyPreloadable(() => import('../components/calendar/CalendarMain'), { order: 2, navKey: 'calendar' });
  const FengShuiMain = lazyPreloadable(() => import('../components/fengshui/FengShuiMain'), { order: 2, navKey: 'fengshui' });
  const SanShiUnitedMain = lazyPreloadable(() => import('../components/sanshi/SanShiUnitedMain'), { order: 2, navKey: 'sanshiunited' });
-@@ -551,8 +568,16 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
+@@ -600,8 +617,16 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
          if(values.southchart !== undefined && values.southchart !== null){
              setFld(flds, 'southchart', values.southchart);
          }

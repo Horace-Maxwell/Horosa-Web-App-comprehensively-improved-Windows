@@ -97,7 +97,8 @@
 	}
 
 	.horosa-india-square-board {
-		width: ~"min(900px, calc(100% - 44px), calc(var(--india-chart-height, 720px) - 44px))";
+		/* [缩小时盘面随视口放大] 上限 900px 改 max(900px, 86·lvh):zoom=1(lvh≈10.5)≈903 不变;0.7 档 ~1290;放大档仍由列宽/列高封顶 */
+		width: ~"min(max(900px, calc(86 * var(--horosa-lvh, 1vh))), calc(100% - 44px), calc(var(--india-chart-height, 720px) - 44px))";
 		max-width: ~"calc(100% - 44px)";
 		max-height: ~"calc(100% - 44px)";
 		aspect-ratio: 1 / 1;
@@ -454,6 +455,16 @@
 		color: var(--horosa-muted, #8794a8);
 		font-size: 12px;
 		line-height: 16px;
+	}
+
+	/* 盘很小时(放大档 × 小窗,盘边长 ≤ 360)中宫放不下「分盘徽标 + 名称 + 说明」三件:按盘自身宽度收紧徽标与字号、隐去说明行,
+	   不再让说明文字顶出中宫被盘边裁掉。常规尺寸(盘 ≥ 361)不进查询,一字不变;不支持容器查询的旧引擎维持原样。 */
+	.horosa-india-square-board { container-type: inline-size; }
+	@container (max-width: 360px) {
+		.horosa-india-square-center { gap: 2px; }
+		.horosa-india-square-center-d { min-width: 40px; height: 40px; font-size: 16px; }
+		.horosa-india-square-center-label { font-size: 12px; line-height: 15px; }
+		.horosa-india-square-center-note { display: none; }
 	}
 
 	:root[data-horosa-appearance='dark'] .horosa-india-square-board {

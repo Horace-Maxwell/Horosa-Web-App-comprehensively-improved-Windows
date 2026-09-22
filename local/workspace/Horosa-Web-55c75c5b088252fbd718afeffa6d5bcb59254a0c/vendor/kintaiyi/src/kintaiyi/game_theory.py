@@ -20,7 +20,162 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-from scipy.optimize import linprog
+try:  # 随包运行时不带 scipy(≈30MB):缺时用下方纯 numpy 两阶段单纯形求解同一 LP,数值上与 highs 同解(pytest 对拍)
+    from scipy.optimize import linprog as _scipy_linprog  # type: ignore
+except Exception:  # pragma: no cover - 取决于运行时
+    _scipy_linprog = None
+
+
+class _LPResult:
+    """与 scipy.optimize.OptimizeResult 只交换 success / x / fun / status 四个字段的最小结果对象。"""
+
+    __slots__ = ("success", "x", "fun", "status", "message")
+
+    def __init__(self, success: bool, x: np.ndarray, fun: float, status: int, message: str = "") -> None:
+        self.success = success
+        self.x = x
+        self.fun = fun
+        self.status = status
+        self.message = message
+
+
+def _simplex_standard(c: np.ndarray, A: np.ndarray, b: np.ndarray, max_iter: int = 500) -> tuple[bool, np.ndarray, float]:
+    """两阶段单纯形(Bland 规则防循环):min c·x  s.t. A x = b, x ≥ 0(b ≥ 0)。
+
+    只为本模块 4×4 零和博弈两个小 LP 服务(变量十来个、约束十来条),不追求通用性能;
+    返回 (可行且有界, x, 目标值)。
+    """
+    m, n = A.shape
+    A = A.astype(float).copy()
+    b = b.astype(float).copy()
+    c = c.astype(float).copy()
+    neg = b < 0
+    A[neg] *= -1
+    b[neg] *= -1
+    # 第一阶段:加人工变量 a_i,min Σa_i
+    T = np.zeros((m + 1, n + m + 1))
+    T[:m, :n] = A
+    T[:m, n:n + m] = np.eye(m)
+    T[:m, -1] = b
+    T[m, n:n + m] = 1.0
+    basis = list(range(n, n + m))
+    # 用当前基把目标行化零(人工变量列在基内)
+    for i in range(m):
+        T[m, :] -= T[i, :]
+
+    def pivot(T: np.ndarray, basis: list[int], allowed: int) -> bool:
+        for _ in range(max_iter):
+            obj = T[-1, :allowed]
+            enter = -1
+            for j in range(allowed):
+                if obj[j] < -1e-12:
+                    enter = j
+                    break
+            if enter < 0:
+                return True
+            col = T[:-1, enter]
+            ratios = [(T[i, -1] / col[i], basis[i], i) for i in range(len(basis)) if col[i] > 1e-12]
+            if not ratios:
+                return False  # 无界
+            ratios.sort(key=lambda t: (t[0], t[1]))
+            leave = ratios[0][2]
+            pv = T[leave, enter]
+            T[leave, :] /= pv
+            for i in range(T.shape[0]):
+                if i != leave and abs(T[i, enter]) > 1e-15:
+                    T[i, :] -= T[i, enter] * T[leave, :]
+            basis[leave] = enter
+        return False
+
+    if not pivot(T, basis, n + m) or T[-1, -1] < -1e-8:
+        return False, np.zeros(n), float("nan")
+    # 把仍在基内的人工变量(退化)换出去
+    for i in range(m):
+        if basis[i] >= n:
+            row = T[i, :n]
+            js = [j for j in range(n) if abs(row[j]) > 1e-12]
+            if js:
+                enter = js[0]
+                pv = T[i, enter]
+                T[i, :] /= pv
+                for k in range(T.shape[0]):
+                    if k != i and abs(T[k, enter]) > 1e-15:
+                        T[k, :] -= T[k, enter] * T[i, :]
+                basis[i] = enter
+    # 第二阶段:去人工列,换真目标
+    T2 = np.zeros((m + 1, n + 1))
+    T2[:m, :n] = T[:m, :n]
+    T2[:m, -1] = T[:m, -1]
+    T2[m, :n] = c
+    for i in range(m):
+        if basis[i] < n:
+            T2[m, :] -= c[basis[i]] * T2[i, :]
+    if not pivot(T2, basis, n):
+        return False, np.zeros(n), float("nan")
+    x = np.zeros(n)
+    for i in range(m):
+        if basis[i] < n:
+            x[basis[i]] = T2[i, -1]
+    return True, x, float(c @ x)
+
+
+def _linprog_fallback(c, A_ub=None, b_ub=None, A_eq=None, b_eq=None, bounds=None, method=None):
+    """scipy.optimize.linprog 的最小替身:支持 A_ub/b_ub、A_eq/b_eq、bounds 为 (0,None) 或 (None,None)。
+
+    自由变量拆成 x⁺−x⁻,不等式加松弛变量后化为标准型交给 _simplex_standard。
+    """
+    c = np.asarray(c, dtype=float)
+    n = c.shape[0]
+    bounds = list(bounds) if bounds is not None else [(0.0, None)] * n
+    free = [i for i, bd in enumerate(bounds) if bd is None or bd[0] is None]
+    # 变量映射:非自由变量 → 一列;自由变量 → 两列(正/负部)
+    cols = []
+    for i in range(n):
+        if i in free:
+            cols.append((i, +1.0))
+            cols.append((i, -1.0))
+        else:
+            cols.append((i, +1.0))
+    nv = len(cols)
+
+    def expand(row: np.ndarray) -> np.ndarray:
+        return np.array([row[i] * sgn for (i, sgn) in cols], dtype=float)
+
+    rows = []
+    rhs = []
+    n_slack = 0
+    if A_ub is not None and len(A_ub):
+        A_ub = np.asarray(A_ub, dtype=float)
+        b_ub = np.asarray(b_ub, dtype=float)
+        n_slack = A_ub.shape[0]
+        for r in range(A_ub.shape[0]):
+            slack = np.zeros(n_slack)
+            slack[r] = 1.0
+            rows.append(np.concatenate([expand(A_ub[r]), slack]))
+            rhs.append(b_ub[r])
+    if A_eq is not None and len(A_eq):
+        A_eq = np.asarray(A_eq, dtype=float)
+        b_eq = np.asarray(b_eq, dtype=float)
+        for r in range(A_eq.shape[0]):
+            rows.append(np.concatenate([expand(A_eq[r]), np.zeros(n_slack)]))
+            rhs.append(b_eq[r])
+    A = np.array(rows, dtype=float) if rows else np.zeros((0, nv + n_slack))
+    b = np.array(rhs, dtype=float)
+    cc = np.concatenate([expand(c), np.zeros(n_slack)])
+    ok, xs, fun = _simplex_standard(cc, A, b)
+    x = np.zeros(n)
+    if ok:
+        for k, (i, sgn) in enumerate(cols):
+            x[i] += sgn * xs[k]
+    return _LPResult(ok, x, fun if ok else float("nan"), 0 if ok else 2, "" if ok else "fallback simplex failed")
+
+
+def linprog(*args, **kwargs):
+    """scipy 在则原样透传(线上字节不变);缺则走纯 numpy 回退。"""
+    if _scipy_linprog is not None:
+        return _scipy_linprog(*args, **kwargs)
+    kwargs.pop("method", None)
+    return _linprog_fallback(*args, **kwargs)
 
 # ---------------------------------------------------------------------------
 # 常數定義

@@ -1,7 +1,7 @@
 // 右栏「断诀」页:开局信息卡(三层环境+禄马生旺墓)+通例命中+碎金赋链+飞伏生克+应期+金锁八要素+新派打分+古法进阶组。
 // 纯展示,吃 analyzeLiuyao 产出;设置一变即随之刷新。
 import React from 'react';
-import { DIZHI, TIANGAN, ZHI_YINYANG, CHANGSHENG_START, CHANGSHENG_STAGES } from '../gua/LiuYaoConst';
+import { DIZHI, TIANGAN, ZHI_YINYANG, CHANGSHENG_START, CHANGSHENG_START_ALT, CHANGSHENG_STAGES } from '../gua/LiuYaoConst';   // [Q-205/T-148] 火土同宫表
 import { LiuYaoRiYueView, LiuYaoShenShaExView, LiuYaoYueLiuShenView } from './LiuYaoBoard';
 import { MANGPAI_SHIKAN } from '../gua/liuyaoReference';
 
@@ -16,8 +16,11 @@ const GAN_WX = { 甲: '木', 乙: '木', 丙: '火', 丁: '火', 戊: '土', 己
 const LU = { 甲: '寅', 乙: '卯', 丙: '巳', 丁: '午', 戊: '巳', 己: '午', 庚: '申', 辛: '酉', 壬: '亥', 癸: '子' };
 const YIMA = { 申: '寅', 子: '寅', 辰: '寅', 寅: '申', 午: '申', 戌: '申', 巳: '亥', 酉: '亥', 丑: '亥', 亥: '巳', 卯: '巳', 未: '巳' };
 // 生旺墓:classic 五行不分阴阳顺行;ziping 阳顺阴逆(阴长生=阳之死位)
-function shengWangMu(wx, isYin, mode){
-	const start = CHANGSHENG_START[wx];
+// [Q-205/T-148] 土的起点随「土长生」档:water 水土同宫(默认)/ fire 火土同宫 / off 不标长生 →
+// 此前恒用水土表,选「火土同宫」的用户开局卡与断诀/应期各执一词,选「不标长生」还照画一张生旺墓。
+function shengWangMu(wx, isYin, mode, tuMode){
+	if(tuMode === 'off'){ return null; }
+	const start = (tuMode === 'fire' ? CHANGSHENG_START_ALT : CHANGSHENG_START)[wx];
 	if(!start){ return null; }
 	const s = DIZHI.indexOf(start);
 	if(mode !== 'ziping' || !isYin){
@@ -105,10 +108,11 @@ export default function LiuYaoDuanJueView({ analysis, ctx }){
 	const c = ctx || {};
 	const mode = s.changshengYinYang || 'ziping';
 	const dayGan = c.dayGan || '';
-	const luma = dayGan ? { lu: LU[dayGan], ma: c.dayZhi ? YIMA[c.dayZhi] : '', swm: shengWangMu(GAN_WX[dayGan], ganYin(dayGan), mode) } : null;
+	const tuMode = s.tuChangsheng || 'water';   // [Q-205/T-148] 土长生档:water/fire/off
+	const luma = dayGan ? { lu: LU[dayGan], ma: c.dayZhi ? YIMA[c.dayZhi] : '', swm: shengWangMu(GAN_WX[dayGan], ganYin(dayGan), mode, tuMode) } : null;
 	const yongLoc = analysis.yongShen && analysis.yongShen.located && analysis.yongShen.located.yong;
 	const yongYao = yongLoc && yongLoc.primary ? analysis.yaos[yongLoc.primary - 1] : null;
-	const yongSwm = yongYao ? shengWangMu(yongYao.wuxing, ZHI_YINYANG[yongYao.zhi] === '阴', mode) : null;
+	const yongSwm = yongYao ? shengWangMu(yongYao.wuxing, ZHI_YINYANG[yongYao.zhi] === '阴', mode, tuMode) : null;
 	const yongLu = yongYao ? (ZHI_YINYANG[yongYao.zhi] === '阴' ? (yongSwm && yongSwm.帝旺) : null) : null;
 	return (
 		<div>
@@ -130,7 +134,7 @@ export default function LiuYaoDuanJueView({ analysis, ctx }){
 				</div>
 				{analysis.nayinDay ? <Row k="日辰纳音" v={`${analysis.nayinDay.name}(${analysis.nayinDay.wuxing})`} /> : null}
 				{luma ? <Row k={`日干禄马生旺墓(${mode === 'ziping' ? '分阴阳' : '古法'})`} v={`禄${luma.lu || '—'}·马${luma.ma || '—'}·生${luma.swm.长生}·旺${luma.swm.帝旺}·墓${luma.swm.墓}`} /> : null}
-				{yongYao && yongSwm ? <Row k="用神禄马生旺墓" v={`${yongYao.liuqin}${yongYao.zhi}:禄${yongLu || (yongSwm ? DIZHI[(DIZHI.indexOf(CHANGSHENG_START[yongYao.wuxing]) + 3) % 12] : '—')}·马${YIMA[yongYao.zhi] || '—'}·生${yongSwm.长生}·旺${yongSwm.帝旺}·墓${yongSwm.墓}`} /> : null}
+				{yongYao && yongSwm ? <Row k="用神禄马生旺墓" v={`${yongYao.liuqin}${yongYao.zhi}:禄${yongLu || (yongSwm ? DIZHI[(DIZHI.indexOf((tuMode === 'fire' ? CHANGSHENG_START_ALT : CHANGSHENG_START)[yongYao.wuxing]) + 3) % 12] : '—')}·马${YIMA[yongYao.zhi] || '—'}·生${yongSwm.长生}·旺${yongSwm.帝旺}·墓${yongSwm.墓}`} /> : null}
 				{analysis.shiShen ? <Row k={`世身(${analysis.shiShen.mode === 'lichunfeng' ? '亥子起' : '子午起'})`} v={`第${analysis.shiShen.pos}爻 ${analysis.shiShen.zhi}${analysis.shiShen.wuxing}${analysis.shiShen.liuqin}`} /> : null}
 			</Card>
 			{/* [F1] 日月引动/扩展神煞/月建六神 三卡=LiuYaoBoard 导出组件,概览与断诀共用同一渲染(防口径分叉) */}

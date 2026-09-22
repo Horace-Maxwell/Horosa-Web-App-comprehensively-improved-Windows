@@ -4,6 +4,8 @@
 // 差异仅四点:注册表=HUANGLI_CONDITION_TYPES(日粒度本地求值);无地点/参数区(黄历零参数,
 // 「从主盘重载」无意义故无);结果表「日课」列(建除·宿·黄黑道)替「局」;概览=HuangLiDayCard 浮窗。
 import { useState, useEffect, useRef } from 'react';
+import { saveBlobSmart } from '../../utils/aiAnalysisExport';
+import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // [Q-478] 空数字框统一校验
 import { Modal, Dropdown, Menu, message } from 'antd';
 import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
 import ConditionParamsForm from './ConditionParamsForm';
@@ -15,18 +17,11 @@ import {
 import { huangliZeriSchemeStore } from '../../divination/zeri/schemeStore';
 import HuangliDayPopup from './HuangliDayPopup';
 
+// [Q-410] 单源保存(桌面壳保存桥选目录;浏览器 <a download>);取消 / 失败静默不报成功(本处本就无成功提示)。
 function downloadJson(text, filename){
 	try{
-		const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = filename;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		setTimeout(() => URL.revokeObjectURL(url), 800);
-	}catch(e){ /* 下载失败静默(受限 webview 环境) */ }
+		return saveBlobSmart(filename, new Blob([text], { type: 'application/json;charset=utf-8' }));
+	}catch(e){ return null; /* 受限 webview 环境静默 */ }
 }
 
 const Option = XQSelect.Option;
@@ -156,7 +151,8 @@ export default function HuangliZeriWorkbench({
 
 	const draftLeaf = { kind: 'leaf', type: draftType, negate: draftNegate, params: draftParams };
 	const draftSpec = HUANGLI_CONDITION_TYPES[draftType] || {};
-	const draftError = draftSpec.validate ? draftSpec.validate(draftParams) : '';
+	// [Q-478/T-440] 空数字框先判(与表单红框同一判据),再走各类型自校验。
+	const draftError = emptyNumberFieldError(draftSpec, draftParams) || (draftSpec.validate ? draftSpec.validate(draftParams) : '');
 
 	const appendTargetPath = selectedIsGroup ? selectedPath : [];
 	const doAdd = () => {
@@ -301,7 +297,7 @@ export default function HuangliZeriWorkbench({
 	};
 
 	const editView = (
-		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 'clamp(560px, calc(100vh - 220px), 900px)' }}>
+		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)' }}>
 			{/* 左列(主操作区):时间范围 / 构造条件 / 连接门 / 动作排 —— 黄历日课与经纬/时刻无关,无地点·参数区 */}
 			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
 				<div style={{ padding: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
@@ -396,7 +392,7 @@ export default function HuangliZeriWorkbench({
 	);
 
 	const resultView = (
-		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => setView('edit')} disabled={scanning}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>择吉结果</span>
@@ -493,7 +489,7 @@ export default function HuangliZeriWorkbench({
 	};
 
 	const schemesView = (
-		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => { setView('edit'); setSchemeMsg(''); }}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>方案管理</span>

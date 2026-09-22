@@ -3,6 +3,8 @@
 // ②构造条件 ③连接门·取反 ④动作排+「择时」。右列:已选条件链+方案排(八字专属方案库)。
 // 结果表「四柱」列(日柱X日X时);无概览浮窗(pick 起盘即看全盘,八字无迷你盘形态)。
 import { useState, useEffect, useRef } from 'react';
+import { saveBlobSmart } from '../../utils/aiAnalysisExport';
+import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // [Q-478] 空数字框统一校验
 import { Modal, Dropdown, Menu, message } from 'antd';
 import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
 import ConditionParamsForm from './ConditionParamsForm';
@@ -15,19 +17,13 @@ import {
 	TAIYI_CONDITION_TYPES, newTaiyiLeaf, newTaiyiGroup, taiyiLeafSummary,
 } from '../../divination/zeri/taiyiZeriConditionTypes';
 import { taiyiZeriSchemeStore } from '../../divination/zeri/schemeStore';
+import { TAIYI_ACCUM_OPTIONS } from '../taiyi/core/TaiYiCore';
 
+// [Q-410] 单源保存(桌面壳保存桥选目录;浏览器 <a download>);取消 / 失败静默不报成功(本处本就无成功提示)。
 function downloadJson(text, filename){
 	try{
-		const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = filename;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		setTimeout(() => URL.revokeObjectURL(url), 800);
-	}catch(e){ /* 下载失败静默(受限 webview 环境) */ }
+		return saveBlobSmart(filename, new Blob([text], { type: 'application/json;charset=utf-8' }));
+	}catch(e){ return null; /* 受限 webview 环境静默 */ }
 }
 
 const Option = XQSelect.Option;
@@ -114,7 +110,7 @@ const CATEGORY_ORDER = (()=>{
 
 export default function TaiyiZeriWorkbench({
 	open, onClose, cfg, onCfgChange, geo, onGeoChange, options, onOptionsChange,
-	tree, frozenTree, onPreviewPan, onPreviewExplain, previewGeo, onTreeChange, onRun, onCancelScan, onPickInterval, onExplain, scanEpoch, resultsStale,
+	tree, frozenTree, onPreviewPan, onPreviewExplain, previewGeo, previewOptions, onTreeChange, onRun, onCancelScan, onPickInterval, onExplain, scanEpoch, resultsStale,
 	scanning, progress, results, truncated, scanErr,
 }){
 	const [draftType, setDraftType] = useState('geju_kind');
@@ -157,7 +153,8 @@ export default function TaiyiZeriWorkbench({
 
 	const draftLeaf = { kind: 'leaf', type: draftType, negate: draftNegate, params: draftParams };
 	const draftSpec = TAIYI_CONDITION_TYPES[draftType] || {};
-	const draftError = draftSpec.validate ? draftSpec.validate(draftParams) : '';
+	// [Q-478/T-440] 空数字框先判(与表单红框同一判据),再走各类型自校验。
+	const draftError = emptyNumberFieldError(draftSpec, draftParams) || (draftSpec.validate ? draftSpec.validate(draftParams) : '');
 
 	const appendTargetPath = selectedIsGroup ? selectedPath : [];
 	const doAdd = () => {
@@ -306,7 +303,7 @@ export default function TaiyiZeriWorkbench({
 	};
 
 	const editView = (
-		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 'clamp(560px, calc(100vh - 220px), 900px)' }}>
+		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)' }}>
 			{/* 左列(主操作区):时间范围 / 构造条件 / 连接门 / 动作排 —— 黄历日课与经纬/时刻无关,无地点·参数区 */}
 			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
 				<div style={{ padding: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
@@ -333,11 +330,10 @@ export default function TaiyiZeriWorkbench({
 							<XQButton size="small">{geo && geo.pos ? `📍 ${geo.pos}` : (geo && geo.gpsLat !== undefined ? `📍 ${formatGpsDms(geo.gpsLon, geo.gpsLat)}` : '选择地点…')}</XQButton>
 						</GeoCoordModal>
 						<span style={{ fontSize: 11, opacity: 0.6 }}>时区 {geo && geo.zone !== undefined ? geo.zone : '—'}</span>
-						{/* 扫描参数(与太乙页同枚举同默认)。⚠ tn 只作用于扫描判定:pick 后太乙页
-						    盘面按其左栏「积年算法」档自排(fields 不透传 tn)——非默认档下行内局名
-						    与 pick 盘局名会不同,此为已知边界(工作台下方注记同步明示)。 */}
+						{/* 扫描参数(与太乙页同枚举同默认;[Q-271/ZC-23] 档名复用主太乙页 TAIYI_ACCUM_OPTIONS)。
+						    tn 同时作用于扫描判定与 pick 起盘([挂载自检 F-37] TaiyiZeriMain 先回写 tn 到太乙页左栏再起盘)。 */}
 						{[
-							{ key: 'tn', label: '古法公式(仅扫描)', options: [{ value: 0, label: '通行' }, { value: 1, label: '古法一' }, { value: 2, label: '古法二' }, { value: 3, label: '古法三' }] },
+							{ key: 'tn', label: '积年算法', options: TAIYI_ACCUM_OPTIONS.map((o)=>({ value: o.value, label: o.label })) },
 						].map((f) => (
 							<span key={f.key} style={{ display: 'inline-flex', gap: 4, alignItems: 'center', fontSize: 11 }}>
 								<span style={{ opacity: 0.6 }}>{f.label}</span>
@@ -425,7 +421,7 @@ export default function TaiyiZeriWorkbench({
 	);
 
 	const resultView = (
-		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => setView('edit')} disabled={scanning}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>择时结果</span>
@@ -524,7 +520,7 @@ export default function TaiyiZeriWorkbench({
 	};
 
 	const schemesView = (
-		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => { setView('edit'); setSchemeMsg(''); }}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>方案管理</span>
@@ -606,7 +602,7 @@ export default function TaiyiZeriWorkbench({
 			{previewRow ? (
 				<ZeriMiniPanPopup
 					geo={previewGeo || geo}	/* 冻结地点优先:概览口径=扫描口径(活 geo 曾致扫后改地点概览错盘) */
-					techOptions={options}	/* 局法/日界等随工作台参数——概览真盘=computeTaiyiScanPan 同源 */
+					techOptions={previewOptions || options}	/* [Q-271/ZC-22] 冻结参数优先:概览口径=扫描口径(活 options 曾致扫后改参数概览错盘) */
 					tech="taiyi"
 					row={previewRow}
 					computePan={typeof onPreviewPan === 'function' ? onPreviewPan : null}

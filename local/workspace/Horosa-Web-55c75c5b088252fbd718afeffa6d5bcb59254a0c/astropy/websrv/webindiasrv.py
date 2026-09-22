@@ -510,7 +510,7 @@ class IndiaAstroSrv:
                         }
                 except Exception:
                     pass
-                tajaka = self._compute_tajaka(data, natal_perchart)
+                tajaka = self._compute_tajaka(data, natal_perchart, natal_jyotish=jyotish)   # [Q-123/T-31] 带本命首运曜/月宿余比 → Mudda 年内大运
                 if tajaka:
                     jyotish['tajaka'] = tajaka
                 # SBC 全吉盘:输入与过运上下文完全重合 → 零额外星历成本,恒挂(体积小)。
@@ -1119,7 +1119,23 @@ class IndiaAstroSrv:
             traceback.print_exc()
             return None
 
-    def _compute_tajaka(self, data, natal_perchart):
+    @staticmethod
+    def _natal_mudda_inputs(natal_jyotish):
+        """[Q-123/T-31] 本命 Vimshottari 首运曜 key + 月宿未走比(Mudda 年内大运两入参;此前生产从不传 → 页面卡/AI 段/报告段全指向恒不存在的输出)。"""
+        try:
+            vim = ((natal_jyotish or {}).get('dasha') or {}).get('vimshottari') or {}
+            lord = vim.get('firstLord') or {}
+            key = lord.get('key') if isinstance(lord, dict) else lord
+            nak = vim.get('moonNakshatra') or {}
+            ratio = nak.get('remainingRatio', nak.get('progress')) if isinstance(nak, dict) else None
+            ratio = float(ratio) if ratio is not None else None
+            if ratio is not None and not (0.0 <= ratio <= 1.0):
+                ratio = None
+            return (key if key else None), ratio
+        except Exception:
+            return None, None
+
+    def _compute_tajaka(self, data, natal_perchart, natal_jyotish=None):
         """年度盘(太阳回归到本命太阳经度，tajakaYear)→ build_tajaka。仅 tajakaYear 提供时算。
         回归时刻用同日线性逼近(太阳约 0.0411°/h)；精确求根为后续。"""
         try:
@@ -1185,14 +1201,18 @@ class IndiaAstroSrv:
             aasc = safe_get(kernel.chart, const.ASC)
             if not aasc:
                 return None
-            day_birth = bool(getattr(natal_perchart, 'isDiurnal', True))
+            # T-27:年度 Tājika 的昼夜取**年盘(年首时刻)**的昼夜,不是本命盘的(build_tajaka docstring「年首是否在昼」;
+            # 约半数年份 Saham 昼夜式 / Harsha / Triraasi / 年主候选①因此取反)。年盘 kernel 缺该属性才回落本命。
+            day_birth = bool(getattr(kernel, 'isDiurnal', getattr(natal_perchart, 'isDiurnal', True)))
             node_positions = {}
             for oid in (const.NORTH_NODE, const.SOUTH_NODE):
                 o = safe_get(kernel.chart, oid)
                 if o:
                     node_positions[oid] = {'sign': o.sign, 'lon': o.lon}
+            _mk, _mr = self._natal_mudda_inputs(natal_jyotish)
             res = build_tajaka(annual_positions, natal_asc.sign, aasc.lon, tajaka_year - birth_year, day_birth,
                                node_positions=node_positions,
+                               natal_first_vimshottari_key=_mk, natal_moon_remaining_ratio=_mr,
                          variants=data.get('dashaVariants'))
             if isinstance(res, dict):
                 res['tajakaYear'] = tajaka_year

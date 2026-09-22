@@ -285,7 +285,8 @@ class ElectionJudgment extends Component{
 	}
 	saveSnap(){
 		if(!this._j) return;
-		try{ const t = buildElectionSnapshot(this._j); if(t && t !== _lastElectionSnap){ _lastElectionSnap = t; saveModuleAISnapshot('election', t, {}); } }catch(e){ /* noop */ }
+		// [Q-445] 回归盘/主限命中为页面按需拉取物 → 随 extra 进快照(与右栏合参卡三同源)。
+		try{ const t = buildElectionSnapshot(this._j, { returnSet: this.props.returnSet, pdHits: this.props.pdHits }); if(t && t !== _lastElectionSnap){ _lastElectionSnap = t; saveModuleAISnapshot('election', t, {}); } }catch(e){ /* noop */ }
 	}
 	render(){
 		const { chart, topicId, natalFacts, mundaneSet, westSchool, surgeryPart, crisisBase, electionParams, tradeSide, talismanStar, surgeryPartOpposite } = this.props;

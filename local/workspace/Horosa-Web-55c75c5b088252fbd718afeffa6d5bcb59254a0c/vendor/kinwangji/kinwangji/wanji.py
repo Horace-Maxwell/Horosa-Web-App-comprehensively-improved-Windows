@@ -492,7 +492,8 @@ def gangzhi(
                 cdate_for_hour = fromSolar(_tdd[0], _tdd[1], _tdd[2])
                 hTG = f"{tian_gan[cdate_for_hour.getHourGZ(0).tg]}{di_zhi[cdate_for_hour.getHourGZ(0).dz]}"
         else:
-            _day_tg = cdate.getDayGZ().tg
+            # [Q-312 口径 B] lateZi=0: 钟面当天日干起子时(与日柱开关独立)
+            _day_tg = fromSolar(year, month, day).getDayGZ().tg
             hTG = tian_gan[(_day_tg % 5 * 2 + 0) % 10] + di_zhi[0]
     else:
         hTG = f"{tian_gan[cdate.getHourGZ(dd[3]).tg]}{di_zhi[cdate.getHourGZ(dd[3]).dz]}"

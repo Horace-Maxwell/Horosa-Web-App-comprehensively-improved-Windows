@@ -705,15 +705,20 @@ describe('[B13] 流年火铃', ()=>{
 // ══ [A3] 晚子时「跟随全局」默认档 ═══
 describe('[A3] lateZi global 档', ()=>{
 	const birth23 = { date: '1990-05-18', time: '23:30:00', zone: 'Asia/Shanghai', lon: 116.4, lat: 39.9, gender: 'male' };
-	test('🔴 global=透传显式全局值;zi_chu 强制档=恒(1,1);两者在全局(1,1)时字节同', ()=>{
+	test('🔴 [Q-194/T-120] global=透传显式全局值但「柱进盘不进」;zi_chu 强制档=(1,1)且柱与安星皆进 → 两档必异盘', ()=>{
 		const viaGlobal11 = calcZiwei(birth23, { lateZi: 'global', after23NewDay: 1, lateZiHourUseNextDay: 1 });
 		const viaForced = calcZiwei(birth23, { lateZi: 'zi_chu', after23NewDay: 0, lateZiHourUseNextDay: 0 });
-		expect(JSON.stringify(viaGlobal11)).toBe(JSON.stringify(viaForced));   // 强制档无视显式值
+		// 缺省档(global)按 Java 盘口径:日柱随全局日界进位,安命/安紫微仍取日历农历日 ⇒ 与「子初换日(强制)」不同盘。
+		// 旧断言「两者字节同」正是 Q-194 修掉的错行为(23 点生辰拨任一无关引擎键即整体移宫)。
+		expect(JSON.stringify(viaGlobal11)).not.toBe(JSON.stringify(viaForced));
 		// 全局=子正(0,0)时 global 跟随之 → 与 zi_zheng 档同盘、与强制 zi_chu 异盘(23:30 生辰日柱是否进位)
 		const viaGlobal00 = calcZiwei(birth23, { lateZi: 'global', after23NewDay: 0, lateZiHourUseNextDay: 0 });
 		const viaZiZheng = calcZiwei(birth23, { lateZi: 'zi_zheng' });
 		expect(JSON.stringify(viaGlobal00)).toBe(JSON.stringify(viaZiZheng));
 		expect(JSON.stringify(viaGlobal00)).not.toBe(JSON.stringify(viaForced));
+		// 强制档确实无视显式全局值(两组显式值同盘)
+		expect(JSON.stringify(calcZiwei(birth23, { lateZi: 'zi_chu', after23NewDay: 1, lateZiHourUseNextDay: 1 })))
+			.toBe(JSON.stringify(viaForced));
 	});
 	test('缺省(不传 lateZi)与 global 同义(向后兼容)', ()=>{
 		const a = calcZiwei(birth23, { after23NewDay: 1, lateZiHourUseNextDay: 1 });

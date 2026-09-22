@@ -54,10 +54,22 @@ describe('判定随口径/盘面变化', () => {
 		expect(fall.find((x) => x.key === 'm5_via').hit).toBe(true);   // 215 在火道 195–225
 		expect(fall.find((x) => x.key === 'm9_bad_house').hit).toBe(true);
 	});
-	it('空亡条随 vocMode 口径:抽走月入相后 kenodromia 命中、classic 不命中', () => {
-		const facts = mkFacts((r) => { r.aspects.normalAsp.Moon.Applicative = []; });
+	// [Q-146/T-53] classic 不再读后端 isVOC 旗(按全局口径算),改为按同一张相位表自算;
+	// 两档的真差别落在目标星集:classic 看表内全部星,kenodromia 只看七政(±三王)。
+	it('空亡条随 vocMode 口径:月只对非七政点入相 → kenodromia 命中、classic 不命中', () => {
+		const facts = mkFacts((r) => {
+			r.aspects.normalAsp.Moon.Applicative = [{ id: 'Asc', asp: 60, orb: 1.2 }];
+			r.aspects.normalAsp.Moon.Exact = [];
+		});
 		expect(lillyConsiderations(facts, null).find((x) => x.key === 'moon_voc').hit).toBe(false);
 		expect(lillyConsiderations(facts, { vocMode: 'kenodromia' }).find((x) => x.key === 'moon_voc').hit).toBe(true);
+	});
+	it('空亡条:月对任何星都无入相 → classic 自己也命中(旧实现读旗,旗 false 就不命中)', () => {
+		const facts = mkFacts((r) => {
+			r.aspects.normalAsp.Moon.Applicative = [];
+			r.aspects.normalAsp.Moon.Exact = [];
+		});
+		expect(lillyConsiderations(facts, null).find((x) => x.key === 'moon_voc').hit).toBe(true);
 	});
 	it('土星移 7 宫 → 第7宫=占星师高亮聚合', () => {
 		const facts = mkFacts((r) => {

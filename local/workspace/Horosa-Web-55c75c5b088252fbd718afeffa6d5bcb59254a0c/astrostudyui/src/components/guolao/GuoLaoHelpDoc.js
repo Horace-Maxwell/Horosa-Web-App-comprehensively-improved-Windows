@@ -12,7 +12,7 @@ const li = { margin: '0 0 3px', lineHeight: 1.6 };
 const card = { border: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', borderRadius: 6, padding: '7px 9px', margin: '0 0 7px' };
 const ct = { fontWeight: 700, marginBottom: 2 };
 const kv = (k, v) => <div style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
-const body = { maxHeight: '56vh', overflowY: 'auto', fontSize: 13, paddingRight: 4 };
+const body = { maxHeight: 'calc(56 * var(--horosa-lvh, 1vh))', overflowY: 'auto', fontSize: 13, paddingRight: 4 };
 
 class GuoLaoHelpDoc extends Component{
 	render(){
@@ -87,6 +87,7 @@ class GuoLaoHelpDoc extends Component{
 							<div style={card}><div style={ct}>报时星(太阳时)</div>
 								{kv('取值', '真太阳时(经度+均时差) / 平太阳时(仅经度) / 钟表时')}
 								{kv('默认', '真太阳时')}
+								{kv('生效范围', '只对「行星时制式=等长 24 时制」有别;日出法 / 昼夜不等时制下出生时刻与日出同加偏移、差值不变,三档结果恒同。校正后跨越子夜时按校正后日期取行星日(等长制)/ 以日出为界不回卷(日出法)')}
 							</div>
 							<div style={card}><div style={ct}>罗计取法 / 月孛取法</div>
 								{kv('罗计取法', '平交点(默认) / 真交点')}
@@ -131,7 +132,8 @@ class GuoLaoHelpDoc extends Component{
 							</div>
 							<div style={card}><div style={ct}>大限年界</div>
 								{kv('取值', '公历元旦(默认) / 立春起 / 冬至起')}
-								{kv('影响', '岁数带上「岁次进宫」的年界基准:同一命度,选立春或冬至会把各宫界年份整体挪动不到一年')}
+								{kv('影响', '岁数带上「岁次进宫」的年界基准:同一命度,选立春或冬至会把各宫界年份整体挪动不到一年;右栏大限表与 AI 快照大限段同源跟随')}
+								{kv('年界时刻', '立春 / 冬至时刻由本地节气表精算(公元 1–9999 年);岁次年号照干支纪年:立春前生人属上一年,冬至界按天正建子、冬至后生人属下一年')}
 							</div>
 							<div style={card}><div style={ct}>盘式〔条件:星盘样式=Horosa原盘〕</div>
 								{kv('取值', '圆形盘 / 方形盘')}
@@ -143,7 +145,7 @@ class GuoLaoHelpDoc extends Component{
 							</div>
 							<div style={card}><div style={ct}>性别</div>
 								{kv('取值', '未知 / 女 / 男(坚七政式只有 女 / 男)')}
-								{kv('影响', '登记于命例资料与 AI 解读;七政的落宫、大限、限度均不因性别改变(与紫微、八字不同)')}
+								{kv('影响', '本页零消费:七政的落宫、大限、限度均不因性别改变(果老法不分男女,与紫微、八字不同);只登记进命例资料供存档与别的技法调用,本页 AI 快照也不含性别行')}
 							</div>
 							<div style={card}><div style={ct}>流派预设</div>
 								{kv('取值', '自定 / 琴堂五星 / 果老星宗 / 天官·耶律 / 弧角天星')}

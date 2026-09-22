@@ -181,19 +181,26 @@ export async function pruneBackups(now){
 	}
 }
 
-// [B1] 壳层 timer 事件接线(layouts 启动一次):listen 壳侧 emit 的 tick 跑一轮。
-export function bindAutoBackupTicks(){
+// [B1] 壳层 timer 接线(layouts 启动一次)。
+// [FL-20260902-1] 旧写法 `window.__TAURI__.event.listen(...)` 在打包版从未挂上:withGlobalTauri 缺省 false
+// → 没有 window.__TAURI__;且 capabilities 为空 → core:event:allow-listen 未授权,拿 __TAURI_INTERNALS__ 也 listen 不了。
+// 改走壳→页面既有范式:壳侧 window.eval 调 `window.__horosaAutoBackupTick`,页面未就绪时进
+// `__horosaPendingAutoBackupTicks` 队列,绑定时补跑一次(多条 pending 只跑一轮,内容指纹未变自动跳过)。
+export function bindAutoBackupTicks(options){
 	if(!eligible()){
 		return;
 	}
+	// runner 可注入(测试用):接线正确性与备份本体解耦——备份本体另有 autoBackup.test.js 金标
+	const runner = options && typeof options.runner === 'function' ? options.runner : runAutoBackupOnce;
 	try{
-		const t = window.__TAURI__;
-		if(t && t.event && typeof t.event.listen === 'function'){
-			t.event.listen('horosa://auto-backup-tick', ()=>{
-				runAutoBackupOnce({ trigger: 'timer' });
-			});
+		window.__horosaAutoBackupTick = (tick)=>{
+			Promise.resolve().then(()=>runner({ trigger: 'timer', tick })).catch(()=>{});
+		};
+		const pending = Array.isArray(window.__horosaPendingAutoBackupTicks) ? window.__horosaPendingAutoBackupTicks.splice(0) : [];
+		if(pending.length){
+			Promise.resolve().then(()=>runner({ trigger: 'timer', tick: pending[pending.length - 1], pendingCount: pending.length })).catch(()=>{});
 		}
 	}catch(_e){
-		// 事件桥不可用:风险前强制备份仍生效。
+		// 桥不可用:风险前强制备份仍生效。
 	}
 }

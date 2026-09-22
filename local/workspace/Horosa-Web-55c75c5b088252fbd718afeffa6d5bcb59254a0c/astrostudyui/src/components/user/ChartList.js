@@ -11,11 +11,12 @@ import { RecordLinkModal, DuplicateMergeModal } from '../common/RecordToolsModal
 import { runAutoBackupOnce, getAutoBackupStatus } from '../../utils/autoBackup';
 import { recordsToCsv } from '../../utils/recordExportLite';
 import { parseCsvCharts, parseQckCharts, parseAafCharts, recordsToNdjson, recordsToMarkdown } from '../../utils/interchangeFormats';
-import { saveBlobToBrowser } from '../../utils/aiAnalysisExport';
+import { saveBlobToBrowser, describeSaveResult } from '../../utils/aiAnalysisExport';
 import { copyDesktopClipboard } from '../../utils/aiAnalysisDesktop';
 import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorage';
 import XQIcon from '../xq-icons';
 
+import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 const Option = XQSelect.Option;
 
 const primaryActionIconStyle = {
@@ -186,12 +187,11 @@ class ChartList extends Component{
 			this.clickImportInterchange();
 		}else if(key === 'exportNdjson'){
 			const rows = listLocalCharts(this.queryPayload({}));
-			saveBlobToBrowser(`horosa-charts-${Date.now()}.ndjson`, new Blob([recordsToNdjson(rows)], { type: 'application/x-ndjson' }));
-			message.success(`已导出 ${rows.length} 条 NDJSON`);
+			// [Q-410] 保存结果如实报(桌面壳保存桥;取消 / 失败不报已导出)
+			saveBlobToBrowser(`horosa-charts-${Date.now()}.ndjson`, new Blob([recordsToNdjson(rows)], { type: 'application/x-ndjson' })).then((r)=>{ const d = describeSaveResult(r, `已导出 ${rows.length} 条 NDJSON`); (message[d.type] || message.info)(d.text); });
 		}else if(key === 'exportMarkdown'){
 			const rows = listLocalCharts(this.queryPayload({}));
-			saveBlobToBrowser(`horosa-charts-${Date.now()}.md`, new Blob([recordsToMarkdown(rows, 'chart')], { type: 'text/markdown' }));
-			message.success(`已导出 ${rows.length} 条 Markdown 档案(不可回导,备份请用 zip)`);
+			saveBlobToBrowser(`horosa-charts-${Date.now()}.md`, new Blob([recordsToMarkdown(rows, 'chart')], { type: 'text/markdown' })).then((r)=>{ const d = describeSaveResult(r, `已导出 ${rows.length} 条 Markdown 档案(不可回导,备份请用 zip)`); (message[d.type] || message.info)(d.text); });
 		}
 	}
 
@@ -269,8 +269,7 @@ class ChartList extends Component{
 			return;
 		}
 		const csv = recordsToCsv(rows, 'chart');
-		saveBlobToBrowser(`horosa-charts-${Date.now()}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-		message.success(`已导出 ${rows.length} 条为 CSV`);
+		saveBlobToBrowser(`horosa-charts-${Date.now()}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8' })).then((r)=>{ const d = describeSaveResult(r, `已导出 ${rows.length} 条为 CSV`); (message[d.type] || message.info)(d.text); });   // [Q-410]
 	}
 
 	// [V5-D1/D2] 批量 归档/星标(toggle 语义:以首个选中项的当前态取反,批量同步到该态)。
@@ -354,16 +353,7 @@ class ChartList extends Component{
 				charts: items,
 			};
 			const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
-			const url = (window.URL || window.webkitURL).createObjectURL(blob);
-			const a = document.createElement('a');
-			a.style.display = 'none';
-			a.href = url;
-			a.setAttribute('download', fname);
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-			(window.URL || window.webkitURL).revokeObjectURL(url);
-			message.success(`已导出选中 ${items.length} 条`);
+			saveBlobToBrowser(fname, blob).then((r)=>{ const d = describeSaveResult(r, `已导出选中 ${items.length} 条`); (message[d.type] || message.info)(d.text); });   // [Q-410]
 		}catch(e){
 			message.error('导出选中失败');
 		}
@@ -430,21 +420,9 @@ class ChartList extends Component{
 			const now = new Date();
 			const pad = (n)=>String(n).padStart(2, '0');
 			const fname = `horosa-full-backup-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.zip`;
-			let saved = false;
-			try{
-				const desktop = await import('../../utils/aiAnalysisDesktop');
-				if(desktop.isDesktopBridgeAvailable()){
-					const base64 = await exp.blobToBase64(blob);
-					await desktop.saveDesktopFile({ defaultFileName: fname, base64Data: base64, mimeType: 'application/zip' });
-					saved = true;
-				}
-			}catch(e){
-				saved = false;   // 桌面失败(含用户取消)回落浏览器下载
-			}
-			if(!saved){
-				exp.saveBlobToBrowser(fname, blob);
-			}
-			message.success('全量备份已导出（命盘/事盘/人生事件/训练值/AI 设置）');
+			// [Q-410] 单源保存:桌面壳保存桥;取消不回落浏览器、不报成功;失败如实提示。
+			const d = exp.describeSaveResult(await exp.saveBlobToBrowser(fname, blob), '全量备份已导出（命盘/事盘/人生事件/训练值/AI 设置）');
+			(message[d.type] || message.info)(d.text);
 		}catch(e){
 			message.error('全量备份导出失败');
 		}
@@ -591,7 +569,7 @@ class ChartList extends Component{
 		reader.onload = ()=>{
 			// [S8 导入三闸] 校验→预览条数确认→执行(此前零校验零确认:任何含 charts 数组的 JSON
 			// 直接灌库、同 cid 静默覆盖;交叉选错事盘备份是静默 imported:0)。结构照 AI 工作区
-			// 备份恢复的闸序纪律(校验先行→告知条数→再动库),代码不共享(该件 NEVER_SYNC)。
+			// 备份恢复的闸序纪律(校验先行→告知条数→再动库)。
 			let json = null;
 			try{
 				json = JSON.parse(reader.result ? `${reader.result}` : '');
@@ -670,16 +648,7 @@ class ChartList extends Component{
 			const fname = `horosa-local-charts-${y}${m}${d}-${hh}${mm}${ss}.json`;
 			const payload = JSON.stringify(backup, null, 2);
 			const blob = new Blob([payload], {type: 'application/json;charset=utf-8'});
-			const url = (window.URL || window.webkitURL).createObjectURL(blob);
-			const a = document.createElement('a');
-			a.style.display = 'none';
-			a.href = url;
-			a.setAttribute('download', fname);
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-			(window.URL || window.webkitURL).revokeObjectURL(url);
-			message.success(`已导出本地命盘（${backup.total}条）`);
+			saveBlobToBrowser(fname, blob).then((r)=>{ const d = describeSaveResult(r, `已导出本地命盘（${backup.total}条）`); (message[d.type] || message.info)(d.text); });   // [Q-410]
 		}catch(e){
 			message.error('导出本地命盘失败');
 		}
@@ -972,7 +941,7 @@ class ChartList extends Component{
 			},
 		}];
 
-		let tbly = this.props.height ? this.props.height - 130 : document.documentElement.clientHeight - 130;
+		let tbly = this.props.height ? this.props.height - 130 : getLayoutViewportHeight() - 130;
 
 		let tags = this.genTagsOption();
 

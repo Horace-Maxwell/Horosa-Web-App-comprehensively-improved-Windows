@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 单测专用配置:Properties 与生产 log4j2.xml 同款写法(basedir 含未替换的 env/sys 变量),
+     只把目录尾巴换成 astrostudyboot-test,避免污染真实日志目录;Appender 结构照生产裁剪为一个。 -->
+<Configuration status="warn">
+	<Properties>
+	    <Property name="basedir">${env:HOME:-${sys:user.home}}/.horosa-logs/astrostudyboot-test</Property>
+	    <Property name="logdircomm">${basedir}/$${date:yyyy}/$${date:MM}/$${date:dd}</Property>
+	    <Property name="prjname">astrostudyboot-test</Property>
+	</Properties>
+
+	<Appenders>
+		<Console name="Console" target="SYSTEM_OUT">
+			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} $${prjname} %-5level - %msg%n" charset="utf-8" />
+		</Console>
+
+		<RollingFile name="OtherAppender" fileName="${logdircomm}/all/other.log" filePattern="${logdircomm}/all/other_%d{yyyyMMdd_HH}_%i.log">
+			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} $${prjname} %-5level - %msg%n" charset="utf-8" />
+			<Policies>
+				<TimeBasedTriggeringPolicy />
+				<SizeBasedTriggeringPolicy size="20 MB" />
+			</Policies>
+			<DefaultRolloverStrategy max="5">
+				<Delete basePath="${basedir}" maxDepth="5">
+					<IfFileName glob="*/*/*/*/*.log" />
+					<IfLastModified age="P7D" />
+				</Delete>
+			</DefaultRolloverStrategy>
+		</RollingFile>
+	</Appenders>
+
+	<Loggers>
+		<Root level="warn">
+			<AppenderRef ref="OtherAppender" />
+		</Root>
+	</Loggers>
+</Configuration>

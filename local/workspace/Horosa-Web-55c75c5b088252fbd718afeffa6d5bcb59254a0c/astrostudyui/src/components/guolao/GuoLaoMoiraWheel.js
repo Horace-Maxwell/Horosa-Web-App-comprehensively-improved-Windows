@@ -7,7 +7,9 @@ import { cornerTextBlock, apparentSolarText, lunarText, riseSetLines, su28ModeCa
 import { guolaoShenShaTip } from './GuoLaoShenShaDoc';
 import { longLifeMapForYear, smallLimitBranch, flyLimitBranches, childLimitBranch, childAgeLimitYears, childYearsSpan } from './guolaoMoiraTables';
 import { resolveRingShifts } from './electionCore';
+import { buildLocalJieqiYearSeed } from '../../utils/localNongliAdapter';   // [Q-188/T-125] 立春/冬至年界本地精算
 import './GuoLaoMoiraWheel.less';
+import { getEffectiveScale, visualFloorPx, fixedPopupFrame } from '../../utils/zoomDomain';
 
 const R = 560;
 // 视窗收紧(1220→1180):Moira 圆盘与天星择日盘直径同步放大约 3.4%;
@@ -1049,6 +1051,14 @@ function limitSegments(life, childBase){
 // Moira 年界硬编码=公历元旦(calendar/work_cal 均 GregorianCalendar,非节气);frac=(出生Ms − 当年1/1Ms)/一年。
 // mode:'gregorian'(公历元旦,Moira 默认)/'lichun'(立春)/'dongzhi'(冬至);后二者用 chart.nongli 节气日,缺则回退元旦。
 function birthYearFraction(chart, fields, mode){
+	return birthYearBasis(chart, fields, mode).frac;
+}
+
+// [Q-188/T-125] 年界基准全量:{ frac 出生在年界内已历年分数, yearShift 岁次年号相对公历出生年的偏移 }。
+// 立春界:立春前生人岁次属上一年(yearShift=-1);冬至界(天正建子):冬至后生人岁次属下一年(+1);公历元旦恒 0。
+// 此前立春/冬至两档要 chart.nongli.jieqi 的 lichun/dongzhi 字段,后端恒 null → 静默回退元旦(死档);
+// 现由本地节气表(lunar-javascript,AD1–9999)精算年界时刻,缺表仍回退元旦。
+function birthYearBasis(chart, fields, mode){
 	let Y; let Mo; let D; let h = 0; let mi = 0; let s = 0;
 	const pd = chart && chart.params && chart.params.date;
 	const pt = chart && chart.params && chart.params.time;
@@ -1074,39 +1084,85 @@ function birthYearFraction(chart, fields, mode){
 			h = d.getUTCHours(); mi = d.getUTCMinutes(); s = d.getUTCSeconds();
 		}
 	}
-	if(!Number.isFinite(Y) || !Number.isFinite(Mo) || !Number.isFinite(D)){ return 0; }
+	if(!Number.isFinite(Y) || !Number.isFinite(Mo) || !Number.isFinite(D)){ return { frac: 0, yearShift: 0 }; }
 	const MS_YEAR = 365.25 * 24 * 60 * 60 * 1000;
 	const birthMs = Date.UTC(Y, Mo - 1, D, h, mi, s);
 	// 年界起点(默认公历元旦;立春/冬至由 solarTermBoundaryMs 提供,缺则元旦)。
 	let boundaryMs = Date.UTC(Y, 0, 1, 0, 0, 0);
+	let yearShift = 0;
 	if(mode === 'lichun' || mode === 'dongzhi'){
-		const b = solarTermBoundaryMs(chart, Y, birthMs, mode);
-		if(Number.isFinite(b)){ boundaryMs = b; }
+		const b = solarTermBoundaryMs(chart, Y, birthMs, mode, chartZoneHours(chart, fields));
+		if(Number.isFinite(b.ms)){ boundaryMs = b.ms; yearShift = b.yearShift; }
 	}
 	let frac = (birthMs - boundaryMs) / MS_YEAR;
-	if(!Number.isFinite(frac)){ return 0; }
+	if(!Number.isFinite(frac)){ return { frac: 0, yearShift: 0 }; }
 	// 归一到 [0,1)(立春/冬至基准时出生可能落在年界前)。
 	frac = ((frac % 1) + 1) % 1;
-	return frac;
+	return { frac, yearShift };
 }
 
-// 立春/冬至 年界毫秒(增强项;取 chart.nongli 提供的节气日,缺则返回 NaN 让调用方回退公历元旦)。
-function solarTermBoundaryMs(chart, year, birthMs, mode){
+// 盘时区(小时):params.zone '+08:00' → fields.zone/date.zone → chart.date.utcoffset;缺则 +8(本地节气表基准,零换算)。
+function chartZoneHours(chart, fields){
+	const parseZone = (z)=>{
+		if(z == null || z === ''){ return NaN; }
+		if(typeof z === 'number'){ return z; }
+		const m = `${z}`.match(/^([+-])?(\d{1,2})(?::?(\d{2}))?$/);
+		if(!m){ return NaN; }
+		const v = Number(m[2]) + (m[3] ? Number(m[3]) / 60 : 0);
+		return m[1] === '-' ? -v : v;
+	};
+	const cands = [
+		chart && chart.params && chart.params.zone,
+		fields && fields.zone && fields.zone.value,
+		fields && fields.date && fields.date.value && fields.date.value.zone,
+		chart && chart.date && chart.date.utcoffset && chart.date.utcoffset.value,
+	];
+	for(let i = 0; i < cands.length; i++){
+		const v = parseZone(cands[i]);
+		if(Number.isFinite(v)){ return v; }
+	}
+	return 8;
+}
+
+// [Q-188/T-125] 本地节气表取某公历年的立春/冬至时刻(表值为 +08:00 墙钟)→ 换到盘时区墙钟毫秒(与 birthMs 同域,UTC 读取)。
+function localTermWallMs(year, term, zoneHours){
+	// 本地表按「农历年」建表:键「冬至」= 该年之前一个冬至(Y−1 年 12 月),故取公历 Y 年 12 月冬至须查 Y+1 年表(实证 2005–2007 三年)。
+	const seedYear = term === '冬至' ? year + 1 : year;
+	let seed = null;
+	try{ seed = buildLocalJieqiYearSeed(seedYear, null); }catch(e){ seed = null; }
+	const t = seed && seed[term] && seed[term].time ? `${seed[term].time}` : '';
+	const m = t.match(/(-?\d+)-(\d+)-(\d+)\D+(\d+):(\d+)(?::(\d+))?/);
+	if(!m){ return NaN; }
+	const cstMs = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+	return cstMs + (zoneHours - 8) * 3600000;
+}
+
+// 立春/冬至 年界(增强项):chart.nongli 若给出 lichun/dongzhi 时刻优先;否则本地节气表精算;皆缺返回 NaN 让调用方回退公历元旦。
+// 返回 { ms 年界墙钟毫秒, yearShift 岁次年号偏移 }:立春界取「≤出生」的最近一次立春(立春前生人=上一年立春,yearShift −1);
+// 冬至界取「≤出生」的最近一次冬至(冬至后生人年界=本年冬至,天正岁次属下一年 +1;冬至前生人=上一年冬至,岁次=本年 0)。
+function solarTermBoundaryMs(chart, year, birthMs, mode, zoneHours){
+	const key = mode === 'dongzhi' ? 'dongzhi' : 'lichun';
+	const term = mode === 'dongzhi' ? '冬至' : '立春';
 	const jq = chart && chart.nongli && (chart.nongli.jieqi || chart.nongli.solarTerms);
-	if(!jq){ return NaN; }
-	// 约定:jq.lichun / jq.dongzhi 为 'YYYY/MM/DD HH:mm' 或毫秒;取「出生日所属的年界」(≤出生Ms 的最近一次)。
 	const parse = (v)=>{
 		if(v == null){ return NaN; }
 		if(typeof v === 'number'){ return v; }
 		const m = `${v}`.match(/(-?\d+)\D+(\d+)\D+(\d+)(?:\D+(\d+)\D+(\d+))?/);
 		return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)) : NaN;
 	};
-	const key = mode === 'dongzhi' ? 'dongzhi' : 'lichun';
-	let ms = parse(jq[key]);
-	if(!Number.isFinite(ms)){ return NaN; }
-	// 冬至属上一年年末:若节气日在出生之后,回退一年(近似,精确值仍由 chart 提供为准)。
-	if(ms > birthMs){ ms -= 365.25 * 24 * 60 * 60 * 1000; }
-	return ms;
+	const zh = Number.isFinite(zoneHours) ? zoneHours : 8;
+	// 本年该节气时刻:chart 显式字段优先,否则本地节气表。
+	let cur = (jq && typeof jq === 'object') ? parse(jq[key]) : NaN;
+	if(!Number.isFinite(cur)){ cur = localTermWallMs(year, term, zh); }
+	if(!Number.isFinite(cur)){ return { ms: NaN, yearShift: 0 }; }
+	if(cur <= birthMs){
+		// 出生在本年节气之后:年界=本年节气。冬至界天正岁次属下一年。
+		return { ms: cur, yearShift: mode === 'dongzhi' ? 1 : 0 };
+	}
+	// 出生在本年节气之前:年界=上一年节气(本地表精算;缺表回退 −365.25 日近似)。
+	let prev = localTermWallMs(year - 1, term, zh);
+	if(!Number.isFinite(prev)){ prev = cur - 365.25 * 24 * 60 * 60 * 1000; }
+	return { ms: prev, yearShift: mode === 'lichun' ? -1 : 0 };
 }
 
 // 自锚点起累计的度偏移 s(照 Moira getLimitDegree:val = age − 1 − birthFrac,逐宫消耗 segment 年数,宫内 30° 线性)。
@@ -1159,10 +1215,12 @@ function limitYearForDegree(birthYear, life, degree, birthFrac, childBase){
 
 // 大限表（古度限度法，与年龄环同一套 limitSegments → 二者必然一致）：
 // 自命宫起逐宫一段，每段年数取 limitSegments(life)，首段=命度入宫度推算。
-function buildGuolaoLimitTable(life, birthYear, childBase){
+// [Q-188/T-125] birthFrac(年界内已历年分数,照 Moira val=age−1−birthFrac)可选:与岁数带同口径;缺省 0 = 旧表逐字不变。
+// birthYear 由调用方按年界基准传入岁次年号(公历年 + yearShift)。
+function buildGuolaoLimitTable(life, birthYear, childBase, birthFrac){
 	const segs = limitSegments(life, childBase);
 	const rows = [];
-	let age = 1;
+	let age = 1 + (Number.isFinite(Number(birthFrac)) ? Number(birthFrac) : 0);
 	for(let k = 0; k < 12; k++){
 		const span = Math.max(0.5, segs[k] || 0);
 		const fromAge = Math.round(age);
@@ -1362,22 +1420,32 @@ class GuoLaoMoiraWheel extends Component{
 		if(!node){
 			return;
 		}
+		// [Tahoe 域混根修·2026-09-17 用户 APP 实报「放大后盘面不随之缩小、被下端遮挡」] 量容器只用布局域读数(clientWidth/clientHeight);rect 域在标准化 zoom 引擎下已×z,当布局 px 用=盘面大 z 倍被裁(旧引擎 rect=布局值故不显)。
+		// clientWidth 为 0 的罕见兜底才用 rect,且经 getEffectiveScale()(实测探针)除回布局域。
+		const zScale = getEffectiveScale() || 1;
 		const rect = node.getBoundingClientRect();
 		const fallbackHeight = Number(this.props.height) || 740;
-		const availableWidth = rect.width || node.clientWidth || fallbackHeight;
-		const availableHeight = rect.height || node.clientHeight || fallbackHeight;
-		const nextSide = Math.max(280, Math.floor(Math.min(availableWidth, availableHeight)));
+		const availableWidth = node.clientWidth || (rect.width / zScale) || fallbackHeight;
+		const availableHeight = node.clientHeight || (rect.height / zScale) || fallbackHeight;
+		const nextSide = Math.max(visualFloorPx(280), Math.floor(Math.min(availableWidth, availableHeight)));
 		if(Number.isFinite(nextSide) && nextSide !== this.state.containerSide){
 			this.setState({containerSide: nextSide});
 		}
 	}
 
 	tooltipPoint(evt){
-		const maxX = typeof window !== 'undefined' ? Math.max(12, window.innerWidth - 440) : evt.clientX + 14;
-		const maxY = typeof window !== 'undefined' ? Math.max(12, window.innerHeight - 220) : evt.clientY + 16;
+		// 提示卡是 position:fixed:鼠标坐标(视觉域)先换到布局域,再与布局视口同域夹取;z=1 时逐值不变。
+		if(typeof window === 'undefined'){
+			return { x: evt.clientX + 14, y: evt.clientY + 16 };
+		}
+		const frame = fixedPopupFrame();
+		const cx = frame.toFixed(evt.clientX);
+		const cy = frame.toFixed(evt.clientY);
+		const maxX = Math.max(12, frame.viewportWidth - 440);
+		const maxY = Math.max(12, frame.viewportHeight - 220);
 		return {
-			x: Math.min(evt.clientX + 14, maxX),
-			y: Math.min(evt.clientY + 16, maxY),
+			x: Math.min(cx + 14, maxX),
+			y: Math.min(cy + 16, maxY),
 		};
 	}
 
@@ -2107,12 +2175,14 @@ class GuoLaoMoiraWheel extends Component{
 	}
 
 	renderLimitRing(root, chart, fields){
-		const birthYear = birthYearFrom(root, chart, fields);
 		const life = lifeDegree(chart, fields);
 		const nodes = [];
-		// birthFrac(公历元旦基准)+ 定童限 base(9/10)——与 renderDegreeTicks 同口径,保证刻度/年份/当前岁一致。
+		// birthFrac(年界基准)+ 定童限 base(9/10)——与 renderDegreeTicks 同口径,保证刻度/年份/当前岁一致。
+		// [Q-188/T-125] 年号 = 公历出生年 + 岁次偏移(立春前生人 −1 / 冬至后生人 +1;元旦界恒 0)。
 		const limitChildBase = Number(this.props.limitChildBase) === 10 ? 10 : 9;
-		const limitBirthFrac = birthYearFraction(chart, fields, this.props.limitYearBoundary || 'gregorian');
+		const limitBasis = birthYearBasis(chart, fields, this.props.limitYearBoundary || 'gregorian');
+		const limitBirthFrac = limitBasis.frac;
+		const birthYear = birthYearFrom(root, chart, fields) + limitBasis.yearShift;
 		// 立命年份大字标(旧 key:'birth',fontSize 24)已撤:它压在立命位,与岁数带(…105/106/1/2…环绕)+ 命度红线
 		// 三者堆叠成一坨(用户点名「乱糟糟」)。立命位已由命度红线明示,不再另标高亮当年年份;仅保留各宫界年份小字标。
 		const yearMarks = [];
@@ -2194,7 +2264,10 @@ class GuoLaoMoiraWheel extends Component{
 					);
 				}
 			}
-const curAge = (this.props.transitParams && this.props.transitParams.date ? birthYearFrom({params: this.props.transitParams}, null, null) : birthYear) - birthYear + 1;
+// [Q-188/T-125] 流年岁次年号与出生岁次同一年界基准(立春前 −1 / 冬至后 +1),虚岁 = 流年岁次 − 出生岁次 + 1。
+const transitShift = this.props.transitParams && this.props.transitParams.date
+	? birthYearBasis({ params: this.props.transitParams }, null, this.props.limitYearBoundary || 'gregorian').yearShift : 0;
+const curAge = (this.props.transitParams && this.props.transitParams.date ? birthYearFrom({params: this.props.transitParams}, null, null) + transitShift : birthYear) - birthYear + 1;
 			if(this.props.showAgeRing !== false && this.props.showAspectsMode !== true && curAge >= 1 && curAge <= 130){
 				// 🔴 流年岁数标记(用户钦定):不再用红色径向线(会和命度红线混淆),改成
 				// **占该岁 cell 内侧(下侧)整条弧**的蓝色弧带——从 cell 起界到止界、贴岁数带内圈。
@@ -2404,6 +2477,7 @@ export {
 	currentLimitIndex as moiraCurrentLimitIndex,
 	lifeDegree as moiraLifeDegree,
 	birthYearFraction as moiraBirthYearFraction,
+	birthYearBasis as moiraBirthYearBasis,
 	BIRTH_GOD_ORDER as MOIRA_BIRTH_GOD_ORDER,
 	TRANSIT_GOD_ORDER as MOIRA_TRANSIT_GOD_ORDER,
 };

@@ -99,7 +99,7 @@ describe('auditTreeAgainstRegistry(F7:载入方案静默恒假根修)', () => {
 			const issues = auditTreeAgainstRegistry(root, CONDITION_TYPES);
 			expect({ t, issues }).toEqual({ t, issues: [] });
 		});
-		// 九私有注册表(在场即锚;泛叶 params={} = 纯缺省形态)
+		// 九家注册表(在场即锚;泛叶 params={} = 纯缺省形态)
 		PRIVATE_REGISTRIES.forEach(([name, reg]) => {
 			Object.keys(reg).forEach((t) => {
 				const root = { kind: 'group', joiner: 'all', negate: false, children: [{ kind: 'leaf', type: t, negate: false, joiner: 'all', params: {} }] };
@@ -109,7 +109,7 @@ describe('auditTreeAgainstRegistry(F7:载入方案静默恒假根修)', () => {
 		});
 	});
 
-	it('私有注册表矩阵不空转:本仓形态九家必须全在场(防 lazyRegistry 路径漂移致全 skip 假绿)', () => {
+	it('各家注册表矩阵不空转:本构建九家必须全在场(防 lazyRegistry 路径漂移致全 skip 假绿)', () => {
 		if(!fs.existsSync(path.join(SRC, 'liurengZeriConditionTypes.js'))){ return; }	// 精简形态跳过
 		expect(PRIVATE_REGISTRIES.map(([n]) => n).sort()).toEqual([
 			'BAZI_CONDITION_TYPES', 'HUANGLI_CONDITION_TYPES', 'INDIA_CONDITION_TYPES',

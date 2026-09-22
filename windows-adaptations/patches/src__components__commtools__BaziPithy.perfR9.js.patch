@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/commtools/BaziPithy.js b/astrostudyui/src/components/commtools/BaziPithy.js
-index 37e7b53..56aa356 100644
+index 1097822a..0aeda395 100644
 --- a/astrostudyui/src/components/commtools/BaziPithy.js
 +++ b/astrostudyui/src/components/commtools/BaziPithy.js
 @@ -1,11 +1,13 @@
@@ -15,9 +15,9 @@ index 37e7b53..56aa356 100644
 +// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
 +// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
  
+ import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
  export default class BaziPithy extends Component{
- 	constructor(props) {
-@@ -45,8 +47,9 @@ export default class BaziPithy extends Component{
+@@ -46,8 +48,9 @@ export default class BaziPithy extends Component{
              return (<li key={idx}>{line}</li>)
          })
  
@@ -28,7 +28,7 @@ index 37e7b53..56aa356 100644
                  <Divider orientation='left'>{key}</Divider>
                  <ul>
                      {lis}
-@@ -69,12 +72,12 @@ export default class BaziPithy extends Component{
+@@ -70,12 +73,12 @@ export default class BaziPithy extends Component{
          for(let i=0; i<10; i++){
              let gan = Gan[i];
              let li = (
@@ -43,7 +43,7 @@ index 37e7b53..56aa356 100644
              )
              colword4.push(li4);
          }
-@@ -83,7 +86,7 @@ export default class BaziPithy extends Component{
+@@ -84,7 +87,7 @@ export default class BaziPithy extends Component{
          for(let i=0; i<12; i++){
              let zi = Zi[i];
              let li = (
@@ -52,7 +52,7 @@ index 37e7b53..56aa356 100644
              );
              colword3zi.push(li);
          }
-@@ -91,7 +94,7 @@ export default class BaziPithy extends Component{
+@@ -92,7 +95,7 @@ export default class BaziPithy extends Component{
          let nayin = [];
          for(let key in pithy['纳音断运']){
              let li = (
@@ -61,7 +61,7 @@ index 37e7b53..56aa356 100644
              )
              nayin.push(li);
          }
-@@ -101,7 +104,7 @@ export default class BaziPithy extends Component{
+@@ -102,7 +105,7 @@ export default class BaziPithy extends Component{
              let ary = pithy['五行颠倒'][key];
  
              let li = (

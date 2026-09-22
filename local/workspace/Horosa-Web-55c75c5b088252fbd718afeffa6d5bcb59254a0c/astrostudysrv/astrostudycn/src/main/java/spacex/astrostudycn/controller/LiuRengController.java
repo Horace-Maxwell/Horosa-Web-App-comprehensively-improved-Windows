@@ -88,7 +88,12 @@ public class LiuRengController {
 		map.put("lon", TransData.getValueAsString("lon"));
 
 		map.put("godKeyPos", GodRule.ZhuRiZhu);	
-		map.put("timeAlg", TimeZiAlg.RealSun);
+		// [Q-386/T-367] 时间算法改为读参,缺省仍 RealSun(真太阳时)=现状字节不变。
+		// 病灶:独立六壬页此前无此控件、后端写死真太阳时,而三式合一的六壬层时柱取自奇门(奇门吃 timeAlg)
+		// → 全局或合一选「直接时间」时,同一时刻两页六壬时柱可分属两个时辰,月将加时与天地盘整体不同。
+		// 注:本键恒入 params(缺省也 put),故 ParamHash 缓存键对所有请求一致变更、不会与旧键碰撞。
+		int timeAlgCode = TransData.getValueAsInt("timeAlg", TimeZiAlg.RealSun.getCode());
+		map.put("timeAlg", TimeZiAlg.fromCode(timeAlgCode));
 		map.put("useZodicalLon", false);
 		map.put("phaseType", PhaseType.ShuiTu);
 

@@ -8,7 +8,7 @@
 //   · 签名兼容:cachedKentangFetch(url, fetchOpts, cfg) 与 fetchChartWithRetry 同参,
 //     返回 Response 形对象({ok,status,text(),json()}),调用方解析/校验逻辑逐字节不动;
 //   · 缓存存【原始 text】,命中即 JSON.parse = 天然深拷贝(零共享引用互染);
-//   · 空文/坏 JSON/ResultCode≠0 一律不入缓存(PLAYBOOK 坑49);HTTP !ok 原样透传不消费 body;
+//   · 空文/坏 JSON/ResultCode≠0 一律不入缓存(踩坑记录 49);HTTP !ok 原样透传不消费 body;
 //   · 键=去端口化 path + body(照 L3 先例,防端口漂移废缓存);L3 信封 rev=kt-v1|rv(版本闸);
 //   · 预取纪律(纵深防御,矩阵哨兵之外再拦一道):policy!=='deterministic' 的模块
 //     prefetchKentang 直接拒绝 —— 含种子模块「可缓存不可预取」在代码层锁死。

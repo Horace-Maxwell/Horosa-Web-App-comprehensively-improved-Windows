@@ -340,39 +340,7 @@ class Azimuth extends Component{
 						</div>
 					</Col>
 				</Row>
-				<Row style={{marginTop: 10}}>
-					<Col span={24}>
-						<div style={inputGroupStyle}>
-							<span>海拔：</span>
-							<InputNumber min={0} max={9000} step={10} 
-								value={this.state.height} 
-								onChange={this.changeHeight} 
-								style={{width: 120}}
-							/><span>米</span>
-						</div>
-					</Col>
-					<Col span={12}>
-						<div style={inputGroupStyle}>
-							<span>温度：</span>
-							<InputNumber min={-100} max={60} step={1} 
-								value={this.state.temp} 
-								onChange={this.changeTemp} 
-								style={{width: 120}}
-							/><span>摄氏度</span>
-						</div>
-					</Col>
-					<Col span={12}>
-						<div style={inputGroupStyle}>
-							<span>大气压：</span>
-							<InputNumber min={1} max={5000} step={10} 
-								value={this.state.press} 
-								onChange={this.changePress} 
-								style={{width: 120}}
-							/><span>百帕</span>
-						</div>
-					</Col>
-
-				</Row>
+				{/* [Q-306/T-298] 海拔输入已移除:纯前端 calcAzimuthLocal 不吃海拔(物理影响极小),留着是死开关 */}
 				<Row style={{marginTop: 20}}>
 					<Col offset={18} span={6}>
 						<Button type='primary' onClick={this.requestCalc}>计算</Button>

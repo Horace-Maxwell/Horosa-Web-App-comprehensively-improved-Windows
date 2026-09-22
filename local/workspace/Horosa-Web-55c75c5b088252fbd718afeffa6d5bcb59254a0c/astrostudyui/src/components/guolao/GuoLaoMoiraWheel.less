@@ -72,7 +72,7 @@
 	z-index: 2600;
 	width: max-content;
 	min-width: 220px;
-	max-width: min(420px, calc(100vw - 32px));
+	max-width: ~"min(420px, calc(100 * var(--horosa-lvw, 1vw) - 32px))";
 	padding: 5px 9px;
 	border: 1px solid var(--moira-tooltip-border);
 	background: var(--moira-tooltip-bg);

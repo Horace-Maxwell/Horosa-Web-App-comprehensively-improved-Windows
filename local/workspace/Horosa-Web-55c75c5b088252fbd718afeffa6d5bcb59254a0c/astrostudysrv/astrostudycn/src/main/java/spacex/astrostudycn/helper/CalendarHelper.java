@@ -17,8 +17,13 @@ public class CalendarHelper {
 	
 	public static Map<String, Object> getMonthDays(String date, String zone, int ad, String lon, String lat) {
 		date = date.replace('/', '-');
+		// [Q-270/T-263] 公元前日期串自带负号('-2026-09-01'):按 '-' 切分首段为空 → 拼出 '--2026';先剥符号再按 ad 补回。
+		boolean negative = date.startsWith("-");
+		if(negative) {
+			date = date.substring(1);
+		}
 		String[] parts = StringUtility.splitString(date, '-');
-		if(ad < 0) {
+		if(ad < 0 || negative) {
 			parts[0] = "-" + parts[0];
 		}
 		

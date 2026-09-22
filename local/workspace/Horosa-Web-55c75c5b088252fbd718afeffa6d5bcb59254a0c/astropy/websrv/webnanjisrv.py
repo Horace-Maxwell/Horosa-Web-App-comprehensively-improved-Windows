@@ -80,6 +80,18 @@ def _normalize_jianchu(value):
     return _valid(text, JIANCHU, "建")
 
 
+# [Q-265/T-250·SO-21③] 密码简体输入归一到库内繁体键(如「海异山同」→「海異山同」);未知码原样(下游回「此密碼手稿未公開」)
+_PASSWORD_SIMP2TRAD = {"异": "異", "将": "將", "这": "這", "际": "際", "财": "財", "胜": "勝", "则": "則", "阴": "陰", "荆": "荊"}
+
+
+def _normalize_password_code(code):
+    text = clean_text(code)
+    if not text or text in PASSWORDS:
+        return text
+    trad = "".join(_PASSWORD_SIMP2TRAD.get(ch, ch) for ch in text)
+    return trad if trad in PASSWORDS else text
+
+
 def _normalize_xiu(value):
     text = clean_text(value, "角")
     text = XIU_ALIASES.get(text, text)
@@ -121,11 +133,22 @@ def _lookup_entries(njs, section, jianchu, xiu):
     return entries
 
 
-def _build_manual_chart(data, gender):
-    lunar_year = to_int(data.get("nanjiLunarYear") or data.get("lunarYear"), 2026)
-    solar_month = max(1, min(12, to_int(data.get("nanjiSolarMonth") or data.get("solarMonth"), 1)))
-    day = max(1, min(31, to_int(data.get("nanjiDay") or data.get("day"), 1)))
-    hour_zhi = _valid(clean_text(data.get("nanjiHourZhi") or data.get("hourZhi")), DIZHI, "子")
+def _solar_base(dt, gender, data):
+    """[Q-263/T-251] 手动古法空值回落基准 = 本命出生时刻的公历精算盘(此前写死 2026 年·节月 1·子时)。"""
+    try:
+        return NanJiShenShu.from_solar_datetime(
+            dt.year, dt.month, dt.day, dt.hour, dt.minute, gender=gender,
+            after23_new_day=to_int(data.get("after23NewDay"), 1))
+    except Exception:
+        return None
+
+
+def _build_manual_chart(data, gender, dt=None):
+    base = _solar_base(dt, gender, data) if dt is not None else None
+    lunar_year = to_int(data.get("nanjiLunarYear") or data.get("lunarYear"), base.lunar_year if base else 2026)
+    solar_month = max(1, min(12, to_int(data.get("nanjiSolarMonth") or data.get("solarMonth"), base.solar_month if base else 1)))
+    day = max(1, min(31, to_int(data.get("nanjiDay") or data.get("day"), base.day if base else 1)))
+    hour_zhi = _valid(clean_text(data.get("nanjiHourZhi") or data.get("hourZhi")), DIZHI, (base.hour_zhi if base and base.hour_zhi else "子"))
     after_lichun = clean_text(data.get("nanjiAfterLichun") or data.get("afterLichun"), "1") != "0"
     njs = NanJiShenShu(
         lunar_year=lunar_year,
@@ -137,6 +160,12 @@ def _build_manual_chart(data, gender):
     )
     day_gan = _valid(clean_text(data.get("nanjiDayGan") or data.get("dayGan")), TIANGAN, "")
     day_zhi = _valid(clean_text(data.get("nanjiDayZhi") or data.get("dayZhi")), DIZHI, "")
+    # [Q-263/T-243] 日干「自出」= 按出生时刻精算的日柱(此前「自动」实为不设 → 时柱恒空);
+    # 日支单给亦可用(日干缺时取本命日干),时支不再依赖手填日干。
+    if not day_gan and base and base.day_gan:
+        day_gan = base.day_gan
+        if not day_zhi and base.day_zhi:
+            day_zhi = base.day_zhi
     if day_gan:
         njs.set_day_pillar(day_gan, day_zhi or None)
         njs.set_hour_pillar()
@@ -244,7 +273,7 @@ class NanJiSrv:
             timezone_value = timezone_to_float(data.get("zone") or data.get("timezone"), 8.0)
             mode = clean_text(data.get("nanjiMode") or data.get("mode"), "solar")
             if mode == "manual":
-                njs = _build_manual_chart(data, gender)
+                njs = _build_manual_chart(data, gender, dt)
                 mode_label = "手动古法"
             else:
                 njs = NanJiShenShu.from_solar_datetime(
@@ -255,6 +284,7 @@ class NanJiSrv:
                     dt.minute,
                     gender=gender,
                     after23_new_day=to_int(data.get("after23NewDay"), 1),
+                    hour_gan_use_next_day=to_int(data.get("lateZiHourUseNextDay"), 1),   # [Q-264/T-247] 全局「晚子时」
                 )
                 mode = "solar"
                 mode_label = "公历精算"
@@ -266,13 +296,17 @@ class NanJiSrv:
             xiu = _normalize_xiu(data.get("nanjiXiu") or data.get("xiu"))
             query_entries = [_entry_to_dict(item) for item in _lookup_entries(njs, section, jianchu, xiu)]
             palace_entries = [_entry_to_dict(item) for item in njs.lookup_all_tiaowen_for_palace(njs.palace_section)]
-            password_code = clean_text(data.get("nanjiPasswordCode") or data.get("passwordCode"))
+            password_code = _normalize_password_code(clean_text(data.get("nanjiPasswordCode") or data.get("passwordCode")))
             if not password_code:
                 password_code = next(iter(PASSWORDS.keys()))
             password_meaning = njs.lookup_password(password_code)
             divine_chart = max(1, min(18, to_int(data.get("nanjiChart") or data.get("chart"), 1)))
             divine_palace = _valid(clean_text(data.get("nanjiPalace") or data.get("palace")), DIZHI, section[0])
-            divine_degree = max(0.0, min(30.0, to_float(data.get("nanjiDegree") or data.get("degree"), 1.0)))
+            # [Q-265/T-250·SO-18] 宿度 0 可达:`x or y` 把 0 当缺省回落 1.0;改按「键缺/空串」判空
+            _deg_raw = data.get("nanjiDegree")
+            if _deg_raw is None or (isinstance(_deg_raw, str) and not _deg_raw.strip()):
+                _deg_raw = data.get("degree")
+            divine_degree = max(0.0, min(30.0, to_float(_deg_raw, 1.0)))
             divine_text = display_text(
                 njs.divine(
                     chart=divine_chart,

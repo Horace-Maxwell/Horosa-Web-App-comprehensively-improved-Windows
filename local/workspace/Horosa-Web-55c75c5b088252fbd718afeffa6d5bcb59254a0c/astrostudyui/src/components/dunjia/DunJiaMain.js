@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { visualFloorRatio } from '../../utils/zoomDomain';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { getLayoutViewportHeight } from '../../utils/shellZoom';
 import { stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled, stepPrefetchDepth } from '../../utils/perfFlags';
@@ -8,6 +9,7 @@ import { armStepPrefetch } from '../../utils/stepPrefetchArm';
 // [Windows-only] horosa_panel_ready_v1(P5):遁甲「画完」观测钉(验收配对靠它)。
 import { markPanelReady } from '../../utils/perfMark';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
+import { definePageSettings } from '../../utils/pageSettingsStore';
 import { Tag, message, Popover, Modal } from 'antd';
 import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import XQIcon from '../xq-icons';
@@ -42,6 +44,8 @@ import {
 	YUEJIA_QIJU_OPTIONS,
 	ZHISHI_OPTIONS,
 	QIJU_METHOD_OPTIONS,
+	qijuMethodOptionsFor,
+	qijuMethodSelectValue,   // [Q-161/T-79] 起局下拉单一真值源(与三式合一页同源)
 	ZHIRUN_LEAP_OPTIONS,
 	GODS_PRESET_OPTIONS,
 	ANGAN_MODE_OPTIONS,
@@ -61,7 +65,10 @@ import {
 	birthToYearGan,
 	calcDunJia,
 	fetchQimenPan,
-	isKinqimenMode,
+	isQimenLocalRoute,
+	needJieqiYearSeed,
+	jieqiSeedYears,
+	jieqiSeedSignature,
 	normalizeKinqimenData,
 	buildDunJiaSnapshotText,
 	buildQimenWangShuai,
@@ -154,12 +161,46 @@ const DEFAULT_OPTIONS = {
 	fullNameTips: false,          // [H-B] 提示词条标题带类别全名(星/门/神)
 };
 
-// 起局下拉(非时家):年/月/日家有各自「本家默认」定局(三元/年符头/节气三元),节气四法(置闰/拆补/茅山/无闰)仅时家相关。
-// 故非时家只给两项「本家默认 / 阴盘(报数)」——阴盘报数与排盘正交、可叠加任意家;避免「选了阴盘后节气四法被禁→无法切回本家默认」的死锁。
-const QIJU_METHOD_NONSHI_OPTIONS = [
-	{ value: 'zhirun', label: '本家默认' },   // 非时家忽略具体节气法→等同本家原生定局(zhirun 仅占位)
-	{ value: 'shuzi', label: '阴盘' },
-];
+// 排盘设置跨会话保留(用户实报:排盘设置改了之后每次重开软件都要重设;奇门与六壬 / 太乙同病)。
+// 只收口径 / 流派 / 显示偏好。不进的:性别(随命主)、报数(每课输入)、移星(逐盘操作)、封局(逐盘状态)、
+// 23 点换日 / 晚子时(归全局设置管,全局现值为准)。
+// 独立奇门页与奇门择日内嵌实例共用同一份:奇门择日的工作台参数首开即取自内嵌盘(seedFromBoard),扫描与点选后的显示盘同口径;
+// (六壬 / 太乙 / 三式择日不同 —— 它们的扫描引擎有钉死口径,内嵌盘不读不写保存值,见各页注。)
+// 只在用户亲手改控件时落盘:事盘回灌 / 宿主下发 / 全局广播都不落盘。
+const vals = (list)=>list.map((o)=>o.value);
+export const DUNJIA_PAGE_SETTINGS = definePageSettings('horosa.dunjia.settings.v1', {
+	paiPanType: { def: DEFAULT_OPTIONS.paiPanType, oneOf: vals(PAIPAN_OPTIONS) },
+	zhiShiType: { def: DEFAULT_OPTIONS.zhiShiType, oneOf: vals(ZHISHI_OPTIONS) },
+	yueJiaQiJuType: { def: DEFAULT_OPTIONS.yueJiaQiJuType, oneOf: vals(YUEJIA_QIJU_OPTIONS) },
+	qijuMethod: { def: DEFAULT_OPTIONS.qijuMethod, oneOf: QIJU_METHOD_OPTIONS.map((o)=>o.value) },   // 候选随排盘体例增减(时家 / 刻家 5 档,其余 2 档),全集固定
+	school: { def: DEFAULT_OPTIONS.school, oneOf: vals(SCHOOL_OPTIONS) },
+	kongMode: { def: DEFAULT_OPTIONS.kongMode, oneOf: vals(KONG_MODE_OPTIONS) },
+	yimaMode: { def: DEFAULT_OPTIONS.yimaMode, oneOf: vals(MA_MODE_OPTIONS) },
+	timeAlg: { def: DEFAULT_OPTIONS.timeAlg, oneOf: vals(TIME_ALG_OPTIONS) },
+	zhirunLeapDays: { def: DEFAULT_OPTIONS.zhirunLeapDays, oneOf: vals(ZHIRUN_LEAP_OPTIONS) },
+	godsPreset: { def: DEFAULT_OPTIONS.godsPreset, oneOf: vals(GODS_PRESET_OPTIONS) },
+	jiGongMode: { def: DEFAULT_OPTIONS.jiGongMode, oneOf: vals(JIGONG_MODE_OPTIONS) },
+	anGanMode: { def: DEFAULT_OPTIONS.anGanMode, oneOf: vals(ANGAN_MODE_OPTIONS) },
+	shiftZhiFuMode: { def: DEFAULT_OPTIONS.shiftZhiFuMode, oneOf: vals(SHIFT_ZHIFU_OPTIONS) },
+	yearJiaJu: { def: DEFAULT_OPTIONS.yearJiaJu, oneOf: vals(YEARJIA_JU_OPTIONS) },
+	dayJiaJu: { def: DEFAULT_OPTIONS.dayJiaJu, oneOf: vals(DAYJIA_JU_OPTIONS) },
+	keJiaFenDun: { def: DEFAULT_OPTIONS.keJiaFenDun, oneOf: vals(KEJIA_FENDUN_OPTIONS) },
+	jinhanMenPai: { def: DEFAULT_OPTIONS.jinhanMenPai, oneOf: vals(JINHAN_MENPAI_OPTIONS) },
+	mixTian: { def: '', oneOf: ['', 'zhuan', 'fei'] },
+	mixXing: { def: '', oneOf: ['', 'zhuan', 'fei'] },
+	mixMen: { def: '', oneOf: ['', 'zhuan', 'fei'] },
+	mixShen: { def: '', oneOf: ['', 'zhuan', 'fei'] },
+	feiXingShun: { def: DEFAULT_OPTIONS.feiXingShun },
+	feiMenShun: { def: DEFAULT_OPTIONS.feiMenShun },
+	feiShenShun: { def: DEFAULT_OPTIONS.feiShenShun },
+	feiMenZhongCan: { def: DEFAULT_OPTIONS.feiMenZhongCan },
+	feiMenZhongShow: { def: DEFAULT_OPTIONS.feiMenZhongShow },
+	kongMarkBoth: { def: DEFAULT_OPTIONS.kongMarkBoth },
+	showAllKong: { def: DEFAULT_OPTIONS.showAllKong },
+	keZiZhengHuanShi: { def: DEFAULT_OPTIONS.keZiZhengHuanShi },
+	showAnZhi: { def: DEFAULT_OPTIONS.showAnZhi },
+	fullNameTips: { def: DEFAULT_OPTIONS.fullNameTips },
+});
 
 const DUNJIA_BOARD_BASE_WIDTH = 662;
 const DUNJIA_BOARD_BASE_HEIGHT = 870;
@@ -171,6 +212,12 @@ const dunJiaLiveStateByScope = Object.create(null);
 function normalizeKenQimenOptions(options){
 	const next = {
 		...DEFAULT_OPTIONS,
+		// [Q-315/T-300] 日界两键**现取**全局:DEFAULT_OPTIONS 是模块顶层常量(奇门是预载分包 → 值停在
+		//   模块载入那一刻),会话内先改全局「23 点换日 / 晚子时」再首开奇门,曾仍按旧值排日柱与时柱。
+		//   太乙 / 三式在构造函数里现读,本来就没这问题。传入 options 里显式带了这两键(存档 / 用户改过)时
+		//   仍以传入值为准 —— 展开序保证。
+		after23NewDay: defaultAfter23NewDay(),
+		lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
 		...(options || {}),
 	};
 	// 旧数据迁移:阴盘曾为「盘式」(school='阴盘'),现为「起局法」(qijuMethod='shuzi',报数定局)。
@@ -537,29 +584,7 @@ function getQimenOptionsKey(options){
 	].join('|');
 }
 
-function needJieqiYearSeed(options){
-	const opt = options || {};
-	// 置闰/无闰=超神接气;茅山=按交节时刻足60时辰(须任意节气的精确交节时刻种子)。三者都要节气种子。
-	const usesShenJie = opt.qijuMethod === 'zhirun' || opt.qijuMethod === 'wurun' || opt.qijuMethod === 'maoshan';
-	// 日家(本地全盘):局=节气三元六十日一局,须节气种子(冬/夏至日期+日柱)定「至甲子」60日块;
-	// 缺种子会退 findYuan 漏置闰→局错(如1964-11-10日家应阴三却给阴六)。任何盘式/起局下日家都要种子。
-	if(opt.paiPanType === 2){
-		return true;
-	}
-	// [H-G] 金函系日家(6):阴阳盘=冬至后阳/夏至后阴,须至日种子精判(无种子退化节令,至界附近会错半年)。
-	if(opt.paiPanType === 6){
-		return true;
-	}
-	// 飞盘/混合走本地短路计算(非后端),置闰/无闰/茅山需 jieqi 种子(超神/交节时刻);否则退曆法节气漏超神/茅山退拆补。
-	// 转盘等后端模式由后端处理节气,本地种子无关。
-	if(opt.school === '飞盘' || opt.school === '混合'){
-		return usesShenJie;
-	}
-	if(isKinqimenMode(opt.paiPanType)){
-		return false;
-	}
-	return opt.paiPanType === 3 && usesShenJie;
-}
+// needJieqiYearSeed 已收编到 DunJiaCalc(独立页/三式/择日单源;[Q-155] 补刻家与本地口径非缺省的转盘)。
 
 function sameRelatedPeople(a, b){
 	const aa = Array.isArray(a) ? a : [];
@@ -589,6 +614,8 @@ function rememberDunJiaLiveState(scope, payload){
 		displaySolarTime: payload.displaySolarTime || '',
 		pan: payload.pan,
 		options: payload.options ? { ...payload.options } : null,
+		// [Q-315/T-300] 记住这两键是否被本页左栏显式改过:未改过的下次重建按全局现值,改过的沿用
+		boundaryTouched: payload.boundaryTouched && typeof payload.boundaryTouched === 'object' ? { ...payload.boundaryTouched } : {},
 		faRelatedPeople: Array.isArray(payload.faRelatedPeople) ? payload.faRelatedPeople : [],
 	};
 }
@@ -613,6 +640,14 @@ function extractIsDiurnalFromChartProp(val){
 	if(chart && chart.isDiurnal !== undefined && chart.isDiurnal !== null){
 		return !!chart.isDiurnal;
 	}
+	return null;
+}
+
+// [Q-163/T-83·SS-15] 全局 fields.gender(0 女 / 1 男,'0'/'1' 兼容)→ 奇门标签型 sex;无值/未知 → null(不动现值)。
+export function syncedSexFromFields(fields){
+	const g = fields && fields.gender ? fields.gender.value : null;
+	if(g === 0 || g === '0'){ return 0; }
+	if(g === 1 || g === '1'){ return 1; }
 	return null;
 }
 
@@ -653,8 +688,9 @@ function buildDunJiaNongliParamsPure(flds, options){
 
 // R4-B3(数据层空闲预热的权威入口):遁甲 stage-1 = /nongli/time(真太阳时+四柱)
 // + /jieqi/year(节气种子,仅该流派需要时)。两者是【确定性历法计算】,同参恒同果、无随机、
-// 不依赖「现在」。options 取 normalizeKenQimenOptions() —— 与组件构造时的初始选项同一口径
-// (未从既有盘恢复时),故 key/body 与用户首点逐字节一致。
+// 不依赖「现在」。options 取 normalizeKenQimenOptions(上次亲手设的排盘口径) —— 与组件构造时的初始选项同一口径
+// (未从既有盘恢复时;没存过 = 出厂值),故 key/body 与用户首点逐字节一致。口径现在跨会话保留:预热若仍按出厂值构键,
+// 存过「直接时间」之类的用户预热的就是一把用不上的键,首开反而白跑一趟。
 // 🔴 绝不预热 /qimen/pan 本身:它吃 stage-1 结果 + 组件态(流派/排盘法),提前构不出同键。
 // silent(两个 fetch 内置)、丢结果、绝不 dispatch/setState;失败静默。
 export async function warmDunJiaStage1(fields){
@@ -662,7 +698,7 @@ export async function warmDunJiaStage1(fields){
 		if(!fields || !fields.date || !fields.date.value || !fields.date.value.format){
 			return null;
 		}
-		const options = normalizeKenQimenOptions();
+		const options = normalizeKenQimenOptions(DUNJIA_PAGE_SETTINGS.loadSaved());
 		const params = buildDunJiaNongliParamsPure(fields, options);
 		if(!params){
 			return null;
@@ -709,9 +745,25 @@ class DunJiaMain extends Component {
 		// live 态/AI 快照槽/案例链/导出刷新事件全按 scope 隔离(keep-alive 双实例并存,不隔离必竞写)。
 		this.scope = props.techniqueScope || 'qimen';
 		const restoredLiveState = getRestorableDunJiaLiveState(this.scope, props.fields);
-		const initialOptions = restoredLiveState && restoredLiveState.options
-			? normalizeKenQimenOptions(restoredLiveState.options)
-			: normalizeKenQimenOptions();
+		// [Q-315/T-300] 复用 live 态时,**未被本页左栏改过**的日界两键以全局现值为准(改过的按 live 值,
+		//   与「左栏最高权限」拍板一致);live 态记了 boundaryTouched 标记,缺省(旧 live 态)按未改过处理。
+		const liveOpts = restoredLiveState && restoredLiveState.options ? { ...restoredLiveState.options } : null;
+		if(liveOpts){
+			const touched = (restoredLiveState && restoredLiveState.boundaryTouched) || {};
+			if(!touched.after23NewDay){ delete liveOpts.after23NewDay; }
+			if(!touched.lateZiHourUseNextDay){ delete liveOpts.lateZiHourUseNextDay; }
+		}
+		// 本会话 live 态优先(它本来就含本会话改过的值);没有 live 态 = 刚开软件 → 用上次亲手设的排盘口径
+		const initialOptions = liveOpts
+			? normalizeKenQimenOptions(liveOpts)
+			: normalizeKenQimenOptions(DUNJIA_PAGE_SETTINGS.loadSaved());   // 独立遁甲页与奇门择日内嵌实例同用(奇门择日的工作台参数取自内嵌盘,扫描与显示同口径,见文件头)
+		// [Q-163/T-83·SS-15] 「性别」是标签型(不进起局与断法),但初值曾恒 1(男)、不随全局 fields.gender:
+		//   载入女命主进奇门,命式显示「男」、「盘类=命盘 → 保存」写 gender=1。改同三式合一
+		//   handleExternalFieldsSync:构造与外部 fields 变化时按 fields.gender(0/1)初始化 sex。
+		{
+			const fg = syncedSexFromFields(props.fields);
+			if(fg !== null){ initialOptions.sex = fg; }
+		}
 
 		this.state = {
 			loading: false,
@@ -853,7 +905,7 @@ class DunJiaMain extends Component {
 			safe(ctx && ctx.isDiurnal, ''),
 			safe(ctx && ctx.displaySolarTime, ''),
 			// 种子签名:日家(节气三元60日块)/飞盘超神等依赖节气种子;种子异步到达后 key 变→不命中旧(退化)缓存,强制带种子重算。
-			'seed:' + Object.keys((ctx && ctx.jieqiYearSeeds) || {}).filter((y)=>(ctx.jieqiYearSeeds[y])).sort().join(','),
+			jieqiSeedSignature(ctx && ctx.jieqiYearSeeds),
 		].join('|');
 		if(this.panCache.has(key)){
 			return this.panCache.get(key);
@@ -872,9 +924,10 @@ class DunJiaMain extends Component {
 	async getResolvedPan(fields, nongli, options, displaySolarTime){
 		const ctx = this.getContext(fields, displaySolarTime);
 		const fallbackPan = this.getCachedPan(fields, nongli, options, displaySolarTime);
-		// 飞盘(飞宫九神)/混合(飞转结合)/数字起局(报数定局)均走本地 calcDunJia——后端不支持(飞盘/混合 须重启:8899 才认 school;
-		// 数字报数定局后端无此入参,走后端会被节气定局覆盖)。转盘等仍走后端(时/刻/综合)。
-		if(!fallbackPan || !isKinqimenMode(options && options.paiPanType) || (options && (options.school === '飞盘' || options.school === '混合' || options.qijuMethod === 'shuzi'))){
+		// 路由单源 isQimenLocalRoute(DunJiaCalc):年/月/日/刻/金函家、飞盘(飞宫九神)/混合(飞转结合)/数字起局(报数定局,后端无此入参)、
+		// 以及七组本地口径任一非缺省([Q-154] 值使/置闰天数/八神/寄宫/暗干/空亡并标/移星值符:后端不收、合并不施加)均走本地
+		// calcDunJia;时家/综合·转盘·全缺省口径仍走后端(转盘字节护栏)。
+		if(!fallbackPan || isQimenLocalRoute(options)){
 			return fallbackPan;
 		}
 		const backendPan = await fetchQimenPan(fields, nongli, options, ctx);
@@ -925,9 +978,16 @@ class DunJiaMain extends Component {
 		this.prefetchQimenPanForFields(this.state.localFields || this.props.fields, null);
 	}
 
-	componentDidUpdate(){
+	componentDidUpdate(prevProps){
 		this.restoreOptionsFromCurrentCase();
 		this.restoreFromCurrentChart();
+		// [Q-163/T-83·SS-15] 外部 fields.gender 变化(载入命盘/顶栏改性别)→ 同步标签型 sex(本页 onGenderChange
+		//   反向写全局时两值已相等,此处不动,不成环)。
+		const prevG = syncedSexFromFields(prevProps && prevProps.fields);
+		const nextG = syncedSexFromFields(this.props.fields);
+		if(nextG !== null && nextG !== prevG && this.state.options && this.state.options.sex !== nextG){
+			this.onOptionChange('sex', nextG);
+		}
 	}
 
 	componentWillUnmount(){
@@ -1021,7 +1081,10 @@ class DunJiaMain extends Component {
 		if(!Number.isFinite(rawScale) || rawScale <= 0){
 			return 1;
 		}
-		return clamp(rawScale, DUNJIA_SCALE_MIN, DUNJIA_SCALE_MAX);
+		// [极档巡检 2026-09-18] 缩放下限 0.58 是 CSS px 口径的可读底线;壳放大档(z>1)下布局视口只有 1728/z 宽,
+		// 1.8 档中栏 361×440 按比例只能到 0.49,被 0.58 撑住后盘 384×505 > 栏宽 → 九宫第三列被裁、表头顶出舞台。
+		// 底线改按视觉口径(÷z,与 zoomDomain.visualFloorPx 同一法则):1.8 档下限 0.32,盘按比例缩进栏里;z≤1 逐字不变。
+		return clamp(rawScale, visualFloorRatio(DUNJIA_SCALE_MIN), DUNJIA_SCALE_MAX);
 	}
 
 	parseCasePayload(raw){
@@ -1039,6 +1102,14 @@ class DunJiaMain extends Component {
 			return raw;
 		}
 		return null;
+	}
+
+	// 载入事盘 / 带奇门设置的命盘时,记录里**没有**的口径键回出厂值,而不是留着本机保存的偏好:本页口径现在跨会话保留,
+	// 按出厂口径存下的旧记录不带后来才有的键,不回出厂就会被按你现在的偏好重排(盘变了,与存档里的快照也对不上)。
+	// 本函数只回答「回出厂之后,与当前 state 比有没有变」—— 记录里的键随后照旧逐个盖上去。
+	persistedKeysChanged(nextOptions){
+		const cur = this.state.options || {};
+		return DUNJIA_PAGE_SETTINGS.fields.some((k)=>nextOptions[k] !== cur[k]);
 	}
 
 	restoreOptionsFromCurrentCase(force){
@@ -1067,8 +1138,9 @@ class DunJiaMain extends Component {
 		}
 		const nextOptions = {
 			...this.state.options,
+			...DUNJIA_PAGE_SETTINGS.defaults(),   // 事盘里没有的口径键回出厂值(见 persistedKeysChanged 注)
 		};
-		let changed = false;
+		let changed = this.persistedKeysChanged(nextOptions);
 		const savedOptions = payload.options && typeof payload.options === 'object' ? payload.options : null;
 		if(savedOptions){
 			Object.keys(DEFAULT_OPTIONS).forEach((key)=>{
@@ -1143,8 +1215,8 @@ class DunJiaMain extends Component {
 		if(!qimen){
 			return;
 		}
-		const nextOptions = { ...this.state.options };
-		let changed = false;
+		const nextOptions = { ...this.state.options, ...DUNJIA_PAGE_SETTINGS.defaults() };   // 命盘里没有的口径键回出厂值(见 persistedKeysChanged 注)
+		let changed = this.persistedKeysChanged(nextOptions);
 		const savedOptions = qimen.options && typeof qimen.options === 'object' ? qimen.options : null;
 		if(savedOptions){
 			Object.keys(DEFAULT_OPTIONS).forEach((key)=>{
@@ -1345,10 +1417,8 @@ class DunJiaMain extends Component {
 				return;
 			}
 			const options = this.state.options || {};
-			if(!isKinqimenMode(options.paiPanType)){
-				return;
-			}
-			if(options.school === '飞盘' || options.school === '混合' || options.qijuMethod === 'shuzi'){
+			// 本地路由(单源 isQimenLocalRoute)无 HTTP 免热。
+			if(isQimenLocalRoute(options)){
 				return;
 			}
 			const targets = [localFields];
@@ -1612,7 +1682,7 @@ class DunJiaMain extends Component {
 		if(this.state.pan && panSignature === this.lastPanSignature){
 			return;
 		}
-		const remoteMode = isKinqimenMode(fixedOptions.paiPanType);
+		const remoteMode = !isQimenLocalRoute(fixedOptions);
 		if(remoteMode && !this.state.loading){
 			this.setState({ loading: true });
 		}
@@ -1636,6 +1706,7 @@ class DunJiaMain extends Component {
 						displaySolarTime: displaySolar,
 						pan,
 						options: fixedOptions,
+						boundaryTouched: this.boundaryTouchedMap(),   // [Q-315/T-300]
 						faRelatedPeople: this.state.faRelatedPeople,
 					});
 					const snapshotText = this.saveLiveSnapshot(pan);
@@ -1734,7 +1805,8 @@ class DunJiaMain extends Component {
 				this.jieqiYearSeeds[year] = seed;
 				// 新 jieqi 种子到达:飞盘/混合短路的本地置闰·无闰超神·茅山交节 + 日家(节气三元60日块)依赖此种子;panCache key 不含种子→
 				// 可能缓存了漏超神/漏块/茅山退拆补的盘,故失效缓存并重算其视图(转盘走后端不受影响)。
-				if(!this.unmounted && this.state.hasPlotted && (['飞盘', '混合'].indexOf((this.state.options || {}).school) >= 0 || (this.state.options || {}).paiPanType === 2)){
+				// [Q-155] 条件改用单源 needJieqiYearSeed(此前只含飞/混与日家:金函/刻家/转盘本地口径非缺省 的种子晚到不重算)。
+				if(!this.unmounted && this.state.hasPlotted && needJieqiYearSeed(this.state.options || {})){
 					if(this.panCache){ this.panCache.clear(); }
 					this.lastPanSignature = '';
 					const flds = this.state.localFields || this.props.fields;
@@ -1769,12 +1841,8 @@ class DunJiaMain extends Component {
 		if(!year || Number.isNaN(year)){
 			return;
 		}
-		const seedTasks = [
-			this.ensureJieqiSeed(flds, year - 1),
-			this.ensureJieqiSeed(flds, year),
-		];
-		// 日家(节气三元60日块)晚12月冬至界需次年冬至定半年/至甲子。
-		if(fixedOptions && fixedOptions.paiPanType === 2){ seedTasks.push(this.ensureJieqiSeed(flds, year + 1)); }
+		// 种子年份集单源 jieqiSeedYears:日家/金函 晚12月冬至界需次年冬至定半年/至甲子 → y-1,y,y+1;其余 y-1,y。
+		const seedTasks = jieqiSeedYears(fixedOptions, year).map((yy)=>this.ensureJieqiSeed(flds, yy));
 		Promise.all(seedTasks).catch(()=>null);
 	}
 
@@ -1839,10 +1907,10 @@ class DunJiaMain extends Component {
 				year = parseInt(flds.date.value.format('YYYY'), 10);
 			}
 			const waitSeed = !!(year && shouldWaitSeed);
-			// 日家(节气三元60日块)晚12月过冬至需次年冬至定半年/至甲子 → 加载 year+1。
-			const seedYears = (fixedOptions && (fixedOptions.paiPanType === 2 || fixedOptions.paiPanType === 6)) ? [year - 1, year, year + 1] : [year - 1, year];
+			// 种子年份集单源 jieqiSeedYears(日家/金函 y-1,y,y+1;其余 y-1,y)。
+			const seedYears = jieqiSeedYears(fixedOptions, year);
 			const seedPromise = waitSeed ? Promise.all(seedYears.map((yy)=>this.ensureJieqiSeed(flds, yy))) : null;
-			const missingSeed = waitSeed && (!this.jieqiYearSeeds[year - 1] || !this.jieqiYearSeeds[year]);
+			const missingSeed = waitSeed && seedYears.some((yy)=>!this.jieqiYearSeeds[yy]);
 			if(missingSeed && !this.state.loading){
 				this.setState({ loading: true });
 			}
@@ -1892,6 +1960,7 @@ class DunJiaMain extends Component {
 								displaySolarTime,
 								pan,
 								options: fixedOptions,
+								boundaryTouched: this.boundaryTouchedMap(),   // [Q-315/T-300]
 								faRelatedPeople: this.state.faRelatedPeople,
 							});
 							const snapshotText = this.saveLiveSnapshot(pan);
@@ -1918,6 +1987,14 @@ class DunJiaMain extends Component {
 		return reqPromise;
 	}
 
+	// [Q-315/T-300] 日界两键是否被本页左栏显式改过(供 live 态记账:未改过的重建时按全局现值)
+	boundaryTouchedMap(){
+		return {
+			after23NewDay: !!this._after23BoundaryUserOverrode,
+			lateZiHourUseNextDay: !!this._lateZiHourUserOverrode,
+		};
+	}
+
 	onOptionChange(key, value, opts){
 		// 用户拍板: 左栏改过 after23NewDay 后,全局事件不再覆盖(最高权限)。fromGlobal 时不打用户改过的标记。
 		if(key === 'after23NewDay' && !(opts && opts.fromGlobal)){
@@ -1928,6 +2005,11 @@ class DunJiaMain extends Component {
 			this._lateZiHourUserOverrode = true;
 		}
 		const nextVal = key === 'timeAlg' ? normalizeTimeAlg(value) : value;
+		// 用户亲手改的口径 → 落盘(全局广播带 fromGlobal,不落;非设置键会被 store 忽略)。
+		// 独立遁甲页与奇门择日内嵌实例同用(理由见 DUNJIA_PAGE_SETTINGS 注);择日工作台下发口径不经本入口。
+		if(!(opts && opts.fromGlobal)){
+			DUNJIA_PAGE_SETTINGS.save({ [key]: nextVal });
+		}
 		const options = normalizeKenQimenOptions({
 			...this.state.options,
 			[key]: nextVal,
@@ -2004,6 +2086,9 @@ class DunJiaMain extends Component {
 		}
 		// 事盘：案例库(localCases)。payload 增 faRelatedPeople 以便重开还原。
 		const divTime = `${flds.date.value.format('YYYY-MM-DD')} ${flds.time.value.format('HH:mm:ss')}`;
+		// [挂载自检 择日 P1] 保存前先按当前盘刷一次槽(composeAiSnapshot 会并入宿主最新找局结果):此前直读槽 →
+		// 「找局→不 pick→保存」的 payload.snapshot [命中时辰] 是找局前旧文,而 payload.zeri.results 是新的 → AI 说「尚未找局」。
+		if(this.state.pan){ try{ this.saveLiveSnapshot(this.state.pan); }catch(_e){ /* 刷槽失败退回旧槽 */ } }
 		const snapshot = loadModuleAISnapshot(this.scope);
 		// [奇门择日] 宿主附加负载(如 zeri 工作台态)先铺底,核心键恒后置覆盖,防外部键顶掉本体。
 		const extra = typeof this.props.casePayloadExtra === 'function' ? (this.props.casePayloadExtra() || {}) : {};
@@ -2427,10 +2512,10 @@ class DunJiaMain extends Component {
 							<span>起局</span>
 							<Select
 								size="small"
-								value={opt.paiPanType === 3 ? opt.qijuMethod : (opt.qijuMethod === 'shuzi' ? 'shuzi' : 'zhirun')}
+								value={qijuMethodSelectValue(opt.paiPanType, opt.qijuMethod)}
 								onChange={(v)=>this.onOptionChange('qijuMethod', v)}
 							>
-								{(opt.paiPanType === 3 ? QIJU_METHOD_OPTIONS : QIJU_METHOD_NONSHI_OPTIONS).map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
+								{qijuMethodOptionsFor(opt.paiPanType).map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}
 							</Select>
 						</label>
 						<label className="horosa-dunjia-select-field">
@@ -2699,7 +2784,7 @@ class DunJiaMain extends Component {
 										))}
 									</>
 								) : null}
-								<div style={{ fontSize: 11, color: 'var(--horosa-muted, #8c8c8c)', lineHeight: 1.6 }}>仅影响「置闰」起局法;默认口径=超神满 9 天(≥9)即闰。改后中间盘与右栏信息即时按所选重算。</div>
+								<div style={{ fontSize: 11, color: 'var(--horosa-muted, #8c8c8c)', lineHeight: 1.6 }}>本项（置闰天数）仅影响「置闰」起局法，其余设置项各按自身说明生效;默认口径=超神满 9 天(≥9)即闰。时家转盘下改后中间盘与右栏信息即时按所选重算（时家转盘以外的排盘体例见各项说明）。</div>
 							</div>
 						</Modal>
 						<label className="horosa-dunjia-select-field is-wide">
@@ -2740,7 +2825,8 @@ class DunJiaMain extends Component {
 		const border = 'var(--horosa-border, #f0f0f0)';
 		const dangers = computeDangers(pan);
 		const jieHua = buildJieHua(pan);
-		const protect = computeProtect(pan, { topic: this.state.faAskTopic || 'shexin', chartCategory: this.state.chartCategory });
+		// [Q-164/T-86·SS-18] 与用神页同源(state → localStorage 已存选题):此前化解页兜底 'shexin',刷新后两页签选题不一致
+		const protect = computeProtect(pan, { topic: this.state.faAskTopic || loadFaAskTopic(), chartCategory: this.state.chartCategory });
 		const badge = (ch, color, size)=>(
 			<span style={{ flex: '0 0 auto', width: size || 22, height: size || 22, borderRadius: '50%', background: `${color}1a`, color, fontWeight: 700, fontSize: 13, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{ch}</span>
 		);

@@ -4,6 +4,8 @@
 // 差异仅三点:条件注册表=QIMEN_CONDITION_TYPES(本地求值);参数区=奇门 22 参数子集(死开关裁剪:
 // 仅收板面生效项);结果表多「局」列,概览浮窗=DunJiaBoard 迷你盘。
 import { useState, useEffect, useRef } from 'react';
+import { saveBlobSmart } from '../../utils/aiAnalysisExport';
+import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // [Q-478] 空数字框统一校验
 import { Modal, Dropdown, Menu, message } from 'antd';
 import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
 import GeoCoordModal from '../amap/GeoCoordModal';
@@ -21,18 +23,11 @@ import {
 	KONG_MODE_OPTIONS, MA_MODE_OPTIONS, YIXING_OPTIONS, TIME_ALG_OPTIONS, DAY_SWITCH_OPTIONS, ZHIRUN_LEAP_OPTIONS,
 } from '../dunjia/DunJiaCalc';
 
+// [Q-410] 单源保存(桌面壳保存桥选目录;浏览器 <a download>);取消 / 失败静默不报成功(本处本就无成功提示)。
 function downloadJson(text, filename){
 	try{
-		const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = filename;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		setTimeout(() => URL.revokeObjectURL(url), 800);
-	}catch(e){ /* 下载失败静默(受限 webview 环境) */ }
+		return saveBlobSmart(filename, new Blob([text], { type: 'application/json;charset=utf-8' }));
+	}catch(e){ return null; /* 受限 webview 环境静默 */ }
 }
 
 const Option = XQSelect.Option;
@@ -194,7 +189,8 @@ export default function QimenZeriWorkbench({
 
 	const draftLeaf = { kind: 'leaf', type: draftType, negate: draftNegate, params: draftParams };
 	const draftSpec = QIMEN_CONDITION_TYPES[draftType] || {};
-	const draftError = draftSpec.validate ? draftSpec.validate(draftParams) : '';
+	// [Q-478/T-440] 空数字框先判(与表单红框同一判据),再走各类型自校验。
+	const draftError = emptyNumberFieldError(draftSpec, draftParams) || (draftSpec.validate ? draftSpec.validate(draftParams) : '');
 
 	const appendTargetPath = selectedIsGroup ? selectedPath : [];
 	const doAdd = () => {
@@ -383,7 +379,7 @@ export default function QimenZeriWorkbench({
 		: (geo && geo.gpsLat !== undefined && geo.gpsLat !== null ? `📍 ${formatGpsDms(geo.gpsLon, geo.gpsLat)}` : '选择地点…');
 
 	const editView = (
-		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 'clamp(560px, calc(100vh - 220px), 900px)' }}>
+		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)' }}>
 			{/* 左列(主操作区,加宽):时间范围·地点·参数 / 构造条件 / 连接门 / 动作排 */}
 			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
 				<div style={{ padding: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
@@ -502,7 +498,7 @@ export default function QimenZeriWorkbench({
 	);
 
 	const resultView = (
-		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => setView('edit')} disabled={scanning}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>找局结果</span>
@@ -531,8 +527,7 @@ export default function QimenZeriWorkbench({
 					<span style={{ width: 64, textAlign: 'right' }}>时长</span>
 					<span style={{ width: 118, textAlign: 'center' }}>局</span>
 					<span style={{ width: 64, textAlign: 'center' }}>详情</span>
-					<span style={{ width: 52 }}>盘</span>{/* 行内多「盘」列,表头必须等宽占位——缺列致两 flex 列压窄整行左移(用户实报错位) */}
-					<span style={{ width: 52, textAlign: 'center' }}>概览</span>
+					<span style={{ width: 52 }}>盘</span>{/* 行内只有「盘」一列,表头等宽占位;[Q-271/ZC-24] 曾多一列「概览」空占位把两 flex 列压窄、表头与行错位 */}
 				</div>
 				{(!results || !results.length) && !scanning ? (
 					<div style={{ padding: 24, opacity: 0.6 }}>{results ? '时间范围内无满足条件的时辰。' : '尚未找局。'}</div>
@@ -603,7 +598,7 @@ export default function QimenZeriWorkbench({
 	};
 
 	const schemesView = (
-		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => { setView('edit'); setSchemeMsg(''); }}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>方案管理</span>

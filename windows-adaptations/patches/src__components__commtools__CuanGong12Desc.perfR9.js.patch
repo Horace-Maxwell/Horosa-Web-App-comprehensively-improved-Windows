@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/commtools/CuanGong12Desc.js b/astrostudyui/src/components/commtools/CuanGong12Desc.js
-index 26fc908..cbf31f2 100644
+index ea8b1632..6f842219 100644
 --- a/astrostudyui/src/components/commtools/CuanGong12Desc.js
 +++ b/astrostudyui/src/components/commtools/CuanGong12Desc.js
 @@ -1,9 +1,11 @@
@@ -13,9 +13,9 @@ index 26fc908..cbf31f2 100644
 +// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
 +// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
  
+ import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
  export default class CuanGong12Desc extends Component{
- 	constructor(props) {
-@@ -50,7 +52,7 @@ export default class CuanGong12Desc extends Component{
+@@ -51,7 +53,7 @@ export default class CuanGong12Desc extends Component{
          }
          let lis = this.state.starSu.map((item, idx)=>{
              return (
@@ -24,7 +24,7 @@ index 26fc908..cbf31f2 100644
                      <h4>{item.name}：</h4>{item.event}
                      <div>{item.mind}</div>
                  </li>
-@@ -62,7 +64,7 @@ export default class CuanGong12Desc extends Component{
+@@ -63,7 +65,7 @@ export default class CuanGong12Desc extends Component{
              for(let key in this.state.typeSu){
                  let val = this.state.typeSu[key];
                  let li = (
@@ -33,7 +33,7 @@ index 26fc908..cbf31f2 100644
                          <h4>{key}：</h4>{val}
                      </li>
                  );
-@@ -91,7 +93,7 @@ export default class CuanGong12Desc extends Component{
+@@ -92,7 +94,7 @@ export default class CuanGong12Desc extends Component{
          }
          let lis = this.state.stars.map((item, idx)=>{
              return (

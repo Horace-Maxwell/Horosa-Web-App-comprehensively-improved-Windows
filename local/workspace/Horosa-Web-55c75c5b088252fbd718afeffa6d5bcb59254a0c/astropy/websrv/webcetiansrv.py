@@ -311,7 +311,7 @@ def _build_sections(pan, show_wu_xing_ju=True, show_sihua=True, show_flying=True
                 row("时区", f"UTC{pan.get('timezone'):+.1f}"),
                 row("经度", pan.get("longitude")),
                 row("纬度", pan.get("latitude")),
-                row("地点", pan.get("location")),
+                *([row("地点", pan.get("location"))] if pan.get("location") else []),
                 row("性别", chart.get("gender")),
                 row("阴阳", chart.get("yin_yang")),
                 row("算法", "原法·标准紫微" if is_kentang else "书法·策天本法"),
@@ -394,7 +394,8 @@ class CeTianSrv:
             timezone = timezone_to_float(data.get("zone") or data.get("timezone"), 8.0)
             latitude = coord_to_float(data.get("lat") or data.get("latitude"), 26.0667)
             longitude = coord_to_float(data.get("lon") or data.get("longitude"), 119.3167)
-            location = clean_text(data.get("location") or data.get("place"), "星阙地点")
+            # [Q-265/T-250·SO-13] 不再回落占位串「星阙地点」:前端下发地名(fields.pos)则写,缺名则 [起盘] 段不出「地点」行
+            location = clean_text(data.get("location") or data.get("place") or data.get("pos"), "")
             gender = gender_cn(data.get("gender"), "男")
             chart = json_safe(compute_cetian_ziwei_chart(
                 year=dt.year,

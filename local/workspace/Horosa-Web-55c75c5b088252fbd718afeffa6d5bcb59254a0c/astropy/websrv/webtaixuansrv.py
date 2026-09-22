@@ -71,6 +71,22 @@ DIVINE_YINYANG = {
 }
 
 
+def _zone_to_hours(value, default=8.0):
+    """[Q-392/T-374] 时区字符串('+08:00'/'-05:30'/'8'/'+8')→ 小时数;不可解析即回缺省 +8。"""
+    if value is None or value == "":
+        return default
+    try:
+        txt = f"{value}".strip()
+        sign = -1.0 if txt.startswith("-") else 1.0
+        txt = txt.lstrip("+-")
+        if ":" in txt:
+            hh, mm = txt.split(":", 1)
+            return sign * (int(hh) + int(mm) / 60.0)
+        return sign * float(txt)
+    except Exception:
+        return default
+
+
 def _to_int(value, default=0):
     try:
         if value is None or value == "":
@@ -205,13 +221,18 @@ def _lunar_payload(year, month, day, hour):
     }
 
 
-def _ganzhi_payload(year, month, day, hour):
+def _ganzhi_payload(year, month, day, hour, after23=1, hour_gan_next=1, zone_hours=8.0):
     # 🔴 四柱统一走权威 extreme_pillars(与八字/主链一致:天文年立春界/定气月/儒略JDN)。
     # cnlunar 域限 1~9999(BC datetime 越域)且远古口径异;现代域两者一致(已验 AD2026=丙午乙未
     # 甲午乙亥),故全域换权威=现代零回归+修 BC(旧:庚子癸未…≠八字乙未庚辰己卯)。
+    # [Q-392/T-374] 日界/晚子时/时区改为读参(缺省仍 1/1/8.0 = 现状字节不变):此前恒取缺省 →
+    # 全局选「24 点换日」时 23 点档的太玄日柱比八字页多跳一天;非 +08:00 时区的月柱/年柱在交节与
+    # 立春前后 (8−时区) 小时内可能错一柱。起筮(种子)按钟表日期,不受此三键影响。
     try:
         from kin_year_domain import extreme_pillars
-        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, 0)
+        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, 0,
+                                              after23=after23, hour_gan_next=hour_gan_next,
+                                              zone_hours=zone_hours)
         return {"year": _y, "month": _m, "day": _d, "hour": _h, "raw": [_y, _m, _d, _h]}
     except Exception:
         pass
@@ -388,6 +409,10 @@ class TaiXuanSrv:
             day = max(1, min(31, _to_int(data.get("day"), 1)))
             hour = max(0, min(23, _to_int(data.get("hour"), 0)))
             seed = _to_int(data.get("seed"), raw_year * 1000000 + month * 10000 + day * 100 + hour)
+            # [Q-392/T-374] 日界/晚子时/时区:缺省 1/1/+08:00 = 旧行为,前端不带时字节不变。
+            after23 = 1 if _to_int(data.get("after23NewDay"), 1) else 0
+            hour_gan_next = 1 if _to_int(data.get("lateZiHourUseNextDay"), 1) else 0
+            zone_hours = _zone_to_hours(data.get("zone"))
             datetime.datetime(year, month, day, hour, 0)
 
             taixuan = _calculate(year, month, day, hour, seed)
@@ -402,7 +427,7 @@ class TaiXuanSrv:
                 "hour": hour,
                 "seed": seed,
                 "lunarDate": _lunar_payload(year, month, day, hour),
-                "ganzhi": _ganzhi_payload(raw_year, month, day, hour),
+                "ganzhi": _ganzhi_payload(raw_year, month, day, hour, after23, hour_gan_next, zone_hours),
                 "winterSolstice": _winter_solstice_payload(year, month, day, hour),
                 "taixuan": taixuan,
                 "classics": _source_sections(),

@@ -793,7 +793,7 @@
 
     .xq-nav-popup-shell {
         position: relative;
-        min-height: min(736px, calc(100vh - 96px));
+        min-height: ~"min(736px, calc(100 * var(--horosa-lvh, 1vh) - 96px))";
         background: #050607;
     }
 
@@ -976,7 +976,7 @@
         display: grid;
         align-content: start;
         gap: 26px;
-        max-height: min(624px, calc(100vh - 220px));
+        max-height: ~"min(624px, calc(100 * var(--horosa-lvh, 1vh) - 220px))";
         overflow: auto;
         padding: 30px 30px 52px;
     }
@@ -1611,6 +1611,10 @@
     // —— 观象左栏设计语言:小节容器 XQSideSection ————————————————
     .xq-side-section {
         min-width: 0;
+        // 🔴 纵向 flex 面板里的节不许被压缩:节体是「1fr 网格行 + overflow:hidden 内盒」(折叠过渡所需),
+        //    按规范它的最小内容高只剩节头 —— 面板放不下时 flex-shrink 会先把节压扁,节内最后几行控件被内盒裁掉且滚不到,
+        //    而不是让面板自己滚。flex-shrink:0 = 节恒按内容高,放不下交给面板滚动(父不是 flex 时此声明零影响)。
+        flex-shrink: 0;
     }
 
     .xq-side-section-header {
@@ -1684,9 +1688,13 @@
 
     // 🔴 折叠=纯 CSS 高度过渡(grid 1fr→0fr),children 恒挂载不卸载(防表单状态丢/防重算);
     //    不支持 fr 过渡的旧 WebView 优雅降级为瞬时开合,布局仍正确。
+    // 🔴 行高必须写 minmax(0, 1fr),不能写裸 1fr(= minmax(auto, 1fr)):WebKit 实测 —— 纵向 flex 滚动面板里,
+    //    占位式滚动条一出现 → 面板变窄 → 节内控件折行变高,裸 1fr 行停在变窄前的旧高度不重算,节内最后一行被内盒
+    //    (overflow:hidden)裁掉且滚不到(强制重排才恢复)。minmax(0, 1fr) 下同一场景行高随内容重算;折叠态同写
+    //    minmax(0, 0fr),两端同型才插值 = 过渡动画照旧。
     .xq-side-section-body {
         display: grid;
-        grid-template-rows: 1fr;
+        grid-template-rows: minmax(0, 1fr);
         transition: grid-template-rows 0.18s ease;
     }
 
@@ -1699,7 +1707,7 @@
     }
 
     .xq-side-section-collapsed .xq-side-section-body {
-        grid-template-rows: 0fr;
+        grid-template-rows: minmax(0, 0fr);
     }
 
     /* a11y:折叠仅靠 0fr+overflow:hidden 时子控件仍在 Tab 序里,而 body 已 aria-hidden

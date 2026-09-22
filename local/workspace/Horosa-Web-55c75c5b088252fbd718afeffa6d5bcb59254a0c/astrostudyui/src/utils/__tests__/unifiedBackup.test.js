@@ -194,3 +194,82 @@ describe('[V4] 全量备份 v2:注册表驱动全键面 + 回收站 + AI 工作�
 		expect(cur2.name).toBe('备份来的档');
 	});
 });
+
+// ---- [压测二轮·D7·K1/K2] 行动能力四个新 store 随全量备份走 ----
+describe('[压测二轮] AI 行动能力四 store 往返 + 集成档案剥密', ()=>{
+	const store = require('../aiAnalysisStore');
+	const { collectAiWorkspaceDump } = require('../unifiedBackup');
+	const S = store.AI_ANALYSIS_STORES;
+	const NEW_STORES = [S.agentTasks, S.agentNotices, S.automationRules, S.integrationProfiles];
+
+	beforeEach(async ()=>{
+		window.localStorage.clear();
+		for(let i = 0; i < NEW_STORES.length; i++){
+			// eslint-disable-next-line no-await-in-loop
+			await store.clearStore(NEW_STORES[i]);
+		}
+	});
+
+	it('K1 integration_profiles(联网检索档)的 apiKey 绝不入包:dump 里 apiKey==="" 且 apiKeyRedacted===true;恢复同 id 保本机 Key', async ()=>{
+		await store.putStoreRecord(S.integrationProfiles, { id: 'websearch-tavily', kind: 'websearch', engine: 'tavily', baseUrl: '', apiKey: 'tvly-PLAINTEXT-SECRET', enabled: true, name: 'Tavily' }, 'integration');
+		const dump = await collectAiWorkspaceDump();
+		const rows = dump.stores[S.integrationProfiles];
+		expect(rows.length).toBe(1);
+		expect(rows[0].apiKey).toBe('');
+		expect(rows[0].apiKeyRedacted).toBe(true);
+		expect(rows[0].engine).toBe('tavily');
+		expect(JSON.stringify(dump)).not.toContain('tvly-PLAINTEXT-SECRET');
+		// 恢复:同 id 保本机(备份里的空 Key 不许把本机的真 Key 抹掉);新 id 照常写入
+		const results = await restoreUnifiedBackup({
+			format: UNIFIED_BACKUP_FORMAT, version: 2,
+			aiWorkspace: { stores: { [S.integrationProfiles]: [
+				{ id: 'websearch-tavily', kind: 'websearch', engine: 'brave', apiKey: '', apiKeyRedacted: true, enabled: true, name: '备份版(须被本机压住)' },
+				{ id: 'websearch-searxng', kind: 'websearch', engine: 'searxng', baseUrl: 'http://127.0.0.1:8080', apiKey: '', apiKeyRedacted: true, enabled: false, name: '备份来的自建' },
+			] } },
+		});
+		expect(results.find((r)=>r.key === 'aiWorkspace').ok).toBe(true);
+		const mine = await store.getStoreRecord(S.integrationProfiles, 'websearch-tavily');
+		expect(mine.name).toBe('Tavily');
+		expect(mine.engine).toBe('tavily');
+		expect(mine.apiKey).toBe('tvly-PLAINTEXT-SECRET');
+		const incoming = await store.getStoreRecord(S.integrationProfiles, 'websearch-searxng');
+		expect(incoming.name).toBe('备份来的自建');
+		expect(incoming.baseUrl).toBe('http://127.0.0.1:8080');
+	});
+
+	it('K2 agent_tasks / agent_notices / automation_rules / integration_profiles 各 3 条:dump → 清库 → 恢复,逐字段相等', async ()=>{
+		const seed = {
+			[S.agentTasks]: [0, 1, 2].map((i)=>({ id: `task-${i}`, kind: i === 1 ? 'scheduled' : 'goal', status: i === 2 ? 'done' : 'queued', title: `任务 ${i}`, origin: 'in-app', progress: i * 10, spec: { goal: `目标 ${i}` }, log: [{ at: '2026-09-05T00:00:00.000Z', text: `第 ${i} 行` }], nextRunAt: i === 1 ? '2026-09-06T00:00:00.000Z' : null, conversationId: `conv-${i}` })),
+			[S.agentNotices]: [0, 1, 2].map((i)=>({ id: `notice-${i}`, level: i === 0 ? 'warn' : 'info', title: `通知 ${i}`, body: `正文 ${i}`, taskId: `task-${i}`, read: i === 2, seq: 1000 + i, createdAt: `2026-09-05T00:0${i}:00.000Z` })),
+			[S.automationRules]: [0, 1, 2].map((i)=>({ id: `rule-${i}`, name: `规则 ${i}`, event: ['app.start', 'record.saved', 'task.done'][i], enabled: i !== 1, match: { kind: 'chart' }, actions: [{ type: 'select-source' }], cooldownMs: 60000 * (i + 1), lastFiredAt: '' })),
+			[S.integrationProfiles]: [0, 1, 2].map((i)=>({ id: `integ-${i}`, kind: 'websearch', engine: ['tavily', 'brave', 'searxng'][i], baseUrl: i === 2 ? 'http://127.0.0.1:8080' : '', apiKey: '', apiKeyRedacted: true, enabled: i === 0, name: `档 ${i}` })),
+		};
+		for(let i = 0; i < NEW_STORES.length; i++){
+			const name = NEW_STORES[i];
+			for(let j = 0; j < seed[name].length; j++){
+				// eslint-disable-next-line no-await-in-loop
+				await store.putStoreRecord(name, seed[name][j], name);
+			}
+		}
+		const dump = await collectAiWorkspaceDump();
+		NEW_STORES.forEach((name)=>{ expect((dump.stores[name] || []).length).toBe(3); });
+		// 清库后恢复
+		for(let i = 0; i < NEW_STORES.length; i++){
+			// eslint-disable-next-line no-await-in-loop
+			await store.clearStore(NEW_STORES[i]);
+			// eslint-disable-next-line no-await-in-loop
+			expect(await store.countStoreRecords(NEW_STORES[i])).toBe(0);
+		}
+		const results = await restoreUnifiedBackup({ format: UNIFIED_BACKUP_FORMAT, version: 2, aiWorkspace: dump });
+		expect(results.find((r)=>r.key === 'aiWorkspace').ok).toBe(true);
+		for(let i = 0; i < NEW_STORES.length; i++){
+			const name = NEW_STORES[i];
+			const dumped = dump.stores[name];
+			for(let j = 0; j < dumped.length; j++){
+				// eslint-disable-next-line no-await-in-loop
+				const cur = await store.getStoreRecord(name, dumped[j].id);
+				expect(cur).toEqual(expect.objectContaining(dumped[j]));
+			}
+		}
+	});
+});

@@ -71,3 +71,24 @@ describe('城市检索 cityMatch(真实库)', () => {
 		expect(Number.isFinite(c.lng)).toBe(true);
 	});
 });
+
+describe('城市检索 · 拉丁重音折叠 + 外国城市中文别名(大库)', () => {
+	test('Reykjavík / reykjavik / REYKJAVIK 同命中', () => {
+		['Reykjavík', 'reykjavik', 'REYKJAVIK'].forEach((q) => {
+			expect(search(q).some((c) => /Reykjav/i.test(c.en) || c.name === '雷克雅未克')).toBe(true);
+		});
+	});
+	test('São Paulo / Sao Paulo 同命中', () => {
+		['São Paulo', 'Sao Paulo', 'saopaulo'].forEach((q) => {
+			expect(search(q).some((c) => /S[ãa]o Paulo/i.test(c.en))).toBe(true);
+		});
+	});
+	test('中文别名:利马→Lima(PE)、惠灵顿→Wellington(NZ)、雷克雅未克→Reykjavík(IS)', () => {
+		expect(search('利马').some((c) => c.en === 'Lima' && c.region === 'PE')).toBe(true);
+		expect(search('惠灵顿').some((c) => c.en === 'Wellington' && c.region === 'NZ')).toBe(true);
+		expect(search('雷克雅未克').some((c) => c.en === 'Reykjavík' && c.region === 'IS')).toBe(true);
+	});
+	test('别名条目的拼音同样可查(leikeyaweike)', () => {
+		expect(search('leikeyaweike').some((c) => c.name === '雷克雅未克')).toBe(true);
+	});
+});

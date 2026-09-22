@@ -101,7 +101,7 @@ class BeijiResult:
 # 干支計算
 # ──────────────────────────────────────────────────────────────────────────────
 
-def get_year_ganzhi(year: int) -> tuple[str, str]:
+def get_year_ganzhi(year: int, month: int = None, day: int = None) -> tuple[str, str]:
     """
     計算出生年的天干地支。
 
@@ -114,10 +114,15 @@ def get_year_ganzhi(year: int) -> tuple[str, str]:
     """
     try:
         from sxtwl import fromSolar
-        # sxtwl 以農曆年干支為準；以1月1日對應年份取得大致干支
-        day = fromSolar(year, 6, 1)  # 取6月1日避免年初歲末邊界問題
-        stem = TIANGAN[day.getLunarYear(False).tg]
-        branch = DIZHI[day.getLunarYear(False).dz]
+        # [Q-267/T-249 裁决 2026-09-18] 帶月日時按立春(節氣年)界取年干支(同頁其餘門皆按立春界;此前取 6 月 1 日之農曆年 → 公曆 1–2 月生者錯一年);
+        # 只給年份(舊調用)仍取 6 月 1 日之農曆年(與此前字節相同)。
+        if month and day:
+            d = fromSolar(int(year), int(month), int(day))
+            gz = d.getYearGZ()   # sxtwl: 節氣年(立春界)
+            return TIANGAN[gz.tg], DIZHI[gz.dz]
+        day_obj = fromSolar(year, 6, 1)  # 取6月1日避免年初歲末邊界問題
+        stem = TIANGAN[day_obj.getLunarYear(False).tg]
+        branch = DIZHI[day_obj.getLunarYear(False).dz]
         return stem, branch
     except Exception:
         pass
@@ -309,7 +314,7 @@ class BeijiShenshu:
         row_col_list = PARENTS_DIZHI_TABLE.get(hour_branch, PARENTS_DIZHI_TABLE["子"])
         row_col = row_col_list[col_idx]
 
-        stem, branch = get_year_ganzhi(inp.year)
+        stem, branch = get_year_ganzhi(inp.year, getattr(inp, 'month', None), getattr(inp, 'day', None))
         shengxiao = DIZHI_SHENGXIAO[branch]
 
         return self._build_query_result(
@@ -358,7 +363,7 @@ class BeijiShenshu:
         行：出生年地支（子~亥）
         列：由月、日、刻計算
         """
-        _, year_branch = get_year_ganzhi(inp.year)
+        _, year_branch = get_year_ganzhi(inp.year, getattr(inp, 'month', None), getattr(inp, 'day', None))
         col_idx = self._get_col_index(inp)
         siblings_desc = SIBLINGS_COUNT_TABLE.get(year_branch, ["兄弟一人"] * 8)[col_idx]
 
@@ -388,7 +393,7 @@ class BeijiShenshu:
         列：由月、日、刻計算
         （原坎宮表一資料庫缺失，改用兌宮表六婚姻條文）
         """
-        _, year_branch = get_year_ganzhi(inp.year)
+        _, year_branch = get_year_ganzhi(inp.year, getattr(inp, 'month', None), getattr(inp, 'day', None))
         col_idx = self._get_col_index(inp)
         surname = FIRST_WIFE_TABLE.get(year_branch, FIRST_WIFE_TABLE["子"])[col_idx]
 
@@ -414,7 +419,7 @@ class BeijiShenshu:
         列：由月、日、刻計算
         （原坎宮表二資料庫缺失，改用離宮表八婚姻條文）
         """
-        _, year_branch = get_year_ganzhi(inp.year)
+        _, year_branch = get_year_ganzhi(inp.year, getattr(inp, 'month', None), getattr(inp, 'day', None))
         col_idx = self._get_col_index(inp)
         surname = REMARRIAGE_WIFE_TABLE.get(year_branch, REMARRIAGE_WIFE_TABLE["子"])[col_idx]
 
@@ -444,7 +449,7 @@ class BeijiShenshu:
         -------
         list of dicts with keys: index, stem_branch, start_age, end_age, palace, code, verse
         """
-        year_stem, year_branch = get_year_ganzhi(inp.year)
+        year_stem, year_branch = get_year_ganzhi(inp.year, getattr(inp, 'month', None), getattr(inp, 'day', None))
         yinyang = TIANGAN_YINYANG[year_stem]
 
         # 判斷順逆
@@ -495,7 +500,7 @@ class BeijiShenshu:
         """
         巽宮表一：論財運。
         """
-        _, year_branch = get_year_ganzhi(inp.year)
+        _, year_branch = get_year_ganzhi(inp.year, getattr(inp, 'month', None), getattr(inp, 'day', None))
         col_idx = self._get_col_index(inp)
         year_idx = DIZHI_INDEX[year_branch]
         row = (year_idx % 8) + 1
@@ -514,7 +519,7 @@ class BeijiShenshu:
         """
         震宮表二：論官運仕途。
         """
-        _, year_branch = get_year_ganzhi(inp.year)
+        _, year_branch = get_year_ganzhi(inp.year, getattr(inp, 'month', None), getattr(inp, 'day', None))
         col_idx = self._get_col_index(inp)
         year_idx = DIZHI_INDEX[year_branch]
         row = (year_idx % 8) + 1
@@ -537,7 +542,7 @@ class BeijiShenshu:
         列：由月、日、刻計算
         （原坤宮表一資料庫缺失，改用乾宮表五子息條文）
         """
-        _, year_branch = get_year_ganzhi(inp.year)
+        _, year_branch = get_year_ganzhi(inp.year, getattr(inp, 'month', None), getattr(inp, 'day', None))
         col_idx = self._get_col_index(inp)
         year_idx = DIZHI_INDEX[year_branch]
         row = (year_idx % 8) + 1
@@ -560,7 +565,7 @@ class BeijiShenshu:
         列：由月、日、刻計算
         （原坎宮表三資料庫缺失，改用震宮表三凶災條文）
         """
-        _, year_branch = get_year_ganzhi(inp.year)
+        _, year_branch = get_year_ganzhi(inp.year, getattr(inp, 'month', None), getattr(inp, 'day', None))
         col_idx = self._get_col_index(inp)
         year_idx = DIZHI_INDEX[year_branch]
         row = (year_idx % 8) + 1
@@ -582,7 +587,7 @@ class BeijiShenshu:
         包含：父母屬相壽亡、性格特點、兄弟姐妹、元配姓氏、
                再婚姓氏、財運、官運、子息、健康
         """
-        year_stem, year_branch = get_year_ganzhi(inp.year)
+        year_stem, year_branch = get_year_ganzhi(inp.year, getattr(inp, 'month', None), getattr(inp, 'day', None))
         hour_branch = get_hour_branch(inp.hour)
         ke = inp.ke if inp.ke and inp.ke > 0 else compute_ke(inp.hour, inp.minute)
         ke_label = KE_LABELS[min(ke - 1, 7)]

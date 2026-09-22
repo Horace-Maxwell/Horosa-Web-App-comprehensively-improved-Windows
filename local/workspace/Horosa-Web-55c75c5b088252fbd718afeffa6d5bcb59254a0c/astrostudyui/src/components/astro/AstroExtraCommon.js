@@ -1,3 +1,4 @@
+import React from 'react';
 import * as AstroText from '../../constants/AstroText';
 import { classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
 import * as AstroConst from '../../constants/AstroConst';
@@ -112,6 +113,12 @@ export function natalClassicalParams(params){
 		...((p.leoBoundFirst === 1 || p.leoBoundFirst === '1') ? { leoBoundFirst: 1 } : {}),
 		...((p.triplicity && p.triplicity !== 'Dorothean') ? { triplicity: p.triplicity } : {}),
 		...((p.lotReversal === 0 || p.lotReversal === '0') ? { lotReversal: 0 } : {}),
+		// [Q-175/T-115] 原 [挂载自检 F-17] 在这里补发 doubingSu28 / guolaoLifeMode,想让推运九页的
+		// 「七政命度点」与主页/挂载同源 —— 但 Java 两端的参数白名单(PredictiveController /
+		// AstroExtraController)都不收这两键,请求到了后端即被剥掉:发了四个月,结果一字未变,
+		// 只是把两个键掺进了请求体与缓存键。按「不发无效键」删除(产物零变化)。
+		// ⚠ F-17 记的那条分叉因此**并未**被修好:真要对齐得让 Java 白名单收这两键(那会改推运页产物),
+		// 属另案,勿把本处删除误读成「分叉已解决」。
 		...classicalBackendOverridesFromPlain(p),
 	};
 }

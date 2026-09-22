@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/shenyishu/ShenYiShuMain.js b/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
-index e69398a..c2e5bc6 100644
+index 253b3f88..30a06be8 100644
 --- a/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
 +++ b/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
 @@ -16,6 +16,8 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
@@ -40,7 +40,7 @@ index e69398a..c2e5bc6 100644
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.unmounted = false;
-@@ -365,6 +373,29 @@ class ShenYiShuMain extends Component{
+@@ -369,6 +377,29 @@ class ShenYiShuMain extends Component{
  		};
  	}
  
@@ -70,7 +70,7 @@ index e69398a..c2e5bc6 100644
  	async fetchPan(fields){
  		const payload = this.buildPanPayload(fields);
  		if(!payload){
-@@ -378,6 +409,8 @@ class ShenYiShuMain extends Component{
+@@ -382,6 +413,8 @@ class ShenYiShuMain extends Component{
  				return;
  			}
  			this.setState({ pan, loading: false }, ()=>{
@@ -79,7 +79,7 @@ index e69398a..c2e5bc6 100644
  				saveModuleAISnapshotLazy('shenyishu', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -643,25 +676,38 @@ class ShenYiShuMain extends Component{
+@@ -647,25 +680,38 @@ class ShenYiShuMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

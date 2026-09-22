@@ -227,3 +227,49 @@ def test_w7_dignity_seven_and_speed_gears():
     for a, b in ivs:
         assert a < b
 
+
+
+def test_dignity_seven_four_yu_short_names_do_not_raise():
+    # [Q-269/T-255] 条件表「曜」选 计/罗/炁/孛(单字)此前整次搜索 unknown body;别名归一后可扫且区间良构
+    for body in ('计', '罗', '炁', '孛'):
+        ivs = _EVALUATORS['dignity_seven']({'body': body, 'values': ['庙', '旺', '乐', '喜', '怒']}, _ctx(), (JD_ANCHOR, JD_ANCHOR + 2.0))
+        for a, b in ivs:
+            assert a < b
+    m = _ctx().moment(JD_ANCHOR)
+    assert abs(m.lon('计') - m.lon('计都')) < 1e-9
+    assert abs(m.lon('罗') - m.lon('罗睺')) < 1e-9
+    assert abs(m.lon('炁') - m.lon('紫炁')) < 1e-9
+    assert abs(m.lon('孛') - m.lon('月孛')) < 1e-9
+
+
+def test_hua_lu_year_stem_by_true_lichun():
+    # [Q-422/T-386] 化曜条件年干按真立春(太阳视黄经 315°)定界,不再按公历 2/4 0 时粗界。
+    import swisseph
+    from astrostudy import qizheng_election_scan as q
+    jd = q._lichun_jd(2024)
+    y, m, d, h = swisseph.revjul(jd)
+    assert (y, m, d) == (2024, 2, 4) and abs(h - 8.45) < 0.05        # 16:27 +08:00
+    assert abs(swisseph.calc_ut(jd, swisseph.SUN)[0][0] - 315.0) < 1e-4
+    jd25 = q._lichun_jd(2025)
+    y, m, d, h = swisseph.revjul(jd25)
+    assert (y, m, d) == (2025, 2, 3) and abs(h - 14.17) < 0.05       # 22:10 +08:00
+    # 2024-02-04 12:00 +08:00 = 04:00 UT 仍在立春前 → 年干仍取癸(2023);16:30 +08:00 已过 → 甲
+    before = swisseph.julday(2024, 2, 4, 4.0)
+    after = swisseph.julday(2024, 2, 4, 8.5)
+    assert before < jd < after
+
+
+def test_zc20_stationary_uses_per_body_stat_threshold():
+    """[Q-271/ZC-20] 五星「留」阈=主七政页逐曜 stat(土 .05):2026 年土星留窗按 .05 判必宽于 .02 判;
+    显式 threshold 仍优先(=.02 时与旧行为同);月孛/紫炁无谱仍 0.02。"""
+    base = dict(GEO, startDate='2026-07-04', endDate='2026-09-30')   # 土星 2026-07 留逆窗(单请求 ≤93 天)
+    wide = scan(dict(base, conditions={'type': 'speed_state', 'params': {'body': '土', 'state': 'stationary'}}))
+    narrow = scan(dict(base, conditions={'type': 'speed_state', 'params': {'body': '土', 'state': 'stationary', 'threshold': 0.02}}))
+    def total_days(r):
+        return sum(_jd(iv['end'][:16]) - _jd(iv['start'][:16]) for iv in (r.get('intervals') or []))
+    assert (wide.get('intervals') or []), wide
+    assert (narrow.get('intervals') or []), narrow
+    assert total_days(wide) > total_days(narrow) * 1.5   # 实测 .05 档 07-04~08-27 vs .02 档 07-15~08-07
+    # 木、土「迟」不可达(留阈 ≥ 迟阈,先判为留)——注册表口径与实扫一致
+    slow_j = scan(dict(GEO, startDate='2026-01-01', endDate='2026-03-31', conditions={'type': 'speed_state', 'params': {'body': '木', 'state': 'slow'}}))
+    assert not (slow_j.get('intervals') or [])

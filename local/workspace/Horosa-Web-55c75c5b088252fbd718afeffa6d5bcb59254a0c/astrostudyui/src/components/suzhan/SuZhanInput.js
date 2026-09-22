@@ -9,6 +9,7 @@ import { resolveGeoZone } from '../../utils/timezone';
 import { geoNameFieldPatch } from '../../utils/geoName';
 import DateTime from '../comp/DateTime';
 import { XQSelect as Select } from '../xq-ui';
+import { SU28_MODE_GROUPS } from '../guolao/guolaoData';
 
 const {Option} = Select;
 
@@ -237,9 +238,13 @@ class SuZhanInput extends Component{
 					</Select>
 				</Col>
 				<Col lg={12} xl={8}>
+					{/* [Q-203/T-146] 宿法与七政/挂载共写全局 doubingSu28 九档键:此前只列 0/1 两档,进过七政页被写成其它档后下拉显裸值、快照标错;改用同源全档。 */}
 					<Select value={fields.doubingSu28.value} onChange={this.onDoubingSu28Change} size='small' style={{width:'100%'}}>
-						<Option value={0}>现实距星法</Option>
-						<Option value={1}>斗柄定房法</Option>
+						{SU28_MODE_GROUPS.map((g)=>(
+							<Select.OptGroup key={g.header} label={g.header}>
+								{g.options.map((o)=><Option key={o.value} value={o.value}>{o.label}</Option>)}
+							</Select.OptGroup>
+						))}
 					</Select>
 				</Col>
 				<Col lg={12} xl={8}>

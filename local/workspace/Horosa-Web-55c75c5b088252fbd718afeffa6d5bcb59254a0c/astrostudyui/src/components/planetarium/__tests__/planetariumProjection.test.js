@@ -203,3 +203,60 @@ describe('planetariumProjection — 太阳黄经 / 日行迹(F2)', ()=>{
 		});
 	});
 });
+
+// ── 岁差(T-203):J2000 星表 / 连线数据投影前须按当日历元岁差,否则与当日的日月行星 / 二十八宿距星同屏两套历元。
+import { precessJ2000ToDate, precessionMatrixJ2000ToDate, applyPrecessionMatrixInto, isJ2000Item } from '../planetariumProjection';
+
+describe('planetariumProjection — 岁差 J2000 → 当日(Meeus 21.b 判别向量)', ()=>{
+	// Meeus《天文算法》例 21.b:θ Persei 施自行后 J2000 α=41.054063° δ=+49.227750°,岁差到 2028-11-13.19(JD 2462088.69)
+	// → α=41.547214° δ=+49.348483°(书中值)。
+	const JD_2028 = 2462088.69;
+	test('θ Persei 例:与书中值吻合到 1e-4°', ()=>{
+		const p = precessJ2000ToDate(41.054063, 49.227750, JD_2028);
+		expect(p.ra).toBeCloseTo(41.547214, 3);
+		expect(p.decl).toBeCloseTo(49.348483, 3);
+	});
+	test('J2000 时刻岁差为恒等', ()=>{
+		const p = precessJ2000ToDate(201.2983, -11.1614, J2000);
+		expect(p.ra).toBeCloseTo(201.2983, 6);
+		expect(p.decl).toBeCloseTo(-11.1614, 6);
+	});
+	test('矩阵版与便捷版逐位一致;逆向(2028→J2000 反算)误差 < 1e-9°', ()=>{
+		const m = precessionMatrixJ2000ToDate(JD_2028);
+		const out = applyPrecessionMatrixInto(m, 41.054063, 49.227750, { ra: 0, decl: 0 });
+		const p = precessJ2000ToDate(41.054063, 49.227750, JD_2028);
+		expect(out.ra).toBeCloseTo(p.ra, 9);
+		expect(out.decl).toBeCloseTo(p.decl, 9);
+		// 矩阵正交:转置即逆
+		const r = degToRadLocal(out.ra), d = degToRadLocal(out.decl);
+		const x = Math.cos(d) * Math.cos(r), y = Math.cos(d) * Math.sin(r), z = Math.sin(d);
+		const x0 = m[0] * x + m[3] * y + m[6] * z, y0 = m[1] * x + m[4] * y + m[7] * z, z0 = m[2] * x + m[5] * y + m[8] * z;
+		expect(Math.atan2(y0, x0) * 180 / Math.PI).toBeCloseTo(41.054063, 8);
+		expect(Math.asin(z0) * 180 / Math.PI).toBeCloseTo(49.227750, 8);
+	});
+	test('公元 1000 年角宿一(Spica)岁差量级 ≈ 14°(与全站扫描抓到的「同屏两套历元」差值同量级)', ()=>{
+		const jd1000 = 2086308.0; // ≈ 1000-01-01
+		const p = precessJ2000ToDate(201.2983, -11.1614, jd1000);
+		const dRa = Math.abs(p.ra - 201.2983);
+		expect(dRa).toBeGreaterThan(10);
+		expect(dRa).toBeLessThan(16);
+	});
+	test('projectedEquatorialItem:J2000 项先岁差再投影,产物带 raJ2000/declJ2000 且重复投影不叠加(幂等)', ()=>{
+		const jd = JD_2028;
+		const obs = { lat: 39.9, lon: 116.4 };
+		const item = { ra: 41.054063, decl: 49.227750, epoch: 'J2000' };
+		const once = projectedEquatorialItem(item, jd, obs, false);
+		expect(once.ra).toBeCloseTo(41.547214, 3);
+		expect(once.raJ2000).toBeCloseTo(41.054063, 9);
+		expect(once.epoch).toBe('date');
+		const twice = projectedEquatorialItem(once, jd, obs, false);
+		expect(twice.ra).toBeCloseTo(once.ra, 9);
+		expect(twice.altitudeAppa).toBeCloseTo(once.altitudeAppa, 9);
+		// 当日历元数据(无 epoch 标)不动
+		const plain = projectedEquatorialItem({ ra: 41.054063, decl: 49.227750 }, jd, obs, false);
+		expect(plain.ra).toBeCloseTo(41.054063, 9);
+		expect(isJ2000Item({ kind: 'catalogStar' })).toBe(true);
+		expect(isJ2000Item({ ra: 1, decl: 2 })).toBe(false);
+	});
+});
+function degToRadLocal(d){ return d * Math.PI / 180; }

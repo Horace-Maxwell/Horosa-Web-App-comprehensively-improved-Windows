@@ -229,6 +229,26 @@ describe('astroPatternOverview', () => {
 		expect(day.apriori.eightKill).toBe(false);
 	});
 
+	// [Q-558/T-520] 联结四种(接纳/互容/合相/映点):先验权力与龙截取材补合相与映点(此前先验权力只查互容/接纳/主宰环,龙截无映点)。
+	test('先验权力:两星仅 0° 合相(无互容/接纳)也算联结;仅映点也算', () => {
+		const objs = [
+			O('Sun', 10, 'Aries', 8, [12]), O('Mars', 200, 'Libra', 12, [8]),
+			O('Moon', 40, 'Taurus', 2), O('Mercury', 70, 'Gemini', 3), O('Venus', 100, 'Cancer', 4),
+			O('Jupiter', 130, 'Leo', 5), O('Saturn', 160, 'Virgo', 7),
+		];
+		const pc = chartWith(objs, { isDiurnal: false });
+		const conj = { normalAsp: { Sun: { Exact: [], Applicative: [{ id: 'Mars', asp: 0 }], Separative: [] } } };
+		const byConj = buildPatternOverview(pc, wrap(pc, { aspects: conj }));
+		expect(byConj.apriori.has).toBe(true);
+		expect(byConj.apriori.links[0]).toMatchObject({ a: 'Sun', b: 'Mars', which: '8·12', kind: '合相' });
+		const pcAnti = { ...pc, antiscias: { antiscia: [['Mars', 'Sun', 0.4]], cantiscia: [] } };
+		const byAnti = buildPatternOverview(pcAnti, wrap(pcAnti));
+		expect(byAnti.apriori.has).toBe(true);
+		expect(byAnti.apriori.links[0].kind).toBe('映点');
+		const none = buildPatternOverview(pc, wrap(pc));
+		expect(none.apriori.has).toBe(false);
+	});
+
 	test('先验权力·不合池误判:单星兼主8&12、对方不沾8/1/12 → 不成先验权力(分立判定根治)', () => {
 		// A=Sun 主{8,12} 落3th；B=Mars 主5 落7th；余星皆不落/主 1·8·12。旧实现合池见{8,12}即误判;新实现要求分立成对→不成。
 		const objs = [

@@ -129,6 +129,8 @@ class CoordTrans extends Component{
 					</Col>
 				</Row>
 
+				{/* [Q-309/T-310] 交角口径据实标注:后端按固定黄赤交角 23.44°(无日期 / 历元)换算;同抽屉「地平坐标」按当日平交角,两工具口径不同。 */}
+				<div className="horosa-field-hint" style={{ marginTop: 10 }}>按固定黄赤交角 23.44° 换算(不取日期 / 历元;J2000 真值 23.4393°,当代逐年略减)。需按当日交角请用「地平坐标」工具。</div>
 				<Divider orientation='left'  style={{marginTop: 20}}>{restxt}</Divider>
 				<Row style={{marginTop: 20}}>
 					<Col span={12}>

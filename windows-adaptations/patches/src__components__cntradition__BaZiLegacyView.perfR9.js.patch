@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZiLegacyView.js b/astrostudyui/src/components/cntradition/BaZiLegacyView.js
-index e275778..b848a6a 100644
+index e73de330..edf0ebe7 100644
 --- a/astrostudyui/src/components/cntradition/BaZiLegacyView.js
 +++ b/astrostudyui/src/components/cntradition/BaZiLegacyView.js
 @@ -9,6 +9,7 @@ import MainDirection from './MainDirection';
@@ -10,7 +10,7 @@ index e275778..b848a6a 100644
  
  const TabPane = Tabs.TabPane;
  
-@@ -510,38 +511,75 @@ export class BaZiLegacyMain extends Component{
+@@ -512,38 +513,75 @@ export class BaZiLegacyMain extends Component{
  }
  
  export class BaZiLegacyInfoPanel extends Component{

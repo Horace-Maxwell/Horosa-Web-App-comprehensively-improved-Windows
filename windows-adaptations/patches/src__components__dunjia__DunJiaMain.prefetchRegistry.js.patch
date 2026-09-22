@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/dunjia/DunJiaMain.js b/astrostudyui/src/components/dunjia/DunJiaMain.js
-index c53e36f8..f3fcab48 100644
+index 6e4155d4..d56d5a83 100644
 --- a/astrostudyui/src/components/dunjia/DunJiaMain.js
 +++ b/astrostudyui/src/components/dunjia/DunJiaMain.js
-@@ -5,6 +5,8 @@ import { stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled, st
+@@ -6,6 +6,8 @@ import { stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled, st
  // R4-B2(horosa_prefetch_registry_v1):遁甲 stage-1 登记 + 本地漏斗 settle 武装。
  import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
  import { armStepPrefetch } from '../../utils/stepPrefetchArm';
 +// [Windows-only] horosa_panel_ready_v1(P5):遁甲「画完」观测钉(验收配对靠它)。
 +import { markPanelReady } from '../../utils/perfMark';
  import { safeLocalStorageSet } from '../../utils/safeStorage';
+ import { definePageSettings } from '../../utils/pageSettingsStore';
  import { Tag, message, Popover, Modal } from 'antd';
- import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
-@@ -1621,6 +1623,10 @@ class DunJiaMain extends Component {
+@@ -1691,6 +1693,10 @@ class DunJiaMain extends Component {
  			if(pan && pan.options){ pan.options.chartCategory = this.state.chartCategory; }
  			this.lastPanSignature = panSignature;
  			this.setState({ pan, displaySolarTime: displaySolar, loading: false }, ()=>{

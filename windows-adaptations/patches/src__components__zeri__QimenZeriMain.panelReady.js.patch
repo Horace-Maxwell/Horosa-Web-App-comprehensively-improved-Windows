@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/zeri/QimenZeriMain.js b/astrostudyui/src/components/zeri/QimenZeriMain.js
-index cde84478..eb05c619 100644
+index a2f6885a..fde49d21 100644
 --- a/astrostudyui/src/components/zeri/QimenZeriMain.js
 +++ b/astrostudyui/src/components/zeri/QimenZeriMain.js
 @@ -17,6 +17,9 @@ import { newQimenLeaf, newQimenGroup, compileQimenTree } from '../../divination/

@@ -27,6 +27,19 @@ export function referencesSpecificCase(text){
 	return SPECIFIC_CASE_REF.test(`${text || ''}`);
 }
 
+// 发送前是否该拦下「未挂载却在问具体命主」的问题。真模型实抓(2026-09-06):行动能力开启时 AI 自己有
+// list_records / cast_technique / load_record_into_workspace 能按名字找到库里的记录,「给赵敏起一个西占本命盘」
+// 再被「需要先挂载案例」拦下 = 让 AI 操控软件这条路被自己的前置弹窗堵死。规则:
+//   拦 ⇔ 文本指向具体命主 且 没挂载 且 不是软件类(无 extraSystemContext) 且 行动能力关闭。
+export function needsMountBeforeSend({ text, activeSource, extraSystemContext, agentEnabled } = {}){
+	const t = `${text || ''}`.trim();
+	if(!t){ return false; }
+	if(activeSource){ return false; }
+	if(extraSystemContext){ return false; }
+	if(agentEnabled){ return false; }
+	return referencesSpecificCase(t);
+}
+
 // 静态建议问题(无挂载时也可点；都是软件用法类，点击即带帮助回答)。
 export const STARTER_PROMPTS = [
 	{ text: '怎么导出 PDF / docx 报告？', category: 'software', helpKey: 'export' },

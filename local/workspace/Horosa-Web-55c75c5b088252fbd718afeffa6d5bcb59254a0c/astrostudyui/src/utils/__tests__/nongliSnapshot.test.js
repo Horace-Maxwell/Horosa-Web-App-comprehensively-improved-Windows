@@ -43,7 +43,7 @@ describe('黄历快照 builder（四同步+防御）', ()=>{
 			days: [day()],
 		});
 		expect(text).toMatch(/查询月份：2026-07/);
-		expect(text).toMatch(/时区：东8区/);
+		expect(text).toMatch(/时区：UTC\+08:00/);   // [Q-271/ZC-29] 此前拼「东8区」/「东+08:00区」
 		expect(text).toMatch(/历算经度：120e00/);
 	});
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import { isDesktopBridgeAvailable, getDesktopInvokeApi } from '../../utils/aiAnalysisDesktop';
 import { Modal, message } from 'antd';
 import { ServerRoot } from '../../utils/constants';
 import { verifyBackendIdentity, renegotiateLocalServerRoot } from '../../utils/backendIdentity';
@@ -25,12 +26,12 @@ const btn = { padding: '4px 12px', fontSize: 13, borderRadius: 6, border: '1px s
 // audit 修:tauriInvoke 之前不等不报错,用户点完没反馈不知道有没有发出。
 // 现在 await + try/catch + message 反馈。
 async function tauriInvoke(cmd, successMsg, errorMsg) {
-  if (typeof window === 'undefined' || !window.__TAURI__) {
+  if (!isDesktopBridgeAvailable()) {
     message.warning('当前不在桌面应用中,无法执行此操作');
     return false;
   }
   try {
-    const api = window.__TAURI__.core || window.__TAURI__;
+    const api = getDesktopInvokeApi();
     if (api && api.invoke) {
       await api.invoke(cmd);
       if (successMsg) message.success(successMsg);
@@ -45,12 +46,12 @@ async function tauriInvoke(cmd, successMsg, errorMsg) {
 
 // [V-6] 「重启后端」统一走轻量命令(与横幅/状态灯同源;此前错线到全量修复,过重且慢)。
 async function handleLightRestart() {
-  if (typeof window === 'undefined' || !window.__TAURI__) {
+  if (!isDesktopBridgeAvailable()) {
     message.warning('当前不在桌面应用中,无法执行此操作');
     return;
   }
   try {
-    const api = window.__TAURI__.core || window.__TAURI__;
+    const api = getDesktopInvokeApi();
     const mode = await invokeLightServiceRestart(api);
     message.info(mode === 'light' ? '已请求重启后端,约 10 秒内恢复' : '已请求完整修复,请等待 10-60 秒');
   } catch (e) {
@@ -93,7 +94,7 @@ function buildDiagText(root, extraDetail) {
 
 export function showChartServiceError(extraDetail) {
   const root = ServerRoot || '';
-  const hasTauri = typeof window !== 'undefined' && !!window.__TAURI__;
+  const hasTauri = isDesktopBridgeAvailable();
   const diagText = buildDiagText(root, extraDetail);
 
   // audit 修:clipboard.writeText 是 async,之前不 await 用户看到假成功。

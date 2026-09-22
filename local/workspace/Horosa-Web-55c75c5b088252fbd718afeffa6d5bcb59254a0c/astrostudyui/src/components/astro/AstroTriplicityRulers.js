@@ -6,6 +6,7 @@ import { buildTriplicityPeriods, buildTriplicityRulersSnapshotText, TRIPLICITY_D
 import { symbolWithMeaning } from './AstroExtraCommon';
 import { XQSelect as Select, XQSegmented } from '../xq-ui';
 import styles from '../../css/styles.less';
+import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { markPanelReady } from '../../utils/perfMark';
 
 const Option = Select.Option;
@@ -17,9 +18,14 @@ const ANGULARITY_CN = { angular: '角宫·旺', succedent: '续宫·中', cadent
 class AstroTriplicityRulers extends Component{
 	constructor(props){
 		super(props);
-		// 三分体系初值优先取流派预设(props.tripSystem)；未传或无效则用现状默认 Dorothean(零回归)。
-		const initSystem = (props.tripSystem && TRIPLICITY_SYSTEMS[props.tripSystem]) ? props.tripSystem : TRIPLICITY_DEFAULT_OPTS.system;
-		this.state = { opts: { ...TRIPLICITY_DEFAULT_OPTS, system: initSystem }, data: null };
+		// [Q-254/T-230] 三分体系初值单源=本盘排盘实用值(chartObj.params.triplicity,即 fields.triplicity 回显);
+		// 缺则取 app.tripSystem 镜像(流派预设);再缺用现状默认 Dorothean(零回归)。
+		const chartTrip = props.value && props.value.params ? props.value.params.triplicity : null;
+		const initSystem = (chartTrip && TRIPLICITY_SYSTEMS[chartTrip]) ? chartTrip
+			: ((props.tripSystem && TRIPLICITY_SYSTEMS[props.tripSystem]) ? props.tripSystem : TRIPLICITY_DEFAULT_OPTS.system);
+		// 划分法 / 寿命基准 = 上次亲手设的值;三分体系不保留(初值随本盘排盘口径,见上)
+		const savedDir = DIRECTION_PAGE_SETTINGS.load();
+		this.state = { opts: { ...TRIPLICITY_DEFAULT_OPTS, division: savedDir.triplicityDivision, lifespan: savedDir.triplicityLifespan, system: initSystem }, data: null };
 		this.rebuild = this.rebuild.bind(this);
 		this.changeOpt = this.changeOpt.bind(this);
 		this.saveAISnapshot = this.saveAISnapshot.bind(this);
@@ -36,6 +42,13 @@ class AstroTriplicityRulers extends Component{
 		// 流派预设切换 → 联动三分体系(用户随后仍可用下方分段控件本地覆盖)。
 		if(prevProps.tripSystem !== this.props.tripSystem && this.props.tripSystem && TRIPLICITY_SYSTEMS[this.props.tripSystem] && this.props.tripSystem !== this.state.opts.system){
 			const opts = { ...this.state.opts, system: this.props.tripSystem };
+			this.setState({ opts }, () => { this.rebuild(); this.saveAISnapshot(); });
+		}
+		// [Q-254/T-230] 本盘排盘三分制(chartObj.params.triplicity)变了 → 同步(排盘真值优先于镜像)。
+		const prevTrip = prevProps.value && prevProps.value.params ? prevProps.value.params.triplicity : null;
+		const curTrip = this.props.value && this.props.value.params ? this.props.value.params.triplicity : null;
+		if(prevTrip !== curTrip && curTrip && TRIPLICITY_SYSTEMS[curTrip] && curTrip !== this.state.opts.system){
+			const opts = { ...this.state.opts, system: curTrip };
 			this.setState({ opts }, () => { this.rebuild(); this.saveAISnapshot(); });
 		}
 		if(prevProps.value !== this.props.value || prevProps.showAstroMeaning !== this.props.showAstroMeaning){
@@ -69,6 +82,8 @@ class AstroTriplicityRulers extends Component{
 	}
 
 	changeOpt(key, val){
+		if(key === 'division'){ DIRECTION_PAGE_SETTINGS.save({ triplicityDivision: val }); }
+		if(key === 'lifespan'){ DIRECTION_PAGE_SETTINGS.save({ triplicityLifespan: val }); }
 		const opts = { ...this.state.opts, [key]: val };
 		this.setState({ opts }, () => { this.rebuild(); this.saveAISnapshot(); });
 	}

@@ -44,7 +44,7 @@ const EXEMPT = {
 		anchor: 'onGenderChange(val){',
 	},
 	mode: {
-		why: '排盘模式(合参/单式):仅影响布局与兜底快照段名,不改任何子盘计算输入',
+		why: 'mode=命局/事局:只管「保存」去向(命盘/事盘),不改任何子盘计算输入(此前误记为「合参/单式」)',
 		anchor: "onOptionChange('mode'",
 	},
 };

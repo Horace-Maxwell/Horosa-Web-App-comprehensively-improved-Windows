@@ -1,5 +1,5 @@
 // [制度化·T3] AI 快照内容完备性审计注册表 —— 「页面渲染 ⊆ 快照」反方向的全站结论台账。
-// 税则定义与复审操作法见 docs/AI_REPORT_PLAYBOOK.md「内容完备性五税则」章;覆盖率由
+// 税则定义与复审操作法见 内容完备性规范「五税则」章;覆盖率由
 // aiExportContentAuditCoverage.test 机械锁(preset 每键必有结论、gap/exempt 必带说明、
 // 键除名同步除表);逐键结论人工(attestation)——这是该方向机械化的天花板,勿追求全自动 render-diff。
 // 结论值:'ok'=审计通过 | 'fixed:…'=本轮已修 | 'gap:…'=已知缺口(带一句改法,修复即改 fixed)
@@ -9,28 +9,28 @@
 export const AI_EXPORT_CONTENT_AUDIT = {
 	/* ── 中式命盘族 ── */
 	bazi: { at: 'v56', t1: 'fixed:大运起运交运两行+串宫+小运表+干支合冲段(前轮:长生三档)', t2: 'gap:生肖行/纳音长生列/盲派宾主十神', t3: 'gap:legacy卦释tab([四柱卦释]候选段)', t5: 'fixed:GT神煞四桶同构(组过滤恒全量=挂载定谳)', note: 'schema 缺 zodiacBoundary(排program队列)' },
-	ziwei: { at: 'v56', t1: 'fixed:身宫段+真太阳时双时刻+八字大运段+长生内联', t2: 'ok', t3: 'gap:日干四化徽/流年岁列/初一年柱/中限块', t5: 'gap:亮度源覆盖不进零import GT(合同约束,边界装饰待做);身宫已收敛isBody', note: 'schema 缺 zwShowDaySihua' },
+	ziwei: { at: 'v56', t1: 'fixed:身宫段+真太阳时双时刻+八字大运段+长生内联', t2: 'ok', t3: 'gap:日干四化徽/流年岁列/初一年柱/中限块', t5: 'fixed:[Q-433] 亮度源在调用边界预装饰(ReportPane 三入口 decorateZiweiChartBrightness)→ GT 与快照同源;身宫已收敛isBody', note: 'schema 缺 zwShowDaySihua' },
 	guolao: { at: 'v56', t1: 'gap:命身度实值+宿主两行', t2: 'ok', t3: 'gap:三主化曜/难仇恩用/五限实算/命曜(四候选段)', t5: 'ok:段名切片同源', note: 'fixed:无头路径 moiraRules 补传(曾恒丢三段)' },
 	qizhengkin: { at: 'v56', t1: 'ok', t2: 'ok', t3: 'ok:右栏两处 qz.* 为 sections 同数据另投影', t5: 'ok:passthrough', note: '零缺口' },
 	indiachart: { at: 'v56', t1: 'ok', t2: 'ok', t3: 'ok:16 二级tab 逐一有段', t5: 'ok:精确段映射', note: '零缺口;「古典」死复选框=报告GT绑定有意保留' },
 	suzhan: { at: 'v56', t1: 'exempt:外盘环=已文档化受控取舍(曾跨模块污染 qimen 槽)', t2: 'ok', t3: 'ok', t5: 'exempt:2 段走三级兜底', note: 'schema szchart/szshape 与外盘同根缓' },
 	heluo: { at: 'v56', t1: 'gap:起卦详情10项', t2: 'gap:卦气详参7项', t3: 'gap:流月/流日两层钻取(四候选段,showLiuRi 键随附)', t5: 'ok:段名切片', note: '本轮最重未修键,台账有逐项改法' },
 	yizhangjing: { at: 'v56', t1: 'ok', t2: 'gap:各柱逢星速断/六道分布/主星象义', t3: 'ok', t5: 'ok:段名切片', note: '' },
-	canping: { at: 'v56', t1: 'ok', t2: 'gap:四柱行+起数三值', t3: 'ok', t5: 'ok:段名切片', note: 'schema 缺 canpingDayun(挂载恒默认档)' },
+	canping: { at: 'v56', t1: 'ok', t2: 'gap:四柱行+起数三值', t3: 'ok', t5: 'ok:段名切片', note: 'dayunRule 三档已入 schema([Q-022/M-33 ③] 旧记「缺 canpingDayun」已过时)' },
 	zhengchuan: { at: 'v56', t1: 'ok', t2: 'ok', t3: 'gap:铁板流年总纲两行+大定死月扫描全表', t5: 'ok:passthrough', note: '' },
 	/* ── 西占族 ── */
-	astrochart: { at: 'v56', t1: 'ok', t2: 'fixed:恒星触发位置/容许两列+参照星全行带距+阿拉伯点120', t3: 'fixed:古典衍化四段(opt-in);格局tab恒星轨改读全局仓(三方对齐)', t5: 'ok:单源切片', note: 'v3.9.3 占星设置战役:~44 新键全走「基础信息·古典口径」段内自陈行(仅非默认成行)+显赫段三行(主宰光体/七射线/祝融星,开启才出);零新段头,MIGRATION_VERSION 恒 44' },
-	hellenastro: { at: 'v56', t1: 'fixed:快照重定源(曾本命冒充分盘)', t2: 'ok', t3: 'ok', t5: 'ok', note: 'derivedAstroSnapshot 出盘即存' },
-	dwadasamsa: { at: 'v56', t1: 'fixed:快照重定源(同上)', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
-	harmonic: { at: 'v56', t1: 'fixed:快照重定源+[调波盘]专属段', t2: 'fixed:natalLon 对照入段', t3: 'ok', t5: 'ok', note: 'schema 缺 harmonic(N)(排队)' },
-	draconic: { at: 'v56', t1: 'fixed:快照重定源+[龙盘]专属段', t2: 'fixed:nodeLon 基准入段', t3: 'ok', t5: 'ok', note: '' },
-	relocation: { at: 'v56', t1: 'fixed:快照重定源+[重置盘]专属段(地点/四角对比)', t2: 'ok', t3: 'ok', t5: 'ok', note: 'schema 缺 relocLat/relocLon(排队)' },
-	astrochart_like: { at: 'v56', t1: 'fixed:聚合键随五键重定源受益', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
-	locastro: { at: 'v56', t1: 'ok:线体已文本化', t2: 'gap:本地空间线+地理分野两口径行', t3: 'ok', t5: 'ok', note: '' },
+	astrochart: { at: 'v57', t1: 'ok', t2: 'fixed:恒星触发位置/容许两列+参照星全行带距+阿拉伯点120', t3: 'fixed:古典衍化四段(opt-in);格局tab恒星轨改读全局仓(三方对齐)', t5: 'ok:单源切片', note: 'v3.9.3 占星设置战役:~44 新键全走「基础信息·古典口径」段内自陈行(仅非默认成行)+显赫段三行(主宰光体/七射线/祝融星,开启才出);零新段头,MIGRATION_VERSION 恒 44;v57(#79):分宫制宫神星表自主宰星链拆出成独立段(默认勾选,preset×9+v57 union),主宰星链改挂整宫制宫主表+判读口径行(宫主/主宰=整宫制=nR 同源;力量=当前分宫制),派生单源 wholeSignRulers 与主页面板同函数,快照格式版本 2 旧快照不整份复用' },
+	hellenastro: { at: 'v57', t1: 'fixed:快照重定源(曾本命冒充分盘)', t2: 'ok', t3: 'ok', t5: 'ok', note: 'derivedAstroSnapshot 出盘即存;v57(#79):随西占段序新增「分宫制宫神星表」独立段(主宰星链段改整宫制口径)' },
+	dwadasamsa: { at: 'v57', t1: 'fixed:快照重定源(同上)', t2: 'ok', t3: 'ok', t5: 'ok', note: 'v57(#79):随西占段序新增「分宫制宫神星表」独立段(主宰星链段改整宫制口径)' },
+	harmonic: { at: 'v57', t1: 'fixed:快照重定源+[调波盘]专属段', t2: 'fixed:natalLon 对照入段', t3: 'ok', t5: 'ok', note: 'harmonic(N) 定谳只读 sectionsOnly(辅盘页重出即更新,非排队;[Q-022/M-33 ④]);v57(#79):随西占段序新增「分宫制宫神星表」独立段(主宰星链段改整宫制口径)' },
+	draconic: { at: 'v57', t1: 'fixed:快照重定源+[龙盘]专属段', t2: 'fixed:nodeLon 基准入段', t3: 'ok', t5: 'ok', note: 'v57(#79):随西占段序新增「分宫制宫神星表」独立段(主宰星链段改整宫制口径)' },
+	relocation: { at: 'v57', t1: 'fixed:快照重定源+[重置盘]专属段(地点/四角对比)', t2: 'ok', t3: 'ok', t5: 'ok', note: 'relocLat/relocLon 定谳只读 sectionsOnly(辅盘页重出即更新,非排队;[Q-022/M-33 ④]);v57(#79):随西占段序新增「分宫制宫神星表」独立段(主宰星链段改整宫制口径)' },
+	astrochart_like: { at: 'v57', t1: 'fixed:聚合键随五键重定源受益', t2: 'ok', t3: 'ok', t5: 'ok', note: 'v57(#79):随西占段序新增「分宫制宫神星表」独立段(主宰星链段改整宫制口径)' },
+	locastro: { at: 'v57', t1: 'ok:线体已文本化', t2: 'gap:本地空间线+地理分野两口径行', t3: 'ok', t5: 'ok', note: 'v57(#79):随西占段序新增「分宫制宫神星表」独立段(主宰星链段改整宫制口径)' },
 	relative: { at: 'v56', t1: 'gap:比较盘tab缺A/B盘体(仿 Composite headerless 嵌两张)', t2: 'ok', t3: 'ok:六tab对17段', t5: 'ok', note: '' },
 	germany: { at: 'v56', t1: 'exempt:图形星历读数=hover层', t2: 'ok', t3: 'gap:六宫框全点表(默认档零字)+校时tab', t5: 'ok', note: '' },
 	babylon: { at: 'v56', t1: 'ok', t2: 'ok', t3: 'gap:数理星历/吉日历/年历预测三tab(图式天文/医疗=教义豁免)', t5: 'exempt:通用兜底', note: '' },
-	mundane: { at: 'v56', t1: 'ok:尾接astro正文', t2: 'ok', t3: 'gap:cycles三tab/日月食三卡/judge三卡/stars二卡/vedic五tab等约20卡(折入既有盘型段)', t5: 'ok', note: '31 段骨架在,卡群逐 render 回填为最大剩余面' },
+	mundane: { at: 'v57', t1: 'ok:尾接astro正文', t2: 'ok', t3: 'gap:cycles三tab/日月食三卡/judge三卡/stars二卡/vedic五tab等约20卡(折入既有盘型段)', t5: 'ok', note: '31 段骨架在,卡群逐 render 回填为最大剩余面;v57(#79):随西占段序新增「分宫制宫神星表」独立段(主宰星链段改整宫制口径)' },
 	horary: { at: 'v57', t1: 'ok', t2: 'ok', t3: 'ok:官方八 gap 清零(卜卦 H9:断法要点/六类问法①-⑥/恒星会合两口径/同主一星/自然象征/盗窃11步/应期修正链/行星时全表)', t5: 'exempt:无精确映射', note: '28 段主链完备(含 H4a 围攻详断/月亮实测+H9 七段)' },
 	election: { at: 'v56', t1: 'ok', t2: 'gap:尊贵逐项/Almuten逐点/择前考量未命中项(汇总→明细还原)', t3: 'gap:回归盘与主限整卡([回归与主限]候选段)', t5: 'exempt:无第二 GT 口径(techSegSlicer 同源切片或通用兜底)', note: '' },
 	tianxing: { at: 'v56', t1: 'fixed:[选中时刻星盘]段(整盘headerless,曾零判读)', t2: 'ok', t3: 'ok', t5: 'exempt:无第二 GT 口径(techSegSlicer 同源切片或通用兜底)', note: '' },
@@ -47,6 +47,10 @@ export const AI_EXPORT_CONTENT_AUDIT = {
 	firdaria: { at: 'v56', t1: 'ok:同源(列集全等)', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
 	distributions: { at: 'v56', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
 	agepoint: { at: 'v56', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
+	// [Q-106/T-10] 星运三页上线:无头 builder 与页面同一后端请求(区间/年数取页面缺省;顶栏导出走页面当前值)。
+	ephemeris: { at: 'v57', t1: 'ok:同源(区间取页面缺省 今日起 90 天;顶栏导出取页面当前区间)', t2: 'ok', t3: 'ok', t5: 'ok', note: 'T-10 上线' },
+	returntimeline: { at: 'v57', t1: 'ok:同源(今年起 12 年;顶栏导出取页面当前值)', t2: 'ok', t3: 'ok', t5: 'ok', note: 'T-10 上线' },
+	prenatalsyzygy: { at: 'v57', t1: 'ok:同源(朔望摘要 + 朔望盘星体位置表)', t2: 'ok', t3: 'ok', t5: 'ok', note: 'T-10 上线' },
 	profection: { at: 'v56', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
 	solararc: { at: 'v56', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
 	solarreturn: { at: 'v56', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
@@ -54,6 +58,7 @@ export const AI_EXPORT_CONTENT_AUDIT = {
 	givenyear: { at: 'v56', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
 	decennials: { at: 'v56', t1: 'ok:同源(列集全等)', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
 	planetaryages: { at: 'v56', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
+	prog: { at: 'v57', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
 	vedicprog: { at: 'v56', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
 	jaynesprog: { at: 'v56', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
 	planetaryarc: { at: 'v56', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
@@ -94,7 +99,7 @@ export const AI_EXPORT_CONTENT_AUDIT = {
 	taiyizeri: { at: 'v56', t1: 'ok:继承taiyi段表', t2: 'gap:命中清单超60段截断(快照注明)', t3: 'gap:命中逐条判读树(explainTaiyiAt 同源求值,快照不带)', t5: 'exempt:无第二 GT 口径(本地引擎 parity 六锚看守)', note: '' },
 	bazizeri: { at: 'v56', t1: 'ok:继承bazi段表', t2: 'gap:命中清单超60段截断(快照注明)', t3: 'gap:命中逐条判读树(explainBaziAt 同源求值,快照不带)', t5: 'exempt:无第二 GT 口径(四柱=buildLocalNongliLite 单源)', note: '' },
 	huanglizeri: { at: 'v56', t1: 'ok:继承huangli日课段', t2: 'gap:命中清单超60段截断(快照注明)', t3: 'gap:命中逐条判读树(explainHuangliAt 同源求值,快照不带)', t5: 'exempt:无第二 GT 口径(判定单源 buildHuangliDay)', note: '' },
-	sanshiunited: { at: 'v56', t1: 'gap:外圈虚实点+逐支星盘宫位行', t2: 'ok', t3: 'gap:六壬七政段没跟着挑(段单+preset 补名)', t5: 'exempt:无第二 GT 口径(techSegSlicer 同源切片或通用兜底)', note: '' },
+	sanshiunited: { at: 'v58', t1: 'fixed:逐支补人事宫位号 + 外圈虚实(与盘面 buildSanshiWeakSolid 同源)', t2: 'ok', t3: 'fixed:六壬断卦层挑段单与 preset 均补「七政」(v58 一次性 union)', t5: 'exempt:无第二 GT 口径(techSegSlicer 同源切片或通用兜底)', note: '[Q-451/T-414]' },
 	taiyi: { at: 'v56', t1: 'ok:branch12=palace16 无损再投影', t2: 'ok:13 派生量全入', t3: 'ok', t5: 'exempt:无第二 GT 口径(techSegSlicer 同源切片或通用兜底)', note: '零缺口' },
 	guice: { at: 'v56', t1: 'ok', t2: 'ok', t3: 'ok', t5: 'exempt:无第二 GT 口径(techSegSlicer 同源切片或通用兜底)', note: '零缺口' },
 	xiaoliuren: { at: 'v56', t1: 'ok', t2: 'ok', t3: 'gap:流派法诀+三界文([法诀]候选段,教义默认关)', t5: 'exempt:无第二 GT 口径(techSegSlicer 同源切片或通用兜底)', note: '' },
@@ -105,8 +110,24 @@ export const AI_EXPORT_CONTENT_AUDIT = {
 	lingqi: { at: 'v56', t1: 'ok', t2: 'ok', t3: 'gap:卷首仪轨([仪轨]候选段,教义默认关)', t5: 'exempt:无第二 GT 口径(techSegSlicer 同源切片或通用兜底)', note: '' },
 	otherbu: { at: 'v56', t1: 'gap:两盘相位与逆行标(盘画着 AI 看不见)', t2: 'ok', t3: 'ok', t5: 'exempt:无第二 GT 口径(techSegSlicer 同源切片或通用兜底)', note: '挂载豁免=随机不可复算定谳' },
 	fengshui: { at: 'v56', t1: 'ok:画布态全入引擎行', t2: 'gap:罗经派采参/盘式注/分金穿山逐候选行(verdict-only→明细)', t3: 'ok:20 派各有段', t5: 'exempt:无第二 GT 口径(techSegSlicer 同源切片或通用兜底)', note: '挂载豁免=F5 定谳' },
-	/* ── 工具+私有族 ── */
+	/* ── 工具族 ── */
 	calendar: { at: 'v56', t1: 'ok', t2: 'gap:日子馆逐命主得分+中性态', t3: 'gap:所选吉日完整日课(候选段)', t5: 'exempt:无 GT extractor', note: 'fixed:四子源标签段(E-6)' },
 	huangli: { at: 'v56', t1: 'gap:中栏乌兔九星层', t2: 'gap:建除吉凶括注', t3: 'gap:年度吉日榜(候选段)', t5: 'exempt:无第二 GT 口径(techSegSlicer 同源切片或通用兜底)', note: 'fixed:导出链接通(E-2)' },
 	tongshu: { at: 'v56', t1: 'gap:各流派本月逐日表(候选段)', t2: 'fixed:叠数解/月朔/玄空所选时辰+格局注+仙命五机', t3: 'fixed:三垣最近加临+全年清单', t5: 'exempt:无第二 GT 口径(techSegSlicer 同源切片或通用兜底)', note: 'fixed:导出链接通(E-2)' },
 };
+
+// [C8e ratchet] 已知 gap 条目基线(键.税则;由 aiExportContentAuditRatchet.test 机械锁「当前 gap ⊆ 基线」):
+// 新增 gap 必须来此显式登记(= 一次显式决策,不再能顺手加一条就过闸);修掉的 gap 不必删(基线只减不增,自然收缩)。
+export const AI_EXPORT_CONTENT_GAP_BASELINE = [
+	'bazi.t2', 'bazi.t3', 'ziwei.t3', 'ziwei.t5', 'guolao.t1', 'guolao.t3',
+	'heluo.t1', 'heluo.t2', 'heluo.t3', 'yizhangjing.t2', 'canping.t2', 'zhengchuan.t3',
+	'locastro.t2', 'relative.t1', 'germany.t3', 'babylon.t3', 'mundane.t3', 'election.t2',
+	'election.t3', 'jieqi_meta.t1', 'jieqi_chunfen.t3', 'jieqi_xiazhi.t3', 'jieqi_qiufen.t3', 'jieqi_dongzhi.t3',
+	'cetian.t3', 'wuzhao.t2', 'sixyao.t2', 'sixyao.t3', 'tongshefa.t3', 'liureng.t1',
+	'jinkou.t3', 'qimenzeri.t2', 'qimenzeri.t3', 'indiazeri.t2', 'indiazeri.t3', 'qizhengzeri.t2',
+	'qizhengzeri.t3', 'sanshizeri.t2', 'sanshizeri.t3', 'liurengzeri.t2', 'liurengzeri.t3', 'ziweizeri.t2',
+	'ziweizeri.t3', 'taiyizeri.t2', 'taiyizeri.t3', 'bazizeri.t2', 'bazizeri.t3', 'huanglizeri.t2',
+	'huanglizeri.t3', 'sanshiunited.t1', 'sanshiunited.t3', 'xiaoliuren.t3', 'xiaochengtu.t3', 'feigong.t3',
+	'lingqi.t3', 'otherbu.t1', 'fengshui.t2', 'calendar.t2', 'calendar.t3', 'huangli.t1',
+	'huangli.t2', 'huangli.t3', 'tongshu.t1',
+];

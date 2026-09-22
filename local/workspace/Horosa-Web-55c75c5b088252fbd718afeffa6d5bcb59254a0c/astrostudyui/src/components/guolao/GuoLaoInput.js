@@ -18,6 +18,14 @@ import XQIcon from '../xq-icons';
 import { GUOLAO_ALL_ASPECTS, GUOLAO_CHART_STYLE_CLASSIC, GUOLAO_CHART_STYLE_MOIRA, GUOLAO_CHART_STYLE_PICK, GUOLAO_CHART_STYLE_QIZHENG, GUOLAO_LIFE_MODE_ASC, GUOLAO_LIFE_MODE_COTRANS, GUOLAO_LIFE_MODE_YUMAO, GUOLAO_NODE_MODE_NORTH_KETU, GUOLAO_NODE_MODE_NORTH_RAHU, getStoredGuolaoLifeMode, getStoredGuolaoNodeMode, setStoredGuolaoAyanamsa, getStoredGuolaoTrueSolarTime, setStoredGuolaoTrueSolarTime, getStoredGuolaoNodeType, setStoredGuolaoNodeType, getStoredGuolaoLilithType, setStoredGuolaoLilithType, getStoredGuolaoBodyMode, setStoredGuolaoBodyMode, getStoredGuolaoTuibianMethod, setStoredGuolaoTuibianMethod, getStoredGuolaoGufaPrecess, setStoredGuolaoGufaPrecess, getStoredGuolaoEqTropicalAnchor, setStoredGuolaoEqTropicalAnchor, setStoredGuolaoLifeMode, setStoredGuolaoSu28Mode, GUOLAO_SCHOOL_PRESETS, matchSchoolPreset, normalizeGuolaoLifeMode, normalizeGuolaoNodeMode, } from './GuoLaoChartStyle';
 import { SU28_MODE_GROUPS, TUIBIAN_METHOD_OPTIONS, GUFA_PRECESS_OPTIONS, EQ_TROPICAL_ANCHOR_OPTIONS, TRUE_SOLAR_TIME_OPTIONS, NODE_TYPE_OPTIONS, LILITH_TYPE_OPTIONS, BODY_MODE_OPTIONS, LIFE_MODE_OPTIONS, LIFE_MASTER_MODE_OPTIONS, MINOR_LIMIT_TYPE_OPTIONS, TONGXIAN_BASE_OPTIONS, SCHOOL_PRESET_OPTIONS, LIFE_CUSTOM_ZHI_OPTIONS, BODY_CUSTOM_ZHI_OPTIONS, HSYS_OPTIONS } from './guolaoData';
 
+// [Q-192/T-140] 古宿岁差(用制 6)显示取值单源:字段值存在(含 0 / '0')即为权威,只有缺省才回落全局仓。
+export function gufaPrecessDisplayValue(fields){
+	const f = fields && fields.guolaoGufaPrecess;
+	const v = f && f.value !== undefined ? f.value : undefined;
+	if(v === undefined || v === null || v === ''){ return getStoredGuolaoGufaPrecess(); }
+	return v;
+}
+
 const {Option, OptGroup} = Select;
 
 class GuoLaoInput extends Component{
@@ -607,7 +615,8 @@ class GuoLaoInput extends Component{
 				<XQSideSection iconName={sideSectionIcon('switches')} title="选项" storageKey="guolao.s0" className="horosa-guolao-input-section">
 					{engineMode === 'kinastro' ? (
 					<div className="horosa-guolao-select-grid horosa-guolao-kinastro-options">
-						<label className="horosa-guolao-select-field">
+						{/* [Q-193/T-138] 本页零消费(设计如此):title 说清楚,免得以为拨了会改大限。 */}
+						<label className="horosa-guolao-select-field" title="果老法不分男女:本项不参与本页任何计算(落宫/大限/限度),只登记进命例资料供存档与别的技法调用">
 							<span>性别</span>
 							<Select value={fields.gender.value} onChange={this.onGenderChange} size='small' dropdownMatchSelectWidth={false}>
 								<Option value={0}>女</Option>
@@ -714,7 +723,8 @@ class GuoLaoInput extends Component{
 					</div>
 					) : (
 					<div className="horosa-guolao-select-grid">
-						<label className="horosa-guolao-select-field">
+						{/* [Q-193/T-138] 同上:七政不分男女,本项只作登记。 */}
+						<label className="horosa-guolao-select-field" title="果老法不分男女:本项不参与本页任何计算(落宫/大限/限度),只登记进命例资料供存档与别的技法调用">
 							<span>性别</span>
 							<Select value={fields.gender.value} onChange={this.onGenderChange} size='small' dropdownMatchSelectWidth={false}>
 								<Option value={-1}>未知</Option>
@@ -776,7 +786,9 @@ class GuoLaoInput extends Component{
 						{Number(fields.doubingSu28.value) === 6 ? (
 							<label className="horosa-guolao-select-field">
 								<span>古宿岁差</span>
-								<Select value={Number((fields.guolaoGufaPrecess && fields.guolaoGufaPrecess.value) || getStoredGuolaoGufaPrecess())} onChange={this.onGufaPrecessChange} size='small' dropdownMatchSelectWidth={false}>
+								{/* [Q-192/T-140] `||` 把字段值 0(钉死元时)当假值回落全局 → 存了 0 的盘在全局为 1 时显示「随岁差」,
+								    与 Q-109 修好的计算口径正相反。判据改「字段有值就用字段值」(空/未定义才回落全局)。 */}
+								<Select value={Number(gufaPrecessDisplayValue(fields))} onChange={this.onGufaPrecessChange} size='small' dropdownMatchSelectWidth={false}>
 									{GUFA_PRECESS_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
 								</Select>
 							</label>
@@ -789,7 +801,7 @@ class GuoLaoInput extends Component{
 								</Select>
 							</label>
 						) : null}
-						<label className="horosa-guolao-select-field">
+						<label className="horosa-guolao-select-field" title="[Q-199] 太阳时校正只对「行星时制式=等长 24 时制」有别;日出法 / 昼夜不等时下出生与日出同加偏移,三档结果恒同">
 							<span>报时星</span>
 							<Select value={(fields.guolaoTrueSolarTime && fields.guolaoTrueSolarTime.value) || getStoredGuolaoTrueSolarTime()} onChange={this.onTrueSolarTimeChange} size='small' dropdownMatchSelectWidth={false}>
 								{TRUE_SOLAR_TIME_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
@@ -852,8 +864,17 @@ class GuoLaoInput extends Component{
 						</label>
 						<label className="horosa-guolao-select-field">
 							<span>流派预设</span>
-							<Select value={this.schoolPresetValue()} onChange={(v)=>{ if(v !== 'custom'){ this.onSchoolPresetChange(v); } }} size='small' dropdownMatchSelectWidth={false}>
-								{SCHOOL_PRESET_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
+							{/* [Q-193/T-137]「自定」不是一个可套用的档,而是「当前开关组合不等于任何预设」的状态显示:
+							    此前它照常出现在列表里、点了却什么都不发生(onChange 直接忽略)。改为置灰只读 + title 说明,
+							    并给整个下拉一个「怎么回到自定」的提示(逐项微调即回落)。 */}
+							<Select value={this.schoolPresetValue()} onChange={(v)=>{ if(v !== 'custom'){ this.onSchoolPresetChange(v); } }} size='small' dropdownMatchSelectWidth={false}
+								title="选一派=一键套该派开关组合;「自定」是状态显示(当前组合不合任何一派),不能直接选——微调下方任一相关开关即回落自定">
+								{SCHOOL_PRESET_OPTIONS.map((o)=>(
+									<Option key={o.value} value={o.value} disabled={o.value === 'custom'}
+										title={o.value === 'custom' ? '状态显示:当前开关组合不等于任何预设;微调任一相关开关即回此态' : undefined}>
+										{o.value === 'custom' ? '自定（当前组合，非预设）' : o.label}
+									</Option>
+								))}
 							</Select>
 						</label>
 						{hsysField}

@@ -6,7 +6,7 @@ import { Component } from 'react';
 import { stepPrefetchEnabled } from '../../utils/perfFlags';
 import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { safeJsonParseFromStorage } from '../../utils/safeStorage';
+import { readPdSphereStamp } from '../../utils/pdSphereStamp';
 import { Row, Col, message, } from 'antd';
 import { XQTabs as Tabs } from '../xq-ui';
 import DateTime from '../comp/DateTime';
@@ -77,7 +77,8 @@ import {
 	PD_FRAMEWORK_LABELS,
 } from '../../utils/primaryDirectionSync';
 import FreezeInactive from '../comp/FreezeInactive';
-import { classicalBackendOverridesFromFields } from '../../utils/classicalChartGlobals';
+import { classicalBackendOverridesFromFields, classicalGlobalValue, setClassicalChartGlobal } from '../../utils/classicalChartGlobals';
+import { scheduleOptionDispatch } from '../../utils/optionDispatchScheduler';
 
 const TabPane = Tabs.TabPane;
 const AI_EXPORT_PLANET_INFO = {
@@ -392,7 +393,7 @@ function buildPrimaryDirectSnapshotText(chartObj){
 
 	lines.push('');
 	lines.push('[主限法表格]');
-	lines.push(`| ${degreeLabel} | 迫星 | 应星 | 日期 |`);
+	lines.push(`| ${degreeLabel} | 迫星 | 应星 | 日期(UTC) |`);   // [Q-176/T-116e] 引擎给的是 UTC 墙钟,快照表头一并标明(AI 据此换算本地)
 	lines.push('| --- | --- | --- | --- |');
 	if(pds.length === 0){
 		lines.push('| 无 | 无 | 无 | 无 |');
@@ -424,8 +425,9 @@ function buildPrimaryDirectSnapshotText(chartObj){
 	}
 	// [WP-5.5] 主限天球可选行:用户最近在 3D 球上选中/播放的向运(≤24h 有效,防跨日陈旧)。
 	// 文本由 AstroPDSphere 从选中 row 既有字段拼好盖章,此处只读不再推导。
-	const sphereStamp = safeJsonParseFromStorage('horosa.pdsphere.aiCurrentRow');
-	if(sphereStamp && sphereStamp.txt && Number.isFinite(sphereStamp.ts) && (Date.now() - sphereStamp.ts) < 24 * 3600 * 1000){
+	// [挂载自检 F-11·P0] 只认同一张盘(签名=obj.params 的 date/time/lon/lat)的盖章:此前无签名,A 盘选过行 → B 盘快照也带 A 行。
+	const sphereStamp = readPdSphereStamp(obj.params || {});
+	if(sphereStamp){
 		lines.push('');
 		lines.push('[主限天球·当前动画所指]');
 		lines.push(`${sphereStamp.txt}`);
@@ -593,9 +595,14 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
 		...(fields.predictive || { name: ['predictive'] }),
 		value: 1,
 	};
+	// [Q-341/T-322] Java /chart 的参数白名单不收 showPdBounds,回显 params.showPdBounds 恒为 1 ——
+	// 旧写法拿回显盖 fields,用户选的「否」每次重排都被静默冲回「是」(表格按 fields 正确隐藏、
+	// 快照却照列界限法行并写「显示界限法:是」)。fields 是本项的真值源:有值即保留,只有缺键才回落。
 	fields.showPdBounds = {
 		...(fields.showPdBounds || { name: ['showPdBounds'] }),
-		value: params.showPdBounds === 0 ? 0 : 1,
+		value: (fields.showPdBounds && fields.showPdBounds.value !== undefined && fields.showPdBounds.value !== null)
+			? (fields.showPdBounds.value === 0 || fields.showPdBounds.value === false ? 0 : 1)
+			: (params.showPdBounds === 0 ? 0 : 1),
 	};
 	fields.pdtype = {
 		...(fields.pdtype || { name: ['pdtype'] }),
@@ -617,6 +624,39 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
 		...(fields.pdTerms || { name: ['pdTerms'] }),
 		value: pdTermsVal,
 	};
+	// [Q-169/T-104] 工具条的八个解耦维此前只写 app 仓(全仓无读者)与本次请求,不回写 fields ——
+	// fields 才是「重排 / 换盘 / 存命盘」都认的那份:于是改生辰或切盘重排后静默回落缺省,存盘也捕获不到。
+	// 这里按 opt 回写七维(缺省值照写,与既有 pdtype/pdDirect 等同律;fieldsToParams 仍只对非默认下发 → 零回归)。
+	// [Q-169 裁决 2026-09-18] 界系 termsVariant:用户拍板「界是全局设定 → 工具条选择覆写全局」——
+	// 本次「计算」带界系时同样回写 fields.termsVariant(排盘真值,重排/换盘/存盘同认);全局仓写入+广播+主盘重算
+	// 由 computePrimaryDirections 在值真变时做(与 ChartDisplaySelector.applyClassicalField 同律)。
+	if(opt.projection){
+		fields.pdProjection = { ...(fields.pdProjection || { name: ['pdProjection'] }), value: opt.projection };
+	}
+	if(opt.frame){
+		fields.pdFrame = { ...(fields.pdFrame || { name: ['pdFrame'] }), value: opt.frame };
+	}
+	if(opt.framework){
+		fields.pdFramework = { ...(fields.pdFramework || { name: ['pdFramework'] }), value: opt.framework };
+	}
+	fields.pdParallel = { ...(fields.pdParallel || { name: ['pdParallel'] }), value: opt.parallel ? 1 : 0 };
+	fields.pdRaptParallel = { ...(fields.pdRaptParallel || { name: ['pdRaptParallel'] }), value: opt.raptParallel ? 1 : 0 };
+	if(opt.timeKeyCustom !== undefined){
+		fields.pdTimeKeyCustom = {
+			...(fields.pdTimeKeyCustom || { name: ['pdTimeKeyCustom'] }),
+			value: Number(opt.timeKeyCustom) > 0 ? Number(opt.timeKeyCustom) : null,
+		};
+	}
+	if(Array.isArray(opt.significators)){
+		fields.pdSignificators = { ...(fields.pdSignificators || { name: ['pdSignificators'] }), value: opt.significators };
+	}
+	if(Array.isArray(opt.promissorTypes)){
+		fields.pdPromissorTypes = { ...(fields.pdPromissorTypes || { name: ['pdPromissorTypes'] }), value: opt.promissorTypes };
+	}
+	if(opt.termsVariant !== undefined){   // [Q-169] 界系回写排盘字段(与 app 仓/请求体同一归一化:1..4 有效,其余 0=埃及)
+		const tv = (opt.termsVariant >= 1 && opt.termsVariant <= 4) ? Number(opt.termsVariant) : 0;
+		fields.termsVariant = { ...(fields.termsVariant || { name: ['termsVariant'] }), value: tv };
+	}
 	fields.pdMethod = {
 		...(fields.pdMethod || { name: ['pdMethod'] }),
 		value: pdMethod,
@@ -1223,9 +1263,11 @@ class AstroDirectMain extends Component{
 		const chartObj = this.props.chartObj || {};
 		const chartParams = chartObj.params || {};
 		const fields = this.props.fields || {};
-		const showPdBounds = chartParams.showPdBounds !== undefined
-			? chartParams.showPdBounds
-			: (fields.showPdBounds ? fields.showPdBounds.value : 1);
+		// [Q-341/T-322] 同上:回显恒 1,取值序必须 fields 优先(与表格 convertToDataSource 同源),
+		// 否则选「否」的用户表格没有界限法行、快照里却有,还写着「显示界限法:是」。
+		const showPdBounds = (fields.showPdBounds && fields.showPdBounds.value !== undefined && fields.showPdBounds.value !== null)
+			? fields.showPdBounds.value
+			: (chartParams.showPdBounds !== undefined ? chartParams.showPdBounds : 1);
 		const pdMethod = chartParams.pdMethod
 			? chartParams.pdMethod
 			: (fields.pdMethod ? fields.pdMethod.value : 'core_alchabitius');
@@ -1365,6 +1407,13 @@ class AstroDirectMain extends Component{
 				this._rafRoot = requestAnimationFrame(()=> this.measureRootHeight());
 			});
 			this._roRoot.observe(this.rootEl);
+			// 🔴 子页高取自 Tabs 内容区(见 measureRootHeight),而内容区会在根容器尺寸不变时自己变高矮
+			// (本页 CSS 分包晚到、边框/内距后生效:实测首拍 806、落定后 804);根容器 RO 对此无感 → 子页
+			// 停在首拍值,比面板高 2px,外层滚动条常驻。把内容区本身也纳入观察,变了就重量。
+			try{
+				const content = this.rootEl.querySelector('.ant-tabs-content') || this.rootEl.querySelector('.ant-tabs-content-holder');
+				if(content){ this._roRoot.observe(content); }
+			}catch(e){ /* 无内容区时只观察根 */ }
 		}
 	}
 
@@ -1379,6 +1428,20 @@ class AstroDirectMain extends Component{
 		let h = this.rootEl.clientHeight;
 		const parent = this.rootEl.parentElement;
 		if(parent && parent.clientHeight > 120){ h = Math.min(h, parent.clientHeight); }
+		// 🔴 [用户 APP 实报 2026-09-17:星运各子页右侧多一条外层滚动条 / 主区与右栏之间空一节]
+		// 子页拿到的 height 若按根容器算(826),而真正装子页的页签面板只有 824(Tabs 自身边框等吃掉 2px),
+		// 子页根 div 就比面板高 2px → 面板 overflow-y:auto 立刻长出整条滚动条(含滚动槽=那条空带)。
+		// 直接量 Tabs 内容区(页签面板的父,与面板同高)= 子页真正可用高,任何 Tabs 皮肤/边框下都对。
+		// 实测(本机 WebKit,窗高 900):根 826 / .ant-tabs-content-holder 806 / .ant-tabs-content 与页签面板 804 —— 必须量到
+		// 面板那一层(.ant-tabs-content 与面板同高);量 holder 仍多 2px,滚动条照旧长出来。
+		try{
+			// 首选当前页签面板本身(链条已定高:Tabs 100% → holder → content → 面板,面板 = 子页真正可用高);
+			// 面板缺席时退到 content / holder。绝不再从子页自身的高度反推(那是循环)。
+			const pane = this.rootEl.querySelector('.ant-tabs-tabpane-active');
+			const content = this.rootEl.querySelector('.ant-tabs-content') || this.rootEl.querySelector('.ant-tabs-content-holder');
+			const box = (pane && pane.clientHeight > 120) ? pane : content;
+			if(box && box.clientHeight > 120){ h = Math.min(h, box.clientHeight); }
+		}catch(e){ /* 无 Tabs 内容区(极旧 antd)时沿用根容器高 */ }
 		if(h > 120 && h !== this.state.containerH){ this.setState({ containerH: h }); }
 	}
 
@@ -1489,6 +1552,20 @@ class AstroDirectMain extends Component{
 				fields: nextFields,
 			},
 		});
+		// [Q-169 裁决 2026-09-18] 界系覆写全局:工具条所选界系 ≠ 全局现值 → 写全局仓(localStorage+广播,全站派生盘
+		// 下次构参即读到)并按 ChartDisplaySelector.applyClassicalField 同律调度主盘重算(fields 已在上面回写)。
+		// 同值(缺省路径:工具条本就从全局播种)零动作 → 请求体/缓存键/主盘字节不变。
+		if(opt.termsVariant !== undefined){
+			const tv = (opt.termsVariant >= 1 && opt.termsVariant <= 4) ? Number(opt.termsVariant) : 0;
+			if(Number(classicalGlobalValue('termsVariant')) !== tv){
+				setClassicalChartGlobal('termsVariant', tv);
+				if(nextFields.date && nextFields.time && nextFields.lat && nextFields.lon){
+					scheduleOptionDispatch((payload)=>{
+						this.props.dispatch({ type: 'astro/fetchByFields', payload });
+					}, { termsVariant: { value: tv, name: ['termsVariant'] } }, ()=>({ ...(this.props.fields || {}) }));
+				}
+			}
+		}
 		this.requestPrimaryDirectionRows({
 			chartObj: this.props.chartObj,
 			fields: nextFields,
@@ -1548,10 +1625,14 @@ class AstroDirectMain extends Component{
 
 		return (
 			<div className="horosa-direction-page xq-chart-renderer xq-chart-renderer-direction" ref={(el)=>{ this.rootEl = el; }} style={{ height: '100%', minHeight: 0, overflow: 'hidden' }}>
+				{/* 🔴 Tabs 必须铺满页根(100%),不能写成 containerH 的 px:
+				    此前 Tabs 高 = containerH、子页高也 = containerH,而页签面板 = Tabs − holder 上下边框 2px,
+				    子页恒比面板高 2px → 外层滚动条常驻;若再按面板重量,Tabs 跟着缩 2px,面板又比子页矮 2px,
+				    循环下去每拍缩 2px(WebKit 实测 806 → 804 → 802 …)。链条定高后子页量面板一次即准。 */}
 				<Tabs
 					activeKey={this.state.currentTab} tabPosition='right'
 					onChange={this.changeTab}
-					style={{ height: height }}
+					style={{ height: '100%' }}
 				>
 					<TabPane tab="赤纬推运" key="jaynesprog">
 						<FreezeInactive active={this.state.currentTab === "jaynesprog"}>

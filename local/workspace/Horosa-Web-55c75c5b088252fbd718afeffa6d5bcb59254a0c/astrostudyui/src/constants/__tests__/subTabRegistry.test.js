@@ -92,3 +92,31 @@ describe('宿主接线哨兵(remember 调用点在位)', () => {
 		expect(read('../../components/cnyibu/CnYiBuMain.js')).toContain('__horosaCnyibuCurrentTab');
 	});
 });
+
+// [Q-417/T-377] 合盘组:从辅盘(量化盘 germanytech)切到合盘,currentSubTab 曾原样沿用 → 页头帮助按 germanytech 子技法优先取到量化盘手册。
+describe('[Q-417/T-377] 合盘子页签回落', () => {
+	const fs = require('fs');
+	const path = require('path');
+	afterEach(() => { delete window.__horosaRelativeCurrentTab; });
+	test('RELATIVE_SUBTABS = AstroRelative.state.hook 四键;germanytech 非法 → 回宿主记忆 / 首档 Comp', () => {
+		const { RELATIVE_SUBTABS } = require('../SubTabRegistry');
+		expect(RELATIVE_SUBTABS).toEqual(['Comp', 'Composite', 'Synastry', 'TimeSpace']);
+		const src = fs.readFileSync(path.resolve(__dirname, '../../components/astro/AstroRelative.js'), 'utf8');
+		RELATIVE_SUBTABS.forEach((k) => expect(src).toContain(`\t\t\t\t${k}:{`));
+		expect(recallSubTab('relativechart', RELATIVE_SUBTABS, 'germanytech', 'Comp')).toBe('Comp');
+		rememberSubTab('relativechart', 'Synastry', RELATIVE_SUBTABS);
+		expect(recallSubTab('relativechart', RELATIVE_SUBTABS, 'germanytech', 'Comp')).toBe('Synastry');
+		expect(recallSubTab('relativechart', RELATIVE_SUBTABS, 'TimeSpace', 'Comp')).toBe('TimeSpace');
+		// 帮助注册表:合盘 + 合法子页签 → 合盘手册;此前的病 = germanytech 子技法优先
+		const { getTechniqueHelpDoc, TECHNIQUE_HELP_DOCS } = require('../../components/help/techniqueHelpRegistry');
+		expect(getTechniqueHelpDoc('relativechart', 'Comp')).toBe(TECHNIQUE_HELP_DOCS.relativechart);
+		expect(getTechniqueHelpDoc('relativechart', 'germanytech')).toBe(TECHNIQUE_HELP_DOCS.germanytech);
+	});
+	test('导航层 changeTab 对合盘走 recallSubTab;宿主挂载与切子页签 rememberSubTab(源码哨兵)', () => {
+		const idx = fs.readFileSync(path.resolve(__dirname, '../../pages/index.js'), 'utf8');
+		expect(idx).toContain("recallSubTab('relativechart', RELATIVE_SUBTABS, currentSubTab, 'Comp')");
+		expect(idx).not.toContain("key === 'direction' || key === 'relativechart'");
+		const rel = fs.readFileSync(path.resolve(__dirname, '../../components/astro/AstroRelative.js'), 'utf8');
+		expect((rel.match(/rememberSubTab\('relativechart'/g) || []).length).toBe(2);
+	});
+});

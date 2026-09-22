@@ -9,6 +9,7 @@ import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { buildPlanetaryAges, buildPlanetaryAgesSnapshotText, } from '../../utils/planetaryAges';
 import { PLANETARY_YEARS } from '../../divination/data/hellenisticData';
 import styles from '../../css/styles.less';
+import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { markPanelReady } from '../../utils/perfMark';
 
 // 行星年四档：七政各有通用的四档年数（小/中/大/极大），按迦勒底序由土至月排列。
@@ -31,7 +32,7 @@ const YEAR_BAND_OPTIONS = [
 class AstroPlanetaryAges extends Component{
 	constructor(props){
 		super(props);
-		this.state = { yearBand: 'least' };
+		this.state = { yearBand: DIRECTION_PAGE_SETTINGS.load().yearBand };   // 上次亲手选的年数档(没存过 = 小年)
 		this.saveAISnapshot = this.saveAISnapshot.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 		this.handleYearBandChange = this.handleYearBandChange.bind(this);
@@ -39,6 +40,7 @@ class AstroPlanetaryAges extends Component{
 
 	handleYearBandChange(e){
 		const v = e && e.target ? e.target.value : e;
+		DIRECTION_PAGE_SETTINGS.save({ yearBand: v });
 		this.setState({ yearBand: v });
 	}
 
@@ -80,7 +82,7 @@ class AstroPlanetaryAges extends Component{
 			<div>
 				<Divider orientation="left">行星年四档</Divider>
 				<div style={{ marginBottom: 8, color: 'var(--horosa-muted, #666)', fontSize: 12, lineHeight: 1.6 }}>
-					七政各有四档通用年数：小年取自辖界最短跨度，大年为各星所辖界度数之和；七政小年之和为 129，日月中年皆为 39.5。下方选档将高亮对应一列。
+					七政各有四档通用年数：小年为传统定数（七政小年之和为 129），中年为小年与大年之平均，大年为五星各自所辖界度数之和（日取 120、月取 108），极大年为传统极数。下方选档将高亮对应一列。
 				</div>
 				<div style={{ marginBottom: 8 }}>
 					<XQSegmented value={this.state.yearBand} options={YEAR_BAND_OPTIONS} onChange={this.handleYearBandChange} />
@@ -129,7 +131,7 @@ class AstroPlanetaryAges extends Component{
 
 	render(){
 		const height = this.props.height ? this.props.height : 760;
-		const style = { height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden' };
+		const style = { height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', boxSizing: 'border-box' };   // [巡检实抓 2026-09-17] 内距计入高度,不再比面板高 5px
 		const { bands, curAge } = buildPlanetaryAges(this.props.value);
 		const glyph = (id) => AstroText.AstroMsg[id] || id;
 		const cn = (id) => (id ? (AstroText.AstroTxtMsg[id] || id) : '');

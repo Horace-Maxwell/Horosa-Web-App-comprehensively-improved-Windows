@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { ZERI_SUBTABS } from '../../../constants/SubTabRegistry';
 import { CASE_TYPE_OPTIONS } from '../../../utils/localcases';
-import { AI_EXPORT_PRESET_SECTIONS, getAIExportAuditMatrix, getAIExportDefaultOffSet } from '../../../utils/aiExport';
+import { AI_EXPORT_PRESET_SECTIONS, getAIExportAuditMatrixForTests, getAIExportDefaultOffSet } from '../../../utils/aiExport';
 import { ANALYSIS_TECHNIQUE_LABELS, ANALYSIS_CASE_TECHNIQUES } from '../../../utils/aiAnalysisContext';
 import { isSectionsOnlyTechnique, getTechniqueSettingsSchema } from '../../../utils/techniqueMountSettings';
 import { buildQimenZeriSnapshotExtra } from '../qimenZeriSnapshot';
@@ -57,7 +57,7 @@ describe('账本三:AI 挂载', ()=>{
 
 describe('账本四:AI 导出(含设置迁移)', ()=>{
 	test('审计矩阵含 qimenzeri 且 migrationEnabled', ()=>{
-		const matrix = getAIExportAuditMatrix();
+		const matrix = getAIExportAuditMatrixForTests();
 		const hit = matrix.find((item)=>item.key === 'qimenzeri');
 		expect(hit).toBeTruthy();
 		expect(hit.migrationEnabled).toBe(true);

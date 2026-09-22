@@ -117,7 +117,8 @@ describe('交叉牌第三态', () => {
 		const raw = shuffle(seed, { size: 78, usesReversals: true, pReversed: 0.5 });
 		expect(r.draws[1].crossed).toBeUndefined();
 		expect(r.draws[1].isReversed).toBe(raw.reversed[1]);
-		expect(buildReadingText(r)).not.toContain('横置');
+		// [Q-223/FT-31] 快照设置行会如实写「交叉牌不横置」(非缺省注明),与「位 2 未被横置」不冲突;只断言牌位行没有横置标记
+		expect(buildReadingText(r).replace(/交叉牌不横置/g, '')).not.toContain('横置');
 	});
 });
 

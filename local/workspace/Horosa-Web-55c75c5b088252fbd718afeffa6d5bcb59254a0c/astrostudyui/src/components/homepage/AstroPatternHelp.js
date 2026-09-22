@@ -19,7 +19,7 @@ const tag = (txt, col) => <span style={{ color: col, border: `1px solid ${col}`,
 class AstroPatternHelp extends Component{
 	render(){
 		return (
-			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 10, maxHeight: '58vh', overflowY: 'auto', fontSize: 13 }}>
+			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 10, maxHeight: 'calc(58 * var(--horosa-lvh, 1vh))', overflowY: 'auto', fontSize: 13 }}>
 				<div style={{ fontWeight: 800, fontSize: 14, marginBottom: 2 }}>右栏「格局速览」判读详解</div>
 				<p style={{ ...p, color: MUTED }}>以下每一项对应「信息 / 格局」页右栏的同名条目。规则取自古典占星正文,术语与配色与界面一致。</p>
 
@@ -57,8 +57,9 @@ class AstroPatternHelp extends Component{
 				<div style={sectionStyle}>
 					<div style={h}>联结(结构 / 格局)</div>
 					<ul style={ul}>
-						<li style={li}>联结只有四种:<b>接纳、互容、合相(0°)、映点</b>。其余相位不算联结。</li>
-						<li style={li}><b>接纳</b>:一星落入另一星的入庙/擢升星座,且二者有相位。<b>互容</b>:双方互落对方入庙/擢升星座(=双向接纳)。<span style={{ opacity: 0.75 }}>(此处「互容」是<b>星座</b>义;下节「有情/无情」里的「互换」是<b>宫位</b>义,两者不同轴。)</span></li>
+						<li style={li}>联结只有四种:<b>接纳、互容、合相(0°)、映点(含反映点)</b>。其余相位不算联结;龙截与先验权力的取材都按这四种(合相取任一方向的 0° 入相 / 正合 / 离相)。</li>
+						{/* [Q-559] 缺省口径比这行宽:细尊贵(三分/界/面)满 2 项也计接纳,且互容**不要求**相位 —— 只有开了左栏「仅按本垣擢升计算互容接纳」才收窄成本垣/擢升两种 */}
+						<li style={li}><b>接纳</b>:一星落入另一星的尊贵位(缺省含入庙 / 擢升,以及三分 / 界 / 面等细尊贵满 2 项者),且二者有相位。<b>互容</b>:双方互落对方尊贵位(<b>不要求</b>二者之间另有相位)。<span style={{ opacity: 0.75 }}>(此处「互容」是<b>星座</b>义;下节「有情/无情」里的「互换」是<b>宫位</b>义,两者不同轴。)</span></li>
 						<li style={li}>联结会把双方「所主宰的宫」与「所落入的宫」连成一体——这就是「格局」。</li>
 						<li style={li}>左栏开关 <b>「仅按本垣擢升计算互容接纳」</b>:开启后,只取 本垣(入庙)/擢升 的联结,滤掉三分/界/面等细联结。信息/格局页右栏与星盘、古典页一律随此设置同步。</li>
 					</ul>
@@ -99,10 +100,13 @@ class AstroPatternHelp extends Component{
 					<div style={h}>其余条目</div>
 					<ul style={ul}>
 						<li style={li}><b>命主星 1R</b>:上升星座的主宰星及其落宫落座,集中表征命主的先验心性。</li>
-						<li style={li}><b>三围</b>:{tag('围攻', DANGER)}被两凶星(火/土)夹击(凶,「凶剧」=纯凶);{tag('围荣', GOLD)}被两吉星护卫;{tag('围耀', ACCENT)}被吉星照耀。</li>
-						<li style={li}><b>心性·智识</b>:月主「生性」、水主「智识」——看其落座、模式(转/定/二体宫)、主宰星及资质、联结。</li>
+						{/* [Q-561] 围耀按实现是**日月**环护(不是泛指吉星照耀);「凶剧」是围攻方居春/夏(见血)的加重标,不是「纯凶」 */}
+						<li style={li}><b>三围</b>:{tag('围攻', DANGER)}被火 / 土两凶夹击(凶;标{kbd('凶剧·见血', DANGER)}是围攻方居春 / 夏的加重档);{tag('围荣', GOLD)}被金 / 木两吉护卫;{tag('围耀', ACCENT)}被<b>日 / 月</b>两曜环护(贵)。</li>
+						{/* [Q-562] 该行不给联结明细(联结在「联结」一节看) */}
+						<li style={li}><b>心性·智识</b>:月主「生性」、水主「智识」——看其落座、模式(转/定/二体宫)、主宰星及资质、受损旗标。</li>
 						<li style={li}><b>职业·主业</b>:取<b>月亮第一西没星</b>(后于月亮升出地平线的第一颗星);「行事」取<b>太阳第一西没星</b>。</li>
-						<li style={li}><b>主宰循环</b>:三星以上首尾相主宰成环,等同高层联结,亦带有情/无情标。</li>
+						{/* [Q-560] 二星互落对方庙(互为定位星)同样成环,不是「三星以上」才算 */}
+						<li style={li}><b>主宰循环</b>:两星以上首尾相主宰成环(二星互为对方定位星也算一环),等同高层联结,亦带有情/无情标。</li>
 					</ul>
 				</div>
 

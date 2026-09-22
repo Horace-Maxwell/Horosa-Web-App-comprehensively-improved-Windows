@@ -5,7 +5,7 @@ import * as AstroConst from '../../constants/AstroConst';
 import GLChart from './GLChart';
 import { chartDrawGuardEnabled } from '../../utils/perfFlags';
 import { buildChartDrawSig, sameChartDrawSig, watchChartSvgResize } from '../../utils/chartDrawGuard';
-import { getEffectiveScale } from '../../utils/zoomDomain';
+import { getEffectiveScale, visualFloorPx } from '../../utils/zoomDomain';
 import * as SZConst from '../suzhan/SZConst';
 
 const SQUARE_SIDE_MIN = 620;
@@ -117,7 +117,7 @@ class GuoLaoChart extends Component{
 		const availableHeight = pickFirstPositive([viewportRemainH, parentH, propH]);
 
 		let side = availableHeight || availableWidth || SQUARE_SIDE_FALLBACK;
-		side = clamp(side, SQUARE_SIDE_MIN, SQUARE_SIDE_MAX);
+		side = clamp(side, visualFloorPx(SQUARE_SIDE_MIN), SQUARE_SIDE_MAX);
 
 		if(availableHeight){
 			side = Math.min(side, availableHeight);

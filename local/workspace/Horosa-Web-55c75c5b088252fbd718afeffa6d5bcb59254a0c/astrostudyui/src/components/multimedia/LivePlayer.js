@@ -6,6 +6,7 @@ import request from '../../utils/request';
 import LiveStreamsModal from './LiveStreamsModal';
 import StreamPlayer from './StreamPlayer';
 
+import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 const Search = Input.Search;
 
 class LivePlayer extends Component{
@@ -116,7 +117,7 @@ class LivePlayer extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : document.documentElement.clientHeight - 80;
+		let height = this.props.height ? this.props.height : getLayoutViewportHeight() - 80;
 		height = height - 100;
 
 		return (

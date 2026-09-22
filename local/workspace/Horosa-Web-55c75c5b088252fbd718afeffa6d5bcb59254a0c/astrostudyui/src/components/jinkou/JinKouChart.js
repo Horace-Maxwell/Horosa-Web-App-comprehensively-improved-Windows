@@ -38,6 +38,12 @@ class JinKouChart extends Component{
 		if(chartobj === undefined || chartobj === null){
 			return;
 		}
+		// 主盘还没到位时宿主传下来的是空对象 {}(不是 null)—— 上面那道闸拦不住,画盘第一步取贵人就读
+		// chartObj.nongli.dayGanZi 抛错;错误边界不会自愈,整块面板停在「该面板加载出错」直到手点重试
+		// (刚启动就进本页、或后端冷启动慢时必现)。农历日柱没到位就先不画:重绘签名只在真画过之后才记,数据一到照常重绘。
+		if(!chartobj.nongli || !chartobj.nongli.dayGanZi){
+			return;
+		}
 
 		// 重绘签名守卫:render() 每次调 drawChart,输入(盘/fields/六壬底/流年/长生五行/贵神/金口数据 引用 + 主题 + 尺寸)未变则跳过整树 d3 重建。
 		// 切右栏 tab、tooltip、sibling setState 不改这些引用 → 跳过;重排盘/换流派/切主题/resize → 签名变 → 真重画。

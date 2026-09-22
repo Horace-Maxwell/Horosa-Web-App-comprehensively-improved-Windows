@@ -1,6 +1,7 @@
 import React from 'react';
 import { Spin, Empty } from 'antd';
 import { fetchTimeline } from '../../services/xuanshi';
+import { gregYearShort } from './xuanshiDate';   // [Q-491] 公元前年份写法单源
 
 // 朝代时间轴 —— 照搬 参考朝代时间轴页:顶部编年横向条带(柱按公历 span 定位、柱高∝事件数、时间刻度)
 // + 朝代×术类 堆叠条 + 图例 + 右侧钻取面板。
@@ -16,8 +17,9 @@ export default class XuanShiTimeline extends React.Component {
 	componentDidMount() { this.load(); }
 
 	async load() {
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
 		this.setState({ loading: true, err: '' });
-		try { const r = await fetchTimeline({}); this.setState({ data: r, loading: false }); }
+		try { const r = await fetchTimeline({}); if(__seq !== this._loadSeq){ return; } this.setState({ data: r, loading: false }); }
 		catch (e) { this.setState({ loading: false, err: `${e && e.message ? e.message : e}` }); }
 	}
 
@@ -48,7 +50,7 @@ export default class XuanShiTimeline extends React.Component {
 					<span className="xuanshi-crumb-sep">/</span><span>图谱</span>
 					<span className="xuanshi-crumb-sep">/</span><span>朝代时间轴</span>
 				</div>
-				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(24px,3vw,32px)' }}>朝代时间轴</h1>
+				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(24px,calc(3 * var(--horosa-lvw, 1vw)),32px)' }}>朝代时间轴</h1>
 				<div className="xuanshi-section-sub" style={{ margin: '6px 0 0' }}>
 					<b style={{ color: 'var(--ink)' }}>{(data.total || 0).toLocaleString()}</b> 条玄学事件中,<b style={{ color: 'var(--ink)' }}>{(data.classified || 0).toLocaleString()}</b> 条已归入 <b style={{ color: 'var(--ink)' }}>{series.length}</b> 个大朝代;{(data.unclassified || 0).toLocaleString()} 条时间线索不足。点击某段直接钻取该朝代下的事件样本。
 				</div>
@@ -63,7 +65,7 @@ export default class XuanShiTimeline extends React.Component {
 								if (left < 0 || left > 100) { return null; }
 								return (
 									<div key={tick} style={{ position: 'absolute', top: 0, bottom: 0, left: `${left}%`, borderLeft: '1px solid var(--line-soft)' }}>
-										<div style={{ position: 'absolute', top: -2, left: 4, fontSize: 10, color: 'var(--ink-muted)' }}>{tick < 0 ? `前${-tick}` : (tick > 0 ? tick : '0')}</div>
+										<div style={{ position: 'absolute', top: -2, left: 4, fontSize: 10, color: 'var(--ink-muted)' }}>{gregYearShort(tick)}   /* [Q-491] 与柱标、卡片同一函数 */</div>
 									</div>
 								);
 							})}
@@ -74,14 +76,14 @@ export default class XuanShiTimeline extends React.Component {
 								const height = Math.round(((s.total || 0) / maxN) * 200);
 								const isActive = macro === s.macro;
 								return (
-									<div key={s.macro} className="group" title={`${s.macro}(${s.span_start}—${s.span_end}) ${s.total} 条`}
+									<div key={s.macro} className="group" title={`${s.macro}(${gregYearShort(s.span_start)}—${gregYearShort(s.span_end)}) ${s.total} 条`}   /* [Q-491] */
 										onClick={() => this.selectMacro(s.macro)}
 										style={{ position: 'absolute', bottom: 48, left: `${left}%`, width: `calc(${width}% - 2px)`, height, cursor: 'pointer' }}>
 										<div style={{ height: '100%', borderRadius: '6px 6px 0 0', background: isActive ? 'var(--vermilion)' : 'linear-gradient(180deg, var(--vermilion-soft), var(--vermilion))', border: `1px solid ${isActive ? 'var(--vermilion)' : 'var(--vermilion-soft)'}` }}>
 											<div style={{ fontSize: 10, color: 'var(--paper-card)', textAlign: 'center', paddingTop: 2, overflow: 'hidden', whiteSpace: 'nowrap' }}>{s.total}</div>
 										</div>
 										<div style={{ fontFamily: 'var(--xs-serif)', fontSize: 12, color: isActive ? 'var(--vermilion)' : 'var(--ink-soft)', marginTop: 4, textAlign: 'center', whiteSpace: 'nowrap' }}>{s.macro}</div>
-										<div style={{ fontSize: 9, color: 'var(--ink-muted)', textAlign: 'center' }}>{s.span_start}–{s.span_end}</div>
+										<div style={{ fontSize: 9, color: 'var(--ink-muted)', textAlign: 'center' }}>{gregYearShort(s.span_start)}–{gregYearShort(s.span_end)}</div>{/* [Q-491] 公元前写「前N」,与刻度一致 */}
 									</div>
 								);
 							})}

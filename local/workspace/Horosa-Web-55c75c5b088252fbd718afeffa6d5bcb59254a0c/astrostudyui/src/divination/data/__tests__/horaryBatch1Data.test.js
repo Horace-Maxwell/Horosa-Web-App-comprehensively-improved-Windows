@@ -164,19 +164,20 @@ describe('WP1.4 恒星补齐与按星等轨', () => {
 		expect(FIXED_STARS.filter((s) => s.isRoyal).map((s) => s.name_en).sort())
 			.toEqual(['Aldebaran', 'Antares', 'Fomalhaut', 'Regulus']);
 	});
-	test('school 平轨=既有行为(缺省1°/显式取值);byMagnitude 按 Robson 分档、王者封顶 5°', () => {
+	// [Q-297 裁决 2026-09-18] byMagnitude 表改与后端 FixedStar._ORBS / 帮助同表(<2:7.5 / <3:5.5 / <4:3.5 / <5:1.5 / 余 0.5),无王者封顶。
+	test('school 平轨=既有行为(缺省1°/显式取值);byMagnitude 按后端同源星等表(<2:7.5/<3:5.5/<4:3.5/<5:1.5/余 0.5,无王者封顶)', () => {
 		const spica = FIXED_STARS.find((s) => s.name_en === 'Spica');       // 1.0 等
 		const scheat = FIXED_STARS.find((s) => s.name_en === 'Scheat');     // 2.4 等
 		const zosma = FIXED_STARS.find((s) => s.name_en === 'Zosma');       // 2.6 等
 		const aculeus = FIXED_STARS.find((s) => s.name_en === 'Aculeus');   // 4.2 等
-		const regulus = FIXED_STARS.find((s) => s.name_en === 'Regulus');   // 王者 1.4 等
+		const regulus = FIXED_STARS.find((s) => s.name_en === 'Regulus');   // 1.4 等(不再单独封顶)
 		expect(starOrbFor(spica, {})).toBe(1);
 		expect(starOrbFor(spica, { fixedStarOrb: 2 })).toBe(2);
 		expect(starOrbFor(spica, { fixedStarOrbMode: 'byMagnitude' })).toBe(7.5);
 		expect(starOrbFor(scheat, { fixedStarOrbMode: 'byMagnitude' })).toBe(5.5);
-		expect(starOrbFor(zosma, { fixedStarOrbMode: 'byMagnitude' })).toBeCloseTo(3 + 40 / 60, 5);
+		expect(starOrbFor(zosma, { fixedStarOrbMode: 'byMagnitude' })).toBe(5.5);
 		expect(starOrbFor(aculeus, { fixedStarOrbMode: 'byMagnitude' })).toBe(1.5);
-		expect(starOrbFor(regulus, { fixedStarOrbMode: 'byMagnitude' })).toBe(5);
+		expect(starOrbFor(regulus, { fixedStarOrbMode: 'byMagnitude' })).toBe(7.5);
 	});
 });
 

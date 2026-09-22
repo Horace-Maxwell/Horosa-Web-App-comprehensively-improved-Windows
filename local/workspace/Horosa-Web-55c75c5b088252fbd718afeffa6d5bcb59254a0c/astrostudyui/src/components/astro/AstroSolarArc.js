@@ -17,6 +17,7 @@ import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
 import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
 import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
+import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { markPanelReady } from '../../utils/perfMark';
 // horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
 // 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
@@ -54,7 +55,7 @@ class AstroSolarArc extends Component{
 				tradition: qryparam.tradition,
 				datetime: new DateTime(),
 				tmType: 'y',
-				nodeRetrograde: false,
+				nodeRetrograde: DIRECTION_PAGE_SETTINGS.load().nodeRetrograde,   // 上次亲手设的值(星运族共用)
 				asporb: transitOrbDefault(),
 			},
 			dirChart: null,
@@ -454,6 +455,7 @@ class AstroSolarArc extends Component{
 		let height = this.props.height ? this.props.height : 760;
 		let style = {
 			height: (height-20) + 'px',
+			boxSizing: 'border-box',   // [巡检实抓 2026-09-17] 内距计入高度,不再比面板高 5px
 			overflowY:'auto', 
 			overflowX:'hidden',
 		};
@@ -479,6 +481,7 @@ class AstroSolarArc extends Component{
 							<Col span={24}>
 								<AstroDirectionForm {...fields}
 									fieldsAry={fieldsary}
+									hideMeanOrb   /* [Q-172/T-105] 弧类走 solararc.compute:-1 档与 1° 同结果,隐掉 */
 									onFieldsChange={this.fieldsChanged}
 									onSubmit={this.submit}
 								/>							

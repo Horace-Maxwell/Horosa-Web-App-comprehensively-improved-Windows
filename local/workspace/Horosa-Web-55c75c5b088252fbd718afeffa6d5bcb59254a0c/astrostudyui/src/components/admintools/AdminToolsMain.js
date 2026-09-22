@@ -10,6 +10,7 @@ import BookMain from '../reader/BookMain';
 import LiveMgmt from '../multimedia/LiveMgmt';
 import UserMgmt from '../user/UserMgmt';
 
+import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 const TabPane = Tabs.TabPane;
 
 class AdminToolsMain extends Component{
@@ -79,7 +80,7 @@ class AdminToolsMain extends Component{
 
 
 	render(){
-		let height = document.documentElement.clientHeight;
+		let height = getLayoutViewportHeight();
 		height = height - 80;
 
 		return (

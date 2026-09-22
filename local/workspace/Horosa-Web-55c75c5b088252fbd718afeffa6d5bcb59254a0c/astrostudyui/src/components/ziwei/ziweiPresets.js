@@ -6,7 +6,7 @@
 // 注:taiSuiRelatives(数组)不入 preset 比较(值型 === 无法比数组);由用户单独维护。
 const D = {
 	daxianSpan: 10, tianmaBasis: 'month', starSet: 'full', sanPan: 'tian', shangShi: 'fixed',
-	leapMonth: 'mid_split', lateZi: 'global', yearBoundary: 'lichun', huoling: 'sanhe', kongNaming: 'modern',
+	leapMonth: 'mid_split', lateZi: 'global', yearBoundary: 'lunar_1_1', huoling: 'sanhe', kongNaming: 'modern',
 	brightnessSource: 'zi_jian', lifeMasterBy: 'year_branch', liuYueBasis: 'doujun', liunianSihuaGan: 'year_gan', changshengStart: 'shui_tu', changshengDirection: 'yinyang', kuiYue: 'jia_wu_geng', kongwangStyle: 'double', xiaoxianMode: '0',
 	flowLuanXi: false, flowHuoLing: false, flowShenshaOnChart: false, childLimit: false, zhongxian: false, huoPan: false, qishuWei: false, borrowPalace: false, taiSuiRuGua: false,
 };

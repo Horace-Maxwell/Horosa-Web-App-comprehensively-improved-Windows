@@ -10,8 +10,9 @@ import { createSignatureMemo } from '../../utils/memoBySignature';
 import { sharedNativeModelEnabled } from '../../utils/perfFlags';
 import { Empty, Spin, Tabs } from 'antd';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
+import { deriveDadingYearPillars } from '../../utils/zhengchuanDadingLocal';
 import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
-import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+import { defaultAfter23NewDay, defaultLateZiHourUseNextDay, lunarByDayBoundary } from '../../utils/dayBoundary';
 import { calcTieban, loadTiebanVerses } from '../../utils/zhengchuanTiebanLocal';
 import { calcShaozi, loadShaoziVerses } from '../../utils/zhengchuanShaoziLocal';
 import { dadingDeathYear, dadingDeathMonth } from '../../utils/zhengchuanDadingLocal';
@@ -26,41 +27,8 @@ const { TabPane } = Tabs;
 
 const fieldVal = (f, k, d = '') => (f && f[k] && f[k].value !== undefined && f[k].value !== null ? f[k].value : d);
 
-/**
- * 按所推之【流年】，自八字既有之推运表派生大定所需的四样:虚岁 / 小运 / 岁君 / 大运。
- *
- * 🔴 一律取自 buildLocalBaziResult 已算之表，【绝不另造一份推法】——
- *    另造必与八字盘漂移，同一人两页所见之大运不同，是为大忌。
- *    · smallDirection:逐年一项，{ year, age(虚岁), ganzi(小运), yearGanzi.ganzi(当年太岁) };
- *    · mainDirection :大运表，按 startYear 取所属之运;起运前其 ganzi 为空 ——
- *      此非缺漏,乃古法「未行大运」之实,由调用方自然回落月柱。
- *
- * @param {object} bazi 八字之果(buildLocalBaziResult().bazi)
- * @param {number|string} yearInput 所推之公历年;空/不合法 → 返空对象(调用方回落本命四柱)
- * @returns {{ age?:number, xiaoyun?:string, suijun?:string, dayun?:string, year?:number, beforeQiYun?:boolean }}
- */
-export function deriveDadingYearPillars(bazi, yearInput) {
-	const Y = parseInt(yearInput, 10);
-	// 0 亦须挡:挂载 schema 以 0 为「未择」之默认(其表单只出数,无空可言)。
-	// 眼下纵不挡,0 也会因落在推运表之外而返空 —— 然那是【碰巧】对，非设计对:
-	// 表一改口径(如补上生年之前诸年)，公元 0 年便会被当真。故显式挡之。
-	if (!bazi || !Number.isFinite(Y) || Y <= 0) return {};
-	const sd = Array.isArray(bazi.smallDirection) ? bazi.smallDirection : [];
-	const md = Array.isArray(bazi.mainDirection) ? bazi.mainDirection : [];
-	const s = sd.find((x) => Number(x.year) === Y);
-	if (!s) return {};   // 所推之年在表外(如生年之前/百岁之外) → 不臆造
-	// 大运:取 startYear 不晚于所推之年者中最后一个
-	const d = md.filter((x) => Number.isFinite(Number(x.startYear)) && Number(x.startYear) <= Y).pop();
-	const dayun = (d && `${d.ganzi || ''}`.trim()) || '';
-	return {
-		year: Y,
-		age: Number(s.age) || undefined,
-		xiaoyun: `${s.ganzi || ''}`.trim() || undefined,
-		suijun: `${(s.yearGanzi && s.yearGanzi.ganzi) || ''}`.trim() || undefined,
-		dayun: dayun || undefined,
-		beforeQiYun: !dayun,   // 未起运 —— 其时只行小运，无大运可言
-	};
-}
+// [挂载自检 F-47] deriveDadingYearPillars 迁 utils/zhengchuanDadingLocal(纯函数,页面与 AI 无头同源);此处保留同名再导出。
+export { deriveDadingYearPillars } from '../../utils/zhengchuanDadingLocal';
 
 
 // WP-F 极速化:模块级共享模型 memo —— 宿主把本组件渲染【两次】(center 与 aux 两实例),
@@ -180,11 +148,14 @@ class ZhengChuanMain extends Component {
 		const params = {
 			date: dm.format('YYYY-MM-DD'), time: tm.format('HH:mm:ss'),
 			lon: fieldVal(f, 'lon', ''),
+			// [挂载自检 F-19·P0] 时区:此前不传 → baziLunarLocal 按 +08:00 校正真太阳时,非东八区命例四柱错、与 AI 挂载分叉。
+			zone: fieldVal(f, 'zone', '') || (f && f.date && f.date.value && f.date.value.zone) || '',
 			// 性别以左栏下拉(props.gender)为准,缺省回退 fields(与河洛/参评同口径;此前只读
 			// fields → 左栏改性别不生效)。
 			gender: this.props.gender !== undefined ? Number(this.props.gender) : fieldVal(f, 'gender', 1),
 			timeAlg: fieldVal(f, 'timeAlg', 1),
-			after23NewDay: defaultAfter23NewDay(), lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
+			// [Q-358/T-339] 日界 / 晚子时改读盘面 fields(与八字页、AI 挂载同源),缺席才回退全局;缺省逐字不变
+			after23NewDay: fieldVal(f, 'after23NewDay', defaultAfter23NewDay()), lateZiHourUseNextDay: fieldVal(f, 'lateZiHourUseNextDay', defaultLateZiHourUseNextDay()),
 		};
 		const sig = JSON.stringify({ ...params, ...opts });
 		if (this._modelKey === sig && Object.prototype.hasOwnProperty.call(this, '_modelCache')) return this._modelCache;
@@ -222,9 +193,11 @@ class ZhengChuanMain extends Component {
 		if (pillars.some((x) => x.length < 2)) return cache(null);
 		const gender = Number(params.gender) === 0 ? '女' : '男';
 		const nl = bazi.lunar || bazi.nongli || {};
-		const lunarMonth = Number(nl.monthNum || nl.month) || 1;
-		const lunarDay = Number(nl.dayNum || nl.day) || 1;
-		const isLeapMonth = !!(nl.isLeap || nl.leap);
+		// [Q-358·续] 农历月 / 日 / 闰按日界口径(23 点档「子初换日」随日柱进位次日,与八字日柱、紫微同源;其余逐字不变)
+		const lb = lunarByDayBoundary(nl);
+		const lunarMonth = lb.monthNum || 1;
+		const lunarDay = lb.dayNum || 1;
+		const isLeapMonth = lb.leap;
 
 		try {
 			const s = this.school();
@@ -481,7 +454,7 @@ class ZhengChuanMain extends Component {
 					['小运', src(d.xiaoyun, this.props.opts && this.props.opts.xiaoyun)],
 					['岁君', `${src(d.suijun, this.props.opts && this.props.opts.suijun)}${d.suijun && !(this.props.opts && this.props.opts.suijun) ? '　当年太岁' : ''}`],
 				]) : this.card('所推之年', [
-					['未择', '左栏择一年，则虚岁·大运·小运·岁君自出；今且取本命四柱代之'],
+					['未择', '左栏择一年，则虚岁·大运·小运·岁君自出；今且取本命四柱代之（虚岁暂按 40 岁计）']   /* [Q-265/SO-23] 暗取 40 明说 */,
 				])}
 				{this.stepsCard('起推人生死数', m.year.steps)}
 				{this.card('结论', [

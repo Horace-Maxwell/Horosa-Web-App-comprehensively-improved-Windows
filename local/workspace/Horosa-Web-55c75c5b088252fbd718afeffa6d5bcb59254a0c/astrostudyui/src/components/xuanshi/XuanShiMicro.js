@@ -1,7 +1,8 @@
 import React from 'react';
 import { Spin, Empty, Select, Input } from 'antd';
 import { fetchMicrochronology, fetchMicrochronologyDetail } from '../../services/xuanshi';
-import { collapseSoftBreaks } from './xuanshiDate';
+import { fixedPopupFrame } from '../../utils/zoomDomain';
+import { collapseSoftBreaks, celestialCalendarLabel, celestialDateWithCalendar } from './xuanshiDate';   // [Q-495/T-457] 日期按来源标历法
 
 // horosa_xuanshi_longtext_ondemand_v1:本页只渲染前 RENDER_CAP 条,故只向后端要这么多条
 // (后端 limit;summary 仍按全部命中行统计,页头计数与「仅显示前 N 条」提示口径分毫不变)。
@@ -19,12 +20,14 @@ export default class XuanShiMicro extends React.Component {
 
 	// 悬停详情卡(对齐标准版:日期 / 原文 / 白话译文 / 来源 / 事件ID)
 	showHover(e, ev) {
-		const rect = e.currentTarget.getBoundingClientRect();
+		// 悬停卡是 position:fixed:锚点 rect(视觉域)先换到布局域,再与布局视口 / 卡宽(CSS 尺寸)同域比较;z=1 时逐值不变。
+		const frame = fixedPopupFrame();
+		const rect = frame.rect(e.currentTarget.getBoundingClientRect());
 		const W = 360;
 		let left = rect.right + 12;
-		if (left + W > window.innerWidth - 12) { left = rect.left - W - 12; }
+		if (left + W > frame.viewportWidth - 12) { left = rect.left - W - 12; }
 		if (left < 12) { left = 12; }
-		const top = Math.min(Math.max(12, rect.top), window.innerHeight - 240);
+		const top = Math.min(Math.max(12, rect.top), frame.viewportHeight - 240);
 		this.setState({ hover: ev, hoverPos: { left, top } });
 		this.ensureEventText(ev);
 	}
@@ -48,6 +51,7 @@ export default class XuanShiMicro extends React.Component {
 	persist() { if (this.props.onPersist) { this.props.onPersist('micro', { history: this.state.history, omen: this.state.omen, decade: this.state.decade }); } }
 
 	async load() {
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
 		this.setState({ loading: true, err: '' });
 		try {
 			const r = await fetchMicrochronology({
@@ -55,7 +59,7 @@ export default class XuanShiMicro extends React.Component {
 				omen_type: this.state.omen || undefined,
 				decade: this.state.decade != null ? this.state.decade : undefined,
 				limit: RENDER_CAP, // horosa_xuanshi_longtext_ondemand_v1
-			});
+			}); if(__seq !== this._loadSeq){ return; }
 			this.setState({ events: r.events || [], summary: r.summary || null, loading: false });
 		} catch (e) { this.setState({ loading: false, err: `${e && e.message ? e.message : e}` }); }
 		this.persist();
@@ -81,7 +85,7 @@ export default class XuanShiMicro extends React.Component {
 				</div>
 				<div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
 					<div>
-						<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,3.4vw,38px)' }}>天象微年表</h1>
+						<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,calc(3.4 * var(--horosa-lvw, 1vw)),38px)' }}>天象微年表</h1>
 						<div className="xuanshi-section-sub" style={{ margin: '8px 0 0' }}>
 							来自星象大典公开事件库；当前筛选 <b style={{ color: 'var(--ink)' }}>{(sm.total || 0).toLocaleString()}</b> 条事件，其中 <b style={{ color: 'var(--ink)' }}>{(sm.with_year || 0).toLocaleString()}</b> 条已有公历年份。
 						</div>
@@ -145,7 +149,7 @@ export default class XuanShiMicro extends React.Component {
 										onMouseEnter={(ev) => this.showHover(ev, e)} onMouseLeave={() => this.hideHover()}>
 										<div className="xuanshi-evrow-chips">
 											{e.year != null ? <span className="xuanshi-chip is-vermilion" style={{ fontVariantNumeric: 'tabular-nums' }}>公元 {e.year}</span> : null}
-											{e.modern_date_disp ? <span className="xuanshi-chip is-gold">{e.modern_date_disp}</span> : (e.era ? <span className="xuanshi-chip is-gold">{e.era}</span> : null)}
+											{e.modern_date_disp ? <span className="xuanshi-chip is-gold" title={celestialCalendarLabel(e) === '儒略历' ? '史料所载儒略历日期(1582-10-15 改历之前);带儒略日的条目才是格里历' : undefined}>{celestialDateWithCalendar(e)}</span> : (e.era ? <span className="xuanshi-chip is-gold">{e.era}</span> : null)}
 											{e.omen ? <span className="xuanshi-chip is-jade">{e.omen}</span> : null}
 											{e.history ? <span className="xuanshi-chip is-ink">《{e.history}》{e.volume_no ? `卷${e.volume_no}` : ''}</span> : null}
 										</div>
@@ -165,7 +169,7 @@ export default class XuanShiMicro extends React.Component {
 				{this.state.hover ? (
 					<div className="xuanshi-micro-hover" style={this.state.hoverPos ? { left: this.state.hoverPos.left, top: this.state.hoverPos.top } : undefined}>
 						{this.state.hover.omen ? <span className="xuanshi-chip is-jade" style={{ marginBottom: 8, display: 'inline-block' }}>{this.state.hover.omen}</span> : null}
-						<div className="xuanshi-mh-field"><div className="k">日期</div><div className="v">{this.state.hover.date_phrase || '—'}{this.state.hover.modern_date_disp ? ` · 公历 ${this.state.hover.modern_date_disp}` : ''}</div></div>
+						<div className="xuanshi-mh-field"><div className="k">日期</div><div className="v">{this.state.hover.date_phrase || '—'}{this.state.hover.modern_date_disp ? ` · ${celestialDateWithCalendar(this.state.hover, { prefix: true })}` : ''}</div></div>
 						{this.state.hover.original ? <div className="xuanshi-mh-field"><div className="k">原文</div><div className="v" style={{ fontFamily: 'var(--xs-serif)' }}>{collapseSoftBreaks(this.state.hover.original)}</div></div> : null}
 						{this.state.hover.interpretation ? <div className="xuanshi-mh-field"><div className="k">白话译文</div><div className="v" style={{ borderLeft: '3px solid var(--jade)', paddingLeft: 8 }}>{collapseSoftBreaks(this.state.hover.interpretation)}</div></div> : null}
 						<div className="xuanshi-mh-meta">{this.state.hover.history ? `来源 《${this.state.hover.history}》` : ''}{this.state.hover.event_id ? `${this.state.hover.history ? ' · ' : ''}事件ID ${this.state.hover.event_id}` : ''}</div>

@@ -148,14 +148,18 @@ def _cmp(a, b):
     return (a > b) - (a < b)
 
 
-def _atmakaraka_of(planet_signs, planet_lons):
+def _atmakaraka_of(planet_signs, planet_lons, seven=False):
     """AK(Atmakaraka)= 宫内推进度最大者(8 曜方案:七政+罗睺;罗自宫末量起,与
-    _degree_advance 同口径)。缺 lons → None(判据不决)。"""
+    _degree_advance 同口径)。缺 lons → None(判据不决)。
+    [Q-131/T-39] seven=True(Chara Kāraka 7 卡拉卡古典方案)→ 剔除罗睺,只在七政里取 AK;
+    此前不接收方案,「AK 优先 × 7 卡拉卡」两开关同时非缺省时 AK 恒含罗睺。"""
     if not planet_lons:
         return None
     best, best_adv = None, None
     for pid in planet_signs:
         if pid == const.SOUTH_NODE:
+            continue
+        if seven and pid == const.NORTH_NODE:
             continue
         adv = _degree_advance(pid, planet_lons)
         if adv is None:
@@ -177,9 +181,9 @@ def planet_strength_compare(planet_a, planet_b, planet_signs, planet_lons=None, 
     """
     sa = planet_signs.get(planet_a)
     sb = planet_signs.get(planet_b)
-    if order == 'ak_first':
-        # 变体判据序:Atmakaraka 优先(是 AK 者径强),再落标准链。
-        ak = _atmakaraka_of(planet_signs, planet_lons)
+    if order in ('ak_first', 'ak_first_7'):
+        # 变体判据序:Atmakaraka 优先(是 AK 者径强),再落标准链。'ak_first_7' = 7 卡拉卡方案下的 AK 优先(剔罗睺)。
+        ak = _atmakaraka_of(planet_signs, planet_lons, seven=(order == 'ak_first_7'))
         if ak is not None:
             c = _cmp(int(planet_a == ak), int(planet_b == ak))
             if c:
@@ -284,9 +288,9 @@ def sign_strength_compare(sign_a, sign_b, planet_signs, planet_lons=None, order=
       5. 否则 自然力大者强(双>定>动);
       6. 否则 两 sign 之主的宫内推进度更高者 → 该 sign 强(罗/计自宫末量起)。
     """
-    if order == 'ak_first':
-        # 变体判据序:含 Atmakaraka 之座径强,再落标准链。
-        ak = _atmakaraka_of(planet_signs, planet_lons)
+    if order in ('ak_first', 'ak_first_7'):
+        # 变体判据序:含 Atmakaraka 之座径强,再落标准链。'ak_first_7' = 7 卡拉卡方案下的 AK 优先(剔罗睺)。
+        ak = _atmakaraka_of(planet_signs, planet_lons, seven=(order == 'ak_first_7'))
         if ak is not None:
             aks = planet_signs.get(ak)
             c = _cmp(int(aks == sign_a), int(aks == sign_b))
@@ -1387,7 +1391,8 @@ def navamsa_dasha_d9(d9_lagna_sign, d9_planet_signs, d9_planet_lons=None,
 def varnada_dasha(vl_sign, planet_signs, strength_proxy=None, planet_lons=None,
                   period_rule='count_to_lord', strength_order='standard'):
     """Varnada 大运:起 = Varnada Lagna 座;方向 = VL 奇象顺/偶象逆;
-    期长 = 数到座主(Narayana 同核);等长变体期长权威未详 → 回落 count-to-lord 并注明。"""
+    期长两派真算:count_to_lord = 数到座主(Narayana 同核);equal_nine = 每座恒 9 年。
+    [Q-135/T-43 (a)] 旧注「等长变体…回落 count-to-lord」已过期(下方 rule == 'equal_nine' 分支即等长真算)。"""
     if vl_sign is None:
         return {'available': False, 'reason': 'missing_varnada_lagna', 'system': 'Varnada'}
     direction = 1 if vl_sign in ODD_SIGNS else -1
@@ -1484,6 +1489,10 @@ def build_rasi_dashas(inputs, strength_proxy=None):
 
     _dv = inputs.get('dashaVariants') or {}
     _order = _dv.get('jaiminiStrengthOrder', 'standard')
+    # [Q-131/T-39] 「AK 优先」× 「7 卡拉卡」:AK 须剔罗睺 → 派生内部序值 'ak_first_7'(只在两开关同时非缺省时启用,
+    # 其余组合字节不变)。用序值携带方案,免把新参数穿透十余个座运函数。
+    if _order == 'ak_first' and str(inputs.get('karakaScheme') or '8') == '7':
+        _order = 'ak_first_7'
     _sthira_start = (inputs.get('sthira_start') or 'lagna')
     _brahma = compute_brahma(lagna, planet_signs, planet_lons, strength_order=_order) if _sthira_start == 'brahma' else None
 

@@ -1,6 +1,12 @@
-// 壳级缩放单源 util——桌面壳把用户缩放经 URL query(shellZoom)确定性送达页面
-// (随导航天然到达正确 document/origin;localStorage 仅作页面自刷新兜底,origin 内有效)。
+// 壳级缩放的**启动传输层**——桌面壳把用户缩放经 URL query(shellZoom)确定性送达页面
+// (随导航天然到达正确 document/origin;localStorage 键由壳每次换档写入,页面自刷新时兜底)。
 // 浏览器/dev 无 query 无键 → 恒 1,零影响。
+//
+// 🔴 这里读到的只是「页面启动那一刻该用哪个档」,**不是运行期真值**。⌘± 运行时换档走壳的
+// __HOROSA_APPLY_SHELL_ZOOM(只改 documentElement.style.zoom + 写键,**不改 URL**),所以 query 在页面
+// 生命周期内恒为启动旧值。运行期「现在是几档」的唯一真值 = 文档根上真实挂着的 inline zoom
+// (zoomDomain.getDeclaredZoom)。把本文件的读数当运行期真值用 = 用户调回 100% 后全站浮层按旧档补偿
+// (错位 (1/z0−1)·(D+999))、布局视口缓存命中旧档、盘面按虚大视口定尺寸被底栏裁。
 
 import { safeLocalStorageSet } from './safeStorage';
 
@@ -25,15 +31,41 @@ function readStoredZoom(){
 	return null;
 }
 
-// 当前壳缩放:query 优先(壳导航实时值,顺带落键),键兜底,缺省 1。
+// 这次导航是不是页面自刷新(location.reload / 错误边界重载 / 恢复备份后重载)。
+function isReloadNavigation(){
+	try{
+		const nav = performance.getEntriesByType('navigation')[0];
+		if(nav && typeof nav.type === 'string'){ return nav.type === 'reload'; }
+	}catch(e){ /* ignore */ }
+	try{ return !!(performance.navigation && performance.navigation.type === 1); }catch(e){ return false; }
+}
+
+// 纯函数:启动档位决策(真值表可单测)。
+//   壳导航(navigate) → query 为准:壳带来的就是它此刻的档;
+//   页面自刷新(reload)→ 键为准:URL 还是启动那一刻的旧 query,而壳每次换档都写键(键 = 最新);
+//   键缺席/非法时 reload 也退回 query;两源皆无 → 1。
+export function resolveBootstrapZoom(src){
+	const o = src || {};
+	const ok = (v)=> (typeof v === 'number' && v > 0 && v < 10 && isFinite(v));
+	const q = ok(o.query) ? o.query : null;
+	const st = ok(o.stored) ? o.stored : null;
+	if(o.reload && st !== null){ return { zoom: st, from: 'stored' }; }
+	if(q !== null){ return { zoom: q, from: 'query' }; }
+	if(st !== null){ return { zoom: st, from: 'stored' }; }
+	return { zoom: 1, from: 'none' };
+}
+
+// 页面启动档位(global.js 在包顶第一时间把它镜像到 documentElement.style.zoom)。来源为 query 时顺带落键,
+// 使下一次自刷新有键可读;来源为键时不回写(避免拿旧 query 冲掉壳刚写的最新键)。
+export function readBootstrapShellZoom(){
+	const r = resolveBootstrapZoom({ query: readQueryZoom(), stored: readStoredZoom(), reload: isReloadNavigation() });
+	if(r.from === 'query'){ safeLocalStorageSet(KEY, String(r.zoom)); }
+	return r.zoom;
+}
+
+// 旧名保留(语义 = 启动档位,**不是**运行期真值;运行期请用 zoomDomain.getDeclaredZoom)。
 export function getShellZoom(){
-	const q = readQueryZoom();
-	if(q !== null){
-		safeLocalStorageSet(KEY, String(q));
-		return q;
-	}
-	const s = readStoredZoom();
-	return s !== null ? s : 1;
+	return readBootstrapShellZoom();
 }
 
 // 布局视口尺寸:窗口到底给了多少**布局**像素。

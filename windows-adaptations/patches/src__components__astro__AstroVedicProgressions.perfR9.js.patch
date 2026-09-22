@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/astro/AstroVedicProgressions.js b/astrostudyui/src/components/astro/AstroVedicProgressions.js
-index e1d435f..57f1944 100644
+index a28236ab..363afc92 100644
 --- a/astrostudyui/src/components/astro/AstroVedicProgressions.js
 +++ b/astrostudyui/src/components/astro/AstroVedicProgressions.js
-@@ -7,6 +7,8 @@ import * as AstroText from '../../constants/AstroText';
- import { unwrapResult, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
- import { buildStarAndLotPositionLines, buildHouseCuspLines, buildPredictiveBirthLines, buildCurrentMomentLines, buildMethodNoteLines, } from '../../utils/astroAiSnapshot';
+@@ -7,6 +7,8 @@ import { unwrapResult, fmtNum, chartParams, chartRequestKey, cardStyle, parkLoad
  import ProgMethodPanel, { MINOR_VARIANT_OPTIONS } from './AstroProgChart';
+ import { buildVedicProgSnapshotText } from './astroProgSnapshot';
+ import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const TabPane = Tabs.TabPane;
  const { Option } = Select;
-@@ -127,8 +129,11 @@ class AstroVedicProgressions extends Component{
+@@ -35,8 +37,11 @@ class AstroVedicProgressions extends Component{
  			loading: false,
  			result: null,
  			requestKey: '',
@@ -23,7 +23,7 @@ index e1d435f..57f1944 100644
  		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
  	}
  
-@@ -166,6 +171,10 @@ class AstroVedicProgressions extends Component{
+@@ -75,6 +80,10 @@ class AstroVedicProgressions extends Component{
  		}
  	}
  
@@ -34,7 +34,7 @@ index e1d435f..57f1944 100644
  	async load(){
  		if(!this.props.value){ return; }
  		const key = chartRequestKey(this.props.value, `vedicprog|${this.state.targetDate}|${this.state.targetTime}|${this.state.minorVariant}`);
-@@ -185,7 +194,8 @@ class AstroVedicProgressions extends Component{
+@@ -94,7 +103,8 @@ class AstroVedicProgressions extends Component{
  			const result = unwrapResult(data) || {};
  			if(!this._mounted) return;
  			clearLoadFailure(this);
@@ -44,10 +44,10 @@ index e1d435f..57f1944 100644
  		}catch(e){
  			// 失败不把 key 记成已完成(改日期失败=永远没反应);泊车该 key,窗口期后自动重试。
  			parkLoadFailure(this, key);
-@@ -199,6 +209,13 @@ class AstroVedicProgressions extends Component{
- 		const result = this.state.result || {};
- 		const height = this.props.height || 700;
- 		const panelH = Math.max(360, height - 104);
+@@ -110,6 +120,13 @@ class AstroVedicProgressions extends Component{
+ 		// [双滚动条根治 2026-09-18] 面板高不再用「工作区高−常数」估算(常数与真实工具条/页签高不等 → 多出的十几像素把外层面板撑出第二条滚动条);
+ 		// 内层 Tabs 走定高链(app.less .horosa-direction-page .ant-tabs-top …),面板 100% 跟随容器,任何缩放/字号/窗高零常数。
+ 		const panelH = '100%';
 +		// 受控 activeKey:方法列表由后端结果决定,页签集合会随结果变化 —— 用户选过的键仍在就保持,
 +		// 否则回落到 'secondary'(原 defaultActiveKey);再不在就取首个,绝不停在不存在的键上显示空白。
 +		const methodKeys = (result.methods || []).map((m)=>m.method);
@@ -58,22 +58,22 @@ index e1d435f..57f1944 100644
  		return (
  			<Spin spinning={this.state.loading}>
  				<div style={{ height, display: 'flex', flexDirection: 'column' }}>
-@@ -212,9 +229,13 @@ class AstroVedicProgressions extends Component{
+@@ -123,9 +140,13 @@ class AstroVedicProgressions extends Component{
  						<Button size="small" onClick={this.load}>计算推运</Button>
  						<span>年龄天数：{fmtNum(result.ageDays, 1)}</span>
  					</div>
--					<Tabs defaultActiveKey="secondary" tabPosition="top" style={{ flex: '1 1 auto' }}>
+-					<Tabs defaultActiveKey="secondary" tabPosition="top" style={{ flex: '1 1 auto', minHeight: 0 }}>
 +					{/* horosa_freeze_subtabs_v1:每个推运法一张盘 + 一套表,此前**全部**方法常驻重渲
 +					    (改目标日期/月长算法都把所有方法重画一遍)。改受控 + FreezeSubTab:只画前台那一个;
 +					    切回时拿本轮最新 children 立即渲一帧,不卸载、不重发请求、不丢滚动位置。 */}
-+					<Tabs activeKey={methodKey} onChange={this.changeMethodTab} tabPosition="top" style={{ flex: '1 1 auto' }}>
++					<Tabs activeKey={methodKey} onChange={this.changeMethodTab} tabPosition="top" style={{ flex: '1 1 auto', minHeight: 0 }}>
  						{(result.methods || []).map((method) => (
  							<TabPane tab={methodTab(method)} key={method.method}>
 +								<FreezeSubTab active={methodKey === method.method}>
  								<ProgMethodPanel
  									value={this.props.value}
  									method={method}
-@@ -227,6 +248,7 @@ class AstroVedicProgressions extends Component{
+@@ -138,6 +159,7 @@ class AstroVedicProgressions extends Component{
  									lotsDisplay={this.props.lotsDisplay}
  									showAstroMeaning={this.props.showAstroMeaning}
  								/>

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/taiyi/TaiYiMain.js b/astrostudyui/src/components/taiyi/TaiYiMain.js
-index 77b4421a..d319cce4 100644
+index c3b026bf..2a27fcb2 100644
 --- a/astrostudyui/src/components/taiyi/TaiYiMain.js
 +++ b/astrostudyui/src/components/taiyi/TaiYiMain.js
 @@ -9,6 +9,8 @@ import DateTime from '../comp/DateTime';
@@ -11,7 +11,7 @@ index 77b4421a..d319cce4 100644
  import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
  import { geoNameFieldPatch } from '../../utils/geoName';
  import { resolveGeoZone } from '../../utils/timezone';
-@@ -575,6 +577,9 @@ class TaiYiMain extends Component {
+@@ -629,6 +631,9 @@ class TaiYiMain extends Component {
  		const ov = pan ? applyTaiyiSchool(pan, nextOptions.school) : { pan, overrides: null };
  		const displayPan = ov.pan || pan;
  		this.setState({ pan: displayPan, schoolOverrides: ov.overrides, selectedPalace: null, loading: false }, () => {
@@ -21,7 +21,7 @@ index 77b4421a..d319cce4 100644
  			if (displayPan) {
  				// [Z3·太乙择日] 加性 scope 化(奇门/黄历/八字同律):择日页内嵌实例走独立快照槽+composer。
  				saveModuleAISnapshotLazy(this.props.techniqueScope || 'taiyi', ()=>{
-@@ -1169,42 +1174,57 @@ class TaiYiMain extends Component {
+@@ -1253,42 +1258,57 @@ class TaiYiMain extends Component {
  			tabKeys.push('life');
  		}
  		const activeKey = tabKeys.indexOf(this.state.rightPanelTab) >= 0 ? this.state.rightPanelTab : 'overview';

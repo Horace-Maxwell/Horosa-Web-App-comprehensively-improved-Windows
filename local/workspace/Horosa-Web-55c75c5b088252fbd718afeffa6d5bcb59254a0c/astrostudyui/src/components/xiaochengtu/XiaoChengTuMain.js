@@ -141,7 +141,11 @@ export function buildXiaoChengTuSnapshotForCase(payload, opts){
 		if(!p.qi || !p.qi.ben){ return ''; }
 		const pan = buildPan(p.qi);
 		if(!pan){ return ''; }
-		return buildXiaoChengTuSnapshotText(pan, p.qi, { ...(p.options || {}), ...(opts || {}), askEvent: p.askEvent || '' });
+		const text = buildXiaoChengTuSnapshotText(pan, p.qi, { ...(p.options || {}), ...(opts || {}), askEvent: p.askEvent || '' });
+		// [Q-212/T-156 ③] 起课时间挂载补算的卦:首行如实说明起法(年支序+农历月+日为上数、加时支序为下数的两数式;天地数纳甲、无动爻),
+		// 页面五种起法无此法,亦非梅花时间卦;已存卦(payload.qi 来自页面)不加此行。
+		const head = p.qiSource === 'timepoint' ? '起法说明：本卦为挂载补算——按起课时间「年支序＋农历月＋日」为上数、加时支序为下数的两数式起卦（天地数纳甲、无动爻），不是页面起法，也不是梅花时间卦。\n' : '';
+		return text ? head + text : text;
 	}catch(e){ return ''; }
 }
 

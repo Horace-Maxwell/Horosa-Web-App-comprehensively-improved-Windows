@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/jinkou/JinKouMain.js b/astrostudyui/src/components/jinkou/JinKouMain.js
-index fa9345ba..3332a01a 100644
+index 55b04f91..5afb0cc5 100644
 --- a/astrostudyui/src/components/jinkou/JinKouMain.js
 +++ b/astrostudyui/src/components/jinkou/JinKouMain.js
-@@ -22,6 +22,8 @@ import {
+@@ -23,6 +23,8 @@ import {
  } from './JinKouDoc';
  import { JINKOU_FUWEN, JINKOU_FUWEN_NOTE } from './JinKouFuwen';
  import { resolveJinKouDiFen } from './JinKouState';
@@ -11,18 +11,18 @@ index fa9345ba..3332a01a 100644
  import { saveModuleAISnapshot, saveModuleAISnapshotLazy, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
  import { getKentangSavedCasePayload, openKentangCaseDrawer } from '../../utils/kentangCaseSave';
  import {
-@@ -38,7 +40,7 @@ import {
+@@ -39,7 +41,7 @@ import {
  } from '../../utils/localCalcCache';
  import XQIcon from '../xq-icons';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 -import { chartDrawGuardEnabled, stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled } from '../../utils/perfFlags';
 +import { chartDrawGuardEnabled, stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled, techniqueResultCacheEnabled } from '../../utils/perfFlags';
- 
- const { Option } = Select;
- const TabPane = Tabs.TabPane;
-@@ -844,6 +846,34 @@ function pushCache(map, key, val, max = 96){
- 	}
- }
+ // [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+ import { visualFloorPx } from '../../utils/zoomDomain';
+ // [极档巡检 2026-09-18] 金口诀盘的内容最小高(CSS px,与缩放无关):外边距 20×2 + 标题 50 + 两行象限各 ≥306(表格段 72+150+44 + 两处间距 20 + 象限内边距 20)。
+@@ -863,6 +865,34 @@ export const JINKOU_PAGE_SETTINGS = definePageSettings('horosa.jinkou.settings.v
+ 	timeBasis: { def: 'direct', oneOf: ['direct', 'trueSolar'] },
+ });
  
 +// horosa_kentang_result_cache_v1 —— /liureng/gods + /liureng/runyear(金口诀复用六壬两端点)
 +// 与出生年干支的结果缓存**提升到模块级**。原为 per-instance:切走金口页 → 组件卸载 → 缓存与在途
@@ -55,7 +55,7 @@ index fa9345ba..3332a01a 100644
  class JinKouMain extends Component{
  	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
  	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
-@@ -903,16 +933,18 @@ class JinKouMain extends Component{
+@@ -918,16 +948,18 @@ class JinKouMain extends Component{
  		};
  
  		this.unmounted = false;
@@ -79,7 +79,7 @@ index fa9345ba..3332a01a 100644
  
  		this.onFieldsChange = this.onFieldsChange.bind(this);
  		this.prefetchStepSelect = this.prefetchStepSelect.bind(this);
-@@ -1353,7 +1385,7 @@ class JinKouMain extends Component{
+@@ -1398,7 +1430,7 @@ class JinKouMain extends Component{
  		}
  		const localHit = getBirthGanzhiLocalCache(key);
  		if(localHit){
@@ -88,7 +88,7 @@ index fa9345ba..3332a01a 100644
  			return localHit;
  		}
  		const params = {
-@@ -1376,7 +1408,7 @@ class JinKouMain extends Component{
+@@ -1421,7 +1453,7 @@ class JinKouMain extends Component{
  				lr && lr.fourColumns && lr.fourColumns.year ? lr.fourColumns.year.ganzi : ''
  			) || extractGanZi(lr && lr.nongli ? (lr.nongli.yearGanZi || lr.nongli.yearJieqi || lr.nongli.year) : '');
  			if(ganzi){
@@ -97,7 +97,7 @@ index fa9345ba..3332a01a 100644
  				setBirthGanzhiLocalCache(key, ganzi);
  			}
  			return ganzi;
-@@ -1542,7 +1574,12 @@ class JinKouMain extends Component{
+@@ -1587,7 +1619,12 @@ class JinKouMain extends Component{
  		}
  
  		this.setState(st, ()=>{
@@ -111,15 +111,15 @@ index fa9345ba..3332a01a 100644
  			// 快照的五行须与页面实际所用一致（手选档下不能再写日干的 wx，否则快照与右栏两张表）。
  			this.saveJinKouSnapshot(params, result.liureng, this.state.runyear, this.state.wuxing, this.state.guireng, diFen, jinkouPan);
  		});
-@@ -1811,6 +1848,7 @@ class JinKouMain extends Component{
- 		});
+@@ -1860,6 +1897,7 @@ class JinKouMain extends Component{
+ 		)));
  	}
  
 +
  	componentDidMount(){
  		this.unmounted = false;
  		this._after23BoundaryUserOverrode = false; // 用户拍板:左栏改过 after23NewDay 后,全局事件不再触发重新起课
-@@ -2783,10 +2821,16 @@ class JinKouMain extends Component{
+@@ -2840,10 +2878,16 @@ class JinKouMain extends Component{
  		return (
  			<div className="horosa-jinkou-rightpanel-wrap">
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-jinkou-tabs">
@@ -137,7 +137,7 @@ index fa9345ba..3332a01a 100644
  					<div className="horosa-jinkou-overview-stack">
  						<section className="horosa-jinkou-info-card horosa-jinkou-section-card">
  							<div className="horosa-jinkou-section-card__title">四位神煞</div>
-@@ -2797,8 +2841,10 @@ class JinKouMain extends Component{
+@@ -2854,8 +2898,10 @@ class JinKouMain extends Component{
  						{this.renderFangWei(jinkouData)}
  						{this.renderShenshaGrid(`${this.state.wuxing}十二长生`, zsRows)}
  					</div>
@@ -148,7 +148,7 @@ index fa9345ba..3332a01a 100644
  					<div className="horosa-jinkou-overview-stack">
  						<section className="horosa-jinkou-info-card horosa-jinkou-section-card">
  							<div className="horosa-jinkou-section-card__title">四位关系图</div>
-@@ -2812,8 +2858,10 @@ class JinKouMain extends Component{
+@@ -2869,8 +2915,10 @@ class JinKouMain extends Component{
  						{this.renderNianYueRi(jinkouData)}
  						{this.renderTaixuan(jinkouData)}
  					</div>
@@ -159,7 +159,7 @@ index fa9345ba..3332a01a 100644
  					<div className="horosa-jinkou-overview-stack">
  						{this.renderHezhan(jinkouData)}
  						{this.renderSixiangShu(jinkouData)}
-@@ -2821,15 +2869,18 @@ class JinKouMain extends Component{
+@@ -2878,15 +2926,18 @@ class JinKouMain extends Component{
  						{this.renderInfoTable('四位类象', roleRefRows)}
  						{this.renderCategory(jinkouData)}
  					</div>

@@ -4,7 +4,7 @@
 给定 时间段+地点+盘面口径+条件树,输出「条件树成立的时间区间」列表。
 
 架构(与前端 src/divination/zeri/ 成对):
-  · 条件树:组节点 {type: all|any|not|xor, conditions:[...]}(语义照 financial._event_match:
+  · 条件树:组节点 {type: all|any|not|xor, conditions:[...]}(语义:
     all=与/any=或/not=单子取反/xor=奇数个为真),叶节点 {type:<CONDITION_TYPES 键>, params:{...}}。
   · 叶子三类:
       continuous — 把条件写成残差 g(jd)=|角差|-orb 之类的连续函数,粗扫变号+二分求根
@@ -356,6 +356,22 @@ class ScanContext(object):
                 self.sid_mode = None
         node_type = str(data.get('westNodeType') or data.get('nodeType') or 'mean').lower()
         self.node_swe = swisseph.TRUE_NODE if node_type == 'true' else swisseph.MEAN_NODE
+        # [Q-418/T-381] 希腊点口径与主排盘 perchart._applyLotVariants 同式:福点反转 / 福点变体 / 赫尔墨斯六点反转
+        # (此前扫描写死昼 ASC+月−日、夜 ASC+日−月,全局关反转或改变体时夜间点类判定与主盘相反)。
+        self.lot_rev_on = str(data.get('lotReversal', 1)) not in ('0', 'false', 'False')
+        self.lot_fortune_variant = data.get('lotFortuneVariant') or 'standard'
+        self.hermetic_rev_on = str(data.get('hermeticLotsReversal', 1)) not in ('0', 'false', 'False')
+        # [Q-268/T-254] 自定义恒星黄道 'user' 档:历元 JD + 该历元 ayanamsa 度值(与 perchart SIDM_USER 同参);
+        # 缺参回落 normalize_ayanamsa(默认 lahiri)——此前全仓不读两键,扫描按 Lahiri 判、所见主盘按自定义。
+        self.user_ayan = None
+        if str(self.ayanamsa).strip().lower() == 'user':
+            try:
+                _t0 = float(data.get('userAyanT0'))
+                _deg = float(data.get('userAyanDeg'))
+                if _t0 > 0:
+                    self.user_ayan = (_t0, _deg)
+            except (TypeError, ValueError):
+                self.user_ayan = None
         # 古典口径包(与前端 classicalChartGlobals 同名键;缺省用 1647 经典档)
         self.eff = {
             'cazimiOrb': float(data.get('cazimiOrb') or (17.0 / 60.0)),
@@ -406,7 +422,12 @@ class ScanContext(object):
         key = round(jd)
         v = self._ayan_cache.get(key)
         if v is None:
-            v = _sidereal_offset(self.ayanamsa, jd)
+            if self.user_ayan is not None:
+                # [Q-268/T-254] user 档:deg(t0) + 岁差率 50.290966″/儒略年(与前端 customCalibreStores 同式)
+                _t0, _deg = self.user_ayan
+                v = _deg + (50.290966 / 3600.0) * ((jd - _t0) / 365.25)
+            else:
+                v = _sidereal_offset(self.ayanamsa, jd)
             self._ayan_cache[key] = v
         return v
 
@@ -592,7 +613,9 @@ class LightMoment(object):
         return d <= 5.0
 
     # -- 阿拉伯点(arabicparts.partLon 逐字;昼夜判据=is_diurnal('geo') 与既有 point_relation
-    #    福点式同源)。扫描侧不支持 lotReversal/lotsDocReverse 请求级反转(文档明示) --
+    #    福点式同源)。[Q-418/T-381] 请求级口径与主排盘 _applyLotVariants 同式:
+    #    lotReversal=0 → 福点恒昼式;lotFortuneVariant='moonAboveNight' → 月在地平上时福点恒用夜式;
+    #    hermeticLotsReversal=0 → 夜盘精神点(赫尔墨斯六点之首)用昼式。缺省全开 = 旧式逐字不变。 --
     def lot_lon(self, key):
         v = self._lots.get(key)
         if v is not None:
@@ -601,10 +624,21 @@ class LightMoment(object):
         moon = self.lon('Moon')
         asc = self.asc()
         diurnal = self.is_diurnal('geo')
+        ctx = self.ctx
         if key == 'fortuna':
-            v = _norm360(asc + moon - sun) if diurnal else _norm360(asc + sun - moon)
+            use_day = diurnal
+            if not getattr(ctx, 'lot_rev_on', True):
+                use_day = True
+            elif getattr(ctx, 'lot_fortune_variant', 'standard') == 'moonAboveNight':
+                try:
+                    if self.horizontal('Moon')['altitudeTrue'] > 0:
+                        use_day = False
+                except Exception:
+                    pass
+            v = _norm360(asc + moon - sun) if use_day else _norm360(asc + sun - moon)
         elif key == 'spirit':
-            v = _norm360(asc + sun - moon) if diurnal else _norm360(asc + moon - sun)
+            use_day = diurnal or (not getattr(ctx, 'hermetic_rev_on', True))
+            v = _norm360(asc + sun - moon) if use_day else _norm360(asc + moon - sun)
         elif key == 'basis':
             f = self.lot_lon('fortuna')
             s = self.lot_lon('spirit')
@@ -1184,8 +1218,14 @@ def _eval_in_house(params, ctx, domain):
         raise ValueError('houses 取值需在 1-12')
     jd0, jd1 = domain
 
+    # [Q-464/T-426] 整宫制 × 恒星黄道:宫=恒星座差(whole_sign_house,与引擎宫喜乐 / 偶然尊贵同口径),
+    # 此前用回归整宫宫头落宫 → 与同树其它条件及所见恒星盘分叉;其它分宫制 / 回归制原路。
+    whole_sidereal = bool(ctx.zodiacal) and ctx.hsys_code == b'W'
+
     def pred(jd):
         m = ctx.moment(jd)
+        if whole_sidereal:
+            return m.whole_sign_house(planet) in want
         return _house_index(m.lon(planet), m.houses(), ctx.house_advance()) in want
 
     return true_intervals(pred, jd0, jd1, _b_step([planet], fast=True))
@@ -1513,14 +1553,14 @@ def _eval_considerations(params, ctx, domain):
             lon = _sid_lon(ctx.moment(jd), 'Moon', ctx)
             return rng[0] <= lon < rng[1]
     elif item in ('moon_early_sign', 'moon_late_sign'):
-        early = float(params.get('earlyDeg') or 3.0)
+        early = float(params['earlyDeg']) if params.get('earlyDeg') not in (None, '') else 3.0   # [Q-271/ZC-27] 0 是合法值(只看末度),不可 or 成 3
         late = float(params.get('lateDeg') or 27.0)
 
         def pred(jd):
             _sign, signlon = _sign_pos(ctx.moment(jd), 'Moon', ctx)
             return (signlon < early) if item == 'moon_early_sign' else (signlon >= late)
     else:  # asc_near_boundary
-        early = float(params.get('earlyDeg') or 3.0)
+        early = float(params['earlyDeg']) if params.get('earlyDeg') not in (None, '') else 3.0   # [Q-271/ZC-27] 0 是合法值(只看末度),不可 or 成 3
         late = float(params.get('lateDeg') or 27.0)
 
         def pred(jd):
@@ -1578,7 +1618,11 @@ def _besieged_core(params, lons):
     orb_r = float(params.get('orbRight') or 8.0)
     rescue = params.get('rescue') or {}
     rescue_on = bool(rescue.get('enabled', True))
-    rescuers = rescue.get('rescuers') or ['Venus', 'Jupiter']
+    # [Q-423/T-388] 空救星 = 真「无救星」,不再回落金木:`or` 把显式空列表也当缺失,
+    # 于是「开计救援但一颗救星都不选」照按金星木星救援,与用户所选相反且 validate 不拦。
+    # 键缺失(旧档/未发)才取历史缺省。
+    _rk = rescue.get('rescuers')
+    rescuers = list(_rk) if isinstance(_rk, (list, tuple)) else ['Venus', 'Jupiter']
     rescue_body = bool(rescue.get('byBody', True))
     rescue_ray = bool(rescue.get('byRay', False))
     t = lons[target]
@@ -1656,7 +1700,9 @@ def _eval_besieged(params, ctx, domain):
         raise ValueError('besieged.mode 需为 body/ray')
     mitigation = params.get('mitigation') or {}
     reception_breaks = bool(mitigation.get('receptionBreaks', False))
-    rescuers = (params.get('rescue') or {}).get('rescuers') or ['Venus', 'Jupiter']
+    # [Q-423/T-388] 同上:显式空列表 = 无救星(取星键集时自然不含救星)。
+    _rk2 = (params.get('rescue') or {}).get('rescuers')
+    rescuers = list(_rk2) if isinstance(_rk2, (list, tuple)) else ['Venus', 'Jupiter']
     jd0, jd1 = domain
     keys = list({target, ba, bb, *(_SEVEN if (params.get('mode') or 'body') == 'body' else ()), *rescuers})
 
@@ -1880,6 +1926,9 @@ def _eval_cusp_state(params, ctx, domain):
     def pred(jd):
         cusps = ctx.moment(jd).houses()
         lon = cusps[idx] if idx < len(cusps) else cusps[0]
+        # [Q-464/T-426] 恒星黄道下宫头落座/近座界按恒星黄经判(减 ayanamsa,与 in_sign / 上升近座界考量同口径);回归制原样。
+        if ctx.zodiacal:
+            lon = _norm360(lon - ctx.ayanamsa_deg(jd))
         if mode == 'near_boundary':
             off = lon % 30.0
             return off <= orb or off >= 30.0 - orb

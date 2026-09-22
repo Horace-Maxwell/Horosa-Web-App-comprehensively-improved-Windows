@@ -74,7 +74,9 @@ function nodeLine(item){
 	}
 	const sign = signName(item.sign);
 	const date = item.date || '无';
-	return item.isLB ? `${sign}-${date}-LB` : `${sign}-${date}`;
+	// [Q-362/T-343] 后端 truncated 标=末段子期按父期截断,快照与下拉同标「截」
+	const base = item.isLB ? `${sign}-${date}-LB` : `${sign}-${date}`;
+	return item.truncated ? `${base}-截` : base;
 }
 
 function markZRSpecialFlags(list, parentSignIdx){
@@ -319,11 +321,14 @@ const ZR_DEFAULT_OPTS = {
 	aiL3Idx: 0,
 };
 // 11 个推运基点（与 genConditionDom 一致）——挂载 schema 复用，杜绝手写错值。
+// [Q-174/T-114] 页面基点是「福点/行星/四轴 11 项 + 十二星座」两列共 23 项,挂载 schema 此前只收前 11 项 →
+// 页面选了某个星座起,挂载表达不了、无头复算恒回落福点。星座档并入本表(挂载与页面同值域)。
 export const ZR_BASE_POINTS = [
 	AstroConst.PARS_FORTUNA, AstroConst.PARS_SPIRIT, AstroConst.PARS_MERCURY,
 	AstroConst.PARS_VENUS, AstroConst.PARS_MARS, AstroConst.PARS_JUPITER,
 	AstroConst.PARS_SATURN,
 	AstroConst.ASC, AstroConst.DESC, AstroConst.MC, AstroConst.IC,
+	...AstroConst.LIST_SIGNS,
 ];
 // AI 输出层级（aiMode）选项（与 AI_MODE_ITEMS 一致）——挂载 schema 复用。
 export const ZR_AI_MODES = AI_MODE_ITEMS.map((item)=>({ value: item.value, label: item.label }));
@@ -368,10 +373,15 @@ export async function buildZodialReleaseSnapshotText(chartObj, opts){
 		const basePoint = ZR_BASE_POINTS.indexOf(o.basePoint) >= 0 ? o.basePoint : AstroConst.PARS_FORTUNA;
 		const aiMode = AI_MODE_ITEMS.some((m)=>m.value === o.aiMode) ? o.aiMode : AI_MODE_L1_ALL;
 		// 基点 → startSign（取该点所在星座）；福点等同现状传 null（后端按福点起）。
+		// [Q-174/T-114] 基点本身就是星座时直接用它(页面右列十二星座同义),不必再去盘上找同名天体。
 		let startSign = null;
 		if(basePoint !== AstroConst.PARS_FORTUNA){
-			const pnt = AstroHelper.getObject(chartObj, basePoint);
-			startSign = pnt ? pnt.sign : null;
+			if(AstroConst.LIST_SIGNS.indexOf(basePoint) >= 0){
+				startSign = basePoint;
+			}else{
+				const pnt = AstroHelper.getObject(chartObj, basePoint);
+				startSign = pnt ? pnt.sign : null;
+			}
 		}
 		const params = zrNatalParamsStandalone(chartObj, startSign);
 		// WP-C 极速化:无头快照复算也走 silent,不触发全局满屏 Spin 压暗(失败经外层 catch 回 '')。

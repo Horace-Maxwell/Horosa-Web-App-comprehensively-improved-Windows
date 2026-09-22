@@ -162,6 +162,9 @@ class MidpointMain extends Component{
 			indiahsys = true;
 			showhsys = false;
 		}
+		// [Q-151/AX-16] 与 changeSouthChart 同判据:北纬(或无纬度)时天文/涵义星座不可改
+		const gpsLatVal = this.props.fields && this.props.fields.gpsLat ? this.props.fields.gpsLat.value : undefined;
+		const northern = gpsLatVal === undefined || gpsLatVal === null || Number(gpsLatVal) >= 0;
 
 		return (
 			<div className="horosa-midpoint-workbench">
@@ -210,10 +213,12 @@ class MidpointMain extends Component{
 							}
 							{
 								showhsys && (
-									<Col span={12}>
+									<Col span={12} title={northern ? '天文/涵义星座只对南半球出生者有意义(北纬 changeSouthChart 直接忽略);北半球改之无效' : undefined}>
+										{/* [Q-151/AX-16] 北纬改值被吞而界面无提示 → 置灰 + title */}
 										<Select style={{width: '100%'}}
 											onChange={this.changeSouthChart}
 											value={this.props.fields.southchart.value} 
+											disabled={northern}
 											size='small'>
 											<Option value={0}>天文星座</Option>
 											<Option value={1}>涵义星座</Option>
@@ -253,7 +258,7 @@ class MidpointMain extends Component{
 						<Tabs activeKey={this.state.sideTab} onChange={this.changeSideTab} tabPosition='top' className="horosa-midpoint-side-tabs">
 							<TabPane tab="中点" key="1">
 									<FreezeSubTab active={this.state.sideTab === '1'}>{()=>(
-									<Midpoint height={height}
+									<Midpoint height="100%"
 										value={midpoints} fields={fields}
 										planetDisplay={this.props.planetDisplay}
 										showAstroMeaning={this.props.showAstroMeaning}
@@ -263,7 +268,7 @@ class MidpointMain extends Component{
 								<TabPane tab="相位" key="2">
 									<FreezeSubTab active={this.state.sideTab === '2'}>{()=>(
 									<AspectToMidpoint
-										value={aspects} height={height}
+										value={aspects} height="100%"
 										planetDisplay={this.props.planetDisplay}
 										showAstroMeaning={this.props.showAstroMeaning}
 									/>

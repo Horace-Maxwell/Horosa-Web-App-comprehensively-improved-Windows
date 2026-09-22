@@ -1,13 +1,13 @@
 // 兼容层必须最先执行(第三方产物可能裸调新 API)——一切其他 import 都排它后面。
 import './utils/legacyWebkitCompat'
-// 🔴 壳级缩放自恢复(双源:URL query shellZoom 优先——壳导航确定性送达正确 origin/document;
-// localStorage 键兜底——页面自刷新时 origin 内有效。浏览器/dev 两源皆无=恒 1 零影响)。
-// 含 body 的 fixed 包含块补偿;壳的 __HOROSA_APPLY_SHELL_ZOOM(init script)后到幂等覆盖。
+// 🔴 壳级缩放自恢复(启动档位单源 = utils/shellZoom.readBootstrapShellZoom:壳导航以 URL query 为准——确定性送达
+// 正确 origin/document;页面自刷新以 localStorage 键为准——URL 还是启动那一刻的旧 query,而壳每次 ⌘± 换档都写键。
+// 浏览器/dev 两源皆无=恒 1 零影响)。含 body 的 fixed 包含块补偿;壳的 __HOROSA_APPLY_SHELL_ZOOM(init script)后到幂等覆盖。
+// 这里镜像到 documentElement.style.zoom 之后,**inline zoom 就是运行期唯一活真值**(zoomDomain.getDeclaredZoom 只读它)。
 import { safeLocalStorageSet as __hszSet } from './utils/safeStorage';
+import { readBootstrapShellZoom as __hszRead } from './utils/shellZoom';
 try{
-    var __hszQ = /[?&]shellZoom=([0-9.]+)/.exec(window.location.search || '');
-    var __hsz = __hszQ ? Number(__hszQ[1]) : Number(localStorage.getItem('horosa.shell.zoom'));
-    if(__hszQ && __hsz && __hsz > 0){ __hszSet('horosa.shell.zoom', String(__hsz)); }
+    var __hsz = __hszRead();
     // 近 1 容差:老壳 f64 累加写下的脏值(实锤 1.0000000000000002)按 1 对待(新壳已 snap,此为存量兜底)。
     if(__hsz && Math.abs(__hsz - 1) < 0.001){ __hsz = 1; }
     if(__hsz && __hsz > 0 && __hsz !== 1){
@@ -65,6 +65,16 @@ try{
 // getEffectiveScale() 直接返回 1,不建探针 DOM、不触发 reflow。
 import { installAlignHooks as __installAlignHooks } from './utils/zoomDomain';
 __installAlignHooks();
+
+// 🔴 [Tahoe 复报·2026-09-17] 全站 vh/vw 替身:把实测布局视口发布成 --horosa-lvw / --horosa-lvh,
+// 样式一律 calc(N * var(--horosa-lvh, 1vh))。标准化 zoom 引擎下 vh/vw 按物理视口解析再被缩放
+// (z<1 留白 / z>1 溢出),旧引擎反而对;变量由 fixed 探针实测得来,任何引擎 by construction 成立。
+// 必须在首帧样式生效前发布;壳换档派发 resize 后自动重量。详见 utils/layoutViewportVars.js。
+import { installLayoutViewportVars as __installLayoutViewportVars } from './utils/layoutViewportVars';
+__installLayoutViewportVars();
+// [WebKit(Tahoe)缩放 >1 实测 2026-09-17] 内联盒按内容宽×z 的引擎缺陷探针:命中挂 html.horosa-zoom-textbug(app.less 把省略退回 clip)。
+import { installZoomTextBugProbe as __installZoomTextBugProbe } from './utils/zoomInlineScaleBug';
+__installZoomTextBugProbe();
 
 // [V5-A2] 持久存储保险:persisted origin 免受 WebKit 磁盘压力 LRU 驱逐(非 persisted 的
 // origin 在系统磁盘紧张时可能被整体清掉 —— 本地记录库的隐性丢失面之一)。授予与否由

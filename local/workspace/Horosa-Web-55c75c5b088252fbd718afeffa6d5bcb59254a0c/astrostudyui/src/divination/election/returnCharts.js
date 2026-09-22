@@ -102,7 +102,8 @@ export async function fetchPdHitsNearElection(natalParams, electionDateStr, opts
 		predictive: 1, includePrimaryDirection: true,
 		pdtype: 0, showPdBounds: 0,
 		pdMethod: o.pdMethod || 'core_alchabitius',
-		pdTimeKey: o.pdTimeKey || 'Ptolemy',
+		// [Q-295/T-279] 旧存档值兼容:'Cardan'→'Cardano','Placidus'(非钥匙名)→'Ptolemy'(与其此前实际回落一致,不悄悄换成别的钥匙)。
+		pdTimeKey: ({ Cardan: 'Cardano', Placidus: 'Ptolemy' })[o.pdTimeKey] || o.pdTimeKey || 'Ptolemy',
 		pdDirect: 1, pdConverse: 0, pdAntiscia: 0, pdTerms: 0,
 		pdaspects: [0, 60, 90, 120, 180],
 	};

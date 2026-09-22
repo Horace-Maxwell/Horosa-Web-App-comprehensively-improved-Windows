@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/shusuan/HeLuoMain.js b/astrostudyui/src/components/shusuan/HeLuoMain.js
-index 19bd676..3740f7b 100644
+index 37d13de1..784a05b8 100644
 --- a/astrostudyui/src/components/shusuan/HeLuoMain.js
 +++ b/astrostudyui/src/components/shusuan/HeLuoMain.js
-@@ -52,6 +52,7 @@ function deepFreeze(o){
+@@ -59,6 +59,7 @@ function deepFreeze(o){
  }
  
  class HeLuoMain extends Component {
@@ -10,7 +10,7 @@ index 19bd676..3740f7b 100644
  	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
  	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
  	shouldComponentUpdate(nextProps, nextState){
-@@ -68,6 +69,7 @@ class HeLuoMain extends Component {
+@@ -75,6 +76,7 @@ class HeLuoMain extends Component {
  		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
  	}
  

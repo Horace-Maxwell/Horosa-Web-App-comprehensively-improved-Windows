@@ -88,33 +88,31 @@ class PlanetSelector extends Component{
 			);
 		});
 
-		let lots = AstroConst.LOTS.map((item, idx)=>{
-			let col = (
-				<XQCheckItem key={item} checked={lotValues.includes(item)} onClick={()=>this.toggleLot(item)}>
+		// [用户实报 2026-09-17·APP] 段标题「希腊点 / 阿拉伯点」此前与相邻勾选卡合包在一个 <div> 里塞进网格:
+		// 抽屉规则 `.xq-check-list .xq-check-item { height: 100% }` 让卡撑满整个包裹格(卡变高一截),
+		// 标题被挤出格外压到下一张卡上(「阿拉伯点」叠在「(信心点)」上)。改为标题自成一格、独占整行
+		// (grid-column: 1 / -1 走内联样式——LESS 会把 1 / -1 当除法求值),卡与标题各归各行,任何列数下都不重叠。
+		const sectionTitleStyle = { gridColumn: '1 / -1', margin: '6px 0 0' };
+		// [Q-344/T-325] 分组按归属而非数组序:「赫尔墨斯七点」= 精神 + 爱欲 / 必然 / 勇气 / 胜利 / 报应(福点在行星页),
+		// 「行星点」= 水金火木土五点,「阿拉伯点」= 其余;此前赫尔墨斯六点被列在「阿拉伯点」下,按标题找「七星点按昼夜反转」作用集会找错组。
+		const HERMETIC = [AstroConst.PARS_SPIRIT, AstroConst.PARS_EROS, AstroConst.PARS_NECESSITY, AstroConst.PARS_COURAGE, AstroConst.PARS_VICTORY, AstroConst.PARS_NEMESIS];
+		const PLANET_LOTS = [AstroConst.PARS_MERCURY, AstroConst.PARS_VENUS, AstroConst.PARS_MARS, AstroConst.PARS_JUPITER, AstroConst.PARS_SATURN];
+		const groups = [
+			['__title_hermetic', '赫尔墨斯七点（精神·爱欲·必然·勇气·胜利·报应；福点见「行星」页）', AstroConst.LOTS.filter((x)=>HERMETIC.includes(x))],
+			['__title_planet', '行星点', AstroConst.LOTS.filter((x)=>PLANET_LOTS.includes(x))],
+			['__title_arabic', '阿拉伯点', AstroConst.LOTS.filter((x)=>!HERMETIC.includes(x) && !PLANET_LOTS.includes(x))],
+		];
+		let lots = [];
+		groups.forEach(([key, title, items])=>{
+			if(!items.length){ return; }
+			lots.push(<XQSectionTitle key={key} style={sectionTitleStyle}>{title}</XQSectionTitle>);
+			items.forEach((item)=>{
+				lots.push(
+					<XQCheckItem key={item} checked={lotValues.includes(item)} onClick={()=>this.toggleLot(item)}>
 						{this.renderLabel(item)}
-				</XQCheckItem>
-			);
-			if(idx === 0){
-				col = (
-					<div key={item}>
-						<XQSectionTitle>希腊点</XQSectionTitle>
-						<XQCheckItem checked={lotValues.includes(item)} onClick={()=>this.toggleLot(item)}>
-							{this.renderLabel(item)}
-						</XQCheckItem>
-					</div>
+					</XQCheckItem>
 				);
-			}else if(idx === 5){
-				col = (
-					<div key={item}>
-						<XQCheckItem checked={lotValues.includes(item)} onClick={()=>this.toggleLot(item)}>
-							{this.renderLabel(item)}
-						</XQCheckItem>
-						<XQSectionTitle>阿拉伯点</XQSectionTitle>
-					</div>
-				);
-			}
-
-			return col;
+			});
 		});
 
 		return (

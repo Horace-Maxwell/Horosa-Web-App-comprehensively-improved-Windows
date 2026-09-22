@@ -5,6 +5,7 @@ import BookList from './BookList';
 import MyBookList from './MyBookList';
 import BookUpload from './BookUpload';
 
+import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 class BookMain extends Component{
 
 	constructor(props) {
@@ -68,7 +69,7 @@ class BookMain extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : document.documentElement.clientHeight - 80;
+		let height = this.props.height ? this.props.height : getLayoutViewportHeight() - 80;
 
 		this.currentDom = 'mybooklist';
 		let bookdom = (

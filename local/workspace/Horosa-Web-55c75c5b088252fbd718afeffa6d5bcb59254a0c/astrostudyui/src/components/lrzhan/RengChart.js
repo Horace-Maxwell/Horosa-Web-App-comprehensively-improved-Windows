@@ -13,6 +13,8 @@ import { getSignZi, LRChart_Circle, LRChart_Square, TaiSui} from '../liureng/LRC
 import { ZSList, ZhangSheng, } from '../liureng/LRZhangSheng';
 import { resolveLiuRengTwelvePanStyle } from '../liureng/LRPanStyle';
 import { HourZi, } from '../gua/GuaConst';
+import { getEffectiveScale, visualFloorPx } from '../../utils/zoomDomain';
+import { getLayoutViewportHeight } from '../../utils/shellZoom';
 
 function extractBranch(value){
 	if(value === undefined || value === null){
@@ -144,8 +146,11 @@ class RengChart {
 		// 仅方盘+非紧凑生效,圆盘(底部神煞大表依赖滚动看全)与紧凑预览路径零波及。
 		if(!this.compactPreview && !this.isCircleChart() && typeof window !== 'undefined'
 			&& hostEl && typeof hostEl.getBoundingClientRect === 'function'){
-			const hostTop = hostEl.getBoundingClientRect().top;
-			const viewportAvail = (window.innerHeight || height) - hostTop - 8;
+			// [Tahoe 域混根修·2026-09-17 用户 APP 实报「放大后盘面不随之缩小、被下端遮挡」] 量容器只用布局域读数(clientWidth/clientHeight);rect 域在标准化 zoom 引擎下已×z,当布局 px 用=盘面大 z 倍被裁(旧引擎 rect=布局值故不显)。
+			// 视口余高在布局域算:布局视口实测 − rect.top/z(rect.top 属视觉域)。
+			const zScale = getEffectiveScale() || 1;
+			const hostTop = hostEl.getBoundingClientRect().top / zScale;
+			const viewportAvail = (getLayoutViewportHeight() || height) - hostTop - 8;
 			if(viewportAvail > 0 && viewportAvail < height){
 				height = viewportAvail;
 				realH = height;
@@ -154,7 +159,7 @@ class RengChart {
 		// ② 防裁切可下滑:圆盘含神煞大表(预留最小约 720)。方盘自适应收缩(下方 drawSimple* 已按 cord.h
 		// 收纳),仅低于最小可读阈值 360 才回落「撑高 svg + host 滚动」;窗口短于阈值则按最小高度绘制,
 		// 并把 svg 自身撑到该高度 → 外层 host(overflow-y:auto)即可纵向滚动看全(compactPreview 预览不强制)。
-		const minChartH = this.compactPreview ? 0 : (this.isCircleChart() ? 720 : 360);
+		const minChartH = this.compactPreview ? 0 : visualFloorPx(this.isCircleChart() ? 720 : 360);
 		if(minChartH > 0 && realH < minChartH){
 			realH = minChartH;
 		}

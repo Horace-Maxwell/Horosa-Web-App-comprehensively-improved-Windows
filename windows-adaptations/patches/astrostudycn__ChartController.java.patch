@@ -1,5 +1,5 @@
 diff --git a/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java b/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java
-index 41901e5c..df3b6645 100644
+index 9fe28640..e8626f89 100644
 --- a/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java
 +++ b/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java
 @@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,7 +39,7 @@ index 41901e5c..df3b6645 100644
  			Map<String, Object> reqparams = (Map<String, Object>) res.get("params");
  			if(reqparams != null) {
  				reqparams.put("doubingSu28", args.get("doubingSu28"));
-@@ -94,11 +103,22 @@ public class ChartController {
+@@ -97,11 +106,22 @@ public class ChartController {
  				applyZhengSiderealSu28(chart, args);
  				chart.put("nongli", map);
  			}else {

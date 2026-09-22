@@ -3,11 +3,28 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 
 class DateTime {
-	constructor(opt){
-		let tm = moment();
+	// [TL-11] 「此刻」:按给定时区取此刻的钟面(此前 new DateTime() 取系统本地钟面却缺省 +08:00 时区 → 非东八区系统错 N 小时);
+	// zone 缺省 +08:00 与构造器一致;不合法时区按系统本地偏移。
+	static nowInZone(zone){
+		let z = typeof zone === 'string' && /^[+-]\d{2}:\d{2}$/.test(zone) ? zone : null;
+		const m = z ? moment().utcOffset(z) : moment();
+		if(!z){
+			const off = m.utcOffset();
+			const sign = off < 0 ? '-' : '+';
+			const a = Math.abs(off);
+			z = `${sign}${String(Math.floor(a / 60)).padStart(2, '0')}:${String(a % 60).padStart(2, '0')}`;
+		}
+		return new DateTime({ ad: 1, zone: z, year: m.year(), month: m.month() + 1, date: m.date(), hour: m.hour(), minute: m.minute(), second: m.second() });
+	}
 
+	constructor(opt){
 		this.ad = opt ? opt.ad : 1;
 		this.zone = opt && opt.zone ? opt.zone : "+08:00";
+		// [Q-141 裁决 2026-09-18] 缺省钟面 = 真实此刻换算到本对象时区(此前取系统本地钟面却标 +08:00 → 非东八区本机
+		//   「此刻」/ 新盘 / 各技法缺省时间错 N 小时;154 处 `new DateTime()` 统一在此单点修)。东八区本机与传入完整 opt 的
+		//   调用逐字不变;时区不合法时仍按系统本地钟面(与 nowInZone 同口径)。
+		const z0 = typeof this.zone === 'string' && /^[+-]\d{2}:\d{2}$/.test(this.zone) ? this.zone : null;
+		let tm = z0 ? moment().utcOffset(z0) : moment();
 		this.year = opt ? opt.year : tm.year();
 		this.month = opt ? opt.month : tm.month() + 1;
 		this.date = opt ? opt.date : tm.date();

@@ -11,9 +11,14 @@ const PLANET_CN = {
 	Ceres: '谷神星', Pallas: '智神星', Juno: '婚神星', Vesta: '灶神星', Eris: '阋神星',
 };
 const MODE_CN = { mundo: '本体(in-mundo·真黄纬)', zodiac: '黄道度(β=0)' };
-const COORD_CN = { geo: '地心', helio: '日心' };
+const COORD_CN = { geo: '地心', helio: '日心', topo: '站心' };   // [Q-151/AX-15⑥] UI 有站心档,快照曾直出「topo」
 const REL_CN = { davison: '戴维森时空中点盘', composite: '中点合盘', synastry: '双人叠加' };
 const KIND_CN = { transit: '行运', progressed: '二次推运' };
+// [Q-440] 本地空间画法 / 地理等价流派·取数·流派缺省 0°♈ 子午线(镜像后端 GEODETIC_ZERO;自定义值走 uiState.geodeticZero)
+const LS_MODE_CN = { great: '大圆', rhumb: '等角航线' };
+const GEODETIC_CN = { sepharial: '塞法里尔', mcrae: '麦克雷', johndro: '约翰德罗' };
+const GEODETIC_VAR_CN = { longitude: '黄经法', ra: '赤经法' };
+const GEODETIC_ZERO_DEFAULT = { sepharial: 0, mcrae: 0, johndro: -30 };
 // 交映事件中文(后端 PARAN_EVENTS:rise/set/mc/ic = 两星同时角化的各自事件)
 const PARAN_EVENT_CN = { rise: '升', set: '落', mc: '中天', ic: '天底' };
 
@@ -134,6 +139,40 @@ export function buildAcgSectionText(){
 		lines.push(`落点分析(${Math.abs(point.lat).toFixed(2)}°${point.lat >= 0 ? 'N' : 'S'} ${fmtLon(point.lon)},orb ${point.orb}°):` + (point.hits.length
 			? point.hits.map((h) => `${PLANET_CN[h.planet] || h.planet}${({ Asc: '上升', Desc: '下降', MC: '中天', IC: '天底' })[h.angle] || h.angle}线(偏差 ${h.orb}°)`).join('、')
 			: '无行星线经过'));
+	}
+	// [Q-440/T-403] ◆ 本地空间线 / ◆ 地理等价线:两图层开启时才进快照(纯渲染开关,数据恒在响应里),
+	// 数据=后端 lines.lsAz(方位/高度)与 lines.geodetic(地理 MC/IC 经度),口径行写画法/流派/取数/子午线。
+	const uiLayers = latest.uiState || {};
+	if(uiLayers.showLS){
+		const rows = [];
+		Object.keys(d.planets).forEach((pk) => {
+			const la = d.planets[pk].lines && d.planets[pk].lines.lsAz;
+			if(!la || typeof la.az !== 'number'){ return; }
+			rows.push(`| ${PLANET_CN[pk] || pk} | ${la.az.toFixed(1)}° | ${typeof la.alt === 'number' ? la.alt.toFixed(1) + '°' : '—'} |`);
+		});
+		if(rows.length){
+			lines.push(`◆ 本地空间线(画法 ${LS_MODE_CN[meta.lsMode] || meta.lsMode || '大圆'};自出生地沿各星罗盘方位角延伸,方位角=正北起顺时针,高度角=出生时刻该星地平高度):`);
+			lines.push('| 星 | 方位角 | 高度角 |');
+			lines.push('| --- | --- | --- |');
+			lines.push(...rows);
+		}
+	}
+	if(uiLayers.showGeodetic){
+		const rows = [];
+		Object.keys(d.planets).forEach((pk) => {
+			const g = d.planets[pk].lines && d.planets[pk].lines.geodetic;
+			if(!g || !g.mc || typeof g.mc.lon !== 'number'){ return; }
+			rows.push(`| ${PLANET_CN[pk] || pk} | ${fmtLon(g.mc.lon)} | ${fmtLon(g.ic && g.ic.lon)} |`);
+		});
+		if(rows.length){
+			const school = meta.geodetic || 'sepharial';
+			const zeroRaw = `${uiLayers.geodeticZero || ''}`.trim();
+			const zero = zeroRaw !== '' && Number.isFinite(Number(zeroRaw)) ? Number(zeroRaw) : (GEODETIC_ZERO_DEFAULT[school] || 0);
+			lines.push(`◆ 地理等价线(流派 ${GEODETIC_CN[school] || school} · 取数 ${GEODETIC_VAR_CN[meta.geodeticVar] || meta.geodeticVar || '黄经法'} · 0°♈ 子午线 ${fmtLon(zero)}${zeroRaw !== '' ? '(自定义)' : '(流派缺省)'};黄道度↔地理经度的时间无关映射,与角化线不同源):`);
+			lines.push('| 星 | 地理MC | 地理IC |');
+			lines.push('| --- | --- | --- |');
+			lines.push(...rows);
+		}
 	}
 	// ◆ 行星交映 Parans:条件子块(仅当图层开关开启且后端有数据;与「落点分析」同风格)。
 	// 数据=后端响应 d.parans(两行星同时角化的纬度线);过滤(lum=仅日月对)与 1° 去重口径同 AcgD3Map 图面。

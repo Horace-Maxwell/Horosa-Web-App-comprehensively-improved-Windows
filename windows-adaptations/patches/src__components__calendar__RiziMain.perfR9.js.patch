@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/calendar/RiziMain.js b/astrostudyui/src/components/calendar/RiziMain.js
-index d144b62..7d1fa79 100644
+index cb413632..02ea2996 100644
 --- a/astrostudyui/src/components/calendar/RiziMain.js
 +++ b/astrostudyui/src/components/calendar/RiziMain.js
-@@ -8,6 +8,8 @@ import { buildHuangliDay } from './huangliDay';
- import { personBazi, buildPersonalizedDates } from './riziEngine';
+@@ -9,6 +9,8 @@ import { personBazi, buildPersonalizedDates } from './riziEngine';
  import { buildRiziSnapshotText } from './riziSnapshot';
  import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+ import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // [Q-318/T-306] 当事人八字须随全局日界/晚子时
 +import { markInteractionStart, markPanelReady } from '../../utils/perfMark';
 +import { calendarPanelShouldUpdate } from './NongLiMain';
  
  const MODULE = 'calendar-rizi';
  const ROLE_LABEL = { self: '本人', spouse: '配偶', family: '家人' };
-@@ -20,16 +22,69 @@ function reasonTags(reasons) {
+@@ -21,16 +23,69 @@ function reasonTags(reasons) {
  	));
  }
  
@@ -90,7 +90,7 @@ index d144b62..7d1fa79 100644
  	constructor(props) {
  		super(props);
  		this.state = {
-@@ -48,6 +103,7 @@ class RiziMain extends Component {
+@@ -49,6 +104,7 @@ class RiziMain extends Component {
  		this.onAddPerson = this.onAddPerson.bind(this);
  		this.onRemovePerson = this.onRemovePerson.bind(this);
  		this.recompute = this.recompute.bind(this);
@@ -98,7 +98,7 @@ index d144b62..7d1fa79 100644
  		this.deferRecompute = this.deferRecompute.bind(this);
  		this.saveAISnapshot = this.saveAISnapshot.bind(this);
  		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
-@@ -90,22 +146,41 @@ class RiziMain extends Component {
+@@ -99,22 +155,41 @@ class RiziMain extends Component {
  			// 选中：保留当前选择（若仍在榜），否则取榜首。
  			const list = result.list || [];
  			const keep = this.state.selectedYmd && list.some((d)=> d.ymd === this.state.selectedYmd);
@@ -144,7 +144,7 @@ index d144b62..7d1fa79 100644
  
  	saveAISnapshot() {
  		const persons = this.state.personsWithBazi || this.state.persons.map((p)=> ({ ...p, bazi: this.baziOf(p) }));
-@@ -130,9 +205,19 @@ class RiziMain extends Component {
+@@ -139,9 +214,19 @@ class RiziMain extends Component {
  		if (this._recomputeTimer) { clearTimeout(this._recomputeTimer); this._recomputeTimer = null; }
  	}
  
@@ -165,7 +165,7 @@ index d144b62..7d1fa79 100644
  		if (this.state.computing && !list.length) { return <div className='horosa-empty-hint'>正在计算全年吉日…</div>; }
  		if (!list.length) { return <div className='horosa-empty-hint'>请输入当事人生辰，或本年该事项无合适吉日</div>; }
  		const total = result.count || list.length;
-@@ -149,50 +234,13 @@ class RiziMain extends Component {
+@@ -158,50 +243,13 @@ class RiziMain extends Component {
  						) : null}
  					</span>
  				</div>

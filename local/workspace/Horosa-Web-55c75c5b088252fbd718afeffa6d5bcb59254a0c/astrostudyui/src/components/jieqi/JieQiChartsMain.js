@@ -1,5 +1,7 @@
 import { Component } from 'react';
 import { classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
+import { CLASSICAL_PARAM_SPEC, CLASSICAL_SPEC_KEYS } from '../../utils/classicalParamSpec';   // [Q-217/T-171] 古典口径全键单源
+import { userAyanParamsFrom } from '../../utils/customCalibreStores';   // [Q-217/T-172] 'user' 恒星黄道历元参数
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Row, Col, } from 'antd';
 import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs } from '../xq-ui';
@@ -33,7 +35,7 @@ import * as AstroText from '../../constants/AstroText';
 import * as SZConst from '../suzhan/SZConst';
 import * as Su28Helper from '../su28/Su28Helper';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
-import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { setJieqiSeedLocalCache, } from '../../utils/localCalcCache';
 import { fetchPreciseJieqiYear, prefetchJieqiYearNeighbors } from '../../utils/preciseCalcBridge';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
@@ -154,9 +156,21 @@ function paramsToFields(params, flds){
 		return defval;
 	};
 	const doubingSu28Val = pickPreferFields('doubingSu28', 0);
+	// [Q-221/T-178·FT-10] 子盘 params 带 birth(交节时刻 'YYYY-MM-DD HH:mm:ss',loadJieqiChart 并入)→ 起盘时间按交节时刻;
+	// 此前恒 tm.parse(year,'YYYY')=当年 1 月 1 日 12:00 → 宿盘左栏时空面板 / 右栏概览 / 快照 [起盘信息] 都写错时刻。
+	// 无 birth(种子参数)仍按年初(零回归)。
+	if(typeof params.birth === 'string' && params.birth.trim()){
+		tm.parse(params.birth.trim());
+		if(params.ad === -1 || params.ad === '-1'){ tm.ad = -1; }
+	}else{
+		tm.parse(params.year, 'YYYY');
+	}
+	// [FT-10 ②] 宿法档 2–8(七政页写入全局)不得被夹成 0/1:state 原样发后端(盘按该档算),显示层须同档,否则下拉与
+	// 「宿法」行显示「现实距星法」而盘不是。
+	const dbs = (doubingSu28Val === true) ? 1 : toInt(doubingSu28Val, 0);
 	const fields = {
 		date: {
-			value: tm.parse(params.year, 'YYYY'),
+			value: tm,
 		},
 		time: {
 			value: tm,
@@ -195,7 +209,7 @@ function paramsToFields(params, flds){
 			value: params.siderealAyanamsa,
 		},
 		doubingSu28: {
-			value: (doubingSu28Val === true || parseInt(doubingSu28Val, 10) === 1) ? 1 : 0,
+			value: dbs >= 0 && dbs <= 8 ? dbs : 0,
 		},
 		houseStartMode: {
 			value: toInt(pickPreferFields('houseStartMode', SZConst.SZHouseStart_Bazi), SZConst.SZHouseStart_Bazi) === SZConst.SZHouseStart_ASC
@@ -257,7 +271,29 @@ function paramsToFields(params, flds){
 			fields.gpsLon = flds.gpsLon;
 		}
 	}
+	// [Q-217/T-171] 古典口径全键(spec 单源)随 params(前端名 / 后端名双轨)或既有 fields 进 fields:
+	// 此前一键不带 → 子盘 fields 缺古典键,AI 快照「口径自陈」行恒空。缺值不造键(缺省用户 fields 形状不变)。
+	CLASSICAL_PARAM_SPEC.forEach((s)=>{
+		const bk = s.backendKey || s.key;
+		let v = params[s.key];
+		if(v === undefined || v === null){ v = params[bk]; }
+		if((v === undefined || v === null) && flds && flds[s.key] && flds[s.key].value !== undefined && flds[s.key].value !== null){ v = flds[s.key].value; }
+		if(v !== undefined && v !== null && v !== ''){ fields[s.key] = { value: v }; }
+	});
+	['userAyanT0', 'userAyanDeg', 'customTermsDay', 'customTermsNight'].forEach((k)=>{
+		const v = pickValue(k, undefined);
+		if(v !== undefined && v !== null && v !== ''){ fields[k] = { value: v }; }
+	});
 	return fields;
+}
+
+// [Q-221/T-179·FT-11] 出生时空签名(全局 hook 用):只有它变了才允许 hook 覆盖本页年份/时区/地点。
+export function hookBirthSig(f){
+	try{
+		const d = f && f.date && f.date.value;
+		const v = (k)=>(f && f[k] ? f[k].value : undefined);
+		return [d && d.format ? d.format('YYYY/MM/DD HH:mm:ss') : `${d}`, v('ad'), v('zone'), v('lat'), v('lon'), v('gpsLat'), v('gpsLon')].join('|');
+	}catch(e){ return `err:${Date.now()}:${Math.random()}`; }
 }
 
 function fieldsToState(fields){
@@ -272,28 +308,37 @@ function fieldsToState(fields){
 		gpsLat: fields.gpsLat.value,
 		gpsLon: fields.gpsLon.value,
 		doubingSu28: fields.doubingSu28.value,
-		// 古典占星参数随分至盘透传(节气盘=标准星盘,须与主盘 fieldsToParams 同口径):三分/福点反转/界/交点真平/宗派缓冲/狮子木首/双子界序
-		termsVariant: fields.termsVariant ? fields.termsVariant.value : '',
-		geminiBoundEmended: fields.geminiBoundEmended ? fields.geminiBoundEmended.value : '',
-		houseCuspAdvance: fields.houseCuspAdvance ? fields.houseCuspAdvance.value : '',
-		cazimiOrb: fields.cazimiOrb ? fields.cazimiOrb.value : '',
-		combustOrb: fields.combustOrb ? fields.combustOrb.value : '',
-		underBeamsOrb: fields.underBeamsOrb ? fields.underBeamsOrb.value : '',
-		vocMode: fields.vocMode ? fields.vocMode.value : '',
-		vocIncludeOuter: fields.vocIncludeOuter ? fields.vocIncludeOuter.value : '',
-		fixedStarOrb: fields.fixedStarOrb ? fields.fixedStarOrb.value : '',
-		fixedStarOrbMode: fields.fixedStarOrbMode ? fields.fixedStarOrbMode.value : '',
-		antisciaOrb: fields.antisciaOrb ? fields.antisciaOrb.value : '',
-		triplicity: fields.triplicity ? fields.triplicity.value : '',
-		lotReversal: fields.lotReversal ? fields.lotReversal.value : '',
-		westNodeType: fields.westNodeType ? fields.westNodeType.value : '',
-		sectBuffer: fields.sectBuffer ? fields.sectBuffer.value : '',
-		leoBoundFirst: fields.leoBoundFirst ? fields.leoBoundFirst.value : '',
+		// 古典占星参数随分至盘透传(节气盘=标准星盘,须与主盘 fieldsToParams 同口径)。
+		// [Q-217/T-171] 键集改由 CLASSICAL_PARAM_SPEC 单源生成(全部古典键 + 自定义界表体 + 'user' 历元键):
+		// 此前手写 16 键,其余(尊贵计分/时主算法/交点尊贵/福点变体/容许度体系/相位纳入宫头…)恒走后端缺省,
+		// 非缺省全局口径用户的分至盘与主盘系统性分叉。
+		...classicalStateFromFields(fields),
 		fields: {
 			...fields
 		},
 	};
 	return st;
+}
+
+// [Q-217/T-171/T-172] fields(wrapper 形) → state 平面键:spec 全键 + 自定义界表体 + 'user' 档历元(缺=''，与旧手写形态同)。
+const CLASSICAL_STATE_KEYS = [...CLASSICAL_SPEC_KEYS, 'customTermsDay', 'customTermsNight', 'userAyanT0', 'userAyanDeg'];
+function classicalStateFromFields(fields){
+	const out = {};
+	CLASSICAL_STATE_KEYS.forEach((k)=>{
+		out[k] = fields && fields[k] && fields[k].value !== undefined && fields[k].value !== null ? fields[k].value : '';
+	});
+	return out;
+}
+// 缓存键 / 兼容判定共用的古典口径签名:按 spec 归一(仅非默认键,后端名)+ 'user' 历元 → 稳定 JSON。
+// 缺省用户恒 '{}'(旧键串仅多一段常量,内存缓存键无持久化)。
+function classicalCalibreSig(params){
+	const p = params || {};
+	const ov = classicalBackendOverridesFromPlain(p);
+	if(`${p.siderealAyanamsa}` === 'user'){
+		if(p.userAyanT0 !== undefined && p.userAyanT0 !== null && p.userAyanT0 !== ''){ ov.userAyanT0 = p.userAyanT0; }
+		if(p.userAyanDeg !== undefined && p.userAyanDeg !== null && p.userAyanDeg !== ''){ ov.userAyanDeg = p.userAyanDeg; }
+	}
+	return JSON.stringify(Object.keys(ov).sort().reduce((acc, k)=>{ acc[k] = ov[k]; return acc; }, {}));
 }
 
 // PERF-R9 Ship 7(数据层空闲预热):分至图的 /jieqi/year 年表。
@@ -358,6 +403,9 @@ function getChartCacheKey(params, term, birth){
 		params && params.westNodeType,
 		params && params.sectBuffer,
 		params && params.leoBoundFirst,
+		classicalCalibreSig(params),   // [Q-217/T-176] 十余个古典键进请求体却不进缓存键 → 改设置不重取;现 spec 全键签名
+		params && params.after23NewDay,          // [Q-424/T-389] 日界 / 晚子时进缓存键(否则改全局后仍拿旧盘)
+		params && params.lateZiHourUseNextDay,
 	].join('|');
 }
 
@@ -558,6 +606,9 @@ function buildChartRequestParams(params, birth){
 		name: null,
 		pos: null,
 		group: null,
+		// [Q-217/T-172] 自定义恒星黄道 'user' 档随行历元参数(params 有值优先,缺读当前槽;与主盘 fieldsToParams 同口径),
+		// 此前不带 → 后端回落默认岁差而标签仍写自定义。
+		...((`${params.siderealAyanamsa}` === 'user') ? userAyanParamsFrom((k)=>params[k]) : {}),
 		// 古典占星参数条件透传(默认不下发=请求体零回归,与 fieldsToParams 同条件)
 		...((params.termsVariant) ? { termsVariant: params.termsVariant } : {}),
 		...((params.geminiBoundEmended) ? { geminiBoundEmended: 1 } : {}),
@@ -568,6 +619,10 @@ function buildChartRequestParams(params, birth){
 		...((params.westNodeType === 'true') ? { westNodeType: 'true' } : {}),
 		...((params.sectBuffer === 'ptolemy5') ? { sectBuffer: 'ptolemy5' } : {}),
 		...((params.leoBoundFirst === 1 || params.leoBoundFirst === '1') ? { leoBoundFirst: 1 } : {}),
+		// [Q-424/T-389] 日界 / 晚子时两键随四分至盘透传(Java 缺省 1/1;仅非缺省才发=缺省用户请求体零回归):
+		// 此前不发 → 宿盘中心「农历 / 四柱」恒按 23 点换日、晚子时次日干,不随全局设置。
+		...((params.after23NewDay !== undefined && params.after23NewDay !== null && Number(params.after23NewDay) !== 1) ? { after23NewDay: Number(params.after23NewDay) } : {}),
+		...((params.lateZiHourUseNextDay !== undefined && params.lateZiHourUseNextDay !== null && Number(params.lateZiHourUseNextDay) !== 1) ? { lateZiHourUseNextDay: Number(params.lateZiHourUseNextDay) } : {}),
 	};
 }
 
@@ -611,6 +666,18 @@ function normalizeJieqiCompareValue(value){
 	return `${value}`;
 }
 
+// [挂载自检 J-1] 合并新盘时按种子参数清理其它节气的陈旧盘(isJieQiChartCompatible 只比种子级键、不比日期,可跨节气判)。
+export function mergeJieQiCharts(prevCharts, title, chartObj, reqParams){
+	const prev = prevCharts && typeof prevCharts === 'object' ? prevCharts : {};
+	const out = {};
+	Object.keys(prev).forEach((t)=>{
+		if(t === title){ return; }
+		if(isJieQiChartCompatible(prev[t], reqParams)){ out[t] = prev[t]; }
+	});
+	out[title] = chartObj;
+	return out;
+}
+
 export function isJieQiChartCompatible(chartObj, params){
 	const chartParams = chartObj && chartObj.params ? chartObj.params : {};
 	const reqParams = params || {};
@@ -634,7 +701,11 @@ export function isJieQiChartCompatible(chartObj, params){
 		'westNodeType',
 		'sectBuffer',
 		'leoBoundFirst',
-	].every((key)=>normalizeJieqiCompareValue(chartParams[key]) === normalizeJieqiCompareValue(reqParams[key]));
+		'after23NewDay',            // [Q-424/T-389] 日界 / 晚子时(reqParams 已并入 chartObj.params,可比;缺省两侧皆缺=兼容)
+		'lateZiHourUseNextDay',
+	].every((key)=>normalizeJieqiCompareValue(chartParams[key]) === normalizeJieqiCompareValue(reqParams[key]))
+		// [Q-217/T-176] 其余古典键(spec 全键,后端名)与 'user' 历元同判:任一改动即视为不兼容重取。
+		&& classicalCalibreSig(chartParams) === classicalCalibreSig(reqParams);
 }
 
 function isEncodedToken(text){
@@ -877,7 +948,7 @@ function buildJieQiAstroLightSection(chartObj, fields, withHeaders=true){
 	return lines.join('\n').trim();
 }
 
-function buildJieQiSnapshotText(result, baseFields, jieqis, planetDisplay){
+export function buildJieQiSnapshotText(result, baseFields, jieqis, planetDisplay){   // [Q-446] 具名导出供单测
 	const lines = [];
 	const charts = result && result.charts ? result.charts : {};
 	lines.push('[节气盘参数]');
@@ -891,6 +962,25 @@ function buildJieQiSnapshotText(result, baseFields, jieqis, planetDisplay){
 		lines.push(`经纬度：${baseFields.lon.value} ${baseFields.lat.value}`);
 	}
 	lines.push('说明：以下包含二分二至（春分、夏至、秋分、冬至）的星盘与宿盘专用导出。');
+	// [Q-224/T-180] 整年快照补 [二十四节气] 段(交节时刻 + 四柱,与页面「二十四节气」页签同源):此前停在默认页签导出只有参数头。
+	const rows24 = result && Array.isArray(result.jieqi24) ? result.jieqi24 : [];
+	if(rows24.length){
+		lines.push('');
+		lines.push('[二十四节气]');
+		lines.push('| 节气 | 交节时刻 | 年柱 | 月柱 | 日柱 | 时柱 |');
+		lines.push('| --- | --- | --- | --- | --- | --- |');
+		rows24.forEach((item)=>{
+			const fc = getJieqiFourColumns(item) || {};
+			const gz = (c)=>(c && c.ganzi ? c.ganzi : '');
+			lines.push(`| ${item && item.jieqi ? item.jieqi : ''} | ${item && item.time ? item.time : ''} | ${gz(fc.year)} | ${gz(fc.month)} | ${gz(fc.day)} | ${gz(fc.time)} |`);
+		});
+	}
+	// [Q-224/T-180] 四盘未拉取(未点开对应页签)时明示未纳入,而不是静默只剩参数头。
+	const missing = (jieqis || []).filter((t)=>!charts[t]);
+	if(missing.length){
+		lines.push('');
+		lines.push(`说明：${missing.join('、')}的星盘 / 宿盘尚未拉取（打开对应页签后再导出即纳入）。`);
+	}
 
 	(jieqis || []).forEach((title)=>{
 		const one = charts[title];
@@ -903,10 +993,17 @@ function buildJieQiSnapshotText(result, baseFields, jieqis, planetDisplay){
 		}
 		lines.push('');
 		lines.push(`[${title}星盘]`);
-		lines.push(buildJieQiAstroLightSection(one, flds, false) || '无数据');
+		// [Q-446/T-409] 整年快照的星盘段此前用轻量版(起盘信息/宫头/行星三块),而「当前页签」快照同名段走
+		// buildAstroSnapshotContent 全口径(相位/希腊点/12 分度/主宰星链/古典…)→ 同名段两种口径。统一为全口径。
+		lines.push(buildAstroSnapshotContent(one, flds, { headerless: true }) || buildJieQiAstroLightSection(one, flds, false) || '无数据');
 		lines.push('');
 		lines.push(`[${title}宿盘]`);
 		lines.push(buildJieQiSuSection(one, flds, planetDisplay) || '无数据');
+		// [Q-446/T-409] 整年快照此前恒无 3D 段(页有 3D 盘页签,preset 也登记了 3D 段却从不产出);
+		// 3D 盘与该节气星盘同一盘数据(仅三维视图),故以指引段出现,不整盘重复。
+		lines.push('');
+		lines.push(`[${title}3D盘]`);
+		lines.push(`3D 盘为「${title}星盘」同一节气盘的三维视图(星位/宫位/相位同上 [${title}星盘] 段,无独立数据)。`);
 	});
 	return lines.join('\n').trim();
 }
@@ -930,7 +1027,7 @@ function parseJieQiTab(currentTab, jieqis){
 	return null;
 }
 
-function buildJieQiCurrentSnapshotText(currentTab, result, baseFields, jieqis, planetDisplay){
+export function buildJieQiCurrentSnapshotText(currentTab, result, baseFields, jieqis, planetDisplay){   // [Q-446] 具名导出供单测
 	const info = parseJieQiTab(currentTab, jieqis);
 	if(!info){
 		return '';
@@ -1046,6 +1143,12 @@ export class JieQiChartsMain extends Component{
 				}
 				if(fields){
 					let st = fieldsToState(fields);
+					// [Q-221/T-179·FT-11] 全局 hook 只在「出生时空真变」时覆盖本页年份/时区/地点;仅改设置(宫制/黄道/古典口径…)或
+					// 内嵌左栏点「重算星盘」时,保留用户用「上一年/下一年」/工具条改过的年份与地点(此前一律整组重置回主盘)。
+					if(this._lastHookBirthSig !== undefined && this._lastHookBirthSig === hookBirthSig(fields)){
+						['time', 'ad', 'zone', 'lat', 'lon', 'gpsLat', 'gpsLon'].forEach((k)=>{ delete st[k]; });
+					}
+					this._lastHookBirthSig = hookBirthSig(fields);
 					this.setState(st, ()=>{
 						if(this.unmounted){
 							return;
@@ -1091,6 +1194,10 @@ export class JieQiChartsMain extends Component{
 		// 后端名映射与「仅非默认才下发」纪律 —— 🔴 曾按前端名直发,恒星容许度两键后端 data.get
 		// 恒未命中(16 键断链只真通了 14 键),且默认值也进请求体与主盘构参纪律分叉。
 		Object.assign(params, classicalBackendOverridesFromPlain(this.state));
+		// [Q-217/T-172] 'user' 恒星黄道:历元两键随 params(fields 有值优先,缺读当前槽)。
+		if(`${this.state.siderealAyanamsa}` === 'user'){
+			Object.assign(params, userAyanParamsFrom((k)=>this.state[k]));
+		}
 		if(includeJieqis){
 			params.jieqis = this.state.jieqis;
 		}
@@ -1155,6 +1262,8 @@ export class JieQiChartsMain extends Component{
 			p && p.westNodeType,
 			p && p.sectBuffer,
 			p && p.leoBoundFirst,
+			p && p.after23NewDay,            // [Q-424/T-389]
+			p && p.lateZiHourUseNextDay,
 			title,
 		].join('|');
 	}
@@ -1250,10 +1359,9 @@ export class JieQiChartsMain extends Component{
 					updating: false,
 					result: {
 						...prevResult,
-						charts: {
-							...(prevResult.charts || {}),
-							[title]: chartObj,
-						},
+						// [挂载自检 J-1·P0] 种子参数(年份/地点/宫制/黄道/岁差/宿度制/古典键)变了,其余节气的旧盘一并丢弃——
+						// 此前 charts 只增不清、兼容判定只在访问该盘页签时做 → 整年快照 [节气盘参数] 新值、各盘旧盘混参。
+						charts: mergeJieQiCharts(prevResult.charts, title, chartObj, reqParams),
 					},
 				};
 				}, ()=>{
@@ -1399,6 +1507,9 @@ export class JieQiChartsMain extends Component{
 		const fields = flds || this.state.fields;
 		const txt = buildJieQiCurrentSnapshotText(tab, rs, fields, this.state.jieqis, this.props.planetDisplay);
 		if(!txt){
+			// [挂载自检 J-2·P0] 非盘页签(总览/参数)本就不产「当前盘」快照 → 必须真清槽:此前早退且 save 空文不覆盖,
+			// 上一次访问的单盘常驻,导出优先取 jieqi_current → 吐旧盘、上下文键也据此误判分键。
+			clearModuleAISnapshot('jieqi_current');
 			return;
 		}
 		saveModuleAISnapshot('jieqi_current', txt, {
@@ -1442,9 +1553,11 @@ export class JieQiChartsMain extends Component{
 	}
 
 	onTimeChanged(val){
-		this.setState({
-			time: val.value,
-		}, ()=>{
+		// [Q-221/T-177·FT-09] 工具条 AD/BC 走 DateTimeSelector.changeAD → 只改 DateTime.ad;此前 state.ad 不跟着改 →
+		// year(带符号)与 ad 两路不同形(主盘为公元前时切回 AD,后端仍按 ad=-1 起四柱)。与宿盘内嵌时空面板(写 ad)同口径。
+		const next = { time: val.value };
+		if(val && val.value && (val.value.ad === 1 || val.value.ad === -1)){ next.ad = val.value.ad; }
+		this.setState(next, ()=>{
 			this.requestJieQi()
 		});
 	}
@@ -1694,10 +1807,11 @@ export class JieQiChartsMain extends Component{
 			let tab = (
 				<TabPane tab={title+'星盘'} key={starKey}>
 					{renderStar ? (
-						<AstroChartMain
+						<AstroChartMain embeddedSubChart
 							hidehsys={1}
 							hidezodiacal={1}
 							hidedateselector={true}
+							hideRecalc   /* [Q-221/T-179·FT-11] 内嵌星盘的「重算星盘」实为重算隐藏主盘,对本分至盘无意义 → 不渲染 */
 							height={height}
 							fields={flds}
 							value={chart}
@@ -1722,6 +1836,7 @@ export class JieQiChartsMain extends Component{
 						value={chart}
 						height={height}
 						hideQuickDock={true}
+						embeddedReadOnly
 						fields={flds}
 						chartDisplay={this.props.chartDisplay}
 						planetDisplay={this.props.planetDisplay}
@@ -1770,7 +1885,10 @@ export class JieQiChartsMain extends Component{
 		}
 		const cur = this.state.time;
 		const base = cur && cur.clone && cur.setYear ? cur.clone() : new DateTime();
-		base.setYear(base.ad * base.year + delta);
+		// [Q-223/T-186·FT-22] 天文纪年无 0 年:BC1(-1)+1 曾算成 0 → setYear 把 0 复位回 BC1,「下一年」在公元前 1 年卡死;跨 0 直接跳过。
+		let target = base.ad * base.year + delta;
+		if(target === 0){ target = delta > 0 ? 1 : -1; }
+		base.setYear(target);
 		this.onTimeChanged({ value: base });
 	}
 
@@ -1928,7 +2046,8 @@ export class JieQiChartsMain extends Component{
 								onChange={this.changeHsys}
 								value={this.state.hsys} 
 								size='small'>
-								{ getHousesOption() }
+								{/* [Q-223/T-186·FT-21] 本页继承主盘宫制:主盘 25 档,此前只列 9 档 → 继承第 10–25 档时显示裸数字且无法重选 */}
+								{ getHousesOption(true) }
 							</Select>
 						</Col>
 						<Col span={2}>

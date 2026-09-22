@@ -287,6 +287,14 @@ describe('[十一轮] keyDeps 声明完备闸(掩码家全类必显式声明;值
 			arr.forEach((b)=>{ expect({ k, b, ok: BITS.indexOf(b) >= 0 }).toEqual({ k, b, ok: true }); });
 		});
 	});
+	// [Q-420/T-384] keyDeps 不得过宽:单选柱类只依赖所选柱位(此前 nayin_wuxing 读不存在的 p.pillars 回落四柱全位 → 含时柱 → 每换时辰切一行)。
+	it('[Q-420] 八字 nayin_wuxing keyDeps 只含所选柱位(day → dayGz;year → yearGz)', ()=>{
+		const { BAZI_CONDITION_TYPES } = require('../baziZeriConditionTypes');
+		const spec = BAZI_CONDITION_TYPES.nayin_wuxing;
+		expect(spec.keyDeps({ pillar: 'day', values: ['金'] })).toEqual(['dayGz']);
+		expect(spec.keyDeps({ pillar: 'year', values: ['金'] })).toEqual(['yearGz']);
+		expect(spec.keyDeps({})).toEqual(['dayGz']);   // 缺省日柱,不再回落四柱全位
+	});
 	it('[十四轮] 紫微 28 类:keyDeps 必为数组 ⊆ 安星六位', ()=>{
 		const BITS = ['yearGan', 'yearZi', 'anchorM', 'anchorLeap', 'anchorD', 'timeZi'];
 		const { ZIWEI_CONDITION_TYPES } = require('../ziweiZeriConditionTypes');

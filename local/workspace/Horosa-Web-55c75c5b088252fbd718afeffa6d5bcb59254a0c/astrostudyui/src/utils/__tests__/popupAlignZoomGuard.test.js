@@ -138,11 +138,31 @@ describe('T2 实测探针', () => {
 		spy.mockRestore();
 	});
 
-	it('getDeclaredZoom:读 documentElement 内联 zoom,缺席回落 shellZoom', () => {
+	// 契约已于 2026-09-19 更换(不是把测试改绿):旧契约「inline 缺席回落 shellZoom(query/键)」本身就是病灶——
+	// query/键是壳的**启动传输层**,运行期不更新;壳调回 100% 时恰恰把 inline 清空 ⇒ 读回启动旧档。
+	it('getDeclaredZoom:只读 documentElement 内联 zoom;缺席 = 1;近 1 脏值按 1', () => {
 		document.documentElement.style.zoom = '1.4';
 		expect(getDeclaredZoom()).toBeCloseTo(1.4, 6);
 		document.documentElement.style.zoom = '';
-		expect(getDeclaredZoom()).toBe(1);           // 无 query 无键 → 1
+		expect(getDeclaredZoom()).toBe(1);
+		document.documentElement.style.zoom = '1.0000000000000002';   // 老壳 f64 累加脏值
+		expect(getDeclaredZoom()).toBe(1);
+	});
+
+	it('🔴 [运行期真值] 0.8 档启动 → 运行时调回 100%(壳清空 inline,键仍是启动旧值):声明=1、补偿除数=1', () => {
+		installLayoutModel();
+		// 启动:global.js 把 0.8 镜像到 inline,引擎生效;首个浮层打开 → 实测 0.8 入缓存(键 = 声明值 0.8)
+		window.localStorage.setItem('horosa.shell.zoom', '0.8');
+		Z = 0.8;
+		document.documentElement.style.zoom = '0.8';
+		expect(getEffectiveScale()).toBeCloseTo(0.8, 6);
+		// 运行时 ⌘+ 调回 100%:壳的 __HOROSA_APPLY_SHELL_ZOOM(1) 把 inline 清成空串;URL query 不变(jsdom 里用键模拟
+		// 「传输层还留着启动旧值」——旧实现每次读 query 还会把键冲回旧值)
+		Z = 1;
+		document.documentElement.style.zoom = '';
+		expect(getDeclaredZoom()).toBe(1);           // 旧实现:0.8(读回传输层)
+		expect(getEffectiveScale()).toBe(1);         // 旧实现:声明 0.8 → 命中启动缓存 → 0.8 → 全站浮层错位 (1/0.8−1)(D+999)
+		window.localStorage.removeItem('horosa.shell.zoom');
 	});
 });
 
@@ -184,6 +204,36 @@ describe('T3 dom-align 对齐行为(测的就是被补丁的真文件)', () => {
 		});
 	});
 
+	// 🔴 此前 T3 全用 `window.__HOROSA_ALIGN_SCALE__ = () => z` 的**桩**,恰好绕开了出事的「声明值 → 缓存 → 补偿除数」真链路,
+	// 所以这条缺陷在 jest 里结构性不可见。本例装**真钩子**并走完「启动 → 开浮层 → 运行时换档 → 再开浮层」的生命周期。
+	it('🔴 [运行期真值] 真钩子全链:0.8 档启动开过浮层 → 调回 100% → 再换 1.2,三拍都精确对齐', () => {
+		delete window.__HOROSA_ALIGN_SCALE__;
+		delete window.__HOROSA_ALIGN_VIEWPORT_SCALE__;
+		installAlignHooks();
+		const open = () => {
+			const target = mkEl('position:absolute;left:600px;top:400px;width:120px;height:32px;');
+			const popup = mkEl('position:absolute;left:0px;top:0px;width:200px;height:300px;');
+			alignElement(popup, target, { points: ['tl', 'bl'], offset: [0, 0], overflow: { adjustX: 0, adjustY: 0 } });
+			const pr = popup.getBoundingClientRect(); const tr = target.getBoundingClientRect();
+			const out = { dx: pr.left - tr.left, dy: pr.top - tr.bottom };
+			popup.remove(); target.remove();
+			return out;
+		};
+		window.localStorage.setItem('horosa.shell.zoom', '0.8');     // 传输层里的启动旧值,全程不变(= URL query 的处境)
+		Z = 0.8; document.documentElement.style.zoom = '0.8';
+		let r = open();
+		expect(Math.abs(r.dx)).toBeLessThan(1); expect(Math.abs(r.dy)).toBeLessThan(1);
+		Z = 1; document.documentElement.style.zoom = '';             // 壳调回 100%:inline 清空
+		r = open();
+		// 旧实现此处 dx = (1/0.8−1)·(600+999) ≈ +399.75、dy = (1/0.8−1)·(432+999) ≈ +357.75 —— 与实测位移同式
+		expect(Math.abs(r.dx)).toBeLessThan(1); expect(Math.abs(r.dy)).toBeLessThan(1);
+		Z = 1.2; document.documentElement.style.zoom = '1.2';
+		r = open();
+		expect(Math.abs(r.dx)).toBeLessThan(1); expect(Math.abs(r.dy)).toBeLessThan(1);
+		document.documentElement.style.zoom = '';
+		window.localStorage.removeItem('horosa.shell.zoom');
+	});
+
 	it('alignPoint(右键菜单路径)在 zoom=0.8 下同样精确', () => {
 		Z = 0.8;
 		__resetScaleCacheForTest();
@@ -195,6 +245,134 @@ describe('T3 dom-align 对齐行为(测的就是被补丁的真文件)', () => {
 		expect(Math.abs(pr.left - 400)).toBeLessThan(1);
 		expect(Math.abs(pr.top - 300)).toBeLessThan(1);
 		popup.remove();
+	});
+});
+
+// ── T3b 翻转 / 夹紧半程(adjustY)── 旧守卫把 overflow 全关,且 jsdom 的视口读数全为 0 ⇒ getVisibleRectForElement 恒返回 null,
+// dom-align 的「触发器是否在可视区内 → 要不要翻转 / 夹紧」整段从未被任何测试执行过。真机病:壳放大档下,左栏靠下的下拉明明上方放得下
+// 却不翻转、直接伸出窗口底边(真 WebKit 1.8 档 570 个样本里 14 个,超出 53~192 视觉 px)。根因:祖先裁剪循环把 rect 域的 offset
+// 与布局域的 clientWidth/Height **直接相加** ⇒ z>1 时把滚动祖先的可视区算矮,触发器被判「不可见」,翻转 / 夹紧被整段跳过。
+describe('T3b 翻转半程:滚动祖先的可视区必须在 rect 域里算', () => {
+	const VW = 1440; const VH = 900;                     // 视口读数与 rect 同域(真机实测:WebKit 与 Chromium 皆然)
+	const saved = {};
+	function stubViewport(){
+		['clientWidth', 'clientHeight'].forEach((k) => {
+			saved[k] = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, k) || Object.getOwnPropertyDescriptor(window.Element.prototype, k);
+			Object.defineProperty(window.HTMLElement.prototype, k, {
+				configurable: true,
+				get(){
+					if(this === document.documentElement){ return k === 'clientWidth' ? VW : VH; }
+					return parseFloat(k === 'clientWidth' ? this.style.width : this.style.height) || 0;   // 布局域(CSS px)
+				},
+			});
+		});
+		saved.iw = window.innerWidth; saved.ih = window.innerHeight;
+		window.innerWidth = VW; window.innerHeight = VH;
+		document.body.style.overflow = 'hidden';
+	}
+	function restoreViewport(){
+		['clientWidth', 'clientHeight'].forEach((k) => { if(saved[k]){ Object.defineProperty(window.HTMLElement.prototype, k, saved[k]); } else { delete window.HTMLElement.prototype[k]; } });
+		window.innerWidth = saved.iw; window.innerHeight = saved.ih;
+		document.body.style.overflow = '';
+	}
+	beforeEach(() => { installLayoutModel(); __resetScaleCacheForTest(); stubViewport(); });
+	afterEach(() => {
+		restoreViewport(); restoreLayoutModel();
+		delete window.__HOROSA_ALIGN_SCALE__; delete window.__HOROSA_ALIGN_VIEWPORT_SCALE__;
+		document.documentElement.style.zoom = ''; Z = 1;
+	});
+
+	// 几何取自真机 1.8 档:左栏 CSS(top 78, 高 363)→ rect(140 .. 793);触发器 CSS top 294 高 36 → rect(529 .. 594);
+	// 下拉 CSS 高 266 → rect 高 478:放正下 594+478 > 900 出视口,翻到正上 529−478 = 51 ≥ 0 放得下 ⇒ 必须翻转。
+	function openNearPanelBottom(){
+		const panel = mkEl('position:absolute;overflow:auto;left:4px;top:78px;width:330px;height:363px;');
+		const target = mkEl('position:absolute;left:16px;top:294px;width:140px;height:36px;');
+		panel.appendChild(target);
+		const popup = mkEl('position:absolute;left:0px;top:0px;width:140px;height:266px;');
+		alignElement(popup, target, { points: ['tl', 'bl'], offset: [0, 4], overflow: { adjustX: 1, adjustY: 1 } });
+		const pr = popup.getBoundingClientRect(); const tr = target.getBoundingClientRect();
+		const out = { popTop: pr.top, popBottom: pr.bottom, trigTop: tr.top, trigBottom: tr.bottom };
+		popup.remove(); panel.remove();
+		return out;
+	}
+
+	it('🔴 z=1.8 真钩子:触发器在滚动祖先可视区下半部 → 下拉翻到正上(不伸出视口底)', () => {
+		installAlignHooks();
+		Z = 1.8; document.documentElement.style.zoom = '1.8';
+		const r = openNearPanelBottom();
+		expect(r.popBottom).toBeLessThanOrEqual(VH + 1);                    // 旧实现:≈ 594+4+478 = 1076,伸出视口 176
+		expect(Math.abs(r.popBottom - (r.trigTop - 4))).toBeLessThan(2);    // 翻到正上:下拉底贴触发器顶(offset 翻号)
+	});
+
+	it('🔴 z=1:同一几何按 1 倍放得下 → 不翻转,与未打补丁逐位相同(零回归锁)', () => {
+		Z = 1; document.documentElement.style.zoom = '';
+		delete window.__HOROSA_ALIGN_SCALE__; delete window.__HOROSA_ALIGN_VIEWPORT_SCALE__;
+		const a = openNearPanelBottom();
+		installAlignHooks();
+		const b = openNearPanelBottom();
+		expect(b.popTop).toBe(a.popTop);
+		expect(Math.abs(a.popTop - (a.trigBottom + 4))).toBeLessThan(1);
+	});
+});
+
+// ── T3c 较旧的 macOS WebKit 语义:rect **不**反映缩放(rect 域 = 布局域),而 clientWidth / innerHeight 仍报物理尺寸 ──────────────
+// 这类引擎上「可见视口」在 rect 域里只有 物理 ÷ 缩放。对齐库拿物理尺寸当可见区 ⇒ 放大档以为下方还有大片空间,靠下的下拉不翻转、
+// 直接伸出窗口底边(headless 双引擎闸 E2 语义实抓:超出 69 视觉 px)。两处都要对:视口系数改直接量(此前靠 rect 缩放 = 1 提前返回 1)、
+// 补丁 v3 让 body overflow:hidden 分支的「文档尺寸」读数也过这个系数(否则 max() 又被物理值顶回去)。
+describe('T3c rect 不反映缩放的引擎 · 放大档下拉必须翻转', () => {
+	const VW = 1440; const VH = 900; const ZOOM = 1.8;
+	const saved = {};
+	beforeEach(() => {
+		__resetScaleCacheForTest();
+		// rect = 布局值 × 1;唯独「铺满视口的 fixed 元素」量出来是 物理 ÷ 缩放(这就是该引擎上视口在 rect 域的真实大小)
+		Element.prototype.getBoundingClientRect = function(){
+			const st = this.style;
+			if(st.position === 'fixed' && st.right === '0px'){ return { left: 0, top: 0, width: VW / ZOOM, height: VH / ZOOM, right: VW / ZOOM, bottom: VH / ZOOM, x: 0, y: 0, toJSON(){ return this; } }; }
+			const l = parseFloat(st.left) || 0; const t = parseFloat(st.top) || 0; const w = parseFloat(st.width) || 0; const h = parseFloat(st.height) || 0;
+			return { left: l, top: t, width: w, height: h, right: l + w, bottom: t + h, x: l, y: t, toJSON(){ return this; } };
+		};
+		['clientWidth', 'clientHeight'].forEach((k) => {
+			saved[k] = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, k) || Object.getOwnPropertyDescriptor(window.Element.prototype, k);
+			Object.defineProperty(window.HTMLElement.prototype, k, { configurable: true, get(){ if(this === document.documentElement){ return k === 'clientWidth' ? VW : VH; } return parseFloat(k === 'clientWidth' ? this.style.width : this.style.height) || 0; } });
+		});
+		saved.iw = window.innerWidth; saved.ih = window.innerHeight;
+		window.innerWidth = VW; window.innerHeight = VH;
+		document.body.style.overflow = 'hidden';
+		document.documentElement.style.zoom = String(ZOOM);
+	});
+	afterEach(() => {
+		['clientWidth', 'clientHeight'].forEach((k) => { if(saved[k]){ Object.defineProperty(window.HTMLElement.prototype, k, saved[k]); } else { delete window.HTMLElement.prototype[k]; } });
+		window.innerWidth = saved.iw; window.innerHeight = saved.ih;
+		document.body.style.overflow = ''; document.documentElement.style.zoom = '';
+		restoreLayoutModel();
+		delete window.__HOROSA_ALIGN_SCALE__; delete window.__HOROSA_ALIGN_VIEWPORT_SCALE__;
+		__resetScaleCacheForTest();
+	});
+
+	// rect 域里可见视口 = 800 × 500。触发器 294..330,下拉高 266:放正下 334..600 伸出 100;翻到正上 24..290 放得下。
+	function openLow(){
+		const target = mkEl('position:absolute;left:16px;top:294px;width:140px;height:36px;');
+		const popup = mkEl('position:absolute;left:0px;top:0px;width:140px;height:266px;');
+		alignElement(popup, target, { points: ['tl', 'bl'], offset: [0, 4], overflow: { adjustX: 1, adjustY: 1 } });
+		const pr = popup.getBoundingClientRect(); const tr = target.getBoundingClientRect();
+		popup.remove(); target.remove();
+		return { popTop: pr.top, popBottom: pr.bottom, trigTop: tr.top, trigBottom: tr.bottom };
+	}
+
+	it('🔴 真钩子:下拉翻到触发器正上方,不伸出可见视口底(物理 900 ÷ 1.8 = 500)', () => {
+		installAlignHooks();
+		expect(window.__HOROSA_ALIGN_SCALE__()).toBe(1);                       // rect 不反映缩放 ⇒ 写回补偿自动静默
+		expect(window.__HOROSA_ALIGN_VIEWPORT_SCALE__()).toBeCloseTo(1 / ZOOM, 4);
+		const r = openLow();
+		expect(r.popBottom).toBeLessThanOrEqual(VH / ZOOM + 1);
+		expect(Math.abs(r.popBottom - (r.trigTop - 4))).toBeLessThan(2);
+	});
+
+	it('反例自证:视口系数钉成 1(旧实现)时同一几何不翻转、伸出可见视口 —— 这把尺有牙', () => {
+		installAlignHooks();
+		window.__HOROSA_ALIGN_VIEWPORT_SCALE__ = () => 1;
+		const r = openLow();
+		expect(r.popBottom).toBeGreaterThan(VH / ZOOM + 50);
 	});
 });
 
@@ -218,6 +396,32 @@ describe('T4 补丁完整性哨兵', () => {
 			expect((src.match(/off = off \/ __hz/g) || []).length).toBe(1);
 			expect((src.match(/_off = _off \/ __hz/g) || []).length).toBe(1);
 			expect((src.match(/__horosaAlignScale/g) || []).length).toBeGreaterThanOrEqual(3);
+		});
+	});
+
+	it('🔴 v2 防半修:祖先裁剪循环四个布局域读数都换到 rect 域(每份产物各恰 1 处)', () => {
+		files.forEach((rel) => {
+			const src = fs.readFileSync(path.join(root, rel), 'utf8');
+			expect(src.indexOf('horosa:dom-align-zoom v3') >= 0).toBe(true);   // 标记随补丁版本走(v3 含 v2 全部锚)
+			['pos.left += el.clientLeft * __hzc;', 'pos.top += el.clientTop * __hzc;', 'pos.left + el.clientWidth * __hzc);', 'pos.top + el.clientHeight * __hzc);', 'var __hzc = __horosaAlignScale(el);']
+				.forEach((tok) => expect(src.split(tok).length - 1).toBe(1));
+			// 未补形态不得残留(半修 = 一边乘了一边没乘,比不修更糟)
+			expect(/pos\.top \+ el\.clientHeight\);/.test(src)).toBe(false);
+			expect(/pos\.left \+ el\.clientWidth\);/.test(src)).toBe(false);
+		});
+	});
+
+	it('🔴 v3 防半修:body overflow:hidden 分支的「文档尺寸」两条读数都过视口系数(每份产物各恰 1 处,未补形态零残留)', () => {
+		files.forEach((rel) => {
+			const src = fs.readFileSync(path.join(root, rel), 'utf8');
+			['documentWidth = win.innerWidth * __vs;', 'documentHeight = win.innerHeight * __vs;']
+				.forEach((tok) => expect(src.split(tok).length - 1).toBe(1));
+			expect(/documentWidth = win\.innerWidth;/.test(src)).toBe(false);
+			expect(/documentHeight = win\.innerHeight;/.test(src)).toBe(false);
+			// __vs 必须先于使用处定义(P5 在同一函数里):定义在前、两处使用在后
+			const def = src.indexOf('var __vs = __horosaViewportScale(win);');
+			expect(def).toBeGreaterThan(0);
+			expect(src.indexOf('documentHeight = win.innerHeight * __vs;')).toBeGreaterThan(def);
 		});
 	});
 

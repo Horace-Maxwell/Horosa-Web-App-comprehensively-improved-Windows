@@ -4,7 +4,7 @@ import * as service from '../services/user';
 import DateTime from '../components/comp/DateTime';
 import { DefLat, DefLon, DefGpsLat, DefGpsLon, } from '../utils/constants';
 import { getPagedLocalCharts, upsertLocalChart, removeLocalChart, listLocalCharts } from '../utils/localcharts';
-import { captureNonDefaultTechniqueFields } from '../utils/recordFieldsRestore';
+import { captureNonDefaultTechniqueFields, markFieldsCaptured } from '../utils/recordFieldsRestore';
 import { getPagedLocalCases, upsertLocalCase, removeLocalCase, getCaseTypeMeta } from '../utils/localcases';
 
 
@@ -1082,6 +1082,9 @@ export default {
 				payload: {
 					currentTab: nextTab,
 					currentSubTab: nextSubTab,
+					// [Q-314 裁决 A] 载入事盘:八字本页覆盖层复位;事盘自带口径(任一键)→ 钉住共享层不被全局事件覆盖
+					baziCalibreOverride: {},
+					_dayBoundaryRecordPinned: (pickCaseField('after23NewDay') !== null || pickCaseField('lateZiHourUseNextDay') !== null || pickCaseField('timeAlg') !== null),
 				},
 			});
 			yield put({
@@ -1163,6 +1166,7 @@ export default {
 						param[k] = captured[k];
 					}
 				});
+				markFieldsCaptured(param);   // [Q-256/T-219] 新记录打代次标记:载入时缺清单键 = 默认(不再沿用上一张盘)
 				const rec = upsertLocalChart(param);
 				// [R4 重复检测] 同名同生辰提示(不拦截保存 —— 双胞胎/重录皆合法,只提醒区分)。
 				try{
@@ -1201,7 +1205,7 @@ export default {
 			// addChart 面向保存表单(打开列表抽屉且birth 为 DateTime(带符号年,BC/五位年安全));此处 payload.birth 多为字符串
 			// ("YYYY-MM-DD HH:mm:ss"),upsertLocalChart/buildLocalChartRecord 本就容忍字符串,直接落库。
 			try{
-				upsertLocalChart(values);
+				upsertLocalChart(markFieldsCaptured({ ...(values || {}) }));   // [Q-256/T-219] 名人库等静默新建同样打标记
 				yield put({ type: 'fetchCharts', payload: {} });
 			}catch(e){
 				// localStorage 满/不可用:静默失败(调用方 iframe 已给乐观提示);不打断当前页。

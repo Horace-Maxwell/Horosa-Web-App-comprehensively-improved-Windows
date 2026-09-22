@@ -181,3 +181,31 @@ describe('[B1] 格局判据恒基表(亮度源不得渗入)', ()=>{
 		}
 	});
 });
+
+// [Q-433/T-396] 深度报告 GT 边界预装饰:decorateZiweiChartBrightness 把整张 chart 各星组 starlight 按当前亮度源改写(与 starLightOf 同口径),
+// 缺省源 zi_jian 原对象原样返回(零回归);非缺省源下与快照 builder 同档。
+describe('[亮度] decorateZiweiChartBrightness(报告 GT 与快照同源)', ()=>{
+	const { decorateZiweiChartBrightness } = require('../data/ziweiTables');
+	afterEach(()=>{ ZWEngineOptions.brightnessSource = 'zi_jian'; });
+	test('缺省源:同一引用原样返回;非缺省源:每格 === starLightOf,且原对象不被改写', ()=>{
+		const zhiList = '子丑寅卯辰巳午未申酉戌亥'.split('');
+		const stars = Object.keys(STAR_LIGHT_QUANSHU).slice(0, 6);
+		const chart = { houses: zhiList.map((z)=>({ name: `${z}宫`, ganzi: `甲${z}`, starsMain: stars.map((n)=>({ name: n, starlight: STAR_LIGHT[n] ? STAR_LIGHT[n][z] : '' })), starsEvil: [{ name: '副截空' }] })) };
+		expect(decorateZiweiChartBrightness(chart)).toBe(chart);
+		ZWEngineOptions.brightnessSource = 'quanshu';
+		const out = decorateZiweiChartBrightness(chart);
+		expect(out).not.toBe(chart);
+		let changed = 0;
+		out.houses.forEach((h, i)=>{
+			const z = zhiList[i];
+			h.starsMain.forEach((s, j)=>{
+				const want = starLightOf(s.name, z, 'quanshu');
+				expect(s.starlight).toBe(want != null ? want : chart.houses[i].starsMain[j].starlight);
+				if(s.starlight !== chart.houses[i].starsMain[j].starlight) changed += 1;
+			});
+		});
+		expect(changed).toBeGreaterThan(0);
+		// 原对象零改写
+		chart.houses.forEach((h, i)=>h.starsMain.forEach((s)=>expect(s.starlight).toBe(STAR_LIGHT[s.name] ? STAR_LIGHT[s.name][zhiList[i]] : '')));
+	});
+});

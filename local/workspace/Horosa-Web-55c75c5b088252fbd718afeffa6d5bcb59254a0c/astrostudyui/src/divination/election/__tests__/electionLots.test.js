@@ -83,14 +83,16 @@ describe('婚姻四路与构造/反转口径', () => {
 		const valens = computeElectionLots(facts, { erosConstruction: 'valens' });
 		expect(paulus.byId.erosAlt).toBeTruthy();
 		expect(valens.byId.erosValens).toBeTruthy();
-		// 昼盘 valens 爱欲 = asc + 福 − 精神 = 15+117.1−272.9 = −140.8 → 219.2
-		expect(near(valens.byId.erosValens.lon, 219.2)).toBe(true);
+		// [Q-295/T-278] 与后端 perchart Valens 式同:昼盘 爱欲 = asc + 精神 − 福 = 15+272.9−117.1 = 170.8;必然 = asc + 福 − 精神 = 219.2
+		// (旧金标 219.2 照抄了前端互换后的式子 → 择日爱欲点=星盘必然点,现按后端式重记)
+		expect(near(valens.byId.erosValens.lon, 170.8)).toBe(true);
+		expect(near(valens.byId.necessityValens.lon, 219.2)).toBe(true);
 		// 夜盘化 fixture:isDiurnal=false → classic 反转 vs schmidt 恒昼式
 		const nightFacts = mkFacts((r) => { r.chart.isDiurnal = false; });
 		const classic = computeElectionLots(nightFacts, { erosConstruction: 'valens', lotsReversal: 'classic' });
 		const schmidt = computeElectionLots(nightFacts, { erosConstruction: 'valens', lotsReversal: 'schmidt' });
-		expect(near(classic.byId.erosValens.lon, ((15 + 272.9 - 117.1) % 360 + 360) % 360)).toBe(true);
-		expect(near(schmidt.byId.erosValens.lon, 219.2)).toBe(true);
+		expect(near(classic.byId.erosValens.lon, ((15 + 117.1 - 272.9) % 360 + 360) % 360)).toBe(true);
+		expect(near(schmidt.byId.erosValens.lon, 170.8)).toBe(true);
 		expect(classic.byId.erosValens.lon).not.toBe(schmidt.byId.erosValens.lon);
 	});
 });

@@ -21,7 +21,10 @@ function cloneTable(t){
 export default class TermsEditor extends React.Component {
 	constructor(props){
 		super(props);
-		const saved = loadCustomTerms();
+		// [Q-254/T-236] 初值=「当前生效表」:随盘表体(props.effective,来自 fields.customTermsDay/Night,后端算的就是它)
+		// 优先,缺则本机编辑器仓;此前恒读本机仓 → 载入过带表体的命盘后,编辑器显示的不是生效表。
+		const eff = props.effective && Array.isArray(props.effective.day) && props.effective.day.length === 12 ? props.effective : null;
+		const saved = eff || loadCustomTerms();
 		this.state = {
 			tab: 'day',
 			day: cloneTable((saved && saved.day) || EGYPT_TEMPLATE),
@@ -91,7 +94,8 @@ export default class TermsEditor extends React.Component {
 			return;
 		}
 		message.success('自定义界表已保存');
-		if(this.props.onSaved){ this.props.onSaved(); }
+		// [Q-254/T-236] 把保存表体交给宿主写回 fields(随盘表体优先于本机仓),否则重排仍用旧随盘表。
+		if(this.props.onSaved){ this.props.onSaved({ day: cloneTable(day), night: night ? cloneTable(night) : null }); }
 		if(this.props.onClose){ this.props.onClose(); }
 	};
 

@@ -188,7 +188,7 @@ class LiuRengChart extends Component{
 				width: 'auto',
 				'max-width': '560px',
 				'min-width': '220px',
-				'max-height': '62vh',
+				'max-height': 'calc(62 * var(--horosa-lvh, 1vh))',
 				'overflow-y': 'auto',
 				padding: '8px 10px',
 				font: '13px sans-serif',

@@ -6,6 +6,26 @@ from astrostudy.acg.ACGraph import ACGraph, findMundaneEvent
 
 from websrv.helper import enable_crossdomain
 
+
+def _zone_to_hours(zone):
+    """'+08:00' / '-05:30' / '8' / 8.0 / '+0800' → 小时数(float);空或不可解析 → 0(= UT,旧调用零回归)。"""
+    if zone is None or zone == '':
+        return 0.0
+    try:
+        if isinstance(zone, (int, float)):
+            return float(zone)
+        s = str(zone).strip()
+        sign = -1.0 if s.startswith('-') else 1.0
+        s = s.lstrip('+-')
+        if ':' in s:
+            hh, mm = s.split(':')[:2]
+            return sign * (float(hh) + float(mm or 0) / 60.0)
+        if len(s) == 4 and s.isdigit():
+            return sign * (float(s[:2]) + float(s[2:]) / 60.0)
+        return sign * float(s)
+    except Exception:
+        return 0.0
+
 class AcgSrv:
     exposed = True
 
@@ -50,7 +70,9 @@ class AcgSrv:
             jd = findMundaneEvent(kind, jd0, direction)
             if jd is None:
                 return jsonpickle.encode({'err': 'not found'}, unpicklable=False)
-            y, m, d, h = swisseph.revjul(jd)
+            # T-49:回本命时区钟面(前端把 date/time 原样写进 CCG,后端 _ccgJd 再按本命 zone 解释);不带 zone 仍回 UT(旧调用零回归)
+            zone_hours = _zone_to_hours(data.get('zone'))
+            y, m, d, h = swisseph.revjul(jd + zone_hours / 24.0)
             hh = int(h)
             mi = int((h - hh) * 60.0)
             ss = int(round(((h - hh) * 60.0 - mi) * 60.0))
@@ -62,7 +84,8 @@ class AcgSrv:
                 hh += 1
             obj = {'kind': kind, 'jd': round(jd, 6),
                    'date': '{0}/{1:02d}/{2:02d}'.format(y, m, d),
-                   'time': '{0:02d}:{1:02d}:{2:02d}'.format(hh, mi, ss)}
+                   'time': '{0:02d}:{1:02d}:{2:02d}'.format(hh, mi, ss),
+                   'zone': data.get('zone') if zone_hours else '+00:00'}
             return jsonpickle.encode(obj, unpicklable=False)
         except:
             traceback.print_exc()

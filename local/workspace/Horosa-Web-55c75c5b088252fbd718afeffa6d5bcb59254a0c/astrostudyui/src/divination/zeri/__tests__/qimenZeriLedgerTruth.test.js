@@ -76,7 +76,7 @@ describe('① 快照段头 活体对拍', ()=>{
 		expect(text).toContain('地点：测试点');
 		expect(text).toContain('时家奇门');
 		expect(text).toContain('或 ');
-		expect(text).toContain('1. 2026-05-15 00:00 ~ 2026-05-15 01:00　阳遁七局下元');
+		expect(text).toContain('1. 2026-05-15 00:00 ~ 2026-05-15 01:00(60分)　阳遁七局下元');   // [Q-452 A] 命中行补时长
 	});
 });
 

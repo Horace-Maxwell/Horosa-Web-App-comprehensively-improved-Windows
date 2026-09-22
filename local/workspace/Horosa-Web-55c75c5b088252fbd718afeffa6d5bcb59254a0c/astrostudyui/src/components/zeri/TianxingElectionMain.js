@@ -1,8 +1,11 @@
 import { Component } from 'react';
+import { readGlobalZeriSnapshotExplainRows } from '../../utils/zeriSnapshotPrefs';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { XQButton, XQSideSection, XQTabs } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import DivinationChartShell from '../divination/DivinationChartShell';
+import { definePageSettings } from '../../utils/pageSettingsStore';
+import { shellFieldSchema, seedShellFromSaved } from '../../utils/divinationShellSettings';
 import DateTime from '../comp/DateTime';
 import { convertLonToStr, convertLatToStr } from '../astro/AstroHelper';
 import { getClassicalChartGlobals } from '../../utils/classicalChartGlobals';
@@ -46,6 +49,11 @@ function initialTree(){
 	return { ...newGroup('all'), children: [newLeaf('aspect')] };
 }
 
+// 排盘设置跨会话保留:本页的口径只有盘壳左栏的黄道 / 宫制两项(搜索条件树与时间窗是每一次搜索的输入)。
+export const TIANXING_PAGE_SETTINGS = definePageSettings('horosa.zeri.tianxing.settings.v1', {
+	...shellFieldSchema(0),
+});
+
 export default class TianxingElectionMain extends Component{
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -56,6 +64,8 @@ export default class TianxingElectionMain extends Component{
 
 	constructor(props){
 		super(props);
+		// 壳只在构造时读 defaults:用保存值播种一次(引用恒定)。没存过 = 原来的出厂值逐字相同。
+		this._shellSeed = seedShellFromSaved(TIANXING_PAGE_SETTINGS, { tradition: 1, zodiacal: 0, hsys: 0 }, {}, []);
 		const today = new Date();
 		const monthLater = new Date(today.getTime() + 30 * 86400000);
 		this.state = {
@@ -117,6 +127,7 @@ export default class TianxingElectionMain extends Component{
 	}
 
 	componentWillUnmount(){
+		this._unmounted = true;   // [Q-453] 预取判读树回调守卫
 		if(this._abort){
 			this._abort.abort();
 		}
@@ -199,7 +210,9 @@ export default class TianxingElectionMain extends Component{
 		// 代际+UI 树指纹:详情缓存按代际隔离(旧搜索的判读绝不复用到新结果);
 		// 树被改而未重搜时结果页亮黄条(结果↔条件失配防呆,用户实抓旧判读串行)。
 		this._scanEpoch = (this._scanEpoch || 0) + 1;
-		this._scanUiTreeJson = JSON.stringify(this.state.tree);
+		// [Q-271/ZC-24] 冻结 UI 树(详情面「设定」列配冻结判读树)+ 失配指纹并入 cfg(改时间段/地点/黄道/宫制也亮黄条,九家同律)
+		this._scanUiTree = JSON.parse(JSON.stringify(this.state.tree));
+		this._scanUiJson = JSON.stringify({ cfg: this.state.cfg, tree: this.state.tree });
 		pushHistory(this.state.cfg, this.state.tree);
 		this._abort = new AbortController();
 		this.setState({ scanning: true, scanErr: '', progress: null, results: null, truncated: false });
@@ -215,7 +228,8 @@ export default class TianxingElectionMain extends Component{
 					this.setState(patch);
 				},
 			});
-			this.setState({ scanning: false, results: out.intervals, truncated: out.truncated, progress: null });
+			this.setState({ scanning: false, results: out.intervals, truncated: out.truncated, progress: null, snapshotExplains: null });
+			this.prefetchSnapshotExplains(out.intervals);   // [Q-453] 服务端判读预取前 N 行进快照
 		}catch(e){
 			if(e && e.name === 'AbortError'){
 				this.setState({ scanning: false, progress: null });
@@ -399,6 +413,18 @@ export default class TianxingElectionMain extends Component{
 		);
 	}
 
+	// [Q-453 裁决 2026-09-18] 判读树是服务端异步:扫描完成后预取前 N 行(全局可配,缺省 3)存 state,buildAiSnapshot 闭包按需读取
+	// (壳在存档 / 刷新请求时现算快照,不必重存);新一轮扫描作废旧批。
+	prefetchSnapshotExplains = (rows) => {
+		const n = Math.min(readGlobalZeriSnapshotExplainRows(), Array.isArray(rows) ? rows.length : 0);
+		const epoch = (this._explainEpoch = (this._explainEpoch || 0) + 1);
+		if(!n){ return; }
+		Promise.all(rows.slice(0, n).map((r)=>Promise.resolve().then(()=>this.explainInterval(r)).catch(()=>null))).then((list)=>{
+			if(this._unmounted || epoch !== this._explainEpoch){ return; }
+			this.setState({ snapshotExplains: list });
+		});
+	};
+
 	explainInterval = async (row) => {
 		const { fetchElectionExplain } = require('../../services/electionScan');
 		const base = this._scanBase || this.buildScanBase();
@@ -426,6 +452,9 @@ export default class TianxingElectionMain extends Component{
 			tradition: 1, southchart: 0, doubingSu28: 0, strongRecption: 0,
 			simpleAsp: 0, virtualPointReceiveAsp: 1, predictive: 0,
 			pdaspects: [0, 60, 90, 120, 180], after23NewDay: 1,
+			// [Q-419/T-382][Q-268/T-254] 浮窗与扫描同源构参:全局古典口径(界系/三分/交点真平/昼夜缓冲/福点反转/落宫前移…)
+			// 与 'user' 档历元两键——此前浮窗只带时地/宫制/黄道,非缺省全局口径下浮窗盘与扫描判定、主盘三者不同形。
+			...natalClassicalParams({ ...getClassicalChartGlobals(), siderealAyanamsa: chart.siderealAyanamsa }),
 		};
 	};
 
@@ -436,7 +465,9 @@ export default class TianxingElectionMain extends Component{
 					title="天星择日"
 					kicker="择日搜索"
 					pageClass="horosa-zeri-page"
-					defaults={{ tradition: 1, zodiacal: 0, hsys: 0 }}
+					defaults={this._shellSeed.defaults}
+					restoreBaseline={this._shellSeed.restoreBaseline}   /* 载入事盘:事盘里没有的设置键回出厂值,不沿用本机保存的偏好 */
+					onUserFieldChange={(patch)=>TIANXING_PAGE_SETTINGS.save(patch)}   /* 壳左栏亲手改黄道 / 宫制 → 落盘 */
 					fields={this.props.fields}
 					height={this.props.height}
 					chartDisplay={this.props.chartDisplay}
@@ -450,6 +481,7 @@ export default class TianxingElectionMain extends Component{
 						tree: this.state.tree,
 						results: this.state.results,
 						truncated: this.state.truncated,
+						explainAt: (row, i)=>(this.state.snapshotExplains ? this.state.snapshotExplains[i] || null : null),   // [Q-453] 预取缓存
 					})}
 					renderLeftExtra={(args) => this.renderLeftExtra(args)}
 					renderRight={(args) => this.renderRight(args)}
@@ -468,8 +500,9 @@ export default class TianxingElectionMain extends Component{
 					onExplain={this.explainInterval}
 					onPreviewParams={this.previewChartParams}
 					scanEpoch={this._scanEpoch || 0}
-					resultsStale={!!(this.state.results && this._scanUiTreeJson
-						&& JSON.stringify(this.state.tree) !== this._scanUiTreeJson)}
+					frozenTree={this._scanUiTree}
+					resultsStale={!!(this.state.results && this._scanUiJson
+						&& JSON.stringify({ cfg: this.state.cfg, tree: this.state.tree }) !== this._scanUiJson)}
 					previewDisplay={this.getPreviewDisplay()}
 					scanning={this.state.scanning}
 					progress={this.state.progress}

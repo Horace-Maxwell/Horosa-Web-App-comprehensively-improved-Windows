@@ -57,6 +57,19 @@ describe('triplicityRulers', ()=>{
 		});
 	});
 
+	it('[Q-187/T-111] 不传 system 时随本盘 params.triplicity(挂载 record.system 缺席=页面初值同序);非法值仍回多罗特', ()=>{
+		const c = chart({ diurnal: true, sunSign: 'Aries', moonSign: 'Cancer' });
+		c.params.triplicity = 'Ptolemaic';
+		const auto = buildTriplicityPeriods(c, { division: 'thirds' });
+		const explicit = buildTriplicityPeriods(c, { division: 'thirds', system: 'Ptolemaic' });
+		expect(auto.system).toBe('Ptolemaic');
+		expect(auto.periods.map((p)=>p.ruler)).toEqual(explicit.periods.map((p)=>p.ruler));
+		const dor = buildTriplicityPeriods(c, { division: 'thirds', system: 'Dorothean' });
+		expect(auto.periods.map((p)=>p.ruler)).not.toEqual(dor.periods.map((p)=>p.ruler));   // 白羊昼:托勒密两段 vs 多罗特三段
+		c.params.triplicity = 'Bogus';
+		expect(buildTriplicityPeriods(c, { division: 'thirds' }).system).toBe('Dorothean');
+	});
+
 	it('托勒密二主:火/土/风象取昼夜两主、无协作主星(白羊昼→日,夜→木两段)', ()=>{
 		const r = buildTriplicityPeriods(chart({ diurnal: true, sunSign: 'Aries', moonSign: 'Cancer' }), { system: 'Ptolemaic' });
 		expect(r.system).toBe('Ptolemaic');

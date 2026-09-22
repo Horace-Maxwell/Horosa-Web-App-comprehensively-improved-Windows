@@ -85,6 +85,14 @@ public class PlanetariumController {
 		if(TransData.containsParam("includeRiseSet")) {
 			params.put("includeRiseSet", TransData.getValueAsInt("includeRiseSet", 0));
 		}
+		// [TL-08] 轻量首帧 / 播放校准显式发 includeOverlays:false、includeTraditions:false 以省叠加层与传统层;
+		// 此前两键未登记白名单 → Java 静默丢 → Python 缺省 True,每 5–15 s 一次的校准照样全算全传。布尔透传(Python 判 `is not False`)。
+		if(TransData.containsParam("includeOverlays")) {
+			params.put("includeOverlays", TransData.getValueAsBool("includeOverlays", true));
+		}
+		if(TransData.containsParam("includeTraditions")) {
+			params.put("includeTraditions", TransData.getValueAsBool("includeTraditions", true));
+		}
 		return params;
 	}
 }

@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/comp/ChartFormData.js b/astrostudyui/src/components/comp/ChartFormData.js
-index a689996..3df3506 100644
+index da43f15a..3c975f07 100644
 --- a/astrostudyui/src/components/comp/ChartFormData.js
 +++ b/astrostudyui/src/components/comp/ChartFormData.js
-@@ -52,8 +52,41 @@ export default class ChartFormData extends Component{
+@@ -54,8 +54,41 @@ export default class ChartFormData extends Component{
  		this.clickOk = this.clickOk.bind(this);
  		this.clickReturn = this.clickReturn.bind(this);
  
@@ -44,15 +44,15 @@ index a689996..3df3506 100644
  
  	setValue(key, val){
  		let flds = this.state.fields;
-@@ -68,6 +101,7 @@ export default class ChartFormData extends Component{
+@@ -70,6 +103,7 @@ export default class ChartFormData extends Component{
  		this.setState({
  			fields: flds,
  		});
 +		this.scheduleLivePrecompute();
  	}
  
- 	changeBirth(val){
-@@ -90,6 +124,7 @@ export default class ChartFormData extends Component{
+ 	// 「快捷输入」行提交:同一条 changeBirth 路(date/time 双写 + 夏令时校正)
+@@ -97,6 +131,7 @@ export default class ChartFormData extends Component{
  		this.setState({
  			fields: flds,
  		});
@@ -60,7 +60,7 @@ index a689996..3df3506 100644
  	}
  
  	changeZodiacal(val){
-@@ -235,6 +270,12 @@ export default class ChartFormData extends Component{
+@@ -242,6 +277,12 @@ export default class ChartFormData extends Component{
  	}
  
  	clickOk(){

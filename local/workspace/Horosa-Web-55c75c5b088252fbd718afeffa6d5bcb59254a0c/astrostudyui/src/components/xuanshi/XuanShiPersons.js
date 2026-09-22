@@ -19,12 +19,16 @@ export default class XuanShiPersons extends React.Component {
 	componentWillUnmount() { if (this._sim) { this._sim.stop(); } }
 
 	async load() {
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
+		// [Q-489/T-451] 记下「本次取数实际用的门槛」:页顶说明行此前读输入框当前值,
+		// 改了数字还没点「应用」就先变了文案(图还是旧的)。
+		const appliedMinWeight = this.state.minWeight;
 		this.setState({ loading: true, err: '' });
 		try {
-			const r = await fetchPersonsGraph({ top_n: this.state.topN, min_weight: this.state.minWeight });
+			const r = await fetchPersonsGraph({ top_n: this.state.topN, min_weight: appliedMinWeight }); if(__seq !== this._loadSeq){ return; }
 			const nodes = (r.nodes || []).map((n) => ({ ...n }));
 			const edges = (r.edges || r.links || []).map((e) => ({ ...e }));
-			this.setState({ count: nodes.length, edgeCount: edges.length, loading: false }, () => {
+			this.setState({ count: nodes.length, edgeCount: edges.length, appliedMinWeight, loading: false }, () => {
 				// 等 DOM 落地再让 d3 接管(svg ref 此时确保存在)
 				requestAnimationFrame(() => {
 					try { this.renderGraph(nodes, edges); } catch (ge) { this.setState({ err: `图谱渲染:${ge && ge.message ? ge.message : ge}` }); }
@@ -98,7 +102,9 @@ export default class XuanShiPersons extends React.Component {
 			.style('stroke-width', '3px')
 			.text((d) => d.id);
 
-		node.append('title').text((d) => `${d.id} · 全库出现 ${d.weight || 0} 次`);
+		// [Q-489/T-451] weight 是「该人所有达门槛的共现边权之和」(加权共现度),不是全库出现次数 ——
+		// 门槛一改这个数就变,标成「全库出现 N 次」会被当成人物的出场频次。
+		node.append('title').text((d) => `${d.id} · 加权共现度 ${d.weight || 0}(其达门槛的共现边权之和,随「最小共现」变化)`);
 
 		sim.on('tick', () => {
 			link.attr('x1', (d) => d.source.x).attr('y1', (d) => d.source.y)
@@ -108,7 +114,8 @@ export default class XuanShiPersons extends React.Component {
 	}
 
 	render() {
-		const { count, edgeCount, loading, err, topN, minWeight } = this.state;
+		const { count, edgeCount, loading, err, topN, minWeight, appliedMinWeight } = this.state;
+		const shownMinWeight = appliedMinWeight === undefined || appliedMinWeight === null ? minWeight : appliedMinWeight;   // [Q-489/T-451] 说明行跟图走
 		return (
 			<div>
 				<div className="xuanshi-crumbs">
@@ -117,9 +124,9 @@ export default class XuanShiPersons extends React.Component {
 				</div>
 				<div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
 					<div>
-						<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(24px,3vw,32px)' }}>人物关系图</h1>
+						<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(24px,calc(3 * var(--horosa-lvw, 1vw)),32px)' }}>人物关系图</h1>
 						<div className="xuanshi-section-sub" style={{ margin: '6px 0 0' }}>
-							<b style={{ color: 'var(--ink)' }}>{count}</b> 位人物 · <b style={{ color: 'var(--ink)' }}>{edgeCount}</b> 条共现边；当两人在同一事件记录中共同出现 ≥ {minWeight} 次时连一条边。
+							<b style={{ color: 'var(--ink)' }}>{count}</b> 位人物 · <b style={{ color: 'var(--ink)' }}>{edgeCount}</b> 条共现边；当两人在同一事件记录中共同出现 ≥ {shownMinWeight} 次时连一条边;节点大小按加权共现度(其达门槛的边权之和)。
 						</div>
 					</div>
 					<div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -135,7 +142,7 @@ export default class XuanShiPersons extends React.Component {
 					{loading ? <div className="xuanshi-center" style={{ minHeight: 460 }}><Spin tip="布局图谱…" /></div> : err ? (
 						<div className="xuanshi-center" style={{ minHeight: 460 }}><Empty description={`载入失败:${err}`} /><span className="xuanshi-link" onClick={() => this.load()}>重试</span></div>
 					) : null}
-					<svg ref={this._svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '75vh', display: loading || err ? 'none' : 'block', cursor: 'grab', touchAction: 'none' }} />
+					<svg ref={this._svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'calc(75 * var(--horosa-lvh, 1vh))', display: loading || err ? 'none' : 'block', cursor: 'grab', touchAction: 'none' }} />
 				</div>
 				<div className="xuanshi-stat-sub" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontSize: 12 }}>
 					<span>圆圈大小 = 此人在全库出现频次；线粗 = 两人共现次数。</span>

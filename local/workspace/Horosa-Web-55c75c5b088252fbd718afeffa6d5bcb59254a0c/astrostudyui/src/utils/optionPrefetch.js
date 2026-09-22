@@ -4,7 +4,7 @@
 // /chart 变体在空闲时段预好 —— 构参与真点走同一 fieldsToParams(键逐字节同),结果自然落
 // chartMem/requestDedupe 三层;用户切该轴时 = 缓存命中,延迟只剩渲染。
 //
-// ⚠️ 本件是对 R3「optionPrefetch 判弊>利」裁决的**反转**(落账 FAILURE_LEDGER):R3 判弊的
+// ⚠️ 本件是对 R3「optionPrefetch 判弊>利」裁决的**反转**(已落账):R3 判弊的
 // 是「开下拉即触真算」的 intent 形态;本实现改在 settle 后走空闲组(scheduleDataWarmGroup:
 // 组代作废+交互让路),实证二值轴命中率高且零抢队 —— 判弊前提已被规避。
 //

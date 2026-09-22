@@ -14,7 +14,10 @@ import boundless.spring.help.interceptor.SseHelper;
 import boundless.spring.help.interceptor.TransData;
 import boundless.utility.JsonUtility;
 import spacex.astrostudy.service.AIAnalysisMaterialService;
+import boundless.exception.ErrorCodeException;
 import spacex.astrostudy.service.AIAnalysisProxyService;
+import spacex.astrostudy.service.AIWebFetchService;
+import spacex.astrostudy.service.AIWebSearchService;
 
 @Controller
 @RequestMapping("/aianalysis")
@@ -25,6 +28,12 @@ public class AIAnalysisController {
 
 	@Autowired
 	private AIAnalysisMaterialService materialService;
+
+	@Autowired
+	private AIWebSearchService webSearchService;
+
+	@Autowired
+	private AIWebFetchService webFetchService;
 
 	@RequestMapping("/providers/models")
 	@ResponseBody
@@ -50,6 +59,7 @@ public class AIAnalysisController {
 		// 下一个请求,池线程继续持有/书写它就是跨请求污染(空响应/NPE)的根源。worker 只需要
 		// params 与 emitter;__sse__ 已由 servlet 线程在 SseHelper.push() 对真请求设置。
 		// 有界池替代每请求 new Thread(无界直建 burst 下线程堆积);池见 AIAnalysisProxyService.streamWorkerPool()。
+		try {
 		AIAnalysisProxyService.streamWorkerPool().execute(()->{
 			// 池线程复用:开头与 finally 都彻底清场(clearThreadContext 才是真清;
 			// setRequestData 是 merge 语义,清不掉滞留的 servlet 引用与 MB 级挂载快照)。
@@ -68,6 +78,10 @@ public class AIAnalysisController {
 				TransData.clearThreadContext();
 			}
 		});
+		} catch(java.util.concurrent.RejectedExecutionException full) {
+			// [D60] 流池饱和:立刻 503 + 580050(此前 CallerRunsPolicy 在 servlet 线程上同步跑整条流)
+			throw new ErrorCodeException(580050, "AI 流式并发已满,请稍后重试");
+		}
 		return emitter;
 	}
 
@@ -82,6 +96,22 @@ public class AIAnalysisController {
 	@ResponseBody
 	public void extractMaterial(){
 		Map<String, Object> result = materialService.extract(readParams());
+		TransData.set("Result", result);
+	}
+
+	// [P7 出站②] 联网检索:引擎与 Key 由前端逐次带上(本端点不落库、不写日志);默认关,页面开关未开时前端根本不调
+	@RequestMapping("/websearch")
+	@ResponseBody
+	public void webSearch(){
+		Map<String, Object> result = webSearchService.search(readParams());
+		TransData.set("Result", result);
+	}
+
+	// [批三① 出站③] 网页读取:地址逐跳过严格档守卫、回体有界、只出纯文本;本端点不落库、不写日志;默认关,页面开关未开时前端根本不调
+	@RequestMapping("/webfetch")
+	@ResponseBody
+	public void webFetch(){
+		Map<String, Object> result = webFetchService.fetch(readParams());
 		TransData.set("Result", result);
 	}
 

@@ -97,10 +97,38 @@ describe('[R4] 随盘保真·非默认捕获', ()=>{
 		expect(rec.zodiacal).toBe(1);
 		expect(rec.termsVariant).toBe(2);
 		expect(rec.gender).toBe(1);                 // 信封优先
+		expect(rec.fieldsCaptureGen).toBe(1);       // [Q-256/T-219] 新记录带代次标记
 		// 载入侧对称:还原进 fields
 		const restored = applyRecordToFields({}, rec);
 		expect(restored.hsys.value).toBe(3);
 		expect(restored.termsVariant.value).toBe(2);
+	});
+
+	it('[Q-256/T-219] 有标记的记录缺清单键 → 复位到 schema 默认(不沿用上一张盘);无标记旧记录维持现状', ()=>{
+		// eslint-disable-next-line global-require
+		require('../../models/astro');   // 注册基准工厂
+		const { fieldsSchemaBaseline, RECORD_FIELDS_CAPTURE_MARK } = require('../recordFieldsRestore');
+		const def = fieldsSchemaBaseline().hsys.value;
+		const prev = { hsys: { name: ['hsys'], value: 3 }, termsVariant: { name: ['termsVariant'], value: 2 }, name: { name: ['name'], value: 'A' } };
+		const legacy = applyRecordToFields(prev, { cid: 'old' });                       // 无标记:缺键保持当前值(旧记录)
+		expect(legacy.hsys.value).toBe(3);
+		expect(legacy.termsVariant.value).toBe(2);
+		const fresh = applyRecordToFields(prev, { cid: 'new', [RECORD_FIELDS_CAPTURE_MARK]: 1 });   // 有标记:缺键=默认
+		expect(fresh.hsys.value).toBe(def);
+		expect(fresh.hsys).not.toBe(prev.hsys);                                          // 新 entry(不可变)
+		const specDef = require('../classicalParamSpec').specDefaults();
+		expect(fresh.termsVariant.value).toBe(specDef.termsVariant);                    // 古典口径键:复位到 spec 默认(与捕获判默认同基准)
+		expect(fresh.name.value).toBe('A');                                              // 身份键不在清单,不动
+		// 既无 spec 默认也无 schema 初值的清单键(如自定义界表体)→ 撤出 fields
+		const { RECORD_FIELDS_RESTORE_MANIFEST } = require('../recordFieldsRestore');
+		const baseline = fieldsSchemaBaseline();
+		const orphan = RECORD_FIELDS_RESTORE_MANIFEST.map((m)=>m.key).find((k)=>!Object.prototype.hasOwnProperty.call(specDef, k) && !(baseline[k] && baseline[k].value !== undefined));
+		if(orphan){
+			const withOrphan = applyRecordToFields({ [orphan]: { name: [orphan], value: 'x' } }, { cid: 'new3', [RECORD_FIELDS_CAPTURE_MARK]: 1 });
+			expect(withOrphan[orphan]).toBeUndefined();
+		}
+		const kept = applyRecordToFields(prev, { cid: 'new2', [RECORD_FIELDS_CAPTURE_MARK]: 1, hsys: 5 });   // 带值的键照常还原
+		expect(kept.hsys.value).toBe(5);
 	});
 
 	it('全默认路径:捕获空集,记录键面与不开捕获时一致(零回归锚)', ()=>{

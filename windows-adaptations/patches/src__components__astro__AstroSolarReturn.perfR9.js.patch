@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroSolarReturn.js b/astrostudyui/src/components/astro/AstroSolarReturn.js
-index 32308f11..f2be9638 100644
+index 40b7e9ca..fb1fc93e 100644
 --- a/astrostudyui/src/components/astro/AstroSolarReturn.js
 +++ b/astrostudyui/src/components/astro/AstroSolarReturn.js
 @@ -9,7 +9,7 @@ import * as AstroText from '../../constants/AstroText';
@@ -11,10 +11,10 @@ index 32308f11..f2be9638 100644
  import styles from '../../css/styles.less';
  import DateTime from '../comp/DateTime';
  import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-@@ -19,6 +19,11 @@ import UpdatingBadge from '../common/UpdatingBadge';
- import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+@@ -20,6 +20,11 @@ import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
  import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
  import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
+ import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
 +// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
@@ -23,7 +23,7 @@ index 32308f11..f2be9638 100644
  
  const TabPane = Tabs.TabPane;
  const Option = Select.Option;
-@@ -37,6 +42,7 @@ class AstroSolarReturn extends Component{
+@@ -38,6 +43,7 @@ class AstroSolarReturn extends Component{
  		this.requestData = this.requestData.bind(this);
  		this.genAspectDom = this.genAspectDom.bind(this);
  		this.changeDblChartType = this.changeDblChartType.bind(this);
@@ -31,17 +31,17 @@ index 32308f11..f2be9638 100644
  		this.renderPlanetLabel = this.renderPlanetLabel.bind(this);
  		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
  
-@@ -69,6 +75,9 @@ class AstroSolarReturn extends Component{
+@@ -70,6 +76,9 @@ class AstroSolarReturn extends Component{
  			},
  			dirChart: null,
- 			inverse: true,
+ 			inverse: DIRECTION_PAGE_SETTINGS.load().solarReturnInverse,   // 上次亲手选的双盘内外圈
 +			// 受控子页签(原 defaultActiveKey 非受控):FreezeSubTab 需要知道哪一页在前台。
 +			// 初值 = 原 defaultActiveKey,首屏行为逐字不变。
 +			chartTab: 'singlechart',
  		}
  
  		if(this.state.params.date){
-@@ -121,7 +130,13 @@ class AstroSolarReturn extends Component{
+@@ -122,7 +131,13 @@ class AstroSolarReturn extends Component{
  	}
  
  	genNatalParams(chartObj){
@@ -56,7 +56,7 @@ index 32308f11..f2be9638 100644
  		let datetime = new DateTime();
  		if(qryparam.birth){
  			let parts = qryparam.birth.split(' ');
-@@ -206,6 +221,8 @@ class AstroSolarReturn extends Component{
+@@ -211,6 +226,8 @@ class AstroSolarReturn extends Component{
  		};
  
  		this.setState(st, ()=>{
@@ -65,7 +65,7 @@ index 32308f11..f2be9638 100644
  			const chartValue = chartValueAtRequest;
  			saveModuleAISnapshotLazy('solarreturn', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'solarreturn'), {
  				module: 'solarreturn',
-@@ -270,7 +287,30 @@ class AstroSolarReturn extends Component{
+@@ -278,7 +295,30 @@ class AstroSolarReturn extends Component{
  		});
  	}
  
@@ -96,7 +96,7 @@ index 32308f11..f2be9638 100644
  		if(this.state.dirChart === undefined || this.state.dirChart === null){
  			return null;
  		}
-@@ -316,7 +356,7 @@ class AstroSolarReturn extends Component{
+@@ -324,7 +364,7 @@ class AstroSolarReturn extends Component{
  			if(i % 2 === 0){
  				if(i > 0){
  					let dom = (
@@ -105,7 +105,7 @@ index 32308f11..f2be9638 100644
  							<Row>
  								{cols}
  							</Row>
-@@ -330,7 +370,7 @@ class AstroSolarReturn extends Component{
+@@ -338,7 +378,7 @@ class AstroSolarReturn extends Component{
  			cols.push(divs[i]);
  		}
  		rows.push((
@@ -114,7 +114,7 @@ index 32308f11..f2be9638 100644
  				{cols}
  			</Row>
  		));
-@@ -349,6 +389,10 @@ class AstroSolarReturn extends Component{
+@@ -358,6 +398,10 @@ class AstroSolarReturn extends Component{
  		});
  	}
  
@@ -125,7 +125,7 @@ index 32308f11..f2be9638 100644
  	componentDidMount(){
  		this.unmounted = false;
  		if(typeof window !== 'undefined'){
-@@ -463,6 +507,7 @@ class AstroSolarReturn extends Component{
+@@ -472,6 +516,7 @@ class AstroSolarReturn extends Component{
  			overflowX:'hidden',
  		};
  		let chartHeight = height - 50;
@@ -133,7 +133,7 @@ index 32308f11..f2be9638 100644
  
  		return (
  			<div>
-@@ -471,12 +516,18 @@ class AstroSolarReturn extends Component{
+@@ -480,12 +525,18 @@ class AstroSolarReturn extends Component{
  						{/* keep-stale 角标:重取期间旧返照盘留在盘面,右上角提示「更新中…」;首次加载(无旧盘)不显示 */}
  						<div style={{ position: 'relative' }}>
  						{this.state.updating && this.state.dirChart ? <UpdatingBadge /> : null}
@@ -154,7 +154,7 @@ index 32308f11..f2be9638 100644
  										wheelArt={this.props.wheelArt}
  										chartDisplay={this.props.chartDisplay}
  										planetDisplay={this.props.planetDisplay}
-@@ -484,9 +535,11 @@ class AstroSolarReturn extends Component{
+@@ -493,9 +544,11 @@ class AstroSolarReturn extends Component{
  										showAstroMeaning={this.props.showAstroMeaning}
  										height={chartHeight}
  									/>
@@ -167,7 +167,7 @@ index 32308f11..f2be9638 100644
  										wheelArt={this.props.wheelArt}
  										chartDisplay={this.props.chartDisplay}
  										planetDisplay={this.props.planetDisplay}
-@@ -494,15 +547,18 @@ class AstroSolarReturn extends Component{
+@@ -503,15 +556,18 @@ class AstroSolarReturn extends Component{
  										showAstroMeaning={this.props.showAstroMeaning}
  										height={chartHeight}
  									/>

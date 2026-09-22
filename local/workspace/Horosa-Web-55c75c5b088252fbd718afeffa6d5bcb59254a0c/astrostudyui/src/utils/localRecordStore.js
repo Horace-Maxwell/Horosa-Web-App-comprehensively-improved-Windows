@@ -18,6 +18,8 @@ import { isQuotaError, purgeQuotaEmergency } from './safeStorage';
 import { mirrorShadowWrite } from './shadowMirror';
 // [V5-D11] 版本历史:更新前旧版快照(独立 IDB 库;jest/无 IDB 环境自动内存回退)。
 import { pushRecordRevision } from './recordRevisions';
+// [P0-S5] 写路径开关(默认开):逐记录序列化缓存/装饰排序/缓存对象身份保持;关=整库 stringify/parse 旧路径。
+import { recordStoreFastWriteEnabled } from './perfFlags';
 
 export function safeParseJson(txt, defVal){
 	if(!txt){
@@ -39,6 +41,18 @@ export function nowStr(){
 	const mm = String(dt.getMinutes()).padStart(2, '0');
 	const ss = String(dt.getSeconds()).padStart(2, '0');
 	return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+}
+
+// [批五] 标签(group 字段)解析:JSON 数组串 → 数组;裸字符串 → [它];空 → []。与 listTags 聚合同源口径。
+export function parseGroupTags(group){
+	if(group === undefined || group === null || group === ''){ return []; }
+	if(group instanceof Array){ return group.map((t)=>`${t}`.trim()).filter(Boolean); }
+	if(typeof group === 'string'){
+		const parsed = safeParseJson(group, null);
+		if(parsed instanceof Array){ return parsed.map((t)=>`${t}`.trim()).filter(Boolean); }
+		return group.trim() ? [group.trim()] : [];
+	}
+	return [`${group}`];
 }
 
 export function normalizeGroup(group){
@@ -127,11 +141,75 @@ function effOrderKey(r){
 }
 
 function sortByUpdateTimeDesc(list){
-	return list.sort((a, b)=>{
-		const ta = Date.parse(a.updateTime || '') || 0;
-		const tb = Date.parse(b.updateTime || '') || 0;
-		return tb - ta;
-	});
+	if(!recordStoreFastWriteEnabled()){
+		return list.sort((a, b)=>{
+			const ta = Date.parse(a.updateTime || '') || 0;
+			const tb = Date.parse(b.updateTime || '') || 0;
+			return tb - ta;
+		});
+	}
+	// [P0-S5] 装饰-排序-去装饰:每记录只 Date.parse 一次(旧比较器每次比较各 parse 两次,共 N·logN 倍);
+	// 排序键 (-t, 原索引) 与稳定排序下的旧比较器逐位同序(同键按原索引先后)。原地写回并返回同一数组,
+	// 调用方语义(in-place + 返回值)不变。
+	const n = list.length;
+	const dec = new Array(n);
+	for(let i = 0; i < n; i++){
+		const r = list[i];
+		dec[i] = { r, t: Date.parse((r && r.updateTime) || '') || 0, i };
+	}
+	dec.sort((a, b)=>(b.t - a.t) || (a.i - b.i));
+	for(let i = 0; i < n; i++){
+		list[i] = dec[i].r;
+	}
+	return list;
+}
+
+// [P0-S5] 逐记录序列化缓存:记录对象 → 其 JSON 串(WeakMap,随对象回收;跨 store 共用无碍——键是对象身份)。
+// 成立前提=读缓存契约 [S9]:缓存列表里的记录对象永不原地修改,故串与对象恒一致;新建/合并的记录在写成功后
+// 经 JSON 往返为「规范对象」再入缓存列表(键=往返后的对象),调用方拿到的原对象不进缓存列表。
+const recordJsonCache = new WeakMap();
+
+// 数组元素口径:undefined/函数/symbol 在 JSON.stringify(list) 里落为 null,而顶层 JSON.stringify(el) 返回 undefined。
+function stringifyElement(el){
+	const s = JSON.stringify(el);
+	return s === undefined ? 'null' : s;
+}
+
+// 与 JSON.stringify(list) 字节恒等(属性测试看守);对象元素命中缓存免重序列化。
+function serializeList(list){
+	const n = list.length;
+	const parts = new Array(n);
+	for(let i = 0; i < n; i++){
+		const el = list[i];
+		if(el !== null && typeof el === 'object'){
+			let s = recordJsonCache.get(el);
+			if(s === undefined){
+				s = stringifyElement(el);
+				recordJsonCache.set(el, s);
+			}
+			parts[i] = s;
+		}else{
+			parts[i] = stringifyElement(el);
+		}
+	}
+	return '[' + parts.join(',') + ']';
+}
+
+// 规范化一条记录:按其序列化串 JSON 往返(与旧路径 JSON.parse(text) 对该元素的结果同构:显式 undefined 键消失、
+// -0 归 0、NaN/Infinity 落 null 等),并把串挂到往返后的对象上(下次写直接命中)。
+function canonicalizeRecord(el){
+	const cached = (el !== null && typeof el === 'object') ? recordJsonCache.get(el) : undefined;
+	const s = cached !== undefined ? cached : stringifyElement(el);
+	const obj = JSON.parse(s);
+	if(obj !== null && typeof obj === 'object'){
+		recordJsonCache.set(obj, s);
+	}
+	return obj;
+}
+
+// 测试专用:序列化器直出口(属性测试与 JSON.stringify 对拍)。
+export function __serializeListForTests(list){
+	return serializeList(list);
 }
 
 // config = {
@@ -172,6 +250,9 @@ export function createLocalRecordStore(config){
 	let lastRawText = null;
 	let lastParsedList = null;
 	let newerSchemaNotified = false;   // [V5-C10] 超版记录提示,每会话一次
+	// [P0-S2] cid → 记录 索引(惰性建;以 lastParsedList 换代为失效信号——它与 lastRawText 同步换代)。
+	let cidIndex = null;
+	let cidIndexOf = null;
 
 	function warnMemoryFallback(){
 		if(fallbackWarned){
@@ -256,6 +337,49 @@ export function createLocalRecordStore(config){
 		return migrated;
 	}
 
+	// [P0-S2] 单条查找:读缓存命中时经惰性建的 cid 索引 O(1) 取到**共享只读引用**([S9] 契约同款,禁原地改);
+	// 未命中走 readRaw 常规路径(冷读/内存模式皆由它兜住)后线性查找。首个匹配优先(与 findIndex 语义一致);
+	// 不过滤归档(等价 includeArchived)。索引随 lastParsedList 换代自动失效。
+	function buildCidIndex(){
+		if(cidIndex && cidIndexOf === lastParsedList){
+			return cidIndex;
+		}
+		const m = new Map();
+		const src = lastParsedList || [];
+		for(let i = 0; i < src.length; i++){
+			const r = src[i];
+			if(r && r.cid !== undefined && r.cid !== null && !m.has(r.cid)){
+				m.set(r.cid, r);
+			}
+		}
+		cidIndex = m;
+		cidIndexOf = lastParsedList;
+		return m;
+	}
+
+	function getByCid(cid){
+		if(cid === undefined || cid === null){
+			return null;
+		}
+		if(!fallbackToMemoryStore){
+			const storage = getLocalStorage();
+			if(storage){
+				let raw = null;
+				try{
+					raw = storage.getItem(storageKey);
+				}catch(e){
+					raw = undefined;   // 读失败交给 readRaw 走既有降级路径
+				}
+				if(raw !== undefined && raw !== null && raw === lastRawText && lastParsedList){
+					const hit = buildCidIndex().get(cid);
+					return hit === undefined ? null : hit;
+				}
+			}
+		}
+		const found = readRaw().find((r)=>r && r.cid === cid);
+		return found || null;
+	}
+
 	// [S4 诚实语义] 🔴 此前所有失败分支一律 return true:upsert 的 throw 是死代码、五处
 	// 「保存失败」Modal 永不弹,配额写满时 UI 报成功、数据只在内存、重启即丢;且 quota 终败
 	// 还 enableMemoryFallback 把「储存满」永久误判「储存坏」,此后一切写永不再试真储存。
@@ -284,7 +408,9 @@ export function createLocalRecordStore(config){
 			enableMemoryFallback('storage-error');
 			return { persisted: false, reason: 'memory-mode' };
 		}
-		const text = JSON.stringify(next);
+		// [P0-S5] 快路径:逐记录序列化缓存拼串(与 JSON.stringify(next) 字节恒等);关=整库 stringify 旧路径。
+		const fastWrite = recordStoreFastWriteEnabled();
+		const text = fastWrite ? serializeList(next) : JSON.stringify(next);
 		try{
 			storage.setItem(storageKey, text);
 			lastWriteFailed = false;
@@ -295,7 +421,14 @@ export function createLocalRecordStore(config){
 			// 直接缓存内存对象会让 `'key' in rec`/Object.keys 判据与储存字节分叉(闭环测试实锤)。
 			// 写频=用户动作级,一次 parse 代价可忽略;换来 缓存 ≡ 储存字节 恒等。
 			lastRawText = text;
-			lastParsedList = JSON.parse(text);
+			if(fastWrite){
+				// [P0-S5] 身份保持:已在缓存列表里的记录对象原样保留(其串已在 WeakMap,与 text 中该段同源),
+				// 只对新建/合并的 1-2 条做 JSON 往返 —— 结果与 JSON.parse(text) 逐元素同构,未触碰记录跨写同一引用。
+				const prevSet = lastParsedList ? new Set(lastParsedList) : null;
+				lastParsedList = next.map((r)=>(prevSet && prevSet.has(r) ? r : canonicalizeRecord(r)));
+			}else{
+				lastParsedList = JSON.parse(text);
+			}
 			mirrorShadowWrite(storageKey, text);
 			return { persisted: true, reason: 'ok' };
 		}catch(e){
@@ -511,6 +644,28 @@ export function createLocalRecordStore(config){
 
 	// [V5-D3] 使用足迹:载入记录时悄悄记 lastOpenedAt/openCount —— 不刷新 updateTime、
 	// 不动排序数轴(effOrderKey 只认 orderKey/updateTime);写失败静默(足迹丢了无害)。
+	// [批五] 整体改写标签列表(只增工具用:追加一个 / 撤销时回到写前列表);内核直写不经 buildRecord,不刷新 updateTime。
+	function setTags(cid, tags){
+		const all = readRaw();
+		const idx = all.findIndex((r)=>r && r.cid === cid);
+		if(idx < 0){
+			return null;
+		}
+		const rec = { ...all[idx] };
+		const list = (tags instanceof Array ? tags : []).map((t)=>`${t}`.trim()).filter(Boolean);
+		if(list.length){
+			rec.group = JSON.stringify(list);
+		}else{
+			delete rec.group;
+		}
+		all[idx] = rec;
+		const saved = writeRaw(all);
+		if(!saved.persisted && saved.reason === 'quota'){
+			throw new Error(saveErrorCode);
+		}
+		return rec;
+	}
+
 	function touchRecord(cid){
 		const all = readRaw();
 		const idx = all.findIndex((r)=>r && r.cid === cid);
@@ -875,7 +1030,9 @@ export function createLocalRecordStore(config){
 		lastRawText = null;
 		lastParsedList = null;
 		newerSchemaNotified = false;
+		cidIndex = null;
+		cidIndexOf = null;
 	}
 
-	return { list, listTags, getPaged, upsert, remove, setPin, moveRecord, setFlag, touchRecord, exportBackup, importBackup, validateBackupEnvelope, previewImportBackup, getHealth, listTrash, restoreFromTrash, purgeTrashItem, clearTrash, getWriteVersion, __resetForTests };
+	return { list, listTags, getPaged, getByCid, upsert, remove, setPin, moveRecord, setFlag, setTags, touchRecord, exportBackup, importBackup, validateBackupEnvelope, previewImportBackup, getHealth, listTrash, restoreFromTrash, purgeTrashItem, clearTrash, __resetForTests, getWriteVersion };
 }

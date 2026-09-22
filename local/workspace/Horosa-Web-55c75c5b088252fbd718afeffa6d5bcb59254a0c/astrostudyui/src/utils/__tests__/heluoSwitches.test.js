@@ -40,13 +40,20 @@ function existsDiff(optsA, optsB) {
 
 describe('①内核单元测:分歧开关逐个「真实生效」(定论级)', () => {
 	test('五寄中宫 wuJiGong: manualSanYuan≠legacy(阴干男命 上元/下元 各异)', () => {
+		// [Q-267/T-248] 入参改公历年,判元走 1864 甲子起 180 年循环(民国 5 年=1916 上元;民国 80 年=1991 下元;1864–2043 内与旧民国阈值同)
 		// 阴干男命(yangGan=false,isMale=true → ay=false):上元 legacy=艮/manual=坤;下元 legacy=離/manual=兌
-		expect(wuJiGong(5, false, true, 'legacy')).toBe('艮');
-		expect(wuJiGong(5, false, true, 'manualSanYuan')).toBe('坤');
-		expect(wuJiGong(80, false, true, 'legacy')).toBe('離');
-		expect(wuJiGong(80, false, true, 'manualSanYuan')).toBe('兌');
+		expect(wuJiGong(1916, false, true, 'legacy')).toBe('艮');
+		expect(wuJiGong(1916, false, true, 'manualSanYuan')).toBe('坤');
+		expect(wuJiGong(1991, false, true, 'legacy')).toBe('離');
+		expect(wuJiGong(1991, false, true, 'manualSanYuan')).toBe('兌');
 		// 两 mode 至少一处必不同
-		expect(wuJiGong(5, false, true, 'legacy')).not.toBe(wuJiGong(5, false, true, 'manualSanYuan'));
+		expect(wuJiGong(1916, false, true, 'legacy')).not.toBe(wuJiGong(1916, false, true, 'manualSanYuan'));
+		// 循环:1850(上一轮下元)与 2050(下一轮上元)与纪年 jiNian 同元 —— 此前固定阈值把 1850 判上中元、2050 判下元
+		expect(wuJiGong(1850, false, true, 'legacy')).toBe('離');
+		expect(wuJiGong(2050, false, true, 'legacy')).toBe('艮');
+		expect(wuJiGong(1923, false, true, 'legacy')).toBe('艮');
+		expect(wuJiGong(1924, false, true, 'legacy')).toBe('坤');
+		expect(wuJiGong(1984, false, true, 'legacy')).toBe('離');
 	});
 
 	test('三至尊卦 transformHoutian: zhiZunEnabled true≠false(坎為水 九五阴令 变而不易)', () => {
@@ -322,11 +329,12 @@ describe('④全 opts 全链压测:6 维笛卡尔 × 四柱/性别/月支 → �
 		// 非默认有效值:直接生效
 		expect(jiNian(1984, { huangdiOffset: 9999 }).huangdi).toBe(1984 + 9999);
 		expect(jiNian(1984, { huangdiOffset: 100 }).huangdi).toBe(1984 + 100);
-		// 0 / NaN / 缺省 → 引擎按 `|| 2697` 回退默认(offset 0 无意义,回退合理·与 UI parseInt||2697 一致)
-		expect(jiNian(1984, { huangdiOffset: 0 }).huangdi).toBe(1984 + 2697);
+		// [Q-265/T-250·SO-18] 0 可达(帮助值域 0–16799;UI min=0):0 → 黄帝年=公历年;NaN / 缺省 / 空串才回退 2697
+		expect(jiNian(1984, { huangdiOffset: 0 }).huangdi).toBe(1984);
+		expect(jiNian(1984, { huangdiOffset: 0 }).huangdiOffset).toBe(0);
 		expect(jiNian(1984, { huangdiOffset: NaN }).huangdi).toBe(1984 + 2697);
+		expect(jiNian(1984, { huangdiOffset: '' }).huangdi).toBe(1984 + 2697);
 		expect(jiNian(1984, {}).huangdi).toBe(1984 + 2697);
-		expect(jiNian(1984, { huangdiOffset: 0 }).huangdiOffset).toBe(2697);
 	});
 
 	test('边界/冲突:空 opts / 未知枚举 / undefined / 全非法组合 → 全链回退默认不抛', () => {

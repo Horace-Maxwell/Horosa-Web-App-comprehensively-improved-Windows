@@ -159,3 +159,116 @@ describe('T5 手写浮层缩放域静态哨兵', () => {
 		});
 	});
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T6 指针 / 物理视口读数的换域哨兵(2026-09-19)
+//
+// 上面的 T5 只认**命令式**写回(给元素的 style 直接赋 left/top,或 d3 的 style 链式调用)。真正漏网的形态是 React 内联样式:
+// 事件里算出 { left, top } 进 state,渲染时 style={{ left, top }} —— 扫描写回点根本看不见。实际漏了 11 处
+// (两张悬停卡 / 两个星盘提示 / 一个浮动子面板 / 一个时间编辑面板 / 三个可拖动浮窗 / 两个图上提示),
+// 缩放档下浮层离锚点、点位离鼠标差 z 倍。
+//
+// 判据改成盯**读数端**:组件里出现鼠标坐标(clientX/clientY)或物理视口读数(window.innerWidth/innerHeight)的文件,
+// 必须同时用到 zoomDomain / shellZoom 的换域件之一;否则进下方豁免表并写明「为什么两端同域 / 只取比值」。
+const POINTER_PATTERN = "\\b(clientX|clientY)\\b|window\\.inner(Width|Height)";
+const DOMAIN_HELPERS = /\b(clientToFixed|clientToLayout|clientToLayoutPoint|fixedPopupFrame|pointerToLocal|pointerLocalRatio|getEffectiveScale|getFixedScale|getLayoutViewportWidth|getLayoutViewportHeight|positionFloatingTooltip)\b/;
+const POINTER_EXEMPT = {
+	'components/astro3d/Astro3D.js': '触点 → 画布像素走 sx/sy = 画布宽 ÷ rect 宽 的比值换算(注释自证),不落 CSS 坐标',
+	'components/astro3d/PDSphereEngine.js': '拾取:指针与投影点同用 rect.width/height 折到同一屏幕域比较;拖拽位移只驱动相机转角(灵敏度量纲)',
+	'components/fengshui/charts/LuopanDial.js': 'scale = 盘面用户坐标宽 ÷ rect 宽,(clientX − rect.left) × scale 为比值换算',
+	'components/germany/UranianCosmogram.js': '指针相对盘心的 dx/dy 只进 atan2 求角,比值量纲与缩放无关',
+	'components/germany/UranianDial.js': '同 UranianCosmogram',
+	'components/germany/UranianModulusDial.js': '同 UranianCosmogram',
+};
+
+// horosa_win_shell_free_scan_v1(第二处,v3.11.0 上游新增的 T6 指针读数扫描同病同修:grep 外壳在 Windows 必失效 ⇒ 空集假绿)。
+// 纯 Node 等价:递归 components/pages 的 .js,逐行按同义 JS 正则(POSIX `[[:space:]]` ≡ `\\s`)匹配;file 相对 SRC、POSIX 分隔符。
+const POINTER_RE = new RegExp(POINTER_PATTERN.replace(/\[\[:space:\]\]/g, '\\s'));
+function scanPointerReads(){
+	const files = {};
+	['components', 'pages'].forEach((d) => {
+		walkJs(path.join(SRC, d), []).forEach((full) => {
+			const rel = path.relative(SRC, full).split(path.sep).join('/');
+			if(/__tests__|\.test\.js$/.test(rel)){ return; }
+			let src = '';
+			try{ src = fs.readFileSync(full, 'utf8'); }catch(e){ return; }
+			src.split('\n').forEach((text, i) => {
+				if(POINTER_RE.test(text)){ (files[rel] = files[rel] || []).push({ line: i + 1, text }); }
+			});
+		});
+	});
+	return files;
+}
+
+describe('T6 指针 / 物理视口读数必须过换域件', () => {
+	const files = scanPointerReads();
+
+	it('扫描没瞎:已知读数点在命中集里', () => {
+		expect(Object.keys(files).length).toBeGreaterThan(8);
+		expect(!!files['components/guolao/GuoLaoMoiraWheel.js']).toBe(true);
+	});
+
+	it('🔴 每个读指针 / 物理视口的文件:要么用到换域件,要么在带理由的豁免表里', () => {
+		const bad = [];
+		Object.keys(files).forEach((f) => {
+			const src = fs.readFileSync(path.join(SRC, f), 'utf8');
+			if(DOMAIN_HELPERS.test(src)){ return; }
+			if(Object.prototype.hasOwnProperty.call(POINTER_EXEMPT, f) && POINTER_EXEMPT[f].length > 12){ return; }
+			bad.push(`  ${f}:${files[f][0].line}  ${files[f][0].text.trim().slice(0, 80)}`);
+		});
+		expect(bad.join('\n')).toBe('');
+	});
+
+	it('豁免表不腐烂:在场的豁免文件仍真有读数点;已改用换域件的必须从表里摘除', () => {
+		Object.keys(POINTER_EXEMPT).forEach((f) => {
+			if(!fs.existsSync(path.join(SRC, f))){ return; }   // 精简发行形态不含该模块
+			expect(`${f} 有读数点=${!!files[f]}`).toBe(`${f} 有读数点=true`);
+			const src = fs.readFileSync(path.join(SRC, f), 'utf8');
+			// 已改用换域件的文件不该再留在豁免表里(留着 = 以后有人删掉换域调用也不会红)
+			expect(`${f} 仍需豁免(未用换域件)=${!DOMAIN_HELPERS.test(src)}`).toBe(`${f} 仍需豁免(未用换域件)=true`);
+		});
+	});
+
+	it('🔴 已收口的 11 处逐一在位(防「改回去」)', () => {
+		const EXPECT = [
+			['components/xuanshi/XuanShiMicro.js', 'fixedPopupFrame'],
+			['components/xuanshi/XuanShiCelestial.js', 'fixedPopupFrame'],
+			['components/guolao/GuoLaoMoiraWheel.js', 'fixedPopupFrame'],
+			['components/guolao/GuoLaoMoiraPickWheel.js', 'fixedPopupFrame'],
+			['components/astro/IndiaChartMain.js', 'fixedPopupFrame'],
+			['components/planetarium/PlanetariumBabylon.js', 'fixedPopupFrame'],
+			['components/zeri/ZeriMiniPanPopup.js', 'clientToFixed'],
+			['components/zeri/QimenMiniBoardPopup.js', 'clientToFixed'],
+			['components/zeri/ConditionBuilderModal.js', 'clientToFixed'],
+			['components/acg/AcgD3Map.js', 'pointerToLocal'],
+			['components/germany/UranianGraphicEphemeris.js', 'pointerToLocal'],
+			['components/fengshui/fengshuiEngine.js', 'pointerToLocal'],
+			['components/astro3d/AstroPDSphere.js', 'pointerLocalRatio'],
+			['components/comp/DragModal.js', 'fixedPopupFrame'],
+			['components/planetarium/PlanetariumBabylon.js', 'pointerLocalRatio'],
+		];
+		let seen = 0;
+		EXPECT.forEach(([f, token]) => {
+			if(!fs.existsSync(path.join(SRC, f))){ return; }
+			seen += 1;
+			const src = fs.readFileSync(path.join(SRC, f), 'utf8');
+			// 必须是**调用**而不只是 import(import 了不用 = 半修)
+			const calls = (src.match(new RegExp('\\b' + token + '\\(', 'g')) || []).length;
+			expect(`${f} 调用 ${token}=${calls > 0}`).toBe(`${f} 调用 ${token}=true`);
+		});
+		expect(seen).toBeGreaterThan(5);
+	});
+
+	it('🔴 可拖动对话框只许用本仓的 comp/DragModal(第三方同名小件把视觉域位移直接写进 translate,缩放档下不跟手)', () => {
+		// horosa_win_shell_free_scan_v1(第三处):纯 Node 扫 components/pages/layouts 的 .js,任何 `from 'drag-modal'` 即红。
+		const offenders = [];
+		['components', 'pages', 'layouts'].forEach((d) => {
+			walkJs(path.join(SRC, d), []).forEach((full) => {
+				let src = '';
+				try{ src = fs.readFileSync(full, 'utf8'); }catch(e){ return; }
+				if(/from ['"]drag-modal['"]/.test(src)){ offenders.push(path.relative(SRC, full).split(path.sep).join('/')); }
+			});
+		});
+		expect(offenders).toEqual([]);
+	});
+});

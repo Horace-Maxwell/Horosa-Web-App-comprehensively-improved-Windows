@@ -10,8 +10,11 @@ import { buildRelativeSnapshotText } from '../../components/astro/AstroRelative'
 // 改「短语替换为空格」归一:两侧同法剥去这些脚手架词,值(星名/度数/映点/数字)自然独立成 token 后比多重集。
 // 经基线核实:主体=6(组数)/相位=7/与=8… 皆纯标签行数,绝不现于真实值 → 归一后仅剩盘面值。
 const STRIP = ['主体', '与中点', '与', '成', '相位', '误差', '权重', '中点', '星A', '星B'];
+// 起盘头两行(黄道 / 宫位制)不是相位事实:基线时代打印原始码(黄道：0),之后改为显示文本(回归黄道 / 整宫制),
+// 与「六相位段表化」无关;两侧一并剔除,证明只盯相位/中点/映点的值。
+const HEADER_LINE = /^\s*(黄道|宫位制|宫制|分宫制)\s*[:：]/;
 function extractFacts(text) {
-	const lines = `${text || ''}`.split('\n');
+	const lines = `${text || ''}`.split('\n').filter((l) => !HEADER_LINE.test(l));
 	const isSep = (s) => { const t = `${s || ''}`.trim(); return t.startsWith('|') && /^[|\s:-]+$/.test(t) && t.indexOf('-') >= 0; };
 	const kept = [];
 	for (let i = 0; i < lines.length; i++) { if (isSep(lines[i])) { kept.pop(); continue; } kept.push(lines[i]); }
@@ -74,5 +77,28 @@ describe('合盘六相位段表化 · 数值不变证明', () => {
 		['A对B相位', 'B对A相位', 'A对B中点相位', 'A对B映点', '顺畅连接', '张力连接'].forEach((seg) => {
 			expect(now).toMatch(new RegExp(`\\[${seg}\\][\\s\\S]*?\\| --- \\|`));
 		});
+	});
+});
+
+// [Q-441/T-404] 比较盘页签快照增 A/B 两盘盘体(响应 inner=A / outer=B,与双轮盘同源);无两盘对象时逐字同旧。
+describe('合盘 比较盘 · A/B 两盘盘体进快照(Q-441)', () => {
+	const { AI_EXPORT_PRESET_SECTIONS } = require('../aiExport');
+	const mini = (sunLon) => ({ chart: {
+		houses: Array.from({ length: 12 }, (_, i) => ({ id: `House${i + 1}`, lon: i * 30, sign: 'Aries', signlon: 0 })),
+		objects: [{ id: 'Sun', lon: sunLon, sign: 'Taurus', signlon: sunLon - 30, house: 'House2', lonspeed: 1 }],
+		angles: [{ id: 'Asc', lon: 0, sign: 'Aries', signlon: 0 }],
+	} });
+	it('有 inner/outer → 出 [比较盘-星盘A]/[比较盘-星盘B](含各自星位);段名已登记 preset', () => {
+		const withCharts = buildRelativeSnapshotText({ ...compTab, result: { ...compTab.result, inner: mini(45), outer: mini(50) } });
+		expect(withCharts).toContain('[比较盘-星盘A]');
+		expect(withCharts).toContain('[比较盘-星盘B]');
+		const a = withCharts.slice(withCharts.indexOf('[比较盘-星盘A]'), withCharts.indexOf('[比较盘-星盘B]'));
+		expect(a).toMatch(/太阳/);
+		const heads = withCharts.match(/^\[[^\]]+\]$/gm).map((h) => h.slice(1, -1));
+		heads.forEach((h) => expect(AI_EXPORT_PRESET_SECTIONS.relative).toContain(h));
+	});
+	it('无 inner/outer(旧响应/无头缺盘) → 不出两段,文本逐字同旧', () => {
+		const t = buildRelativeSnapshotText(compTab);
+		expect(t).not.toContain('[比较盘-星盘A]');
 	});
 });

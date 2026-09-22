@@ -24,6 +24,12 @@ const NAJIA_GAN = { 乾: ['甲', '壬'], 坤: ['乙', '癸'], 震: ['庚', '庚'
 const LIUQIN_SHORT = { 父母: '父', 兄弟: '兄', 官鬼: '官', 妻财: '財', 妻財: '財', 子孙: '子', 子孫: '子' };
 const { TabPane } = Tabs;
 
+// [Q-436] 快照 [起卦详情] 段所需模型片段(与中栏「起卦详情」卡同一 getModel 产物;无头侧由 aiAnalysisContext 同形构造)。
+function heluoSnapshotDetail(m) {
+	if (!m) return null;
+	return { fourPillars: m.fourPillars, monthZhi: m.monthZhi, st: m.st, nayin: m.nayin, birthYear: m.birthYear, extras: m.extras };
+}
+
 function fieldVal(fields, key, fallback = '') {
 	if (!fields || !fields[key] || fields[key].value === undefined || fields[key].value === null) return fallback;
 	return fields[key].value;
@@ -117,7 +123,7 @@ class HeLuoMain extends Component {
 		let text = '';
 		try{
 			const m = this.getModel();
-			text = m ? `${buildSnapshotText(m.chart, m.jg, m.dy, { season: m.extras && m.extras.season, opts: m.opts }) || ''}`.trim() : '';
+			text = m ? `${buildSnapshotText(m.chart, m.jg, m.dy, { season: m.extras && m.extras.season, opts: m.opts, detail: heluoSnapshotDetail(m) }) || ''}`.trim() : '';
 		}catch(e){
 			text = '';
 		}
@@ -177,11 +183,15 @@ class HeLuoMain extends Component {
 			date: dateStr,
 			time: timeMoment.format('HH:mm:ss'),
 			lon: fieldVal(f, 'lon', ''),
+			// [挂载自检 F-19·P0] 时区:此前不传 → baziLunarLocal 按 +08:00 校正真太阳时,非东八区命例四柱错、与 AI 挂载分叉。
+			zone: fieldVal(f, 'zone', '') || (f && f.date && f.date.value && f.date.value.zone) || '',
 			// 性别以左栏下拉(props.gender '1'/'0')为准，接线到本地引擎；缺省回退 fields。
 			gender: this.props.gender !== undefined ? Number(this.props.gender) : fieldVal(f, 'gender', 1),
 			timeAlg: fieldVal(f, 'timeAlg', 1),
-			after23NewDay: defaultAfter23NewDay(),
-			lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
+			// [Q-358/T-339] 日界 / 晚子时改读盘面 fields(载盘还原 / 八字左栏改过的值),缺席才回退全局:此前恒读全局 →
+			//   左栏或存盘日界 ≠ 全局时,23 点档出生者本页四柱与八字页、AI 挂载分叉。缺省(fields 由全局播种)逐字不变。
+			after23NewDay: fieldVal(f, 'after23NewDay', defaultAfter23NewDay()),
+			lateZiHourUseNextDay: fieldVal(f, 'lateZiHourUseNextDay', defaultLateZiHourUseNextDay()),
 		};
 		// 实例 memo:输入签名(四柱参数+日界/晚子+取化工法)不变即返缓存,避免 render/componentDidUpdate→saveSnap/
 		// 快照 handler 多处反复跑「八字+calc+daYun+solarTerm+judge+extras」全量重算(卡顿根因)。算法不变。
@@ -248,7 +258,7 @@ class HeLuoMain extends Component {
 		const key = `${m.chart.xian.name}|${m.chart.xian.yuan}|${m.chart.hou.name}|${m.chart.hou.yuan}|${m.chart.tian}|${m.chart.di}|q:${this.props.quHuaGong || ''}|o:${JSON.stringify(m.opts || {})}`;
 		if (key === this.lastSnapKey) return;
 		this.lastSnapKey = key;
-		const text = buildSnapshotText(m.chart, m.jg, m.dy, { season: m.extras && m.extras.season, opts: m.opts });
+		const text = buildSnapshotText(m.chart, m.jg, m.dy, { season: m.extras && m.extras.season, opts: m.opts, detail: heluoSnapshotDetail(m) });
 		if (text) saveModuleAISnapshot('heluo', text, { source: 'react', savedAt: Date.now() });
 	}
 

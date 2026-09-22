@@ -255,8 +255,8 @@ def calculate_ganzhi_from_datetime(birth_dt: datetime, after23_new_day: int = 1,
             hour_day_dt = birth_dt + timedelta(days=1)
             hour_day_gz = _day_ganzhi(hour_day_dt.year, hour_day_dt.month, hour_day_dt.day)
         else:
-            # lateZi=0: 跟日柱一致 (day_gz 已经反映 after23)
-            hour_day_gz = day_gz
+            # [Q-312 口径 B] lateZi=0: 钟面当天(birth_dt)日干起子时,与日柱开关独立(day_gz 可能已按 after23 进位)
+            hour_day_gz = _day_ganzhi(birth_dt.year, birth_dt.month, birth_dt.day)
     else:
         hour_day_gz = day_gz
     hour_gz = _hour_ganzhi(hour_day_gz[0], birth_dt.hour)

@@ -10,6 +10,7 @@ import * as AstroHelper from '../astro/AstroHelper';
 import DateTime from '../comp/DateTime';
 import { XQButton as Button, XQInput as Input, XQSelect as Select } from '../xq-ui';
 import XQIcon from '../xq-icons';
+import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 
 export default function AstroDirectionForm(props){
 	let [form] = Form.useForm();
@@ -18,6 +19,12 @@ export default function AstroDirectionForm(props){
 	const Option = Select.Option;
 	
 	function formFieldsChanged(changedFields, allFields){
+		// 用户亲手改「南北交逆移」→ 落盘(显示该控件的三页 —— 小限法 / 太阳弧 / 行星弧 —— 同一个值)。antd 只在用户操作控件时触发本回调,
+		// 宿主页用 fields 回灌表单不触发;「容许度」不落(初值归全局星盘设置管)。
+		(changedFields || []).forEach((f)=>{
+			const nm = f && f.name ? (Array.isArray(f.name) ? f.name[0] : f.name) : null;
+			if(nm === 'nodeRetrograde' && typeof f.value === 'boolean'){ DIRECTION_PAGE_SETTINGS.save({ nodeRetrograde: f.value }); }
+		});
         if(props.onFieldsChange){
 			let flds = {};
 			for(let fld of allFields){
@@ -155,7 +162,10 @@ export default function AstroDirectionForm(props){
 							wrapperCol={{ span: 24 }}					
 						>
 							<Select>
-								<Option value={-1}>双星容许度相加除以2</Option>
+								{/* [Q-172/T-105] 「双星容许度相加除以2」(-1)只在返照 / 小限那条 getAspects 路径上成立;
+								    太阳弧 / 行星弧走 solararc.compute,<0 直接按 1° 处理 —— 该档与「1度」逐字同结果。
+								    弧类页面传 hideMeanOrb 隐掉它,不留「选了没差别」的档(实现不动,只藏档)。 */}
+								{props.hideMeanOrb ? null : <Option value={-1}>双星容许度相加除以2</Option>}
 								<Option value={0.5}>0.5度</Option>
 								<Option value={1}>1度</Option>
 								<Option value={1.5}>1.5度</Option>

@@ -19,7 +19,7 @@ function relationOf(zhaiWx, mingWx) {
 }
 
 // 命理派：{ mingYear, isMale, zhaiZuoGua }
-export function mingli({ mingYear = 1990, isMale = true, zhaiZuoGua = '坎' } = {}) {
+export function mingli({ mingYear = null, isMale = true, zhaiZuoGua = '坎' } = {}) {   // [Q-226] 缺省不再预填 1990
 	// 空串/null 经 Number() 成 0，会静默算出「0 年」的命卦 → 显式挡掉，只收正整年。
 	const raw = `${mingYear === null || mingYear === undefined ? '' : mingYear}`.trim();
 	const yr = raw === '' ? NaN : Math.trunc(Number(raw));

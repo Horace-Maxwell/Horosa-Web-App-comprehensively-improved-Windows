@@ -100,6 +100,7 @@ export default class CustomAyanamsaManager extends React.Component {
 					) : null}
 					<div className="horosa-field-hint">
 						设为当前后，左栏「黄道」下拉选「恒星黄道 · 自定义」即按该槽历元排盘；未设当前时该档回落 Lahiri。
+						{this.props.fieldsPinned ? '本盘随盘带历元（来自载入的命盘）：改槽或换当前槽会把新历元写回本盘并重排。' : '当前已选自定义档时，改槽即重排。'}
 					</div>
 				</div>
 			</XQModal>

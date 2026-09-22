@@ -254,8 +254,8 @@ def _hour_stem_override_jk(year, month, day, hour, cdate_day):
             dd_next = list(d_next.tuple())
             day_tg_idx = fromSolar(dd_next[0], dd_next[1], dd_next[2]).getDayGZ().tg
     else:
-        # lateZi=0: 跟日柱一致
-        day_tg_idx = cdate_day.getDayGZ().tg
+        # [Q-312 口径 B] lateZi=0: 钟面当天日干起子时(与日柱开关独立;after23 进位时 cdate_day 已是次日,须退回今日)
+        day_tg_idx = fromSolar(year, month, day).getDayGZ().tg
     return tian_gan[(day_tg_idx % 5 * 2 + 0) % 10] + di_zhi[0]
 
 # 換算干支（不含分）

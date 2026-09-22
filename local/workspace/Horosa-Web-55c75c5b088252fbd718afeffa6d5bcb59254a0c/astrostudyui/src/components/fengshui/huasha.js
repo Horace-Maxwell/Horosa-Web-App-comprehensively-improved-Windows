@@ -172,9 +172,15 @@ export function huasha({
 		if (all.indexOf(w.name.split('／')[0]) >= 0) { wupinKeys.add(w.key); }
 	});
 
+	// [Q-221/T-183·FT-17] 坐山正犯岁破(zuoHit):此前算出后只拼进说明句、无人读 → 进总断与快照(大凶忌动)。
+	const zuoSuiPo = rike.find((x)=>x.key === 'suipo' && x.zuoHit);
+	const zuoSuiPoText = zuoSuiPo ? `坐山${zuoShanForRike}正犯岁破——大凶,本年忌动土修造` : '';
+	const withZuo = (v)=>(zuoSuiPo ? { text: `${zuoSuiPoText}；${v.text}`, jx: 'bad' } : v);
+
 	return {
 		available: true, zhaiType, isYin, yun, xiangShan: xiangShan || null, hasPan: !!pan,
 		xingSha: xing, qiShaRike: rike, qiShaLiqi: liqi, lingXing,
+		zuoSuiPo: !!zuoSuiPo, zuoSuiPoText,
 		yearGods: yg, year: yg ? yg.year : null,
 		firedRike, firedLiqi, total,
 		buPian: BUPIAN_5,
@@ -182,11 +188,11 @@ export function huasha({
 		wupinAll: HUAJIE_WUPIN,
 		leibie: XINGSHA_LEIBIE, yuanJin: XINGSHA_YUANJIN, weiHai3: XINGSHA_WEIHAI_3,
 		trigger: QISHA_TRIGGER,
-		verdict: total === 0
+		verdict: withZuo(total === 0
 			? { text: '未登记任何煞——左栏勾形煞、填盘与八方实况后出化解方案', jx: 'neutral' }
 			: ((firedRike.length + firedLiqi.length) === 0
 				? { text: `共 ${total} 项煞在册；所临之方均安静无动象，一般不会出灾（仍宜按化解法预为之备）`, jx: 'neutral' }
-				: { text: `共 ${total} 项煞在册，其中 ${firedRike.length + firedLiqi.length} 项所临之方有动象或恶山恶水——须即化解`, jx: 'bad' }),
+				: { text: `共 ${total} 项煞在册，其中 ${firedRike.length + firedLiqi.length} 项所临之方有动象或恶山恶水——须即化解`, jx: 'bad' })),
 		note: HUASHA_NOTE, qiShaNote: QISHA_NOTE,
 	};
 }

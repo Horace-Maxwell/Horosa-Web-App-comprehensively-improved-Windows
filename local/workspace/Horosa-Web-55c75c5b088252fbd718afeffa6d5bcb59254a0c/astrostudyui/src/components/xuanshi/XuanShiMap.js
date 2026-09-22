@@ -62,11 +62,12 @@ export default class XuanShiMap extends React.Component {
 	persist() { if (this.props.onPersist) { this.props.onPersist('map', { period: this.state.period }); } }
 
 	async load() {
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
 		this.setState({ loading: true, err: '' });
 		try {
 			// 与参考 app 完全一致:直接按所选 period 过滤(后端 by_period.get(period));
 			// 细朝代(西周/北宋…)不在底库桶键中即返回空,与 app 逐点一致 —— 但底图仍常驻显示。
-			const r = await fetchMap(this.state.period || undefined);
+			const r = await fetchMap(this.state.period || undefined); if(__seq !== this._loadSeq){ return; }
 			this.setState({ points: r.points || [], total: r.total || 0, loading: false }, () => this.renderChart());
 		} catch (e) { this.setState({ loading: false, err: `${e && e.message ? e.message : e}` }); }
 		this.persist();
@@ -142,9 +143,10 @@ export default class XuanShiMap extends React.Component {
 					<span className="xuanshi-crumb" onClick={() => this.props.onHome && this.props.onHome()}>首页</span>
 					<span className="xuanshi-crumb-sep">/</span><span>地理地图</span>
 				</div>
-				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,3.4vw,38px)' }}>地理地图</h1>
+				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,calc(3.4 * var(--horosa-lvw, 1vw)),38px)' }}>地理地图</h1>
 				<div className="xuanshi-section-sub" style={{ margin: '8px 0 14px' }}>
-					把研究行的 region/place 钉到中国地图。<b style={{ color: 'var(--ink)' }}>{points.length}</b> 个城市 · <b style={{ color: 'var(--ink)' }}>{pinCount.toLocaleString()}</b> 个事件钉点。
+					{/* [Q-483/T-445] 选了朝代后 count 已由后端改按该期计数(此前恒全时期),页头随之标明所属期。 */}
+					把研究行的 region/place 钉到中国地图。<b style={{ color: 'var(--ink)' }}>{points.length}</b> 个城市 · <b style={{ color: 'var(--ink)' }}>{pinCount.toLocaleString()}</b> 个事件钉点{period ? `（${period}）` : '（全时期）'}。
 				</div>
 
 				{/* 朝代游历 chips */}
@@ -161,7 +163,7 @@ export default class XuanShiMap extends React.Component {
 					<div className="xuanshi-map-grid">
 						<div className="xuanshi-card" style={{ padding: 10, minWidth: 0, position: 'relative' }}>
 							{/* echarts 中国底图常驻容器(始终挂载,ref 稳定) */}
-							<div ref={this._mapEl} style={{ width: '100%', height: '68vh', minHeight: 380 }} />
+							<div ref={this._mapEl} style={{ width: '100%', height: 'calc(68 * var(--horosa-lvh, 1vh))', minHeight: 380 }} />
 							{/* 叠加层:载入中 / 底图失败 / 0 钉点提示(均不替换底图) */}
 							{loading ? (
 								<div className="xuanshi-center" style={{ position: 'absolute', inset: 0, background: 'var(--paper-card)', opacity: 0.85 }}><Spin tip="载入舆图…" /></div>

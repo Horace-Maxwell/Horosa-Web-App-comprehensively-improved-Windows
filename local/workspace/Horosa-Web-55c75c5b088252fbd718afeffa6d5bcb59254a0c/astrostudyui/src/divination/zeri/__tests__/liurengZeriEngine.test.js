@@ -256,6 +256,13 @@ describe('[Z5] 扫描引擎(外壳第六实例:恒等+行内同盘探针)', ()=>
 		// 小局:sanqi 在/yinv 不在
 		expect(ev('xiaoju_hit', { mode: 'with', values: ['sanqi'] }).pass).toBe(true);
 		expect(ev('xiaoju_hit', { mode: 'with', values: ['yinv'] }).pass).toBe(false);
+		// [Q-469/T-431] 主页「参考常驻」七局(刑德/物气/新故/迍福/始终/旺孕/德孕)只在无真实局式依据时被追加,择日不作命中:
+		// 本锚 迍福 有真实依据(照常命中),其余六局仅「参考常驻」→ 此前「命中任一」恒真、「全不命中」恒假,现按真依据判。
+		const onlyRef = ['xingde', 'wuqi', 'xingu', 'shizhong', 'wangyun', 'deyun'];
+		const withRef = ev('xiaoju_hit', { mode: 'with', values: onlyRef });
+		expect(withRef.pass).toBe(false);
+		expect(ev('xiaoju_hit', { mode: 'without', values: onlyRef }).pass).toBe(true);
+		expect(ev('xiaoju_hit', { mode: 'with', values: ['tunfu'] }).pass).toBe(true);   // 真依据者不受影响
 		expect(ev('xiaoju_hit', { mode: 'without', values: ['yinv'] }).pass).toBe(true);
 		// 大格:chongshen 在/yuanshou 不在
 		expect(ev('dage_hit', { mode: 'with', values: ['chongshen'] }).pass).toBe(true);
@@ -360,5 +367,34 @@ describe('[十一轮] keyDeps 判别网:声明「不吃昼夜」的类在仅昼�
 			});
 		});
 		expect(offenders).toEqual([]);
+	});
+});
+
+describe('[Q-273/T-253] 贼克位置·一课:日干取本五行判克贼(寄宫只作位置)', ()=>{
+	const GAN_WX = { 甲: '木', 乙: '木', 丙: '火', 丁: '火', 戊: '土', 己: '土', 庚: '金', 辛: '金', 壬: '水', 癸: '水' };
+	const ZHI_WX = { 子: '水', 亥: '水', 寅: '木', 卯: '木', 巳: '火', 午: '火', 申: '金', 酉: '金', 辰: '土', 戌: '土', 丑: '土', 未: '土' };
+	const WX_KE = { 木: '土', 土: '水', 水: '火', 火: '金', 金: '木' };
+	const SHENG = { 木: '火', 火: '土', 土: '金', 金: '水', 水: '木' };
+	it('2026-01-01 05:00 乙日一课 卯加乙:乙木/卯木=比和(此前按寄宫辰土判上克下)', ()=>{
+		const pan = computeLiurengScanPan(GEO, {}, '2026-01-01', '05:00:00');
+		const k1 = pan.ke.raw[0];
+		expect(`${k1[2]}`.slice(-1)).toBe('乙');
+		expect(ev('ke_pos_zei', { pos: '1', rel: 'bi' }, pan).pass).toBe(true);
+		expect(ev('ke_pos_zei', { pos: '1', rel: 'shang_ke_xia' }, pan).pass).toBe(false);
+		expect(ev('ke_pos_zei', { pos: '1', rel: 'xia_zei_shang' }, pan).pass).toBe(false);
+	});
+	it('乙丁戊辛癸 五干日各一例:一课四种关系与「日干本五行 vs 上神五行」自洽', ()=>{
+		[['2026-01-01', '乙'], ['2026-01-03', '丁'], ['2026-01-04', '戊'], ['2026-01-07', '辛'], ['2026-01-09', '癸']].forEach(([date, gan])=>{
+			const pan = computeLiurengScanPan(GEO, {}, date, '05:00:00');
+			const k1 = pan.ke.raw[0];
+			const dayGan = `${k1[2]}`.slice(-1);
+			expect(dayGan).toBe(gan);
+			const uw = ZHI_WX[`${k1[1]}`.replace(/[^子丑寅卯辰巳午未申酉戌亥]/g, '')];
+			const dw = GAN_WX[dayGan];
+			const expectRel = WX_KE[uw] === dw ? 'shang_ke_xia' : (WX_KE[dw] === uw ? 'xia_zei_shang' : ((SHENG[uw] === dw || SHENG[dw] === uw) ? 'sheng' : 'bi'));
+			['shang_ke_xia', 'xia_zei_shang', 'sheng', 'bi'].forEach((rel)=>{
+				expect(`${date}:${rel}:${ev('ke_pos_zei', { pos: '1', rel }, pan).pass}`).toBe(`${date}:${rel}:${rel === expectRel}`);
+			});
+		});
 	});
 });

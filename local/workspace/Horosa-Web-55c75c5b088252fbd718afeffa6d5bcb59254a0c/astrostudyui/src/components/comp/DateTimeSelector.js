@@ -2,6 +2,9 @@ import React, { Component } from 'react';
 import { Row, Col } from 'antd';
 import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select } from '../xq-ui';
 
+// [窄布局 2026-09-17] 年月日四列各需 ≈67px("2026"+内衬+箭头),小于 270px 的行折成两列;zoom=1 的 276px 侧栏仍四列、零改动。
+const NARROW_ROW_WIDTH = 270;
+
 import DateTime from './DateTime';
 import { fireStepSelectPrefetch } from '../../utils/stepPrefetch';
 
@@ -18,7 +21,13 @@ class DateTimeSelector extends Component{
 			tmType = 'M';
 		}
 
+		// [窄布局 2026-09-17] narrow:根行实宽 < NARROW_ROW_WIDTH 时年月日/时分秒各折成两列。antd 的 lg/xl 断点看的是物理视口,
+		// 壳放大后布局宽早已不够(1.8 档 245px 侧栏仍按 xl 四列排 → 每格 61px 放不下 "2026");按容器实宽判定,任何引擎同义。
+		this.rootRef = React.createRef();
+		this._narrowRO = null;
+		this.syncNarrow = this.syncNarrow.bind(this);
 		this.state = {
+			narrow: false,
 			timeType: tmType,
 			tik: 0,
 			// 年份输入草稿:输入期间不提交(旧行为每键立即重排盘,4/5 位年被打断截半,
@@ -187,7 +196,10 @@ class DateTimeSelector extends Component{
 	}
 
 	clickNow(){
-		let dt = new DateTime();
+		// [TL-11] 按当前面板时区取此刻(此前 new DateTime() = 系统本地钟面 + 写死 +08:00 → 非东八区系统上「此刻」错 N 小时);
+		// 面板时区缺省 +08:00 时与旧行为逐字节相同
+		const zone = this.datetime && typeof this.datetime.zone === 'string' && this.datetime.zone ? this.datetime.zone : '+08:00';
+		let dt = DateTime.nowInZone(zone);
 		this.onChanged(dt, { unit: this.state.timeType, dir: 0 });
 	}
 
@@ -559,6 +571,31 @@ class DateTimeSelector extends Component{
 		return dom;
 	}
 
+	componentDidMount(){
+		const el = this.rootRef ? this.rootRef.current : null;
+		if(el && typeof ResizeObserver !== 'undefined'){
+			try{
+				this._narrowRO = new ResizeObserver(this.syncNarrow);
+				this._narrowRO.observe(el);
+			}catch(e){ this._narrowRO = null; }
+		}
+		this.syncNarrow();
+	}
+
+	componentWillUnmount(){
+		if(this._narrowRO){ try{ this._narrowRO.disconnect(); }catch(e){ /* ignore */ } this._narrowRO = null; }
+		this._unmounted = true;
+	}
+
+	syncNarrow(){
+		if(this._unmounted){ return; }
+		const el = this.rootRef ? this.rootRef.current : null;
+		if(!el){ return; }
+		const w = el.clientWidth;
+		const narrow = w > 0 && w < NARROW_ROW_WIDTH;
+		if(narrow !== this.state.narrow){ this.setState({ narrow }); }
+	}
+
 	genMdDom(){
 		let doms = []
 		if(this.props.onlyYear){
@@ -585,16 +622,17 @@ class DateTimeSelector extends Component{
 		}
 
 
+		const mdXl = this.state.narrow ? 12 : 6;
 		let month = this.genMonth();
 		let m = (
-			<Col key="dts-month" lg={12} xl={6}>
+			<Col key="dts-month" lg={12} xl={mdXl}>
 				{month}
 			</Col>
 		);
 
 		let date = this.genDate()
 		let d = (
-			<Col key="dts-date" lg={12} xl={6}>
+			<Col key="dts-date" lg={12} xl={mdXl}>
 				{date}
 			</Col>
 		);
@@ -610,39 +648,45 @@ class DateTimeSelector extends Component{
 		if(this.props.showTime === false || this.props.onlyYear || this.props.yearMonth){
 			return null;
 		}
+		// [Q-583/T-545] showZone / showSeconds(缺省 true=现状):宿主的请求只到分、时区随本命时(波斯向运「推运时间」行),
+		// 这两列拨了零后果且显示值回弹 → 由宿主显式关掉;列宽按实际列数均分。
+		const showZone = this.props.showZone !== false;
+		const showSeconds = this.props.showSeconds !== false;
+		const count = 2 + (showZone ? 1 : 0) + (showSeconds ? 1 : 0);
+		const xl = this.state.narrow ? 12 : Math.floor(24 / count);
 
 		let zn = this.genZone();
 		let zone = (
-			<Col key="dts-zone" lg={12} xl={6}>
+			<Col key="dts-zone" lg={12} xl={xl}>
 				{zn}
 			</Col>
 		);
 		
 		let hour = this.genHour();
 		let h = (
-			<Col key="dts-hour" lg={12} xl={6}>
+			<Col key="dts-hour" lg={12} xl={xl}>
 				{hour}
 			</Col>
 		);
 
 		let minu = this.genMinute();
 		let m = (
-			<Col key="dts-minute" lg={12} xl={6}>
+			<Col key="dts-minute" lg={12} xl={xl}>
 				{minu}
 			</Col>
 		);
 		
 		let sec = this.genSecond();
 		let s = (
-			<Col key="dts-second" lg={12} xl={6}>
+			<Col key="dts-second" lg={12} xl={xl}>
 				{sec}
 			</Col>
 		);
 		
-		doms.push(zone);
+		if(showZone){ doms.push(zone); }
 		doms.push(h);
 		doms.push(m);
-		doms.push(s);
+		if(showSeconds){ doms.push(s); }
 		
 		return doms;
 	}
@@ -685,24 +729,26 @@ class DateTimeSelector extends Component{
 	}
 
 	genAdjustDom(){
+		// [窄布局 2026-09-17] 行宽 <270 时 ⊖/选择/⊕ 一行、此刻/确定 折第二行(span 总和 >24 antd 自动换行),选择框才放得下「四分钟」。
+		const narrow = !!(this.state && this.state.narrow);
 		let timetypedom = this.genTimeTypeDom();
 		let row = (
 			<Row>
-				<Col span={4}>
+				<Col span={narrow ? 4 : 4}>
 					<Button iconName='minus' onClick={this.clickMinus} style={{width: '100%'}} />
 				</Col>
-				<Col span={6}>
+				<Col span={narrow ? 10 : 6}>
 					{timetypedom}
 				</Col>
-				<Col span={4}>
+				<Col span={narrow ? 4 : 4}>
 					<Button iconName='plus' onClick={this.clickPlus} style={{width: '100%'}} />
 				</Col>
-				<Col span={5}>
+				<Col span={narrow ? 12 : 5}>
 					<Button onClick={this.clickNow} style={{width: '100%'}}>
 						<span>此刻</span>
 					</Button>
 				</Col>
-				<Col span={5}>
+				<Col span={narrow ? 12 : 5}>
 					<Button onClick={this.clickOk} style={{width: '100%'}}>
 						<span>确定</span>
 					</Button>
@@ -796,6 +842,7 @@ class DateTimeSelector extends Component{
 			}
 		}
 
+		if(this.state.narrow){ adspanLg = adspan; yearspanLg = yearspan; }
 		let mdDom = this.genMdDom();
 		let tmDom = this.genTmDom();
 		let needAdjust = this.props.showAdjust ? true : false;
@@ -812,7 +859,7 @@ class DateTimeSelector extends Component{
 		}
 
 		return (
-			<Row>
+			<Row ref={this.rootRef}>
 				<Col span={24}>
 					<Row>
 						<Col lg={adspan} xl={adspanLg}>

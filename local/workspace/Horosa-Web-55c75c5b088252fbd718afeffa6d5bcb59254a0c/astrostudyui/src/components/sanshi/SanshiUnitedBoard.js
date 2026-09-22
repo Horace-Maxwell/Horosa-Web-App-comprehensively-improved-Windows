@@ -695,10 +695,15 @@ export default function SanshiUnitedBoard(props){
 					<div className={styles.bottomCell}><span>旬仪</span><b>{futo}</b></div>
 					<div className={styles.bottomCell}><span>旬空</span><b>{kong}</b></div>
 					<div className={styles.bottomCell}><span>时空</span><b>{shikong}</b></div>
+					{/* [Q-160/T-78] 四柱空亡(左栏「四柱空亡」开)与封局印记(左栏「封局」)此前页面零消费 */}
+					{pan && pan.allKong ? (
+						<div className={styles.bottomCell}><span>四柱空</span><b>{`${safe(pan.allKong.年空, '—')}·${safe(pan.allKong.月空, '—')}·${safe(pan.allKong.日空, '—')}·${safe(pan.allKong.时空, '—')}`}</b></div>
+					) : null}
 				</div>
 				<div className={styles.bottomRight}>
 					<div>{dunType}</div>
 					<div>{dunJu}</div>
+					{pan && pan.fengJu ? <div title="奇门封局(左栏「封局」=已封局)">封局</div> : null}
 				</div>
 			</div>
 		);

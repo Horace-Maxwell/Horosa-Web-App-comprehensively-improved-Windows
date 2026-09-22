@@ -6,13 +6,16 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from typing import Any, Optional
 
 from . import db
 from .fmt import fmt_modern
 from .omen import CANONICAL_LABELS, fold_to_canonical
-from .period import all_macros, year_to_macro
+
+_CANONICAL_LABEL_SET = set(CANONICAL_LABELS) | {"未分类"}
+from .period import all_macros, year_to_macro, date_phrase_to_year
 
 # celestial_event 完整列（与表 schema 对齐）
 _CE_COLS = (
@@ -34,8 +37,62 @@ _MICRO_CACHE_MAX = 32
 _CACHE: dict[str, Any] = {"events": None, "micro": {}}
 
 
+def _modern_year(md: Optional[str]) -> Optional[int]:
+    """'0760-07-11' / '-0014-01-30' / '1011-03-08' → 公历年;解析不了返 None。"""
+    if not md:
+        return None
+    m = re.match(r"^(-?\d{1,5})-", f"{md}")
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except ValueError:
+        return None
+
+
+def effective_year(date_phrase: Optional[str], stored_year: Optional[int], modern_date: Optional[str]) -> Optional[int]:
+    """[Q-486/T-448] 天象「公历年」的运行时纠偏(库列 ``year`` 由旧版 date_phrase_to_year 生成,433 条错一两百年:
+    「大中祥符」被「大中」截走成 847、「建中靖国」被「建中」截走成 780、「泰定帝泰定四年」只取到元年、
+    唐肃宗「上元」记成高宗 674…)。库文件只读不改,这里按修好的解析器重算:
+      · 年号纪年解析成功 → 以之为准(同名年号按 modern_date 年份择近);
+      · 解析不了 → 沿用库值(与旧行为一致,零回归)。
+    对 798 条「year 与 modern_date 年份差 1」的农历跨年行,重算结果与库值相同(它们本就是年号纪年的正确值)。
+    """
+    hint = _modern_year(modern_date)
+    y = date_phrase_to_year(date_phrase, hint_year=hint)
+    if y is not None:
+        return y
+    if stored_year is not None:
+        return stored_year
+    # [TL-36/T-217 2026-09-18] 年号解析不了且库列 year 为空,但 modern_date 有公历日期(10,256 条)→ 取公历日期之年,
+    # 否则起年 / 终年筛选会把这些有日期的天象全部排除(帮助称按公历年筛)。三者皆空才 None。
+    return hint
+
+
+_MACRO_SPAN: dict[str, tuple[int, int]] = {name: (a, b) for name, a, b in all_macros()}
+
+
+def effective_dynasty(stored: Optional[str], year: Optional[int]) -> Optional[str]:
+    """[Q-485/T-447] 星象大典「朝代」= 按公历年归入的大朝代(帮助原话),而库列 dynasty 按**史书归属**填写
+    (《宋史》整体记北宋 → 1127 年后 2,023 条仍标北宋、316 年后 116 条仍标西晋,选「南宋 / 东晋」查不到)。
+    规则:库列是大朝代名且其区间容得下该年(±1 年容农历跨年)→ 沿用(辽 / 金 / 西夏等史书归属正确者不动);
+    容不下 → 按年重归(year_to_macro);库列非大朝代名或无年 → 原样。
+    """
+    if year is None:
+        return stored or None
+    if stored and stored in _MACRO_SPAN:
+        a, b = _MACRO_SPAN[stored]
+        if a - 1 <= year <= b + 1:
+            return stored
+        return year_to_macro(year) or stored
+    if stored:
+        return stored
+    return year_to_macro(year)
+
+
 def _row_to_event(r) -> dict[str, Any]:
     """celestial_event 行 → 事件字典。omen 折叠到 14 类（保留原始 omen_raw）。"""
+    _eff_year = effective_year(r["date_phrase"], r["year"], r["modern_date"])
     return {
         "event_id": r["event_id"] or f"{r['source']}-{r['row_index']}",
         "source": r["source"] or "",
@@ -49,8 +106,8 @@ def _row_to_event(r) -> dict[str, Any]:
         "date_phrase": r["date_phrase"],
         "era": r["era"],
         "julian_date": r["julian_date"],
-        "year": r["year"],
-        "dynasty": r["dynasty"] or (year_to_macro(r["year"]) if r["year"] is not None else None),
+        "year": _eff_year,
+        "dynasty": effective_dynasty(r["dynasty"], _eff_year),
         "omen_raw": r["omen_raw"] or "",
         "omen": fold_to_canonical(r["omen"] or r["omen_raw"]),
         "subject": r["subject"],
@@ -82,6 +139,8 @@ def load_events(force: bool = False) -> list[dict[str, Any]]:
     except Exception:
         rows = []
     events = [_row_to_event(r) for r in rows]
+    # [Q-486/T-448] SQL 按旧 year 列排序;纠偏后按有效年重排(无年者沿后,原相对序不变)。
+    events.sort(key=lambda e: (e["year"] is None, e["year"] if e["year"] is not None else 0, e["source_file"], e["row_index"]))
     _CACHE["events"] = events
     if force:
         _CACHE["micro"].clear()   # horosa_xuanshi_longtext_ondemand_v1：强制重载时一并弃 memo
@@ -335,8 +394,8 @@ def term_profile(omen_canonical: str) -> dict[str, Any]:
 # 真正要下发的那几百行，再按 rowid 走一次窄查询把长文本贴回去（``_micro_texts``）。
 _MICRO_LIST_COLS = (
     "rowid AS _rid, event_id, source_file, row_index, history, volume_no, paragraph_no, "
-    "date_phrase, era, year, dynasty, omen, omen_raw, subject, action, target, "
-    "modern_date, modern_date_disp, routing_theme"
+    "date_phrase, era, julian_date, year, dynasty, omen, omen_raw, subject, action, target, "
+    "modern_date, modern_date_disp, modern_precision, routing_theme"
 )
 
 
@@ -382,13 +441,16 @@ def microchronology(
     if history:
         where.append("history=?")
         params.append(history)
-    if omen_type:
+    # [Q-484/T-446] 左栏「按征兆类型」的计数是 fold_to_canonical 归一后的类计数,点击却把类名当子串去
+    # LIKE omen / omen_raw / original 三列 →「星变 30」点开得 11,239 条(「流星星变」被「星变」命中、原文提到
+    # 「客星」「月食」的其它类也被带入)。现:类名 ∈ 14 类 → 与计数同一函数在 Python 侧按归一类精确过滤;
+    # 非类名(自由文本)才保留子串匹配。
+    omen_canonical = omen_type if (omen_type and omen_type in _CANONICAL_LABEL_SET) else None
+    if omen_type and not omen_canonical:
         where.append("(omen LIKE ? OR omen_raw LIKE ? OR original LIKE ?)")
         like = f"%{omen_type}%"
         params.extend([like, like, like])
-    if decade is not None:
-        where.append("year>=? AND year<?")
-        params.extend([decade, decade + 10])
+    # [Q-486/T-448] 十年期过滤改到 Python 侧按纠偏后的有效年(库列 year 有 433 条错一两百年)。
     sql = f"""
         SELECT {_MICRO_LIST_COLS}
         FROM celestial_event
@@ -398,52 +460,66 @@ def microchronology(
     sql += " ORDER BY year IS NULL, year, modern_date, history, row_index"
     rows = conn.execute(sql, params).fetchall()
 
+    # horosa_xuanshi_longtext_ondemand_v1:先按上游口径在 Python 侧过滤(归一类精确匹配 + 有效年十年期),
+    # 再对**全部**命中行做 summary 统计;只有下发的 events 按 limit 截断(长文本按需回贴)。
     by_hist: Counter = Counter()
     by_omen: Counter = Counter()
     by_decade: Counter = Counter()
     decade_omens_map: dict[int, Counter] = defaultdict(Counter)
-    folded: list[str] = []
+    hits: list[tuple[Any, Optional[int], str]] = []
     total = 0
     with_year = 0
     for r in rows:
-        total += 1
-        year = r["year"]
+        year = effective_year(r["date_phrase"], r["year"], r["modern_date"])
         omen = fold_to_canonical(r["omen"] or r["omen_raw"])
-        folded.append(omen)
+        if omen_canonical and omen != omen_canonical:
+            continue
+        if decade is not None and (year is None or year < decade or year >= decade + 10):
+            continue
+        hits.append((r, year, omen))
+        total += 1
         if r["history"]:
             by_hist[r["history"]] += 1
         if omen:
             by_omen[omen] += 1
         if year:
             with_year += 1
-            d = (int(year) // 10) * 10
-            by_decade[d] += 1
+            dd = (int(year) // 10) * 10
+            by_decade[dd] += 1
             if omen:
-                decade_omens_map[d][omen] += 1
+                decade_omens_map[dd][omen] += 1
+    # [Q-486/T-448] SQL 的 ORDER BY 用旧 year 列;按有效年稳定重排(无年者沿后),再按 limit 截断下发。
+    hits.sort(key=lambda h: (h[1] is None, h[1] if h[1] is not None else 0))
 
-    kept = rows if lim is None else rows[:lim]
-    texts = _micro_texts(conn, [r["_rid"] for r in kept]) if kept else {}
+    kept = hits if lim is None else hits[:lim]
+    texts = _micro_texts(conn, [h[0]["_rid"] for h in kept]) if kept else {}
     events: list[dict[str, Any]] = []
-    for idx, r in enumerate(kept):
+    for r, year, omen in kept:
         t = texts.get(r["_rid"])
         events.append({
             "event_id": r["event_id"],
             "history": r["history"],
             "volume_no": r["volume_no"],
             "paragraph_no": r["paragraph_no"],
-            "period": r["dynasty"],
+            "period": effective_dynasty(r["dynasty"], year),   # [Q-485/T-447] 与大典同律按年重归
             "title": r["date_phrase"] or r["modern_date_disp"] or r["event_id"],
             "original": t["original"] if t is not None else None,
-            "year": r["year"],
+            "year": year,
             "date_phrase": r["date_phrase"],
             "era": r["era"] or r["modern_date_disp"] or "",
-            "omen": folded[idx],
+            "omen": omen,
             "omen_raw": r["omen_raw"] or "",
             "interpretation": (t["interpretation"] or t["modern"] or "") if t is not None else "",
             "routing_theme": r["routing_theme"] or "",
             "subject": r["subject"] or "",
             "target": r["target"] or "",
             "modern_date_disp": r["modern_date_disp"] or "",
+            # [Q-495/T-457] 下发儒略日:modern_date 同列混两种历法 —— 有 julian_date 者 modern_date 是由
+            # 儒略日换算的格里历,无者就是史料所载的儒略历日期。显示层据此按来源标「公历/儒略历」,
+            # 此前本查询不下发该列 → 前端无从分辨、一律标「公历」。
+            "julian_date": r["julian_date"] or "",
+            # [Q-487/T-449] 精度同下发:月级/年级/年段的合成日期不得被当精确日(排此日提示「约」+ 年级按 1 月 1 日)。
+            "modern_precision": r["modern_precision"] or "",
         })
     summary = {
         "by_history": by_hist.most_common(),
@@ -482,7 +558,7 @@ def microchronology_detail(event_id: str) -> dict[str, Any]:
 
 
 def decade_omens() -> dict[str, Any]:
-    """十年期 × omen 堆叠序列（供折线/面积图）。"""
+    """十年期 × omen 堆叠序列（供曲线/面积图）。"""
     events = load_events()
     by_decade: dict[int, Counter] = defaultdict(Counter)
     omen_totals: Counter = Counter()

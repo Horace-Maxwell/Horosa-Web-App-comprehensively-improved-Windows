@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/shusuan/ZhengChuanMain.js b/astrostudyui/src/components/shusuan/ZhengChuanMain.js
-index 57804d7..060c161 100644
+index 964f743b..b5e29167 100644
 --- a/astrostudyui/src/components/shusuan/ZhengChuanMain.js
 +++ b/astrostudyui/src/components/shusuan/ZhengChuanMain.js
-@@ -20,6 +20,7 @@ import { calcXinyi, bakeTable, xiangTable, xingqingTable, XINYI_GONG } from '../
+@@ -21,6 +21,7 @@ import { calcXinyi, bakeTable, xiangTable, xingqingTable, XINYI_GONG } from '../
  import { buildZhengChuanSnapshotText } from '../../utils/zhengchuanSnapshot';
  import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
  import { SCHOOL_LABEL } from './zhengchuanSchools';
@@ -10,7 +10,7 @@ index 57804d7..060c161 100644
  
  const { TabPane } = Tabs;
  
-@@ -82,6 +83,7 @@ function deepFreeze(o){
+@@ -50,6 +51,7 @@ function deepFreeze(o){
  }
  
  class ZhengChuanMain extends Component {
@@ -18,7 +18,7 @@ index 57804d7..060c161 100644
  	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
  	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
  	shouldComponentUpdate(nextProps, nextState){
-@@ -98,6 +100,7 @@ class ZhengChuanMain extends Component {
+@@ -66,6 +68,7 @@ class ZhengChuanMain extends Component {
  		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
  	}
  
@@ -26,7 +26,7 @@ index 57804d7..060c161 100644
  	componentDidMount() {
  		this.loadVerses();
  		this.saveSnap();
-@@ -345,7 +348,15 @@ class ZhengChuanMain extends Component {
+@@ -324,7 +327,15 @@ class ZhengChuanMain extends Component {
  				size="small"
  				className="horosa-huangji-tabs horosa-zhengchuan-tabs"
  			>

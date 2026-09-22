@@ -4,8 +4,6 @@
 // props: { pan, showBoardMark, selectedPalace, onSelectPalace(idx|null), boardHostRef?, gejuList? }
 import React from 'react';
 import { computeGeju } from './core/taiyiGeju';
-// horosa_taiyi_boardsvg_shenmeaning_import_v1:shenMeaning 用于宫位悬浮主事文本,上游漏 import
-// (触发即 ReferenceError,选中/悬浮正宫时崩)。绑定门实抓;建议上游化。
 import { TAIYI_GONG_INFO, shenMeaning } from './core/taiyiDuanfa';
 
 const LAYER2_NUMS = ['二', '七', '六', '一', '八', '三', '四', '九'];

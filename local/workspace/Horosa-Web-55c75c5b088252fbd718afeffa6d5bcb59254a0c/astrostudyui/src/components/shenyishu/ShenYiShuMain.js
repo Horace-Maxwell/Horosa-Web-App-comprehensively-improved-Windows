@@ -481,7 +481,7 @@ class ShenYiShuMain extends Component{
 						<label className="horosa-huangji-select-field is-wide">
 							<span>五行季令</span>
 							<Select value={this.state.seasonSource} onChange={(value)=>this.setState({ seasonSource: value })}>
-								<Option value="auto">自动按月份取季令</Option>
+								<Option value="auto">自动按公历月份取季令（三月一季）</Option>
 								<Option value="manual">手动指定季令</Option>
 							</Select>
 						</label>

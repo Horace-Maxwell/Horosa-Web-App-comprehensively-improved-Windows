@@ -181,3 +181,32 @@ describe('一掌经 report · 神煞合参层（按盘计算落宫）', () => {
 		expect(m.shenshaHits.some((h) => h.name === '文昌')).toBe(false);
 	});
 });
+
+// [Q-437/T-400] 页面「各柱逢星速断 / 六道分布 / 主星象义·星性」三卡进快照(模型早有派生字段,builder 补写)。
+describe('一掌经 快照 · 各柱逢星速断 / 六道分布 / 主星象义与星性', () => {
+	it('三段随模型产出,内容与模型字段逐项对应;段头已登记 preset 且紧随【位置速断】', () => {
+		const m = buildYizhangjingModel(baziCase3, OPTS);
+		const t = buildYizhangjingSnapshotText(m);
+		expect(t).toContain('【六道分布】');
+		expect(t).toContain('【主星象义与星性】');
+		m.daoRows.forEach((d) => { expect(t).toContain(`${d.term || d.dao}×${d.count}：`); });
+		m.pillars.forEach((p) => { if (p.xiangyi) expect(t).toContain(`${p.label}柱 ${p.star}：象义：${p.xiangyi}`); });
+		if (m.pillarQuickHits.length) {
+			expect(t).toContain('【各柱逢星速断】');
+			m.pillarQuickHits.forEach((r) => { expect(t).toContain(`${r.pillar}柱（${r.stars.join('/')}）：${r.text}`); });
+		}
+		const heads = t.match(/^【[^】]+】$/gm).map((h) => h.slice(1, -1));
+		const preset = AI_EXPORT_PRESET_SECTIONS.yizhangjing;
+		heads.forEach((h) => { expect(preset).toContain(h); });
+		expect(preset.indexOf('各柱逢星速断')).toBe(preset.indexOf('位置速断') + 1);
+		expect(preset.indexOf('六道分布')).toBe(preset.indexOf('各柱逢星速断') + 1);
+		expect(preset.indexOf('主星象义与星性')).toBe(preset.indexOf('六道分布') + 1);
+	});
+	it('六道术语档(饿鬼道系)改【六道分布】行文(显示层齿轮对正文生效)', () => {
+		const a = buildYizhangjingSnapshotText(buildYizhangjingModel(baziCase3, { ...OPTS, daoTerm: 'gui' }));
+		const b = buildYizhangjingSnapshotText(buildYizhangjingModel(baziCase3, { ...OPTS, daoTerm: 'edao' }));
+		const secA = a.slice(a.indexOf('【六道分布】'), a.indexOf('【主星象义与星性】'));
+		const secB = b.slice(b.indexOf('【六道分布】'), b.indexOf('【主星象义与星性】'));
+		expect(secA).not.toBe(secB);
+	});
+});

@@ -1,7 +1,7 @@
 // [制度化·T3 ratchet] 内容完备性审计注册表覆盖率总锁:
 //   ① preset 每键必在注册表(新增技法漏审当场红);② 注册表无僵尸键(键除名同步除表);
 //   ③ 每键至少 t1/t2/t3/t5 四税则结论齐全;④ gap/exempt 结论必带说明(冒号后非空)。
-// 逐键结论内容为人工 attestation(五税则定义见 docs/AI_REPORT_PLAYBOOK.md),本锁只机械保覆盖与格式。
+// 逐键结论内容为人工 attestation(五税则定义见内容完备性规范),本锁只机械保覆盖与格式。
 import { AI_EXPORT_PRESET_SECTIONS } from '../aiExport';
 import { AI_EXPORT_CONTENT_AUDIT } from '../aiExportContentAudit';
 

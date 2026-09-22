@@ -4,9 +4,12 @@
 // 快照冻结纪律(天星/奇门/黄历同款):_scanCfg/_scanGeo/_scanOptions/_scanTree/_scanNatal;
 // _scanUiJson 指纹驱动 resultsStale。
 import { Component } from 'react';
+import { restoreZeriWorkbenchFromCase, buildZeriCasePayload } from './zeriCaseRestore';
 import BaZi from '../cntradition/BaZi';
 import BaziZeriWorkbench from './BaziZeriWorkbench';
 import ZeriHostEntry from './ZeriHostEntry';
+import { openKentangCaseDrawer } from '../../utils/kentangCaseSave';
+import { loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import DateTime from '../comp/DateTime';
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { newBaziLeaf, newBaziGroup, compileBaziTree } from '../../divination/zeri/baziZeriConditionTypes';
@@ -14,6 +17,10 @@ import { scanBazi, explainBaziAt, computeBaziScanPan } from '../../divination/ze
 import { buildBaziZeriSnapshotExtra } from '../../divination/zeri/baziZeriSnapshot';
 import { baziZeriSchemeStore } from '../../divination/zeri/schemeStore';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
+import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+
+const ZERI_SCOPE = 'bazizeri';
+const ZERI_LABEL = '八字择日';
 
 function pad2(n){
 	return n < 10 ? `0${n}` : `${n}`;
@@ -68,7 +75,9 @@ export default class BaziZeriMain extends Component{
 			pickText: nowText,	// 当前起盘时刻(左栏入口板块显示;pick 改它)
 			cfg: { startDate: today, startTime: '00:00', endDate: today, endTime: '23:59' },
 			geo: { zone: '+08:00', lon: '116e28', lat: '39n54', gpsLon: 116.46, gpsLat: 39.9, ad: 1, pos: '北京' },
-			options: { timeAlg: 1, after23NewDay: 1, lateZiHourUseNextDay: 1, godKeyPos: '年日', phaseType: 2 },	// godKeyPos 字符串档(W0 死开关根修;旧数值经引擎归一垫片兼容)
+			// [Q-271/ZC-15] 五参数缺省与主八字页出厂值同(models/astro.js:timeAlg 0 真太阳时 / godKeyPos '年' / phaseType 0 火土同;日界两键=全局现值),
+			// 帮助称「同枚举同默认」且 pick 会把工作台值写进内嵌八字页 —— 此前 1/'年日'/2 三处不同,点一行显示盘即按工作台缺省改口径。
+			options: { timeAlg: 0, after23NewDay: defaultAfter23NewDay(), lateZiHourUseNextDay: defaultLateZiHourUseNextDay(), godKeyPos: '年', phaseType: 0 },	// godKeyPos 字符串档(W0 死开关根修;旧数值经引擎归一垫片兼容)
 			natal: null,          // 用事人本命(resolveNatal 产物;选填,解锁本命组条件)
 			natalInput: { date: '', time: '12:00', zone: '+08:00', gender: 1 },
 			tree: initialTree(),
@@ -91,6 +100,7 @@ export default class BaziZeriMain extends Component{
 		this._scanNatal = null;
 		this._scanUiJson = '';
 		this.openSearch = this.openSearch.bind(this);
+		this.saveCase = this.saveCase.bind(this);
 		this.renderLeftExtra = this.renderLeftExtra.bind(this);
 		this.runSearch = this.runSearch.bind(this);
 		this.cancelScan = this.cancelScan.bind(this);
@@ -107,6 +117,35 @@ export default class BaziZeriMain extends Component{
 		}
 	}
 
+	// [挂载自检 F-36] 存为事盘:此前本宿主无存档钮 → CASE_TYPE_OPTIONS 登记的「八字择日」事盘类型恒无实例(源层挂载恒无产出)。
+	// 快照取本宿主槽(母技法全文+择日三段,母组件经 composeAiSnapshot 存入 scope 槽);缺槽时至少存择日三段。
+	// 事盘源层按 payload.module=本 scope 认领 payload.snapshot(与 qimenzeri 同律)。
+	componentDidMount(){
+		restoreZeriWorkbenchFromCase(this, ZERI_SCOPE);   // [Q-270/T-264] 载入存案还原工作台态(此前五宿主写而不读)
+	}
+
+	componentDidUpdate(){
+		restoreZeriWorkbenchFromCase(this, ZERI_SCOPE);
+	}
+
+	saveCase(){
+		if(!this.props.dispatch){ return; }
+		let snapshot = '';
+		try{ const m = loadModuleAISnapshot(ZERI_SCOPE); snapshot = m && m.content ? `${m.content}` : ''; }catch(e){ snapshot = ''; }
+		if(!snapshot){ try{ snapshot = this.composeAiSnapshot('') || ''; }catch(e){ snapshot = ''; } }
+		openKentangCaseDrawer({
+			dispatch: this.props.dispatch,
+			fields: this.buildFields(true),
+			module: ZERI_SCOPE,
+			label: ZERI_LABEL,
+			payload: {
+				module: ZERI_SCOPE,
+				zeri: buildZeriCasePayload(this)   /* [Q-270/T-264] 补 geo/options/natal/pickText,载入存案可还原工作台与点选时刻 */,
+				snapshot,
+			},
+		});
+	}
+
 	openSearch(){
 		this.setState({ searchOpen: true });
 	}
@@ -117,6 +156,7 @@ export default class BaziZeriMain extends Component{
 		return (
 			<ZeriHostEntry
 				label="八字择日"
+				onSave={this.props.dispatch ? this.saveCase : undefined}
 				onOpen={this.openSearch}
 			/>
 		);
@@ -186,7 +226,7 @@ export default class BaziZeriMain extends Component{
 		// 冻结 UI 树:详情面「设定」列用它配冻结判读树(活树被增删后按序配对会错位,审查实抓)
 		this._scanUiTree = JSON.parse(JSON.stringify(this.state.tree));
 		try{
-			baziZeriSchemeStore.pushHistory({ cfg, geo, options, natal }, this.state.tree);
+			baziZeriSchemeStore.pushHistory({ cfg, geo, options, natal, natalInput: this.state.natalInput }, this.state.tree);
 		}catch(e){
 			// 历史落盘失败不阻断
 		}
@@ -246,13 +286,18 @@ export default class BaziZeriMain extends Component{
 		});
 	}
 
-	explainRow(row){
-		return Promise.resolve(explainBaziAt({
+	// [Q-453] 同步引擎直算(快照前 N 行判读树与工作台「详情▼」同源);explainRow 保持 Promise 形给工作台。
+	explainRowSync(row){
+		return explainBaziAt({
 			geoParams: this.buildGeoParams(this._scanGeo || this.state.geo),
 			options: { ...(this._scanOptions || this.state.options || {}), _natal: this._scanNatal },
 			tree: this._scanTree,
 			t: row.pick || `${row.start}:00`,
-		}));
+		});
+	}
+
+	explainRow(row){
+		return Promise.resolve(this.explainRowSync(row));
 	}
 
 	composeAiSnapshot(baseText){
@@ -264,6 +309,7 @@ export default class BaziZeriMain extends Component{
 				tree: this._scanUiTree || this.state.tree,	// 冻结树:与命中行同源(活树曾致条件描述≠结果,复审 F5)
 				results: this.state.results,
 				truncated: this.state.truncated,
+				explainAt: (row)=>this.explainRowSync(row),   // [Q-453] 前 N 行判读树(全局可配)
 			});
 			return extra ? `${baseText ? `${baseText}\n\n` : ''}${extra}` : baseText;
 		}catch(e){
@@ -309,6 +355,7 @@ export default class BaziZeriMain extends Component{
 						hook={this.baziHook}
 						height={this.props.height ? this.props.height - 40 : undefined}
 						techniqueScope="bazizeri"
+						dispatch={this.props.dispatch}   /* [Q-111/T-18] 同紫微宿主 */
 						composeAiSnapshot={this.composeAiSnapshot}
 						renderLeftExtra={this.renderLeftExtra}
 					/>
@@ -331,8 +378,11 @@ export default class BaziZeriMain extends Component{
 						return n;
 					}}
 					onClearNatal={()=>this.setState({ natal: null })}
+					onRestoreNatal={(n)=>this.setState({ natal: n || null })}   /* [Q-271/ZC-21] 方案载入回灌本命 */
 					tree={this.state.tree}
 					frozenTree={this._scanUiTree}
+					previewGeo={this._scanGeo || this.state.geo}   /* [Q-271/ZC-22] 冻结地点:概览口径=扫描口径 */
+					previewOptions={this._scanOptions || this.state.options}   /* [Q-271/ZC-22] 冻结参数:搜索后改参数不改旧结果行的盘 */
 					onPreviewPan={(d, t)=>computeBaziScanPan(this.buildGeoParams(this._scanGeo || this.state.geo), { ...(this._scanOptions || this.state.options || {}) }, d, t)}
 					onTreeChange={(tree)=>this.setState({ tree })}
 					onRun={this.runSearch}

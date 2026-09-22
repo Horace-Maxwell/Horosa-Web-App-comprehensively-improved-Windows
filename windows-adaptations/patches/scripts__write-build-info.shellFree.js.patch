@@ -1,0 +1,37 @@
+diff --git a/astrostudyui/scripts/write-build-info.js b/astrostudyui/scripts/write-build-info.js
+index 87369b74..3e7e1ec5 100644
+--- a/astrostudyui/scripts/write-build-info.js
++++ b/astrostudyui/scripts/write-build-info.js
+@@ -6,7 +6,7 @@
+  * 脏文件数与构建时间。preflight [122] 据此把「dist 必须来自干净 HEAD」做成机器门。
+  * 任何失败（无 git 等）恒不阻断构建——指纹缺失本身会被 preflight 咬。
+  */
+-const { execSync } = require('child_process');
++const { execSync, execFileSync } = require('child_process');
+ const fs = require('fs');
+ const path = require('path');
+ 
+@@ -39,9 +39,20 @@ function main(){
+ 	// 只统计会改变产物字节的源面(清单见 fe-source-paths.txt:源码 / 静态资源 / 依赖清单与锁 / 构建配置 / 构建前后处理脚本)
+ 	// ——docs 等不影响产物的脏文件不算。清单读不到 = 无法判脏 → 按脏处理(fail-closed,发布自检会拦)。
+ 	const srcPaths = readSourcePaths();
+-	const dirtyRaw = srcPaths.length
+-		? sh(`git status --porcelain -- ${srcPaths.map((p)=>`'../${p}'`).join(' ')}`)
+-		: '?? fe-source-paths.txt(清单缺失或为空)';
++	// horosa_buildinfo_shell_free_v1(Windows 侧移植适配;建议上游化 Mac):判脏命令原走 execSync 字符串 + 单引号
++	// pathspec —— Windows 的 execSync 走 cmd.exe,单引号不是引号,git 收到的是字面 `'../src'`,一个都匹配不上 ⇒
++	// 908 个未提交改动被判成 dirty=false(实测),发布自检的构建指纹门([#63])随之假绿:脏树产物照样发货。
++	// 修 = execFileSync 数组参数(零 shell、零引号语义),且 git 失败改按脏处理(原 catch 吞成 '' = dirty=false 是
++	// fail-open,与本文件头「无法判脏 → 按脏处理」的口径相反)。判别力由发布自检 `check_frontend_build_fingerprint`
++	// 的探针自证(临时脏文件必须被判 dirty=true)。
++	let dirtyRaw = '?? fe-source-paths.txt(清单缺失或为空)';
++	if(srcPaths.length){
++		try{
++			dirtyRaw = execFileSync('git', ['status', '--porcelain', '--'].concat(srcPaths.map((p)=>`../${p}`)), { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
++		}catch(e){
++			dirtyRaw = '?? git status failed(无法判脏,按脏处理)';
++		}
++	}
+ 	const dirtyFiles = dirtyRaw ? dirtyRaw.split('\n').filter(Boolean) : [];
+ 	const info = {
+ 		commit: commit || 'unknown',

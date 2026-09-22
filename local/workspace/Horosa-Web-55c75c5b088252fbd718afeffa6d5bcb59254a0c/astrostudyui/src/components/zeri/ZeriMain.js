@@ -149,28 +149,28 @@ export default class ZeriMain extends Component{
 							/>
 						</TabPane>
 						<TabPane tab="黄历择日" key="huanglizeri">
-							<HuangliZeriMain height={childHeight} />
+							<HuangliZeriMain height={childHeight} dispatch={this.props.dispatch} />
 						</TabPane>
 						<TabPane tab="八字择日" key="bazizeri">
-							<BaziZeriMain height={childHeight} />
+							<BaziZeriMain height={childHeight} dispatch={this.props.dispatch} />
 						</TabPane>
 						<TabPane tab="太乙择日" key="taiyizeri">
-							<TaiyiZeriMain height={childHeight} />
+							<TaiyiZeriMain height={childHeight} dispatch={this.props.dispatch} />
 						</TabPane>
 						<TabPane tab="紫微择日" key="ziweizeri">
-							<ZiweiZeriMain height={childHeight} />
+							<ZiweiZeriMain height={childHeight} dispatch={this.props.dispatch} />
 						</TabPane>
 						<TabPane tab="六壬择日" key="liurengzeri">
-							<LiurengZeriMain height={childHeight} />
+							<LiurengZeriMain height={childHeight} dispatch={this.props.dispatch} />
 						</TabPane>
 						<TabPane tab="三式择日" key="sanshizeri">
-							<SanshiZeriMain height={childHeight} />
+							<SanshiZeriMain height={childHeight} dispatch={this.props.dispatch} />
 						</TabPane>
 						<TabPane tab="七政择日" key="qizhengzeri">
-							<QizhengZeriMain height={childHeight} />
+							<QizhengZeriMain height={childHeight} dispatch={this.props.dispatch} />
 						</TabPane>
 						<TabPane tab="印度择日" key="indiazeri">
-							<IndiaZeriMain height={childHeight} />
+							<IndiaZeriMain height={childHeight} dispatch={this.props.dispatch} />
 						</TabPane>
 					</Tabs>
 				</div>

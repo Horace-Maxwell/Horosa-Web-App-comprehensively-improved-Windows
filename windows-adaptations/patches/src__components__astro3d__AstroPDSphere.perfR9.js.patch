@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/astro3d/AstroPDSphere.js b/astrostudyui/src/components/astro3d/AstroPDSphere.js
-index 40a5d82..4caea4c 100644
+index 3aefe6a1..c3add95f 100644
 --- a/astrostudyui/src/components/astro3d/AstroPDSphere.js
 +++ b/astrostudyui/src/components/astro3d/AstroPDSphere.js
-@@ -128,6 +128,21 @@ function computeReqKey(req){
+@@ -177,6 +177,21 @@ function computeReqKey(req){
  	}
  }
  
@@ -24,7 +24,7 @@ index 40a5d82..4caea4c 100644
  class AstroPDSphere extends Component{
  
  	constructor(props){
-@@ -177,6 +192,18 @@ class AstroPDSphere extends Component{
+@@ -229,6 +244,18 @@ class AstroPDSphere extends Component{
  		this.setTlZoom = this.setTlZoom.bind(this);
  	}
  

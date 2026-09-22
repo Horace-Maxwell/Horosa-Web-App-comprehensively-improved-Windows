@@ -1,4 +1,6 @@
 import { Component, memo } from 'react';
+import { buildTimeBasisLine, GUOLAO_TIME_BASIS_NOTE } from '../../utils/timeBasisLine';
+import { fieldsSchemaBaseline } from '../../utils/recordFieldsRestore';   // [Q-190/T-130] 首开只补空的判默认基准
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
@@ -18,10 +20,12 @@ import GuoLaoInput from './GuoLaoInput';
 import { SU28_MODE_LABEL, EXALT_DEGREE as GL_EXALT_DEG, starDignityStatuses as glStarDignity, starMotionState as glStarMotion, starCombust as glStarCombust } from './guolaoData';
 import { computeDongwei as glDongwei, computeTongxian as glTongxian } from './guolaoTransit';
 import GuoLaoChart from './GuoLaoChart';
-import GuoLaoMoiraPanel from './GuoLaoMoiraPanel';
+import GuoLaoMoiraPanel, { buildGuolaoMoiraInfoFacts } from './GuoLaoMoiraPanel';
+import { buildLocalNongliLite } from '../../utils/baziLunarLocal';   // [Q-435] 无头/快照路径的流年月支(月限用)
 import GuoLaoMoiraWheel, {
 	moiraBuildLimitTable as buildLimitTable,
 	moiraLifeDegree as lifeDegree,
+	moiraBirthYearBasis,
 	moiraGetZiGods,
 	moiraCollectGods,
 	moiraGodsFromRuleHits,
@@ -1196,7 +1200,7 @@ function guolaoNodeModeName(mode){
 	return normalized === GUOLAO_NODE_MODE_NORTH_RAHU ? '北罗南计' : '北计南罗';
 }
 
-function applyGuolaoNodeMode(chartObj, fields){
+export function applyGuolaoNodeMode(chartObj, fields){
 	const next = clonePlain(chartObj);
 	if(!next){
 		return next;
@@ -1404,6 +1408,78 @@ async function fetchGuolaoChartCached(params, options){
 	return clonePlain(result);
 }
 
+// 七政首开「补空」的纯计算:给定 fields,返回要播进去的全局仓值({} = 不用播)。页面首开(ensureGuolaoDefaults)与
+// 空闲预热(warmGuolaoNatal)同用这一份 —— 预热要构出与首点逐字节相同的键,口径存过非出厂值的用户若按出厂值预热就是白跑一趟。
+export function computeGuolaoSeedPatch(fields, opts){
+	if(!fields){ return {}; }
+	const embedded = !!(opts && opts.embedded);
+	const su28Mode = getStoredGuolaoSu28Mode();
+	const lifeMode = getStoredGuolaoLifeMode();
+	const nodeMode = getStoredGuolaoNodeMode();
+	const currentSu28 = fields.doubingSu28 ? Number(fields.doubingSu28.value) : null;
+	const currentLifeMode = guolaoLifeModeFromFields(fields);
+	const currentNodeMode = guolaoNodeModeFromFields(fields);
+	// [Q-190/T-130] 首开只「补空」,不覆盖已有值。
+	// 旧实现凡与全局仓不同就写回 fields:先载一张存了 doubingSu28=6 的命盘、再首开七政页 → 盘按全局出、
+	// 另存还会把全局值写进档(AI 无头复算按记录值,两边不一)。
+	// 判据用「随盘保真」同一套口径:fields 值仍等于 schema 初值 = 用户/记录没表态 → 可播全局;
+	// 已经不是初值(记录还原或本会话手改)= 有主,绝不动。
+	const baseline = fieldsSchemaBaseline() || {};
+	const atSchemaDefault = (key, cur)=>{
+		const def = baseline[key] ? baseline[key].value : undefined;
+		if(def === undefined){ return false; }
+		return `${cur}` === `${def}`;
+	};
+	const patch = {};
+	if(currentSu28 !== su28Mode && atSchemaDefault('doubingSu28', currentSu28)){
+		patch.doubingSu28 = {
+			value: su28Mode,
+		};
+	}
+	if(currentLifeMode !== lifeMode && atSchemaDefault('guolaoLifeMode', currentLifeMode)){
+		patch.guolaoLifeMode = {
+			value: lifeMode,
+		};
+	}
+	if(currentNodeMode !== nodeMode && atSchemaDefault('guolaoNodeMode', currentNodeMode)){
+		patch.guolaoNodeMode = {
+			value: nodeMode,
+		};
+	}
+	// 其余「类 A」起盘口径(报时星 / 罗计取法 / 月孛取法 / 身宫法 / 推变法 / 古宿岁差 / 回归等分锚点):
+	// 左栏改动时历来都写了全局仓(setStoredGuolao*),但首开从不读回 —— schema 初值恒非空,左栏那句
+	// 「fields 值 || 存储值」的回退永远走不到 → 改了的口径重开软件即回出厂值(用户实报同类:排盘设置重开要重设)。
+	// 「只补空」之外再加两条:
+	//   · **载入了记录就不播**。记录还原会把「存档时为默认」的键复位成 schema 初值,单看取值分不清「记录说是默认」
+	//     与「还没人表态」;这几键多数直接改盘,把一张按默认存下的旧盘按你现在的偏好重排 = 盘变了、另存还会写回记录、
+	//     与 AI 无头复算(按记录值)也对不上。有记录(cid 有值)一律以记录为准。
+	//   · **自定身宫(某个地支)不播**。那是给某一位命主手工指定的身宫,不是口径;播出去等于把这位的身宫强加给后面每一张盘。
+	//   · **择日宿主里内嵌的那份不播**。宿主自己按「主页出厂档 + 工作台扫描口径」造 fields(显示盘须与命中判定同口径),
+	//     内嵌实例若把全局仓值补进去,一是与扫描口径相左,二是补值走的是全局 fields 派发 —— 会拿宿主的择日时刻去改主应用当前的盘。
+	const recordLoaded = !!(fields.cid && fields.cid.value);
+	if(!recordLoaded && !embedded){
+		[
+			['guolaoTrueSolarTime', getStoredGuolaoTrueSolarTime],
+			['guolaoNodeType', getStoredGuolaoNodeType],
+			['guolaoLilithType', getStoredGuolaoLilithType],
+			['guolaoBodyMode', getStoredGuolaoBodyMode],
+			['guolaoTuibianMethod', getStoredGuolaoTuibianMethod],
+			['guolaoGufaPrecess', getStoredGuolaoGufaPrecess],
+			['guolaoEqTropicalAnchor', getStoredGuolaoEqTropicalAnchor],
+		].forEach(([key, getter])=>{
+			const f = fields[key];
+			const cur = f ? f.value : undefined;
+			const stored = getter();
+			if(cur === undefined || stored === undefined || stored === null){ return; }
+			if(key === 'guolaoBodyMode' && stored !== 'taiyin' && stored !== 'youjin'){ return; }
+			if(`${cur}` !== `${stored}` && atSchemaDefault(key, cur)){
+				patch[key] = { value: stored };
+			}
+		});
+	}
+	return patch;
+}
+
 // R4-B3(数据层空闲预热):按当前命盘 fields 预热七政「本命盘」进 guolao 缓存 —— 与用户
 // 首点走完全相同的 fieldsToParams + fetchGuolaoChartCached 入口(key 同、body 同、结果逐字节同,
 // 只是提前付)。仅暖本命:流年/Moira 规则依赖「此刻」的流年时间=取现时,按预热白名单纪律禁入
@@ -1415,7 +1491,8 @@ export async function warmGuolaoNatal(fields){
 		if(!fields || !fields.date || !fields.date.value || !fields.date.value.format){ return null; }
 		if(!(fields.lon && fields.lon.value) || !(fields.lat && fields.lat.value)){ return null; }
 		if(getStoredGuolaoChartStyle() === GUOLAO_CHART_STYLE_QIZHENG){ return null; }
-		const params = fieldsToParams(fields);
+		// 页面首开会先把全局仓里的口径补进 fields 再起盘:预热按同一份补过的 fields 构参,键才对得上
+		const params = fieldsToParams({ ...fields, ...computeGuolaoSeedPatch(fields) });
 		return await fetchGuolaoChartCached(params, { silent: true });
 	}catch(e){
 		return null; // 预热失败静默:首点回到冷即付的现状
@@ -1437,6 +1514,7 @@ function buildGuolaoSnapshotText(params, result){
 	lines.push(`日期：${params.date} ${params.time}`);
 	lines.push(`时区：${params.zone}`);
 	lines.push(`经纬度：${params.lon} ${params.lat}`);
+	lines.push(buildTimeBasisLine({ timeAlg: params.timeAlg, lateZiHourUseNextDay: params.lateZiHourUseNextDay, after23NewDay: params.after23NewDay, note: GUOLAO_TIME_BASIS_NOTE }));   // [Q-191/T-134] 两套时标说清
 
 	lines.push('');
 	lines.push('[宫位与星体]');
@@ -1551,10 +1629,11 @@ function guolaoLifeModeFromFields(fields){
 
 // 七政宿度制(su28Mode 0-4)：优先 fields.doubingSu28（页面选/存盘值，数据丢失修复后保真），
 // 缺省回退 getStoredGuolaoSu28Mode（AI 挂载抽屉「宿度制」/全局默认 2）。与 命度/罗计 同口径。
-function guolaoSu28ModeFromFields(fields){
+export function guolaoSu28ModeFromFields(fields){
 	if(fields && fields.doubingSu28 && fields.doubingSu28.value !== undefined && fields.doubingSu28.value !== null){
 		const v = Number(fields.doubingSu28.value);
-		if([0, 1, 2, 3, 4, 5, 6, 7].indexOf(v) >= 0){
+		// [挂载自检 F-16] 值域单源 SU28_MODE_LABEL(含 8=赤道回归实时);此前手抄 [0..7] 漏 8 → 存 8 的盘回退全局档。
+		if(Number.isFinite(v) && Object.prototype.hasOwnProperty.call(SU28_MODE_LABEL, v)){
 			return v;
 		}
 	}
@@ -1578,39 +1657,19 @@ function guolaoLifeModeName(mode){
 	return '占星上升';
 }
 
-function resolveHouseStartMode(fields){
-	if(fields && fields.houseStartMode && fields.houseStartMode.value !== undefined && fields.houseStartMode.value !== null){
-		return parseInt(fields.houseStartMode.value, 10) === SZConst.SZHouseStart_ASC
-			? SZConst.SZHouseStart_ASC : SZConst.SZHouseStart_Bazi;
-	}
-	return SZConst.SZHouseStart_Bazi;
-}
-
+// [Q-200/T-127] 「第 N 宫」以七政自身命宫为第 1 宫:命度 = lifeDegree(命主取法 asc/日出/赤黄/古法遇卯/自定,黄经,
+// 与右栏「命身与限度」/ 大限表同源),不再读宿占页「人事十二宫起盘」键(八字公式/上升)——此前缺省盘该表第 1 宫≠
+// 同一快照「命宫」,且改宿占起盘法七政快照宫序跟着变。无星体数据返回 -1(沿用后端宫名)。
 function computeAscSignIndex(result, chart, fields){
 	const objects = chart && chart.objects ? chart.objects : [];
-	const asc = objects.find((obj)=>obj.id === AstroConst.ASC);
-	const sun = objects.find((obj)=>obj.id === AstroConst.SUN);
-	if(!asc){
+	if(!objects.length){
 		return -1;
 	}
-	const ascIdx = Math.floor(Number(objectLon(asc)) / 30);
-	const mode = resolveHouseStartMode(fields);
-	if(mode === SZConst.SZHouseStart_ASC){
-		return ascIdx;
+	const life = Number(lifeDegree(chart, fields, true));
+	if(!Number.isFinite(life)){
+		return -1;
 	}
-	const bazi = (chart && chart.nongli && chart.nongli.bazi)
-		|| (result && result.nongli && result.nongli.bazi);
-	if(!bazi || !sun){
-		return ascIdx;
-	}
-	const timezi = bazi.time && bazi.time.branch ? bazi.time.branch.cell : null;
-	const timesig = timezi ? SZConst.ZiSign[timezi] : null;
-	const tmsigidx = timesig ? AstroConst.LIST_SIGNS.indexOf(timesig) : -1;
-	if(tmsigidx < 0){
-		return ascIdx;
-	}
-	const sunidx = Math.floor(Number(objectLon(sun)) / 30);
-	return (sunidx - tmsigidx - 5 + 24) % 12;
+	return Math.floor((((life % 360) + 360) % 360) / 30);
 }
 
 function houseFullLabel(house, idx, ascSignIndex){
@@ -1767,20 +1826,24 @@ export async function buildGuolaoSnapshotForFields(fields){
 	if(!result){
 		return '';
 	}
+	// [挂载自检 F-14·P0] 罗计换位与页面同源:页面存快照前 applyGuolaoNodeMode(chartObj, fields)(北罗南计=深换
+	// NORTH/SOUTH_NODE id),再用换位后的盘取 rules、出快照;无头此前直接拿 /chart 原始 result 喂 rules/builder →
+	// 快照 [起盘信息] 标「北罗南计」而 [宫位与二十八宿]/[星曜庙旺]/[相位] 里罗睺/计都仍在北计南罗位置。
+	const display = applyGuolaoNodeMode(result, fields) || result;
 	// [审计修] 无头路径曾漏传第 5 参 moiraRules(恒 undefined)→ 挂载复算恒丢 [虚实]/[本命化曜]/
 	// [流年流曜] 三段、[神煞] 降级历法源——与页面快照不等长。补:远端规则同页面口径,
 	// 不完整/失败回退本地纯算(与 requestMoiraRules 同两级兜底,绝不阻断主体段)。
 	let rules = null;
 	try{
 		const rsp = await fetchMoiraQizhengRules({
-			params, chartObj: result, transitParams: null, transitChartObj: null,
+			params, chartObj: display, transitParams: null, transitChartObj: null,
 		}, { silent: true, timeoutMs: 12000 });
 		const remote = rsp && rsp[Constants.ResultKey] ? rsp[Constants.ResultKey] : null;
-		rules = isIncompleteMoiraRules(remote) ? buildLocalMoiraRules(params, result, fields, 'headless-fallback') : remote;
+		rules = isIncompleteMoiraRules(remote) ? buildLocalMoiraRules(params, display, fields, 'headless-fallback') : remote;
 	}catch(e){
-		try{ rules = buildLocalMoiraRules(params, result, fields, 'headless-error'); }catch(_e){ rules = null; }
+		try{ rules = buildLocalMoiraRules(params, display, fields, 'headless-error'); }catch(_e){ rules = null; }
 	}
-	return buildGuolaoSnapshotTextV2(params, result, null, fields, rules);
+	return buildGuolaoSnapshotTextV2(params, display, null, fields, rules);
 }
 
 // AI 快照·神煞段与盘面同源(rules 引擎 godHits+十二长生;rules 未到回退历法 ziGods)——
@@ -1896,6 +1959,15 @@ export function buildGuolaoBirthStarsSection(moiraRules){
 			const items = safeList(row.items).length ? joinNames(row.items) : '';
 			out.push(`${row.star}：化${row.changeTo || '-'}${items && items !== '无' ? `（同归：${items}）` : ''}`);
 		});
+		// [Q-435] 命曜表(右栏「宫位化曜·本命」列 = rules.natalYearStars:宫名/化曜/曜名/宫性)此前不进快照。
+		const natalSignRows = safeList(safeMap(moiraRules).natalYearStars);
+		if(natalSignRows.length){
+			out.push('◆ 命曜落宫');
+			natalSignRows.forEach((row)=>{
+				const pos = [row.quality, row.zi, row.signName].filter(Boolean).join(' · ');
+				out.push(`${row.name}：${row.star || '-'}（${row.shortName || '-'}${pos ? `；${pos}` : ''}）`);
+			});
+		}
 		out.push('◆ 十神序（参考）');
 		out.push(`原十神序：${MOIRA_TEN_GOD_ORG.join('、')}`);
 		out.push(`替代十神序：${MOIRA_TEN_GOD_ALT.join('、')}`);
@@ -1946,6 +2018,97 @@ function buildGuolaoTransitStarsSection(fields, moiraRules){
 	}
 }
 
+// [Q-231/Q-434/Q-435] AI 快照取右栏「命身与限度 / 三主·化曜 / 难仇恩用 / 五限 / 行运法」诸卡的事实层:
+// 与 GuoLaoMoiraPanel 同一 buildGuolaoMoiraInfoFacts(页面显示什么、快照就写什么)。流年时刻按 fields 缺省
+// (paramsWithMoiraTransit,与 [流年流曜] 段同口径);月限所需流年月支无头无后端流年盘 → 本地历法(lunar.js)
+// 算流年四柱伪 root,页面/无头两路同走此处 → 两路快照逐字相同。任何异常降级 null,不影响既有段。
+function buildGuolaoInfoFactsForSnapshot(params, result, fields, display, moiraRules){
+	try{
+		const transitParams = paramsWithMoiraTransit(fields, null);
+		let transitValue = null;
+		try{
+			const lite = buildLocalNongliLite(transitParams);
+			transitValue = lite && lite.bazi ? { nongli: { bazi: lite.bazi } } : null;
+		}catch(e){ transitValue = null; }
+		return buildGuolaoMoiraInfoFacts({
+			value: moiraRules || {}, rootValue: result || {}, transitValue, params, transitParams, display: display || {}, fields: fields || {},
+		});
+	}catch(e){
+		return null;
+	}
+}
+
+// [Q-231/Q-434] [起盘信息] 命度实值 / 身度 / 命度宿主 / 身度宿主 四行(右栏「命身与限度」卡同源)。
+function buildGuolaoAnchorLines(info){
+	if(!info || !info.life){ return []; }
+	const out = [];
+	const anchorText = (a, extra)=>{
+		const main = `${a.signName || '随盘面'} ${a.degreeText || ''}`.trim();
+		const tail = [a.zi, a.area, a.moiraHouse].concat(extra || []).filter(Boolean).join(' · ');
+		return tail ? `${main}（${tail}）` : main;
+	};
+	out.push(`命度：${anchorText(info.life, [info.lifeModeName])}`);
+	if(info.self && (info.self.signName || info.self.degreeText)){
+		out.push(`身度：${anchorText(info.self)}`);
+	}
+	out.push(`命度宿主：${info.lifeSuHost ? info.lifeSuHost.value : '随盘面'}；身度宿主：${info.selfSuHost ? info.selfSuHost.value : '随盘面'}`);
+	return out;
+}
+
+// [Q-435] [三主与化曜] 段:三主(命主/宫主/度主/身主)+ 命宫配干 + 生年化曜 + 难仇恩用(度/宫两役行)。
+// 「命主取法」齿轮在此对正文生效(命主(宫主)/命主(度主) 与难仇恩用主星随之改变)。
+export function buildGuolaoMastersSection(info){
+	try{
+		if(!info){ return ''; }
+		const out = [];
+		if(info.masterItems && info.masterItems.length){
+			out.push(`◆ 三主 · 命宫配干 · 化曜（${info.useDu ? '专度主' : '主宫主'}）`);
+			info.masterItems.forEach((it)=>{ out.push(`${it.label}：${it.value}`); });
+		}
+		if(info.helperRows && info.helperRows.length){
+			out.push('◆ 难仇恩用（主星五行四役）');
+			const labels = info.helperLabels || ['难', '仇', '恩', '用'];
+			info.helperRows.forEach((row)=>{
+				out.push(`${row.head}(${row.main})：${labels.map((lab, li)=>`${lab}=${row.roles[li] || '-'}`).join('，')}`);
+			});
+		}
+		return out.join('\n');
+	}catch(e){
+		return '';
+	}
+}
+
+// [Q-435] [限法实算] 段:飞限 / 童限 / 小限 / 月限 / 限度(当年虚岁实算)+ 所选「行运法」的实算
+// (洞微本年吊度 / 童限顺排 / 小限宫 / 月限宫)。「行运法」齿轮在此对正文生效(此前只改 [大限] 段一行标签)。
+export function buildGuolaoLimitCalcSection(info){
+	try{
+		if(!info){ return ''; }
+		const out = [];
+		const lim = info.limits;
+		if(lim && lim.items && lim.items.length){
+			out.push(`◆ 飞限 · 童限 · 小限 · 月限 · 限度（${lim.age} 岁 · ${lim.transitYearText}年）`);
+			out.push(lim.items.map((it)=>`${it.label}：${it.value}`).join('；'));
+		}
+		const rl = info.runLaw;
+		if(rl && rl.type === 'dongwei'){
+			out.push(`◆ 行运法实算 · 洞微大限（起限 ${rl.startAge} 岁）`);
+			out.push(rl.curDiaodu ? `本年飞星吊度 ≈ ${rl.curDiaodu.deg}°（${rl.age} 岁）` : '本年飞星吊度：需年龄');
+		}else if(rl && rl.type === 'tong'){
+			out.push(`◆ 行运法实算 · 童限（基数${rl.baseName}）`);
+			out.push(`童限顺排：${(rl.palaces || []).join('→')}；出童限(约)：${rl.exitAge} 岁`);
+		}else if(rl && rl.type === 'month'){
+			out.push(`◆ 行运法实算 · 月限（小限宫起生月逆寻 · 生月${rl.bMonth}）`);
+			out.push(rl.palaceName ? `月限(${rl.age}岁)：${rl.palaceName}（${rl.palaceZi}）` : '月限：需年龄/生月');
+		}else if(rl && rl.type === 'minor'){
+			out.push('◆ 行运法实算 · 小限（生年支加命宫逆数）');
+			out.push(rl.palaceName ? `小限(${rl.age}岁)：${rl.palaceName}（${rl.palaceZi}）` : '小限：需年龄');
+		}
+		return out.join('\n');
+	}catch(e){
+		return '';
+	}
+}
+
 function buildGuolaoSnapshotTextV2(params, result, planetDisplay, fields, moiraRules){
 	// 🔴 模块级 SNAPSHOT_PREFER_LON 只允许在本函数生命周期内为真:曾写脏后永不复位 →
 	// 黄仪盘导过一次快照后,切回赤仪的 UI 渲染(objectLon 全部消费点)改吃黄经,
@@ -1972,6 +2135,7 @@ function _buildGuolaoSnapshotTextV2Core(params, result, planetDisplay, fields, m
 	lines.push(`日期：${params.date} ${params.time}`);
 	lines.push(`时区：${params.zone}`);
 	lines.push(`经纬度：${params.lon} ${params.lat}`);
+	lines.push(buildTimeBasisLine({ timeAlg: params.timeAlg, lateZiHourUseNextDay: params.lateZiHourUseNextDay, after23NewDay: params.after23NewDay, note: GUOLAO_TIME_BASIS_NOTE }));   // [Q-191/T-134] 两套时标说清
 	lines.push(`七政命度：${guolaoLifeModeName(guolaoLifeModeFromFields(fields))}`);
 	lines.push(`罗计：${guolaoNodeModeName(guolaoNodeModeFromFields(fields))}`);
 	// G6/G10/G11 起盘设置注入快照(AI 据此解读报时星/四余取法)。
@@ -1990,6 +2154,8 @@ function _buildGuolaoSnapshotTextV2Core(params, result, planetDisplay, fields, m
 		...(fields.guolaoLifeMasterMode && fields.guolaoLifeMasterMode.value ? { lifeMasterMode: fields.guolaoLifeMasterMode.value } : {}),
 		...(fields.guolaoMinorLimitType && fields.guolaoMinorLimitType.value !== undefined && fields.guolaoMinorLimitType.value !== null && fields.guolaoMinorLimitType.value !== '' ? { minorLimitType: fields.guolaoMinorLimitType.value } : {}),
 		...(fields.guolaoTongxianBase && fields.guolaoTongxianBase.value ? { tongxianBase: fields.guolaoTongxianBase.value } : {}),
+		// [Q-191/T-133] 定童限同样 fields 优先(挂载齿轮/存档)→ 快照 [大限] 段起讫岁与页面一致。
+		...(fields.guolaoLimitChildBase && fields.guolaoLimitChildBase.value ? { limitChildBase: Number(fields.guolaoLimitChildBase.value) } : {}),
 	};
 	const _su28Name = SU28_MODE_LABEL[guolaoSu28ModeFromFields(fields)] || '回归今宿';   // 单源 SU28_MODE_LABEL(WP-A,消第三套漂移)
 	const _lmName = { gong: '宫主', du: '度主', dudegrade: '贬宫主专度主' }[_gDisp.lifeMasterMode || 'gong'] || '宫主';
@@ -1997,6 +2163,9 @@ function _buildGuolaoSnapshotTextV2Core(params, result, planetDisplay, fields, m
 	const _gBodyName = _gBody === 'youjin' ? '逢酉(琴堂)' : ('子丑寅卯辰巳午未申酉戌亥'.indexOf(_gBody) >= 0 ? `自定身宫·${_gBody}` : '太阴落宫(果老)');
 	lines.push(`宿度制：${_su28Name}；身宫法：${_gBodyName}`);
 	lines.push(`命主取法：${_lmName}；行运法：${_mlName}`);
+	// [Q-231/Q-434] 命度实值 / 身度 / 命度宿主 / 身度宿主(右栏「命身与限度」卡同源)。
+	const _info = buildGuolaoInfoFactsForSnapshot(params, result, fields, _gDisp, moiraRules);
+	buildGuolaoAnchorLines(_info).forEach((l)=>lines.push(l));
 	lines.push('');
 
 	lines.push('[七政四余宫位与二十八宿星曜]');
@@ -2009,8 +2178,22 @@ function _buildGuolaoSnapshotTextV2Core(params, result, planetDisplay, fields, m
 	lines.push(buildRulesGodsSection(moiraRules) || buildHouseGodsSection(result, fields) || '无');
 	lines.push('');
 	lines.push('[大限]');
-	lines.push(buildGuolaoLimitSection(chart, fields, params, _gDisp.minorLimitType || '', _gDisp.tongxianBase || 'tong10') || '无');
+	lines.push(buildGuolaoLimitSection(chart, fields, params, _gDisp.minorLimitType || '', _gDisp.tongxianBase || 'tong10',
+		{ limitYearBoundary: _gDisp.limitYearBoundary, limitChildBase: _gDisp.limitChildBase }) || '无');
 	lines.push('');
+	// [Q-435] 三主化曜 / 难仇恩用 与 五限实算 / 行运法实算(右栏同源,有数据才产段)。
+	const mastersSection = buildGuolaoMastersSection(_info);
+	if(mastersSection){
+		lines.push('[三主与化曜]');
+		lines.push(mastersSection);
+		lines.push('');
+	}
+	const limitCalcSection = buildGuolaoLimitCalcSection(_info);
+	if(limitCalcSection){
+		lines.push('[限法实算]');
+		lines.push(limitCalcSection);
+		lines.push('');
+	}
 	// 虚实段（v44 硬缺补挂，纯增）：有 weakSolid 规则数据才产段，缺数据时既有输出逐字不变。
 	const weakSolidSection = buildGuolaoWeakSolidSection(moiraRules);
 	if(weakSolidSection){
@@ -2090,11 +2273,15 @@ export function buildGuolaoAspectSection(result){
 
 // AI 快照·大限段：复用 Moira 命盘轮的命度→十二宫大限算法（moiraBuildLimitTable/lifeDegree），
 // 保证导出/挂载与盘面「命身与限度·大限」列表完全同口径。出生年取自 params.date（YYYY/MM/DD）。
-export function buildGuolaoLimitSection(chart, fields, params, minorLimitType, tongxianBase){
+// [Q-188/T-125] limitOpts:{ limitYearBoundary, limitChildBase } 与右栏/大限环同源(缺省 元旦/9 → 段逐字同旧)。
+export function buildGuolaoLimitSection(chart, fields, params, minorLimitType, tongxianBase, limitOpts){
 	try{
 		const lifeDeg = lifeDegree(chart, fields);
-		const birthYear = Number(String(params.date || '').split('/')[0]) || 0;
-		const rows = buildLimitTable(lifeDeg, birthYear);
+		const lo = limitOpts && typeof limitOpts === 'object' ? limitOpts : {};
+		const limitBasis = moiraBirthYearBasis(chart, fields, lo.limitYearBoundary || 'gregorian');
+		const limitChildBase = Number(lo.limitChildBase) === 10 ? 10 : 9;
+		const birthYear = (Number(String(params.date || '').split('/')[0]) || 0) + limitBasis.yearShift;
+		const rows = buildLimitTable(lifeDeg, birthYear, limitChildBase, limitBasis.frac);
 		const out = [];
 		if(rows && rows.length){
 			// GFM 表化(段内排版,值零变化):cell 沿用旧行字面片段(第N限/a-b岁/a-b年/约N年),
@@ -2191,7 +2378,9 @@ function fieldsToParams(fields){
 	if(su28Mode === GUOLAO_SU28_MODE_GUFA_LICHENG){
 		const _tuibian = guolaoFieldValue(fields, 'guolaoTuibianMethod', getStoredGuolaoTuibianMethod);
 		if(_tuibian === 'jintui' || _tuibian === 'huiyuan'){ params.guolaoTuibianMethod = _tuibian; }
-		if(guolaoFieldValue(fields, 'guolaoGufaPrecess', getStoredGuolaoGufaPrecess)){ params.guolaoGufaPrecess = 1; }
+		// 🔴 T-16:guolaoFieldValue 串化后 '0' 也为真 → 「钉死元时」(0)与缺省都被当「随岁差」发 1;按 '1'/'true' 判真(与缓存键 / models/astro.js 构参同口径)
+		const _gufaPrecess = guolaoFieldValue(fields, 'guolaoGufaPrecess', getStoredGuolaoGufaPrecess);
+		if(_gufaPrecess === '1' || _gufaPrecess === 'true'){ params.guolaoGufaPrecess = 1; }
 	}
 	// 赤道回归制锚点(mode7 元明 / mode8 实时 同款):仅两制且非默认(牛前冬至)才透传 → 缺=牛前冬至零回归。
 	if(su28Mode === GUOLAO_SU28_MODE_EQUATORIAL_TROPICAL || su28Mode === GUOLAO_SU28_MODE_EQUATORIAL_TROPICAL_LIVE){
@@ -2674,6 +2863,8 @@ class GuoLaoChartMain extends Component{
 		try{
 		const pan = await fetchKinastroQizheng({
 				...params,
+				// [Q-198/T-124] fieldsToParams 不含 gender,后端 data.get("gender") 缺省男 → 女命大运与断语恒按男排;此处补透传(1/0 → 后端 gender_cn)。
+				gender: (this.props.fields && this.props.fields.gender && this.props.fields.gender.value !== undefined && this.props.fields.gender.value !== null) ? this.props.fields.gender.value : undefined,
 				qizhengKinCurrentYear: options.currentYear,
 				qizhengKinTransitMode: options.transitMode || 'none',
 				qizhengKinTransitDate: options.transitDate || '',
@@ -2727,30 +2918,9 @@ class GuoLaoChartMain extends Component{
 			return false;
 		}
 		this.guolaoDefaultsEnsured = true;
-		const su28Mode = getStoredGuolaoSu28Mode();
-		const lifeMode = getStoredGuolaoLifeMode();
-		const nodeMode = getStoredGuolaoNodeMode();
-		const currentSu28 = this.props.fields.doubingSu28 ? Number(this.props.fields.doubingSu28.value) : null;
-		const currentLifeMode = guolaoLifeModeFromFields(this.props.fields);
-		const currentNodeMode = guolaoNodeModeFromFields(this.props.fields);
-		if(currentSu28 === su28Mode && currentLifeMode === lifeMode && currentNodeMode === nodeMode){
+		const patch = computeGuolaoSeedPatch(this.props.fields, { embedded: (this.props.techniqueScope || 'guolao') !== 'guolao' });
+		if(!Object.keys(patch).length){
 			return false;
-		}
-		const patch = {};
-		if(currentSu28 !== su28Mode){
-			patch.doubingSu28 = {
-				value: su28Mode,
-			};
-		}
-		if(currentLifeMode !== lifeMode){
-			patch.guolaoLifeMode = {
-				value: lifeMode,
-			};
-		}
-		if(currentNodeMode !== nodeMode){
-			patch.guolaoNodeMode = {
-				value: nodeMode,
-			};
 		}
 		this.onFieldsChange(patch);
 		return true;
@@ -3270,6 +3440,11 @@ class GuoLaoChartMain extends Component{
 			return;
 		}
 		if(prevProps.planetDisplay !== this.props.planetDisplay){
+			this.saveGuolaoAISnapshot(null, this.state.chartObj);
+		}
+		// [Q-435] 命主取法 / 行运法 / 定童限 / 年界 等显示偏好改动后重存页面快照:此前只在盘数据到达时存,
+		// 切「行运法」后 [起盘信息] 标签行、[大限] 与 [限法实算] 段仍是旧值(右栏已变)。
+		if(prevState && prevState.guolaoDisplay !== this.state.guolaoDisplay && this.state.chartObj){
 			this.saveGuolaoAISnapshot(null, this.state.chartObj);
 		}
 		if(prevProps.value !== this.props.value && this.props.value){
@@ -4398,3 +4573,5 @@ class GuoLaoChartMain extends Component{
 }
 
 export default GuoLaoChartMain;
+// 测试专用别名(选项差分网):模块内构参函数原样导出,零行为变化(与 models/astro.js 的 __fieldsToParamsForTest 同范式)。
+export { fieldsToParams as __guolaoFieldsToParamsForTest, paramsWithMoiraTransit as __paramsWithMoiraTransitForTest };

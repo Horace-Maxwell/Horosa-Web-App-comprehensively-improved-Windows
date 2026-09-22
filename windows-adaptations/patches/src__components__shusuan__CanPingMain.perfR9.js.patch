@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/shusuan/CanPingMain.js b/astrostudyui/src/components/shusuan/CanPingMain.js
-index a9a36fd0..5d86cacc 100644
+index f9ba45fa..f3c3a47d 100644
 --- a/astrostudyui/src/components/shusuan/CanPingMain.js
 +++ b/astrostudyui/src/components/shusuan/CanPingMain.js
 @@ -42,6 +42,7 @@ function deepFreeze(o){

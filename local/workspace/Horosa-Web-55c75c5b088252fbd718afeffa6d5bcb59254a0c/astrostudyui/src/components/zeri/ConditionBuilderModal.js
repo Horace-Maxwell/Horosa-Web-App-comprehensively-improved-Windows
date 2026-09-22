@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { saveBlobSmart } from '../../utils/aiAnalysisExport';
 import { Modal, Dropdown, Menu, message } from 'antd';
 import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
 import * as AstroConst from '../../constants/AstroConst';
@@ -6,27 +7,22 @@ import { getHousesOption } from '../comp/CompHelper';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import ConditionParamsForm from './ConditionParamsForm';
 import { CONDITION_TYPES, newLeaf, newGroup, JOINER_CN, auditTreeAgainstRegistry } from '../../divination/zeri/conditionTypes';
+import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // [Q-478] 空数字框统一校验
 import { formatGpsDms } from '../../divination/zeri/tianxingSnapshot';
 import { conditionSummary } from '../../divination/zeri/conditionGlyph';
 import { fetchChart } from '../../services/astro';
 import AstroChart from '../astro/AstroChart';
+import { clientToFixed } from '../../utils/zoomDomain';
 import {
 	listSchemes, saveScheme, deleteScheme, listHistory,
 	renameScheme, exportSchemes, importSchemes,
 } from '../../divination/zeri/schemeStore';
 
+// [Q-410] 单源保存(桌面壳保存桥选目录;浏览器 <a download>);取消 / 失败静默不报成功(本处本就无成功提示)。
 function downloadJson(text, filename){
 	try{
-		const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = filename;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		setTimeout(() => URL.revokeObjectURL(url), 800);
-	}catch(e){ /* 下载失败静默(受限 webview 环境) */ }
+		return saveBlobSmart(filename, new Blob([text], { type: 'application/json;charset=utf-8' }));
+	}catch(e){ return null; /* 受限 webview 环境静默 */ }
 }
 
 const Option = XQSelect.Option;
@@ -86,8 +82,9 @@ function MiniChartPopup({ params, title, onClose, display }){
 		e.stopPropagation();
 		const start = { mx: e.clientX, my: e.clientY, ...box };
 		const move = (ev) => {
-			const dx = ev.clientX - start.mx;
-			const dy = ev.clientY - start.my;
+			// 鼠标位移是视觉域,窗体 x/y/w/h 是 CSS(布局域):换域后窗体才与鼠标同步(缩放档下此前窗体比鼠标快 / 慢 z 倍);z=1 恒等。
+			const dx = clientToFixed(ev.clientX - start.mx);
+			const dy = clientToFixed(ev.clientY - start.my);
 			if(mode === 'drag'){
 				setBox((b) => ({ ...b, x: Math.max(0, start.x + dx), y: Math.max(0, start.y + dy) }));
 			}else{
@@ -180,7 +177,7 @@ function renderExplainNode(node, uiLeaves, counter, depth){
 }
 
 export default function ConditionBuilderModal({
-	open, onClose, cfg, onCfgChange, tree, onTreeChange,
+	open, onClose, cfg, onCfgChange, tree, frozenTree, onTreeChange,
 	onRun, onCancelScan, onPickInterval, onExplain, onPreviewParams, previewDisplay, scanEpoch, resultsStale,
 	scanning, progress, results, truncated, scanErr,
 }){
@@ -227,8 +224,10 @@ export default function ConditionBuilderModal({
 	};
 
 	const draftLeaf = { kind: 'leaf', type: draftType, negate: draftNegate, params: draftParams };
-	const draftError = (CONDITION_TYPES[draftType] && CONDITION_TYPES[draftType].validate)
-		? CONDITION_TYPES[draftType].validate(draftParams) : '';
+	// [Q-478/T-440] 空数字框先判(与表单红框同一判据),再走类型自校验。
+	const draftError = emptyNumberFieldError(CONDITION_TYPES[draftType], draftParams)
+		|| ((CONDITION_TYPES[draftType] && CONDITION_TYPES[draftType].validate)
+			? CONDITION_TYPES[draftType].validate(draftParams) : '');
 
 	const appendTargetPath = selectedIsGroup ? selectedPath : [];
 	const doAdd = () => {
@@ -378,7 +377,7 @@ export default function ConditionBuilderModal({
 	const zodiacValue = AstroConst.zodiacSelectValue(cfg.zodiacal || 0, cfg.siderealAyanamsa || '');
 
 	const editView = (
-		<div style={{ display: 'grid', gridTemplateColumns: '560px minmax(0, 1fr)', gap: 12, height: 'clamp(560px, calc(100vh - 220px), 900px)' }}>
+		<div style={{ display: 'grid', gridTemplateColumns: '560px minmax(0, 1fr)', gap: 12, height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)' }}>
 			{/* 左列(用户规格:时间段·地点·盘面居左上角;动作排+开始搜索同一行) */}
 			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
 				<div style={{ padding: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
@@ -500,7 +499,7 @@ export default function ConditionBuilderModal({
 	);
 
 	const resultView = (
-		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => setView('edit')} disabled={scanning}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>搜索结果</span>
@@ -528,8 +527,7 @@ export default function ConditionBuilderModal({
 					<span style={{ flex: 1 }}>结束(点击=结束时刻起盘)</span>
 					<span style={{ width: 76, textAlign: 'right' }}>时长</span>
 					<span style={{ width: 64, textAlign: 'center' }}>详情</span>
-					<span style={{ width: 52 }}>盘</span>{/* 行内多「盘」列,表头必须等宽占位——缺列致两 flex 列压窄整行左移(用户实报错位) */}
-					<span style={{ width: 52, textAlign: 'center' }}>概览</span>
+					<span style={{ width: 52 }}>盘</span>{/* 行内只有「盘」一列,表头等宽占位;[Q-271/ZC-24] 曾多一列「概览」空占位把两 flex 列压窄、表头与行错位 */}
 				</div>
 				{(!results || !results.length) && !scanning ? (
 					<div style={{ padding: 24, opacity: 0.6 }}>{results ? '时间段内无满足全部条件的时刻。' : '尚未搜索。'}</div>
@@ -573,7 +571,7 @@ export default function ConditionBuilderModal({
 								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).loading ? <div style={{ fontSize: 12, opacity: 0.6 }}>判读中…</div> : null}
 								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).err ? <div style={{ fontSize: 12, color: '#e5484d' }}>{explainMap[`${scanEpoch || 0}:${i}`].err}</div> : null}
 								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).tree
-									? renderExplainNode(explainMap[`${scanEpoch || 0}:${i}`].tree, collectUiLeaves(tree, []), { i: 0 }, 0)
+									? renderExplainNode(explainMap[`${scanEpoch || 0}:${i}`].tree, collectUiLeaves(frozenTree || tree, []), { i: 0 }, 0)   /* [Q-271/ZC-24] 冻结树配冻结判读(九家同律;活树增删后按序配对会错位) */
 									: null}
 							</div>
 						) : null}
@@ -597,7 +595,7 @@ export default function ConditionBuilderModal({
 	};
 
 	const schemesView = (
-		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => { setView('edit'); setSchemeMsg(''); }}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>方案管理</span>

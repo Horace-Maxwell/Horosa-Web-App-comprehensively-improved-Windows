@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js b/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js
-index 00859f18..7a234a18 100644
+index ace44f8b..c35ddd38 100644
 --- a/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js
 +++ b/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js
 @@ -27,22 +27,49 @@ const EXEMPT = [
@@ -67,3 +67,52 @@ index 00859f18..7a234a18 100644
  }
  
  // 🔴 判定必须按**写回点**粒度,不能按行。
+@@ -154,16 +181,21 @@ const POINTER_EXEMPT = {
+ 	'components/germany/UranianModulusDial.js': '同 UranianCosmogram',
+ };
+ 
++// horosa_win_shell_free_scan_v1(第二处,v3.11.0 上游新增的 T6 指针读数扫描同病同修:grep 外壳在 Windows 必失效 ⇒ 空集假绿)。
++// 纯 Node 等价:递归 components/pages 的 .js,逐行按同义 JS 正则(POSIX `[[:space:]]` ≡ `\\s`)匹配;file 相对 SRC、POSIX 分隔符。
++const POINTER_RE = new RegExp(POINTER_PATTERN.replace(/\[\[:space:\]\]/g, '\\s'));
+ function scanPointerReads(){
+-	let out = '';
+-	try{
+-		out = execSync(`grep -rnaE --include='*.js' ${JSON.stringify(POINTER_PATTERN)} components pages`, { cwd: SRC, encoding: 'utf8' });
+-	}catch(e){ out = e.stdout || ''; }
+ 	const files = {};
+-	out.split('\n').filter(Boolean).forEach((line) => {
+-		const m = /^([^:]+):(\d+):(.*)$/.exec(line);
+-		if(!m || /__tests__|\.test\.js$/.test(m[1])){ return; }
+-		(files[m[1]] = files[m[1]] || []).push({ line: Number(m[2]), text: m[3] });
++	['components', 'pages'].forEach((d) => {
++		walkJs(path.join(SRC, d), []).forEach((full) => {
++			const rel = path.relative(SRC, full).split(path.sep).join('/');
++			if(/__tests__|\.test\.js$/.test(rel)){ return; }
++			let src = '';
++			try{ src = fs.readFileSync(full, 'utf8'); }catch(e){ return; }
++			src.split('\n').forEach((text, i) => {
++				if(POINTER_RE.test(text)){ (files[rel] = files[rel] || []).push({ line: i + 1, text }); }
++			});
++		});
+ 	});
+ 	return files;
+ }
+@@ -228,8 +260,15 @@ describe('T6 指针 / 物理视口读数必须过换域件', () => {
+ 	});
+ 
+ 	it('🔴 可拖动对话框只许用本仓的 comp/DragModal(第三方同名小件把视觉域位移直接写进 translate,缩放档下不跟手)', () => {
+-		let out = '';
+-		try{ out = execSync("grep -rnaE --include='*.js' \"from ['\\\"]drag-modal['\\\"]\" components pages layouts", { cwd: SRC, encoding: 'utf8' }); }catch(e){ out = e.stdout || ''; }
+-		expect(out.trim()).toBe('');
++		// horosa_win_shell_free_scan_v1(第三处):纯 Node 扫 components/pages/layouts 的 .js,任何 `from 'drag-modal'` 即红。
++		const offenders = [];
++		['components', 'pages', 'layouts'].forEach((d) => {
++			walkJs(path.join(SRC, d), []).forEach((full) => {
++				let src = '';
++				try{ src = fs.readFileSync(full, 'utf8'); }catch(e){ return; }
++				if(/from ['"]drag-modal['"]/.test(src)){ offenders.push(path.relative(SRC, full).split(path.sep).join('/')); }
++			});
++		});
++		expect(offenders).toEqual([]);
+ 	});
+ });

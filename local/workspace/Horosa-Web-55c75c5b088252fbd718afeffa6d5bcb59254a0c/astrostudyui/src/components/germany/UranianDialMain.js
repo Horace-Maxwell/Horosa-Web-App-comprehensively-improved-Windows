@@ -21,6 +21,9 @@ import { SCHOOL_OPTIONS, presetForSchool, personalSetForSchool, schoolToBackendP
 import { tnpGlyph, TNP_GLYPH_PATHS } from './UranianGlyphs';
 import { listLocalCharts, localChartsVersion } from '../../utils/localcharts';
 import { classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
+import { getLayoutViewportWidth, getLayoutViewportHeight } from '../../utils/shellZoom';
+// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+import { visualFloorPx } from '../../utils/zoomDomain';
 import { createSignatureMemo, memoEnabled } from '../../utils/memoBySignature';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
@@ -314,14 +317,14 @@ export default class UranianDialMain extends Component {
 			dialStyle: disp.dialStyle === 'modulus' ? 'modulus' : 'folded', // 盘式：折叠盘 / 多环模数盘
 			saArcDirected: 0,      // 太阳弧环被拖动的定向弧(黄道度)
 			saAge: 0,              // 由定向弧按 saKey 反推的年龄
-			saKey: disp.saKey === 'oneDeg' ? 'oneDeg' : 'naibod', // 太阳弧换算：Naibod / 1°每年
+			saKey: (disp.saKey === 'oneDeg' || disp.saKey === 'cardan') ? disp.saKey : 'naibod', // 太阳弧换算：Naibod / 1°每年 / Cardan([Q-147/T-54] 此前 cardan 重挂载被折成 naibod)
 			transitTime: null,     // 行运时刻(null=此刻)，可调
 			// 行运/SA 地点可调(null=同本命)。SA 一般地心黄经无需地点,但允许覆盖以方便 relocated 想法。
 			transitLat: null, transitLon: null,
 			saLat: null, saLon: null,
 			// viewport 高度(用于动态算盘 size + 左右栏滚动 maxHeight;props.height 不含底部 Dock 安全距离,
 			// 须用 window.innerHeight 实测 + 减去顶栏/tab/Dock 估算)。
-			vh: typeof window !== 'undefined' ? window.innerHeight : 900,
+			vh: typeof window !== 'undefined' ? getLayoutViewportHeight() : 900,   // 布局域实测(innerHeight 是物理域,壳缩放≠1 时差 z 倍)
 			// 中间盘列的实测可用宽/高(中点盘按 min(列宽, 列高) 最大化,永不超出列的方框)。
 			colW: 0,
 			colH: 0,
@@ -366,7 +369,7 @@ export default class UranianDialMain extends Component {
 		if (typeof window !== 'undefined') window.removeEventListener('resize', this._onResize);
 		if (this._ro){ try { this._ro.disconnect(); } catch (e) { /* noop */ } this._ro = null; }
 	}
-	_onResize(){ if (!this.unmounted) { this.setState({ vh: window.innerHeight }); this._measure(); } }
+	_onResize(){ if (!this.unmounted) { this.setState({ vh: getLayoutViewportHeight() }); this._measure(); } }
 	// 实测中间盘列的内容框宽/高(列为 grid 居中 + overflow:hidden,故按其 client 尺寸取 min 即「方框内最大」)。
 	_measure(){
 		if (this.unmounted || !this._host) return;
@@ -801,13 +804,13 @@ export default class UranianDialMain extends Component {
 		// 中间盘 size:按实测「中间列」的内容框最大化——取列宽、列高(减盘下 24 padding)较小者,填满方框且永不超出被裁。
 		// 列尺寸由 _measure(ResizeObserver)实测;未测得时用 viewport 估算兜底;vh-140 为防底部 Dock 的二级兜底。
 		const vh = this.state.vh || 900;
-		const fbColW = Math.round((typeof window !== 'undefined' ? window.innerWidth : 1280) * 0.56);
+		const fbColW = Math.round((typeof window !== 'undefined' ? (getLayoutViewportWidth() || 1280) : 1280) * 0.56);
 		const colW = this.state.colW || fbColW;
 		const colH = this.state.colH || (vh - 240);
-		const size = Math.max(420, Math.min(colW - 8, colH - 28, vh - 140));
+		const size = Math.max(visualFloorPx(420), Math.min(colW - 8, colH - 28, vh - 140));
 		// 左右栏滚动 maxHeight:与盘同步,且至少 380(再小就让用户内部滚动);overflowY:auto 即可独立下滑,
 		// 修「窗口过小时左/右栏被遮挡且无法下滑」(用户验收口径)。inner div 须 width:100% 否则收缩 h=0。
-		const sideMaxH = Math.max(380, vh - 220);
+		const sideMaxH = Math.max(visualFloorPx(380), vh - 220);
 		// 个人点集随流派派生(classic 汉堡六点+白羊 / cosmo Basic Five);TNP 过滤已在 natalPoints() 入口完成。
 		// 全部派生项都从完整 state 计算:school/盘基/虚星/orb/orbPersonal 任一改变都全量重算重绘。
 		const personalSet = this.personalSet();
@@ -928,7 +931,7 @@ export default class UranianDialMain extends Component {
 								<XQSegmented size="small" value={this.state.saKey} onChange={(e) => { const k = e.target.value; this.saveDisp({ saKey: k }); const rate = SA_RATE[k] || SA_RATE.naibod; this.setState({ saAge: (this.state.saArcDirected || 0) / rate }); }}
 									options={[{ value: 'naibod', label: 'Naibod' }, { value: 'oneDeg', label: '1°/年' }, { value: 'cardan', label: 'Cardan' }]} />
 							</div>
-							<div style={{ marginTop: 6 }}>{this.renderLocOverride('saLat', 'saLon')}</div>
+							{/* [Q-147/T-54] 太阳弧地点输入已删:唯一读取点 requestSolarArc 零调用(太阳弧为地心黄经,无需地点) */}
 						</div>
 					) : null}
 					{/* WP-9 合盘叠盘:选当前页盘或命盘库盘叠加,最多 4 人;每人各成一环,接触表见右栏。 */}
@@ -953,7 +956,8 @@ export default class UranianDialMain extends Component {
 				</XQSideSection>
 
 				<XQSideSection iconName={sideSectionIcon('display')} title="显示与读数" storageKey="germany.display" className="horosa-uranian-section horosa-side-input-section">
-					<div style={{ ...rowSty, marginBottom: 8 }}><span>TNP 虚星</span><XQSwitch size="small" checked={this.state.showTnp} onChange={(v) => this.saveDisp({ showTnp: v })} /></div>
+					{/* [Q-151/AX-16] 宇宙生物学流派后端 include_tnp=false(mids.tnp=[]),此开关翻之无效 → 置灰并说明 */}
+					<div style={{ ...rowSty, marginBottom: 8 }} title={this.state.school === 'cosmo' ? '宇宙生物学流派不用 TNP 虚星(后端不算),此开关在本派无效' : undefined}><span>TNP 虚星{this.state.school === 'cosmo' ? '（本派不用）' : ''}</span><XQSwitch size="small" disabled={this.state.school === 'cosmo'} checked={this.state.school === 'cosmo' ? false : this.state.showTnp} onChange={(v) => this.saveDisp({ showTnp: v })} /></div>
 					<div style={{ ...rowSty, marginBottom: 8 }}><span>中点树扫描</span><XQSwitch size="small" checked={this.state.showPicture} onChange={(v) => this.saveDisp({ showPicture: v })} /></div>
 					<div style={{ ...rowSty, marginBottom: 8 }}><span>仅含个人点</span><XQSwitch size="small" checked={this.state.onlyPersonal} onChange={(v) => this.saveDisp({ onlyPersonal: v })} /></div>
 					<div style={{ ...rowSty, marginBottom: 8 }}><span>行星图解算 <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>A+B−C=D</span></span><XQSwitch size="small" checked={this.state.showPlanetPicture} onChange={(v) => this.saveDisp({ showPlanetPicture: v })} /></div>

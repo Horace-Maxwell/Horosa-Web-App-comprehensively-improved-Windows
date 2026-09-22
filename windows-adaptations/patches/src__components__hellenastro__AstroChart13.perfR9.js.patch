@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/hellenastro/AstroChart13.js b/astrostudyui/src/components/hellenastro/AstroChart13.js
-index 86e6cd19..3df5c569 100644
+index 203a1fdb..cf601f91 100644
 --- a/astrostudyui/src/components/hellenastro/AstroChart13.js
 +++ b/astrostudyui/src/components/hellenastro/AstroChart13.js
 @@ -7,6 +7,7 @@ import * as Constants from '../../utils/constants';

@@ -6,6 +6,7 @@ import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
 import { XQSelect as Select } from '../xq-ui';
 
+import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 const { Option } = Select;
 
 export default class DoubleMeiyiGuaSym extends Component{
@@ -336,22 +337,24 @@ export default class DoubleMeiyiGuaSym extends Component{
             guadown = val.down ? val.down : val.downChanged;
         }
  
-		let height = this.props.height ? this.props.height : document.documentElement.clientHeight - 50;
+		let height = this.props.height ? this.props.height : getLayoutViewportHeight() - 50;
         height = height - 100;
         
         let huguadom = this.genHuGuaDom();
 
+        const fill = !!this.props.fill;
+        const colStyle = fill ? { height: '100%', minHeight: 0 } : undefined;
         return (
-            <div>
-                { huguadom }
-                <Row gutter={6}>
-                    <Col span={12}>
-                        <MeiyiGuaSym value={guaup} height={height} newValue={this.props.newValue} 
+            <div style={fill ? { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 } : undefined}>
+                { fill ? <div style={{ flex: 'none' }}>{ huguadom }</div> : huguadom }
+                <Row gutter={6} style={fill ? { flex: '1 1 0', minHeight: 0 } : undefined}>
+                    <Col span={12} style={colStyle}>
+                        <MeiyiGuaSym value={guaup} height={height} newValue={this.props.newValue} fill={fill}
                             onChange={this.changeUpValue}
                         />
                     </Col>
-                    <Col span={12}>
-                        <MeiyiGuaSym value={guadown} height={height} newValue={this.props.newValue} 
+                    <Col span={12} style={colStyle}>
+                        <MeiyiGuaSym value={guadown} height={height} newValue={this.props.newValue} fill={fill}
                             onChange={this.changeDownValue}
                         />
                     </Col>

@@ -605,7 +605,7 @@ export function getDecennialDayMethodLabel(dayMethod){
 
 export function getDecennialCalendarLabel(calendarType){
 	if(calendarType === DECENNIAL_CALENDAR_ACTUAL){
-		return '365.25天/年（按回归年换算）';
+		return '365.25天/年（儒略年；回归年为 365.2422 天）';   // [Q-176/T-116c] 换算比 1461/1440 即儒略年,不是回归年
 	}
 	return '360天/年（按30天/月换算）';
 }

@@ -731,7 +731,12 @@ def get_key_info(number: int, ke: str = "初刻", category: str = "時辰") -> A
     if category in key_data:
         sub = key_data[category]
         if isinstance(sub, dict):
-            return sub.get(ke, "無此項目資料")
+            if ke in sub:
+                return sub[ke]
+            # [Q-262①] 时辰键「X三/X五/X七」在表内缺档 → 回落同支「X初」(表多数只列初/三两档);仍无 → 占位
+            if len(ke) >= 2 and ke[:1] + "初" in sub:
+                return sub[ke[:1] + "初"]
+            return "無此項目資料"
         return sub
     return "查無此類別資料"
 

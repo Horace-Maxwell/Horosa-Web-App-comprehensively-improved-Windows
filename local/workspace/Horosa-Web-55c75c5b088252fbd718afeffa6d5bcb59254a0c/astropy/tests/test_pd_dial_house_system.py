@@ -12,8 +12,10 @@ Invariants asserted:
      (i.e. selecting a method actually moves the cusps).
   3. ASC/MC are house-system-independent, so they stay identical across methods
      (only intermediate cusps 2/3/5/6/8/9/11/12 may differ).
-  4. Methods with no confident mapping (equal_hour_circle, in_zodiaco_lon,
-     in_zodiaco_abs, unknown) fall back to the resolved natal house system.
+  4. Methods with no confident mapping (in_zodiaco_lon, in_zodiaco_abs, unknown)
+     fall back to the resolved natal house system. equal_hour_circle now maps to
+     Meridian ([Q-531] equal equatorial division projected along hour circles ==
+     the Meridian system; matches the 3D sphere's closed-form cusps).
 
 Run with:
     cd Horosa-Web/astropy && python -m pytest tests/test_pd_dial_house_system.py -v
@@ -43,10 +45,11 @@ CONFIDENT = {
     'porphyry': 'Porphyrius',
     'equal_ecliptic': 'Equal',
     'morinus': 'Morinus',
+    'equal_hour_circle': 'Meridian',   # [Q-531/T-493] 与 3D 天球赤经等分同口径
 }
 # Registered methods with no confident house-system mapping: they intentionally
 # fall back to the resolved natal house system at the dial layer.
-FALLBACK_METHODS = ['equal_hour_circle', 'in_zodiaco_lon', 'in_zodiaco_abs']
+FALLBACK_METHODS = ['in_zodiaco_lon', 'in_zodiaco_abs']
 
 DIAL_DATE = '2055-06-09 12:00:00'
 

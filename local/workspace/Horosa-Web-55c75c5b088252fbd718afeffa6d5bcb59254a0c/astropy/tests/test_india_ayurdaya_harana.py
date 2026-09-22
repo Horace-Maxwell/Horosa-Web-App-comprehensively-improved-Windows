@@ -86,3 +86,36 @@ def test_nisargayu_purna_vs_technical():
     lagna = 8.21
     purna_solar = (120.0 + lagna) * 360.0 / 365.0
     assert abs(purna_solar - 126.46) < 0.1     # 全期派(raw 120+Lagna,×360/365)
+
+
+def test_q139_nisargayu_default_is_pindayu_like_engine_level():
+    # [Q-139 裁决 2026-09-18] Nisargāyu 缺省档 = 「同 Piṇḍāyu 施减」(pindayu_like):Jātaka Pārijāta 5.6 / 5.12–13 明说
+    # Nisargāyu 与 Piṇḍāyu 同法(按距庙旺弧折算 + 同一套 haraṇa);「全期不减」('none',常量 120 + Lagna Āyu,与行星位置无关)
+    # 改为非缺省档。修前:缺省 = 'none' ⇒ 缺省 finals.nisargayu ≡ (120 + Lagna Āyu)×360/365(本例红)。
+    import os
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from astrostudy.india.dasha_variants import VARIANT_SPECS, DEFAULT_VARIANTS, resolve_variants
+    from astrostudy.india.jyotish_engine import JyotishEngine
+    from astrostudy.india.india_chart_kernel import IndiaChartKernel
+    assert VARIANT_SPECS['nisargayuHarana']['default'] == 'pindayu_like'
+    assert DEFAULT_VARIANTS['nisargayuHarana'] == 'pindayu_like'
+    assert resolve_variants(None)['nisargayuHarana'] == 'pindayu_like'
+    assert resolve_variants({'nisargayuHarana': 'none'})['nisargayuHarana'] == 'none'   # 显式 none 仍可选
+    data = {'date': '1990/3/15', 'time': '07:30:00', 'zone': '+05:30',
+            'lat': '28n36', 'lon': '77e12', 'indiaHsys': 0, 'indiaAyanamsa': 'lahiri'}
+    ay_default = JyotishEngine(IndiaChartKernel(data)).ayurdaya_final()
+    ay_like = JyotishEngine(IndiaChartKernel(data), dasha_variants={'nisargayuHarana': 'pindayu_like'}).ayurdaya_final()
+    ay_none = JyotishEngine(IndiaChartKernel(data), dasha_variants={'nisargayuHarana': 'none'}).ayurdaya_final()
+    f_default = ay_default['finals']['nisargayu']
+    f_like = ay_like['finals']['nisargayu']
+    f_none = ay_none['finals']['nisargayu']
+    assert f_default and f_like and f_none
+    # 缺省 ≡ 显式 pindayu_like
+    assert f_default == f_like
+    # 全期不减 = 120 + Lagna Āyu(与盘无关的常量项),Savana→Solar ×360/365;施减档严格小于它
+    h_none = JyotishEngine(IndiaChartKernel(data), dasha_variants={'nisargayuHarana': 'none'}).ayurdaya()['haranaNisarga']
+    assert abs(f_none['savanaYears'] - round(120.0 + h_none['lagnaAyu'], 2)) < 0.011
+    assert abs(f_none['solarYears'] - round(f_none['savanaYears'] * 360.0 / 365.0, 2)) < 0.011
+    assert f_default['savanaYears'] < f_none['savanaYears']
+    assert f_default != f_none

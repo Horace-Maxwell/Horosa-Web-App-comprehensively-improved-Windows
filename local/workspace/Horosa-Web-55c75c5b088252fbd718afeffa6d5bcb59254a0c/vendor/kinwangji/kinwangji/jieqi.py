@@ -741,8 +741,8 @@ def gangzhi1(
                 cdate_for_hour = fromSolar(_tdd[0], _tdd[1], _tdd[2])
                 hTG = f"{tian_gan[cdate_for_hour.getHourGZ(0).tg]}{di_zhi[cdate_for_hour.getHourGZ(0).dz]}"
         else:
-            # lateZi=0: 跟日柱一致 — 用 cdate(日柱) 的日干算时干
-            _day_tg = cdate.getDayGZ().tg
+            # [Q-312 口径 B] lateZi=0: 时干用钟面当天(今日)的日干起子时,与日柱开关独立(after23 进位时 cdate 已是次日,须退回今日)
+            _day_tg = fromSolar(year, month, day).getDayGZ().tg
             _h_tg_idx = (_day_tg % 5 * 2 + 0) % 10
             hTG = tian_gan[_h_tg_idx] + di_zhi[0]
     else:
@@ -815,7 +815,8 @@ def gangzhi(
                 cdate_for_hour = fromSolar(_tdd[0], _tdd[1], _tdd[2])
                 hTG = f"{tian_gan[cdate_for_hour.getHourGZ(0).tg]}{di_zhi[cdate_for_hour.getHourGZ(0).dz]}"
         else:
-            _day_tg = cdate.getDayGZ().tg
+            # [Q-312 口径 B] lateZi=0: 钟面当天日干起子时(与日柱开关独立)
+            _day_tg = fromSolar(year, month, day).getDayGZ().tg
             hTG = tian_gan[(_day_tg % 5 * 2 + 0) % 10] + di_zhi[0]
     else:
         hTG = f"{tian_gan[cdate.getHourGZ(dd[3]).tg]}{di_zhi[cdate.getHourGZ(dd[3]).dz]}"

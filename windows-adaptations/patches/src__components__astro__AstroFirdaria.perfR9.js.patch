@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroFirdaria.js b/astrostudyui/src/components/astro/AstroFirdaria.js
-index 8512418..8735942 100644
+index 0de73bff..c6fc6b34 100644
 --- a/astrostudyui/src/components/astro/AstroFirdaria.js
 +++ b/astrostudyui/src/components/astro/AstroFirdaria.js
 @@ -1,6 +1,5 @@
@@ -45,7 +45,7 @@ index 8512418..8735942 100644
  				dataSource={ds} 
  				columns={this.state.columns} 
  				rowKey='date'
-@@ -132,7 +144,7 @@ class AstroFirdaria extends Component{
+@@ -136,7 +148,7 @@ class AstroFirdaria extends Component{
  			let tbldom = this.genFirdariaDom(ds);
  			const interp = getFirdariaInterp(pd.mainDirect);
  			const cell = (
@@ -54,7 +54,7 @@ index 8512418..8735942 100644
  					{interp ? (
  						<div style={{ fontSize: 11, opacity: 0.78, lineHeight: '16px', margin: '0 0 4px', padding: '4px 8px', background: 'var(--horosa-accent-soft, rgba(184,134,11,0.08))', borderRadius: 6 }}>
  							<b>{interp.mainShort}主限</b> · {interp.mainTheme}
-@@ -149,18 +161,19 @@ class AstroFirdaria extends Component{
+@@ -153,18 +165,19 @@ class AstroFirdaria extends Component{
  			let cols = [];
  			for(let j=0; j<rowobj.length; j++){
  				let dom = (

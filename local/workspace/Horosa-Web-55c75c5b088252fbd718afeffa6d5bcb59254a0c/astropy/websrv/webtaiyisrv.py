@@ -491,6 +491,19 @@ def _normalize_result(raw, data, style, tn, sex):
     return normalized
 
 
+def _pan_with_game_theory(ty, style_for_pan, tn_for_pan, enable_game_theory):
+    """[挂载自检 F-57] 博弈分析(kintaiyi.game_theory)依赖 scipy.optimize.linprog;随包运行时未带 scipy 时,
+    此前 ImportError 沿 except 一路变成整盘「taiyi param error」——用户在页面/AI 挂载里一开「博弈分析」整个太乙盘就没了。
+    现:缺依赖 → 退回不带博弈的盘并回传缺失模块名,由前端如实标注「本次未算」。依赖齐全时行为逐字不变。"""
+    if not enable_game_theory:
+        return ty.pan(style_for_pan, tn_for_pan, False), None
+    try:
+        return ty.pan(style_for_pan, tn_for_pan, True), None
+    except ModuleNotFoundError as exc:
+        missing = getattr(exc, "name", None) or "scipy"
+        return ty.pan(style_for_pan, tn_for_pan, False), missing
+
+
 class TaiYiSrv:
     exposed = True
 
@@ -523,9 +536,16 @@ class TaiYiSrv:
             tn_for_pan = 0 if style == 5 else tn
             enable_game_theory = data.get("enableGameTheory") in [True, 1, "1", "true", "True"]
             ty = Taiyi(year, month, day, hour, minute)
-            raw = ty.taiyi_life(sex) if style == 5 else ty.pan(style_for_pan, tn_for_pan, enable_game_theory)
+            gt_missing = None
+            if style == 5:
+                raw = ty.taiyi_life(sex)
+            else:
+                raw, gt_missing = _pan_with_game_theory(ty, style_for_pan, tn_for_pan, enable_game_theory)
             raw = _json_safe(raw)
             normalized = _normalize_result(raw, data, style, tn, sex)
+            if gt_missing and isinstance(normalized, dict):
+                # 前端据此如实标注「开启(运行时缺 X,本次未算)」——绝不把整盘打成 param error,也绝不假装算了。
+                normalized["gameTheoryUnavailable"] = gt_missing
             obj = {
                 "ResultCode": 0,
                 "Result": normalized,

@@ -47,7 +47,11 @@ export async function buildExtraReturnsSnapshotText(chartObj){
 		if(!rows.length){ continue; }
 		// bug 修:导出此前缺各回 time 与本命黄经 natalLon(UI 逐行/页脚均有)→ 补进每行;
 		// 既有「第N回 日期」字段顺序不变,新字段(时刻表+本命黄经,口径同 UI toFixed(1))追加在行尾。
-		const datesTxt = rows.map((x) => `第${x.which}回 ${x.date}`).join('，');
+		// [Q-366/T-345] 逆行三过:同一回列出全部过程(顺→逆→顺),单过仍是一个日期
+		const datesTxt = rows.map((x) => {
+			const ps = Array.isArray(x.passes) && x.passes.length > 1 ? x.passes : null;
+			return ps ? `第${x.which}回 ${ps.map((pp) => `${pp.date}${pp.retrograde ? '(逆)' : ''}`).join('/')}` : `第${x.which}回 ${x.date}`;
+		}).join('，');
 		const timesTxt = rows.map((x) => `第${x.which}回 ${x.time || '-'}`).join('，');
 		const natalLonTxt = (r && r.natalLon !== undefined && r.natalLon !== null) ? `；本命黄经 ${Number(r.natalLon).toFixed(1)}°` : '';
 		bodyLines.push(`${b.cn}（${b.period}）：${datesTxt}；时刻：${timesTxt}${natalLonTxt}`);
@@ -134,14 +138,27 @@ class AstroExtraReturns extends Component{
 				<Spin spinning={this.state.loading}>
 					{rows.length ? (
 						<div style={{ border: '1px solid rgba(128,128,128,0.12)', borderRadius: 8, overflow: 'hidden' }}>
-							{rows.map((x, i) => (
-								<div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderTop: i ? '1px solid rgba(128,128,128,0.06)' : 'none', fontSize: 12.5 }}>
-									<span style={{ fontSize: 16 }}>{astroSymbol(meta.glyph)}</span>
-									<span style={{ width: 48, opacity: 0.6 }}>第 {x.which} 回</span>
-									<span style={{ flex: 1, fontWeight: 600 }}>{x.date}</span>
-									<span style={{ opacity: 0.55 }}>{x.time || ''}</span>
+							{rows.map((x, i) => {
+								// [Q-366/T-345] 同一回内逆行三过:passes(顺→逆→顺)全列;单过时与旧版一行相同
+								const passes = Array.isArray(x.passes) && x.passes.length > 1 ? x.passes : null;
+								return (
+								<div key={i} style={{ borderTop: i ? '1px solid rgba(128,128,128,0.06)' : 'none' }}>
+									<div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', fontSize: 12.5 }}>
+										<span style={{ fontSize: 16 }}>{astroSymbol(meta.glyph)}</span>
+										<span style={{ width: 48, opacity: 0.6 }}>第 {x.which} 回</span>
+										<span style={{ flex: 1, fontWeight: 600 }}>{x.date}{passes ? <span style={{ fontWeight: 400, opacity: 0.55, marginLeft: 6 }}>（逆行三过 · 首过）</span> : null}</span>
+										<span style={{ opacity: 0.55 }}>{x.time || ''}</span>
+									</div>
+									{passes ? passes.map((pp, j) => (
+										<div key={j} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '2px 12px 6px 70px', fontSize: 12, opacity: 0.8 }}>
+											<span style={{ width: 52 }}>第 {pp.pass} 过{pp.retrograde ? '（逆）' : ''}</span>
+											<span style={{ flex: 1 }}>{pp.date}</span>
+											<span style={{ opacity: 0.6 }}>{pp.time || ''}</span>
+										</div>
+									)) : null}
 								</div>
-							))}
+								);
+							})}
 							<div style={{ fontSize: 10.5, opacity: 0.45, padding: '6px 12px' }}>返照本命黄经 {(this.state.data && this.state.data.natalLon != null) ? this.state.data.natalLon.toFixed(1) + '°' : ''}（swisseph 精算）。</div>
 						</div>
 					) : (

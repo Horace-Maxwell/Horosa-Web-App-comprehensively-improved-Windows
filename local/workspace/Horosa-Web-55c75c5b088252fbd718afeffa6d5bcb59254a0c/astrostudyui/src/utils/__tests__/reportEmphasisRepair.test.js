@@ -1,5 +1,5 @@
 // [E11] 行内强调记号修复金标(repairInlineEmphasis)。
-// 用户实测反馈「AI 报告很多时候没有正常加粗」,其中一类根因是 LLM 产出的 `**` 记号带畸形:
+// 用户实测反馈「AI 正文很多时候没有正常加粗」,其中一类根因是 LLM 产出的 `**` 记号带畸形:
 // 记号内侧带空格 / 用了下划线 / 全角星号 / 跨行 / 落单半截 —— 四条消费链对它们表现各异,
 // 轻则不加粗、重则把字面星号原样渲出。本组用例是「必须修」与「绝不能动」的双向锚。
 import { repairInlineEmphasis, normalizeMarkdown } from '../reportMarkdownNormalize';

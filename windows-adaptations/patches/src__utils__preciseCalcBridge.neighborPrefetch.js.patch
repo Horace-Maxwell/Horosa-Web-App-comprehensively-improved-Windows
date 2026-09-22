@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/preciseCalcBridge.js b/astrostudyui/src/utils/preciseCalcBridge.js
-index 7050e48..89f9fbf 100644
+index c6a20aea..153036f3 100644
 --- a/astrostudyui/src/utils/preciseCalcBridge.js
 +++ b/astrostudyui/src/utils/preciseCalcBridge.js
 @@ -10,6 +10,7 @@ import {
@@ -10,7 +10,7 @@ index 7050e48..89f9fbf 100644
  
  const NONG_LI_KEYS = ['date', 'time', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'ad', 'gender', 'after23NewDay', 'lateZiHourUseNextDay', 'timeAlg'];
  const JIE_QI_SEED_KEYS = ['year', 'ad', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'timeAlg', 'jieqis', 'seedOnly'];
-@@ -459,6 +460,29 @@ export async function fetchPreciseJieqiYear(params){
+@@ -464,6 +465,29 @@ export async function fetchPreciseJieqiYear(params){
  	return req;
  }
  

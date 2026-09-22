@@ -188,7 +188,7 @@ export function snapshotLines(r) {
 	L.push('内局：' + r.neiRows.map((n)=>`${n.name}${n.dir ? `(${n.dir})` : ''}${n.ok === null ? '未录' : (n.ok ? '合' : '违')}`).join(' '));
 	if (r.neiXiongRows.length) { L.push('室内凶局：' + r.neiXiongRows.map((x)=>`${x.name}[${x.hits.join('、')}]`).join('；')); }
 	// 🔴 未采纳的机器建议须**明标其为未经人工确认**，且与已确认者分行——
-	//    否则 AI 报告会把机器所疑当作已定之事写死。
+	//    否则模型会把机器所疑当作已定之事写死。
 	if (r.geoScan) {
 		const pend = r.geoScan.rows.filter((x)=>!x.taken);
 		if (pend.length) {
@@ -196,7 +196,8 @@ export function snapshotLines(r) {
 				+ pend.map((x)=>`${x.name}·${x.label}`).join('；'));
 		}
 		if (r.geoScan.skipped.length) {
-			L.push(`【几何检测未判 ${r.geoScan.skipped.length} 项（缺相应标记）——「未检出」不等于「无此凶局」】`);
+			// [挂载自检 F-1·P1] 不用整行【…】:那会被 AI 导出/挂载的段头正则当成一段,自定义过段的用户后续「客星/大门/主辞/内外合参」全被静默删。
+			L.push(`（几何检测未判 ${r.geoScan.skipped.length} 项——缺相应标记；「未检出」不等于「无此凶局」）`);
 		}
 	}
 	if (r.keXing) {

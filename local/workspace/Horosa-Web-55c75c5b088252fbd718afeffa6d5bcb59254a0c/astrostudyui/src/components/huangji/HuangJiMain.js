@@ -17,6 +17,7 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
 import { formatHumanValue } from '../../utils/humanReadableFields';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { parseDateParts } from '../../utils/dateStrSafe';
+import { definePageSettings } from '../../utils/pageSettingsStore';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -31,6 +32,12 @@ const METHOD_OPTIONS = [
 ];
 
 const DEFAULT_CLASSIC = 'huangji_jingshi_shu';
+
+// 排盘设置跨会话保留:心易发微的「起卦法」。卦数 / 笔画 / 物象 / 方位是每一卦的输入,历史年是每次查看的输入,
+// 经典 / 典籍显示 / 章节是阅读位置 —— 都不保留。事盘回灌走 setState,不经落盘入口。
+export const HUANGJI_PAGE_SETTINGS = definePageSettings('horosa.huangji.settings.v1', {
+	xinyiMethod: { def: 'datetime', oneOf: METHOD_OPTIONS.map((o)=>o.value) },
+});
 
 function parseFieldsDateTime(fields){
 	if(!fields || !fields.date || !fields.time || !fields.date.value || !fields.time.value){
@@ -304,7 +311,7 @@ class HuangJiMain extends Component{
 			classicSectionIndex: 0,
 			classicView: 'section',
 			xinyiOptions: {
-				method: 'datetime',
+				method: HUANGJI_PAGE_SETTINGS.load().xinyiMethod,   // 上次亲手选的起卦法(没存过 = 年月日時起卦)
 				upperNum: 5,
 				lowerNum: 10,
 				upperStrokes: 5,
@@ -417,9 +424,11 @@ class HuangJiMain extends Component{
 		}
 		const payload = saved.payload;
 		const options = payload.options && typeof payload.options === 'object' ? payload.options : {};
+		// 事盘里没有起卦法时回出厂值,不沿用本机保存的偏好(见 pageSettingsStore.fillMissing 注)
+		const xinyiBase = { ...this.state.xinyiOptions, method: HUANGJI_PAGE_SETTINGS.defaults().xinyiMethod };
 		const xinyiOptions = options.xinyiOptions && typeof options.xinyiOptions === 'object'
-			? { ...this.state.xinyiOptions, ...options.xinyiOptions }
-			: this.state.xinyiOptions;
+			? { ...xinyiBase, ...options.xinyiOptions }
+			: xinyiBase;
 		this.lastRestoredCaseId = saved.caseVersion;
 		this.requestSeq += 1;
 		this.setState({
@@ -676,6 +685,7 @@ class HuangJiMain extends Component{
 	}
 
 	changeXinyiOption(key, value){
+		if(key === 'method'){ HUANGJI_PAGE_SETTINGS.save({ xinyiMethod: value }); }   // 其余心易选项是每一卦的输入,不落
 		const xinyiOptions = {
 			...this.state.xinyiOptions,
 			[key]: value,

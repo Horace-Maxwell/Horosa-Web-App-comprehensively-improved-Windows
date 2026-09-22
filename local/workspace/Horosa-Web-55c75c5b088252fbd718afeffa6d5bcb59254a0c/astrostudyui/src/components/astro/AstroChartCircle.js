@@ -148,8 +148,8 @@ export default class AstroChartCircle {
 	setupToolTip(){
 		if(this.divTooltip){
 			setupFloatingTooltip(this.divTooltip, {
-				'max-width': 'min(560px, calc(100vw - 28px))',
-				'max-height': 'min(460px, calc(100vh - 28px))',
+				'max-width': 'min(560px, calc(100 * var(--horosa-lvw, 1vw) - 28px))',
+				'max-height': 'min(460px, calc(100 * var(--horosa-lvh, 1vh) - 28px))',
 				padding: '14px 16px',
 				font: '14px/1.6 "PingFang SC", "Microsoft YaHei", sans-serif',
 				'box-shadow': '0 8px 24px rgba(0,0,0,0.14)',
@@ -344,8 +344,11 @@ export default class AstroChartCircle {
 	}
 	
 	
-	signsBand(svg, r, rStep, flags, isDiurnal, house1Ang){
+	signsBand(svg, r, rStep, flags, isDiurnal, house1Ang, tripSystem){
 		let txtforward = (flags & AstroConst.CHART_TXTPLANETFORWARD) === 0 ? false : true;
+		// [Q-254/T-229] 三分主星环随「三分制」(与角宫三元组徽同一 resolveTripletForSign 单源);此前恒画多罗特三主。
+		let resolveTriplet = null;
+		try{ resolveTriplet = require('../../utils/triplicityRulers').resolveTripletForSign; }catch(e){ resolveTriplet = null; }
 		let samecolorwithsign = (flags & AstroConst.CHART_PLANETCOLORWITHSIGN) === 0 ? false : true;
 		let needTrip = (flags & AstroConst.CHART_TRIP) === 0 ? false : true;
 		let needRuler = (flags & AstroConst.CHART_SIGNRULER) === 0 ? false : true;
@@ -403,14 +406,20 @@ export default class AstroChartCircle {
 			}
 			if(needTrip){
 				txts.push('三');
-				if(isDiurnal){
+				const tripIds = (resolveTriplet && tripSystem && tripSystem !== 'Dorothean')
+					? (resolveTriplet(sig, tripSystem, isDiurnal) || [])
+					: null;
+				if(tripIds){
+					tripIds.forEach((id)=>txts.push(id));   // 托勒密二主 / 水象变体:按制取主(已按昼夜排序)
+				}else if(isDiurnal){
 					txts.push(AstroConst.SignsProp[sig].Trip[0]);
 					txts.push(AstroConst.SignsProp[sig].Trip[1]);
+					txts.push(AstroConst.SignsProp[sig].Trip[2]);
 				}else{
 					txts.push(AstroConst.SignsProp[sig].Trip[1]);
 					txts.push(AstroConst.SignsProp[sig].Trip[0]);
+					txts.push(AstroConst.SignsProp[sig].Trip[2]);
 				}
-				txts.push(AstroConst.SignsProp[sig].Trip[2]);
 			}
 			lblgroup.selectAll('text').data(txts).enter().append('text')
 				.attr("dominant-baseline","central")
@@ -1742,12 +1751,13 @@ export default class AstroChartCircle {
 			house1 = this.getHouse(chartObj, AstroConst.HOUSE1);
 		}
 		let house1ang = house1 ? house1['lon'] : null;
+		const tripSystemForBand = (chartObj && chartObj.params && chartObj.params.triplicity) || 'Dorothean';   // [Q-254/T-229] 与角宫三元组徽同源
 		if(profile.outerMode === 'zodiac'){
-			this.signsBand(topgroup, radius, outerBandStep, flags, isDiurnal, house1ang);
+			this.signsBand(topgroup, radius, outerBandStep, flags, isDiurnal, house1ang, tripSystemForBand);
 		}else if(chartObj && chartObj.chart && Array.isArray(chartObj.chart.houses)){
 			this.houseCuspBand(topgroup, radius, outerBandStep, chartObj.chart.houses, flags, house1ang);
 		}else{
-			this.signsBand(topgroup, radius, outerBandStep, flags, isDiurnal, house1ang);
+			this.signsBand(topgroup, radius, outerBandStep, flags, isDiurnal, house1ang, tripSystemForBand);
 		}
 	
 		let needTerm = (flags & AstroConst.CHART_TERM) === AstroConst.CHART_TERM ? true : false;

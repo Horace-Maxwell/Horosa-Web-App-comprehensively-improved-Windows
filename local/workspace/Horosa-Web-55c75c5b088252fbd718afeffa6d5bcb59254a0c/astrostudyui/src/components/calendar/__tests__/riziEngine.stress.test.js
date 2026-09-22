@@ -3,7 +3,7 @@
 import { personBazi, hehunPair, buildPersonalizedDates } from '../riziEngine';
 import { EVENT_CATEGORIES } from '../tongshuData';
 
-const P = (date, gender)=> personBazi({ date, time: `${date} 10:00:00`, gender });
+const P = (date, gender)=> personBazi({ date, time: '10:00:00', gender });   // [Q-272] time 只传 HH:mm:ss
 const A = P('1984-06-01', 1);   // 甲子·鼠
 const B = P('1990-08-01', 0);   // 庚午·马（冲子）
 const C = P('1988-06-01', 0);   // 戊辰·龙（申子辰三合子）

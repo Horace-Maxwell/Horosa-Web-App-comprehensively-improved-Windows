@@ -28,6 +28,15 @@ from astro.shaozi import (  # noqa: E402
 
 
 KE_OPTIONS = ["初刻", "二刻", "三刻", "四刻", "五刻", "六刻", "七刻", "八刻"]
+# [Q-262①/T-241 裁决 2026-09-18] 页面刻数「初刻…八刻」与 64 钥匙时辰表键「子初 / 子三 / 子五 / 子七 …」不同构 → 此前永远查不中
+# (正文恒「無此項目資料」占位)。按一时辰八刻两刻一档映射:初/二刻→「初」,三/四刻→「三」,五/六刻→「五」,七/八刻→「七」,
+# 再冠以时支;表内该档缺项时回落「X初」。
+KE_TO_KEY_GROUP = {"初刻": "初", "二刻": "初", "三刻": "三", "四刻": "三", "五刻": "五", "六刻": "五", "七刻": "七", "八刻": "七"}
+
+def ke_key_for(hour_gz, ke):
+    branch = (hour_gz or "")[-1:] if hour_gz else ""
+    group = KE_TO_KEY_GROUP.get(ke, "初")
+    return f"{branch}{group}" if branch else ke
 GANZHI_STEMS = "甲乙丙丁戊己庚辛壬癸"
 GANZHI_BRANCHES = "子丑寅卯辰巳午未申酉戌亥"
 
@@ -193,7 +202,7 @@ class ShaoZiSrv:
                 month_gz=month_gz,
                 day_gz=day_gz,
                 hour_gz=hour_gz,
-                ke=ke,
+                ke=ke_key_for(hour_gz, ke),   # [Q-262①] 刻数→64 钥匙时辰键
                 use_key=use_key,
             ))
 

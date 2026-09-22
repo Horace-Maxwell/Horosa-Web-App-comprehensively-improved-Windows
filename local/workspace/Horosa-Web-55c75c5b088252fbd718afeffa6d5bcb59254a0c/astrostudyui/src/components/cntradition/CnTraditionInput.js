@@ -359,11 +359,12 @@ class CnTraditionInput extends Component{
 		}
 	}
 
-	// 子时三态(语义单选,一次写两开关):子初换日=1/1、夜子时=0/1、子正换日=0/0。
-	// 1/0 组合(旧记录可能残留)输出与 1/1 数学等价(日柱已进位,「今日干」即次日干,见 dayBoundary),显示归并子初换日。
+	// 子时四态(语义单选,一次写两开关):子初换日=1/1、子初换日·时干今日=1/0、夜子时=0/1、子正换日=0/0。
+	// [Q-312/T-293 2026-09-18] 1/0 不再「归并子初换日」:两开关独立(口径 B,用户拍板),1/0 = 日柱进位次日而时干按钟面当天干起
+	//   (壬寅日 戊子时),与 1/1(壬寅日 庚子时)不同果;全局设置两开关能拨出 1/0,左栏必须能如实显示与选择。
 	onZiHourModeChange(mode){
 		if(this.props.onFieldsChange){
-			const MAP = { zichu: [1, 1], yezi: [0, 1], zizheng: [0, 0] };
+			const MAP = { zichu: [1, 1], zichuToday: [1, 0], yezi: [0, 1], zizheng: [0, 0] };
 			const pair = MAP[mode] || MAP.zichu;
 			let dt = this.tmHook.getValue().value;
 			this.props.onFieldsChange({
@@ -462,6 +463,14 @@ class CnTraditionInput extends Component{
 
 		render(){
 			let fields = this.props.fields ? this.props.fields : {};
+			// [Q-190/T-131] 显示区里有几项只被「新星阙 UI」的中栏部件读取:旧星阙 UI 与古法盘不画它们,
+			// 拨了盘面逐字节不动。按真消费面置灰 + title(手法同本区既有的「流派标记」)。
+			const legacyUi = !!(this.props.baziOpt && this.props.baziOpt.uiMode === 'legacy');
+			const ancientChart = `${this.props.chartStyle || ''}` === 'ancient';
+			const relationsDead = legacyUi || ancientChart;
+			const deadHint = (what)=>(legacyUi
+				? `旧星阙 UI 不画${what};切回「新星阙UI」后生效`
+				: `古法盘不画${what};切回细盘 / 简盘后生效`);
 			let datetm = new DateTime();
 			if(fields.date && fields.time){
 				let str = fields.date.value.format('YYYY-MM-DD') + ' ' + 
@@ -501,12 +510,12 @@ class CnTraditionInput extends Component{
 							</Select>
 						</div>
 						<div className="horosa-field-block">
-							<div className="horosa-field-label">时间算法</div>
+							<div className="horosa-field-label" title="只作用于八字页(紫微 / 七政 / 六壬 / 金口诀不跟随);新命盘或载入命盘时复位;载入命盘自带的口径优先于全局设置">时间算法</div>
 							<Select value={fields.timeAlg.value} onChange={this.onTimeAlgChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
 								<Option value={0}>真太阳时</Option>
 								<Option value={3}>平太阳时</Option>
 								<Option value={1}>直接时间</Option>
-								<Option value={2}>春分定卯时</Option>
+								<Option value={2} disabled title="[Q-189] 此档尚无独立换算(等同直接时间),暂不可选">春分定卯时（未实现）</Option>
 							</Select>
 						</div>
 					</div>
@@ -514,8 +523,10 @@ class CnTraditionInput extends Component{
 						<div className="horosa-field-block">
 							<div className="horosa-field-label">长生</div>
 							<Select value={fields.phaseType.value} onChange={this.onPhaseTypeChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
-								<Option value={0}>长生火土同</Option>
-								<Option value={1}>长生水土同</Option>
+								{/* [Q-193/T-136] 前两档的真语义是「不分阴阳(阴干随其阳干搭档同起同顺)」+ 土的寄宫不同,
+								    只写「火土同/水土同」会让人以为它们与第三档只差土 —— 标签里点明阴阳同序。 */}
+								<Option value={0}>长生火土同（阴阳同序）</Option>
+								<Option value={1}>长生水土同（阴阳同序）</Option>
 								<Option value={2}>长生阳顺阴逆</Option>
 							</Select>
 						</div>
@@ -528,19 +539,24 @@ class CnTraditionInput extends Component{
 							</Select>
 						</div>
 						<div className="horosa-field-block">
-							<div className="horosa-field-label">晚子时</div>
-							{/* 三态语义单选(dayBoundary 权威口径,23:30 自检锚):
-							    子初换日=after23NewDay 1+lateZi 1(23点即换日柱,时干次日起;壬寅庚子)
-							    夜子时  =0+1(日柱守今,时干次日起;辛丑庚子)
-							    子正换日=0+0(24点换日,时干今日起;辛丑戊子)
-							    1/0 与 1/1 输出等价 → 显示归并子初换日;不动控件=两键都不写=零回归。 */}
+							<div className="horosa-field-label" title="只作用于八字页(紫微 / 七政 / 六壬 / 金口诀不跟随);新命盘或载入命盘时复位;载入命盘自带的口径优先于全局设置">晚子时</div>
+							{/* 四态语义单选(dayBoundary 权威口径,23:30 自检锚):
+							    子初换日        =after23NewDay 1+lateZi 1(23点即换日柱,时干次日起;壬寅庚子)
+							    子初换日·时干今日=1+0(日柱进位、时干按钟面当天干起;壬寅戊子)[Q-312 两开关独立]
+							    夜子时          =0+1(日柱守今,时干次日起;辛丑庚子)
+							    子正换日        =0+0(24点换日,时干今日起;辛丑戊子)
+							    不动控件=两键都不写=零回归。 */}
 							<Select
-								value={(fields.after23NewDay.value === 1 || fields.after23NewDay.value === '1')
-									? 'zichu'
-									: (((fields.lateZiHourUseNextDay && fields.lateZiHourUseNextDay.value !== undefined ? fields.lateZiHourUseNextDay.value : 1) === 0
-										|| (fields.lateZiHourUseNextDay && fields.lateZiHourUseNextDay.value === '0')) ? 'zizheng' : 'yezi')}
+								value={(() => {
+									const a23 = (fields.after23NewDay.value === 1 || fields.after23NewDay.value === '1');
+									const lz = (fields.lateZiHourUseNextDay && fields.lateZiHourUseNextDay.value !== undefined) ? fields.lateZiHourUseNextDay.value : 1;
+									const lzToday = (lz === 0 || lz === '0' || lz === false);
+									if(a23){ return lzToday ? 'zichuToday' : 'zichu'; }
+									return lzToday ? 'zizheng' : 'yezi';
+								})()}
 								onChange={this.onZiHourModeChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
 								<Option value='zichu'>子初换日（23点即换日）</Option>
+								<Option value='zichuToday'>子初换日·时干今日（23点换日·时干按当天）</Option>
 								<Option value='yezi'>夜子时（日守今·时干次日）</Option>
 								<Option value='zizheng'>子正换日（24点换日·时干今日）</Option>
 							</Select>
@@ -610,16 +626,19 @@ class CnTraditionInput extends Component{
 					</XQSideSection>
 					<XQSideSection iconName={sideSectionIcon('display')} title="显示" storageKey="bazi.display" className="horosa-side-input-section">
 					<div className="horosa-field-grid">
-						<div className="horosa-field-block">
+						{/* [Q-190/T-131] 刑冲破害关系层只画在新星阙 UI 的细盘/简盘(BaZiFineChart);
+						    旧星阙 UI 与古法盘都不读这一项 —— 置灰 + title,别让人对着没反应的开关较劲。 */}
+						<div className="horosa-field-block" title={relationsDead ? deadHint('刑冲破害关系层') : undefined}>
 							<div className="horosa-field-label">刑冲破害</div>
-							<Select value={this.props.baziOpt.showRelations === false ? 0 : 1} onChange={this.onShowRelationsChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
+							<Select disabled={relationsDead} value={this.props.baziOpt.showRelations === false ? 0 : 1} onChange={this.onShowRelationsChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
 								<Option value={1}>显示</Option>
 								<Option value={0}>隐藏</Option>
 							</Select>
 						</div>
-						<div className="horosa-field-block">
+						{/* [Q-190/T-131] 旧星阙 UI 的中栏/右栏都不读这一项(神煞页恒列),置灰说明。 */}
+						<div className="horosa-field-block" title={legacyUi ? deadHint('神煞显示开关') : undefined}>
 							<div className="horosa-field-label">神煞</div>
-							<Select value={this.props.baziOpt.showShenSha === false ? 0 : 1} onChange={this.onShowShenShaChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
+							<Select disabled={legacyUi} value={this.props.baziOpt.showShenSha === false ? 0 : 1} onChange={this.onShowShenShaChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
 								<Option value={1}>显示</Option>
 								<Option value={0}>隐藏</Option>
 							</Select>
@@ -628,12 +647,13 @@ class CnTraditionInput extends Component{
 						    此档下开关点了盘面零变化 —— 置灰并说明,别让人以为开关坏了。 */}
 						{(() => {
 							const sch = (this.props.baziOpt && this.props.baziOpt.school) || 'zonghe';
-							const noMarks = (sch === 'zonghe' || sch === 'nayin');
+							// [Q-190/T-131] 旧星阙 UI 同样不出徽标(只有新 UI 的细盘/古法盘读这一项)。
+							const noMarks = (sch === 'zonghe' || sch === 'nayin') || legacyUi;
 							return (
 								<div className="horosa-field-block">
 									<div className="horosa-field-label">流派标记</div>
 									<Select value={this.props.baziOpt.showSchoolMarks === false ? 0 : 1} onChange={this.onShowSchoolMarksChange}
-										disabled={noMarks} title={noMarks ? '当前流派(传统综合 / 纳音古法)本身不出单派喜忌徽标;换扶抑/格局/调候等单派后此项生效' : undefined}
+										disabled={noMarks} title={legacyUi ? deadHint('流派喜忌徽标') : (noMarks ? '当前流派(传统综合 / 纳音古法)本身不出单派喜忌徽标;换扶抑/格局/调候等单派后此项生效' : undefined)}
 										size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
 										<Option value={1}>显示</Option>
 										<Option value={0}>隐藏</Option>
@@ -641,9 +661,10 @@ class CnTraditionInput extends Component{
 								</div>
 							);
 						})()}
-						<div className="horosa-field-block">
+						{/* [Q-190/T-131] 小运行只在新星阙 UI 的行运轴(BaZiLuckFlowPanel)上;旧 UI 的小运页恒列。 */}
+						<div className="horosa-field-block" title={legacyUi ? deadHint('行运轴的小运行') : undefined}>
 							<div className="horosa-field-label">小运</div>
-							<Select value={this.props.baziOpt.showXiaoyun === false ? 0 : 1} onChange={this.onShowXiaoyunChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
+							<Select disabled={legacyUi} value={this.props.baziOpt.showXiaoyun === false ? 0 : 1} onChange={this.onShowXiaoyunChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
 								<Option value={1}>显示</Option>
 								<Option value={0}>隐藏</Option>
 							</Select>

@@ -117,7 +117,7 @@ class AstroOrbSetting extends Component {
 						tooltip={{ formatter: (v) => `${v}×` }}
 					/>
 					<InputNumber
-						size="small" min={0.5} max={3} step={0.1} style={{ width: 70 }}
+						size="small" min={0.5} max={2.5} step={0.1} style={{ width: 70 }}
 						value={scale}
 						onChange={(v) => this.setState({ scale: v === null ? 1 : v })}
 					/>
@@ -127,7 +127,7 @@ class AstroOrbSetting extends Component {
 
 				<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
 					<span style={{ opacity: 0.65, fontSize: 12, lineHeight: '18px' }}>
-						古典 moiety：两星容许度取各自半径之半和；采用度数相位的流派档一并套用。
+						古典「半径」表：金星 8°→7°，其余同默认；采用度数相位的流派档一并套用。成相判据仍按「容许度判据体系」（现行＝两星任一容许度覆盖，不取半和）。
 					</span>
 					<button type="button" style={{ ...btn, flex: 'none', padding: '0 12px', whiteSpace: 'nowrap' }} onClick={this.applyMoiety}>套用 moiety 表</button>
 				</div>

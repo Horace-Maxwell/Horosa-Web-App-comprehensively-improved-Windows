@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import Modal from 'drag-modal';
+import Modal from '../comp/DragModal';
 import { XQButton as Button, XQInput as Input, XQTable as Table } from '../xq-ui';
 import XQIcon from '../xq-icons';
 import { ServerRoot, ResultKey, TableOddRowBgColor, }  from '../../utils/constants';

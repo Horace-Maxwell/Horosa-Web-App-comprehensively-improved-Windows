@@ -11,6 +11,42 @@
 // 男/女两项 → antd 会把无匹配原始值「-1」直接显示出来。一律归「女=0，其余（含未知/-1/缺失)=男=1」，
 // 与算法引擎口径一致（未知作男），杜绝显示层出现「-1」。
 import { parseDateParts } from './dateStrSafe';
+import { Solar } from 'lunar-javascript';
+import { isLunarJsYearReliable } from './lunarDomainGuard';
+
+// 公历 → 农历 {year, month(1..12,闰月按本月序), day(1..30)};域外或异常返 null(调用方退公历)。
+export function solarToLunarYmd(year, month, day){
+	try{
+		if(!isLunarJsYearReliable(year)){ return null; }
+		const lunar = Solar.fromYmd(year, month, day).getLunar();
+		const m = Math.abs(lunar.getMonth());
+		const d = lunar.getDay();
+		if(!(m >= 1 && m <= 12) || !(d >= 1 && d <= 30)){ return null; }
+		return { year: lunar.getYear(), month: m, day: d };
+	}catch(_e){ return null; }
+}
+
+// [Q-263/T-243] 钟点 → 时支(23–1 子 … 21–23 亥)。
+const HOUR_BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+export function hourBranchOf(hour){
+	const h = Number(hour);
+	if(!Number.isFinite(h)){ return '子'; }
+	return HOUR_BRANCHES[Math.floor((((h % 24) + 24) % 24 + 1) / 2) % 12];
+}
+
+// [Q-263/T-243] 公历时刻 → 节气月序(寅 1 … 丑 12;lunar-javascript getMonthZhiExact 按节气,含时刻);域外/异常返 null。
+const JIE_MONTH_BRANCHES = ['寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥', '子', '丑'];
+export function solarToJieMonthIndex(year, month, day, hour, minute){
+	try{
+		if(!isLunarJsYearReliable(year)){ return null; }
+		const h = Number.isFinite(Number(hour)) ? Number(hour) : 12;
+		const mi = Number.isFinite(Number(minute)) ? Number(minute) : 0;
+		const lunar = Solar.fromYmdHms(year, month, day, h, mi, 0).getLunar();
+		const zhi = typeof lunar.getMonthZhiExact === 'function' ? lunar.getMonthZhiExact() : lunar.getMonthZhi();
+		const idx = JIE_MONTH_BRANCHES.indexOf(zhi);
+		return idx >= 0 ? idx + 1 : null;
+	}catch(_e){ return null; }
+}
 
 export function normBinaryGender(g){
 	const s = `${g === undefined || g === null ? '' : g}`.trim();
@@ -43,6 +79,8 @@ export function parseFieldsDateTime(fields){
 		lat: fields.lat && fields.lat.value ? fields.lat.value : '',
 		lon: fields.lon && fields.lon.value ? fields.lon.value : '',
 		gender: fields.gender && fields.gender.value !== undefined ? fields.gender.value : 1,
+		// [Q-265/T-250·SO-13] 地名随载荷下发(策天 [起盘] 段「地点」行此前恒为后端占位串;缺名后端不出该行)
+		pos: fields.pos && fields.pos.value ? `${fields.pos.value}` : '',
 	};
 }
 
@@ -68,14 +106,21 @@ export function computeKinFieldsResync(fields, prevSyncSrc){
 		next.gender = src.gender;
 	}
 	if(dateChanged){
-		next.lunarYear = src.year;
-		next.lunarMonth = src.month;
-		next.lunarDay = Math.min(30, src.day);
-		next.nanjiLunarYear = src.year;
-		next.nanjiSolarMonth = src.month;
+		// [挂载自检 F-21] 农历锚点字段(演禽入式/蠢子数)此前直接灌**公历**年月日:蠢子数按「農曆月/日」匹配诗词、
+		// 演禽手动农历也以此为初值 → 公历数字冒充农历。现真换算(lunar-javascript,闰月按本月序);域外(BC/万年后)才退公历。
+		const lunar = solarToLunarYmd(src.year, src.month, src.day);
+		next.lunarYear = lunar ? lunar.year : src.year;
+		next.lunarMonth = lunar ? lunar.month : src.month;
+		next.lunarDay = lunar ? lunar.day : Math.min(30, src.day);
+		next.nanjiLunarYear = lunar ? lunar.year : src.year;
+		// [Q-263/T-243] 南极「节月」= 节气月序(寅月=1 … 丑月=12,与帮助「节月即节气月序」一致),此前灌公历月 → 5 月 18 日月柱错一位(午,应巳)。
+		const jieMonth = solarToJieMonthIndex(dt.year, dt.month, dt.day, dt.hour, dt.minute);
+		next.nanjiSolarMonth = jieMonth || src.month;
 		next.nanjiDay = Math.min(31, src.day);
-		next.chunziLunarMonth = src.month;
-		next.chunziLunarDay = Math.min(30, src.day);
+		// [Q-263/T-243] 时支初值按出生时辰(此前恒「子」,与「空=自出」口径不符;页面恒显式下发,后端回落用不上)。
+		if(Number.isFinite(Number(dt.hour))){ next.nanjiHourZhi = hourBranchOf(dt.hour); }
+		next.chunziLunarMonth = lunar ? lunar.month : src.month;
+		next.chunziLunarDay = lunar ? lunar.day : Math.min(30, src.day);
 	}
 	return next;
 }

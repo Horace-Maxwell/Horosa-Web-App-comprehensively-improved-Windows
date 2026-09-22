@@ -63,6 +63,8 @@ class ZodiacalRelease extends Component{
 					<span style={{fontFamily: AstroConst.NormalFont}}>{'L' + item.level}&nbsp;</span>
 					<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[item.sign]}&nbsp;</span>
 					<span style={{fontFamily: AstroConst.NormalFont}}>{item.date}&nbsp;</span>
+					{/* [Q-362/T-343] 末段子期按父期截断(后端 truncated 标):明示该期未走完整长 */}
+					{item.truncated ? <span style={{ fontFamily: AstroConst.NormalFont, opacity: 0.7 }} title="该子期超出所属上级期,已按上级期讫日截断">（截）</span> : null}
 				</div>
 			);
 

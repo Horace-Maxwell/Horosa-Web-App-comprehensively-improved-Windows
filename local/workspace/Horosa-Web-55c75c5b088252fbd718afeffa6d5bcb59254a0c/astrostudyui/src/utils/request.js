@@ -2,12 +2,15 @@ import {fetch} from 'dva';
 import * as forge from 'node-forge';
 import { message } from 'antd';
 import * as Constants from './constants';
-import { getUserIP, isObject, } from './helper';
+import { isObject, } from './helper';
 import { encryptRSA, decryptRSA, } from './rsahelper';
 import { getErrMsg } from '../msg/errmsg';
 import { markServiceOnline, markServiceOffline, isBackendUnreachableError } from './serviceStatus';
 import { renegotiateLocalServerRoot } from './backendIdentity';
 import { waitForBackendBoot } from './backendBootGate';
+// 失败分类 + 统一留痕:silent 与否都进环形缓冲(供诊断文本 / 壳侧账本消费),静默失败另打一行 warn。
+import { classifyRequestFailure } from './requestFailure';
+import { recordRequestFailure, stripUrlQuery } from './requestTelemetry';
 // horosa_prefetch_runtime_whitelist_v1(R4-B1):预取作用域内的 URL 闸(纵深防御)。
 // 非预取作用域恒放行 —— 用户真实请求逐字节零行为变化。
 import { guardPrefetchUrl } from './stepPrefetch';
@@ -20,7 +23,6 @@ export function setTmDelta(val){
     tmDelta = val;
 }
 
-var LocalIp = null;
 let dispatch = null;
 let lastNeedLoginTs = 0;
 let handlingNeedLogin = false;
@@ -289,6 +291,7 @@ export function getResponseHeaders(response){
         err[Constants.ResultCodeKey] = headerErrCode;
         err[Constants.ResultMessageKey] = headerErrMsg;
         err.headers = respheaders;
+        err.status = response.status;
         throw err;    
     }
 
@@ -296,12 +299,6 @@ export function getResponseHeaders(response){
 }
 
 export function buildSignedFetchOptions(options) {
-    if(LocalIp === null){
-        getUserIP((ip)=>{
-            LocalIp = ip;
-        });
-    }
-
     let opts = {
         ...(options || {}),
     };
@@ -331,7 +328,6 @@ export function buildSignedFetchOptions(options) {
         ...headers,
         Token: usrtoken ? usrtoken : '',
         'Content-Type': 'application/json; charset=UTF-8',
-        LocalIp: LocalIp,
         ClientChannel: Constants.ClientChannel,
         ClientApp: Constants.ClientApp,
         ClientVer: Constants.ClientVer,
@@ -556,12 +552,6 @@ async function requestCore(url, options) {
         });    
     }
     try{
-        if(LocalIp === null){
-            getUserIP((ip)=>{
-                LocalIp = ip;
-            });
-        }
-    
         let opts = {
             ...options,
         };
@@ -664,6 +654,11 @@ async function requestCore(url, options) {
 		if(healed){
 			return healed.value;
 		}
+		// 失败分类 + 统一留痕(silent 与否都记;不进 UI)。
+		const failure = classifyRequestFailure(e);
+		const failName = (e && e.name) || '';
+		const failMessage = (e && (e.message || e[Constants.ResultMessageKey])) || '';
+		recordRequestFailure({ url, kind: failure.kind, silent, name: failName, message: failMessage, status: failure.status, code: failure.code });
 		if(isTimeoutLikeError(e)){
 			if(!silent){
 				innerHandleError(buildTimeoutError());
@@ -674,6 +669,13 @@ async function requestCore(url, options) {
 			if(!silent){
 				innerHandleError(e);
 			}
+		}
+		// 静默失败另打一行 warn(不进 UI):吞错 resolve undefined 是本函数既有语义,但零日志
+		// 让「起盘静默变缺失」类故障只能盲猜(AI 助手 cast_technique 压测实抓)。
+		if(silent){
+			try{
+				console.warn('[request] silent failure', stripUrlQuery(url), failure.kind, failName, failMessage);
+			}catch(_e){ /* 日志失败无害 */ }
 		}
     }finally{
         if(dispatch && !silent){
@@ -700,12 +702,6 @@ export async function requestRaw(url, options) {
         });    
     }
     try{
-        if(LocalIp === null){
-            getUserIP((ip)=>{
-                LocalIp = ip;
-            });
-        }
-    
         let opts = {
             ...options,
         };
@@ -775,6 +771,11 @@ export async function requestRaw(url, options) {
 		if(healed){
 			return healed.value;
 		}
+		// 失败分类 + 统一留痕(与 request 同构)。
+		const failure = classifyRequestFailure(e);
+		const failName = (e && e.name) || '';
+		const failMessage = (e && (e.message || e[Constants.ResultMessageKey])) || '';
+		recordRequestFailure({ url, kind: failure.kind, silent, name: failName, message: failMessage, status: failure.status, code: failure.code });
 		if(isTimeoutLikeError(e)){
 			if(!silent){
 				innerHandleError(buildTimeoutError());
@@ -785,6 +786,11 @@ export async function requestRaw(url, options) {
 			if(!silent){
 				innerHandleError(e);
 			}
+		}
+		if(silent){
+			try{
+				console.warn('[request] silent failure', stripUrlQuery(url), failure.kind, failName, failMessage);
+			}catch(_e){ /* 日志失败无害 */ }
 		}
     }finally{
         if(dispatch && !silent){
@@ -827,6 +833,16 @@ export async function requestStream(url, options) {
     }catch(e){
         if(suppressAbortError && e && e.name === 'AbortError'){
             throw e;
+        }
+        // 流式请求失败同样留痕(kind 前缀 stream:);抛给调用方的语义不变。
+        const failure = classifyRequestFailure(e);
+        const failName = (e && e.name) || '';
+        const failMessage = (e && (e.message || e[Constants.ResultMessageKey])) || '';
+        recordRequestFailure({ url, kind: `stream:${failure.kind}`, silent, name: failName, message: failMessage, status: failure.status, code: failure.code });
+        if(silent){
+            try{
+                console.warn('[request] silent failure', stripUrlQuery(url), `stream:${failure.kind}`, failName, failMessage);
+            }catch(_e){ /* 日志失败无害 */ }
         }
         if(isTimeoutLikeError(e)){
             if(!silent){
@@ -887,12 +903,6 @@ export async function uploadFile(obj, onUploadComplete){
 
 export function downloadUrl(url, options, ignoreTM){
     try{
-        if(LocalIp === null){
-            getUserIP((ip)=>{
-                LocalIp = ip;
-            });
-        }
-    
         let opts = {
             ...options,
         };
@@ -911,7 +921,6 @@ export function downloadUrl(url, options, ignoreTM){
             ...headers,
             Token: usrtoken, 
             'Content-Type': 'application/json; charset=UTF-8', 
-            LocalIp: LocalIp,
             ClientChannel: Constants.ClientChannel,
             ClientApp: Constants.ClientApp,
             ClientVer: Constants.ClientVer,
@@ -943,18 +952,11 @@ export function downloadUrl(url, options, ignoreTM){
 
 export function encodeUrl(url, params, notimestamp){
     try{
-        if(LocalIp === null){
-            getUserIP((ip)=>{
-                LocalIp = ip;
-            });
-        }
-    
         const usrtoken = safeGetLocalItem(Constants.TokenKey, '');
         let opts = {
             headers: {
                 Token: usrtoken, 
                 'Content-Type': 'application/json; charset=UTF-8', 
-                LocalIp: LocalIp,
                 ClientChannel: Constants.ClientChannel,
                 ClientApp: Constants.ClientApp,
                 ClientVer: Constants.ClientVer,    

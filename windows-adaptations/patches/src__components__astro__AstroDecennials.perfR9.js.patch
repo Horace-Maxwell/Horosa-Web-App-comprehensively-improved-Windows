@@ -1,11 +1,11 @@
 diff --git a/astrostudyui/src/components/astro/AstroDecennials.js b/astrostudyui/src/components/astro/AstroDecennials.js
-index d6fb21d2..f249eb95 100644
+index 4a06e996..a5363890 100644
 --- a/astrostudyui/src/components/astro/AstroDecennials.js
 +++ b/astrostudyui/src/components/astro/AstroDecennials.js
-@@ -29,6 +29,7 @@ import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
- import styles from '../../css/styles.less';
+@@ -30,6 +30,7 @@ import styles from '../../css/styles.less';
  import { XQSelect as Select } from '../xq-ui';
  import { natalClassicalParams } from './AstroExtraCommon';
+ import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const { Option } = Select;

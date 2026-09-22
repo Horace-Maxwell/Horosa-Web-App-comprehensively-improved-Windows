@@ -65,6 +65,17 @@ function degToDM(d, posSym, negSym) {
 	return `${deg}${d >= 0 ? posSym : negSym}${mn < 10 ? '0' + mn : mn}`;
 }
 
+// [Q-251/T-213] 经度 → 地方平时时区串 '±HH:MM'(取整到分);非有限数返回 ''。
+function lmtZoneOfLon(lonDeg) {
+	const v = Number(lonDeg);
+	if (!Number.isFinite(v)) { return ''; }
+	const totalMin = Math.round(v * 4);
+	const sign = totalMin < 0 ? '-' : '+';
+	const a = Math.abs(totalMin);
+	const hh = Math.floor(a / 60), mm = a % 60;
+	return `${sign}${hh < 10 ? '0' : ''}${hh}:${mm < 10 ? '0' : ''}${mm}`;
+}
+
 export default class XuanShiMain extends React.Component {
 	constructor(props) {
 		super(props);
@@ -116,7 +127,7 @@ export default class XuanShiMain extends React.Component {
 		const ui = { ...this.state.ui, search: { ...sel }, subpage: 'search' };
 		this.setState({ ui, subpage: 'search', openEventId: null });
 		saveXuanShiState(ui);
-		if (sel && sel.q) { pushSearchHistory(sel.q); } // 近探(案头)历史
+		if (sel && sel.q) { pushSearchHistory(sel.q, sel); } // [Q-494/T-456] 近探(案头)历史连同完整选择一起记
 	};
 
 	// 检索结果点某事件 → 切到玄学万象子页并自动打开该事件详情
@@ -142,6 +153,7 @@ export default class XuanShiMain extends React.Component {
 	};
 
 	// 联动:用某历史天象的公历日 + 朝代都城经纬,切到占星/七政并排该日之盘
+	// (日期口径:1582-10-15 前取儒略历日期 julian_date 喂引擎,见 xuanshiDate.resolveChartDate;时区=都城地方平时)
 	chartLink = (ev, tab) => {
 		const { fields, dispatch, predictHook } = this.props;
 		if (!fields || !dispatch || !ev) { return; }
@@ -154,12 +166,13 @@ export default class XuanShiMain extends React.Component {
 		const y = parseInt(m[1], 10), mo = parseInt(m[2], 10), da = parseInt(m[3], 10);
 		if (!y || !mo || !da) { return; }
 		const cap = CAPITALS[ev.dynasty] || capitalForYear(y);
-		const baseZone = (fields.date && fields.date.value && fields.date.value.zone) || (fields.zone && fields.zone.value) || '+08:00';
+		// [Q-251/T-213] 时区取都城地方平时(经度 ÷ 15,取整到分):史料时代无标准时区,沿用当前命盘时区会把「正午」错置数十分钟。
+		const baseZone = lmtZoneOfLon(cap[0]) || (fields.date && fields.date.value && fields.date.value.zone) || (fields.zone && fields.zone.value) || '+08:00';
 		// 自定义 DateTime 构造历史日:ad=±1 支持公元前全范围;缺具体时刻默认中午 12 点
 		const tm = new DateTime({ ad: y < 0 ? -1 : 1, year: Math.abs(y), month: mo, date: da, hour: 12, minute: 0, second: 0, zone: baseZone });
 		if (typeof tm.calcJdn === 'function') { tm.calcJdn(); } // 算 jdn(构造器未算;部分下游依赖)
 		// 地点名并入 name(避免改 pos 类型破坏 fieldsToParams);经纬走 lat/lon
-		const nameStr = `玄学史·${ev.omen || ev.title || '事件'}·${cap[2] || ''}·${mdDisp || md}`;
+		const nameStr = `玄学史·${ev.omen || ev.title || '事件'}·${cap[2] || ''}·${mdDisp || md}·都城地方平时`;
 		const newFields = {
 			...fields,
 			date: { ...fields.date, value: tm },
@@ -242,7 +255,7 @@ export default class XuanShiMain extends React.Component {
 		return (
 			<div>
 				{/* Hero(对齐标准版首页)*/}
-				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(34px,5vw,52px)', fontWeight: 300 }}>中国玄学史</h1>
+				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(34px,calc(5 * var(--horosa-lvw, 1vw)),52px)', fontWeight: 300 }}>中国玄学史</h1>
 				<div className="xuanshi-hero-rule" />
 				<div className="xuanshi-display" style={{ fontSize: 17, color: 'var(--ink)', marginTop: 14, letterSpacing: '.04em' }}>卜筮 · 占梦 · 相术 · 道术 · 风水 · 天象</div>
 				<div className="xuanshi-stat-sub" style={{ fontSize: 13, marginTop: 6 }}>三千载玄虚之学 · 正史野载兼收</div>
@@ -357,7 +370,7 @@ export default class XuanShiMain extends React.Component {
 			return <XuanShiSearch ui={this.state.ui} onPersist={(k, p) => this.persist({ [k]: { ...(this.state.ui[k] || {}), ...p } })} onHome={() => this.setSubpage('overview')} onOpenEvent={this.goEvent} />;
 		}
 		if (subpage === 'desk') {
-			return <XuanShiDesk onHome={() => this.setSubpage('overview')} onNav={(k) => this.setSubpage(k)} onOpen={this.goBookmark} onSearchHistory={(q) => this.goFacetSearch({ tradition: '正史', q, dynasty: [], technique: [], history: [], evidence: '' })} />;
+			return <XuanShiDesk onHome={() => this.setSubpage('overview')} onNav={(k) => this.setSubpage(k)} onOpen={this.goBookmark} onSearchHistory={(h) => this.goFacetSearch((h && h.sel) ? { ...h.sel } : { tradition: '正史', q: (h && h.q) || `${h || ''}`, dynasty: [], technique: [], history: [], evidence: '' })}   /* [Q-494/T-456] 有完整选择就原样重放,旧条目按老口径兜底 */ />;
 		}
 		if (subpage === 'micro') {
 			return <XuanShiMicro ui={this.state.ui} onPersist={(k, p) => this.persist({ [k]: { ...(this.state.ui[k] || {}), ...p } })} onHome={() => this.setSubpage('overview')} />;

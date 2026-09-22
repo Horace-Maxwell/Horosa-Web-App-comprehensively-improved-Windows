@@ -8,6 +8,23 @@ import DateTime from '../comp/DateTime';
 import NongLi from '../calendar/NongLi';
 import {Week} from '../../msg/types';
 
+// [Q-311/T-292] 起始日 + 整数天数 → 目标 DateTime(JDN 加减;保留时分秒与时区;公元前用 ad=-1 + 正年数)
+export function dateCalcTarget(orgdt, num){
+	const n = Math.trunc(Number(num)) || 0;
+	const destJdn = orgdt.getOnlyDateNum() + n;
+	const ymd = orgdt.calDateFromJdn(destJdn);
+	return new DateTime({
+		ad: ymd[0] < 0 ? -1 : 1,
+		year: Math.abs(ymd[0]),
+		month: ymd[1],
+		date: ymd[2],
+		hour: orgdt.hour,
+		minute: orgdt.minute,
+		second: orgdt.second,
+		zone: orgdt.zone,
+	});
+}
+
 const { Option } = Select;
 
 export default class DateCalc extends Component{
@@ -73,8 +90,10 @@ export default class DateCalc extends Component{
 	}
 
     changeNum(val){
+        // [Q-311/T-292 ④] 天数只收整数:小数天数曾得非法日期「1990-05-19.5」
+        const n = Number(val);
         this.setState({
-            number: val,
+            number: Number.isFinite(n) ? Math.trunc(Math.abs(n)) : 0,
         });
     }
 
@@ -107,7 +126,8 @@ export default class DateCalc extends Component{
     }
 
     calculate(){
-        let num = this.state.type * this.state.number;
+        const days = Math.trunc(Math.abs(Number(this.state.number))) || 0;
+        let num = this.state.type * days;
         let tmpdt = null;
         let dt = this.state.date.clone();
         if(this.tmHook.getValue){
@@ -115,7 +135,10 @@ export default class DateCalc extends Component{
             dt = tmpdt.value;
         }
         let orgdt = dt.clone();
-        dt.addDate(num);
+        // [Q-311/T-292 ①②③] 目标日期 = 起始日 JDN + n → 历日(getOnlyDateNum ↔ calDateFromJdn 互逆;与反向拨目标 onDestTimeChanged 同源):
+        // 此前逐月加天数(DateTime.addDate)跨 1582-10-05…14 改历段少算 10 天、公元前闰年判错,反向拨目标后又被它改写。
+        // 共享 addDate(时间选择器 ±日步进)不在本页改动范围。
+        dt = dateCalcTarget(orgdt, num);
         this.setState({
             destDate: dt,
             date: orgdt,
@@ -133,6 +156,18 @@ export default class DateCalc extends Component{
     genResultDom(){
         let dt = this.state.destDate;
         let str = dt.format('YYYY-MM-DD');
+        // [Q-309/T-315 ③] 点日历日格此前只写 dateSelected、界面零反应 → 在结果旁读出所点日(公历 + 农历 + 干支/节气,有则显)。
+        const sel = this.state.dateSelected;
+        if(sel && sel.birth){
+            const parts = [];
+            const ymd = `${sel.birth}`.split(' ')[0];
+            if(ymd){ parts.push(ymd); }
+            const nl = [sel.month, sel.dayInt !== undefined && sel.dayInt !== null ? sel.dayInt : sel.day].filter((x)=>x !== undefined && x !== null && x !== '').join('');
+            if(nl){ parts.push(`农历${nl}`); }
+            if(sel.ganzi){ parts.push(sel.ganzi); }
+            if(sel.jieqi){ parts.push(sel.jieqi); }
+            return `${str}　·　所点：${parts.join(' ')}`;
+        }
         return str;
     }
 

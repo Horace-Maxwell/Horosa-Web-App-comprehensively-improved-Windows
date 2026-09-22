@@ -77,12 +77,28 @@ describe('[W1] astro 古典衍化四段 opt-in', ()=>{
 		});
 	});
 
-	it('v56 union ∩ DEFAULT_OFF = ∅ 卫生锁(默认关段禁入 union,防口径倒挂)', ()=>{
+	// [#79] 泛化到所有 v-window union 块(v56/v57/…):①∩DEFAULT_OFF=∅(默认关段禁入 union,防口径倒挂);
+	// ②union 每段 ∈ 该键 preset(「产出了但没登记 preset 的段会被静默删」——union 进来的段名必须真存在于 preset)。
+	it('全部 AI_EXPORT_V*_SECTION_UNION 块:∩ DEFAULT_OFF = ∅ 且 每段 ∈ 该键 preset(v56/v57 必在)', ()=>{
 		const src = fs.readFileSync(path.join(__dirname, '../aiExport.js'), 'utf8');
-		const unionSeg = src.slice(src.indexOf('AI_EXPORT_V56_SECTION_UNION = {'), src.indexOf('};', src.indexOf('AI_EXPORT_V56_SECTION_UNION = {')));
+		const { AI_EXPORT_PRESET_SECTIONS } = require('../aiExport');
 		const offSeg = src.slice(src.indexOf('AI_EXPORT_DEFAULT_OFF_SECTIONS = {'), src.indexOf('};', src.indexOf('AI_EXPORT_DEFAULT_OFF_SECTIONS = {')));
 		const grab = (seg)=>[...seg.matchAll(/'([^']+)'/g)].map((m)=>m[1]);
-		const unionSecs = new Set(grab(unionSeg));
-		grab(offSeg).forEach((s)=>expect(unionSecs.has(s)).toBe(false));
+		const offSecs = grab(offSeg);
+		const blocks = [...src.matchAll(/AI_EXPORT_V(\d+)_SECTION_UNION = \{/g)];
+		expect(blocks.map((m)=>m[1])).toEqual(expect.arrayContaining(['56', '57']));
+		blocks.forEach((m)=>{
+			const seg = src.slice(m.index, src.indexOf('\n};', m.index));
+			const unionSecs = new Set(grab(seg));
+			offSecs.forEach((s)=>expect(`v${m[1]}:${s}:${unionSecs.has(s) ? 'IN_UNION' : 'ok'}`).toBe(`v${m[1]}:${s}:ok`));
+			const keyRe = /^\t([A-Za-z_]+):\s*\[([\s\S]*?)\],?$/gm;
+			let km;
+			while((km = keyRe.exec(seg))){
+				const key = km[1];
+				const preset = AI_EXPORT_PRESET_SECTIONS[key];
+				expect(`v${m[1]}:${key}:${Array.isArray(preset) ? 'ok' : 'NO_PRESET'}`).toBe(`v${m[1]}:${key}:ok`);
+				grab(km[2]).forEach((sec)=>expect(`v${m[1]}:${key}:${preset.includes(sec) ? 'ok' : sec}`).toBe(`v${m[1]}:${key}:ok`));
+			}
+		});
 	});
 });

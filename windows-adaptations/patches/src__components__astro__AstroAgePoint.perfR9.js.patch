@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroAgePoint.js b/astrostudyui/src/components/astro/AstroAgePoint.js
-index 426c794..c979b29 100644
+index 247f4ea6..231e7d34 100644
 --- a/astrostudyui/src/components/astro/AstroAgePoint.js
 +++ b/astrostudyui/src/components/astro/AstroAgePoint.js
 @@ -10,6 +10,7 @@ import * as AstroText from '../../constants/AstroText';
@@ -10,7 +10,7 @@ index 426c794..c979b29 100644
  
  const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
  const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
-@@ -121,7 +122,8 @@ class AstroAgePoint extends Component {
+@@ -144,7 +145,8 @@ class AstroAgePoint extends Component {
  				timeoutMs: 60000,
  			});
  			if(!this._mounted) return;

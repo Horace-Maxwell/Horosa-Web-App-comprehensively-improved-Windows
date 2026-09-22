@@ -244,6 +244,12 @@ class BabylonEphemeris extends Component{
 							) : null}
 							<div className="horosa-babylon-card">
 								<div className="horosa-babylon-card-title">现象序列(自本盘位置推演 {this.state.rows} 步)</div>
+								{/* [Q-299/T-288 ④] 递推口径据实:现代实位档只把「首行锚点」取自现代实位,逐步递推仍按阶梯 A(与 A 档同表);锯齿 B 仅木星有表。 */}
+								<div className="horosa-field-hint" style={{ marginBottom: 6 }}>
+									{src === 'systemB'
+										? (planet === 'jupiter' ? '递推:锯齿函数(System B · 木星表)' : '递推:阶梯函数(System A;锯齿 B 仅木星有表,本星按 A 递推)')
+										: (src === 'systemA' ? '递推:阶梯函数(System A)' : '递推:锚点取现代实位,逐步仍按阶梯函数(System A,与「阶梯复原(A)」同表)')}
+								</div>
 								{ser ? this.renderPlanetTable(ser) : null}
 							</div>
 						</div>

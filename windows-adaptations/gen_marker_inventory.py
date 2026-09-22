@@ -33,7 +33,13 @@ import json
 import os
 import re
 import sys
-
+# v3.11.0:Windows 控制台缺省 cp1252,总账门报 DRIFT 时打印中文会 UnicodeEncodeError(报红信息本身炸掉 = 看不到差异);
+# 强制 UTF-8(输出仅供人读;与 port_from_mac.py 同款处置)。
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 INVENTORY = os.path.join(HERE, "MARKER_INVENTORY.json")

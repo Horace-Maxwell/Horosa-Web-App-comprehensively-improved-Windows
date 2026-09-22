@@ -2,14 +2,17 @@ import { Component } from 'react';
 import { markPanelReady } from '../../utils/perfMark';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import moment from 'moment';
-import { DatePicker, Radio, Spin, Empty, Checkbox, Select } from 'antd';
+import { Radio, Spin, Empty, Checkbox, Select } from 'antd';
+import { XQDatePicker } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { SA_RATE } from '../../utils/uranianDial';
+import { getLayoutViewportWidth, getLayoutViewportHeight } from '../../utils/shellZoom';
+import { pointerToLocal } from '../../utils/zoomDomain';
 
-const { RangePicker } = DatePicker;
+const RangePicker = XQDatePicker.RangePicker;
 
 // 汉堡/宇宙生物学「图形星历」(graphic ephemeris):X=时间、Y=黄经折叠到盘基(90°/45°)。
 // 行运行星折叠后随时间画成斜线(快星呈锯齿),本命点为水平参考线;两者相交≈该折叠相位(0/90/180/270)应期。
@@ -28,8 +31,8 @@ const NATAL_LINE_IDS = new Set([
 ]);
 
 // 图形星历专用「行星配色」:全站主题色板(AstroColor)在多数主题下行星为单色(#3b3b3b/#333),
-// 折线全挤成一团难分辨。这里给每颗参与星一组中等饱和度、明暗两主题都清晰可辨的固定色——
-// 折线 stroke 与右侧字形 fill 共用同一映射,确保「线↔字形」永远同色(任务 E)。纯视觉,不动计算。
+// 曲线全挤成一团难分辨。这里给每颗参与星一组中等饱和度、明暗两主题都清晰可辨的固定色——
+// 曲线 stroke 与右侧字形 fill 共用同一映射,确保「线↔字形」永远同色(任务 E)。纯视觉,不动计算。
 const GEPHEM_PLANET_TONE = {
 	[AstroConst.SUN]: '#e0a52e',        // 日 金黄
 	[AstroConst.MOON]: '#6f8fd0',       // 月 蓝银
@@ -51,7 +54,7 @@ function planetName(id){
 	if (AstroText.isUranian(id) && id !== AstroConst.ARIES_POINT) return AstroText.uranianGlyph(id);
 	return AstroText.AstroMsgCN[id] || id;
 }
-// 折线/字形取色:优先专用色板,缺则回落全站主题色,再回落柔和文字色。
+// 曲线/字形取色:优先专用色板,缺则回落全站主题色,再回落柔和文字色。
 function toneOf(id, fallback){ return GEPHEM_PLANET_TONE[id] || AstroConst.AstroColor[id] || fallback || '#888'; }
 
 const fold = (lon, base) => (((Number(lon) % base) + base) % base);
@@ -111,8 +114,8 @@ export default class UranianGraphicEphemeris extends Component {
 			rows: null,
 			loading: false,
 			note: null,
-			vw: typeof window !== 'undefined' ? window.innerWidth : 1200,
-			vh: typeof window !== 'undefined' ? window.innerHeight : 900,
+			vw: typeof window !== 'undefined' ? getLayoutViewportWidth() : 1200,   // 布局域实测(inner* 是物理域)
+			vh: typeof window !== 'undefined' ? getLayoutViewportHeight() : 900,
 			cw: 0, // 实测容器内宽(像素空间渲染用)
 			tip: null, // 线 hover 弹窗(任务 B:像 ACG 地图,state 驱动 absolute div)
 		};
@@ -132,9 +135,9 @@ export default class UranianGraphicEphemeris extends Component {
 	componentDidMount(){ this.unmounted = false; this.requestData(); this._measure(); if (typeof window !== 'undefined') { window.addEventListener('resize', this._onResize); window.addEventListener('horosa-uranian-ephembase', this._onEphemBase); } }
 	componentWillUnmount(){ this.unmounted = true; if (typeof window !== 'undefined') { window.removeEventListener('resize', this._onResize); window.removeEventListener('horosa-uranian-ephembase', this._onEphemBase); } }
 	componentDidUpdate(prev){ if (prev.fields !== this.props.fields) this.requestData(); this._measure(); }
-	_onResize(){ if (!this.unmounted) { this.setState({ vw: window.innerWidth, vh: window.innerHeight }); this._measure(); } }
-	// 线 hover 弹窗(任务 B):鼠标移到行运折线/本命参考线 → 显「色点 + 星名(本命/行运)」,像 ACG 地图;state 驱动 absolute div,host 须 position:relative。
-	showTip(e, id, kind){ if (this.unmounted || !this._tipHost) return; const r = this._tipHost.getBoundingClientRect(); this.setState({ tip: { x: e.clientX - r.left + 14, y: e.clientY - r.top + 14, id, kind, color: toneOf(id, '#888') } }); }
+	_onResize(){ if (!this.unmounted) { this.setState({ vw: getLayoutViewportWidth(), vh: getLayoutViewportHeight() }); this._measure(); } }
+	// 线 hover 弹窗(任务 B):鼠标移到行运曲线/本命参考线 → 显「色点 + 星名(本命/行运)」,像 ACG 地图;state 驱动 absolute div,host 须 position:relative。
+	showTip(e, id, kind){ if (this.unmounted || !this._tipHost) return; const p = pointerToLocal(e, this._tipHost); /* 鼠标位移(视觉域)折回宿主布局域,缩放档下提示才贴着鼠标 */ this.setState({ tip: { x: p.x + 14, y: p.y + 14, id, kind, color: toneOf(id, '#888') } }); }
 	hideTip(){ if (!this.unmounted && this.state.tip) this.setState({ tip: null }); }
 	_measure(){ if (this.unmounted || !this._wrap) return; const w = this._wrap.clientWidth - 16; if (w > 0 && Math.abs(w - this.state.cw) > 2) this.setState({ cw: w }); }
 
@@ -320,7 +323,7 @@ export default class UranianGraphicEphemeris extends Component {
 		const xAt = (i) => mL + (n <= 1 ? 0 : (i / (n - 1)) * plotW);
 		const yAt = (f) => mT + (f / base) * plotH;
 
-		// 行运折线:每星折叠后按日连线,跨 0/base 边界(相邻样本差 > base/2)断开重接。
+		// 行运曲线:每星折叠后按日连线,跨 0/base 边界(相邻样本差 > base/2)断开重接。
 		const series = planets.map((pid) => {
 			const color = toneOf(pid);
 			const segs = []; let cur = [];
@@ -453,7 +456,7 @@ export default class UranianGraphicEphemeris extends Component {
 									</g>
 								);
 							})}
-							{/* 行运折线:加宽透明命中路径承载 hover title(任务 F),可见线在其上;CSS hover 加粗高亮。 */}
+							{/* 行运曲线:加宽透明命中路径承载 hover title(任务 F),可见线在其上;CSS hover 加粗高亮。 */}
 							{series.map((s, i) => (
 								<g key={`s${i}`} className="horosa-gephem-line">
 									{s.d ? <path d={s.d} fill="none" stroke="transparent" strokeWidth="9" strokeLinejoin="round" style={{ cursor: 'pointer' }} onMouseMove={(e) => this.showTip(e, s.pid, '行运')} onMouseLeave={this.hideTip} /> : null}

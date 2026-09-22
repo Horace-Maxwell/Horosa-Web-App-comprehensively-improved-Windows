@@ -108,7 +108,7 @@ import ChartsGps from '../components/user/ChartsGps';
 // [B6] 笔记面板转 lazy:其饿链拖 Quill+node-forge 进首屏 vendors(explorer 实测);lazyPreloadable 自带 Suspense+边界。
 const ChartMemo = lazyPreloadable(() => import('../components/comp/ChartMemo'), { order: 3 });
 import FreezeInactive from '../components/comp/FreezeInactive';
-import { AUX_SUBTABS, CNYIBU_SUBTABS, CNTRADITION_SUBTABS, ZERI_SUBTABS, recallSubTab } from '../constants/SubTabRegistry';
+import { AUX_SUBTABS, CNYIBU_SUBTABS, CNTRADITION_SUBTABS, ZERI_SUBTABS, RELATIVE_SUBTABS, recallSubTab } from '../constants/SubTabRegistry';
 const JieQiChartsMain = lazyPreloadable(() => import('../components/jieqi/JieQiChartsMain'), { order: 2, navKey: 'jieqichart' });
 const CnTraditionMain = lazyPreloadable(() => import('../components/cntradition/CnTraditionMain'), { order: 2, navKey: 'cntradition' });
 const CnYiBuMain = lazyPreloadable(() => import('../components/cnyibu/CnYiBuMain'), { order: 2, navKey: 'cnyibu' });
@@ -146,6 +146,7 @@ import XQIcon from '../components/xq-icons';
 import { XQDrawer as Drawer, XQModal, XQTabs } from '../components/xq-ui';
 import { scheduleUnconfirmedTimeDispatch, cancelPendingTimeDispatch } from '../utils/timeDispatchScheduler';
 import { registerNavPreload, preloadNavByKey } from '../utils/navPreload';
+import { registerWorkspaceBridge, registerWorkspaceUi } from '../utils/aiTools/workspaceBridge';
 
 const TabPane = XQTabs.TabPane;
 
@@ -375,7 +376,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         casePageIndex,
         caseTotal,
     } = user;
- 	const { height, fields, chartObj, drawerVisible, predictHook, memo, memoType, currentTab, currentSubTab, deeplearn} = astro;
+ 	const { height, fields, chartObj, drawerVisible, predictHook, memo, memoType, currentTab, currentSubTab, deeplearn, baziCalibreOverride} = astro;   // [Q-314] 八字本页口径覆盖层
     const { ziwei, } = rules; 
 
     
@@ -405,6 +406,48 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             payload:{},
         });
     }
+
+    // [A3] 跨页跳转桥:AI 助手斜杠命令(/择日 等)派发 horosa:navigate {key, subTab?} → 走 changeTab(与点主导航同一路径);ref 取最新闭包
+    // [2026-09-11] subTab 只认各聚合页登记过的键(与下方 registerWorkspaceUi.navigate 同一张表,抽成 applySubTab 两处共用):/择日 奇门 → zeri/qimenzeri
+    const changeTabRef = React.useRef(null);
+    changeTabRef.current = changeTab;
+    const dispatchRef = React.useRef(dispatch);
+    dispatchRef.current = dispatch;
+    const applySubTab = React.useCallback((key, subTab) => {
+        const allowed = { cntradition: CNTRADITION_SUBTABS, cnyibu: CNYIBU_SUBTABS, auxchart: AUX_SUBTABS, zeri: ZERI_SUBTABS }[key];
+        if(subTab && allowed && allowed.indexOf(subTab) >= 0){
+            dispatchRef.current({ type: 'astro/save', payload: { currentSubTab: subTab } });
+            return { applied: true, allowed: true };
+        }
+        return { applied: false, allowed: !!allowed };
+    }, []);
+    const applySubTabRef = React.useRef(applySubTab);
+    applySubTabRef.current = applySubTab;
+    React.useEffect(() => {
+        const onNav = (e) => {
+            const key = e && e.detail && e.detail.key;
+            if(key && typeof changeTabRef.current === 'function'){ changeTabRef.current(key); }
+            const subTab = e && e.detail && e.detail.subTab;
+            if(key && subTab){ applySubTabRef.current(key, subTab); }
+        };
+        window.addEventListener('horosa:navigate', onNav);
+        return () => window.removeEventListener('horosa:navigate', onNav);
+    }, []);
+    // [批五] 工作区 ui 面(导航):AI 工具 navigate_to_technique / 载入即跳 / 合盘配对经此走 changeTab(与点主导航同一路径);
+    // 路由表取自 navigationPages(只含本构建登记的页面);子页签只认各聚合页登记过的键;当前路由读 ref(冻结期不陈旧)。
+    const routeRef = React.useRef({ tab: currentTab, subTab: currentSubTab });
+    routeRef.current = { tab: currentTab, subTab: currentSubTab };
+    React.useEffect(() => registerWorkspaceUi({
+        listRoutes: () => navigationPages.map((p) => ({ key: p.key, label: p.label, group: p.group })),
+        currentRoute: () => ({ tab: routeRef.current.tab || null, subTab: routeRef.current.subTab || null }),
+        navigate: (key, subTab) => {
+            if(!navigationPages.some((p) => p.key === key) || typeof changeTabRef.current !== 'function'){ return { ok: false, message: `没有这个技法页:${key}` }; }
+            changeTabRef.current(key);
+            const r = applySubTabRef.current(key, subTab);
+            if(r.applied){ return { ok: true, tab: key, subTab }; }
+            return { ok: true, tab: key, subTab: subTab && r.allowed ? null : undefined, ignoredSubTab: !!(subTab && !r.applied) };
+        },
+    }), []);
 
     function openDrawer(key){
         dispatch({
@@ -439,8 +482,12 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             nextSubTab = recallSubTab('auxchart', auxChartTabs, currentSubTab, 'germanytech');
         }else if(key === 'zeri'){
             nextSubTab = recallSubTab('zeri', ZERI_SUBTABS, currentSubTab, 'tianxing');
-        }else if(key === 'direction' || key === 'relativechart'){
-            nextSubTab = currentSubTab;
+        }else if(key === 'relativechart'){
+            // [Q-417/T-377] 合盘:沿用旧 currentSubTab 曾把辅盘的 germanytech 带进来(页头帮助显示量化盘手册);
+            //   同其它组走「合法 → 宿主记忆 → 首档」回落(AstroRelative 挂载/切子页签时 rememberSubTab)。
+            nextSubTab = recallSubTab('relativechart', RELATIVE_SUBTABS, currentSubTab, 'Comp');
+        }else if(key === 'direction'){
+            nextSubTab = currentSubTab;   // 星运页挂载即回写子页签(AstroDirectMain)
         }
         
         dispatch({
@@ -498,6 +545,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         return obj[name];
     };
 
+    // AI 助手工具桥:当前盘口径改写只走 changeCond 正门(函数声明提升,注册在定义前合法)
+    registerWorkspaceBridge({ changeCond, dispatch });
     function changeCond(values){
         let flds = {
             ...fields,
@@ -765,6 +814,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     <BaZi
                         height={height}
                         fields={fields}
+                        baziCalibreOverride={baziCalibreOverride}
                         hook={predictHook.bazi}
                         dispatch={dispatch}
                     />
@@ -824,6 +874,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     <AuxChartMain
                         chart={chartObj}
                         onChange={changeCond}
+                        planetListStyle={app.planetListStyle}   /* [Q-356/T-337] 行星列表密度:此前不传 → 下游只能走 localStorage 兜底,被三层浅比 sCU 挡住、改完要切子页签才生效 */
                         tripSystem={tripSystem}
                         height={height}
                         fields={fields}
@@ -836,6 +887,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         hook={predictHook.auxchart}
                         chartStyle={chartStyle}
                         wheelArt={wheelArt}
+                        voidClassical={voidClassical}   /* [Q-149/T-56] 宿主链补传:此前断在辅盘,空亡古典义 / 仅本垣擢升互容 两档在派生盘页恒按关(会话态键,无 localStorage 兜底) */
+                        showOnlyRulExaltReception={showOnlyRulExaltReception}
                         dispatch={dispatch}
                         currentSubTab={currentSubTab}
                     />
@@ -855,6 +908,10 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         wheelArt={wheelArt}
 	                        showPlanetHouseInfo={showPlanetHouseInfo}
 	                        showAstroMeaning={showAstroMeaning}
+	                        showOnlyRulExaltReception={showOnlyRulExaltReception}   /* [Q-253/T-223] 合盘四子盘弹层四键补传(此前恒显示关/密度恒「完整」) */
+	                        voidClassical={voidClassical}
+	                        planetListStyle={app.planetListStyle}
+	                        aspects={aspects}
 	                        hook={predictHook.relativechart}
 	                        dispatch={dispatch}
 	                        onChange={changeCond}
@@ -1548,7 +1605,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             </Drawer>
 
             <Drawer
-                title='我的星盘分布'
+                title='我的命盘分布'   /* [Q-417/T-378] 与公共菜单「命盘分布」同词;数据源=本机命盘库 */
                 width={900}
                 placement="left"
                 onClose={closeDrawer}

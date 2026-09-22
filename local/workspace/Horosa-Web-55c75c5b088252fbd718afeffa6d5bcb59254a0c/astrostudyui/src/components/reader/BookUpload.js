@@ -1,6 +1,6 @@
 import { Component } from 'react';
 import { Upload, message, Row, Col } from 'antd';
-import Modal from 'drag-modal';
+import Modal from '../comp/DragModal';
 import { ServerRoot } from '../../utils/constants';
 import * as Constants from '../../utils/constants';
 import { downloadUrl } from '../../utils/request';

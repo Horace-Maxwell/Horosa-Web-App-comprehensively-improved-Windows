@@ -3,6 +3,7 @@ import { Row, Col } from 'antd';
 import { XQButton as Button, XQInput as Input } from '../xq-ui';
 import StreamPlayer from './StreamPlayer';
 
+import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 class MediaPlayer extends Component{
 
 	constructor(props) {
@@ -43,7 +44,7 @@ class MediaPlayer extends Component{
 
 
 	render(){
-		let height = this.props.height ? this.props.height : document.documentElement.clientHeight - 80;
+		let height = this.props.height ? this.props.height : getLayoutViewportHeight() - 80;
 		height = height - 100;
 
 		return (

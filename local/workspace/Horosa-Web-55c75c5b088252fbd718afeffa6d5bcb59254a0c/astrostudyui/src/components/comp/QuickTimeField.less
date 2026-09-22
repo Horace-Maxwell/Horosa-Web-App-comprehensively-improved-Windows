@@ -1,0 +1,36 @@
+// 快捷数字时间录入·增量样式(基础字段样式 .horosa-unified-field 在全局 app.less;此处只加键入态与输入框)
+.horosa-workspace-shell .horosa-quick-time-field {
+	user-select: none;
+}
+.horosa-workspace-shell .horosa-unified-field.is-editing {
+	cursor: text;
+	border-color: var(--horosa-astro-line-strong, rgba(231, 190, 119, 0.42));
+}
+.horosa-quick-time-input {
+	flex: 1 1 auto;
+	min-width: 0;
+	width: 100%;
+	border: 0;
+	outline: 0;
+	padding: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	letter-spacing: 0.06em;
+	font-variant-numeric: tabular-nums;
+}
+.horosa-quick-time-input::placeholder {
+	color: var(--horosa-astro-muted, #8fa0b9);
+	opacity: 0.8;
+	font-size: 12px;
+	letter-spacing: 0;
+}
+.horosa-quick-time-row .xq-input {
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.06em;
+}
+// 单行时间文本(天文馆时间行等)键入态:输入框撑到 14 位数字宽度,字体/颜色继承宿主
+.horosa-quick-time-text.is-editing .horosa-quick-time-input {
+	min-width: 13.5em;
+	display: block;
+}

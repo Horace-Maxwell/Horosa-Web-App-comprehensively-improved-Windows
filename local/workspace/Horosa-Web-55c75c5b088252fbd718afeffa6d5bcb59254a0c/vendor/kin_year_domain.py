@@ -44,7 +44,9 @@ def extreme_pillars(year, month, day, hour, minute, after23=1, hour_gan_next=1, 
     dTG = _TG[di % 10] + _DZ[di % 12]
     hz = ((hour + 1) // 2) % 12
     if hour == 23:
-        h_day_tg = (((jdn + 1 + 49) % 60 + 60) % 60) % 10 if hour_gan_next else di % 10
+        # [Q-312/T-293 2026-09-18 口径 B·用户拍板] hour_gan_next=0 = 时干用钟面当天(jdn,不进位)的日干起子时,与日柱开关完全独立;
+        # 此前取 di(已按 after23 进位的日柱干)→ (1,0) 得 壬寅日 庚子时,与 Java BaZiHelper / 本地引擎(壬寅日 戊子时)分叉。
+        h_day_tg = (((jdn + 1 + 49) % 60 + 60) % 60) % 10 if hour_gan_next else (((jdn + 49) % 60 + 60) % 60) % 10
         hTG = _TG[(h_day_tg % 5 * 2) % 10] + _DZ[0]
     else:
         hTG = _TG[((di % 10) % 5 * 2 + hz) % 10] + _DZ[hz]

@@ -101,7 +101,7 @@ export function buildPlanetaryAgesSnapshotText(chartObj){
 	const fmtYear = (n) => (Number.isFinite(n) ? `${n}` : '-');
 	lines.push('');
 	lines.push('◆ 行星年四档（小年/中年/大年/极大年）');
-	lines.push('七政各有四档通用年数：小年取自辖界最短跨度，大年为各星所辖界度数之和；七政小年之和为 129，日月中年皆为 39.5。');
+	lines.push('七政各有四档通用年数：小年为传统定数（七政小年之和为 129），中年为小年与大年之平均，大年为五星各自所辖界度数之和（日取 120、月取 108），极大年为传统极数。');
 	YEAR_BAND_ORDER.forEach((id) => {
 		const y = PLANETARY_YEARS[id] || {};
 		lines.push(`${planetTxt(id)}：小年 ${fmtYear(y.least)} · 中年 ${fmtYear(y.mean)} · 大年 ${fmtYear(y.greater)} · 极大年 ${fmtYear(y.greatest)}`);

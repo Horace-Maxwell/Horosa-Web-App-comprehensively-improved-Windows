@@ -199,7 +199,7 @@ export default class BaziPattern extends Component{
             attrs: attrs,
             readonly: false,
         };
-        let pat = (st.gender === 0) ? female : male;
+        let pat = (st.gender === 0) ? female : (male || (st.gender === -1 ? female : null));   // [Q-309/T-315 ④] 不区分:男档缺则读女档
         if(pat){
             resst['格局'] = pat['格局'];
             resst['格局码'] = pat['格局码'];
@@ -290,10 +290,8 @@ export default class BaziPattern extends Component{
     }
 
     changeGender(val){
-        let pat = this.state.male;
-        if(val === 0){
-            pat = this.state.female;
-        }
+        // [Q-309/T-315 ④] 「不区分」读档:男档为主、缺则女档(两份同存时内容相同);切到没存过档的性别 → 表单清空,不残留上一性别的值。
+        let pat = (val === 0) ? this.state.female : (this.state.male || (val === -1 ? this.state.female : null));
         let st = {
             gender: val,
         };
@@ -307,6 +305,9 @@ export default class BaziPattern extends Component{
             this.state.attrs.map((item, idx)=>{
                 st[item.key] = pat[item.key];
             });
+        }else{
+            st['格局'] = ''; st['格局码'] = ''; st['格局级别'] = ''; st['格局成立'] = ''; st['描述'] = '';
+            (this.state.attrs || []).forEach((item)=>{ st[item.key] = undefined; });
         }
 
         this.newval = true;
@@ -562,8 +563,8 @@ export default class BaziPattern extends Component{
                     {
                         !this.state.readonly && (
                             <Col offset={10} span={4}>
-                                <Popconfirm title={`确定提交此八字格局说明吗?`} onConfirm={this.updatePattern}>
-                                    <Button type='primary'>提交</Button>
+                                <Popconfirm title={`确定把这份八字格局说明保存到本机吗?`} onConfirm={this.updatePattern}>
+                                    <Button type='primary'>保存到本机</Button>{/* [Q-417/T-379] 本机存储,不再沿用服务端时代的「提交」 */}
                                 </Popconfirm>
                             </Col>    
                         )

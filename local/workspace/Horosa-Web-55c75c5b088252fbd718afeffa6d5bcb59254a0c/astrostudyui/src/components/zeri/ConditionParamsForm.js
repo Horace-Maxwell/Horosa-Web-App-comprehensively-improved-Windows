@@ -14,7 +14,13 @@ export default function ConditionParamsForm({ type, params, onChange, types }){
 	if(!spec){
 		return null;
 	}
-	const patch = (key, value) => onChange({ ...params, [key]: value });
+	// [Q-465/T-427] 形态选择器可声明 resetsByValue:切到新形态时把与它共用同一参数键的字段一并重置成
+	// 该形态的合法值(否则「目标=四轴点」下四轴框还留着星名 Venus,发出去整次搜索报 invalid_conditions)。
+	const patch = (key, value) => {
+		const fld = (spec.fields || []).find((x)=>x && x.key === key && x.resetsByValue);
+		const extra = (fld && fld.resetsByValue && fld.resetsByValue[value]) || null;
+		onChange({ ...params, [key]: value, ...(extra || {}) });
+	};
 	const cells = [];
 	spec.fields.forEach((f, idx) => {
 		if(typeof f.showIf === 'function' && !f.showIf(params)){
@@ -50,15 +56,25 @@ export default function ConditionParamsForm({ type, params, onChange, types }){
 					onChange={(v) => patch(f.key, v)}
 					maxTagCount={5}
 					dropdownMatchSelectWidth={false}>
-					{f.options.map((o) => (<Option key={`${o.value}`} value={o.value}>{o.label}</Option>))}
+					{/* [Q-474/T-436] 注册表可把「选了也不判别」的档标 disabled:选项仍在(旧方案里的值照常显示),
+					    但不能再被选中 —— 比直接删档不破坏既有方案。 */}
+					{f.options.map((o) => (<Option key={`${o.value}`} value={o.value} disabled={!!o.disabled} title={o.hint || undefined}>{o.label}</Option>))}
 				</XQSelect>
 			);
 		}else if(f.kind === 'number'){
+			// [Q-478/T-440] 清空后别静默:各求值器对 '' 会按 0 / 内置默认取值,用户看着空框、引擎按别的数扫。
+			// 红框 + 行内提示,工作台侧同时禁用「加入 / 替换」(emptyNumberFieldError 同一判据)。
+			const rawNum = params[f.key];
+			const emptyNum = rawNum === '' || rawNum === null || rawNum === undefined || !Number.isFinite(Number(rawNum));
 			control = (
-				<input type="number" min={f.min} max={f.max} step={f.step || 1}
-					value={params[f.key]}
-					style={{ width: '100%', boxSizing: 'border-box' }}
-					onChange={(e) => patch(f.key, e.target.value === '' ? '' : Number(e.target.value))} />
+				<div style={{ width: '100%' }}>
+					<input type="number" min={f.min} max={f.max} step={f.step || 1}
+						value={params[f.key]}
+						aria-invalid={emptyNum ? 'true' : undefined}
+						style={{ width: '100%', boxSizing: 'border-box', borderColor: emptyNum ? '#e5484d' : undefined }}
+						onChange={(e) => patch(f.key, e.target.value === '' ? '' : Number(e.target.value))} />
+					{emptyNum ? <div style={{ fontSize: 11, color: '#e5484d', marginTop: 2, lineHeight: 1.4 }}>不能留空(留空会按 0 / 内置默认求值)</div> : null}
+				</div>
 			);
 		}else if(f.kind === 'toggle'){
 			// 样式化勾选(全站皮肤 XQCheckItem,行内宽度覆盖其清单式 width:100%);

@@ -1,0 +1,16 @@
+diff --git a/astropy/tests/test_taiyi_game_theory_lp_fallback.py b/astropy/tests/test_taiyi_game_theory_lp_fallback.py
+index f7dd7e2f..52b46831 100644
+--- a/astropy/tests/test_taiyi_game_theory_lp_fallback.py
++++ b/astropy/tests/test_taiyi_game_theory_lp_fallback.py
+@@ -41,7 +41,10 @@ def test_fallback_matches_scipy_on_random_games(seed):
+             assert r1.success and r2.success
+             assert abs(r1.fun - r2.fun) < 1e-7
+             assert np.all(A_ub @ r2.x - b_ub <= 1e-7)
+-            assert abs(float(A_eq @ r2.x) - 1.0) < 1e-9
++            # horosa_numpy2_scalar_assert_v1(Windows 侧移植适配;建议上游化 Mac):A_eq @ r2.x 是 shape (1,) 的一维数组,
++            # `float()` 只接受 0 维 —— NumPy 1.25 起 DeprecationWarning、NumPy 2.x 直接 TypeError(内嵌运行时 numpy 2.4.2 实撞,
++            # 4 个参数化用例全红)。取 [0] 后两代 numpy 同义;被测的 fallback 产品码本身与 numpy 2 相容(全流程用例通过)。
++            assert abs(float((A_eq @ r2.x)[0]) - 1.0) < 1e-9
+             assert np.all(r2.x[:-1] >= -1e-9)
+ 
+ 

@@ -4,17 +4,23 @@
 // 🔴 扫描=远端 astropy /indiaelectionscan(Muhurta:Panchanga 五肢/Lagna/日凶段/本命组
 // Tara·Chandra,分钟粒度);[十二轮] 前端按月分段编排,总范围 ≤5 年(py 93 天限=单段防呆)。本命=工作台直选本命月宿/月座两键(印度页盘面可查)。
 import { Component } from 'react';
+import { readGlobalZeriSnapshotExplainRows } from '../../utils/zeriSnapshotPrefs';
+import { restoreZeriWorkbenchFromCase, buildZeriCasePayload } from './zeriCaseRestore';
 import IndiaChartMain from '../astro/IndiaChartMain';
 import IndiaZeriWorkbench from './IndiaZeriWorkbench';
 import ZeriHostEntry from './ZeriHostEntry';
+import { openKentangCaseDrawer } from '../../utils/kentangCaseSave';
 import DateTime from '../comp/DateTime';
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { newIndiaLeaf, newIndiaGroup, compileIndiaTree } from '../../divination/zeri/indiaZeriConditionTypes';
 import { fetchIndiaElectionScan, fetchIndiaElectionExplain } from '../../services/electionScan';
 import { runSegmentedRemoteScan } from '../../divination/zeri/scanOrchestrator';
 import { buildIndiaZeriSnapshotExtra } from '../../divination/zeri/indiaZeriSnapshot';
-import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { indiaZeriSchemeStore } from '../../divination/zeri/schemeStore';
+
+const ZERI_SCOPE = 'indiazeri';
+const ZERI_LABEL = '印度择日';
 
 function pad2(n){
 	return n < 10 ? `0${n}` : `${n}`;
@@ -66,6 +72,7 @@ export default class IndiaZeriMain extends Component{
 		this._scanTree = null;
 		this._scanUiJson = '';
 		this.openSearch = this.openSearch.bind(this);
+		this.saveCase = this.saveCase.bind(this);
 		this.renderLeftExtra = this.renderLeftExtra.bind(this);
 		this.runSearch = this.runSearch.bind(this);
 		this.cancelScan = this.cancelScan.bind(this);
@@ -77,6 +84,11 @@ export default class IndiaZeriMain extends Component{
 
 	componentDidMount(){
 		this.requestChartAndPlot();
+		restoreZeriWorkbenchFromCase(this, ZERI_SCOPE);   // [Q-270/T-264] 载入存案还原工作台态
+	}
+
+	componentDidUpdate(){
+		restoreZeriWorkbenchFromCase(this, ZERI_SCOPE);
 	}
 
 	componentWillUnmount(){
@@ -93,6 +105,27 @@ export default class IndiaZeriMain extends Component{
 		}
 	}
 
+	// [挂载自检 F-36] 存为事盘:此前本宿主无存档钮 → CASE_TYPE_OPTIONS 登记的「印度择日」事盘类型恒无实例(源层挂载恒无产出)。
+	// 快照取本宿主槽(母技法全文+择日三段,母组件经 composeAiSnapshot 存入 scope 槽);缺槽时至少存择日三段。
+	// 事盘源层按 payload.module=本 scope 认领 payload.snapshot(与 qimenzeri 同律)。
+	saveCase(){
+		if(!this.props.dispatch){ return; }
+		let snapshot = '';
+		try{ const m = loadModuleAISnapshot(ZERI_SCOPE); snapshot = m && m.content ? `${m.content}` : ''; }catch(e){ snapshot = ''; }
+		if(!snapshot){ try{ snapshot = this.composeAiSnapshot('') || ''; }catch(e){ snapshot = ''; } }
+		openKentangCaseDrawer({
+			dispatch: this.props.dispatch,
+			fields: this.buildFields(true),
+			module: ZERI_SCOPE,
+			label: ZERI_LABEL,
+			payload: {
+				module: ZERI_SCOPE,
+				zeri: buildZeriCasePayload(this)   /* [Q-270/T-264] 补 geo/options/natal/pickText,载入存案可还原工作台与点选时刻 */,
+				snapshot,
+			},
+		});
+	}
+
 	openSearch(){
 		this.setState({ searchOpen: true });
 	}
@@ -101,6 +134,7 @@ export default class IndiaZeriMain extends Component{
 		return (
 			<ZeriHostEntry
 				label="印度择日"
+				onSave={this.props.dispatch ? this.saveCase : undefined}
 				onOpen={this.openSearch}
 			/>
 		);
@@ -229,6 +263,7 @@ export default class IndiaZeriMain extends Component{
 			this.setState({ scanning: false, results: rows, truncated: !!out.truncated }, ()=>{
 				// [Z8] 挂载自足:印度页无 module 快照槽,择时三段由宿主直写(indiazeri 槽)
 				try{ saveModuleAISnapshot('indiazeri', this.composeAiSnapshot('') || ''); }catch(e2){ /* 静默 */ }
+				this.prefetchSnapshotExplains(rows);   // [Q-453] 判读树是服务端异步:预取前 N 行后重存本槽快照
 			});
 		}catch(e){
 			if(this.unmounted){
@@ -256,6 +291,20 @@ export default class IndiaZeriMain extends Component{
 		});
 	}
 
+	// [Q-453 裁决 2026-09-18] 判读树是服务端异步:扫描完成后预取前 N 行(全局可配,缺省 3=3 次轻量请求),取齐再重存本槽快照;
+	// 新一轮扫描 / 卸载作废旧批(epoch)。builder 经 explainAt 读缓存(缺=只列清单,零回归)。
+	prefetchSnapshotExplains(rows){
+		this._snapshotExplains = null;
+		const n = Math.min(readGlobalZeriSnapshotExplainRows(), Array.isArray(rows) ? rows.length : 0);
+		const epoch = (this._explainEpoch = (this._explainEpoch || 0) + 1);
+		if(!n){ return; }
+		Promise.all(rows.slice(0, n).map((r)=>Promise.resolve().then(()=>this.explainRow(r)).catch(()=>null))).then((list)=>{
+			if(this.unmounted || epoch !== this._explainEpoch){ return; }
+			this._snapshotExplains = list;
+			try{ saveModuleAISnapshot('indiazeri', this.composeAiSnapshot('') || ''); }catch(e){ /* 静默 */ }
+		});
+	}
+
 	explainRow(row){
 		const payload = this.buildScanPayload(this._scanTree, true);
 		payload.t = (row.pick || row.start || '').slice(0, 16);
@@ -272,6 +321,7 @@ export default class IndiaZeriMain extends Component{
 				tree: this._scanUiTree || this.state.tree,	// 冻结树:与命中行同源(活树曾致条件描述≠结果,复审 F5)
 				results: this.state.results,
 				truncated: this.state.truncated,
+				explainAt: (row, i)=>(this._snapshotExplains ? this._snapshotExplains[i] || null : null),   // [Q-453] 预取缓存
 			});
 			return extra ? `${baseText ? `${baseText}\n\n` : ''}${extra}` : baseText;
 		}catch(e){
@@ -296,6 +346,9 @@ export default class IndiaZeriMain extends Component{
 			gender: mkField(1),
 			timeAlg: mkField(1),
 			name: mkField('印度择日'),
+			// [Q-268/T-260] 工作台岁差制 / 罗计交点随点选起盘进印占显示盘(此前只进扫描:选 Raman 搜得上升白羊,点起盘按 Lahiri 仍双鱼)
+			indiaAyanamsa: mkField((((frozen && this._scanOptions) || this.state.options || {}).ayanamsa) || 'lahiri'),
+			indiaNodeType: mkField((((frozen && this._scanOptions) || this.state.options || {}).nodeType) === 'true' ? 'true' : 'mean'),
 			// canBuildIndiaChartParams 必需四键(缺则 Dasha/分盘请求静默不发——真机实抓)
 			tradition: mkField(1),
 			strongRecption: mkField(0),
@@ -313,6 +366,7 @@ export default class IndiaZeriMain extends Component{
 					fields={this.buildFields()}
 					hook={this.indiaHook}
 					height={this.props.height}
+					dispatch={this.props.dispatch}   /* [Q-124/T-32] 宿主此前不传 dispatch:22 项大运流派开关与盘式在宿主内全死(同 T-18 族第四宿主) */
 					renderLeftExtra={this.renderLeftExtra}
 				/>
 				</div>
@@ -327,6 +381,7 @@ export default class IndiaZeriMain extends Component{
 					onOptionsChange={(options)=>this.setState({ options })}
 					tree={this.state.tree}
 					frozenTree={this._scanUiTree}
+					previewOptions={this._scanOptions || this.state.options}   /* [Q-271/ZC-22] 冻结参数:搜索后改参数不改旧结果行的盘 */
 					onPreviewExplain={this.explainRow}
 					previewGeo={this._scanGeo || this.state.geo}
 					onTreeChange={(tree)=>this.setState({ tree })}

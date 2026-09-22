@@ -25,6 +25,7 @@ import {
 	PD_METHOD_LABELS,
 	pdPairOfMethod,
 	pdMethodOfPair,
+	pdPairParamsFor,
 	mergePrimaryDirectionChartObj,
 	getPdMethodLabel,
 	getPdTimeKeyLabel,
@@ -449,6 +450,27 @@ function unwrapPredictiveResponse(data){
 	return data;
 }
 
+// [挂载自检 F-17] 主限法盘「时间选择」缺省时刻(页面/AI 无头同源):首条主限到达日期(按当前方位法与显示边界),
+// 无则出生次日;buildBirthDateTime 取不到生辰 → null(调用方自处理)。
+export function defaultPdChartDateTime(chartObj){
+	const birthDt = buildBirthDateTime(chartObj);
+	const params = chartObj && chartObj.params ? chartObj.params : {};
+	let rows = [];
+	try{ rows = buildDisplayRows(chartObj || {}, params.pdMethod || DEFAULT_PD_METHOD, params.showPdBounds) || []; }catch(_e){ rows = []; }
+	for(let i = 0; i < rows.length; i++){
+		const dt = parseDisplayDateTime(rows[i].Date, PD_DISPLAY_ZONE);
+		if(dt){ return dt; }
+	}
+	if(birthDt){
+		const next = birthDt.clone();
+		next.addDate(1);
+		next.zone = PD_DISPLAY_ZONE;
+		next.calcJdn();
+		return next;
+	}
+	return null;
+}
+
 class AstroPrimaryDirectionChart extends Component{
 
 	constructor(props) {
@@ -590,22 +612,8 @@ class AstroPrimaryDirectionChart extends Component{
 	}
 
 	buildDefaultDateTime(chartObj){
-		const birthDt = buildBirthDateTime(chartObj);
-		const params = chartObj && chartObj.params ? chartObj.params : {};
-		const rows = buildDisplayRows(chartObj || {}, params.pdMethod || DEFAULT_PD_METHOD, params.showPdBounds);
-		for(let i=0; i<rows.length; i++){
-			const dt = parseDisplayDateTime(rows[i].Date, PD_DISPLAY_ZONE);
-			if(dt){
-				return dt;
-			}
-		}
-		if(birthDt){
-			const next = birthDt.clone();
-			next.addDate(1);
-			next.zone = PD_DISPLAY_ZONE;
-			next.calcJdn();
-			return next;
-		}
+		const d = defaultPdChartDateTime(chartObj);
+		if(d){ return d; }
 		return new DateTime();
 	}
 
@@ -968,9 +976,12 @@ class AstroPrimaryDirectionChart extends Component{
 			pdMethod: this.getSelectedPdMethod(),
 			// 解耦维:盘面宫始点由 pdFrame 决定(后端 _pdChartHouseSystem 按 resolved frame 解析),
 			// projection 一并带上保 resolve 完整;props 由 AstroDirectMain 统一下传。
-			pdProjection: this.props.pdProjection || 'ptolemy',
-			pdFrame: this.props.pdFrame || 'alcabitius',
+			// [Q-165/T-98] 请求恒显式带 pdFrame 时后端 frame 优先 → 本页改「方法」对外圈宫头零效果。改:props 的(投影,分宫)只在
+			// 与所选方法一致(pdMethodOfPair 反查等于该方法,或方法无单维等价)时沿用;否则按所选方法推导(PD_METHOD_TO_PAIR 单源)。
+			...pdPairParamsFor(this.getSelectedPdMethod(), this.props.pdProjection, this.props.pdFrame),
 			pdTimeKey: this.getSelectedPdTimeKey(),
+			// [Q-166/T-99] User 档自定义钥匙率随请求(此前不带 → 后端回落 1.0,数值框拨任何值外圈盘不动)
+			...(this.getSelectedPdTimeKey() === 'User' && Number(this.getSelectedPdTimeKeyCustom()) > 0 ? { pdTimeKeyCustom: Number(this.getSelectedPdTimeKeyCustom()) } : {}),
 			showPdBounds: params.showPdBounds,
 			datetime: currentDt.format('YYYY-MM-DD HH:mm:ss'),
 			direction: this.state.pdDirectionValue, // 向运方向：direct / converse（复用已白名单的 direction 参）
@@ -1128,6 +1139,7 @@ class AstroPrimaryDirectionChart extends Component{
 			height: `${height-20}px`,
 			overflowY: 'auto',
 			overflowX: 'hidden',
+			boxSizing: 'border-box',   // [巡检实抓 2026-09-17] .scrollbar 带上下内距,content-box 下右栏 = height+4 → 面板多 5px 滚动条
 		};
 		const chartWrap = {
 			natualChart: chartObj,

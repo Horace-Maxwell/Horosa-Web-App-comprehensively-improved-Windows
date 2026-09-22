@@ -34,15 +34,19 @@ import {
 	buildLiuRengLayout as sanshiBuildLrLayout, buildKeData as sanshiBuildKeData, buildSanChuan as sanshiBuildSanChuan,
 	buildSanshiLiuRengCastOverride, buildLrNongli, extractIsDiurnalFromChartWrap, QIMEN_OPTIONS as SANSHI_QIMEN_OPTIONS,
 } from '../sanshi/SanShiUnitedMain';
-import { fetchQimenPan, normalizeKinqimenData, calcDunJia, isKinqimenMode } from '../dunjia/DunJiaCalc';
+import { fetchQimenPan, normalizeKinqimenData, calcDunJia, isQimenLocalRoute } from '../dunjia/DunJiaCalc';
+import { getLayoutViewportHeight } from '../../utils/shellZoom';
 
 
 
+import { clientToFixed } from '../../utils/zoomDomain';
 // ── 远端真盘(七政 Moira 轮/印度南印盘):该时刻 fetchChart,与 pick 主盘同源 ──
-function RemoteChartCard({ tech, row, geo }){
+function RemoteChartCard({ tech, row, geo, techOptions }){
 	const [chartObj, setChartObj] = useState(null);
 	const [err, setErr] = useState('');
 	const t = `${(row && (row.pick || row.start)) || ''}`;
+	const o = techOptions || {};
+	const optKey = JSON.stringify(o);
 	useEffect(()=>{
 		let dead = false;
 		setChartObj(null);
@@ -50,17 +54,29 @@ function RemoteChartCard({ tech, row, geo }){
 		const m = /^(-?\d{1,5}-\d{2}-\d{2})[ ](\d{2}:\d{2})/.exec(t);
 		if(!m){ setErr('时刻无效'); return undefined; }
 		const g = geo || {};
+		// [Q-268/T-259] 浮窗吃工作台口径:七政=宿界模式/罗计/月孛(与扫描 su28Mode/nodeType/lilithType 同键);
+		// 印度=恒星黄道 + 岁差制 + 交点(此前浮窗按回归黄道画南印盘,与扫描判定不同形)。
+		const techParams = tech === 'qizheng' ? {
+			...(o.su28Mode !== undefined && o.su28Mode !== null && `${o.su28Mode}` !== '' ? { doubingSu28: Number(o.su28Mode) } : {}),
+			...(o.nodeType ? { guolaoNodeType: o.nodeType === 'true' ? 'true' : 'mean' } : {}),
+			...(o.lilithType ? { guolaoLilithType: o.lilithType === 'true' ? 'true' : 'mean' } : {}),
+		} : (tech === 'india' ? {
+			zodiacal: 1,
+			siderealAyanamsa: o.ayanamsa || 'lahiri',
+			...(o.nodeType === 'true' ? { westNodeType: 'true' } : {}),
+		} : {});
 		fetchChart({
 			date: m[1].replace(/-/g, '/'), time: `${m[2]}:00`, ad: 1,
 			zone: g.zone !== undefined ? g.zone : '+08:00',
 			lon: g.lon, lat: g.lat, gpsLon: g.gpsLon, gpsLat: g.gpsLat,
 			pos: g.pos || '', gender: 1, name: '概览', cid: null,
+			...techParams,
 		}, { cache: true }).then((rsp)=>{
 			const chart = (rsp && rsp.Result) ? rsp.Result : rsp;
 			if(!dead){ setChartObj(chart); }
 		}).catch((e)=>{ if(!dead){ setErr((e && e.message) || '排盘失败'); } });
 		return ()=>{ dead = true; };
-	}, [t]);
+	}, [t, optKey]);
 	if(err){ return <div style={{ color: '#e5484d', fontSize: 12, padding: 16 }}>{err}</div>; }
 	if(!chartObj){ return <div style={{ opacity: 0.6, fontSize: 12, padding: 16 }}>排盘中…</div>; }
 	if(tech === 'qizheng'){
@@ -83,19 +99,26 @@ function timePartsOfRow(row){
 	const m = /^(-?\d{1,5}-\d{2}-\d{2})[ ](\d{2}:\d{2})/.exec(text);
 	return m ? { date: m[1], time: `${m[2]}:00` } : null;
 }
-function BaziRealCard({ row, geo }){
+function BaziRealCard({ row, geo, techOptions }){
 	const tp = timePartsOfRow(row);
+	// [Q-268/T-259] 浮窗吃工作台口径(时间算法/换日/晚子时干/性别…),此前写死 timeAlg 0 → 扫描时柱乙未、浮窗甲午。
+	const o = techOptions || {};
+	const optKey = JSON.stringify(o);
 	const rec = useMemo(()=>{
 		if(!tp){ return null; }
 		try{
 			const r = buildLocalBaziResult({
 				...(geo || {}),
+				...o,
 				date: tp.date, time: tp.time,
-				gender: 1, timeAlg: 0, after23NewDay: 1, lateZiHourUseNextDay: 1,
+				gender: o.gender !== undefined ? o.gender : 1,
+				timeAlg: o.timeAlg !== undefined ? o.timeAlg : 0,
+				after23NewDay: o.after23NewDay !== undefined ? o.after23NewDay : 1,
+				lateZiHourUseNextDay: o.lateZiHourUseNextDay !== undefined ? o.lateZiHourUseNextDay : 1,
 			});
 			return r && r.bazi ? r.bazi : null;
 		}catch(e){ return null; }
-	}, [tp && tp.date, tp && tp.time]);
+	}, [tp && tp.date, tp && tp.time, optKey]);
 	if(!rec){ return <div style={{ opacity: 0.6, fontSize: 12, padding: 16 }}>排盘失败</div>; }
 	return (
 		<div style={{ position: 'absolute', inset: 0, overflow: 'auto' }}>
@@ -105,21 +128,25 @@ function BaziRealCard({ row, geo }){
 }
 
 // ── 真组件卡:紫微(中栏 ZiWeiChart;数据=主页本地引擎 calcZiwei 全量,与本地双路同源) ──
-function ZiweiRealCard({ row, geo }){
+function ZiweiRealCard({ row, geo, techOptions }){
 	const tp = timePartsOfRow(row);
+	// [Q-268/T-259] 浮窗吃工作台口径(timeAlg / 年界 / 晚子时 / 性别等 15 键与 ziweiZeriEngine 同形),此前写死 timeAlg 1 + zi_chu。
+	const o = techOptions || {};
+	const optKey = JSON.stringify(o);
 	const chart = useMemo(()=>{
 		if(!tp){ return null; }
 		try{
+			const { gender, ...engineOpts } = o;
 			return calcZiwei({
 				date: tp.date, time: tp.time,
 				zone: (geo && geo.zone) || '+08:00',
 				lon: geo && (geo.lon !== undefined ? geo.lon : geo.gpsLon),
 				lat: geo && (geo.lat !== undefined ? geo.lat : geo.gpsLat),
 				gpsLon: geo && geo.gpsLon, gpsLat: geo && geo.gpsLat,
-				ad: 1, gender: 1,
-			}, { timeAlg: 1, lateZi: 'zi_chu' });
+				ad: 1, gender: gender !== undefined ? gender : 1,
+			}, { timeAlg: 1, lateZi: 'zi_chu', ...engineOpts });
 		}catch(e){ return null; }
-	}, [tp && tp.date, tp && tp.time]);
+	}, [tp && tp.date, tp && tp.time, optKey]);
 	// rules(格局判语库)= ZWHouse 硬依赖(缺 → drawSihuaTitle 读 RuleHouses 直接崩,真机红屏实抓);
 	// 与主页同源:ziweirulesCached 会话缓存,启动已 prime,通常零 RTT。
 	const [rules, setRules] = useState(null);
@@ -255,6 +282,9 @@ function SanshiRealCard({ row, geo, techOptions }){
 			pos: g.pos || '', gender: 1, name: '概览', cid: null,
 			after23NewDay: split.qimen.after23NewDay !== undefined ? split.qimen.after23NewDay : 1,
 			lateZiHourUseNextDay: split.qimen.lateZiHourUseNextDay !== undefined ? split.qimen.lateZiHourUseNextDay : 1,
+			// [Q-419/T-383] 工作台「时间(奇门)」=直接时间/平太阳时时,Java /chart 农历四柱按同一算法(新键 nongliTimeAlg,缺省 0 真太阳时零回归),
+			// 否则浮窗时柱恒真太阳时柱、与扫描判定(本地农历吃 timeAlg)不同形。
+			...(split.qimen.timeAlg !== undefined && split.qimen.timeAlg !== null && Number(split.qimen.timeAlg) !== 0 ? { nongliTimeAlg: Number(split.qimen.timeAlg) } : {}),
 		}, { cache: true }).then(async (crsp)=>{
 			const chartWrap = (crsp && crsp.Result) ? crsp.Result : crsp;
 			const astroChart = chartWrap && chartWrap.chart ? chartWrap.chart : null;
@@ -268,9 +298,8 @@ function SanshiRealCard({ row, geo, techOptions }){
 			const qimenOptions = { ...SANSHI_QIMEN_OPTIONS, ...split.qimen, sex: '男' };
 			const year = parseInt(tp.date, 10);
 			const isDiurnal = extractIsDiurnalFromChartWrap(chartWrap);
-			// 与主页 getKinqimenDunJia 同一路由判据:本地家/飞盘/混合/报数=本地 calcDunJia;其余=后端+normalize
-			const localOnly = !isKinqimenMode(qimenOptions.paiPanType) || qimenOptions.school === '飞盘'
-				|| qimenOptions.school === '混合' || qimenOptions.qijuMethod === 'shuzi';
+			// 与主页 getKinqimenDunJia 同一路由判据(单源 isQimenLocalRoute):本地家/飞盘/混合/报数/本地口径非缺省=本地 calcDunJia;其余=后端+normalize
+			const localOnly = isQimenLocalRoute(qimenOptions);
 			let localPan = null;
 			try{
 				localPan = calcDunJia(fields, nongli, qimenOptions, { year, isDiurnal });
@@ -304,7 +333,7 @@ function SanshiRealCard({ row, geo, techOptions }){
 			if(!dead){ setData({ chartWrap, dunjia, lrLayout, keData, sanChuan, nongli, liureng, fields }); }
 		}).catch((e)=>{ if(!dead){ setErr((e && e.message) || '排盘失败'); } });
 		return ()=>{ dead = true; };
-	}, [tp && tp.date, tp && tp.time]);
+	}, [tp && tp.date, tp && tp.time, split]);   // [Q-271/ZC-22] 参数(经 splitSanshiOptions 的冻结 previewOptions)变了同样重取三段盘
 	if(err){ return <div style={{ color: '#e5484d', fontSize: 12, padding: 16 }}>{err}</div>; }
 	if(!data){ return <div style={{ opacity: 0.6, fontSize: 12, padding: 16 }}>排盘中…</div>; }
 	return (
@@ -343,7 +372,7 @@ export default function ZeriMiniPanPopup({ tech, row, computePan, geo, onClose, 
 	// +体 padding16+题头 34 → 需 ~830;其余技法沿用旧默认(已真机验完整)。夹屏高防超窗。
 	const [box, setBox] = useState(()=>{
 		const dflt = tech === 'sanshi' ? { w: 720, h: 972 } : { w: isRemote ? 720 : 700, h: isRemote ? 700 : 680 };	// 972=真机量值:fitContent 后 stack 918+padding16+题头34+边框——盘+底条两行完整零滚动
-		const vh = typeof window !== 'undefined' && window.innerHeight ? window.innerHeight : 900;
+		const vh = typeof window !== 'undefined' && window.innerHeight ? (getLayoutViewportHeight() || 900) : 900;   // 布局域实测
 		const h = Math.min(dflt.h, vh - 44);
 		return { x: 90, y: Math.max(12, Math.min(36, vh - h - 24)), w: dflt.w, h };
 	});
@@ -363,8 +392,9 @@ export default function ZeriMiniPanPopup({ tech, row, computePan, geo, onClose, 
 		e.stopPropagation();
 		const start = { mx: e.clientX, my: e.clientY, ...box };
 		const move = (ev)=>{
-			const dx = ev.clientX - start.mx;
-			const dy = ev.clientY - start.my;
+			// 鼠标位移是视觉域,窗体 x/y/w/h 是 CSS(布局域):换域后窗体才与鼠标同步(缩放档下此前窗体比鼠标快 / 慢 z 倍);z=1 恒等。
+			const dx = clientToFixed(ev.clientX - start.mx);
+			const dy = clientToFixed(ev.clientY - start.my);
 			if(mode === 'drag'){
 				setBox((b)=>({ ...b, x: Math.max(0, start.x + dx), y: Math.max(0, start.y + dy) }));
 			}else{
@@ -395,7 +425,7 @@ export default function ZeriMiniPanPopup({ tech, row, computePan, geo, onClose, 
 					style={{ cursor: 'pointer', fontSize: 16, lineHeight: 1, opacity: 0.65, padding: '0 4px' }}>×</span>
 			</div>
 			<div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: (isRemote || RealCard) ? 0 : 12, position: 'relative' }}>
-				{isRemote ? <RemoteChartCard tech={tech} row={row} geo={geo} />
+				{isRemote ? <RemoteChartCard tech={tech} row={row} geo={geo} techOptions={techOptions} />
 					: (RealCard ? <RealCard row={row} geo={geo} techOptions={techOptions} pan={pan} />
 						: <div style={{ opacity: 0.6, fontSize: 12 }}>—</div>)}
 			</div>

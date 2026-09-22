@@ -98,6 +98,10 @@ describe('三式页渲染冒烟(打开就不能炸)', ()=>{
 		{ paiPanType: 4 },
 		{ paiPanType: 6 },
 		{ school: '混合' },
+		// v3.11.0 上游 [Q-164/T-92·SS-24] 把「移星值符」改为只在移星开启时显示、「中宫门位显示」只在中门不参与飞宫时显示
+		// (与独立奇门页同门控)—— 组合矩阵按新条件补两行,可达性判据不变(每一档仍必须在至少一种组合下真的画出来)。
+		{ shiftPalace: true },
+		{ school: '混合', feiMenZhongCan: false },
 	];
 
 	function renderPanelHtml(options){

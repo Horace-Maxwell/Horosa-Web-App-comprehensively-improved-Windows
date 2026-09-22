@@ -1,8 +1,16 @@
+/* [用户实报 2026-09-17·新机 Tahoe 缩放后天文馆底部大白边 / 预览左栏滚不到底] 骨架高度勿用 vh 单位:
+ * 壳缩放走 html{zoom},vh 在缩放≠1 时不随布局域走(缩小 → 页面比容器矮=白边;放大 → 页面溢出被裁=左栏底部滚不到)。
+ * 与 layouts/app.js contentStyle 同一口径:100% 基于根壳链(#mainContent → workspaceInner → tabs → tabpane 皆定高),恒同域。 */
 .horosa-planetarium-page {
 	display: grid;
 	grid-template-columns: 276px minmax(0, 1fr) 296px;
-	height: calc(100vh - 72px);
-	min-height: 560px;
+	/* 唯一一行钉死为容器高:不写时 auto 行会长到左栏内容高(预览实测 2237px > 容器 1463px),
+	 * 三栏一起溢出被页面 overflow:hidden 裁掉 → 左栏自身没有滚动区、底部永远滚不到。 */
+	grid-template-rows: minmax(0, 1fr);
+	height: 100%;
+	/* 560 是「容器高量不到时别塌成一条」的兜底,不是硬下限:放大档容器本身不足 560 时,裸 560 会把整页撑出页签盒,
+	   左栏底部那截被裁且滚不到。与布局视口挂钩(60·lvh):100% 档 ≈606 → 仍取 560,逐位不变;放大档随视口收小,页面恒贴容器。 */
+	min-height: ~"min(560px, calc(60 * var(--horosa-lvh, 9.4px)))";   /* 变量缺席时回落 9.4px(×60 = 564 ≥ 560 ⇒ 仍取 560,与旧值相同);本文件骨架高度不许出现视口单位 */
 	background: #050812;
 	color: #edf4ff;
 	overflow: hidden;
@@ -30,7 +38,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	height: calc(100vh - 72px);
+	height: 100%;   /* 同上:占位页也走容器 100%,不用 vh */
 	background: radial-gradient(circle at 50% 30%, #172342 0, #050812 58%);
 	color: #dce8ff;
 }
@@ -38,6 +46,7 @@
 .planetarium-side {
 	position: relative;
 	z-index: 2;
+	min-height: 0;   /* 网格项默认 min-height:auto=内容高,会把行撑破;归零后行高=容器高,栏内 overflow:auto 才真能滚 */
 	padding: 18px;
 	background: rgba(7, 11, 24, 0.9);
 	border-color: rgba(128, 154, 190, 0.2);
@@ -144,7 +153,7 @@
 	position: fixed;       // 逃出左栏 overflow:auto 裁切;坐标由 JS 按时间显示元素实时算
 	z-index: 1200;
 	width: 360px;
-	max-width: 94vw;
+	max-width: calc(94 * var(--horosa-lvw, 1vw));
 	padding: 12px 14px;
 	background: rgba(14, 21, 38, 0.98);
 	border: 1px solid rgba(145, 170, 210, 0.28);
@@ -449,6 +458,7 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 }
 
 .planetarium-stage {
+	min-height: 0;   /* 同上:中栏画布不得把网格行撑破 */
 	position: relative;
 	min-width: 0;
 	background:
@@ -743,4 +753,16 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 	.horosa-planetarium-page.is-immersive {
 		grid-template-columns: 0 minmax(0, 1fr);
 	}
+}
+
+/* [TL-07] 提示行内的文字按钮(「开启恒星」):与提示同字号,只做下划线链接感 */
+.planetarium-inline-link {
+	background: none;
+	border: 0;
+	padding: 0;
+	margin: 0;
+	font: inherit;
+	color: inherit;
+	text-decoration: underline;
+	cursor: pointer;
 }

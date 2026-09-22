@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { SU28_MODE_LABEL } from '../guolao/guolaoData';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import { safeLocalStorageSet } from '../../utils/safeStorage';
@@ -18,6 +19,8 @@ import { saveModuleAISnapshot, saveModuleAISnapshotLazy, } from '../../utils/mod
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { XQTabs as Tabs, XQSideSection  } from '../xq-ui';
 import XQIcon from '../xq-icons';
+// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+import { visualFloorPx } from '../../utils/zoomDomain';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -413,7 +416,7 @@ export function buildSuzhanSnapshotText(chartObj, fields, planetDisplay){
 		lines.push(`盘型：${chartShapeName(fields.szshape.value)}`);
 	}
 	if(fields && fields.doubingSu28){
-		lines.push(`宿法：${fields.doubingSu28.value === 1 ? '斗柄定房法' : '现实距星法'}`);
+		lines.push(`宿法：${SU28_MODE_LABEL[fields.doubingSu28.value] || (fields.doubingSu28.value === 1 ? '斗柄定房法' : '荀爽距星(19年测)')}`);   // [Q-203] 九档同源取名
 	}
 	if(fields && fields.houseStartMode){
 		lines.push(`人事十二宫起盘：${houseStartModeName(fields.houseStartMode.value)}`);
@@ -566,9 +569,18 @@ class SuZhanMain extends Component{
 		});
 	}
 
+	// [Q-218/T-173] 分至等宿主内嵌的宿盘页签是「只读嵌入」:不回灌宿占事盘(残缺 fields 派发全局重排 → saga 抛错,
+	// 且把存档外盘/盘型写进共享常量)、不写 'suzhan' 快照槽、不响应顶栏刷新(否则宿占页导出拿到分至宿盘)。
+	isEmbeddedReadOnly(){
+		return !!this.props.embeddedReadOnly;
+	}
+
 
 	componentDidMount(){
 		this.unmounted = false;
+		if(this.isEmbeddedReadOnly()){
+			return;
+		}
 		if(typeof window !== 'undefined'){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
@@ -587,6 +599,9 @@ class SuZhanMain extends Component{
 	}
 
 	componentDidUpdate(prevProps){
+		if(this.isEmbeddedReadOnly()){
+			return;
+		}
 		// horosa_panel_ready_v1:宿盘之中栏(SuZhanChart)与右栏(概览/宫宿/快照)全由 props 纯派生 ——
 		// 没有「取数落定」的那一次 setState,故就绪点=这些 props 变更所引发的这一次 commit。
 		// 放在 restoreFromCurrentCase 早退之前:载入事盘也是一次真实的画完。
@@ -803,7 +818,7 @@ class SuZhanMain extends Component{
 							<div className="horosa-suzhan-board-host">
 								<SuZhanChart
 									value={chart}
-									height={Math.max(560, height - 22)}
+									height={Math.max(visualFloorPx(560), height - 22)}
 									fields={this.props.fields}
 									chartDisplay={this.props.chartDisplay}
 									planetDisplay={this.props.planetDisplay}

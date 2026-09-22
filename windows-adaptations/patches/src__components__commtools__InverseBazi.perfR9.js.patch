@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/commtools/InverseBazi.js b/astrostudyui/src/components/commtools/InverseBazi.js
-index b047921..1a608b1 100644
+index eb823414..5cb1f0d1 100644
 --- a/astrostudyui/src/components/commtools/InverseBazi.js
 +++ b/astrostudyui/src/components/commtools/InverseBazi.js
-@@ -1,12 +1,15 @@
+@@ -1,7 +1,7 @@
  import { Component } from 'react';
  import { Row, Col, Divider, message} from 'antd';
  import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select } from '../xq-ui';
@@ -11,24 +11,26 @@ index b047921..1a608b1 100644
  import request from '../../utils/request';
  import * as Constants from '../../utils/constants';
  import {BaziMonthTime, SixtyJiaZi} from '../../constants/ZWConst';
- import MainDirectionSimple from '../cntradition/MainDirectionSimple';
- import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorage';
+@@ -10,6 +10,9 @@ import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorag
+ import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // [Q-317/T-304] 全局日界 / 晚子时
+ import { buildLocalBaziResult } from '../../utils/baziLunarLocal';                              // [Q-317] 候选回代校验(与八字页同引擎)
+ import { getStore } from '../../utils/storageutil';                                              // [Q-317] 当前盘时区/经纬
 +// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
 +// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
 +// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
  
  const { Option } = Select;
  
-@@ -193,7 +196,7 @@ export default class InverseBazi extends Component{
-     genDom(){
-         let cols = this.state.dates.map((item, idx)=>{
+@@ -251,7 +254,7 @@ export default class InverseBazi extends Component{
+             const c = checks[idx];
+             const mark = c ? (c.ok ? (c.adjusted ? `　✓（夜子时按当前口径归 ${c.text.split(' ')[1]}，原 ${c.from}）` : '　✓') : '　✗ 按当前日界 / 晚子时口径不成立') : '';
              return (
 -                <Col span={24} key={randomStr(8)}>
 +                <Col span={24} key={idx}>
-                     <span>{item}</span>
+                     <span style={c && !c.ok ? { color: 'var(--horosa-muted)', textDecoration: 'line-through' } : undefined}>{item}</span><span style={{ fontSize: 12, color: c && c.ok ? 'var(--horosa-accent-strong)' : 'var(--horosa-danger)' }}>{mark}</span>
                  </Col>
              )
-@@ -224,7 +227,7 @@ export default class InverseBazi extends Component{
+@@ -284,7 +287,7 @@ export default class InverseBazi extends Component{
          let monthes = BaziMonthTime.month[gan];
          let opts = monthes.map((item, idx)=>{
              return (
@@ -37,7 +39,7 @@ index b047921..1a608b1 100644
              );
          })
          return opts;
-@@ -239,7 +242,7 @@ export default class InverseBazi extends Component{
+@@ -299,7 +302,7 @@ export default class InverseBazi extends Component{
          let times = BaziMonthTime.time[gan];
          let opts = times.map((item, idx)=>{
              return (
@@ -46,7 +48,7 @@ index b047921..1a608b1 100644
              );
          })
          return opts;
-@@ -256,12 +259,12 @@ export default class InverseBazi extends Component{
+@@ -316,12 +319,12 @@ export default class InverseBazi extends Component{
          let dom = this.genDom();
          let yopts = SixtyJiaZi.map((item, idx)=>{
              return (

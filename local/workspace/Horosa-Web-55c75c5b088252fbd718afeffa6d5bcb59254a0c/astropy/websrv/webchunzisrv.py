@@ -31,6 +31,8 @@ from astro.shaozi import calculate_ganzhi_from_datetime  # noqa: E402
 
 KE_OPTIONS = [{"value": str(item), "label": f"{item}刻"} for item in range(1, 11)]
 MANSION_OPTIONS = [{"value": item, "label": item} for item in MANSIONS_28]
+# [Q-265/SO-21②] 二十八宿简体 → 库内繁体(与南极 XIU_ALIASES 同表)
+MANSION_ALIASES = {"氏": "氐", "虚": "虛", "娄": "婁", "毕": "畢", "参": "參", "张": "張", "翌": "翼", "轸": "軫", "嘴": "觜"}
 RESULT_LIMIT_OPTIONS = [{"value": item, "label": f"{item}条"} for item in (10, 20, 30, 50)]
 
 
@@ -221,6 +223,20 @@ def _build_sections(pan):
     return rows
 
 
+def _solar_to_lunar_md(dt):
+    """公历日 → (农历月序 1..12, 农历日 1..30);闰月按其本月序。sxtwl 缺席或域外时返 None(调用方退公历并自陈)。"""
+    try:
+        import sxtwl  # noqa: PLC0415
+        day = sxtwl.fromSolar(int(dt.year), int(dt.month), int(dt.day))
+        lm = int(day.getLunarMonth())
+        ld = int(day.getLunarDay())
+        if 1 <= lm <= 12 and 1 <= ld <= 30:
+            return lm, ld
+    except Exception:
+        return None
+    return None
+
+
 class ChunZiSrv:
     exposed = True
 
@@ -268,8 +284,15 @@ class ChunZiSrv:
             lunar_month = None
             lunar_day = None
             if lunar_mode != "none":
-                lunar_month = max(1, min(12, to_int(data.get("chunziLunarMonth") or data.get("lunarMonth"), dt.month)))
-                lunar_day = max(1, min(30, to_int(data.get("chunziLunarDay") or data.get("lunarDay"), min(30, dt.day))))
+                # [挂载自检 F-21] 引擎按「農曆月/日」匹配诗词:此前 auto 档回落 dt.month/dt.day 是**公历**数字
+                # (页面 auto 也灌公历)→ 两侧都把公历当农历查表且 [起盘] 行标成农历。现 auto 档真换算(sxtwl,
+                # 闰月按本月序);manual 档才读用户给的月日;换算失败才退公历(并由 payload 自陈)。
+                auto_md = _solar_to_lunar_md(dt) if lunar_mode == "auto" else None
+                if auto_md:
+                    lunar_month, lunar_day = auto_md
+                else:
+                    lunar_month = max(1, min(12, to_int(data.get("chunziLunarMonth") or data.get("lunarMonth"), dt.month)))
+                    lunar_day = max(1, min(30, to_int(data.get("chunziLunarDay") or data.get("lunarDay"), min(30, dt.day))))
 
             czs = ChunZiShu()
             chart = czs.cast_chart(
@@ -293,7 +316,8 @@ class ChunZiSrv:
             tag_text = clean_text(data.get("chunziTags") or data.get("tags"))
             tags = [item.strip() for item in tag_text.replace("，", ",").split(",") if item.strip()]
             source_tags = [source_text(item) for item in tags]
-            mansion_name = _valid(data.get("chunziMansion") or data.get("mansion"), MANSIONS_28, "室")
+            # [Q-265/T-250·SO-21②] 宿名简体归一(此前精确匹配繁体,填「虚/娄/毕/参/张/轸」静默回落「室」)
+            mansion_name = _valid(MANSION_ALIASES.get(clean_text(data.get("chunziMansion") or data.get("mansion")), clean_text(data.get("chunziMansion") or data.get("mansion"))), MANSIONS_28, "室")
             hour_branch = _valid(data.get("chunziHourBranch") or data.get("hourBranch"), BRANCHES, gz["hour"][1])
 
             search = {}

@@ -66,7 +66,7 @@ export function buildNongliSnapshotText(state){
 	lines.push('[起盘信息]');
 	if(queryMonth){ lines.push(`查询月份：${queryMonth}`); }
 	if(st.date && st.date.zone !== undefined && st.date.zone !== null && `${st.date.zone}` !== ''){
-		lines.push(`时区：东${st.date.zone}区`);
+		lines.push(`时区：${utcZoneText(st.date.zone)}`);   // [Q-271/ZC-29] zone 形如 +08:00(或小时数 8),此前拼成「东+08:00区」
 	}
 	if(st.lon){ lines.push(`历算经度：${st.lon}`); }
 
@@ -130,6 +130,20 @@ export function buildNongliSnapshotText(state){
 	lines.push('年柱口径：干支年以节气（立春）为界；农历年月日以朔望月与置闰为准，两者并列显示。');
 	lines.push('节气/朔望时刻为该历算经度下的真时刻；jdn 为对应儒略日数。');
 	return lines.join('\n');
+}
+
+// [Q-271/ZC-29] 时区文本:'+08:00' → 'UTC+08:00';小时数 8 / '8' / -5.5 → 'UTC+08:00' / 'UTC-05:30'
+export function utcZoneText(zone){
+	if(zone === undefined || zone === null || `${zone}` === ''){ return 'UTC'; }
+	const str = `${zone}`.trim();
+	if(/^[+-]\d{2}:\d{2}$/.test(str)){ return `UTC${str}`; }
+	const n = Number(str);
+	if(!Number.isFinite(n)){ return `UTC${str}`; }
+	const sign = n < 0 ? '-' : '+';
+	const abs = Math.abs(n);
+	const hh = `${Math.floor(abs)}`.padStart(2, '0');
+	const mm = `${Math.round((abs - Math.floor(abs)) * 60)}`.padStart(2, '0');
+	return `UTC${sign}${hh}:${mm}`;
 }
 
 class NongLiMain extends Component{

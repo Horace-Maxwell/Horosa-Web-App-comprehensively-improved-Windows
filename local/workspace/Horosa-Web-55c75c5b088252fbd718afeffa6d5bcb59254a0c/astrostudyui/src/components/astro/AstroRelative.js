@@ -1,9 +1,13 @@
 import React, { Component } from 'react';
+import { scheduleOptionDispatch } from '../../utils/optionDispatchScheduler';   // [Q-260b]
 import { classicalBackendOverridesFromFields } from '../../utils/classicalChartGlobals';
+import { userAyanParamsFrom } from '../../utils/customCalibreStores';   // [Q-254/T-234] 自定义恒星黄道历元两参
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Row, Col, } from 'antd';
 import { XQButton as Button, XQSearch as Search, XQTabs as Tabs } from '../xq-ui';
 import ChartSearchModal from './ChartSearchModal'
+import { registerWorkspaceUi } from '../../utils/aiTools/workspaceBridge';
+import { RELATIVE_SUBTABS, rememberSubTab } from '../../constants/SubTabRegistry';   // [Q-417/T-377]
 import AstroCompare from '../relative/AstroCompare'
 import AstroComposite from '../relative/AstroComposite'
 import AstroSynastry from '../relative/AstroSynastry'
@@ -13,6 +17,7 @@ import AstroRelativeScore from '../relative/AstroRelativeScore'
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
 import * as AstroText from '../../constants/AstroText';
+import * as AstroConst from '../../constants/AstroConst';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import UpdatingBadge from '../common/UpdatingBadge';
@@ -145,8 +150,13 @@ export function buildRelativeSnapshotText(comp){
 		lines.push(`星盘B经纬度：${comp.chartB.record.lon} ${comp.chartB.record.lat}`);
 	}
 	if(comp.params){
-		lines.push(`宫制：${comp.params.hsys}`);
-		lines.push(`黄道：${comp.params.zodiacal}`);
+		// [Q-255/T-238·AS-22⑪] 出人话标签(此前直出数字「宫制：1」「黄道：0」);与主命盘快照 astroAiSnapshot 同源表
+		const hsysTxt = AstroConst.HouseSys[`${comp.params.hsys}`] || comp.params.hsys;
+		const zodRaw = AstroConst.ZODIACAL[`${comp.params.zodiacal}`] || comp.params.zodiacal;
+		const zodTxt = (typeof AstroConst.zodiacalDisplayText === 'function' && AstroConst.ZODIACAL[`${comp.params.zodiacal}`])
+			? AstroConst.zodiacalDisplayText(zodRaw, comp.params.siderealAyanamsa || '') : zodRaw;
+		lines.push(`宫制：${hsysTxt}`);
+		lines.push(`黄道：${zodTxt}`);
 	}
 
 	if(comp.currentTab === 'Comp'){
@@ -158,6 +168,18 @@ export function buildRelativeSnapshotText(comp){
 		pushAntisciaArray(lines, 'A对B反映点', res.inToOutCAnti, '反映点');
 		pushAntisciaArray(lines, 'B对A映点', res.outToInAnti, '映点');
 		pushAntisciaArray(lines, 'B对A反映点', res.outToInCAnti, '反映点');
+		// [Q-441/T-404] 比较盘页签此前只出互摄相位/中点/映点,无 A/B 两盘盘体 → AI 拿不到两人各自星位/宫位;
+		// 响应自带 inner(=A)/outer(=B) 两盘(双轮盘即据此绘),仿影响盘无头嵌两张(段名独立,已登 preset)。
+		if(res.inner && res.inner.chart){
+			lines.push('');
+			lines.push('[比较盘-星盘A]');
+			lines.push(buildAstroSnapshotContent(res.inner, comp.params && comp.params.hsys !== undefined ? { hsys: comp.params.hsys } : null, { headerless: true }));
+		}
+		if(res.outer && res.outer.chart){
+			lines.push('');
+			lines.push('[比较盘-星盘B]');
+			lines.push(buildAstroSnapshotContent(res.outer, comp.params && comp.params.hsys !== undefined ? { hsys: comp.params.hsys } : null, { headerless: true }));
+		}
 	}
 
 	// [YD] 段名按盘型拆分:时空中点盘/马克斯盘此前与组合盘/影响盘共用段名 → 设置面永远无法
@@ -166,7 +188,9 @@ export function buildRelativeSnapshotText(comp){
 	if((comp.currentTab === 'Composite' || comp.currentTab === 'TimeSpace') && res.chart){
 		lines.push('');
 		lines.push(comp.currentTab === 'TimeSpace' ? '[时空中点·合成图盘]' : '[合成图盘]');
-		lines.push(buildAstroSnapshotContent(res, null, { headerless: true }));
+		// 合成盘响应无请求 fields:把工作台的宫制数字位喂进去,否则 [分宫制宫神星表] 只能靠后端回显文本反查——
+		// hsys 8/24 的回显与 1/0 撞名(perchart 盘级回显),文本兜底会把福点整宫制误判为上升整宫制而折叠。
+		lines.push(buildAstroSnapshotContent(res, comp.params && comp.params.hsys !== undefined ? { hsys: comp.params.hsys } : null, { headerless: true }));
 	}
 
 	if((comp.currentTab === 'Synastry' || comp.currentTab === 'Marks') && (res.inner || res.outer)){
@@ -204,6 +228,36 @@ export function buildRelativeSnapshotText(comp){
 		pushScoreAsps('张力连接', res.challenges);
 	}
 	return lines.join('\n');
+}
+
+// 合盘请求的古典口径段(与主盘 fieldsToParams 同款条件透传——默认不下发=请求体零回归;非默认才传)。
+// 链路三层同批打通:此处 → Java ModernChartController 条件转发 → Python webmodernsrv.relative
+// push_request_terms/trip + inner/outer 每盘键;五个子盘(比较/组合/时空中点/马克思/戴维森)全按所选界系/口径算尊贵。
+// 独立成函数供 genParams 与 componentDidUpdate 的重排签名共用(单源,不再手抄键名清单)。
+export function relativeClassicalParamsFromFields(f){
+	const params = {};
+	if(!f){ return params; }
+	const fv = (k) => (f[k] && f[k].value !== undefined && f[k].value !== null ? f[k].value : undefined);
+	if(fv('termsVariant')){ params.termsVariant = fv('termsVariant'); }
+	if(fv('geminiBoundEmended')){ params.geminiBoundEmended = 1; }
+	if(fv('westNodeType') === 'true'){ params.westNodeType = 'true'; }
+	if(fv('sectBuffer') === 'ptolemy5'){ params.sectBuffer = 'ptolemy5'; }
+	if(fv('leoBoundFirst') === 1 || fv('leoBoundFirst') === '1'){ params.leoBoundFirst = 1; }
+	if(fv('triplicity') && fv('triplicity') !== 'Dorothean'){ params.triplicity = fv('triplicity'); }
+	if(fv('lotReversal') === 0 || fv('lotReversal') === '0'){ params.lotReversal = 0; }
+	// 2026-07 二批九键:共享 helper(键名含后端映射 starOrb/starOrbMode),默认不下发。
+	Object.assign(params, classicalBackendOverridesFromFields(f));
+	// [Q-254/T-234] 自定义恒星黄道 'user' 档随行历元两参(与本命 models/astro.js 同款;Java/Python 两层早已放行):
+	// 此前不发 → 后端静默按 Lahiri 算、回显仍标自定义。
+	if(`${fv('siderealAyanamsa')}` === 'user'){
+		try{ Object.assign(params, userAyanParamsFrom(fv)); }catch(e){ /* 无槽=后端回落,与本命页同 */ }
+	}
+	return params;
+}
+
+// 古典口径签名(componentDidUpdate 用):同一 fields 引用恒等;内容变才触发合盘重排。
+export function relativeClassicalSignature(f){
+	try{ return JSON.stringify(relativeClassicalParamsFromFields(f)); }catch(e){ return ''; }
 }
 
 class AstroRelative extends Component{
@@ -295,6 +349,25 @@ class AstroRelative extends Component{
 
 	componentDidMount(){
 		this._mounted = true;
+		// [Q-417/T-377] 挂载即回写子页签(与星运页同律):导航层切到合盘时 recallSubTab 才不会沿用辅盘的 germanytech。
+		rememberSubTab('relativechart', this.state.currentTab, RELATIVE_SUBTABS);
+		if(this.props.dispatch && this.props.currentSubTab !== this.state.currentTab){
+			this.props.dispatch({ type: 'astro/save', payload: { currentSubTab: this.state.currentTab } });
+		}
+		// [批五] 合盘配对面:AI 工具 compare_records 经工作区桥送两张命盘进来(与点「星盘A/星盘B」同一路径);卸载即注销
+		this._unregisterAgentUi = registerWorkspaceUi({
+			relative: {
+				getPair: ()=>({ a: this.state.chartA && this.state.chartA.record ? this.state.chartA.record : null, b: this.state.chartB && this.state.chartB.record ? this.state.chartB.record : null, mode: this.state.currentTab }),
+				setPair: (recA, recB, mode)=>{
+					if(!recA || !recB){ return { ok: false, message: '两张命盘都要给' }; }
+					if(mode && this.state.hook && this.state.hook[mode]){ this.changeTab(mode); }
+					this.selectChartA({ ...recA });
+					this.selectChartB({ ...recB });
+					return { ok: true };
+				},
+				clearPair: ()=>{ this.setState({ chartA: null, chartB: null }); return { ok: true }; },
+			},
+		});
 		if(typeof window !== 'undefined' && window.addEventListener){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
@@ -303,7 +376,8 @@ class AstroRelative extends Component{
 			const el = this.chartRowRef.current;
 			const measure = ()=>{
 				try{
-					const h = el.getBoundingClientRect().height;
+					// [Tahoe 域混根修·2026-09-17 用户 APP 实报「放大后盘面不随之缩小、被下端遮挡」] 量容器只用布局域读数(clientWidth/clientHeight);rect 域在标准化 zoom 引擎下已×z,当布局 px 用=盘面大 z 倍被裁(旧引擎 rect=布局值故不显)。
+					const h = el.clientHeight || 0;
 					if(h > 0 && Math.abs((this.measuredHeight || 0) - h) > 2){
 						this.measuredHeight = h;
 						this.forceUpdate();
@@ -318,6 +392,7 @@ class AstroRelative extends Component{
 
 	componentWillUnmount(){
 		this._mounted = false;
+		if(typeof this._unregisterAgentUi === 'function'){ try{ this._unregisterAgentUi(); }catch(e){ /* noop */ } this._unregisterAgentUi = null; }
 		if(this.chartRowObserver){
 			try{ this.chartRowObserver.disconnect(); }catch(e){}
 			this.chartRowObserver = null;
@@ -349,6 +424,13 @@ class AstroRelative extends Component{
 			type: 'astro/save',
 			payload: { fields: flds },
 		});
+		// [Q-260/T-234 裁决 2026-09-18] 写了本命全局 fields 却不重排本命盘 → 回占星页左栏选中值与盘面 / 信息页不一致。
+		// 先 save 再经选项调度器重取(与 ChartDisplaySelector 同律;失败不回滚 fields,合盘视图照常)。
+		if(flds.date && flds.time && flds.lat && flds.lon){
+			const delta = {};
+			['hsys', 'zodiacal', 'siderealAyanamsa'].forEach((k)=>{ if(values[k] !== undefined && values[k] !== null){ delta[k] = { value: values[k], name: [k] }; } });
+			scheduleOptionDispatch((payload)=>{ this.props.dispatch({ type: 'astro/fetchByFields', payload }); }, delta, ()=>({ ...(this.props.fields || {}) }));
+		}
 	}
 
 	componentDidUpdate(prevProps, prevState){
@@ -365,10 +447,14 @@ class AstroRelative extends Component{
 		// 但 doChart() 已绑定旧 fields,需在此 watch 并自动重新拉合盘,否则中央盘不会随选择变(用户反馈「点了没反应」真因之二)。
 		const prevF = (prevProps && prevProps.fields) || {};
 		const curF = (this.props && this.props.fields) || {};
+		// [Q-254/T-235] 古典口径(界系/三分/点反转/区分缓冲/容许度族/自定义历元…)也随合盘请求下发 →
+		// 任一项变了同样要重排,否则抽屉里改了只重排本命盘、合盘要手点「排盘」才吃到(帮助称「改任一口径都会自动重排」)。
+		// 签名=genParams 古典段的 JSON(与请求体同源),不另列键名清单。
 		const fieldChanged = (
 			(prevF.zodiacal && curF.zodiacal && prevF.zodiacal.value !== curF.zodiacal.value)
 			|| (prevF.hsys && curF.hsys && prevF.hsys.value !== curF.hsys.value)
 			|| ((prevF.siderealAyanamsa && curF.siderealAyanamsa && prevF.siderealAyanamsa.value !== curF.siderealAyanamsa.value))
+			|| (prevF !== curF && relativeClassicalSignature(prevF) !== relativeClassicalSignature(curF))
 		);
 		if(fieldChanged && this.state.chartA && this.state.chartB){
 			this.doChart();
@@ -396,10 +482,16 @@ class AstroRelative extends Component{
 			if(!snapshotText){
 				return '';
 			}
+			// [挂载自检 F-28·P1] meta 带两盘身份(出生时刻·时区·经纬),AI 挂载据此核对当前命主 ∈ {A,B};此前只带名字,
+			// 命盘 X 挂「合盘」会拿到与 X 无关的 A/B 合盘。
+			const recA = this.state.chartA && this.state.chartA.record ? this.state.chartA.record : null;
+			const recB = this.state.chartB && this.state.chartB.record ? this.state.chartB.record : null;
 			saveModuleAISnapshot('relative', snapshotText, {
 				relation: this.state.currentTab,
-				chartA: this.state.chartA && this.state.chartA.record ? this.state.chartA.record.name : null,
-				chartB: this.state.chartB && this.state.chartB.record ? this.state.chartB.record.name : null,
+				chartA: recA ? recA.name : null,
+				chartB: recB ? recB.name : null,
+				chartABirth: recA ? `${recA.birth || ''}` : '', chartAZone: recA ? `${recA.zone || ''}` : '',
+				chartBBirth: recB ? `${recB.birth || ''}` : '', chartBZone: recB ? `${recB.zone || ''}` : '',
 			});
 			return snapshotText;
 		}catch(e){
@@ -451,21 +543,7 @@ class AstroRelative extends Component{
 			params.hsys = this.props.fields.hsys.value;
 			params.zodiacal = this.props.fields.zodiacal.value;
 			params.siderealAyanamsa = this.props.fields.siderealAyanamsa ? this.props.fields.siderealAyanamsa.value : '';
-			// 古典占星参数随合盘透传(界系/双子界序/交点真平/昼夜缓冲/狮子首星/三分集/福点反转):
-			// 与主盘 fieldsToParams 同款条件透传——默认不下发=请求体零回归;非默认才传。
-			// 链路三层同批打通:此处 → Java ModernChartController 条件转发 → Python webmodernsrv.relative
-			// push_request_terms/trip + inner/outer 每盘键;五个子盘(比较/组合/时空中点/马克思/戴维森)全按所选界系/口径算尊贵。
-			const f = this.props.fields;
-			const fv = (k) => (f[k] && f[k].value !== undefined && f[k].value !== null ? f[k].value : undefined);
-			if(fv('termsVariant')){ params.termsVariant = fv('termsVariant'); }
-			if(fv('geminiBoundEmended')){ params.geminiBoundEmended = 1; }
-			if(fv('westNodeType') === 'true'){ params.westNodeType = 'true'; }
-			if(fv('sectBuffer') === 'ptolemy5'){ params.sectBuffer = 'ptolemy5'; }
-			if(fv('leoBoundFirst') === 1 || fv('leoBoundFirst') === '1'){ params.leoBoundFirst = 1; }
-			if(fv('triplicity') && fv('triplicity') !== 'Dorothean'){ params.triplicity = fv('triplicity'); }
-			if(fv('lotReversal') === 0 || fv('lotReversal') === '0'){ params.lotReversal = 0; }
-			// 2026-07 二批九键:共享 helper(键名含后端映射 starOrb/starOrbMode),默认不下发。
-			Object.assign(params, classicalBackendOverridesFromFields(f));
+			Object.assign(params, relativeClassicalParamsFromFields(this.props.fields));
 		}
 
 		return params;
@@ -531,6 +609,7 @@ class AstroRelative extends Component{
 
 	changeTab(key){
 		let hook = this.state.hook;
+		rememberSubTab('relativechart', key, RELATIVE_SUBTABS);   // [Q-417/T-377]
 		this.setState({
 			currentTab: key,
 			currentRelative: hook[key].relative
@@ -618,7 +697,7 @@ class AstroRelative extends Component{
 
 		return (
 			<div className="horosa-relative-page">
-				<Row gutter={12}>
+				<Row gutter={12} data-agent-target="relative-pair">
 					<Col span={8}>
 						<ChartSearchModal onOk={this.selectChartA}>
 							<Search placeholder="星盘A" value={chartAtxt} onChange={(e)=>{}} />
@@ -663,6 +742,10 @@ class AstroRelative extends Component{
 										onChange={this.handleRelativeOnChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
+										showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* [Q-253/T-223] 四键补传:弹层显示值与主页同源 */
+										voidClassical={this.props.voidClassical}
+										planetListStyle={this.props.planetListStyle}
+										aspects={this.props.aspects}
 										hook={hook.Comp}	
 									/>
 								</FreezeSubTab>
@@ -684,6 +767,10 @@ class AstroRelative extends Component{
 										onChange={this.handleRelativeOnChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
+										showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* [Q-253/T-223] 四键补传:弹层显示值与主页同源 */
+										voidClassical={this.props.voidClassical}
+										planetListStyle={this.props.planetListStyle}
+										aspects={this.props.aspects}
 										hook={hook.Composite}	
 									/>
 								</FreezeSubTab>
@@ -705,6 +792,10 @@ class AstroRelative extends Component{
 										onChange={this.handleRelativeOnChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
+										showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* [Q-253/T-223] 四键补传:弹层显示值与主页同源 */
+										voidClassical={this.props.voidClassical}
+										planetListStyle={this.props.planetListStyle}
+										aspects={this.props.aspects}
 										hook={hook.Synastry}	
 									/>
 								</FreezeSubTab>
@@ -726,6 +817,10 @@ class AstroRelative extends Component{
 										onChange={this.handleRelativeOnChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
+										showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* [Q-253/T-223] 四键补传:弹层显示值与主页同源 */
+										voidClassical={this.props.voidClassical}
+										planetListStyle={this.props.planetListStyle}
+										aspects={this.props.aspects}
 										hook={hook.TimeSpace}	
 									/>
 								</FreezeSubTab>
@@ -747,6 +842,10 @@ class AstroRelative extends Component{
 										onChange={this.handleRelativeOnChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
+										showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* [Q-253/T-223] 四键补传:弹层显示值与主页同源 */
+										voidClassical={this.props.voidClassical}
+										planetListStyle={this.props.planetListStyle}
+										aspects={this.props.aspects}
 										hook={hook.Marks}	
 										/>
 									</FreezeSubTab>

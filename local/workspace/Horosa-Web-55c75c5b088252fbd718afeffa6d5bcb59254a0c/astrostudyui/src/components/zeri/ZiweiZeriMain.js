@@ -5,15 +5,21 @@
 // _scanNatal;_scanUiJson 指纹驱动 resultsStale。显示盘=主页链(默认档走 Java 盘),扫描
 // 判定=本地 lite 引擎 Java 兼容口径——两侧一致性由 ziweiZeriEngine 24 例网格金标看守。
 import { Component } from 'react';
+import { restoreZeriWorkbenchFromCase, buildZeriCasePayload } from './zeriCaseRestore';
 import ZiWeiMain from '../ziwei/ZiWeiMain';
 import ZiweiZeriWorkbench from './ZiweiZeriWorkbench';
 import ZeriHostEntry from './ZeriHostEntry';
+import { openKentangCaseDrawer } from '../../utils/kentangCaseSave';
+import { loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import DateTime from '../comp/DateTime';
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { newZiweiLeaf, newZiweiGroup, compileZiweiTree } from '../../divination/zeri/ziweiZeriConditionTypes';
 import { scanZiwei, explainZiweiAt, computeZiweiScanPan } from '../../divination/zeri/ziweiZeriScanEngine';
 import { buildZiweiZeriSnapshotExtra } from '../../divination/zeri/ziweiZeriSnapshot';
 import { ziweiZeriSchemeStore } from '../../divination/zeri/schemeStore';
+
+const ZERI_SCOPE = 'ziweizeri';
+const ZERI_LABEL = '紫微择日';
 
 function pad2(n){
 	return n < 10 ? `0${n}` : `${n}`;
@@ -86,6 +92,7 @@ export default class ZiweiZeriMain extends Component{
 		this._scanNatal = null;
 		this._scanUiJson = '';
 		this.openSearch = this.openSearch.bind(this);
+		this.saveCase = this.saveCase.bind(this);
 		this.renderLeftExtra = this.renderLeftExtra.bind(this);
 		this.runSearch = this.runSearch.bind(this);
 		this.cancelScan = this.cancelScan.bind(this);
@@ -102,6 +109,35 @@ export default class ZiweiZeriMain extends Component{
 		}
 	}
 
+	// [挂载自检 F-36] 存为事盘:此前本宿主无存档钮 → CASE_TYPE_OPTIONS 登记的「紫微择日」事盘类型恒无实例(源层挂载恒无产出)。
+	// 快照取本宿主槽(母技法全文+择日三段,母组件经 composeAiSnapshot 存入 scope 槽);缺槽时至少存择日三段。
+	// 事盘源层按 payload.module=本 scope 认领 payload.snapshot(与 qimenzeri 同律)。
+	componentDidMount(){
+		restoreZeriWorkbenchFromCase(this, ZERI_SCOPE);   // [Q-270/T-264] 载入存案还原工作台态(此前五宿主写而不读)
+	}
+
+	componentDidUpdate(){
+		restoreZeriWorkbenchFromCase(this, ZERI_SCOPE);
+	}
+
+	saveCase(){
+		if(!this.props.dispatch){ return; }
+		let snapshot = '';
+		try{ const m = loadModuleAISnapshot(ZERI_SCOPE); snapshot = m && m.content ? `${m.content}` : ''; }catch(e){ snapshot = ''; }
+		if(!snapshot){ try{ snapshot = this.composeAiSnapshot('') || ''; }catch(e){ snapshot = ''; } }
+		openKentangCaseDrawer({
+			dispatch: this.props.dispatch,
+			fields: this.buildFields(true),
+			module: ZERI_SCOPE,
+			label: ZERI_LABEL,
+			payload: {
+				module: ZERI_SCOPE,
+				zeri: buildZeriCasePayload(this)   /* [Q-270/T-264] 补 geo/options/natal/pickText,载入存案可还原工作台与点选时刻 */,
+				snapshot,
+			},
+		});
+	}
+
 	openSearch(){
 		this.setState({ searchOpen: true });
 	}
@@ -112,6 +148,7 @@ export default class ZiweiZeriMain extends Component{
 		return (
 			<ZeriHostEntry
 				label="紫微择日"
+				onSave={this.props.dispatch ? this.saveCase : undefined}
 				onOpen={this.openSearch}
 			/>
 		);
@@ -181,7 +218,7 @@ export default class ZiweiZeriMain extends Component{
 		// 冻结 UI 树:详情面「设定」列用它配冻结判读树(活树被增删后按序配对会错位,审查实抓)
 		this._scanUiTree = JSON.parse(JSON.stringify(this.state.tree));
 		try{
-			ziweiZeriSchemeStore.pushHistory({ cfg, geo, options, natal }, this.state.tree);
+			ziweiZeriSchemeStore.pushHistory({ cfg, geo, options, natal, natalInput: this.state.natalInput }, this.state.tree);
 		}catch(e){
 			// 历史落盘失败不阻断
 		}
@@ -241,13 +278,18 @@ export default class ZiweiZeriMain extends Component{
 		});
 	}
 
-	explainRow(row){
-		return Promise.resolve(explainZiweiAt({
+	// [Q-453] 同步引擎直算(快照前 N 行判读树与工作台「详情▼」同源);explainRow 保持 Promise 形给工作台。
+	explainRowSync(row){
+		return explainZiweiAt({
 			geoParams: this.buildGeoParams(this._scanGeo || this.state.geo),
 			options: { ...(this._scanOptions || this.state.options || {}), _natal: this._scanNatal },
 			tree: this._scanTree,
 			t: row.pick || `${row.start}:00`,
-		}));
+		});
+	}
+
+	explainRow(row){
+		return Promise.resolve(this.explainRowSync(row));
 	}
 
 	composeAiSnapshot(baseText){
@@ -256,9 +298,12 @@ export default class ZiweiZeriMain extends Component{
 				cfg: this._scanCfg || this.state.cfg,
 				geo: this._scanGeo || this.state.geo,
 				natal: this._scanNatal || this.state.natal,
+				options: this._scanOptions || this.state.options,	// [F-37] 配置段明标扫描口径 vs 显示盘口径
+
 				tree: this._scanUiTree || this.state.tree,	// 冻结树:与命中行同源(活树曾致条件描述≠结果,复审 F5)
 				results: this.state.results,
 				truncated: this.state.truncated,
+				explainAt: (row)=>this.explainRowSync(row),   // [Q-453] 前 N 行判读树(全局可配)
 			});
 			return extra ? `${baseText ? `${baseText}\n\n` : ''}${extra}` : baseText;
 		}catch(e){
@@ -300,6 +345,7 @@ export default class ZiweiZeriMain extends Component{
 						hook={this.ziweiHook}
 						height={this.props.height ? this.props.height - 40 : undefined}
 						techniqueScope="ziweizeri"
+						dispatch={this.props.dispatch}   /* [Q-111/T-18] 宿主内左栏口径控件此前不传 dispatch → onFieldsChange 门控下什么都不发生(六壬/三式/太乙/奇门四宿主已传) */
 						composeAiSnapshot={this.composeAiSnapshot}
 						renderLeftExtra={this.renderLeftExtra}
 					/>
@@ -322,8 +368,11 @@ export default class ZiweiZeriMain extends Component{
 						return n;
 					}}
 					onClearNatal={()=>this.setState({ natal: null })}
+					onRestoreNatal={(n)=>this.setState({ natal: n || null })}   /* [Q-271/ZC-21] 方案载入回灌本命 */
 					tree={this.state.tree}
 					frozenTree={this._scanUiTree}
+					previewGeo={this._scanGeo || this.state.geo}   /* [Q-271/ZC-22] 冻结地点:概览口径=扫描口径 */
+					previewOptions={this._scanOptions || this.state.options}   /* [Q-271/ZC-22] 冻结参数:搜索后改参数不改旧结果行的盘 */
 					onPreviewPan={(d, t)=>computeZiweiScanPan(this.buildGeoParams(this._scanGeo || this.state.geo), { ...(this._scanOptions || this.state.options || {}) }, d, t)}
 					onTreeChange={(tree)=>this.setState({ tree })}
 					onRun={this.runSearch}

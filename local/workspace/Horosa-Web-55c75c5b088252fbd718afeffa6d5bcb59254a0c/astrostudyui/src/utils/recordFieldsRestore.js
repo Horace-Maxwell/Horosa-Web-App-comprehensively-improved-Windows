@@ -149,6 +149,13 @@ export const RECORD_FIELDS_RESTORE_MANIFEST = [
 	{ key: 'indiaVarshaLon', parse: 'raw' },
 	{ key: 'indiaKarakaScheme', parse: 'str' },     // W1-B 卡拉卡方案
 	{ key: 'indiaYuddhaCriterion', parse: 'str' },  // W1-C 星曜战判据
+	{ key: 'indiaTripataki', parse: 'raw' },        // [F-45] 三旗盘 opt-in(1/undefined)
+	{ key: 'indiaPrashnaTime', parse: 'str' },      // [F-45] 问事起卦时刻(冻结串)
+	{ key: 'indiaPrashnaNumber', parse: 'raw' },
+	{ key: 'indiaPrashnaMatter', parse: 'str' },
+	{ key: 'indiaPrashnaSchools', parse: 'raw' },
+	{ key: 'indiaPrashnaCuspMode', parse: 'str' },
+	{ key: 'indiaPrashnaPrimaryHouse', parse: 'raw' },
 ];
 
 function parseValue(parse, raw){
@@ -169,6 +176,23 @@ function parseValue(parse, raw){
 	return raw; // raw：原样（保存侧亦原样，避免破坏非字符串类型如 vargaSet 数组）
 }
 
+// [Q-256/T-219] 随盘保真代次标记:保存侧只落「≠默认」的键,载入侧对缺键此前一律「保持当前 fields 现值」→
+//   新记录的缺键本义是「保存时为默认」,却沿用上一张盘(先载非默认 A 盘再载全默认 B 盘,B 仍按 A 口径)。
+//   新建记录(表单 / 名人库 / AI 建档 / AI 页草稿)落库时打 fieldsCaptureGen=1;载入时有标记的记录缺清单键 →
+//   先复位到 schema 默认(与捕获判默认同一基准:spec 默认优先,其次 newEmptyFields 初值;schema 无此键 = 撤出 fields)
+//   再还原;无标记的旧记录维持现状(缺键保持当前值,旧记录处理另裁)。
+export const RECORD_FIELDS_CAPTURE_MARK = 'fieldsCaptureGen';
+export const RECORD_FIELDS_CAPTURE_GEN = 1;
+export function markFieldsCaptured(values){
+	if(values && typeof values === 'object' && values[RECORD_FIELDS_CAPTURE_MARK] === undefined){
+		values[RECORD_FIELDS_CAPTURE_MARK] = RECORD_FIELDS_CAPTURE_GEN;
+	}
+	return values;
+}
+export function recordHasCaptureMark(record){
+	return !!(record && typeof record === 'object' && Number(record[RECORD_FIELDS_CAPTURE_MARK]) >= 1);
+}
+
 // 把 record 里存在的清单键条件还原进 fields —— 纯函数、不可变：
 // - 返回新 fields 对象；命中键写入「新 entry」{...旧entry, value}（schema 缺键则新建 {name:[key], value}），
 //   使下游 prevProps/值比对能看见变化（旧实现就地改共享 entry → prev 与 next 同对象，比对失明）。
@@ -179,9 +203,27 @@ export function applyRecordToFields(baseFields, record){
 	if(!record || typeof record !== 'object'){
 		return fields;
 	}
+	// [Q-256/T-219] 有代次标记的记录:缺键 = 保存时为默认 → 复位到与捕获同一基准的默认值(spec 默认 > schema 初值);schema 无此键则撤出
+	const marked = recordHasCaptureMark(record);
+	let baseline = {};
+	let specDef = {};
+	if(marked){
+		baseline = fieldsSchemaBaseline();
+		try{ specDef = require('./classicalParamSpec').specDefaults() || {}; }catch(e){ specDef = {}; }
+	}
 	RECORD_FIELDS_RESTORE_MANIFEST.forEach(({ key, parse })=>{
 		const raw = record[key];
 		if(raw === undefined || raw === null){
+			if(marked){
+				const hasSpec = Object.prototype.hasOwnProperty.call(specDef, key);
+				const baseEntry = baseline[key];
+				if(hasSpec || (baseEntry && baseEntry.value !== undefined)){
+					const def = hasSpec ? specDef[key] : baseEntry.value;
+					fields[key] = { ...(fields[key] || { name: [key] }), value: def };
+				}else if(fields[key] !== undefined){
+					delete fields[key];
+				}
+			}
 			return;
 		}
 		const value = parseValue(parse, raw);
@@ -209,6 +251,17 @@ export function registerFieldsBaselineFactory(fn){
 	fieldsBaselineFactory = typeof fn === 'function' ? fn : null;
 }
 
+// [Q-190/T-130] schema 初值只读访问(同「随盘保真」的判默认基准,单源同一工厂):
+// 页面要区分「字段还是初值(没人表态,可播全局)」与「已被记录还原/用户改过(有主,不许覆盖)」时用它。
+// 工厂未注册(纯 util 单测环境)→ {},调用方据此保守处理。
+export function fieldsSchemaBaseline(){
+	try{
+		return (fieldsBaselineFactory ? (fieldsBaselineFactory() || {}) : {});
+	}catch(e){
+		return {};
+	}
+}
+
 export function captureNonDefaultTechniqueFields(fields){
 	if(!fields || typeof fields !== 'object'){
 		return {};
@@ -219,6 +272,10 @@ export function captureNonDefaultTechniqueFields(fields){
 	}catch(e){
 		baseline = {};
 	}
+	// [Q-257/T-220] 古典口径键的「默认」= CLASSICAL_PARAM_SPEC.default(schema 默认),不经 newEmptyFields 的全局仓播种值:
+	// 否则与全局同值的非默认口径被判「默认」不落库,改全局或换机后该盘漂移(帮助与注释称基准为 schema 默认)。
+	let specDef = {};
+	try{ specDef = require('./classicalParamSpec').specDefaults() || {}; }catch(e){ specDef = {}; }
 	const out = {};
 	RECORD_FIELDS_RESTORE_MANIFEST.forEach(({ key })=>{
 		const entry = fields[key];
@@ -227,7 +284,7 @@ export function captureNonDefaultTechniqueFields(fields){
 		}
 		const v = entry.value;
 		const defEntry = baseline[key];
-		const def = defEntry ? defEntry.value : undefined;
+		const def = Object.prototype.hasOwnProperty.call(specDef, key) ? specDef[key] : (defEntry ? defEntry.value : undefined);
 		const same = (v !== null && typeof v === 'object') || (def !== null && typeof def === 'object')
 			? JSON.stringify(v) === JSON.stringify(def)
 			: v === def;
@@ -262,4 +319,4 @@ export function captureNonDefaultTechniqueFields(fields){
 	return out;
 }
 
-export default { RECORD_FIELDS_RESTORE_MANIFEST, applyRecordToFields };
+export default { RECORD_FIELDS_RESTORE_MANIFEST, applyRecordToFields, markFieldsCaptured, recordHasCaptureMark };

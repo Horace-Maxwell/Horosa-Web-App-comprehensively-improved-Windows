@@ -47,10 +47,11 @@ import { calcZiwei, deriveSanPan, applyLifeMasterOption } from './ZiweiCalc';
 import { detectPatterns } from './ziweiPatterns';
 import { ZWEngineOptions, ziweiNeedsLocalEngine, collectEngineOpts } from './ziweiOptions';
 import { starLightOf, normalizeBrightnessCustomTable, ZWBrightnessCustom } from './data/ziweiTables';
-import { childLimits } from './ziweiCore';
+import { isYangGan, childLimits, zhongxianOf } from './ziweiCore';   // [Q-432/T-395④] 沈氏中限四段(与页面同源)
 import { qiShuWei, allBorrowedStars, taiSuiRuGua } from './ziweiOverlays';
 import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 
+import { getLayoutViewportWidth } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 const TabPane = Tabs.TabPane;
 
 // 稳定空值(避免每次 render 新建字面量 → 下游 sCU/绘制守卫的引用比恒不等)。
@@ -156,7 +157,9 @@ function collectHouseStars(house){
 	return { list: out, lightOf };
 }
 
-function formatStarSiHua(starName, yearGan, lifeGan, palaceGan){
+// [Q-432/T-395①] dayGan:显示开关「日干四化徽」(缺省关)开启后盘面逐星加「日禄/日权…」徽,
+// 而快照星曜括注只有 生年/命宫/自化 三类 → 开了也进不了 AI。开关开启时才传入,缺省态括注逐字不变。
+function formatStarSiHua(starName, yearGan, lifeGan, palaceGan, dayGan){
 	const tags = [];
 	if(yearGan){
 		const yearHua = ZiWeiHelper.getSiHua(starName, yearGan);
@@ -176,6 +179,12 @@ function formatStarSiHua(starName, yearGan, lifeGan, palaceGan){
 		const selfHua = ZiWeiHelper.getSiHua(starName, palaceGan);
 		if(selfHua){
 			tags.push(`自化${selfHua}`);
+		}
+	}
+	if(dayGan){
+		const dayHua = ZiWeiHelper.getSiHua(starName, dayGan);
+		if(dayHua){
+			tags.push(`日干${dayHua}`);
 		}
 	}
 	if(tags.length === 0){
@@ -260,6 +269,30 @@ function findDaxianForYear(chart, daxianItems, year){
 	return null;
 }
 
+// [#80] 无条件「运限概览」段。
+//   病理:八字给 AI 的 [大运] / [流年行运概略] 是**无条件段**(不碰齿轮也有全大运 × 各 10 流年的公历年+干支);
+//   紫微此前什么都不给 —— 除非用户在 40 项设置里翻到最末组、往一个叫「流年小限」的**文本框**里手打年份。
+//   用户报障「紫微挂载设置里似乎没找着流年的勾选项」,AI 也如实答「有本命盘和大限,缺少完整流年、流月盘」。
+//   照抄八字范式:每个大限一行,把该限 10 个流年「公历年-干支」打包进末列 —— 12 行给全 120 年的映射。
+//   只用已有纯函数(ZWLuckPanel 的 build*Items,与盘面交互同源、零新算法);**不依赖「今天」**,同一盘快照恒定。
+//   用户显式选了运限时,下面的 [运限] 段照旧另出(完整流曜与四化落宫),两者互不影响。
+function buildZiweiPeriodOverviewLines(chart){
+	if(!chart || !chart.houses){ return []; }
+	const daxianItems = buildDaxianItems(chart);
+	if(!daxianItems.length){ return []; }
+	const lines = ['[运限概览]'];
+	lines.push('全大限 × 流年一览(公历年与干支由代码算出,禁自行推算):');
+	lines.push('| 虚岁 | 宫位 | 宫干支 | 该限流年（公历年-干支） |');
+	lines.push('| --- | --- | --- | --- |');
+	daxianItems.forEach((d)=>{
+		const years = buildLiunianItems(chart, d).map((x)=>`${x.year}-${x.ganzi}`).join('、');
+		lines.push(`| ${d.start}~${d.end} | ${luckHouseName(chart, d.mingIndex, true)} | ${d.ganzi} | ${years || '—'} |`);
+	});
+	lines.push('要某一年/某月的完整流曜与四化落宫,请在「挂载设置 → 运限」里选定年月(或直接说出年份)。');
+	lines.push('');
+	return lines;
+}
+
 // 按挂载所选运限层（多选）产出 [运限] 段。
 // period={daxian:[mingIndex...], liunian:[year...], liuyue:[month...], liuri:[day...], liushi:[hourIdx...]}。
 // 语义（用户拍板）：大限/流年/流月对所选每项各产一段（流年×流月笛卡尔）；流日/流时锚定到所选的第一个上层。
@@ -295,7 +328,19 @@ function buildZiweiPeriodLines(chart, period){
 	daxianSel.forEach((mingIndex)=>{
 		const dx = daxianItems.find((d)=>d.mingIndex === mingIndex);
 		if(dx){
-			pushSeg(formatLuckLayerLines(chart, dx, ZW_PERIOD_LEVEL_LABEL.daxian, `${dx.start}~${dx.end}岁`));
+			const seg = formatLuckLayerLines(chart, dx, ZW_PERIOD_LEVEL_LABEL.daxian, `${dx.start}~${dx.end}岁`);
+			// [Q-432/T-395④] 「沈氏三限」齿轮开着时,页面在所选大限下画出四段中限(各 2.5 年),
+			// 而快照此前只在「传本设置」里多一行注记 —— AI 看不到分段。开关开启时把四段真列出来
+			// (宫位沿该大限宫,与 ziweiCore.zhongxianOf 同源;缺省关=零增行)。
+			if(ZWEngineOptions.zhongxian && Array.isArray(seg)){
+				try{
+					const zx = zhongxianOf(dx.start, dx.mingIndex) || [];
+					if(zx.length){
+						seg.push(`沈氏三限（大限内四分，各 2.5 年；宫位沿本大限宫）：${zx.map((z, i)=>`中限${i + 1} ${z.startAge}~${z.endAge}岁`).join('、')}`);
+					}
+				}catch(e){ /* 分段失败不影响主段 */ }
+			}
+			pushSeg(seg);
 		}
 	});
 
@@ -409,7 +454,8 @@ function buildZiWeiSnapshotText(params, result){
 	lines.push(`日期：${params.date} ${params.time}`);
 	lines.push(`时区：${params.zone}`);
 	lines.push(`经纬度：${params.lon} ${params.lat}`);
-	lines.push(`性别：${`${params.gender}` === '1' ? '男' : (`${params.gender}` === '0' ? '女' : '未知')}`);
+	// [Q-193/T-139] 「未知」在紫微是按男排(引擎 male = gender !== 0):快照只写「未知」会与下一行「命局：阳男」自相矛盾。
+	lines.push(`性别：${`${params.gender}` === '1' ? '男' : (`${params.gender}` === '0' ? '女' : '未知（按男排）')}`);
 	lines.push(`时间算法：${params.timeAlg === 1 ? '直接时间' : '真太阳时'}`);
 	// 换算后时刻(审计补缺:此前只写算法名、无换算结果):双时刻并列与八字快照同款,换算关系一眼可见;
 	// 后端盘缺 clockTime/solarTime 双字段时回落单行 nongli.birth(盘心 ZWCenterHouse 同款取数),全缺不产行。
@@ -428,11 +474,11 @@ function buildZiWeiSnapshotText(params, result){
 	if(ZWEngineOptions.starSet !== 'full'){ tbNotes.push('星集=精简18星(河洛)'); }
 	if(ZWEngineOptions.sanPan && ZWEngineOptions.sanPan !== 'tian'){ tbNotes.push(`观察盘=${ZWEngineOptions.sanPan === 'di' ? '地盘(身宫起)' : '人盘(福德起)'}`); }
 	if(ZWEngineOptions.shangShi === 'yinyang'){ tbNotes.push('天伤天使=阴阳互换(中州)'); }
-	const leapLabel = { next: '整月归下月', prev: '整月归上月', split_days: '前后半分割(按实际天数取中点)', split_star_month: '命身下月·月系上月', solar_term: '按节气分界(过节归下月)' };
+	const leapLabel = { next: '整月归下月', prev: '整月归上月', split_days: '前后半分割(按实际天数取中点)', split_star_month: '命身下月·月系上月(存疑)', solar_term: '按节气分界(过节归下月)' };
 	if(ZWEngineOptions.leapMonth && ZWEngineOptions.leapMonth !== 'mid_split'){ tbNotes.push(`闰月=${leapLabel[ZWEngineOptions.leapMonth] || ZWEngineOptions.leapMonth}`); }
 	const lateZiLabel = { zi_chu: '子初换日(强制)', midnight_split: '夜子折中', zi_zheng: '子正换日', dual: '双盘(当日/次日)' };
 	if(ZWEngineOptions.lateZi && ZWEngineOptions.lateZi !== 'global'){ tbNotes.push(`晚子时=${lateZiLabel[ZWEngineOptions.lateZi] || ZWEngineOptions.lateZi}`); }
-	if(ZWEngineOptions.yearBoundary === 'lunar_1_1'){ tbNotes.push('定年界线=正月初一'); }
+	if(ZWEngineOptions.yearBoundary === 'lichun'){ tbNotes.push('定年界线=立春(八字口径)'); }
 	if(ZWEngineOptions.huoling === 'nanpai'){ tbNotes.push('火铃=南派(忽略生时)'); }
 	if(ZWEngineOptions.kongNaming === 'book'){ tbNotes.push('空劫=天空/地劫(古本)'); }
 	if(ZWEngineOptions.lifeMasterBy === 'ming_branch'){ tbNotes.push('命主取法=命宫支(经典法)'); }
@@ -485,13 +531,42 @@ function buildZiWeiSnapshotText(params, result){
 	if(infoNl.year){
 		lines.push(`农历：${`${infoNl.year}年 ${infoNl.leap ? '闰' : ''}${infoNl.month || ''}${infoNl.day || ''}${infoNl.time ? ` ${`${infoNl.time}`.charAt(1)}时` : ''}`.trim()}`);
 	}
+	// [Q-432/T-395③] 正月初一口径年柱 ≠ 立春口径年柱时,中宫会多画一行「初一口径年柱」,而快照两处
+	// (「农历」行是数字年、「四柱」行是立春口径)都看不出这一年的分歧 —— 与页面同判据补一行。
+	// 该字段只有走本地历算的盘才带(任一传本开关非缺省),缺省后端盘无此字段 → 零增行。
+	const infoYearLunar = infoNl.yearGZByLunar;
+	if(infoYearLunar && infoBz && infoBz.year && infoBz.year.ganzi && `${infoYearLunar}` !== `${infoBz.year.ganzi}`){
+		lines.push(`初一口径年柱：${infoYearLunar}（四柱行的年柱按立春口径）`);
+	}
 
 	lines.push('');
 	// [v2 试点·表化] 12 宫同构数据改 GFM 表(宫/干支/大限/星曜四列;值口径与旧键值行逐字同源:
 	// name/ganzi/direction/formatStarSiHua 全复用)。表块经 v1/v2 归一器直通、docx/PDF 渲染真表。
 	lines.push('[宫位总览]');
-	lines.push('| 宫位 | 干支 | 大限 | 星曜（四化括注） |');
-	lines.push('| --- | --- | --- | --- |');
+	// [Q-432/T-395①] 日干四化徽:开关开启(缺省关)时才取日干,缺省态括注与旧快照逐字节相同。
+	const daySihuaGan = ZiWeiHelper.zwShowDaySihua && ZiWeiHelper.zwShowDaySihua() ? (ZiWeiHelper.dayGanOf(chart) || '') : '';
+	// [Q-432/T-395②] 流年岁列 / 小限岁列(两开关缺省关)在宫底画岁数条,而 [宫位总览] 一个岁数都没有 →
+	// 开了也进不了 AI。开关开启时才加一列(缺省关 = 表头四列、正文逐字节不变,preflight[121] 表头断言零触)。
+	const showYearAges = !!(ZiWeiHelper.zwShowYearAges && ZiWeiHelper.zwShowYearAges());
+	const showXiaoxianAges = !!(ZiWeiHelper.zwShowXiaoxianAges && ZiWeiHelper.zwShowXiaoxianAges());
+	const withAgeCol = showYearAges || showXiaoxianAges;
+	const ageCellOf = (house)=>{
+		const gz = house && house.ganzi ? `${house.ganzi}` : '';
+		const zhi = gz ? gz.charAt(1) : '';
+		const parts = [];
+		if(showYearAges && zhi && chart.yearZi){
+			const ages = ZiWeiHelper.yearAgesOf(zhi, chart.yearZi);
+			if(ages && ages.length){ parts.push(`流年 ${ZiWeiHelper.formatAgeStrip(ages)}`); }
+		}
+		if(showXiaoxianAges && zhi){
+			const xx = ZiWeiHelper.xiaoxianAgesOf(chart, zhi)
+				|| (Array.isArray(house && house.smallDirection) ? house.smallDirection : []);
+			if(xx && xx.length){ parts.push(`小限 ${ZiWeiHelper.formatAgeStrip(xx)}`); }
+		}
+		return parts.join('；') || '无';
+	};
+	lines.push(`| 宫位 | 干支 | 大限 | 星曜（四化括注）${withAgeCol ? ' | 岁列（虚岁）' : ''} |`);
+	lines.push(`| --- | --- | --- | ---${withAgeCol ? ' | ---' : ''} |`);
 	houses.forEach((house, idx)=>{
 		// 长生十二神内联宫位格(三合盘恒画的 house.phase,快照曾恒缺;不加表列,表头断言零触;缺省不产)。
 		const name = `${house.name || house.id || `宫位${idx + 1}`}${house.phase ? `·${house.phase}` : ''}`;
@@ -505,10 +580,10 @@ function buildZiWeiSnapshotText(params, result){
 		const starText = stars.length > 0
 			? stars.map((starName)=>{
 				const sl = collected.lightOf[starName];
-				return `${formatStarSiHua(starName, yearGan, lifeGan, palaceGan)}${sl ? `·${sl}` : ''}`;
+				return `${formatStarSiHua(starName, yearGan, lifeGan, palaceGan, daySihuaGan)}${sl ? `·${sl}` : ''}`;
 			}).join('、')
 			: '无';
-		lines.push(`| ${name} | ${ganzi || '无'} | ${direction || '无'} | ${starText} |`);
+		lines.push(`| ${name} | ${ganzi || '无'} | ${direction || '无'} | ${starText}${withAgeCol ? ` | ${ageCellOf(house)}` : ''} |`);
 	});
 	lines.push('');
 
@@ -556,6 +631,10 @@ function buildZiWeiSnapshotText(params, result){
 		});
 		lines.push('');
 	}
+
+	// [#80] 运限概览:无条件段(与八字 [大运]/[流年行运概略] 对称)。可在「纳入内容」里取消勾选。
+	const overviewLines = buildZiweiPeriodOverviewLines(chart);
+	if(overviewLines.length){ lines.push(...overviewLines); }
 
 	// 运限层（仅挂载「每技法设置」显式选了运限时追加；缺省不追加 → 快照与现状逐字一致）。
 	if(params && params.period){
@@ -634,8 +713,12 @@ export function buildZiweiBirthParams(flds){
 		gpsLon: flds.gpsLon.value,
 		gender: flds.gender.value,
 		timeAlg: timeAlg === 1 ? 1 : 0,
-		after23NewDay: defaultAfter23NewDay(),
-		lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
+		// [挂载自检 F-15] 日界/晚子时:记录随盘保真键(after23NewDay/lateZiHourUseNextDay)优先,缺席才回退全局——
+		// 此前恒读全局,带非默认日界键的记录 23:00-23:59 生辰页面盘≠AI 挂载盘(无头读记录键)。缺键=全局=现状零回归。
+		after23NewDay: (flds.after23NewDay && flds.after23NewDay.value !== undefined && flds.after23NewDay.value !== null && `${flds.after23NewDay.value}` !== '')
+			? flds.after23NewDay.value : defaultAfter23NewDay(),
+		lateZiHourUseNextDay: (flds.lateZiHourUseNextDay && flds.lateZiHourUseNextDay.value !== undefined && flds.lateZiHourUseNextDay.value !== null && `${flds.lateZiHourUseNextDay.value}` !== '')
+			? flds.lateZiHourUseNextDay.value : defaultLateZiHourUseNextDay(),
 	}
 	// P2-1：非默认流派时附四化表，使后端格局判定随流派；beipai(现状)不附＝缓存键不变＝零回归。
 	const school = ZWConst.ZWSchool.school;
@@ -753,6 +836,7 @@ export async function buildZiweiSnapshotForParams(params){
 				if(ZWEngineOptions.sanPan && ZWEngineOptions.sanPan !== 'tian'){ localChart = deriveSanPan(localChart, ZWEngineOptions.sanPan); }
 				if(localChart && Array.isArray(localChart.houses) && localChart.houses.length === 12){
 					result.chart = { ...result.chart, ...localChart };
+					if(localChart.yearGan){ result.chart.yearPolar = isYangGan(localChart.yearGan) ? 'Positive' : 'Negative'; }   // [Q-194] 同上
 					try{ const lp = detectPatterns(result.chart); if(Array.isArray(lp)){ result.patterns = lp; } }catch(e3){ /* 保留 Java patterns */ }
 				}
 			}catch(e4){ /* 本地异常 → 保留 Java 盘 */ }
@@ -1093,6 +1177,8 @@ class ZiWeiMain extends Component{
 				}
 				if(memoVal.localChart && Array.isArray(memoVal.localChart.houses) && memoVal.localChart.houses.length === 12){
 					result.chart = { ...result.chart, ...memoVal.localChart };   // 保留 Java 顶层兼容字段、仅换排盘核心
+					// [Q-194/T-119] 年干阴阳随本地盘年干同步(Java 顶层 yearPolar 残留会致命局「阴男」而大限按阳男顺排、isDirCloseWise 错向)。
+					if(memoVal.localChart.yearGan){ result.chart.yearPolar = isYangGan(memoVal.localChart.yearGan) ? 'Positive' : 'Negative'; }
 					if(Array.isArray(memoVal.localPatterns)){ result.patterns = memoVal.localPatterns; }
 				}
 			} catch(e){ /* 本地异常 → 保留 Java 盘(零回归兜底) */ }
@@ -1588,7 +1674,7 @@ class ZiWeiMain extends Component{
 		let infoData = buildZiWeiInfoData(chart, this.props.fields);
 
 		let tipheight = 270;
-		let docwid = document.documentElement.clientWidth;
+		let docwid = getLayoutViewportWidth();
 		if(docwid <= 1440){
 			tipheight = 120;
 		}

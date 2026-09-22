@@ -157,6 +157,7 @@ export function bazhai({ zuoGua, ming, mode = 'zhai', doorGua, mainGua, stoveGua
 			stove: `灶宜坐凶（${badDirs[0] || '凶方'}）向吉、火口朝${goodDirs[0] || '吉方'}`,
 		},
 		sanYao, liushi,
+		inputs: { doorGua: doorGua || '', mainGua: mainGua || '', stoveGua: stoveGua || '' },   // [Q-223/FT-24②] 快照部分三要用
 		zhaiType, zhaiTypeInfo: ZHAI_TYPE[zhaiType] || ZHAI_TYPE.jing,
 		note: '大游年翻卦变爻法生成;门主灶三要(3.9)/九星配六事(3.10)/静动变化宅(3.8)',
 	};

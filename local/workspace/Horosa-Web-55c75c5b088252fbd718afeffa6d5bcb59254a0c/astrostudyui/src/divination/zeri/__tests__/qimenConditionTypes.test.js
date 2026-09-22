@@ -252,8 +252,29 @@ describe('T1④ 基线盘断言 + canon + matchMode', ()=>{
 		// 旬首/符头:甲戌
 		expect(ev('xun_shou', { dim: 'xunShou', values: ['甲戌'] }).pass).toBe(true);
 		expect(ev('xun_shou', { dim: 'xunShou', values: ['甲子'] }).pass).toBe(false);
+		// [Q-271/ZC-26] 六仪档按旬首遁仪:甲戌遁己 → 「己」真、「戊」假(此前六仪五档恒假)
+		expect(ev('xun_shou', { dim: 'xunShou', values: ['己'] }).pass).toBe(true);
+		expect(ev('xun_shou', { dim: 'xunShou', values: ['戊'] }).pass).toBe(false);
 		// 暗干:anGanMode 默认关=各宫空,恒不命中(开关档语义;开启路径由主页盘测试盖)
 		expect(ev('an_ganzhi', { dim: 'anGan', values: ['甲'], palaces: [], matchMode: 'any' }).pass).toBe(false);
 	});
 
+});
+
+describe('[Q-274/T-256] 旺衰·限定宫位:数字选项值与字符串比对统一(此前限定宫位恒假)', ()=>{
+	it('palaces=[8](数字)与 ["8"](字符串)同判;全五态限定单宫必命中;限定宫外无命中态为假', ()=>{
+		const pan = panAt('2026-05-24', '15:30:00');
+		const ctx = makeQimenEvalCtx(pan);
+		const ev = (params)=>QIMEN_CONDITION_TYPES.wang_shuai.evaluate(pan, { road: 'door', states: ['旺', '相', '休', '囚', '死'], matchMode: 'any', ...params }, ctx);
+		expect(ev({ palaces: [8] }).pass).toBe(true);
+		expect(ev({ palaces: ['8'] }).pass).toBe(true);
+		expect(ev({ palaces: [8] }).actual).toBe(ev({ palaces: ['8'] }).actual);
+		expect(ev({ palaces: [] }).pass).toBe(true);
+		// 限定单宫 + 只取该宫实际态之外的态 → 假(证明 scope 真被限定)
+		const ws = ctx.wangShuai();
+		const cell = ws.palaces.find((c)=>`${c.palaceNum}` === '8');
+		const others = ['旺', '相', '休', '囚', '死'].filter((x)=>x !== cell.doorWangShuai);
+		expect(ev({ palaces: [8], states: others }).pass).toBe(false);
+		expect(ev({ palaces: [8], states: [cell.doorWangShuai] }).pass).toBe(true);
+	});
 });

@@ -26,7 +26,7 @@ export default function HuangliDayPopup({ row, onClose }){
 		>
 			<div
 				style={{
-					width: 430, maxHeight: '86vh', overflowY: 'auto', borderRadius: 12,
+					width: 430, maxHeight: 'calc(86 * var(--horosa-lvh, 1vh))', overflowY: 'auto', borderRadius: 12,
 					background: 'var(--horosa-astro-panel, #fff)', border: '1px solid rgba(148,163,184,.35)',
 					boxShadow: '0 18px 60px rgba(0,0,0,.4)', padding: 14,
 				}}

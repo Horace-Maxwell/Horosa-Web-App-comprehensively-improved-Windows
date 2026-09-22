@@ -123,11 +123,16 @@ describe('H10 golden 八路径(端到端;legacy 三值+v2 band 方向双锁)', (
 	});
 	it('⑧ 势均(无完成无破坏+两主中性)→ legacy even/v2 未定带', () => {
 		// 基础盘两主庙+角宫偏正(首版就地取材被 legacy 判 yes)——真势均须剥尊贵/出角宫。
+		// [Q-146/T-53] 另补一条「月对上升入相」:classic 口径改为按相位表自算后,本 fixture 的月
+		// 一条入相都没有 = 1647 义的空亡 → 空亡证词(负权 3)把「势均」压成 no。本路径要验的是
+		// 「无完成无破坏 + 两主中性」,不是空亡盘,故显式给月一条入相;选上升(非七政点)是为了
+		// 只解空、不给两主添任何证词(七政证词面不读四轴)。
 		const neutral = () => mkResult((x) => {
 			const mars = x.chart.objects.find((o) => o.id === 'Mars');
 			const venus = x.chart.objects.find((o) => o.id === 'Venus');
 			Object.assign(mars, { selfDignity: [], house: 'House2' });
 			Object.assign(venus, { selfDignity: [], house: 'House2' });
+			x.aspects.normalAsp.Moon.Applicative.push({ id: 'Asc', asp: 60, orb: 1.0 });
 		});
 		const j = judge(neutral(), { antiscia: false });
 		expect(j.perfection.perfects).toBe(false);

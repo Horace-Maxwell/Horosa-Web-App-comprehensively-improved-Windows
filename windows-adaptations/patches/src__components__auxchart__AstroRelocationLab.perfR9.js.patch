@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/auxchart/AstroRelocationLab.js b/astrostudyui/src/components/auxchart/AstroRelocationLab.js
-index 6a7c42ac..d3626e85 100644
+index e8174cb7..94bd8cd6 100644
 --- a/astrostudyui/src/components/auxchart/AstroRelocationLab.js
 +++ b/astrostudyui/src/components/auxchart/AstroRelocationLab.js
 @@ -18,6 +18,8 @@ import {
@@ -90,7 +90,7 @@ index 6a7c42ac..d3626e85 100644
  						<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'hidden' }}>
  							<AstroInfo mode="classical" height={tabHeight}
  								value={chartObj} fields={fields}
-@@ -235,19 +259,24 @@ class AstroRelocationLab extends Component{
+@@ -235,20 +259,25 @@ class AstroRelocationLab extends Component{
  								showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
  							/>
  						</div>
@@ -110,6 +110,7 @@ index 6a7c42ac..d3626e85 100644
  						<AstroAnalysisLab
  							value={chartObj}
  							height={tabHeight}
+ 							voidClassical={this.props.voidClassical}   /* [Q-149/T-56] 宿主链补传(格局页空亡古典义 / 仅本垣擢升互容) */
  						/>
 +						)}</FreezeSubTab>
  					</TabPane>

@@ -1,8 +1,8 @@
 // [SURF 战役 2026-08-19] 星盘设置「右栏消费链+全站宿主构参」表面一致性合同。
-// 背景:第六轮压测证活的是引擎端点,用户实测抓出「右栏表/盘面徽/全站断链宿主」三层表面断裂:
+// 背景:压测证活的是引擎端点,用户实测抓出「右栏表/盘面徽/全站断链宿主」三层表面断裂:
 //   ①Java AstroExtraController 白名单丢古典键(B 链全死) ②Python analyze_chart 未进临界区+
 //   行星时表双实现分裂 ③前端行星状态盘硬编码阈值+never 键消费组件无事件监听
-//   ④盘面增强(角宫下标取宫/RAMC NaN 判据) ⑤折线/量化盘/主限等 8 组构参零古典键。
+//   ④盘面增强(角宫下标取宫/RAMC NaN 判据) ⑤量化盘/主限等 8 组构参零古典键。
 // 本合同把五层修复全部机械锚死:回潮即红。判据=源码文本锚(与 preflight [SURF] 段同判据)。
 import fs from 'fs';
 import path from 'path';
@@ -153,7 +153,7 @@ describe('⑤ [SURF-T1] 推运组件古典键增量 merge 粘滞根除', ()=>{
 	});
 });
 
-describe('⑥ [SURF-R] 第二轮全面审查修复的机械看守', ()=>{
+describe('⑥ [SURF-R] 全面审查修复的机械看守', ()=>{
 	it('事盘设置键三方单源:保存/页面还原/AI 挂载共用 DIVINATION_CASE_SETTING_KEYS', ()=>{
 		const save = read('utils/divinationCaseSave.js');
 		expect(save.includes('export const DIVINATION_CASE_SETTING_KEYS')).toBe(true);
@@ -229,7 +229,7 @@ describe('⑥ [SURF-R] 第二轮全面审查修复的机械看守', ()=>{
 	});
 });
 
-describe('⑦ [SURF-R5] 第三轮审查修复的机械看守(竞态代际/恢复自愈/user 岁差全链)', ()=>{
+describe('⑦ [SURF-R5] 再审修复的机械看守(竞态代际/恢复自愈/user 岁差全链)', ()=>{
 	it('user 岁差三元段:natalClassicalParams/AI 推运构参/ZR 无头 builder/germany 构参四处在位', ()=>{
 		expect(read('components/astro/AstroExtraCommon.js').match(/natalClassicalParams[\s\S]{0,700}userAyanParamsFrom/)).toBeTruthy();
 		expect(read('utils/aiAnalysisContext.js').includes('[SURF-R5ai]')).toBe(true);

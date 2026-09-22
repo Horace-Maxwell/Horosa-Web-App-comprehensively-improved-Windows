@@ -1503,6 +1503,43 @@ export function normalizeIndiaAnnualChartType(value){
     return value === 'tithi' ? 'tithi' : 'varsha';
 }
 
+// [#80] 挂载分盘可选集单一真值源:挂载齿轮的「挂载分盘」与「附加分盘」两处选项、
+//   以及附加分盘简表的段内小标题都读它 —— 免得 D 序号与中文名在三处各写各的。
+export const INDIA_MOUNT_VARGA_OPTIONS = [
+    { value: 1, label: 'D1 命盘' }, { value: 2, label: 'D2 财富' }, { value: 3, label: 'D3 兄弟' },
+    { value: 4, label: 'D4 家宅' }, { value: 7, label: 'D7 子女' }, { value: 9, label: 'D9 婚姻' },
+    { value: 10, label: 'D10 事业' }, { value: 12, label: 'D12 父母' }, { value: 16, label: 'D16 车乘' },
+    { value: 20, label: 'D20 修行' }, { value: 24, label: 'D24 学业' }, { value: 27, label: 'D27 体力' },
+    { value: 30, label: 'D30 灾厄' }, { value: 40, label: 'D40 母系' }, { value: 45, label: 'D45 父系' },
+    { value: 60, label: 'D60 总业' },
+];
+export function indiaMountVargaLabel(chartnum){
+    const n = parseInt(chartnum, 10);
+    if(Number.isNaN(n) || n <= 0){ return ''; }
+    const hit = INDIA_MOUNT_VARGA_OPTIONS.find((o)=>o.value === n);
+    return hit ? hit.label : `D${n}`;
+}
+// 附加分盘:主盘之外再挂几张分盘的简表。上限 4 张(与 indiaVargaSet 同口径),
+// 去重并剔除主盘自身由调用方做(此处只做值域与数量归一)。空数组 = 现状零回归。
+export const INDIA_MOUNT_EXTRA_VARGA_MAX = 4;
+export function normalizeIndiaExtraVargas(value){
+    let raw = value;
+    if(typeof raw === 'string'){
+        raw = raw.trim() ? raw.split(/[,，\s]+/) : [];
+    }
+    if(!Array.isArray(raw)){ return []; }
+    const out = [];
+    raw.forEach((item)=>{
+        const n = parseInt(item, 10);
+        if(Number.isNaN(n) || n <= 1){ return; }
+        if(!INDIA_MOUNT_VARGA_OPTIONS.some((o)=>o.value === n)){ return; }
+        if(out.indexOf(n) >= 0){ return; }
+        if(out.length >= INDIA_MOUNT_EXTRA_VARGA_MAX){ return; }
+        out.push(n);
+    });
+    return out;
+}
+
 // ── W1-A 分盘变体(仅列引擎已实现集合,与后端 VARGA_VARIANT_CHOICES 锁死同构;
 //    默认全 standard = 零下发零回归。label 与引擎对照卡同名)──
 export const INDIA_VARGA_VARIANT_CHARTS = [
@@ -1642,7 +1679,7 @@ export function normalizeIndiaSchool(value){
     return INDIA_SCHOOL_OPTIONS.find((item)=>item.value === value) ? value : INDIA_SCHOOL_DEFAULT;
 }
 
-// ── 印占·大运流派开关(21 枚举键;引擎 dasha_variants.VARIANT_SPECS 同源镜像)──
+// ── 印占·大运流派开关(22 枚举键;引擎 dasha_variants.VARIANT_SPECS 同源镜像;[Q-135/T-43 (g)] 旧注写 21,实为 22)──
 // 🔴 默认值=现状行为字节零回归;文献另荐口径以「(文献…)」标注,绝不作缺省。标签中性化零作者名。
 export const INDIA_DASHA_VARIANT_GROUPS = [
     { key: 'nakshatra', label: '星宿大运' },
@@ -1679,10 +1716,10 @@ export const INDIA_DASHA_VARIANT_SPECS = [
       tip: 'Chakra(每座 10 年)的起座规则;黄昏窗权威未详按昼夜二分' },
     { key: 'varnadaPeriodRule', label: 'Varṇada 期长', group: 'jaimini', default: 'count_to_lord',
       options: [{ value: 'count_to_lord', label: '数到座主(默认)' }, { value: 'equal_nine', label: '等长(文献分歧)' }],
-      tip: '等长变体期长权威未详,选中亦按数到座主计算并注明' },
+      tip: '等长派:每座恒 9 年(首轮总 108,二轮 12−9=3);数到座主派:数至宫主为期(与 Nārāyaṇa 同核)。两派文献分歧,各自真算' },   // [Q-135/T-43 (a)] 旧文案「选中亦按数到座主」已过期,引擎早已真算等长
     { key: 'kalachakraCycle', label: '周期换接法', group: 'kalachakra', default: 'carry',
       options: [{ value: 'carry', label: '进位(默认)' }, { value: 'repeat', label: '循环' },
-                { value: 'same_nak_carry', label: '同宿进位' }, { value: 'reset', label: '归零' }],
+                { value: 'same_nak_carry', label: '同宿进位' }, { value: 'reset', label: '归零（现与「循环」同果）' }],   // [Q-136/T-44] 两档同分支
       tip: 'paramāyus 用尽后如何续轮;进位绝不跨 savya/apasavya 组;差异仅首轮后显现' },
     { key: 'kalachakraApplicability', label: '适用条件', group: 'kalachakra', default: 'universal',
       options: [{ value: 'universal', label: '普适(默认)' }, { value: 'navamsa_stronger', label: '月 navāṁśa 强才主用' }],
@@ -1694,16 +1731,18 @@ export const INDIA_DASHA_VARIANT_SPECS = [
       options: [{ value: 'auto', label: '自动(最强定法,默认)' }, { value: 'pindayu', label: 'Piṇḍāyu' },
                 { value: 'nisargayu', label: 'Nisargāyu' }, { value: 'amsayu', label: 'Aṁśāyu' }],
       tip: '{上升,日,月}最强者定法:日强→Piṇḍāyu/月强→Nisargāyu/上升强→Aṁśāyu;可手动指定' },
-    { key: 'nisargayuHarana', label: 'Nisargāyu 减算', group: 'ayus', default: 'none',
-      options: [{ value: 'none', label: '全期不减(默认)' }, { value: 'pindayu_like', label: '同 Piṇḍāyu 施减' }],
-      tip: '自然寿表原样,或施与 Piṇḍāyu 相同的弧缩放与减算' },
+    // [Q-139 裁决 2026-09-18] 缺省改「同 Piṇḍāyu 施减」(Jātaka Pārijāta 5.6 / 5.12–13:Nisargāyu 与 Piṇḍāyu 同法);「全期不减」与盘无关,改非缺省
+    { key: 'nisargayuHarana', label: 'Nisargāyu 减算', group: 'ayus', default: 'pindayu_like',
+      options: [{ value: 'pindayu_like', label: '同 Piṇḍāyu 施减(默认)' }, { value: 'none', label: '全期不减(与盘无关,仅参考)' }],
+      tip: '施与 Piṇḍāyu 相同的弧缩放与减算(默认);「全期不减」只按自然寿表原样合计,与行星位置无关' },
     { key: 'amsayuMultiplier', label: 'Aṁśāyu 倍数', group: 'ayus', default: 'majority_highest',
       options: [{ value: 'majority_highest', label: '多数派取最高(默认)' }, { value: 'bphs_literal', label: '古典逐字' },
                 { value: 'saravali_multiply', label: '相乘合并' }],
       tip: '庙旺/逆×3·自座/vargottama×2 的组合口径(重算总值)' },
-    { key: 'krurodayaDenominator', label: 'Krurodaya 分母', group: 'ayus', default: 'zodiac21600',
-      options: [{ value: 'zodiac21600', label: '角分/21600(默认)' }, { value: 'nav108', label: 'navāṁśa/108(文献推荐)' }],
-      tip: '凶星升上升时对总和一次减的分母口径' },
+    { key: 'krurodayaDenominator', label: 'Krurodaya 减式', group: 'ayus', default: 'zodiac21600',
+      options: [{ value: 'zodiac21600', label: '式 A:命宫座内角分/21600(默认)' }, { value: 'nav108', label: '式 B:全周 navāṁśa 序/108(文献推荐)' }],
+      // [Q-129/T-37·IN-11 ①] 两档不是同一量的两种分母:式 A 分子=命宫座内角分(0–1800),最多减总和的 1/12;式 B 分子=自白羊起的 navāṁśa 序(1–108),可减至近全额;量级差 1–23 倍
+      tip: '凶星升上升时对总和一次减的算式。两档不是同一量的两种分母:式 A=命宫座内角分(0–1800)/21600,最多减 1/12;式 B=自白羊起的 navāṁśa 序(1–108)/108,可减至近全额。改档即改判读总值' },
     { key: 'ayuClassBoundaries', label: '寿命档边界', group: 'ayus', default: 'bphs_32_64_120',
       options: [{ value: 'bphs_32_64_120', label: '32/64/120(默认)' }, { value: 'popular_32_70', label: '32/70' }],
       tip: '短/中/长寿分档锚点' },

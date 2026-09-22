@@ -9,12 +9,75 @@ import {
 	unwrapResult, chartParams, chartRequestKey, fmtNum, fmtDegree,
 	cardStyle, SmallTable, symbolWithMeaning,
 } from './AstroExtraCommon';
+import * as AstroText from '../../constants/AstroText';
+import * as AstroConst from '../../constants/AstroConst';
+import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+
+// [Q-185/T-107] 黄经 → { sign, signlon }(摘要卡日月各按自身黄经取座;非法黄经返 null → fmtDegree 出 '-')
+export function signItemOfLon(lon){
+	const n = Number(lon);
+	if(!Number.isFinite(n)){ return null; }
+	const norm = ((n % 360) + 360) % 360;
+	return { sign: AstroConst.LIST_SIGNS[Math.floor(norm / 30)], signlon: norm % 30 };
+}
 
 // ===== G11 产前朔望独立盘 =====
 // 自出生时刻回溯最近的朔(日月合)/望(日月冲),取更晚者为产前朔望;以该时刻为新「出生」时刻、
 // 出生地不变,调 /chart 排完整盘 → 中栏渲盘 + 右栏摘要卡。后端算法见 astroextra.compute_prenatal_syzygy。
-// AI 快照留 TODO 待主控接(不写 aiAnalysisContext)。
+// [Q-106/T-10] 上线为 AI 技法键 prenatalsyzygy:无头 builder 见 buildPrenatalSyzygySnapshotText(主控 aiAnalysisContext 接入)。
 const SYZYGY_TYPE_CN = { new: '朔（日月合）', full: '望（日月冲）' };
+
+const psBirthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
+const psCurrentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
+const psMethodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
+function psName(id){
+	if(id === undefined || id === null || id === ''){ return '-'; }
+	return AstroText.AstroTxtMsg[id] || `${id}`;
+}
+// 产前朔望快照(无头):/astroextra/prenatal_syzygy 求朔望 → 以该时刻排完整盘(/chart)列星体位置。求不得返回 ''。
+export async function buildPrenatalSyzygySnapshotText(chartObj){
+	if(!chartObj){ return ''; }
+	const base = chartParams(chartObj);
+	let s = null;
+	try{
+		const data = await request(`${Constants.ServerRoot}/astroextra/prenatal_syzygy`, { body: JSON.stringify(base), silent: true, timeoutMs: 30000 });
+		s = unwrapResult(data) || null;
+	}catch(e){ s = null; }
+	if(!s || !s.type){ return ''; }
+	const lines = [];
+	lines.push(...psBirthHeaderLines(chartObj));
+	lines.push('[产前朔望]');
+	lines.push(`类型：${SYZYGY_TYPE_CN[s.type] || s.type}`);
+	lines.push(`时刻：${s.datetime || '—'}`);
+	lines.push(`出生前：${s.daysBeforeBirth != null ? `${fmtNum(s.daysBeforeBirth, 2)} 天` : '—'}`);
+	lines.push(`取度发光体：${psName(s.hylegBody)}（${s.type === 'new' ? '朔→合相度' : '望→地平之上发光体度'}）`);
+	lines.push(`取度：${fmtDegree({ sign: s.hylegSign, signlon: s.hylegSignlon })}`);
+	const dt = splitDateTime(s.datetime);
+	let chart = null;
+	if(dt){
+		try{
+			const rsp = await fetchChart({ ...base, date: dt.date, time: dt.time });
+			chart = unwrapResult(rsp) || null;
+		}catch(e){ chart = null; }
+	}
+	lines.push('');
+	lines.push('[产前朔望盘·星体位置]');
+	const objs = chart && chart.chart && Array.isArray(chart.chart.objects) ? chart.chart.objects : [];
+	if(!objs.length){
+		lines.push('（产前朔望盘暂缺：未能以朔望时刻排盘。）');
+	}else{
+		lines.push('（以产前朔望时刻为出生时刻、出生地不变排盘。）');
+		lines.push('| 星体 | 星座 | 座内度 |');
+		lines.push('| --- | --- | --- |');
+		objs.forEach((o)=>{
+			if(!o || !o.id){ return; }
+			lines.push(`| ${psName(o.id)} | ${psName(o.sign)} | ${o.signlon !== undefined && o.signlon !== null ? fmtNum(o.signlon, 2) + '°' : '-'} |`);
+		});
+	}
+	const tail = [...psCurrentMomentLines(chartObj, []), ...psMethodNoteLines('prenatalsyzygy')];
+	if(tail.length){ lines.push(''); lines.push(...tail); }
+	return lines.join('\n');
+}
 
 function splitDateTime(s){
 	const str = `${s || ''}`.trim();
@@ -30,8 +93,20 @@ class AstroPrenatalSyzygy extends Component{
 		this.load = this.load.bind(this);
 	}
 
-	componentDidMount(){ this._mounted = true; this.load(); }
-	componentWillUnmount(){ this._mounted = false; }
+	// [Q-106/T-10] AI 导出:产前朔望 tab 导出时构建快照写回 detail.snapshotText。
+	handleSnapshotRefreshRequest(evt){
+		if(!evt || !evt.detail || evt.detail.module !== 'prenatalsyzygy' || !this.props.value){ return; }
+		buildPrenatalSyzygySnapshotText(this.props.value).then((txt)=>{ evt.detail.snapshotText = txt || ''; }).catch(()=>{});
+	}
+	componentDidMount(){
+		this._mounted = true; this.load();
+		this._onSnapshotRefresh = (evt)=>this.handleSnapshotRefreshRequest(evt);
+		if(typeof window !== 'undefined'){ window.addEventListener('horosa:refresh-module-snapshot', this._onSnapshotRefresh); }
+	}
+	componentWillUnmount(){
+		this._mounted = false;
+		if(typeof window !== 'undefined' && this._onSnapshotRefresh){ window.removeEventListener('horosa:refresh-module-snapshot', this._onSnapshotRefresh); }
+	}
 	componentDidUpdate(){
 		const key = chartRequestKey(this.props.value, 'prenatalsyzygy');
 		if(key && key !== this.state.key && !this.state.loading){ this.load(); }
@@ -65,8 +140,7 @@ class AstroPrenatalSyzygy extends Component{
 		if(!this._mounted){ return; }
 		// horosa_panel_ready_v1:朔望摘要 + 朔望盘两件都已就绪的那一次 setState(中栏盘与右栏同源)。
 		this.setState({ syzygy, chart, loading: false, key }, ()=>{ markPanelReady('direction'); });
-		// TODO(AI 快照):产前朔望快照由主控统一接入(不在此写 aiAnalysisContext);
-		// 待接入点 = 此处 syzygy + chart 已就绪,可构建「产前朔望」模块快照。
+		// [Q-106/T-10] AI 快照已由主控接入(aiAnalysisContext 'prenatalsyzygy' → buildPrenatalSyzygySnapshotText)。
 	}
 
 	renderSummary(){
@@ -97,8 +171,9 @@ class AstroPrenatalSyzygy extends Component{
 					]}
 				/>
 				<div style={{marginTop: 8, fontSize: 12.5, lineHeight: 2}}>
-					<div>{sm('Sun')} <span style={{opacity: 0.8}}>太阳</span> {fmtDegree({ sign: s.hylegSign, signlon: s.hylegBody === 'Sun' ? s.hylegSignlon : (s.sunLon % 30) })}</div>
-					<div>{sm('Moon')} <span style={{opacity: 0.8}}>月亮</span> {fmtDegree({ sign: (s.hylegBody === 'Moon' ? s.hylegSign : undefined), signlon: s.moonLon % 30, lon: s.moonLon })}</div>
+					{/* [Q-185/T-107] 日月各按自身黄经取座(此前太阳恒取取度发光体所在座、月亮非取度体时座为「-」:望且月在地平上的盘两行皆错) */}
+					<div>{sm('Sun')} <span style={{opacity: 0.8}}>太阳</span> {fmtDegree(signItemOfLon(s.sunLon))}</div>
+					<div>{sm('Moon')} <span style={{opacity: 0.8}}>月亮</span> {fmtDegree(signItemOfLon(s.moonLon))}</div>
 				</div>
 			</div>
 		);

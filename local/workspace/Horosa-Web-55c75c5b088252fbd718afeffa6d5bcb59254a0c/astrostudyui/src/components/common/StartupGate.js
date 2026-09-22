@@ -1,4 +1,5 @@
 import React from 'react';
+import { isDesktopBridgeAvailable, getDesktopInvokeApi } from '../../utils/aiAnalysisDesktop';
 import { ServerRoot } from '../../utils/constants';
 import { markServiceOnline } from '../../utils/serviceStatus';
 import { renegotiateLocalServerRoot } from '../../utils/backendIdentity';
@@ -115,18 +116,18 @@ export default function StartupGate() {
       .catch(() => { /* 仍不可达,继续显示 */ });
   };
 
-  const hasTauri = typeof window !== 'undefined' && !!window.__TAURI__;
+  const hasTauri = isDesktopBridgeAvailable();   // [FL-20260902-1] 打包版无 window.__TAURI__,只探它=按钮永不出现
   const restartBackend = () => {
     if (!hasTauri) return;
     try {
-      const api = window.__TAURI__.core || window.__TAURI__;
+      const api = getDesktopInvokeApi();
       if (api && api.invoke) api.invoke('trigger_runtime_repair_command');
     } catch (_) { /* swallow */ }
   };
   const openDiagnostics = () => {
     if (!hasTauri) return;
     try {
-      const api = window.__TAURI__.core || window.__TAURI__;
+      const api = getDesktopInvokeApi();
       if (api && api.invoke) api.invoke('open_diagnostics_window_command');
     } catch (_) { /* swallow */ }
   };

@@ -92,6 +92,26 @@ describe('T2 新写法:三种引擎语义下全部正确', () => {
 	});
 });
 
+describe('T2b 容器实测值不套版面地板(FL-20260906-30:缩放档裁底根因)', () => {
+	it('缩放 1.5 档、窗高 1000:容器 595 < 660 → 原样 595(不是 660)', () => {
+		expect(resolveWorkspaceHeight({
+			containerHeight: 595, layoutViewportHeight: 667, physicalClientHeight: 1000,
+			reserved: RESERVED, min: MIN,
+		})).toBe(595);
+	});
+	it('13 寸笔记本 900 高、1.5 档:容器 528 → 528', () => {
+		expect(resolveWorkspaceHeight({ containerHeight: 528, layoutViewportHeight: 600, physicalClientHeight: 900, reserved: RESERVED, min: MIN })).toBe(528);
+	});
+	it('容器量得过渡态垃圾值(< 合理性下限 200)→ 不当真值,回落到视口推导并套地板', () => {
+		expect(resolveWorkspaceHeight({ containerHeight: 120, layoutViewportHeight: 1125, physicalClientHeight: 900, reserved: RESERVED, min: MIN })).toBe(1053);
+		expect(resolveWorkspaceHeight({ containerHeight: 120, layoutViewportHeight: 500, physicalClientHeight: 500, reserved: RESERVED, min: MIN })).toBe(MIN);
+	});
+	it('containerMin 可调且缺省 200', () => {
+		expect(resolveWorkspaceHeight({ containerHeight: 250, layoutViewportHeight: 1125, physicalClientHeight: 900, reserved: RESERVED, min: MIN })).toBe(250);
+		expect(resolveWorkspaceHeight({ containerHeight: 250, containerMin: 300, layoutViewportHeight: 1125, physicalClientHeight: 900, reserved: RESERVED, min: MIN })).toBe(1053);
+	});
+});
+
 describe('T3 兜底与边界', () => {
 	it('两种直接量法都不可用 → 退物理读数(偏小可接受,拿错值铺死带不可接受)', () => {
 		expect(resolveWorkspaceHeight({

@@ -269,7 +269,7 @@
         color-scheme: dark;
     }
 
-    /* ── AI 报告正文排版系统(唯一消费方:报告详情 SectionMarkdown) ──
+    /* ── AI 长文排版系统(唯一消费方:SectionMarkdown) ──
        原为暗黑可读性兜底(antd 全局 reset 硬编码浅色字,var(--horosa-text) 两态自适应),
        现扩为完整排版:strong 金色强调(全站重点标注视觉)/标题阶梯/列表/引用块/表格斑马纹。
        全部走主题变量,亮暗两态自适应,勿写死色值。 */
@@ -1099,8 +1099,8 @@
 
     .horosa-workspace-shell .horosa-direction-page .horosa-geo-inline-row {
         display: grid !important;
-        grid-template-columns: minmax(86px, 1fr) 52px auto 60px auto;
-        gap: 6px !important;
+        grid-template-columns: minmax(60px, 1fr) 50px auto 56px auto; /* [窄布局 2026-09-17] 首列最小 86px 在 1.8 档右栏(实测 ~233px)里超宽、「分」格被裁;归零后「北纬」又被裁 → 60px(方向+箭头最小可读)+ 数值/分格各收 2~4px,总宽 218 ≤ 233;正常宽度 1fr 吃余量,数值格 50/56 仍容两位数 */
+        gap: 4px !important;
         align-items: center;
         width: 100%;
     }
@@ -2090,7 +2090,7 @@
 
     .horosa-workspace-shell .horosa-astro-layout {
         display: grid;
-        grid-template-columns: minmax(720px, 1fr) clamp(300px, 21vw, 338px);
+        grid-template-columns: minmax(0, 1fr) clamp(~"min(300px, calc(26 * var(--horosa-lvw, 1vw)))", calc(21 * var(--horosa-lvw, 1vw)), 338px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         gap: 1px;
         min-width: 0;
     }
@@ -2106,7 +2106,7 @@
 
     .horosa-workspace-shell .horosa-chart-body {
         display: grid;
-        grid-template-columns: clamp(210px, 14vw, 244px) minmax(0, 1fr);
+        grid-template-columns: clamp(210px, calc(14 * var(--horosa-lvw, 1vw)), 244px) minmax(0, 1fr);
         gap: 1px;
         min-width: 0;
         min-height: 0;
@@ -2609,20 +2609,26 @@
 
     .horosa-workspace-shell .horosa-bazi-summary-inner {
         display: flex;
+        /* [极档巡检 2026-09-18] 1.8 档中栏 269px:右侧三颗盘式按钮定宽 400px 把文案挤成 0 宽(逐字竖排、按钮压在字上)。
+           允许换行:文案基准宽 200px、按钮组可折行且不超行宽;≥700px 的常规宽度下仍是原来的单行(文案 214px + 按钮 400px 放得下)。 */
+        flex-wrap: wrap;
         align-items: center;
         gap: 16px;
         min-width: 0;
     }
 
     .horosa-workspace-shell .horosa-bazi-summary-copy {
-        flex: 1 1 auto;
+        flex: 1 1 200px;
         min-width: 0;
     }
 
     .horosa-workspace-shell .horosa-bazi-summary-style-actions {
         display: flex;
-        flex: 0 0 auto;
+        flex: 0 1 auto;
+        flex-wrap: wrap;
+        max-width: 100%;
         align-items: center;
+        justify-content: flex-end;
         gap: 28px;
         margin-left: auto;
         padding-right: 8px;
@@ -2948,7 +2954,9 @@
 
     .horosa-workspace-shell .horosa-bazi-main-stack {
         display: grid;
-        grid-template-rows: minmax(398px, 1.28fr) minmax(220px, 0.72fr);
+        /* 行的 px 下限不随壳缩放折算:1.8 档主栈只有 474px,398+220 的下限把两行撑到 626 → 盘槽被钉 398 而盘(JS 按 0.62 配比)只有 290,
+           槽底留 108px 死带,流年槽被顶出栈外裁掉。下限改 min(原值, 占比):栈够高(≥686,即 1.0 档常见窗口)时逐位等于原值,零回归。 */
+        grid-template-rows: minmax(~"min(398px, 58%)", 1.28fr) minmax(~"min(220px, 34%)", 0.72fr);
         gap: 8px;
         width: 100%;
         height: 100%;
@@ -2957,7 +2965,9 @@
     }
 
     .horosa-workspace-shell .horosa-bazi-main-stack-fine {
-        grid-template-rows: minmax(398px, 1.28fr) minmax(220px, 0.72fr);
+        /* 行的 px 下限不随壳缩放折算:1.8 档主栈只有 474px,398+220 的下限把两行撑到 626 → 盘槽被钉 398 而盘(JS 按 0.62 配比)只有 290,
+           槽底留 108px 死带,流年槽被顶出栈外裁掉。下限改 min(原值, 占比):栈够高(≥686,即 1.0 档常见窗口)时逐位等于原值,零回归。 */
+        grid-template-rows: minmax(~"min(398px, 58%)", 1.28fr) minmax(~"min(220px, 34%)", 0.72fr);
         gap: 8px;
     }
 
@@ -5152,6 +5162,56 @@
 
     .horosa-workspace-shell .horosa-cntradition-page > .ant-tabs-right {
         height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    /* Tabs 内容链定高(与 cnyibu / direction 同款)。
+       此前这页只补了皮(边框/背景/内距)没补高:antd 基线只给 holder flex:auto,content 与 tabpane 高度 auto 由子内容撑;
+       而三个子页的叶子又按「物理域窗口高 − 常数」写死 px(documentElement.clientHeight 在壳缩放下恒为物理值,可用空间却在布局域)。
+       真 WebKit 实测 1440×900:z=1.8 时 holder 424、内容 806/840/720 → 溢出 382/416/296 且无一层可滚;z<1 时盒子矮一截、底部留死带。
+       修法:整条链铺满面板,叶子用 fill 模式按容器定高(不需要知道 z,对任何引擎成立);pane 留纵滚作唯一出路。 */
+    .horosa-workspace-shell .horosa-cntradition-page > .ant-tabs-right > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-cntradition-page > .ant-tabs-right > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .horosa-cntradition-page > .ant-tabs-right > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+        height: 100%;
+        min-height: 0;
+    }
+    /* 5 级链:压过 antd 的 .ant-tabs-right>…>.ant-tabs-tabpane{padding-right:24px}(0,4,0),左右对称 12px,不留 24px 死竖条(cnyibu 同款)。 */
+    .horosa-workspace-shell .horosa-cntradition-page > .ant-tabs-right > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+        box-sizing: border-box;
+        padding: 10px 12px;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    /* 这页**没有**底部快捷栏,却在 :is(...) 组里吃了 var(--horosa-scroll-safe-bottom)=82px 的滚动安全内衬(配 box-sizing:border-box,
+       吃在叶子定高之内)—— 为一条不存在的坞白付 82px。照 3D 右栏 / 占星 info-scroll 的先例局部压平。 */
+    .horosa-workspace-shell .horosa-cntradition-page {
+        --horosa-scroll-safe-bottom: 12px;
+    }
+
+    /* fill 模式的内层 top Tabs(十二串宫「说明 / 查询」等):导航定高、内容链铺满、pane 自滚。 */
+    .horosa-workspace-shell .horosa-fill-tabs.ant-tabs {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+    .horosa-workspace-shell .horosa-fill-tabs.ant-tabs > .ant-tabs-nav {
+        flex: none;
+    }
+    .horosa-workspace-shell .horosa-fill-tabs.ant-tabs > .ant-tabs-content-holder {
+        flex: 1 1 0;
+        min-height: 0;
+    }
+    .horosa-workspace-shell .horosa-fill-tabs.ant-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .horosa-fill-tabs.ant-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+        height: 100%;
+        min-height: 0;
+    }
+    .horosa-workspace-shell .horosa-fill-tabs.ant-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+        overflow-x: hidden;
+        overflow-y: auto;
     }
 
     .horosa-workspace-shell .horosa-cnyibu-page {
@@ -5464,7 +5524,9 @@
 
     .horosa-workspace-shell .horosa-calendar-workbench {
         display: grid;
-        grid-template-columns: minmax(640px, 1fr) 300px;
+        grid-template-columns: minmax(0, 1fr) 300px; /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
+        /* 唯一一行显式钉死为容器高(同六壬 / 太乙 / 三式栅格):不写时隐式 auto 行按最高子项定尺,右侧详情栏内容一长,两栏一起长出容器被裁。 */
+        grid-template-rows: minmax(0, 1fr);
         gap: 14px;
         height: 100%;
         min-height: 0;
@@ -5872,7 +5934,7 @@
     /* ── 年度吉日榜（Modal 门户在 workspace-shell 外，选择器不带 shell 前缀；--horosa-* 变量在 :root 全局可用）── */
     .horosa-year-auspicious-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
     .horosa-year-auspicious-burial { color: var(--horosa-text-soft); font-size: 13px; }
-    .horosa-year-auspicious-list { max-height: 52vh; overflow: auto; }
+    .horosa-year-auspicious-list { max-height: calc(52 * var(--horosa-lvh, 1vh)); overflow: auto; }
     .horosa-year-auspicious-item { cursor: pointer; border-radius: 8px; padding: 8px 10px !important; transition: background 140ms ease; }
     .horosa-year-auspicious-item:hover { background: var(--horosa-accent-soft); }
     .horosa-year-auspicious-row { display: flex; flex-direction: column; gap: 6px; width: 100%; }
@@ -6182,7 +6244,7 @@
 
     .horosa-workspace-shell .horosa-3d-page {
         display: grid;
-        grid-template-columns: minmax(640px, 1fr) 360px;
+        grid-template-columns: minmax(0, 1fr) 360px; /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         gap: 10px;
         height: 100%;
         min-width: 980px;
@@ -6369,6 +6431,10 @@
 
     .horosa-workspace-shell .horosa-3d-canvas-wrap > div {
         border-radius: inherit;
+        /* [用户 APP 实报 2026-09-17:3D 星盘/分至 3D 盘缩放后画布矮一截或溢出] 画布宿主的高度由 JS 按「工作区高−50」写成
+           内联 px,与真正装它的这格(grid minmax(0,1fr),已是定高)对不上:0.7 档实测 1351 vs 格 1333 → 底部 18px 被裁,
+           别的档位则留白。宿主直接铺满本格(100%),px 估算作废;three 渲染尺寸随宿主 client 尺寸走(ResizeObserver)。 */
+        height: 100% !important;
     }
 
     .horosa-workspace-shell .horosa-3d-side {
@@ -7102,7 +7168,7 @@
     }
 
     .horosa-workspace-shell .horosa-astro-no-bottom-dock .horosa-astro-redesign-grid {
-        grid-template-columns: clamp(245px, 16vw, 285px) minmax(620px, 1fr) clamp(300px, 20vw, 350px) !important;
+        grid-template-columns: clamp(~"min(245px, calc(26 * var(--horosa-lvw, 1vw)))", calc(16 * var(--horosa-lvw, 1vw)), 285px) minmax(0, 1fr) clamp(~"min(300px, calc(30 * var(--horosa-lvw, 1vw)))", calc(20 * var(--horosa-lvw, 1vw)), 350px) !important; /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
     }
 
     /* 🔴 辅盘子盘(十三分/十二分/重置…)右栏加宽到与占星主页签同量级。
@@ -7111,7 +7177,7 @@
        中列硬下限必须同步松开 620→520(回到基线值):grid 自带 overflow:hidden,
        1280px 窄屏下 245+620+400 会溢出,加出来的宽度反而从右侧被裁掉(越改越糟)。 */
     .horosa-workspace-shell .horosa-auxchart-layout .horosa-astro-no-bottom-dock .horosa-astro-redesign-grid {
-        grid-template-columns: clamp(245px, 16vw, 285px) minmax(520px, 1fr) clamp(320px, 24vw, 400px) !important;
+        grid-template-columns: clamp(~"min(245px, calc(26 * var(--horosa-lvw, 1vw)))", calc(16 * var(--horosa-lvw, 1vw)), 285px) minmax(0, 1fr) clamp(~"min(320px, calc(30 * var(--horosa-lvw, 1vw)))", calc(24 * var(--horosa-lvw, 1vw)), 400px) !important; /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
     }
 
     /* 择日·天星择日:布局逐字复用辅盘三类(-page/-layout/-tabs),差异条全锁 .horosa-zeri-host。
@@ -7121,7 +7187,7 @@
        ② 择日无底部 QuickDock → 去掉辅盘 layout 的 64px dock 行,高度全给内容(用户圈报底部空带)。
        ③ 右栏判读页签紧凑化:antd 默认 tab 间距 32px 是七页签放不下的元凶,压到 12px。 */
     .horosa-workspace-shell .horosa-zeri-host .horosa-astro-no-bottom-dock .horosa-astro-redesign-grid {
-        grid-template-columns: clamp(245px, 16vw, 285px) minmax(520px, 1fr) clamp(350px, 22vw, 385px) !important;
+        grid-template-columns: clamp(~"min(245px, calc(26 * var(--horosa-lvw, 1vw)))", calc(16 * var(--horosa-lvw, 1vw)), 285px) minmax(0, 1fr) clamp(~"min(350px, calc(30 * var(--horosa-lvw, 1vw)))", calc(22 * var(--horosa-lvw, 1vw)), 385px) !important; /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
     }
 
     /* 占星主页 info-scroll 的 82px 底衬=var(--horosa-scroll-safe-bottom)(底部 dock 滚动安全区),
@@ -7162,7 +7228,7 @@
 
     .horosa-workspace-shell .horosa-astro-redesign-grid {
         display: grid;
-        grid-template-columns: clamp(285px, 20vw, 330px) minmax(520px, 1fr) clamp(335px, 25vw, 400px);
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)))", calc(20 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)))", calc(25 * var(--horosa-lvw, 1vw)), 400px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         gap: 4px;
         min-height: 0;
         overflow: hidden;
@@ -7977,6 +8043,17 @@
         max-height: 100% !important;
     }
 
+    /* 上一条只管到 pane 的**直接**子层。若那一层是 antd Spin(nested-loading),它里面的 container 是 auto 高块,
+       100% 链在此掐断:内层按 px 写死的滚动盒(组件拿 tabHeight=height−100 估的)比 pane 高,超出部分被 pane 的 overflow:hidden 裁掉,
+       盒内滚到底也看不见最后一截 —— 占星「格局」页签 838px 盒 / 802px pane,**默认 100% 档**即少 36px。接上 Spin 两层;
+       内容盒只在它是 container 的唯一子元素时才拉满(多子元素的面板不受影响)。 */
+    .horosa-workspace-shell .horosa-content-tabs .ant-tabs-tabpane > .ant-spin-nested-loading > .ant-spin-container,
+    .horosa-workspace-shell .horosa-content-tabs .ant-tabs-tabpane > .ant-spin-nested-loading > .ant-spin-container > :only-child {
+        height: 100% !important;
+        max-height: 100% !important;
+        box-sizing: border-box;
+    }
+
     /* === 相位面板美化（AstroAspect：标准/立即/星座相位 + 映点/反映点）。纯结构色，相位语义色不改。 === */
     .horosa-aspect-panel {
         padding: 4px 2px 12px;
@@ -8053,6 +8130,11 @@
     .horosa-aspect-panel .horosa-aspect-phase--separating {
         color: var(--horosa-astro-muted, #8a8f98);
         background: var(--horosa-surface-solid, rgba(127, 127, 127, 0.12));
+    }
+    // [Q-254/T-227] 正合(精确之刻,既非入相也非离相)单独一档:金色,与映点同族但不加粗
+    .horosa-aspect-panel .horosa-aspect-phase--exact {
+        color: var(--horosa-astro-gold, #b8860b);
+        background: var(--horosa-accent-soft, rgba(184, 134, 11, 0.12));
     }
     .horosa-aspect-panel .horosa-aspect-phase--anti,
     .horosa-aspect-panel .horosa-aspect-phase--canti {
@@ -8326,6 +8408,10 @@
         display: flex;
         flex-direction: column;
         gap: 8px;
+        /* 「行星」与「希腊点」两个滚动盒都在右栏定高容器里、位于底部快捷栏之上,不需要页级的滚动安全内衬(缺省 82px)。
+           那条内衬配 border-box 会让滚动盒最小高 = 82:放大档「希腊点」卡片只有一百来像素高时,盒子顶出卡片、底部被本容器裁掉且滚不到;
+           100% 档也白占列表末尾 82px。局部压平(先例:3D 右栏 / 占星 info-scroll / 辅助页)。 */
+        --horosa-scroll-safe-bottom: 8px;
     }
 
     // 主星(七政)块=第一个直接子(AstroPlanet 的 scrollbar div):占满剩余高度、可滚、大。
@@ -8628,7 +8714,7 @@
     }
 
     .horosa-guolao-quick-modal .ant-modal-body {
-        max-height: 72vh;
+        max-height: calc(72 * var(--horosa-lvh, 1vh));
         overflow: auto;
         padding: 20px;
     }
@@ -9034,7 +9120,7 @@
     }
 
     .horosa-workspace-shell .horosa-bazi-redesign .horosa-bazi-redesign-grid {
-        grid-template-columns: clamp(310px, 21vw, 350px) minmax(500px, 1fr) clamp(335px, 25vw, 400px);
+        grid-template-columns: clamp(~"min(310px, calc(26 * var(--horosa-lvw, 1vw)))", calc(21 * var(--horosa-lvw, 1vw)), 350px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)))", calc(25 * var(--horosa-lvw, 1vw)), 400px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         height: 100%;
         min-height: 0;
         align-items: stretch;
@@ -9227,7 +9313,7 @@
     }
 
     .horosa-settings-popover {
-        max-width: min(560px, calc(100vw - 36px));
+        max-width: ~"min(560px, calc(100 * var(--horosa-lvw, 1vw) - 36px))";
     }
 
     .horosa-settings-popover .ant-popover-inner {
@@ -9282,8 +9368,8 @@
 
     .horosa-settings-popover-panel {
         width: 430px;
-        max-width: calc(100vw - 48px);
-        max-height: min(620px, calc(100vh - 112px));
+        max-width: calc(100 * var(--horosa-lvw, 1vw) - 48px);
+        max-height: ~"min(620px, calc(100 * var(--horosa-lvh, 1vh) - 112px))";
         overflow: auto;
         padding: 16px;
     }
@@ -9306,7 +9392,7 @@
     }
 
     .horosa-settings-popover .horosa-selector-drawer {
-        max-height: min(520px, calc(100vh - 190px));
+        max-height: ~"min(520px, calc(100 * var(--horosa-lvh, 1vh) - 190px))";
         overflow: auto;
         padding-right: 4px;
     }
@@ -9475,7 +9561,7 @@
     .horosa-workspace-shell .horosa-dunjia-page .ant-spin-container > .ant-row,
     .horosa-workspace-shell .horosa-taiyi-page .ant-spin-container > .ant-row {
         display: grid !important;
-        grid-template-columns: minmax(540px, 1fr) clamp(340px, 27vw, 430px);
+        grid-template-columns: minmax(0, 1fr) clamp(~"min(340px, calc(26 * var(--horosa-lvw, 1vw)))", calc(27 * var(--horosa-lvw, 1vw)), 430px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         gap: 4px;
         height: 100%;
         min-height: 0;
@@ -10137,7 +10223,7 @@
 
     .horosa-workspace-shell .horosa-ziwei-redesign .horosa-ziwei-redesign-grid {
         display: grid !important;
-        grid-template-columns: clamp(285px, 20vw, 330px) minmax(520px, 1fr) clamp(335px, 25vw, 400px);
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)))", calc(20 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)))", calc(25 * var(--horosa-lvw, 1vw)), 400px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         gap: 4px;
         height: 100%;
         min-height: 0;
@@ -10499,8 +10585,8 @@
     }
 
     .horosa-workspace-shell .horosa-ziwei-redesign .horosa-ziwei-chart-viewport {
-        width: 74vh;
-        height: 74vh;
+        width: calc(74 * var(--horosa-lvh, 1vh));
+        height: calc(74 * var(--horosa-lvh, 1vh));
         overflow: hidden;
     }
 
@@ -10694,7 +10780,7 @@
     }
 
     .horosa-ziwei-center-info-modal .ant-modal-body {
-        max-height: 72vh;
+        max-height: calc(72 * var(--horosa-lvh, 1vh));
         overflow: auto;
     }
 
@@ -10765,7 +10851,7 @@
 
     .horosa-workspace-shell .horosa-guolao-redesign .horosa-guolao-redesign-grid {
         display: grid !important;
-        grid-template-columns: clamp(315px, 21vw, 360px) minmax(500px, 1fr) clamp(335px, 25vw, 400px);
+        grid-template-columns: clamp(~"min(315px, calc(26 * var(--horosa-lvw, 1vw)))", calc(21 * var(--horosa-lvw, 1vw)), 360px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)))", calc(25 * var(--horosa-lvw, 1vw)), 400px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         gap: 4px;
         min-height: 0;
         height: 100%;
@@ -10835,15 +10921,15 @@
         flex-direction: column;
         gap: 12px;
         min-width: 0;
-        // 🔴 flex-shrink:0 —— stack 是弹性列面板(如折线)的 flex 子;若允许收缩(min-height:0+默认
-        //    flex-shrink:1),内容超高的节(折线「技法」30+勾选)会把 stack 压扁、节内容溢出遮住下方动作钮。
+        // 🔴 flex-shrink:0 —— stack 是弹性列面板的 flex 子;若允许收缩(min-height:0+默认
+        //    flex-shrink:1),内容超高的节(一节 30+ 勾选)会把 stack 压扁、节内容溢出遮住下方动作钮。
         //    钉死不收缩 → stack 取内容全高,由外层面板 overflow:auto 滚动,动作钮永远在其下方。
         flex-shrink: 0;
     }
 
     // 🔴 全左栏 *-input-stack 一律 flex-shrink:0 —— 各技法私有 stack 分叉(bazi/ziwei/guolao/india/
     //    liureng/dunjia/taiyi/suzhan/jinkou/guazhan/sanshi/kinastro/tarot…)都带 min-height:0,在弹性列
-    //    面板里会被超高节压扁致内容溢出遮住下方按钮(折线动作钮遮挡同源)。一处兜住全族,不再逐个漏。
+    //    面板里会被超高节压扁致内容溢出遮住下方按钮(动作钮被遮挡同源)。一处兜住全族,不再逐个漏。
     .horosa-workspace-shell [class*='-input-stack'] {
         flex-shrink: 0;
     }
@@ -11082,7 +11168,7 @@
         max-height: 880px;
         min-width: 0;
         min-height: 0;
-        padding: clamp(10px, 1.2vw, 16px);
+        padding: clamp(10px, calc(1.2 * var(--horosa-lvw, 1vw)), 16px);
         border: 1px solid rgba(215, 173, 105, 0.2);
         border-radius: 8px;
         background: radial-gradient(circle at 50% 46%, rgba(215, 173, 105, 0.08), transparent 42%), #08141d;
@@ -11137,7 +11223,7 @@
 
     .horosa-workspace-shell .horosa-qizheng-kin-house-head strong {
         color: var(--horosa-astro-gold);
-        font-size: clamp(16px, 1.18vw, 20px);
+        font-size: clamp(16px, calc(1.18 * var(--horosa-lvw, 1vw)), 20px);
         font-weight: 820;
         line-height: 1.1;
         white-space: nowrap;
@@ -11181,7 +11267,7 @@
 
     .horosa-workspace-shell .horosa-qizheng-kin-planet b {
         color: var(--horosa-astro-text);
-        font-size: clamp(13px, 0.92vw, 15px);
+        font-size: clamp(13px, calc(0.92 * var(--horosa-lvw, 1vw)), 15px);
         font-weight: 840;
         line-height: 1.05;
     }
@@ -11248,7 +11334,7 @@
     .horosa-workspace-shell .horosa-qizheng-kin-center h3 {
         margin: 0;
         color: var(--horosa-astro-text);
-        font-size: clamp(24px, 2.2vw, 36px);
+        font-size: clamp(24px, calc(2.2 * var(--horosa-lvw, 1vw)), 36px);
         font-weight: 830;
         letter-spacing: 0;
     }
@@ -11611,7 +11697,7 @@
 
     .horosa-workspace-shell .horosa-india-redesign .horosa-india-redesign-grid {
         display: grid !important;
-        grid-template-columns: clamp(305px, 21vw, 350px) minmax(500px, 1fr) clamp(335px, 25vw, 400px);
+        grid-template-columns: clamp(~"min(305px, calc(26 * var(--horosa-lvw, 1vw)))", calc(21 * var(--horosa-lvw, 1vw)), 350px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)))", calc(25 * var(--horosa-lvw, 1vw)), 400px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         gap: 4px;
         min-height: 0;
         height: 100%;
@@ -12072,7 +12158,7 @@
         display: grid !important;
         /* 显式锁死隐式行:不声明时靠各 panel min-height:0 间接收敛,一旦失败中间栏 host 比可视区高 → 图面越底 */
         grid-template-rows: minmax(0, 1fr);
-        grid-template-columns: clamp(285px, 20vw, 330px) minmax(520px, 1fr) clamp(335px, 25vw, 400px);
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)))", calc(20 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)))", calc(25 * var(--horosa-lvw, 1vw)), 400px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         gap: 4px;
         min-height: 0;
         height: 100%;
@@ -12533,7 +12619,7 @@
 
     .horosa-workspace-shell .horosa-dunjia-redesign .horosa-dunjia-redesign-grid {
         display: grid !important;
-        grid-template-columns: clamp(280px, 19vw, 320px) minmax(520px, 1fr) clamp(400px, 28vw, 560px);
+        grid-template-columns: clamp(~"min(280px, calc(26 * var(--horosa-lvw, 1vw)))", calc(19 * var(--horosa-lvw, 1vw)), 320px) minmax(0, 1fr) clamp(~"min(400px, calc(30 * var(--horosa-lvw, 1vw)))", calc(28 * var(--horosa-lvw, 1vw)), 560px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         gap: 4px;
         min-height: 0;
         height: 100%;
@@ -12600,7 +12686,7 @@
         }
 
         .horosa-workspace-shell .horosa-dunjia-redesign .horosa-dunjia-chart-panel {
-            height: ~"min(760px, 148vw)";
+            height: ~"min(760px, calc(148 * var(--horosa-lvw, 1vw)))";
             min-height: 520px;
             overflow: hidden;
         }
@@ -12827,18 +12913,23 @@
 
     .horosa-workspace-shell .horosa-dunjia-board-host {
         display: flex;
-        align-items: center;
-        justify-content: center;
+        /* [极档巡检 2026-09-18] 原 center/center + 舞台 overflow:hidden:1.8 档中栏 361×440 放不下按比例下限撑住的盘
+           (表头跑到舞台上方 57px、九宫第三列被右侧裁掉且滚不到)。改顶/左对齐 + 壳 margin:auto(放得下时照旧居中)+ overflow:auto
+           (宁可滚、不能裁);1.0 档(盘 ≤ 中栏)零变化。同批:DunJiaMain.calcBoardScale 的缩放下限改按视觉底线(÷z)。 */
+        align-items: flex-start;
+        justify-content: flex-start;
         width: 100%;
         height: 100%;
         min-width: 0;
         min-height: 0;
+        overflow: auto;
     }
 
     .horosa-workspace-shell .horosa-dunjia-board-shell {
         position: relative;
         flex: 0 0 auto;
         overflow: visible;
+        margin: auto !important;
     }
 
     .horosa-workspace-shell .horosa-dunjia-board-summary {
@@ -12940,7 +13031,7 @@
         display: grid !important;
         /* 显式锁死隐式行:不声明时靠各 panel min-height:0 间接收敛,一旦失败中间栏 host 比可视区高 → 图面越底 */
         grid-template-rows: minmax(0, 1fr);
-        grid-template-columns: clamp(285px, 20vw, 330px) minmax(520px, 1fr) clamp(335px, 25vw, 400px);
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)))", calc(20 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)))", calc(25 * var(--horosa-lvw, 1vw)), 400px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         gap: 4px;
         min-height: 0;
         height: 100%;
@@ -13328,11 +13419,13 @@
         min-height: 0;
     }
 
+    /* 放大档右列放不下「选择行 + 页签区」时整列纵滚(页签区留 240px 可读底线),不再把选择行裁在列外、页签区压成 0。 */
     .horosa-workspace-shell .horosa-tongshefa-right-col {
         display: flex;
         flex-direction: column;
         min-height: 0;
-        overflow: hidden;
+        overflow-x: hidden;
+        overflow-y: auto;
     }
 
     .horosa-workspace-shell .horosa-tongshefa-right-col > .ant-row,
@@ -13354,7 +13447,7 @@
         display: flex;
         flex: 1 1 auto;
         flex-direction: column;
-        min-height: 0;
+        min-height: 240px;
         overflow: hidden;
     }
 
@@ -13543,7 +13636,7 @@
 
     .horosa-workspace-shell .horosa-suzhan-redesign .horosa-suzhan-redesign-grid {
         display: grid !important;
-        grid-template-columns: clamp(285px, 20vw, 330px) minmax(520px, 1fr) clamp(335px, 25vw, 400px);
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)))", calc(20 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)))", calc(25 * var(--horosa-lvw, 1vw)), 400px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         gap: 4px;
         min-height: 0;
         height: 100%;
@@ -13818,7 +13911,7 @@
 
     .horosa-workspace-shell .horosa-jinkou-redesign .horosa-jinkou-redesign-grid {
         display: grid !important;
-        grid-template-columns: clamp(285px, 20vw, 330px) minmax(520px, 1fr) clamp(335px, 25vw, 400px);
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)))", calc(20 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)))", calc(25 * var(--horosa-lvw, 1vw)), 400px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         gap: 4px;
         min-height: 0;
         height: 100%;
@@ -14785,7 +14878,7 @@
 
     .horosa-workspace-shell .horosa-huangji-redesign .horosa-huangji-redesign-grid {
         display: grid !important;
-        grid-template-columns: clamp(285px, 20vw, 330px) minmax(520px, 1fr) clamp(335px, 25vw, 400px);
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)))", calc(20 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)))", calc(25 * var(--horosa-lvw, 1vw)), 400px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         gap: 4px;
         height: 100%;
         min-height: 0;
@@ -14955,7 +15048,8 @@
     /* [盘放大] 原盘只占 stage 宽 82%、四周留白过大(实测 820 于 1034 stage)。放宽到 94%(上限抬到 1200)
        让盘吃满横向可用空间——盘内网格卡按 1fr 随之等比放大。地占页已 override width:100% 不受此影响。 */
     .horosa-workspace-shell .horosa-huangji-board-host {
-        width: clamp(640px, 94%, 1200px);
+        /* [issue #57 2026-09-18] 上限随布局视口放大:zoom=1(lvw≈17.3)70·lvw≈1210 ≈ 原 1200;0.7 档 ~1728(再被 94% 封顶) */
+        width: clamp(640px, 94%, ~"max(1200px, calc(70 * var(--horosa-lvw, 1vw)))");
         max-width: 100%;
         min-width: 0;
         max-height: 100%;
@@ -14964,10 +15058,10 @@
 
     .horosa-workspace-shell .horosa-huangji-board {
         display: flex;
-        min-height: clamp(560px, 72vh, 760px);
+        min-height: clamp(560px, calc(72 * var(--horosa-lvh, 1vh)), 760px);
         flex-direction: column;
         gap: 14px;
-        padding: clamp(18px, 2.2vw, 28px);
+        padding: clamp(18px, calc(2.2 * var(--horosa-lvw, 1vw)), 28px);
         border: 1px solid var(--horosa-huangji-line);
         border-radius: 8px;
         background: radial-gradient(circle at 50% 0%, rgba(214, 167, 85, 0.12), transparent 30%), rgba(0, 0, 0, 0.16);
@@ -15290,7 +15384,7 @@
     }
 
     .horosa-workspace-shell .horosa-wuzhao-redesign .horosa-huangji-redesign-grid {
-        grid-template-columns: clamp(285px, 19vw, 330px) minmax(560px, 1fr) clamp(335px, 25vw, 400px);
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)))", calc(19 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)))", calc(25 * var(--horosa-lvw, 1vw)), 400px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
     }
 
     /* ===== 左栏展宽态 =====
@@ -15389,10 +15483,10 @@
 
     .horosa-workspace-shell .horosa-wuzhao-board {
         display: flex;
-        min-height: clamp(520px, 68vh, 740px);
+        min-height: clamp(520px, calc(68 * var(--horosa-lvh, 1vh)), 740px);
         flex-direction: column;
         gap: 14px;
-        padding: clamp(18px, 2.2vw, 28px);
+        padding: clamp(18px, calc(2.2 * var(--horosa-lvw, 1vw)), 28px);
         border: 1px solid var(--horosa-huangji-line);
         border-radius: 8px;
         background: radial-gradient(circle at 50% 0%, rgba(214, 167, 85, 0.12), transparent 30%), rgba(0, 0, 0, 0.16);
@@ -15887,7 +15981,7 @@
     }
 
     .horosa-workspace-shell .horosa-taixuan-redesign .horosa-huangji-redesign-grid {
-        grid-template-columns: clamp(285px, 19vw, 330px) minmax(560px, 1fr) clamp(335px, 25vw, 400px);
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)))", calc(19 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)))", calc(25 * var(--horosa-lvw, 1vw)), 400px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
     }
 
     .horosa-workspace-shell .horosa-taixuan-note {
@@ -15899,10 +15993,10 @@
 
     .horosa-workspace-shell .horosa-taixuan-board {
         display: flex;
-        min-height: clamp(520px, 68vh, 740px);
+        min-height: clamp(520px, calc(68 * var(--horosa-lvh, 1vh)), 740px);
         flex-direction: column;
         gap: 14px;
-        padding: clamp(18px, 2.2vw, 28px);
+        padding: clamp(18px, calc(2.2 * var(--horosa-lvw, 1vw)), 28px);
         border: 1px solid var(--horosa-huangji-line);
         border-radius: 8px;
         background: radial-gradient(circle at 50% 0%, rgba(214, 167, 85, 0.12), transparent 30%), rgba(0, 0, 0, 0.16);
@@ -15932,6 +16026,51 @@
         min-height: 0;
         grid-template-columns: minmax(220px, 0.82fr) minmax(0, 1.18fr);
         gap: 10px;
+    }
+
+    /* [第五轮巡检 2026-09-18] 1.8 档中栏只剩 ~170px:左列 220px 底线把右列(文卡)压到 0 宽 → 文字逐字竖排(太玄 / 神易数 / 荆诀同一栅格)。
+       盘面宿主作容器查询源,盘宽 < 480px 时退单列(文卡满宽);常规宽度逐字不变。旧引擎不识 @container → 沿用旧规则(旧机不缩布局视口,本就不触发)。 */
+    .horosa-workspace-shell .horosa-taixuan-board {
+        container-type: inline-size;
+    }
+
+    /* css-modules 不把 :global{} 透进未知 at-rule(@container 内的类名会被哈希 → 永不命中,第五轮实抓),故块内显式 :global()。 */
+    @container (max-width: 480px) {
+        :global(.horosa-workspace-shell .horosa-taixuan-main-grid) {
+            grid-template-columns: minmax(0, 1fr);
+        }
+    }
+
+    /* [第五轮巡检 2026-09-18] 五兆盘 1.8 档中栏 ~200px:四列信息卡 / 三列位卡每格只剩一字宽、干支条叠成一团(逐字竖排指标实抓)。
+       盘作容器查询源,< 480px 时信息卡两列、干支五格改三列、位卡两列(保 120px 底线,放不下由宿主横滚);五宫环盘本就带 px 底线,宿主可横滚。 */
+    .horosa-workspace-shell .horosa-wuzhao-board {
+        container-type: inline-size;
+    }
+
+    @container (max-width: 480px) {
+        :global(.horosa-workspace-shell .horosa-wuzhao-meta-grid) {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        :global(.horosa-workspace-shell .horosa-wuzhao-meta-grid .horosa-huangji-ganzhi-grid) {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        :global(.horosa-workspace-shell .horosa-wuzhao-board-grid) {
+            grid-template-columns: repeat(2, minmax(120px, 1fr));
+        }
+    }
+
+    /* 同族:小成图 / 六宫 / 九宫卡格在 ~200px 中栏里三列每格 30px → 窄盘时格给 72px 底线,盘宿主横滚(宁可滚、不能挤成竖排)。
+       选择器权重须压过后文 `.horosa-huangji-redesign .horosa-cnx-grid.is-cols-3`(0,4,0),故写到 0,5,0;常规宽度不进容器查询,零变化。 */
+    .horosa-workspace-shell .horosa-cnx-board {
+        container-type: inline-size;
+    }
+    @container (max-width: 480px) {
+        :global(.horosa-workspace-shell .horosa-huangji-redesign .horosa-cnx-board .horosa-cnx-grid.is-cols-3) {
+            grid-template-columns: repeat(3, minmax(72px, 1fr));
+        }
+        :global(.horosa-workspace-shell .horosa-huangji-redesign .horosa-huangji-board-host > .horosa-cnx-board) {
+            overflow-x: auto;
+        }
     }
 
     .horosa-workspace-shell .horosa-taixuan-symbol-card,
@@ -15995,7 +16134,7 @@
         overflow: hidden;
         color: var(--horosa-huangji-text);
         font-family: Menlo, Monaco, Consolas, monospace;
-        font-size: clamp(16px, 1.45vw, 23px);
+        font-size: clamp(16px, calc(1.45 * var(--horosa-lvw, 1vw)), 23px);
         line-height: 1.1;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -16053,7 +16192,7 @@
     }
 
     .horosa-workspace-shell .horosa-jingjue-board {
-        min-height: clamp(500px, 64vh, 700px);
+        min-height: clamp(500px, calc(64 * var(--horosa-lvh, 1vh)), 700px);
     }
 
     .horosa-workspace-shell .horosa-jingjue-group-stack {
@@ -16090,7 +16229,7 @@
     .horosa-workspace-shell .horosa-jingjue-group-row strong {
         overflow: hidden;
         color: var(--horosa-huangji-text);
-        font-size: clamp(18px, 1.35vw, 24px);
+        font-size: clamp(18px, calc(1.35 * var(--horosa-lvw, 1vw)), 24px);
         line-height: 1.1;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -16116,7 +16255,7 @@
     }
 
     .horosa-workspace-shell .horosa-shenyishu-board {
-        min-height: clamp(520px, 66vh, 720px);
+        min-height: clamp(520px, calc(66 * var(--horosa-lvh, 1vh)), 720px);
     }
 
     .horosa-workspace-shell .horosa-shenyishu-pillar-grid,
@@ -16166,7 +16305,7 @@
     .horosa-workspace-shell .horosa-shenyishu-shensha-card strong {
         overflow: hidden;
         color: var(--horosa-huangji-text);
-        font-size: clamp(17px, 1.25vw, 22px);
+        font-size: clamp(17px, calc(1.25 * var(--horosa-lvw, 1vw)), 22px);
         line-height: 1.15;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -16291,7 +16430,7 @@
     }
 
     .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-grid.has-technique-rail {
-        grid-template-columns: clamp(285px, 18vw, 330px) minmax(560px, 1fr) clamp(335px, 23vw, 410px) clamp(86px, 6vw, 110px) !important;
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)))", calc(18 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)))", calc(23 * var(--horosa-lvw, 1vw)), 410px) clamp(86px, calc(6 * var(--horosa-lvw, 1vw)), 110px) !important; /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
     }
 
     .horosa-workspace-shell .horosa-kinastro-redesign .horosa-huangji-redesign-layout {
@@ -16374,7 +16513,7 @@
 
     .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-select-grid-tieban {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        max-height: calc(100vh - 350px);
+        max-height: calc(100 * var(--horosa-lvh, 1vh) - 350px);
         overflow-y: auto;
         padding-right: 2px;
     }
@@ -16389,14 +16528,14 @@
 
     .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-select-grid-nanji {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        max-height: calc(100vh - 350px);
+        max-height: calc(100 * var(--horosa-lvh, 1vh) - 350px);
         overflow-y: auto;
         padding-right: 2px;
     }
 
     .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-select-grid-chunzi {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        max-height: calc(100vh - 350px);
+        max-height: calc(100 * var(--horosa-lvh, 1vh) - 350px);
         overflow-y: auto;
         padding-right: 2px;
     }
@@ -16503,7 +16642,8 @@
     }
 
     .horosa-workspace-shell .horosa-kinastro-board-host {
-        width: ~"min(100%, 1180px)";
+        /* [issue #57 2026-09-18] 宿主上限随布局视口放大(68·lvw:zoom=1 ≈1175 ≈ 原 1180) */
+        width: ~"min(100%, max(1180px, calc(68 * var(--horosa-lvw, 1vw))))";
         height: 100%;
         min-width: 0;
         min-height: 0;
@@ -16513,7 +16653,7 @@
     }
 
     .horosa-workspace-shell .horosa-kinastro-board {
-        width: clamp(620px, 74vw, 1040px);
+        width: clamp(620px, calc(74 * var(--horosa-lvw, 1vw)), 1040px);
         max-width: 100%;
         max-height: 100%;
         margin-right: auto;
@@ -16557,39 +16697,39 @@
 
     .horosa-workspace-shell .horosa-kinastro-cetian-board,
     .horosa-workspace-shell .horosa-kinastro-xianqin-board {
-        width: clamp(760px, 78vw, 1180px);
+        width: clamp(760px, calc(78 * var(--horosa-lvw, 1vw)), 1180px);
         overflow: hidden;
     }
 
     .horosa-workspace-shell .horosa-kinastro-tieban-board {
-        width: clamp(680px, 72vw, 1040px);
+        width: clamp(680px, calc(72 * var(--horosa-lvw, 1vw)), 1040px);
         overflow-x: hidden;
         overflow-y: auto;
     }
 
     .horosa-workspace-shell .horosa-kinastro-fendjing-board {
-        width: clamp(700px, 70vw, 1020px);
+        width: clamp(700px, calc(70 * var(--horosa-lvw, 1vw)), 1020px);
         overflow-y: auto;
         overflow-x: hidden;
         overscroll-behavior: contain;
     }
 
     .horosa-workspace-shell .horosa-kinastro-beiji-board {
-        width: clamp(720px, 72vw, 1060px);
+        width: clamp(720px, calc(72 * var(--horosa-lvw, 1vw)), 1060px);
         overflow-y: auto;
         overflow-x: hidden;
         overscroll-behavior: contain;
     }
 
     .horosa-workspace-shell .horosa-kinastro-nanji-board {
-        width: clamp(760px, 72vw, 1080px);
+        width: clamp(760px, calc(72 * var(--horosa-lvw, 1vw)), 1080px);
         overflow-y: auto;
         overflow-x: hidden;
         overscroll-behavior: contain;
     }
 
     .horosa-workspace-shell .horosa-kinastro-chunzi-board {
-        width: clamp(760px, 72vw, 1080px);
+        width: clamp(760px, calc(72 * var(--horosa-lvw, 1vw)), 1080px);
         overflow-y: auto;
         overflow-x: hidden;
         overscroll-behavior: contain;
@@ -16632,8 +16772,8 @@
         /* 正方形以视高(vh)为基、px 封顶——与可用的紫微盘(.horosa-ziwei-chart-viewport 纯 vh)同口径。
            关键:绝不用 height:100%/min(...,100%,...)——父(flex 居中、无确定高)会让百分比高循环解析为 ~0,
            配 transition 就「逐渐缩成一条线」。纯 vh 永远可解析、宽高相等即正方,绝不塌缩。 */
-        width: ~"min(80vh, 880px)";
-        height: ~"min(80vh, 880px)";
+        width: ~"min(calc(80 * var(--horosa-lvh, 1vh)), 880px)";
+        height: ~"min(calc(80 * var(--horosa-lvh, 1vh)), 880px)";
         max-width: 100%;
         overflow: hidden;
         transition: none;
@@ -17014,7 +17154,7 @@
         gap: 7px;
         margin-top: 12px;
         aspect-ratio: 1.42 / 1;
-        height: clamp(430px, 64vh, 660px);
+        height: clamp(430px, calc(64 * var(--horosa-lvh, 1vh)), 660px);
         min-height: 0;
         max-height: calc(100% - 62px);
     }
@@ -17056,13 +17196,13 @@
 
     .horosa-workspace-shell .horosa-kinastro-cetian-cell .is-main {
         color: var(--horosa-ziwei-star-main);
-        font-size: clamp(16px, 1.25vw, 20px);
+        font-size: clamp(16px, calc(1.25 * var(--horosa-lvw, 1vw)), 20px);
         font-weight: 820;
     }
 
     .horosa-workspace-shell .horosa-kinastro-cetian-cell .is-aux {
         color: var(--horosa-ziwei-star-assist);
-        font-size: clamp(12px, 0.82vw, 14px);
+        font-size: clamp(12px, calc(0.82 * var(--horosa-lvw, 1vw)), 14px);
         font-weight: 680;
     }
 
@@ -17298,7 +17438,7 @@
 
     .horosa-workspace-shell .horosa-guazhan-redesign .horosa-guazhan-redesign-grid {
         display: grid !important;
-        grid-template-columns: clamp(285px, 20vw, 330px) minmax(520px, 1fr) clamp(335px, 25vw, 400px);
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)))", calc(20 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)))", calc(25 * var(--horosa-lvw, 1vw)), 400px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         gap: 4px;
         min-height: 0;
         height: 100%;
@@ -18143,7 +18283,10 @@
     }
 
     .horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-redesign-layout {
-        grid-template-rows: minmax(0, 1fr) 58px;
+        /* 坞行必须 ≡ 坞盒高(全站单源 --horosa-bottom-dock-height)。此前写裸 58px,而坞盒被钉 64px:
+           坞下缘恒溢出 6 CSS px,被本层 overflow:hidden 与窗口底边切掉(真 WebKit 实测 0.7~1.8 各档溢出 4~11 视觉 px)。
+           全站同族页一律 minmax(0,1fr) 64px,只有三式写了裸 58。 */
+        grid-template-rows: minmax(0, 1fr) var(--horosa-bottom-dock-height);
         gap: 4px;
         height: 100% !important;
         max-height: 100%;
@@ -18159,7 +18302,10 @@
 
     .horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-redesign-grid {
         display: grid !important;
-        grid-template-columns: clamp(285px, 20vw, 330px) minmax(480px, 1fr) clamp(380px, 28vw, 500px);
+        /* 显式锁死隐式行(与六壬 / 太乙方盘同款):不声明时靠各 panel min-height:0 间接收敛,一旦失败中间栏 host 比可视区高 → 方盘越底。
+           三式是同族第三张方盘,此前只给六壬与太乙补了这一条,这里补齐。 */
+        grid-template-rows: minmax(0, 1fr);
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)))", calc(20 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(380px, calc(30 * var(--horosa-lvw, 1vw)))", calc(28 * var(--horosa-lvw, 1vw)), 500px); /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
         gap: 4px;
         min-height: 0;
         height: 100%;
@@ -19360,7 +19506,7 @@
 :global {
     .horosa-india-dasha-subpanel {
         width: 380px;
-        max-width: calc(100vw - 56px);
+        max-width: calc(100 * var(--horosa-lvw, 1vw) - 56px);
         padding: 10px;
         border: 1px solid rgba(215, 173, 105, 0.20);
         border-radius: 8px;
@@ -19373,7 +19519,7 @@
         position: fixed;
         z-index: 5000;
         display: block;
-        max-width: calc(100vw - 24px);
+        max-width: calc(100 * var(--horosa-lvw, 1vw) - 24px);
         transform: translateY(-50%);
         pointer-events: none;
     }
@@ -19890,13 +20036,15 @@
     /* 中间栏:盘填满、大而清晰 */
     .horosa-geomancy-redesign .horosa-huangji-chart-panel { display: flex; min-height: 0; }
     .horosa-geomancy-redesign .horosa-huangji-board-host { width: 100%; height: 100%; min-height: 0; display: flex; }
-    .horosa-geomancy-board { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; height: 100%; min-height: 0; padding: 10px 8px; }
+    /* 高度写 min-height:100% 而不是 height:100%:放得下时照旧铺满中栏;放大档放不下时整链按内容长高,交给宿主(overflow:auto)滚,
+       不再把 4×4 护盾压成比格内文字还矮的格子。下面 stage / shield / grid 同理(flex-shrink 0 + 行高 min-content 底线)。 */
+    .horosa-geomancy-board { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; height: auto; min-height: 100%; padding: 10px 8px; }
     .horosa-geomancy-board-switch { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: rgba(0, 0, 0, 0.16); flex: 0 0 auto; }
     :root[data-horosa-appearance='light'] .horosa-geomancy-board-switch { background: rgba(0, 0, 0, 0.05); }
     .horosa-geomancy-switch-btn { padding: 5px 18px; font-size: 12.5px; font-weight: 500; border: 0; border-radius: 7px; background: transparent; color: var(--horosa-astro-muted, #8fa0b9); cursor: pointer; transition: all 0.18s ease; }
     .horosa-geomancy-switch-btn:hover { color: var(--horosa-astro-gold, #d7ad69); }
     .horosa-geomancy-switch-btn.is-active { background: var(--horosa-astro-gold, #d7ad69); color: #1a1410; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22); }
-    .horosa-geomancy-board-stage { flex: 1 1 auto; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; }
+    .horosa-geomancy-board-stage { flex: 1 0 auto; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; }
     .horosa-geomancy-empty { display: flex; align-items: center; justify-content: center; height: 100%; min-height: 220px; color: var(--horosa-astro-muted, #8fa0b9); font-size: 14px; }
 
     /* [G+H] 地占右栏子tab 改用 horosa-cnx-aux(与皇极/小六壬/飞宫同源:size small + 极简 padding),
@@ -19907,9 +20055,9 @@
     .horosa-geomancy-redesign .horosa-cnx-aux .ant-tabs-content-holder { flex: 1; min-height: 0; overflow-y: auto; }
 
     /* 护盾方盘:4×4 填满中栏、大字、暗金 */
-    .horosa-geomancy-shield { display: flex; flex-direction: column; gap: 10px; width: 100%; height: 100%; max-width: ~"min(100%, 720px)"; min-height: 0; }
+    .horosa-geomancy-shield { display: flex; flex-direction: column; gap: 10px; width: 100%; height: auto; min-height: 100%; align-self: stretch; max-width: ~"min(100%, 720px)"; }
     .horosa-geomancy-shield-title { flex: 0 0 auto; text-align: center; font-size: 14px; letter-spacing: 0.1em; color: var(--horosa-astro-gold, #d7ad69); font-weight: 600; }
-    .horosa-geomancy-shield-grid { flex: 1 1 auto; display: grid; grid-template-rows: repeat(4, 1fr); gap: 8px; min-height: 0; }
+    .horosa-geomancy-shield-grid { flex: 1 0 auto; display: grid; grid-template-rows: repeat(4, minmax(min-content, 1fr)); gap: 8px; min-height: 0; }
     .horosa-geomancy-shield-rowgroup { display: flex; align-items: stretch; gap: 6px; min-height: 0; }
     .horosa-geomancy-shield-grouplab { flex: 0 0 18px; writing-mode: vertical-rl; text-orientation: upright; display: flex; align-items: center; justify-content: center; font-size: 11px; letter-spacing: 2px; opacity: 0.62; border-right: 1px dashed rgba(148, 163, 184, 0.35); padding-right: 2px; }
     .horosa-geomancy-shield-rowcells { flex: 1 1 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; min-width: 0; }
@@ -20009,7 +20157,11 @@
     .horosa-geomancy-wheel-planet-cjk { font-size: 13px; fill: var(--horosa-astro-text, #e8ecf3); }
 
     /* 塔罗(F9):卜·其他 三栏布局 + 文字花色牌面(零图片),暗金主题、令牌自适应明暗 */
-    .horosa-tarot-page { height: 100%; min-height: 0; }
+    /* 页根纵向 flex:三栏(.horosa-tarot-layout)吃剩余空间,自渲的底部快捷栏按自身高贴底。
+       此前三栏 height:100% 占满整页,快捷栏被挤到页根之外、整条落在视口下方(各缩放档都看不见)。 */
+    .horosa-tarot-page { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
+    .horosa-tarot-page > .horosa-tarot-layout { flex: 1 1 0; height: auto; }
+    .horosa-tarot-page > .horosa-bottom-quick-dock { flex: 0 0 auto; }
     /* 塔罗页:astro 令牌原仅在 astro-redesign(占星模块)内定义,塔罗页缺失→回退暗色硬值(#e8ecf3 浅字),亮色模式浅字浅底看不清。此处按主题补齐,亮暗双清晰。 */
     .horosa-tarot-page {
         --horosa-astro-text: var(--horosa-text);
@@ -20026,7 +20178,7 @@
     :root[data-horosa-appearance='light'] .horosa-tarot-card:hover { box-shadow: 0 6px 18px rgba(20, 30, 50, 0.14); }
     :root[data-horosa-appearance='light'] .horosa-tarot-sig-card { background: var(--horosa-surface-raised, rgba(20, 30, 50, 0.04)); }
     // 左右栏加宽到与其他卜·其他技术同款(clamp 列宽);左右栏套大边框卡片(border+底纹+阴影),内容圈起。
-    .horosa-tarot-layout { display: grid; grid-template-columns: clamp(280px, 20vw, 330px) minmax(0, 1fr) clamp(320px, 24vw, 392px); gap: 8px; height: 100%; min-height: 0; }
+    .horosa-tarot-layout { display: grid; grid-template-columns: clamp(280px, calc(20 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(320px, calc(24 * var(--horosa-lvw, 1vw)), 392px); gap: 8px; height: 100%; min-height: 0; }
     .horosa-tarot-col-left, .horosa-tarot-col-center { min-height: 0; overflow-y: auto; overflow-x: hidden; }
     .horosa-tarot-col-center { display: flex; }
     .horosa-tarot-col-left, .horosa-tarot-col-right {
@@ -20700,12 +20852,12 @@
 
     .horosa-workspace-shell .horosa-astro-redesign-grid,
     .horosa-workspace-shell .horosa-ziwei-redesign .horosa-ziwei-redesign-grid {
-        grid-template-columns: clamp(260px, 19vw, 320px) minmax(0, 1fr) clamp(320px, 25vw, 400px) !important;
+        grid-template-columns: clamp(260px, calc(19 * var(--horosa-lvw, 1vw)), 320px) minmax(0, 1fr) clamp(320px, calc(25 * var(--horosa-lvw, 1vw)), 400px) !important;
     }
 
     .horosa-workspace-shell .horosa-ziwei-redesign .horosa-ziwei-chart-viewport {
-        width: ~"min(74vh, 100%)";
-        height: ~"min(74vh, 100%)";
+        width: ~"min(calc(74 * var(--horosa-lvh, 1vh)), 100%)";
+        height: ~"min(calc(74 * var(--horosa-lvh, 1vh)), 100%)";
         max-width: 100%;
         max-height: 100%;
     }
@@ -20917,7 +21069,7 @@
     }
 
     .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-grid.has-technique-rail {
-        grid-template-columns: clamp(285px, 18vw, 330px) minmax(560px, 1fr) clamp(335px, 23vw, 410px) clamp(86px, 6vw, 110px) !important;
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)))", calc(18 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)))", calc(23 * var(--horosa-lvw, 1vw)), 410px) clamp(86px, calc(6 * var(--horosa-lvw, 1vw)), 110px) !important; /* [窄布局 2026-09-17] 中列零底、侧栏下限 min(定值, N·lvw):布局宽不够时按比例收窄而不是从右侧裁掉 */
     }
 
     .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-tabs {
@@ -21674,7 +21826,7 @@
 	.horosa-workspace-shell .horosa-astro-no-bottom-dock.horosa-election-page .horosa-astro-redesign-grid {
 		/* 右栏与占星主页签同量级(此前 20vw/350 上限,判读表被挤到看不清);
 		   中列 minmax(0,1fr) 无硬下限,窄屏自动让位,不会撞 grid 的 overflow:hidden。 */
-		grid-template-columns: clamp(300px, 19vw, 348px) minmax(0, 1fr) clamp(320px, 24vw, 400px) !important;
+		grid-template-columns: clamp(300px, calc(19 * var(--horosa-lvw, 1vw)), 348px) minmax(0, 1fr) clamp(320px, calc(24 * var(--horosa-lvw, 1vw)), 400px) !important;
 	}
 	.horosa-mundane-page .horosa-astro-input-panel,
 	.horosa-horary-page .horosa-astro-input-panel,
@@ -22203,7 +22355,7 @@
 	        display: flex;
 	        flex-direction: column;
 	        gap: 14px;
-	        padding: clamp(18px, 2.2vw, 26px);
+	        padding: clamp(18px, calc(2.2 * var(--horosa-lvw, 1vw)), 26px);
 	        border: 1px solid var(--horosa-huangji-line-strong);
 	        border-radius: 14px;
 	        background: var(--horosa-huangji-card-bg);
@@ -22487,7 +22639,7 @@
 	    /* ── 盘面容器(guice-board 同款语言) ── */
 	    .horosa-cnx-board {
 	        display: flex; flex-direction: column; gap: 14px;
-	        padding: clamp(18px, 2.2vw, 26px);
+	        padding: clamp(18px, calc(2.2 * var(--horosa-lvw, 1vw)), 26px);
 	        border: 1px solid var(--horosa-huangji-line-strong);
 	        border-radius: 14px;
 	        background: var(--horosa-huangji-card-bg);
@@ -22713,8 +22865,11 @@
 	        .horosa-huangji-redesign-grid { height: 100%; grid-template-rows: minmax(0, 1fr); }
 	        .horosa-huangji-chart-panel { display: flex; flex-direction: column; min-height: 0; }
 	        .horosa-huangji-board-host { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-	        .horosa-huangji-board-host > .horosa-cnx-board { flex: 1; min-height: 0; }
-	        .horosa-cnx-board .horosa-cnx-grid { flex: 1; min-height: 0; grid-auto-rows: 1fr; align-content: stretch; }
+	        /* 宫格均分纵向富余,但每行不许压到内容高以下(minmax(min-content, 1fr)):放大档盘面很矮时,
+	           裸 1fr + 格子 min-height:0 会把格内文字裁在格里;改后格子按内容撑开、盘随之长高,交给宿主纵滚(宁可滚、不能裁)。 */
+	        .horosa-huangji-board-host { overflow-y: auto; }
+	        .horosa-huangji-board-host > .horosa-cnx-board { flex: 1 0 auto; min-height: 0; }
+	        .horosa-cnx-board .horosa-cnx-grid { flex: 1 0 auto; min-height: 0; grid-auto-rows: minmax(min-content, 1fr); align-content: stretch; }
 	        .horosa-cnx-cell { min-height: 0; justify-content: center; }
 	        .horosa-huangji-info-panel { display: flex; flex-direction: column; min-height: 0; }
 	        .horosa-cnx-aux { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -22731,17 +22886,21 @@
 	    /* [E] 小六壬:六宫(3×2)勿被上面共享块的 grid-auto-rows:1fr 拉满 stage 高致过高。
 	       盘改内容高 + host 内纵向居中;宫格恢复内容高(minmax 100px)。六宫自然矮、九宫(3×3)自然高。 */
 	    &.horosa-xlr-page {
-	        .horosa-huangji-board-host { justify-content: center; }
+	        /* 纵向居中走「顶对齐 + 盘自身 auto 上下外边距」,不用 justify-content:center:放大档盘比宿主高时,
+	           center 会把溢出的上半截放到滚动起点之前(滚不到);auto 外边距放得下照旧居中、放不下自动顶对齐可滚。 */
+	        .horosa-huangji-board-host { justify-content: flex-start; }
 	        /* 盘居中收窄 → 3 列宫格成真·正方形而不占满整个中栏高度 */
-	        .horosa-huangji-board-host > .horosa-cnx-board { flex: 0 0 auto; width: 100%; max-width: 680px; margin: 0 auto; }
+	        .horosa-huangji-board-host > .horosa-cnx-board { flex: 0 0 auto; width: 100%; max-width: 680px; margin: auto; }
 	        .horosa-cnx-board .horosa-cnx-grid { flex: 0 0 auto; grid-auto-rows: auto; align-content: start; }
 	        /* [正方形宫格·文字居中] 六宫(2×3)/九宫(3×3)均 aspect-ratio 1,内容纵横居中。 */
+	        /* 正方形只是「放得下时」的形状:放大档中栏很窄时格子边长不足以装下宫名 + 关键词,
+	           min-content 底线让格子按内容长高(同一行其余格随行高拉齐),不再把文字裁在格里;放得下时仍是正方形,一字不变。 */
 	        .horosa-cnx-cell.horosa-cnx-cell-sq {
-	            aspect-ratio: 1 / 1; min-height: 0;
+	            aspect-ratio: 1 / 1; min-height: 0; min-height: min-content;
 	            align-items: center; justify-content: center; text-align: center;
-	            gap: 4px; padding: 12px 10px; overflow: hidden;
+	            gap: 4px; padding: 12px 10px; overflow: visible;
 	        }
-	        .horosa-cnx-cell.horosa-cnx-cell-sq .horosa-cnx-cell-name { font-size: clamp(19px, 2vw, 23px); }
+	        .horosa-cnx-cell.horosa-cnx-cell-sq .horosa-cnx-cell-name { font-size: clamp(19px, calc(2 * var(--horosa-lvw, 1vw)), 23px); }
 	    }
 	    /* [小成图·顶级美化] 洛书九宫单元:天盘卦大字纵横居中、地盘卦+宫号小字放大居中,序标(用宫/推N)浮右上不挤正文。 */
 	    &.horosa-xct-page {
@@ -22752,7 +22911,7 @@
 	        /* 🔴 占星系那条本身带 !important(见「.horosa-astro-redesign-grid, …ziwei…」组),
 	           普通规则压不过 → 此处同级用 !important 覆盖(本仓该处既有惯例)。 */
 	        .horosa-huangji-redesign-grid {
-	            grid-template-columns: clamp(285px, 21vw, 344px) minmax(0, 1fr) clamp(320px, 25vw, 400px) !important;
+	            grid-template-columns: clamp(285px, calc(21 * var(--horosa-lvw, 1vw)), 344px) minmax(0, 1fr) clamp(320px, calc(25 * var(--horosa-lvw, 1vw)), 400px) !important;
 	        }
 	        @media (max-width: 900px) {
 	            .horosa-huangji-redesign-grid { grid-template-columns: minmax(0, 1fr) !important; }
@@ -22762,7 +22921,7 @@
 	            gap: 9px; padding: 14px 12px;
 	        }
 	        .horosa-xct-cell-name {
-	            font-size: clamp(30px, 3.2vw, 44px); font-weight: 800;
+	            font-size: clamp(30px, calc(3.2 * var(--horosa-lvw, 1vw)), 44px); font-weight: 800;
 	            letter-spacing: .08em; line-height: 1; color: var(--horosa-huangji-text);
 	        }
 	        .horosa-cnx-cell.is-active .horosa-xct-cell-name { color: var(--horosa-huangji-accent-strong); }
@@ -22770,7 +22929,7 @@
 	            font-size: 13.5px; font-weight: 600; letter-spacing: .06em; color: var(--horosa-huangji-muted);
 	        }
 	        .horosa-xct-cell.is-center { opacity: .62; border-style: dashed; }
-	        .horosa-xct-cell.is-center .horosa-xct-cell-name { font-size: clamp(20px, 2vw, 27px); opacity: .55; }
+	        .horosa-xct-cell.is-center .horosa-xct-cell-name { font-size: clamp(20px, calc(2 * var(--horosa-lvw, 1vw)), 27px); opacity: .55; }
 	        /* [小成图·卦画] 三爻徽记(阳=通条/阴=两段),纯 CSS 爻条;居宫格卦名之上,不夺大字主位。 */
 	        .horosa-xct-glyph {
 	            display: flex; flex-direction: column; gap: 3px; align-items: center;
@@ -23329,7 +23488,7 @@
 	font-size: 13px;
 	line-height: 1.8;
 	color: rgba(239, 228, 210, 0.5);
-	padding: 4px 0 10px;
+	padding: 4px 0 0; /* [极档巡检 2026-09-18] 底衬 10px 在 1.8 档让空态板多出 5px 发丝滚动条(板 overflow-y:auto);空态提示不需要底衬 */
 }
 .horosa-lingqi-wu-inline { margin-top: 4px; font-size: 11.5px; color: #ecb2a0; }
 
@@ -23652,4 +23811,268 @@
 	.horosa-lingqi-rite-item em { color: rgba(74, 63, 48, 0.55); }
 	.horosa-lingqi-rite-zhu { color: rgba(74, 63, 48, 0.7); }
 }
+}
+
+/* [用户实报 2026-09-17·APP] 盘面底部页签条(太阳/月亮返照·流年「返照盘/原命盘/对比盘」、骰子)左缘紧贴窗口左极限:
+   给底部 Tabs 的标签条留安全距离(与页面其它内容左缘对齐)。全站仅 4 处 tabPosition=bottom,皆为盘面页,统一生效。 */
+:global {
+	.ant-tabs-bottom > .ant-tabs-nav {
+		padding-left: 14px;
+	}
+}
+
+/* [用户实报 2026-09-17·APP] 八字左栏「起盘选项」里连续两个字段网格(性别/时间算法 → 长生/神煞查法)之间没有行距,
+   第二个网格的首行小标题贴着上一行选择框;网格内行距是 7px,这里把「网格 与 网格/字段块」相邻也补成同一 7px,
+   任何页面连续排两个字段网格都不再挤在一起。 */
+:global {
+	.horosa-workspace-shell .horosa-field-grid + .horosa-field-grid,
+	.horosa-workspace-shell .horosa-field-block + .horosa-field-grid,
+	.horosa-workspace-shell .horosa-field-grid + .horosa-field-block {
+		margin-top: 7px;
+	}
+}
+
+/* [用户 APP 实报 2026-09-17:星运各子页右侧多一条外层滚动条 / 主区与右栏之间空一节] 星运页 Tabs 链此前不定高
+   (Tabs 写子页量出的 px、holder/content/面板 max-height:100% 各自按内容撑),子页比面板恒高 2px(holder 上下边框)。
+   与辅盘页同款:整条链定高铺满页根,面板 = 子页可用高;面板保留纵向滚动(子页内容真比一屏高时仍可滚)。 */
+:global {
+	.horosa-workspace-shell .horosa-direction-page > .ant-tabs,
+	.horosa-workspace-shell .horosa-direction-page > .ant-tabs > .ant-tabs-content-holder,
+	.horosa-workspace-shell .horosa-direction-page > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+	.horosa-workspace-shell .horosa-direction-page > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+		height: 100%;
+		min-height: 0;
+	}
+	.horosa-workspace-shell .horosa-direction-page > .ant-tabs {
+		overflow: hidden;
+	}
+	.horosa-workspace-shell .horosa-direction-page > .ant-tabs > .ant-tabs-content-holder {
+		min-width: 0;
+	}
+}
+:global {
+	/* 子页根永远不高过面板(定高 100% 链的最后一环):子页按面板 clientHeight(整数)定高,而面板真高可能带小数
+	   (1.8 档实测面板 424.4 → 子页 424 → scrollHeight 425 > clientHeight 424,仍长出 1px 的滚动条)。
+	   max-height:100% 让子页贴着面板的真高(含小数)封顶,任何缩放档都不再多出那 1px。 */
+	.horosa-workspace-shell .horosa-direction-page > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > * {
+		/* 再让 1px:面板 clientHeight 是整数(向下取整),scrollHeight 向上取整,子页与面板同为 424.4 时仍会报 425 > 424
+		   而长出滚动条;子页封顶在面板真高减 1px,任何小数档都稳。 */
+		max-height: calc(100% - 1px);
+		box-sizing: border-box;
+	}
+}
+
+/* [巡检实抓 2026-09-17] 星运·太阳/月亮返照·流年法:底部 Tabs 内的盘面 svg 按「子页高−50」写死,而底部标签条(46 + margin-top 16)
+   吃掉 ~66px → 盘面比内容区高 17~18px,底缘被裁(1.0 / 1.8 档皆然)。底部 Tabs 链定高,盘面 svg 封顶 100%(d3 按 client 尺寸重画,
+   自然缩到可用高;1:1 时不裁、不留白)。 */
+:global {
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-bottom > .ant-tabs-content-holder,
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-bottom > .ant-tabs-content-holder > .ant-tabs-content,
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-bottom > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+		height: 100%;
+		min-height: 0;
+	}
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-bottom > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > svg {
+		max-height: 100%;
+	}
+}
+:global {
+	/* [巡检实抓 2026-09-17] 星运子页(主限法盘/波斯向运/行星弧/小限法/太阳弧/黄道星释/行星年龄/产前朔望)左栏盘面 svg 是 inline 元素,
+	   块级列里生成一行行盒,基线下留 ~6px 空隙 → 列比子页高 6px → 面板长出一条 6px 的外层滚动条。svg 改块级,行盒消失。 */
+	.horosa-workspace-shell .horosa-direction-page .ant-row > .ant-col > svg,
+	.horosa-workspace-shell .horosa-direction-page .ant-row > .ant-col > div > svg {
+		display: block;   /* 黄道星释等在列里多包一层 div,同一病同一药;只到两层,不碰按钮里的图标 svg */
+	}
+}
+
+/* [极档巡检实抓 2026-09-17] 辅盘里按「工作区高−常数 / 560 底线」估算高度的 AstroChart(行星中点 / 调波盘 / 龙盘 / 骰子·骰子盘·天象盘):
+   1.8 档估算值比真实列高大 120~150px(1.0 档也多 18~46px)→ 盘面下缘被 overflow:hidden 的列裁掉。AstroChart 以 svg 的 client 尺寸绘图
+   并有 ResizeObserver 重画,所以只需把 svg 钉在所在列之内(max-height:100%):任何缩放档 / 引擎 / 窗高都自适应,1:1 时既不裁也不留白。
+   居中列是 grid,先把唯一行定成 minmax(0,1fr),百分比才有可解的包含块;骰子页盘面在底部 Tabs 里,内容链定高(与星运返照同一手法)。 */
+:global {
+	.horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-chart-col {
+		grid-template-rows: minmax(0, 1fr);
+	}
+	.horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-chart-col > svg {
+		max-height: 100%;
+		display: block;
+	}
+	.horosa-workspace-shell .horosa-dice-chart-panel > .ant-tabs > .ant-tabs-content-holder,
+	.horosa-workspace-shell .horosa-dice-chart-panel > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+	.horosa-workspace-shell .horosa-dice-chart-panel > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+		height: 100%;
+		min-height: 0;
+	}
+	.horosa-workspace-shell .horosa-dice-chart-panel > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane:not(.ant-tabs-tabpane-hidden) > svg {
+		max-height: 100%;
+		display: block;
+	}
+}
+
+/* [WebKit(Tahoe)缩放 >1 实测 2026-09-17 · wkprobe/selftest_textarea_zoom.html] 空的 textarea(只显示占位符)在 z>1 时占位符内盒按「内容宽×z」布局:
+   244px 宽的框报 scrollWidth 418 且真能横滚(scrollLeft 可到 176),长出一条横向滚动条并吃掉 ~9px 高度(autoSize 算好的行高被挤);
+   有文字时一切正常(换行宽度正确)。pre-wrap 的多行框永远不需要横滚 → 直接关横向溢出:错误引擎上滚动条消失、高度还原;
+   正确引擎(Chromium / 旧 WebKit)本就没有横向溢出,零变化。全站无 wrap="off" 的 textarea(已查)。 */
+:global {
+	textarea:not([wrap="off"]) {
+		overflow-x: hidden;
+	}
+}
+
+/* [极档巡检实抓 2026-09-17] 六壬未起课时中间栏的空 svg 按 props.height(整页高)撑开,比宿主高 63px → 空面板却有一条竖向滚动条。
+   起课后 RengChart.draw 会用 inline !important 重设高度(圆盘可高于宿主、宿主滚动看全,那是有意的),只钉「空 svg」这一态贴合宿主。 */
+:global {
+	.horosa-workspace-shell .horosa-liureng-chart-host > svg:empty {
+		height: 100% !important;
+	}
+}
+
+
+/* [窄布局·1.8 档 2026-09-17 · 与上面各栅格行尾标注同一战役] 各技法页主栅格此前写死「中列 ≥480~720px、侧栏 ≥245~400px」,
+   壳放大到 1.8 时布局视口只有 960px,总和超宽 → grid overflow:hidden 从右侧裁掉右栏(数算/策天/择日/辅盘子盘/主限法盘… 真机实报同族)。
+   改法:中列 minmax(0,1fr)(有多少给多少),侧栏下限改 min(原定值, 26·lvw / 30·lvw)——布局宽 ≥1100 时 min 取原定值、一字不变;
+   窄时按视口比例收窄。lvw 是布局视口变量(layoutViewportVars 实测发布),任何引擎同义;变量缺席时回落到物理视口单位 = 不收窄 = 与旧行为等价。 */
+
+/* [窄布局·1.8 档 2026-09-17] 策天/数算等 kinastro 中栏宿主 flex 居中:内容比宿主高时溢出的一半跑到滚动起点之前(顶部被裁且滚不到,
+   1.8 档数算实抓)。居中改由子元素 auto 外边距完成——放得下照旧居中、放不下外边距归零顶/左对齐、宿主可滚到全部;板宽下限也不再大于宿主。 */
+:global {
+	.horosa-workspace-shell .horosa-kinastro-board-host {
+		align-items: flex-start;
+		justify-content: flex-start;
+		overflow: auto;
+	}
+	.horosa-workspace-shell .horosa-kinastro-board-host > * {
+		margin: auto;
+	}
+	.horosa-workspace-shell .horosa-kinastro-board {
+		/* [issue #57 2026-09-18] 板上限 1040 → max(1040px, 60·lvw):zoom=1 ≈1037 不变;0.7 档 ~1482 */
+		width: clamp(~"min(620px, 100%)", calc(74 * var(--horosa-lvw, 1vw)), ~"max(1040px, calc(60 * var(--horosa-lvw, 1vw)))");
+	}
+	.horosa-workspace-shell .horosa-huangji-board {
+		min-height: clamp(~"min(560px, 100%)", calc(72 * var(--horosa-lvh, 1vh)), 760px);
+	}
+}
+
+/* [WebKit(Tahoe)缩放 >1 实测 2026-09-17 · wkprobe/selftest_ellipsis_zoom.html] text-overflow:ellipsis 的省略判定拿「文字宽×z」比盒宽:
+   68px 的盒里 "2026"/"东8区" 被画成 "20…"/"东…",而 DOM 量得完全放得下;text-overflow:clip 则按真实宽度画、完整可见。
+   utils/zoomInlineScaleBug 用同族的 textarea 占位符信号实测命中后在 <html> 挂 .horosa-zoom-textbug,这里把省略退回 clip。
+   z=1 或正确引擎不挂 class,零改动;命中档位里真正超宽的文字改为裁切(无"…"),换来所有放得下的短标签不再被错误省略。 */
+:global {
+	/* 2026-09-18 扩到全元素:探针 1.8 档数算「四柱」卡把 "丙午" 画成 "丙.."——自定义卡片不在上面的 antd 白名单里;
+	   省略判定错的是引擎,与选择器无关,命中档位里一切 ellipsis 一律退 clip(clip 是缺省值,没写省略的元素零变化)。 */
+	html.horosa-zoom-textbug *,
+	html.horosa-zoom-textbug *::before,
+	html.horosa-zoom-textbug *::after {
+		text-overflow: clip !important;
+	}
+}
+
+/* [窄布局·1.8 档 2026-09-17] 分段控件(XQSegmented)在 245px 侧栏里放四个四字选项时逐字折行(风水·纳气盘实抓):
+   组件实测「各项文字总宽 + 内衬」大于容器时挂 .is-wrapped → 两列多行排布、关闭滑块;放得下时一字不变。 */
+:global {
+	.horosa-workspace-shell .xq-segmented.is-wrapped.ant-radio-group {
+		grid-auto-flow: row;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		row-gap: 2px;
+	}
+	.horosa-workspace-shell .xq-segmented.is-wrapped .ant-radio-button-wrapper {
+		white-space: nowrap;
+		padding: 0 6px;
+	}
+}
+
+/* [极档巡检 2026-09-18] 金口诀中栏:盘按内容最小高(702)撑高后由中栏滚动看全;flex 居中会把溢出的上半截推到滚动起点之前(顶部被裁滚不到),
+   改顶对齐 + 子元素 auto 外边距(放得下照旧居中)。 */
+:global {
+	.horosa-workspace-shell .horosa-jinkou-redesign .horosa-jinkou-chart-panel {
+		align-items: flex-start;
+		justify-content: flex-start;
+	}
+	.horosa-workspace-shell .horosa-jinkou-board-host {
+		margin: auto;
+	}
+}
+:global {
+	/* 盘 svg 原被 max-height:100% 钉在宿主高(1.8 档 406px)上,JinKouMain 给的 702 内容最小高进不去 → 表格段仍被裁;
+	   封顶改成 max(宿主高, 702):正常窗口(宿主 ≥702)一字不变,极档里盘按内容高画、宿主/中栏从顶部滚动看全。 */
+	.horosa-workspace-shell .horosa-jinkou-board-host {
+		align-items: flex-start;
+	}
+	.horosa-workspace-shell .horosa-jinkou-board-host > svg {
+		max-height: ~"max(100%, 702px)";
+		margin: auto;
+	}
+}
+
+/* [极档巡检 2026-09-18] 三式合一中栏:合一盘最小 380px(可读底线,保留)+ 上下信息行在 1.8 档(中栏 ~447px)放不下,
+   原 flex 居中 + overflow:hidden 把上下各裁一截(实抓下溢 145px / 右溢 24px)。改为顶对齐 + 中栏可滚(宁可滚、不能裁);
+   放得下时子元素 auto 外边距照旧居中,1.0 档一字不变。 */
+:global {
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-chart-panel {
+		align-items: flex-start;
+		justify-content: flex-start;
+		overflow: auto;
+	}
+	.horosa-workspace-shell .horosa-sanshi-board-host {
+		align-items: flex-start;
+		justify-content: flex-start;
+		margin: auto;
+	}
+	.horosa-workspace-shell .horosa-sanshi-board-host > * {
+		margin: auto;
+	}
+}
+
+/* [双滚动条根治 2026-09-18 · 用户实报 推运/恒星推运/赤纬推运/十年大运 仍有两层滚动条] 根因同族:子页用「工作区高 − 常数」估算内层面板高,
+   常数(104 / 20)与真实工具条+页签高不等,多出的 12~37px 把外层面板(antd tabpane overflow:auto)撑出第二条滚动条。
+   根治:子页不再传像素高(100%),内层顶部 Tabs 走定高链——Tabs 本身 flex:1(min-height:0),holder/content/tabpane 100%,
+   面板 100% 跟随;任何缩放档 / 字号 / 窗高都零常数。仅作用于星运页(.horosa-direction-page)内的 ant-tabs-top。 */
+:global {
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-top {
+		min-height: 0;
+	}
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-top > .ant-tabs-content-holder {
+		min-height: 0;
+	}
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-top > .ant-tabs-content-holder > .ant-tabs-content,
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-top > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane,
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-top > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-spin-nested-loading,
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-top > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-spin-nested-loading > .ant-spin-container {
+		/* 面板里再包一层 antd Spin(nested-loading / container 皆为 auto 高块)会把 100% 链掐断 → 盘面退回 svg 缺省 150px;两层一并定高 */
+		height: 100%;
+		min-height: 0;
+	}
+	/* [用户实报 2026-09-18] 子页顶部小标题(二次推运/三次推运/小推运、事件/行运触发…)贴着左边界:与返照页底部页签同一 14px 安全距离。
+	   只钉子页根级的 Tabs(tabpane > spin > container > div > tabs),不碰右栏信息页签。 */
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-tabpane > .ant-spin-nested-loading > .ant-spin-container > div > .ant-tabs-top > .ant-tabs-nav {
+		padding-left: 14px;
+	}
+}
+
+/* [issue #57 用户裁决 2026-09-18:缩小时盘面随视口放大、不严重变形] 塔罗牌面原是定尺(卡最小高 152 / 牌图 ≤96px / 符号 30px / 牌名 15px),
+   缩小档留一大片空白。各尺寸改 max(原值, N·lvw):zoom=1(lvw≈17.3)与原值持平,0.7 档按比例放大约 1.4 倍(图与字同比例,不变形),放大档不变。 */
+:global {
+	.horosa-workspace-shell .horosa-tarot-card { min-height: ~"max(152px, calc(8.8 * var(--horosa-lvw, 1vw)))"; }
+	.horosa-workspace-shell .horosa-tarot-card-img { max-width: ~"max(96px, calc(5.5 * var(--horosa-lvw, 1vw)))"; }
+	.horosa-workspace-shell .horosa-tarot-card-symbol { font-size: ~"max(30px, calc(1.75 * var(--horosa-lvw, 1vw)))"; }
+	.horosa-workspace-shell .horosa-tarot-card-name { font-size: ~"max(15px, calc(0.87 * var(--horosa-lvw, 1vw)))"; }
+}
+
+/* [双滚动条根治 2026-09-18] 行星中点右栏:列表高原写死「工作区高−180」,1.8 档失真 10px 把右栏(overflow-y:auto)撑出第二条滚动条。
+   右栏本是 flex 列:控制区定高、中点/相位 Tabs 吃余高并走定高链(holder/content/tabpane 100%),列表 100% 跟随,零常数。 */
+:global {
+	.horosa-workspace-shell .horosa-midpoint-side-col > .horosa-midpoint-side-tabs {
+		flex: 1 1 auto;
+		/* 1.8 档右栏只有 ~372px、控制区就占 316px:列表区至少留 200px(页签 44 + 列表 156),放不下时由右栏滚动(兜底),绝不把列表压成 0 高 */
+		min-height: 200px;
+		width: 100%;
+	}
+	.horosa-workspace-shell .horosa-midpoint-side-tabs > .ant-tabs-content-holder {
+		min-height: 0;
+	}
+	.horosa-workspace-shell .horosa-midpoint-side-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+	.horosa-workspace-shell .horosa-midpoint-side-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+		height: 100%;
+		min-height: 0;
+	}
 }

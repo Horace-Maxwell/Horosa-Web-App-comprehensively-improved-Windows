@@ -40,6 +40,7 @@ import { SHAN_ORDER, SHAN_CENTER_DEG } from '../fengshui/fengshuiData';
 import { hsysDisplayName } from './guolaoData';
 import { cornerTextBlock, riseSetLines } from './GuoLaoWheelCaptions';
 import './GuoLaoMoiraWheel.less';
+import { getEffectiveScale, visualFloorPx, fixedPopupFrame } from '../../utils/zoomDomain';
 
 // 二十八宿环占 r(4)~r(6)（两个边界圆，宽 0.09R≈Moira 0.10R）：内带刻度+宿名+外带刻度三段由 renderStellarTicks/Ring
 // 用计算半径(20%/60%/20%)切分，故 r(5)=0.57 现仅作几何参考、不再单独绘环（照抄 Moira r4~r7 宿区结构）。
@@ -247,22 +248,32 @@ class GuoLaoMoiraPickWheel extends Component{
 		if(!node){
 			return;
 		}
+		// [Tahoe 域混根修·2026-09-17 用户 APP 实报「放大后盘面不随之缩小、被下端遮挡」] 量容器只用布局域读数(clientWidth/clientHeight);rect 域在标准化 zoom 引擎下已×z,当布局 px 用=盘面大 z 倍被裁(旧引擎 rect=布局值故不显)。
+		// clientWidth 为 0 的罕见兜底才用 rect,且经 getEffectiveScale()(实测探针)除回布局域。
+		const zScale = getEffectiveScale() || 1;
 		const rect = node.getBoundingClientRect();
 		const fallbackHeight = Number(this.props.height) || 740;
-		const availableWidth = rect.width || node.clientWidth || fallbackHeight;
-		const availableHeight = rect.height || node.clientHeight || fallbackHeight;
-		const nextSide = Math.max(280, Math.floor(Math.min(availableWidth, availableHeight)));
+		const availableWidth = node.clientWidth || (rect.width / zScale) || fallbackHeight;
+		const availableHeight = node.clientHeight || (rect.height / zScale) || fallbackHeight;
+		const nextSide = Math.max(visualFloorPx(280), Math.floor(Math.min(availableWidth, availableHeight)));
 		if(Number.isFinite(nextSide) && nextSide !== this.state.containerSide){
 			this.setState({containerSide: nextSide});
 		}
 	}
 
 	tooltipPoint(evt){
-		const maxX = typeof window !== 'undefined' ? Math.max(12, window.innerWidth - 440) : evt.clientX + 14;
-		const maxY = typeof window !== 'undefined' ? Math.max(12, window.innerHeight - 220) : evt.clientY + 16;
+		// 提示卡是 position:fixed:鼠标坐标(视觉域)先换到布局域,再与布局视口同域夹取;z=1 时逐值不变。
+		if(typeof window === 'undefined'){
+			return { x: evt.clientX + 14, y: evt.clientY + 16 };
+		}
+		const frame = fixedPopupFrame();
+		const cx = frame.toFixed(evt.clientX);
+		const cy = frame.toFixed(evt.clientY);
+		const maxX = Math.max(12, frame.viewportWidth - 440);
+		const maxY = Math.max(12, frame.viewportHeight - 220);
 		return {
-			x: Math.min(evt.clientX + 14, maxX),
-			y: Math.min(evt.clientY + 16, maxY),
+			x: Math.min(cx + 14, maxX),
+			y: Math.min(cy + 16, maxY),
 		};
 	}
 

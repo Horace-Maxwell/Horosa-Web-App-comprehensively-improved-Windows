@@ -102,7 +102,10 @@ def _visibility_info(item, sun_altitude=None):
     is_above = alt > 0
     twilight = None
     if sun_altitude is not None:
-        if sun_altitude > -0.833:
+        # [Q-372/T-351] sun_altitude 是**视高度**(altitudeAppa,已含折射);再拿 -0.833°(几何高度用的
+        # 折射+半径阈值)比等于折射算两次 → 视高度落在 (-0.833°, 0°] 的数分钟里后端记 day、前端与帮助
+        # 按视高度 > 0° 已入民用晨昏,两端不同口径。统一为视高度 0°(与前端 skyModeFromSunAlt / 帮助同)。
+        if sun_altitude > 0:
             twilight = "day"
         elif sun_altitude > -6:
             twilight = "civil"
@@ -203,6 +206,41 @@ def _dec_text_to_deg(value):
         return None
     sign = -1.0 if txt.strip().startswith("-") else 1.0
     return sign * (abs(_num(vals[0])) + abs(_num(vals[1])) / 60.0 + abs(_num(vals[2])) / 3600.0)
+
+
+def _precess_j2000_to_date(jd, ra, decl):
+    """J2000 平赤道 (ra, decl) → 当日平赤道(度)。Meeus《天文算法》21.3 / 21.4(IAU 1976 系数),与前端
+    planetariumProjection.precessJ2000ToDate 同公式同系数(两端逐位一致才不出「暂停态后端投影 vs 播放态前端投影」两套位置)。
+    只做平岁差(章动 ≤17″ / 光行差 ≤20″ 在星点直径量级以下,不加)。"""
+    T = (float(jd) - 2451545.0) / 36525.0
+    zeta = math.radians((2306.2181 * T + 0.30188 * T * T + 0.017998 * T ** 3) / 3600.0)
+    z = math.radians((2306.2181 * T + 1.09468 * T * T + 0.018203 * T ** 3) / 3600.0)
+    theta = math.radians((2004.3109 * T - 0.42665 * T * T - 0.041833 * T ** 3) / 3600.0)
+    ra0 = math.radians(float(ra))
+    dec0 = math.radians(float(decl))
+    a = math.cos(dec0) * math.sin(ra0 + zeta)
+    b = math.cos(theta) * math.cos(dec0) * math.cos(ra0 + zeta) - math.sin(theta) * math.sin(dec0)
+    c = math.sin(theta) * math.cos(dec0) * math.cos(ra0 + zeta) + math.cos(theta) * math.sin(dec0)
+    ra1 = math.degrees(math.atan2(a, b) + z)
+    dec1 = math.degrees(math.asin(max(-1.0, min(1.0, c))))
+    return _norm_degree(ra1), dec1
+
+
+def _true_obliquity_deg(jd):
+    """当日真黄赤交角(度,含章动;Swiss Ephemeris)。天文馆黄道线 / 距星置宿 / 行星轨迹的黄→赤转换用它,
+    不用 flatlib 的固定 23.44°(那是星盘模块的历史口径,天文馆是真实天球)。"""
+    try:
+        return float(swisseph.calc_ut(float(jd), swisseph.ECL_NUT)[0][0])
+    except Exception:
+        traceback.print_exc()
+        T = (float(jd) - 2451545.0) / 36525.0
+        return (23 * 3600 + 26 * 60 + 21.448 - 46.8150 * T - 0.00059 * T * T + 0.001813 * T ** 3) / 3600.0
+
+
+def _ecl_to_eq_of_date(jd, lon, lat=0.0):
+    """当日黄道 (lon, lat) → 当日赤道 (ra, decl),度;按当日真黄赤交角。"""
+    eq = swisseph.cotrans([float(lon), float(lat), 1.0], -_true_obliquity_deg(jd))
+    return _norm_degree(eq[0]), float(eq[1])
 
 
 def _altaz_from_equatorial(jd, pos, ra, decl, height=150.0, press=1000.0, temp=20.0):
@@ -395,9 +433,44 @@ def _fix_moira_su28_equatorial(su28_items, su28mode, jd):
     ayan = _moira_ayanamsha(jd) if su28mode == SU28_MODE_ZHENG_SIDEREAL else 0.0
     for item in su28_items:
         trop_lon = _norm_degree(_num(item.get("lon", item.get("ra", 0))) + ayan)
-        eq = utils.eqCoords(trop_lon, 0)
+        eq = _ecl_to_eq_of_date(jd, trop_lon, 0)   # 当日真黄赤交角(原 utils.eqCoords 固定 23.44°,T-203)
         item["ra"] = _norm_degree(eq[0])
         item["decl"] = _num(eq[1])
+    return su28_items
+
+
+# [Q-371/T-350] 天文馆「二十八宿距星星点」:胃宿 / 鬼宿在 REAL 口径下取的是 41 Ari / η Cnc 再加经验赤经修正(赤纬不改),
+# 星点 (ra, decl) 不对应任何真实星位。传统距星是 35 Ari(HR 801)/ θ Cnc(HR 3357):给这两项附 trueStar(J2000 → 当日历元
+# + 地平坐标),前端星点按它画;宿界(item.ra)不动——鬼宿赤经修正方向是否笔误另裁。
+_TRUE_DISTANCE_STARS = {
+    const.START_WEI: ("bsc5-801", "35 Ari"),
+    const.START_GUI: ("bsc5-3357", "θ Cnc"),
+}
+
+
+def _attach_true_distance_stars(su28_items, perchart, catalog=None):
+    if not su28_items:
+        return su28_items
+    try:
+        cat = catalog if catalog is not None else _base_star_catalog()
+        by_id = {s.get("id"): s for s in (cat or [])}
+    except Exception:
+        return su28_items
+    jd = perchart.dateTime.jd
+    for item in su28_items:
+        spec = _TRUE_DISTANCE_STARS.get(item.get("id"))
+        if not spec:
+            continue
+        star = by_id.get(spec[0])
+        if not star:
+            continue
+        try:
+            ra_d, decl_d = _precess_j2000_to_date(jd, star["ra"], star["decl"])
+            true_star = {"id": spec[0], "name": spec[1], "raJ2000": star["ra"], "declJ2000": star["decl"], "ra": ra_d, "decl": decl_d}
+            true_star.update(_altaz_from_equatorial(jd, perchart.pos, ra_d, decl_d))
+            item["trueStar"] = true_star
+        except Exception:
+            traceback.print_exc()
     return su28_items
 
 
@@ -406,7 +479,9 @@ def _build_catalog_stars(perchart, limit, catalog=None):
     catalog = catalog if catalog is not None else _base_star_catalog()
     for star in catalog:
         item = dict(star)
-        item.update(_altaz_from_equatorial(perchart.dateTime.jd, perchart.pos, item["ra"], item["decl"]))
+        # BSC5 是 J2000 历元:地平坐标按当日历元岁差后再算(T-203);payload 里 ra/decl 仍留 J2000(前端按帧岁差,星表可跨时刻复用)
+        ra_d, decl_d = _precess_j2000_to_date(perchart.dateTime.jd, item["ra"], item["decl"])
+        item.update(_altaz_from_equatorial(perchart.dateTime.jd, perchart.pos, ra_d, decl_d))
         item.update(_visibility_info(item))
         stars.append(item)
     if limit and len(stars) > limit:
@@ -453,7 +528,7 @@ def _build_line_from_ecliptic(perchart, start, end, step, key, label):
     points = []
     lon = start
     while lon <= end:
-        eq = utils.eqCoords(_norm_degree(lon), 0)
+        eq = _ecl_to_eq_of_date(perchart.dateTime.jd, _norm_degree(lon), 0)   # 黄道线按当日真黄赤交角(T-203:原固定 23.44°)
         row = {
             "lon": _norm_degree(lon),
             "lat": 0,
@@ -667,7 +742,7 @@ def _build_trails(perchart, data):
                 continue
             lon, lat = calc[0], calc[1]
             lonspeed = calc[3] if len(calc) > 3 else 0.0
-            eq = utils.eqCoords(_norm_degree(lon), lat)
+            eq = _ecl_to_eq_of_date(jd0 + off, _norm_degree(lon), lat)   # 轨迹点按各自时刻的真黄赤交角(T-203)
             points.append({
                 "offsetDays": off,
                 "ra": _norm_degree(eq[0]),
@@ -732,6 +807,7 @@ class PlanetariumSrv:
             su28 = [_plain_obj(item) for item in _safe_perchart_list(perchart, "getFixedStarSu28")] if include_traditions else []
             if include_traditions:
                 _fix_moira_su28_equatorial(su28, getattr(perchart, "su28Mode", 0), perchart.dateTime.jd)
+                _attach_true_distance_stars(su28, perchart, base_catalog if include_catalog else None)
             beidou = [_plain_obj(item) for item in _safe_perchart_list(perchart, "getBeiDou")] if include_traditions else []
             fixed_stars = [_plain_obj(item) for item in _safe_perchart_list(perchart, "getFixedStars")] if include_traditions else []
             for group in (su28, beidou, fixed_stars):
@@ -743,7 +819,8 @@ class PlanetariumSrv:
             moon_phase = _moon_phase_info(bodies)
             sky_mode = "night"
             if sun_altitude is not None:
-                if sun_altitude > -0.833:
+                # [Q-372/T-351] 视高度阈值 0°(见 _visibility_info 注)。
+                if sun_altitude > 0:
                     sky_mode = "day"
                 elif sun_altitude > -6:
                     sky_mode = "civilTwilight"
@@ -780,6 +857,7 @@ class PlanetariumSrv:
                 "stars": {
                     "catalog": catalog_stars,
                     "fixed": fixed_stars,
+                    "epoch": "J2000",   # catalog 的 ra/decl 历元;azimuth/altitude 已按当日历元岁差后计算
                     "source": "Yale Bright Star Catalog v5, with Swiss Ephemeris Alt-Az projection",
                     "magLimit": 6.5,
                     "catalogFields": ["id", "name", "ra", "decl", "azimuth", "altitudeAppa", "mag", "colorIndex", "colorTemperature", "constellation", "visible"],

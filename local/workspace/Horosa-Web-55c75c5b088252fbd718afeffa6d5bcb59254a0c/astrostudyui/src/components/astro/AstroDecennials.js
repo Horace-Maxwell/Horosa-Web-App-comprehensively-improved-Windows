@@ -29,6 +29,7 @@ import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
 import styles from '../../css/styles.less';
 import { XQSelect as Select } from '../xq-ui';
 import { natalClassicalParams } from './AstroExtraCommon';
+import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { markPanelReady } from '../../utils/perfMark';
 
 const { Option } = Select;
@@ -357,12 +358,11 @@ class AstroDecennials extends Component{
 		const qryparam = this.props.value ? this.genNatalParams(this.props.value) : {};
 		this.state = {
 			params: qryparam,
-			settings: {
-				startMode: DECENNIAL_START_MODE_SECT_LIGHT,
-				orderType: DECENNIAL_ORDER_ZODIACAL,
-				dayMethod: DECENNIAL_DAY_METHOD_VALENS,
-				calendarType: DECENNIAL_CALENDAR_TRADITIONAL,
-			},
+			settings: (()=>{
+				// 上次亲手设的四项口径(星运族共用一份;没存过 = 得时光体 / 实际黄道次序 / Valens / 360 天年)
+				const sv = DIRECTION_PAGE_SETTINGS.load();
+				return { startMode: sv.decennialStartMode, orderType: sv.decennialOrderType, dayMethod: sv.decennialDayMethod, calendarType: sv.decennialCalendarType };
+			})(),
 			list: [],
 			timelineMeta: {
 				resolvedStartPlanet: AstroConst.SUN,
@@ -518,6 +518,7 @@ class AstroDecennials extends Component{
 	}
 
 	changeStartMode(value){
+		DIRECTION_PAGE_SETTINGS.save({ decennialStartMode: value });
 		this.setState({
 			settings: {
 				...this.state.settings,
@@ -532,6 +533,7 @@ class AstroDecennials extends Component{
 	}
 
 	changeOrderType(value){
+		DIRECTION_PAGE_SETTINGS.save({ decennialOrderType: value });
 		this.setState({
 			settings: {
 				...this.state.settings,
@@ -546,6 +548,7 @@ class AstroDecennials extends Component{
 	}
 
 	changeDayMethod(value){
+		DIRECTION_PAGE_SETTINGS.save({ decennialDayMethod: value });
 		this.setState({
 			settings: {
 				...this.state.settings,
@@ -560,6 +563,7 @@ class AstroDecennials extends Component{
 	}
 
 	changeCalendarType(value){
+		DIRECTION_PAGE_SETTINGS.save({ decennialCalendarType: value });
 		this.setState({
 			settings: {
 				...this.state.settings,
@@ -759,16 +763,19 @@ class AstroDecennials extends Component{
 
 	render(){
 		let height = this.props.height ? this.props.height : 760;
+		// [双滚动条根治 2026-09-18] 树列原写死「工作区高−20」,再加上方分割线 ~37px 就比面板高 → 外层面板长出第二条滚动条。
+		// 改成:根/行/列定高链(100%),树滚动区 flex 吃余高,零常数。
 		const style = {
-			height: `${height - 20}px`,
+			flex: '1 1 auto',
+			minHeight: 0,
 			overflowY: 'auto',
 			overflowX: 'hidden',
 		};
 		const resolved = this.state.timelineMeta.resolvedStartPlanet || AstroConst.SUN;
 		return (
-			<div>
-				<Row gutter={6}>
-					<Col span={14}>
+			<div style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+				<Row gutter={6} style={{ flex: '1 1 auto', minHeight: 0 }}>
+					<Col span={14} style={{ height: '100%' }}>
 						<AstroChart
 							wheelArt={this.props.wheelArt}
 							value={this.props.value}
@@ -776,11 +783,11 @@ class AstroDecennials extends Component{
 							planetDisplay={this.props.planetDisplay}
 							lotsDisplay={this.props.lotsDisplay}
 							showAstroMeaning={this.props.showAstroMeaning}
-							height={height}
+							height="100%"
 						/>
 					</Col>
-					<Col span={6}>
-						<Divider>{`基于${getDecennialPlanetShortName(resolved)}起运`}</Divider>
+					<Col span={6} style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+						<Divider style={{ flex: '0 0 auto' }}>{`基于${getDecennialPlanetShortName(resolved)}起运`}</Divider>
 						<div className={`${styles.scrollbar} horosa-direction-tree-scroll horosa-decennials-tree-scroll`} style={style}>
 							<Tree
 								className="horosa-direction-tree horosa-decennials-tree"
@@ -792,7 +799,8 @@ class AstroDecennials extends Component{
 							</Tree>
 						</div>
 					</Col>
-					<Col span={4}>
+					<Col span={4} style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+						{/* [极档巡检 2026-09-18] 设置列同样走 flex 列:滚动区吃余高,内容再长也只在列内滚,不把外层面板撑出第二条滚动条(1.8 档实抓 82px) */}
 						<div className={styles.scrollbar} style={style}>
 							<Row>
 								<Col span={24}>

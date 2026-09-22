@@ -82,3 +82,49 @@ describe('太乙 流派覆盖层(§33/§44)', () => {
 		expect(isDefaultSchool({ shijiCoord: 'default' })).toBe(true);
 	});
 });
+
+describe('太乙 流派覆盖层 · [Q-157] 积年常数随古法公式(tn)', () => {
+	test('tn=2(淘金歌)=10154193:三基起宫按淘金歌常数;此前缺表回落统宗 10153917(差 276 年)→ 君基/臣基错位', () => {
+		const r0 = applyTaiyiSchool({ ...basePan(), tn: 0 }, { sanji: '淘金歌' });
+		const r2 = applyTaiyiSchool({ ...basePan(), tn: 2 }, { sanji: '淘金歌' });
+		const r3 = applyTaiyiSchool({ ...basePan(), tn: 3 }, { sanji: '淘金歌' });
+		// 2026 年:统宗 (10153917+2026)%360=343 → 343/30=11 → 午+11=巳;343/3=114 → 114%12=6 → 午+6=子
+		expect(r0.pan.kingbase).toBe('巳');
+		expect(r0.pan.officerbase).toBe('子');
+		// 淘金歌 (10154193+2026)%360=259 → 259/30=8 → 午+8=寅;259/3=86 → 86%12=2 → 午+2=申
+		expect(r2.pan.kingbase).toBe('寅');
+		expect(r2.pan.officerbase).toBe('申');
+		// 太乙局(3)≈统宗:与 tn=0 同
+		expect(r3.pan.kingbase).toBe(r0.pan.kingbase);
+		expect(r3.pan.officerbase).toBe(r0.pan.officerbase);
+		expect(r2.overrides.has('kingbase') && r2.overrides.has('officerbase')).toBe(true);
+	});
+	test('tn=2 游神方向覆盖同样吃淘金歌常数(与 tn=0 不再逐字相同)', () => {
+		const y0 = applyTaiyiSchool({ ...basePan(), tn: 0 }, { youshen: '顺' });
+		const y2 = applyTaiyiSchool({ ...basePan(), tn: 2 }, { youshen: '顺' });
+		expect(y0.overrides.has('bigyoNum')).toBe(true);
+		expect(y2.overrides.has('bigyoNum')).toBe(true);
+		expect(`${y0.pan.bigyoNum}/${y0.pan.smyoNum}`).not.toBe(`${y2.pan.bigyoNum}/${y2.pan.smyoNum}`);
+	});
+});
+
+describe('[Q-298/T-284 裁决 2026-09-18] 计神覆盖沿用底盘计式基准只改方向', () => {
+	const { jishenBaseZhi } = require('../core/taiyiSchool');
+	test('基准支按计式:時計取时支 / 年計取年支 / 月計 / 日計;缺柱回落年支', () => {
+		const gz = { year: '丙午', month: '甲辰', day: '戊申', time: '甲子' };
+		expect(jishenBaseZhi({ ganzhi: gz, options: { style: 3 } })).toBe('子');
+		expect(jishenBaseZhi({ ganzhi: gz })).toBe('子');   // 缺省時計
+		expect(jishenBaseZhi({ ganzhi: gz, options: { style: 0 } })).toBe('午');
+		expect(jishenBaseZhi({ ganzhi: gz, options: { style: 1 } })).toBe('辰');
+		expect(jishenBaseZhi({ ganzhi: gz, options: { style: 2 } })).toBe('申');
+		expect(jishenBaseZhi({ ganzhi: { year: '丙午' }, options: { style: 3 } })).toBe('午');   // 无时柱 → 回落年支(旧行为)
+	});
+	test('阳遁起寅 / 阴遁起申,只改方向:時計 子时 阳遁 顺=寅 逆=寅;阴遁 丑时 顺=酉 逆=未', () => {
+		const yang = { ...basePan(), ganzhi: { year: '丙午', time: '甲子' }, options: { style: 3 }, kook: { num: 55, text: '陽遁三十三局' } };
+		expect(applyTaiyiSchool(yang, { jishen: '顺' }).pan.jigod).toBe('寅');
+		expect(applyTaiyiSchool(yang, { jishen: '逆' }).pan.jigod).toBe('寅');
+		const yin = { ...basePan(), ganzhi: { year: '丙午', time: '乙丑' }, options: { style: 3 }, kook: { num: 55, text: '陰遁三十三局' } };
+		expect(applyTaiyiSchool(yin, { jishen: '顺' }).pan.jigod).toBe('酉');
+		expect(applyTaiyiSchool(yin, { jishen: '逆' }).pan.jigod).toBe('未');
+	});
+});

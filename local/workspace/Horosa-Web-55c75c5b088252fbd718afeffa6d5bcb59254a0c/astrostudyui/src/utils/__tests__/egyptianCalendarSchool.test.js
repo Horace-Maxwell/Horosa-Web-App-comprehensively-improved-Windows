@@ -617,3 +617,22 @@ describe('埃及流派随盘保真(record 七键)', ()=>{
 		expect(resolved2.starClock).toBe('transit');   // 回落全局
 	});
 });
+
+// [Q-540/T-502] 「各行星落旬」主显名标签随旬名传统档:默认「埃及名」;科普特/赫尔墨斯档标「科普特-希腊名」/「赫尔墨斯名」(此前恒标埃及名)。
+describe('AI 段「各行星落旬」主显名标签随旬名传统(Q-540)', ()=>{
+	const { buildEgyptSectionLines } = require('../../components/astro/AstroEgypt');
+	const CHART = { chart: { objects: [{ id: 'Sun', lon: 122.3 }, { id: 'Moon', lon: 15.2 }], angles: [{ id: 'Asc', lon: 100.5 }] }, params: { birth: '1990/07/25 10:00:00' } };
+	test('默认档标「埃及名」,coptic 档标「科普特-希腊名」且名字随档变,hermes 档标「赫尔墨斯名」', ()=>{
+		const a = buildEgyptSectionLines(CHART, null).join('\n');
+		const b = buildEgyptSectionLines(CHART, { decanNaming: 'coptic' }).join('\n');
+		const c = buildEgyptSectionLines(CHART, { decanNaming: 'hermes' }).join('\n');
+		expect(a).toMatch(/日：第\d+旬 .+·埃及名 /);
+		expect(b).toMatch(/日：第\d+旬 .+·科普特-希腊名 /);
+		expect(b).not.toMatch(/·埃及名 /);
+		expect(c).toMatch(/日：第\d+旬 .+·赫尔墨斯名 /);
+		const nameOf = (t)=>(t.match(/日：第\d+旬 [^·]+·[^ ]+ ([^·]+)·/) || [])[1];
+		expect(nameOf(a)).toBeTruthy();
+		expect(nameOf(b)).toBeTruthy();
+		expect(nameOf(a)).not.toBe(nameOf(b));
+	});
+});

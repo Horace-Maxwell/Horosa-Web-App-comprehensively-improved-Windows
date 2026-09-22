@@ -14,107 +14,23 @@ import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/mod
 import { buildPredictiveSnapshotText, } from '../../utils/predictiveAiSnapshot';
 import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
 import { XQSegmented, XQSelect } from '../xq-ui';
-import { SIGNS } from '../../divination/data/signs';
+import {
+	PROFECTION_GRAIN_OPTIONS, PROFECTION_START_OPTIONS, PROFECTION_GRAIN_CN, PROFECTION_START_CN,
+	deriveProfection, profectionDateTimesFromParams,
+} from '../../utils/profectionSummary';
 import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
 import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
 import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
+import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { markPanelReady } from '../../utils/perfMark';
 // horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
 // 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
 // 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 // ===== G9 月/日小限 + 多起点(纯前端派生) =====
-// flatlib 后端小限盘已连续旋转(年盘自上升),此处的「年/月/日」摘要为离散古典口径的纯前端派生,
-// 不改后端、不动既有年盘(零回归)。起点摘要亦纯前端。
-const PROFECTION_GRAIN_OPTIONS = [
-	{ value: 'y', label: '年' },
-	{ value: 'm', label: '月' },
-	{ value: 'd', label: '日' },
-];
-// 起点:上升(默认)/区分光(昼日夜月)/福点/月/MC 所在座。
-const PROFECTION_START_OPTIONS = [
-	{ value: 'asc', label: '上升（默认）' },
-	{ value: 'sect', label: '区分光（昼日夜月）' },
-	{ value: 'fortune', label: '福点' },
-	{ value: 'moon', label: '月亮' },
-	{ value: 'mc', label: '天顶' },
-];
-const PROFECTION_GRAIN_CN = { y: '年', m: '月', d: '日' };
-const PROFECTION_START_CN = { asc: '上升', sect: '区分光', fortune: '福点', moon: '月亮', mc: '天顶' };
-// 座序庙主(domicile)→ 行星 glyph 标识(与 AstroText.AstroMsg 一致)。
-const PROFECTION_SIGN_RULER_ID = {
-	mars: 'Mars', venus: 'Venus', mercury: 'Mercury', moon: 'Moon', sun: 'Sun',
-	jupiter: 'Jupiter', saturn: 'Saturn',
-};
-
-function profectionPointSignIdx(chartObj, startKey){
-	// 从本命盘取起点所在座的序号(0=白羊…11=双鱼);取不到返回 null(降级)。
-	const chart = chartObj && chartObj.chart ? chartObj.chart : null;
-	if(!chart){ return null; }
-	const byId = {};
-	(chart.objects || []).forEach((o)=>{ if(o && o.id){ byId[o.id] = o; } });
-	(chart.angles || []).forEach((a)=>{ if(a && a.id){ byId[a.id] = a; } });
-	let id = AstroConst.ASC;
-	if(startKey === 'mc'){ id = AstroConst.MC; }
-	else if(startKey === 'moon'){ id = AstroConst.MOON; }
-	else if(startKey === 'fortune'){ id = AstroConst.PARS_FORTUNA; }
-	else if(startKey === 'sect'){ id = chart.isDiurnal ? AstroConst.SUN : AstroConst.MOON; }
-	const o = byId[id];
-	if(!o){ return null; }
-	if(o.sign && AstroConst.LIST_SIGNS.indexOf(o.sign) >= 0){
-		return AstroConst.LIST_SIGNS.indexOf(o.sign);
-	}
-	if(o.lon != null){ return Math.floor(((o.lon % 360) + 360) % 360 / 30) % 12; }
-	return null;
-}
-
-function profectionSignRulerId(signIdx){
-	const name = AstroConst.LIST_SIGNS[((signIdx % 12) + 12) % 12];
-	const key = name ? name.toLowerCase() : '';
-	const dom = SIGNS[key] ? SIGNS[key].domicile : null;
-	return PROFECTION_SIGN_RULER_ID[dom] || null;
-}
-
-// 计算所选粒度/起点的离散小限派生结果。
-// 入:本命 birth(DateTime) + 目标 datetime(DateTime) + grain('y'|'m'|'d') + startKey + 本命盘。
-// 出:{ ageYears, startSignIdx, yearSignIdx, yearHouse, signIdx, house, rulerId, monthsIntoYear } 或 null。
-function deriveProfection(birthDt, targetDt, grain, startKey, chartObj){
-	const startSignIdx = profectionPointSignIdx(chartObj, startKey);
-	if(startSignIdx === null || !birthDt || !targetDt){ return null; }
-	const birthJdn = birthDt.jdn || (birthDt.calcJdn ? birthDt.calcJdn() : 0);
-	const targetJdn = targetDt.jdn || (targetDt.calcJdn ? targetDt.calcJdn() : 0);
-	let days = targetJdn - birthJdn;
-	if(!(days >= 0)){ days = 0; }
-	const YEAR_DAYS = 365.2422;
-	const age = Math.floor(days / YEAR_DAYS);               // 已满整岁(12/24/36 岁回上升)
-	const yearSignIdx = (startSignIdx + age) % 12;          // 当年小限座
-	const yearHouse = (age % 12) + 1;                        // 当年小限宫
-	const daysIntoYear = days - age * YEAR_DAYS;            // 当年周年以来天数(月/日推进用)
-	const MONTH_DAYS = YEAR_DAYS / 12.0;                    // ≈30.4368 天/月
-	let monthsIntoYear = Math.floor(daysIntoYear / MONTH_DAYS);
-	monthsIntoYear = Math.max(0, Math.min(11, monthsIntoYear));
-	const monthSignIdx = (yearSignIdx + monthsIntoYear) % 12;
-	const daysIntoMonth = daysIntoYear - monthsIntoYear * MONTH_DAYS;
-	const DAY_STEP = 2.5;                                   // 360/12/12=2.5 天/座
-	let daysAdv = Math.floor(daysIntoMonth / DAY_STEP);
-	daysAdv = Math.max(0, Math.min(11, daysAdv));
-	const daySignIdx = (monthSignIdx + daysAdv) % 12;
-	let signIdx = yearSignIdx;
-	let house = yearHouse;
-	if(grain === 'm'){ signIdx = monthSignIdx; house = ((monthSignIdx - startSignIdx + 12) % 12) + 1; }
-	else if(grain === 'd'){ signIdx = daySignIdx; house = ((daySignIdx - startSignIdx + 12) % 12) + 1; }
-	return {
-		ageYears: age,
-		startSignIdx,
-		yearSignIdx,
-		yearHouse,
-		signIdx,
-		house,
-		rulerId: profectionSignRulerId(signIdx),
-		monthsIntoYear,
-	};
-}
+// [Q-105 裁决 2026-09-18] 派生算法 + 选项/中文表已抽到 utils/profectionSummary.js 单源
+// (页面摘要区 / 页面模块快照 / 无头挂载快照三处同源,「能算即能挂」);此处只留页面渲染。
 
 class AstroProfection extends Component{
 
@@ -148,13 +64,13 @@ class AstroProfection extends Component{
 				tradition: qryparam.tradition,
 				datetime: now,
 				tmType: 'y',
-				nodeRetrograde: false,
+				nodeRetrograde: DIRECTION_PAGE_SETTINGS.load().nodeRetrograde,   // 上次亲手设的值(星运族共用)
 				asporb: transitOrbDefault(),
 			},
 			dirChart: null,
 			// G9:小限粒度(年/月/日,默认年=现状) + 起点(上升默认)。纯前端摘要,不影响后端年盘请求。
-			profGrain: 'y',
-			profStart: 'asc',
+			profGrain: DIRECTION_PAGE_SETTINGS.load().profGrain,   // 上次亲手设的值(没存过 = 年 / 上升)
+			profStart: DIRECTION_PAGE_SETTINGS.load().profStart,
 		};
 
 		if(this.state.params.date){
@@ -303,7 +219,7 @@ class AstroProfection extends Component{
 			// horosa_panel_ready_v1:推运盘数据落定(中栏盘 + 右栏相位同源于 st.dirChart)的唯一提交点。
 			markPanelReady('direction');
 			const chartValue = chartValueAtRequest;
-			saveModuleAISnapshotLazy('profection', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'profection'), {
+			saveModuleAISnapshotLazy('profection', ()=>buildPredictiveSnapshotText(chartValue, this.snapshotParams(st.params), result, 'profection'), {
 				module: 'profection',
 			});
 		});
@@ -481,7 +397,7 @@ class AstroProfection extends Component{
 		}
 		let text = '';
 		try{
-			text = `${buildPredictiveSnapshotText(this.props.value, this.state.params, this.state.dirChart, 'profection') || ''}`.trim();
+			text = `${buildPredictiveSnapshotText(this.props.value, this.snapshotParams(this.state.params), this.state.dirChart, 'profection') || ''}`.trim();
 		}catch(e){
 			text = '';
 		}
@@ -493,27 +409,36 @@ class AstroProfection extends Component{
 		}
 	}
 
+	// [Q-105] 模块快照带上页面当前小限粒度/起点(快照 = 页面所见;齿轮 profGrain/profStart 与之同名同值域)。
+	snapshotParams(params){
+		return { ...(params || {}), profGrain: this.state.profGrain || 'y', profStart: this.state.profStart || 'asc' };
+	}
+
+	// [Q-105] 切粒度/起点 → 页面摘要即时变,模块快照同步重存(否则挂载/导出仍是切换前的小限摘要)。
+	resaveSnapshotForProfectionToggle(){
+		if(!this.props.value || !this.state.dirChart){ return; }
+		saveModuleAISnapshotLazy('profection', ()=>buildPredictiveSnapshotText(this.props.value, this.snapshotParams(this.state.params), this.state.dirChart, 'profection'), {
+			module: 'profection',
+		});
+	}
+
 	changeProfGrain(e){
 		const val = e && e.target ? e.target.value : e;
-		this.setState({ profGrain: val });
+		DIRECTION_PAGE_SETTINGS.save({ profGrain: val });
+		this.setState({ profGrain: val }, ()=>this.resaveSnapshotForProfectionToggle());
 	}
 
 	changeProfStart(val){
-		this.setState({ profStart: val });
+		DIRECTION_PAGE_SETTINGS.save({ profStart: val });
+		this.setState({ profStart: val }, ()=>this.resaveSnapshotForProfectionToggle());
 	}
 
 	// G9 小限派生摘要(纯前端):按所选粒度/起点显示当前小限座 · 宫 · 主星;月/日另显年级座作参照。
 	renderProfectionSummary(){
 		const grain = this.state.profGrain || 'y';
 		const startKey = this.state.profStart || 'asc';
-		let birthDt = null;
-		const p = this.state.params;
-		if(p && p.date){
-			birthDt = new DateTime();
-			try{ birthDt.parse(`${p.date} ${p.time || '12:00:00'}`, 'YYYY-MM-DD HH:mm:ss'); }
-			catch(e){ try{ birthDt.parse(p.date, 'YYYY-MM-DD'); }catch(e2){ birthDt = null; } }
-		}
-		const targetDt = p ? p.datetime : null;
+		// [Q-105] 时刻规整走单源(与无头快照同一代码路径,两侧同数)。
+		const { birthDt, targetDt } = profectionDateTimesFromParams(this.state.params);
 		const info = deriveProfection(birthDt, targetDt, grain, startKey, this.props.value);
 		const glyphFont = { fontFamily: AstroConst.AstroFont };
 		const normFont = { fontFamily: AstroConst.NormalFont };
@@ -543,12 +468,14 @@ class AstroProfection extends Component{
 						<div>
 							<span style={normFont}>{PROFECTION_GRAIN_CN[grain]}小限（自{PROFECTION_START_CN[startKey]}）：</span>
 							{signGlyph(info.signIdx)} <span style={normFont}>{signCn(info.signIdx)}</span>
-							<span style={normFont}>　第 {info.house} 宫</span>
+							{/* [Q-176/T-116f] 这个「第 N 宫」是**自所选起点星座起数**的序号(起点≠上升时与本命宫位编号不是一回事),
+							    标签此前不说明 → 用户容易按本命宫位读。加 title 点明,数值不动。 */}
+							<span style={normFont} title={`自${PROFECTION_START_CN[startKey]}所在星座起数的第几宫;起点非上升时与本命宫位编号不同`}>　第 {info.house} 宫(自{PROFECTION_START_CN[startKey]}起数)</span>
 						</div>
 						<div><span style={normFont}>主星：</span>{planet(info.rulerId)}</div>
 						<div style={{opacity: 0.75}}><span style={normFont}>满 {info.ageYears} 岁</span>{grain !== 'y' ? <span style={normFont}>　当年 {info.monthsIntoYear + 1} 月</span> : null}</div>
 						{grain !== 'y' ? (
-							<div style={{opacity: 0.65}}><span style={normFont}>年级参照：</span>{signGlyph(info.yearSignIdx)} <span style={normFont}>{signCn(info.yearSignIdx)} · 第 {info.yearHouse} 宫</span></div>
+							<div style={{opacity: 0.65}}><span style={normFont}>年级参照：</span>{signGlyph(info.yearSignIdx)} <span style={normFont} title={`同上:自${PROFECTION_START_CN[startKey]}所在星座起数`}>{signCn(info.yearSignIdx)} · 第 {info.yearHouse} 宫(自{PROFECTION_START_CN[startKey]}起数)</span></div>
 						) : null}
 					</div>
 				)}
@@ -613,6 +540,7 @@ class AstroProfection extends Component{
 		let height = this.props.height ? this.props.height : 760;
 		let style = {
 			height: (height-20) + 'px',
+			boxSizing: 'border-box',   // [巡检实抓 2026-09-17] 内距计入高度,不再比面板高 5px
 			overflowY:'auto', 
 			overflowX:'hidden',
 		};

@@ -130,22 +130,26 @@ def test_distribution_parity_with_astroextra():
         pts = astroextra.chart_points(pc)
         asc = pc.chart.getAngle(fc.ASC).lon
         mc = pc.chart.getAngle(fc.MC).lon
-        ref = astroextra.distribution(pts, asc, mc)
         m = ctx.moment(jd)
-        counts = {'Fire': 0, 'Earth': 0, 'Air': 0, 'Water': 0}
-        modes = {'Cardinal': 0, 'Fixed': 0, 'Mutable': 0}
-        hemi = {'east': 0, 'west': 0, 'above': 0, 'below': 0}
-        for pid in ('Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn',
-                    'Uranus', 'Neptune', 'Pluto'):
-            lon = m.lon(pid)
-            si = int(lon // 30)
-            counts[('Fire', 'Earth', 'Air', 'Water')[si % 4]] += 1
-            modes[('Cardinal', 'Fixed', 'Mutable')[si % 3]] += 1
-            hemi['below' if (lon - m.asc()) % 360 < 180 else 'above'] += 1
-            hemi['east' if (lon - m.mc()) % 360 < 180 else 'west'] += 1
-        assert counts == ref['elements'], jd
-        assert modes == ref['modes'], jd
-        assert hemi == ref['hemispheres'], jd
+        seven = ('Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn')
+        ten = seven + ('Uranus', 'Neptune', 'Pluto')
+        # 两口径各对拍一次:扫描条件缺省计十星(includeOuter 缺省 true);格局页「分布权重」缺省只计七政(distribution 缺省 ids)。
+        for bodies, ref in ((ten, astroextra.distribution(pts, asc, mc, ids=ten)),
+                            (seven, astroextra.distribution(pts, asc, mc))):
+            counts = {'Fire': 0, 'Earth': 0, 'Air': 0, 'Water': 0}
+            modes = {'Cardinal': 0, 'Fixed': 0, 'Mutable': 0}
+            hemi = {'east': 0, 'west': 0, 'above': 0, 'below': 0}
+            for pid in bodies:
+                lon = m.lon(pid)
+                si = int(lon // 30)
+                counts[('Fire', 'Earth', 'Air', 'Water')[si % 4]] += 1
+                modes[('Cardinal', 'Fixed', 'Mutable')[si % 3]] += 1
+                hemi['below' if (lon - m.asc()) % 360 < 180 else 'above'] += 1
+                hemi['east' if (lon - m.mc()) % 360 < 180 else 'west'] += 1
+            assert counts == ref['elements'], (jd, len(bodies))
+            assert modes == ref['modes'], (jd, len(bodies))
+            assert hemi == ref['hemispheres'], (jd, len(bodies))
+            assert sum(counts.values()) == len(bodies)
 
 
 def test_temperament_parity_direct():

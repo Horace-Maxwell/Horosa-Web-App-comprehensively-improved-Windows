@@ -1,7 +1,7 @@
 // [V5-A6/A7] 存储健康页:本地数据的可自证状态一览 + 一键诊断包。
 // 显示:持久化授予(persist)/影子副本状态/存储用量/记录库规模;桌面端可导出诊断包。
 import React, { useEffect, useState } from 'react';
-import { Modal, Descriptions, Button, message } from 'antd';
+import { Modal, Descriptions, Button, Tooltip, message } from 'antd';
 import { safeLocalStorageGet } from '../../utils/safeStorage';
 import { getShadowMirrorStatus } from '../../utils/shadowMirror';
 import { listLocalCharts, listLocalChartsTrash } from '../../utils/localcharts';
@@ -70,7 +70,9 @@ export default function StorageHealthModal({ visible, onClose }){
 			footer={[
 				<Button key='check' onClick={()=>setCheckRows(runArchiveHealthCheck())}>运行体检</Button>,
 				isDesktopBridgeAvailable() ? (
-					<Button key='diag' loading={exporting} onClick={exportDiagnostics}>导出诊断包</Button>
+					<Tooltip key='diag' title='打包本机日志 / 动作账本 / 更新历史供排障;写入前自动脱敏(接口 Key、令牌、授权头等密钥体一律打码)'>
+						<Button loading={exporting} onClick={exportDiagnostics}>导出诊断包(已脱敏)</Button>
+					</Tooltip>
 				) : null,
 				<Button key='close' type='primary' onClick={onClose}>关闭</Button>,
 			]}

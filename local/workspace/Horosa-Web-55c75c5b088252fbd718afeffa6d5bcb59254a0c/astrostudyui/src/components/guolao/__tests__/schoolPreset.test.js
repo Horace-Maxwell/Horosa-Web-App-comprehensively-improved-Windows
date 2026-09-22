@@ -15,7 +15,7 @@ describe('matchSchoolPreset 流派预设纯派生', ()=>{
 	it('默认配置(占星上升 asc + 今宿 su28=2 + 宫主 + 古度)→ 自定,不误命中任何预设', ()=>{
 		expect(matchSchoolPreset(
 			{ guolaoLifeMode: 'asc', guolaoBodyMode: 'taiyin', guolaoTrueSolarTime: 'mean', guolaoNodeType: 'mean', doubingSu28: 2 },
-			{ lifeMasterMode: 'gong', minorLimitType: '', motionState: false },
+			{ lifeMasterMode: 'gong', minorLimitType: '' },
 		)).toBe('custom');
 	});
 
@@ -33,7 +33,7 @@ describe('matchSchoolPreset 流派预设纯派生', ()=>{
 		)).toBe('custom');
 	});
 
-	it('预设对「未声明键」不敏感:琴堂未定义 guolaoNodeType/motionState,任意值仍命中 qintang', ()=>{
+	it('预设对「未声明键」不敏感:琴堂未定义 guolaoNodeType,任意值仍命中 qintang(motionState 已整键删除,传了也不参与)', ()=>{
 		expect(matchSchoolPreset(
 			{ ...GUOLAO_SCHOOL_PRESETS.qintang.fields, guolaoNodeType: 'true' },
 			{ ...GUOLAO_SCHOOL_PRESETS.qintang.display, motionState: true },

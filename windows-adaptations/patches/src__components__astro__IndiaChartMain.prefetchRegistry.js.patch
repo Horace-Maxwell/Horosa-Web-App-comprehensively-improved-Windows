@@ -1,18 +1,19 @@
 diff --git a/astrostudyui/src/components/astro/IndiaChartMain.js b/astrostudyui/src/components/astro/IndiaChartMain.js
-index 6bc1ef08..1bea8604 100644
+index 4ead51a1..ec6c4d6f 100644
 --- a/astrostudyui/src/components/astro/IndiaChartMain.js
 +++ b/astrostudyui/src/components/astro/IndiaChartMain.js
-@@ -1,5 +1,8 @@
+@@ -1,6 +1,9 @@
 -import { Component } from 'react';
 +import { Component, memo } from 'react';
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+ import { fixedPopupFrame } from '../../utils/zoomDomain';
 +import { stepPrefetchEnabled } from '../../utils/perfFlags';
 +import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 +import { markPanelReady } from '../../utils/perfMark';
  import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
  import { createPortal } from 'react-dom';
  import moment from 'moment';
-@@ -980,6 +983,239 @@ function canBuildIndiaChartParams(fields){
+@@ -981,6 +984,239 @@ function canBuildIndiaChartParams(fields){
  		&& (nullableKeys.indexOf(key) >= 0 || fields[key].value !== null));
  }
  
@@ -455,7 +456,7 @@ index 6bc1ef08..1bea8604 100644
  			...fields,
  			indiaHsys: {
  				...(fields.indiaHsys || { name: ['indiaHsys'] }),
-@@ -1698,6 +2078,12 @@ class IndiaChartMain extends Component{
+@@ -1708,6 +2088,12 @@ class IndiaChartMain extends Component{
  				value: this.state.prashnaCast ? this.state.prashnaCast.primaryHouse : undefined,
  			},
  		};
@@ -468,7 +469,7 @@ index 6bc1ef08..1bea8604 100644
  	}
  
  	// ── G5/G13/G8/G1 设置变更 → 重取(与 changeDashaSystem 同范式) ──
-@@ -2024,6 +2410,18 @@ class IndiaChartMain extends Component{
+@@ -2030,6 +2416,18 @@ class IndiaChartMain extends Component{
  				this.setState({
  					activeJyotishFields: jyotishFields,
  					activeJyotishKey: dashaFieldsKey,
@@ -487,7 +488,7 @@ index 6bc1ef08..1bea8604 100644
  				});
  			}
  			return;
-@@ -2063,6 +2461,12 @@ class IndiaChartMain extends Component{
+@@ -2069,6 +2467,12 @@ class IndiaChartMain extends Component{
  					lastChartObj: hasJyotishPayload(dashaChartObj) ? dashaChartObj : this.state.lastChartObj,
  					dashaLoading: false,
  					dashaUpdating: false,
@@ -500,7 +501,7 @@ index 6bc1ef08..1bea8604 100644
  				});
  			}
  		}catch(e){
-@@ -5007,39 +5411,20 @@ class IndiaChartMain extends Component{
+@@ -5021,39 +5425,20 @@ class IndiaChartMain extends Component{
  			: AstroConst.INDIA_NODE_TYPE_DEFAULT;
  		let jyotishFields = this.state.activeJyotishFields || fields;
  		let chartHeight = '100%';

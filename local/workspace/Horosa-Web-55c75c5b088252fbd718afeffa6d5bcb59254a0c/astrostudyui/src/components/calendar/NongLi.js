@@ -33,7 +33,7 @@ class NongLi extends Component{
 	// window resize 兜底重测一次;applyCellFit 幂等(值不变零 setState),双通道无害。
 	fitOnWinResize(){
 		if(this._fitRoot){
-			try{ this.applyCellFit(this._fitRoot.getBoundingClientRect().width); }catch(e){ /* ignore */ }
+			try{ this.applyCellFit(this._fitRoot.clientWidth); }catch(e){ /* ignore */ }   // [Tahoe 域混根修·2026-09-17] 量尺寸只用布局域读数(client*/offset*);rect 在标准化 zoom 引擎下已×z,当布局 px 用会差 z 倍。
 		}
 	}
 
@@ -66,7 +66,7 @@ class NongLi extends Component{
 		});
 		this._fitRO.observe(el);
 		// 首帧立即测一次(RO 首回调有的实现延后一帧,先按当前宽出正确档)。
-		try{ this.applyCellFit(el.getBoundingClientRect().width); }catch(e){ /* ignore */ }
+		try{ this.applyCellFit(el.clientWidth); }catch(e){ /* ignore */ }   // 布局域(与 RO contentRect 同域)
 	}
 
 	applyCellFit(width){
@@ -89,7 +89,7 @@ class NongLi extends Component{
 				const grid = this._fitRoot ? this._fitRoot.querySelector('.horosa-calendar-grid') : null;
 				if(grid && grid.children && grid.children.length >= 7){
 					const rows = Math.max(1, Math.round(grid.children.length / 7));
-					const gh = grid.getBoundingClientRect().height;
+					const gh = grid.clientHeight;   // 布局域
 					if(gh > 0){
 						cellH = gh / rows - 9;
 					}
@@ -200,7 +200,7 @@ class NongLi extends Component{
 					clone.style.height = 'auto';
 					clone.style.minHeight = '0';
 					cal.appendChild(clone);
-					const h = clone.getBoundingClientRect().height;
+					const h = clone.offsetHeight;   // 布局域(border-box)
 					if(h > mx){
 						mx = h;
 					}

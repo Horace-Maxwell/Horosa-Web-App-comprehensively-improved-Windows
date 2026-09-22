@@ -97,7 +97,8 @@ class Midpoint extends Component{
 	render(){
 		const height = this.props.height ? this.props.height : '100%';
 		const style = {
-			height: (height - 180) + 'px',
+			// [双滚动条根治 2026-09-18] 宿主传 100% 时走定高链(不再「工作区高−180」;1.8 档常数失真把右栏撑出第二条滚动条);传数值时保持旧算法。
+			height: (typeof height === 'number') ? (height - 180) + 'px' : '100%',
 			overflowY: 'auto',
 			overflowX: 'hidden',
 			// 安全边距:分组头/行底色条与容器边缘留距,不贴 Tab 卡边框。

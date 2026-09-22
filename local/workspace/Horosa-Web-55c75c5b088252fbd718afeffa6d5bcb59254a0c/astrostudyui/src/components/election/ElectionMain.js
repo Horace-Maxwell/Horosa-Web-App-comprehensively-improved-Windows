@@ -21,6 +21,8 @@ import { ELECTION_PARAM_SPEC, calibreOverrideCount, electionCalibreDefaults, res
 import { fetchReturnSet, fetchPdHitsNearElection } from '../../divination/election/returnCharts';
 import { SIGNS, SIGN_ORDER } from '../../divination/data/signs';
 import moment from 'moment';
+import { definePageSettings } from '../../utils/pageSettingsStore';
+import { shellFieldSchema, seedShellFromSaved } from '../../utils/divinationShellSettings';
 import { markPanelReady } from '../../utils/perfMark';
 
 const Option = XQSelect.Option;
@@ -40,7 +42,8 @@ export const ELECTION_TOPICS = [
 	{ value: 'diet', label: '节食 / 戒习惯' },
 	{ value: 'pursue_love', label: '追求爱情 / 求职' },
 	{ value: 'team_departure', label: '队伍出发 / 比赛' },
-	{ value: 'surgery', label: '手术 / 用药' },
+	{ value: 'surgery', label: '手术' },
+	{ value: 'medication', label: '用药 / 服药' },   // [Q-151/AX-19②] 引擎早有用药判据(月落主病星座+吉相),此前页面不可达
 	{ value: 'banquet', label: '宴会 / 就职典礼' },
 	{ value: 'travel', label: '出行' },
 	{ value: 'blessing', label: '祈福 / 安香 / 法会' },
@@ -54,17 +57,32 @@ export const ELECTION_TOPICS = [
 	{ value: 'talisman', label: '制作护符' },
 ];
 
-// 用事分组(25 项必须分组;OptGroup 渲染顺序=本表顺序,值引用 ELECTION_TOPICS)。
+// 用事分组(26 项必须分组;OptGroup 渲染顺序=本表顺序,值引用 ELECTION_TOPICS)。
 export const ELECTION_TOPIC_GROUPS = [
 	{ label: '人生礼俗', values: ['marriage', 'pursue_love', 'banquet', 'general_day'] },
 	{ label: '营建居所', values: ['move_in', 'buy_property', 'buy_land', 'renovation', 'planting'] },
 	{ label: '商贸契约', values: ['business', 'organization', 'trade', 'buy_car', 'contract', 'registration', 'litigation', 'release'] },
 	{ label: '出行', values: ['travel', 'team_departure', 'sailing'] },
-	{ label: '医疗身体', values: ['surgery', 'diet', 'haircut'] },
+	{ label: '医疗身体', values: ['surgery', 'medication', 'diet', 'haircut'] },
 	{ label: '术法护符', values: ['blessing', 'talisman'] },
 ];
 
 const GRADE_DOT = { 极佳: '#2f9e6f', 不错: '#1aa3b8', 中等: '#3b82f6', 欠佳: '#e07a3b', '不宜（含红线）': '#cf3b3b' };
+
+// 排盘设置跨会话保留(用户实报:排盘设置改了之后每次重开软件都要重设)。只收口径:
+// 西方流派 / 逐项口径覆盖层(稀疏:只存显式改过的项,缺席 = 随流派)/ 黄道 / 宫制。
+// 不收每一次择日的输入:用事类型、买卖方、护符星、手术部位、危机盘基准日、本命盘与世运盘的选取。
+// 宫制随流派联动:换流派若带动了宫制,连同那个宫制一起落盘(库里的宫制恒与库里的流派自洽);之后再手改才是覆盖。
+export const ELECTION_PAGE_SETTINGS = definePageSettings('horosa.election.settings.v1', {
+	westSchool: { def: 'modern_main', oneOf: WEST_SCHOOL_ORDER },
+	electionParams: { type: 'map', sparse: true, keys: ELECTION_PARAM_SPEC.reduce((acc, spec)=>{
+		if(spec.key === 'querentGender'){ return acc; }   // 婚点视角随当事人,是每一次择日的输入:不在 schema 里 → 落盘时自动被丢弃
+		const vals = (spec.options || []).map((o)=>o.value);
+		acc[spec.key] = { def: vals[0], oneOf: vals };
+		return acc;
+	}, {}) },
+	...shellFieldSchema(0),
+});
 
 class ElectionMain extends Component{
 	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
@@ -78,6 +96,9 @@ class ElectionMain extends Component{
 
 	constructor(props){
 		super(props);
+		// 壳只在构造时读 defaults / initialExtra:这里用保存值播种一次(引用恒定)。没存过 = 原来的出厂值逐字相同。
+		// 保存过流派而没单独存过宫制(老数据 / 该档不带宫制)时,宫制保持出厂值。
+		this._seed = seedShellFromSaved(ELECTION_PAGE_SETTINGS, { tradition: 1, zodiacal: 0, hsys: 0 }, { topicId: 'marriage' }, ['westSchool', 'electionParams']);
 		this.state = { scanning: false, scanResults: null, scanOpen: false, scanMode: 'hours', natalRec: null, natalFacts: null, natalLoading: false, mundaneSet: null, mundaneLoading: false, crisisLoading: false, returnSet: null, returnLoading: false, pdHits: null, pdLoading: false };
 		this._fields = null; this._setTime = null; this._topicId = 'marriage';
 		this.runScan = this.runScan.bind(this);
@@ -283,6 +304,8 @@ class ElectionMain extends Component{
 										const next = { ...(extra.electionParams || {}) };
 										if(val === '' || val === undefined || val === null){ delete next[spec.key]; }
 										else { next[spec.key] = val; }
+										// 只落这一个键,以库里已保存的覆盖层为底(界面上这张覆盖层可能刚被一份事盘回灌过,整张存 = 把事盘的其它覆盖项也存成缺省)
+										ELECTION_PAGE_SETTINGS.saveMapEntry('electionParams', spec.key, (val === '' || val === undefined || val === null) ? undefined : val);
 										setExtra({ electionParams: next });
 									}}>
 									<Option value="" label="随流派">随流派（{followLabel}）</Option>
@@ -294,7 +317,7 @@ class ElectionMain extends Component{
 				</div>
 				{n ? (
 					<XQButton size="small" style={{ marginTop: 10, width: '100%' }}
-						onClick={() => setExtra({ electionParams: {} })}>全部恢复「随流派」</XQButton>
+						onClick={() => { ELECTION_PAGE_SETTINGS.save({ electionParams: {} }); setExtra({ electionParams: {} }); }}>全部恢复「随流派」</XQButton>
 				) : null}
 			</XQSideSection>
 		);
@@ -325,6 +348,8 @@ class ElectionMain extends Component{
 						// 宫制联动:该档定义了宫制且与当前不同 → 换宫制重排(patchFields 自动 refetch);
 						// 现代主流档 hsys=null 不联动(保持用户当前宫制=零回归)。
 						const sch = schoolOf(val);
+						// 落盘:流派 + (该档带宫制时)那个宫制一起存
+						ELECTION_PAGE_SETTINGS.save(sch.hsys !== null ? { westSchool: val, hsys: sch.hsys } : { westSchool: val });
 						if(sch.hsys !== null && fields.hsys && fields.hsys.value !== sch.hsys){
 							patchFields({ hsys: sch.hsys });
 						}
@@ -523,10 +548,14 @@ class ElectionMain extends Component{
 			<div style={{ height: '100%', flex: '1 1 auto', minWidth: 0, width: '100%' }}>
 				<DivinationChartShell
 					title="择日盘"
+					wheelArt={this.props.wheelArt}   /* [Q-150/T-61] 盘面美术 / 外环样式随「设置→星盘设置」全局变更(壳内订阅同步) */
+					chartStyle={this.props.chartStyle}
 					kicker="择日设置"
 					pageClass="horosa-election-page"
-					defaults={{ tradition: 1, zodiacal: 0, hsys: 0 }}
-					initialExtra={{ topicId: 'marriage' }}
+					defaults={this._seed.defaults}
+					initialExtra={this._seed.initialExtra}
+					restoreBaseline={this._seed.restoreBaseline}   /* 载入事盘:事盘里没有的设置键回出厂值,不沿用本机保存的偏好 */
+					onUserFieldChange={(patch)=>ELECTION_PAGE_SETTINGS.save(patch)}   /* 壳左栏亲手改黄道 / 宫制 → 落盘 */
 					fields={this.props.fields}
 					height={this.props.height}
 					chartDisplay={this.props.chartDisplay}

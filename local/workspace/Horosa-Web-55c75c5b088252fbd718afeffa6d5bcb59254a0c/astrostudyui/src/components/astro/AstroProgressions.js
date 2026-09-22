@@ -5,6 +5,8 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, fmtNum, chartParams, chartRequestKey, cardStyle, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
 import ProgMethodPanel, { MINOR_VARIANT_OPTIONS } from './AstroProgChart';
+import { buildTropicalProgSnapshotText } from './astroProgSnapshot';
+import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 
@@ -21,14 +23,14 @@ function methodTab(method){
 }
 
 // 推运（回归黄道）：二次/三次/小推运。每个子 tab → 左固定推运双盘 + 右可滚动行星位置/相位表（ProgMethodPanel）。
-// 小推运月长算法用顶栏「月长算法」选择器（minorVariant），默认 engine=现状。
+// 小推运月长算法用顶栏「月长算法」选择器（minorVariant），缺省 synodic=标准朔望月([Q-180])。
 class AstroProgressions extends Component{
 	constructor(props){
 		super(props);
 		this.state = {
 			targetDate: today(),
 			targetTime: '12:00:00',
-			minorVariant: 'engine',
+			minorVariant: DIRECTION_PAGE_SETTINGS.load().minorVariant,   // 上次亲手设的月长算法(三个推运页共用;没存过 = synodic)
 			loading: false,
 			result: null,
 			requestKey: '',
@@ -36,11 +38,31 @@ class AstroProgressions extends Component{
 			methodTab: 'secondary',
 		};
 		this.load = this.load.bind(this);
+		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 		this.changeMethodTab = this.changeMethodTab.bind(this);
 	}
 
-	componentDidMount(){ this._mounted = true; this.load(); }
-	componentWillUnmount(){ this._mounted = false; }
+	componentDidMount(){
+		this._mounted = true;
+		this.load();
+		if(typeof window !== 'undefined'){
+			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+		}
+	}
+	componentWillUnmount(){
+		this._mounted = false;
+		if(typeof window !== 'undefined'){
+			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+		}
+	}
+
+	// [挂载自检 F-13] AI 导出刷新事件:此前本组件无监听 → 星运页导出「二次推运」经 extractSimpleModuleContent 读缓存槽
+	// 'prog'(只由 AI 挂载无头重算写、任意盘)→ 导出到别人的推运;从未挂载则「无可导出文本」。按页面当前目标时刻/月长算法出。
+	handleSnapshotRefreshRequest(evt){
+		if(!evt || !evt.detail || evt.detail.module !== 'prog' || !this.props.value){ return; }
+		buildTropicalProgSnapshotText(this.props.value, { targetDate: this.state.targetDate, targetTime: this.state.targetTime, minorVariant: this.state.minorVariant })
+			.then((txt)=>{ evt.detail.snapshotText = txt || ''; }).catch(()=>{});
+	}
 
 	componentDidUpdate(){
 		const key = chartRequestKey(this.props.value, `progressions|${this.state.targetDate}|${this.state.targetTime}|${this.state.minorVariant}`);
@@ -87,7 +109,9 @@ class AstroProgressions extends Component{
 		this.ensureLoaded();
 		const result = this.state.result || {};
 		const height = this.props.height || 700;
-		const panelH = Math.max(360, height - 104);
+		// [双滚动条根治 2026-09-18] 面板高不再用「工作区高−常数」估算(常数与真实工具条/页签高不等 → 多出的十几像素把外层面板撑出第二条滚动条);
+		// 内层 Tabs 走定高链(app.less .horosa-direction-page .ant-tabs-top …),面板 100% 跟随容器,任何缩放/字号/窗高零常数。
+		const panelH = '100%';
 		// 受控 activeKey:方法列表由后端结果决定,页签集合会随结果变化 —— 用户选过的键仍在就保持,
 		// 否则回落到 'secondary'(原 defaultActiveKey);再不在就取首个,绝不停在不存在的键上显示空白。
 		const methodKeys = (result.methods || []).map((m)=>m.method);
@@ -101,7 +125,7 @@ class AstroProgressions extends Component{
 					<div style={{ ...cardStyle, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', flex: '0 0 auto' }}>
 						<label>目标日期 <input type="date" value={this.state.targetDate} onChange={(e)=>this.setState({ targetDate: e.target.value })} /></label>
 						<label>时间 <input type="time" step="1" value={this.state.targetTime} onChange={(e)=>this.setState({ targetTime: e.target.value })} /></label>
-						<label>月长算法 <Select size="small" style={{ width: 150 }} value={this.state.minorVariant} onChange={(v)=>this.setState({ minorVariant: v })}>
+						<label>月长算法 <Select size="small" style={{ width: 150 }} value={this.state.minorVariant} onChange={(v)=>{ DIRECTION_PAGE_SETTINGS.save({ minorVariant: v }); this.setState({ minorVariant: v }); }}>
 							{MINOR_VARIANT_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
 						</Select></label>
 						<Button size="small" onClick={this.load}>计算推运</Button>
@@ -110,8 +134,8 @@ class AstroProgressions extends Component{
 					{/* horosa_freeze_subtabs_v1:每个推运法一张盘 + 一套表,此前**全部**方法常驻重渲
 					    (改目标日期/月长算法都把所有方法重画一遍)。改受控 + FreezeSubTab:只画前台那一个;
 					    切回时拿本轮最新 children 立即渲一帧,不卸载、不重发请求、不丢滚动位置。 */}
-					<Tabs activeKey={methodKey} onChange={this.changeMethodTab} tabPosition="top" style={{ flex: '1 1 auto' }}>
-						{(result.methods || []).map((method) => (
+					<Tabs activeKey={methodKey} onChange={this.changeMethodTab} tabPosition="top" style={{ flex: '1 1 auto', minHeight: 0 }}>
+						{(result.methods || []).map((method)=>(
 							<TabPane tab={methodTab(method)} key={method.method}>
 								<FreezeSubTab active={methodKey === method.method}>
 								<ProgMethodPanel

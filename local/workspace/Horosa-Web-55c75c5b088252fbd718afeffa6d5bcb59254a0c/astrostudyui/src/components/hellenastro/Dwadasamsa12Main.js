@@ -87,6 +87,9 @@ class Dwadasamsa12Main extends Component{
 					lotsDisplay={this.props.lotsDisplay}
 					showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 					showAstroMeaning={this.props.showAstroMeaning}
+					planetListStyle={this.props.planetListStyle}   /* [Q-356/T-337] */
+					voidClassical={this.props.voidClassical}   /* [Q-149/T-56] 宿主链补传(格局页空亡古典义 / 仅本垣擢升互容) */
+					showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
 					hook={this.state.hook.Chart12}
 				/>
 			</div>

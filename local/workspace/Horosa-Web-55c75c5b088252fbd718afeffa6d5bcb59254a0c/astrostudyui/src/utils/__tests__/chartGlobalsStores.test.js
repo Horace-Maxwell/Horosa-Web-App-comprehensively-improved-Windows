@@ -76,14 +76,14 @@ describe('divinationJudgeGlobals（2026-07 二批收缩为纯判读两键）', (
 
 	test('写入→overrides 只含非默认;迁走的旧键(vocMode 等)白名单拒写', () => {
 		setDivinationJudgeGlobal('antiscia', 0);          // → false
-		setDivinationJudgeGlobal('combustMitigateSameSign', 0);
-		expect(divinationJudgeOverrides()).toEqual({ antiscia: false, combustMitigateSameSign: false });
+		setDivinationJudgeGlobal('combustMitigateSameSign', 1);   // [Q-144 裁决 2026-09-18] 缺省已改 false → 写 1 才是非默认
+		expect(divinationJudgeOverrides()).toEqual({ antiscia: false, combustMitigateSameSign: true });
 		setDivinationJudgeGlobal('vocMode', 'kenodromia');   // 已迁 classical 仓 → no-op
 		setDivinationJudgeGlobal('cazimiOrb', 1);            // 同上
 		expect(getDivinationJudgeGlobals().vocMode).toBeUndefined();
 		expect(getDivinationJudgeGlobals().cazimiOrb).toBeUndefined();
 		setDivinationJudgeGlobal('antiscia', 1);
-		setDivinationJudgeGlobal('combustMitigateSameSign', 1);
+		setDivinationJudgeGlobal('combustMitigateSameSign', 0);
 		expect(divinationJudgeOverrides()).toEqual({});
 	});
 });
@@ -106,7 +106,7 @@ describe('迁仓与判读合并层（classical 二批九键 + judgeLayerOverride
 	test('旧 judge 仓存量七键一次性并入 classical 仓(bool→int 净化)并固化', () => {
 		window.localStorage.setItem(DIVINATION_JUDGE_STORAGE_KEY, JSON.stringify({
 			vocMode: 'kenodromia', vocIncludeOuter: true, cazimiOrb: 1, fixedStarOrbMode: 'byMagnitude',
-			combustMitigateSameSign: false,   // 留守键不迁
+			combustMitigateSameSign: true,   // 留守键不迁([Q-144] 缺省已改 false,存量写 true 才验得出「不受迁移影响」)
 		}));
 		__resetClassicalGlobalsCacheForTest();
 		const g = getClassicalChartGlobals();
@@ -114,12 +114,16 @@ describe('迁仓与判读合并层（classical 二批九键 + judgeLayerOverride
 		expect(g.vocIncludeOuter).toBe(1);
 		expect(g.cazimiOrb).toBe(1);
 		expect(g.fixedStarOrbMode).toBe('byMagnitude');
+		// 留守键不受迁移影响(judge 仓语义独立):存量 true 仍读 true([Q-144] 缺省已是 false,故这一读必须在清仓之前才有判别力)。
+		__resetDivinationJudgeCacheForTest();
+		expect(getDivinationJudgeGlobals().combustMitigateSameSign).toBe(true);
 		// 固化:迁移结果已写回 classical 存储(再 reset 后即便旧仓被清也读得到)。
 		window.localStorage.removeItem(DIVINATION_JUDGE_STORAGE_KEY);
 		__resetClassicalGlobalsCacheForTest();
 		expect(getClassicalChartGlobals().vocMode).toBe('kenodromia');
-		// 留守键不受迁移影响(judge 仓语义独立)。
-		expect(getDivinationJudgeGlobals().combustMitigateSameSign).toBe(true);
+		// 旧仓清空后留守键回到缺省(false):迁移从不把 judge 键搬进 classical 仓。
+		__resetDivinationJudgeCacheForTest();
+		expect(getDivinationJudgeGlobals().combustMitigateSameSign).toBe(false);
 	});
 
 	test('judgeLayerOverrides = classical 判读七键 ∪ judge 两键;vocIncludeOuter 收编为 bool', () => {
@@ -142,7 +146,9 @@ describe('迁仓与判读合并层（classical 二批九键 + judgeLayerOverride
 		expect(from({ houseCuspAdvance: 0 })).toEqual({ houseCuspAdvance: 0 });   // 0 是合法档,不得被 falsy 吞
 		expect(from({ fixedStarOrb: 2, fixedStarOrbMode: 'byMagnitude' })).toEqual({ starOrb: 2, starOrbMode: 'byMagnitude' });
 		expect(from({ vocIncludeOuter: 1 })).toEqual({});                          // 无非默认 vocMode 不附随
-		expect(from({ vocMode: 'exempt4', vocIncludeOuter: 1 })).toEqual({ vocMode: 'exempt4', vocIncludeOuter: 1 });
+		// [Q-254/T-226 ③] exempt4 按 1647 基判(后端不读三王星),vocIncludeOuter 不附随;kenodromia/by_sign_* 才附随。
+		expect(from({ vocMode: 'exempt4', vocIncludeOuter: 1 })).toEqual({ vocMode: 'exempt4' });
+		expect(from({ vocMode: 'kenodromia', vocIncludeOuter: 1 })).toEqual({ vocMode: 'kenodromia', vocIncludeOuter: 1 });
 		expect(from({ combustOrb: 8, underBeamsOrb: 15, antisciaOrb: 2 })).toEqual({ combustOrb: 8, underBeamsOrb: 15, antisciaOrb: 2 });
 	});
 });

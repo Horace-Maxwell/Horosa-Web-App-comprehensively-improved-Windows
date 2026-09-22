@@ -141,3 +141,44 @@ describe('G20 流派预设 schoolPresets', () => {
 		expect(SCHOOL_PRESET_OPTIONS[SCHOOL_PRESET_OPTIONS.length - 1].value).toBe(SCHOOL_PRESET_CUSTOM);
 	});
 });
+
+// [Q-343/T-324] 第八维 lotsDocReverse:预设表自带(Ptolemy=1 其余 0)、反查计入;老调用方不传仍命中(零回归)。
+describe('schoolPresets · lotsDocReverse 联动维(Q-343)', () => {
+	const { SCHOOL_PRESETS, presetOf } = require('../schoolPresets');
+	it('各档自带 lotsDocReverse,且恰与 lotReversal 反相(不反转档采文档式)', () => {
+		Object.keys(SCHOOL_PRESETS).forEach((k) => {
+			const p = SCHOOL_PRESETS[k];
+			expect(Number(p.lotsDocReverse)).toBe(Number(p.lotReversal) === 0 ? 1 : 0);
+		});
+	});
+	it('反查:Ptolemy 七维 + lotsDocReverse=1 命中 ptolemy;手改为 0 → 自定;不传该维仍命中(零回归)', () => {
+		const pt = SCHOOL_PRESETS.ptolemy;
+		const dims = { zodiac: pt.zodiac, hsys: pt.hsys, termsVariant: pt.termsVariant, tripSystem: pt.tripSystem, lotReversal: pt.lotReversal, sectBuffer: pt.sectBuffer, aspectModel: pt.aspectModel };
+		expect(presetOf({ ...dims, lotsDocReverse: 1 })).toBe('ptolemy');
+		expect(presetOf({ ...dims, lotsDocReverse: 0 })).toBe('custom');
+		expect(presetOf(dims)).toBe('ptolemy');
+		const br = SCHOOL_PRESETS.brennan;
+		const bd = { zodiac: br.zodiac, hsys: br.hsys, termsVariant: br.termsVariant, tripSystem: br.tripSystem, lotReversal: br.lotReversal, sectBuffer: br.sectBuffer, aspectModel: br.aspectModel };
+		expect(presetOf({ ...bd, lotsDocReverse: 0 })).toBe('brennan');
+		expect(presetOf({ ...bd, lotsDocReverse: 1 })).toBe('custom');
+	});
+});
+
+// [Q-254/T-232] 界系 3(迦勒底)/4(自定义)不属任何档、容许度手改(aspectModel 'custom')→ 反查必落「自定」。
+describe('presetOf [Q-254/T-232] 非档取值必落自定', () => {
+	const bd = () => {
+		const br = SCHOOL_PRESETS.brennan;
+		return { zodiac: br.zodiac, hsys: br.hsys, termsVariant: br.termsVariant, tripSystem: br.tripSystem, lotReversal: br.lotReversal, sectBuffer: br.sectBuffer, aspectModel: br.aspectModel };
+	};
+	test('termsVariant 3 / 4 → custom(此前折叠成 0 误显埃及界档)', () => {
+		expect(presetOf(bd())).toBe('brennan');
+		expect(presetOf({ ...bd(), termsVariant: 3 })).toBe('custom');
+		expect(presetOf({ ...bd(), termsVariant: 4 })).toBe('custom');
+		expect(presetOf({ ...bd(), termsVariant: '3' })).toBe('custom');
+	});
+	test('aspectModel custom → custom;缺省/空串仍按默认补齐', () => {
+		expect(presetOf({ ...bd(), aspectModel: 'custom' })).toBe('custom');
+		expect(presetOf({ ...bd(), termsVariant: undefined })).toBe('brennan');
+		expect(presetOf({ ...bd(), termsVariant: '' })).toBe('brennan');
+	});
+});

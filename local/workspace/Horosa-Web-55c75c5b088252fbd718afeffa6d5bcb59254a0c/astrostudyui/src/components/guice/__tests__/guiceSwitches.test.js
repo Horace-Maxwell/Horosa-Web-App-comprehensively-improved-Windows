@@ -128,6 +128,28 @@ describe('轨策·开关 · 预设与自定义', () => {
 	test('四预设皆备', () => {
 		expect(Object.keys(GUICE_PRESETS)).toEqual(['default', 'meihua', 'zhouyishu', 'dading']);
 	});
+	// [Q-204/T-165①②·BG-25] 起卦法属逐问题输入,不计入流派比对;切派保留;快照流派出显示名
+	test('[Q-204] 改起卦法不转 custom;切派保留起卦法;guiceSchoolLabel 出显示名', () => {
+		const { guiceSchoolLabel } = require('../guiceSchools');
+		const { buildGuiceSnapshotText } = require('../guiceSnapshot');
+		const m = setOption(applyPreset('meihua'), 'qiguaFa', 'baoshu');
+		expect(m.school).toBe('meihua');
+		expect(m.qiguaFa).toBe('baoshu');
+		const d = applyPreset('dading', m);
+		expect(d.school).toBe('dading');
+		expect(d.qiguaFa).toBe('baoshu');
+		expect(applyPreset('dading').qiguaFa).toBe('time');
+		expect(guiceSchoolLabel('meihua')).toBe('梅花');
+		expect(guiceSchoolLabel('custom')).toBe('自定义');
+		expect(guiceSchoolLabel('default')).toBe('通用（周易数）');
+		const { buildGuicePan } = require('../core/guicePan');
+		const { qiGuaByTime } = require('../core/guiceQiGua');
+		const G = qiGuaByTime({ yearZhi: '辰', lunarMonth: 5, lunarDay: 25, hourZhi: '午' });
+		const ctx = { yearZhi: '辰', monthZhi: '午', year: 2000, hourZhi: '午', pillars: ['庚辰', '壬午', '丙申', '甲午'], dayGan: '丙', askEvent: '问行止' };
+		const txt = buildGuiceSnapshotText(buildGuicePan({ gua: G, ctx, settings: m }), {});
+		expect(txt).toContain('| 流派 | 梅花 |');
+		expect(txt).not.toContain('| 流派 | meihua |');
+	});
 	test('套预设 → school 随之；改单项而偏离 → 自动标 custom', () => {
 		expect(applyPreset('meihua').school).toBe('meihua');
 		expect(setOption(applyPreset('meihua'), 'yanshuFa', 'gui').school).toBe('custom');

@@ -198,24 +198,70 @@ ERA_BEGINNINGS: dict[str, int] = {
 _DATE_RE = re.compile(r"^([一-鿿]{2,8}?)\s*(?:([元一二三四五六七八九十百\d]+)\s*年)?")
 
 
-def date_phrase_to_year(phrase: Optional[str]) -> Optional[int]:
-    """把 '武德元年十月壬申' / '贞观九年' 转成公历公元年。"""
+# [Q-486/T-448] 同名年号的全部起年(表里「上元二」是早年的占位 hack:唐高宗上元 674 / 唐肃宗上元 760)。
+# 解析时按 modern_date 年份择近;无提示时取表内首个(维持旧行为)。
+_ERA_ALIASES: dict[str, list[int]] = {}
+for _era, _base in ERA_BEGINNINGS.items():
+    _m = re.match(r"^(.+?)(二|三)$", _era)
+    _key = _m.group(1) if (_m and _m.group(1) in ERA_BEGINNINGS) else _era
+    _ERA_ALIASES.setdefault(_key, [])
+    if _base not in _ERA_ALIASES[_key]:
+        _ERA_ALIASES[_key].append(_base)
+# 年号前可带「某帝 / 某宗 / 某祖」(如「泰定帝泰定四年」):剥掉再套年号。
+_EMPEROR_PREFIX_RE = re.compile(r"^[一-鿿]{1,4}(帝|宗|祖|后|王)")
+# [Q-486/T-448] 库内 date_phrase 有 39%(10,598 条)用繁体书写年号(隆興/元豐/熙寧/慶曆/紹聖/寶元/開元/貞觀…),
+# 而年号表是简体 → 整条解析不了、只能沿用库列;繁体「建中靖國」还会被简体「建中」截走成 780(27 条)。
+# 匹配前把年号常见繁体字归一到简体(只列年号里出现过的字,不做通用简繁转换)。
+_ERA_TRAD2SIMP = str.maketrans({
+    "曆": "历", "興": "兴", "紹": "绍", "寧": "宁", "甯": "宁", "豐": "丰", "聖": "圣", "慶": "庆", "寶": "宝",
+    "開": "开", "觀": "观", "貞": "贞", "長": "长", "會": "会", "國": "国", "鹹": "咸", "龍": "龙", "衛": "卫",
+    "載": "载", "啟": "启", "雲": "云", "順": "顺", "極": "极", "復": "复", "統": "统", "顯": "显", "儀": "仪",
+    "鳳": "凤", "調": "调", "壽": "寿", "總": "总", "證": "证", "紀": "纪", "廣": "广", "肅": "肃", "視": "视",
+    "則": "则", "應": "应", "萬": "万", "歷": "历", "靈": "灵", "陽": "阳", "陰": "阴", "齊": "齐", "漢": "汉",
+    "樂": "乐", "華": "华", "義": "义", "達": "达", "憲": "宪", "號": "号", "歲": "岁", "讓": "让", "後": "后",
+    "戰": "战", "軍": "军", "澤": "泽", "靜": "静", "興": "兴", "廣": "广", "禎": "祯", "禮": "礼", "鳴": "鸣",
+    "潤": "润", "鍾": "钟", "鐘": "钟", "寧": "宁", "興": "兴",
+})
+
+
+def date_phrase_to_year(phrase: Optional[str], hint_year: Optional[int] = None) -> Optional[int]:
+    """把 '武德元年十月壬申' / '贞观九年' 转成公历公元年。
+
+    [Q-486/T-448] 三处根修:
+      ① **最长前缀**匹配年号(此前按表序 `startswith` 命中即停 →「大中祥符」被先列的「大中」截走成 847、
+        「建中靖国」被「建中」截走成 780,库内 427 条因此错一两百年);
+      ② 年号前的「某帝/某宗」前缀先剥掉(「泰定帝泰定四年」此前取不到「四年」只返元年);
+      ③ 同名年号(上元 674/760)按 `hint_year`(调用方给 modern_date 年份)择近,无提示沿用表内首个。
+    """
     if not phrase:
         return None
-    s = phrase.strip()
-    # 试套年号
-    for era, base in ERA_BEGINNINGS.items():
-        if s.startswith(era):
-            rest = s[len(era):]
-            m = re.match(r"^\s*(元|[一二三四五六七八九十百]+|\d+)\s*年", rest)
-            if not m:
-                # 仅有年号（如"武德"）
-                return base
-            num = _han_to_int(m.group(1))
-            if num is None:
-                return base
-            return base + num - 1
-    return None
+    s = phrase.strip().translate(_ERA_TRAD2SIMP)
+    # ② 剥「某帝 / 某宗」前缀:仅当剥掉后仍能套到年号才剥,避免误伤以帝/宗/祖结尾的年号本身。
+    m_emp = _EMPEROR_PREFIX_RE.match(s)
+    if m_emp and any(s[m_emp.end():].startswith(e) for e in _ERA_ALIASES):
+        s = s[m_emp.end():]
+    # ① 最长前缀
+    era = None
+    for cand in _ERA_ALIASES:
+        if s.startswith(cand) and (era is None or len(cand) > len(era)):
+            era = cand
+    if era is None:
+        return None
+    bases = _ERA_ALIASES[era]
+    base = bases[0]
+    # ③ 同名年号择近
+    if hint_year is not None and len(bases) > 1:
+        base = min(bases, key=lambda b: abs(b - hint_year))
+    rest = s[len(era):]
+    # 「年」亦作「载/載」(唐玄宗天宝三年起改年为载:「天寶五載」=746,此前只认「年」→ 一律返元年 742)。
+    m = re.match(r"^\s*(元|[一二三四五六七八九十百]+|\d+)\s*(年|载|載)", rest)
+    if not m:
+        # 仅有年号（如"武德"）
+        return base
+    num = _han_to_int(m.group(1))
+    if num is None:
+        return base
+    return base + num - 1
 
 
 _HAN_DIGIT = {"〇": 0, "零": 0, "一": 1, "二": 2, "三": 3, "四": 4,

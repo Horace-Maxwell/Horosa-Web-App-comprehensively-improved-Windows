@@ -1,9 +1,10 @@
 // R2 时主扩展金标:JDN/分数年龄/月限日限/法达子期与夜序两制/ZR L2·解结·峰期·摩羯27/回归常数/合参段接线。
 import {
 	gregorianJdn, jdnOfYmd, fractionalAge, profectionMD,
-	FIRDARIA_DAY, FIRDARIA_NIGHT, FIRDARIA_NIGHT_NODES_END, firdariaSubAt,
+	FIRDARIA_DAY, FIRDARIA_NIGHT, FIRDARIA_NIGHT_NODES_END, firdariaSubAt, firdariaAt, firdariaSeq,
 	ZR_YEARS, zrL2At, SOLAR_RETURN_DAYS, LUNAR_RETURN_DAYS,
 } from '../../engine/timeLords';
+import { ELECTION_PARAM_SPEC } from '../electionParams';
 import { runElection } from '../electionEngine';
 import { buildFacts } from '../../engine/chartFacts';
 import { buildMockResult } from './electionFixture';
@@ -53,6 +54,30 @@ describe('法达子期与夜序两制', () => {
 		expect(sum(FIRDARIA_DAY)).toBe(75);
 		expect(sum(FIRDARIA_NIGHT)).toBe(75);
 		expect(sum(FIRDARIA_NIGHT_NODES_END)).toBe(75);
+	});
+	// [Q-276④ 裁决 2026-09-18] 缺省夜序 = 二交点缀于七曜之末(原序);「交点承火星后」保留为拉丁传本变体;昼盘恒同一表。
+	//   修前:未传夜序 ⇒ 承火星后(39.5 岁夜盘=北交期);且 firdariaAt(大运)恒承火星后、firdariaSubAt(子运)随开关 → 同盘两序(红)。
+	it('[Q-276④] 缺省(未传夜序)= 交点缀末:夜盘 39.5 岁大运=太阳;大运与子运同一序表;昼盘不受夜序影响;spec 缺省 nodes_end', () => {
+		expect(firdariaSubAt(39.5, false).major.lord).toBe('sun');
+		expect(firdariaAt(39.5, false).lord).toBe('sun');
+		expect(firdariaAt(39.5, false, 'nodes_end').lord).toBe('sun');
+		expect(firdariaAt(39.5, false, 'nodes_after_mars').lord).toBe('north_node');
+		// 大运 / 子运同序:两制各自大运主 === 子运返回的 major.lord
+		['nodes_end', 'nodes_after_mars', undefined].forEach((no)=>{
+			[0, 20, 39.5, 60, 72].forEach((age)=>{
+				expect(firdariaAt(age, false, no).lord).toBe(firdariaSubAt(age, false, no).major.lord);
+			});
+		});
+		// 昼盘:两制同表
+		expect(firdariaSeq(true, 'nodes_after_mars')).toBe(FIRDARIA_DAY);
+		expect(firdariaSeq(true, 'nodes_end')).toBe(FIRDARIA_DAY);
+		expect(firdariaSeq(false)).toBe(FIRDARIA_NIGHT_NODES_END);
+		expect(firdariaSeq(false, 'nodes_after_mars')).toBe(FIRDARIA_NIGHT);
+		// 原序:夜盘 月→土→木→火→日→金→水→北交→南交
+		expect(FIRDARIA_NIGHT_NODES_END.map((x)=>x[0])).toEqual(['moon', 'saturn', 'jupiter', 'mars', 'sun', 'venus', 'mercury', 'north_node', 'south_node']);
+		const spec = ELECTION_PARAM_SPEC.find((x)=>x.key === 'firdariaNightOrder');
+		expect(spec.default).toBe('nodes_end');
+		expect(spec.options.map((o)=>o.value)).toEqual(['nodes_end', 'nodes_after_mars']);
 	});
 });
 

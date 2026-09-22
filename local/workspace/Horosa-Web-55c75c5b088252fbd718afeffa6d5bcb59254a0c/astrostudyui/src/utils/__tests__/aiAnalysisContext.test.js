@@ -91,6 +91,7 @@ const mockLoadAstroAISnapshot = jest.fn(()=>null);
 jest.mock('../astroAiSnapshot', ()=>({
 	buildAstroSnapshotContent: jest.fn(()=> 'snapshot'),
 	loadAstroAISnapshot: (...args)=>mockLoadAstroAISnapshot(...args),
+	ASTRO_SNAPSHOT_FORMAT_VERSION: 2,   // [#79] payload 格式版本(旧格式快照不得整份复用)
 }));
 
 const mockSaveModuleAISnapshot = jest.fn();
@@ -176,6 +177,7 @@ jest.mock('../preciseCalcBridge', ()=>({
 }));
 
 jest.mock('../aiAnalysisStore', ()=>({
+	schedulePruneContextCache: jest.fn(),
 	AI_ANALYSIS_STORES: {
 		contextCache: 'contextCache',
 	},
@@ -258,7 +260,7 @@ import {
 	ANALYSIS_CASE_TECHNIQUES,
 	ANALYSIS_CHART_TECHNIQUES,
 	TIME_CASTABLE_DIVINATION,
-	buildPromptContext,
+	buildPromptContextForTests,
 	getAnalysisTechniqueContexts,
 	getAnalysisSourceContext,
 	listAnalysisSources,
@@ -296,8 +298,8 @@ describe('aiAnalysisContext', ()=>{
 		});
 	});
 
-	test('buildPromptContext includes source, materials and bundle templates', ()=>{
-		const text = buildPromptContext({
+	test('buildPromptContextForTests includes source, materials and bundle templates', ()=>{
+		const text = buildPromptContextForTests({
 			sourceContext: {
 				title: '测试案例',
 				content: '案例正文',
@@ -471,6 +473,7 @@ describe('aiAnalysisContext', ()=>{
 
 	test('getAnalysisSourceContext reuses matching stored astro snapshot before live fetch', async ()=>{
 		mockLoadAstroAISnapshot.mockReturnValue({
+			version: 2,
 			content: '已保存的星盘结构化快照',
 			signature: 'chart-any|2026-04-04 10:00:00|+08:00|118e27|31n38|Tropical|Placidus|1|0',
 		});
@@ -484,8 +487,49 @@ describe('aiAnalysisContext', ()=>{
 		});
 	});
 
+	test('[Q-020/M-25] 技法层模块快照:带旧口径签名的不再复用(重算),无签名旧存量与当前签名的照常复用', async ()=>{
+		const { loadModuleAISnapshot } = require('../moduleAiSnapshot');
+		const { mountCalibreSignature } = require('../mountCalibreSignature');
+		const meta = { date: '2026/04/04', time: '10:00', zone: '+08:00' };
+		const sources = listAnalysisSources();
+		const chartSource = sources.find((item)=>item.sourceType === 'chart');
+		const runBazi = async (snap)=>{
+			loadModuleAISnapshot.mockImplementationOnce((m)=>(m === 'bazi' ? snap : null));
+			const [ctx] = await getAnalysisTechniqueContexts(chartSource, ['bazi'], {});
+			return ctx;
+		};
+		const stale = await runBazi({ content: '旧口径八字快照', meta, calibreSig: 'v1:deadbeef' });
+		expect(stale.content).not.toBe('旧口径八字快照');
+		const legacy = await runBazi({ content: '无签名旧存量八字快照', meta });
+		expect(legacy.content).toBe('无签名旧存量八字快照');
+		const fresh = await runBazi({ content: '当前签名八字快照', meta, calibreSig: mountCalibreSignature() });
+		expect(fresh.content).toBe('当前签名八字快照');
+	});
+
+	test('[Q-020/M-24] 源层上下文(full 与 meta)带随盘日界/晚子时口径:缓存记录重组不再丢键', async ()=>{
+		const { listLocalCharts } = require('../localcharts');
+		listLocalCharts.mockImplementationOnce(()=>[{
+			cid: 'chart-dr', name: '日界盘', birth: '2026-04-04 23:30:00', zone: '+08:00', lon: '118e27', lat: '31n38', group: '[]',
+			updateTime: '2026-04-04 10:00:00', after23NewDay: 0, lateZiHourUseNextDay: 0,
+		}]);
+		mockLoadAstroAISnapshot.mockReturnValue({
+			version: 2,
+			content: '已保存的星盘结构化快照',
+			signature: 'chart-any|2026-04-04 23:30:00|+08:00|118e27|31n38|Tropical|Placidus|1|0',
+		});
+		const src = listAnalysisSources().find((item)=>item.sourceType === 'chart' && item.id === 'chart-dr');
+		expect(src).toBeTruthy();
+		const meta = await getAnalysisSourceContext(src, { preferCache: false, mode: 'meta' });
+		expect(meta.after23NewDay).toBe(0);
+		expect(meta.lateZiHourUseNextDay).toBe(0);
+		const full = await getAnalysisSourceContext(src, { preferCache: false });
+		expect(full.after23NewDay).toBe(0);
+		expect(full.lateZiHourUseNextDay).toBe(0);
+	});
+
 	test('chart techniques reuse matching stored astro snapshot on technique-only load', async ()=>{
 		mockLoadAstroAISnapshot.mockReturnValue({
+			version: 2,
 			content: '已保存的星盘结构化快照',
 			signature: 'chart-any|2026-04-04 10:00:00|+08:00|118e27|31n38|Tropical|Placidus|1|0',
 		});
@@ -502,6 +546,21 @@ describe('aiAnalysisContext', ()=>{
 				content: '已保存的星盘结构化快照',
 			}),
 		]);
+	});
+
+	test('[#79] 同签名但旧格式(version 1 / 缺位)的星盘快照不得整份复用 → 走 live 重建', async ()=>{
+		for(const stale of [{ version: 1 }, {}]){
+			mockLoadAstroAISnapshot.mockReturnValue({
+				...stale,
+				content: '已保存的星盘结构化快照',
+				signature: 'chart-any|2026-04-04 10:00:00|+08:00|118e27|31n38|Tropical|Placidus|1|0',
+			});
+			const sources = listAnalysisSources();
+			const chartSource = sources.find((item)=>item.sourceType === 'chart');
+			const context = await getAnalysisSourceContext(chartSource, { preferCache: false });
+			expect(context.content).not.toBe('已保存的星盘结构化快照');
+			expect(context.meta && context.meta.reusedStoredSnapshot).not.toBe(true);
+		}
 	});
 
 	test('getAnalysisSourceContext auto generates case snapshot from stored payload when missing', async ()=>{
@@ -606,7 +665,7 @@ describe('aiAnalysisContext', ()=>{
 		const chartSource = sources.find((item)=>item.sourceType === 'chart');
 		const expectedByTechnique = {
 			astrochart: 'snapshot',
-			astrochart_like: 'snapshot',
+			// [挂载自检 F-26] astrochart_like 改读派生盘页快照(缺则 missing),不再冒充本命盘 → 不在「必有内容」集内。
 			indiachart: '印度律盘结构化快照',
 			relative: '关系盘结构化快照',
 			guolao: '七政四余结构化快照',

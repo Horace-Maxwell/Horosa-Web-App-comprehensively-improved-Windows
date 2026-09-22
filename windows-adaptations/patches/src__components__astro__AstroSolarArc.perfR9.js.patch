@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroSolarArc.js b/astrostudyui/src/components/astro/AstroSolarArc.js
-index 947cc511..0c461883 100644
+index f9cf06f9..58b064f2 100644
 --- a/astrostudyui/src/components/astro/AstroSolarArc.js
 +++ b/astrostudyui/src/components/astro/AstroSolarArc.js
 @@ -7,7 +7,7 @@ import * as AstroText from '../../constants/AstroText';
@@ -11,10 +11,10 @@ index 947cc511..0c461883 100644
  import styles from '../../css/styles.less';
  import DateTime from '../comp/DateTime';
  import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-@@ -17,6 +17,10 @@ import UpdatingBadge from '../common/UpdatingBadge';
- import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+@@ -18,6 +18,10 @@ import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
  import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
  import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
+ import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 +import { markPanelReady } from '../../utils/perfMark';
 +// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
 +// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
@@ -22,7 +22,7 @@ index 947cc511..0c461883 100644
  
  class AstroSolarArc extends Component{
  
-@@ -25,7 +29,9 @@ class AstroSolarArc extends Component{
+@@ -26,7 +30,9 @@ class AstroSolarArc extends Component{
  
  		this.unmounted = false;
  
@@ -33,7 +33,7 @@ index 947cc511..0c461883 100644
  		if(qryparam.birth){
  			let parts = qryparam.birth.split(' ');
  			qryparam.date = parts[0];
-@@ -121,7 +127,13 @@ class AstroSolarArc extends Component{
+@@ -122,7 +128,13 @@ class AstroSolarArc extends Component{
  	}
  
  	genNatalParams(chartObj){
@@ -48,7 +48,7 @@ index 947cc511..0c461883 100644
  		if(qryparam.birth){
  			let parts = qryparam.birth.split(' ');
  			qryparam.date = parts[0];
-@@ -189,6 +201,8 @@ class AstroSolarArc extends Component{
+@@ -190,6 +202,8 @@ class AstroSolarArc extends Component{
  		};
  
  		this.setState(st, ()=>{
@@ -57,7 +57,7 @@ index 947cc511..0c461883 100644
  			const chartValue = chartValueAtRequest;
  			saveModuleAISnapshotLazy('solararc', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'solararc'), {
  				module: 'solararc',
-@@ -245,7 +259,30 @@ class AstroSolarArc extends Component{
+@@ -246,7 +260,30 @@ class AstroSolarArc extends Component{
  		});
  	}
  
@@ -88,7 +88,7 @@ index 947cc511..0c461883 100644
  		if(this.state.dirChart === undefined || this.state.dirChart === null){
  			return null;
  		}
-@@ -291,7 +328,7 @@ class AstroSolarArc extends Component{
+@@ -292,7 +329,7 @@ class AstroSolarArc extends Component{
  			if(i % 2 === 0){
  				if(i > 0){
  					let dom = (
@@ -97,7 +97,7 @@ index 947cc511..0c461883 100644
  							<Row>
  								{cols}
  							</Row>
-@@ -305,7 +342,7 @@ class AstroSolarArc extends Component{
+@@ -306,7 +343,7 @@ class AstroSolarArc extends Component{
  			cols.push(divs[i]);
  		}
  		rows.push((

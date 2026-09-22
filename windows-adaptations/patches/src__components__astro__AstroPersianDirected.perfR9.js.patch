@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/astro/AstroPersianDirected.js b/astrostudyui/src/components/astro/AstroPersianDirected.js
-index 7a6f0e72..18660590 100644
+index ede3bf4d..cb145b48 100644
 --- a/astrostudyui/src/components/astro/AstroPersianDirected.js
 +++ b/astrostudyui/src/components/astro/AstroPersianDirected.js
-@@ -20,6 +20,7 @@ import styles from '../../css/styles.less';
- import DateTime from '../comp/DateTime';
+@@ -21,6 +21,7 @@ import DateTime from '../comp/DateTime';
  import PlusMinusTime from './PlusMinusTime';
  import { XQSelect as Select } from '../xq-ui';
+ import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const Option = Select.Option;
  const RATE = { persian: 1.0, prophected: 30.0, naibod: 0.9856473 };
-@@ -293,7 +294,8 @@ class AstroPersianDirected extends Component{
+@@ -300,7 +301,8 @@ class AstroPersianDirected extends Component{
  			const dt = tm.parse(params.datetime, 'YYYY-MM-DD HH:mm:ss');
  			if(params.dirZone){ dt.setZone(params.dirZone); }
  			if(!this._mounted) return;

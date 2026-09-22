@@ -234,7 +234,7 @@ class AstroChart13 extends Component{
 
 		return (
 			<div style={{height: '100%', minHeight: 0}}>
-					<AstroChartMain
+					<AstroChartMain embeddedSubChart
 						value={chartObj}
 					onChange={this.onFieldsChange}
 					hidehsys={1}
@@ -251,6 +251,9 @@ class AstroChart13 extends Component{
 						lotsDisplay={this.props.lotsDisplay}
 						showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 						showAstroMeaning={this.props.showAstroMeaning}
+						planetListStyle={this.props.planetListStyle}   /* [Q-356/T-337] 传到底,行星列表密度改完即时生效 */
+						voidClassical={this.props.voidClassical}   /* [Q-149/T-56] 宿主链补传(格局页空亡古典义 / 仅本垣擢升互容) */
+						showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
 					/>
 			</div>
 		);

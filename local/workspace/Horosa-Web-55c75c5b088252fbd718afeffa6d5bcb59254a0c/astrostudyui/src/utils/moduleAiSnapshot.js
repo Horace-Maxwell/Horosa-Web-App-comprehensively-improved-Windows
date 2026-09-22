@@ -1,5 +1,11 @@
 import { scheduleStorageWrite } from './deferredStorage';
 import { lazySnapshotBuildEnabled } from './perfFlags';
+import { mountCalibreSignature } from './mountCalibreSignature';
+
+// [Q-020/M-25] 模块快照写入时打全局口径签名(读侧 aiAnalysisContext.getTechniqueSnapshotFromCache 比对);签名计算失败不阻断保存。
+function calibreSigSafe(){
+	try{ return mountCalibreSignature(); }catch(_e){ return ''; }
+}
 const MODULE_SNAPSHOT_PREFIX = 'horosa.ai.snapshot.module.v1.';
 const MODULE_SNAPSHOT_MEMORY = new Map();
 const MODULE_SNAPSHOT_GLOBAL_KEY = '__horosa_module_ai_snapshot_map';
@@ -14,6 +20,7 @@ function createPendingToken(moduleName, contentFactory, meta){
 	const token = {
 		// createdAt/meta 在登记时打点:与同步版「save 时刻」语义一致,物化不重算。
 		createdAt: new Date().toISOString(),
+		calibreSig: calibreSigSafe(),   // [Q-020/M-25] 登记时刻的全局口径签名
 		meta: meta || {},
 		done: false,
 		payload: null,
@@ -28,6 +35,7 @@ function createPendingToken(moduleName, contentFactory, meta){
 					token.payload = {
 						module: moduleName,
 						version: 1,
+						calibreSig: token.calibreSig,
 						createdAt: token.createdAt,
 						meta: token.meta,
 						content: text,
@@ -140,6 +148,7 @@ export function saveModuleAISnapshot(moduleName, content, meta){
 		const payload = {
 			module: moduleName,
 			version: 1,
+			calibreSig: calibreSigSafe(),
 			createdAt: new Date().toISOString(),
 			meta: meta || {},
 			content: text,
@@ -159,6 +168,7 @@ export function saveModuleAISnapshot(moduleName, content, meta){
 					const payload = {
 						module: moduleName,
 						version: 1,
+						calibreSig: calibreSigSafe(),
 						createdAt: new Date().toISOString(),
 						meta: meta || {},
 						content: text,
@@ -171,6 +181,24 @@ export function saveModuleAISnapshot(moduleName, content, meta){
 			// ignore
 		}
 		return null;
+	}
+}
+
+// [挂载自检 J-2·P0] 显式清槽:save 遇空文只 return null、不覆盖旧值(有意:防空快照冲掉好快照),
+// 但「当前页签本就不产快照」这类语义上应为空的场合需要真清(节气盘 jieqi_current 在总览页签恒残留上次单盘)。
+export function clearModuleAISnapshot(moduleName){
+	if(!moduleName){ return false; }
+	try{
+		PENDING_BUILDS.delete(moduleName);
+		MODULE_SNAPSHOT_MEMORY.delete(moduleName);
+		const globalMap = getGlobalSnapshotMap();
+		if(globalMap && globalMap[moduleName]){ delete globalMap[moduleName]; }
+		if(typeof window !== 'undefined' && window.localStorage){
+			try{ window.localStorage.removeItem(snapshotKey(moduleName)); }catch(_e){ /* noop */ }
+		}
+		return true;
+	}catch(e){
+		return false;
 	}
 }
 

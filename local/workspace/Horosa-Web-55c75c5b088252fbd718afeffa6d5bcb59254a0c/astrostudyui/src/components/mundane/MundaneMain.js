@@ -6,10 +6,11 @@
 // 解读层：divination/mundane/describe（行星落世俗宫判词、食的元素/分度判词）。
 import { Component, Fragment } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { InputNumber, Spin, Input, Popover } from 'antd';
+import { InputNumber, Spin, Input, message } from 'antd';
 import { XQSelect, XQButton, XQTabs, XQSideSection } from '../xq-ui';
 import DivinationChartShell from '../divination/DivinationChartShell';
 import PlusMinusTime from '../astro/PlusMinusTime';
+import TimeFieldTrigger from '../comp/QuickTimeField';
 import DateTime from '../comp/DateTime';
 import { fetchPreciseJieqiSeed } from '../../utils/preciseCalcBridge';
 import { SIGNS } from '../../divination/data/signs';
@@ -33,6 +34,8 @@ import { allRegions, saveUserRegion, MUNDANE_CAPITALS, regionCandidates } from '
 import { astroSymbol, chartParams, fmtDegree, chartRequestKey } from '../astro/AstroExtraCommon';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
+import { definePageSettings } from '../../utils/pageSettingsStore';
+import { shellFieldSchema, seedShellFromSaved } from '../../utils/divinationShellSettings';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 
@@ -71,6 +74,9 @@ const ELEMENT_SHORT = { fire: '火', earth: '土', air: '风', water: '水' };
 
 const MODALITY_CN = { cardinal: '基本', fixed: '固定', mutable: '变动' };
 const SEASON_INGRESS_CN = { aries: '春分·白羊', cancer: '夏至·巨蟹', libra: '秋分·天秤', capricorn: '冬至·摩羯' };
+// [Q-150/T-60] 两个页面级覆盖的中文名(左栏下拉与 AI 快照同源,改文案只改这一处)。
+const MUNDANE_ORB_SCHEME_CN = { moiety: '受冲容许 ≤2°(古典收紧)', by_aspect: '按相位(现代 ≤3°)' };
+const MUNDANE_INGRESS_RULE_CN = { quarterly: '季度制(按四轴模式递归)', aries_annual: '全年制(白羊盘主全年)', capricorn_year: '摩羯优先(冬至为年首)' };
 
 // 复用 App 自带的占星字体 glyph（AstroFont），不用 unicode 符号。
 const PLANET_ASTRO_ID = { sun: 'Sun', moon: 'Moon', mercury: 'Mercury', venus: 'Venus', mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturn', uranus: 'Uranus', neptune: 'Neptune', pluto: 'Pluto' };
@@ -217,6 +223,289 @@ export function formatMundaneChorographyTable(axes){
 	return out.join('\n');
 }
 
+// ── [Q-444/T-407] 右栏 33 卡 → AI 快照段(此前只覆盖 8 卡)。每段与对应 render*Card 同一 describe/纯函数与同一入参;
+// 页面按需拉取物(相位格局/四季/返照/次限/校正/重定位/木土会合/Barbault/九主/食时长)由 state 传入,算过才成段;
+// 静态教义表(色占/彗星/过境通则/龟形分野等)按用户裁决只留可算部分+简注,不整表灌入。全部异常降级为不产段。
+const MUN_SIGN_CN = (k) => ((SIGNS[k] || {}).cn || k || '');
+const MUN_PCN = (k) => (MUN_PLANET_CN[String(k || '').toLowerCase()] || k);
+function munDegInSign(lon){ return `${(norm360m(lon) % 30).toFixed(2)}°`; }
+function munSignOf(lon){ return SIGN_KEYS[Math.floor(norm360m(lon) / 30)]; }
+
+export function buildMundaneCardSections(chart, extra, state, facts){
+	const ex = extra || {};
+	const st = state || {};
+	const type = ex.mundaneType || 'ingress';
+	const cfg = rulesetConfig(ex.mundaneRuleset);
+	const out = [];
+	const push = (lines) => { if(lines && lines.length > 1){ out.push(lines.join('\n')); } };
+	if(!chart){ return out; }
+	const f = facts || (() => { try{ return buildFacts(chart); }catch(e){ return null; } })();
+	const isNatalLike = type !== 'cycles';
+
+	// ── 概览页 ──
+	if(type === 'ingress'){
+		try{
+			const yl = ascRuler(chart);
+			const ing = INGRESSES.find((i) => i.term === (ex.ingressTerm || '春分'));
+			const effRule = (ex.mundaneIngressRule && ex.mundaneIngressRule !== 'auto') ? ex.mundaneIngressRule : cfg.ingressRule;
+			const gov = yl ? ingressGovernance(yl.signKey, effRule, ex.ingressTerm || '春分') : null;
+			if(ex.ingressMoment && yl){
+				const L = ['[年盘概要]', `${ex.ingressYear != null ? ex.ingressYear : currentYear()} 年 · ${ing ? ing.label.split('（')[0] : '春分入宫'} · 入宫时刻 ${ex.ingressMoment}`];
+				L.push(`上升 ${yl.signCn} → 年主星(命主) ${yl.rulerCn}`);
+				if(gov){
+					L.push(`本盘上升 ${MODALITY_CN[yl.modality] || ''}星座 · ${cfg.label} → 主管约 ${gov.spanMonths} 个月${gov.needSeasonal && gov.needSeasonal.length ? `；季度递归 → 须再起 ${gov.needSeasonal.map((sk) => SEASON_INGRESS_CN[sk] || sk).join(' / ')} 入境盘各管一季` : ''}`);
+					if(gov.note){ L.push(gov.note); }
+				}
+				push(L);
+			}
+		}catch(e){ /* noop */ }
+		try{
+			const seed = (st.seasonSeedYear === clampYear(ex.ingressYear, currentYear())) ? st.seasonSeed : null;
+			if(seed){
+				const L = ['[四季入境盘]', `${clampYear(ex.ingressYear, currentYear())} 年四枢轴入境时刻（当地时区）：`];
+				INGRESSES.forEach((ing) => { const hit = seed[ing.term]; L.push(`- ${SEASON_INGRESS_CN[ing.signKey] || ing.term}：${(hit && hit.time) ? hit.time.slice(0, 16) : '—'}${ex.ingressTerm === ing.term ? '（当前）' : ''}`); });
+				push(L);
+			}
+		}catch(e){ /* noop */ }
+	}
+	if((type === 'newmoon' || type === 'fullmoon') && f && ex.selectedMoment){
+		try{
+			const moon = f.planets ? f.planets.moon : null;
+			const L = [type === 'newmoon' ? '[新月图判读]' : '[满月图判读]', `时刻 ${ex.selectedMoment}`];
+			if(moon && moon.sign){ L.push(`月亮 ${MUN_SIGN_CN(moon.sign)}${moon.house ? ` · 第${moon.house}宫（${MUNDANE_HOUSE_MEANINGS[moon.house]}）` : ''}`); }
+			L.push(type === 'newmoon' ? '新月（日月合相）影响约一个月，主新启与变动；与当季入宫盘对照（入宫为时针、朔望为分针）。' : '满月（日月对分）影响约一个月，主成熟与张力；与当季入宫盘对照（入宫为时针、朔望为分针）。');
+			push(L);
+		}catch(e){ /* noop */ }
+	}
+	if((type === 'solecl' || type === 'lunecl') && f){
+		try{
+			const kind = type === 'lunecl' ? 'lunar' : 'solar';
+			const effOrb = (ex.mundaneOrbScheme && ex.mundaneOrbScheme !== 'auto') ? ex.mundaneOrbScheme : cfg.orbScheme;
+			const ec = describeEclipse(f, kind);
+			const aff = describeEclipseAfflictions(f, kind, effOrb);
+			if(ex.selectedMoment && ec){
+				const L = [type === 'lunecl' ? '[月食图判读]' : '[日食图判读]', `时刻 ${ex.selectedMoment}${ex.eclipseTypeText ? ` · ${ex.eclipseTypeText}` : ''}`];
+				L.push(`${ec.luminaryCn} ${MUN_SIGN_CN(ec.sign)} · ${ec.decanLabel}${ec.house ? ` · 第${ec.house}宫` : ''}`);
+				if(ec.elementText){ L.push(`元素：${ec.elementText}`); }
+				if(ec.decanText){ L.push(`分度：${ec.decanText}`); }
+				if(aff && aff.afflictors.length){ L.push(`受冲行星：${aff.afflictors.map((a) => `${a.cn}${a.aspect}(${a.orb}°)${a.malefic ? '⚠' : ''}`).join('、')}（定受影响主题）`); }
+				const lp = f.planets ? f.planets[kind === 'lunar' ? 'moon' : 'sun'] : null;
+				if(lp && lp.lon != null){
+					const hits = mundaneFixedStarHits([{ key: 'eclipse', cn: '食点', lon: lp.lon }], ex.scanYear || currentYear(), 1.5);
+					if(hits.length){ L.push(`食点近恒星：${hits.map((h) => `${h.starCn}${h.royal ? `(王星·${h.royal})` : ''}（${h.nature} ${h.orb}°）`).join('、')}（恒星临食点增其象）`); }
+				}
+				if(cfg.eclipseTiming !== 'none' && st.eclipseDetail && st.eclipseDetail.durationHours){ L.push(`时长：约 ${st.eclipseDetail.durationHours} 小时 → 影响约 ${st.eclipseDetail.influence} ${st.eclipseDetail.influenceUnit}（食时长定则）`); }
+				L.push(cfg.eclipseTiming !== 'none' ? '食以可见地区最应；日食时长→影响年数、月食时长→影响月数。' : '食以可见地区最应；本规则集（周期派）不采食时长定则,以周期相位为主。');
+				push(L);
+			}
+			const r = describeSarosFamily(f);
+			if(r){
+				const L = ['[食族 Saros]', `${r.node.cn}（月距交点 ${r.node.distToNode.toFixed(1)}°）`, r.numberingNote];
+				L.push(`三周期：Saros ${r.constTable.sarosSynodicMonths} 朔望月 = ${r.constTable.sarosDays} 日 = ${r.constTable.sarosLabel}；Metonic ${r.constTable.metonicYears} 年 = ${r.constTable.metonicSynodicMonths} 朔望月（${r.constTable.metonicNote}）；Inex ${r.constTable.inexSynodicMonths} 朔望月 ≈ ${r.constTable.inexDays} 日（${r.constTable.inexNote}）`);
+				L.push(`族生命周期：每族 ${r.lifecycle.membersRange.join('–')} 次食 · ${r.lifecycle.stepYears} · ${r.lifecycle.eclipticShiftDeg || r.lifecycle.westShiftDeg}；${r.lifecycle.phases.map((p) => `${p.cn}：${p.note}`).join('；')}`);
+				L.push(`判读四步：${r.steps.join('；')}`);
+				push(L);
+			}
+			const quad = describeQuadrantNations(f);
+			if(quad){ push(['[天象占参考]', `食落象限 → ${quad.cn}（${quad.span}）${quad.note ? '；' + quad.note : ''}`, '（色占/彗星/大气天象为查表参考,见页面折叠表）']); }
+		}catch(e){ /* noop */ }
+	}
+	if(type === 'region' && f){
+		try{
+			if(f.houses){
+				const L = [`[地区盘·12世俗宫]${ex.regionCn ? '（' + ex.regionCn + '）' : ''}`, '| 宫 | 宫义 | 宫头座 | 宫内星 |', '| --- | --- | --- | --- |'];
+				for(let h = 1; h <= 12; h++){
+					const hi = f.houses[h];
+					const occ = ((hi && hi.planets) || []).filter((k) => MUN_PLANET_CN[k]).map(MUN_PCN);
+					L.push(`| ${h} | ${MUNDANE_HOUSE_MEANINGS[h]} | ${hi && hi.sign ? MUN_SIGN_CN(hi.sign) : '—'} | ${occ.length ? occ.join('、') : '—'} |`);
+				}
+				push(L);
+			}
+			if(f.meta){
+				const m = f.meta;
+				const ascKey = m.ascSign || (m.ascLon != null ? munSignOf(m.ascLon) : null);
+				const mcKey = m.mcLon != null ? munSignOf(m.mcLon) : null;
+				const ascDeg = (m.ascDegree != null) ? m.ascDegree : (m.ascLon != null ? norm360m(m.ascLon) % 30 : null);
+				const mcDeg = m.mcLon != null ? norm360m(m.mcLon) % 30 : null;
+				const L = ['[时刻校正]', `当前上升 ${ascKey ? MUN_SIGN_CN(ascKey) : '—'} ${ascDeg != null ? ascDeg.toFixed(2) + '°' : ''}；当前天顶 ${mcKey ? MUN_SIGN_CN(mcKey) : '—'} ${mcDeg != null ? mcDeg.toFixed(2) + '°' : ''}（四轴对时刻极敏感,上升约 4 分钟移 1°）`];
+				if(Array.isArray(st.rectRows) && st.rectRows.length){
+					const hitN = st.rectRows.filter((r) => r.hits.length).length;
+					L.push('事件年反推 · 返照收敛检验：');
+					st.rectRows.forEach((r) => { L.push(`- ${r.year}：返照上升 ${r.srAsc != null ? `${(r.srAsc % 30).toFixed(1)}°` : '—'}${r.hits.length ? ` 命中${r.hits.join('/')}` : ' 未中轴'}`); });
+					L.push(`收敛度 ${hitN}/${st.rectRows.length}（该年返照上升合本盘四轴 ±3°）`);
+				}
+				if(st.relocData && st.relocCity){
+					const rm = st.relocData;
+					const rA = rm.ascSign || (rm.ascLon != null ? munSignOf(rm.ascLon) : null);
+					const rM = rm.mcLon != null ? munSignOf(rm.mcLon) : null;
+					const rAd = (rm.ascDegree != null) ? rm.ascDegree : (rm.ascLon != null ? norm360m(rm.ascLon) % 30 : null);
+					const rMd = rm.mcLon != null ? norm360m(rm.mcLon) % 30 : null;
+					L.push(`重定位四轴（${st.relocCity}·同时刻）：上升 ${rA ? MUN_SIGN_CN(rA) : '—'} ${rAd != null ? rAd.toFixed(2) + '°' : ''}；天顶 ${rM ? MUN_SIGN_CN(rM) : '—'} ${rMd != null ? rMd.toFixed(2) + '°' : ''}（保黄经星位不变,仅四轴/宫随地点重算）`);
+				}
+				push(L);
+			}
+		}catch(e){ /* noop */ }
+	}
+	if((type === 'ingress' || type === 'newmoon' || type === 'fullmoon') && f){
+		try{
+			const w = describeMundaneWeather(f);
+			const scope = (type === 'newmoon' || type === 'fullmoon') ? '本旬' : '本季';
+			const L = ['[天气占星]'];
+			if(w && w.factors.length){
+				L.push(`临角或合月行星定${scope}天气倾向：`);
+				w.factors.forEach((fa) => { L.push(`- ${fa.cn}${[fa.angular ? '临角' : '', fa.nearMoon ? '合月' : ''].filter(Boolean).length ? '（' + [fa.angular ? '临角' : '', fa.nearMoon ? '合月' : ''].filter(Boolean).join('·') + '）' : ''} → ${fa.weather}${fa.malefic ? '（凶星）' : ''}`); });
+			}else{ L.push(`本盘无临角/合月行星主导,${scope}天气倾向不显著(合于时令)。`); }
+			push(L);
+		}catch(e){ /* noop */ }
+	}
+	if(isNatalLike && f){
+		try{
+			const sp = describeSpecialAxes(f);
+			if(sp){
+				const L = ['[四轴特殊点]'];
+				[['赤道上升点', sp.eastPoint], ['天顶点 Vertex', sp.vertex], ['反天顶', sp.antivertex]].forEach(([cn, lon]) => { if(lon != null){ L.push(`${cn}：${MUN_SIGN_CN(munSignOf(lon))} ${munDegInSign(lon)}`); } });
+				if(sp.note){ L.push(sp.note); }
+				push(L);
+			}
+		}catch(e){ /* noop */ }
+	}
+
+	// ── 判读页 ──
+	if(isNatalLike && f){
+		try{
+			const ind = mundaneConjunctionIndicator(f);
+			if(ind){ push(['[会合指示星]', `木土会合于 ${ind.signCn}（${ELEMENT_CN[ind.element] || ind.element} · 角距 ${ind.sep}°）；指示星 ${ind.strongerCn}（${ind.tone}）`, ind.toneText, `气候 / 领域：${ind.climate}`]); }
+		}catch(e){ /* noop */ }
+		try{
+			const dist = mundaneDistribution(f, cfg.showOuterPlanets);
+			const L = ['[盘型格局]'];
+			if(dist){
+				if(dist.jonesInfo){ L.push(`分布型 ${dist.jonesInfo.cn}：${dist.jonesInfo.text}`); }
+				L.push(`元素偏盛 ${dist.domElementCn}象（火${dist.elements.fire}·土${dist.elements.earth}·风${dist.elements.air}·水${dist.elements.water}）${dist.domElementText ? '：' + dist.domElementText : ''}`);
+				L.push(`模式偏盛 ${dist.domModeCn}（基本${dist.modes.cardinal}·固定${dist.modes.fixed}·变动${dist.modes.mutable}）${dist.domModeText ? '：' + dist.domModeText : ''}`);
+				if(dist.hemispheres){ L.push(`半球 上${dist.hemispheres.above}/下${dist.hemispheres.below}（外显↔内政）· 东${dist.hemispheres.east}/西${dist.hemispheres.west}（自主↔关系）`); }
+				L.push(`分布基准：${dist.count} 体（${dist.classical ? '七曜·古典/中世纪规则集' : '含三王星·现代/Barbault 规则集'}）`);
+			}
+			const allPats = (st.patKey === chartRequestKey(chart) && st.patData) ? st.patData : null;
+			if(allPats){
+				const OUTER = ['uranus', 'neptune', 'pluto'];
+				const pats = cfg.showOuterPlanets ? allPats : allPats.filter((pp) => !(pp.points || []).some((id) => OUTER.indexOf(String(id).toLowerCase()) >= 0));
+				if(pats.length){
+					L.push('相位格局：');
+					pats.forEach((pp) => { const m = mundanePatternMeaning(pp.type); if(m){ L.push(`- ${m.cn}${pp.apex ? `（顶点 ${MUN_PCN(pp.apex)}）` : ''}${pp.sign ? `（${MUN_SIGN_CN(String(pp.sign).toLowerCase())}）` : ''}：${m.text}`); } });
+				}else{ L.push('相位格局：本盘无显著相位格局。'); }
+			}
+			push(L);
+		}catch(e){ /* noop */ }
+	}
+
+	// ── 恒星页 ──
+	if(isNatalLike && f){
+		try{
+			const year = ex.ingressYear || currentYear();
+			const hits = mundaneFixedStarHits(buildMundaneStarPoints(f), year, 1.5);
+			if(hits.length){
+				const L = [`[世运恒星命中]`, `（${year} 年岁差校正 · orb 1.5°；恒星合四轴或日月时极具分量,王星尤重）`];
+				hits.forEach((h) => { L.push(`- ${h.pointCn} 合 ${h.starCn}${h.royal ? `（王星·${h.royal}）` : ''} ${h.nature} · ${h.orb}°：${h.meaning}`); });
+				push(L);
+			}
+		}catch(e){ /* noop */ }
+		try{
+			const dp = chart.declParallel;
+			if(dp){
+				const groups = Array.isArray(dp.parallel) ? dp.parallel : [];
+				const contra = dp.contraParallel && typeof dp.contraParallel === 'object' ? dp.contraParallel : {};
+				const ck = Object.keys(contra).filter((k) => Array.isArray(contra[k]) && contra[k].length);
+				if(groups.length || ck.length){
+					const L = ['[赤纬平行]', '（同赤纬 ≤1° 成平行=如合相之力；异号反平行=如对冲）'];
+					groups.forEach((g) => { L.push(`- 平行：${(Array.isArray(g) ? g : []).map(MUN_PCN).join(' × ')}`); });
+					ck.slice(0, 10).forEach((k) => { L.push(`- 反平行：${MUN_PCN(k)} ↔ ${contra[k].map(MUN_PCN).join('、')}`); });
+					push(L);
+				}
+			}
+		}catch(e){ /* noop */ }
+	}
+
+	// ── 恒星派入境 / 吠陀世运 / 世运问判 / 行星周期 ──
+	if(type === 'solunar'){
+		try{
+			const stx = describeSolunar(ex.solunarType || 'capsolar', ex.solunarWeights || 'scheme_a');
+			const dormant = f ? isDormantChart(f, ex.solunarOrb || 3) : null;
+			if(stx){ push(['[恒星派入境·概览]', `${stx.cn}：有效期 ${stx.span}；相对强度 ${stx.weight}（口径 ${stx.weightsCn}）`, dormant != null ? (dormant ? `休眠盘：无行星入角（容许 ${ex.solunarOrb || 3}°）——本盘无信息,实务可略过,看下一级时间盘。` : '活跃盘：有行星入角,见 [角化] 段。') : '', '时间降阶：年=Capsolar → 季=最近非休眠季太阳入境 → 月=Caplunar → 周=最近非休眠月入境。'].filter(Boolean)); }
+		}catch(e){ /* noop */ }
+	}
+	if(type === 'vedicmundane' && f){
+		try{
+			const m = f.planets ? f.planets.moon : null;
+			const L = ['[吠陀世运·年度盘]'];
+			if(st.vedicMoment){ L.push(`当前入境时刻：${st.vedicMoment}`); }
+			if(m && m.lon != null){ const i = Math.floor(norm360m(m.lon) / (13 + 20 / 60)); L.push(`盘中月宿：${NAKSHATRA_27[i]}（第 ${i + 1} 宿）${NAK_KEYPOINTS[i] ? ' ' + NAK_KEYPOINTS[i] : ''}`); }
+			const age = (ex.vedicFoundingYear != null) ? Math.max(0, (ex.vedicYear || currentYear()) - ex.vedicFoundingYear) : null;
+			const muntha = (age != null && ex.vedicNatalAsc) ? munthaSign(ex.vedicNatalAsc, age) : null;
+			if(muntha){ L.push(`Muntha 敏感点：${MUN_SIGN_CN(muntha)}（建国上升每年顺进一座,盘龄 ${age}）`); }
+			push(L);
+			if(m && m.lon != null){
+				const startStr = st.vedicMoment ? st.vedicMoment.slice(0, 10) : `${ex.vedicYear || currentYear()}-04-14`;
+				const r = vimshottariFromMoon(m.lon, startStr, ex.vedicDashaYearLen === 360 ? 360 : 365.2425);
+				if(r){
+					const D = ['[世运大运]', `（Vimshottari · 年长口径 ${ex.vedicDashaYearLen === 360 ? '360（传统）' : '365.2425（现代）'}）起运主 ${PLANET_CN_V[r.lordKey]}（月在第 ${r.nakIdx + 1} 宿,余额 ${(r.balanceRatio * 100).toFixed(1)}%）`];
+					r.periods.forEach((pd) => { D.push(`- ${pd.cn} 大运 ${pd.fromYear}–${pd.toYear}：${pd.meaning}`); });
+					push(D);
+				}
+				const K = ['[KP 副主链]', '| 行星 | 所在宿 | 宿主(场域) | 副主(成败) |', '| --- | --- | --- | --- |'];
+				['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn'].forEach((k) => { const pl = f.planets[k]; if(pl && pl.lon != null){ const kp = kpSubLordAt(pl.lon); K.push(`| ${PLANET_CN_V[k]} | ${NAKSHATRA_27[kp.nakIdx]} | ${PLANET_CN_V[kp.starLord] || kp.starLord} | ${PLANET_CN_V[kp.subLord] || kp.subLord} |`); } });
+				if(K.length > 3){ push(K); }
+			}
+			if(st.garbhaDate){ const dv = garbhaDeliveryDate(st.garbhaDate); if(dv){ push(['[天气与农业]', `云之孕：受孕日 ${st.garbhaDate} → 预测降雨日 ${dv}（孕期固定 ${GARBHA_CONST.gestationDays} 日）`]); } }
+		}catch(e){ /* noop */ }
+	}
+	if(type === 'mundanehorary' && f){
+		try{
+			const kind = ex.mhKind || 'war';
+			const fmtScore = (sc, role) => sc ? `- ${role}：${sc.cn}${sc.house ? `（第${sc.house}宫）` : ''} 得力 ${sc.total != null ? sc.total : sc.score}${sc.items && sc.items.length ? `（${sc.items.map((it) => `${it.cn} ${it.v > 0 ? '+' + it.v : it.v}`).join('，')}）` : ''}` : '';
+			const L = ['[世运问判·得力明细]'];
+			if(kind === 'war'){ const w = describeWarQuestion(f); if(w){ L.push(fmtScore(w.us, w.us.role), fmtScore(w.them, w.them.role)); if(w.moon){ L.push(fmtScore(w.moon, w.moon.role)); } if(w.note){ L.push(w.note); } } }
+			else if(kind === 'weather'){ const wq = describeWeatherQuestion(f); if(wq){ (wq.angular || []).forEach((a) => L.push(`- 临角 ${a.cn}（第${a.house}宫）：${a.text}`)); if(!wq.angular || !wq.angular.length){ L.push('无行星临角。'); } if(wq.note){ L.push(wq.note); } } }
+			else { const pq = describePriceQuestion(f); if(pq){ pq.wealth.forEach((x) => L.push(fmtScore(x.strength, `第 ${x.house} 宫主（财货）`))); if(pq.note){ L.push(pq.note); } } }
+			push(L.filter(Boolean));
+		}catch(e){ /* noop */ }
+	}
+	if(type === 'cycles'){
+		try{
+			const results = Array.isArray(st.gcResults) ? st.gcResults : [];
+			if(results.length){
+				const pairCn = (CYCLE_PAIRS.find((pp) => pp.key === st.gcPair) || {}).cn || '木土';
+				const aspCn = st.gcAspect === 180 ? '对分' : '合相';
+				const L = [`[木土纪元]`, `（${pairCn}${aspCn} · ${st.gcCoord === 'helio' ? '日心' : '地心'} · ${yearLabel(clampYear(st.gcStart, 1300))}–${yearLabel(clampYear(st.gcEnd, 2200))} · 共 ${results.length} 次）`];
+				if(st.gcMode === 'flat'){
+					results.slice(0, 80).forEach((c) => { L.push(`- ${yearLabel(c.year)}-${String(c.month).padStart(2, '0')} ${MUN_SIGN_CN(SIGN_KEYS[c.sign])}${c.lon != null ? ` ${(c.lon % 30).toFixed(1)}°` : ''}`); });
+				}else{
+					computeAges(results).forEach((age) => {
+						L.push(`◆ ${age.leadingCn}时代（${ELEMENT_CN[age.element]} · ${dignityText(age.dignities)}）：${age.conjs.map((g) => `${yearLabel(g.year)}-${String(g.month).padStart(2, '0')} ${MUN_SIGN_CN(SIGN_KEYS[g.sign])}${((SIGNS[SIGN_KEYS[g.sign]] || {}).element !== age.element) ? '(过渡)' : ''}`).join('、')}`);
+					});
+					const eras = computeConjunctionEras(results);
+					if(eras && eras.segments.length){
+						L.push(`历史会合分期：${eras.segments.map((sg) => `${sg.elementCn}象 ${yearLabel(sg.from)}–${yearLabel(sg.to)}`).join('；')}`);
+						if(eras.marks && eras.marks.length){ L.push(`变迁点：${eras.marks.map((mk) => `${yearLabel(mk.year)} ${mk.cn || mk.kind || ''}`).join('；')}`); }
+					}
+				}
+				if(Array.isArray(st.msCancerRows) && st.msCancerRows.length){ L.push(`土火合巨蟹命中年：${st.msCancerRows.map((r) => yearLabel(r.year)).join('、')}`); }
+				push(L);
+			}
+			const gy = computeCurrentAge(currentYear(), st.gyModel || 'fagan');
+			if(gy){ push(['[大年时代]', `${currentYear()} 年春分点 · 恒星${gy.signCn} ${gy.degInSign.toFixed(2)}° → 当前为${gy.currentAgeCn}（岁差口径 ${st.gyModel === 'lahiri' ? 'Lahiri' : 'Fagan/Bradley'}）`, `岁差周期(大年)≈ ${GREAT_YEAR_CONST.precessionYears} 年；柏拉图月(一个时代)≈ ${GREAT_YEAR_CONST.platonicMonthYears.join('–')} 年；春分点以约 ${GREAT_YEAR_CONST.rateArcsecPerYear}″/年西退。`]); }
+			if(cfg.showBarbault && st.bbData && Array.isArray(st.bbData.points) && st.bbData.points.length){
+				const pts = st.bbData.points;
+				let gmin = pts[0]; let gmax = pts[0];
+				pts.forEach((pp) => { if(pp.index < gmin.index){ gmin = pp; } if(pp.index > gmax.index){ gmax = pp; } });
+				const set = BARBAULT_SETS.find((ss) => ss.key === st.bbSet) || BARBAULT_SETS[0];
+				push(['[Barbault 聚散指数]', `（慢星组合 ${set.cn} · ${yearLabel(clampYear(st.bbStart, 1900))}–${yearLabel(clampYear(st.bbEnd, 2050))} · ${pts.length} 点）`, `最深谷（聚集）${gmin.year}-${String(gmin.month).padStart(2, '0')}（${Math.round(gmin.index)}°）；最高峰（四散）${gmax.year}-${String(gmax.month).padStart(2, '0')}（${Math.round(gmax.index)}°）`]);
+			}
+		}catch(e){ /* noop */ }
+	}
+	return out;
+}
+
 const CARD = {
 	border: '1px solid var(--horosa-border, rgba(128,128,128,0.16))',
 	borderRadius: 12,
@@ -225,6 +514,25 @@ const CARD = {
 	background: 'var(--horosa-card-bg, rgba(128,128,128,0.025))',
 };
 const CARD_TITLE = { fontSize: 13.5, fontWeight: 700, marginBottom: 12, letterSpacing: '0.03em', display: 'flex', alignItems: 'center', gap: 8 };
+
+// 排盘设置跨会话保留(用户实报:排盘设置改了之后每次重开软件都要重设)。只收口径:
+// 世运规则集 / 判读容许度 / 入境主管制 / 恒星入境的强度口径与角化容许 / 世运大运年长 / 黄道 / 宫制。
+// 不收「起哪种盘、哪一年、哪个节气、哪个国家」—— 盘型、年份、节气、地区、问题类型都是每一张盘的输入。
+const MUNDANE_SETTING_EXTRA_KEYS = ['mundaneRuleset', 'mundaneOrbScheme', 'mundaneIngressRule', 'solunarWeights', 'solunarOrb', 'vedicDashaYearLen'];
+export const MUNDANE_PAGE_SETTINGS = definePageSettings('horosa.mundane.settings.v1', {
+	mundaneRuleset: { def: 'modern', oneOf: MUNDANE_RULESETS.map((r)=>r.key) },
+	mundaneOrbScheme: { def: 'auto', oneOf: ['auto', 'moiety', 'by_aspect'] },
+	mundaneIngressRule: { def: 'auto', oneOf: ['auto', 'quarterly', 'aries_annual', 'capricorn_year'] },
+	solunarWeights: { def: 'scheme_a', oneOf: Object.keys(SOLUNAR_WEIGHTS) },
+	solunarOrb: { def: 3, oneOf: ANGULARITY_ORBS.map((o)=>o.orb) },
+	vedicDashaYearLen: { def: 365.2425, oneOf: [365.2425, 360] },
+	...shellFieldSchema(0),
+});
+// 用户亲手改 extra 里的设置项:落盘(只收 schema 里的键,输入类键自动忽略)+ 原样 setExtra
+function userSetExtra(setExtra, patch){
+	MUNDANE_PAGE_SETTINGS.save(patch);
+	setExtra(patch);
+}
 
 class MundaneMain extends Component{
 	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
@@ -238,6 +546,11 @@ class MundaneMain extends Component{
 
 	constructor(props){
 		super(props);
+		// 壳只在构造时读 defaults / initialExtra:这里用保存值播种一次(引用恒定)。没存过 = 原来的出厂值逐字相同。
+		this._seed = seedShellFromSaved(MUNDANE_PAGE_SETTINGS,
+			{ tradition: 1, zodiacal: 0, hsys: 0 },
+			{ mundaneRuleset: 'modern', mundaneType: 'ingress', ingressTerm: '春分', ingressYear: currentYear(), scanYear: currentYear() },
+			MUNDANE_SETTING_EXTRA_KEYS);
 		this.state = {
 			casting: false, err: '',
 			gcStart: 1300, gcEnd: 2200, gcLoading: false, gcResults: null, gcErr: '', gcPair: 'jupiter-saturn', gcAspect: 0, gcMode: 'ages',
@@ -276,7 +589,22 @@ class MundaneMain extends Component{
 		};
 	}
 
-	async castIngress(extra, setExtra, fields, setTime){
+	// [Q-348/T-329 裁决 2026-09-18] 恒星入境 / 梅沙入境把壳改成恒星黄道 + 对应宫制;切回回归派类型排入宫盘时自动恢复排前的黄道 / 宫制 / 传统
+	// (此前先排恒星盘再切回入宫盘 → 回归节气时刻 + 恒星黄道的杂盘)。备份只在当前为回归黄道时记录一次。
+	captureTropicalBackup(fields){
+		if(!fields || !fields.zodiacal || Number(fields.zodiacal.value) === 1){ return; }
+		const v = (k, d)=>(fields[k] && fields[k].value !== undefined && fields[k].value !== null ? fields[k].value : d);
+		this._tropicalBackup = { zodiacal: 0, siderealAyanamsa: v('siderealAyanamsa', ''), hsys: v('hsys', 0), tradition: v('tradition', 0) };
+	}
+	restoreTropicalIfNeeded(fields, patchFields){
+		if(!patchFields || !fields || !fields.zodiacal || Number(fields.zodiacal.value) !== 1 || !this._tropicalBackup){ return false; }
+		patchFields({ ...this._tropicalBackup });
+		try{ message.info('已恢复排恒星 / 梅沙入境前的回归黄道与宫制，再排入宫盘'); }catch(e){ /* 提示失败不阻断 */ }
+		return true;
+	}
+
+	async castIngress(extra, setExtra, fields, setTime, patchFields){
+		this.restoreTropicalIfNeeded(fields, patchFields);
 		const term = extra.ingressTerm || '春分';
 		const year = clampYear(extra.ingressYear, currentYear());
 		const zone = fields.zone ? fields.zone.value : '+08:00';
@@ -743,7 +1071,10 @@ class MundaneMain extends Component{
 						))}
 					</div>
 				) : <div style={{ fontSize: 12, opacity: 0.55, padding: '4px 0' }}>本盘无临角/合月行星主导,{scope}天气倾向不显著(合于时令)。</div>}
-				<div style={{ fontSize: 10.5, opacity: 0.42, marginTop: 8, lineHeight: '15px' }}>其他专门子流派:金融/财经(首盘·Bradley 指数·周期宏观)见独立金融页;地震占星属研究性·统计未证实,仅备探索、不作预测断言。</div>
+				<div style={{ fontSize: 10.5, opacity: 0.42, marginTop: 8, lineHeight: '15px' }}>
+					{'其他专门子流派:'}
+					{'地震占星属研究性·统计未证实,仅备探索、不作预测断言。'}
+				</div>
 			</div>
 		);
 	}
@@ -752,6 +1083,9 @@ class MundaneMain extends Component{
 	renderLeftExtra({ extra, setExtra, fields, setTime, patchFields }){
 		const type = extra.mundaneType || 'ingress';
 		const ruleset = extra.mundaneRuleset || 'modern';
+		// [Q-150/T-60] 两个条件档的真消费面(见各自控件旁注):判读容许度=日/月食盘;入境主管制=入宫盘。
+		const orbSchemeLive = type === 'solecl' || type === 'lunecl';
+		const ingressRuleLive = type === 'ingress';
 		this._setTime = setTime; this._fields = fields; this._setExtra = setExtra;   // 供右栏校正/会合起盘用
 		return (
 			<XQSideSection iconName="sliders" title="世俗盘设置" storageKey="mundane.opts" className="horosa-side-input-section">
@@ -763,25 +1097,32 @@ class MundaneMain extends Component{
 					<div className="horosa-field-block">
 						<div className="horosa-field-label">世运规则集</div>
 						<XQSelect style={{ width: '100%' }} size="small" value={ruleset} optionLabelProp="label"
-							onChange={(v) => setExtra({ mundaneRuleset: v })}>
+							onChange={(v) => userSetExtra(setExtra, { mundaneRuleset: v })}>
 							{MUNDANE_RULESETS.map((r) => (<Option key={r.key} value={r.key} label={r.short || r.label}>{r.label}</Option>))}
 						</XQSelect>
 					</div>
-					<div className="horosa-field-block">
+					{/* [Q-150/T-60] 本档全仓唯一消费点是日/月食盘的「受冲行星」判定(renderEclipseCard);
+					    其余盘型选了什么都不读 —— 按盘型置灰并说明,别让人以为它全页生效。
+					    标签勘误:实现是固定 2° 上限,不是逐星半距和。 */}
+					<div className="horosa-field-block" title={orbSchemeLive ? undefined : '只作用于日食 / 月食盘的受冲行星判定;当前盘型不读此档'}>
 						<div className="horosa-field-label">判读容许度</div>
 						<XQSelect style={{ width: '100%' }} size="small" value={(extra.mundaneOrbScheme) || 'auto'} optionLabelProp="label"
-							onChange={(v) => setExtra({ mundaneOrbScheme: v })}>
+							disabled={!orbSchemeLive}
+							onChange={(v) => userSetExtra(setExtra, { mundaneOrbScheme: v })}>
 							<Option value="auto" label="随流派">随流派（默认）</Option>
-							<Option value="moiety" label="古典半距和">古典半距和（受冲收紧 ≤2°）</Option>
+							<Option value="moiety" label="≤2°收紧">受冲容许 ≤2°（古典收紧）</Option>
 							<Option value="by_aspect" label="按相位">按相位（现代 ≤3°）</Option>
 						</XQSelect>
 					</div>
 				</div>
 				<div className="horosa-field-grid">
-					<div className="horosa-field-block">
+					{/* [Q-150/T-60] 本档唯一消费点是入宫盘的「年盘概要」(主管月数/是否须再起分季盘);
+					    其余盘型不读 → 置灰;入宫盘未排时可先选,结果排盘后出现。 */}
+					<div className="horosa-field-block" title={ingressRuleLive ? (extra.ingressMoment ? undefined : '选定后在「排入宫盘」出盘的『年盘概要』里生效') : '只作用于入宫盘的年盘概要;当前盘型不读此档'}>
 						<div className="horosa-field-label">入境主管制</div>
 						<XQSelect style={{ width: '100%' }} size="small" value={(extra.mundaneIngressRule) || 'auto'} optionLabelProp="label"
-							onChange={(v) => setExtra({ mundaneIngressRule: v })}>
+							disabled={!ingressRuleLive}
+							onChange={(v) => userSetExtra(setExtra, { mundaneIngressRule: v })}>
 							<Option value="auto" label="随流派">随流派（默认）</Option>
 							<Option value="quarterly" label="季度制">季度制（按四轴模式递归）</Option>
 							<Option value="aries_annual" label="全年制">全年制（白羊盘主全年）</Option>
@@ -797,7 +1138,7 @@ class MundaneMain extends Component{
 					</div>
 				</div>
 				<div className="horosa-mundane-controls">
-					{type === 'ingress' ? this.renderIngressLeft(extra, setExtra, fields, setTime) : null}
+					{type === 'ingress' ? this.renderIngressLeft(extra, setExtra, fields, setTime, patchFields) : null}
 					{(type === 'newmoon' || type === 'fullmoon' || type === 'solecl' || type === 'lunecl') ? this.renderScanLeft(type, extra, setExtra, fields, setTime) : null}
 					{type === 'region' ? this.renderRegionLeft(extra, setExtra, patchFields, fields) : null}
 					{type === 'cycles' ? (<div className="horosa-mundane-hint">「行星周期」在右栏设定年段，计算木土大合相时代纪元。</div>) : null}
@@ -833,6 +1174,7 @@ class MundaneMain extends Component{
 			const r = await solveSiderealIngress(typeKey, year, f);
 			if(!r || !r.moment){ this.setState({ solunarCasting: false, solunarErr: '恒星入境求根失败' }); return; }
 			// 盘参写入主 fields → 壳按恒星黄道+Campanus 重排主盘(与迭代用盘同口径)。
+			this.captureTropicalBackup(fields);   // [Q-348]
 			patchFields({ zodiacal: 1, siderealAyanamsa: 'fagan_bradley', hsys: 10, tradition: 0 });
 			const dt = new DateTime();
 			if(f.zone){ dt.setZone(f.zone); }
@@ -860,12 +1202,12 @@ class MundaneMain extends Component{
 					onChange={(v) => setExtra({ solunarYear: clampYear(v, currentYear()) })} />
 				<div className="horosa-field-label sub">强度口径</div>
 				<XQSelect style={{ width: '100%' }} size="small" value={extra.solunarWeights || 'scheme_a'}
-					onChange={(v) => setExtra({ solunarWeights: v })}>
+					onChange={(v) => userSetExtra(setExtra, { solunarWeights: v })}>
 					{Object.keys(SOLUNAR_WEIGHTS).map((k) => (<Option key={k} value={k}>{SOLUNAR_WEIGHTS[k].cn}</Option>))}
 				</XQSelect>
 				<div className="horosa-field-label sub">角化容许</div>
 				<XQSelect style={{ width: '100%' }} size="small" value={extra.solunarOrb || 3}
-					onChange={(v) => setExtra({ solunarOrb: v })}>
+					onChange={(v) => userSetExtra(setExtra, { solunarOrb: v })}>
 					{ANGULARITY_ORBS.map((o) => (<Option key={o.key} value={o.orb}>{o.cn}</Option>))}
 				</XQSelect>
 				<XQButton size="small" style={{ width: '100%', marginTop: 10 }} disabled={this.state.solunarCasting}
@@ -946,6 +1288,7 @@ class MundaneMain extends Component{
 			const f = { zone: fields.zone && fields.zone.value, lat: fields.lat && fields.lat.value, lon: fields.lon && fields.lon.value, gpsLat: fields.gpsLat && fields.gpsLat.value, gpsLon: fields.gpsLon && fields.gpsLon.value };
 			const r = await solveVedicSolarIngress(eventKey, year, f);
 			if(!r || !r.moment){ this.setState({ vedicCasting: false, vedicErr: '入境求根失败' }); return; }
+			this.captureTropicalBackup(fields);   // [Q-348]
 			patchFields({ zodiacal: 1, siderealAyanamsa: 'lahiri', hsys: 0, tradition: 0 });
 			const dt = new DateTime();
 			if(f.zone){ dt.setZone(f.zone); }
@@ -1003,7 +1346,7 @@ class MundaneMain extends Component{
 		);
 	}
 
-	renderIngressLeft(extra, setExtra, fields, setTime){
+	renderIngressLeft(extra, setExtra, fields, setTime, patchFields){
 		const term = extra.ingressTerm || '春分';
 		const year = extra.ingressYear != null ? extra.ingressYear : currentYear();
 		return (
@@ -1017,7 +1360,7 @@ class MundaneMain extends Component{
 				<InputNumber size="small" style={{ width: '100%' }} value={year} min={-3000} max={3000}
 					onChange={(v) => setExtra({ ingressYear: clampYear(v, currentYear()) })} />
 				<XQButton size="small" style={{ width: '100%', marginTop: 10 }} disabled={this.state.casting}
-					onClick={() => this.castIngress(extra, setExtra, fields, setTime)}>{this.state.casting ? '排盘中…' : '排入宫盘'}</XQButton>
+					onClick={() => this.castIngress(extra, setExtra, fields, setTime, patchFields)}>{this.state.casting ? '排盘中…' : '排入宫盘'}</XQButton>
 				{this.state.err ? (<div className="horosa-mundane-err">{this.state.err}</div>) : null}
 			</div>
 		);
@@ -1523,7 +1866,7 @@ class MundaneMain extends Component{
 		// [WP-E] 入境主管制页面级覆盖:auto=随流派;quarterly/aries_annual/capricorn_year 显式选
 		// (capricorn_year=摩羯优先派:冬至为政治/财政年首——死分支就此激活)。
 		const effIngressRule = (extra.mundaneIngressRule && extra.mundaneIngressRule !== 'auto') ? extra.mundaneIngressRule : rulesetConfig(extra.mundaneRuleset).ingressRule;
-		const gov = yl ? ingressGovernance(yl.signKey, effIngressRule) : null;
+		const gov = yl ? ingressGovernance(yl.signKey, effIngressRule, extra.ingressTerm || '春分') : null;   // [Q-150/T-60] 说明带上当前节气
 		return (
 			<div style={CARD}>
 				<div style={CARD_TITLE}><span style={{ width: 3, height: 14, background: '#b8860b', borderRadius: 2, display: 'inline-block' }} />年盘概要</div>
@@ -1770,8 +2113,10 @@ class MundaneMain extends Component{
 				<div style={CARD_TITLE}><span style={{ width: 3, height: 14, background: VACC, borderRadius: 2, display: 'inline-block' }} />世运大运（Vimshottari）</div>
 				<div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
 					<span style={{ fontSize: 11.5, opacity: 0.65 }}>年长口径</span>
-					<XQSelect size="small" style={{ width: 140 }} value={this.state._vdy || (extra.vedicDashaYearLen === 360 ? 360 : 365.2425)}
-						onChange={(v) => { this.setState({ _vdy: v }); if(this._setExtra){ this._setExtra({ vedicDashaYearLen: v }); } }}>
+					{/* [Q-353/T-334] 显示值只读 extra(唯一真值源):此前优先读组件内缓存 `_vdy`,而载入事盘时壳在
+					    didUpdate 里覆盖 extra、世俗组件并不重挂载 → 旧的 `_vdy` 残留,下拉显示的口径与实际计算用的分叉。 */}
+					<XQSelect size="small" style={{ width: 140 }} value={extra.vedicDashaYearLen === 360 ? 360 : 365.2425}
+						onChange={(v) => { if(this._setExtra){ userSetExtra(this._setExtra, { vedicDashaYearLen: v }); } }}>
 						<Option value={365.2425}>365.2425（现代）</Option>
 						<Option value={360}>360（传统）</Option>
 					</XQSelect>
@@ -2017,7 +2362,10 @@ class MundaneMain extends Component{
 		const ACC = '#7a3b8a';
 		const goFirstEclipse = () => {
 			const txt = String(this.state.sarosFirstDate || '').trim();
-			if(!/^\d{3,4}-\d{1,2}-\d{1,2}$/.test(txt)){ this.setState({ sarosErr: '日期格式 YYYY-MM-DD' }); return; }
+			// [Q-354/T-335] 日期选择器本来就能选公元前(DateTime 格式化出 `-500-03-01`),DateTime.parse 也早就认
+			// 首字符 `-` 与 1–4 位年;卡在这道正则上 —— 它既不收负号也不收三位以下的年,于是公元前与公元 1–99 年
+			// 点「按该日起盘」恒报「日期格式 YYYY-MM-DD」、盘纹丝不动(必失败路径)。
+			if(!/^-?\d{1,4}-\d{1,2}-\d{1,2}$/.test(txt)){ this.setState({ sarosErr: '日期格式 YYYY-MM-DD(公元前写成 -500-03-01)' }); return; }
 			try{
 				const dt = new DateTime();
 				const fields = this._fields;
@@ -2049,18 +2397,17 @@ class MundaneMain extends Component{
 					<div style={{ fontSize: 11.5, fontWeight: 600, opacity: 0.7, marginBottom: 4 }}>首食盘入口</div>
 					<div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
 						{/* 点选式日期(与主时间同款调时器,不逼手输;仍可后续微调) */}
-						<Popover trigger="click" placement="left" overlayClassName="horosa-time-adjust-popover"
-							content={(
+						<TimeFieldTrigger showIcon={false} placement="left" style={{ flex: '1 1 130px' }}
+							value={(() => { const dt = new DateTime(); if(this._fields && this._fields.zone && this._fields.zone.value){ dt.setZone(this._fields.zone.value); } return dt; })()}
+							timeText={this.state.sarosFirstDate || '点选首食日期'}
+							popoverContent={(
 								<div className="horosa-time-popover">
 									<PlusMinusTime
 										value={(() => { const dt = new DateTime(); if(this._fields && this._fields.zone && this._fields.zone.value){ dt.setZone(this._fields.zone.value); } if(this.state.sarosFirstDate && dt.parse){ const p = dt.parse(this.state.sarosFirstDate + ' 12:00:00', 'YYYY-MM-DD HH:mm:ss'); if(p){ return p; } } return dt; })()}
 										onChange={(res) => { const dt = res && res.time; if(dt && dt.format){ this.setState({ sarosFirstDate: dt.format('YYYY-MM-DD'), sarosErr: '' }); } }} />
 								</div>
-							)}>
-							<button type="button" className="horosa-unified-field" style={{ flex: '1 1 130px' }}>
-								<span>{this.state.sarosFirstDate || '点选首食日期'}</span>
-							</button>
-						</Popover>
+							)}
+							onQuickCommit={(dt) => { this.setState({ sarosFirstDate: dt.format('YYYY-MM-DD'), sarosErr: '' }); }} />
 						<XQButton size="small" onClick={goFirstEclipse}>按该日起盘</XQButton>
 					</div>
 					{this.state.sarosErr ? <div style={{ fontSize: 11, color: '#c0392b', marginTop: 3 }}>{this.state.sarosErr}</div> : null}
@@ -2318,7 +2665,7 @@ class MundaneMain extends Component{
 		);
 	}
 
-	// Barbault 行星周期指数曲线(§9.3):折线图 + 极小/极大标注。古典/中世纪规则集无外行星 → 提示切换。
+	// Barbault 行星周期指数曲线(§9.3):曲线图 + 极小/极大标注。古典/中世纪规则集无外行星 → 提示切换。
 	renderBarbault(extra){
 		const cfg = rulesetConfig((extra || {}).mundaneRuleset);
 		const ACC = '#8e44ad';
@@ -2516,9 +2863,21 @@ class MundaneMain extends Component{
 		const type = ex.mundaneType || 'ingress';
 		const TITLE = { ingress: '世俗入宫', newmoon: '新月图', fullmoon: '满月图', solecl: '日食图', lunecl: '月食图', region: '地区盘', cycles: '行星周期', solunar: '恒星派入境', vedicmundane: '吠陀世运', mundanehorary: '世运卜卦' };
 		const headLines = [`[${TITLE[type] || '世俗入宫'}]`, `规则集：${rulesetConfig(ex.mundaneRuleset).label}`];
-		if(type === 'ingress'){ headLines.push(`入宫节气：${ex.ingressTerm || '-'}`, `年份：${ex.ingressYear || '-'}`); }
+		// [Q-150/T-60] 两个页面级覆盖此前不进快照:页面改了、AI 拿到的仍是流派缺省值。
+		// 只在显式覆盖(非 auto)且本盘型真消费时补行 —— 缺省态快照逐字节不变。
+		if(type === 'ingress'){
+			headLines.push(`入宫节气：${ex.ingressTerm || '-'}`, `年份：${ex.ingressYear || '-'}`);
+			if(ex.mundaneIngressRule && ex.mundaneIngressRule !== 'auto'){
+				headLines.push(`入境主管制：${MUNDANE_INGRESS_RULE_CN[ex.mundaneIngressRule] || ex.mundaneIngressRule}（页面级覆盖）`);
+			}
+		}
 		else if(type === 'newmoon' || type === 'fullmoon'){ headLines.push(`时刻：${ex.selectedMoment || '-'}`); }
-		else if(type === 'solecl' || type === 'lunecl'){ headLines.push(`时刻：${ex.selectedMoment || '-'}`, `类型：${ex.eclipseTypeText || '-'}`); }
+		else if(type === 'solecl' || type === 'lunecl'){
+			headLines.push(`时刻：${ex.selectedMoment || '-'}`, `类型：${ex.eclipseTypeText || '-'}`);
+			if(ex.mundaneOrbScheme && ex.mundaneOrbScheme !== 'auto'){
+				headLines.push(`受冲容许度：${MUNDANE_ORB_SCHEME_CN[ex.mundaneOrbScheme] || ex.mundaneOrbScheme}（页面级覆盖）`);
+			}
+		}
 		else if(type === 'region'){ headLines.push(`地区：${ex.regionCn || '-'}`); }
 		else if(type === 'solunar'){
 			const st = describeSolunar(ex.solunarType || 'capsolar', ex.solunarWeights || 'scheme_a');
@@ -2541,14 +2900,32 @@ class MundaneMain extends Component{
 			const rows = describeMundaneChart(facts);
 			if(rows && rows.length){ judge = '[世俗宫义]\n' + formatMundaneHouseTable(rows); }
 			const v = describeMundaneVictor(facts, ex.mundaneRuleset);
-			if(v){ extraSecs.push(`[定局·年主/盘主]\n年主星：${v.victorCn}（累分 ${v.maxScore}）${v.victorMundane ? ' · ' + v.victorMundane.powerRole : ''}；取点 ${v.points.join(' / ')}`); }
+			if(v){
+				// [Q-444] 年主卡逐星得分与偶然项明细(此前只有年主一行)。
+				const scoreLines = (v.scores || []).filter((x) => x.score > 0).map((x) => `- ${x.cn} ${x.score}${x.accidentalItems && x.accidentalItems.length ? `（${x.accidentalItems.map((it) => `${it.cn} ${it.v > 0 ? '+' + it.v : it.v}`).join('，')}）` : ''}`);
+				extraSecs.push(`[定局·年主/盘主]\n年主星：${v.victorCn}（累分 ${v.maxScore}）${v.victorMundane ? ' · ' + v.victorMundane.powerRole : ''}；取点 ${v.points.join(' / ')}${scoreLines.length ? '\n' + scoreLines.join('\n') : ''}`);
+			}
 			if(type === 'ingress'){
 				const sk = describeIngressSkeleton(facts);
-				if(sk){ extraSecs.push(`[入境骨架]\n上升 ${sk.ascSignCn} · 主星 ${sk.ascRulerCn} 落 ${sk.ascRulerHouse} 宫${sk.ascRulerAngular ? '(临轴)' : ''}；政权 10宫主 ${sk.tenthRulerCn} · 太阳 ${sk.sun ? sk.sun.house : '-'} 宫；民生 月亮 ${sk.moon ? sk.moon.house : '-'} 宫`); }
+				if(sk){
+					// [Q-444] 骨架卡补:上升气质/十宫内星/产前朔望/临四轴/外行星。
+					let syz = null; try{ syz = describeMundaneSyzygy(facts); }catch(e){ syz = null; }
+					const more = [];
+					if(sk.ascTemper){ more.push(`上升气质 ${sk.ascTemper.temper}`); }
+					if(sk.tenthPlanets && sk.tenthPlanets.length){ more.push(`10宫内 ${sk.tenthPlanets.map((x) => x.cn).join('、')}`); }
+					if(syz){ more.push(`产前朔望 ${syz.signCn} ${syz.signlon != null ? syz.signlon.toFixed(1) + '°' : ''}${syz.kind ? '（' + syz.kind + '）' : ''}`); }
+					more.push(`临四轴 ${sk.angular && sk.angular.length ? sk.angular.map((a) => `${a.cn}(第${a.house}宫)${a.malefic ? '⚠' : ''}`).join('、') : '无'}`);
+					if(sk.outers && sk.outers.length){ more.push(`外行星 ${sk.outers.map((o) => `${o.cn} ${o.houseMeaning}`).join('；')}`); }
+					extraSecs.push(`[入境骨架]\n上升 ${sk.ascSignCn} · 主星 ${sk.ascRulerCn} 落 ${sk.ascRulerHouse} 宫${sk.ascRulerAngular ? '(临轴)' : ''}${sk.ascRulerRetro ? '(逆)' : ''}；政权 10宫主 ${sk.tenthRulerCn} · 太阳 ${sk.sun ? sk.sun.house : '-'} 宫；民生 月亮 ${sk.moon ? sk.moon.house : '-'} 宫\n${more.join('；')}`);
+				}
 			}
 			if(type === 'ingress' || type === 'region'){
 				const ch = describeChorography(facts, rulesetConfig(ex.mundaneRuleset).chorographyDataset);
-				if(ch && ch.axes.length){ extraSecs.push('[地理分野]\n数据集：' + ch.datasetMeta.label + '\n' + formatMundaneChorographyTable(ch.axes) + '\n（多源综合·传统占星学术参考,非现实地缘断言）'); }
+				if(ch && ch.axes.length){
+					// [Q-444] 分野卡补:托勒密四象限三方主管。
+					const quads = (ch.quadrants || []).map((q) => `${q.cn}（${q.signs.map((sg) => (SIGNS[sg] || {}).cn || sg).join('/')}）主星 ${PLANET_CN[q.rulers.day]}/${PLANET_CN[q.rulers.night]} · ${q.region}`).join('；');
+					extraSecs.push('[地理分野]\n数据集：' + ch.datasetMeta.label + '\n' + formatMundaneChorographyTable(ch.axes) + (quads ? '\n托勒密四象限：' + quads : '') + '\n（多源综合·传统占星学术参考,非现实地缘断言）');
+				}
 			}
 			if(type === 'vedicmundane' && this.state.navanayaka && this.state.navanayakaYear === (ex.vedicYear || currentYear())){
 				const nv = this.state.navanayaka;
@@ -2591,26 +2968,58 @@ class MundaneMain extends Component{
 					const prof = mundaneProfection(facts.meta.ascSign, age);
 					const fird = mundaneFirdaria(facts.meta.sect, age);
 					const lines = ['[地区盘推运]', `盘龄 ${age} 年（建置 ${founding} → 目标 ${target}）`];
-					if(prof){ lines.push(`小限：年小限 ${prof.profectedSignCn} · 激活第 ${prof.activatedHouse} 宫(${prof.houseTheme}) · 年主 ${prof.lordCn}`); }
-					if(fird){ lines.push(`法达(${fird.sectCn})：大期 ${fird.major.planetCn}${fird.sub ? ' · 子期 ' + fird.sub.planetCn : ''}`); }
+					if(prof){
+						lines.push(`小限：年小限 ${prof.profectedSignCn} · 激活第 ${prof.activatedHouse} 宫(${prof.houseTheme}) · 年主 ${prof.lordCn}`);
+						// [Q-444] 逐月小限 / 法达序列 / 返照 / 次限(后两者页面按需拉取,算过才成行)。
+						if(prof.months && prof.months.length){ lines.push(`逐月小限：${prof.months.map((mm) => `${mm.month}月 ${(SIGNS[mm.sign] || {}).cn || mm.sign}`).join('、')}`); }
+					}
+					if(fird){
+						lines.push(`法达(${fird.sectCn})：大期 ${fird.major.planetCn}（盘龄 ${fird.major.start}–${fird.major.end}）${fird.sub ? ' · 子期 ' + fird.sub.planetCn : ' · 交点期不分子期'}`);
+						if(fird.sequence && fird.sequence.length){ lines.push(`法达序：${fird.sequence.map((x) => `${x.planetCn}${x.years}`).join(' · ')}（七政 70+南北交 5 = 75 年一轮）`); }
+					}
+					if(this.state.srData && this.state.srYear === target && this.state.srKey === chartRequestKey(chart)){
+						const sr = this.state.srData;
+						lines.push(`太阳返照 ${target}：返照时刻 ${sr.solarReturn ? sr.solarReturn.datetime : '-'}；返照上升 ${fmtDegree(sr.solarAsc)}${sr.lunarReturn ? '；首个月返照 ' + sr.lunarReturn.datetime : ''}`);
+					}
+					if(this.state.secData && this.state.secYear === target && this.state.secKey === chartRequestKey(chart)){
+						const sec = this.state.secData; const pos = sec.positions || [];
+						const pSun = pos.find((p) => p.id === 'Sun'); const pMoon = pos.find((p) => p.id === 'Moon');
+						const natalSun = (facts.planets && facts.planets.sun) ? facts.planets.sun.lon : null;
+						const arc = (pSun && natalSun != null) ? (((pSun.lon - natalSun) % 360 + 360) % 360) : null;
+						const sCn2 = (sg) => (SIGNS[String(sg || '').toLowerCase()] || {}).cn || sg;
+						const ASP_CN = { 0: '合', 60: '六合', 90: '刑', 120: '三合', 180: '冲' };
+						const parts = [];
+						if(pSun){ parts.push(`次限太阳 ${sCn2(pSun.sign)} ${pSun.signlon != null ? pSun.signlon.toFixed(1) + '°' : ''}`); }
+						if(pMoon){ parts.push(`次限月亮 ${sCn2(pMoon.sign)} ${pMoon.signlon != null ? pMoon.signlon.toFixed(1) + '°' : ''}`); }
+						if(arc != null){ parts.push(`太阳弧 ${arc.toFixed(1)}°`); }
+						if(sec.aspectsToNatal && sec.aspectsToNatal.length){ parts.push(`应期 ${sec.aspectsToNatal.slice(0, 6).map((a) => `次限${MUN_PLANET_CN[String(a.a).toLowerCase()] || a.a}${ASP_CN[a.aspect] || a.aspect + '°'}本命${MUN_PLANET_CN[String(a.b).toLowerCase()] || a.b}(${a.orb != null ? a.orb.toFixed(1) : '?'}°)`).join('、')}`); }
+						if(parts.length){ lines.push(`次限·太阳弧 ${target}：${parts.join('；')}`); }
+					}
 					extraSecs.push(lines.join('\n'));
 				}
 			}
 		}catch(e){ /* noop */ }
+		// [Q-444/T-407] 其余右栏卡(概览/判读/恒星/推运/各盘型专卡)折入既有盘型段:与 render*Card 同源纯函数,按需拉取物取自 state。
+		let cardSecs = [];
+		try{ cardSecs = buildMundaneCardSections(chart, ex, this.state, null); }catch(e){ cardSecs = []; }
 		const head = headLines.join('\n');
 		const body = buildAstroSnapshotContent(chart, fields) || '';
-		return [head, judge, ...extraSecs, body].filter(Boolean).join('\n\n');
+		return [head, judge, ...extraSecs, ...cardSecs, body].filter(Boolean).join('\n\n');
 	}
 
 	render(){
 		return (
 			<DivinationChartShell
 				title="世俗盘"
+				wheelArt={this.props.wheelArt}   /* [Q-150/T-61] 盘面美术 / 外环样式随「设置→星盘设置」全局变更(壳内订阅同步) */
+				chartStyle={this.props.chartStyle}
 				kicker="世俗设置"
 				pageClass="horosa-mundane-page"
 				castNowLabel="此刻起盘"
-				defaults={{ tradition: 1, zodiacal: 0, hsys: 0 }}
-				initialExtra={{ mundaneRuleset: 'modern', mundaneType: 'ingress', ingressTerm: '春分', ingressYear: currentYear(), scanYear: currentYear() }}
+				defaults={this._seed.defaults}
+				initialExtra={this._seed.initialExtra}
+				restoreBaseline={this._seed.restoreBaseline}   /* 载入事盘:事盘里没有的设置键回出厂值,不沿用本机保存的偏好 */
+				onUserFieldChange={(patch)=>MUNDANE_PAGE_SETTINGS.save(patch)}   /* 壳左栏亲手改黄道 / 宫制 → 落盘 */
 				fields={this.props.fields}
 				height={this.props.height}
 				chartDisplay={this.props.chartDisplay}

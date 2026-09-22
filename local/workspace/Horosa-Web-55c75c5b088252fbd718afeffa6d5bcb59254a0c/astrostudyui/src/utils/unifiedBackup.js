@@ -21,11 +21,12 @@
 // - 导入侧按注册表再过滤:cache/device-local 键即使出现在包里也拒写(手改包防呆)。
 // - zip 信封与 AI 工作区备份互为 format 防呆(此处验 format 不符即拒并指路)。
 import JSZip from 'jszip';
+import { isSecretStore, redactSecretRecord } from './aiSecretStores';
 import { exportLocalChartsBackup, importLocalChartsBackup, previewLocalChartsBackup } from './localcharts';
 import { exportLocalCasesBackup, importLocalCasesBackup, previewLocalCasesBackup } from './localcases';
 import { safeLocalStorageGet, safeLocalStorageSet } from './safeStorage';
 import { classifyStorageKey, collectBackupKeys } from './storageKeyRegistry';
-import { AI_ANALYSIS_STORES, listStoreRecords, getStoreRecord, putStoreRecord } from './aiAnalysisStore';
+import { AI_ANALYSIS_STORES, AI_BACKUP_EXCLUDED_STORES, listStoreRecords, getStoreRecord, putStoreRecord } from './aiAnalysisStore';
 import { buildManifestChecksums, verifyManifestChecksums, sha256Hex } from './backupChecksum';
 
 export const UNIFIED_BACKUP_FORMAT = 'horosa-unified-backup';
@@ -86,7 +87,8 @@ export function buildUnifiedBackupManifest(){
 export async function collectAiWorkspaceDump(){
 	const stores = {};
 	let any = false;
-	const names = Object.values(AI_ANALYSIS_STORES);
+	// [P1-S1] 派生缓存不入包(体积大且恢复后按 sourceUpdatedAt 立刻失效)。
+	const names = Object.values(AI_ANALYSIS_STORES).filter((n)=>AI_BACKUP_EXCLUDED_STORES.indexOf(n) < 0);
 	for(let i=0; i<names.length; i++){
 		const name = names[i];
 		try{
@@ -95,14 +97,9 @@ export async function collectAiWorkspaceDump(){
 			if(!Array.isArray(list)){
 				list = [];
 			}
-			if(name === AI_ANALYSIS_STORES.providerProfiles){
-				list = list.map((rec)=>{
-					if(!rec || typeof rec !== 'object'){
-						return rec;
-					}
-					const { apiKey, apiKeyDecryptFailed, ...rest } = rec;
-					return { ...rest, apiKey: '', apiKeyRedacted: true };
-				});
+			// [G7] 带密钥的店按单源 AI_SECRET_STORES 穷举剥密(此前硬写两个店名;新增带密钥店会原样进包)
+			if(isSecretStore(name)){
+				list = list.map((rec)=>redactSecretRecord(rec));
 			}
 			stores[name] = list;
 			if(list.length){
@@ -334,8 +331,8 @@ async function restoreAiWorkspace(section){
 	const names = Object.keys(stores);
 	for(let i=0; i<names.length; i++){
 		const name = names[i];
-		if(!valid.has(name)){
-			continue;
+		if(!valid.has(name) || AI_BACKUP_EXCLUDED_STORES.indexOf(name) >= 0){
+			continue;   // [P1-S1] 旧包里的派生缓存一律忽略(不覆盖本机缓存)
 		}
 		const list = Array.isArray(stores[name]) ? stores[name] : [];
 		for(let j=0; j<list.length; j++){

@@ -123,8 +123,8 @@ describe('压测·三垣（16曜齐 + 4用事类断语齐 + 天帝加临 + 采�
 });
 
 describe('压测·日子馆（合婚144全支组 + 性别 + 多命主 + 事项采样 + 边界）', () => {
-	const A = personBazi({ date: '1988-06-01', time: '1988-06-01 10:00:00', gender: 0 });
-	const B = personBazi({ date: '1990-08-08', time: '1990-08-08 08:00:00', gender: 1 });
+	const A = personBazi({ date: '1988-06-01', time: '10:00:00', gender: 0 });   // [Q-272] time 只传 HH:mm:ss
+	const B = personBazi({ date: '1990-08-08', time: '08:00:00', gender: 1 });
 	const CHONG = { 子: '午', 午: '子', 卯: '酉', 酉: '卯', 寅: '申', 申: '寅', 巳: '亥', 亥: '巳', 辰: '戌', 戌: '辰', 丑: '未', 未: '丑' };
 
 	test('hehunPair 全 12×12 合法 + 冲对称', () => {

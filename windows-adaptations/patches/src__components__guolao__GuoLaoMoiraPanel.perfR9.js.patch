@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/guolao/GuoLaoMoiraPanel.js b/astrostudyui/src/components/guolao/GuoLaoMoiraPanel.js
-index 3aef6b6b..d94e6549 100644
+index 5ed9a628..ed5bfcc6 100644
 --- a/astrostudyui/src/components/guolao/GuoLaoMoiraPanel.js
 +++ b/astrostudyui/src/components/guolao/GuoLaoMoiraPanel.js
 @@ -1,4 +1,7 @@
@@ -9,7 +9,7 @@ index 3aef6b6b..d94e6549 100644
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  import * as AstroConst from '../../constants/AstroConst';
  import * as AstroText from '../../constants/AstroText';
- import { moiraMergeStellarRelationRows as mergeStellarRelationRows, moiraBuildLimitTable as buildLimitTable, moiraCurrentLimitIndex as currentLimitIndex, MOIRA_PLANET_DEFS, } from './GuoLaoMoiraWheel';
+ import { moiraMergeStellarRelationRows as mergeStellarRelationRows, moiraBuildLimitTable as buildLimitTable, moiraBirthYearBasis as birthYearBasis, moiraCurrentLimitIndex as currentLimitIndex, MOIRA_PLANET_DEFS, } from './GuoLaoMoiraWheel';
 @@ -11,6 +14,21 @@ import { PALACE_LORD as GL_PALACE_LORD, SU28 as GL_SU28, SU28_DEGREE_LORD as GL_
  import { computeDongwei as glDongwei, computeXiaoxian as glXiaoxian, computeTongxian as glTongxian, computeYuexian as glYuexian } from './guolaoTransit';
  import './GuoLaoMoiraPanel.less';
@@ -32,11 +32,48 @@ index 3aef6b6b..d94e6549 100644
  // 三主(命主/身主/度主)+ 命宫配干(五虎遁)+ 生年化曜:纯前端从命/身宫地支 + 命度宿 + 年干派生(古法立成)。
  const GL_GAN = '甲乙丙丁戊己庚辛壬癸';
  const GL_ZHI = '子丑寅卯辰巳午未申酉戌亥';
-@@ -846,7 +864,11 @@ function buildPanelFallbackValue(rootValue){
+@@ -831,21 +849,6 @@ function hasRenderableChart(rootValue){
+ 	return safeList(rootValue && rootValue.chart && rootValue.chart.objects).length > 0;
+ }
+ 
+-function buildPanelFallbackValue(rootValue){
+-	return {
+-		engine: 'horosa-local-moira-panel-fallback',
+-		engineLabel: 'Moira政余格局',
+-		summary: '',
+-		styleWarning: '',
+-		params: mergeDefined(rootValue && rootValue.params),
+-		anchors: {},
+-		houses: [],
+-		planets: [],
+-		patterns: [],
+-		godHits: [],
+-	};
+-}
+-
+ // [Q-231/Q-434/Q-435] 右栏「命身与限度」「三主·命宫配干·化曜」「难仇恩用」「飞限·童限·小限·月限·限度」「行运法」
+ // 诸卡的事实层单源:面板渲染与 AI 快照([起盘信息] 命度/身度/宿主行、[三主与化曜]、[限法实算])都从这里取值,
+ // 保证「页面显示什么、快照就写什么」。纯函数、零 React。transitValue 缺(无头挂载)时,月限所需的流年月支
+@@ -1001,7 +1004,26 @@ export function buildGuolaoMoiraInfoFacts(input){
  	};
  }
  
 -export default function GuoLaoMoiraPanel(props){
++function buildPanelFallbackValue(rootValue){
++	return {
++		engine: 'horosa-local-moira-panel-fallback',
++		engineLabel: 'Moira政余格局',
++		summary: '',
++		styleWarning: '',
++		params: mergeDefined(rootValue && rootValue.params),
++		anchors: {},
++		houses: [],
++		planets: [],
++		patterns: [],
++		godHits: [],
++	};
++}
++
 +function GuoLaoMoiraPanel(props){
 +	// horosa_freeze_subtabs_v1 接线:本面板的 Tabs 原为【非受控】(defaultActiveKey),拿不到 active
 +	// 就没法冻结 —— 按 FreezeSubTab 的前提先改受控(接线方自己改,组件不代劳)。
@@ -45,10 +82,10 @@ index 3aef6b6b..d94e6549 100644
  	const rootValue = props.rootValue || {};
  	const value = props.value || ((!props.loading && hasRenderableChart(rootValue)) ? buildPanelFallbackValue(rootValue) : null);
  	const birthChart = rootValue.chart || {};
-@@ -856,7 +878,10 @@ export default function GuoLaoMoiraPanel(props){
+@@ -1010,7 +1032,10 @@ export default function GuoLaoMoiraPanel(props){
+ 	const params = mergeDefined(value && value.params, rootValue.params);
  	const transitParams = safeMap(props.transitParams);
- 	const display = props.display || {};   // 类B 显示偏好:命主取法/留伏迟疾/五虎遁/行运法/定童限等
- 	const limitChildBase = Number(display.limitChildBase) === 10 ? 10 : 9; // 定童限 base(9 九年/10 十年),与大限环同口径
+ 	const display = props.display || {};   // 类B 显示偏好:命主取法/留伏迟疾/五虎遁/行运法/定童限等(定童限 base 在 infoFacts 内取)
 -	// 宿主页注入的补充 tab(化曜/虚实/命曜/流曜/相位等)——信息常驻右栏,不再只藏在快捷弹层里
 +	// 宿主页注入的补充 tab(化曜/虚实/命曜/流曜/相位等)——信息常驻右栏,不再只藏在快捷弹层里。
 +	// 契约 { key, label, children }:children 既可是【节点】也可是【thunk `()=>节点`】——
@@ -57,7 +94,7 @@ index 3aef6b6b..d94e6549 100644
  	const extraTabs = Array.isArray(props.extraTabs) ? props.extraTabs.filter(Boolean) : [];
  
  	if(props.loading && !value){
-@@ -887,10 +912,12 @@ export default function GuoLaoMoiraPanel(props){
+@@ -1039,10 +1064,12 @@ export default function GuoLaoMoiraPanel(props){
  	const styleWarning = value.styleWarning || (unverifiedPatternSource ? '当前接口返回的是旧版 Horosa 近似格局，不是 Moira 本体的政余喜格/忌格；已屏蔽为正式格局输出。' : '');
  	const patterns = unverifiedPatternSource ? [] : safeList(value.patterns);
  	const planets = safeList(value.planets);
@@ -74,16 +111,16 @@ index 3aef6b6b..d94e6549 100644
  		const godHits = safeList(value.godHits);
  		const yearStars = safeMap(value.yearStars);
  		const birthYearStars = safeMap(yearStars.birth);
-@@ -899,7 +926,7 @@ export default function GuoLaoMoiraPanel(props){
+@@ -1051,7 +1078,7 @@ export default function GuoLaoMoiraPanel(props){
  		const transitYearStars = safeList(value.transitYearStars);
  		const transitGodHits = safeList(value.transitGodHits);
  		const houses = safeList(value.houses);
 -	const stellarRelationRows = mergeStellarRelationRows(birthChart, transitChart);
 +	const getStellarRelationRows = lazyOnce(()=> mergeStellarRelationRows(birthChart, transitChart));
- 	const birthYear = yearFromParams(params);
- 	const transitYear = yearFromParams(transitParams);
- 	const birthYearText = baziStemBranch(rootValue, 'year', birthYear);
-@@ -912,10 +939,11 @@ export default function GuoLaoMoiraPanel(props){
+ 	const { birthYear, transitYear, birthYearText, transitYearText, age } = infoFacts;
+ 	const apparentSolar = pickDeep(rootValue, ['apparentSolar', 'apparent_solar', 'apparentSolarTime', 'solarTime', 'trueSolarTime']) || (birthChart.nongli && birthChart.nongli.birth);
+ 	const sunrise = pickDeep(rootValue, ['sunrise', 'sunRise', 'sunriseTime', 'sunRiseTime', 'sun_rise', 'guolaoSunRiseTime']);
+@@ -1060,10 +1087,11 @@ export default function GuoLaoMoiraPanel(props){
  	const moonset = pickDeep(rootValue, ['moonset', 'moonSet', 'moonsetTime', 'moonSetTime', 'moon_set']);
  	const hasRiseSet = sunrise || sunset || moonrise || moonset;
  
@@ -99,7 +136,7 @@ index 3aef6b6b..d94e6549 100644
  				<Section title="起盘与流年">
  				<KeyValueGrid items={[
  					{label: '计算法', value: '地心计算法'},
-@@ -1145,7 +1173,7 @@ export default function GuoLaoMoiraPanel(props){
+@@ -1214,7 +1242,7 @@ export default function GuoLaoMoiraPanel(props){
  				})()}
  
  				</>) },
@@ -108,7 +145,7 @@ index 3aef6b6b..d94e6549 100644
  				<Section title="宫位化曜（本命 / 流年）">
  					<YearSignMergedTable natalRows={natalYearStars} transitRows={transitYearStars} />
  				</Section>
-@@ -1157,11 +1185,11 @@ export default function GuoLaoMoiraPanel(props){
+@@ -1226,11 +1254,11 @@ export default function GuoLaoMoiraPanel(props){
  				) : null}
  
  				<Section title="本命星点动态（庙旺所属 · 速度）">
@@ -122,7 +159,7 @@ index 3aef6b6b..d94e6549 100644
  				</Section>
  
  				<Section title="年曜与十神">
-@@ -1199,7 +1227,7 @@ export default function GuoLaoMoiraPanel(props){
+@@ -1268,7 +1296,7 @@ export default function GuoLaoMoiraPanel(props){
  			</Section>
  
  			</>) },
@@ -131,7 +168,7 @@ index 3aef6b6b..d94e6549 100644
  				<Section title="十二宫位">
  				<div className="horosa-guolao-moira-house-list">
  					{houses.map((item)=>(
-@@ -1213,11 +1241,11 @@ export default function GuoLaoMoiraPanel(props){
+@@ -1282,11 +1310,11 @@ export default function GuoLaoMoiraPanel(props){
  			</Section>
  
  				<Section title="星宿落入与同经">
@@ -145,7 +182,7 @@ index 3aef6b6b..d94e6549 100644
  				<Section title="神煞全表">
  				<div className="horosa-guolao-moira-gods">
  					{godHits.map((item)=>(
-@@ -1253,7 +1281,7 @@ export default function GuoLaoMoiraPanel(props){
+@@ -1322,7 +1350,7 @@ export default function GuoLaoMoiraPanel(props){
  				) : null}
  
  				</>) },
@@ -154,7 +191,7 @@ index 3aef6b6b..d94e6549 100644
  				<Section title="政余格局">
  				{styleWarning ? <div className="horosa-guolao-moira-warning">{styleWarning}</div> : null}
  				{patterns.length ? (
-@@ -1272,7 +1300,28 @@ export default function GuoLaoMoiraPanel(props){
+@@ -1341,7 +1369,28 @@ export default function GuoLaoMoiraPanel(props){
  			</Section>
  				) },
  				...extraTabs,

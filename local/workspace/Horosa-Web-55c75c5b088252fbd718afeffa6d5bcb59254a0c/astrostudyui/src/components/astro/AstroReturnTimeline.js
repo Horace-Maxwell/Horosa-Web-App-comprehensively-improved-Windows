@@ -4,6 +4,45 @@ import { XQButton as Button } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, fmtDegree, chartParams, chartRequestKey, cardStyle, SmallTable } from './AstroExtraCommon';
+import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+
+// [Q-106/T-10] 回归轴页上线为 AI 技法键 returntimeline:无头快照 builder(与页面同一 /astroextra/returns 请求)。
+const rtBirthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
+const rtCurrentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
+const rtMethodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
+function rtDeg(v){
+	if(!v){ return '-'; }
+	try{ return fmtDegree(v); }catch(e){ return '-'; }
+}
+// opts:{ startYear, count }(缺=页面缺省:今年起 12 年)。无行返回 ''。
+export async function buildReturnTimelineSnapshotText(chartObj, opts){
+	if(!chartObj){ return ''; }
+	const o = { startYear: new Date().getFullYear(), count: 12, ...(opts || {}) };
+	let rows = [];
+	try{
+		const data = await request(`${Constants.ServerRoot}/astroextra/returns`, {
+			body: JSON.stringify({ ...chartParams(chartObj), startYear: o.startYear, count: o.count }),
+			timeoutMs: 45000,
+		});
+		const r = unwrapResult(data) || {};
+		rows = Array.isArray(r.rows) ? r.rows : [];
+	}catch(e){ return ''; }
+	if(!rows.length){ return ''; }
+	const lines = [];
+	lines.push(...rtBirthHeaderLines(chartObj));
+	lines.push('[太阳/月亮返照时间轴]');
+	lines.push(`区间：${o.startYear} 年起 ${o.count} 年（太阳返照 = 太阳回到本命度;首个月亮返照 = 该年首个月亮回本命度）`);
+	lines.push('| 年份 | 太阳返照 | 首个月亮返照 | 太阳返照上升 | 月亮返照上升 |');
+	lines.push('| --- | --- | --- | --- | --- |');
+	rows.forEach((row)=>{
+		const sr = row.solarReturn && row.solarReturn.datetime ? row.solarReturn.datetime : '-';
+		const lr = row.lunarReturn && row.lunarReturn.datetime ? row.lunarReturn.datetime : '-';
+		lines.push(`| ${row.year} | ${sr} | ${lr} | ${rtDeg(row.solarAsc)} | ${rtDeg(row.lunarAsc)} |`);
+	});
+	const tail = [...rtCurrentMomentLines(chartObj, []), ...rtMethodNoteLines('returntimeline')];
+	if(tail.length){ lines.push(''); lines.push(...tail); }
+	return lines.join('\n');
+}
 import { markPanelReady } from '../../utils/perfMark';
 
 class AstroReturnTimeline extends Component{
@@ -20,13 +59,23 @@ class AstroReturnTimeline extends Component{
 		this.load = this.load.bind(this);
 	}
 
+	// [Q-106/T-10] AI 导出:回归轴 tab 导出时按页面当前起始年/年数构建快照写回 detail.snapshotText。
+	handleSnapshotRefreshRequest(evt){
+		if(!evt || !evt.detail || evt.detail.module !== 'returntimeline' || !this.props.value){ return; }
+		buildReturnTimelineSnapshotText(this.props.value, { startYear: Number(this.state.startYear) || new Date().getFullYear(), count: Number(this.state.count) || 12 })
+			.then((txt)=>{ evt.detail.snapshotText = txt || ''; }).catch(()=>{});
+	}
+
 	componentDidMount(){
 		this._mounted = true;
 		this.load();
+		this._onSnapshotRefresh = (evt)=>this.handleSnapshotRefreshRequest(evt);
+		if(typeof window !== 'undefined'){ window.addEventListener('horosa:refresh-module-snapshot', this._onSnapshotRefresh); }
 	}
 
 	componentWillUnmount(){
 		this._mounted = false;
+		if(typeof window !== 'undefined' && this._onSnapshotRefresh){ window.removeEventListener('horosa:refresh-module-snapshot', this._onSnapshotRefresh); }
 	}
 
 	componentDidUpdate(prevProps){

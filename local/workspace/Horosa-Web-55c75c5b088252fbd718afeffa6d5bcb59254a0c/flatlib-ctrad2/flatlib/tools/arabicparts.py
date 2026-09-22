@@ -224,10 +224,14 @@ FORMULAS[PARS_COURAGE] = [
     [const.MARS, const.PARS_FORTUNA, const.ASC],
     [const.PARS_FORTUNA, const.MARS, const.ASC]
 ]
-# 胜利 Victory 日=Asc+精神−木星  夜=Asc+木星−精神
+# 胜利 Victory 日=Asc+木星−精神  夜=Asc+精神−木星
+# [Q-301/T-289 2026-09-18 原典核对] Paulus Alexandrinus ch.23(Schmidt/Hand 译):"Sixth is the Lot of Victory. For this,
+# you will count from the Lot of Spirit to the degree of Zeus for those born in the day, and an equal amount from the
+# Horoskopos. But for those born at night, the reverse." → 昼 = ASC + (Jupiter − Spirit)。此前昼夜颠倒(昼用了夜式),
+# 与同表爱欲点「自精神至金星」的结构不对称即此故;Olympiodorus 同。三元 [A,B,ASC] = ASC+(B−A)。
 FORMULAS[PARS_VICTORY] = [
-    [const.JUPITER, PARS_SPIRIT, const.ASC],
-    [PARS_SPIRIT, const.JUPITER, const.ASC]
+    [PARS_SPIRIT, const.JUPITER, const.ASC],
+    [const.JUPITER, PARS_SPIRIT, const.ASC]
 ]
 # 报应 Nemesis 日=Asc+福点−土星  夜=Asc+土星−福点
 FORMULAS[PARS_NEMESIS] = [

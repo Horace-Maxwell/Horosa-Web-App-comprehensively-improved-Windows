@@ -17,7 +17,7 @@ import { sanhe } from './sanhe';
 import { zibai } from './zibai';
 import { qiankun } from './qiankun';
 import { bazhai } from './bazhai';
-import { jinsuo } from './jinsuo';
+import { jinsuo, jinsuoXingOptionsFor } from './jinsuo';
 import { YONGSHI_ALL } from './zeriDeep';
 import { LUOPAN_TYPES, LUOPAN_TYPE_NOTE, LUOPAN_PARTS, TIANXING_JI, TIANXING_BAGUI, TIANXING_NOTE,
 	TIANXING_BAGUI_USE, DIMU9_STARS, DIMU9_NOTE, HUANGQUAN_PAN_NOTE, JIEQI_NOTE, YIPAN_CONTENT,
@@ -28,7 +28,6 @@ import { fenjinPick, chuanshanPick, jianCheck, magneticWizard, panxiangWizard,
 import { DECLINATION_TABLE, DECLINATION_CITY_COUNT } from './fengshuiDeclinationData';
 import { duanyuByPan, XUANKONG_DUANYU, DUANYU_SOURCES, DUANYU_MISSING_NOTE, DUANYU_INDEX_NOTE,
 	YANGZHAI_30, YANGZHAI_30_NOTE } from './fengshuiDuanyuData';
-import { JINSUO_XING } from './fengshuiJinsuoDuanjue';
 import { fuxing } from './fuxing';
 import { jingyin } from './jingyin';
 import { dagua } from './dagua';
@@ -49,6 +48,8 @@ const LUOPAN_RULE_LABEL = { weixing: '🛰️ 现代取向', gangjin: '🔴 钢�
 const LUOPAN_RULE_JX = { gangjin: 'bad', weixing: 'good' };
 
 const SHAN_OPTS = SHAN_ORDER.map((s)=>({ value: s, label: s }));
+// [Q-425/T-390] 24 山对宫:坐 i → 向 (i+12) % 24
+function oppositeShan(s){ const i = SHAN_ORDER.indexOf(s); return i >= 0 ? SHAN_ORDER[(i + 12) % SHAN_ORDER.length] : s; }
 const GUA8 = ['坎', '坤', '震', '巽', '乾', '兑', '艮', '离'];
 const GUA8_OPTS = GUA8.map((g)=>({ value: g, label: g }));
 // 择日深化左栏用：六十甲子 / 九星 / 九宫（含中宫）。
@@ -93,7 +94,7 @@ const YINYANG_OPTS = [{ value: 'yang', label: '阳宅' }, { value: 'yin', label:
 const JX_CLASS = (jx)=>(jx === 'good' ? 'is-good' : (jx === 'bad' ? 'is-warn' : ''));
 const NUM_GUA = { 1: '坎', 2: '坤', 3: '震', 4: '巽', 6: '乾', 7: '兑', 8: '艮', 9: '离' };
 
-export default function LiqiWorkspace({ school, geo = null }) {
+export default function LiqiWorkspace({ school, geo = null, active = true }) {
 	// 中栏可用面积量测:综合罗经按 min(宽,高) 打满可视区(不超屏、不留大片空白)。
 	const chartBoxRef = useRef(null);
 	const [chartBox, setChartBox] = useState({ w: 0, h: 0 });
@@ -111,7 +112,7 @@ export default function LiqiWorkspace({ school, geo = null }) {
 	const [yun, setYun] = useState(9);
 	const [year, setYear] = useState(new Date().getFullYear());
 	const [zuoGua, setZuoGua] = useState('坎');
-	const [ming, setMing] = useState({ year: 1990, isMale: true });
+	const [ming, setMing] = useState({ year: null, isMale: true });   // [Q-226/T-188] 命主年缺省空:未录命主不再按 1990·男 算命卦进快照
 	const [shuiKou, setShuiKou] = useState('戌');
 	const [waterFlow, setWaterFlow] = useState('leftToRight');
 	const [sectors, setSectors] = useState({});
@@ -148,7 +149,7 @@ export default function LiqiWorkspace({ school, geo = null }) {
 	const [jsShans, setJsShans] = useState({});
 	const [jsXings, setJsXings] = useState({});
 	const [lf, setLf] = useState({ yun: 9, zuoShan: '子', xiangShan: '午', year: new Date().getFullYear() });
-	const [ml, setMl] = useState({ mingYear: 1990, isMale: true, zhaiZuoGua: '坎' });
+	const [ml, setMl] = useState({ mingYear: null, isMale: true, zhaiZuoGua: '坎' });   // [Q-226/T-188] 命主年缺省空
 	const [lp, setLp] = useState({ deg: 0, zuoShan: '子', xiangShan: '午', layers: LUOPAN_DEFAULT_LAYERS,
 		panType: 'zonghe', jianShan: '', jianDeg: 0, jianSchool: 'xuankong',
 		city: '', trueDeg: '', decSource: 'book',
@@ -178,11 +179,17 @@ export default function LiqiWorkspace({ school, geo = null }) {
 			case 'dagua': return dagua({ xiangLower: dg.lower, xiangUpper: dg.upper, yun, yunScheme: dg.yunScheme, xiangYunInput: dg.xiangYun, zuoYunInput: dg.zuoYun, deg: dg.deg,
 				showDeep: dg.showDeep, longLower: dg.longLower, longUpper: dg.longUpper, chouYao: dg.chouYao, year });
 			case 'xingshi': return xingshi(xs);
-			case 'zeri': return { available: true, isZeri: true, yg: yearGods(zr.year), course: (zr.m && zr.d) ? dayCourse(zr.year, +zr.m, +zr.d) : null,
-				zaoming: (zr.m && zr.d) ? zaoMing({ zuoShan: zr.zuoShan, y: zr.year, m: +zr.m, d: +zr.d,
+			// [Q-215/T-169] 月/日两框非空即渲染期取数:月 0/13、日 32(含键入「03」的首个「0」)使日期库抛错且无 try → 整页错误卡。
+			// 改:月日在 1~12 / 1~31 内才起日课,否则视为未填;并包 try(同类紫白已包)。
+			case 'zeri': { const _m = +zr.m, _d = +zr.d; const _ok = !!zr.m && !!zr.d && Number.isInteger(_m) && Number.isInteger(_d) && _m >= 1 && _m <= 12 && _d >= 1 && _d <= 31;
+				let _course = null, _zm = null;
+				if(_ok){ try{ _course = dayCourse(zr.year, _m, _d); }catch(e){ _course = null; } }
+				if(_ok){ try{ _zm = zaoMing({ zuoShan: zr.zuoShan, y: zr.year, m: _m, d: _d,
 					laiLong: zr.laiLong || undefined, zhuMing: zr.zhuYear ? { year: +zr.zhuYear, isMale: zr.zhuMale } : undefined,
 					showDeep: zr.showDeep, yongShi: zr.yongShi, hourGanZhi: zr.hourGanZhi, yun: zr.yun,
-					zibaiA: zr.zibaiA, zibaiB: zr.zibaiB, chongFuStar: zr.chongFuStar, chongFuGong: zr.chongFuGong, dongCombo: zr.dongCombo }) : null };
+					zibaiA: zr.zibaiA, zibaiB: zr.zibaiB, chongFuStar: zr.chongFuStar, chongFuGong: zr.chongFuGong, dongCombo: zr.dongCombo }); }catch(e){ _zm = null; } }
+				const _yg = yearGods(zr.year);
+				return { available: true, isZeri: true, yg: _yg, course: _course, zaoming: _zm, zuoShan: zr.zuoShan, zuoShanCheck: zuoShanYearCheck(zr.zuoShan, _yg) }; }
 			case 'liufa': return xuankongLiufa({ yun: lf.yun, zuoShan: lf.zuoShan, xiangShan: lf.xiangShan, year: lf.year });
 			case 'mingli': return mingli({ mingYear: ml.mingYear, isMale: ml.isMale, zhaiZuoGua: ml.zhaiZuoGua });
 			case 'luopan': return luopanReading(lp);
@@ -191,10 +198,11 @@ export default function LiqiWorkspace({ school, geo = null }) {
 	}, [school, impl, regStates, xiangShan, yun, year, month, jian, tiVariant, zuoGua, ming, shuiKou, waterFlow, sectors, waters, zhaiMode, sanheDeep, sands, bazhaiDeep, xkDeep, zbDate, fx, fxWaters, jy, dg, xs, zr, jsDeep, jsShans, jsXings, lf, ml, lp, geo]);
 
 	useEffect(()=>{
+		if (active === false) { return; }   // [Q-221/T-182·FT-16] 隐藏保活期间不写快照(画布派快照为准);切回时按 active 依赖重存
 		if (!result || !result.available) { return; }
 		const text = buildSnapshot(school, result);
 		if (text) { saveModuleAISnapshot('fengshui', text, { source: 'liqi', school }); }
-	}, [result, school]);
+	}, [result, school, active]);
 
 	if (!result) { return null; }
 
@@ -218,6 +226,18 @@ export default function LiqiWorkspace({ school, geo = null }) {
 				<XQSegmented value={value} options={opts} onChange={(ev)=>onCh(ev.target ? ev.target.value : ev)} /></label>
 		);
 	}
+	// [Q-223/T-186·FT-28] 该月天数(公历;lunar-javascript 对 2 月 31 日不报错而滚到下月,日框须按月夹取)
+	function daysInMonthOf(y, m) {
+		const yy = +y, mm = +m;
+		if (!Number.isInteger(yy) || !Number.isInteger(mm) || mm < 1 || mm > 12) { return 31; }
+		return new Date(Date.UTC(yy, mm, 0)).getUTCDate();
+	}
+	function clampDay(y, m, d) {
+		if (d === '' || d === null || d === undefined) { return d; }
+		const n = +d;
+		if (!Number.isFinite(n)) { return d; }
+		return String(Math.max(1, Math.min(daysInMonthOf(y, m), Math.trunc(n))));
+	}
 	function numField(label, value, onCh, extra = {}, key) {
 		return (
 			<label key={key} className="horosa-fengshui-liqi-field"><span>{label}</span>
@@ -232,7 +252,7 @@ export default function LiqiWorkspace({ school, geo = null }) {
 				{sel('门派', xkDeep.school, XK_SCHOOL_OPTS, pickXkSchool)}
 				{sel('元运', yun, YUN_OPTS, setYun)}
 				{sel('向首', xiangShan, SHAN_OPTS, setXiangShan)}
-				{numField('向首度数(0=不用)', xkDeep.deg, (v)=>setXkDeep({ ...xkDeep, deg: v }), { min: 0, max: 360, step: 0.5 })}
+				{numField('向首度数(空=不用)', xkDeep.deg, (v)=>setXkDeep({ ...xkDeep, deg: v }), { min: 0, max: 360, step: 0.5 })}
 				{segField('起卦法', jian ? 'y' : 'n', [{ value: 'n', label: '下卦(正向)' }, { value: 'y', label: '替卦(兼向)' }], (v)=>setJian(v === 'y'))}
 				{jian ? sel('替星方案', tiVariant, TIVAR_OPTS, setTiVariant) : null}
 				{segField('兼向度界', `${xkDeep.jianBoundary}`, JIANB_OPTS, (v)=>setXkDeep({ ...xkDeep, jianBoundary: Number(v) }))}
@@ -267,14 +287,14 @@ export default function LiqiWorkspace({ school, geo = null }) {
 				{numField('流月(0=不显)', month, (v)=>setMonth(Math.max(0, Math.min(12, +v || 0))), { min: 0, max: 12 })}
 				<div className="horosa-fengshui-liqi-subhead">日/时紫白（填月日）</div>
 				{numField('月', zbDate.m, (v)=>setZbDate({ ...zbDate, m: v }), { min: 1, max: 12 })}
-				{numField('日', zbDate.d, (v)=>setZbDate({ ...zbDate, d: v }), { min: 1, max: 31 })}
+				{numField('日', zbDate.d, (v)=>setZbDate({ ...zbDate, d: v }), { min: 1, max: daysInMonthOf(year, zbDate.m), onBlur: (e)=>setZbDate({ ...zbDate, d: clampDay(year, zbDate.m, e.target.value) }) })}
 				{numField('时(0-23,空=不显)', zbDate.hour, (v)=>setZbDate({ ...zbDate, hour: v }), { min: 0, max: 23 })}
 			</>);
 		}
 		if (school === 'bazhai') {
 			return (<>
 				{sel('坐山', zuoGua, GUA8_OPTS, setZuoGua)}
-				{numField('命主年', ming.year, (v)=>setMing({ ...ming, year: +v || ming.year }))}
+				{numField('命主年（空=未录）', ming.year, (v)=>setMing({ ...ming, year: (v === '' || v === null || v === undefined) ? null : (+v || ming.year) }))}
 				{segField('性别', ming.isMale ? 'm' : 'f', [{ value: 'm', label: '男' }, { value: 'f', label: '女' }], (v)=>setMing({ ...ming, isMale: v === 'm' }))}
 				{segField('法脉', bazhaiDeep.faMai, [{ value: 'zuoshan', label: '坐山起伏位' }, { value: 'menshang', label: '门上起伏位' }, { value: 'sanyuan', label: '三元阳宅' }], (v)=>setBazhaiDeep({ ...bazhaiDeep, faMai: v }))}
 			{bazhaiDeep.faMai === 'sanyuan' ? sel('元运(三元衰旺)', yun, YUN_OPTS, setYun) : null}
@@ -308,9 +328,10 @@ export default function LiqiWorkspace({ school, geo = null }) {
 						<div className="horosa-fengshui-liqi-subhead">{gua}宫</div>
 						{shans.map((sn)=>(<div key={`jss-${sn}`}>
 							{segField(`${sn}山`, jsShans[sn] || 'flat', SAND_WATER, (v)=>setJsShans({ ...jsShans, [sn]: v }), `js24-${sn}`)}
-							{jsShans[sn] && jsShans[sn] !== 'flat'
+							{/* [Q-223/T-186·FT-25] 只列该山该侧断诀里真会命中的形态(无则不出下拉) */}
+							{jsShans[sn] && jsShans[sn] !== 'flat' && jinsuoXingOptionsFor(sn, jsShans[sn]).length
 								? sel(`${sn}·形态`, jsXings[sn] || '', [{ value: '', label: '（不限形）' },
-									...JINSUO_XING.filter((x)=>x.side === 'both' || x.side === (jsShans[sn] === 'water' ? 'shui' : 'sha')).map((x)=>({ value: x.key, label: x.label }))],
+									...jinsuoXingOptionsFor(sn, jsShans[sn]).map((x)=>({ value: x.key, label: x.label }))],
 								(v)=>setJsXings({ ...jsXings, [sn]: v }), `jsx-${sn}`)
 								: null}
 						</div>))}
@@ -366,8 +387,8 @@ export default function LiqiWorkspace({ school, geo = null }) {
 				{segField('过峡束气', xs.guoXiaGood ? 'y' : 'n', [{ value: 'y', label: '紧凑吉' }, { value: 'n', label: '断散' }], (v)=>setXs({ ...xs, guoXiaGood: v === 'y' }))}
 				{nine ? segField('入首数节', xs.ruShouGe === true ? 'y' : (xs.ruShouGe === false ? 'n' : 'na'), [{ value: 'y', label: '合格' }, { value: 'na', label: '未定' }, { value: 'n', label: '不合' }], (v)=>setXs({ ...xs, ruShouGe: v === 'y' ? true : (v === 'n' ? false : null) })) : null}
 				{nine ? segField('龙之贵贱', xs.longGuiJian || 'na', [{ value: 'gui', label: '贵龙' }, { value: 'na', label: '未定' }, { value: 'jian', label: '贱龙' }], (v)=>setXs({ ...xs, longGuiJian: v === 'na' ? null : v })) : null}
-				{nine ? sel('枝脚四格', xs.zhijiao || '', optsOf(XINGSHI_TABLES.zhijiao4, (x)=>({ value: x.name, label: `${x.name}(${x.rank})` })), (v)=>setXs({ ...xs, zhijiao: v })) : null}
-				{nine ? sel('开帐三格', xs.kaizhang || '', optsOf(XINGSHI_TABLES.kaizhang3, (x)=>({ value: x.name, label: `${x.name}·${x.zhu}` })), (v)=>setXs({ ...xs, kaizhang: v })) : null}
+				{nine ? sel('枝脚四格（参考·不计分）', xs.zhijiao || '', optsOf(XINGSHI_TABLES.zhijiao4, (x)=>({ value: x.name, label: `${x.name}(${x.rank})` })), (v)=>setXs({ ...xs, zhijiao: v })) : null}
+				{nine ? sel('开帐三格（参考·不计分）', xs.kaizhang || '', optsOf(XINGSHI_TABLES.kaizhang3, (x)=>({ value: x.name, label: `${x.name}·${x.zhu}` })), (v)=>setXs({ ...xs, kaizhang: v })) : null}
 				<div className="horosa-fengshui-liqi-subhead">穴</div>
 				{sel('穴形', xs.xueType || '', [{ value: '', label: '（不定）' }, ...XINGSHI_TABLES.xueType.map((x)=>({ value: x.name, label: x.name }))], (v)=>setXs({ ...xs, xueType: v }))}
 				{sel('定穴九法', xs.dingXue || '', [{ value: '', label: '（不定）' }, ...XINGSHI_TABLES.dingXue.map((x)=>({ value: x, label: x }))], (v)=>setXs({ ...xs, dingXue: v }))}
@@ -378,7 +399,7 @@ export default function LiqiWorkspace({ school, geo = null }) {
 				{nine ? sel('定穴十三法', xs.dingXue13 || '', optsOf(XINGSHI_TABLES.dingXue13, (x)=>({ value: x.name, label: x.name })), (v)=>setXs({ ...xs, dingXue13: v })) : null}
 				{nine ? sel('结穴局势', xs.jieXueJu || '', optsOf(XINGSHI_TABLES.jieXue5, (x)=>({ value: x, label: x })), (v)=>setXs({ ...xs, jieXueJu: v })) : null}
 				{nine ? sel('怪穴八种', xs.guaiXue || '', optsOf(XINGSHI_TABLES.guaiXue8, (x)=>({ value: x.name, label: x.name })), (v)=>setXs({ ...xs, guaiXue: v })) : null}
-				{nine ? sel('九星变穴(八法)', xs.bianXue || '', optsOf(XINGSHI_TABLES.bianXue8, (x)=>({ value: x.star, label: `${x.star}→${x.xue}` })), (v)=>setXs({ ...xs, bianXue: v })) : null}
+				{nine ? sel('九星变穴(八法)（参考·不计分）', xs.bianXue || '', optsOf(XINGSHI_TABLES.bianXue8, (x)=>({ value: x.star, label: `${x.star}→${x.xue}` })), (v)=>setXs({ ...xs, bianXue: v })) : null}
 				{nine ? segField('唇毡', xs.chunZhan === false ? 'n' : (xs.chunZhan ? 'y' : 'na'), [{ value: 'y', label: '有' }, { value: 'na', label: '未定' }, { value: 'n', label: '无' }], (v)=>setXs({ ...xs, chunZhan: v === 'y' ? true : (v === 'n' ? false : null) })) : null}
 				{nine ? segField('分合(界水)', xs.fenHe === false ? 'n' : (xs.fenHe ? 'y' : 'na'), [{ value: 'y', label: '分合明' }, { value: 'na', label: '未定' }, { value: 'n', label: '不明' }], (v)=>setXs({ ...xs, fenHe: v === 'y' ? true : (v === 'n' ? false : null) })) : null}
 				{nine ? segField('地心十道', xs.dixinQue === true ? 'que' : 'ok', [{ value: 'ok', label: '四应登对' }, { value: 'que', label: '有空缺' }], (v)=>setXs({ ...xs, dixinQue: v === 'que' })) : null}
@@ -394,7 +415,7 @@ export default function LiqiWorkspace({ school, geo = null }) {
 				{segField('向犯冲煞', xs.xiangChongSha ? 'y' : 'n', [{ value: 'y', label: '有' }, { value: 'n', label: '无' }], (v)=>setXs({ ...xs, xiangChongSha: v === 'y' }))}
 				{nine ? segField('无案无朝', xs.wuAnChao ? 'y' : 'n', [{ value: 'y', label: '是' }, { value: 'n', label: '否' }], (v)=>setXs({ ...xs, wuAnChao: v === 'y' })) : null}
 				{nine && xs.wuAnChao ? segField('逆水朝入/堂有聚水', xs.niShuiOrJuShui ? 'y' : 'n', [{ value: 'y', label: '有' }, { value: 'n', label: '无' }], (v)=>setXs({ ...xs, niShuiOrJuShui: v === 'y' })) : null}
-				{nine ? sel('水之五局', xs.shui5ju || '', optsOf(XINGSHI_TABLES.shui5ju, (x)=>({ value: x.name, label: x.name })), (v)=>setXs({ ...xs, shui5ju: v })) : null}
+				{nine ? sel('水之五局（参考·不计分）', xs.shui5ju || '', optsOf(XINGSHI_TABLES.shui5ju, (x)=>({ value: x.name, label: x.name })), (v)=>setXs({ ...xs, shui5ju: v })) : null}
 				{nine ? <div className="horosa-fengshui-liqi-subhead">明堂</div> : null}
 				{nine ? sel('明堂吉格', xs.mingtangJi || '', optsOf(XINGSHI_TABLES.mingtangJi, (x)=>({ value: x.name, label: x.name })), (v)=>setXs({ ...xs, mingtangJi: v })) : null}
 				{nine ? sel('明堂凶格', xs.mingtangXiong || '', optsOf(XINGSHI_TABLES.mingtangXiong, (x)=>({ value: x.name, label: x.name })), (v)=>setXs({ ...xs, mingtangXiong: v })) : null}
@@ -427,7 +448,7 @@ export default function LiqiWorkspace({ school, geo = null }) {
 				{segField('主命性别', zr.zhuMale ? 'm' : 'f', [{ value: 'm', label: '男' }, { value: 'f', label: '女' }], (v)=>setZr({ ...zr, zhuMale: v === 'm' }))}
 				<div className="horosa-fengshui-liqi-subhead">候选日课（造命/日课）</div>
 				{numField('月', zr.m, (v)=>setZr({ ...zr, m: v }), { min: 1, max: 12 })}
-				{numField('日', zr.d, (v)=>setZr({ ...zr, d: v }), { min: 1, max: 31 })}
+				{numField('日', zr.d, (v)=>setZr({ ...zr, d: v }), { min: 1, max: daysInMonthOf(zr.year, zr.m), onBlur: (e)=>setZr({ ...zr, d: clampDay(zr.year, zr.m, e.target.value) }) })}
 				{segField('深化（用事/紫白/三步/斗首）', zr.showDeep ? 'on' : 'off', [{ value: 'off', label: '不用' }, { value: 'on', label: '启用' }], (v)=>setZr({ ...zr, showDeep: v === 'on' }))}
 				{zr.showDeep ? (<>
 					{sel('用事（十四事）', zr.yongShi, [{ value: '', label: '（不定）' },
@@ -452,14 +473,15 @@ export default function LiqiWorkspace({ school, geo = null }) {
 		if (school === 'liufa') {
 			return (<>
 				{sel('元运', lf.yun, YUN_OPTS, (v)=>setLf({ ...lf, yun: +v }))}
-				{sel('坐山', lf.zuoShan, SHAN_OPTS, (v)=>setLf({ ...lf, zuoShan: v }))}
+				{sel('坐山', lf.zuoShan, SHAN_OPTS, (v)=>setLf({ ...lf, zuoShan: v, xiangShan: oppositeShan(v) }))}{/* [Q-425/T-390] 选坐自动定向(对宫) */}
 				{sel('向首', lf.xiangShan, SHAN_OPTS, (v)=>setLf({ ...lf, xiangShan: v }))}
+				{oppositeShan(lf.zuoShan) !== lf.xiangShan ? <div className="horosa-fengshui-liqi-hint" style={{ color: 'var(--horosa-warning, #d48806)' }}>坐向非对宫（坐{lf.zuoShan}应向{oppositeShan(lf.zuoShan)}），零正 / 雌雄 / 兼向判语按所填坐向出，请核对</div> : null}
 				{numField('流年（太岁）', lf.year, (v)=>setLf({ ...lf, year: +v || lf.year }), { min: 1864, max: 2100 })}
 			</>);
 		}
 		if (school === 'mingli') {
 			return (<>
-				{numField('命主年', ml.mingYear, (v)=>setMl({ ...ml, mingYear: +v || ml.mingYear }), { min: 1900, max: 2100 })}
+				{numField('命主年（空=未录）', ml.mingYear, (v)=>setMl({ ...ml, mingYear: (v === '' || v === null || v === undefined) ? null : (+v || ml.mingYear) }), { min: 1900, max: 2100 })}
 				{segField('性别', ml.isMale ? 'm' : 'f', [{ value: 'm', label: '男' }, { value: 'f', label: '女' }], (v)=>setMl({ ...ml, isMale: v === 'm' }))}
 				{sel('宅坐卦', ml.zhaiZuoGua, GUA8_OPTS, (v)=>setMl({ ...ml, zhaiZuoGua: v }))}
 			</>);
@@ -475,8 +497,9 @@ export default function LiqiWorkspace({ school, geo = null }) {
 			return (<>
 				{segField('盘式', lp.panType, LUOPAN_TYPES.map((t)=>({ value: t.key, label: t.name })), (v)=>setLp({ ...lp, panType: v }))}
 				{numField('度数游标(0-360)', lp.deg, (v)=>setLp({ ...lp, deg: Math.max(0, Math.min(360, Number(v) || 0)) }), { min: 0, max: 360, step: 0.1 })}
-				{sel('坐山', lp.zuoShan, SHAN_OPTS, (v)=>setLp({ ...lp, zuoShan: v }))}
+				{sel('坐山', lp.zuoShan, SHAN_OPTS, (v)=>setLp({ ...lp, zuoShan: v, xiangShan: oppositeShan(v) }))}{/* [Q-425/T-390] 选坐自动定向(对宫) */}
 				{sel('向首', lp.xiangShan, SHAN_OPTS, (v)=>setLp({ ...lp, xiangShan: v }))}
+				{oppositeShan(lp.zuoShan) !== lp.xiangShan ? <div className="horosa-fengshui-liqi-hint" style={{ color: 'var(--horosa-warning, #d48806)' }}>坐向非对宫（坐{lp.zuoShan}应向{oppositeShan(lp.zuoShan)}），兼向核只按坐山,请核对</div> : null}
 
 				<div className="horosa-fengshui-liqi-subhead">兼线合法性校验</div>
 				{sel('兼向之山（空=不校）', lp.jianShan, [{ value: '', label: '（不校）' }, ...SHAN_OPTS], (v)=>setLp({ ...lp, jianShan: v }))}
@@ -958,7 +981,7 @@ export default function LiqiWorkspace({ school, geo = null }) {
 			</>) : null}
 			{card('宅命', <>{row('法脉', result.faMai === 'menshang' ? `门上起伏位（伏位卦＝${result.fuweiGua}）` : (result.faMai === 'sanyuan' ? `三元阳宅（伏位卦＝${result.fuweiGua}）` : '坐山起伏位（通行）'), result.faMai === 'zuoshan' ? '' : 'good')}
 			{result.lunMing === false ? row('论命卦', '不论（真八宅只论宅不论命）', 'neutral') : null}
-			{row('宅卦', `坐${result.zuoGua} · ${result.zhaiGroup}`)}{result.mingGua ? row('命卦', `${NUM_GUA[result.mingGua] || result.mingGua} · ${result.mingGroup}`) : null}{result.match ? row('相配', result.match.text, result.match.same ? 'good' : 'bad') : null}{row('宅类', result.zhaiTypeInfo.name + '·' + result.zhaiTypeInfo.method)}</>)}
+			{row('宅卦', `坐${result.zuoGua} · ${result.zhaiGroup}`)}{result.mingGua ? row('命卦', `${NUM_GUA[result.mingGua] || result.mingGua} · ${result.mingGroup}`) : null}{result.match ? row('相配', result.match.text, result.match.same ? 'good' : 'bad') : null}{row('宅类', result.zhaiTypeInfo.name + '（仅分类标注；八方游星仍按静宅单盘）')}</>)}
 			{result.sanYao ? card('阳宅三要（门主灶）', <>{row('门→主', result.sanYao.menMain.name, result.sanYao.menMain.jx)}{row('主→灶', result.sanYao.mainStove.name, result.sanYao.mainStove.jx)}{row('门→灶', result.sanYao.menStove.name, result.sanYao.menStove.jx)}{row('综断', result.sanYao.verdict.text, result.sanYao.verdict.jx)}</>) : card(`门主灶（${result.mode === 'ming' ? '以命卦' : '以宅卦'}）`, <>
 				{row('门', result.doorMainStove.door)}{row('主', result.doorMainStove.main)}{row('灶', result.doorMainStove.stove)}
 				{/* 三要须门/主/灶全设才成两两相配判读。只设一两个时，仍即时报出该卦所落游年星吉凶
@@ -1119,17 +1142,11 @@ export default function LiqiWorkspace({ school, geo = null }) {
 			{/* 坐山只在填了月+日、出了造命卡之后才被消费 → 未填日期时左栏改坐山「毫无反应」。
 			    此处按年神即时判「本年此坐山能不能动」，使坐山单独成立；不依赖月日。 */}
 			{(()=>{
-				const meta = SHAN_24[zr.zuoShan] || [];
-				const g = meta[0];
-				if (!g) { return null; }
-				const hits = [];
-				if (yg.suipo.gong === g) { hits.push('犯岁破（大凶忌动）'); }
-				if (yg.taisui.gong === g) { hits.push('坐太岁（可向不宜坐犯）'); }
-				if ((yg.sansha.list || []).some((s)=>s.gong === g)) { hits.push(`犯三煞（${yg.sansha.ju}）`); }
-				if (yg.wuHuang.gong === g) { hits.push('年五黄飞临（忌动土）'); }
+				const chk = result.zuoShanCheck || zuoShanYearCheck(zr.zuoShan, yg);   // [FT-24③] 与快照同源
+				if (!chk) { return null; }
 				return card(`坐山 ${zr.zuoShan} · 本年可动否`, <>
-					{row('坐山所在', GONG_NAME_MAP[g] || '—')}
-					{row('本年犯忌', hits.length ? hits.join('；') : '不犯岁破/太岁/三煞/年五黄', hits.length ? 'bad' : 'good')}
+					{row('坐山所在', chk.gongName)}
+					{row('本年犯忌', chk.text, chk.hits.length ? 'bad' : 'good')}
 				</>);
 			})()}
 			{result.course ? card(`日课（${result.course.dayGanZhi}）`, <>{row('建除', result.course.jianChu.name, result.course.jianChu.jx)}{row('黄黑道', `${result.course.huangHei.shen}·${result.course.huangHei.dao}`, result.course.huangHei.jx)}{row('值宿', `${result.course.xiu.name}宿（${result.course.xiu.xiang}）`, result.course.xiu.jx)}</>) : null}
@@ -1161,7 +1178,7 @@ export default function LiqiWorkspace({ school, geo = null }) {
 
 // 综合罗经：当前度数的逐层读数（正针/中针/缝针三针 + 线法三层 + 64卦 + 28宿 + 卦宫元龙）。
 //   中针较正针退半山 → 该度在中针环读到的山 = shanAtDeg(deg + 7.5)；缝针进半山 → shanAtDeg(deg − 7.5)。
-function luopanReading(lp) {
+export function luopanReading(lp) {   // [Q-456] 具名导出供快照单测(页面调用不变)
 	const d = ((Number(lp.deg) % 360) + 360) % 360;
 	const zheng = shanAtDeg(d);
 	const meta = SHAN_24[zheng] || [];
@@ -1216,9 +1233,22 @@ function luopanReading(lp) {
 	};
 }
 
+// [Q-223/T-187·FT-24③] 择日「坐山·本年可动否」:按年神即时判(不依赖月日),面板卡与快照同源。
+export function zuoShanYearCheck(zuoShan, yg) {
+	const meta = SHAN_24[zuoShan] || [];
+	const g = meta[0];
+	if (!g || !yg) { return null; }
+	const hits = [];
+	if (yg.suipo && yg.suipo.gong === g) { hits.push('犯岁破（大凶忌动）'); }
+	if (yg.taisui && yg.taisui.gong === g) { hits.push('坐太岁（可向不宜坐犯）'); }
+	if (((yg.sansha && yg.sansha.list) || []).some((s)=>s.gong === g)) { hits.push(`犯三煞（${yg.sansha.ju}）`); }
+	if (yg.wuHuang && yg.wuHuang.gong === g) { hits.push('年五黄飞临（忌动土）'); }
+	return { gong: g, gongName: GONG_NAME_MAP[g] || '—', hits, text: hits.length ? hits.join('；') : '不犯岁破/太岁/三煞/年五黄' };
+}
+
 // AI 快照文本（各派）。
 // 🔴 段头【风水·派名】在此单点统一冠：registry 派只回正文行（自带段头会产双段头、被导出段过滤器切坏）。
-function buildSnapshot(school, r) {
+export function buildSnapshot(school, r) {   // [Q-456] 具名导出供快照单测(页面调用不变)
 	const L = [`【风水·${SCHOOL_CN[school] || school}】`];
 	const impl = implOf(school);
 	if (impl) { return L.concat(impl.snapshotLines(r)).join('\n'); }
@@ -1231,6 +1261,13 @@ function buildSnapshot(school, r) {
 		if (r.gate && r.gate.available && r.gate.zheng) { L.push(`城门：正城门${r.gate.zheng.name}${r.gate.fu ? `、副${r.gate.fu.name}` : ''}`); }
 		if (r.flags.length) { L.push(`结构：${r.flags.map((f)=>`${f.label}${f.nature === 'mild' ? '(力缓)' : ''}`).join('、')}`); }
 		if (r.yearHui && r.yearHui.length) { L.push(`流年会断：${r.yearHui.map((h)=>h.warn).join('；')}`); }
+		// [Q-223/T-187·FT-24①] 流月飞星与流月会断:面板「流月飞星」卡有、快照曾恒缺(monthHui 引擎已算、无人用)。
+		if (r.monthPan) {
+			const wuG = [1, 2, 3, 4, 5, 6, 7, 8, 9].find((g)=>r.monthPan[g] === 5);
+			const wuName = wuG ? ((r.palaces.find((p)=>p.gong === wuG) || {}).name || '') : '';
+			L.push(`流月飞星：月入中${r.monthPan[5]} · 向首流月星${r.monthPan[r.gXiang]}${wuName ? ` · 五黄到${wuName}（忌动）` : ''}`);
+		}
+		if (r.monthHui && r.monthHui.length) { L.push(`流月会断：${r.monthHui.map((h)=>h.warn).join('；')}`); }
 		L.push('双星：' + r.palaces.map((p)=>`${p.name}${p.shan}·${p.xiang}(${p.combo.note})`).join('；'));
 		if (r.shousha) {
 			L.push(`收山出煞（三吉${r.shousha.sanJi.join('·')}）：${r.shousha.verdict.text}`);
@@ -1257,8 +1294,22 @@ function buildSnapshot(school, r) {
 		L.push(`坐${r.zuoGua}${r.zhaiGroup}` + (r.mingGua ? ` · 命卦${NUM_GUA[r.mingGua] || r.mingGua}${r.mingGroup}${r.match ? '·' + r.match.text : ''}` : ''));
 		if (r.faMai && r.faMai !== 'zuoshan') { L.push(`法脉：${r.faMai === 'menshang' ? '门上起伏位' : '三元阳宅'}（伏位卦＝${r.fuweiGua}）${r.lunMing === false ? ' · 不论命卦' : ''}`); }
 		if (r.sanyuan) { L.push(`三元阳宅：${r.sanyuan.verdict.text} · ${r.sanyuan.fanZhuan}`); }
+		// [Q-223/T-187·FT-24②] 宅类(静/动/变/化)四档只改 zhaiTypeInfo 标注,此前快照无;门/主/灶只设一两卦时面板现算游星吉凶,快照只在三卦全设时写三要。
+		// [Q-425/T-391] 宅类四档只改分类标注,八方游星与判定仍按静宅单盘 —— 快照如实写
+		if (r.zhaiTypeInfo && r.zhaiTypeInfo.name) { L.push(`宅类：${r.zhaiTypeInfo.name}·${r.zhaiTypeInfo.range || ''}（仅分类标注；八方游星仍按静宅单盘）`); }   // [Q-223] 名·进数 + [Q-425] 标注
+		if (!r.mingGua) { L.push('命主：未录（命卦 / 宅命相配从略）'); }   // [Q-226/T-188] 命主年缺省空 → 无命卦时快照如实写
 		if (r.sanYao) { L.push(`三要：门→主${r.sanYao.menMain.name}/主→灶${r.sanYao.mainStove.name}/门→灶${r.sanYao.menStove.name}·${r.sanYao.verdict.text}`); }
-		L.push('游星：' + r.palaces.map((p)=>`${p.dir}${p.name}`).join(' '));
+		else if (r.inputs && (r.inputs.doorGua || r.inputs.mainGua || r.inputs.stoveGua)) {
+			const parts = [['门卦', r.inputs.doorGua], ['主卦', r.inputs.mainGua], ['灶卦', r.inputs.stoveGua]].filter(([, g])=>g).map(([k, g])=>{
+				const pal = (r.palaces || []).find((p)=>p.gua === g);
+				return pal ? `${k}${g}（${pal.dir}）${pal.name}${pal.jx === 'good' ? '吉' : (pal.jx === 'bad' ? '凶' : '')}` : `${k}${g}`;
+			});
+			const miss = [['门卦', r.inputs.doorGua], ['主卦', r.inputs.mainGua], ['灶卦', r.inputs.stoveGua]].filter(([, g])=>!g).map(([k])=>k);
+			L.push(`三要（未齐，尚缺${miss.join('、')}）：${parts.join('；')}`);
+		}
+		// [Q-221/T-183·FT-18] 以命时八方游星按命卦起伏位:标明基准,否则读者会把命卦游星当成宅卦游星。
+		const yxBase = (r.mode === 'ming' && r.mingGua) ? `（以命卦${NUM_GUA[r.mingGua] || r.mingGua}起伏位）` : '';
+		L.push(`游星${yxBase}：` + r.palaces.map((p)=>`${p.dir}${p.name}`).join(' '));
 	} else if (school === 'qiankun') {
 		L.push(`坐${r.zuoGua} · 先天位${r.xianTian}(主丁)/后天位${r.houTian}(主财)/案劫${r.anJie}` + (r.heJu ? ' · 合局' : ''));
 		L.push('九水位：' + r.positions.map((p)=>`${p.name}${p.result}`).join('；'));
@@ -1307,12 +1358,17 @@ function buildSnapshot(school, r) {
 				+ ` · 龙虎${r.longhu.duan ? r.longhu.duan.xing : '—'}`
 				+ ` · 水口${r.shuikou.sha ? r.shuikou.sha.name : '—'}${r.shuikou.guan.length ? `(${r.shuikou.guan.join('/')})` : ''}`
 				+ ` · 证穴${r.taiji.zhengMain}主${r.taiji.zhengSpec ? `+${r.taiji.zhengSpec}特` : ''}`);
+			// [Q-223/T-187·FT-24④] 定穴十三法/结穴局势/怪穴八种此前只进分数,快照不列名(面板列名)。
+			const xz = [r.taiji.dingXue ? `定穴十三法：${r.taiji.dingXue.name}` : '', r.taiji.jieJu ? `结穴局势：${r.taiji.jieJu}` : '', r.taiji.guaiXue ? `怪穴：${r.taiji.guaiXue.name}` : ''].filter(Boolean);
+			if (xz.length) { L.push('穴证名目：' + xz.join('；')); }
 			if (r.modulation.length) { L.push('权重调制：' + r.modulation.map((m)=>m.text).join('；')); }
 			if (r.taiji.veto.length) { L.push('否决：' + r.taiji.veto.join('；')); }
 		}
 	} else if (school === 'zeri') {
 		const yg = r.yg;
 		L.push(`${yg.yearGanZhi}年神：太岁${yg.taisui.dir}/岁破${yg.suipo.dir}/三煞${yg.sansha.list.map((s)=>s.zhi).join('')}/五黄${yg.wuHuang.dir || '—'} · 忌动${yg.jiDongDirs.join('、')}`);
+		// [Q-223/T-187·FT-24③] 坐山·本年可动否(不依赖月日;面板卡有、快照曾缺)
+		if (r.zuoShanCheck) { L.push(`坐山${r.zuoShan}（${r.zuoShanCheck.gongName}）本年：${r.zuoShanCheck.text}`); }
 		if (r.course) { L.push(`日课：建除${r.course.jianChu.name}/${r.course.huangHei.dao}/${r.course.xiu.name}宿`); }
 		if (r.zaoming) {
 			const z = r.zaoming;
@@ -1359,14 +1415,29 @@ function buildSnapshot(school, r) {
 	} else if (school === 'luopan') {
 		if (r.panTypeMeta) {
 			L.push(`盘式：${r.panTypeMeta.name}——${r.panTypeMeta.feature}`);
+			// [Q-456/T-419] 盘式口径注 / 各派采参 此前只在右栏「盘式」卡显示,不进快照。
+			if (r.panTypeMeta.note) { L.push(`盘式口径：${r.panTypeMeta.note}`); }
 			if (r.droppedLayers.length) { L.push(`本盘式无此层（已移除）：${r.droppedLayers.join('、')}`); }
+			if (r.paiNeedle) { L.push(`各派采参：${Object.keys(r.paiNeedle).map((k)=>`${SCHOOL_CN[k] || k}：${r.paiNeedle[k].label}`).join('；')}`); }
 		}
-		if (r.fenjinPick) { L.push(`分金择优（坐${r.fenjinPick.shan}）：${r.fenjinPick.verdict.text}`); }
-		if (r.chuanshanPick) { L.push(`穿山择优：${r.chuanshanPick.verdict.text}`); }
+		// [Q-456/T-419] 分金 / 穿山择优:结论行之外逐候选列出(干支·度界·可用与否·缘由·位置性),与右栏卡同一 rows。
+		if (r.fenjinPick) {
+			L.push(`分金择优（坐${r.fenjinPick.shan}）：${r.fenjinPick.verdict.text}`);
+			(r.fenjinPick.rows || []).forEach((x)=>{ L.push(`　${x.usable ? '✓' : '✗'} ${x.ganzhi}（${x.deg0.toFixed(2)}°–${x.deg1.toFixed(2)}°）：${x.why}；位置性：${x.positional}`); });
+			if (r.fenjinPick.best) { L.push(`　首选：${r.fenjinPick.best.ganzhi}（中线 ${r.fenjinPick.best.degMid.toFixed(2)}°，距山心最近）`); }
+		}
+		if (r.chuanshanPick) {
+			L.push(`穿山择优：${r.chuanshanPick.verdict.text}`);
+			(r.chuanshanPick.rows || []).forEach((x)=>{ L.push(`　${x.usable ? '✓' : '✗'} ${x.ganzhi}（${x.deg0.toFixed(2)}°–${x.deg1.toFixed(2)}°）：${x.why}；位置性：${x.positional}`); });
+		}
 		if (r.jian) { L.push(`兼线校验：坐${r.jian.zuoShan}兼${r.jian.jianShan} ${r.jian.jianDeg}° —— ${r.jian.verdict.text}（${r.jian.items.map((x)=>`${x.name}${x.ok ? '合' : '违'}`).join('/')}）`); }
 		if (r.magnetic) { L.push(`磁偏角：${r.magnetic.verdict.text}`); }
 		if (r.panxiang && r.panxiang.verdict) { L.push(`判向：${r.panxiang.verdict.text}`); }
-		else if (r.panxiang && r.panxiang.isDanyuan) { L.push(`判向（单元住宅）：${r.panxiang.pick.name}`); }
+		else if (r.panxiang && r.panxiang.isDanyuan) {
+			L.push(`判向（单元住宅）：${r.panxiang.pick.name}`);
+			// [Q-223/T-187·FT-24⑤] 内外局权衡等定向步骤此前只在步骤文字,快照只写定向法名。
+			(r.panxiang.steps || []).forEach((st)=>{ if (st && st.name && st.text) { L.push(`　${st.name}：${st.text}`); } });
+		}
 		L.push(`天星八贵：${r.tianxing.baGui.join('、')}`);
 		L.push(`坐${r.zuoShan} 向${r.xiangShan} · 度数 ${r.deg.toFixed(2)}°`);
 		L.push('三针：' + r.needles.map((n)=>`${n.name}${n.offset ? `(${n.offset > 0 ? '+' : ''}${n.offset}°)` : ''}＝${n.shan}山`).join('；'));

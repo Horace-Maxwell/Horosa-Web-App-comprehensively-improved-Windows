@@ -59,6 +59,7 @@ export default class XuanShiEvents extends React.Component {
 	}
 
 	async load() {
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
 		this.setState({ loading: true, err: '' });
 		try {
 			const r = await fetchEvents({
@@ -68,7 +69,7 @@ export default class XuanShiEvents extends React.Component {
 				q: this.state.q || undefined,
 				page: this.state.page,
 				page_size: 20,
-			});
+			}); if(__seq !== this._loadSeq){ return; }
 			this.setState({ items: r.items || [], total: r.total || 0, pages: r.pages || 0, loading: false });
 		} catch (e) {
 			this.setState({ loading: false, err: `${e && e.message ? e.message : e}` });
@@ -199,13 +200,16 @@ export default class XuanShiEvents extends React.Component {
 								<div style={{ marginTop: 6, fontSize: 13.5, lineHeight: 1.75, color: 'var(--ink-soft)', fontFamily: 'var(--xs-serif)' }}>{d.version_risk}</div>
 							</details>
 						) : null}
-						{/* 排盘联动(Horosa 独有) */}
+						{/* 排盘联动(Horosa 独有)。
+						    [Q-488/T-450] 事件条目库没有 year / modern_date 字段(时间线索只在「时期」与原文文字里),
+						    resolveChartDate 又已撤掉「按时期/帝王纪年推断」的分支(宁缺不猜)→ 本段当前恒为 null,
+						    帮助已按此改写。分支保留:条目一旦带上日期字段即自动生效,不必回头再接一次线。 */}
 						{(() => {
 							const rd = this.props.onChartLink ? resolveChartDate(d) : null;
 							if (!rd) { return null; }
 							return (
 								<div style={{ marginTop: 6, marginBottom: 16 }}>
-									<div className="xuanshi-hint" style={{ marginTop: 0, marginBottom: 8 }}>{rd.exact ? `公历 ${rd.md}` : `此事${d.period ? `「${d.period}」` : ''}——按 ${rd.disp} 正午起盘`} · 地点按朝代都城近似</div>
+									<div className="xuanshi-hint" style={{ marginTop: 0, marginBottom: 8 }}>{rd.exact ? `公历 ${rd.disp}${rd.calendar === 'julian' ? `（儒略历 ${rd.md} 起盘）` : ''}` : `此事${d.period ? `「${d.period}」` : ''}——按 ${rd.disp} 正午起盘`} · 地点按朝代都城近似</div>
 									<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
 										<span className="xuanshi-btn is-primary" onClick={() => this.props.onChartLink(d, 'astrochart')}>排此时 · 占星盘</span>
 										<span className="xuanshi-btn" onClick={() => this.props.onChartLink(d, 'guolao')}>排此时 · 七政四余</span>
@@ -294,7 +298,7 @@ export default class XuanShiEvents extends React.Component {
 				</div>
 
 				{/* Hero + 统计 + 引导 */}
-				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,3.4vw,38px)' }}>玄学万象</h1>
+				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,calc(3.4 * var(--horosa-lvw, 1vw)),38px)' }}>玄学万象</h1>
 				<div className="xuanshi-stat-sub" style={{ marginTop: 8, fontSize: 13 }}>
 					<b style={{ color: 'var(--vermilion)' }}>{(stats.total || total || 0).toLocaleString()}</b> 条事件
 					· <b style={{ color: 'var(--jade)' }}>{(stats.translated || 0).toLocaleString()}</b> 条已译白话

@@ -31,6 +31,16 @@ function safeStorageSet(storage, key, value){
 const LOCAL_ROOT_STORAGE_KEY = 'horosaLocalServerRoot';
 const LOCAL_ROOT_STORAGE_MODE_KEY = 'horosaLocalServerRootMode';
 
+// 当前服务地址的来源模式(query / page / shell / verified / pinned / manual …),供诊断文本展示;
+// 无窗口或读取失败返回 ''。键名的单一真值留在本文件。
+export function getLocalServerRootMode(){
+	if(typeof window === 'undefined'){
+		return '';
+	}
+	const val = safeStorageGet(window.localStorage, LOCAL_ROOT_STORAGE_MODE_KEY);
+	return val === undefined || val === null ? '' : `${val}`;
+}
+
 function deriveLocalRootFromPagePort(){
 	if(typeof window === 'undefined'){
 		return null;

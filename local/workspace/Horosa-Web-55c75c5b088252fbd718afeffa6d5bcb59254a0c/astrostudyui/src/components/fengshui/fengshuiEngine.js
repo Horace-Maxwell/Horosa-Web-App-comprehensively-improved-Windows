@@ -3,9 +3,10 @@
 // 所有画布绘制/几何/判定/历史/导出/快照逻辑在此，React 只渲染 Antd 控件并调用本类方法。
 // 注意：画布按工作区尺寸铺满、户型图居中绘制，纳气盘可延伸到图外空白区而不被裁切。
 
-import { rotatePoint, angleInSector, formatAngle } from './fengshuiGeom';
+import { rotatePoint, angleInSector, formatAngle, normalizeDeg } from './fengshuiGeom';
 import { harmForMarker, HARM_MAP, evalDragonTiger, scoreNaqi, gradeOf, REMEDY_LIB } from './naqiRules';
 import { GUA_8, composeHexagram, computeTiming, HEXAGRAM_TEXTS, HEXAGRAM_META, guaBySectorNum, computeRankShift, namePositionRelation, featureJudgment, GUA_TO_ROLE } from './baguaCore';
+import { pointerToLocal } from '../../utils/zoomDomain';
 
 export const SECTORS = [
 	{ num: 1, name: '北(坎)', start: 337.5, end: 22.5 },
@@ -177,13 +178,16 @@ export default class FengShuiEngine {
 			};
 		});
 		const stats = { windOk: 0, waterOk: 0, windBad: 0, waterBad: 0, unknown: 0 };
-		this.markers.forEach((m) => {
+		// [Q-221/T-181·FT-13] 纳气统计只看纳气标记(两法共用标注历史;八卦标记无 category,此前被计成「未定位」/水位冲突)。
+		const naqiOnly = this.naqiMarkers();
+		naqiOnly.forEach((m) => {
 			const ev = this.evaluateMarker(m);
+			if (ev.center) return;   // [FT-14] 中宫不计
 			if (!ev.sector) stats.unknown += 1;
 			else if (m.category === 'wind') ev.ok ? (stats.windOk += 1) : (stats.windBad += 1);
 			else if (m.category === 'water') ev.ok ? (stats.waterOk += 1) : (stats.waterBad += 1);
 		});
-		const summary = this.markers.length
+		const summary = naqiOnly.length
 			? `气位正确 ${stats.windOk} 项，气位冲突 ${stats.windBad} 项；水位正确 ${stats.waterOk} 项，水位冲突 ${stats.waterBad} 项；未定位 ${stats.unknown} 项。`
 			: '';
 		return {
@@ -310,8 +314,10 @@ export default class FengShuiEngine {
 	}
 
 	getMousePos(evt) {
-		const r = this.canvas.getBoundingClientRect();
-		return { x: evt.clientX - r.left, y: evt.clientY - r.top };
+		// 鼠标(视觉域)→ 画布逻辑坐标(布局域,与 viewW/viewH 同域):按「画布布局宽 ÷ rect 宽」折算,不问缩放值。
+		// 此前直接 clientX − rect.left,缩放档下落点 / 拖拽 / 命中与鼠标差 z 倍。
+		const p = pointerToLocal(evt, this.canvas);
+		return { x: p.x, y: p.y };
 	}
 
 	screenToImage(pos) {
@@ -336,6 +342,8 @@ export default class FengShuiEngine {
 
 	getDiskCenter() {
 		if (!this.rect.active) return null;
+		// [Q-220/T-175] 八卦阳宅法固定用房屋正中(帮助如是);盘心四档只在纳气左栏出现,此前纳气改过盘心后切八卦按错盘心算且无处改回。
+		if (this.techMode === 'bagua') return this.getRectCenter();
 		if (this.diskCenterMode === 'house') return this.getRectCenter();
 		if (this.diskCenterMode === 'custom') return this.customCenter || this.getRectCenter();
 		if (this.diskCenterMode === 'marker') {
@@ -413,6 +421,10 @@ export default class FengShuiEngine {
 		[center.y - hh, center.y, center.y + hh].forEach((line) => {
 			if (Math.abs(ly - line) <= tol) ly = line;
 		});
+		// [Q-221/T-181·FT-14] 不吸到中心交点:两轴都吸到中线会把标记钉在盘心(方位无定义);放开偏差较大的那一轴。
+		if (lx === center.x && ly === center.y) {
+			if (Math.abs(local.x - center.x) >= Math.abs(local.y - center.y)) lx = local.x; else ly = local.y;
+		}
 		return rotatePoint({ x: lx, y: ly }, center, this.rect.rotation);
 	}
 
@@ -439,11 +451,13 @@ export default class FengShuiEngine {
 	resize() {
 		const host = this.canvas.parentElement;
 		if (!host) return;
-		const w = Math.max(320, host.clientWidth);
-		const h = Math.max(320, host.clientHeight);
+		// 画布恒等于宿主盒(宿主 overflow:hidden):此前给了 320 CSS px 的裸底线,放大档 / 小窗下宿主不足 320 时画布比宿主高出一截,
+		// 底部那截被宿主裁掉、户型图也按「虚高」居中而偏下。宿主量不到(页签未激活时 display:none → 0)才回落到 320,免得建出零尺寸画布。
+		const w = host.clientWidth > 0 ? host.clientWidth : 320;
+		const h = host.clientHeight > 0 ? host.clientHeight : 320;
 		// Retina：backing store 按 dpr 放大、CSS 保持逻辑像素、坐标系 setTransform 回逻辑像素
 		//（本应用仅 macOS=全 2x 屏,不处理则罗盘/户型图/canvas 文字永远半分辨率发虚;
-		//  3D 视图早已同款处理）。布局/鼠标仍用逻辑 viewW/viewH(getBoundingClientRect 本就是 CSS px)。
+		//  3D 视图早已同款处理）。布局/鼠标仍用逻辑 viewW/viewH(鼠标坐标经 getMousePos 折回布局域,见该处注释)。
 		const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
 		this.dpr = dpr;
 		this.viewW = w;
@@ -783,9 +797,19 @@ export default class FengShuiEngine {
 	}
 
 	// ── 判定 ───────────────────────────────────────────────────
+	// [Q-221/T-181·FT-14] 标记与盘心重合(容差=2 屏幕像素):atan2(0,0)=0 会把它钉在「指北角 90°−盘旋转」那一扇区,
+	// 与真实方位无关却进合冲/破局/评分 —— 盘心=入户门时的入户门自身、盘心=选中标记时的床桌沙发自身、吸附到中心的标记
+	// 都会中招。判「中宫/不计」:不给扇区、不进合冲与扣分。
+	isAtDiskCenter(marker) {
+		const center = this.getDiskCenter();
+		if (!center) return false;
+		const tol = 2 / Math.max(1e-6, this.getCombinedScale());
+		return Math.hypot(marker.x - center.x, marker.y - center.y) <= tol;
+	}
 	getSectorForPoint(marker) {
 		const center = this.getDiskCenter();
 		if (!center) return null;
+		if (this.isAtDiskCenter(marker)) return null;
 		const dx = marker.x - center.x;
 		const dy = marker.y - center.y;
 		const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
@@ -802,6 +826,8 @@ export default class FengShuiEngine {
 
 	evaluateMarker(marker) {
 		const sector = this.getSectorForPoint(marker);
+		// [FT-14] 中宫(与盘心重合):不计 —— ok=true(不算冲突、不扣分),center 标记供显示层写「中宫(盘心,不计)」。
+		if (!sector && this.isAtDiskCenter(marker)) return { sector: null, expected: marker.category, actual: null, ok: true, center: true };
 		if (!sector) return { sector: null, expected: marker.category, actual: null, ok: marker.category === 'neutral' };
 		const actual = this.isWindSector(sector.num) ? 'wind' : 'water';
 		const ok = marker.category === 'neutral' || marker.category === actual;
@@ -820,30 +846,34 @@ export default class FengShuiEngine {
 			`生成时间：${new Date().toLocaleString()}`,
 			`单元门角度：${formatAngle(this.unitAzimuth)}   入户门角度：${formatAngle(this.doorImageAngle)}   盘旋转：${formatAngle(this.getDiskRotation())}   运期：${periodLabel}`,
 		];
-		const details = this.markers.map((m) => {
+		// [Q-221/T-181·FT-13] 纳气快照只遍历纳气标记(与判定面板 currentModeMarkers 同源);此前把「父/母/厨房灶」等八卦标记
+		// 列入 [标记判定]/[冲突清单],期望方位因无 category 被写成水位。
+		const naqiList = this.naqiMarkers();
+		const details = naqiList.map((m) => {
 			const ev = this.evaluateMarker(m);
-			const position = ev.sector ? `${ev.sector.num}·${ev.sector.name}·${ev.actual === 'wind' ? '气位' : '水位'}` : '未定位';
+			const position = ev.sector ? `${ev.sector.num}·${ev.sector.name}·${ev.actual === 'wind' ? '气位' : '水位'}` : (ev.center ? '中宫(盘心,不计)' : '未定位');
 			return { marker: m, ev, position };
 		});
-		const markerLines = this.markers.length
+		const markerLines = naqiList.length
 			? ['| 序 | 标记 | 位置 | 状态 |', '| --- | --- | --- | --- |',
 				...details.map((d, i) => {
-					const st = d.marker.category === 'neutral' ? '观察' : d.ev.ok ? '位置合适' : '位置冲突';
+					const st = d.ev.center ? '不计' : d.marker.category === 'neutral' ? '观察' : d.ev.ok ? '位置合适' : '位置冲突';
 					return `| ${i + 1}. | ${d.marker.label} | ${d.position} | ${st} |`;
 				})]
 			: ['暂无标记'];
 		const conflictLines = details.filter((d) => d.marker.category !== 'neutral' && d.ev.sector && !d.ev.ok)
 			.map((d) => `${d.marker.label}：${d.position}（期望 ${d.ev.expected === 'wind' ? '气位' : '水位'}）`);
-		const unknownLines = details.filter((d) => !d.ev.sector).map((d) => `${d.marker.label}：未定位`);
+		const unknownLines = details.filter((d) => !d.ev.sector && !d.ev.center).map((d) => `${d.marker.label}：未定位`);
 		const stats = { windOk: 0, waterOk: 0, windBad: 0, waterBad: 0, unknown: 0 };
 		details.forEach((d) => {
+			if (d.ev.center) return;   // [FT-14] 中宫不计
 			if (!d.ev.sector) stats.unknown += 1;
 			else if (d.marker.category === 'wind') d.ev.ok ? (stats.windOk += 1) : (stats.windBad += 1);
 			else if (d.marker.category === 'water') d.ev.ok ? (stats.waterOk += 1) : (stats.waterBad += 1);
 		});
 		const statsLine = `气位正确 ${stats.windOk} 项，气位冲突 ${stats.windBad} 项；水位正确 ${stats.waterOk} 项，水位冲突 ${stats.waterBad} 项；未定位 ${stats.unknown} 项。`;
 		const suggestionLines = [];
-		if (!this.markers.length) suggestionLines.push('当前没有标注，可先放置门、窗、床、灶、沙发等关键点。');
+		if (!naqiList.length) suggestionLines.push('当前没有标注，可先放置门、窗、床、灶、沙发等关键点。');
 		else {
 			if (stats.windBad > 0) suggestionLines.push('存在气位冲突，建议将气位类标注调整到气位扇区。');
 			if (stats.waterBad > 0) suggestionLines.push('存在水位冲突，建议将水位类标注调整到水位扇区。');
@@ -975,7 +1005,7 @@ export default class FengShuiEngine {
 		secs.push({ title: '起盘信息', accent: '#b88a3e', lines: L([`单元门 ${formatAngle(this.unitAzimuth)}　入户门 ${formatAngle(this.doorImageAngle)}　盘旋转 ${formatAngle(this.getDiskRotation())}　运期 ${period}`]) });
 		secs.push({ title: `吉凶评分 ${na.score} 分（${na.grade}）`, accent: gradeColor, lines: L([summary]) });
 		const mkLines = na.markers.length ? na.markers.map((m) => ({
-			text: `${m.label}：${m.sector ? `${m.sector.name} · ${m.actual === 'wind' ? '气位' : '水位'}` : '未定位'}（${m.category === 'neutral' ? '观察' : m.kitchen ? '厨房' : m.ok ? '位置合适' : '位置冲突'}）`,
+			text: `${m.label}：${m.sector ? `${m.sector.name} · ${m.actual === 'wind' ? '气位' : '水位'}` : (m.center ? '中宫(盘心,不计)' : '未定位')}（${m.category === 'neutral' ? '观察' : m.kitchen ? '厨房' : m.ok ? '位置合适' : '位置冲突'}）`,
 			tone: m.category === 'neutral' ? 'muted' : (m.ok || m.kitchen) ? 'good' : m.sector ? 'bad' : 'muted',
 		})) : [{ text: '暂无标记', tone: 'muted' }];
 		secs.push({ title: '标记判定', accent: '#1497a8', lines: mkLines });
@@ -1167,15 +1197,16 @@ export default class FengShuiEngine {
 	setFilter(f) { this.currentFilter = f; this.emit(); }
 	setMarkerType(id) { this.markerType = id; this.emit(); }
 
+	// [Q-223/T-186·FT-29] 角度框无 0–360 限制:越界(如 -400)只补一次 360 后仍为负,落宫判据把负余角判为北。三处一律归一到 [0,360)。
 	setUnitAngle(v) {
-		this.unitAzimuth = v === '' || v === null ? null : parseFloat(v);
+		this.unitAzimuth = v === '' || v === null || Number.isNaN(parseFloat(v)) ? null : normalizeDeg(parseFloat(v));
 		this.drawAll();
 		this.scheduleHistoryPush();
 		this.emit();
 	}
 
 	setDoorAngle(v) {
-		this.doorImageAngle = v === '' || v === null ? null : parseFloat(v);
+		this.doorImageAngle = v === '' || v === null || Number.isNaN(parseFloat(v)) ? null : normalizeDeg(parseFloat(v));
 		this.drawAll();
 		this.scheduleHistoryPush();
 		this.emit();
@@ -1241,7 +1272,7 @@ export default class FengShuiEngine {
 
 	// 八卦阳宅：单一「正北方向(度)」。
 	setBaguaOrient(v) {
-		this.baguaOrient = v === '' || v === null || v === undefined ? null : parseFloat(v);
+		this.baguaOrient = v === '' || v === null || v === undefined || Number.isNaN(parseFloat(v)) ? null : normalizeDeg(parseFloat(v));
 		this.drawAll();
 		this.scheduleHistoryPush();
 		this.emit();
@@ -1269,7 +1300,7 @@ export default class FengShuiEngine {
 			return {
 				id: e.m.id, label: e.m.label, short: e.m.short, type: e.m.type, category: e.m.category, color: e.m.color,
 				sector: e.ev.sector ? { num: e.ev.sector.num, name: e.ev.sector.name } : null,
-				actual: e.ev.actual, ok: e.ev.ok, kitchen: !!e.kitchen, harm,
+				actual: e.ev.actual, ok: e.ev.ok, kitchen: !!e.kitchen, harm, center: !!e.ev.center,
 				facingAngle: (e.m.facingAngle === null || e.m.facingAngle === undefined) ? null : e.m.facingAngle,
 			};
 		});
@@ -1363,6 +1394,10 @@ export default class FengShuiEngine {
 	// 当前模式的标记（旧存档无 mode 视为 naqi，保后向兼容）。
 	currentModeMarkers() {
 		return this.markers.filter((m) => (m.mode || 'naqi') === this.techMode);
+	}
+	// [Q-221/T-181·FT-13] 纳气标记(不随 techMode):纳气快照 / vm.summary 专用。
+	naqiMarkers() {
+		return this.markers.filter((m) => (m.mode || 'naqi') === 'naqi');
 	}
 
 	getMarkerAtPos(pos) {

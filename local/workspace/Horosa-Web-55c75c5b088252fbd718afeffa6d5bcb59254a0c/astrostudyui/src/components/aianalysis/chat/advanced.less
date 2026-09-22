@@ -1,0 +1,1070 @@
+// 「进阶」页(AI 助手高级能力总控)的视觉系统:全部走 --horosa-* 主题令牌,亮 / 暗 / 经典白三套自动跟随。
+// 结构:hero 总览带(可点跳转的状态胶囊)→ [左侧分区导轨 | 卡片网格];卡片统一「图标格 + 标题 + 状态胶囊 + 一句话说明 + 右侧动作」头部,
+// 各设置卡只负责内容,外壳与节奏由这里定;新增卡片一律经 AdvCard 复用,不再各自内联 border/padding。
+// 节奏:4px 基数(@sp1..@sp6),圆角 8 / 12 / 16,字号 11 / 12 / 13 / 14 / 17 配 16 / 20 / 24 行高 —— 不再出现半像素字号与 9 / 10 / 11 / 14 圆角
+// (半像素字号在 0.7–1.8 十二档缩放下逐档取整不一致,是版面抖动的来源)。
+// 宽度档:AdvancedPane 用 ResizeObserver 量根节点 → data-adv-w=narrow|medium|wide(app.less 已因 Tahoe 浮层事故禁用 container-type,只能这样量);
+// 没量到(jsdom / 隐藏页签)时属性为空,交给 @media 兜底。含 `/` 的 grid 值一律 ~"…" 转义(LESS 会把 1 / -1 当除法:实测把整宽卡片挤进隐式第三列)。
+@sp1: 4px;
+@sp2: 8px;
+@sp3: 12px;
+@sp4: 16px;
+@sp5: 24px;
+@sp6: 32px;
+@r-sm: 8px;
+@r-md: 12px;
+@r-lg: 16px;
+@rail-w: 184px;
+
+.t-title() { font-size: 17px; line-height: 24px; font-weight: 700; }
+.t-body() { font-size: 14px; line-height: 20px; }
+.t-ui() { font-size: 13px; line-height: 20px; }
+.t-sm() { font-size: 12px; line-height: 20px; }
+.t-xs() { font-size: 11px; line-height: 16px; }
+
+// ── 页面骨架 ──
+.pane {
+	display: flex;
+	flex-direction: column;
+	gap: @sp4;
+	padding: 2px 6px 28px 2px;
+	min-width: 0;
+}
+
+.hero {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: @sp4;
+	padding: @sp4 @sp5;
+	border-radius: @r-lg;
+	border: 1px solid var(--horosa-border);
+	background:
+		radial-gradient(120% 140% at 0% 0%, var(--horosa-accent-soft), transparent 58%),
+		var(--horosa-panel-soft);
+}
+
+.heroText {
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+.heroTitle {
+	display: flex;
+	align-items: center;
+	gap: @sp2;
+	.t-title();
+	letter-spacing: 0.02em;
+	color: var(--horosa-text);
+}
+
+.heroMark {
+	width: @sp6;
+	height: @sp6;
+	border-radius: @r-sm;
+	display: grid;
+	place-items: center;
+	background: var(--horosa-accent);
+	color: var(--horosa-on-accent, #fff);
+	font-size: 16px;
+	box-shadow: 0 6px 18px var(--horosa-accent-soft);
+}
+
+.heroSub {
+	margin-top: @sp1;
+	.t-ui();
+	color: var(--horosa-text-soft);
+	max-width: 760px;
+}
+
+.pills {
+	display: flex;
+	flex-wrap: wrap;
+	gap: @sp2;
+	justify-content: flex-end;
+	align-content: flex-start;
+	flex: 0 1 44%;
+	min-width: 220px;
+}
+
+// 胶囊=可点的跳转入口(role=button):亮=该能力已翻离现状
+.pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 10px;
+	border-radius: 999px;
+	.t-sm();
+	border: 1px solid var(--horosa-border);
+	background: var(--horosa-surface);
+	color: var(--horosa-text-soft);
+	white-space: nowrap;
+	cursor: pointer;
+	user-select: none;
+	transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.pill:hover,
+.pill:focus-visible {
+	border-color: var(--horosa-border-strong);
+	color: var(--horosa-text);
+	outline: none;
+}
+
+.pillOn {
+	border-color: var(--horosa-border-strong);
+	background: var(--horosa-accent-soft);
+	color: var(--horosa-accent-strong);
+}
+
+.pillDot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: currentColor;
+	opacity: 0.75;
+}
+
+// 导轨 + 内容:窄/中档单列,宽档 184px 导轨 + 内容
+.layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: @sp4;
+	align-items: start;
+	min-width: 0;
+}
+
+.pane[data-adv-w='wide'] .layout {
+	grid-template-columns: @rail-w minmax(0, 1fr);
+}
+
+.rail {
+	display: none;
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	align-self: start;
+	flex-direction: column;
+	gap: 2px;
+	padding: @sp2;
+	border: 1px solid var(--horosa-border);
+	border-radius: @r-md;
+	background: var(--horosa-surface);
+	min-width: 0;
+}
+
+.pane[data-adv-w='wide'] .rail {
+	display: flex;
+}
+
+.railTitle {
+	.t-xs();
+	color: var(--horosa-muted);
+	letter-spacing: 0.04em;
+	padding: @sp1 @sp2 @sp2;
+}
+
+.railItem {
+	display: flex;
+	align-items: center;
+	gap: @sp2;
+	width: 100%;
+	text-align: left;
+	padding: 6px @sp2;
+	border: 0;
+	border-radius: @r-sm;
+	background: transparent;
+	color: var(--horosa-text-soft);
+	.t-ui();
+	cursor: pointer;
+	min-width: 0;
+	transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.railItem > span {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.railItem:hover,
+.railItem:focus-visible {
+	background: var(--horosa-panel-soft);
+	color: var(--horosa-text);
+	outline: none;
+}
+
+.railActive {
+	background: var(--horosa-accent-soft);
+	color: var(--horosa-accent-strong);
+	font-weight: 600;
+}
+
+.railSub {
+	padding-left: @sp6;
+	.t-sm();
+}
+
+.railDanger {
+	color: var(--horosa-cinnabar);
+}
+
+.railDanger.railActive {
+	background: var(--horosa-panel-soft);
+	color: var(--horosa-cinnabar);
+}
+
+.railBadge {
+	margin-left: auto;
+	.t-xs();
+	padding: 0 6px;
+	border-radius: 999px;
+	background: var(--horosa-accent-soft);
+	color: var(--horosa-accent-strong);
+}
+
+.content {
+	min-width: 0;
+}
+
+.grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: @sp4;
+	align-items: start;
+	min-width: 0;
+}
+
+.span2 {
+	// LESS 把 `1 / -1` 当除法算成 -1(实测把整宽卡片挤进隐式第三列),与 min() 同款坑:必须转义成字面。
+	grid-column: ~"1 / -1";
+}
+
+// 兜底:没量到宽度档(属性为空)时按视口;量到了以属性档为准(属性选择器特异性更高,后者恒胜)
+@media (max-width: 1180px) {
+	.grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+.pane[data-adv-w='narrow'] .grid {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.pane[data-adv-w='medium'] .grid,
+.pane[data-adv-w='wide'] .grid {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+// ── 卡片外壳 ──
+.card {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	border: 1px solid var(--horosa-border);
+	border-radius: @r-md;
+	background: var(--horosa-surface);
+	transition: border-color 0.18s ease;
+	scroll-margin-top: @sp2;
+}
+
+.card:hover {
+	border-color: var(--horosa-border-strong);
+}
+
+// 危险区(行动能力):左侧朱砂条 + 朱砂图标格,与其它卡一眼可分
+.cardDanger {
+	border-left: 3px solid var(--horosa-cinnabar);
+}
+
+.cardDanger .iconTile {
+	color: var(--horosa-cinnabar);
+	background: var(--horosa-panel-soft);
+	border: 1px solid var(--horosa-cinnabar);
+}
+
+.cardHead {
+	display: flex;
+	align-items: flex-start;
+	gap: @sp3;
+	padding: @sp3 @sp4;
+	border-bottom: 1px solid var(--horosa-border);
+}
+
+.iconTile {
+	flex: 0 0 @sp6;
+	width: @sp6;
+	height: @sp6;
+	border-radius: @r-sm;
+	display: grid;
+	place-items: center;
+	background: var(--horosa-accent-soft);
+	color: var(--horosa-accent);
+	font-size: 16px;
+}
+
+.headText {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.title {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: @sp2;
+	.t-body();
+	font-weight: 600;
+	color: var(--horosa-text);
+}
+
+.desc {
+	margin-top: 2px;
+	.t-sm();
+	color: var(--horosa-text-soft);
+}
+
+.headActions {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: @sp2;
+	padding-top: 2px;
+}
+
+.resetBtn {
+	color: var(--horosa-muted);
+}
+
+// 头与正文之间的工具条(路由卡的「方案」行)
+.cardToolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: @sp2;
+	padding: @sp2 @sp4;
+	border-bottom: 1px solid var(--horosa-border);
+	background: var(--horosa-panel-soft);
+	.t-sm();
+	color: var(--horosa-text-soft);
+}
+
+.body {
+	display: flex;
+	flex-direction: column;
+	gap: @sp3;
+	min-width: 0;
+	padding: @sp3 @sp4 @sp4;
+}
+
+// ── 状态胶囊 ──
+.status {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px 8px;
+	border-radius: 999px;
+	.t-xs();
+	font-weight: 500;
+	border: 1px solid var(--horosa-border);
+	color: var(--horosa-muted);
+	background: var(--horosa-panel-soft);
+	white-space: nowrap;
+}
+
+.statusOn {
+	color: var(--horosa-accent-strong);
+	border-color: var(--horosa-border-strong);
+	background: var(--horosa-accent-soft);
+}
+
+.statusGood {
+	color: var(--horosa-jade);
+	border-color: var(--horosa-jade);
+}
+
+.statusWarn {
+	color: var(--horosa-gold);
+	border-color: var(--horosa-gold);
+	background: var(--horosa-gold-soft);
+}
+
+.statusDanger {
+	color: var(--horosa-cinnabar);
+	border-color: var(--horosa-cinnabar);
+	background: var(--horosa-panel-soft);
+}
+
+// ── 行:标签 / 控件 / 说明 ──
+.row {
+	display: grid;
+	grid-template-columns: 120px minmax(0, 1fr);
+	gap: @sp1 @sp3;
+	align-items: center;
+	.t-ui();
+}
+
+.rowLabel {
+	color: var(--horosa-text);
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.rowControl {
+	display: flex;
+	align-items: center;
+	gap: @sp2;
+	min-width: 0;
+	flex-wrap: wrap;
+}
+
+.rowHelp {
+	grid-column: 2;
+	.t-sm();
+	color: var(--horosa-muted);
+}
+
+// ── 开关行(一个功能一行:标题 + 说明 + 右侧开关) ──
+.switchRow {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: @sp3;
+	padding: @sp2 @sp3;
+	border: 1px solid var(--horosa-border);
+	border-radius: @r-sm;
+	background: var(--horosa-panel-soft);
+	// 纵向内距刻意不动:真引擎版式闸有一条壳容器纵向溢出的硬红,行卡只加横向观感
+	transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.switchRow:hover {
+	border-color: var(--horosa-border-strong);
+}
+
+// 开启态左金线:一眼看出哪几行是开着的(与路由表「已显式设置」同一语汇)
+.switchRowOn {
+	border-color: var(--horosa-border-strong);
+	box-shadow: inset 3px 0 0 var(--horosa-accent);
+}
+
+.switchText {
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+.switchTitle {
+	.t-ui();
+	font-weight: 600;
+	color: var(--horosa-text);
+}
+
+.switchDesc {
+	margin-top: 2px;
+	.t-sm();
+	color: var(--horosa-text-soft);
+}
+
+// ── 小件 ──
+.divider {
+	height: 1px;
+	background: var(--horosa-border);
+	margin: 2px 0;
+}
+
+.note,
+.soft {
+	.t-sm();
+	color: var(--horosa-text-soft);
+}
+
+.mono {
+	font-family: ui-monospace, Menlo, Consolas, monospace;
+	font-size: 12px;
+	line-height: 20px;
+}
+
+.infoStrip {
+	padding: @sp2 @sp3;
+	border-radius: @r-sm;
+	border: 1px dashed var(--horosa-border);
+	background: var(--horosa-panel-soft);
+	.t-sm();
+	color: var(--horosa-text-soft);
+}
+
+.inline {
+	display: flex;
+	align-items: center;
+	gap: @sp2;
+	flex-wrap: wrap;
+	min-width: 0;
+}
+
+.stack {
+	display: flex;
+	flex-direction: column;
+	gap: @sp2;
+	min-width: 0;
+}
+
+.toolbarRow {
+	display: flex;
+	align-items: center;
+	gap: @sp2;
+	flex-wrap: wrap;
+	min-width: 0;
+}
+
+.listRow {
+	display: flex;
+	align-items: center;
+	gap: @sp2;
+	padding: @sp2 @sp3;
+	border: 1px solid var(--horosa-border);
+	border-radius: @r-sm;
+	background: var(--horosa-panel-soft);
+	.t-ui();
+	min-width: 0;
+	flex-wrap: wrap;
+}
+
+.listMain {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	gap: @sp2;
+	flex-wrap: wrap;
+}
+
+.chips {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: @sp2;
+	.t-ui();
+}
+
+.chip {
+	display: inline-flex;
+	align-items: center;
+	gap: @sp2;
+	padding: 6px @sp3;
+	border-radius: @r-sm;
+	border: 1px solid var(--horosa-border);
+	background: var(--horosa-panel-soft);
+	color: var(--horosa-text);
+}
+
+.spacer {
+	flex: 1 1 auto;
+}
+
+.subhead {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: @sp2;
+	flex-wrap: wrap;
+}
+
+.subtitle {
+	.t-ui();
+	font-weight: 600;
+	color: var(--horosa-text);
+	display: flex;
+	align-items: center;
+	gap: @sp2;
+}
+
+// 分组标题 + 右侧分节细线。细线走流内(flex:1 1 auto + min-width:0),结构上不可能撑宽父级;
+// 伪元素不被版式闸的元素选择器抓到,但绝对定位 + 负偏移的伪元素会进滚动宽度,故不那样写。
+// 字色只可变深不可变浅:本类在对比度抽样名单内。
+.groupLabel {
+	display: flex;
+	align-items: center;
+	gap: @sp2;
+	.t-xs();
+	color: var(--horosa-muted);
+	letter-spacing: 0.04em;
+	margin-top: @sp1;
+}
+
+.groupLabel::after {
+	content: '';
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 1px;
+	background: var(--horosa-border);
+}
+
+.ellipsis {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.textarea :global(textarea.ant-input) {
+	font-family: ui-monospace, Menlo, Consolas, monospace;
+	font-size: 12px;
+	line-height: 20px;
+	border-radius: @r-sm;
+	background: var(--horosa-panel-soft);
+}
+
+// ═══ antd 覆盖的权重纪律(改这一段之前先算权重)═══════════════════════════
+// 本仓的 CSS 分散在十几个「运行时追加」的分包里(本文件落在一个 async chunk;antd 的
+// Collapse 样式被复制进九个 async chunk;antd Radio 在 umi 主表;全站覆盖在 layouts 与
+// xq-ui 两个分包)。样式表落地顺序取决于用户此前逛过哪些技法页与运行时的落地序 ——
+// 源码序在这里【没有定义】。所以纪律是:每条覆盖必须比「被它覆盖的那条」严格高至少
+// 一个 class,永远不许打平。打平 = 随浏览历史抛硬币(FL-20260907-1 记了整族)。
+//
+// 台账(竞争者权重 → 本段须达):
+//   折叠头 padding            (0,3,0) → (0,4,0)
+//   折叠箭头 定位/字号/色      (0,4,0) → (0,5,0)
+//   ghost 正文 padding        (0,4,0) → (0,5,0)
+//   折叠项边框/圆角/正文底色    (0,3,0) → (0,4,0)
+//   分段按钮尺寸              (0,2,0) → (0,3,0)
+//   分段按钮首尾圆角           (0,3,0) → (0,4,0)
+//   分段【选中态配色】         (0,5,0) → (0,6,0)   ← 上限在 xq-ui 的暗档那条
+//
+// 提权旋钮:把模块类写两遍(.segment.segment)恒定 +1,数点号即可审计;全文件零强制优先级
+// 标记(一旦用了,全站的 hover / focus / disabled 三态全得跟着升级,是死循环)。
+// 构建禁忌:逗号选择器列表里不许一半带模块类、一半纯全局 —— css-loader 直接抛错。
+// ══════════════════════════════════════════════════════════════════════
+
+// ── 分段选择器:轨 + 实心药丸(写入动作审批 / 上下文策略 / 多模型对比 三处共用)──
+// 配色走全站分段控件同一套 --horosa-tab-seg-* 令牌,不另造:暗档「金实底 + 金字」曾叠成
+// 几乎不可读,已修为「金软底 + 金字 + 金描边」,那是结论,不是口味。
+// 几何:轨外高 24 + 4×2 + 1×2 = 34 = 全站控件高;同心圆角 12 − 4 = 8。
+.segment.segment:global(.ant-radio-group) {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: @sp1 0;                       // 换行才有 4px 行距;列距 0(药丸相邻)
+	max-width: 100%;
+	padding: @sp1;
+	border: 1px solid var(--horosa-border);
+	border-radius: @r-md;
+	background: var(--horosa-tab-seg-track, var(--horosa-panel-soft));
+}
+
+// 几何 + 去 antd 铁皮(边框 / 首末分段圆角 / 焦点蓝光晕),(0,4,0)
+.segment.segment:global(.ant-radio-group) > :global(.ant-radio-button-wrapper) {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: @sp5;
+	padding: 0 @sp3;
+	border: 0;
+	border-radius: @r-sm;              // 统一圆角:换行不出现半截药丸
+	box-shadow: none;
+	.t-sm();
+	transition: color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+// antd 画在按钮之间的 1px 竖线,(0,4,1)
+.segment.segment:global(.ant-radio-group) > :global(.ant-radio-button-wrapper:not(:first-child))::before {
+	display: none;
+}
+
+// 静息态只对【未选中】说话:否则透明底会把选中药丸擦掉,整组看不出选了谁,(0,4,0)
+.segment.segment:global(.ant-radio-group) > :global(.ant-radio-button-wrapper:not(.ant-radio-button-wrapper-checked)) {
+	background: transparent;
+	color: var(--horosa-tab-inactive-text, var(--horosa-text-soft));
+}
+
+// 未选中 hover 必须显式补,否则被上一条静息色恒压住,(0,5,0)
+.segment.segment:global(.ant-radio-group) > :global(.ant-radio-button-wrapper:not(.ant-radio-button-wrapper-checked):hover) {
+	background: var(--horosa-accent-soft);
+	color: var(--horosa-tab-hover-text, var(--horosa-text));
+}
+
+// 选中态,(0,6,0) —— 必须高过暗档全站那条 (0,5,0)
+.segment.segment:global(.ant-radio-group) > :global(.ant-radio-button-wrapper.ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled)) {
+	background: var(--horosa-tab-seg-thumb, var(--horosa-accent));
+	color: var(--horosa-tab-on-thumb, var(--horosa-on-accent));
+	box-shadow: inset 0 0 0 1px var(--horosa-tab-seg-ring, transparent);
+}
+
+// 焦点环用 outline 而非 box-shadow:不与选中态的 inset 描边抢同一属性,
+// 且负 offset 让它恒在药丸内侧 —— 版式闸的右缘判据零风险。
+.segment.segment:global(.ant-radio-group) > :global(.ant-radio-button-wrapper:focus-within) {
+	outline: 2px solid var(--horosa-accent);
+	outline-offset: -2px;
+}
+
+// ── 内联折叠(策略卡「细项」+ 行动能力卡三段):ghost、箭头在【头部起手】的行卡 ──
+// 旧版两处病:头部覆盖与 antd 打平(赢家随分包序摇摆);正文覆盖只赢左右,上下被 ghost
+// 的 (0,4,0) 恒压成 12px ——「看起来生效了」是最隐蔽的一种。现在两条都提到位。
+.collapse.collapse:global(.ant-collapse) > :global(.ant-collapse-item) {
+	margin-bottom: @sp2;
+	border: 1px solid var(--horosa-border);
+	border-radius: @r-sm;
+	background: var(--horosa-panel-soft);
+	overflow: hidden;
+	// 只过渡颜色类属性:几何属性的过渡会被版式闸在采样点量到中间态
+	transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.collapse.collapse:global(.ant-collapse) > :global(.ant-collapse-item:last-child) {
+	margin-bottom: 0;
+	border-radius: @r-sm;              // antd 给末项写死 0 0 2px 2px,这里显式收回
+}
+
+.collapse.collapse:global(.ant-collapse) > :global(.ant-collapse-item:hover) {
+	border-color: var(--horosa-border-strong);
+}
+
+// 展开态左金线:阴影是纯绘制,不进布局矩形与滚动宽度 → 三类几何判据全免疫
+// (与路由表「已显式设置」同一语汇,该惯用法已过全矩阵)
+.collapse:global(.ant-collapse) > :global(.ant-collapse-item.ant-collapse-item-active) {
+	border-color: var(--horosa-border-strong);
+	box-shadow: inset 3px 0 0 var(--horosa-accent);
+}
+
+.collapse:global(.ant-collapse) > :global(.ant-collapse-item) > :global(.ant-collapse-header) {
+	align-items: center;
+	padding: @sp2 @sp3;
+	border-radius: 0;
+	.t-ui();
+	font-weight: 500;
+	color: var(--horosa-text);
+	// 覆盖 antd 的 transition:all(all 含 padding,是采样点的隐患)
+	transition: background-color 0.18s ease;
+}
+
+.collapse:global(.ant-collapse) > :global(.ant-collapse-item) > :global(.ant-collapse-header:hover) {
+	background: var(--horosa-accent-soft);
+}
+
+// 箭头在流内:12(图标) + 8(右距) = 20 → 文字起点 = @sp3 + 20 = 32,与正文左缩进逐像素对齐
+.collapse:global(.ant-collapse) > :global(.ant-collapse-item) > :global(.ant-collapse-header) :global(.ant-collapse-arrow) {
+	margin-right: @sp2;
+	font-size: 12px;
+	color: var(--horosa-muted);
+}
+
+.collapse:global(.ant-collapse) > :global(.ant-collapse-item) > :global(.ant-collapse-content) {
+	background: transparent;
+	border-top: 1px solid var(--horosa-border);
+	color: var(--horosa-text);
+}
+
+.collapse:global(.ant-collapse) > :global(.ant-collapse-item) > :global(.ant-collapse-content) > :global(.ant-collapse-content-box) {
+	padding: @sp2 @sp3 @sp3 @sp6;
+}
+
+.catGrid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+	gap: @sp2;
+}
+
+.kv {
+	display: flex;
+	align-items: center;
+	gap: @sp2;
+	.t-sm();
+	min-width: 0;
+}
+
+.kvLabel {
+	flex: 0 0 110px;
+	color: var(--horosa-text-soft);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.kvControl {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.nested {
+	display: flex;
+	flex-direction: column;
+	gap: @sp3;
+}
+
+// ── 模型路由表(整宽卡):表头行 + 六槽 × 五控件 + 行级重置;窄卡退化为逐槽堆叠 ──
+.routeGrid {
+	display: grid;
+	gap: @sp2;
+	align-items: center;
+	min-width: 0;
+}
+
+.routeGrid[data-layout='grid'] {
+	grid-template-columns: 120px minmax(220px, 1fr) 128px 112px 88px 120px 32px;
+}
+
+.routeGrid[data-layout='grid'] .routeRow,
+.routeGrid[data-layout='grid'] .routeHead {
+	display: contents;
+}
+
+.routeHead > span {
+	.t-xs();
+	color: var(--horosa-muted);
+	letter-spacing: 0.04em;
+	padding: 0 2px @sp1;
+	border-bottom: 1px solid var(--horosa-border);
+	white-space: nowrap;
+}
+
+.routeGrid[data-layout='stack'] {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.routeGrid[data-layout='stack'] .routeHead {
+	display: none;
+}
+
+.routeGrid[data-layout='stack'] .routeRow {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	gap: @sp2;
+	padding: @sp2;
+	border: 1px solid var(--horosa-border);
+	border-radius: @r-sm;
+	background: var(--horosa-panel-soft);
+}
+
+.routeGrid[data-layout='stack'] .routeLabel {
+	grid-column: ~"1 / -1";
+	white-space: normal;
+}
+
+.routeLabel {
+	.t-ui();
+	font-weight: 500;
+	color: var(--horosa-text);
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.routeLabelHelp {
+	display: none;
+	.t-sm();
+	color: var(--horosa-muted);
+	font-weight: 400;
+	white-space: normal;
+}
+
+.routeGrid[data-layout='stack'] .routeLabelHelp {
+	display: block;
+}
+
+.routeCell {
+	min-width: 0;
+	position: relative;
+}
+
+.routeCell :global(.ant-select),
+.routeCell :global(.ant-input-number) {
+	width: 100%;
+}
+
+// 已显式设置的格:左侧金线(Zed 的「未设置 ≠ 设为空」— 一眼分出跟随与覆盖)
+.routeCell[data-route-cell='set'] :global(.ant-select-selector),
+.routeCell[data-route-cell='set'] :global(.ant-input-number) {
+	box-shadow: inset 3px 0 0 var(--horosa-gold);
+}
+
+.routeReset {
+	color: var(--horosa-muted);
+	padding: 0 4px;
+}
+
+// ── 行动能力卡:五个子面板收进折叠(缺省全收起;头部带状态与计数) ──
+// 🔴 旧版真 bug:头部写 `padding: @sp2 @sp3`(0,4,0)把 antd 那条为右侧箭头预留的
+//    `padding: 12px 40px 12px 16px`(0,3,0)整条简写打掉,右内距塌回 12px;而箭头
+//    (0,4,0,当时没被覆盖)仍钉在 right:16px 且宽 12px → 每一行的头部内容恒压箭头 16px,
+//    第一行有徽标所以最刺眼。现在两侧都由本段显式钉死,不再依赖 antd 的 40px 约定:
+//    箭头占 [右缘−24, 右缘−12],内容右缘 = 右缘−32 → 恒留 8px 呼吸。
+.agentCollapse :global(.ant-collapse) {
+	background: transparent;
+	border: 0;
+}
+
+.agentCollapse.agentCollapse :global(.ant-collapse) > :global(.ant-collapse-item) {
+	margin-bottom: @sp2;
+	border: 1px solid var(--horosa-border);
+	border-radius: @r-sm;
+	background: var(--horosa-panel-soft);
+	overflow: hidden;
+	transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.agentCollapse.agentCollapse :global(.ant-collapse) > :global(.ant-collapse-item:last-child) {
+	margin-bottom: 0;
+	border-radius: @r-sm;
+}
+
+.agentCollapse.agentCollapse :global(.ant-collapse) > :global(.ant-collapse-item:hover) {
+	border-color: var(--horosa-border-strong);
+}
+
+.agentCollapse :global(.ant-collapse) > :global(.ant-collapse-item.ant-collapse-item-active) {
+	border-color: var(--horosa-border-strong);
+	box-shadow: inset 3px 0 0 var(--horosa-accent);
+}
+
+// 右 32 = 箭头右槽 12 + 箭头宽 12 + 呼吸 8;左 12 与开关行对齐。禁给头部加 gap:
+// 右侧箭头模式下那个 0 宽的图标包裹层会白吃一个 gap,文字左边凭空多一截。
+.agentCollapse :global(.ant-collapse) > :global(.ant-collapse-item) > :global(.ant-collapse-header) {
+	align-items: center;
+	padding: @sp2 @sp6 @sp2 @sp3;
+	border-radius: 0;
+	.t-ui();
+	color: var(--horosa-text);
+	transition: background-color 0.18s ease;
+}
+
+.agentCollapse :global(.ant-collapse) > :global(.ant-collapse-item) > :global(.ant-collapse-header:hover) {
+	background: var(--horosa-accent-soft);
+}
+
+// (0,5,0) 才压得住 antd 那条钉箭头的 (0,4,0)
+.agentCollapse :global(.ant-collapse) > :global(.ant-collapse-item) > :global(.ant-collapse-header) :global(.ant-collapse-arrow) {
+	right: @sp3;
+	font-size: 12px;
+	color: var(--horosa-muted);
+	transition: color 0.18s ease;
+}
+
+.agentCollapse :global(.ant-collapse) > :global(.ant-collapse-item.ant-collapse-item-active) > :global(.ant-collapse-header) :global(.ant-collapse-arrow) {
+	color: var(--horosa-accent);
+}
+
+.agentCollapse :global(.ant-collapse) > :global(.ant-collapse-item) > :global(.ant-collapse-header) :global(.ant-collapse-header-text) {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.agentCollapse :global(.ant-collapse) > :global(.ant-collapse-item) > :global(.ant-collapse-content) {
+	background: transparent;
+	border-top: 1px solid var(--horosa-border);
+	color: var(--horosa-text);
+}
+
+.agentCollapse :global(.ant-collapse) > :global(.ant-collapse-item) > :global(.ant-collapse-content) > :global(.ant-collapse-content-box) {
+	padding: @sp3;
+}
+
+.subHead {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: @sp3;
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+.subHeadText {
+	display: flex;
+	align-items: baseline;
+	gap: @sp2;
+	min-width: 0;
+	flex-wrap: wrap;
+}
+
+.subTitle {
+	.t-ui();
+	font-weight: 600;
+	color: var(--horosa-text);
+}
+
+.subDesc {
+	.t-sm();
+	color: var(--horosa-muted);
+}
+
+.subHeadMeta {
+	display: flex;
+	align-items: center;
+	gap: @sp2;
+	flex: 0 0 auto;
+}
+
+.subCount {
+	.t-xs();
+	padding: 0 6px;
+	border-radius: 999px;
+	background: var(--horosa-accent-soft);
+	color: var(--horosa-accent-strong);
+}
+
+.subPanel,
+.subBody,
+.subBlock {
+	display: flex;
+	flex-direction: column;
+	gap: @sp2;
+	min-width: 0;
+}
+
+.table :global(.ant-table) {
+	background: transparent;
+	font-size: 12px;
+	line-height: 20px;
+}
+
+.table :global(.ant-table-thead > tr > th) {
+	background: var(--horosa-panel-soft);
+	.t-xs();
+	color: var(--horosa-muted);
+}
+
+.table :global(.ant-table-tbody > tr > td) {
+	vertical-align: middle;
+}
+
+.probeList {
+	margin: 0;
+	padding-left: 18px;
+	.t-sm();
+}
+
+.ledgerRow {
+	display: grid;
+	grid-template-columns: 72px 110px minmax(80px, 140px) minmax(0, 1fr) 64px;
+	gap: @sp2;
+	align-items: center;
+	.t-sm();
+	padding: 2px 0;
+	min-width: 0;
+}
+
+.ledgerRowDone {
+	opacity: 0.55;
+}
+
+.memoryList {
+	display: flex;
+	flex-direction: column;
+	gap: @sp1;
+}
+
+.memoryItem {
+	display: flex;
+	gap: @sp2;
+	align-items: center;
+	.t-sm();
+	padding: 2px 0;
+	min-width: 0;
+}
+
+.memoryItemOff {
+	opacity: 0.55;
+}

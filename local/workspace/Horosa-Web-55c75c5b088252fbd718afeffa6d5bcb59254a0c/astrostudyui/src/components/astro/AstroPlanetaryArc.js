@@ -15,11 +15,12 @@ import { XQSelect as Select } from '../xq-ui';
 import { markPanelReady } from '../../utils/perfMark';
 import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
 import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
+import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 
 const Option = Select.Option;
 export const ARC_SOURCES = [AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS, AstroConst.JUPITER, AstroConst.SATURN, AstroConst.SUN];
 // AI 挂载「行星弧」可调项默认（=无头默认：月亮弧 / 截至今日 12:00 / 容许 1°）。不调任何项 → 输出逐字不变。
-const PLANETARY_ARC_DEFAULT_OPTS = { arcSource: AstroConst.MOON, datetime: '', asporb: 1 };   // asporb 运行时以 transitOrbDefault() 覆盖
+const PLANETARY_ARC_DEFAULT_OPTS = { arcSource: AstroConst.MOON, datetime: '', asporb: 1, nodeRetrograde: false };   // asporb 运行时以 transitOrbDefault() 覆盖
 
 // [YB v42] 补厚 helper 容错:个别测试套件整模块 mock astroAiSnapshot 且只保留部分导出,
 // 缺失导出经 import 拿到 undefined → 直接调用会炸掉整个 builder;生产环境恒为函数,此守卫零行为差。
@@ -43,9 +44,12 @@ function natalParams(chartObj){
 	};
 }
 
+// [Q-174/T-114] 无头缺省目标时刻与页面同律:页面构造期用「明天此刻」(state 里 dt.addDate(1)),
+// 无头旧实现用「今天 12:00」→ 同一条记录页面与挂载各算各的日子。改为同取明天此刻。
 function todayStr(){
-	const d = new Date();
-	return `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, '0')}-${`${d.getDate()}`.padStart(2, '0')} 12:00:00`;
+	const d = new Date(Date.now() + 24 * 3600 * 1000);
+	const p2 = (v)=>`${v}`.padStart(2, '0');
+	return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
 }
 
 // 把向运盘格式化为 markdown：本命盘配置 + 向运盘配置 + 「向运→本命」相位网格。
@@ -109,7 +113,9 @@ export async function buildPlanetaryArcSnapshotText(chartObj, opts){
 		// [基线锚审计 病3·镜像型] 缺省回退 transitOrbDefault()(schema globalCurrent 同源;曾静态 1:
 		// 全局 3° 时挂载拨 3 想同步页面被剪空,无头却按 1° 算——两端各执一词)。
 		const asporb = (o.asporb !== undefined && o.asporb !== null && `${o.asporb}` !== '' && Number.isFinite(Number(o.asporb))) ? Number(o.asporb) : transitOrbDefault();
-		const params = { ...natalParams(chartObj), datetime, asporb, arcSource };
+		// [Q-174/T-114] 南北交逆移:页面有该开关、Python webpredictsrv 也读,挂载与无头此前都表达不了。
+		const nodeRetrograde = (o.nodeRetrograde === true || o.nodeRetrograde === 1 || o.nodeRetrograde === '1');
+		const params = { ...natalParams(chartObj), datetime, asporb, arcSource, nodeRetrograde };
 		const data = await request(`${Constants.ServerRoot}/predict/planetaryarc`, { body: JSON.stringify(params) });
 		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey];
@@ -126,7 +132,7 @@ class AstroPlanetaryArc extends Component{
 		const dt = new DateTime();
 		dt.addDate(1);
 		this.state = {
-			params: { ...np, datetime: dt, tmType: 'y', nodeRetrograde: false, asporb: transitOrbDefault(), arcSource: AstroConst.MOON },
+			params: { ...np, datetime: dt, tmType: 'y', nodeRetrograde: DIRECTION_PAGE_SETTINGS.load().nodeRetrograde, asporb: transitOrbDefault(), arcSource: AstroConst.MOON },
 			dirChart: null,
 		};
 		this.submit = this.submit.bind(this);
@@ -165,7 +171,10 @@ class AstroPlanetaryArc extends Component{
 
 	handleSnapshotRefreshRequest(evt){
 		if(!evt || !evt.detail || evt.detail.module !== 'planetaryarc' || !this.props.value){ return; }
-		buildPlanetaryArcSnapshotText(this.props.value).then((txt) => { evt.detail.snapshotText = txt || ''; }).catch(() => {});
+		// [Q-167/T-101] 按页面当前弧源/目标时刻/容许度出快照(此前不传 opts=缺省月亮弧·今日 → 导出与页面盘面不符)。
+		const _pp = this.state.params || {};
+		const _opts = { arcSource: _pp.arcSource, asporb: _pp.asporb, datetime: (_pp.datetime && typeof _pp.datetime.format === 'function') ? _pp.datetime.format('YYYY-MM-DD HH:mm') : _pp.datetime };
+		buildPlanetaryArcSnapshotText(this.props.value, _opts).then((txt) => { evt.detail.snapshotText = txt || ''; }).catch(() => {});
 	}
 
 	requestData(){
@@ -193,7 +202,7 @@ class AstroPlanetaryArc extends Component{
 		this.setState({ dirChart: result, params: { ...params, datetime: dt } }, () => {
 			// horosa_panel_ready_v1:行星弧盘(中栏盘 + 右栏表同源于 dirChart)落定的那一次 setState。
 			markPanelReady('direction');
-			saveModuleAISnapshotLazy('planetaryarc', ()=>formatArcSnapshot(result, '行星弧（Planetary Arc）', '行星弧：以所选天体的二次推运移动量为弧推进全盘。'), { module: 'planetaryarc' });
+			saveModuleAISnapshotLazy('planetaryarc', ()=>formatArcSnapshot(result, '行星弧（Planetary Arc）', '行星弧：以所选天体的二次推运移动量为弧推进全盘。', this.props.value), { module: 'planetaryarc' });
 		});
 	}
 
@@ -243,7 +252,7 @@ class AstroPlanetaryArc extends Component{
 		};
 		const fieldsary = convertToArray(fields);
 		const height = this.props.height ? this.props.height : 760;
-		const style = { height: (height - 20) + 'px', overflowY: 'auto', overflowX: 'hidden' };
+		const style = { height: (height - 20) + 'px', overflowY: 'auto', overflowX: 'hidden', boxSizing: 'border-box' };   // [巡检实抓 2026-09-17] 内距计入高度,不再比面板高 5px
 		return (
 			<div>
 				<Row gutter={6}>
@@ -260,7 +269,8 @@ class AstroPlanetaryArc extends Component{
 									{ARC_SOURCES.map((id) => <Option value={id} key={id}>{AstroText.AstroTxtMsg[id] || id}</Option>)}
 								</Select>
 							</div>
-							<AstroDirectionForm {...fields} fieldsAry={fieldsary} onFieldsChange={this.fieldsChanged} onSubmit={this.submit} />
+							{/* [Q-172/T-105] 同太阳弧:-1 档在弧类等同 1°,隐掉 */}
+							<AstroDirectionForm {...fields} fieldsAry={fieldsary} hideMeanOrb onFieldsChange={this.fieldsChanged} onSubmit={this.submit} />
 							<Divider orientation="left">向运星 → 本命 相位</Divider>
 							<div style={{ fontSize: 12, color: 'var(--horosa-muted, #666)' }}>左侧双盘：内圈本命、外圈行星弧向运。</div>
 						</div>

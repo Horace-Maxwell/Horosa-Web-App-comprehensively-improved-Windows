@@ -75,3 +75,15 @@ describe('[E1] 后天宫位宫首 · 与后端逐点核 + 分宫机制', ()=>{
 		expect(cusps[10]).toBe(null);
 	});
 });
+
+// [Q-531/T-493] Equal(时圈)档:天球闭式宫首=赤经等分(Meridian 定义);后端 _PD_FRAME_HSYS 同档已映 swisseph Meridian → 2D 盘与天球同口径。
+describe('equal_hour_circle == meridian(与后端 Meridian 映射同口径)', () => {
+	const { cuspSystemOfFrame } = require('../pdHouseCusps');
+	it('cuspSystemOfFrame 两档同系、houseCusps 逐宫相等', () => {
+		expect(cuspSystemOfFrame('equal_hour_circle')).toBe(cuspSystemOfFrame('meridian'));
+		const a = houseCusps(cuspSystemOfFrame('equal_hour_circle'), 123.4, 31.2, 23.44);
+		const b = houseCusps(cuspSystemOfFrame('meridian'), 123.4, 31.2, 23.44);
+		expect(a.full).toBe(true);
+		a.cusps.forEach((c, i) => expect(c).toBeCloseTo(b.cusps[i], 9));
+	});
+});

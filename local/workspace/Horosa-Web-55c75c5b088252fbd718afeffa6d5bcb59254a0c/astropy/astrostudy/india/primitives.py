@@ -171,12 +171,8 @@ def friend_signs(planet, planet_signs):
 # ── P-b Rasi Drishti（Ch10.3）────────────────────────────────────────────
 def rasi_drishti(sign):
     """该 rasi 照见的 rasi 列表：动→所有定(除相邻定)、定→所有动(除相邻动)、双→所有其它双。"""
-    # horosa_rasi_drishti_stable_order_v1(PERF-R9;跨平台,建议上游化 Mac):
-    # MOVABLE/FIXED/DUAL 是 **set**,直接 `for s in FIXED` 会继承集合的哈希迭代顺序;
-    # 而 CPython 默认开启哈希随机化(发货 app 不设 PYTHONHASHSEED)⇒ 同一张盘每次启动后
-    # rasiDrishti 的 aspects/aspectLabels 排列都可能不同(实测跨进程 17/205 例仅顺序有别)。
-    # 改为遍历 SIGNS(黄道十二宫规范次序)再过滤:成员逐元素不变,顺序从「任意且不稳定」
-    # 变为「确定且符合星座次序」。集合本身保留 —— 其它地方靠它做 O(1) 归属判断。
+    # [Q-232/T-196] 受照座此前按 set 迭代:字符串哈希按进程随机 → 同一盘重启后端后行序不同,
+    # AI 快照/导出 [节点主照] 行序随每次启动漂移。改按黄道序(SIGNS)输出,内容集合不变。
     q = quality(sign)
     if q == 'movable':
         adjacent = offset_sign(sign, 2)  # 下一宫(必为定)

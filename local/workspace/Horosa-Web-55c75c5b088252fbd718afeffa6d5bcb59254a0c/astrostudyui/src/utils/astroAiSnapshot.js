@@ -1,4 +1,5 @@
 import { scheduleStorageWrite } from './deferredStorage';
+import { buildTimeBasisLine } from './timeBasisLine';
 import { lazySnapshotBuildEnabled } from './perfFlags';
 import * as AstroConst from '../constants/AstroConst';
 import * as AstroText from '../constants/AstroText';
@@ -20,6 +21,7 @@ function classicalGlobalValueSafe(key){
 import { currentEgyptSchool, egyptSchoolFromFields } from '../divination/data/egyptianSchools'; // 埃及流派口径(record 随盘键优先,回落全局)
 // 古典衍化四段(opt-in)行构建:零组件依赖单源(与 AstroDerivedHouses/AstroKlimata/AstroEminence/AstroThemaMundi 同引)。
 import { buildDerivedHousesSnapshotLines, buildKlimataSnapshotLines, buildEminenceSnapshotLines, buildThemaMundiSnapshotLines } from './astroClassicalDerived';
+import { buildWholeSignRulerRows, buildHouseSystemRulerRows, resolveHouseSystem, derivedWholeSignLabelOf, rulerOfSign, WHOLE_SIGN_RULERS_HEADERS, HOUSE_SYSTEM_RULERS_HEADERS } from './wholeSignRulers'; // [#79] 宫主派生单源(与 AstroDispositor 同函数;整宫/分宫两表口径分离)
 
 export const ASTRO_AI_SNAPSHOT_KEY = 'horosa.ai.snapshot.astro.v1';
 let ASTRO_AI_SNAPSHOT_MEMORY = null;
@@ -29,6 +31,12 @@ const DEFAULT_PLANET_INFO_EXPORT = {
 	showRuler: 1,
 };
 const PLANET_HOUSE_INFO_NOTE = '说明：行星名后括号中的 nR 为宫主宫位标记；逆行会明确写为“逆行”。';
+// [#79] 快照 payload 格式版本:[主宰星链] 改挂整宫制宫主表+判读口径行、分宫制宫神星表拆成独立段 → 2。
+// hasMatchingSavedAstroSnapshot 以此拒绝整份复用旧格式快照(最坏多算一次);身份签名(createAstroSnapshotSignature)不动。
+export const ASTRO_SNAPSHOT_FORMAT_VERSION = 2;
+const WHOLE_SIGN_RULERS_HEAD = '◆ 整宫制宫主表(wholeSignRulers)';
+const RULER_CALIBRE_LINE = '判读口径：宫主/主宰一律按整宫制（自上升星座起算，与[起盘信息]行星后的 nR 宫主标记同源，见下表）；行星力量、角/续/果与实际落宫按当前分宫制衡量，见[分宫制宫神星表]段。';
+const HOUSE_SYSTEM_RULERS_COLLAPSED = '当前分宫制即整宫制：宫神星表与[主宰星链]段「◆ 整宫制宫主表(wholeSignRulers)」逐行相同，不再重复列出。';
 
 function isEncodedToken(text){
 	return /^[A-Za-z0-9${}]$/.test((text || '').trim());
@@ -411,7 +419,7 @@ export function buildClassicalCalibreLine(fields){
 	return `古典口径（非默认项）：${parts.join('；')}。`;
 }
 
-function buildBaseInfoLines(chartObj, fields){
+function buildBaseInfoLines(chartObj, fields, options){
 	const lines = [];
 	const chart = chartObj && chartObj.chart ? chartObj.chart : {};
 	const params = chartObj && chartObj.params ? chartObj.params : {};
@@ -431,6 +439,10 @@ function buildBaseInfoLines(chartObj, fields){
 	if(chart.nongli && chart.nongli.birth){
 		lines.push(`真太阳时：${chart.nongli.birth}`);
 	}
+	// 跨技法时间基准自声明:星盘按输入钟面时刻与时区换算世界时起盘(上一行真太阳时仅为八字口径参考)
+	if(options && options.withTimeBasis){
+		lines.push(buildTimeBasisLine({ timeAlg: 1, lateZiHourUseNextDay: fieldValue(fields, 'lateZiHourUseNextDay'), after23NewDay: fieldValue(fields, 'after23NewDay') }));
+	}
 	// 用户拍板·v2.2.1: AI 必须明确知道排盘按哪种规则计算,否则可能用错语义解读四柱。
 	const after23 = fieldValue(fields, 'after23NewDay');
 	const lateZi = fieldValue(fields, 'lateZiHourUseNextDay');
@@ -446,7 +458,9 @@ function buildBaseInfoLines(chartObj, fields){
 	// fields 数字值就是发出去的排盘入参 —— 标注与计算恒同源;此前 chart echo 优先,与同文件推运行
 	// 双标准并存(echo 缺失/命名不一时标注口径漂)。
 	const zodiacal = AstroConst.ZODIACAL[fieldValue(fields, 'zodiacal')] || chart.zodiacal;
-	const hsys = AstroConst.HouseSys[fieldValue(fields, 'hsys')] || chart.hsys;
+	// [Q-148/T-55] 派生盘(调波/龙盘/十三分/十二分)宫位被强制为「变换后上升整宫」:
+	// fields/echo 里的分宫制不是这张盘实际用的,标注必须说真话(数值不动)。
+	const hsys = derivedWholeSignLabelOf(chart) || AstroConst.HouseSys[fieldValue(fields, 'hsys')] || chart.hsys;
 	if(zodiacal || hsys){
 		const ayanKey = fieldValue(fields, 'siderealAyanamsa', '') || (chart && chart.siderealAyanamsa) || '';
 		const zodiacalTxt = zodiacal ? AstroConst.zodiacalDisplayText(zodiacal, ayanKey) : msg(zodiacal);
@@ -467,13 +481,12 @@ function buildBaseInfoLines(chartObj, fields){
 	if(chart.timerStar){
 		lines.push(`时主星：${msg(chart.timerStar)}`);
 	}
-	// FIX-16 命主星 1R(派生 ASC→落座→该星主→该星落宫;与 AstroInfo.js:1039 SIGN_RULER 同源)。
+	// FIX-16 命主星 1R(派生 ASC→落座→该星主→该星落宫;庙主查表走 wholeSignRulers.rulerOfSign 单源,与 AstroInfo 格局速览同函数)。
 	// 排盘信息层显式标识,AI 不必再去主宰星链推导。
 	const objectMapForRuler = getObjectsMap(chartObj);
 	const asc = objectMapForRuler.Asc;
 	if(asc && asc.sign){
-		const SIGN_RULER = { Aries: 'Mars', Taurus: 'Venus', Gemini: 'Mercury', Cancer: 'Moon', Leo: 'Sun', Virgo: 'Mercury', Libra: 'Venus', Scorpio: 'Mars', Sagittarius: 'Jupiter', Capricorn: 'Saturn', Aquarius: 'Saturn', Pisces: 'Jupiter' };
-		const rulerId = SIGN_RULER[asc.sign];
+		const rulerId = rulerOfSign(asc.sign);
 		const rulerObj = rulerId ? objectMapForRuler[rulerId] : null;
 		if(rulerObj){
 			const housePart = rulerObj.house ? `落${msg(rulerObj.house)}` : '';
@@ -685,7 +698,7 @@ export function buildInfoSection(chartObj, fields, options = {}){
 }
 
 // [v2 排版批量·表化] 三 ◆ 子块各成一表;事实五元组(主体,相位,对象,相态,误差)/(主体,相位,对象)零变化,
-// 相态=入相/离相 原字(Exact 与 Separative 同 v1 折为「离相」),None 相态列 '—'。子块头照 v1 无数据也保留。
+// 相态=入相/离相/正合(Exact 单列「正合」[Q-254/T-227];此前与 Separative 同折为「离相」),None 相态列 '—'。子块头照 v1 无数据也保留。
 function buildAspectSection(chartObj){
 	const lines = [];
 	const aspects = chartObj && chartObj.aspects ? chartObj.aspects : {};
@@ -703,8 +716,9 @@ function buildAspectSection(chartObj){
 		(one.Applicative || []).forEach((asp)=>{
 			normalRows.push([subject, aspectText(asp.asp), msgWithHouse(asp.id, chartObj), '入相', round3(asp.orb)]);
 		});
+		// [Q-254/T-227] 正合(|orbDir|<0.3,不分入离)相态列写「正合」,不再折为「离相」(与右栏相位表同改)。
 		(one.Exact || []).forEach((asp)=>{
-			normalRows.push([subject, aspectText(asp.asp), msgWithHouse(asp.id, chartObj), '离相', round3(asp.orb)]);
+			normalRows.push([subject, aspectText(asp.asp), msgWithHouse(asp.id, chartObj), '正合', round3(asp.orb)]);
 		});
 		(one.Separative || []).forEach((asp)=>{
 			normalRows.push([subject, aspectText(asp.asp), msgWithHouse(asp.id, chartObj), '离相', round3(asp.orb)]);
@@ -1022,45 +1036,44 @@ function buildDispositorSection(chartObj){
 		}
 		lines.push(`${msg(id)}：${chain.map((k)=>msg(k)).join(' → ')}`);
 	});
-	// FIX-1 宫神星 12 宫表(houseRows):宫号·宫头座·宫主星·宫主落宫·宫主落座(并入主宰星链段,无需 bump 版本)。
-	// 与 AstroDispositor.js:15-84 houseRows 派生逻辑同源。
-	const chart = chartObj && chartObj.chart ? chartObj.chart : {};
-	const houses = chart.houses || [];
-	if(houses.length){
-		const SIGN_RULER = { Aries: 'Mars', Taurus: 'Venus', Gemini: 'Mercury', Cancer: 'Moon', Leo: 'Sun', Virgo: 'Mercury', Libra: 'Venus', Scorpio: 'Mars', Sagittarius: 'Jupiter', Capricorn: 'Saturn', Aquarius: 'Saturn', Pisces: 'Jupiter' };
-		// CRASH-1 修:perchart.py 返回的 houses 数组按黄经排序(House8/9/10/11/12/1/2/3/4/5/6/7),
-		// 索引 idx 与真宫号不对应。必须从 h.id ("House1".."House12") 提取真号,再按宫号 1..12 升序排。
-		// 旧 `idx+1` 会把整张宫神星表错位 → 所有逐宫断语污染。同源 AstroDispositor.js:50 `houseNum(h.id)`。
-		const houseLines = [];
-		const rows = [];
-		houses.forEach((h)=>{
-			if(!h || !h.sign || !h.id) return;
-			const m = /House\s*(\d+)/.exec(String(h.id));
-			if(!m) return;
-			const houseNum = parseInt(m[1], 10);
-			if(!houseNum || houseNum < 1 || houseNum > 12) return;
-			rows.push({ houseNum, sign: h.sign });
-		});
-		rows.sort((a, b)=> a.houseNum - b.houseNum);
-		// [v2 排版批量·表化] 宫神星子块改表(宫|宫头座|宫主|宫主落宫|宫主落座);链行(变长)保持原样。
-		// 宫主对象存在但缺落宫/落座 → 空串 cell(对应 v1「落  座」空位);宫主对象整体缺 → '—'。
-		rows.forEach(({ houseNum, sign })=>{
-			const ruler = SIGN_RULER[sign];
-			const rulerObj = ruler ? objectMap[ruler] : null;
-			if(ruler && rulerObj){
-				const rh = rulerObj.house ? msg(rulerObj.house) : '';
-				const rs = rulerObj.sign ? msg(rulerObj.sign) : '';
-				houseLines.push([`${houseNum}宫`, msg(sign), msg(ruler), rh, rs]);
-			} else if(ruler){
-				houseLines.push([`${houseNum}宫`, msg(sign), msg(ruler), EMPTY_CELL, EMPTY_CELL]);
-			}
-		});
-		if(houseLines.length){
-			lines.push('◆ 宫神星(houseRows)');
-			lines.push(...gfmTableLines(['宫', '宫头座', '宫主', '宫主落宫', '宫主落座'], houseLines));
-		}
+	// [#79] 宫主/主宰口径 = 整宫制(自上升星座起算),与 [起盘信息] 行星后的 nR 标记同源(后端 perchart 同样自 Asc 座起数 12 宫取庙主)。
+	// 此前此处挂的是「当前分宫制宫头星座」的宫神星表 —— 与同一份快照里的 nR 口径互相打架,AI 按四分仪宫头定主宰
+	// (4/10 宫与整宫制不同)。分宫制表迁出成独立段 [分宫制宫神星表](行星力量/落宫口径)。派生单源 utils/wholeSignRulers。
+	const wsRows = buildWholeSignRulerRows(chartObj);
+	if(wsRows.length){
+		lines.push(RULER_CALIBRE_LINE);
+		lines.push(WHOLE_SIGN_RULERS_HEAD);
+		lines.push(...gfmTableLines(WHOLE_SIGN_RULERS_HEADERS, wsRows.map(rulerRowCells)));
 	}
 	return lines;
+}
+
+// 宫主表行 → 表 cell(整宫/分宫两表同一编码):宫主对象整体缺 → '—';宫主对象在但缺落宫/落座 → 空串 cell
+// (对应 v1「落  座」空位编码,astroV2FactEquivalence L1 逆变换看死)。
+function rulerRowCells(r){
+	if(!r.rulerFound){
+		return [`${r.house}宫`, msg(r.sign), msg(r.ruler), EMPTY_CELL, EMPTY_CELL];
+	}
+	return [`${r.house}宫`, msg(r.sign), msg(r.ruler), r.rulerHouseId ? msg(r.rulerHouseId) : '', r.rulerSign ? msg(r.rulerSign) : ''];
+}
+
+// [分宫制宫神星表]:当前分宫制(Alcabitus/Regiomontanus…)宫头星座的宫主表(houseRows)——行星力量/角续果/实际落宫口径,
+// 不是主宰依据。标题带当前分宫制名;上升整宫制盘(hsys 0)与 [主宰星链] 的整宫表逐行相同 → 折叠成一行说明。
+// 福点整宫制(24)从福点起算 ≠ 上升整宫制,不折叠。chart.houses 空 → [] 不产段(buildSectionText 契约)。
+function buildHouseSystemRulerSection(chartObj, fields){
+	const rows = buildHouseSystemRulerRows(chartObj);
+	if(!rows.length){
+		return [];
+	}
+	const hs = resolveHouseSystem(chartObj, fields);
+	if(hs.isAscWholeSign && buildWholeSignRulerRows(chartObj).length){
+		return [HOUSE_SYSTEM_RULERS_COLLAPSED];
+	}
+	const label = hs.label ? msg(hs.label) : '';
+	return [
+		`◆ 当前分宫制${label ? `(${label})` : ''}宫神星表(houseRows)`,
+		...gfmTableLines(HOUSE_SYSTEM_RULERS_HEADERS, rows.map(rulerRowCells)),
+	];
 }
 
 // 非破坏地补出 buildFacts 需要的 objectMap/houseMap(不改原 chartObj)。
@@ -1680,7 +1693,7 @@ export function buildAstroSnapshotContent(chartObj, fields, options = {}){
 		return '';
 	}
 	const sections = [];
-	sections.push(buildSectionText('起盘信息', buildBaseInfoLines(chartObj, fields)));
+	sections.push(buildSectionText('起盘信息', buildBaseInfoLines(chartObj, fields, { withTimeBasis: true })));
 	sections.push(buildSectionText('宫位宫头', buildHouseCuspLines(chartObj)));
 	sections.push(buildSectionText('星与虚点', buildStarAndLotPositionLines(chartObj)));
 	sections.push(buildSectionText('信息', buildInfoSection(chartObj, fields, options)));
@@ -1689,6 +1702,7 @@ export function buildAstroSnapshotContent(chartObj, fields, options = {}){
 	sections.push(buildSectionText('希腊点', buildLotsSection(chartObj)));
 	sections.push(buildSectionText('12分度', buildDodecaSection(chartObj)));
 	sections.push(buildSectionText('主宰星链', buildDispositorSection(chartObj)));
+	sections.push(buildSectionText('分宫制宫神星表', buildHouseSystemRulerSection(chartObj, fields))); // [#79] 独立段(默认勾选;preset×9 + v57 union)
 	sections.push(buildSectionText('古典', buildClassicalSection(chartObj)));
 	// [衍化四段] 古典 tab 衍化组件(派生宫转宫/气候带/显赫计分/世界范式盘)快照镜像 —— 🔴 opt-in:
 	// 仅本命 astro 快照保存路径(models/astro 四效果)与挂载 astrochart 分支传 classicalDerived;
@@ -1738,7 +1752,7 @@ export function saveAstroAISnapshot(chartObj, fields, options = {}){
 			return null;
 		}
 		const payload = {
-			version: 1,
+			version: ASTRO_SNAPSHOT_FORMAT_VERSION,
 			createdAt: new Date().toISOString(),
 			signature: createAstroSnapshotSignature(chartObj, fields, options),
 			chartId: chartObj && chartObj.chartId ? chartObj.chartId : null,
@@ -1758,7 +1772,7 @@ export function saveAstroAISnapshot(chartObj, fields, options = {}){
 				return null;
 			}
 			ASTRO_AI_SNAPSHOT_MEMORY = {
-				version: 1,
+				version: ASTRO_SNAPSHOT_FORMAT_VERSION,
 				createdAt: new Date().toISOString(),
 				signature: createAstroSnapshotSignature(chartObj, fields, options),
 				chartId: chartObj && chartObj.chartId ? chartObj.chartId : null,
@@ -1817,7 +1831,7 @@ export function saveAstroAISnapshotLazy(chartObj, fields, options = {}){
 						}
 					}
 					token.payload = {
-						version: 1,
+						version: ASTRO_SNAPSHOT_FORMAT_VERSION,
 						createdAt: token.createdAt,
 						signature: token.signature,
 						chartId: token.chartId,
@@ -2011,7 +2025,8 @@ export const PREDICTIVE_METHOD_NOTES = {
 		'读法：表中每行=一次抵达事件;以应星宫职与迫星性质合断吉凶主题。',
 	],
 	zodialrelease: [
-		'黄道释放：自精神点(或幸运点)起,按行星大年逐层释放,划分人生篇章(一级期)与子期(二级期)。',
+		// [Q-363/T-344] 与算法同口径:缺省基点=福点(可选精神点等),期长=各座守护星小年(狮子 19、巨蟹 25、摩羯 27、水瓶 30…),非行星大年。
+		'黄道释放：自所选基点(默认幸运点,可改精神点等)所在星座起,按各星座守护星小年逐座、逐层释放,划分人生篇章(一级期)与子期(二级期)。',
 		'读法：期主星及其本命状态定该段主题;跳宫(LB)为重大转折;与幸运点十度关系看顺逆。',
 	],
 	firdaria: [
@@ -2019,12 +2034,26 @@ export const PREDICTIVE_METHOD_NOTES = {
 		'读法：主期星定大主题、子期星定阶段事项,两星本命状态与彼此关系定吉凶成色。',
 	],
 	distributions: [
-		'界推运(分配法)：上升(或选定释放点)按主限速率行经黄道各界,界主星即该段"分配星"。',
+		// [Q-170/T-109] 实现恒以上升为释放点(无「选定释放点」入口),界系随「设置→星盘设置」的全局界表。
+		'界推运(分配法)：上升按主限速率行经黄道各界,界主星即该段"分配星";界表用当前全局界系设置。',
 		'读法：分配星与其间同行的本命星(参与星)共同定该段境遇;换界即换阶段。',
 	],
 	agepoint: [
 		'年龄推进点：心理占星年龄点每宫约 6 年匀速推进,逐宫走完十二宫。',
 		'读法：落宫定人生课题场域,与本命星的合相/相位标记该年龄的关键事件与心理主题。',
+	],
+	// [Q-106/T-10] 星运三页上线
+	ephemeris: [
+		'星历：以本命盘地点与时区列出区间内行星入座、留与顺逆转向、朔望弦与食相,并按容许度筛出行运触发本命点的时刻。',
+		'读法：入座换宫定阶段主题,留点前后事件易停滞反复,食相落宫标重大转折;行运触发行只列精确时刻,结合本命点性质判吉凶。',
+	],
+	returntimeline: [
+		'回归轴：逐年列太阳返照(太阳回本命度)与该年首个月亮返照时刻及两盘上升点。',
+		'读法：返照上升落座定该年/该月主色,上升与本命宫位的对应指示焦点领域;多年并列可见上升轮转的节律。',
+	],
+	prenatalsyzygy: [
+		'产前朔望：自出生时刻回溯最近的朔(日月合)或望(日月冲),取更晚者为产前朔望,以该时刻、出生地排盘。',
+		'读法：朔取合相度、望取地平之上发光体度为「取度」;该度及其主星为古典寿主/命主判定的重要候选,产前盘星体位置为本命的先天背景。',
 	],
 	profection: [
 		'小限(年限)：每满一岁命宫顺推一宫,该宫为当年小限宫,其宫主星为年主星。',
@@ -2043,8 +2072,9 @@ export const PREDICTIVE_METHOD_NOTES = {
 		'读法：与日返同理,颗粒度为月;月亮状态与四轴最要紧。',
 	],
 	givenyear: [
-		'指定年推运盘：按指定年份取推运时刻起盘,与本命对照。',
-		'读法：推运盘行星落本命宫位与两盘相位定该年主题。',
+		// [Q-170/T-109] 后端 perpredict 为「给定时刻、给定地点的实时天象盘」,不是二次推运盘(页面也叫天象盘)。
+		'指定年天象盘：按所给年份的时刻与地点起一张实时天象盘,与本命对照。',
+		'读法：天象盘行星落本命宫位与两盘相位定该年主题。',
 	],
 	decennials: [
 		'十年大运(Decennials)：希腊期法,诸星依序轮值主政各 129 个月(约 10.75 年),内按行星小年分子期。',
@@ -2053,6 +2083,10 @@ export const PREDICTIVE_METHOD_NOTES = {
 	planetaryages: [
 		'行星年龄段：人生依序由月亮/水星/金星/太阳/火星/木星/土星主政固定年岁段(4/10/8/19/15/12/30 年制式)。',
 		'读法：当前年龄所处主政星定人生阶段基调;主政星本命状态定该阶段顺逆。',
+	],
+	prog: [
+		'二次推运:回归黄道下的推运(二次推运一日抵一年、三次推运与小推运同族),叠加本命对照。',
+		'读法：推运位与本命位的星座宫位迁移及相位,合冲刑三分为主,应期看推运点行至本命点。',
 	],
 	vedicprog: [
 		'恒星推运：以恒星黄道计的推运(含二次推运一日抵一年),叠加本命对照。',
@@ -2071,28 +2105,35 @@ export const PREDICTIVE_METHOD_NOTES = {
 		'读法：向运点与本命点的相位事件按年龄排布;近期命中(距今最近)优先解读。',
 	],
 	yearsystem129: [
-		'129 年系统：以行星大年合计 129 年为总周期,先按大年切主限,再按比例切子限。',
+		// [Q-170/T-109] 实现用的是**小年**(Σ=129),子限为该主限小年数的七等分(MINOR_YEARS/SEQ_LEN),不是按比例。
+		'129 年系统：以七星小年合计 129 年为总周期,按小年切主限,主限内再七等分为子限。',
 		'读法：主限星定大阶段,子限星定小阶段,起讫日期定应期窗口。',
 	],
 	balbillus: [
-		'主/子限期法(Balbillus)：罗马期法,行星大年定主限时长,主限内按诸星小年比例切子限。',
+		// [Q-170/T-109 · Q-170/T-110] 实现:主限长度 = 该星小年 × (1 − 离擢升度角距/360)(最近角距档另有日/月/火三星的
+		// 经验拟合系数);子限按「子星削减年数 × 本层时间单位」自父星起铺开、末段填满父期 —— 不是 129 权重递归。
+		'主/子限期法(Balbillus)：罗马期法,主限长度=该星小年 ×(1 − 离擢升度角距/360),七星按本命黄经序自起始星铺开;子限以「子星削减年数 × 本层时间单位(L2=月)」顺序铺开,末段填满父期。',
 		'读法：主限星与子限星组合断该段主题;换限日期为节点。',
 	],
 	triplicityrulers: [
-		'三分主星推运：命度三分性的三位主星(日/夜/伴)依序主管人生前/中/后三段。',
+		// [Q-170/T-109] 实现取的是**当值光体**(昼日夜月)所在星座的三分性,不是命度所在座。
+		'三分主星推运：当值光体(昼生取太阳、夜生取月亮)所在星座的三分性三主星(日/夜/伴)依序主管人生前/中/后三段。',
 		'读法：各段主星的本命状态(庙旺陷落/宫位/受克)直接定该人生阶段的整体成色。',
 	],
 	keypoints: [
-		'数字相位推运(120 关键点)：以 120 的调和因数(2/3/4/5/6/8/10/12…)生成关键年龄激活序列。',
-		'读法：命中因数年龄=激活年;因数越小事件越重;结合被激活点的本命性质定主题。',
+		// [Q-170/T-109] 实现:各星「位置数」k=自释放点起第几座(1–12),年龄被 k 整除即激活该星;
+		// 另有一张专用小年表(3/8/18/5/7/9/13)的倍数同样激活。与「120 的调和因数」无关。
+		'数字相位推运(120 关键点)：每颗星取「自释放点起第几个星座」k(1–12),年龄为 k 的倍数时该星被激活;另按各星专用小年(3/8/18/5/7/9/13)的倍数激活一次。',
+		'读法：命中即激活年;k 越小复现越密;结合被激活点的本命性质定主题。',
 	],
 	lunationphase: [
 		'月相推运：二次推运的日月相位约 30 年走完一轮朔望循环,分八相。',
 		'读法：新月=起始、上弦=建设、满月=显化、下弦=释放;当前相定人生大节奏。',
 	],
 	extrareturns: [
-		'多重回归：木星/土星等回归本命位置的时刻表(含 1/4、1/2 周期)。',
-		'读法：整回归=大周期重启(如土星回归约 29.5 岁);半/四分之一回归为阶段检查点。',
+		// [Q-170/T-109] 后端只求**整回归**时刻,不产 1/4、1/2 周期行。
+		'多重回归：木星/土星等回归本命位置的整回归时刻表。',
+		'读法：整回归=大周期重启(如土星回归约 29.5 岁);两次回归之间可自行取中点作阶段参照,表内不列。',
 	],
 };
 

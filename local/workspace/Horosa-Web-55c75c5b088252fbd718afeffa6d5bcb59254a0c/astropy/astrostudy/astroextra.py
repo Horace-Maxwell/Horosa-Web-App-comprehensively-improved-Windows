@@ -90,8 +90,15 @@ def angle_distance(a, b):
 
 
 def signed_aspect_delta(lon_a, lon_b, aspect):
-    diff = abs(norm180(lon_a - lon_b))
-    return diff - float(aspect)
+    # [Q-179/T-94] 行运触发过零函数。旧式 |Δ|-aspect 对 0°(合)恒 ≥0、对 180°(冲)恒 ≤0,永不变号 →
+    # 行运触发列表从不出合/冲。合相改用有符号角差 Δ=norm180(a-b)(过零即合);冲相用 norm180(a-b-180)
+    # (过零即冲);60/90/120 维持 |Δ|-aspect(两侧各过零一次)。返回值绝对值即距该相位的误差度数。
+    target = float(aspect)
+    if target <= 0.0:
+        return norm180(lon_a - lon_b)
+    if target >= 180.0:
+        return norm180(lon_a - lon_b - 180.0)
+    return abs(norm180(lon_a - lon_b)) - target
 
 
 def safe_float(value, default=0.0):
@@ -375,14 +382,20 @@ def _angle_lon(perchart, angle_id):
         return None
 
 
-def distribution(points, asc_lon=None, mc_lon=None):
+# [Q-557/T-519] 分布权重只计七政(日月五星):帮助与格局页「只计七政」如是说,此前按 DEFAULT_EVENT_PLANETS(含天海冥)计 10 体,
+# 元素/模式/半球三组总和恒 10。ids 可显式传(择日扫描等另有口径时用),缺省=七政。
+DISTRIBUTION_BODIES = [const.SUN, const.MOON, const.MERCURY, const.VENUS, const.MARS, const.JUPITER, const.SATURN]
+
+
+def distribution(points, asc_lon=None, mc_lon=None, ids=None):
+    allow = set(ids) if ids else set(DISTRIBUTION_BODIES)
     res = {
         'elements': {'Fire': 0, 'Earth': 0, 'Air': 0, 'Water': 0},
         'modes': {'Cardinal': 0, 'Fixed': 0, 'Mutable': 0},
         'hemispheres': {'east': 0, 'west': 0, 'above': 0, 'below': 0},
     }
     for p in points:
-        if p['id'] not in DEFAULT_EVENT_PLANETS:
+        if p['id'] not in allow:
             continue
         sign = p['sign']
         if sign in SIGN_ELEMENTS:
@@ -495,7 +508,9 @@ _BEHENIAN_NATURE = {
 _ROYAL_WATCHER = {'Aldebaran': '东', 'Regulus': '北', 'Antares': '西', 'Fomalhaut': '南'}
 
 
-def fixed_star_hits(perchart, orb=1.0):
+def fixed_star_hits(perchart, orb=1.0, by_magnitude=False):
+    """[Q-340/T-321] by_magnitude=True 时逐星取 FixedStar.orb()(星等表,与 /chart 汇合恒星的 starOrbMode='byMagnitude' 同表),
+    否则用统一平轨 orb;此前只认单一平轨值,「按星等」档对恒星触发无效。"""
     stars = perchart.getFixedStars()
     points = [p for p in chart_points(perchart, include_angles=True) if p['id'] in DEFAULT_EVENT_PLANETS or p['id'] in (const.ASC, const.MC, const.DESC, const.IC)]
     hits = []
@@ -504,9 +519,17 @@ def fixed_star_hits(perchart, orb=1.0):
         sid = getattr(star, 'id', '')
         mag = getattr(star, 'mag', None)
         watcher = _ROYAL_WATCHER.get(sid, '')
+        star_orb = orb
+        if by_magnitude:
+            try:
+                _o = star.orb()
+                if _o is not None and float(_o) > 0:
+                    star_orb = float(_o)
+            except Exception:
+                star_orb = orb
         for p in points:
             delta = angle_distance(slon, p['lon'])
-            if delta <= orb:
+            if delta <= star_orb:
                 hits.append({
                     'star': sid,
                     'cn': getattr(star, 'name', ''),
@@ -1199,7 +1222,12 @@ def _analyze_chart_inner(params, data):
         'almutem': almuten_table(perchart),
         'temperament': temperament,
         'extraLots': extra_lots(perchart),
-        'fixedStarHits': fixed_star_hits(perchart, safe_float(data.get('fixedStarOrb', 1.0), 1.0)),
+        # [Q-340/T-321] 轨值优先取请求显式 fixedStarOrb,否则取随盘 starOrb(chart 级回显键);档位 byMagnitude 两名皆认。
+        'fixedStarHits': fixed_star_hits(
+            perchart,
+            safe_float(data.get('fixedStarOrb', data.get('starOrb', 1.0)), 1.0),
+            (data.get('fixedStarOrbMode') == 'byMagnitude') or (data.get('starOrbMode') == 'byMagnitude'),
+        ),
         'classicalPatterns': compute_classical_patterns(perchart),
         'accidentalDignity': compute_accidental_dignity(perchart),
         'bonification': compute_bonification(perchart),
@@ -1487,7 +1515,11 @@ def calc_daily_positions(start_jd, end_jd, zone, planets, max_days=370):
     return rows
 
 
-def calc_transit_aspects(base, start_jd, end_jd, zone, planets, natal_points, aspects, max_hits=600):
+def calc_transit_aspects(base, start_jd, end_jd, zone, planets, natal_points, aspects, max_hits=600, stats=None):
+    """[Q-186/T-108 ②] 行运触发:此前按「星体 → 本命点 → 相位」嵌套序扫描、满 600 条即整体停扫 → 长区间被
+    前几颗星(日月水)填满,后面的星 0 条且列表不按时间完整。改为:每颗行运体全窗黄经序列只算一次(各本命点/
+    相位共用同一格点,过零判据与细化与此前逐点算法完全同源),全部命中先按时间排序再截前 max_hits 条;
+    stats(dict,可选)回填 total/limit/truncated 供页面明示。"""
     try:
         perchart = PerChart(base)
     except Exception:
@@ -1497,21 +1529,31 @@ def calc_transit_aspects(base, start_jd, end_jd, zone, planets, natal_points, as
     for t_body in planets:
         if t_body not in PLANET_SWISS_IDS:
             continue
+        step = 0.25 if t_body == const.MOON else 1.0
+        grid = []
+        jd = start_jd
+        lon0, _, _ = swe_lon(t_body, jd)
+        grid.append((jd, lon0))
+        while jd < end_jd:
+            nxt = min(jd + step, end_jd)
+            cur_lon, _, _ = swe_lon(t_body, nxt)
+            grid.append((nxt, cur_lon))
+            jd = nxt
         for n_id, n_point in natal.items():
             for aspect in aspects:
                 target = float(aspect)
-                jd = start_jd
-                lon, _, _ = swe_lon(t_body, jd)
-                prev = signed_aspect_delta(lon, n_point['lon'], target)
-                while jd < end_jd and len(events) < max_hits:
-                    nxt = min(jd + (0.25 if t_body == const.MOON else 1.0), end_jd)
-                    cur_lon, _, _ = swe_lon(t_body, nxt)
+                prev = signed_aspect_delta(grid[0][1], n_point['lon'], target)
+                for gi in range(1, len(grid)):
+                    jd_prev = grid[gi - 1][0]
+                    nxt, cur_lon = grid[gi]
                     cur = signed_aspect_delta(cur_lon, n_point['lon'], target)
-                    if (prev <= 0 <= cur) or (prev >= 0 >= cur):
-                        def f(x):
-                            l, _, _ = swe_lon(t_body, x)
-                            return signed_aspect_delta(l, n_point['lon'], target)
-                        hit_jd = refine_crossing(f, jd, nxt)
+                    # 有符号角差在对径处 ±180 跳变(合相式在冲位、冲相式在合位)会伪装成变号:真过零两步之差
+                    # 远小于 180°(月亮 0.25 日步 <4°、行星 1 日步 <3°),跳变约 360° → 以 |prev-cur|<180 甄别。
+                    if ((prev <= 0 <= cur) or (prev >= 0 >= cur)) and abs(prev - cur) < 180.0:
+                        def f(x, _b=t_body, _n=n_point['lon'], _t=target):
+                            l, _, _ = swe_lon(_b, x)
+                            return signed_aspect_delta(l, _n, _t)
+                        hit_jd = refine_crossing(f, jd_prev, nxt)
                         hit_lon, hit_speed, _ = swe_lon(t_body, hit_jd)
                         events.append({
                             **date_time_from_jd(hit_jd, zone),
@@ -1526,8 +1568,15 @@ def calc_transit_aspects(base, start_jd, end_jd, zone, planets, natal_points, as
                             'signlon': hit_lon % 30,
                         })
                     prev = cur
-                    jd = nxt
-    return sorted(events, key=lambda item: item['jd'])
+    events.sort(key=lambda item: item['jd'])
+    total = len(events)
+    if max_hits and total > max_hits:
+        events = events[:max_hits]
+    if isinstance(stats, dict):
+        stats['total'] = total
+        stats['limit'] = max_hits
+        stats['truncated'] = bool(max_hits and total > max_hits)
+    return events
 
 
 def calc_rise_set(start_jd, data, planets):
@@ -1612,12 +1661,19 @@ def build_ephemeris(data):
     end_dt = Datetime(end_date, end_time, params.get('zone', '+00:00'))
     start_jd = start_dt.jd
     end_jd = max(end_dt.jd, start_jd + 1)
-    if end_jd - start_jd > 732:
-        end_jd = start_jd + 732
+    # [Q-186/T-108 ①] 三道静默截断(区间 ≤732 天 / 逐日 ≤370 天 / 行运触发 ≤600 条)改为在 params 明示,页面据此提示。
+    requested_end_jd = end_jd
+    range_limit_days = 732
+    daily_limit_days = 370
+    if end_jd - start_jd > range_limit_days:
+        end_jd = start_jd + range_limit_days
     planets = data.get('planets') or DEFAULT_EVENT_PLANETS
     natal_points = data.get('natalPoints') or DEFAULT_NATAL_POINTS
     aspects = data.get('aspects') or [0, 60, 90, 120, 180]
     include_transits = to_bool(data.get('includeTransits'), True)
+    transit_stats = {}
+    transit_aspects = calc_transit_aspects(params, start_jd, end_jd, params.get('zone', '+00:00'), planets, natal_points, aspects, stats=transit_stats) if include_transits else []
+    daily_days = int(math.floor(end_jd - start_jd)) + 1
     return {
         'params': {
             'startDate': date_time_from_jd(start_jd, params.get('zone', '+00:00')),
@@ -1625,24 +1681,34 @@ def build_ephemeris(data):
             'planets': planets,
             'natalPoints': natal_points,
             'aspects': aspects,
+            'limits': {
+                'rangeDays': range_limit_days,
+                'rangeTruncated': requested_end_jd > end_jd,
+                'requestedEndDate': date_time_from_jd(requested_end_jd, params.get('zone', '+00:00')),
+                'dailyDays': daily_limit_days,
+                'dailyTruncated': daily_days > daily_limit_days,
+                'transitLimit': transit_stats.get('limit', 600),
+                'transitTotal': transit_stats.get('total', len(transit_aspects)),
+                'transitTruncated': bool(transit_stats.get('truncated', False)),
+            },
         },
-        'dailyPositions': calc_daily_positions(start_jd, end_jd, params.get('zone', '+00:00'), planets),
+        'dailyPositions': calc_daily_positions(start_jd, end_jd, params.get('zone', '+00:00'), planets, max_days=daily_limit_days),
         'ingresses': calc_ingresses(start_jd, end_jd, params.get('zone', '+00:00'), planets),
         'stations': calc_stations(start_jd, end_jd, params.get('zone', '+00:00'), planets),
         'lunarPhases': calc_lunar_phases(start_jd, end_jd, params.get('zone', '+00:00')),
         'eclipses': calc_eclipses(start_jd, end_jd, params.get('zone', '+00:00'), data.get('eclipseTimeMode') or 'max'),
-        'transitAspects': calc_transit_aspects(params, start_jd, end_jd, params.get('zone', '+00:00'), planets, natal_points, aspects) if include_transits else [],
+        'transitAspects': transit_aspects,
         'riseSet': calc_rise_set(start_jd, params, planets),
         'phenomena': calc_phenomena(start_jd, planets),
         'heliacal': calc_heliacal(start_jd, params, planets),
     }
 
 
-def progression_date(base_dt, target_dt, method, minor_variant='engine'):
+def progression_date(base_dt, target_dt, method, minor_variant='synodic'):
     # 次要推运(minor)月长算法由前端「月长算法」选择(minorVariant)驱动:
-    #   synodic  = 一个朔望月(29.530589d)对应一年(权威标准:Astrodienst/Wikipedia「a lunar month for a year」);
+    #   synodic  = 一个朔望月(29.530589d)对应一年(权威标准「a lunar month for a year」;[Q-180/T-95] 起为缺省);
     #   sidereal = 一个月亮回归(恒星月 27.321661d)对应一年;
-    #   engine   = 保留引擎历史取值(疑似漏乘一次 /365.2425),作默认以保证既有调用零字节差(铁律1)。
+    #   engine   = 引擎历史取值(漏乘一次 /365.2425 → 推运天数仅应有值的 1/365,≈无推进),仅作可选档保留,不再缺省。
     age_days = target_dt.jd - base_dt.jd
     if method == 'secondary':
         delta_days = age_days / 365.2425
@@ -1653,8 +1719,10 @@ def progression_date(base_dt, target_dt, method, minor_variant='engine'):
             delta_days = age_days * 29.530589 / 365.2425
         elif minor_variant == 'sidereal':
             delta_days = age_days * 27.321661 / 365.2425
-        else:  # 'engine' 历史现状(默认,零回归)
+        elif minor_variant == 'engine':  # 历史值(≈无推进),显式选档才走
             delta_days = age_days / 12.3685 / 365.2425
+        else:  # 未知档 → 标准朔望月
+            delta_days = age_days * 29.530589 / 365.2425
     else:
         delta_days = age_days / 365.2425
     return base_dt.jd + delta_days
@@ -1688,7 +1756,7 @@ def build_progressions(data):
     target_dt = Datetime(target_date, target_time, params.get('zone', '+00:00'))
     natal_chart = PerChart(params)
     natal_points = chart_points(natal_chart, include_angles=True)
-    minor_variant = data.get('minorVariant') or 'engine'
+    minor_variant = data.get('minorVariant') or 'synodic'
     methods = []
     for method, label in (
         ('secondary', 'Secondary Progression'),
@@ -1760,7 +1828,7 @@ def build_declination_progressions(data):
     target_dt = Datetime(target_date, target_time, params.get('zone', '+00:00'))
     natal_decls = _decls_at(natal_dt.jd)
     orb = safe_float(data.get('orb', 1.0), 1.0)
-    minor_variant = data.get('minorVariant') or 'engine'
+    minor_variant = data.get('minorVariant') or 'synodic'
     methods = []
     for method, label in (
         ('secondary', 'Secondary Progression'),
@@ -2032,6 +2100,18 @@ def compute_planet_cycles(data):
     # 中心透传:地心走原调用(golden 字节级不变);日心/站心加 center 旗标(全局周期,topo 无经纬≈geo)。
     center = str(data.get('center', 'geo') or 'geo').lower()
     _extra_flag = center_flag(center) if center in ('helio', 'topo') else 0
+    if center == 'topo':
+        # [Q-243/T-210] 站心必须先显式置观测点(与 swe_lon 同口径):否则冷启进程抛「geographic position has not been set」,
+        # 或沿用上一次请求的站点(跨请求泄漏、不可 golden)。无坐标 → (0,0,0) 确定性兜底。
+        def _f(key):
+            try:
+                return float(data.get(key))
+            except (TypeError, ValueError):
+                return 0.0
+        try:
+            swisseph.set_topo(_f('gpsLon'), _f('gpsLat'), 0.0)
+        except Exception:
+            pass
 
     def _lon(jd_, planet):
         if _extra_flag:
@@ -2185,11 +2265,13 @@ def compute_planet_return(data):
         step = max(0.5, mean_days / 240.0)
         jd = center - span
         prev = _diff(jd)
-        found = None
+        # [Q-366/T-345 2026-09-18] 同一回内列全逆行三过:窗内每次过零都收(此前遇首个即 break,土木逆行造成的三次回归只报第一次)。
+        # abs(cur-prev)<180 排除 ±180 回绕伪交叉;首过仍写在顶层字段(旧消费方零变),全部过程另放 passes。
+        crossings = []
         scan = jd + step
         while scan <= center + span:
             cur = _diff(scan)
-            if (prev <= 0 <= cur) or (prev >= 0 >= cur):
+            if ((prev <= 0 <= cur) or (prev >= 0 >= cur)) and abs(cur - prev) < 180.0 and cur != prev:
                 lo, hi = scan - step, scan
                 base_neg = prev <= 0
                 for _ in range(50):
@@ -2199,16 +2281,27 @@ def compute_planet_return(data):
                         lo = mid
                     else:
                         hi = mid
-                found = (lo + hi) / 2.0
-                break
+                crossings.append((lo + hi) / 2.0)
             prev = cur
             jd = scan
             scan += step
-        if found is None:
-            found = center
+        if not crossings:
+            crossings = [center]
+        found = crossings[0]
         det = date_time_from_jd(found, zone)
         det['which'] = which
         det['jd'] = round(found, 4)
+        passes = []
+        for i, cj in enumerate(crossings):
+            p = date_time_from_jd(cj, zone)
+            p['jd'] = round(cj, 4)
+            p['pass'] = i + 1
+            try:
+                p['retrograde'] = bool(swisseph.calc_ut(cj, body)[0][3] < 0)
+            except Exception:
+                p['retrograde'] = False
+            passes.append(p)
+        det['passes'] = passes
         results.append(det)
     return {'returns': results, 'natalLon': round(natal_lon, 3), 'body': str(data.get('body', 'Saturn'))}
 

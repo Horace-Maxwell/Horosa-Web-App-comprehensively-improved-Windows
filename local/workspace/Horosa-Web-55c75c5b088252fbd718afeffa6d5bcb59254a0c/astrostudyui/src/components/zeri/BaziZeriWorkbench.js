@@ -3,6 +3,8 @@
 // ②构造条件 ③连接门·取反 ④动作排+「择时」。右列:已选条件链+方案排(八字专属方案库)。
 // 结果表「四柱」列(日柱X日X时);无概览浮窗(pick 起盘即看全盘,八字无迷你盘形态)。
 import { useState, useEffect, useRef } from 'react';
+import { saveBlobSmart } from '../../utils/aiAnalysisExport';
+import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // [Q-478] 空数字框统一校验
 import { Modal, Dropdown, Menu, message } from 'antd';
 import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
 import ConditionParamsForm from './ConditionParamsForm';
@@ -16,18 +18,11 @@ import {
 } from '../../divination/zeri/baziZeriConditionTypes';
 import { baziZeriSchemeStore } from '../../divination/zeri/schemeStore';
 
+// [Q-410] 单源保存(桌面壳保存桥选目录;浏览器 <a download>);取消 / 失败静默不报成功(本处本就无成功提示)。
 function downloadJson(text, filename){
 	try{
-		const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = filename;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		setTimeout(() => URL.revokeObjectURL(url), 800);
-	}catch(e){ /* 下载失败静默(受限 webview 环境) */ }
+		return saveBlobSmart(filename, new Blob([text], { type: 'application/json;charset=utf-8' }));
+	}catch(e){ return null; /* 受限 webview 环境静默 */ }
 }
 
 const Option = XQSelect.Option;
@@ -114,8 +109,8 @@ const CATEGORY_ORDER = (()=>{
 
 export default function BaziZeriWorkbench({
 	open, onClose, cfg, onCfgChange, geo, onGeoChange, options, onOptionsChange,
-	natal, natalInput, onNatalInputChange, onResolveNatal, onClearNatal,
-	tree, frozenTree, onPreviewPan, onPreviewExplain, previewGeo, onTreeChange, onRun, onCancelScan, onPickInterval, onExplain, scanEpoch, resultsStale,
+	natal, natalInput, onNatalInputChange, onResolveNatal, onClearNatal, onRestoreNatal,
+	tree, frozenTree, onPreviewPan, onPreviewExplain, previewGeo, previewOptions, onTreeChange, onRun, onCancelScan, onPickInterval, onExplain, scanEpoch, resultsStale,
 	scanning, progress, results, truncated, scanErr,
 }){
 	const [draftType, setDraftType] = useState('shensha_has');
@@ -158,7 +153,8 @@ export default function BaziZeriWorkbench({
 
 	const draftLeaf = { kind: 'leaf', type: draftType, negate: draftNegate, params: draftParams };
 	const draftSpec = BAZI_CONDITION_TYPES[draftType] || {};
-	const draftError = draftSpec.validate ? draftSpec.validate(draftParams) : '';
+	// [Q-478/T-440] 空数字框先判(与表单红框同一判据),再走各类型自校验。
+	const draftError = emptyNumberFieldError(draftSpec, draftParams) || (draftSpec.validate ? draftSpec.validate(draftParams) : '');
 
 	const appendTargetPath = selectedIsGroup ? selectedPath : [];
 	const doAdd = () => {
@@ -190,6 +186,9 @@ export default function BaziZeriWorkbench({
 			if(rec.config.cfg){ onCfgChange({ ...cfg, ...rec.config.cfg }); }
 			if(rec.config.geo && typeof onGeoChange === 'function'){ onGeoChange({ ...(geo || {}), ...rec.config.geo }); }
 			if(rec.config.options && typeof onOptionsChange === 'function'){ onOptionsChange({ ...(options || {}), ...rec.config.options }); }
+			// [Q-271/ZC-21] 保存/历史都写了 natal(+natalInput),载入此前只回灌 cfg/geo/options → 含本命组条件的方案载入后恒判假。
+			if(rec.config.natalInput && typeof onNatalInputChange === 'function'){ onNatalInputChange({ ...(natalInput || {}), ...rec.config.natalInput }); }
+			if(Object.prototype.hasOwnProperty.call(rec.config, 'natal') && typeof onRestoreNatal === 'function'){ onRestoreNatal(rec.config.natal || null); }
 		}
 		setSelectedPath(null);
 	};
@@ -307,7 +306,7 @@ export default function BaziZeriWorkbench({
 	};
 
 	const editView = (
-		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 'clamp(560px, calc(100vh - 220px), 900px)' }}>
+		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)' }}>
 			{/* 左列(主操作区):时间范围 / 构造条件 / 连接门 / 动作排 —— 黄历日课与经纬/时刻无关,无地点·参数区 */}
 			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
 				<div style={{ padding: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
@@ -341,7 +340,8 @@ export default function BaziZeriWorkbench({
 							{ key: 'lateZiHourUseNextDay', label: '晚子时干', options: [{ value: 1, label: '次日干' }, { value: 0, label: '当日干' }] },
 							// W0 死开关根修:曾发数值 0/1/2 而 allowedBases 只认 '年'/'日'/'年日'——三档全落默认,零判别
 							{ key: 'godKeyPos', label: '神煞键位', options: [{ value: '年日', label: '年日互查' }, { value: '年', label: '以年为主' }, { value: '日', label: '以日为主' }] },
-							{ key: 'phaseType', label: '长生', options: [{ value: 2, label: '阳顺阴逆' }, { value: 0, label: '五行寄生' }, { value: 1, label: '水土同宫' }] },
+							// [Q-271/ZC-15] 档名与主八字页 CnTraditionInput 同(0 火土同 / 1 水土同 / 2 阳顺阴逆;前两档阴阳同序)
+							{ key: 'phaseType', label: '长生', options: [{ value: 0, label: '火土同（阴阳同序）' }, { value: 1, label: '水土同（阴阳同序）' }, { value: 2, label: '阳顺阴逆' }] },
 						].map((f) => (
 							<span key={f.key} style={{ display: 'inline-flex', gap: 4, alignItems: 'center', fontSize: 11 }}>
 								<span style={{ opacity: 0.6 }}>{f.label}</span>
@@ -440,7 +440,7 @@ export default function BaziZeriWorkbench({
 						<input placeholder="方案名…" value={schemeName} style={{ width: 128 }}
 							onChange={(e) => setSchemeName(e.target.value)} />
 						<XQButton size="small" disabled={!schemeName.trim()} onClick={() => {
-							const r = baziZeriSchemeStore.saveScheme(schemeName, { cfg, geo, options, natal }, tree);
+							const r = baziZeriSchemeStore.saveScheme(schemeName, { cfg, geo, options, natal, natalInput }, tree);   // [Q-271/ZC-21] 本命随方案存取
 							if(r.ok){ setSchemeName(''); setSchemeTick(schemeTick + 1); }
 						}}>保存方案</XQButton>
 						<Dropdown overlay={schemeMenu} trigger={['click']}>
@@ -455,7 +455,7 @@ export default function BaziZeriWorkbench({
 	);
 
 	const resultView = (
-		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => setView('edit')} disabled={scanning}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>择时结果</span>
@@ -554,7 +554,7 @@ export default function BaziZeriWorkbench({
 	};
 
 	const schemesView = (
-		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => { setView('edit'); setSchemeMsg(''); }}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>方案管理</span>
@@ -637,6 +637,7 @@ export default function BaziZeriWorkbench({
 				<ZeriMiniPanPopup
 					geo={previewGeo || geo}	/* 冻结地点优先:概览口径=扫描口径(活 geo 曾致扫后改地点概览错盘) */
 					tech="bazi"
+					techOptions={previewOptions || options}	/* [Q-271/ZC-22] 冻结参数优先:概览口径=扫描口径(活 options 曾致扫后改参数概览错盘) */
 					row={previewRow}
 					computePan={typeof onPreviewPan === 'function' ? onPreviewPan : null}
 					onExplain={typeof onPreviewExplain === 'function' ? onPreviewExplain : null}

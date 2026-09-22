@@ -1,14 +1,25 @@
+// [Q-053② 裁决 2026-09-18] 九个 JSON 编辑框此前用 @monaco-editor/loader 从 CDN 拉 monaco:桌面壳 CSP 拦下 → 永远
+// 「编辑器加载中...」遮罩、无法编辑(真壳实况)。改为零新依赖的等宽 TextArea + 即时 JSON 体检(下方一行提示,不拦输入),
+// 保存时由各 Form.Item 的 JSON_TEXT_RULE 校验(不是合法 JSON 不给存)。文件名 / 默认导出名保留(九处调用点零改动;
+// beforeMount / options 等 monaco 专属 props 忽略)。
 import React from 'react';
-import loader from '@monaco-editor/loader';
+import { Input } from 'antd';
 
-const DEFAULT_OPTIONS = {
-	automaticLayout: true,
-	minimap: {
-		enabled: false,
+export function jsonTextProblem(text){
+	const t = `${text == null ? '' : text}`.trim();
+	if(!t){ return ''; }
+	try{ JSON.parse(t); return ''; }catch(e){ return `${(e && e.message) || 'JSON 无法解析'}`; }
+}
+
+// antd Form 规则:空 = 通过(是否必填由各字段自己的 required 规则决定);非空必须是合法 JSON。
+export const JSON_TEXT_RULE = {
+	validator: (_rule, value)=>{
+		const problem = jsonTextProblem(value);
+		return problem ? Promise.reject(new Error(`不是合法 JSON：${problem}`)) : Promise.resolve();
 	},
-	scrollBeyondLastLine: false,
-	fontSize: 13,
 };
+
+const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace';
 
 function MonacoField(props){
 	const {
@@ -18,101 +29,26 @@ function MonacoField(props){
 		language,
 		height = '200px',
 		options = {},
-		beforeMount,
-		loading = '编辑器加载中...',
+		placeholder,
 	} = props || {};
-	const containerRef = React.useRef(null);
-	const editorRef = React.useRef(null);
-	const monacoRef = React.useRef(null);
-	const subscriptionRef = React.useRef(null);
-
-	React.useEffect(()=>{
-		let disposed = false;
-		loader.init().then((monaco)=>{
-			if(disposed || !containerRef.current){
-				return;
-			}
-			monacoRef.current = monaco;
-			if(typeof beforeMount === 'function'){
-				beforeMount(monaco);
-			}
-			editorRef.current = monaco.editor.create(containerRef.current, {
-				value: value == null ? '' : `${value}`,
-				language: language || defaultLanguage,
-				...DEFAULT_OPTIONS,
-				...(options || {}),
-			});
-			subscriptionRef.current = editorRef.current.onDidChangeModelContent(()=>{
-				if(typeof onChange === 'function'){
-					onChange(editorRef.current.getValue());
-				}
-			});
-		}).catch((err)=>{
-			if(!disposed){
-				console.error('monaco.init.failed', err);
-			}
-		});
-		return ()=>{
-			disposed = true;
-			if(subscriptionRef.current){
-				subscriptionRef.current.dispose();
-				subscriptionRef.current = null;
-			}
-			if(editorRef.current){
-				editorRef.current.dispose();
-				editorRef.current = null;
-			}
-		};
-	}, []);
-
-	React.useEffect(()=>{
-		if(!editorRef.current){
-			return;
-		}
-		const nextValue = value == null ? '' : `${value}`;
-		if(editorRef.current.getValue() !== nextValue){
-			editorRef.current.setValue(nextValue);
-		}
-	}, [value]);
-
-	React.useEffect(()=>{
-		if(!editorRef.current || !monacoRef.current){
-			return;
-		}
-		const model = editorRef.current.getModel();
-		if(model && (language || defaultLanguage)){
-			monacoRef.current.editor.setModelLanguage(model, language || defaultLanguage);
-		}
-	}, [language, defaultLanguage]);
-
-	React.useEffect(()=>{
-		if(editorRef.current){
-			editorRef.current.updateOptions({
-				...DEFAULT_OPTIONS,
-				...(options || {}),
-			});
-		}
-	}, [options]);
-
+	const lang = language || defaultLanguage;
+	const text = value == null ? '' : `${value}`;
+	const problem = lang === 'json' ? jsonTextProblem(text) : '';
+	const px = parseInt(`${height}`, 10);
+	const rows = Number.isFinite(px) && px > 0 ? Math.max(4, Math.round(px / 22)) : 8;
 	return (
-		<div style={{ position: 'relative', minHeight: height }}>
-			<div ref={containerRef} style={{ height, width: '100%' }} />
-			{!editorRef.current ? (
-				<div style={{
-					position: 'absolute',
-					inset: 0,
-					display: 'flex',
-					alignItems: 'center',
-					justifyContent: 'center',
-					color: 'var(--horosa-muted, #7d7d7d)',
-					fontSize: 12,
-					pointerEvents: 'none',
-					background: 'var(--horosa-panel-soft, #fafafa)',
-					border: '1px solid var(--horosa-border, #f0f0f0)',
-				}}
-				>
-					{loading}
-				</div>
+		<div>
+			<Input.TextArea
+				value={text}
+				onChange={(e)=>{ if(typeof onChange === 'function'){ onChange(e && e.target ? e.target.value : ''); } }}
+				rows={rows}
+				spellCheck={false}
+				readOnly={!!(options && options.readOnly)}
+				placeholder={placeholder || (lang === 'json' ? '{ }' : '')}
+				style={{ fontFamily: MONO, fontSize: 13, lineHeight: 1.5, resize: 'vertical' }}
+			/>
+			{problem ? (
+				<div style={{ color: 'var(--horosa-danger, #e5484d)', fontSize: 12, marginTop: 4 }}>JSON 未闭合或有误：{problem}</div>
 			) : null}
 		</div>
 	);

@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/astro/AstroEphemeris.js b/astrostudyui/src/components/astro/AstroEphemeris.js
-index c95b3702..4273f466 100644
+index 8cc9fdb4..17dce1da 100644
 --- a/astrostudyui/src/components/astro/AstroEphemeris.js
 +++ b/astrostudyui/src/components/astro/AstroEphemeris.js
-@@ -5,6 +5,8 @@ import request from '../../utils/request';
- import * as Constants from '../../utils/constants';
- import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable } from './AstroExtraCommon';
- import { classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
+@@ -8,6 +8,8 @@ import { classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/class
+ import * as AstroText from '../../constants/AstroText';
+ import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+ import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const TabPane = Tabs.TabPane;
  
-@@ -32,9 +34,12 @@ class AstroEphemeris extends Component{
+@@ -136,9 +138,12 @@ class AstroEphemeris extends Component{
  			loading: false,
  			result: null,
  			requestKey: '',
@@ -23,8 +23,8 @@ index c95b3702..4273f466 100644
 +		this.changeViewTab = this.changeViewTab.bind(this);
  	}
  
- 	componentDidMount(){
-@@ -72,6 +77,10 @@ class AstroEphemeris extends Component{
+ 	// [Q-106/T-10] AI 导出:星历 tab 导出时响应刷新事件,按页面当前区间/勾选构建快照写回 detail.snapshotText。
+@@ -186,6 +191,10 @@ class AstroEphemeris extends Component{
  		}
  	}
  
@@ -33,9 +33,9 @@ index c95b3702..4273f466 100644
 +	}
 +
  	change(key, value){
+ 		if(key === 'includeTransits'){ DIRECTION_PAGE_SETTINGS.save({ ephemerisTransits: !!value }); }   // 起止日期是输入,不落
  		this.setState({[key]: value});
- 	}
-@@ -97,7 +106,8 @@ class AstroEphemeris extends Component{
+@@ -212,7 +221,8 @@ class AstroEphemeris extends Component{
  				timeoutMs: 90000,
  			});
  			if(!this._mounted) return;
@@ -45,7 +45,7 @@ index c95b3702..4273f466 100644
  		}catch(e){
  			if(!this._mounted) return;
  			this.setState({loading: false, requestKey: key});
-@@ -150,12 +160,20 @@ class AstroEphemeris extends Component{
+@@ -275,13 +285,21 @@ class AstroEphemeris extends Component{
  		this.ensureLoaded();
  		const result = this.state.result || {};
  		const height = this.props.height ? this.props.height - 20 : 720;
@@ -54,6 +54,7 @@ index c95b3702..4273f466 100644
  			<Spin spinning={this.state.loading}>
  				<div style={{height, overflow: 'auto', paddingRight: 8}}>
  					{this.renderToolbar()}
+ 					{this.renderLimitsNotice()}
 -					<Tabs defaultActiveKey="events" tabPosition="top">
 +					{/* horosa_freeze_subtabs_v1:四个子页签此前全部常驻渲染 —— 其中「每日位置」最多 1500 行
 +					    × 8 列的自绘表(SmallTable 无虚拟化),用户就算从没点开也每次重画。改受控 + FreezeSubTab:
@@ -67,7 +68,7 @@ index c95b3702..4273f466 100644
  							<div style={cardStyle}>
  								<div className="horosa-info-card-title">入座</div>
  								{this.renderEvents(result.ingresses, [
-@@ -192,8 +210,10 @@ class AstroEphemeris extends Component{
+@@ -318,8 +336,10 @@ class AstroEphemeris extends Component{
  									{key: 'digit', title: '食分', render: (v, row)=> (v == null ? '—' : <span>{fmtNum(v)}<span style={{opacity: 0.6, fontSize: 11, marginLeft: 4}}>{row.band || ''}</span></span>)},
  								])}
  							</div>
@@ -78,7 +79,7 @@ index c95b3702..4273f466 100644
  							<div style={cardStyle}>
  								{this.renderEvents(result.transitAspects, [
  									{key: 'datetime', title: '时间'},
-@@ -203,11 +223,15 @@ class AstroEphemeris extends Component{
+@@ -329,11 +349,15 @@ class AstroEphemeris extends Component{
  									{key: 'orb', title: '误差', render: (v)=>fmtNum(v, 3)},
  								])}
  							</div>
@@ -94,7 +95,7 @@ index c95b3702..4273f466 100644
  							<div style={cardStyle}>
  								<div className="horosa-info-card-title">升落与中天</div>
  								{this.renderEvents(result.riseSet, [
-@@ -236,6 +260,7 @@ class AstroEphemeris extends Component{
+@@ -362,6 +386,7 @@ class AstroEphemeris extends Component{
  									{key: 'setting', title: '偕日落', render: (v)=>v && v.datetime ? v.datetime : '-'},
  								])}
  							</div>

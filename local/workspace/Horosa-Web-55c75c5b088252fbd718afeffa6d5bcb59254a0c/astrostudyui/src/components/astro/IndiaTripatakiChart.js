@@ -25,7 +25,7 @@ class IndiaTripatakiChart extends Component {
 		if(!tri || !tri.byCenter){
 			return (
 				<div className="horosa-india-dasha-empty">
-					三旗盘为按需计算(12 次逐月过运)——在右栏「年度」页开启后显示
+					三旗盘为按需计算(12 次逐月过运)——在左栏「中栏盘面」选「三旗盘 Tri-patākī」后显示   {/* [Q-132/T-40·IN-14] 此前文案指向右栏「年度」页并不存在的开关 */}
 				</div>
 			);
 		}
@@ -38,9 +38,10 @@ class IndiaTripatakiChart extends Component {
 		const mi = Math.min(Math.max(1, this.props.monthIndex || 1), months.length) - 1;
 		const month = months[mi] || { rows: [] };
 		const groups = tri.flagGroups || [];
-		const size = Math.min(height, 700);
+		// [2026-09-17] 宿主传的是 '100%'(IndiaChartMain chartHeight)→ Math.min('100%',700)=NaN → React 告警 `NaN` maxWidth 且样式失效;只在数值时封顶,否则不设上限。
+		const sizeNum = (typeof height === 'number' && Number.isFinite(height)) ? Math.min(height, 700) : null;
 		return (
-			<div className="horosa-india-tripataki" style={{ maxWidth: size }}>
+			<div className="horosa-india-tripataki" style={sizeNum ? { maxWidth: sizeNum } : undefined}>
 				<div className="horosa-india-tripataki-title">
 					三旗盘 · 中心 {centerKey === 'moon' ? '年盘月亮' : '年盘土星'}({center.centerSign})
 					<em>{tri.layoutNote}</em>

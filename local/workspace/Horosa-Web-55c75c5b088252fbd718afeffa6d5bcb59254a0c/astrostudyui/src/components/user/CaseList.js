@@ -8,10 +8,11 @@ import { XQButton, XQPagination, XQSearch, XQSelect, XQTable } from '../xq-ui';
 import { groupRecordsByTag } from '../../utils/localRecordStore';
 import { shouldSkipDeleteConfirm, setSkipDeleteConfirm, clearSkipDeleteConfirm } from '../../utils/uiPrefs';
 import { recordsToCsv } from '../../utils/recordExportLite';
-import { saveBlobToBrowser } from '../../utils/aiAnalysisExport';
+import { saveBlobToBrowser, describeSaveResult } from '../../utils/aiAnalysisExport';
 import { copyDesktopClipboard } from '../../utils/aiAnalysisDesktop';
 import XQIcon from '../xq-icons';
 
+import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 const Option = XQSelect.Option;
 
 const primaryActionIconStyle = {
@@ -183,8 +184,7 @@ class CaseList extends Component{
 			message.warning('没有可导出的记录');
 			return;
 		}
-		saveBlobToBrowser(`horosa-cases-${Date.now()}.csv`, new Blob([recordsToCsv(rows, 'case')], { type: 'text/csv;charset=utf-8' }));
-		message.success(`已导出 ${rows.length} 条为 CSV`);
+		saveBlobToBrowser(`horosa-cases-${Date.now()}.csv`, new Blob([recordsToCsv(rows, 'case')], { type: 'text/csv;charset=utf-8' })).then((r)=>{ const d = describeSaveResult(r, `已导出 ${rows.length} 条为 CSV`); (message[d.type] || message.info)(d.text); });   // [Q-410]
 	}
 
 
@@ -260,16 +260,7 @@ class CaseList extends Component{
 				cases: items,
 			};
 			const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
-			const url = (window.URL || window.webkitURL).createObjectURL(blob);
-			const a = document.createElement('a');
-			a.style.display = 'none';
-			a.href = url;
-			a.setAttribute('download', fname);
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-			(window.URL || window.webkitURL).revokeObjectURL(url);
-			message.success(`已导出选中 ${items.length} 条`);
+			saveBlobToBrowser(fname, blob).then((r)=>{ const d = describeSaveResult(r, `已导出选中 ${items.length} 条`); (message[d.type] || message.info)(d.text); });   // [Q-410]
 		}catch(e){
 			message.error('导出选中失败');
 		}
@@ -528,16 +519,7 @@ class CaseList extends Component{
 			const fname = `horosa-local-cases-${y}${m}${d}-${hh}${mm}${ss}.json`;
 			const payload = JSON.stringify(backup, null, 2);
 			const blob = new Blob([payload], { type: 'application/json;charset=utf-8' });
-			const url = (window.URL || window.webkitURL).createObjectURL(blob);
-			const a = document.createElement('a');
-			a.style.display = 'none';
-			a.href = url;
-			a.setAttribute('download', fname);
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-			(window.URL || window.webkitURL).revokeObjectURL(url);
-			message.success(`已导出本地事盘（${backup.total}条）`);
+			saveBlobToBrowser(fname, blob).then((r)=>{ const d = describeSaveResult(r, `已导出本地事盘（${backup.total}条）`); (message[d.type] || message.info)(d.text); });   // [Q-410]
 		}catch(e){
 			message.error('导出本地事盘失败');
 		}
@@ -735,7 +717,7 @@ class CaseList extends Component{
 			),
 		}];
 
-		const tbly = this.props.height ? this.props.height - 130 : document.documentElement.clientHeight - 130;
+		const tbly = this.props.height ? this.props.height - 130 : getLayoutViewportHeight() - 130;
 		const tags = this.genTagsOption();
 		const pageSize = this.props.casePageSize;
 		const pageIndex = this.props.casePageIndex;

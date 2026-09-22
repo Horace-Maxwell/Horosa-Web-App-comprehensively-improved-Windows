@@ -51,6 +51,8 @@ class PlusMinusTime extends Component{
 						startTime={this.props.startTime}
 						showTime={true}
 						needZone={needZone}
+						showZone={this.props.showZone}
+						showSeconds={this.props.showSeconds}
 						showAdjust={showAdjust}
 						adjustOnly={this.props.adjustOnly}
 						confirmOnAdjust={this.props.confirmOnAdjust}

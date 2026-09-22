@@ -349,14 +349,19 @@ class Shenyishu():
         yTG = Gan[self.cdate.getYearGZ().tg] + Zhi[self.cdate.getYearGZ().dz]
         mTG = Gan[self.cdate.getMonthGZ().tg] + Zhi[self.cdate.getMonthGZ().dz]
         dTG = Gan[self.cdate.getDayGZ().tg] + Zhi[self.cdate.getDayGZ().dz]
-        # 時柱跨日：用 cdate_for_hour（次日干）起子時；其他時辰 cdate_for_hour 與 cdate 相同。
-        # [X1] lateZi=0(晚子时按当日干):sxtwl getHourGZ(23) 内部已按次日干起子,
-        # 故以同日 getHourGZ(0)(早子同干同支)取「当日干之子时」;=1 走旧路径字节不变。
-        if self.hour == 23 and not self.late_zi_next_day:
-            hgz = self.cdate.getHourGZ(0)
+        # 時柱跨日:[Q-310/T-291] 23 时时柱改走全域权威 extreme_pillars(after23/hour_gan_next 四组合口径与八字/主链一致)。
+        #   旧路径先把「起时所用日」换成次日再调 sxtwl getHourGZ(23),而该库对 23 点本身已按次日干起子 → 进位两次
+        #   (1990-05-18 23:30 得丙子,应甲子);[X1] 的 lateZi=0 分支亦以已进位的 cdate 取子时干,after23=1 时同样错。
+        #   非 23 时 sxtwl 原路径字节不变。
+        if self.hour == 23:
+            from kin_year_domain import extreme_pillars
+            _y0, _m0, _d0, hTG, _zi0 = extreme_pillars(
+                self.year, self.month, self.day, self.hour, 0,
+                after23=(1 if self.after23_new_day else 0),
+                hour_gan_next=(1 if self.late_zi_next_day else 0))
         else:
             hgz = self.cdate_for_hour.getHourGZ(self.hour)
-        hTG = Gan[hgz.tg] + Zhi[hgz.dz]
+            hTG = Gan[hgz.tg] + Zhi[hgz.dz]
         return {"年": yTG, "月": mTG, "日": dTG, "時": hTG}
     
     def ymd_total(self):

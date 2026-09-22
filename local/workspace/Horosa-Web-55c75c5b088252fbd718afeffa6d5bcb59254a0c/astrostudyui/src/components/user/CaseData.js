@@ -3,6 +3,7 @@ import { Row, Col } from 'antd';
 import LatInput from '../astro/LatInput';
 import LonInput from '../astro/LonInput';
 import DateTimeSelector from '../comp/DateTimeSelector';
+import { QuickTimeInput } from '../comp/QuickTimeField';
 import EditableTags from '../comp/EditableTags';
 import * as AstroHelper from '../astro/AstroHelper';
 import GeoCoordModal from '../amap/GeoCoordModal';
@@ -33,6 +34,7 @@ export default class CaseData extends Component{
 		this.zoneManual = false;
 		this.setValue = this.setValue.bind(this);
 		this.changeDivTime = this.changeDivTime.bind(this);
+		this.quickDivTime = this.quickDivTime.bind(this);
 		this.changeGender = this.changeGender.bind(this);
 		this.changeMemo = this.changeMemo.bind(this);
 		this.changeIsPub = this.changeIsPub.bind(this);
@@ -67,6 +69,11 @@ export default class CaseData extends Component{
 		}catch(_e){
 			return null;
 		}
+	}
+
+	// 「快捷输入」行提交:同一条 changeDivTime 路(沿用 zoneManual / 夏令时校正)
+	quickDivTime(dt){
+		this.changeDivTime({ value: dt });
 	}
 
 	changeDivTime(val){
@@ -246,7 +253,7 @@ export default class CaseData extends Component{
 		return (
 			<div>
 				<Row gutter={12}>
-					<Col span={24}>起课事件：</Col>
+					<Col span={24}>起课时间：</Col>
 					<Col span={24}>
 						<DateTimeSelector
 							showTime={true}
@@ -256,7 +263,7 @@ export default class CaseData extends Component{
 						/>
 					</Col>
 				</Row>
-
+				<QuickTimeInput value={flds.divTime.value} zone={flds.zone ? flds.zone.value : undefined} onCommit={this.quickDivTime} />
 				<DstZoneIndicator fields={flds} marginTop={10} onApply={this.applySuggestedZone} />
 
 				<Row gutter={12} style={{ marginTop: margintop }}>

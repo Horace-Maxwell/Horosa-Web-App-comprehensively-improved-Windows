@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/common/StartupGate.js b/astrostudyui/src/components/common/StartupGate.js
-index 59efcaa..d3e4fc9 100644
+index 37678836..4404c0d6 100644
 --- a/astrostudyui/src/components/common/StartupGate.js
 +++ b/astrostudyui/src/components/common/StartupGate.js
-@@ -21,10 +21,45 @@ function currentProbeUrl() {
+@@ -22,10 +22,45 @@ function currentProbeUrl() {
  //  · 分阶段文案(10s / 30s / 60s 不同提示信息);
  //  · Tauri 环境下加「打开诊断中心」「重启后端」操作按钮;
  //  · 长时间未就绪时显示后端地址,便于用户检查。
@@ -48,7 +48,7 @@ index 59efcaa..d3e4fc9 100644
  
    React.useEffect(() => {
      if (!currentProbeUrl() || typeof fetch !== 'function') { setReady(true); return undefined; }
-@@ -166,6 +201,12 @@ export default function StartupGate() {
+@@ -167,6 +202,12 @@ export default function StartupGate() {
          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
            {mainMsg}
          </div>

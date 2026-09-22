@@ -1,6 +1,7 @@
 import QuickDockBar from '../common/QuickDockBar';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
+import { definePageSettings } from '../../utils/pageSettingsStore';
 // 🔴 React 须显式导入:JSX 编译成 React.createElement,应用构建靠 umi 自动注入才没炸,
 //    但 jest 直接载入本模块时无此注入 → render 期 ReferenceError。仓内同族坑已犯过一次。
 import React, { Component } from 'react';
@@ -781,7 +782,9 @@ export async function buildGeomancySnapshotForFields(fields, opts){
 		let planetaryChartZodiac = o.planetaryChartZodiac;
 		let planetaryChartNodes = o.planetaryChartNodes;
 		let planetaryChartExtras = o.planetaryChartExtras;
-		if(question === undefined || question === null){
+		// [挂载自检 F-48] 无头挂载(noPageFallback)只认被挂载记录自身的问占参数;缺问句=该档不可复算 → ''(missing),
+		// 绝不回落「页面当前载入的地占事盘」(与塔罗 T-1 同病同修:否则挂 A 记录读到 B 的盘=张冠李戴)。页面自身导出路径仍可兜底。
+		if((question === undefined || question === null) && !o.noPageFallback){
 			const saved = getKentangSavedCasePayload('geomancy');
 			const so = saved && saved.payload && saved.payload.options ? saved.payload.options : null;
 			if(so){
@@ -846,6 +849,34 @@ export async function buildGeomancySnapshotForFields(fields, opts){
 	}catch(e){ return ''; }
 }
 
+// 排盘设置跨会话保留(用户实报:排盘设置改了之后每次重开软件都要重设)。只收口径与显示偏好:
+// 起卦法 / 流派预设 / 读取范围 / 黄道体系 / 高级传本逐项覆盖 / 行星地占盘四项 / 字形叠加。
+// 所问、问类、所问宫、手工种子、报数、转宫是每一卦的输入;中栏视图有「未亲手切过则自动切换」的逻辑,都不进。
+// 逐项覆盖(granular)是稀疏覆盖层:只存用户显式改过的项,没改过 = 库里没有 = 不发给后端(跟随流派预设)。
+// 流派候选可能由后端下发(随内核增减),只校验类型与长度。事盘回灌走 setState,不经这些 handler。
+export const GEOMANCY_PAGE_SETTINGS = definePageSettings('horosa.geomancy.settings.v1', {
+	// 「手工指定种子 / 报数起卦」离不开逐卦输入(种子 / 十六个数,不保留):只留法不留数,重开后种子是 0、报数是空的 ——
+	// 前者每次都起同一卦,后者一点起盘就报错。这两法不进候选(选了照常用,只是不记;库里仍是上一次选的独立起卦法)。
+	seedMode: { def: 'random', oneOf: SEED_MODE_OPTIONS.map((o)=>o.key).filter((k)=>k !== 'manual' && k !== 'numbers') },
+	tradition: { def: 'european_classical', type: 'string', maxLen: 48 },
+	readingScope: { def: 'L3', oneOf: READING_SCOPE_OPTIONS.map((o)=>o.key) },
+	zodiacSystem: { def: 'classical', oneOf: ZODIAC_SYSTEM_OPTIONS.map((o)=>o.key) },
+	granular: { type: 'map', sparse: true, keys: GRANULAR_FIELDS.reduce((acc, f)=>{
+		// 布尔型的项(f.bool):下拉里的键是字符串 'true' / 'false',但 state 里存的是**真布尔值** —— schema 按 state 的形态来
+		acc[f.key] = f.bool ? { def: false } : { def: '', oneOf: (f.options || []).map((o)=>o.key) };
+		return acc;
+	}, {}) },
+	planetaryChart: { def: false },
+	planetaryChartZodiac: { def: 'classical', oneOf: PCHART_ZODIAC_OPTIONS.map((o)=>o.key) },
+	planetaryChartNodes: { def: false },
+	planetaryChartExtras: { def: false },
+	showUnicodeGlyph: { def: false },
+	triangleSchool: { def: 'recent', oneOf: TRIANGLE_SCHOOLS.map((o)=>o.key) },   // 右栏「地占三角」含义取哪一派(显示偏好)
+});
+function savedGeomancySettings(){
+	return GEOMANCY_PAGE_SETTINGS.load();
+}
+
 class GeomancyMain extends Component{
 	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
@@ -872,29 +903,27 @@ class GeomancyMain extends Component{
 			tradition: 'european_classical',   // 流派预设(默认古典定局派=现状零回归)
 			readingScope: 'L3',
 			zodiacSystem: 'classical',
+			...(()=>{ const sv = savedGeomancySettings(); return { seedMode: sv.seedMode, tradition: sv.tradition, readingScope: sv.readingScope, zodiacSystem: sv.zodiacSystem }; })(),   // 上次亲手设的口径
 			rightPanelTab: 'reading',
 			centerView: 'square',
 			history: [],
 			// [高级传本] 只存**用户显式改过**的项:未改=不发 → 后端回落所选流派默认 = 字节零回归。
 			// 显示值取「用户覆盖 ?? 后端回传的生效值」;换流派预设即清空覆盖(预设=批量写默认)。
-			granular: {},
+			granular: savedGeomancySettings().granular,
 			// 转宫:以某宫为新命宫重算指示与完美(null=不转)
 			turnTo: null,
 			// 图形 Unicode 字形叠加:默认关 —— 自绘点阵为主(字体缺字时 Unicode 会显方框),
 			// 开启则在图形卡旁并显该码位字形,供有对应字体者查对。
-			showUnicodeGlyph: false,
+			showUnicodeGlyph: savedGeomancySettings().showUnicodeGlyph,
 			// [自由起盘] 本地时间地理草稿(null=跟主命盘;非空=用户左栏自选时间/经纬:时间起卦按此算种子,
 			// 经纬/时间随事盘存储 + 透传后端占星盘)。
 			localFields: null,
 			// [报数起卦] 用户自报十六数(奇=单点/偶=双点),空白或逗号分隔;仅 seedMode==='numbers' 时用。
 			castNumbersText: '',
 			// [行星地占盘] 独立盘型:默认关(关则后端一颗随机数不取 ⇒ 全响应字节零变)。
-			planetaryChart: false,
-			planetaryChartZodiac: 'classical',
-			planetaryChartNodes: false,
-			planetaryChartExtras: false,
+			...(()=>{ const sv = savedGeomancySettings(); return { planetaryChart: sv.planetaryChart, planetaryChartZodiac: sv.planetaryChartZodiac, planetaryChartNodes: sv.planetaryChartNodes, planetaryChartExtras: sv.planetaryChartExtras }; })(),
 			// [地占三角] 含义两派 —— 纯显示态,不发后端、不改计算。
-			triangleSchool: 'recent',
+			triangleSchool: savedGeomancySettings().triangleSchool,   // 上次亲手选的那一派(没存过 = 近代传本)
 			// [寻源四线] 金字塔盘当前所寻之线(火/风/水/土)
 			pyrLine: 'fire',
 		};
@@ -1040,6 +1069,7 @@ class GeomancyMain extends Component{
 		//    (jest 若用同步 setState 模拟,这条永远测不出来)。并作废在途的时地重排。
 		this._suppressRecast = true;
 		if(this._recastTimer){ clearTimeout(this._recastTimer); this._recastTimer = null; }
+		const factory = GEOMANCY_PAGE_SETTINGS.defaults();
 		this.setState({
 			loading: false,
 			result: payload.result || null,
@@ -1059,23 +1089,25 @@ class GeomancyMain extends Component{
 			// 载档必清本地时地草稿:否则左栏仍显示用户先前改的草稿时地,与存档所记不符
 			// (guice:71 / lingqi / feigong / xiaoliuren / xiaochengtu 皆已如此)。
 			localFields: null,
-			tradition: options.tradition || this.state.tradition,
-			readingScope: options.readingScope || this.state.readingScope,
-			zodiacSystem: options.zodiacSystem || this.state.zodiacSystem,
+			// 口径键:存档里没有的回**出厂值**(factory),不沿用当前 state —— 这些键现在跨会话保留,state 里是本机保存的偏好;
+			// 按出厂口径存下的旧档不带后来才有的键,沿用偏好就等于拿你现在的流派 / 覆盖项去重判这一卦。
+			tradition: options.tradition || factory.tradition,
+			readingScope: options.readingScope || factory.readingScope,
+			zodiacSystem: options.zodiacSystem || factory.zodiacSystem,
 			// 四本账:载入/回放时一并还原传本改写与转宫(缺省用 ?? 而非 ||,免把「空对象/0/null」误当未提供)
 			granular: options.granular !== undefined && options.granular !== null
-				? { ...options.granular } : (this.state.granular || {}),
+				? { ...options.granular } : {},
 			turnTo: options.turnTo !== undefined ? options.turnTo : this.state.turnTo,
-			// 四本账续扩:起卦诸法与行星地占盘四键(旧存档缺键则保持现值,不写 undefined)
+			// 四本账续扩:起卦诸法与行星地占盘四键(旧存档缺键回出厂值,不写 undefined)
 			castNumbersText: Array.isArray(options.castNumbers) && options.castNumbers.length === 16
 				? options.castNumbers.join(' ') : this.state.castNumbersText,
 			planetaryChart: options.planetaryChart !== undefined
-				? !!options.planetaryChart : this.state.planetaryChart,
-			planetaryChartZodiac: options.planetaryChartZodiac || this.state.planetaryChartZodiac,
+				? !!options.planetaryChart : factory.planetaryChart,
+			planetaryChartZodiac: options.planetaryChartZodiac || factory.planetaryChartZodiac,
 			planetaryChartNodes: options.planetaryChartNodes !== undefined
-				? !!options.planetaryChartNodes : this.state.planetaryChartNodes,
+				? !!options.planetaryChartNodes : factory.planetaryChartNodes,
 			planetaryChartExtras: options.planetaryChartExtras !== undefined
-				? !!options.planetaryChartExtras : this.state.planetaryChartExtras,
+				? !!options.planetaryChartExtras : factory.planetaryChartExtras,
 		}, ()=>{
 			this._lastCastParamSig = this.castParamSig();
 			this._suppressRecast = false;
@@ -1181,6 +1213,11 @@ class GeomancyMain extends Component{
 		// 时间起卦:由左栏所选时间(精确到分)算确定性种子塞 timeSeed,使同一时刻起卦可复现;
 		// 不塞则后端走 secrets.randbelow 退化真随机,刷新即变盘(后端 webgeomancysrv.py 已就绪接收 timeSeed)。
 		else if(seedMode === 'time_seed'){ payload.timeSeed = computeTimeSeed(af); }
+		// [Q-210/T-142] 随机/掷骰/抛硬币/沙痕/掷片:此前请求体不带种子(服务端 secrets.randbelow),缓存却按体命中 → 同问题同时地再起盘恒同卦。
+		// 起盘时客户端取新随机种子入体(后端 cast_method 非 manual/time 时「有显式 seed 则用」并回传实际种子)→ 每次起盘新卦、同体复现、缓存自洽。
+		if(payload.seed === undefined && payload.timeSeed === undefined && !(Array.isArray(payload.castNumbers) && payload.castNumbers.length)){
+			payload.seed = Math.floor(Math.random() * 2147483647);
+		}
 		this.setState({ loading: true });
 		try{
 			const result = await postGeomancy('reading', payload);
@@ -1246,6 +1283,7 @@ class GeomancyMain extends Component{
 
 	applyHistory(entry){
 		if(!entry){ return; }
+		const factory = GEOMANCY_PAGE_SETTINGS.defaults();
 		this.setState({
 			question: entry.question || '',
 			questionType: entry.questionType || 'custom',
@@ -1254,25 +1292,26 @@ class GeomancyMain extends Component{
 			//    故存有十六数者复位为报数档(clickCast 即带 castNumbers 重出同盘),余者照旧按种子复现。
 			seedMode: (Array.isArray(entry.castNumbers) && entry.castNumbers.length === 16) ? 'numbers' : 'manual',
 			manualSeed: entry.seed !== undefined ? entry.seed : 0,
-			tradition: entry.tradition || this.state.tradition,
-			readingScope: entry.readingScope || this.state.readingScope,
-			zodiacSystem: entry.zodiacSystem || this.state.zodiacSystem,
+			// 口径键:条目里没有的回出厂值,不沿用当前 state(理由同 restoreFromCurrentCase)
+			tradition: entry.tradition || factory.tradition,
+			readingScope: entry.readingScope || factory.readingScope,
+			zodiacSystem: entry.zodiacSystem || factory.zodiacSystem,
 			// 🔴 pushHistory 一直在**存** granular/turnTo(注释写着「回放须能还原当时的传本改写与转宫」),
 			//    而此处从不**载** —— 存写两侧长期不对称,回放出来的是流派默认盘,不是当时那副判读。
 			//    用 !== undefined 判定而非 ||,免把「空对象 / 0 / null」误当未提供。
 			granular: entry.granular !== undefined && entry.granular !== null
-				? { ...entry.granular } : (this.state.granular || {}),
+				? { ...entry.granular } : {},
 			turnTo: entry.turnTo !== undefined ? entry.turnTo : this.state.turnTo,
 			// 四本账续扩:回放亦须还原起卦诸法与行星地占盘四键(报数条目按 manual 种子回放同盘)
 			castNumbersText: Array.isArray(entry.castNumbers) && entry.castNumbers.length === 16
 				? entry.castNumbers.join(' ') : this.state.castNumbersText,
 			planetaryChart: entry.planetaryChart !== undefined
-				? !!entry.planetaryChart : this.state.planetaryChart,
-			planetaryChartZodiac: entry.planetaryChartZodiac || this.state.planetaryChartZodiac,
+				? !!entry.planetaryChart : factory.planetaryChart,
+			planetaryChartZodiac: entry.planetaryChartZodiac || factory.planetaryChartZodiac,
 			planetaryChartNodes: entry.planetaryChartNodes !== undefined
-				? !!entry.planetaryChartNodes : this.state.planetaryChartNodes,
+				? !!entry.planetaryChartNodes : factory.planetaryChartNodes,
 			planetaryChartExtras: entry.planetaryChartExtras !== undefined
-				? !!entry.planetaryChartExtras : this.state.planetaryChartExtras,
+				? !!entry.planetaryChartExtras : factory.planetaryChartExtras,
 		}, ()=>{ this.clickCast(); });
 	}
 
@@ -1335,6 +1374,9 @@ class GeomancyMain extends Component{
 		const next = { ...(this.state.granular || {}) };
 		if(value === null || value === undefined || value === '__profile__'){ delete next[key]; }
 		else{ next[key] = value; }
+		// 用户亲手改的逐项覆盖 → 落盘。只落**这一项**,以库里已保存的覆盖层为底:state 里那张覆盖层可能刚被一份事盘 / 历史记录
+		// 回灌过,整张存下去就把事盘里的其它覆盖项也存成了你的缺省(之后每一卦都带着它们发给后端)。
+		GEOMANCY_PAGE_SETTINGS.saveMapEntry('granular', key, (value === null || value === undefined || value === '__profile__') ? undefined : value);
 		this.setState({ granular: next }, ()=>{
 			this.recastPinned();
 		});
@@ -1373,6 +1415,7 @@ class GeomancyMain extends Component{
 
 	// [行星地占盘] 选项变更:与 changeGeomancyOpt 同构(锁种子重算:盾牌盘不变,行星盘随选项重取)。
 	changePlanetaryOpt(key, value){
+		GEOMANCY_PAGE_SETTINGS.save({ [key]: value });
 		this.setState({ [key]: value }, ()=>{
 			this.recastPinned();
 		});
@@ -1391,6 +1434,7 @@ class GeomancyMain extends Component{
 	changeGeomancyOpt(key, value){
 		// 换流派预设 = 批量写默认:清空逐项覆盖,让新预设的默认值全面生效(用户可再逐项改写)。
 		const patch = key === 'tradition' ? { [key]: value, granular: {} } : { [key]: value };
+		GEOMANCY_PAGE_SETTINGS.save(patch);   // 换预设连同「清空逐项覆盖」一起落盘
 		this.setState(patch, ()=>{
 			this.recastPinned();
 		});
@@ -1473,7 +1517,7 @@ class GeomancyMain extends Component{
 						</label>
 						<label className="horosa-huangji-select-field horosa-geomancy-half-field">
 							<span>起卦法</span>
-							<Select value={this.state.seedMode} onChange={(value)=>this.setState({ seedMode: value })} dropdownMatchSelectWidth={false} optionLabelProp="label">
+							<Select value={this.state.seedMode} onChange={(value)=>{ GEOMANCY_PAGE_SETTINGS.save({ seedMode: value }); this.setState({ seedMode: value }); }} dropdownMatchSelectWidth={false} optionLabelProp="label">
 								{SEED_MODE_OPTIONS.map((o)=>(<Option value={o.key} key={o.key} label={o.short || o.label}>{o.label}</Option>))}
 							</Select>
 						</label>
@@ -1552,7 +1596,7 @@ class GeomancyMain extends Component{
 						<input
 							type="checkbox"
 							checked={!!this.state.showUnicodeGlyph}
-							onChange={(e)=>this.setState({ showUnicodeGlyph: e.target.checked })}
+							onChange={(e)=>{ GEOMANCY_PAGE_SETTINGS.save({ showUnicodeGlyph: e.target.checked }); this.setState({ showUnicodeGlyph: e.target.checked }); }}
 						/>
 						<span>并显 Unicode 字形(需系统装有对应字体,缺字会显方框)</span>
 					</label>
@@ -3077,7 +3121,7 @@ class GeomancyMain extends Component{
 										type="button"
 										key={s.key}
 										className={this.state.triangleSchool === s.key ? 'is-active' : ''}
-										onClick={()=>this.setState({ triangleSchool: s.key })}
+										onClick={()=>{ GEOMANCY_PAGE_SETTINGS.save({ triangleSchool: s.key }); this.setState({ triangleSchool: s.key }); }}
 									>{s.label}</button>
 								))}
 							</span>

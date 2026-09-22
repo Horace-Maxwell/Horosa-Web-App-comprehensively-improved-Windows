@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { setClassicalChartGlobal } from '../../utils/classicalChartGlobals';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { getLayoutViewportHeight } from '../../utils/shellZoom';
 import { Row, Col, Popover, Tooltip } from 'antd';
@@ -18,6 +19,7 @@ import AspSelector from './AspSelector';
 import ChartDisplaySelector from './ChartDisplaySelector';
 import PlanetSelector from './PlanetSelector';
 import PlusMinusTime from './PlusMinusTime';
+import TimeFieldTrigger from '../comp/QuickTimeField';
 import DateTime from '../comp/DateTime';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import { convertLatToStr, convertLonToStr} from './AstroHelper';
@@ -32,6 +34,8 @@ import { moietyOrbOverrides, DEFAULT_ORBS } from './AstroOrbSetting';
 import { XQButton, XQIconButton, XQSectionTitle, XQSegmented, XQSelect, XQTabs, XQToggle, XQSideSection } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1] 图标语义映射单源
 import XQIcon from '../xq-icons';
+// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+import { visualFloorPx } from '../../utils/zoomDomain';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -217,6 +221,7 @@ class AstroChartMain extends Component{
         }
 
 		this.changeTime = this.changeTime.bind(this);
+		this.quickCommitTime = this.quickCommitTime.bind(this);
 		this.changeZodiacal = this.changeZodiacal.bind(this);
 		this.changeHsys = this.changeHsys.bind(this);
 		this.changeSchoolPreset = this.changeSchoolPreset.bind(this);
@@ -252,6 +257,11 @@ class AstroChartMain extends Component{
 				...(tm.step ? { step: tm.step } : {}),   // 步进方向提示(WP-P1 预取)原样透传
 			});
 		}
+	}
+
+	// 双击时间字段键入 14 位数字 → 与弹窗「确定」同路提交(confirmed=true 直接重算)
+	quickCommitTime(dt){
+		this.changeTime({ time: dt, ad: dt.ad, confirmed: true });
 	}
 
 	changeZodiacal(val){
@@ -305,7 +315,8 @@ class AstroChartMain extends Component{
 		);
 		const hsys = f.hsys ? f.hsys.value : '';
 		const termsVariant = f.termsVariant ? f.termsVariant.value : 0;
-		const tripSystem = this.props.tripSystem || 'Dorothean';
+		// [Q-254/T-230] 三分制以 fields.triplicity(排盘真值)为准,app.tripSystem 只作镜像/兜底。
+		const tripSystem = (f.triplicity && f.triplicity.value) || this.props.tripSystem || 'Dorothean';
 		const lotReversal = (f.lotReversal && (f.lotReversal.value === 0 || f.lotReversal.value === '0')) ? 0 : 1;
 		const sectBuffer = (f.sectBuffer && f.sectBuffer.value) ? f.sectBuffer.value : 'geo';
 		// 相位模型无独立字段:由「orbs 是否恰为 moiety 覆盖集」反推 —— 非默认键集与 moiety
@@ -315,11 +326,15 @@ class AstroChartMain extends Component{
 		const defOrbMap = DEFAULT_ORBS.reduce((m, d)=>{ m[d.id] = Number(d.orb); return m; }, {});
 		const nonDefaultKeys = orbs ? Object.keys(orbs).filter((k)=>defOrbMap[k] === undefined || Number(orbs[k]) !== defOrbMap[k]) : [];
 		const moietyKeys = Object.keys(moiety);
+		// [Q-254/T-232] 三态:全默认 → whole;恰为 moiety 集 → degree;其它非默认容许度 → custom(任何档都不命中,
+		// 此前归 whole → 手改容许度后流派下拉仍显示原档)。
 		const aspectModel = (orbs
 			&& nonDefaultKeys.length === moietyKeys.length
 			&& moietyKeys.every((k)=>Number(orbs[k]) === Number(moiety[k])))
-			? 'degree' : 'whole';
-		return presetOf({ zodiac, hsys, termsVariant, tripSystem, lotReversal, sectBuffer, aspectModel });
+			? 'degree' : (nonDefaultKeys.length ? 'custom' : 'whole');
+		// [Q-343/T-324] 第八维:点公式文档序(预设切档会联动写入,此前反查不计它 → 手动改了仍显示原档)。
+		const lotsDocReverse = (f.lotsDocReverse && (f.lotsDocReverse.value === 1 || f.lotsDocReverse.value === '1' || f.lotsDocReverse.value === true)) ? 1 : 0;
+		return presetOf({ zodiac, hsys, termsVariant, tripSystem, lotReversal, sectBuffer, aspectModel, lotsDocReverse });
 	}
 
 	// 选流派预设：展开该档 → 一次性写入黄道/宫制/界/三分。
@@ -331,6 +346,10 @@ class AstroChartMain extends Component{
 		if(val === SCHOOL_PRESET_CUSTOM){ return; }
 		const preset = SCHOOL_PRESETS[normalizeSchoolPreset(val)];
 		if(!preset){ return; }
+		// [Q-343/T-324] 当前七维已被单项手改(反查=自定)时,切档会整组覆盖手动值 → 先确认再写(此前静默覆盖)。
+		if(this.currentSchoolPreset() === SCHOOL_PRESET_CUSTOM && typeof window !== 'undefined' && typeof window.confirm === 'function'){
+			if(!window.confirm(`切换到「${preset.label}」将整组改写黄道 / 宫制 / 界系 / 三分 / 点反转 / 区分缓冲 / 相位口径 / 点公式,覆盖当前手动设定的值。继续?`)){ return; }
+		}
 		if(this.props.dispatch){
 			this.props.dispatch({
 				type: 'app/save',
@@ -352,7 +371,8 @@ class AstroChartMain extends Component{
 			sectBuffer: preset.sectBuffer,
 			orbs: aspectModelOrbs(normalizeSchoolPreset(val), moietyOrbOverrides()) || null,
 			// 点公式文档口径:不反转档(如 Ptolemy)一并采文档式的婚姻/子女/朋友/疾病反转;其余档显式清 0。
-			lotsDocReverse: preset.lotReversal === 0 ? 1 : 0,
+			// [Q-343] 改读预设表自身第八维(单一真值源,反查 presetOf 同表),不再由 lotReversal 派生。
+			lotsDocReverse: Number(preset.lotsDocReverse || 0),
 		};
 		if(this.tmHook.getValue){
 			const tm = this.tmHook.getValue().value;
@@ -360,6 +380,9 @@ class AstroChartMain extends Component{
 			change.ad = tm.ad;
 			change.zone = tm.zone;
 		}
+		// [Q-260/T-231 裁决 2026-09-18] 流派预设此前只写本盘 fields、不进全局仓(抽屉逐项写全局)→ 换盘 / 重启即回落;现与抽屉同律:
+		// 预设里属古典口径的键同写全局(setClassicalChartGlobal 只认 spec 内键,黄道 / 宫制仍是本盘键不入全局)。
+		try{ ['termsVariant', 'triplicity', 'lotReversal', 'sectBuffer', 'lotsDocReverse'].forEach((k)=>{ if(change[k] !== undefined && change[k] !== null){ setClassicalChartGlobal(k, change[k]); } }); }catch(e){ /* 全局仓写入失败不阻断本盘 */ }
 		this.props.onChange(change);
 	}
 
@@ -642,12 +665,7 @@ class AstroChartMain extends Component{
 				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 					<div className="horosa-field-block">
 						<div className="horosa-field-label">时间</div>
-						<Popover content={timeEditor} trigger="click" placement="rightTop" overlayClassName="horosa-time-adjust-popover">
-							<button type="button" className="horosa-unified-field">
-								<XQIcon name="clock" />
-								<span>{formatFieldTime(this.props.fields) || meta.birth}</span>
-							</button>
-						</Popover>
+						<TimeFieldTrigger value={dt} timeText={formatFieldTime(this.props.fields) || meta.birth} popoverContent={timeEditor} onQuickCommit={this.quickCommitTime} />
 						<div className="horosa-field-hint">当地时间</div>
 						<div className="horosa-time-adjust-inline">
 							<PlusMinusTime value={dt} onChange={this.changeTime} hook={this.tmHook} adjustOnly />
@@ -684,7 +702,6 @@ class AstroChartMain extends Component{
 							size='small'>
 							{SCHOOL_PRESET_OPTIONS.map((item)=>(<Option value={item.value} key={item.value}>{item.label}</Option>))}
 						</XQSelect>
-						<div className="horosa-field-hint">一档联动黄道 · 宫制 · 界 · 三分；改单项转「自定」</div>
 					</div>
 				) : null}
 				<div className="horosa-field-grid">
@@ -760,9 +777,11 @@ class AstroChartMain extends Component{
 						})}
 					</div>
 				</XQSideSection>
+				{this.props.hideRecalc ? null : (
 				<XQButton className="horosa-recalculate-button" size="small" iconName="refresh" onClick={this.newChart}>
 					重算星盘
 				</XQButton>
+				)}
 			</div>
 		);
 	}
@@ -896,10 +915,12 @@ class AstroChartMain extends Component{
 					showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 					showAstroMeaning={this.props.showAstroMeaning}
 					showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
+					voidClassical={this.props.voidClassical}   /* [Q-253/T-223 ①] 弹层此前不传 → 勾选框恒关、只能开不能关(抽屉版早已传) */
 					wheelArt={this.props.wheelArt}
 					planetListStyle={this.props.planetListStyle}
 					fields={this.props.fields}
 					dispatch={this.props.dispatch}
+					classicalWriteBack={!this.props.embeddedSubChart}   /* [Q-252/T-218] 嵌入子盘不回写本命 fields */
 				/>
 			</div>
 		);
@@ -1065,7 +1086,7 @@ class AstroChartMain extends Component{
 		// 🔴 innerHeight 恒报物理域,与布局域 props.height 混进同一 min 时,缩放<1 下物理臂
 		// 恒胜出→主盘偏小;走壳缩放感知的布局视口高(1:1 恒等)。
 		const viewportHeight = typeof window !== 'undefined' ? getLayoutViewportHeight() : height;
-		let chartHeight = Math.max(560, Math.min(height - 150, viewportHeight - 204));
+		let chartHeight = Math.max(visualFloorPx(560), Math.min(height - 150, viewportHeight - 204));
 
 		let showzodical = true;
 		let showhsys = true;

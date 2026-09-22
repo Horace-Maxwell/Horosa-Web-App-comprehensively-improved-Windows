@@ -6,7 +6,7 @@ import * as SZConst from './SZConst';
 import SZChart from './SZChart';
 import { chartDrawGuardEnabled } from '../../utils/perfFlags';
 import { buildChartDrawSig, sameChartDrawSig, chartDrawnAtNonZeroSize } from '../../utils/chartDrawGuard';
-import { getEffectiveScale } from '../../utils/zoomDomain';
+import { getEffectiveScale, visualFloorPx } from '../../utils/zoomDomain';
 
 const SQUARE_SIDE_MIN = 480;
 const SQUARE_SIDE_MAX = 1280;
@@ -71,6 +71,7 @@ class SuZhanChart extends Component{
 		}
 
 		let sideByContainer = null;
+		let squareWidthCap = 0;   // 定宽定高 panel 的可用宽(布局 px);0 = 无 panel 或 panel 就是包住 svg 的父盒 → 不封顶
 		const svgdom = document.getElementById(this.state.chartid);
 		if(svgdom){
 			const parent = svgdom.parentElement;
@@ -121,11 +122,17 @@ class SuZhanChart extends Component{
 			if(viewportRemainH > 0){
 				candidates.push(viewportRemainH);
 			}
-			const usableCandidates = candidates.filter(v=>v >= 360);
+			// [窄布局 2026-09-17] 360 是 CSS px 写死的「可用」门槛,1.8 档列宽 ~200 全被判不可用 → 取了高度候选 → 方盘比列宽还宽被裁;门槛走视觉底线。
+			const usableCandidates = candidates.filter(v=>v >= visualFloorPx(360));
 			if(usableCandidates.length > 0){
 				sideByContainer = Math.min(...usableCandidates);
 			}else if(candidates.length > 0){
 				sideByContainer = Math.max(...candidates);
+			}
+			// 只按定宽定高的 panel(.horosa-suzhan-chart-panel,栅格定尺)封顶,绝不用 parent:parent 若是包住 svg 的自适应盒,其宽=svg 当前宽,
+			// 减 GAP 后每拍缩 16px → 无限嵌套更新(1.8 档巡检实抓 Maximum update depth)。
+			if(panel && panel !== parent && panelW > 0){
+				squareWidthCap = Math.max(panelW - SQUARE_SIDE_PANEL_GAP, 0);
 			}
 		}
 
@@ -137,8 +144,17 @@ class SuZhanChart extends Component{
 			side = 740;
 		}
 
-		side = clamp(Math.round(side), SQUARE_SIDE_MIN, SQUARE_SIDE_MAX);
+		side = clamp(Math.round(side), visualFloorPx(SQUARE_SIDE_MIN), SQUARE_SIDE_MAX);
+		// [窄布局 2026-09-17] 底线再大也不许超过所在列的实宽(1.8 档分至·宿盘 / 卜·宿盘实抓被裁):宁可小、不能裁。zoom=1 列宽 ≥520 不触发。
+		if(squareWidthCap > 0){
+			side = Math.max(Math.min(side, squareWidthCap), 120);
+		}
 		if(this.state.lockedSide === null || Math.abs(this.state.lockedSide - side) >= 4){
+			// [熔断 2026-09-17] 200ms 内连续 >8 次改边长 = 量测自反馈(容器尺寸随盘变、每拍互相追),停在当前值;正常收敛 1~2 拍。
+			const now = Date.now();
+			if(now - (this._sideBurstAt || 0) > 200){ this._sideBurstAt = now; this._sideBurst = 0; }
+			this._sideBurst = (this._sideBurst || 0) + 1;
+			if(this._sideBurst > 8){ return; }
 			this.setState({ lockedSide: side });
 		}
 	}

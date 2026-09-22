@@ -91,7 +91,10 @@ public class ChartController {
 			String dtstr = String.format("%s %s", args.get("date"), args.get("time"));
 			boolean after23NewDay = ConvertUtility.getValueAsInt(args.get("after23NewDay"), 1) == 1;
 			boolean lateZiHourUseNextDay = ConvertUtility.getValueAsInt(args.get("lateZiHourUseNextDay"), 1) == 1;
-			OnlyFourColumns bz = new OnlyFourColumns(ad, dtstr, zone, lon, lat, after23NewDay, spacex.astrostudycn.constants.BaZiGender.Male, spacex.astrostudycn.constants.TimeZiAlg.RealSun, false, lateZiHourUseNextDay);
+			// [Q-419/T-383] 农历四柱时间算法:此前写死真太阳时;三式择日概览浮窗在工作台选「直接时间」时时柱与扫描判定不同形。
+			// 新键 nongliTimeAlg(0 真太阳时 / 1 直接时间 / 3 平太阳时),缺省 0 = 既有调用逐字节零回归。
+			spacex.astrostudycn.constants.TimeZiAlg nongliTimeAlg = spacex.astrostudycn.constants.TimeZiAlg.fromCode(ConvertUtility.getValueAsInt(args.get("nongliTimeAlg"), 0));
+			OnlyFourColumns bz = new OnlyFourColumns(ad, dtstr, zone, lon, lat, after23NewDay, spacex.astrostudycn.constants.BaZiGender.Male, nongliTimeAlg, false, lateZiHourUseNextDay);
 			Map<String, Object> map = toPlainMap(bz.getNongli());
 			if(res.containsKey("chart")) {
 				Map<String, Object> chart = (Map<String, Object>) res.get("chart");
@@ -574,7 +577,7 @@ public class ChartController {
 		if(TransData.containsParam("lotReversal")) {
 			params.put("lotReversal", TransData.get("lotReversal"));
 		}
-		// 2026-07 二批古典口径(落宫5°律/太阳三态/空亡六口径/恒星轨/映点容许度)+第一轮漏网的双子界序:
+		// 2026-07 二批古典口径(落宫5°律/太阳三态/空亡六口径/恒星轨/映点容许度)+此前漏网的双子界序:
 		// 必须透传 Python(perchart/flatlib 请求级参数化),缺=默认零回归(同 termsVariant 透传坑——
 		// 本批真机首验即抓到「前端发了 Java 丢了」的白名单三层静默丢,此处为主 /chart 唯一闸口)。
 		String[] classicalBatch2Keys = { "geminiBoundEmended", "houseCuspAdvance", "cazimiOrb", "combustOrb",
@@ -615,6 +618,10 @@ public class ChartController {
 		}
 		if(TransData.containsParam("lateZiHourUseNextDay")) {
 			params.put("lateZiHourUseNextDay", TransData.get("lateZiHourUseNextDay"));
+		}
+		// [Q-419/T-383] 农历四柱时间算法(概览浮窗与扫描同口径):白名单显式放行,缺省不带=真太阳时零回归。
+		if(TransData.containsParam("nongliTimeAlg")) {
+			params.put("nongliTimeAlg", TransData.get("nongliTimeAlg"));
 		}
 
 		return params;

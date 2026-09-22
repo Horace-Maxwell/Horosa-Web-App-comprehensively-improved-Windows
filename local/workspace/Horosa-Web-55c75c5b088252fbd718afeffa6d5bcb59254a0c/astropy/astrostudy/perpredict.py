@@ -123,7 +123,7 @@ _PD_METHOD_REGISTRY = {
 # 应随所选方位法变化。下列 8 个有把握的方位法直接映射到对应 swisseph 宫位系统；
 # morinus 亦有原生 swisseph 宫制('M')一并映上。equal_hour_circle / in_zodiaco_lon /
 # in_zodiaco_abs / 任何未列出的方法一律 fallback 到本命盘宫制(self.perchart.house)——
-# 诚实不臆造(equal_hour_circle 无干净 swisseph 等价，沿用本命宫制保守且无回归风险)。
+# 诚实不臆造(equal_hour_circle 旧法层曾沿用本命宫制;frame 层已映 Meridian,见 _PD_FRAME_HSYS [Q-531])。
 # 注：此映射只改盘的「宫位/四角分宫」，不改被推进的星体经度(刚体 RA+arc，与方位法无关)，
 # 故不影响表格(getPrimaryDirection)字节级一致——盘表分属两条独立渲染路径。
 _PD_CHART_METHOD_HSYS = {
@@ -175,7 +175,11 @@ _PD_PROJECTION_REGISTRY = {
     'horosa_legacy': 'getPrimaryDirectionByZLegacy',
 }
 
-# 定局 frame → 盘面宫制。equal_hour_circle 无干净 swisseph 等价 → 不映射(回落本命盘宫制)。
+# 定局 frame → 盘面宫制。
+# [Q-531/T-493] equal_hour_circle(Equal·时圈=赤道等分、宫首取时圈)此前「无干净 swisseph 等价 → 回落本命盘宫制」,
+# 而 3D 主限天球前端 pdHouseCusps 该档按赤经等分(第 10 宫 RA=RAMC 逐宫 +30°)闭式画宫首 → 同档两处宫首分叉。
+# 赤道自 RAMC 等分 30° 再沿时圈投到黄道 = swisseph Meridian(轴旋)制之定义,故映为 Meridian,与天球同口径;
+# 缺省 alcabitius 及其余档字节不变。
 _PD_FRAME_HSYS = {
     'alcabitius': const.HOUSES_ALCABITUS,
     'placidus': const.HOUSES_PLACIDUS,
@@ -188,6 +192,7 @@ _PD_FRAME_HSYS = {
     'wholesign': const.HOUSES_WHOLE_SIGN,
     'morinus': const.HOUSES_MORINUS,
     'koch': const.HOUSES_KOCH,
+    'equal_hour_circle': const.HOUSES_MERIDIAN,
 }
 
 # In-Mundo 下仍走 flatlib legacy 'M' 的旧方法集(仅当用户未显式指定 pdProjection 时生效,
@@ -1241,7 +1246,7 @@ class PerPredict:
 
     def _pdChartHouseSystem(self, pd_method):
         """解析主限法盘所用宫制:定局 frame 维单独决定(_PD_FRAME_HSYS);
-        frame=None/未映射(equal_hour_circle 等)回退本命盘宫制。带双重兜底防越界。
+        frame=None/未映射回退本命盘宫制(equal_hour_circle 已映 Meridian [Q-531])。带双重兜底防越界。
         旧 pd_method 入参保留兼容:resolved frame 恒优先(旧值经 _PD_METHOD_TO_PAIR
         推导后与 _PD_CHART_METHOD_HSYS 逐键等价,盘面零回归)。"""
         _proj, frame = self._pdResolveProjectionFrame()
@@ -2182,7 +2187,8 @@ class PerPredict:
                         'aspects': self.getAspects(secchart, asporb)
                     },
                     'dirParams': params1,
-                    'lots': self.perchart.getPars(chart)
+                    # [Q-185/T-106] 第二返照对比盘的阿拉伯点此前用第一返照 chart 算(外圈点与本盘星位错位)→ 按自身 secchart 算。
+                    'lots': self.perchart.getPars(secchart)
                 }
                 obj['secLuneReturn'] = obj1
 
@@ -2234,11 +2240,12 @@ class PerPredict:
             res.append(obj)
         return res
 
-    def getSolarArcByDate(self, date, asporb, nodeRetrograde=False):
+    def getSolarArcByDate(self, date, asporb, nodeRetrograde=False, zone=None):
+        # [Q-173/T-113 2026-09-18] 目标时刻按推运页所选时区(dirZone)解释;缺省仍按本命时区(与小限同式)
         parts = date.split(' ');
         dt = helper.getChartDate(parts[0])
         tm = parts[1] if len(parts) > 1 else '00:00'
-        saDate = Datetime(dt, tm, self.perchart.zone)
+        saDate = Datetime(dt, tm, zone or self.perchart.zone)
         chart = solararc.compute(self.perchart.chart, saDate, asporb, nodeRetrograde)
         objs = chart['objects']
         objs.sort(key=takeLon)
@@ -2280,11 +2287,11 @@ class PerPredict:
             res.append(obj)
         return res
 
-    def getPlanetaryArcByDate(self, date, asporb, nodeRetrograde=False, arcSource=const.MOON):
+    def getPlanetaryArcByDate(self, date, asporb, nodeRetrograde=False, arcSource=const.MOON, zone=None):
         parts = date.split(' ')
         dt = helper.getChartDate(parts[0])
         tm = parts[1] if len(parts) > 1 else '00:00'
-        saDate = Datetime(dt, tm, self.perchart.zone)
+        saDate = Datetime(dt, tm, zone or self.perchart.zone)   # [Q-173] dirZone
         chart = solararc.compute(self.perchart.chart, saDate, asporb, nodeRetrograde, arcSource)
         objs = chart['objects']
         objs.sort(key=takeLon)
@@ -2307,14 +2314,14 @@ class PerPredict:
         }
         return obj
 
-    def getPersianDirectedByDate(self, date, rateKey='persian', asporb=1, nodeRetrograde=False, direction='direct'):
+    def getPersianDirectedByDate(self, date, rateKey='persian', asporb=1, nodeRetrograde=False, direction='direct', zone=None):
         # 波斯向运（Persian Directed）：黄经象征向运,所有行星/点每年 +rate 度,本命宫头不动。
         # direction: direct(默认,逆时针) / converse(反向,顺时针,弧取负)。
         from astrostudy import symbolicdir
         parts = date.split(' ')
         dt = helper.getChartDate(parts[0])
         tm = parts[1] if len(parts) > 1 else '00:00'
-        target = Datetime(dt, tm, self.perchart.zone)
+        target = Datetime(dt, tm, zone or self.perchart.zone)   # [Q-173] dirZone
         ageYears = (target.jd - self.perchart.chart.date.jd) / 365.2421904
         res = symbolicdir.compute(self.perchart.chart, ageYears, rateKey, asporb, nodeRetrograde, direction)
         objs = res['objects']
@@ -2426,7 +2433,7 @@ class PerPredict:
 
     # pd_engine 数值/闭式引擎族(点位构造走 _pdEngineChartData 同路)
     _PD3D_ENGINE_METHODS = ('placidus', 'regiomontanus', 'campanus', 'topocentric')
-    # 位置圈需后端采样折线的方位法 → 采样所用 house_pos 系统。
+    # 位置圈需后端采样多段线的方位法 → 采样所用 house_pos 系统。
     # Placidus 比例圈 / Topocentric 极圈都不是天球大圆(前端三点叉积画不动)→ 后端采样;
     # horosa_legacy 即 flatlib 比例半弧法,几何上=Placidus 世俗位置等值线,同享采样。
     # 其余方法(core 核族/Regio/Campanus 等)返回语义型标记,由前端画大圆。
@@ -2670,7 +2677,7 @@ class PerPredict:
                  同一条(真交点重建 + ΔT 校准 + 同式虚点公式);
         circles— 每个应星的「位置圈」:ASC=horizon-east(东地平)/ MC=meridian
                  (子午圈)/ Vertex=prime-vertical(卯酉圈)语义型;Placidus/
-                 Topocentric(及 legacy 半弧)= sampled 采样折线(允许断段);
+                 Topocentric(及 legacy 半弧)= sampled 采样多段线(允许断段);
                  Regio/Campanus=position-circle(大圆,前端三点叉积直画);
                  in_zodiaco_lon=ecliptic-meridian;其余核族=hour-circle(时圈);
         frame  — armc(swisseph houses_ex 的 ascmc[2] 直出,勿用 MC.ra)/

@@ -1,7 +1,11 @@
 import React from 'react';
+import { isDesktopBridgeAvailable, getDesktopInvokeApi } from '../../utils/aiAnalysisDesktop';
 import { Popover, Button, Space, message } from 'antd';
 import { subscribeServiceStatus, markServiceOnline, markServiceOffline } from '../../utils/serviceStatus';
-import { ServerRoot } from '../../utils/constants';
+import { ServerRoot, ClientVer, getLocalServerRootMode } from '../../utils/constants';
+import { snapshot as requestTelemetrySnapshot } from '../../utils/requestTelemetry';
+import { collectDesktopBridgeDiag } from '../../utils/desktopBridgeDiag';
+import { buildBackendDiagText } from '../../utils/backendDiagText';
 import { verifyBackendIdentity, renegotiateLocalServerRoot } from '../../utils/backendIdentity';
 import { invokeLightServiceRestart } from '../../utils/serviceRecovery';
 import { copyTextSmart } from '../../utils/clipboardText';
@@ -19,6 +23,15 @@ import { copyTextSmart } from '../../utils/clipboardText';
 // [V-6] 弃 heartbeat 裸 fetch:主后端无该 HTTP 路由(404 也 markOnline=灯撒谎),
 // 且任何陌生进程的 200 都会点绿——改 verifyBackendIdentity(fail-closed,与横幅同源)。
 // 仅在 ServerRoot 有效(桌面 app)时挂载;纯网页托管返回 null。
+
+// 构建指纹:前端包版本 + 壳传入的运行时版本(URL rv 参数,浏览器直跑为空)+ 协议版本。
+function collectBuildFingerprint() {
+  const out = { appVersion: '', runtimeVersion: '', clientVer: ClientVer };
+  try { out.appVersion = require('../../../package.json').version || ''; } catch (_) { /* 打包形态不含时留空 */ }
+  try { out.runtimeVersion = new URLSearchParams(window.location.search || '').get('rv') || ''; } catch (_) { /* 无窗口留空 */ }
+  return out;
+}
+
 export default function BackendStatusDot() {
   const [online, setOnline] = React.useState(true);
   const [probed, setProbed] = React.useState(false);
@@ -60,7 +73,7 @@ export default function BackendStatusDot() {
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
-  const hasTauri = typeof window !== 'undefined' && !!window.__TAURI__;
+  const hasTauri = isDesktopBridgeAvailable();   // [FL-20260902-1] 打包版无 window.__TAURI__,只探它=按钮永不出现
 
   const handleRetry = async () => {
     if (retrying) return;
@@ -96,7 +109,7 @@ export default function BackendStatusDot() {
   const handleRestart = async () => {
     if (!hasTauri) return;
     try {
-      const api = window.__TAURI__.core || window.__TAURI__;
+      const api = getDesktopInvokeApi();
       const mode = await invokeLightServiceRestart(api);
       message.info(mode === 'light' ? '已请求重启后端,约 10 秒内恢复' : '已请求完整修复,请等待 10-60 秒');
     } catch (e) {
@@ -107,7 +120,7 @@ export default function BackendStatusDot() {
   const handleDiag = async () => {
     if (!hasTauri) return;
     try {
-      const api = window.__TAURI__.core || window.__TAURI__;
+      const api = getDesktopInvokeApi();
       if (api && api.invoke) {
         await api.invoke('open_diagnostics_window_command');
       }
@@ -116,15 +129,21 @@ export default function BackendStatusDot() {
     }
   };
 
+  // 复制信息 = 状态基线 + 请求失败计数(页面内存账)+ 桌面桥诊断字段 + 构建指纹;文本由纯函数拼装。
   const copyDiag = () => {
-    const txt = [
-      '[Horosa 后端状态]',
-      `时间: ${new Date().toLocaleString()}`,
-      `状态: ${online ? '在线' : '离线'}`,
-      `后端地址: ${ServerRoot || '未配置'}`,
-      `延迟: ${latencyMs != null ? latencyMs + ' ms' : 'N/A'}`,
-      `用户代理: ${typeof navigator !== 'undefined' ? navigator.userAgent : ''}`,
-    ].join('\n');
+    let bridge = null;
+    try { bridge = collectDesktopBridgeDiag(); } catch (_) { bridge = null; }
+    let telemetry = null;
+    try { telemetry = requestTelemetrySnapshot(); } catch (_) { telemetry = null; }
+    const txt = buildBackendDiagText({
+      online,
+      latencyMs,
+      serverRoot: ServerRoot,
+      serverRootMode: getLocalServerRootMode(),
+      telemetry,
+      bridge,
+      build: collectBuildFingerprint(),
+    });
     copyTextSmart(txt).then((ok) => {
       if (ok) { message.success('诊断信息已复制'); }
       else { message.error('复制失败，请手动选择文本复制'); }

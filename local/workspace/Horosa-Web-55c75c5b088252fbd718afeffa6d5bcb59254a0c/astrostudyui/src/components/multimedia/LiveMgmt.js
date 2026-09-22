@@ -1,13 +1,14 @@
 import { Component } from 'react';
 import flvjs from 'flv.js';
 import { Popconfirm, Row, Col } from 'antd';
-import Modal from 'drag-modal';
+import Modal from '../comp/DragModal';
 import { XQButton as Button, XQInput as Input, XQTable as Table } from '../xq-ui';
 import XQIcon from '../xq-icons';
 import { ServerRoot, ResultKey, TableOddRowBgColor, RtmpPlayServer, }  from '../../utils/constants';
 import { randomStr, } from '../../utils/helper';
 import request from '../../utils/request';
 
+import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 class LiveMgmt extends Component{
 
 	constructor(props) {
@@ -222,7 +223,7 @@ class LiveMgmt extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : document.documentElement.clientHeight - 80;
+		let height = this.props.height ? this.props.height : getLayoutViewportHeight() - 80;
 		height = height - 100;
 		let tblHeight = height - 50;
 

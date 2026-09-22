@@ -124,6 +124,31 @@ describe('[#77] 流式看门狗三层语义', ()=>{
 		expect(done).toBe(true);
 	});
 
+	it('tool_call/tool_call_start 事件续命(模型先出长参数再出正文不判卡)', async ()=>{
+		const stream = makeStream();
+		mockFetchWith(stream);
+		let done = false;
+		const p = requestAIAnalysisChatStream({ providerType: 'openai', providerOptions: { streamStallMs: 5000 }, messages: [] }, { onDone: ()=>{ done = true; } });
+		await flush();
+		stream.emit(sse('tool_call_start', { id: 'c1', name: 'create_chart_record', index: 0 }));
+		await flush();
+		jest.advanceTimersByTime(4000);
+		await flush();
+		stream.emit(sse('tool_call_delta', { id: 'c1', index: 0, chars: 12 }));
+		await flush();
+		jest.advanceTimersByTime(4000);
+		await flush();
+		stream.emit(sse('tool_call', { id: 'c1', name: 'create_chart_record', index: 0, arguments: '{}' }));
+		await flush();
+		jest.advanceTimersByTime(4000);
+		await flush();
+		expect(stream.isCancelled()).toBe(false);
+		stream.end();
+		await flush();
+		await p;
+		expect(done).toBe(true);
+	});
+
 	it('优先级:handlers 显式 stallMs > providerOptions.streamStallMs', async ()=>{
 		const stream = makeStream();
 		mockFetchWith(stream);

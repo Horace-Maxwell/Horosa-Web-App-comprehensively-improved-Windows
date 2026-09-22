@@ -7,6 +7,7 @@ import { buildKeypoints, buildKeypointsSnapshotText, RELEASE_MODES, KEYPOINTS_DE
 import { symbolWithMeaning } from './AstroExtraCommon';
 import { XQSelect as Select } from '../xq-ui';
 import styles from '../../css/styles.less';
+import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { markPanelReady } from '../../utils/perfMark';
 
 const Option = Select.Option;
@@ -14,7 +15,7 @@ const Option = Select.Option;
 class AstroKeypoints extends Component{
 	constructor(props){
 		super(props);
-		this.state = { opts: { ...KEYPOINTS_DEFAULT_OPTS }, data: null };
+		this.state = { opts: { ...KEYPOINTS_DEFAULT_OPTS, mode: DIRECTION_PAGE_SETTINGS.load().keypointsMode }, data: null };   // 上次亲手选的起点
 		this.rebuild = this.rebuild.bind(this);
 		this.changeOpt = this.changeOpt.bind(this);
 		this.saveAISnapshot = this.saveAISnapshot.bind(this);
@@ -59,6 +60,8 @@ class AstroKeypoints extends Component{
 	}
 
 	changeOpt(key, val){
+		const persistAs = { mode: 'keypointsMode' }[key];
+		if(persistAs){ DIRECTION_PAGE_SETTINGS.save({ [persistAs]: val }); }
 		const opts = { ...this.state.opts, [key]: val };
 		this.setState({ opts }, () => { this.rebuild(); this.saveAISnapshot(); });
 	}

@@ -41,8 +41,12 @@ export default class LiuYaoCastPad extends Component{
 		super(props);
 		// [G4] 手动录入默认爻态:少阳(默认=现状)/少阴 —— 逐掷录入(背面数 1↔2)与逐爻四态(7↔8)同步按档。
 		const yin = props.defaultYaoState === 'shaoyin';
+		// [Q-299/T-288 ⑦] 逐掷录入的「背面数」按 coinFace 口径取:standard 少阳=1背/少阴=2背;alt(字为阳)镜像 → 少阳=2背/少阴=1背。
+		// 此前恒按 standard 取,「字为阳」口径下初始六行显示与默认爻态阴阳反。
+		const mirror = props.coinFace === 'alt';
+		const backsOf = (isYin) => (isYin ? (mirror ? 1 : 2) : (mirror ? 2 : 1));
 		this.state = {
-			tosses: yin ? [2, 2, 2, 2, 2, 2] : [1, 1, 1, 1, 1, 1], // 每爻背面数(0-3),初→上
+			tosses: [0, 1, 2, 3, 4, 5].map(() => backsOf(yin)), // 每爻背面数(0-3),初→上
 			mi1: 8, mi2: 8, mi3: 6,
 			dice1: 1, dice2: 1, dice3: 6,
 			fourState: yin ? [8, 8, 8, 8, 8, 8] : [7, 7, 7, 7, 7, 7], // 逐爻四态:6老阴7少阳8少阴9老阳
@@ -50,6 +54,12 @@ export default class LiuYaoCastPad extends Component{
 			fangwei: 0, hourNum: 1,
 			sound1: 1, sound2: 1, // 声音起卦:闻声数(上卦/下卦)
 		};
+	}
+	// [Q-299/T-288 ⑦] 切换字/背口径时镜像已录背面数(3−b),使各行阴阳/动静显示不变。
+	componentDidUpdate(prevProps){
+		if(prevProps.coinFace !== this.props.coinFace && (prevProps.coinFace === 'alt') !== (this.props.coinFace === 'alt')){
+			this.setState((st) => ({ tosses: (st.tosses || []).map((b) => 3 - b) }));
+		}
 	}
 	emit(lines, moving){
 		if(this.props.onCast){ this.props.onCast({ lines, moving }); }

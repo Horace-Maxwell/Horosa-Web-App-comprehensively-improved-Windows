@@ -7,8 +7,11 @@ import * as AstroText from '../../constants/AstroText';
 import { classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-import { planetaryPictures, midpointList, spiegelContacts, solarArcDirections, compositeChart } from '../../utils/uranianDial';
-import { getStoredUranianDisplay } from './UranianDialStyle';
+import { planetaryPictures, midpointList, spiegelContacts, solarArcDirections, compositeChart, SA_RATE, planetHouse, rectificationHits } from '../../utils/uranianDial';
+import moment from 'moment';
+// [Q-147/T-54] 太阳弧速率三档人话(与 90°盘工具条同名;naibod 为缺省不成行)。
+const SA_KEY_LABEL = { naibod: 'Naibod(0°59′08″/年)', oneDeg: '1°/年', cardan: 'Cardan(0°59′12″/年)' };
+import { getStoredUranianDisplay, URANIAN_DISPLAY_EVENT } from './UranianDialStyle';
 import { personalSetForSchool, schoolToBackendParams, SCHOOL_OPTIONS } from './UranianSchools';
 import { medicalMeaning, factorLabel } from '../../data/uranianMeanings';
 import { tnpReferenceList, TNP_CALIBRE_NOTE, TNP_GROUP_LABEL } from '../../data/uranianTnpReference';
@@ -153,7 +156,8 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
 	if(disp.extendedAxes) calibres.push('扩展映点轴(15°固定星座;仅360°盘有别)');
 	if(disp.showEastPoint) calibres.push('东点入点集');
 	if(disp.showVertex) calibres.push('宿命点入点集');
-	if(disp.saKey && disp.saKey !== 'naibod') calibres.push(`太阳弧速率:${disp.saKey === 'oneDeg' ? '1°/年' : '0°59′12″/年'}`);
+	// [Q-147/T-54] saKey 三档(naibod 默认 / oneDeg / cardan)与 SA_RATE 单源同名;非默认才成行(缺省字节不变)。
+	if(disp.saKey && disp.saKey !== 'naibod') calibres.push(`太阳弧速率:${SA_KEY_LABEL[disp.saKey] || disp.saKey}`);
 	if(calibres.length){
 		out.push(`口径：${calibres.join('；')}`);
 	}
@@ -174,9 +178,12 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
 	// 差值表(WP-3):太阳弧到期(naibod),目标年龄命中标★。
 	if(disp.showDiffList){
 		const targetAge = Number.isFinite(Number(disp.diffTargetAge)) ? Number(disp.diffTargetAge) : 30;
-		const diffs = solarArcDirections(pts, 90, { saKey: 'naibod', targetAge, win: 1, maxAge: 90 });
+		// [Q-147/T-54] 差值表吃用户太阳弧速率与盘基(此前钉死 naibod/90°,与盘面差值表口径分叉);缺省档逐字同旧。
+		const saKey = SA_RATE[disp.saKey] ? disp.saKey : 'naibod';
+		const dialBase = Number(disp.dialBase) > 0 ? Number(disp.dialBase) : 90;
+		const diffs = solarArcDirections(pts, dialBase, { saKey, targetAge, win: 1, maxAge: 90 });
 		if(diffs && diffs.length){
-			out.push(`差值表(太阳弧到期，目标年龄${targetAge}岁)：`);
+			out.push(`差值表(太阳弧到期${saKey !== 'naibod' ? `·${SA_KEY_LABEL[saKey]}` : ''}${dialBase !== 90 ? `·${dialBase}°盘` : ''}，目标年龄${targetAge}岁)：`);
 			diffs.slice(0, 8).forEach((d)=>{
 				const due = d.due ? ' ★到期' : '';
 				out.push(`  ${factorLabel(d.a)}∠${factorLabel(d.b)} 弧${Number(d.arc).toFixed(2)}° → ${Number(d.age).toFixed(1)}岁${due}`);
@@ -347,10 +354,81 @@ export async function buildGermanySnapshotForFields(fields, dispOverride){
 			if(cpts.length) extras = { compositePts: cpts, partnerLabel: partnerParams.name || '叠盘对象' };
 		}catch(e){ /* 伙伴盘拉取失败 → 跳过组合段(仅数据可得时附) */ }
 	}
-	return buildGermanySnapshotText(params, chartObj, result, fields, extras);
+	// [Q-227/T-191] 合并后的显示口径一并传入正文:此前正文 [行星图][映点][中点列表][汉堡学派要素] 重新读全局显示仓,
+	// 与后端段(随 dispReq)成「一份快照两套口径」;页面路径不传 = 读全局 = 现状字节不变。
+	return buildGermanySnapshotText(params, chartObj, result, fields, extras, dispReq);
 }
 
-export function buildGermanySnapshotText(params, chartObj, result, fields, extras){
+// [Q-442/T-405] 六宫框全框×全点落宫表:页签「六宫框」开着(disp.showHouseFrames≠false)即进快照,不受汉堡门控;
+// 此前只在汉堡段里报「太阳局四点」。落宫取后端 frames[key].placements[id],缺则按 cusps 前端定宫(与六宫框页 tableRows 同式)。
+// 六框中性命名(定局法),与 UranianHouseFrames 同表。
+const HF_FRAMES = [
+	['meridian', '子午局'], ['ascendant', '上升局'], ['sun', '太阳局'], ['moon', '月亮局'], ['node', '交点局'], ['earth', '地球局'],
+];
+export function buildHouseFramesSection(disp, result, dialPoints){
+	const out = [];
+	if(!disp || disp.showHouseFrames === false){ return out; }
+	const frames = result && result.houseFrames && result.houseFrames.frames ? result.houseFrames.frames : null;
+	if(!frames){ return out; }
+	const keys = HF_FRAMES.filter(([k])=>frames[k] && (frames[k].placements || Array.isArray(frames[k].cusps)));
+	if(!keys.length){ return out; }
+	const pts = Array.isArray(dialPoints) ? dialPoints : [];
+	if(!pts.length){ return out; }
+	const houseOf = (f, pt)=>{
+		const pl = f.placements || null;
+		if(pl && pl[pt.id]){ return `${pl[pt.id]}`; }
+		if(Array.isArray(f.cusps) && f.cusps.length === 12){ return `${planetHouse(pt.lon, f.cusps)}`; }
+		return '—';
+	};
+	out.push('[六宫框落宫]');
+	out.push('（子午局=东点 1 宫头·天顶 10 宫头赤道分宫；上升/太阳/月亮/交点/地球局=等宫；太阳局太阳落 4 宫、月亮局太阴落 10 宫、地球局 1 宫头恒 180°）');
+	out.push(`| 点 | ${keys.map(([, l])=>l).join(' | ')} |`);
+	out.push(`| --- | ${keys.map(()=>'---').join(' | ')} |`);
+	pts.forEach((pt)=>{
+		out.push(`| ${msg(pt.id)} | ${keys.map(([k])=>houseOf(frames[k], pt)).join(' | ')} |`);
+	});
+	return out;
+}
+
+// [Q-442/T-405] 校时预览段:与「校时」页签同一纯函数 rectificationHits(事件日期→弧年×速率→推进 MC/Asc→命中本命因子);
+// 有待校事件才产段。Asc 微调滑块是即时预览态(松手即弃),不进快照;命中表按 0 微调。
+const RECTIFY_TYPE_CN = { marriage: '婚姻', children: '生育', career: '事业', move: '迁居', loss: '丧亲', accident: '意外', other: '其他' };
+export function buildRectifySection(disp, params, dialPoints){
+	const out = [];
+	const events = disp && Array.isArray(disp.rectifyEvents) ? disp.rectifyEvents.filter((e)=>e && e.date) : [];
+	if(!events.length){ return out; }
+	const birth = params && params.date ? moment(`${params.date} ${params.time || '00:00:00'}`, 'YYYY/MM/DD HH:mm:ss') : null;
+	if(!birth || !birth.isValid()){ return out; }
+	const pts = Array.isArray(dialPoints) ? dialPoints : [];
+	const lonOf = (id)=>{ const o = pts.find((p)=>p.id === id); return o && Number.isFinite(Number(o.lon)) ? Number(o.lon) : null; };
+	const angles = {};
+	const mc = lonOf(AstroConst.MC); const asc = lonOf(AstroConst.ASC);
+	if(mc != null){ angles.mc = mc; }
+	if(asc != null){ angles.asc = asc; }
+	const base = Number(disp.dialBase) > 0 ? Number(disp.dialBase) : 90;
+	const orb = Number.isFinite(Number(disp.orb)) && Number(disp.orb) > 0 ? Number(disp.orb) : 1;
+	const saKey = SA_RATE[disp.saKey] ? disp.saKey : 'naibod';
+	const evInput = events.map((ev, i)=>{
+		const when = moment(ev.date);
+		const years = when.isValid() ? (when.valueOf() - birth.valueOf()) / (86400000 * 365.2422) : NaN;
+		return { label: (ev.label && `${ev.label}`.trim()) ? `${ev.label}` : `事件${i + 1}`, years, type: ev.type, dateText: when.isValid() ? when.format('YYYY-MM-DD') : '' };
+	});
+	const results = rectificationHits(evInput, angles, pts, base, orb, SA_RATE[saKey]);
+	out.push('[校时预览]');
+	out.push(`（已录事件推进 MC/Asc 看是否触动本命因子，只预览不改盘；盘基 ${base}°·容许 ${orb}°·太阳弧 ${({ oneDeg: '1°/年', cardan: 'Cardan', naibod: 'Naibod' })[saKey] || 'Naibod'}；1°MC≈4 分钟出生时间）`);
+	out.push('| 事件 | 类型 | 日期 | 弧° | 命中(轴→本命因子·角距) |');
+	out.push('| --- | --- | --- | --- | --- |');
+	results.forEach((r, i)=>{
+		const ev = evInput[i] || {};
+		const hits = (r.hits || []).slice(0, 8).map((h)=>`${h.angle}→${msg(h.factor)}·${h.sep.toFixed(2)}°`).join('，') || '无命中';
+		out.push(`| ${r.event} | ${RECTIFY_TYPE_CN[ev.type] || '其他'} | ${ev.dateText || '—'} | ${Number.isFinite(r.arc) ? r.arc.toFixed(2) : '—'} | ${hits} |`);
+	});
+	const total = results.reduce((n, r)=>n + (r.hits ? r.hits.length : 0), 0);
+	out.push(`命中合计：${total}`);
+	return out;
+}
+
+export function buildGermanySnapshotText(params, chartObj, result, fields, extras, dispIn){
 	const lines = [];
 	const midpoints = result && result.midpoints ? result.midpoints : [];
 	const aspects = result && result.aspects ? result.aspects : {};
@@ -458,7 +536,8 @@ export function buildGermanySnapshotText(params, chartObj, result, fields, extra
 	tnpList.forEach((t)=>pushPoint(t.id, t.lon));
 	pushPoint(AstroConst.ARIES_POINT, 0);
 	// 流派/容许度随「90°中点盘」存储派生(与盘一致);缺省 classic → 个人点含白羊+南交、orb 1°,即现状口径。
-	const disp = getStoredUranianDisplay();
+	// [Q-227/T-191] 无头挂载路径传入合并口径 dispIn(全局仓 + 齿轮覆盖),正文与请求同源。
+	const disp = (dispIn && typeof dispIn === 'object') ? dispIn : getStoredUranianDisplay();
 	const snapPersonal = personalSetForSchool(disp.school);
 	const SNAP_BASE = 90;
 	const SNAP_ORB = Number.isFinite(Number(disp.orb)) && Number(disp.orb) > 0 ? Number(disp.orb) : 1;
@@ -500,6 +579,18 @@ export function buildGermanySnapshotText(params, chartObj, result, fields, extra
 		lines.push('| 因子 | 折叠位 |');
 		lines.push('| --- | --- |');
 		mpl.slice(0, 120).forEach((m)=>lines.push(`| ${msg(m.a)} / ${msg(m.b)} | ${m.lon.toFixed(2)}° |`));
+	}
+
+	// [Q-442/T-405] 六宫框全表(页签开着即进,不受汉堡门控)与校时预览(有待校事件才进)。
+	const framesSection = buildHouseFramesSection(disp, result, dialPoints);
+	if(framesSection.length){
+		lines.push('');
+		lines.push(...framesSection);
+	}
+	const rectifySection = buildRectifySection(disp, params, dialPoints);
+	if(rectifySection.length){
+		lines.push('');
+		lines.push(...rectifySection);
 	}
 
 	// 汉堡学派要素(WP-8):流派/六宫框/差值/医学/赤纬,仅用户介入汉堡功能时附加(默认 classic 零回归)。
@@ -680,6 +771,13 @@ class AstroMidpoint extends Component{
 		this.unmounted = false;
 		if(typeof window !== 'undefined' && window.addEventListener){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+			// [Q-442] 显示偏好(流派/六宫框页签/校时事件/口径开关…)改了 → 去抖重存页面快照:此前只在盘/中点数据变化时存,
+			// 「校时」录事件、开关「六宫框」后快照仍是旧的(右栏已变)。会重取后端的开关走 requestChart 自存,去抖合并。
+			this._onUranianDisplay = ()=>{
+				clearTimeout(this._dispSnapTimer);
+				this._dispSnapTimer = setTimeout(()=>{ if(!this.unmounted){ this.saveGermanySnapshot(); } }, 250);
+			};
+			window.addEventListener(URANIAN_DISPLAY_EVENT, this._onUranianDisplay);
 		}
 		this.scheduleSnapshotSave(undefined, undefined);
 	}
@@ -697,8 +795,10 @@ class AstroMidpoint extends Component{
 	componentWillUnmount(){
 		this.flushSnapshotSave();
 		this.unmounted = true;
+		clearTimeout(this._dispSnapTimer);
 		if(typeof window !== 'undefined' && window.removeEventListener){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+			if(this._onUranianDisplay){ window.removeEventListener(URANIAN_DISPLAY_EVENT, this._onUranianDisplay); }
 		}
 	}
 

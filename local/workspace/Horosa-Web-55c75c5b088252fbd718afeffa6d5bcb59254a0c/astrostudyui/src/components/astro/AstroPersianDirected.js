@@ -20,6 +20,7 @@ import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
 import PlusMinusTime from './PlusMinusTime';
 import { XQSelect as Select } from '../xq-ui';
+import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { markPanelReady } from '../../utils/perfMark';
 
 const Option = Select.Option;
@@ -82,10 +83,15 @@ export function buildPersianHits(chartObj, rateKey, maxAge, direction){
 					if((a === 0 || a === 180) && s === -1){ return; }
 					const target = norm360(t.lon + s * a);
 					const arc = converse ? norm360(pl - target) : norm360(target - pl);
-					const age = arc / rate;
-					if(age > 0 && age <= cap){
-						const date = (birth && birth.isValid()) ? birth.clone().add(age * 365.2421904, 'days').format('YYYY-MM-DD') : '';
-						hits.push({ age: Math.round(age * 100) / 100, promittor: p, aspect: a, significator: t.id, date });
+					// [Q-168/T-102] 速率 >1°/年(Prophected 30°/年)时一生可绕黄道多周:按 arc+360k 逐周取应期至 cap(此前 norm360 恒 <360° → 只列 0–12 岁)
+					for(let k = 0; k < 400; k++){
+						const age = (arc + 360 * k) / rate;
+						if(age > cap){ break; }
+						if(age > 0){
+							const date = (birth && birth.isValid()) ? birth.clone().add(age * 365.2421904, 'days').format('YYYY-MM-DD') : '';
+							hits.push({ age: Math.round(age * 100) / 100, promittor: p, aspect: a, significator: t.id, date });
+						}
+						if(rate <= 1.0){ break; }
 					}
 				});
 			});
@@ -111,7 +117,8 @@ export function buildPersianDirectedSnapshotText(chartObj, opts){
 	// [YB] 头部盘主生辰([起盘信息];无数据 helper 自返 [],不产空段头)。
 	lines.push(...birthHeaderLines(chartObj));
 	lines.push('[波斯向运（Persian Directed）]');
-	lines.push('黄经象征向运(1°/年)：所有行星/点每年 +1°,本命宫头不动；下表为向运星触及本命的应期。');
+	// [Q-168/T-102] 速率/方向按所选写(此前写死 1°/年、每年 +1°)
+	lines.push(`黄经象征向运(${RATE_LABEL[rateKey] || rateKey})：所有行星/点按此速率${direction === 'converse' ? '逆向(Converse)' : '顺向'}推进,本命宫头不动；下表为向运星触及本命的应期。`);
 	lines.push('');
 	lines.push('| 年龄 | 日期 | 向运星 | 相位 | 本命对象 |');
 	lines.push('| --- | --- | --- | --- | --- |');
@@ -186,7 +193,7 @@ class AstroPersianDirected extends Component{
 		const np = natalParams(props.value);
 		const dt = new DateTime();
 		dt.addDate(1);
-		this.state = { params: { ...np, datetime: dt, asporb: transitOrbDefault(), nodeRetrograde: false, rateKey: 'persian', direction: 'direct', maxYears: 90 }, dirChart: null };
+		this.state = { params: { ...np, datetime: dt, asporb: transitOrbDefault(), nodeRetrograde: false, rateKey: DIRECTION_PAGE_SETTINGS.load().persianRateKey, direction: DIRECTION_PAGE_SETTINGS.load().persianDirection, maxYears: DIRECTION_PAGE_SETTINGS.load().persianMaxYears }, dirChart: null };
 		// 终生应期长表的滚动定位：fullListRef=滚动盒、anchorRowNode=当前向运年龄锚点行、lastScrolledAge=去抖。
 		this.fullListRef = null;
 		this.anchorRowNode = null;
@@ -300,6 +307,7 @@ class AstroPersianDirected extends Component{
 	}
 
 	changeRate(v){
+		DIRECTION_PAGE_SETTINGS.save({ persianRateKey: v });
 		const params = { ...this.state.params, rateKey: v };
 		this.setState({ params }, () => {
 			const p = { ...params, datetime: params.datetime.format ? params.datetime.format('YYYY-MM-DD HH:mm') : params.datetime };
@@ -310,6 +318,7 @@ class AstroPersianDirected extends Component{
 	}
 
 	changeDirection(v){
+		DIRECTION_PAGE_SETTINGS.save({ persianDirection: v });
 		const params = { ...this.state.params, direction: v };
 		this.setState({ params }, () => {
 			const p = { ...params, datetime: params.datetime.format ? params.datetime.format('YYYY-MM-DD HH:mm') : params.datetime };
@@ -321,6 +330,7 @@ class AstroPersianDirected extends Component{
 	// 应期表计算年数(右侧长表不再固定 90 年):仅影响 hits 计算与快照,无需重算左盘。
 	// 同步重存模块快照 → AI 导出按所选年数输出（挂载另由 record.maxYears 经 aiAnalysisContext 透传）。
 	changeMaxYears(v){
+		DIRECTION_PAGE_SETTINGS.save({ persianMaxYears: v });
 		this.setState({ params: { ...this.state.params, maxYears: v } }, () => { this.saveSnapshot(); });
 	}
 
@@ -379,7 +389,8 @@ class AstroPersianDirected extends Component{
 		// 当前向运年龄 ±1 年内的应期行加中性高亮（非术数语义色，明暗双主题安全）。
 		const fullRowStyle = (row) => ((currentAge != null && Math.abs(row.age - currentAge) <= 1) ? { background: 'rgba(251,191,36,.16)' } : undefined);
 		const height = this.props.height ? this.props.height : 760;
-		const style = { height: (height - 20) + 'px', overflowY: 'auto', overflowX: 'hidden' };
+		// [嵌套滚动普查 2026-09-18] 右栏改 flex 列:终生应期表吃余高(不再写死 maxHeight 320)→ 放得下时只有表自己一条滚动条;放不下(小窗/放大档)才由列滚动。
+		const style = { height: (height - 20) + 'px', overflowY: 'auto', overflowX: 'hidden', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' };   // [巡检实抓 2026-09-17] 内距计入高度,不再比面板高 5px
 		return (
 			<div>
 				<Row gutter={6}>
@@ -419,6 +430,8 @@ class AstroPersianDirected extends Component{
 									value={curDt}
 									startTime={birthDt || undefined}
 									needZone={false}
+									showZone={false}      /* [Q-583/T-545] 请求只到分、时区随本命:时区/秒两列此前是死下拉(拨了零后果且回弹),不再渲染 */
+									showSeconds={false}
 									showAdjust={true}
 									onAfterChanged={this.handleTimeChanged}
 									onStepSelect={()=>{ /* R4-B4 错轴止血:本页时间轴=波斯向运时刻,全局选步长
@@ -432,13 +445,16 @@ class AstroPersianDirected extends Component{
 							</div>
 							<Divider orientation="left">邻近应期（距此刻最近）</Divider>
 							{nearbyHits.length ? (
-								<SmallTable rowKey={(r, i) => `n${i}`} rows={nearbyHits} columns={nearbyColumns} />
+								/* [嵌套滚动普查 2026-09-18] 邻近应期表不封顶(13 行 ≈400px)会把终生应期表挤到最小、整列再滚 → 两表按 1:2 分摊余高,各自滚动、列不滚(单层) */
+								<div style={{ flex: '1 1 0', minHeight: 120, overflowY: 'auto', overflowX: 'hidden' }}>
+									<SmallTable rowKey={(r, i) => `n${i}`} rows={nearbyHits} columns={nearbyColumns} />
+								</div>
 							) : (
 								<div style={{ fontSize: 12, color: 'var(--horosa-muted, #666)', marginBottom: 6 }}>（调上方「推运时间」即可定位到此刻邻近的向运应期；无生时则不聚焦。）</div>
 							)}
 							<Divider orientation="left">终生应期（向运 → 本命）</Divider>
 							<div ref={(node) => { this.fullListRef = node; }}
-								style={{ position: 'relative', maxHeight: 320, overflowY: 'auto', overflowX: 'hidden', border: '1px solid rgba(148,163,184,.18)', borderRadius: 4 }}>
+								style={{ position: 'relative', flex: '2 1 0', minHeight: 160, overflowY: 'auto', overflowX: 'hidden', border: '1px solid rgba(148,163,184,.18)', borderRadius: 4 }}>
 								<SmallTable
 									rowKey={(r, i) => i}
 									rows={fullHits}

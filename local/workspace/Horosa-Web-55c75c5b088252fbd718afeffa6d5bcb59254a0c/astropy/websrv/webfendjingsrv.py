@@ -127,6 +127,7 @@ class FenDingJingSrv:
                 dt.minute,
                 timezone=timezone_value,
                 after23_new_day=data.get("after23NewDay", 1),
+                hour_gan_use_next_day=data.get("lateZiHourUseNextDay", 1),   # [Q-264/T-247] 全局「晚子时」
             )
             stem_override = bool(data.get("stemOverride"))
             year_stem = _valid_stem(data.get("yearStem"), chart.get("year_gz", "甲")[0])

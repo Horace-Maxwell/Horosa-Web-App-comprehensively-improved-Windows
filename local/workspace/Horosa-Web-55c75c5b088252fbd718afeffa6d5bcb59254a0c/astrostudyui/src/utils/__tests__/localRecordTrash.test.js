@@ -73,9 +73,12 @@ describe('[R3] 回收站', ()=>{
 		const old = new Date(Date.now() - 31 * 24 * 3600 * 1000);
 		const pad = (n)=>String(n).padStart(2, '0');
 		const oldStr = `${old.getFullYear()}-${pad(old.getMonth() + 1)}-${pad(old.getDate())} 00:00:00`;
+		// 「新鲜」条目也按相对日期(昨天)注入:此前写死 2026-08-13,到 2026-09-12 恰满 30 天变过期,测试按墙钟自然腐烂
+		const fresh = new Date(Date.now() - 1 * 24 * 3600 * 1000);
+		const freshStr = `${fresh.getFullYear()}-${pad(fresh.getMonth() + 1)}-${pad(fresh.getDate())} 00:00:00`;
 		window.localStorage.setItem(TRASH_KEY, JSON.stringify([
 			{ cid: 'local-expired', name: '过期', deletedAt: oldStr },
-			{ cid: 'local-fresh', name: '新鲜', deletedAt: '2026-08-13 00:00:00' },
+			{ cid: 'local-fresh', name: '新鲜', deletedAt: freshStr },
 		]));
 		expect(listLocalChartsTrash().map((r)=>r.cid)).toEqual(['local-fresh']);
 	});

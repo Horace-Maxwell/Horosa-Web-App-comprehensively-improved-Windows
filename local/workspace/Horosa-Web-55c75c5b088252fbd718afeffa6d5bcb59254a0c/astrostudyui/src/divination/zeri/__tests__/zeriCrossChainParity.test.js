@@ -53,33 +53,33 @@ describe('[十三轮] 经度回退判别(lon 缺失不再静默退化钟表口�
 	});
 });
 
-describe('[十三轮补] 紫微跨链安全边际:RealSun 表档全年最坏差 < pick 内缩(机械证明骑线被盖)', ()=>{
-	// 紫微后端=TimeZiAlg.RealSun 查表档(ZiWeiController 非 DirectTime 一律 RealSun;与六壬走
-	// swiss 不同支)。表数据从 Java 源实读(搬运保真同 py 镜像先例);含两处实锤 typo
-	// (02-24 量级/04-10 符号,差 129-130s)——修表=改用户所见须拍板,本网只证 pick 180s 盖得住。
+describe('[十三轮补] 紫微跨链安全边际:后端 RealSun 已改真算式,与前端 EoT 逐项同式', ()=>{
+	// 紫微后端 = TimeZiAlg.RealSun(ZiWeiController 非 DirectTime 一律 RealSun)。
+	// 旧实现是 366 天查表(含两处实锤 typo,02-24 量级 / 04-10 符号,差 129-130s),本网当时只证 pick 180s 盖得住;
+	// 现改为与前端 `baziLunarLocal.equationOfTime` **逐项同式**的 NOAA/Meeus 低阶式 ⇒ 跨链差是浮点级,不再需要余量证明。
+	// 判别力:任一侧系数被改 / 任一侧回潮到查表,下面的对拍当场红。
 	const fs = require('fs');
 	const path = require('path');
 	const JAVA = path.join(__dirname, '../../../../../astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/model/RealSunTimeOffset.java');
-	it('🔴 全年 |表−NOAA| 最坏差 ≤ 150s,且 < hourlyScanEngine pick 内缩 180s(内缩被调小或表被改坏必红)', ()=>{
-		const src = fs.readFileSync(JAVA, 'utf8');
-		const days = src.match(/String\[\] days = new String\[\] \{([\s\S]*?)\};/)[1].match(/"(\d{2}-\d{2})"/g).map((s)=>s.slice(1, -1));
-		const offs = src.match(/int\[\] offsets = new int\[\] \{([\s\S]*?)\};/)[1].split(',').map((s)=>s.trim()).filter(Boolean).map((e)=>{
-			const m = e.match(/^(-?\d+)\*60([+-]\d+)$/);
-			return m ? Number(m[1]) * 60 + Number(m[2]) : NaN;
+	const JS = path.join(__dirname, '../../../utils/baziLunarLocal.js');
+	const COEFS = ['280.46646', '36000.76983', '0.0003032', '357.52911', '35999.05029', '0.0001537',
+		'0.016708634', '0.000042037', '0.0000001267', '23.43929111', '46.8150', '0.00059', '0.001813'];
+	it('🔴 两侧同式:NOAA/Meeus 十三个系数逐一在位,五项式形状一致,且都不是查表', ()=>{
+		const java = fs.readFileSync(JAVA, 'utf8');
+		const js = fs.readFileSync(JS, 'utf8');
+		COEFS.forEach((c)=>{
+			expect(java.indexOf(c)).toBeGreaterThan(-1);
+			expect(js.indexOf(c)).toBeGreaterThan(-1);
 		});
-		expect(days.length).toBe(366);
-		expect(offs.length).toBe(366);
-		expect(offs.filter(Number.isNaN)).toEqual([]);
-		const { equationOfTime } = require('../../../utils/baziLunarLocal').__testing__;
-		let worst = 0;
-		days.forEach((md, i)=>{
-			if(md === '02-29'){ return; }
-			const d = Math.abs(offs[i] - equationOfTime(Date.parse(`2026-${md}T04:00:00Z`)) * 60);
-			if(d > worst){ worst = d; }
-		});
-		expect(worst).toBeLessThanOrEqual(150);
+		// 五项式(y²sin2L0 − 2e·sinM + 4e·y²·sinM·cos2L0 − ½y⁴·sin4L0 − 1.25e²·sin2M)两侧同形
+		expect(/y2 \* sin2L0 - 2(\.0)? \* e \* sinM \+ 4(\.0)? \* e \* y2 \* sinM \* cos2L0 - 0\.5 \* y2 \* y2 \* sin4L0 - 1\.25 \* e \* e \* sin2M/.test(java)).toBe(true);
+		expect(/y2 \* sin2L0 - 2 \* e \* sinM \+ 4 \* e \* y2 \* sinM \* cos2L0 - 0\.5 \* y2 \* y2 \* sin4L0 - 1\.25 \* e \* e \* sin2M/.test(js)).toBe(true);
+		// 回潮锁:两侧都不得再出现 366 天查表
+		expect(java.indexOf('String[] days = new String[]')).toBe(-1);
+		expect(java.indexOf('int[] offsets = new int[]')).toBe(-1);
+	});
+	it('pick 内缩仍是 3 分钟(同式后余量不再吃紧,但内缩不得被摘)', ()=>{
 		const engineSrc = fs.readFileSync(path.join(__dirname, '../hourlyScanEngine.js'), 'utf8');
 		expect(engineSrc.indexOf('pickInsetMs = 3 * MINUTE_MS') >= 0).toBe(true);
-		expect(worst).toBeLessThan(180);
 	});
 });

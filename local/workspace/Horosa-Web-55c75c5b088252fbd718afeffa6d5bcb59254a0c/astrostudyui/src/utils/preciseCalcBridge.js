@@ -241,6 +241,11 @@ function buildLocalNongliFallback(params){
 		if(!result.jieqi){
 			result.jieqi = jieqiFromText(result.jiedelta);
 		}
+		// [Q-202/T-145] 与后端 /nongli/time 同形:year=干支年(本地 buildNongli 的 year 是汉字数字)、monthInt/dayInt=农历数字月日
+		// (六爻 genTimeGua/buildTimeGua 读这三键;此前回落形态 year 汉字→支序 -1、月日 undefined → NaN 抛错/返回 null)。
+		result.year = result.yearGanZi || result.year;
+		if(result.monthInt === undefined || result.monthInt === null){ result.monthInt = nongli.monthNum != null ? nongli.monthNum : (result.monthNum != null ? result.monthNum : undefined); }
+		if(result.dayInt === undefined || result.dayInt === null){ result.dayInt = nongli.dayNum != null ? nongli.dayNum : (result.dayNum != null ? result.dayNum : undefined); }
 		return result;
 	}catch(e){
 		return null;

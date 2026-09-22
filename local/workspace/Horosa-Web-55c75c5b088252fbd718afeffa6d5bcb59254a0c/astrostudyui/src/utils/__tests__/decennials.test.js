@@ -244,7 +244,8 @@ describe('decennials timing', ()=>{
 
 	test('exports calendar labels for nominal and actual timing modes', ()=>{
 		expect(getDecennialCalendarLabel(DECENNIAL_CALENDAR_TRADITIONAL)).toBe('360天/年（按30天/月换算）');
-		expect(getDecennialCalendarLabel(DECENNIAL_CALENDAR_ACTUAL)).toBe('365.25天/年（按回归年换算）');
+		// [Q-176/T-116c] 换算比 1461/1440 = 365.25 天,那是**儒略年**;回归年为 365.2422 天。标签按实现改真话。
+		expect(getDecennialCalendarLabel(DECENNIAL_CALENDAR_ACTUAL)).toBe('365.25天/年（儒略年；回归年为 365.2422 天）');
 	});
 
 	test('uses moon as the sect light for nocturnal charts and rotates chaldean order correctly', ()=>{

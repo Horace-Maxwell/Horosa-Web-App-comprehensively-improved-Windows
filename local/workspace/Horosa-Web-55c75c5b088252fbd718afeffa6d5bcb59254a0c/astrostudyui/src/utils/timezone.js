@@ -121,12 +121,43 @@ export function isDstActiveAt(zone, dateStr){
 	}
 }
 
-// 一站式:经纬度 + 日期 → { zone, offset, dst } 或 null(坐标无效/无法解析)。
+// 中国大陆统一北京时间口径(horosa_tz_cn_unified_v1):IANA 地理时区把新疆划为 Asia/Urumqi(+06:00,
+// 民间「新疆时间」),而出生证/户籍/医院记录一律按法定北京时间;选点预览、存档推断、AI 建档三条路径
+// 同源于本函数,故在此**只做 IANA 名归并、不写死偏移**:统一时间起点之后 Asia/Urumqi → Asia/Shanghai,
+// 偏移仍由 Intl 按日期算(1986–1991 夏令时照常得 +09:00;统一前的新疆出生仍按 +06:00)。
+// 结果带 geoZone(原地理时区)与 advisory('cn-unified')供 UI/AI 提示「官方 +08:00 · 当地惯用 +06:00」;
+// kill-switch:localStorage 'horosa.tz.cnUnified' = '0' 回到纯地理时区。已存档的 zone 走 resolveGeoZone 优先沿用,零回归。
+export const CN_UNIFIED_ZONE_SINCE = '1949-10-01';
+const CN_UNIFY = Object.freeze({ 'Asia/Urumqi': 'Asia/Shanghai' });
+
+function cnUnifiedEnabled(){
+	try{
+		if(typeof window !== 'undefined' && window.localStorage){
+			return window.localStorage.getItem('horosa.tz.cnUnified') !== '0';
+		}
+	}catch(e){ /* 无存储环境=默认开 */ }
+	return true;
+}
+
+export function unifyCnZone(zone, dateStr){
+	if(!zone || !CN_UNIFY[zone] || !cnUnifiedEnabled()){
+		return { zone: zone, advisory: null };
+	}
+	const day = `${dateStr || ''}`.slice(0, 10);
+	if(/^\d{4}-\d{2}-\d{2}$/.test(day) && day < CN_UNIFIED_ZONE_SINCE){
+		return { zone: zone, advisory: null };
+	}
+	return { zone: CN_UNIFY[zone], advisory: 'cn-unified' };
+}
+
+// 一站式:经纬度 + 日期 → { zone, offset, dst, geoZone, advisory } 或 null(坐标无效/无法解析)。
 export function dstAwareZoneAt(lat, lng, dateStr){
-	const zone = ianaTimezoneAt(lat, lng);
-	if(!zone){
+	const geoZone = ianaTimezoneAt(lat, lng);
+	if(!geoZone){
 		return null;
 	}
+	const unified = unifyCnZone(geoZone, dateStr);
+	const zone = unified.zone;
 	const offset = offsetForZoneAtDate(zone, dateStr);
 	if(!offset){
 		return null;
@@ -135,6 +166,8 @@ export function dstAwareZoneAt(lat, lng, dateStr){
 		zone: zone,
 		offset: offset,
 		dst: isDstActiveAt(zone, dateStr),
+		geoZone: geoZone,
+		advisory: unified.advisory,
 	};
 }
 

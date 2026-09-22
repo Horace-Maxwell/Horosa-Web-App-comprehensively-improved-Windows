@@ -112,7 +112,8 @@ export async function buildJingJueSnapshotForFields(fields, opts){
 	if(!dt){ return ''; }
 	try{
 		const optSeed = opts && opts.seed !== undefined && opts.seed !== null && opts.seed !== '' ? Number(opts.seed) : null;
-		const seed = (Number.isFinite(optSeed) && optSeed > 0)
+		// [挂载自检 F-23] seed=0 是页面允许输入、后端 random.seed(0) 接受的合法种子;此前 `> 0` 把 0 当未设 → 改走时间派生换卦。
+		const seed = (Number.isFinite(optSeed) && optSeed >= 0)
 			? Math.floor(optSeed) % 1000000000
 			: (// 🔴 起课种子 BC 安全:旧式 replace(/-/g,'') 连负号一并抹 → BC 年与同数公元年折叠。
 		// AD 年保持旧数字拼合逐位不变(「同一时间反复挂载同一卦」,历史存档/解读可复现);

@@ -1,4 +1,5 @@
 import { createLocalRecordStore, nowStr, normalizeGroup, normalizePayload } from './localRecordStore';
+import { emitAutomationEvent } from './aiAgent/automation/events';
 
 const LocalCasesKey = 'horosa.localCases.v1';
 
@@ -158,6 +159,11 @@ export function getPagedLocalCases(params){
 	return store.getPaged(params);
 }
 
+// [P0-S2] 单条读取(内核 cid 索引 O(1);不过滤归档;共享只读引用,禁原地改)。
+export function getLocalCase(cid){
+	return store.getByCid(cid);
+}
+
 export function buildLocalCaseRecord(values){
 	const cid = values && values.cid ? values.cid : `local-case-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
 	let divTime = values.divTime;
@@ -195,7 +201,10 @@ export function buildLocalCaseRecord(values){
 }
 
 export function upsertLocalCase(values){
-	return store.upsert(values);
+	const __saved = store.upsert(values);
+	// [P4] 自动化事件:存档后广播(引擎默认关;emit 永不抛错、不阻塞保存)
+	try{ emitAutomationEvent('record.saved', { kind: 'case', cid: __saved && __saved.cid ? __saved.cid : (values && values.cid) }); }catch(e){ /* noop */ }
+	return __saved;
 }
 
 export function removeLocalCase(cid){
@@ -233,6 +242,11 @@ export function pinLocalCase(cid, tier){
 // [V5-D1/D2/D3] 归档/星标/使用足迹(内核管理字段;全链保真由未知键保全承载)。
 export function flagLocalCase(cid, field, on){
 	return store.setFlag(cid, field, on);
+}
+
+// [批五] 整体改写标签列表(AI 加标签工具与其撤销;不刷新 updateTime)
+export function setLocalCaseTags(cid, tags){
+	return store.setTags(cid, tags);
 }
 
 export function touchLocalCase(cid){

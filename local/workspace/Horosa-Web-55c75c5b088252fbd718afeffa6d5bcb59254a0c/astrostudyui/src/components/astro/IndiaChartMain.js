@@ -1,5 +1,6 @@
 import { Component, memo } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { fixedPopupFrame } from '../../utils/zoomDomain';
 import { stepPrefetchEnabled } from '../../utils/perfFlags';
 import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 import { markPanelReady } from '../../utils/perfMark';
@@ -1454,7 +1455,6 @@ class IndiaChartMain extends Component{
 			this.changeNakshatraCount = this.changeNakshatraCount.bind(this);
 			this.changeAnnualChartType = this.changeAnnualChartType.bind(this);
 			this.changeStageMode = this.changeStageMode.bind(this);
-			this.toggleTripataki = this.toggleTripataki.bind(this);
 			this.castPrashna = this.castPrashna.bind(this);
 			this.clearPrashna = this.clearPrashna.bind(this);
 			this.updatePrashnaParam = this.updatePrashnaParam.bind(this);
@@ -1664,7 +1664,7 @@ class IndiaChartMain extends Component{
 	}
 
 	changeIndiaDashaVariant(key, value){
-		// 21 流派开关单键变更:合并进 map(选回默认=删键)→ 写穿 dva → 重取(键含 dashaVariants)。
+		// 22 流派开关单键变更(与 INDIA_DASHA_VARIANT_SPECS 同数):合并进 map(选回默认=删键)→ 写穿 dva → 重取(键含 dashaVariants)。
 		const spec = AstroConst.INDIA_DASHA_VARIANT_SPECS.find((it)=>it.key === key);
 		if(!spec){ return; }
 		const cur = AstroConst.normalizeIndiaDashaVariants(this.state.indiaDashaVariants);
@@ -2037,6 +2037,16 @@ class IndiaChartMain extends Component{
 				value: Object.keys(this.state.indiaVargaVariantMap || {}).length
 					? JSON.stringify(this.state.indiaVargaVariantMap) : undefined,
 			},
+			// [Q-124/T-32] 大运流派 22 开关:此前不注入且不读 overrides → 处理函数里那次请求键不变早退,只能靠 dispatch 往返生效;
+			// 无 dispatch 宿主(印度择日)22 项全死。与其它键同形注入(overrides > state > fields)。
+			indiaDashaVariants: {
+				...(fields.indiaDashaVariants || { name: ['indiaDashaVariants'] }),
+				value: (optionOverrides.dashaVariants !== undefined && optionOverrides.dashaVariants !== null)
+					? optionOverrides.dashaVariants
+					: ((this.state.indiaDashaVariants !== null && this.state.indiaDashaVariants !== undefined)
+						? this.state.indiaDashaVariants
+						: (fields.indiaDashaVariants ? fields.indiaDashaVariants.value : undefined)),
+			},
 			indiaKarakaScheme: {
 				...(fields.indiaKarakaScheme || { name: ['indiaKarakaScheme'] }),
 				value: this.state.indiaKarakaScheme,
@@ -2153,13 +2163,7 @@ class IndiaChartMain extends Component{
 		this.setState({ indiaStageMode: mode });
 	}
 
-	toggleTripataki(){
-		this.setState((prev)=>({ indiaTripatakiOn: !prev.indiaTripatakiOn }), ()=>{
-			if(this.state.indiaTripatakiOn){
-				this.requestDashaChart(this.withIndiaOptionFields(this.props.fields));
-			}
-		});
-	}
+	// [Q-132/T-40·IN-14] 原 toggleTripataki 无任何 JSX 调用(死方法)已删:三旗盘唯一入口=左栏「中栏盘面」选三旗(changeStageMode)。
 
 	castPrashna(){
 		// 🔴「起卦」唯一入口:此刻一次性冻结为字符串(绝不 render 取 now → 缓存键秒变)
@@ -2230,6 +2234,8 @@ class IndiaChartMain extends Component{
 			<div className="horosa-india-dasha-panel">
 				<div className="horosa-info-card">
 					<div className="horosa-info-card-title">Bhrigu Bindu 福德点（Rahu·Moon 短弧中点）</div>
+					{/* [Q-393① 裁决 2026-09-18] 口径注明:本组(BB / D150 / 同座合 / 木星推进)恒按 D1 本命盘的绝对黄经算,不随左栏所选分盘漂移 */}
+					<div className="horosa-india-card-note">口径:本组恒按 D1 本命盘的绝对黄经计算,不随左栏所选分盘(D9 等)漂移。</div>
 					<div className="horosa-info-row"><span>落座</span><strong>{bb.signLabel}（{fmtD(bb.signlon || 0)}）</strong></div>
 					<div className="horosa-info-row"><span>月宿</span><strong>{bb.nakshatra ? `${bb.nakshatra.index}. ${bb.nakshatra.name}` : '—'}</strong></div>
 					<div className="horosa-info-row"><span>黄经</span><strong>{fmtD(bb.lon || 0)}（{bb.sign}）</strong></div>
@@ -2517,17 +2523,19 @@ class IndiaChartMain extends Component{
 		if(typeof window === 'undefined' || !e || !e.currentTarget || !e.currentTarget.getBoundingClientRect){
 			return;
 		}
-		const rect = e.currentTarget.getBoundingClientRect();
+		// 浮动子面板是 position:fixed:锚点 rect(视觉域)先换到布局域,再与布局视口 / 面板宽(CSS 尺寸)同域比较;z=1 时逐值不变。
+		const frame = fixedPopupFrame();
+		const rect = frame.rect(e.currentTarget.getBoundingClientRect());
 		const margin = 12;
-		const panelWidth = Math.min(380, Math.max(300, window.innerWidth - margin * 2));
+		const panelWidth = Math.min(380, Math.max(300, frame.viewportWidth - margin * 2));
 		let left = rect.left - panelWidth - margin;
 		if(left < margin){
 			left = rect.right + margin;
 		}
-		if(left + panelWidth > window.innerWidth - margin){
-			left = Math.max(margin, window.innerWidth - panelWidth - margin);
+		if(left + panelWidth > frame.viewportWidth - margin){
+			left = Math.max(margin, frame.viewportWidth - panelWidth - margin);
 		}
-		const top = Math.max(88, Math.min(window.innerHeight - 88, rect.top + rect.height / 2));
+		const top = Math.max(88, Math.min(frame.viewportHeight - 88, rect.top + rect.height / 2));
 		this.setState({
 			dashaPopoverItem: item,
 			dashaPopoverStyle: {
@@ -3155,6 +3163,9 @@ class IndiaChartMain extends Component{
 					return (
 						<div className="horosa-info-card" key={def.key}>
 							<div className="horosa-info-card-title">{def.label}{d.deha ? `（Deha ${sc(d.deha)} · Jiva ${sc(d.jeeva || d.jiva)}）` : ''}{def.key === 'sthira' ? this.renderSthiraStartToggle(d) : null}</div>
+							{def.key === 'kalachakra' && d.applicability ? (
+								<div className="horosa-india-card-note">{/* [Q-125/T-33] 适用条件显示 */}适用性：{d.applicability.applicable === true ? '主用' : (d.applicability.applicable === false ? '备览(月亮 navamsa 座不强于 rasi 座)' : '判据不足')}</div>
+							) : null}
 							{def.key === 'kalachakra' && (d.paramayush || d.cycleMethod) ? (
 								<div className="horosa-india-card-note">paramāyus {d.paramayush} 年{d.startRasi ? ` · 起 ${sc(d.startRasi)}(余 ${d.startBalanceYears} 年)` : ''}{d.nextCycle ? ` · 轮终换接:${d.nextCycle.nakshatra} 第${d.nextCycle.pada}pada` : ''}</div>
 							) : null}
@@ -3498,8 +3509,9 @@ class IndiaChartMain extends Component{
 			<div className="horosa-info-card">
 				<div className="horosa-info-card-title">敏感点 Sphuta（生育点 · 界位）</div>
 				<div className="horosa-india-data-list">
-					{pointRow(bk.beeja, 'Beeja(日+金+木)', gender === 1)}
-					{pointRow(bk.kshetra, 'Kshetra(月+火+木)', gender !== 1)}
+					{/* [Q-284/T-276] 性别归一:0=女,其余(含 -1 未知·按男排)=男,与八字本地引擎同口径;此前 `=== 1` 把未知档当女命高亮 */}
+					{pointRow(bk.beeja, 'Beeja(日+金+木)', gender !== 0)}
+					{pointRow(bk.kshetra, 'Kshetra(月+火+木)', gender === 0)}
 				</div>
 				<div className="horosa-india-card-note">{bk.note}</div>
 				{gnd.length ? (
@@ -3919,6 +3931,8 @@ class IndiaChartMain extends Component{
 						{ayurdaya.haranaNisarga && Array.isArray(ayurdaya.haranaNisarga.profiles) ? (
 							<div className="horosa-india-data-list">
 								<div className="horosa-india-data-subhead"><strong>Nisargāyu 自然寿（全期 vs 技术派）</strong></div>
+								{/* [Q-139] 「全期不减」与行星位置无关,只作参考;缺省档=同 Piṇḍāyu 施减 */}
+								<div className="horosa-india-card-note">「全期」档只按自然寿表原样合计,与行星位置无关,仅作参考;缺省按「同 Piṇḍāyu 施减」。</div>
 								{ayurdaya.haranaNisarga.profiles.map((p)=>(
 									<div className="horosa-india-data-row" key={`nis${p.key}`}>
 										<strong>{p.label}</strong>
@@ -5663,16 +5677,31 @@ class IndiaChartMain extends Component{
 									{(()=>{
 										const curVariants = AstroConst.normalizeIndiaDashaVariants(this.state.indiaDashaVariants);
 										const nCustom = Object.keys(curVariants).length;
+										// [Q-134/T-42] 流派预设按 tabs 过滤右栏,而本节 29 项开关此前无条件渲染:KP 派下「宿数口径」
+										// 「Hadda 界法」「Patyāyinī」拨了页面无任何可见面。开关 → 其可见面所在页签;该页签被本派隐藏
+										// 即置灰 + title 说明(照本站「条件依赖即置灰」先例;不改产物,切回含该页签的流派即恢复)。
+										const _vis = this.state.visibleTabKeys || [];
+										const _TAB_NAME = { 1: '分盘', 2: '五支', 3: '大运', 4: '星曜', 9: '映象', 10: '行运', 11: '年度' };
+										const _TAB_OF_SPEC = { vedhaBlockers: ['10'], haddaScheme: ['11'], patyayiniYearConstant: ['11'], patyayiniLagnaPoint: ['11'], annualNakYearBasis: ['11'] };
+										const hiddenNote = (tabKeys)=>{
+											if(!tabKeys || !tabKeys.length || tabKeys.some((k)=>_vis.indexOf(k) >= 0)){ return ''; }
+											return `本派未显示「${tabKeys.map((k)=>_TAB_NAME[k] || k).join(' / ')}」页,本项无可见面,故置灰;切到含该页签的流派即恢复`;
+										};
+										const _deadNak = hiddenNote(['2']);
+										const _deadKaraka = hiddenNote(['9']);
+										const _deadYuddha = hiddenNote(['4']);
+										const _deadVarga = hiddenNote(['1']);
 										return (
 											<div className="horosa-india-variant-panel">
 												<div className="horosa-india-variant-group">
-													<div className="horosa-india-select-field horosa-india-variant-field">
+													<div className="horosa-india-select-field horosa-india-variant-field" title={_deadNak || undefined}>
 														<span>宿数口径</span>
 														<Select
 															size="small"
 															style={{width: '100%'}}
 															value={this.state.indiaNakshatraCount}
 															onChange={this.changeNakshatraCount}
+															disabled={!!_deadNak}
 															dropdownMatchSelectWidth={false}
 														>
 															{AstroConst.INDIA_NAKSHATRA_COUNT_OPTIONS.map((o)=>(
@@ -5683,14 +5712,15 @@ class IndiaChartMain extends Component{
 													{AstroConst.INDIA_DASHA_VARIANT_GROUPS.map((grp)=>
 														AstroConst.INDIA_DASHA_VARIANT_SPECS
 															.filter((it)=>it.group === grp.key)
-															.map((spec)=>(
-																<div key={spec.key} className="horosa-india-select-field horosa-india-variant-field" title={spec.tip}>
+															.map((spec)=>{ const _dead = hiddenNote(_TAB_OF_SPEC[spec.key]); return (
+																<div key={spec.key} className="horosa-india-select-field horosa-india-variant-field" title={_dead || spec.tip}>
 																	<span>{spec.label}{curVariants[spec.key] ? <em className="horosa-india-variant-dot">·改</em> : null}</span>
 																	<Select
 																		size="small"
 																		style={{width: '100%'}}
 																		value={curVariants[spec.key] || spec.default}
 																		onChange={(v)=>this.changeIndiaDashaVariant(spec.key, v)}
+																		disabled={!!_dead}
 																		dropdownMatchSelectWidth={false}
 																	>
 																		{spec.options.map((o)=>(
@@ -5698,40 +5728,43 @@ class IndiaChartMain extends Component{
 																		))}
 																	</Select>
 																</div>
-															)))}
+															); }))}
 													{AstroConst.INDIA_VARGA_VARIANT_CHARTS.map((c)=>(
-														<div className="horosa-india-select-field horosa-india-variant-field" key={c.key}>
+														<div className="horosa-india-select-field horosa-india-variant-field" key={c.key} title={_deadVarga || undefined}>
 															<span>{c.label.split(' ')[0]} {c.label.split(' ')[1]}</span>
 															<Select
 																size="small"
 																style={{ width: '100%' }}
 																value={(this.state.indiaVargaVariantMap || {})[String(c.chartnum)] || 'standard'}
 																onChange={(v)=>this.changeVargaVariant(c.chartnum, v)}
+																disabled={!!_deadVarga}
 																dropdownMatchSelectWidth={false}
 															>
 																{c.options.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
 															</Select>
 														</div>
 													))}
-													<div className="horosa-india-select-field horosa-india-variant-field">
+													<div className="horosa-india-select-field horosa-india-variant-field" title={_deadKaraka || undefined}>
 														<span>Chara Kāraka</span>
 														<Select
 															size="small"
 															style={{ width: '100%' }}
 															value={this.state.indiaKarakaScheme}
 															onChange={this.changeKarakaScheme}
+															disabled={!!_deadKaraka}
 															dropdownMatchSelectWidth={false}
 														>
 															{AstroConst.INDIA_KARAKA_SCHEME_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
 														</Select>
 													</div>
-													<div className="horosa-india-select-field horosa-india-variant-field">
+													<div className="horosa-india-select-field horosa-india-variant-field" title={_deadYuddha || undefined}>
 														<span>星曜战判据</span>
 														<Select
 															size="small"
 															style={{ width: '100%' }}
 															value={this.state.indiaYuddhaCriterion}
 															onChange={this.changeYuddhaCriterion}
+															disabled={!!_deadYuddha}
 															dropdownMatchSelectWidth={false}
 														>
 															{AstroConst.INDIA_YUDDHA_CRITERION_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}

@@ -21,6 +21,10 @@ public class AstroExtraController {
 		"aspects", "targetDate", "targetTime", "datetime", "orb", "startYear", "endYear", "count",
 		"harmonic", "inner", "outer", "relative", "altitude", "body", "p1", "p2", "aspect", "eclipseKind",
 		"minorVariant", "relocLat", "relocLon", "termsVariant", "voidClassical",
+		// [Q-149/T-57] 自定义容许度:前端 AstroExtraCommon 早已把 orbs/orbScale 放进请求体,
+		// 此处缺键 → 调波盘 / 龙盘 / 重置盘的相位恒按默认容许度(ChartController、
+		// PredictiveController 均已转发,只有本族断)。缺省不发 = 零回归。
+		"orbs", "orbScale",
 		// [WP-2] 食时刻口径(星历页食相表:'max' 食甚=现状默认/'syzygy' 精确朔望)。
 		"eclipseTimeMode",
 		// [SURF-1] 古典设置全集透传:前端 chartParams 经 natalClassicalParams 早已全带,

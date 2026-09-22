@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/zeri/TianxingElectionMain.js b/astrostudyui/src/components/zeri/TianxingElectionMain.js
-index b7994ac1..65ecf835 100644
+index 20615742..a4842293 100644
 --- a/astrostudyui/src/components/zeri/TianxingElectionMain.js
 +++ b/astrostudyui/src/components/zeri/TianxingElectionMain.js
-@@ -18,6 +18,8 @@ import AstroKlimata from '../astro/AstroKlimata';
+@@ -21,6 +21,8 @@ import AstroKlimata from '../astro/AstroKlimata';
  import AstroPredictPlanetSign from '../astro/AstroPredictPlanetSign';
  import AstroAnalysisLab from '../astro/AstroAnalysisLab';
  import AstroEgypt from '../astro/AstroEgypt';
@@ -11,7 +11,7 @@ index b7994ac1..65ecf835 100644
  import { newLeaf, newGroup, compileTree } from '../../divination/zeri/conditionTypes';
  import { runScan } from '../../divination/zeri/scanOrchestrator';
  import { pushHistory } from '../../divination/zeri/schemeStore';
-@@ -78,10 +80,40 @@ export default class TianxingElectionMain extends Component{
+@@ -88,10 +90,40 @@ export default class TianxingElectionMain extends Component{
  			results: null,
  			truncated: false,
  			scanErr: '',
@@ -52,7 +52,7 @@ index b7994ac1..65ecf835 100644
  	}
  
  	componentWillUnmount(){
-@@ -258,15 +290,29 @@ export default class TianxingElectionMain extends Component{
+@@ -272,15 +304,29 @@ export default class TianxingElectionMain extends Component{
  	renderRight({ chart, fields, patchFields }){
  		this._patchFields = patchFields;
  		const chartObj = chart;
@@ -83,7 +83,7 @@ index b7994ac1..65ecf835 100644
  					<AstroInfo mode="summary" height={tabHeight}
  						value={chartObj} fields={fields}
  						planetDisplay={this.props.planetDisplay}
-@@ -274,8 +320,10 @@ export default class TianxingElectionMain extends Component{
+@@ -288,8 +334,10 @@ export default class TianxingElectionMain extends Component{
  						showAstroMeaning={this.props.showAstroMeaning}
  						showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
  					/>
@@ -94,7 +94,7 @@ index b7994ac1..65ecf835 100644
  					<AstroAspect
  						value={chartObj} height={tabHeight}
  						lotsDisplay={this.props.lotsDisplay}
-@@ -283,8 +331,10 @@ export default class TianxingElectionMain extends Component{
+@@ -297,8 +345,10 @@ export default class TianxingElectionMain extends Component{
  						showPlanetHouseInfo={this.props.showPlanetHouseInfo}
  						showAstroMeaning={this.props.showAstroMeaning}
  					/>
@@ -105,7 +105,7 @@ index b7994ac1..65ecf835 100644
  					<div className="horosa-planet-with-lots" style={{ height: tabHeight }}>
  						<AstroPlanet
  							value={chartObj}
-@@ -297,8 +347,10 @@ export default class TianxingElectionMain extends Component{
+@@ -311,8 +361,10 @@ export default class TianxingElectionMain extends Component{
  							<AstroLots value={chartObj} fill={true} showAstroMeaning={this.props.showAstroMeaning}/>
  						</div>
  					</div>
@@ -116,7 +116,7 @@ index b7994ac1..65ecf835 100644
  					<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'auto' }}>
  						<AstroInfo mode="classical" height={tabHeight}
  							value={chartObj} fields={fields}
-@@ -318,23 +370,30 @@ export default class TianxingElectionMain extends Component{
+@@ -332,23 +384,30 @@ export default class TianxingElectionMain extends Component{
  							<AstroKlimata value={chartObj} fields={fields} />
  						</div>
  					</div>
@@ -147,10 +147,10 @@ index b7994ac1..65ecf835 100644
  				</TabPane>
  			</XQTabs>
  		);
-@@ -411,13 +470,7 @@ export default class TianxingElectionMain extends Component{
- 					scanEpoch={this._scanEpoch || 0}
- 					resultsStale={!!(this.state.results && this._scanUiTreeJson
- 						&& JSON.stringify(this.state.tree) !== this._scanUiTreeJson)}
+@@ -444,13 +503,7 @@ export default class TianxingElectionMain extends Component{
+ 					frozenTree={this._scanUiTree}
+ 					resultsStale={!!(this.state.results && this._scanUiJson
+ 						&& JSON.stringify({ cfg: this.state.cfg, tree: this.state.tree }) !== this._scanUiJson)}
 -					previewDisplay={{
 -						chartDisplay: this.props.chartDisplay,
 -						planetDisplay: this.props.planetDisplay,

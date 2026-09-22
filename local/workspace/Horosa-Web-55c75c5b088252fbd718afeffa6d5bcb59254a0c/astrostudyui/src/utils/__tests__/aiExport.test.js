@@ -2,12 +2,12 @@ import {
 	AI_EXPORT_SETTINGS_VERSION,
 	AI_EXPORT_SIMPLE_MODULE_KEYS,
 	applyAIExportSectionFilterToSnapshot,
-	getAIExportAuditMatrix,
+	getAIExportAuditMatrixForTests,
 	getAIExportPresetKeys,
 	getAIExportEffectiveSectionsForTechnique,
 	listAIExportTechniqueSettings,
 	loadAIExportSettings,
-	resolveAIExportContextForTest,
+	resolveAIExportContextForTests,
 } from '../aiExport';
 import {
 	getTechniqueSettingsSchema,
@@ -82,7 +82,7 @@ describe('aiExport settings', ()=>{
 	});
 
 	it('keeps every AI export technique wired to settings groups and an extractor path', ()=>{
-		const matrix = getAIExportAuditMatrix();
+		const matrix = getAIExportAuditMatrixForTests();
 		expect(matrix.length).toBeGreaterThan(40);
 		matrix.forEach((item)=>{
 			expect(item.key).toBeTruthy();
@@ -109,14 +109,14 @@ describe('aiExport settings', ()=>{
 
 	it('registers every preset-section technique in AI_EXPORT_TECHNIQUES (no hidden/un-audited technique like canping/heluo)', ()=>{
 		// 回归哨兵:有 preset 却没登记进 AI_EXPORT_TECHNIQUES 的技法,会在「AI导出设置」下拉隐身、且不被
-		// getAIExportAuditMatrix 覆盖(canping 参评数 / heluo 河洛理数 此前正是此坑)。断言 preset key ⊆ 已登记技法。
-		const matrixKeys = new Set(getAIExportAuditMatrix().map((item)=>item.key));
+		// getAIExportAuditMatrixForTests 覆盖(canping 参评数 / heluo 河洛理数 此前正是此坑)。断言 preset key ⊆ 已登记技法。
+		const matrixKeys = new Set(getAIExportAuditMatrixForTests().map((item)=>item.key));
 		const missing = getAIExportPresetKeys().filter((key)=>!matrixKeys.has(key));
 		expect(missing).toEqual([]);
 	});
 
 	it('uses backend snapshot aliases for newly added structured techniques', ()=>{
-		const byKey = getAIExportAuditMatrix().reduce((acc, item)=>{
+		const byKey = getAIExportAuditMatrixForTests().reduce((acc, item)=>{
 			acc[item.key] = item;
 			return acc;
 		}, {});
@@ -181,7 +181,7 @@ describe('aiExport settings', ()=>{
 			'[夏至宿盘]',
 			'夏至宿盘结构化内容',
 		].join('\n'));
-		const context = resolveAIExportContextForTest({
+		const context = resolveAIExportContextForTests({
 			key: 'jieqi',
 			displayName: '节气盘',
 		});
@@ -253,7 +253,7 @@ describe('AI 四同步跨系统一致性(导出 / 导出设置 / AI挂载 / 命�
 	const CASE_TO_EXPORT_ALIAS = { liuyao: 'sixyao' };
 
 	it('有预设分段的技法都登记进 migration(jieqi 走自有 split 迁移除外)——防「升级后新段不入老用户设置」', ()=>{
-		const missing = getAIExportAuditMatrix()
+		const missing = getAIExportAuditMatrixForTests()
 			.filter((item)=>item.presetSections.length > 0)
 			.filter((item)=>item.key !== 'generic' && item.key !== 'jieqi' && !item.isJieQiSplit)
 			.filter((item)=>!item.migrationEnabled)
@@ -290,7 +290,7 @@ describe('AI 四同步跨系统一致性(导出 / 导出设置 / AI挂载 / 命�
 	});
 
 	it('所有可挂载技法(命盘类 + 事盘类)都在 AI导出技法表、且有中文标签', ()=>{
-		const exportKeys = new Set(getAIExportAuditMatrix().map((item)=>item.key));
+		const exportKeys = new Set(getAIExportAuditMatrixForTests().map((item)=>item.key));
 		const mountable = [...ANALYSIS_CHART_TECHNIQUES, ...ANALYSIS_CASE_TECHNIQUES];
 		expect(mountable.filter((key)=>!exportKeys.has(key))).toEqual([]);
 		expect(mountable.filter((key)=>!ANALYSIS_TECHNIQUE_LABELS[key])).toEqual([]);
@@ -305,7 +305,7 @@ describe('AI 四同步跨系统一致性(导出 / 导出设置 / AI挂载 / 命�
 	});
 
 	it('每个事盘储存技法别名解析后都能被 AI导出(⊆ 导出技法表)', ()=>{
-		const exportKeys = new Set(getAIExportAuditMatrix().map((item)=>item.key));
+		const exportKeys = new Set(getAIExportAuditMatrixForTests().map((item)=>item.key));
 		const notExportable = CASE_TYPE_OPTIONS
 			.map((o)=>CASE_TO_EXPORT_ALIAS[o.value] || o.value)
 			.filter((key)=>!exportKeys.has(key));
@@ -313,7 +313,7 @@ describe('AI 四同步跨系统一致性(导出 / 导出设置 / AI挂载 / 命�
 	});
 
 	it('事盘可挂载技法都有 snapshotModuleKey(挂载读得到模块快照)', ()=>{
-		const byKey = getAIExportAuditMatrix().reduce((acc, item)=>{ acc[item.key] = item; return acc; }, {});
+		const byKey = getAIExportAuditMatrixForTests().reduce((acc, item)=>{ acc[item.key] = item; return acc; }, {});
 		ANALYSIS_CASE_TECHNIQUES.forEach((key)=>{
 			expect(byKey[key]).toBeTruthy();
 			expect(`${byKey[key].snapshotModuleKey || ''}`.length).toBeGreaterThan(0);
@@ -321,7 +321,7 @@ describe('AI 四同步跨系统一致性(导出 / 导出设置 / AI挂载 / 命�
 	});
 
 	it('「简单模块」预测技法路由表与四套注册表一致(回归哨兵:多重回归 extrareturns 曾漏 extractContentByKey 路由 → AI导出/挂载拿不到快照)', ()=>{
-		const matrix = getAIExportAuditMatrix();
+		const matrix = getAIExportAuditMatrixForTests();
 		const exportKeys = new Set(matrix.map((item)=>item.key));
 		// ① 路由表里每个键都必须登记进 AI导出技法表(否则导出设置下拉隐身 / 提取无内容)
 		expect(AI_EXPORT_SIMPLE_MODULE_KEYS.filter((k)=>!exportKeys.has(k))).toEqual([]);
@@ -394,6 +394,8 @@ describe('AI 挂载段过滤封装 applyAIExportSectionFilterToSnapshot（第五
 			{ key: 'indiachart', produced: '座运·摩羯', placeholder: '座运·X' },
 			{ key: 'zodialrelease', produced: '基于金星点推运', placeholder: '基于X点推运' },
 			{ key: 'decennials', produced: '基于土星起运', placeholder: '基于X起运' },
+			// [Q-271/ZC-17] 日子馆吉日榜动态计数段头 → 静态占位(此前 calendar 自定义勾选后整张榜单被丢)
+			{ key: 'calendar', produced: '个性化吉日榜 Top 12／全年候选 87', placeholder: '个性化吉日榜' },
 		];
 		CASES.forEach(({ key, produced, placeholder })=>{
 			const text = [`[${produced}]`, `${produced}-正文`, '', '[勿选占位段]', '勿选-正文', ''].join('\n').trim();
@@ -459,7 +461,7 @@ describe('AI 挂载段过滤封装 applyAIExportSectionFilterToSnapshot（第五
 	});
 });
 
-// 提取派发反向哨兵：反向哨兵(getAIExportAuditMatrix)查 getExtractorKindByExportKey 的「登记」，
+// 提取派发反向哨兵：反向哨兵(getAIExportAuditMatrixForTests)查 getExtractorKindByExportKey 的「登记」，
 // 但不查 extractContentByKey 的「实际派发」——二者可漂移。曾致 yizhangjing / distributions / agepoint
 // 登记为 module/predictive 却无 extractContentByKey 分支 → 落 extractGenericContent → 导出空。
 // 本哨兵读源码断言：每个推运候选键都被 extractContentByKey 显式派发，不静默落 generic。

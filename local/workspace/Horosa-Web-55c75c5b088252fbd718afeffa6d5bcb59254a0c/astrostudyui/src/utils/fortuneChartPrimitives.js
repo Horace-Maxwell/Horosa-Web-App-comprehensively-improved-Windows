@@ -1,5 +1,4 @@
-// [WP-34] 盘面原语单源(只移不改):getObjectsMap/sect/dignityScore 此前散落 4 处逐字节同语义副本
-// (fortuneTechniqueAdapters/fortuneChartProfile/astroAiSnapshot/fortuneSignificators)。
+// [WP-34] 盘面原语单源(只移不改):getObjectsMap/sect/dignityScore 此前散落在多个消费方里,各自一份逐字节同语义的副本。
 // 收敛为单源;adapters 的 WeakMap 缓存层保留在其本地(性能包装,核走此处纯函数)。
 import * as AstroConst from '../constants/AstroConst';
 

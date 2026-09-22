@@ -224,6 +224,17 @@ class IndiaMoment(object):
 _STEP_MOON = 20.0 / 1440.0    # 月系(tithi/nak/yoga/karana):20 分
 _STEP_ASC = 15.0 / 1440.0
 _STEP_SLOW = 6.0 / 24.0
+_STEP_FAST = 2.0 / 24.0       # 日/水/金(日行 ≈1°,宿足 3°20′ 跨越 ≥3 日):2 小时步
+
+
+def _step_for(body):
+    """[Q-463/T-425] 曜步长:月 20 分 / 日水金 2 小时 / 其余 6 小时。此前 nak_pada 曜≠月时引用未定义函数
+    → NameError 越过 scan() 的 ValueError/TypeError/KeyError 捕获,整次搜索报 internal。"""
+    if body == 'Moon':
+        return _STEP_MOON
+    if body in ('Sun', 'Mercury', 'Venus'):
+        return _STEP_FAST
+    return _STEP_SLOW
 
 
 def _eval_tithi(params, ctx, domain):

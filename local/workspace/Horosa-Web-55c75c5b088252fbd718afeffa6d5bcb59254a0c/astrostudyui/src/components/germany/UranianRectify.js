@@ -1,6 +1,6 @@
 import { Component } from 'react';
-import { DatePicker, Slider, Table } from 'antd';
-import { XQSelect } from '../xq-ui';
+import { Slider, Table } from 'antd';
+import { XQSelect, XQDatePicker } from '../xq-ui';
 import { rectificationHits, SA_RATE } from '../../utils/uranianDial';
 
 // WP-10 校时工具(只读预览):事件日期→周岁→太阳弧→推进 MC/Asc→命中本命因子。
@@ -60,7 +60,7 @@ export default class UranianRectify extends Component {
 		const glyphOf = this.props.glyphOf || ((id) => <span>{id}</span>);
 		const base = this.props.base || 90;
 		const orb = this.props.orb || 1;
-		const rate = this.props.saKey === 'oneDeg' ? SA_RATE.oneDeg : SA_RATE.naibod;
+		const rate = SA_RATE[this.props.saKey] || SA_RATE.naibod;   // [Q-147/T-54] 三档(含 Cardan)同 SA_RATE 单源
 		const natalPts = Array.isArray(this.props.natalPts) ? this.props.natalPts : [];
 		// 本命 MC/Asc(Asc 叠加微调);缺角则该轴不参与。
 		const mc = Number.isFinite(Number(this.props.mc)) ? Number(this.props.mc) : null;
@@ -104,7 +104,7 @@ export default class UranianRectify extends Component {
 			<div>
 				<div style={{ fontSize: 11, ...soft, marginBottom: 8, lineHeight: 1.7 }}>
 					录入已知人生事件 → 推进 MC/Asc 看是否触动本命因子(只预览，不改盘)。
-					换算：1°MC≈4 分；1°弧≈1 年（{this.props.saKey === 'oneDeg' ? '1°/年' : 'Naibod'}）。
+					换算：1°MC≈4 分；1°弧≈1 年（{({ oneDeg: '1°/年', cardan: 'Cardan', naibod: 'Naibod' })[this.props.saKey] || 'Naibod'}）。
 				</div>
 
 				{events.length === 0
@@ -112,7 +112,7 @@ export default class UranianRectify extends Component {
 					: events.map((ev, i) => (
 						<div key={i} style={{ borderBottom: '1px solid var(--horosa-border-soft, rgba(0,0,0,0.06))', paddingBottom: 6, marginBottom: 6 }}>
 							<div style={rowSty}>
-								<DatePicker size="small" value={ev.date || null} format="YYYY-MM-DD"
+								<XQDatePicker size="small" value={ev.date || null} format="YYYY-MM-DD"
 									placeholder="事件日期" style={{ width: 140 }}
 									onChange={(v) => this.setEvent(i, { date: v })} />
 								<XQSelect size="small" value={ev.type || 'other'} style={{ width: 96 }}

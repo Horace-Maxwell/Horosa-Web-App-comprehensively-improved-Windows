@@ -5,10 +5,95 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable } from './AstroExtraCommon';
 import { classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
+import * as AstroText from '../../constants/AstroText';
+import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 
 const TabPane = Tabs.TabPane;
+
+// [Q-106/T-10] 星历页上线为 AI 技法键 ephemeris:无头快照 builder(与页面同一 /astroextra/ephemeris 请求)。
+const ephBirthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
+const ephCurrentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
+const ephMethodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
+function ephName(id){
+	if(id === undefined || id === null || id === ''){ return '-'; }
+	return AstroText.AstroTxtMsg[id] || `${id}`;
+}
+function ephDeg(row){
+	try{ return fmtDegree(row); }catch(e){ return '-'; }
+}
+export function defaultEphemerisWindow(){
+	const now = new Date();
+	return { startDate: fmtDate(now), endDate: fmtDate(addDays(now, 90)), includeTransits: true };
+}
+// opts:{ startDate, endDate, includeTransits }(缺=页面缺省:今日起 90 天、含行运触发)。无数据返回 ''(挂载显示「缺失」)。
+export async function buildEphemerisSnapshotText(chartObj, opts){
+	if(!chartObj){ return ''; }
+	const o = { ...defaultEphemerisWindow(), ...(opts || {}) };
+	const eclMode = classicalGlobalValue('eclipseTimeMode') || 'max';
+	let r = null;
+	try{
+		const data = await request(`${Constants.ServerRoot}/astroextra/ephemeris`, {
+			body: JSON.stringify({
+				...chartParams(chartObj),
+				startDate: o.startDate, endDate: o.endDate, includeTransits: o.includeTransits !== false,
+				...(eclMode !== 'max' ? { eclipseTimeMode: eclMode } : {}),
+			}),
+			timeoutMs: 90000,
+		});
+		r = unwrapResult(data) || null;
+	}catch(e){ return ''; }
+	if(!r){ return ''; }
+	const ing = r.ingresses || []; const sta = r.stations || []; const ph = r.lunarPhases || []; const ecl = r.eclipses || []; const ta = r.transitAspects || [];
+	if(!ing.length && !sta.length && !ph.length && !ecl.length && !ta.length){ return ''; }
+	const CAP = 60;
+	const lines = [];
+	lines.push(...ephBirthHeaderLines(chartObj));
+	lines.push(`[星历事件（入座 · 留逆 · 朔望弦 · 食相）]`);
+	lines.push(`区间：${o.startDate} 至 ${o.endDate}（以本命盘地点与时区计;各表最多列 ${CAP} 行）`);
+	// [Q-186/T-108 ①] 后端截断(区间/逐日/行运触发)进快照明示,AI 不把截断当「无事件」
+	const limText = ephemerisLimitsText(r.params);
+	if(limText){ lines.push(`截断说明：${limText}`); }
+	lines.push('');
+	lines.push('入座：');
+	lines.push('| 时间 | 星体 | 进入 | 位置 |');
+	lines.push('| --- | --- | --- | --- |');
+	if(!ing.length){ lines.push('| — | — | — | — |'); }
+	ing.slice(0, CAP).forEach((e)=>lines.push(`| ${e.datetime || '-'} | ${ephName(e.body)} | ${ephName(e.toSign)} | ${ephDeg(e)} |`));
+	lines.push('');
+	lines.push('留与顺逆转向：');
+	lines.push('| 时间 | 星体 | 方向 | 位置 |');
+	lines.push('| --- | --- | --- | --- |');
+	if(!sta.length){ lines.push('| — | — | — | — |'); }
+	sta.slice(0, CAP).forEach((e)=>lines.push(`| ${e.datetime || '-'} | ${ephName(e.body)} | ${e.direction || '-'} | ${ephDeg(e)} |`));
+	lines.push('');
+	lines.push('朔望弦：');
+	lines.push('| 时间 | 月相 | 月亮位置 |');
+	lines.push('| --- | --- | --- |');
+	if(!ph.length){ lines.push('| — | — | — |'); }
+	ph.slice(0, CAP).forEach((e)=>lines.push(`| ${e.datetime || '-'} | ${e.phase || '-'} | ${ephDeg(e)} |`));
+	lines.push('');
+	lines.push('食相：');
+	lines.push('| 时间 | 类型 | 细分 | 位置 | 食分 |');
+	lines.push('| --- | --- | --- | --- | --- |');
+	if(!ecl.length){ lines.push('| — | — | — | — | — |'); }
+	ecl.slice(0, CAP).forEach((e)=>lines.push(`| ${e.datetime || '-'} | ${e.type || '-'} | ${e.eclipseType || '-'} | ${ephDeg(e)} | ${e.digit == null ? '—' : `${fmtNum(e.digit)}${e.band ? ' ' + e.band : ''}`} |`));
+	lines.push('');
+	lines.push('[行运触发本命]');
+	if(o.includeTransits === false){
+		lines.push('（未纳入：本次未勾选「行运触发本命」。）');
+	}else{
+		lines.push('| 时间 | 行运 | 相位 | 本命 | 误差 |');
+		lines.push('| --- | --- | --- | --- | --- |');
+		if(!ta.length){ lines.push('| — | — | — | — | — |'); }
+		ta.slice(0, CAP).forEach((e)=>lines.push(`| ${e.datetime || '-'} | ${ephName(e.transitBody)} | ${fmtNum(e.aspect, 0)}° | ${ephName(e.natalPoint)} | ${fmtNum(e.orb, 3)} |`));
+	}
+	const tail = [...ephCurrentMomentLines(chartObj, []), ...ephMethodNoteLines('ephemeris')];
+	if(tail.length){ lines.push(''); lines.push(...tail); }
+	return lines.join('\n');
+}
 
 function addDays(date, days){
 	const dt = new Date(date.getTime());
@@ -23,6 +108,25 @@ function fmtDate(date){
 	return `${y}-${m}-${d}`;
 }
 
+// 后端 date_time_from_jd 形态 {date,time,datetime,jd} → 'YYYY-MM-DD'(缺则 '-')
+function fmtDateOf(item){
+	return (item && (item.date || (item.datetime ? `${item.datetime}`.split(' ')[0] : ''))) || '-';
+}
+
+// [Q-186/T-108 ①] params.limits → 快照/页面共用的截断说明句(无截断返 '')
+export function ephemerisLimitsText(params){
+	const p = params || null;
+	const lim = p && p.limits;
+	if(!lim){ return ''; }
+	const notes = [];
+	if(lim.rangeTruncated){
+		notes.push(`区间超过 ${lim.rangeDays} 天上限，有效区间 ${fmtDateOf(p.startDate)} 至 ${fmtDateOf(p.endDate)}（请求至 ${fmtDateOf(lim.requestedEndDate)}）`);
+	}
+	if(lim.dailyTruncated){ notes.push(`每日位置只列前 ${lim.dailyDays} 天`); }
+	if(lim.transitTruncated){ notes.push(`行运触发共 ${lim.transitTotal} 条，按时间先后只列前 ${lim.transitLimit} 条`); }
+	return notes.length ? `${notes.join('；')}（缩小日期范围可查看全部）` : '';
+}
+
 class AstroEphemeris extends Component{
 	constructor(props){
 		super(props);
@@ -30,7 +134,7 @@ class AstroEphemeris extends Component{
 		this.state = {
 			startDate: fmtDate(now),
 			endDate: fmtDate(addDays(now, 90)),
-			includeTransits: true,
+			includeTransits: DIRECTION_PAGE_SETTINGS.load().ephemerisTransits,   // 上次亲手设的值(没存过 = 勾选)
 			loading: false,
 			result: null,
 			requestKey: '',
@@ -42,9 +146,18 @@ class AstroEphemeris extends Component{
 		this.changeViewTab = this.changeViewTab.bind(this);
 	}
 
+	// [Q-106/T-10] AI 导出:星历 tab 导出时响应刷新事件,按页面当前区间/勾选构建快照写回 detail.snapshotText。
+	handleSnapshotRefreshRequest(evt){
+		if(!evt || !evt.detail || evt.detail.module !== 'ephemeris' || !this.props.value){ return; }
+		buildEphemerisSnapshotText(this.props.value, { startDate: this.state.startDate, endDate: this.state.endDate, includeTransits: this.state.includeTransits })
+			.then((txt)=>{ evt.detail.snapshotText = txt || ''; }).catch(()=>{});
+	}
+
 	componentDidMount(){
 		this._mounted = true;
 		this.load();
+		this._onSnapshotRefresh = (evt)=>this.handleSnapshotRefreshRequest(evt);
+		if(typeof window !== 'undefined'){ window.addEventListener('horosa:refresh-module-snapshot', this._onSnapshotRefresh); }
 		// [SURF-T2] 食时刻口径为纯全局键(不进 fields/props):抽屉改档不触发本组件任何 React 更新,
 		// buildRequestKey 的 didUpdate 比对永远没机会跑 → 监听全局事件补上这跳(load 内有键比对防重复拉)。
 		this._onClassicalGlobals = () => { this.componentDidUpdate({}); };
@@ -54,6 +167,7 @@ class AstroEphemeris extends Component{
 	componentWillUnmount(){
 		this._mounted = false;
 		if(typeof window !== 'undefined' && this._onClassicalGlobals){ window.removeEventListener(CLASSICAL_GLOBALS_EVENT, this._onClassicalGlobals); }
+		if(typeof window !== 'undefined' && this._onSnapshotRefresh){ window.removeEventListener('horosa:refresh-module-snapshot', this._onSnapshotRefresh); }
 	}
 
 	// [F1 根修] 请求键唯一算法:三处(didUpdate/ensureLoaded/load)必走同一函数——
@@ -82,6 +196,7 @@ class AstroEphemeris extends Component{
 	}
 
 	change(key, value){
+		if(key === 'includeTransits'){ DIRECTION_PAGE_SETTINGS.save({ ephemerisTransits: !!value }); }   // 起止日期是输入,不落
 		this.setState({[key]: value});
 	}
 
@@ -114,6 +229,16 @@ class AstroEphemeris extends Component{
 		}
 	}
 
+	// [Q-186/T-108 ①] 后端三道上限(区间 ≤732 天 / 逐日 ≤370 天 / 行运触发 ≤600 条,按时间序截)此前静默;
+	// 现由 params.limits 明示:有效区间 + 各截断提示(缩小区间可查看全部)。
+	renderLimitsNotice(){
+		const text = ephemerisLimitsText(this.state.result && this.state.result.params);
+		if(!text){ return null; }
+		return (
+			<div className="horosa-ephemeris-limits" style={{ fontSize: 12, color: 'var(--horosa-muted, #666)', margin: '0 0 8px 4px' }}>{text}</div>
+		);
+	}
+
 	renderToolbar(){
 		return (
 			<div style={{...cardStyle, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center'}}>
@@ -131,8 +256,8 @@ class AstroEphemeris extends Component{
 
 	renderDaily(rows){
 		const planets = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
-		// 逐日行数 = 选定天数。上限 1500（~4 年）兼顾 SmallTable 无虚拟化的渲染性能：
-		// 常见范围（含 1–2 年）不截断；仅极端长区间触发上限并给提示，杜绝静默丢弃（同波斯向运范式）。
+		// 逐日行数 = 选定天数。后端逐日上限 370 天(params.limits.dailyTruncated 由 renderLimitsNotice 明示);
+		// 本地 1500 行只是 SmallTable 无虚拟化的渲染保险(现口径下不会触发),保留兜底。
 		const all = rows || [];
 		const MAX_DAILY = 1500;
 		const shown = all.length > MAX_DAILY ? all.slice(0, MAX_DAILY) : all;
@@ -165,6 +290,7 @@ class AstroEphemeris extends Component{
 			<Spin spinning={this.state.loading}>
 				<div style={{height, overflow: 'auto', paddingRight: 8}}>
 					{this.renderToolbar()}
+					{this.renderLimitsNotice()}
 					{/* horosa_freeze_subtabs_v1:四个子页签此前全部常驻渲染 —— 其中「每日位置」最多 1500 行
 					    × 8 列的自绘表(SmallTable 无虚拟化),用户就算从没点开也每次重画。改受控 + FreezeSubTab:
 					    只画前台那一个,从未激活过的面板延迟首渲。★这里刻意**不做虚拟化**:该表要能被 Ctrl+F

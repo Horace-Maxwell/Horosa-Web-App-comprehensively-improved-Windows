@@ -16,5 +16,8 @@ module.exports = {
 		// docx@9 main 是 .cjs,file transformer 当资产(同 three 病理)→ 走真库垫片
 		// (导出契约测试要解包真 .docx,不能 stub;详 test/docxJestShim.js 头注)。
 		'^docx$': '<rootDir>/test/docxJestShim.js',
+		// js-rsa 是 sloppy 脚本,被 babel 加 strict 后隐式全局赋值抛 ReferenceError → 请求加密恒失败
+		// (jest 里所有打本地后端的请求静默死;详 test/jsRsaJestShim.js 头注)→ 走原始源码垫片。
+		'^js-rsa$': '<rootDir>/test/jsRsaJestShim.js',
 	},
 };

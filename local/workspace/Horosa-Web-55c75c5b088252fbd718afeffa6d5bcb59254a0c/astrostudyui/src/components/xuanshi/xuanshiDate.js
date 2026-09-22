@@ -33,6 +33,16 @@ export function gregYearLabel(y) {
 	return y < 0 ? `公元前 ${Math.abs(y)}` : `公元 ${y}`;
 }
 
+// [Q-491] 公历年 → **短**标(前N / N):卡片、时间轴柱标、悬停这些窄位置用它。
+// 此前同一模块里两套写法并存 —— 人物卡片与时间轴柱标原样显示负号(老子「-571—-471」、柱标「-1046–-771」),
+// 详情与刻度却写「前571」「前1000」;帮助文也承诺「公元前一律显示为「前XXX」」。统一走这一个函数。
+export function gregYearShort(y) {
+	if (y == null || y === '') { return ''; }
+	const n = Number(y);
+	if (!Number.isFinite(n)) { return `${y}`; }
+	return n < 0 ? `前${Math.abs(n)}` : `${n}`;
+}
+
 // 中文数字(元/一~九十九)→ 整数
 function cnNumToInt(s) {
 	if (!s) { return null; }
@@ -66,10 +76,64 @@ export function textToYear(text) {
 
 // 解析事件/天象可起盘的公历日期(优先级:精确 modern_date → 已抽取 year → 文本帝王纪年 → period 朝代段最早)。
 // 不用 dynasty 兜底:天象 dynasty 是史书朝代(汉书载春秋事会误导);「只有朝代无时间」→ 返 null(不显排盘按钮)。
+// [Q-251/T-213] 1582-10-15(格里历启用)之前:全仓日期引擎(前端 DateTime.calcJdn / 后端 flatlib)按儒略历解释年月日,
+// 而 modern_date 是儒略日换算出的「格里历」日期 → 直接喂入会晚「格里−儒略」天数(767 年 4 天、1054 年 6 天)。
+// 天象条目已下发 julian_date(儒略历日期),该日期正是引擎口径 → 优先取之;显示仍用公历(modern_date_disp)。
+function beforeGregorianReform(md) {
+	const m = /^(-?\d{1,5})-(\d{1,2})-(\d{1,2})/.exec(`${md || ''}`);
+	if (!m) { return false; }
+	const y = parseInt(m[1], 10), mo = parseInt(m[2], 10), d = parseInt(m[3], 10);
+	return y < 1582 || (y === 1582 && (mo < 10 || (mo === 10 && d < 15)));
+}
+// [Q-495/T-457] 天象 `modern_date` 同一列混着两种历法,而显示层一律标「公历」:
+//   · 带 julian_date 的条目 —— modern_date 是由儒略日换算出的**格里历**(真公历);
+//   · 不带 julian_date 的条目(如《宋史》微年表) —— modern_date 就是史料所载的**儒略历**日期。
+// 1582-10-15 之前两者可差 4~10 天。统一标签会让人把儒略日期当公历读(也让两页列表看起来自相矛盾)。
+// 这里按来源如实标注:有 julian_date=公历;无且在改历之前=儒略历;改历之后两历同值,仍标公历。
+export function celestialCalendarKind(ev) {
+	const md = ev && (ev.modern_date || ev.modern_date_disp);
+	if (!md) { return ''; }
+	if (ev.julian_date) { return 'gregorian'; }
+	return beforeGregorianReform(md) ? 'julian' : 'gregorian';
+}
+export function celestialCalendarLabel(ev) {
+	const k = celestialCalendarKind(ev);
+	return k === 'julian' ? '儒略历' : (k === 'gregorian' ? '公历' : '');
+}
+// 「1054-07-04（儒略历）」形式的显示串;无日期返 ''。
+export function celestialDateWithCalendar(ev, opts) {
+	const disp = ev && (ev.modern_date_disp || ev.modern_date);
+	if (!disp) { return ''; }
+	const label = celestialCalendarLabel(ev);
+	if (!label) { return `${disp}`; }
+	return (opts && opts.prefix) ? `${label} ${disp}` : `${disp}（${label}）`;
+}
+
 export function resolveChartDate(ev) {
 	if (!ev) { return null; }
 	if (ev.modern_date && /^-?\d{1,4}-\d{1,2}-\d{1,2}/.test(ev.modern_date)) {
-		return { md: ev.modern_date, disp: ev.modern_date_disp || ev.modern_date, exact: true };
+		const disp = ev.modern_date_disp || ev.modern_date;
+		// [Q-487/T-449] 库内 modern_date 一律是完整 YYYY-MM-DD 串,但 modern_precision 标明它有多精确:
+		// month 2,585 / year 228 / interval 74 条只是「合成到某一天」的近似值。此前只要串形完整就判 exact,
+		// 提示行写「公历 -0014-01-30」无「约」,并按那个合成日正午起盘 —— 与帮助承诺(年级按该年 1 月 1 日、标「约」)相反。
+		const prec = `${ev.modern_precision || ''}`.toLowerCase();
+		if (prec === 'year' || prec === 'interval') {
+			const ym = /^(-?\d{1,4})-/.exec(ev.modern_date);
+			const y = ym ? parseInt(ym[1], 10) : null;
+			if (y != null && Number.isFinite(y)) {
+				return { md: `${y}-01-01`, disp: `约 ${gregYearLabel(y)}`, exact: false, precision: prec, note: prec === 'interval' ? '史料只给年段,按起始年 1 月 1 日正午起盘' : '史料只到年,按该年 1 月 1 日正午起盘' };
+			}
+		}
+		const isJulian = ev.julian_date && /^-?\d{1,5}-\d{1,2}-\d{1,2}/.test(`${ev.julian_date}`) && beforeGregorianReform(ev.modern_date);
+		const md = isJulian ? `${ev.julian_date}` : ev.modern_date;
+		if (prec === 'month') {
+			const mm = /^(-?\d{1,4}-\d{1,2})/.exec(`${disp}`);
+			return { md, disp: `约 ${mm ? mm[1] : disp}`, exact: false, precision: 'month', calendar: isJulian ? 'julian' : undefined, note: '史料只到月,按库内合成日正午起盘' };
+		}
+		if (isJulian) {
+			return { md, disp, exact: true, calendar: 'julian' };
+		}
+		return { md, disp, exact: true };
 	}
 	let y = null;
 	if (ev.year != null && ev.year !== '' && Number.isFinite(Number(ev.year))) { y = Number(ev.year); }

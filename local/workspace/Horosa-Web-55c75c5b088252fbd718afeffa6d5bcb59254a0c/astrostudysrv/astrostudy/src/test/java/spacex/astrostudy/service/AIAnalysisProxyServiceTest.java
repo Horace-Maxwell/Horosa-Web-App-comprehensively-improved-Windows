@@ -1,6 +1,7 @@
 package spacex.astrostudy.service;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -204,6 +205,9 @@ public class AIAnalysisProxyServiceTest {
 				"extraHeaders", buildMap("x-debug", "1"),
 				"extraBody", buildMap("response_format", buildMap("type", "json_object")),
 				"requestTimeoutMs", 15000,
+				"streamStallMs", 2000,
+				"streamMaxStreamMs", 60000,
+				"maxRetries", 2,
 				"top_p", 0.8d
 			)
 		);
@@ -212,6 +216,10 @@ public class AIAnalysisProxyServiceTest {
 		assertEquals(0.8d, bodyOptions.get("top_p"));
 		assertFalse(bodyOptions.containsKey("extraHeaders"));
 		assertFalse(bodyOptions.containsKey("requestTimeoutMs"));
+		// [D68] 代理/前端自用键一律不进上游请求体(官方 schema 校验实抓:maxRetries 进了 Anthropic 顶层 = 400 类)
+		assertFalse(bodyOptions.containsKey("streamStallMs"));
+		assertFalse(bodyOptions.containsKey("streamMaxStreamMs"));
+		assertFalse(bodyOptions.containsKey("maxRetries"));
 	}
 
 	@Test
@@ -250,6 +258,61 @@ public class AIAnalysisProxyServiceTest {
 			assertEquals(model + " 应保持 max_tokens", Integer.valueOf(4096), body.get("max_tokens"));
 			assertFalse(model + " 不应出现 max_completion_tokens", body.containsKey("max_completion_tokens"));
 		}
+	}
+
+	// [Q-062/AW-35] Ollama 原生口:官方**顶层**键(think / format / keep_alive …)必须落顶层,采样类才进 options。
+	// 此前除 keep_alive 外一律塞进 options ⇒ 用户在「额外请求体」里写的 think:true 之类被 Ollama 静默忽略。
+	@Test
+	public void buildOllamaNativeBodyKeepsOfficialTopLevelKeysAtTopLevel() {
+		AIAnalysisProxyService svc = new AIAnalysisProxyService();
+		Map<String, Object> provOpts = new LinkedHashMap<String, Object>();
+		provOpts.put("think", Boolean.TRUE);
+		provOpts.put("keep_alive", "10m");
+		provOpts.put("num_ctx", 8192);
+		provOpts.put("top_k", 40);
+		Map<String, Object> params = new HashMap<String, Object>();
+		params.put("providerType", "ollama");
+		params.put("providerOptions", provOpts);
+		List<Map<String, Object>> msgs = AIAnalysisProxyService.getMessageList(Arrays.asList(
+			buildMap("role", "user", "content", "你好")));
+		Map<String, Object> body = svc.buildOllamaNativeBody("qwen3:8b", params, msgs, false);
+		assertEquals(Boolean.TRUE, body.get("think"));
+		assertEquals("10m", body.get("keep_alive"));
+		@SuppressWarnings("unchecked")
+		Map<String, Object> opts = (Map<String, Object>) body.get("options");
+		assertNotNull(opts);
+		assertEquals(8192, ((Number) opts.get("num_ctx")).intValue());   // 判别向量:采样/运行参数仍进 options
+		assertEquals(40, ((Number) opts.get("top_k")).intValue());
+		assertEquals(null, opts.get("think"));
+		assertEquals(null, opts.get("keep_alive"));
+	}
+
+	// [Q-396] 改键自愈的两道闸:① 只对 OpenAI 兼容家族(Anthropic 的 max_tokens 是必填键,改了必再 400
+	// 且把原始真因盖掉);② 只认「这个键不支持」类措辞,越界类报错不改键。
+	@Test
+	public void healUpstreamRequestBodyRenameIsOpenAIOnlyAndNotForRangeErrors() {
+		String req = "{\"model\":\"claude-sonnet-4-5\",\"max_tokens\":200000}";
+		// Anthropic 越界报错:错误体 type 恒为 invalid_request_error(旧逻辑就是被这个 "invalid" 骗到)
+		String anthropicRange = "{\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\","
+			+ "\"message\":\"max_tokens: 200000 > 64000, which is the maximum allowed number of output tokens\"}}";
+		assertEquals("Anthropic 越界报错绝不改键", null,
+			AIAnalysisProxyService.healUpstreamRequestBody(400, anthropicRange, req, "anthropic"));
+		// 同一条报错落到 OpenAI 家族也不该改键(是值越界,不是键不支持)
+		assertEquals("越界类报错不改键", null,
+			AIAnalysisProxyService.healUpstreamRequestBody(400, anthropicRange, "{\"model\":\"gpt-4.1\",\"max_tokens\":200000}", "openai"));
+		// 判别向量:同一入口下,OpenAI 家族的「键不支持」照旧改键
+		String unsupported = "{\"error\":{\"message\":\"Unsupported parameter: 'max_tokens'\",\"code\":\"unsupported_parameter\"}}";
+		String healed = AIAnalysisProxyService.healUpstreamRequestBody(400, unsupported, "{\"model\":\"gpt-5.6-sol\",\"max_tokens\":2048}", "openai");
+		assertNotNull("OpenAI 家族键不支持仍要改键", healed);
+		assertTrue(healed.contains("max_completion_tokens"));
+		// 同一条错误文落到 Anthropic / Gemini / Ollama 一律不改键
+		for(String pt : new String[]{"anthropic", "gemini", "ollama"}) {
+			assertEquals(pt + " 不改键", null,
+				AIAnalysisProxyService.healUpstreamRequestBody(400, unsupported, "{\"model\":\"m\",\"max_tokens\":2048}", pt));
+		}
+		assertTrue(AIAnalysisProxyService.allowsMaxTokensRename(""));
+		assertTrue(AIAnalysisProxyService.allowsMaxTokensRename("deepseek"));
+		assertFalse(AIAnalysisProxyService.allowsMaxTokensRename("Anthropic"));
 	}
 
 	// 上游只说「max_tokens 不支持」而不点名替代键时，自愈层也应改键（网关文案差异兜底）。
@@ -383,32 +446,225 @@ public class AIAnalysisProxyServiceTest {
 
 	@Test
 	public void buildAnthropicBodyThinkingComplianceStripsTemperatureAndTopK() {
-		// Anthropic extended thinking 开启:① 不发 temperature ② 不发 top_k/top_p ③ max_tokens > budget_tokens。
+		// Anthropic extended thinking 开启(预算族 Sonnet 4.5):① 不发 temperature ② 不发 top_k/top_p ③ max_tokens > budget_tokens。
 		Map<String, Object> thinking = buildMap("type", "enabled", "budget_tokens", 4096);
 		Map<String, Object> params = buildMap(
 			"temperature", 0.7,
 			"maxTokens", 2048,
 			"providerOptions", buildMap("thinking", thinking, "top_k", 40, "top_p", 0.9));
 		Map<String, Object> body = AIAnalysisProxyService.buildAnthropicBody(
-			"claude-opus-4-8", params, new java.util.ArrayList<Map<String, Object>>(), true);
+			"claude-sonnet-4-5", params, new java.util.ArrayList<Map<String, Object>>(), true);
 		assertFalse("思考开启不应发 temperature", body.containsKey("temperature"));
 		assertFalse("思考开启不应发 top_k", body.containsKey("top_k"));
 		assertFalse("思考开启不应发 top_p", body.containsKey("top_p"));
-		assertTrue(body.containsKey("thinking"));
+		assertEquals(buildMap("type", "enabled", "budget_tokens", 4096), body.get("thinking"));
 		// max_tokens(2048) <= budget(4096) → 自动上调到 budget+1024,保证 max_tokens > budget_tokens。
 		assertEquals(Integer.valueOf(4096 + 1024), body.get("max_tokens"));
 	}
 
 	@Test
+	public void structuredSchemaToolChoiceAutoWhenThinkingActive() {
+		// [Q-293/M-108] 结构化(json_schema 非流式)→ 强制 schema 工具;思考生效的型号(Fable 恒开 / 显式 adaptive)tool_choice 必须是 auto,
+		// 思考关闭(Haiku 4.5 缺省关 / 显式 disabled)照旧强制 tool。
+		Map<String, Object> rf = buildMap("type", "json_schema", "json_schema", buildMap("name", "verdict", "schema", buildMap("type", "object")));
+		Map<String, Object> fable = AIAnalysisProxyService.buildAnthropicBody("claude-fable-5-1", buildMap("providerOptions", buildMap("response_format", rf)), java.util.Collections.<Map<String, Object>>emptyList(), false);
+		assertEquals("auto", ((Map) fable.get("tool_choice")).get("type"));
+		assertNotNull(fable.get("tools"));
+		Map<String, Object> haiku = AIAnalysisProxyService.buildAnthropicBody("claude-haiku-4-5-20251001", buildMap("providerOptions", buildMap("response_format", rf)), java.util.Collections.<Map<String, Object>>emptyList(), false);
+		assertEquals("tool", ((Map) haiku.get("tool_choice")).get("type"));
+		assertEquals("verdict", ((Map) haiku.get("tool_choice")).get("name"));
+		Map<String, Object> sonnetOff = AIAnalysisProxyService.buildAnthropicBody("claude-sonnet-5", buildMap("providerOptions", buildMap("response_format", rf, "thinking", buildMap("type", "disabled"))), java.util.Collections.<Map<String, Object>>emptyList(), false);
+		assertEquals("tool", ((Map) sonnetOff.get("tool_choice")).get("type"));
+	}
+
+	@Test
 	public void buildAnthropicBodyWithoutThinkingKeepsTemperature() {
-		// 未开思考:照常发 temperature + 原 max_tokens(零回归)。
+		// 预算族未开思考:照常发 temperature + 原 max_tokens(零回归)。
 		Map<String, Object> params = buildMap("temperature", 0.5, "maxTokens", 2048);
 		Map<String, Object> body = AIAnalysisProxyService.buildAnthropicBody(
-			"claude-opus-4-8", params, new java.util.ArrayList<Map<String, Object>>(), false);
+			"claude-sonnet-4-5", params, new java.util.ArrayList<Map<String, Object>>(), false);
 		assertTrue(body.containsKey("temperature"));
 		assertEquals(0.5d, body.get("temperature"));
 		assertEquals(Integer.valueOf(2048), body.get("max_tokens"));
 		assertFalse(body.containsKey("thinking"));
+		assertFalse(body.containsKey("output_config"));
+	}
+
+	@Test
+	public void anthropicThinkingModeTable() {
+		// [Q-024] 官方每型号表:自适应族 vs 预算族;网关前缀取尾段;未知命名归预算族。
+		assertEquals("adaptive", AIAnalysisProxyService.anthropicThinkingMode("claude-opus-4-7"));
+		assertEquals("adaptive", AIAnalysisProxyService.anthropicThinkingMode("claude-opus-4-8"));
+		assertEquals("adaptive", AIAnalysisProxyService.anthropicThinkingMode("claude-opus-5"));
+		assertEquals("adaptive", AIAnalysisProxyService.anthropicThinkingMode("claude-sonnet-5"));
+		assertEquals("adaptive", AIAnalysisProxyService.anthropicThinkingMode("claude-fable-5-1"));
+		assertEquals("adaptive", AIAnalysisProxyService.anthropicThinkingMode("anthropic/claude-mythos-5"));
+		assertEquals("budget", AIAnalysisProxyService.anthropicThinkingMode("claude-opus-4-6"));
+		assertEquals("budget", AIAnalysisProxyService.anthropicThinkingMode("claude-sonnet-4-5"));
+		assertEquals("budget", AIAnalysisProxyService.anthropicThinkingMode("claude-haiku-4-5-20251001"));
+		assertEquals("budget", AIAnalysisProxyService.anthropicThinkingMode("claude-3-5-sonnet-20241022"));
+		assertEquals("budget", AIAnalysisProxyService.anthropicThinkingMode("claude-x"));
+		assertTrue(AIAnalysisProxyService.anthropicAlwaysThinking("claude-fable-5-1"));
+		assertFalse(AIAnalysisProxyService.anthropicAlwaysThinking("claude-opus-5"));
+	}
+
+	@Test
+	public void anthropicAdaptiveFamilyStripsSamplingEvenWithoutThinking() {
+		// [Q-024] Opus 4.7 起 / Sonnet 5 不接受 temperature/top_p/top_k(与思考开关无关),拨了也剥;adaptive 形态 + effort 原样落地。
+		Map<String, Object> params = buildMap("temperature", 0.5, "maxTokens", 2048,
+			"providerOptions", buildMap("top_k", 40, "top_p", 0.9));
+		Map<String, Object> body = AIAnalysisProxyService.buildAnthropicBody(
+			"claude-opus-4-8", params, new java.util.ArrayList<Map<String, Object>>(), false);
+		assertFalse(body.containsKey("temperature"));
+		assertFalse(body.containsKey("top_p"));
+		assertFalse(body.containsKey("top_k"));
+		assertFalse(body.containsKey("thinking"));
+		Map<String, Object> on = buildMap("temperature", 0.5, "maxTokens", 2048,
+			"providerOptions", buildMap("thinking", buildMap("type", "adaptive"), "output_config", buildMap("effort", "high")));
+		Map<String, Object> b2 = AIAnalysisProxyService.buildAnthropicBody(
+			"claude-sonnet-5", on, new java.util.ArrayList<Map<String, Object>>(), true);
+		assertEquals(buildMap("type", "adaptive", "display", "summarized"), b2.get("thinking"));
+		assertEquals(buildMap("effort", "high"), b2.get("output_config"));
+		assertEquals(Integer.valueOf(2048), b2.get("max_tokens"));
+		assertFalse(b2.containsKey("temperature"));
+		// Sonnet 5 / Opus 5:disabled 透传
+		Map<String, Object> off = buildMap("maxTokens", 1024, "providerOptions", buildMap("thinking", buildMap("type", "disabled")));
+		assertEquals(buildMap("type", "disabled"), AIAnalysisProxyService.buildAnthropicBody(
+			"claude-opus-5", off, new java.util.ArrayList<Map<String, Object>>(), true).get("thinking"));
+	}
+
+	@Test
+	public void anthropicThinkingDefaultOnTableAndDisplaySummarized() {
+		// [Q-047/M-58] 不带 thinking 字段:Sonnet 5 / Opus 5 缺省开;Opus 4.6–4.8、Sonnet 4.6、Haiku 4.5 缺省关;Fable / Mythos 恒开
+		assertTrue(AIAnalysisProxyService.anthropicThinkingDefaultOn("claude-sonnet-5"));
+		assertTrue(AIAnalysisProxyService.anthropicThinkingDefaultOn("claude-opus-5"));
+		assertTrue(AIAnalysisProxyService.anthropicThinkingDefaultOn("claude-fable-5-1"));
+		assertFalse(AIAnalysisProxyService.anthropicThinkingDefaultOn("claude-opus-4-8"));
+		assertFalse(AIAnalysisProxyService.anthropicThinkingDefaultOn("claude-sonnet-4-6"));
+		assertFalse(AIAnalysisProxyService.anthropicThinkingDefaultOn("claude-haiku-4-5"));
+		assertFalse(AIAnalysisProxyService.anthropicThinkingDefaultOn(null));
+		// 回放判据随之:缺席字段按型号缺省;显式 disabled 才关
+		assertTrue(AIToolCallSupport.anthropicThinkingEnabled(null, "claude-sonnet-5"));
+		assertTrue(AIToolCallSupport.anthropicThinkingEnabled(buildMap(), "claude-opus-5"));
+		assertFalse(AIToolCallSupport.anthropicThinkingEnabled(null, "claude-opus-4-8"));
+		assertFalse(AIToolCallSupport.anthropicThinkingEnabled(null, "claude-haiku-4-5"));
+		assertFalse(AIToolCallSupport.anthropicThinkingEnabled(buildMap("thinking", buildMap("type", "disabled")), "claude-sonnet-5"));
+		assertTrue(AIToolCallSupport.anthropicThinkingEnabled(buildMap("thinking", buildMap("type", "adaptive")), "claude-opus-4-8"));
+		// display:自适应族思考开启且未显式指定 → summarized;显式 omitted 保留;disabled 不加;预算族 enabled 不加
+		Map<String, Object> on = buildMap("maxTokens", 2048, "providerOptions", buildMap("thinking", buildMap("type", "adaptive")));
+		assertEquals(buildMap("type", "adaptive", "display", "summarized"), AIAnalysisProxyService.buildAnthropicBody(
+			"claude-sonnet-5", on, new java.util.ArrayList<Map<String, Object>>(), true).get("thinking"));
+		Map<String, Object> keep = buildMap("maxTokens", 2048, "providerOptions", buildMap("thinking", buildMap("type", "adaptive", "display", "omitted")));
+		assertEquals(buildMap("type", "adaptive", "display", "omitted"), AIAnalysisProxyService.buildAnthropicBody(
+			"claude-sonnet-5", keep, new java.util.ArrayList<Map<String, Object>>(), true).get("thinking"));
+		Map<String, Object> off = buildMap("maxTokens", 1024, "providerOptions", buildMap("thinking", buildMap("type", "disabled")));
+		assertEquals(buildMap("type", "disabled"), AIAnalysisProxyService.buildAnthropicBody(
+			"claude-opus-5", off, new java.util.ArrayList<Map<String, Object>>(), true).get("thinking"));
+		Map<String, Object> budget = buildMap("maxTokens", 4096, "providerOptions", buildMap("thinking", buildMap("type", "enabled", "budget_tokens", 2048)));
+		Map<String, Object> hb = (Map<String, Object>) AIAnalysisProxyService.buildAnthropicBody(
+			"claude-haiku-4-5", budget, new java.util.ArrayList<Map<String, Object>>(), true).get("thinking");
+		assertEquals("enabled", hb.get("type"));
+		assertFalse(hb.containsKey("display"));
+		// 不带字段的 Sonnet 5:请求体不注 thinking(缺省即开),回放判据仍视为开启
+		Map<String, Object> none = buildMap("maxTokens", 2048, "providerOptions", buildMap());
+		assertFalse(AIAnalysisProxyService.buildAnthropicBody(
+			"claude-sonnet-5", none, new java.util.ArrayList<Map<String, Object>>(), true).containsKey("thinking"));
+	}
+
+	@Test
+	public void anthropicLegacyBudgetThinkingConvertsToAdaptiveOnAdaptiveFamily() {
+		// 旧档案 enabled+budget 打到自适应族 → 转 adaptive,预算映射 effort(4096→low / 12000→medium / 30000→high),不再抬 max_tokens。
+		Map<String, Object> params = buildMap("maxTokens", 2048,
+			"providerOptions", buildMap("thinking", buildMap("type", "enabled", "budget_tokens", 4096)));
+		Map<String, Object> body = AIAnalysisProxyService.buildAnthropicBody(
+			"claude-opus-4-7", params, new java.util.ArrayList<Map<String, Object>>(), true);
+		assertEquals(buildMap("type", "adaptive", "display", "summarized"), body.get("thinking"));
+		assertEquals(buildMap("effort", "low"), body.get("output_config"));
+		assertEquals(Integer.valueOf(2048), body.get("max_tokens"));
+		Map<String, Object> mid = buildMap("maxTokens", 2048,
+			"providerOptions", buildMap("thinking", buildMap("type", "enabled", "budget_tokens", 30000)));
+		assertEquals(buildMap("effort", "high"), AIAnalysisProxyService.buildAnthropicBody(
+			"claude-sonnet-5", mid, new java.util.ArrayList<Map<String, Object>>(), true).get("output_config"));
+	}
+
+	@Test
+	public void anthropicAlwaysThinkingModelNeverSendsDisabled() {
+		// [Q-049] Fable / Mythos 思考不可关:disabled → 不发 thinking、effort=low;显式 effort 优先。
+		Map<String, Object> params = buildMap("temperature", 0.7, "maxTokens", 2048,
+			"providerOptions", buildMap("thinking", buildMap("type", "disabled")));
+		Map<String, Object> body = AIAnalysisProxyService.buildAnthropicBody(
+			"claude-fable-5-1", params, new java.util.ArrayList<Map<String, Object>>(), true);
+		assertFalse(body.containsKey("thinking"));
+		assertEquals(buildMap("effort", "low"), body.get("output_config"));
+		assertFalse(body.containsKey("temperature"));
+		Map<String, Object> explicit = buildMap("maxTokens", 2048,
+			"providerOptions", buildMap("thinking", buildMap("type", "disabled"), "output_config", buildMap("effort", "medium")));
+		assertEquals(buildMap("effort", "medium"), AIAnalysisProxyService.buildAnthropicBody(
+			"claude-mythos-5-1", explicit, new java.util.ArrayList<Map<String, Object>>(), true).get("output_config"));
+	}
+
+	@Test
+	public void anthropicBudgetCapClampsAndMaxTokensCorrectedAfterPutAll() {
+		// [Q-063] 档案 thinking_budget_cap 夹逼预算、本身绝不下发;extraBody.max_tokens 盖回 ≤ budget 时终点再校正;下限 1024。
+		Map<String, Object> params = buildMap("maxTokens", 20000,
+			"providerOptions", buildMap("thinking", buildMap("type", "enabled", "budget_tokens", 16000), "thinking_budget_cap", 8000,
+				"extraBody", buildMap("max_tokens", 4000)));
+		Map<String, Object> body = AIAnalysisProxyService.buildAnthropicBody(
+			"claude-sonnet-4-5", params, new java.util.ArrayList<Map<String, Object>>(), true);
+		assertEquals(buildMap("type", "enabled", "budget_tokens", 8000), body.get("thinking"));
+		assertEquals(Integer.valueOf(8000 + 1024), body.get("max_tokens"));
+		assertFalse(body.containsKey("thinking_budget_cap"));
+		Map<String, Object> tiny = buildMap("maxTokens", 4096,
+			"providerOptions", buildMap("thinking", buildMap("type", "enabled", "budget_tokens", 100)));
+		assertEquals(buildMap("type", "enabled", "budget_tokens", 1024), AIAnalysisProxyService.buildAnthropicBody(
+			"claude-haiku-4-5", tiny, new java.util.ArrayList<Map<String, Object>>(), true).get("thinking"));
+		// 预算族收到 adaptive(错配档案)→ 降级 enabled+budget(上限优先),effort 丢弃
+		Map<String, Object> mis = buildMap("maxTokens", 2048,
+			"providerOptions", buildMap("thinking", buildMap("type", "adaptive"), "output_config", buildMap("effort", "high"), "thinking_budget_cap", 6000));
+		Map<String, Object> mb = AIAnalysisProxyService.buildAnthropicBody(
+			"claude-haiku-4-5", mis, new java.util.ArrayList<Map<String, Object>>(), true);
+		assertEquals(buildMap("type", "enabled", "budget_tokens", 6000), mb.get("thinking"));
+		assertFalse(mb.containsKey("output_config"));
+		assertEquals(Integer.valueOf(6000 + 1024), mb.get("max_tokens"));
+	}
+
+	@Test
+	public void anthropicHaiku45TemperatureAndTopPExclusive() {
+		// [Q-050] Haiku 4.5 二选一:同发只留温度;只拨 top_p(未拨温度)则尊重 top_p、不补缺省温度。其它预算族两者可同发。
+		Map<String, Object> both = buildMap("temperature", 0.6, "maxTokens", 1024, "providerOptions", buildMap("top_p", 0.9));
+		Map<String, Object> b = AIAnalysisProxyService.buildAnthropicBody("claude-haiku-4-5-20251001", both, new java.util.ArrayList<Map<String, Object>>(), false);
+		assertEquals(0.6d, b.get("temperature"));
+		assertFalse(b.containsKey("top_p"));
+		Map<String, Object> onlyTopP = buildMap("maxTokens", 1024, "providerOptions", buildMap("top_p", 0.9));
+		Map<String, Object> o = AIAnalysisProxyService.buildAnthropicBody("claude-haiku-4-5", onlyTopP, new java.util.ArrayList<Map<String, Object>>(), false);
+		assertFalse(o.containsKey("temperature"));
+		assertEquals(0.9, o.get("top_p"));
+		Map<String, Object> s = AIAnalysisProxyService.buildAnthropicBody("claude-sonnet-4-5", both, new java.util.ArrayList<Map<String, Object>>(), false);
+		assertEquals(0.6d, s.get("temperature"));
+		assertEquals(0.9, s.get("top_p"));
+	}
+
+	@Test
+	public void geminiTemperatureFromProviderOptionsAndCamelCaseKeys() {
+		// [Q-025] providerOptions.temperature 优先(此前静默丢弃);[Q-031] topP/topK/maxOutputTokens camelCase 进 generationConfig 而非顶层。
+		Map<String, Object> params = buildMap("temperature", 0.7, "maxTokens", 1000,
+			"providerOptions", buildMap("temperature", 0.2, "topP", 0.8, "topK", 20, "maxOutputTokens", 3000));
+		Map<String, Object> body = AIAnalysisProxyService.buildGeminiBody(params, new java.util.ArrayList<Map<String, Object>>());
+		Map gen = (Map) body.get("generationConfig");
+		assertEquals(0.2d, gen.get("temperature"));
+		assertEquals(0.8, gen.get("topP"));
+		assertEquals(20, gen.get("topK"));
+		assertEquals(Integer.valueOf(3000), gen.get("maxOutputTokens"));
+		assertFalse(body.containsKey("topP"));
+		assertFalse(body.containsKey("topK"));
+		assertFalse(body.containsKey("maxOutputTokens"));
+		assertFalse(body.containsKey("temperature"));
+		// snake_case 仍优先于 camelCase;无档案温度时用顶层 params 温度;max_tokens(OpenAI 形)也认
+		Map<String, Object> p2 = buildMap("temperature", 0.4, "maxTokens", 1000, "providerOptions", buildMap("top_p", 0.5, "topP", 0.9, "max_tokens", 2222));
+		Map g2 = (Map) AIAnalysisProxyService.buildGeminiBody(p2, new java.util.ArrayList<Map<String, Object>>()).get("generationConfig");
+		assertEquals(0.4d, g2.get("temperature"));
+		assertEquals(0.5, g2.get("topP"));
+		assertEquals(Integer.valueOf(2222), g2.get("maxOutputTokens"));
 	}
 
 	@Test
@@ -484,6 +740,52 @@ public class AIAnalysisProxyServiceTest {
 	}
 
 	@Test
+	public void nonStreamRetriesOn429ThenSucceedsAndStopsAfterMax() throws Exception {
+		// [C8d] 非流式路径:429(带 Retry-After)→ 首字节前退避重试 → 第二次 2xx 成功;持续 429 → 1+maxRetries 次后放弃并带上游真因。
+		com.sun.net.httpserver.HttpServer server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+		final java.util.concurrent.atomic.AtomicInteger once = new java.util.concurrent.atomic.AtomicInteger();
+		final java.util.concurrent.atomic.AtomicInteger always = new java.util.concurrent.atomic.AtomicInteger();
+		final byte[] limited = "{\"error\":{\"message\":\"rate limited\",\"type\":\"rate_limit_error\"}}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+		final byte[] okBody = "{\"ok\":true}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+		server.createContext("/once", ex -> {
+			int n = once.incrementAndGet();
+			byte[] body = n == 1 ? limited : okBody;
+			if(n == 1) { ex.getResponseHeaders().add("Retry-After", "1"); }
+			ex.sendResponseHeaders(n == 1 ? 429 : 200, body.length);
+			ex.getResponseBody().write(body); ex.close();
+		});
+		server.createContext("/always", ex -> {
+			always.incrementAndGet();
+			ex.getResponseHeaders().add("Retry-After", "1");
+			ex.sendResponseHeaders(429, limited.length);
+			ex.getResponseBody().write(limited); ex.close();
+		});
+		server.start();
+		try {
+			AIAnalysisProxyService svc = new AIAnalysisProxyService();
+			java.lang.reflect.Method m = AIAnalysisProxyService.class.getDeclaredMethod("sendUpstreamForText", String.class, String.class, Map.class, String.class, Map.class);
+			m.setAccessible(true);
+			Map<String, Object> opts = new HashMap<>(); opts.put("maxRetries", 2);
+			Map<String, Object> params = new HashMap<>(); params.put("providerOptions", opts);
+			Map<String, String> headers = new HashMap<>(); headers.put("Content-Type", "application/json");
+			String base = "http://127.0.0.1:" + server.getAddress().getPort();
+			String out = (String) m.invoke(svc, "POST", base + "/once", headers, "{}", params);
+			assertTrue(out, out.contains("\"ok\":true"));
+			assertEquals(2, once.get());
+			String msg = "";
+			try {
+				m.invoke(svc, "POST", base + "/always", headers, "{}", params);
+			} catch(java.lang.reflect.InvocationTargetException e) {
+				msg = e.getCause() == null ? String.valueOf(e) : String.valueOf(e.getCause().getMessage());
+			}
+			assertTrue(msg, msg.contains("429") || msg.contains("rate limited"));
+			assertEquals(3, always.get());   // 1 + maxRetries=2,不多不少
+		} finally {
+			server.stop(0);
+		}
+	}
+
+	@Test
 	public void healUpstreamRequestBodyRefusesUnrelatedFailures() {
 		// 非 400/422(如 401/429/5xx)绝不自愈;400 但错误文未点名任何可剥参数也不自愈。
 		assertEquals(null, AIAnalysisProxyService.healUpstreamRequestBody(401,
@@ -530,6 +832,191 @@ public class AIAnalysisProxyServiceTest {
 		assertTrue(raw.contains("Bad Gateway"));
 	}
 
+	// ── [C3] 结构化输出四家翻译:前端只产 OpenAI 形 json_schema;各家 body 构造器各取所需,缺省(无 response_format)路径逐键不变 ──
+	private static Map<String, Object> jsonSchemaFormat(){
+		Map<String, Object> schema = buildMap("type", "object",
+			"properties", buildMap("status", buildMap("type", "string", "enum", Arrays.asList("done", "continue"))),
+			"required", Arrays.asList("status"), "additionalProperties", Boolean.FALSE);
+		return buildMap("type", "json_schema", "json_schema", buildMap("name", "goal judge", "schema", schema, "strict", Boolean.TRUE));
+	}
+
+	@Test
+	public void responseFormatSpecNormalizesShapes() {
+		Map<String, Object> spec = AIAnalysisProxyService.responseFormatSpec(jsonSchemaFormat());
+		assertEquals("json_schema", spec.get("type"));
+		assertEquals("goal judge", spec.get("name"));
+		assertTrue(spec.get("schema") instanceof Map);
+		assertEquals(Boolean.TRUE, spec.get("strict"));
+		assertEquals("json_object", AIAnalysisProxyService.responseFormatSpec(buildMap("type", "JSON_OBJECT")).get("type"));
+		assertTrue(AIAnalysisProxyService.responseFormatSpec("nope") == null);
+		assertTrue(AIAnalysisProxyService.responseFormatSpec(buildMap("x", 1)) == null);
+		assertEquals("goal_judge", AIAnalysisProxyService.anthropicToolName("goal judge"));
+		assertEquals("horosa_output", AIAnalysisProxyService.anthropicToolName("   "));
+	}
+
+	@Test
+	public void buildOpenAIChatBodyPassesJsonSchemaThrough() {
+		Map<String, Object> params = buildMap("temperature", 0.2, "providerOptions", buildMap("response_format", jsonSchemaFormat()));
+		Map<String, Object> body = AIAnalysisProxyService.buildOpenAIChatBody("gpt-4o-mini", params, new java.util.ArrayList<Map<String, Object>>(), false);
+		assertTrue(body.get("response_format") instanceof Map);
+		assertEquals("json_schema", ((Map) body.get("response_format")).get("type"));
+	}
+
+	@Test
+	public void buildAnthropicBodyNonStreamJsonSchemaBecomesForcedTool() {
+		Map<String, Object> params = buildMap("temperature", 0.2, "maxTokens", 512, "providerOptions", buildMap("response_format", jsonSchemaFormat()));
+		Map<String, Object> body = AIAnalysisProxyService.buildAnthropicBody("claude-x", params, new java.util.ArrayList<Map<String, Object>>(), false);
+		assertFalse("Anthropic 无 response_format 字段", body.containsKey("response_format"));
+		List tools = (List) body.get("tools");
+		assertEquals(1, tools.size());
+		Map tool = (Map) tools.get(0);
+		assertEquals("goal_judge", tool.get("name"));
+		assertTrue(tool.get("input_schema") instanceof Map);
+		assertEquals(buildMap("type", "tool", "name", "goal_judge"), body.get("tool_choice"));
+		// 流式:不翻(丢弃,旧行为)
+		Map<String, Object> streamBody = AIAnalysisProxyService.buildAnthropicBody("claude-x", params, new java.util.ArrayList<Map<String, Object>>(), true);
+		assertFalse(streamBody.containsKey("tools"));
+		assertFalse(streamBody.containsKey("response_format"));
+		// json_object:不翻
+		Map<String, Object> jo = buildMap("temperature", 0.2, "maxTokens", 512, "providerOptions", buildMap("response_format", buildMap("type", "json_object")));
+		assertFalse(AIAnalysisProxyService.buildAnthropicBody("claude-x", jo, new java.util.ArrayList<Map<String, Object>>(), false).containsKey("tools"));
+		// 已带真实工具:不加强制工具(真实工具原样)
+		Map<String, Object> withTools = buildMap("temperature", 0.2, "maxTokens", 512, "providerOptions", buildMap("response_format", jsonSchemaFormat()),
+			"tools", Arrays.asList(buildMap("name", "list_records", "description", "d", "inputSchema", buildMap("type", "object", "properties", buildMap()))));
+		Map<String, Object> tb = AIAnalysisProxyService.buildAnthropicBody("claude-x", withTools, new java.util.ArrayList<Map<String, Object>>(), false);
+		assertEquals(1, ((List) tb.get("tools")).size());
+		assertEquals("list_records", ((Map) ((List) tb.get("tools")).get(0)).get("name"));
+		assertFalse(buildMap("type", "tool", "name", "goal_judge").equals(tb.get("tool_choice")));
+	}
+
+	@Test
+	public void extractAnthropicContentReturnsForcedToolInputAsJson() {
+		Map<String, Object> payload = buildMap("stop_reason", "tool_use", "content", Arrays.asList(buildMap("type", "tool_use", "name", "goal_judge", "input", buildMap("status", "done", "reason", "ok"))));
+		String content = AIAnalysisProxyService.extractAnthropicContent(payload);
+		assertTrue(content.contains("\"status\""));
+		assertTrue(content.contains("done"));
+		// 有正文文本时以文本为准(旧行为)
+		Map<String, Object> mixed = buildMap("content", Arrays.asList(buildMap("type", "text", "text", "hello"), buildMap("type", "tool_use", "name", "x", "input", buildMap("a", 1))));
+		assertEquals("hello", AIAnalysisProxyService.extractAnthropicContent(mixed));
+	}
+
+	@Test
+	public void buildGeminiBodyJsonSchemaSetsResponseSchema() {
+		Map<String, Object> params = buildMap("temperature", 0.2, "providerOptions", buildMap("response_format", jsonSchemaFormat()));
+		Map<String, Object> body = AIAnalysisProxyService.buildGeminiBody(params, new java.util.ArrayList<Map<String, Object>>());
+		Map gen = (Map) body.get("generationConfig");
+		assertEquals("application/json", gen.get("responseMimeType"));
+		Map schema = (Map) gen.get("responseSchema");
+		assertEquals("OBJECT", schema.get("type"));   // [D69] responseSchema 同为 Gemini Schema 枚举:官方大写
+		assertFalse("Gemini 不认 additionalProperties", schema.containsKey("additionalProperties"));
+		assertTrue(((Map) schema.get("properties")).containsKey("status"));
+		// json_object:只有 mime(旧行为)
+		Map<String, Object> jo = buildMap("temperature", 0.2, "providerOptions", buildMap("response_format", buildMap("type", "json_object")));
+		Map genJo = (Map) AIAnalysisProxyService.buildGeminiBody(jo, new java.util.ArrayList<Map<String, Object>>()).get("generationConfig");
+		assertEquals("application/json", genJo.get("responseMimeType"));
+		assertFalse(genJo.containsKey("responseSchema"));
+	}
+
+	@Test
+	public void applyOllamaResponseFormatOnlyTranslatesJsonSchema() {
+		Map<String, Object> body = new LinkedHashMap<String, Object>();
+		AIAnalysisProxyService.applyOllamaResponseFormat(body, jsonSchemaFormat());
+		assertTrue(body.get("format") instanceof Map);
+		assertEquals("object", ((Map) body.get("format")).get("type"));
+		Map<String, Object> body2 = new LinkedHashMap<String, Object>();
+		AIAnalysisProxyService.applyOllamaResponseFormat(body2, buildMap("type", "json_object"));
+		assertFalse("json_object 仍按旧行为丢弃", body2.containsKey("format"));
+		AIAnalysisProxyService.applyOllamaResponseFormat(body2, null);
+		assertTrue(body2.isEmpty());
+	}
+
+	@Test
+	public void healUpstreamRequestBodyDegradesResponseFormatTwoLevels() {
+		// 第一级:json_schema 被点名 → json_object
+		String l1 = AIAnalysisProxyService.healUpstreamRequestBody(400,
+			"{\"error\":{\"message\":\"Invalid parameter: 'response_format' of type 'json_schema' is not supported\"}}",
+			"{\"model\":\"m\",\"response_format\":{\"type\":\"json_schema\",\"json_schema\":{\"name\":\"x\",\"schema\":{\"type\":\"object\"}}},\"max_tokens\":10}");
+		assertTrue(l1 != null);
+		assertTrue(l1.contains("json_object"));
+		assertFalse(l1.contains("json_schema"));
+		assertTrue(l1.contains("max_tokens"));
+		// 第二级:json_object 再被点名 → 删键
+		String l2 = AIAnalysisProxyService.healUpstreamRequestBody(400,
+			"{\"error\":{\"message\":\"response_format is not supported\"}}", l1);
+		assertTrue(l2 != null);
+		assertFalse(l2.contains("response_format"));
+		// 未点名:不动
+		assertTrue(AIAnalysisProxyService.healUpstreamRequestBody(400, "{\"error\":{\"message\":\"something else\"}}",
+			"{\"model\":\"m\",\"response_format\":{\"type\":\"json_object\"}}") == null);
+		// Gemini responseSchema 被点名 → 去 schema 留 mime;Ollama format 对象 → "json"
+		String g = AIAnalysisProxyService.healUpstreamRequestBody(400,
+			"{\"error\":{\"message\":\"Invalid JSON payload received. Unknown name \\\"responseSchema\\\"\"}}",
+			"{\"model\":\"m\",\"generationConfig\":{\"responseMimeType\":\"application/json\",\"responseSchema\":{\"type\":\"object\"}}}");
+		assertTrue(g != null);
+		assertFalse(g.contains("responseSchema"));
+		assertTrue(g.contains("responseMimeType"));
+		String o = AIAnalysisProxyService.healUpstreamRequestBody(400,
+			"{\"error\":\"json_schema format not supported\"}",
+			"{\"model\":\"m\",\"format\":{\"type\":\"object\"}}");
+		assertTrue(o != null);
+		assertTrue(o.contains("\"format\":\"json\""));
+	}
+
+	// [L1·阶段 2] 结构化输出降级的**顺序**与**收敛**:两级各占一轮自愈,第 3 轮无可降 → null(不再重发,MAX_PARAM_HEALS=2 才有意义)。
+	@Test
+	public void healUpstreamRequestBodyDegradesInStrictOrderAndThenStops() {
+		String named = "{\"error\":{\"message\":\"Invalid parameter: 'response_format' of type 'json_schema' is not supported\"}}";
+		String req = "{\"model\":\"m\",\"messages\":[],\"response_format\":{\"type\":\"json_schema\",\"json_schema\":{\"name\":\"goal judge\",\"schema\":{\"type\":\"object\"},\"strict\":true}},\"max_tokens\":10}";
+		// 第 1 轮:只降档,绝不直接删键(删早了就白丢一次「上游其实认 json_object」的机会)
+		String l1 = AIAnalysisProxyService.healUpstreamRequestBody(400, named, req);
+		assertTrue(l1 != null);
+		Map r1 = boundless.utility.JsonUtility.toDictionary(l1);
+		assertEquals("json_object", ((Map) r1.get("response_format")).get("type"));
+		assertFalse("第 1 轮不得删键", !r1.containsKey("response_format"));
+		assertEquals("与结构化输出无关的键一律不动", 10, ((Number) r1.get("max_tokens")).intValue());
+		// 第 2 轮:同一条错再点名 → 才删键
+		String l2 = AIAnalysisProxyService.healUpstreamRequestBody(400, named, l1);
+		assertTrue(l2 != null);
+		Map r2 = boundless.utility.JsonUtility.toDictionary(l2);
+		assertFalse("第 2 轮删键", r2.containsKey("response_format"));
+		assertTrue(r2.containsKey("max_tokens"));
+		// 第 3 轮:无可降 → null(自愈外环据此停手,不做第三次重发)
+		assertEquals(null, AIAnalysisProxyService.healUpstreamRequestBody(400, named, l2));
+		assertEquals(2, AIAnalysisProxyService.MAX_PARAM_HEALS);
+		// gemini:去 responseSchema 留 mime,再点名也无可降
+		String g1 = AIAnalysisProxyService.healUpstreamRequestBody(400,
+			"{\"error\":{\"message\":\"Unknown name \\\"responseSchema\\\"\"}}",
+			"{\"generationConfig\":{\"responseMimeType\":\"application/json\",\"responseSchema\":{\"type\":\"object\"}}}");
+		assertTrue(g1 != null);
+		assertTrue(g1.contains("responseMimeType"));
+		assertFalse(g1.contains("responseSchema"));
+		assertEquals(null, AIAnalysisProxyService.healUpstreamRequestBody(400, "{\"error\":{\"message\":\"responseSchema unsupported\"}}", g1));
+		// ollama:format 对象 → "json",再点名也无可降(不再退成删键)
+		String o1 = AIAnalysisProxyService.healUpstreamRequestBody(400,
+			"{\"error\":\"json_schema format not supported\"}", "{\"model\":\"m\",\"format\":{\"type\":\"object\"}}");
+		assertTrue(o1 != null);
+		assertTrue(o1.contains("\"format\":\"json\""));
+		assertEquals(null, AIAnalysisProxyService.healUpstreamRequestBody(400, "{\"error\":\"json_schema format not supported\"}", o1));
+	}
+
+	// [L1·阶段 2] Anthropic 强制 schema 工具的产出条件:非流式 ∧ json_schema ∧ 没有真实工具;
+	// 其余一律 null(= 旧行为「丢弃 response_format」),尤其流式绝不塞工具——流里回 tool_use 拿不到正文。
+	@Test
+	public void anthropicForcedSchemaToolOnlyForNonStreamWithoutRealTools() {
+		Object rf = jsonSchemaFormat();
+		Map<String, Object> tool = AIAnalysisProxyService.anthropicForcedSchemaTool(rf, false, null);
+		assertTrue(tool != null);
+		assertEquals("goal_judge", tool.get("name"));
+		assertTrue(tool.get("input_schema") instanceof Map);
+		assertEquals(null, AIAnalysisProxyService.anthropicForcedSchemaTool(rf, true, null));
+		List<Map<String, Object>> realTools = Arrays.asList(buildMap("name", "list_records", "description", "d", "inputSchema", buildMap("type", "object", "properties", buildMap())));
+		assertEquals(null, AIAnalysisProxyService.anthropicForcedSchemaTool(rf, false, realTools));
+		assertEquals(null, AIAnalysisProxyService.anthropicForcedSchemaTool(buildMap("type", "json_object"), false, null));
+		assertEquals(null, AIAnalysisProxyService.anthropicForcedSchemaTool(null, false, null));
+		// json_schema 但没带 schema 体 → 无从强制,回 null
+		assertEquals(null, AIAnalysisProxyService.anthropicForcedSchemaTool(buildMap("type", "json_schema", "json_schema", buildMap("name", "x")), false, null));
+	}
+
 	private static Map<String, Object> buildMap(Object... args){
 		Map<String, Object> map = new LinkedHashMap<String, Object>();
 		for(int i=0; i<args.length; i += 2) {
@@ -546,6 +1033,13 @@ public class AIAnalysisProxyServiceTest {
 		assertEquals(120L, u1.get("input_tokens"));
 		assertEquals(45L, u1.get("output_tokens"));
 
+		// [A1b] DeepSeek 顶层 prompt_cache_hit_tokens → cache_read_input_tokens;标准 prompt_tokens_details.cached_tokens 在场时以它为准
+		Map<String, Object> deepseek = AIAnalysisProxyService.extractOpenAIUsage(buildMap("usage", buildMap("prompt_tokens", 120, "completion_tokens", 9, "prompt_cache_hit_tokens", 96, "prompt_cache_miss_tokens", 24)));
+		assertEquals(96L, deepseek.get("cache_read_input_tokens"));
+		Map<String, Object> both = AIAnalysisProxyService.extractOpenAIUsage(buildMap("usage", buildMap("prompt_tokens", 120, "prompt_cache_hit_tokens", 96, "prompt_tokens_details", buildMap("cached_tokens", 64))));
+		assertEquals(64L, both.get("cache_read_input_tokens"));
+		Map<String, Object> zero = AIAnalysisProxyService.extractOpenAIUsage(buildMap("usage", buildMap("prompt_tokens", 120, "prompt_cache_hit_tokens", 0)));
+		assertEquals(null, zero.get("cache_read_input_tokens"));
 		Map<String, Object> anthropic = buildMap("usage", buildMap("input_tokens", 300, "output_tokens", 88, "cache_read_input_tokens", 250));
 		Map<String, Object> u2 = AIAnalysisProxyService.extractNonStreamUsage("anthropic", anthropic);
 		assertEquals(300L, u2.get("input_tokens"));
@@ -622,5 +1116,95 @@ public class AIAnalysisProxyServiceTest {
 		});
 		assertEquals(2, got.size());
 		assertTrue(stream.closed);
+	}
+
+	// [D67b] 流中错误帧四线形态:OpenAI/Gemini {"error":{message}} · Ollama {"error":"…"} · Anthropic event:error / type:error
+	//   → 一律打成 "error" 事件(midStream:true)并返回 true(中继据此跳过 delta/usage 抽取);普通帧返回 false 零事件。
+	@Test
+	public void midStreamUpstreamErrorFramesAreForwardedAsErrorEvents() {
+		final java.util.List<String> captured = new java.util.ArrayList<String>();
+		AIAnalysisProxyService svc = new AIAnalysisProxyService() {
+			@Override
+			void sendEvent(SseChannel channel, String eventName, Map<String, Object> payload) {
+				captured.add(eventName + ":" + payload.get("message") + ":" + payload.get("midStream"));
+			}
+		};
+		AIAnalysisProxyService.SseChannel channel = new AIAnalysisProxyService.SseChannel(
+			new org.springframework.web.servlet.mvc.method.annotation.SseEmitter());
+		assertTrue(svc.emitMidStreamUpstreamError(channel, null, buildMap("error", buildMap("message", "upstream exploded", "code", 500))));
+		assertTrue(svc.emitMidStreamUpstreamError(channel, null, buildMap("error", "plain string error")));
+		assertTrue(svc.emitMidStreamUpstreamError(channel, "error", buildMap("type", "error", "error", buildMap("type", "overloaded_error", "message", "Overloaded"))));
+		assertTrue(svc.emitMidStreamUpstreamError(channel, null, buildMap("type", "error")));
+		assertFalse(svc.emitMidStreamUpstreamError(channel, null, buildMap("choices", java.util.Arrays.asList(buildMap("delta", buildMap("content", "正文"))))));
+		assertFalse(svc.emitMidStreamUpstreamError(channel, "content_block_delta", buildMap("type", "content_block_delta")));
+		assertFalse(svc.emitMidStreamUpstreamError(channel, null, null));
+		assertEquals(4, captured.size());
+		assertEquals("error:upstream exploded:true", captured.get(0));
+		assertEquals("error:plain string error:true", captured.get(1));
+		assertEquals("error:Overloaded:true", captured.get(2));
+		assertEquals("error:上游流中途返回错误:true", captured.get(3));
+	}
+
+	// [D60] Retry-After 两形态:整数秒(≤60 采纳)/ RFC 1123 日期(换算 ≤60 s 采纳);非法/过去/超上限 → 0(走退避)
+	@Test
+	public void retryAfterHeaderParsesSecondsAndHttpDate() {
+		long now = 1_800_000_000_000L;
+		assertEquals(5000L, AIAnalysisProxyService.retryAfterMs("5", now));
+		assertEquals(0L, AIAnalysisProxyService.retryAfterMs("0", now));
+		assertEquals(0L, AIAnalysisProxyService.retryAfterMs("120", now));
+		String date = java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME.format(java.time.Instant.ofEpochMilli(now + 10_000L).atZone(java.time.ZoneOffset.UTC));
+		long ms = AIAnalysisProxyService.retryAfterMs(date, now);
+		assertTrue("date form ≈10s, got " + ms, ms >= 9000L && ms <= 10000L);
+		String past = java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME.format(java.time.Instant.ofEpochMilli(now - 10_000L).atZone(java.time.ZoneOffset.UTC));
+		assertEquals(0L, AIAnalysisProxyService.retryAfterMs(past, now));
+		assertEquals(0L, AIAnalysisProxyService.retryAfterMs("soon", now));
+		assertEquals(0L, AIAnalysisProxyService.retryAfterMs(null, now));
+	}
+
+	// [D60] 流池饱和即拒:2 核心 + 8 上限 + 16 队列 = 第 25 路 execute 抛 RejectedExecutionException(不在调用线程同步跑)
+	@Test
+	public void streamWorkerPoolRejectsWhenSaturated() throws Exception {
+		java.util.concurrent.Executor pool = AIAnalysisProxyService.streamWorkerPool();
+		java.util.concurrent.CountDownLatch gate = new java.util.concurrent.CountDownLatch(1);
+		java.util.concurrent.CountDownLatch started = new java.util.concurrent.CountDownLatch(8);
+		Runnable block = ()->{ started.countDown(); try { gate.await(10, java.util.concurrent.TimeUnit.SECONDS); } catch(InterruptedException e) { Thread.currentThread().interrupt(); } };
+		try {
+			for(int i = 0; i < 24; i++) { pool.execute(block); }
+			assertTrue(started.await(5, java.util.concurrent.TimeUnit.SECONDS));
+			long t0 = System.currentTimeMillis();
+			boolean rejected = false;
+			try { pool.execute(block); } catch(java.util.concurrent.RejectedExecutionException e) { rejected = true; }
+			assertTrue("第 25 路必须被拒", rejected);
+			assertTrue("拒绝必须即时(不是在调用线程同步跑)", System.currentTimeMillis() - t0 < 500L);
+		} finally {
+			gate.countDown();
+		}
+	}
+
+	@Test
+	public void requestTimeoutClampMatchesFrontend() {
+		// [Q-411/M-157] 与前端 resolveRequestTimeout 同口径:未设 0;<1000 视为误填秒 → 120000;>600000 封顶
+		assertEquals(0, AIAnalysisProxyService.clampRequestTimeoutMs(0));
+		assertEquals(0, AIAnalysisProxyService.clampRequestTimeoutMs(-5));
+		assertEquals(120000, AIAnalysisProxyService.clampRequestTimeoutMs(500));
+		assertEquals(1000, AIAnalysisProxyService.clampRequestTimeoutMs(1000));
+		assertEquals(30000, AIAnalysisProxyService.clampRequestTimeoutMs(30000));
+		assertEquals(600000, AIAnalysisProxyService.clampRequestTimeoutMs(900000));
+	}
+
+	@Test
+	public void assertClientAliveThrowsOnceChannelClosed() {
+		// [Q-325/M-126] 通道一关(停止 / 心跳写失败),下一个上游事件(哪怕是 ping / 签名增量)就抛 ClientGoneException
+		AIAnalysisProxyService.SseChannel ch = new AIAnalysisProxyService.SseChannel(new org.springframework.web.servlet.mvc.method.annotation.SseEmitter());
+		AIAnalysisProxyService.assertClientAlive(ch);   // 未关:不抛
+		ch.complete();
+		assertTrue(ch.isClosed());
+		try {
+			AIAnalysisProxyService.assertClientAlive(ch);
+			fail("closed channel must throw ClientGoneException");
+		} catch (AIAnalysisProxyService.ClientGoneException expected) {
+			// ok
+		}
+		AIAnalysisProxyService.assertClientAlive(null);   // 空通道不抛
 	}
 }

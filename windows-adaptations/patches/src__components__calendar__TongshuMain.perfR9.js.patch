@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/calendar/TongshuMain.js b/astrostudyui/src/components/calendar/TongshuMain.js
-index f1e3eb8f..0caef308 100644
+index 79a7cf28..3aa6e714 100644
 --- a/astrostudyui/src/components/calendar/TongshuMain.js
 +++ b/astrostudyui/src/components/calendar/TongshuMain.js
 @@ -14,32 +14,66 @@ import { sanyuanLiexiuDay, sanyuanYearPoints } from './tongshu/sanyuanLiexiu';
@@ -226,7 +226,7 @@ index f1e3eb8f..0caef308 100644
  	renderPanes() {
  		const s = this.state.settings;
  		const ymd = this.ymd();
-@@ -380,7 +438,7 @@ class TongshuMain extends Component {
+@@ -382,7 +440,7 @@ class TongshuMain extends Component {
  			};
  		}
  		if (s.school === 'qimen') {
@@ -235,7 +235,7 @@ index f1e3eb8f..0caef308 100644
  		}
  		if (s.school === 'sanyuanliexiu') {
  			return SanyuanPanes({ y, m, d, use: s.liexiuUse, onPick: this.pickDay });
-@@ -389,7 +447,7 @@ class TongshuMain extends Component {
+@@ -391,7 +449,7 @@ class TongshuMain extends Component {
  			return WutuPanes({ y, m, d, onPick: this.pickDay });
  		}
  		if (s.school === 'sanyuan') {

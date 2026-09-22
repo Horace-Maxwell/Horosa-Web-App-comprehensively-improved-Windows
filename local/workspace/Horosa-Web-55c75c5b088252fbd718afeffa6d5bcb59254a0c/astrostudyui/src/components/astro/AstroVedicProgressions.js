@@ -3,10 +3,10 @@ import { Spin, Select } from 'antd';
 import { XQButton as Button, XQTabs as Tabs } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
-import * as AstroText from '../../constants/AstroText';
-import { unwrapResult, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
-import { buildStarAndLotPositionLines, buildHouseCuspLines, buildPredictiveBirthLines, buildCurrentMomentLines, buildMethodNoteLines, } from '../../utils/astroAiSnapshot';
+import { unwrapResult, fmtNum, chartParams, chartRequestKey, cardStyle, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
 import ProgMethodPanel, { MINOR_VARIANT_OPTIONS } from './AstroProgChart';
+import { buildVedicProgSnapshotText } from './astroProgSnapshot';
+import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 
@@ -18,105 +18,13 @@ function today(){
 	return `${dt.getFullYear()}-${`${dt.getMonth() + 1}`.padStart(2, '0')}-${`${dt.getDate()}`.padStart(2, '0')}`;
 }
 
-const EVENT_POINTS = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Asc', 'MC'];
-
-// [YB v42] 补厚 helper 容错:个别测试套件整模块 mock astroAiSnapshot 且只保留部分导出,
-// 缺失导出经 import 拿到 undefined → 直接调用会炸掉整个 builder;生产环境恒为函数,此守卫零行为差。
-const safeHelperLines = (fn, ...args)=>(typeof fn === 'function' ? fn(...args) : []);
-
 function methodTab(method){
 	return method.method === 'secondary' ? '二次推运' : (method.method === 'tertiary' ? '三次推运' : '小推运');
 }
 
-// 恒星推运 AI 快照（无头）：内部 fetch /astroextra/progressions + zodiacal:1，与组件同口径。无数据返回 ''。
-// opts（AI 挂载「每技法设置」）：targetDate + targetTime（目标时刻）+ minorVariant（小推运月长，缺省 engine=现状）。
-export async function buildVedicProgSnapshotText(chartObj, opts){
-	if(!chartObj){ return ''; }
-	const o = opts && typeof opts === 'object' ? opts : {};
-	const targetDate = `${o.targetDate || ''}`.trim() || today();
-	const targetTime = `${o.targetTime || ''}`.trim() || '12:00:00';
-	const minorVariant = `${o.minorVariant || ''}`.trim() || 'engine';
-	let result = null;
-	try{
-		const data = await request(`${Constants.ServerRoot}/astroextra/progressions`, {
-			body: JSON.stringify({
-				...chartParams(chartObj),
-				zodiacal: 1,
-				targetDate,
-				targetTime,
-				minorVariant,
-				orb: 1.5,
-			}),
-			timeoutMs: 45000,
-		});
-		result = unwrapResult(data) || {};
-	}catch(e){
-		return '';
-	}
-	const methods = (result && Array.isArray(result.methods)) ? result.methods : [];
-	const secondary = methods.find((m) => m.method === 'secondary') || methods[0];
-	if(!secondary || !Array.isArray(secondary.positions) || secondary.positions.length === 0){ return ''; }
-	const sym = (id) => (AstroText.AstroTxtMsg[id] || `${id}`);
-	const lines = [];
-	lines.push('[恒星推运（Vedic Sidereal）]');
-	lines.push('二次/三次/小限推运在恒星黄道（sidereal）下计算；下表为二次推运（截至今日）。');
-	// 目标日期与推运时刻的映射必须写明(推运法本义:目标日期折算成推运时刻;只写派生时刻会被误读为没吃目标日期)。
-	lines.push(`目标日期：${targetDate} ${targetTime}（各法推运时刻=按该法折算，见各小节）`);
-	const natalStars = buildStarAndLotPositionLines(chartObj);
-	const natalHouses = buildHouseCuspLines(chartObj);
-	// [YB v42] 生辰行并入既有 [本命盘配置] 段头部(裸行版,不新开段;无生辰数据 → 输出与现状逐字一致)。
-	const natalBirth = safeHelperLines(buildPredictiveBirthLines, chartObj);
-	if(natalStars.length || natalHouses.length || natalBirth.length){
-		lines.push('');
-		lines.push('[本命盘配置]');
-		if(natalBirth.length){ lines.push(...natalBirth); }
-		if(natalStars.length){ lines.push('星与虚点'); lines.push(...natalStars); }
-		if(natalHouses.length){ lines.push('宫位宫头'); lines.push(...natalHouses); }
-	}
-	lines.push('');
-	lines.push('[时段盘配置 二次推运位置]');
-	lines.push('| 点 | 恒星推运位置 |');
-	lines.push('| --- | --- |');
-	secondary.positions.filter((p) => EVENT_POINTS.indexOf(p.id) >= 0).forEach((p) => {
-		lines.push(`| ${sym(p.id)} | ${fmtDegree(p)} |`);
-	});
-	// [YB v42] UI 有 二次/三次/小推运 三法 Tab + 与本命相位表,此前导出只有二次推运位置一张表。
-	// 单次 fetch 已带回全部三法(与组件同一接口同一回包),零额外成本 → 三法全量各出小节,
-	// 段内纯增(◆ 子题并入既有 [时段盘配置 二次推运位置] 段,既有二次推运表逐字不动)。
-	const aspTxt = (v) => (AstroText.AstroTxtMsg[`Asp${fmtNum(v, 0)}`] || `${fmtNum(v, 0)}°`);
-	const pushMethodBlocks = (m, withPositions) => {
-		if(!m){ return; }
-		const label = methodTab(m);
-		const when = m.progressedDate && m.progressedDate.datetime ? m.progressedDate.datetime : '';
-		if(withPositions && Array.isArray(m.positions) && m.positions.length){
-			lines.push('');
-			lines.push(`◆ ${label} 推运位置`);
-			if(when){ lines.push(`推运时刻：${when}`); }
-			lines.push('| 点 | 恒星推运位置 | 速度 |');
-			lines.push('| --- | --- | --- |');
-			m.positions.filter((p) => EVENT_POINTS.indexOf(p.id) >= 0).forEach((p) => {
-				lines.push(`| ${sym(p.id)} | ${fmtDegree(p)} | ${fmtNum(p.lonspeed, 4)} |`);
-			});
-		}
-		if(Array.isArray(m.aspectsToNatal) && m.aspectsToNatal.length){
-			lines.push('');
-			lines.push(`◆ ${label} 与本命相位`);
-			lines.push('| 推运点 | 相位 | 本命点 | 误差 |');
-			lines.push('| --- | --- | --- | --- |');
-			m.aspectsToNatal.slice(0, 120).forEach((p) => {
-				lines.push(`| ${sym(p.a)} | ${aspTxt(p.aspect)} | ${sym(p.b)} | ${fmtNum(p.orb, 3)} |`);
-			});
-		}
-	};
-	pushMethodBlocks(secondary, false);
-	methods.forEach((m) => { if(m && m !== secondary){ pushMethodBlocks(m, true); } });
-	// [YB v42] 尾部补 [当前时点]/[方法说明](共享 helper;段头已登 preset)。
-	lines.push('');
-	lines.push(...safeHelperLines(buildCurrentMomentLines, chartObj));
-	lines.push(...safeHelperLines(buildMethodNoteLines, 'vedicprog'));
-	while(lines.length && lines[lines.length - 1] === ''){ lines.pop(); }
-	return lines.join('\n');
-}
+// [#80] builder 已抽到共享 astroProgSnapshot.js(恒星/回归两支同源);此处按原名再导出,
+// 既有 import 路径不变。
+export { buildVedicProgSnapshotText };
 
 // 恒星推运（sidereal）：二次/三次/小推运。每个子 tab → 左固定 sidereal 推运双盘 + 右可滚动位置/相位表。
 class AstroVedicProgressions extends Component{
@@ -125,7 +33,7 @@ class AstroVedicProgressions extends Component{
 		this.state = {
 			targetDate: today(),
 			targetTime: '12:00:00',
-			minorVariant: 'engine',
+			minorVariant: DIRECTION_PAGE_SETTINGS.load().minorVariant,   // 上次亲手设的月长算法(三个推运页共用;没存过 = synodic)
 			loading: false,
 			result: null,
 			requestKey: '',
@@ -161,7 +69,8 @@ class AstroVedicProgressions extends Component{
 
 	handleSnapshotRefreshRequest(evt){
 		if(!evt || !evt.detail || evt.detail.module !== 'vedicprog' || !this.props.value){ return; }
-		buildVedicProgSnapshotText(this.props.value, { minorVariant: this.state.minorVariant }).then((txt) => { evt.detail.snapshotText = txt || ''; }).catch(() => {});
+		// [挂载自检] 导出=页面所见:带页面目标时刻(此前只传月长算法,导出恒「今日 12:00」)。
+		buildVedicProgSnapshotText(this.props.value, { targetDate: this.state.targetDate, targetTime: this.state.targetTime, minorVariant: this.state.minorVariant }).then((txt) => { evt.detail.snapshotText = txt || ''; }).catch(() => {});
 	}
 
 	ensureLoaded(){
@@ -208,7 +117,9 @@ class AstroVedicProgressions extends Component{
 		this.ensureLoaded();
 		const result = this.state.result || {};
 		const height = this.props.height || 700;
-		const panelH = Math.max(360, height - 104);
+		// [双滚动条根治 2026-09-18] 面板高不再用「工作区高−常数」估算(常数与真实工具条/页签高不等 → 多出的十几像素把外层面板撑出第二条滚动条);
+		// 内层 Tabs 走定高链(app.less .horosa-direction-page .ant-tabs-top …),面板 100% 跟随容器,任何缩放/字号/窗高零常数。
+		const panelH = '100%';
 		// 受控 activeKey:方法列表由后端结果决定,页签集合会随结果变化 —— 用户选过的键仍在就保持,
 		// 否则回落到 'secondary'(原 defaultActiveKey);再不在就取首个,绝不停在不存在的键上显示空白。
 		const methodKeys = (result.methods || []).map((m)=>m.method);
@@ -223,7 +134,7 @@ class AstroVedicProgressions extends Component{
 						<span style={{ fontWeight: 600 }}>恒星推运（Sidereal）</span>
 						<label>目标日期 <input type="date" value={this.state.targetDate} onChange={(e) => this.setState({ targetDate: e.target.value })} /></label>
 						<label>时间 <input type="time" step="1" value={this.state.targetTime} onChange={(e) => this.setState({ targetTime: e.target.value })} /></label>
-						<label>月长算法 <Select size="small" style={{ width: 150 }} value={this.state.minorVariant} onChange={(v)=>this.setState({ minorVariant: v })}>
+						<label>月长算法 <Select size="small" style={{ width: 150 }} value={this.state.minorVariant} onChange={(v)=>{ DIRECTION_PAGE_SETTINGS.save({ minorVariant: v }); this.setState({ minorVariant: v }); }}>
 							{MINOR_VARIANT_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
 						</Select></label>
 						<Button size="small" onClick={this.load}>计算推运</Button>
@@ -232,7 +143,7 @@ class AstroVedicProgressions extends Component{
 					{/* horosa_freeze_subtabs_v1:每个推运法一张盘 + 一套表,此前**全部**方法常驻重渲
 					    (改目标日期/月长算法都把所有方法重画一遍)。改受控 + FreezeSubTab:只画前台那一个;
 					    切回时拿本轮最新 children 立即渲一帧,不卸载、不重发请求、不丢滚动位置。 */}
-					<Tabs activeKey={methodKey} onChange={this.changeMethodTab} tabPosition="top" style={{ flex: '1 1 auto' }}>
+					<Tabs activeKey={methodKey} onChange={this.changeMethodTab} tabPosition="top" style={{ flex: '1 1 auto', minHeight: 0 }}>
 						{(result.methods || []).map((method) => (
 							<TabPane tab={methodTab(method)} key={method.method}>
 								<FreezeSubTab active={methodKey === method.method}>

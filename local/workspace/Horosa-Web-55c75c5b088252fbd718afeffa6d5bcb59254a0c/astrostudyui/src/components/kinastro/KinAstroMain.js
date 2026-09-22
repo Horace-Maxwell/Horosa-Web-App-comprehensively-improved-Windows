@@ -30,6 +30,7 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1
 import ZiWeiChart from '../ziwei/ZiWeiChart';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';   // 中宫四柱兜底(策天/演禽后端不产 pillars)
 import { safeLocalStorageSet } from '../../utils/safeStorage';       // 中宫内容档位持久化
+import { definePageSettings } from '../../utils/pageSettingsStore';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
@@ -1036,6 +1037,69 @@ export const YZJ_PRESETS = {
 	chuangong: { Shunni: 'menShunNvNi',  MingGong: 'shuZhiMao', DayunLen: '10', StartAge: 'age1', Annual: 'liunian',  XiaoStart: 'ri',  XiaoDir: 'chart',  FlowSet: 'B', LeapRule: 'half', ZaoZi: false, Tongxian: false, DingYue: 'nongli', StarNaming: 'A', DaoTerm: 'gui',  GradeSet: 'standard', Chongfan: 'alpha' },
 	tongxing:  { Shunni: 'menShunNvNi',  MingGong: 'shuZhiMao', DayunLen: '10', StartAge: 'age1', Annual: 'xiaoxian', XiaoStart: 'ri',  XiaoDir: 'chart',  FlowSet: 'A', LeapRule: 'half', ZaoZi: false, Tongxian: false, DingYue: 'nongli', StarNaming: 'A', DaoTerm: 'gui',  GradeSet: 'standard', Chongfan: 'alpha' },
 };
+// 排盘设置跨会话保留(用户实报:排盘设置改了之后每次重开软件都要重设)。本组件一身多技法(策天 / 演禽 / 一掌经 /
+// 数算诸法),各技法的键自带前缀,收在同一份里互不相扰。只收口径 / 流派 / 算法 / 显示偏好;
+// 不收:性别、刻数、四柱覆写与手填干支、手动农历、六亲年份、查询码与关键词、推演宫 / 星图 / 宿度这类逐盘输入与查询位置;
+// 也不收「手动覆写 / 手动指定」这类输入模式开关 —— 模式与它的手填值是一体的,只留模式不留值,重开后会拿缺省值悄悄起一张错盘。
+// 只在用户亲手改控件(setUserOpt)与亲手套预设(applyYzjPreset)时落盘;fields → state 的性别 / 农历锚点重同步不经这里。
+export const KINASTRO_PAGE_SETTINGS = definePageSettings('horosa.kinastro.settings.v1', {
+	cetianMethod: { def: 'book', oneOf: ['book', 'kentang'] },
+	cetianLunarMode: { def: 'sxtwl', oneOf: ['sxtwl', 'classic'] },
+	cetianStarOrder: { def: 'reverse', oneOf: ['reverse', 'forward'] },
+	cetianShowWuXingJu: { def: 1, oneOf: [0, 1] },
+	cetianShowSihua: { def: 1, oneOf: [0, 1] },
+	cetianShowFlying: { def: 1, oneOf: [0, 1] },
+	cetianShowBrightness: { def: 1, oneOf: [0, 1] },
+	cetianShowSolarTerm: { def: 1, oneOf: [0, 1] },
+	cetianBrightnessSchool: { def: 'yiyu', oneOf: ['yiyu', 'quanji'] },
+	cetianShenGongMode: { def: 'yizheng', oneOf: ['yizheng', 'literal'] },
+	cetianDaxianMode: { def: 'yiyu', oneOf: ['yiyu', 'legacy'] },
+	cetianTianluoMode: { def: 'benshu', oneOf: ['benshu', 'zhongtian'] },
+	cetianPalaceNameMode: { def: 'common', oneOf: ['common', 'monk'] },
+	cetianLiunianQishaMode: { def: 'shengshi', oneOf: ['shengshi', 'suishu'] },
+	cetianShowLiunian: { def: 1, oneOf: [0, 1] },
+	cetianShowShensha: { def: 1, oneOf: [0, 1] },
+	cetianShowZaYao: { def: 1, oneOf: [0, 1] },
+	cetianShowDuanjue: { def: 1, oneOf: [0, 1] },
+	cetianShowXiu: { def: 1, oneOf: [0, 1] },
+	cetianShowBianyao: { def: 1, oneOf: [0, 1] },
+	useKey: { def: '1', oneOf: ['1', '0'] },
+	tiebanMethod: { def: 'kunji', oneOf: ['kunji', 'suanpan'] },
+	tiebanSchool: { def: 'south', oneOf: ['south', 'north'] },
+	tiebanKeSystem: { def: 'qing8', oneOf: ['qing8', 'ming100', 'dou12'] },
+	tiebanDayunSteps: { def: 8, type: 'number', int: true, min: 1, max: 12 },
+	chunziResultLimit: { def: '20', oneOf: CHUNZI_RESULT_LIMIT_OPTIONS.map((o)=>o.value) },
+	canpingMethod: { def: 'ming', oneOf: ['ming', 'gu'] },
+	canpingDayun: { def: 'mingGongQiyun', oneOf: ['mingGongQiyun', 'mingGongOne', 'baziStyle'] },
+	heluoQuHuaGong: { def: 'tuWangKunGen', oneOf: ['tuWangKunGen', 'siFangBoOnly'] },
+	heluoZiShu: { def: 'pair', oneOf: ['pair', 'single'] },
+	heluoJiGong: { def: 'manualSanYuan', oneOf: ['manualSanYuan', 'legacy'] },
+	heluoZhiZun: { def: true },
+	heluoPureGanKun: { def: 'current', oneOf: ['current', 'alt'] },
+	heluoLiunianStep2: { def: 'ying', oneOf: ['ying', 'sequential'] },
+	heluoLiuYueMode: { def: 'ying', oneOf: ['ying', 'legacy'] },
+	heluoHuangdiOffset: { def: '2697', type: 'string', maxLen: 6 },
+	heluoShowLiuRi: { def: true },
+	zhengchuanSchool: { def: 'tieban', oneOf: Object.keys(ZHENGCHUAN_SCHOOL_LABEL) },
+	yizhangjingPreset: { def: 'michuan', oneOf: Object.keys(YZJ_PRESETS) },
+	yizhangjingShunni: { def: 'yangNanYinNv', oneOf: ['yangNanYinNv', 'menShunNvNi'] },
+	yizhangjingMingGong: { def: 'shiShang', oneOf: ['shiShang', 'shuZhiMao'] },
+	yizhangjingDayunLen: { def: '7', oneOf: ['7', '10'] },
+	yizhangjingStartAge: { def: 'mi', oneOf: ['mi', 'age1'] },
+	yizhangjingXiaoStart: { def: 'ri', oneOf: ['ri', 'yue'] },
+	yizhangjingXiaoDir: { def: 'chart', oneOf: ['chart', 'always'] },
+	yizhangjingAnnual: { def: 'xiaoxian', oneOf: ['xiaoxian', 'liunian'] },
+	yizhangjingFlowSet: { def: 'A', oneOf: ['A', 'B', 'C'] },
+	yizhangjingTongxian: { def: true },
+	yizhangjingChongfan: { def: 'alpha', oneOf: ['alpha', 'beta'] },
+	yizhangjingDingYue: { def: 'nongli', oneOf: ['nongli', 'jieqi'] },
+	yizhangjingLeapRule: { def: 'half', oneOf: ['half', 'midnight'] },
+	yizhangjingZaoZi: { def: false },
+	yizhangjingStarNaming: { def: 'A', oneOf: ['A', 'B', 'C'] },
+	yizhangjingDaoTerm: { def: 'gui', oneOf: ['gui', 'edao'] },
+	yizhangjingGradeSet: { def: 'standard', oneOf: ['standard', 'variant'] },
+	yizhangjingShensha: { def: false },
+});
 // 预设字段 → state 键（前缀 yizhangjing）
 export const YZJ_PRESET_STATEMAP = ['Shunni', 'MingGong', 'DayunLen', 'StartAge', 'Annual', 'XiaoStart', 'XiaoDir', 'FlowSet', 'LeapRule', 'ZaoZi', 'Tongxian', 'DingYue', 'StarNaming', 'DaoTerm', 'GradeSet', 'Chongfan'];
 // 预设字段 → buildYizhangjingOpts 输出键（供哨兵/测试核对预设→引擎口径一致）
@@ -1132,9 +1196,11 @@ class KinAstroMain extends Component{
 				nanjiHourZhi: '子',
 				nanjiDayGan: '',
 				nanjiDayZhi: '',
-				nanjiSection: '子部',
-				nanjiJianchu: '建',
-				nanjiXiu: '張',
+				// [Q-264/T-245 ①] 推演三项缺省改「按本命」(空=后端按本盘自出:宫部=本命宫部、建除「建」、宿「角」),与无头挂载同源;
+				// 此前写死 子部/建/張 → 页面与挂载快照不逐字同(帮助称相同)。
+				nanjiSection: '',
+				nanjiJianchu: '',
+				nanjiXiu: '',
 				nanjiPasswordCode: '海異山同',
 				nanjiChart: 1,
 				nanjiPalace: '子',
@@ -1147,11 +1213,11 @@ class KinAstroMain extends Component{
 				chunziLookupCode: '',
 				chunziKeyword: '',
 				chunziTags: '',
-				chunziMansion: '室',
-				chunziHourBranch: '子',
+				chunziMansion: '',      // [Q-264/T-245 ①] 空=按本命/后端缺省(与无头同源)
+				chunziHourBranch: '',
 				chunziResultLimit: '20',
 				canpingMethod: 'ming',
-				canpingLiunian: null,
+				canpingDayun: 'mingGongQiyun',   // [Q-265/T-250·SO-14] 此前未初始化 → 下拉空白(引擎按 || 'mingGongQiyun' 用默认档)
 				heluoQuHuaGong: 'tuWangKunGen',
 				heluoZiShu: 'pair',            // 取数法【分歧B】pair 成对全取★ / single 每支阴阳取一
 				heluoJiGong: 'manualSanYuan',  // 五寄中宫【分歧D】manualSanYuan 三元表★ / legacy 旧代码
@@ -1198,6 +1264,7 @@ class KinAstroMain extends Component{
 				yizhangjingDaoTerm: 'gui',          // 六道术语:鬼道★ / 饿鬼道（纯显示层）
 				yizhangjingGradeSet: 'standard',    // 品级分类:主流★ / 变体(天驿归凶,改九品/命格)
 				yizhangjingShensha: false,          // 神煞合参层(默认关)
+				...KINASTRO_PAGE_SETTINGS.loadSaved(),   // 上次亲手设的口径(只并入保存过的键;没存过 = 上面的出厂值原样)
 			};
 		this.unmounted = false;
 		this.timeHook = {};
@@ -1842,7 +1909,7 @@ class KinAstroMain extends Component{
 					value={this.state[item.key]}
 					placeholder={item.placeholder}
 					maxLength={2}
-					onChange={(event)=>this.setState({ [item.key]: event.target.value })}
+					onChange={(event)=>this.setUserOpt({ [item.key]: event.target.value })}
 				/>
 			</label>
 		));
@@ -1874,9 +1941,10 @@ class KinAstroMain extends Component{
 				<div className="horosa-side-fields-inner">
 					<div className={`horosa-huangji-select-grid horosa-kinastro-select-grid horosa-kinastro-select-grid-${this.config.serviceKey}`}>
 						{this.config.serviceKey !== 'xianqin' ? (
-							<label className="horosa-huangji-select-field">
-								<span>性别</span>
-								<Select value={normBinaryGender(this.state.gender)} onChange={(value)=>this.setState({ gender: value })}>
+							<label className="horosa-huangji-select-field" title={this.config.serviceKey === 'fendjing' ? '鬼谷分定经的起卦与条文不分男女,性别只写进起盘信息一行' : undefined}>
+								<span>性别{this.config.serviceKey === 'fendjing' ? '（仅标注）' : ''}</span>
+								{/* [Q-265/T-250·SO-19] 鬼谷 compute 无性别参数(只回显起盘行):标签注明,不误导为断法输入 */}
+								<Select value={normBinaryGender(this.state.gender)} onChange={(value)=>this.setUserOpt({ gender: value })}>
 									<Option value="1">男</Option>
 									<Option value="0">女</Option>
 								</Select>
@@ -1886,7 +1954,7 @@ class KinAstroMain extends Component{
 							<>
 								<label className="horosa-huangji-select-field">
 									<span>算法</span>
-									<Select value={this.state.cetianMethod} optionLabelProp="label" onChange={(value)=>this.setState({ cetianMethod: value }, this.clickPlot)}>
+									<Select value={this.state.cetianMethod} optionLabelProp="label" onChange={(value)=>this.setUserOpt({ cetianMethod: value }, this.clickPlot)}>
 										<Option value="book" label="书法">书法·策天本法</Option>
 										<Option value="kentang" label="原法">原法·标准紫微</Option>
 									</Select>
@@ -1895,14 +1963,14 @@ class KinAstroMain extends Component{
 									<>
 										<label className="horosa-huangji-select-field">
 											<span>农历</span>
-											<Select value={this.state.cetianLunarMode} onChange={(value)=>this.setState({ cetianLunarMode: value }, this.clickPlot)}>
+											<Select value={this.state.cetianLunarMode} onChange={(value)=>this.setUserOpt({ cetianLunarMode: value }, this.clickPlot)}>
 												<Option value="sxtwl">sxtwl(修正)</Option>
 												<Option value="classic">原(闰月旧法)</Option>
 											</Select>
 										</label>
 										<label className="horosa-huangji-select-field">
 											<span>正曜</span>
-											<Select value={this.state.cetianStarOrder} onChange={(value)=>this.setState({ cetianStarOrder: value }, this.clickPlot)}>
+											<Select value={this.state.cetianStarOrder} onChange={(value)=>this.setUserOpt({ cetianStarOrder: value }, this.clickPlot)}>
 												<Option value="reverse">逆布(书)</Option>
 												<Option value="forward">顺布(原)</Option>
 											</Select>
@@ -1912,35 +1980,35 @@ class KinAstroMain extends Component{
 									<>
 										<label className="horosa-huangji-select-field">
 											<span title="庙旺口径（两古籍分歧）">庙旺</span>
-											<Select value={this.state.cetianBrightnessSchool} optionLabelProp="label" onChange={(value)=>this.setState({ cetianBrightnessSchool: value }, this.clickPlot)}>
+											<Select value={this.state.cetianBrightnessSchool} optionLabelProp="label" onChange={(value)=>this.setUserOpt({ cetianBrightnessSchool: value }, this.clickPlot)}>
 												<Option value="yiyu" label="移语本">移语本·诸星格</Option>
 												<Option value="quanji" label="全集本">全集本·诗诀</Option>
 											</Select>
 										</label>
 										<label className="horosa-huangji-select-field">
 											<span title="身宫取整口径">身宫</span>
-											<Select value={this.state.cetianShenGongMode} optionLabelProp="label" onChange={(value)=>this.setState({ cetianShenGongMode: value }, this.clickPlot)}>
+											<Select value={this.state.cetianShenGongMode} optionLabelProp="label" onChange={(value)=>this.setUserOpt({ cetianShenGongMode: value }, this.clickPlot)}>
 												<Option value="yizheng" label="引证图">引证图口径</Option>
 												<Option value="literal" label="正文直读">正文直读</Option>
 											</Select>
 										</label>
 										<label className="horosa-huangji-select-field">
 											<span title="大限起宫口径">大限</span>
-											<Select value={this.state.cetianDaxianMode} optionLabelProp="label" onChange={(value)=>this.setState({ cetianDaxianMode: value }, this.clickPlot)}>
+											<Select value={this.state.cetianDaxianMode} optionLabelProp="label" onChange={(value)=>this.setUserOpt({ cetianDaxianMode: value }, this.clickPlot)}>
 												<Option value="yiyu" label="阳命阴身">阳年从命·阴年从身</Option>
 												<Option value="legacy" label="旧口径">顺从命·逆从身(旧)</Option>
 											</Select>
 										</label>
 										<label className="horosa-huangji-select-field">
 											<span title="天罗地网起法">罗网</span>
-											<Select value={this.state.cetianTianluoMode} optionLabelProp="label" onChange={(value)=>this.setState({ cetianTianluoMode: value }, this.clickPlot)}>
+											<Select value={this.state.cetianTianluoMode} optionLabelProp="label" onChange={(value)=>this.setUserOpt({ cetianTianluoMode: value }, this.clickPlot)}>
 												<Option value="benshu" label="本书月日">本书·月日法</Option>
 												<Option value="zhongtian" label="中天太极">中天太极·月时法</Option>
 											</Select>
 										</label>
 										<label className="horosa-huangji-select-field">
 											<span title="宫名体系">宫名</span>
-											<Select value={this.state.cetianPalaceNameMode} optionLabelProp="label" onChange={(value)=>this.setState({ cetianPalaceNameMode: value }, this.clickPlot)}>
+											<Select value={this.state.cetianPalaceNameMode} optionLabelProp="label" onChange={(value)=>this.setUserOpt({ cetianPalaceNameMode: value }, this.clickPlot)}>
 												<Option value="common" label="通行">通行十二宫</Option>
 												<Option value="monk" label="僧道">僧道起法</Option>
 											</Select>
@@ -1949,7 +2017,7 @@ class KinAstroMain extends Component{
 											<span>流年</span>
 											<Select
 												value={this.state.cetianLiunianYear}
-												onChange={(value)=>this.setState({ cetianLiunianYear: value }, this.clickPlot)}
+												onChange={(value)=>this.setUserOpt({ cetianLiunianYear: value }, this.clickPlot)}
 												showSearch
 												optionFilterProp="children"
 											>
@@ -1958,7 +2026,7 @@ class KinAstroMain extends Component{
 										</label>
 										<label className="horosa-huangji-select-field">
 											<span title="流年七煞起法">七煞</span>
-											<Select value={this.state.cetianLiunianQishaMode} onChange={(value)=>this.setState({ cetianLiunianQishaMode: value }, this.clickPlot)}>
+											<Select value={this.state.cetianLiunianQishaMode} onChange={(value)=>this.setUserOpt({ cetianLiunianQishaMode: value }, this.clickPlot)}>
 												<Option value="shengshi">生时法</Option>
 												<Option value="suishu">岁数法</Option>
 											</Select>
@@ -1966,22 +2034,24 @@ class KinAstroMain extends Component{
 									</>
 								)}
 																<div className="horosa-ziwei-option-card horosa-ziwei-display-card horosa-cetian-display-card">
-									<Checkbox checked={!!this.state.cetianShowBrightness} onChange={(e)=>this.setState({ cetianShowBrightness: e.target.checked ? 1 : 0 }, this.clickPlot)} title="显示亮度(庙旺乐)">庙旺标注</Checkbox>
+									<Checkbox checked={!!this.state.cetianShowBrightness} onChange={(e)=>this.setUserOpt({ cetianShowBrightness: e.target.checked ? 1 : 0 }, this.clickPlot)} title="显示亮度(庙旺乐)">庙旺标注</Checkbox>
 									{this.state.cetianMethod !== 'kentang' ? (
 										<>
-											<Checkbox checked={!!this.state.cetianShowLiunian} onChange={(e)=>this.setState({ cetianShowLiunian: e.target.checked ? 1 : 0 }, this.clickPlot)} title="流年飞星外盘(主序/七煞/十七飞星)">流年飞星</Checkbox>
-											<Checkbox checked={!!this.state.cetianShowShensha} onChange={(e)=>this.setState({ cetianShowShensha: e.target.checked ? 1 : 0 }, this.clickPlot)} title="岁前/岁后/年干/月煞">神煞四表</Checkbox>
-											<Checkbox checked={!!this.state.cetianShowZaYao} onChange={(e)=>this.setState({ cetianShowZaYao: e.target.checked ? 1 : 0 }, this.clickPlot)} title="龙池凤阁三台八座天罗地网等廿八曜">杂曜</Checkbox>
-											<Checkbox checked={!!this.state.cetianShowDuanjue} onChange={(e)=>this.setState({ cetianShowDuanjue: e.target.checked ? 1 : 0 }, this.clickPlot)} title="古籍条文自动命中">断诀</Checkbox>
-											<Checkbox checked={!!this.state.cetianShowXiu} onChange={(e)=>this.setState({ cetianShowXiu: e.target.checked ? 1 : 0 }, this.clickPlot)} title="廿八宿分野与三日宫">廿八宿</Checkbox>
-											<Checkbox checked={!!this.state.cetianShowBianyao} onChange={(e)=>this.setState({ cetianShowBianyao: e.target.checked ? 1 : 0 }, this.clickPlot)} title="本命与流年变曜">十干变曜</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowLiunian} onChange={(e)=>this.setUserOpt({ cetianShowLiunian: e.target.checked ? 1 : 0 }, this.clickPlot)} title="流年飞星外盘(主序/七煞/十七飞星)">流年飞星</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowShensha} onChange={(e)=>this.setUserOpt({ cetianShowShensha: e.target.checked ? 1 : 0 }, this.clickPlot)} title="岁前/岁后/年干/月煞">神煞四表</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowZaYao} onChange={(e)=>this.setUserOpt({ cetianShowZaYao: e.target.checked ? 1 : 0 }, this.clickPlot)} title="龙池凤阁三台八座天罗地网等廿八曜">杂曜</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowDuanjue} onChange={(e)=>this.setUserOpt({ cetianShowDuanjue: e.target.checked ? 1 : 0 }, this.clickPlot)} title="古籍条文自动命中">断诀</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowXiu} onChange={(e)=>this.setUserOpt({ cetianShowXiu: e.target.checked ? 1 : 0 }, this.clickPlot)} title="廿八宿分野与三日宫">廿八宿</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowBianyao} onChange={(e)=>this.setUserOpt({ cetianShowBianyao: e.target.checked ? 1 : 0 }, this.clickPlot)} title="本命与流年变曜">十干变曜</Checkbox>
+											{/* [Q-265/T-250·SO-12] 后端「节气」行过滤不分算法:书法分支也出此勾选,否则原法关掉后切书法无处恢复 */}
+											<Checkbox checked={!!this.state.cetianShowSolarTerm} onChange={(e)=>this.setUserOpt({ cetianShowSolarTerm: e.target.checked ? 1 : 0 }, this.clickPlot)} title="节气影响">节气</Checkbox>
 										</>
 									) : (
 										<>
-											<Checkbox checked={!!this.state.cetianShowWuXingJu} onChange={(e)=>this.setState({ cetianShowWuXingJu: e.target.checked ? 1 : 0 }, this.clickPlot)} title="显示五行局">五行局</Checkbox>
-											<Checkbox checked={!!this.state.cetianShowSihua} onChange={(e)=>this.setState({ cetianShowSihua: e.target.checked ? 1 : 0 }, this.clickPlot)} title="禄权科忌">四化</Checkbox>
-											<Checkbox checked={!!this.state.cetianShowFlying} onChange={(e)=>this.setState({ cetianShowFlying: e.target.checked ? 1 : 0 }, this.clickPlot)} title="飞星与古法格局">飞星格局</Checkbox>
-											<Checkbox checked={!!this.state.cetianShowSolarTerm} onChange={(e)=>this.setState({ cetianShowSolarTerm: e.target.checked ? 1 : 0 }, this.clickPlot)} title="节气影响">节气</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowWuXingJu} onChange={(e)=>this.setUserOpt({ cetianShowWuXingJu: e.target.checked ? 1 : 0 }, this.clickPlot)} title="显示五行局">五行局</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowSihua} onChange={(e)=>this.setUserOpt({ cetianShowSihua: e.target.checked ? 1 : 0 }, this.clickPlot)} title="禄权科忌">四化</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowFlying} onChange={(e)=>this.setUserOpt({ cetianShowFlying: e.target.checked ? 1 : 0 }, this.clickPlot)} title="飞星与古法格局">飞星格局</Checkbox>
+											<Checkbox checked={!!this.state.cetianShowSolarTerm} onChange={(e)=>this.setUserOpt({ cetianShowSolarTerm: e.target.checked ? 1 : 0 }, this.clickPlot)} title="节气影响">节气</Checkbox>
 										</>
 									)}
 								</div>
@@ -1993,20 +2063,20 @@ class KinAstroMain extends Component{
 							<>
 								<label className="horosa-huangji-select-field">
 									<span>刻数</span>
-									<Select value={this.state.ke} onChange={(value)=>this.setState({ ke: value })}>
+									<Select value={this.state.ke} onChange={(value)=>this.setUserOpt({ ke: value })}>
 										{['初刻', '二刻', '三刻', '四刻', '五刻', '六刻', '七刻', '八刻'].map((item)=><Option value={item} key={item}>{item}</Option>)}
 									</Select>
 								</label>
 								<label className="horosa-huangji-select-field is-wide">
 									<span>64钥匙细调</span>
-									<Select value={this.state.useKey} onChange={(value)=>this.setState({ useKey: value })}>
+									<Select value={this.state.useKey} onChange={(value)=>this.setUserOpt({ useKey: value })}>
 										<Option value="1">启用</Option>
 										<Option value="0">关闭</Option>
 									</Select>
 								</label>
 								<label className="horosa-huangji-select-field is-wide">
 									<span>四柱覆写</span>
-									<Select value={this.state.pillarOverride} onChange={(value)=>this.setState({ pillarOverride: value })}>
+									<Select value={this.state.pillarOverride} onChange={(value)=>this.setUserOpt({ pillarOverride: value })}>
 										<Option value="0">自动换算</Option>
 										<Option value="1">手动覆写</Option>
 									</Select>
@@ -2018,14 +2088,14 @@ class KinAstroMain extends Component{
 							<>
 								<label className="horosa-huangji-select-field is-wide">
 									<span>取法</span>
-									<Select value={this.state.canpingMethod} onChange={(value)=>this.setState({ canpingMethod: value })}>
+									<Select value={this.state.canpingMethod} onChange={(value)=>this.setUserOpt({ canpingMethod: value })}>
 										<Option value="ming">明法（月支反向）</Option>
 										<Option value="gu">古法（八字日支）</Option>
 									</Select>
 								</label>
 								<label className="horosa-huangji-select-field is-wide">
 									<span>大运排法</span>
-									<Select value={this.state.canpingDayun} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ canpingDayun: value })}>
+									<Select value={this.state.canpingDayun} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ canpingDayun: value })}>
 										<Option value="mingGongQiyun">命宫顺行 · 生日推起运</Option>
 										<Option value="mingGongOne">命宫顺行 · 恒一岁起</Option>
 										<Option value="baziStyle">八字大运法（与八字盘同源）</Option>
@@ -2038,57 +2108,57 @@ class KinAstroMain extends Component{
 								<>
 									<label className="horosa-huangji-select-field">
 										<span>取数法</span>
-										<Select value={this.state.heluoZiShu} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ heluoZiShu: value })}>
+										<Select value={this.state.heluoZiShu} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ heluoZiShu: value })}>
 											<Option value="pair">成对全取</Option>
 											<Option value="single">每支取一</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>五寄中宫</span>
-										<Select value={this.state.heluoJiGong} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ heluoJiGong: value })}>
+										<Select value={this.state.heluoJiGong} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ heluoJiGong: value })}>
 											<Option value="manualSanYuan">三元表</Option>
 											<Option value="legacy">旧法·性别</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>取化工法</span>
-										<Select value={this.state.heluoQuHuaGong} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ heluoQuHuaGong: value })}>
+										<Select value={this.state.heluoQuHuaGong} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ heluoQuHuaGong: value })}>
 											<Option value="tuWangKunGen">土王寄坤艮</Option>
 											<Option value="siFangBoOnly">直取四方伯</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>纯乾坤落爻</span>
-										<Select value={this.state.heluoPureGanKun} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ heluoPureGanKun: value })}>
+										<Select value={this.state.heluoPureGanKun} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ heluoPureGanKun: value })}>
 											<Option value="current">通行</Option>
 											<Option value="alt">抄本异</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>流年次步</span>
-										<Select value={this.state.heluoLiunianStep2} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ heluoLiunianStep2: value })}>
+										<Select value={this.state.heluoLiunianStep2} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ heluoLiunianStep2: value })}>
 											<Option value="ying">应爻法</Option>
 											<Option value="sequential">顺行</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>流月起月</span>
-										<Select value={this.state.heluoLiuYueMode} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ heluoLiuYueMode: value })}>
+										<Select value={this.state.heluoLiuYueMode} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ heluoLiuYueMode: value })}>
 											<Option value="ying">应爻校准</Option>
 											<Option value="legacy">现行序</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field horosa-heluo-switch-field">
 										<span>三至尊卦</span>
-										<Switch checked={this.state.heluoZhiZun} onChange={(v)=>this.setState({ heluoZhiZun: v })} />
+										<Switch checked={this.state.heluoZhiZun} onChange={(v)=>this.setUserOpt({ heluoZhiZun: v })} />
 									</label>
 									<label className="horosa-huangji-select-field horosa-heluo-switch-field">
 										<span>流月列流日</span>
-										<Switch checked={this.state.heluoShowLiuRi} onChange={(v)=>this.setState({ heluoShowLiuRi: v })} />
+										<Switch checked={this.state.heluoShowLiuRi} onChange={(v)=>this.setUserOpt({ heluoShowLiuRi: v })} />
 									</label>
 									<label className="horosa-huangji-select-field is-wide">
 										<span>纪年基准（黄帝纪元差，默认 2697）</span>
-										<InputNumber min={0} max={16799} value={parseInt(this.state.heluoHuangdiOffset, 10) || 2697} onChange={(v)=>this.setState({ heluoHuangdiOffset: `${v || 2697}` })} />
+										<InputNumber min={0} max={16799} value={Number.isFinite(parseInt(this.state.heluoHuangdiOffset, 10)) ? parseInt(this.state.heluoHuangdiOffset, 10) : 2697} onChange={(v)=>this.setUserOpt({ heluoHuangdiOffset: `${(v === null || v === undefined || v === '') ? 2697 : v}` })} />   {/* [Q-265/SO-18] 0 可达 */}
 									</label>
 									{/* 九项默认口径与各档差异详见帮助文档「数算 · 本页直算三门 · 河洛理数 · 左栏九项」——「左边栏永不放大段解释」铁律。 */}
 								</>
@@ -2097,7 +2167,7 @@ class KinAstroMain extends Component{
 									<>
 										<label className="horosa-huangji-select-field is-wide">
 											<span>流派</span>
-											<Select value={this.state.zhengchuanSchool} onChange={(value)=>this.setState({ zhengchuanSchool: value })}>
+											<Select value={this.state.zhengchuanSchool} onChange={(value)=>this.setUserOpt({ zhengchuanSchool: value })}>
 												{Object.keys(ZHENGCHUAN_SCHOOL_LABEL).map((k)=>(
 													<Option key={k} value={k}>{ZHENGCHUAN_SCHOOL_LABEL[k]}</Option>
 												))}
@@ -2107,7 +2177,7 @@ class KinAstroMain extends Component{
 											<label className="horosa-huangji-select-field is-wide">
 												<span>求测时辰（干支，留空取本人时柱）</span>
 												<Input value={this.state.zhengchuanAskGz} maxLength={2} placeholder="如 丙辰"
-													onChange={(e)=>this.setState({ zhengchuanAskGz: e.target.value })} />
+													onChange={(e)=>this.setUserOpt({ zhengchuanAskGz: e.target.value })} />
 											</label>
 										) : null}
 										{this.state.zhengchuanSchool === 'shaozi' ? (
@@ -2115,16 +2185,16 @@ class KinAstroMain extends Component{
 												<label className="horosa-huangji-select-field">
 													<span>父生我时年龄</span>
 													<InputNumber min={12} max={99} value={parseInt(this.state.zhengchuanFatherAge, 10) || 27}
-														onChange={(v)=>this.setState({ zhengchuanFatherAge: `${v || 27}` })} />
+														onChange={(v)=>this.setUserOpt({ zhengchuanFatherAge: `${v || 27}` })} />
 												</label>
 												<label className="horosa-huangji-select-field">
 													<span>母生我时年龄</span>
 													<InputNumber min={12} max={99} value={parseInt(this.state.zhengchuanMotherAge, 10) || 26}
-														onChange={(v)=>this.setState({ zhengchuanMotherAge: `${v || 26}` })} />
+														onChange={(v)=>this.setUserOpt({ zhengchuanMotherAge: `${v || 26}` })} />
 												</label>
 												<label className="horosa-huangji-select-field">
 													<span>元运（先天命卦余五特例）</span>
-													<Select value={this.state.zhengchuanYuan} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ zhengchuanYuan: value })}>
+													<Select value={this.state.zhengchuanYuan} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ zhengchuanYuan: value })}>
 														<Option value="shang">上元</Option>
 														<Option value="zhong">中元</Option>
 														<Option value="xia">下元</Option>
@@ -2138,7 +2208,7 @@ class KinAstroMain extends Component{
 											<label className="horosa-huangji-select-field">
 												<span>演算时辰（留空取本人时支）</span>
 												<Select value={this.state.zhengchuanAskHourZhi} dropdownMatchSelectWidth={false}
-													onChange={(value)=>this.setState({ zhengchuanAskHourZhi: value, zhengchuanEnv: '' })}>
+													onChange={(value)=>this.setUserOpt({ zhengchuanAskHourZhi: value, zhengchuanEnv: '' })}>
 													<Option value="">（取本人时支）</Option>
 													{['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'].map((z)=>(
 														<Option key={z} value={z}>{z}时{'卯辰巳午未申'.indexOf(z) >= 0 ? '（白天·天四象）' : '（昼夜·地四象）'}</Option>
@@ -2148,7 +2218,7 @@ class KinAstroMain extends Component{
 											<label className="horosa-huangji-select-field">
 												<span>演算时天象</span>
 												<Select value={this.state.zhengchuanEnv} dropdownMatchSelectWidth={false}
-													onChange={(value)=>this.setState({ zhengchuanEnv: value })}>
+													onChange={(value)=>this.setUserOpt({ zhengchuanEnv: value })}>
 													<Option value="">（按时辰取首项）</Option>
 													{('卯辰巳午未申'.indexOf(this.state.zhengchuanAskHourZhi) >= 0
 														? [['晴','晴'],['陰','阴'],['雨','雨'],['雪','雪']]
@@ -2162,37 +2232,37 @@ class KinAstroMain extends Component{
 											<>
 											<label className="horosa-huangji-select-field">
 												<span>查询项目</span>
-												<Select value={this.state.zhengchuanItem} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ zhengchuanItem: value })}>
+												<Select value={this.state.zhengchuanItem} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ zhengchuanItem: value })}>
 													{['父母','兄弟','姻緣','子孫','官祿','疾病'].map((x)=>(<Option key={x} value={x}>{x}</Option>))}
 												</Select>
 											</label>
 											<label className="horosa-huangji-select-field">
 												<span>声音</span>
-												<Select value={this.state.zhengchuanSound} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ zhengchuanSound: value })}>
+												<Select value={this.state.zhengchuanSound} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ zhengchuanSound: value })}>
 													{['日','月','星','辰','水','火','土','石','平','上','去','入','開','發','收','閉'].map((x)=>(<Option key={x} value={x}>{x}</Option>))}
 												</Select>
 											</label>
 											<label className="horosa-huangji-select-field">
 												<span>刻数</span>
-												<Select value={this.state.zhengchuanKe} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ zhengchuanKe: value })}>
+												<Select value={this.state.zhengchuanKe} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ zhengchuanKe: value })}>
 													{['一刻','二刻','三刻','四刻','五刻','六刻','七刻','八刻'].map((x)=>(<Option key={x} value={x}>{x}</Option>))}
 												</Select>
 											</label>
 											<label className="horosa-huangji-select-field">
 												<span>八宫</span>
-												<Select value={this.state.zhengchuanGong} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ zhengchuanGong: value })}>
+												<Select value={this.state.zhengchuanGong} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ zhengchuanGong: value })}>
 													{['乾','兌','離','震','巽','坎','艮','坤'].map((x)=>(<Option key={x} value={x}>{x}</Option>))}
 												</Select>
 											</label>
 											<label className="horosa-huangji-select-field">
 												<span>性情项 · 地支</span>
-												<Select value={this.state.zhengchuanXqZhi} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ zhengchuanXqZhi: value })}>
+												<Select value={this.state.zhengchuanXqZhi} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ zhengchuanXqZhi: value })}>
 													{['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'].map((x)=>(<Option key={x} value={x}>{x}</Option>))}
 												</Select>
 											</label>
 											<label className="horosa-huangji-select-field">
 												<span>性情项 · 余数</span>
-												<Select value={this.state.zhengchuanXqYushu} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ zhengchuanXqYushu: value })}>
+												<Select value={this.state.zhengchuanXqYushu} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ zhengchuanXqYushu: value })}>
 													{Array.from({ length: 12 }, (_, i)=>`${i + 1}`).map((x)=>(<Option key={x} value={x}>{x}</Option>))}
 												</Select>
 											</label>
@@ -2219,35 +2289,35 @@ class KinAstroMain extends Component{
 									) : null}
 									<label className="horosa-huangji-select-field">
 										<span>顺逆规则</span>
-										<Select value={this.state.yizhangjingShunni} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingShunni: value })}>
+										<Select value={this.state.yizhangjingShunni} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ yizhangjingShunni: value })}>
 											<Option value="yangNanYinNv">阳男阴女</Option>
 											<Option value="menShunNvNi">男顺女逆</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>命宫定法</span>
-										<Select value={this.state.yizhangjingMingGong} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingMingGong: value })}>
+										<Select value={this.state.yizhangjingMingGong} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ yizhangjingMingGong: value })}>
 											<Option value="shiShang">时上起命</Option>
 											<Option value="shuZhiMao">数至卯</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>定月法</span>
-										<Select value={this.state.yizhangjingDingYue} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingDingYue: value })}>
+										<Select value={this.state.yizhangjingDingYue} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ yizhangjingDingYue: value })}>
 											<Option value="nongli">农历月</Option>
 											<Option value="jieqi">节气月</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>闰月细则</span>
-										<Select value={this.state.yizhangjingLeapRule} disabled={this.state.yizhangjingDingYue === 'jieqi'} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingLeapRule: value })}>
+										<Select value={this.state.yizhangjingLeapRule} disabled={this.state.yizhangjingDingYue === 'jieqi'} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ yizhangjingLeapRule: value })}>
 											<Option value="half">十五折半</Option>
 											<Option value="midnight">夜半折半</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>星名系统</span>
-										<Select value={this.state.yizhangjingStarNaming} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingStarNaming: value })}>
+										<Select value={this.state.yizhangjingStarNaming} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ yizhangjingStarNaming: value })}>
 											<Option value="A">A·主流</Option>
 											<Option value="B">B·异名</Option>
 											<Option value="C">C·改名</Option>
@@ -2255,35 +2325,35 @@ class KinAstroMain extends Component{
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>六道术语</span>
-										<Select value={this.state.yizhangjingDaoTerm} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingDaoTerm: value })}>
+										<Select value={this.state.yizhangjingDaoTerm} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ yizhangjingDaoTerm: value })}>
 											<Option value="gui">鬼道·修罗道</Option>
 											<Option value="edao">饿鬼道·阿修罗道</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>品级分类</span>
-										<Select value={this.state.yizhangjingGradeSet} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingGradeSet: value })}>
+										<Select value={this.state.yizhangjingGradeSet} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ yizhangjingGradeSet: value })}>
 											<Option value="standard">主流</Option>
 											<Option value="variant">变体·天驿归凶</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>大限运长</span>
-										<Select value={this.state.yizhangjingDayunLen} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingDayunLen: value })}>
+										<Select value={this.state.yizhangjingDayunLen} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ yizhangjingDayunLen: value })}>
 											<Option value="7">一宫7年</Option>
 											<Option value="10">一宫10年</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>大限起运</span>
-										<Select value={this.state.yizhangjingStartAge} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingStartAge: value })}>
+										<Select value={this.state.yizhangjingStartAge} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ yizhangjingStartAge: value })}>
 											<Option value="mi">秘传起运</Option>
 											<Option value="age1">1岁连续</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>逐年法</span>
-										<Select value={this.state.yizhangjingAnnual} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingAnnual: value })}>
+										<Select value={this.state.yizhangjingAnnual} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ yizhangjingAnnual: value })}>
 											<Option value="xiaoxian">小限</Option>
 											<Option value="liunian">流年十二神</Option>
 										</Select>
@@ -2291,7 +2361,7 @@ class KinAstroMain extends Component{
 									{this.state.yizhangjingAnnual !== 'liunian' ? (
 																		<label className="horosa-huangji-select-field">
 																			<span>小限起宫</span>
-																			<Select value={this.state.yizhangjingXiaoStart} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingXiaoStart: value })}>
+																			<Select value={this.state.yizhangjingXiaoStart} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ yizhangjingXiaoStart: value })}>
 																				<Option value="ri">日柱宫</Option>
 																				<Option value="yue">月柱宫</Option>
 																			</Select>
@@ -2300,7 +2370,7 @@ class KinAstroMain extends Component{
 									{this.state.yizhangjingAnnual !== 'liunian' ? (
 																		<label className="horosa-huangji-select-field">
 																			<span>小限顺逆</span>
-																			<Select value={this.state.yizhangjingXiaoDir} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingXiaoDir: value })}>
+																			<Select value={this.state.yizhangjingXiaoDir} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ yizhangjingXiaoDir: value })}>
 																				<Option value="chart">随盘向</Option>
 																				<Option value="always">一律顺行</Option>
 																			</Select>
@@ -2309,7 +2379,7 @@ class KinAstroMain extends Component{
 									{this.state.yizhangjingAnnual !== 'xiaoxian' ? (
 																		<label className="horosa-huangji-select-field">
 																			<span>流年十二神</span>
-																			<Select value={this.state.yizhangjingFlowSet} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingFlowSet: value })}>
+																			<Select value={this.state.yizhangjingFlowSet} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ yizhangjingFlowSet: value })}>
 																				<Option value="A">甲组·太阳系</Option>
 																				<Option value="B">乙组·六合系</Option>
 																				<Option value="C">丙组·岁破系</Option>
@@ -2318,22 +2388,22 @@ class KinAstroMain extends Component{
 									) : null}
 									<label className="horosa-huangji-select-field">
 										<span>重犯口诀</span>
-										<Select value={this.state.yizhangjingChongfan} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ yizhangjingChongfan: value })}>
+										<Select value={this.state.yizhangjingChongfan} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ yizhangjingChongfan: value })}>
 											<Option value="alpha">常见组</Option>
 											<Option value="beta">异传组</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field horosa-heluo-switch-field">
 										<span>早子调宫</span>
-										<Switch checked={this.state.yizhangjingZaoZi} onChange={(v)=>this.setState({ yizhangjingZaoZi: v })} />
+										<Switch checked={this.state.yizhangjingZaoZi} onChange={(v)=>this.setUserOpt({ yizhangjingZaoZi: v })} />
 									</label>
 									<label className="horosa-huangji-select-field horosa-heluo-switch-field">
 										<span>童限</span>
-										<Switch checked={this.state.yizhangjingTongxian} onChange={(v)=>this.setState({ yizhangjingTongxian: v })} />
+										<Switch checked={this.state.yizhangjingTongxian} onChange={(v)=>this.setUserOpt({ yizhangjingTongxian: v })} />
 									</label>
 									<label className="horosa-huangji-select-field horosa-heluo-switch-field">
 										<span>神煞合参</span>
-										<Switch checked={this.state.yizhangjingShensha} onChange={(v)=>this.setState({ yizhangjingShensha: v })} />
+										<Switch checked={this.state.yizhangjingShensha} onChange={(v)=>this.setUserOpt({ yizhangjingShensha: v })} />
 									</label>
 									<div className="horosa-yizhangjing-opthelp">各开关取值与差别详见右上「帮助」。</div>
 								</>
@@ -2342,29 +2412,30 @@ class KinAstroMain extends Component{
 							<>
 								<label className="horosa-huangji-select-field">
 									<span>算法</span>
-									<Select value={this.state.tiebanMethod} onChange={(value)=>this.setState({ tiebanMethod: value })}>
+									<Select value={this.state.tiebanMethod} onChange={(value)=>this.setUserOpt({ tiebanMethod: value })}>
 										<Option value="kunji">扣入法</Option>
 										<Option value="suanpan">算盘打数</Option>
 									</Select>
 								</label>
 								<label className="horosa-huangji-select-field">
 									<span>起运年龄</span>
-									<InputNumber min={0} max={120} value={this.state.tiebanStartAge} onChange={(value)=>this.setState({ tiebanStartAge: value || 0 })} />
+									<InputNumber min={0} max={120} value={this.state.tiebanStartAge} onChange={(value)=>this.setUserOpt({ tiebanStartAge: value || 0 })} />
 								</label>
 								<label className="horosa-huangji-select-field">
 									<span>大运步数</span>
-									<InputNumber min={1} max={12} value={this.state.tiebanDayunSteps} onChange={(value)=>this.setState({ tiebanDayunSteps: value || 8 })} />
+									<InputNumber min={1} max={12} value={this.state.tiebanDayunSteps} onChange={(value)=>this.setUserOpt({ tiebanDayunSteps: value || 8 })} />
 								</label>
-								<label className="horosa-huangji-select-field">
-									<span>流派</span>
-									<Select value={this.state.tiebanSchool} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ tiebanSchool: value })}>
+								<label className="horosa-huangji-select-field" title="流派只作口径说明(主算柱/卦数偏好/取数/条文存量四项写进框架卡与快照),不改框架推演本身">
+									<span>流派（口径说明）</span>
+									{/* [Q-265/T-250·SO-17] 基本卦恒取太玄数、框架数序与流派无关;文案如实,不暗示改算 */}
+									<Select value={this.state.tiebanSchool} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ tiebanSchool: value })}>
 										<Option value="south">南派(岭南)</Option>
 										<Option value="north">北派(中州)</Option>
 									</Select>
 								</label>
 								<label className="horosa-huangji-select-field">
 									<span>刻制</span>
-									<Select value={this.state.tiebanKeSystem} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ tiebanKeSystem: value })}>
+									<Select value={this.state.tiebanKeSystem} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ tiebanKeSystem: value })}>
 										<Option value="qing8">清八刻</Option>
 										<Option value="ming100">明百刻</Option>
 										<Option value="dou12">十二刻斗宫</Option>
@@ -2372,13 +2443,13 @@ class KinAstroMain extends Component{
 								</label>
 								<label className="horosa-huangji-select-field">
 									<span>考刻刻位</span>
-									<Select value={this.state.tiebanKe} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ tiebanKe: value })}>
+									<Select value={this.state.tiebanKe} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ tiebanKe: value })}>
 										{[1, 2, 3, 4, 5, 6, 7, 8].map((k)=>(<Option key={k} value={k}>{['初', '二', '三', '四', '五', '六', '七', '八'][k - 1]}刻</Option>))}
 									</Select>
 								</label>
 								<label className="horosa-huangji-select-field">
 									<span>双胞胎分</span>
-									<Select value={this.state.tiebanTwinFen} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ tiebanTwinFen: value })}>
+									<Select value={this.state.tiebanTwinFen} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ tiebanTwinFen: value })}>
 										<Option value="off">不分</Option>
 										<Option value="shang">上分</Option>
 										<Option value="zhong">中分</Option>
@@ -2387,43 +2458,44 @@ class KinAstroMain extends Component{
 								</label>
 								<label className="horosa-huangji-select-field horosa-heluo-switch-field">
 									<span>过房/养子</span>
-									<Switch checked={this.state.tiebanGuofang} onChange={(v)=>this.setState({ tiebanGuofang: v })} />
+									<Switch checked={this.state.tiebanGuofang} onChange={(v)=>this.setUserOpt({ tiebanGuofang: v })} />
 								</label>
 								<label className="horosa-huangji-select-field is-wide">
 									<span>四柱覆写</span>
-									<Select value={this.state.pillarOverride} onChange={(value)=>this.setState({ pillarOverride: value })}>
+									<Select value={this.state.pillarOverride} onChange={(value)=>this.setUserOpt({ pillarOverride: value })}>
 										<Option value="0">自动换算</Option>
 										<Option value="1">手动覆写</Option>
 									</Select>
 								</label>
 								{this.renderPillarOverrideFields()}
-								<label className="horosa-huangji-select-field">
+								{/* [Q-357/T-338] 父母生卒四格只在扣入法参与考刻(算盘打数分支只收四柱与性别):算盘打数下置灰并 title 注明,不再「可填但不生效」。 */}
+								<label className="horosa-huangji-select-field" title={this.state.tiebanMethod === 'suanpan' ? '算盘打数不读父母生卒年;切「扣入法」才参与考刻' : '扣入法据父年天干调整「刻」'}>
 									<span>父亲生年</span>
-									<InputNumber min={1} max={16799} value={this.state.fatherBirthYear} onChange={(value)=>this.setState({ fatherBirthYear: value })} />
+									<InputNumber min={1} max={16799} value={this.state.fatherBirthYear} disabled={this.state.tiebanMethod === 'suanpan'} onChange={(value)=>this.setUserOpt({ fatherBirthYear: value })} />
 								</label>
-								<label className="horosa-huangji-select-field">
+								<label className="horosa-huangji-select-field" title={this.state.tiebanMethod === 'suanpan' ? '算盘打数不读父母生卒年;切「扣入法」才参与考刻' : '扣入法考刻用'}>
 									<span>父亲卒年</span>
-									<InputNumber min={1} max={16799} value={this.state.fatherDeathYear} onChange={(value)=>this.setState({ fatherDeathYear: value })} />
+									<InputNumber min={1} max={16799} value={this.state.fatherDeathYear} disabled={this.state.tiebanMethod === 'suanpan'} onChange={(value)=>this.setUserOpt({ fatherDeathYear: value })} />
 								</label>
-								<label className="horosa-huangji-select-field">
+								<label className="horosa-huangji-select-field" title={this.state.tiebanMethod === 'suanpan' ? '算盘打数不读父母生卒年;切「扣入法」才参与考刻' : '扣入法据母年天干调整「分」'}>
 									<span>母亲生年</span>
-									<InputNumber min={1} max={16799} value={this.state.motherBirthYear} onChange={(value)=>this.setState({ motherBirthYear: value })} />
+									<InputNumber min={1} max={16799} value={this.state.motherBirthYear} disabled={this.state.tiebanMethod === 'suanpan'} onChange={(value)=>this.setUserOpt({ motherBirthYear: value })} />
 								</label>
-								<label className="horosa-huangji-select-field">
+								<label className="horosa-huangji-select-field" title={this.state.tiebanMethod === 'suanpan' ? '算盘打数不读父母生卒年;切「扣入法」才参与考刻' : '扣入法考刻用'}>
 									<span>母亲卒年</span>
-									<InputNumber min={1} max={16799} value={this.state.motherDeathYear} onChange={(value)=>this.setState({ motherDeathYear: value })} />
+									<InputNumber min={1} max={16799} value={this.state.motherDeathYear} disabled={this.state.tiebanMethod === 'suanpan'} onChange={(value)=>this.setUserOpt({ motherDeathYear: value })} />
 								</label>
 								<label className="horosa-huangji-select-field is-wide">
 									<span>兄弟信息</span>
-									<Input value={this.state.siblingsInfo} placeholder="如：兄弟二人" onChange={(event)=>this.setState({ siblingsInfo: event.target.value })} />
+									<Input value={this.state.siblingsInfo} placeholder="如：兄弟二人" onChange={(event)=>this.setUserOpt({ siblingsInfo: event.target.value })} />
 								</label>
 								<label className="horosa-huangji-select-field is-wide">
 									<span>婚姻状况</span>
-									<Input value={this.state.maritalStatus} placeholder="如：已婚" onChange={(event)=>this.setState({ maritalStatus: event.target.value })} />
+									<Input value={this.state.maritalStatus} placeholder="如：已婚" onChange={(event)=>this.setUserOpt({ maritalStatus: event.target.value })} />
 								</label>
 								<label className="horosa-huangji-select-field is-wide">
 									<span>子女信息</span>
-									<Input value={this.state.childrenInfo} placeholder="如：二子一女" onChange={(event)=>this.setState({ childrenInfo: event.target.value })} />
+									<Input value={this.state.childrenInfo} placeholder="如：二子一女" onChange={(event)=>this.setUserOpt({ childrenInfo: event.target.value })} />
 								</label>
 							</>
 						) : null}
@@ -2431,7 +2503,7 @@ class KinAstroMain extends Component{
 								<>
 									<label className="horosa-huangji-select-field">
 										<span>两头钳</span>
-									<Select value={this.state.fendjingStemOverride} onChange={(value)=>this.setState({ fendjingStemOverride: value })}>
+									<Select value={this.state.fendjingStemOverride} onChange={(value)=>this.setUserOpt({ fendjingStemOverride: value })}>
 										<Option value="0">自动换算</Option>
 										<Option value="1">手动指定</Option>
 									</Select>
@@ -2440,13 +2512,13 @@ class KinAstroMain extends Component{
 									<>
 										<label className="horosa-huangji-select-field">
 											<span>年干</span>
-											<Select value={this.state.fendjingYearStem} onChange={(value)=>this.setState({ fendjingYearStem: value })}>
+											<Select value={this.state.fendjingYearStem} onChange={(value)=>this.setUserOpt({ fendjingYearStem: value })}>
 												{STEM_NAMES.map((item)=><Option value={item} key={item}>{item}</Option>)}
 											</Select>
 										</label>
 										<label className="horosa-huangji-select-field">
 											<span>时干</span>
-											<Select value={this.state.fendjingHourStem} onChange={(value)=>this.setState({ fendjingHourStem: value })}>
+											<Select value={this.state.fendjingHourStem} onChange={(value)=>this.setUserOpt({ fendjingHourStem: value })}>
 												{STEM_NAMES.map((item)=><Option value={item} key={item}>{item}</Option>)}
 											</Select>
 										</label>
@@ -2458,7 +2530,7 @@ class KinAstroMain extends Component{
 								<>
 									<label className="horosa-huangji-select-field">
 										<span>刻法</span>
-										<Select value={this.state.beijiKeMode} onChange={(value)=>this.setState({ beijiKeMode: value })}>
+										<Select value={this.state.beijiKeMode} onChange={(value)=>this.setUserOpt({ beijiKeMode: value })}>
 											<Option value="auto">自动换算</Option>
 											<Option value="manual">手动指定</Option>
 										</Select>
@@ -2466,7 +2538,7 @@ class KinAstroMain extends Component{
 									{this.state.beijiKeMode === 'manual' ? (
 										<label className="horosa-huangji-select-field">
 											<span>刻</span>
-											<Select value={this.state.beijiKe} onChange={(value)=>this.setState({ beijiKe: value })}>
+											<Select value={this.state.beijiKe} onChange={(value)=>this.setUserOpt({ beijiKe: value })}>
 												{BEIJI_KE_OPTIONS.map((item)=><Option value={item.value} key={item.value}>{item.label}</Option>)}
 											</Select>
 										</label>
@@ -2477,15 +2549,16 @@ class KinAstroMain extends Component{
 											value={this.state.beijiLookupCode}
 											maxLength={4}
 											placeholder="如：1111"
-											onChange={(event)=>this.setState({ beijiLookupCode: event.target.value.replace(/\D/g, '').slice(0, 4) })}
+											onChange={(event)=>this.setUserOpt({ beijiLookupCode: event.target.value.replace(/\D/g, '').slice(0, 4) })}
 										/>
 									</label>
-									<label className="horosa-huangji-select-field is-wide">
-										<span>关键词</span>
+									<label className="horosa-huangji-select-field is-wide" title="后端至少两字才检索;单字不检索">
+										<span>关键词{`${this.state.beijiKeyword || ''}`.trim().length === 1 ? '（须 ≥2 字）' : ''}</span>
+										{/* [Q-265/T-250·SO-21⑥] 单字曾静默不检索、左栏无提示 */}
 										<Input
 											value={this.state.beijiKeyword}
-											placeholder="如：属鼠、再婚"
-											onChange={(event)=>this.setState({ beijiKeyword: event.target.value })}
+											placeholder="如：属鼠、再婚(至少两字)"
+											onChange={(event)=>this.setUserOpt({ beijiKeyword: event.target.value })}
 										/>
 									</label>
 								</>
@@ -2494,89 +2567,89 @@ class KinAstroMain extends Component{
 								<>
 									<label className="horosa-huangji-select-field">
 										<span>起盘方式</span>
-										<Select value={this.state.nanjiMode} onChange={(value)=>this.setState({ nanjiMode: value })}>
+										<Select value={this.state.nanjiMode} onChange={(value)=>this.setUserOpt({ nanjiMode: value })}>
 											<Option value="solar">公历精算</Option>
 											<Option value="manual">手动古法</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>宫部</span>
-										<Select value={this.state.nanjiSection} onChange={(value)=>this.setState({ nanjiSection: value })}>
+										<Select value={this.state.nanjiSection} onChange={(value)=>this.setUserOpt({ nanjiSection: value })}>
+											<Option value="" key="_auto">按本命（自出）</Option>
 											{NANJI_SECTION_OPTIONS.map((item)=><Option value={item.value} key={item.value}>{item.label}</Option>)}
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>建除</span>
-										<Select value={this.state.nanjiJianchu} onChange={(value)=>this.setState({ nanjiJianchu: value })}>
+										<Select value={this.state.nanjiJianchu} onChange={(value)=>this.setUserOpt({ nanjiJianchu: value })}>
+											<Option value="" key="_auto">缺省（建）</Option>
 											{NANJI_JIANCHU_OPTIONS.map((item)=><Option value={item.value} key={item.value}>{item.label}</Option>)}
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>二十八宿</span>
-										<Select value={this.state.nanjiXiu} onChange={(value)=>this.setState({ nanjiXiu: value })}>
+										<Select value={this.state.nanjiXiu} onChange={(value)=>this.setUserOpt({ nanjiXiu: value })}>
+											<Option value="" key="_auto">缺省（角）</Option>
 											{NANJI_XIU_OPTIONS.map((item)=><Option value={item.value} key={item.value}>{item.label}</Option>)}
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field is-wide">
 										<span>密码</span>
-										<Select value={this.state.nanjiPasswordCode} onChange={(value)=>this.setState({ nanjiPasswordCode: value })}>
+										<Select value={this.state.nanjiPasswordCode} onChange={(value)=>this.setUserOpt({ nanjiPasswordCode: value })}>
 											{NANJI_PASSWORD_OPTIONS.map((item)=><Option value={item.value} key={item.value}>{item.label}</Option>)}
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>星图</span>
-										<Select value={this.state.nanjiChart} onChange={(value)=>this.setState({ nanjiChart: value })}>
+										<Select value={this.state.nanjiChart} onChange={(value)=>this.setUserOpt({ nanjiChart: value })}>
 											{NANJI_CHART_OPTIONS.map((item)=><Option value={item.value} key={item.value}>{item.label}</Option>)}
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>推演宫</span>
-										<Select value={this.state.nanjiPalace} onChange={(value)=>this.setState({ nanjiPalace: value })}>
+										<Select value={this.state.nanjiPalace} onChange={(value)=>this.setUserOpt({ nanjiPalace: value })}>
 											{BRANCH_NAMES.map((item)=><Option value={item} key={item}>{item}</Option>)}
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>宿度</span>
-										<InputNumber min={0} max={30} step={0.5} value={this.state.nanjiDegree} onChange={(value)=>this.setState({ nanjiDegree: value || 1 })} />
+										<InputNumber min={0} max={30} step={0.5} value={this.state.nanjiDegree} onChange={(value)=>this.setUserOpt({ nanjiDegree: (value === null || value === undefined || value === '') ? 1 : value })} />   {/* [Q-265/SO-18] 0 可达 */}
 									</label>
 									{this.state.nanjiMode === 'manual' ? (
 										<>
 											<label className="horosa-huangji-select-field">
 												<span>历年</span>
-												<InputNumber min={1} max={16799} value={this.state.nanjiLunarYear} onChange={(value)=>this.setState({ nanjiLunarYear: value || 2026 })} />
+												<InputNumber min={1} max={16799} value={this.state.nanjiLunarYear} onChange={(value)=>this.setUserOpt({ nanjiLunarYear: value || 2026 })} />
 											</label>
 											<label className="horosa-huangji-select-field">
 												<span>节月</span>
-												<InputNumber min={1} max={12} value={this.state.nanjiSolarMonth} onChange={(value)=>this.setState({ nanjiSolarMonth: value || 1 })} />
+												<InputNumber min={1} max={12} value={this.state.nanjiSolarMonth} onChange={(value)=>this.setUserOpt({ nanjiSolarMonth: value || 1 })} />
 											</label>
-											<label className="horosa-huangji-select-field">
-												<span>日</span>
-												<InputNumber min={1} max={31} value={this.state.nanjiDay} onChange={(value)=>this.setState({ nanjiDay: value || 1 })} />
-											</label>
+											{/* [Q-263/T-243]「日」撤:内核只存不读(年柱/月柱/时柱由历年·节月·时支·日干推得),留着即死输入 */}
 											<label className="horosa-huangji-select-field">
 												<span>时支</span>
-												<Select value={this.state.nanjiHourZhi} onChange={(value)=>this.setState({ nanjiHourZhi: value })}>
+												<Select value={this.state.nanjiHourZhi} onChange={(value)=>this.setUserOpt({ nanjiHourZhi: value })}>
 													{BRANCH_NAMES.map((item)=><Option value={item} key={item}>{item}</Option>)}
 												</Select>
 											</label>
 											<label className="horosa-huangji-select-field">
 												<span>立春</span>
-												<Select value={this.state.nanjiAfterLichun} onChange={(value)=>this.setState({ nanjiAfterLichun: value })}>
+												<Select value={this.state.nanjiAfterLichun} onChange={(value)=>this.setUserOpt({ nanjiAfterLichun: value })}>
 													<Option value="1">立春后</Option>
 													<Option value="0">立春前</Option>
 												</Select>
 											</label>
-											<label className="horosa-huangji-select-field">
+											<label className="horosa-huangji-select-field" title="[Q-263] 自出=按左栏出生时刻精算日柱(此前「自动」实为不设,时柱恒空)">
 												<span>日干</span>
-												<Select value={this.state.nanjiDayGan} onChange={(value)=>this.setState({ nanjiDayGan: value })}>
-													<Option value="">自动</Option>
+												<Select value={this.state.nanjiDayGan} onChange={(value)=>this.setUserOpt({ nanjiDayGan: value })}>
+													<Option value="">自出(按出生时刻)</Option>
 													{STEM_NAMES.map((item)=><Option value={item} key={item}>{item}</Option>)}
 												</Select>
 											</label>
-											<label className="horosa-huangji-select-field">
+											<label className="horosa-huangji-select-field" title="[Q-263] 自出=按左栏出生时刻精算日柱;单独指定日支亦生效(日干缺时取本命日干)">
 												<span>日支</span>
-												<Select value={this.state.nanjiDayZhi} onChange={(value)=>this.setState({ nanjiDayZhi: value })}>
-													<Option value="">自动</Option>
+												<Select value={this.state.nanjiDayZhi} onChange={(value)=>this.setUserOpt({ nanjiDayZhi: value })}>
+													<Option value="">自出(按出生时刻)</Option>
 													{BRANCH_NAMES.map((item)=><Option value={item} key={item}>{item}</Option>)}
 												</Select>
 											</label>
@@ -2586,9 +2659,9 @@ class KinAstroMain extends Component{
 							) : null}
 							{this.config.serviceKey === 'chunzi' ? (
 								<>
-									<label className="horosa-huangji-select-field">
-										<span>刻法</span>
-										<Select value={this.state.chunziKeMode} onChange={(value)=>this.setState({ chunziKeMode: value })}>
+									<label className="horosa-huangji-select-field" title="[Q-262/T-242] 刻数只写进起盘信息的「刻法/刻」两行与栏位卡;条文库无「X時生人」与「N刻生」同诗,候选条文不随刻变">
+										<span>刻法（仅标注）</span>
+										<Select value={this.state.chunziKeMode} onChange={(value)=>this.setUserOpt({ chunziKeMode: value })}>
 											<Option value="auto">自动换算</Option>
 											<Option value="manual">手动指定</Option>
 											<Option value="none">不取刻数</Option>
@@ -2596,15 +2669,15 @@ class KinAstroMain extends Component{
 									</label>
 									{this.state.chunziKeMode === 'manual' ? (
 										<label className="horosa-huangji-select-field">
-											<span>刻数</span>
-											<Select value={this.state.chunziKe} onChange={(value)=>this.setState({ chunziKe: value })}>
+											<span>刻数（仅标注）</span>
+											<Select value={this.state.chunziKe} onChange={(value)=>this.setUserOpt({ chunziKe: value })}>
 												{CHUNZI_KE_OPTIONS.map((item)=><Option value={item.value} key={item.value}>{item.label}</Option>)}
 											</Select>
 										</label>
 									) : null}
 									<label className="horosa-huangji-select-field">
 										<span>月日匹配</span>
-										<Select value={this.state.chunziLunarMode} onChange={(value)=>this.setState({ chunziLunarMode: value })}>
+										<Select value={this.state.chunziLunarMode} onChange={(value)=>this.setUserOpt({ chunziLunarMode: value })}>
 											<Option value="auto">随当前日期</Option>
 											<Option value="manual">手动月日</Option>
 											<Option value="none">关闭</Option>
@@ -2614,43 +2687,45 @@ class KinAstroMain extends Component{
 										<>
 											<label className="horosa-huangji-select-field">
 												<span>农历月</span>
-												<InputNumber min={1} max={12} value={this.state.chunziLunarMonth} onChange={(value)=>this.setState({ chunziLunarMonth: value || 1 })} />
+												<InputNumber min={1} max={12} value={this.state.chunziLunarMonth} onChange={(value)=>this.setUserOpt({ chunziLunarMonth: value || 1 })} />
 											</label>
 											<label className="horosa-huangji-select-field">
 												<span>农历日</span>
-												<InputNumber min={1} max={30} value={this.state.chunziLunarDay} onChange={(value)=>this.setState({ chunziLunarDay: value || 1 })} />
+												<InputNumber min={1} max={30} value={this.state.chunziLunarDay} onChange={(value)=>this.setUserOpt({ chunziLunarDay: value || 1 })} />
 											</label>
 										</>
 									) : null}
 									<label className="horosa-huangji-select-field">
 										<span>宿名</span>
-										<Select value={this.state.chunziMansion} onChange={(value)=>this.setState({ chunziMansion: value })}>
+										<Select value={this.state.chunziMansion} onChange={(value)=>this.setUserOpt({ chunziMansion: value })}>
+											<Option value="" key="_auto">缺省（室）</Option>
 											{CHUNZI_MANSION_OPTIONS.map((item)=><Option value={item.value} key={item.value}>{item.label}</Option>)}
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>时辰</span>
-										<Select value={this.state.chunziHourBranch} onChange={(value)=>this.setState({ chunziHourBranch: value })}>
+										<Select value={this.state.chunziHourBranch} onChange={(value)=>this.setUserOpt({ chunziHourBranch: value })}>
+											<Option value="" key="_auto">按本命时支</Option>
 											{BRANCH_NAMES.map((item)=><Option value={item} key={item}>{item}</Option>)}
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>显示数量</span>
-										<Select value={this.state.chunziResultLimit} onChange={(value)=>this.setState({ chunziResultLimit: value })}>
+										<Select value={this.state.chunziResultLimit} onChange={(value)=>this.setUserOpt({ chunziResultLimit: value })}>
 											{CHUNZI_RESULT_LIMIT_OPTIONS.map((item)=><Option value={item.value} key={item.value}>{item.label}</Option>)}
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field is-wide">
 										<span>条文代码</span>
-										<Input value={this.state.chunziLookupCode} placeholder="可批量：毕龙6巳、室巨9未" onChange={(event)=>this.setState({ chunziLookupCode: event.target.value })} />
+										<Input value={this.state.chunziLookupCode} placeholder="可批量：毕龙6巳、室巨9未" onChange={(event)=>this.setUserOpt({ chunziLookupCode: event.target.value })} />
 									</label>
 									<label className="horosa-huangji-select-field is-wide">
 										<span>关键词</span>
-										<Input value={this.state.chunziKeyword} placeholder="如：先去父、妻宫" onChange={(event)=>this.setState({ chunziKeyword: event.target.value })} />
+										<Input value={this.state.chunziKeyword} placeholder="如：先去父、妻宫" onChange={(event)=>this.setUserOpt({ chunziKeyword: event.target.value })} />
 									</label>
 									<label className="horosa-huangji-select-field is-wide">
 										<span>多标签</span>
-										<Input value={this.state.chunziTags} placeholder="逗号分隔，如：先去父,石皮" onChange={(event)=>this.setState({ chunziTags: event.target.value })} />
+										<Input value={this.state.chunziTags} placeholder="逗号分隔，如：先去父,石皮" onChange={(event)=>this.setUserOpt({ chunziTags: event.target.value })} />
 									</label>
 								</>
 							) : null}
@@ -2659,14 +2734,14 @@ class KinAstroMain extends Component{
 								<div className="horosa-kinastro-xianqin-option-row is-method">
 									<label className="horosa-huangji-select-field">
 										<span>性别</span>
-										<Select value={normBinaryGender(this.state.gender)} dropdownMatchSelectWidth={false} onChange={(value)=>this.setState({ gender: value })}>
+										<Select value={normBinaryGender(this.state.gender)} dropdownMatchSelectWidth={false} onChange={(value)=>this.setUserOpt({ gender: value })}>
 											<Option value="1">男</Option>
 											<Option value="0">女</Option>
 										</Select>
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>入式历法</span>
-										<Select value={this.state.calendarMode} onChange={(value)=>this.setState({ calendarMode: value })}>
+										<Select value={this.state.calendarMode} onChange={(value)=>this.setUserOpt({ calendarMode: value })}>
 											<Option value="autoLunar">自动换算农历</Option>
 											<Option value="manualLunar">手动农历</Option>
 											<Option value="solarAsLunar">公历数值入式</Option>
@@ -2676,15 +2751,15 @@ class KinAstroMain extends Component{
 								<div className="horosa-kinastro-xianqin-option-row is-lunar">
 									<label className="horosa-huangji-select-field">
 										<span>农历年</span>
-										<InputNumber min={1} max={16799} value={this.state.lunarYear} disabled={this.state.calendarMode !== 'manualLunar'} onChange={(value)=>this.setState({ lunarYear: value || 2026 })} />
+										<InputNumber min={1} max={16799} value={this.state.lunarYear} disabled={this.state.calendarMode !== 'manualLunar'} onChange={(value)=>this.setUserOpt({ lunarYear: value || 2026 })} />
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>农历月</span>
-										<InputNumber min={1} max={12} value={this.state.lunarMonth} disabled={this.state.calendarMode !== 'manualLunar'} onChange={(value)=>this.setState({ lunarMonth: value || 1 })} />
+										<InputNumber min={1} max={12} value={this.state.lunarMonth} disabled={this.state.calendarMode !== 'manualLunar'} onChange={(value)=>this.setUserOpt({ lunarMonth: value || 1 })} />
 									</label>
 									<label className="horosa-huangji-select-field">
 										<span>农历日</span>
-										<InputNumber min={1} max={30} value={this.state.lunarDay} disabled={this.state.calendarMode !== 'manualLunar'} onChange={(value)=>this.setState({ lunarDay: value || 1 })} />
+										<InputNumber min={1} max={30} value={this.state.lunarDay} disabled={this.state.calendarMode !== 'manualLunar'} onChange={(value)=>this.setUserOpt({ lunarDay: value || 1 })} />
 									</label>
 								</div>
 								{this.renderCenterContentSelect()}
@@ -3352,7 +3427,7 @@ class KinAstroMain extends Component{
 			pureGanKunVariant: this.state.heluoPureGanKun,
 			liunianStep2: this.state.heluoLiunianStep2,
 			liuYueMode: this.state.heluoLiuYueMode,
-			huangdiOffset: parseInt(this.state.heluoHuangdiOffset, 10) || 2697,
+			huangdiOffset: Number.isFinite(parseInt(this.state.heluoHuangdiOffset, 10)) ? parseInt(this.state.heluoHuangdiOffset, 10) : 2697,   // [Q-265/SO-18] 0 可达
 			showLiuRi: this.state.heluoShowLiuRi,
 		});
 	}
@@ -3387,8 +3462,8 @@ class KinAstroMain extends Component{
 					<InputNumber
 						min={birthYear || 1} max={(birthYear || nowYear) + 120}
 						value={Number.isFinite(cur) ? cur : undefined}
-						placeholder={`${nowYear}`}
-						onChange={(v)=>this.setState({ zhengchuanDadingYear: v ? `${v}` : '' })} />
+						placeholder="未择"   /* [Q-265/SO-23] 未择时虚岁暗取 40,占位不再冒充今年 */
+						onChange={(v)=>this.setUserOpt({ zhengchuanDadingYear: v ? `${v}` : '' })} />
 				</label>
 				<div className="horosa-cetian-settings-hint horosa-heluo-diverge-hint">
 					{birthYear ? '择一年，其虚岁·大运·小运·岁君即自本命推运表出（与八字盘同源）；留空则三运取本命月/时/年柱。' : '先定生辰，方可推年。'}
@@ -3399,22 +3474,22 @@ class KinAstroMain extends Component{
 							<span>虚岁（留空自出）</span>
 							<InputNumber min={1} max={120} value={parseInt(this.state.zhengchuanAge, 10) || undefined}
 								placeholder="自流年出"
-								onChange={(v)=>this.setState({ zhengchuanAge: v ? `${v}` : '' })} />
+								onChange={(v)=>this.setUserOpt({ zhengchuanAge: v ? `${v}` : '' })} />
 						</label>
 						<label className="horosa-huangji-select-field">
 							<span>大运（干支）</span>
 							<Input value={this.state.zhengchuanDayun} maxLength={2} placeholder="自流年出，未起运取月柱"
-								onChange={(e)=>this.setState({ zhengchuanDayun: e.target.value })} />
+								onChange={(e)=>this.setUserOpt({ zhengchuanDayun: e.target.value })} />
 						</label>
 						<label className="horosa-huangji-select-field">
 							<span>小运（干支）</span>
 							<Input value={this.state.zhengchuanXiaoyun} maxLength={2} placeholder="自流年出"
-								onChange={(e)=>this.setState({ zhengchuanXiaoyun: e.target.value })} />
+								onChange={(e)=>this.setUserOpt({ zhengchuanXiaoyun: e.target.value })} />
 						</label>
 						<label className="horosa-huangji-select-field">
 							<span>岁君（干支）</span>
 							<Input value={this.state.zhengchuanSuijun} maxLength={2} placeholder="自流年出，即当年太岁"
-								onChange={(e)=>this.setState({ zhengchuanSuijun: e.target.value })} />
+								onChange={(e)=>this.setUserOpt({ zhengchuanSuijun: e.target.value })} />
 						</label>
 					</Collapse.Panel>
 				</Collapse>
@@ -3452,12 +3527,20 @@ class KinAstroMain extends Component{
 		});
 	}
 
+	// 用户亲手改控件的统一入口:落盘(只收 schema 里的键,输入类键自动忽略)+ setState。
+	// 程序自己改 state(fields 重同步 / 拉取结果 / 视图态)一律仍用 this.setState,不经这里。
+	setUserOpt(patch, cb){
+		KINASTRO_PAGE_SETTINGS.save(patch);
+		this.setState(patch, cb);
+	}
+
 	// 预设批量套用（一次 setState 避免多次重渲）
 	applyYzjPreset(key){
 		const p = YZJ_PRESETS[key];
 		if(!p){ this.setState({ yizhangjingPreset: key }); return; }
 		const patch = { yizhangjingPreset: key };
 		YZJ_PRESET_STATEMAP.forEach((f) => { patch[`yizhangjing${f}`] = p[f]; });
+		KINASTRO_PAGE_SETTINGS.save(patch);   // 套预设 / 还原预设都是用户亲手点的 → 整套落盘
 		this.setState(patch);
 	}
 	// 当前各开关相对所选预设的偏离项数（>0 → 显「自定义·已改N项」+还原）
@@ -3747,7 +3830,7 @@ class KinAstroMain extends Component{
 		const isKentang = this.state.cetianMethod === 'kentang';
 		const toggle = (key, label)=>(
 			<label className="horosa-cetian-toggle">
-				<Switch size="small" checked={!!this.state[key]} onChange={(v)=>this.setState({ [key]: v ? 1 : 0 }, this.clickPlot)} />
+				<Switch size="small" checked={!!this.state[key]} onChange={(v)=>this.setUserOpt({ [key]: v ? 1 : 0 }, this.clickPlot)} />
 				<span>{label}</span>
 			</label>
 		);

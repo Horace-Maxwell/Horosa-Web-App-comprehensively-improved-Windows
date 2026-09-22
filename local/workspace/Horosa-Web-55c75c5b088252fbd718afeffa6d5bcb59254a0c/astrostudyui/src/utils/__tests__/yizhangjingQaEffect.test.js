@@ -71,12 +71,12 @@ describe('一掌经 QA · 排盘/命宫开关真生效', () => {
 		const j = buildYizhangjingModel(bz2, { dingYue: 'jieqi', mingGongMethod: 'shuZhiMao' });
 		expect(n.chart.pillars.map((p) => p.star).join('')).not.toBe(j.chart.pillars.map((p) => p.star).join(''));
 	});
-	test('闰月细则：十五折半↔夜半折半 —— 闰月十五晚子(00:xx)归属月变', () => {
+	test('闰月细则：十五折半↔夜半折半 —— 闰月十五夜半后子时(00:xx)归属月变', () => {
 		const b15 = bz({ y: '丁巳', z: '蛇', m: 5, d: 15, t: '丙子', leap: true, ct: '1990-01-01 00:30:00' });
 		const h = buildYizhangjingModel(b15, { leapRule: 'half', mingGongMethod: 'shuZhiMao' });
 		const m = buildYizhangjingModel(b15, { leapRule: 'midnight', mingGongMethod: 'shuZhiMao' });
-		expect(h.input.month).not.toBe(m.input.month); // 晚子:half=本月/midnight=下月
-		// 十五早子(23:xx) 两法应同(早子不进下月)
+		expect(h.input.month).not.toBe(m.input.month); // 00:xx 子时:half=本月/midnight=下月
+		// 十五 23:xx 子时(全局术语「晚子时」) 两法应同(不进下月)
 		const b15e = bz({ y: '丁巳', z: '蛇', m: 5, d: 15, t: '丙子', leap: true, ct: '1990-01-01 23:30:00' });
 		const he = buildYizhangjingModel(b15e, { leapRule: 'half', mingGongMethod: 'shuZhiMao' });
 		const me = buildYizhangjingModel(b15e, { leapRule: 'midnight', mingGongMethod: 'shuZhiMao' });

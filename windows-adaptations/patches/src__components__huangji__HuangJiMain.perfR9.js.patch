@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/huangji/HuangJiMain.js b/astrostudyui/src/components/huangji/HuangJiMain.js
-index 84f48cc..ec1e49e 100644
+index 33287c80..7e4a3457 100644
 --- a/astrostudyui/src/components/huangji/HuangJiMain.js
 +++ b/astrostudyui/src/components/huangji/HuangJiMain.js
-@@ -17,6 +17,8 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
- import { formatHumanValue } from '../../utils/humanReadableFields';
+@@ -18,6 +18,8 @@ import { formatHumanValue } from '../../utils/humanReadableFields';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { parseDateParts } from '../../utils/dateStrSafe';
+ import { definePageSettings } from '../../utils/pageSettingsStore';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const { Option } = Select;
  const { TabPane } = Tabs;
-@@ -90,10 +92,93 @@ async function postWangJi(path, payload){
+@@ -97,10 +99,93 @@ async function postWangJi(path, payload){
  	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
  }
  
@@ -105,7 +105,7 @@ index 84f48cc..ec1e49e 100644
  // opts(可选)：{ classicSectionIndex } —— 选中典籍章节序号(与右栏「典籍」选择联动);缺省取首章(与 UI 初始态一致)。
  export function buildSnapshotText(pan, xinyi, opts){
  	if(!pan){
-@@ -168,6 +253,8 @@ export async function buildHuangJiSnapshotForFields(fields, opts){
+@@ -178,6 +263,8 @@ export async function buildHuangJiSnapshotForFields(fields, opts){
  		if(!pan){
  			return '';
  		}
@@ -114,7 +114,7 @@ index 84f48cc..ec1e49e 100644
  		let xinyi = null;
  		const xm = o.xinyiMethod && o.xinyiMethod !== 'none' ? o.xinyiMethod : '';
  		if(xm){
-@@ -255,6 +342,7 @@ class HuangJiMain extends Component{
+@@ -266,6 +353,7 @@ class HuangJiMain extends Component{
  		}
  	}
  
@@ -122,7 +122,7 @@ index 84f48cc..ec1e49e 100644
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.unmounted = false;
-@@ -292,7 +380,14 @@ class HuangJiMain extends Component{
+@@ -303,7 +391,14 @@ class HuangJiMain extends Component{
  		}
  		let text = '';
  		try{
@@ -138,7 +138,7 @@ index 84f48cc..ec1e49e 100644
  		}catch(e){
  			text = '';
  		}
-@@ -333,6 +428,17 @@ class HuangJiMain extends Component{
+@@ -350,6 +445,17 @@ class HuangJiMain extends Component{
  			const xinyi = this.state.xinyi;
  			const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
  			saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
@@ -156,7 +156,7 @@ index 84f48cc..ec1e49e 100644
  		});
  		return true;
  	}
-@@ -438,6 +544,24 @@ class HuangJiMain extends Component{
+@@ -455,6 +561,24 @@ class HuangJiMain extends Component{
  		};
  	}
  
@@ -181,7 +181,7 @@ index 84f48cc..ec1e49e 100644
  	async fetchPan(fields){
  		const payload = this.buildPanPayload(fields);
  		if(!payload){
-@@ -452,6 +576,8 @@ class HuangJiMain extends Component{
+@@ -469,6 +593,8 @@ class HuangJiMain extends Component{
  				return;
  			}
  			this.setState({ pan, xinyi, loading: false }, ()=>{
@@ -190,7 +190,7 @@ index 84f48cc..ec1e49e 100644
  				const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
  				saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
  			});
-@@ -850,23 +976,38 @@ class HuangJiMain extends Component{
+@@ -868,23 +994,38 @@ class HuangJiMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

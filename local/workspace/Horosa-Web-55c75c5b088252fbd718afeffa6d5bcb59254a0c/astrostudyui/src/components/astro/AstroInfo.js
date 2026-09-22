@@ -3,6 +3,7 @@ import { Row, Col, Divider, Popover, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
+import { derivedWholeSignLabelOf, rulerOfSign } from '../../utils/wholeSignRulers';
 import { bodyPartsOf, degreePosition, } from '../../divination/data/bodyParts';
 import AstroLifespan from './AstroLifespan';
 import AstroDodeca from './AstroDodeca';
@@ -31,20 +32,15 @@ const PHASE_LABEL = { cazimi: '核心', combust: '焦伤', underBeams: '日光�
 const PHASIS_EVENT_LABEL = { morningRising: '晨星初现', eveningSetting: '昏星初没' };
 const STATUS_PLANET_IDS = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
 
+// [Q-254/T-233] 取值序改为「请求入参(fields 标签)优先、后端 echo 兜底」,与 AI 快照 [起盘信息](astroAiSnapshot)
+// 同序:fields 就是发出去的排盘入参,右栏标注与快照恒同源;此前 echo 优先 → echo 命名不一/派生盘时两处分叉。
+// 派生盘(调波/龙盘/十三分/十二分)宫位实为「变换后上升整宫」→ 标注只认实算口径(与快照同一 helper)。
 export function resolveAstroDisplayMode(perchart, fields){
-	let zodiacal = perchart && perchart.zodiacal ? perchart.zodiacal : null;
-	if(zodiacal){
-		zodiacal = AstroText.AstroMsg[zodiacal] || zodiacal;
-	}else{
-		zodiacal = fields ? fields.zodiacal : null;
-	}
+	const echoZ = perchart && perchart.zodiacal ? (AstroText.AstroMsg[perchart.zodiacal] || perchart.zodiacal) : null;
+	const zodiacal = (fields && fields.zodiacal) ? fields.zodiacal : echoZ;
 
-	let hsys = perchart && perchart.hsys ? perchart.hsys : null;
-	if(hsys){
-		hsys = AstroText.AstroMsg[hsys] || hsys;
-	}else{
-		hsys = fields ? fields.hsys : null;
-	}
+	const echoH = perchart && perchart.hsys ? (AstroText.AstroMsg[perchart.hsys] || perchart.hsys) : null;
+	const hsys = derivedWholeSignLabelOf(perchart) || ((fields && fields.hsys) ? fields.hsys : echoH);
 
 	return {
 		zodiacal,
@@ -1093,7 +1089,7 @@ class AstroInfo extends Component{
 				rows.push(['宫制回退', <span key="hfb" style={{ color: 'var(--horosa-warn, #b8860b)', fontFamily: AstroConst.NormalFont }}>⚠ 极区该制无解 · 已回退 {hFallback}</span>]);
 			}
 			// B3 格局速览(纯本盘数据,无需分析请求):命主星(1R) + 三围(围攻/围荣/围耀) + 互容 + 接纳。
-			const SIGN_RULER = { Aries: 'Mars', Taurus: 'Venus', Gemini: 'Mercury', Cancer: 'Moon', Leo: 'Sun', Virgo: 'Mercury', Libra: 'Venus', Scorpio: 'Mars', Sagittarius: 'Jupiter', Capricorn: 'Saturn', Aquarius: 'Saturn', Pisces: 'Jupiter' };
+			// 庙主查表走 utils/wholeSignRulers.rulerOfSign 单源(与 AI 快照命主星/宫主两表同函数;禁再写本地表,preflight [240])。
 			const objs = perchart.objects || [];
 			// 🔴 houses 数组按黄经升序排,houses[0] 只在上升落白羊时才是 House1
 			// (约 11/12 的盘取错 → 命主星/落宫/落座整行皆错);按 Asc 对象取座,
@@ -1101,7 +1097,7 @@ class AstroInfo extends Component{
 			const ascObj = objs.find((o)=>o && o.id === 'Asc');
 			const ascSign = ascObj ? ascObj.sign
 				: ((perchart.houses || []).find((h)=>h && h.id === 'House1') || {}).sign || null;
-			const ruler1 = ascSign ? SIGN_RULER[ascSign] : null;
+			const ruler1 = ascSign ? rulerOfSign(ascSign) : null;
 			const ruler1Obj = ruler1 ? objs.find((o)=> o && o.id === ruler1) : null;
 			const cn = (id)=> (id ? (AstroText.AstroMsgCN[id] || id) : '--');
 			const besg = (chart.surround && chart.surround.besiegement) ? chart.surround.besiegement : [];
@@ -1235,7 +1231,7 @@ class AstroInfo extends Component{
 					{card('夹星', 'Enclosure by Planets', surplanets, has.planets, '暂无夹星信息')}
 					{card('围绕', 'Encircled by Bodies', surencircle, !!surencircle, '无围绕（紧邻两侧星体跨度 ≥ 90°）')}
 					{/* 主宰星链 与 宫神星 归入格局补充 */}
-					<AstroDispositor value={this.props.value} />
+					<AstroDispositor value={this.props.value} fields={this.props.fields} />
 					{section('相位动态', 'Aspect Dynamics')}
 					{card('纬照', 'Declination Parallel', declParaDom, has.decl, '暂无纬照（同/反赤纬）')}
 					{/* 以下为本次新增的古典参数(逐行星状态 / 度数),按要求置于最后。 */}

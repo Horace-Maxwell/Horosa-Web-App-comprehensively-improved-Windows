@@ -3,6 +3,8 @@ import {
 	exportWorkspaceBackupBlob,
 	parseWorkspaceBackupBlob,
 	withUtf8Bom,
+	conversationMessageParagraphs,
+	mdInlineRuns,
 } from '../aiAnalysisExport';
 
 describe('aiAnalysisExport', ()=>{
@@ -68,3 +70,49 @@ describe('aiAnalysisExport', ()=>{
 		expect(parsed.stores.provider_profiles[0].id).toBe('provider-1');
 	});
 });
+
+// [Q-321/M-49] 会话 docx 轻量 Markdown 渲染:此前整条消息塞进一个 TextRun → 换行与分段全丢、标记原样。
+describe('[Q-321] 会话 docx 段落渲染', ()=>{
+	const runsOf = (para)=>(para && para.root ? para.root.filter((x)=>x && x.constructor && x.constructor.name === 'TextRun') : []);
+	const textOf = (para)=>JSON.stringify(para);
+	test('空行分段:三段正文 → 三个 Paragraph;首段带 [role] 前缀', ()=>{
+		const paras = conversationMessageParagraphs({ role: 'assistant', content: '第一段\n\n第二段\n\n第三段' });
+		expect(paras.length).toBe(3);
+		expect(textOf(paras[0])).toContain('[assistant] ');
+		expect(textOf(paras[1])).not.toContain('[assistant] ');
+		expect(textOf(paras[1])).toContain('第二段');
+	});
+	test('段内单换行插 w:br(不再被拼成一行)', ()=>{
+		const paras = conversationMessageParagraphs({ role: 'user', content: '甲\n乙\n丙' });
+		expect(paras.length).toBe(1);
+		const j = textOf(paras[0]);
+		expect(j).toContain('甲'); expect(j).toContain('乙'); expect(j).toContain('丙');
+		// docx 序列化后换行是 w:br 元素(不是 JS 侧的 break 字段)
+		expect((j.match(/w:br/g) || []).length).toBeGreaterThanOrEqual(2);
+	});
+	test('标题 / 列表 / 引用:标记不再原样进正文', ()=>{
+		const paras = conversationMessageParagraphs({ role: 'assistant', content: '## 小结\n\n- 甲项\n- 乙项\n\n> 引用一句' });
+		expect(paras.length).toBe(3);
+		expect(textOf(paras[0])).not.toContain('## ');
+		expect(textOf(paras[0])).toContain('小结');
+		const li = textOf(paras[1]);
+		expect(li).toContain('•');
+		expect(li).not.toContain('- 甲项');
+		expect(textOf(paras[2])).not.toContain('> ');
+	});
+	test('行内 **粗体** 与 `代码`:标记剥掉、内容保留', ()=>{
+		const runs = mdInlineRuns('这是**重点**与 `code` 收尾');
+		const j = JSON.stringify(runs);
+		expect(j).not.toContain('**');
+		expect(j).toContain('重点');
+		expect(j).toContain('code');
+		expect(j).toContain('w:b');   // docx 序列化后粗体是 w:b / w:bCs
+	});
+	test('空消息不丢段;导出 docx 不抛', async ()=>{
+		expect(conversationMessageParagraphs({ role: 'user', content: '' }).length).toBe(1);
+		const out = await exportConversationByFormat({ title: 'T' }, [{ role: 'user', content: '# 标题\n\n正文一\n正文二' }], 'docx');
+		expect(out.fileName).toBe('T.docx');
+		expect(out.blob && out.blob.size).toBeGreaterThan(0);
+	});
+});
+

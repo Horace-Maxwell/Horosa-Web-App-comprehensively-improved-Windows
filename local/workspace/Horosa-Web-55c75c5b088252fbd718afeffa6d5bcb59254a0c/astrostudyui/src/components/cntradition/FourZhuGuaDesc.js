@@ -5,6 +5,7 @@ import DoubleMeiyiGuaSym from '../gua/DoubleMeiyiGuaSym';
 import GuaChartDiv from '../gua/GuaChartDiv';
 import styles from '../../css/styles.less';
 
+import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 const { Option } = Select;
 
 export default class FourZhuGuaDesc extends Component{
@@ -111,7 +112,7 @@ export default class FourZhuGuaDesc extends Component{
     }
 
     render(){
-		let height = this.props.height ? this.props.height : document.documentElement.clientHeight - 50;
+		let height = this.props.height ? this.props.height : getLayoutViewportHeight() - 50;
 
         let zhudom = this.genZhuDom();
 

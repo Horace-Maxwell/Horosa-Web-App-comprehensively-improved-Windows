@@ -1,7 +1,7 @@
 import { getStore, } from './storageutil';
 import { safeLocalStorageSet } from '../utils/safeStorage';
 import { copyTextSmart } from './clipboardText';
-import { withUtf8Bom } from './aiAnalysisExport';
+import { withUtf8Bom, saveBlobSmart, } from './aiAnalysisExport';
 import request from './request';
 import * as ExportConstants from './constants';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from './dayBoundary';
@@ -17,7 +17,7 @@ import { buildLiuRengShenTipObj, buildLiuRengHouseTipObj, } from '../components/
 import { packBlocksIntoChunks } from './aiExportDocModel';
 import { isDocxTableSep, isTableBodyLine } from './mdTableParse';
 import { buildAIExportLegendSection } from './aiExportLegend';
-import { classicalGlobalValue } from './classicalChartGlobals';   // [M-1] 导出 [古典格局] 恒星轨与右栏/挂载同全局仓
+import { classicalGlobalValue, fixedStarOrbParamsFor } from './classicalChartGlobals';   // [M-1] 导出 [古典格局] 恒星轨与右栏/挂载同全局仓
 import { capturePageScreenshotForExport } from './pageScreenshot';
 
 const SYMBOL_MAP = {
@@ -172,7 +172,12 @@ const AI_EXPORT_SETTINGS_KEY = 'horosa.ai.export.settings.v1';
 //        一次性 union——该段本版才诞生,用户无从取消过,并入不复活任何被取消项;🔴 不动 MIGRATION_VERSION。
 // v56 补:内容完备性审计批(「页面渲染有/快照恒缺」反方向普查)新生段——紫微「身宫」等;同 v49-v55
 //        键内段级一次性 union;🔴 不动 MIGRATION_VERSION。
-export const AI_EXPORT_SETTINGS_VERSION = 56;
+// v57 补:西占宫主口径根治(Windows #79):「分宫制宫神星表」自 [主宰星链] 拆出成独立段(九个西占键 preset 皆紧随
+//        「主宰星链」;本版才诞生的段,用户无从取消过 → 同机制键内段级一次性 union);[主宰星链] 段名不变、内容改挂
+//        整宫制宫主表+判读口径行(不入 union);🔴 不动 MIGRATION_VERSION。
+// [v58] 三式合一补「七政」段(六壬断卦层的七政段:独立六壬页早有、三式合一挑段单此前漏它 → 段被丢)。
+//        本版才诞生的段名,用户无从取消过 → 同 v49…v57 的键内段级一次性 union;🔴 不动 MIGRATION_VERSION。
+export const AI_EXPORT_SETTINGS_VERSION = 58;
 // 🔴 新技法不动此闸：其键老用户本无（未自定义）→ 走 preset 全量、本就含其全部段；
 // union 迁移唯「已自定义过某技法而该技法新增段」者需之。误升此闸会令 v45 存档重走 union，
 // 违「v45 起不再 union 强推、用户取消=真取消」之铁律（其测试锁之）。
@@ -246,6 +251,25 @@ const AI_EXPORT_V56_SECTION_UNION = {
 	draconic: ['龙盘'],
 	relocation: ['重置盘'],
 };
+// [v57] 同机制下一窗（Windows #79 西占宫主口径：分宫制宫神星表自 [主宰星链] 拆出成独立段，本版才诞生）。
+// 九个西占键各一段;∩DEFAULT_OFF=∅(卫生锁看死);[主宰星链] 段名不变,不入 union。
+const AI_EXPORT_V57_UNION_VERSION = 57;
+const AI_EXPORT_V57_SECTION_UNION = {
+	astrochart: ['分宫制宫神星表'],
+	astrochart_like: ['分宫制宫神星表'],
+	hellenastro: ['分宫制宫神星表'],
+	dwadasamsa: ['分宫制宫神星表'],
+	harmonic: ['分宫制宫神星表'],
+	draconic: ['分宫制宫神星表'],
+	relocation: ['分宫制宫神星表'],
+	locastro: ['分宫制宫神星表'],
+	mundane: ['分宫制宫神星表'],
+};
+// [v58] 同机制的下一窗(Q-451/T-414:三式合一六壬断卦层的「七政」段)。
+const AI_EXPORT_V58_UNION_VERSION = 58;
+const AI_EXPORT_V58_SECTION_UNION = {
+	sanshiunited: ['七政'],
+};
 const AI_EXPORT_V45_SECTION_UNION = {
 };
 // [v2 底座] 导出格式偏好:'v1'=经典(逐行项目符 beautifyForAI + 纯文本 .doc/裸文本栅格 PDF),
@@ -282,6 +306,9 @@ const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	'firdaria',
 	'distributions',
 	'agepoint',
+	'ephemeris',
+	'returntimeline',
+	'prenatalsyzygy',
 	'profection',
 	'solararc',
 	'solarreturn',
@@ -344,6 +371,7 @@ const AI_EXPORT_SECTION_MIGRATION_KEYS = [
 	'cetian',
 	'qizhengkin',
 	'planetaryages',
+	'prog',
 	'vedicprog',
 	'jaynesprog',
 	'planetaryarc',
@@ -387,6 +415,9 @@ const AI_EXPORT_PLANET_INFO_TECHNIQUES = new Set([
 	'astrochart',
 	'indiachart',
 	'astrochart_like',
+	// [Q-307/T-303] 衍生盘拆键后六个独立导出键也进「星曜后天信息 / 释义」两个集合:此前只留 astrochart_like →
+	// 选这六盘时弹窗不出现两组设置、存了也不生效;挂载仍走聚合键 → 同盘导出与挂载吃不同开关。无自身设置时回落聚合键设置(见 getter)。
+	'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'locastro',
 	'relative',
 	'primarydirect',
 	'primarydirchart',
@@ -399,6 +430,7 @@ const AI_EXPORT_PLANET_INFO_TECHNIQUES = new Set([
 	'givenyear',
 	'decennials',
 	'planetaryages',
+	'prog',
 	'vedicprog',
 	'jaynesprog',
 	'planetaryarc',
@@ -465,6 +497,9 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'firdaria', label: '星运-法达星限' },
 	{ key: 'distributions', label: '星运-界推运' },
 	{ key: 'agepoint', label: '星运-年龄推进点' },
+	{ key: 'ephemeris', label: '星运-星历' },
+	{ key: 'returntimeline', label: '星运-回归轴' },
+	{ key: 'prenatalsyzygy', label: '星运-产前朔望' },
 	{ key: 'profection', label: '星运-小限法' },
 	{ key: 'solararc', label: '星运-太阳弧' },
 	{ key: 'solarreturn', label: '星运-太阳返照' },
@@ -472,6 +507,7 @@ const AI_EXPORT_TECHNIQUES = [
 	{ key: 'givenyear', label: '星运-流年法' },
 	{ key: 'decennials', label: '星运-十年大运' },
 	{ key: 'planetaryages', label: '星运-行星年龄' },
+	{ key: 'prog', label: '星运-二次推运' },
 	{ key: 'vedicprog', label: '星运-恒星推运' },
 	{ key: 'jaynesprog', label: '星运-赤纬推运' },
 	{ key: 'planetaryarc', label: '星运-行星弧' },
@@ -551,14 +587,14 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	// 快照「只加新段」策略,段名与 horarySnapshot 段头逐字一致。
 	// [卜卦 H9] +断法要点/六类问法/恒星会合/同主一星/自然象征/盗窃研判/应期修正链(官方 gap 八项清零)。
 	horary: ['起卦信息', '根本性', '征象星指派', '完成分析', '月亮的故事', '相位全览', '裁决', '应期方位', '描述', '专题深化·X', '古典接纳', '征象力量', '定盘考量', 'Almuten', '映点对映点', '行星时', '尊贵明细', '偶然尊贵满分表', '阿拉伯点全集', '围攻详断', '月亮实测相位', '断法要点', '六类问法', '恒星会合', '同主一星', '自然象征', '盗窃研判', '应期修正链'],
-	election: ['起盘信息', '流派口径', '总评', '红线', '分项', '尊贵强弱', '阿拉伯点', '择前考量', '用事专属', '危象日参照', '应期', '本命合参', '时势合参', '建议'],
+	election: ['起盘信息', '流派口径', '总评', '红线', '分项', '尊贵强弱', '阿拉伯点', '择前考量', '用事专属', '危象日参照', '应期', '本命合参', '回归与主限', '时势合参', '建议'],   // [Q-445] 回归与主限(页面按需拉取物)
 	// 🔒 与 src/divination/zeri/tianxingSnapshot.js 段头逐字成对(四同步)
 	// 选中时刻星盘=整张盘 headerless 并入的单一父段(审计修:右栏七页签判读底盘曾零快照)。
 	tianxing: ['起盘信息', '征象搜索配置', '征象条件', '命中区间', '选中时刻星盘'],
 	// 古典·衍化四段=本命盘专属 opt-in(builder options.classicalDerived;派生盘/嵌套消费方不产);世界范式盘=恒定教义默认关段。
-	astrochart: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '古典·派生宫转宫', '古典·气候带', '古典·显赫计分', '古典·世界范式盘', '古典格局', '埃及历', '寿命格局', '可能性'],
+	astrochart: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '古典·派生宫转宫', '古典·气候带', '古典·显赫计分', '古典·世界范式盘', '古典格局', '埃及历', '寿命格局', '可能性'],
 	// [MU] '古典':buildIndiaSnapshotText 实测不产出该段头(死复选框,勾了永远空,无害不删内容)。
-	indiachart: ['星盘信息', '起盘信息', '信息', '相位', '行星', '希腊点', '古典', '可能性', '大运Dasha',
+	indiachart: ['星盘信息', '起盘信息', '信息', '相位', '行星', '希腊点', '古典', '可能性', '大运Dasha', '附加分盘',
 		// buildJyotishSnapshotLines 无条件派生段(约 40 段,条件产出⊆语义):此前未登记→自定义过 india 导出段的用户被静默删、纳入面板勾不到。
 		'Panchanga 五要素', '卡拉卡（8 Chara Karakas）', '节点主照（Rasi Drishti）', '星曜状态', '分盘吉位 Vimśopaka', '八分点 SAV', 'Sodhya Pinda 凝量', 'Shadbala 六力', 'Ishta/Kashta 吉凶果', 'Vimśopaka 分盘 20 分力', 'Hora 行星时', 'Choghadia 民用择时', '择时 Panchaka/Abhijit', 'Mūla 大运', 'Sudarśana Chakra 大运', 'Naisargika 自然大运', '补充上升（Supplementary Lagnas）', 'Nāḍī · Bhrigu Bindu 福点', 'Nāḍī · D150 纳地盘', 'Āyurdāya 寿命基础', '特殊上升 Special Lagnas', 'D60 六十分盘吉凶', '分盘变体对照', '功能吉凶（Functional Nature）', '宫位力（Bhava Bala）', '星曜战（Graha Yuddha）', '扩展大运（Conditional / Chara）', 'Kartari 夹击格局', 'Sudarshana 三盘（命/日/月起）', 'KP 宫头次主星 CSL', 'KP 意义者 Significators', 'KP 六级细分 / 当令星', '敌友（复合五分）', '行运 Gochara（从月·八分点）', '化解（信息·非处方）', 'Jaimini Argala 干涉', 'Tajika Harsha Bala', 'Tajika Pancha-Vargeeya', 'Tajika Mudda 年运', '行运 Gochara（从命）', '座运·X',
 		// [YA v42] A 类硬缺:Yoga 面板成立清单/副星本体位置(含外行星) 显示了却不入快照。
@@ -567,22 +603,26 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 		'敏感点 Sphuta', '全吉盘 SBC', '问事 Praśna',
 		'Nāḍī · 行星组合(同座合)', 'Nāḍī · 星座交换', 'Nāḍī · 木星推进时间轴',
 		'Jaimini 三对法寿命', 'Tripataki 宿距三旗',
+		// [Q-127/T-35] 三旗盘(opt-in 齿轮 tripataki)逐月净分段(加段不升迁移版本;仅开启才产段)
+		'Tripataki 三旗盘逐月净分',
 		// 大运+行运补齐新段(加段不升迁移版本)
 		'寿命判读'
 	],
-	astrochart_like: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '古典格局', '埃及历', '寿命格局', '可能性', '占星地图'],
+	astrochart_like: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '古典格局', '埃及历', '寿命格局', '可能性', '占星地图'],
 	// [YD 拆键] 六衍生盘独立段表:占星地图含[占星地图]段;其余五盘无该段。改黄道框架的四盘
 	// (hellenastro/dwadasamsa/harmonic/draconic)在派生分析 skip 名单(buildPayload skipClassical),
 	// 其 preset 不列「古典格局」——列了=死勾选项(独立复核咬出);relocation/locastro 不 skip 故保留。
-	hellenastro: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '埃及历', '寿命格局', '可能性'],
-	dwadasamsa: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '埃及历', '寿命格局', '可能性'],
-	harmonic: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '埃及历', '寿命格局', '可能性', '调波盘'],
-	draconic: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '埃及历', '寿命格局', '可能性', '龙盘'],
-	relocation: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '古典格局', '埃及历', '寿命格局', '可能性', '重置盘'],
-	locastro: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '古典格局', '埃及历', '寿命格局', '可能性', '占星地图'],
-	mundane: ['世俗入宫', '新月图', '满月图', '日食图', '月食图', '地区盘', '行星周期', '恒星派入境', '吠陀世运', '世运卜卦', '世俗宫义', '定局·年主/盘主', '入境骨架', '地理分野', '地区盘推运', '角化', '年之九主', '世运问判', '起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '古典', '埃及历', '寿命格局', '可能性'],
+	hellenastro: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '埃及历', '寿命格局', '可能性'],
+	dwadasamsa: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '埃及历', '寿命格局', '可能性'],
+	harmonic: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '埃及历', '寿命格局', '可能性', '调波盘'],
+	draconic: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '埃及历', '寿命格局', '可能性', '龙盘'],
+	relocation: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '古典格局', '埃及历', '寿命格局', '可能性', '重置盘'],
+	locastro: ['起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '古典格局', '埃及历', '寿命格局', '可能性', '占星地图'],
+	mundane: ['世俗入宫', '新月图', '满月图', '日食图', '月食图', '地区盘', '行星周期', '恒星派入境', '吠陀世运', '世运卜卦', '世俗宫义', '定局·年主/盘主', '入境骨架', '地理分野', '地区盘推运', '角化', '年之九主', '世运问判',
+		// [Q-444/T-407] 右栏其余卡折入快照(与 render*Card 同源;按需拉取物算过才成段)
+		'年盘概要', '四季入境盘', '新月图判读', '满月图判读', '日食图判读', '月食图判读', '食族 Saros', '天象占参考', '地区盘·12世俗宫', '时刻校正', '天气占星', '四轴特殊点', '会合指示星', '盘型格局', '世运恒星命中', '赤纬平行', '恒星派入境·概览', '吠陀世运·年度盘', '世运大运', 'KP 副主链', '天气与农业', '世运问判·得力明细', '木土纪元', '大年时代', 'Barbault 聚散指数', '起盘信息', '宫位宫头', '星与虚点', '信息', '相位', '行星', '希腊点', '12分度', '主宰星链', '分宫制宫神星表', '古典', '埃及历', '寿命格局', '可能性'],
 	// [YD v42] 时空中点/马克斯 独立段名(此前与组合盘/影响盘撞名,永远无法分选、导出不辨盘型)。
-	relative: ['关系起盘信息', 'A对B相位', 'B对A相位', 'A对B中点相位', 'B对A中点相位', 'A对B映点', 'A对B反映点', 'B对A映点', 'B对A反映点', '合成图盘', '时空中点·合成图盘', '影响图盘-星盘A', '影响图盘-星盘B', '马克斯·影响图盘-星盘A', '马克斯·影响图盘-星盘B', '关系量化', '顺畅连接', '张力连接'],
+	relative: ['关系起盘信息', 'A对B相位', 'B对A相位', 'A对B中点相位', 'B对A中点相位', 'A对B映点', 'A对B反映点', 'B对A映点', 'B对A反映点', '比较盘-星盘A', '比较盘-星盘B', '合成图盘', '时空中点·合成图盘', '影响图盘-星盘A', '影响图盘-星盘B', '马克斯·影响图盘-星盘A', '马克斯·影响图盘-星盘B', '关系量化', '顺畅连接', '张力连接'],
 	// [YB v42] 星运族 21 键补厚三段(起盘信息/当前时点/方法说明,builder=astroAiSnapshot 共享 helper):
 	//   A 组(此前零盘境)加全三段;B/C 组生辰行并入既有 [本命盘配置](段内纯增,不撞 C 组 [起盘信息]=推运时间);
 	//   D/E 组已有生辰,只补 当前时点/方法说明;primarydirchart 三项天然齐全不动。
@@ -591,16 +631,21 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	primarydirect: ['出生时间', '星盘信息', '主限法设置', '主限法表格', '主限天球·当前动画所指', '当前时点', '方法说明'], // WP-5.5 新段:未自定义者即时生效;已自定义者按 MT v45 世界观尊重其白名单(不强推,可手动勾)
 	distributions: ['起盘信息', '界推运（分配法 / Distributions）', '当前时点', '方法说明'],
 	agepoint: ['起盘信息', '年龄推进点（Age Point / Huber）', '当前时点', '方法说明'],
+	// [Q-106/T-10] 星运三页上线(段头与各 builder 逐字同源)。
+	ephemeris: ['起盘信息', '星历事件（入座 · 留逆 · 朔望弦 · 食相）', '行运触发本命', '当前时点', '方法说明'],
+	returntimeline: ['起盘信息', '太阳/月亮返照时间轴', '当前时点', '方法说明'],
+	prenatalsyzygy: ['起盘信息', '产前朔望', '产前朔望盘·星体位置', '当前时点', '方法说明'],
 	primarydirchart: ['出生时间', '星盘信息', '主限法盘设置', '本命盘配置', '主限法盘配置', '主限法盘说明'],
 	zodialrelease: ['起盘信息', '星盘信息', '基于X点推运', '当前时点', '方法说明'],
 	firdaria: ['出生时间', '星盘信息', '法达星限表格', '当前时点', '方法说明'],
-	profection: ['本命盘配置', '起盘信息', '时段盘配置', '相位', '方法说明'],
+	profection: ['本命盘配置', '起盘信息', '小限摘要', '时段盘配置', '相位', '方法说明'],   // [Q-105] 新段:未自定义者即时生效
 	solararc: ['本命盘配置', '起盘信息', '时段盘配置', '相位', '方法说明'],
 	solarreturn: ['本命盘配置', '起盘信息', '时段盘配置', '相位', '方法说明'],
 	lunarreturn: ['本命盘配置', '起盘信息', '时段盘配置', '相位', '方法说明'],
 	givenyear: ['本命盘配置', '起盘信息', '时段盘配置', '相位', '方法说明'],
 	decennials: ['起盘信息', '星盘信息', '十年大运设置', '基于X起运', '当前时点', '方法说明'],
 	planetaryages: ['起盘信息', '行星年龄（Ages of Man）', '当前时点', '方法说明'],
+	prog: ['二次推运（回归黄道）', '本命盘配置', '时段盘配置 二次推运位置', '当前时点', '方法说明'],
 	vedicprog: ['恒星推运（Vedic Sidereal）', '本命盘配置', '时段盘配置 二次推运位置', '当前时点', '方法说明'],
 	jaynesprog: ['赤纬推运（Declination）', '本命盘配置', '时段盘 赤纬平行/反平行', '当前时点', '方法说明'],
 	planetaryarc: ['行星弧（Planetary Arc）', '本命盘配置', '时段盘配置', '相位', '当前时点', '方法说明'],
@@ -612,12 +657,15 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	lunationphase: ['起盘信息', '月相推运', '当前时点', '方法说明'],
 	extrareturns: ['起盘信息', '多重回归', '当前时点', '方法说明'],
 	bazi: ['起盘信息', '四柱与三元', '神煞（四柱与三元）', '五行力量', '格局·用神', '盲派结构', '月令司令（分野）', '干支合冲', '大运', '流年行运概略', '多运限·指定时段'],
-	ziwei: ['起盘信息', '宫位总览', '身宫', '来因宫', '八字大运', '命中格局', '运限', '流派叠层'],
+	// [#80] '运限概览' = 无条件段(全大限表 + 当前流年/小限),与八字 '大运'/'流年行运概略' 对称;
+	//   '运限' 仍是条件段(挂载设置里显式选了年/月/日/时才产)。两段各自可勾。
+	ziwei: ['起盘信息', '宫位总览', '身宫', '来因宫', '八字大运', '命中格局', '运限概览', '运限', '流派叠层'],
 	suzhan: ['起盘信息', '宿盘宫位与二十八宿星曜'],
 	// [YC v42] 判语库·参考诀表=默认关段(持世诀/发动诀/六神歌/爻位象/占类纲要;体量大,设置面可勾)。
 	sixyao: ['起盘信息', '卦象', '六爻与动爻', '断卦结构', '断诀命中', '占类断语', '卦辞与断语', '判语库·参考诀表'], // [六爻补齐 D] 两新段:未自定义者即时生效;已自定义者按 MT v45 世界观尊重白名单(不升 MIGRATION)
 	// [YA v42] A 类硬缺全场最薄:纳甲筮法 tab 整个计算分析层(世应/左右五行/五友/大局升降爻变)此前不入快照。
-	tongshefa: ['本卦', '六爻', '潜藏', '亲和', '三十二观', '世应', '五行关系', '五友', '大局与动变'],
+	// [Q-449/T-412] 爻位=默认关候选段(逐爻取纳判语 + 取舍总览;页面「爻位」页签有、此前快照无)。
+	tongshefa: ['本卦', '六爻', '潜藏', '亲和', '爻位', '三十二观', '世应', '五行关系', '五友', '大局与动变'],
 	huangji: ['起盘', '元会运世', '天道卦', '人事卦', '心易发微', '经典原文', '历史年表'],
 	// 古法层六段纯增(断辞/君子小人/纳甲/神煞/行神/类占),既有九段序不动;加段不升迁移版本。
 	wuzhao: ['起盘', '揲筮', '兆', '木乡', '火乡', '土乡', '金乡', '水乡', '特殊标记',
@@ -746,6 +794,7 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 		'六壬小局',
 		'六壬参考',
 		'六壬概览',
+		'七政',        // [Q-451/T-414] 六壬断卦层的七政段(独立页早有;三式合一此前漏挑)
 		'八宫详解',
 		'正北坎宫',
 		'东北艮宫',
@@ -794,7 +843,8 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	// [YA v42] 补漏登:星曜庙旺段 builder 一直无条件产出却不在 preset(v22 同类坑,自定义过导出段的
 	// 用户被静默删);流年流曜=本轮新段(A 类硬缺:右栏流曜 tab 显示了导不出)。
 	// [v44] 虚实(硬缺:虚宫旬空/实宫四柱)+本命化曜(半缺:此前只导流年侧;含十神序/天禄至天权参考表)。
-	guolao: ['起盘信息', '七政四余宫位与二十八宿星曜', '星曜庙旺与星点动态（殿垣庙旺乐喜怒 · 顺逆留伏迟速）', '神煞', '大限', '虚实', '本命化曜', '流年流曜', '政余格局', '相位'],
+	// [Q-435] 三主与化曜 / 限法实算 两段随 builder 段序(大限之后、虚实之前);加段不升迁移版本。
+	guolao: ['起盘信息', '七政四余宫位与二十八宿星曜', '星曜庙旺与星点动态（殿垣庙旺乐喜怒 · 顺逆留伏迟速）', '神煞', '大限', '三主与化曜', '限法实算', '虚实', '本命化曜', '流年流曜', '政余格局', '相位'],
 	qizhengkin: ['起盘', '四柱', '星曜', '十二宫', '神煞', '年限', '流时', '择日', '张果断语', '命宫解读', '今制宿度', '古制宿度'],
 	shaozi: ['起盘', '四柱', '四位起数', '河洛纳音', '完整结构', '64钥匙', '元会运世', '条文'],
 	tieban: ['起盘', '四柱', '算盘定部', '条文', '计算摘要', '命身刻分', '神数号码', '十二宫', '十二宫条文', '紫微安星', '条文库', '大运', '六亲佐证', '框架·流派刻制', '框架·考刻六亲', '框架·八卦滚', '框架·批断顺序', '框架·借用子系统'],
@@ -804,27 +854,29 @@ export const AI_EXPORT_PRESET_SECTIONS = {
 	chunzi: ['起盘', '四柱', '代码来源', '结构解析', '候选条文', '代码查询', '批量代码查询', '关键词检索', '多标签检索', '宿名检索', '时辰检索'],
 	xianqin: ['起盘', '三宫', '三星·元辰', '大限', '流年小限', '神煞·待校', '衍生星', '十二宫', '吞啖合战', '情性与格局', '二十八宿禽', '十二宫顺序', '三元起宿', '合宿表', '科名月宿', '四季得时', '情性赋全表', '二十八宿正像', '吞啖合战规则', '贵贱赋摘要', '演法·流派', '演法·起禽', '演法·择日', '演法·占卜', '演法·投胎'],
 	cetian: ['起盘', '农历与命身', '四化', '飞星', '格局', '命宮', '兄弟宮', '夫妻宮', '子女宮', '財帛宮', '疾厄宮', '遷移宮', '交友宮', '官祿宮', '田宅宮', '福德宮', '父母宮', '男女宮', '奴僕宮', '妻妾宮', '相貌宮', '衣鉢宮', '徒弟宮', '本師宮', '小師宮', '人刀宮', '僧道宮', '遊行宮', '師號宮', '相品宮', '运限', '童限', '凶限提示', '会照', '流年飞星', '流年七煞', '十七飞星', '神煞·岁前', '神煞·岁后', '神煞·年干', '神煞·月煞', '三日宫', '廿八宿分野', '十干变曜', '杂曜', '断诀', '星曜别名', '阴阳宫', '星解与运限歌', '星曜属性', '正曜副曜', '宫干四化表', '飞化规则', '古法格局规则', '三合组'],
-	germany: ['起盘信息', '宫位宫头', '行星', '中点', 'TNP星体', '中点相位', '90°中点盘', '行星图', '映点', '中点列表', '汉堡学派要素', '组合盘', '戴维森盘', '虚星参考'],
-	babylon: ['起盘信息', '七曜按宫', '分至天狼星', '位三法', '行星神性', '微黄道'],
-	jieqi: ['节气盘参数', '春分星盘', '春分宿盘', '春分3D盘', '夏至星盘', '夏至宿盘', '夏至3D盘', '秋分星盘', '秋分宿盘', '秋分3D盘', '冬至星盘', '冬至宿盘', '冬至3D盘'],
+	germany: ['起盘信息', '宫位宫头', '行星', '中点', 'TNP星体', '中点相位', '90°中点盘', '行星图', '映点', '中点列表', '六宫框落宫', '校时预览', '汉堡学派要素', '组合盘', '戴维森盘', '虚星参考'],   // [Q-442] 六宫框全表 / 校时预览
+	babylon: ['起盘信息', '七曜按宫', '分至天狼星', '位三法', '行星神性', '数理星历', '吉日历', '年历预测', '微黄道'],   // [Q-443] 三页签候选段(默认关);微黄道保持居末(v50 union 迁移锚)
+	jieqi: ['节气盘参数', '二十四节气', '春分星盘', '春分宿盘', '春分3D盘', '夏至星盘', '夏至宿盘', '夏至3D盘', '秋分星盘', '秋分宿盘', '秋分3D盘', '冬至星盘', '冬至宿盘', '冬至3D盘'],
 	...JIEQI_SETTING_PRESETS,
-	otherbu: ['起盘信息', '骰子结果', '骰子盘宫位与星体', '天象盘宫位与星体'],
+	otherbu: ['起盘信息', '骰子结果', '骰子盘宫位与星体', '天象盘宫位与星体', '骰子盘相位', '天象盘相位'],   // [Q-455] 两盘相位段
 	fengshui: ['起盘信息', '标记判定', '冲突清单', '未定位标注', '破局危害', '龙虎灶台', '移动盘', '吉凶评分', '缓解建议', '使用要点', '建议汇总', '纳气建议', '八卦定位', '成員卦象', '四类象格局', '应期成格', '改运建议', '风水·纳气盘', '风水·八卦阳宅', '风水·八宅大游年', '风水·玄空飞星', '风水·三合水法', '风水·金锁玉关', '风水·乾坤国宝', '风水·紫白飞星', '风水·辅星水法', '风水·净阴净阳', '风水·玄空大卦', '风水·形势峦头', '风水·择日选择',
 		'风水·玄空六法', '风水·命理派', '风水·综合罗经', '风水·大玄空', '风水·水龙平洋', '风水·改造化煞', '风水·阳宅判断',
 	],
 	canping: ['起盘', '本命', '大运·歲運', '流年·歲運'],
-	zhengchuan: ['起盘信息', '起数', '本命条文', '流年条文', '五基础数据', '装卦', '断本命', '策数', '死月',
+	zhengchuan: ['起盘信息', '起数', '本命条文', '流年总纲', '流年条文', '五基础数据', '装卦', '断本命', '策数', '死月', '死月扫描',
 		'十二宫与六亲宫', '六亲属相', '妻室姓氏', '玄机卦动爻', '八刻分命', '条文秘数查询', '性情项查询', '古籍未载之格'],
-	heluo: ['起命', '先天卦·元堂爻辞', '后天卦·元堂爻辞', '命运篇', '大限·岁运', '流年·岁运', '断验'],
-	yizhangjing: ['起盘信息', '四柱四宫断语', '命宫与人事十二宫', '四世与权重', '人事十二宫寓意', '格局判定', '九品定格', '年上运程', '位置速断', '重犯', '交互格', '职业适性', '大限', '童限', '小限与流年十二神', '流月流日流时', '流年总论', '叠断', '神煞合参', '诗文', '逐日值星', '时辰细断', '四柱文献'],
+	heluo: ['起命', '先天卦·元堂爻辞', '后天卦·元堂爻辞', '命运篇', '起卦详情', '大限·岁运', '流年·岁运', '断验'],   // [Q-436] 起卦详情 随 builder 段序
+	yizhangjing: ['起盘信息', '四柱四宫断语', '命宫与人事十二宫', '四世与权重', '人事十二宫寓意', '格局判定', '九品定格', '年上运程', '位置速断', '各柱逢星速断', '六道分布', '主星象义与星性', '重犯', '交互格', '职业适性', '大限', '童限', '小限与流年十二神', '流月流日流时', '流年总论', '叠断', '神煞合参', '诗文', '逐日值星', '时辰细断', '四柱文献'],
 	// 黄历:段名与 NongLiMain.buildNongliSnapshotText 的 [X] 段头一一对应(v43;refresh-event 实时快照)。
 	// huangli/tongshu:段名与 huangliSnapshot/tongshuSnapshot 的 [X] 段头一一对应;
 	// 同时供导出(module:calendar-huangli/-tongshu 提取)与挂载内容勾选(此前 schema=null → 面板空白)。
-	huangli: ['起盘信息', '今日宜忌', '值神值宿', '彭祖百忌', '吉神凶煞', '冲煞·胎神·方位', '时辰吉凶', '物候·六曜·数九三伏', '流年年神方位', '方法说明'],
-	tongshu: ['通书择日', '方法说明'],
+	// [Q-458/T-421] 年度吉日榜=默认关候选段(开过面板才产;体量大且非当日事实)。
+	huangli: ['起盘信息', '今日宜忌', '值神值宿', '彭祖百忌', '吉神凶煞', '冲煞·胎神·方位', '时辰吉凶', '物候·六曜·数九三伏', '流年年神方位', '年度吉日榜', '方法说明'],
+	// [Q-459/T-422] 本月逐日表=默认关候选段(董公建除月表 / 天元乌兔逐日值星;体量大且非所选日事实)。
+	tongshu: ['通书择日', '本月逐日表', '方法说明'],
 	// 前三段=聚合导出的子源标签(【农历】【老黄历】【日子馆】,E-6):非内容段,是来源分界——自定义段的
 	// 用户不勾则标签行被删、同名段无法分辨来源;【通书择日】标签与既有内容段同名,共用后者登记(不重复列)。
-	calendar: ['农历', '老黄历', '日子馆', '起盘信息', '当月月历', '选中日详情', '今日宜忌', '值神值宿', '彭祖百忌', '吉神凶煞', '冲煞·胎神·方位', '时辰吉凶', '物候·六曜·数九三伏', '流年年神方位', '通书择日', '日子馆·个性化择日', '当事人八字', '方法说明'],
+	calendar: ['农历', '老黄历', '日子馆', '起盘信息', '当月月历', '选中日详情', '今日宜忌', '值神值宿', '彭祖百忌', '吉神凶煞', '冲煞·胎神·方位', '时辰吉凶', '物候·六曜·数九三伏', '流年年神方位', '通书择日', '本月逐日表', '日子馆·个性化择日', '当事人八字', '个性化吉日榜', '所选吉日·完整日课', '年度吉日榜', '方法说明'],   // [Q-457/T-420] 所选吉日完整日课=默认关候选段;[Q-271/ZC-17] 个性化吉日榜=动态计数段头折叠名
 };
 // 奇门择日 = 奇门 17 段全量(单一真值源:qimen 段表改动自动跟随) + 择日三段。
 // 🔒 三个追加段头与 src/divination/zeri/qimenZeriSnapshot.js 逐字成对(四同步)。
@@ -1027,9 +1079,9 @@ function getPlanetInfoSettingByTechnique(settings, key){
 			showRuler: 0,
 		};
 	}
-	const source = settings && settings.planetInfo && typeof settings.planetInfo === 'object'
-		? settings.planetInfo[key]
-		: null;
+	const pi = settings && settings.planetInfo && typeof settings.planetInfo === 'object' ? settings.planetInfo : null;
+	// [Q-307/T-303] 六衍生键无自身设置时回落聚合键 astrochart_like(挂载侧仍按聚合键读)→ 同盘导出与挂载同开关。
+	const source = pi ? (pi[key] || ((isAstroLikeExportKey(key) && key !== 'astrochart_like') ? pi.astrochart_like : null)) : null;
 	if(!source){
 		return {
 			...AI_EXPORT_PLANET_INFO_DEFAULT,
@@ -1044,9 +1096,9 @@ function getAstroMeaningSettingByTechnique(settings, key){
 			enabled: 0,
 		};
 	}
-	const source = settings && settings.astroMeaning && typeof settings.astroMeaning === 'object'
-		? settings.astroMeaning[key]
-		: null;
+	const am = settings && settings.astroMeaning && typeof settings.astroMeaning === 'object' ? settings.astroMeaning : null;
+	// [Q-307/T-303] 同上:六衍生键无自身设置时回落聚合键。
+	const source = am ? (am[key] || ((isAstroLikeExportKey(key) && key !== 'astrochart_like') ? am.astrochart_like : null)) : null;
 	if(!source){
 		return {
 			...AI_EXPORT_ASTRO_MEANING_DEFAULT,
@@ -1055,7 +1107,8 @@ function getAstroMeaningSettingByTechnique(settings, key){
 	return normalizeAstroMeaningSetting(source);
 }
 
-function normalizeSectionTitle(title){
+// [挂载自检] 导出供段同构闸复用同一折叠规则(座运·X / 专题深化·X / 基于X点推运),免测试另抄一份归一逻辑。
+export function normalizeSectionTitle(title){
 	const t = `${title || ''}`.trim();
 	if(!t){
 		return '';
@@ -1075,6 +1128,11 @@ function normalizeSectionTitle(title){
 	// 折叠成单占位,与 preset 的「专题深化·X」两侧归一 → 一个纳入开关控 3 类专题(同 座运·X 范式)。
 	if(/^专题深化·.+$/.test(t)){
 		return '专题深化·X';
+	}
+	// [Q-271/ZC-17] 日子馆吉日榜段头带动态计数 `[个性化吉日榜 Top N／全年候选 M]`(riziSnapshot.js):折叠成静态名并登记
+	// calendar 段表,否则对「黄历」做任何自定义勾选后整张榜单被段过滤丢掉(只剩事项/年份/八字/方法说明)。
+	if(/^个性化吉日榜(\s|／|$).*$/.test(t)){
+		return '个性化吉日榜';
 	}
 	return t;
 }
@@ -1113,7 +1171,7 @@ function normalizeAIExportPrefs(prefs){
 	return {
 		format: src.format === 'v2' ? 'v2' : (src.format === 'v1' ? 'v1' : AI_EXPORT_FORMAT_DEFAULT),
 		attachScreenshot: src.attachScreenshot !== false,
-		legend: src.legend !== false,
+		legend: src.legend === true,   // [D47·2026-09-08] 缺省关:此前缺省开但表空(零输出);首批填表后若仍缺省开会改变缺省导出字节与模型载荷 ⇒ 翻关,设置面勾选后才拼装
 	};
 }
 
@@ -1219,6 +1277,32 @@ function normalizeAIExportSettings(settings){
 			]);
 		});
 	}
+	// [v57] 同机制的下一窗(Windows #79:分宫制宫神星表自主宰星链拆出的独立段,九个西占键)。
+	if(sourceVersion < AI_EXPORT_V57_UNION_VERSION){
+		Object.keys(AI_EXPORT_V57_SECTION_UNION).forEach((key)=>{
+			const existing = normalized.sections[key];
+			if(!Array.isArray(existing) || !existing.length){
+				return;
+			}
+			normalized.sections[key] = uniqueArray([
+				...existing,
+				...AI_EXPORT_V57_SECTION_UNION[key].map((item)=>normalizeSectionTitle(item)).filter(Boolean),
+			]);
+		});
+	}
+	// [v58] 同机制的下一窗(Q-451:三式合一六壬断卦层的「七政」段)。
+	if(sourceVersion < AI_EXPORT_V58_UNION_VERSION){
+		Object.keys(AI_EXPORT_V58_SECTION_UNION).forEach((key)=>{
+			const existing = normalized.sections[key];
+			if(!Array.isArray(existing) || !existing.length){
+				return;
+			}
+			normalized.sections[key] = uniqueArray([
+				...existing,
+				...AI_EXPORT_V58_SECTION_UNION[key].map((item)=>normalizeSectionTitle(item)).filter(Boolean),
+			]);
+		});
+	}
 	// [v55] 同机制的下一窗(风水·阳宅判断:峦头/理气/客星三方合参)。
 	if(sourceVersion < AI_EXPORT_V55_UNION_VERSION){
 		Object.keys(AI_EXPORT_V55_SECTION_UNION).forEach((key)=>{
@@ -1319,18 +1403,9 @@ export function isAIExportScreenshotEnabled(settings = loadAIExportSettings()){
 
 export function isAIExportLegendEnabled(settings = loadAIExportSettings()){
 	const prefs = settings && settings.prefs;
-	return !(prefs && prefs.legend === false);
+	return !!(prefs && prefs.legend === true);
 }
 
-export function updateAIExportPrefs(patch){
-	const settings = loadAIExportSettings();
-	const next = {
-		...settings,
-		prefs: normalizeAIExportPrefs({ ...(settings && settings.prefs), ...(patch && typeof patch === 'object' ? patch : {}) }),
-	};
-	saveAIExportSettings(next);
-	return next;
-}
 
 function snapshotModuleKeyByContextKey(key){
 	if(key === 'sixyao'){
@@ -1405,7 +1480,7 @@ function getJieQiCachedContent(){
 	return [current, whole].filter(Boolean).join('\n\n');
 }
 
-async function requestModuleSnapshotRefresh(moduleName){
+export async function requestModuleSnapshotRefresh(moduleName){
 	if(!moduleName || typeof window === 'undefined'){
 		return '';
 	}
@@ -1850,10 +1925,9 @@ function applyUserSectionFilterByContext(content, key){
 		return '';   // 显式全清 → 真取消(勿回吐全文,与主链 applyUserSectionFilter 同语义)
 	}
 	const filtered = filterContentByWantedSections(content, wanted);
-	if(!`${filtered || ''}`.trim()){
-		return content;
-	}
-	return filtered;
+	// [挂载自检 F-38] 勾了段、但本内容(如星盘页签下只有当前一盘)一段都不含 → 真取消('')。此前回吐全文,
+	// 把用户显式的「只要春分宿盘」盖成整份 → 「取消=真取消」在节气盘分键上是破的。
+	return `${filtered || ''}`.trim() ? filtered : '';
 }
 
 function trimPlanetInfoBySetting(content, setting){
@@ -1864,6 +1938,8 @@ function trimPlanetInfoBySetting(content, setting){
 	if(showHouse && showRuler){
 		return source;
 	}
+	// [Q-316/T-302] 判「括号内容=行星后天信息」改为逐段全匹配:每段须是 后天:… / Nth / - / NR… / 主…宫 / 宫位未知 / (第)X宫 之一。
+	// 此前任一段含「数字宫」「主…宫」即整括号判为行星宫位 → 三式合一奇门「日马：申（坤二宫）」「庚击刑（震三宫）」等宫位注记被误删。
 	const isPlanetInfoInner = (inner)=>{
 		const txt = `${inner || ''}`.trim();
 		if(!txt){
@@ -1872,22 +1948,18 @@ function trimPlanetInfoBySetting(content, setting){
 		if(/^后天[:：]/.test(txt)){
 			return true;
 		}
-		if(/\b\d{1,2}th\b/i.test(txt)){
-			return true;
+		const segs = txt.split(/[；;]/).map((item)=>`${item || ''}`.trim()).filter(Boolean);
+		if(!segs.length){
+			return false;
 		}
-		if(/\b\d{1,2}R(?:\d{1,2}R)*\b/i.test(txt)){
-			return true;
-		}
-		if(/主.+宫/.test(txt)){
-			return true;
-		}
-		if(/宫位未知|主宫未知/.test(txt)){
-			return true;
-		}
-		if(/[一二三四五六七八九十]+宫/.test(txt)){
-			return true;
-		}
-		return false;
+		return segs.every((seg)=>(
+			/^\d{1,2}th$/i.test(seg)
+			|| seg === '-'
+			|| /^\d{1,2}R(?:\d{1,2}R)*$/i.test(seg)
+			|| /^主.+宫$/.test(seg)
+			|| /^(宫位未知|主宫未知)$/.test(seg)
+			|| /^第?[一二三四五六七八九十]+宫$/.test(seg)
+		));
 	};
 	const splitPlanetInfoParts = (inner)=>{
 		const txt = `${inner || ''}`.replace(/^后天[:：]\s*/, '').trim();
@@ -2393,6 +2465,9 @@ function resolveActiveContext(){
 		{ label: '法达星限', key: 'firdaria', name: '星运-法达星限' },
 		{ label: '界推运', key: 'distributions', name: '星运-界推运' },
 		{ label: '年龄推进点', key: 'agepoint', name: '星运-年龄推进点' },
+		{ label: '星历', key: 'ephemeris', name: '星运-星历' },
+		{ label: '回归轴', key: 'returntimeline', name: '星运-回归轴' },
+		{ label: '产前朔望', key: 'prenatalsyzygy', name: '星运-产前朔望' },
 		{ label: '小限法', key: 'profection', name: '星运-小限法' },
 		{ label: '太阳弧', key: 'solararc', name: '星运-太阳弧' },
 		{ label: '太阳返照', key: 'solarreturn', name: '星运-太阳返照' },
@@ -2400,6 +2475,7 @@ function resolveActiveContext(){
 		{ label: '流年法', key: 'givenyear', name: '星运-流年法' },
 		{ label: '十年大运', key: 'decennials', name: '星运-十年大运' },
 		{ label: '行星年龄', key: 'planetaryages', name: '星运-行星年龄' },
+		{ label: '二次推运', key: 'prog', name: '星运-二次推运' },
 		{ label: '恒星推运', key: 'vedicprog', name: '星运-恒星推运' },
 		{ label: '赤纬推运', key: 'jaynesprog', name: '星运-赤纬推运' },
 		{ label: '行星弧', key: 'planetaryarc', name: '星运-行星弧' },
@@ -2747,6 +2823,9 @@ function resolveContextByAstroState(){
 			firdaria: { key: 'firdaria', displayName: '星运-法达星限', domain: 'predictive_raw' },
 			distributions: { key: 'distributions', displayName: '星运-界推运', domain: 'predictive_raw' },
 			agepoint: { key: 'agepoint', displayName: '星运-年龄推进点', domain: 'predictive_raw' },
+			ephemeris: { key: 'ephemeris', displayName: '星运-星历', domain: 'predictive_raw' },
+			returntimeline: { key: 'returntimeline', displayName: '星运-回归轴', domain: 'predictive_raw' },
+			prenatalsyzygy: { key: 'prenatalsyzygy', displayName: '星运-产前朔望', domain: 'predictive_raw' },
 			profection: { key: 'profection', displayName: '星运-小限法', domain: 'predictive_raw' },
 			solararc: { key: 'solararc', displayName: '星运-太阳弧', domain: 'predictive_raw' },
 			solarreturn: { key: 'solarreturn', displayName: '星运-太阳返照', domain: 'predictive_raw' },
@@ -2754,6 +2833,7 @@ function resolveContextByAstroState(){
 			givenyear: { key: 'givenyear', displayName: '星运-流年法', domain: 'predictive_raw' },
 			decennials: { key: 'decennials', displayName: '星运-十年大运', domain: 'predictive_raw' },
 			planetaryages: { key: 'planetaryages', displayName: '星运-行星年龄', domain: 'predictive_raw' },
+			prog: { key: 'prog', displayName: '星运-二次推运', domain: 'predictive_raw' },
 			vedicprog: { key: 'vedicprog', displayName: '星运-恒星推运', domain: 'predictive_raw' },
 			jaynesprog: { key: 'jaynesprog', displayName: '星运-赤纬推运', domain: 'predictive_raw' },
 			planetaryarc: { key: 'planetaryarc', displayName: '星运-行星弧', domain: 'predictive_raw' },
@@ -2872,6 +2952,10 @@ function resolveContextByAstroState(){
 			const mingTech = getRuntimeKinAstroTechnique('mingother');
 			if(mingTech === 'yizhangjing'){
 				return KINASTRO_EXPORT_CONTEXTS.yizhangjing;
+			}
+			// [Q-261/T-240] 演禽页签在命·其他内激活时 runtime 技法=xianqin,此前只认一掌经、其余回策天 → 导出拿到策天盘。
+			if(mingTech === 'xianqin'){
+				return KINASTRO_EXPORT_CONTEXTS.xianqin;
 			}
 			return KINASTRO_EXPORT_CONTEXTS.cetian;
 		}
@@ -3137,13 +3221,19 @@ const AI_EXPORT_TECHNIQUE_GROUPS = [
 		'babylon',
 		'horary', 'election', 'tianxing', 'otherbu', 'jieqi', 'jieqi_meta', 'jieqi_chunfen', 'jieqi_xiazhi', 'jieqi_qiufen', 'jieqi_dongzhi',
 	] },
-	{ title: '星运推运', keys: ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns',
+	{ title: '星运推运', keys: ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'ephemeris', 'returntimeline', 'prenatalsyzygy', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns',
 	] },
 	{ title: '中式命理', keys: ['bazi', 'ziwei', 'guolao', 'qizhengkin', 'indiachart', 'heluo', 'canping', 'zhengchuan', 'yizhangjing', 'xianqin', 'cetian', 'shaozi', 'tieban', 'fendjing', 'beiji', 'nanji', 'chunzi', 'suzhan',
 	] },
 	{ title: '占卜术数', keys: ['sixyao', 'tongshefa', 'liureng', 'jinkou', 'qimen', 'qimenzeri', 'bazizeri', 'taiyizeri', 'ziweizeri', 'liurengzeri', 'sanshizeri', 'qizhengzeri', 'indiazeri', 'sanshiunited', 'taiyi', 'huangji', 'wuzhao', 'taixuan', 'guice', 'xiaoliuren', 'xiaochengtu', 'feigong', 'jingjue', 'shenyishu', 'geomancy', 'tarot', 'lingqi', 'fengshui',
 		'calendar', 'huangli', 'huanglizeri', 'tongshu'] },
 ];
+
+// 静态域定义(键 → 组标题 / 组序),不算任何选项:给只需要「键归哪个域」的消费方(挂载下拉 / @ 菜单分组)用——
+// listAIExportTechniqueSettingGroups 会对每个技法算快照选项(遍历 localStorage),在按键路径上不可承受
+export function listAIExportTechniqueGroupDefs(){
+	return AI_EXPORT_TECHNIQUE_GROUPS.map((group)=>({ title: group.title, keys: group.keys.slice() }));
+}
 
 export function listAIExportTechniqueSettingGroups(){
 	const items = listAIExportTechniqueSettings();
@@ -3334,7 +3424,8 @@ function getStructuredSnapshotKeysByExportKey(key){
 	return moduleKey ? [moduleKey] : [];
 }
 
-export function getAIExportAuditMatrix(){
+// 测试预言机:内容完备性审计矩阵(aiExportContentAudit*.test 消费;零生产消费方)
+export function getAIExportAuditMatrixForTests(){
 	return AI_EXPORT_TECHNIQUES.map((item)=>({
 		key: item.key,
 		label: item.label,
@@ -3366,8 +3457,18 @@ const AI_EXPORT_DEFAULT_OFF_SECTIONS = {
 	qimen: QIMEN_DEFAULT_OFF,
 	qimenzeri: QIMEN_DEFAULT_OFF,
 	liureng: ['取象'],
+	// [Q-449/T-412] 爻位判语体量大且逐爻成文,按裁决作默认关候选段(设置面可勾)。
+	tongshefa: ['爻位'],
 	// 世界范式盘=恒定教义(逐盘不变),默认不占导出篇幅;设置面可勾。
 	astrochart: ['古典·世界范式盘'],
+	// [Q-457/T-420] 日子馆所选吉日的完整老黄历日课(体量大、且老黄历页另有自己的日课段),默认关、设置面可勾。
+	// [Q-458/T-421] 年度吉日榜同理(全年 Top 榜,非当日事实)。
+	calendar: ['所选吉日·完整日课', '年度吉日榜', '本月逐日表'],
+	huangli: ['年度吉日榜'],
+	// [Q-459/T-422] 通书本月逐日表同理(整月逐日,非所选日事实)。
+	tongshu: ['本月逐日表'],
+	// [Q-443/T-406] 巴比伦三页签(数理星历推演表/吉日历体系/年历预测周期表)体量大且多为体系教义,按裁决作默认关候选段(设置面可勾)。
+	babylon: ['数理星历', '吉日历', '年历预测'],
 };
 
 export function getAIExportDefaultOffSet(key){
@@ -3446,12 +3547,15 @@ export function applyAIExportSectionFilterToSnapshot(key, content, settings = lo
 	}
 	const filtered = filterContentByWantedSections(base, wanted);
 	if(!`${filtered || ''}`.trim()){
-		return base;
+		// [挂载自检 F-38] 节气盘整键/分键:盘页签下的内容只含当前一盘,用户显式勾的段本内容没有 →
+		// 真取消('')而非回吐全文(否则「只要夏至星盘」被盖成「春分整份」,取消=真取消在节气盘上是破的);
+		// 其他技法段名与内容同源、失配只会是命名漂移,保留「回退剥后文」兜底避免挂载空白。
+		return (exportKey === 'jieqi' || isJieQiSplitSettingKey(exportKey)) ? '' : base;
 	}
 	return filtered;
 }
 
-export function resolveAIExportContextForTest(context){
+export function resolveAIExportContextForTests(context){
 	const normalized = resolveExportContextForPayload(context);
 	return {
 		key: normalized.key,
@@ -4402,21 +4506,23 @@ async function extractGermanyContent(context){
 
 async function extractJieQiContent(context){
 	void context;
-	const refreshedCurrent = await requestModuleSnapshotRefresh('jieqi_current');
-	if(refreshedCurrent){
-		return refreshedCurrent;
-	}
+	// [挂载自检 F-38] 整键「节气盘」= 整年快照([节气盘参数] + 已算各盘各段,与 preset 13 段同构);此前优先取「当前页签那一盘」
+	// → 整键 preset 摆着 13 段,实际只导得出 1 段(星盘页签下)。当前盘由四个分键(春分/夏至/秋分/冬至)各自承担。
 	const refreshed = await requestModuleSnapshotRefresh('jieqi');
 	if(refreshed){
 		return refreshed;
 	}
-	const cachedCurrent = getModuleCachedContent('jieqi_current');
-	if(cachedCurrent){
-		return cachedCurrent;
-	}
 	const cached = getModuleCachedContent('jieqi');
 	if(cached){
 		return cached;
+	}
+	const refreshedCurrent = await requestModuleSnapshotRefresh('jieqi_current');
+	if(refreshedCurrent){
+		return refreshedCurrent;
+	}
+	const cachedCurrent = getModuleCachedContent('jieqi_current');
+	if(cachedCurrent){
+		return cachedCurrent;
 	}
 	return '';
 }
@@ -4680,7 +4786,7 @@ async function extractGenericContent(context){
 			return cached;
 		}
 	}
-	if(context.key === 'planetaryages' || context.key === 'vedicprog' || context.key === 'jaynesprog'
+	if(context.key === 'planetaryages' || context.key === 'prog' || context.key === 'vedicprog' || context.key === 'jaynesprog'
 		|| context.key === 'planetaryarc' || context.key === 'persiandirected' || context.key === 'yearsystem129'
 		|| context.key === 'balbillus' || context.key === 'triplicityrulers' || context.key === 'keypoints'
 		|| context.key === 'lunationphase' || context.key === 'extrareturns'){
@@ -5749,17 +5855,15 @@ function formatStamp(date){
 function downloadBlob(filename, content, mime){
 	// 🔧 文字类导出补 UTF-8 BOM(政策单源 aiAnalysisExport.withUtf8Bom:仅人读的 txt/Word/markdown 加,
 	//   json/csv/pdf 等机读或二进制不加;content 非字符串时原样透传,天然安全)。
+	// [Q-410] 落盘走全站单源 saveBlobSmart(桌面壳=保存桥选目录;取消/失败如实返回,调用方据此报)。
 	const payload = withUtf8Bom(content, mime);
 	const blob = new Blob([payload], { type: mime });
-	const url = URL.createObjectURL(blob);
-	const a = document.createElement('a');
-	a.href = url;
-	a.download = filename;
-	a.style.display = 'none';
-	document.body.appendChild(a);
-	a.click();
-	document.body.removeChild(a);
-	setTimeout(()=>URL.revokeObjectURL(url), 1000);
+	return saveBlobSmart(filename, blob);
+}
+// 三态:true=已落盘 / false=未产出(调用方可降级) / 'cancelled'=用户取消保存(绝不降级、绝不报成功)。
+function saveTri(r){
+	if(r && r.cancelled){ return 'cancelled'; }
+	return !!(r && r.ok);
 }
 
 // 复制统一走共享件 clipboardText.copyTextSmart(三级降级;原私有 copyText 逐字平移过去)。
@@ -5929,8 +6033,7 @@ async function exportPdfPlain(payload){
 			console.error(`[aiExport] PDF blob 异常(size=${blob && blob.size}),放弃落盘`);
 			return false;
 		}
-		downloadBlob(`${payload.filenameBase}.pdf`, blob, 'application/pdf');
-		return true;
+		return saveTri(await downloadBlob(`${payload.filenameBase}.pdf`, blob, 'application/pdf'));
 	}catch(e){
 		console.error('[aiExport] PDF 导出失败:', e);
 		return false;
@@ -6023,8 +6126,7 @@ async function exportPdfStyled(payload){
 			console.error(`[aiExport] 样式化 PDF blob 异常(size=${blob && blob.size}),回退纯文本路径`);
 			return false;
 		}
-		downloadBlob(`${payload.filenameBase}.pdf`, blob, 'application/pdf');
-		return true;
+		return saveTri(await downloadBlob(`${payload.filenameBase}.pdf`, blob, 'application/pdf'));
 	}catch(e){
 		console.error('[aiExport] 样式化 PDF 失败,回退纯文本路径:', e);
 		return false;
@@ -6125,9 +6227,9 @@ async function exportPdf(payload, opts = {}){
 		if(vec && vec.buildExportPdfVectorBlob){
 			const blob = await vec.buildExportPdfVectorBlob(payload);
 			if(blob && blob.size > 1200){
-				downloadBlob(`${payload.filenameBase}.pdf`, blob, 'application/pdf');
-				_pdfExportedViaVector = true;
-				return true;
+				const tri = saveTri(await downloadBlob(`${payload.filenameBase}.pdf`, blob, 'application/pdf'));
+				if(tri === 'cancelled'){ return 'cancelled'; }   // [Q-410] 取消不回退打印/栅格
+				if(tri){ _pdfExportedViaVector = true; return true; }
 			}
 		}
 	}catch(e){ console.error('[aiExport] 矢量 PDF 失败,回退打印/栅格:', e && e.message); }
@@ -6139,13 +6241,13 @@ async function exportPdf(payload, opts = {}){
 	// 回退②/③:v2 样式化栅格 → v1 纯文本栅格(绝不无产物)
 	if(getAIExportFormatPreference() === 'v2'){
 		const styledOk = await exportPdfStyled(payload);
-		if(styledOk){ return true; }
+		if(styledOk){ return styledOk; }   // true 或 'cancelled'
 	}
 	return exportPdfPlain(payload);
 }
 
 function exportTxt(payload){
-	downloadBlob(`${payload.filenameBase}.txt`, payload.text, 'text/plain;charset=utf-8');
+	return downloadBlob(`${payload.filenameBase}.txt`, payload.text, 'text/plain;charset=utf-8');
 }
 
 // 经典 .doc(HTML 壳):v2 下降级兜底(docx 构建失败时),v1 下仍是「Word」主路径。
@@ -6165,7 +6267,7 @@ function exportWord(payload){
 ${shotImg}<pre style="white-space: pre-wrap; word-break: break-word; font-family: 'Microsoft YaHei', Arial, sans-serif; line-height: 1.5;">${escapeHtml(payload.text)}</pre>
 </body>
 </html>`;
-	downloadBlob(`${payload.filenameBase}.doc`, html, 'application/msword;charset=utf-8');
+	return downloadBlob(`${payload.filenameBase}.doc`, html, 'application/msword;charset=utf-8');
 }
 
 // [v2] 真 docx 导出(标题层级/真 Word 表/封面截图);失败返 false 由调用方降级 .doc 壳。
@@ -6179,8 +6281,7 @@ async function exportDocx(payload){
 			console.error(`[aiExport] DOCX blob 异常(size=${blob && blob.size}),降级 .doc`);
 			return false;
 		}
-		downloadBlob(`${payload.filenameBase}.docx`, blob, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-		return true;
+		return saveTri(await downloadBlob(`${payload.filenameBase}.docx`, blob, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'));
 	}catch(e){
 		console.error('[aiExport] DOCX 导出失败,降级 .doc 壳:', e);
 		return false;
@@ -6214,6 +6315,9 @@ function isPredictiveExportKey(key){
 		|| val === 'firdaria'
 		|| val === 'distributions'
 		|| val === 'agepoint'
+		|| val === 'ephemeris'          // [Q-106/T-10] 星运三页上线为技法键(简单模块抓取 extractSimpleModuleContent,与 planetaryages 等同机制)
+		|| val === 'returntimeline'
+		|| val === 'prenatalsyzygy'
 		|| val === 'profection'
 		|| val === 'solararc'
 		|| val === 'solarreturn'
@@ -6221,6 +6325,7 @@ function isPredictiveExportKey(key){
 		|| val === 'givenyear'
 		|| val === 'decennials'
 		|| val === 'planetaryages'
+		|| val === 'prog'
 		|| val === 'vedicprog'
 		|| val === 'jaynesprog'
 		|| val === 'planetaryarc'
@@ -6278,7 +6383,7 @@ function getCandidateExportKeys(context){
 		context && context.displayName ? context.displayName : '',
 		stateContext && stateContext.displayName ? stateContext.displayName : '',
 	].join(' ');
-	const predictiveKeys = ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns'];
+	const predictiveKeys = ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'ephemeris', 'returntimeline', 'prenatalsyzygy', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns'];
 	const primaryIsPredictive = isPredictiveExportKey(primary);
 	const stateIsPredictive = isPredictiveExportKey(stateKey);
 	// 仅在上下文无法定位具体推运子模块时，才展开推运候选全量兜底；
@@ -6409,7 +6514,7 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 	}
 	if(topInfo.includes('星运') || topInfo.includes('推运盘') || topInfo.includes('主限法') || topInfo.includes('法达星限')
 		|| topInfo.includes('太阳弧') || topInfo.includes('太阳返照') || topInfo.includes('月亮返照')){
-		push('primarydirect', 'primarydirchart', 'firdaria', 'zodialrelease', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns');
+		push('primarydirect', 'primarydirchart', 'firdaria', 'zodialrelease', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns');
 	}
 	if(topInfo.includes('三式合一')){
 		push('sanshiunited', 'qimen', 'jinkou', 'liureng', 'sixyao', 'tongshefa', 'taiyi', 'astrochart');
@@ -6454,7 +6559,7 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 		'astrochart', 'astrochart_like', 'indiachart',
 		'relative', 'germany', 'jieqi',
 		'primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials',
-		'planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns',
+		'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns',
 		'sanshiunited', 'qimen', 'liureng', 'jinkou', 'sixyao', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'taiyi', 'suzhan',
 		'guolao', 'qizhengkin', 'shaozi', 'tieban', 'fendjing', 'beiji', 'nanji', 'chunzi', 'xianqin', 'cetian', 'otherbu', 'fengshui',
 		'bazi', 'ziwei',
@@ -6464,7 +6569,7 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 
 // 「简单模块」预测技法：内容来自前端保存的模块快照(saveModuleAISnapshot)而非预测后端 payload。
 // 路由与自检共用此单一真值表 —— 防「登记进 predictive 却漏配 extractContentByKey 路由」(extrareturns 曾正是漏此条 → AI导出/挂载拿不到多重回归快照)。
-export const AI_EXPORT_SIMPLE_MODULE_KEYS = ['planetaryages', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns'];
+export const AI_EXPORT_SIMPLE_MODULE_KEYS = ['planetaryages', 'ephemeris', 'returntimeline', 'prenatalsyzygy', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns'];
 
 async function extractContentByKey(exportKey, context){
 	if(exportKey === 'astrochart' || isAstroLikeExportKey(exportKey) || exportKey === 'indiachart'){
@@ -6633,7 +6738,8 @@ async function fetchAstroClassicalAnalysisSectionForExport(){
 		}
 		// [M-1] 与挂载链 fetchClassicalAnalysisSection 同口径:恒星轨读全局仓(此前硬编 1° → 用户改
 		// 恒星轨后导出 [古典格局] 与右栏/挂载三方漂移);voidClassical 同判据条件附(缺键=本座义=现状零回归)。
-		const reqBody = { _v: 'cls1', ...params, fixedStarOrb: classicalGlobalValue('fixedStarOrb') };   // [SURF] 缓存代次盐
+		// [Q-340/T-321] 随盘 starOrb/starOrbMode(chartObj.params 回显)优先,缺则全局仓;档位一并下发。
+		const reqBody = { _v: 'cls1', ...params, ...fixedStarOrbParamsFor(params) };   // [SURF] 缓存代次盐
 		try{
 			const st = getStore();
 			const app = st && st.app ? st.app : null;
@@ -6769,7 +6875,12 @@ async function buildPayload(){
 			return null;
 		}
 	})();
-	const fv = (name)=>(dayRuleFields && dayRuleFields[name] && dayRuleFields[name].value !== undefined && dayRuleFields[name].value !== null ? dayRuleFields[name].value : undefined);
+	// [Q-314 裁决 A] 八字页本页口径覆盖层(仅当前页=八字时)优先:导出头与页面所见 / 正文四柱同源。
+	const baziCalibreOv = (()=>{
+		try{ const st = getStore(); return (st && st.astro && st.astro.currentTab === 'bazi' && st.astro.baziCalibreOverride) ? st.astro.baziCalibreOverride : {}; }catch(_e){ return {}; }
+	})();
+	const fv = (name)=>(baziCalibreOv[name] !== undefined && baziCalibreOv[name] !== null ? baziCalibreOv[name]
+		: (dayRuleFields && dayRuleFields[name] && dayRuleFields[name].value !== undefined && dayRuleFields[name].value !== null ? dayRuleFields[name].value : undefined));
 	const a23 = fv('after23NewDay') !== undefined ? fv('after23NewDay') : defaultAfter23NewDay();
 	const lzh = fv('lateZiHourUseNextDay') !== undefined ? fv('lateZiHourUseNextDay') : defaultLateZiHourUseNextDay();
 	const dayRule = `排盘规则: 日界点【${a23 === 0 ? '24点算第二天·日柱守今' : '23点算第二天·日柱进位次日'}】, 晚子时·时柱起干【${lzh === 0 ? '按当日柱·今日干起子时' : '按次日柱·次日干起子时'}】(仅 23:00–23:59 影响日柱/时柱)`;
@@ -6787,7 +6898,13 @@ async function buildPayload(){
 		headerLines.push(`导出范围: ${keptSectionCount}/${totalSectionCount} 段${keptSectionCount < totalSectionCount ? '（部分段未纳入，可在「AI导出设置」调整）' : '（未裁剪）'}`);
 	}
 	headerLines.push('说明: 当前激活技术面板专属导出；符号已转为AI可识别文本。');
-	headerLines.push(dayRule);
+	// [Q-316/T-301] 头行「排盘规则」取当前导出技法的实际口径:①正文自带换日 / 日界口径(奇门 / 太乙 / 三式 / 紫微等左栏各自设置)→
+	// 头行指向正文,不再按共享 fields 另写一套(此前头写「23点」正文写「24点」自相矛盾);②不涉日柱的西占等导出不写此行。
+	const bodyHasOwnDayRule = /(^|\n)\s*换日[:：]|日界点?[:：]|晚子时[:：]/.test(content);
+	const involvesPillars = /四柱|日柱|时柱|干支|换日|日界/.test(content);
+	if(involvesPillars){
+		headerLines.push(bodyHasOwnDayRule ? '排盘规则: 以正文自带的「换日 / 日界 / 晚子时」口径为准（本技法在左栏单独设置）' : dayRule);
+	}
 	headerLines.push('');
 	headerLines.push('========== 内容开始 ==========');
 	const header = headerLines.join('\n');
@@ -6798,6 +6915,9 @@ async function buildPayload(){
 		content,
 		text,
 		filenameBase,
+		// [Q-309/T-309] 供 runAIExport 区分「页面没算出结果」与「用户在 AI导出设置里把本技法分段全清空」两种空内容。
+		clearedByUser: !content && !!rawSnapshotContent && isUserSectionsExplicitlyCleared(usedExportKey),
+		exportKey: usedExportKey,
 	};
 }
 
@@ -6840,14 +6960,16 @@ async function attachScreenshotIfEnabled(payload, action){
 
 // Word 动作:v2 = 真 docx(失败降级经典 .doc 壳);v1 = 经典 .doc(字节级不变)。
 async function exportWordByFormat(payload){
+	// [Q-410] docx 三态:'cancelled' 绝不降级 .doc;.doc 落盘结果如实回传(取消 / 失败 → ok:false)。
 	if(getAIExportFormatPreference() === 'v2'){
 		const docxOk = await exportDocx(payload);
+		if(docxOk === 'cancelled'){ return { ok: false, cancelled: true, label: 'Word(docx)' }; }
 		if(docxOk){ return { ok: true, label: 'Word(docx)' }; }
-		exportWord(payload);
-		return { ok: true, label: 'Word(.doc 兼容格式)' };
+		const r = await exportWord(payload);
+		return { ok: !!(r && r.ok), cancelled: !!(r && r.cancelled), error: r && r.error, label: 'Word(.doc 兼容格式)' };
 	}
-	exportWord(payload);
-	return { ok: true, label: 'Word' };
+	const r = await exportWord(payload);
+	return { ok: !!(r && r.ok), cancelled: !!(r && r.cancelled), error: r && r.error, label: 'Word' };
 }
 
 export async function runAIExport(action){
@@ -6855,6 +6977,10 @@ export async function runAIExport(action){
 		const payload = await buildPayload();
 		const pure = (payload.content || '').replace(/\s/g, '');
 		if(!pure){
+			// [Q-309/T-309] 显式全清是合法设置,但导出报「没有可导出文本」会被误读成页面没算出结果 → 分开说。
+			if(payload.clearedByUser){
+				return { ok: false, message: `本技法的导出分段已在「AI导出设置」里全部取消勾选,故无内容可导出;去设置里勾回需要的段即可（${payload.tech || ''}）。` };
+			}
 			return { ok: false, message: '当前页面没有可导出文本。' };
 		}
 		const shotNote = await attachScreenshotIfEnabled(payload, action);
@@ -6863,38 +6989,51 @@ export async function runAIExport(action){
 		if(action === 'copy'){
 			const ok = await copyTextSmart(payload.text);
 			if(ok){ return { ok: true, message: `AI纯文字已复制。${chartMomentSuffix(payload.content)}` }; }
-			// 剪贴板不可用(桌面 webview / 非聚焦 / 安全上下文)→ 自动导出 TXT,用户必有产物。
-			exportTxt(payload);
-			return { ok: true, message: '剪贴板不可用，已自动导出 TXT 文件。' };
+			// 剪贴板不可用(桌面 webview / 非聚焦 / 安全上下文)→ 自动导出 TXT,用户必有产物。[Q-410] 取消 / 失败如实报。
+			const rt = await exportTxt(payload);
+			if(rt && rt.cancelled){ return { ok: false, message: '剪贴板不可用，改为导出 TXT，但已取消保存。' }; }
+			if(!(rt && rt.ok)){ return { ok: false, message: `剪贴板不可用，且 TXT 保存失败：${(rt && rt.error) || '未知错误'}` }; }
+			return { ok: true, message: `剪贴板不可用，已自动导出 TXT 文件。${rt.path ? `（${rt.path}）` : ''}` };
 		}
 		if(action === 'txt'){
-			exportTxt(payload);
-			return { ok: true, message: 'TXT 已导出。' };
+			const rt = await exportTxt(payload);
+			if(rt && rt.cancelled){ return { ok: false, message: '已取消保存。' }; }
+			if(!(rt && rt.ok)){ return { ok: false, message: `TXT 保存失败：${(rt && rt.error) || '未知错误'}` }; }
+			return { ok: true, message: `TXT 已导出。${rt.path ? `（${rt.path}）` : ''}` };
 		}
 		if(action === 'word'){
 			const word = await exportWordByFormat(payload);
+			if(word.cancelled){ return { ok: false, message: '已取消保存。' }; }
+			if(!word.ok){ return { ok: false, message: `${word.label} 保存失败：${word.error || '未知错误'}` }; }
 			return { ok: true, message: `${word.label} 已导出。${shotSuffix}` };
 		}
 		if(action === 'pdf'){
 			const ok = await exportPdf(payload);
+			if(ok === 'cancelled'){ return { ok: false, message: '已取消保存。' }; }
 			if(ok){
 				let msg = `PDF 已导出。${shotSuffix}`;
 				if(_pdfExportedViaVector){ msg = `PDF 已导出（文字可选中·可搜索，已弹出「保存」可选位置与文件名）。${shotSuffix}`; }
 				else if(_pdfExportedViaPrint){ msg = `已打开系统打印窗口，请选择『存储为 PDF』——文字可选中、自动分页不截断。${shotSuffix}`; }
 				return { ok: true, message: msg };
 			}
-			// PDF 生成失败(渲染空白/异常)→ 自动导出 TXT,用户必有产物(同 copy 分支降级先例)。
-			exportTxt(payload);
+			// PDF 生成失败(渲染空白/异常)→ 自动导出 TXT,用户必有产物(同 copy 分支降级先例)。[Q-410] 取消 / 失败如实报。
+			const rt2 = await exportTxt(payload);
+			if(rt2 && rt2.cancelled){ return { ok: false, message: 'PDF 生成失败，改为导出 TXT，但已取消保存。' }; }
+			if(!(rt2 && rt2.ok)){ return { ok: false, message: `PDF 生成失败，且 TXT 保存失败：${(rt2 && rt2.error) || '未知错误'}` }; }
 			return { ok: true, message: 'PDF 生成失败，已自动导出 TXT（内容相同，可改用 Word）。' };
 		}
 		if(action === 'all'){
 			const copied = await copyTextSmart(payload.text);
-			exportTxt(payload);
+			// [Q-410] 桌面壳逐格式弹保存框;任一格式取消即停,不报「已导出」。
+			const rtAll = await exportTxt(payload);
+			if(rtAll && rtAll.cancelled){ return { ok: false, message: '已取消保存（后续格式未导出）。' }; }
 			const word = await exportWordByFormat(payload);
+			if(word.cancelled){ return { ok: false, message: 'TXT 已导出；Word 已取消保存（PDF 未导出）。' }; }
 			// 「导出全部」是打包下载,不弹打印窗口(allowPrint:false 走栅格自动落盘);
 			// 需可选中文字 PDF 请用独立「导出 PDF」按钮(打印路径)。
 			const pdfOk = await exportPdf(payload, { allowPrint: false });
-			const got = ['TXT', word.label].concat(pdfOk ? ['PDF'] : []);
+			if(pdfOk === 'cancelled'){ return { ok: false, message: `已导出 TXT / ${word.label}；PDF 已取消保存。` }; }
+			const got = (rtAll && rtAll.ok ? ['TXT'] : []).concat(word.ok ? [word.label] : []).concat(pdfOk ? ['PDF'] : []);
 			let message = `已导出 ${got.join(' / ')}${copied ? '，并复制到剪贴板' : ''}。`;
 			if(!copied){ message += '（剪贴板不可用，全文已在 TXT 内）'; }
 			if(!pdfOk){ message += '（PDF 生成失败，可用 Word）'; }

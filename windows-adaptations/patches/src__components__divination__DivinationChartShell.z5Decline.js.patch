@@ -1,14 +1,14 @@
 diff --git a/astrostudyui/src/components/divination/DivinationChartShell.js b/astrostudyui/src/components/divination/DivinationChartShell.js
-index 131fe861..7fcd41e3 100644
+index 48054d03..0647c4ff 100644
 --- a/astrostudyui/src/components/divination/DivinationChartShell.js
 +++ b/astrostudyui/src/components/divination/DivinationChartShell.js
-@@ -225,6 +225,9 @@ class DivinationChartShell extends Component{
- 	}
- 
- 	componentDidUpdate(){
+@@ -265,6 +265,9 @@ class DivinationChartShell extends Component{
+ 	// 盘面美术 / 外环样式,app model 变了而本页不动(左栏下拉也仍显旧值),要重挂载才跟上。
+ 	// 改为订阅宿主透传的全局值——只在全局值本身发生变化(prev→next)时同步,页内手动改的档位不被回冲。
+ 	componentDidUpdate(prevProps){
 +		// (PERF-R12 W3b-Z5 评估后不做:同一挂载期第二次「应用案例」正是靠这里轮询新 caseVersion
 +		// 被拾起 —— 任何「已应用即跳过」式守卫都会吞掉它 = 功能降级;每 update 一次 localStorage
 +		// 读是它换来的正确性成本,保留。)
- 		this.applyRestoreIfAny();
- 	}
- 
+ 		if(prevProps && prevProps.wheelArt !== this.props.wheelArt && this.props.wheelArt !== undefined && this.props.wheelArt !== null){
+ 			const nextArt = AstroConst.normalizeWheelArt(this.props.wheelArt);
+ 			if(nextArt !== this.state.wheelArt){ this.setState({ wheelArt: nextArt }); }

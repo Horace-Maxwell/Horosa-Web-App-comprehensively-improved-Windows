@@ -170,7 +170,8 @@ export function houseCusps(system, ramc, phi, eps){
 		return { cusps: opp(c), full: true };
 	}
 	// campanus/morinus/koch 及未知:分宫机制(卯酉圈等分/黄道系赤经等分/出生地平弧)
-	// 无仓内权威闭式,只出四轴(诚实少列,不臆造中间宫首)。
+	// [Q-532/T-494] 本页尚未实现这三制的中间宫首(Morinus / Campanus / Koch 各有标准闭式,后端 swisseph 亦出全 12 宫;
+	// 只是天球层未接),只出四轴(诚实少列,不臆造中间宫首)。帮助文案同口径。
 	const c = new Array(12).fill(null);
 	c[0] = asc; c[9] = mc; c[3] = ic; c[6] = dsc;
 	return { cusps: c, full: false };
@@ -186,7 +187,7 @@ const PD_FRAME_TO_CUSP_SYSTEM = {
 	regiomontanus: 'regiomontanus',
 	topocentric: 'topocentric',
 	meridian: 'meridian',
-	equal_hour_circle: 'equal_hour_circle',
+	equal_hour_circle: 'meridian',   // [Q-531/T-493] 时圈等分=Meridian 定义(与后端 _PD_FRAME_HSYS 同映),两档同系
 	porphyry: 'porphyry',
 };
 

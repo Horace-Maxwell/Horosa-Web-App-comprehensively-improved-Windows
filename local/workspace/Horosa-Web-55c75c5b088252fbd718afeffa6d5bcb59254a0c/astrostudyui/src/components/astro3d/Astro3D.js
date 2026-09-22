@@ -119,6 +119,9 @@ function traverseMaterials (object, callback) {
 
 
 const ChartOptKey = 'chart3dOpt';
+// 相机与球心距离的「半径倍数」语义(见 chartOpt 默认值注释)
+const CAM_DIST_RATIO_DEFAULT = 3.5;
+const CAM_DIST_RATIO_MIN = 2;
 const ModelUnavailableAtKey = 'horosa3dModelUnavailableAt';
 const ModelUnavailableCooldown = 10 * 60 * 1000;
 
@@ -193,6 +196,16 @@ function shouldSkipModelLoad(){
 	return (Date.now() - unavailableAt) < ModelUnavailableCooldown;
 }
   
+// [TL-15] 光照两档的可见效果接在太阳晕透明度(太阳光强度)与星点透明度(环境光强度)上:缺省值 = 完全不透明(封顶),
+// 映射锚必须等于缺省,滑杆上限也只到缺省(再往上无变化);建盘时同样按这两档应用(此前只运行时改才生效,刷新后回原样)。
+const SUN_INTENSITY_DEFAULT = 6.5;
+const AMBIENT_INTENSITY_DEFAULT = 0.3;
+// 取色器值('#rrggbb' 字符串 / 数值)→ 数值色(与 changeOpt 内的 toHex 同逻辑,供建盘路径使用)
+function colorToHex(v){
+	if(typeof v === 'string'){ return parseInt(v.replace('#', ''), 16); }
+	return v;
+}
+
 class Astro3D {
 	constructor(option){
 		this.maxCamDistRatio = 30;
@@ -251,9 +264,9 @@ class Astro3D {
 			'纹理编码': 'sRGB',
 			'太阳光颜色': 0xffffff,
 			'天球线条颜色': '#ff0000',
-			'太阳光强度': 6.5,
+			'太阳光强度': SUN_INTENSITY_DEFAULT,
 			'环境光颜色': 0xffffff,
-			'环境光强度': 0.3,
+			'环境光强度': AMBIENT_INTENSITY_DEFAULT,
 			'文本颜色': AstroConst.Astro3DColor.TextStroke,
 			'恒星距离行星圈': 50,
 			'恒星半径': 1.5,
@@ -266,7 +279,11 @@ class Astro3D {
 			'摄像机旋转': false,
 			'摄像机天球经度': 0,
 			'摄像机天球纬度': 45,
-			'摄像机与球心距离': this.radius * 3.5,
+			// [用户 APP 实报 2026-09-17:3D 盘缩放后球体忽大忽小] 此值改为「半径倍数」(缺省 3.5),不再是绝对像素:
+			// 天球半径 = 画布 CSS 高/2,随缩放档、窗口大小而变;旧版把首次建盘时的绝对距离(半径×3.5,如 1155)存进
+			// localStorage,之后任何一档缩放下半径变了、距离没变 → 缩小档球体撑爆画面、放大档缩成一小团。
+			// 倍数语义与画布尺寸无关,任何缩放档取景一致;旧存量(绝对像素)在 normalizeCamDistance 一次性折算。
+			'摄像机与球心距离': CAM_DIST_RATIO_DEFAULT,
 		};
 		let json = localStorage.getItem(ChartOptKey);
 		if(json){
@@ -282,6 +299,14 @@ class Astro3D {
 			}catch(e){ /* ignore */ }
 		}
 		this.chartOpt.maxEarthRadius = this.radius - 20;
+		{
+			const rawDist = this.chartOpt['摄像机与球心距离'];
+			const normDist = this.normalizeCamDistance(rawDist);
+			if(normDist !== rawDist){
+				this.chartOpt['摄像机与球心距离'] = normDist;
+				safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt));   // 旧绝对像素 → 倍数,落盘一次
+			}
+		}
 
 		let dom = document.getElementById(this.chartId);
 		this.planetHintDiv = document.createElement('div');
@@ -703,8 +728,10 @@ class Astro3D {
 			});
 		}
 		const asc = plan.ascFrom + plan.ascDelta * e;
+		const prevRotY = this.group.rotation.y;
 		this.group.rotation.y = (270 - asc) * DEG;
 		this.group.userData._vAscLon = norm360(asc);
+		this.rotateCameraWithGroup((this.group.rotation.y - prevRotY) * 180 / Math.PI);   // [Q-246/T-205] 相机随盘面同框架
 		if(plan.sun && this.sunDirectLight){
 			const lon = norm360(plan.sun.fromLon + plan.sun.dLon * e);
 			const lat = plan.sun.fromLat + (plan.sun.toLat - plan.sun.fromLat) * e;
@@ -976,8 +1003,17 @@ class Astro3D {
 	}
 
 	clickHandler(event){
-		this.mouseVec.x = (event.offsetX / this.width) * 2 - 1;
-		this.mouseVec.y = -(event.offsetY / this.height) * 2 + 1;
+		// 🔴 不用 offsetX/offsetY:系统浏览器内核在页面缩放(CSS zoom)下把它们报成**视觉域**(1.8 档正中点报 360 而不是 200),
+		// 与 this.width(布局域)相除 = 命中点偏 z 倍(100% 档重合,看不出来)。与触屏路径同式:先减 rect、再按 rect 宽高归一 —— 两端同域的比值,与缩放无关。
+		const dom = document.getElementById(this.chartId);
+		const rect = dom && dom.getBoundingClientRect ? dom.getBoundingClientRect() : null;
+		if(rect && rect.width && rect.height){
+			this.mouseVec.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+			this.mouseVec.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+		}else{
+			this.mouseVec.x = (event.offsetX / this.width) * 2 - 1;
+			this.mouseVec.y = -(event.offsetY / this.height) * 2 + 1;
+		}
 		this.calcMousePoint();
 	}
 
@@ -1377,7 +1413,7 @@ class Astro3D {
 				// 场内材质全为线框/精灵(不受光)——灯只对未来受光材质生效;可见效果接到太阳晕:
 				// 默认 6.5 → opacity 1(封顶,零回归),向下拖 = 晕渐隐。
 				this.sunDirectLight.intensity = val;
-				this.group.traverse((o)=>{ if(o.name === 'SunHalo' && o.material){ o.material.opacity = Math.max(0, Math.min(1, val / 6.5)); } });
+				this.group.traverse((o)=>{ if(o.name === 'SunHalo' && o.material){ o.material.opacity = Math.max(0, Math.min(1, val / SUN_INTENSITY_DEFAULT)); } });
 				break;
 			case '环境光颜色':
 				// 灯保留;可见效果 = 恒星/距星精灵色调 tint(整场星色氛围)
@@ -1395,7 +1431,7 @@ class Astro3D {
 					if(item.name === 'AmbientLight'){ item.intensity = val; }
 				});
 				{
-					const op = Math.max(0, Math.min(1, val / 0.7));
+					const op = Math.max(0, Math.min(1, val / AMBIENT_INTENSITY_DEFAULT));   // [TL-15] 锚=缺省(此前锚 0.7、缺省 0.3:首次碰滑杆星点骤暗到 43%)
 					[this.starGroup, this.beidouGroup, this.beijiGroup, this.su28Group, this.su28VirGroup].forEach((g)=>{
 						if(!g){ return; }
 						g.traverse((o)=>{ if(o.isSprite && o.material){ o.material.opacity = op; o.material.transparent = true; } });
@@ -1452,7 +1488,7 @@ class Astro3D {
 			this.setupCameraPos();
 		})
 
-		let camdist = folder.add(this.chartOpt, '摄像机与球心距离', this.radius * 2 , this.radius * this.maxCamDistRatio);
+		let camdist = folder.add(this.chartOpt, '摄像机与球心距离', CAM_DIST_RATIO_MIN, this.maxCamDistRatio).step(0.1);   // 半径倍数
 		camdist.onChange((val)=>{
 			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.setupCameraPos();
@@ -1529,7 +1565,7 @@ class Astro3D {
 			}
 			this.sunDirectLight.color.setHex(value);
 		});
-		let sunIns = colorFolder.add(this.chartOpt, '太阳光强度', 0, 10);
+		let sunIns = colorFolder.add(this.chartOpt, '太阳光强度', 0, SUN_INTENSITY_DEFAULT);   // [TL-15] 范围收窄到有效段(缺省 = 封顶,再往上无变化)
 		sunIns.onChange((val)=>{
 			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.sunDirectLight.intensity = val;
@@ -1548,7 +1584,7 @@ class Astro3D {
 				}
 			});
 		});
-		let ambIns = colorFolder.add(this.chartOpt, '环境光强度', 0, 2);
+		let ambIns = colorFolder.add(this.chartOpt, '环境光强度', 0, AMBIENT_INTENSITY_DEFAULT);   // [TL-15] 范围收窄到有效段(缺省 = 封顶)
 		ambIns.onChange((val)=>{
 			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.lightGroup.children.map((item, idx)=>{
@@ -1628,6 +1664,25 @@ class Astro3D {
 			this.group.add(this.su28VirGroup);
 		}else{
 			this.group.add(this.su28Group);
+		}
+		// [TL-14] 运行时切换只走这里(建盘时是 selectSu28 → hideStars 两步):挂回所选一组后再按「隐藏28宿距星」应用一次,
+		// 此前隐藏开着时切换,距星组被无条件挂回 → 开关显示「隐藏」画面却有距星
+		if(this.chartOpt['隐藏28宿距星']){
+			this.hideStars(true, val ? this.su28VirGroup : this.su28Group);
+		}
+	}
+
+	// [TL-15] 环境光两档对星点精灵的可见效果(强度→透明度,锚=缺省;颜色→tint):建盘与运行时改共用一处
+	applyAmbientToSprite(sprite){
+		if(!sprite || !sprite.material){ return; }
+		const ins = Number(this.chartOpt['环境光强度']);
+		if(Number.isFinite(ins)){
+			sprite.material.opacity = Math.max(0, Math.min(1, ins / AMBIENT_INTENSITY_DEFAULT));
+			sprite.material.transparent = true;
+		}
+		const col = this.chartOpt['环境光颜色'];
+		if(col !== undefined && col !== null){
+			try{ sprite.material.color.setHex(colorToHex(col)); }catch(e){ /* 非法色值忽略 */ }
 		}
 	}
 
@@ -1804,14 +1859,50 @@ class Astro3D {
 		this.scene.add(this.group);
 	}
 
+	// [Q-246/T-205] 盘面整组绕黄极转 (270 − 上升点)(initMesh / 补间 applyMorphFrame),相机却按未旋转世界系定位
+	// → 「春分点」等预设与「摄像机天球经度」滑杆只在上升点 = 270° 时对准。统一口径:预设/滑杆值 = 黄道经度,
+	// 换算成世界系时加上组旋转角;读回相机经度时减去。
+	groupRotationDeg(){
+		return this.group ? (this.group.rotation.y * 180 / Math.PI) : 0;
+	}
+
+	// 相机距离:存的是半径倍数。旧存量是绝对像素(> maxCamDistRatio 即可判定,典型 700~2000),它对应的半径
+	// 是「首次建盘那次」的画布,现已不可知 —— 按当前半径折算会失真(实测:1.25 档存下的 822 在 0.7 档折成 1.3 倍,
+	// 夹到 2 倍后球体仍撑爆画面),所以旧存量一律回到缺省 3.5 倍(旧语义本就随缩放失真,不值得保留);
+	// 之后用户再调滑杆存的就是倍数,任何缩放档/窗口尺寸取景一致。
+	normalizeCamDistance(v){
+		let n = Number(v);
+		if(!Number.isFinite(n) || n <= 0 || n > this.maxCamDistRatio){ return CAM_DIST_RATIO_DEFAULT; }
+		return Math.min(this.maxCamDistRatio, Math.max(CAM_DIST_RATIO_MIN, n));
+	}
+
+	camDistance(){
+		return this.normalizeCamDistance(this.chartOpt['摄像机与球心距离']) * this.radius;
+	}
+
 	setupCameraPos(){
-		let r = this.chartOpt['摄像机与球心距离'];
+		let r = this.camDistance();
 		let lon = this.chartOpt['摄像机天球经度'];
 		let lat = this.chartOpt['摄像机天球纬度'];
-		const p = sph(lon, lat, r);
+		const p = sph(Number(lon) + this.groupRotationDeg(), lat, r);
 		this.camera.position.set(p.x, p.y, p.z);
 		this.camera.lookAt(this.scene.position);
 		this.camera.updateProjectionMatrix();
+	}
+
+	// 组旋转角变化 Δ(度)时把相机绕黄极同步转 Δ:用户当前视角相对盘面(黄道经度)不变(相机随盘面同框架)。
+	rotateCameraWithGroup(deltaDeg){
+		if(!this.camera || !Number.isFinite(deltaDeg) || Math.abs(deltaDeg) < 1e-9){
+			return;
+		}
+		const cur = this.camera.position;
+		const r = cur.length();
+		if(!(r > 0)){ return; }
+		const lat = Math.asin(cur.y / r) * 180 / Math.PI;
+		const lon = ((Math.atan2(-cur.z, cur.x) * 180 / Math.PI) + 360) % 360;
+		const p = sph(lon + deltaDeg, lat, r);
+		this.camera.position.set(p.x, p.y, p.z);
+		this.camera.lookAt(this.scene.position);
 	}
 
 	// —— WS-1 相机预设+缓动飞行(手写 rAF 缓动,本仓范式不引 gsap) ——
@@ -1839,8 +1930,9 @@ class Astro3D {
 		const cur = this.camera.position;
 		const curR = cur.length();
 		const curLat = Math.asin(cur.y / (curR || 1)) * 180 / Math.PI;
-		const curLon = ((Math.atan2(-cur.z, cur.x) * 180 / Math.PI) + 360) % 360;
-		const dstR = this.chartOpt['摄像机与球心距离'];
+		const rot = this.groupRotationDeg();   // [Q-246/T-205] 黄道经度 ↔ 世界经度 换算
+		const curLon = ((Math.atan2(-cur.z, cur.x) * 180 / Math.PI) - rot + 720) % 360;
+		const dstR = this.camDistance();
 		let dLon = shortestArcDelta(curLon, preset.lon);   // 最短弧(与滑移补间同源公式)
 		const t0 = performance.now();
 		const dur = 1200;
@@ -1855,7 +1947,7 @@ class Astro3D {
 			const lon = curLon + dLon * e;
 			const lat = curLat + (preset.lat - curLat) * e;
 			const r = Math.exp(Math.log(curR) + (Math.log(dstR) - Math.log(curR)) * e);
-			const p = sph(lon, lat, r);
+			const p = sph(lon + this.groupRotationDeg(), lat, r);
 			this.camera.position.set(p.x, p.y, p.z);
 			this.camera.lookAt(this.scene.position);
 			if(t < 1){
@@ -2357,7 +2449,9 @@ class Astro3D {
 				halo.name = 'SunHalo';
 				// [接线转正] 太阳晕透明度受「太阳光强度」驱动(0-10,默认 6.5 = 现观感 1.0 封顶不回归)
 				const _si = Number(this.chartOpt['太阳光强度']);
-				if(halo.material && Number.isFinite(_si)){ halo.material.opacity = Math.max(0, Math.min(1, _si / 6.5)); }
+				if(halo.material && Number.isFinite(_si)){ halo.material.opacity = Math.max(0, Math.min(1, _si / SUN_INTENSITY_DEFAULT)); }
+				// [TL-15] 建盘同时应用「太阳光颜色」色调(此前只运行时改才生效)
+				{ const _sc = this.chartOpt['太阳光颜色']; if(halo.material && _sc !== undefined && _sc !== null){ try{ halo.material.color.setHex(colorToHex(_sc)); }catch(e){ /* 非法色值忽略 */ } } }
 				grp.add(halo);
 				grp.add(glyph);
 				return grp;
@@ -2767,6 +2861,7 @@ class Astro3D {
 			if(useStarSprite){
 				const style = STAR_STYLES[modelId] || STAR_STYLES.Star;
 				mesh = makeStarSprite(style.color, style.size * Math.max(0.5, starR), style.core);
+				this.applyAmbientToSprite(mesh);   // [TL-15] 建盘即按环境光强度/颜色应用
 				// 名字不做常显标签(满天名字=视觉噪音;Sprite 子对象还继承父 scale 会爆尺寸)——
 				// hover 提示卡照旧给全名,重要星靠色彩/尺寸分级(北极金、北斗白、28宿青金)辨识。
 			}else{
@@ -2913,6 +3008,7 @@ class Astro3D {
 
 		let asc = AstroHelper.getObject(this.chartObj, AstroConst.ASC);
 		this.group.rotateY((270-asc.lon) * Math.PI / 180);
+		if(this.camera){ this.setupCameraPos(); }   // [Q-246/T-205] 组旋转后按黄道经纬重定相机(初建时相机先于组旋转定位)
 
 		if(this.chartOpt['隐藏地球附近星体']){
 			this.hideEarthPlanets()

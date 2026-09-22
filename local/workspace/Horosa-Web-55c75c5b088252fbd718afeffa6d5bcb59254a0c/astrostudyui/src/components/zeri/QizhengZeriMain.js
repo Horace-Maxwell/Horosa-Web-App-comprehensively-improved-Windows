@@ -4,9 +4,12 @@
 // 🔴 扫描=远端 astropy /qizhengelectionscan(swisseph 直连分钟粒度;判定表 guolao_const↔
 // guolaoData 成对同源);93 天限单请求,结果区间分钟级(与本地时辰引擎族不同形)。
 import { Component } from 'react';
+import { readGlobalZeriSnapshotExplainRows } from '../../utils/zeriSnapshotPrefs';
+import { restoreZeriWorkbenchFromCase, buildZeriCasePayload } from './zeriCaseRestore';
 import GuoLaoChartMain from '../guolao/GuoLaoChartMain';
 import QizhengZeriWorkbench from './QizhengZeriWorkbench';
 import ZeriHostEntry from './ZeriHostEntry';
+import { openKentangCaseDrawer } from '../../utils/kentangCaseSave';
 import DateTime from '../comp/DateTime';
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { newQizhengLeaf, newQizhengGroup, compileQizhengTree } from '../../divination/zeri/qizhengZeriConditionTypes';
@@ -15,7 +18,10 @@ import { runSegmentedRemoteScan } from '../../divination/zeri/scanOrchestrator';
 import { buildQizhengZeriSnapshotExtra } from '../../divination/zeri/qizhengZeriSnapshot';
 import { qizhengZeriSchemeStore } from '../../divination/zeri/schemeStore';
 import { fetchChart } from '../../services/astro';
-import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+
+const ZERI_SCOPE = 'qizhengzeri';
+const ZERI_LABEL = '七政择日';
 
 function pad2(n){
 	return n < 10 ? `0${n}` : `${n}`;
@@ -65,6 +71,7 @@ export default class QizhengZeriMain extends Component{
 		this._scanTree = null;
 		this._scanUiJson = '';
 		this.openSearch = this.openSearch.bind(this);
+		this.saveCase = this.saveCase.bind(this);
 		this.renderLeftExtra = this.renderLeftExtra.bind(this);
 		this.runSearch = this.runSearch.bind(this);
 		this.cancelScan = this.cancelScan.bind(this);
@@ -76,6 +83,11 @@ export default class QizhengZeriMain extends Component{
 
 	componentDidMount(){
 		this.requestChartAndPlot();
+		restoreZeriWorkbenchFromCase(this, ZERI_SCOPE);   // [Q-270/T-264] 载入存案还原工作台态
+	}
+
+	componentDidUpdate(){
+		restoreZeriWorkbenchFromCase(this, ZERI_SCOPE);
 	}
 
 	componentWillUnmount(){
@@ -88,7 +100,9 @@ export default class QizhengZeriMain extends Component{
 	// 拉 /chart 底盘并触发七政重排(GuoLaoChartMain hook.fun(fields, chartObj) 双参,
 	// 与六壬/三式宿主同律;chart 断链时盘区留空,远端扫描不受影响)。
 	requestChartAndPlot(frozen){
-		const fields = this.buildFields(frozen);
+		// [Q-421/T-385] frozen 时优先用 onPickInterval 钉好的那一份(与 render 传给 GuoLaoChartMain 的同一引用),
+		// 否则宿主发的是冻结值、内嵌页 genParams() 读的却是 render 活值 → 显示盘与母快照按新口径起旧结果行。
+		const fields = frozen ? (this._fieldsMemo || this.buildFields(true)) : this.buildFieldsMemo();
 		const geo = (frozen && this._scanGeo) || this.state.geo || {};
 		const dt = fields.date.value;
 		const param = {
@@ -122,6 +136,27 @@ export default class QizhengZeriMain extends Component{
 		}).catch(()=>{ /* 后端不可达:盘区留空 */ });
 	}
 
+	// [挂载自检 F-36] 存为事盘:此前本宿主无存档钮 → CASE_TYPE_OPTIONS 登记的「七政择日」事盘类型恒无实例(源层挂载恒无产出)。
+	// 快照取本宿主槽(母技法全文+择日三段,母组件经 composeAiSnapshot 存入 scope 槽);缺槽时至少存择日三段。
+	// 事盘源层按 payload.module=本 scope 认领 payload.snapshot(与 qimenzeri 同律)。
+	saveCase(){
+		if(!this.props.dispatch){ return; }
+		let snapshot = '';
+		try{ const m = loadModuleAISnapshot(ZERI_SCOPE); snapshot = m && m.content ? `${m.content}` : ''; }catch(e){ snapshot = ''; }
+		if(!snapshot){ try{ snapshot = this.composeAiSnapshot('') || ''; }catch(e){ snapshot = ''; } }
+		openKentangCaseDrawer({
+			dispatch: this.props.dispatch,
+			fields: this.buildFields(true),
+			module: ZERI_SCOPE,
+			label: ZERI_LABEL,
+			payload: {
+				module: ZERI_SCOPE,
+				zeri: buildZeriCasePayload(this)   /* [Q-270/T-264] 补 geo/options/natal/pickText,载入存案可还原工作台与点选时刻 */,
+				snapshot,
+			},
+		});
+	}
+
 	openSearch(){
 		this.setState({ searchOpen: true });
 	}
@@ -130,6 +165,7 @@ export default class QizhengZeriMain extends Component{
 		return (
 			<ZeriHostEntry
 				label="七政择日"
+				onSave={this.props.dispatch ? this.saveCase : undefined}
 				onOpen={this.openSearch}
 			/>
 		);
@@ -253,6 +289,7 @@ export default class QizhengZeriMain extends Component{
 				// compose 不可达 → 'qizhengzeri' 槽恒空(扫出结果导出却报无内容,审查实抓)。
 				// 扫描完成即直写三段版兜底;主链正常时后续重排懒存(compose 包基底)覆写成全版。
 				try{ saveModuleAISnapshot('qizhengzeri', this.composeAiSnapshot('') || ''); }catch(e2){ /* 静默 */ }
+				this.prefetchSnapshotExplains(rows);   // [Q-453] 判读树是服务端异步:预取前 N 行后重存本槽快照
 			});
 		}catch(e){
 			if(this.unmounted){
@@ -276,7 +313,27 @@ export default class QizhengZeriMain extends Component{
 		const raw = (which === 'end' ? (row.pickEnd || row.end) : (row.pick || row.start)) || row.start;
 		const text = raw.length === 16 ? `${raw}:00` : raw;
 		this.setState({ pickText: text, searchOpen: false }, ()=>{
+			// [Q-421/T-385] 与太乙宿主同律:pick 后把 memo 钉成这份冻结 fields,
+			// render 复用同一引用 → 内嵌七政页(requestGuolaoBundle→genParams 读 props.fields)
+			// 拿到的就是扫描口径;用户此后改左栏参数 → 指纹变 → 正常按活值重排。
+			const frozen = this.buildFields(true);
+			this._fieldsKey = JSON.stringify([this.state.pickText, this.state.geo, this.state.options]);
+			this._fieldsMemo = frozen;
 			this.requestChartAndPlot(true);
+		});
+	}
+
+	// [Q-453 裁决 2026-09-18] 判读树是服务端异步:扫描完成后预取前 N 行(全局可配,缺省 3=3 次轻量请求),取齐再重存本槽快照;
+	// 新一轮扫描 / 卸载作废旧批(epoch)。builder 经 explainAt 读缓存(缺=只列清单,零回归)。
+	prefetchSnapshotExplains(rows){
+		this._snapshotExplains = null;
+		const n = Math.min(readGlobalZeriSnapshotExplainRows(), Array.isArray(rows) ? rows.length : 0);
+		const epoch = (this._explainEpoch = (this._explainEpoch || 0) + 1);
+		if(!n){ return; }
+		Promise.all(rows.slice(0, n).map((r)=>Promise.resolve().then(()=>this.explainRow(r)).catch(()=>null))).then((list)=>{
+			if(this.unmounted || epoch !== this._explainEpoch){ return; }
+			this._snapshotExplains = list;
+			try{ saveModuleAISnapshot('qizhengzeri', this.composeAiSnapshot('') || ''); }catch(e){ /* 静默 */ }
 		});
 	}
 
@@ -296,6 +353,7 @@ export default class QizhengZeriMain extends Component{
 				tree: this._scanUiTree || this.state.tree,	// 冻结树:与命中行同源(活树曾致条件描述≠结果,复审 F5)
 				results: this.state.results,
 				truncated: this.state.truncated,
+				explainAt: (row, i)=>(this._snapshotExplains ? this._snapshotExplains[i] || null : null),   // [Q-453] 预取缓存
 			});
 			return extra ? `${baseText ? `${baseText}\n\n` : ''}${extra}` : baseText;
 		}catch(e){
@@ -307,6 +365,9 @@ export default class QizhengZeriMain extends Component{
 	buildFields(frozen){
 		const t = mkDT(this.state.pickText);
 		const geo = (frozen && this._scanGeo) || this.state.geo || {};
+		// [挂载自检 F-37] 工作台扫描口径(宿制/罗计交点/月孛)进 pick 后显示盘:母组件按 fields.doubingSu28/guolaoNodeType/
+		// guolaoLilithType 优先(guolaoSu28ModeFromFields/guolaoFieldValue),此前硬编 2/mean/mean → 显示盘≠命中判定口径。
+		const o = (frozen && this._scanOptions) || this.state.options || {};
 		return {
 			date: mkField(t),
 			time: mkField(t.clone ? t.clone() : t),
@@ -326,17 +387,17 @@ export default class QizhengZeriMain extends Component{
 			strongRecption: mkField(0),
 			simpleAsp: mkField(0),
 			virtualPointReceiveAsp: mkField(0),
-			doubingSu28: mkField(2),
+			doubingSu28: mkField(o.su28Mode !== undefined && o.su28Mode !== null && `${o.su28Mode}` !== '' ? Number(o.su28Mode) : 2),
 			guolaoAyanamsa: mkField(''),
 			guolaoBodyMode: mkField('taiyin'),
 			guolaoEqTropicalAnchor: mkField('dongzhi'),
 			guolaoGufaPrecess: mkField(0),
 			guolaoLifeMasterMode: mkField('gong'),
 			guolaoLifeMode: mkField('asc'),
-			guolaoLilithType: mkField('mean'),
+			guolaoLilithType: mkField(o.lilithType === 'true' ? 'true' : 'mean'),
 			guolaoMinorLimitType: mkField('minor'),
 			guolaoNodeMode: mkField('north_ketu'),
-			guolaoNodeType: mkField('mean'),
+			guolaoNodeType: mkField(o.nodeType === 'true' ? 'true' : 'mean'),
 			guolaoTongxianBase: mkField('tong10'),
 			guolaoTrueSolarTime: mkField('true'),
 			guolaoTuibianMethod: mkField('jiyuan'),
@@ -347,6 +408,17 @@ export default class QizhengZeriMain extends Component{
 		};
 	}
 
+	// [Q-421/T-385] render 传内嵌七政页的 fields 走 memo:指纹(pick 时刻 / 地点 / 扫描口径)不变则复用同一引用,
+	// 既避免工作台每次 setState 都让内嵌页重排,也让 pick 后钉住的冻结份稳定活到下一次参数变更。
+	buildFieldsMemo(){
+		const key = JSON.stringify([this.state.pickText, this.state.geo, this.state.options]);
+		if(this._fieldsKey !== key){
+			this._fieldsKey = key;
+			this._fieldsMemo = this.buildFields();
+		}
+		return this._fieldsMemo;
+	}
+
 	render(){
 		const resultsStale = !!(this._scanUiJson && this.currentUiJson() !== this._scanUiJson);
 		return (
@@ -354,10 +426,11 @@ export default class QizhengZeriMain extends Component{
 				<div style={{ flex: 1, minHeight: 0 }}>
 					<GuoLaoChartMain
 						value={this.state.chartValue}
-						fields={this.buildFields()}
+						fields={this.buildFieldsMemo()}
 						hook={this.qizhengHook}
 						height={this.props.height}
 						techniqueScope="qizhengzeri"
+						dispatch={this.props.dispatch}   /* [Q-111/T-18] 同紫微宿主 */
 						composeAiSnapshot={this.composeAiSnapshot}
 						renderLeftExtra={this.renderLeftExtra}
 					/>
@@ -373,6 +446,7 @@ export default class QizhengZeriMain extends Component{
 					onOptionsChange={(options)=>this.setState({ options })}
 					tree={this.state.tree}
 					frozenTree={this._scanUiTree}
+					previewOptions={this._scanOptions || this.state.options}   /* [Q-271/ZC-22] 冻结参数:搜索后改参数不改旧结果行的盘 */
 					onPreviewExplain={this.explainRow}
 					previewGeo={this._scanGeo || this.state.geo}
 					onTreeChange={(tree)=>this.setState({ tree })}

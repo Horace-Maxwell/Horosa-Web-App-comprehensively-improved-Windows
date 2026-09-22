@@ -7,10 +7,10 @@
 //   schemaKey  — 技法 key(getTechniqueSettingsSchema 取 schema)
 //   draft      — 当前 options 草稿对象({字段名: 值})
 //   onChange(name, value) — 字段更新回调(由父组件维护 draft)
-import { Switch, Select, Input } from 'antd';
+import { Switch, Select, Input, InputNumber } from 'antd';
 import moment from 'moment';
 import { XQDatePicker } from '../xq-ui';
-import { getTechniqueSettingsSchema } from '../../utils/techniqueMountSettings';
+import { getTechniqueSettingsSchema, isMountFieldVisible } from '../../utils/techniqueMountSettings';
 import styles from './TechniqueSettingsFields.less';
 
 function renderField(field, draft, onChange){
@@ -30,12 +30,17 @@ function renderField(field, draft, onChange){
 		);
 	}
 	if(field.type === 'select'){
+		// [Q-022/M-29] 显示值经 schema normalize(存档布尔 false/true → 0/1 下拉才有匹配档);无 normalize 原样
+		let shown = value;
+		if(typeof field.normalize === 'function' && value !== undefined && value !== null){
+			try{ shown = field.normalize(value); }catch(_e){ shown = value; }
+		}
 		return (
 			<div className={styles.techSettingRow} key={field.name}>
 				<span className={styles.techSettingLabel}>{field.label}</span>
 				<Select
 					size="small"
-					value={value}
+					value={shown}
 					style={{ minWidth: 180 }}
 					onChange={(val)=>onChange(field.name, val)}
 				>
@@ -100,18 +105,50 @@ function renderField(field, draft, onChange){
 			</div>
 		);
 	}
-	// 兜底:number / text
+	// [Q-019/M-20] number:受控 Input + Number(text) 会吃掉小数点中间态(1.5→15、0.9856→9856)且 min/max/step 不守;
+	// 改 InputNumber(字符串中间态由控件自持),按 schema min/max/step 夹取;清空=回 schema 默认。
+	if(field.type === 'number'){
+		const num = (value === undefined || value === null || value === '') ? null : Number(value);
+		return (
+			<div className={styles.techSettingRow} key={field.name}>
+				<span className={styles.techSettingLabel}>{field.label}</span>
+				<InputNumber
+					size="small"
+					value={Number.isFinite(num) ? num : null}
+					min={Number.isFinite(Number(field.min)) ? Number(field.min) : undefined}
+					max={Number.isFinite(Number(field.max)) ? Number(field.max) : undefined}
+					step={Number.isFinite(Number(field.step)) ? Number(field.step) : undefined}
+					style={{ maxWidth: 180, width: '100%' }}
+					onChange={(v)=>onChange(field.name, (v === null || v === undefined || v === '') ? field.default : v)}
+				/>
+			</div>
+		);
+	}
+	// 兜底:text
 	return (
 		<div className={styles.techSettingRow} key={field.name}>
 			<span className={styles.techSettingLabel}>{field.label}</span>
 			<Input
 				size="small"
-				value={`${value === undefined || value === null ? '' : value}`}
+				value={textFieldDisplayValue(value)}
 				style={{ maxWidth: 180 }}
-				onChange={(e)=>onChange(field.name, field.type === 'number' ? (e.target.value === '' ? field.default : Number(e.target.value)) : e.target.value)}
+				onChange={(e)=>onChange(field.name, e.target.value)}
 			/>
 		</div>
 	);
+}
+
+// [Q-020/M-26] text 字段的值可能是 normalize 产出的对象数组(紫微 taiSuiRelatives:[{branch,role,sex}],会话覆盖/同类默认都存归一后的值):
+// 此前 `${value}` 渲染成 [object Object],再编辑就把「[object」「Object]」当成支切碎原关系人 → 按 branch:role:sex 反序列化显示。
+export function textFieldDisplayValue(value){
+	if(value === undefined || value === null){ return ''; }
+	if(Array.isArray(value)){
+		return value.map((r)=>(r && typeof r === 'object' ? [r.branch, r.role, r.sex].filter(Boolean).join(':') : `${r}`)).filter(Boolean).join(' ');
+	}
+	if(typeof value === 'object'){
+		return [value.branch, value.role, value.sex].filter(Boolean).join(':');
+	}
+	return `${value}`;
 }
 
 export default function TechniqueSettingsFields({ schemaKey, draft, onChange }){
@@ -122,19 +159,9 @@ export default function TechniqueSettingsFields({ schemaKey, draft, onChange }){
 	// 按 group 分组(条件揭示 field.showWhen)。
 	const groups = [];
 	const groupMap = {};
-	const draftOrDefault = (name)=>{
-		const d = draft || {};
-		if(d[name] !== undefined && d[name] !== null && d[name] !== ''){ return d[name]; }
-		return (schema.fields.find((f)=>f.name === name) || {}).default;
-	};
 	schema.fields.forEach((field)=>{
-		if(typeof field.showWhen === 'function' && !field.showWhen(draft || {})){ return; }
-		// 对象式 when:{key:value} —— 曾无人实现(cetian 六个 kentang 条件项恒显,
-		// 书法档下改了也被后端忽略,「点了没反应」)。按草稿值(缺省回退字段默认)比对。
-		if(field.when && typeof field.when === 'object'){
-			const ok = Object.keys(field.when).every((k)=>`${draftOrDefault(k)}` === `${field.when[k]}`);
-			if(!ok){ return; }
-		}
+		// showWhen(函数)/对象式 when 单源 isMountFieldVisible([Q-022/M-30] 与 pruneOptionsToNonDefault 同判:隐藏字段不计数不下发)。
+		if(!isMountFieldVisible(field, draft || {}, schema)){ return; }
 		const g = field.group || '设置';
 		if(!groupMap[g]){ groupMap[g] = []; groups.push(g); }
 		groupMap[g].push(field);

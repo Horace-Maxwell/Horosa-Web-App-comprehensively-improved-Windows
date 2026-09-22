@@ -76,4 +76,19 @@ describe('寿命取主法 算法分歧', () => {
 		expect(al).toBe('sun');
 		expect(dor).toBe('sun');       // 阳性座→多罗不否决;非7/8/9宫→阿无性别约束;皆取日
 	});
+
+	// [Q-552/T-514] 多罗修斯「阴阳星座 × 阴阳象限双合」:象限一支此前未实现。阳性象限=升点→天顶(10/11/12 宫)、降点→天底(4/5/6 宫)。
+	test('多罗修斯象限双合:昼太阳落阳性座但阴性象限(狮子,7宫) → 多罗否决取上升;托勒密仍取日', () => {
+		const f = baseFacts();
+		f.planets.sun = P(125, 'leo', 5, 7);     // 狮子(阳性座)但第 7 宫属阴性象限(天顶→降点)
+		expect(hylegKey(f, 'ptolemy')).toBe('sun');
+		expect(hylegKey(f, 'dorotheus')).toBe('asc');
+		const r = runLifespan(f, { method: 'dorotheus' });
+		const sunRow = r.candidates.find((c) => c.key === 'sun');
+		expect(sunRow.aphetic).toBe(false);
+		expect(sunRow.reason).toMatch(/阴性象限/);
+		// 阳性座 + 阳性象限(11 宫)→ 双合通过
+		f.planets.sun = P(125, 'leo', 5, 11);
+		expect(hylegKey(f, 'dorotheus')).toBe('sun');
+	});
 });

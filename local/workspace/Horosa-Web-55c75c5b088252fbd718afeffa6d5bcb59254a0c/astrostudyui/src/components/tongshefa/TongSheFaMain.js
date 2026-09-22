@@ -774,6 +774,41 @@ function buildSixYaoMainSection(title, leftLines, rightLines, mainElem){
 	return lines;
 }
 
+// [Q-449/T-412] 「爻位」页签的逐爻取纳判语与「取舍总览」两块此前完全不进快照:页面逐爻写
+// 「N爻(角色)为阳/阴(纳/拒)。我看重/蔑视【对象】」(左卦思想、右卦实践),末附取舍两栏。
+// 与 UI 严格同源(同 LEFT/RIGHT_YAO_META + linePolarity/lineAdmit/lineVerb),并按裁决作**默认关候选段**
+// (段名已登记 AI_EXPORT_PRESET_SECTIONS.tongshefa 与 DEFAULT_OFF;未自定义用户缺省不纳入=字节零回归)。
+function buildYaoWeiSection(model){
+	if(!model || !model.baseLeft || !model.baseRight
+		|| !Array.isArray(model.baseLeft.lines) || !Array.isArray(model.baseRight.lines)){ return []; }
+	const sideLines = (hex, meta)=>hex.lines.map((value, idx)=>{
+		const m = meta[idx] || {};
+		return `${idx + 1}爻（${m.role || ''}）为${linePolarity(value)}（${lineAdmit(value)}）。我${lineVerb(value)}【${m.target || ''}】。`;
+	}).reverse();
+	const pick = (value)=>model.baseLeft.lines.map((line, idx)=>(
+		line === value && LEFT_YAO_META[idx] ? `思想·${LEFT_YAO_META[idx].role}：${LEFT_YAO_META[idx].target}` : null
+	)).filter(Boolean).concat(model.baseRight.lines.map((line, idx)=>(
+		line === value && RIGHT_YAO_META[idx] ? `实践·${RIGHT_YAO_META[idx].role}：${RIGHT_YAO_META[idx].target}` : null
+	)).filter(Boolean));
+	const lines = [];
+	lines.push('【爻位】');
+	lines.push('');
+	lines.push(`左卦（${shortGuaName(model.baseLeft.gua ? model.baseLeft.gua.name : '左卦')}）· 思想上：`);
+	sideLines(model.baseLeft, LEFT_YAO_META).forEach((t)=>lines.push(t));
+	lines.push('');
+	lines.push(`右卦（${shortGuaName(model.baseRight.gua ? model.baseRight.gua.name : '右卦')}）· 实践上：`);
+	sideLines(model.baseRight, RIGHT_YAO_META).forEach((t)=>lines.push(t));
+	const zhong = pick(0);
+	const mie = pick(1);
+	if(zhong.length || mie.length){
+		lines.push('');
+		lines.push('取舍总览：');
+		lines.push(`我看重：${zhong.length ? zhong.join('；') : '—'}`);
+		lines.push(`我蔑视：${mie.length ? mie.join('；') : '—'}`);
+	}
+	return lines;
+}
+
 function buildTongSheFaSnapshot(model){
 	const parts = [];
 	parts.push(...buildHexSnapshotSection('本卦', model.baseLeft, model.baseRight));
@@ -801,6 +836,7 @@ function buildTongSheFaSnapshot(model){
 	// UI 已显示(renderNaJiaTab 系列卡片)却此前不入快照。段名已登记 AI_EXPORT_PRESET_SECTIONS.tongshefa;
 	// 取数与 UI 严格同源(同 model 派生、同 relationByElem/groupFiveFriendItems/fmtRise 等函数);空数据不产段。
 	[
+		buildYaoWeiSection(model),
 		buildObserve32Section(model),
 		buildShiYingSection(model),
 		buildWuXingRelationSection(model),
@@ -1887,15 +1923,13 @@ class TongSheFaMain extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		if(height === '100%'){
-			height = '100%';
-		}else{
-			height = height;
-		}
-		const tabheight = typeof height === 'number' ? Math.max(height - 304, 260) : '100%';
-		const tabContentHeight = typeof tabheight === 'number' ? Math.max(tabheight - 46, 220) : '100%';
-		const leftHeight = typeof height === 'number' ? height : '100%';
+		// 定高一律走 100% 链(页 → 列 → 右列 flex → Tabs → pane → 叶子,样式见 .horosa-tongshefa-*):
+		// 此前内层用「工作区高 − 304 / − 46」估高,常数与真实标题行 / 选择行 / 页签高不等 —— 右栏叶子滚动盒比所在 pane 高出一截,
+		// 盒底那段内容落在 pane 之外、滚到底也看不见;左列同理多出十几像素。100% 链下任何缩放 / 窗高零常数。
+		const height = '100%';
+		const tabheight = undefined;
+		const tabContentHeight = '100%';
+		const leftHeight = '100%';
 		const model = buildTongSheFaModel(this.state.selected);
 
 		return (
@@ -1991,7 +2025,7 @@ class TongSheFaMain extends Component{
 								onChange={this.changeDetailTab}
 								tabPosition='top'
 								className='horosa-tongshefa-tabs'
-								style={{ height: tabheight }}
+								style={tabheight ? { height: tabheight } : undefined}
 							>
 							<TabPane tab='三十二观' key='observe32'>
 								<FreezeSubTab active={this.state.detailTab === 'observe32'}>{() => this.renderObserveTab(model, tabContentHeight)}</FreezeSubTab>

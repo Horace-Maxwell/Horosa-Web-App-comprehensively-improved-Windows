@@ -38,6 +38,19 @@ function reqHit(w, shans) {
 
 // 断诀查检（24 山粒度）。只出断语，不改得位/失位之判。
 //   shans: {山: 'sand'|'water'|'flat'}；xings: {山: 形态key}（形态条件命中才并入）。
+// [Q-223/T-186·FT-25] 某山某侧(砂/水)断诀里真会命中的形态选项:与 duanjueOf 的「形态命中」判据同式
+//   (选中形的 label 与条件文字互含);左栏下拉只列这些,免得 48 组里 31 组任何形态档都不改盘。
+export function jinsuoXingOptionsFor(shan, actual) {
+	const meta = JINSUO_SHAN_DUAN[shan];
+	if (!meta || !actual || actual === 'flat') { return []; }
+	const side = actual === 'water' ? 'shui' : 'sha';
+	const d = meta[side];
+	if (!d || !Array.isArray(d.when)) { return []; }
+	const conds = d.when.filter((w)=>w.kind === 'xing').map((w)=>w.cond);
+	return JINSUO_XING.filter((x)=>(x.side === 'both' || x.side === side)
+		&& conds.some((c)=>c.indexOf(x.label) >= 0 || x.label.indexOf(c) >= 0));
+}
+
 function duanjueOf(shans, xings, effSectors) {
 	const rows = [];
 	Object.keys(JINSUO_SHAN_DUAN).forEach((shan)=>{

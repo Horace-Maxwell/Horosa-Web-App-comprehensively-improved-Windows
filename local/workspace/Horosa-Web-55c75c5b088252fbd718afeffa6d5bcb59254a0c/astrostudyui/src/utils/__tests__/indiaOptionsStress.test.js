@@ -216,7 +216,8 @@ describe('印占 选项穷举压测（normalize/默认包/AI 快照 万无一失
 		expect(withOpts.dashaSeed).toBe('lagna');
 		expect(withOpts.transitDate).toBe('2026/06/27');
 		expect(withOpts.tajakaYear).toBe(2030);
-		expect(withOpts.vargaSet).toBe('1,9,10');
+		// [Q-128/T-36] vargaSet 已停发(后端 jyotishByVarga 前端零读者、每次响应多约 2.1 MB;齿轮同撤)
+		expect(withOpts.vargaSet).toBeUndefined();
 
 		// 缺省零回归:dashaSeed/transitDate/vargaSet 不进请求体;tajakaYear 回退当前年(既有默认行为)。
 		const bare = fieldsToParams(baseFields);

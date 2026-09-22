@@ -4,6 +4,7 @@ import { Row, Col, Slider, InputNumber, Empty, Collapse, Tooltip } from 'antd';
 import { XQButton, XQToggle, XQSegmented, XQSelect, XQTabs } from '../xq-ui';
 import FengShuiEngine, { MARKER_TYPES, BAGUA_MARKER_TYPES, DISK_SKINS } from './fengshuiEngine';
 import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { definePageSettings } from '../../utils/pageSettingsStore';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markInteractionStart, markPanelReady } from '../../utils/perfMark';
 import LiqiWorkspace, { SCHOOL_CN } from './LiqiWorkspace';
@@ -49,6 +50,13 @@ const MODE_OPTIONS = [
 export const LIQI_SCHOOLS = ['bazhai', 'xuankong', 'sanhe', 'jinsuo', 'qiankun', 'zibai', 'fuxing', 'jingyin', 'dagua', 'xingshi', 'zeri',
 	'liufa', 'mingli', 'luopan', 'daxuankong', 'shuilong', 'huasha', 'zhaiduan'];
 const LIQI_SET = new Set(LIQI_SCHOOLS);
+
+// 排盘设置跨会话保留(用户实报同类:设置改了之后每次重开软件都要重设):本页的「流派」—— 纳气 / 八卦阳宅 / 十八个理气派。
+// 户型图、坐向度数、门向、家具标注、元运等是每一宅的输入,不保留(理气各派自己的方案库另管)。
+export const FENGSHUI_PAGE_SETTINGS = definePageSettings('horosa.fengshui.settings.v1', {
+	school: { def: 'naqi', oneOf: ['naqi', 'bagua'].concat(LIQI_SCHOOLS) },
+	diskSkin: { def: 'draw', oneOf: DISK_SKINS.map((s)=>s.key) },   // 罗盘的盘面样式(显示偏好;控件只在放了罗盘之后才出现,值住在画布引擎里)
+});
 const SCHOOL_GROUPS = [
 	{ label: '户型图阳宅（标注）', items: [
 		{ value: 'naqi', label: '纳气盘法' },
@@ -144,7 +152,9 @@ class FengShuiMain extends Component {
 	// 我方守卫语义为其超集(state 引用变照常放行 + 页面专属无关键剔除)。
 	constructor(props) {
 		super(props);
-		this.state = { vm: null, controlTab: 'base', workspaceTab: 'canvas', school: 'naqi' };
+		// 上次亲手选的流派(没存过 = 纳气盘法)。上次停在理气派时,同时记为「最近一次理气派」,理气工作区据此挂载。
+		const savedSchool = FENGSHUI_PAGE_SETTINGS.load().school;
+		this.state = { vm: null, controlTab: 'base', workspaceTab: 'canvas', school: savedSchool, ...(LIQI_SET.has(savedSchool) ? { lastLiqiSchool: savedSchool } : {}) };
 		this.canvasRef = createRef();
 		this.fileInputRef = createRef();
 		this.rootRef = createRef();   // horosa_panel_ready_v1:endSpan 的「本页当前可见吗」判据
@@ -180,6 +190,14 @@ class FengShuiMain extends Component {
 		const canvas = this.canvasRef.current;
 		if (!canvas) return;
 		this.engine = new FengShuiEngine(canvas, { onChange: this.onVm });
+		// 流派是从保存值恢复的:恢复成「八卦阳宅法」时,引擎要跟上(引擎出厂是纳气;不同步 = 下拉显示八卦、画布却按纳气算)。
+		// 同步完把撤销栈重置到这一刻:setTechMode 会压一步历史,不重置的话一打开「撤销」就亮着,点一下引擎退回纳气、
+		// 下拉却还显示八卦阳宅法 —— 正是上面那句要防的错位。恢复出来的流派就是本次会话的起点,不该是一步可撤销的操作。
+		const savedSkin = FENGSHUI_PAGE_SETTINGS.load().diskSkin;   // 上次亲手选的盘面样式(没存过 = 绘制盘)
+		const restoreBagua = this.state.school === 'bagua';
+		if (restoreBagua) { this.engine.setTechMode('bagua'); }
+		if (savedSkin !== 'draw') { this.engine.setDiskSkin(savedSkin); }
+		if (restoreBagua || savedSkin !== 'draw') { this.engine.initHistory(); this.engine.emit(); }
 		const host = canvas.parentElement;
 		if (host && 'ResizeObserver' in window) {
 			this.resizeObserver = new ResizeObserver(() => this.engine && this.engine.resize());
@@ -256,7 +274,17 @@ class FengShuiMain extends Component {
 		}
 	}
 
-	handleKeyDown(e) { if (this.engine) this.engine.handleKey(e); }
+	// [Q-221/T-182·FT-15] 快捷键(⌘Z/⌘Y/⇧⌘Z/Esc)只在「风水为激活技法页 + 当前为画布派」时响应:技法页签常驻挂载,
+	// 此前离开风水页在任何非输入焦点按 ⌘Z 都会撤销隐藏的画布;理气派(画布隐藏)下同样撤销。判据=画布真在可见页签里。
+	isCanvasActive() {
+		if (LIQI_SET.has(this.state.school)) return false;
+		const canvas = this.canvasRef.current;
+		if (!canvas || typeof canvas.closest !== 'function') return true;   // 非浏览器环境(jest)不拦
+		const pane = canvas.closest('.ant-tabs-tabpane');
+		if (pane && !pane.classList.contains('ant-tabs-tabpane-active')) return false;
+		return canvas.offsetParent !== null;   // display:none 祖先 → 不可见
+	}
+	handleKeyDown(e) { if (this.engine && this.isCanvasActive()) this.engine.handleKey(e); }
 
 	handleSnapshotRefreshRequest(evt) {
 		if (!evt || !evt.detail || evt.detail.module !== 'fengshui') return;
@@ -288,7 +316,9 @@ class FengShuiMain extends Component {
 	// 流派切换：理气派走纯前端 LiqiWorkspace；户型图两法同步引擎 techMode 并重算画布尺寸。
 	onSchoolChange(v) {
 		this.beginSpan();   // horosa_panel_ready_v1 配对起点(换流派 = 改选项)
-		this.setState({ school: v }, ()=> this.endSpan());
+		// [Q-221/T-182·FT-16] 记住最近一次理气派:切到纳气/八卦时理气工作区改为隐藏保活(display:none),18 派参数不再随卸载全部复位。
+		FENGSHUI_PAGE_SETTINGS.save({ school: v });
+		this.setState(LIQI_SET.has(v) ? { school: v, lastLiqiSchool: v } : { school: v }, ()=> this.endSpan());
 		if (v === 'naqi' || v === 'bagua') {
 			if (this.engine) {
 				this.engine.setTechMode(v);
@@ -338,7 +368,7 @@ class FengShuiMain extends Component {
 		return (
 			<div className="horosa-fengshui-field">
 				<label>盘面样式</label>
-				<XQSelect size="small" style={{ width: '100%' }} value={vm.diskSkin} onChange={(v) => e.setDiskSkin(v)}>
+				<XQSelect size="small" style={{ width: '100%' }} value={vm.diskSkin} onChange={(v) => { FENGSHUI_PAGE_SETTINGS.save({ diskSkin: v }); e.setDiskSkin(v); }}>
 					{DISK_SKINS.map((s) => <Option key={s.key} value={s.key}>{s.label}</Option>)}
 				</XQSelect>
 			</div>
@@ -382,11 +412,11 @@ class FengShuiMain extends Component {
 				<div className="horosa-fengshui-card-title" style={{ marginTop: 12 }}>角度与门向</div>
 				<div className="horosa-fengshui-field">
 					<label>单元门真北角度 (0-360°)</label>
-					<InputNumber size="small" style={{ width: '100%' }} placeholder="例如 58.5" step={0.1} value={vm.unitAzimuth} onChange={(v) => e.setUnitAngle(v)} />
+					<InputNumber size="small" style={{ width: '100%' }} placeholder="例如 58.5" step={0.1} min={0} max={360} value={vm.unitAzimuth} onChange={(v) => e.setUnitAngle(v)} />
 				</div>
 				<div className="horosa-fengshui-field">
 					<label>入户门方向 (0-360°)</label>
-					<InputNumber size="small" style={{ width: '100%' }} step={1} value={vm.doorImageAngle} onChange={(v) => e.setDoorAngle(v)} />
+					<InputNumber size="small" style={{ width: '100%' }} step={1} min={0} max={360} value={vm.doorImageAngle} onChange={(v) => e.setDoorAngle(v)} />
 					<XQButton variant="ghost" style={{ marginTop: 6 }} disabled={dis} onClick={() => e.startDrawDoor()}>在图上画入户门方向</XQButton>
 				</div>
 				<div className="horosa-fengshui-stats">
@@ -469,7 +499,7 @@ class FengShuiMain extends Component {
 				<div className="horosa-fengshui-field">
 					<label>正北方向 (0-360°)</label>
 					<div className="horosa-fengshui-dual">
-						<InputNumber size="small" style={{ flex: 1 }} placeholder="例如 0 / 90" step={1} value={vm.baguaOrient} onChange={(v) => e.setBaguaOrient(v)} />
+						<InputNumber size="small" style={{ flex: 1 }} placeholder="例如 0 / 90" step={1} min={0} max={360} value={vm.baguaOrient} onChange={(v) => e.setBaguaOrient(v)} />
 						<XQButton size="small" variant="ghost" disabled={dis} onClick={() => e.startBaguaNorth()}>图上画</XQButton>
 					</div>
 					<div className="horosa-fengshui-helper">盘旋转 <strong>{vm.diskRotationText}</strong>，盘心＝房屋正中（太极点）。盘面样式与透明度见「罗盘」页。</div>
@@ -571,8 +601,8 @@ class FengShuiMain extends Component {
 							<div className="horosa-fengshui-marker-main">
 								<span className="horosa-fengshui-chip-dot" style={{ background: m.color }} />
 								<span className="horosa-fengshui-marker-name">{m.label}{m.kitchen ? '（厨房·龙虎）' : ''}</span>
-								<span className="horosa-fengshui-marker-meta">{m.sector ? `${m.sector.name} · ${m.actual === 'wind' ? '气位' : '水位'}` : '未定位'}</span>
-								<span className={`horosa-fengshui-pill ${m.ok || m.kitchen || m.category === 'neutral' ? 'ok' : 'warn'}`}>{m.category === 'neutral' ? '观察' : m.kitchen ? '厨房' : m.ok ? '合适' : '冲突'}</span>
+								<span className="horosa-fengshui-marker-meta">{m.sector ? `${m.sector.name} · ${m.actual === 'wind' ? '气位' : '水位'}` : (m.center ? '中宫 · 盘心不计' : '未定位')}</span>
+								<span className={`horosa-fengshui-pill ${m.ok || m.kitchen || m.category === 'neutral' ? 'ok' : 'warn'}`}>{m.center ? '不计' : m.category === 'neutral' ? '观察' : m.kitchen ? '厨房' : m.ok ? '合适' : '冲突'}</span>
 							</div>
 							{m.harm ? <div className="horosa-fengshui-harm-line">危害：{m.harm.affect}</div> : null}
 							<div className="horosa-fengshui-marker-actions">
@@ -712,8 +742,13 @@ class FengShuiMain extends Component {
 				{this.renderQuickbar(vm)}
 				{/* geo：画布户型图之几何输入，现取现用（含 gongAt，方位仍以画布为唯一真值源）。
 				    画布未画房屋框时为 null —— 宅断派几何检测整块落「未判」，不臆造。 */}
-				{isLiqi ? <LiqiWorkspace school={this.state.school}
-					geo={this.engine ? this.engine.buildNeijuGeoInput() : null} /> : null}
+				{/* [Q-221/T-182·FT-16] 理气工作区常驻挂载 + display:none 保活(与画布同形):切到纳气/八卦再切回,坐山/命主/八方砂水/形煞勾选等全部还在。 */}
+				{(isLiqi || this.state.lastLiqiSchool) ? (
+					<div style={isLiqi ? undefined : { display: 'none' }}>
+						<LiqiWorkspace school={isLiqi ? this.state.school : this.state.lastLiqiSchool} active={isLiqi}
+							geo={this.engine ? this.engine.buildNeijuGeoInput() : null} />
+					</div>
+				) : null}
 				<div className="horosa-fengshui-canvas-body" style={isLiqi ? { display: 'none' } : { display: 'contents' }}>
 				<Row gutter={8} className="horosa-fengshui-layout">
 					<Col span={6} className="horosa-fengshui-side">

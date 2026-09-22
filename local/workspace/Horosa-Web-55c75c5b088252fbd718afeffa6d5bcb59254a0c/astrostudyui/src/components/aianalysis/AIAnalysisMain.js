@@ -24,21 +24,21 @@ import Mustache from 'mustache';
 import moment from 'moment';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import { marked } from 'marked';
-import { normalizeMarkdown, closeStreamingInlineMd } from '../../utils/reportMarkdownNormalize';
+import { closeStreamingInlineMd } from '../../utils/reportMarkdownNormalize';
+import { createStreamFlusher } from '../../utils/aiStreamFlush';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { classifyQuestion, referencesSpecificCase } from '../../utils/aiAnalysisStarterPrompts';
+import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
+import { classifyQuestion, needsMountBeforeSend } from '../../utils/aiAnalysisStarterPrompts';
+import { isAgentEnabled as isAgentEnabledForSendGuard } from '../../utils/aiAgent/prefs';
 import { copyTextSmart } from '../../utils/clipboardText';
 import { buildSoftwareHelpContext } from '../../utils/aiAnalysisHelpDocs';
-import DOMPurify from 'dompurify';
 // 仅引「common」子集（~50KB gzipped 含 js/ts/py/java/go/rust/sh/sql/json/yaml/xml/html/css/md/c/cpp/cs/php/rb/swift/kotlin 等），不引全语言。
-import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/atom-one-dark.css';
 // LaTeX 数学公式渲染（$...$ 行内 / $$...$$ 块级）。
-import katex from 'katex';
-import 'katex/dist/katex.min.css';
 import styles from './AIAnalysisMain.less';
-import MonacoEditor from './MonacoField';
+import MonacoEditor, { JSON_TEXT_RULE } from './MonacoField';   // TextArea 版 + 保存时 JSON 校验
+import { renderTemplatesForSend, isImageRejectionError, JSON_MODE_INSTRUCTION } from '../../utils/aiChat/sendHelpers';
+import { normalizeSkillPack, syncSkillTechniqueKeys } from '../../utils/aiChat/skills';   // 组合弹窗标技能身份 + 技法同步写技能
 import XQIcon from '../xq-icons';
 import TechniqueSettingsFields from './TechniqueSettingsFields';
 import SectionChecklist from './SectionChecklist';
@@ -61,33 +61,37 @@ import {
 import GeoCoordModal from '../amap/GeoCoordModal';
 import * as AstroHelper from '../astro/AstroHelper';
 import { upsertLocalChart } from '../../utils/localcharts';
+import { markFieldsCaptured } from '../../utils/recordFieldsRestore';   // [Q-256/T-219] AI 页草稿存为命盘=新记录:打随盘代次标记
 import { upsertLocalCase } from '../../utils/localcases';
 import { dstAwareZoneAt } from '../../utils/timezone';
-import {
-	AI_ANALYSIS_SCHEMA_VERSION,
-	AI_ANALYSIS_STORES,
-	buildMaterialSearchText,
-	buildTimestampLabel,
-	bulkPutStoreRecords,
-	deleteStoreRecord,
-	deleteWhere,
-	ensureTemplateVersion,
-	getStoreRecord,
-	listConversationMessages,
-	listStoreRecords,
-	listStoreRecordsBatched,
-	loadUiPrefs,
-	migrateWorkspaceData,
-	putStoreRecord,
-	replaceConversationMessages,
-	saveConversationMessage,
-	saveUiPrefs,
-} from '../../utils/aiAnalysisStore';
+// AI 助手·行动能力(总开关默认关;关=NULL_AGENT 现状路径)
+import { createAgentTurn } from '../../utils/aiAgent/runtime';
+import { requestApproval as requestAgentApproval } from '../../utils/aiAgent/approvals';
+import { requestElicitation as requestAgentElicitation } from '../../utils/aiAgent/elicitations';
+import { stripActionBlockForDisplay } from '../../utils/aiAgent/textProtocol';
+import AgentActionBar from './AgentActionBar';
+import AgentAbilityPanel from './AgentAbilityPanel';
+import AdvancedPane from './chat/AdvancedPane';
+// 对话上下文策略与真消息窗口(缺省 legacy=现状;window=历史不再双发+按模型窗口预算裁剪)
+import { readContextPolicy, windowChatMessages } from '../../utils/aiChatHistory';
+import { emitAutomationEvent } from '../../utils/aiAgent/automation/events';
+// 对话交互增强唯一插座(斜杠/@引用/状态栏/压缩·旁问·回退/口径·记忆):钩子内按批次实装,页面只留最小 hunk
+import { useChatAssist, ChatAssistOverlays } from './chat';
+import ComposerAssist from './chat/ComposerAssist';
+import { historyContentOf } from '../../utils/aiBestOfN';
+import { useChatModels } from './chat/useChatModels';
+import { buildEditBranchMessages, buildForkMessages } from '../../utils/aiConversationBranch';
+import { AI_ANALYSIS_SCHEMA_VERSION, AI_ANALYSIS_STORES, AI_BACKUP_EXCLUDED_STORES, buildMaterialSearchText, buildTimestampLabel, bulkPutStoreRecords, deleteStoreRecord, clearStore, countStoreRecords, deleteWhere, ensureTemplateVersion, getStoreRecord, listConversationMessages, listStoreRecords, listStoreRecordsBatched, loadUiPrefs, migrateWorkspaceData, putStoreRecord, replaceConversationMessages, saveConversationMessage, saveUiPrefs, getAiStoreHealth, AI_STORE_DEGRADED_EVENT, updateStoreRecordIf, } from '../../utils/aiAnalysisStore';
+import { isSecretStore, redactSecretRecord } from '../../utils/aiSecretStores';
+import { planWorkspaceRestore, restoreWorkspaceStores, AI_BACKUP_MAX_ZIP_BYTES } from '../../utils/aiWorkspaceRestore';
+import { renderRichMarkdownToHtml as renderMarkdownToHtml, highlightCodeUnder } from '../../utils/aiMarkdownRender';
 import {
 	AI_CONTEXT_MAX_CHARS,
 	TIME_CASTABLE_DIVINATION,
 	buildContextLayers,
 	clipContextLayersDetailed,
+	VOLATILE_LAYER_KEYS,
+	hashPromptText,
 	getAnalysisSourceContext,
 	getAnalysisTechniqueContexts,
 	listAnalysisSources,
@@ -102,6 +106,7 @@ import {
 	hasMountSettingsFields,
 	pruneOptionsToNonDefault,
 	effectiveMountBaseline,
+	resolveEffectiveTechniqueOptions,
 	saveMountTechniqueDefaults,
 	getMountTechniqueDefault,
 } from '../../utils/techniqueMountSettings';
@@ -113,23 +118,27 @@ import {
 	getSectionGroupsForTechnique,
 } from '../../utils/aiExport';
 import * as Constants from '../../utils/constants';
-import { parseMaterialFile } from '../../utils/aiAnalysisMaterial';
+import { parseMaterialFile, isSupportedMaterialFile, MATERIAL_IMPORT_EXTENSIONS, MATERIAL_ACCEPT_ATTR, MATERIAL_BACKEND_MAX_BYTES, oversizeForBackend, describeExtractTruncation } from '../../utils/aiAnalysisMaterial';   // [Q-060/AW-18/AW-23] 导入白名单 + 抽取上限/截断标注单源
 import {
 	diagnoseProvider,
 	fetchProviderModels,
 	requestAIAnalysisChat,
 	requestAIAnalysisChatStream,
 	requestEmbeddingVectors,
+	REQUEST_TIMEOUT_MIN_MS,
+	REQUEST_TIMEOUT_MAX_MS,
 } from '../../services/aianalysis';
 import {
 	base64ToBlob,
 	blobToBase64,
 	downloadTextFile,
+	withUtf8Bom,   // [Q-004] 桌面保存路径也要 BOM(与浏览器下载同款)
 	exportConversationBundle,
 	exportConversationByFormat,
 	exportWorkspaceBackupBlob,
 	parseWorkspaceBackupBlob,
 	saveBlobToBrowser,
+	describeSaveResult,
 } from '../../utils/aiAnalysisExport';
 import {
 	buildRetrievedContextText,
@@ -137,6 +146,8 @@ import {
 	mergeRetrievedChunks,
 	rankChunksByKeyword,
 	rerankChunksWithVector,
+	resolveEmbeddingTargetFromPrefs, // [D-R5] 三态解析共享化
+	EMBEDDING_TARGET_NONE,           // [Q-060/AW-16]「不用向量」哨兵
 	partitionMaterialsByRetrieval,
 } from '../../utils/aiAnalysisRag';
 import {
@@ -161,16 +172,23 @@ import {
 	splitProviderModels,
 	THINKING_LEVELS,
 	applyThinkingLevel,
+	applyChatParams,
+	anthropicThinkingMode,
+	temperatureMaxForFamily,
+	thinkingLevelEffects,
 	estimateUsageCost,
 	isReasoningModel,
 	encodeModelSelection,
 	parseModelSelection,
-	contextCharBudgetForModel,
+	mountCharBudgetFor,
 	effectiveMaxTokensForModel,
 	maxTokensKeyForModel,
 } from '../../utils/aiAnalysisProviders';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
+
+// [Q-410] 保存结果统一提示(取消 info / 失败 error / 成功 success 带路径)
+function notifySaveResult(r, okText){ const d = describeSaveResult(r, okText); (message[d.type] || message.info)(d.text); }
 
 const { TextArea, Search } = Input;
 const { Title, Text } = Typography;
@@ -183,6 +201,7 @@ const SECONDARY_TABS = [
 	{ key: 'materials', label: '资料', icon: <XQIcon name="book" /> },
 	{ key: 'templates', label: '模版', icon: <XQIcon name="note" /> },
 	{ key: 'settings', label: '设置', icon: <XQIcon name="aiSettings" /> },
+	{ key: 'advanced', label: '进阶', icon: <XQIcon name="sliders" /> },
 ];
 
 const RETRIEVAL_OPTIONS = [
@@ -190,6 +209,21 @@ const RETRIEVAL_OPTIONS = [
 	{ value: 'fulltext', label: '全文优先' },
 	{ value: 'rag', label: '检索优先' },
 ];
+// [Q-062/AW-36] 组合预览与接口列表此前把内部代码原样显示给用户:`auto / fulltext / rag`、`medium`、
+// `healthy / error / unknown` —— 同一页顶部概览用的却是「健康 / 异常 / 未检测」。统一走这三张映射。
+const PROVIDER_HEALTH_LABELS = { healthy: '健康', error: '异常', unknown: '未检测' };
+function retrievalModeLabel(v){
+	const hit = RETRIEVAL_OPTIONS.find((o)=>o.value === `${v || 'auto'}`);
+	return hit ? hit.label : `${v || 'auto'}`;
+}
+function thinkingLevelLabel(v){
+	const hit = THINKING_LEVELS.find((o)=>o.value === `${v || ''}`);
+	return hit ? hit.label : `${v || ''}`;
+}
+function providerHealthLabel(v){
+	const k = `${v || 'unknown'}`;
+	return PROVIDER_HEALTH_LABELS[k] || PROVIDER_HEALTH_LABELS.unknown;
+}
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(ajv);
@@ -283,6 +317,13 @@ function parseNumberText(value, fieldLabel, options = {}){
 	if(!Number.isFinite(num)){
 		throw new Error(`${fieldLabel} 需要是有效数字`);
 	}
+	// [Q-411/M-157] 范围校验(超时等):越界直接报错,不静默钳位(钳位只留给存量旧档,见 services/aianalysis withClampedRequestTimeout)
+	if(Number.isFinite(options.min) && num < options.min){
+		throw new Error(`${fieldLabel} 不能小于 ${options.min}${options.unit || ''}`);
+	}
+	if(Number.isFinite(options.max) && num > options.max){
+		throw new Error(`${fieldLabel} 不能大于 ${options.max}${options.unit || ''}`);
+	}
 	return num;
 }
 
@@ -336,7 +377,8 @@ function buildProviderFormValues(profile){
 		streamMaxStreamMs: providerOptions.streamMaxStreamMs || '',
 		anthropicApiVersion: providerOptions.apiVersion || preset.anthropicApiVersion || '2023-06-01',
 		anthropicMaxTokens: providerOptions.max_tokens || preset.anthropicMaxTokens || '2048',
-		anthropicThinkingBudget: providerOptions.thinking && providerOptions.thinking.budget_tokens ? providerOptions.thinking.budget_tokens : '',
+		// [Q-063/M-65] 字段改义「思考档开启时的预算上限」:存 thinking_budget_cap(非 API 键);旧档 thinking.budget_tokens 形态读入兼容
+		anthropicThinkingBudget: providerOptions.thinking_budget_cap || (providerOptions.thinking && providerOptions.thinking.budget_tokens ? providerOptions.thinking.budget_tokens : ''),
 		anthropicTopP: providerOptions.top_p || '',
 		anthropicTopK: providerOptions.top_k || '',
 		geminiGenerationConfigText: JSON.stringify(providerOptions.generationConfig || {}, null, 2),
@@ -357,7 +399,7 @@ function buildProviderOptionsFromForm(values){
 	const providerOptions = parseJsonTextAsObject(values.providerOptionsText, '补充高级参数');
 	const extraHeaders = parseJsonTextAsObject(values.extraHeadersText, '额外请求头');
 	const extraBody = parseJsonTextAsObject(values.extraBodyText, '额外请求体');
-	const requestTimeoutMs = parseNumberText(values.requestTimeoutMs, '请求超时', { integer: true });
+	const requestTimeoutMs = parseNumberText(values.requestTimeoutMs, '请求超时', { integer: true, min: REQUEST_TIMEOUT_MIN_MS, max: REQUEST_TIMEOUT_MAX_MS, unit: ' 毫秒' });
 	if(Object.keys(extraHeaders).length){
 		providerOptions.extraHeaders = extraHeaders;
 	}
@@ -388,11 +430,10 @@ function buildProviderOptionsFromForm(values){
 			providerOptions.max_tokens = maxTokens;
 		}
 		if(thinkingBudget){
-			providerOptions.thinking = {
-				type: 'enabled',
-				budget_tokens: thinkingBudget,
-			};
+			// [Q-063/M-65] 只记预算上限;是否思考由分析页思考档决定(关闭档不发 thinking;开启档按档位预算与本上限取小)
+			providerOptions.thinking_budget_cap = thinkingBudget;
 		}
+		delete providerOptions.thinking;
 		if(topP !== null){
 			providerOptions.top_p = topP;
 		}
@@ -575,6 +616,18 @@ function buildConversationTitle(prompt, source){
 	return trimmed ? trimmed.slice(0, 24) : '未命名对话';
 }
 
+// [Q-030/M-41] 压缩区判定:消息 createdAt ≤ compact.uptoCreatedAt 即在压缩摘要覆盖区内。
+function compactCoversMessage(compact, msg){
+	if(!compact || !compact.uptoCreatedAt || !compact.summary || !msg){ return false; }
+	const t = (v)=>{ if(typeof v === 'number'){ return v; } const n = Date.parse(v || ''); return Number.isFinite(n) ? n : 0; };
+	return t(msg.createdAt) <= t(compact.uptoCreatedAt);
+}
+function isInsideCompactRegion(conversation, msg){
+	if(!conversation || !compactCoversMessage(conversation.compact, msg)){ return false; }
+	message.warning('该提问已在压缩摘要之内,重答会没有用户消息可发 —— 请先用 /compact 撤销压缩再重答');
+	return true;
+}
+
 function resolveReferenceItems(referenceIds, materials, bundles, templates){
 	const refs = Array.isArray(referenceIds) ? referenceIds : [];
 	const bundleItems = [];
@@ -600,6 +653,14 @@ function resolveReferenceItems(referenceIds, materials, bundles, templates){
 			if(material){
 				materialItems.push(material);
 			}
+			return;
+		}
+		// [Q-028/M-39] @模板 写入 template:<id>,此前唯一解析器不认 → 模板正文不进上下文、只剩模板名。
+		if(text.indexOf('template:') === 0){
+			const template = templates.find((item)=>item.id === text.replace('template:', ''));
+			if(template){
+				templateItems.push(template);
+			}
 		}
 	});
 	const bundleMaterialIds = bundleItems.flatMap((bundle)=>bundle.defaultMaterialIds && bundle.defaultMaterialIds.length ? bundle.defaultMaterialIds : (bundle.materialIds || []));
@@ -608,7 +669,10 @@ function resolveReferenceItems(referenceIds, materials, bundles, templates){
 		bundles: bundleItems,
 		materials: uniqueById(materialItems.concat(bundleMaterials)),
 		templates: uniqueById(templateItems),
-		systemPrompt: bundleItems.map((bundle)=>bundle.defaultSystemPrompt || '').filter(Boolean).join('\n\n'),
+		// [Q-061] 组合系统提示**只走独立层**(buildContextLayers 的 bundle-system 层)。此前这里还拼一份进
+		// 「系统提示」层,加上「一键应用」写进会话规则的那份 —— 一键应用后同一段话在提示词里出现 3 次、
+		// 只「加入参考」也有 2 次(白烧 token、还会被模型当成刻意强调)。
+		systemPrompt: '',
 	};
 }
 
@@ -622,6 +686,7 @@ function uniqueById(list){
 		return true;
 	});
 }
+
 
 function buildTemplatePreview(template){
 	const sampleData = safeParseJson(template.exampleInput, {
@@ -653,11 +718,18 @@ function buildTemplatePreview(template){
 			errors: schemaErrors,
 		};
 	}
-	const rendered = Mustache.render(template.instructionText || template.content || '', sampleData);
-	return {
-		text: rendered,
-		errors: [],
-	};
+	// [Q-060/AW-19] 预览在 render 期间跑 Mustache,此前无 try/catch:模版里出现未闭合 / 错配的段标签
+	// (照常见模板语法写的 `{{#if x}}…{{/if}}` 就会)直接抛错,冒到应用级错误边界 → **整页**换成错误卡。
+	// 另:Mustache 缺省 HTML 转义,预览里 `<` `&` `"` 显示成实体 —— 预览是给人看原文的,关掉转义。
+	try{
+		const rendered = Mustache.render(template.instructionText || template.content || '', sampleData, {}, { escape: (v)=>`${v == null ? '' : v}` });
+		return { text: rendered, errors: [] };
+	}catch(e){
+		return {
+			text: `${template.instructionText || template.content || ''}`,
+			errors: [{ message: `模版语法错误:${(e && e.message) || e}(下面显示的是未渲染的原文)` }],
+		};
+	}
 }
 
 function buildTemplateVersionSnapshot(values){
@@ -699,107 +771,7 @@ function configureMonaco(monaco){
 	}
 }
 
-// 🔴 模块顶层配置必须带能力守卫:CJS interop(jest/node)下命名导出 marked 可为
-// undefined,裸调= require 即炸 → 整个 AI 页 lazy 载入失败;生产 ESM 下守卫恒真,
-// 行为逐字节不变(与 utils/aiMarkdownRender.js 同款口径)。
-if(marked && typeof marked.setOptions === 'function' && marked.Renderer){
-	marked.setOptions({
-		gfm: true,
-		breaks: true,
-		headerIds: false,
-		mangle: false,
-	});
-
-	// 自定义 code 渲染：包一层 .codeBlock，左上加语言徽章，右上加复制按钮（事件委托）。
-	// 复制按钮按钮内容用 data-copy-target 关联紧邻的 <pre><code>；点击在容器级捕获（renderAssistantBubble useEffect）。
-	// 注：不在此处做语法高亮；高亮在挂载后由 hljs.highlightElement 单独跑（streaming 中不跑、避免抖动）。
-	const mdRenderer = new marked.Renderer();
-	const origCode = mdRenderer.code.bind(mdRenderer);
-	mdRenderer.code = function(code, infostring, escaped){
-		const html = origCode(code, infostring, escaped);
-		const langRaw = (infostring || '').trim().split(/\s+/)[0] || '';
-		const langLabel = langRaw ? `<span class="xq-code-lang">${langRaw}</span>` : '';
-		// 复制按钮的可访问 hint；onClick 由事件委托捕获。
-		const copyBtn = `<button type="button" class="xq-code-copy" title="复制" aria-label="复制代码">复制</button>`;
-		return `<div class="xq-code-block">${langLabel}${copyBtn}${html}</div>`;
-	};
-	marked.use({ renderer: mdRenderer });
-}
-
-// 在 Markdown 之前把 LaTeX 数学预渲染为 HTML（避免 $...$ 被 marked 当作普通文本处理）。
-// 支持 $$...$$（块）+ $...$（行内）+ \[...\] + \(...\)，行内式不允许跨行；用占位符隔离避免被 marked 改造。
-function preRenderLatex(src){
-	const placeholders = [];
-	const escape = (s)=>s.replace(/[&<>]/g, (c)=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
-	const renderOne = (tex, displayMode)=>{
-		try{
-			const html = katex.renderToString(tex, { displayMode, throwOnError: false, output: 'html' });
-			placeholders.push(html);
-			return `\x00KATEX${placeholders.length - 1}\x00`;
-		}catch(_){ return escape(tex); }
-	};
-	let s = src;
-	// 块级 $$...$$（多行）
-	s = s.replace(/\$\$([\s\S]+?)\$\$/g, (_, t)=>renderOne(t.trim(), true));
-	// 块级 \[...\]
-	s = s.replace(/\\\[([\s\S]+?)\\\]/g, (_, t)=>renderOne(t.trim(), true));
-	// 行内 \(...\)
-	s = s.replace(/\\\(([\s\S]+?)\\\)/g, (_, t)=>renderOne(t.trim(), false));
-	// 行内 $...$（不跨行，不与 ${...} 模板字面量冲突——保守要求两侧紧邻非空白字符）。
-	s = s.replace(/\$([^\s$][^$\n]*?[^\s$])\$/g, (_, t)=>renderOne(t.trim(), false));
-	s = s.replace(/\$([^\s$\n])\$/g, (_, t)=>renderOne(t.trim(), false));
-	return { source: s, placeholders };
-}
-
-// 把 AI 输出的 Markdown 渲染为安全 HTML（GFM：标题/列表/表格/代码/引用/链接），再交给气泡渲染。
-function renderMarkdownToHtml(text){
-	const raw = `${text || ''}`;
-	if(!raw.trim()){
-		return '';
-	}
-	try{
-		const pre = preRenderLatex(normalizeMarkdown(raw));
-		const html = marked.parse(pre.source);
-		const restored = html.replace(/\x00KATEX(\d+)\x00/g, (_, idx)=>pre.placeholders[Number(idx)] || '');
-		return DOMPurify.sanitize(restored, { ADD_ATTR: ['target', 'rel', 'class', 'type', 'title', 'aria-label', 'style'], ADD_TAGS: ['math', 'mrow', 'mi', 'mn', 'mo', 'msup', 'msub', 'mfrac', 'mtext', 'annotation', 'semantics'] });
-	}catch(e){
-		console.warn('markdown render failed', e);
-		// 解析失败时退回纯文本(经 DOMPurify 中和),至少不丢内容
-		return DOMPurify.sanitize(raw);
-	}
-}
-
-// horosa_markdown_lru_v1(PERF-R9):renderMarkdownToHtml 是本页最贵的纯函数
-// (normalizeMarkdown + 5 趟 LaTeX 正则 + marked.parse + DOMPurify.sanitize),
-// 而它在 visibleMessages.map 里**对每条 assistant 消息、每次 render 都重跑一遍** ——
-// 流式回答期间每来一个 token 就整屏重算一次全部历史消息的 Markdown。
-// 输出只取决于入参字符串(纯函数、无外部依赖、无副作用),故按内容做 LRU 记忆:
-// 命中即返回上次逐字节相同的 HTML,零行为差异。流式那一条每帧内容都在变=必然 miss
-// (它本来就必须重算),但它之前的历史消息从此每帧命中。
-// 容量有界(96 条)防长会话无限增长;命中时移到队尾,故churn 只发生在流式那一条上。
-const MARKDOWN_CACHE_MAX = 96;
-const markdownCache = new Map();
-function renderMarkdownToHtmlCached(text){
-	const key = `${text || ''}`;
-	if(!key.trim()){
-		return '';
-	}
-	if(markdownCache.has(key)){
-		const hit = markdownCache.get(key);
-		markdownCache.delete(key);
-		markdownCache.set(key, hit);   // LRU:命中即移到队尾
-		return hit;
-	}
-	const html = renderMarkdownToHtml(key);
-	markdownCache.set(key, html);
-	if(markdownCache.size > MARKDOWN_CACHE_MAX){
-		const oldest = markdownCache.keys().next();
-		if(!oldest.done){
-			markdownCache.delete(oldest.value);
-		}
-	}
-	return html;
-}
+// [B-A4] marked 全局配置/KaTeX 预渲染/富 markdown 渲染已抽至 utils/aiMarkdownRender(聊天与报告共用单一来源;净化硬化同源)。
 
 const CONTEXT_STATUS_META = {
 	ready: { text: '已就绪', color: 'green' },
@@ -928,9 +900,25 @@ function formatTimepointNow(){
 	return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
+// [流式渲染合帧·B] 单条助手正文的 markdown 渲染按 (content, streaming, hasTrace) 记忆化:消息列表任一状态变化
+// (某条气泡流式中/审批 tick/trace 更新)不再让全部历史气泡逐条重解析 markdown——长会话下这是主线程被打满的乘数项。
+const AssistantMarkdown = React.memo(function AssistantMarkdown({ content, streaming, hasTrace, className }){
+	const html = React.useMemo(
+		()=>renderMarkdownToHtml(streaming ? closeStreamingInlineMd(content) : (hasTrace ? stripActionBlockForDisplay(content) : content)),
+		[content, streaming, hasTrace],
+	);
+	return <div className={className} dangerouslySetInnerHTML={{ __html: html }} />;
+});
+
 function AIAnalysisMain(props){
 	const defaultUi = loadUiPrefs();
-	const [innerTab, setInnerTab] = React.useState('analysis');
+	// [Q-062/AW-34] 同一次 saveUiPrefs 写下的 modelSelection / referenceIds / 技法 / 会话规则都回灌了,
+	// 唯独 innerTab 只写不读(注册表却说它保存「内页」)。回灌,并只认 SECONDARY_TABS 里真实存在的页签
+	// (旧档存了已下线的 key 时静默落回「分析」,不会开在一个空白页)。
+	const [innerTab, setInnerTab] = React.useState(()=>{
+		const saved = `${(defaultUi && defaultUi.innerTab) || ''}`;
+		return SECONDARY_TABS.some((t)=>t.key === saved) ? saved : 'analysis';
+	});
 	const [workspaceLoading, setWorkspaceLoading] = React.useState(false);
 	// [首开反卡] Wave2(资料/会话/版本)后台载入中 —— 只驱动资料/历史 pane 顶部细提示,绝不全页转圈。
 	const [deepLoading, setDeepLoading] = React.useState(false);
@@ -956,7 +944,7 @@ function AIAnalysisMain(props){
 	const [chatTemperature, setChatTemperature] = React.useState(defaultUi.chatTemperature === undefined ? null : defaultUi.chatTemperature);
 	const [chatTopP, setChatTopP] = React.useState(defaultUi.chatTopP === undefined ? null : defaultUi.chatTopP);
 	const [thinkingLevel, setThinkingLevel] = React.useState(defaultUi.thinkingLevel || 'off');
-	// 2B/2G：停止序列 / 频率·存在惩罚 / JSON 输出模式（仅对 OpenAI 兼容接口下发，停止序列对 Anthropic 自动映射）。
+	// 2B/2G：停止序列（四家通用，出口按家族映射）/ 频率·存在惩罚（仅 OpenAI 兼容）/ JSON 输出模式（OpenAI 兼容 + Gemini）。
 	const [stopSequences, setStopSequences] = React.useState(defaultUi.stopSequences || '');
 	const [frequencyPenalty, setFrequencyPenalty] = React.useState(defaultUi.frequencyPenalty === undefined ? null : defaultUi.frequencyPenalty);
 	const [presencePenalty, setPresencePenalty] = React.useState(defaultUi.presencePenalty === undefined ? null : defaultUi.presencePenalty);
@@ -975,6 +963,15 @@ function AIAnalysisMain(props){
 	const [prompt, setPrompt] = React.useState('');
 	// 2F：待发送图片（多媒体输入），元素 {url: dataURL, name}；随用户消息以 images 字段发往后端（仅视觉模型有效）。
 	const [pendingImages, setPendingImages] = React.useState([]);
+	// [Q-041/M-52] 「未挂载案例 · 选择案例」此前打开的是**挂载抽屉**,而抽屉里根本没有案例选择器
+	// (全页唯一的选择器在顶栏)—— 用户点完一脸茫然。改成直接把顶栏那个下拉打开并聚焦。
+	// 注:顶栏那个下拉是 XQSelect(函数组件,未 forwardRef)——挂 ref 只会换来一条 React 警告且拿不到实例,
+	// 所以这里只驱动受控的 open(实测足以把下拉展开)。
+	const [sourceSelectOpen, setSourceSelectOpen] = React.useState(false);
+	function focusSourceSelect(){
+		try{ setSources(listAnalysisSources()); }catch(e){ /* noop */ }
+		setSourceSelectOpen(true);
+	}
 	const imageInputRef = React.useRef(null);
 	// 对话栏拖入图片高亮态。
 	const [composerDragOver, setComposerDragOver] = React.useState(false);
@@ -1060,17 +1057,24 @@ function AIAnalysisMain(props){
 	const [bundleForm] = Form.useForm();
 	const [providerForm] = Form.useForm();
 	const abortRef = React.useRef(null);
+	const sendingRef = React.useRef(false);   // handleSend 同步重入闸(state 版 sending 在 commit 前是旧值)
 	const streamBufferRef = React.useRef('');
+	const reportLaunchRef = React.useRef(null);   // 对话栏快捷动作插座(与 useChatAssist 依赖面同形;未接线时恒 null)
 	const streamReasoningBufferRef = React.useRef(''); // #16:DeepSeek reasoner 思考过程(独立于答案,仅展示/存档,绝不回灌 messages)
 	const streamUsageRef = React.useRef(null); // 2A：本次流的 usage 计量(末帧到达后由 SSE usage 事件填充)
+	const lastPromptMetaRef = React.useRef(null); // [P0-1] 上次 buildResolvedPrompt 的稳定层指纹与层账(随 usage.prompt 落盘;跨轮对照前缀缓存是否失效)
 	const chatLogRef = React.useRef(null);
+	// [Q-026/M-37][Q-027/M-38] 聊天区节点以回调 ref 落状态:首帧是落地页(messages 空)时 chatLogRef 为 null,
+	// 依赖 [] 的滚动监听 / 代码复制委托永远挂不上(上滚暂停跟随、跳到最新、复制按钮全失效)。
+	const [chatLogNode, setChatLogNode] = React.useState(null);
+	const setChatLogEl = React.useCallback((el)=>{ chatLogRef.current = el; setChatLogNode(el || null); }, []);
 	// 「自动跟随」开关：用户上滚 >40px 后置 false（暂停自动滚到底）；回到底部置 true。
 	const [autoFollow, setAutoFollow] = React.useState(true);
 	const backupRestoreInputRef = React.useRef(null);
 	const desktopFileInputRef = React.useRef(null);
 	const desktopFolderInputRef = React.useRef(null);
 
-	const height = props.height ? props.height - 18 : (typeof document !== 'undefined' ? document.documentElement.clientHeight - 100 : 620);
+	const height = props.height ? props.height - 18 : (typeof document !== 'undefined' ? getLayoutViewportHeight() - 100 : 620);
 	const desktopBridge = isDesktopBridgeAvailable();
 
 	const activeConversation = React.useMemo(()=>{
@@ -1170,19 +1174,13 @@ function AIAnalysisMain(props){
 	// 传给 getAnalysisTechniqueContexts 走强制重算；空 → 不进映射 → 默认路径(默认即现状)。
 	// 依赖 mountSettingsNonce：点「设为同类默认/恢复默认」后重算。
 	const effectiveTechniqueOptions = React.useMemo(()=>{
-		const out = {};
-		(activeTechniqueKeys || []).forEach((key)=>{
-			const session = techniqueOptionOverrides[key];
-			// [V6-W1] 会话覆盖锚盘现状再剪(与草稿/应用同锚);同类默认(getMountTechniqueDefault)
-			// 是跨盘模板,原样透传,由重算入口按各盘现状终判。
-			const eff = (session && typeof session === 'object')
-				? pruneOptionsToNonDefault(key, session, effectiveMountBaseline(key, activeSource && activeSource.record ? activeSource.record : null))
-				: getMountTechniqueDefault(key);
-			if(eff && Object.keys(eff).length){
-				out[key] = eff;
-			}
+		// [V6-W1] 会话覆盖锚盘现状再剪(与草稿/应用同锚);同类默认(getMountTechniqueDefault)
+		// 是跨盘模板,原样透传,由重算入口按各盘现状终判。
+		// [Q-285/M-96] 解析逻辑收编到 resolveEffectiveTechniqueOptions(与无头入口同一函数,口径不再分叉)。
+		return resolveEffectiveTechniqueOptions(activeTechniqueKeys, {
+			record: activeSource && activeSource.record ? activeSource.record : null,
+			sessionOverrides: techniqueOptionOverrides,
 		});
-		return out;
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [activeTechniqueKeys, techniqueOptionOverrides, mountSettingsNonce, activeSource]);
 	// 稳定签名,供 useEffect 依赖(对象引用每次都变,用 JSON 串避免无谓重算)。
@@ -1233,6 +1231,37 @@ function AIAnalysisMain(props){
 		return providerProfiles.find((item)=>item.enabled !== false) || null;
 	}, [modelSelection, providerProfiles]);
 
+	// [Q-322/Q-323] 参数浮层的「可拨」必须与请求体一致:
+	//  · 推理型号(OpenAI o/gpt-5 系、DeepSeek reasoner、*-r1、kimi-k 系…)由 Java 出口剥掉 temperature/top_p/两惩罚 → 三格置灰;
+	//  · Anthropic 自适应族(Opus 4.7 起 / Sonnet 5 / Fable / Mythos)根本不接受采样参数 → 同置灰;
+	//  · 温度上限按家族取(Anthropic 0..1,其余 0..2),此前滑杆一律到 2、拨过 1 必 400。
+	const paramPopover = React.useMemo(()=>{
+		const model = parseModelSelection(modelSelection).model;
+		const protoFamily = activeProviderProfile
+			? (activeProviderProfile.protocolFamily || getProviderProtocolFamily(activeProviderProfile.providerType))
+			: 'openai-compatible';
+		const reasoning = isReasoningModel(model);
+		const anthropicAdaptive = protoFamily === 'anthropic' && anthropicThinkingMode(model) === 'adaptive';
+		return {
+			model,
+			protoFamily,
+			reasoning,
+			anthropicAdaptive,
+			samplingDead: reasoning || anthropicAdaptive,
+			// [Q-048⑤ 裁决 2026-09-18·维持现状+补提示] kimi-k 系:前端不入 isReasoningModel(滑杆可拨),后端出口按推理模型剥温度 / top_p(有意分治)→ 浮层明说
+			kimiNote: /^kimi-k\d/i.test(`${model || ''}`.replace(/^.*\//, '')) ? 'kimi-k 系：温度 / top_p 在后端出口按推理模型剥除，此处拨动不生效' : '',
+			penaltyDead: reasoning || !isOpenAiFamily(protoFamily),
+			tempMax: temperatureMaxForFamily(protoFamily),
+			// [Q-044] 思考档逐档自证:与更低档产出同一份请求键的档一律置灰(极高/最大对 OpenAI 系 == 高;
+			// Ollama / R1 等无思考参数的模型全部 == 关闭)。此前六个档一律可选,拨了毫无差别也不提示。
+			thinkingLevels: thinkingLevelEffects(
+				activeProviderProfile ? activeProviderProfile.providerType : 'openai',
+				model,
+				(activeProviderProfile && activeProviderProfile.providerOptions) || {},
+			),
+		};
+	}, [modelSelection, activeProviderProfile]);
+
 	const referenceOptions = React.useMemo(()=>{
 		const folderLookup = new Map(materialFolders.map((item)=>[item.id, item]));
 		const bundleOptions = bundles.map((item)=>({
@@ -1243,8 +1272,13 @@ function AIAnalysisMain(props){
 			value: `material:${item.id}`,
 			label: `资料 · ${item.name}${item.folderId && folderLookup.get(item.folderId) ? ` / ${folderLookup.get(item.folderId).name}` : ''}`,
 		}));
-		return bundleOptions.concat(materialOptions);
-	}, [materials, bundles, materialFolders]);
+		// [Q-028/M-39] 参考下拉补模板项(与 @模板 引用同键 template:<id>)
+		const templateOptions = (templates || []).map((item)=>({
+			value: `template:${item.id}`,
+			label: `模板 · ${item.name}`,
+		}));
+		return bundleOptions.concat(materialOptions).concat(templateOptions);
+	}, [materials, bundles, materialFolders, templates]);
 
 	const visibleMessages = React.useMemo(()=>{
 		return (messages || []).filter((item)=>item && item.role !== 'system_hidden');
@@ -1271,7 +1305,10 @@ function AIAnalysisMain(props){
 			if(historyFilter.model && `${item.model || ''}` !== historyFilter.model){
 				return false;
 			}
-			if(historyFilter.sourceType && `${item.sourceRef && item.sourceRef.sourceType ? item.sourceRef.sourceType : ''}` !== historyFilter.sourceType){
+			// [Q-414 裁决 2026-09-18] 案例类型筛选补「起课时间」与「未挂案例」(此前只有命盘 / 事盘,起课时间会话与无案例会话筛不出)
+			if(historyFilter.sourceType === '__none__'){
+				if(item.sourceRef && item.sourceRef.sourceType){ return false; }
+			}else if(historyFilter.sourceType && `${item.sourceRef && item.sourceRef.sourceType ? item.sourceRef.sourceType : ''}` !== historyFilter.sourceType){
 				return false;
 			}
 			if(!keyword){
@@ -1287,6 +1324,17 @@ function AIAnalysisMain(props){
 			return text.indexOf(keyword) >= 0;
 		});
 	}, [conversations, historyKeyword, historyFilter]);
+
+	// [Q-060/AW-11] 勾选集只在点勾选框时由表格回调修剪 —— 改筛选 / 输关键词 / 批量归档后行从视图消失,
+	// 勾选还在,批量钮照样可点并作用于**看不见的会话**(筛选结果为空时表格根本没挂载,「批量删除」依旧可点)。
+	// 这里把勾选集与当前可见集取交:批量动作的作用面 = 你眼前看得见的那些。
+	React.useEffect(()=>{
+		const visible = new Set(filteredConversations.map((item)=>item && item.id));
+		setSelectedHistoryIds((prev)=>{
+			const next = (prev || []).filter((id)=>visible.has(id));
+			return next.length === (prev || []).length ? prev : next;
+		});
+	}, [filteredConversations]);
 
 	const filteredMaterials = React.useMemo(()=>{
 		const keyword = `${materialKeyword || ''}`.trim().toLowerCase();
@@ -1345,7 +1393,8 @@ function AIAnalysisMain(props){
 				normalizeProfileModels(item).join(' '),
 				normalizeEmbeddingModels(item).join(' '),
 				item.baseUrl,
-				JSON.stringify(item.providerOptions || {}),
+				// [Q-059/M-79] 检索文本不含额外请求头的值(令牌位)
+				JSON.stringify({ ...(item.providerOptions || {}), extraHeaders: Object.keys((item.providerOptions || {}).extraHeaders || {}) }),
 			].join(' ').toLowerCase();
 			return text.indexOf(keyword) >= 0;
 		});
@@ -1433,6 +1482,25 @@ function AIAnalysisMain(props){
 		});
 	}, [lockedContextItems]);
 
+	// [chat-assist] 对话交互增强唯一插座:缺省全部空路径(mainline 原样/promptLayerExtras {}/checkpoint undefined)=现状
+	// [C4] 按任务用模型:六槽全空时 pickRound/afterRound 皆零路径(请求字节不变)
+	const chatModels = useChatModels({ providerProfiles });
+	const chatAssist = useChatAssist({
+		prompt, setPrompt, sending, messages, visibleMessages, setMessages, activeConversation, activeConversationId, conversations, setConversations,
+		activeSource, sources, setSources, materials, bundles, templates, referenceIds, setReferenceIds, selectedTechniqueKeys, setSelectedTechniqueKeys,
+		selectedSourceId, setSelectedSourceId, sessionSystemPrompt, setSessionSystemPrompt, techniqueOptionOverrides, setTechniqueOptionOverrides,
+		modelSelection, setModelSelection, thinkingLevel, setThinkingLevel, activeProviderProfile, providerProfiles,
+		// [Q-032/M-47] 回退检查点要能把温度 / top_p 也恢复(写偏好,与滑杆同源)
+		chatTemperature, chatTopP,
+		setChatTemperature: (v)=>{ setChatTemperature(v); saveUiPrefs({ chatTemperature: v }); },
+		setChatTopP: (v)=>{ setChatTopP(v); saveUiPrefs({ chatTopP: v }); },
+		promptClipStats, lastPromptMetaRef, lockedContextItems, handleSend, handleBranchFromMessage, buildResolvedPrompt, buildResolvedPromptQuiet, applyBundle,
+		stopSequences, frequencyPenalty, presencePenalty, jsonMode,   // [Q-045] 浮层五类参数下传,三条旁路与主发送共用 applyChatParams
+		updateConversationMeta, openConversation, setMountDrawerOpen, focusSourceSelect, setInnerTab, reportLaunchRef,   // [Q-041] 状态栏「命主」在未挂载时聚焦顶栏案例下拉
+		reloadBundles: async ()=>setBundles(await listStoreRecords(AI_ANALYSIS_STORES.bundles)),
+		ensureConversationRecord,   // [C5] 多模型对比在钩子里建/续会话
+	});
+
 	// [首开反卡 2026-08-09] 双波加载:APP(WKWebView)里 materials/conversations 大库的一次性读会把
 	// 首开冻成「全页转圈很久」(WebKit IDB 大 value 反序列化慢,Chromium 无感 → preview 好 APP 坏)。
 	// Wave1=轻库(接口档/夹/组/模板/包,小记录)——await 完立即收 loading,首帧秒出;
@@ -1457,8 +1525,9 @@ function AIAnalysisMain(props){
 			]);
 			setProviderProfiles(sortByUpdatedDesc(nextProfiles));
 			// [G1] 密文解不开(换机器/钥匙串被清)→ 提示重填,绝不带密文串发请求
-			if((nextProfiles || []).some((p)=>p && p.apiKeyDecryptFailed)){
-				message.warning('部分 AI 接口的 API Key 无法解密(钥匙串主密钥缺失),请到「接口设置」重新填入。', 6);
+			// [Q-059/M-82] 原密文在本会话内保留不覆写(未重填即照旧),卡片打「请重填」标记;额外请求头令牌同此
+			if((nextProfiles || []).some((p)=>p && (p.apiKeyDecryptFailed || p.extraHeadersDecryptFailed))){
+				message.warning('部分 AI 接口的 API Key 或鉴权请求头无法解密(钥匙串主密钥缺失),请到「接口设置」重新填入;未重填前原密文保留不覆盖。', 8);
 			}
 			setMaterialFolders(compareByName(nextFolders));
 			setTagGroups(compareByName(nextTagGroups));
@@ -1524,7 +1593,9 @@ function AIAnalysisMain(props){
 			innerTab,
 			modelSelection,
 			referenceIds,
-			selectedTechniqueKeys: activeTechniqueKeys,
+			// [Q-414/M-165] 首帧 selectedSourceId 恒空 → activeTechniqueKeys=[] 曾立刻把 selectedTechniqueKeys 写空
+			//   (注册表称保存「挂载勾选」,实际每次启动都丢)。无挂载源时不写该键(saveUiPrefs 合并,undefined 即保留旧值)。
+			selectedTechniqueKeys: activeSource ? activeTechniqueKeys : undefined,
 			sessionSystemPrompt,
 		});
 		if(props.dispatch){
@@ -1535,7 +1606,7 @@ function AIAnalysisMain(props){
 				},
 			});
 		}
-	}, [innerTab, modelSelection, referenceIds, activeTechniqueKeys, sessionSystemPrompt, props.dispatch]);
+	}, [innerTab, modelSelection, referenceIds, activeTechniqueKeys, activeSource, sessionSystemPrompt, props.dispatch]);
 
 	React.useEffect(()=>{
 		if(!selectedSourceId){
@@ -1569,9 +1640,8 @@ function AIAnalysisMain(props){
 
 	React.useEffect(()=>{
 		if(!activeSource){
-			if(selectedTechniqueKeys.length){
-				setSelectedTechniqueKeys([]);
-			}
+			// [Q-414/M-165] 无挂载源时不清勾选:activeTechniqueKeys 已按源过滤为 [](挂载/发送零影响),
+			//   保留原勾选才能在重选案例后回灌(此前这里清空 + 上面 effect 写空 = 勾选每次启动都丢)。
 			setTechniqueContexts([]);
 			return;
 		}
@@ -1710,10 +1780,10 @@ function AIAnalysisMain(props){
 	}, [activeSource, activeTechniqueKeys, sourceContext, techniqueLabelMap, effectiveTechniqueOptionsSig, mountSettingsNonce]);
 
 	React.useEffect(()=>{
+		// 档案列表异步加载,首帧 modelOptions 为空:此时不能把持久化的 modelSelection 清掉——否则档案
+		// 一到位就落到第一项,用户每次进页都被换成别的模型(压测实抓)。为空=尚未就绪,原样保留即可;
+		// 真正「选择已失效」只在 options 就绪后判定。
 		if(!modelOptions.length){
-			if(modelSelection){
-				setModelSelection('');
-			}
 			return;
 		}
 		if(!modelSelection || !modelOptions.some((item)=>item.value === modelSelection)){
@@ -1728,9 +1798,9 @@ function AIAnalysisMain(props){
 		}
 	}, [visibleMessages, autoFollow]);
 
-	// 监听用户滚动：上滚 >40px 自动暂停跟随；回到底部恢复跟随。
+	// 监听用户滚动：上滚 >40px 自动暂停跟随；回到底部恢复跟随。([Q-027/M-38] 依赖聊天区节点,节点出现即挂)
 	React.useEffect(()=>{
-		const el = chatLogRef.current;
+		const el = chatLogNode;
 		if(!el){ return undefined; }
 		const onScroll = ()=>{
 			const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
@@ -1738,7 +1808,7 @@ function AIAnalysisMain(props){
 		};
 		el.addEventListener('scroll', onScroll, { passive: true });
 		return ()=>{ el.removeEventListener('scroll', onScroll); };
-	}, []);
+	}, [chatLogNode]);
 
 	// 跟踪组件挂载状态，供异步流程安全 setState。
 	React.useEffect(()=>{
@@ -1746,9 +1816,9 @@ function AIAnalysisMain(props){
 		return ()=>{ isMountedRef.current = false; };
 	}, []);
 
-	// 代码块「复制按钮」事件委托（容器级，一次）：点击 .xq-code-copy → 复制紧邻 <pre><code> 的纯文本。
+	// 代码块「复制按钮」事件委托（容器级）：点击 .xq-code-copy → 复制紧邻 <pre><code> 的纯文本。([Q-026/M-37] 随聊天区节点挂载)
 	React.useEffect(()=>{
-		const el = chatLogRef.current;
+		const el = chatLogNode;
 		if(!el){ return undefined; }
 		const onClick = (e)=>{
 			const btn = e.target && e.target.closest ? e.target.closest('.xq-code-copy') : null;
@@ -1769,27 +1839,30 @@ function AIAnalysisMain(props){
 		};
 		el.addEventListener('click', onClick);
 		return ()=>{ el.removeEventListener('click', onClick); };
-	}, []);
+	}, [chatLogNode]);
 
 	// 代码块语法高亮：visibleMessages 变化后，对未高亮过的 <pre><code> 跑 hljs.highlightElement。
 	// 流式期间也跑（每次新片段后增量补色），出错静默回退；不会改 textContent，复制功能不受影响。
 	React.useEffect(()=>{
 		const el = chatLogRef.current;
 		if(!el){ return; }
-		const nodes = el.querySelectorAll('pre > code:not(.hljs)');
-		nodes.forEach((node)=>{
-			try{ hljs.highlightElement(node); }catch(_){ /* 静默 */ }
-		});
+		highlightCodeUnder(el);
 	}, [visibleMessages]);
 
 	const applyProviderPresetToForm = React.useCallback((providerType)=>{
 		const preset = getProviderPreset(providerType);
 		const currentValues = providerForm.getFieldsValue(true);
+		// [Q-411/M-159] 换预设:用户已填的配置名不被预设名覆盖(只有空或仍是上一预设名时才换);
+		//   清 Key 的同时也清「额外请求头」(鉴权定制里的令牌不该跟着换到新预设地址)。
+		const prevPreset = getProviderPreset(currentValues.providerType || 'openai');
+		const typedName = `${currentValues.name || ''}`.trim();
+		const keepName = typedName && typedName !== prevPreset.label;
 		providerForm.setFieldsValue({
 			...currentValues,
 			apiKey: '',
+			extraHeadersText: '{}',
 			providerType,
-			name: preset.label,
+			name: keepName ? typedName : preset.label,
 			baseUrl: preset.baseUrl,
 			manualModels: joinModelLines(getProviderDefaultChatModels(providerType)),
 			embeddingModels: joinModelLines(getProviderDefaultEmbeddingModels(providerType)),
@@ -1819,6 +1892,11 @@ function AIAnalysisMain(props){
 		setMessages([]);
 		setPrompt('');
 		setSelectedHistoryIds([]);
+		// [Q-046/M-57] 新对话要把「上一条对话的残留」清干净:
+		//  · pendingImages —— 加了图没发就点「新对话」,图会跟着新对话的第一条消息一起发出去(上一盘的图配这一盘的问);
+		//  · promptClipStats —— 裁剪账横幅还挂着上一条对话的「整层未纳入」提示,新对话根本没挂那些层。
+		setPendingImages([]);
+		setPromptClipStats(null);
 		if(options.switchTab !== false){
 			setInnerTab('analysis');
 		}
@@ -1832,7 +1910,15 @@ function AIAnalysisMain(props){
 			abortRef.current.abort();
 		}
 		setActiveConversationId(conversation.id);
-		setSelectedSourceId(conversation.sourceRef && conversation.sourceRef.id ? conversation.sourceRef.id : '');
+		// [Q-060/AW-14] 合成源会话:先把当时的草稿还原回去,再选中合成 id —— 否则挂载内容用的是此刻的草稿时刻
+		const _ref = conversation.sourceRef || null;
+		const _draft = _ref && _ref.draft && typeof _ref.draft === 'object' ? _ref.draft : null;
+		if(_draft && _ref.id === TIMEPOINT_SOURCE_ID){
+			setTimepointDraft((prev)=>({ ...prev, ..._draft }));
+		}else if(_draft && _ref.id === NATAL_SOURCE_ID){
+			setNatalDraft((prev)=>({ ...prev, ..._draft }));
+		}
+		setSelectedSourceId(_ref && _ref.id ? _ref.id : '');
 		setReferenceIds(conversation.referenceIds || []);
 		setSelectedTechniqueKeys(conversation.techniqueKeys || []);
 		if(conversation.providerProfileId && !providerProfiles.some((item)=>item.id === conversation.providerProfileId)){
@@ -1859,6 +1945,12 @@ function AIAnalysisMain(props){
 				sourceType: source.sourceType,
 				title: source.title,
 				module: source.module,
+				// [Q-060/AW-14]「起课时间 / 命盘时间」是合成源、不入库:只存四键的话,重开会话时挂载内容取的是
+				// **当下的草稿时刻**(组件挂载那一刻或用户最近一次手改),标题与「案例」列却还是原时刻 —— 续问时
+				// AI 拿到的其实是另一张盘。这里把当时的草稿一起存下,openConversation 还原它。
+				draft: (source.id === TIMEPOINT_SOURCE_ID || source.id === NATAL_SOURCE_ID)
+					? { ...(source.record || {}), name: (source.record && source.record.name) || '' }
+					: undefined,
 			} : null,
 			providerProfileId: profile ? profile.id : '',
 			providerName: profile ? profile.name : '',
@@ -1939,14 +2031,9 @@ function AIAnalysisMain(props){
 	}
 
 	// issue #13：解析「嵌入(向量)模型」目标——三态向后兼容，避免老用户回归。
-	function resolveEmbeddingTarget(chatProfile){
-		// 1) 显式选了独立嵌入模型 → 用它（新能力：聊天=DeepSeek + 嵌入=Ollama bge-m3）
-		const parsed = parseModelSelection(embeddingSelection);
-		const explicit = providerProfiles.find((p)=>p.id === parsed.profileId && p.enabled !== false);
-		if(explicit && parsed.model){ return { profile: explicit, model: parsed.model }; }
-		// 2) 未选 → 沿用聊天 profile 自带嵌入模型（旧行为，零回归）；聊天 provider 无嵌入(如 DeepSeek) → null 退关键词
-		const m = chatProfile ? (normalizeEmbeddingModels(chatProfile)[0] || '') : '';
-		return (chatProfile && m) ? { profile: chatProfile, model: m } : null;
+	// [D-R5] 逻辑平移进 aiAnalysisRag.resolveEmbeddingTargetFromPrefs(报告侧同源复用),此处仅代理。
+	function resolveEmbeddingTarget(chatProfile, bundleEmbeddingModel){
+		return resolveEmbeddingTargetFromPrefs({ embeddingSelection, providerProfiles, chatProfile, bundleEmbeddingModel });
 	}
 
 	async function retrieveMaterialContext(query, resolvedRefs, embeddingTarget, retrievalMode){
@@ -1967,7 +2054,7 @@ function AIAnalysisMain(props){
 				const materialChunks = await ensureMaterialChunks(material);
 				chunks = chunks.concat(materialChunks.map((chunk)=>({
 					...chunk,
-					materialName: material.fileName || material.name,
+					materialName: material.name || material.fileName,   // [Q-415/M-166] 标签单源取 name(改名后与直挂层标题 / search_materials 同名);fileName 只作原始文件名
 				})));
 			}catch(err){
 				console.warn('material chunking failed', material && material.name, err);
@@ -2009,9 +2096,18 @@ function AIAnalysisMain(props){
 		};
 	}
 
+	// [Q-060/AW-12] 写回前先重读最新记录。此前 `conversation` 是**发送那一刻**的快照,一路传进 streamReply,
+	// 回复结束整条覆盖回去 —— 生成期间用户在历史页做的收藏 / 归档 / 重命名全被写回旧值。
+	// 现在底用库里的最新版,只有本次 patch 的键被改写;记录已被删掉则按传入快照建回(与旧行为同)。
 	async function updateConversationMeta(conversation, patch = {}){
+		const base = conversation || {};
+		let latest = null;
+		if(base.id){
+			try{ latest = await getStoreRecord(AI_ANALYSIS_STORES.conversations, base.id); }catch(e){ latest = null; }
+		}
 		const saved = await putStoreRecord(AI_ANALYSIS_STORES.conversations, {
-			...(conversation || {}),
+			...base,
+			...(latest || {}),
 			...(patch || {}),
 			updatedAt: new Date().toISOString(),
 		}, 'conv');
@@ -2083,6 +2179,7 @@ function AIAnalysisMain(props){
 		chatMessages,
 		appendAssistant = true,
 		existingAssistantId = '',
+		controller,   // [Q-035/M-46] 发送入口在准备阶段就建好的控制器(缺省=本函数自建,老调用点零变化)
 	}) {
 		const assistantMessage = await saveConversationMessage({
 			id: existingAssistantId || null,
@@ -2104,31 +2201,81 @@ function AIAnalysisMain(props){
 		}else{
 			setMessages((prev)=>prev.map((item)=>item.id === assistantMessage.id ? assistantMessage : item));
 		}
-		const abortController = new AbortController();
+		// [Q-035/M-46] 复用发送入口的控制器:准备阶段按下的「停止」要能传导到本次流(缺省自建=零回归)。
+		const abortController = (controller && !controller.signal.aborted) ? controller : new AbortController();
 		abortRef.current = abortController;
 		let streamError = null;
+		// [流式渲染合帧·A] 高吞吐上游每秒可推数百个 delta,逐 delta 提交状态会把主线程打满(真模型长回复实测:
+		// 163s 内事件环两次停顿 85.9s/44.6s,停止钮/输入框全部失灵)。合并到 80ms 一帧落状态;末帧由 flush() 同步兜底,
+		// 出错/中止/finally 里 cancel() 防止定稿后残留计时器把 'streaming' 态写回已定稿消息。
+		const streamFlusher = createStreamFlusher(()=>{
+			const content = streamBufferRef.current;
+			const reasoning = streamReasoningBufferRef.current;
+			setMessages((prev)=>prev.map((item)=>item.id === assistantMessage.id ? {
+				...item,
+				content,
+				...(reasoning ? { reasoning } : {}),
+				streamStatus: 'streaming',
+				updatedAt: new Date().toISOString(),
+			} : item));
+		});
+		// [P0-2] 真消息窗口:缺省 legacy → 原数组同引用(现状);window → 按模型窗口预算裁剪历史(末条 user 恒保留、对齐问答对)。
+		// 四个发送口皆经本函数,窗口只在此处做一次;各轮请求一律消费 baseMessages。
+		// [Q-287/PP-12] 总开关关=NULL_AGENT 只发正文:窗口不计工具轮回放量(此前按不会发送的回放量把历史裁得只剩几条)
+		const agentReplayOn = isAgentEnabledForSendGuard();
+		const { messages: baseMessages, meta: historyMeta } = windowChatMessages(chatMessages, {
+			model,
+			numCtx: profile && profile.providerType === 'ollama' ? Number((profile.providerOptions || {}).num_ctx) || undefined : undefined,
+			policy: readContextPolicy(),
+			replayTrace: agentReplayOn,
+		});
+		// [Q-398/M-103] 按任务用模型可能把某一轮路由到**窗口更小**的模型(工具轮常配小模型),
+		//   而历史窗口只按主选模型算过一次 → 小模型那一轮收到超窗历史(上游 400 或悄悄截前文)。
+		//   这里按轮模型重算一次并取「更紧的那一份」(路由模型窗口更大时不放宽,保持主选口径);同模型=同引用零开销。
+		const roundWindowCache = new Map();
+		const baseMessagesForRound = (rp)=>{
+			if(!rp || !rp.model || rp.model === model){ return baseMessages; }
+			const key = `${rp.model}`;
+			if(roundWindowCache.has(key)){ return roundWindowCache.get(key); }
+			let out = baseMessages;
+			try{
+				const w = windowChatMessages(chatMessages, {
+					model: rp.model,
+					numCtx: rp.profile && rp.profile.providerType === 'ollama' ? Number((rp.profile.providerOptions || {}).num_ctx) || undefined : undefined,
+					policy: readContextPolicy(),
+					replayTrace: agentReplayOn,
+				});
+				if(w && Array.isArray(w.messages) && w.messages.length < baseMessages.length){ out = w.messages; }
+			}catch(e){ out = baseMessages; }
+			roundWindowCache.set(key, out);
+			return out;
+		};
+		// AI 助手·一个气泡=一个 Turn:总开关关 → NULL_AGENT(下面的 do/while 恰跑一轮,请求体无 tools,消息与旧 map 逐字段等价)
+		const toolPick = chatModels.pickTool({ profile, model });
+		const agent = createAgentTurn({
+			profile: toolPick.profile, model: toolPick.model, signal: abortController.signal,
+			lastUserMessage: (()=>{ for(let i = chatMessages.length - 1; i >= 0; i--){ const m = chatMessages[i]; if(m && m.role === 'user'){ return `${m.content || ''}`; } } return ''; })(),
+			ui: { refreshSources: ()=>setSources(listAnalysisSources()), selectSource: (cid)=>setSelectedSourceId(cid) },
+			onTrace: (trace)=>setMessages((prev)=>prev.map((item)=>item.id === assistantMessage.id ? { ...item, agentTrace: trace } : item)),
+			requestApproval: (call)=>requestAgentApproval(assistantMessage.id, call),
+			requestElicitation: (q)=>requestAgentElicitation(assistantMessage.id, q),
+			steer: ()=>chatAssist.takeSteer(assistantMessage.id),   // [批二⑤] 每轮开始取一次用户插话(取即清)
+			techniqueOptionOverrides,   // [Q-285/M-96] 建目标任务的工具在创建时快照本会话的每技法覆盖
+		});
 		// issue #13：把聊天高级参数（思考档/温度/top_p）并入 providerOptions（reasoning 模型不发 temperature）。
 		const chatProviderOptions = applyThinkingLevel({ ...(profile.providerOptions || {}) }, thinkingLevel, profile.providerType, model);
-		if(!isReasoningModel(model) && chatTemperature != null){ chatProviderOptions.temperature = chatTemperature; }
-		if(chatTopP != null){ chatProviderOptions.top_p = chatTopP; }
 		// 2B/2G：停止序列 / 频率·存在惩罚 / JSON 模式——按接口家族下发（透传由后端 buildProviderBodyOptions 完成，无需改 jar）。
+		// [Q-045] 五类浮层参数改走单源 applyChatParams(与多模型候选 / 按审阅重写 / 旁问同一份实现);
+		// [Q-323] 温度在其中按家族夹逼;[Q-322] 推理型号不写 top_p(出口会剥,浮层同步置灰)。
 		const protoFamily = profile.protocolFamily || getProviderProtocolFamily(profile.providerType);
-		const stopList = `${stopSequences || ''}`.split(/[\n,，]/g).map((s)=>s.trim()).filter(Boolean);
-		if(stopList.length){
-			if(protoFamily === 'anthropic'){ chatProviderOptions.stop_sequences = stopList; }
-			else if(isOpenAiFamily(protoFamily)){ chatProviderOptions.stop = stopList; }
-		}
-		if(isOpenAiFamily(protoFamily) && !isReasoningModel(model)){
-			if(typeof frequencyPenalty === 'number'){ chatProviderOptions.frequency_penalty = frequencyPenalty; }
-			if(typeof presencePenalty === 'number'){ chatProviderOptions.presence_penalty = presencePenalty; }
-		}
-		if(jsonMode){
-			if(isOpenAiFamily(protoFamily)){ chatProviderOptions.response_format = { type: 'json_object' }; }
-			else if(protoFamily === 'gemini'){ chatProviderOptions.response_format = { type: 'json_object' }; /* 后端会把它翻成 generationConfig.responseMimeType */ }
-		}
-		// 推理模型输出预算兜底:档案未显式配上限(anthropic max_tokens / ollama num_predict /
-		// gemini maxOutputTokens)时,后端默认 2048/1024 会被思考 token 吃光 → 正文空。
-		// 只在「未配」时兜底放大;用户配过任何值 = 尊重原值,零覆盖。
+		Object.assign(chatProviderOptions, applyChatParams(chatProviderOptions, {
+			profile, model, protocolFamily: protoFamily,
+			temperature: chatTemperature, topP: chatTopP, stopSequences,
+			frequencyPenalty, presencePenalty, jsonMode,
+		}));
+		// [C3] 聊天路径推理模型输出预算兜底:档案未显式配上限(anthropic max_tokens/ollama num_predict)
+		// 时,后端默认 2048/1024 会被思考 token 吃光 → 正文空(报告侧同病根,见 effectiveMaxTokensForModel)。
+		// 只在「未配」时按报告侧同一放大逻辑兜底;用户配过任何值 = 尊重原值,零覆盖。
 		{
 			const hasExplicitCap = chatProviderOptions.max_tokens != null
 				|| chatProviderOptions.num_predict != null
@@ -2141,16 +2288,24 @@ function AIAnalysisMain(props){
 			}
 		}
 		try{
+			do{
+			agent.beginRound();
+			if(agent.enabled){ streamBufferRef.current = ''; streamReasoningBufferRef.current = ''; streamError = null; }
+			const roundPick = chatModels.pickRound({ agent, profile, model, providerOptions: chatProviderOptions, thinkingLevel });
+			try{
 			await requestAIAnalysisChatStream({
-				providerType: profile.providerType,
-				apiKey: profile.apiKey,
-				baseUrl: profile.baseUrl,
-				model,
-				providerOptions: chatProviderOptions,
-				messages: chatMessages,
+				providerType: roundPick.profile.providerType,
+				apiKey: roundPick.profile.apiKey,
+				baseUrl: roundPick.profile.baseUrl,
+				model: roundPick.model,
+				providerOptions: roundPick.providerOptions,
+				messages: agent.messagesForRound(baseMessagesForRound(roundPick)),   // [Q-398/M-103] 按轮模型收紧历史窗口
+				tools: agent.toolDefs(),
+				toolChoice: agent.toolChoice(),
 			}, {
 				signal: abortController.signal,
 				onEvent: (event)=>{
+					agent.onEvent(event);
 					if(event.type === 'delta'){
 						if(abortController.signal.aborted){
 							return;
@@ -2160,12 +2315,7 @@ function AIAnalysisMain(props){
 							return;
 						}
 						streamBufferRef.current += delta;
-						setMessages((prev)=>prev.map((item)=>item.id === assistantMessage.id ? {
-							...item,
-							content: streamBufferRef.current,
-							streamStatus: 'streaming',
-							updatedAt: new Date().toISOString(),
-						} : item));
+						streamFlusher.schedule();
 					}else if(event.type === 'reasoning'){
 						// #16:DeepSeek reasoner 等的思维链增量。单独累计并渲染「思考过程」,让长思考期可见、不再像「卡死/空」。
 						if(abortController.signal.aborted){
@@ -2176,12 +2326,7 @@ function AIAnalysisMain(props){
 							return;
 						}
 						streamReasoningBufferRef.current += r;
-						setMessages((prev)=>prev.map((item)=>item.id === assistantMessage.id ? {
-							...item,
-							reasoning: streamReasoningBufferRef.current,
-							streamStatus: 'streaming',
-							updatedAt: new Date().toISOString(),
-						} : item));
+						streamFlusher.schedule();
 					}else if(event.type === 'usage'){
 						// 2A：后端按家族解析后的统一 usage 事件 {input_tokens, output_tokens, total_tokens}。
 						if(event.json && typeof event.json === 'object'){
@@ -2192,25 +2337,65 @@ function AIAnalysisMain(props){
 					}
 				},
 			});
+			}catch(streamEx){
+				// 仅「原生模式 + 上游明确不支持 tools」被吸收并同轮降级重发;其它错误照旧上抛
+				if(!agent.absorbStreamError(streamEx)){ throw streamEx; }
+			}
+			chatModels.afterRound({ agent, profile, model });
+			}while(await agent.settleRound());
+			streamFlusher.flush();
+			// [Q-048① 裁决 2026-09-18·维持现状+补提示] 未被本轮消费的插话随 Turn 结束丢弃(设计如此:插话只在下一轮工具调用前生效);此前静默 → 现明说并清队列
+			try{
+				const leftoverSteer = chatAssist.steerPending(assistantMessage.id);
+				if(leftoverSteer && leftoverSteer.length){
+					chatAssist.takeSteer(assistantMessage.id);
+					message.info(`本轮已结束，${leftoverSteer.length} 条插话未被消费，已丢弃（插话只在下一轮工具调用前生效；可把它作为新问题再发）`, 6);
+				}
+			}catch(e){ /* 提示失败不影响收尾 */ }
 			const finalContent = `${streamBufferRef.current || ''}`.trim();
 			// 错误不再拼进 content（破坏 markdown），改为 errorInfo 字段；content 为空时给暗灰占位。
 			const resolvedContent = finalContent || (streamError ? '' : '模型未返回可用内容');
-			const errorInfo = (!finalContent && streamError) ? classifyStreamError(streamError) : null;
-			const usage = streamUsageRef.current ? { ...streamUsageRef.current, model, providerType: profile.providerType } : undefined;
+			// [D67] 上游在正文之后发 error 帧(半截回答):此前只在正文为空时才记 errorInfo ⇒ 半截当完整、错误静默吞掉;
+			//   现只要有 streamError 就记 errorInfo(气泡下方照常渲染错误卡、可重试),正文非空时状态仍 done(历史/上下文照常吃)但带 partial:true
+			const errorInfo = streamError ? classifyStreamError(streamError) : null;
+			const partialAfterError = !!(finalContent && streamError);
+			// [Q-040 裁决 2026-09-18] 图片被模型拒绝(非视觉模型)→ 把本会话历史里的图片剥离并落库(imagesStripped),
+			// 否则整段对话每轮都带同一批图、持续失败;气泡里保留「已剥离」标记,换视觉模型可重新发图。
+			if(streamError && isImageRejectionError(streamError)){
+				const withImages = (chatMessages || []).filter((m)=>m && Array.isArray(m.images) && m.images.length);
+				if(withImages.length){
+					const ids = new Set(messages.filter((m)=>m && Array.isArray(m.images) && m.images.length && m.conversationId === conversation.id).map((m)=>m.id));
+					for(const mid of ids){
+						// eslint-disable-next-line no-await-in-loop
+						try{ await updateStoreRecordIf(AI_ANALYSIS_STORES.messages, mid, ()=>true, (rec)=>({ ...rec, images: undefined, imagesStripped: true, imagesStrippedReason: `${streamError}`.slice(0, 200) })); }catch(e){ /* 落库失败只影响下次载入 */ }
+					}
+					setMessages((prev)=>prev.map((m)=>(ids.has(m.id) ? { ...m, images: undefined, imagesStripped: true } : m)));
+					message.info('模型拒绝了图片输入，已把图片从这段对话的历史中剥离；换用视觉模型后可重新发送图片');
+				}
+			}
+			// [P0-1/P0-2] usage 随带稳定层指纹(prompt)与历史窗口账(history):气泡 tooltip/账本按轮核对缓存命中与窗口裁剪
+			const usage = streamUsageRef.current ? { ...agent.mergeUsage(streamUsageRef.current), model, providerType: profile.providerType, prompt: lastPromptMetaRef.current || undefined, history: historyMeta } : undefined;
 			const saved = await saveConversationMessage({
 				...assistantMessage,
 				content: resolvedContent,
 				reasoning: `${streamReasoningBufferRef.current || ''}`.trim() || undefined,
-				streamStatus: (!finalContent && streamError) ? 'error' : 'done',
+				streamStatus: (!finalContent && streamError) ? 'error' : ((agent.trace() && agent.trace().stopReason === 'aborted') ? 'aborted' : 'done'),
 				errorInfo,
+				partial: partialAfterError || undefined,
 				usage,
+				agentTrace: agent.trace() || undefined,
 				updatedAt: new Date().toISOString(),
 			});
 			setMessages((prev)=>prev.map((item)=>item.id === saved.id ? saved : item));
+			// [进阶审计 D10·2026-09-07] 「一轮对话结束」自动规则事件此前从未有人发出(规则弹窗里能选、引擎能听、就是没人发):助手消息落库即发
+			try{ emitAutomationEvent('turn.end', { conversationId: conversation.id, messageId: saved.id, status: saved.streamStatus, hadToolCalls: !!(agent.trace() && (agent.trace().rounds || []).some((r)=>(r.results || []).length)), origin: 'in-app' }); }catch(e){ /* noop */ }
 			// 首回 AI 完整后自动命名：仅落基础 meta；真正的 AI 起名通过 generateAndApplyAutoTitle 异步另发一轮微调用，
 			// 完成后再更新 title。失败时再退化到「截首回 N 字」兜底（避免一直叫「未命名对话」）。
-			await updateConversationMeta(conversation, { lastMessageAt: saved.updatedAt });
-			if(!conversation.titleAutoNamed && !conversation.titleManuallyEdited && finalContent && finalContent.length > 4){
+			const convNow = await updateConversationMeta(conversation, { lastMessageAt: saved.updatedAt });
+			// [Q-060/AW-12] 起名判定按**库里最新**的会话记录,不按发送时的快照:生成期间用户手动改过标题
+			// (titleManuallyEdited=true)时,快照里没有这个标记 → AI 起名会把手改标题盖掉。
+			const convForTitle = convNow || conversation;
+			if(!convForTitle.titleAutoNamed && !convForTitle.titleManuallyEdited && finalContent && finalContent.length > 4){
 				// 取用户问题（messages 数组里最后一条 user 的 content）作为命名依据。
 				const lastUserPrompt = (()=>{
 					for(let i = chatMessages.length - 1; i >= 0; i--){
@@ -2220,12 +2405,15 @@ function AIAnalysisMain(props){
 					return '';
 				})();
 				// 非阻塞触发，不 await——streamReply 不被卡住。
-				generateAndApplyAutoTitle({ conversation, profile, model, userPrompt: lastUserPrompt, aiReply: finalContent });
+				generateAndApplyAutoTitle({ conversation: convForTitle, profile, model, userPrompt: lastUserPrompt, aiReply: finalContent });
 			}
 			return saved;
 		}catch(e){
+			streamFlusher.cancel();
 			const aborted = e && e.name === 'AbortError';
 			const failMessage = streamError || (e && e.message ? `${e.message}` : '') || '生成失败。';
+			// 工具执行后上游停流/500 抛错:当前轮归档并记 stopReason='error'(运行时缺 failRound 时守卫跳过,不炸)
+			if(!aborted && agent && typeof agent.failRound === 'function'){ agent.failRound(failMessage); }
 			const errorInfo = aborted ? null : classifyStreamError(failMessage);
 			const saved = await saveConversationMessage({
 				...assistantMessage,
@@ -2233,6 +2421,7 @@ function AIAnalysisMain(props){
 				reasoning: `${streamReasoningBufferRef.current || ''}`.trim() || undefined,
 				streamStatus: aborted ? 'aborted' : 'error',
 				errorInfo,
+				agentTrace: agent.trace() || undefined,
 				updatedAt: new Date().toISOString(),
 			});
 			setMessages((prev)=>prev.map((item)=>item.id === saved.id ? saved : item));
@@ -2241,33 +2430,52 @@ function AIAnalysisMain(props){
 			}
 			return saved;
 		}finally{
+			streamFlusher.cancel();
 			abortRef.current = null;
 		}
 	}
 
-	async function buildResolvedPrompt(currentPrompt, profile, extraSystemContext){
+	// [Q-324] 本函数**会写页面态**(挂载快照 / 技法上下文 / 裁剪账 / 稳定层指纹),所以只许主发送路径调用。
+	// 旁问 / 多模型对比 / 回答审阅是「借同一份 system 吃前缀缓存」的旁路,和主发送并发时会把横幅的
+	// 裁剪账与 usage.prompt 指纹串台(看到的账不是本条回复的)。它们一律走下面的 buildResolvedPromptQuiet。
+	async function buildResolvedPromptImpl(currentPrompt, profile, extraSystemContext, silent){
+		const _policy = readContextPolicy();
 		const resolvedRefs = resolveReferenceItems(referenceIds, materials, bundles, templates);
 		const currentSource = activeSource || (activeConversation && activeConversation.sourceRef ? sources.find((item)=>item.id === activeConversation.sourceRef.id) : null);
 		const ctx = currentSource && currentSource.record ? await getAnalysisSourceContext(currentSource, {
 			mode: activeTechniqueKeys.length ? 'meta' : 'full',
 		}) : sourceContext;
-		const resolvedTechniqueContexts = currentSource && activeTechniqueKeys.length
+		// [A4] @技法段:选过段的技法只保留所选段(未选=原样引用返回,零变化)
+		const resolvedTechniqueContexts = chatAssist.filterTechniqueSections(currentSource && activeTechniqueKeys.length
 			? await getAnalysisTechniqueContexts(currentSource, activeTechniqueKeys, {
 				sourceContext: ctx,
 				// 发送给 LLM 的最终上下文也带上「每技法设置」覆盖（与预览卡一致）。
 				techniqueOptions: effectiveTechniqueOptions,
 			})
-			: [];
-		if(ctx){
+			: []);
+		if(ctx && !silent){
 			setSourceContext(ctx);
 		}
-		setTechniqueContexts(resolvedTechniqueContexts);
+		if(!silent){ setTechniqueContexts(resolvedTechniqueContexts); }
 		// 「默认检索策略」属组合(bundle)的设置,故直接从本轮挂载的组合读,不另立会话态。
 		// 挂了多个组合时取第一个显式非 auto 的(auto 等于不表态);都没挂/都 auto → undefined = 原长度规则。
 		const bundleRetrievalMode = (resolvedRefs.bundles || [])
 			.map((b)=>b && b.defaultRetrievalMode)
 			.find((m)=>m === 'fulltext' || m === 'rag');
-		const retrieval = await retrieveMaterialContext(currentPrompt, resolvedRefs, resolveEmbeddingTarget(profile), bundleRetrievalMode);
+		// [Q-006] 组合的「默认 Embedding 模型」与「默认检索策略」同源取法:挂了多个组合取第一个填了的
+		const bundleEmbeddingModel = (resolvedRefs.bundles || [])
+			.map((b)=>`${(b && b.defaultEmbeddingModel) || ''}`.trim())
+			.find(Boolean);
+		const retrieval = await retrieveMaterialContext(currentPrompt, resolvedRefs, resolveEmbeddingTarget(profile, bundleEmbeddingModel), bundleRetrievalMode);
+		// [Q-055① 裁决 2026-09-18] 模版变量({{user_prompt}} / {{source_context}} / {{retrieved_context}} / {{conversation_history}} / {{system_prompt}})
+		// 此前从不渲染(帮助却称「预览即实发」)。发送层按约定取本轮真实值渲染;渲染失败 / 无占位符 → 原文;与预览同款关 HTML 转义。
+		const renderedTemplates = renderTemplatesForSend(resolvedRefs.templates, {
+			user_prompt: `${currentPrompt || ''}`,
+			source_context: `${(ctx && ctx.content) || ''}`,
+			retrieved_context: (()=>{ try{ return buildRetrievedContextText(retrieval.retrievedChunks || []); }catch(e){ return ''; } })(),
+			conversation_history: chatAssist.mainline(visibleMessages).slice(-8).map((m)=>`[${m.role}] ${`${historyContentOf(m) || ''}`.slice(0, 600)}`).join('\n'),
+			system_prompt: `${sessionSystemPrompt || ''}`,
+		});
 		const layers = buildContextLayers({
 			sourceContext: ctx,
 			techniqueContexts: resolvedTechniqueContexts,
@@ -2276,10 +2484,16 @@ function AIAnalysisMain(props){
 				retrievedOnly: false,
 			})),
 			bundles: resolvedRefs.bundles,
-			templates: resolvedRefs.templates,
+			templates: renderedTemplates,   // [Q-055①] 已按本轮真实值渲染的模版副本
 			retrievedChunks: retrieval.retrievedChunks,
-			conversationMessages: visibleMessages,
-			systemPrompt: [sessionSystemPrompt, resolvedRefs.systemPrompt, extraSystemContext].filter(Boolean).join('\n\n'),
+			// [P0-2] window 模式:历史不再进 system 的「最近对话」层(空数组不产该层),只随消息数组发一份=去双发
+			conversationMessages: _policy.historyMode === 'window' ? [] : chatAssist.mainline(visibleMessages),
+			// [Q-061] 组合提示不再从 resolvedRefs 拼进来(它只走 bundle-system 独立层)
+			// [Q-290/PP-17] 本轮附加上下文不再并进系统层(稳定前缀被单轮技能重写两次),改独立挥发层 turn-extra
+			systemPrompt: sessionSystemPrompt,
+			turnExtraContext: extraSystemContext,
+			// [A5/A6] 压缩摘要 / 口径 / 记忆 等附加稳定层:无=空数组(零变化)
+			extraLayers: chatAssist.promptLayerExtras(),
 		});
 		// [挂载预算] 单次裁剪消双算：同一份 layers 只过一遍 clipContextLayersDetailed（旧代码这里
 		// clipContextLayers + buildPromptContext 同输入各算一遍）。fairShare 让多技法触界时
@@ -2290,9 +2504,10 @@ function AIAnalysisMain(props){
 		const _numCtx = profile && profile.providerType === 'ollama'
 			? Number((profile.providerOptions || {}).num_ctx) || undefined
 			: undefined;
-		const ctxCharBudget = contextCharBudgetForModel(_selModel, { numCtx: _numCtx, floorChars: AI_CONTEXT_MAX_CHARS });
+		// [#80] 策略里填了「挂载字数预算」就用它,没填按模型窗口实算 —— 单一入口,各调用点同源。
+		const ctxCharBudget = mountCharBudgetFor(_selModel, { numCtx: _numCtx, floorChars: AI_CONTEXT_MAX_CHARS, policy: _policy });
 		const clipDetail = clipContextLayersDetailed(layers, { maxChars: ctxCharBudget, fairShare: true });
-		if(isMountedRef.current){
+		if(isMountedRef.current && !silent){
 			setPromptClipStats({
 				byKey: (clipDetail.stats && clipDetail.stats.byKey) || {},
 				dropped: clipDetail.dropped || [],
@@ -2301,26 +2516,72 @@ function AIAnalysisMain(props){
 		}
 		// 前缀缓存断点:挂载快照/资料/会话规则等【稳定层】在前,检索命中与近期对话【挥发层】
 		// 在后,两者交界插 PROMPT_CACHE_BP。稳定层跨轮逐字节不变即命中 provider 前缀缓存——
-		// 治「每轮追问都把整份命盘快照按原价重发」的成本大头。层序本就稳定在前挥发在后
-		// (retrieved-context / recent-history 恒居末),分组零重排;不支持的 provider 由后端
-		// 剥标记 → 与不分层时字节等价、零回归。
+		// 治「每轮追问都把整份命盘快照按原价重发」的成本大头;不支持的 provider 由后端剥标记 →
+		// 与不分层时字节等价、零回归。
+		// 裁剪输出按优先级降序时检索片段(80)排在资料全文(70)之前,并非天然「稳定在前挥发在后」:
+		// 缓存家族按稳定/挥发拆分重排,非缓存家族此前直接按优先级拼 → 两类家族资料/检索次序不同;
+		// 现两类家族统一「先稳定后挥发」,只差是否插断点。
 		const _joinLayers = (arr)=>arr.map((item)=>`${item.title}\n${item.content}`).join('\n\n').trim();
-		const _volatileKeys = { 'retrieved-context': 1, 'recent-history': 1 };
+		const _volatileKeys = VOLATILE_LAYER_KEYS;   // [Q-287/PP-07] 与裁剪引擎同一张挥发层表(单源)
 		const _fam = getProviderProtocolFamily(profile && profile.providerType);
 		const _stableL = clipDetail.kept.filter((item)=>!_volatileKeys[item.key]);
 		const _volatileL = clipDetail.kept.filter((item)=>_volatileKeys[item.key]);
 		let _sysJoined;
-		if((_fam === 'anthropic' || _fam === 'openai-compatible') && _stableL.length && _volatileL.length){
+		const _cacheFam = _fam === 'anthropic' || _fam === 'openai-compatible';
+		if(_cacheFam && _stableL.length && _volatileL.length){
 			_sysJoined = [_joinLayers(_stableL), _joinLayers(_volatileL)].filter(Boolean).join(`\n\n${PROMPT_CACHE_BP}\n\n`);
+		}else if(_cacheFam && _stableL.length && _policy.historyMode === 'window'){
+			// [P0-2] window 模式挥发层常为空(历史已不进 system):稳定层非空即插断点,Java 侧「单段带标记」→ 单块打 cache_control
+			_sysJoined = `${_joinLayers(_stableL)}\n\n${PROMPT_CACHE_BP}`;
 		}else{
-			// join 表达式与 buildPromptContext 逐字同式（prompt 结构零漂移）。
-			_sysJoined = _joinLayers(clipDetail.kept);
+			// [Q-290/PP-18] 非缓存家族同样先稳定后挥发(无断点);单一家族分组时 kept 顺序不变
+			_sysJoined = _joinLayers(_stableL.concat(_volatileL));
 		}
+		// [#80] 整层被丢弃时给模型留痕。此前被丢的层在提示词里**连标题带内容一起消失**，模型根本不知道
+		//   有这么一份资料存在，只会按剩下的内容作答；丢弃只在本地 UI 留一个红 Tag。
+		//   追加在缓存断点**之后**：被丢的集合逐轮会变，放进稳定前缀会打断上游前缀缓存。
+		if(clipDetail.dropped && clipDetail.dropped.length){
+			const _droppedNames = clipDetail.dropped
+				.map((item)=>`${(item && (item.title || item.key)) || ''}`.replace(/^使用技法：/, ''))
+				.filter(Boolean);
+			if(_droppedNames.length){
+				_sysJoined = `${_sysJoined}\n\n[挂载预算不足：以下 ${_droppedNames.length} 层整层未纳入 —— ${_droppedNames.join('、')}。未列出的内容不代表不存在，请勿臆补；如需完整资料，请提示用户在「进阶 → 对话上下文策略 → 挂载字数预算」里调大，或减少挂载技法。]`;
+			}
+		}
+		// [P0-1] 稳定层指纹:跨轮逐字节不变才命中上游前缀缓存;挂载源/技法未变而指纹变了=某稳定层在漂(console 留痕排障)。
+		{
+			const _stableJoined = _joinLayers(_stableL);
+			const _volatileJoined = _joinLayers(_volatileL);
+			const _mountSig = `${(currentSource && currentSource.id) || selectedSourceId || ''}|${(activeTechniqueKeys || []).join(',')}`;
+			const _promptMeta = {
+				stableHash: hashPromptText(_stableJoined),
+				stableChars: _stableJoined.length,
+				volatileChars: _volatileJoined.length,
+				layerKeys: clipDetail.kept.map((item)=>item.key),
+				mountSig: _mountSig,
+			};
+			const _prev = lastPromptMetaRef.current;
+			if(!silent && _prev && _prev.mountSig === _mountSig && _prev.stableHash !== _promptMeta.stableHash){
+				console.warn('[ai-prompt] stable prefix changed', _prev.stableHash, _promptMeta.stableHash);
+			}
+			if(!silent){ lastPromptMetaRef.current = _promptMeta; }
+		}
+		// [Q-039 裁决 2026-09-18] JSON 输出模式:response_format 会被自愈层 / 不支持的网关剥掉,系统提示末尾同时明说「只输出 JSON」
+		// (追加在缓存断点之后=挥发区,不动稳定前缀);四条发送入口同源。
+		if(jsonMode){ _sysJoined = `${_sysJoined}\n\n${JSON_MODE_INSTRUCTION}`; }
 		return {
 			systemPrompt: _sysJoined,
 			retrieval,
 			clippedLayers: clipDetail.kept,
 		};
+	}
+	// 主发送路径(含重试 / 重新生成 / 编辑并分支):照旧写页面态
+	async function buildResolvedPrompt(currentPrompt, profile, extraSystemContext){
+		return buildResolvedPromptImpl(currentPrompt, profile, extraSystemContext, false);
+	}
+	// [Q-324] 旁路专用:同一份 system(前缀逐字节同构、照吃缓存),但一个页面态都不写
+	async function buildResolvedPromptQuiet(currentPrompt, profile, extraSystemContext){
+		return buildResolvedPromptImpl(currentPrompt, profile, extraSystemContext, true);
 	}
 
 	// 2F：选择图片（多媒体输入）→ 读为 dataURL 暂存，随下一条消息发送。
@@ -2358,11 +2619,12 @@ function AIAnalysisMain(props){
 			handleSend(txt, buildSoftwareHelpContext(helpKey));
 			return;
 		}
-		if(category === 'case-required' && !activeSource){
+		if(category === 'case-required' && !activeSource && !isAgentEnabledForSendGuard()){
 			setPrompt(txt);
 			AntdModal.info({
 				title: '需要先挂载案例',
-				content: '分析某个具体的命主 / 事件，需要先挂载对应案例：① 在左栏「案例」选择已保存的命盘；② 或到 八字 / 紫微 等 tab 起盘后点「保存为命盘」，再回到这里左栏选择它。挂载后 AI 才能拿到精确的盘面数据来分析。',
+				// [Q-001] 案例选择器在**顶栏**(右组),本页从来没有左栏 —— 旧文案指向一个不存在的位置
+				content: '分析某个具体的命主 / 事件，需要先挂载对应案例：① 在顶栏「选择案例」里选已保存的命盘；② 或到 八字 / 紫微 等 tab 起盘后点「保存为命盘」，再回到这里在顶栏选它。挂载后 AI 才能拿到精确的盘面数据来分析。',
 				okText: '我知道了',
 			});
 			return;
@@ -2371,71 +2633,93 @@ function AIAnalysisMain(props){
 	}
 
 	async function handleSend(overrideText, extraSystemContext){
-		if(sending){
+		// 重入闸走 ref 同步判定:state 版 `sending` 在 React commit 前仍是旧值,连点/回车+点击可双双过闸,
+		// 两条流共用 streamBufferRef 互相踩缓冲(压测按构造判定)。
+		if(sending || sendingRef.current){
 			return;
 		}
-		// overrideText 只认字符串：onClick 直挂 handleSend 这类写法会把点击事件对象塞进来，
-		// 模板串化后用户消息就成了 "[object Object]"（Windows #24/#25 实锅）——非字符串一律回落输入框内容。
-		const overrideStr = typeof overrideText === 'string' ? overrideText : null;
-		const trimmed = `${(overrideStr != null ? overrideStr : prompt) || ''}`.trim();
-		const sendImages = pendingImages.map((p)=>p.url).filter(Boolean);
-		if(!trimmed && !sendImages.length){
-			message.warning('请输入要分析的问题');
-			return;
-		}
-		// v1.21: 手动输入「具体命/事」问题但未挂载案例 → 提醒去挂载,不盲发(AI 无盘面数据只会臆测)。
-		// 软件类(带 extraSystemContext)与已挂载案例不受影响; chip 的命/事未挂载分支已在 handleExampleClick 拦截。
-		if(trimmed && !activeSource && !extraSystemContext && referencesSpecificCase(trimmed)){
-			AntdModal.info({
-				title: '需要先挂载案例',
-				content: '你问的是某个具体命主 / 事件，但当前没有挂载案例。请在左栏「案例」选择已保存的命盘，或到 八字 / 紫微 等 tab 起盘后点「保存为命盘」再回来选择。挂载后 AI 才能拿到精确盘面数据来分析。',
-				okText: '我知道了',
-			});
-			return;
-		}
-		const { profileId, model } = parseModelSelection(modelSelection);
-		const profile = providerProfiles.find((item)=>item.id === profileId);
-		if(!profile || !model){
-			message.warning('请先选择可用模型');
-			return;
-		}
-		if(!profile.apiKey && profile.providerType !== 'ollama'){
-			message.warning('当前配置缺少 API Key，请先到设置中补全');
-			return;
-		}
-		setSending(true);
+		sendingRef.current = true;
+		// [D53] 闸后整段 try/finally:此前「空问题 / 需先挂载 / 未选模型 / 缺密钥」四条早退不复位门闩 ⇒ 之后每次发送都在入口被吞(按钮看着可用却永不发,首次无密钥必踩;同病)
 		try{
-			const conversation = await ensureConversationRecord(trimmed, profile, model);
-			const promptResult = await buildResolvedPrompt(trimmed, profile, extraSystemContext);
-			const userMessage = await saveConversationMessage({
-				conversationId: conversation.id,
-				role: 'user',
-				content: trimmed,
-				images: sendImages.length ? sendImages : undefined,
-				streamStatus: 'done',
-			});
-			setMessages((prev)=>prev.concat(userMessage));
-			setPrompt('');
-			setPendingImages([]);
-			await streamReply({
-				conversation,
-				profile,
-				model,
-				chatMessages: [
-					{
-						role: 'system',
-						content: promptResult.systemPrompt,
-					},
-				].concat(visibleMessages.concat(userMessage).map((item)=>({
-					role: item.role,
-					content: item.content,
-					images: Array.isArray(item.images) && item.images.length ? item.images : undefined,
-				}))),
-			});
-		}catch(e){
-			console.error(e);
-			message.error('发送分析请求失败');
+			// overrideText 只认字符串：onClick 直挂 handleSend 这类写法会把点击事件对象塞进来，
+			// 模板串化后用户消息就成了 "[object Object]"（Windows #24/#25 实锅）——非字符串一律回落输入框内容。
+			const overrideStr = typeof overrideText === 'string' ? overrideText : null;
+			const trimmed = `${(overrideStr != null ? overrideStr : prompt) || ''}`.trim();
+			// [A3] 斜杠命令:输入框内容是命令(首字符 / 且次字符非 /)→ 交给命令面板执行,不发送;非命令零路径
+			if(overrideStr == null && chatAssist.interceptSend(trimmed)){ return; }
+			const sendImages = pendingImages.map((p)=>p.url).filter(Boolean);
+			if(!trimmed && !sendImages.length){
+				message.warning('请输入要分析的问题');
+				return;
+			}
+			// v1.21: 手动输入「具体命/事」问题但未挂载案例 → 提醒去挂载,不盲发(AI 无盘面数据只会臆测)。
+			// 软件类(带 extraSystemContext)与已挂载案例不受影响; chip 的命/事未挂载分支已在 handleExampleClick 拦截。
+			if(needsMountBeforeSend({ text: trimmed, activeSource, extraSystemContext, agentEnabled: isAgentEnabledForSendGuard() })){
+				AntdModal.info({
+					title: '需要先挂载案例',
+					content: '你问的是某个具体命主 / 事件，但当前没有挂载案例。请在顶栏「选择案例」里选已保存的命盘，或到 八字 / 紫微 等 tab 起盘后点「保存为命盘」再回来选择。挂载后 AI 才能拿到精确盘面数据来分析。',   // [Q-001] 顶栏,非左栏
+					okText: '我知道了',
+				});
+				return;
+			}
+			const { profileId, model } = parseModelSelection(modelSelection);
+			const profile = providerProfiles.find((item)=>item.id === profileId);
+			if(!profile || !model){
+				message.warning('请先选择可用模型');
+				return;
+			}
+			if(!profile.apiKey && profile.providerType !== 'ollama'){
+				message.warning('当前配置缺少 API Key，请先到设置中补全');
+				return;
+			}
+			// [Q-048⑥ 裁决 2026-09-18·维持现状+补提示] 多模型对比 / 编排各用自己的 busy 态,不占主发送门闩(设计如此);并行两条流时明说
+			if((chatAssist.bestOf && chatAssist.bestOf.busy) || (chatAssist.orchestrate && chatAssist.orchestrate.busy)){
+				message.warning('多模型对比 / 编排仍在生成，本次发送会与它并行进行（互不占用发送门闩）', 5);
+			}
+			setSending(true);
+			const sendAbort = beginSendAbort();   // [Q-035/M-46] 准备阶段即可停止
+			try{
+				const conversation = await ensureConversationRecord(trimmed, profile, model);
+				if(prepAborted(sendAbort)){ return; }
+				const promptResult = await buildResolvedPrompt(trimmed, profile, extraSystemContext);
+				if(prepAborted(sendAbort)){ return; }
+				const userMessage = await saveConversationMessage({
+					conversationId: conversation.id,
+					role: 'user',
+					content: trimmed,
+					images: sendImages.length ? sendImages : undefined,
+					streamStatus: 'done',
+					checkpoint: chatAssist.buildCheckpoint(),   // [A5] 回退用检查点(挂载/引用/技法/系统提示/模型…)
+					// [Q-029/M-40] 附加上下文(软件帮助 / 技能口径 / 【合盘数据】/ 已批准计划约束)随消息落库,重答时还原,否则重答基于缺失数据
+					extraSystemContext: extraSystemContext ? `${extraSystemContext}` : undefined,
+				});
+				setMessages((prev)=>prev.concat(userMessage));
+				setPrompt('');
+				setPendingImages([]);
+				if(prepAborted(sendAbort)){ return; }
+				await streamReply({
+					conversation,
+					profile,
+					model,
+					controller: sendAbort,
+					chatMessages: [
+						{
+							role: 'system',
+							content: promptResult.systemPrompt,
+						},
+					].concat(chatAssist.mainline(visibleMessages).concat(userMessage).map((item)=>({
+						role: item.role,
+						content: historyContentOf(item),   // [C5] 历史只带采用稿
+						images: Array.isArray(item.images) && item.images.length ? item.images : undefined,
+						agentTrace: item.agentTrace,
+					}))),
+				});
+			}catch(e){
+				console.error(e);
+				message.error('发送分析请求失败');
+			}
 		}finally{
+			sendingRef.current = false;
 			setSending(false);
 		}
 	}
@@ -2446,22 +2730,40 @@ function AIAnalysisMain(props){
 		}
 	}
 
-	async function resetConversationDraft(){
-		await startNewConversation();
+	// [Q-035/M-46] 发送 / 重答 / 重试 / 分支四个入口一按下就建控制器并挂上 abortRef:
+	//   此前控制器只在 streamReply 里建,而「重算挂载快照 → 拼提示词 → 落库」这段准备期可长达数秒,
+	//   期间停止钮已显示(sending=true)却点不动(abortRef 还是上一轮或 null),等准备完照样发一次请求烧 token。
+	function beginSendAbort(){
+		const c = new AbortController();
+		abortRef.current = c;
+		return c;
+	}
+	// 准备阶段各 await 之后调用:已被停止 → 收尾并早退(true = 调用方 return)
+	function prepAborted(c){
+		if(!c || !c.signal.aborted){ return false; }
+		try{ message.info('已停止'); }catch(e){ /* noop */ }
+		if(abortRef.current === c){ abortRef.current = null; }
+		return true;
 	}
 
-	async function handleDeleteConversation(conversationId){
+	async function resetConversationDraft(options){
+		await startNewConversation(options || {});
+	}
+
+	// [Q-011] silent 同义:批量删除逐条调用时只由调用方弹一条汇总
+	async function handleDeleteConversation(conversationId, options){
 		if(activeConversationId === conversationId && abortRef.current){
 			abortRef.current.abort();
 		}
 		await deleteStoreRecord(AI_ANALYSIS_STORES.conversations, conversationId);
-		await deleteWhere(AI_ANALYSIS_STORES.messages, (item)=>item.conversationId === conversationId);
+		await deleteWhere(AI_ANALYSIS_STORES.messages, (item)=>item.conversationId === conversationId, { index: 'conversationId', value: conversationId });
 		setConversations((prev)=>prev.filter((item)=>item.id !== conversationId));
 		setSelectedHistoryIds((prev)=>prev.filter((id)=>id !== conversationId));
 		if(activeConversationId === conversationId){
-			await resetConversationDraft();
+			// [Q-062/AW-30] 在历史页删掉「当前打开的那条」会话时不要把用户拽回分析页(批量删除更糟:循环中途就切页)
+			await resetConversationDraft({ switchTab: false });
 		}
-		message.success('对话已删除');
+		if(!(options && options.silent)){ message.success('对话已删除'); }
 	}
 
 	async function handleDuplicateConversation(conversation){
@@ -2526,17 +2828,23 @@ function AIAnalysisMain(props){
 	}
 
 	async function handleBatchDeleteConversations(){
-		for(let i=0; i<selectedHistoryIds.length; i++){
-			await handleDeleteConversation(selectedHistoryIds[i]);
+		const total = selectedHistoryIds.length;
+		for(let i=0; i<total; i++){
+			await handleDeleteConversation(selectedHistoryIds[i], { silent: true });   // [Q-011] 只弹一条汇总
 		}
 		setSelectedHistoryIds([]);
+		if(total){ message.success(`已删除 ${total} 个对话`); }
 	}
 
-	async function exportConversation(conversation, format){
+	// [Q-060/AW-29] withScreenshot=false:从**历史页**导出时不附页面截图 —— 截图抓的是「当前可见页」,
+	// 在历史页就是那张会话列表(可能把别人的会话标题与案例名一并印进文档),与导出的这一条会话无关。
+	// 分析页导出(可见的就是这条会话的消息区)照旧附图。
+	async function exportConversation(conversation, format, options){
+		const withScreenshot = !(options && options.withScreenshot === false);
 		const msgList = await listConversationMessages(conversation.id);
 		// docx 形态按「AI导出设置·附页面截图」抓当前页(AI分析页)截图入文档头;失败恒 null 不阻断。
 		let pageShotOpts;
-		if(format === 'docx'){
+		if(format === 'docx' && withScreenshot){
 			try{
 				const { isAIExportScreenshotEnabled } = await import('../../utils/aiExport');
 				if(isAIExportScreenshotEnabled()){
@@ -2547,20 +2855,8 @@ function AIAnalysisMain(props){
 			}catch(_){ /* 截图失败绝不阻断导出 */ }
 		}
 		const exported = await exportConversationByFormat(conversation, msgList, format, pageShotOpts);
-		if(desktopBridge){
-			try{
-				const base64Data = await blobToBase64(exported.blob);
-				await saveDesktopFile({
-					defaultFileName: exported.fileName,
-					base64Data,
-					mimeType: exported.blob.type,
-				});
-				return;
-			}catch(e){
-				console.warn('desktop save failed, fallback to browser', e);
-			}
-		}
-		saveBlobToBrowser(exported.fileName, exported.blob);
+		// [Q-410] 单源保存:桌面壳保存桥(取消不回落浏览器、不报成功);失败如实提示。
+		notifySaveResult(await saveBlobToBrowser(exported.fileName, exported.blob), '已导出对话');
 	}
 
 	async function exportSelectedConversations(){
@@ -2570,105 +2866,131 @@ function AIAnalysisMain(props){
 			return;
 		}
 		const blob = await exportConversationBundle(list, async (conversation)=>listConversationMessages(conversation.id));
-		if(desktopBridge){
-			try{
-				const base64Data = await blobToBase64(blob);
-				await saveDesktopFile({
-					defaultFileName: 'ai-analysis-conversations.zip',
-					base64Data,
-					mimeType: 'application/zip',
-				});
-				return;
-			}catch(e){
-				console.warn('desktop save failed, fallback to browser', e);
-			}
+		notifySaveResult(await saveBlobToBrowser('ai-analysis-conversations.zip', blob), `已导出 ${list.length} 个对话`);   // [Q-410]
+	}
+
+	// [P1-S1] 清理挂载上下文派生缓存:排障(疑似挂载内容陈旧)与腾空间的手动出口;存档与对话不受影响。
+	async function handleClearContextCache(){
+		try{
+			const before = await countStoreRecords(AI_ANALYSIS_STORES.contextCache);
+			await clearStore(AI_ANALYSIS_STORES.contextCache);
+			message.success(`已清理 ${before} 条上下文缓存,下次挂载按当前存档重建`);
+		}catch(e){
+			message.error(`清理失败:${e && e.message ? e.message : e}`);
 		}
-		saveBlobToBrowser('ai-analysis-conversations.zip', blob);
 	}
 
 	async function handleExportWorkspaceBackup(){
+		// [Q-412/M-160] 整段读库 + 序列化包进 try:此前只包桌面保存桥,读库失败 / 大库 JSON.stringify 超限 = 未处理 rejection 且无提示。
+		try{
+			await exportWorkspaceBackupInner();
+		}catch(e){
+			console.warn('[ai backup] export failed', e);
+			message.error(`导出备份失败:${(e && e.message) || e}`);
+		}
+	}
+	async function exportWorkspaceBackupInner(){
 		const workspace = {
 			snapshotVersion: AI_ANALYSIS_SCHEMA_VERSION,
 			exportedAt: new Date().toISOString(),
 			stores: {},
 		};
-		const storeKeys = Object.values(AI_ANALYSIS_STORES);
+		// [P1-S1] 派生缓存(context_cache)不入包:体积大,且恢复后按 sourceUpdatedAt 立刻失效、按需重建。
+		const storeKeys = Object.values(AI_ANALYSIS_STORES).filter((name)=>AI_BACKUP_EXCLUDED_STORES.indexOf(name) < 0);
 		for(let i=0; i<storeKeys.length; i++){
 			workspace.stores[storeKeys[i]] = await listStoreRecords(storeKeys[i]);
 		}
 		// 🔴 [V4 敏感剥离] listStoreRecords(providerProfiles) 读端自动解密——原样入包=备份文件
 		// 泄明文 API 密钥(放网盘/转发即外泄)。导出一律剥密置空;恢复端读到空 key 走既有
 		// 「提示重填」语义,零额外处理。
-		if(Array.isArray(workspace.stores[AI_ANALYSIS_STORES.providerProfiles])){
-			workspace.stores[AI_ANALYSIS_STORES.providerProfiles] = workspace.stores[AI_ANALYSIS_STORES.providerProfiles]
-				.map((rec)=>{
-					if(!rec || typeof rec !== 'object'){
-						return rec;
-					}
-					const { apiKey, apiKeyDecryptFailed, ...rest } = rec;
-					return { ...rest, apiKey: '', apiKeyRedacted: true };
-				});
-		}
-		const blob = await exportWorkspaceBackupBlob(workspace);
-		if(desktopBridge){
-			try{
-				const base64Data = await blobToBase64(blob);
-				await saveDesktopFile({
-					defaultFileName: 'horosa-ai-analysis-backup.zip',
-					base64Data,
-					mimeType: 'application/zip',
-				});
-				message.success('备份已导出');
-				return;
-			}catch(e){
-				console.warn(e);
+		// [Q-052/M-63] 剥密走单源 aiSecretStores(穷举带密钥的店:接口档案 + 联网检索等集成档案),此前只剥 provider_profiles,
+		// integration_profiles 的第三方 Key 以明文进 zip。
+		Object.keys(workspace.stores).forEach((name)=>{
+			if(isSecretStore(name) && Array.isArray(workspace.stores[name])){
+				workspace.stores[name] = workspace.stores[name].map((rec)=>redactSecretRecord(rec));
 			}
-		}
-		saveBlobToBrowser('horosa-ai-analysis-backup.zip', blob);
-		message.success('备份已导出');
+		});
+		const blob = await exportWorkspaceBackupBlob(workspace);
+		// [Q-410] 此前桌面桥失败(含用户取消)回落浏览器下载再报「备份已导出」= 取消也报成功;现单源保存如实报。
+		notifySaveResult(await saveBlobToBrowser('horosa-ai-analysis-backup.zip', blob), '备份已导出');
 	}
+
+	// [D61] 库健康态:IndexedDB 打不开(VersionError = 同名库被更新版本升过)落内存回退时顶部横幅告知
+	const [storeHealth, setStoreHealth] = React.useState(()=>getAiStoreHealth());
+	React.useEffect(()=>{
+		const onDegraded = ()=>setStoreHealth(getAiStoreHealth());
+		window.addEventListener(AI_STORE_DEGRADED_EVENT, onDegraded);
+		onDegraded();
+		return ()=>window.removeEventListener(AI_STORE_DEGRADED_EVENT, onDegraded);
+	}, []);
 
 	async function restoreWorkspaceBackup(blob){
 		// 🔴 破坏性操作三闸(曾裸奔:无确认、无校验、先删后写、异常静默):
 		// ① 内容校验先行 —— manifest 能解析但没有 stores 时,旧实现会把全部 store 清空后
 		//    一条不还原(全量数据丢失);② 二次确认;③ 逐 store 校验通过后才动库。
-		const payload = await parseWorkspaceBackupBlob(blob);
-		const stores = payload && typeof payload.stores === 'object' && payload.stores ? payload.stores : null;
-		const storeKeys = Object.values(AI_ANALYSIS_STORES);
-		const hasAnyKnownStore = !!stores && storeKeys.some((name)=>Array.isArray(stores[name]));
-		if(!stores || !hasAnyKnownStore){
-			message.error('备份内容无效(缺少工作区数据),已取消恢复 —— 现有数据未改动');
+		// [D54] 只替换包内存在的数据集(缺席的一律不动)+ 恢复前快照与中途回滚 + 未来版拒 + 体积上限:此前对每个已知店 clear+bulkPut(缺则 []),
+		//   一个只含单店的包能把其余二十多个店清空,且无事务无回滚。
+		let payload = null;
+		try{
+			payload = await parseWorkspaceBackupBlob(blob, { maxBytes: AI_BACKUP_MAX_ZIP_BYTES });
+		}catch(e){
+			message.error(`${e && e.message}` === 'backup.too.large' ? '备份文件超过 200 MB 上限,已取消恢复 —— 现有数据未改动' : '备份内容无效(不是有效的备份包),已取消恢复 —— 现有数据未改动');
 			return;
 		}
-		const total = storeKeys.reduce((n, name)=>n + (Array.isArray(stores[name]) ? stores[name].length : 0), 0);
+		// [P1-S1] 恢复同样跳过派生缓存:旧包里的 context_cache 不覆盖本机缓存。
+		const storeKeys = Object.values(AI_ANALYSIS_STORES).filter((name)=>AI_BACKUP_EXCLUDED_STORES.indexOf(name) < 0);
+		const plan = planWorkspaceRestore(payload, storeKeys);
+		if(!plan.ok){
+			// [Q-412/M-162] 全量包无 AI 工作区段 → 指路命盘列表的全量恢复;含 aiWorkspace 段的全量包已由 plan 自动取段。
+			message.error(plan.error === 'backup.version.future' ? '这份备份由更新版本创建,当前版本无法恢复 —— 现有数据未改动'
+				: plan.error === 'backup.unified.no.ai' ? '这是「全量备份」包但不含 AI 工作区段:命盘 / 事盘请到「命盘列表 → 恢复全量备份」恢复;AI 工作区请用 AI 分析页导出的备份 —— 现有数据未改动'
+				: '备份内容无效(缺少工作区数据),已取消恢复 —— 现有数据未改动');
+			return;
+		}
 		const ok = await asyncConfirm({
-			title: '恢复备份将覆盖当前 AI 工作区',
-			content: `将清空并替换全部工作区数据(会话/材料/模板/设置等),导入 ${total} 条记录。此操作不可撤销,建议先导出一份当前备份。确定继续?`,
+			title: '恢复备份将替换包内的数据集',
+			content: `${plan.unified ? '(识别为全量备份包,只恢复其中的 AI 工作区段;命盘 / 事盘请到「命盘列表 → 恢复全量备份」)' : ''}只替换备份包里带的 ${plan.present.length} 个数据集(共 ${plan.total} 条记录),包里没有的 ${plan.absent.length} 个数据集不动。接口档案与集成档案的密钥按 id 保留本机现值(备份包里是脱敏占位,不会清空本机 Key)。替换前会先做内存快照,中途出错自动回滚;建议先导出一份当前备份。确定继续?`,
 			okText: '确认恢复',
 			cancelText: '取消',
 		});
 		if(!ok){
 			return;
 		}
-		for(let i=0; i<storeKeys.length; i++){
-			const storeName = storeKeys[i];
-			await deleteWhere(storeName, ()=>true);
-			await bulkPutStoreRecords(storeName, Array.isArray(stores[storeName]) ? stores[storeName] : [], storeName);
+		try{
+			await restoreWorkspaceStores(plan, { clearStore, bulkPutStoreRecords, listStoreRecords, putStoreRecord, metaStore: AI_ANALYSIS_STORES.workspaceMeta });
+		}catch(e){
+			console.error(e);
+			message.error('恢复中途出错,已按快照回滚,现有数据未改动');
+			await loadWorkspace();
+			return;
 		}
-		await loadWorkspace();
-		message.success('备份已恢复');
+		// [Q-412/M-161] 恢复后当前会话可能已被替换 / 不存在:包内带会话或消息店 → 重置当前会话(避免界面仍显示旧消息);否则保留当前会话并重载其消息。
+		const touchesConv = plan.present.indexOf(AI_ANALYSIS_STORES.conversations) >= 0 || plan.present.indexOf(AI_ANALYSIS_STORES.messages) >= 0;
+		if(touchesConv){
+			await resetConversationDraft({ switchTab: false });
+			await loadWorkspace();
+		}else{
+			await loadWorkspace({ keepConversation: true });
+		}
+		message.success(`备份已恢复(${plan.present.length} 个数据集)`);
 	}
 
 	async function handleRestoreWorkspaceBackup(){
 		if(desktopBridge){
+			let payload;
 			try{
-				const payload = await openDesktopBackup();
-				if(payload && payload.base64Data){
-					await restoreWorkspaceBackup(base64ToBlob(payload.base64Data, payload.mimeType || 'application/zip'));
-					return;
-				}
+				payload = await openDesktopBackup();
 			}catch(e){
+				// [Q-060/AW-24] 只有**桥调用抛错**才回退浏览器 input
 				console.warn(e);
+				payload = undefined;
+			}
+			if(payload !== undefined){
+				// [Q-060/AW-24] 原生对话框点「取消」时壳回 Ok(None) → 这里是 null,是**用户取消**,不是失败。
+				// 此前 null 直接落到隐藏 input 的 click(),于是取消完又弹出第二个选择框(统一备份入口早就按取消 return)。
+				if(!payload || !payload.base64Data){ return; }
+				await restoreWorkspaceBackup(base64ToBlob(payload.base64Data, payload.mimeType || 'application/zip'));
+				return;
 			}
 		}
 		if(backupRestoreInputRef.current){
@@ -2710,6 +3032,7 @@ function AIAnalysisMain(props){
 		const values = await materialForm.validateFields();
 		const saved = await putStoreRecord(AI_ANALYSIS_STORES.materials, {
 			...(editingMaterial || {}),
+			updatedAt: new Date().toISOString(),   // [Q-060/AW-25] 编辑即刷新更新时间
 			name: values.name,
 			fileName: editingMaterial && editingMaterial.fileName ? editingMaterial.fileName : values.name,
 			kind: editingMaterial && editingMaterial.kind ? editingMaterial.kind : 'note',
@@ -2725,6 +3048,12 @@ function AIAnalysisMain(props){
 				extractedText: `${values.extractedText || ''}`.trim(),
 			}),
 		}, 'material');
+		// [Q-054/M-66] 正文变了就删旧切块与向量(与「替换文件」同式):切块入口只要库里有旧切块即返回 → 检索路径继续用旧文本。
+		const prevText = `${(editingMaterial && editingMaterial.extractedText) || ''}`.trim();
+		if(editingMaterial && editingMaterial.id && prevText !== `${values.extractedText || ''}`.trim()){
+			await deleteWhere(AI_ANALYSIS_STORES.materialChunks, (item)=>item.materialId === editingMaterial.id, { index: 'materialId', value: editingMaterial.id });
+			await deleteWhere(AI_ANALYSIS_STORES.materialEmbeddings, (item)=>item.materialId === editingMaterial.id, { index: 'materialId', value: editingMaterial.id });
+		}
 		setMaterials((prev)=>sortByUpdatedDesc(prev.some((item)=>item.id === saved.id) ? prev.map((item)=>item.id === saved.id ? saved : item) : [saved].concat(prev)));
 		setMaterialModalOpen(false);
 		setEditingMaterial(null);
@@ -2756,9 +3085,15 @@ function AIAnalysisMain(props){
 		return saved;
 	}
 
-	async function handleImportFileLike(fileLike){
+	// [Q-003] batch = 本批导入的去重台账 { seen: Map<fileHash, 已入库记录> }。
+	// `materials` 是 render 期快照,`setMaterials` 在同一个批量循环里不会回灌 ⇒ 一批里的第二份同文件
+	// 在 materials 里查不到重复、**静默入库**(用户拖一个目录进来,重复文件就这样悄悄翻倍)。
+	// 单文件入口不传 batch = 逐字节走原路径。
+	function newImportBatch(){ return { seen: new Map() }; }
+	async function handleImportFileLike(fileLike, batch){
 		const parsed = await parseMaterialFile(fileLike);
-		const duplicate = materials.find((item)=>item.fileHash && parsed.fileHash && item.fileHash === parsed.fileHash);
+		const batchHit = (batch && parsed.fileHash) ? (batch.seen.get(parsed.fileHash) || null) : null;
+		const duplicate = batchHit || materials.find((item)=>item.fileHash && parsed.fileHash && item.fileHash === parsed.fileHash);
 		if(duplicate){
 			const action = await asyncInput({
 				title: '发现重复资料',
@@ -2767,14 +3102,16 @@ function AIAnalysisMain(props){
 				multiline: false,
 			});
 			if(action === 'overwrite'){
-				await putStoreRecord(AI_ANALYSIS_STORES.materials, {
+				const overwritten = await putStoreRecord(AI_ANALYSIS_STORES.materials, {
 					...duplicate,
 					...parsed,
 					id: duplicate.id,
 					name: parsed.name,
 					searchText: buildMaterialSearchText(parsed),
+					/* [Q-060/AW-25] 用户编辑路径显式刷新更新时间(putStoreRecord 见入参带 updatedAt 即沿用旧值 → 编辑完排序不动、时间不变) */ updatedAt: new Date().toISOString(),
 				}, 'material');
 				await loadWorkspace({ keepConversation: true });
+				if(batch && parsed.fileHash){ batch.seen.set(parsed.fileHash, overwritten || { ...duplicate, ...parsed, id: duplicate.id }); }
 				message.success(`已覆盖资料：${duplicate.name}`);
 				return 'overwritten';
 			}
@@ -2783,16 +3120,22 @@ function AIAnalysisMain(props){
 				return 'skipped';
 			}
 		}
-		await saveImportedMaterial(parsed);
+		const saved = await saveImportedMaterial(parsed);
+		if(batch && parsed.fileHash){ batch.seen.set(parsed.fileHash, saved); }
 		message.success(`资料已导入：${parsed.name}`);
 		return 'imported';
 	}
 
 	async function importFileLikeList(fileList, options = {}){
-		const list = Array.from(fileList || []).filter(Boolean);
+		const all = Array.from(fileList || []).filter(Boolean);
+		// [Q-060/AW-18] 与 ingestFiles 同一张白名单:浏览器目录选择忽略 accept(整目录所有文件,含 .DS_Store、图片)
+		const list = all.filter((f)=>isSupportedMaterialFile(f));
+		const rejected = all.length - list.length;
+		if(rejected > 0){ message.warning(`已跳过 ${rejected} 个不支持的文件(只收 ${MATERIAL_IMPORT_EXTENSIONS.join(' / ')})`); }
 		let count = 0;
+		const batch = newImportBatch();   // [Q-003] 批内去重台账
 		for(let i=0; i<list.length; i++){
-			const result = await handleImportFileLike(list[i]);
+			const result = await handleImportFileLike(list[i], batch);
 			if(result === 'imported' || result === 'overwritten'){
 				count += 1;
 			}
@@ -2853,7 +3196,7 @@ function AIAnalysisMain(props){
 		const name = `${nextName || ''}`.trim();
 		if(!name){ message.warning('名称不能为空'); return; }
 		try{
-			const saved = await putStoreRecord(AI_ANALYSIS_STORES.materialFolders, { ...folder, name }, 'mfolder');
+			const saved = await putStoreRecord(AI_ANALYSIS_STORES.materialFolders, { ...folder, name, updatedAt: new Date().toISOString(), }, 'mfolder');   // [Q-060/AW-25]
 			setMaterialFolders((prev)=>compareByName(prev.map((it)=>it.id === saved.id ? saved : it)));
 			message.success('已重命名');
 		}catch(e){ console.error(e); message.error('重命名失败'); }
@@ -2871,7 +3214,7 @@ function AIAnalysisMain(props){
 		try{
 			// 先把资料移出，避免外键悬空。
 			for(const m of inside){
-				await putStoreRecord(AI_ANALYSIS_STORES.materials, { ...m, folderId: null }, 'material');
+				await putStoreRecord(AI_ANALYSIS_STORES.materials, { ...m, folderId: null, updatedAt: new Date().toISOString(), }, 'material');   // [Q-060/AW-25]
 			}
 			await deleteStoreRecord(AI_ANALYSIS_STORES.materialFolders, folder.id);
 			setMaterialFolders((prev)=>prev.filter((it)=>it.id !== folder.id));
@@ -2882,7 +3225,7 @@ function AIAnalysisMain(props){
 	}
 	async function handleMoveMaterial(material, folderId){
 		try{
-			const saved = await putStoreRecord(AI_ANALYSIS_STORES.materials, { ...material, folderId: folderId || null }, 'material');
+			const saved = await putStoreRecord(AI_ANALYSIS_STORES.materials, { ...material, folderId: folderId || null, updatedAt: new Date().toISOString(), }, 'material');   // [Q-060/AW-25]
 			await loadWorkspace({ keepConversation: true });
 			message.success(folderId ? '已移动' : '已移到「未分类」');
 			return saved;
@@ -2891,11 +3234,33 @@ function AIAnalysisMain(props){
 
 	// 非阻塞批量导入：用队列驱动进度条 + 对重复文件「全部跳过/全部覆盖/逐条」一次决策（不再 window.prompt 反复弹）。
 	async function ingestFiles(fileList, options = {}){
-		const files = Array.from(fileList || []).filter((f)=>f && f.name);
+		const all = Array.from(fileList || []).filter((f)=>f && f.name);
+		// [Q-060/AW-18] 按同一张扩展名白名单过滤(与桌面壳层逐字同集)。此前拖拽 / 浏览器目录选择不受 accept
+		// 约束,guessKind 把一切未知后缀当 txt、readAsText 直接读二进制 —— 拖一张 PNG 进来就是一份乱码资料。
+		const files = all.filter((f)=>isSupportedMaterialFile(f));
+		const rejected = all.filter((f)=>!isSupportedMaterialFile(f));
+		if(rejected.length){
+			// 不静默丢:在队列里留「类型不支持」的痕迹,2 秒后随队列一起清
+			const skipQ = rejected.map((f)=>({ id: `${f.name}-skip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: f.name, size: f.size || 0, status: 'skip', err: '类型不支持' }));
+			if(isMountedRef.current){ setMaterialIngestQueue((prev)=>prev.concat(skipQ)); }
+			message.warning(`已跳过 ${rejected.length} 个不支持的文件(只收 ${MATERIAL_IMPORT_EXTENSIONS.join(' / ')})`);
+			// [Q-413/M-163] 只清本批自己的行(此前整条队列清空 → 并发的另一批进度/报错行一起消失)
+			const skipIds = new Set(skipQ.map((q)=>q.id));
+			if(!files.length){ setTimeout(()=>{ if(isMountedRef.current){ setMaterialIngestQueue((prev)=>prev.filter((q)=>!skipIds.has(q.id))); } }, 2400); }
+		}
 		if(!files.length) return;
+		// [Q-060/AW-23] 走后端抽取的 pdf/doc/docx 直接按后端 30MB 硬上限拦截:此前只有一个 50MB「仍要上传」软提示,
+		// 35MB 的 PDF 一路送到后端才被 580103 拒,用户看到的是一句无解释的失败(而且整批就此中断)。
+		const overBackend = files.filter((f)=>oversizeForBackend(f));
+		if(overBackend.length){
+			const names = overBackend.map((f)=>`${f.name} (${(f.size / 1024 / 1024).toFixed(1)} MB)`).join('、');
+			message.warning(`以下文件超过 ${MATERIAL_BACKEND_MAX_BYTES / 1024 / 1024} MB 抽取上限,已跳过:${names}`);
+		}
+		const sized = files.filter((f)=>!oversizeForBackend(f));
+		if(!sized.length){ return; }
 		// v1.16-BB5: 大文件 OOM 守门 — > 50MB 警告(parseMaterialFile 内部用 base64,大文件可能爆内存/UI 卡死)
 		const HUGE = 50 * 1024 * 1024;
-		const hugeFiles = files.filter((f)=>f.size > HUGE);
+		const hugeFiles = sized.filter((f)=>f.size > HUGE);
 		if(hugeFiles.length){
 			const list = hugeFiles.map((f)=>`${f.name} (${(f.size/1024/1024).toFixed(1)} MB)`).join('\n');
 			const proceed = await new Promise((resolve)=>{
@@ -2912,20 +3277,22 @@ function AIAnalysisMain(props){
 		}
 		// 初始化队列；统一过 safeSetQ 守门，组件 unmount 后绝不 setState。
 		const safeSetQ = (updater)=>{ if(isMountedRef.current){ setMaterialIngestQueue(updater); } };
-		const queue = files.map((f)=>({ id: `${f.name}-${f.size}-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, name: f.name, size: f.size || 0, status: 'parsing' }));
+		const queue = sized.map((f)=>({ id: `${f.name}-${f.size}-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, name: f.name, size: f.size || 0, status: 'parsing' }));
 		safeSetQ((prev)=>prev.concat(queue));
 		const dupePolicy = options.dupePolicy || 'ask'; // 'ask' | 'skip' | 'overwrite' | 'keep'
+		const batchSeen = new Map();   // [Q-003] 批内已入库的 fileHash → 记录(materials 在本循环里不回灌)
 		let askedAll = null; // 设置后剩余所有重复都按此处理
 		let ok = 0;
-		for(let i = 0; i < files.length; i++){
+		for(let i = 0; i < sized.length; i++){
 			if(!isMountedRef.current){ break; } // unmount 后立刻退出循环。
-			const f = files[i];
+			const f = sized[i];
 			const qid = queue[i].id;
 			try{
 				safeSetQ((prev)=>prev.map((q)=>q.id === qid ? { ...q, status: 'parsing' } : q));
 				const parsed = await parseMaterialFile(f);
 				if(!isMountedRef.current){ break; }
-				const duplicate = materials.find((m)=>m.fileHash && parsed.fileHash && m.fileHash === parsed.fileHash);
+				const duplicate = (parsed.fileHash ? batchSeen.get(parsed.fileHash) : null)
+					|| materials.find((m)=>m.fileHash && parsed.fileHash && m.fileHash === parsed.fileHash);   // [Q-003] 先查批内台账
 				let action = askedAll || (duplicate ? (dupePolicy === 'ask' ? null : dupePolicy) : 'import');
 				if(duplicate && !action){
 					// 异步弹层：覆盖 / 跳过 / 全部覆盖 / 全部跳过（用 asyncConfirm 不行——需要多按钮，改用自定义 Modal）。
@@ -2958,37 +3325,64 @@ function AIAnalysisMain(props){
 				}
 				safeSetQ((prev)=>prev.map((q)=>q.id === qid ? { ...q, status: 'importing' } : q));
 				if(action === 'overwrite' && duplicate){
-					await putStoreRecord(AI_ANALYSIS_STORES.materials, { ...duplicate, ...parsed, id: duplicate.id, name: parsed.name, searchText: buildMaterialSearchText(parsed) }, 'material');
+					const overwritten = await putStoreRecord(AI_ANALYSIS_STORES.materials, { ...duplicate, ...parsed, id: duplicate.id, name: parsed.name, searchText: buildMaterialSearchText(parsed), updatedAt: new Date().toISOString(), }, 'material');   // [Q-060/AW-25]
+					if(parsed.fileHash){ batchSeen.set(parsed.fileHash, overwritten || { ...duplicate, ...parsed, id: duplicate.id }); }
 					ok++;
 				}else if(action === 'skip' && duplicate){
 					safeSetQ((prev)=>prev.map((q)=>q.id === qid ? { ...q, status: 'skip' } : q));
 					continue;
 				}else{
-					await saveImportedMaterial(parsed);
+					const savedMat = await saveImportedMaterial(parsed);
+					if(parsed.fileHash){ batchSeen.set(parsed.fileHash, savedMat); }
 					ok++;
 				}
-				safeSetQ((prev)=>prev.map((q)=>q.id === qid ? { ...q, status: 'done' } : q));
+				const truncNote = describeExtractTruncation(parsed.extractMeta);   // [Q-060/AW-23]
+				safeSetQ((prev)=>prev.map((q)=>q.id === qid ? { ...q, status: 'done', truncated: truncNote || '' } : q));
 			}catch(e){
 				console.error(e);
 				safeSetQ((prev)=>prev.map((q)=>q.id === qid ? { ...q, status: 'error', err: (e && e.message) || '导入失败' } : q));
 			}
 		}
 		if(ok && isMountedRef.current){ try{ await loadWorkspace({ keepConversation: true }); message.success(`已导入 ${ok} 份资料`); }catch(_){} }
-		// 2 秒后清队列。
-		setTimeout(()=>{ if(isMountedRef.current){ setMaterialIngestQueue([]); } }, 2400);
+		// 2 秒后清队列 —— [Q-413/M-163] 只清本批的行:两批并发时先完成的一批曾把整条队列清空,另一批进行中的进度与报错行消失。
+		const batchIds = new Set(queue.map((q)=>q.id));
+		setTimeout(()=>{ if(isMountedRef.current){ setMaterialIngestQueue((prev)=>prev.filter((q)=>!batchIds.has(q.id))); } }, 2400);
+	}
+
+	// [Q-413/M-164] 删组合/资料/模版后,已存会话记录里的 `<kind>:<id>` 引用同批清掉:此前只过滤当前 state 的
+	//   referenceIds,重开旧会话原样灌回,挂载横幅按数组长度计数「📚 N 资料 / 组合」而解析时静默丢弃。
+	async function pruneConversationRefs(refId){
+		try{
+			const list = await listStoreRecords(AI_ANALYSIS_STORES.conversations);
+			const hit = (list || []).filter((c)=>c && Array.isArray(c.referenceIds) && c.referenceIds.indexOf(refId) >= 0);
+			if(!hit.length){ return 0; }
+			const next = hit.map((c)=>({ ...c, referenceIds: c.referenceIds.filter((x)=>x !== refId) }));
+			await bulkPutStoreRecords(AI_ANALYSIS_STORES.conversations, next, 'conv');
+			const byId = new Map(next.map((c)=>[c.id, c]));
+			setConversations((prev)=>prev.map((c)=>byId.get(c.id) || c));
+			return hit.length;
+		}catch(e){
+			console.error(e);
+			return 0;
+		}
+	}
+
+	// [Q-060/AW-17] 桌面拿到的文件转成 File 后交给 ingestFiles —— 与拖拽 / 浏览器选择共用同一套
+	// 决策弹窗(跳过 / 全部跳过 / 覆盖 / 全部覆盖)、逐文件队列、白名单与超大文件确认。
+	function desktopItemsToFiles(items){
+		return (items || []).map((item)=>{
+			const blob = base64ToBlob(item.base64Data, item.mimeType || 'application/octet-stream');
+			return new File([blob], item.fileName, { type: item.mimeType || '' });
+		});
 	}
 
 	async function handleDesktopFilePick(){
+		let picked = null;
 		try{
-			const files = await pickDesktopFiles();
-			for(let i=0; i<(files || []).length; i++){
-				const item = files[i];
-				const blob = base64ToBlob(item.base64Data, item.mimeType || 'application/octet-stream');
-				const file = new File([blob], item.fileName, {
-					type: item.mimeType || '',
-				});
-				await handleImportFileLike(file);
-			}
+			// [Q-060/AW-17] 只有**桥调用本身**失败才回退浏览器选择。此前整段(含逐个导入)裹在一个 try 里:
+			// 任一文件解析失败(例如超 30MB 的 PDF 被后端拒)就提示「桌面选文件暂时不可用」并弹出第二个选择框,
+			// 余下文件全不导入,真实错误只进控制台。
+			picked = await pickDesktopFiles();
 		}catch(e){
 			console.error(e);
 			clearFileInput(desktopFileInputRef);
@@ -2997,23 +3391,15 @@ function AIAnalysisMain(props){
 				return;
 			}
 			message.error(formatImportError('桌面导入失败', e));
+			return;
 		}
+		await ingestFiles(desktopItemsToFiles(picked));
 	}
 
 	async function handleDesktopFolderImport(){
+		let picked = null;
 		try{
-			const files = await pickDesktopFolder();
-			for(let i=0; i<(files || []).length; i++){
-				const item = files[i];
-				const blob = base64ToBlob(item.base64Data, item.mimeType || 'application/octet-stream');
-				const file = new File([blob], item.fileName, {
-					type: item.mimeType || '',
-				});
-				await handleImportFileLike(file);
-			}
-			if((files || []).length){
-				message.success(`已从目录导入 ${(files || []).length} 份资料`);
-			}
+			picked = await pickDesktopFolder();   // [Q-060/AW-17] 同上:catch 只管桥调用本身
 		}catch(e){
 			console.error(e);
 			clearFileInput(desktopFolderInputRef);
@@ -3022,7 +3408,10 @@ function AIAnalysisMain(props){
 				return;
 			}
 			message.error(formatImportError('目录导入失败', e));
+			return;
 		}
+		// [Q-060/AW-17] 成功条数由 ingestFiles 按**真正入库的**数量报(此前按选中文件数报,把跳过的重复也算成功)
+		await ingestFiles(desktopItemsToFiles(picked));
 	}
 
 	async function handleDesktopFileInputChange(e){
@@ -3054,13 +3443,17 @@ function AIAnalysisMain(props){
 		}
 	}
 
-	async function deleteMaterial(materialId){
+	// [Q-011] silent:批量路径(去重 / 批删)逐条调用时不逐条弹 toast —— N 份重复就弹 N+1 条,
+	// 后面的把前面的挤掉,用户只看见一串闪动。单条删除(缺省)照旧弹。
+	async function deleteMaterial(materialId, options){
 		await deleteStoreRecord(AI_ANALYSIS_STORES.materials, materialId);
-		await deleteWhere(AI_ANALYSIS_STORES.materialChunks, (item)=>item.materialId === materialId);
-		await deleteWhere(AI_ANALYSIS_STORES.materialEmbeddings, (item)=>item.materialId === materialId);
+		await deleteWhere(AI_ANALYSIS_STORES.materialChunks, (item)=>item.materialId === materialId, { index: 'materialId', value: materialId });
+		await deleteWhere(AI_ANALYSIS_STORES.materialEmbeddings, (item)=>item.materialId === materialId, { index: 'materialId', value: materialId });
 		setMaterials((prev)=>prev.filter((item)=>item.id !== materialId));
 		setReferenceIds((prev)=>prev.filter((item)=>item !== `material:${materialId}`));
-		message.success('资料已删除');
+		await pruneConversationRefs(`material:${materialId}`);   // [Q-413/M-164] 会话记录里的残留引用同清
+		const cleaned = await pruneBundleRefs({ materialId });   // [Q-062/AW-32]
+		if(!(options && options.silent)){ message.success(cleaned ? `资料已删除（同时从 ${cleaned} 个组合里移除）` : '资料已删除'); }
 	}
 
 	async function handleReplaceMaterial(material, file){
@@ -3069,6 +3462,7 @@ function AIAnalysisMain(props){
 			const saved = await putStoreRecord(AI_ANALYSIS_STORES.materials, {
 				...material,
 				...parsed,
+				updatedAt: new Date().toISOString(),
 				id: material.id,
 				name: material.name || parsed.name,
 				folderId: material.folderId || null,
@@ -3079,8 +3473,8 @@ function AIAnalysisMain(props){
 				}),
 			}, 'material');
 			setMaterials((prev)=>sortByUpdatedDesc(prev.map((item)=>item.id === saved.id ? saved : item)));
-			await deleteWhere(AI_ANALYSIS_STORES.materialChunks, (item)=>item.materialId === material.id);
-			await deleteWhere(AI_ANALYSIS_STORES.materialEmbeddings, (item)=>item.materialId === material.id);
+			await deleteWhere(AI_ANALYSIS_STORES.materialChunks, (item)=>item.materialId === material.id, { index: 'materialId', value: material.id });
+			await deleteWhere(AI_ANALYSIS_STORES.materialEmbeddings, (item)=>item.materialId === material.id, { index: 'materialId', value: material.id });
 			message.success(`已替换文件：${material.name}`);
 		}catch(e){
 			console.error(e);
@@ -3095,23 +3489,19 @@ function AIAnalysisMain(props){
 			return;
 		}
 		const blob = base64ToBlob(material.originBlob, material.mimeType || 'application/octet-stream');
-		if(desktopBridge){
-			try{
-				await saveDesktopFile({
-					defaultFileName: material.fileName || material.name || 'material.bin',
-					base64Data: material.originBlob,
-					mimeType: material.mimeType || 'application/octet-stream',
-				});
-				return;
-			}catch(e){
-				console.warn(e);
-			}
-		}
-		saveBlobToBrowser(material.fileName || material.name || 'material.bin', blob);
+		notifySaveResult(await saveBlobToBrowser(material.fileName || material.name || 'material.bin', blob), '已导出原文件');   // [Q-410]
 	}
 
-	function exportMaterialText(material){
-		downloadTextFile(`${material.name || 'material'}.txt`, material.extractedText || '');
+	// [Q-004] 与兄弟导出(原文件 / 会话 / 备份)同一路数:桌面端先走 saveDesktopFile 弹系统保存框,
+	// 失败再回落浏览器下载。此前「提取文本」在桌面端直接落浏览器下载目录(用户选不了位置)。
+	// BOM 在两条路上都保:浏览器路径由 downloadTextFile 的 withUtf8Bom 加,桌面路径在这里同款加
+	// (少了它,Windows 记事本/Excel 打开中文提取稿是乱码)。
+	async function exportMaterialText(material){
+		const fileName = `${material.name || 'material'}.txt`;
+		const mime = 'text/plain;charset=utf-8';
+		const text = material.extractedText || '';
+		// [Q-410] downloadTextFile 内部已单源(桌面壳保存桥 + BOM);取消 / 失败如实提示。
+		notifySaveResult(await downloadTextFile(fileName, text, mime), '已导出提取文本');
 	}
 
 	async function dedupeMaterials(){
@@ -3134,7 +3524,8 @@ function AIAnalysisMain(props){
 		}
 		const ok = await asyncConfirm({
 			title: `检测到 ${duplicates.length} 份重复资料`,
-			content: '是否删除重复项？（保留首份，删除后续）',
+			// [Q-010] 文案改真话:列表按 updatedAt 倒序,「首份」其实就是**最新**保存的那份
+			content: '是否删除重复项？（保留最新一份，删除更早的重复）',
 			okText: '删除重复项',
 			cancelText: '取消',
 			danger: true,
@@ -3143,7 +3534,7 @@ function AIAnalysisMain(props){
 			return;
 		}
 		for(let i=0; i<duplicates.length; i++){
-			await deleteMaterial(duplicates[i].id);
+			await deleteMaterial(duplicates[i].id, { silent: true });   // [Q-011] 只弹下面这条汇总
 		}
 		message.success(`已删除 ${duplicates.length} 份重复资料`);
 	}
@@ -3171,6 +3562,7 @@ function AIAnalysisMain(props){
 		const current = editingTemplate || {};
 		let saved = await putStoreRecord(AI_ANALYSIS_STORES.templates, {
 			...current,
+			/* [Q-060/AW-25] 用户编辑路径显式刷新更新时间(putStoreRecord 见入参带 updatedAt 即沿用旧值 → 编辑完排序不动、时间不变) */ updatedAt: new Date().toISOString(),
 			name: values.name,
 			format: values.format,
 			instructionText: values.instructionText || '',
@@ -3180,43 +3572,106 @@ function AIAnalysisMain(props){
 			content: values.format === 'text' ? (values.instructionText || '') : (values.jsonSchema || ''),
 		}, 'template');
 		const versions = templateVersions.filter((item)=>item.templateId === saved.id);
-		const version = await putStoreRecord(AI_ANALYSIS_STORES.templateVersions, {
-			templateId: saved.id,
-			versionNumber: versions.length + 1,
-			snapshot,
-		}, 'tplver');
+		// [Q-062/AW-33] ① 内容一个字没改就别留版(此前每点一次保存都攒一条,版本列表被无意义的副本淹掉);
+		//                ② 版本号取库内最大值 + 1(此前用 versions.length + 1:删过旧版本就会撞号)。
+		const latest = versions.slice().sort((a, b)=>(Number(b.versionNumber) || 0) - (Number(a.versionNumber) || 0))[0] || null;
+		const unchanged = latest && latest.snapshot && JSON.stringify(latest.snapshot) === JSON.stringify(snapshot);
+		let version = latest;
+		if(!unchanged){
+			const maxNo = versions.reduce((mx, item)=>Math.max(mx, Number(item.versionNumber) || 0), 0);
+			version = await putStoreRecord(AI_ANALYSIS_STORES.templateVersions, {
+				templateId: saved.id,
+				versionNumber: maxNo + 1,
+				snapshot,
+			}, 'tplver');
+		}
 		saved = await putStoreRecord(AI_ANALYSIS_STORES.templates, {
 			...saved,
-			activeVersionId: version.id,
+			activeVersionId: version ? version.id : (saved.activeVersionId || null),
+			updatedAt: new Date().toISOString(),
 		}, 'template');
 		setTemplates((prev)=>sortByUpdatedDesc(prev.some((item)=>item.id === saved.id) ? prev.map((item)=>item.id === saved.id ? saved : item) : [saved].concat(prev)));
-		setTemplateVersions((prev)=>sortByUpdatedDesc([version].concat(prev.filter((item)=>item.id !== version.id))));
+		if(version && !unchanged){
+			setTemplateVersions((prev)=>sortByUpdatedDesc([version].concat(prev.filter((item)=>item.id !== version.id))));
+		}
 		setTemplateModalOpen(false);
 		setEditingTemplate(null);
-		message.success('模版已保存');
+		message.success(unchanged ? '模版已保存（内容未变，未新增版本）' : '模版已保存');
+	}
+
+	// [Q-062/AW-32] 删掉资料 / 模版 / 接口后,组合里指向它的 id 是**悬空引用**:组合编辑器的下拉显示裸 id,
+	// 「一键应用」指向已删接口时模型选择被 effect 静默回落到别的接口却仍提示「已应用组合」。删除即就地清理。
+	async function pruneBundleRefs({ materialId, templateId, providerProfileId }){
+		const hit = (bundles || []).filter((b)=>{
+			if(!b){ return false; }
+			if(materialId && ((b.materialIds || []).indexOf(materialId) >= 0 || (b.defaultMaterialIds || []).indexOf(materialId) >= 0)){ return true; }
+			if(templateId && b.templateId === templateId){ return true; }
+			if(providerProfileId && b.defaultProviderProfileId === providerProfileId){ return true; }
+			return false;
+		});
+		if(!hit.length){ return 0; }
+		const saved = [];
+		for(let i = 0; i < hit.length; i++){
+			const b = hit[i];
+			const next = { ...b, updatedAt: new Date().toISOString() };
+			if(materialId){
+				next.materialIds = (b.materialIds || []).filter((id)=>id !== materialId);
+				next.defaultMaterialIds = (b.defaultMaterialIds || []).filter((id)=>id !== materialId);
+			}
+			if(templateId && b.templateId === templateId){ next.templateId = null; }
+			if(providerProfileId && b.defaultProviderProfileId === providerProfileId){
+				next.defaultProviderProfileId = null;
+				next.defaultModel = null;   // 接口没了,钉在它上面的模型名也没意义
+			}
+			// eslint-disable-next-line no-await-in-loop
+			saved.push(await putStoreRecord(AI_ANALYSIS_STORES.bundles, next, 'bundle'));
+		}
+		const byId = new Map(saved.map((x)=>[x.id, x]));
+		setBundles((prev)=>prev.map((x)=>byId.get(x.id) || x));
+		return saved.length;
 	}
 
 	async function deleteTemplate(templateId){
 		await deleteStoreRecord(AI_ANALYSIS_STORES.templates, templateId);
-		await deleteWhere(AI_ANALYSIS_STORES.templateVersions, (item)=>item.templateId === templateId);
+		await deleteWhere(AI_ANALYSIS_STORES.templateVersions, (item)=>item.templateId === templateId, { index: 'templateId', value: templateId });
 		setTemplates((prev)=>prev.filter((item)=>item.id !== templateId));
 		setTemplateVersions((prev)=>prev.filter((item)=>item.templateId !== templateId));
-		message.success('模版已删除');
+		setReferenceIds((prev)=>prev.filter((item)=>item !== `template:${templateId}`));   // [Q-062/AW-32] 本轮挂载里的引用同清
+		await pruneConversationRefs(`template:${templateId}`);   // [Q-413/M-164]
+		const cleaned = await pruneBundleRefs({ templateId });
+		message.success(cleaned ? `模版已删除（同时从 ${cleaned} 个组合里移除）` : '模版已删除');
 	}
 
+	// [Q-062/AW-33] 回滚三修:
+	//  ① 回滚本身**写一条新版本**(注「回滚自 Vn」)—— 此前直接改模版、不留痕,回滚之前的那份内容就此消失、无法再回去;
+	//  ② activeVersionId 指向新写的这条(而不是被回滚的旧版),「当前版」标记才对得上;
+	//  ③ **不回退名称**:名字是模版的身份,用户改了名再回滚正文,不该连名字一起倒退。
 	async function rollbackTemplateVersion(template, version){
 		const snapshot = version && version.snapshot ? version.snapshot : null;
 		if(!snapshot){
 			return;
 		}
+		const keepName = `${(template && template.name) || snapshot.name || ''}`;
+		const restored = { ...snapshot, name: keepName };
+		const versions = templateVersions.filter((item)=>item.templateId === template.id);
+		const maxNo = versions.reduce((mx, item)=>Math.max(mx, Number(item.versionNumber) || 0), 0);
+		const newVersion = await putStoreRecord(AI_ANALYSIS_STORES.templateVersions, {
+			templateId: template.id,
+			versionNumber: maxNo + 1,
+			rolledBackFrom: version.versionNumber == null ? null : Number(version.versionNumber),
+			note: `回滚自 V${version.versionNumber == null ? '?' : version.versionNumber}`,
+			snapshot: restored,
+		}, 'tplver');
 		const saved = await putStoreRecord(AI_ANALYSIS_STORES.templates, {
 			...template,
-			...snapshot,
-			activeVersionId: version.id,
-			content: snapshot.content || (snapshot.format === 'json' ? snapshot.jsonSchema : snapshot.instructionText),
+			...restored,
+			activeVersionId: newVersion.id,
+			content: restored.content || (restored.format === 'json' ? restored.jsonSchema : restored.instructionText),
+			/* [Q-060/AW-25] 用户编辑路径显式刷新更新时间 */ updatedAt: new Date().toISOString(),
 		}, 'template');
 		setTemplates((prev)=>sortByUpdatedDesc(prev.map((item)=>item.id === saved.id ? saved : item)));
-		message.success('模版已回滚到该版本');
+		setTemplateVersions((prev)=>sortByUpdatedDesc([newVersion].concat(prev.filter((item)=>item.id !== newVersion.id))));
+		message.success(`模版已回滚到 V${version.versionNumber == null ? '?' : version.versionNumber}（另存为 V${newVersion.versionNumber}）`);
 	}
 
 	function openBundleEditor(bundle){
@@ -3242,8 +3697,12 @@ function AIAnalysisMain(props){
 	async function saveBundleForm(){
 		const values = await bundleForm.validateFields();
 		const parsed = parseModelSelection(values.defaultModelSelection || '');
+		// [Q-416 裁决] 技能包组合:这里改的技法同步写入 skill.techniqueKeys(升版 + 留档);此前只写 defaultTechniqueKeys → 用技能时仍挂旧技法
+		const skillSync = syncSkillTechniqueKeys(editingBundle, values.defaultTechniqueKeys || []);
 		const saved = await putStoreRecord(AI_ANALYSIS_STORES.bundles, {
 			...(editingBundle || {}),
+			...skillSync,
+			/* [Q-060/AW-25] 用户编辑路径显式刷新更新时间(putStoreRecord 见入参带 updatedAt 即沿用旧值 → 编辑完排序不动、时间不变) */ updatedAt: new Date().toISOString(),
 			name: values.name,
 			templateId: values.templateId || null,
 			materialIds: values.materialIds || [],
@@ -3261,14 +3720,15 @@ function AIAnalysisMain(props){
 		setBundles((prev)=>sortByUpdatedDesc(prev.some((item)=>item.id === saved.id) ? prev.map((item)=>item.id === saved.id ? saved : item) : [saved].concat(prev)));
 		setBundleModalOpen(false);
 		setEditingBundle(null);
-		message.success('组合已保存');
+		message.success(skillSync.skill ? `组合已保存（技能「${saved.name}」技法已同步，v${skillSync.skill.version}）` : '组合已保存');
 	}
 
 	async function deleteBundle(bundleId){
 		await deleteStoreRecord(AI_ANALYSIS_STORES.bundles, bundleId);
 		setBundles((prev)=>prev.filter((item)=>item.id !== bundleId));
 		setReferenceIds((prev)=>prev.filter((item)=>item !== `bundle:${bundleId}`));
-		message.success('组合已删除');
+		const cleaned = await pruneConversationRefs(`bundle:${bundleId}`);   // [Q-413/M-164]
+		message.success(cleaned ? `组合已删除（同时从 ${cleaned} 个会话的挂载引用里移除）` : '组合已删除');
 	}
 
 	function applyBundle(bundle){
@@ -3310,17 +3770,23 @@ function AIAnalysisMain(props){
 		const manualModels = uniqueTextList(`${values.manualModels || ''}`.split(/[\n,，]/g)).length
 			? uniqueTextList(`${values.manualModels || ''}`.split(/[\n,，]/g))
 			: getProviderDefaultChatModels(providerType);
-		const embeddingModels = uniqueTextList(`${values.embeddingModels || ''}`.split(/[\n,，]/g)).length
-			? uniqueTextList(`${values.embeddingModels || ''}`.split(/[\n,，]/g))
-			: getProviderDefaultEmbeddingModels(providerType);
+		// [Q-060/AW-16] Embedding 列表允许为空:此前空表单回填预设(OpenAI / Gemini / Ollama 预设非空)
+		// ⇒ 一个档案不可能「没有嵌入模型」,向量检索关不掉。清空即当真。
+		const embeddingModels = uniqueTextList(`${values.embeddingModels || ''}`.split(/[\n,，]/g));
+		// [Q-060/AW-16] 保存**以表单行为准**:此前把旧 availableModels(拉取结果)与表单行合并重算,
+		// 用户从「聊天模型列表」删掉的 dall-e / tts 类模型每次保存都被加回来 —— 删行永远无效。
+		// 表单里本来就显示着全部拉取结果(buildProviderFormValues 用 normalizeProfileModels 拼的),
+		// 所以只按表单重写不会丢任何用户想留的模型。
 		const normalized = normalizeProviderResultModels({
-			models: []
-				.concat(editingProvider && Array.isArray(editingProvider.availableModels) ? editingProvider.availableModels : [])
-				.concat(manualModels)
-				.concat(embeddingModels),
+			models: [].concat(manualModels).concat(embeddingModels),
 		}, providerType, true);
+		const diagnosticsStillValid = !!(editingProvider && editingProvider.healthStatus
+			&& `${editingProvider.apiKey || ''}`.trim() === `${values.apiKey || ''}`.trim()
+			&& (`${editingProvider.baseUrl || ''}`.trim() || preset.baseUrl) === (`${values.baseUrl || ''}`.trim() || preset.baseUrl)
+			&& editingProvider.providerType === providerType);
 		const saved = await putStoreRecord(AI_ANALYSIS_STORES.providerProfiles, {
 			...(editingProvider || {}),
+			/* [Q-060/AW-25] 用户编辑路径显式刷新更新时间(putStoreRecord 见入参带 updatedAt 即沿用旧值 → 编辑完排序不动、时间不变) */ updatedAt: new Date().toISOString(),
 			name: `${values.name || ''}`.trim() || preset.label,
 			providerType,
 			protocolFamily: getProviderProtocolFamily(providerType),
@@ -3328,11 +3794,15 @@ function AIAnalysisMain(props){
 			baseUrl: `${values.baseUrl || ''}`.trim() || preset.baseUrl,
 			manualModels,
 			chatModelIds: normalized.chatModels,
-			embeddingModelIds: normalized.embeddingModels,
+			// [Q-060/AW-16] 清空过的嵌入列表要真的空;normalizeProviderResultModels 的预设兜底只对「聊天模型」有意义
+			embeddingModelIds: embeddingModels.length ? normalized.embeddingModels : [],
 			availableModels: normalized.models,
 			enabled: values.enabled !== false,
 			providerOptions,
-			healthStatus: editingProvider && editingProvider.healthStatus ? editingProvider.healthStatus : 'unknown',
+			// [Q-012/M-13] apiKey / baseUrl / 接口类型任一改动 → 历史诊断作废置 unknown(此前绿标残留到改错的 Key 上)
+			healthStatus: diagnosticsStillValid ? editingProvider.healthStatus : 'unknown',
+			// [Q-411/M-156] 同判据清 lastDiagnostics:此前 ...editingProvider 整体沿用,改成不可达地址后卡片仍显示旧地址的 DNS/TCP/HTTP 全 OK
+			lastDiagnostics: diagnosticsStillValid ? (editingProvider.lastDiagnostics || null) : null,
 		}, 'provider');
 		setProviderProfiles((prev)=>sortByUpdatedDesc(prev.some((item)=>item.id === saved.id) ? prev.map((item)=>item.id === saved.id ? saved : item) : [saved].concat(prev)));
 		setProviderModalOpen(false);
@@ -3341,7 +3811,11 @@ function AIAnalysisMain(props){
 		setEditingProvider(null);
 		message.success('接口配置已保存');
 		// 新建接口后自动拉取模型列表（仅新建；编辑沿用既有列表，避免覆盖手填）。非阻塞、内部已 try/catch。
-		if(wasNewProvider && (`${saved.apiKey || ''}`.trim() || `${saved.baseUrl || ''}`.trim())){
+		// [Q-411/M-158] 条件曾是 apiKey || baseUrl(Base URL 空则回填预设 → 恒真):不填 Key 时后端不发鉴权头、上游必 401/400,
+		//   「已保存」后紧跟「拉取模型列表失败」。改为有 Key 才自动拉(ollama 本地无 Key 仍自动拉;鉴权头写在额外请求头时亦自动拉)。
+		const hasAuth = !!(`${saved.apiKey || ''}`.trim() || saved.providerType === 'ollama'
+			|| Object.keys((saved.providerOptions && saved.providerOptions.extraHeaders) || {}).length);
+		if(wasNewProvider && hasAuth){
 			fetchModelsAndEmbeddings(saved);
 		}
 	}
@@ -3354,17 +3828,25 @@ function AIAnalysisMain(props){
 			const next = remaining.find((item)=>item.enabled !== false) || remaining[0] || null;
 			setModelSelection(next ? encodeModelSelection(next.id, normalizeProfileModels(next)[0] || '') : '');
 		}
-		message.success('接口配置已删除');
+		const cleaned = await pruneBundleRefs({ providerProfileId: profileId });   // [Q-062/AW-32]
+		message.success(cleaned ? `接口配置已删除（同时清掉 ${cleaned} 个组合里的默认接口）` : '接口配置已删除');
 	}
 
 	function setProviderAsCurrent(profile){
 		if(!profile){
 			return;
 		}
-		const models = normalizeProfileModels(profile);
+		// [Q-038/M-46] 未启用档案不进模型下拉(modelOptions 过滤 enabled===false)→ 此前照样提示「已切换」,
+		//   而 Select 的值不在选项里,下一拍就被改回 = 提示与实际互斥。现改为拦下并指路。
+		if(profile.enabled === false){
+			message.warning(`「${profile.name || getProviderDisplayName(profile.providerType)}」未启用,不能设为当前;请先点「编辑」把「启用」打开`);
+			return;
+		}
+		// [Q-038] 首模型取**聊天**模型(此前 normalizeProfileModels 含嵌入模型 → 可能选中一个不能聊天的模型)
+		const models = normalizeProfileChatModels(profile);
 		setModelSelection(encodeModelSelection(profile.id, models[0] || ''));
 		setProviderSwitchModalOpen(false);
-		message.success(`已切换到「${profile.name || getProviderDisplayName(profile.providerType)}」${models.length ? '' : '（该配置暂无模型，请先在编辑里补全）'}`);
+		message.success(`已切换到「${profile.name || getProviderDisplayName(profile.providerType)}」${models.length ? '' : '（该配置暂无对话模型，请先在编辑里补全）'}`);
 	}
 
 	async function fetchModelsAndEmbeddings(profile){
@@ -3379,6 +3861,7 @@ function AIAnalysisMain(props){
 			const normalized = normalizeProviderResultModels(result, profile.providerType, false);
 			const saved = await putStoreRecord(AI_ANALYSIS_STORES.providerProfiles, {
 				...profile,
+				updatedAt: new Date().toISOString(),
 				protocolFamily: getProviderProtocolFamily(profile.providerType),
 				availableModels: normalized.models,
 				chatModelIds: uniqueTextList((profile.chatModelIds || []).concat(normalized.chatModels)),
@@ -3402,6 +3885,7 @@ function AIAnalysisMain(props){
 			const diagnostics = rsp && rsp.Result ? rsp.Result : null;
 			const saved = await putStoreRecord(AI_ANALYSIS_STORES.providerProfiles, {
 				...profile,
+				updatedAt: new Date().toISOString(),
 				lastDiagnostics: diagnostics,
 				healthStatus: diagnostics && diagnostics.healthy ? 'healthy' : 'error',
 			}, 'provider');
@@ -3423,7 +3907,10 @@ function AIAnalysisMain(props){
 			message.warning('该配置还没有可用的对话模型，请在「配置 API」→「聊天模型列表」中填写（如 gemini-2.5-flash），或点「拉取模型」自动获取');
 			return;
 		}
-		const connKey = modelSelection;   // C: 把本次测试绑定到「当前选择」指纹,切模型/接口后即失配回灰
+		// [Q-005/M-06] 指纹取**被测的**接口::模型(此前取当前选择 modelSelection → 在接口列表里测 B,
+		// chip 却按当前选择 A 的键落绿/落红 = 显示「A 测试成功」而实际测的是 B)。renderConnChip 仍只在
+		// 指纹 === 当前选择时显示,故测别的接口不再污染当前 chip。
+		const connKey = encodeModelSelection(profile.id, model);
 		setConnState({ key: connKey, status: 'testing' });
 		const startMs = Date.now();
 		try{
@@ -3460,6 +3947,19 @@ function AIAnalysisMain(props){
 		}
 	}
 
+	// [Q-009/M-09] 一条 assistant 消息里「已完成且未撤销」的写入动作条数(0=纯问答,无需提示)
+	function countUndoableActions(msg){
+		const t = msg && msg.agentTrace;
+		if(!t || !Array.isArray(t.rounds)){ return 0; }
+		let n = 0;
+		t.rounds.forEach((r)=>{
+			(r && Array.isArray(r.results) ? r.results : []).forEach((x)=>{
+				if(x && x.status === 'completed' && x.undo && x.undo.actionId && !x.undone){ n += 1; }
+			});
+		});
+		return n;
+	}
+
 	async function handleRegenerateLastReply(){
 		const { profileId, model } = parseModelSelection(modelSelection || encodeModelSelection(activeConversation && activeConversation.providerProfileId, activeConversation && activeConversation.model));
 		const profile = providerProfiles.find((item)=>item.id === profileId);
@@ -3470,6 +3970,18 @@ function AIAnalysisMain(props){
 		const list = await listConversationMessages(activeConversation.id);
 		let trimmedList = list.slice(0);
 		if(trimmedList.length && trimmedList[trimmedList.length - 1].role === 'assistant'){
+			// [Q-009/M-09] 被删的回复若带已完成的写入动作:删掉气泡后那几条动作的「撤销」入口就没了
+			//   (账本面板仍能撤,但用户在气泡上找不到)。重生成本身不撤销任何动作 → 先说清楚再删。
+			const pending = countUndoableActions(trimmedList[trimmedList.length - 1]);
+			if(pending > 0){
+				const go = await asyncConfirm({
+					title: '这条回复里有已执行的动作',
+					content: `该回复执行了 ${pending} 个可撤销的写入动作。重新生成只会删掉这条回复,**不会**撤销这些动作(仍可在「动作账本」里逐条撤销)。继续?`,
+					okText: '继续重新生成',
+					cancelText: '取消',
+				});
+				if(!go){ return; }
+			}
 			const removed = trimmedList.pop();
 			await deleteStoreRecord(AI_ANALYSIS_STORES.messages, removed.id);
 			setMessages(trimmedList);
@@ -3479,27 +3991,46 @@ function AIAnalysisMain(props){
 			message.warning('没有可重新生成的用户提问');
 			return;
 		}
+		if(isInsideCompactRegion(activeConversation, lastUser)){ return; }   // [Q-030/M-41]
+		if(sending || sendingRef.current){ return; }   // [Q-008/M-08] 与首发同形的重入闸
+		sendingRef.current = true;
 		setSending(true);
+		const regenAbort = beginSendAbort();   // [Q-035/M-46]
 		try{
-			const promptResult = await buildResolvedPrompt(lastUser.content || '', profile);
+			const promptResult = await buildResolvedPrompt(lastUser.content || '', profile, lastUser.extraSystemContext);   // [Q-029/M-40] 还原附加上下文
+			if(prepAborted(regenAbort)){ return; }
+			// [Q-046/M-57] 重答用的是**当前**选的接口/模型,会话记录却还写着原来那套 —— 顶栏与历史列表显示的
+			// 「这条对话用的模型」和实际所发不一致(与 Q-036 编辑并分支同一类)。差了才写,没换=零写入。
+			let regenConversation = activeConversation;
+			if(activeConversation && (activeConversation.model !== model || activeConversation.providerProfileId !== (profile ? profile.id : ''))){
+				regenConversation = await updateConversationMeta(activeConversation, {
+					providerProfileId: profile ? profile.id : '',
+					providerName: profile ? profile.name : '',
+					providerType: profile ? profile.providerType : '',
+					model,
+				}) || activeConversation;
+			}
 			await streamReply({
-				conversation: activeConversation,
+				conversation: regenConversation,
 				profile,
 				model,
+				controller: regenAbort,
 				chatMessages: [
 					{ role: 'system', content: promptResult.systemPrompt },
-				].concat(trimmedList.map((item)=>({
+				].concat(chatAssist.mainline(trimmedList).map((item)=>({
 					role: item.role,
-					content: item.content,
+					content: historyContentOf(item),   // [C5] 历史只带采用稿
 					// 与首发路径同形:重生成/编辑分支曾丢 images → 多模态输入被静默剥离,
 					// 模型对着空文本谈图(用户只觉得「重答就变傻」)。
 					images: Array.isArray(item.images) && item.images.length ? item.images : undefined,
+					agentTrace: item.agentTrace,
 				}))),
 			});
 		}catch(e){
 			console.error(e);
 			message.error('重新生成失败');
 		}finally{
+			sendingRef.current = false;
 			setSending(false);
 		}
 	}
@@ -3530,33 +4061,51 @@ function AIAnalysisMain(props){
 		const keep = list.slice(0, idx);
 		const removeList = list.slice(idx);
 		await Promise.all(removeList.map((m)=>deleteStoreRecord(AI_ANALYSIS_STORES.messages, m.id)));
+		// [Q-048⑦ 裁决 2026-09-18] 重答删掉「按审阅重写稿」后,原回答的 supersededBy 曾悬空(主线继续过滤它、批注仍写「见下方新回答」)→ 指向已删消息的标记一并清掉
+		try{
+			const removedIds = new Set(removeList.map((m)=>m.id));
+			const dangling = (messages || []).filter((m)=>m && m.supersededBy && removedIds.has(m.supersededBy) && !removedIds.has(m.id));
+			for(const dm of dangling){
+				// eslint-disable-next-line no-await-in-loop
+				await updateStoreRecordIf(AI_ANALYSIS_STORES.messages, dm.id, ()=>true, (rec)=>({ ...rec, supersededBy: undefined }));
+			}
+			if(dangling.length){ setMessages((prev)=>prev.map((m)=>(m && m.supersededBy && removedIds.has(m.supersededBy) ? { ...m, supersededBy: undefined } : m))); }
+		}catch(e){ /* 清标记失败不阻断重答 */ }
 		setMessages(keep);
 		const lastUser = [...keep].reverse().find((item)=>item.role === 'user');
 		if(!lastUser){
 			message.warning('没有可重新生成的用户提问');
 			return;
 		}
+		if(isInsideCompactRegion(activeConversation, lastUser)){ return; }   // [Q-030/M-41]
+		if(sending || sendingRef.current){ return; }   // [Q-008/M-08]
+		sendingRef.current = true;
 		setSending(true);
+		const retryAbort = beginSendAbort();   // [Q-035/M-46]
 		try{
-			const promptResult = await buildResolvedPrompt(lastUser.content || '', profile);
+			const promptResult = await buildResolvedPrompt(lastUser.content || '', profile, lastUser.extraSystemContext);   // [Q-029/M-40]
+			if(prepAborted(retryAbort)){ return; }
 			await streamReply({
 				conversation: activeConversation,
 				profile,
 				model,
+				controller: retryAbort,
 				chatMessages: [
 					{ role: 'system', content: promptResult.systemPrompt },
-				].concat(keep.map((item)=>({
+				].concat(chatAssist.mainline(keep).map((item)=>({
 					role: item.role,
-					content: item.content,
+					content: historyContentOf(item),   // [C5] 历史只带采用稿
 					// 与首发路径同形:重生成/编辑分支曾丢 images → 多模态输入被静默剥离,
 					// 模型对着空文本谈图(用户只觉得「重答就变傻」)。
 					images: Array.isArray(item.images) && item.images.length ? item.images : undefined,
+					agentTrace: item.agentTrace,
 				}))),
 			});
 		}catch(e){
 			console.error(e);
 			message.error('重新生成失败');
 		}finally{
+			sendingRef.current = false;
 			setSending(false);
 		}
 	}
@@ -3568,7 +4117,7 @@ function AIAnalysisMain(props){
 		try{
 			let saved;
 			if(isNatal){
-				saved = upsertLocalChart({
+				saved = upsertLocalChart(markFieldsCaptured({   // [Q-256/T-219]
 					name: draft.name || '命盘时间',
 					birth: draft.birth,
 					zone: draft.zone,
@@ -3577,7 +4126,7 @@ function AIAnalysisMain(props){
 					gpsLat: draft.gpsLat,
 					gpsLon: draft.gpsLon,
 					gender: draft.gender,
-				});
+				}));
 			}else{
 				saved = upsertLocalCase({
 					event: draft.name || '起课时间',
@@ -3631,8 +4180,17 @@ function AIAnalysisMain(props){
 			message.warning('请先选择模型');
 			return;
 		}
+		if(sending || sendingRef.current){ message.warning('正在生成中,请稍后再分支'); return; }   // [Q-008/M-08]
 		const branchConversation = await putStoreRecord(AI_ANALYSIS_STORES.conversations, {
 			...activeConversation,
+			// [Q-030/M-41] 分支按分支点裁压缩:分支点(被编辑的问题)在压缩区内 → 分支不继承 compact(否则主线把编辑后的问题滤掉,请求无 user 消息)
+			...(compactCoversMessage(activeConversation.compact, targetUser) ? { compact: undefined } : {}),
+			// [Q-036/M-44] 分支会话记录写**本次实际所用**的接口/模型:此前继承原会话记录,而请求用的是当前选择 →
+			//   openConversation 把界面改回原会话模型 = 「所见≠所发」(用户以为换了模型重问,顶栏显示的却是旧模型)。
+			providerProfileId: profile.id,
+			providerName: profile.name || '',
+			providerType: profile.providerType,
+			model,
 			id: null,
 			title: `${activeConversation.title || '未命名对话'}（分支）`,
 			parentConversationId: activeConversation.id,
@@ -3640,37 +4198,38 @@ function AIAnalysisMain(props){
 			createdAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
 		}, 'conv');
-		const branchMessages = list.slice(0, targetIndex).concat({
-			...targetUser,
-			id: null,
-			content: trimmed,
-			editedFromMessageId: targetUser.id,
-			conversationId: branchConversation.id,
-		});
+		// 🔴 前缀消息必须 id:null(与「分支」同形):沿用原 id 会被 IDB 同键覆盖搬进分支,原会话只剩编辑点之后的消息(M-34)
+		const branchMessages = buildEditBranchMessages(list, targetIndex, targetUser, trimmed, branchConversation.id);
 		await replaceConversationMessages(branchConversation.id, branchMessages);
 		setConversations((prev)=>sortByUpdatedDesc([branchConversation].concat(prev)));
 		await openConversation(branchConversation);
+		sendingRef.current = true;
 		setSending(true);
+		const branchAbort = beginSendAbort();   // [Q-035/M-46]
 		try{
-			const promptResult = await buildResolvedPrompt(trimmed, profile);
+			const promptResult = await buildResolvedPrompt(trimmed, profile, targetUser.extraSystemContext);   // [Q-029/M-40]
+			if(prepAborted(branchAbort)){ return; }
 			await streamReply({
 				conversation: branchConversation,
 				profile,
 				model,
+				controller: branchAbort,
 				chatMessages: [
 					{ role: 'system', content: promptResult.systemPrompt },
-				].concat(branchMessages.map((item)=>({
+				].concat(chatAssist.mainline(branchMessages).map((item)=>({
 					role: item.role,
-					content: item.content,
+					content: historyContentOf(item),   // [C5] 历史只带采用稿
 					// 与首发路径同形:重生成/编辑分支曾丢 images → 多模态输入被静默剥离,
 					// 模型对着空文本谈图(用户只觉得「重答就变傻」)。
 					images: Array.isArray(item.images) && item.images.length ? item.images : undefined,
+					agentTrace: item.agentTrace,
 				}))),
 			});
 			message.success('已基于编辑创建分支对话');
 		}catch(e){
 			message.error('分支对话生成失败');
 		}finally{
+			sendingRef.current = false;
 			setSending(false);
 		}
 	}
@@ -3707,6 +4266,8 @@ function AIAnalysisMain(props){
 		}
 		const branchConversation = await putStoreRecord(AI_ANALYSIS_STORES.conversations, {
 			...activeConversation,
+			// [Q-030/M-41] 分支点在压缩区内 → 不继承 compact(同编辑分支)
+			...(compactCoversMessage(activeConversation.compact, messageRecord) ? { compact: undefined } : {}),
 			id: null,
 			title: `${activeConversation.title || '未命名对话'}（分支）`,
 			parentConversationId: activeConversation.id,
@@ -3714,16 +4275,17 @@ function AIAnalysisMain(props){
 			createdAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
 		}, 'conv');
-		const copiedMessages = list.slice(0, idx + 1).map((item)=>({
-			...item,
-			id: null,
-			conversationId: branchConversation.id,
-			branchConversationId: branchConversation.id,
-		}));
+		const copiedMessages = buildForkMessages(list, idx, branchConversation.id);
 		await replaceConversationMessages(branchConversation.id, copiedMessages);
 		setConversations((prev)=>sortByUpdatedDesc([branchConversation].concat(prev)));
 		await openConversation(branchConversation);
 		message.success('已从该轮次创建分支');
+		// [Q-048③ 裁决 2026-09-18·维持现状+补提示] 分支拷贝带 agentTrace 的气泡 → 两会话指向同一批动作账本(设计如此);明说撤销互相影响
+		try{
+			if((messages || []).some((m)=>m && m.agentTrace && Array.isArray(m.agentTrace.rounds) && m.agentTrace.rounds.some((rd)=>rd && Array.isArray(rd.results) && rd.results.length))){
+				message.info('分支与原对话共享同一批动作账本：在任一边撤销 / 回退，另一边的气泡与写入也会受影响', 6);
+			}
+		}catch(e){ /* 提示失败不影响分支 */ }
 	}
 
 	function renderConnChip(){
@@ -3991,7 +4553,7 @@ function AIAnalysisMain(props){
 								</XQToolbar>
 								<div className={styles.techSettingsHint}>
 									{customizedCount
-										? `已自定义 ${customizedCount} 项；「应用并重算」仅本次挂载生效，「设为同类默认」以后该技法默认沿用。`
+										? `已自定义 ${customizedCount} 项；「应用并重算」在本会话内对该技法生效（换案例仍沿用），「设为同类默认」以后该技法默认沿用。`   /* [Q-406① 裁决 2026-09-18] 文案如实:覆盖随会话,不随案例清 */
 										: '全部为默认值（与现状一致）；改动后点「应用并重算」让卡片快照刷新。'}
 								</div>
 							</div>
@@ -4213,12 +4775,12 @@ function AIAnalysisMain(props){
 														</Tooltip>
 													) : null}
 													{clipStat && clipStat.dropped ? (
-														<Tooltip title="最近一次发送时上下文超出预算，该层整层未纳入。可减少挂载技法或在「设置」里精简纳入内容。">
+														<Tooltip title="最近一次发送时上下文超出预算，该层整层未纳入（已在提示词里注明「未纳入」，模型不会当它不存在）。可在「进阶 → 对话上下文策略 → 挂载字数预算」里调大，或减少挂载技法、在「设置」里精简纳入内容。">
 															<Tag color="red">超预算未纳入</Tag>
 														</Tooltip>
 													) : null}
 													{clipStat && !clipStat.dropped && clipStat.clipped ? (
-														<Tooltip title="最近一次发送时上下文超出预算，该层按段边界公平裁剪后纳入。">
+														<Tooltip title="最近一次发送时上下文超出预算，该层按段边界公平裁剪后纳入（结尾注明了略去哪几段）。想要全文，可在「进阶 → 对话上下文策略 → 挂载字数预算」里调大。">
 															<Tag color="orange">已裁剪 {clipStat.raw}→{clipStat.kept}字</Tag>
 														</Tooltip>
 													) : null}
@@ -4247,7 +4809,7 @@ function AIAnalysisMain(props){
 		if(!activeSource){
 			return (
 				<div className={styles.contextBanner + ' ' + styles.contextBannerEmpty}>
-					未挂载案例 · <a onClick={()=>setMountDrawerOpen(true)}>选择案例</a>
+					未挂载案例 · <a onClick={focusSourceSelect}>选择案例</a>{/* [Q-041] 直接开顶栏那个下拉,不再打开没有案例选择器的挂载抽屉 */}
 				</div>
 			);
 		}
@@ -4260,7 +4822,7 @@ function AIAnalysisMain(props){
 				{promptClipStats && promptClipStats.stats ? (
 					<span
 						className={styles.contextBannerItem}
-						title={`最近一次发送给模型的上下文字数 / 预算上限${promptClipStats.stats.droppedCount ? `；有 ${promptClipStats.stats.droppedCount} 层超预算未纳入（见挂载预览）` : ''}`}
+						title={`最近一次发送给模型的上下文字数 / 预算上限（预算按当前模型的上下文窗口实算；可在「进阶 → 对话上下文策略 → 挂载字数预算」里固定）${promptClipStats.stats.droppedCount ? `；有 ${promptClipStats.stats.droppedCount} 层超预算未纳入（见挂载预览）` : ''}`}
 					>
 						上下文约 {promptClipStats.stats.totalKept}/{promptClipStats.stats.maxChars || AI_CONTEXT_MAX_CHARS} 字
 					</span>
@@ -4403,6 +4965,8 @@ function AIAnalysisMain(props){
 				onDrop={onDrop}
 				onPaste={onPaste}
 			>
+				{chatAssist.statusBarNode}
+				<ComposerAssist {...chatAssist.composer} />
 				<TextArea
 					value={prompt}
 					autoSize={{ minRows: 1, maxRows: 8 }}
@@ -4415,6 +4979,8 @@ function AIAnalysisMain(props){
 							e.preventDefault();
 							if(!sending){
 								handleSend();
+							}else if(chatAssist.canSteer){
+								chatAssist.steer();   // [批二⑤] 生成中回车 = 插话
 							}
 						}
 					}}
@@ -4434,7 +5000,7 @@ function AIAnalysisMain(props){
 						<Tooltip title="新对话"><Button size="small" type="text" icon={<XQIcon name="plus" />} onClick={resetConversationDraft} /></Tooltip>
 						<Tooltip title="重新生成"><Button size="small" type="text" icon={<XQIcon name="sync" />} onClick={handleRegenerateLastReply} disabled={!activeConversation || sending} /></Tooltip>
 						<Tooltip title="编辑上一条并分支"><Button size="small" type="text" icon={<XQIcon name="edit" />} onClick={handleEditLastUserAndBranch} disabled={!activeConversation || sending} /></Tooltip>
-						<Tooltip title="刷新案例"><Button size="small" type="text" icon={<XQIcon name="refresh" />} onClick={()=>setSources(listAnalysisSources())} /></Tooltip>
+						<Tooltip title="刷新案例"><Button size="small" type="text" icon={<XQIcon name="refresh" />} onClick={()=>setSources(listAnalysisSources({ force: true }))} /></Tooltip>
 						<Tooltip title="添加图片（多媒体输入，仅视觉模型有效）"><Button size="small" type="text" icon={<XQIcon name="import" />} onClick={()=>{ if(imageInputRef.current){ imageInputRef.current.click(); } }} disabled={sending} /></Tooltip>
 						<input ref={imageInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e)=>{ handlePickImages(e.target.files); e.target.value = ''; }} />
 						{sending ? <Tooltip title="停止生成"><Button size="small" type="text" danger icon={<XQIcon name="stop" />} onClick={handleStopStreaming} /></Tooltip> : null}
@@ -4496,6 +5062,8 @@ function AIAnalysisMain(props){
 								optionFilterProp="children"
 								onChange={(val)=>{ setEmbeddingSelection(val || ''); saveUiPrefs({ embeddingSelection: val || '' }); }}
 							>
+								{/* [Q-060/AW-16] 显式「不用向量」:清空只是「没显式选」,仍会回落接口自带的嵌入模型 */}
+								<Select.Option key={EMBEDDING_TARGET_NONE} value={EMBEDDING_TARGET_NONE}>不用向量（只按关键词检索）</Select.Option>
 								{embeddingOptions.map((item)=>(
 									<Select.Option key={item.value} value={item.value}>{item.label}</Select.Option>
 								))}
@@ -4509,30 +5077,47 @@ function AIAnalysisMain(props){
 										<div style={{ display: 'flex', justifyContent: 'space-between' }}><span>思考档</span></div>
 										<Select size="small" style={{ width: '100%', marginBottom: 12 }} value={thinkingLevel}
 											onChange={(v)=>{ setThinkingLevel(v); saveUiPrefs({ thinkingLevel: v }); }}>
-											{THINKING_LEVELS.map((t)=><Select.Option key={t.value} value={t.value}>{t.label}</Select.Option>)}
+											{/* [Q-044] 对当前模型无差异的档置灰并写明等同哪一档(判定由 applyThinkingLevel 自证) */}
+											{paramPopover.thinkingLevels.map((t)=>(
+												<Select.Option key={t.value} value={t.value} disabled={!!t.sameAs && t.value !== thinkingLevel}>
+													<span title={t.sameAs ? `该模型上与「${(THINKING_LEVELS.find((x)=>x.value === t.sameAs) || {}).label || t.sameAs}」无差别` : undefined}>
+														{t.label}{t.sameAs ? `（同「${(THINKING_LEVELS.find((x)=>x.value === t.sameAs) || {}).label || t.sameAs}」）` : ''}
+													</span>
+												</Select.Option>
+											))}
 										</Select>
-										{isReasoningModel(parseModelSelection(modelSelection).model)
+										{paramPopover.anthropicAdaptive
+											? <div style={{ color: 'var(--horosa-text-soft)', fontSize: 12, marginBottom: 8 }}>该 Anthropic 型号不接受采样参数(温度 / top_p / top_k 由出口剥离,用官方缺省)</div>
+											: null}
+										{paramPopover.reasoning
 											? <div style={{ color: 'var(--horosa-text-soft)', fontSize: 12, marginBottom: 8 }}>推理模型自带思考，已隐藏 temperature</div>
 											: (<div style={{ marginBottom: 8 }}>
-												<div style={{ display: 'flex', justifyContent: 'space-between' }}><span>温度 temperature</span><span>{chatTemperature == null ? '默认' : chatTemperature}</span></div>
-												<Slider min={0} max={2} step={0.1} value={chatTemperature == null ? 0.7 : chatTemperature}
+												<div style={{ display: 'flex', justifyContent: 'space-between' }}><span>温度 temperature</span><span>{chatTemperature == null ? '默认' : <span>{chatTemperature} <a data-chat-temp-reset="1" onClick={()=>{ setChatTemperature(null); saveUiPrefs({ chatTemperature: null }); }}>恢复默认</a></span>}</span></div>
+												{/* [Q-037/M-45] 拨过后可回「默认」(置 null 并写偏好;默认=不下发,由接口家族缺省) */}
+												{/* [Q-323] 上限随家族:Anthropic 0..1,其余 0..2 */}
+												<Slider disabled={paramPopover.anthropicAdaptive} min={0} max={paramPopover.tempMax} step={0.1} value={chatTemperature == null ? Math.min(0.7, paramPopover.tempMax) : Math.min(chatTemperature, paramPopover.tempMax)}
 													onChange={(v)=>{ setChatTemperature(v); saveUiPrefs({ chatTemperature: v }); }} />
 											</div>)}
 										<div>
-											<div style={{ display: 'flex', justifyContent: 'space-between' }}><span>top_p</span><span>{chatTopP == null ? '默认' : chatTopP}</span></div>
-											<Slider min={0} max={1} step={0.05} value={chatTopP == null ? 1 : chatTopP}
+											<div style={{ display: 'flex', justifyContent: 'space-between' }}><span>top_p</span><span>{chatTopP == null ? '默认' : <span>{chatTopP} <a data-chat-topp-reset="1" onClick={()=>{ setChatTopP(null); saveUiPrefs({ chatTopP: null }); }}>恢复默认</a></span>}</span></div>
+											{/* [Q-322] 推理型号 / Anthropic 自适应族的 top_p 在出口被剥,拨了不进请求体 → 置灰而不是假装可拨 */}
+											<Slider disabled={paramPopover.samplingDead} min={0} max={1} step={0.05} value={chatTopP == null ? 1 : chatTopP}
 												onChange={(v)=>{ setChatTopP(v); saveUiPrefs({ chatTopP: v }); }} />
+											{paramPopover.samplingDead ? <div style={{ color: 'var(--horosa-text-soft)', fontSize: 11, marginTop: 2 }}>该型号不接受 top_p(出口已剥离)</div> : null}
+											{paramPopover.kimiNote ? <div style={{ color: 'var(--horosa-text-soft)', fontSize: 11, marginTop: 2 }}>{paramPopover.kimiNote}</div> : null}   {/* [Q-048⑤] kimi-k 系前后端分治明说 */}
 										</div>
 										<div style={{ marginTop: 8 }}>
 											<div style={{ display: 'flex', justifyContent: 'space-between' }}><span>停止序列</span></div>
 											<Input size="small" placeholder="逗号/换行分隔，可留空" value={stopSequences} onChange={(e)=>{ setStopSequences(e.target.value); saveUiPrefs({ stopSequences: e.target.value }); }} />
 										</div>
 										<div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-											<div style={{ flex: 1 }}><div>频率惩罚</div><InputNumber size="small" min={-2} max={2} step={0.1} placeholder="默认" style={{ width: '100%' }} value={frequencyPenalty} onChange={(v)=>{ setFrequencyPenalty(v); saveUiPrefs({ frequencyPenalty: v }); }} /></div>
-											<div style={{ flex: 1 }}><div>存在惩罚</div><InputNumber size="small" min={-2} max={2} step={0.1} placeholder="默认" style={{ width: '100%' }} value={presencePenalty} onChange={(v)=>{ setPresencePenalty(v); saveUiPrefs({ presencePenalty: v }); }} /></div>
+											{/* [Q-322] 两惩罚只在「OpenAI 兼容 且 非推理型号」时进请求体,其余一律置灰 */}
+											<div style={{ flex: 1 }}><div>频率惩罚</div><InputNumber disabled={paramPopover.penaltyDead} size="small" min={-2} max={2} step={0.1} placeholder="默认" style={{ width: '100%' }} value={frequencyPenalty} onChange={(v)=>{ setFrequencyPenalty(v); saveUiPrefs({ frequencyPenalty: v }); }} /></div>
+											<div style={{ flex: 1 }}><div>存在惩罚</div><InputNumber disabled={paramPopover.penaltyDead} size="small" min={-2} max={2} step={0.1} placeholder="默认" style={{ width: '100%' }} value={presencePenalty} onChange={(v)=>{ setPresencePenalty(v); saveUiPrefs({ presencePenalty: v }); }} /></div>
 										</div>
 										<div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>JSON 输出模式</span><Switch size="small" checked={!!jsonMode} onChange={(v)=>{ setJsonMode(v); saveUiPrefs({ jsonMode: v }); }} /></div>
-										<div style={{ color: 'var(--horosa-text-soft)', fontSize: 11, marginTop: 6 }}>停止序列/惩罚/JSON 仅对 OpenAI 兼容接口生效；停止序列对 Anthropic 自动映射。</div>
+										{/* [Q-007/M-08] 文案改真话:此前称三项都只对 OpenAI 兼容生效,与代码互斥 */}
+										<div style={{ color: 'var(--horosa-text-soft)', fontSize: 11, marginTop: 6 }}>停止序列四家通用（Anthropic / Gemini / Ollama 由出口自动映射）；频率/存在惩罚仅 OpenAI 兼容接口；JSON 输出模式对 OpenAI 兼容与 Gemini 生效，Ollama 不支持（已自动忽略）。</div>
 									</div>
 								)}
 							>
@@ -4546,9 +5131,10 @@ function AIAnalysisMain(props){
 							<Select
 								showSearch
 								allowClear
+								open={sourceSelectOpen}
 								value={selectedSourceId || undefined}
 								placeholder="选择案例（命盘 / 事盘）"
-								onDropdownVisibleChange={(open)=>{ if(open){ setSources(listAnalysisSources()); } }}
+								onDropdownVisibleChange={(open)=>{ setSourceSelectOpen(open); if(open){ setSources(listAnalysisSources()); } }}
 								className={styles.sourceSelect}
 								filterOption={(input, option)=>{
 									const source = sourceOptions.find((item)=>item.value === option.value);
@@ -4622,7 +5208,7 @@ function AIAnalysisMain(props){
 										}}
 									>跳到最新</Button>
 								) : null}
-								<div className={styles.chatLog} ref={chatLogRef}>
+								<div className={styles.chatLog} ref={setChatLogEl}>
 									<div className={styles.chatThread}>
 										{activeConversation ? (
 											<div className={styles.chatThreadHead}>
@@ -4660,8 +5246,10 @@ function AIAnalysisMain(props){
 													</div>
 													<Space size={4}>
 														{item.role === 'user' ? (<Tooltip title="编辑该消息并基于此分支"><Button size="small" type="link" onClick={()=>handleEditMessageAndBranch(item)} disabled={sending}>编辑</Button></Tooltip>) : null}
-														<Tooltip title="从此轮次分支">
-															<Button size="small" type="link" onClick={()=>handleBranchFromMessage(item)}>分支</Button>
+														{item.role === 'user' ? (<Tooltip title="回退到此:先撤销之后 AI 做的写入,再删掉这条及之后的消息,恢复当时的挂载/技法/模型"><Button size="small" type="link" onClick={()=>chatAssist.openRewind(item)} disabled={sending} data-rewind-to={item.id}>回退</Button></Tooltip>) : null}
+														<Tooltip title={sending ? '正在生成回复,先停止或等本轮结束再分支' : '从此轮次分支'}>
+															{/* [Q-034/M-44] 生成中禁用:分支会切会话,此前点了静默掐断正在写的回复 */}
+															<Button size="small" type="link" onClick={()=>handleBranchFromMessage(item)} disabled={sending}>分支</Button>
 														</Tooltip>
 													</Space>
 												</div>
@@ -4700,7 +5288,13 @@ function AIAnalysisMain(props){
 												) : null}
 												{item.role === 'user'
 													? <div className={styles.messageText}>{item.content}{Array.isArray(item.images) && item.images.length ? (<div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: item.content ? 6 : 0 }}>{item.images.map((u, i)=>(<img key={i} src={u} alt="" style={{ maxWidth: 160, maxHeight: 160, borderRadius: 4, border: "1px solid var(--horosa-border, #d9d9d9)" }} />))}</div>) : null}</div>
-													: <div className={styles.markdownBody} dangerouslySetInnerHTML={{ __html: renderMarkdownToHtmlCached(item.streamStatus === 'streaming' ? closeStreamingInlineMd(item.content) : item.content) }} />}
+													: <AssistantMarkdown className={styles.markdownBody} content={item.content} streaming={item.streamStatus === 'streaming'} hasTrace={!!item.agentTrace} />}
+												{chatAssist.bestOfCards(item)}
+												{chatAssist.reviewNotes(item)}
+												{chatAssist.orchestrationPanel(item)}
+												{item.role === 'assistant' && item.agentTrace ? (
+													<AgentActionBar trace={item.agentTrace} messageId={item.id} streaming={item.streamStatus === 'streaming'} onUndone={()=>setSources(listAnalysisSources())} onTraceChange={async (trace)=>{ const next = { ...item, agentTrace: trace }; setMessages((prev)=>prev.map((m)=>m.id === item.id ? next : m)); try{ await saveConversationMessage(next); }catch(e){ /* 落库失败不阻断 UI */ } }} />
+												) : null}
 												{item.role === 'assistant' && item.errorInfo ? (
 													<Alert
 														type={item.errorInfo.category === 'auth' || item.errorInfo.category === 'model' ? 'warning' : 'error'}
@@ -4721,11 +5315,22 @@ function AIAnalysisMain(props){
 														<Tooltip title="重新生成">
 															<Button size="small" type="text" className={styles.messageActionBtn} icon={<XQIcon name="sync" />} onClick={()=>handleRegenerateMessage(item)} disabled={sending} />
 														</Tooltip>
+														<Tooltip title="审阅:优先用另一家模型对照挂载的排盘数据检查这条回答,列出错误/夸大/漏项/无据;批注可一键重写">
+															<Button size="small" type="text" className={styles.messageActionBtn} icon={<XQIcon name="search" />} onClick={()=>chatAssist.review.run(item)} disabled={sending || !!chatAssist.review.busy} />
+														</Tooltip>
 														{item.usage && (item.usage.input_tokens || item.usage.output_tokens) ? (()=>{
 															const u = item.usage;
-															const cost = estimateUsageCost(u.model, u.input_tokens, u.output_tokens);
+															// [P0-1] 缓存计量入价:按接口家族分式(anthropic 的 input 不含缓存段、openai 家族已含);无缓存计量=旧公式。
+															// 命中占比分母=整个提示词(anthropic 为 input+读+写,openai 家族 input 已含),两家口径同义、不会超过 100%。
+															const cacheRead = Number(u.cache_read_input_tokens) || 0;
+															const cacheWrite = Number(u.cache_creation_input_tokens) || 0;
+															const usageFamily = getProviderProtocolFamily(u.providerType);
+															const cost = estimateUsageCost(u.model, u.input_tokens, u.output_tokens, { cacheRead, cacheWrite, family: usageFamily });
+															const promptTotal = (Number(u.input_tokens) || 0) + (usageFamily === 'anthropic' ? cacheRead + cacheWrite : 0);
+															const cachePct = cacheRead > 0 && promptTotal > 0 ? Math.min(100, Math.round((cacheRead / promptTotal) * 100)) : 0;
+															const usageNote = `${cacheRead > 0 ? ` · 缓存 ${cacheRead}(${cachePct}%)` : ''}${Number(u.rounds) > 1 ? ` · ${u.rounds} 轮` : ''}`;
 															return (
-																<Tooltip title={`输入 ${u.input_tokens || 0} · 输出 ${u.output_tokens || 0}${cost ? ` · 估算 $${cost.cost.toFixed(4)}（价目会漂移）` : ''}`}>
+																<Tooltip title={`输入 ${u.input_tokens || 0} · 输出 ${u.output_tokens || 0}${usageNote}${cost ? ` · 估算 $${cost.cost.toFixed(4)}（价目会漂移）` : ''}`}>
 																	<span className={styles.messageUsage}>↑ {u.input_tokens || 0} ↓ {u.output_tokens || 0}{cost ? ` · $${cost.cost.toFixed(4)}` : ''}</span>
 																</Tooltip>
 															);
@@ -4775,6 +5380,8 @@ function AIAnalysisMain(props){
 							<Select.Option value="">全部案例</Select.Option>
 							<Select.Option value="chart">命盘</Select.Option>
 							<Select.Option value="case">事盘</Select.Option>
+							<Select.Option value="timepoint">起课时间</Select.Option>
+							<Select.Option value="__none__">未挂案例</Select.Option>
 						</Select>
 						<Select value={historyFilter.favorite} style={{ width: 120 }} onChange={(val)=>setHistoryFilter((prev)=>({ ...prev, favorite: val }))}>
 							<Select.Option value="all">全部收藏</Select.Option>
@@ -4820,7 +5427,8 @@ function AIAnalysisMain(props){
 							}}
 							dataSource={filteredConversations}
 							scroll={{ y: Math.max(height - 220, 320) }}
-							pagination={{ pageSize: 15, showSizeChanger: true, pageSizeOptions: ['10','15','30','50'], size: 'small' }}
+							/* [Q-057] pageSize 写死 = 受控值,「条/页」切换器点了永远弹回 15(死控件)。改 defaultPageSize 交给 antd 自管。 */
+							pagination={{ defaultPageSize: 15, showSizeChanger: true, pageSizeOptions: ['10','15','30','50'], size: 'small' }}
 							columns={[
 								{
 									title: '标题',
@@ -4869,7 +5477,7 @@ function AIAnalysisMain(props){
 														{ key: 'json', label: 'JSON' },
 														{ key: 'docx', label: 'Word' },
 													],
-													onClick: ({ key })=>exportConversation(record, key),
+													onClick: ({ key })=>exportConversation(record, key, { withScreenshot: false }),   // [Q-060/AW-29] 历史页不附列表截图
 												}}
 											>
 												<Button size="small">导出 ▾</Button>
@@ -4942,7 +5550,7 @@ function AIAnalysisMain(props){
 						</Select>
 						<Space wrap>
 							<Button icon={<XQIcon name="plus" />} type="primary" onClick={()=>openMaterialEditor(null)}>新建资料</Button>
-							<Upload showUploadList={false} multiple beforeUpload={(file, fileList)=>{ /* 一次性接收整批 */ if(fileList[0] === file){ ingestFiles(fileList); } return false; }} accept=".txt,.md,.markdown,.doc,.docx,.pdf">
+							<Upload showUploadList={false} multiple beforeUpload={(file, fileList)=>{ /* 一次性接收整批 */ if(fileList[0] === file){ ingestFiles(fileList); } return false; }} accept={MATERIAL_ACCEPT_ATTR}>
 								<Button icon={<XQIcon name="import" />}>选文件上传</Button>
 							</Upload>
 							<Button icon={<XQIcon name="folder" />} onClick={()=>setFolderDrawerOpen(true)}>管理文件夹</Button>
@@ -4957,8 +5565,8 @@ function AIAnalysisMain(props){
 					{materialIngestQueue.length ? (
 						<div className={styles.materialIngestBar}>
 							{materialIngestQueue.map((q)=>(
-								<Tag key={q.id} color={q.status === 'done' ? 'green' : q.status === 'error' ? 'red' : q.status === 'skip' ? 'default' : 'blue'}>
-									{q.name} · {q.status === 'parsing' ? '解析中…' : q.status === 'importing' ? '导入中…' : q.status === 'done' ? '完成' : q.status === 'skip' ? '已跳过' : `失败${q.err ? '：' + q.err : ''}`}
+								<Tag key={q.id} color={q.status === 'done' ? (q.truncated ? 'orange' : 'green') : q.status === 'error' ? 'red' : q.status === 'skip' ? 'default' : 'blue'}>
+									{q.name} · {q.status === 'parsing' ? '解析中…' : q.status === 'importing' ? '导入中…' : q.status === 'done' ? (q.truncated ? `完成(${q.truncated})` : '完成') : q.status === 'skip' ? `已跳过${q.err ? '：' + q.err : ''}` : `失败${q.err ? '：' + q.err : ''}`}
 								</Tag>
 							))}
 						</div>
@@ -4985,7 +5593,8 @@ function AIAnalysisMain(props){
 								size="small"
 								tableLayout="fixed"
 								dataSource={filteredMaterials}
-								pagination={{ pageSize: 20, size: 'small', showSizeChanger: true, pageSizeOptions: ['10','20','50','100'] }}
+								/* [Q-057] 同上:写死 pageSize 让「条/页」切换器变死控件 */
+								pagination={{ defaultPageSize: 20, size: 'small', showSizeChanger: true, pageSizeOptions: ['10','20','50','100'] }}
 								columns={[
 									{ title: '名称', dataIndex: 'name', ellipsis: { showTitle: true }, render: (v)=>v || '未命名' },
 									{ title: '类型', width: 90, render: (_, it)=>it.kind || 'note' },
@@ -5015,7 +5624,7 @@ function AIAnalysisMain(props){
 											}}>
 												<Button size="small">导出 ▾</Button>
 											</Dropdown>
-											<Upload showUploadList={false} beforeUpload={(file)=>handleReplaceMaterial(it, file)}>
+											<Upload showUploadList={false} accept={MATERIAL_ACCEPT_ATTR} beforeUpload={(file)=>handleReplaceMaterial(it, file)}>
 												<Button size="small">替换</Button>
 											</Upload>
 											<Popconfirm title="确定删除这份资料吗？" onConfirm={()=>deleteMaterial(it.id)}>
@@ -5035,6 +5644,8 @@ function AIAnalysisMain(props){
 										<div>标签：{(item.tags || []).length ? (item.tags || []).join('、') : '无'}</div>
 										<div>流派：{(item.schools || []).length ? (item.schools || []).map((s, i)=>(<Tag key={i} color="cyan" style={{marginRight:4}}>{s}</Tag>)) : '通用'}</div>
 										<div>更新时间：{buildTimestampLabel(item.updatedAt)}</div>
+										{/* [Q-060/AW-23] 后端抽取的截断(PDF 只抽前 N 页 / 正文按字数封顶)此前只写进 extractMeta,界面零提示 —— 大部头只入库前 500 页而用户不知 */}
+										{describeExtractTruncation(item.extractMeta) ? <div><Tag color="orange">{describeExtractTruncation(item.extractMeta)}</Tag></div> : null}
 									</div>
 									<div className={styles.summaryBlock}>
 										{(item.extractedText || '').slice(0, 300)}
@@ -5054,7 +5665,7 @@ function AIAnalysisMain(props){
 										</Dropdown>
 										<Button size="small" icon={<XQIcon name="download" />} onClick={()=>exportMaterialOriginal(item)}>原文件</Button>
 										<Button size="small" onClick={()=>exportMaterialText(item)}>提取文本</Button>
-										<Upload showUploadList={false} beforeUpload={(file)=>handleReplaceMaterial(item, file)}>
+										<Upload showUploadList={false} accept={MATERIAL_ACCEPT_ATTR} beforeUpload={(file)=>handleReplaceMaterial(item, file)}>
 											<Button size="small">替换文件</Button>
 										</Upload>
 										<Popconfirm title="确定删除这份资料吗？" onConfirm={()=>deleteMaterial(item.id)}>
@@ -5114,6 +5725,8 @@ function AIAnalysisMain(props){
 										<div>格式：{item.format || 'text'}</div>
 										<div>版本数：{templateVersions.filter((one)=>one.templateId === item.id).length}</div>
 										<div>更新时间：{buildTimestampLabel(item.updatedAt)}</div>
+										{/* [Q-060/AW-23] 后端抽取的截断(PDF 只抽前 N 页 / 正文按字数封顶)此前只写进 extractMeta,界面零提示 —— 大部头只入库前 500 页而用户不知 */}
+										{describeExtractTruncation(item.extractMeta) ? <div><Tag color="orange">{describeExtractTruncation(item.extractMeta)}</Tag></div> : null}
 									</div>
 									<div className={styles.summaryBlock}>
 										{(item.instructionText || item.jsonSchema || item.content || '').slice(0, 260)}
@@ -5136,11 +5749,12 @@ function AIAnalysisMain(props){
 										</Popconfirm>
 									</div>
 									<div className={styles.versionList}>
+										{/* [Q-062/AW-33] 标出「当前版」并显示回滚留痕;当前版没有「回滚」按钮(回滚到自己没有意义) */}
 										{templateVersions.filter((one)=>one.templateId === item.id).slice(0, 5).map((version)=>(
 											<div key={version.id} className={styles.versionItem}>
-												<span>V{version.versionNumber}</span>
-												<Text type="secondary">{buildTimestampLabel(version.updatedAt)}</Text>
-												<Button size="small" type="link" onClick={()=>rollbackTemplateVersion(item, version)}>回滚</Button>
+												<span>V{version.versionNumber}{item.activeVersionId === version.id ? <Tag color="blue" style={{ marginLeft: 6 }}>当前版</Tag> : null}</span>
+												<Text type="secondary">{buildTimestampLabel(version.updatedAt)}{version.note ? ` · ${version.note}` : ''}</Text>
+												{item.activeVersionId === version.id ? null : <Button size="small" type="link" onClick={()=>rollbackTemplateVersion(item, version)}>回滚</Button>}
 											</div>
 										))}
 									</div>
@@ -5151,6 +5765,10 @@ function AIAnalysisMain(props){
 										<div>绑定资料：{Array.isArray(item.defaultMaterialIds) ? item.defaultMaterialIds.length : 0} 份</div>
 										<div>默认模型：{item.defaultModel || '未设置'}</div>
 										<div>更新时间：{buildTimestampLabel(item.updatedAt)}</div>
+										{/* [Q-416] 标技能身份:带 skill 字段的组合同时是 AI 助手的技能包(触发词 / 版本) */}
+										{(()=>{ const sk = normalizeSkillPack(item); return sk ? <div><Tag color="purple">技能包 · /{sk.triggers[0] || '?'} · v{sk.version}</Tag></div> : null; })()}
+										{/* [Q-060/AW-23] 后端抽取的截断(PDF 只抽前 N 页 / 正文按字数封顶)此前只写进 extractMeta,界面零提示 —— 大部头只入库前 500 页而用户不知 */}
+										{describeExtractTruncation(item.extractMeta) ? <div><Tag color="orange">{describeExtractTruncation(item.extractMeta)}</Tag></div> : null}
 									</div>
 									<div className={styles.summaryBlock}>
 										{item.defaultSystemPrompt || '未设置默认系统提示'}
@@ -5175,6 +5793,22 @@ function AIAnalysisMain(props){
 		);
 	}
 
+
+	// 「进阶」页:高级能力总控。两个插座字面从设置页整体移来——设置页只剩接口配置与备份。
+	function renderAdvancedPane(){
+		return (
+			<div className={styles.paneShell}>
+				<div className={styles.paneBody}>
+					<div className={styles.paneScroll}>
+						<AdvancedPane personaInjecting={chatAssist.personaInjecting}>
+							{chatAssist.settingsPanels}
+							<AgentAbilityPanel />
+						</AdvancedPane>
+					</div>
+				</div>
+			</div>
+		);
+	}
 
 	function renderSettingsPane(){
 		const healthSummary = providerProfiles.reduce((acc, item)=>{
@@ -5201,10 +5835,15 @@ function AIAnalysisMain(props){
 							</Select>
 							<Button icon={<XQIcon name="export" />} onClick={handleExportWorkspaceBackup}>导出备份</Button>
 							<Button icon={<XQIcon name="import" />} onClick={handleRestoreWorkspaceBackup}>恢复备份</Button>
+							<Tooltip title="清空挂载上下文的派生缓存(不影响命盘/事盘存档与对话);下次挂载按当前存档重建。">
+								<Button icon={<XQIcon name="delete" />} onClick={handleClearContextCache}>清理上下文缓存</Button>
+							</Tooltip>
 						</Space>
 					</div>
 					<div className={styles.summaryBlock}>
 						健康概览：健康 {healthSummary.healthy} / 异常 {healthSummary.error} / 未检测 {healthSummary.unknown}
+						<span style={{ marginLeft: 12, color: 'var(--horosa-text-soft)' }}>上下文策略 · 模型路由 · 口径与记忆 · 技能包 · 行动能力 已移到</span>
+						<Button type="link" size="small" style={{ padding: '0 4px' }} onClick={()=>setInnerTab('advanced')}>「进阶」页</Button>
 					</div>
 				</div>
 				<div className={styles.paneBody}>
@@ -5222,7 +5861,7 @@ function AIAnalysisMain(props){
 									{ title: '类型', width: 110, render: (_, it)=>getProviderDisplayName(it.providerType) },
 									{ title: 'Base URL', width: 220, ellipsis: { showTitle: true }, render: (_, it)=>it.baseUrl || '默认' },
 									{ title: '模型数', width: 80, render: (_, it)=>normalizeProfileChatModels(it).length },
-									{ title: '状态', width: 100, render: (_, it)=><Tag color={it.healthStatus === 'healthy' ? 'green' : it.healthStatus === 'error' ? 'red' : 'default'}>{it.healthStatus || 'unknown'}</Tag> },
+									{ title: '状态', width: 100, render: (_, it)=><Tag color={it.healthStatus === 'healthy' ? 'green' : it.healthStatus === 'error' ? 'red' : 'default'}>{providerHealthLabel(it.healthStatus)}</Tag> },   /* [Q-062/AW-36] */
 									{ title: '操作', width: 280, render: (_, it)=>(
 										<Space size={4} wrap>
 											<Button size="small" type="link" onClick={()=>openProviderEditor(it)}>编辑</Button>
@@ -5241,12 +5880,15 @@ function AIAnalysisMain(props){
 							{filteredProfiles.length === 0 ? <Empty description="暂无接口配置" /> : filteredProfiles.map((item)=>(
 						<Card key={item.id} size="small" title={item.name || '未命名配置'} bordered={false}>
 							<div className={styles.cardMeta}>
+								{item.apiKeyDecryptFailed || item.extraHeadersDecryptFailed ? (
+									<div><Tag color="orange">{[item.apiKeyDecryptFailed ? 'API Key' : '', item.extraHeadersDecryptFailed ? '鉴权请求头令牌' : ''].filter(Boolean).join('与')}无法解密,请重填(未重填前原密文保留)</Tag></div>
+								) : null}
 								<div>类型：{getProviderDisplayName(item.providerType)}</div>
 								<div>协议族：{item.protocolFamily || getProviderProtocolFamily(item.providerType)}</div>
 								<div>Base URL：{item.baseUrl || '默认'}</div>
 								<div>聊天模型：{normalizeProfileChatModels(item).length ? normalizeProfileChatModels(item).join('、') : '未配置'}</div>
 								<div>Embedding：{normalizeEmbeddingModels(item).length ? normalizeEmbeddingModels(item).join('、') : '未配置'}</div>
-								<div>健康状态：<Tag color={item.healthStatus === 'healthy' ? 'green' : item.healthStatus === 'error' ? 'red' : 'default'}>{item.healthStatus || 'unknown'}</Tag></div>
+								<div>健康状态：<Tag color={item.healthStatus === 'healthy' ? 'green' : item.healthStatus === 'error' ? 'red' : 'default'}>{providerHealthLabel(item.healthStatus)}</Tag></div>{/* [Q-062/AW-36] */}
 							</div>
 							{item.lastDiagnostics ? (
 								<div className={styles.summaryBlock}>
@@ -5284,6 +5926,16 @@ function AIAnalysisMain(props){
 
 	return (
 		<div className={`${styles.root} horosa-aianalysis-page`}>
+			{storeHealth && storeHealth.degraded ? (
+				<Alert
+					data-ai-store-degraded={storeHealth.reason || 'open-failed'}
+					type="warning"
+					showIcon
+					style={{ margin: '8px 12px 0' }}
+					message={storeHealth.reason === 'version' ? 'AI 工作区数据库由更新版本创建,当前版本无法打开:本次以内存模式运行,关闭即丢;升级软件后自动恢复。' : 'AI 工作区数据库打不开:本次以内存模式运行,关闭即丢(重启软件或检查磁盘/隐私设置)。'}
+					description={storeHealth.message ? <span style={{ fontSize: 11, wordBreak: 'break-all' }}>{storeHealth.message}</span> : null}
+				/>
+			) : null}
 			<input
 				ref={backupRestoreInputRef}
 				type="file"
@@ -5295,7 +5947,7 @@ function AIAnalysisMain(props){
 				ref={desktopFileInputRef}
 				type="file"
 				multiple
-				accept=".txt,.md,.markdown,.doc,.docx,.pdf"
+				accept={MATERIAL_ACCEPT_ATTR}
 				style={{ display: 'none' }}
 				onChange={handleDesktopFileInputChange}
 			/>
@@ -5303,7 +5955,7 @@ function AIAnalysisMain(props){
 				ref={desktopFolderInputRef}
 				type="file"
 				multiple
-				accept=".txt,.md,.markdown,.doc,.docx,.pdf"
+				accept={MATERIAL_ACCEPT_ATTR}
 				webkitdirectory=""
 				directory=""
 				style={{ display: 'none' }}
@@ -5356,10 +6008,14 @@ function AIAnalysisMain(props){
 						<div className={styles.pane}>{renderSettingsPane()}</div>
 					)}</FreezeSubTab>
 					</TabPane>
+					<TabPane tab={<span>{SECONDARY_TABS[5].icon}进阶</span>} key="advanced">
+						<div className={styles.pane}>{renderAdvancedPane()}</div>
+					</TabPane>
 				</Tabs>
 
 			{renderMountDrawer()}
 			{renderTechniqueSettingsDrawer()}
+			<ChatAssistOverlays {...chatAssist.overlays} />
 
 			<Modal
 				title={editingMaterial ? '编辑资料' : '新建资料'}
@@ -5450,13 +6106,13 @@ function AIAnalysisMain(props){
 												<Form.Item name="instructionText" label="说明文字">
 													<TextArea rows={3} placeholder="可选，用于说明模型应该如何输出 JSON" />
 												</Form.Item>
-												<Form.Item name="jsonSchema" label="JSON Schema" rules={[{ required: true, message: '请输入 JSON Schema' }]}>
+												<Form.Item name="jsonSchema" label="JSON Schema" rules={[JSON_TEXT_RULE, { required: true, message: '请输入 JSON Schema' }]}>
 													<MonacoEditor height="240px" defaultLanguage="json" beforeMount={configureMonaco} />
 												</Form.Item>
-												<Form.Item name="exampleInput" label="示例输入">
+												<Form.Item name="exampleInput" label="示例输入" rules={[JSON_TEXT_RULE]}>
 													<MonacoEditor height="180px" defaultLanguage="json" beforeMount={configureMonaco} />
 												</Form.Item>
-												<Form.Item name="exampleOutput" label="示例输出">
+												<Form.Item name="exampleOutput" label="示例输出" rules={[JSON_TEXT_RULE]}>
 													<MonacoEditor height="180px" defaultLanguage="json" beforeMount={configureMonaco} />
 												</Form.Item>
 											</>
@@ -5465,7 +6121,7 @@ function AIAnalysisMain(props){
 												<Form.Item name="instructionText" label="模版内容" rules={[{ required: true, message: '请输入模版内容' }]}>
 													<TextArea rows={10} placeholder="支持 {{user_prompt}} / {{source_context}} / {{retrieved_context}} / {{conversation_history}} / {{system_prompt}}" />
 												</Form.Item>
-												<Form.Item name="exampleInput" label="示例输入">
+												<Form.Item name="exampleInput" label="示例输入" rules={[JSON_TEXT_RULE]}>
 													<MonacoEditor height="180px" defaultLanguage="json" beforeMount={configureMonaco} />
 												</Form.Item>
 												<Form.Item name="exampleOutput" label="示例输出">
@@ -5539,8 +6195,9 @@ function AIAnalysisMain(props){
 								<li><b>默认模型：</b>{b.defaultModel ? `${b.defaultProviderProfileId ? '指定接口·' : ''}${b.defaultModel}` : '不覆盖'}</li>
 								<li><b>默认温度：</b>{b.defaultChatTemperature != null ? b.defaultChatTemperature : '不覆盖'}</li>
 								<li><b>默认 top_p：</b>{b.defaultChatTopP != null ? b.defaultChatTopP : '不覆盖'}</li>
-								<li><b>默认思考档：</b>{b.defaultThinkingLevel || '不覆盖'}</li>
-								<li><b>默认检索策略：</b>{b.defaultRetrievalMode || 'auto'}</li>
+								{/* [Q-062/AW-36] 显示中文标签,不再漏内部代码 */}
+								<li><b>默认思考档：</b>{b.defaultThinkingLevel ? thinkingLevelLabel(b.defaultThinkingLevel) : '不覆盖'}</li>
+								<li><b>默认检索策略：</b>{retrievalModeLabel(b.defaultRetrievalMode)}</li>
 								<li><b>挂载资料 ({matNames.length})：</b>{matNames.length ? matNames.join('、') : '无'}</li>
 								<li><b>挂载技法 ({techs.length})：</b>
 									{techs.length === 0 ? '无' : (
@@ -5603,7 +6260,7 @@ function AIAnalysisMain(props){
 			</Modal>
 
 			<Modal
-				title={editingBundle ? '编辑组合' : '新建组合'}
+				title={editingBundle ? (normalizeSkillPack(editingBundle) ? '编辑组合（技能包）' : '编辑组合') : '新建组合'}
 				open={bundleModalOpen}
 				width={720}
 				onOk={saveBundleForm}
@@ -5648,7 +6305,9 @@ function AIAnalysisMain(props){
 							{RETRIEVAL_OPTIONS.map((item)=><Select.Option key={item.value} value={item.value}>{item.label}</Select.Option>)}
 						</Select>
 					</Form.Item>
-					<Form.Item name="defaultTechniqueKeys" label="默认挂载技法（套用后按所选案例自动挂载）">
+					<Form.Item name="defaultTechniqueKeys" label="默认挂载技法（套用后按所选案例自动挂载）"
+						extra={(()=>{ const sk = normalizeSkillPack(editingBundle); return sk ? `此组合是技能包（/${sk.triggers[0] || '?'} · v${sk.version}）：保存时这里的技法同步写入技能（技能升版并留档）；触发词 / 模板等技能字段在 AI 助手「技能包」卡编辑。` : undefined; })()}
+					>
 						<Select mode="multiple" allowClear showSearch optionFilterProp="children" placeholder="可多选：套用组合并选定案例后自动挂载">
 							{listAllAnalysisTechniqueOptions().map((item)=>(
 								<Select.Option key={item.value} value={item.value}>{item.label}</Select.Option>
@@ -5673,7 +6332,7 @@ function AIAnalysisMain(props){
 				open={providerSwitchModalOpen}
 				width={720}
 				footer={null}
-				bodyStyle={{ maxHeight: 'calc(100vh - 220px)', overflowY: 'auto' }}
+				bodyStyle={{ maxHeight: 'calc(100 * var(--horosa-lvh, 1vh) - 220px)', overflowY: 'auto' }}
 				onCancel={()=>setProviderSwitchModalOpen(false)}
 			>
 				{providerProfiles.length ? (
@@ -5686,9 +6345,9 @@ function AIAnalysisMain(props){
 								<div
 									key={profile.id}
 									role="button"
-									title={isCurrent ? '当前使用中' : '点击设为当前'}
-									style={{ cursor: isCurrent ? 'default' : 'pointer' }}
-									onClick={()=>{ if(!isCurrent){ setProviderAsCurrent(profile); } }}
+									title={isCurrent ? '当前使用中' : (profile.enabled === false ? '该接口未启用,先在「编辑」里打开「启用」' : '点击设为当前')}
+									style={{ cursor: (isCurrent || profile.enabled === false) ? 'default' : 'pointer' }}
+									onClick={()=>{ if(!isCurrent && profile.enabled !== false){ setProviderAsCurrent(profile); } }}
 									className={[
 										styles.providerSwitchItem,
 										isCurrent ? styles.providerSwitchItemActive : '',
@@ -5699,6 +6358,8 @@ function AIAnalysisMain(props){
 											<strong>{displayName}</strong>
 											{isCurrent ? <Tag color="blue">当前</Tag> : null}
 											{profile.enabled === false ? <Tag>未启用</Tag> : <Tag color="green">已启用</Tag>}
+											{profile.apiKeyDecryptFailed ? <Tag color="orange" title="主密钥缺失,库内密文解不开;未重填前原密文保留">Key 请重填</Tag> : null}
+											{profile.extraHeadersDecryptFailed ? <Tag color="orange" title="额外请求头里的令牌解不开;未重填前原密文保留">请求头令牌请重填</Tag> : null}
 										</div>
 										<div className={styles.providerSwitchMeta}>
 											<span>类型：{getProviderDisplayName(profile.providerType)}</span>
@@ -5712,7 +6373,8 @@ function AIAnalysisMain(props){
 									<Space>
 										<Button
 											size="small"
-											disabled={isCurrent}
+											disabled={isCurrent || profile.enabled === false}
+											title={profile.enabled === false ? '未启用的接口不能设为当前(先在「编辑」里打开「启用」)' : undefined}
 											onClick={(e)=>{ e.stopPropagation(); setProviderAsCurrent(profile); }}
 										>
 											{isCurrent ? '当前' : '设为当前'}
@@ -5743,7 +6405,7 @@ function AIAnalysisMain(props){
 				title={editingProvider ? '编辑接口配置' : '新增接口配置'}
 				open={providerModalOpen}
 				width={720}
-				bodyStyle={{ maxHeight: 'calc(100vh - 220px)', overflowY: 'auto' }}
+				bodyStyle={{ maxHeight: 'calc(100 * var(--horosa-lvh, 1vh) - 220px)', overflowY: 'auto' }}
 				onOk={saveProviderForm}
 				onCancel={()=>{
 					setProviderModalOpen(false);
@@ -5777,7 +6439,7 @@ function AIAnalysisMain(props){
 								(pt === 'openai' || pt === 'deepseek' || pt === 'openrouter' || pt === 'groq' || pt === 'siliconflow') ? 'sk-...' :
 								pt === 'ollama' ? '可留空（本地服务）' : '留空表示不设置';
 							return (
-								<Form.Item name="apiKey" label="API Key">
+								<Form.Item name="apiKey" label="API Key" extra={editingProvider && editingProvider.apiKeyDecryptFailed ? '当前 Key 密文无法解密(主密钥缺失):留空保存则原密文原样保留,填入新 Key 则覆盖。' : 'Key 只存本机(桌面版静态加密,主密钥由系统钥匙串保管),不入库、不出站;只随你的请求发给所选接口。'}>
 									<AntdInput.Password
 										placeholder={ph}
 										autoComplete="off"
@@ -5823,7 +6485,7 @@ function AIAnalysisMain(props){
 									<Form.Item name="embeddingModels" label="Embedding 模型列表">
 										<TextArea rows={3} />
 									</Form.Item>
-									<Form.Item name="requestTimeoutMs" label="请求超时（毫秒）" extra="作用于连接与首响应头、以及非流式请求（测试连接/拉模型/取材料）；流式对话正文不受此限">
+									<Form.Item name="requestTimeoutMs" label="请求超时（毫秒）" extra="作用于连接与首响应头、以及非流式请求（测试连接/拉模型/取材料）；流式对话正文不受此限。范围 1000–600000（1 秒–10 分钟），前后端同一个数">
 										<Input />
 									</Form.Item>
 									<Form.Item name="streamStallMs" label="流式空闲上限（毫秒）" extra="连续无新内容多久判卡死，空=180000（3 分钟）；深思模型经中转网关频繁报「无新内容」可调大">
@@ -5834,15 +6496,16 @@ function AIAnalysisMain(props){
 									</Form.Item>
 								</Collapse.Panel>
 								<Collapse.Panel key="auth" header="鉴权定制（自定义请求头）" forceRender>
-									<Form.Item name="extraHeadersText" label="额外请求头（JSON 对象）">
+									<Form.Item name="extraHeadersText" label="额外请求头（JSON 对象）" extra={editingProvider && editingProvider.extraHeadersDecryptFailed ? '有头值密文无法解密(主密钥缺失):值留空保存则原密文原样保留,填入新值则覆盖。' : '值与 API Key 同样只存本机并静态加密,不进备份。'} rules={[JSON_TEXT_RULE]}>
 										<MonacoEditor height="140px" defaultLanguage="json" beforeMount={configureMonaco} />
 									</Form.Item>
 								</Collapse.Panel>
-								<Collapse.Panel key="body" header="请求体覆盖（额外字段 / 厂家私有参数）" forceRender>
-									<Form.Item name="extraBodyText" label="额外请求体（JSON 对象）">
+								{/* [Q-062/AW-35] 标题改真话:这些键在后端**最先**放进请求体,与表单字段或分析页参数同名时会被后者覆盖 —— 是「补充」不是「覆盖」 */}
+								<Collapse.Panel key="body" header="额外请求体字段（厂家私有参数；同名键以表单与页面参数为准）" forceRender>
+									<Form.Item name="extraBodyText" label="额外请求体（JSON 对象）" rules={[JSON_TEXT_RULE]}>
 										<MonacoEditor height="140px" defaultLanguage="json" beforeMount={configureMonaco} />
 									</Form.Item>
-									<Form.Item name="providerOptionsText" label="补充高级参数（JSON）">
+									<Form.Item name="providerOptionsText" label="补充高级参数（JSON）" rules={[JSON_TEXT_RULE]}>
 										<MonacoEditor height="160px" defaultLanguage="json" beforeMount={configureMonaco} />
 									</Form.Item>
 								</Collapse.Panel>
@@ -5867,8 +6530,8 @@ function AIAnalysisMain(props){
 										<Form.Item name="anthropicMaxTokens" label="Anthropic max_tokens">
 											<Input placeholder="如 2048" />
 										</Form.Item>
-										<Form.Item name="anthropicThinkingBudget" label="Thinking Budget">
-											<Input placeholder="如 1024" />
+										<Form.Item name="anthropicThinkingBudget" label="思考预算上限" extra="仅思考档开启时生效(预算型号 budget_tokens 与档位取小;自适应型号忽略);关闭档不发思考">
+											<Input placeholder="如 8192" />
 										</Form.Item>
 										<Form.Item name="anthropicTopP" label="Anthropic top_p">
 											<Input placeholder="如 0.9" />
@@ -5882,10 +6545,10 @@ function AIAnalysisMain(props){
 							if(providerType === 'gemini'){
 								return (
 									<>
-										<Form.Item name="geminiGenerationConfigText" label="Gemini generationConfig">
+										<Form.Item name="geminiGenerationConfigText" label="Gemini generationConfig" rules={[JSON_TEXT_RULE]}>
 											<MonacoEditor height="180px" defaultLanguage="json" beforeMount={configureMonaco} />
 										</Form.Item>
-										<Form.Item name="geminiSafetySettingsText" label="Gemini safetySettings">
+										<Form.Item name="geminiSafetySettingsText" label="Gemini safetySettings" rules={[JSON_TEXT_RULE]}>
 											<MonacoEditor height="180px" defaultLanguage="json" beforeMount={configureMonaco} />
 										</Form.Item>
 									</>

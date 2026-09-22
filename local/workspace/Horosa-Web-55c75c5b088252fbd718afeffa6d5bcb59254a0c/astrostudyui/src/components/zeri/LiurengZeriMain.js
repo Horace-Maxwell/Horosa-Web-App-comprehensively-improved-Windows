@@ -75,7 +75,8 @@ export default class LiurengZeriMain extends Component{
 			geo: { zone: '+08:00', lon: '116e28', lat: '39n54', gpsLon: 116.46, gpsLat: 39.9, ad: 1, pos: '北京' },
 			// 扫描参数六键(逐键判别力由 liurengZeriEngine 金标证:贵人流派/阴阳系/月将两档/
 			// 换日/晚子时/时基;昼夜=日出方程自动判,非档位)。
-			options: { guirengType: 0, yueMode: 'zhongqi', after23NewDay: defaultAfter23NewDay(), lateZiHourUseNextDay: defaultLateZiHourUseNextDay() },	// 日界两键=全局**现值**(主六壬页同源;复审 F8)	// timeAlg 恒真太阳(主页 gods 固有口径,非可调档)
+			// [Q-271/ZC-16] 贵人体系缺省 2=星占法(主六壬页 guireng:2 同默认;此前 0=六壬法,pick 回写把主页左栏从星占法改成六壬法)
+			options: { guirengType: 2, yueMode: 'zhongqi', after23NewDay: defaultAfter23NewDay(), lateZiHourUseNextDay: defaultLateZiHourUseNextDay() },	// 日界两键=全局**现值**(主六壬页同源;复审 F8)	// timeAlg 恒真太阳(主页 gods 固有口径,非可调档)
 			natal: null,          // 用事人本命(resolveNatal 产物;选填,解锁本命组条件)
 			natalInput: { date: '', time: '12:00', zone: '+08:00', gender: 1 },
 			tree: initialTree(),
@@ -241,7 +242,7 @@ export default class LiurengZeriMain extends Component{
 		// 冻结 UI 树:详情面「设定」列用它配冻结判读树(活树被增删后按序配对会错位,审查实抓)
 		this._scanUiTree = JSON.parse(JSON.stringify(this.state.tree));
 		try{
-			liurengZeriSchemeStore.pushHistory({ cfg, geo, options, natal }, this.state.tree);
+			liurengZeriSchemeStore.pushHistory({ cfg, geo, options, natal, natalInput: this.state.natalInput }, this.state.tree);
 		}catch(e){
 			// 历史落盘失败不阻断
 		}
@@ -295,17 +296,35 @@ export default class LiurengZeriMain extends Component{
 		const raw = (which === 'end' ? (row.pickEnd || row.end) : (row.pick || row.start)) || row.start;
 		const text = raw.length === 16 ? `${raw}:00` : raw;
 		this.setState({ pickText: text, searchOpen: false }, ()=>{
-			this.requestChartAndPlot(true);
+			// [挂载自检 F-37] 先回写工作台口径到六壬页起课选项,再拉底盘起课:显示盘/母快照=扫描判定口径。
+			this.applyWorkbenchCalibre().then(()=>this.requestChartAndPlot(true));
 		});
 	}
 
-	explainRow(row){
-		return Promise.resolve(explainLiurengAt({
+	// [挂载自检 F-37] 工作台口径 → 六壬页(hook.applyCastFields):guirengType→guireng(同 LRConst.GuiRengs 序)、
+	// yueMode→yueJiangMethod(zhongqi/jieqi)、yinyangSystem 原名。母组件未挂 hook 时静默(旧行为)。
+	applyWorkbenchCalibre(){
+		const o = this._scanOptions || this.state.options || {};
+		const partial = {};
+		if(o.guirengType !== undefined && o.guirengType !== null && `${o.guirengType}` !== ''){ partial.guireng = Number(o.guirengType); }
+		if(o.yueMode !== undefined){ partial.yueJiangMethod = o.yueMode === 'jieqi' ? 'jieqi' : 'zhongqi'; }
+		if(o.yinyangSystem !== undefined && o.yinyangSystem !== null && `${o.yinyangSystem}` !== ''){ partial.yinyangSystem = o.yinyangSystem; }
+		const h = this.liurengHook;
+		return (h && typeof h.applyCastFields === 'function' && Object.keys(partial).length) ? h.applyCastFields(partial) : Promise.resolve();
+	}
+
+	// [Q-453] 同步引擎直算(快照前 N 行判读树与工作台「详情▼」同源);explainRow 保持 Promise 形给工作台。
+	explainRowSync(row){
+		return explainLiurengAt({
 			geoParams: this.buildGeoParams(this._scanGeo || this.state.geo),
 			options: { ...(this._scanOptions || this.state.options || {}), _natal: this._scanNatal },
 			tree: this._scanTree,
 			t: row.pick || `${row.start}:00`,
-		}));
+		});
+	}
+
+	explainRow(row){
+		return Promise.resolve(this.explainRowSync(row));
 	}
 
 	composeAiSnapshot(baseText){
@@ -317,6 +336,7 @@ export default class LiurengZeriMain extends Component{
 				tree: this._scanUiTree || this.state.tree,	// 冻结树:与命中行同源(活树曾致条件描述≠结果,复审 F5)
 				results: this.state.results,
 				truncated: this.state.truncated,
+				explainAt: (row)=>this.explainRowSync(row),   // [Q-453] 前 N 行判读树(全局可配)
 			});
 			return extra ? `${baseText ? `${baseText}\n\n` : ''}${extra}` : baseText;
 		}catch(e){
@@ -359,6 +379,7 @@ export default class LiurengZeriMain extends Component{
 						hook={this.liurengHook}
 						height={this.props.height ? this.props.height - 40 : undefined}
 						techniqueScope="liurengzeri"
+						dispatch={this.props.dispatch}   /* [挂载自检 F-36] 存档钮此前在宿主内是死钮 */
 						composeAiSnapshot={this.composeAiSnapshot}
 						renderLeftExtra={this.renderLeftExtra}
 					/>
@@ -381,8 +402,11 @@ export default class LiurengZeriMain extends Component{
 						return n;
 					}}
 					onClearNatal={()=>this.setState({ natal: null })}
+					onRestoreNatal={(n)=>this.setState({ natal: n || null })}   /* [Q-271/ZC-21] 方案载入回灌本命 */
 					tree={this.state.tree}
 					frozenTree={this._scanUiTree}
+					previewGeo={this._scanGeo || this.state.geo}   /* [Q-271/ZC-22] 冻结地点:概览口径=扫描口径 */
+					previewOptions={this._scanOptions || this.state.options}   /* [Q-271/ZC-22] 冻结参数:搜索后改参数不改旧结果行的盘 */
 					onPreviewPan={(d, t)=>computeLiurengScanPan(this.buildGeoParams(this._scanGeo || this.state.geo), { ...(this._scanOptions || this.state.options || {}) }, d, t)}
 					onTreeChange={(tree)=>this.setState({ tree })}
 					onRun={this.runSearch}

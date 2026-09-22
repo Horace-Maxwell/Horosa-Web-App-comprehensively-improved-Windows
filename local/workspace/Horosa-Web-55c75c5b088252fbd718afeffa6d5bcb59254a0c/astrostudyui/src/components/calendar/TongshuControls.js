@@ -6,10 +6,9 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import DateTimeSelector from '../comp/DateTimeSelector';
 import { TONGSHU_SCHOOLS, TONGSHU_SCHOOL_MAP, schoolNeeds, LIEXIU_USE_OPTIONS } from './tongshuSchools';
 import { TONGSHU_TERMS, TONGSHU_TERM_CATEGORIES } from './tongshuData';
-import { SHAN_ORDER, GANZHI_60 } from '../fengshui/fengshuiData';
+import { GANZHI_60 } from '../fengshui/fengshuiData';   // [Q-271/ZC-28] 坐山向死分支已删(无流派声明 needs.zuoShan)
 
 const SCHOOL_OPTIONS = TONGSHU_SCHOOLS.map((s)=> ({ value: s.key, label: s.label }));
-const SHAN_OPTIONS = SHAN_ORDER.map((s)=> ({ value: s, label: `${s}山` }));
 const MING_OPTIONS = GANZHI_60.map((g)=> ({ value: g, label: g }));
 
 export default class TongshuControls extends Component {
@@ -54,14 +53,6 @@ export default class TongshuControls extends Component {
 						<span>用事类</span>
 						<Select value={s.liexiuUse} dropdownMatchSelectWidth={false}
 							onChange={(v)=> onChange({ liexiuUse: v })} options={LIEXIU_USE_OPTIONS} />
-					</label>
-				) : null}
-
-				{needs.zuoShan ? (
-					<label className='horosa-huangji-select-field is-wide'>
-						<span>坐山向</span>
-						<Select value={s.zuoShan} dropdownMatchSelectWidth={false}
-							onChange={(v)=> onChange({ zuoShan: v })} options={SHAN_OPTIONS} showSearch />
 					</label>
 				) : null}
 

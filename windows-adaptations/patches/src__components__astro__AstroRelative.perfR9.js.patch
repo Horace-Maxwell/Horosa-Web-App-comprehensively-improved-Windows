@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/astro/AstroRelative.js b/astrostudyui/src/components/astro/AstroRelative.js
-index 2eeb350..b7b6b16 100644
+index 1f4af761..80925a89 100644
 --- a/astrostudyui/src/components/astro/AstroRelative.js
 +++ b/astrostudyui/src/components/astro/AstroRelative.js
-@@ -16,6 +16,8 @@ import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
+@@ -22,6 +22,8 @@ import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
  import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
  import UpdatingBadge from '../common/UpdatingBadge';
  import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
@@ -11,7 +11,7 @@ index 2eeb350..b7b6b16 100644
  
  const TabPane = Tabs.TabPane;
  
-@@ -498,6 +500,10 @@ class AstroRelative extends Component{
+@@ -592,6 +594,10 @@ class AstroRelative extends Component{
  
  		if(!this._mounted) return;
  		this.setState(st, ()=>{
@@ -22,7 +22,7 @@ index 2eeb350..b7b6b16 100644
  			let hook = this.state.hook[this.state.currentTab];
  			if(hook && hook.fun){
  				hook.fun(res);
-@@ -615,6 +621,10 @@ class AstroRelative extends Component{
+@@ -710,6 +716,10 @@ class AstroRelative extends Component{
  				<Row className="horosa-relative-chart-row" gutter={12} style={{marginTop: 10, position: 'relative'}} ref={this.chartRowRef}>
  					<Col span={24}>
  						{this.state.updating && hook[this.state.currentTab] && hook[this.state.currentTab].result ? <UpdatingBadge /> : null}
@@ -33,7 +33,7 @@ index 2eeb350..b7b6b16 100644
  						<Tabs 
  							defaultActiveKey={this.state.currentTab} tabPosition='right'
  							onChange={this.changeTab}
-@@ -622,6 +632,7 @@ class AstroRelative extends Component{
+@@ -717,6 +727,7 @@ class AstroRelative extends Component{
  							style={{ height: height }}
  						>
  							<TabPane tab="比较盘" key="Comp">
@@ -41,8 +41,8 @@ index 2eeb350..b7b6b16 100644
  									<AstroCompare
  										value={hook.Comp.result}
  									height={height}
-@@ -638,8 +649,10 @@ class AstroRelative extends Component{
- 										showAstroMeaning={this.props.showAstroMeaning}
+@@ -737,8 +748,10 @@ class AstroRelative extends Component{
+ 										aspects={this.props.aspects}
  										hook={hook.Comp}	
  									/>
 +								</FreezeSubTab>
@@ -50,10 +50,10 @@ index 2eeb350..b7b6b16 100644
  							<TabPane tab="组合盘" key="Composite">
 +								<FreezeSubTab active={this.state.currentTab === 'Composite'}>
  									<AstroComposite 
+ 										wheelArt={this.props.wheelArt}
  										value={hook.Composite.result}
- 									height={height}
-@@ -656,8 +669,10 @@ class AstroRelative extends Component{
- 										showAstroMeaning={this.props.showAstroMeaning}
+@@ -760,8 +773,10 @@ class AstroRelative extends Component{
+ 										aspects={this.props.aspects}
  										hook={hook.Composite}	
  									/>
 +								</FreezeSubTab>
@@ -61,10 +61,10 @@ index 2eeb350..b7b6b16 100644
  							<TabPane tab="影响盘" key="Synastry">
 +								<FreezeSubTab active={this.state.currentTab === 'Synastry'}>
  									<AstroSynastry 
+ 										wheelArt={this.props.wheelArt}
  										value={hook.Synastry.result}
- 									height={height}
-@@ -674,8 +689,10 @@ class AstroRelative extends Component{
- 										showAstroMeaning={this.props.showAstroMeaning}
+@@ -783,8 +798,10 @@ class AstroRelative extends Component{
+ 										aspects={this.props.aspects}
  										hook={hook.Synastry}	
  									/>
 +								</FreezeSubTab>
@@ -72,10 +72,10 @@ index 2eeb350..b7b6b16 100644
  							<TabPane tab="时空中点盘" key="TimeSpace">
 +								<FreezeSubTab active={this.state.currentTab === 'TimeSpace'}>
  									<AstroTimeSpace 
+ 										wheelArt={this.props.wheelArt}
  										value={hook.TimeSpace.result}
- 									height={height}
-@@ -692,8 +709,10 @@ class AstroRelative extends Component{
- 										showAstroMeaning={this.props.showAstroMeaning}
+@@ -806,8 +823,10 @@ class AstroRelative extends Component{
+ 										aspects={this.props.aspects}
  										hook={hook.TimeSpace}	
  									/>
 +								</FreezeSubTab>
@@ -83,10 +83,10 @@ index 2eeb350..b7b6b16 100644
  								<TabPane tab="马克斯盘" key="Marks">
 +									<FreezeSubTab active={this.state.currentTab === 'Marks'}>
  										<AstroMarks 
+ 											wheelArt={this.props.wheelArt}
  											value={hook.Marks.result}
- 									height={height}
-@@ -710,13 +729,16 @@ class AstroRelative extends Component{
- 										showAstroMeaning={this.props.showAstroMeaning}
+@@ -829,13 +848,16 @@ class AstroRelative extends Component{
+ 										aspects={this.props.aspects}
  										hook={hook.Marks}	
  										/>
 +									</FreezeSubTab>

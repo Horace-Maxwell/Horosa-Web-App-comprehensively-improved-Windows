@@ -3,6 +3,7 @@ import { Row, Col } from 'antd';
 import LatInput from '../astro/LatInput';
 import LonInput from '../astro/LonInput';
 import DateTimeSelector from './DateTimeSelector';
+import { QuickTimeInput } from './QuickTimeField';
 import EditableTags from './EditableTags';
 import * as AstroHelper from '../astro/AstroHelper';
 import GeoCoordModal from '../amap/GeoCoordModal';
@@ -31,6 +32,7 @@ export default class ChartFormData extends Component{
 
 		this.setValue = this.setValue.bind(this);
 		this.changeBirth = this.changeBirth.bind(this);
+		this.quickBirth = this.quickBirth.bind(this);
 		this.changeZodiacal = this.changeZodiacal.bind(this);
 		this.changeHSys = this.changeHSys.bind(this);
 		this.changeName = this.changeName.bind(this);
@@ -102,6 +104,11 @@ export default class ChartFormData extends Component{
 			fields: flds,
 		});
 		this.scheduleLivePrecompute();
+	}
+
+	// 「快捷输入」行提交:同一条 changeBirth 路(date/time 双写 + 夏令时校正)
+	quickBirth(dt){
+		this.changeBirth({ value: dt });
 	}
 
 	changeBirth(val){
@@ -328,6 +335,7 @@ export default class ChartFormData extends Component{
 						</Row>
 					)
 				}
+				{ needDate && <QuickTimeInput value={flds.date.value} zone={flds.zone ? flds.zone.value : undefined} onCommit={this.quickBirth} marginTop={8} /> }
 				{ needDate && <DstZoneIndicator fields={flds} onApply={this.applySuggestedZone} /> }
 				{
 					needDate && (

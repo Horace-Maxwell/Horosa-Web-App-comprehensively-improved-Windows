@@ -89,6 +89,18 @@ describe('[V4] 存储键注册表机械穷举哨兵', ()=>{
 		});
 	});
 
+	// [Q-377/T-357] 常量标识符写入的两枚历史键(chart3dOpt / guaData)逃过字面量穷举 → 显式钉住已登记。
+	it('常量标识符写入的历史键也在注册表:chart3dOpt(settings·带) / guaData(cache·不带)', ()=>{
+		expect(classifyStorageKey('chart3dOpt').kind).toBe('settings');
+		expect(classifyStorageKey('chart3dOpt').backup).toBe(true);
+		expect(classifyStorageKey('guaData').kind).toBe('cache');
+		// [Q-309/T-314] 工具箱三组:反查/格局表单态(settings·带)、格局手写笔记(user-data·带);CalculatorFormula 纠为缓存(不带)
+		expect(classifyStorageKey('baziInverse').kind).toBe('settings');
+		expect(classifyStorageKey('baziPattern').kind).toBe('settings');
+		expect(classifyStorageKey('baziPattern_local::1990_5_18_23::g1')).toEqual(expect.objectContaining({ kind: 'user-data', backup: true }));
+		expect(classifyStorageKey('CalculatorFormula').kind).toBe('cache');
+	});
+
 	it('classify:精确键优先于前缀;最长前缀胜出;未知键返回 null', ()=>{
 		expect(classifyStorageKey('ziweiLateZiMigrated').kind).toBe('device-local');   // 精确 > prefix 'ziwei'
 		expect(classifyStorageKey('ziweiPreset').kind).toBe('settings');

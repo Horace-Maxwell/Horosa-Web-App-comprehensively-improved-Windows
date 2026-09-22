@@ -130,20 +130,6 @@ public class BaZi {
 		this.setup();
 	}
 	
-	private int getBaseLonByZone() {
-		String sym = this.zone.substring(0, 1);
-		String hour = this.zone.substring(1, 3);
-		if(hour.startsWith("0")) {
-			hour = hour.substring(1, 2);
-		}
-		int h = ConvertUtility.getValueAsInt(hour);
-		int lon = h * 15;
-		if(sym.equals("+")) {
-			return lon;
-		}
-		return -lon;
-	}
-	
 	private void adjustJieqiInfo(List<Map<String, Object>> jieqilist) {
 		if(!this.adjustJieqi) {
 			return;
@@ -170,7 +156,9 @@ public class BaZi {
 	}
 	
 	private void setup() {
-		int useLocalMao = this.timeAlg == TimeZiAlg.LocalMao ? 1 : 0;
+		// [Q-189/T-128] 值 3(枚举旧名 LocalMao)统一为「平太阳时」(仅经度时差),与前端本地引擎 baziLunarLocal timeAlg=3
+		// 及三处视图标签同口径;不再走 Python 地方卯时(computeLocal 以当日卯正对齐 05:00)路径 → useLocalMao 恒 0。
+		int useLocalMao = 0;
 		int byLon = this.useZodicalLon ? 1 : 0;
 		Map<String, Object> jieqiinfo = BaZiHelper.getJieQiInfo(this.ad, this.birth, this.zone, this.lon, this.lat, useLocalMao, byLon);
 		List<Map<String, Object>> jieqi = (List<Map<String, Object>>) jieqiinfo.get("jieqi");
@@ -193,11 +181,8 @@ public class BaZi {
 		// Always expose both the clock/direct input time and the true solar time,
 		// regardless of the selected timeAlg, so the UI can show both without
 		// changing the calculation basis (which still follows timeAlg below).
-		int realSunOffsetSeconds = RealSunTimeOffset.getOffset(
-			String.format("%02d-%02d", this.oldBirthParts[1], this.oldBirthParts[2]),
-			this.lon,
-			this.getBaseLonByZone()
-		);
+		// [Q-195/T-121] 真太阳时偏移改为完整日时 NOAA 均时差(与本地引擎同式),不再按月-日查表。
+		int realSunOffsetSeconds = RealSunTimeOffset.getOffsetByDate(this.oldBirth, this.zone, this.lon);
 		String realSunBirth = JdnHelper.getDateFromJdn(
 			this.oldBirthJdn + realSunOffsetSeconds / 3600.0 / 24.0,
 			this.zone
@@ -206,9 +191,11 @@ public class BaZi {
 		this.nongli.put("solarTime", realSunBirth);
 
 		if(this.timeAlg == TimeZiAlg.RealSun) {
-			String monthday = String.format("%02d-%02d", this.oldBirthParts[1], this.oldBirthParts[2]);
-			int baseLon = this.getBaseLonByZone();
-			this.timeOffset = RealSunTimeOffset.getOffset(monthday, this.lon, baseLon);
+			this.timeOffset = realSunOffsetSeconds;
+			this.timeOffsetJDN = this.timeOffset / 3600.0 / 24.0;
+		}else if(this.timeAlg == TimeZiAlg.LocalMao) {
+			// [Q-189/T-128] 平太阳时:仅经度时差(去均时差),与本地引擎 timeAlg=3 同口径。
+			this.timeOffset = RealSunTimeOffset.getMeanSolarOffset(this.zone, this.lon);
 			this.timeOffsetJDN = this.timeOffset / 3600.0 / 24.0;
 		}
 		

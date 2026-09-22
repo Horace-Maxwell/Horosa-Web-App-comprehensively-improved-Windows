@@ -449,8 +449,8 @@ def gangzhi1(year, month, day, hour, minute):
                 dd_next = list(d_next.tuple())
                 day_tg_idx = fromSolar(dd_next[0], dd_next[1], dd_next[2]).getDayGZ().tg
         else:
-            # lateZi=0: 跟日柱一致
-            day_tg_idx = cdate.getDayGZ().tg
+            # [Q-312 口径 B] lateZi=0: 钟面当天日干起子时(与日柱开关独立;after23 进位时 cdate 已是次日,须退回今日)
+            day_tg_idx = fromSolar(year, month, day).getDayGZ().tg
         hTG = tian_gan[(day_tg_idx % 5 * 2 + 0) % 10] + di_zhi[0]
     if year < 1900:
         mTG1 = find_lunar_month(yTG).get(lunar_date_d(year, month, day).get("月"))
@@ -547,8 +547,8 @@ def gangzhi(year, month, day, hour, minute):
                 dd_next = list(d_next.tuple())
                 day_tg_idx = fromSolar(dd_next[0], dd_next[1], dd_next[2]).getDayGZ().tg
         else:
-            # lateZi=0: 跟日柱一致
-            day_tg_idx = cdate.getDayGZ().tg
+            # [Q-312 口径 B] lateZi=0: 钟面当天日干起子时(与日柱开关独立;after23 进位时 cdate 已是次日,须退回今日)
+            day_tg_idx = fromSolar(year, month, day).getDayGZ().tg
         hTG = tian_gan[(day_tg_idx % 5 * 2 + 0) % 10] + di_zhi[0]
     if year < 1900:
         mTG1 = find_lunar_month(yTG).get(lunar_date_d(year, month, day).get("月"))

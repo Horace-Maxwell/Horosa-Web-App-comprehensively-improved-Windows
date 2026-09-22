@@ -108,13 +108,8 @@ class LiuRengInput extends Component{
 		if(this.props.onChartTypeChange){
 			this.props.onChartTypeChange(val);
 		}
-		if(this.props.onFieldsChange){
-			this.props.onFieldsChange({
-				lrchart: {
-					value: val,
-				}
-			});
-		}
+		// [Q-164/T-91·SS-23] 不再把 lrchart 写进全局 fields:全仓零读取(fieldsToParams 不带它),
+		//   此前每切一次方盘/圆盘就触发一次 /chart 重取。盘式已由 state + localStorage 持久化。
 	}
 
 	render(){

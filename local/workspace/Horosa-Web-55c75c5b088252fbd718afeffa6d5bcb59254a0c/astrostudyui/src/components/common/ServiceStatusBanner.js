@@ -1,4 +1,5 @@
 import React from 'react';
+import { isDesktopBridgeAvailable, getDesktopInvokeApi } from '../../utils/aiAnalysisDesktop';
 import { subscribeServiceStatus, markServiceOnline, markServiceOffline } from '../../utils/serviceStatus';
 import { verifyBackendIdentity, renegotiateLocalServerRoot } from '../../utils/backendIdentity';
 import { startRecoveryPolling, buildDefaultRecoveryProbe, invokeLightServiceRestart } from '../../utils/serviceRecovery';
@@ -80,7 +81,7 @@ export default function ServiceStatusBanner() {
     return stop;
   }, [online]);
 
-  const hasTauri = typeof window !== 'undefined' && !!window.__TAURI__;
+  const hasTauri = isDesktopBridgeAvailable();   // [FL-20260902-1] 打包版无 window.__TAURI__,只探它=按钮永不出现
 
   const handleRetry = React.useCallback(async () => {
     if (!ServerRoot || retrying) return;
@@ -112,7 +113,7 @@ export default function ServiceStatusBanner() {
   const handleRestart = React.useCallback(async () => {
     if (!hasTauri) return;
     try {
-      const api = window.__TAURI__.core || window.__TAURI__;
+      const api = getDesktopInvokeApi();
       const mode = await invokeLightServiceRestart(api);
       if (mode === 'light') setGaveUpMsg('');
     } catch (e) {
@@ -123,7 +124,7 @@ export default function ServiceStatusBanner() {
   const handleDiag = React.useCallback(async () => {
     if (!hasTauri) return;
     try {
-      const api = window.__TAURI__.core || window.__TAURI__;
+      const api = getDesktopInvokeApi();
       if (api && api.invoke) {
         await api.invoke('open_diagnostics_window_command');
       }

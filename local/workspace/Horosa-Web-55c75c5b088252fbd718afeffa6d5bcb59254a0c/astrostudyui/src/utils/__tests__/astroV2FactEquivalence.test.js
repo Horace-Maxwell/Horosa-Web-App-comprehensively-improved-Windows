@@ -19,6 +19,9 @@ const MUMBAI_FIXTURE = '/tmp/horosa_chart_mumbai.json';
 const hasMumbai = fs.existsSync(MUMBAI_FIXTURE);
 
 const SEVEN = ['宫位宫头', '星与虚点', '相位', '行星', '希腊点', '12分度', '主宰星链'];
+// [#79] 分宫制宫神星表自 [主宰星链] 拆出的独立段(基线之后新生,只做表良构/不变式检查;其 L1 逆变换见 §7)。
+const HOUSE_SYSTEM_SECTION = '分宫制宫神星表';
+const TABLED = [...SEVEN, HOUSE_SYSTEM_SECTION];
 const EMPTY_CELL = '—';
 
 const baseline = JSON.parse(fs.readFileSync(FIXTURE_PATH, 'utf-8'));
@@ -278,8 +281,11 @@ describe('相位 表化等价(fact-tuple-set)', ()=>{
 
 	it('◆ 标准相位:(主体,相位,对象,相态,误差) 集合相等', ()=>{
 		const rows = rowsOf('◆ 标准相位', ['主体', '相位', '对象', '相态', '误差']);
-		const v2 = rows.map(([s, a, o, ph, orb])=>[s, a, o, ph === EMPTY_CELL ? '' : ph, orb]);
+		// [Q-254/T-227] 有意改名:引擎 Exact 行相态由「离相」改写为「正合」(v1 基线仍是旧字);
+		// 本证明只管表化无损,故比对前把 v2 的「正合」归一回「离相」(其余相态原字)。
+		const v2 = rows.map(([s, a, o, ph, orb])=>[s, a, o, ph === EMPTY_CELL ? '' : (ph === '正合' ? '离相' : ph), orb]);
 		expect(tupleSet(v2)).toEqual(tupleSet(v1Std));
+		expect(rows.some(([, , , ph])=>ph === '正合')).toBe(true);   // 基线盘含一条 Exact(日 120˚ 木 0.01)→ 新字必现
 	});
 	it('◆ 立即相位:五元组集合相等', ()=>{
 		const rows = rowsOf('◆ 立即相位', ['主体', '相位', '对象', '相态', '误差']);
@@ -380,21 +386,41 @@ describe('12分度 表化等价(L1 逆变换)', ()=>{
 	});
 });
 
-// ── 7. 主宰星链:链行逐字不动 + 宫神星表 L1 逆变换 ───────────────────────────
-describe('主宰星链 表化等价(链行原样 + 宫神星 L1)', ()=>{
+// ── 7. 主宰星链:链行逐字不动 + 整宫制宫主表(新);宫神星表 L1 逆变换迁到 [分宫制宫神星表] ─────────
+// [#79] 宫主/主宰口径改整宫制:[主宰星链] = 链行 + 判读口径行 + 整宫制宫主表;当前分宫制宫神星表(houseRows)
+// 拆成独立段 [分宫制宫神星表](紧随其后),其表行仍对 v1 基线做 L1 逆变换(值层零信息丢失)。基线只读、禁重生成。
+const WHOLE_HEAD = '◆ 整宫制宫主表(wholeSignRulers)';
+describe('主宰星链 表化等价(链行原样 + 整宫制宫主表) / 分宫制宫神星表 L1', ()=>{
 	const v2Lines = sliceSection(v2Content, '主宰星链');
 	const v1Lines = baseline.sections['主宰星链'];
 	const v1Split = v1Lines.indexOf('宫神星(houseRows)：');
-	const v2Split = v2Lines.indexOf('◆ 宫神星(houseRows)');
+	const v2Split = v2Lines.findIndex((l)=>l.indexOf('判读口径：') === 0);
+	const hsLines = sliceSection(v2Content, HOUSE_SYSTEM_SECTION);
 
-	it('链行(变长)逐字逐序保持原样', ()=>{
+	it('链行(变长)逐字逐序保持原样(判读口径行之前)', ()=>{
 		expect(v1Split).toBeGreaterThan(-1);
 		expect(v2Split).toBeGreaterThan(-1);
 		expect(v2Lines.slice(0, v2Split)).toEqual(v1Lines.slice(0, v1Split));
+		expect(v2Lines.join('\n')).not.toContain('houseRows');
 	});
 
-	it('宫神星表行反拼 v1 行逐字逐序相等(含 宫主缺落宫 的空位编码)', ()=>{
-		const { header, rows } = onlyTable(v2Lines.slice(v2Split + 1));
+	it('判读口径行后紧接整宫制宫主表:表头逐字、12 行、宫号 1..12;与分宫表前三列同(基线宫头逐座相接)而落宫列 by construction 不同', ()=>{
+		expect(v2Lines[v2Split + 1]).toBe(WHOLE_HEAD);
+		const { header, rows } = onlyTable(v2Lines.slice(v2Split + 2));
+		expect(header).toEqual(['宫', '整宫星座', '宫主', '宫主落宫(整宫)', '宫主落座']);
+		expect(rows.map((r)=>r[0])).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n)=>`${n}宫`));
+		const { rows: hsRows } = onlyTable(hsLines.slice(1));
+		expect(rows.map((r)=>r.slice(0, 3))).toEqual(hsRows.map((r)=>r.slice(0, 3)));
+		// 火星(双鱼,后端缺 house):整宫落宫=双鱼相对上升巨蟹=第九宫;分宫落宫=空位编码
+		expect(rows.filter((r)=>r[2] === '火').map((r)=>r[3])).toEqual(['第九宫', '第九宫']);
+		expect(hsRows.filter((r)=>r[2] === '火').map((r)=>r[3])).toEqual(['', '']);
+		expect(rows.map((r)=>r[3])).not.toEqual(hsRows.map((r)=>r[3]));
+	});
+
+	it('[分宫制宫神星表] 标题带当前分宫制名(基线 echo Alcabitius → 表 Alcabitus),表行反拼 v1 行逐字逐序相等(含 宫主缺落宫 的空位编码)', ()=>{
+		expect(hsLines).toBeTruthy();
+		expect(hsLines[0]).toBe('◆ 当前分宫制(Alcabitus)宫神星表(houseRows)');
+		const { header, rows } = onlyTable(hsLines.slice(1));
 		expect(header).toEqual(['宫', '宫头座', '宫主', '宫主落宫', '宫主落座']);
 		const rebuilt = rows.map(([hn, hs, ruler, rh, rs])=>{
 			if(rh === EMPTY_CELL && rs === EMPTY_CELL){
@@ -408,15 +434,32 @@ describe('主宰星链 表化等价(链行原样 + 宫神星 L1)', ()=>{
 
 // ── 全局守卫 ─────────────────────────────────────────────────────────────────
 describe('全局守卫', ()=>{
-	it('段头序零变更,非七段逐字节不动', ()=>{
-		expect(sectionTitles(v2Content)).toEqual(sectionTitles(baseline.fullContentV1));
+	// [#79] 基线之后新增段白名单:只许 [分宫制宫神星表] 且必须紧随 [主宰星链];其余段头序零变更。
+	const POST_BASELINE_HEADS = { '[主宰星链]': [`[${HOUSE_SYSTEM_SECTION}]`] };
+	// 基线之后段内新增行白名单(基线夹具只读,不重生):[起盘信息] 允许恰一行「时间基准：」自声明(跨技法口径合同,
+	// snapshotTimeBasis.contract.test.js 看守);其余行逐字节不动。
+	const POST_BASELINE_LINES = { '起盘信息': [/^时间基准：/] };
+	const stripAllowedLines = (lines, title)=>{
+		const allow = POST_BASELINE_LINES[title] || [];
+		if(!allow.length || !Array.isArray(lines)){ return lines; }
+		return lines.filter((l)=>!allow.some((re)=>re.test(l)));
+	};
+	it('段头序零变更(仅白名单新段紧随其锚段),非七段逐字节不动', ()=>{
+		const expected = [];
+		sectionTitles(baseline.fullContentV1).forEach((h)=>{ expected.push(h); (POST_BASELINE_HEADS[h] || []).forEach((n)=>expected.push(n)); });
+		expect(sectionTitles(v2Content)).toEqual(expected);
 		sectionTitles(baseline.fullContentV1).forEach((head)=>{
 			const title = head.slice(1, -1);
 			if(SEVEN.indexOf(title) >= 0){
 				return;
 			}
-			expect(sliceSection(v2Content, title)).toEqual(sliceSection(baseline.fullContentV1, title));
+			expect(stripAllowedLines(sliceSection(v2Content, title), title)).toEqual(sliceSection(baseline.fullContentV1, title));
 		});
+	});
+
+	it('[起盘信息] 恰有一行「时间基准：」自声明', ()=>{
+		const lines = sliceSection(v2Content, '起盘信息') || [];
+		expect(lines.filter((l)=>/^时间基准：/.test(l)).length).toBe(1);
 	});
 
 	it('无 undefined/NaN/null 字面量', ()=>{
@@ -425,7 +468,7 @@ describe('全局守卫', ()=>{
 	});
 
 	it('全部表良构:每数据行列数 = 表头列数,cell 无裸空值词', ()=>{
-		SEVEN.forEach((t)=>{
+		TABLED.forEach((t)=>{
 			const { tables } = extractTables(sliceSection(v2Content, t) || []);
 			tables.forEach(({ header, rows })=>{
 				rows.forEach((cells)=>{
@@ -448,7 +491,7 @@ describe('全局守卫', ()=>{
 		expect(txt.length).toBeGreaterThan(200);
 		expect(txt).not.toMatch(/undefined|NaN/);
 		expect(txt).not.toMatch(/：\s*null/);
-		SEVEN.forEach((t)=>{
+		TABLED.forEach((t)=>{
 			const lines = sliceSection(txt, t);
 			if(!lines){
 				return; // 真盘某段可无数据(如 lots 关闭)→ 段缺席合法

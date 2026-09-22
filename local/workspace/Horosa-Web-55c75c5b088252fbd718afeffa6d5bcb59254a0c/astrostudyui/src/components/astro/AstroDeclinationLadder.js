@@ -31,7 +31,7 @@ function dodgeColumn(items, minGap, top, bottom){
 class AstroDeclinationLadder extends Component{
 	constructor(props){
 		super(props);
-		this.state = { width: 560 };
+		this.state = { width: 560, height: 0 };
 		this.ref = createRef();
 		this.measure = this.measure.bind(this);
 	}
@@ -56,12 +56,20 @@ class AstroDeclinationLadder extends Component{
 	measure(){
 		if(this.ref.current){
 			const w = this.ref.current.clientWidth;
-			if(w && Math.abs(w - this.state.width) > 2){ this.setState({ width: w }); }
+			// 三个推运页改 100% 定高链后 height 传的是 '100%'(字符串):此前 H='100%' 进 plotH 算成 NaN → 140px,
+			// 整张赤纬图被压成顶部一条(WebKit / Chromium 皆然)。非数字高度改量宿主 clientHeight(布局域,RO 已订阅)。
+			const h = this.ref.current.clientHeight;
+			const next = {};
+			if(w && Math.abs(w - this.state.width) > 2){ next.width = w; }
+			if(typeof this.props.height !== 'number' && h && Math.abs(h - (this.state.height || 0)) > 2){ next.height = h; }
+			if(Object.keys(next).length){ this.setState(next); }
 		}
 	}
 
 	render(){
-		const H = this.props.height || 560;
+		const numericH = (typeof this.props.height === 'number' && Number.isFinite(this.props.height)) ? this.props.height : 0;
+		const H = numericH || this.state.height || 560;   // 绘图用的数值高;宿主 CSS 高仍可是 '100%'
+		const hostH = numericH ? H : (this.props.height || H);
 		const W = this.state.width || 560;
 		const natal = this.props.natalDeclinations || [];
 		const prog = this.props.progressedDeclinations || [];
@@ -114,7 +122,7 @@ class AstroDeclinationLadder extends Component{
 		};
 
 		return (
-			<div ref={this.ref} style={{ ...cardStyle, position: 'relative', height: H, overflow: 'hidden' }}>
+			<div ref={this.ref} style={{ ...cardStyle, position: 'relative', height: hostH, overflow: 'hidden' }}>
 				<div style={{ position: 'absolute', top: 10, left: 0, right: 0, textAlign: 'center', fontSize: 13, fontWeight: 600, opacity: 0.85 }}>赤纬图</div>
 				<div style={{ position: 'absolute', top: 30, left: 0, right: 0, textAlign: 'center', fontSize: 11, opacity: 0.6 }}>平行<span style={{ color: parColor }}>━</span>　反平行<span style={{ color: contraColor }}>━</span>　<span style={{ color: oobColor }}>玫色＝赤纬出界</span></div>
 				<div style={{ position: 'absolute', top: 40, left: natalSpineX, transform: 'translateX(-50%)', fontSize: 13, fontWeight: 600, opacity: 0.9 }}>本命</div>

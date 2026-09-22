@@ -86,7 +86,11 @@ describe('[Z3] 注册表契约+锚盘正反双判', ()=>{
 		// 三元/五子元:锚盘 sanyuan 空(style=3 无纪元)判否;五子元=丙子元
 		expect(ev('sanyuan_wuziyuan', { dim: 'wuziyuan', wz: ['丙子元'] }).pass).toBe(true);
 		expect(ev('sanyuan_wuziyuan', { dim: 'wuziyuan', wz: ['甲子元'] }).pass).toBe(false);
-		expect(ev('sanyuan_wuziyuan', { dim: 'sanyuan', sy: ['上元', '中元', '下元'] }).pass).toBe(false);
+		// [Q-269/T-258] 时计扫描盘的三元由同盘年计积年纪元回落:全选三元必命中;单选只中其一
+		expect(ev('sanyuan_wuziyuan', { dim: 'sanyuan', sy: ['上元', '中元', '下元'] }).pass).toBe(true);
+		const _sy = ['上元', '中元', '下元'].filter((x)=>ev('sanyuan_wuziyuan', { dim: 'sanyuan', sy: [x] }).pass);
+		expect(_sy.length).toBe(1);
+		expect(ev('sanyuan_wuziyuan', { dim: 'sanyuan', sy: [] }).pass).toBe(false);
 		// 纳音:时柱壬午杨柳木
 		expect(ev('nayin_taiyi', { values: ['木'] }).pass).toBe(true);
 		expect(ev('nayin_taiyi', { values: ['金'] }).pass).toBe(false);

@@ -83,3 +83,25 @@ def test_planetarium_moira_su28_not_on_equator():
         # ra 也须被重算成真赤经(不再等于黄经 lon)。
         real_ra = sum(1 for s in fixed if _ang_gap(s['ra'], s['lon']) > 0.5)
         assert real_ra >= 20, f"mode {mode}: only {real_ra}/28 have ra!=lon after fix"
+
+
+def test_true_distance_stars_attached_for_wei_and_gui():
+    """[Q-371/T-350] 胃宿 / 鬼宿星点:后端给 trueStar(35 Ari HR801 / θ Cnc HR3357,J2000 → 当日 + 地平),
+    与 REAL 口径的修正赤经(item.ra,宿界用)分开;其余 26 宿无该字段。"""
+    import websrv.webplanetariumsrv as w
+    pc = perchart.PerChart(dict(CASE))
+    su28 = [w._plain_obj(item) for item in pc.getFixedStarSu28()]
+    w._attach_true_distance_stars(su28, pc, w._base_star_catalog())
+    by_id = {it.get('id'): it for it in su28}
+    wei = by_id[const.START_WEI]
+    gui = by_id[const.START_GUI]
+    assert wei['trueStar']['id'] == 'bsc5-801' and gui['trueStar']['id'] == 'bsc5-3357'
+    # 35 Ari 在 41 Ari 西 ~1.6°(赤经),与修正后 item.ra 不同点、赤纬不同(+27.71 vs +27.26)
+    assert _ang_gap(wei['trueStar']['raJ2000'], 40.863) < 0.05 and abs(wei['trueStar']['declJ2000'] - 27.707) < 0.05
+    assert abs(wei['trueStar']['decl'] - float(wei['decl'])) > 0.3
+    # θ Cnc 在 η Cnc 东 ~0.28°、南 ~2.3°:星点不再落在 η Cnc 赤经西侧的修正位
+    assert _ang_gap(gui['trueStar']['raJ2000'], 127.899) < 0.05 and abs(gui['trueStar']['declJ2000'] - 18.094) < 0.05
+    assert abs(gui['trueStar']['decl'] - float(gui['decl'])) > 1.5
+    for k in ('azimuth', 'altitudeTrue', 'altitudeAppa'):
+        assert k in wei['trueStar'] and k in gui['trueStar']
+    assert sum(1 for it in su28 if it.get('trueStar')) == 2

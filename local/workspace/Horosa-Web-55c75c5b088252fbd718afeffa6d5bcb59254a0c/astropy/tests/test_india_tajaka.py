@@ -328,14 +328,18 @@ def test_pancha_uchcha_book_example():
 
 # ── 年度大运框架 ─────────────────────────────────────────────────────────
 def test_patyayini_order_and_total():
-    """Patyayini：按 krisamsa 升序、首项无 patyamsa、期长和 ≈ 年长。"""
+    """Patyayini：按 krisamsa 升序;[Q-122/T-30 原典核对] 首项 patyamsa = 自身 krisamsa(Charak p.47 / Raman Art.49),
+    Σpatyamsa = 最大 krisamsa;期长和 ≈ 年长。此前首项恒 0 天(Σ = max − min)。"""
     lons = {const.VENUS: 1 * 30 + 1.0, const.MERCURY: 2 * 30 + 4.0, const.MOON: 3 * 30 + 4.8,
             const.SATURN: 1 * 30 + 6.5, const.SUN: 5 * 30 + 17.0, const.MARS: 7 * 30 + 23.0,
             const.JUPITER: 9 * 30 + 11.0}
     res = tj.patyayini_dasa(lons, lagna_lon=11 * 30 + 7.0)
     kr = [r['krisamsa'] for r in res['order']]
     assert kr == sorted(kr)                       # 升序
-    assert res['order'][0]['patyamsa'] == 0.0     # 首项无 patyamsa
+    first = res['order'][0]
+    assert first['ref'] == const.VENUS and abs(first['patyamsa'] - 1.0) < 1e-9   # 金星 1° 最小 → 份额 = 自身 1°
+    assert first['days'] > 0                                                      # 不再恒 0 天
+    assert abs(res['sumPatyamsa'] - max(kr)) < 1e-9                               # Σ = 最大 krisamsa(木星 11°)
     assert abs(res['totalDays'] - tj._TAJAKA_YEAR_DAYS) < 0.5
 
 
@@ -412,3 +416,38 @@ def test_tajaka_yoga_catalog_has_16():
     keys = [k for k, _, _ in tj.TAJAKA_YOGA_CATALOG]
     for must in ['Ithasala', 'Eesarpha', 'Nakta', 'Yamaya', 'Kamboola', 'Ishkavala', 'Induvara']:
         assert must in keys
+
+
+def test_hadda_table_equals_egyptian_terms_all_signs():
+    """T-28:Tājika 界(Hadda)主表 = 埃及界,十二座逐段与 flatlib 权威表全等(此前双子 6–17° 木金、射手 21–30° 火土互换,旧测试只测白羊/天秤/双鱼)。"""
+    from flatlib.dignities import tables as fl_tables
+    name_map = {'Sun': const.SUN, 'Moon': const.MOON, 'Mercury': const.MERCURY, 'Venus': const.VENUS,
+                'Mars': const.MARS, 'Jupiter': const.JUPITER, 'Saturn': const.SATURN}
+    for sign in const.LIST_SIGNS:
+        rows = fl_tables.EGYPTIAN_TERMS[sign]
+        expect = [(int(hi), name_map[pl]) for (pl, lo, hi) in rows]
+        assert tj.HADDA_LORDS[sign] == expect, sign
+
+
+def test_mudda_dasa_present_when_natal_inputs_given():
+    """[Q-123/T-31] 生产链此前从不传本命首运曜/月宿余比 → Mudda 恒缺;webindiasrv 现从本命 jyotish 抽取并传入。"""
+    annual = {
+        const.SUN: {'sign': const.PISCES, 'lon': 11 * 30 + 5.0},
+        const.MOON: {'sign': const.PISCES, 'lon': 11 * 30 + 15.0},
+        const.MARS: {'sign': const.PISCES, 'lon': 11 * 30 + 24.0},
+        const.MERCURY: {'sign': const.AQUARIUS, 'lon': 10 * 30 + 11.0},
+        const.JUPITER: {'sign': const.CAPRICORN, 'lon': 9 * 30 + 20.0},
+        const.VENUS: {'sign': const.CAPRICORN, 'lon': 9 * 30 + 1.0},
+        const.SATURN: {'sign': const.ARIES, 'lon': 0 * 30 + 19.0},
+    }
+    res = tj.build_tajaka(annual_positions=annual, natal_lagna_sign=const.LEO, annual_lagna_lon=9 * 30 + 10.0,
+                          age_completed=27, day_birth=False,
+                          natal_first_vimshottari_key='Moon', natal_moon_remaining_ratio=0.5)
+    mudda = res['dasas'].get('mudda')
+    assert mudda and mudda.get('available') is not False
+    assert mudda['firstLord'] == tj.mudda_first_lord('Moon', 27)
+    assert len(mudda['sequence']) >= 9
+    from websrv.webindiasrv import IndiaAstroSrv
+    key, ratio = IndiaAstroSrv._natal_mudda_inputs({'dasha': {'vimshottari': {'firstLord': {'key': 'Moon', 'years': 10}, 'moonNakshatra': {'remainingRatio': 0.5}}}})
+    assert (key, ratio) == ('Moon', 0.5)
+    assert IndiaAstroSrv._natal_mudda_inputs(None) == (None, None)

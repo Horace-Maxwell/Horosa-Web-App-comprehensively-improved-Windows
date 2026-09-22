@@ -52,7 +52,7 @@ const starNames = (list) => (Array.isArray(list) ? list.map((s) => (s && s.name)
 //    全绿才许把 ziweiLocalFirst 切默认。闸未过 → 该开关已改为 opt-in(默认关,Java 现状)。
 describe('🔴 紫微双引擎 24 例网格对拍(转正闸:全绿才许切默认)', () => {
 	test('fixture 在位且成例', () => {
-		expect(GRID.length).toBe(24);
+		expect(GRID.length).toBe(27);   // 24 例网格 + [Q-195/T-121] 3 例时辰界骑线(±3 分钟)
 	});
 
 	test('🔴 闸哨兵:对拍未全绿期间,ziweiLocalFirst 必须是 opt-in(默认关)', () => {

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/yizhangjing/YiZhangJingMain.js b/astrostudyui/src/components/yizhangjing/YiZhangJingMain.js
-index f0d7e96..b70f799 100644
+index 6084761a..9b9cf3ed 100644
 --- a/astrostudyui/src/components/yizhangjing/YiZhangJingMain.js
 +++ b/astrostudyui/src/components/yizhangjing/YiZhangJingMain.js
 @@ -48,6 +48,7 @@ function deepFreeze(o){

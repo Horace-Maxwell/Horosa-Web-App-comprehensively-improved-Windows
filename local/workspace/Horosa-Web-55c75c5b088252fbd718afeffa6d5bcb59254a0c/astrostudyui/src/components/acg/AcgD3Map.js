@@ -3,6 +3,7 @@ import * as d3 from 'd3';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import world from './world.geo.json';
+import { pointerToLocal } from '../../utils/zoomDomain';
 
 // Two appearance themes (follow the app's data-horosa-appearance). Planet colours stay
 // recognisable but are deepened in light mode; the casing/label-chip flip so lines and
@@ -267,8 +268,9 @@ class AcgD3Map extends Component {
 	showTip(ev, g, t) {
 		const host = this.hostRef.current;
 		if (!host) return;
-		const r = host.getBoundingClientRect();
-		this.setState({ tip: { x: ev.clientX - r.left + 14, y: ev.clientY - r.top + 14, g, t } });
+		// 提示卡绝对定位在宿主里(布局域):鼠标位移(视觉域)按「宿主布局宽 ÷ rect 宽」折回,缩放档下才贴着鼠标。
+		const p = pointerToLocal(ev, host);
+		this.setState({ tip: { x: p.x + 14, y: p.y + 14, g, t } });
 	}
 	hideTip() { this.setState({ tip: null }); }
 

@@ -113,10 +113,25 @@ def test_father_combust_alt():
 
 
 def test_lot_projection_sign():
+    # [Q-259/T-222 2026-09-18] 整星座投射改为真按座序计数:座 = A 座→B 座的座数自 ASC 座再数;座内度 = ASC 座内度
+    # (一手来源不给度;两点座内度相等时 Paulus 度式即退化为 ASC 度 + 整数座)。特殊式(基础点 / 旺宫点)仍归座首。
     sg = PerChart({**DAY, 'lotProjection': 'sign'})
-    assert sg.chart.getObject(const.PARS_FORTUNA).lon % 30 == 0
+    asc_deg = sg.chart.getAngle(const.ASC).lon % 30
+    pf = sg.chart.getObject(const.PARS_FORTUNA)
+    assert abs(pf.lon % 30 - asc_deg) < 1e-6
+    sun = sg.chart.getObject(const.SUN); moon = sg.chart.getObject(const.MOON); asc = sg.chart.getAngle(const.ASC)
+    expect_sign = (int(asc.lon // 30) + (int(moon.lon // 30) - int(sun.lon // 30))) % 12 if sg.isDiurnal \
+        else (int(asc.lon // 30) + (int(sun.lon // 30) - int(moon.lon // 30))) % 12
+    assert int(pf.lon // 30) == expect_sign
+    # 自 ASC 投射的点座内度 = ASC 座内度;自他点投射者(如死亡点自第八宫头)座内度 = 该投射点座内度;特殊式归座首
     for p in sg.chart.pars:
-        assert p.lon % 30 == 0, (p.id, p.lon)
+        d = p.lon % 30
+        abc = ap.FORMULAS.get(p.id)
+        c_id = abc[0][2] if abc else None
+        if c_id == const.ASC:
+            assert abs(d - asc_deg) < 1e-6, (p.id, p.lon)
+        elif abc is None:
+            assert d == 0, (p.id, p.lon)
 
 
 def test_wp3_default_vector_parity():

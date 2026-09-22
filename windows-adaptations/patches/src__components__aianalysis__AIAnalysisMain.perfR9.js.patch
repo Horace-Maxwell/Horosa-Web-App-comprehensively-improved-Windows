@@ -1,56 +1,17 @@
 diff --git a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
-index a5b0a152..56249b6e 100644
+index c4f0dbc0..d564c7ae 100644
 --- a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
 +++ b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
-@@ -169,6 +169,8 @@ import {
+@@ -184,6 +184,8 @@ import {
  	effectiveMaxTokensForModel,
  	maxTokensKeyForModel,
  } from '../../utils/aiAnalysisProviders';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
  
- const { TextArea, Search } = Input;
- const { Title, Text } = Typography;
-@@ -767,6 +769,38 @@ function renderMarkdownToHtml(text){
- 	}
- }
- 
-+// horosa_markdown_lru_v1(PERF-R9):renderMarkdownToHtml 是本页最贵的纯函数
-+// (normalizeMarkdown + 5 趟 LaTeX 正则 + marked.parse + DOMPurify.sanitize),
-+// 而它在 visibleMessages.map 里**对每条 assistant 消息、每次 render 都重跑一遍** ——
-+// 流式回答期间每来一个 token 就整屏重算一次全部历史消息的 Markdown。
-+// 输出只取决于入参字符串(纯函数、无外部依赖、无副作用),故按内容做 LRU 记忆:
-+// 命中即返回上次逐字节相同的 HTML,零行为差异。流式那一条每帧内容都在变=必然 miss
-+// (它本来就必须重算),但它之前的历史消息从此每帧命中。
-+// 容量有界(96 条)防长会话无限增长;命中时移到队尾,故churn 只发生在流式那一条上。
-+const MARKDOWN_CACHE_MAX = 96;
-+const markdownCache = new Map();
-+function renderMarkdownToHtmlCached(text){
-+	const key = `${text || ''}`;
-+	if(!key.trim()){
-+		return '';
-+	}
-+	if(markdownCache.has(key)){
-+		const hit = markdownCache.get(key);
-+		markdownCache.delete(key);
-+		markdownCache.set(key, hit);   // LRU:命中即移到队尾
-+		return hit;
-+	}
-+	const html = renderMarkdownToHtml(key);
-+	markdownCache.set(key, html);
-+	if(markdownCache.size > MARKDOWN_CACHE_MAX){
-+		const oldest = markdownCache.keys().next();
-+		if(!oldest.done){
-+			markdownCache.delete(oldest.value);
-+		}
-+	}
-+	return html;
-+}
-+
- const CONTEXT_STATUS_META = {
- 	ready: { text: '已就绪', color: 'green' },
- 	regenerated: { text: '已按盘重算', color: 'blue' },
-@@ -1472,7 +1506,15 @@ function AIAnalysisMain(props){
+ // [Q-410] 保存结果统一提示(取消 info / 失败 error / 成功 success 带路径)
+ function notifySaveResult(r, okText){ const d = describeSaveResult(r, okText); (message[d.type] || message.info)(d.text); }
+@@ -1573,7 +1575,15 @@ function AIAnalysisMain(props){
  	React.useEffect(()=>{
  		if(props.hook){
  			props.hook.fun = ()=>{
@@ -67,16 +28,7 @@ index a5b0a152..56249b6e 100644
  			};
  		}
  	}, [props.hook, loadWorkspace]);
-@@ -4658,7 +4700,7 @@ function AIAnalysisMain(props){
- 												) : null}
- 												{item.role === 'user'
- 													? <div className={styles.messageText}>{item.content}{Array.isArray(item.images) && item.images.length ? (<div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: item.content ? 6 : 0 }}>{item.images.map((u, i)=>(<img key={i} src={u} alt="" style={{ maxWidth: 160, maxHeight: 160, borderRadius: 4, border: "1px solid var(--horosa-border, #d9d9d9)" }} />))}</div>) : null}</div>
--													: <div className={styles.markdownBody} dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(item.streamStatus === 'streaming' ? closeStreamingInlineMd(item.content) : item.content) }} />}
-+													: <div className={styles.markdownBody} dangerouslySetInnerHTML={{ __html: renderMarkdownToHtmlCached(item.streamStatus === 'streaming' ? closeStreamingInlineMd(item.content) : item.content) }} />}
- 												{item.role === 'assistant' && item.errorInfo ? (
- 													<Alert
- 														type={item.errorInfo.category === 'auth' || item.errorInfo.category === 'model' ? 'warning' : 'error'}
-@@ -5270,6 +5312,12 @@ function AIAnalysisMain(props){
+@@ -5954,6 +5964,12 @@ function AIAnalysisMain(props){
  			{/* [首开反卡 2026-08-09] 全页 Spin 已摘:曾以 workspaceLoading 包住整个工作区 ——
  			    APP(WKWebView)里大库首读把它顶成「全页转圈很久」。现在首帧直接渲染,
  			    wave2 未到位时资料/历史 pane 顶部各自细提示(deepLoading)。绝不回包全页。 */}
@@ -89,7 +41,7 @@ index a5b0a152..56249b6e 100644
  			<Tabs
  					className={styles.workspaceTabs}
  					tabPosition="right"
-@@ -5278,25 +5326,35 @@ function AIAnalysisMain(props){
+@@ -5962,25 +5978,35 @@ function AIAnalysisMain(props){
  					style={{ height: '100%', minHeight: 0 }}
  				>
  					<TabPane tab={<span>{SECONDARY_TABS[0].icon}分析</span>} key="analysis">
@@ -123,5 +75,5 @@ index a5b0a152..56249b6e 100644
  						<div className={styles.pane}>{renderSettingsPane()}</div>
 +					)}</FreezeSubTab>
  					</TabPane>
- 				</Tabs>
- 
+ 					<TabPane tab={<span>{SECONDARY_TABS[5].icon}进阶</span>} key="advanced">
+ 						<div className={styles.pane}>{renderAdvancedPane()}</div>

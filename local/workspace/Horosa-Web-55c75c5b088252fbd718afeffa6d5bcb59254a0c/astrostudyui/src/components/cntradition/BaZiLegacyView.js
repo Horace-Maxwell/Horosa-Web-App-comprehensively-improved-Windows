@@ -449,7 +449,7 @@ export class BaZiLegacyMain extends Component{
 		const name = fields.name ? fields.name.value : '';
 		const gender = BaZiMsg[bazi.gender] || '';
 		const legacyNongli = bazi.nongli || {};
-		const timeAlgNames = { 0: '真太阳时', 1: '直接时间', 2: '春分定卯时', 3: '地方卯时' };
+		const timeAlgNames = { 0: '真太阳时', 1: '直接时间', 2: '春分定卯时', 3: '平太阳时' };   // [Q-189/T-128] 值 3 统一为平太阳时(与本地引擎/其余视图同名)
 		const timeAlgVal = fields.timeAlg ? fields.timeAlg.value : 0;
 		const formClock = (fields.date && fields.time) ? `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}` : '';
 		const clockTime = legacyNongli.clockTime || formClock || legacyNongli.birth || '';
@@ -466,7 +466,9 @@ export class BaZiLegacyMain extends Component{
 						<span>计算基准:{timeAlgNames[timeAlgVal] || '真太阳时'}</span>
 						<p>{getExtraLine(bazi)}</p>
 					</div>
-					<button type="button">打印命盘</button>
+					{/* [Q-190/T-131] 原「打印命盘」按钮自始至终没有处理器:点了什么都不发生,
+					    本仓也没有为页面写过打印样式(打印会把整个应用界面一起印出来)。
+					    与其留一个假按钮,不如删掉。 */}
 				</header>
 				<div className="horosa-bazi-legacy-pillar-grid">
 					{PILLAR_KEYS.map(([key, label])=>(

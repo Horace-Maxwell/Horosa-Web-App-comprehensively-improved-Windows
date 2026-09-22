@@ -119,6 +119,8 @@ class CnTraditionMain extends Component{
 
 	render(){
 		// 根 Tabs 改充满父面板（原 props.height-20 定死像素高 → 底部黑条）。
+		// 三个子页一律 fill:整条 Tabs 内容链定高(app.less)+ 叶子按容器定高。此前叶子无 height 入参时退
+		// documentElement.clientHeight − 常数(物理域)→ 缩小档底部死带、放大档溢出被裁且滚不到。
 		let tab = this.findTab();
 
 		return (
@@ -137,19 +139,19 @@ class CnTraditionMain extends Component{
 					    自身无对外注册的挂载副作用，故无需 eager。 */}
 					<TabPane tab="八卦类象" key="guasym">
 						<FreezeSubTab active={tab === 'guasym'}>{()=>(
-							<TechniqueErrorBoundary label="八卦类象"><GuaSymDesc /></TechniqueErrorBoundary>
+							<TechniqueErrorBoundary label="八卦类象"><GuaSymDesc fill /></TechniqueErrorBoundary>
 						)}</FreezeSubTab>
 					</TabPane>
 
 					<TabPane tab="十二串宫" key="cuangong12">
 						<FreezeSubTab active={tab === 'cuangong12'}>{()=>(
-							<TechniqueErrorBoundary label="十二串宫"><CuanGong12 /></TechniqueErrorBoundary>
+							<TechniqueErrorBoundary label="十二串宫"><CuanGong12 fill /></TechniqueErrorBoundary>
 						)}</FreezeSubTab>
 					</TabPane>
 
 					<TabPane tab="八字规则" key="pithy">
 						<FreezeSubTab active={tab === 'pithy'}>{()=>(
-							<TechniqueErrorBoundary label="八字规则"><BaziPithy /></TechniqueErrorBoundary>
+							<TechniqueErrorBoundary label="八字规则"><BaziPithy fill /></TechniqueErrorBoundary>
 						)}</FreezeSubTab>
 					</TabPane>
 

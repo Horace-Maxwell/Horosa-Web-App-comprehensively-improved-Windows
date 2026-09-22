@@ -446,6 +446,7 @@ class NanJiShenShu:
         minute: int = 0,
         gender: str = '男',
         after23_new_day: int = 1,
+        hour_gan_use_next_day: int = 1,
     ) -> "NanJiShenShu":
         """
         從公曆日期時間建立命盤，使用 sxtwl 精確計算四柱。
@@ -465,7 +466,7 @@ class NanJiShenShu:
             # 全年份域回退(共享件,口径与主链一致;域内 sxtwl 原路径零变)
             from kin_year_domain import extreme_pillars
             _p = extreme_pillars(year, month, day, hour, minute or 0,
-                                 after23=(1 if after23_new_day else 0), hour_gan_next=1)
+                                 after23=(1 if after23_new_day else 0), hour_gan_next=(1 if hour_gan_use_next_day else 0))
             y_stem, y_branch = _p[0][0], _p[0][1]
             m_stem, m_branch = _p[1][0], _p[1][1]
             d_stem, d_branch = _p[2][0], _p[2][1]
@@ -493,8 +494,9 @@ class NanJiShenShu:
             d_stem = TIANGAN[dgz.tg]
             d_branch = DIZHI[dgz.dz]
 
-            # 時柱跨日：hour==23 時永遠按"次日日干"起子時（與 lunar.js Exact 一致）。
-            if hour == 23 and not after23_new_day:
+            # 時柱跨日：hour==23 且 after23=0 時按 hour_gan_use_next_day:1=次日日干起子時(舊硬編碼,與 lunar.js Exact 一致)、
+            # 0=跟日柱(今日干)起子時([Q-264/T-247] 讀全局「晚子时」;after23=1 時日柱已進位,兩檔同值)。
+            if hour == 23 and not after23_new_day and hour_gan_use_next_day:
                 # after23=0 日柱守今但時柱用次日干起子時
                 _td = date(year, month, day) + timedelta(days=1)
                 _cdate_for_hour = _sxtwl_fromSolar(_td.year, _td.month, _td.day)

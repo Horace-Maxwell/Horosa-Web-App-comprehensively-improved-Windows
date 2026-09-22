@@ -2,6 +2,10 @@ from flatlib import const
 from astrostudy.perchart import PerChart
 
 
+# [Q-148/T-55] 派生盘宫位口径标记:四类变换盘一律「变换后上升整宫」,前端标注据此说真话。
+DERIVED_HOUSE_MODE = 'wholeFromAsc'
+
+
 class ThirteenthChart:
     def __init__(self, perchart: PerChart):
         self.perchart = perchart
@@ -47,6 +51,62 @@ class ThirteenthChart:
             newlon = house1lon + 30*(hid - 1)
             obj.size = 30
             obj.relocate(newlon)
+            # [Q-148/T-55] 四类变换盘的宫位恒是「变换后 ASC 整宫」,与请求里的分宫制无关;
+            # 不打标记时前端只能照 params.hsys 回显用户分宫制 → 标注与数值分叉。
+            # 手法同极区回退的 hsysFallback(House.__dict__ 直出前端)。
+            obj.hsysDerived = DERIVED_HOUSE_MODE
+
+        self.perchart.reinit()
+
+
+class DodecatemoriaChart:
+    """十二分盘（dodecatemoria / 印占 D12 同口径）：每座分 12 段(每段 2.5°),第 k 段落到**自本座起数**第 k 座,
+    段内位置 = (座内度 × 12) mod 30。与 HarmonicChart(12)(自白羊起算 = 12 次谐波)不同:谐波盘丢掉本座,
+    11/12 的星座落座全错(T-50)。newlon = ((sign + floor(d/2.5)) mod 12) × 30 + (12·d mod 30)。
+    结构与 HarmonicChart 同构(relocate + reinit;房宫按新 ASC 等宫)。"""
+
+    def __init__(self, perchart: PerChart):
+        self.perchart = perchart
+
+    @staticmethod
+    def dodecatemoriaLon(lon):
+        lon = lon % 360
+        sign = int(lon // 30)
+        d = lon - sign * 30
+        part = int(d // 2.5)
+        return (((sign + part) % 12) * 30 + ((d * 12) % 30)) % 360
+
+    def dodecatemoriaObject(self, point):
+        newlon = self.dodecatemoriaLon(point.lon)
+        point.relocate(newlon)
+        return newlon
+
+    def apply(self):
+        for obj in self.perchart.chart.objects:
+            self.dodecatemoriaObject(obj)
+        for obj in self.perchart.chart.pars:
+            self.dodecatemoriaObject(obj)
+
+        asc = self.perchart.chart.getAngle(const.ASC)
+        mc = self.perchart.chart.getAngle(const.MC)
+        desc = self.perchart.chart.getAngle(const.DESC)
+        ic = self.perchart.chart.getAngle(const.IC)
+        asclon = self.dodecatemoriaObject(asc)
+        mclon = self.dodecatemoriaObject(mc)
+        desc.relocate((asclon + 180) % 360)
+        ic.relocate((mclon + 180) % 360)
+
+        house1lon = (int(asclon / 30) % 12) * 30
+
+        for obj in self.perchart.chart.houses:
+            hid = int(obj.id[5:7])
+            newlon = house1lon + 30*(hid - 1)
+            obj.size = 30
+            obj.relocate(newlon)
+            # [Q-148/T-55] 四类变换盘的宫位恒是「变换后 ASC 整宫」,与请求里的分宫制无关;
+            # 不打标记时前端只能照 params.hsys 回显用户分宫制 → 标注与数值分叉。
+            # 手法同极区回退的 hsysFallback(House.__dict__ 直出前端)。
+            obj.hsysDerived = DERIVED_HOUSE_MODE
 
         self.perchart.reinit()
 
@@ -89,6 +149,10 @@ class HarmonicChart:
             newlon = house1lon + 30*(hid - 1)
             obj.size = 30
             obj.relocate(newlon)
+            # [Q-148/T-55] 四类变换盘的宫位恒是「变换后 ASC 整宫」,与请求里的分宫制无关;
+            # 不打标记时前端只能照 params.hsys 回显用户分宫制 → 标注与数值分叉。
+            # 手法同极区回退的 hsysFallback(House.__dict__ 直出前端)。
+            obj.hsysDerived = DERIVED_HOUSE_MODE
 
         self.perchart.reinit()
 
@@ -132,5 +196,9 @@ class DraconicChart:
             newlon = house1lon + 30*(hid - 1)
             obj.size = 30
             obj.relocate(newlon)
+            # [Q-148/T-55] 四类变换盘的宫位恒是「变换后 ASC 整宫」,与请求里的分宫制无关;
+            # 不打标记时前端只能照 params.hsys 回显用户分宫制 → 标注与数值分叉。
+            # 手法同极区回退的 hsysFallback(House.__dict__ 直出前端)。
+            obj.hsysDerived = DERIVED_HOUSE_MODE
 
         self.perchart.reinit()

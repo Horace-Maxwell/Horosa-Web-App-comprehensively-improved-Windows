@@ -57,13 +57,17 @@ export default class Calculator extends Component{
             });
             return;
         }
+        const varErr = this.validateVars();
+        if(varErr){ Modal.error({ title: '变量格式不对', content: varErr }); return; }
 
 		const data = await request(`${Constants.ServerRoot}/calc/calculate`, {
 			body: JSON.stringify(params),
 		});
 		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey];
-        let val = result.value;
+        let val = result && result.value;
+        if(this.resultInvalid(val)){ Modal.error({ title: '表达式无法求值', content: '请检查函数名 / 括号 / 变量是否都已定义(结果非有限数)。' }); return; }
+        val = Number(val);
 
         let valdeg = val * (180 / Math.PI);
         let deg = splitDegree(valdeg);
@@ -91,13 +95,17 @@ export default class Calculator extends Component{
             });
             return;
         }
+        const varErr = this.validateVars();
+        if(varErr){ Modal.error({ title: '变量格式不对', content: varErr }); return; }
 
 		const data = await request(`${Constants.ServerRoot}/calc/calculate`, {
 			body: JSON.stringify(params),
 		});
 		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey];
-        let val = result.value;
+        let val = result && result.value;
+        if(this.resultInvalid(val)){ Modal.error({ title: '表达式无法求值', content: '请检查函数名 / 括号 / 变量是否都已定义(结果非有限数)。' }); return; }
+        val = Number(val);
 
         let deg = splitDegree(val);
         let deg360 = splitDegree(((val % 360) + 360) % 360);
@@ -181,12 +189,29 @@ export default class Calculator extends Component{
         if(expr){
             expr = expr + fun;
         }else{
-            expr = fun;
+            // [Q-309/T-312] 空表达式时常量 / 单位项自带的前导 * 会得到「*pi」必报错 → 去掉前导乘号。
+            expr = `${fun}`.replace(/^\*/, '');
         }
 
         this.setState({
             expression: expr,
         });
+    }
+
+    // [Q-309/T-312] 变量值校验:每段须 名=值;缺 = 的片段后端会越界报错 → 前端先拦并指出哪一段。
+    validateVars(){
+        const raw = this.state.vars;
+        if(raw === undefined || raw === null || `${raw}`.trim() === ''){ return null; }
+        // 后端按 换行 与 , 切段(FormulaUtility.getArgs),每段再按 = 切;此处同口径预检。
+        const segs = `${raw}`.split(/[,\n]/).map((x)=>x.trim()).filter(Boolean);
+        for(let i = 0; i < segs.length; i++){
+            if(segs[i].indexOf('=') < 0 || !segs[i].split('=')[0].trim()){ return `变量「${segs[i]}」缺少「=」(格式:名=值,多个用逗号或换行分隔)`; }
+        }
+        return null;
+    }
+    // [Q-309/T-312] 非法表达式后端返 NaN/空 → 明确提示而不是显示 NaN / 0xNaN。
+    resultInvalid(val){
+        return val === undefined || val === null || (typeof val === 'number' && !Number.isFinite(val)) || (typeof val === 'string' && !Number.isFinite(Number(val)));
     }
 
     genOptionDom(){
@@ -393,6 +418,7 @@ export default class Calculator extends Component{
                         <TextArea autoSize={{ minRows: 6, maxRows: 6 }} style={{width: '100%'}} 
                             onChange={this.changeVars}
                             value={this.state.vars}
+                            placeholder="名=值,多个用逗号或换行分隔,如 x=1,y=2.5"
                         />
                     </Col>
                 </Row>

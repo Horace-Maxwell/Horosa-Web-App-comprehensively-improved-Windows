@@ -6,6 +6,7 @@ import request from '../../utils/request';
 import { XQButton, XQInput, XQPagination, XQSelect, XQTable } from '../xq-ui';
 import XQIcon from '../xq-icons';
 
+import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 const { Option, } = XQSelect;
 
 class UserMgmt extends Component{
@@ -175,7 +176,7 @@ class UserMgmt extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : document.documentElement.clientHeight - 80;
+		let height = this.props.height ? this.props.height : getLayoutViewportHeight() - 80;
 		height = height - 100;
 		let tblHeight = height - 100;
 

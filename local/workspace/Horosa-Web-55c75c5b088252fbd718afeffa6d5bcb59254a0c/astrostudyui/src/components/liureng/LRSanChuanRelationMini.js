@@ -19,6 +19,52 @@ function relOf(a, b){
 	return null;
 }
 
+// 日禄表(日干临官之支):与小图内联表同一份,抽出供纯函数与组件双用。
+const LU_TABLE = { 甲: '寅', 乙: '卯', 丙: '巳', 丁: '午', 戊: '巳', 己: '午', 庚: '申', 辛: '酉', 壬: '亥', 癸: '子' };
+
+// [Q-450/T-413] 三传递生递克 + 逐传空/禄/马徽记的**纯函数单源**:此前只有右栏小图会算(relOf 是组件内
+// 私有函数),AI 快照的 [三传] 表只有 干支/六亲/贵神,传间生克与逐传徽记一个字都不进 —— 页面看得见、
+// AI 看不见。现抽为纯函数,小图与快照(大六壬 + 三式合一)三处同供,永不分叉。
+// data = { branches:[初,中,末], gans, dayGan, dayZhi, xunKong:[...] }
+export function buildSanChuanRelationFacts(data){
+	const d = data || {};
+	const branches = Array.isArray(d.branches) ? d.branches.map((b)=>`${b || ''}`.substring(0, 1)) : [];
+	if(branches.length < 3 || branches.some((b)=>!b)){ return null; }
+	const dayGan = d.dayGan ? `${d.dayGan}`.substring(0, 1) : '';
+	const dayZhi = d.dayZhi ? `${d.dayZhi}`.substring(0, 1) : '';
+	const xunKong = Array.isArray(d.xunKong) ? d.xunKong.map((z)=>`${z || ''}`.substring(0, 1)) : [];
+	const yima = dayZhi ? (LRConst.ZiYiMa[dayZhi] || '') : '';
+	const lu = dayGan ? (LU_TABLE[dayGan] || '') : '';
+	const wxs = branches.map((b)=>LRConst.GanZiWuXing[b] || '');
+	const nodes = branches.map((b, i)=>{
+		const tags = [];
+		if(xunKong.indexOf(b) >= 0){ tags.push('空'); }
+		if(b === lu){ tags.push('禄'); }
+		if(b === yima){ tags.push('马'); }
+		return { pos: POS[i], branch: b, wuxing: wxs[i], tags };
+	});
+	const links = [0, 1].map((i)=>{
+		const rel = relOf(wxs[i], wxs[i + 1]);
+		return { from: POS[i], to: POS[i + 1], rel: rel ? rel.label : '' };
+	}).filter((x)=>x.rel);
+	return { nodes, links };
+}
+
+// 快照/导出用一行摘要:「初传→中传 生;中传→末传 克入」+「初传丑(空·禄)…」;无可算内容返 ''。
+export function sanChuanRelationSnapshotLines(data){
+	const facts = buildSanChuanRelationFacts(data);
+	if(!facts){ return []; }
+	const out = [];
+	if(facts.links.length){
+		out.push(`三传递生递克：${facts.links.map((l)=>`${l.from}→${l.to} ${l.rel}`).join('；')}`);
+	}
+	const marked = facts.nodes.filter((n)=>n.tags.length);
+	if(marked.length){
+		out.push(`逐传徽记：${marked.map((n)=>`${n.pos}${n.branch}(${n.tags.join('·')})`).join('；')}`);
+	}
+	return out;
+}
+
 function LRSanChuanRelationMini(props){
 	const data = props && props.data ? props.data : null;
 	const branches = data && Array.isArray(data.branches) ? data.branches.map((b)=>`${b || ''}`.substring(0, 1)) : [];
@@ -29,9 +75,9 @@ function LRSanChuanRelationMini(props){
 	const dayGan = data && data.dayGan ? `${data.dayGan}`.substring(0, 1) : '';
 	const dayZhi = data && data.dayZhi ? `${data.dayZhi}`.substring(0, 1) : '';
 	const xunKong = data && Array.isArray(data.xunKong) ? data.xunKong : [];
+	// [Q-450/T-413] 禄/马取法走上面的纯函数单源(LU_TABLE/ZiYiMa),此处不再各留一份表。
 	const yima = dayZhi ? (LRConst.ZiYiMa[dayZhi] || '') : '';
-	const luTable = { '甲': '寅', '乙': '卯', '丙': '巳', '丁': '午', '戊': '巳', '己': '午', '庚': '申', '辛': '酉', '壬': '亥', '癸': '子' };
-	const lu = dayGan ? (luTable[dayGan] || '') : '';
+	const lu = dayGan ? (LU_TABLE[dayGan] || '') : '';
 
 	const wxs = branches.map((b)=>LRConst.GanZiWuXing[b] || '');
 	const nodeH = 40;

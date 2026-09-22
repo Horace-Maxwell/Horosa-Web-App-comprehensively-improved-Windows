@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/commtools/NaYing.js b/astrostudyui/src/components/commtools/NaYing.js
-index 36858eb..3d41302 100644
+index bc21d5a9..dad97f91 100644
 --- a/astrostudyui/src/components/commtools/NaYing.js
 +++ b/astrostudyui/src/components/commtools/NaYing.js
 @@ -1,10 +1,13 @@

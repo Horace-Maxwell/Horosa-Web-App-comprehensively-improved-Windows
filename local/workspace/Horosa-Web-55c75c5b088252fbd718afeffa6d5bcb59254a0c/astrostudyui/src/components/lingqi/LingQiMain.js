@@ -159,7 +159,7 @@ class LingQiMain extends Component {
 		const base = this.state.faces || facesFromCounts(this.state.counts || [0, 0, 0]);
 		const faces = base.map((row, i) => (i === layer ? row.map((v, k) => (k === idx ? !v : v)) : row.slice()));
 		const counts = faces.map((row) => row.filter(Boolean).length);
-		this.setState({ counts, faces, guaOrigin: 'cast', lastSeed: '' }, () => this.saveSnap());
+		this.setState({ counts, faces, guaOrigin: 'manual', lastSeed: '' }, () => this.saveSnap());   // [Q-209/T-168] 手摆
 	}
 	setCountDirect(layer, val) {
 		if (!this.state.manualMode) { return; }
@@ -169,7 +169,7 @@ class LingQiMain extends Component {
 		if (n > 4) { n = 4; }
 		const counts = (this.state.counts || [0, 0, 0]).slice();
 		counts[layer] = n;
-		this.setState({ counts, faces: facesFromCounts(counts), guaOrigin: 'cast', lastSeed: '' }, () => this.saveSnap());
+		this.setState({ counts, faces: facesFromCounts(counts), guaOrigin: 'manual', lastSeed: '' }, () => this.saveSnap());   // [Q-209/T-168] 手摆
 	}
 	clickReproduce() {
 		if (!this.state.lastSeed) { return; }
@@ -217,12 +217,12 @@ class LingQiMain extends Component {
 		this.setState({
 			counts: p.counts.slice(),
 			faces: facesFromCounts(p.counts),
-			guaOrigin: 'case', casting: false, manualMode: false,
+			guaOrigin: o.handPlaced ? 'manual' : 'case', casting: false, manualMode: false,
 			lastSeed: o.seed !== undefined && o.seed !== null ? `${o.seed}` : '',
-			// 🔴 seedMode 此前**存而不载**:保存时硬写 'manual'(存档即冻结),读档却不回灌 →
-			// 左栏种子档位仍是 localStorage 里的 'random',与存档不符,用户一看就觉得「设置没还原」。
-			seedMode: o.seedMode || 'manual',
-			manualSeed: o.seed !== undefined && o.seed !== null ? `${o.seed}` : this.state.manualSeed,
+			// [Q-209/T-168] 载档只回填显示(棋数冻结);种子来源按存档里用户的原档(旧档硬写 'manual' 者照旧),
+			// 只有用户档确为手动种子时才把存档种子灌进「手动种子」框 —— 「再掷」不再恒同卦。
+			seedMode: o.seedMode || this.state.seedMode,
+			manualSeed: (o.seedMode === 'manual' && o.seed !== undefined && o.seed !== null) ? `${o.seed}` : this.state.manualSeed,
 			question: o.question || '',
 			category: o.category || this.state.category,
 			display: o.display || this.state.display,
@@ -240,8 +240,11 @@ class LingQiMain extends Component {
 			label: '灵棋经',
 			payload: {
 				options: {
-					seedMode: 'manual',                    // 存档即冻结:读档必复现同卦(塔罗同款)
+					// [Q-209/T-168 2026-09-18] 存档只冻结棋数(counts),种子来源按用户档原样存;此前硬写 'manual' → 载档后左栏被切成手动种子,
+					// 「再掷」恒同卦;手摆(无种子)存档另标 handPlaced,载档显示「手摆」而不是固定卦。
+					seedMode: this.state.seedMode,
 					seed: this.state.lastSeed,
+					handPlaced: this.state.guaOrigin === 'manual' || !this.state.lastSeed,
 					question: this.state.question,
 					category: this.state.category,
 					display: this.state.display,
@@ -439,6 +442,7 @@ class LingQiMain extends Component {
 						<div className="horosa-lingqi-result-sub">
 							{gua.attr ? <span>{this.t(gua.attr)}</span> : <span>{this.t('十二棋皆覆,混沌未明,不在一百二十四卦之数')}</span>}
 							{s.guaOrigin === 'case' ? <Tag className="horosa-lingqi-origin-tag">载自事盘</Tag> : null}
+							{s.guaOrigin === 'manual' ? <Tag className="horosa-lingqi-origin-tag">手摆</Tag> : null}
 							{wu ? <Tag className="horosa-lingqi-wu-tag">六戊日 · 古法不宜占卜</Tag> : null}
 						</div>
 					</div>

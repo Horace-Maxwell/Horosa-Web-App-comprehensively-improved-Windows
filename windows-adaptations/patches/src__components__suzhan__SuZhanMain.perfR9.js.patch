@@ -1,28 +1,28 @@
 diff --git a/astrostudyui/src/components/suzhan/SuZhanMain.js b/astrostudyui/src/components/suzhan/SuZhanMain.js
-index 0ab640d..6f868ad 100644
+index 52ef1b19..b932e72c 100644
 --- a/astrostudyui/src/components/suzhan/SuZhanMain.js
 +++ b/astrostudyui/src/components/suzhan/SuZhanMain.js
-@@ -18,6 +18,8 @@ import { saveModuleAISnapshot, saveModuleAISnapshotLazy, } from '../../utils/mod
- import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
- import { XQTabs as Tabs, XQSideSection  } from '../xq-ui';
+@@ -21,6 +21,8 @@ import { XQTabs as Tabs, XQSideSection  } from '../xq-ui';
  import XQIcon from '../xq-icons';
+ // [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+ import { visualFloorPx } from '../../utils/zoomDomain';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const { TabPane } = Tabs;
  
-@@ -559,6 +561,7 @@ class SuZhanMain extends Component{
- 		});
+@@ -573,6 +575,7 @@ class SuZhanMain extends Component{
+ 		return !!this.props.embeddedReadOnly;
  	}
  
 +
  	componentDidMount(){
  		this.unmounted = false;
- 		if(typeof window !== 'undefined'){
-@@ -579,6 +582,13 @@ class SuZhanMain extends Component{
- 	}
- 
- 	componentDidUpdate(prevProps){
+ 		if(this.isEmbeddedReadOnly()){
+@@ -599,6 +602,13 @@ class SuZhanMain extends Component{
+ 		if(this.isEmbeddedReadOnly()){
+ 			return;
+ 		}
 +		// horosa_panel_ready_v1:宿盘之中栏(SuZhanChart)与右栏(概览/宫宿/快照)全由 props 纯派生 ——
 +		// 没有「取数落定」的那一次 setState,故就绪点=这些 props 变更所引发的这一次 commit。
 +		// 放在 restoreFromCurrentCase 早退之前:载入事盘也是一次真实的画完。
@@ -33,7 +33,7 @@ index 0ab640d..6f868ad 100644
  		if(this.restoreFromCurrentCase(false)){
  			return;
  		}
-@@ -698,21 +708,31 @@ class SuZhanMain extends Component{
+@@ -718,21 +728,31 @@ class SuZhanMain extends Component{
  	}
  
  	renderRightPanel(){

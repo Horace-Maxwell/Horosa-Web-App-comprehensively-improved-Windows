@@ -15,7 +15,7 @@ const EXAMPLES = [
 	{ label: '扶乩', cfg: { q: '扶乩' } },
 	{ label: '彗孛', cfg: { q: '彗孛' } },
 	{ label: '唐 × 星占', cfg: { dynasty: ['唐'], technique: ['星占'] } },
-	{ label: '宋 × 望气', cfg: { dynasty: ['宋'], technique: ['望气'] } },
+	{ label: '宋 × 太一', cfg: { dynasty: ['宋'], technique: ['太一'] } },   // [TL-37] 此前「宋 × 望气」命中 0 条;宋代技法面里太一 11 条最多
 	{ label: '高证据条目', cfg: { evidence: '高' } },
 	{ label: '野载 · 志怪', cfg: { tradition: TRAD_YEZAI, dynasty: ['志怪笔记'] } },
 	{ label: '野载 × 冥报', cfg: { tradition: TRAD_YEZAI, technique: ['冥报'] } },

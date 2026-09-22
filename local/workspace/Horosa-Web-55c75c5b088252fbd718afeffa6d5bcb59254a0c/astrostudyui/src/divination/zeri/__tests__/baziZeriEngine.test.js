@@ -171,6 +171,11 @@ describe('[Z2] 扫描引擎(外壳第二实例:恒等+行内同盘探针)', ()=>
 		expect(ev('shishen_at', { layer: 'branch', gods: ['七杀'], pillars: ['day'], matchMode: 'any' }).pass).toBe(true);
 		expect(ev('shishen_at', { layer: 'canggan', gods: ['偏印'], pillars: ['time'], matchMode: 'any' }).pass).toBe(true);
 		expect(ev('shishen_at', { layer: 'canggan', gods: ['正财'], pillars: ['time'], matchMode: 'any' }).pass).toBe(false);
+		// [Q-466/T-428] 「全部命中」=所选值每个都至少出现在一柱(共享字段语义),不再是「每柱都命中」:
+		// 不限柱时日干十神为「日元」,旧判据令「全部」恒假;伤官(时干)+七杀(日支)两值不限柱都出现 → 真。
+		expect(ev('shishen_at', { layer: 'stem', gods: ['伤官'], matchMode: 'all' }).pass).toBe(true);
+		expect(ev('shishen_at', { layer: 'stem', gods: ['伤官', '正官'], matchMode: 'all' }).pass).toBe(false);
+		expect(ev('shishen_at', { layer: 'stem', gods: ['伤官'], pillars: ['day', 'time'], matchMode: 'all' }).pass).toBe(true);   // 旧判据:日柱「日元」不命中 → 假
 		// 刑穿破会扩档:卯午相破(日/时);卯申无穿?卯申=非穿(卯辰穿)——用卯午破正判
 		expect(ev('zhi_relation', { a: 'day', b: 'time', rel: 'po' }).pass).toBe(true);
 		expect(ev('zhi_relation', { a: 'day', b: 'time', rel: 'chuan' }).pass).toBe(false);

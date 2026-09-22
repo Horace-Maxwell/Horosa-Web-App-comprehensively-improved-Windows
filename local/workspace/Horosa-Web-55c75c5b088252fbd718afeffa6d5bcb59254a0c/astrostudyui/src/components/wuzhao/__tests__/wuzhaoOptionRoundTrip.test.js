@@ -64,7 +64,8 @@ describe('五兆存案 round-trip 与键集单源', () => {
 
 	test('②三处消费点同源:payload / save / restore 皆走 pickOptions,无手写白名单', () => {
 		// 判据绑「走键集」这件事本身,不绑具体写法(内联展开 vs 先取变量都算过)
-		expect(SRC).toMatch(/buildPanPayload\(fields\)\{[\s\S]*?pickOptions\(this\.state, OPTION_KEYS\.calc\)/);
+		// [Q-210] 签名多了 castSeedOverride(随机诸式的客户端种子)⇒ 形参不再写死,只绑「同一函数体内走键集」
+		expect(SRC).toMatch(/buildPanPayload\([^)]*\)\{[\s\S]*?pickOptions\(this\.state, OPTION_KEYS\.calc\)/);
 		expect(SRC).toMatch(/options: pickOptions\(this\.state, ALL_OPTION_KEYS\)/);
 		const restoreBody = SRC.split('restoreFromCurrentCase(force){')[1].split('\n\tonFieldsChange(')[0];
 		expect(restoreBody).toMatch(/pickOptions\(options, ALL_OPTION_KEYS\)/);

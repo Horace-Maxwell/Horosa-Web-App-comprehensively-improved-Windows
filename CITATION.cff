@@ -2,8 +2,8 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 3.10.0
-date-released: 2026-07-04
+version: 3.11.0
+date-released: 2026-09-21
 authors:
   - given-names: Horace
     family-names: Maxwell
@@ -12,7 +12,30 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v3.10.0 beta is a local-first metaphysics workstation. This release overhauls
+  Horosa for Windows v3.11.0 beta is a local-first metaphysics workstation. This release is a major
+  upgrade of the AI assistant, from single-turn Q&A to an agent that can act, remember and connect:
+  an action layer (off by default) lets the model create charts and cases, cast headlessly, change
+  chart conventions and display preferences, switch technique pages and load workspaces — read-only
+  or append-only, never deleting or overwriting — behind a three-level approval policy with per-category
+  tightening, trusted profiles, an action ledger with one-click undo and before/after diff previews,
+  and a task center (goal tasks with budgets, scheduled tasks with catch-up policies, automation rules
+  with anti-recursion, desktop notifications). Slash commands with a command palette, @-references
+  for charts, cases, materials, templates and techniques (with pinyin search), skill packs, /compact,
+  /side, checkpoints, personal conventions, fact memory and a natal-owner workspace, multi-model
+  best-of-N comparison, /review, multi-technique orchestration, per-task model routing with structured
+  output in four provider dialects, a local MCP server (resources, prompts, event stream, sessions,
+  dual protocol epochs), external MCP servers over HTTP or stdio with read-only admission, web search
+  across five engines and bounded web fetch, encrypted API keys at rest and redacted diagnostics. A
+  second sweep of every option on every technique page fixes dozens of wiring gaps; AI mounting no
+  longer truncates content and house-ruler tables use whole-sign rulers; divination casting settings
+  now persist across restarts; fourteen-digit direct time entry is added everywhere; zoom-level layout
+  defects and pointer misalignment on canvases are cleared; and long-response freezes, silent request
+  failures and Java log placement are repaired at the root. It builds on the v3.10.0 release, which
+  expanded electional astrology from two to ten techniques (almanac, BaZi, Tai Yi, Zi Wei, Da Liu
+  Ren, unified Three Arts, Seven Governors and Indian muhurta) with about three hundred condition
+  classes judged from the same source as the main charts, raised true-solar-time to NOAA/Meeus
+  precision, gave AI streaming timeouts three-layer semantics and isolated Zi Wei mounting settings.
+  It builds on the v3.9.5 release, which overhauls
   the horary chart: the judgement elements are wired through end to end, perfection modes and
   timing are completed, a "whose matter is it" person selector turns the quesited house by the
   classical derived-house rule (asking about a spouse's career = the tenth from the seventh = the

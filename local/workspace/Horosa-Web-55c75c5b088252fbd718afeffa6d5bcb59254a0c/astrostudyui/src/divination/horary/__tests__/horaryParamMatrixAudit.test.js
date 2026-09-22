@@ -186,11 +186,24 @@ function randomProbe(seed){
 		o.movedir = retro ? 'Retrograde' : 'Direct';
 		o.lonspeed = (retro ? -1 : 1) * SPEED_BASE[id] * (0.4 + rnd() * 1.2);
 	});
-	// 月亮空亡旗随机化:vocMode='classic'(默认档)读的是后端旗 m.isVOC(chartFacts:74 直透),
-	// fixture 恒 false → 不随机化则 classic 档 voc 恒 false,vocMitigateSigns(需 voc===true
-	// 且月落四豁免座)结构性不可达 —— 首轮诊断 dead 名单里它就是这个死法。
+	// 月空随机化:classic(默认档)此前读后端旗 m.isVOC,不随机化则 voc 恒 false、
+	// vocMitigateSigns(需 voc===true 且月落四豁免座)结构性不可达 —— 首轮诊断 dead 名单里它就是这个死法。
+	// [Q-146/T-53] 判读侧改口径后 classic 不再读那面旗,而是按同一张相位表自算(月对表内十星
+	// 无入相/正合托勒密相位即空)→ 随机化必须落到**相位表**上,否则 fixture 里月恒有一条入相 120°,
+	// classic 档 voc 恒 false,那条探针又死回去。两处一起随机(旗仍留着:老快照/无相位表时是回落源)。
 	const moonObj = findObj(r, 'Moon');
-	if(moonObj){ moonObj.isVOC = rnd() < 0.5; }
+	const moonVocDraw = rnd() < 0.5;
+	if(moonObj){ moonObj.isVOC = moonVocDraw; }
+	const moonAsp = r && r.aspects && r.aspects.normalAsp && r.aspects.normalAsp.Moon;
+	if(moonAsp){
+		if(moonVocDraw){
+			// 空:清掉月的入相/正合(离相保留 —— 空亡的定义只管入相)
+			moonAsp.Applicative = [];
+			moonAsp.Exact = [];
+		}else if(!(moonAsp.Applicative || []).length && !(moonAsp.Exact || []).length){
+			moonAsp.Applicative = [{ id: 'Saturn', asp: 120, orb: 1.5 }];
+		}
+	}
 	// 映点注入:随机 2 对强制互为映点(λ' ≈ 180−λ)。两随机星恰成映点(orb≤1.5°)概率 <1%/张,
 	// 不注入则 perfection 的映点促成分支(method='antiscion',antiscia 开关门控)在 200 张里探不到。
 	for(let k = 0; k < 2; k++){
@@ -283,8 +296,9 @@ function digest(j){
 const GATED = {
 	partileDef: { accidentalMode: 'lilly' },
 	refranationIncludeSignChange: { refranationAsDestruction: true },
-	// vocIncludeOuter 仅作用于前端解算的四模式(moon.js:38 注释成文);默认档 vocMode='classic'
-	// 读后端 isVOC 旗不走 moonApps → 单独改它结构性无差异,须配 kenodromia 档才可达。
+	// vocIncludeOuter 仅作用于前端按目标星集解算的四模式(moon.js 档位注释成文);
+	// [Q-146/T-53] classic 档改为按整张相位表自算(不筛目标星集)后,它在该档依然不参与
+	// → 单独改它结构性无差异,仍须配 kenodromia 档才可达。
 	vocIncludeOuter: { vocMode: 'kenodromia' },
 };
 

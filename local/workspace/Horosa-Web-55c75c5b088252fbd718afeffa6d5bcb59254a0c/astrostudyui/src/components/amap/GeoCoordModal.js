@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import Modal from 'drag-modal';
+import Modal from '../comp/DragModal';
 import GeoCoordSelector from './GeoCoordSelector';
 import { gpsToGcj02, gcj02ToGps } from '../../utils/helper';
 

@@ -694,8 +694,8 @@ def _eval_almuten_is(params, ctx, domain):
 
 
 def _eval_distribution_state(params, ctx, domain):
-    """分布权重:元素/模式/半球计数(astroextra.distribution 逐字,含 ASC/MC 轴半球式)。
-    includeOuter 默认 true=十星(格局页签口径);false=七政。op=max 为严格最大(平局 False)。"""
+    """分布权重:元素/模式/半球计数(astroextra.distribution 同式,含 ASC/MC 轴半球式)。
+    includeOuter 默认 true=十星(扫描条件既有口径,默认不变);false=七政(格局页签「分布权重」自 [Q-557] 起只计七政)。op=max 为严格最大(平局 False)。"""
     axis = params.get('axis')
     key = params.get('key')
     op = params.get('op') or 'max'

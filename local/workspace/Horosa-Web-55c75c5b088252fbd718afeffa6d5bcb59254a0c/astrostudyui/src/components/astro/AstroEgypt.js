@@ -20,9 +20,8 @@ import {
 	CHOROGRAPHY_QUARTERS, CHOROGRAPHY_REGIONS,
 } from '../../divination/data/egyptianData';
 import {
-	EGYPT_SCHOOL_AXES,
-	deriveEgyptView, normalizeEgyptSchool, currentEgyptSchool, persistEgyptSchool,
-} from '../../divination/data/egyptianSchools';
+	EGYPT_SCHOOL_AXES, EGYPT_DECAN_NAMINGS, EGYPT_DECAN_NAMING_DEFAULT,
+	deriveEgyptView, normalizeEgyptSchool, currentEgyptSchool, persistEgyptSchool, egyptSchoolFromFields, } from '../../divination/data/egyptianSchools';
 import { EGYPT_GODS, egyptianGodSegmentText, egyptianGodSign, EGYPT_GODS_DISCLAIMER } from '../../divination/data/egyptianGods';
 import { paransForDegree, circumpolarSplit, PARAN_KINDS, PARAN_ORB_DEFAULT, PARAN_NOTE } from '../../divination/data/egyptianParans';
 import { decanImageAt, DECAN_IMAGE_NOTE, EXTRA_ZODIAC_FIGURES, EXTRA_ZODIAC_NOTE } from '../../divination/data/egyptianDecanImages';
@@ -76,12 +75,15 @@ export function buildEgyptSectionLines(chartObj, school){
 	if(!v.isDefault){
 		lines.push(`◆ 所用口径：${v.diff.map((d) => `${d.label}=${d.valueLabel}`).join('；')}`);
 	}
-	// ◆ 各行星落旬:逐点 旬序/旬位/埃及名/面主 + 旬星塔罗(与 renderDecanRing/renderTarot 本盘列同源同算)
+	// ◆ 各行星落旬:逐点 旬序/旬位/主显名/面主 + 旬星塔罗(与 renderDecanRing/renderTarot 本盘列同源同算)
+	// [Q-540/T-502] 主显名标签随「旬名传统」档:埃及本名/科普特-希腊名/赫尔墨斯名(此前恒标「埃及名」,选后两档时标签错)。
+	const namingLabel = ((EGYPT_DECAN_NAMINGS[v.school && v.school.decanNaming] || EGYPT_DECAN_NAMINGS[EGYPT_DECAN_NAMING_DEFAULT]) || {}).label || '埃及本名';
+	const nameTag = namingLabel === '埃及本名' ? '埃及名' : namingLabel;
 	lines.push('◆ 各行星落旬');
 	v.points.forEach((p) => {
 		const d = p.decan;
 		if(!d) return;
-		lines.push(`${POINT_CN[p.id] || p.id}：第${d.number}旬 ${sn(d.signId)}${d.decanInSign}(${d.range})·埃及名 ${d.primaryName}·面主${POINT_CN[d.ruler] || d.ruler}·塔罗${TAROT_SUIT_CN[d.tarotSuit]}${d.tarotPip}「${d.tarotTitle}」`);
+		lines.push(`${POINT_CN[p.id] || p.id}：第${d.number}旬 ${sn(d.signId)}${d.decanInSign}(${d.range})·${nameTag} ${d.primaryName}·面主${POINT_CN[d.ruler] || d.ruler}·塔罗${TAROT_SUIT_CN[d.tarotSuit]}${d.tarotPip}「${d.tarotTitle}」`);
 	});
 	// ◆ 上升旬详情:上升所落旬完整派生(跨流派旬名/原位序/星认定/塔罗含义/护符 melothesia),
 	// 与页首「当前上升旬」卡 + 名录/护符高亮行同源(deriveEgyptView 单一真值源)。
@@ -114,7 +116,8 @@ class AstroEgypt extends Component {
 	constructor(props){
 		super(props);
 		// 流派持久化读回;petosirisMod 由流派轴统管(旧 state 键退役,数字占面板改读流派)
-		this.state = { nameInput: '', lunarDay: 1, school: currentEgyptSchool(), extra: null, extraKey: '', paranOrb: PARAN_ORB_DEFAULT };
+		// [Q-255/AS-27 裁决 2026-09-18] 载入存有 egypt_* 随盘七轴的命盘 → 以随盘口径为初值(AI 快照本就优先读随盘),不再只读本机仓致页面与快照口径不同
+		this.state = { nameInput: '', lunarDay: 1, school: egyptSchoolFromFields(this.props.fields) || currentEgyptSchool(), extra: null, extraKey: '', paranOrb: PARAN_ORB_DEFAULT };
 		this._viewCache = null;
 		this._mounted = false;
 	}
@@ -269,7 +272,8 @@ class AstroEgypt extends Component {
 					})}
 				</div>
 				<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
-					每格=一旬(10°):上=旬序、座 glyph、迦勒底面主、本盘落此旬之点。高亮=当前上升所在旬。
+					{/* [Q-539] 此处写死「迦勒底面主」与「旬主星制」轴(迦勒底外貌 / 三分性旬星)矛盾 —— 旬主随该轴变 */}
+					每格=一旬(10°):上=旬序、座 glyph、旬主(按设置页「旬主星制」所选派法)、本盘落此旬之点。高亮=当前上升所在旬。
 				</div>
 			</div>
 		);

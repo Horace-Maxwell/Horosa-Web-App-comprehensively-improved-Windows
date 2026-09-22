@@ -1,6 +1,7 @@
 import { PAIPAN_OPTIONS, QIJU_METHOD_OPTIONS, SCHOOL_OPTIONS, calcDunJia, isKinqimenMode, birthToYearGan, buildDunJiaSnapshotText, buildQimenWangShuai, computeShuziYongShenGong, normalizeKinqimenData, panFeipan } from '../DunJiaCalc';
 import { buildLocalBaziResult } from '../../../utils/baziLunarLocal';
 import { buildLocalJieqiYearSeed } from '../../../utils/localNongliAdapter';
+import { qimenLocalOnlyOverrides, isQimenLocalRoute, needJieqiYearSeed, jieqiSeedYears, jieqiSeedSignature } from '../DunJiaCalc';
 
 function makeFields(dateStr, timeStr){
 	return {
@@ -1318,4 +1319,158 @@ describe('DunJiaCalc · 本轮新增 golden(混合/茅山/置闰天数)', ()=>{
 		const safe8 = calcLeap('2018-12-10', '12:00:00', 8);
 		expect(safe9.juText).toEqual(safe8.juText);
 	}, 30000);
+});
+
+// [挂载自检 F-50/F-51] 挂载 schema 经 select 传 0/'0'(页面传布尔 false):中门参与两形态同构;盘类随 opts 进 pan.options(无头/三式重算路径)。
+describe('DunJiaCalc · 挂载自检:中门参与 0≡false + 盘类随 opts 进 pan.options', ()=>{
+	const nongli = {
+		yearJieqi: '丙午', year: '丙午', monthGanZi: '癸巳', dayGanZi: '己丑', time: '甲子',
+		jieqi: '立夏', jiedelta: '立夏后第10天', birth: '2026-05-15 00:12:00',
+		month: '三月', day: '廿九', leap: false,
+	};
+	const fields = makeFields('2026-05-15', '00:12:00');
+	const gatesOf = (pan)=>JSON.stringify((pan.cells || []).map((c)=>c && (c.door || c.gate || c.men || null)));
+	test('🔴 飞盘·中门参与:0 与 false 同果,且与 true(默认)不同(此前 0 被当「参与」=挂载「不参与」恒死)', ()=>{
+		const mk = (v)=>calcDunJia(fields, nongli, makeOptions({ qijuMethod: 'chaibu', timeAlg: 1, school: '飞盘', feiMenZhongCan: v }), {});
+		const p0 = mk(0); const pf = mk(false); const pt = mk(true);
+		expect(buildDunJiaSnapshotText(p0)).toBe(buildDunJiaSnapshotText(pf));
+		expect(buildDunJiaSnapshotText(p0)).not.toBe(buildDunJiaSnapshotText(pt));
+		expect(gatesOf(p0)).toBe(gatesOf(pf));
+	});
+	test('🔴 盘类:opts.chartCategory=ming → pan.options.chartCategory=ming 且快照按命局措辞;未传不写键(缺=事局)', ()=>{
+		const pm = calcDunJia(fields, nongli, makeOptions({ qijuMethod: 'chaibu', timeAlg: 1, school: '转盘', chartCategory: 'ming' }), {});
+		expect(pm.options.chartCategory).toBe('ming');
+		expect(buildDunJiaSnapshotText(pm)).toContain('命局（日干＝内心 / 时干＝外在）');
+		const ps = calcDunJia(fields, nongli, makeOptions({ qijuMethod: 'chaibu', timeAlg: 1, school: '转盘' }), {});
+		expect(Object.prototype.hasOwnProperty.call(ps.options, 'chartCategory')).toBe(false);
+	});
+});
+
+describe('DunJiaCalc · [Q-154/Q-155] 奇门路由与节气种子判据单源(独立页/三式/择日共用)', ()=>{
+	const BASE = { paiPanType: 3, qijuMethod: 'zhirun', school: '转盘', zhiShiType: 0, zhirunLeapDays: 9, godsPreset: 'baihu_xuanwu', jiGongMode: 'kun', anGanMode: 'off', showAnZhi: false, kongMarkBoth: false, shiftPalace: 0, shiftZhiFuMode: 'follow' };
+	test('七组本地口径:全缺省 → 空(可走后端);任一非缺省 → 列出键名(后端不收、合并不施加的键)', ()=>{
+		expect(qimenLocalOnlyOverrides(BASE)).toEqual([]);
+		expect(qimenLocalOnlyOverrides({})).toEqual([]);
+		expect(qimenLocalOnlyOverrides(null)).toEqual([]);
+		expect(qimenLocalOnlyOverrides({ ...BASE, zhiShiType: 1 })).toEqual(['zhiShiType']);
+		expect(qimenLocalOnlyOverrides({ ...BASE, zhiShiType: '2' })).toEqual(['zhiShiType']);
+		expect(qimenLocalOnlyOverrides({ ...BASE, zhirunLeapDays: 8 })).toEqual(['zhirunLeapDays']);
+		expect(qimenLocalOnlyOverrides({ ...BASE, zhirunLeapDays: 10 })).toEqual(['zhirunLeapDays']);
+		expect(qimenLocalOnlyOverrides({ ...BASE, qijuMethod: 'chaibu', zhirunLeapDays: 8 })).toEqual([]);   // 置闰天数仅置闰法消费
+		expect(qimenLocalOnlyOverrides({ ...BASE, godsPreset: 'gouchen_zhuque' })).toEqual(['godsPreset']);
+		expect(qimenLocalOnlyOverrides({ ...BASE, jiGongMode: 'gen' })).toEqual(['jiGongMode']);
+		expect(qimenLocalOnlyOverrides({ ...BASE, anGanMode: 'dipan' })).toEqual(['anGanMode']);
+		expect(qimenLocalOnlyOverrides({ ...BASE, kongMarkBoth: true })).toEqual(['kongMarkBoth']);
+		expect(qimenLocalOnlyOverrides({ ...BASE, shiftPalace: 1, shiftZhiFuMode: 'recalc' })).toEqual(['shiftZhiFuMode']);
+		expect(qimenLocalOnlyOverrides({ ...BASE, shiftPalace: 0, shiftZhiFuMode: 'recalc' })).toEqual([]);   // 未移星时「重定」无意义
+		expect(qimenLocalOnlyOverrides({ ...BASE, godsPreset: 'gouchen_zhuque', anGanMode: 'shigan_fei' })).toEqual(['godsPreset', 'anGanMode']);
+	});
+	test('路由:时家/综合·转盘·全缺省 → 后端(转盘字节护栏);本地家/飞盘/混合/报数/本地口径非缺省 → 本地', ()=>{
+		expect(isQimenLocalRoute(BASE)).toBe(false);
+		expect(isQimenLocalRoute({ ...BASE, paiPanType: 5 })).toBe(false);
+		expect(isQimenLocalRoute({ paiPanType: 3 })).toBe(false);
+		expect(isQimenLocalRoute({ paiPanType: 3, qijuMethod: 'chaibu' })).toBe(false);
+		[0, 1, 2, 4, 6].forEach((t)=>expect(isQimenLocalRoute({ ...BASE, paiPanType: t })).toBe(true));
+		expect(isQimenLocalRoute({ ...BASE, school: '飞盘' })).toBe(true);
+		expect(isQimenLocalRoute({ ...BASE, school: '混合' })).toBe(true);
+		expect(isQimenLocalRoute({ ...BASE, qijuMethod: 'shuzi' })).toBe(true);
+		expect(isQimenLocalRoute({ ...BASE, godsPreset: 'gouchen_zhuque' })).toBe(true);
+		expect(isQimenLocalRoute({ ...BASE, kongMarkBoth: true })).toBe(true);
+		expect(isQimenLocalRoute({ ...BASE, anGanMode: 'dipan' })).toBe(true);
+	});
+	test('种子判据:日家/金函恒取;年/月家不取;刻家随起局法;时家仅本地路由且置闰/无闰/茅山才取(旧判据刻家恒 false 的回归钉)', ()=>{
+		['zhirun', 'chaibu', 'maoshan', 'wurun', 'shuzi'].forEach((m)=>{
+			const shenjie = m === 'zhirun' || m === 'wurun' || m === 'maoshan';
+			expect(needJieqiYearSeed({ ...BASE, paiPanType: 2, qijuMethod: m })).toBe(true);
+			expect(needJieqiYearSeed({ ...BASE, paiPanType: 6, qijuMethod: m })).toBe(true);
+			expect(needJieqiYearSeed({ ...BASE, paiPanType: 0, qijuMethod: m })).toBe(false);
+			expect(needJieqiYearSeed({ ...BASE, paiPanType: 1, qijuMethod: m })).toBe(false);
+			expect(needJieqiYearSeed({ ...BASE, paiPanType: 4, qijuMethod: m })).toBe(shenjie);
+			expect(needJieqiYearSeed({ ...BASE, paiPanType: 3, school: '飞盘', qijuMethod: m })).toBe(shenjie);
+			expect(needJieqiYearSeed({ ...BASE, paiPanType: 3, school: '混合', qijuMethod: m })).toBe(shenjie);
+			expect(needJieqiYearSeed({ ...BASE, paiPanType: 3, school: '转盘', qijuMethod: m })).toBe(false);   // 后端路由由后端处理节气
+			expect(needJieqiYearSeed({ ...BASE, paiPanType: 3, school: '转盘', qijuMethod: m, anGanMode: 'dipan' })).toBe(shenjie);   // 本地口径非缺省 → 本地链需种子
+		});
+		expect(needJieqiYearSeed({ paiPanType: 4, qijuMethod: 'zhirun', school: '转盘' })).toBe(true);
+		expect(needJieqiYearSeed(null)).toBe(false);
+	});
+	test('种子年份集(日家/金函含 y+1)与种子签名(已到达年份升序)', ()=>{
+		expect(jieqiSeedYears({ paiPanType: 2 }, 2026)).toEqual([2025, 2026, 2027]);
+		expect(jieqiSeedYears({ paiPanType: 6 }, 2026)).toEqual([2025, 2026, 2027]);
+		expect(jieqiSeedYears({ paiPanType: 3 }, 2026)).toEqual([2025, 2026]);
+		expect(jieqiSeedYears({ paiPanType: 4 }, '2026')).toEqual([2025, 2026]);
+		expect(jieqiSeedYears({ paiPanType: 2 }, NaN)).toEqual([]);
+		expect(jieqiSeedYears({ paiPanType: 2 }, null)).toEqual([]);
+		expect(jieqiSeedSignature(null)).toBe('seed:');
+		expect(jieqiSeedSignature({})).toBe('seed:');
+		expect(jieqiSeedSignature({ 2026: { 冬至: {} }, 2025: { 冬至: {} }, 2027: null })).toBe('seed:2025,2026');
+	});
+	test('判别向量(SS-04):刻家·置闰 2020-06-20 12:00 有种子 vs 无种子 局数不同(缺种子=退化局;此前独立页/三式判据不取种子)', ()=>{
+		const fields = makeFields('2020-06-20', '12:00:00');
+		const nongli = buildLocalNongliForTest('2020-06-20', '12:00:00');
+		const seeds = {};
+		[2019, 2020, 2021].forEach((y)=>{ seeds[y] = buildLocalJieqiYearSeed(y, '+08:00'); });
+		const opts = makeOptions({ paiPanType: 4, qijuMethod: 'zhirun', school: '转盘', timeAlg: 1 });
+		const withSeed = calcDunJia(fields, nongli, opts, { jieqiYearSeeds: seeds });
+		const noSeed = calcDunJia(fields, nongli, opts, {});
+		expect(withSeed.yinYangDun).toBe('阴遁');
+		expect(`${withSeed.juText}`).toBe('阴遁四局上元');
+		expect(`${noSeed.juText}`).toBe('阴遁一局上元');
+		expect(withSeed.juText).not.toBe(noSeed.juText);
+	});
+});
+
+describe('DunJiaCalc · [T-548] 当前节气含中气(后端 nongli.jieqi 仅交节当日有值;jiedelta 只给节令)', ()=>{
+	// 复刻生产 /nongli/time 形态:非交节日 jieqi=null、jiedelta=「节令后第N天」(不含中气)。
+	function prodNongli(date, time, jiedelta){
+		const n = buildLocalNongliForTest(date, time);
+		return { ...n, jieqi: null, jieqiTime: null, jiedelta };
+	}
+	const CHAIBU = { paiPanType: 3, qijuMethod: 'chaibu', school: '飞盘', timeAlg: 1 };
+	test('2026-05-24 15:30(小满后 3 日,jiedelta 仍报立夏):拆补应为 小满上元·阳遁五局上元,无种子亦经本地种子解析(此前出 立夏上元·四局)', ()=>{
+		const fields = makeFields('2026-05-24', '15:30:00');
+		const nongli = prodNongli('2026-05-24', '15:30:00', '立夏后第19天');
+		const noSeed = calcDunJia(fields, nongli, makeOptions(CHAIBU), {});
+		expect(noSeed.juText).toBe('阳遁五局上元');
+		expect(noSeed.jieqiText).toBe('小满上元');
+		const seeds = {}; [2025, 2026, 2027].forEach((y)=>{ seeds[y] = buildLocalJieqiYearSeed(y, '+08:00'); });
+		const withSeed = calcDunJia(fields, nongli, makeOptions(CHAIBU), { jieqiYearSeeds: seeds });
+		expect(withSeed.juText).toBe('阳遁五局上元');
+		// 转盘同日同法本地亦同(与后端转盘 2026-05-24「小满·阳遁五局上」一致)
+		const zhuan = calcDunJia(fields, nongli, makeOptions({ ...CHAIBU, school: '转盘' }), {});
+		expect(zhuan.juText).toBe('阳遁五局上元');
+	});
+	test('时刻感知:2026-05-21 小满交节 08:36 前后 —— 08:00 立夏上元(四局)/ 09:00 小满上元(五局);符头甲午 05-20 已进上元', ()=>{
+		const before = calcDunJia(makeFields('2026-05-21', '08:00:00'), prodNongli('2026-05-21', '08:00:00', '立夏后第16天'), makeOptions(CHAIBU), {});
+		const after = calcDunJia(makeFields('2026-05-21', '09:00:00'), prodNongli('2026-05-21', '09:00:00', '立夏后第16天'), makeOptions(CHAIBU), {});
+		expect(before.jieqiText).toBe('立夏上元');
+		expect(before.juText).toBe('阳遁四局上元');
+		expect(after.jieqiText).toBe('小满上元');
+		expect(after.juText).toBe('阳遁五局上元');
+	});
+	test('节令前半段(2026-05-19 12:00,立夏下元)与旧口径一致:立夏·阳遁七局下元(零回归面)', ()=>{
+		const pan = calcDunJia(makeFields('2026-05-19', '12:00:00'), prodNongli('2026-05-19', '12:00:00', '立夏后第14天'), makeOptions(CHAIBU), {});
+		expect(pan.juText).toBe('阳遁七局下元');
+		expect(pan.jieqiText).toBe('立夏下元');
+	});
+	test('报数定局阴阳遁亦按含中气节气:2025-12-25(冬至后)阳遁,jiedelta 报大雪(阴)', ()=>{
+		const pan = calcDunJia(makeFields('2025-12-25', '12:00:00'), prodNongli('2025-12-25', '12:00:00', '大雪后第18天'), makeOptions({ paiPanType: 3, qijuMethod: 'shuzi', shuziReportNumber: '123', school: '转盘', timeAlg: 1 }), {});
+		expect(pan.yinYangDun).toBe('阳遁');
+		expect(`${pan.jieqiText}`.startsWith('冬至')).toBe(true);
+	});
+});
+
+describe('DunJiaCalc · [Q-389/T-370] 公元前日期解析(parseDateTime 带符号年)', ()=>{
+	test("'-500-06-15' → 年 -500/月 6/日 15:年家=下元阴遁七局(此前切成 年0/月500/日6 → 恒中元阴四)", ()=>{
+		const fields = makeFields('-500-06-15', '12:00:00');
+		const nongli = { yearGanZi: '辛丑', year: '辛丑', yearJieqi: '辛丑', monthGanZi: '甲午', dayGanZi: '甲子', time: '庚午', timeGanZi: '庚午', jieqi: '芒种', jiedelta: '芒种后第10天', birth: '-500-06-15 12:00:00' };
+		const pan = calcDunJia(fields, nongli, makeOptions({ paiPanType: 0, qijuMethod: 'zhirun', school: '转盘' }), {});
+		expect(pan).toBeTruthy();
+		expect(pan.sanYuan).toBe('下元');
+		expect(`${pan.juShu}`).toBe('七');   // calcDunJia 的 juShu 恒为中文数字(juNumberToCn),此处判「七局」
+		expect(pan.yinYangDun).toBe('阴遁');
+		// 公元后同路径不变
+		const ad = calcDunJia(makeFields('0560-06-15', '12:00:00'), { ...nongli, birth: '0560-06-15 12:00:00' }, makeOptions({ paiPanType: 0, qijuMethod: 'zhirun', school: '转盘' }), {});
+		expect(ad.sanYuan).toBeTruthy();
+	});
 });

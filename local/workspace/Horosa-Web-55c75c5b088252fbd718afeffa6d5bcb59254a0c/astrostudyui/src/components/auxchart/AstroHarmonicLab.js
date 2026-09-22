@@ -5,8 +5,15 @@ import AstroChart from '../astro/AstroChart';
 import { XQButton as Button } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
-import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable } from '../astro/AstroExtraCommon';
+import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from '../astro/AstroExtraCommon';
 import { markPanelReady } from '../../utils/perfMark';
+
+// [Q-151/AX-20] 调波数夹取整数 1-360:此前空串/小数原样下发,后端 int('') / int('2.5') 抛错回 {'err':'param error'}。
+export function clampHarmonic(raw, fallback = 9){
+	const n = Number.parseInt(`${raw === undefined || raw === null ? '' : raw}`.trim(), 10);
+	if(!Number.isFinite(n)){ return fallback; }
+	return Math.min(360, Math.max(1, n));
+}
 
 class AstroHarmonicLab extends Component{
 	constructor(props){
@@ -30,15 +37,15 @@ class AstroHarmonicLab extends Component{
 	}
 
 	componentDidUpdate(prevProps){
-		const key = chartRequestKey(this.props.value, `harmonic|${this.state.harmonic}`);
-		if(key && key !== this.state.requestKey && !this.state.loading){
+		const key = chartRequestKey(this.props.value, `harmonic|${clampHarmonic(this.state.harmonic)}`);
+		if(key && key !== this.state.requestKey && !this.state.loading && !loadParked(this, key)){
 			this.load();
 		}
 	}
 
 	ensureLoaded(){
-		const key = chartRequestKey(this.props.value, `harmonic|${this.state.harmonic}`);
-		if(key && key !== this.state.requestKey && !this.state.loading){
+		const key = chartRequestKey(this.props.value, `harmonic|${clampHarmonic(this.state.harmonic)}`);
+		if(key && key !== this.state.requestKey && !this.state.loading && !loadParked(this, key)){
 			setTimeout(this.load, 0);
 		}
 	}
@@ -47,18 +54,20 @@ class AstroHarmonicLab extends Component{
 		if(!this.props.value){
 			return;
 		}
-		const key = chartRequestKey(this.props.value, `harmonic|${this.state.harmonic}`);
+		const harmonic = clampHarmonic(this.state.harmonic);   // [Q-151/AX-20] 夹取整数 1-360
+		const key = chartRequestKey(this.props.value, `harmonic|${harmonic}`);
 		this.setState({loading: true});
 		try{
 			const data = await request(`${Constants.ServerRoot}/astroextra/harmonic`, {
 				body: JSON.stringify({
 					...chartParams(this.props.value),
-					harmonic: this.state.harmonic,
+					harmonic,
 					orb: 2,
 				}),
 				timeoutMs: 30000,
 			});
 			if(!this._mounted) return;
+			clearLoadFailure(this);
 			const res = unwrapResult(data) || {};
 			// horosa_panel_ready_v1:调波盘中栏(调波整盘)+右栏(相位/位置表)全由 result 派生,
 			// 这一次 setState 即「面板数据落定」→ 在其回调里盖章(与其余 10 个辅盘子盘同一技法键)。
@@ -78,8 +87,10 @@ class AstroHarmonicLab extends Component{
 				return out.length > 1 ? out : [];
 			});
 		}catch(e){
+			// [Q-151/AX-20] 失败不把 key 记成已完成(否则同 key 不再自动重试);泊车该 key,窗口期后自动重试,「计算调波盘」钮可立即重试。
+			parkLoadFailure(this, key);
 			if(!this._mounted) return;
-			this.setState({loading: false, requestKey: key});
+			this.setState({loading: false, loadError: (e && e.message) || '调波盘计算失败'});
 		}
 	}
 
@@ -107,14 +118,14 @@ class AstroHarmonicLab extends Component{
 									/>
 								) : (
 									<div style={{color: 'var(--horosa-text-soft, #999)', fontSize: 13}}>
-										{this.state.loading ? '调波盘计算中…' : '暂无调波盘数据，请点「计算调波盘」'}
+										{this.state.loading ? '调波盘计算中…' : (this.state.loadError ? `调波盘计算失败：${this.state.loadError}（可点「计算调波盘」重试）` : '暂无调波盘数据，请点「计算调波盘」')}
 									</div>
 								)}
 							</Col>
 							<Col span={6} className="horosa-midpoint-side-col">
 								<div style={{...cardStyle, width: '100%', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center'}}>
-									<label>调波数 <input type="number" min="1" max="360" value={this.state.harmonic} onChange={(e)=>this.setState({harmonic: e.target.value})} /></label>
-									<Button size="small" loading={this.state.loading} onClick={this.load}>计算调波盘</Button>
+									<label>调波数 <input type="number" min="1" max="360" step="1" value={this.state.harmonic} onChange={(e)=>this.setState({harmonic: e.target.value})} onBlur={(e)=>this.setState({harmonic: clampHarmonic(e.target.value)})} /></label>
+									<Button size="small" loading={this.state.loading} onClick={()=>{ clearLoadFailure(this); this.load(); }}>计算调波盘</Button>
 									<span>当前：H{result.harmonic || this.state.harmonic}</span>
 								</div>
 								<div style={{...cardStyle, width: '100%'}}>

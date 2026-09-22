@@ -197,7 +197,10 @@
 
 .horosa-guolao-moira-table-row {
 	display: grid;
-	grid-template-columns: 28px minmax(66px, 1fr) minmax(58px, 0.86fr) minmax(70px, 0.95fr);
+	/* [极档巡检实抓 2026-09-17] 列最小宽写死 px(66/58/70 → 宿星表 58/76/92)在 1.8 档右栏只剩 ~280px 布局宽时总和超宽,
+	   整个右栏 tab 内容区长出横向滚动条(七政·宫限实抓 24px)。改 minmax(0, fr):正常宽度下 fr 份额本就大于原最小值,视觉零变化;
+	   窄到不够时各列按比例收窄、内容按字换行(下方 > * 已是 white-space:normal + break-word),不再横向溢出。 */
+	grid-template-columns: 28px minmax(0, 1fr) minmax(0, 0.86fr) minmax(0, 0.95fr);
 	gap: 6px;
 	align-items: center;
 	min-height: 22px;
@@ -224,7 +227,7 @@
 }
 
 .horosa-guolao-moira-stellar-table .horosa-guolao-moira-table-row {
-	grid-template-columns: 34px minmax(58px, 0.8fr) minmax(76px, 1fr) minmax(92px, 1.1fr);
+	grid-template-columns: 34px minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1.1fr);
 }
 
 .horosa-guolao-moira-table-row > * {

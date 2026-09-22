@@ -131,11 +131,16 @@ describe('AI 导出 roundtrip 哨兵:源扫静态段头 ⊆ AI_EXPORT_PRESET_SEC
 
 	test('世俗盘 buildAiSnapshot:派生分析段头(定局/入境骨架/地理分野/地区盘推运/世俗宫义)全部登记进 mundane preset', ()=>{
 		const src = readSrc('../../components/mundane/MundaneMain.js');
-		const region = sliceFrom(src, 'const extraSecs = [];', 4000);
+		// [Q-444] 派生段扩容后窗口 4000→14000;右栏卡折入段另在 buildMundaneCardSections 区块(第二窗)。
+		const region = sliceFrom(src, 'const extraSecs = [];', 14000);
 		const headers = Array.from(sourceBracketHeaders(region));
 		const preset = presetSet('mundane');
 		expect(headers.filter((h)=>!preset.has(h))).toEqual([]);
 		expect(headers).toEqual(expect.arrayContaining(['世俗宫义', '定局·年主/盘主', '入境骨架', '地理分野', '地区盘推运']));
+		const cardRegion = sliceFrom(src, 'export function buildMundaneCardSections', 40000);
+		const cardHeaders = Array.from(sourceBracketHeaders(cardRegion));
+		expect(cardHeaders.filter((h)=>!preset.has(h))).toEqual([]);
+		expect(cardHeaders).toEqual(expect.arrayContaining(['年盘概要', '四季入境盘', '日食图判读', '食族 Saros', '地区盘·12世俗宫', '时刻校正', '天气占星', '四轴特殊点', '盘型格局', '世运恒星命中', '赤纬平行', '世运大运', 'KP 副主链', '木土纪元', '大年时代', 'Barbault 聚散指数']));
 	});
 
 	test('印度占星 buildJyotishSnapshotLines:源内 out[段名] 派生段头全部登记进 indiachart preset(约40段,防 Jyotish 块整体漏登记)', ()=>{
@@ -260,12 +265,16 @@ describe('AI 导出 roundtrip 哨兵:源扫静态段头 ⊆ AI_EXPORT_PRESET_SEC
 	// guolao V1 / jieqi withHeaders 两处死码段头(已注释标记)。新增 builder 段头忘登 preset → 此处红。
 	test('src/ 全树前瞻守卫:静态字面量段头 ⊆ 全 preset 并集 ∪ 白名单(防任何技法再漏登)', ()=>{
 		const root = path.resolve(__dirname, '../..');
+		// 文件级豁免(每项必须带理由;同 WHITELIST 纪律):AI 助手侧的提示词标记件——
+		// 『【个人口径…】/【回答审阅】/【多模型判官】/【多技法规划】/【目标自检】』等是发给 LLM 的输入分隔符,
+		// 不产任何报告/导出段头;按段头形态扫描恒误捕。
+		const FILE_EXEMPT = new Set(['persona.js', 'memory.js', 'aiReview.js', 'aiBestOfN.js', 'orchestrator.js', 'goalRunner.js']);
 		const files = [];
 		(function walk(dir){
 			fs.readdirSync(dir, { withFileTypes: true }).forEach((ent)=>{
 				const p = path.join(dir, ent.name);
 				if(ent.isDirectory()){ if(!['__tests__', 'node_modules'].includes(ent.name)){ walk(p); } }
-				else if(ent.name.endsWith('.js') && !ent.name.includes('.test.')){ files.push(p); }
+				else if(ent.name.endsWith('.js') && !ent.name.includes('.test.') && !FILE_EXEMPT.has(ent.name)){ files.push(p); }
 			});
 		})(root);
 		const allPreset = new Set();
@@ -285,6 +294,9 @@ describe('AI 导出 roundtrip 哨兵:源扫静态段头 ⊆ AI_EXPORT_PRESET_SEC
 			'十天干释义', '八门释义', '九星释义', '八神释义',   // 奇门释义附录
 			'十二神释义', '天将释义',                           // 六壬释义附录
 			'相位释义',                                         // 占星相位释义附录
+			// 对话协议标记(注入 user/system 消息,不是快照/导出段头,永不进 preset):
+			'已批准计划',   // planMode.PLAN_APPROVED_HEAD:/plan 批准后随 Turn 附加的系统约束头
+			'用户插话',     // steer.STEER_PREFIX:生成中插话附在下一轮请求末尾的 user 消息前缀
 		]);
 		const norm = (t)=>{
 			if(/^座运·/.test(t)){ return '座运·X'; }
@@ -328,7 +340,8 @@ describe('AI 挂载 round-trip 哨兵:大六壬多流派入参透传(涉害/年�
 	const LIURENG_CAST_SCHOOL_KEYS = ['seHaiMethod', 'seHaiBoundary', 'shiRuKe', 'yearShenShaSort', 'yinyangSystem', 'tuWangShuai'];
 	test('regenerateLiurengSnapshot 的 castOpts 转发全部 6 键(o.<key>)', ()=>{
 		const src = readSrc('../aiAnalysisContext.js');
-		const region = sliceFrom(src, 'async function regenerateLiurengSnapshot', 1400);
+		// [挂载自检] castOpts 已抽成单源 helper liurengHeadlessCastOpts(regenerateLiurengSnapshot 只调它):锚改指向 helper。
+		const region = sliceFrom(src, 'export function liurengHeadlessCastOpts', 1400);
 		LIURENG_CAST_SCHOOL_KEYS.forEach((k)=>{
 			expect(region.indexOf(`${k}: o.${k}`)).toBeGreaterThanOrEqual(0);
 		});

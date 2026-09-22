@@ -19,6 +19,7 @@ import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
 import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
 import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
+import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 // horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
@@ -70,11 +71,11 @@ class AstroGivenYear extends Component{
 				gpsLat: qryparam.gpsLat,
 				gpsLon: qryparam.gpsLon,
 				tmType: 'y',
-				nodeRetrograde: false,
+				nodeRetrograde: false,   // 本页不显示「南北交逆移」控件(后端也不吃这个键):恒出厂值,不读星运族共用的保存值 —— 否则页面导出的快照会印出一个看不见也改不了的「是」
 				asporb: transitOrbDefault(),
 			},
 			dirChart: null,
-			inverse: false,
+			inverse: DIRECTION_PAGE_SETTINGS.load().givenYearInverse,   // 上次亲手选的双盘内外圈
 			// 受控子页签(原 defaultActiveKey 非受控):FreezeSubTab 需要知道哪一页在前台。
 			// 初值 = 原 defaultActiveKey='doublechart',首屏行为逐字不变。
 			chartTab: 'doublechart',
@@ -148,6 +149,8 @@ class AstroGivenYear extends Component{
 			}
 			datetime.parse(dtstr, 'yyyy-MM-dd HH:mm:ss');
 		}
+		// [Q-182/T-97] 选择器起始时刻按本命时区计(DateTime 缺省 +08:00),否则非东八区盘的返照/流年盘时区串成东八区。
+		if(qryparam.zone){ datetime.setZone(qryparam.zone); }
 		let params = {
 			date: qryparam.date,
 			time: qryparam.time,
@@ -171,8 +174,10 @@ class AstroGivenYear extends Component{
 		let params = {
 			...this.state.params
 		};
-		params.datetime = params.datetime.format('YYYY-MM-DD HH:mm:ss');
-		params.dirZone = params.datetime.zone;
+		// [Q-182/T-97] 先取时区再格式化:此前格式化成字符串后再取 .zone 得 undefined → 首算按本命时区、步进后又按选择器缺省 +08:00 → 非东八区本命盘跳变。
+		const _dtv = params.datetime;
+		params.dirZone = (_dtv && _dtv.zone) ? _dtv.zone : undefined;
+		params.datetime = _dtv.format('YYYY-MM-DD HH:mm:ss');
 		if(this.props.value){
 			this.requestDirection(params);
 		}
@@ -237,8 +242,11 @@ class AstroGivenYear extends Component{
 		params.datetime = values.datetime.format('YYYY-MM-DD HH:mm:ss');
 		params.dirLat = values.lat;
 		params.dirLon = values.lon;
-		if(values.zone){
-			params.dirZone = values.zone;
+		// [Q-303/T-290] 表单无 zone 项:「提交」沿用 state 里上一次响应写回的旧时区,改时区后自动请求在途时点提交
+		// → 序号守卫只认后发请求,旧时区胜出、盘面与下拉一起回退。改为与自动请求同源:取所选日期时间自带的时区。
+		const dtZone = values.datetime && (values.datetime.zone || (values.datetime.time && values.datetime.time.zone));
+		if(values.zone || dtZone){
+			params.dirZone = values.zone || dtZone;
 		}
 
 		this.requestDirection(params);
@@ -384,6 +392,7 @@ class AstroGivenYear extends Component{
 	}
 
 	changeDblChartType(value){
+		DIRECTION_PAGE_SETTINGS.save({ givenYearInverse: value });
 		this.setState({
 			inverse: value,
 		});

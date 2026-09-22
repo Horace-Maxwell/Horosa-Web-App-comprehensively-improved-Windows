@@ -23,6 +23,7 @@ import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
+import moment from 'moment';
 import { classicalBackendOverrides, classicalGlobalValue } from '../../utils/classicalChartGlobals';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
@@ -80,20 +81,49 @@ export function buildChartObjectLines(chartObj){
 	if(houses.length === 0){
 		return lines;
 	}
-	lines.push('| 宫位 | 星体 | 度 | 座 | 分 |');
-	lines.push('| --- | --- | --- | --- | --- |');
+	// [Q-455/T-418] 逆行列:盘面星体带 ℞ 标(lonspeed<0)而快照此前不带 → AI 不知逆行;无速度字段的星(角点/虚点)为 —。
+	lines.push('| 宫位 | 星体 | 度 | 座 | 分 | 逆行 |');
+	lines.push('| --- | --- | --- | --- | --- | --- |');
 	houses.forEach((house)=>{
 		const inHouse = objects.filter((obj)=>obj.house === house.id);
 		if(inHouse.length === 0){
-			lines.push(`| ${msg(house.id)} | 无 | — | — | — |`);
+			lines.push(`| ${msg(house.id)} | 无 | — | — | — | — |`);
 			return;
 		}
 		inHouse.forEach((obj, k)=>{
 			const sd = splitDegree(obj.signlon);
-			lines.push(`| ${k === 0 ? msg(house.id) : '—'} | ${msg(obj.id)} | ${sd[0]} | ${msg(obj.sign)} | ${sd[1]} |`);
+			const retro = Number.isFinite(Number(obj.lonspeed)) && Number(obj.lonspeed) < 0 ? '逆' : '—';
+			lines.push(`| ${k === 0 ? msg(house.id) : '—'} | ${msg(obj.id)} | ${sd[0]} | ${msg(obj.sign)} | ${sd[1]} | ${retro} |`);
 		});
 	});
 	return lines;
+}
+
+// [Q-455/T-418] 两盘相位(盘面 AstroChart 画的相位线来自 chart.aspects.normalAsp)此前不进快照。
+// 行=(主体,相位,对象,相态,误差),相态:入相/离相(Exact 与 Separative 折为离相,同西占快照口径)/None 为 —。
+export function buildChartAspectLines(chartObj){
+	const chart = chartObj && chartObj.chart ? chartObj.chart : null;
+	const normal = chart && chart.aspects && chart.aspects.normalAsp ? chart.aspects.normalAsp : null;
+	if(!normal){
+		return [];
+	}
+	const round3 = (v)=>(v === undefined || v === null || Number.isNaN(Number(v)) ? '' : `${Math.round(Number(v) * 1000) / 1000}`);
+	const rows = [];
+	const ids = (chart.objects || []).map((o)=>o.id).filter((id)=>normal[id]);
+	Object.keys(normal).forEach((id)=>{ if(ids.indexOf(id) < 0){ ids.push(id); } });
+	ids.forEach((id)=>{
+		const one = normal[id];
+		if(!one){ return; }
+		const subject = msg(id);
+		(one.Applicative || []).forEach((asp)=>rows.push(`| ${subject} | ${asp.asp}˚ | ${msg(asp.id)} | 入相 | ${round3(asp.orb)} |`));
+		(one.Exact || []).forEach((asp)=>rows.push(`| ${subject} | ${asp.asp}˚ | ${msg(asp.id)} | 离相 | ${round3(asp.orb)} |`));
+		(one.Separative || []).forEach((asp)=>rows.push(`| ${subject} | ${asp.asp}˚ | ${msg(asp.id)} | 离相 | ${round3(asp.orb)} |`));
+		(one.None || []).forEach((asp)=>rows.push(`| ${subject} | ${asp.asp}˚ | ${msg(asp.id)} | — | ${round3(asp.orb)} |`));
+	});
+	if(!rows.length){
+		return [];
+	}
+	return ['| 主体 | 相位 | 对象 | 相态 | 误差 |', '| --- | --- | --- | --- | --- |', ...rows];
 }
 
 function buildDiceSnapshotText(params, result, text){
@@ -105,7 +135,9 @@ function buildDiceSnapshotText(params, result, text){
 	lines.push(`日期：${params.date} ${params.time}`);
 	lines.push(`时区：${params.zone}`);
 	lines.push(`经纬度：${params.lon} ${params.lat}`);
-	lines.push(`传统模式：${params.tradition ? '无三王星' : '含三王星'}`);
+	// [Q-145/T-52] 说清作用域:tradition 只决定**掷出的那颗星**从哪个池里抽;后端 PerChart 不读该键,
+	//   背景盘面恒按完整星集绘制 —— 此前一句「传统模式:无三王星」让人以为整盘都不含三王星。
+	lines.push(`掷星星池：${params.tradition ? '传统七政 + 交点 / 虚点(不含三王星)' : '含三王星的完整星集'}(背景盘面仍按完整星集绘制)`);
 	lines.push(`问题：${text || '未填写'}`);
 
 	lines.push('');
@@ -121,6 +153,20 @@ function buildDiceSnapshotText(params, result, text){
 	lines.push('');
 	lines.push('[天象盘宫位与星体]');
 	lines.push(...buildChartObjectLines(skyChart));
+
+	// [Q-455/T-418] 两盘相位段(有相位数据才产段;缺数据时既有输出逐字不变)。
+	const diceAsp = buildChartAspectLines(diceChart);
+	if(diceAsp.length){
+		lines.push('');
+		lines.push('[骰子盘相位]');
+		lines.push(...diceAsp);
+	}
+	const skyAsp = buildChartAspectLines(skyChart);
+	if(skyAsp.length){
+		lines.push('');
+		lines.push('[天象盘相位]');
+		lines.push(...skyAsp);
+	}
 
 	return lines.join('\n');
 }
@@ -193,17 +239,23 @@ class DiceMain extends Component{
 					return;
 				}
 				let fld = fields;
-				this.setState({
-					zone: fld ? fld.zone.value : this.state.zone,
-					lat: fld ? fld.lat.value : this.state.lat,
-					lon: fld ? fld.lon.value : this.state.lon,
-					gpsLat: fld ? fld.gpsLat.value : this.state.gpsLat,
-					gpsLon: fld ? fld.gpsLon.value : this.state.gpsLon,
+				// [Q-151/AX-19①] 宿主每次切子页签都调本钩:此前无条件以本命 fields 回填 → 骰子页手改过的经纬/时区/三王星被覆盖。
+				//   现只回填**未在本页手改过**的组(geo / zone / tradition;改过的保留本页值)。
+				const touched = this._localTouched || {};
+				const patch = {
 					hsys: fld ? fld.hsys.value: this.state.hsys,
 					zodiacal: fld ? fld.zodiacal.value: this.state.zodiacal, siderealAyanamsa: fld ? (fld.siderealAyanamsa ? fld.siderealAyanamsa.value : '') : this.state.siderealAyanamsa,
-					tradition: fld ? fld.tradition.value: this.state.tradition,
 					virtualPointReceiveAsp: fld ? fld.virtualPointReceiveAsp.value: this.state.virtualPointReceiveAsp,
-				});
+				};
+				if(!touched.zone){ patch.zone = fld ? fld.zone.value : this.state.zone; }
+				if(!touched.geo){
+					patch.lat = fld ? fld.lat.value : this.state.lat;
+					patch.lon = fld ? fld.lon.value : this.state.lon;
+					patch.gpsLat = fld ? fld.gpsLat.value : this.state.gpsLat;
+					patch.gpsLon = fld ? fld.gpsLon.value : this.state.gpsLon;
+				}
+				if(!touched.tradition){ patch.tradition = fld ? fld.tradition.value: this.state.tradition; }
+				this.setState(patch);
 			};
 
 		}
@@ -214,7 +266,11 @@ class DiceMain extends Component{
 	}
 
 	genParams(){
-		let datetime = new DateTime();
+		// [Q-140/T-47] 「此刻」按页面所选时区(含选地点自动校正)取墙钟:此前 new DateTime() 取本机本地时间却硬编码 +08:00,
+		// 时区下拉是死开关,且本机不在东八区时盘按「本机墙钟 + 东八区」换算,起盘瞬间错开 |本机时区−8| 小时。
+		const _zone = this.state.zone || '+08:00';
+		const _m = moment().utcOffset(_zone);
+		let datetime = new DateTime({ ad: 1, zone: _zone, year: _m.year(), month: _m.month() + 1, date: _m.date(), hour: _m.hour(), minute: _m.minute(), second: _m.second() });
 		let ran = randomNum(3);
 		let ranPlanet = ran % ALL_PLANETS.length;
 		let planet = ALL_PLANETS[ranPlanet];
@@ -354,6 +410,7 @@ class DiceMain extends Component{
 	}
 
     changeGeo(geo){
+		this.markLocalTouched('geo');   // [Q-151/AX-19①]
         let gps = {
             lat: geo.gpsLat,
             lon: geo.gpsLng,
@@ -387,7 +444,12 @@ class DiceMain extends Component{
         });       
 	}
 
+	markLocalTouched(group){
+		this._localTouched = { ...(this._localTouched || {}), [group]: true };   // [Q-151/AX-19①]
+	}
+
 	changeLat(value){
+		this.markLocalTouched('geo');
 		let gdlat = AstroHelper.convertLatStrToDegree(value);
 		let gdlon = AstroHelper.convertLonStrToDegree(this.state.lon);
 		let gps = gcj02ToGps(gdlat, gdlon);
@@ -400,6 +462,7 @@ class DiceMain extends Component{
 	}
 	
 	changeLon(value){
+		this.markLocalTouched('geo');
 		let gdlat = AstroHelper.convertLatStrToDegree(this.state.lat);
 		let gdlon = AstroHelper.convertLonStrToDegree(value);
 		let gps = gcj02ToGps(gdlat, gdlon);
@@ -411,12 +474,14 @@ class DiceMain extends Component{
 	}
 	
 	changeTradition(value){
+		this.markLocalTouched('tradition');
 		this.setState({
 			tradition: value,
 		});
 	}
 
 	changeZone(value){
+		this.markLocalTouched('zone');
 		this.setState({
 			zone: value,
 		});
@@ -657,8 +722,9 @@ class DiceMain extends Component{
 							<Row gutter={6}>
 								<Col span={12}>
 									<Select value={this.state.tradition} onChange={this.changeTradition} style={{width: '100%'}} size='small'>
-										<Option value={0}>含三王星</Option>
-										<Option value={1}>无三王星</Option>
+										{/* [Q-145/T-52] 只影响掷星的抽签池,不影响背景盘面 */}
+										<Option value={0}>掷星含三王星</Option>
+										<Option value={1}>掷星不含三王星</Option>
 									</Select>
 								</Col>
 								<Col span={12}>

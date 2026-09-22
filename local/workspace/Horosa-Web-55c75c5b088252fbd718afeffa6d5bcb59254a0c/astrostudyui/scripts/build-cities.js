@@ -60,9 +60,24 @@ function num(v){
 }
 
 // 世界城市 → 短键条目数组(按 pop 阈值过滤)。英文名,无拼音(本就拉丁字母可直接搜)。
+// 世界城市中文别名种子(人工核验;键 = 源库英文名|ISO2 国码 → 简体中文名)。命中的条目 n=中文、e=英文、p=中文拼音,
+// 中文用户键入「利马/惠灵顿/雷克雅未克」才能命中;未命中的条目保持英文形状不变。
+const WORLD_ZH_SRC = path.join(__dirname, 'data', 'world_cities_zh.json');
+function loadWorldZh(){
+	try{
+		const m = JSON.parse(fs.readFileSync(WORLD_ZH_SRC, 'utf8'));
+		delete m._doc;
+		return m;
+	}catch(e){
+		return {};
+	}
+}
+
 function buildWorld(popThreshold){
 	const raw = JSON.parse(fs.readFileSync(WORLD_SRC, 'utf8'));
+	const zh = loadWorldZh();
 	const out = [];
+	let zhHits = 0;
 	for(const c of raw){
 		const pop = num(c.pop);
 		if(pop === null || pop < popThreshold){
@@ -74,8 +89,28 @@ function buildWorld(popThreshold){
 		if(lat === null || lon === null || !name){
 			continue;
 		}
-		out.push({ n: name, e: name, r: `${c.country || ''}`.trim(), p: '', y: lat, x: lon });
+		const country = `${c.country || ''}`.trim();
+		const cn = zh[`${name}|${country}`];
+		if(cn){
+			zhHits += 1;
+			out.push({ n: cn, e: name, r: country, p: pinyinSyllables(cn), y: lat, x: lon });
+		}else{
+			out.push({ n: name, e: name, r: country, p: '', y: lat, x: lon });
+		}
 	}
+	// 种子里有而源库(按人口阈值)没有的首都/小城:直接从源库全量里补(不受人口阈值限制)
+	const present = new Set(out.map((o)=>`${o.e}|${o.r}`));
+	for(const key of Object.keys(zh)){
+		if(present.has(key)){ continue; }
+		const [name, country] = key.split('|');
+		const src = raw.find((c)=>`${c.name || ''}`.trim() === name && `${c.country || ''}`.trim() === country);
+		if(!src){ continue; }
+		const lat = num(src.lat); const lon = num(src.lon);
+		if(lat === null || lon === null){ continue; }
+		zhHits += 1;
+		out.push({ n: zh[key], e: name, r: country, p: pinyinSyllables(zh[key]), y: lat, x: lon });
+	}
+	console.log(`world zh aliases matched: ${zhHits}/${Object.keys(zh).length}`);
 	return out;
 }
 

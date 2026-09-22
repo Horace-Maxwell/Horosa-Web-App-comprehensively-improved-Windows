@@ -12,7 +12,7 @@
 //
 // 新增子技法时:改这里 + 该组 Main 的 TabPane,两处即可(导航层自动跟随)。
 
-// 辅盘(命·辅助盘)。首档 = 数组第一项。私有子技法键用独占行 marker 块尾附
+// 辅盘(命·辅助盘)。首档 = 数组第一项。扩展子技法键在表尾追加
 // (strip 后 public 集合与其 TabPane 集恒自洽,键名也不外泄)。
 export const AUX_SUBTABS = [
 	'germanytech', 'hellenastro', 'dwadasamsa', 'locastro', 'relocation', 'harmonic', 'draconic', 'otherbu', 'horary', 'election', 'mundane',
@@ -30,6 +30,9 @@ export const ZERI_SUBTABS = ['tianxing', 'qimenzeri',
 
 // 命·传统(参考类)。
 export const CNTRADITION_SUBTABS = ['guasym', 'cuangong12', 'pithy'];
+// [Q-417/T-377] 合盘四子页签(AstroRelative.state.hook 键);导航切到合盘时按此表回落,免得沿用辅盘的 germanytech
+// (帮助注册表对 germanytech 有子技法优先规则 → 页头「帮助」标题写合盘、正文却是量化盘手册)。
+export const RELATIVE_SUBTABS = ['Comp', 'Composite', 'Synastry', 'TimeSpace'];
 
 /** 取某组的首档(导航层回落用),空集时返回 ''。 */
 export function firstSubTab(list){
@@ -52,6 +55,7 @@ const SUBTAB_RUNTIME_KEYS = {
 	auxchart: '__horosaAuxchartCurrentTab',
 	cntradition: '__horosaCnTraditionCurrentTab',
 	zeri: '__horosaZeriCurrentTab',
+	relativechart: '__horosaRelativeCurrentTab',
 };
 
 /** 记住某组当前子页签(仅合法值入槽;SSR/未知组静默跳过)。 */

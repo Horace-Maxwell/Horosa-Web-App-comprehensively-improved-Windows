@@ -1,0 +1,18 @@
+diff --git a/astrostudyui/src/utils/__tests__/aiMaterialImportGuard.test.js b/astrostudyui/src/utils/__tests__/aiMaterialImportGuard.test.js
+index c49f7619..c177cd1b 100644
+--- a/astrostudyui/src/utils/__tests__/aiMaterialImportGuard.test.js
++++ b/astrostudyui/src/utils/__tests__/aiMaterialImportGuard.test.js
+@@ -18,7 +18,12 @@ import {
+ const mk = (name, size)=>({ name, size: size || 1 });
+ 
+ it('🔴 白名单与桌面壳、后端上限三方同源', ()=>{
+-	const mainRs = fs.readFileSync(path.resolve(__dirname, '../../../../../Horosa_Desktop_Installer/src-tauri/src/main.rs'), 'utf8');
++	// horosa_win_shell_const_v1(Windows 侧移植适配):Windows 壳是 Electron,同名白名单常量住在
++	// desktop_installer_bundle/electron/desktop-bridge.js(`AI_ANALYSIS_IMPORT_EXTENSIONS = ["txt", …]`,与 Tauri main.rs 同一正则形);
++	// Tauri main.rs 缺席时读它。判据零放宽:壳层白名单仍必须与前端白名单逐字同集。
++	const mainRsPath = path.resolve(__dirname, '../../../../../Horosa_Desktop_Installer/src-tauri/src/main.rs');
++	const electronBridgePath = path.resolve(__dirname, '../../../../../../../desktop_installer_bundle/electron/desktop-bridge.js');
++	const mainRs = fs.readFileSync(fs.existsSync(mainRsPath) ? mainRsPath : electronBridgePath, 'utf8');
+ 	const m = /AI_ANALYSIS_IMPORT_EXTENSIONS[^=]*=\s*\[([^\]]*)\]/.exec(mainRs);
+ 	expect(m).toBeTruthy();
+ 	const shell = m[1].split(',').map((s)=>s.trim().replace(/^"|"$/g, '')).filter(Boolean);

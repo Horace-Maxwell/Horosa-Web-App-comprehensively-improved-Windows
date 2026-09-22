@@ -10,12 +10,36 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* [极档巡检 2026-09-18] 原 justify-content:center + overflow:hidden:1.8 档中栏 434px 放不下 738px 的上盒+合一盘+下盒,
+     溢出的上半截跑到滚动起点之前(上信息行被裁且滚不到,下盒也被裁)。改顶对齐 + 首尾子元素 auto 外边距(放得下时照旧居中)
+     (宁可滚、不能裁;滚动盒见下 overflow 处的说明);1.0 档(内容 ≤ 中栏)零变化。 */
+  justify-content: flex-start;
   gap: 8px;
   width: 100%;
   height: 100%;
   min-height: 0;
-  overflow: hidden;
+  /* 本层不再自己滚:滚动只交给外面的中栏面板(它本来就是 overflow:auto),放不下时内容从本层溢出、由面板滚到全部,极档行为不变。
+     原因是系统浏览器内核的一处合成层缺陷:「定高百分比的滚动盒 + 首尾子元素 auto 外边距居中」被提升成合成层时(浅色主题下面板外阴影
+     互相重叠,整个工作区都会被提升),内核只画「从盒顶起、内容自身那么高」的一段,而内容被上外边距整体下推 ⇒ 底部恰好一个上外边距
+     那么高的内容没画出来(起盘后盘底信息盒第二行被白带截断;版面尺寸全对,只有屏幕上缺;换一次缩放档触发整页重画才恢复)。
+     触发还需要外层版面有一处溢出(此前坞行 58 装 64 的坞)加栅格隐式行,那两处已各自根修;这里去掉第三个必要条件,三处任一成立都不再复现。 */
+  overflow: visible;
+  /* [极档巡检 2026-09-18] 横向同理:1.8 档中栏 342px 时上盒被压到 340px,四柱格只剩 12px 一格、干支叠成一团。
+     子盒给内容底线(设计宽 580,底线 560 → 1.0 档零变化),横向靠 auto 外边距居中(放不下时左对齐可滚)。 */
+  align-items: flex-start;
+}
+
+.boardStack > * {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.boardStack > :first-child {
+  margin-top: auto;
+}
+
+.boardStack > :last-child {
+  margin-bottom: auto;
 }
 
 .topBox {
@@ -26,6 +50,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 148px;
   gap: 6px;
+  min-width: 560px;
 }
 
 .topLeft {
@@ -570,6 +595,7 @@
   display: grid;
   grid-template-columns: 1fr 94px;
   gap: 8px;
+  min-width: 560px;
 }
 
 .bottomGrid {

@@ -57,3 +57,35 @@ describe('ACG 快照 Parans 表化 · 数值不变证明', () => {
 		expect(now).toMatch(/◆ 固定星交映[\s\S]*\| --- \|/);
 	});
 });
+
+// [Q-440/T-403] 本地空间线 / 地理等价线:两图层开启时才进快照(数据+口径行),关着逐字同旧。
+describe('占星地图快照 · 本地空间线 / 地理等价线(Q-440)', () => {
+	const data = {
+		meta: { mode: 'mundo', coord: 'geo', lsMode: 'rhumb', geodetic: 'johndro', geodeticVar: 'ra' },
+		planets: {
+			Sun: { lines: { mc: { lon: 10 }, ic: { lon: -170 }, lsAz: { az: 123.456, alt: -12.34 }, geodetic: { mc: { lon: 45.5 }, ic: { lon: -134.5 } } } },
+			Moon: { lines: { mc: { lon: 20 }, ic: { lon: -160 }, lsAz: { az: 300.1, alt: 40 }, geodetic: { mc: { lon: -10 }, ic: { lon: 170 } } } },
+		},
+	};
+	it('两开关关 → 无两段;开 → 出方位/高度表与地理MC/IC 表,口径行写画法/流派/取数/子午线', () => {
+		clearAcgSnapshot();
+		setAcgSnapshot(data, { showLS: false, showGeodetic: false });
+		const off = buildAcgSectionText();
+		expect(off).not.toContain('本地空间线');
+		expect(off).not.toContain('地理等价线');
+		clearAcgSnapshot();
+		setAcgSnapshot(data, { showLS: true, showGeodetic: true, geodeticZero: '' });
+		const on = buildAcgSectionText();
+		expect(on).toContain('◆ 本地空间线(画法 等角航线;');
+		expect(on).toContain('| 太阳 | 123.5° | -12.3° |');
+		expect(on).toContain('| 月亮 | 300.1° | 40.0° |');
+		expect(on).toContain('◆ 地理等价线(流派 约翰德罗 · 取数 赤经法 · 0°♈ 子午线 30.00°W(流派缺省);');
+		expect(on).toContain('| 太阳 | 45.50°E | 134.50°W |');
+		expect(on.replace(/◆ 本地空间线[\s\S]*?(?=◆ 地理等价线)/, '').replace(/◆ 地理等价线[\s\S]*$/, '').trim()).toBe(off.trim());
+	});
+	it('自定义 0°♈ 子午线走 uiState.geodeticZero 并标「自定义」', () => {
+		clearAcgSnapshot();
+		setAcgSnapshot(data, { showGeodetic: true, geodeticZero: '12.5' });
+		expect(buildAcgSectionText()).toContain('0°♈ 子午线 12.50°E(自定义)');
+	});
+});

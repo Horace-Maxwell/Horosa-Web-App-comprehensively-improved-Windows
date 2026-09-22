@@ -34,9 +34,11 @@ describe('印度 jyotish 快照挂载（§1.3 单一真值源）', ()=>{
 		expect(out['Panchanga 五要素'].join('\n')).toMatch(/月宿\(Nakshatra\)：娄宿/);
 		expect(out['Panchanga 五要素'].join('\n')).toMatch(/月相\(Tithi\)：Shukla Panchami（第 5 日）/);
 		// [v2 表化] 格式锚随 GFM 表更新(值零变化：罗睺逆量用度 28.28 逐字仍在，数据行位移至 [2])。
-		expect(out['卡拉卡（8 Chara Karakas）'][0]).toBe('| 卡拉卡 | 星曜 | 本命落座 | 用度 |');
-		expect(out['卡拉卡（8 Chara Karakas）'][2]).toBe('| AK Atmakaraka | 罗睺 | 巨蟹 28.28° | 用度 28.28° |');
-		expect(out['卡拉卡（8 Chara Karakas）']).toHaveLength(4);
+		// [Q-135/T-43] 段首行=方案标注(取引擎 karakaScheme),表头与数据行各后移一位
+		expect(out['卡拉卡（8 Chara Karakas）'][0]).toMatch(/^方案：8 卡拉卡（含 Rāhu），共 \d+ 行$/);
+		expect(out['卡拉卡（8 Chara Karakas）'][1]).toBe('| 卡拉卡 | 星曜 | 本命落座 | 用度 |');
+		expect(out['卡拉卡（8 Chara Karakas）'][3]).toBe('| AK Atmakaraka | 罗睺 | 巨蟹 28.28° | 用度 28.28° |');
+		expect(out['卡拉卡（8 Chara Karakas）']).toHaveLength(5);   // 方案行 + 表头 + 分隔 + 2 数据行
 		expect(out['节点主照（Rasi Drishti）']).toEqual(['| 给照 | 受照 |', '| --- | --- |', '| 罗睺 | 天蝎 |', '| 计都 | 金牛 |']);
 	});
 
@@ -136,6 +138,20 @@ describe('印度 jyotish 快照挂载（§1.3 单一真值源）', ()=>{
 			lon: 240.9611, sign: 'Sagittarius', signLabel: '射手', nakshatra: { name: 'Mula', pada: 1 },
 		} } } });
 		expect(out['Nāḍī · Bhrigu Bindu 福点']).toEqual(['射手·MulaP1（黄经 240.96°）']);
+	});
+
+	// [Q-393① 裁决 2026-09-18] 所绘为分盘时,Nāḍī 段须注明「恒按 D1」(引擎侧 Q-393② 已恒取 d1_chart);
+	// D1(缺省)不出该行 = 缺省快照字节不变。判别向量:同一份 nadi 数据,只换 engine.chartnum。
+	it('P2 Nāḍī 口径注:分盘时注明恒按 D1,D1 缺省零新增', ()=>{
+		const nadi = { available: true, bhriguBindu: {
+			lon: 240.9611, sign: 'Sagittarius', signLabel: '射手', nakshatra: { name: 'Mula', pada: 1 },
+		} };
+		const d1 = buildJyotishSnapshotLines({ jyotish: { engine: { chartnum: 1 }, nadi } });
+		expect(d1['Nāḍī · Bhrigu Bindu 福点']).toEqual(['射手·MulaP1（黄经 240.96°）']);
+		const d9 = buildJyotishSnapshotLines({ jyotish: { engine: { chartnum: 9 }, nadi } });
+		expect(d9['Nāḍī · Bhrigu Bindu 福点'].length).toBe(2);
+		expect(d9['Nāḍī · Bhrigu Bindu 福点'][1]).toContain('恒按 D1 本命盘绝对黄经');
+		expect(d9['Nāḍī · Bhrigu Bindu 福点'][1]).toContain('D9');
 	});
 
 	it('P2 Āyurdāya 寿命基础成段（AI 同步）', ()=>{

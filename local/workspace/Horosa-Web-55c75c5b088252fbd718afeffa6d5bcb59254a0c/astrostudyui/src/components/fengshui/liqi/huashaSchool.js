@@ -163,6 +163,8 @@ export function snapshotLines(r) {
 	if (rk.length) {
 		L.push('气煞·日课：' + rk.map((x)=>`${x.name}${x.dir ? `(${x.dir})` : ''}${x.fires ? '·有动象须化' : '·静无灾'}`).join('；'));
 	}
+	// [Q-221/T-183·FT-17] 坐山正犯岁破单列一句(登记坐山且犯才出)。
+	if (r.zuoSuiPo && r.zuoSuiPoText) { L.push(`坐山岁破：${r.zuoSuiPoText}`); }
 	if (r.qiShaLiqi.length) {
 		L.push('气煞·理气：' + r.qiShaLiqi.map((x)=>`${x.dir}${x.name}(山${x.stars.shan}向${x.stars.xiang}运${x.stars.yun})${x.fires ? '·有动象须化' : '·静无灾'}`).join('；'));
 	}

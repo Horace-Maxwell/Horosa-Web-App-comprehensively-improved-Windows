@@ -1,7 +1,9 @@
 import React from 'react';
-import { Button, Card, DatePicker, Drawer, Input, InputNumber, Modal, Pagination, Radio, Select, Switch, Table, Tabs, Tooltip } from 'antd';
+import { Button, Card, DatePicker, TimePicker, Drawer, Input, InputNumber, Modal, Pagination, Radio, Select, Switch, Table, Tabs, Tooltip, message } from 'antd';
+import moment from 'moment';
 import XQIcon from '../xq-icons';
 import { safeJsonParseFromStorage, safeJsonStringifyToStorage } from '../../utils/safeStorage';
+import { parseQuickDigitsForFormat, pickerDigitsLength, QUICK_DIGITS_ERROR_PREFIX } from '../../utils/quickDateTimeDigits';
 
 export function XQButton({children, iconName, className = '', variant = 'default', ...rest}){
 	const icon = iconName ? <XQIcon name={iconName} /> : rest.icon;
@@ -83,12 +85,53 @@ export function useSlidingIndicator(containerRef, activeSelector, deps = []){
 	return box;
 }
 
+// [窄布局 2026-09-17] 分段控件放不下(各项文字总宽+内衬 > 容器)时挂 is-wrapped:两列多行、关闭滑块;文字宽用 Range 逐行累加,
+// 与容器同在视觉域比较,不依赖当前是否已折行(无振荡)。环境不支持时恒 false = 现状。
+export function useSegmentedWrap(containerRef, deps = []){
+	const [wrapped, setWrapped] = React.useState(false);
+	React.useEffect(()=>{
+		const el = containerRef.current;
+		if(!el || typeof ResizeObserver === 'undefined' || typeof document.createRange !== 'function'){ return undefined; }
+		const measure = ()=>{
+			const btns = el.querySelectorAll('.ant-radio-button-wrapper');
+			if(!btns.length){ return; }
+			let need = 0;
+			btns.forEach((b)=>{
+				// [2026-09-18 假折行根修] 只量可见文字那个直接子 span:整个 label 的 Range 会把 antd 撑满按钮的隐藏
+				// radio input(width:100%)与文字 span 的元素盒一起算进去(实测每项 129+28+28),三项 597 > 258 恒判折行,
+				// 印占「盘式」/ 巴比伦六曜等一行放得下的分段全被摊成两列。Range 仍按行累加 = 单行自然宽,已折行也不振荡。
+				const label = Array.prototype.find.call(b.children, (c)=>c.tagName === 'SPAN' && !c.classList.contains('ant-radio-button')) || b;
+				let tw = 0;
+				try{
+					const range = document.createRange();
+					range.selectNodeContents(label);
+					const rects = range.getClientRects();
+					for(let i = 0; i < rects.length; i++){ tw += rects[i].width; }
+				}catch(e){ tw = label.scrollWidth; }
+				const cs = getComputedStyle(b);
+				need += tw + (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0) + 2;
+			});
+			const avail = el.getBoundingClientRect().width - 8;
+			const next = avail > 0 && need > avail;
+			setWrapped((w)=>(w === next ? w : next));
+		};
+		measure();
+		const ro = new ResizeObserver(measure);
+		ro.observe(el);
+		return ()=>ro.disconnect();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [containerRef, ...deps]);
+	return wrapped;
+}
+
 export function XQSegmented({value, options, onChange, className = '', size = 'small'}){
 	// 星阙金 W1:内部滑块 —— Radio.Group DOM 与 {value,options,onChange(e.target.value)} API 零变,
 	// 仅组内新增绝对定位 thumb(aria-hidden);测量不可用时无 -sliding 类,CSS 落回选中项实底。
 	const groupRef = React.useRef(null);
 	const optionCount = (options || []).length;
 	const thumb = useSlidingIndicator(groupRef, '.ant-radio-button-wrapper-checked', [value, optionCount]);
+	const wrapped = useSegmentedWrap(groupRef, [optionCount, (options || []).map((o)=>String(o && o.label)).join('|')]);
+	const sliding = thumb.ready && !wrapped;
 	return (
 		<Radio.Group
 			ref={groupRef}
@@ -96,9 +139,9 @@ export function XQSegmented({value, options, onChange, className = '', size = 's
 			buttonStyle="solid"
 			value={value}
 			onChange={onChange}
-			className={`xq-segmented ${thumb.ready ? 'xq-segmented-sliding' : ''} ${className}`.trim()}
+			className={`xq-segmented ${sliding ? 'xq-segmented-sliding' : ''} ${wrapped ? 'is-wrapped' : ''} ${className}`.trim()}
 		>
-			{thumb.ready ? (
+			{sliding ? (
 				<span
 					className="xq-segmented-thumb"
 					aria-hidden="true"
@@ -251,26 +294,153 @@ export function XQInputNumber({className = '', ...rest}){
 	);
 }
 
+// ===== 日期/时间选择框「数字快输」宿主 =====
+// 用户在选择框里连续键入数字(不带分隔符),按选择框的 format 切成年月日时分秒:输满即换算、回车/失焦亦换算;
+// 不足位补 0(月日 00→01)、多余位丢弃、越界报错保留旧值。挂在 capture 阶段:回车先于 rc-picker 自己的键处理,
+// 换算成功即阻止其继续(否则 rc-picker 把纯数字当无效文本回退)。区间选择框按被键入的那个输入框改对应端。
+function resolvePickerFormat({ format, picker, showTime }){
+	const f = Array.isArray(format) ? format[0] : format;
+	if(typeof f === 'string'){ return f; }
+	if(typeof f === 'function'){ return null; }
+	if(picker === 'time'){ return 'HH:mm:ss'; }
+	if(picker === 'month'){ return 'YYYY-MM'; }
+	if(picker === 'year'){ return 'YYYY'; }
+	if(picker === 'week' || picker === 'quarter'){ return null; }
+	if(showTime){
+		const tf = showTime && typeof showTime === 'object' && typeof showTime.format === 'string' ? showTime.format : 'HH:mm:ss';
+		return `YYYY-MM-DD ${tf}`;
+	}
+	return 'YYYY-MM-DD';
+}
+
+function momentFromDigitParts(parts, base){
+	if(parts.year !== null){
+		return moment({ year: parts.year, month: parts.month - 1, date: parts.day, hour: parts.hour, minute: parts.minute, second: parts.second, millisecond: 0 });
+	}
+	const b = base && moment.isMoment(base) && base.isValid() ? base.clone() : moment();
+	return b.hour(parts.hour).minute(parts.minute).second(parts.second).millisecond(0);
+}
+
+function pickerDigitsOnly(text){
+	return /^[\s0-9０-９]+$/.test(text || '') && /[0-9０-９]/.test(text || '');
+}
+
+function pickerInvalid(text){
+	try{ message.error(text, 3); }catch(e){ /* 无 antd 上下文时静默 */ }
+}
+
+export function QuickDigitsHost({ format, picker, showTime, value, onChange, onInvalid, range, children }){
+	const fmt = resolvePickerFormat({ format, picker, showTime });
+	const total = fmt ? pickerDigitsLength(fmt) : 0;
+	const rootRef = React.useRef(null);
+	const lockRef = React.useRef(false);
+	const isPickerInput = (t)=>!!(fmt && t && t.tagName === 'INPUT' && t.closest && t.closest('.ant-picker'));
+	const inputIndex = (el)=>{
+		const root = rootRef.current;
+		if(!root){ return 0; }
+		const i = Array.prototype.indexOf.call(root.querySelectorAll('.ant-picker input'), el);
+		return i < 0 ? 0 : i;
+	};
+	const commit = (el, text)=>{
+		if(!fmt || lockRef.current){ return false; }
+		const res = parseQuickDigitsForFormat(text, fmt);
+		if(res.errorCode === 'empty' || res.errorCode === 'format'){ return false; }
+		if(!res.ok){
+			(onInvalid || pickerInvalid)(res.error, res);
+			return false;
+		}
+		const idx = range ? inputIndex(el) : 0;
+		const base = range ? (Array.isArray(value) ? value[idx] : null) : value;
+		const m = momentFromDigitParts(res.parts, base);
+		if(!m.isValid()){
+			(onInvalid || pickerInvalid)(`${QUICK_DIGITS_ERROR_PREFIX}无法构造时间`, res);
+			return false;
+		}
+		lockRef.current = true;
+		try{
+			try{ el.blur(); }catch(e){ /* noop */ }   // 先失焦:rc-picker 收起面板并按新值回填文本
+			if(typeof onChange === 'function'){
+				if(range){
+					const cur = Array.isArray(value) ? value.slice(0, 2) : [];
+					while(cur.length < 2){ cur.push(null); }
+					cur[idx] = m;
+					// 另一端还空着:用同一时刻补齐成合法区间(消费者多半丢弃半区间,输入会「像没生效」);再键另一端即覆盖
+					const other = idx === 0 ? 1 : 0;
+					if(!(cur[other] && cur[other].isValid && cur[other].isValid())){ cur[other] = m.clone(); }
+					onChange(cur, cur.map((x)=>(x && x.isValid && x.isValid() ? x.format(fmt) : '')));
+				}else{
+					onChange(m, m.format(fmt));
+				}
+			}
+		}finally{
+			lockRef.current = false;
+		}
+		return true;
+	};
+	const onKeyDownCapture = (e)=>{
+		const t = e.target;
+		if(!isPickerInput(t)){ return; }
+		if((e.key === 'Enter' || e.keyCode === 13) && pickerDigitsOnly(t.value)){
+			if(commit(t, t.value)){ e.preventDefault(); e.stopPropagation(); }
+		}
+	};
+	const onInputCapture = (e)=>{
+		const t = e.target;
+		if(!isPickerInput(t)){ return; }
+		const v = t.value;
+		if(pickerDigitsOnly(v) && parseQuickDigitsForFormat(v, fmt).digits.length >= total){
+			commit(t, v);
+		}
+	};
+	const onBlurCapture = (e)=>{
+		const t = e.target;
+		if(!isPickerInput(t)){ return; }
+		if(pickerDigitsOnly(t.value)){ commit(t, t.value); }
+	};
+	return (
+		<span ref={rootRef} className="xq-quick-digits-host" style={{ display: 'contents' }} data-quick-digits-host={fmt ? '1' : '0'}
+			onKeyDownCapture={onKeyDownCapture} onInputCapture={onInputCapture} onBlurCapture={onBlurCapture}>
+			{children}
+		</span>
+	);
+}
+
 export function XQDatePicker({className = '', popupClassName = '', ...rest}){
 	return (
-		<DatePicker
-			{...rest}
-			className={`xq-date-picker ${className}`.trim()}
-			popupClassName={`xq-date-picker-popup ${popupClassName}`.trim()}
-		/>
+		<QuickDigitsHost format={rest.format} picker={rest.picker} showTime={rest.showTime} value={rest.value} onChange={rest.onChange}>
+			<DatePicker
+				{...rest}
+				className={`xq-date-picker ${className}`.trim()}
+				popupClassName={`xq-date-picker-popup ${popupClassName}`.trim()}
+			/>
+		</QuickDigitsHost>
 	);
 }
 
 XQDatePicker.RangePicker = function XQRangePicker({className = '', popupClassName = '', ...rest}){
 	const RangePicker = DatePicker.RangePicker;
 	return (
-		<RangePicker
-			{...rest}
-			className={`xq-date-picker xq-range-picker ${className}`.trim()}
-			popupClassName={`xq-date-picker-popup ${popupClassName}`.trim()}
-		/>
+		<QuickDigitsHost range format={rest.format} picker={rest.picker} showTime={rest.showTime} value={rest.value} onChange={rest.onChange}>
+			<RangePicker
+				{...rest}
+				className={`xq-date-picker xq-range-picker ${className}`.trim()}
+				popupClassName={`xq-date-picker-popup ${popupClassName}`.trim()}
+			/>
+		</QuickDigitsHost>
 	);
 };
+
+export function XQTimePicker({className = '', popupClassName = '', ...rest}){
+	return (
+		<QuickDigitsHost picker="time" format={rest.format} value={rest.value} onChange={rest.onChange}>
+			<TimePicker
+				{...rest}
+				className={`xq-date-picker xq-time-picker ${className}`.trim()}
+				popupClassName={`xq-date-picker-popup ${popupClassName}`.trim()}
+			/>
+		</QuickDigitsHost>
+	);
+}
 
 export function XQTabs({className = '', ...rest}){
 	return (

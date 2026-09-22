@@ -45,6 +45,9 @@ import { getStoredUranianDisplay, saveUranianDisplay } from './UranianDialStyle'
 import { schoolToBackendParams } from './UranianSchools';
 import { tnpGlyph } from './UranianGlyphs';
 import { classicalBackendOverridesFromFields } from '../../utils/classicalChartGlobals';
+import { getLayoutViewportHeight } from '../../utils/shellZoom';
+// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+import { visualFloorPx } from '../../utils/zoomDomain';
 
 // 标准盘所需的「宫头对象」结构:{id:'House1'..'House12', lon, size, sign, signlon}。
 // AstroChartCircle.desposeHouses/getHouse 消费 lon/size/sign/signlon/id;此处从框的 cusps[12] 派生。
@@ -171,7 +174,7 @@ export default class UranianHouseFrames extends Component {
 			loading: false,
 			note: null,
 			school: disp.school || 'classic',
-			vh: typeof window !== 'undefined' ? window.innerHeight : 900,
+			vh: typeof window !== 'undefined' ? getLayoutViewportHeight() : 900,   // 布局域实测
 			colW: 0, colH: 0,
 		};
 		this.unmounted = false;
@@ -199,7 +202,7 @@ export default class UranianHouseFrames extends Component {
 		if (this._ro){ try { this._ro.disconnect(); } catch (e) { /* noop */ } this._ro = null; }
 	}
 	componentDidUpdate(prev){ if (prev.fields !== this.props.fields) this.load(); }
-	_onResize(){ if (!this.unmounted){ this.setState({ vh: window.innerHeight }); this._measure(); } }
+	_onResize(){ if (!this.unmounted){ this.setState({ vh: getLayoutViewportHeight() }); this._measure(); } }
 	_measure(){
 		if (this.unmounted || !this._host) return;
 		const col = this._host.querySelector('.horosa-frames-chart-col');
@@ -289,10 +292,10 @@ export default class UranianHouseFrames extends Component {
 		const { loading, note, frame, overview, houseFrames, degraded } = this.state;
 		const height = this.props.height || 700;
 		// 中间盘 size:取列宽/高较小者最大化(留边)。缩略全览的小轮上限 560;主框标准盘填满列(下方单算)。
-		const colMin = Math.max(220, Math.min(this.state.colW || 0, this.state.colH || 0) - 16);
+		const colMin = Math.max(visualFloorPx(220), Math.min(this.state.colW || 0, this.state.colH || 0) - 16);
 		const wheelSize = Math.min(560, colMin || 360);
 		// 主框标准盘尺寸:取列宽/高较小者撑满(不设 560 上限,标准盘越大越清晰);未测得时按列高兜底。
-		const chartSize = Math.max(360, (Math.min(this.state.colW || 0, this.state.colH || 0) - 12) || (height - 24));
+		const chartSize = Math.max(visualFloorPx(360), (Math.min(this.state.colW || 0, this.state.colH || 0) - 12) || (height - 24));
 
 		const columns = [
 			{ title: '点', dataIndex: 'id', key: 'id', render: (id) => this.glyphCell(id) },

@@ -27,6 +27,8 @@ const FIX = path.join(__dirname, 'fixtures', 'electionSnapshotTableBaseline.txt'
 // [2026-08 评分重标定] 原「表化前 vs 表化后」一次性证明已完成历史使命(表化前基线在分数
 // 重标定后不可再生)。语义升级为**事实多重集回归锚**:baseline=当前输出(capture-if-missing,
 // 分数重标定时点重录),守护「未来渲染层改动不吞/不糊数值」——引擎分数有意变更时删 baseline 重录留痕。
+// [2026-09-16 Q-445/T-408 留痕] 渲染层纯增(五重矩阵逐项/Almuten 逐点矩阵/择前考量未命中项):改前逐 token 核对
+// 「旧>新」为零(无吞无糊,全为新增),据此重录 baseline;引擎零碰。
 describe('election 快照 [分项]/[应期] 表化 · 事实多重集回归锚', () => {
 	it('渲染层事实多重集与 baseline 零漂移', () => {
 		const now = build();

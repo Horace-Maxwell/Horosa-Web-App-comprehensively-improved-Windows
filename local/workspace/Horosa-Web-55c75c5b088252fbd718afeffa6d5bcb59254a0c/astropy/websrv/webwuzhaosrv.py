@@ -213,6 +213,37 @@ def _normalize_positions(raw):
     return positions
 
 
+def _shifa_detail_rows(detail):
+    """[Q-447/T-410] 揲筮/掷钱/卜数逐次明细入快照。
+
+    病灶:页面「掷钱明细 / 揲筮明细 / 五兆卜数」卡逐位列出每一次的结果(阴阳面·撒币五行 → 五行(数)、
+    剩策 → 五行(数)、或卜数 → 五行),而 shifaDetail 只挂在返回体、不进 sections —— 快照由 sections 拼成,
+    于是「这一兆是怎么摇出来的」AI 一个字都看不到,手动复现档更无从核对。
+    与前端 renderShifaDetail 同一口径逐位成行;旧法(干支/自动)无 detail → 返回空列表,既有行字节不变。
+    """
+    if not isinstance(detail, dict):
+        return []
+    rows = detail.get("rows") or []
+    if not rows:
+        return []
+    kind = detail.get("kind") or ""
+    title = {"qian": "掷钱明细", "dunhuang": "揲筮明细", "zhushu": "五兆卜数"}.get(kind, "起兆明细")
+    label = detail.get("variantLabel")
+    out = [_row(title, f"{label}（逐位)" if label else "逐位")]
+    for row in rows:
+        pos = f"{row.get('position', '')}".replace("鄉", "乡")
+        elem = row.get("element", "")
+        num = row.get("num", "")
+        if kind == "qian":
+            text = f"{row.get('yinyang', '')}　撒币{row.get('coinElement', '')} → {elem}（{num}）"
+        elif kind == "dunhuang":
+            text = f"剩{row.get('remain', '')}策 → {elem}（{num}）"
+        else:
+            text = f"{num}　{elem}"
+        out.append(_row(pos, text))
+    return out
+
+
 def _build_sections(payload, positions):
     gz = payload.get("ganzhi", {})
     sections = [
@@ -238,6 +269,7 @@ def _build_sections(payload, positions):
                 _row("手动六数", payload.get("manualSplits")),
                 _row("上柱", payload.get("upperGanzhi")),
                 _row("下柱", payload.get("lowerGanzhi")),
+                *_shifa_detail_rows(payload.get("shifaDetail")),
             ],
         },
     ]
@@ -465,7 +497,15 @@ def _extras(data):
     gender = _clean_text(data.get("gender"))
     if gender not in ("male", "female"):
         gender = ""
+    # [Q-210/T-141/T-143] 随机诸式(敦煌/以钱代筮自动掷)的客户端种子:同种子同兆(存案可复现、改判读档不换兆、
+    # 缓存按体命中即正确);缺席=旧行为真随机。
+    cast_seed = data.get("castSeed")
+    try:
+        cast_seed = int(cast_seed) if cast_seed is not None and str(cast_seed).strip() != "" else None
+    except Exception:
+        cast_seed = None
     return {
+        "castSeed": cast_seed,
         "shifaVariant": variant,
         "qianThrows": throws,
         "qianAuto": bool(data.get("qianAuto")),
@@ -607,7 +647,7 @@ def _calculate(mode, ganzhi, number, solar_term, lunar_month, manual_splits, ext
         )
         return divination.divine(), ganzhi[2], ganzhi[3], None
     if mode in ("dunhuang", "qian", "zhushu"):
-        rng = random.Random()
+        rng = random.Random(extras.get("castSeed")) if extras.get("castSeed") is not None else random.Random()
         if mode == "dunhuang":
             nums, detail = _dunhuang_shifa(extras.get("shifaVariant") or "guayi", rng)
             detail = {"kind": "dunhuang", "variant": extras.get("shifaVariant") or "guayi",

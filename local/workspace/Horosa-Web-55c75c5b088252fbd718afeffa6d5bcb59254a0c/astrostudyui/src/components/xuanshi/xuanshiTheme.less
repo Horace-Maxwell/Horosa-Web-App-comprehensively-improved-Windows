@@ -115,7 +115,7 @@
 	.xuanshi-eyebrow { font-size: 11px; letter-spacing: .34em; color: var(--vermilion); text-transform: uppercase; font-weight: 500; }
 
 	.xuanshi-display { font-family: var(--xs-serif); font-weight: 300; color: var(--ink); line-height: 1.18; letter-spacing: -0.004em; margin: 0; }
-	.xuanshi-display.is-hero { font-size: clamp(30px, 4vw, 46px); }
+	.xuanshi-display.is-hero { font-size: clamp(30px, calc(4 * var(--horosa-lvw, 1vw)), 46px); }
 	.xuanshi-display.is-h2 { font-size: 24px; font-weight: 400; }
 
 	.xuanshi-card {
@@ -507,7 +507,7 @@
 	// ===== 地理地图(对齐标准版 参考地理地图页)左图 + 右城市榜 =====
 	.xuanshi-map-grid { display: grid; grid-template-columns: 1fr 360px; gap: 18px; align-items: start; }
 	@media (max-width: 900px) { .xuanshi-map-grid { grid-template-columns: 1fr; } }
-	.xuanshi-citylist { align-self: start; max-height: 70vh; overflow-y: auto; }
+	.xuanshi-citylist { align-self: start; max-height: calc(70 * var(--horosa-lvh, 1vh)); overflow-y: auto; }
 	.xuanshi-cityrow {
 		padding: 10px 8px; border-bottom: 1px solid var(--line-soft); cursor: pointer; border-radius: 6px;
 		transition: background .12s;
@@ -524,7 +524,7 @@
 	.xuanshi-micro-grid { display: grid; grid-template-columns: 280px 1fr; gap: 18px; align-items: start; }
 	@media (max-width: 900px) { .xuanshi-micro-grid { grid-template-columns: 1fr; } }
 	.xuanshi-micro-hover {
-		position: fixed; z-index: 1300; width: 360px; max-width: 92vw;
+		position: fixed; z-index: 1300; width: 360px; max-width: calc(92 * var(--horosa-lvw, 1vw));
 		padding: 14px 16px; background: var(--paper-card); border: 1px solid var(--line);
 		border-radius: 10px; box-shadow: var(--xs-shadow); pointer-events: none;
 	}
@@ -555,7 +555,7 @@
 	.xuanshi-collection { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; margin-top: 16px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 	@media (max-width: 720px) { .xuanshi-collection { grid-template-columns: repeat(2, 1fr); } }
 	.xuanshi-coll-cell { background: var(--paper); padding: 20px 18px; }
-	.xuanshi-coll-num { font-family: var(--xs-serif); font-weight: 300; font-size: clamp(26px, 3vw, 36px); color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums; }
+	.xuanshi-coll-num { font-family: var(--xs-serif); font-weight: 300; font-size: clamp(26px, calc(3 * var(--horosa-lvw, 1vw)), 36px); color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums; }
 	.xuanshi-coll-label { font-size: 11px; letter-spacing: .2em; color: var(--ink-muted); margin-top: 10px; }
 
 	// ============================================================

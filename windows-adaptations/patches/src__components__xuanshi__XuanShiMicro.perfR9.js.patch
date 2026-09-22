@@ -1,13 +1,14 @@
 diff --git a/astrostudyui/src/components/xuanshi/XuanShiMicro.js b/astrostudyui/src/components/xuanshi/XuanShiMicro.js
-index 3076190..8f3876e 100644
+index 2ddc663c..5e5b7269 100644
 --- a/astrostudyui/src/components/xuanshi/XuanShiMicro.js
 +++ b/astrostudyui/src/components/xuanshi/XuanShiMicro.js
-@@ -1,8 +1,13 @@
+@@ -1,9 +1,14 @@
  import React from 'react';
  import { Spin, Empty, Select, Input } from 'antd';
 -import { fetchMicrochronology } from '../../services/xuanshi';
 +import { fetchMicrochronology, fetchMicrochronologyDetail } from '../../services/xuanshi';
- import { collapseSoftBreaks } from './xuanshiDate';
+ import { fixedPopupFrame } from '../../utils/zoomDomain';
+ import { collapseSoftBreaks, celestialCalendarLabel, celestialDateWithCalendar } from './xuanshiDate';   // [Q-495/T-457] 日期按来源标历法
  
 +// horosa_xuanshi_longtext_ondemand_v1:本页只渲染前 RENDER_CAP 条,故只向后端要这么多条
 +// (后端 limit;summary 仍按全部命中行统计,页头计数与「仅显示前 N 条」提示口径分毫不变)。
@@ -17,9 +18,9 @@ index 3076190..8f3876e 100644
  // 天象微年表 —— 对齐标准版 参考天象微年表页:十年期事件密度柱状图(点柱筛选)+ 左栏按史书/按征兆类型
  // + 右栏事件列表(干支/公历/征兆/《史书》卷 chips + 原文 + 政治军事解读)。数据来自星象大典公开事件库。
  export default class XuanShiMicro extends React.Component {
-@@ -21,6 +26,20 @@ export default class XuanShiMicro extends React.Component {
+@@ -24,6 +29,20 @@ export default class XuanShiMicro extends React.Component {
  		if (left < 12) { left = 12; }
- 		const top = Math.min(Math.max(12, rect.top), window.innerHeight - 240);
+ 		const top = Math.min(Math.max(12, rect.top), frame.viewportHeight - 240);
  		this.setState({ hover: ev, hoverPos: { left, top } });
 +		this.ensureEventText(ev);
 +	}
@@ -38,15 +39,15 @@ index 3076190..8f3876e 100644
  	}
  	hideHover() { this.setState({ hover: null }); }
  
-@@ -35,6 +54,7 @@ export default class XuanShiMicro extends React.Component {
+@@ -39,6 +58,7 @@ export default class XuanShiMicro extends React.Component {
  				history: this.state.history || undefined,
  				omen_type: this.state.omen || undefined,
  				decade: this.state.decade != null ? this.state.decade : undefined,
 +				limit: RENDER_CAP, // horosa_xuanshi_longtext_ondemand_v1
- 			});
+ 			}); if(__seq !== this._loadSeq){ return; }
  			this.setState({ events: r.events || [], summary: r.summary || null, loading: false });
  		} catch (e) { this.setState({ loading: false, err: `${e && e.message ? e.message : e}` }); }
-@@ -120,7 +140,7 @@ export default class XuanShiMicro extends React.Component {
+@@ -124,7 +144,7 @@ export default class XuanShiMicro extends React.Component {
  							<div className="xuanshi-center"><Empty description={`载入失败:${err}`} /><span className="xuanshi-link" onClick={() => this.load()}>重试</span></div>
  						) : !events.length ? <div className="xuanshi-center"><Empty description="无匹配天象" /></div> : (
  							<>
@@ -55,7 +56,7 @@ index 3076190..8f3876e 100644
  									<div className="xuanshi-evrow" key={`mev-${i}`} style={{ cursor: 'help' }}
  										onMouseEnter={(ev) => this.showHover(ev, e)} onMouseLeave={() => this.hideHover()}>
  										<div className="xuanshi-evrow-chips">
-@@ -134,7 +154,8 @@ export default class XuanShiMicro extends React.Component {
+@@ -138,7 +158,8 @@ export default class XuanShiMicro extends React.Component {
  										{e.interpretation ? <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--jade)' }}>→ {e.interpretation}</p> : null}
  									</div>
  								))}

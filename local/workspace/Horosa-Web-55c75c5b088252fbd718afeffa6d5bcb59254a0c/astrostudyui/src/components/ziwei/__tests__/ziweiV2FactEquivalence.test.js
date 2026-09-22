@@ -60,6 +60,16 @@ export function extractFacts(text){
 	return counts;
 }
 
+// [#80] 剥掉新增的 [运限概览] 段:本闸只证「表化没动数值」,新增内容段另有专测(见文件末)。
+function stripOverview(text){
+	const t = `${text || ''}`;
+	const i = t.indexOf('[运限概览]');
+	if(i < 0){ return t; }
+	const rest = t.slice(i + 1);
+	const j = rest.indexOf('\n[');
+	return j < 0 ? t.slice(0, i) : t.slice(0, i) + rest.slice(j + 1);
+}
+
 function diffFacts(a, b){
 	const out = [];
 	const keys = new Set([...a.keys(), ...b.keys()]);
@@ -86,21 +96,43 @@ function withDeclaredAdditions(oldFacts){
 describe('紫微 v2 数值不变证明(基线 fixture ↔ 新 builder)', () => {
 	it('默认盘:旧事实零丢失,新增恰为声明的补缺行(子斗/命局)', async () => {
 		const now = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });
-		const diff = diffFacts(withDeclaredAdditions(extractFacts(baseline.plain)), extractFacts(now));
+		const diff = diffFacts(withDeclaredAdditions(extractFacts(baseline.plain)), extractFacts(stripOverview(now)));
 		expect(diff).toEqual([]);
 	});
 
 	it('带运限盘(大限+流年+流月+流日+流时):同上严格相等', async () => {
 		const now = await buildZiweiSnapshotForParams({ ...BASE_PARAMS, period: { daxian: [2], liunian: [1996], liuyue: [3], liuri: [1], liushi: [0] } });
-		const diff = diffFacts(withDeclaredAdditions(extractFacts(baseline.withPeriod)), extractFacts(now));
+		const diff = diffFacts(withDeclaredAdditions(extractFacts(baseline.withPeriod)), extractFacts(stripOverview(now)));
 		expect(diff).toEqual([]);
+	});
+
+	// [#80] 无条件运限概览:此前紫微不选运限就一个流年都不给,AI 只能答「缺少完整流年」。
+	it('运限概览:无条件产出、每大限一行、末列给全该限流年公历年-干支,且不依赖「今天」', async () => {
+		const now = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });   // 不带 period
+		expect(now).toContain('[运限概览]');
+		expect(now).toContain('| 虚岁 | 宫位 | 宫干支 | 该限流年（公历年-干支） |');
+		const seg = now.slice(now.indexOf('[运限概览]'));
+		const rows = (seg.match(/^\| \d+~\d+ \|/gm) || []);
+		expect(rows.length).toBe(12);   // 12 大限各一行
+		// 每行末列的「年-干支」个数 = 该限虚岁跨度(夹具 direction 跨度 6,真盘通常 10;别写死)
+		seg.split('\n').filter((l)=>/^\| \d+~\d+ \|/.test(l)).forEach((row)=>{
+			const m = row.match(/^\| (\d+)~(\d+) \|/);
+			const span = Number(m[2]) - Number(m[1]) + 1;
+			expect((row.match(/\d{4}-[\u4e00-\u9fa5]{2}/g) || []).length).toBe(span);
+		});
+		// 恒定性:同一盘连产两次逐字相同(不依赖 new Date)
+		const again = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });
+		expect(again.slice(again.indexOf('[运限概览]'))).toBe(seg);
 	});
 
 	it('v2 形态锚:宫位总览为 GFM 表(表头+分隔行+12 行),运限头行带 ◆', async () => {
 		const now = await buildZiweiSnapshotForParams({ ...BASE_PARAMS, period: { daxian: [2], liunian: [], liuyue: [], liuri: [], liushi: [] } });
 		expect(now).toContain('| 宫位 | 干支 | 大限 | 星曜（四化括注） |');
 		expect(now).toContain('| --- | --- | --- | --- |');
-		expect((now.match(/^\| /gm) || []).length).toBe(14); // 表头+12 宫(分隔行以 | - 开头不匹配 "| ")
+		// [#80] 计数收到「宫位总览」那张表上:新增的 [运限概览] 段也是 GFM 表,全文计数会把它算进来。
+		const overviewIdx = now.indexOf('[运限概览]');
+		const summaryBlock = overviewIdx >= 0 ? now.slice(0, overviewIdx) : now;
+		expect((summaryBlock.match(/^\| /gm) || []).length).toBe(14); // 表头+12 宫(分隔行以 | - 开头不匹配 "| ")
 		expect(now).toContain('◆ 大限：');
 	});
 });

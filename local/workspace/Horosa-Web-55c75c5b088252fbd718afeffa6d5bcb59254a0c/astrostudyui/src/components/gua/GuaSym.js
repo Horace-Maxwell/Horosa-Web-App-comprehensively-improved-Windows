@@ -5,6 +5,7 @@ import styles from '../../css/styles.less';
 // 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
 // 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
+import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 const { Title, Paragraph, Text } = Typography;
 
 export default class GuaSym extends Component{
@@ -75,8 +76,16 @@ export default class GuaSym extends Component{
     render(){
         let dom = this.genMeiyiSym();
 
-		let height = this.props.height ? this.props.height : document.documentElement.clientHeight;
-		let style = {
+		// fill = 充满父容器(父级给定高的 flex 列)。此前无 height 入参时退 documentElement.clientHeight − 150:
+		// 那是**物理域**读数(壳缩放下恒为窗口物理高),而可用空间在**布局域**(物理 ÷ z)⇒ 缩小档盒子矮一截、底部留死带且内容在盒底被截;
+		// 放大档盒子比面板高、溢出部分被外层 overflow:hidden 裁掉且滚不到。容器驱动的高度不需要知道 z,对任何引擎成立。
+		let height = this.props.height ? this.props.height : getLayoutViewportHeight();
+		let style = this.props.fill ? {
+			flex: '1 1 0',
+			minHeight: 0,
+			overflowY:'auto',
+			overflowX:'hidden',
+		} : {
 			height: (height-150) + 'px',
 			overflowY:'auto', 
 			overflowX:'hidden',

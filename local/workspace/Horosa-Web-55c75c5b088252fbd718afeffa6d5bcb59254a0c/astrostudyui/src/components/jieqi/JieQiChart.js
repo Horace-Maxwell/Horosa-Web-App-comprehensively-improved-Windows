@@ -111,7 +111,7 @@ class JieQiMain extends Component{
 
 		return (
 			<div>
-					<AstroChartMain 
+					<AstroChartMain embeddedSubChart 
 						value={this.state.chart} 
 					hidehsys={1}
 					hidezodiacal={1}

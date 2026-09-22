@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/germany/MidpointMain.js b/astrostudyui/src/components/germany/MidpointMain.js
-index e23b605e..3c2ba3a3 100644
+index 8da11699..59c87dae 100644
 --- a/astrostudyui/src/components/germany/MidpointMain.js
 +++ b/astrostudyui/src/components/germany/MidpointMain.js
 @@ -11,6 +11,7 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';
@@ -10,7 +10,7 @@ index e23b605e..3c2ba3a3 100644
  
  const TabPane = Tabs.TabPane;
  
-@@ -53,22 +54,31 @@ class MidpointMain extends Component{
+@@ -55,22 +56,31 @@ class MidpointMain extends Component{
  	constructor(props) {
  		super(props);
  		this.state = {
@@ -44,7 +44,7 @@ index e23b605e..3c2ba3a3 100644
  	changeTime(tm){
  		if(this.props.onChange){
  			this.props.onChange({
-@@ -235,20 +245,26 @@ class MidpointMain extends Component{
+@@ -243,20 +253,26 @@ class MidpointMain extends Component{
  							}
  						</Row>
  						</XQSideSection>
@@ -54,7 +54,7 @@ index e23b605e..3c2ba3a3 100644
 +						<Tabs activeKey={this.state.sideTab} onChange={this.changeSideTab} tabPosition='top' className="horosa-midpoint-side-tabs">
  							<TabPane tab="中点" key="1">
 +									<FreezeSubTab active={this.state.sideTab === '1'}>{()=>(
- 									<Midpoint height={height}
+ 									<Midpoint height="100%"
  										value={midpoints} fields={fields}
  										planetDisplay={this.props.planetDisplay}
  										showAstroMeaning={this.props.showAstroMeaning}
@@ -65,7 +65,7 @@ index e23b605e..3c2ba3a3 100644
 -									<AspectToMidpoint 
 +									<FreezeSubTab active={this.state.sideTab === '2'}>{()=>(
 +									<AspectToMidpoint
- 										value={aspects} height={height}
+ 										value={aspects} height="100%"
  										planetDisplay={this.props.planetDisplay}
  										showAstroMeaning={this.props.showAstroMeaning}
  									/>

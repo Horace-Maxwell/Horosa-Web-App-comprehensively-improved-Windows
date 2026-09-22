@@ -5,6 +5,7 @@ import { useState, useMemo } from 'react';
 import DunJiaBoard from '../dunjia/DunJiaBoard';
 import { computeQimenScanPan } from '../../divination/zeri/qimenScanEngine';
 
+import { clientToFixed } from '../../utils/zoomDomain';
 const BOARD_BASE_W = 662;
 const BOARD_BASE_H = 870;
 
@@ -27,8 +28,9 @@ export default function QimenMiniBoardPopup({ row, geoParams, options, seeds, on
 		e.stopPropagation();
 		const start = { mx: e.clientX, my: e.clientY, ...box };
 		const move = (ev)=>{
-			const dx = ev.clientX - start.mx;
-			const dy = ev.clientY - start.my;
+			// 鼠标位移是视觉域,窗体 x/y/w/h 是 CSS(布局域):换域后窗体才与鼠标同步(缩放档下此前窗体比鼠标快 / 慢 z 倍);z=1 恒等。
+			const dx = clientToFixed(ev.clientX - start.mx);
+			const dy = clientToFixed(ev.clientY - start.my);
 			if(mode === 'drag'){
 				setBox((b)=>({ ...b, x: Math.max(0, start.x + dx), y: Math.max(0, start.y + dy) }));
 			}else{

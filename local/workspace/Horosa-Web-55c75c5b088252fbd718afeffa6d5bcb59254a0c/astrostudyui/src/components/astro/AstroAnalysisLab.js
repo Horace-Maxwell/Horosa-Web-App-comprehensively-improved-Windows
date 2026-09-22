@@ -4,7 +4,7 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, astroSymbol, astroSymbolList, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, gridStyle, SmallTable } from './AstroExtraCommon';
 import { buildPatternOverview } from '../../utils/astroPatternOverview';
-import { classicalGlobalValue } from '../../utils/classicalChartGlobals';   // [审计修] 恒星轨随全局仓,与导出/挂载三方同口径
+import { classicalGlobalValue, fixedStarOrbParamsFor } from '../../utils/classicalChartGlobals';   // [审计修] 恒星轨随全局仓,与导出/挂载三方同口径
 import { SIGNS } from '../../divination/data/signs';
 
 // 阿拉伯点中文名(中性词;英文名同列小字便于对照)。
@@ -90,7 +90,9 @@ class AstroAnalysisLab extends Component{
 					_v: 'cls1',
 					...chartParams(this.props.value),
 					// [审计修] 曾硬编 1°:用户改恒星轨后右栏格局 tab 与导出/挂载(皆读全局仓)命中集分叉。
-					fixedStarOrb: classicalGlobalValue('fixedStarOrb'),
+					// [Q-340/T-321] 随盘优先:载入带随盘轨值/档位的盘(chartObj.params 回显 starOrb/starOrbMode)时按盘取,
+					// 否则回落全局仓;档位一并下发(Python fixed_star_hits 已接 byMagnitude)。
+					...fixedStarOrbParamsFor(chartParams(this.props.value)),
 					voidClassical: !!this.props.voidClassical,
 				}),
 				silent: true,

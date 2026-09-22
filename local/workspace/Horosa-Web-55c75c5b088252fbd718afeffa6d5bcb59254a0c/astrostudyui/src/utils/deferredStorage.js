@@ -9,6 +9,7 @@ import { isQuotaError, clearRecoverableCaches } from './safeStorage';
 // 正常退出零丢失;强杀进程最多丢最近 ~1s 的缓存写(缓存类数据,可接受)。
 
 const pending = new Map(); // key -> () => string (延迟序列化)
+const pendingSnapshot = new Map(); // key -> 内存态快照(可选;落盘即清)
 let scheduled = false;
 let flushBound = false;
 
@@ -19,6 +20,7 @@ function flushAll(){
 	}
 	const entries = Array.from(pending.entries());
 	pending.clear();
+	pendingSnapshot.clear();
 	entries.forEach(([key, factory])=>{
 		try{
 			const text = factory();
@@ -61,12 +63,20 @@ function schedule(){
 }
 
 // 延迟写:valueFactory 在空闲时段才被调用(序列化也移出关键路径)。同 key 后写覆盖先写。
-export function scheduleStorageWrite(key, valueFactory){
+// [Q-381/T-361] snapshot(可选):本次写入对应的内存态(未序列化对象),供同 key 的「读合并」在落盘前同步读回——
+// 调用方「先读 localStorage 再并补丁」时若前一次写尚在 pending,读到的是旧 blob,后写会把先写的键打回旧值。
+export function scheduleStorageWrite(key, valueFactory, snapshot){
 	if(!key || typeof valueFactory !== 'function'){
 		return;
 	}
 	pending.set(key, valueFactory);
+	if(snapshot !== undefined){ pendingSnapshot.set(key, snapshot); } else { pendingSnapshot.delete(key); }
 	schedule();
+}
+
+// [Q-381/T-361] 读合并接口:同 key 尚未落盘且写入方给了 snapshot → 返回它(即将落盘的内存态);否则 undefined(按存储为准)。
+export function peekPendingStorageValue(key){
+	return pendingSnapshot.has(key) ? pendingSnapshot.get(key) : undefined;
 }
 
 // 立即刷盘(测试/特殊场景用)。

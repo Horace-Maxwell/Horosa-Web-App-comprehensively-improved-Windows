@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/germany/UranianDialStyle.js b/astrostudyui/src/components/germany/UranianDialStyle.js
-index ff090a97..99a0f3d3 100644
+index 07c57dbb..82b2e522 100644
 --- a/astrostudyui/src/components/germany/UranianDialStyle.js
 +++ b/astrostudyui/src/components/germany/UranianDialStyle.js
 @@ -1,4 +1,5 @@
@@ -49,16 +49,15 @@ index ff090a97..99a0f3d3 100644
  		return { ...DEFAULTS };
  	}
  }
-@@ -120,8 +139,12 @@ export function saveUranianDisplay(next){
+@@ -126,7 +145,11 @@ export function saveUranianDisplay(next){
  	try {
- 		const merged = { ...getStoredUranianDisplay(), ...(next || {}) };
+ 		merged = { ...getStoredUranianDisplay(), ...(next || {}) };
  		if (typeof localStorage !== 'undefined') safeLocalStorageSet(KEY, JSON.stringify(merged));
 +		// horosa_aux_render_slice_v1(A2):写点失效 —— 下一次读重新解析真实落盘值
 +		// (含 safeLocalStorageSet 配额失败静默时回读旧值的语义,与无缓存时逐次重读完全一致)。
 +		_dispCache = null;
- 		return merged;
  	} catch (e) {
 +		_dispCache = null; // 兜底:异常路径同样失效,绝不让缓存领先于存储
- 		return { ...getStoredUranianDisplay(), ...(next || {}) };
+ 		merged = { ...getStoredUranianDisplay(), ...(next || {}) };
  	}
- }
+ 	try {

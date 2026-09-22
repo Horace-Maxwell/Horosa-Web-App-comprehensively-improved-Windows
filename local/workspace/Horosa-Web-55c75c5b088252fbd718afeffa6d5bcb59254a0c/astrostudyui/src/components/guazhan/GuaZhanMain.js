@@ -12,10 +12,12 @@ import GuaZhanInput from './GuaZhanInput';
 import GuaZhanChart from './GuaZhanChart';
 import GuaDesc from './GuaDesc';
 import { getGua64, Gua64, Gua8, randYao, ZiList, HourZi, SixGods, getXunEmpty, LiuQi } from '../gua/GuaConst';
+import { pureGuaOf } from '../gua/LiuYaoEngine';   // [Q-448/T-411] 伏神卦(本宫首卦)——快照补完整装卦用
 import { yarrowYao } from '../gua/LiuYaoConst';
 import { analyzeLiuyao } from '../gua/liuyaoFacade';
 import { normalizeLiuyaoSettings, applyPreset, setOption, LIUYAO_SCHOOL_OPTIONS, LIUYAO_PRESETS, loadPersistedLiuyaoSettings, persistLiuyaoSettings } from '../gua/liuyaoSchools';
 import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorage';
+import { definePageSettings } from '../../utils/pageSettingsStore';
 import { SHENSHA_EX, yueLingNames } from '../gua/liuyaoShenShaEx';
 import LiuYaoDuanJueView from './LiuYaoDuanJueView';
 import LiuYaoZhanLeiView from './LiuYaoZhanLeiView';
@@ -34,6 +36,8 @@ import { setNongliLocalCache } from '../../utils/localCalcCache';
 import XQIcon from '../xq-icons';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+import { visualFloorPx } from '../../utils/zoomDomain';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 
@@ -104,6 +108,15 @@ function pushMdRows(lines, header, rows){
 	});
 }
 
+// [Q-208/T-162] 年干支取法单一化:此前只有 [断卦结构] 段按「定年界线」取(lunar 档取农历年支),
+// 而 [起盘信息] 首段与左栏概览恒取立春系 → 立春↔正月初一窗口内同一快照/同一页出现两个年干支。
+// 缺省(lichun)档与既有取法逐字相同,只有 lunar 档且落在该窗口内的盘首段文字才变。
+function yearGzByBoundary(nongli, settings){
+	const n = nongli || {};
+	const lichun = n.yearJieqi || n.year || n.yearGanZi;
+	return (normalizeLiuyaoSettings(settings).yearBoundary === 'lunar') ? (n.yearGZByLunar || lichun) : lichun;
+}
+
 // 六爻断卦结构段(流派/用神/旺衰/飞伏/卦身/动变/神煞/六神),供 AI 挂载/导出/储存复用(单一真值源=analyzeLiuyao)。
 // st 缺 liuyaoSettings 时用默认设置(默认全显,零回归既有行只追加)。
 export function liuyaoStructLines(st){
@@ -146,7 +159,11 @@ export function liuyaoStructLines(st){
 			const ys = a.yongShen;
 			const loc = (l)=>{ if(!l || !l.candidates || !l.candidates.length){ return '不上卦'; } return l.candidates.map((c)=>`${c.pos}爻`).join('/'); };
 			lines.push(`占测：${ys.label}　用神：${ys.yong}(${loc(ys.located.yong)})`);
+			// [Q-448/T-411] 次用神与取用说明:页面用神卡两行俱有(LiuYaoBoard「次用神」「取用说明」),
+			// 快照此前只给 用/原/忌/仇 —— AI 看不到取用之由,遇「兄弟兼看」一类双用神更直接漏一半。
+			if(ys.secondary && ys.located && ys.located.secondary){ lines.push(`次用神：${ys.secondary}(${loc(ys.located.secondary)})`); }
 			if(ys.roles){ lines.push(`原神：${ys.roles.yuan}(${loc(ys.located.yuan)})　忌神：${ys.roles.ji}(${loc(ys.located.ji)})　仇神：${ys.roles.chou}(${loc(ys.located.chou)})`); }
+			if(ys.note){ lines.push(`取用说明：${ys.note}`); }
 		}
 		if(a.guaShen){ lines.push(`卦身：${a.guaShen.body}${a.guaShen.onChart ? '(上卦)' : '(不上卦)'}`); }
 		// 逐爻结构(初→上)→ GFM 表:爻/六神/地支/五行/六亲/世应/旺衰/状态/伏神/神煞(空 cell —);旧「逐爻(初→上)：六神│…」图例行由表头承接。
@@ -155,7 +172,11 @@ export function liuyaoStructLines(st){
 			const fu = (a.fushenAll && a.fushenAll[i]) || y.fushen;
 			const fuTxt = fu && fu.liuqin ? `伏${fu.liuqin}${fu.zhi}${fu.wuxing}` : '';
 			const sha = a.shenSha && a.shenSha.perYao && a.shenSha.perYao[i] ? (a.shenSha.perYao[i].shensha || []).join(',') : '';
-			const stat = [y.yuePo ? '月破' : '', y.xunKong ? (y.voidKind || '旬空') : '', y.ruMu ? '入墓' : '', y.changsheng === '长生' || y.changsheng === '帝旺' || y.changsheng === '绝' ? y.changsheng : ''].filter(Boolean).join(',');
+			// [Q-448/T-411] 岁破/日破逐爻标:页面装卦表状态列早有(LiuYaoBoard 取 y.sanCeng 的这两项),
+			// 快照状态列此前只到 月破/旬空/入墓/长生帝旺绝 —— [断诀命中] 首行虽给出岁破日破之支,但要 AI 自行
+			// 逐爻比对才知道落在哪根爻上。与页面同源取 sanCeng,只取这两项(其余三层另有段)。
+			const sanCengPo = (y.sanCeng || []).filter((t)=>t === '岁破' || t === '日破');
+			const stat = [y.yuePo ? '月破' : '', ...sanCengPo, y.xunKong ? (y.voidKind || '旬空') : '', y.ruMu ? '入墓' : '', y.changsheng === '长生' || y.changsheng === '帝旺' || y.changsheng === '绝' ? y.changsheng : ''].filter(Boolean).join(',');
 			return [`第${y.pos}爻`, liu, y.zhi, y.wuxing, y.liuqin, y.shiYing, y.wangShuai, stat, fuTxt, sha];
 		});
 		pushMdRows(lines, ['爻', '六神', '地支', '五行', '六亲', '世应', '旺衰', '状态', '伏神', '神煞'], yaoRows);
@@ -167,6 +188,10 @@ export function liuyaoStructLines(st){
 				return [`第${m.pos}爻`, `${m.ben.liuqin}${m.ben.zhi}${m.ben.wuxing}`, `${m.bian.liuqin}${m.bian.zhi}${m.bian.wuxing}`, tags];
 			});
 			pushMdRows(lines, ['爻', '本卦', '变卦', '标记'], moveRows);
+			// [Q-201/T-144] 变爻范围=盲派(作用他爻)时页面有「盲派·变爻作用他爻」卡而快照无 → 齿轮对挂载零字节;仅 blind 且非空时出行(缺省 traditional 字节不变)。
+			if(Array.isArray(a.dongBian.blindEffects) && a.dongBian.blindEffects.length){
+				lines.push(`盲派作用：${a.dongBian.blindEffects.map((e)=>`第${e.from}爻→第${e.to}爻(${e.toLiuqin || ''})${e.rel}`).join('、')}`);
+			}
 		}
 		return lines;
 	}catch(e){
@@ -180,11 +205,15 @@ export function buildGuaSnapshotText(fields, st){
 	const yao = st && st.yao ? st.yao : [];
 	const nongli = st && st.nongli ? st.nongli : {};
 	const guaDesc = st && st.guaDesc ? st.guaDesc : {};
+	// [Q-205/T-150] 六神关 → 快照不得再逐爻带六神:state.yao 的 god 由 fillYaoGods 就地写入(存档也带),
+	// 与设置无关;闸口与中间栏同一处口径(见 renderChart 的 _liuSet.sixGods 清 god),否则「关掉的块不进快照」失信。
+	const _liuSettings = normalizeLiuyaoSettings(st && st.liuyaoSettings);
+	const showSixGods = !!_liuSettings.sixGods;
 	const fieldTime = (fields && fields.date && fields.time)
 		? `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`
 		: '';
 	const startTime = lineText(nongli.birth) || fieldTime;
-	const yearGz = lineText(nongli.yearJieqi || nongli.year || nongli.yearGanZi);
+	const yearGz = lineText(yearGzByBoundary(nongli, st && st.liuyaoSettings));
 	const monthGz = lineText(nongli.monthGanZi);
 	const dayGz = lineText(nongli.dayGanZi);
 	const timeGz = lineText(nongli.time || nongli.timeGanZi);
@@ -201,7 +230,8 @@ export function buildGuaSnapshotText(fields, st){
 	if(fields && fields.lon && fields.lat){
 		lines.push(`经纬度：${fields.lon.value} ${fields.lat.value}`);
 	}
-	// 求测人性别(Win issue #29):性别影响取用神(如占婚男取妻财、女取官鬼)→ 必须随挂载/导出给 AI。
+	// 求测人性别(Win issue #29):本页引擎不读它取用神(占婚男女由「占测事项」的 marriage_m/marriage_f 两档决定),
+	// 但它是判语语境的一部分 → 随挂载/导出给 AI(与帮助「仅作随盘记录」同口径)。
 	if(fields && fields.gender && (fields.gender.value === 0 || fields.gender.value === 1)){
 		lines.push(`求测人性别：${fields.gender.value === 1 ? '男' : '女'}`);
 	}
@@ -262,14 +292,14 @@ export function buildGuaSnapshotText(fields, st){
 		yao.forEach((item, idx)=>{
 			const yaoType = item.value === 1 ? '阳爻' : (item.value === 0 ? '阴爻' : '未定');
 			const moving = item.change ? '（动）' : '（静）';
-			const god = item.god ? `，六神:${item.god}` : '';
+			const god = (showSixGods && item.god) ? `，六神:${item.god}` : '';
 			const name = item.name ? `，爻名:${item.name}` : '';
 			lines.push(`第${idx + 1}爻：${yaoType}${moving}${god}${name}`);
 		});
 		// 之卦(变卦)/互卦逐爻装卦：地支/五行/世应取自该卦 yaoname;但【六亲必须以「本卦之宫」五行论】——
 		// 京房纳甲:用神系统锚定本卦,之卦/互卦的六亲不按其自身宫五行(否则与中间栏显示错位,Win issue #30:
 		// 之卦酉金应为妻财[本卦离宫火克金],却被算成兄弟[变卦乾宫金比和])。六神沿用本卦同位(按日干起、各卦同序)。
-		const godAt = (i)=>(yao[i] && yao[i].god ? `，六神:${yao[i].god}` : '');
+		const godAt = (i)=>((showSixGods && yao[i] && yao[i].god) ? `，六神:${yao[i].god}` : '');
 		const benGongElem = (nowGua && nowGua.house && nowGua.house.elem) || null;
 		// 把「该卦自身宫论出的六亲」(yaoname 第3-4字)改成「按本卦宫论」;保留地支五行(前2字)与世应(第5字起)。
 		const fixLiuqinToBenGong = (nm)=>{
@@ -289,8 +319,17 @@ export function buildGuaSnapshotText(fields, st){
 				lines.push(`第${idx + 1}爻：${yinYang ? `${yinYang}，` : ''}爻名:${nm}${godAt(idx)}`);
 			});
 		};
-		if(hasMoving && bianGua){ pushGuaYao('之卦(变卦)', bianGua); }
-		if(huGua){ pushGuaYao('互卦', huGua); }
+		// [Q-448/T-411] 关联卦完整装卦:页面「关联卦」区给 之/互/伏神/综/错 五卦各自完整装卦,
+		// 快照此前逐爻只给之卦与互卦,错/综只写卦名、伏神卦一字不提 —— 页面看得见、AI 看不见。
+		// [Q-208/T-161 同律] 受左栏「关联卦显示」勾选控制:页面隐藏的卡不进快照(null=全显=缺省)。
+		const _relSel = Array.isArray(_liuSettings.relatedCards) ? _liuSettings.relatedCards : null;
+		const relOn = (k)=>(!_relSel || _relSel.indexOf(k) >= 0);
+		if(hasMoving && bianGua && relOn('bian')){ pushGuaYao('之卦(变卦)', bianGua); }
+		if(huGua && relOn('hu')){ pushGuaYao('互卦', huGua); }
+		const fuGua = nowGua ? pureGuaOf(nowGua) : null;
+		if(fuGua && relOn('fu')){ pushGuaYao('伏神卦(本宫首卦)', fuGua); }
+		if(zongGua && relOn('zong')){ pushGuaYao('综卦', zongGua); }
+		if(cuoGua && relOn('cuo')){ pushGuaYao('错卦', cuoGua); }
 	}
 
 	// 断卦结构(流派/用神/旺衰/飞伏/卦身/动变/神煞/六神)——追加于既有段之后,既有行字节不变(零回归)。
@@ -352,6 +391,14 @@ export function buildGuaSnapshotText(fields, st){
 	return lines.join('\n');
 }
 
+// 排盘设置跨会话保留:自定义起卦 / 数字起卦的「动爻取法」。这两个下拉把**取法**(先天卦数 / 随机数 / 时辰,负值)
+// 与**直接点某一爻**(0–5,是这一卦的输入)混在一起 —— 只保留取法:候选只列负值,点了具体某一爻时落盘自动被拒、
+// 库里仍是上一次选的取法。(铜钱字面 / 缺省爻态等另由六爻设置 liuyaoSettings 保留。)
+export const GUAZHAN_PAGE_SETTINGS = definePageSettings('horosa.guazhan.settings.v1', {
+	custGuaDongYao: { def: -1, oneOf: [-3, -2, -1] },
+	numGuaDongYao: { def: -1, oneOf: [-3, -2, -1] },
+});
+
 class GuaZhanMain extends Component{
 	constructor(props) {
 		super(props);
@@ -410,8 +457,8 @@ class GuaZhanMain extends Component{
 			// 改时间/地点/日界只应刷新干支(日辰月建旬空神煞),绝不可重摇 —— 「起出即冻结」。
 			guaOrigin: 'time',
 			nongli: null,
-			custGuaDongYao: -1,
-			numGuaDongYao: -1,
+			custGuaDongYao: GUAZHAN_PAGE_SETTINGS.load().custGuaDongYao,   // 上次亲手选的动爻取法(没存过 = 附加时辰)
+			numGuaDongYao: GUAZHAN_PAGE_SETTINGS.load().numGuaDongYao,
 			upGuaIdx: null,
 			downGuaIdx:null,
 			number: null,
@@ -574,7 +621,8 @@ class GuaZhanMain extends Component{
 	}
 
 	changeLiuyaoPreset(presetKey){
-		this.setState({ liuyaoSettings: applyPreset(presetKey) });
+		// [Q-204/T-147] 切派保留输入键(占测事项/用神/本命)与显示、起卦体验键的当前值。
+		this.setState((prev)=>({ liuyaoSettings: applyPreset(presetKey, prev.liuyaoSettings) }));
 	}
 
 	changeLiuyaoOption(optKey, value){
@@ -623,6 +671,9 @@ class GuaZhanMain extends Component{
 			gender: flds.gender.value,
 			after23NewDay: defaultAfter23NewDay(),
 			lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
+			// [Q-390/T-372 2026-09-18 用户裁决 A] 占时时间算法:左栏(页面 fields)> 全局 > 缺省真太阳时(0)。
+			// 此前不带 timeAlg → 桥归一为 0 恒真太阳时,全局改「直接时间」后与小六壬 / 飞宫同刻占时不同支。
+			timeAlg: (flds.timeAlg && flds.timeAlg.value !== undefined && flds.timeAlg.value !== null) ? flds.timeAlg.value : 0,
 		}
 		return params;
 	}
@@ -1383,6 +1434,7 @@ class GuaZhanMain extends Component{
 	}
 
 	custGuaDongYaoChanged(val){
+		GUAZHAN_PAGE_SETTINGS.save({ custGuaDongYao: val });   // 只收取法(负值);点具体某一爻是输入,被 schema 拒收
 		this.setState({
 			custGuaDongYao: val,
 		}, ()=>{
@@ -1391,6 +1443,7 @@ class GuaZhanMain extends Component{
 	}
 
 	numGuaDongYaoChanged(val){
+		GUAZHAN_PAGE_SETTINGS.save({ numGuaDongYao: val });
 		this.setState({
 			numGuaDongYao: val,
 		}, ()=>{
@@ -1765,6 +1818,14 @@ class GuaZhanMain extends Component{
 				</Select>
 			</label>
 		);
+		// [Q-208/T-161] 条件依赖无载体即置灰(照本页「进退神土路」既有先例:disabled + title 说明):
+		// ·长生用法 / 生旺墓阴阳 —— 土长生选「不标长生」时 changshengOf 对一切五行恒返空,长生列与开局卡生旺墓整体不出;
+		// ·之卦简显 / 关联卦「之卦」 —— 之卦卡在「无动爻」或「变卦装法=仅装变爻」时本就不渲染。
+		const _csOff = s.tuChangsheng === 'off';
+		const _csOffHint = '土长生选「不标长生」时十二长生对一切五行都不标,本项无可作用对象,故置灰。';
+		const _hasMovingYao = Array.isArray(this.state.yao) && this.state.yao.some((y)=>y && y.change);
+		const _bianCardOff = !_hasMovingYao || s.biangua === 'movingOnly';
+		const _bianCardHint = !_hasMovingYao ? '本卦无动爻,不成之卦,本项无可作用对象。' : '「变卦装法」选「仅装变爻」时不渲染之卦卡,本项无可作用对象。';
 		// [L·断卦设置重排] 三分组:①流派与用神 ②显示项(九勾选,神煞归入独立弹窗按钮)③流派取法(细则下拉)。
 		const shenshaOn = !!(s.shensha && s.shensha.on);
 		const shenshaExOn = !!(s.shenshaEx && s.shenshaEx.on);
@@ -1805,9 +1866,9 @@ class GuaZhanMain extends Component{
 						    载荷,金标红了再解除置灰)。照 PlanetSelector/八字流派标记「置灰+说明」先例。 */}
 						{sel('进退神土路', 'jinTuiTu', [{ v: 'chain', l: '丑辰未戌连环' }, { v: 'break', l: '戌丑断开' }],
 							{ disabled: true, title: '考据声明项:纳甲动变结构中不存在戌↔丑的本变对,两口径在一切实卦中输出恒同,故置灰。详见帮助。' })}
-						{sel('长生用法', 'changshengUse', [{ v: 'full12', l: '十二宫全用' }, { v: 'four', l: '只取生旺墓绝' }])}
+						{sel('长生用法', 'changshengUse', [{ v: 'full12', l: '十二宫全用' }, { v: 'four', l: '只取生旺墓绝' }], { disabled: _csOff, title: _csOff ? _csOffHint : undefined })}
 						{sel('天时占法', 'tianshiSchool', [{ v: 'fumu', l: '通行(父母雨子孙晴)' }, { v: 'ancient', l: '古法多套(五家分列)' }])}
-						{sel('生旺墓阴阳', 'changshengYinYang', [{ v: 'ziping', l: '分阴阳' }, { v: 'classic', l: '古法不分' }])}
+						{sel('生旺墓阴阳', 'changshengYinYang', [{ v: 'ziping', l: '分阴阳' }, { v: 'classic', l: '古法不分' }], { disabled: _csOff, title: _csOff ? _csOffHint : undefined })}
 						{sel('字背口径', 'coinFace', [{ v: 'standard', l: '背为阳(火珠林系)' }, { v: 'alt', l: '字为阳(卜筮正宗系)' }])}
 						{sel('随机概率源', 'randomAlgo', [{ v: 'coins', l: '三钱(动爻各1/8)' }, { v: 'yarrow', l: '大衍蓍草(3/16·1/16)' }])}
 						{sel('录入默认爻', 'defaultYaoState', [{ v: 'shaoyang', l: '少阳' }, { v: 'shaoyin', l: '少阴' }])}
@@ -1834,7 +1895,7 @@ class GuaZhanMain extends Component{
 						<Checkbox checked={s.randomConfirm} onChange={(e)=>this.changeLiuyaoOption('randomConfirm', e.target.checked)}>随机前确认</Checkbox>
 						<Checkbox checked={s.wangShuaiCol !== false} onChange={(e)=>this.changeLiuyaoOption('wangShuaiCol', e.target.checked)}>旺衰列</Checkbox>
 						<Checkbox checked={s.showTips !== false} onChange={(e)=>this.changeLiuyaoOption('showTips', e.target.checked)}>悬停提示</Checkbox>
-						<Checkbox checked={s.bianguaSimplify} onChange={(e)=>this.changeLiuyaoOption('bianguaSimplify', e.target.checked)}>之卦简显</Checkbox>
+						<Checkbox checked={s.bianguaSimplify} disabled={_bianCardOff} title={_bianCardOff ? _bianCardHint : undefined} onChange={(e)=>this.changeLiuyaoOption('bianguaSimplify', e.target.checked)}>之卦简显</Checkbox>
 						<Checkbox checked={s.yaoHotkeys} onChange={(e)=>this.changeLiuyaoOption('yaoHotkeys', e.target.checked)}>改爻快捷键(1-6)</Checkbox>
 					</div>
 					<div className="horosa-guazhan-set-subhead" style={{ marginTop: 8 }}>关联卦显示</div>
@@ -1843,7 +1904,7 @@ class GuaZhanMain extends Component{
 							const selArr = Array.isArray(s.relatedCards) ? s.relatedCards : null;
 							const on = !selArr || selArr.indexOf(k) >= 0;
 							return (
-								<Checkbox key={k} checked={on} onChange={(e)=>{
+								<Checkbox key={k} checked={on} disabled={k === 'bian' && _bianCardOff} title={(k === 'bian' && _bianCardOff) ? _bianCardHint : undefined} onChange={(e)=>{
 									const all = ['bian', 'hu', 'fu', 'zong', 'cuo'];
 									const cur = selArr || all.slice();
 									const next = e.target.checked ? Array.from(new Set(cur.concat([k]))) : cur.filter((x)=>x !== k);
@@ -1901,7 +1962,7 @@ class GuaZhanMain extends Component{
 		);
 		return (
 			<XQModal visible title="神煞选项" width={640} footer={null} className="horosa-guazhan-shensha-modal"
-				bodyStyle={{ maxHeight: '68vh', overflowY: 'auto' }}
+				bodyStyle={{ maxHeight: 'calc(68 * var(--horosa-lvh, 1vh))', overflowY: 'auto' }}
 				onCancel={()=>this.setState({ shenshaModalOpen: false })}>
 				<div className="horosa-guazhan-shensha-block">
 					<div className="horosa-guazhan-shensha-head">
@@ -1950,7 +2011,7 @@ class GuaZhanMain extends Component{
 			? `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}`
 			: '—';
 		const geo = fields.lon && fields.lat ? `${fields.lon.value} ${fields.lat.value}` : '—';
-		const gz = [nongli.yearJieqi || nongli.year || nongli.yearGanZi, nongli.monthGanZi, nongli.dayGanZi, nongli.time || nongli.timeGanZi]
+		const gz = [yearGzByBoundary(nongli, this.state.liuyaoSettings), nongli.monthGanZi, nongli.dayGanZi, nongli.time || nongli.timeGanZi]
 			.filter(Boolean)
 			.join(' / ');
 
@@ -1976,7 +2037,7 @@ class GuaZhanMain extends Component{
 	}
 
 	renderRightPanel(height, guadesc){
-		const infoHeight = Math.max(420, height - 170);
+		const infoHeight = Math.max(visualFloorPx(420), height - 170);
 		const allowed = ['overview', 'zhuang', 'duanjue', 'zhanlei', 'ref', 'gua'];
 		const activeKey = allowed.indexOf(this.state.rightPanelTab) >= 0 ? this.state.rightPanelTab : 'overview';
 		const analysis = this.getLiuyaoAnalysis();
@@ -2123,7 +2184,7 @@ class GuaZhanMain extends Component{
 							<div className="horosa-guazhan-board-host">
 						<GuaZhanChart
 							value={chart} 
-									height={Math.max(560, height - 22)}
+									height={Math.max(visualFloorPx(560), height - 22)}
 							fields={this.props.fields}  
 							nongli={this.state.nongli}
 							yao={chartYao} analysis={this.getLiuyaoAnalysis()}

@@ -100,8 +100,10 @@ describe('八字 神煞补全（§5 完整对照表项）', () => {
 		const gods = calcFlowShenSha(f, '甲', '酉'); // 流运柱 甲酉，日干丁见酉=天乙/太极/文昌
 		expect(gods).toContain('天乙贵人');
 		expect(gods).toContain('文昌贵人');
-		// 流运查法不含 DAY_STEMS(禄神/词馆/羊刃)——不查日干禄词馆表
+		// [Q-196] 流运亦查日干系 DAY_STEMS:丁日学堂在酉 → 学堂;丁禄在午 → 酉无禄神(非漏查)
+		expect(gods).toContain('学堂');
 		expect(gods).not.toContain('禄神');
+		expect(calcFlowShenSha(f, '甲', '午')).toContain('禄神');
 		expect(Array.isArray(gods)).toBe(true);
 	});
 
@@ -113,29 +115,43 @@ describe('八字 神煞补全（§5 完整对照表项）', () => {
 		expect(r.year.slice().sort()).toEqual(['月厌', '月德贵人', '禄神', '词馆', '德秀贵人'].sort());
 		expect(r.month.slice().sort()).toEqual(['太岁', '将星', '禄神', '词馆'].sort());
 		expect(r.day.slice().sort()).toEqual(['太极贵人', '桃花', '德秀贵人', '天喜'].sort());
-		expect(r.time.slice().sort()).toEqual(['天乙贵人', '太极贵人', '文昌贵人', '红鸾', '灾煞'].sort());
+		// [Q-196] 时柱补查日干+时支 DAY_STEMS:丁日酉时 → 学堂(此前锁住漏项)。
+		expect(r.time.slice().sort()).toEqual(['天乙贵人', '太极贵人', '文昌贵人', '红鸾', '灾煞', '学堂'].sort());
 		// 关键：将星/太岁 在月柱而非年柱（原星阙统一查法会误标到年柱）
 		expect(r.year).not.toContain('将星');
 		expect(r.year).not.toContain('太岁');
 	});
 
-	// 新默认 godKeyPos='年'（年主位，对齐 Java GodsHelper/BaZiDirect）：日主位基组被剔除，月令系恒含。
-	// 锁定与 '年日' 全集的差集 = 日干起（禄神/词馆=日干甲）、日支起（桃花=日支卯）等日基神煞不再出。
-	test('新默认 godKeyPos=年（年主位）：日基神煞被剔除、月令系恒含（丙午/甲午/丁卯/己酉）', () => {
+	// [Q-197 裁决 2026-09-18] 缺省 godKeyPos='年'(年主位):年/日两可的基组(DAY_YEAR_STEMS / YEAR_DAY_BRANCH 的日基半)被剔除、月令系恒含;
+	// 但日干恒查的神煞(BAZI_DAY_STEMS:羊刃 / 禄神 / 学堂 / 词馆 / 红艳 / 暗禄 / 八专 / 沐浴 / 流霞)与 Java GodsHelper 同口径恒按日干查,
+	// **不随主位档增减**(此前整表挂在日基组下 → 缺省盘四柱永不出羊刃 / 禄神,与 Java 同名档不同构;修前本例红)。
+	test('[Q-197] 缺省 godKeyPos=年:日干系神煞恒出、年/日两可的日基组仍剔除、月令系恒含(丙午/甲午/丁卯/己酉)', () => {
 		const r = calcFourPillarShenSha(four('丙午', '甲午', '丁卯', '己酉')); // 默认 '年'
-		// 月令系恒含：月厌(月支午→午)、月德贵人(月支午→丙=年干… 实为月令表) 仍在年柱。
+		// 月令系恒含:月厌(月支午→午)、月德贵人 仍在年柱。
 		expect(r.year).toContain('月厌');
 		expect(r.year).toContain('月德贵人');
-		// 日基（日干甲起的禄神/词馆=DAY_STEMS）默认不出。
-		expect(r.year).not.toContain('禄神');
-		expect(r.year).not.toContain('词馆');
-		// 桃花在该盘来自「年支午→卯」(YEAR_DAY_BRANCH 年支基)，属年主位 → 默认 '年' 仍保留于日柱。
+		// 日干系恒查:丁禄在午 → 年柱午 / 月柱午 皆出禄神;词馆同出(修前缺省档永不出 = 红)。
+		expect(r.year).toContain('禄神');
+		expect(r.year).toContain('词馆');
+		expect(r.month).toContain('禄神');
+		// 桃花在该盘来自「年支午→卯」(YEAR_DAY_BRANCH 年支基),属年主位 → 默认 '年' 仍保留于日柱。
 		expect(r.day).toContain('桃花');
-		// '年日' 全集仍含日基的禄神/词馆（证明是主位过滤、非规则丢失）。
+		// '年日' 全集 ⊇ 缺省集;两集之差只可能是年/日两可基组的日基半,绝不含日干系(日干系不随档增减)。
 		const full = calcFourPillarShenSha(four('丙午', '甲午', '丁卯', '己酉'), '年日');
-		expect(full.year).toContain('禄神');
-		expect(full.year).toContain('词馆');
-		expect(full.day).toContain('桃花');
+		const DAY_STEM_GODS = ['羊刃', '禄神', '学堂', '词馆', '红艳', '暗禄', '八专', '沐浴', '流霞'];
+		['year', 'month', 'day', 'time'].forEach((k)=>{
+			r[k].forEach((g)=>{ expect(full[k]).toContain(g); });
+			const extra = full[k].filter((g)=>!r[k].includes(g));
+			extra.forEach((g)=>{ expect(DAY_STEM_GODS).not.toContain(g); });
+			// 日干系三档恒等:'年' / '日' / '年日' 三档下日干系子集逐柱相同
+			const ri = calcFourPillarShenSha(four('丙午', '甲午', '丁卯', '己酉'), '日');
+			const sub = (arr)=>arr.filter((g)=>DAY_STEM_GODS.includes(g)).sort();
+			expect(sub(r[k])).toEqual(sub(full[k]));
+			expect(sub(ri[k])).toEqual(sub(full[k]));
+		});
+		// '日' 档:年基组被剔除(年支午起的桃花不出),日干系仍在。
+		const ri = calcFourPillarShenSha(four('丙午', '甲午', '丁卯', '己酉'), '日');
+		expect(ri.year).toContain('禄神');
 	});
 });
 
@@ -168,5 +184,30 @@ describe('BAZI_DAY_STEMS 十干完整性硬闸(辛壬癸曾整体缺行)', ()=>{
 		expect(r.day).toContain('羊刃');
 		expect(BAZI_DAY_STEMS['辛辰']).toContain('暗禄');
 		expect(BAZI_DAY_STEMS['癸寅']).toContain('流霞');
+	});
+});
+
+describe('[Q-196/T-122] 逐柱查法对称性:时柱日干系 / 年柱日干+年支 / 流运日干系', ()=>{
+	const { calcFourPillarShenSha, calcFlowShenSha } = require('../baziShenShaLocal');
+	test('丁卯/丙午/甲子/丙寅 按日柱查:时柱(寅)出 词馆/禄神(日禄归时);年柱(卯)出 羊刃(同表两柱对称)', ()=>{
+		const r = calcFourPillarShenSha(four('丁卯', '丙午', '甲子', '丙寅'), '日');
+		expect(r.time).toContain('禄神');
+		expect(r.time).toContain('词馆');
+		expect(r.year).toContain('羊刃');
+	});
+	test('辛丑/庚寅/甲子/甲子 按日柱与年日:年柱(丑)出 日干甲之天乙贵人', ()=>{
+		['日', '年日'].forEach((pos)=>{
+			const r = calcFourPillarShenSha(four('辛丑', '庚寅', '甲子', '甲子'), pos);
+			expect(r.year).toContain('天乙贵人');
+		});
+		// 缺省「年」主位:日基仍剔除(缺省四柱不变)
+		expect(calcFourPillarShenSha(four('辛丑', '庚寅', '甲子', '甲子')).year).not.toContain('天乙贵人');
+	});
+	test('甲日流运:乙卯 → 羊刃;丙寅 → 禄神/词馆(流年逢刃逢禄)', ()=>{
+		const f = four('辛丑', '庚寅', '甲子', '甲子');
+		expect(calcFlowShenSha(f, '乙', '卯')).toContain('羊刃');
+		const yin = calcFlowShenSha(f, '丙', '寅');
+		expect(yin).toContain('禄神');
+		expect(yin).toContain('词馆');
 	});
 });

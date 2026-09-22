@@ -61,10 +61,11 @@ describe('七政四余 同步宇宙 前端压测', () => {
 	});
 
 	test('guolaoDisplay 新键 round-trip + 默认零回归', () => {
-		const d = setStoredGuolaoDisplay({ ...GUOLAO_DEFAULT_DISPLAY, lifeMasterMode: 'du', minorLimitType: 'dongwei', motionState: true });
+		const d = setStoredGuolaoDisplay({ ...GUOLAO_DEFAULT_DISPLAY, lifeMasterMode: 'du', minorLimitType: 'dongwei' });
 		expect(d.lifeMasterMode).toBe('du');
 		expect(d.minorLimitType).toBe('dongwei');
-		expect(d.motionState).toBe(true);
+		// [Q-193/T-137] motionState 显示键已删(留伏迟疾列恒显示,键无消费者);仓里不再留该字段。
+		expect(d.motionState).toBeUndefined();
 		// 非法值兜底
 		const d2 = setStoredGuolaoDisplay({ lifeMasterMode: 'x', minorLimitType: 'y' });
 		expect(d2.lifeMasterMode).toBe('gong');
@@ -72,7 +73,7 @@ describe('七政四余 同步宇宙 前端压测', () => {
 		// 默认仍古度/宫主/关(零回归)
 		expect(GUOLAO_DEFAULT_DISPLAY.lifeMasterMode).toBe('gong');
 		expect(GUOLAO_DEFAULT_DISPLAY.minorLimitType).toBe('');
-		expect(GUOLAO_DEFAULT_DISPLAY.motionState).toBe(false);
+		expect(GUOLAO_DEFAULT_DISPLAY.motionState).toBeUndefined();
 		setStoredGuolaoDisplay(GUOLAO_DEFAULT_DISPLAY);   // 复位
 	});
 });

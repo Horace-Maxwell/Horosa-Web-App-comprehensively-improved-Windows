@@ -48,7 +48,18 @@ jest.mock('../moduleAiSnapshot', () => ({
 	loadModuleAISnapshot: jest.fn(() => null),
 	saveModuleAISnapshot: jest.fn(),
 }));
-jest.mock('../request', () => ({ __esModule: true, default: jest.fn(async () => ({ Result: {} })) }));
+// 推导盘走 request(/predict/pdchart):给真盘形状,好断言「主限法盘配置」段体真的出星宫行(而不是只有段头)。
+const mockRequestCalls = [];
+jest.mock('../request', () => ({
+	__esModule: true,
+	default: jest.fn(async (url, opts) => {
+		mockRequestCalls.push({ url, body: opts && opts.body ? JSON.parse(opts.body) : null });
+		if (String(url).includes('/predict/pdchart')) {
+			return { Result: { chart: { objects: [], stars: [] }, lots: [], params: {} } };
+		}
+		return { Result: {} };
+	}),
+}));
 jest.mock('../aiAnalysisStore', () => ({
 	AI_ANALYSIS_STORES: { contextCache: 'contextCache' },
 	getStoreRecord: jest.fn(async () => null),
@@ -73,6 +84,7 @@ const SOURCE = {
 describe('P5 主限法盘 primarydirchart round-trip', () => {
 	beforeEach(() => {
 		mockFetchChartCalls.length = 0;
+		mockRequestCalls.length = 0;
 	});
 
 	it('盘接 record.datetime → 出真盘快照 [主限法盘设置]（含所选时间/向运方向），非表格占位', async () => {
@@ -89,6 +101,14 @@ describe('P5 主限法盘 primarydirchart round-trip', () => {
 		expect(ctx.content).toContain('[本命盘配置]');
 		expect(ctx.content).toContain('太阳 白羊 10.00°');
 		expect(ctx.content).toContain('[主限法盘配置]');
+		// 段体必须真出推导盘星宫行:此前 pdtype 常量漏 import,try/catch 把 ReferenceError 吞成永远的降级句,
+		// 而这里只断段头 → 全绿假象。判据:降级句不得出现;星行出现两次(本命一次 + 推导一次);
+		// /predict/pdchart 真的被请求且带 pdtype=0(黄道)。
+		expect(ctx.content).not.toContain('推导盘获取失败');
+		expect(ctx.content.split('太阳 白羊 10.00°').length - 1).toBeGreaterThanOrEqual(2);
+		const pdc = mockRequestCalls.find((c) => String(c.url).includes('/predict/pdchart'));
+		expect(pdc).toBeTruthy();
+		expect(pdc.body.pdtype).toBe(0);
 		// 不应误用表格 builder 的占位串。
 		expect(ctx.content).not.toContain('主限法表格快照(占位)');
 	});

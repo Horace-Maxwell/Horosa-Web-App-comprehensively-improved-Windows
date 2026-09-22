@@ -122,6 +122,11 @@ class ChartDynamics:
             role = asp.getRole(objA.id)
             if role['inOrb']:
                 movement = role['movement']
+                # [Q-337/T-318] 主动方留驻(慢行星留点 ±15 小时内速度≈0)时 getAspect 给 STATIONARY,
+                # 本表只有入/离/正合/无运动四桶 → KeyError 整张盘 param error(虚点接纳相位开启时可达)。
+                # 留驻既不入不离,归入「无运动」桶(与 immediateAspects 口径同),结果形状不变。
+                if movement not in res:
+                    movement = const.NO_MOVEMENT
                 res[movement].append({
                     'id': objB.id,
                     'asp': asp.type,
@@ -185,6 +190,33 @@ class ChartDynamics:
                 orbs.append(abs(asp.orb))
         return orbs
 
+    def _vocAheadArcs(self, ID, includeOuter):
+        """[Q-254/T-226] ID(通常为月亮)沿黄道前进、到达各目标星任一主相位精确点所需的正向弧列表(度,0–360)。
+        纯几何:不吃容许度,目标星视为静止(月亮远快于诸星,古法「本座内可否完成」即以此度数论)。"""
+        targets = list(self._VOC_TARGETS)
+        if includeOuter:
+            targets = targets + list(self._VOC_TARGETS_OUTER)
+        try:
+            obj = self.chart.get(ID)
+        except KeyError:
+            return []
+        lon0 = float(getattr(obj, 'lon', 0.0))
+        arcs = []
+        for otherID in targets:
+            if otherID == ID:
+                continue
+            try:
+                other = self.chart.get(otherID)
+            except KeyError:
+                continue
+            olon = float(getattr(other, 'lon', 0.0))
+            for a in const.MAJOR_ASPECTS:
+                for pt in ((olon - a) % 360.0, (olon + a) % 360.0):
+                    x = (pt - lon0) % 360.0
+                    if x > 1e-9:
+                        arcs.append(x)
+        return arcs
+
     def isVOC(self, ID, mode='lilly', includeOuter=False):
         """ Returns if a planet is Void of Course.
         mode='lilly'(default, historical behavior): not VOC if has any
@@ -209,12 +241,17 @@ class ChartDynamics:
         if mode == 'by_orb':
             return not any(o <= 12.5 for o in orbs)
         if mode == 'by_sign_perfect':
+            # [Q-254/T-226 ①] 「本座内须完成」按黄经几何前推:月亮(前进)到达任一目标主相位点所需弧 ≤ 本座余度即非空,
+            # 不受容许度限制(此前只收已进入容许度的入相,离本座前能完成但当前距离超过容许度的相位被漏判 → 误判空)。
             try:
                 remain = 30.0 - float(getattr(self.chart.get(ID), 'signlon', 0.0))
             except (KeyError, TypeError, ValueError):
                 remain = 30.0
-            return not any(o <= remain + 1e-9 for o in orbs)
-        if mode in ('by_sign_orb', 'kenodromia'):
+            return not any(x <= remain + 1e-9 for x in self._vocAheadArcs(ID, includeOuter))
+        if mode == 'kenodromia':
+            # [Q-254/T-226 ②] 「30° 法」:月亮前方 30° 窗内有任一主相位可完成即非空(跨座不论;此前与「本座内入容许度」同支)。
+            return not any(x <= 30.0 + 1e-9 for x in self._vocAheadArcs(ID, includeOuter))
+        if mode == 'by_sign_orb':
             return len(orbs) == 0
         # 未知口径回落历史行为(防御:绝不因新键值抛错)。
         return self.isVOC(ID, 'lilly')

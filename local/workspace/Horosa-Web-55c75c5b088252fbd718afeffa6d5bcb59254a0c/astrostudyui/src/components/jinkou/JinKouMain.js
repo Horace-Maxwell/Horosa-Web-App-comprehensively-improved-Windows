@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { definePageSettings } from '../../utils/pageSettingsStore';
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import { message, Modal } from 'antd';
 import * as Constants from '../../utils/constants';
@@ -41,6 +42,11 @@ import {
 import XQIcon from '../xq-icons';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { chartDrawGuardEnabled, stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled, techniqueResultCacheEnabled } from '../../utils/perfFlags';
+// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+import { visualFloorPx } from '../../utils/zoomDomain';
+// [极档巡检 2026-09-18] 金口诀盘的内容最小高(CSS px,与缩放无关):外边距 20×2 + 标题 50 + 两行象限各 ≥306(表格段 72+150+44 + 两处间距 20 + 象限内边距 20)。
+// 1.8 档工作区只剩 ~400px 时盘内下段表格越出被裁(实抓 43px);盘高不低于此值、由中栏滚动看全(宁可滚、不能裁);正常窗口 ≥724px 不触发。
+const JINKOU_BOARD_MIN_H = 702;
 
 const { Option } = Select;
 const TabPane = Tabs.TabPane;
@@ -325,7 +331,9 @@ export function resolveDisplayRunYear(runyear, birth, guaFields){
 export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wuxing, guirengType, gender){
 	const lines = [];
 	const nongli = liureng && liureng.nongli ? liureng.nongli : {};
-	const xingbie = `${gender}` === '1' ? '男' : '女';
+	// [Q-427/T-393] 性别「未知」(-1)时计算按男排(行年 / 旬法皆以 gender≠0 取男表),快照却写「女」——
+	//   同一份快照里「行年:男」与「性别:女」并存。与八字页口径统一:未知写「未知(按男排)」。
+	const xingbie = `${gender}` === '1' ? '男' : (`${gender}` === '0' ? '女' : '未知(按男排)');
 	const guirenType = jinkouData && jinkouData.source === 'kinjinkou' ? 'kinjinkou 贵人歌诀' : (guirengType === 0 ? '六壬法贵人' : (guirengType === 1 ? '遁甲法贵人' : '星占法贵人'));
 	const briefKong = (txt)=>{
 		const val = `${txt || ''}`;
@@ -846,6 +854,17 @@ function pushCache(map, key, val, max = 96){
 	}
 }
 
+// 排盘设置跨会话保留(用户实报:排盘设置改了之后每次重开软件都要重设)。只收排盘流派五键 + 时间基准;
+// 地分 / 月将 / 占时 / 专题 / 扣题 / 时段是每一课的输入,十二长生五行缺省随日干,都不进。事盘回灌不经这两个 handler,不落盘。
+export const JINKOU_PAGE_SETTINGS = definePageSettings('horosa.jinkou.settings.v1', {
+	schoolYueJiang: { def: 'zhongqi', oneOf: ['zhongqi', 'jiaojie'] },
+	schoolGuiTable: { def: 'shiwu', oneOf: ['shiwu', 'liuren'] },
+	schoolGuiPan: { def: 'di', oneOf: ['di', 'tian'] },
+	panShi: { def: 'yang', oneOf: ['yang', 'yin'] },
+	soilChangSheng: { def: 'shen', oneOf: ['shen', 'yin'] },
+	timeBasis: { def: 'direct', oneOf: ['direct', 'trueSolar'] },
+});
+
 // horosa_kentang_result_cache_v1 —— /liureng/gods + /liureng/runyear(金口诀复用六壬两端点)
 // 与出生年干支的结果缓存**提升到模块级**。原为 per-instance:切走金口页 → 组件卸载 → 缓存与在途
 // Promise 一起蒸发,切回来整趟往返重付。三者均为确定性纯计算(key = genGodsParams/genRunYearParams/
@@ -919,12 +938,8 @@ class JinKouMain extends Component{
 			yueJiang: 'auto',
 			zhanShi: 'auto',
 			// 排盘流派(P0-1)：默认中气换将/实务派贵人/地盘起贵神/阳盘 → 与现有后端盘零回归。
-			schoolYueJiang: 'zhongqi',
-			schoolGuiTable: 'shiwu',
-			schoolGuiPan: 'di',
-			panShi: 'yang',
-			soilChangSheng: 'shen',
-			timeBasis: 'direct',
+			// 上次亲手设的排盘流派 / 时间基准(没保存过 = schema 缺省 = 原先的缺省,零回归)
+			...JINKOU_PAGE_SETTINGS.load(),
 			jinkouPan: null,
 			jinkouError: '',
 			rightPanelTab: 'overview',
@@ -1140,6 +1155,16 @@ class JinKouMain extends Component{
 	onWuXingChange(val){
 		// wuxingAuto=false 起，requestGods 不再拿日干五行覆写用户的手选值
 		// （原先改一下地分/月将/占时/时间基准就把用户选的「木」静默打回日干的「金」）。
+		// [Q-211/T-155] 选「自动」即回到缺省档:置 wuxingAuto=true 并按当前课的日干立刻回算,
+		// 此前一旦手选过就再也回不去自动(下拉里根本没有这一项)。
+		if(val === 'auto'){
+			const dayGanZi = (this.state.liureng && this.state.liureng.nongli && this.state.liureng.nongli.dayGanZi) || '';
+			const autoWx = LRConst.GanZiWuXing[dayGanZi.substr(0, 1)] || this.state.wuxing;
+			this.setState({ wuxing: autoWx, wuxingAuto: true }, ()=>{
+				this.saveJinKouSnapshot(null, this.state.liureng, this.state.runyear, autoWx, this.state.guireng, this.state.diFen);
+			});
+			return;
+		}
 		this.setState({
 			wuxing: val,
 			wuxingAuto: false,
@@ -1150,6 +1175,17 @@ class JinKouMain extends Component{
 
 
 	onDiFenChange(val){
+		// [Q-211/T-155] 选「自动」即回缺省档:置 diFenAuto=true,由 resolveJinKouDiFen 按占时支重取。
+		if(val === 'auto'){
+			this.setState({ diFenAuto: true }, ()=>{
+				if(this.state.liureng){
+					this.requestGods(this.state.calcFields || this.props.fields, this.props.value);
+				}else{
+					this.saveJinKouSnapshot(null, this.state.liureng, this.state.runyear, this.state.wuxing, this.state.guireng, this.state.diFen);
+				}
+			});
+			return;
+		}
 		this.setState({
 			diFen: val,
 			diFenAuto: false,
@@ -1184,6 +1220,7 @@ class JinKouMain extends Component{
 
 	// 排盘流派切换(月将换将/贵人昼夜表/起贵神盘/盘式)：纯前端确定性重算，只触发重渲染(无需后端)。
 	onSchoolChange(key, val){
+		JINKOU_PAGE_SETTINGS.save({ [key]: val });   // 用户亲手改的流派 → 落盘
 		this.setState({ [key]: val }, ()=>{
 			// [X1·P1-6] 与五行/贵人/地分 setter 同律:流派改后重存挂载快照,否则 AI 挂载读旧流派盘文
 			// (导出有 refresh 事件自愈,挂载路径读缓存无自愈)。
@@ -1248,11 +1285,7 @@ class JinKouMain extends Component{
 				gender: appliedBirthForCalc && appliedBirthForCalc.gender ? appliedBirthForCalc.gender.value : 1,
 				age: deriveXuSuiFromRunYear(effRunYear),
 			});
-			const isDefault = (this.state.schoolYueJiang || 'zhongqi') === 'zhongqi'
-				&& (this.state.schoolGuiTable || 'shiwu') === 'shiwu'
-				&& (this.state.schoolGuiPan || 'di') === 'di'
-				&& (this.state.panShi || 'yang') === 'yang'
-				&& (this.state.soilChangSheng || 'shen') === 'shen';
+			const isDefault = this.schoolsAllDefault();
 			// [BUG-1] 日柱两源分叉闸：/liureng/gods 不接 timeBasis(后端恒按真太阳时定日柱)，
 			// 而 /jinkou/pan 接 —— 跨日界(晚子时)且选「直接时间」时两者日柱会差一天。
 			// 此时若照用 pan，就成了「盘面按 pan 的日干起人元、右栏一切解读按 liureng 的日干」，
@@ -1281,7 +1314,19 @@ class JinKouMain extends Component{
 		return result;
 	}
 
+	// [Q-207/T-154] 五项流派/盘法是否全缺省 —— 只有全缺省(且两源日柱对齐)时页面才采用后端 /jinkou/pan;
+	// 任一项非缺省即改走本地引擎 buildJinKouData,而本地引擎不消费 timeBasis(占时与日柱恒随 /liureng/gods
+	// 的真太阳时口径)→「时间基准」在那些组合下拨了也不变盘,故据此置灰并说明。
+	schoolsAllDefault(){
+		return (this.state.schoolYueJiang || 'zhongqi') === 'zhongqi'
+			&& (this.state.schoolGuiTable || 'shiwu') === 'shiwu'
+			&& (this.state.schoolGuiPan || 'di') === 'di'
+			&& (this.state.panShi || 'yang') === 'yang'
+			&& (this.state.soilChangSheng || 'shen') === 'shen';
+	}
+
 	onTimeBasisChange(val){
+		JINKOU_PAGE_SETTINGS.save({ timeBasis: val });   // 用户亲手改的时间基准 → 落盘
 		this.setState({
 			timeBasis: val,
 		}, ()=>{
@@ -1741,6 +1786,8 @@ class JinKouMain extends Component{
 				next[key] = p[key];
 			}
 		});
+		// 事盘里没有的口径键回出厂值,不沿用本机保存的偏好(见 pageSettingsStore.fillMissing 注)
+		Object.assign(next, JINKOU_PAGE_SETTINGS.fillMissing(next));
 		if(p.liureng){
 			next.liureng = p.liureng;
 		}
@@ -1841,11 +1888,13 @@ class JinKouMain extends Component{
 	}
 
 	genWuXingDoms(){
-		return LRConst.WuXing.map((item, idx)=>{
-			return (
-				<Option key={idx} value={item.elem}>{item.elem}·{item.ganzi}</Option>
-			);
-		});
+		// [Q-211/T-155] 首项「自动」= 页面真实缺省(随日干五行);此前手选后无路可回自动档,
+		// 且挂载 schema 与无头兜底都写死「土」→ 日干非土时「起课时间」挂载与页面两张表。
+		return [
+			<Option key="wx_auto" value="auto">自动（随日干五行）</Option>,
+		].concat(LRConst.WuXing.map((item, idx)=>(
+			<Option key={idx} value={item.elem}>{item.elem}·{item.ganzi}</Option>
+		)));
 	}
 
 
@@ -1957,6 +2006,10 @@ class JinKouMain extends Component{
 	}
 
 	renderInputPanel(wxdoms){
+		// [Q-207/T-154] 「时间基准」只在后端盘路径生效(五项流派/盘法全缺省);任一项非缺省即走本地引擎,
+		// 本地引擎的占时与日柱恒随 /liureng/gods 的真太阳时口径,不读 timeBasis → 无载体,置灰并说明。
+		const timeBasisDead = !this.schoolsAllDefault();
+		const timeBasisHint = '「月将 / 贵人表 / 贵人盘 / 盘式 / 土长生」任一项改成非默认后,本页改由本地引擎出课,占时与日柱恒按真太阳时口径,时间基准无处生效,故置灰。要用它请先把这五项都调回默认。';
 		return (
 			<div className="horosa-jinkou-input-stack">
 				<div>
@@ -2020,7 +2073,10 @@ class JinKouMain extends Component{
 					<div className="horosa-jinkou-field-grid2">
 						<label className="horosa-jinkou-select-field">
 							<span>地分</span>
-							<Select value={this.state.diFen} onChange={this.onDiFenChange} dropdownMatchSelectWidth={false} dropdownClassName="horosa-jinkou-field-dropdown">
+							{/* [Q-211/T-155] 首项「自动」= 页面真实缺省(随占时支);帮助此前写「默认子」并不实,
+							    且手选后无路可回自动档。 */}
+							<Select value={this.state.diFenAuto === false ? this.state.diFen : 'auto'} onChange={this.onDiFenChange} dropdownMatchSelectWidth={false} dropdownClassName="horosa-jinkou-field-dropdown">
+								<Option value="auto">自动（按占时支）</Option>
 								{LRConst.ZiList.map((zi)=>(<Option key={`difen_${zi}`} value={zi}>{zi}</Option>))}
 							</Select>
 						</label>
@@ -2038,16 +2094,17 @@ class JinKouMain extends Component{
 								{LRConst.ZiList.map((zi)=>(<Option key={`zhanshi_${zi}`} value={zi}>{zi}</Option>))}
 							</Select>
 						</label>
-						<label className="horosa-jinkou-select-field">
+						{/* [Q-207/T-154] 非缺省流派组合走本地引擎,本项无载体 → 置灰 + 说明(照本站「条件依赖即置灰」先例)。 */}
+						<label className="horosa-jinkou-select-field" title={timeBasisDead ? timeBasisHint : undefined}>
 							<span>时间基准</span>
-							<Select value={this.state.timeBasis} onChange={this.onTimeBasisChange} dropdownMatchSelectWidth={false} dropdownClassName="horosa-jinkou-field-dropdown">
+							<Select value={this.state.timeBasis} onChange={this.onTimeBasisChange} disabled={timeBasisDead} dropdownMatchSelectWidth={false} dropdownClassName="horosa-jinkou-field-dropdown">
 								<Option value="direct">直接时间</Option>
 								<Option value="trueSolar">真太阳时</Option>
 							</Select>
 						</label>
 						<label className="horosa-jinkou-select-field">
 							<span>十二长生五行</span>
-							<Select value={this.state.wuxing} onChange={this.onWuXingChange} dropdownMatchSelectWidth={false} dropdownClassName="horosa-jinkou-field-dropdown">
+							<Select value={this.state.wuxingAuto === false ? this.state.wuxing : 'auto'} onChange={this.onWuXingChange} dropdownMatchSelectWidth={false} dropdownClassName="horosa-jinkou-field-dropdown">
 								{wxdoms}
 							</Select>
 						</label>
@@ -2994,7 +3051,7 @@ class JinKouMain extends Component{
 									zhangshengElem={this.state.wuxing}
 									guireng={this.state.guireng}
 									jinkouData={jinkouData}
-									height={Math.max(560, chartHeight - 22)}
+									height={Math.max(visualFloorPx(560), JINKOU_BOARD_MIN_H, chartHeight - 22)}
 									fields={this.props.fields}
 								/>
 							</div>

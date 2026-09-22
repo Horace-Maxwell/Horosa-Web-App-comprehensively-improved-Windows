@@ -14,6 +14,9 @@ import { markServiceOnline, isBackendUnreachableError } from './serviceStatus';
 // horosa_prefetch_runtime_whitelist_v1(R4-B1):kentang 全族走的是本裸 fetch 路径
 // (不经 utils/request),没有这一闸整族就在任何白名单之外。非预取作用域恒放行,零行为变化。
 import { guardPrefetchUrl } from './stepPrefetch';
+// 最终失败(重试耗尽 / 不可重试)统一留痕:与 request 路径同一环形缓冲,抛出语义不变。
+import { classifyRequestFailure } from './requestFailure';
+import { recordRequestFailure } from './requestTelemetry';
 
 const DEFAULT_RETRIES = 2;
 const DEFAULT_BACKOFF_MS = [300, 600];
@@ -50,6 +53,8 @@ export async function fetchChartWithRetry(url, opts, cfg) {
         await sleep(backoff[Math.min(attempt, backoff.length - 1)]);
         continue;
       }
+      const failure = classifyRequestFailure(err);
+      recordRequestFailure({ url, kind: failure.kind, silent: false, name: err && err.name, message: err && err.message, status: failure.status, code: failure.code });
       throw err;
     }
   }

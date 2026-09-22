@@ -101,6 +101,10 @@ class JinKouPanChart {
 		if(this.chartObj === undefined || this.chartObj === null){
 			return null;
 		}
+		// 同 JinKouChart.drawChart:空盘对象 / 农历未到位不画(取贵人、取四课都要日柱)
+		if(!this.chartObj.nongli || !this.chartObj.nongli.dayGanZi){
+			return null;
+		}
 		const svgdom = document.getElementById(this.chartId);
 		if(svgdom === undefined || svgdom === null){
 			return null;

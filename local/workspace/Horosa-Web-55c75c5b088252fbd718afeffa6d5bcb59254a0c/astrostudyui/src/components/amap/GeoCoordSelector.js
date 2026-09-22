@@ -252,6 +252,12 @@ class GeoCoordSelector extends Component{
 					? <span className={styles.tzZone}>{info.zone}</span>
 					: <span className={styles.tzNone}>时区</span>}
 				{info && info.dst && !isManual ? <span className={styles.tzDst}>夏令时</span> : null}
+				{info && info.advisory === 'cn-unified' && !isManual ? (
+					<span className={styles.tzDst} title="中国大陆统一按法定北京时间;出生记录若按当地惯用时间(新疆时间),可切 +06:00">
+						官方 +08:00 · 当地惯用 +06:00
+						<a onClick={()=>this.onZoneChange('+06:00')} style={{ marginLeft: 4 }}>按当地</a>
+					</span>
+				) : null}
 				<Select
 					size="small"
 					className={styles.tzSelect}

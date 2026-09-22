@@ -500,6 +500,14 @@ class BaZiLuckFlowPanel extends Component{
 	componentDidMount(){
 		if(!this.props.fullValue && this.props.onLoad){
 			this.props.onLoad();
+			return;
+		}
+		// [Q-190/T-132] 重挂载时 fullValue 已在手(界面样式切旧再切回、keep-alive 复活等):
+		// componentDidUpdate 的「fullValue 变了」分支不会触发 → 本组件 state 是空的,轴回落首项,
+		// 而宿主还攥着切走之前的 flowSelection,细盘大运/流年列仍高亮旧选中 —— 两边对不上。
+		// 挂载即按当前日期重新定位一次并回传宿主,两边恒同源。
+		if(this.props.fullValue){
+			this.resetSelection(this.props.fullValue);
 		}
 	}
 

@@ -25,18 +25,13 @@ class ZWRuleMain extends Component{
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : '100%';
-		let style = {
-			height: (height - 130) + 'px',
-			overflowY:'auto', 
-			overflowX:'hidden',
-		};
-
+		// 此前内层 Tabs 定高 =(工作区高 − 130)px 且自带滚动:常数与真实页签 / 边距不等,小窗 × 放大档时内层 tabpane
+		// (右栏页签族给的 height:100% + overflow:hidden)把最后几行裁掉,而两层滚动盒都滚不到那一截。
+		// 改为按内容高自然流,唯一滚动出路 = 外层右栏 holder(overflow:auto):任何缩放 / 窗高零常数。
 		return (
 			<div className={styles.scrollbar}>
 				<Tabs
 					defaultActiveKey='sihua'
-					style={style}
 				>
 					<TabPane tab="天干四化" key="sihua">
 						<RuleSihua rules={this.props.rules} />

@@ -20,19 +20,34 @@ export default class XuanShiStories extends React.Component {
 		};
 	}
 
-	componentDidMount() { this.load(); if (this.props.openStorySlug) { this.openDetail(this.props.openStorySlug); } }
+	componentDidMount() { this.load(); this.loadDynastyOptions(); if (this.props.openStorySlug) { this.openDetail(this.props.openStorySlug); } }
 
 	persist() { if (this.props.onPersist) { this.props.onPersist('stories', { dynasty: this.state.dynasty, q: this.state.q, page: 1 }); } }
 
 	async load() {
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
 		this.setState({ loading: true, err: '' });
 		try {
-			const r = await fetchStories({ status: 'published', dynasty: this.state.dynasty || undefined, q: this.state.q || undefined, limit: LIMIT, offset: 0 });
+			const r = await fetchStories({ status: 'published', dynasty: this.state.dynasty || undefined, q: this.state.q || undefined, limit: LIMIT, offset: 0 }); if(__seq !== this._loadSeq){ return; }
 			const items = Array.isArray(r) ? r : (r.items || r.stories || []);
-			const dyn = [...new Set(items.map((s) => s.dynasty).filter(Boolean))];
+			// [Q-492/T-454] 朝代选项**不再**从当前结果回写:选中某朝代后结果里只剩这一朝,
+			// 下拉就只剩这一项(换朝代必须先清空;持久化了朝代再进页首屏同样只有一项)。
+			// 这里只做并集补全,完整值域另由 loadDynastyOptions() 的无筛选取数提供。
+			const dyn = [...new Set([...(this.state.dynasties || []), ...items.map((s) => s.dynasty).filter(Boolean)])];
 			this.setState({ items, dynasties: dyn.length ? dyn : this.state.dynasties, loading: false });
 		} catch (e) { this.setState({ loading: false, err: `${e && e.message ? e.message : e}` }); }
 		this.persist();
+	}
+
+	// [Q-492/T-454] 朝代选项的单一来源:一次无筛选取数(已发布全量 ≤LIMIT),与当前筛选无关。
+	async loadDynastyOptions() {
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
+		try {
+			const r = await fetchStories({ status: 'published', limit: LIMIT, offset: 0 }); if(__seq !== this._loadSeq){ return; }
+			const items = Array.isArray(r) ? r : (r.items || r.stories || []);
+			const dyn = [...new Set(items.map((s) => s.dynasty).filter(Boolean))];
+			if (dyn.length) { this.setState({ dynasties: dyn }); }
+		} catch (e) { /* 选项取不到不影响正文列表 */ }
 	}
 
 	setFilter(patch) { this.setState({ ...patch }, () => this.load()); }

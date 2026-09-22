@@ -6,6 +6,7 @@
 // 🔴 口径注:扫描默认=Java 兼容三键(主页默认态所见);主页拨引擎键走本地 lichun 界后,
 // 此处 yearBoundary 同枚举可调对齐(帮助分册明示)。
 import { useState, useEffect, useRef } from 'react';
+import { saveBlobSmart } from '../../utils/aiAnalysisExport';
 import { Modal, Dropdown, Menu, message } from 'antd';
 import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
 import ConditionParamsForm from './ConditionParamsForm';
@@ -19,18 +20,11 @@ import {
 } from '../../divination/zeri/ziweiZeriConditionTypes';
 import { ziweiZeriSchemeStore } from '../../divination/zeri/schemeStore';
 
+// [Q-410] 单源保存(桌面壳保存桥选目录;浏览器 <a download>);取消 / 失败静默不报成功(本处本就无成功提示)。
 function downloadJson(text, filename){
 	try{
-		const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = filename;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		setTimeout(() => URL.revokeObjectURL(url), 800);
-	}catch(e){ /* 下载失败静默(受限 webview 环境) */ }
+		return saveBlobSmart(filename, new Blob([text], { type: 'application/json;charset=utf-8' }));
+	}catch(e){ return null; /* 受限 webview 环境静默 */ }
 }
 
 const Option = XQSelect.Option;
@@ -117,8 +111,8 @@ const CATEGORY_ORDER = (()=>{
 
 export default function ZiweiZeriWorkbench({
 	open, onClose, cfg, onCfgChange, geo, onGeoChange, options, onOptionsChange,
-	natal, natalInput, onNatalInputChange, onResolveNatal, onClearNatal,
-	tree, frozenTree, onPreviewPan, onPreviewExplain, previewGeo, onTreeChange, onRun, onCancelScan, onPickInterval, onExplain, scanEpoch, resultsStale,
+	natal, natalInput, onNatalInputChange, onResolveNatal, onClearNatal, onRestoreNatal,
+	tree, frozenTree, onPreviewPan, onPreviewExplain, previewGeo, previewOptions, onTreeChange, onRun, onCancelScan, onPickInterval, onExplain, scanEpoch, resultsStale,
 	scanning, progress, results, truncated, scanErr,
 }){
 	const [draftType, setDraftType] = useState('ming_zhu_xing');
@@ -193,6 +187,9 @@ export default function ZiweiZeriWorkbench({
 			if(rec.config.cfg){ onCfgChange({ ...cfg, ...rec.config.cfg }); }
 			if(rec.config.geo && typeof onGeoChange === 'function'){ onGeoChange({ ...(geo || {}), ...rec.config.geo }); }
 			if(rec.config.options && typeof onOptionsChange === 'function'){ onOptionsChange({ ...(options || {}), ...rec.config.options }); }
+			// [Q-271/ZC-21] 保存/历史都写了 natal(+natalInput),载入此前只回灌 cfg/geo/options → 含本命组条件的方案载入后恒判假。
+			if(rec.config.natalInput && typeof onNatalInputChange === 'function'){ onNatalInputChange({ ...(natalInput || {}), ...rec.config.natalInput }); }
+			if(Object.prototype.hasOwnProperty.call(rec.config, 'natal') && typeof onRestoreNatal === 'function'){ onRestoreNatal(rec.config.natal || null); }
 		}
 		setSelectedPath(null);
 	};
@@ -310,7 +307,7 @@ export default function ZiweiZeriWorkbench({
 	};
 
 	const editView = (
-		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 'clamp(560px, calc(100vh - 220px), 900px)' }}>
+		<div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: 12, height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)' }}>
 			{/* 左列(主操作区):时间范围 / 构造条件 / 连接门 / 动作排 —— 黄历日课与经纬/时刻无关,无地点·参数区 */}
 			<div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
 				<div style={{ padding: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
@@ -454,7 +451,7 @@ export default function ZiweiZeriWorkbench({
 						<input placeholder="方案名…" value={schemeName} style={{ width: 128 }}
 							onChange={(e) => setSchemeName(e.target.value)} />
 						<XQButton size="small" disabled={!schemeName.trim()} onClick={() => {
-							const r = ziweiZeriSchemeStore.saveScheme(schemeName, { cfg, geo, options, natal }, tree);
+							const r = ziweiZeriSchemeStore.saveScheme(schemeName, { cfg, geo, options, natal, natalInput }, tree);   // [Q-271/ZC-21] 本命随方案存取
 							if(r.ok){ setSchemeName(''); setSchemeTick(schemeTick + 1); }
 						}}>保存方案</XQButton>
 						<Dropdown overlay={schemeMenu} trigger={['click']}>
@@ -469,7 +466,7 @@ export default function ZiweiZeriWorkbench({
 	);
 
 	const resultView = (
-		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => setView('edit')} disabled={scanning}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>择时结果</span>
@@ -568,7 +565,7 @@ export default function ZiweiZeriWorkbench({
 	};
 
 	const schemesView = (
-		<div style={{ height: 'clamp(560px, calc(100vh - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
+		<div style={{ height: 'clamp(560px, calc(100 * var(--horosa-lvh, 1vh) - 220px), 900px)', display: 'flex', flexDirection: 'column' }}>
 			<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
 				<XQButton size="small" onClick={() => { setView('edit'); setSchemeMsg(''); }}>← 返回条件</XQButton>
 				<span style={{ fontWeight: 600 }}>方案管理</span>
@@ -651,6 +648,7 @@ export default function ZiweiZeriWorkbench({
 				<ZeriMiniPanPopup
 					geo={previewGeo || geo}	/* 冻结地点优先:概览口径=扫描口径(活 geo 曾致扫后改地点概览错盘) */
 					tech="ziwei"
+					techOptions={previewOptions || options}	/* [Q-271/ZC-22] 冻结参数优先:概览口径=扫描口径(活 options 曾致扫后改参数概览错盘) */
 					row={previewRow}
 					computePan={typeof onPreviewPan === 'function' ? onPreviewPan : null}
 					onExplain={typeof onPreviewExplain === 'function' ? onPreviewExplain : null}

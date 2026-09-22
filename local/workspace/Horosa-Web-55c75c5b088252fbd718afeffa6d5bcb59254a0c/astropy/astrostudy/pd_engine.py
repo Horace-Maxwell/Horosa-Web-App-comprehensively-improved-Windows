@@ -511,9 +511,15 @@ def term_boundaries(variant=0):
         v = int(variant or 0)
     except (TypeError, ValueError):
         v = 0
-    if v in (1, 2):
+    if v in (1, 2, 3, 4):
         from flatlib.dignities import tables as _dtables
-        table = _dtables.TETRABIBLOS_TERMS if v == 1 else _dtables.LILLY_TERMS
+        if v in (1, 2):
+            table = _dtables.TETRABIBLOS_TERMS if v == 1 else _dtables.LILLY_TERMS
+        else:
+            # [Q-519/T-481] 迦勒底界(3)/自定义界表(4):表由请求级 push_request_terms 换入 essential.TERMS(夜盘经
+            # setupPlanets 换夜表),此处取当前生效表 → 主限法「界」行与分配星按所选界系算(此前一律回落埃及)。
+            from flatlib.dignities import essential as _essential
+            table = _essential.TERMS
         out = []
         for sign_name, rows in table.items():
             idx = _TERM_SIGN_IDX.get(sign_name)
@@ -773,7 +779,7 @@ def _position_circle_root_h(f, hint, tol):
 
 
 def position_circle_samples(sig, method, armc, phi, eps, n=64, tol=1e-9):
-    """Placidus / Topocentric「位置圈」采样折线(主限法 3D 天球用)。
+    """Placidus / Topocentric「位置圈」采样多段线(主限法 3D 天球用)。
 
     位置圈 = 与 significator 世俗位置(mundane position)等值的点的轨迹。
     Placidus(半弧比例)与 Topocentric(极)的位置圈**不是天球大圆**,前端无法

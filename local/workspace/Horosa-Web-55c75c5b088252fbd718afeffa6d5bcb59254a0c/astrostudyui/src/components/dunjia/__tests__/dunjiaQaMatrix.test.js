@@ -130,6 +130,20 @@ describe('[QA3a] 奇门新档压测大矩阵', ()=>{
 	});
 
 	// ── ⑤ 冲突/交叉组合 ──
+	test('[Q-298/T-285] 刻家子正换时:初局/刻柱/分遁与刻序同用偶数整点时辰(01:30 → 子时第 8 刻;23:30 → 当日亥时第 8 刻);关档逐字不变', ()=>{
+		const on = calc('2026-02-17', '01:30:00', { paiPanType: 4, keZiZhengHuanShi: true });
+		const off = calc('2026-02-17', '01:30:00', { paiPanType: 4, keZiZhengHuanShi: false });
+		expect(on.keIndex).toBe(8);  expect(off.keIndex).toBe(3);
+		expect(on.keTimeGanZhi.charAt(1)).toBe('子');  expect(off.keTimeGanZhi.charAt(1)).toBe('丑');
+		expect(on.keGanZhi.charAt(1)).toBe('未');      expect(off.keGanZhi.charAt(1)).toBe('卯');   // 首刻=时柱,逐刻进一
+		expect(off.keTimeGanZhi).toBe(off.ganzhi.time);                                          // 关档:刻家时柱=四柱时柱
+		const late = calc('2025-07-15', '23:30:00', { paiPanType: 4, keZiZhengHuanShi: true });
+		expect(late.keTimeGanZhi.charAt(1)).toBe('亥');  expect(late.keIndex).toBe(8);
+		const lateOff = calc('2025-07-15', '23:30:00', { paiPanType: 4, keZiZhengHuanShi: false });
+		expect(lateOff.keTimeGanZhi.charAt(1)).toBe('子');  expect(lateOff.keIndex).toBe(3);
+		invariants(on, 'z'); invariants(late, 'z');
+	});
+
 	test('冲突组合:金函×移星/封局/暗干(无意义键不炸不漏);刻家×数字起局/移星值符;寄宫×暗干×移星三键叠', ()=>{
 		const d = '2026-02-17', t = '09:05:00';
 		// 金函盘对常规键免疫:任意常规键组合下仍产完整金函盘

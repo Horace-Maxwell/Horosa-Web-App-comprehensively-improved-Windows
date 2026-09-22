@@ -3,6 +3,7 @@ import { Spin, Empty, Input, Pagination } from 'antd';
 import { fetchFigures, fetchFigure } from '../../services/xuanshi';
 import XuanShiStar from './XuanShiStar';
 import { dynClass } from './xuanshiDynClass';
+import { gregYearShort } from './xuanshiDate';   // [Q-491] 公元前年份写法单源
 
 const PAGE_SIZE = 60; // 列传全列 3469,分页防 DOM 过重(保 <1s)
 
@@ -17,8 +18,7 @@ const QUICKLINKS = [
 
 // 人物列传 —— 忠实源 参考人物页:列传网格(印章+生卒+一句话)+ 详情(biography_html 走 prose markdown 渲染 + 关联事件/故事)。
 function lifeSpan(b, d) {
-	const f = (y) => (y == null || y === '' ? '' : (Number(y) < 0 ? `前${-Number(y)}` : `${y}`));
-	const a = f(b), z = f(d);
+	const a = gregYearShort(b), z = gregYearShort(d);   // [Q-491] 与时间轴、详情共用同一个短标函数
 	if (!a && !z) { return ''; }
 	return `${a || '?'}—${z || '?'}`;
 }
@@ -60,9 +60,10 @@ export default class XuanShiFigures extends React.Component {
 	persist() { if (this.props.onPersist) { this.props.onPersist('figures', { dynasty: this.state.dynasty, q: this.state.q, page: this.state.page }); } }
 
 	async load() {
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
 		this.setState({ loading: true, err: '' });
 		try {
-			const r = await fetchFigures({ status: 'all', dynasty: this.state.dynasty || undefined, q: this.state.q || undefined, limit: PAGE_SIZE, offset: (this.state.page - 1) * PAGE_SIZE });
+			const r = await fetchFigures({ status: 'all', dynasty: this.state.dynasty || undefined, q: this.state.q || undefined, limit: PAGE_SIZE, offset: (this.state.page - 1) * PAGE_SIZE }); if(__seq !== this._loadSeq){ return; }
 			this.setState({ items: r.items || r.figures || [], total: r.total || 0, dynasties: r.dynasties || this.state.dynasties, loading: false });
 		} catch (e) { this.setState({ loading: false, err: `${e && e.message ? e.message : e}` }); }
 		this.persist();
@@ -219,7 +220,7 @@ export default class XuanShiFigures extends React.Component {
 				<div className="xuanshi-chan-head">
 					<div>
 						<div className="xuanshi-eyebrow">频道</div>
-						<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,3.4vw,38px)', marginTop: 6 }}>玄学名家</h1>
+						<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,calc(3.4 * var(--horosa-lvw, 1vw)),38px)', marginTop: 6 }}>玄学名家</h1>
 						<div className="xuanshi-display" style={{ fontSize: 18, marginTop: 8, color: 'var(--ink)' }}>千年术士、方士、相师列传</div>
 						<div className="xuanshi-section-sub" style={{ margin: '8px 0 0' }}>李淳风、袁天纲、林灵素、桑道茂、陶仲文…… 历代玄学人物的故事与影响。</div>
 					</div>
@@ -240,7 +241,10 @@ export default class XuanShiFigures extends React.Component {
 				{/* 朝代 chips */}
 				{dynList.length ? (
 					<div className="xuanshi-facet-chips" style={{ margin: '14px 0 18px' }}>
-						<span className={`chip${!this.state.dynasty ? ' chip-vermilion' : ''}`} style={{ cursor: 'pointer' }} onClick={() => this.setFilter({ dynasty: '' })}>全部 · {(total || 0).toLocaleString()}</span>
+						{/* [Q-490] 「全部」的计数要与同行其余 chip 同口径(全库分布),不能用带 朝代+搜索词 条件的 total ——
+						    选「唐」后这里会变成 420、搜「李」后又变一个数,看起来像「全库只剩这些人」。当前结果数在上面
+						    「共 N 位人物」那行,两处各司其职。 */}
+						<span className={`chip${!this.state.dynasty ? ' chip-vermilion' : ''}`} style={{ cursor: 'pointer' }} onClick={() => this.setFilter({ dynasty: '' })}>全部 · {dynList.reduce((n, d) => n + (Number(d.count) || 0), 0).toLocaleString()}</span>
 						{dynList.map((d) => (
 							<span key={d.name} className={this.state.dynasty === d.name ? 'chip chip-vermilion' : `chip chip-dyn chip-dyn-${dynClass(d.name)}`} style={{ cursor: 'pointer' }} onClick={() => this.setFilter({ dynasty: d.name })}>{d.name} · {d.count}</span>
 						))}
@@ -254,7 +258,8 @@ export default class XuanShiFigures extends React.Component {
 						{items.map((m) => {
 							const nm = m.name || '·';
 							const sealFont = nm.length >= 4 ? 13 : (nm.length === 3 ? 16 : 20);
-							const sheng = (m.birth_year != null || m.death_year != null) ? `${m.birth_year != null ? m.birth_year : '?'}—${m.death_year != null ? m.death_year : '?'}` : '';
+							// [Q-491] 卡片此前直拼原值,公元前年份带负号(老子「-571—-471」),与详情页的「前571—前471」两套写法
+							const sheng = lifeSpan(m.birth_year, m.death_year);
 							return (
 								<div className="xuanshi-card is-link" key={m.slug || m.id} onClick={() => this.openDetail(m.slug)}>
 									<div style={{ display: 'flex', alignItems: 'flex-start', gap: 13 }}>

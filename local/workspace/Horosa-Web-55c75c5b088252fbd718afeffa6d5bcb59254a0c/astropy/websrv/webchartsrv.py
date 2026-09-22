@@ -73,7 +73,7 @@ for _cand in reversed(_FLATLIB_CANDIDATES):
 
 from astrostudy.perchart import PerChart, parse_terms_variant, push_classical_request, pop_classical_request
 from astrostudy.guostarsect.guostarsect import GuoStarSect
-from astrostudy.thirteenthchart import ThirteenthChart, HarmonicChart
+from astrostudy.thirteenthchart import ThirteenthChart, HarmonicChart, DodecatemoriaChart
 from astrostudy.helper import getPredictivesObj
 from websrv.helper import enable_crossdomain
 from websrv._guards import validate_geo
@@ -487,7 +487,8 @@ class WebChartSrv:
     @cherrypy.config(**{'tools.cors.on': True})
     @cherrypy.tools.json_in()
     def chart12(self):
-        # 十二分盘(Dwadasamsa):newlon = (lon × 12) mod 360,与十三分盘同结构,仅换 HarmonicChart(perchart, 12)。
+        # 十二分盘(dodecatemoria / 印占 D12):自本座起算 —— newlon = ((sign + floor(d/2.5)) mod 12)×30 + (12d mod 30),
+        # 与十三分盘同结构。T-50:此前用 HarmonicChart(12)= 自白羊起算的 12 次谐波,11/12 星座落座全错、与调波盘 H12 恒等。
         enable_crossdomain()
         _cls_tokens = None  # [0d] 五族古典临界区复合令牌;守卫早退时 finally 引用,预初始化纪律(漏初始化=UnboundLocalError→500)
         try:
@@ -497,7 +498,7 @@ class WebChartSrv:
             data['predictive'] = False
             _cls_tokens = push_classical_request(data)
             perchart = PerChart(data)
-            HarmonicChart(perchart, 12).apply()
+            DodecatemoriaChart(perchart).apply()
 
             guostar = GuoStarSect(perchart)
 

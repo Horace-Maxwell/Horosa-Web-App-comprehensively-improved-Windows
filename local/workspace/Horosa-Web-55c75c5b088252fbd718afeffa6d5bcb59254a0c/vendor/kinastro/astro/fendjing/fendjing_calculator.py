@@ -122,9 +122,13 @@ def compute_fendjing_chart(
     hour: int, minute: int,
     timezone: float = 8.0,
     after23_new_day: int = 1,
+    hour_gan_use_next_day: int = 1,
     **kwargs,
 ) -> dict:
     """計算鬼谷分定經排盤。
+
+    [Q-264/T-247] hour_gan_use_next_day(全局「晚子时」lateZiHourUseNextDay):hour==23 時時柱起干——1=次日日干(舊硬編碼,默認零回歸)、
+    0=跟日柱所在日的日干(after23=0 時即今日干);與邵子 calculate_ganzhi_from_datetime 同義。
 
     Parameters
     ----------
@@ -146,7 +150,7 @@ def compute_fendjing_chart(
         from kin_year_domain import extreme_pillars
         year_gz, month_gz, day_gz, hour_gz = extreme_pillars(
             year, month, day, hour, minute or 0,
-            after23=(1 if after23_new_day else 0), hour_gan_next=1)[:4]
+            after23=(1 if after23_new_day else 0), hour_gan_next=(1 if hour_gan_use_next_day else 0))[:4]
         return _assemble_fendjing_result(year_gz, month_gz, day_gz, hour_gz)
 
     # 用戶語義（拍板,字面直覺版）：
@@ -160,11 +164,15 @@ def compute_fendjing_chart(
     gz_day = d.getDayGZ()
     day_gz = TIANGAN[gz_day.tg] + DIZHI[gz_day.dz]
 
-    # 時干支：hour==23 時，子時跨日永遠按"次日日干"起（與 lunar.js Exact 一致）。
+    # 時干支：hour==23 時，子時跨日按 hour_gan_use_next_day:1=次日日干起(舊硬編碼,與 lunar.js Exact 一致)、
+    # 0=跟日柱所在日(_cy/_cm/_cd)的日干([Q-264/T-247] 讀全局「晚子时」)。
     _ty, _tm, _td = year, month, day
     if hour == 23:
-        _td_dt = _date(year, month, day) + _timedelta(days=1)
-        _ty, _tm, _td = _td_dt.year, _td_dt.month, _td_dt.day
+        if hour_gan_use_next_day:
+            _td_dt = _date(year, month, day) + _timedelta(days=1)
+            _ty, _tm, _td = _td_dt.year, _td_dt.month, _td_dt.day
+        else:
+            _ty, _tm, _td = _cy, _cm, _cd
     _d_for_hour = sxtwl.fromSolar(_ty, _tm, _td)
     _gz_for_hour = _d_for_hour.getDayGZ()
     hour_zhi_idx = ((hour + 1) // 2) % 12

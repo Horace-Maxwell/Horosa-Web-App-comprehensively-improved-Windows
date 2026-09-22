@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/germany/AspectToMidpoint.js b/astrostudyui/src/components/germany/AspectToMidpoint.js
-index 0c9ff37..4c766f0 100644
+index 880d1b0b..7f2ec2b2 100644
 --- a/astrostudyui/src/components/germany/AspectToMidpoint.js
 +++ b/astrostudyui/src/components/germany/AspectToMidpoint.js
 @@ -6,6 +6,9 @@ import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover

@@ -1,5 +1,5 @@
 diff --git a/vendor/kinastro/astro/fendjing/fendjing_calculator.py b/vendor/kinastro/astro/fendjing/fendjing_calculator.py
-index 7c3f0c3..4bd14e5 100644
+index 8b07581a..a20b4475 100644
 --- a/vendor/kinastro/astro/fendjing/fendjing_calculator.py
 +++ b/vendor/kinastro/astro/fendjing/fendjing_calculator.py
 @@ -21,6 +21,18 @@ from astro.i18n import t, auto_cn

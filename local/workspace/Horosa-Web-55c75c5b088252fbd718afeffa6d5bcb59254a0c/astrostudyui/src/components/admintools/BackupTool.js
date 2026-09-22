@@ -6,6 +6,7 @@ import { TableOddRowBgColor, ServerRoot, ResultKey } from '../../utils/constants
 import request from '../../utils/request';
 
 
+import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 export default class BackupTool extends Component{
     constructor(props) {
 		super(props);
@@ -104,7 +105,7 @@ export default class BackupTool extends Component{
 			render: this.renderActionCol,
 		},];
 
-		let height = this.props.height ? this.props.height : document.documentElement.clientHeight - 80;
+		let height = this.props.height ? this.props.height : getLayoutViewportHeight() - 80;
 		let style = {
 			height: height + 'px',
 		};

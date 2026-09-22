@@ -430,7 +430,9 @@ class TongshuMain extends Component {
 	renderPanes() {
 		const s = this.state.settings;
 		const ymd = this.ymd();
-		const [y, m, d] = ymd.split('-').map((n)=> parseInt(n, 10));
+		// [Q-270/T-263] 公元前串带符号年:'-2026-09-01' 不能按 '-' 直接切分。
+		const ymdMatch = /^(-?\d+)-(\d{1,2})-(\d{1,2})/.exec(ymd) || [];
+		const y = parseInt(ymdMatch[1], 10), m = parseInt(ymdMatch[2], 10), d = parseInt(ymdMatch[3], 10);
 		if (s.school === 'donggong') {
 			return {
 				mid: <DonggongMonth y={y} m={m} activeYmd={ymd} event={s.event} onPick={this.pickDay} />,

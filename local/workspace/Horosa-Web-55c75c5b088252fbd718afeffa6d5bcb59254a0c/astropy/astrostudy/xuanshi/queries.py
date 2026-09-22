@@ -479,23 +479,55 @@ def events_page_meta(tradition: Optional[str] = None) -> dict[str, Any]:
 # 地图 — map_point
 # ============================================================
 
+# [Q-482/T-444] 地图钉点库 by_period_json 的键是粗桶(先秦两汉/东汉/三国/两晋/南北朝/隋/唐/五代/宋/辽金/元/明 + 四类语料),
+# 前端朝代 chip 是 23 个细朝代 → 16 个 chip 恒空。细朝代 → 粗桶映射(同名者原样);查询同时接受桶键与细朝代。
+_MAP_PERIOD_BUCKET = {
+    '西周': '先秦两汉', '春秋': '先秦两汉', '战国': '先秦两汉', '秦': '先秦两汉', '西汉': '先秦两汉', '新莽': '先秦两汉',
+    '东汉': '东汉', '三国': '三国', '西晋': '两晋', '东晋': '两晋', '十六国': '南北朝', '南朝': '南北朝', '北朝': '南北朝',
+    '隋': '隋', '唐': '唐', '五代': '五代', '北宋': '宋', '南宋': '宋', '辽': '辽金', '金': '辽金', '西夏': '辽金',
+    '元': '元', '明': '明',
+}
+
+
+def map_period_keys(period: Optional[str]) -> set[str]:
+    """chip/桶名 → 可命中的 by_period 键集合(细朝代含其粗桶;桶名原样)。"""
+    p = (period or '').strip()
+    if not p:
+        return set()
+    keys = {p}
+    if p in _MAP_PERIOD_BUCKET:
+        keys.add(_MAP_PERIOD_BUCKET[p])
+    return keys
+
+
 def map_points(period: Optional[str] = None) -> dict[str, Any]:
     conn = db.public_conn()
     rows = conn.execute("SELECT * FROM map_point ORDER BY count DESC").fetchall()
     points: list[dict[str, Any]] = []
+    want = map_period_keys(period)
     for r in rows:
         by_period = json.loads(r["by_period_json"] or "{}")
-        if period and not by_period.get(period):
+        if want and not any(by_period.get(k) for k in want):
             continue
+        # [Q-483/T-445] 选了朝代后 count 此前恒取全时期总数(period 只做存在性过滤)→ 城市榜排序、钉点半径、
+        # 悬停「N 个事件」与页头「N 个事件钉点」全是全时期数(唐:页头 1,497、by_period 唐合计 63;西安 610 vs 唐 19)。
+        # 现:有朝代筛选时 count = 该期(细朝代含其粗桶,取所有命中键的最大值——桶与细名是同一批事件的两种计数,
+        # 相加会重复);count_all 另带全时期总数供对照。
+        cnt_all = r["count"]
+        cnt = max((int(by_period.get(k) or 0) for k in want), default=0) if want else cnt_all
         points.append({
             "modern": r["modern"],
             "lng": r["lng"],
             "lat": r["lat"],
-            "count": r["count"],
+            "count": cnt,
+            "count_all": cnt_all,
             "ancient_names": json.loads(r["ancient_names_json"] or "[]"),
             "by_period": by_period,
             "by_history": json.loads(r["by_history_json"] or "{}"),
         })
+    if want:
+        # 朝代视图按该期计数重排(SQL 是按全时期 count DESC)。
+        points.sort(key=lambda p: -p["count"])
     return {"points": points, "total": len(points)}
 
 

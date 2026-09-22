@@ -1,0 +1,16 @@
+diff --git a/astrostudyui/src/utils/__tests__/sanshiQ164Misc.test.js b/astrostudyui/src/utils/__tests__/sanshiQ164Misc.test.js
+index bf255f26..26f91274 100644
+--- a/astrostudyui/src/utils/__tests__/sanshiQ164Misc.test.js
++++ b/astrostudyui/src/utils/__tests__/sanshiQ164Misc.test.js
+@@ -12,7 +12,10 @@ describe('[Q-164] 三式杂项', ()=>{
+ 		expect(dm).not.toContain("topic: this.state.faAskTopic || 'shexin'");
+ 	});
+ 	test('SS-19 昼夜阳阴 只在六壬法贵人时可改:六壬页与合一页都置灰', ()=>{
+-		expect(R('components/lrzhan/LiuRengMain.js')).toContain('disabled={this.state.guireng !== 0}');
++		// horosa_win_slice_form_v1(Windows 侧移植适配):六壬左栏在我方渲染切片里是独立组件,state 经 props(p)进入,
++		// 同一判据的代码形是 `disabled={p.guireng !== 0}`;两形皆认(判据零放宽:仍必须是「贵人≠六壬法 ⇒ 置灰」)。
++		const lrSrc = R('components/lrzhan/LiuRengMain.js');
++		expect(lrSrc.includes('disabled={this.state.guireng !== 0}') || lrSrc.includes('disabled={p.guireng !== 0}')).toBe(true);
+ 		expect(R('components/sanshi/SanShiUnitedMain.js')).toContain('disabled={Number(opt.guireng) !== 0}');
+ 	});
+ 	test('SS-21 挂载齿轮标签与页面同文:直接时间 / 23点算第二天 / 24点算第二天', ()=>{

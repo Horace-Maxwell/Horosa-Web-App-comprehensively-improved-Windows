@@ -120,10 +120,14 @@ class YiZhangJingMain extends Component {
 			date: dateStr,
 			time: timeMoment.format('HH:mm:ss'),
 			lon: fieldVal(f, 'lon', ''),
+			// [挂载自检 命④ P1] 时区:此前不传 → baziLunarLocal 按 +08:00 校正真太阳时,非东八区记录页面四柱与 AI 挂载(记录时区)分叉。
+			zone: fieldVal(f, 'zone', '') || (f && f.date && f.date.value && f.date.value.zone) || '',
 			gender: this.props.gender !== undefined ? Number(this.props.gender) : fieldVal(f, 'gender', 1),
 			timeAlg: fieldVal(f, 'timeAlg', 1),
-			after23NewDay: defaultAfter23NewDay(),
-			lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
+			// [Q-358/T-339] 日界 / 晚子时改读盘面 fields(载盘还原 / 八字左栏改过的值),缺席才回退全局:此前恒读全局 →
+			//   左栏或存盘日界 ≠ 全局时,23 点档出生者本页四柱与八字页、AI 挂载分叉。缺省(fields 由全局播种)逐字不变。
+			after23NewDay: fieldVal(f, 'after23NewDay', defaultAfter23NewDay()),
+			lateZiHourUseNextDay: fieldVal(f, 'lateZiHourUseNextDay', defaultLateZiHourUseNextDay()),
 		};
 		const opts = this.props.opts || {};
 		const sig = JSON.stringify({ ...params, opts });
@@ -170,7 +174,8 @@ class YiZhangJingMain extends Component {
 		const c = m.chart;
 		// 去重键须用「原始 props.opts」而非 c.opts（引擎归一后 opts 仅含排盘项 mgMethod/N/flowSet，
 		// 不含报告/显示层开关 shenshaLayer 等）；否则单独切神煞合参层不改键→被动快照不刷新→AI 挂载读到旧值。
-		const key = `${c.input.yearBranch}|${c.input.month}|${c.input.day}|${c.input.hourBranch}|${JSON.stringify(this.props.opts || {})}`;
+		// [Q-265/T-250·SO-22] 键改用 this._modelKey(全部输入签名,含性别与 opts):旧键不含性别 → 性别改顺逆四宫全变而快照不重写。
+		const key = this._modelKey || `${c.input.yearBranch}|${c.input.month}|${c.input.day}|${c.input.hourBranch}|${JSON.stringify(this.props.opts || {})}`;
 		if (key === this.lastSnapKey) return;
 		this.lastSnapKey = key;
 		const text = buildYizhangjingSnapshotText(m);

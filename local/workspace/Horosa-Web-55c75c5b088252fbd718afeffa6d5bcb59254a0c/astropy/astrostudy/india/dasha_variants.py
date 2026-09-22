@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """大运流派开关(dasha variants)单一真值源。
 
-权威口径:实现总纲「必须暴露为开关的参数」表(21 项)。其中岁差/起算天体/主年长基/
+权威口径:实现总纲「必须暴露为开关的参数」表(22 项;[Q-135/T-43 (g)] 旧注写 21,以下 VARIANT_SPECS 实为 22 键)。其中岁差/起算天体/主年长基/
 条件体系启用四项已有独立参数(siderealMode / dashaSeed / dashaYearLength / dashaSystem),
 不重复入本表;其余全部枚举类流派开关集中在此,经 `resolve_variants()` 规范化后由
 JyotishEngine(及 tajaka/rasi_dasha 纯函数层)按键取用。
@@ -87,8 +87,11 @@ VARIANT_SPECS = {
     },
     # ── Ayurdaya(寿命)─────────────────────────────────────────
     'nisargayuHarana': {
-        'values': ('none', 'pindayu_like'),
-        'default': 'none',                # 现状:Nisargayu 全期不减
+        'values': ('pindayu_like', 'none'),   # 首值 = 缺省(test_spec_integrity 合同)
+        # [Q-139 裁决 2026-09-18] 缺省改「同 Pindayu 施减」:Jātaka Pārijāta 5.6 / 5.12–13 明说 Nisargāyu 与 Piṇḍāyu 同法
+        # (按距庙旺弧折算 + 同一套 haraṇa),BPHS 43.16-17 只给年数表;现代计算器亦折算。'none'(全期不减)与行星位置无关,
+        # 几乎恒判神寿,改为非缺省档并在判读卡注明只作参考。显式写 'none' 的存档不受影响。
+        'default': 'pindayu_like',
         'affects': 'Nisargayu 是否施与 Pindayu 相同的 harana 减算',
     },
     'amsayuMultiplier': {

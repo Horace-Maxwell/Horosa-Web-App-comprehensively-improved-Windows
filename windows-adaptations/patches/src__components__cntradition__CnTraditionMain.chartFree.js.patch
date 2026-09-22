@@ -1,9 +1,9 @@
 diff --git a/astrostudyui/src/components/cntradition/CnTraditionMain.js b/astrostudyui/src/components/cntradition/CnTraditionMain.js
-index 8234d5d..51b8485 100644
+index 9cac9f14..4251176e 100644
 --- a/astrostudyui/src/components/cntradition/CnTraditionMain.js
 +++ b/astrostudyui/src/components/cntradition/CnTraditionMain.js
-@@ -4,6 +4,8 @@ import { XQTabs as Tabs } from '../xq-ui';
- import { randomStr } from '../../utils/helper';
+@@ -5,6 +5,8 @@ import { randomStr } from '../../utils/helper';
+ import { CNTRADITION_SUBTABS, rememberSubTab } from '../../constants/SubTabRegistry';
  import GuaSymDesc from '../gua/GuaSymDesc';
  import TechniqueErrorBoundary from '../common/TechniqueErrorBoundary';
 +import { markPanelReady } from '../../utils/perfMark';
@@ -11,7 +11,7 @@ index 8234d5d..51b8485 100644
  import CuanGong12 from '../commtools/CuanGong12';
  import BaziPithy from '../commtools/BaziPithy';
  
-@@ -52,6 +54,13 @@ class CnTraditionMain extends Component{
+@@ -53,6 +55,13 @@ class CnTraditionMain extends Component{
  				if(hook[subtab] && hook[subtab].fun){
  					hook[subtab].fun(fields);
  				}
@@ -25,7 +25,7 @@ index 8234d5d..51b8485 100644
  				setTimeout(()=>{
  					if(this.props.dispatch){
  						this.props.dispatch({
-@@ -63,6 +72,14 @@ class CnTraditionMain extends Component{
+@@ -64,6 +73,14 @@ class CnTraditionMain extends Component{
  					}			
  				}, 500);
  			};
@@ -40,7 +40,7 @@ index 8234d5d..51b8485 100644
  		}
  
  	}
-@@ -111,16 +128,27 @@ class CnTraditionMain extends Component{
+@@ -115,16 +132,27 @@ class CnTraditionMain extends Component{
  					onChange={this.changeTab}
  					style={{ height: '100%', minHeight: 0 }}
  				>
@@ -50,23 +50,23 @@ index 8234d5d..51b8485 100644
 +					    三个子页都是无 props 的静态知识面板（GuaSymDesc/CuanGong12/BaziPithy），
 +					    自身无对外注册的挂载副作用，故无需 eager。 */}
  					<TabPane tab="八卦类象" key="guasym">
--						<TechniqueErrorBoundary label="八卦类象"><GuaSymDesc /></TechniqueErrorBoundary>
+-						<TechniqueErrorBoundary label="八卦类象"><GuaSymDesc fill /></TechniqueErrorBoundary>
 +						<FreezeSubTab active={tab === 'guasym'}>{()=>(
-+							<TechniqueErrorBoundary label="八卦类象"><GuaSymDesc /></TechniqueErrorBoundary>
++							<TechniqueErrorBoundary label="八卦类象"><GuaSymDesc fill /></TechniqueErrorBoundary>
 +						)}</FreezeSubTab>
  					</TabPane>
  
  					<TabPane tab="十二串宫" key="cuangong12">
--						<TechniqueErrorBoundary label="十二串宫"><CuanGong12 /></TechniqueErrorBoundary>
+-						<TechniqueErrorBoundary label="十二串宫"><CuanGong12 fill /></TechniqueErrorBoundary>
 +						<FreezeSubTab active={tab === 'cuangong12'}>{()=>(
-+							<TechniqueErrorBoundary label="十二串宫"><CuanGong12 /></TechniqueErrorBoundary>
++							<TechniqueErrorBoundary label="十二串宫"><CuanGong12 fill /></TechniqueErrorBoundary>
 +						)}</FreezeSubTab>
  					</TabPane>
  
  					<TabPane tab="八字规则" key="pithy">
--						<TechniqueErrorBoundary label="八字规则"><BaziPithy /></TechniqueErrorBoundary>
+-						<TechniqueErrorBoundary label="八字规则"><BaziPithy fill /></TechniqueErrorBoundary>
 +						<FreezeSubTab active={tab === 'pithy'}>{()=>(
-+							<TechniqueErrorBoundary label="八字规则"><BaziPithy /></TechniqueErrorBoundary>
++							<TechniqueErrorBoundary label="八字规则"><BaziPithy fill /></TechniqueErrorBoundary>
 +						)}</FreezeSubTab>
  					</TabPane>
  

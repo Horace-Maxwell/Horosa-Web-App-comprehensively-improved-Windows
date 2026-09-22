@@ -345,14 +345,19 @@ export default class QimenZeriMain extends Component{
 		this.setState({ searchOpen: false });
 	}
 
-	explainRow(row){
-		return Promise.resolve(explainQimenAt({
+	// [Q-453] 同步引擎直算(快照前 N 行判读树与工作台「详情▼」同源);explainRow 保持 Promise 形给工作台。
+	explainRowSync(row){
+		return explainQimenAt({
 			geoParams: this.buildGeoParams(this._scanGeo || this.state.geo),
 			options: this._scanOptions || this.state.draftOptions || {},
 			tree: this._scanTree,
 			t: row.pick || `${row.start}:00`,
 			jieqiYearSeeds: this._scanSeeds,
-		}));
+		});
+	}
+
+	explainRow(row){
+		return Promise.resolve(this.explainRowSync(row));
 	}
 
 	// P5 composer:奇门全文快照之后拼「择日三段」(段头与 aiExport preset 🔒逐字成对)。
@@ -365,6 +370,7 @@ export default class QimenZeriMain extends Component{
 				tree: this._scanUiTree || this.state.tree,	// 冻结树:与命中行同源(活树曾致条件描述≠结果,复审 F5)
 				results: this.state.results,
 				truncated: this.state.truncated,
+				explainAt: (row)=>this.explainRowSync(row),   // [Q-453] 前 N 行判读树(全局可配)
 			});
 			return extra ? `${baseText}\n\n${extra}` : baseText;
 		}catch(e){

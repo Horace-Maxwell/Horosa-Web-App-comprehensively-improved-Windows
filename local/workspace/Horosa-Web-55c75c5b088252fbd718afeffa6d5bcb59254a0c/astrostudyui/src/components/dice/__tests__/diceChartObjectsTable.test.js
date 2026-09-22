@@ -47,3 +47,33 @@ describe('骰子占 星体行表化 · 数值不变证明', () => {
 	it('baseline 为表化前基线(不含 GFM 表)', () => { expect(fs.readFileSync(FIX, 'utf8')).not.toMatch(/\| --- \|/); });
 	it('星体行已 GFM 表化', () => { expect(build()).toMatch(/\| --- \|/); });
 });
+
+// [Q-455/T-418] 逆行列 + 两盘相位段。
+import { buildChartAspectLines } from '../DiceMain';
+describe('骰子占 · 逆行标记与相位(Q-455)', () => {
+	it('lonspeed<0 的星在「逆行」列标「逆」,其余 —;无速度字段(基线夹具)输出事实集不变', () => {
+		const chartObj = { chart: {
+			houses: [{ id: 'House1' }],
+			objects: [
+				{ id: 'Mars', house: 'House1', signlon: 28.9, sign: 'Leo', lonspeed: -0.2 },
+				{ id: 'Sun', house: 'House1', signlon: 15.3, sign: 'Taurus', lonspeed: 0.98 },
+				{ id: 'Asc', house: 'House1', signlon: 1.0, sign: 'Aries' },
+			],
+		} };
+		const t = buildChartObjectLines(chartObj).join('\n');
+		expect(t).toMatch(/\| 火 \| 28 \| 狮子 \| 53 \| 逆 \|/);
+		expect(t).toMatch(/\| 日 \| 15 \| 金牛 \| 18 \| — \|/);
+		expect(t.split('\n')[0]).toBe('| 宫位 | 星体 | 度 | 座 | 分 | 逆行 |');
+	});
+	it('相位段:normalAsp 四态各成行;无 aspects → 空数组(不产段)', () => {
+		const chartObj = { chart: { objects: [{ id: 'Sun' }, { id: 'Moon' }], aspects: { normalAsp: {
+			Sun: { Applicative: [{ id: 'Moon', asp: 120, orb: 2.5347 }], Exact: [], Separative: [{ id: 'Mars', asp: 90, orb: 0 }], None: [{ id: 'Venus', asp: 60 }] },
+		} } } };
+		const lines = buildChartAspectLines(chartObj);
+		expect(lines[0]).toBe('| 主体 | 相位 | 对象 | 相态 | 误差 |');
+		expect(lines).toContain('| 日 | 120˚ | 月 | 入相 | 2.535 |');
+		expect(lines).toContain('| 日 | 90˚ | 火 | 离相 | 0 |');
+		expect(lines).toContain('| 日 | 60˚ | 金 | — |  |');
+		expect(buildChartAspectLines({ chart: { objects: [] } })).toEqual([]);
+	});
+});

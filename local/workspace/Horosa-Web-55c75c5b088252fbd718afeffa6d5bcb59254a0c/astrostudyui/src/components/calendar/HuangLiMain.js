@@ -64,6 +64,7 @@ class HuangLiMain extends Component {
 			selectedDay: null,   // buildHuangliDay 结果
 			focus: null,         // 高亮用 DateTime
 			yearPanelOpen: false,
+			yearPanelSeen: false,   // [Q-458/T-421] 开过年度吉日榜 → 快照才带该候选段(sticky)
 		};
 		this.huangliCache = {};
 		// horosa_kentang_result_cache_v1:命中模块级 LRU(切页回来 0 重算);关闸=每实例独立(旧行为)。
@@ -100,8 +101,12 @@ class HuangLiMain extends Component {
 
 	parseBirth(birth) {
 		const ymd = `${birth || ''}`.split(' ')[0];
-		const [y, m, d] = ymd.split('-').map((n)=> parseInt(n, 10));
-		return { y, m, d, ymd };
+		// [Q-270/T-263] 公元前串 '-2026-09-01' 按 '-' 切分首段为空 → 年 NaN 抛错;带符号年单源正则。
+		const m = /^(-?\d+)-(\d{1,2})-(\d{1,2})/.exec(ymd);
+		const y = m ? parseInt(m[1], 10) : NaN;
+		const mo = m ? parseInt(m[2], 10) : NaN;
+		const d = m ? parseInt(m[3], 10) : NaN;
+		return { y, m: mo, d, ymd };
 	}
 
 	// 日课卡纯前端(lunar)，不等后端：先选中今日，网格数据后到不覆盖已有选择。
@@ -214,7 +219,12 @@ class HuangLiMain extends Component {
 		// 'huanglizeri' 走独立快照槽,与 calendar 聚合实例(keep-alive 并存)互不竞写;缺省=原槽零回归。
 		// composeAiSnapshot:择日宿主拼「择日三段」(段头与 aiExport preset 逐字成对)。
 		const moduleKey = this.props.techniqueScope || MODULE;
-		let text = `${this.state.selectedDay ? buildHuangliSnapshotText(this.state.selectedDay) : ''}`.trim();
+		// [Q-458/T-421] 年度吉日榜:只有用户真开过该面板才进快照(「显示什么就导出什么」),
+		// 同时避免每次存快照都白跑一趟全年扫描。yearPanelSeen 一旦置位,本次会话内保持。
+		const _yearTop = this.state.yearPanelSeen
+			? { year: parseInt(this.state.date.format('YYYY'), 10) }
+			: null;
+		let text = `${this.state.selectedDay ? buildHuangliSnapshotText(this.state.selectedDay, { yearTop: _yearTop }) : ''}`.trim();
 		if (typeof this.props.composeAiSnapshot === 'function') {
 			try { text = `${this.props.composeAiSnapshot(text) || text}`; } catch (e) { /* composer 异常不拖快照 */ }
 		}
@@ -280,7 +290,7 @@ class HuangLiMain extends Component {
 							onChange={this.onTimeChanged}
 						/>
 						<div className='horosa-huangli-yearbtn'>
-							<XQButton variant='primary' onClick={()=> this.setState({ yearPanelOpen: true })}>年度吉日榜</XQButton>
+							<XQButton variant='primary' onClick={()=> this.setState({ yearPanelOpen: true, yearPanelSeen: true }, this.saveAISnapshot)}>年度吉日榜</XQButton>
 						</div>
 						{/* [Z1] 加性插槽:黄历择日宿主注入入口按钮;缺省 undefined 零渲染零回归 */}
 						{typeof this.props.renderExtraControls === 'function' ? this.props.renderExtraControls() : null}

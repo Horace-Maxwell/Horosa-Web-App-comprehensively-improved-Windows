@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/tongshefa/TongSheFaMain.js b/astrostudyui/src/components/tongshefa/TongSheFaMain.js
-index 55387c9..1dd6ec2 100644
+index 1a23eca8..13e43cbe 100644
 --- a/astrostudyui/src/components/tongshefa/TongSheFaMain.js
 +++ b/astrostudyui/src/components/tongshefa/TongSheFaMain.js
-@@ -16,6 +16,8 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
+@@ -17,6 +17,8 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
  import { sideSectionIcon } from '../../constants/sideSectionIcons';
  import { subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec } from '../../utils/divinationTimeDraft';
  import styles from '../../css/styles.less';
@@ -11,7 +11,7 @@ index 55387c9..1dd6ec2 100644
  
  const { Option } = Select;
  const { TabPane } = Tabs;
-@@ -1091,6 +1093,7 @@ class TongSheFaMain extends Component{
+@@ -1128,6 +1130,7 @@ class TongSheFaMain extends Component{
  		}
  	}
  
@@ -19,7 +19,7 @@ index 55387c9..1dd6ec2 100644
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.restoreFromCurrentCase(true);
-@@ -1101,6 +1104,13 @@ class TongSheFaMain extends Component{
+@@ -1138,6 +1141,13 @@ class TongSheFaMain extends Component{
  	}
  
  	componentDidUpdate(prevProps, prevState){
@@ -33,7 +33,7 @@ index 55387c9..1dd6ec2 100644
  		if(prevState.selected !== this.state.selected){
  			this.saveSnapshot();
  		}
-@@ -1976,6 +1986,8 @@ class TongSheFaMain extends Component{
+@@ -2007,6 +2017,8 @@ class TongSheFaMain extends Component{
  								</Select>
  							</Col>
  						</Row>
@@ -42,8 +42,8 @@ index 55387c9..1dd6ec2 100644
  						<Tabs
  							activeKey={this.state.detailTab}
  							defaultActiveKey='observe32'
-@@ -1985,16 +1997,16 @@ class TongSheFaMain extends Component{
- 								style={{ height: tabheight }}
+@@ -2016,16 +2028,16 @@ class TongSheFaMain extends Component{
+ 								style={tabheight ? { height: tabheight } : undefined}
  							>
  							<TabPane tab='三十二观' key='observe32'>
 -								{this.renderObserveTab(model, tabContentHeight)}

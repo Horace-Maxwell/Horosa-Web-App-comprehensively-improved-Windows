@@ -1,18 +1,18 @@
 diff --git a/astrostudyui/src/components/auxchart/AstroHarmonicLab.js b/astrostudyui/src/components/auxchart/AstroHarmonicLab.js
-index 2af937cd..3fea0e3c 100644
+index 81556962..bb6143a2 100644
 --- a/astrostudyui/src/components/auxchart/AstroHarmonicLab.js
 +++ b/astrostudyui/src/components/auxchart/AstroHarmonicLab.js
 @@ -6,6 +6,7 @@ import { XQButton as Button } from '../xq-ui';
  import request from '../../utils/request';
  import * as Constants from '../../utils/constants';
- import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable } from '../astro/AstroExtraCommon';
+ import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from '../astro/AstroExtraCommon';
 +import { markPanelReady } from '../../utils/perfMark';
  
- class AstroHarmonicLab extends Component{
- 	constructor(props){
-@@ -59,7 +60,11 @@ class AstroHarmonicLab extends Component{
- 			});
+ // [Q-151/AX-20] 调波数夹取整数 1-360:此前空串/小数原样下发,后端 int('') / int('2.5') 抛错回 {'err':'param error'}。
+ export function clampHarmonic(raw, fallback = 9){
+@@ -68,7 +69,11 @@ class AstroHarmonicLab extends Component{
  			if(!this._mounted) return;
+ 			clearLoadFailure(this);
  			const res = unwrapResult(data) || {};
 -			this.setState({result: res, loading: false, requestKey: key});
 +			// horosa_panel_ready_v1:调波盘中栏(调波整盘)+右栏(相位/位置表)全由 result 派生,

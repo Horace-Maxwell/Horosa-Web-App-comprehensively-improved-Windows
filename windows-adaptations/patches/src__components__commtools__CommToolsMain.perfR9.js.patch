@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/commtools/CommToolsMain.js b/astrostudyui/src/components/commtools/CommToolsMain.js
-index 2926191..37c4098 100644
+index 47fa6390..774b902c 100644
 --- a/astrostudyui/src/components/commtools/CommToolsMain.js
 +++ b/astrostudyui/src/components/commtools/CommToolsMain.js
 @@ -1,7 +1,6 @@
@@ -10,7 +10,7 @@ index 2926191..37c4098 100644
  import Azimuth from './Azimuth';
  import CoordTrans from './CoordTrans';
  import Calculator from './Calculator';
-@@ -13,10 +12,25 @@ import GuaSymDesc from '../gua/GuaSymDesc';
+@@ -13,11 +12,26 @@ import GuaSymDesc from '../gua/GuaSymDesc';
  import CuanGong12 from './CuanGong12';
  import BaziPithy from './BaziPithy';
  import TechniqueErrorBoundary from '../common/TechniqueErrorBoundary';
@@ -19,6 +19,7 @@ index 2926191..37c4098 100644
 +// 组件级导出是它的盲区,本轮已把门扩到组件层。
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorage';
+ import { getLayoutViewportHeight } from '../../utils/shellZoom';
  
  const TabPane = Tabs.TabPane;
  
@@ -36,7 +37,7 @@ index 2926191..37c4098 100644
  class CommToolsMain extends Component{
  	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
  	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
-@@ -31,7 +45,7 @@ class CommToolsMain extends Component{
+@@ -32,7 +46,7 @@ class CommToolsMain extends Component{
  		super(props);
  
  		let tab = safeLocalStorageGet('commtoolstab');
@@ -45,7 +46,7 @@ index 2926191..37c4098 100644
  			tab = 'naying';
  		}
  
-@@ -49,6 +63,13 @@ class CommToolsMain extends Component{
+@@ -68,6 +82,13 @@ class CommToolsMain extends Component{
  		});
  	}
  
@@ -57,9 +58,9 @@ index 2926191..37c4098 100644
 +	// 数会是错的。观测宁可缺一格,不可记错格。
 +
  	render(){
- 		let height = document.documentElement.clientHeight;
- 		height = height - 80;
-@@ -62,56 +83,68 @@ class CommToolsMain extends Component{
+ 		let height = this.state.layoutH > 0 ? this.state.layoutH : getLayoutViewportHeight();
+ 		// 三个带自滚叶子的面板沿用各自的「窗口高 − 常数」算术,但喂给它们的是布局域窗口高(不再各自去读物理域 clientHeight)。
+@@ -83,56 +104,68 @@ class CommToolsMain extends Component{
  		const lonV = (fields && fields.lon) ? fields.lon.value : undefined;
  		const timeV = (fields && fields.date) ? fields.date.value : undefined;
  
@@ -125,18 +126,18 @@ index 2926191..37c4098 100644
  					</TabPane>
  
  					<TabPane tab="八卦类象" key="guasym">
--						{wrap('八卦类象', <GuaSymDesc />)}
-+						{wrap('八卦类象', 'guasym', ()=><GuaSymDesc />)}
+-						{wrap('八卦类象', <GuaSymDesc height={leafH} />)}
++						{wrap('八卦类象', 'guasym', ()=><GuaSymDesc height={leafH} />)}
  					</TabPane>
  
  					<TabPane tab="十二串宫" key="cuangong12">
--						{wrap('十二串宫', <CuanGong12 />)}
-+						{wrap('十二串宫', 'cuangong12', ()=><CuanGong12 />)}
+-						{wrap('十二串宫', <CuanGong12 height={leafH} />)}
++						{wrap('十二串宫', 'cuangong12', ()=><CuanGong12 height={leafH} />)}
  					</TabPane>
  
  					<TabPane tab="八字规则" key="pithy">
--						{wrap('八字规则', <BaziPithy />)}
-+						{wrap('八字规则', 'pithy', ()=><BaziPithy />)}
+-						{wrap('八字规则', <BaziPithy height={leafH} />)}
++						{wrap('八字规则', 'pithy', ()=><BaziPithy height={leafH} />)}
  					</TabPane>
  
  				</Tabs>

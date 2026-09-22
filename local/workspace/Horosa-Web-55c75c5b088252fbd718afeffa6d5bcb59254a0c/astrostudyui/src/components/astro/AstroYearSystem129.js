@@ -151,8 +151,8 @@ class AstroYearSystem129 extends Component{
 		const chart = this.props.value ? this.props.value : {};
 		const predictives = chart.predictives ? chart.predictives : {};
 		const data = predictives.yearsystem129 ? predictives.yearsystem129 : [];
-		const height = this.props.height ? this.props.height : '100%';
-		const style = { height: (height - 70) + 'px', overflowY: 'auto', overflowX: 'hidden' };
+		// 零常数:面板已由星运页 Tabs 内容链定高,列表盒铺满面板(原 (height−70)px 在面板底恒留 70px 死带;见 AstroFirdaria 同名注)。
+		const style = { height: '100%', maxHeight: '100%', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden' };
 
 		const doms = [];
 		const rows = [];

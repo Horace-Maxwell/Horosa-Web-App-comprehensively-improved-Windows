@@ -91,7 +91,7 @@ class ZiWeiInput extends Component{
 				ZWEngineOptions.lateZi = lzRaw || 'global';
 			}
 		}
-		ZWEngineOptions.yearBoundary = localStorage.getItem('ziweiYearBoundary') || 'lichun';
+		ZWEngineOptions.yearBoundary = localStorage.getItem('ziweiYearBoundary') || 'lunar_1_1';
 		ZWEngineOptions.huoling = localStorage.getItem('ziweiHuoling') || 'sanhe';
 		ZWEngineOptions.kongNaming = localStorage.getItem('ziweiKongNaming') || 'modern';
 		// 亮度源(WP-L) + 6 显示 overlay 开关(WP-1..6) + 紫云关系人列表(WP-6)。默认全关/空=零回归。
@@ -470,7 +470,14 @@ class ZiWeiInput extends Component{
 		const boolMap = { flowLuanXi: 'ziweiFlowLuanXi', flowHuoLing: 'ziweiFlowHuoLing', flowShenshaOnChart: 'ziweiFlowShenshaOnChart', childLimit: 'ziweiChildLimit', zhongxian: 'ziweiZhongxian', huoPan: 'ziweiHuoPan', qishuWei: 'ziweiQishuWei', borrowPalace: 'ziweiBorrowPalace', taiSuiRuGua: 'ziweiTaiSuiRuGua' };
 		Object.keys(boolMap).forEach((k)=>{ ZWEngineOptions[k] = !!p[k]; safeLocalStorageSet(boolMap[k], p[k] ? 1 : 0); });
 		safeLocalStorageSet('ziweiPreset', val);
-		this.setState({ zwPresetPicked: val, sihuaSchool: p.sihua, daxianSpan: p.daxianSpan, tianmaBasis: p.tianmaBasis, starSet: p.starSet, sanPan: p.sanPan, shangShi: p.shangShi, leapMonth: p.leapMonth, lateZi: p.lateZi, yearBoundary: p.yearBoundary, huoling: p.huoling, kongNaming: p.kongNaming, brightnessSource: p.brightnessSource, xiaoxianMode: p.xiaoxianMode, childLimit: !!p.childLimit, zhongxian: !!p.zhongxian, huoPan: !!p.huoPan, qishuWei: !!p.qishuWei, borrowPalace: !!p.borrowPalace, taiSuiRuGua: !!p.taiSuiRuGua });
+		// [Q-190/T-129] 回填 state 的键此前是手抄的,漏了 lifeMasterBy / liuYueBasis / liunianSihuaGan /
+		// changshengStart / changshengDirection / kuiYue / kongwangStyle / flowLuanXi / flowHuoLing /
+		// flowShenshaOnChart 十项 → 引擎与 LS 已按预设、这十个控件仍显示套预设前的值(盘面与界面对不上)。
+		// 改为从上面两张映射表机械派生(state 键名与 lsMap/boolMap 的键名同名),此后加键不可能再漏回填。
+		const statePatch = { zwPresetPicked: val, sihuaSchool: p.sihua };
+		Object.keys(lsMap).forEach((k)=>{ statePatch[k] = p[k]; });
+		Object.keys(boolMap).forEach((k)=>{ statePatch[k] = !!p[k]; });
+		this.setState(statePatch);
 		this.redrawChart();
 		// [B15b] preset 批量套含推演层/显示层键(小限顺逆/流年取干/流月起法/亮度源…)——这些键不进请求体,
 		// 两 preset 只差这类键时 redrawChart 会被 requestDedupe 挡住(盘面纹丝不动的死档族病灶)。
@@ -701,10 +708,13 @@ class ZiWeiInput extends Component{
 
 				<XQSideSection iconName={sideSectionIcon('switches')} title="选项" storageKey="ziwei.options" className="horosa-side-input-section">
 					<div className="horosa-ziwei-select-grid">
-						<label className="horosa-ziwei-select-field">
+						{/* [Q-193/T-139] 紫微必须男女有别(命局阴阳男女、大限顺逆、小限起宫皆随之):
+						    「未知」实际按男排(ZiweiCalc male = gender !== 0,Java 同),但界面此前不说,
+						    快照里「性别:未知」与「命局:阳男」并列自相矛盾 —— 选项直接写明按男排。 */}
+						<label className="horosa-ziwei-select-field" title="紫微命局阴阳男女、大限顺逆、小限起宫都依性别;选「未知」时一律按男排">
 							<span>性别</span>
 							<Select value={fields.gender.value} onChange={this.onGenderChange} size='small'>
-								<Option value={-1}>未知</Option>
+								<Option value={-1}>未知（按男排）</Option>
 								<Option value={0}>女</Option>
 								<Option value={1}>男</Option>
 							</Select>
@@ -751,7 +761,12 @@ class ZiWeiInput extends Component{
 						<Checkbox checked={this.state.showTips} onChange={this.onTipsChange}>允许提示</Checkbox>
 						<Checkbox checked={this.state.showOthers} onChange={this.onShowOthersChange}>显示杂曜</Checkbox>
 						<Checkbox checked={this.state.showSmall} onChange={this.onShowSmallChange}>显示十二神</Checkbox>
-						<Checkbox checked={this.state.showStarLight} onChange={this.onShowStarLightChange}>庙旺标注</Checkbox>
+						{/* [Q-584/T-546] 庙旺标注只在三合盘(及演禽借宫盘)生效,四化盘不画星名下庙旺(ZWHouse.shouldShowStarLight);
+						    此前四化盘时恒可勾、无提示 → 置灰 + 说明,勾选值保留(切回三合盘即生效)。 */}
+						<span title={zwchart === ZWCont.ZWChart_SiHua ? '四化盘不画星名下庙旺;切「盘式」为三合盘后生效' : undefined}>
+							<Checkbox checked={this.state.showStarLight} onChange={this.onShowStarLightChange}
+								disabled={zwchart === ZWCont.ZWChart_SiHua}>庙旺标注{zwchart === ZWCont.ZWChart_SiHua ? '（三合盘生效）' : ''}</Checkbox>
+						</span>
 						<Checkbox checked={this.state.showLaiyin} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowLaiyin', 'showLaiyin', e.target.checked)}>来因标记</Checkbox>
 						<Checkbox checked={this.state.showBodyPalace} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowBodyPalace', 'showBodyPalace', e.target.checked)}>身宫标记</Checkbox>
 						<Checkbox checked={this.state.showSfszLine} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowSfszLine', 'showSfszLine', e.target.checked)}>对宫指示线</Checkbox>

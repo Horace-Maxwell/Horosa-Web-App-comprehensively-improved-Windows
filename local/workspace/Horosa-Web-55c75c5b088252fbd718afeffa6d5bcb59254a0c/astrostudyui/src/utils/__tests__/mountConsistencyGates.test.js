@@ -121,6 +121,16 @@ describe('[V6-W3 闸1] 全技法齿轮消费闸(新增齿轮忘接组装点即�
 		const fnBody = CTX_SRC.slice(CTX_SRC.indexOf('function mergeLiuyaoGearSettings'), CTX_SRC.indexOf('function mergeLiuyaoGearSettings') + 2400);
 		expect(/const direct = \['school'/.test(fnBody)).toBe(false);
 	});
+
+	it('🔴 [Q-206/T-151] 六爻齿轮选流派必须真套预设(只写 school 字面 = 快照自称某派、细项仍通用)', ()=>{
+		const at = CTX_SRC.indexOf('function mergeLiuyaoGearSettings');
+		expect(at).toBeGreaterThan(0);
+		const fnBody = CTX_SRC.slice(at, at + 2400);
+		// 与页面 changeLiuyaoPreset 同律:school 变 → 以 applyPreset(该派) 为底,其余齿轮键再叠。
+		expect(fnBody).toContain('applyLiuyaoPreset(f.school, base)');
+		expect(fnBody).toContain('LIUYAO_PRESETS[f.school]');
+		expect(CTX_SRC).toContain("from '../components/gua/liuyaoSchools'");
+	});
 });
 
 describe('[V6-W3 闸3] fieldParams ≡ fieldsToParams 逐键对拍(手抄副本漂移即红)', ()=>{
@@ -222,7 +232,8 @@ describe('[闸6] A 类基线=全局单例现值(Issue#76)', ()=>{
 		const prev = ZWEngineOptions.taiSuiRelatives;
 		try{
 			ZWEngineOptions.taiSuiRelatives = [{ branch: '午', role: '母', sex: 'female' }];
-			const base = effectiveMountBaseline('ziwei', {});
+			// [Q-022/M-30] 关系人字段随「紫云太岁入卦」开关揭示:基线里把开关置开(与页面语义同:关系人只在入卦开时消费)
+			const base = { ...effectiveMountBaseline('ziwei', {}), taiSuiRuGua: 1 };
 			// 同长不同支的关系人必须判「不同」→ override 透传
 			const opts = pruneOptionsToNonDefault('ziwei', { taiSuiRelatives: '子:兄' }, base);
 			expect(Array.isArray(opts.taiSuiRelatives)).toBe(true);
@@ -291,7 +302,7 @@ describe('[闸7] regen case 块 record.* 引用覆盖 schema 齿轮字段', ()=>
 		'heluo.zhiZunEnabled': 'builder 直读 record(2029)',
 		'heluo.pureGanKunVariant': 'builder 直读 record(2030)',
 		'heluo.liunianStep2': 'builder 直读 record(2031)',
-		'heluo.liuYueMode': 'builder 直读 record(2032)',
+		// heluo.liuYueMode 齿轮已撤(Q-262/T-244:快照无流月段,齿轮正文死);builder 仍按 record.liuYueMode||'ying' 读
 		'heluo.huangdiOffset': 'builder 直读 record(2033)',
 	};
 	it('🔴 逐技法 case 块透传完备(canping.dayunRule 曾漏=此处红)', ()=>{
@@ -372,7 +383,7 @@ describe('[闸7] regen case 块 record.* 引用覆盖 schema 齿轮字段', ()=>
 	});
 });
 
-// [闸6 扩展] 基线锚审计五病防回潮(2026-08-29 全技法审计:私有页.school/egypt 七轴/
+// [闸6 扩展] 基线锚审计五病防回潮(2026-08-29 全技法审计:各页 .school/egypt 七轴/
 // planetaryarc.asporb 镜像型/suzhan.houseStartMode/日界族)——globalCurrent 存在+联动。
 describe('[闸6b] 审计五病 globalCurrent 在位且联动', ()=>{
 	const get = (tech, name)=>{

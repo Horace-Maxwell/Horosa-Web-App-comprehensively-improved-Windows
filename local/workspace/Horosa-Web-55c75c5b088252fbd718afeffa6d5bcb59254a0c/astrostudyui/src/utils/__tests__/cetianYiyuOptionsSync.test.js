@@ -73,7 +73,8 @@ describe('策天移语本选项三方同键', () => {
       expect(src).toContain(`${key}: `);            // state 默认值
       expect(src).toContain(`this.state.${key}`);   // 控件读值
       // 每个控件变更必须挂 clickPlot 全量重排（写而不动作 = 死开关）
-      const idx = src.indexOf(`this.setState({ ${key}`);
+      // 用户亲手改控件的入口是 setUserOpt(落盘 + setState,回调原样透传);老写法 setState 也认
+      const idx = Math.max(src.indexOf(`this.setUserOpt({ ${key}`), src.indexOf(`this.setState({ ${key}`));
       expect(idx).toBeGreaterThan(-1);
       expect(src.slice(idx, idx + 120)).toContain('this.clickPlot');
     });

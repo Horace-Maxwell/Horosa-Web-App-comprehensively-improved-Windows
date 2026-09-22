@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/utils/localRecordStore.js b/astrostudyui/src/utils/localRecordStore.js
-index a27b11c6..dea99319 100644
+index b1b965ff..e47550ac 100644
 --- a/astrostudyui/src/utils/localRecordStore.js
 +++ b/astrostudyui/src/utils/localRecordStore.js
-@@ -262,7 +262,18 @@ export function createLocalRecordStore(config){
+@@ -386,7 +386,18 @@ export function createLocalRecordStore(config){
  	// 改为如实返回 { persisted, reason:'ok'|'memory-mode'|'quota'|'storage-error' }:
  	// - quota 终败**不再粘死内存模式**(用户删几条/清缓存后下一次写自动重试真储存);
  	// - memory-mode / storage-error 走降级事件+横幅(会话内数据仍可用,不逐次弹错)。
@@ -21,10 +21,10 @@ index a27b11c6..dea99319 100644
  		const next = list instanceof Array ? list.slice() : [];
  		memoryList = next;
  		if(fallbackToMemoryStore){
-@@ -866,5 +877,5 @@ export function createLocalRecordStore(config){
- 		newerSchemaNotified = false;
+@@ -1023,5 +1034,5 @@ export function createLocalRecordStore(config){
+ 		cidIndexOf = null;
  	}
  
--	return { list, listTags, getPaged, upsert, remove, setPin, moveRecord, setFlag, touchRecord, exportBackup, importBackup, validateBackupEnvelope, previewImportBackup, getHealth, listTrash, restoreFromTrash, purgeTrashItem, clearTrash, __resetForTests };
-+	return { list, listTags, getPaged, upsert, remove, setPin, moveRecord, setFlag, touchRecord, exportBackup, importBackup, validateBackupEnvelope, previewImportBackup, getHealth, listTrash, restoreFromTrash, purgeTrashItem, clearTrash, getWriteVersion, __resetForTests };
+-	return { list, listTags, getPaged, getByCid, upsert, remove, setPin, moveRecord, setFlag, setTags, touchRecord, exportBackup, importBackup, validateBackupEnvelope, previewImportBackup, getHealth, listTrash, restoreFromTrash, purgeTrashItem, clearTrash, __resetForTests };
++	return { list, listTags, getPaged, getByCid, upsert, remove, setPin, moveRecord, setFlag, setTags, touchRecord, exportBackup, importBackup, validateBackupEnvelope, previewImportBackup, getHealth, listTrash, restoreFromTrash, purgeTrashItem, clearTrash, __resetForTests, getWriteVersion };
  }

@@ -8,7 +8,8 @@
 // (AstroDirectMain.buildPrimaryDirectSnapshotText → saveModuleAISnapshot('primarydirect'),
 // 数据=同一份 pd 表行),本组件零新增段,防 AI 段表漂移。
 import { Component } from 'react';
-import { safeJsonStringifyToStorage, safeLocalStorageSet } from '../../utils/safeStorage';
+import { safeLocalStorageSet } from '../../utils/safeStorage';
+import { writePdSphereStamp } from '../../utils/pdSphereStamp';
 import { registerWebglFrameProvider } from '../../utils/pageScreenshot';
 // Popover / Checkbox 随「扩展」面板抽进 PdExtensionPanel 后本文件已不再直接用到。
 import { Button, Spin, Select } from 'antd';
@@ -17,7 +18,8 @@ import { PD_SIGNIFICATOR_OPTIONS, PD_PROMISSOR_TYPE_OPTIONS } from '../../utils/
 import PDSphereEngine from './PDSphereEngine';
 import { fetchPd3D } from '../../services/astroPd3d';
 import * as AstroText from '../../constants/AstroText';
-import { getPdMethodLabel, getPdTimeKeyLabel } from '../../utils/primaryDirectionSync';
+import { getPdMethodLabel, getPdTimeKeyLabel, PD_PROJECTION_LABELS } from '../../utils/primaryDirectionSync';
+import { pointerLocalRatio } from '../../utils/zoomDomain';
 import {
 	rowAgeYears, rowDateMs, isConverseRow, nearestRowIndexByAge, moverOfRow,
 	bodySpeedMapOf,
@@ -492,8 +494,10 @@ class AstroPDSphere extends Component{
 		let anchorAge = null;
 		let vx = 0;
 		if(sc){
+			// 锚点位移是视觉域,scrollLeft / PAD_X / 每年像素是布局域:先按「容器布局宽 ÷ rect 宽」折回再混算(缩放档下此前缩放锚点漂移)。
 			const rect = sc.getBoundingClientRect();
-			vx = (anchorClientX !== null && anchorClientX !== undefined) ? (anchorClientX - rect.left) : rect.width / 2;
+			const kx = pointerLocalRatio(sc, rect).kx;
+			vx = ((anchorClientX !== null && anchorClientX !== undefined) ? (anchorClientX - rect.left) : rect.width / 2) * kx;
 			anchorAge = (sc.scrollLeft + vx - PAD_X) / Math.max(0.0001, prev);
 		}
 		this.setState({ tlZoom: z }, ()=>{
@@ -536,7 +540,8 @@ class AstroPDSphere extends Component{
 	//    零再推导 —— 全部字段来自 row 本身(rowSummary+cat 口径字样)。
 	_stampAiCurrentRow(row){
 		const catTxt = row.cat === 'M' ? '世俗 In Mundo' : (row.cat === 'T' ? '界推运' : '黄道 In Zodiaco');
-		safeJsonStringifyToStorage('horosa.pdsphere.aiCurrentRow', { txt: `${rowSummary(row)}（${catTxt}口径）`, ts: Date.now() });
+		// [挂载自检 F-11] 盖章带盘签名(props.value.params = /chart 回显),读取方只认同一张盘。
+		writePdSphereStamp((this.props.value && this.props.value.params) || {}, `${rowSummary(row)}（${catTxt}口径）`);
 	}
 
 	// —— 行选择与播放 ——
@@ -585,9 +590,11 @@ class AstroPDSphere extends Component{
 	//    (AstroPrimaryDirectionChart)专用,此处无消费方,发了就是死请求) ——
 	timelineAgeFromEvent(evt){
 		const svg = evt.currentTarget;
+		// 同域:鼠标位移与 rect 宽(视觉域)先折回布局域,再与 PAD_X(CSS px)相减。
 		const rect = svg.getBoundingClientRect();
-		const plotW = Math.max(1, rect.width - PAD_X * 2);
-		const x = evt.clientX - rect.left - PAD_X;
+		const kx = pointerLocalRatio(svg, rect).kx;
+		const plotW = Math.max(1, rect.width * kx - PAD_X * 2);
+		const x = (evt.clientX - rect.left) * kx - PAD_X;
 		const ratio = Math.max(0, Math.min(1, x / plotW));
 		return ratio * this.getAxisYears();
 	}
@@ -869,7 +876,13 @@ class AstroPDSphere extends Component{
 		const selRow = this.state.selIdx >= 0 ? this.state.rows[this.state.selIdx] : null;
 		const hoverRow = this.state.hoverIdx >= 0 ? this.state.rows[this.state.hoverIdx] : null;
 		const summaryRow = hoverRow || selRow;
-		const methodLabel = getPdMethodLabel(this.props.pdMethod);
+		// [Q-530/T-492] 顶栏「弧算法」回显此前取旧单维 pdMethod(与主限法页实选的弧算法 pdProjection 脱钩):
+		// 有 pdProjection 时按投影表回显(自由组合的 (投影,分宫) 无单维方法名可反查),世界主限下非定局四法照主限页同注;缺 pdProjection 才回退方法名。
+		const _proj = this.props.pdProjection;
+		let methodLabel = _proj && PD_PROJECTION_LABELS[_proj] ? PD_PROJECTION_LABELS[_proj] : getPdMethodLabel(this.props.pdMethod);
+		if(_proj && PD_PROJECTION_LABELS[_proj] && Number(this.props.pdType) === 1 && ['placidus', 'regiomontanus', 'campanus', 'topocentric'].indexOf(_proj) < 0){
+			methodLabel += '（世界主限下走核内基线）';
+		}
 		const timeKeyLabel = getPdTimeKeyLabel(this.props.pdTimeKey);
 
 		return (
@@ -1019,7 +1032,8 @@ class AstroPDSphere extends Component{
 						fontSize: 11, lineHeight: 1.8, color: '#9db0cc', background: 'rgba(5,8,15,0.55)',
 						padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(120,145,185,0.16)',
 					}}>
-						<div><span style={{ color: '#ffd700' }}>●</span> Direct 顺　<span style={{ color: '#59d4c8' }}>●</span> Converse 逆</div>
+						{/* [Q-536/T-498] 逆向色块曾是另一枚青 #59d4c8,与时间轴/引擎/顶栏摘要的 CONVERSE_HEX 不一致 → 统一取常量 */}
+						<div><span style={{ color: DIRECT_HEX }}>●</span> Direct 顺　<span style={{ color: CONVERSE_HEX }}>●</span> Converse 逆</div>
 						<div><span style={{ color: '#7fd191' }}>—</span> 地平圈　<span style={{ color: '#c39ae0' }}>—</span> 子午圈　<span style={{ color: '#7fc9c2' }}>—</span> 卯酉圈</div>
 						<div><span style={{ color: '#d8ab52' }}>—</span> 黄道(<span style={{ fontFamily: 'ywastrochart' }}>a</span>…宫刻度)　<span style={{ color: '#8fa3c2' }}>—</span> 天赤道网格</div>
 						{this.state.trueMotion ? (

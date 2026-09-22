@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/feigong/FeiGongMain.js b/astrostudyui/src/components/feigong/FeiGongMain.js
-index d479be30..df23372e 100644
+index b35948c5..e6926112 100644
 --- a/astrostudyui/src/components/feigong/FeiGongMain.js
 +++ b/astrostudyui/src/components/feigong/FeiGongMain.js
 @@ -17,6 +17,8 @@ import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../util
@@ -19,7 +19,7 @@ index d479be30..df23372e 100644
  	componentDidMount(){
  		// [issue#74 同类] 农历桥回包履约(与灵棋同律):①已定局 → 补拍快照(首版缺农历/四柱行,
  		// 只 forceUpdate 不重存则缓存/事盘恒缺);②曾因「排盘未出时支」定局失败(error 且无 ju)
-@@ -276,7 +279,8 @@ class FeiGongMain extends Component {
+@@ -281,7 +284,8 @@ class FeiGongMain extends Component {
  		const dayZhi = inputs.useDayGZ ? c.dayZhi : inputs.dayZhi;
  		const ju = buildJu({ zhi: qz, dayGan, dayZhi });
  		if(!ju){ return this.setState({ error: '起支非法,不可定局', ju: null }); }
@@ -29,7 +29,7 @@ index d479be30..df23372e 100644
  	}
  	setSettings(patch){
  		const settings = { ...this.state.settings, ...patch };
-@@ -490,82 +494,97 @@ class FeiGongMain extends Component {
+@@ -498,82 +502,97 @@ class FeiGongMain extends Component {
  		);
  		const wait = (t)=><div style={{ opacity: 0.6, fontSize: 12, padding: '6px 2px' }}>{t}</div>;
  		return (

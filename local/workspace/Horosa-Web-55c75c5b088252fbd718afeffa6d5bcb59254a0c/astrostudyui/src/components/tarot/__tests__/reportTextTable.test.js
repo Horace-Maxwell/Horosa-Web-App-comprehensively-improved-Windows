@@ -11,7 +11,8 @@ import { buildReadingText } from '../engine/reportText.js';
 // 内联标签:旧格式每牌重复(占象:/含义:/尊位: 各恰 = 牌数,纯标签),表化后升为表头一次。按「剔表头词」从两侧剔除。
 // 仅这三个是「内联→表头」的坍缩标签;其余表头词(位置/牌/正逆/关键词)只在新表头出现,已由表头行剥离处理,
 // 不全局剔(避免误伤如统计行「正逆:正位3」这类真实数据 token)。
-const INLINE_LABELS = new Set(['占象', '含义', '尊位']);
+// [Q-223/T-189·FT-31] 定局口径键 majority → 中文标签「多数」:同一事实的两种写法,两侧一并剔除(不是盘面值)。
+const INLINE_LABELS = new Set(['占象', '含义', '尊位', 'majority', '多数']);
 function extractFacts(text) {
 	const lines = `${text || ''}`.split('\n');
 	const isSep = (s) => { const t = `${s || ''}`.trim(); return t.startsWith('|') && /^[|\s:-]+$/.test(t) && t.indexOf('-') >= 0; };
@@ -22,7 +23,9 @@ function extractFacts(text) {
 	const keptScoped = kept.filter((l) => {
 		const t = `${l}`.trim();
 		// [审计修] 自问句行同计数链:表化后新增独立事实行,不属比较域。
-		return !t.startsWith('计数链:') && !t.startsWith('可就此牌自问') && !t.startsWith('　可就此牌自问');
+		// [Q-223/T-189·FT-33③] 相邻串/镜像对/桥接(定局段牌间关系)同为表化后新增独立事实行,剔出比较域;正确性由 reportTextDeckCaps [Q-223] 覆盖。
+		return !t.startsWith('计数链:') && !t.startsWith('可就此牌自问') && !t.startsWith('　可就此牌自问')
+			&& !t.startsWith('相邻串:') && !t.startsWith('镜像对:') && !t.startsWith('桥接(首尾):') && !t.startsWith('澄清牌:');
 	});
 	// [审计修] 位义列(牌阵位含义+元素相合注)是表化之后新增的独立事实列:基线为表化前冻结快照
 	// 无从含它;新 7 列表行剔第 2 格(位义)后再比,守卫仍盯逐牌盘面值零变化(同 计数链 剔除范式)。

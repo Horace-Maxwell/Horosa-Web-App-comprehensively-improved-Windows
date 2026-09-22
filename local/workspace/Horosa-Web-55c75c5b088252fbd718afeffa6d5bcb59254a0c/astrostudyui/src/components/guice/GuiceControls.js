@@ -230,7 +230,7 @@ class GuiceControls extends Component {
 				{this.group('流派', [
 					this.field('流派预设',
 						<Select value={s.school} dropdownMatchSelectWidth={false}
-							onChange={(v) => { if (this.props.onSettings) this.props.onSettings(applyPreset(v)); }}>
+							onChange={(v) => { if (this.props.onSettings) this.props.onSettings(applyPreset(v, this.props.settings)); }}>
 							{GUICE_SCHOOL_OPTIONS.map((o) => <Option key={o.value} value={o.value}>{o.label}</Option>)}
 							{s.school === 'custom' ? <Option value="custom">自定义</Option> : null}
 						</Select>),

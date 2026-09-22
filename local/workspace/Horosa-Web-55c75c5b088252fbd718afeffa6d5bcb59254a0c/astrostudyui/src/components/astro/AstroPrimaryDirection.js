@@ -16,6 +16,7 @@ import { XQButton as Button, XQInput as Input, XQInputNumber as InputNumber, XQS
 import XQIcon from '../xq-icons';
 import { PD_SCHOOL_PRESETS, PD_SCHOOL_PRESET_OPTIONS, PD_SCHOOL_PRESET_CUSTOM, pdPresetOf } from './pdSchoolPresets';
 import PdExtensionPanel from './PdExtensionPanel';
+import { getLayoutViewportHeight, getLayoutViewportWidth } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 import { SUPPORTED_PD_METHODS,
 	SUPPORTED_PD_PROJECTIONS, SUPPORTED_PD_FRAMES, SUPPORTED_PD_FRAMEWORKS,
 	PD_PROJECTION_LABELS, PD_FRAME_LABELS, PD_FRAMEWORK_LABELS ,
@@ -309,7 +310,8 @@ class AstroPrimaryDirection extends Component{
 		}
 		const sync = ()=>{
 			if(!this.toolbarRef){ return; }
-			const h = Math.round(this.toolbarRef.getBoundingClientRect().height);
+			// 布局域读数(offsetHeight);rect.height 在标准化 zoom 引擎下已×z,拿它抵扣布局高会错 z 倍。
+			const h = Math.round(this.toolbarRef.offsetHeight || 0);
 			if(h > 0 && Math.abs(h - (this.state.toolbarH || 0)) > 1){
 				this.setState({ toolbarH: h });
 			}
@@ -951,7 +953,28 @@ class AstroPrimaryDirection extends Component{
 
 	// [WP-5.2] pd3d 调试透镜:首次 hover 懒拉一次 pd3d(与主限天球同引擎同参),Popover 显示
 	// 该行迫星/应星的引擎坐标(λ/β/α/δ 双口径)。失败静默(透镜是调试辅助,不打扰主表)。
+	// [Q-364/T-346] 透镜坐标必须跟着「这张盘」走:本组件在星运页不带 key,改生辰或换盘时不重挂载,
+	// 旧实现只以「lensPoints 已有值」短路 → 表格已重算、悬停浮层还在报上一张盘的 λβαδ,
+	// 而脚注偏偏写着「与主限天球/表格同源」。改为按盘参签名缓存:签名一变即作废重拉。
+	lensSignature(){
+		const chart = this.props.value || {};
+		const p = chart.params || {};
+		return JSON.stringify([
+			p.birth || '', p.date || '', p.time || '', p.ad, p.zone, p.lat, p.lon, p.gpsLat, p.gpsLon,
+			p.hsys, p.southchart, p.zodiacal, p.siderealAyanamsa,
+			this.props.pdType, this.props.pdMethod, this.props.pdTimeKey, this.props.pdYears,
+			this.props.pdAntiscia, this.props.pdTerms,
+		]);
+	}
+
 	ensureLensPoints(){
+		const sig = this.lensSignature();
+		if(this._lensSig !== sig){
+			// 盘换了:作废旧坐标(并让在途请求的回包按签名自弃),下面重新拉一次。
+			this._lensSig = sig;
+			this._lensLoading = false;
+			if(this.state && this.state.lensPoints){ this.setState({ lensPoints: null }); }
+		}
 		if(this._lensLoading || (this.state && this.state.lensPoints)){ return; }
 		const chart = this.props.value || {};
 		const p = chart.params || {};
@@ -975,11 +998,13 @@ class AstroPrimaryDirection extends Component{
 			pdaspects: [0, 60, 90, 120, 180],
 		};
 		this._lensLoading = true;
+		const reqSig = this._lensSig;
 		fetchPd3D(req).then((res)=>{
+			if(this._lensSig !== reqSig){ return; }   // [Q-364] 回包晚于换盘 → 丢弃(否则新盘又被旧坐标盖住)
 			this._lensLoading = false;
 			const r = res && (res.Result || res);
 			if(r && r.points){ this.setState({ lensPoints: r.points }); }
-		}).catch(()=>{ this._lensLoading = false; });
+		}).catch(()=>{ if(this._lensSig === reqSig){ this._lensLoading = false; } });
 	}
 	lensCoordText(id){
 		const pts = (this.state && this.state.lensPoints) || null;
@@ -1226,11 +1251,11 @@ class AstroPrimaryDirection extends Component{
 		const appliedPdMethod = this.props.pdMethod ? this.props.pdMethod : 'core_alchabitius';
 		const isHorosaLegacy = appliedPdMethod === 'horosa_legacy';
 		const viewportWidth = typeof document !== 'undefined' && document.documentElement
-			? document.documentElement.clientWidth
+			? getLayoutViewportWidth()
 			: 1440;
 		const compactControls = viewportWidth < 1280;
 
-		let height = this.props.height ? this.props.height : document.documentElement.clientHeight - 50;
+		let height = this.props.height ? this.props.height : getLayoutViewportHeight() - 50;
 		// 工具栏高度:**实测真高**(ResizeObserver 写入 state.toolbarH),窄窗自动换行时表格随之下移。
 		// 旧法「强制单行 + 固定 48px + 横向滚动」在 1024px 窗口下把「扩展/列/计算」推到滚动区
 		// 600+px 外(marginLeft:auto 叠加溢出)→ 用户看不到也点不到关键按钮(实测实锤)。
@@ -1403,7 +1428,9 @@ class AstroPrimaryDirection extends Component{
 			},
 			...this.genStarColFilter('Significator', filterKeys)
 		},{
-			title: '日期',
+			// [Q-176/T-116e] 引擎出的应期日期是 **UTC 墙钟**(signasctime 以 Datetime.fromJD(jd, 0) 取);
+			// 列头此前不注,东八区用户临近午夜的应期会与本地日期差一天。引擎受金标约束不动,只补标注。
+			title: <span title='应期日期为世界时(UTC)墙钟;本地时区换算后可能相差一天'>日期(UTC)</span>,
 			dataIndex: 'Date',
 			key: 'Date',
 			// 实测「2026-08-14 14:01:34」= 146px,+ 筛选图标与内边距;nowrap 兜底不折行。

@@ -10,6 +10,7 @@ import {
 import { symbolWithMeaning } from './AstroExtraCommon';
 import { XQSelect as Select } from '../xq-ui';
 import styles from '../../css/styles.less';
+import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { markPanelReady } from '../../utils/perfMark';
 
 const Option = Select.Option;
@@ -30,7 +31,7 @@ class AstroBalbillus extends Component{
 	constructor(props){
 		super(props);
 		this.state = {
-			opts: { ...BALBILLUS_DEFAULT_OPTS },
+			opts: (()=>{ const sv = DIRECTION_PAGE_SETTINGS.load(); return { ...BALBILLUS_DEFAULT_OPTS, startPlanet: sv.balbillusStartPlanet, yearType: sv.balbillusYearType, mode: sv.balbillusMode }; })(),   // 上次亲手设的三项口径
 			treeData: [],
 		};
 		this.ctx = null;
@@ -114,6 +115,8 @@ class AstroBalbillus extends Component{
 	}
 
 	changeOpt(key, val){
+		const persistAs = { startPlanet: 'balbillusStartPlanet', yearType: 'balbillusYearType', mode: 'balbillusMode' }[key];
+		if(persistAs){ DIRECTION_PAGE_SETTINGS.save({ [persistAs]: val }); }
 		const opts = { ...this.state.opts, [key]: val };
 		this.setState({ opts }, () => { this.rebuild(); this.saveAISnapshot(); });
 	}
@@ -138,7 +141,7 @@ class AstroBalbillus extends Component{
 						Balbillus 法<span className="horosa-balbillus-sub">129 年系统 · 旺距削减</span>
 					</div>
 					<div className="horosa-balbillus-desc">
-						主限长度 = 小年 × (1 − 离擢升度角距 ⁄ 360)；七星按本命黄经序自起始星铺开，再按 129 权重递归切子限。点节点可展开下一层。
+						主限长度 = 小年 × (1 − 离擢升度角距 ⁄ 360)（「最近角距」档下日 / 月 / 火三星另按经验系数校正角距）；七星按本命黄经序自起始星铺开。子限不按 129 权重递归，而是以「子星削减年数 × 本层时间单位（第二层=月）」顺序铺开、末段填满父期。点节点可展开下一层。
 					</div>
 					<Row gutter={12} className="horosa-balbillus-controls">
 						<Col span={8}>

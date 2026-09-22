@@ -1,5 +1,5 @@
 diff --git a/astropy/websrv/webchartsrv.py b/astropy/websrv/webchartsrv.py
-index 0b5bdcbd..de878e0f 100644
+index b4ce9aed..1e5a9925 100644
 --- a/astropy/websrv/webchartsrv.py
 +++ b/astropy/websrv/webchartsrv.py
 @@ -20,6 +20,7 @@ import cherrypy
@@ -142,7 +142,7 @@ index 0b5bdcbd..de878e0f 100644
  
              _cls_tokens = push_classical_request(data)
              _pt0 = time.perf_counter() if _PY_CHART_TIMING else 0.0
-@@ -731,7 +821,12 @@ def _run_warmups():
+@@ -732,7 +822,12 @@ def _run_warmups():
      elif _par_env == '1':
          _parallel = True
      else:
@@ -156,7 +156,7 @@ index 0b5bdcbd..de878e0f 100644
      # [R4-P3a] PD 入并行组开关。🔴 缺省【关】(2026-08-03 同会话 ladder 实测定档):script 档
      # (untrusted 并行)PD 入组=并行窗四线程,与同窗 JVM 引导抢核【双输】——py 门开 1440→1857ms、
      # java_http_ready 2528→3551ms(R3「温启并行双输回串行」同族形态,冷启档同样成立)。
-@@ -758,6 +853,66 @@ def _run_warmups():
+@@ -759,6 +854,66 @@ def _run_warmups():
      # [R4-P0 观察位] 门开绝对时刻显式化(改前基线里门开时刻要靠 warmup 末段推算)。
      ledger_mark('py.gate_open', t0=_PY_T0)
      STARTUP_GATE.set()

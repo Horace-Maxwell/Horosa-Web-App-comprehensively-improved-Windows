@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/germany/AstroGermany.js b/astrostudyui/src/components/germany/AstroGermany.js
-index 5e417173..500495a7 100644
+index 8aa765e9..b43bb88d 100644
 --- a/astrostudyui/src/components/germany/AstroGermany.js
 +++ b/astrostudyui/src/components/germany/AstroGermany.js
-@@ -5,6 +5,8 @@ import UranianDialMain from './UranianDialMain';
- import UranianGraphicEphemeris from './UranianGraphicEphemeris';
- import UranianHouseFrames from './UranianHouseFrames';
- import { getStoredUranianDisplay } from './UranianDialStyle';
+@@ -7,6 +7,8 @@ import UranianHouseFrames from './UranianHouseFrames';
+ import { getStoredUranianDisplay, URANIAN_DISPLAY_EVENT } from './UranianDialStyle';   // [Q-355] 六宫框开关要即时反映到页签栏
+ // [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+ import { visualFloorPx } from '../../utils/zoomDomain';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  
  const TabPane = Tabs.TabPane;
  
-@@ -33,6 +35,15 @@ class AstroGermany extends Component{
+@@ -35,6 +37,15 @@ class AstroGermany extends Component{
  		}
  	}
  
@@ -27,7 +27,7 @@ index 5e417173..500495a7 100644
  	callCurrentTabHook(){
  		let hook = this.state.hook;
  		if(hook[this.state.currentTab] && hook[this.state.currentTab].fun){
-@@ -70,8 +81,14 @@ class AstroGermany extends Component{
+@@ -81,8 +92,14 @@ class AstroGermany extends Component{
  
  		return (
  			<div className="horosa-aux-module-page xq-chart-renderer xq-chart-renderer-germany">
@@ -42,7 +42,7 @@ index 5e417173..500495a7 100644
  						<AstroMidpoint
  							onChange={this.onFieldsChange}
  							height={childHeight}
-@@ -83,8 +100,10 @@ class AstroGermany extends Component{
+@@ -95,8 +112,10 @@ class AstroGermany extends Component{
  							showAstroMeaning={this.props.showAstroMeaning}
  							hook={hook.Midpoint}
  						/>
@@ -53,7 +53,7 @@ index 5e417173..500495a7 100644
  						<UranianDialMain
  							height={childHeight}
  							fields={this.props.fields}
-@@ -93,17 +112,21 @@ class AstroGermany extends Component{
+@@ -105,17 +124,21 @@ class AstroGermany extends Component{
  							planetDisplay={this.props.planetDisplay}
  							hook={hook.Dial}
  						/>
@@ -75,7 +75,7 @@ index 5e417173..500495a7 100644
  							<UranianHouseFrames
  								height={childHeight}
  								fields={this.props.fields}
-@@ -114,6 +137,7 @@ class AstroGermany extends Component{
+@@ -127,6 +150,7 @@ class AstroGermany extends Component{
  								showAstroMeaning={this.props.showAstroMeaning}
  								hook={hook.HouseFrames}
  							/>

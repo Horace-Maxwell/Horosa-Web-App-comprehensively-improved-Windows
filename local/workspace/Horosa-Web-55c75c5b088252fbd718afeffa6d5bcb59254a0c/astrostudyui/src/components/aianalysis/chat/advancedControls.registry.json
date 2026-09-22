@@ -1,0 +1,3472 @@
+{
+ "_doc": "「进阶」页控件登记表(单一真值):每个可交互控件一条 —— 锚(data-*)/所在卡/种类/取值/存储/消费方符号/jest 与 端到端判据/展开步骤(reveal)/是否桌面专属。检查器 Horosa_Desktop_Installer/scripts/check_adv_controls_registry.js(preflight [261]/[247]):面板源码里出现的每个 data-* 都必须在 controls∪markers 里,反之登记锚必须在其声明文件里;consumers 的 file#symbol 必须真实存在;l5 id 必须存在于 scripts/l5 场景(无 l5 目录时跳过);controls 数只增(REGISTRY_FLOOR 棘轮)。加控件的流程:加锚 → 登记本表 → jest reveal 合同(aiAdvancedControlsRegistry.test.js)→ 加 端到端判据 id。扩展条目可放 advancedControls.private.json(存在才合并)。 2026-09-14 挂名网(M-177/M-178):l5[] 用例正文(去 expect)必须含本条锚或存储键、expect 不得为空,挂名对数 ≤ L5_NOMINAL_MAX 只减;jest[] 必须落到真实 *.test.js 且文件含锚/消费符号/存储键,挂名 ≤ JEST_NOMINAL_MAX 只减;l5Twin[]=负孪生 / 效果用例(关、空、缺省也是合同的一半),id 必须存在且正文必须命中本条锚或存储键(不许挂名);instances 与 jest reveal 合同恰等(不是 ≥)。",
+ "kinds": [
+  "switch",
+  "radio",
+  "select",
+  "multiselect",
+  "number",
+  "text",
+  "password",
+  "textarea",
+  "button",
+  "upload",
+  "pill",
+  "tab",
+  "collapse",
+  "field",
+  "pagination"
+ ],
+ "revealOps": [
+  "agent-on",
+  "pref:<name>",
+  "collapse:<头文案子串>",
+  "tab:<页签>",
+  "modal:<锚>",
+  "select:<锚>=<选项文案>",
+  "radio:<锚>=<value>",
+  "type:<锚>=<文本>",
+  "seed:<数据>",
+  "desktop"
+ ],
+ "controls": [
+  {
+   "id": "pane.pill",
+   "card": "pane",
+   "file": "chat/AdvancedPane.js",
+   "anchor": "data-adv-pill",
+   "kind": "pill",
+   "instances": 6,
+   "values": "context|routes|persona|memory|skills|agent",
+   "store": "ui",
+   "consumers": [
+    "components/aianalysis/chat/AdvSectionNav.js#jumpToSection"
+   ],
+   "jest": [
+    "aiAdvancedPane",
+    "aiAdvancedLayout"
+   ],
+   "l5": [
+    "S90_prefs_cross_window",
+    "S113_pill_routes_truth_ui",
+    "S152_pills_truth_ui",
+    "S136_master_switch_ui",
+    "S121_memory_manual_toggle_delete_ui"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "pane.rail",
+   "card": "pane",
+   "file": "chat/AdvSectionNav.js",
+   "anchor": "data-adv-nav",
+   "kind": "button",
+   "instances": 6,
+   "values": "六分区",
+   "store": "ui",
+   "consumers": [
+    "components/aianalysis/chat/AdvSectionNav.js#jumpToSection"
+   ],
+   "jest": [
+    "aiAdvancedLayout"
+   ],
+   "l5": [
+    "S79_adv_layout_tracks",
+    "S152_pills_truth_ui"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "context.preset",
+   "card": "adv-context",
+   "file": "chat/ChatContextPolicyPanel.js",
+   "anchor": "data-policy-preset",
+   "kind": "radio",
+   "instances": 1,
+   "values": "legacy|window|economy",
+   "store": "localStorage:horosa.ai.chat.contextPolicy.v1",
+   "consumers": [
+    "utils/aiChatHistory.js#windowChatMessages",
+    "utils/aiChatHistory.js#writeContextPolicy"
+   ],
+   "jest": [
+    "aiChatPolicyPanel",
+    "aiChatHistory"
+   ],
+   "l5": [
+    "S85_adv_policy_fields_sweep",
+    "S101_ctx_window_budget_ui",
+    "S101b_ctx_legacy_ui",
+    "S102b_ctx_dedup_economy_ui",
+    "S102bn_ctx_dedup_off_ui",
+    "S153_persist_reload_sweep_ui",
+    "M1_01_legacy_none_never_on_none"
+   ],
+   "l5Twin": [
+    "S194n_mount_budget_default_auto"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "context.restore",
+   "card": "adv-context",
+   "file": "chat/ChatContextPolicyPanel.js",
+   "anchor": "data-policy-restore",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "localStorage:horosa.ai.chat.contextPolicy.v1",
+   "consumers": [
+    "utils/aiChatHistory.js#clearContextPolicy"
+   ],
+   "jest": [
+    "aiChatPolicyPanel"
+   ],
+   "l5": [
+    "S85_adv_policy_fields_sweep",
+    "S101b_ctx_legacy_ui",
+    "S102bn_ctx_dedup_off_ui"
+   ],
+   "l5Twin": [
+    "S194n_mount_budget_default_auto"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "context.field",
+   "card": "adv-context",
+   "file": "chat/ChatContextPolicyPanel.js",
+   "anchor": "data-policy-field",
+   "kind": "field",
+   "instances": 12,
+   "values": "FIELD_SPECS 十一档(historyImageKeep 缺省不限→只出 .unlimited 开关;填数值后再多 1 个数值框)+ compactAutoTokens",
+   "store": "localStorage:horosa.ai.chat.contextPolicy.v1",
+   "consumers": [
+    "utils/aiChatHistory.js#windowChatMessages",
+    "utils/aiAgent/runtime.js#createAgentTurn"
+   ],
+   "jest": [
+    "aiChatPolicyPanel",
+    "aiChatCompactInstruction",
+    "aiChatHistory"
+   ],
+   "l5": [
+    "S85_adv_policy_fields_sweep",
+    "S93_compact_threshold_chip",
+    "S101_ctx_window_budget_ui",
+    "S102_ctx_trace_replay_zero_ui",
+    "S102c_ctx_fold_limit_ui",
+    "S153_persist_reload_sweep_ui",
+    "S194_mount_budget_override_ui",
+    "S195_dropped_layer_leaves_note"
+   ],
+   "l5Twin": [
+    "S194n_mount_budget_default_auto",
+    "S195n_big_budget_no_note"
+   ],
+   "reveal": [
+    "collapse:细项"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "bestof.mode",
+   "card": "adv-bestof",
+   "file": "chat/BestOfPanel.js",
+   "anchor": "data-bestof-mode",
+   "kind": "radio",
+   "instances": 1,
+   "values": "models|angles",
+   "store": "uiPrefs:chatAssist.bestOf",
+   "consumers": [
+    "utils/aiBestOfN.js#planCandidates",
+    "components/aianalysis/chat/BestOfPanel.js#writeBestOfPrefs"
+   ],
+   "jest": [
+    "aiAdvancedPane"
+   ],
+   "l5": [
+    "S114_bestof_models_two_wires_ui",
+    "S115_bestof_three_angles_ui",
+    "S116_bestof_cap_and_reset_ui"
+   ],
+   "l5Twin": [
+    "S109n_judge_slot_empty"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "bestof.models",
+   "card": "adv-bestof",
+   "file": "chat/BestOfPanel.js",
+   "anchor": "data-bestof-models",
+   "kind": "multiselect",
+   "instances": 1,
+   "values": "2..4 个 profileId::model",
+   "store": "uiPrefs:chatAssist.bestOf",
+   "consumers": [
+    "utils/aiBestOfN.js#planCandidates"
+   ],
+   "jest": [
+    "aiAdvancedPane"
+   ],
+   "l5": [
+    "S114_bestof_models_two_wires_ui",
+    "S116_bestof_cap_and_reset_ui"
+   ],
+   "l5Twin": [
+    "S109n_judge_slot_empty"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "bestof.angles",
+   "card": "adv-bestof",
+   "file": "chat/BestOfPanel.js",
+   "anchor": "data-bestof-angles",
+   "kind": "multiselect",
+   "instances": 1,
+   "values": "classic|modern|cautious|concise",
+   "store": "uiPrefs:chatAssist.bestOf",
+   "consumers": [
+    "utils/aiBestOfN.js#planCandidates"
+   ],
+   "jest": [],
+   "l5": [
+    "S115_bestof_three_angles_ui"
+   ],
+   "l5Twin": [
+    "S109n_judge_slot_empty"
+   ],
+   "reveal": [
+    "radio:data-bestof-mode=angles"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "bestof.reset",
+   "card": "adv-bestof",
+   "file": "chat/AdvCard.js",
+   "anchor": "data-adv-reset",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "uiPrefs:chatAssist.bestOf",
+   "consumers": [
+    "components/aianalysis/chat/BestOfPanel.js#writeBestOfPrefs"
+   ],
+   "jest": [],
+   "l5": [
+    "S116_bestof_cap_and_reset_ui"
+   ],
+   "l5Twin": [
+    "S109n_judge_slot_empty"
+   ],
+   "reveal": [
+    "radio:data-bestof-mode=angles"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "routes.model",
+   "card": "adv-routes",
+   "file": "chat/ChatModelRoutesPanel.js",
+   "anchor": "data-model-route",
+   "kind": "select",
+   "instances": 6,
+   "values": "profileId::model | 清空",
+   "store": "localStorage:horosa.ai.chat.modelRoutes.v1",
+   "consumers": [
+    "utils/aiModelRouting.js#resolveRoute",
+    "utils/aiModelRouting.js#roundSlot"
+   ],
+   "jest": [
+    "chatModelRoutesPanel",
+    "aiModelRouting"
+   ],
+   "l5": [
+    "S27_model_routes_close_round",
+    "S103_routes_model_select_ui",
+    "S107_routes_row_reset_ui",
+    "S112_goal_judge_slot_ui",
+    "S153_persist_reload_sweep_ui",
+    "M1_02_legacy_final_on-request_off_high"
+   ],
+   "l5Twin": [
+    "S77_profile_switch"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "routes.thinking",
+   "card": "adv-routes",
+   "file": "chat/ChatModelRoutesPanel.js",
+   "anchor": "data-route-thinking",
+   "kind": "select",
+   "instances": 6,
+   "values": "off|low|medium|high|xhigh|max",
+   "store": "localStorage:horosa.ai.chat.routeOptions.v1",
+   "consumers": [
+    "utils/aiModelRouting.js#providerOptionsForRoute",
+    "utils/aiModelRouting.js#providerOptionsForSlot"
+   ],
+   "jest": [
+    "aiModelRoutingOptions",
+    "aiModelRoutingSlotOptions"
+   ],
+   "l5": [
+    "S74_route_thinking_slot",
+    "S104_routes_thinking_sweep_ui",
+    "S153_persist_reload_sweep_ui",
+    "M1_03_window_none_read-only_on_high"
+   ],
+   "l5Twin": [
+    "S77_profile_switch"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "routes.effort",
+   "card": "adv-routes",
+   "file": "chat/ChatModelRoutesPanel.js",
+   "anchor": "data-route-effort",
+   "kind": "select",
+   "instances": 6,
+   "values": "low|medium|high",
+   "store": "localStorage:horosa.ai.chat.routeOptions.v1",
+   "consumers": [
+    "utils/aiModelRouting.js#applySlotParams",
+    "utils/aiModelRouting.js#providerOptionsForSlot"
+   ],
+   "jest": [
+    "aiModelRoutingProfiles",
+    "aiModelRoutingSlotOptions"
+   ],
+   "l5": [
+    "S105_routes_effort_sweep_ui",
+    "S153_persist_reload_sweep_ui"
+   ],
+   "l5Twin": [
+    "S77_profile_switch"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "routes.temperature",
+   "card": "adv-routes",
+   "file": "chat/ChatModelRoutesPanel.js",
+   "anchor": "data-route-temperature",
+   "kind": "number",
+   "instances": 6,
+   "values": "0..2",
+   "store": "localStorage:horosa.ai.chat.routeOptions.v1",
+   "consumers": [
+    "utils/aiModelRouting.js#applySlotParams",
+    "utils/aiModelRouting.js#providerOptionsForSlot"
+   ],
+   "jest": [
+    "aiModelRoutingProfiles",
+    "aiChatBestOf"
+   ],
+   "l5": [
+    "S80_adv_route_grid_set_then_request",
+    "S105_routes_effort_sweep_ui",
+    "S106_routes_clamp_ui",
+    "S107_routes_row_reset_ui",
+    "S109_judge_slot_params_ui",
+    "S111a_orchestrate_planner_slot_ui",
+    "S153_persist_reload_sweep_ui"
+   ],
+   "l5Twin": [
+    "S77_profile_switch"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "routes.maxTokens",
+   "card": "adv-routes",
+   "file": "chat/ChatModelRoutesPanel.js",
+   "anchor": "data-route-max-tokens",
+   "kind": "number",
+   "instances": 6,
+   "values": "1..200000",
+   "store": "localStorage:horosa.ai.chat.routeOptions.v1",
+   "consumers": [
+    "utils/aiModelRouting.js#applySlotParams",
+    "utils/aiModelRouting.js#providerOptionsForSlot"
+   ],
+   "jest": [
+    "aiModelRoutingProfiles",
+    "aiChatReview"
+   ],
+   "l5": [
+    "S80_adv_route_grid_set_then_request",
+    "S105_routes_effort_sweep_ui",
+    "S106_routes_clamp_ui",
+    "S108_routes_profile_remove_ui",
+    "S110_review_slot_params_ui",
+    "S111b_orchestrate_subagent_final_slots_ui",
+    "S112_goal_judge_slot_ui",
+    "S113_pill_routes_truth_ui",
+    "S153_persist_reload_sweep_ui",
+    "S155_two_windows_routes_pill"
+   ],
+   "l5Twin": [
+    "S77_profile_switch"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "routes.rowReset",
+   "card": "adv-routes",
+   "file": "chat/ChatModelRoutesPanel.js",
+   "anchor": "data-route-row-reset",
+   "kind": "button",
+   "instances": 6,
+   "values": "",
+   "store": "localStorage:horosa.ai.chat.modelRoutes.v1",
+   "consumers": [
+    "utils/aiModelRouting.js#writeModelRoutes",
+    "utils/aiModelRouting.js#writeRouteOptions"
+   ],
+   "jest": [
+    "chatModelRoutesPanel"
+   ],
+   "l5": [
+    "S107_routes_row_reset_ui"
+   ],
+   "l5Twin": [
+    "S77_profile_switch"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "routes.clear",
+   "card": "adv-routes",
+   "file": "chat/ChatModelRoutesPanel.js",
+   "anchor": "data-model-routes-clear",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "localStorage:horosa.ai.chat.modelRoutes.v1",
+   "consumers": [
+    "utils/aiModelRouting.js#clearModelRoutes",
+    "utils/aiModelRouting.js#clearRouteOptions"
+   ],
+   "jest": [
+    "chatModelRoutesPanel"
+   ],
+   "l5": [
+    "S80b_adv_route_profile_bar",
+    "S113_pill_routes_truth_ui"
+   ],
+   "l5Twin": [
+    "S77_profile_switch"
+   ],
+   "reveal": [
+    "seed:route"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "routes.profileSelect",
+   "card": "adv-routes",
+   "file": "chat/ChatModelRoutesPanel.js",
+   "anchor": "data-route-profile-select",
+   "kind": "select",
+   "instances": 1,
+   "values": "方案名 | 清空",
+   "store": "localStorage:horosa.ai.chat.routeProfiles.v1",
+   "consumers": [
+    "utils/aiModelRouting.js#applyRouteProfile",
+    "utils/aiModelRouting.js#clearActiveRouteProfile"
+   ],
+   "jest": [
+    "chatModelRoutesPanel",
+    "aiModelRoutingProfiles"
+   ],
+   "l5": [
+    "S80b_adv_route_profile_bar",
+    "S113_pill_routes_truth_ui"
+   ],
+   "l5Twin": [
+    "S77_profile_switch"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "routes.profileName",
+   "card": "adv-routes",
+   "file": "chat/ChatModelRoutesPanel.js",
+   "anchor": "data-route-profile-name",
+   "kind": "text",
+   "instances": 1,
+   "values": "≤32 字",
+   "store": "localStorage:horosa.ai.chat.routeProfiles.v1",
+   "consumers": [
+    "utils/aiModelRouting.js#saveRouteProfile"
+   ],
+   "jest": [
+    "chatModelRoutesPanel"
+   ],
+   "l5": [
+    "S80b_adv_route_profile_bar",
+    "S108_routes_profile_remove_ui",
+    "S113_pill_routes_truth_ui"
+   ],
+   "l5Twin": [
+    "S77_profile_switch"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "routes.profileSave",
+   "card": "adv-routes",
+   "file": "chat/ChatModelRoutesPanel.js",
+   "anchor": "data-route-profile-save",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "localStorage:horosa.ai.chat.routeProfiles.v1",
+   "consumers": [
+    "utils/aiModelRouting.js#saveRouteProfile"
+   ],
+   "jest": [
+    "chatModelRoutesPanel"
+   ],
+   "l5": [
+    "S80b_adv_route_profile_bar",
+    "S108_routes_profile_remove_ui",
+    "S113_pill_routes_truth_ui"
+   ],
+   "l5Twin": [
+    "S77_profile_switch"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "routes.profileRemove",
+   "card": "adv-routes",
+   "file": "chat/ChatModelRoutesPanel.js",
+   "anchor": "data-route-profile-remove",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "localStorage:horosa.ai.chat.routeProfiles.v1",
+   "consumers": [
+    "utils/aiModelRouting.js#removeRouteProfile"
+   ],
+   "jest": [
+    "chatModelRoutesPanel"
+   ],
+   "l5": [
+    "S108_routes_profile_remove_ui"
+   ],
+   "l5Twin": [
+    "S77_profile_switch"
+   ],
+   "reveal": [
+    "seed:route-profile"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "persona.tabs",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-persona-tabs",
+   "kind": "tab",
+   "instances": 1,
+   "values": "全局|命主|技法|会话",
+   "store": "ui",
+   "consumers": [],
+   "jest": [
+    "aiChatPersonaLayers"
+   ],
+   "l5": [
+    "S94_persona_layer_ui_save",
+    "S118_persona_technique_layer_ui",
+    "S119_persona_session_layer_ui"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "persona.text",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-persona-text",
+   "kind": "textarea",
+   "instances": 1,
+   "values": "≤4000",
+   "store": "localStorage:horosa.ai.persona.v1",
+   "consumers": [
+    "utils/aiChat/persona.js#personaLayer",
+    "utils/aiChat/persona.js#writePersona"
+   ],
+   "jest": [
+    "aiChatPersona",
+    "aiChatComposer"
+   ],
+   "l5": [
+    "S117_persona_global_ui",
+    "S120_persona_init_draft_ui",
+    "S153_persist_reload_sweep_ui"
+   ],
+   "l5Twin": [
+    "S73_persona_layered"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "persona.save",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-persona-save",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "localStorage:horosa.ai.persona.v1",
+   "consumers": [
+    "utils/aiChat/persona.js#writePersona"
+   ],
+   "jest": [
+    "aiChatPersona",
+    "aiChatComposer"
+   ],
+   "l5": [
+    "S117_persona_global_ui",
+    "S120_persona_init_draft_ui",
+    "S153_persist_reload_sweep_ui"
+   ],
+   "l5Twin": [
+    "S73_persona_layered"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "persona.template",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-persona-template",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "ui",
+   "consumers": [
+    "utils/aiChat/persona.js#PERSONA_TEMPLATE"
+   ],
+   "jest": [],
+   "l5": [
+    "S117_persona_global_ui"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "persona.init",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-persona-init",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "ui",
+   "consumers": [
+    "utils/aiChat/persona.js#buildInitDraftInput"
+   ],
+   "jest": [
+    "aiChatPersona"
+   ],
+   "l5": [
+    "S120_persona_init_draft_ui"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "persona.draftApply",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-persona-draft-apply",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "ui",
+   "consumers": [
+    "utils/aiChat/persona.js#writePersona"
+   ],
+   "jest": [
+    "aiChatComposer"
+   ],
+   "l5": [
+    "S120_persona_init_draft_ui"
+   ],
+   "reveal": [
+    "seed:persona-draft"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "persona.enabled",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-persona-enabled",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "localStorage:horosa.ai.persona.v1",
+   "consumers": [
+    "utils/aiChat/persona.js#personaLayer"
+   ],
+   "jest": [
+    "aiChatPersona",
+    "aiChatPersonaLayers"
+   ],
+   "l5": [
+    "S94_persona_layer_ui_save",
+    "S117_persona_global_ui",
+    "S118_persona_technique_layer_ui",
+    "S119_persona_session_layer_ui",
+    "S153_persist_reload_sweep_ui"
+   ],
+   "l5Twin": [
+    "S73_persona_layered"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "persona.memoryInject",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-persona-memory-inject",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "localStorage:horosa.ai.persona.v1",
+   "consumers": [
+    "utils/aiChat/memory.js#memoryLayer",
+    "utils/aiChat/memory.js#buildMemoryDirective"
+   ],
+   "jest": [
+    "aiChatMemory"
+   ],
+   "l5": [
+    "S121_memory_manual_toggle_delete_ui",
+    "S153_persist_reload_sweep_ui"
+   ],
+   "l5Twin": [
+    "S73_persona_layered"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "persona.memoryCapture",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-persona-memory-capture",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "localStorage:horosa.ai.persona.v1",
+   "consumers": [
+    "utils/aiChat/memory.js#extractCandidatesHeuristic"
+   ],
+   "jest": [
+    "aiChatMemory"
+   ],
+   "l5": [
+    "S123_memory_capture_heuristic_ui",
+    "S153_persist_reload_sweep_ui"
+   ],
+   "l5Twin": [
+    "S73_persona_layered"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "persona.layerText",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-persona-layer-text",
+   "kind": "textarea",
+   "instances": 1,
+   "values": "subject|technique|session",
+   "store": "localStorage:horosa.ai.persona.layers.v1",
+   "consumers": [
+    "utils/aiChat/personaLayers.js#writePersonaLayer",
+    "utils/aiChat/personaLayers.js#composePersonaText"
+   ],
+   "jest": [
+    "aiChatPersonaLayers"
+   ],
+   "l5": [
+    "S94_persona_layer_ui_save",
+    "S118_persona_technique_layer_ui",
+    "S119_persona_session_layer_ui"
+   ],
+   "l5Twin": [
+    "S73_persona_layered"
+   ],
+   "reveal": [
+    "tab:命主"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "persona.layerSave",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-persona-layer-save",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "localStorage:horosa.ai.persona.layers.v1",
+   "consumers": [
+    "utils/aiChat/personaLayers.js#writePersonaLayer"
+   ],
+   "jest": [
+    "aiChatPersonaLayers"
+   ],
+   "l5": [
+    "S94_persona_layer_ui_save",
+    "S118_persona_technique_layer_ui",
+    "S119_persona_session_layer_ui"
+   ],
+   "l5Twin": [
+    "S73_persona_layered"
+   ],
+   "reveal": [
+    "tab:命主"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "persona.layerClear",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-persona-layer-clear",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "localStorage:horosa.ai.persona.layers.v1",
+   "consumers": [
+    "utils/aiChat/personaLayers.js#writePersonaLayer"
+   ],
+   "jest": [
+    "aiChatPersonaLayers"
+   ],
+   "l5": [
+    "S118_persona_technique_layer_ui"
+   ],
+   "l5Twin": [
+    "S73_persona_layered"
+   ],
+   "reveal": [
+    "seed:persona-layer",
+    "tab:命主"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "persona.clearAll",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-persona-clear-all",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "localStorage:horosa.ai.persona.v1",
+   "consumers": [
+    "utils/aiChat/persona.js#clearPersona",
+    "utils/aiChat/personaLayers.js#clearPersonaLayers"
+   ],
+   "jest": [
+    "aiChatPersona"
+   ],
+   "l5": [
+    "S172_persona_clear_all_ui",
+    "S172n_persona_clear_all_cancel_ui"
+   ],
+   "l5Twin": [
+    "S73_persona_layered"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "persona.techniqueSelect",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-persona-technique-select",
+   "kind": "select",
+   "instances": 1,
+   "values": "技法键",
+   "store": "ui",
+   "consumers": [
+    "utils/aiChat/personaLayers.js#composePersonaText"
+   ],
+   "jest": [],
+   "l5": [
+    "S118_persona_technique_layer_ui"
+   ],
+   "reveal": [
+    "tab:技法"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "memory.extract",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-memory-extract",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:workspaceMeta(aimem:)",
+   "consumers": [
+    "utils/aiChat/memory.js#candidatesFromExtraction"
+   ],
+   "jest": [
+    "aiChatMemory"
+   ],
+   "l5": [
+    "S122_memory_extract_confirm_ui"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "memory.candidateType",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-memory-candidate-type",
+   "kind": "select",
+   "instances": 1,
+   "values": "user|chart|case|global",
+   "store": "idb:workspaceMeta(aimem:)",
+   "consumers": [
+    "utils/aiChat/memory.js#confirmMemory"
+   ],
+   "jest": [
+    "aiChatMemory"
+   ],
+   "l5": [
+    "S122_memory_extract_confirm_ui"
+   ],
+   "reveal": [
+    "seed:memory-candidate"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "memory.candidateText",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-memory-candidate-text",
+   "kind": "text",
+   "instances": 1,
+   "values": "≤200",
+   "store": "idb:workspaceMeta(aimem:)",
+   "consumers": [
+    "utils/aiChat/memory.js#confirmMemory"
+   ],
+   "jest": [
+    "aiChatMemory"
+   ],
+   "l5": [
+    "S122_memory_extract_confirm_ui"
+   ],
+   "reveal": [
+    "seed:memory-candidate"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "memory.confirm",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-memory-confirm",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:workspaceMeta(aimem:)",
+   "consumers": [
+    "utils/aiChat/memory.js#confirmMemory"
+   ],
+   "jest": [
+    "aiChatMemory"
+   ],
+   "l5": [
+    "S122_memory_extract_confirm_ui"
+   ],
+   "reveal": [
+    "seed:memory-candidate"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "memory.discard",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-memory-discard",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:workspaceMeta(aimem:)",
+   "consumers": [
+    "utils/aiChat/memory.js#discardCandidate"
+   ],
+   "jest": [
+    "aiChatMemory"
+   ],
+   "l5": [
+    "S122_memory_extract_confirm_ui"
+   ],
+   "reveal": [
+    "seed:memory-candidate"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "memory.manual",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-memory-manual",
+   "kind": "text",
+   "instances": 1,
+   "values": "≤200",
+   "store": "idb:workspaceMeta(aimem:)",
+   "consumers": [
+    "utils/aiChat/memory.js#saveMemory"
+   ],
+   "jest": [
+    "aiChatMemory"
+   ],
+   "l5": [
+    "S121_memory_manual_toggle_delete_ui",
+    "S152_pills_truth_ui"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "memory.add",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-memory-add",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:workspaceMeta(aimem:)",
+   "consumers": [
+    "utils/aiChat/memory.js#saveMemory"
+   ],
+   "jest": [
+    "aiChatMemory"
+   ],
+   "l5": [
+    "S121_memory_manual_toggle_delete_ui",
+    "S152_pills_truth_ui"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "memory.toggle",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-memory-toggle",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "idb:workspaceMeta(aimem:)",
+   "consumers": [
+    "utils/aiChat/memory.js#toggleMemory",
+    "utils/aiChat/memory.js#buildMemoryDirective"
+   ],
+   "jest": [
+    "aiChatMemory"
+   ],
+   "l5": [
+    "S121_memory_manual_toggle_delete_ui"
+   ],
+   "reveal": [
+    "seed:memory-item"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "memory.delete",
+   "card": "adv-persona",
+   "file": "chat/PersonaMemoryPanel.js",
+   "anchor": "data-memory-delete",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:workspaceMeta(aimem:)",
+   "consumers": [
+    "utils/aiChat/memory.js#deleteMemory"
+   ],
+   "jest": [
+    "aiChatMemory"
+   ],
+   "l5": [
+    "S121_memory_manual_toggle_delete_ui",
+    "S152_pills_truth_ui"
+   ],
+   "reveal": [
+    "seed:memory-item"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "skills.import",
+   "card": "adv-skills",
+   "file": "chat/SkillPackPanel.js",
+   "anchor": "data-skill-import",
+   "kind": "upload",
+   "instances": 1,
+   "values": ".horosa-skill.json",
+   "store": "idb:bundles",
+   "consumers": [
+    "utils/aiChat/skills.js#planSkillImport",
+    "utils/aiChat/skills.js#bundleFromSkillPack"
+   ],
+   "jest": [
+    "skillPackImport"
+   ],
+   "l5": [
+    "S59_skill_hijack_builtin",
+    "S130_skill_import_file_ui",
+    "S130n_skill_import_hijack_rejected"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "skills.new",
+   "card": "adv-skills",
+   "file": "chat/SkillPackPanel.js",
+   "anchor": "data-skill-new",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "ui",
+   "consumers": [
+    "utils/aiChat/skills.js#normalizeSkillPack"
+   ],
+   "jest": [
+    "aiAdvancedPane"
+   ],
+   "l5": [
+    "S126_skill_editor_create_and_trigger_ui",
+    "S127_skill_requires_gate_ui",
+    "S128_skill_limits_version_conflict_ui"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "skills.name",
+   "card": "adv-skills",
+   "file": "chat/SkillPackPanel.js",
+   "anchor": "data-skill-name",
+   "kind": "text",
+   "instances": 1,
+   "values": "",
+   "store": "idb:bundles",
+   "consumers": [
+    "utils/aiChat/skills.js#normalizeSkillPack"
+   ],
+   "jest": [],
+   "l5": [
+    "S126_skill_editor_create_and_trigger_ui",
+    "S128_skill_limits_version_conflict_ui"
+   ],
+   "reveal": [
+    "modal:data-skill-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "skills.triggers",
+   "card": "adv-skills",
+   "file": "chat/SkillPackPanel.js",
+   "anchor": "data-skill-triggers",
+   "kind": "text",
+   "instances": 1,
+   "values": "≤4 触发词",
+   "store": "idb:bundles",
+   "consumers": [
+    "utils/aiChat/commands.js#triggerConflicts",
+    "utils/aiChat/skills.js#skillsOf"
+   ],
+   "jest": [
+    "aiChatSkills"
+   ],
+   "l5": [
+    "S126_skill_editor_create_and_trigger_ui",
+    "S128_skill_limits_version_conflict_ui"
+   ],
+   "reveal": [
+    "modal:data-skill-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "skills.requires",
+   "card": "adv-skills",
+   "file": "chat/SkillPackPanel.js",
+   "anchor": "data-skill-requires",
+   "kind": "select",
+   "instances": 1,
+   "values": "chart|timepoint|two-charts|any",
+   "store": "idb:bundles",
+   "consumers": [
+    "utils/aiChat/commands.js#requirementState"
+   ],
+   "jest": [
+    "aiChatSkills"
+   ],
+   "l5": [
+    "S126_skill_editor_create_and_trigger_ui",
+    "S127_skill_requires_gate_ui"
+   ],
+   "reveal": [
+    "modal:data-skill-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "skills.techniques",
+   "card": "adv-skills",
+   "file": "chat/SkillPackPanel.js",
+   "anchor": "data-skill-techniques",
+   "kind": "multiselect",
+   "instances": 1,
+   "values": "≤12 技法键",
+   "store": "idb:bundles",
+   "consumers": [
+    "utils/aiChat/skills.js#normalizeSkillPack"
+   ],
+   "jest": [
+    "aiChatSkills"
+   ],
+   "l5": [
+    "S128_skill_limits_version_conflict_ui"
+   ],
+   "reveal": [
+    "modal:data-skill-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "skills.template",
+   "card": "adv-skills",
+   "file": "chat/SkillPackPanel.js",
+   "anchor": "data-skill-template",
+   "kind": "textarea",
+   "instances": 1,
+   "values": "{{param}} {{source}}",
+   "store": "idb:bundles",
+   "consumers": [
+    "utils/aiChat/skills.js#renderSkillPrompt"
+   ],
+   "jest": [
+    "aiChatSkills"
+   ],
+   "l5": [
+    "S126_skill_editor_create_and_trigger_ui",
+    "S128_skill_limits_version_conflict_ui"
+   ],
+   "reveal": [
+    "modal:data-skill-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "skills.args",
+   "card": "adv-skills",
+   "file": "chat/SkillPackPanel.js",
+   "anchor": "data-skill-args",
+   "kind": "text",
+   "instances": 1,
+   "values": "name:label=default",
+   "store": "idb:bundles",
+   "consumers": [
+    "utils/aiChat/skills.js#parseSkillArgs"
+   ],
+   "jest": [
+    "aiChatSkills"
+   ],
+   "l5": [
+    "S126_skill_editor_create_and_trigger_ui"
+   ],
+   "reveal": [
+    "modal:data-skill-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "skills.output",
+   "card": "adv-skills",
+   "file": "chat/SkillPackPanel.js",
+   "anchor": "data-skill-output",
+   "kind": "text",
+   "instances": 1,
+   "values": "",
+   "store": "idb:bundles",
+   "consumers": [
+    "utils/aiChat/skills.js#buildSkillDirective"
+   ],
+   "jest": [
+    "aiChatSkills"
+   ],
+   "l5": [
+    "S126_skill_editor_create_and_trigger_ui"
+   ],
+   "reveal": [
+    "modal:data-skill-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "skills.note",
+   "card": "adv-skills",
+   "file": "chat/SkillPackPanel.js",
+   "anchor": "data-skill-note",
+   "kind": "text",
+   "instances": 1,
+   "values": "",
+   "store": "idb:bundles",
+   "consumers": [
+    "utils/aiChat/skills.js#buildSkillDirective"
+   ],
+   "jest": [
+    "aiChatSkills"
+   ],
+   "l5": [
+    "S126_skill_editor_create_and_trigger_ui"
+   ],
+   "reveal": [
+    "modal:data-skill-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "skills.description",
+   "card": "adv-skills",
+   "file": "chat/SkillPackPanel.js",
+   "anchor": "data-skill-description",
+   "kind": "text",
+   "instances": 1,
+   "values": "",
+   "store": "idb:bundles",
+   "consumers": [
+    "utils/aiChat/commands.js#listCommandItems"
+   ],
+   "jest": [
+    "aiChatComposer"
+   ],
+   "l5": [
+    "S126_skill_editor_create_and_trigger_ui"
+   ],
+   "reveal": [
+    "modal:data-skill-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "skills.save",
+   "card": "adv-skills",
+   "file": "chat/SkillPackPanel.js",
+   "anchor": "data-skill-save",
+   "kind": "button",
+   "instances": 1,
+   "values": "版本+1",
+   "store": "idb:bundles",
+   "consumers": [
+    "utils/aiChat/skills.js#normalizeSkillPack"
+   ],
+   "jest": [],
+   "l5": [
+    "S126_skill_editor_create_and_trigger_ui",
+    "S128_skill_limits_version_conflict_ui"
+   ],
+   "reveal": [
+    "modal:data-skill-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "skills.edit",
+   "card": "adv-skills",
+   "file": "chat/SkillPackPanel.js",
+   "anchor": "data-skill-edit",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:bundles",
+   "consumers": [
+    "utils/aiChat/skills.js#normalizeSkillPack"
+   ],
+   "jest": [],
+   "l5": [
+    "S128_skill_limits_version_conflict_ui"
+   ],
+   "reveal": [
+    "seed:skill-row"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "skills.export",
+   "card": "adv-skills",
+   "file": "chat/SkillPackPanel.js",
+   "anchor": "data-skill-export",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:bundles",
+   "consumers": [
+    "utils/aiChat/skills.js#exportSkillPack"
+   ],
+   "jest": [
+    "aiChatSkills"
+   ],
+   "l5": [
+    "S128_skill_limits_version_conflict_ui"
+   ],
+   "reveal": [
+    "seed:skill-row"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "agent.master",
+   "card": "adv-agent",
+   "file": "AgentAbilityPanel.js",
+   "anchor": "data-agent-master-switch",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "localStorage:horosa.ai.agent.enabled + shell:agent_enabled",
+   "consumers": [
+    "utils/aiAgent/prefs.js#isAgentEnabled",
+    "utils/aiAgent/runtime.js#createAgentTurn"
+   ],
+   "jest": [
+    "agentAbilityPanel",
+    "aiAdvancedPane"
+   ],
+   "l5": [
+    "S0_agent_off",
+    "S90_prefs_cross_window",
+    "S136_master_switch_ui",
+    "S152_pills_truth_ui"
+   ],
+   "l5Twin": [
+    "S180_master_off_closes_mcp_mock"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "agent.approval",
+   "card": "adv-agent",
+   "file": "AgentAbilityPanel.js",
+   "anchor": "data-approval-mode",
+   "kind": "radio",
+   "instances": 1,
+   "values": "never|on-request|read-only",
+   "store": "localStorage:horosa.ai.agent.approval",
+   "consumers": [
+    "utils/aiAgent/approvalPolicy.js#resolveApprovalDecision"
+   ],
+   "jest": [
+    "agentAbilityPanel",
+    "aiAgentApprovalPolicy",
+    "agentActionBarLedgerLost"
+   ],
+   "l5": [
+    "S131a_approval_readonly_ui",
+    "S131b_approval_onrequest_ui",
+    "S131c_approval_never_ui",
+    "S134_trust_records_ui",
+    "S153_persist_reload_sweep_ui",
+    "S163_approval_session_scope",
+    "S163n_approval_all_clicks5",
+    "S157n_category_inherit_global_onrequest"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false,
+   "_note": "[P1·2026-09-08] 动作条审批行四钮:允许 / 本会话不再问(内存放行集) / 永久放行 / 跳过"
+  },
+  {
+   "id": "agent.capsReset",
+   "card": "adv-agent",
+   "file": "AgentAbilityPanel.js",
+   "anchor": "data-caps-reset",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "localStorage:horosa.ai.agent.caps.v1",
+   "consumers": [
+    "utils/aiAgent/caps.js#resetToolCapabilities"
+   ],
+   "jest": [
+    "aiAgentCaps"
+   ],
+   "l5": [
+    "S135_caps_reset_ui",
+    "S135n_caps_kept_fenced"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "agent.inlineCollapse",
+   "card": "adv-agent",
+   "file": "AgentAbilityPanel.js",
+   "anchor": "data-agent-inline-collapse",
+   "kind": "collapse",
+   "instances": 1,
+   "values": "categories|toolPolicy|trust",
+   "store": "ui",
+   "consumers": [],
+   "jest": [
+    "agentAbilityPanel"
+   ],
+   "l5": [
+    "S81_adv_agent_collapse_headers",
+    "S133_toolpolicy_deny_beats_allow_ui",
+    "S134_trust_records_ui"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "agent.category",
+   "card": "adv-agent",
+   "file": "AgentAbilityPanel.js",
+   "anchor": "data-approval-category",
+   "kind": "select",
+   "instances": 8,
+   "values": "inherit|never|on-request|read-only",
+   "store": "localStorage:horosa.ai.agent.approval.categories.v1",
+   "consumers": [
+    "utils/aiAgent/approvalPolicy.js#effectiveApprovalMode"
+   ],
+   "jest": [
+    "agentAbilityPanel",
+    "aiAgentApprovalPolicy",
+    "aiAgentRuntime"
+   ],
+   "l5": [
+    "S20_category_deny",
+    "S153_persist_reload_sweep_ui",
+    "M2_full_never_r-read-only_s-read-only",
+    "S157a_category_query_onrequest_ui",
+    "S157b_category_external_readonly_ui",
+    "S157c_category_interactive_readonly_ui",
+    "S157n_category_inherit_global_onrequest"
+   ],
+   "reveal": [
+    "agent-on",
+    "collapse:按类别收紧审批"
+   ],
+   "desktop": false,
+   "_note": "[D12·2026-09-08] 查询/外部/反问/界面四个纯读类别只认显式设置:每次确认=每次调用先问,只读=外部不出网·反问不弹·界面不动,查询照常;inherit/总档任何值对读工具零变化"
+  },
+  {
+   "id": "agent.toolPolicy",
+   "card": "adv-agent",
+   "file": "AgentAbilityPanel.js",
+   "anchor": "data-tool-policy",
+   "kind": "multiselect",
+   "instances": 2,
+   "values": "deny|allow × 工具名 ≤64",
+   "store": "localStorage:horosa.ai.agent.toolPolicy.v1",
+   "consumers": [
+    "utils/aiAgent/approvalPolicy.js#isToolDenied",
+    "utils/aiAgent/approvalPolicy.js#isToolAllowed"
+   ],
+   "jest": [
+    "agentAbilityPanel",
+    "aiAgentToolPolicy",
+    "aiAgentPolicyParity",
+    "agentActionBarLedgerLost"
+   ],
+   "l5": [
+    "S91_tool_policy_ui_deny",
+    "S133_toolpolicy_deny_beats_allow_ui",
+    "S133b_toolpolicy_allow_skips_ask_ui",
+    "S158_bridge_deny_and_unknown_mock",
+    "S158n_bridge_allow_mock",
+    "S164_approval_always_scope",
+    "S160_denied_calls_charged"
+   ],
+   "l5Twin": [
+    "S66_tool_deny_by_name"
+   ],
+   "reveal": [
+    "agent-on",
+    "collapse:按工具名放行"
+   ],
+   "desktop": false,
+   "_note": "[P1·2026-09-08] 第二写入方:动作条「永久放行」把工具名并进 allow;[D13] deny 对本机 MCP 桥同样生效(tools/list 不列、tools/call 拒)"
+  },
+  {
+   "id": "agent.trust",
+   "card": "adv-agent",
+   "file": "AgentAbilityPanel.js",
+   "anchor": "data-trust-records",
+   "kind": "multiselect",
+   "instances": 1,
+   "values": "cid ≤200",
+   "store": "localStorage:horosa.ai.agent.trust.records.v1",
+   "consumers": [
+    "utils/aiAgent/approvalPolicy.js#isTrustedRecordCall"
+   ],
+   "jest": [
+    "agentAbilityPanel",
+    "aiAgentApprovalPolicy"
+   ],
+   "l5": [
+    "S134_trust_records_ui",
+    "S134n_trust_records_absent"
+   ],
+   "reveal": [
+    "agent-on",
+    "collapse:信任的档案"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "agent.goal",
+   "card": "adv-agent",
+   "file": "AgentAbilityPanel.js",
+   "anchor": "data-goal-switch",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "localStorage:horosa.ai.tasks.goal.enabled",
+   "consumers": [
+    "utils/aiAgent/goalRunner.js#startGoalTask",
+    "utils/aiAgent/prefs.js#isGoalEnabled"
+   ],
+   "jest": [
+    "agentAbilityPanel",
+    "aiAgentGoalRunner"
+   ],
+   "l5": [
+    "S81_adv_agent_collapse_headers",
+    "S153_persist_reload_sweep_ui",
+    "S154_switch_storm_ui"
+   ],
+   "l5Twin": [
+    "S112n_goal_judge_slot_empty",
+    "S23_goal_via_tool"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "agent.scheduler",
+   "card": "adv-agent",
+   "file": "AgentAbilityPanel.js",
+   "anchor": "data-scheduler-switch",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "localStorage:horosa.ai.tasks.scheduler.enabled + shell:scheduler_enabled",
+   "consumers": [
+    "utils/aiAgent/tasks/scheduler.js#schedulerGatesOpen"
+   ],
+   "jest": [
+    "agentAbilityPanel",
+    "agentScheduler"
+   ],
+   "l5": [
+    "S81_adv_agent_collapse_headers",
+    "S153_persist_reload_sweep_ui",
+    "S154_switch_storm_ui"
+   ],
+   "l5Twin": [
+    "S190_scheduler_switch_mirror_mock"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "agent.openTaskCenter",
+   "card": "adv-agent",
+   "file": "AgentAbilityPanel.js",
+   "anchor": "data-open-task-center",
+   "kind": "button",
+   "instances": 2,
+   "values": "goal|scheduler",
+   "store": "",
+   "consumers": [
+    "components/aianalysis/TaskCenterBell.js#openTaskCenter"
+   ],
+   "jest": [
+    "taskCenterEntry"
+   ],
+   "l5": [
+    "S196_task_center_button_ui"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "agent.orchestrate",
+   "card": "adv-agent",
+   "file": "AgentAbilityPanel.js",
+   "anchor": "data-orchestrate-switch",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "localStorage:horosa.ai.orchestrate.enabled",
+   "consumers": [
+    "components/aianalysis/chat/useChatOrchestrate.js#useChatOrchestrate",
+    "utils/aiAgent/prefs.js#isOrchestrateEnabled"
+   ],
+   "jest": [
+    "agentAbilityPanel",
+    "aiChatOrchestrate"
+   ],
+   "l5": [
+    "S81_adv_agent_collapse_headers",
+    "S38_orchestrate_off_default",
+    "S153_persist_reload_sweep_ui",
+    "S154_switch_storm_ui"
+   ],
+   "l5Twin": [
+    "S111n_orchestrate_slots_empty",
+    "S37_orchestrate_two_techniques"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "agent.collapse",
+   "card": "adv-agent",
+   "file": "AgentAbilityPanel.js",
+   "anchor": "data-agent-collapse",
+   "kind": "collapse",
+   "instances": 1,
+   "values": "五子面板",
+   "store": "ui",
+   "consumers": [],
+   "jest": [
+    "agentAbilityPanel"
+   ],
+   "l5": [
+    "S81_adv_agent_collapse_headers",
+    "S137_mcp_switch_copy_rotate_mock",
+    "S153_persist_reload_sweep_ui"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "mcp.switch",
+   "card": "adv-agent-mcp",
+   "file": "ExternalAgentPanel.js",
+   "anchor": "data-mcp-server-switch",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "shell:mcp_server_enabled",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpServerSetEnabled"
+   ],
+   "jest": [
+    "externalPolicyPanel"
+   ],
+   "l5": [
+    "S137_mcp_switch_copy_rotate_mock"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "mcp.copy",
+   "card": "adv-agent-mcp",
+   "file": "ExternalAgentPanel.js",
+   "anchor": "data-mcp-copy",
+   "kind": "button",
+   "instances": 4,
+   "values": "codex|claude-code|claude-desktop|token",
+   "store": "ui",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpServerRevealToken"
+   ],
+   "jest": [],
+   "l5": [
+    "S137_mcp_switch_copy_rotate_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "desktop"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "mcp.rotate",
+   "card": "adv-agent-mcp",
+   "file": "ExternalAgentPanel.js",
+   "anchor": "data-mcp-rotate",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "shell:token",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpServerRotateToken"
+   ],
+   "jest": [
+    "aiAgentProtocol"
+   ],
+   "l5": [
+    "S137_mcp_switch_copy_rotate_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "desktop"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "mcp.refresh",
+   "card": "adv-agent-mcp",
+   "file": "ExternalAgentPanel.js",
+   "anchor": "data-mcp-refresh",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "ui",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpServerStatus"
+   ],
+   "jest": [],
+   "l5": [
+    "S137_mcp_switch_copy_rotate_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "desktop"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "notify.switch",
+   "card": "adv-agent-mcp",
+   "file": "ExternalAgentPanel.js",
+   "anchor": "data-notify-hook-switch",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "shell:notify_hook_enabled",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopNotifyHookSet"
+   ],
+   "jest": [
+    "aiAgentNotifyHook"
+   ],
+   "l5": [
+    "S138_notify_hook_path_switch_test_save_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "desktop"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "notify.path",
+   "card": "adv-agent-mcp",
+   "file": "ExternalAgentPanel.js",
+   "anchor": "data-notify-hook-path",
+   "kind": "text",
+   "instances": 1,
+   "values": "绝对路径",
+   "store": "shell:notify_hook_path",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopNotifyHookSet"
+   ],
+   "jest": [
+    "aiAgentNotifyHook"
+   ],
+   "l5": [
+    "S138_notify_hook_path_switch_test_save_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "desktop"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "notify.test",
+   "card": "adv-agent-mcp",
+   "file": "ExternalAgentPanel.js",
+   "anchor": "data-notify-hook-test",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "ui",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopNotifyHookRun"
+   ],
+   "jest": [
+    "aiAgentNotifyHook"
+   ],
+   "l5": [
+    "S138_notify_hook_path_switch_test_save_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "desktop"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "notify.save",
+   "card": "adv-agent-mcp",
+   "file": "ExternalAgentPanel.js",
+   "anchor": "data-notify-hook-save",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "shell:notify_hook_path",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopNotifyHookSet"
+   ],
+   "jest": [],
+   "l5": [
+    "S138_notify_hook_path_switch_test_save_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "desktop",
+    "type:data-notify-hook-path=/Users/x/bin/other.sh"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "extpolicy.approval",
+   "card": "adv-agent-mcp",
+   "file": "ExternalAgentPanel.js",
+   "anchor": "data-external-policy-approval",
+   "kind": "radio",
+   "instances": 1,
+   "values": "auto|on-request|read-only",
+   "store": "localStorage:horosa.ai.agent.external.policy.v1",
+   "consumers": [
+    "utils/aiAgent/mcpBridge.js#handleAgentToolRequest",
+    "utils/aiAgent/prefs.js#setExternalPolicy"
+   ],
+   "jest": [
+    "externalPolicyPanel",
+    "mcpBridge"
+   ],
+   "l5": [
+    "S140_external_policy_effect_mock",
+    "S153_persist_reload_sweep_ui"
+   ],
+   "l5Twin": [
+    "S182n_external_policy_untouched_syncs_default_once_mock"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "extpolicy.calls",
+   "card": "adv-agent-mcp",
+   "file": "ExternalAgentPanel.js",
+   "anchor": "data-external-policy-calls",
+   "kind": "number",
+   "instances": 1,
+   "values": "1..600",
+   "store": "localStorage:horosa.ai.agent.external.policy.v1",
+   "consumers": [
+    "utils/aiAgent/mcpBridge.js#checkExternalLimits"
+   ],
+   "jest": [
+    "externalPolicyPanel",
+    "mcpBridge"
+   ],
+   "l5": [
+    "S140_external_policy_effect_mock",
+    "S153_persist_reload_sweep_ui"
+   ],
+   "l5Twin": [
+    "S182_external_policy_syncs_shell_limit_mock",
+    "S182n_external_policy_untouched_syncs_default_once_mock"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "extpolicy.writes",
+   "card": "adv-agent-mcp",
+   "file": "ExternalAgentPanel.js",
+   "anchor": "data-external-policy-writes",
+   "kind": "number",
+   "instances": 1,
+   "values": "0..10000",
+   "store": "localStorage:horosa.ai.agent.external.policy.v1",
+   "consumers": [
+    "utils/aiAgent/mcpBridge.js#checkExternalLimits"
+   ],
+   "jest": [
+    "externalPolicyPanel",
+    "mcpBridge"
+   ],
+   "l5": [
+    "S153_persist_reload_sweep_ui"
+   ],
+   "l5Twin": [
+    "S182n_external_policy_untouched_syncs_default_once_mock"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "extpolicy.reset",
+   "card": "adv-agent-mcp",
+   "file": "ExternalAgentPanel.js",
+   "anchor": "data-external-policy-reset",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "localStorage:horosa.ai.agent.external.policy.v1",
+   "consumers": [
+    "utils/aiAgent/prefs.js#clearExternalPolicy"
+   ],
+   "jest": [
+    "externalPolicyPanel"
+   ],
+   "l5": [
+    "S140_external_policy_effect_mock"
+   ],
+   "l5Twin": [
+    "S182n_external_policy_untouched_syncs_default_once_mock"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "headless.switch",
+   "card": "adv-agent-mcp",
+   "file": "ExternalAgentPanel.js",
+   "anchor": "data-headless-switch",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "localStorage:horosa.ai.tools.headless.enabled",
+   "consumers": [
+    "utils/aiAgent/prefs.js#isHeadlessEnabled",
+    "utils/aiTools/tools/runAnalysis.js#readOnlyRegistryView"
+   ],
+   "jest": [
+    "aiToolsHeadless"
+   ],
+   "l5": [
+    "S81_adv_agent_collapse_headers",
+    "S139_headless_exit_tools_list_mock",
+    "S139n_headless_exit_off_mock",
+    "S153_persist_reload_sweep_ui"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "ext.switch",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-external-tools-switch",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "localStorage:horosa.ai.tools.external.enabled",
+   "consumers": [
+    "utils/aiAgent/prefs.js#isExternalToolsEnabled",
+    "integrations/mcpClient.js#registerExternalTools"
+   ],
+   "jest": [
+    "aiToolsExternal"
+   ],
+   "l5": [
+    "S81_adv_agent_collapse_headers",
+    "S141_ext_server_http_connect_mock",
+    "S142_ext_server_stdio_allowlist_mock",
+    "S153_persist_reload_sweep_ui"
+   ],
+   "l5Twin": [
+    "S191_ext_tool_call_mock"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "ext.add",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-add",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "shell:mcp-clients.json",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpClientUpsert"
+   ],
+   "jest": [],
+   "l5": [
+    "S141_ext_server_http_connect_mock",
+    "S142_ext_server_stdio_allowlist_mock"
+   ],
+   "l5Twin": [
+    "S191_ext_tool_call_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "ext.refresh",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-refresh",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "ui",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpClientList"
+   ],
+   "jest": [],
+   "l5": [
+    "S141_ext_server_http_connect_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "ext.connect",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-connect",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "ui",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpClientConnect",
+    "integrations/mcpClient.js#registerExternalTools"
+   ],
+   "jest": [],
+   "l5": [
+    "S141_ext_server_http_connect_mock",
+    "S142_ext_server_stdio_allowlist_mock"
+   ],
+   "l5Twin": [
+    "S191_ext_tool_call_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools",
+    "desktop"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "ext.edit",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-edit",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "shell:mcp-clients.json",
+   "consumers": [
+    "components/aianalysis/ExternalServersPanel.js#formFromRow",
+    "utils/aiAnalysisDesktop.js#desktopMcpClientUpsert"
+   ],
+   "jest": [],
+   "l5": [
+    "S141b_ext_server_edit_keep_token_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools",
+    "desktop"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "ext.disconnect",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-disconnect",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "ui",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpClientDisconnect",
+    "integrations/mcpClient.js#unregisterExternalTools"
+   ],
+   "jest": [],
+   "l5": [
+    "S141_ext_server_http_connect_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools",
+    "desktop"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "ext.delete",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-delete",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "shell:mcp-clients.json",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpClientRemove"
+   ],
+   "jest": [],
+   "l5": [
+    "S141_ext_server_http_connect_mock",
+    "S142_ext_server_stdio_allowlist_mock"
+   ],
+   "l5Twin": [
+    "S191_ext_tool_call_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools",
+    "desktop"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "ext.id",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-id",
+   "kind": "text",
+   "instances": 1,
+   "values": "",
+   "store": "shell:mcp-clients.json",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpClientUpsert"
+   ],
+   "jest": [],
+   "l5": [
+    "S141_ext_server_http_connect_mock",
+    "S142_ext_server_stdio_allowlist_mock"
+   ],
+   "l5Twin": [
+    "S191_ext_tool_call_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools",
+    "modal:data-ext-server-add"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "ext.name",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-name",
+   "kind": "text",
+   "instances": 1,
+   "values": "",
+   "store": "shell:mcp-clients.json",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpClientUpsert"
+   ],
+   "jest": [],
+   "l5": [
+    "S141_ext_server_http_connect_mock",
+    "S142_ext_server_stdio_allowlist_mock"
+   ],
+   "l5Twin": [
+    "S191_ext_tool_call_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools",
+    "modal:data-ext-server-add"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "ext.kind",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-kind",
+   "kind": "select",
+   "instances": 1,
+   "values": "stdio|http",
+   "store": "shell:mcp-clients.json",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpClientUpsert"
+   ],
+   "jest": [],
+   "l5": [
+    "S141_ext_server_http_connect_mock",
+    "S142_ext_server_stdio_allowlist_mock"
+   ],
+   "l5Twin": [
+    "S191_ext_tool_call_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools",
+    "modal:data-ext-server-add"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "ext.command",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-command",
+   "kind": "text",
+   "instances": 1,
+   "values": "",
+   "store": "shell:mcp-clients.json",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpClientUpsert"
+   ],
+   "jest": [],
+   "l5": [
+    "S142_ext_server_stdio_allowlist_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools",
+    "modal:data-ext-server-add"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "ext.args",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-args",
+   "kind": "text",
+   "instances": 1,
+   "values": "",
+   "store": "shell:mcp-clients.json",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpClientUpsert"
+   ],
+   "jest": [],
+   "l5": [
+    "S142_ext_server_stdio_allowlist_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools",
+    "modal:data-ext-server-add"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "ext.url",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-url",
+   "kind": "text",
+   "instances": 1,
+   "values": "https://…",
+   "store": "shell:mcp-clients.json",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpClientUpsert"
+   ],
+   "jest": [],
+   "l5": [
+    "S141_ext_server_http_connect_mock"
+   ],
+   "l5Twin": [
+    "S191_ext_tool_call_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools",
+    "modal:data-ext-server-add",
+    "select:data-ext-server-kind=网址(HTTP)"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "ext.token",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-token",
+   "kind": "password",
+   "instances": 1,
+   "values": "不回显",
+   "store": "shell:mcp-clients.json(0600)",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpClientUpsert"
+   ],
+   "jest": [],
+   "l5": [
+    "S141_ext_server_http_connect_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools",
+    "modal:data-ext-server-add",
+    "select:data-ext-server-kind=网址(HTTP)"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "ext.readonly",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-readonly",
+   "kind": "switch",
+   "instances": 1,
+   "values": "只读|按清单",
+   "store": "shell:mcp-clients.json",
+   "consumers": [
+    "integrations/mcpClient.js#admitExternalTool"
+   ],
+   "jest": [
+    "aiToolsExternal"
+   ],
+   "l5": [
+    "S142_ext_server_stdio_allowlist_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools",
+    "modal:data-ext-server-add"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "ext.allowlist",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-allowlist",
+   "kind": "text",
+   "instances": 1,
+   "values": "工具名列表",
+   "store": "shell:mcp-clients.json",
+   "consumers": [
+    "integrations/mcpClient.js#admitExternalTool"
+   ],
+   "jest": [
+    "aiToolsExternal"
+   ],
+   "l5": [
+    "S142_ext_server_stdio_allowlist_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools",
+    "modal:data-ext-server-add"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "ext.save",
+   "card": "adv-agent-servers",
+   "file": "ExternalServersPanel.js",
+   "anchor": "data-ext-server-save",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "shell:mcp-clients.json",
+   "consumers": [
+    "utils/aiAnalysisDesktop.js#desktopMcpClientUpsert"
+   ],
+   "jest": [],
+   "l5": [
+    "S141_ext_server_http_connect_mock",
+    "S142_ext_server_stdio_allowlist_mock"
+   ],
+   "l5Twin": [
+    "S191_ext_tool_call_mock"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:externalTools",
+    "modal:data-ext-server-add"
+   ],
+   "desktop": true
+  },
+  {
+   "id": "web.switch",
+   "card": "adv-agent-web",
+   "file": "WebSearchPanel.js",
+   "anchor": "data-web-search-switch",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "localStorage:horosa.ai.tools.webSearch.enabled",
+   "consumers": [
+    "utils/aiAgent/prefs.js#isWebSearchEnabled",
+    "integrations/webSearch.js#runWebSearch"
+   ],
+   "jest": [
+    "webSearchPanel",
+    "aiToolsWebSearch"
+   ],
+   "l5": [
+    "S88_websearch_switch_ui",
+    "S143_websearch_form_engines_test_delete_ui",
+    "S153_persist_reload_sweep_ui"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "web.engine",
+   "card": "adv-agent-web",
+   "file": "WebSearchPanel.js",
+   "anchor": "data-web-search-engine",
+   "kind": "select",
+   "instances": 1,
+   "values": "tavily|brave|exa|searxng|custom",
+   "store": "idb:integration_profiles",
+   "consumers": [
+    "integrations/webSearch.js#saveSearchProfile",
+    "integrations/webSearch.js#engineMeta"
+   ],
+   "jest": [
+    "webSearchPanel"
+   ],
+   "l5": [
+    "S143_websearch_form_engines_test_delete_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:webSearch"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "web.baseUrl",
+   "card": "adv-agent-web",
+   "file": "WebSearchPanel.js",
+   "anchor": "data-web-search-baseurl",
+   "kind": "text",
+   "instances": 1,
+   "values": "https://…",
+   "store": "idb:integration_profiles",
+   "consumers": [
+    "integrations/webSearch.js#saveSearchProfile"
+   ],
+   "jest": [
+    "webSearchPanel"
+   ],
+   "l5": [
+    "S143_websearch_form_engines_test_delete_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:webSearch",
+    "select:data-web-search-engine=SearXNG(自建,无需 Key)"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "web.apiKey",
+   "card": "adv-agent-web",
+   "file": "WebSearchPanel.js",
+   "anchor": "data-web-search-apikey",
+   "kind": "password",
+   "instances": 1,
+   "values": "不回显",
+   "store": "idb:integration_profiles(加密)",
+   "consumers": [
+    "integrations/webSearch.js#saveSearchProfile"
+   ],
+   "jest": [
+    "webSearchPanel"
+   ],
+   "l5": [
+    "S143_websearch_form_engines_test_delete_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:webSearch"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "web.save",
+   "card": "adv-agent-web",
+   "file": "WebSearchPanel.js",
+   "anchor": "data-web-search-save",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:integration_profiles",
+   "consumers": [
+    "integrations/webSearch.js#saveSearchProfile",
+    "components/aianalysis/WebSearchPanel.js#mergeSearchProfileForm"
+   ],
+   "jest": [
+    "webSearchPanel"
+   ],
+   "l5": [
+    "S143_websearch_form_engines_test_delete_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:webSearch"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "web.test",
+   "card": "adv-agent-web",
+   "file": "WebSearchPanel.js",
+   "anchor": "data-web-search-test",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "ui",
+   "consumers": [
+    "integrations/webSearch.js#runWebSearch"
+   ],
+   "jest": [],
+   "l5": [
+    "S143_websearch_form_engines_test_delete_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:webSearch"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "web.delete",
+   "card": "adv-agent-web",
+   "file": "WebSearchPanel.js",
+   "anchor": "data-web-search-delete",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:integration_profiles",
+   "consumers": [
+    "integrations/webSearch.js#removeSearchProfile"
+   ],
+   "jest": [],
+   "l5": [
+    "S143_websearch_form_engines_test_delete_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "pref:webSearch",
+    "seed:websearch-profile"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "web.fetchSwitch",
+   "card": "adv-agent-web",
+   "file": "WebSearchPanel.js",
+   "anchor": "data-web-fetch-switch",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "localStorage:horosa.ai.tools.webFetch.enabled",
+   "consumers": [
+    "utils/aiAgent/prefs.js#isWebFetchEnabled"
+   ],
+   "jest": [
+    "aiToolsWebFetch"
+   ],
+   "l5": [
+    "S76b_web_fetch_off",
+    "S81_adv_agent_collapse_headers",
+    "S144_webfetch_switch_ui",
+    "S153_persist_reload_sweep_ui"
+   ],
+   "l5Twin": [
+    "S162_notify_tools_switch_mock",
+    "S76_web_fetch_page"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "rules.switch",
+   "card": "adv-agent-rules",
+   "file": "AutomationRulesPanel.js",
+   "anchor": "data-automation-switch",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "localStorage:horosa.ai.automation.enabled",
+   "consumers": [
+    "utils/aiAgent/automation/engine.js#handleAutomationEvent",
+    "utils/aiAgent/prefs.js#isAutomationEnabled"
+   ],
+   "jest": [
+    "automationRulesPanel",
+    "automationEngine"
+   ],
+   "l5": [
+    "S81_adv_agent_collapse_headers",
+    "S153_persist_reload_sweep_ui",
+    "S154_switch_storm_ui"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "rules.new",
+   "card": "adv-agent-rules",
+   "file": "AutomationRulesPanel.js",
+   "anchor": "data-rule-new",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:automation_rules",
+   "consumers": [
+    "utils/aiAgent/automation/ruleStore.js#saveRule"
+   ],
+   "jest": [
+    "automationRulesPanel",
+    "aiAgentHookDeny"
+   ],
+   "l5": [
+    "S145_rules_modal_full_deny_ui",
+    "S146_rules_row_edit_toggle_delete_ui",
+    "M3_rules_seven_events_ui"
+   ],
+   "l5Twin": [
+    "S147_rules_select_source_ui"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "rules.refresh",
+   "card": "adv-agent-rules",
+   "file": "AutomationRulesPanel.js",
+   "anchor": "data-rule-refresh",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "ui",
+   "consumers": [
+    "utils/aiAgent/automation/ruleStore.js#listRules"
+   ],
+   "jest": [],
+   "l5": [
+    "S146_rules_row_edit_toggle_delete_ui"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "rules.name",
+   "card": "adv-agent-rules",
+   "file": "AutomationRulesPanel.js",
+   "anchor": "data-rule-name",
+   "kind": "text",
+   "instances": 1,
+   "values": "≤60",
+   "store": "idb:automation_rules",
+   "consumers": [
+    "utils/aiAgent/automation/ruleStore.js#saveRule"
+   ],
+   "jest": [
+    "automationRulesPanel",
+    "aiAgentHookDeny"
+   ],
+   "l5": [
+    "S145_rules_modal_full_deny_ui",
+    "S146_rules_row_edit_toggle_delete_ui",
+    "M3_rules_seven_events_ui"
+   ],
+   "l5Twin": [
+    "S147_rules_select_source_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "modal:data-rule-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "rules.event",
+   "card": "adv-agent-rules",
+   "file": "AutomationRulesPanel.js",
+   "anchor": "data-rule-event",
+   "kind": "select",
+   "instances": 1,
+   "values": "app.start|record.saved|turn.end|tool.before|tool.after|task.done|report.done",
+   "store": "idb:automation_rules",
+   "consumers": [
+    "utils/aiAgent/automation/engine.js#matchRule"
+   ],
+   "jest": [
+    "automationRulesPanel",
+    "automationEngine"
+   ],
+   "l5": [
+    "S145_rules_modal_full_deny_ui",
+    "M3_rules_seven_events_ui"
+   ],
+   "l5Twin": [
+    "S147_rules_select_source_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "modal:data-rule-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "rules.toolName",
+   "card": "adv-agent-rules",
+   "file": "AutomationRulesPanel.js",
+   "anchor": "data-rule-tool-name",
+   "kind": "select",
+   "instances": 1,
+   "values": "任何工具|工具名",
+   "store": "idb:automation_rules",
+   "consumers": [
+    "utils/aiAgent/automation/engine.js#vetoDecision"
+   ],
+   "jest": [
+    "automationRulesPanel",
+    "aiAgentHookDeny"
+   ],
+   "l5": [
+    "S145_rules_modal_full_deny_ui",
+    "M3_rules_seven_events_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "modal:data-rule-new",
+    "select:data-rule-event=AI 要执行某工具之前(可拒绝)"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "rules.kind",
+   "card": "adv-agent-rules",
+   "file": "AutomationRulesPanel.js",
+   "anchor": "data-rule-kind",
+   "kind": "select",
+   "instances": 1,
+   "values": "都算|chart|case",
+   "store": "idb:automation_rules",
+   "consumers": [
+    "utils/aiAgent/automation/engine.js#matchRule"
+   ],
+   "jest": [],
+   "l5": [
+    "S145_rules_modal_full_deny_ui"
+   ],
+   "l5Twin": [
+    "S147_rules_select_source_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "modal:data-rule-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "rules.action",
+   "card": "adv-agent-rules",
+   "file": "AutomationRulesPanel.js",
+   "anchor": "data-rule-action",
+   "kind": "select",
+   "instances": 1,
+   "values": "select-source|start-brief|archive-idle-conversations|deny|notify-script",
+   "store": "idb:automation_rules",
+   "consumers": [
+    "utils/aiAgent/automation/engine.js#handleAutomationEvent"
+   ],
+   "jest": [
+    "automationRulesPanel"
+   ],
+   "l5": [
+    "S145_rules_modal_full_deny_ui",
+    "S146_rules_row_edit_toggle_delete_ui",
+    "M3_rules_five_actions_ui"
+   ],
+   "l5Twin": [
+    "S147_rules_select_source_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "modal:data-rule-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "rules.days",
+   "card": "adv-agent-rules",
+   "file": "AutomationRulesPanel.js",
+   "anchor": "data-rule-days",
+   "kind": "number",
+   "instances": 1,
+   "values": "1..365",
+   "store": "idb:automation_rules",
+   "consumers": [
+    "utils/aiAgent/automation/engine.js#handleAutomationEvent"
+   ],
+   "jest": [],
+   "l5": [
+    "S146_rules_row_edit_toggle_delete_ui",
+    "S148_rules_archive_idle_ui",
+    "M3_rules_five_actions_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "modal:data-rule-new",
+    "select:data-rule-action=归档很久没动的对话"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "rules.cooldown",
+   "card": "adv-agent-rules",
+   "file": "AutomationRulesPanel.js",
+   "anchor": "data-rule-cooldown",
+   "kind": "number",
+   "instances": 1,
+   "values": "0..86400 秒",
+   "store": "idb:automation_rules",
+   "consumers": [
+    "utils/aiAgent/automation/engine.js#isCoolingDown"
+   ],
+   "jest": [
+    "automationEngine"
+   ],
+   "l5": [
+    "S145_rules_modal_full_deny_ui",
+    "S149_rules_cooldown_ui",
+    "S149n_rules_no_cooldown_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "modal:data-rule-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "rules.enabled",
+   "card": "adv-agent-rules",
+   "file": "AutomationRulesPanel.js",
+   "anchor": "data-rule-enabled",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "idb:automation_rules",
+   "consumers": [
+    "utils/aiAgent/automation/engine.js#matchRule"
+   ],
+   "jest": [],
+   "l5": [
+    "M3_rules_five_actions_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "modal:data-rule-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "rules.save",
+   "card": "adv-agent-rules",
+   "file": "AutomationRulesPanel.js",
+   "anchor": "data-rule-save",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:automation_rules",
+   "consumers": [
+    "utils/aiAgent/automation/ruleStore.js#saveRule"
+   ],
+   "jest": [
+    "automationRulesPanel",
+    "aiAgentHookDeny"
+   ],
+   "l5": [
+    "S145_rules_modal_full_deny_ui",
+    "S146_rules_row_edit_toggle_delete_ui",
+    "M3_rules_seven_events_ui",
+    "M3_rules_five_actions_ui"
+   ],
+   "l5Twin": [
+    "S147_rules_select_source_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "modal:data-rule-new"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "rules.edit",
+   "card": "adv-agent-rules",
+   "file": "AutomationRulesPanel.js",
+   "anchor": "data-rule-edit",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:automation_rules",
+   "consumers": [
+    "utils/aiAgent/automation/ruleStore.js#saveRule"
+   ],
+   "jest": [
+    "aiAgentHookDeny"
+   ],
+   "l5": [
+    "S146_rules_row_edit_toggle_delete_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "seed:rule-row"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "rules.toggle",
+   "card": "adv-agent-rules",
+   "file": "AutomationRulesPanel.js",
+   "anchor": "data-rule-toggle",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:automation_rules",
+   "consumers": [
+    "utils/aiAgent/automation/ruleStore.js#saveRule"
+   ],
+   "jest": [
+    "aiAgentHookDeny"
+   ],
+   "l5": [
+    "S146_rules_row_edit_toggle_delete_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "seed:rule-row"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "rules.delete",
+   "card": "adv-agent-rules",
+   "file": "AutomationRulesPanel.js",
+   "anchor": "data-rule-delete",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:automation_rules",
+   "consumers": [
+    "utils/aiAgent/automation/ruleStore.js#removeRule"
+   ],
+   "jest": [
+    "automationRulesPanel",
+    "aiAgentHookDeny"
+   ],
+   "l5": [
+    "S146_rules_row_edit_toggle_delete_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "seed:rule-row"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "ledger.origin",
+   "card": "adv-agent-ledger",
+   "file": "ActionLedgerPanel.js",
+   "anchor": "data-ledger-origin",
+   "kind": "select",
+   "instances": 1,
+   "values": "all|in-app|mcp|goal|scheduled|automation",
+   "store": "localStorage:horosa.ai.agent.ledger.v1",
+   "consumers": [
+    "utils/aiTools/ledger.js#listActions"
+   ],
+   "jest": [],
+   "l5": [
+    "S86_ledger_panel_filter_undo",
+    "S151_ledger_pagination_origin_ui"
+   ],
+   "reveal": [
+    "agent-on"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "ledger.undo",
+   "card": "adv-agent-ledger",
+   "file": "ActionLedgerPanel.js",
+   "anchor": "data-ledger-undo",
+   "kind": "button",
+   "instances": 20,
+   "values": "",
+   "store": "localStorage:horosa.ai.agent.ledger.v1",
+   "consumers": [
+    "utils/aiTools/ledger.js#undoAction"
+   ],
+   "jest": [
+    "aiToolsListActions"
+   ],
+   "l5": [
+    "S86_ledger_panel_filter_undo",
+    "S89_undo_refreshes_sources"
+   ],
+   "reveal": [
+    "agent-on",
+    "seed:ledger-rows"
+   ],
+   "desktop": false,
+   "_note": "每行一颗撤销钮:reveal 种 25 行,面板首页 PAGE_SIZE=20 → 恰等 20(同时钉住分页大小);此前登记 1 靠「≥」放行=M-178 实证"
+  },
+  {
+   "id": "ledger.pagination",
+   "card": "adv-agent-ledger",
+   "file": "ActionLedgerPanel.js",
+   "anchor": "data-ledger-pagination",
+   "kind": "pagination",
+   "instances": 1,
+   "values": "20/页",
+   "store": "ui",
+   "consumers": [],
+   "jest": [],
+   "l5": [
+    "S151_ledger_pagination_origin_ui"
+   ],
+   "reveal": [
+    "agent-on",
+    "seed:ledger-rows"
+   ],
+   "desktop": false
+  }
+ ],
+ "markers": [
+  {
+   "anchor": "data-advanced-pane",
+   "file": "chat/AdvancedPane.js"
+  },
+  {
+   "anchor": "data-adv-w",
+   "file": "chat/AdvancedPane.js"
+  },
+  {
+   "anchor": "data-advanced-grid",
+   "file": "chat/AdvancedPane.js"
+  },
+  {
+   "anchor": "data-advanced-pills",
+   "file": "chat/AdvancedPane.js"
+  },
+  {
+   "anchor": "data-adv-jump",
+   "file": "chat/AdvancedPane.js"
+  },
+  {
+   "anchor": "data-adv-section",
+   "file": "chat/AdvCard.js"
+  },
+  {
+   "anchor": "data-advanced-nav",
+   "file": "chat/AdvSectionNav.js"
+  },
+  {
+   "anchor": "data-chat-context-policy-panel",
+   "file": "chat/ChatContextPolicyPanel.js"
+  },
+  {
+   "anchor": "data-preset",
+   "file": "chat/ChatContextPolicyPanel.js"
+  },
+  {
+   "anchor": "data-policy-budget",
+   "file": "chat/ChatContextPolicyPanel.js"
+  },
+  {
+   "anchor": "data-policy-mount-budget",
+   "file": "chat/ChatContextPolicyPanel.js"
+  },
+  {
+   "anchor": "data-compact-suggest-row",
+   "file": "chat/ChatContextPolicyPanel.js"
+  },
+  {
+   "anchor": "data-policy-fields-header",
+   "file": "chat/ChatContextPolicyPanel.js"
+  },
+  {
+   "anchor": "data-model-routes-panel",
+   "file": "chat/ChatModelRoutesPanel.js"
+  },
+  {
+   "anchor": "data-active",
+   "file": "chat/ChatModelRoutesPanel.js"
+  },
+  {
+   "anchor": "data-layout",
+   "file": "chat/ChatModelRoutesPanel.js"
+  },
+  {
+   "anchor": "data-route-grid",
+   "file": "chat/ChatModelRoutesPanel.js"
+  },
+  {
+   "anchor": "data-route-grid-head",
+   "file": "chat/ChatModelRoutesPanel.js"
+  },
+  {
+   "anchor": "data-route-cell",
+   "file": "chat/ChatModelRoutesPanel.js"
+  },
+  {
+   "anchor": "data-route-col",
+   "file": "chat/ChatModelRoutesPanel.js"
+  },
+  {
+   "anchor": "data-route-row",
+   "file": "chat/ChatModelRoutesPanel.js"
+  },
+  {
+   "anchor": "data-route-profiles",
+   "file": "chat/ChatModelRoutesPanel.js"
+  },
+  {
+   "anchor": "data-route-profile-active",
+   "file": "chat/ChatModelRoutesPanel.js"
+  },
+  {
+   "anchor": "data-route-profile-dirty",
+   "file": "chat/ChatModelRoutesPanel.js"
+  },
+  {
+   "anchor": "data-bestof-panel",
+   "file": "chat/BestOfPanel.js"
+  },
+  {
+   "anchor": "data-persona-memory-panel",
+   "file": "chat/PersonaMemoryPanel.js"
+  },
+  {
+   "anchor": "data-persona-draft",
+   "file": "chat/PersonaMemoryPanel.js"
+  },
+  {
+   "anchor": "data-persona-layer",
+   "file": "chat/PersonaMemoryPanel.js"
+  },
+  {
+   "anchor": "data-persona-layer-id",
+   "file": "chat/PersonaMemoryPanel.js"
+  },
+  {
+   "anchor": "data-persona-layer-empty",
+   "file": "chat/PersonaMemoryPanel.js"
+  },
+  {
+   "anchor": "data-memory-candidate",
+   "file": "chat/PersonaMemoryPanel.js"
+  },
+  {
+   "anchor": "data-memory-item",
+   "file": "chat/PersonaMemoryPanel.js"
+  },
+  {
+   "anchor": "data-skill-pack-panel",
+   "file": "chat/SkillPackPanel.js"
+  },
+  {
+   "anchor": "data-skill-editor",
+   "file": "chat/SkillPackPanel.js"
+  },
+  {
+   "anchor": "data-skill-row",
+   "file": "chat/SkillPackPanel.js"
+  },
+  {
+   "anchor": "data-agent-ability-panel",
+   "file": "AgentAbilityPanel.js"
+  },
+  {
+   "anchor": "data-external-agent-panel",
+   "file": "ExternalAgentPanel.js"
+  },
+  {
+   "anchor": "data-external-policy",
+   "file": "ExternalAgentPanel.js"
+  },
+  {
+   "anchor": "data-headless-exit",
+   "file": "ExternalAgentPanel.js"
+  },
+  {
+   "anchor": "data-mcp-endpoint",
+   "file": "ExternalAgentPanel.js"
+  },
+  {
+   "anchor": "data-notify-hook",
+   "file": "ExternalAgentPanel.js"
+  },
+  {
+   "anchor": "data-external-servers",
+   "file": "ExternalServersPanel.js"
+  },
+  {
+   "anchor": "data-ext-server-modal",
+   "file": "ExternalServersPanel.js"
+  },
+  {
+   "anchor": "data-ext-server-row",
+   "file": "ExternalServersPanel.js"
+  },
+  {
+   "anchor": "data-ext-server-probe",
+   "file": "ExternalServersPanel.js"
+  },
+  {
+   "anchor": "data-ext-tool-verdict",
+   "file": "ExternalServersPanel.js"
+  },
+  {
+   "anchor": "data-web-search",
+   "file": "WebSearchPanel.js"
+  },
+  {
+   "anchor": "data-web-fetch",
+   "file": "WebSearchPanel.js"
+  },
+  {
+   "anchor": "data-web-search-status",
+   "file": "WebSearchPanel.js"
+  },
+  {
+   "anchor": "data-web-search-hits",
+   "file": "WebSearchPanel.js"
+  },
+  {
+   "anchor": "data-automation-rules",
+   "file": "AutomationRulesPanel.js"
+  },
+  {
+   "anchor": "data-rule-modal",
+   "file": "AutomationRulesPanel.js"
+  },
+  {
+   "anchor": "data-rule-row",
+   "file": "AutomationRulesPanel.js"
+  },
+  {
+   "anchor": "data-action-ledger-panel",
+   "file": "ActionLedgerPanel.js"
+  },
+  {
+   "anchor": "data-ledger-row",
+   "file": "ActionLedgerPanel.js"
+  },
+  {
+   "anchor": "data-ledger-empty",
+   "file": "ActionLedgerPanel.js"
+  },
+  {
+   "anchor": "data-persona-layers-gated",
+   "file": "chat/PersonaMemoryPanel.js"
+  },
+  {
+   "anchor": "data-ext-server-stale",
+   "file": "ExternalServersPanel.js"
+  },
+  {
+   "anchor": "data-web-search-dirty",
+   "file": "WebSearchPanel.js"
+  }
+ ]
+}

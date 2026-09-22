@@ -117,3 +117,19 @@ describe('穷举:预设 / 开关取值 / 笛卡尔组合 均不抛', () => {
 		expect(resolveWoBi({}).me).toBe('fan');                             // 未知 woBi→默认池本理
 	});
 });
+
+// [Q-359/T-340] 起禽行「X曜」的星期改由 JDN 求:1582-10-15 后与 Date.UTC 恒等;之前按儒略民用日期,公元 0–99 年不再被当 1900+。
+describe('[Q-359] castQinChart.weekday 由 JDN 求', () => {
+	test('现代日期与 Date.UTC 逐日一致(零回归)', () => {
+		const YAO = ['日', '月', '火', '水', '木', '金', '土'];
+		[[2026, 9, 14], [2000, 2, 29], [1996, 1, 28], [1900, 1, 1], [1583, 1, 1]].forEach(([y, m, d]) => {
+			const want = YAO[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+			expect(castQinChart(y, m, d, 6, {}).weekday).toBe(want);
+		});
+	});
+	test('儒略域:1582-10-04 = 星期四(木);1500-03-01 = 星期日;50-06-01 = 星期一', () => {
+		expect(castQinChart(1582, 10, 4, 6, {}).weekday).toBe('木');
+		expect(castQinChart(1500, 3, 1, 6, {}).weekday).toBe('日');
+		expect(castQinChart(50, 6, 1, 6, {}).weekday).toBe('月');
+	});
+});

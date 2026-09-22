@@ -343,7 +343,7 @@ export default class YanQinBranchPanel extends Component {
 					</div>
 					<div className="yq-divider" />
 					<div className="yq-kv">{TOUTAI_DUAN[bird] || '⚠️ 此禽逐字命运分段待校《三世演禽》全本。'}</div>
-					<div className="yq-note" style={{ marginTop: 4 }}>(取左栏出生时间自动换算农历月;月以节令为界。投胎度数 = 农历月令与时辰之差。)</div>
+					<div className="yq-note" style={{ marginTop: 4 }}>(取左栏出生时间自动换算农历月;月按农历朔望月。投胎度数 = 农历月令与时辰之差。)</div>
 				</div>
 				<div className="yq-card">
 					<div className="yq-sec">演禽十二宫字位(六吉六凶 · 参考)</div>

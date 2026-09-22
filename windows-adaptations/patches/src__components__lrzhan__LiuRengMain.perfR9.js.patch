@@ -1,19 +1,20 @@
 diff --git a/astrostudyui/src/components/lrzhan/LiuRengMain.js b/astrostudyui/src/components/lrzhan/LiuRengMain.js
-index 6a55812e..dbf5c19f 100644
+index da395df6..c7a70727 100644
 --- a/astrostudyui/src/components/lrzhan/LiuRengMain.js
 +++ b/astrostudyui/src/components/lrzhan/LiuRengMain.js
-@@ -1,7 +1,9 @@
+@@ -1,8 +1,10 @@
 -import { Component } from 'react';
 +import React, { Component } from 'react'; // horosa_liureng_render_slice_v1:模块级 JSX 常量需 React 在作用域(jest classic runtime)
  import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { safeLocalStorageSet } from '../../utils/safeStorage';
+ import { definePageSettings } from '../../utils/pageSettingsStore';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
  import { Modal, message, Tag } from 'antd';
  import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSwitch as Switch, XQSideSection  } from '../xq-ui';
  import XQIcon from '../xq-icons';
-@@ -27,7 +29,6 @@ import LiuRengChart from './LiuRengChart';
+@@ -28,7 +30,6 @@ import LiuRengChart from './LiuRengChart';
  import LiuRengInput from './LiuRengInput';
  import LiuRengBirthInput from './LiuRengBirthInput';
  import DateTime from '../comp/DateTime';
@@ -21,7 +22,7 @@ index 6a55812e..dbf5c19f 100644
  import QuickDockBar from '../common/QuickDockBar';
  import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
  import { getKentangSavedCasePayload, caseFieldSnapshot, caseGenderValue } from '../../utils/kentangCaseSave';
-@@ -38,7 +39,7 @@ import {
+@@ -39,7 +40,7 @@ import {
  	setLiurengRunyearLocalCache,
  } from '../../utils/localCalcCache';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
@@ -30,7 +31,7 @@ index 6a55812e..dbf5c19f 100644
  // R4-B2(horosa_prefetch_registry_v1):/liureng/gods 步进预取登记 + 选步长武装(S3 收敛)。
  import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
  import { armStepPrefetch } from '../../utils/stepPrefetchArm';
-@@ -47,6 +48,13 @@ import { armStepPrefetch } from '../../utils/stepPrefetchArm';
+@@ -48,6 +49,13 @@ import { armStepPrefetch } from '../../utils/stepPrefetchArm';
  const {Option} = Select;
  const TabPane = Tabs.TabPane;
  
@@ -44,7 +45,7 @@ index 6a55812e..dbf5c19f 100644
  // 签名数组逐元素严格相等(引用/值);用于 render 内派生缓存命中判定(只多算、绝不少算)。
  function sameLRSigArr(a, b){
  	if(!a || !b || a.length !== b.length){
-@@ -4175,6 +4183,19 @@ function pushCache(map, key, val, max = 96){
+@@ -4237,6 +4245,19 @@ function pushCache(map, key, val, max = 96){
  	}
  }
  
@@ -64,7 +65,7 @@ index 6a55812e..dbf5c19f 100644
  export function buildKeData(layout, chartObj){
  	const result = {
  		raw: [],
-@@ -4551,6 +4572,165 @@ export function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, gui
+@@ -4631,6 +4652,175 @@ export function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, gui
  	return lines.join('\n').trim();
  }
  
@@ -124,6 +125,15 @@ index 6a55812e..dbf5c19f 100644
 +									<Option value={2}>星占法贵人</Option>
 +									<Option value={3}>甲戊兼牛羊</Option>
 +									<Option value={4}>干合阳阴贵</Option>
++								</Select>
++							</label>
++							{/* [Q-386/T-367] 起课时间算法:缺省真太阳时=后端历来口径(字节零回归);
++							    选「直接时间」即与三式合一六壬层(时柱取自吃 timeAlg 的奇门)同口径。 */}
++							<label className="horosa-liureng-select-field">
++								<span>时间算法</span>
++								<Select value={this.state.timeAlg} onChange={this.onTimeAlgChange} dropdownMatchSelectWidth={false}>
++									<Option value={0}>真太阳时（默认）</Option>
++									<Option value={1}>直接时间</Option>
 +								</Select>
 +							</label>
 +							<label className="horosa-liureng-select-field">
@@ -202,9 +212,10 @@ index 6a55812e..dbf5c19f 100644
 +									<Option value="suigui">太岁排轮(太阴异)</Option>
 +								</Select>
 +							</label>
-+							<label className="horosa-liureng-select-field">
-+								<span>昼夜阳阴归属</span>
-+								<Select value={p.yinyangSystem} onChange={(v)=>p.onCastField('yinyangSystem', v)} dropdownMatchSelectWidth={false}>
++							<label className="horosa-liureng-select-field" title={p.guireng !== 0 ? '星历阳阴系只在贵人体系=六壬法贵人时生效(甲乙丙辛壬癸昼夜互换);当前贵人体系下两档恒同' : undefined}>
++								<span>昼夜阳阴归属{p.guireng !== 0 ? '（仅六壬法贵人生效）' : ''}</span>
++								{/* [Q-164/T-87·SS-19] 贵人≠六壬法时置灰:LRConst 只在 guirengType===0 时按此键互换昼夜 */}
++								<Select value={p.yinyangSystem} disabled={p.guireng !== 0} onChange={(v)=>p.onCastField('yinyangSystem', v)} dropdownMatchSelectWidth={false}>
 +									<Option value="danmu">旦暮系(默认)</Option>
 +									<Option value="yinyang">星历阳阴系</Option>
 +								</Select>
@@ -230,7 +241,7 @@ index 6a55812e..dbf5c19f 100644
  class LiuRengMain extends Component{
  	constructor(props) {
  		super(props);
-@@ -4589,10 +4769,12 @@ class LiuRengMain extends Component{
+@@ -4680,10 +4870,12 @@ class LiuRengMain extends Component{
  		this.timeHook = {};
  		this.pendingFields = null;
  		this.birthYearGanZiCache = {};
@@ -247,7 +258,7 @@ index 6a55812e..dbf5c19f 100644
  		// render 内派生缓存(单槽 last-result)。render() 每次都 buildLiuRengCastOverride(新对象!)+
  		// buildLiuRengReferenceBundle(~650行重算)。切右栏 tab(rightTab/activeTab 等)只改无关 state,却让二者整套重跑;
  		// 且 castOverride 每次新引用 → 透传给 LiuRengChart 的 CDU 恒判「变」→ d3 整树白重画(越用越卡的真凶)。
-@@ -4608,7 +4790,6 @@ class LiuRengMain extends Component{
+@@ -4699,7 +4891,6 @@ class LiuRengMain extends Component{
  		this.onCastMethodChange = this.onCastMethodChange.bind(this);
  		this.handleCastField = this.handleCastField.bind(this);
  		this.onChartTypeChange = this.onChartTypeChange.bind(this);
@@ -255,7 +266,7 @@ index 6a55812e..dbf5c19f 100644
  		this.genGodsParams = this.genGodsParams.bind(this);
  		this.prefetchStepSelect = this.prefetchStepSelect.bind(this);
  		this.genRunYearParams = this.genRunYearParams.bind(this);
-@@ -4633,23 +4814,28 @@ class LiuRengMain extends Component{
+@@ -4725,9 +4916,9 @@ class LiuRengMain extends Component{
  				}
  				this.startPaiPanByFields(fields || this.props.fields, chartObj || this.props.value);
  			};
@@ -265,6 +276,12 @@ index 6a55812e..dbf5c19f 100644
 +			// PERF-R9 Ship 7:/liureng/gods(四课三传的神将底数)只吃时间+地理,与主 /chart 无关 ——
 +			// 在 /chart 返回之前并行发出,latency = max 而非 sum。silent、丢结果、绝不 setState。
 +			// 闸:horosa.perf.prewarmRequests(关=此函数不被调用,逐字节旧序)。
+ 			// [挂载自检 F-37] 择日宿主 pick 前回写工作台口径(贵人体系 guireng/月将法 yueJiangMethod/昼夜阴阳系 yinyangSystem)
+ 			// 到本页起课选项,让 pick 后显示盘/母快照与命中判定同口径(此前宿主 fields 不透传三键,显示盘按左栏旧档起课)。
+ 			this.props.hook.applyCastFields = (partial)=>new Promise((resolve)=>{
+@@ -4735,19 +4926,24 @@ class LiuRengMain extends Component{
+ 				this.setState(partial, resolve);
+ 			});
  			this.props.hook.prewarmRequests = (flds)=>{
 -				if(this.unmounted){ return; }
 +				if(this.unmounted){
@@ -293,7 +310,7 @@ index 6a55812e..dbf5c19f 100644
  			if(stepPrefetchEnabled()){
  				this._liurengStepPrefetcher = (steppedFields)=>{
  					if(this.unmounted || !steppedFields){
-@@ -5164,7 +5350,12 @@ class LiuRengMain extends Component{
+@@ -5291,7 +5487,12 @@ class LiuRengMain extends Component{
  		};
  
  		this.setState(st, ()=>{
@@ -307,7 +324,7 @@ index 6a55812e..dbf5c19f 100644
  			this.saveLiuRengAISnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng);
  		});
  	}
-@@ -5214,41 +5405,52 @@ class LiuRengMain extends Component{
+@@ -5341,41 +5542,52 @@ class LiuRengMain extends Component{
  		let result = fallbackRunYear ? { ...fallbackRunYear } : {};
  		const runyearKey = buildCacheKey(params);
  		try{
@@ -387,7 +404,7 @@ index 6a55812e..dbf5c19f 100644
  			let localRunYear = calcRunYearLocal(
  				birthGanZi,
  				guaGanZi,
-@@ -5403,17 +5605,6 @@ class LiuRengMain extends Component{
+@@ -5552,17 +5764,6 @@ class LiuRengMain extends Component{
  		}
  	}
  
@@ -405,7 +422,7 @@ index 6a55812e..dbf5c19f 100644
  	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
  	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
  	// 收益:宿主因无关状态重渲时,本重组件整树不再白跑。关 chartSCU 开关 = 恒重渲旧行为。
-@@ -5831,149 +6022,44 @@ class LiuRengMain extends Component{
+@@ -5980,159 +6181,44 @@ class LiuRengMain extends Component{
  		}
  	}
  
@@ -456,6 +473,15 @@ index 6a55812e..dbf5c19f 100644
 -									<Option value={2}>星占法贵人</Option>
 -									<Option value={3}>甲戊兼牛羊</Option>
 -									<Option value={4}>干合阳阴贵</Option>
+-								</Select>
+-							</label>
+-							{/* [Q-386/T-367] 起课时间算法:缺省真太阳时=后端历来口径(字节零回归);
+-							    选「直接时间」即与三式合一六壬层(时柱取自吃 timeAlg 的奇门)同口径。 */}
+-							<label className="horosa-liureng-select-field">
+-								<span>时间算法</span>
+-								<Select value={this.state.timeAlg} onChange={this.onTimeAlgChange} dropdownMatchSelectWidth={false}>
+-									<Option value={0}>真太阳时（默认）</Option>
+-									<Option value={1}>直接时间</Option>
 -								</Select>
 -							</label>
 -							<label className="horosa-liureng-select-field">
@@ -534,9 +560,10 @@ index 6a55812e..dbf5c19f 100644
 -									<Option value="suigui">太岁排轮(太阴异)</Option>
 -								</Select>
 -							</label>
--							<label className="horosa-liureng-select-field">
--								<span>昼夜阳阴归属</span>
--								<Select value={this.state.yinyangSystem} onChange={(v)=>this.handleCastField('yinyangSystem', v)} dropdownMatchSelectWidth={false}>
+-							<label className="horosa-liureng-select-field" title={this.state.guireng !== 0 ? '星历阳阴系只在贵人体系=六壬法贵人时生效(甲乙丙辛壬癸昼夜互换);当前贵人体系下两档恒同' : undefined}>
+-								<span>昼夜阳阴归属{this.state.guireng !== 0 ? '（仅六壬法贵人生效）' : ''}</span>
+-								{/* [Q-164/T-87·SS-19] 贵人≠六壬法时置灰:LRConst 只在 guirengType===0 时按此键互换昼夜 */}
+-								<Select value={this.state.yinyangSystem} disabled={this.state.guireng !== 0} onChange={(v)=>this.handleCastField('yinyangSystem', v)} dropdownMatchSelectWidth={false}>
 -									<Option value="danmu">旦暮系(默认)</Option>
 -									<Option value="yinyang">星历阳阴系</Option>
 -								</Select>
@@ -592,7 +619,7 @@ index 6a55812e..dbf5c19f 100644
  		);
  	}
  
-@@ -5984,8 +6070,8 @@ class LiuRengMain extends Component{
+@@ -6143,8 +6229,8 @@ class LiuRengMain extends Component{
  			xiaojuMainItems,
  			xiaojuReferenceItems,
  			overviewItems,
@@ -603,7 +630,7 @@ index 6a55812e..dbf5c19f 100644
  		} = refData;
  		const ctx = refBundle && refBundle.context ? refBundle.context : null;
  		// 「小局」已并入「格局」tab(旧 key 'xiaoju' 归一到 'dage',免旧状态落空白页)
-@@ -5997,8 +6083,14 @@ class LiuRengMain extends Component{
+@@ -6156,8 +6242,14 @@ class LiuRengMain extends Component{
  				onChange={(key)=>this.setState({ rightPanelTab: key })}
  				animated={false}
  			>
@@ -619,7 +646,7 @@ index 6a55812e..dbf5c19f 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{refSummary ? (
  							<Card size='small' style={{ marginBottom: 8, background: 'var(--horosa-panel-soft, #fafafa)' }}>
-@@ -6047,7 +6139,11 @@ class LiuRengMain extends Component{
+@@ -6206,7 +6298,11 @@ class LiuRengMain extends Component{
  					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="信息" key="meta">
@@ -632,7 +659,7 @@ index 6a55812e..dbf5c19f 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{metaItems && metaItems.length ? metaItems.map((group)=>(
  							<Card key={`meta_${group.title}`} size='small' style={{ marginBottom: 8 }} title={group.title}>
-@@ -6066,13 +6162,16 @@ class LiuRengMain extends Component{
+@@ -6225,13 +6321,16 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -652,7 +679,7 @@ index 6a55812e..dbf5c19f 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{xiaojuReferenceItems.length ? xiaojuReferenceItems.map((item)=>(
  							<Card key={`ref_${item.key}`} size='small' style={{ marginBottom: 8 }}>
-@@ -6096,7 +6195,7 @@ class LiuRengMain extends Component{
+@@ -6255,7 +6354,7 @@ class LiuRengMain extends Component{
  					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="概览" key="overview">
@@ -661,7 +688,7 @@ index 6a55812e..dbf5c19f 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{this.renderShenShaSection(ctx)}
  						{overviewItems.length ? overviewItems.map((item, idx)=>(
-@@ -6123,13 +6222,21 @@ class LiuRengMain extends Component{
+@@ -6282,13 +6381,21 @@ class LiuRengMain extends Component{
  					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="占断" key="zhanduan">
@@ -686,7 +713,7 @@ index 6a55812e..dbf5c19f 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{qizhengItems && qizhengItems.length ? (
  							<Card size='small'>
-@@ -6183,7 +6290,8 @@ class LiuRengMain extends Component{
+@@ -6342,7 +6449,8 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -696,7 +723,7 @@ index 6a55812e..dbf5c19f 100644
  				</TabPane>
  			</Tabs>
  		);
-@@ -6369,13 +6477,12 @@ class LiuRengMain extends Component{
+@@ -6528,13 +6636,12 @@ class LiuRengMain extends Component{
  			refContext.sanChuanText ? `三传：${refContext.sanChuanText}` : '',
  			refContext.dayGanZi ? `日干支：${refContext.dayGanZi}` : '',
  		].filter(Boolean).join('；');
@@ -711,7 +738,7 @@ index 6a55812e..dbf5c19f 100644
  						</div>
  						<div className="horosa-chart-stage horosa-chart-stage-redesign horosa-liureng-chart-panel xq-chart-renderer xq-chart-renderer-liureng">
  							<div className="horosa-liureng-chart-host">
-@@ -6403,14 +6510,18 @@ class LiuRengMain extends Component{
+@@ -6562,14 +6669,18 @@ class LiuRengMain extends Component{
  									<div className="horosa-side-panel-subtitle">大格、小局与参考条目</div>
  								</div>
  							</div>

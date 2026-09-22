@@ -752,15 +752,16 @@ class PerChart:
 
         # ── 古典口径请求级参数(全局设置「星盘组件」;缺省 None/默认=各保现硬编码值,零回归)──
         # 太阳三态阈值:传键时 sunPos(合相口径)与 phase(可见弧口径)两套统一吃全局值;
-        # 缺省时各保历史现值(sunPos 17'/8.5/17,phase 16'/8),phase 日光束界恒逐星 arcus visionis。
+        # [Q-254/T-224 ①] 缺省时两链亦统一为 17'/8.5(1647 口径;phase 链此前各保 16'/8 → 同一颗星同卡可同时
+        # 显「燃烧」与「日光束下」,且默认档恰是 17'/8.5 却永远到不了 phase 链)。phase 日光束界恒逐星 arcus visionis。
         _cz = _optional_float(data.get('cazimiOrb'))
         _cb = _optional_float(data.get('combustOrb'))
         _ub = _optional_float(data.get('underBeamsOrb'))
         self._sunPosCazimi = _cz if _cz is not None else 17.0 / 60.0
         self._sunPosCombust = _cb if _cb is not None else 8.5
         self._sunPosBeams = _ub if _ub is not None else 17.0
-        self._phaseCazimi = _cz if _cz is not None else 16.0 / 60.0
-        self._phaseCombust = _cb if _cb is not None else 8.0
+        self._phaseCazimi = _cz if _cz is not None else 17.0 / 60.0
+        self._phaseCombust = _cb if _cb is not None else 8.5
         # 恒星合相轨:starOrb 平轨(默认 1°=现状);starOrbMode='byMagnitude' 走 FixedStar.orb() 星等表。
         _so = _optional_float(data.get('starOrb'))
         self._starOrb = _so if _so is not None else 1.0
@@ -1163,6 +1164,13 @@ class PerChart:
                 startlon = (startlon + 30) % 360
 
         if self.houseCust == custHouse_Fortuna_Whole:
+            self._placeFortunaWholeHouses()
+
+    def _placeFortunaWholeHouses(self):
+        """福点整宫制:以福点所在整座起第 1 宫。[Q-258/T-221][Q-338/T-319] 构造期(custHouse)按初算福点先定一次;
+        setupPlanets 里站心月(_applyTopoMoon)/希腊点变体(_applyLotVariants)重定位福点后再定一次 —— 此前只在构造期
+        定宫,夜盘关反转 / 选变体 / 开站心月且福点贴座界时第 1 宫 ≠ 盘上福点所在座。缺省(无变体无站心月)福点不动 → 两次同座,零回归。"""
+        if True:
             flon = None
             try:
                 fortuna = self.chart.getObject(const.PARS_FORTUNA)
@@ -1710,21 +1718,97 @@ class PerChart:
                         self.chart.get(ap.PARS_FATHER).relocate(alt % 360.0)
                 except Exception:
                     pass
-            # ⑥:整星座投射(全点归座首;最后执行,福点同投)
+            # ⑥:整星座投射 —— [Q-259/T-222 2026-09-18 原典核对] 真按座序计数(最后执行,福点同投):
+            #   自 A 所在座数到 B 所在座得 n 座,再自 ASC 所在座数 n 座即签位座(Valens II 37「按宫数 / 按度数可落不同座」);
+            #   一手来源不给座内度,取 ASC 的座内度(两点座内度相等时 Paulus 度式即退化为 ASC 度 + 整数座,自洽);
+            #   同座 → n=0 落上升座。此前实现是「先按度算点再归所在座 0°」= 度式投射,跨座边界时与座序计数不同
+            #   (400 盘抽样 137 盘福点座不同)。派生点(必然 / 勇气 / 复仇用福点,爱欲 / 胜利用精神)按已座序化的福点 / 精神再数。
+            #   特殊式(基础点短弧 / 旺宫点绝对黄经)无 A→B 结构,维持归座首。
             if data.get('lotProjection') == 'sign':
                 try:
-                    pf.relocate(float(int(pf.lon // 30) * 30))
-                    for p in (getattr(self.chart, 'pars', None) or []):
-                        p.relocate(float(int(p.lon // 30) * 30))
+                    self._projectLotsBySign(data, pf, asc, sun, moon, schmidt_on, ap)
                 except Exception:
                     pass
         except Exception:
             pass
 
+    @staticmethod
+    def _signCountLon(a_lon, b_lon, c_lon):
+        """座序计数签位:A 座→B 座的座数,自 C 座同数;度 = C 的座内度。"""
+        sa = int((float(a_lon) % 360.0) // 30)
+        sb = int((float(b_lon) % 360.0) // 30)
+        sc = int((float(c_lon) % 360.0) // 30)
+        n = (sb - sa) % 12
+        return ((sc + n) % 12) * 30 + (float(c_lon) % 30.0)
+
+    def _projectLotsBySign(self, data, pf, asc, sun, moon, schmidt_on, ap):
+        """[Q-259] lotProjection='sign':全部希腊 / 阿拉伯点按座序计数重定位(见 _applyLotVariants ⑥)。"""
+        from flatlib import const as _c
+        chart = self.chart
+        resolved = {}   # 已座序化的点:后续以此为 A/B(objLon 会按度重算,不能用)
+
+        def _lon(ID):
+            if ID in resolved:
+                return resolved[ID]
+            if ID == _c.PARS_FORTUNA:
+                return pf.lon
+            return ap.objLon(ID, chart)
+
+        day = bool(self.isDiurnal)
+        # 福点:①/② 已把 pf 定成昼式或夜式 → 按其现值判是昼式还是夜式再座序化
+        fortune_day = (asc.lon + moon.lon - sun.lon) % 360.0
+        pf_is_day = abs(((pf.lon - fortune_day + 180.0) % 360.0) - 180.0) < 1e-6
+        pf_sign = self._signCountLon(sun.lon, moon.lon, asc.lon) if pf_is_day else self._signCountLon(moon.lon, sun.lon, asc.lon)
+        pf.relocate(pf_sign % 360.0)
+        resolved[_c.PARS_FORTUNA] = pf.lon
+
+        hermetic6 = (ap.PARS_SPIRIT, ap.PARS_EROS, ap.PARS_NECESSITY, ap.PARS_COURAGE, ap.PARS_VICTORY, ap.PARS_NEMESIS)
+        valens_eros = data.get('erosConstruction') == 'valens'
+        father_alt = False
+        if str(data.get('lotFatherCombustAlt', 0)) in ('1', 'true', 'True'):
+            try:
+                saturn = chart.getObject(_c.SATURN)
+                d_sun = abs(((saturn.lon - sun.lon + 180.0) % 360.0) - 180.0)
+                father_alt = d_sun < float(self._sunPosBeams)
+            except Exception:
+                father_alt = False
+        doc_rev = ap._docReverseActive()
+
+        def _triple(pid):
+            use_day = day or (schmidt_on and pid in hermetic6)
+            if valens_eros and pid == ap.PARS_EROS:
+                return (_c.PARS_FORTUNA, ap.PARS_SPIRIT, _c.ASC) if use_day else (ap.PARS_SPIRIT, _c.PARS_FORTUNA, _c.ASC)
+            if valens_eros and pid == ap.PARS_NECESSITY:
+                return (ap.PARS_SPIRIT, _c.PARS_FORTUNA, _c.ASC) if use_day else (_c.PARS_FORTUNA, ap.PARS_SPIRIT, _c.ASC)
+            if father_alt and pid == ap.PARS_FATHER:
+                return (_c.MARS, _c.JUPITER, _c.ASC) if day else (_c.JUPITER, _c.MARS, _c.ASC)
+            table = ap._DOC_REVERSE_FORMULAS if (doc_rev and pid in ap._DOC_REVERSE_FORMULAS) else ap.FORMULAS
+            if pid not in table:
+                return None
+            return tuple(table[pid][0] if use_day else table[pid][1])
+
+        pars = list(getattr(chart, 'pars', None) or [])
+        # 先精神(其余赫尔墨斯点依赖它),再其它
+        pars.sort(key=lambda p: 0 if p.id == ap.PARS_SPIRIT else 1)
+        for p in pars:
+            abc = _triple(p.id)
+            if abc is None:
+                p.relocate(float(int(p.lon // 30) * 30))   # 基础点 / 旺宫点等特殊式:归座首(旧口径)
+                continue
+            new_lon = self._signCountLon(_lon(abc[0]), _lon(abc[1]), _lon(abc[2])) % 360.0
+            p.relocate(new_lon)
+            resolved[p.id] = new_lon
+
     def setupPlanets(self):
         self.isDiurnal = self._diurnalWithSectBuffer()
         self._applyTopoMoon()      # [WP-2] 站心月(默认关);须在点变体前(变体公式吃新月位)
         self._applyLotVariants()   # [WP-3] 希腊点变体一体(收编福点反转;全默认零 relocate 零回归)
+        if self.houseCust == custHouse_Fortuna_Whole:
+            # [Q-258/T-221][Q-338/T-319] 福点整宫制按「最终福点」(站心月 + 变体之后)重定 12 宫;缺省两次同座零回归。
+            try:
+                self._placeFortunaWholeHouses()
+            except Exception:
+                pass
         # G15 迦勒底界:夜盘换夜表(土↔水位置互换);锁由 webchartsrv 请求级持有,此处重置 essential.TERMS 安全。
         # 默认/其它界系不命中此分支(termsVariant!=3)→ 零回归。
         # [WP-7] 自定义界表夜盘同范式:tv==4 且夜表在槽(用户勾了「夜表另配」)才换。
@@ -2222,6 +2306,36 @@ class PerChart:
         return res
 
 
+    def _assignSunPos(self, planets):
+        """[Q-254/T-225] 各体对太阳的黄经差 → sunPos(Cazimi / Combust / Sunbeams);阈值与相位表无关,own chariot 免燃烧/光束下(cazimi 不豁免)。"""
+        try:
+            sun = self.chart.get(const.SUN)
+        except Exception:
+            return
+        if sun is None:
+            return
+        for pid in planets:
+            if pid == const.SUN:
+                continue
+            try:
+                plobj = self.chart.get(pid)
+            except Exception:
+                continue
+            if plobj is None or getattr(plobj, 'lon', None) is None:
+                continue
+            # 只判实体/交点/小行星类(旧口径也只在与太阳成合相的这些体上设 sunPos;角点/希腊点/中点不设)
+            if getattr(plobj, 'type', None) not in (const.OBJ_PLANET, const.OBJ_ASTEROID, const.OBJ_MOON_NODE) and pid not in const.LIST_OBJECTS:
+                continue
+            elong = abs(((float(plobj.lon) - float(sun.lon) + 180.0) % 360.0) - 180.0)
+            if elong < self._sunPosCazimi:
+                plobj.sunPos = 'Cazimi'
+            elif self._ownChariotExempt(pid):
+                pass   # [WP-2] own chariot:界/当值三分内免燃烧与光束下(cazimi 吉态不豁免)
+            elif self._sunPosCazimi <= elong < self._sunPosCombust:
+                plobj.sunPos = 'Combust'
+            elif self._sunPosCombust <= elong < self._sunPosBeams:
+                plobj.sunPos = 'Sunbeams'
+
     def getAspects(self):
         virPoints = const.LIST_VIRTUAL_POINTS.copy()
         virPoints.extend(arabicparts.LIST_PARS)
@@ -2237,6 +2351,10 @@ class PerChart:
         asplist = const.MAJOR_ASPECTS.copy()
         asplist.append(45)
         excludeVirpnt = not self.virtualPointReceiveAsp
+        # [Q-254/T-225] 太阳三态(sunPos)改按黄经差直算(与偕日相 phase 链同源),不再依赖相位表:
+        # 此前只在「与太阳成合相且在相位表内」的对象上判 → 容许度判据体系切整星座两档时跨座 6° 的水星不再「燃烧」、
+        # 「按相位名」档 8° 外不再「日光束下」,且与逐星按黄经差的偕日相卡两行分叉。
+        self._assignSunPos(planets)
         for itemA in planets:
             if not self.virtualPointReceiveAsp and itemA in virPoints:
                 continue
@@ -2251,70 +2369,18 @@ class PerChart:
             asp['Obvious'] = []
             for obj in asp['Exact']:
                 asp['Obvious'].append(obj)
-                if itemA == const.SUN and obj['asp'] == 0:
-                    try:
-                        plobj = self.chart.get(obj['id'])
-                    except:
-                        continue
-                    if obj['orb'] < self._sunPosCazimi:
-                        plobj.sunPos = 'Cazimi'
-                    elif self._ownChariotExempt(obj['id']):
-                        pass   # [WP-2] own chariot:界/当值三分内免燃烧与光束下(cazimi 吉态不豁免)
-                    elif self._sunPosCazimi <= obj['orb'] < self._sunPosCombust:
-                        plobj.sunPos = 'Combust'
-                    elif self._sunPosCombust <= obj['orb'] < self._sunPosBeams:
-                        plobj.sunPos = 'Sunbeams'
 
             for obj in asp['Applicative']:
                 if obj['orb'] <= aspects.MAX_MINOR_ASP_ORB:
                     asp['Obvious'].append(obj)
-                if itemA == const.SUN and obj['asp'] == 0:
-                    try:
-                        plobj = self.chart.get(obj['id'])
-                    except:
-                        continue
-                    if obj['orb'] < self._sunPosCazimi:
-                        plobj.sunPos = 'Cazimi'
-                    elif self._ownChariotExempt(obj['id']):
-                        pass   # [WP-2] own chariot:界/当值三分内免燃烧与光束下(cazimi 吉态不豁免)
-                    elif self._sunPosCazimi <= obj['orb'] < self._sunPosCombust:
-                        plobj.sunPos = 'Combust'
-                    elif self._sunPosCombust <= obj['orb'] < self._sunPosBeams:
-                        plobj.sunPos = 'Sunbeams'
 
             for obj in asp['None']:
                 if obj['orb'] <= aspects.MAX_MINOR_ASP_ORB:
                     asp['Obvious'].append(obj)
-                if itemA == const.SUN and obj['asp'] == 0:
-                    try:
-                        plobj = self.chart.get(obj['id'])
-                    except:
-                        continue
-                    if obj['orb'] < self._sunPosCazimi:
-                        plobj.sunPos = 'Cazimi'
-                    elif self._ownChariotExempt(obj['id']):
-                        pass   # [WP-2] own chariot:界/当值三分内免燃烧与光束下(cazimi 吉态不豁免)
-                    elif self._sunPosCazimi <= obj['orb'] < self._sunPosCombust:
-                        plobj.sunPos = 'Combust'
-                    elif self._sunPosCombust <= obj['orb'] < self._sunPosBeams:
-                        plobj.sunPos = 'Sunbeams'
 
             for obj in asp['Separative']:
                 if obj['orb'] <= aspects.MAX_MINOR_ASP_ORB:
                     asp['Obvious'].append(obj)
-                if itemA == const.SUN and obj['asp'] == 0:
-                    try:
-                        plobj = self.chart.get(obj['id'])
-                    except:
-                        continue
-                    if obj['orb'] < self._sunPosCazimi:
-                        plobj.sunPos = 'Cazimi'
-                    elif self._ownChariotExempt(obj['id']):
-                        pass   # [WP-2] own chariot:界/当值三分内免燃烧与光束下(cazimi 吉态不豁免)
-                    elif self._sunPosCazimi <= obj['orb'] < self._sunPosCombust:
-                        plobj.sunPos = 'Combust'
-                    elif self._sunPosCombust <= obj['orb'] < self._sunPosBeams:
-                        plobj.sunPos = 'Sunbeams'
 
             res[itemA] = asp
 
@@ -3470,6 +3536,25 @@ class PerChart:
 
 
     def getTimerStar(self):
+        # [Q-339/T-320] 西洋盘族(非七政请求)的「时主星」改与格局页行星时表同一函数单源
+        # (astroextra.compute_planetary_hours:swisseph rise_trans 含折射 + 民用时区子夜起算),
+        # 此前两套算法在 sunrise / equal24 档、出生近小时边界或离时区中央经线远时落不同小时(同屏矛盾)。
+        # 七政请求(带 doubingSu28 / guolaoLifeMode 标记)或显式带 trueSolarTime(报时星太阳时三档,G6 / Q-199 已审)
+        # 保留下方太阳时算法;西洋盘族从不送这三键。
+        if isinstance(self.data, dict) and ('doubingSu28' not in self.data) and ('guolaoLifeMode' not in self.data) and ('trueSolarTime' not in self.data):
+            try:
+                from astrostudy.astroextra import compute_planetary_hours
+                hour_mode_w = self.data.get('planetaryHourMethod') or 'sunrise'
+                res = compute_planetary_hours({
+                    'date': self.date, 'time': self.time, 'zone': self.zone,
+                    'lat': self.lat, 'lon': self.lon, 'planetaryHourMethod': hour_mode_w,
+                })
+                if res and res.get('hours'):
+                    cur = [h for h in res['hours'] if h.get('current')]
+                    if cur and cur[0].get('ruler'):
+                        return cur[0]['ruler']
+            except Exception:
+                pass   # 极区无升降 / 星历异常 → 回落下方旧算法(表无行时时主星仍有值)
         birth = '{0}-{1}-{2}'.format(self.year, self.month, self.day)
         # G6 报时星太阳时:true=真(经度时差+均时差,默认零回归)/mean=平(仅经度)/off=钟表(不校正)。
         solarMode = self.data.get('trueSolarTime', 'true') if isinstance(self.data, dict) else 'true'
@@ -3485,9 +3570,14 @@ class PerChart:
         bdtparts = bdtstr.split(' ')
         birttm = bdtparts[1]
 
+        # [Q-199/T-126] 跨子夜修正:太阳时校正把出生推过子夜时,旧码出生小时回卷(23:50→00:06)而星期与日出不回卷
+        #   → 日出法差值多/少一整天(等价 +3 星),真 / 平两档子夜前后算错。
+        #   日出法:行星日自「钟表日期」当日日出起,星期取校正前日期;小时数用儒略日差(不回卷,负值=前一行星日尾段,7 星循环同余自洽)。
+        #   等长 24 时制:行星日=校正后当地日 0 时起 → 星期随校正后日期(bdt)。
         day = self.dateTime.date.dayofweek()
         daystar = dayerStar[day]
         timerIdx = timerStar.index(daystar)
+        day_equal24 = bdt.date.dayofweek()
         parts = birttm.split(':')
         h = int(parts[0]) + float(parts[1])/60
         if len(parts) > 2:
@@ -3495,13 +3585,6 @@ class PerChart:
 
         sunTObj = self.getSunRiseTime()
         sunjdn = sunTObj['datetime'].jd + offsetjdn
-        sundt = Datetime.fromJD(sunjdn, self.zone)
-        suntstr = sundt.toCNString()
-        tstrparts = suntstr.split(' ')
-
-        sunT = tstrparts[1]
-        sunTparts = sunT.split(':')
-        sunH = int(sunTparts[0]) + float(sunTparts[1])/60 + float(sunTparts[2])/3600
 
         # [WP-4] 行星时制式 planetaryHourMethod(默认 'sunrise'=现状零回归):
         #   'sunrise' = 日出起算·等长 60 分钟小时(本实现历史口径);
@@ -3511,7 +3594,7 @@ class PerChart:
         hour_mode = self.data.get('planetaryHourMethod') if isinstance(self.data, dict) else None
         if hour_mode == 'equal24':
             delta = int(math.floor(h)) % 24
-            idx = (timerIdx + delta + 28) % 7
+            idx = (timerStar.index(dayerStar[day_equal24]) + delta + 28) % 7
             return timerStar[idx]
         if hour_mode == 'unequal':
             try:
@@ -3559,7 +3642,8 @@ class PerChart:
         # 日出后第 N 个小时:floor(经过时长)。原 int(h)-int(sunH) 数的是「跨过几个整点」,
         # 日出 6:50 生于 7:10(仅过 20 分钟)会被错算成第 2 小时;日出前出生 floor 给负数,
         # (timerIdx-2)%7 与「前一日第 22 时」在 7 星循环下同余,口径自洽。
-        delta = int(math.floor(h - sunH))
+        # [Q-199/T-126] 经过时长以儒略日差计(出生与日出同加偏移 → 差值与太阳时档无关,且跨子夜不回卷)。
+        delta = int(math.floor((jdn - sunjdn) * 24.0))
         idx = (timerIdx + delta + 28) % 7
         star = timerStar[idx]
         return star

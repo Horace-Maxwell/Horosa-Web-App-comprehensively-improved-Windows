@@ -1,5 +1,5 @@
 diff --git a/vendor/shenyishu/shenyishu.py b/vendor/shenyishu/shenyishu.py
-index 03fdd84..8d6d9b8 100644
+index 01f7878b..d3457462 100644
 --- a/vendor/shenyishu/shenyishu.py
 +++ b/vendor/shenyishu/shenyishu.py
 @@ -27,8 +27,15 @@ JIAZI_CODE_TABLE = {

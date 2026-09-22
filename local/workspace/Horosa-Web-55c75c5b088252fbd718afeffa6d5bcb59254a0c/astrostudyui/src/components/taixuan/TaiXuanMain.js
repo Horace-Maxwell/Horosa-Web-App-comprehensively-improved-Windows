@@ -14,6 +14,7 @@ import { cachedKentangFetch } from '../../utils/kentangCache';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { formatHumanValue } from '../../utils/humanReadableFields';
 import { parseDateParts } from '../../utils/dateStrSafe';
+import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // [Q-392/T-374] 四柱须吃全局日界/晚子时(此前后端恒取缺省)
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -42,6 +43,12 @@ function parseFieldsDateTime(fields){
 		date: dateStr,
 		time: timeStr,
 		zone: fields.zone && fields.zone.value ? fields.zone.value : '',
+		// [Q-392/T-374] 四柱(年/月/日/时)由后端 extreme_pillars 算,而它此前恒取缺省
+		// after23=1 / hour_gan_next=1 / zone_hours=8.0 —— 全局选「24 点换日」时 23 点档的太玄日柱
+		// 比八字页多跳一天;非 +08:00 时区的月柱/年柱在交节与立春前后 (8−时区) 小时内可能错一柱。
+		// 起筮(种子)本身按钟表日期,不受此三键影响。
+		after23NewDay: defaultAfter23NewDay() ? 1 : 0,
+		lateZiHourUseNextDay: defaultLateZiHourUseNextDay() ? 1 : 0,
 	};
 }
 
@@ -143,7 +150,8 @@ export async function buildTaiXuanSnapshotForFields(fields, opts){
 	if(!dt){ return ''; }
 	try{
 		const optSeed = opts && opts.seed !== undefined && opts.seed !== null && opts.seed !== '' ? Number(opts.seed) : null;
-		const seed = (Number.isFinite(optSeed) && optSeed > 0)
+		// [挂载自检 F-23] seed=0 是页面允许输入、后端 random.seed(0) 接受的合法种子;此前 `> 0` 把 0 当未设 → 改走时间派生换卦。
+		const seed = (Number.isFinite(optSeed) && optSeed >= 0)
 			? Math.floor(optSeed) % 1000000000
 			: (// 🔴 起课种子 BC 安全:旧式 replace(/-/g,'') 连负号一并抹 → BC 年与同数公元年折叠。
 		// AD 年保持旧数字拼合逐位不变(「同一时间反复挂载同一卦」,历史存档/解读可复现);

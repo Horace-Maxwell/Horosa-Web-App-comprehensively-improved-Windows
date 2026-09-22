@@ -355,7 +355,7 @@
 	.horosa-geomancy-fig-dots { justify-self: center; }
 }
 
-// ── 视觉修正批 · 第二轮(用户实测:下拉被挤坏、高度参差、节点截断)──
+// ── 视觉修正批 · 二批(用户实测:下拉被挤坏、高度参差、节点截断)──
 // 🔴 一行两列后下拉变窄,长文案(如「跟随预设（现为：占星定局乙(另起点数定宫)）」)会换行、
 //    把每个框撑成不同高度。要求:**统一高度 + 单行 + 超出省略**,宁可截断也不参差。
 .horosa-workspace-shell .horosa-geomancy-input-stack {
@@ -641,7 +641,7 @@
 // 两式方盘为一比一,故以「宽度取三者之最小」即可同时封住高度,不必另设 max-height。
 .horosa-workspace-shell .horosa-geomancy-polychart {
 	.horosa-geomancy-poly-board {
-		width: ~"min(100%, 900px, calc(100vh - 330px))";
+		width: ~"min(100%, 900px, calc(100 * var(--horosa-lvh, 1vh) - 330px))";
 		max-width: 100%;
 		margin: 0 auto;
 	}
@@ -649,7 +649,7 @@
 // 方形宫盘为网格,行高改为按可用高度均分并封顶,行内容溢出则各格自行收紧
 .horosa-workspace-shell .horosa-geomancy-square {
 	.horosa-geomancy-sq-grid {
-		width: ~"min(100%, 900px, calc(100vh - 330px))";
+		width: ~"min(100%, 900px, calc(100 * var(--horosa-lvh, 1vh) - 330px))";
 		max-width: 100%;
 		grid-template-rows: repeat(4, minmax(0, 1fr));
 		aspect-ratio: 1 / 1;          // ③ 外框做方:四行四列等边,不再被内容撑成横长
@@ -659,7 +659,7 @@
 }
 // 其余盘面(护盾/金字塔/异或/四片/结构对照)统一封高,留安全距离免溢出中栏
 .horosa-workspace-shell .horosa-geomancy-board-stage {
-	> * { max-height: ~"calc(100vh - 300px)"; overflow-y: auto; }
+	> * { max-height: ~"calc(100 * var(--horosa-lvh, 1vh) - 300px)"; overflow-y: auto; }
 }
 
 // ── 高度收口(用户实测仍出滚动条)──

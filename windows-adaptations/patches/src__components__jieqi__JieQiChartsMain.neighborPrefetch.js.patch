@@ -1,10 +1,10 @@
 diff --git a/astrostudyui/src/components/jieqi/JieQiChartsMain.js b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
-index 5d25beb..9d06dd1 100644
+index 0831bc01..8d8353e7 100644
 --- a/astrostudyui/src/components/jieqi/JieQiChartsMain.js
 +++ b/astrostudyui/src/components/jieqi/JieQiChartsMain.js
-@@ -25,13 +25,49 @@ import * as Su28Helper from '../su28/Su28Helper';
+@@ -37,13 +37,49 @@ import * as Su28Helper from '../su28/Su28Helper';
  import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
- import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+ import { saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
  import { setJieqiSeedLocalCache, } from '../../utils/localCalcCache';
 -import { fetchPreciseJieqiYear } from '../../utils/preciseCalcBridge';
 +import { fetchPreciseJieqiYear, prefetchJieqiYearNeighbors } from '../../utils/preciseCalcBridge';
@@ -53,8 +53,8 @@ index 5d25beb..9d06dd1 100644
  const {Option, OptGroup} = Select
  const JIEQI_STD = [
  	'小寒', '大寒', '立春', '雨水', '惊蛰', '春分',
-@@ -250,6 +286,41 @@ function fieldsToState(fields){
- 	return st;
+@@ -305,6 +341,41 @@ function classicalCalibreSig(params){
+ 	return JSON.stringify(Object.keys(ov).sort().reduce((acc, k)=>{ acc[k] = ov[k]; return acc; }, {}));
  }
  
 +// PERF-R9 Ship 7(数据层空闲预热):分至图的 /jieqi/year 年表。
@@ -95,7 +95,7 @@ index 5d25beb..9d06dd1 100644
  function getSeedCacheKey(params){
  	return [
  		params && params.year,
-@@ -881,16 +952,9 @@ function tabNeedsJieqiCharts(currentTab, jieqis){
+@@ -988,16 +1059,9 @@ function tabNeedsJieqiCharts(currentTab, jieqis){
  
  
  export class JieQiChartsMain extends Component{
@@ -115,7 +115,7 @@ index 5d25beb..9d06dd1 100644
  	constructor(props) {
  		super(props);
  
-@@ -1093,10 +1157,19 @@ export class JieQiChartsMain extends Component{
+@@ -1212,10 +1276,19 @@ export class JieQiChartsMain extends Component{
  		this.setState({
  			fields: flds,
  		});
@@ -139,7 +139,7 @@ index 5d25beb..9d06dd1 100644
  	}
  
  	async requestJieQiCharts(seedParams, seedSeq, tab){
-@@ -1205,6 +1278,11 @@ export class JieQiChartsMain extends Component{
+@@ -1323,6 +1396,11 @@ export class JieQiChartsMain extends Component{
  		const seq = ++this.baziRequestSeq;
  		const reqPromise = (async()=>{
  			const fullResult = await fetchPreciseJieqiYear(seedParams);
@@ -151,7 +151,7 @@ index 5d25beb..9d06dd1 100644
  			if(!fullResult || this.unmounted){
  				return fullResult;
  			}
-@@ -1491,7 +1569,15 @@ export class JieQiChartsMain extends Component{
+@@ -1614,7 +1692,15 @@ export class JieQiChartsMain extends Component{
  			return dom;
  		}
  
@@ -168,7 +168,7 @@ index 5d25beb..9d06dd1 100644
  			const fourCols = getJieqiFourColumns(item);
  			const key = item && item.jieqi ? item.jieqi : `jieqi_${idx}`;
  			const yearCol = fourCols && fourCols.year ? fourCols.year : null;
-@@ -1554,6 +1640,7 @@ export class JieQiChartsMain extends Component{
+@@ -1677,6 +1763,7 @@ export class JieQiChartsMain extends Component{
  				{cols}
  			</Row>
  		);
@@ -176,7 +176,7 @@ index 5d25beb..9d06dd1 100644
  		return dom;
  	}
  
-@@ -1733,6 +1820,16 @@ export class JieQiChartsMain extends Component{
+@@ -1864,6 +1951,16 @@ export class JieQiChartsMain extends Component{
  		}
  	}
  

@@ -104,7 +104,7 @@ export default class NaYing extends Component{
                             showSearch
                             allowClear
                             value={this.state.ganzi}
-                            placeholder='输入干支进行过滤'
+                            placeholder='选干支高亮定位(全表 60 条常显)'
                             onChange={this.changeGanzi}
                             filterOption={(input, option) => {
                                 return option.value.toLowerCase().indexOf(input.toLowerCase()) >= 0

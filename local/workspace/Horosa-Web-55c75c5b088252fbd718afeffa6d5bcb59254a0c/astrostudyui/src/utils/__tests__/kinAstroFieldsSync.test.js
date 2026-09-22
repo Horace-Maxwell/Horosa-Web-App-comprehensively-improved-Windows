@@ -21,14 +21,15 @@ function mkFields({ date = '1990-05-18', time = '10:00:00', gender = 1, zone = '
 }
 
 describe('computeKinFieldsResync 行为矩阵', ()=>{
-	it('首次（标记 null）→ 全量同步：性别 + 三组农历锚点 + 标记；钳位 30/31/30 与 didMount 原逻辑一致', ()=>{
+	it('首次（标记 null）→ 全量同步：性别 + 三组农历锚点 + 标记；[挂载自检 F-21] 农历锚点真算（2000-12-31=庚辰腊月初六），南极公历月日不钳', ()=>{
 		const patch = computeKinFieldsResync(mkFields({ date: '2000-12-31', gender: 0 }), null);
 		expect(patch).toEqual({
 			fieldsSyncSrc: { gender: '0', year: 2000, month: 12, day: 31 },
 			gender: '0',
-			lunarYear: 2000, lunarMonth: 12, lunarDay: 30,      // 演禽 农历日钳 30
-			nanjiLunarYear: 2000, nanjiSolarMonth: 12, nanjiDay: 31, // 南极 日钳 31
-			chunziLunarMonth: 12, chunziLunarDay: 30,           // 蠢子 日钳 30
+			lunarYear: 2000, lunarMonth: 12, lunarDay: 6,       // 演禽 真农历(此前把公历日钳 30 当农历日)
+			// [Q-263/T-243] 南极 节月=节气月序(12/31 在大雪后小寒前=子月=11,非公历月 12)+ 时支按出生时辰(10:00=巳);公历日原样
+			nanjiLunarYear: 2000, nanjiSolarMonth: 11, nanjiDay: 31, nanjiHourZhi: '巳',
+			chunziLunarMonth: 12, chunziLunarDay: 6,            // 蠢子 真农历(与后端 auto 档 sxtwl 同口径)
 		});
 	});
 

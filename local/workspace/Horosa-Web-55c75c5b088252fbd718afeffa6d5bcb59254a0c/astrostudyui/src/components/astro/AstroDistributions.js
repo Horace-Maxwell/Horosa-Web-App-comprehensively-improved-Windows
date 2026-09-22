@@ -1,5 +1,6 @@
 // components/astro/AstroDistributions.js
-// 界推运（Distributions）：上升点经主限运动穿越各埃及界 → 分配星(界主)+参与星。后端 /predict/dist。
+// 界推运（Distributions）：上升点经主限运动穿越黄道各界 → 分配星(界主)+参与星。后端 /predict/dist。
+// [Q-176/T-116a] 界表随「设置→星盘设置」的全局界系(后端 TermDirection 收 terms_variant),不是写死埃及界。
 import { Component } from 'react';
 import { Spin } from 'antd';
 import request from '../../utils/request';
@@ -44,7 +45,7 @@ export async function buildDistributionsSnapshotText(chartObj){
 	// [YB] 头部盘主生辰([起盘信息];无数据 helper 自返 [],不产空段头)。
 	lines.push(...birthHeaderLines(chartObj));
 	lines.push('[界推运（分配法 / Distributions）]');
-	lines.push('上升点经主限运动穿越各埃及界；分配星=界主星，参与星=该期间内上升点触及的行星。');
+	lines.push('上升点经主限运动穿越黄道各界（界表用当前全局界系设置）；分配星=界主星，参与星=该期间内上升点触及的行星。');
 	lines.push('');
 	lines.push('| 分配星 | 界(座) | 参与星 | 起 | 止 |');
 	lines.push('| --- | --- | --- | --- | --- |');
@@ -160,7 +161,7 @@ class AstroDistributions extends Component {
 								{ key: 'endDate', title: '止', render: (v) => v || '-' },
 							]}
 						/>
-						<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>上升点经主限运动穿越各埃及界；分配星=界主星，参与星=该期间内上升点触及的行星。</div>
+						<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>上升点经主限运动穿越黄道各界（界表用当前全局界系设置）；分配星=界主星，参与星=该期间内上升点触及的行星。</div>
 					</div>
 				</div>
 				</div>

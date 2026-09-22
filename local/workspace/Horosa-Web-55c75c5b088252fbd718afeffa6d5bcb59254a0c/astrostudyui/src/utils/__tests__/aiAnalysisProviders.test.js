@@ -12,7 +12,54 @@ import {
 	applyThinkingLevel,
 	effectiveMaxTokensForModel,
 	THINKING_LEVELS,
+	estimateUsageCost,
 } from '../aiAnalysisProviders';
+
+// [P0-1 计量底座] 缓存计价:无缓存计量/无价档与旧公式逐位相同;anthropic 三段加权;openai 家族 (in−read)。
+describe('estimateUsageCost 缓存计价', ()=>{
+	test('无价档四参=三参(皆 null);有价档但无缓存计量:四参与三参 cost 逐位相同且 cacheSavings=0', ()=>{
+		expect(estimateUsageCost('my-secret-model', 1000, 100)).toBe(null);
+		expect(estimateUsageCost('my-secret-model', 1000, 100, { cacheRead: 500, family: 'anthropic' })).toBe(null);
+		const three = estimateUsageCost('claude-sonnet-5', 1234, 567);
+		const four = estimateUsageCost('claude-sonnet-5', 1234, 567, { family: 'anthropic' });
+		const fourZero = estimateUsageCost('claude-sonnet-5', 1234, 567, { cacheRead: 0, cacheWrite: 0, family: 'anthropic' });
+		// [Q-043] Sonnet 5 价目已按官方改为 $2/$10 per 1M(此前照抄 Sonnet 4 的 $3/$15)
+		expect(three.cost).toBe((1234 / 1000) * 0.002 + (567 / 1000) * 0.010);
+		expect(four.cost).toBe(three.cost);
+		expect(fourZero.cost).toBe(three.cost);
+		expect(three.cacheSavings).toBe(0);
+		expect(four.cacheSavings).toBe(0);
+		expect(three.currency).toBe('USD');
+	});
+
+	test('anthropic 家族:input 不含缓存 → in·p + read·cacheIn + write·cacheWrite;缺 cacheIn 价档按 0.1p/1.25p 兜底', ()=>{
+		// [Q-043] 同上:in=0.002 / cacheIn=0.0002(0.1×in)/ cacheWrite=0.0025(1.25×in)
+		const r = estimateUsageCost('claude-sonnet-5', 1000, 0, { cacheRead: 2000, cacheWrite: 500, family: 'anthropic' });
+		expect(r.cost).toBeCloseTo(1 * 0.002 + 2 * 0.0002 + 0.5 * 0.0025, 10);
+		// 节省 = 全价(3500 tok × p) − 实付
+		expect(r.cacheSavings).toBeCloseTo(3.5 * 0.002 - r.cost, 10);
+		expect(r.cacheSavings).toBeGreaterThan(0);
+		// 只读缓存、无写入
+		const ro = estimateUsageCost('claude-fable-5', 100, 10, { cacheRead: 9000, family: 'anthropic' });
+		expect(ro.cost).toBeCloseTo(0.1 * 0.010 + 9 * 0.001 + 0.01 * 0.050, 10);
+		// 未来价档无 cacheIn/cacheWrite 时按官方比例兜底(用 gpt 价档冒充 anthropic 家族只为验证兜底路径)
+		const fb = estimateUsageCost('gpt-4o', 1000, 0, { cacheRead: 1000, cacheWrite: 1000, family: 'anthropic' });
+		expect(fb.cost).toBeCloseTo(1 * 0.0025 + 1 * 0.00025 + 1 * 0.003125, 10);
+	});
+
+	test('openai 家族(含 DeepSeek):prompt_tokens 已含 cached → (in−read)·p + read·cacheIn;无 cacheIn 价档=不打折', ()=>{
+		const ds = estimateUsageCost('deepseek-chat', 1000, 0, { cacheRead: 400, family: 'openai-compatible' });
+		expect(ds.cost).toBeCloseTo(0.6 * 0.00014 + 0.4 * 0.000014, 12);
+		expect(ds.cacheSavings).toBeCloseTo(0.4 * (0.00014 - 0.000014), 12);
+		const oa = estimateUsageCost('gpt-4o', 1000, 0, { cacheRead: 400, family: 'openai-compatible' });
+		expect(oa.cost).toBeCloseTo(1 * 0.0025, 12);   // cacheIn 缺位 → 命中部分仍按 p
+		expect(oa.cacheSavings).toBe(0);
+		// 家族缺位按 openai 口径(input 已含 cached);命中数超过 input 时钳住不出负值
+		const clamp = estimateUsageCost('deepseek-chat', 100, 0, { cacheRead: 500 });
+		expect(clamp.cost).toBeCloseTo(0.1 * 0.000014, 12);
+		expect(clamp.cost).toBeGreaterThan(0);
+	});
+});
 
 describe('aiAnalysisProviders', ()=>{
 	test('deepseek preset exposes expected defaults', ()=>{
@@ -20,8 +67,8 @@ describe('aiAnalysisProviders', ()=>{
 		expect(preset.baseUrl).toBe('https://api.deepseek.com');
 		expect(getProviderDisplayName('deepseek')).toBe('DeepSeek');
 		expect(getProviderProtocolFamily('deepseek')).toBe('openai-compatible');
-		// [C3] 2026-07 现役目录:v4 直连置顶,chat/reasoner 别名暂留兼容(官方 2026-07-24 弃用)。
-		expect(getProviderDefaultChatModels('deepseek')).toEqual(['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner']);
+		// [C3] 2026-07 现役目录:v4 直连置顶,chat/reasoner 别名暂留兼容(官方 2026-07-24 弃用);2026-09-11 官方 /models 改列 deepseek-flash(无 v4 字样)置首。
+		expect(getProviderDefaultChatModels('deepseek')).toEqual(['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner']);
 		expect(getProviderDefaultEmbeddingModels('deepseek')).toEqual([]);
 	});
 
@@ -122,28 +169,64 @@ describe('aiAnalysisProviders', ()=>{
 // [E2] 思考预算自定义数值档
 describe('[E2] applyThinkingLevel custom 数值档', () => {
 	const { applyThinkingLevel } = require('../aiAnalysisProviders');
-	test("custom:<n> → anthropic budget_tokens=clamp 值;maxTokens 保护仍生效", () => {
-		const o = applyThinkingLevel({}, 'custom:12000', 'anthropic', 'claude-sonnet-5', 32000);
+	test("custom:<n> → anthropic 预算族 budget_tokens=clamp 值;maxTokens 保护仍生效;自适应族折 effort", () => {
+		// [Q-024] Sonnet 4.5 = 预算族(enabled+budget_tokens);Sonnet 5 = 自适应族(adaptive + effort,预算数值只折档)
+		const o = applyThinkingLevel({}, 'custom:12000', 'anthropic', 'claude-sonnet-4-5', 32000);
 		expect(o.thinking).toEqual({ type: 'enabled', budget_tokens: 12000 });
 		// clamp 上限
-		const hi = applyThinkingLevel({}, 'custom:99999999', 'anthropic', 'claude-sonnet-5', 200000);
+		const hi = applyThinkingLevel({}, 'custom:99999999', 'anthropic', 'claude-sonnet-4-5', 200000);
 		expect(hi.thinking.budget_tokens).toBe(65536);
 		// clamp 下限
-		const lo = applyThinkingLevel({}, 'custom:1', 'anthropic', 'claude-sonnet-5', 32000);
+		const lo = applyThinkingLevel({}, 'custom:1', 'anthropic', 'claude-sonnet-4-5', 32000);
 		expect(lo.thinking.budget_tokens).toBe(1024);
+		const ad = applyThinkingLevel({}, 'custom:12000', 'anthropic', 'claude-sonnet-5', 32000);
+		expect(ad.thinking).toEqual({ type: 'adaptive' });
+		expect(ad.output_config).toEqual({ effort: 'medium' });
+		expect(applyThinkingLevel({}, 'custom:20000', 'anthropic', 'claude-opus-5', 32000).output_config).toEqual({ effort: 'xhigh' });
 	});
 	test('custom 数值折 effort 档(OpenAI reasoning_effort);非法值滚 medium 不抛', () => {
 		const hi = applyThinkingLevel({}, 'custom:20000', 'openai', 'gpt-5.2', 32000);
 		expect(hi.reasoning_effort).toBe('high'); // xhigh 封顶 high
 		const lo = applyThinkingLevel({}, 'custom:2048', 'openai', 'gpt-5.2', 32000);
 		expect(lo.reasoning_effort).toBe('low');
-		const bad = applyThinkingLevel({}, 'custom:abc', 'anthropic', 'claude-sonnet-5', 32000);
+		const bad = applyThinkingLevel({}, 'custom:abc', 'anthropic', 'claude-sonnet-4-5', 32000);
 		expect(bad.thinking.budget_tokens).toBe(8192); // 落回 medium(正则不匹配)
 	});
-	test('负锚:既有枚举档行为字节不变', () => {
-		const o = applyThinkingLevel({}, 'high', 'anthropic', 'claude-sonnet-5', 32000);
+	test('负锚:既有枚举档行为字节不变(预算族)', () => {
+		const o = applyThinkingLevel({}, 'high', 'anthropic', 'claude-sonnet-4-5', 32000);
 		expect(o.thinking.budget_tokens).toBe(16000);
 		expect(applyThinkingLevel({}, 'off', 'anthropic', 'x', 32000)).toEqual({});
+	});
+});
+
+// [Q-024/Q-049/Q-050/Q-063] Anthropic 按型号思考形态(与 Java AIAnalysisProxyService.anthropicThinkingMode 同一张表)
+describe('[Q-024] Anthropic 思考形态按型号', () => {
+	const { applyThinkingLevel, anthropicThinkingMode, anthropicThinkingOffForm } = require('../aiAnalysisProviders');
+	test('型号表:自适应族 vs 预算族;网关前缀取尾段;未知命名归预算族', () => {
+		['claude-opus-4-7', 'claude-opus-4-8', 'claude-opus-5', 'claude-sonnet-5', 'claude-fable-5-1', 'anthropic/claude-mythos-5'].forEach((m)=>expect(anthropicThinkingMode(m)).toBe('adaptive'));
+		['claude-opus-4-6', 'claude-sonnet-4-5', 'claude-haiku-4-5-20251001', 'claude-3-5-sonnet-20241022', 'claude-x', ''].forEach((m)=>expect(anthropicThinkingMode(m)).toBe('budget'));
+	});
+	test('开启:自适应族 adaptive+effort 且不带预算键;预算族 enabled+budget(档案上限 thinking_budget_cap 夹逼、键本身剥掉)', () => {
+		const a = applyThinkingLevel({ thinking_budget_cap: 4000, top_p: 0.9 }, 'high', 'anthropic', 'claude-opus-4-8', 32000);
+		expect(a.thinking).toEqual({ type: 'adaptive' });
+		expect(a.output_config).toEqual({ effort: 'high' });
+		expect(a.thinking_budget_cap).toBeUndefined();
+		expect(a.top_p).toBe(0.9);   // 采样参数由出口(Java)按型号剥离,前端不动
+		const b = applyThinkingLevel({ thinking_budget_cap: 4000 }, 'high', 'anthropic', 'claude-sonnet-4-5', 32000);
+		expect(b.thinking).toEqual({ type: 'enabled', budget_tokens: 4000 });
+		expect(b.thinking_budget_cap).toBeUndefined();
+		// 旧档案 thinking.budget_tokens 也当上限
+		expect(applyThinkingLevel({ thinking: { type: 'enabled', budget_tokens: 2048 } }, 'high', 'anthropic', 'claude-sonnet-4-5', 32000).thinking.budget_tokens).toBe(2048);
+	});
+	test('关闭:剥档案 thinking/output_config;Sonnet 5 / Opus 5 发 disabled;Opus 4.7-4.8 与预算族不发;Fable/Mythos 恒开 → effort low', () => {
+		expect(anthropicThinkingOffForm('claude-sonnet-5')).toBe('disabled');
+		expect(anthropicThinkingOffForm('claude-opus-4-8')).toBe('omit');
+		expect(anthropicThinkingOffForm('claude-fable-5-1')).toBe('always');
+		const legacy = { thinking: { type: 'enabled', budget_tokens: 8192 }, output_config: { effort: 'high' }, thinking_budget_cap: 8192, temperature: 0.3 };
+		expect(applyThinkingLevel(legacy, 'off', 'anthropic', 'claude-sonnet-5', 32000)).toEqual({ temperature: 0.3, thinking: { type: 'disabled' } });
+		expect(applyThinkingLevel(legacy, 'off', 'anthropic', 'claude-opus-4-8', 32000)).toEqual({ temperature: 0.3 });
+		expect(applyThinkingLevel(legacy, 'off', 'anthropic', 'claude-haiku-4-5', 32000)).toEqual({ temperature: 0.3 });
+		expect(applyThinkingLevel(legacy, 'off', 'anthropic', 'claude-fable-5-1', 32000)).toEqual({ temperature: 0.3, output_config: { effort: 'low' } });
 	});
 });
 
@@ -186,5 +269,16 @@ describe('[#54] maxTokensKeyForModel 代际单源', ()=>{
 		expect(am.includes('maxTokensKeyForModel(protoFamily, model)')).toBe(true);
 		// 手写键名分支必须绝迹（曾按协议家族四分支写死 → 新代 OpenAI 恒 400）
 		expect(/protoFamily === 'anthropic'\s*\)\s*\{\s*chatProviderOptions\.max_tokens/.test(am)).toBe(false);
+	});
+});
+
+describe('[Q-289 裁决 2026-09-18] 思考恒开型号的短调用余量', ()=>{
+	it('Fable / Mythos 短调用上限按思考余量放大;Sonnet 5 / Opus 5(可关思考)与 Haiku 不放大', ()=>{
+		const { effectiveMaxTokensForModel } = require('../aiAnalysisProviders');
+		expect(effectiveMaxTokensForModel('claude-fable-5-1', 900)).toBe(6900);
+		expect(effectiveMaxTokensForModel('claude-mythos-5-1', 16)).toBe(6016);
+		expect(effectiveMaxTokensForModel('claude-sonnet-5', 900)).toBe(900);
+		expect(effectiveMaxTokensForModel('claude-opus-5', 900)).toBe(900);
+		expect(effectiveMaxTokensForModel('claude-haiku-4-5-20251001', 900)).toBe(900);
 	});
 });

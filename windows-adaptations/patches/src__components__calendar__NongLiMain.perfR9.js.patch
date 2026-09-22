@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/calendar/NongLiMain.js b/astrostudyui/src/components/calendar/NongLiMain.js
-index a2fa2e18..0b4f95b2 100644
+index 917f03a4..55839b00 100644
 --- a/astrostudyui/src/components/calendar/NongLiMain.js
 +++ b/astrostudyui/src/components/calendar/NongLiMain.js
 @@ -13,6 +13,35 @@ import NongLi from './NongLi';
@@ -38,7 +38,7 @@ index a2fa2e18..0b4f95b2 100644
  
  // 日干支五行着色（与八字模块同色变量 --horosa-bazi-*）。农历网格 dayExtra 用。
  const GAN_WX = { 甲: 'wood', 乙: 'wood', 丙: 'fire', 丁: 'fire', 戊: 'earth', 己: 'earth', 庚: 'metal', 辛: 'metal', 壬: 'water', 癸: 'water' };
-@@ -104,15 +133,9 @@ export function buildNongliSnapshotText(state){
+@@ -118,15 +147,9 @@ export function utcZoneText(zone){
  }
  
  class NongLiMain extends Component{
@@ -57,7 +57,7 @@ index a2fa2e18..0b4f95b2 100644
  	constructor(props) {
  		super(props);
  		this.state = {
-@@ -186,22 +209,27 @@ class NongLiMain extends Component{
+@@ -200,22 +223,27 @@ class NongLiMain extends Component{
  			dateSelected: null,
  		};
  
@@ -87,7 +87,7 @@ index a2fa2e18..0b4f95b2 100644
  		}
  
  		let params = {
-@@ -218,10 +246,14 @@ class NongLiMain extends Component{
+@@ -232,10 +260,14 @@ class NongLiMain extends Component{
  			yearGua: result[gua] ? { ...result[gua], guaName: gua } : null,
  		};
  
@@ -103,7 +103,7 @@ index a2fa2e18..0b4f95b2 100644
  		this.setState({
  			date: dt.value,
  		}, ()=>{
-@@ -230,6 +262,7 @@ class NongLiMain extends Component{
+@@ -244,6 +276,7 @@ class NongLiMain extends Component{
  	}
  
  	changeGeo(rec){
@@ -111,7 +111,7 @@ index a2fa2e18..0b4f95b2 100644
  		// 选新地点时按新坐标自动校正时区(未在 atlas 内手改时区时),genParams 读 this.state.date.zone。
  		// setZone 仅改时区标签、保留钟面时刻(见 DateTime.setZone),不移位时间。
  		const patch = {
-@@ -262,6 +295,7 @@ class NongLiMain extends Component{
+@@ -276,6 +309,7 @@ class NongLiMain extends Component{
  		let lastGua = lastdt ? lastdt.qimengYearGua : null;
  		let same = lastGua === date.qimengYearGua;
  
@@ -119,7 +119,7 @@ index a2fa2e18..0b4f95b2 100644
  		this.setState({
  			dateSelected: date,
  		}, ()=>{
-@@ -269,10 +303,16 @@ class NongLiMain extends Component{
+@@ -283,10 +317,16 @@ class NongLiMain extends Component{
  				this.requestYearGua();
  			}
  			this.saveAISnapshot();
@@ -136,7 +136,7 @@ index a2fa2e18..0b4f95b2 100644
  		this.requestYearGua();
  	}
  
-@@ -416,6 +456,11 @@ class NongLiMain extends Component{
+@@ -430,6 +470,11 @@ class NongLiMain extends Component{
  		}
  	}
  

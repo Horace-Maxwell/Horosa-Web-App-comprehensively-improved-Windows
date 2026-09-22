@@ -15,12 +15,16 @@ import AstroDeclinationLadder from './AstroDeclinationLadder';
 const EVENT_POINTS = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Asc', 'MC'];
 
 // 「小推运（minor）月长算法」可选项（放进三个推运 tab 顶栏；只影响 小推运 子 tab）。
-// 默认 engine = 现状（铁律1：新设置默认即现状，零回归）；synodic 为权威标准；sidereal 为月亮恒星回归。
+// [Q-180/T-95] 缺省 synodic=权威标准「一个朔望月对应一年」;sidereal 为月亮恒星回归;engine 为引擎历史取值
+// (漏乘一次 /365.2425 → 推运天数仅应有值的 1/365,≈无推进),仅作可选档保留、不再缺省。三处组件初值、挂载缺省、
+// 无头快照缺省与后端 progression_date 缺省同为 synodic(techniqueMountSettings 内联镜像本表,test 断言防漂移)。
 export const MINOR_VARIANT_OPTIONS = [
-	{ value: 'engine', label: '引擎原值（现状）' },
-	{ value: 'synodic', label: '朔望月每年（标准）' },
+	{ value: 'synodic', label: '朔望月每年（标准·默认）' },
 	{ value: 'sidereal', label: '恒星月每年' },
+	{ value: 'engine', label: '引擎历史值（≈无推进）' },
 ];
+export const MINOR_VARIANT_LABEL = MINOR_VARIANT_OPTIONS.reduce((m, o)=>{ m[o.value] = o.label; return m; }, {});
+export const DEFAULT_MINOR_VARIANT = 'synodic';
 
 function splitDateTime(s){
 	const str = `${s || ''}`.trim();

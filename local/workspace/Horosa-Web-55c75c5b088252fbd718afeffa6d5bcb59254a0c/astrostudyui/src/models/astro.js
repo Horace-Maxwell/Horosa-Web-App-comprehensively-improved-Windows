@@ -1,4 +1,5 @@
 import { history } from 'umi';
+import { normalizeBaziCalibreOverride, recordPinsDayBoundary } from '../utils/baziCalibreScope';
 import {getStore, } from '../utils/storageutil';
 import { Modal, } from 'antd';
 import DateTime from '../components/comp/DateTime';
@@ -61,7 +62,7 @@ function newEmptyFields(){
 			name: ['ad'],
 		},
 		date: {
-			value: dtm,
+			value: dtm.clone(),   // [Q-313] 不再直接引用模块级 dtm(共享引用被外部改写会串)
 			name: ['date'],
 		},
 		time: {
@@ -847,6 +848,9 @@ export default {
 		chartObj: null,
 		drawerVisible: closeAllDrawer('init'),
 		currentTab: 'astrochart',
+		// [Q-314 裁决 A] 八字本页口径覆盖层(日界 / 晚子时 / 时间算法;只八字页读;新命盘 / 载入复位)+ 载入命盘自带口径钉住共享层
+		baziCalibreOverride: {},
+		_dayBoundaryRecordPinned: false,
 		currentSubTab: null,
 		currentChart: null,
 		memoType: 0,
@@ -1084,9 +1088,9 @@ export default {
 		syncAfter23NewDay(state, { payload }){
 			const value = payload && payload.after23NewDay;
 			if(value !== 0 && value !== 1) return state;
-			// 用户拍板: 左栏改过 after23NewDay 后,全局同步不再覆盖(最高权限)。
-			// _after23BoundaryUserOverrode 由各 Main 在用户改局部下拉时通过 setAfter23BoundaryUserOverrode reducer 写入。
-			if(state && state._after23BoundaryUserOverrode) return state;
+			// [Q-314 裁决 A 2026-09-18] 共享层只被「载入命盘自带口径」钉住(随盘值 > 全局);八字左栏改动已分到本页覆盖层,
+			// 不再锁死全局同步(此前锁到重启,其它技法对全局失聪)。_after23BoundaryUserOverrode 旧锁保留兼容(全仓已无写入者)。
+			if(state && (state._dayBoundaryRecordPinned || state._after23BoundaryUserOverrode)) return state;
 			const next = { ...state };
 			if(next.fields && next.fields.after23NewDay){
 				next.fields = {
@@ -1100,9 +1104,8 @@ export default {
 		syncLateZiHourMode(state, { payload }){
 			const value = payload && payload.lateZiHourUseNextDay;
 			if(value !== 0 && value !== 1) return state;
-			// v2.2.1: 用户拍板 — 左栏改过 lateZiHourUseNextDay 后,全局同步不再覆盖(最高权限)。
-			// _lateZiHourUserOverrode 由各 Main 在用户改局部下拉时通过 setLateZiHourUserOverrode reducer 写入。
-			if(state && state._lateZiHourUserOverrode) return state;
+			// [Q-314 裁决 A] 同上:只被载入命盘自带口径钉住;旧锁保留兼容。
+			if(state && (state._dayBoundaryRecordPinned || state._lateZiHourUserOverrode)) return state;
 			const next = { ...state };
 			if(next.fields && next.fields.lateZiHourUseNextDay){
 				next.fields = {
@@ -1118,6 +1121,17 @@ export default {
 			return { ...state, _after23BoundaryUserOverrode: !!(payload && payload.value) };
 		},
 
+		// [Q-314 裁决 A] 八字本页覆盖层:merge 写(只认三键整数)/ 清空;载入命盘自带口径钉住共享层。
+		setBaziCalibreOverride(state, { payload }){
+			const merged = normalizeBaziCalibreOverride({ ...(state.baziCalibreOverride || {}), ...((payload && payload.override) || {}) });
+			return { ...state, baziCalibreOverride: merged };
+		},
+		clearBaziCalibreOverride(state){
+			return Object.keys(state.baziCalibreOverride || {}).length ? { ...state, baziCalibreOverride: {} } : state;
+		},
+		setDayBoundaryRecordPinned(state, { payload }){
+			return { ...state, _dayBoundaryRecordPinned: !!(payload && payload.value) };
+		},
 		setLateZiHourUserOverrode(state, { payload }){
 			// v2.2.1 同款语义:左栏改过 lateZiHourUseNextDay 后,锁定不被全局事件覆盖。
 			return { ...state, _lateZiHourUserOverrode: !!(payload && payload.value) };
@@ -1487,6 +1501,8 @@ export default {
 					byChartData: true,
 					memo: memo,
 					memoType: type,
+					baziCalibreOverride: {},                                   // [Q-314] 载入命盘:八字本页覆盖层复位(随盘值 > 本页左栏)
+					_dayBoundaryRecordPinned: recordPinsDayBoundary(values),   // [Q-314] 命盘自带口径 → 钉住共享层,全局事件不覆盖
                 },
             });
 			markChartRefreshEnd();
@@ -1739,6 +1755,10 @@ export default {
 			let fields = values.fields;
 			if(fields === undefined || fields === null){
 				fields = newEmptyFields();
+				// [Q-313/T-295] 「新命盘」=此刻:newEmptyFields 的日期取模块级常量 dtm(模型载入时 new 一次,从不刷新)→ 起的是应用启动时刻的盘。
+				// 只在本路径换成真「此刻」(newEmptyFields 仍是非默认捕获的基准工厂,不动)。
+				const nowDt = new DateTime();
+				fields = { ...fields, ad: { ...fields.ad, value: nowDt.ad }, date: { ...fields.date, value: nowDt }, time: { ...fields.time, value: nowDt.clone() } };
 			}
 			const param = fieldsToParams(fields);
 			const astroState = yield select((state)=>state.astro);
@@ -1764,6 +1784,8 @@ export default {
 					fields: fields,
 					chartObj: Result,
 					drawerVisible: drawer,
+					baziCalibreOverride: {},            // [Q-314] 新命盘:八字本页覆盖层复位
+					_dayBoundaryRecordPinned: false,   // [Q-314] 新命盘:共享层不再钉住(跟随全局)
                 },
             });
 

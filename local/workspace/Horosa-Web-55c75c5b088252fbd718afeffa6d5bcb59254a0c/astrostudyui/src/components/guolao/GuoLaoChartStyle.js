@@ -21,7 +21,26 @@ function getStorage(){
 	return typeof localStorage === 'undefined' ? null : localStorage;
 }
 
+// [Q-407/M-152] 进程内「临时覆盖作用域」:AI 挂载「每技法设置」覆盖重算此前把覆盖值临时写进这些全局 localStorage 键、
+//   await 秒级后端重算、finally 才还原 → 重算途中刷新 / 关窗则 finally 不跑,用户全局七政设置被永久改成覆盖值;
+//   同窗口并发读取也拿到临时值。现改为只在内存里压一层覆盖(readItem 先查),localStorage 全程不写,刷新即失、零残留。
+let _storedOverrides = null;
+export async function withGuolaoStoredOverrides(overrides, fn){
+	const prev = _storedOverrides;
+	_storedOverrides = overrides && typeof overrides === 'object' ? { ...(prev || {}), ...overrides } : prev;
+	try{
+		return await fn();
+	}finally{
+		_storedOverrides = prev;
+	}
+}
+export function __guolaoStoredOverridesForTests(){ return _storedOverrides; }
+
 function readItem(key){
+	if(_storedOverrides && Object.prototype.hasOwnProperty.call(_storedOverrides, key)){
+		const v = _storedOverrides[key];
+		return v === undefined || v === null ? null : `${v}`;
+	}
 	const storage = getStorage();
 	return storage ? storage.getItem(key) : null;
 }
@@ -212,16 +231,18 @@ export function setStoredGuolaoEqTropicalAnchor(val){
 // fields=类A(透传重算) display=类B(纯显示)。琴堂逢酉重八字/果老专度主洞微/天官化曜年干/弧角天星赤道真太阳。
 export const GUOLAO_SCHOOL_PRESETS = {
 	qintang: { fields: { guolaoLifeMode: 'yumao', guolaoBodyMode: 'youjin', guolaoTrueSolarTime: 'mean', doubingSu28: 2 }, display: { lifeMasterMode: 'gong', minorLimitType: '' } },
-	guolao: { fields: { guolaoLifeMode: 'yumao', guolaoBodyMode: 'taiyin', guolaoTrueSolarTime: 'true', doubingSu28: 2 }, display: { lifeMasterMode: 'dudegrade', minorLimitType: 'dongwei', motionState: true } },
+	guolao: { fields: { guolaoLifeMode: 'yumao', guolaoBodyMode: 'taiyin', guolaoTrueSolarTime: 'true', doubingSu28: 2 }, display: { lifeMasterMode: 'dudegrade', minorLimitType: 'dongwei' } },
 	tianguan: { fields: { guolaoLifeMode: 'cotrans', guolaoBodyMode: 'taiyin', guolaoNodeType: 'true', guolaoTrueSolarTime: 'true', doubingSu28: 2 }, display: { lifeMasterMode: 'du', minorLimitType: '' } },
-	huujiao: { fields: { guolaoLifeMode: 'asc', guolaoBodyMode: 'taiyin', guolaoNodeType: 'true', guolaoTrueSolarTime: 'true', doubingSu28: 5 }, display: { lifeMasterMode: 'gong', minorLimitType: '', motionState: true } },
+	huujiao: { fields: { guolaoLifeMode: 'asc', guolaoBodyMode: 'taiyin', guolaoNodeType: 'true', guolaoTrueSolarTime: 'true', doubingSu28: 5 }, display: { lifeMasterMode: 'gong', minorLimitType: '' } },
 };
 
 // G34 流派预设匹配(纯函数,单一真值源;供左栏「流派预设」下拉派生「当前流派」+ jest 守卫)。
 // 入参:已解析的类A字段值 f(guolaoLifeMode/guolaoBodyMode/guolaoTrueSolarTime/guolaoNodeType/doubingSu28)
-// 与类B显示值 d(lifeMasterMode/minorLimitType/motionState)。当前配置恰好命中某预设定义的「全部键值」→ 回该预设键;
+// 与类B显示值 d(lifeMasterMode/minorLimitType)。当前配置恰好命中某预设定义的「全部键值」→ 回该预设键;
 // 否则 'custom'(帮助文档「选后即显所选流派,微调后回自定」的诚实语义)。各预设键值组合互斥,故至多命中一个。
-// 预设只定义部分键(如 qintang 不设 motionState)——匹配只校验预设自身声明的键,其余键不参与(agnostic)。
+// 预设只定义部分键(如 tianguan 不设 guolaoNodeType 之外的显示键)——匹配只校验预设自身声明的键,其余键不参与(agnostic)。
+// [Q-193/T-137] motionState 已从预设与显示仓删除:右栏「留伏迟疾」列恒渲染,该显示键全仓无消费者,
+// 留着只会让「果老星宗/弧角天星」两档要求一个用户根本拨不到的值 → 选了也回不到该派。
 export function matchSchoolPreset(f, d){
 	const ff = f || {};
 	const dd = d || {};
@@ -235,7 +256,6 @@ export function matchSchoolPreset(f, d){
 	const dcur = {
 		lifeMasterMode: dd.lifeMasterMode || 'gong',
 		minorLimitType: dd.minorLimitType || '',
-		motionState: !!dd.motionState,
 	};
 	const keys = Object.keys(GUOLAO_SCHOOL_PRESETS);
 	for(let i = 0; i < keys.length; i++){
@@ -249,9 +269,7 @@ export function matchSchoolPreset(f, d){
 			if(want !== got){ hit = false; }
 		});
 		Object.keys(pd).forEach((k)=>{
-			const want = k === 'motionState' ? !!pd[k] : `${pd[k]}`;
-			const got = k === 'motionState' ? dcur.motionState : `${dcur[k]}`;
-			if(want !== got){ hit = false; }
+			if(`${pd[k]}` !== `${dcur[k]}`){ hit = false; }   // [Q-193/T-137] 显示键现全为字符串档,布尔特例随 motionState 一并删
 		});
 		if(hit){ return keys[i]; }
 	}
@@ -286,7 +304,8 @@ export function setStoredMoiraTransitGodsVisible(visible){
 export const GUOLAO_DISPLAY_KEY = 'horosaGuolaoDisplay';
 export const GUOLAO_ALL_ASPECTS = ['會', '衝', '刑', '合', '半合', '半刑', '四合'];
 // lifeMasterMode 命主取法(gong宫主默认/du度主);minorLimitType 行运法(''古度默认/dongwei洞微/xiaoxian小限/yuexian月限/tongxian童限);
-// motionState 留伏迟疾 / mingGan 五虎遁配干 / huayao 化曜圈 / dignityExtended 庙旺扩展多选 —— 均类B 纯前端显示偏好。
+// mingGan 五虎遁配干 / huayao 化曜圈 / dignityExtended 庙旺扩展多选 —— 均类B 纯前端显示偏好。
+// (motionState 留伏迟疾已删:该列恒显示,键无消费者 —— 见 matchSchoolPreset 旁注 [Q-193/T-137]。)
 export const GUOLAO_LIFE_MASTER_MODES = ['gong', 'du', 'dudegrade'];
 export const GUOLAO_MINOR_LIMIT_TYPES = ['', 'minor', 'month', 'tong', 'dongwei'];
 export const GUOLAO_DIGNITY_EXT_KEYS = ['exalt', 'triplicity', 'term', 'face'];
@@ -304,7 +323,6 @@ export const GUOLAO_DEFAULT_DISPLAY = {
 	ageRing: true,
 	lifeMasterMode: 'gong',
 	minorLimitType: '',
-	motionState: false,
 	mingGan: false,
 	huayao: false,
 	dignityExtended: [],
@@ -356,7 +374,6 @@ function cloneDefaultDisplay(){
 		ageRing: GUOLAO_DEFAULT_DISPLAY.ageRing,
 		lifeMasterMode: GUOLAO_DEFAULT_DISPLAY.lifeMasterMode,
 		minorLimitType: GUOLAO_DEFAULT_DISPLAY.minorLimitType,
-		motionState: GUOLAO_DEFAULT_DISPLAY.motionState,
 		mingGan: GUOLAO_DEFAULT_DISPLAY.mingGan,
 		huayao: GUOLAO_DEFAULT_DISPLAY.huayao,
 		dignityExtended: [...GUOLAO_DEFAULT_DISPLAY.dignityExtended],
@@ -391,7 +408,6 @@ export function getStoredGuolaoDisplay(){
 			ageRing: true,
 			lifeMasterMode: normLifeMasterMode(parsed.lifeMasterMode),
 			minorLimitType: normMinorLimitType(parsed.minorLimitType),
-			motionState: parsed.motionState === true,
 			mingGan: parsed.mingGan === true,
 			huayao: parsed.huayao === true,
 			dignityExtended: normDignityExt(parsed.dignityExtended),
@@ -423,7 +439,6 @@ export function setStoredGuolaoDisplay(next){
 		ageRing: true,
 		lifeMasterMode: normLifeMasterMode(next && next.lifeMasterMode),
 		minorLimitType: normMinorLimitType(next && next.minorLimitType),
-		motionState: !!(next && next.motionState === true),
 		mingGan: !!(next && next.mingGan === true),
 		huayao: !!(next && next.huayao === true),
 		dignityExtended: normDignityExt(next && next.dignityExtended),

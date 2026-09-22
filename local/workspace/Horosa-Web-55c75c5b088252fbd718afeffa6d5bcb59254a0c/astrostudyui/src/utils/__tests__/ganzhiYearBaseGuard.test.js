@@ -81,7 +81,9 @@ describe('参评数：性别接线（死开关锁）', () => {
 
 	it('快照去重键含 gender 与 opts（改性别/换档必刷新）', () => {
 		const t = stripComments(read('components/shusuan/CanPingMain.js'));
-		expect(/const key = `[^`]*g:\$\{r\.gender\}[^`]*o:/.test(t)).toBe(true);
+		// [Q-265/SO-22 2026-09-18] 键优先取 this._modelKey(=全部输入签名,含性别 / 时间算法 / 日界 / opts),回退串仍含 g:/o:
+		expect(/const key = this\._modelKey \|\| `[^`]*g:\$\{r\.gender\}[^`]*o:/.test(t)).toBe(true);
+		expect(/_modelKey = sig/.test(t)).toBe(true);
 	});
 });
 

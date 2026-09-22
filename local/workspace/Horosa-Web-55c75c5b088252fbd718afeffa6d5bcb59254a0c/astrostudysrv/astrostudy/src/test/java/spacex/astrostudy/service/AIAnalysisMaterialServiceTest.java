@@ -82,4 +82,51 @@ public class AIAnalysisMaterialServiceTest {
 		params.put("base64Data", Base64.getEncoder().encodeToString(text.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
 		return params;
 	}
+
+	// [D58] 体积上限先于解码:超限的 base64 在毫秒级被拒(580103),不进 Base64.decode / PDFBox
+	@Test
+	public void oversizedBase64IsRejectedFastWith580103() {
+		AIAnalysisMaterialService service = new AIAnalysisMaterialService();
+		StringBuilder sb = new StringBuilder(AIAnalysisMaterialService.MAX_BASE64_CHARS + 16);
+		while(sb.length() < AIAnalysisMaterialService.MAX_BASE64_CHARS + 8) { sb.append("QUFBQQ=="); }
+		Map<String, Object> params = new LinkedHashMap<String, Object>();
+		params.put("fileName", "huge.txt"); params.put("mimeType", "text/plain"); params.put("base64Data", sb.toString());
+		long t0 = System.currentTimeMillis();
+		try {
+			service.extract(params);
+			throw new AssertionError("should reject");
+		} catch(boundless.exception.ErrorCodeException e) {
+			assertEquals(580103, e.getCode());
+		}
+		assertTrue("拒绝应在 1 s 内(不解码)", System.currentTimeMillis() - t0 < 1000L);
+	}
+
+	// [D58] 千页 PDF 只抽前 MAX_PDF_PAGES 页:pageCount 如实、正文不含后面页的文字
+	@Test
+	public void hugePdfOnlyExtractsFirstPages() throws Exception {
+		AIAnalysisMaterialService service = new AIAnalysisMaterialService();
+		ByteArrayOutputStream output = new ByteArrayOutputStream();
+		int pages = AIAnalysisMaterialService.MAX_PDF_PAGES + 3;
+		try(PDDocument document = new PDDocument()) {
+			for(int i = 1; i <= pages; i++) {
+				PDPage page = new PDPage();
+				document.addPage(page);
+				try(PDPageContentStream content = new PDPageContentStream(document, page)) {
+					content.beginText(); content.setFont(PDType1Font.HELVETICA, 12); content.newLineAtOffset(50, 700);
+					content.showText("PAGEMARK" + i + "END"); content.endText();
+				}
+			}
+			document.save(output);
+		}
+		Map<String, Object> params = new LinkedHashMap<String, Object>();
+		params.put("fileName", "huge.pdf"); params.put("mimeType", "application/pdf");
+		params.put("base64Data", Base64.getEncoder().encodeToString(output.toByteArray()));
+		Map<String, Object> result = service.extract(params);
+		String text = String.valueOf(result.get("extractedText"));
+		assertTrue(text.contains("PAGEMARK1END"));
+		assertTrue(text.contains("PAGEMARK" + AIAnalysisMaterialService.MAX_PDF_PAGES + "END"));
+		assertTrue(!text.contains("PAGEMARK" + pages + "END"));
+		@SuppressWarnings("unchecked") Map<String, Object> meta = (Map<String, Object>) result.get("extractMeta");
+		assertEquals(pages, meta.get("pageCount"));
+	}
 }

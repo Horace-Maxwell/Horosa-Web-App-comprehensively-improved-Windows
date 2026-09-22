@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/calendar/HuangLiMain.js b/astrostudyui/src/components/calendar/HuangLiMain.js
-index 447223fd..1398d6e9 100644
+index c3ef4df0..8d597e75 100644
 --- a/astrostudyui/src/components/calendar/HuangLiMain.js
 +++ b/astrostudyui/src/components/calendar/HuangLiMain.js
 @@ -13,24 +13,46 @@ import { buildHuangliDay } from './huangliDay';
@@ -58,8 +58,8 @@ index 447223fd..1398d6e9 100644
  	constructor(props) {
  		super(props);
  		this.state = {
-@@ -44,6 +66,8 @@ class HuangLiMain extends Component {
- 			yearPanelOpen: false,
+@@ -45,6 +67,8 @@ class HuangLiMain extends Component {
+ 			yearPanelSeen: false,   // [Q-458/T-421] 开过年度吉日榜 → 快照才带该候选段(sticky)
  		};
  		this.huangliCache = {};
 +		// horosa_kentang_result_cache_v1:命中模块级 LRU(切页回来 0 重算);关闸=每实例独立(旧行为)。
@@ -67,7 +67,7 @@ index 447223fd..1398d6e9 100644
  
  		this.requestMonth = this.requestMonth.bind(this);
  		this.onTimeChanged = this.onTimeChanged.bind(this);
-@@ -58,14 +82,18 @@ class HuangLiMain extends Component {
+@@ -59,14 +83,18 @@ class HuangLiMain extends Component {
  	// 逐格日课缓存（避免重渲染重算），键=公历 y-m-d。
  	getHuangli(y, m, d) {
  		const key = `${y}-${m}-${d}`;
@@ -87,7 +87,7 @@ index 447223fd..1398d6e9 100644
  		if (!(key in this.wutuCache)) { try { this.wutuCache[key] = wutuForDate({ y, m, d }); } catch (e) { this.wutuCache[key] = null; } }
  		return this.wutuCache[key];
  	}
-@@ -93,11 +121,14 @@ class HuangLiMain extends Component {
+@@ -98,11 +126,14 @@ class HuangLiMain extends Component {
  			const days = this.state.days || [];
  			const sel = this.state.selectedYmd;
  			const inMonth = sel && days.some((x)=> x && `${x.birth}`.split(' ')[0] === `${sel.y}-${String(sel.m).padStart(2, '0')}-${String(sel.d).padStart(2, '0')}`);
@@ -103,7 +103,7 @@ index 447223fd..1398d6e9 100644
  		});
  	}
  
-@@ -107,14 +138,26 @@ class HuangLiMain extends Component {
+@@ -112,14 +143,26 @@ class HuangLiMain extends Component {
  			selectedYmd: { y, m, d },
  			selectedDay: this.getHuangli(y, m, d),
  			focus,
@@ -131,7 +131,7 @@ index 447223fd..1398d6e9 100644
  		this.selectByYmd(this.parseBirth(date.birth));
  	}
  
-@@ -200,6 +243,11 @@ class HuangLiMain extends Component {
+@@ -210,6 +253,11 @@ class HuangLiMain extends Component {
  		}
  	}
  

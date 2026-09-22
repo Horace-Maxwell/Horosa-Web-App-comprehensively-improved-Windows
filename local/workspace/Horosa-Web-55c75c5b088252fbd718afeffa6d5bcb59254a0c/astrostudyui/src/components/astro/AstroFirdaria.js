@@ -124,9 +124,13 @@ class AstroFirdaria extends Component{
 		let predictives = chart.predictives ? chart.predictives : {};
 		let firdaria = predictives.firdaria ? predictives.firdaria : [];
 
-		let height = this.props.height ? this.props.height : '100%';
+		// 零常数:星运页 Tabs 内容链已整条定高(面板 = 子页可用高),列表盒直接铺满面板。此前写 (height−70)px ——
+		// 那是「height = 工作区高、要扣页头」时代的遗留;现在 height 传的就是面板真高 ⇒ 底部恒留 70px 死带、内容在盒底被截
+		// (放大档下占比翻倍,1.8 档占面板 16%);且 height 为 '100%' 字符串时算出 NaN px。唯一宿主即星运页。
 		let style = {
-			height: (height-70) + 'px',
+			height: '100%',
+			maxHeight: '100%',
+			boxSizing: 'border-box',
 			overflowY:'auto', 
 			overflowX:'hidden',
 		};

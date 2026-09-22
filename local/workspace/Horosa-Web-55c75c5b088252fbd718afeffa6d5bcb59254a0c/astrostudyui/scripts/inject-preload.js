@@ -98,8 +98,15 @@ function main(){
 	}catch(e){
 		console.warn(`[inject-preload] 批次自动补齐异常(${e && e.message}) —— 仅注入前缀清单`);
 	}
-	// 核心五件必须齐 —— vendors~layouts 可有可无(R4-P1c:shared-technique/vendors-d3 入列)
-	const mustHave = ['layouts__index', 'vendors~p__index', 'p__index', 'shared-technique', 'vendors-d3'];
+	// 核心五件必须齐 —— vendors~layouts 可有可无(R4-P1c:shared-technique/vendors-d3 入列)。
+	// 「vendors~p__index」是 splitChunks 的命名产物:一旦有别的异步入口(如布局层惰性载入的工具目录)
+	// 与页面共享同一批 vendor,webpack 就把它并进共享/数字 chunk,名字消失但模块仍在首屏批次里——
+	// 此时以 umi runtime 解析出的根路由批次为准(批次解析成功即不再苛求该名字;check-chunk-dup ⑤ 段
+	// 仍会对拍 preload↔批次恒等,缺件照样红)。批次解析失败才退回硬名单。
+	const batchParsed = links.some((l)=>/\/\d+\.[0-9a-f]+\.async\.js/.test(l));
+	const mustHave = batchParsed
+		? ['layouts__index', 'p__index', 'shared-technique', 'vendors-d3']
+		: ['layouts__index', 'vendors~p__index', 'p__index', 'shared-technique', 'vendors-d3'];
 	for(const prefix of mustHave){
 		if(!links.some((l)=>l.includes(`${publicPath}${prefix}.`))){
 			console.error(`[inject-preload] 首屏关键 chunk「${prefix}」在产物中找不到 js —— 分包形态变了,先修 CRITICAL_PREFIXES 再构建`);

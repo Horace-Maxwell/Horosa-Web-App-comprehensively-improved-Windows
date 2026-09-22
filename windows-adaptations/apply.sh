@@ -51,6 +51,16 @@ elif [ -n "$MAC" ] && [ -f "$MAC/THIRD_PARTY_NOTICES.md" ]; then
   cp "$MAC/THIRD_PARTY_NOTICES.md" "$WS/THIRD_PARTY_NOTICES.md"; ok "copied from $MAC/THIRD_PARTY_NOTICES.md"
 else warn "Mac clone not given/found — copy THIRD_PARTY_NOTICES.md from the Mac repo root into $WS/ manually"; fi
 
+echo "== 4b. docs/AI_AGENT_RUNTIME.md — 上游 v3.11.0 的两个契约测试(aiToolsErrorCodes.contract / aiAgentRuntimeDoc.contract)按 Mac 仓布局读 =="
+# 上游把它放在 Mac 仓根 docs/,测试用 astrostudyui/src/utils/__tests__/../../../../../docs 解析 ⇒ 在本仓落到 local/workspace/docs/
+# (#99 课一 / #100 ④ 同族「上游契约测硬编码仓库布局」)。逐字节照抄、tracked、每轮同步随手刷新;缺席 = 两套契约测试 ENOENT 假红。
+DOCS_DST="$(cd "$WS/.." && pwd)/docs"; mkdir -p "$DOCS_DST"
+if [ -n "$MAC" ] && [ -f "$MAC/../docs/AI_AGENT_RUNTIME.md" ]; then
+  cp "$MAC/../docs/AI_AGENT_RUNTIME.md" "$DOCS_DST/AI_AGENT_RUNTIME.md"; ok "copied AI_AGENT_RUNTIME.md from $MAC/../docs"
+elif [ -n "$MAC" ] && [ -f "$MAC/docs/AI_AGENT_RUNTIME.md" ]; then
+  cp "$MAC/docs/AI_AGENT_RUNTIME.md" "$DOCS_DST/AI_AGENT_RUNTIME.md"; ok "copied AI_AGENT_RUNTIME.md from $MAC/docs"
+else warn "Mac clone not given/found — copy docs/AI_AGENT_RUNTIME.md from the Mac repo root into $DOCS_DST/ manually"; fi
+
 echo "== 5. source patches (isDesktopShellWindow + ensureField) — applied only if the marker is missing =="
 apply_patch(){ # $1=guard-marker $2=target-rel $3=patchfile
   if grep -q "$1" "$WS/$2" 2>/dev/null; then ok "$2 already has $1"
@@ -216,6 +226,8 @@ echo "== 15. v3.0.1 perf ROUND-4 P0 (log4j Windows 缺陷：6 个程序化 appen
 # 再回落 user.home/.horosa-logs/astrostudyboot。changeLogFile 的按日重建加 startsWith 守卫(只轮转本 basedir
 # 布局的 appender，XML appender 跳过 —— 修掉原 substring 位置数学的越界/停旧未建新隐患)。无 -D 时行为与原实现
 # 一致 → 服务器/mac 部署零变化。marker: log_basedir_v1 (HOROSA_LOG_BASEDIR_REV 常量，兼作 jar 内容哨兵)。
+# [v3.11.0 瘦身·#92 超集≠全集] 上游「Java 日志落点根修」以 resolvedBaseDir()(StrSubstitutor 递归替换 + user.home 兜底)+ tailUnderDateDir()
+#   取代我方整段实现;残差只剩「-Dhorosa.log.basedir 优先」(桌面壳/本地版脚本传入,Java 日志落应用数据目录 logs/)+ 常量哨兵。
 apply_patch log_basedir_v1                 astrostudysrv/boundless/src/main/java/boundless/log/AppLoggers.java boundless__AppLoggers.logBasedir.java.patch
 echo "   ^^ boundless is BACKEND Java. After this patch you MUST rebuild astrostudyboot.jar (SKILL gotcha #5):"
 echo "      boundless install -> astrostudyboot clean package, then copy target/astrostudyboot.jar to local/workspace/runtime/windows/bundle/."
@@ -344,6 +356,21 @@ apply_patch horosa_win_shell_free_scan_v1  astrostudyui/src/utils/__tests__/popu
 # [v3.10.0] 上游新版面域静态守卫同族三例(execSync grep 在 cmd.exe 下失效;T1 自证在 Windows 红):同判例改纯 Node。
 apply_patch horosa_win_shell_free_scan_v1  astrostudyui/src/utils/__tests__/layoutDomainStaticGuard.test.js src__utils____tests____layoutDomainStaticGuard.winShellFree.test.js.patch
 apply_patch horosa_win_shell_free_scan_v1  astrostudyui/src/utils/__tests__/popupAlignZoomGuard.test.js src__utils____tests____popupAlignZoomGuard.winShellFree.test.js.patch
+# v3.11.0 护栏家族第 7 例(shell 引号 × 构建指纹;gotcha #104):上游 write-build-info.js 改读 fe-source-paths.txt 后用**单引号 pathspec**
+# 拼 execSync 串 —— Windows 的 execSync 走 cmd.exe,单引号不是引号,git 收到字面 `'../src'` 一个都匹配不上 ⇒ 实测 908 个脏文件判
+# dirty=false ⇒ 发布自检构建指纹门(#63)假绿(脏树产物可发货)。修 = execFileSync 数组参数(零 shell)+ git 失败按脏(fail-closed,
+# 与上游文件头口径一致);判别力由 release_selfcheck `check_frontend_build_fingerprint` ④ 探针自证(临时脏文件必须被判 dirty)。
+apply_patch horosa_buildinfo_shell_free_v1  astrostudyui/scripts/write-build-info.js scripts__write-build-info.shellFree.js.patch
+# v3.11.0(#99 课一同族「上游机械扫源码门 × 我方 overlay 面」):上游 SS-19 用例扫 LiuRengMain 源码钉 `disabled={this.state.guireng !== 0}`,
+# 我方六壬左栏是渲染切片子组件(state 经 props p 进入),同一判据的代码形是 `disabled={p.guireng !== 0}`;两形皆认,判据零放宽。
+apply_patch horosa_win_slice_form_v1  astrostudyui/src/utils/__tests__/sanshiQ164Misc.test.js src__utils____tests____sanshiQ164Misc.winSliceForm.test.js.patch
+# v3.11.0 同族第二例:上游 sanshiQijuAndVisibleControls 用例扫 SanShiUnitedMain 源码钉 `this.onAstroFieldOptionChange('hsys', v)` /
+# `onChange={this.onOuterCoordChange}`;我方合一页左栏是渲染切片子组件(horosa_sanshi_render_slice_v1,处理器经 props 进入),
+# 同一控件的代码形是 `this.props.onAstroFieldOptionChange('hsys', v)` / `(v)=>this.props.onOuterCoordChange(v)`;两形皆认,判据零放宽。
+apply_patch horosa_win_slice_form_v1  astrostudyui/src/components/sanshi/__tests__/sanshiQijuAndVisibleControls.test.js src__components__sanshi____tests____sanshiQijuAndVisibleControls.winSliceForm.test.js.patch
+# v3.11.0:上游资料导入白名单合同测试按 Mac 仓布局读 Tauri main.rs 的 AI_ANALYSIS_IMPORT_EXTENSIONS;Windows 壳是 Electron,
+# 同名常量住在 desktop_installer_bundle/electron/desktop-bridge.js(同一正则形)。main.rs 缺席时读它,判据零放宽(壳↔前端白名单逐字同集)。
+apply_patch horosa_win_shell_const_v1  astrostudyui/src/utils/__tests__/aiMaterialImportGuard.test.js src__utils____tests____aiMaterialImportGuard.winShellConst.test.js.patch
 # Mac v3.9.0 新增的小成图 [XCT-2]:它刻意「绕 Tabs 惰性」直取 pane 产物做内容断言,而我方
 # horosa_freeze_subtabs_v1 把 TabPane 内容包进了 render-prop(非激活目不求值)⇒ 直取得到
 # 空 div。适配 = 取内容时若 children 是函数就求值一次;**断言一字未改**。
@@ -399,7 +426,9 @@ echo "== 27. PERF-R9 输出确定性:set 顺序不得泄漏进响应(真 bug 修
 # ★ 成员逐元素不变,只把「任意且不稳定」变成「确定且符合专业次序」;条数不变 ⇒ base_score 不变。
 # ★ 这同时是后续一切逐字节回归比对的前提:不修它,星盘族的黄金永远不可能稳定。
 # ①(perchart)并入 §17 既有的 chartMemo 累积补丁,marker 已在那里换成最新。
-apply_patch horosa_rasi_drishti_stable_order_v1  astropy/astrostudy/india/primitives.py    astropy__india__primitives.stableOrder.py.patch
+# [v3.11.0 退役·#49/#101 五件套] horosa_rasi_drishti_stable_order_v1 → 上游 [Q-232/T-196] 逐字收编(rasi_drishti 改按 SIGNS 过滤,
+#   代码行完全相同、只差注释)。补丁已删;哨兵迁钉上游形态(release_selfcheck SENT);回归网 = 上游 test_india_q130_q131_q232.py + 黄金矩阵。
+#   (原行:apply_patch horosa_rasi_drishti_stable_order_v1 astropy/astrostudy/india/primitives.py astropy__india__primitives.stableOrder.py.patch)
 apply_patch horosa_yoga_planet_order_v1          astropy/astrostudy/india/yoga_engine.py   astropy__india__yoga_engine.stableOrder.py.patch
 
 echo "== 28. PERF-R9 奇門引擎熱路徑 Tier-1(純去冗餘,零緩存語義;跨平台,建議上游化 Mac)=="
@@ -566,9 +595,15 @@ apply_patch horosa_sanshi_render_slice_v1 astrostudyui/src/components/sanshi/San
 # 换为补丁独有 horosa_freeze_subtabs_v1(上游 TaiYiMain 恒不含;R4 已成对入 SENT)。
 apply_patch horosa_freeze_subtabs_v1 astrostudyui/src/components/taiyi/TaiYiMain.js           src__components__taiyi__TaiYiMain.prefetchRegistry.js.patch
 # [v3.10.0] 上游新文件 TaiyiBoardSvg 用 shenMeaning 未 import(触发即 ReferenceError,绑定门实抓);建议上游化。
-apply_patch horosa_taiyi_boardsvg_shenmeaning_import_v1 astrostudyui/src/components/taiyi/TaiyiBoardSvg.js src__components__taiyi__TaiyiBoardSvg.shenMeaningImport.js.patch
+# [v3.11.0 退役·#49/#101 五件套] horosa_taiyi_boardsvg_shenmeaning_import_v1 → 上游自修(import { TAIYI_GONG_INFO, shenMeaning } 进基线,
+#   并带 taiyiBoardMark.test.js 回归)。补丁已删;哨兵迁钉上游 import 形态;绑定门 check-symbol-binding 仍是第二层网。
+#   (原行:apply_patch horosa_taiyi_boardsvg_shenmeaning_import_v1 astrostudyui/src/components/taiyi/TaiyiBoardSvg.js src__components__taiyi__TaiyiBoardSvg.shenMeaningImport.js.patch)
 # [v3.10.0] 上游新对冲断言模界脆断(精确对冲随 libm 尾差落 0+ε/360-ε 两侧,Windows 实测 360-6e-14):改圆距形;建议上游化。
 apply_patch horosa_circular_delta_assert_v1 astropy/tests/test_qizheng_election_scan.py astropy__tests__test_qizheng_election_scan.circularDelta.py.patch
+# v3.11.0(#103 课三同族「门抓上游 bug」第三例·平台版本差):上游新测 test_taiyi_game_theory_lp_fallback 用 `float(A_eq @ r2.x)`
+# 把 shape (1,) 的一维数组转标量 —— NumPy 1.25 起 DeprecationWarning、NumPy 2.x 直接 TypeError;内嵌运行时 numpy 2.4.2 实撞
+# 4 个参数化用例全红(Mac 侧 numpy 1.x 只是告警)。修 = 取 [0] 后转 float(两代 numpy 同义);被测 fallback 产品码本身与 numpy 2 相容。
+apply_patch horosa_numpy2_scalar_assert_v1  astropy/tests/test_taiyi_game_theory_lp_fallback.py  astropy__tests__test_taiyi_game_theory_lp_fallback.numpy2Scalar.py.patch
 # 步进预取金标:任务序(近端优先 + 技法端点先于同向 chart)、技法登记方收到【已步进】的 fields
 # (旧版传基准 fields = 预取当前那张盘 = 白打)、每个任务必须自带 path 声明。
 apply_patch stepPrefetchFastFirst "astrostudyui/src/utils/__tests__/stepPrefetch.test.js"  src__utils____tests____stepPrefetch.prefetchRegistry.test.js.patch
@@ -708,7 +743,8 @@ apply_patch horosa_panel_ready_v1                astrostudyui/src/components/ger
 # 形状一致:主壳是「左表单 + 中盘 + 右栏多子页签」,此前右栏全部子页签常驻重渲;补 FreezeSubTab +
 # 受控 activeKey(必要时加 horosa_controlled_tab_clamp_v1:页签集合随结果变化时,选过的键仍在就保持,
 # 否则回落默认键,绝不停在不存在的键上显示空白),并在结果落定处补 markPanelReady。
-# AIAnalysisMain 另叠 horosa_markdown_lru_v1(流式 markdown→HTML 渲染结果 LRU,避免每 chunk 全量重渲)。
+# AIAnalysisMain 曾另叠 horosa_markdown_lru_v1(流式 markdown→HTML 渲染结果 LRU)—— v3.11.0 上游改为 AssistantMarkdown 记忆化组件渲染
+# 助手正文(同目标已由上游承接),该段已退役;本补丁只剩 FreezeSubTab + markPanelReady 两件。
 # LiuRengChart / MingOtherMain 是纯 sCU 壳(见上方 ⚠️ 第二条:本轮改动不引入 marker,guard 取代码串)。
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/acg/AstroAcg.js                     src__components__acg__AstroAcg.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/aianalysis/AIAnalysisMain.js        src__components__aianalysis__AIAnalysisMain.perfR9.js.patch
@@ -833,7 +869,9 @@ apply_patch localChartsVersion                   astrostudyui/src/utils/localcha
 apply_patch getWriteVersion                      astrostudyui/src/utils/localRecordStore.js                       src__utils__localRecordStore.writeVersion.js.patch
 # v3.9.2 check-no-undef 门抓获的上游 bug(两端同病):aiAnalysisContext 引用未 import 的
 # DEFAULT_PD_TYPE → 主限法盘配置段在 try 里恒降级 = 本版宣称的补齐从未生效。建议上游同步。
-apply_patch horosa_no_undef_fix_v1               astrostudyui/src/utils/aiAnalysisContext.js                      src__utils__aiAnalysisContext.noUndefFix.js.patch
+# [v3.11.0 退役·#49/#101 五件套] horosa_no_undef_fix_v1 → 上游自修(DEFAULT_PD_TYPE 随 pdPairParamsFor 一并 import)。补丁已删;
+#   哨兵迁钉上游 import 形态;回归网 = check-no-undef 作用域门(该 ReferenceError 回潮即红)。
+#   (原行:apply_patch horosa_no_undef_fix_v1 astrostudyui/src/utils/aiAnalysisContext.js src__utils__aiAnalysisContext.noUndefFix.js.patch)
 # v3.9.2「双保险副本」的 Electron 对位:上游走 Tauri invoke,Electron 无 __TAURI__ ⇒ 不对位则
 # 该数据保险在 Windows 静默不存在。壳层 IPC(main.js/preload.js,HARNESS_MANIFEST 域)+ 本适配层成套。
 apply_patch horosa_shadow_mirror_electron_v1     astrostudyui/src/utils/shadowMirror.js                           src__utils__shadowMirror.electronBridge.js.patch

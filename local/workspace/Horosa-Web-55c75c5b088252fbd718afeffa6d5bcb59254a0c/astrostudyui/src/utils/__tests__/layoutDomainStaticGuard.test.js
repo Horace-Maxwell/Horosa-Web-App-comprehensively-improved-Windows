@@ -122,11 +122,9 @@ describe('T3 壳内三页:同一标准', () => {
 // 「读数÷标识符」,抓不到这种跨域直写,故按「文件同时含 gBCR 与 style 尺寸写」粗筛+
 // 豁免表精判。豁免必须带一行可自证的判定依据,严禁为绿而豁免。
 const RECT_WRITE_EXEMPT = [
-	// rect 仅用于鼠标坐标换算(注释自证「getBoundingClientRect 本就是 CSS px」);
-	// canvas 尺寸写回值源自 host.clientWidth(布局域)——读写同域。
-	'components/fengshui/fengshuiEngine.js',
-	// rect 用于克隆节点测自然高(clone 脱离布局流,与写回目标同一元素同域)。
-	'components/calendar/NongLi.js',
+	// (2026-09-19 摘除 fengshuiEngine.js:鼠标坐标换算改走 zoomDomain.pointerToLocal,文件已零 gBCR。
+	//  当初的豁免依据「getBoundingClientRect 本就是 CSS px」在缩放档下并不成立 —— rect 在视觉域,画布逻辑坐标在布局域。)
+	// (2026-09-17 摘除 NongLi.js:格宽/网格高/克隆自然高全部改为 clientWidth/clientHeight/offsetHeight 布局域直读,文件已零 gBCR)
 	// rect 用于阅读器翻页几何(与滚动坐标同域消费),尺寸写回源自 clientWidth。
 	'components/reader/BookReader.js',
 	// 3D 视图:rect 用于 pointer 拾取(物理域正当消费);画布尺寸走 clientWidth+dpr。
@@ -199,5 +197,109 @@ describe('T4 rect→style 写回族(第三族域混)', () => {
 		expect(fnBody.indexOf('getBoundingClientRect')).toBe(-1);
 		expect(fnBody.indexOf('offsetWidth')).toBeGreaterThan(0);
 		expect(fnBody.indexOf('offsetHeight')).toBeGreaterThan(0);
+	});
+});
+
+// ── T5 物理域视口直读族(第四族域混)────────────────────────────────────────────
+// 形状:`this.props.height ? … : document.documentElement.clientHeight - 200` —— 拿**物理域**窗口尺寸当版面尺寸用。
+// 壳缩放下 documentElement.client* / window.inner* 恒为物理域,可用空间却在布局域(物理 ÷ z):缩小档盒子矮一截留死带、
+// 放大档溢出被外层 overflow:hidden 裁掉且滚不到(辅助页三子 tab 即此形态)。T2 的 PATTERN 只抓「读数 ÷ 标识符」,
+// 这一族是「读数 − 常数 / 读数 > 断点」,结构性漏网了 39 处。正路:容器定高(100% 链 / fill)或 shellZoom.getLayoutViewport*()。
+const PHYS_EXEMPT = {
+	// 与鼠标 / rect 坐标**同域**比较(物理域对物理域),换成布局域反而错:
+	'components/ziwei/ZWCommHouse.js': '悬浮卡翻转判定:clientHeight − event.clientY,两端同为视觉(物理)域',
+	'components/suzhan/SuZhanChart.js': 'viewportH 与 rect.top 同域相减后再 ÷getEffectiveScale 换回布局域(2026-09-01 根修)',
+	'components/guolao/GuoLaoChart.js': '同 SuZhanChart',
+	// 已是布局域优先、物理读数只作最末兜底(带 🔴 注释自证):
+	'components/dunjia/DunJiaMain.js': 'getViewportHeight():布局域 getLayoutViewportHeight 优先,clientHeight 仅无 window 时兜底',
+	'components/sanshi/SanShiUnitedMain.js': '同 DunJiaMain',
+};
+const PHYS_PATTERN = 'document\\.documentElement\\.client(Height|Width)';
+
+// horosa_win_shell_free_scan_v1(第二处,v3.11.0 上游新增的 T5 物理域扫描同病同修):
+// grep 外壳在 Windows 走 cmd.exe,JSON.stringify 的双引号串里 `\\.` 被吃 ⇒ 正则错 ⇒ catch 吞成空集 = 假绿。
+// 改纯 Node:递归 dir 下 .js,逐行按同义 JS 正则匹配;file 相对 dir、POSIX 分隔符(与原 `./x:line:text` 解析同形)。
+const PHYS_RE = new RegExp(PHYS_PATTERN);
+function scanPhysical(dir){
+	if(!fs.existsSync(dir)){ return []; }
+	const files = [];
+	(function walk(d){
+		let ents = [];
+		try{ ents = fs.readdirSync(d, { withFileTypes: true }); }catch(e){ return; }
+		ents.forEach((ent) => {
+			const full = path.join(d, ent.name);
+			if(ent.isDirectory()){ if(ent.name !== 'node_modules'){ walk(full); } }
+			else if(ent.name.endsWith('.js')){ files.push(full); }
+		});
+	})(dir);
+	const hits = [];
+	files.forEach((full) => {
+		let src = '';
+		try{ src = fs.readFileSync(full, 'utf8'); }catch(e){ return; }
+		const rel = path.relative(dir, full).split(path.sep).join('/');
+		src.split('\n').forEach((text, i) => {
+			if(PHYS_RE.test(text)){ hits.push({ file: rel, line: i + 1, text }); }
+		});
+	});
+	return hits.filter((h) => !/__tests__/.test(h.file) && !isComment(h.text));
+}
+
+describe('T5 物理域视口直读族(读数 − 常数 / 读数 > 断点)', () => {
+	it('扫描器在人造违规上必须判红(判别力自证)', () => {
+		const tmp = path.join(SRC, 'components', '__phys_probe_tmp__.js');
+		fs.writeFileSync(tmp, 'const h = this.props.height ? this.props.height : document.documentElement.clientHeight - 200;\nexport default h;\n');
+		try{
+			const hits = scanPhysical(path.join(SRC, 'components')).filter((h) => h.file === '__phys_probe_tmp__.js');
+			expect(hits.length).toBe(1);
+		}finally{ fs.unlinkSync(tmp); }
+	});
+
+	it('🔴 components 全树:documentElement.client* 直读只许出现在豁免表内(带同域 / 兜底依据)', () => {
+		const hits = scanPhysical(path.join(SRC, 'components'));
+		const bad = hits.filter((h) => !PHYS_EXEMPT['components/' + h.file]);
+		expect(bad.map((h) => `components/${h.file}:${h.line}  ${h.text.trim().slice(0, 100)}`)).toEqual([]);
+	});
+
+	it('豁免清单不腐烂:每个豁免文件必须仍存在且仍命中(否则摘除豁免)', () => {
+		const hits = scanPhysical(path.join(SRC, 'components'));
+		Object.keys(PHYS_EXEMPT).forEach((rel) => {
+			expect(fs.existsSync(path.join(SRC, rel))).toBe(true);
+			expect(hits.some((h) => 'components/' + h.file === rel)).toBe(true);
+		});
+	});
+
+	it('🔴 辅助页三子 tab 走 fill(容器定高),内容链定高规则在位', () => {
+		const main = fs.readFileSync(path.join(SRC, 'components/cntradition/CnTraditionMain.js'), 'utf8');
+		['<GuaSymDesc fill />', '<CuanGong12 fill />', '<BaziPithy fill />'].forEach((t) => expect(main.includes(t)).toBe(true));
+		const less = fs.readFileSync(path.join(SRC, 'layouts/app.less'), 'utf8');
+		expect(/\.horosa-cntradition-page\s*>\s*\.ant-tabs-right\s*>\s*\.ant-tabs-content-holder\s*>\s*\.ant-tabs-content\s*>\s*\.ant-tabs-tabpane\s*\{[^}]*height:\s*100%/.test(less)).toBe(true);
+		expect(/\.horosa-cntradition-page\s*>\s*\.ant-tabs-right\s*>\s*\.ant-tabs-content-holder\s*>\s*\.ant-tabs-content\s*>\s*\.ant-tabs-tabpane\s*\{[^}]*overflow-y:\s*auto/.test(less)).toBe(true);
+	});
+});
+
+// ── T5b 定高链不得在 antd Spin 处掐断 ─────────────────────────────────────────────────────────
+// 右栏内容页签的规则 `.horosa-content-tabs .ant-tabs-tabpane > *{height:100%}` 只管到 pane 的直接子层;那一层若是 Spin(nested-loading),
+// 它里面的 container 是 auto 高块 → 内层按 px 写死的滚动盒比 pane 高、超出部分被 overflow:hidden 裁掉、滚到底也看不见最后一截
+// (占星「格局」页签:838px 盒 / 802px pane,默认 100% 档即少 36px)。
+describe('T5b 内容页签定高链含 Spin 两层', () => {
+	it('🔴 app.less:content-tabs 的 tabpane > Spin > container(> 唯一子元素)接上 100% 链', () => {
+		const less = fs.readFileSync(path.join(SRC, 'layouts/app.less'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+		const re = /\.horosa-content-tabs \.ant-tabs-tabpane > \.ant-spin-nested-loading > \.ant-spin-container,\s*\n\s*\.horosa-workspace-shell \.horosa-content-tabs \.ant-tabs-tabpane > \.ant-spin-nested-loading > \.ant-spin-container > :only-child\s*\{[^}]*height:\s*100%\s*!important/;
+		expect(re.test(less)).toBe(true);
+	});
+});
+
+// ── T6 坞行高 ≡ 坞盒高 ───────────────────────────────────────────────────────
+// 三式曾写裸 58px 行装 64px 的坞 → 坞下缘恒溢出 6px 被窗口底边切掉。带坞的页面栅格第二轨只许是坞高单源变量或与之相等的 64px。
+describe('T6 底部快捷栏:行高 ≡ 盒高', () => {
+	it('🔴 app.less:minmax(0,1fr) 后接 px 的行模板,px 只许 64(= --horosa-bottom-dock-height)或在豁免表', () => {
+		const less = fs.readFileSync(path.join(SRC, 'layouts/app.less'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+		const dockH = /--horosa-bottom-dock-height:\s*(\d+)px/.exec(less);
+		expect(dockH && dockH[1]).toBe('64');
+		const ROW_EXEMPT = { '138': '占星工作台底部信息带(不是快捷栏)', '60': 'kinastro 系页自带 60px 的坞盒(行与盒同为 60,自洽)' };
+		const bad = [];
+		const re = /grid-template-rows:\s*minmax\(0,\s*1fr\)\s+(\d+)px/g; let m;
+		while((m = re.exec(less))){ if(m[1] !== '64' && !ROW_EXEMPT[m[1]]){ bad.push(m[0]); } }
+		expect(bad).toEqual([]);
 	});
 });

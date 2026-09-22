@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
-import { Popover } from 'antd';
 import GeoCoordModal from '../amap/GeoCoordModal';
+import TimeFieldTrigger from './QuickTimeField';
 import PlusMinusTime from '../astro/PlusMinusTime';
 import XQIcon from '../xq-icons';
 import DateTime from './DateTime';
@@ -37,6 +37,18 @@ export function formatSpaceTime(fields, fallback = ''){
 }
 
 class SpaceTimePanel extends Component{
+	constructor(props){
+		super(props);
+		this.onQuickCommit = this.onQuickCommit.bind(this);
+	}
+
+	// 双击键入 14 位数字后的提交:与弹窗「确定」同一条路(宿主 onTimeChange,confirmed=true 即重算)
+	onQuickCommit(dt){
+		if(this.props.onTimeChange){
+			this.props.onTimeChange({ time: dt, ad: dt.ad, confirmed: true });
+		}
+	}
+
 	render(){
 		const fields = this.props.fields || {};
 		const value = this.props.value || buildDateTimeFromFields(fields);
@@ -59,12 +71,7 @@ class SpaceTimePanel extends Component{
 			<div className={`horosa-spacetime-panel ${this.props.className || ''}`}>
 				<div className="horosa-field-block">
 					<div className="horosa-field-label">时间</div>
-					<Popover content={timeEditor} trigger="click" placement="rightTop" overlayClassName="horosa-time-adjust-popover">
-						<button type="button" className="horosa-unified-field">
-							<XQIcon name="clock" />
-							<span>{timeText}</span>
-						</button>
-					</Popover>
+					<TimeFieldTrigger value={value} timeText={timeText} popoverContent={timeEditor} onQuickCommit={this.onQuickCommit} />
 					<div className="horosa-field-hint">当地时间</div>
 					<div className="horosa-time-adjust-inline">
 						<PlusMinusTime

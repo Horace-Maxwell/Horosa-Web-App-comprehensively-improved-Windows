@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/gua/MeiyiGuaSym.js b/astrostudyui/src/components/gua/MeiyiGuaSym.js
-index 204a416..ad2af77 100644
+index 90e319a7..cab16daf 100644
 --- a/astrostudyui/src/components/gua/MeiyiGuaSym.js
 +++ b/astrostudyui/src/components/gua/MeiyiGuaSym.js
 @@ -2,11 +2,14 @@ import { Component } from 'react';
@@ -16,9 +16,9 @@ index 204a416..ad2af77 100644
 +// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
 +// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
  
+ import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
  const { Option } = Select;
- 
-@@ -78,7 +81,7 @@ export default class MeiyiGuaSym extends Component{
+@@ -79,7 +82,7 @@ export default class MeiyiGuaSym extends Component{
      genGua8Dom(){
          let ops = Gua8.map((item, idx)=>{
              return (

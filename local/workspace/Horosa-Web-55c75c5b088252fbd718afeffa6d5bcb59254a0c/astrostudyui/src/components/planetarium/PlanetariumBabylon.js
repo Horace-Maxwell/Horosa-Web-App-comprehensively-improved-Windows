@@ -30,13 +30,16 @@ import GeoCoordModal from '../amap/GeoCoordModal';
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { dstAwareZoneAt } from '../../utils/timezone';
 import XQIcon from '../xq-icons';
-import { eclipticToEquatorial, equatorialToHorizontal, galacticToEquatorial, projectedEquatorialItem, meanObliquityDeg, localSiderealDeg, hourAngleDeg, riseTransitSet, sunEclipticLongitude } from './planetariumProjection';
+import { QuickTimeText } from '../comp/QuickTimeField';
+import { eclipticToEquatorial, equatorialToHorizontal, galacticToEquatorial, projectedEquatorialItem, meanObliquityDeg, localSiderealDeg, hourAngleDeg, riseTransitSet, sunEclipticLongitude, precessionMatrixJ2000ToDate, applyPrecessionMatrixInto, isJ2000Item } from './planetariumProjection';
 import { nearestPointToRay, buildStarIndex, findStarByName, starDisplayLabel } from './planetariumStarSearch';
 import { STAR_PROPER_NAMES } from './planetariumStarNames';
 import SANYUAN_WALLS from '../../data/sanyuanWalls.json';
 import CONSTELLATION_LINES from '../../data/constellationLines.json';
 import CONSTELLATION_BOUNDS from '../../data/constellationBounds.json';
 import CHINESE_ASTERISMS from '../../data/chineseAsterisms.json';
+import { fixedPopupFrame, pointerLocalRatio } from '../../utils/zoomDomain';
+import { definePageSettings } from '../../utils/pageSettingsStore';
 
 const BABYLON = typeof window !== 'undefined' ? window.BABYLON : null;
 
@@ -50,7 +53,7 @@ const GROUND_MAX_FOV = 1.62;
 const ORBIT_MIN_RADIUS = 80;
 const ORBIT_MAX_RADIUS = 2400;
 const PLANETARIUM_PERF_KEY = '__horosaPlanetariumPerf';
-const HORIZON_PANORAMA_URL = 'planetarium/horizon-panorama.png?v=20260522-landscape-5'; // 原照片全景地面(默认样式);程序化美化地面为可选第二样式
+const HORIZON_PANORAMA_URL = 'planetarium/horizon-panorama.png?v=20260522-landscape-5'; // 照片全景地面(唯一样式)
 // 星等过滤滑块边界:6.5 = BSC5(Yale 亮星表)肉眼可见上限 → 默认即此值,等价「全部显示」,零回归。
 const STAR_MAG_LIMIT_MIN = 1.0;
 const STAR_MAG_LIMIT_MAX = 6.5;
@@ -138,7 +141,7 @@ const DEFAULT_LAYERS = {
 	su28: true,
 	su28Sectors: true,
 	beidou: true,
-	qizheng: true,
+	// [TL-12] qizheng 键删除:无芯片、全文件零读取(七政四余不是天文馆图层;天文馆=纯天文)
 	// 「对标专业星图」增强层(默认关,经折叠面板/一键预设开启;celestialPoles 例外见下)。
 	starNames: false,
 	threeEnclosures: false,
@@ -163,6 +166,15 @@ const DEFAULT_LAYERS = {
 	xingguan: false, // 完整星官(312)连线+名,默认关 → 零回归
 	planetTrails: false, // 行星视运动轨迹,默认关 → 默认不带 includeTrails、零额外请求
 };
+
+// 显示设置跨会话保留(用户实报同类:设置改了之后每次重开软件都要重设)。本页此前零落盘:
+// 图层开关(36 项)/ 星等上限 / 观测视角 每次重开全回出厂值。观测时刻、观测点、搜索词、测量与选中态是输入 / 视图态,不保留。
+// 图层是「整张表」而不是覆盖层:每个键都有确定的出厂值,坏键回该键出厂值、未知键丢弃。
+export const PLANETARIUM_PAGE_SETTINGS = definePageSettings('horosa.planetarium.settings.v1', {
+	layers: { type: 'map', keys: Object.keys(DEFAULT_LAYERS).reduce((acc, k)=>{ acc[k] = { def: DEFAULT_LAYERS[k] }; return acc; }, {}) },
+	magLimit: { def: 4, type: 'number', min: STAR_MAG_LIMIT_MIN, max: STAR_MAG_LIMIT_MAX },
+	viewMode: { def: 'ground', oneOf: ['ground', 'orbit'] },
+});
 
 // 侧栏折叠分组(阶段 C):新旧图层统一收进 5 个可折叠分组。
 const LAYER_GROUPS = [
@@ -279,6 +291,25 @@ function toSkyVectorInto(item, radius, target){
 	target.set(r * Math.sin(azRad), radius * Math.sin(altRad), r * Math.cos(azRad));
 	return target;
 }
+
+// 最短弧差(度):a 归一到 (-180, 180],用于校准回包与本地外推值之差(跨 0/360 不出 359° 的假差)。
+function shortestArcDeg(a){
+	return ((((Number(a) || 0) + 540) % 360) + 360) % 360 - 180;
+}
+// 校准衔接淡出:回包落地后 BLEND_MS 内把「本地外推值 − 真值」的残差线性淡到 0 → 视觉无跳变、位置收敛到精确星历。
+// 旧写法把「旧基线按旧速度外推到校准时刻」当新基线、真值只在无旧基线时用 → 整段播放成步长=同步间隔的欧拉积分,误差只增不减(T-199)。
+const CALIB_BLEND_MS = 700;
+function calibBlendFactor(src, now){
+	if(!src || !Number.isFinite(src._blendAt)){ return 0; }
+	const k = 1 - (now - src._blendAt) / CALIB_BLEND_MS;
+	return k > 0 ? (k < 1 ? k : 1) : 0;
+}
+// 黄纬只在短窗内线性外推:月亮黄纬 ±5° 按 13.7 天正弦摆动,超 2 天的线性外推比「按住基线」更离谱(月进档实抓 125°)。
+const LAT_EXTRAP_MAX_DAYS = 2;
+// 播放校准也按「模拟时间」触发:两次校准间模拟时间 ≥ 0.25 天就再校(墙钟节奏只是上限),
+// 高速档(日进 / 月进)下校准点密到 API 延迟允许的极限,线性外推窗随之收窄。
+const CALIB_SIM_GAP_DAYS = 0.25;
+const CALIB_MIN_WALL_MS = 250;
 
 function normalizeDegrees(deg){
 	return ((Number(deg) % 360) + 360) % 360;
@@ -483,7 +514,7 @@ function formatHourAngle(deg){
 		return '--';
 	}
 	let d = ((Number(deg) % 360) + 360) % 360;
-	if(d > 180){ d -= 360; } // [-180,180] → 东(+)/西(−)
+	if(d > 180){ d -= 360; } // [-180,180]:时角 = 本地恒星时 − 赤经,已过中天(在西)为正、未到中天(在东)为负 [TL-09 此前注释写反]
 	const hours = d / 15;
 	const sign = hours < 0 ? '-' : '+';
 	const abs = Math.abs(hours);
@@ -791,6 +822,7 @@ function detailRowsForItem(item, moonPhase){
 	}
 	if(isTraditional && valuePresent(item.su28)){
 		rows.push(['所属宿', item.su28]);
+		if(item.distanceStar){ rows.push(['距星', item.distanceStar]); }   // [Q-371/T-350] 胃=35 Ari / 鬼=θ Cnc(真实星位)
 	}
 	if(isBody && valuePresent(item.sign)){
 		rows.push(['占星星座', joinParts([item.sign, valuePresent(item.signlon) ? formatDeg(item.signlon) : null], ' ')]);
@@ -1075,70 +1107,6 @@ function paintMoonPhase(ctx, phase, size){
 	ctx.restore();
 }
 
-function paintGroundSurface(ctx, width, height){
-	ctx.clearRect(0, 0, width, height);
-	const base = ctx.createLinearGradient(0, 0, width, height);
-	base.addColorStop(0, '#12221d');
-	base.addColorStop(0.42, '#09120f');
-	base.addColorStop(1, '#172018');
-	ctx.fillStyle = base;
-	ctx.fillRect(0, 0, width, height);
-
-	for(let y = 0; y < height; y += 2){
-		const shade = 10 + Math.round((y / height) * 18);
-		ctx.fillStyle = `rgba(${shade}, ${shade + 5}, ${shade + 9}, 0.06)`;
-		ctx.fillRect(0, y, width, 1);
-	}
-
-	for(let i = 0; i < 900; i += 1){
-		const x = noise2(i, 2, 31) * width;
-		const y = noise2(i, 4, 32) * height;
-		const r = 0.5 + noise2(i, 6, 33) * 2.6;
-		const warm = noise2(i, 7, 34) > 0.64;
-		ctx.fillStyle = warm ? 'rgba(108, 101, 57, 0.16)' : 'rgba(67, 118, 84, 0.15)';
-		ctx.beginPath();
-		ctx.ellipse(x, y, r * 2.8, r, noise2(i, 8, 35) * Math.PI, 0, Math.PI * 2);
-		ctx.fill();
-	}
-
-	for(let i = 0; i < 420; i += 1){
-		const x = noise2(i, 13, 39) * width;
-		const y = noise2(i, 14, 40) * height;
-		const h = 10 + noise2(i, 15, 41) * 32;
-		const lean = (noise2(i, 16, 42) - 0.5) * 8;
-		ctx.strokeStyle = i % 3 ? 'rgba(92, 132, 86, 0.16)' : 'rgba(130, 127, 72, 0.12)';
-		ctx.lineWidth = 1 + noise2(i, 17, 43) * 1.6;
-		ctx.beginPath();
-		ctx.moveTo(x, y);
-		ctx.lineTo(x + lean, y - h);
-		ctx.stroke();
-	}
-
-	for(let i = 0; i < 34; i += 1){
-		const y = noise2(i, 11, 36) * height;
-		ctx.strokeStyle = i % 2 ? 'rgba(100, 129, 134, 0.05)' : 'rgba(58, 78, 72, 0.07)';
-		ctx.lineWidth = 1 + noise2(i, 12, 37) * 3;
-		ctx.beginPath();
-		for(let x = 0; x <= width; x += 28){
-			const wave = Math.sin(x * 0.01 + i * 0.82) * (4 + noise2(i, x, 38) * 8);
-			if(x === 0){ ctx.moveTo(x, y + wave); }else{ ctx.lineTo(x, y + wave); }
-		}
-		ctx.stroke();
-	}
-
-	const centerGlow = ctx.createRadialGradient(width * 0.5, height * 0.46, width * 0.08, width * 0.5, height * 0.46, width * 0.64);
-	centerGlow.addColorStop(0, 'rgba(88, 126, 91, 0.22)');
-	centerGlow.addColorStop(0.48, 'rgba(34, 57, 39, 0.12)');
-	centerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-	ctx.fillStyle = centerGlow;
-	ctx.fillRect(0, 0, width, height);
-
-	const vignette = ctx.createRadialGradient(width * 0.5, height * 0.5, width * 0.18, width * 0.5, height * 0.5, width * 0.78);
-	vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
-	vignette.addColorStop(1, 'rgba(0, 0, 0, 0.36)');
-	ctx.fillStyle = vignette;
-	ctx.fillRect(0, 0, width, height);
-}
 
 // 程序化「地表裙边」纹理(替代旧照片全景,天象馆质感)。
 // UV 纵向:v=0 对应地平上方(topAlt),v=1 对应脚下(bottomAlt);horizonV 为地平线所在 v。
@@ -1230,7 +1198,7 @@ function buildObservationTime(fields){
 }
 
 // extras(可选)= 升落/轨迹门控等附加字段。🔴零回归铁律:extras 默认 {} → 不传 include* 时请求体与原状字节级一致
-// (后端 _truthy_flag 默认不开 → res 字节不变)。仅当 React 侧开「行星轨迹/升落时刻」层才注入对应 include* 标志。
+// (后端 _truthy_flag 默认不开 → res 字节不变)。行星轨迹只在 React 侧开该层时注入 includeTrails;升落时刻每次请求都带(详情区始终显精确升落,见 planetariumExtras)。
 // 按显示星等上限映射「应取星数」(BSC5 已按星等升序,starLimit=后端取最亮前 N)。默认 mag≤4(约520星)→取~800留余量,
 // 使后端返回的星表 payload ~10x 变小 → 序列化 / RSA 加密 / 传输 / JSON.parse 全程提速 → 首次显星不再卡 4s
 // (后端 _build_catalog_stars 仍全算后切片,故省的是大包的传输与加解密,这正是 4s 主因);
@@ -1322,6 +1290,18 @@ function getCachedPlanetariumState(){
 	return clonePlanetariumState(planetariumStateCache);
 }
 
+// 缓存是否仍对得上当前「时刻 + 观测点」(T-202):模块级缓存只带一份天象,重进页面 / 换命盘 / 玄学史联动后时刻地点已换,
+// 星表可复用(J2000 静态)但日月行星 / 宫位 / 天空必须按当前时刻地点重取,否则标题是新时刻、星体还是缓存那一刻。
+function cachedStateMatches(cached, time, fields){
+	if(!cached || !cached.observer){ return false; }
+	const jdNow = time ? (time.jdn || (time.calcJdn && time.calcJdn())) : null;
+	const jdCached = Number(cached.observer.jd);
+	if(!Number.isFinite(jdNow) || !Number.isFinite(jdCached) || Math.abs(jdNow - jdCached) > (1 / 1440)){ return false; }
+	const want = observerFromFields(fields, null);
+	const have = observerFromData(cached.observer);
+	return Math.abs((want.lat || 0) - (have.lat || 0)) < 0.01 && Math.abs((want.lon || 0) - (have.lon || 0)) < 0.01;
+}
+
 class PlanetariumRenderer {
 	constructor(canvas, onPick, onMetrics, onInteraction){
 		this.canvas = canvas;
@@ -1346,6 +1326,27 @@ class PlanetariumRenderer {
 			adaptToDeviceRatio: true,
 		});
 		this.scene = new BABYLON.Scene(this.engine);
+		// 引擎的指针坐标是「clientX − 画布 rect.left」(视觉域),而它自己的拾取(POINTERPICK 命中行星 / 亮星)与 createPickingRay 都按
+		// 画布本地 CSS 坐标(布局域)解释 —— 壳缩放档下两者差 z 倍,点不中 / 点到别的天体(100% 档重合,看不出来)。
+		// 在引擎更新指针位置之后立刻按「画布布局宽 ÷ rect 宽」折回;接口缺席(引擎升级改了内部结构)就退到 pickXY() 里只修本类自己的射线。
+		this._pointerDomainPatched = false;
+		try{
+			const im = this.scene._inputManager;
+			if(im && typeof im._updatePointerPosition === 'function'){
+				const origUpdate = im._updatePointerPosition.bind(im);
+				im._updatePointerPosition = (evt)=>{
+					origUpdate(evt);
+					const k = pointerLocalRatio(canvas);
+					if(k.kx !== 1 || k.ky !== 1){
+						im._pointerX *= k.kx;
+						im._pointerY *= k.ky;
+						im._unTranslatedPointerX = im._pointerX;
+						im._unTranslatedPointerY = im._pointerY;
+					}
+				};
+				this._pointerDomainPatched = true;
+			}
+		}catch(e){ this._pointerDomainPatched = false; }
 		this.scene.clearColor = new BABYLON.Color4(0.008, 0.012, 0.026, 1);
 		this.scene.ambientColor = new BABYLON.Color3(0.12, 0.16, 0.3);
 		this.groups = [];
@@ -1565,7 +1566,6 @@ class PlanetariumRenderer {
 		this.groundMat = groundMat;
 		this.groundOccluder = groundOccluder;
 		this.horizonPanorama = this.createHorizonPanorama();
-		this.groundDisk = this.createGroundDisk();
 		this.horizonMist = this.createHorizonMist();
 		this.landscapeMeshes = [];
 
@@ -1679,13 +1679,10 @@ class PlanetariumRenderer {
 
 	setGroundElementsEnabled(enabled){
 		// 地面元素最终显隐 = 处于地表观测(enabled) 且 「地面」开关开。关地面 → 看到地平线以下整个天球。
-		// 地面盘(groundDisk)是程序化干净地面(替代旧照片全景);horizonMist 为地平柔光带。
+		// 地面 = 照片全景(唯一样式);horizonMist 为地平柔光带。[TL-12] 此前另建一枚从不启用的「程序化地面盘」(无键无入口),已删。
 		const groundOn = enabled && !!(this.layers && this.layers.ground);
 		if(this.groundOccluder){
 			this.groundOccluder.setEnabled(false);
-		}
-		if(this.groundDisk){
-			this.groundDisk.setEnabled(groundOn && !!(this.layers && this.layers.groundProcedural)); // 脚下圆盘仅程序化样式用;照片样式无需
 		}
 		if(this.horizonPanorama){
 			this.horizonPanorama.setEnabled(groundOn);
@@ -1981,7 +1978,7 @@ class PlanetariumRenderer {
 		mat.disableDepthTest = true;
 		mat.alphaMode = BABYLON.Engine.ALPHA_COMBINE;
 		mesh.material = mat;
-		this.applyHorizonTexture(mat); // 按 groundProcedural 设纹理(默认=原照片全景)
+		this.applyHorizonTexture(mat); // 原照片全景纹理
 		return mesh;
 	}
 
@@ -1995,34 +1992,6 @@ class PlanetariumRenderer {
 		mat.diffuseTexture = tex; mat.emissiveTexture = tex; mat.opacityTexture = tex;
 	}
 
-	// 脚下程序化地面圆盘:补裙边(到 -72°)正下方的小孔洞,使俯视也是连续干净地面(天象馆质感,非照片)。
-	// 与裙边底边(alt=-72°)同高、半径略大于其水平半径,朝上铺设;纹理用 paintGroundSurface 干净渐变。
-	createGroundDisk(){
-		const skirtRadius = LINE_RADIUS - 18;
-		const bottomAlt = -72;
-		const yBottom = skirtRadius * Math.sin(degToRad(bottomAlt));
-		const rBottom = skirtRadius * Math.cos(degToRad(bottomAlt));
-		const disk = BABYLON.MeshBuilder.CreateDisc('ground-disk', { radius: rBottom * 1.08, tessellation: 96 }, this.scene);
-		disk.rotation.x = Math.PI / 2; // 立面 → 水平,朝上
-		disk.position.y = yBottom + 1; // 紧贴裙边底边内缘,略抬避免 z-fighting
-		disk.isPickable = false;
-		disk.alwaysSelectAsActiveMesh = true;
-		disk.renderingGroupId = 1;
-		const texture = new BABYLON.DynamicTexture('ground-disk-texture', { width: 512, height: 512 }, this.scene, true);
-		texture.hasAlpha = false;
-		paintGroundSurface(texture.getContext(), 512, 512);
-		texture.update(false);
-		const mat = new BABYLON.StandardMaterial('ground-disk-material', this.scene);
-		mat.disableLighting = true;
-		mat.diffuseTexture = texture;
-		mat.emissiveTexture = texture;
-		mat.diffuseColor = new BABYLON.Color3(0.5, 0.5, 0.48);
-		mat.emissiveColor = new BABYLON.Color3(0.5, 0.5, 0.48);
-		mat.specularColor = BABYLON.Color3.Black();
-		mat.backFaceCulling = false;
-		disk.material = mat;
-		return disk;
-	}
 
 	createHorizonMist(){
 		const mesh = BABYLON.MeshBuilder.CreateCylinder('horizon-mist-layer', {
@@ -2230,6 +2199,10 @@ class PlanetariumRenderer {
 		}
 		this.lastData = data;
 		this.currentMoonPhase = data.sky && data.sky.moonPhase ? data.sky.moonPhase : null;
+		// 🔴 全量 / 场景回包的 bodies 是「该回包时刻」的真值:外推基线时刻必须一并复位(T-201)。
+		// 旧写法只在「改时间」入口复位 _calibJd,换地 / 回命盘时地 / 行星轨迹重取后新真值仍乘 (显示时刻 − 陈旧 _calibJd) 外推一次
+		// → 时间差算两遍(北京→伦敦全量回来后月亮差 4.8°)。置 null → 下一次 updateProjectedTime 以显示时刻为基线时刻(dtJd=0)。
+		this._calibJd = null;
 		const started = nowMs();
 		const hasStarCatalog = !!(data.stars && data.stars.catalog && data.stars.catalog.length);
 		this.updateSky(data);
@@ -2373,20 +2346,32 @@ class PlanetariumRenderer {
 			if(body){
 				const oldSrc = item.source;
 				// 旧基线存在且本次校准有 jd → 算旧外推到 newCalibJd 时刻的 lon/lat(=当前 mesh 在帧循环里下一刻应在的位置)
-				let newBaseLon = null;
-				let newBaseLat = null;
+				// 🔴 T-199 根修:新基线 = 校准回包的**真值**(body.lon/lat),不再用「旧基线按旧速度外推到校准时刻」当基线。
+				// 无缝衔接改由残差淡出实现:记「本地外推到校准时刻的位置 − 真值」为 _blendLon/_blendLat,
+				// 帧循环在 CALIB_BLEND_MS 内把残差线性淡到 0 → 视觉连续,位置收敛到精确星历;误差不再逐次校准累积。
+				let prevExtrapLon = null;
+				let prevExtrapLat = null;
 				const calibDtJd = (Number.isFinite(oldCalibJd) && Number.isFinite(newCalibJd)) ? (newCalibJd - oldCalibJd) : null;
+				const nowB = nowMs();
+				const oldK = calibBlendFactor(oldSrc, nowB);
 				if(calibDtJd !== null && Number.isFinite(oldSrc._baseLon) && Number.isFinite(oldSrc.lonspeed)){
-					newBaseLon = normalizeDegrees(oldSrc._baseLon + oldSrc.lonspeed * calibDtJd);
+					prevExtrapLon = normalizeDegrees(oldSrc._baseLon + oldSrc.lonspeed * calibDtJd + (Number(oldSrc._blendLon) || 0) * oldK);
 				}
-				if(calibDtJd !== null && Number.isFinite(oldSrc._baseLat) && Number.isFinite(oldSrc.latspeed)){
-					newBaseLat = oldSrc._baseLat + oldSrc.latspeed * calibDtJd;
+				if(calibDtJd !== null && Number.isFinite(oldSrc._baseLat)){
+					const latDt = Math.max(-LAT_EXTRAP_MAX_DAYS, Math.min(LAT_EXTRAP_MAX_DAYS, calibDtJd));
+					prevExtrapLat = oldSrc._baseLat + (Number.isFinite(oldSrc.latspeed) ? oldSrc.latspeed * latDt : 0) + (Number(oldSrc._blendLat) || 0) * oldK;
 				}
 				// 引用赋值:item.source = body → src 与 state.data.bodies[i] 共享同一对象。
 				// 后续帧 mutate body.lon/lat/ra/decl → state.data.bodies 同步更新 → 右栏 renderSelected 实时拿到外推值(不再 2.5s 一跳)。
 				item.source = body;
-				body._baseLon = (newBaseLon !== null) ? newBaseLon : body.lon;
-				body._baseLat = (newBaseLat !== null) ? newBaseLat : (Number.isFinite(body.lat) ? body.lat : 0);
+				body._baseLon = body.lon;
+				body._baseLat = Number.isFinite(body.lat) ? body.lat : 0;
+				// 只有播放中(skipReproject=true,帧循环在跑)才淡出残差;暂停 / 单步没有后续帧来淡,必须直接落真值(否则停在陈旧外推值)
+				body._blendLon = (skipReproject && prevExtrapLon !== null && Number.isFinite(body.lon)) ? shortestArcDeg(prevExtrapLon - body.lon) : 0;
+				body._blendLat = (skipReproject && prevExtrapLat !== null) ? (prevExtrapLat - body._baseLat) : 0;
+				// 残差过大(> 5°,如时刻大跳后的首次校准)不淡出,直接落真值:淡出只为消 sub-degree 级的衔接跳变。
+				if(Math.abs(body._blendLon) > 5 || Math.abs(body._blendLat) > 5){ body._blendLon = 0; body._blendLat = 0; }
+				body._blendAt = (body._blendLon !== 0 || body._blendLat !== 0) ? nowB : undefined;
 				// ⚠ skipReproject=false(单步)时立即设 mesh 位置;播放中(skipReproject=true)留给下一帧 RAF
 				// updateProjectedTime 用 frame_jd 平滑外推,避免从 frame_jd 跳回 syncJd 位置
 				if(!skipReproject){
@@ -2422,12 +2407,24 @@ class PlanetariumRenderer {
 		if(!time || !this.lastData){
 			return 0;
 		}
+		// [Q-240/T-204] 记住最近一次投影的显示时刻/观测点:星等上限上调走慢路径新建点云时,建完按此重投影,
+		// 否则粒子停在后端上次全量时刻(播放/步进后暂停再拖滑块,整片星空跳回旧时刻)。
+		this._lastProjectedTime = time;
+		this._lastProjectedFields = fields;
 		const started = nowMs();
 		const jd = time.jdn || time.calcJdn();
 		const observer = observerFromFields(fields, this.lastData);
 		this.setReadoutContext(jd, observer); // 让「点击空白处读坐标」用当前时刻/观测点
 		// ① 天文馆:仅地表观测(ground)加大气折射;天球外观(orbit)展示几何原貌。切模式时 React 侧传 override 立即生效(不等相机动画)。
 		const applyRefraction = (typeof applyRefractionOverride === 'boolean') ? applyRefractionOverride : this.refractionActive();
+		// 🔴 T-203:BSC5 星表是 J2000 赤道坐标,投影前先按当日历元做岁差(矩阵每帧算一次、半天内复用;逐星只 9 次乘加 + atan2/asin,
+		// 写进复用的 eqScratch,热路径仍零分配)。否则恒星与当日历元的日月行星 / 二十八宿距星同屏两套历元(当代差 0.35°,公元 1000 年差十几度)。
+		if(!this._precessionMatrix || !Number.isFinite(this._precessionMatrixJd) || Math.abs(jd - this._precessionMatrixJd) > 0.5){
+			this._precessionMatrix = precessionMatrixJ2000ToDate(jd);
+			this._precessionMatrixJd = jd;
+		}
+		const precessionMatrix = this._precessionMatrix;
+		const eqScratch = this._eqScratch || (this._eqScratch = { ra: 0, decl: 0 });
 		if(this.starPcs && this.starPcs.particles && this.starCatalog && this.starCatalog.length === this.starPcs.particles.length){
 			this.starCatalog.forEach((star, idx)=>{
 				const particle = this.starPcs.particles[idx];
@@ -2436,7 +2433,8 @@ class PlanetariumRenderer {
 				}
 				// 🚀 热路径零分配:直接 equatorialToHorizontal(略过 projectedEquatorialItem 的 {...star} 整对象 spread)+ toSkyVectorInto 写入既有 particle.position
 				// (略过 new Vector3)。两处每帧各省 8404 次堆分配 → 消除周期性 major GC(连续播放卡顿根因)。星表恒带 ra/decl,位置字节级一致。
-				const pos = equatorialToHorizontal(star.ra, star.decl, jd, observer, applyRefraction);
+				applyPrecessionMatrixInto(precessionMatrix, star.ra, star.decl, eqScratch);
+				const pos = equatorialToHorizontal(eqScratch.ra, eqScratch.decl, jd, observer, applyRefraction);
 				if(pos){ toSkyVectorInto(pos, STAR_RADIUS, particle.position); }
 			});
 			this.starPcs.setParticles();
@@ -2448,6 +2446,7 @@ class PlanetariumRenderer {
 		// 校准回来时 applyPlaybackCalibration 会重设 _calibJd → 外推归零并与精确数据无缝衔接。
 		if(this._calibJd === undefined || this._calibJd === null){ this._calibJd = jd; }
 		const dtJd = jd - this._calibJd; // 单位:日(JD 计)
+		const frameNow = nowMs();
 		this.projectableMeshes.forEach((item)=>{
 			const isSun = item && item.source && item.source.id === 'Sun';
 			// 性能守卫:隐藏层(网格/极点等)只付 isEnabled 检查,跳过重投影。但太阳须始终投影(驱动天空昼夜),不受「星体」开关影响。
@@ -2475,10 +2474,15 @@ class PlanetariumRenderer {
 					src._baseLon = src.lon;
 					src._baseLat = Number.isFinite(src.lat) ? src.lat : 0;
 				}
-				const extrapLon = normalizeDegrees(src._baseLon + src.lonspeed * dtJd);
+				// 校准衔接残差按墙钟淡出(见 calibBlendFactor);淡完后 = 纯真值基线 + 线性外推。
+				const kBlend = calibBlendFactor(src, frameNow);
+				const extrapLon = normalizeDegrees(src._baseLon + src.lonspeed * dtJd + (Number(src._blendLon) || 0) * kBlend);
 				// 🆕 lat 也外推:有 latspeed 才推(行星 lat 速度可忽略时后端可能不给),无 latspeed 时用基线。
 				// 月亮 latspeed ±5°/day,3600x 下 7s 模拟时间内 lat 变化 0.5°(=月亮直径),不外推就会每 calib 跳一下。
-				const extrapLat = Number.isFinite(src.latspeed) ? (src._baseLat + src.latspeed * dtJd) : src._baseLat;
+				// 但只在 ±LAT_EXTRAP_MAX_DAYS 内线性外推(黄纬是小幅正弦量,长窗线性外推会推出 125° 的假黄纬)并夹到 ±90°。
+				const latDt = Math.max(-LAT_EXTRAP_MAX_DAYS, Math.min(LAT_EXTRAP_MAX_DAYS, dtJd));
+				const extrapLatRaw = (Number.isFinite(src.latspeed) ? (src._baseLat + src.latspeed * latDt) : src._baseLat) + (Number(src._blendLat) || 0) * kBlend;
+				const extrapLat = Math.max(-90, Math.min(90, extrapLatRaw));
 				const eq = eclipticToEquatorial(extrapLon, extrapLat, jd);
 				if(eq){
 					const pos = equatorialToHorizontal(eq.ra, eq.decl, jd, observer, applyRefraction);
@@ -2590,7 +2594,13 @@ class PlanetariumRenderer {
 		// 🆕 暗星跟随:选中暗星时 _followStar 含 ra/decl,每帧重投影到当前 jd → mutate _followerMesh.position
 		// camera.lockedTarget 已挂 _followerMesh,自动跟着移动 = 相机持续居中暗星(随地球自转、岁差、播放时间移动均自动覆盖)。
 		if(this._followStar && this._followerMesh){
-			const fpos = equatorialToHorizontal(this._followStar.ra, this._followStar.decl, jd, observer, applyRefraction);
+			let fra = this._followStar.ra;
+			let fdecl = this._followStar.decl;
+			if(isJ2000Item(this._followStar)){
+				applyPrecessionMatrixInto(precessionMatrix, Number.isFinite(Number(this._followStar.raJ2000)) ? this._followStar.raJ2000 : fra, Number.isFinite(Number(this._followStar.declJ2000)) ? this._followStar.declJ2000 : fdecl, eqScratch);
+				fra = eqScratch.ra; fdecl = eqScratch.decl;
+			}
+			const fpos = equatorialToHorizontal(fra, fdecl, jd, observer, applyRefraction);
 			if(fpos){ toSkyVectorInto(fpos, STAR_RADIUS, this._followerMesh.position); }
 		}
 		return Math.round(nowMs() - started);
@@ -2682,7 +2692,8 @@ class PlanetariumRenderer {
 		this.skyTexture.update(false);
 	}
 
-	// 太阳(视)高度 → 天空昼夜模式:标准晨昏阈值 0/-6/-12/-18°(与后端 sky.mode 同口径)
+	// 太阳(视)高度 → 天空昼夜模式:标准晨昏阈值 0/-6/-12/-18°(与后端 sky.mode 同口径;
+	// [Q-372/T-351] 后端此前拿视高度比 -0.833° = 折射算两次,已统一到 0°,此注自此为真)
 	skyModeFromSunAlt(alt){
 		if(alt == null){ return null; }
 		if(alt > 0){ return 'day'; }
@@ -2730,11 +2741,6 @@ class PlanetariumRenderer {
 		if(this.groundMat){
 			this.groundMat.diffuseColor = new BABYLON.Color3(p.ground[0], p.ground[1], p.ground[2]);
 			this.groundMat.emissiveColor = new BABYLON.Color3(p.ground[0], p.ground[1], p.ground[2]);
-		}
-		if(this.groundDisk && this.groundDisk.material){
-			// 脚下圆盘跟随昼夜地面色(与裙边/地形协调)。
-			this.groundDisk.material.diffuseColor = new BABYLON.Color3(p.ground[0], p.ground[1], p.ground[2]);
-			this.groundDisk.material.emissiveColor = new BABYLON.Color3(p.ground[0], p.ground[1], p.ground[2]);
 		}
 		if(this.horizonPanorama && this.horizonPanorama.material){
 			this.horizonPanorama.material.diffuseColor = new BABYLON.Color3(p.panorama[0], p.panorama[1], p.panorama[2]);
@@ -2856,6 +2862,7 @@ class PlanetariumRenderer {
 			});
 			this.starPcs.setParticles();
 			this.updateBrightStars(stars);
+			this.reprojectStarsToDisplayTime();
 			return;
 		}
 		if(this.starBuildPending){
@@ -2892,9 +2899,21 @@ class PlanetariumRenderer {
 			this.starBuildPending = false;
 			this.applyLayerVisibility();
 			this.updateBrightStars(stars);
+			// [Q-240/T-204] 慢路径重建:粒子初始位置取自星表(后端上次全量时刻),必须按当前显示时刻重投影。
+			this.reprojectStarsToDisplayTime();
 		}).catch(()=>{
 			this.starBuildPending = false;
 		});
+	}
+
+	// [Q-240/T-204] 星云(重)建成后按最近一次显示时刻/观测点重投影;无记录(尚未播放/步进)= 与后端全量时刻一致,免投影。
+	reprojectStarsToDisplayTime(){
+		if(!this._lastProjectedTime || this.disposed || !this.scene){
+			return;
+		}
+		try{
+			this.updateProjectedTime(this._lastProjectedTime, this._lastProjectedFields);
+		}catch(e){ /* 投影失败不影响建云 */ }
 	}
 
 	updateBrightStars(stars){
@@ -3291,7 +3310,7 @@ class PlanetariumRenderer {
 		const pts = [];
 		for(let l = 0; l <= 360 + 1e-9; l += 3){
 			const e = galacticToEquatorial(l % 360, 0);
-			pts.push(projectedEquatorialItem({ ra: e.ra, decl: e.decl }, jd, obs));
+			pts.push(projectedEquatorialItem({ ra: e.ra, decl: e.decl, epoch: 'J2000' }, jd, obs)); // 银道极是 J2000 定义 → 同做岁差
 		}
 		this.createLine('galactic-equator', pts, new BABYLON.Color3(0.7, 0.78, 0.95), 0.45, group, LINE_RADIUS + 8, true);
 		return group;
@@ -3318,7 +3337,7 @@ class PlanetariumRenderer {
 			const pts = [];
 			for(let l = 0; l <= 360 + 1e-9; l += 3){
 				const e = galacticToEquatorial(l % 360, b);
-				pts.push(projectedEquatorialItem({ ra: e.ra, decl: e.decl }, jd, obs, refr));
+				pts.push(projectedEquatorialItem({ ra: e.ra, decl: e.decl, epoch: 'J2000' }, jd, obs, refr));
 			}
 			this.createLine(`milkyway-band-${s}`, pts, baseColor, alpha, group, LINE_RADIUS + 6, true);
 		}
@@ -3334,7 +3353,7 @@ class PlanetariumRenderer {
 		((SANYUAN_WALLS && SANYUAN_WALLS.walls) || []).forEach((wall)=>{
 			const stars = (wall.stars || []).filter((s)=>Number.isFinite(Number(s.ra)) && Number.isFinite(Number(s.decl)));
 			if(stars.length < 2){ return; }
-			const pts = stars.map((s)=>projectedEquatorialItem({ ra: s.ra, decl: s.decl }, jd, obs, refr));
+			const pts = stars.map((s)=>projectedEquatorialItem({ ra: s.ra, decl: s.decl, epoch: 'J2000' }, jd, obs, refr));
 			const line = this.createLine(`sanyuan-${wall.key}`, pts, new BABYLON.Color3(0.78, 0.6, 0.95), 0.6, group, LINE_RADIUS + 38, true);
 			if(line){ line.metadata = { enclosure: wall.key }; }
 			const label = this.createTextPlane(wall.name, 30, '#e6d4ff', 'rgba(0,0,0,0)');
@@ -3342,7 +3361,7 @@ class PlanetariumRenderer {
 			label.parent = group;
 			label.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
 			label.metadata = { labelKind: 'enclosure' };
-			this.registerProjectableMesh(label, { ra: stars[0].ra, decl: stars[0].decl }, LINE_RADIUS + 44);
+			this.registerProjectableMesh(label, { ra: stars[0].ra, decl: stars[0].decl, epoch: 'J2000' }, LINE_RADIUS + 44);
 		});
 		return group;
 	}
@@ -3378,8 +3397,8 @@ class PlanetariumRenderer {
 				const b = (item.stars || [])[seg[1]];
 				if(!a || !b || !Number.isFinite(Number(a.ra)) || !Number.isFinite(Number(a.decl)) || !Number.isFinite(Number(b.ra)) || !Number.isFinite(Number(b.decl))){ return; }
 				const pts = [
-					projectedEquatorialItem({ ra: a.ra, decl: a.decl }, jd, obs, refr),
-					projectedEquatorialItem({ ra: b.ra, decl: b.decl }, jd, obs, refr),
+					projectedEquatorialItem({ ra: a.ra, decl: a.decl, epoch: 'J2000' }, jd, obs, refr),
+					projectedEquatorialItem({ ra: b.ra, decl: b.decl, epoch: 'J2000' }, jd, obs, refr),
 				];
 				const line = this.createLine(`asterism-xingguan-${ai}-${si}`, pts, color, 0.62, group, radius, true);
 				if(line){ line.metadata = { layerKey: 'xingguan' }; }
@@ -3390,7 +3409,7 @@ class PlanetariumRenderer {
 			stars.forEach((s)=>{ const m = Number(s.mag); if(Number.isFinite(m) && (!Number.isFinite(minMag) || m < minMag)){ minMag = m; anchor = s; } });
 			const name = item.name || item.pinyin || '';
 			if(name){
-				const labelSrc = { ra: anchor.ra, decl: anchor.decl };
+				const labelSrc = { ra: anchor.ra, decl: anchor.decl, epoch: 'J2000' };
 				const plane = this.createTextPlane(name, 24, '#dbe6f5', 'rgba(0,0,0,0)');
 				plane.position = toSkyVector(projectedEquatorialItem(labelSrc, jd, obs, refr), labelRadius);
 				plane.parent = group;
@@ -3435,7 +3454,7 @@ class PlanetariumRenderer {
 			(c.lines || []).forEach((seg, idx)=>{
 				const stars = (seg || []).filter((s)=>Number.isFinite(Number(s.ra)) && Number.isFinite(Number(s.decl)));
 				if(stars.length < 2){ return; }
-				const pts = stars.map((s)=>projectedEquatorialItem({ ra: s.ra, decl: s.decl }, jd, obs, refr));
+				const pts = stars.map((s)=>projectedEquatorialItem({ ra: s.ra, decl: s.decl, epoch: 'J2000' }, jd, obs, refr));
 				this.createLine(`constellation-${c.abbr || 'x'}-${idx}`, pts, new BABYLON.Color3(0.5, 0.62, 0.85), 0.35, group, LINE_RADIUS + 18, true);
 			});
 		});
@@ -3452,7 +3471,7 @@ class PlanetariumRenderer {
 			(c.lines || []).forEach((seg, idx)=>{
 				const stars = (seg || []).filter((s)=>Number.isFinite(Number(s.ra)) && Number.isFinite(Number(s.decl)));
 				if(stars.length < 2){ return; }
-				const pts = stars.map((s)=>projectedEquatorialItem({ ra: s.ra, decl: s.decl }, jd, obs, refr));
+				const pts = stars.map((s)=>projectedEquatorialItem({ ra: s.ra, decl: s.decl, epoch: 'J2000' }, jd, obs, refr));
 				this.createLine(`constellation-bound-${c.abbr || 'x'}-${idx}`, pts, new BABYLON.Color3(0.45, 0.5, 0.6), 0.22, group, LINE_RADIUS + 16, true);
 			});
 		});
@@ -3470,13 +3489,13 @@ class PlanetariumRenderer {
 			if(Number(star.mag) > 2.6){ return; }
 			const name = starProperName(star);
 			if(!name){ return; }
-			const proj = projectedEquatorialItem({ ra: star.ra, decl: star.decl }, jd, obs, refr);
+			const proj = projectedEquatorialItem({ ra: star.ra, decl: star.decl, epoch: 'J2000' }, jd, obs, refr);
 			const plane = this.createTextPlane(name, 26, '#cfe0ff', 'rgba(0,0,0,0)');
 			plane.position = toSkyVector(proj, STAR_RADIUS + 8);
 			plane.parent = group;
 			plane.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
 			plane.metadata = { labelKind: 'starName' };
-			this.registerProjectableMesh(plane, { ra: star.ra, decl: star.decl }, STAR_RADIUS + 8);
+			this.registerProjectableMesh(plane, { ra: star.ra, decl: star.decl, epoch: 'J2000' }, STAR_RADIUS + 8);
 		});
 		return group;
 	}
@@ -3789,7 +3808,11 @@ class PlanetariumRenderer {
 
 	createTraditionalLayer(kind, items, color, diameter){
 		const group = this.makeGroup(`${kind}-layer`);
-		items.forEach((item)=>{
+		items.forEach((raw)=>{
+			// [Q-371/T-350] 二十八宿星点按传统距星真实位置画(后端 trueStar:胃=35 Ari / 鬼=θ Cnc,当日历元 + 地平坐标);
+			// 宿界/宿区间仍按 item.ra(REAL 口径含经验赤经修正)——两者此前同用修正后坐标,星点不落在任何真实星位上。
+			const ts = kind === 'su28' && raw && raw.trueStar && Number.isFinite(Number(raw.trueStar.ra)) ? raw.trueStar : null;
+			const item = ts ? { ...raw, ra: ts.ra, decl: ts.decl, azimuth: ts.azimuth, altitudeTrue: ts.altitudeTrue, altitudeAppa: ts.altitudeAppa, distanceStar: ts.name } : raw;
 			const mesh = BABYLON.MeshBuilder.CreateSphere(`${kind}-${item.id || item.name}`, { diameter: diameter || 5, segments: 8 }, this.scene);
 			mesh.position = toSkyVector(item, BODY_RADIUS - 28);
 			mesh.material = this.material(`${kind}-mat-${item.id || item.name}`, color, 0.9);
@@ -3805,6 +3828,15 @@ class PlanetariumRenderer {
 		}
 	}
 
+	// 拾取射线要的是画布**本地 CSS 坐标**(布局域);引擎给的 scene.pointerX/Y = clientX − 画布 rect.left,是视觉域 ——
+	// 壳缩放档下两者差 z 倍:点星 / 读天区坐标 / 角距测量的射线会偏到「离画布原点 z 倍远」的方向上(100% 档重合,看不出来)。
+	// 按「画布布局宽 ÷ rect 宽」折回,不问缩放值。
+	pickXY(){
+		if(this._pointerDomainPatched){ return { x: this.scene.pointerX, y: this.scene.pointerY }; }   // 已在引擎入口折回,别折两次
+		const k = this.canvas ? pointerLocalRatio(this.canvas) : { kx: 1, ky: 1 };
+		return { x: this.scene.pointerX * k.kx, y: this.scene.pointerY * k.ky };
+	}
+
 	pickNearestStar(){
 		if(!this.camera || !this.scene || !this.starCatalog || !this.starCatalog.length || !this.onPick){
 			return null;
@@ -3814,7 +3846,8 @@ class PlanetariumRenderer {
 		}
 		let ray = null;
 		try{
-			ray = this.scene.createPickingRay(this.scene.pointerX, this.scene.pointerY, BABYLON.Matrix.Identity(), this.camera);
+			const pxy = this.pickXY();
+			ray = this.scene.createPickingRay(pxy.x, pxy.y, BABYLON.Matrix.Identity(), this.camera);
 		}catch(e){
 			ray = null;
 		}
@@ -3971,7 +4004,8 @@ class PlanetariumRenderer {
 		if(!this.camera || !this.scene){ return null; }
 		let ray = null;
 		try{
-			ray = this.scene.createPickingRay(this.scene.pointerX, this.scene.pointerY, BABYLON.Matrix.Identity(), this.camera);
+			const pxy = this.pickXY();
+			ray = this.scene.createPickingRay(pxy.x, pxy.y, BABYLON.Matrix.Identity(), this.camera);
 		}catch(e){ ray = null; }
 		if(!ray || !ray.direction){ return null; }
 		return this.skyReadoutFromVector(ray.direction);
@@ -4384,6 +4418,9 @@ class PlanetariumRenderer {
 	}
 }
 
+// [Q-372/T-351] 右栏「天空」五档中文名(与帮助「昼夜天色」同名);后端/前端 sky.mode 枚举不变。
+const SKY_MODE_CN = { day: '白昼', civilTwilight: '民用晨昏', nauticalTwilight: '航海晨昏', astronomicalTwilight: '天文晨昏', night: '夜' };
+
 class PlanetariumBabylon extends Component{
 	constructor(props){
 		super(props);
@@ -4404,8 +4441,11 @@ class PlanetariumBabylon extends Component{
 			speed: 0,
 			viewMode: 'ground',
 			layers: {...DEFAULT_LAYERS},
-			riseSetRequested: false, // 升落时刻开关(默认关 → 不带 includeRiseSet,零回归;开则重取带参,详情区显本地升落)
-			magLimit: 4, // 默认上限 4(只建/显 mag≤4 的较亮星,开场更快、星空更清爽;可拖到 6.5 看全 8404 星)
+			// 🔴 视角与图层**不在这里**恢复保存值:渲染端按出厂值初始化,天空 / 地面 / 懒建层 / 星官 / 行星轨迹 / 视角切换
+			// 这些副作用只挂在 componentDidUpdate 的「变化」分支上。保存值改在挂载末尾用一次 setState 补上(见 componentDidMount),
+			// 走与用户亲手点图层同一条路,副作用一个不落;直接塞进初始 state 会出现「按钮显示天球外观、画面仍是地表观测」。
+			magLimit: PLANETARIUM_PAGE_SETTINGS.load().magLimit, // 上次亲手设的星等上限(渲染端初始化时即按它建星;没存过 = 4)
+			// 默认上限 4(只建/显 mag≤4 的较亮星,开场更快、星空更清爽;可拖到 6.5 看全 8404 星)
 			measureMode: false, // 角距测量(默认关)
 			measureInfo: null, // 测量结果 { stage, startLabel, endLabel, separation }
 			skyReadout: null, // 点击空白天区的坐标读数
@@ -4449,12 +4489,10 @@ class PlanetariumBabylon extends Component{
 		this.markInteraction = this.markInteraction.bind(this);
 		this.scheduleBackgroundFull = this.scheduleBackgroundFull.bind(this);
 		this.toggleLayer = this.toggleLayer.bind(this);
-		this.toggleRiseSet = this.toggleRiseSet.bind(this);
 		this.changeMagLimit = this.changeMagLimit.bind(this);
 		this.toggleMeasureMode = this.toggleMeasureMode.bind(this);
 		this.changeSpeed = this.changeSpeed.bind(this);
 		this.jumpNow = this.jumpNow.bind(this);
-		this.toggleFullscreen = this.toggleFullscreen.bind(this);
 		this.toggleImmersive = this.toggleImmersive.bind(this);
 		this.searchTarget = this.searchTarget.bind(this);
 		this.setSearchQuery = this.setSearchQuery.bind(this);
@@ -4465,6 +4503,7 @@ class PlanetariumBabylon extends Component{
 		this.clearObserverOverride = this.clearObserverOverride.bind(this);
 		this.changeObserverTime = this.changeObserverTime.bind(this);
 		this.toggleTimeEditor = this.toggleTimeEditor.bind(this);
+		this.quickCommitObserverTime = this.quickCommitObserverTime.bind(this);
 		this._onTimeEditorDocMouseDown = this._onTimeEditorDocMouseDown.bind(this);
 		this._timeEditorRef = createRef();
 		this._timeDisplayRef = createRef();
@@ -4505,6 +4544,13 @@ class PlanetariumBabylon extends Component{
 		this.renderer.onMeasure = (info)=>{ if(this._isUnmounted){ return; } this.setState({ measureInfo: info }); };
 		this.renderer.onSkyReadout = (readout)=>{ if(this._isUnmounted){ return; } this.setState({ skyReadout: readout, selected: null }); };
 		this.renderer.setMagLimit(this.state.magLimit);
+		// 恢复上次亲手设的图层 / 视角:与出厂值不同才补一次 setState → 走 componentDidUpdate 的既有「变化」分支(渲染端副作用齐全)。
+		// 这不是用户操作,不经 toggleLayer / changeViewMode,所以不会反过来再落盘。
+		const savedView = PLANETARIUM_PAGE_SETTINGS.load();
+		const restore = {};
+		if(Object.keys(DEFAULT_LAYERS).some((k)=>savedView.layers[k] !== DEFAULT_LAYERS[k])){ restore.layers = { ...DEFAULT_LAYERS, ...savedView.layers }; }
+		if(savedView.viewMode !== this.state.viewMode){ restore.viewMode = savedView.viewMode; }
+		if(Object.keys(restore).length){ this.setState(restore); }
 		// perf:planetariumRenderGating —— 窗口隐藏/最小化时暂停 Babylon 渲染循环(可见时一字不动);恢复即重绘实况帧。
 		this._onVisibility = ()=>{ this._applyRenderActivity(); };
 		document.addEventListener('visibilitychange', this._onVisibility);
@@ -4526,7 +4572,9 @@ class PlanetariumBabylon extends Component{
 			// 🚀 默认关贵图层:某层刚开 → 懒建该层(内部只建已开未建者;随后 4112 重投影定位、applyLayerVisibility 显隐)。
 			this.renderer._buildOffLayers(false);
 			// 星官(312)层刚打开且尚未建 → 懒构建一次(默认关不建省开场;此处补建,随后重投影定位、applyLayerVisibility 显隐)。
-			if(this.state.layers.xingguan && !prevState.layers.xingguan){
+			// 数据还没到(刚挂载、从保存值恢复出「星官开」)时不在这里建:观测者是空的,建出来的 312 组会在首份数据到达时
+			// 被 clearDynamicData 整个拆掉重建,开场白建一遍;首份数据的 updateData 本来就会按当前开关建。
+			if(this.state.layers.xingguan && !prevState.layers.xingguan && this.renderer.lastData){
 				this.renderer.ensureChineseAsterismsBuilt();
 			}
 			// 🔴 切换图层后必须立即按当前时刻重投影:性能守卫会跳过隐藏层的重投影,使其停在旧时刻位置;
@@ -4735,6 +4783,10 @@ class PlanetariumBabylon extends Component{
 		const cached = getCachedPlanetariumState();
 		if(cached && this.renderer){
 			this.renderCachedState(cached);
+			// 缓存时刻 / 观测点与当前不符 → 星表照用,天象(日月行星 / 天空 / 事件 / 宫位)立即按当前时刻地点重取(T-202)。
+			if(!cachedStateMatches(cached, this.state.time, this.getEffectiveFields())){
+				this.requestSceneCalibration(this.state.time, 'cache-stale');
+			}
 			return;
 		}
 		if(this.renderer){
@@ -4841,7 +4893,9 @@ class PlanetariumBabylon extends Component{
 		const gpsLon = rec.gpsLng !== undefined && rec.gpsLng !== null ? rec.gpsLng : rec.lng;
 		// 选新观测点 → 按新坐标自动校正时区（GeoCoordModal 未手改时区时只传坐标、由上层推断，
 		// 与全 App 地点→时区口径一致：ZiWeiInput/NongLi/CnTradition）。rec.zone(手改)优先。
-		// setZone 仅改时区标签、保留钟面时刻、不移位时间；applyFastSceneChange 会按新 time 重算天象。
+		// setZone 仅改时区标签、保留钟面时刻(绝对时刻随时区差移动);applyFastSceneChange 会按新 time 重算天象。
+		// [TL-10] 记住进入时的时区:「回命盘地点」要连时区一起还原(此前只清地点,时区仍是刚选的城市 → 天空比命盘时刻偏 N 小时而时间大字与命盘一模一样)
+		const prevZone = this.state.observerOverride && this.state.observerOverride.prevZone ? this.state.observerOverride.prevZone : (this.state.time && this.state.time.zone) || '';
 		const time = this.state.time && this.state.time.clone ? this.state.time.clone() : this.state.time;
 		if(time && time.setZone){
 			try{
@@ -4863,6 +4917,7 @@ class PlanetariumBabylon extends Component{
 				gpsLon,
 				// 观测点地名:经纬度查找带回则用其名(城市/区县),否则回退通用「自选观测点」。
 				label: (rec && rec.name) ? `${rec.name}` : '自选观测点',
+				prevZone,
 			},
 			selected: null,
 			speed: 0,
@@ -4873,7 +4928,15 @@ class PlanetariumBabylon extends Component{
 		if(!this.state.observerOverride){
 			return;
 		}
+		// [TL-10] 连时区一起还原到进入「经纬度选择」前(钟面时刻不动 → 绝对时刻回到命盘时刻)
+		const prevZone = this.state.observerOverride.prevZone;
+		let time = this.state.time;
+		if(prevZone && time && time.setZone && time.zone !== prevZone){
+			time = time.clone ? time.clone() : time;
+			try{ time.setZone(prevZone); }catch(e){ /* 保留现时区 */ }
+		}
 		this.setState({
+			time,
 			observerOverride: null,
 			selected: null,
 			speed: 0,
@@ -4925,16 +4988,23 @@ class PlanetariumBabylon extends Component{
 		});
 	}
 
+	// 双击时间行键入 14 位数字 → 与编辑面板「确定」同路(confirmed=true:暂停播放 + 全量重取该时刻天象)。
+	quickCommitObserverTime(dt){
+		this.changeObserverTime({ value: dt, confirmed: true });
+	}
+
 	// 时间编辑面板:自控开合(不用 antd Popover,避免其受控 click-outside 与嵌套 Select 下拉互相抢闭)。
 	toggleTimeEditor(){
 		const next = !this.state.timeEditorOpen;
 		// 面板用 position:fixed(逃出左栏 overflow:auto 的裁切),坐标按时间显示元素实时算。
 		let pos = this.state.timeEditorPos || null;
 		if(next && this._timeDisplayRef.current){
-			const r = this._timeDisplayRef.current.getBoundingClientRect();
+			// rect(视觉域)先换到 fixed 面板 style 所在的布局域,再与布局视口 / 面板宽(CSS 尺寸)同域比较;z=1 时逐值不变。
+			const frame = fixedPopupFrame();
+			const r = frame.rect(this._timeDisplayRef.current.getBoundingClientRect());
 			const W = 360;
 			let left = r.left;
-			if(left + W > window.innerWidth - 8){ left = Math.max(8, window.innerWidth - 8 - W); }
+			if(left + W > frame.viewportWidth - 8){ left = Math.max(8, frame.viewportWidth - 8 - W); }
 			pos = { top: Math.round(r.bottom + 6), left: Math.round(left) };
 		}
 		this.setState({ timeEditorOpen: next, timeEditorPos: pos });
@@ -4993,7 +5063,14 @@ class PlanetariumBabylon extends Component{
 			// 同时清掉 _pendingCalib:它含暂停前最后一次 sync 的旧 body 数据,若被后续 flushPendingCalib 合并到 state.data 会让右栏跳回 sync 时刻数据。
 			this._pendingCalib = null;
 			if(!this._isUnmounted){
-				this.forceUpdate();
+				// 🔴 暂停时把 state.time 对齐到真实暂停帧(此前只 forceUpdate,state.time 落后 ≤120ms×速率:月进档 = 3.6 天 →
+				// 底栏 JD / 右栏时刻 与场景相差三天,单步、校准都从两套时刻出发)。stepTime 本就 setState({time}),这里同律。
+				this.setState({ time: pauseTime && pauseTime.clone ? pauseTime.clone() : pauseTime });
+			}
+			// 🔴 暂停帧必须是精确帧(T-199/T-200):高速档下最后一次校准可能已陈旧数天(月进档实抓:暂停时月龄差 6.6 天、黄纬差 2°),
+			// 暂停后没有帧循环再修正 → 以暂停时刻强制校准一次落地(force:不受「暂停丢在途回包」守卫影响;暂停态不做残差淡出,直接落真值)。
+			if(this.renderer && this.state.data){
+				this.requestPlaybackCalibration(pauseTime, { force: true, displayTime: pauseTime });
 			}
 			return;
 		}
@@ -5059,7 +5136,13 @@ class PlanetariumBabylon extends Component{
 		const aspeed = Math.abs(speed); // 反向播放(负速度)也按速率定重取节奏;原 speed<=60 对负值恒真→反向永远落到 15s 慢档
 		let syncEvery = aspeed <= 60 ? 15000 : (aspeed <= 86400 ? 7000 : 5000);
 		if(this.state.selected && this.state.selected.layer === 'body'){ syncEvery = Math.min(syncEvery, 800); } // 选中体:右栏轨道量随播放更跟手 + 把 calib 间隔(3600x≈50min 模拟)二阶外推误差降到 <0.001°(肉眼绝对不可见)
-		if(now - this.lastPlaybackSyncAt < syncEvery){
+		// 🔴 T-199:校准节奏加「模拟时间」触发 —— 两次校准间模拟时间 ≥ CALIB_SIM_GAP_DAYS 就再校(受 CALIB_MIN_WALL_MS 与在途守卫约束),
+		// 墙钟间隔只作上限。否则日进 / 月进档 15 s 墙钟 = 15 天 / 15 个月模拟时间的线性外推,月亮黄纬能推到 125°。
+		const frameJd = frameTime ? (frameTime.jdn || (frameTime.calcJdn && frameTime.calcJdn())) : null;
+		const calibJd = this.renderer ? this.renderer._calibJd : null;
+		const simGap = (Number.isFinite(frameJd) && Number.isFinite(calibJd)) ? Math.abs(frameJd - calibJd) : 0;
+		const simDue = simGap >= CALIB_SIM_GAP_DAYS && (now - this.lastPlaybackSyncAt) >= CALIB_MIN_WALL_MS;
+		if(!simDue && now - this.lastPlaybackSyncAt < syncEvery){
 			return;
 		}
 		this.lastPlaybackSyncAt = now;
@@ -5085,8 +5168,16 @@ class PlanetariumBabylon extends Component{
 		if(pc){ this._pendingCalib = null; this.setState((prev)=>this._mergeCalib(prev, pc)); }
 	}
 
-	async requestPlaybackCalibration(syncTimeArg){
-		if(this.playbackSyncInFlight || !this.state.data){
+	async requestPlaybackCalibration(syncTimeArg, opts){
+		if(!this.state.data){
+			return;
+		}
+		// force(单步 ±1 时 / ±1 日 / 暂停帧):暂停态也要把回包落地(T-200)—— 旧写法回包因 !playing 直接丢弃,单步永远只是旧基线线性外推,
+		// 右栏黄道坐标 / 宫随外推值、天空 / 太阳高度 / 月相 / 升落全不刷新(连按 +1 日 10 次月亮黄纬 +12.5° vs 真 −0.8°)。
+		const force = !!(opts && opts.force);
+		if(this.playbackSyncInFlight){
+			// 在途的是播放校准(暂停后会被守卫丢弃):把强制请求记下,在途结束后立即补发,否则暂停帧 / 单步帧永远停在陈旧外推值
+			if(force){ this._pendingForceCalib = { time: syncTimeArg, opts }; }
 			return;
 		}
 		this.playbackSyncInFlight = true;
@@ -5105,11 +5196,11 @@ class PlanetariumBabylon extends Component{
 			// 否则 calibration 会重设 _baseLon/_calibJd + updateProjectedTime → src.lon 跳变(用户描述的 A→B 第二次跳)。
 			// 暂停时 scene 应该完全锁定:setupPlayback 已 mutate src 到 pauseTime 时刻位置,显示完全正确,不需要后续 sync 数据。
 			// 下次开始播放时新 calibration 自然会基于当前 pauseTime 计算 → seamless 衔接,零回归。
-			if(!playing){
+			if(!playing && !force){
 				return;
 			}
-			// 🆕 displayTime = 当前 React state.time(单步=stepTime):重投影到当前显示时刻而非 syncTime
-			const displayTime = this.state.time && this.state.time.clone ? this.state.time.clone() : syncTime;
+			// 🆕 displayTime = 当前 React state.time(单步=stepTime):重投影到当前显示时刻而非 syncTime;暂停帧显式传 pauseTime(state.time 落后 ≤120ms×速率)
+			const displayTime = (opts && opts.displayTime && opts.displayTime.clone) ? opts.displayTime.clone() : (this.state.time && this.state.time.clone ? this.state.time.clone() : syncTime);
 			const renderMs = this.renderer.applyPlaybackCalibration(data, syncTime, this.getEffectiveFields(), playing, displayTime);
 			const pc = { bodies: data.bodies, sky: data.sky, events: data.events, meta: data.meta, apiMs, renderMs };
 			if(playing){
@@ -5120,6 +5211,9 @@ class PlanetariumBabylon extends Component{
 			}
 		}finally{
 			this.playbackSyncInFlight = false;
+			const pf = this._pendingForceCalib;
+			this._pendingForceCalib = null;
+			if(pf && !this._isUnmounted){ this.requestPlaybackCalibration(pf.time, pf.opts); }
 		}
 	}
 
@@ -5302,7 +5396,7 @@ class PlanetariumBabylon extends Component{
 				...prev.layers,
 				[key]: !prev.layers[key],
 			},
-		}));
+		}), ()=>PLANETARIUM_PAGE_SETTINGS.save({ layers: this.state.layers }));   // 用户亲手点的图层 → 整张表落盘
 	}
 
 	// 升落/轨迹门控:仅当对应开关开启才注入 include* → 后端默认零开销、零字节回归(buildRequestParams 默认 extras={})。
@@ -5315,15 +5409,6 @@ class PlanetariumBabylon extends Component{
 		// 后台补全完成后(_starsWantFull)所有 full 请求改取完整 8404 → 搜索/拖滑块全程不缺星。
 		extras.starLimit = this._starsWantFull ? 9000 : starLimitForMag(this.state.magLimit);
 		return extras;
-	}
-
-	// 升落时刻开关:开 → 触发一次带 includeRiseSet 的全量重取,详情区显该星升/中天/落;关 → 下次重取不带参(零开销)。
-	toggleRiseSet(){
-		this.setState((prev)=>({ riseSetRequested: !prev.riseSetRequested }), ()=>{
-			if(this.state.riseSetRequested){
-				this.requestState({ requestKind: 'full', reason: 'rise-set', syncLabel: '计算升落时刻...' });
-			}
-		});
 	}
 
 	toggleGroup(id){
@@ -5339,6 +5424,7 @@ class PlanetariumBabylon extends Component{
 		const raw = e && e.target ? e.target.value : e;
 		const next = Number(raw);
 		const magLimit = Number.isFinite(next) ? clamp(next, STAR_MAG_LIMIT_MIN, STAR_MAG_LIMIT_MAX) : STAR_MAG_LIMIT_MAX;
+		PLANETARIUM_PAGE_SETTINGS.save({ magLimit });
 		this.setState({ magLimit });
 		if(this.renderer){ this.renderer.setMagLimit(magLimit); }
 	}
@@ -5351,11 +5437,11 @@ class PlanetariumBabylon extends Component{
 	}
 
 	applyPreset(){
-		this.setState((prev)=>({ layers: {...prev.layers, ...PROFESSIONAL_LAYERS}, collapsedGroups: new Set() }));
+		this.setState((prev)=>({ layers: {...prev.layers, ...PROFESSIONAL_LAYERS}, collapsedGroups: new Set() }), ()=>PLANETARIUM_PAGE_SETTINGS.save({ layers: this.state.layers }));
 	}
 
 	resetLayers(){
-		this.setState({ layers: {...DEFAULT_LAYERS}, riseSetRequested: false, collapsedGroups: new Set(['scales', 'poles']) });
+		this.setState({ layers: {...DEFAULT_LAYERS}, collapsedGroups: new Set(['scales', 'poles']) }, ()=>PLANETARIUM_PAGE_SETTINGS.save({ layers: this.state.layers }));
 	}
 
 	changeSpeed(speed){
@@ -5367,6 +5453,7 @@ class PlanetariumBabylon extends Component{
 	}
 
 	changeViewMode(viewMode){
+		PLANETARIUM_PAGE_SETTINGS.save({ viewMode });
 		this.setState({ viewMode });
 	}
 
@@ -5387,8 +5474,9 @@ class PlanetariumBabylon extends Component{
 			};
 		}, ()=>{
 			if(this.renderer && this.state.data){
+				// 先按本地外推给即时反馈,再强制校准落地(force:暂停态也收回包;回包真值经淡出衔接,右栏 / 天空 / 月相 / 升落随之刷新)
 				this.applyLocalPlaybackFrame(0);
-				this.requestPlaybackCalibration(this.state.time);
+				this.requestPlaybackCalibration(this.state.time, { force: true });
 			}else{
 				this.requestState({ showLoading: false, reason: 'step' });
 			}
@@ -5430,18 +5518,6 @@ class PlanetariumBabylon extends Component{
 				setTimeout(()=>this.renderer.engine.resize(), 120);
 			}
 		});
-	}
-
-	toggleFullscreen(){
-		const node = this.canvasRef.current && this.canvasRef.current.parentNode;
-		if(!node){
-			return;
-		}
-		if(document.fullscreenElement){
-			document.exitFullscreen();
-		}else if(node.requestFullscreen){
-			node.requestFullscreen();
-		}
 	}
 
 	toggleImmersive(){
@@ -5548,8 +5624,8 @@ class PlanetariumBabylon extends Component{
 			extra.push(['时角', formatHourAngle(hourAngleDeg(jd, obs.lon, ra))]);
 			extra.push(['本地恒星时', formatRa(localSiderealDeg(jd, obs.lon))]);
 			extra.push(['真/视高度', `${formatDeg(proj.altitudeTrue)} / ${formatDeg(proj.altitudeAppa)}`]);
-			// 升落时刻:开「升落时刻」开关重取后显后端权威值(swe.rise_trans,当日历元真赤道、与 bodies 同口径);
-			// 此时**不再**显本地简化估算行,避免同一面板两组(月亮可差几分钟)互不一致打架。未开关才显估算行(零回归)。
+			// 升落时刻:每次请求都带 includeRiseSet(无开关),显后端权威值(swe.rise_trans,当日历元真赤道、与 bodies 同口径);
+			// 有权威值时**不再**显本地简化估算行,避免同一面板两组(月亮可差几分钟)互不一致打架;后端未回才显估算行。
 			const rsEvents = this.state.data && this.state.data.events && this.state.data.events.riseSet;
 			const rs = (rsEvents && (rsEvents[item.id] || rsEvents[item.name])) || (item.riseSet); // 优先 state.data 实时升落(播放/改日期/改经纬度后刷新);item.riseSet 是点击时快照仅作兜底
 			if(rs){
@@ -5603,7 +5679,7 @@ class PlanetariumBabylon extends Component{
 						</button>
 					</div>
 					<div className="planetarium-time" style={{ position: 'relative' }}>
-						<div ref={this._timeDisplayRef} className={`planetarium-time-display${this.state.timeEditorOpen ? ' is-editing' : ''}`} role="button" title="点击修改时间" onClick={this.toggleTimeEditor}>{this.state.time.format('YYYY-MM-DD HH:mm:ss')}</div>
+						<QuickTimeText innerRef={this._timeDisplayRef} className={`planetarium-time-display${this.state.timeEditorOpen ? ' is-editing' : ''}`} role="button" title="点击修改时间；双击可直接键入 14 位数字（年月日时分秒）" onClick={this.toggleTimeEditor} value={this.state.time} onQuickCommit={this.quickCommitObserverTime}>{this.state.time.format('YYYY-MM-DD HH:mm:ss')}</QuickTimeText>
 						{this.state.timeEditorOpen ? (
 							<div ref={this._timeEditorRef} className="planetarium-time-editor" style={this.state.timeEditorPos ? { top: this.state.timeEditorPos.top, left: this.state.timeEditorPos.left } : undefined}>
 								<PlanetariumTimeEditor time={this.state.time} onChange={this.changeObserverTime} />
@@ -5647,6 +5723,7 @@ class PlanetariumBabylon extends Component{
 								<span>星等上限</span>
 								<b>{Number(this.state.magLimit).toFixed(1)}</b>
 							</div>
+							{/* [TL-07] 滑块只管恒星层(缺省关):关着时拖动画面不变 → 置灰并给一键开恒星,不再让人以为滑块是坏的 */}
 							<input
 								type="range"
 								className="planetarium-mag-slider"
@@ -5655,9 +5732,15 @@ class PlanetariumBabylon extends Component{
 								step={0.1}
 								value={this.state.magLimit}
 								onChange={this.changeMagLimit}
+								disabled={!this.state.layers.stars}
+								title={this.state.layers.stars ? undefined : '恒星层未开:开启恒星后生效'}
 								aria-label="星等上限"
+								data-mag-limit-disabled={this.state.layers.stars ? '0' : '1'}
 							/>
 							<div className="planetarium-mag-scale"><span>亮 {STAR_MAG_LIMIT_MIN.toFixed(1)}</span><span>暗 {STAR_MAG_LIMIT_MAX.toFixed(1)}</span></div>
+							{!this.state.layers.stars ? (
+								<div className="planetarium-hint" data-mag-limit-hint="1">恒星层未开,星等上限暂不生效 · <button type="button" className="planetarium-inline-link" onClick={()=>this.toggleLayer('stars')}>开启恒星</button></div>
+							) : null}
 						</div>
 						<div className="planetarium-view-grid">
 							<button type="button" className={this.state.measureMode ? 'is-active' : ''} onClick={this.toggleMeasureMode}>{this.state.measureMode ? '角距测量·开' : '角距测量'}</button>
@@ -5758,7 +5841,8 @@ class PlanetariumBabylon extends Component{
 						<div className="planetarium-section-title">观测状态</div>
 						<div className="planetarium-metrics">
 							<div><span>恒星</span><strong>{metrics.catalogCount}</strong></div>
-							<div><span>天空</span><strong>{sky.mode || '--'}</strong></div>
+							{/* [Q-372/T-351] 右栏此前直接显示 day / civilTwilight 等英文枚举;译为中文五档(与帮助「昼夜天色」同名)。 */}
+							<div><span>天空</span><strong>{SKY_MODE_CN[sky.mode] || sky.mode || '--'}</strong></div>
 							<div><span>太阳高度</span><strong>{formatDeg(sky.sunAltitude)}</strong></div>
 							<div><span>月相</span><strong>{moonPhase ? `${moonPhaseGlyph(moonPhase)} ${moonPhase.phaseName}` : '--'}</strong></div>
 							<div><span>黄赤交角</span><strong>{sceneEps}</strong></div>

@@ -7,13 +7,18 @@
 //   环境无后端时保持测试稳定;有产出时同样吃双向断言)。
 // 🔴 全覆盖总锁:AI_EXPORT_PRESET_SECTIONS 每个 key ∈ LOCAL ∪ SOFT ∪ EXEMPT(理由成文)——
 //   新增技法 preset 而未接入哨兵注册表,当场红。
-import { regenerateCaseTechniqueSnapshot, regenerateChartTechniqueSnapshot } from '../aiAnalysisContext';
+import { regenerateCaseTechniqueSnapshot, regenerateChartTechniqueSnapshot, ANALYSIS_CHART_TECHNIQUES, ANALYSIS_CASE_TECHNIQUES } from '../aiAnalysisContext';
+import { AI_EXPORT_PRESET_SECTIONS, normalizeSectionTitle } from '../aiExport';
 import fs from 'fs';
 import path from 'path';
+import { installFixedNow } from './fixtures/fixedNow';
+installFixedNow();   // [指纹包] HOROSA_FIXED_NOW 设了才钉住此刻(推运类缺省目标时刻=此刻);未设零副作用
 
 jest.setTimeout(120000);
 
 const read = (rel)=>fs.readFileSync(path.join(__dirname, rel), 'utf8');
+// [指纹包] HOROSA_PARITY_DUMP_DIR:落每技法缺省快照正文(零回归对拍用;未设不产文件、断言不变)
+const dumpParity = (key, txt)=>{ if(process.env.HOROSA_PARITY_DUMP_DIR){ try{ fs.writeFileSync(path.join(process.env.HOROSA_PARITY_DUMP_DIR, `${key}.txt`), `${txt || ''}`); }catch(_e){ /* ignore */ } } };
 
 function extractSections(txt){
 	const out = [];
@@ -21,29 +26,21 @@ function extractSections(txt){
 		const t = ln.trim();
 		let m = t.match(/^\[(.+)\]$/);
 		if(!m){ m = t.match(/^【(.+)】$/); }
-		if(m && m[1]){ out.push(m[1].replace(/\s+/g, '')); }
+		// 与运行时过滤器同一归一规则(normalizeSectionTitle:座运·X/专题深化·X 等折叠占位)+ 去空白。
+		if(m && m[1]){ out.push(normalizeSectionTitle(m[1]).replace(/\s+/g, '')); }
 	});
 	return [...new Set(out)];
 }
 
 function readPresetMap(){
-	const src = read('../aiExport.js');
-	const i = src.indexOf('AI_EXPORT_PRESET_SECTIONS = {');
-	const seg = src.slice(i, src.indexOf('\n};', i));
+	// 🔴 [挂载自检 F-01] 运行时真值:此前用正则切 `AI_EXPORT_PRESET_SECTIONS = {…\n};` 字面块,只见 87 键——
+	// 8 个择日子技法(aiExport.js 933-949 动态追加)与 5 个节气分键(字面块内 `...JIEQI_SETTING_PRESETS` 展开)
+	// 逃出「全覆盖总锁」,新增此类键永不红。段名同样去空白归一(与 extractSections 同口径)。
 	const map = {};
-	let cur = null;
-	seg.split('\n').forEach((ln)=>{
-		const km = ln.match(/^\t(\w+): \[/);
-		if(km){ cur = km[1]; map[cur] = map[cur] || []; }
-		if(cur){
-			[...ln.matchAll(/'([^']+)'/g)].forEach((m)=>map[cur].push(m[1].replace(/\s+/g, '')));
-		}
-		if(/\],\s*$/.test(ln)){ cur = null; }
+	Object.keys(AI_EXPORT_PRESET_SECTIONS).forEach((k)=>{
+		const list = AI_EXPORT_PRESET_SECTIONS[k];
+		if(Array.isArray(list)){ map[k] = list.map((x)=>normalizeSectionTitle(x).replace(/\s+/g, '')); }
 	});
-	// 动态拼接键(字面量区外):qimenzeri = [...qimen, 三段]
-	if(map.qimen && !map.qimenzeri){
-		map.qimenzeri = [...map.qimen, '择日搜索配置', '择日条件', '命中时辰'];
-	}
 	return map;
 }
 
@@ -95,7 +92,8 @@ const SOFT = {
 	wuzhao: '五兆走 kentang :8899',
 	shenyishu: '神易数走 kentang :8899',
 	firdaria: '法达走后端 chart', distributions: '界推运走后端 chart', agepoint: '年龄推进走后端 chart',
-	planetaryages: '行星年龄走后端 chart', vedicprog: '吠陀推运走后端 chart', balbillus: 'Balbillus 走后端 chart',
+	ephemeris: '星历走后端 /astroextra/ephemeris', returntimeline: '回归轴走后端 /astroextra/returns', prenatalsyzygy: '产前朔望走后端 /astroextra/prenatal_syzygy + /chart',
+	planetaryages: '行星年龄走后端 chart', prog: '二次推运走后端 chart(/astroextra/progressions)', vedicprog: '吠陀推运走后端 chart', balbillus: 'Balbillus 走后端 chart',
 	triplicityrulers: '三分主星走后端 chart', keypoints: '关键点走后端 chart', lunationphase: '月相推运走后端 chart',
 	extrareturns: '多重回归走后端 chart', yearsystem129: '129年系统走后端 chart', planetaryarc: '行星弧走后端 chart',
 	persiandirected: '波斯向运走后端 chart', jaynesprog: 'Jaynes 推运走后端 chart', primarydirect: '主限走后端 chart',
@@ -116,6 +114,15 @@ const EXEMPT = {
 	heluo: '河洛理数走数算宿主', yizhangjing: '一掌经快照取自组件态', germany: '量化盘走后端 chart',
 	babylon: '巴比伦盘走后端', jieqi: '节气盘走后端 chart', otherbu: '卜其他聚合键(子技法各自覆盖)',
 	fengshui: '风水理气快照取自画布组件态', calendar: '黄历聚合键(huangli/tongshu 已覆盖)',
+	// [挂载自检 F-01] 择日子技法=母技法快照(母键各自在 LOCAL/SOFT)+ 三段固定附加段(各 *ZeriLedger 专测锁段头与序);
+	// sectionsOnly 无统一重算入口(regenerateCaseTechniqueSnapshot default → '');qimenzeri 保留在 SOFT(母 qimen 本地可产)。
+	huanglizeri: '黄历择日=huangli 段+三附加段(huangliZeriLedger 锁)', bazizeri: '八字择日=bazi 段+三附加段(baziZeriLedger 锁)',
+	taiyizeri: '太乙择日=taiyi 段+三附加段(taiyiZeriLedger 锁)', ziweizeri: '紫微择日=ziwei 段+三附加段(ziweiZeriLedger 锁)',
+	liurengzeri: '六壬择日=liureng 段+三附加段(liurengZeriLedger 锁)', sanshizeri: '三式择日=sanshiunited 段+三附加段(sanshiZeriLedger 锁)',
+	qizhengzeri: '七政择日=guolao 段+三附加段(qizhengZeriLedger 锁)', indiazeri: '印度择日=三附加段(indiaZeriLedger 锁;盘体走印占主页)',
+	// 节气分键=jieqi 整键的四节切片+参数段(jieqi 整键已豁免:走后端 chart 多次取数,非单盘)。
+	jieqi_meta: '节气盘参数段=jieqi 切片', jieqi_chunfen: '春分三段=jieqi 切片', jieqi_xiazhi: '夏至三段=jieqi 切片',
+	jieqi_qiufen: '秋分三段=jieqi 切片', jieqi_dongzhi: '冬至三段=jieqi 切片',
 	// generic 已从 preset/设置面除名(E-3:运行时兜底 context 键,无固定产出,死设置行)——不再入注册表。
 };
 
@@ -143,6 +150,7 @@ describe('[制度化] 全技法段登记双向哨兵(总闸)', ()=>{
 			const txt = entry.via === 'chart'
 				? await regenerateChartTechniqueSnapshot(RECORD, key)
 				: await regenerateCaseTechniqueSnapshot(RECORD, key, entry.payload || {});
+			dumpParity(key, txt);
 			expect(`${txt || ''}`.trim().length).toBeGreaterThan(0);
 			const secs = extractSections(txt);
 			const p = new Set(presetMap[key] || []);
@@ -153,12 +161,18 @@ describe('[制度化] 全技法段登记双向哨兵(总闸)', ()=>{
 
 	Object.keys(SOFT).forEach((key)=>{
 		test(`SOFT·${key}:有产出则快照段⊆preset(产空仅提示)`, async ()=>{
+			// 🔴 [挂载自检 F-07] 按运行时分派表选入口:命盘类(ANALYSIS_CHART_TECHNIQUES 有、CASE 无)走
+			// regenerateChartTechniqueSnapshot —— 此前一律走事盘入口,命盘类在 default 分支恒得 '' → 「有产出才断言」
+			// 对紫微/印占/七政/推运全族从未触发过,后端在线也白跑。
+			const viaChart = ANALYSIS_CHART_TECHNIQUES.includes(key) && !ANALYSIS_CASE_TECHNIQUES.includes(key);
 			let txt = '';
-			try{ txt = await regenerateCaseTechniqueSnapshot(RECORD, key, {}); }catch(e){ txt = ''; }
+			try{ txt = viaChart ? await regenerateChartTechniqueSnapshot(RECORD, key) : await regenerateCaseTechniqueSnapshot(RECORD, key, {}); }catch(e){ txt = ''; }
+			dumpParity(key, txt);
 			if(!`${txt || ''}`.trim()){
 				console.log(`SOFT-skip ${key}: 无产出(${SOFT[key]})`);
 				return;
 			}
+			console.log(`SOFT-run ${key}: ${extractSections(txt).length} 段(${viaChart ? 'chart' : 'case'} 入口)`);
 			const secs = extractSections(txt);
 			const p = new Set(presetMap[key] || []);
 			const missing = secs.filter((sct)=>!p.has(sct));

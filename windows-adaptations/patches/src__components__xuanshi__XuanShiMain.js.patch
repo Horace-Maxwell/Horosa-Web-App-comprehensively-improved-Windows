@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/xuanshi/XuanShiMain.js b/astrostudyui/src/components/xuanshi/XuanShiMain.js
-index 706bb02..4e8bfc8 100644
+index bf93b92c..e8b55e86 100644
 --- a/astrostudyui/src/components/xuanshi/XuanShiMain.js
 +++ b/astrostudyui/src/components/xuanshi/XuanShiMain.js
 @@ -6,6 +6,8 @@ import {
@@ -9,9 +9,9 @@ index 706bb02..4e8bfc8 100644
 +import { firstLoadParallelEnabled } from '../../utils/perfFlags';
 +import { markPanelReady } from '../../utils/perfMark';
  import XuanShiEvents from './XuanShiEvents';
- import XuanShiCelestial from './XuanShiCelestial';
- import XuanShiMicro from './XuanShiMicro';
-@@ -160,16 +162,26 @@ export default class XuanShiMain extends React.Component {
+ // 🔴 天象/地图两个子页必须懒加载,绝不可改回静态 import(与星运页同族病灶,2026-08-01 一并治理):
+ //   两者各自 `import * as echarts from 'echarts'`,静态引它们就把 echarts(vendors-viz 1291KB,
+@@ -197,16 +199,26 @@ export default class XuanShiMain extends React.Component {
  	async loadSummary() {
  		if (this.state.summary || this.state.summaryLoading) { return; }
  		this.setState({ summaryLoading: true, summaryErr: '' });

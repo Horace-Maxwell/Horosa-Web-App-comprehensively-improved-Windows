@@ -2,6 +2,7 @@ import React, { Component } from 'react'; // horosa_liureng_render_slice_v1:模�
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
+import { definePageSettings } from '../../utils/pageSettingsStore';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 import { Modal, message, Tag } from 'antd';
@@ -22,7 +23,7 @@ import { detectJianChuan } from '../liureng/LRJianChuanDoc';
 import { analyzeKongLocations, analyzeDunGan, analyzeNianMing } from '../liureng/LRKongDunNianDoc';
 import { ZHANDUAN_CATEGORIES, ZHANDUAN_DOC, RELATED_BIFA } from '../liureng/LRZhanDuanDoc';
 import { matchBiFa, BIFA_LIST } from '../liureng/LRBiFaDoc';
-import LRSanChuanRelationMini from '../liureng/LRSanChuanRelationMini';
+import LRSanChuanRelationMini, { sanChuanRelationSnapshotLines } from '../liureng/LRSanChuanRelationMini';   // [Q-450/T-413] 小图与快照共用同一纯函数
 import { detectGuiSpecials } from '../liureng/LRBiFa';
 import { computeYingQi } from '../liureng/LRYingQiDoc';
 import LiuRengChart from './LiuRengChart';
@@ -3910,6 +3911,28 @@ const FEN_ZHOU_YE_METHODS = [
 	{ key: 'maoyou', name: '卯酉分昼夜' },
 	{ key: 'yinshen', name: '寅申分昼夜' },
 ];
+// 排盘设置跨会话保留(用户实报:改了之后每次重开软件都要重设)。只收「口径」——
+// 选时时辰 / 演数数字 / 占事类型是每一课的输入,十二长生五行缺省随日干(保留了就再也回不到「随日干」),都不进。
+// 只在用户亲手改控件时落盘:载入事盘回灌、择日工作台下发口径(applyCastFields)都走 setState,不经落盘入口。
+// 🔴 只有**独立六壬页**读写这份保存值;六壬择日里内嵌的那份既不读也不写(见 usesSavedSettings):
+// 择日的扫描引擎把时基 / 起课法 / 分昼夜 / 涉害口径钉死在缺省档、工作台只下发贵人 / 月将 / 阴阳系三键,
+// 内嵌盘若继承了独立页保存的别的口径,点选命中行看到的课就不是扫描判定的那一课(所见 ≠ 所判)。
+// 起课法里「选时 / 演数 / 报数」三法离不开逐课输入(时辰 / 数字,不保留):只留法不留数,重开后数字是空的,
+// 盘面按正时起、起课法一栏却写着演数 —— 所以这三法不进候选(选了照常用,只是不记;库里仍是上一次选的独立起课法)。
+const QI_METHODS_NEEDING_INPUT = ['xuanshi', 'yanshu', 'baoshu'];
+export const LIURENG_PAGE_SETTINGS = definePageSettings('horosa.liureng.settings.v1', {
+	timeAlg: { def: 0, oneOf: [0, 1] },
+	guireng: { def: 2, oneOf: [0, 1, 2, 3, 4] },
+	castMethod: { def: 'zheng', oneOf: QI_METHODS.map((m)=>m.key).filter((k)=>QI_METHODS_NEEDING_INPUT.indexOf(k) < 0) },
+	yueJiangMethod: { def: 'zhongqi', oneOf: YUE_JIANG_METHODS.map((m)=>m.key) },
+	fenZhouYe: { def: 'chenhun', oneOf: FEN_ZHOU_YE_METHODS.map((m)=>m.key) },
+	seHaiMethod: { def: 'app', oneOf: ['app', 'standard', 'mengzhongji'] },
+	seHaiBoundary: { def: 'app', oneOf: ['app', 'both', 'neither'] },
+	shiRuKe: { def: false },
+	yearShenShaSort: { def: 'sanyuan', oneOf: ['sanyuan', 'suigui'] },
+	yinyangSystem: { def: 'danmu', oneOf: ['danmu', 'yinyang'] },
+	tuWangShuai: { def: 'siji', oneOf: ['siji', 'huotu'] },
+});
 const MAOYOU_DAY_BRANCHES = ['卯', '辰', '巳', '午', '未', '申'];
 const YINSHEN_DAY_BRANCHES = ['寅', '卯', '辰', '巳', '午', '未'];
 
@@ -4133,11 +4156,50 @@ export function buildLiuRengLayout(chartObj, guirengType, castOverride){
 	};
 }
 
+// [Q-159/T-76] 出生档序列化(存案 payload 用):date/time 取 'YYYY-MM-DD HH:mm:ss' 字符串,其余标量原样。
+function serializeBirthDraft(birth){
+	if(!birth || !birth.date || !birth.date.value || typeof birth.date.value.format !== 'function'){ return null; }
+	const v = (k)=>(birth[k] && birth[k].value !== undefined ? birth[k].value : undefined);
+	const timeVal = birth.time && birth.time.value && typeof birth.time.value.format === 'function' ? birth.time.value : birth.date.value;
+	return {
+		date: birth.date.value.format('YYYY-MM-DD'),
+		time: timeVal.format('HH:mm:ss'),
+		ad: v('ad'), zone: v('zone'), lat: v('lat'), lon: v('lon'), gpsLat: v('gpsLat'), gpsLon: v('gpsLon'),
+		gender: v('gender'), after23NewDay: v('after23NewDay'), lateZiHourUseNextDay: v('lateZiHourUseNextDay'),
+	};
+}
+function deserializeBirthDraft(raw){
+	if(!raw || typeof raw !== 'object' || !raw.date){ return null; }
+	try{
+		const dt = new DateTime();
+		dt.parse(`${raw.date} ${raw.time || '00:00:00'}`, 'YYYY-MM-DD HH:mm:ss');
+		if(raw.zone){ dt.setZone(raw.zone); }
+		if(raw.ad !== undefined && raw.ad !== null){ dt.ad = Number(raw.ad) === -1 ? -1 : 1; }
+		const f = (val)=>({ value: val });
+		return buildBirthFields({
+			date: f(dt.clone()), time: f(dt.clone()),
+			ad: raw.ad !== undefined ? f(raw.ad) : undefined, zone: raw.zone ? f(raw.zone) : undefined,
+			lat: raw.lat ? f(raw.lat) : undefined, lon: raw.lon ? f(raw.lon) : undefined,
+			gpsLat: raw.gpsLat !== undefined ? f(raw.gpsLat) : undefined, gpsLon: raw.gpsLon !== undefined ? f(raw.gpsLon) : undefined,
+			gender: raw.gender !== undefined ? f(raw.gender) : undefined,
+			after23NewDay: raw.after23NewDay !== undefined ? f(raw.after23NewDay) : undefined,
+			lateZiHourUseNextDay: raw.lateZiHourUseNextDay !== undefined ? f(raw.lateZiHourUseNextDay) : undefined,
+		}, new DateTime());
+	}catch(e){ return null; }
+}
+
 function getAppliedBirth(state){
 	if(state && state.calcBirth){
 		return state.calcBirth;
 	}
 	return state ? state.birth : null;
+}
+
+// [Q-163/T-82·SS-14] 事盘 record.gender 单源=卜卦人性别(与盘面/行年/快照同一来源);卜卦人未填(未知/-1)才回落起课区全局值。
+export function liurengCaseGender(birth, fields){
+	const g = birth && birth.gender ? birth.gender.value : null;
+	if(g === 0 || g === 1 || g === '0' || g === '1'){ return Number(g); }
+	return caseGenderValue(fields);
 }
 
 // 六壬 本命支(命主出生年支,按公历年取年支) + 行年支 —— 第九~十二客 / 本命·行年加时 用;缺则空串(computeQiXY 退回默认)。
@@ -4320,13 +4382,19 @@ export function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, gui
 	const lines = [];
 	const _castOpts = castOpts || {};
 	const nongli = liureng && liureng.nongli ? liureng.nongli : (chartObj && chartObj.nongli ? chartObj.nongli : {});
-	const castOverride = buildLiuRengCastOverride(chartObj, _castOpts);
+	// [挂载自检 三式 P0] 调用方(三式合一)已按自家口径算好 castOverride 时直接用,不再按 castOpts 重算——
+	// 此前三式把 override 对象当 castOpts 传进来,键名不匹配 → 断卦层按全默认盘重算,与同一快照 [大六壬] 四课三传两套盘。
+	const castOverride = (_castOpts.castOverride && typeof _castOpts.castOverride === 'object')
+		? _castOpts.castOverride
+		: buildLiuRengCastOverride(chartObj, _castOpts);
 	const refs = buildLiuRengReferenceBundle(liureng, chartObj, guirengType, runyear, castOverride, { benMingBranch: _castOpts.benmingZhi });
 	const layout = refs.layout;
 	const panStyle = refs && refs.context ? refs.context.panStyle : null;
 	const keData = refs.keData;
 	const sanChuan = refs.sanChuan;
-	const xingbie = `${gender}` === '1' ? '男' : '女';
+	// [Q-427/T-393] 性别「未知」(-1)时计算按男排(行年 / 旬法皆以 gender≠0 取男表),快照却写「女」——
+	//   同一份快照里「行年:男」与「性别:女」并存。与八字页口径统一:未知写「未知(按男排)」。
+	const xingbie = `${gender}` === '1' ? '男' : (`${gender}` === '0' ? '女' : '未知(按男排)');
 
 	lines.push('[起盘信息]');
 	if(params){
@@ -4386,6 +4454,18 @@ export function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, gui
 	if(sanChuan){
 		lines.push(`课式：${fmtValue(sanChuan.name)}`);
 		buildLiuRengSanChuanRows(sanChuan).forEach((l)=>lines.push(l));
+		// [Q-450/T-413] 三传递生递克 + 逐传空/禄/马徽记:右栏取象页签的小图早已画出,快照此前一个字都不带
+		// (空亡可由 [旬空落点]、禄马可由 [常用神煞] 间接推得,但传间生克与逐传徽记无处可推)。与小图同一纯函数。
+		const _scCtx = refs && refs.context ? refs.context : null;
+		if(_scCtx && Array.isArray(_scCtx.sanChuanBranches) && _scCtx.sanChuanBranches.length >= 3){
+			sanChuanRelationSnapshotLines({
+				branches: _scCtx.sanChuanBranches,
+				gans: _scCtx.sanChuanGans || [],
+				dayGan: _scCtx.dayGan || '',
+				dayZhi: _scCtx.dayZhi || '',
+				xunKong: _scCtx.xunKongBranches || [],
+			}).forEach((l)=>lines.push(l));
+		}
 	}else{
 		lines.push('无');
 	}
@@ -4630,6 +4710,15 @@ class LiuRengInputPanel extends Component{
 									<Option value={4}>干合阳阴贵</Option>
 								</Select>
 							</label>
+							{/* [Q-386/T-367] 起课时间算法:缺省真太阳时=后端历来口径(字节零回归);
+							    选「直接时间」即与三式合一六壬层(时柱取自吃 timeAlg 的奇门)同口径。 */}
+							<label className="horosa-liureng-select-field">
+								<span>时间算法</span>
+								<Select value={this.state.timeAlg} onChange={this.onTimeAlgChange} dropdownMatchSelectWidth={false}>
+									<Option value={0}>真太阳时（默认）</Option>
+									<Option value={1}>直接时间</Option>
+								</Select>
+							</label>
 							<label className="horosa-liureng-select-field">
 								<span>起课法</span>
 								<Select value={p.castMethod} onChange={p.onCastMethodChange} dropdownMatchSelectWidth={false}>
@@ -4706,9 +4795,10 @@ class LiuRengInputPanel extends Component{
 									<Option value="suigui">太岁排轮(太阴异)</Option>
 								</Select>
 							</label>
-							<label className="horosa-liureng-select-field">
-								<span>昼夜阳阴归属</span>
-								<Select value={p.yinyangSystem} onChange={(v)=>p.onCastField('yinyangSystem', v)} dropdownMatchSelectWidth={false}>
+							<label className="horosa-liureng-select-field" title={p.guireng !== 0 ? '星历阳阴系只在贵人体系=六壬法贵人时生效(甲乙丙辛壬癸昼夜互换);当前贵人体系下两档恒同' : undefined}>
+								<span>昼夜阳阴归属{p.guireng !== 0 ? '（仅六壬法贵人生效）' : ''}</span>
+								{/* [Q-164/T-87·SS-19] 贵人≠六壬法时置灰:LRConst 只在 guirengType===0 时按此键互换昼夜 */}
+								<Select value={p.yinyangSystem} disabled={p.guireng !== 0} onChange={(v)=>p.onCastField('yinyangSystem', v)} dropdownMatchSelectWidth={false}>
 									<Option value="danmu">旦暮系(默认)</Option>
 									<Option value="yinyang">星历阳阴系</Option>
 								</Select>
@@ -4736,25 +4826,36 @@ class LiuRengMain extends Component{
 		super(props);
 		let now = new DateTime();
 		let birth = buildBirthFields(this.props.fields, now);
+		// 上次亲手设的排盘口径 —— 只有独立六壬页读;六壬择日里内嵌的那份恒从出厂值起(扫描引擎的钉死口径 = 出厂值,
+		// 显示盘必须与扫描判定同口径;工作台口径另经 applyCastFields 下发)。
+		const savedSet = this.usesSavedSettings() ? LIURENG_PAGE_SETTINGS.load() : LIURENG_PAGE_SETTINGS.defaults();
 
 		this.state = {
 			birth: birth,
 			calcBirth: birth,
 			liureng: null,
 			runyear: null,
+			// [Q-386/T-367] 起课时间算法:0=真太阳时(缺省=后端历来写死的口径,字节零回归) / 1=直接时间。
+			// 此前独立六壬页无此控件、后端写死真太阳时,而三式合一的六壬层时柱取自奇门(奇门吃 timeAlg)
+			// → 全局选「直接时间」时,同一时刻两页六壬时柱可分属两个时辰。补控件使两页可对齐。
+			timeAlg: savedSet.timeAlg,
 			wuxing: '土',
-			guireng: 2,
-			castMethod: 'zheng',
+			// [Q-161/T-77] 「十二长生五行」的真实缺省是**日干五行**(每次起课回包按日干重置);
+			// 此前无「用户已选」记忆 → 用户选了金,一改时间/步进/再起课就被冲回日干五行,载档回灌的值同样守不住。
+			// 本标记为 true 后,起课回包不再覆盖(载档回灌带存档值时一并置 true)。
+			wuxingUserSet: false,
+			guireng: savedSet.guireng,
+			castMethod: savedSet.castMethod,
 			xuanShiZhi: '',
 			yanShuNum: '',
-			yueJiangMethod: 'zhongqi',
-			fenZhouYe: 'chenhun',
-			seHaiMethod: 'app',     // 涉害取舍:app=仅下贼上(默认·已固定)/standard=标准深浅两向/mengzhongji=直取孟仲季
-			seHaiBoundary: 'app',   // 涉害起讫:app=计起点不计本家(默认)/both=两端皆计/neither=皆不计
-			shiRuKe: false,         // 始入课:false=并入重审(默认)/true=单一下贼上单列始入(九法变十法)
-			yearShenShaSort: 'sanyuan', // 年神排序:sanyuan=四利三元序(默认)/suigui=太岁排轮(太阴落宫异)
-			yinyangSystem: 'danmu',     // 昼夜阳阴归属:danmu=旦暮系(默认)/yinyang=星历考原阳阴系(A正法甲乙丙辛壬癸昼夜互换)
-			tuWangShuai: 'siji',        // 土旺衰:siji=四季月18日土旺(默认)/huotu=火土同宫(土随火)
+			yueJiangMethod: savedSet.yueJiangMethod,
+			fenZhouYe: savedSet.fenZhouYe,
+			seHaiMethod: savedSet.seHaiMethod,     // 涉害取舍:app=仅下贼上(默认·已固定)/standard=标准深浅两向/mengzhongji=直取孟仲季
+			seHaiBoundary: savedSet.seHaiBoundary,   // 涉害起讫:app=计起点不计本家(默认)/both=两端皆计/neither=皆不计
+			shiRuKe: savedSet.shiRuKe,         // 始入课:false=并入重审(默认)/true=单一下贼上单列始入(九法变十法)
+			yearShenShaSort: savedSet.yearShenShaSort, // 年神排序:sanyuan=四利三元序(默认)/suigui=太岁排轮(太阴落宫异)
+			yinyangSystem: savedSet.yinyangSystem,     // 昼夜阳阴归属:danmu=旦暮系(默认)/yinyang=星历考原阳阴系(A正法甲乙丙辛壬癸昼夜互换)
+			tuWangShuai: savedSet.tuWangShuai,        // 土旺衰:siji=四季月18日土旺(默认)/huotu=火土同宫(土随火)
 			calcFields: null,
 			calcChart: null,
 			rightPanelTab: 'dage',
@@ -4794,6 +4895,7 @@ class LiuRengMain extends Component{
 		this.prefetchStepSelect = this.prefetchStepSelect.bind(this);
 		this.genRunYearParams = this.genRunYearParams.bind(this);
 		this.requestGods = this.requestGods.bind(this);
+		this.onTimeAlgChange = this.onTimeAlgChange.bind(this);
 		this.requestRunYear = this.requestRunYear.bind(this);
 		this.requestBirthYearGanZi = this.requestBirthYearGanZi.bind(this);
 		this.startPaiPanByFields = this.startPaiPanByFields.bind(this);
@@ -4817,6 +4919,12 @@ class LiuRengMain extends Component{
 			// PERF-R9 Ship 7:/liureng/gods(四课三传的神将底数)只吃时间+地理,与主 /chart 无关 ——
 			// 在 /chart 返回之前并行发出,latency = max 而非 sum。silent、丢结果、绝不 setState。
 			// 闸:horosa.perf.prewarmRequests(关=此函数不被调用,逐字节旧序)。
+			// [挂载自检 F-37] 择日宿主 pick 前回写工作台口径(贵人体系 guireng/月将法 yueJiangMethod/昼夜阴阳系 yinyangSystem)
+			// 到本页起课选项,让 pick 后显示盘/母快照与命中判定同口径(此前宿主 fields 不透传三键,显示盘按左栏旧档起课)。
+			this.props.hook.applyCastFields = (partial)=>new Promise((resolve)=>{
+				if(this.unmounted || !partial || typeof partial !== 'object' || !Object.keys(partial).length){ resolve(); return; }
+				this.setState(partial, resolve);
+			});
 			this.props.hook.prewarmRequests = (flds)=>{
 				if(this.unmounted){
 					return;
@@ -5047,12 +5155,34 @@ class LiuRengMain extends Component{
 	onWuXingChange(val){
 		this.setState({
 			wuxing: val,
+			wuxingUserSet: true,   // [Q-161/T-77] 用户明选 → 此后起课不再按日干重置
 		}, ()=>{
 			this.saveLiuRengAISnapshot(null, this.state.liureng, this.state.runyear, val, this.state.guireng);
 		});
 	}
 
+	// 只有独立六壬页读写保存值;择日宿主里内嵌的那份(techniqueScope='liurengzeri')不读不写(理由见 LIURENG_PAGE_SETTINGS 注)。
+	usesSavedSettings(){
+		return (this.props.techniqueScope || 'liureng') === 'liureng';
+	}
+
+	// 排盘设置落盘的唯一入口:只在用户亲手改控件的 handler 里调。非设置字段(选时时辰 / 演数数字)丢进来会被忽略。
+	persistSetting(partial){
+		if(!this.usesSavedSettings()){ return; }
+		LIURENG_PAGE_SETTINGS.save(partial);
+	}
+
+	// [Q-386/T-367] 时间算法改档 → 时柱可变 → 必须真重新起课(不是纯显示层)。
+	onTimeAlgChange(val){
+		const next = val === 1 ? 1 : 0;
+		this.persistSetting({ timeAlg: next });
+		this.setState({ timeAlg: next }, ()=>{
+			this.requestGods(this.props.fields);
+		});
+	}
+
 	onGuiRengChange(val){
+		this.persistSetting({ guireng: val });
 		this.setState({
 			guireng: val,
 		}, ()=>{
@@ -5062,6 +5192,7 @@ class LiuRengMain extends Component{
 
 	onCastMethodChange(val){
 		// 起课法仅改天地盘加临（不动 /chart 计算），同贵人体系：setState 触发重渲染即重排，无需重新起课。
+		this.persistSetting({ castMethod: val });
 		this.setState({
 			castMethod: val,
 		}, ()=>{
@@ -5071,6 +5202,7 @@ class LiuRengMain extends Component{
 
 	handleCastField(field, val){
 		// 选时/演数/换将/分昼夜：同起课法，皆只改天地盘加临或昼夜，不重新起课。
+		this.persistSetting({ [field]: val });
 		this.setState({ [field]: val }, ()=>{
 			this.saveLiuRengAISnapshot(null, this.state.liureng, this.state.runyear, this.state.wuxing, this.state.guireng);
 		});
@@ -5101,7 +5233,8 @@ class LiuRengMain extends Component{
 		// (格局参考)一直过 resolveDisplayRunYear 本地校正 → 页面对、AI 挂载错,两路径不同构。
 		// 此处与 render 同构收口:值对=幂等原样过,旧拍/缺失=本地年差法立即兜底,快照第一版即正确。
 		const appliedRunYear = resolveDisplayRunYear(runyear, appliedBirth, flds);
-		const snapshotText = buildLiuRengSnapshotText(
+		// [Q-158/T-75] 此前为 const,下方择日宿主 composeAiSnapshot 重赋值在运行时抛只读错并被 try 吞掉 → 择日三段从未进快照/存档/导出。
+		let snapshotText = buildLiuRengSnapshotText(
 			saveParams,
 			liureng,
 			appliedRunYear,
@@ -5209,6 +5342,8 @@ class LiuRengMain extends Component{
 				lat: flds.lat.value,
 			};
 		}
+		// [Q-386/T-367] 起课时间算法随参送出(后端缺省 RealSun;三条取盘路径共用本函数,缓存键随之同构)。
+		params.timeAlg = this.state.timeAlg === 1 ? 1 : 0;
 		// 关键: backend liureng/gods 缺这个会用 默认值 1, 导致 dropdown 切换无效。
 		if(flds.after23NewDay && flds.after23NewDay.value !== undefined){
 			params.after23NewDay = flds.after23NewDay.value;
@@ -5341,7 +5476,9 @@ class LiuRengMain extends Component{
 		
 		let dayGanZi = result.liureng.nongli.dayGanZi;
 		let dayGan = dayGanZi.substr(0, 1);
-		let wx = LRConst.GanZiWuXing[dayGan];
+		// [Q-161/T-77] 缺省随日干五行;但用户手选过(或载档带来存档值)之后不得再覆盖 —— 此前每次
+		// 起课(含改时间、步进一格)都无条件重置,所选五行守不住,右栏十二长生表与取象卡随之跳回。
+		let wx = this.state.wuxingUserSet ? this.state.wuxing : LRConst.GanZiWuXing[dayGan];
 		const appliedBirth = buildBirthFields(this.state.birth, new DateTime());
 		const st = {
 			liureng: result.liureng,
@@ -5523,18 +5660,28 @@ class LiuRengMain extends Component{
 		const p = saved.payload;
 		this.lastRestoredCaseId = saved.caseVersion;
 		// zhanCategory(占测事项)必须与存档侧成对 —— 缺它则载回后占断退回「通用」,与存档内的快照打架。
-		const optionKeys = ['guireng', 'wuxing', 'castMethod', 'xuanShiZhi', 'yanShuNum', 'yueJiangMethod', 'fenZhouYe', 'seHaiMethod', 'seHaiBoundary', 'shiRuKe', 'yearShenShaSort', 'yinyangSystem', 'tuWangShuai', 'zhanCategory'];
+		const optionKeys = ['guireng', 'wuxing', 'timeAlg', 'castMethod', 'xuanShiZhi', 'yanShuNum', 'yueJiangMethod', 'fenZhouYe', 'seHaiMethod', 'seHaiBoundary', 'shiRuKe', 'yearShenShaSort', 'yinyangSystem', 'tuWangShuai', 'zhanCategory'];
 		const next = {};
 		optionKeys.forEach((key)=>{
 			if(p[key] !== undefined && p[key] !== null){
 				next[key] = p[key];
 			}
 		});
+		// 事盘里没有的口径键回出厂值,不沿用本机保存的偏好(见 pageSettingsStore.fillMissing 注)
+		Object.assign(next, LIURENG_PAGE_SETTINGS.fillMissing(next));
+		// [Q-161/T-77] 存档带 wuxing → 视同用户已选,载回后不被下一次起课按日干冲掉。
+		if(next.wuxing !== undefined){ next.wuxingUserSet = true; }
 		if(p.liureng){
 			next.liureng = p.liureng;
 		}
 		if(p.runyear !== undefined && p.runyear !== null){
 			next.runyear = p.runyear;
+		}
+		// [Q-159/T-76] 出生档回灌(birth=草稿、calcBirth=已应用),行年/本命按存档出生档校正,不再被当前档覆盖。
+		const restoredBirth = deserializeBirthDraft(p.birthDraft);
+		if(restoredBirth){
+			next.birth = restoredBirth;
+			next.calcBirth = buildBirthFields(restoredBirth, new DateTime());
 		}
 		if(!Object.keys(next).length){
 			return false;
@@ -5558,13 +5705,16 @@ class LiuRengMain extends Component{
 		}
 		const displayRunYear = resolveDisplayRunYear(this.state.runyear, getAppliedBirth(this.state), flds);
 		const divTime = `${flds.date.value.format('YYYY-MM-DD')} ${flds.time.value.format('HH:mm:ss')}`;
-		const snapshot = loadModuleAISnapshot(this.props.techniqueScope || 'liureng');
+		// [挂载自检 F-36] 择日宿主内按宿主键(liurengzeri)存档:module/caseType/sourceModule 同宿主键,快照取宿主槽(含择时段)。
+		const lrScope = this.props.techniqueScope || 'liureng';
+		const snapshot = loadModuleAISnapshot(lrScope);
 		const payload = {
-			module: 'liureng',
+			module: lrScope,
 			snapshot: snapshot,
 			liureng: this.state.liureng,
 			runyear: displayRunYear,
 			wuxing: this.state.wuxing,
+			timeAlg: this.state.timeAlg,
 			guireng: this.state.guireng,
 			castMethod: this.state.castMethod,
 			xuanShiZhi: this.state.xuanShiZhi,
@@ -5578,6 +5728,12 @@ class LiuRengMain extends Component{
 			yinyangSystem: this.state.yinyangSystem,
 			tuWangShuai: this.state.tuWangShuai,
 			zhanCategory: this.state.zhanCategory,
+			// [挂载自检 六壬 P0] 起课法「九-十二客/行年加时/本命加时」在无头重算时需要本命支/行年支/公历年——
+			// 页面起课经 liurengBenmingXingnian(本命档, 行年) 得到,存档此前不带 → AI 挂载重算静默退正时正将而标注仍打所选法。
+			solarYear: getSolarYearFromField(flds && flds.date ? flds.date : null),
+			...liurengBenmingXingnian(getAppliedBirth(this.state), displayRunYear),
+			// [Q-159/T-76] 卜卦人出生档随存(此前不存不载 → 载回后行年/本命按当前出生档(缺省=占时)重算覆盖存档)。
+			birthDraft: serializeBirthDraft(getAppliedBirth(this.state)),
 		};
 		if(this.props.dispatch){
 			this.props.dispatch({
@@ -5585,8 +5741,8 @@ class LiuRengMain extends Component{
 				payload: {
 					key: 'caseadd',
 					record: {
-						event: `六壬占断 ${divTime}`,
-						caseType: 'liureng',
+						event: `${lrScope === 'liurengzeri' ? '六壬择日' : '六壬占断'} ${divTime}`,
+						caseType: lrScope,
 						divTime: divTime,
 						zone: flds.zone.value,
 						lat: flds.lat.value,
@@ -5594,11 +5750,14 @@ class LiuRengMain extends Component{
 						gpsLat: flds.gpsLat.value,
 						gpsLon: flds.gpsLon.value,
 						pos: flds.pos ? flds.pos.value : '',
-						gender: caseGenderValue(flds),
+						// [Q-163/T-82·SS-14] 事盘 gender 曾取「时间与地点」区写的全局 fields.gender,而本页盘面/行年/实时快照
+						//   的性别全取「卜卦人出生时间」区 → 无头重算(regenerateLiurengSnapshot 第 7 参=record.gender)的
+						//   「问测人性别」可与同快照内行年顺逆矛盾。改取卜卦人性别(0/1),未填时才回落全局值。
+						gender: liurengCaseGender(getAppliedBirth(this.state), flds),
 						// 🔴 口径快照必带:载档时 applyCase 从 payload.fieldSnapshot 回灌日界点/晚子时/
 						// 卦日界/时间算法;不带则沿用全局当前值 → 载回来的盘可能与存档不同。
 						payload: { ...payload, fieldSnapshot: caseFieldSnapshot(flds) },
-						sourceModule: 'liureng',
+						sourceModule: lrScope,
 					},
 				},
 			});

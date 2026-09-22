@@ -146,7 +146,8 @@ class HoraryJudgment extends Component{
 				<div className="horosa-divi-card">
 					<div className="horosa-divi-card-head">判前考量 19 条（三态：⚠命中 / ◐已救济 / ✓未命中）</div>
 					<div className="horosa-divi-legend">硬度档：<b>{({ warn: '警示', strict: '严格', lenient: '宽松', ignore: '几乎弃用' })[(rad.considerations || {}).mode] || '警示'}</b>——考量是「判前停下想想」,除极端情形外不禁判。救济条件在左栏自评开关与盘面条件中。</div>
-					<div style={{ maxHeight: 300, overflowY: 'auto' }}>
+					{/* 不再给 300px 的内层滚动盒:所在页签本身可滚,内层再套一层 = 19 条挤在 300px 里滚、盒下方却空着一截(双层滚动 + 留白)。按内容自然流,交给页签滚。 */}
+					<div>
 						{cons.map((c) => {
 							const st = stateOf(c);
 							return (

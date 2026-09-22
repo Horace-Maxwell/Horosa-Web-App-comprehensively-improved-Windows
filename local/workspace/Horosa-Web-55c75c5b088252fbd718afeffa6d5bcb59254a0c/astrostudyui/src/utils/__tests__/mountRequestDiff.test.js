@@ -77,6 +77,8 @@ const BODY_KEY_MAP = {
 // 拨该键时并拨 extra,再断言请求体差分 —— 契约照 classicalChartGlobals:125。
 const COMBO_KEYS = {
 	vocIncludeOuter: { vocMode: 'by_orb' },
+	// [Q-022/M-30] 条件字段(showWhen)在父档不满足时不计覆盖不下发 → 拨双子界序须同拨经典传本界
+	geminiBoundEmended: { termsVariant: 2 },
 };
 
 // 不进 /chart 请求体的齿轮(显示/快照层消费)——逐键带理由,且仍断言「拨值触发重算」。
