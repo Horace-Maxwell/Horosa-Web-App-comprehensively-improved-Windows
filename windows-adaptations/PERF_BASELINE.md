@@ -196,6 +196,23 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.11.0(2026-09-21 同步轮·AI 助手行动能力 v2 + 本机 MCP v2 桌面桥复刻;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `bef3ee80`)**:
+  warmReady 中位 **5049 / 5135ms**(p95 5142 / 5171),两臂相距 **+1.7%** = 构建自洽,无回归信号。
+  **workspaceVisible 688 / 678ms**(p95 730 / 716,预算 1500 内 ✓);spawnToVisible 918 / 904ms。
+  工件:`docs/perf-artifacts/startup_ab_v3110_warmstamp.json`。
+- **🔴 #64 机器态照录**:`currentClockMHz 2611 / maxClockMHz 2611`(turboSuppressedLikely=True)
+  + `mumuRunning: True`(owner 应用,未动)· vmmem False。相对 v3.10.0 戳(5050/5040)**-0.0%**;
+  读法沿 v3.9.5/v3.10.0 盲点注:指纹只记进程在否不记实时负载,绝对值只作双臂/跨轮对照。
+- **★启动路径代码面(逐处核过)**:Electron 壳本轮新增 `desktop-bridge.js` + 四个 MCP 模块 —— 全部在 `registerIpcHandlers()` 之后建,
+  `setupOnLaunch` 只读一次 preferences.json;**偏好缺省 agent/mcp 双关 ⇒ 本机 MCP 监听不起、零套接字**;定时心跳首跳延后 90s、自动备份
+  首跳延后 5 分钟且都 `unref`;stdio 代理分支只在带 `--horosa-mcp-stdio` 旗标时走且不取单实例锁。Python/Java 启动路径零改动(AppLoggers
+  日志目录改造不在热路径;RuntimeWire 常量)。**⇒ 结构上不存在本版引入的温启回归面;桥的成本只在用户显式开启行动能力后才发生。**
+- **★台架结构限制照旧**:`resourceMode: direct` 且 ready 即被杀 ⇒ 加速档不建成,绝对值恒是「失活态」读数,只作对照。
+- **★增量更新**:差量门实测 **16MB / 2.0% 下载 / 98.0% 复用**(真变 53MB,预算 130MB;91 段 ranged GET);**CDS 档 byte-identical vs 3.10.0**
+  —— 桌面桥五模块只落在 app.asar(3.9MB)内,对存量用户仍是无感升级。
+
 ### 温启对照 v3.10.0(2026-09-01 同步轮·择日十技法大版本;horosa_warm_ab_stamp_v1)
 
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `115b1ee7`)**:
