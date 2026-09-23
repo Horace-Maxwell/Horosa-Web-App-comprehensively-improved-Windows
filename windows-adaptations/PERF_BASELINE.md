@@ -196,6 +196,26 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.11.1(2026-09-22 同步轮·盘面随界面主题重画 + 排盘设置「新盘种子」;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `b6370c55`)**:
+  warmReady 中位 **5495 / 5520ms**(p95 5576 / 5674),两臂相距 **+0.5%** = 构建自洽,无回归信号。
+  **workspaceVisible 782 / 849ms**(p95 807 / 897,预算 1500 内 ✓);spawnToVisible 1060 / 1122ms。
+  工件:`docs/perf-artifacts/startup_ab_v3111_warmstamp.json`。
+- **🔴 #64 机器态照录**:`currentClockMHz 2611 / maxClockMHz 2611`(turboSuppressedLikely=True)
+  + `mumuRunning: True`(owner 应用,未动)· vmmem False。相对 v3.11.0 戳(5049/5135)**+8.8%**;
+  读法沿 v3.9.5/v3.10.0 盲点注:指纹只记进程在否不记实时负载,绝对值只作双臂/跨轮对照。
+- **★启动路径代码面(逐处核过)**:本轮产品源改动全在前端渲染层(主题重画订阅 `watchChartAppearance` 只在各盘 componentDidMount 挂一次监听、
+  切主题才回调;新盘种子 `newChartSeedValue` 只在 newEmptyFields / 亲手改动 handler 里读一次 localStorage)+ Java 仅 RuntimeWire 常量;
+  Electron 壳、Python 服务、启动链零改动。**⇒ 结构上不存在本版引入的温启回归面;主题重画的成本只在用户切明暗时发生。**
+- **★#64 同机同后台旧版对照(本轮实跑,两次 startup_ab 均 ≈5.5s、相对 v3.11.0 戳 +8.8% 触发)**:打包版 OLD=`C:\Horosa\Horosa.exe`(v3.11.0 首发装机)vs NEW=`release/win-unpacked/Horosa.exe`(v3.11.1),
+  各自隔离档案(首样冷物化弃)、**交错采样 A/B/A/B** n=6:warmReady 中位 **OLD 5678 / NEW 5791ms(+2.0%)**,样本区间重叠(OLD 5597–5803 / NEW 5654–5799),
+  旧版今日同样 ≈5.7s(昨日戳 5049)⇒ **机器态(MuMuVMMHeadless 常驻 4.3GB + 睿频压制 2611/2611,空载 LoadPercentage 29%),非本版回归**;
+  +2.0% 在双臂噪音带(v3.11.0 同构建双臂 +1.7%)内。工件 `docs/perf-artifacts/warm_ab_oldnew_v3111.json`。
+- **★台架结构限制照旧**:`resourceMode: direct` 且 ready 即被杀 ⇒ 加速档不建成,绝对值恒是「失活态」读数,只作对照。
+- **★增量更新**:差量门实测 **7MB / 0.9% 下载 / 99.1% 复用**(真变 14MB,预算 130MB;57 段 ranged GET);**CDS 档 byte-identical vs 3.11.0**
+  —— 本版改动落在 app.asar 与后端 jar 的 basecomm/astrostudycn 两个嵌套 jar 内,对存量用户仍是无感升级。
+
 ### 温启对照 v3.11.0(2026-09-21 同步轮·AI 助手行动能力 v2 + 本机 MCP v2 桌面桥复刻;horosa_warm_ab_stamp_v1)
 
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `bef3ee80`)**:
