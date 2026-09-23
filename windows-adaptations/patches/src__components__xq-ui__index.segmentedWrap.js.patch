@@ -1,0 +1,54 @@
+diff --git a/astrostudyui/src/components/xq-ui/index.js b/astrostudyui/src/components/xq-ui/index.js
+index f78f9406..61c29449 100644
+--- a/astrostudyui/src/components/xq-ui/index.js
++++ b/astrostudyui/src/components/xq-ui/index.js
+@@ -87,15 +87,29 @@ export function useSlidingIndicator(containerRef, activeSelector, deps = []){
+ 
+ // [窄布局 2026-09-17] 分段控件放不下(各项文字总宽+内衬 > 容器)时挂 is-wrapped:两列多行、关闭滑块;文字宽用 Range 逐行累加,
+ // 与容器同在视觉域比较,不依赖当前是否已折行(无振荡)。环境不支持时恒 false = 现状。
++// horosa_segmented_wrap_hysteresis_v1(issue #84 根治:风水·三合水法左栏「砂水栏内容不断闪现、无法选中」):
++// 折行判据里的 padding 读的是 getComputedStyle(当前态),而 .is-wrapped 自己就把 padding 从 10px 改成 6px ——
++// 判「折」后 need 变小 → 判「不折」→ padding 回 10 → need 变大 → 再判「折」… 每帧翻一次(真机 MutationObserver
++// 实抓:同一分段组 3 秒内 class 翻 176 次、滑块 span 增删 88 次),整个左栏跟着重渲,任何点击都落不下去。
++// 修两刀:① need 只按**未折行态**的 padding 算(首测必是未折行态,缓存在 ref;折行态用缓存)——判据与自身结果脱钩;
++// ② 决策带滞回:折→不折要留 4px 余量。两刀都不改「放得下时一字不变」的语义。判据函数导出供单测钉住(jsdom 量不到布局)。
++export function decideSegmentedWrap(need, avail, wrapped){
++	if(!(avail > 0)){ return false; }
++	return wrapped ? need > avail - 4 : need > avail;
++}
++
+ export function useSegmentedWrap(containerRef, deps = []){
+ 	const [wrapped, setWrapped] = React.useState(false);
++	const unwrappedPads = React.useRef(null);   // 未折行态下逐项 padding(L+R)缓存
+ 	React.useEffect(()=>{
+ 		const el = containerRef.current;
+ 		if(!el || typeof ResizeObserver === 'undefined' || typeof document.createRange !== 'function'){ return undefined; }
+ 		const measure = ()=>{
+ 			const btns = el.querySelectorAll('.ant-radio-button-wrapper');
+ 			if(!btns.length){ return; }
+-			let need = 0;
++			const isWrappedNow = el.classList.contains('is-wrapped');
++			const pads = [];
++			const texts = [];
+ 			btns.forEach((b)=>{
+ 				// [2026-09-18 假折行根修] 只量可见文字那个直接子 span:整个 label 的 Range 会把 antd 撑满按钮的隐藏
+ 				// radio input(width:100%)与文字 span 的元素盒一起算进去(实测每项 129+28+28),三项 597 > 258 恒判折行,
+@@ -109,11 +123,15 @@ export function useSegmentedWrap(containerRef, deps = []){
+ 					for(let i = 0; i < rects.length; i++){ tw += rects[i].width; }
+ 				}catch(e){ tw = label.scrollWidth; }
+ 				const cs = getComputedStyle(b);
+-				need += tw + (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0) + 2;
++				texts.push(tw);
++				pads.push((parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0));
+ 			});
++			if(!isWrappedNow){ unwrappedPads.current = pads; }
++			const usePads = (isWrappedNow && unwrappedPads.current && unwrappedPads.current.length === pads.length) ? unwrappedPads.current : pads;
++			let need = 0;
++			for(let i = 0; i < texts.length; i++){ need += texts[i] + usePads[i] + 2; }
+ 			const avail = el.getBoundingClientRect().width - 8;
+-			const next = avail > 0 && need > avail;
+-			setWrapped((w)=>(w === next ? w : next));
++			setWrapped((w)=>{ const next = decideSegmentedWrap(need, avail, w); return w === next ? w : next; });
+ 		};
+ 		measure();
+ 		const ro = new ResizeObserver(measure);

@@ -2,6 +2,7 @@
 // 与户型图两法(canvas)互斥;选纯前端流派时由 FengShuiMain 渲染本组件。
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { XQSelect, XQSegmented } from '../xq-ui';
+import { getLayoutViewportHeight } from '../../utils/shellZoom';   // horosa_luopan_dial_viewport_cap_v1:罗盘直径按可视高度封顶
 import LuoshuGrid from './charts/LuoshuGrid';
 import TwentyFourShanRing from './charts/TwentyFourShanRing';
 import EightPalaceDisk from './charts/EightPalaceDisk';
@@ -205,6 +206,27 @@ export default function LiqiWorkspace({ school, geo = null, active = true }) {
 	}, [result, school, active]);
 
 	if (!result) { return null; }
+
+	// horosa_liqi_unavailable_guard_v1(issue #84 根治):各派 compute 在输入不足时返回 { available: false }(命理派命主年未填、
+	// 八宅坐山不在表、水龙无排龙、玄空向首不合法、择日无年…共 11 处),而中栏 / 右栏渲染分支直接解引用 result.fangwei / palaces / items
+	// ⇒ 首屏 TypeError 被技法错误边界接住、且流派选择已持久化 ⇒ 重开软件仍然报错、页面永久打不开。
+	// 修:不可用态只画左栏参数 + 一张提示卡(用户可继续改参数),中栏 / 右栏不解引用;可用态逐字不变。
+	if (result.available === false) {
+		return (
+			<div className="horosa-fengshui-liqi">
+				<div className="horosa-fengshui-liqi-params">{renderParams()}</div>
+				<div className="horosa-fengshui-liqi-chart" ref={chartBoxRef}>
+					<div className="horosa-fengshui-liqi-card" style={{ alignSelf: 'center', maxWidth: 420 }}>
+						<div className="horosa-fengshui-liqi-card-title">参数不足,尚未起盘</div>
+						<div className="horosa-fengshui-liqi-note">
+							{school === 'mingli' ? '命理派须先在左栏填写「命主年」(公历出生年)与宅坐卦,填齐即出盘。' : '请补齐左栏的必填参数(坐山 / 向首 / 年份等),填齐即出盘。'}
+						</div>
+					</div>
+				</div>
+				<div className="horosa-fengshui-liqi-panel" />
+			</div>
+		);
+	}
 
 	return (
 		<div className="horosa-fengshui-liqi">
@@ -608,9 +630,14 @@ export default function LiqiWorkspace({ school, geo = null, active = true }) {
 		}
 		if (school === 'zeri') { return renderZeriChart(); }
 		if (school === 'luopan') {
-			// 罗盘直径吃满中栏可用面积(min(宽,高)-边距;容器即视口约束,天然不超屏);量测未就绪时回退 760。
+			// 罗盘直径吃满中栏可用面积(min(宽,高)-边距);量测未就绪时回退 760。
+			// horosa_luopan_dial_viewport_cap_v1(issue #84):中栏格高实测由左栏参数列表撑到 ~1550 CSS px(栅格按内容撑高,并非视口约束),
+			// 盘径吃满 min(宽,高) 即超出屏幕;界面缩放时「宽绑定 ↔ 高绑定」切换、栅格在窄档重排 ⇒ 视觉直径忽大忽小(真机 0.6→1.4 缩放实抓
+			// 802→876→949→1022→1009→933)。改按可视高度封顶:盘始终贴合可视区域,缩放下尺寸稳定、不超屏、不来回跳。
+			const viewportH = getLayoutViewportHeight();
+			const viewportCap = viewportH > 200 ? viewportH - 24 : Infinity;
 			const dialSize = (chartBox.w > 120 && chartBox.h > 120)
-				? Math.max(640, Math.floor(Math.min(chartBox.w, chartBox.h)) - 16)
+				? Math.max(640, Math.floor(Math.min(chartBox.w, chartBox.h, viewportCap)) - 16)
 				: 760;
 			// 🔴 用 effLayers（盘式过滤后）而非 lp.layers：三元盘明载没有人盘中针/天盘缝针廿四山、
 			//    也没有七十二龙/一百二十龙/六十龙分金——切档时盘面上这些层必须真的消失。

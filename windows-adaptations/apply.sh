@@ -650,6 +650,17 @@ apply_patch stepPrefetchFastFirst "astrostudyui/src/utils/__tests__/stepPrefetch
 #   只声明不登记 = chartFreeContract 契约测试红(它 grep 源文件核「零 props.value/chartObj 消费」)。
 apply_patch horosa_chart_free_declared_v1 astrostudyui/src/utils/techniqueChartFree.js                src__utils__techniqueChartFree.chartFree.js.patch
 apply_patch horosa_chart_free_declared_v1 astrostudyui/src/components/fengshui/FengShuiMain.js        src__components__fengshui__FengShuiMain.chartFree.js.patch
+# horosa_liqi_unavailable_guard_v1 + horosa_luopan_dial_viewport_cap_v1(v3.11.1 覆盖补丁,issue #84 风水模块加载出错):
+#   理气工作区顶层 render 加 { available:false } 守卫(命理派命主年未填等 11 处不可用态不再解引用 result.fangwei/palaces/items);
+#   综合罗经盘径按可视高度封顶(中栏格高由左栏参数列表撑到 ~1550px,盘径吃满即超屏、缩放时忽大忽小)。
+apply_patch horosa_liqi_unavailable_guard_v1 astrostudyui/src/components/fengshui/LiqiWorkspace.js      src__components__fengshui__LiqiWorkspace.unavailableGuard.js.patch
+# horosa_segmented_wrap_hysteresis_v1(同轮):XQSegmented 折行判据按未折行态 padding 算 + 滞回 —— 修「三合水法左栏砂水栏每帧闪现、无法选中」
+#   (判据读当前态 padding,.is-wrapped 自己改 padding ⇒ 折/不折每帧反转;真机 3 秒 class 翻 176 次)。
+apply_patch horosa_segmented_wrap_hysteresis_v1 astrostudyui/src/components/xq-ui/index.js               src__components__xq-ui__index.segmentedWrap.js.patch
+# 两条回归守卫(纯新增测试文件,随 overlay 落地):判据函数单测 + 源码负锚 / 理气工作区逐派缺省挂载冒烟(命理派缺省必出提示卡)
+mkdir -p "$WS/astrostudyui/src/components/xq-ui/__tests__" "$WS/astrostudyui/src/components/fengshui/__tests__"
+cp "$OV/files/astrostudyui/src/components/xq-ui/__tests__/xqSegmentedWrapDecision.test.js" "$WS/astrostudyui/src/components/xq-ui/__tests__/xqSegmentedWrapDecision.test.js" && ok "xqSegmentedWrapDecision.test.js"
+cp "$OV/files/astrostudyui/src/components/fengshui/__tests__/liqiSchoolsMountSmoke.test.js" "$WS/astrostudyui/src/components/fengshui/__tests__/liqiSchoolsMountSmoke.test.js" && ok "liqiSchoolsMountSmoke.test.js"
 apply_patch horosa_chart_free_declared_v1 astrostudyui/src/components/calendar/CalendarMain.js        src__components__calendar__CalendarMain.chartFree.js.patch
 apply_patch horosa_chart_free_declared_v1 astrostudyui/src/components/cntradition/CnTraditionMain.js  src__components__cntradition__CnTraditionMain.chartFree.js.patch
 

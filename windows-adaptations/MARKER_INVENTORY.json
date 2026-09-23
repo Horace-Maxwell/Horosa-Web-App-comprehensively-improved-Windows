@@ -240,6 +240,13 @@
    "astrostudyui/src/components/germany/UranianDialMain.js": 3,
    "astrostudyui/src/components/guolao/GuoLaoMoiraPanel.js": 1
   },
+  "horosa_liqi_schools_mount_smoke_v1": {
+   "astrostudyui/src/components/fengshui/__tests__/liqiSchoolsMountSmoke.test.js": 1
+  },
+  "horosa_liqi_unavailable_guard_v1": {
+   "astrostudyui/src/components/fengshui/LiqiWorkspace.js": 1,
+   "astrostudyui/src/components/fengshui/__tests__/liqiSchoolsMountSmoke.test.js": 1
+  },
   "horosa_liureng_render_slice_v1": {
    "astrostudyui/src/components/lrzhan/LiuRengMain.js": 8
   },
@@ -247,6 +254,10 @@
    "astrostudyui/src/components/dunjia/DunJiaMain.js": 1,
    "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 1,
    "astrostudyui/src/components/sanshi/__tests__/liveTimePropagation.test.js": 3
+  },
+  "horosa_luopan_dial_viewport_cap_v1": {
+   "astrostudyui/src/components/fengshui/LiqiWorkspace.js": 2,
+   "astrostudyui/src/components/fengshui/__tests__/liqiSchoolsMountSmoke.test.js": 1
   },
   "horosa_moira_stable_key_v1": {
    "astrostudyui/src/services/__tests__/perfR10CacheUnify.test.js": 2,
@@ -469,6 +480,10 @@
   },
   "horosa_scu_arraywise_v1": {
    "astrostudyui/src/components/jieqi/JieQiChartsMain.js": 1
+  },
+  "horosa_segmented_wrap_hysteresis_v1": {
+   "astrostudyui/src/components/xq-ui/__tests__/xqSegmentedWrapDecision.test.js": 1,
+   "astrostudyui/src/components/xq-ui/index.js": 1
   },
   "horosa_shadow_mirror_electron_v1": {
    "astrostudyui/src/utils/shadowMirror.js": 1
