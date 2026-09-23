@@ -1,5 +1,6 @@
 import { Component, memo } from 'react';
 import { splitBaziCalibrePatch, applyBaziCalibreOverride } from '../../utils/baziCalibreScope';
+import { recordNewChartSeeds } from '../../utils/newChartSeeds';
 import { buildTimeBasisLine } from '../../utils/timeBasisLine';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { markPanelReady } from '../../utils/perfMark';
@@ -879,6 +880,10 @@ class BaZi extends Component{
 			// 宿主内嵌(techniqueScope:择日 / 截图挂载)照旧写宿主自管 fields(它们不共享主盘)。
 			let sharedPatch = patch;
 			if(!this.props.techniqueScope){
+				// 「新盘种子」:长生 / 神煞查法的亲手改动 = 新命盘缺省(时间算法是本页覆盖层,复位到全局缺省,不在此记)
+				if(patch.phaseType !== undefined || patch.godKeyPos !== undefined){
+					recordNewChartSeeds({ ...(patch.phaseType !== undefined ? { phaseType: patch.phaseType } : {}), ...(patch.godKeyPos !== undefined ? { godKeyPos: patch.godKeyPos } : {}) });
+				}
 				const split = splitBaziCalibrePatch(patch);
 				if(Object.keys(split.calibre).length){
 					this.props.dispatch({ type: 'astro/setBaziCalibreOverride', payload: { override: split.calibre } });

@@ -1,4 +1,5 @@
 import * as d3 from 'd3';
+import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import React, { Component } from 'react';
 import { Modal } from 'antd';
 import {randomStr, setupFloatingTooltip} from '../../utils/helper';
@@ -151,6 +152,8 @@ class LiuRengChart extends Component{
 			});
 			this.hostResizeObserver.observe(svgdom.parentNode);
 		}
+		// 主题重画(单源订阅):课体 / 四课三传的墨色与格线取自绘制时的调色板
+		this._detachAppearance = watchChartAppearance(()=>{ this.forceUpdate(()=>this.safeDrawChart()); });
 		this.safeDrawChart();
 	}
 
@@ -170,6 +173,7 @@ class LiuRengChart extends Component{
 	}
 
 	componentWillUnmount() {
+		if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; }
 		window.removeEventListener('resize', this.handleResize)
 		if(this._resizeRaf && typeof cancelAnimationFrame === 'function'){
 			cancelAnimationFrame(this._resizeRaf);

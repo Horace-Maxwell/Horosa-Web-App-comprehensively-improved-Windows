@@ -1,5 +1,6 @@
 import { Component, memo } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { recordNewChartSeeds } from '../../utils/newChartSeeds';
 import { fixedPopupFrame } from '../../utils/zoomDomain';
 import { stepPrefetchEnabled } from '../../utils/perfFlags';
 import { registerStepPrefetcher } from '../../utils/stepPrefetch';
@@ -1437,6 +1438,9 @@ class IndiaChartMain extends Component{
 			this.changeHsys = this.changeHsys.bind(this);
 			this.changeIndiaAyanamsa = this.changeIndiaAyanamsa.bind(this);
 			// 载盘/含设置的 fields → 构造期回种 state(否则 state 默认值盖掉记录里的设置)
+			// 映射表各 state 键的出厂值(取自上面的 state 字面量本身,单源):载入记录 / 新命盘时 fields 里缺席的键要回到它
+			this._indiaOptionStateDefaults = {};
+			INDIA_OPTION_FIELD_STATE_MAP.forEach(({ state })=>{ const v = this.state[state]; this._indiaOptionStateDefaults[state] = Array.isArray(v) ? v.slice() : (v && typeof v === 'object' ? { ...v } : v); });
 			Object.assign(this.state, seedIndiaOptionState(props.fields));
 			if(this.state.indiaSchool && this.state.indiaSchool !== AstroConst.INDIA_SCHOOL_DEFAULT){
 				const seededDef = AstroConst.getIndiaSchoolDefaults(this.state.indiaSchool) || {};
@@ -2332,6 +2336,9 @@ class IndiaChartMain extends Component{
 		// 选项写穿 dva fields(存盘四本账第一公里)。patch={fieldKey: rawValue};
 		// 新建 fields 对象与新 entry(勿就地改共享 entry —— astro 模型 :1144 老坑)。
 		if(!this.props.dispatch || !patch){ return; }
+		// 「新盘种子」:本入口只由用户 handler 调(载盘回种走 adoptIndiaOptionFields → setState),故凡经此写的选项 = 亲手改;
+		// 大运流月 / 年盘年份 / 三旗 / 问事这类逐盘输入不在种子表,recordNewChartSeeds 自动忽略
+		recordNewChartSeeds(patch);
 		const cur = this.props.fields || {};
 		const fields = { ...cur };
 		let touched = false;
@@ -2352,6 +2359,20 @@ class IndiaChartMain extends Component{
 		// 只有外部载入(记录还原)才产生差值 → 采纳一次即稳定。
 		if(!prevProps || this.props.fields === prevProps.fields){ return false; }
 		const patch = seedIndiaOptionState(this.props.fields);
+		// 记录身份变了(载入命盘 / 事盘,或「新命盘」):fields 里**缺席**的映射键也要采纳 —— 缺席 = 记录里没有 = 存档时为默认
+		// (schema 本没有的印占键在载入记录时会被撤掉);此前缺席一律不动 state,组件就留着上一张盘 / 新盘种子的值,
+		// 页面所见 ≠ 存档 / AI 无头复算(行为普查实抓:载入记录后「流派与算法」各项仍读出种子值)。
+		// 只按 cid 变化触发:同一记录内的时间 / 地点改动、择日宿主重建 fields(无 cid)都不重置在页内改过的选项。
+		const cidOf = (f)=>(f && f.cid && f.cid.value !== undefined && f.cid.value !== null ? `${f.cid.value}` : '');
+		if(cidOf(this.props.fields) !== cidOf(prevProps.fields) && this._indiaOptionStateDefaults){
+			INDIA_OPTION_FIELD_STATE_MAP.forEach(({ field, state })=>{
+				if(Object.prototype.hasOwnProperty.call(patch, state)){ return; }
+				const entry = this.props.fields ? this.props.fields[field] : undefined;
+				if(entry && entry.value !== undefined && entry.value !== null && entry.value !== ''){ return; }
+				const d = this._indiaOptionStateDefaults[state];
+				patch[state] = Array.isArray(d) ? d.slice() : (d && typeof d === 'object' ? { ...d } : d);
+			});
+		}
 		const diff = {};
 		Object.keys(patch).forEach((k)=>{
 			const cur = this.state[k];

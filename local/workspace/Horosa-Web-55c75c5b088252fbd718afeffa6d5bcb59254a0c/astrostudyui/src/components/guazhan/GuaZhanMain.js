@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import { createSignatureMemo } from '../../utils/memoBySignature';
 import { Checkbox, message, Modal } from 'antd';
@@ -400,6 +401,16 @@ export const GUAZHAN_PAGE_SETTINGS = definePageSettings('horosa.guazhan.settings
 });
 
 class GuaZhanMain extends Component{
+	// 生爻配色按访问时读当前调色板(切明暗后新爻即新色);构造期数组会把旧主题的色存死(FL-20260922-3)
+	get genColor(){
+		return [
+			AstroConst.AstroColor.Stroke,
+			AstroConst.AstroColor.Mars || '#a01306',
+			AstroConst.AstroColor.MC || '#948e33',
+			AstroConst.AstroColor['Purple Clouds'] || '#7b5cbc',
+			AstroConst.AstroColor.Jupiter || '#0b0e66',
+		];
+	}
 	constructor(props) {
 		super(props);
 
@@ -472,13 +483,6 @@ class GuaZhanMain extends Component{
 		this.unmounted = false;
 		this.lastRestoredCaseId = null;
 		this.timeHook = {};
-		this.genColor = [
-			AstroConst.AstroColor.Stroke,
-			AstroConst.AstroColor.Mars || '#a01306',
-			AstroConst.AstroColor.MC || '#948e33',
-			AstroConst.AstroColor['Purple Clouds'] || '#7b5cbc',
-			AstroConst.AstroColor.Jupiter || '#0b0e66',
-		];
 		this.colorIndex = 0;
 		this.periodTask = null;
 		this.guaPeriodTask = null;
@@ -1552,13 +1556,10 @@ class GuaZhanMain extends Component{
 		}
 		// 主题(亮↔暗)切换:爻的 .color 存的是取盘时的 AstroColor.Stroke(随主题的墨色)。切主题后不刷 → 爻线用旧墨色
 		// (如暗色墨落在亮底上看不清,且与六亲名的新墨色对不上,用户实测「爻颜色切换后不对」)。观察属性,变则刷成当前墨色。
-		if(typeof MutationObserver !== 'undefined' && typeof document !== 'undefined' && document.documentElement){
-			this._themeObs = new MutationObserver(() => {
-				if(this.unmounted){ return; }
-				this.setState((prev) => ({ yao: (prev.yao || []).map((y) => (y && y.value >= 0 ? { ...y, color: this.getYaoColor() } : y)) }));
-			});
-			this._themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-horosa-appearance'] });
-		}
+		this._detachAppearance = watchChartAppearance(() => {
+			if(this.unmounted){ return; }
+			this.setState((prev) => ({ yao: (prev.yao || []).map((y) => (y && y.value >= 0 ? { ...y, color: this.getYaoColor() } : y)) }));
+		});
 		// WP-6:预热《断易天机》断语库(异步 chunk),使 AI 快照同步路径(zhanleiLines 有界摘要)能取到缓存。
 		import('../gua/data/liuyaoDoctrineCache').then((m) => { if(m && m.loadDoctrine){ m.loadDoctrine(); } }).catch(() => {});
 	}
@@ -1621,7 +1622,7 @@ class GuaZhanMain extends Component{
 			clearInterval(this.periodTask);
 			this.periodTask = null;
 		}
-		if(this._themeObs){ this._themeObs.disconnect(); this._themeObs = null; }
+		if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; }
 		if(typeof window !== 'undefined' && this._dayBoundaryListener){
 			window.removeEventListener('horosa:day-boundary-changed', this._dayBoundaryListener);
 		}

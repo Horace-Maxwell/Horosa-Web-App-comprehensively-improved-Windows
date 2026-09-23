@@ -8,6 +8,7 @@ import { chartSCUEnabled } from '../../utils/perfFlags';
 // 数据:/germany/midpoint(含 houseFrames)+ /chart(取各点黄经/字形)。后端缺 houseFrames 时前端等宫降级合成。
 // showHouseFrames(WP-1 持久化开关)关时本 Tab 在 AstroGermany 里隐藏;此处再兜一层提示。
 import React, { Component } from 'react';
+import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import { Row, Col, Switch, Spin, Empty } from 'antd';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
@@ -192,12 +193,14 @@ export default class UranianHouseFrames extends Component {
 	componentDidMount(){
 		this.unmounted = false;
 		this.load();
+		this._detachAppearance = watchChartAppearance(() => { if (!this.unmounted) { this.load(); } });   // 宫框轮的星座填色取自调色板(烘焙),切主题重算重画
 		if (typeof window !== 'undefined') window.addEventListener('resize', this._onResize);
 		if (typeof ResizeObserver !== 'undefined' && this._host){ this._ro = new ResizeObserver(() => this._measure()); this._ro.observe(this._host); }
 		this._measure();
 	}
 	componentWillUnmount(){
 		this.unmounted = true;
+		if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; }
 		if (typeof window !== 'undefined') window.removeEventListener('resize', this._onResize);
 		if (this._ro){ try { this._ro.disconnect(); } catch (e) { /* noop */ } this._ro = null; }
 	}

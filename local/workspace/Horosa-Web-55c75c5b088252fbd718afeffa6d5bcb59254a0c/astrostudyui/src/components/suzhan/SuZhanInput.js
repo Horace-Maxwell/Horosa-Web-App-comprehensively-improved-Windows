@@ -10,6 +10,7 @@ import { geoNameFieldPatch } from '../../utils/geoName';
 import DateTime from '../comp/DateTime';
 import { XQSelect as Select } from '../xq-ui';
 import { SU28_MODE_GROUPS } from '../guolao/guolaoData';
+import { recordNewChartSeeds } from '../../utils/newChartSeeds';
 
 const {Option} = Select;
 
@@ -117,6 +118,7 @@ class SuZhanInput extends Component{
 	}
 
 	onDoubingSu28Change(val){
+		recordNewChartSeeds({ doubingSu28: val });   // 「新盘种子」:宿法亲手改动 = 新命盘缺省
 		if(this.props.onFieldsChange){
 			this.props.onFieldsChange({
 				doubingSu28: {

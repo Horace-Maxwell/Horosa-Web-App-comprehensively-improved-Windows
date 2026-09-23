@@ -6,6 +6,9 @@ import { drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
 
 
 class GodChart {
+	// color 按访问时读当前调色板(切明暗后重画即新色);显式赋值仍优先 —— 构造期 this.x = AstroColor.y 会把旧主题的色存进实例(FL-20260922-3)
+	get color(){ return this._colorOverride !== undefined ? this._colorOverride : AstroConst.AstroColor.Stroke; }
+	set color(v){ this._colorOverride = v; }
 	constructor(option){
 		this.owner = option.owner;
 		this.title = option.title;
@@ -21,7 +24,6 @@ class GodChart {
 		this.id = 'chart' + randomStr(8);
 
 		this.svg = null;
-		this.color = AstroConst.AstroColor.Stroke;
 		this.bgColor = LRConst.getHouseColor(0);
 		this.margin = 2;
 		this.titleFontSize = 20;

@@ -29,6 +29,7 @@ import {
     applyLightFlavorToDocument,
     getStoredLightFlavor,
     resolveAppearance,
+    syncChartPalette,
 } from '../utils/appearance';
 import styles from './app.less';
 
@@ -166,7 +167,7 @@ const App = ({children, dispatch, app, user, astro, })=>{
         });
     }
 
-    AstroConst.setColorTheme(resolvedAppearance === APPEARANCE_DARK ? 8 : AstroConst.DefaultColorTheme);
+    syncChartPalette(resolvedAppearance);   // 盘面调色板与外观的映射只住 utils/appearance.js(render 期先同步一次,首帧盘即正确;effect 期 applyAppearanceToDocument 再广播重画)
 
     let mainstyle = {
         position: 'fixed',

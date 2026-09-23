@@ -11,6 +11,11 @@ import {ZiSign,} from '../suzhan/SZConst';
 
 
 class Su28ChartCircle {
+	// houseBG / color 按访问时读当前调色板(切明暗后重画即新色);显式赋值仍优先 —— 构造期 this.x = AstroColor.y 会把旧主题的色存进实例(FL-20260922-3)
+	get houseBG(){ return this._houseBGOverride !== undefined ? this._houseBGOverride : AstroConst.AstroColor.ChartBackgroud; }
+	set houseBG(v){ this._houseBGOverride = v; }
+	get color(){ return this._colorOverride !== undefined ? this._colorOverride : AstroConst.AstroColor.Stroke; }
+	set color(v){ this._colorOverride = v; }
 	constructor(option){
 		this.ChartMargin = 20;
 		this.ChartMarginDelta = 55;
@@ -58,8 +63,6 @@ class Su28ChartCircle {
 		this.fontSize = 15;
 		this.starFontSize = 14;
 		this.starAngleFontSize = 13;
-		this.houseBG = AstroConst.AstroColor.ChartBackgroud;
-		this.color = AstroConst.AstroColor.Stroke;
 
 		this.ascSign = null;
 		this.ascSignIndex = -1;	

@@ -1,4 +1,5 @@
 import * as d3 from 'd3';
+import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import React, { Component } from 'react';
 import {randomStr, setupFloatingTooltip} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
@@ -293,11 +294,8 @@ class ZiWeiChart extends Component{
 			}
 		}
 		// 主题(明暗)切换只改 <html data-horosa-appearance>；盘底等烘焙色不重绘则停在旧主题(切明暗紫微盘不变·很丑)。
-		// 挂 observer 主动重绘(重绘签名已含 appearance，故确实重画)。仿 AstroChart 同款修法。
-		if(typeof MutationObserver !== 'undefined' && typeof document !== 'undefined' && document.documentElement){
-			this._appearanceObserver = new MutationObserver(()=>{ this.scheduleDrawChart(); });
-			this._appearanceObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-horosa-appearance'] });
-		}
+		// 经 watchChartAppearance(单源订阅)主动重绘(重绘签名已含 appearance，故确实重画)。仿 AstroChart 同款修法。
+		this._detachAppearance = watchChartAppearance(()=>{ this.scheduleDrawChart(); });
 		this.scheduleDrawChart();
 	}
 
@@ -315,10 +313,7 @@ class ZiWeiChart extends Component{
 			this.resizeObserver.disconnect();
 			this.resizeObserver = null;
 		}
-		if(this._appearanceObserver){
-			this._appearanceObserver.disconnect();
-			this._appearanceObserver = null;
-		}
+		if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; }
 		d3.select('#' + this.state.tooltipId).remove();
 	}
 

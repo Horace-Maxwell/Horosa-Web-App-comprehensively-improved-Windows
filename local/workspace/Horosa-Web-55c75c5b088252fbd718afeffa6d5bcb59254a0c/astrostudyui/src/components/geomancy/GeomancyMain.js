@@ -259,6 +259,9 @@ const TRADITION_OPTIONS = [
 // 后端 PROFILES 另有两档(起盘后由 result.traditions 覆盖上表)。
 // 🔴 此表**只备短名、不进可选集** —— 起盘前少几项是既有约定(帮助文档已明文),不可由此悄悄改变。
 const TRADITION_SHORT_EXTRA = { greek: '希腊', ifa: '结构' };
+// 后端独有两档的全名(与引擎 profiles 表同文,合同测试 geomancyTraditionLabels 锁):恢复了这两档的保存值、又还没起过盘时,
+// 下拉此前只能显示原始 id(greek / ifa)—— 静态候选集不因此扩大(起盘前少几项仍是既有约定),只给当前值补一条带中文名的项。
+const TRADITION_EXTRA_LABELS = { greek: '希腊拜占庭派', ifa: '西非同族对照' };
 const READING_SCOPE_OPTIONS = [
 	{ key: 'L0', label: 'L0 仅判官', short: 'L0' },
 	{ key: 'L1', label: 'L1 三图(证·判)', short: 'L1' },
@@ -1449,6 +1452,10 @@ class GeomancyMain extends Component{
 			const shortByKey = { ...TRADITION_SHORT_EXTRA };
 			TRADITION_OPTIONS.forEach((o)=>{ if(o.short){ shortByKey[o.key] = o.short; } });
 			return t.map((x)=>({ key: x.id, label: x.label, short: shortByKey[x.id] }));
+		}
+		const cur = this.state.tradition;
+		if(cur && !TRADITION_OPTIONS.some((o)=>o.key === cur)){
+			return TRADITION_OPTIONS.concat([{ key: cur, label: TRADITION_EXTRA_LABELS[cur] || cur, short: TRADITION_SHORT_EXTRA[cur] }]);
 		}
 		return TRADITION_OPTIONS;
 	}

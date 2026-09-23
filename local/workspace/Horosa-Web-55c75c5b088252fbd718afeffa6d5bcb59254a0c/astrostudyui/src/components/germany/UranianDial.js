@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import * as d3 from 'd3';
 import { randomStr } from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
@@ -45,7 +46,7 @@ export default class UranianDial extends Component {
 		this._onMove = this._onMove.bind(this);
 		this._onUp = this._onUp.bind(this);
 	}
-	componentDidMount(){ this.draw(); }
+	componentDidMount(){ this.draw(); this._detachAppearance = watchChartAppearance(() => this.draw()); }
 	componentDidUpdate(prev){
 		if (prev.base !== this.props.base || prev.rings !== this.props.rings || prev.size !== this.props.size || prev.showTnp !== this.props.showTnp || prev.showAntiscia !== this.props.showAntiscia
 			|| prev.crossPointer !== this.props.crossPointer || prev.showHouseFrames !== this.props.showHouseFrames) {
@@ -55,7 +56,7 @@ export default class UranianDial extends Component {
 			this.emitReadout();
 		}
 	}
-	componentWillUnmount(){ if(this._raf){ cancelAnimationFrame(this._raf); this._raf = null; } this._detach(); }
+	componentWillUnmount(){ if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; } if(this._raf){ cancelAnimationFrame(this._raf); this._raf = null; } this._detach(); }
 
 	rings(){ return (this.props.rings && this.props.rings.length) ? this.props.rings : [{ key: 'natal', label: '本命', points: this.props.points || [] }]; }
 

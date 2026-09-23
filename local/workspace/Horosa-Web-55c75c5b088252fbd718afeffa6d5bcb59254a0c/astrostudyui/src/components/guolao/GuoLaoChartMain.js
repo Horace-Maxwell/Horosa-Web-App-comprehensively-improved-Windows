@@ -1413,6 +1413,13 @@ async function fetchGuolaoChartCached(params, options){
 export function computeGuolaoSeedPatch(fields, opts){
 	if(!fields){ return {}; }
 	const embedded = !!(opts && opts.embedded);
+	// 择日宿主里内嵌的那份**整个不播**(此前只对后加的七键关掉,既有三键仍会播):宿主按「主页出厂档 + 工作台扫描口径」
+	// 自造 fields,补值走的却是全局 fields 派发 —— 全局仓存过非 asc 的命度法时,首开七政择日会拿择日时刻去改主应用当前的盘,
+	// 内嵌实例又因 ensure 返回 true 而不起盘、等不到 fields 变化 → 内嵌盘不出。判别向量在 pageSettingsCaseAndHostSemantics 合同测试。
+	if(embedded){ return {}; }
+	// 载入了记录(cid 有值)一律以记录为准,既有三键与后加七键同律(记录还原把「存档时为默认」复位成 schema 初值,单看取值分不清
+	// 「记录说是默认」与「还没人表态」;把一张按默认存下的旧盘按当前偏好重排 = 盘变了、另存写回记录、与 AI 无头复算对不上)
+	const recordLoaded = !!(fields.cid && fields.cid.value);
 	const su28Mode = getStoredGuolaoSu28Mode();
 	const lifeMode = getStoredGuolaoLifeMode();
 	const nodeMode = getStoredGuolaoNodeMode();
@@ -1431,17 +1438,17 @@ export function computeGuolaoSeedPatch(fields, opts){
 		return `${cur}` === `${def}`;
 	};
 	const patch = {};
-	if(currentSu28 !== su28Mode && atSchemaDefault('doubingSu28', currentSu28)){
+	if(!recordLoaded && currentSu28 !== su28Mode && atSchemaDefault('doubingSu28', currentSu28)){
 		patch.doubingSu28 = {
 			value: su28Mode,
 		};
 	}
-	if(currentLifeMode !== lifeMode && atSchemaDefault('guolaoLifeMode', currentLifeMode)){
+	if(!recordLoaded && currentLifeMode !== lifeMode && atSchemaDefault('guolaoLifeMode', currentLifeMode)){
 		patch.guolaoLifeMode = {
 			value: lifeMode,
 		};
 	}
-	if(currentNodeMode !== nodeMode && atSchemaDefault('guolaoNodeMode', currentNodeMode)){
+	if(!recordLoaded && currentNodeMode !== nodeMode && atSchemaDefault('guolaoNodeMode', currentNodeMode)){
 		patch.guolaoNodeMode = {
 			value: nodeMode,
 		};
@@ -1456,8 +1463,7 @@ export function computeGuolaoSeedPatch(fields, opts){
 	//   · **自定身宫(某个地支)不播**。那是给某一位命主手工指定的身宫,不是口径;播出去等于把这位的身宫强加给后面每一张盘。
 	//   · **择日宿主里内嵌的那份不播**。宿主自己按「主页出厂档 + 工作台扫描口径」造 fields(显示盘须与命中判定同口径),
 	//     内嵌实例若把全局仓值补进去,一是与扫描口径相左,二是补值走的是全局 fields 派发 —— 会拿宿主的择日时刻去改主应用当前的盘。
-	const recordLoaded = !!(fields.cid && fields.cid.value);
-	if(!recordLoaded && !embedded){
+	if(!recordLoaded){
 		[
 			['guolaoTrueSolarTime', getStoredGuolaoTrueSolarTime],
 			['guolaoNodeType', getStoredGuolaoNodeType],

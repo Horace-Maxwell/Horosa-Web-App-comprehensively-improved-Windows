@@ -17,6 +17,8 @@
 // 新记录与 birth 串前导负号一致(幂等双保险)。
 
 // parse: 'int'|'num'|'str'|'raw'|'object' —— 与 buildLocalChartRecord 保存侧强转一一对应。
+import { isNewChartSeedKey, newChartSeedIsInSchema, newChartSeedInternalDefault, resetNewChartSeedKeysToInternalDefaults } from './newChartSeeds';
+
 export const RECORD_FIELDS_RESTORE_MANIFEST = [
 	// ── 既有手写条件块迁入（行为等价）─────────────────────────────
 	{ key: 'ad', parse: 'int' },
@@ -199,10 +201,13 @@ export function recordHasCaptureMark(record){
 // - record 缺键/null/解析失败(NaN) 一律跳过 → legacy 记录零冲击（保持当前 fields 现值）。
 // - 绝不改 baseFields 及其 entry；未命中键保持 entry 同一性。
 export function applyRecordToFields(baseFields, record){
-	const fields = { ...(baseFields || {}) };
+	let fields = { ...(baseFields || {}) };
 	if(!record || typeof record !== 'object'){
 		return fields;
 	}
+	// 「新盘种子」不播给载入的记录:种子键先复位到内建默认(schema 没有的撤掉),记录里有的键随后覆盖 ——
+	// 记录自带的口径永远优先,记录里没有 = 存档时为默认。
+	fields = resetNewChartSeedKeysToInternalDefaults(fields);
 	// [Q-256/T-219] 有代次标记的记录:缺键 = 保存时为默认 → 复位到与捕获同一基准的默认值(spec 默认 > schema 初值);schema 无此键则撤出
 	const marked = recordHasCaptureMark(record);
 	let baseline = {};
@@ -217,8 +222,14 @@ export function applyRecordToFields(baseFields, record){
 			if(marked){
 				const hasSpec = Object.prototype.hasOwnProperty.call(specDef, key);
 				const baseEntry = baseline[key];
-				if(hasSpec || (baseEntry && baseEntry.value !== undefined)){
-					const def = hasSpec ? specDef[key] : baseEntry.value;
+				// 种子键的「默认」= 内建默认(newChartSeeds 表),不是 newEmptyFields 里播过种的值;schema 本没有的种子键一律撤掉
+				// (不新建 entry:载入记录后的键集与没播种时相同)
+				const seeded = isNewChartSeedKey(key);
+				const seedDef = seeded ? newChartSeedInternalDefault(key) : undefined;
+				if(seeded && !newChartSeedIsInSchema(key)){
+					if(fields[key] !== undefined){ delete fields[key]; }
+				}else if(hasSpec || seeded || (baseEntry && baseEntry.value !== undefined)){
+					const def = hasSpec ? specDef[key] : (seeded ? seedDef : baseEntry.value);
 					fields[key] = { ...(fields[key] || { name: [key] }), value: def };
 				}else if(fields[key] !== undefined){
 					delete fields[key];
@@ -284,7 +295,9 @@ export function captureNonDefaultTechniqueFields(fields){
 		}
 		const v = entry.value;
 		const defEntry = baseline[key];
-		const def = Object.prototype.hasOwnProperty.call(specDef, key) ? specDef[key] : (defEntry ? defEntry.value : undefined);
+		// 种子键按内建默认判非默认(不按 newEmptyFields 里播过种的值):与种子同值的口径也要落库,换机 / 改种子后旧盘才不漂
+		const def = Object.prototype.hasOwnProperty.call(specDef, key) ? specDef[key]
+			: (isNewChartSeedKey(key) ? newChartSeedInternalDefault(key) : (defEntry ? defEntry.value : undefined));
 		const same = (v !== null && typeof v === 'object') || (def !== null && typeof def === 'object')
 			? JSON.stringify(v) === JSON.stringify(def)
 			: v === def;

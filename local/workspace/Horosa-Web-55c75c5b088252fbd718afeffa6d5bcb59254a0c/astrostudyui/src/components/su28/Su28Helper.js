@@ -9,66 +9,6 @@ export const Su28 = [
 ];
 
 
-export const Su28Color = [
-	AstroConst.AstroColor['Libra'], AstroConst.AstroColor['Libra'],
-	AstroConst.AstroColor['Scorpio'], AstroConst.AstroColor['Scorpio'], AstroConst.AstroColor['Scorpio'],
-	AstroConst.AstroColor['Sagittarius'], AstroConst.AstroColor['Sagittarius'],
-	AstroConst.AstroColor['Capricorn'], AstroConst.AstroColor['Capricorn'],
-	AstroConst.AstroColor['Aquarius'], AstroConst.AstroColor['Aquarius'], AstroConst.AstroColor['Aquarius'],
-	AstroConst.AstroColor['Pisces'], AstroConst.AstroColor['Pisces'],
-	AstroConst.AstroColor['Aries'], AstroConst.AstroColor['Aries'], 
-	AstroConst.AstroColor['Taurus'], AstroConst.AstroColor['Taurus'], AstroConst.AstroColor['Taurus'],
-	AstroConst.AstroColor['Gemini'], AstroConst.AstroColor['Gemini'], 
-	AstroConst.AstroColor['Cancer'], AstroConst.AstroColor['Cancer'], 
-	AstroConst.AstroColor['Leo'], AstroConst.AstroColor['Leo'], AstroConst.AstroColor['Leo'],
-	AstroConst.AstroColor['Virgo'], AstroConst.AstroColor['Virgo']
-];
-
-export const Su28ColorCircle = [
-	AstroConst.AstroColor['Pisces'], AstroConst.AstroColor['Aries'], AstroConst.AstroColor['Aries'], 
-	AstroConst.AstroColor['Taurus'], AstroConst.AstroColor['Taurus'], AstroConst.AstroColor['Taurus'],
-	AstroConst.AstroColor['Gemini'], AstroConst.AstroColor['Gemini'], 
-	AstroConst.AstroColor['Cancer'], AstroConst.AstroColor['Cancer'], 
-	AstroConst.AstroColor['Leo'], AstroConst.AstroColor['Leo'], AstroConst.AstroColor['Leo'],
-	AstroConst.AstroColor['Virgo'], AstroConst.AstroColor['Virgo'],
-	AstroConst.AstroColor['Libra'], AstroConst.AstroColor['Libra'],
-	AstroConst.AstroColor['Scorpio'], AstroConst.AstroColor['Scorpio'], AstroConst.AstroColor['Scorpio'],
-	AstroConst.AstroColor['Sagittarius'], AstroConst.AstroColor['Sagittarius'],
-	AstroConst.AstroColor['Capricorn'], AstroConst.AstroColor['Capricorn'],
-	AstroConst.AstroColor['Aquarius'], AstroConst.AstroColor['Aquarius'], AstroConst.AstroColor['Aquarius'],
-	AstroConst.AstroColor['Pisces'], 
-];
-
-export const Su28FillColor = [
-	AstroConst.AstroColor.SignFill['Libra'], AstroConst.AstroColor.SignFill['Libra'],
-	AstroConst.AstroColor.SignFill['Scorpio'], AstroConst.AstroColor.SignFill['Scorpio'], AstroConst.AstroColor.SignFill['Scorpio'],
-	AstroConst.AstroColor.SignFill['Sagittarius'], AstroConst.AstroColor.SignFill['Sagittarius'],
-	AstroConst.AstroColor.SignFill['Capricorn'], AstroConst.AstroColor.SignFill['Capricorn'],
-	AstroConst.AstroColor.SignFill['Aquarius'], AstroConst.AstroColor.SignFill['Aquarius'], AstroConst.AstroColor.SignFill['Aquarius'],
-	AstroConst.AstroColor.SignFill['Pisces'], AstroConst.AstroColor.SignFill['Pisces'],
-	AstroConst.AstroColor.SignFill['Aries'], AstroConst.AstroColor.SignFill['Aries'], 
-	AstroConst.AstroColor.SignFill['Taurus'], AstroConst.AstroColor.SignFill['Taurus'], AstroConst.AstroColor.SignFill['Taurus'],
-	AstroConst.AstroColor.SignFill['Gemini'], AstroConst.AstroColor.SignFill['Gemini'], 
-	AstroConst.AstroColor.SignFill['Cancer'], AstroConst.AstroColor.SignFill['Cancer'], 
-	AstroConst.AstroColor.SignFill['Leo'], AstroConst.AstroColor.SignFill['Leo'], AstroConst.AstroColor.SignFill['Leo'],
-	AstroConst.AstroColor.SignFill['Virgo'], AstroConst.AstroColor.SignFill['Virgo']
-];
-
-export const Su28FillColorCircle = [
-	AstroConst.AstroColor.SignFill['Pisces'], AstroConst.AstroColor.SignFill['Aries'], AstroConst.AstroColor.SignFill['Aries'], 
-	AstroConst.AstroColor.SignFill['Taurus'], AstroConst.AstroColor.SignFill['Taurus'], AstroConst.AstroColor.SignFill['Taurus'],
-	AstroConst.AstroColor.SignFill['Gemini'], AstroConst.AstroColor.SignFill['Gemini'], 
-	AstroConst.AstroColor.SignFill['Cancer'], AstroConst.AstroColor.SignFill['Cancer'], 
-	AstroConst.AstroColor.SignFill['Leo'], AstroConst.AstroColor.SignFill['Leo'], AstroConst.AstroColor.SignFill['Leo'],
-	AstroConst.AstroColor.SignFill['Virgo'], AstroConst.AstroColor.SignFill['Virgo'],
-	AstroConst.AstroColor.SignFill['Libra'], AstroConst.AstroColor.SignFill['Libra'],
-	AstroConst.AstroColor.SignFill['Scorpio'], AstroConst.AstroColor.SignFill['Scorpio'], AstroConst.AstroColor.SignFill['Scorpio'],
-	AstroConst.AstroColor.SignFill['Sagittarius'], AstroConst.AstroColor.SignFill['Sagittarius'],
-	AstroConst.AstroColor.SignFill['Capricorn'], AstroConst.AstroColor.SignFill['Capricorn'],
-	AstroConst.AstroColor.SignFill['Aquarius'], AstroConst.AstroColor.SignFill['Aquarius'], AstroConst.AstroColor.SignFill['Aquarius'],
-	AstroConst.AstroColor.SignFill['Pisces'], 
-];
-
 let suToSign = [
 	AstroConst.LIBRA, AstroConst.LIBRA,
 	AstroConst.SCORPIO, AstroConst.SCORPIO, AstroConst.SCORPIO,
@@ -84,6 +24,8 @@ let suToSign = [
 	AstroConst.VIRGO, AstroConst.VIRGO, AstroConst.VIRGO
 ];
 
+// 宿色 / 宿底色一律按访问时的调色板求值(getSu28Color / getSu28ColorCircle / getSu28FillColorCircle):此前四个模块级数组在 import 期
+// 就把 AstroConst.AstroColor 读死,切明暗后永远是亮主题的色(FL-20260922-3),已删。
 export function getSu28Color(i){
 	let sig = suToSign[i];
 	return AstroConst.AstroColor[sig];

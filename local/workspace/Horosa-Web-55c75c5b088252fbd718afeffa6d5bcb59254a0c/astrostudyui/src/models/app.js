@@ -1,5 +1,8 @@
 import { history } from 'umi';
 import { safeLocalStorageSet } from '../utils/safeStorage';
+// 主限法 方法 / 时间钥匙 同时住在 app 状态(globalSetup 持久化,启动时 applyPredictiveSetupToFields 写回 fields)与 fields;
+// 二者由同一个入口(applyPrimaryDirectionConfig)一起写,初值与回退都取「新盘种子」,两条链才不会各说各话。
+import { newChartSeedValue } from '../utils/newChartSeeds';
 import { Modal,  } from 'antd';
 import {getStore, } from '../utils/storageutil';
 import * as Constants from '../utils/constants';
@@ -169,10 +172,10 @@ function applyPredictiveSetupToFields(flds, appst){
         flds.showPdBounds.value = appst.showPdBounds === 0 ? 0 : 1;
     }
     if(flds.pdMethod){
-        flds.pdMethod.value = appst.pdMethod || 'core_alchabitius';
+        flds.pdMethod.value = appst.pdMethod || newChartSeedValue('pdMethod');
     }
     if(flds.pdTimeKey){
-        flds.pdTimeKey.value = appst.pdTimeKey || 'Ptolemy';
+        flds.pdTimeKey.value = appst.pdTimeKey || newChartSeedValue('pdTimeKey');
     }
 }
 
@@ -201,8 +204,8 @@ export default {
         colorTheme: AstroConst.DefaultColorTheme,
         aspects: AstroConst.DEFAULT_ASPECTS,
         showPdBounds: 1,
-        pdMethod: 'core_alchabitius',
-        pdTimeKey: 'Ptolemy',
+        pdMethod: newChartSeedValue('pdMethod'),   // 新盘种子(缺省 'core_alchabitius';globalSetup 有值时启动效果里以它为准)
+        pdTimeKey: newChartSeedValue('pdTimeKey'), // 新盘种子(缺省 'Ptolemy')
         showPlanetHouseInfo: 0,
         showAstroMeaning: 0,
         showOnlyRulExaltReception: 0,

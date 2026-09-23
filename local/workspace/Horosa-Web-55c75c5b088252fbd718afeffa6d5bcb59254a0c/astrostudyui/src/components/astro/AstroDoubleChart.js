@@ -1,5 +1,5 @@
 import * as d3 from 'd3';
-import { buildChartDrawSig, sameChartDrawSig, chartDrawnAtNonZeroSize, watchChartSvgResize } from '../../utils/chartDrawGuard';
+import { buildChartDrawSig, sameChartDrawSig, chartDrawnAtNonZeroSize, watchChartSvgResize, watchChartAppearance } from '../../utils/chartDrawGuard';
 import { chartDrawGuardEnabled } from '../../utils/perfFlags';
 import { Component } from 'react';
 import {randomStr} from '../../utils/helper';
@@ -159,6 +159,8 @@ class AstroDoubleChart extends Component{
 		// 隐藏容器(tab 未选中,svg 0×0)期间数据更新时 drawDoubleChart 尺寸早退留旧画面,
 		// 切回 tab 又无 React 更新可触发重画 → 表新盘旧;尺寸变化(含 0→非0)时补一次 drawChart。
 		this._detachSvgResize = watchChartSvgResize(this.state.chartid, this.drawChart);
+		// 主题重画(单源订阅):componentDidUpdate 会 drawChart(签名含主题指纹,必真重画)
+		this._detachAppearance = watchChartAppearance(()=>{ this._lastDrawnSig = null; this.forceUpdate(); });
 	}
 
 	componentDidUpdate(){
@@ -168,6 +170,7 @@ class AstroDoubleChart extends Component{
 	componentWillUnmount() {
 		window.removeEventListener('resize', this.handleResize);
 		if(this._detachSvgResize){ this._detachSvgResize(); this._detachSvgResize = null; }
+		if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; }
 		d3.select('#' + this.state.tooltipId).remove();
 	}
 

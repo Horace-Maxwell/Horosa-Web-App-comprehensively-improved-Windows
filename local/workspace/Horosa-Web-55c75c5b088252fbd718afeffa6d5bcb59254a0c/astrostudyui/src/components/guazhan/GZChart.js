@@ -7,7 +7,17 @@ import TextTable from '../graph/TextTable';
 import { randYao, setupYao, ZiList, HourZi, getXunEmpty} from '../gua/GuaConst';
 import { LIUYAO_PRESETS } from '../gua/liuyaoSchools';
 
+// 缺省爻:color 按访问时读当前调色板(切明暗重画即新色),显式赋值仍优先(FL-20260922-3 实例字段烘焙根治)
+function defaultYao(){
+	return { value: -1, change: false, get color(){ return this._colorOverride !== undefined ? this._colorOverride : AstroConst.AstroColor.Stroke; }, set color(v){ this._colorOverride = v; }, god: null, name: null, nameColor: null };
+}
+
 class GZChart {
+	// bgColor / color 按访问时读当前调色板(切明暗后重画即新色);显式赋值仍优先 —— 构造期 this.x = AstroColor.y 会把旧主题的色存进实例(FL-20260922-3)
+	get bgColor(){ return this._bgColorOverride !== undefined ? this._bgColorOverride : AstroConst.AstroColor.Fill; }
+	set bgColor(v){ this._bgColorOverride = v; }
+	get color(){ return this._colorOverride !== undefined ? this._colorOverride : AstroConst.AstroColor.Stroke; }
+	set color(v){ this._colorOverride = v; }
 	constructor(options){
 		this.chartId = options.id;
 		this.chartObj = options.chartObj;
@@ -20,8 +30,6 @@ class GZChart {
 		this.svgTopgroup = null;
 		this.svg = null;
 
-		this.bgColor = AstroConst.AstroColor.Fill;
-		this.color = AstroConst.AstroColor.Stroke;
 		this.fontSize = 20;
 
 		this.guas = [];
@@ -30,19 +38,7 @@ class GZChart {
 		if(options.yao){
 			this.yao = options.yao;
 		}else{
-			this.yao = [{
-				value:-1, change:false, color:AstroConst.AstroColor.Stroke, god:null, name:null, nameColor:null
-			},{
-				value:-1, change:false, color:AstroConst.AstroColor.Stroke, god:null, name:null, nameColor:null
-			},{
-				value:-1, change:false, color:AstroConst.AstroColor.Stroke, god:null, name:null, nameColor:null
-			},{
-				value:-1, change:false, color:AstroConst.AstroColor.Stroke, god:null, name:null, nameColor:null
-			},{
-				value:-1, change:false, color:AstroConst.AstroColor.Stroke, god:null, name:null, nameColor:null
-			},{
-				value:-1, change:false, color:AstroConst.AstroColor.Stroke, god:null, name:null, nameColor:null
-			}];	
+			this.yao = [defaultYao(), defaultYao(), defaultYao(), defaultYao(), defaultYao(), defaultYao()];
 			for(let i=0; i<this.yao.length; i++){
 				let ryao = randYao();
 				this.yao[i].value = ryao.value;
@@ -80,8 +76,6 @@ class GZChart {
 
 		// 主题令牌每次绘制现取:AstroColor 是随 data-horosa-appearance 热替的活绑定(见 app.js setColorTheme)。
 		// 构造期缓存会令「亮↔暗切换后」中盘停在旧主题色(用户实测:切主题中盘不重适配)——故绘制时重读。
-		this.bgColor = AstroConst.AstroColor.Fill;
-		this.color = AstroConst.AstroColor.Stroke;
 
 		this.hasDrawGua = false;
 		let svgid = '#' + this.chartId;

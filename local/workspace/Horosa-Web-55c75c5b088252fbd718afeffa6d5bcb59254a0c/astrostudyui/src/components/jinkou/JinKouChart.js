@@ -4,7 +4,7 @@ import * as AstroConst from '../../constants/AstroConst';
 import { randomStr, } from '../../utils/helper';
 import JinKouPanChart from './JinKouPanChart';
 import { chartDrawGuardEnabled } from '../../utils/perfFlags';
-import { buildChartDrawSig, sameChartDrawSig, chartDrawnAtNonZeroSize, watchChartSvgResize } from '../../utils/chartDrawGuard';
+import { buildChartDrawSig, sameChartDrawSig, chartDrawnAtNonZeroSize, watchChartSvgResize, watchChartAppearance } from '../../utils/chartDrawGuard';
 
 class JinKouChart extends Component{
 	constructor(props) {
@@ -97,25 +97,21 @@ class JinKouChart extends Component{
 		d3.select('body').append('div').attr('id', this.state.tooltipId);
 		this.drawChart();
 		// 主题(明暗)切换只改 <html data-horosa-appearance>;盘底/格子/五行色为 SVG presentation 属性,
-		// 不重绘则停在旧主题(切明暗后盘不变·很丑)。挂 observer 主动重绘,仿 ZiWeiChart/AstroChart 同款修法。
+		// 不重绘则停在旧主题(切明暗后盘不变·很丑)。经 watchChartAppearance(单源订阅)主动重绘,仿 ZiWeiChart/AstroChart 同款修法。
 		// 关键:调色板 AstroColor 由 app.js/index.js 响应 appearance 用 setColorTheme 切换,index.js「滞后一帧」
 		// 且可能用旧值覆写(见 AstroChart 注释)。若属性一变就立刻重绘,会读到旧调色板(暗黑下盘底仍白)。
 		// 故跨两帧延后重绘:首帧待 app.js 调色板就位,次帧兜底 index.js 的滞后覆写,确保读到已切换到位的盘底色。
-		if(typeof MutationObserver !== 'undefined' && typeof document !== 'undefined' && document.documentElement){
-			this._appearanceObserver = new MutationObserver(()=>{ this.redrawForAppearance(); });
-			this._appearanceObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-horosa-appearance'] });
-		}
+		// 必须先 forceUpdate 再重画:render 里 <svg style.backgroundColor> 也读调色板,宿主不重渲染时底色停在旧主题(FL-20260922-1 同族)。
+		this._detachAppearance = watchChartAppearance(()=>{ if(this._unmounted){ return; } this.forceUpdate(()=>{ this.redrawForAppearance(); }); });
 		// 隐藏容器(tab 未选中,svg 0×0)期间数据更新时绘制停旧画面,切回 tab 无 React 更新可触发
 		// 重画 → 表新盘旧;svg 尺寸变化(含 0→非0)时补一次 drawChart(签名守卫防重画风暴)。
 		this._detachSvgResize = watchChartSvgResize(this.state.chartid, this.drawChart);
 	}
 
 	componentWillUnmount() {
+		this._unmounted = true;
 		d3.select(`#${this.state.tooltipId}`).remove();
-		if(this._appearanceObserver){
-			this._appearanceObserver.disconnect();
-			this._appearanceObserver = null;
-		}
+		if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; }
 		if(this._detachSvgResize){ this._detachSvgResize(); this._detachSvgResize = null; }
 	}
 

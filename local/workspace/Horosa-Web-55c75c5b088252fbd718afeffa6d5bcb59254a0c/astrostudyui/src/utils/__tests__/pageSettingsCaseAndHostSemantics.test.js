@@ -191,4 +191,26 @@ describe('七政首开补空:载入了记录不播 / 自定身宫不播 / 择日
 		setStoredGuolaoBodyMode('youjin');
 		expect(computeGuolaoSeedPatch(mk()).guolaoBodyMode).toEqual({ value: 'youjin' });
 	});
+
+	it('既有三键(宿度制 / 命度 / 罗计)同律:择日内嵌实例整个不播、载入了记录不播(此前内嵌仍会播 → 拿择日时刻改主应用的盘、内嵌盘不出)', ()=>{
+		require('../../models/astro');
+		const { computeGuolaoSeedPatch } = require('../../components/guolao/GuoLaoChartMain');
+		const { setStoredGuolaoSu28Mode, setStoredGuolaoNodeMode, GUOLAO_NODE_MODE_NORTH_RAHU } = require('../../components/guolao/GuoLaoChartStyle');
+		const { fieldsSchemaBaseline } = require('../recordFieldsRestore');
+		const base = fieldsSchemaBaseline();
+		const mk = (over)=>({ ...base, ...(over || {}) });
+		setStoredGuolaoSu28Mode(6);
+		setStoredGuolaoNodeMode(GUOLAO_NODE_MODE_NORTH_RAHU);
+		// 独立页新盘:照播(Q-190 只补空)
+		const seeded = computeGuolaoSeedPatch(mk());
+		expect(seeded.doubingSu28).toEqual({ value: 6 });
+		expect(seeded.guolaoNodeMode).toEqual({ value: GUOLAO_NODE_MODE_NORTH_RAHU });
+		// 择日宿主里内嵌:一个键都不播(无头复现:去掉 embedded 早退就会播出 doubingSu28=6)
+		expect(computeGuolaoSeedPatch(mk(), { embedded: true })).toEqual({});
+		// 载入了记录:既有三键也不播
+		const loaded = computeGuolaoSeedPatch(mk({ cid: { value: 'rec-1', name: ['cid'] } }));
+		expect(loaded.doubingSu28).toBeUndefined();
+		expect(loaded.guolaoLifeMode).toBeUndefined();
+		expect(loaded.guolaoNodeMode).toBeUndefined();
+	});
 });

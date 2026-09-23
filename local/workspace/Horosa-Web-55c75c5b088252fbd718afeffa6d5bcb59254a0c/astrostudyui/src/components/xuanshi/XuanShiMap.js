@@ -1,4 +1,5 @@
 import React from 'react';
+import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import { Spin, Empty } from 'antd';
 import echarts from './echartsCore';
 import chinaGeo from '../../assets/china.geo.json';
@@ -46,16 +47,13 @@ export default class XuanShiMap extends React.Component {
 			}
 		} catch (e) { this._hostRO = null; }
 		// 主题切换 → 重渲底图配色(参考用 reload,这里就地重渲更顺滑)
-		try {
-			this._themeObs = new MutationObserver(() => this.renderChart());
-			this._themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-horosa-appearance'] });
-		} catch (e) { /* noop */ }
+		this._detachAppearance = watchChartAppearance(() => this.renderChart());
 	}
 
 	componentWillUnmount() {
 		window.removeEventListener('resize', this._onResize);
 		if (this._hostRO) { try { this._hostRO.disconnect(); } catch (e) { /* noop */ } this._hostRO = null; }
-		if (this._themeObs) { this._themeObs.disconnect(); }
+		if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; }
 		if (this._chart) { this._chart.dispose(); this._chart = null; }
 	}
 

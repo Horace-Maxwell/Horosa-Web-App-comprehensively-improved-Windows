@@ -1,4 +1,17 @@
 import * as AstroConst from '../constants/AstroConst';
+import { subscribeAppearance } from './appearance';
+
+// 主题重画订阅(单源;FL-20260922-1):盘面颜色是绘制时从 AstroConst.AstroColor 烘焙进 SVG / canvas 的,切明暗后不重画就停在旧色。
+// 每个「宿主组件」(挂着 svg/canvas、调 draw 的那个)在 componentDidMount 挂一次,componentWillUnmount 调返回的 detach;
+// 回调里按各盘的重画入口重画(forceUpdate 更新 svg 底色内联样式 + drawChart 重建内容)。调色板切换与广播都在 utils/appearance.js,
+// 回调时调色板已就位(不必再跨帧等)。合帧、去重、卸载后不回调 —— 由 subscribeAppearance 保证。
+// 合同:src/utils/__tests__/chartThemeFollow.contract.test.js 逐文件锁「有 draw 的宿主必挂本函数」;运行时证据 audit_chart_theme.py。
+export function watchChartAppearance(redraw){
+	if(typeof redraw !== 'function'){
+		return ()=>{};
+	}
+	return subscribeAppearance(()=>{ try{ redraw(); }catch(e){ /* 重画失败不上抛:下一次真实更新仍会画 */ } });
+}
 
 // 图面重绘签名守卫(复用 AstroChart 的成熟方案,见 AstroChart.buildDrawSignature)。
 // 背景:GuoLao/SuZhan/GuaZhan 等盘在 componentDidUpdate / render 里无条件重建整棵 d3 树,

@@ -592,7 +592,7 @@ class CnyibuHelpDoc extends Component{
 					{kv('影响', '两法十二宫的起点不同，会改变人事宫与宿的对应')}</div>
 				<div style={card}><div style={ct}>本机记忆</div>
 					{kv('哪几项', '外盘、盘型、人事十二宫起盘三项会记住上次的选择，下次进入本页沿用')}
-					{kv('性别与宿法', '这两项随命盘资料走，不单独记忆')}</div>
+					{kv('性别与宿法', '这两项随命盘资料走；宿法亲手改过后，新盘按上次设的值起始，载入命盘按记录')}</div>
 
 				<div style={h}>右栏判读（三页签）</div>
 				<div style={card}><div style={ct}>概览</div>

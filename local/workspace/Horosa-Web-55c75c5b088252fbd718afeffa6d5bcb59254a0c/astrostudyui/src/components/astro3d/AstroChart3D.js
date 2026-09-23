@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import {randomStr} from '../../utils/helper';
 import Astro3D from './Astro3D';
 import * as AstroConst from '../../constants/AstroConst';
@@ -174,6 +175,8 @@ class AstroChart3D extends Component{
 		['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach((evt)=>{
 			document.addEventListener(evt, this.handleResize);
 		});
+		// 主题重画(单源订阅):宿主底色取自调色板内联样式,forceUpdate 刷新后再 drawChart
+		this._detachAppearance = watchChartAppearance(()=>{ this.forceUpdate(()=>this.drawChart()); });
 		this.drawChart();
 
 		let svgdom = document.getElementById(this.state.chartid);
@@ -208,6 +211,7 @@ class AstroChart3D extends Component{
 		window.removeEventListener('resize', this.handleResize);
 		if(this._hostRO){ try{ this._hostRO.disconnect(); }catch(e){ /* ignore */ } this._hostRO = null; }
 		if(this._hostRaf){ cancelAnimationFrame(this._hostRaf); this._hostRaf = null; }
+		if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; }
 		['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach((evt)=>{
 			document.removeEventListener(evt, this.handleResize);
 		});

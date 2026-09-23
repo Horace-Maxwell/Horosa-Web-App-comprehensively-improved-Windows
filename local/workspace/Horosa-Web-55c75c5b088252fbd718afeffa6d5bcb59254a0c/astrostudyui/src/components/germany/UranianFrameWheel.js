@@ -3,6 +3,7 @@
 // 径向宫头线 + 宫号 + 各点按真实黄经落位(字形随全站星盘)。逆时针(0°正上,度向左增),与 UranianDial 一致。
 // 纯展示:cusps/points 由父级算好传入,本组件不碰后端、不改任何既有签名。
 import React, { Component } from 'react';
+import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import * as d3 from 'd3';
 import { randomStr } from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
@@ -29,7 +30,8 @@ export default class UranianFrameWheel extends Component {
 		this.svgid = 'uraframe_' + randomStr(8);
 		this.draw = this.draw.bind(this);
 	}
-	componentDidMount(){ this.draw(); }
+	componentDidMount(){ this.draw(); this._detachAppearance = watchChartAppearance(this.draw); }   // 星座填色取自调色板(烘焙),切主题重画
+	componentWillUnmount(){ if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; } }
 	componentDidUpdate(prev){
 		if (prev.cusps !== this.props.cusps || prev.points !== this.props.points || prev.size !== this.props.size || prev.frameKey !== this.props.frameKey || prev.showTnp !== this.props.showTnp) this.draw();
 	}

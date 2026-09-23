@@ -9,6 +9,11 @@ import TextTable from '../graph/TextTable';
 import { randYao, setupYao, ZiList, HourZi, getXunEmpty} from './GuaConst';
 
 export default class GuaChart {
+    // bgColor / color 按访问时读当前调色板(切明暗后重画即新色);显式赋值仍优先 —— 构造期 this.x = AstroColor.y 会把旧主题的色存进实例(FL-20260922-3)
+    get bgColor(){ return this._bgColorOverride !== undefined ? this._bgColorOverride : AstroConst.AstroColor.Fill; }
+    set bgColor(v){ this._bgColorOverride = v; }
+    get color(){ return this._colorOverride !== undefined ? this._colorOverride : AstroConst.AstroColor.Stroke; }
+    set color(v){ this._colorOverride = v; }
     constructor(options){
 		this.chartId = options.id;
 		this.chartObj = options.chartObj;
@@ -18,8 +23,6 @@ export default class GuaChart {
 		this.svgTopgroup = null;
 		this.svg = null;
 
-		this.bgColor = AstroConst.AstroColor.Fill;
-		this.color = AstroConst.AstroColor.Stroke;
 		this.fontSize = 10;
 
 		this.hasDrawGua = false;

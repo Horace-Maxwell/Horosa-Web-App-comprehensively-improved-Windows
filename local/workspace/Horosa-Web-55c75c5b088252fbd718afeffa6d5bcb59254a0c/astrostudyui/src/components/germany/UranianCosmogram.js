@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import * as d3 from 'd3';
 import { randomStr } from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
@@ -39,13 +40,13 @@ export default class UranianCosmogram extends Component {
 		this._onMove = this._onMove.bind(this);
 		this._onUp = this._onUp.bind(this);
 	}
-	componentDidMount(){ this.draw(); }
+	componentDidMount(){ this.draw(); this._detachAppearance = watchChartAppearance(() => this.draw()); }
 	componentDidUpdate(prev){
 		if (prev.base !== this.props.base || prev.rings !== this.props.rings || prev.size !== this.props.size || prev.showTnp !== this.props.showTnp || prev.showAntiscia !== this.props.showAntiscia
 			|| prev.showHouseFrames !== this.props.showHouseFrames || prev.crossPointer !== this.props.crossPointer) this.draw();
 		else if (prev.showSumPoints !== this.props.showSumPoints || prev.showArcOpenings !== this.props.showArcOpenings || prev.orb !== this.props.orb || prev.orbPersonal !== this.props.orbPersonal) this.emitReadout();
 	}
-	componentWillUnmount(){ this._detach(); if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; } }
+	componentWillUnmount(){ if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; } this._detach(); if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; } }
 
 	rings(){ return (this.props.rings && this.props.rings.length) ? this.props.rings : [{ key: 'natal', label: '本命', points: this.props.points || [] }]; }
 

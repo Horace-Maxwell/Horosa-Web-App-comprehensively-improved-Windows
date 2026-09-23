@@ -16,6 +16,7 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { splitDegree, convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
+import { recordNewChartSeeds } from '../../utils/newChartSeeds';
 import { geoNameFieldPatch } from '../../utils/geoName';
 import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import * as LRConst from '../liureng/LRConst';
@@ -3480,6 +3481,8 @@ class SanShiUnitedMain extends Component{
 	}
 
 	onAstroFieldOptionChange(key, value){
+		// 「新盘种子」:共享盘面字段(宫制)的亲手改动 = 新命盘缺省;三式择日内嵌不记(usesSavedSettings 同一门)
+		if(this.usesSavedSettings()){ recordNewChartSeeds({ [key]: value }); }
 		this.onOptionChange(key, value);
 		this.onFieldsChange({
 			[key]: { value },
@@ -3494,6 +3497,7 @@ class SanShiUnitedMain extends Component{
 	// 黄道复合值(回归 / 恒星:ayanāṃśa)→ 同步 zodiacal + siderealAyanamsa,单次请求(避免连续 onOptionChange 因 setState 异步互相覆盖)。
 	onAstroZodiacalChange(val){
 		const parsed = AstroConst.parseZodiacSelectValue(val);
+		if(this.usesSavedSettings()){ recordNewChartSeeds({ zodiacal: parsed.zodiacal, siderealAyanamsa: parsed.siderealAyanamsa }); }
 		const options = normalizeKenQimenOptions({
 			...(this.state.options || {}),
 			zodiacal: parsed.zodiacal,

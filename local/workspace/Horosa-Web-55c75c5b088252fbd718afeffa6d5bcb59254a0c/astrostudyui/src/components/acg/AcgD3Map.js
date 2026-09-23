@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import * as d3 from 'd3';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
@@ -151,10 +152,7 @@ class AcgD3Map extends Component {
 	componentDidMount() {
 		this.ro = new ResizeObserver(this.onResize);
 		if (this.hostRef.current) this.ro.observe(this.hostRef.current);
-		if (typeof MutationObserver !== 'undefined') {
-			this.mo = new MutationObserver(this.onAppearance);
-			this.mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-horosa-appearance'] });
-		}
+		this._detachAppearance = watchChartAppearance(this.onAppearance);
 		this.rebuild();
 	}
 
@@ -182,7 +180,7 @@ class AcgD3Map extends Component {
 
 	componentWillUnmount() {
 		if (this.ro) this.ro.disconnect();
-		if (this.mo) this.mo.disconnect();
+		if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; }
 	}
 
 	onAppearance() {

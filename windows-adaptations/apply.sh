@@ -20,6 +20,18 @@ MAC="${2:-}"
 [ -d "$WS/astrostudyui" ] || { echo "ERR: $WS is not a product dir (no astrostudyui/)"; exit 1; }
 ok(){ echo "  [ok] $*"; } ; warn(){ echo "  [!!] $*"; }
 
+# horosa_apply_clone_tree_guard_v1(v3.11.1 立,gotcha #106):§4/§4b 的两处 cp 读的是 Mac clone 的**工作树**(THIRD_PARTY_NOTICES.md /
+# docs/AI_AGENT_RUNTIME.md),而桥接 clone 的工作树可能停在很旧的 checkout(v3.11.1 同步轮实测停在 v3.0.0 且带暂存改动)——
+# 那样会把陈旧文件静默拷进产品源,[ok] 照打。这里要求:clone 工作树干净,并把 HEAD 打印出来供人核对(应 == 本轮同步的 Mac tag)。
+if [ -n "$MAC" ] && MAC_TOP="$(git -C "$MAC" rev-parse --show-toplevel 2>/dev/null)"; then
+  MAC_DIRTY="$(git -C "$MAC_TOP" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+  echo "== mac clone: HEAD=$(git -C "$MAC_TOP" rev-parse --short HEAD 2>/dev/null) $(git -C "$MAC_TOP" describe --tags --exact-match HEAD 2>/dev/null || echo '(not on a tag)') dirty=$MAC_DIRTY =="
+  if [ "$MAC_DIRTY" != "0" ]; then
+    warn "mac clone working tree is DIRTY ($MAC_DIRTY entries) — the tree-based copies below would ship stale files; run: git -C $MAC_TOP stash && git -C $MAC_TOP checkout <sync-tag>, then re-run"
+    exit 2
+  fi
+fi
+
 echo "== 1. Windows-only files (umi-runner.js / loadCryptoDeps.js / scripts/vendor) =="
 cp "$OV/files/astrostudyui/scripts/umi-runner.js"     "$WS/astrostudyui/scripts/umi-runner.js"     && ok umi-runner.js
 cp "$OV/files/astrostudyui/scripts/loadCryptoDeps.js" "$WS/astrostudyui/scripts/loadCryptoDeps.js" && ok loadCryptoDeps.js

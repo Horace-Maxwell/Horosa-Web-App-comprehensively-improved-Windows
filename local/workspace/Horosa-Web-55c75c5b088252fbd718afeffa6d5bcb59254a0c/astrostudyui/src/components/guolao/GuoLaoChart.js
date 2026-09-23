@@ -4,7 +4,7 @@ import {randomStr,} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import GLChart from './GLChart';
 import { chartDrawGuardEnabled } from '../../utils/perfFlags';
-import { buildChartDrawSig, sameChartDrawSig, watchChartSvgResize } from '../../utils/chartDrawGuard';
+import { buildChartDrawSig, sameChartDrawSig, watchChartSvgResize, watchChartAppearance } from '../../utils/chartDrawGuard';
 import { getEffectiveScale, visualFloorPx } from '../../utils/zoomDomain';
 import * as SZConst from '../suzhan/SZConst';
 
@@ -238,6 +238,8 @@ class GuoLaoChart extends Component{
 		// 更新可触发重画 = 表新盘旧;svg 尺寸变化(含 0→非0)时补一次 drawChart(FL-20260712-5 同型收口,
 		// 签名守卫 :169 防重画风暴)。样板=JinKouChart。
 		this._detachSvgResize = watchChartSvgResize(this.state.chartid, this.drawChart);
+		// 主题重画(单源订阅):componentDidUpdate 会 drawChart(签名含主题指纹,必真重画)
+		this._detachAppearance = watchChartAppearance(()=>{ this._lastDrawnSig = null; this.forceUpdate(); });
 	}
 
 	componentDidUpdate(){
@@ -256,6 +258,7 @@ class GuoLaoChart extends Component{
 			this.redrawTimer = null;
 		}
 		if(this._detachSvgResize){ this._detachSvgResize(); this._detachSvgResize = null; }
+		if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; }
 	}
 
 	render(){

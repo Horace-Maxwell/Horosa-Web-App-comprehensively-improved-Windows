@@ -5,6 +5,11 @@ import { drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
 import {randomStr,} from '../../utils/helper';
 
 class Yao{
+	// nameColor / color 按访问时读当前调色板(切明暗后重画即新色);显式赋值仍优先 —— 构造期 this.x = AstroColor.y 会把旧主题的色存进实例(FL-20260922-3)
+	get nameColor(){ return this._nameColorOverride !== undefined ? this._nameColorOverride : AstroConst.AstroColor.Stroke; }
+	set nameColor(v){ this._nameColorOverride = v; }
+	get color(){ return this._colorOverride !== undefined ? this._colorOverride : AstroConst.AstroColor.Stroke; }
+	set color(v){ this._colorOverride = v; }
 	constructor(option){
 		this.value = -1;
 
@@ -38,13 +43,12 @@ class Yao{
 		this.nameMargin = 10;
 		this.changeMarkWidth = this.showName ? 22 : 0;
 		this.changeNameGap = this.showName ? 10 : 0;
-		this.nameColor = AstroConst.AstroColor.Stroke;
 		this.changedNameColor = '#800080';
 		if(option.nameColor){
 			this.nameColor = option.nameColor;
 			this.changedNameColor = option.nameColor;
 		}
-		this.color = option.color ? option.color : AstroConst.AstroColor.Stroke;
+		if(option.color){ this.color = option.color; }
 
 		this.id = 'yao' + randomStr(8);
 		this.svg = null;

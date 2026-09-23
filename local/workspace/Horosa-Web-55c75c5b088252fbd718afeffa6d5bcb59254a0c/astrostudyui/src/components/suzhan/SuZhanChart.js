@@ -5,7 +5,7 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as SZConst from './SZConst';
 import SZChart from './SZChart';
 import { chartDrawGuardEnabled } from '../../utils/perfFlags';
-import { buildChartDrawSig, sameChartDrawSig, chartDrawnAtNonZeroSize } from '../../utils/chartDrawGuard';
+import { buildChartDrawSig, sameChartDrawSig, chartDrawnAtNonZeroSize, watchChartAppearance } from '../../utils/chartDrawGuard';
 import { getEffectiveScale, visualFloorPx } from '../../utils/zoomDomain';
 
 const SQUARE_SIDE_MIN = 480;
@@ -269,6 +269,8 @@ class SuZhanChart extends Component{
 
 	componentDidMount(){
 		this.mounted = true;
+		// 主题重画(单源订阅):forceUpdate 刷新 svg 底色内联样式,render 内 drawChart 按新调色板重建
+		this._detachAppearance = watchChartAppearance(()=>{ if(!this.mounted){ return; } this._lastDrawnSig = null; this.forceUpdate(); });
 		window.addEventListener('resize', this.handleResize);
 		d3.select('body').append('div').attr('id', this.state.tooltipId);
 		this.updateSquareSide();
@@ -289,6 +291,7 @@ class SuZhanChart extends Component{
 
 	componentWillUnmount() {
 		this.mounted = false;
+		if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; }
 		window.removeEventListener('resize', this.handleResize);
 		if(this.squareMeasureFrame !== null && window.cancelAnimationFrame){
 			window.cancelAnimationFrame(this.squareMeasureFrame);

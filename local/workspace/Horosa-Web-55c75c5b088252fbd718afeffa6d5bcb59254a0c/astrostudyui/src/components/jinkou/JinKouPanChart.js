@@ -41,6 +41,11 @@ function extractBranch(value){
 }
 
 class JinKouPanChart {
+	// bgColor / color 按访问时读当前调色板(切明暗后重画即新色);显式赋值仍优先 —— 构造期 this.x = AstroColor.y 会把旧主题的色存进实例(FL-20260922-3)
+	get bgColor(){ return this._bgColorOverride !== undefined ? this._bgColorOverride : AstroConst.AstroColor.Fill; }
+	set bgColor(v){ this._bgColorOverride = v; }
+	get color(){ return this._colorOverride !== undefined ? this._colorOverride : AstroConst.AstroColor.Stroke; }
+	set color(v){ this._colorOverride = v; }
 	constructor(options){
 		this.chartId = options.id;
 		this.chartObj = options.chartObj;
@@ -58,8 +63,6 @@ class JinKouPanChart {
 		this.svgTopgroup = null;
 		this.svg = null;
 
-		this.bgColor = AstroConst.AstroColor.Fill;
-		this.color = AstroConst.AstroColor.Stroke;
 		this.fontSize = 20;
 		this.labelBg = LRConst.getHouseColor(0);
 
@@ -121,8 +124,6 @@ class JinKouPanChart {
 		// 调色板(明暗主题)在每次 draw 时重读,而非构造时缓存一次——
 		// 否则盘底(bgColor)/描边(color)/标签底(labelBg)停在「图表对象构造那一刻」的旧主题,
 		// 切暗黑后整块盘底仍是白色(很丑)。配合 JinKouChart 的 appearance observer 重绘,主题即时跟随。
-		this.bgColor = AstroConst.AstroColor.Fill;
-		this.color = AstroConst.AstroColor.Stroke;
 		this.labelBg = LRConst.getHouseColor(0);
 
 		const svgid = `#${this.chartId}`;

@@ -141,7 +141,7 @@ const ShuSuanMain = lazyPreloadable(() => import('../components/shusuan/ShuSuanM
 const MingOtherMain = lazyPreloadable(() => import('../components/mingother/MingOtherMain'), { order: 2, navKey: 'mingother' });
 import * as AstroConst from '../constants/AstroConst';
 import {convertToArray} from '../utils/helper';
-import { APPEARANCE_DARK } from '../utils/appearance';
+import { APPEARANCE_DARK, syncChartPalette } from '../utils/appearance';
 import XQIcon from '../components/xq-icons';
 import { XQDrawer as Drawer, XQModal, XQTabs } from '../components/xq-ui';
 import { scheduleUnconfirmedTimeDispatch, cancelPendingTimeDispatch } from '../utils/timeDispatchScheduler';
@@ -675,7 +675,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         }, 1000);
     }
     
-    AstroConst.setColorTheme(resolvedAppearance === APPEARANCE_DARK ? 8 : AstroConst.DefaultColorTheme);
+    syncChartPalette(resolvedAppearance);   // 映射单源见 utils/appearance.js
     
     let idxstyle = {
         backgroundColor: 'var(--horosa-bg)',
@@ -760,6 +760,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 	                    <AstroChartMain
 	                        value={chartObj}
                         onChange={changeCond}
+                        seedNewCharts /* 本命主页的黄道 / 宫制 / 流派预设亲手改动 = 新命盘缺省(新盘种子) */
                         fields={fields} 
                         fieldsAry={aryfields}
                         height={height} 

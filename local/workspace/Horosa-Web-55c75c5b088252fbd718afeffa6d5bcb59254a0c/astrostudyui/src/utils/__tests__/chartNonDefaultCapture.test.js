@@ -111,7 +111,8 @@ describe('[R4] 随盘保真·非默认捕获', ()=>{
 		const def = fieldsSchemaBaseline().hsys.value;
 		const prev = { hsys: { name: ['hsys'], value: 3 }, termsVariant: { name: ['termsVariant'], value: 2 }, name: { name: ['name'], value: 'A' } };
 		const legacy = applyRecordToFields(prev, { cid: 'old' });                       // 无标记:缺键保持当前值(旧记录)
-		expect(legacy.hsys.value).toBe(3);
+		// 「新盘种子」键(hsys 等)例外:载入记录一律不播,缺键 = 存档时为默认 → 复位到内建默认(newChartSeeds 合同锁);非种子键维持现状
+		expect(legacy.hsys.value).toBe(def);
 		expect(legacy.termsVariant.value).toBe(2);
 		const fresh = applyRecordToFields(prev, { cid: 'new', [RECORD_FIELDS_CAPTURE_MARK]: 1 });   // 有标记:缺键=默认
 		expect(fresh.hsys.value).toBe(def);

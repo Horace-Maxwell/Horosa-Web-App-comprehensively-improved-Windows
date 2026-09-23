@@ -2423,7 +2423,7 @@ class KinAstroMain extends Component{
 								</label>
 								<label className="horosa-huangji-select-field">
 									<span>大运步数</span>
-									<InputNumber min={1} max={12} value={this.state.tiebanDayunSteps} onChange={(value)=>this.setUserOpt({ tiebanDayunSteps: value || 8 })} />
+									<InputNumber min={1} max={12} precision={0} value={this.state.tiebanDayunSteps} onChange={(value)=>this.setUserOpt({ tiebanDayunSteps: value || 8 })} />
 								</label>
 								<label className="horosa-huangji-select-field" title="流派只作口径说明(主算柱/卦数偏好/取数/条文存量四项写进框架卡与快照),不改框架推演本身">
 									<span>流派（口径说明）</span>

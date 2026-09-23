@@ -4,7 +4,7 @@ import {randomStr} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import * as Constants from '../../utils/constants';
 import { chartDrawGuardEnabled, chartSCUEnabled } from '../../utils/perfFlags';
-import { watchChartSvgResize } from '../../utils/chartDrawGuard';
+import { watchChartSvgResize, watchChartAppearance } from '../../utils/chartDrawGuard';
 import { sameDisplayList, shallowPropsEqual } from '../../utils/chartUpdateGuard';
 import AstroChartCircle from './AstroChartCircle';
 import AstroWheelArtChart from './AstroWheelArtChart';
@@ -280,11 +280,10 @@ class AstroChart extends Component{
 		this.scheduleDrawRetry();
 
 		// 主题切换(亮↔暗)只改 <html data-horosa-appearance>;本组件未订阅 appearanceMode、componentDidUpdate 不触发,
-		// 而黄道带等颜色/透明度在绘制时一次性读取烘焙 → 不重绘则停在旧主题。挂 observer 主动重绘(签名已含 appearance 故真重画)。
-		if(typeof MutationObserver !== 'undefined' && typeof document !== 'undefined' && document.documentElement){
-			this._appearanceObserver = new MutationObserver(()=>{ this.drawChart(); });
-			this._appearanceObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-horosa-appearance'] });
-		}
+		// 而黄道带等颜色/透明度在绘制时一次性读取烘焙 → 不重绘则停在旧主题。经 watchChartAppearance(单源订阅)主动重绘(签名已含 appearance 故真重画)。
+		// 必须 forceUpdate 而不是只 drawChart:render 里 <svg style.backgroundColor> 也读调色板,宿主不重渲染时(骰子页等父级不随主题重渲染)
+		// 底色会停在旧主题(FL-20260922-1 真机审计 auxchart/otherbu 实抓);forceUpdate → componentDidUpdate → drawChart(签名含 themeFill 必真重画)。
+		this._detachAppearance = watchChartAppearance(()=>{ if(this._unmounted){ return; } this.forceUpdate(); });
 		// 隐藏容器(tab 未选中,svg 0×0)期间数据更新时绘制被尺寸早退吞掉,切回 tab 无 React 更新
 		// 可触发重画 → 表新盘旧;svg 尺寸变化(含 0→非0)时补一次 drawChart(签名守卫防重画风暴)。
 		this._detachSvgResize = watchChartSvgResize(this.state.chartid, this.drawChart);
@@ -320,15 +319,13 @@ class AstroChart extends Component{
 	}
 
 	componentWillUnmount() {
+		this._unmounted = true;
 		window.removeEventListener('resize', this.handleResize)
 		if(this.redrawTimer){
 			clearTimeout(this.redrawTimer);
 			this.redrawTimer = null;
 		}
-		if(this._appearanceObserver){
-			this._appearanceObserver.disconnect();
-			this._appearanceObserver = null;
-		}
+		if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; }
 		if(this._detachSvgResize){ this._detachSvgResize(); this._detachSvgResize = null; }
 		d3.select('#' + this.state.tooltipId).remove();
 	}

@@ -5,6 +5,11 @@ import {splitDegree} from '../astro/AstroHelper';
 import {randomStr, creatTooltip, positionFloatingTooltip} from '../../utils/helper';
 
 class HouseSu {
+	// houseBG / color 按访问时读当前调色板(切明暗后重画即新色);显式赋值仍优先 —— 构造期 this.x = AstroColor.y 会把旧主题的色存进实例(FL-20260922-3)
+	get houseBG(){ return this._houseBGOverride !== undefined ? this._houseBGOverride : AstroConst.AstroColor.ChartBackgroud; }
+	set houseBG(v){ this._houseBGOverride = v; }
+	get color(){ return this._colorOverride !== undefined ? this._colorOverride : AstroConst.AstroColor.Stroke; }
+	set color(v){ this._colorOverride = v; }
 	constructor(option){
 		this.owner = option.owner;
 		this.houseObj = option.houseObj;
@@ -26,8 +31,7 @@ class HouseSu {
 		this.fontSize = 20;
 		this.starFontSize = 14;
 		this.starAngleFontSize = 13;
-		this.houseBG = AstroConst.AstroColor.ChartBackgroud;
-		this.color = option.color ? option.color : AstroConst.AstroColor.Stroke;
+		if(option.color){ this.color = option.color; }
 		
 	}
 

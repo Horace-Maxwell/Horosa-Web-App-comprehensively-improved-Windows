@@ -206,7 +206,7 @@ class Su28Chart {
 		for(let i=0; i<aryXY.length; i++){
 			let xy = aryXY[i];
 			let name = Su28Helper.Su28[i];
-			let color = Su28Helper.Su28Color[i];
+			let color = Su28Helper.getSu28Color(i);
 			options[i] = {
 				x: xy.x,
 				y: xy.y,

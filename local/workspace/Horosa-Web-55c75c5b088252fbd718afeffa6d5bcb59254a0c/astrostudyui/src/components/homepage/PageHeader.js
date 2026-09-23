@@ -1,4 +1,5 @@
 import React from 'react';
+import { newChartSeedValue, recordNewChartSeeds, subscribeNewChartSeeds } from '../../utils/newChartSeeds';
 import { Avatar, Dropdown, message, Tooltip } from 'antd';
 import blogo from '../../assets/blogo.jpg';
 import appIcon from '../../assets/appicon.png';
@@ -170,6 +171,14 @@ function PageHeader(props){
 
 	// 亮色配色档(古典宣纸 ↔ 经典白色):纯 CSS 变量层切换,localStorage 记忆;仅亮色下显示按钮。
 	const [lightFlavor, setLightFlavor] = React.useState(()=>getStoredLightFlavor());
+	// 全局「时间算法」缺省 = 新盘种子 timeAlg(紫微页亲手改也写同一仓;八字左栏的覆盖层复位到它)
+	const [defaultTimeAlg, setDefaultTimeAlg] = React.useState(()=>newChartSeedValue('timeAlg'));
+	React.useEffect(()=>subscribeNewChartSeeds(()=>setDefaultTimeAlg(newChartSeedValue('timeAlg'))), []);
+	function changeDefaultTimeAlg(value){
+		const v = Number(value);
+		recordNewChartSeeds({ timeAlg: [0, 1, 2, 3].indexOf(v) >= 0 ? v : 0 });
+		setDefaultTimeAlg(newChartSeedValue('timeAlg'));
+	}
 	function cycleLightFlavor(){
 		const next = lightFlavor === LIGHT_FLAVOR_CLASSIC ? LIGHT_FLAVOR_PAPER : LIGHT_FLAVOR_CLASSIC;
 		setLightFlavor(next);
@@ -693,7 +702,7 @@ function PageHeader(props){
 						</Tooltip>
 					) : null}
 					<Tooltip title={`主题：${appearanceLabel}。点击切换昼夜模式。`} placement="bottom">
-						<XQIconButton className={styles.astroRoundButton} size="small" iconName="theme" onClick={cycleAppearanceMode} />
+						<XQIconButton className={styles.astroRoundButton} size="small" iconName="theme" data-appearance-toggle="1" onClick={cycleAppearanceMode} />
 					</Tooltip>
 					<div className={styles.astroHeaderDivider} />
 					{/* 🔴 placement 必须显式 bottomRight:本触发器是标题栏最右一枚,antd 默认 bottomLeft
@@ -882,6 +891,17 @@ function PageHeader(props){
 						/>
 						<div className={styles.aiSettingEmpty}>作为所有技法的默认换日规则；个别技法仍可在其「排盘设置」中单独调整（左栏改过后全局不会覆盖）。八字左栏的改动只作用于八字页（其它技法不跟随），新建或载入命盘时复位；载入命盘自带的口径优先于这里的全局值。「23点算第二天」=23点起日柱进位次日；「24点算第二天」=23点仍守今、24点才换日柱。</div>
 
+						<XQSectionTitle>时间算法（新命盘的缺省）</XQSectionTitle>
+						<XQSegmented
+							value={defaultTimeAlg}
+							onChange={(e)=>changeDefaultTimeAlg(e && e.target ? e.target.value : e)}
+							options={[
+								{value: 0, label: '真太阳时'},
+								{value: 3, label: '平太阳时'},
+								{value: 1, label: '直接时间'},
+							]}
+						/>
+						<div className={styles.aiSettingEmpty}>新命盘与重开软件时的时间算法由此起始;紫微页亲手改「时间算法」也会更新它。八字左栏的时间算法只作用于八字页,新命盘 / 载入命盘时复位到这里的缺省;载入命盘一律按记录里存的算法。</div>
 						<XQSectionTitle>晚子时·时柱起干（独立于日柱）</XQSectionTitle>
 						<XQSegmented
 							value={normalizeLateZiHourMode(props.lateZiHourMode)}

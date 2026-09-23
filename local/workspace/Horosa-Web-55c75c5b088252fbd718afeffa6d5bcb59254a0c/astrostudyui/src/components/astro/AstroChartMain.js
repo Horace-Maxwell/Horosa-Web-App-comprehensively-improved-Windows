@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import { setClassicalChartGlobal } from '../../utils/classicalChartGlobals';
+import { recordNewChartSeeds } from '../../utils/newChartSeeds';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { getLayoutViewportHeight } from '../../utils/shellZoom';
 import { Row, Col, Popover, Tooltip } from 'antd';
@@ -267,6 +268,7 @@ class AstroChartMain extends Component{
 	changeZodiacal(val){
 		// val 为复合值 'tropical' | 'sidereal:<ayanamsaKey>' → 拆成 zodiacal(0/1) + siderealAyanamsa
 		const parsed = AstroConst.parseZodiacSelectValue(val);
+		this.noteSeeds({ zodiacal: parsed.zodiacal, siderealAyanamsa: parsed.siderealAyanamsa });
 		if(this.props.onChange){
 			if(this.tmHook.getValue){
 				let tm = this.tmHook.getValue().value;
@@ -287,7 +289,13 @@ class AstroChartMain extends Component{
 		}
 	}
 
+	// 「新盘种子」:只有本命主页(seedNewCharts)的亲手改动记为新命盘缺省;合盘 / 希腊 / 节气 / 印占等宿主里的同一控件不记
+	noteSeeds(patch){
+		if(this.props.seedNewCharts){ recordNewChartSeeds(patch); }
+	}
+
 	changeHsys(val){
+		this.noteSeeds({ hsys: val });
 		if(this.props.onChange){
 			if(this.tmHook.getValue){
 				let tm = this.tmHook.getValue().value;
@@ -358,6 +366,7 @@ class AstroChartMain extends Component{
 		}
 		if(!this.props.onChange){ return; }
 		const parsed = AstroConst.parseZodiacSelectValue(preset.zodiac);
+		this.noteSeeds({ zodiacal: parsed.zodiacal, siderealAyanamsa: parsed.siderealAyanamsa, hsys: preset.hsys });
 		const change = {
 			zodiacal: parsed.zodiacal,
 			siderealAyanamsa: parsed.siderealAyanamsa,

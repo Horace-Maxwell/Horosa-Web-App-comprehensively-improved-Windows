@@ -4,7 +4,7 @@ import {randomStr,} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import GZChart from './GZChart';
 import { chartDrawGuardEnabled } from '../../utils/perfFlags';
-import { buildChartDrawSig, sameChartDrawSig, chartDrawnAtNonZeroSize, watchChartSvgResize } from '../../utils/chartDrawGuard';
+import { buildChartDrawSig, sameChartDrawSig, chartDrawnAtNonZeroSize, watchChartSvgResize, watchChartAppearance } from '../../utils/chartDrawGuard';
 
 class GuaZhanChart extends Component{
 	constructor(props) {
@@ -96,16 +96,13 @@ class GuaZhanChart extends Component{
 		this._detachSvgResize = watchChartSvgResize(this.state.chartid, this.drawChart);
 		// 主题(亮↔暗)切换:<html data-horosa-appearance> 变 → 调色板热替,但本组件不会自动 re-render,
 		// 中盘会停在旧主题色。观察该属性,变则强制重画(GZChart.draw 现取调色板)+ forceUpdate 更新 svg 背景。
-		if(typeof MutationObserver !== 'undefined' && typeof document !== 'undefined' && document.documentElement){
-			this._themeObs = new MutationObserver(()=>{ this._lastDrawnSig = null; this.forceUpdate(); });
-			this._themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-horosa-appearance'] });
-		}
+		this._detachAppearance = watchChartAppearance(()=>{ this._lastDrawnSig = null; this.forceUpdate(); });
 	}
 
 	componentWillUnmount() {
 		window.removeEventListener('resize', this.handleResize)
 		if(this._detachSvgResize){ this._detachSvgResize(); this._detachSvgResize = null; }
-		if(this._themeObs){ this._themeObs.disconnect(); this._themeObs = null; }
+		if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; }
 		d3.select('#' + this.state.tooltipId).remove();
 	}
 

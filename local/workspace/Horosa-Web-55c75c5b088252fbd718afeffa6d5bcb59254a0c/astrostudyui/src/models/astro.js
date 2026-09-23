@@ -25,6 +25,9 @@ import * as AstroConst from '../constants/AstroConst';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../utils/dayBoundary';
 import { applyRecordToFields, registerFieldsBaselineFactory } from '../utils/recordFieldsRestore';
 import { classicalGlobalValue, classicalGlobalOverrides, classicalBackendOverridesFromFields } from '../utils/classicalChartGlobals';
+// 「新盘种子」:随盘键(黄道 / 宫制 / 时间算法 / 八字长生·神煞 / 宿法 / 印占 / 主限法口径)的新命盘缺省 = 上次亲手设的值;
+// 没存过 = 内建默认逐字节零回归;载入记录时由 recordFieldsRestore 先复位到内建默认(记录自带口径永远优先)。
+import { newChartSeedValue, newChartSeedExtraEntries } from '../utils/newChartSeeds';
 
 let dtm = new DateTime();
 const DefaultHouseSystem = 1;
@@ -98,23 +101,23 @@ function newEmptyFields(){
 			name: ['pos'],
 		},
 		hsys: {
-			value: DefaultHouseSystem,
+			value: newChartSeedValue('hsys'),   // 新盘种子(缺省 DefaultHouseSystem)
 			name: ['hsys'],
 		},
 		indiaHsys: {
-			value: AstroConst.INDIA_HOUSE_SYSTEM_DEFAULT,
+			value: newChartSeedValue('indiaHsys'),   // 新盘种子(缺省 AstroConst.INDIA_HOUSE_SYSTEM_DEFAULT)
 			name: ['indiaHsys'],
 		},
 		indiaAyanamsa: {
-			value: AstroConst.INDIA_AYANAMSA_DEFAULT,
+			value: newChartSeedValue('indiaAyanamsa'),   // 新盘种子(缺省 AstroConst.INDIA_AYANAMSA_DEFAULT)
 			name: ['indiaAyanamsa'],
 		},
 		zodiacal: {
-			value: 0,
+			value: newChartSeedValue('zodiacal'),   // 新盘种子(缺省 0)
 			name: ['zodiacal'],
 		},
 		siderealAyanamsa: {
-			value: '',
+			value: newChartSeedValue('siderealAyanamsa'),   // 新盘种子(缺省 '')
 			name: ['siderealAyanamsa'],
 		},
 		tradition: {
@@ -134,7 +137,7 @@ function newEmptyFields(){
 			name: ['virtualPointReceiveAsp'],
 		},
 		doubingSu28: {
-			value: 0,
+			value: newChartSeedValue('doubingSu28'),   // 新盘种子(缺省 0)
 			name: ['doubingSu28'],
 		},
 		guolaoLifeMode: {
@@ -343,32 +346,32 @@ function newEmptyFields(){
 					name: ['showPdBounds'],
 				},
 		pdtype: {
-			value: 0,
+			value: newChartSeedValue('pdtype'),   // 新盘种子(缺省 0)
 			name: ['pdtype'],
 		},
 		pdMethod: {
-			value: 'core_alchabitius',
+			value: newChartSeedValue('pdMethod'),   // 新盘种子(缺省 'core_alchabitius')
 			name: ['pdMethod'],
 		},
 		pdTimeKey: {
-			value: 'Ptolemy',
+			value: newChartSeedValue('pdTimeKey'),   // 新盘种子(缺省 'Ptolemy')
 			name: ['pdTimeKey'],
 		},
 		// 主限法 P0 补齐维(默认=引擎缺省,fieldsToParams 仅非默认才下发 → 零回归):
 		pdProjection: {
-			value: 'ptolemy',
+			value: newChartSeedValue('pdProjection'),   // 新盘种子(缺省 'ptolemy')
 			name: ['pdProjection'],
 		},
 		pdFrame: {
-			value: 'alcabitius',
+			value: newChartSeedValue('pdFrame'),   // 新盘种子(缺省 'alcabitius')
 			name: ['pdFrame'],
 		},
 		pdFramework: {
-			value: 'aspect',
+			value: newChartSeedValue('pdFramework'),   // 新盘种子(缺省 'aspect')
 			name: ['pdFramework'],
 		},
 		pdParallel: {
-			value: 0,
+			value: newChartSeedValue('pdParallel'),   // 新盘种子(缺省 0)
 			name: ['pdParallel'],
 		},
 		pdRaptParallel: {
@@ -392,15 +395,15 @@ function newEmptyFields(){
 			name: ['pdaspects'],
 		},
 		timeAlg: {
-			value: 0,
+			value: newChartSeedValue('timeAlg'),   // 新盘种子(缺省 0)
 			name: ['timeAlg'],
 		},
 		phaseType: {
-			value: 0,
+			value: newChartSeedValue('phaseType'),   // 新盘种子(缺省 0)
 			name: ['phaseType'],
 		},
 		godKeyPos: {
-			value: '年',
+			value: newChartSeedValue('godKeyPos'),   // 新盘种子(缺省 '年')
 			name: ['godKeyPos'],
 		},
 		orbs:{
@@ -420,6 +423,8 @@ function newEmptyFields(){
 			value: defaultLateZiHourUseNextDay(),
 			name: ['lateZiHourUseNextDay'],
 		},
+		// schema 本没有的种子键(印占大多数选项):只在种子非缺省时才新建 entry,默认态键集逐字节不变
+		...newChartSeedExtraEntries(),
 		adjustJieqi: {
 			value: 0,
 			name: ['adjustJieqi'],

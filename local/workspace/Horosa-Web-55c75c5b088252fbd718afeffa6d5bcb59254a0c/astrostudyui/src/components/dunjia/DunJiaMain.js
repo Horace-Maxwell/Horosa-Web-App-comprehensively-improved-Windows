@@ -986,7 +986,7 @@ class DunJiaMain extends Component {
 		const prevG = syncedSexFromFields(prevProps && prevProps.fields);
 		const nextG = syncedSexFromFields(this.props.fields);
 		if(nextG !== null && nextG !== prevG && this.state.options && this.state.options.sex !== nextG){
-			this.onOptionChange('sex', nextG);
+			this.onOptionChange('sex', nextG, { programmatic: true });   // 程序改动:不走「用户亲手改 → 落盘」
 		}
 	}
 
@@ -2005,9 +2005,9 @@ class DunJiaMain extends Component {
 			this._lateZiHourUserOverrode = true;
 		}
 		const nextVal = key === 'timeAlg' ? normalizeTimeAlg(value) : value;
-		// 用户亲手改的口径 → 落盘(全局广播带 fromGlobal,不落;非设置键会被 store 忽略)。
+		// 用户亲手改的口径 → 落盘(全局广播带 fromGlobal、程序同步带 programmatic,都不落;非设置键会被 store 忽略)。
 		// 独立遁甲页与奇门择日内嵌实例同用(理由见 DUNJIA_PAGE_SETTINGS 注);择日工作台下发口径不经本入口。
-		if(!(opts && opts.fromGlobal)){
+		if(!(opts && (opts.fromGlobal || opts.programmatic))){
 			DUNJIA_PAGE_SETTINGS.save({ [key]: nextVal });
 		}
 		const options = normalizeKenQimenOptions({
