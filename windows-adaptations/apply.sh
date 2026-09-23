@@ -52,22 +52,40 @@ const fs=require("fs");
 const pkgP=process.argv[1], winP=process.argv[2];
 const pkg=JSON.parse(fs.readFileSync(pkgP,"utf8")), win=JSON.parse(fs.readFileSync(winP,"utf8"));
 pkg.name=win.name; pkg.scripts=win.scripts;
-fs.writeFileSync(pkgP, JSON.stringify(pkg,null,"\t")+"\n");
-console.log("  [ok] name="+pkg.name+"; scripts="+Object.keys(pkg.scripts).join(","));
-' "$WS/astrostudyui/package.json" "$OV/files/astrostudyui/package.name-scripts.json"
+// horosa_pkg_indent_preserve_v1(v3.11.1,gotcha #106):缩进沿用上游文件自身的(上游 2 空格);此前写死 "\t" 让 package.json
+// 整文件在每轮同步后变成「只有缩进不同」的假差异,淹没真正的 scripts 变化,也让 diff-vs-upstream 无法一眼看出只改了 name/scripts。
+// 缩进以上游 blob 为准(第三参:上游 package.json 原文;取不到时退回当前文件自身的缩进;再退回 2 空格)
+const refP=process.argv[3]; const ref=(refP&&fs.existsSync(refP))?fs.readFileSync(refP,"utf8"):fs.readFileSync(pkgP,"utf8");
+const m=ref.match(/^\{\r?\n([ \t]+)"/); const indent=m?m[1]:"  ";
+fs.writeFileSync(pkgP, JSON.stringify(pkg,null,indent)+"\n");
+console.log("  [ok] name="+pkg.name+"; scripts="+Object.keys(pkg.scripts).join(",")+"; indent="+JSON.stringify(indent));
+' "$WS/astrostudyui/package.json" "$OV/files/astrostudyui/package.name-scripts.json" "$( [ -n "${MAC_TOP:-}" ] && git -C "$MAC_TOP" show HEAD:Horosa-Web/astrostudyui/package.json > "$OV/.upstream_pkg.json" 2>/dev/null && echo "$OV/.upstream_pkg.json" )"
+rm -f "$OV/.upstream_pkg.json"
 
 echo "== 4. THIRD_PARTY_NOTICES.md — Mac keeps it at REPO ROOT; Windows needs it in the workspace root =="
-if [ -n "$MAC" ] && [ -f "$MAC/../THIRD_PARTY_NOTICES.md" ]; then
-  cp "$MAC/../THIRD_PARTY_NOTICES.md" "$WS/THIRD_PARTY_NOTICES.md"; ok "copied from $MAC/../THIRD_PARTY_NOTICES.md"
+# horosa_blob_copy_v1(v3.11.1,gotcha #106,兑现 #27「按 blob 取」):优先 `git show HEAD:<path>` 取 **blob 字节**(LF),不再 cp 工作树文件 ——
+# 桥接 clone core.autocrlf=true,工作树是 CRLF 版;cp 过来 = 每轮把两份公开文档改成 CRLF(v3.11.1 实测 sha 不等、LF 归一后相等),
+# 且工作树若停在旧 checkout 还会拷进陈旧内容(v3.11.0 及之前发货的 THIRD_PARTY_NOTICES.md 比上游少 16 行,就是这么来的)。
+blob_copy(){ # blob_copy <repo-relative-path-in-mac-repo> <dst>
+  local rel="$1" dst="$2"
+  if [ -n "${MAC_TOP:-}" ] && git -C "$MAC_TOP" cat-file -e "HEAD:$rel" 2>/dev/null; then
+    git -C "$MAC_TOP" show "HEAD:$rel" > "$dst" && ok "blob-copied $rel (HEAD=$(git -C "$MAC_TOP" rev-parse --short HEAD), LF bytes)"; return 0
+  fi
+  return 1
+}
+if blob_copy "THIRD_PARTY_NOTICES.md" "$WS/THIRD_PARTY_NOTICES.md"; then :
+elif [ -n "$MAC" ] && [ -f "$MAC/../THIRD_PARTY_NOTICES.md" ]; then
+  cp "$MAC/../THIRD_PARTY_NOTICES.md" "$WS/THIRD_PARTY_NOTICES.md"; warn "tree-copied (not blob) from $MAC/../THIRD_PARTY_NOTICES.md — EOL may be CRLF"
 elif [ -n "$MAC" ] && [ -f "$MAC/THIRD_PARTY_NOTICES.md" ]; then
-  cp "$MAC/THIRD_PARTY_NOTICES.md" "$WS/THIRD_PARTY_NOTICES.md"; ok "copied from $MAC/THIRD_PARTY_NOTICES.md"
+  cp "$MAC/THIRD_PARTY_NOTICES.md" "$WS/THIRD_PARTY_NOTICES.md"; warn "tree-copied (not blob) from $MAC/THIRD_PARTY_NOTICES.md — EOL may be CRLF"
 else warn "Mac clone not given/found — copy THIRD_PARTY_NOTICES.md from the Mac repo root into $WS/ manually"; fi
 
 echo "== 4b. docs/AI_AGENT_RUNTIME.md — 上游 v3.11.0 的两个契约测试(aiToolsErrorCodes.contract / aiAgentRuntimeDoc.contract)按 Mac 仓布局读 =="
 # 上游把它放在 Mac 仓根 docs/,测试用 astrostudyui/src/utils/__tests__/../../../../../docs 解析 ⇒ 在本仓落到 local/workspace/docs/
 # (#99 课一 / #100 ④ 同族「上游契约测硬编码仓库布局」)。逐字节照抄、tracked、每轮同步随手刷新;缺席 = 两套契约测试 ENOENT 假红。
 DOCS_DST="$(cd "$WS/.." && pwd)/docs"; mkdir -p "$DOCS_DST"
-if [ -n "$MAC" ] && [ -f "$MAC/../docs/AI_AGENT_RUNTIME.md" ]; then
+if blob_copy "docs/AI_AGENT_RUNTIME.md" "$DOCS_DST/AI_AGENT_RUNTIME.md"; then :
+elif [ -n "$MAC" ] && [ -f "$MAC/../docs/AI_AGENT_RUNTIME.md" ]; then
   cp "$MAC/../docs/AI_AGENT_RUNTIME.md" "$DOCS_DST/AI_AGENT_RUNTIME.md"; ok "copied AI_AGENT_RUNTIME.md from $MAC/../docs"
 elif [ -n "$MAC" ] && [ -f "$MAC/docs/AI_AGENT_RUNTIME.md" ]; then
   cp "$MAC/docs/AI_AGENT_RUNTIME.md" "$DOCS_DST/AI_AGENT_RUNTIME.md"; ok "copied AI_AGENT_RUNTIME.md from $MAC/docs"

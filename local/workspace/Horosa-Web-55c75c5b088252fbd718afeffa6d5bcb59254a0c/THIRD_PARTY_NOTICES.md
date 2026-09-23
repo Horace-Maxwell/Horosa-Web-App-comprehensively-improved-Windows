@@ -169,3 +169,19 @@ No GPL-licensed source from Stellarium is incorporated; this notice is provided 
 - Copyright: Copyright (c) 2019 Andrew Dillon
 - License: MIT License
 - Use in Horosa: pure-JavaScript, fully offline generation of selectable-text PDF export files (embedding the bundled CJK subset font above); no data leaves the machine.
+
+## dom-align (locally patched)
+
+- Project: dom-align
+- Repository: https://github.com/yiminghe/dom-align
+- License: MIT License
+- Version in use: 1.12.4 (an indirect dependency, via antd → rc-trigger → rc-align)
+- Use in Horosa: positions every popup/overlay surface (select menus, tooltips, popovers, dropdowns, date pickers).
+- **Local modification**: the installed copy is patched at build time by
+  `Horosa-Web/astrostudyui/scripts/patch-dom-align-zoom.js`. Upstream `setLeftTop()` writes a delta computed in
+  the *rect* coordinate space (`getBoundingClientRect`, affected by CSS `zoom`) straight into the *CSS* space
+  (`style.left/top`, not affected), which misplaces every overlay whenever the app runs at a non-default zoom
+  level. The patch divides the two write-backs by the measured effective scale; at scale 1 the original
+  expressions are executed unchanged. The patch is applied to the local `node_modules` copy only — upstream
+  sources are not redistributed in modified form beyond the built bundle, and this notice records the change as
+  the MIT license requires.
