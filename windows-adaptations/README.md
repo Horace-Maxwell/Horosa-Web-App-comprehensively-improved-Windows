@@ -16,7 +16,9 @@ bash windows-adaptations/apply.sh \
 ```
 
 then `cd desktop_installer_bundle && npm run selfcheck` — the `windows-ahead / ported-fix sentinels`
-gate must be **40/40**. Every item below is guarded by a `release_selfcheck.py` sentinel, so a drop is
+gate must be **all PASS** (the file count grows every round — the number lives only in SKILL.md's
+「附」section and is machine-checked by the `docs lockstep` gate). Every item below is guarded by a
+`release_selfcheck.py` sentinel (contract rules R1–R8 in `check_overlay_contract_coverage`), so a drop is
 caught before release.
 
 ## The five-layer contract (制度 — how a Windows-only change survives forever)

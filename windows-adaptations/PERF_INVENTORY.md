@@ -40,6 +40,14 @@
 > jest + 打包件验收(PERF_BASELINE,门锁版本/口径/结构);原始逐样本数据按轮归档在
 > `docs/perf-artifacts/`(local,INDEX.md 领读)。
 
+> **Mac 性能轮对位流程(每轮必做;SKILL 铁律 17,2026-09-29 立)**:owner 的验收线是 Mac 实测「没有降级」,
+> Windows 不许落后一轮。①上游 `docs/windows-porting-and-release-checklist.md` 本版性能段 + release note
+> 「启动与流畅度 / 计算提速」段逐条列清单;②每条三分裁决并改本表「状态」列:**upstreamed-to-Mac**(上游已有
+> 同义实现 → 我方补丁按 #49/#101 退役,哨兵迁钉上游形态,开关名以 Mac 为准)/ **windows-only 保留**(上游不收且
+> Windows 冷导入更重,如门后预热 PY-13/择日扫描门后 PY-23,写明理由)/ **windows-ahead**(上游没有 → 保留 + 建议上游化);
+> ③壳侧项(JVM 旗标 / 早导航 rv / 就绪确认事件 / 请求优先级头 / 端口顺延)对位到 Electron(铁律 13);
+> ④证据面而非接线面:温启 A/B 戳(PERF_BASELINE)+ 差量门 + 金标零漂 + 逐技法表;新增启动路径项过 #89 门前预算门。
+
 ## 一、后端 Python(astropy / flatlib-ctrad2 / vendor)
 
 | ID | 目标 | 干什么 | kill-switch | 哨兵钉 | 实测收益 | 状态 |

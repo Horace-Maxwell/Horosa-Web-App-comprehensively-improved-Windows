@@ -50,6 +50,7 @@ FILES = {
     "desktop_installer_bundle/electron/update-flow.test.js": "node:test suite for the update flow",
     "desktop_installer_bundle/electron/update-signature.test.js": "node:test suite for signature verify",
     "desktop_installer_bundle/scripts/release_selfcheck.py": "release gate: sentinels, hashes, feed, signature, THIS manifest",
+    "desktop_installer_bundle/scripts/check_docs_lockstep.py": "docs-lockstep gate (gotcha #108): --pre = selfcheck end gate (SKILL 附节门数/gotcha 计数与索引/本版 gotcha+SELFCHECK_LOG 条目/CLAUDE.md 零漂移数字/memory CURRENT); --post = verify_release_live 第 4 件(memory 切换/gotcha RELEASED/发货 sha 落笔/winget/manifest). 文档没更新=没发完。",
     "desktop_installer_bundle/scripts/release_preflight.py": "pre-release env checks",
     "desktop_installer_bundle/scripts/stage-runtime.cjs": "stages local/workspace/runtime -> build/app-runtime payload",
     "desktop_installer_bundle/scripts/build-renderer.cjs": "frontend build wrapper",
