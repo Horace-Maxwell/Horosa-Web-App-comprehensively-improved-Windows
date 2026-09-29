@@ -216,7 +216,7 @@ def find_lunar_ke(hour):
         result = multi_key_dict_get(fivehourses, hour[0])
     return new_list(jiazi(), result)
      
-# horosa_kin_jiazi_const_v1(PERF-R10 B2):编译期常量提升,copy-return 等价;
+# horosa_kin_jiazi_const_v1:编译期常量提升,copy-return 等价;
 # 表缓存按参数键,dict() 浅拷贝保「每次新容器」契约。kill:HOROSA_KIN_JIAZI_CONST=0。
 import os as _os
 _KIN_CONST_ON = _os.environ.get('HOROSA_KIN_JIAZI_CONST', '1').lower() not in ('0', 'false', 'no', 'off')

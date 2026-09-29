@@ -1,4 +1,4 @@
-// horosa_boot_chart_restore_v1 金标(PERF-R10 S2):
+// horosa_boot_chart_restore_v1 金标:
 //   ① 快照↔record 往返:birth/ad/zone 精确、manifest 选项键随行、memo×8 恒有键(空串);
 //   ② 门:非桌面壳 / 开关关 / 超 7 天 / 坏档 → 一律 null(启动回空白默认态,零风险);
 //   ③ 键单一事实源:快照包含 RECORD_FIELDS_RESTORE_MANIFEST 里出现在 fields 的每个键。
@@ -25,19 +25,25 @@ function mkFields(){
 	};
 }
 
+function enterDesktopShell(){ window.__TAURI_INTERNALS__ = { invoke(){ return Promise.resolve(null); } }; }
+function leaveDesktopShell(){ delete window.__TAURI_INTERNALS__; }
+
 beforeEach(()=>{
 	window.localStorage.clear();
 	window.localStorage.removeItem('horosa.perf.bootChartRestore');
-	window.__HOROSA_DESKTOP_CONFIG__ = { desktop: true };
+	enterDesktopShell();
 });
 
 afterEach(()=>{
-	delete window.__HOROSA_DESKTOP_CONFIG__;
+	leaveDesktopShell();
 });
 
 test('往返:birth/ad/zone 精确;manifest 在场键全随行;memo×8 恒有键', ()=>{
-	const snap = buildBootChartRecord(mkFields(), 'ziwei');
+	const snap = buildBootChartRecord({ ...mkFields(), cid: { value: 'rec-9' } }, 'ziwei', 'liunian');
 	expect(snap.currentTab).toBe('ziwei');
+	expect(snap.currentSubTab).toBe('liunian');
+	expect(snap.record.cid).toBe('rec-9');           // 保留记录关联
+	expect(buildBootChartRecord(mkFields(), 'ziwei').record.cid).toBeNull();
 	expect(snap.record.birth).toBe('2026-07-21 08:30:00');
 	expect(snap.record.ad).toBe(1);
 	expect(snap.record.zone).toBe('+08:00');
@@ -53,6 +59,13 @@ test('往返:birth/ad/zone 精确;manifest 在场键全随行;memo×8 恒有键'
 	expect(snap.record.memo74).toBe('');
 });
 
+test('构不出合法 birth(无 date)→ null,不落快照', ()=>{
+	expect(buildBootChartRecord({ name: { value: 'x' } }, 'bazi')).toBeNull();
+	saveBootChartSnapshot({}, 'bazi');
+	flushStorageWrites();
+	expect(window.localStorage.getItem(KEY)).toBeNull();
+});
+
 test('save→load 闭环(经 deferredStorage 空闲写,flush 后可读)', ()=>{
 	saveBootChartSnapshot(mkFields(), 'astrochart');
 	flushStorageWrites();
@@ -65,9 +78,9 @@ test('save→load 闭环(经 deferredStorage 空闲写,flush 后可读)', ()=>{
 test('门:非桌面壳 / kill-switch / 7 天窗 / 坏档 → null', ()=>{
 	saveBootChartSnapshot(mkFields(), 'bazi');
 	flushStorageWrites();
-	delete window.__HOROSA_DESKTOP_CONFIG__;
+	leaveDesktopShell();
 	expect(loadBootChartSnapshot()).toBeNull();          // 非桌面壳
-	window.__HOROSA_DESKTOP_CONFIG__ = { desktop: true };
+	enterDesktopShell();
 	window.localStorage.setItem('horosa.perf.bootChartRestore', '0');
 	expect(loadBootChartSnapshot()).toBeNull();          // 开关关
 	window.localStorage.removeItem('horosa.perf.bootChartRestore');

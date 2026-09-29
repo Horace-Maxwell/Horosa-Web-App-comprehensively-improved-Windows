@@ -48,10 +48,6 @@ public class BaZi {
 	}
 	public static int SpringMaoTimeAdjust = PropertyPlaceholder.getPropertyAsInt("spring.maotime.adjust", 180) * 1000;
 	
-	transient private boolean prevDay = false;
-	transient private boolean prevYear = false;
-	transient private boolean nextDay = false;
-	transient private boolean nextYear = false;
 	transient private boolean after23NewDay = false;
 	// v3 第二开关·晚子时·时柱起干 (与 after23NewDay 完全独立):
 	// true (默认) = 时干用次日日干起子时 (晚子时按次日日柱计算)
@@ -73,6 +69,7 @@ public class BaZi {
 	transient protected String lat;
 	transient protected TimeZiAlg timeAlg;
 	transient protected String minggongMethod = "shufa"; // 命宫起法:shufa(数法表·默认)/xingming(星命式),只影响命宫/身宫
+	transient protected boolean southMonthFlip = false;  // 南半球月令「对冲」(仅南纬生效);缺省不对冲,与八字主盘同口径
 	transient protected boolean useZodicalLon;
 	transient protected double nextJieJdn;
 	transient protected double prevJieJdn;
@@ -106,7 +103,7 @@ public class BaZi {
 	}
 
 	public BaZi(int ad, String birth, String zone, String lon, String lat, TimeZiAlg timeAlg, boolean useZodicalLon, String godKeyPos, boolean after23NewDay, boolean adjustJieqi, boolean lateZiHourUseNextDay) {
-		this.timeAlg = timeAlg;
+		this.timeAlg = timeAlg == null ? null : timeAlg.calcBasis();
 		this.useZodicalLon = useZodicalLon;
 		this.birth = birth.replace('/', '-');
 		this.zone = zone;
@@ -130,6 +127,24 @@ public class BaZi {
 		this.setup();
 	}
 	
+	/**
+	 * 农历日期 / 节后天数 / 人元司令 / 农历日时干支随所选时间算法取基准时刻(与四柱同一口径):
+	 * 真太阳时沿用构造时那份(逐字节不变);直接时间取钟表时刻;平太阳时取「钟表时刻 + 经度时差」。
+	 * 各页标为「真太阳时」的那一行读 nongli.birth / solarTime,故 birth 仍写真太阳时,避免标签与数值错配。
+	 */
+	private void alignNongliWithTimeAlg(String realSunBirth) {
+		if(this.timeAlg != TimeZiAlg.DirectTime && this.timeAlg != TimeZiAlg.LocalMao) {
+			return;
+		}
+		Object trueSolarBirth = this.nongli.get("birth");
+		NongLi nl = NongliHelper.getNongLi(this.ad, this.birth, this.zone, this.lon, this.after23NewDay, true, this.lateZiHourUseNextDay);
+		Map<String, Object> map = nl.toMap();
+		map.put("birth", trueSolarBirth);
+		map.put("clockTime", this.oldBirth);
+		map.put("solarTime", realSunBirth);
+		this.nongli = map;
+	}
+
 	private void adjustJieqiInfo(List<Map<String, Object>> jieqilist) {
 		if(!this.adjustJieqi) {
 			return;
@@ -197,50 +212,39 @@ public class BaZi {
 			// [Q-189/T-128] 平太阳时:仅经度时差(去均时差),与本地引擎 timeAlg=3 同口径。
 			this.timeOffset = RealSunTimeOffset.getMeanSolarOffset(this.zone, this.lon);
 			this.timeOffsetJDN = this.timeOffset / 3600.0 / 24.0;
+		}else if(this.timeAlg == TimeZiAlg.DirectTime) {
+			// 直接时间:采用所填钟表时刻,不做任何时刻换算 —— 月柱、年柱与交节距离也按钟表时刻取,与帮助文档、本地引擎同口径。
+			// 不沿用计算服务按卯时给的偏移:那会把出生时刻前移,交节后一段时间内月柱落回上月,或节气窗不够而报错。
+			this.timeOffset = 0;
+			this.timeOffsetJDN = 0;
 		}
-		
+
 		this.birthJdn = DateTimeUtility.getDateNum(this.birth, this.zone) + this.timeOffsetJDN;
 		this.birth = JdnHelper.getDateFromJdn(this.birthJdn, this.zone);
 		this.birthParts = DateTimeUtility.getDateTimeParts(this.birth);
 		this.birthAfter23 = DateTimeUtility.isAfter23Hour(this.birth);
-		
-		if(this.jieqiInfo.length < 5) {
-			throw new IllegalStateException("jieqi window too short: " + this.jieqiInfo.length + " for " + this.birth);
-		}
-		Map<String, Object> birthmonth = this.jieqiInfo[2];
-		int jieidx = 0;
-		for(int idx=0; idx<this.jieqiInfo.length; idx++) {
-			Map<String, Object> map = this.jieqiInfo[idx];
-			double jdn = (double) map.get("jdn");
-			if(jdn <= this.birthJdn) {
-				birthmonth = map;
-				jieidx = idx;
-			}else {
-				break;
+		this.alignNongliWithTimeAlg(realSunBirth);
+
+		int jieidx;
+		try {
+			jieidx = this.locateBirthJie();
+		}catch(IllegalStateException e) {
+			if(this.birthJdn == this.oldBirthJdn) {
+				throw e;
 			}
+			// 真太阳时 / 平太阳时换算后的出生时刻可能跨回交节前,落出按钟表时刻取的节气窗(窗口只保证钟表时刻前后各有余量)
+			// → 按换算后的时刻重取一次节气窗再定位。只换节气窗,太阳 / 月亮信息仍取钟表时刻那次,与未越界的输入同口径。
+			List<Map<String, Object>> shifted = (List<Map<String, Object>>) BaZiHelper.getJieQiInfo(this.ad, this.birth, this.zone, this.lon, this.lat, useLocalMao, byLon).get("jieqi");
+			this.adjustJieqiInfo(shifted);
+			this.jieqiInfo = shifted.toArray(new Map[shifted.size()]);
+			jieidx = this.locateBirthJie();
 		}
-		boolean isjie = (boolean) birthmonth.get("jie");
-		if(!isjie) {
-			jieidx -= 1;
-			if(jieidx < 0) {
-				// 节气窗未包住生辰(上游窗口错位):明确报错进 err 链,绝不负索引裸崩/静默错算
-				throw new IllegalStateException("jieqi window misaligned before birth: " + this.birth);
-			}
-			birthmonth = this.jieqiInfo[jieidx];
-		}
+		Map<String, Object> birthmonth = this.jieqiInfo[jieidx];
 		int ord = (int) birthmonth.get("ord");
 		double jiejdn = (double)birthmonth.get("jdn");
 		this.nongliMonth = ord / 2 + 1;
 		int prevjieidx = jieidx - 2;
 		int nextjieidx = jieidx + 2;
-		if(prevjieidx < 0 || nextjieidx > this.jieqiInfo.length - 1) {
-			throw new IllegalStateException(String.format(
-				"jieqi window too narrow around birth: %s (idx=%d, window=%d, birthJdn=%.5f, j0=%.5f, j1=%.5f, j2=%.5f)",
-				this.birth, jieidx, this.jieqiInfo.length, this.birthJdn,
-				(double)(Double)this.jieqiInfo[0].get("jdn"),
-				(double)(Double)this.jieqiInfo[1].get("jdn"),
-				(double)(Double)this.jieqiInfo[2].get("jdn")));
-		}
 		if(this.birthJdn < jiejdn) {
 			Map<String, Object> prevjie = this.jieqiInfo[prevjieidx];
 			double prevjiejdn = (double)prevjie.get("jdn");
@@ -277,34 +281,67 @@ public class BaZi {
 		this.prevJieSeconds = DateTimeUtility.getTotalSecondsFromJdnTime(this.prevJieJdn);
 		
 		
-		int offsetTimeZi = Math.abs(this.timeOffset) / 7200;
-		
-		if(this.birthJdn < this.oldBirthJdn) {
-			if((oldziidx == 0 && ziidx > 0 && oldtm != 23) || offsetTimeZi > oldziidx) {
-				this.prevDay = true;
-			}
-			if(this.oldBirthJdn >= jiejdn && this.birthJdn < jiejdn && this.timeAlg != TimeZiAlg.DirectTime) {
-				if(this.nongliMonth == 12) {
-					this.prevYear = true;
-				}
-			}
-		}else {
-			if((oldziidx > 0 && ziidx == 0) || oldziidx + offsetTimeZi >= 12) {
-				this.nextDay = true;
-			}
-			if(this.oldBirthJdn < jiejdn && this.birthJdn >= jiejdn && this.timeAlg != TimeZiAlg.DirectTime) {
-				if(this.nongliMonth == 1) {
-					this.nextYear = true;
-				}
-			}
-		}
-		
+		// 年柱 / 日柱都不在这里另作进退:年柱按换算后的出生时刻与立春比较,日柱按换算后的出生时刻取(含 23 点换日),
+		// 此前换算跨立春再进一年、换算跨日再减一天 = 各多算一次。
 	}
 	
+	/**
+	 * 在节气窗里定位出生时刻所在月的「节」,返回其下标;前后各两格(上一节 / 下一节)须在窗内,否则抛 IllegalStateException。
+	 */
+	private int locateBirthJie() {
+		if(this.jieqiInfo.length < 5) {
+			throw new IllegalStateException("jieqi window too short: " + this.jieqiInfo.length + " for " + this.birth);
+		}
+		Map<String, Object> birthmonth = this.jieqiInfo[2];
+		int jieidx = 0;
+		for(int idx=0; idx<this.jieqiInfo.length; idx++) {
+			Map<String, Object> map = this.jieqiInfo[idx];
+			double jdn = (double) map.get("jdn");
+			if(jdn <= this.birthJdn) {
+				birthmonth = map;
+				jieidx = idx;
+			}else {
+				break;
+			}
+		}
+		boolean isjie = (boolean) birthmonth.get("jie");
+		if(!isjie) {
+			jieidx -= 1;
+			if(jieidx < 0) {
+				// 节气窗未包住生辰(上游窗口错位):明确报错进 err 链,绝不负索引裸崩/静默错算
+				throw new IllegalStateException("jieqi window misaligned before birth: " + this.birth);
+			}
+		}
+		if(jieidx - 2 < 0 || jieidx + 2 > this.jieqiInfo.length - 1) {
+			throw new IllegalStateException(String.format(
+				"jieqi window too narrow around birth: %s (idx=%d, window=%d, birthJdn=%.5f, j0=%.5f, j1=%.5f, j2=%.5f)",
+				this.birth, jieidx, this.jieqiInfo.length, this.birthJdn,
+				(double)(Double)this.jieqiInfo[0].get("jdn"),
+				(double)(Double)this.jieqiInfo[1].get("jdn"),
+				(double)(Double)this.jieqiInfo[2].get("jdn")));
+		}
+		return jieidx;
+	}
+
 	public void setMinggongMethod(String m) {
 		if (m != null && !m.isEmpty()) {
 			this.minggongMethod = m;
 		}
+	}
+	
+	public void setSouthMonthFlip(boolean flip) {
+		this.southMonthFlip = flip;
+	}
+
+	// 年份是「显示年」(公元前 1 年 = -1,没有公元 0 年)。直接相减 / 相加在跨纪元时多出一个不存在的 0 年:
+	// 公元前出生、起运落在公元后的盘,起运岁数多算一岁,小运年份出现「0 年」且其后公元年份整体错一年。
+	protected static int historicalYearDiff(int from, int to) {
+		return (to < 0 ? to + 1 : to) - (from < 0 ? from + 1 : from);
+	}
+
+	protected static int addHistoricalYears(int year, int n) {
+		int astro = (year < 0 ? year + 1 : year) + n;
+		return astro <= 0 ? astro - 1 : astro;
 	}
 
 	public void calculate(PhaseType phaseType) {
@@ -320,18 +357,8 @@ public class BaZi {
 	
 	public void calculateFourColumn(PhaseType phaseType) {
 		this.fourColumns.year = BaZiHelper.getYearColumn(this.ad, this.birth, this.zone, this.jieqiInfo, phaseType);
-		if(this.nextYear) {
-			String ganzi = this.fourColumns.year.ganzi;
-			int idx = StemBranch.JiaZiIndex.get(ganzi);
-			idx = (idx + 1) % 60;
-			ganzi = StemBranch.JiaZi[idx];
-			String gan = ganzi.substring(0, 1);
-			String zi = ganzi.substring(1);
-			GanZi dayCol = new GanZi(gan, zi, phaseType);
-			this.fourColumns.year = dayCol;						
-		}
 		GanZi monthcol = BaZiHelper.getMonthColumn(this.fourColumns.year, this.nongliMonth, phaseType);
-		if(lat.toLowerCase().contains("s")) {
+		if(this.southMonthFlip && lat.toLowerCase().contains("s")) {
 			this.fourColumns.month = BaZiHelper.getSouthEarthMonthColumn(this.fourColumns.year, monthcol, phaseType);
 		}else {
 			this.fourColumns.month = monthcol;
@@ -342,16 +369,6 @@ public class BaZi {
 				afterHour23 = true;
 			}
 			this.fourColumns.day = BaZiHelper.getDayColumn(this.ad, this.birth, this.zone, afterHour23, phaseType, this.after23NewDay);
-			if(this.prevDay) {
-				String ganzi = this.fourColumns.day.ganzi;
-				int idx = StemBranch.JiaZiIndex.get(ganzi);
-				idx = (idx + 59) % 60;
-				ganzi = StemBranch.JiaZi[idx];
-				String gan = ganzi.substring(0, 1);
-				String zi = ganzi.substring(1);
-				GanZi dayCol = new GanZi(gan, zi, phaseType);
-				this.fourColumns.day = dayCol;
-			}
 			this.fourColumns.time = BaZiHelper.getTimeColumn(this.fourColumns.day, this.timezi, this.birth, phaseType, this.after23NewDay, this.lateZiHourUseNextDay);
 		}else {
 			boolean afterHour23 = false;

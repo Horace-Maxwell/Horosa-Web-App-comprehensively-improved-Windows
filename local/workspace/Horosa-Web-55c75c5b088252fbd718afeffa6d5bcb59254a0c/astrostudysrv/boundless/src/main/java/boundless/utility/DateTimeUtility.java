@@ -696,7 +696,21 @@ public class DateTimeUtility {
 		if(n >= 0.5) {
 			s +=1;
 		}
-				
+		// 秒四舍五入到 60 时逐级进位(满 60 秒进分、满 60 分进时、满 24 时进日):
+		// 否则输出 xx:xx:60,且整点时按字符串取「小时」判时辰会读成前一小时。只有原本出 :60 的时刻会变。
+		if(s >= 60) {
+			s -= 60;
+			m += 1;
+			if(m >= 60) {
+				m -= 60;
+				h += 1;
+				if(h >= 24) {
+					h -= 24;
+					day += 1;
+				}
+			}
+		}
+
 		return new int[] { sym*day, h, m, s };
 	}
 	
@@ -738,24 +752,28 @@ public class DateTimeUtility {
 		double zonejdn = getZoneJdn(zone);
 		Double locjdn = jdn + zonejdn + 0.5;
 		double tm = Math.abs(locjdn) - Math.floor(Math.abs(locjdn));
-		
-		long[] dt = calDateFromJdn(locjdn);
-					    
+
+		// 时刻四舍五入到整秒;若进到 24:00:00(parts[0] = 1),日期同步进一天。
+		int[] tparts = getTimePartsFromJdnTime(tm);
+		long[] dt = calDateFromJdn(tparts[0] > 0 ? locjdn + 1 : locjdn);
+
 		long year = dt[0];
 		long month = dt[1];
 		long day = dt[2];
 	    if(year <= 0) {
 	    	year -= 1;
 	    }
-	    
-		String t = getTimeFromJdnTime(tm);
-		
+
+		String t = String.format("%02d:%02d:%02d", tparts[1], tparts[2], tparts[3]);
+
 		String str = String.format("%d-%02d-%02d %s", year, month, day, t);
-		
+
 		double n = getDateNum(str, zone);
 		double delta = jdn - n;
-		
-		if(Math.abs(delta) > 0.00000001) {
+
+		// 差值只是秒的四舍五入(不超过半秒)时不重算日期:进位到次日零点后,按「原时刻 + 差值」重算会把日期拉回前一天。
+		// 半秒以内的差值在进位之前也从不改变日期(已逐情形核过),其余输出逐字节不变。
+		if(Math.abs(delta) > 0.5 / 86400.0 + 0.00000001) {
 			dt = calDateFromJdn(locjdn + delta);
 			year = dt[0];
 			month = dt[1];

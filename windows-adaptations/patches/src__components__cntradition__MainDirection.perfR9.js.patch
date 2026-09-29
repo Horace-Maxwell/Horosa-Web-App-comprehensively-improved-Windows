@@ -1,13 +1,15 @@
 diff --git a/astrostudyui/src/components/cntradition/MainDirection.js b/astrostudyui/src/components/cntradition/MainDirection.js
-index 3b78274..e6f3db3 100644
+index 35254f34..bc6783dc 100644
 --- a/astrostudyui/src/components/cntradition/MainDirection.js
 +++ b/astrostudyui/src/components/cntradition/MainDirection.js
-@@ -2,10 +2,12 @@ import { Component } from 'react';
+@@ -2,12 +2,14 @@ import { Component } from 'react';
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { Row, Col, Divider, Popover} from 'antd';
  import { XQCard as Card, XQTabs as Tabs } from '../xq-ui';
 -import { randomStr } from '../../utils/helper';
  import { BaZiMsg } from '../../msg/bazimsg';
+ import { baziAgeText } from './baziAgeText';
+ import { parseYearFromDateStr, addDisplayYears } from '../../utils/dateStrSafe';
  import { birthMonthDayFromBazi, resolveStarCharger } from './starChargerLazy';
  import styles from '../../css/styles.less';
 +// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
@@ -16,7 +18,7 @@ index 3b78274..e6f3db3 100644
  
  const TabPane = Tabs.TabPane;
  
-@@ -49,9 +51,10 @@ class MainDirection extends Component{
+@@ -51,9 +53,10 @@ class MainDirection extends Component{
  		let ganCols = this.genGods(rec.stem, '干');
  		let ziCols = this.genGods(rec.branch, '支');
  		let doms = [];
@@ -28,7 +30,7 @@ index 3b78274..e6f3db3 100644
  					{cols}
  				</Row>
  			);
-@@ -59,7 +62,7 @@ class MainDirection extends Component{
+@@ -61,7 +64,7 @@ class MainDirection extends Component{
  		}
  		if(ganCols){
  			let row = (
@@ -37,7 +39,7 @@ index 3b78274..e6f3db3 100644
  					{ganCols}
  				</Row>
  			);
-@@ -67,7 +70,7 @@ class MainDirection extends Component{
+@@ -69,7 +72,7 @@ class MainDirection extends Component{
  		}
  		if(ziCols){
  			let row = (
@@ -46,7 +48,7 @@ index 3b78274..e6f3db3 100644
  					{ziCols}
  				</Row>
  			);
-@@ -82,7 +85,7 @@ class MainDirection extends Component{
+@@ -84,7 +87,7 @@ class MainDirection extends Component{
  			}
  		if(spans.length > 0){
  			let content = (
@@ -55,7 +57,7 @@ index 3b78274..e6f3db3 100644
  					<div>岁：&emsp;{spans.join('，')}</div>
  				</Col>
  			);
-@@ -90,7 +93,7 @@ class MainDirection extends Component{
+@@ -92,7 +95,7 @@ class MainDirection extends Component{
  		}
  		if(taisuiCols.length > 0){
  			let row = (
@@ -64,7 +66,7 @@ index 3b78274..e6f3db3 100644
  					{taisuiCols}
  				</Row>
  			);
-@@ -124,7 +127,7 @@ class MainDirection extends Component{
+@@ -126,7 +129,7 @@ class MainDirection extends Component{
  
  		if(spans.length > 0){
  			let content = (
@@ -73,33 +75,16 @@ index 3b78274..e6f3db3 100644
  					<div>{titleStr}：&emsp;{spans.join('，')}</div>
  				</Col>
  			);
-@@ -148,11 +151,11 @@ class MainDirection extends Component{
- 				let starCharger = resolveStarCharger(sub.starCharger, sub.year != null ? sub.year : y, this._birthMonth, this._birthDay);
- 				let popcontent = (
- 					<div style={{width: 350}}>
--						<Row key={randomStr(8)} style={{width: 350}}>
--							<Col span={24} key={randomStr(8)}>
-+						<Row key="stemBranch" style={{width: 350}}>
-+							<Col span={24} key="stem">
- 								{describeStemBranch(sub.stem)}
- 							</Col>
--							<Col span={24} key={randomStr(8)}>
-+							<Col span={24} key="branch">
- 								{describeStemBranch(sub.branch)}
- 							</Col>
- 						</Row>
-@@ -163,8 +166,8 @@ class MainDirection extends Component{
+@@ -170,7 +173,7 @@ class MainDirection extends Component{
  					</div>
  				)
  				let titlerow = (
--					<Popover content={popcontent} title={(sub.ganzi || '') + ' ' + dirtm + ' ' + (age + i) + '岁'} key={randomStr(8)}>
--						<Row key={randomStr(8)}>
-+					<Popover content={popcontent} title={(sub.ganzi || '') + ' ' + dirtm + ' ' + (age + i) + '岁'} key={i}>
-+						<Row key={i}>
+-					<Popover content={popcontent} title={(sub.ganzi || '') + ' ' + dirtm + ' ' + this.ageText(age + i)} key={randomStr(8)}>
++					<Popover content={popcontent} title={(sub.ganzi || '') + ' ' + dirtm + ' ' + this.ageText(age + i)} key={i}>
+ 						<Row key={`s11-${i}`}>
  							<Col span={4}>{sub.ganzi || ''}</Col>
  							<Col span={6}>{sub.naying || ''}</Col>
- 							<Col span={9}>{dirtm}</Col>
-@@ -179,14 +182,14 @@ class MainDirection extends Component{
+@@ -186,14 +189,14 @@ class MainDirection extends Component{
  
  			let maingods = this.genGodsDom(mainDirect);
  			let title = (

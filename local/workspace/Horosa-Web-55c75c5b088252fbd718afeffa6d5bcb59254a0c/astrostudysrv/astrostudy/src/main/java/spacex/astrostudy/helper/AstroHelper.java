@@ -1,5 +1,9 @@
 package spacex.astrostudy.helper;
 
+import javax.servlet.http.HttpServletRequest;
+import boundless.spring.help.interceptor.TransData;
+import boundless.spring.help.interceptor.KeyConstants;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -13,7 +17,7 @@ public class AstroHelper {
 	private static final boolean DisableRequestCache = PropertyPlaceholder.getPropertyAsBool("astrohelper.disable.request.cache", false);
 	private static final int RequestCacheExpInSec = PropertyPlaceholder.getPropertyAsInt("astrohelper.request.cache.expireinsecond", 86400);
 
-	// horosa_astrohelper_skip_inner_v1(PERF-R10 B7):外层已被 ParamHashCacheHelper 包裹的
+	// horosa_astrohelper_skip_inner_v1:外层已被 ParamHashCacheHelper 包裹的
 	// 五个路径("/"=/chart、Chart13、Chart12、IndiaChart、JieQiYear),内层 request() 再包一次
 	// = 同 scope 同参数 ⇒ **内外两层写同一个缓存文件**:冷路径多付一次 hash+persistable+同步
 	// 文件写;更险的是 /chart13 等外层装配(补 nongli 等)后覆写同一文件 —— 装配 lambda 若在
@@ -22,7 +26,7 @@ public class AstroHelper {
 	// 外层保存前有自己的 persistable() 归一)。保守枚举绝不通配:/jieqi/birth、/predict/* 等
 	// 无外层包裹者,内层缓存是它们唯一的缓存,一个都不能跳。
 	// 开关读取与 ParamHashCacheHelper.resolveBoolFlag 同源(先 -D 再属性文件;
-	// PropertyPlaceholder 不读 -D,-- 程序参数只能覆盖已存在键 —— 判别铁律①)。
+	// PropertyPlaceholder 不读 -D,-- 程序参数只能覆盖已存在键)。
 	private static boolean resolveBoolFlag(String key, boolean def) {
 		String sys = System.getProperty(key);
 		if(sys != null && sys.length() > 0) {
@@ -105,10 +109,33 @@ public class AstroHelper {
 		return (Map<String, Object>)obj;
 	}
 	
+	// [R5 T5] 请求优先级车道:前端预取请求带 X-Horosa-Priority: prefetch,原样转给排盘引擎(引擎侧让前台请求先拿锁)。
+	// 只转这一个头、只认这一个值;缺头 / 其它值 = 前台 = 旧行为。读的是 Servlet 请求对象,不经签名(签名只覆盖三个客户端头 + 正文)。
+	static final String PRIORITY_HEADER = "X-Horosa-Priority";
+
+	static String priorityHeaderToForward(){
+		try{
+			Object req = TransData.getRequestHeader(KeyConstants.RequestObject);
+			if(req instanceof HttpServletRequest){
+				String v = ((HttpServletRequest)req).getHeader(PRIORITY_HEADER);
+				if(v != null && "prefetch".equalsIgnoreCase(v.trim())){
+					return "prefetch";
+				}
+			}
+		}catch(Exception e){
+			// 无请求上下文(自热身 / 定时任务)= 前台
+		}
+		return null;
+	}
+
 	public static Map<String, Object> requestNoCache(String path, Map<String, Object> params){
 		String url = String.format("%s%s", AstroSrvUrl, path);
 		String jsonData = JsonUtility.encode(params);
 		Map<String, String> headers = new HashMap<String, String>();
+		String prio = priorityHeaderToForward();
+		if(prio != null){
+			headers.put(PRIORITY_HEADER, prio);
+		}
 		Map<String, String> respHeadMap = new HashMap<String, String>();
 		String str = HttpClientUtility.uploadString(url, headers, "application/json; charset=UTF-8", jsonData, respHeadMap);
 		Map<String, Object> jsonres = JsonUtility.toDictionary(str);
@@ -204,17 +231,19 @@ public class AstroHelper {
 	
 	public static Map<String, Object> getJieQiYear(Map<String, Object> params){
 		// 历法算法代次盐(节气窗自愈/朔表 BC 修):进 paramhash 键,老污染缓存整体失效
-		params.put("_v", "w4");
+		// w5:交节时刻改为精确黄经(此前晚约 12 秒)、节气时刻四舍五入到秒显示
+		params.put("_v", "w5");
 		return request(JieQiYear, params);
 	}
 
 	public static Map<String, Object> getJieQiBirth(Map<String, Object> params){
-		params.put("_v", "w4");
+		params.put("_v", "w5");
 		return request(JieQiBirth, params);
 	}
 
 	public static Map<String, Object> getNongliMonth(Map<String, Object> params){
-		params.put("_v", "w4");
+		// w6:农历置闰按日期定冬至所在月(2033 / 2128 等年不再凭空闰秋月)
+		params.put("_v", "w6");
 		return request(Nongli, params);
 	}
 	

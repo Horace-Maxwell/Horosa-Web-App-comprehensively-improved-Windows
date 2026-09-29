@@ -93,7 +93,7 @@ public class BaZiDirect extends BaZi {
 		int[] calparts = DateTimeUtility.getDateTimeParts(cal);
 		int dirYear = calparts[0];
 		int birthYear = this.oldBirthParts[0];
-		int age = dirYear - birthYear;
+		int age = historicalYearDiff(birthYear, dirYear);
 		int smallAge = 90;
 		
 		this.smallDirection = new SmallFateDirect[smallAge + 1];
@@ -107,7 +107,7 @@ public class BaZiDirect extends BaZi {
 		int yearIdx = StemBranch.JiaZiIndex.get(this.fourColumns.year.ganzi);
 		for(int i=0; i<=smallAge; i++) {
 			String ganzi = StemBranch.JiaZi[tmidx];
-			int y = year + i;
+			int y = addHistoricalYears(year, i);
 			this.smallDirection[i] = new SmallFateDirect(i, y, yearIdx, ganzi, this.fourColumns.day.stem.cell, phaseType, this);
 			this.smallDirection[i].yearGanzi.setupStarCharger(ming12);
 			this.smallDirection[i].setupGong12();
@@ -149,7 +149,7 @@ public class BaZiDirect extends BaZi {
 		int[] calparts = DateTimeUtility.getDateTimeParts(cal);
 		int dirYear = calparts[0];
 		int birthYear = this.oldBirthParts[0];
-		int age = dirYear - birthYear;
+		int age = historicalYearDiff(birthYear, dirYear);
 		int smallAge = 90;
 		
 		this.smallDirection = new SmallFateDirect[smallAge + 1];
@@ -162,7 +162,7 @@ public class BaZiDirect extends BaZi {
 		int yearIdx = StemBranch.JiaZiIndex.get(this.fourColumns.year.ganzi);
 		for(int i=0; i<=smallAge; i++) {
 			String ganzi = StemBranch.JiaZi[tmidx];
-			int y = year + i;
+			int y = addHistoricalYears(year, i);
 			this.smallDirection[i] = new SmallFateDirect(i, y, yearIdx, ganzi, this.fourColumns.day.stem.cell, phaseType, this);
 			this.smallDirection[i].yearGanzi.setupStarCharger(ming12);
 			this.smallDirection[i].setupGong12();

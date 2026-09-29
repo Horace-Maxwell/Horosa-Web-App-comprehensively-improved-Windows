@@ -14,6 +14,7 @@ import boundless.utility.ConvertUtility;
 import boundless.utility.FormatUtility;
 import spacex.astrostudy.constants.PhaseType;
 import spacex.astrostudy.helper.ParamHashCacheHelper;
+import spacex.astrostudy.helper.NongliHelper;
 import spacex.astrostudy.model.godrule.GodRule;
 import spacex.astrostudycn.constants.TimeZiAlg;
 import spacex.astrostudycn.model.BaZi;
@@ -43,9 +44,11 @@ public class PaiBaZiController {
 		String minggongMethod = (String) params.get("minggongMethod");
 		int ad = ConvertUtility.getValueAsInt(params.get("ad"), 1);
 
+		params.put("_calRev", NongliHelper.CALENDAR_CACHE_REV);   // 历法口径代次:只进缓存键,不参与计算
 		Object obj = ParamHashCacheHelper.get("/bazi/direct", params, (args)->{
 			BaZiDirect bz = new BaZiDirect(ad, dtstr, zone, lon, lat, timealg, zodiacalLon, godKeyPos, after23NewDay, gender, adjustJieqi, lateZiHourUseNextDay);
 			bz.setMinggongMethod(minggongMethod);
+			bz.setSouthMonthFlip("chong".equals(params.get("southMonth")));
 			bz.calculate(phaseType);
 			Map<String, Object> res = new HashMap<String, Object>();
 			res.put("bazi", bz);
@@ -80,7 +83,7 @@ public class PaiBaZiController {
 		map.put("lat", TransData.getValueAsString("lat"));
 		map.put("lon", TransData.getValueAsString("lon"));
 		int timealg = TransData.getValueAsInt("timeAlg", 0);
-		map.put("timeAlg", TimeZiAlg.fromCode(timealg));
+		map.put("timeAlg", TimeZiAlg.fromCode(timealg).calcBasis());   // 缓存键与模型同口径(春分定卯时 = 直接时间)
 		boolean byLon = TransData.getValueAsBool("byLon", false);
 		map.put("useZodicalLon", byLon);
 		if(TransData.containsParam("godKeyPos")) {
@@ -93,6 +96,8 @@ public class PaiBaZiController {
 		}else {
 			map.put("minggongMethod", "shufa");
 		}
+		// 南半球月令:chong = 对冲(仅南纬生效),其余 = 不对冲(缺省,与八字主盘同口径)
+		map.put("southMonth", "chong".equals(TransData.getValueAsString("southMonth")) ? "chong" : "none");
 		boolean after23NewDay = TransData.getValueAsInt("after23NewDay", 1) == 1;
 		map.put("after23NewDay", after23NewDay);
 

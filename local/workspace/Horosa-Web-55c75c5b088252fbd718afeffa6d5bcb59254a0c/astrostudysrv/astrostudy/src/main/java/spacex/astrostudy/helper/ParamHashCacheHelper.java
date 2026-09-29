@@ -57,13 +57,13 @@ public class ParamHashCacheHelper {
 	}
 	private static final int ExpireInSec = PropertyPlaceholder.getPropertyAsInt("paramhash.cache.expireinsecond", 86400);
 	private static final int AnnualExpireInSec = PropertyPlaceholder.getPropertyAsInt("paramhash.cache.annual.expireinsecond", 86400 * 180);
-	// horosa_paramhash_localdir_sysprop_v1(PERF-R9):必须与 resolveBoolFlag 同源地先读 -D。
+	// horosa_paramhash_localdir_sysprop_v1:必须与 resolveBoolFlag 同源地先读 -D。
 	// 原实现只走 PropertyPlaceholder(**不读 -D**),于是启动器无法把缓存目录移出 payload 树 ——
 	// 而 defaultLocalDir() 落在 user.dir 下,桌面壳把 cwd 设成 astrostudyboot-exploded,
 	// 即 embedded-runtime/<payloadId>/ 之内:**每次应用更新换 payloadId,启动清扫会连缓存一起删掉,
 	// 于是每发一版所有用户都回到全冷**。改用 resolveFlag 后,启动器传
 	// -Dparamhash.cache.local.dir=<LOCALAPPDATA>\HorosaDesktop\cache\paramhash 即可跨更新存活。
-	// ★ 这正是本轮「-D vs -- vs PropertyPlaceholder」判别铁律的第二例:加开关前先确认目标怎么读它。
+	// 加开关前先确认目标怎么读它(-D / -- 程序参数 / PropertyPlaceholder 三者读法不同)。
 	private static final String LocalDir = resolveFlag("paramhash.cache.local.dir", defaultLocalDir());
 	private static final DateTimeFormatter LdtFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -223,7 +223,7 @@ public class ParamHashCacheHelper {
 
 				obj = fun.apply(new HashMap<String, Object>(req));
 				if(isCacheable(obj)) {
-					// v3.0.1 perf ROUND-3 R2 (PARAMHASH_PERSISTABLE_REV): promote what used to be
+					// PARAMHASH_PERSISTABLE_REV: promote what used to be
 					// ChartController.toPlainMap into the central cache path. Prior behavior:
 					// canPersistLocal() saw any Java Enum / POJO inside `obj` (e.g. JieQiController.getYearParams
 					// puts TimeZiAlg + PhaseType Enum instances into the response), returned false, and
@@ -531,7 +531,7 @@ public class ParamHashCacheHelper {
 		return true;
 	}
 
-	// v3.0.1 perf ROUND-3 R2 (PARAMHASH_PERSISTABLE_REV): JSON round-trip an arbitrary POJO/Map/Enum
+	// PARAMHASH_PERSISTABLE_REV: JSON round-trip an arbitrary POJO/Map/Enum
 	// tree into a pure Map/List/Number/String/Boolean tree that canPersistLocal() will accept.
 	// Serializes via the same Jackson jsonMapper as the response JsonConverter (JsonUtility.encode);
 	// deserializes back to Object.class → LinkedHashMap preserves key order. Idempotent on already-plain

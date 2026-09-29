@@ -14,12 +14,17 @@ import org.apache.poi.hwpf.HWPFDocument;
 import org.apache.poi.hwpf.extractor.WordExtractor;
 import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import boundless.exception.ErrorCodeException;
 import boundless.io.FileUtility;
 import boundless.utility.StringUtility;
 
+// 启动时创建(不参与桌面延迟初始化):下方静态块设置的是【进程级】表格 / 文档解析安全阈值(ZipSecureFile),
+// 其它解析入口(命盘数据 Excel 导入 UserDataTransferController → OfficeUtility.readExcel)依赖它在启动时即已生效。
+// 延迟创建会让「启动后、本服务首次被用之前」的导入回到库默认阈值 —— 故显式 @Lazy(false)(LazyInitXmlScanPostProcessor 见类上 @Lazy 即不翻)。
+@Lazy(false)
 @Service
 public class AIAnalysisMaterialService {
 	// [D58] 抽取上限(单源):解码后 ≤30 MB;PDF 只抽前 500 页;正文 ≤2,000,000 字;POI 解压比阈值显式配置(zip 炸弹)

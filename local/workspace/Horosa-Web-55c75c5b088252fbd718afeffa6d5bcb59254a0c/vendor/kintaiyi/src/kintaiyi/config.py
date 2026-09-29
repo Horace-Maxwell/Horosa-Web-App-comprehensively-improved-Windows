@@ -363,7 +363,7 @@ def cal_des(num):
     tnum.append(numdict.get(num, None))
     return [i for i in tnum if i is not None]
 #%% 甲子平支
-# horosa_kin_jiazi_const_v1(PERF-R10 B2):同 jieqi.py —— 编译期常量提升,copy-return 等价。
+# horosa_kin_jiazi_const_v1:同 jieqi.py —— 编译期常量提升,copy-return 等价。
 import os as _os
 _KIN_CONST_ON = _os.environ.get('HOROSA_KIN_JIAZI_CONST', '1').lower() not in ('0', 'false', 'no', 'off')
 _JIAZI_CONST = ["{}{}".format('甲乙丙丁戊己庚辛壬癸'[x % 10], '子丑寅卯辰巳午未申酉戌亥'[x % 12]) for x in range(60)]

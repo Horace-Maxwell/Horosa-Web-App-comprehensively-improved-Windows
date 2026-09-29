@@ -8,6 +8,7 @@ import { chartSCUEnabled } from '../../utils/perfFlags';
 // 数据:/germany/midpoint(含 houseFrames)+ /chart(取各点黄经/字形)。后端缺 houseFrames 时前端等宫降级合成。
 // showHouseFrames(WP-1 持久化开关)关时本 Tab 在 AstroGermany 里隐藏;此处再兜一层提示。
 import React, { Component } from 'react';
+import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // [#84] 双触发收敛
 import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import { Row, Col, Switch, Spin, Empty } from 'antd';
 import request from '../../utils/request';
@@ -217,8 +218,11 @@ export default class UranianHouseFrames extends Component {
 	async load(){
 		const params = fieldsToParams(this.props.fields);
 		if (!paramsReady(params)){ this.setState({ note: '请先设置出生日期/时间与经纬度', points: [], houseFrames: null }); return; }
-		this.setState({ loading: true, note: null });
 		const sp = schoolToBackendParams(this.state.school); // {school, includeTnp, ..., frames}
+		// [#84] 双触发收敛:挂钩与 componentDidUpdate 同一次改动各进一次 → 参数与流派全同的第二路跳过
+		const framesTrig = claimTrigger(this, 'load', JSON.stringify([params, sp]));
+		if (!framesTrig){ return; }
+		this.setState({ loading: true, note: null });
 		try {
 			const [chartData, mid] = await Promise.all([
 				request(`${Constants.ServerRoot}/chart`, { body: JSON.stringify({ ...params, cid: null }), silent: true }),
@@ -228,6 +232,7 @@ export default class UranianHouseFrames extends Component {
 			// 后端响应走 {ResultCode, Result} 信封,真值在 .Result(与 UranianDialMain 同口径);兜底取原对象。
 			const chartObj = (chartData && chartData[Constants.ResultKey]) ? chartData[Constants.ResultKey] : chartData;
 			const m = (mid && mid[Constants.ResultKey]) ? mid[Constants.ResultKey] : mid;
+			if (!chartObj || !m) { settleTrigger(this, 'load', framesTrig, false); }   // request 吞错 resolve 空 → 同参允许重试
 			const tnp = (m && m.tnp) || [];
 			const points = collectPoints(chartObj, tnp);
 			// horosa_panel_ready_v1:六宫框子盘的中栏(框盘)+右栏(落宫表)全部由 points/houseFrames 派生,
@@ -239,6 +244,7 @@ export default class UranianHouseFrames extends Component {
 				this.setState({ points, houseFrames: degradeFrames(points), degraded: true, loading: false }, ()=>{ markPanelReady('auxchart'); });
 			}
 		} catch (e){
+			settleTrigger(this, 'load', framesTrig, false);
 			if (!this.unmounted) this.setState({ loading: false, note: '排盘失败,请稍后重试' });
 		}
 	}

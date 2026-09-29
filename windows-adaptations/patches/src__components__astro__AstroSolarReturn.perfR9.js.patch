@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroSolarReturn.js b/astrostudyui/src/components/astro/AstroSolarReturn.js
-index 40b7e9ca..fb1fc93e 100644
+index 787172f5..d8741a28 100644
 --- a/astrostudyui/src/components/astro/AstroSolarReturn.js
 +++ b/astrostudyui/src/components/astro/AstroSolarReturn.js
 @@ -9,7 +9,7 @@ import * as AstroText from '../../constants/AstroText';
@@ -96,15 +96,6 @@ index 40b7e9ca..fb1fc93e 100644
  		if(this.state.dirChart === undefined || this.state.dirChart === null){
  			return null;
  		}
-@@ -324,7 +364,7 @@ class AstroSolarReturn extends Component{
- 			if(i % 2 === 0){
- 				if(i > 0){
- 					let dom = (
--						<div key={randomStr(8)}>
-+						<div key={`row-${i}`}>
- 							<Row>
- 								{cols}
- 							</Row>
 @@ -338,7 +378,7 @@ class AstroSolarReturn extends Component{
  			cols.push(divs[i]);
  		}

@@ -163,33 +163,23 @@ class NongLi:
         return res
 
     def setupMonth(self, months):
+        # 冬至所在月为十一月(冬月):按「日期」判定 —— 朔日的日期不晚于冬至的日期,与 hasQi 判中气同一口径。
+        # 此前按时刻取最后一个不晚于冬至的朔,再用「该月不是从 12 月起就后挪一个月」补正:冬至落在其所在月最后一两天
+        # (朔在 11 月下旬)时会错挪到下一个月,把这一岁数成 13 个月而凭空置闰 —— 如 2033 年误成闰七月
+        # (现行农历为闰十一月,且与 2034 年表前后矛盾),1642 / 1813 / 2128 / 2185 年同病。
         sidx = 0
         eidx = 0
-        foundSidx = False
-        prevdzjd = self.prevDongZi['tm'].jd
-        dzjd = self.dongZi['tm'].jd
+        prevdz0 = self.prevDongZi['tm'].calcZeroHourJd()
+        dz0 = self.dongZi['tm'].calcZeroHourJd()
         for i in range(0, len(months)):
-            nextm = months[i]['tm']
-            if nextm.jd >= prevdzjd:
-                foundSidx = True
-            elif foundSidx == False:
+            day0 = months[i]['tm'].calcZeroHourJd()
+            if day0 <= prevdz0:
                 sidx = i
-
-            if nextm.jd <= dzjd:
+            if day0 <= dz0:
                 eidx = i
             else:
                 break
 
-        dparts = months[eidx]['date'].split('-')
-        if dparts[0] != '':
-            if dparts[1] != '12' and dparts[2] != '01':
-                eidx = eidx + 1
-        else:
-            # 公元前日期串形如 '-7039-12-18',split 后首段为空、月/日整体右移一位:
-            # 月=dparts[2]、日=dparts[3]。旧写法把 dparts[2] 双用(月又当日),
-            # 部分 BC 年份 eidx 误进 → 越界崩 / 冬月错标(静默错月,更隐蔽)。
-            if dparts[2] != '12' and dparts[3] != '01':
-                eidx = eidx + 1
         if eidx >= len(months):
             eidx = len(months) - 1
 

@@ -2,7 +2,7 @@
 // 配色统一走 --horosa-* 暗黑令牌 + 五行(八字)色板,明暗两态均清晰。
 import React from 'react';
 import { CHISHI_JUE, FADONG_JUE, LIUSHEN_FADONG, YAOWEI_XIANG, ZHANLEI_GANGYAO, GU_FU, MINGJIA_TABLE } from '../gua/liuyaoReference';
-import { ZHI_CANGGAN, TIANGAN_HE, TIANGAN_HE_HUA, LIUCHONG, LIUHE, SANHE, SANHUI, HAI, PO, DIZHI, TIANGAN, CHANGSHENG_START, CHANGSHENG_START_ALT, LIUSHEN_START } from '../gua/LiuYaoConst';
+import { ZHI_CANGGAN, TIANGAN_HE, TIANGAN_HE_HUA, LIUCHONG, LIUHE, SANHE, SANHUI, HAI, PO, DIZHI, TIANGAN, CHANGSHENG_START, CHANGSHENG_START_ALT, LIUSHEN_START, JIANYAO_ROLE, JIANYAO_DONG_NOTE, jianYaoSpanText } from '../gua/LiuYaoConst';
 
 // 设计令牌(暗黑友好,带回落)
 const C = {
@@ -409,6 +409,16 @@ export function LiuYaoYueLiuShenView({ analysis }){
 }
 
 // [A1-A4] 世应关系 / 卦变吉凶 / 动态四态 / 间爻(概览显要位置)。
+// 间爻标签配色与日月引动行同口径:旺衰按旺衰色,动 = 朱,暗动 = 金,空 / 月破与冲克 = 红,生 = 玉,合 = 金,比和 = 淡。
+function jianTagColor(t){
+	if(WANGSHUAI_COLOR[t]){ return WANGSHUAI_COLOR[t]; }
+	if(t === '动'){ return C.cinnabar; }
+	if(t === '暗动'){ return C.accent; }
+	if(t === '空' || t === '月破' || /^冲|^克|克$/.test(t)){ return C.danger; }
+	if(/^合/.test(t)){ return C.accent; }
+	if(/^生|生$/.test(t)){ return C.jade; }
+	return C.muted;
+}
 const REL_TONE = { 世应相冲: 'bad', 应克世: 'bad', 世克应: 'good', 应生世: 'good', 世应相合: 'good', 世生应: undefined, 比和: undefined };
 export function LiuYaoManualCards({ analysis }){
 	if(!analysis){ return null; }
@@ -416,6 +426,7 @@ export function LiuYaoManualCards({ analysis }){
 	const gb = analysis.guaBianDuan;
 	const dt = analysis.dongTai;
 	const jy = analysis.jianYao || [];
+	const pt = analysis.palaceType || {};
 	const yaoBox = (y, who, wtone) => (
 		<span>
 			<span style={{ color: C.muted, fontSize: 11 }}>{who}</span>
@@ -459,8 +470,15 @@ export function LiuYaoManualCards({ analysis }){
 				<div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '3px 0', flexWrap: 'wrap' }}>
 					<div style={{ width: 60, flex: '0 0 auto', color: C.label, fontWeight: 600 }}>间爻</div>
 					<div style={{ flex: 1 }}>
-						{jy.map((j) => <span key={j.pos} style={{ marginRight: 10 }}><span style={{ color: C.muted, fontSize: 11 }}>{YAO_NAME[j.pos]}</span> <b style={{ color: C.text }}>{j.liuqin}</b><span style={{ color: C.muted }}>{j.zhi}</span></span>)}
-						<span style={{ color: C.muted, fontSize: 12 }}>世应之间·中介/媒人/第三方</span>
+						{jy.map((j) => (
+							<span key={j.pos} style={{ marginRight: 12 }}>
+								<span style={{ color: C.muted, fontSize: 11 }}>{YAO_NAME[j.pos]}</span> <b style={{ color: C.text }}>{j.liuqin}</b>
+								<span style={{ color: WX_COLOR[j.wuxing] || C.muted, marginLeft: 2 }}>{j.zhi}{j.wuxing || ''}</span>
+								{(j.tags || []).map((t, i) => <span key={`${j.pos}-${i}`} style={{ marginLeft: 4, fontSize: 11, color: jianTagColor(t) }}>{t}</span>)}
+							</span>
+						))}
+						<span style={{ color: C.muted, fontSize: 12 }}>{[jianYaoSpanText(pt.shi, pt.ying), JIANYAO_ROLE].filter(Boolean).join('·')}</span>
+						{jy.some((j) => j.moving) ? <MHit tone="bad">{JIANYAO_DONG_NOTE}</MHit> : null}
 					</div>
 				</div>
 			) : null}

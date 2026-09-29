@@ -119,7 +119,66 @@ def _orbList(obj1, obj2, aspList):
         } for asp in aspList
     ]
 
+# [R5 T3] 相位请求级 memo:同一请求里 getAspects / getImmediateAspects / getSignAspects / 围攻 / 互容各自
+# 对同一批星对反复算 _aspectDict(一张本命盘约 5000 次,占计算约 1/4)。在 perchart 的古典临界区
+# (push_classical_request → pop)内按 (两星对象身份, 两星黄经, 相位表, 轨策略令牌) 记忆结果;
+# 临界区外(作用域深度 0)零记忆 = 与旧行为逐字节相同。命中返回浅拷贝(调用方拿到独立 dict)。
+# 线程本地:各请求各自一张表,与 CherryPy 多线程无关。kill:HOROSA_ASPECT_MEMO=0。
+import os as _os
+import threading as _threading
+_ASPECT_MEMO_ON = _os.environ.get('HOROSA_ASPECT_MEMO', '1').lower() not in ('0', 'false', 'no', 'off')
+_ASPECT_MEMO = _threading.local()
+
+
+def enterAspectMemoScope():
+    """进入请求级 memo 作用域(可重入;深度归零时清表)。perchart.push_classical_request 调用。"""
+    depth = getattr(_ASPECT_MEMO, 'depth', 0)
+    if depth == 0:
+        _ASPECT_MEMO.table = {}
+    _ASPECT_MEMO.depth = depth + 1
+
+
+def exitAspectMemoScope():
+    """离开作用域;深度归零即丢表(下一请求从空表开始)。pop_classical_request 调用。"""
+    depth = getattr(_ASPECT_MEMO, 'depth', 0)
+    if depth <= 1:
+        _ASPECT_MEMO.depth = 0
+        _ASPECT_MEMO.table = None
+    else:
+        _ASPECT_MEMO.depth = depth - 1
+
+
+def _aspectMemoTable():
+    if not _ASPECT_MEMO_ON:
+        return None
+    if getattr(_ASPECT_MEMO, 'depth', 0) <= 0:
+        return None
+    return getattr(_ASPECT_MEMO, 'table', None)
+
+
 def _aspectDict(obj1, obj2, aspList):
+    """ Returns the properties of the aspect of 
+    obj1 to obj2, considering a list of possible
+    aspects. [R5 T3] 请求级 memo 见 _aspectDictCompute。
+    """
+    table = _aspectMemoTable()
+    if table is None:
+        return _aspectDictCompute(obj1, obj2, aspList)
+    try:
+        key = (id(obj1), id(obj2), obj1.lon, obj2.lon, tuple(aspList), id(_orbPolicy))
+    except Exception:
+        return _aspectDictCompute(obj1, obj2, aspList)
+    hit = table.get(key)
+    if hit is not None:
+        res = hit[0]
+        return dict(res) if res else res
+    res = _aspectDictCompute(obj1, obj2, aspList)
+    # 值里钉住两个对象引用:作用域内 id() 不会被回收复用
+    table[key] = (dict(res) if res else res, obj1, obj2)
+    return res
+
+
+def _aspectDictCompute(obj1, obj2, aspList):
     """ Returns the properties of the aspect of 
     obj1 to obj2, considering a list of possible
     aspects.

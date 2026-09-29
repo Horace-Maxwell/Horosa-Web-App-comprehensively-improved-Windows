@@ -39,6 +39,7 @@ class CnTraditionInput extends Component{
 		this.onMingGongMethodChange = this.onMingGongMethodChange.bind(this);
 		this.onShowShenShaChange = this.onShowShenShaChange.bind(this);
 		this.onFenyeVersionChange = this.onFenyeVersionChange.bind(this);
+		this.onSouthMonthChange = this.onSouthMonthChange.bind(this);
 		this.onDayunPrecisionChange = this.onDayunPrecisionChange.bind(this);
 		this.onShowXiaoyunChange = this.onShowXiaoyunChange.bind(this);
 		this.onCangVersionChange = this.onCangVersionChange.bind(this);
@@ -125,6 +126,16 @@ class CnTraditionInput extends Component{
 		let opt = {
 			...this.props.baziOpt,
 			fenyeVersion: val,
+		};
+		if(this.props.onBaziOptChange){
+			this.props.onBaziOptChange(opt);
+		}
+	}
+
+	onSouthMonthChange(val){
+		let opt = {
+			...this.props.baziOpt,
+			southMonth: val,
 		};
 		if(this.props.onBaziOptChange){
 			this.props.onBaziOptChange(opt);
@@ -583,6 +594,13 @@ class CnTraditionInput extends Component{
 							<Select value={(this.props.baziOpt && this.props.baziOpt.fenyeVersion) || 'common'} onChange={this.onFenyeVersionChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
 								<Option value="common">通行版</Option>
 								<Option value="fajue">法诀版</Option>
+							</Select>
+						</div>
+						<div className="horosa-field-block">
+							<div className="horosa-field-label">南半球月令</div>
+							<Select value={(this.props.baziOpt && this.props.baziOpt.southMonth) || 'none'} onChange={this.onSouthMonthChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
+								<Option value="none">不对冲</Option>
+								<Option value="chong">对冲</Option>
 							</Select>
 						</div>
 						<div className="horosa-field-block">

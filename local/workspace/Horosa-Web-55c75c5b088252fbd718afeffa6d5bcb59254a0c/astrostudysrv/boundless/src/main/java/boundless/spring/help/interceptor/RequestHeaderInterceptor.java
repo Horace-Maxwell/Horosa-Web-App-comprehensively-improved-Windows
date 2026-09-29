@@ -30,7 +30,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 import org.springframework.web.multipart.commons.CommonsMultipartResolver;
 import org.springframework.web.multipart.support.DefaultMultipartHttpServletRequest;
-import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.AsyncHandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -54,7 +54,21 @@ import boundless.utility.FormatUtility;
 import boundless.utility.JsonUtility;
 import boundless.utility.StringUtility;
 
-public class RequestHeaderInterceptor implements HandlerInterceptor {
+public class RequestHeaderInterceptor implements AsyncHandlerInterceptor {
+	// webencrypt_gcm_v1:本请求解信封得到的会话传输钥,供响应侧复用(ResponseCrypto);preHandle 起始清空,
+	// 响应体写完(afterCompletion 末尾)与异步请求让出线程(afterConcurrentHandlingStarted)时再清,
+	// 绝不跨请求残留(线程池复用线程;不经拦截器的响应,如无处理器的 404,不能拿到上一请求的钥)。
+	private static final ThreadLocal<byte[]> SESSION_KEY = new ThreadLocal<byte[]>();
+	public static byte[] currentSessionKey() {
+		return SESSION_KEY.get();
+	}
+	static void setSessionKeyForTest(byte[] key) {
+		if(key == null) {
+			SESSION_KEY.remove();
+		} else {
+			SESSION_KEY.set(key);
+		}
+	}
 	public static Logger reqBodyLogger;
 	
 	private static final String ResultKey = PropertyPlaceholder.getProperty("response.unified.result.key", KeyConstants.ResultMessage);
@@ -244,7 +258,10 @@ public class RequestHeaderInterceptor implements HandlerInterceptor {
 			return body;
 		}
 		try {
-			byte[] raw = SimpleWebSocketSecUtility.decrypt(body, modulus, privexp, forcetm);
+			// webencrypt_keycache_v1 / gcm_v1:先取会话钥(缓存命中免 RSA),解信封后把钥留给响应侧复用。
+			byte[] rckey = SimpleWebSocketSecUtility.sessionKey(body, modulus, privexp);
+			byte[] raw = SimpleWebSocketSecUtility.decryptWithKey(body, rckey, forcetm);
+			SESSION_KEY.set(rckey);
 			String plain = new String(raw, "UTF-8");
 			return plain;			
 		}catch(Exception e) {
@@ -268,11 +285,7 @@ public class RequestHeaderInterceptor implements HandlerInterceptor {
 			}
 			
 			byte[] raw = str.getBytes("UTF-8");
-			String encoded = SimpleWebSocketSecUtility.encrypt(raw, modulus, privexp);
-			
-			response.addHeader("Encrypted", "1");
-			response.setHeader("Encrypted", "1");
-			return encoded;			
+			return ResponseCrypto.encrypt(raw, modulus, privexp, response);   // webencrypt_gcm_v1:会话钥 GCM 或旧 RSA 信封			
 		}catch(Exception e) {
 			QueueLog.error(AppLoggers.ErrorLogger, e);
 			return str;
@@ -531,6 +544,7 @@ public class RequestHeaderInterceptor implements HandlerInterceptor {
 	@Override
 	public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
 		TransData.pureClearTransData();
+		SESSION_KEY.remove();   // webencrypt_gcm_v1:请求起始清;收尾在 afterCompletion 写完响应体之后(finally)再清一次
 		TransData.setRequestObject(request, response);
 
 		// 修复 #10(B):仅对最初的 REQUEST dispatch 做 body 解码 + 验签。SSE 等 async 请求完成后 Tomcat 会
@@ -748,7 +762,22 @@ public class RequestHeaderInterceptor implements HandlerInterceptor {
 	}
 		
 	@Override
+	public void afterConcurrentHandlingStarted(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+		// 异步请求(SSE)在此让出线程且不回调 afterCompletion:会话钥随之清掉,线程复用时不残留(SSE 正文本就明文)
+		SESSION_KEY.remove();
+	}
+
+	@Override
 	public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
+		try {
+			afterCompletionBody(request, response, handler, ex);
+		} finally {
+			// 响应体已在上面(complete())同步写出并 flush;此后本线程不再需要会话钥
+			SESSION_KEY.remove();
+		}
+	}
+
+	private void afterCompletionBody(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
 		boolean exptOccured = ConvertUtility.getValueAsBool(request.getAttribute(KeyConstants.AttrExceptionOccured), false);
 		if(ex != null || exptOccured){
 			return;

@@ -333,3 +333,14 @@ def getJieQiInterval(lon):
             res['start']['lon'] = JieQiLon[prevjq]['lon']
             break
     return res
+
+
+def cnTimeRounded(tm):
+    """节气时刻的显示串:四舍五入到整秒(Datetime.toCNString 在星历换算域内直接截掉小数秒,交节时刻会显示早最多 1 秒)。
+    只用于节气时刻的 'time' 串;jdn / tm 仍是精确时刻。域外(约 9999 年以后)toCNString 本就四舍五入,原样返回。"""
+    from flatlib.datetime import Datetime, sweJdnDate
+    try:
+        sweJdnDate(tm.jd, tm.utcoffset)
+    except Exception:
+        return tm.toCNString()
+    return Datetime.fromJD(tm.jd + 0.5 / 86400.0, tm.utcoffset).toCNString()

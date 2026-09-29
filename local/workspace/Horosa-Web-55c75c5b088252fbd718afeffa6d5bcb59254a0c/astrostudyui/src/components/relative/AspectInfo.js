@@ -68,7 +68,7 @@ class AspectInfo extends Component{
 					this.props.showPlanetHouseInfo
 				);
 					let dom = (
-						<div key={j}>
+						<div key={`s1-${j}`}>
 							<span style={{fontFamily: AstroConst.AstroFont}}>
 								&emsp;{
 									wrapWithMeaning(
@@ -110,7 +110,7 @@ class AspectInfo extends Component{
 			if(i % 2 === 0){
 				if(i > 0){
 					let dom = (
-						<div key={`rowgroup-${i}`}>
+						<div key={`s2-${i}`}>
 							<Row>
 								{cols}
 							</Row>

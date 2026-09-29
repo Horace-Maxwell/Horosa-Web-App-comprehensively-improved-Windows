@@ -153,7 +153,7 @@ const BAZI_TIME_ALG_OPTIONS = [
 	{ value: 0, label: '真太阳时' },
 	{ value: 3, label: '平太阳时' },
 	{ value: 1, label: '直接时间' },
-	{ value: 2, label: '春分定卯时' },
+	{ value: 2, label: '春分定卯时（同直接时间）' },
 ];
 // 十二地支（金口诀地分等；万年不变常量，内联零漂移）。
 const DIZHI_12 = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
@@ -1711,6 +1711,11 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 		{ name: 'fenyeVersion', label: '月律分野', type: 'select', default: 'common', group: '盘法', options: [
 			{ value: 'common', label: '通行版（默认）' },
 			{ value: 'fajue', label: '法诀版' },
+		] },
+		// 南半球月令(只对南纬生效):不对冲 = 月柱同北半球(八字页缺省);对冲 = 月支取对冲之支、按年干重起月干。
+		{ name: 'southMonth', label: '南半球月令', type: 'select', default: 'none', group: '盘法', options: [
+			{ value: 'none', label: '不对冲（默认）' },
+			{ value: 'chong', label: '对冲' },
 		] },
 		{ name: 'dayunPrecision', label: '起运精度', type: 'select', default: 'precise', group: '盘法', options: [
 			{ value: 'precise', label: '精确(年月日时,默认)' },

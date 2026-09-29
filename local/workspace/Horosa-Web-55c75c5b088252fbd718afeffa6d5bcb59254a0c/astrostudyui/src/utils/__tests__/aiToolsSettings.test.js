@@ -59,7 +59,8 @@ describe('set_settings · app 面', ()=>{
 		expect(r.code).toBe('E_SETTING_KEY_NOT_ALLOWED');
 		const r2 = await runTool('set_settings', { facet: 'app', values: { appearanceMode: 'dark', bogus: 1 } }, ctx());
 		expect(r2.ok).toBe(false);
-		const r3 = await runTool('set_settings', { facet: 'app', values: { appearanceMode: 'dark', colorTheme: 999 } }, ctx());
+		// [#70] colorTheme 已下架为豁免键(走 E_SETTING_KEY_NOT_ALLOWED);「合法键 × 非法值」改用 chartStyle 触发
+		const r3 = await runTool('set_settings', { facet: 'app', values: { appearanceMode: 'dark', chartStyle: 999 } }, ctx());
 		expect(r3.ok).toBe(false);
 		expect(r3.code).toBe('E_SETTING_VALUE_INVALID');
 		expect(dispatch).not.toHaveBeenCalled();

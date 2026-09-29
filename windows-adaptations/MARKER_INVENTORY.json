@@ -8,9 +8,6 @@
    "astrostudyui/src/components/astro/AstroSolarArc.js": 1,
    "astrostudyui/src/components/astro/AstroSolarReturn.js": 1
   },
-  "horosa_astrohelper_skip_inner_v1": {
-   "astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/AstroHelper.java": 2
-  },
   "horosa_aux_render_slice_v1": {
    "astrostudyui/src/components/germany/AstroGermany.js": 1,
    "astrostudyui/src/components/germany/UranianDialMain.js": 3,
@@ -39,18 +36,8 @@
   "horosa_bazi_param_memo_v1": {
    "astrostudyui/src/components/cntradition/BaZi.js": 1
   },
-  "horosa_boot_chart_restore_v1": {
-   "astrostudyui/src/models/app.js": 1,
-   "astrostudyui/src/models/astro.js": 4,
-   "astrostudyui/src/utils/__tests__/bootChartRestore.test.js": 1,
-   "astrostudyui/src/utils/bootChartRestore.js": 1,
-   "astrostudyui/src/utils/perfFlags.js": 1
-  },
   "horosa_buildinfo_shell_free_v1": {
    "astrostudyui/scripts/write-build-info.js": 1
-  },
-  "horosa_cachehelper_needcache_sysprop_v1": {
-   "astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/CacheHelper.java": 1
   },
   "horosa_chart_free_declared_v1": {
    "astrostudyui/src/components/calendar/CalendarMain.js": 1,
@@ -59,7 +46,10 @@
    "astrostudyui/src/utils/techniqueChartFree.js": 1
   },
   "horosa_chart_no_stdout_dump_v1": {
-   "astropy/websrv/webchartsrv.py": 2
+   "astropy/websrv/webchartsrv.py": 1
+  },
+  "horosa_chart_perf_line_v1": {
+   "astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java": 1
   },
   "horosa_chartfree_strip_crlf_v1": {
    "astrostudyui/src/utils/__tests__/chartFreeContract.test.js": 1
@@ -95,14 +85,6 @@
   },
   "horosa_electionscan_postgate_prewarm_v1": {
    "astropy/websrv/webchartsrv.py": 3
-  },
-  "horosa_ephe_path_fastpath_v1": {
-   "astropy/tests/test_india_ephemeris_degrade.py": 1,
-   "flatlib-ctrad2/flatlib/ephem/swe.py": 3
-  },
-  "horosa_fast_json_encode_v1": {
-   "astropy/websrv/webchartsrv.py": 1,
-   "astropy/websrv/webpredictsrv.py": 1
   },
   "horosa_frames_scu_v1": {
    "astrostudyui/src/components/germany/UranianHouseFrames.js": 1
@@ -215,16 +197,6 @@
    "astrostudyui/src/components/taiyi/TaiYiCalc.js": 1,
    "astrostudyui/src/components/wuzhao/WuZhaoMain.js": 1,
    "astrostudyui/src/services/xuanshi.js": 1
-  },
-  "horosa_kin_jiazi_const_v1": {
-   "vendor/kinastro/astro/fendjing/fendjing_calculator.py": 2,
-   "vendor/kinjinkou/kinjinkou/jinkoujue/jinkoujue_api.py": 1,
-   "vendor/kintaiyi/src/kintaiyi/config.py": 1,
-   "vendor/kintaiyi/src/kintaiyi/jieqi.py": 1,
-   "vendor/kintaiyi/src/kintaiyi/kinliuren.py": 1,
-   "vendor/kinwuzhao/config.py": 1,
-   "vendor/kinwuzhao/jieqi.py": 1,
-   "vendor/shenyishu/shenyishu.py": 1
   },
   "horosa_kinastro_center_memo_v1": {
    "astrostudyui/src/components/kinastro/KinAstroMain.js": 1
@@ -384,17 +356,11 @@
    "astrostudyui/src/components/calendar/TongshuMain.js": 1,
    "astrostudyui/src/components/fengshui/FengShuiMain.js": 2
   },
-  "horosa_paramhash_localdir_sysprop_v1": {
-   "astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/ParamHashCacheHelper.java": 2
-  },
   "horosa_pdsphere_lazy_v1": {
    "astrostudyui/src/components/direction/AstroDirectMain.js": 1
   },
   "horosa_perf_reset_v1": {
    "astrostudyui/src/utils/perfMark.js": 1
-  },
-  "horosa_phasis_bounded_v1": {
-   "astropy/astrostudy/perchart.py": 1
   },
   "horosa_prefetch_pump_livelock_v1": {
    "astrostudyui/src/utils/__tests__/stepPrefetch.test.js": 2,
@@ -407,7 +373,7 @@
    "astrostudyui/src/components/cnyibu/CnYiBuMain.js": 2,
    "astrostudyui/src/components/direction/AstroDirectMain.js": 1,
    "astrostudyui/src/components/dunjia/DunJiaMain.js": 2,
-   "astrostudyui/src/components/guolao/GuoLaoChartMain.js": 1,
+   "astrostudyui/src/components/guolao/GuoLaoChartMain.js": 2,
    "astrostudyui/src/components/huangji/HuangJiMain.js": 1,
    "astrostudyui/src/components/kinastro/KinAstroMain.js": 1,
    "astrostudyui/src/components/lrzhan/LiuRengMain.js": 2,
@@ -432,24 +398,6 @@
    "astrostudyui/src/utils/__tests__/stepPrefetch.test.js": 2,
    "astrostudyui/src/utils/perfFlags.js": 1,
    "astrostudyui/src/utils/stepPrefetchArm.js": 1
-  },
-  "horosa_qimen_cse_v1": {
-   "vendor/kinqimen/config.py": 3,
-   "vendor/kinqimen/kinqimen.py": 3
-  },
-  "horosa_qimen_jiazi_const_v1": {
-   "vendor/kinqimen/jieqi.py": 1
-  },
-  "horosa_qimen_lazyju_v1": {
-   "vendor/kinqimen/config.py": 8
-  },
-  "horosa_qimen_pan_memo_v1": {
-   "vendor/kinqimen/kinqimen.py": 3
-  },
-  "horosa_qimen_req_memo_v1": {
-   "astropy/websrv/webqimensrv.py": 1,
-   "vendor/kinqimen/config.py": 1,
-   "vendor/kinqimen/jieqi.py": 2
   },
   "horosa_sanshi_no_drop_step_v1": {
    "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 1,
@@ -502,7 +450,6 @@
    "astrostudyui/src/components/germany/AstroMidpoint.js": 1
   },
   "horosa_stable_react_keys_v1": {
-   "astrostudyui/src/components/astro/AstroAspect.js": 1,
    "astrostudyui/src/components/astro/AstroFirdaria.js": 1,
    "astrostudyui/src/components/astro/AstroGivenYear.js": 1,
    "astrostudyui/src/components/astro/AstroInfo.js": 1,
@@ -511,40 +458,25 @@
    "astrostudyui/src/components/astro/AstroSolarArc.js": 1,
    "astrostudyui/src/components/astro/AstroSolarReturn.js": 1,
    "astrostudyui/src/components/astro/AstroYearSystem129.js": 1,
-   "astrostudyui/src/components/cntradition/GanHeCong.js": 1,
    "astrostudyui/src/components/cntradition/Gods.js": 1,
    "astrostudyui/src/components/cntradition/MDSYear.js": 1,
    "astrostudyui/src/components/cntradition/MainDirection.js": 1,
-   "astrostudyui/src/components/cntradition/MainDirectionSimple.js": 1,
    "astrostudyui/src/components/cntradition/PaiBaZi.js": 1,
    "astrostudyui/src/components/cntradition/SmallDirection.js": 1,
    "astrostudyui/src/components/cntradition/Zhu.js": 1,
    "astrostudyui/src/components/cntradition/ZhuMing12.js": 1,
-   "astrostudyui/src/components/cntradition/ZiHeCong.js": 1,
-   "astrostudyui/src/components/commtools/BaziPattern.js": 1,
    "astrostudyui/src/components/commtools/BaziPithy.js": 1,
-   "astrostudyui/src/components/commtools/Calculator.js": 1,
-   "astrostudyui/src/components/commtools/CuanGong12Desc.js": 1,
-   "astrostudyui/src/components/commtools/CuanGong12Query.js": 1,
-   "astrostudyui/src/components/commtools/InverseBazi.js": 1,
-   "astrostudyui/src/components/commtools/NaYing.js": 1,
    "astrostudyui/src/components/comp/EditableTags.js": 1,
    "astrostudyui/src/components/comp/TipsBoard.js": 1,
    "astrostudyui/src/components/germany/AspectToMidpoint.js": 1,
    "astrostudyui/src/components/gua/GuaSym.js": 1,
-   "astrostudyui/src/components/gua/MeiyiGuaSym.js": 1,
    "astrostudyui/src/components/guazhan/GuaDesc.js": 1,
    "astrostudyui/src/components/relative/AntisciaInfo.js": 1,
    "astrostudyui/src/components/relative/AspectInfo.js": 1,
-   "astrostudyui/src/components/relative/MidpointInfo.js": 1,
    "astrostudyui/src/components/ruleziwei/RuleHouses.js": 1,
    "astrostudyui/src/components/ruleziwei/RuleHuaDesc.js": 1,
    "astrostudyui/src/components/ruleziwei/RuleSihua.js": 1,
    "astrostudyui/src/components/ruleziwei/RuleStars.js": 1
-  },
-  "horosa_startupgate_desktop_elapsed_v1": {
-   "astrostudyui/src/components/common/StartupGate.js": 2,
-   "astrostudyui/src/components/common/__tests__/startupGateDesktopElapsed.test.js": 1
   },
   "horosa_step_prefetch_arm_v1": {
    "astrostudyui/src/components/kinastro/KinAstroMain.js": 1,
@@ -553,15 +485,14 @@
    "astrostudyui/src/utils/perfFlags.js": 1,
    "astrostudyui/src/utils/stepPrefetchArm.js": 1
   },
+  "horosa_subprocess_utf8_v1": {
+   "astropy/tests/test_xuanshi_persons_graph_order.py": 1
+  },
   "horosa_technique_open_smoke_v1": {
    "astrostudyui/src/pages/__tests__/techniqueOpenSmoke.test.js": 1
   },
   "horosa_trusted_env_shape_v1": {
    "astropy/websrv/webchartsrv.py": 1
-  },
-  "horosa_wangji_classics_ondemand_v1": {
-   "astropy/websrv/webwangjisrv.py": 3,
-   "astrostudyui/src/components/huangji/HuangJiMain.js": 4
   },
   "horosa_web_java_env_sanitize_v1": {
    "start_horosa_local.sh": 1
@@ -596,9 +527,6 @@
    "astrostudyui/src/components/sanshi/__tests__/sanshiQijuAndVisibleControls.test.js": 3,
    "astrostudyui/src/utils/__tests__/sanshiQ164Misc.test.js": 1
   },
-  "horosa_windows_storage_keys_v1": {
-   "astrostudyui/src/utils/storageKeyRegistry.js": 1
-  },
   "horosa_ws_dirname_agnostic_v1": {
    "astrostudyui/src/utils/__tests__/classicalParamSpec.contract.test.js": 1
   },
@@ -608,14 +536,8 @@
    "astrostudyui/src/utils/kentangCache.js": 1
   },
   "horosa_xuanshi_longtext_ondemand_v1": {
-   "astropy/astrostudy/xuanshi/celestial.py": 5,
    "astropy/websrv/webchartsrv.py": 1,
-   "astropy/websrv/webxuanshisrv.py": 2,
-   "astrostudyui/src/components/xuanshi/XuanShiMicro.js": 4,
    "astrostudyui/src/services/xuanshi.js": 1
-  },
-  "horosa_yoga_planet_order_v1": {
-   "astropy/astrostudy/india/yoga_engine.py": 3
   },
   "horosa_zeri_render_slice_v1": {
    "astrostudyui/src/components/zeri/TianxingElectionMain.js": 3,

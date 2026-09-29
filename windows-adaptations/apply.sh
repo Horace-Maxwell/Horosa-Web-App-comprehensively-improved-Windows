@@ -182,7 +182,7 @@ echo "== 10. v3.0.1 perf round-3 (首屏并行 + 每请求日志栈回溯去除;
 # 前端:玄学史首屏 4 请求并行(总览/玄典/名家/事件),首开更快。
 apply_patch firstLoadParallelEnabled       astrostudyui/src/components/xuanshi/XuanShiMain.js           src__components__xuanshi__XuanShiMain.js.patch
 echo "== 11. backend perf: QueueLog 去掉每条日志的同步栈回溯(默认关,-Dhorosa.queuelog.callerLocation=true 恢复)— REQUIRES a jar rebuild =="
-apply_patch "horosa.queuelog.callerLocation" astrostudysrv/boundless/src/main/java/boundless/log/QueueLog.java boundless__QueueLog.java.patch
+# [#109 退役,v3.11.2] boundless__QueueLog.java.patch —— JV-3 上游逐字节收编
 echo "   ^^ boundless is BACKEND Java (base of all modules). After this patch rebuild astrostudyboot.jar (SKILL gotcha #5):"
 echo "      boundless install -> astrostudy install -> astrostudycn install -> astrostudyboot clean package, then copy to bundle."
 
@@ -190,8 +190,8 @@ echo "== 12. v3.0.1 perf ROUND-3 R1 (jieqi/year 30s→2-3s: swap Chart-per-itera
 # YearJieQi.approach + BirthJieQi.approach 原本每次收敛迭代都 new 一个完整 flatlib Chart(20+ 行星+12 宫+40 阿拉伯点=100+ swe 调用)只为读太阳位置。
 # 直接 swe.sweObject(SUN, jd, SEDEFAULT_FLAG) 返回同一 {lon, lonspeed}，收敛判据/delta 公式/Datetime.fromJD 全部一字未动 → 结果逐字节等价。
 # 自证:golden diff 24 term + 100+ 随机组合 max_jdn_diff=0.000e+00, VERDICT=ALL_EQUAL, SPEEDUP 21-44×。kill-switch HOROSA_JIEQI_FAST_APPROACH=0。
-apply_patch HOROSA_JIEQI_FAST_APPROACH     astropy/astrostudy/jieqi/YearJieQi.py         astropy__jieqi__YearJieQi.fastApproach.py.patch
-apply_patch HOROSA_JIEQI_FAST_APPROACH     astropy/astrostudy/jieqi/BirthJieQi.py        astropy__jieqi__BirthJieQi.fastApproach.py.patch
+# [#109 退役,v3.11.2] astropy__jieqi__YearJieQi.fastApproach.py.patch —— PY-10 长期 no-op
+# [#109 退役,v3.11.2] astropy__jieqi__BirthJieQi.fastApproach.py.patch —— PY-10 长期 no-op(守卫早在基线)
 
 echo "== 13. v3.0.1 perf ROUND-3 R2 (paramhash 磁盘缓存永远 silent no-op 根治;centralized persistable()·所有 11 controller 自动受惠) — REQUIRES a jar rebuild =="
 # JieQiController.getYearParams() 直接把 TimeZiAlg + PhaseType 两个 Java Enum 塞进返回体;
@@ -205,7 +205,7 @@ echo "== 13. v3.0.1 perf ROUND-3 R2 (paramhash 磁盘缓存永远 silent no-op �
 # (先 -D 再属性文件),否则启动器无法把 paramhash 磁盘缓存移出 payload 树:defaultLocalDir() 落在
 # user.dir 下 = embedded-runtime/<payloadId>/ 之内,**每次更新换 payloadId 就被启动清扫连缓存一起删,
 # 所有用户回到全冷**。守卫 marker 按 gotcha #48 取最新。⚠️ 本模块是 BACKEND Java,改后必须重建 jar。
-apply_patch horosa_paramhash_localdir_sysprop_v1 astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/ParamHashCacheHelper.java astrostudy__ParamHashCacheHelper.persistable.java.patch
+# [#109 退役,v3.11.2] astrostudy__ParamHashCacheHelper.persistable.java.patch —— JV-5/6 上游逐字节收编
 echo "   ^^ astrostudy is BACKEND Java (base of astrostudycn+astrostudyboot). After this patch rebuild astrostudyboot.jar (SKILL gotcha #5):"
 echo "      astrostudy install -> astrostudycn install -> astrostudyboot clean package, then copy to bundle."
 
@@ -247,7 +247,7 @@ echo "== 14b. v3.2.1 太乙事故根因修复(streamlit 桩 dunder 守卫)=="
 # 具名属性语义不变。跨平台 bug(Mac 用户先开七政再开太乙同样触发)→ 建议上游化到 Mac。
 # [#103,R8 首跑实抓] 原守卫 stub_dunder_guard_v1 是**上游自带**的 marker(补丁只加 display_trans)——
 # TaiYiMain 同型潜伏弹:上游哪天碰 kinastro_common.py,补丁会被静默跳过。换补丁自带 marker。
-apply_patch horosa_display_trans_v1        astropy/websrv/kentang/kinastro_common.py     astropy__kentang__kinastro_common.stubDunderGuard.py.patch
+# [#109 退役,v3.11.2] astropy__kentang__kinastro_common.stubDunderGuard.py.patch —— PY-20 display_trans + stub dunder 上游逐字节收编(不变量钉在上游 test_perf_r5_batch3)
 
 echo "== 15. v3.0.1 perf ROUND-4 P0 (log4j Windows 缺陷：6 个程序化 appender 以字面 env:HOME 模板建文件, NTFS 拒绝 → 启动报错刷屏 + perf/错误日志静默丢失) — REQUIRES a jar rebuild =="
 # 根因：AppLoggers.createLog/changeLogFile/getBaseDir 用 getStrSubstitutor().getVariableResolver().lookup("basedir")
@@ -267,7 +267,7 @@ echo "== 16. v3.0.1 perf ROUND-4 P1 (占星首盘 9.7s 的 80%=baziAssemble 7781
 # OnlyFourColumns/NongliHelper 首次执行付 类初始化+历法表加载+JIT;之后瞬完。加 baziAssembleWarmup
 # CommandLineRunner(daemon,合成参数预跑 构造+getNongli,结果丢弃,失败静默)。kill: HOROSA_CHART_WARMUP=0。
 # marker: bazi_warmup_v1(HOROSA_CHART_WARMUP_REV 常量,兼作 jar 内容哨兵)。
-apply_patch bazi_warmup_v1                 astrostudysrv/astrostudyboot/src/main/java/spacex/astrostudyboot/AstroStudyProgram.java astrostudyboot__AstroStudyProgram.baziWarmup.java.patch
+# [#109 退役,v3.11.2] astrostudyboot__AstroStudyProgram.baziWarmup.java.patch —— JV-7 与上游 StartupLedgerListener.selfWarmupAsync 的「此刻」样本二选一 → 退役我方(保留会双预热)
 echo "   ^^ astrostudyboot is BACKEND Java. After this patch rebuild: astrostudyboot clean package, then copy to bundle."
 
 echo "== 17. perchart Windows-ahead 残余(v3.6.0 收敛后 = 仅 phasis 限界;memo 族与稳定排序已上游化) =="
@@ -276,18 +276,20 @@ echo "== 17. perchart Windows-ahead 残余(v3.6.0 收敛后 = 仅 phasis 限界;
 # 对 + sorted 收尾都在上游文件里)——对应 hunks 从本补丁退役,守卫迁上游串(哨兵门钉 _computeMutuals/
 # sorted 收尾)。残余 Windows-ahead = horosa_phasis_bounded_v1(PERF-R10 B5 高纬 8-16s 根治:
 # 可行性预筛 + HELFLAG_SEARCH_1_PERIOD 限界;kill=HOROSA_PHASIS_BOUNDED=0;黄金 north-hi 钉)。
-apply_patch horosa_phasis_bounded_v1       astropy/astrostudy/perchart.py           astropy__perchart.chartMemo.py.patch
+# [#109 撤回,v3.11.2] PY-22 高纬度偕日升/没限界补丁**撤回**(上游 checklist 差分 22834 例 687 不一致:HELFLAG_SEARCH_1_PERIOD 让
+# 偕日升首周期搜不到即抛错、外层 try 包着整个循环 ⇒ 偕日没根本没查,「昏星初没」标签丢失;_phasisWindowFeasible 传 2 元组恒 TypeError
+# 被 except 兜成「可行」从未生效;8.4s→0.2s 的提速几乎全来自错误中止)。perchart.py 回到与 Mac 相同写法,north-hi 整盘回到约 8s。
 # guo74.py:virtualSu28 逐星 chart.getFixedStar()×28 → 改读 perchart 的原始 28 宿批缓存(同一请求第三次取数)。
 apply_patch getRawFixedStarSu28Cached      astropy/astrostudy/guostarsect/guo74.py       astropy__guostarsect__guo74.su28Batch.py.patch
 # flatlib ephem.py:恒星批(67 星/28 宿)只依赖 (IDs, jd, pos, height, flags, sidereal 上下文),与宫位制/
 # 容许度无关 → 有界 LRU(8 条,线程安全,存取皆 deepcopy 防 relocate/+180° 串染)。「改设置重排同一盘」
 # 恒星段 379-480ms → 183-236ms。kill-switch HOROSA_STAR_LRU=0。
-apply_patch HOROSA_STAR_LRU                flatlib-ctrad2/flatlib/ephem/ephem.py         flatlib__ephem.starLru.py.patch
+# [#109 退役,v3.11.2] flatlib__ephem.starLru.py.patch —— PY-12 长期 no-op(HOROSA_STAR_LRU 早在基线)
 
 echo "== 18. v3.0.1 perf ROUND-5 (历法求解降维:NongLi.approach 朔/节候选 + BirthJieQi 上升瘦盘;同一 HOROSA_JIEQI_FAST_APPROACH 开关) =="
 # NongLi.approach:朔(日月合)与节气候选求解原本每迭代 new 完整 Chart;改 swe.sweObject 直读日/月经度,
 # 收敛判据一字不动 → 4 年(含公元前 500)golden 逐字节全等;整年农历表 1445-2460ms → 113-194ms。
-apply_patch _JIEQI_FAST_APPROACH           astropy/astrostudy/jieqi/NongLi.py            astropy__jieqi__NongLi.fastApproach.py.patch
+# [#109 退役,v3.11.2] astropy__jieqi__NongLi.fastApproach.py.patch —— PY-11 长期 no-op
 # BirthJieQi(R3 patch 已重生成,现同时携带 R5 _ascChart):卯时/上升求解只读 ASC → 瘦 Chart(仅太阳、
 # needpars=False);3 个代表日期 golden 全等,398-490ms → 30-36ms。guard 沿用 HOROSA_JIEQI_FAST_APPROACH(§12 已应用则跳过)。
 
@@ -299,7 +301,7 @@ echo "== 19. (退役归档) webchartsrv cetian 懒挂载 + /chart 三段计时 �
 echo "== 20. v3.0.1 perf ROUND-5 B-F3 (农历「日级」外部缓存读写桌面版停用;年表持久化不动) — REQUIRES a jar rebuild =="
 # NongliHelper:每个未见过的日期一读一写外部缓存(读基本必 miss)。日行是内存月表的纯推导,重算逐字节
 # 一致 → env HOROSA_NONGLI_DAY_PERSIST=0(桌面壳注入)跳过日级读写;env 缺省=原行为(Mac/服务器零变化)。
-apply_patch nongli_day_persist_v1          astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/NongliHelper.java astrostudy__NongliHelper.dayPersist.java.patch
+# [#109 退役,v3.11.2] astrostudy__NongliHelper.dayPersist.java.patch —— JV-8 上游收编(NONGLI_DAY_PERSIST)
 # OnlyFourColumns.forwardDirect 流水 println 删除:Mac v3.2.2 上游化(WS-3b 注释版),补丁退役,
 # 文件与 Mac 逐字节一致;selfcheck 哨兵改守「WS-3b」注释 marker(println 不回归)。
 echo "   ^^ astrostudy+astrostudycn are BACKEND Java. After these patches rebuild astrostudyboot.jar (SKILL gotcha #5):"
@@ -335,7 +337,7 @@ echo "== 23. PERF-R8 P0/P2/P3(观测补全 + 排盘后数据层空闲预热 + �
 # P3 邻位预取:jieqi 当前年取到后静默预取 year±1(generation 门控防连点风暴;闸 neighborPrefetch)。
 # lazy-init A/B 实测不采纳(ON 中位 +86ms,成本搬家),旗子保持默认关;BeanTiming 观测器
 # (astrostudyboot,HOROSA_BEAN_TIMING=1 才开)为下一轮定点惰化取数——jar 侧,非 overlay。
-apply_patch horosa_data_warm_registry_v1   astrostudyui/src/utils/idleWarmQueue.js       src__utils__idleWarmQueue.dataWarmGroup.js.patch
+# [#109 退役,v3.11.2] src__utils__idleWarmQueue.dataWarmGroup.js.patch —— FE-22 长期 no-op
 apply_patch scheduleDataWarmGroup          "astrostudyui/src/utils/__tests__/idleWarmQueue.test.js" src__utils__tests__idleWarmQueue.test.dataWarmGroup.js.patch
 apply_patch buildIndiaWarmParams           astrostudyui/src/components/astro/IndiaChart.js src__components__astro__IndiaChart.warmParams.js.patch
 apply_patch horosa_guolao_render_slice_v1  astrostudyui/src/components/guolao/GuoLaoChartMain.js src__components__guolao__GuoLaoChartMain.warmNatal.js.patch
@@ -463,7 +465,7 @@ echo "== 27. PERF-R9 输出确定性:set 顺序不得泄漏进响应(真 bug 修
 # [v3.11.0 退役·#49/#101 五件套] horosa_rasi_drishti_stable_order_v1 → 上游 [Q-232/T-196] 逐字收编(rasi_drishti 改按 SIGNS 过滤,
 #   代码行完全相同、只差注释)。补丁已删;哨兵迁钉上游形态(release_selfcheck SENT);回归网 = 上游 test_india_q130_q131_q232.py + 黄金矩阵。
 #   (原行:apply_patch horosa_rasi_drishti_stable_order_v1 astropy/astrostudy/india/primitives.py astropy__india__primitives.stableOrder.py.patch)
-apply_patch horosa_yoga_planet_order_v1          astropy/astrostudy/india/yoga_engine.py   astropy__india__yoga_engine.stableOrder.py.patch
+# [#109 退役,v3.11.2] astropy__india__yoga_engine.stableOrder.py.patch —— PY-9 上游逐字节收编
 
 echo "== 28. PERF-R9 奇門引擎熱路徑 Tier-1(純去冗餘,零緩存語義;跨平台,建議上游化 Mac)=="
 # 实测 /qimen/pan 中位:282ms → 190(去冗余)→ 120(惰性定局)→ **65.7ms**;
@@ -485,9 +487,9 @@ echo "== 28. PERF-R9 奇門引擎熱路徑 Tier-1(純去冗餘,零緩存語義;�
 #    对象不泄漏进响应(`minute is not selected` 身份判定值不变)。消掉 overall() 对 pan() 的重复求值(45%)。
 #    ★ config.pan_sky_minute **绝不可** memo —— kinqimen.gong_chengsun_minute 会 `del sky["中"]`
 #      就地变异它的返回值(已核实:那是本文件唯一一处就地变异)。
-apply_patch horosa_qimen_jiazi_const_v1  vendor/kinqimen/jieqi.py     vendor__kinqimen__jieqi.qimenPerf.py.patch
-apply_patch horosa_qimen_lazyju_v1       vendor/kinqimen/config.py    vendor__kinqimen__config.qimenPerf.py.patch
-apply_patch horosa_qimen_pan_memo_v1     vendor/kinqimen/kinqimen.py  vendor__kinqimen__kinqimen.panMemo.py.patch
+# [#109 退役,v3.11.2] vendor__kinqimen__jieqi.qimenPerf.py.patch —— PY-2..5 上游逐字节收编
+# [#109 退役,v3.11.2] vendor__kinqimen__config.qimenPerf.py.patch —— PY-2..5 上游逐字节收编(marker 计数相等,仅注释差)
+# [#109 退役,v3.11.2] vendor__kinqimen__kinqimen.panMemo.py.patch —— PY-2..5 上游逐字节收编
 echo "   ^^ 改动后必须跑:python windows-adaptations/golden/verify_golden.py --verify --groups qimen"
 
 echo "== 29. PERF-R9 星历路径短路(全局共享层,单点收益最大;跨平台,强烈建议上游化 Mac)=="
@@ -503,7 +505,7 @@ echo "== 29. PERF-R9 星历路径短路(全局共享层,单点收益最大;跨�
 # 实测:BirthJieQi.compute 135→12.5ms(10×)· /jieqi/birth 端到端 154→28.5ms(5.4×)·
 # 全 3823 例黄金矩阵零漂移(唯 6 例 wangji 是另一项 owner 批准的载荷变更)。
 # kill-switch:HOROSA_EPHE_PATH_FASTPATH=0。
-apply_patch horosa_ephe_path_fastpath_v1  flatlib-ctrad2/flatlib/ephem/swe.py  flatlib__ephem.swe.ephePathFastpath.py.patch
+# [#109 退役,v3.11.2] flatlib__ephem.swe.ephePathFastpath.py.patch —— PY-1 上游超集收编(_guardedSetEphePath + JPL 追踪作废)
 
 
 echo "== 30. PERF-R9 前端渲染 + 技法结果缓存 + 载荷按需(功能零降级;跨平台,建议上游化 Mac)=="
@@ -514,7 +516,7 @@ echo "== 30. PERF-R9 前端渲染 + 技法结果缓存 + 载荷按需(功能零�
 #   MinDelta/MarsSaturn/SunMoon/VenusJupiter 四块正是如此,改用 `${key}-minDelta` 复合键。
 # 验证:umi 全绿 0 key 警告;另对 33 个无测试覆盖的组件做了 AST 静态查重(兄弟重复/循环内常量键)。
 # 仓库级门 check_no_random_react_keys 永久禁止它回来。
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/astro/AstroAspect.js               src__components__astro__AstroAspect.perfR9.js.patch
+# [#109 退役,v3.11.2] src__components__astro__AstroAspect.perfR9.js.patch —— FE-1 稳定 key:上游已全转
 apply_patch horosa_panel_ready_v1               astrostudyui/src/components/astro/AstroFirdaria.js             src__components__astro__AstroFirdaria.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/astro/AstroGivenYear.js            src__components__astro__AstroGivenYear.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/astro/AstroInfo.js                 src__components__astro__AstroInfo.perfR9.js.patch
@@ -523,32 +525,32 @@ apply_patch horosa_aspect_dom_memo_v1           astrostudyui/src/components/astr
 apply_patch horosa_aspect_dom_memo_v1           astrostudyui/src/components/astro/AstroSolarArc.js             src__components__astro__AstroSolarArc.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/astro/AstroSolarReturn.js          src__components__astro__AstroSolarReturn.perfR9.js.patch
 apply_patch horosa_panel_ready_v1               astrostudyui/src/components/astro/AstroYearSystem129.js        src__components__astro__AstroYearSystem129.perfR9.js.patch
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/cntradition/GanHeCong.js           src__components__cntradition__GanHeCong.perfR9.js.patch
+# [#109 退役,v3.11.2] src__components__cntradition__GanHeCong.perfR9.js.patch —— FE-1
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/cntradition/Gods.js                src__components__cntradition__Gods.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/cntradition/MDSYear.js             src__components__cntradition__MDSYear.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/cntradition/MainDirection.js       src__components__cntradition__MainDirection.perfR9.js.patch
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/cntradition/MainDirectionSimple.js src__components__cntradition__MainDirectionSimple.perfR9.js.patch
+# [#109 退役,v3.11.2] src__components__cntradition__MainDirectionSimple.perfR9.js.patch —— FE-1
 apply_patch horosa_bazi_deadwork_v1             astrostudyui/src/components/cntradition/PaiBaZi.js             src__components__cntradition__PaiBaZi.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/cntradition/SmallDirection.js      src__components__cntradition__SmallDirection.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/cntradition/Zhu.js                 src__components__cntradition__Zhu.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/cntradition/ZhuMing12.js           src__components__cntradition__ZhuMing12.perfR9.js.patch
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/cntradition/ZiHeCong.js            src__components__cntradition__ZiHeCong.perfR9.js.patch
+# [#109 退役,v3.11.2] src__components__cntradition__ZiHeCong.perfR9.js.patch —— FE-1
 apply_patch horosa_no_state_mutation_v1         astrostudyui/src/components/commtools/BaziPattern.js           src__components__commtools__BaziPattern.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/commtools/BaziPithy.js             src__components__commtools__BaziPithy.perfR9.js.patch
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/commtools/Calculator.js            src__components__commtools__Calculator.perfR9.js.patch
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/commtools/CuanGong12Desc.js        src__components__commtools__CuanGong12Desc.perfR9.js.patch
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/commtools/CuanGong12Query.js       src__components__commtools__CuanGong12Query.perfR9.js.patch
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/commtools/InverseBazi.js           src__components__commtools__InverseBazi.perfR9.js.patch
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/commtools/NaYing.js                src__components__commtools__NaYing.perfR9.js.patch
+# [#109 退役,v3.11.2] src__components__commtools__Calculator.perfR9.js.patch —— FE-1
+# [#109 退役,v3.11.2] src__components__commtools__CuanGong12Desc.perfR9.js.patch —— FE-1
+# [#109 退役,v3.11.2] src__components__commtools__CuanGong12Query.perfR9.js.patch —— FE-1
+# [#109 退役,v3.11.2] src__components__commtools__InverseBazi.perfR9.js.patch —— FE-1
+# [#109 退役,v3.11.2] src__components__commtools__NaYing.perfR9.js.patch —— FE-1
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/comp/EditableTags.js               src__components__comp__EditableTags.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/comp/TipsBoard.js                  src__components__comp__TipsBoard.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/germany/AspectToMidpoint.js        src__components__germany__AspectToMidpoint.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/gua/GuaSym.js                      src__components__gua__GuaSym.perfR9.js.patch
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/gua/MeiyiGuaSym.js                 src__components__gua__MeiyiGuaSym.perfR9.js.patch
+# [#109 退役,v3.11.2] src__components__gua__MeiyiGuaSym.perfR9.js.patch —— FE-1
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/guazhan/GuaDesc.js                 src__components__guazhan__GuaDesc.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/relative/AntisciaInfo.js           src__components__relative__AntisciaInfo.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/relative/AspectInfo.js             src__components__relative__AspectInfo.perfR9.js.patch
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/relative/MidpointInfo.js           src__components__relative__MidpointInfo.perfR9.js.patch
+# [#109 退役,v3.11.2] src__components__relative__MidpointInfo.perfR9.js.patch —— FE-1
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/ruleziwei/RuleHouses.js            src__components__ruleziwei__RuleHouses.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/ruleziwei/RuleHuaDesc.js           src__components__ruleziwei__RuleHuaDesc.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/ruleziwei/RuleSihua.js             src__components__ruleziwei__RuleSihua.perfR9.js.patch
@@ -590,12 +592,12 @@ apply_patch horosa_xuanshi_longtext_ondemand_v1 astrostudyui/src/services/xuansh
 #   改为列表不取长文本 + 按 id 取详情 + 纳入 _CACHE。实测第二次 **1,127.7ms → 11.7ms(96×)**、
 #   载荷 **26.4MB → 257KB**;计数/筛选语义逐字节等价(summary 仍在全量行上计算)。
 #   预热同时改瞄真正贵的 microchronology(原先只预热 20KB 的 summary,对那 1.3 秒毫无帮助)。
-apply_patch horosa_xuanshi_longtext_ondemand_v1 astropy/astrostudy/xuanshi/celestial.py                        astropy__astrostudy__xuanshi__celestial.perfR9.py.patch
-apply_patch horosa_ephe_path_fastpath_v1        astropy/tests/test_india_ephemeris_degrade.py                  astropy__tests__test_india_ephemeris_degrade.perfR9.py.patch
-apply_patch horosa_wangji_classics_ondemand_v1  astropy/websrv/webwangjisrv.py                                 astropy__websrv__webwangjisrv.perfR9.py.patch
-apply_patch horosa_xuanshi_longtext_ondemand_v1 astropy/websrv/webxuanshisrv.py                                astropy__websrv__webxuanshisrv.perfR9.py.patch
+# [#109 退役,v3.11.2] astropy__astrostudy__xuanshi__celestial.perfR9.py.patch —— PY-7 上游以 microchronology(limit=) + HOROSA_XUANSHI_MICRO_MEMO 重实现,microchronology_detail 作废
+# [#109 退役,v3.11.2] astropy__tests__test_india_ephemeris_degrade.perfR9.py.patch —— 上游同款 closeEphemerisFiles 前置步
+# [#109 退役,v3.11.2] astropy__websrv__webwangjisrv.perfR9.py.patch —— PY-6 上游以 slimClassics:1 + /wangji/classic 重实现(复用我方 marker,契约不同)
+# [#109 退役,v3.11.2] astropy__websrv__webxuanshisrv.perfR9.py.patch —— PY-7 上游 limit 参数重实现;detail 端点作废
 apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/huangji/HuangJiMain.js             src__components__huangji__HuangJiMain.perfR9.js.patch
-apply_patch horosa_xuanshi_longtext_ondemand_v1 astrostudyui/src/components/xuanshi/XuanShiMicro.js            src__components__xuanshi__XuanShiMicro.perfR9.js.patch
+# [#109 退役,v3.11.2] src__components__xuanshi__XuanShiMicro.perfR9.js.patch —— PY-7 前端面:上游 MICRO_RENDER_LIMIT + horosa.perf.xuanshiMicroLimit
 
 echo "== 31. PERF-R9 Ship 7 预取与预热全覆盖(白名单从注释变运行时闸 + 技法预取注册表 + chartFree 快车道;纯前端、kill-switch、功能零降级)=="
 # ---- 31a 运行时白名单闸(horosa_prefetch_runtime_whitelist_v1)----
@@ -610,8 +612,8 @@ echo "== 31. PERF-R9 Ship 7 预取与预热全覆盖(白名单从注释变运行
 # (v3.7.1 收敛:白名单/禁词/预算/livelock 保底全部上游化;Windows 残差=fast-first 快发 +
 #  '/chart3d' 补位 + fastFirst 任务标记 —— guard 换 FAST_FIRST_DELAY_MS,#48 取最新。)
 apply_patch FAST_FIRST_DELAY_MS astrostudyui/src/utils/stepPrefetch.js  src__utils__stepPrefetch.prefetchWhitelist.js.patch
-apply_patch horosa_prefetch_runtime_whitelist_v1 astrostudyui/src/utils/request.js       src__utils__request.prefetchWhitelist.js.patch
-apply_patch horosa_prefetch_runtime_whitelist_v1 astrostudyui/src/utils/chartFetch.js    src__utils__chartFetch.prefetchWhitelist.js.patch
+# [#109 退役,v3.11.2] src__utils__request.prefetchWhitelist.js.patch —— 白名单闸上游化后长期 no-op
+# [#109 退役,v3.11.2] src__utils__chartFetch.prefetchWhitelist.js.patch —— 白名单闸上游化后长期 no-op
 
 # ---- 31b 技法步进预取注册表(horosa_prefetch_registry_v1)----
 # 此前只有 /chart 一个端点进预取,非占星页(印占/辅盘/遁甲/三式/太乙…)gate 面板的是**技法端点**,
@@ -638,6 +640,10 @@ apply_patch horosa_circular_delta_assert_v1 astropy/tests/test_qizheng_election_
 # 把 shape (1,) 的一维数组转标量 —— NumPy 1.25 起 DeprecationWarning、NumPy 2.x 直接 TypeError;内嵌运行时 numpy 2.4.2 实撞
 # 4 个参数化用例全红(Mac 侧 numpy 1.x 只是告警)。修 = 取 [0] 后转 float(两代 numpy 同义);被测 fallback 产品码本身与 numpy 2 相容。
 apply_patch horosa_numpy2_scalar_assert_v1  astropy/tests/test_taiyi_game_theory_lp_fallback.py  astropy__tests__test_taiyi_game_theory_lp_fallback.numpy2Scalar.py.patch
+# [#109,v3.11.2] 上游新测试 test_xuanshi_persons_graph_order:subprocess.run(text=True) 未指定 encoding,子进程按
+# ensure_ascii=False 打印中文人名 → Windows 管道两端按 locale 码页(cp1252/GBK)编解码 → reader 线程 UnicodeDecodeError、
+# stdout 变 None → AttributeError 假红(#99/#102 同族:上游测试的 POSIX/UTF-8 环境假设)。两端显式 UTF-8,不改产品码不改判据。
+apply_patch horosa_subprocess_utf8_v1       astropy/tests/test_xuanshi_persons_graph_order.py     astropy__tests__test_xuanshi_persons_graph_order.subprocessUtf8.py.patch
 # 步进预取金标:任务序(近端优先 + 技法端点先于同向 chart)、技法登记方收到【已步进】的 fields
 # (旧版传基准 fields = 预取当前那张盘 = 白打)、每个任务必须自带 path 声明。
 apply_patch stepPrefetchFastFirst "astrostudyui/src/utils/__tests__/stepPrefetch.test.js"  src__utils____tests____stepPrefetch.prefetchRegistry.test.js.patch
@@ -841,8 +847,8 @@ cp "$OV/files/astrostudyui/src/utils/__tests__/perfMark.test.js"              "$
 #   · bootChartRestore(horosa_boot_chart_restore_v1,owner 拍板默认开):温启按上次快照重放
 #     fetchByChartData —— L3 命中时后端未就绪也能先画(「秒开上次工作现场」)。
 mkdir -p "$WS/astrostudyui/src/services/__tests__"
-cp "$OV/files/astrostudyui/src/utils/bootChartRestore.js"                     "$WS/astrostudyui/src/utils/bootChartRestore.js"                     && ok "bootChartRestore.js"
-cp "$OV/files/astrostudyui/src/utils/__tests__/bootChartRestore.test.js"      "$WS/astrostudyui/src/utils/__tests__/bootChartRestore.test.js"      && ok "bootChartRestore.test.js"
+# [#109 退役,v3.11.2] bootChartRestore.js + 同名测试由上游 v3.11.2 自有实现承载(带我方 marker 的超集:签名 +currentSubTab,
+# 测试 4 例 ⊃ 我方 3 例);models/app.js 接线补丁同轮退役(上游 checkUser 二选一 + restoredSubTab 校验为准)。哨兵迁钉上游形态。
 cp "$OV/files/astrostudyui/src/services/__tests__/perfR10CacheUnify.test.js"  "$WS/astrostudyui/src/services/__tests__/perfR10CacheUnify.test.js"  && ok "perfR10CacheUnify.test.js"
 # ---- 33c v3.5.1 收敛:上游 kentangCache 的 Windows-ahead 守卫 + 金标 ----
 # wuzhao 自动揲筮(无 seed、服务端 random.randint)不得入缓存 —— 上游矩阵误标 deterministic,
@@ -858,7 +864,7 @@ cp "$OV/files/astrostudyui/src/utils/__tests__/kentangCacheWuzhaoGuard.test.js" 
 # ★v3.7.1 收敛:optionPrefetch.js 被 Mac 逐字节收编(含 optionDispatchScheduler 扩展)
 # → files/ 拷贝层整体退役,port 即上游真身;金标测试仍为 Windows 原创,继续 cp。
 cp "$OV/files/astrostudyui/src/utils/__tests__/optionPrefetch.test.js"        "$WS/astrostudyui/src/utils/__tests__/optionPrefetch.test.js"        && ok "optionPrefetch.test.js"
-apply_patch horosa_boot_chart_restore_v1         astrostudyui/src/models/app.js                                   src__models__app.bootChartRestore.js.patch
+# [#109 退役,v3.11.2] models/app.js 温启恢复接线补丁退役 —— 上游同义实现(loadBootChartSnapshot 于 checkUser 二选一)。
 apply_patch horosa_moira_stable_key_v1           astrostudyui/src/services/qizheng.js                             src__services__qizheng.moiraStableKey.js.patch
 apply_patch peekCachedPost                      astrostudyui/src/services/_requestCache.js                       src__services___requestCache.cfgKey.js.patch
 
@@ -868,17 +874,17 @@ echo "== 34. PERF-R10 Ship3 后端 Python 五连(奇门请求级 memo / kin 常�
 # 实测:全矩阵墙钟 252.7s→96.4s(-62%);north-hi 整盘 8417ms→185ms(45×,响应字节不变)。
 # ★ 累积补丁 guard 一律取文件内最新 marker(gotcha #48);kinqimen 两件/kinastro_common/
 #   perchart/webchartsrv 为既有补丁就地更新,不另开行。
-apply_patch horosa_qimen_req_memo_v1             astropy/websrv/webqimensrv.py                                    astropy__webqimensrv.reqMemo.py.patch
-apply_patch horosa_fast_json_encode_v1           astropy/websrv/webpredictsrv.py                                  astropy__webpredictsrv.fastJson.py.patch
+# [#109 退役,v3.11.2] astropy__webqimensrv.reqMemo.py.patch —— PY-18 上游逐字节收编
+# [#109 退役,v3.11.2] astropy__webpredictsrv.fastJson.py.patch —— PY-21 上游 websrv/fastjson 超集(同址插入 ⇒ 双包风险)
 # —— kin 常量 copy-return 全族(HOROSA_KIN_JIAZI_CONST 一把闸)——
-apply_patch horosa_kin_jiazi_const_v1            vendor/kintaiyi/src/kintaiyi/jieqi.py                            vendor__kintaiyi__jieqi.kinConst.py.patch
-apply_patch horosa_kin_jiazi_const_v1            vendor/kintaiyi/src/kintaiyi/config.py                           vendor__kintaiyi__config.kinConst.py.patch
-apply_patch horosa_kin_jiazi_const_v1            vendor/kintaiyi/src/kintaiyi/kinliuren.py                        vendor__kintaiyi__kinliuren.kinConst.py.patch
-apply_patch horosa_kin_jiazi_const_v1            vendor/kinwuzhao/jieqi.py                                        vendor__kinwuzhao__jieqi.kinConst.py.patch
-apply_patch horosa_kin_jiazi_const_v1            vendor/kinwuzhao/config.py                                       vendor__kinwuzhao__config.kinConst.py.patch
-apply_patch horosa_kin_jiazi_const_v1            vendor/shenyishu/shenyishu.py                                    vendor__shenyishu__shenyishu.kinConst.py.patch
-apply_patch horosa_kin_jiazi_const_v1            vendor/kinjinkou/kinjinkou/jinkoujue/jinkoujue_api.py            vendor__kinjinkou__jinkoujue_api.kinConst.py.patch
-apply_patch horosa_kin_jiazi_const_v1            vendor/kinastro/astro/fendjing/fendjing_calculator.py            vendor__kinastro__fendjing_calculator.kinConst.py.patch
+# [#109 退役,v3.11.2] vendor__kintaiyi__jieqi.kinConst.py.patch —— PY-19
+# [#109 退役,v3.11.2] vendor__kintaiyi__config.kinConst.py.patch —— PY-19 kin 常量上游逐字节收编
+# [#109 退役,v3.11.2] vendor__kintaiyi__kinliuren.kinConst.py.patch —— PY-19
+# [#109 退役,v3.11.2] vendor__kinwuzhao__jieqi.kinConst.py.patch —— PY-19
+# [#109 退役,v3.11.2] vendor__kinwuzhao__config.kinConst.py.patch —— PY-19
+# [#109 退役,v3.11.2] vendor__shenyishu__shenyishu.kinConst.py.patch —— PY-19
+# [#109 退役,v3.11.2] vendor__kinjinkou__jinkoujue_api.kinConst.py.patch —— PY-19
+# [#109 退役,v3.11.2] vendor__kinastro__fendjing_calculator.kinConst.py.patch —— PY-19
 # translate 等价金标(astropy/tests 是 Mac 基线树,新测试文件走全量拷贝层)
 mkdir -p "$WS/astropy/tests"
 cp "$OV/files/astropy/tests/test_kentang_display_fast.py" "$WS/astropy/tests/test_kentang_display_fast.py" && ok "test_kentang_display_fast.py"
@@ -887,8 +893,8 @@ echo "== 35. PERF-R10 Ship4 后端 Java 双项(comm 缓存 -D 豁免 / chart 家
 # 响应字节不变(三臂 A/B:LIVE 旧 jar vs 新 jar+旗标 vs 新 jar 无旗标,四端点冷/温逐字节等);
 # 未动模块零回归铁证:boundless/basecomm nested jar sha == LIVE。启动器新增两条 -D:
 #   -Dcachehelper.needcache=false / -Dastrohelper.skip.inner.cached.paths=true(service-manager.js)。
-apply_patch cachehelper.needcache                astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/CacheHelper.java   astrostudy__CacheHelper.needcacheSysprop.java.patch
-apply_patch astrohelper.skip.inner.cached.paths  astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/helper/AstroHelper.java   astrostudy__AstroHelper.skipInnerCache.java.patch
+# [#109 退役,v3.11.2] astrostudy__CacheHelper.needcacheSysprop.java.patch —— JV-9 上游逐字节收编
+# [#109 退役,v3.11.2] astrostudy__AstroHelper.skipInnerCache.java.patch —— JV-10 上游逐字节收编
 
 echo "== 36. PERF-R11 StartupGate 桌面壳温启用时行(Electron-only;Mac/网页死分支零影响)=="
 # horosa_startupgate_desktop_elapsed_v1:温启窗口(工作区可见→后端就绪 ~0.6s→4s)此前无数字反馈
@@ -896,9 +902,9 @@ echo "== 36. PERF-R11 StartupGate 桌面壳温启用时行(Electron-only;Mac/网
 # → 卡片 t=0 起「已用时 x.x 秒 ・ 以往约 y.y 秒」,锚到壳层起点覆盖 pre-nav 段。
 # kill:HOROSA_LOADING_UX=0(壳侧置 startupUx:false,行自动退场)。
 # 上游化建议:组件分支可原样上 Mac(无 window.horosaDesktop = 死分支,渲染逐字节不变)。
-apply_patch horosa_startupgate_desktop_elapsed_v1  astrostudyui/src/components/common/StartupGate.js  astrostudyui__StartupGate.desktopElapsed.js.patch
+# [#109 退役,v3.11.2] astrostudyui__StartupGate.desktopElapsed.js.patch —— FE-29 上游 bootContext(early/firstLaunch/boot → 「已用时」)取代;Electron 已改传三参数
 mkdir -p "$WS/astrostudyui/src/components/common/__tests__"
-cp "$OV/files/astrostudyui/src/components/common/__tests__/startupGateDesktopElapsed.test.js" "$WS/astrostudyui/src/components/common/__tests__/startupGateDesktopElapsed.test.js" && ok "startupGateDesktopElapsed.test.js"
+# [#109 退役,v3.11.2] files/.../startupGateDesktopElapsed.test.js(PERF-R11 T3c 金标 5 例)—— 上游 [R5 S8] 以 URL boot=/firstLaunch= 收编桌面壳温启数字行,我方 readDesktopStartupCfg 实现与金标一并退役;哨兵迁钉上游形态(bootContext/firstLaunch/已用时)。
 
 echo "== 37. PERF-R12 Phase-2 宗师轮渲染切片六件(净新补丁;既有 15 件为就地累积更新,guard 已换本轮最新 marker)=="
 # 全部为「只动时机/调度不动内容」的渲染切片/缓存化(kill-switch:chartSCU / freezeSubTabs /
@@ -923,8 +929,8 @@ apply_patch horosa_shadow_mirror_electron_v1     astrostudyui/src/utils/shadowMi
 # v3.9.2 上游存储键注册表([V4] 穷举哨兵「新键不登记即红」):Windows-ahead 键必须入册,
 # 否则 umi 全量必红。快照补丁=形状快照测试的 jest -u 留痕(注册表与快照必须成对,缺快照那张
 # 补丁则下轮同步后 umi「形状快照」测试红)。
-apply_patch horosa_windows_storage_keys_v1       astrostudyui/src/utils/storageKeyRegistry.js                     src__utils__storageKeyRegistry.windowsKeys.js.patch
-apply_patch horosa.boot.lastChart.v1             astrostudyui/src/utils/__tests__/__snapshots__/storageRegistryCompleteness.test.js.snap src__utils__tests__snapshots__storageRegistryCompleteness.snap.patch
+# [#109 退役,v3.11.2] src__utils__storageKeyRegistry.windowsKeys.js.patch —— 上游注册表已含 horosa.boot.lastChart.v1(cache 档),再加即双登记
+# [#109 退役,v3.11.2] src__utils__tests__snapshots__storageRegistryCompleteness.snap.patch —— 随注册表补丁退役(上游 snap 已含)
 # Z5 否决线(评估后不做)以在码注释形式常驻 —— 防下一轮优化者再走同一条弯路;3 行纯注释补丁。
 apply_patch "W3b-Z5"                             astrostudyui/src/components/divination/DivinationChartShell.js   src__components__divination__DivinationChartShell.z5Decline.js.patch
 # W3g 纯时间步进→补间链路源级钉(五针);Astro3D 本体零改动,只加测试。

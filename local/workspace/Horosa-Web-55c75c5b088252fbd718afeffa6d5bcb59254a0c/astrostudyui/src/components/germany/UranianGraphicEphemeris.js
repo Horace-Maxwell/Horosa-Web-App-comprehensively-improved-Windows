@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // [#84] 双触发收敛
 import { markPanelReady } from '../../utils/perfMark';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import moment from 'moment';
@@ -157,17 +158,21 @@ export default class UranianGraphicEphemeris extends Component {
 			startTime: '00:00:00', endTime: '00:00:00',
 			planets: this.planetSet(), includeTransits: false,
 		};
+		// [#84] 双触发收敛:挂钩与 componentDidUpdate 同一次改动各进一次 → 请求参数全同的第二路跳过
+		const ephemTrig = claimTrigger(this, 'requestData', JSON.stringify(params));
+		if (!ephemTrig) { return; }
 		this.setState({ loading: true, note: null });
 		try {
 			const data = await request(`${Constants.ServerRoot}/astroextra/ephemeris`, { body: JSON.stringify(params), silent: true });
 			const res = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
+			if (!res) { settleTrigger(this, 'requestData', ephemTrig, false); }   // request 吞错 resolve 空 → 同参允许重试
 			const rows = res && Array.isArray(res.dailyPositions) ? res.dailyPositions : [];
 			// horosa_panel_ready_v1:图形星历(量化盘第三子页)的折线图与右侧图例全部由 rows 派生,
 			// 这一次 setState 即「面板数据落定」(折叠计算是纯前端同步,随本次 render 一并完成)。
 			if (!this.unmounted) this.setState({ rows, loading: false, note: rows.length ? null : '该区间无星历数据' }, ()=>{
 				markPanelReady('auxchart');
 			});
-		} catch (err) { if (!this.unmounted) this.setState({ loading: false, note: '星历获取失败' }); }
+		} catch (err) { settleTrigger(this, 'requestData', ephemTrig, false); if (!this.unmounted) this.setState({ loading: false, note: '星历获取失败' }); }
 	}
 
 	// 太阳弧生命图(Lebensdiagramm):X=年龄 0..90、Y=折叠黄经。本命因子=水平虚线;

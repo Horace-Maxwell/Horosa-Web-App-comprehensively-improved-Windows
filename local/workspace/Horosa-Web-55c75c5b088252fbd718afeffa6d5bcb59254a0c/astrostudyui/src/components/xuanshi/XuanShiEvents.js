@@ -3,7 +3,7 @@ import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Spin, Empty, Input } from 'antd';
 import { fetchEvents, fetchEvent, fetchEventsMeta } from '../../services/xuanshi';
 import { marked } from 'marked';
-import { resolveChartDate, collapseSoftBreaks } from './xuanshiDate';
+import { resolveChartDate, collapseSoftBreaks, chartDateExactLabel } from './xuanshiDate';
 import { dynClass } from './xuanshiDynClass';
 import XuanShiStar from './XuanShiStar';
 
@@ -209,7 +209,7 @@ export default class XuanShiEvents extends React.Component {
 							if (!rd) { return null; }
 							return (
 								<div style={{ marginTop: 6, marginBottom: 16 }}>
-									<div className="xuanshi-hint" style={{ marginTop: 0, marginBottom: 8 }}>{rd.exact ? `公历 ${rd.disp}${rd.calendar === 'julian' ? `（儒略历 ${rd.md} 起盘）` : ''}` : `此事${d.period ? `「${d.period}」` : ''}——按 ${rd.disp} 正午起盘`} · 地点按朝代都城近似</div>
+									<div className="xuanshi-hint" style={{ marginTop: 0, marginBottom: 8 }}>{rd.exact ? chartDateExactLabel(rd) : `此事${d.period ? `「${d.period}」` : ''}——按 ${rd.disp} 正午起盘`} · 地点按朝代都城近似</div>
 									<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
 										<span className="xuanshi-btn is-primary" onClick={() => this.props.onChartLink(d, 'astrochart')}>排此时 · 占星盘</span>
 										<span className="xuanshi-btn" onClick={() => this.props.onChartLink(d, 'guolao')}>排此时 · 七政四余</span>

@@ -389,8 +389,8 @@ public class AstroCacheHelper {
 		}
 		String date = (String) nongli.get("date");
 		String zone = (String) nongli.get("zone");
-		// " w4" 代次后缀:农历值依赖节气窗算法,代次升级后旧持久缓存整体失效
-		String key = String.format("%s %s w4", date, zone);
+		// " w6" 代次后缀:农历值依赖节气窗算法,代次升级后旧持久缓存整体失效(w5:交节时刻改为精确黄经;w6:置闰按日期定冬至所在月)
+		String key = String.format("%s %s w6", date, zone);
 		nongli.put("key", key);
 		nongliCache.setMap(key, nongli);
 	}
@@ -399,7 +399,7 @@ public class AstroCacheHelper {
 		if(nongliCache == null) {
 			return null;
 		}
-		String key = String.format("%s %s w4", date, zone);
+		String key = String.format("%s %s w6", date, zone);
 		FilterCond idCond = new FilterCond("key", CondOperator.Eq, key);
 		List<Map<String, Object>> list = nongliCache.findValues(idCond);
 		return list.isEmpty() ? null : list.get(0);		

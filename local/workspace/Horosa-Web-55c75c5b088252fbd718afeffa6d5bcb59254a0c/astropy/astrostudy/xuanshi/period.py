@@ -223,6 +223,23 @@ _ERA_TRAD2SIMP = str.maketrans({
     "潤": "润", "鍾": "钟", "鐘": "钟", "寧": "宁", "興": "兴",
 })
 
+# 年号按首字分桶(桶内保持原表序):最长前缀与剥帝号两处只扫与首字同桶的候选。
+# 等价:年号键皆非空,s.startswith(cand) 必有 cand[0] == s[0] → 桶内命中集 = 原全表命中集,
+# 且同序 →「等长先到先得」不变,返回值与全表线性扫逐一相同(天象库载入每行一次,全表扫 160 个是首开大头)。
+# 开关:HOROSA_XUANSHI_ERA_INDEX=0 → 回全表线性扫。
+_ERA_INDEX_ON = __import__('os').environ.get('HOROSA_XUANSHI_ERA_INDEX', '1').lower() not in ('0', 'false', 'no', 'off')
+_ERA_BY_FIRST: dict[str, list[str]] = {}
+for _k in _ERA_ALIASES:
+    _ERA_BY_FIRST.setdefault(_k[0], []).append(_k)
+_YEAR_NUM_PAT = r"^\s*(元|[一二三四五六七八九十百]+|\d+)\s*(年|载|載)"
+_YEAR_NUM_RE = re.compile(_YEAR_NUM_PAT)
+
+
+def _era_candidates(s: str):
+    if _ERA_INDEX_ON:
+        return _ERA_BY_FIRST.get(s[:1], ())
+    return _ERA_ALIASES
+
 
 def date_phrase_to_year(phrase: Optional[str], hint_year: Optional[int] = None) -> Optional[int]:
     """把 '武德元年十月壬申' / '贞观九年' 转成公历公元年。
@@ -238,11 +255,13 @@ def date_phrase_to_year(phrase: Optional[str], hint_year: Optional[int] = None) 
     s = phrase.strip().translate(_ERA_TRAD2SIMP)
     # ② 剥「某帝 / 某宗」前缀:仅当剥掉后仍能套到年号才剥,避免误伤以帝/宗/祖结尾的年号本身。
     m_emp = _EMPEROR_PREFIX_RE.match(s)
-    if m_emp and any(s[m_emp.end():].startswith(e) for e in _ERA_ALIASES):
-        s = s[m_emp.end():]
+    if m_emp:
+        _rest_emp = s[m_emp.end():]
+        if any(_rest_emp.startswith(e) for e in _era_candidates(_rest_emp)):
+            s = _rest_emp
     # ① 最长前缀
     era = None
-    for cand in _ERA_ALIASES:
+    for cand in _era_candidates(s):
         if s.startswith(cand) and (era is None or len(cand) > len(era)):
             era = cand
     if era is None:
@@ -254,7 +273,7 @@ def date_phrase_to_year(phrase: Optional[str], hint_year: Optional[int] = None) 
         base = min(bases, key=lambda b: abs(b - hint_year))
     rest = s[len(era):]
     # 「年」亦作「载/載」(唐玄宗天宝三年起改年为载:「天寶五載」=746,此前只认「年」→ 一律返元年 742)。
-    m = re.match(r"^\s*(元|[一二三四五六七八九十百]+|\d+)\s*(年|载|載)", rest)
+    m = _YEAR_NUM_RE.match(rest) if _ERA_INDEX_ON else re.match(_YEAR_NUM_PAT, rest)
     if not m:
         # 仅有年号（如"武德"）
         return base

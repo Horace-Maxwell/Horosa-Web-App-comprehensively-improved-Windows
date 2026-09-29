@@ -1,12 +1,13 @@
 diff --git a/astrostudyui/src/components/cntradition/SmallDirection.js b/astrostudyui/src/components/cntradition/SmallDirection.js
-index 71ae8b1..021e4e4 100644
+index 571ac675..03a3ef76 100644
 --- a/astrostudyui/src/components/cntradition/SmallDirection.js
 +++ b/astrostudyui/src/components/cntradition/SmallDirection.js
-@@ -1,9 +1,11 @@
+@@ -1,10 +1,12 @@
  import { Component } from 'react';
  import { Row, Col, Popover, Divider } from 'antd';
 -import { randomStr } from '../../utils/helper';
  import { BaZiMsg } from '../../msg/bazimsg';
+ import { baziAgeText } from './baziAgeText';
  import { birthMonthDayFromBazi, resolveStarCharger } from './starChargerLazy';
  import styles from '../../css/styles.less';
 +// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
@@ -15,7 +16,7 @@ index 71ae8b1..021e4e4 100644
  
  function safeArray(value){
  	return Array.isArray(value) ? value : [];
-@@ -39,10 +41,10 @@ class SmallDirection extends Component{
+@@ -40,10 +42,10 @@ class SmallDirection extends Component{
  		let ganCols = this.genGods(rec.stem, '干');
  		let ziCols = this.genGods(rec.branch, '支');
  		let doms = [];
@@ -28,7 +29,7 @@ index 71ae8b1..021e4e4 100644
  		}
  		return doms.length > 0 ? doms : null;
  	}
-@@ -56,7 +58,7 @@ class SmallDirection extends Component{
+@@ -57,7 +59,7 @@ class SmallDirection extends Component{
  		safeArray(rec.neutralGods).length && spans.push(safeArray(rec.neutralGods).join('，'));
  		safeArray(rec.badGods).length && spans.push(safeArray(rec.badGods).join('，'));
  		if(spans.length > 0){
@@ -37,7 +38,7 @@ index 71ae8b1..021e4e4 100644
  		}
  		return null;
  	}
-@@ -94,7 +96,7 @@ class SmallDirection extends Component{
+@@ -95,7 +97,7 @@ class SmallDirection extends Component{
  
  		return (
  			<div className={`${styles.scrollbar} horosa-bazi-xy-list`} style={style}>
@@ -46,12 +47,12 @@ index 71ae8b1..021e4e4 100644
  					const d = dir || {};
  					const subdir = d.direct || {};
  					const yeardir = d.yearGanzi || {};
-@@ -119,7 +121,7 @@ class SmallDirection extends Component{
+@@ -120,7 +122,7 @@ class SmallDirection extends Component{
  						</div>
  					);
  					return (
 -						<div className="horosa-bazi-xy-item" key={randomStr(8)}>
 +						<div className="horosa-bazi-xy-item" key={di}>
  							{this.renderPillarChip('小运', subdir, `小运：${subdir.ganzi || ''}`, popSub)}
- 							{this.renderPillarChip('流年', yeardir, `流年：${yeardir.ganzi || ''} ${d.year || ''} ${d.age || ''}岁`, popYear)}
+ 							{this.renderPillarChip('流年', yeardir, `流年：${yeardir.ganzi || ''} ${d.year || ''} ${this.props.ageStyle ? baziAgeText(d.age, this.props.ageStyle) : `${d.age || ''}岁`}`, popYear)}
  							<div className="horosa-bazi-xy-meta">

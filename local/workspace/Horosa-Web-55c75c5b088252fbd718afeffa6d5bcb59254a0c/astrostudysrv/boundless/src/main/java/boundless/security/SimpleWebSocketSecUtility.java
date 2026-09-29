@@ -1,6 +1,14 @@
 package boundless.security;
 
+import java.security.SecureRandom;
 import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 import boundless.exception.DecryptException;
 import boundless.exception.DecryptTimeoutException;
@@ -11,6 +19,118 @@ import boundless.utility.RandomUtility;
 
 public class SimpleWebSocketSecUtility {
 	private static int defTimeout = PropertyPlaceholder.getProperty("webencrypt.timeout", 180);
+
+	// webencrypt_keycache_v1:客户端在同一页面会话里复用同一把 AES 传输钥及其 RSA 密文(前端 rsaSessionKey),
+	// 于是每个请求的 parts[1] 恒同 —— 逐请求重解 RSA(2048 位模幂 + KeyFactory)是纯浪费。按「模数|RSA 密文」记忆
+	// 已解出的钥(有界 LRU),命中即免模幂;-Dwebencrypt.keycache=false 关掉(恒重解,逐字节旧行为)。
+	private static final boolean KEY_CACHE_ON = !"false".equalsIgnoreCase(System.getProperty("webencrypt.keycache", "true"));
+	private static final int KEY_CACHE_MAX = 512;
+	private static final Map<String, byte[]> KEY_CACHE = new LinkedHashMap<String, byte[]>(64, 0.75f, true) {
+		private static final long serialVersionUID = 1L;
+		@Override
+		protected boolean removeEldestEntry(Map.Entry<String, byte[]> eldest) {
+			return size() > KEY_CACHE_MAX;
+		}
+	};
+	/** 真正做过 RSA 解钥的次数(测试钉缓存契约用)。 */
+	public static final AtomicLong RSA_DECRYPT_CALLS = new AtomicLong();
+	private static final SecureRandom GCM_RANDOM = new SecureRandom();
+	private static final int GCM_IV_BYTES = 12;
+	private static final int GCM_TAG_BITS = 128;
+
+	/** 从加密信封取会话传输钥(parts[1] 的 RSA 密文 → 明文钥字节;命中缓存不做模幂)。 */
+	public static byte[] sessionKey(String codedstr, String modulus, String privateExponent) {
+		String[] parts = codedstr.split(",");
+		if(parts.length < 2) {
+			throw new DecryptException(new IllegalArgumentException("cypher.envelope"));
+		}
+		String blob = parts[1];
+		String cacheKey = modulus + "|" + blob;
+		if(KEY_CACHE_ON) {
+			synchronized (KEY_CACHE) {
+				byte[] hit = KEY_CACHE.get(cacheKey);
+				if(hit != null) {
+					return hit.clone();
+				}
+			}
+		}
+		RSA_DECRYPT_CALLS.incrementAndGet();
+		byte[] rckey = RSAUtility.decrypt(blob, modulus, privateExponent);
+		if(KEY_CACHE_ON && rckey != null) {
+			synchronized (KEY_CACHE) {
+				KEY_CACHE.put(cacheKey, rckey.clone());
+			}
+		}
+		return rckey;
+	}
+
+	/** 已知会话钥时解信封(时效校验与旧 decrypt 逐字节同语义)。 */
+	public static byte[] decryptWithKey(String codedstr, byte[] rckey, int timeout, boolean forceTimeout){
+		try{
+			String[] parts = codedstr.split(",");
+			if(forceTimeout) {
+				if(parts.length < 3) {
+					throw new DecryptTimeoutException("cypher.timeout");
+				}
+			}
+			if(parts.length > 2 && timeout > 0 && forceTimeout){
+				String tmb64 = parts[2];
+				byte[] tmdata = SecurityUtility.fromBase64(tmb64);
+				byte[] tmplaindata = AESUtility.decrypt(tmdata, rckey);
+				String tmstr = new String(tmplaindata, "UTF-8");
+				long ms = ConvertUtility.getValueAsLong(tmstr);
+				long now = System.currentTimeMillis();
+				if(now > ms + timeout * 1000){
+					throw new DecryptTimeoutException("cypher.timeout");
+				}
+			}
+			byte[] codeddata = SecurityUtility.fromBase64(parts[0]);
+			return AESUtility.decrypt(codeddata, rckey);
+		}catch(DecryptTimeoutException e){
+			throw e;
+		}catch(Exception e){
+			throw new DecryptException(e);
+		}
+	}
+
+	public static byte[] decryptWithKey(String codedstr, byte[] rckey, boolean forceTimeout){
+		return decryptWithKey(codedstr, rckey, defTimeout, forceTimeout);
+	}
+
+	// webencrypt_gcm_v1:响应用请求里已协商的会话钥做 AES-128-GCM(随机 12 字节 IV 前置,128 位标签),
+	// 不再逐响应生成随机钥 + RSA 私钥运算;输出 base64(iv || 密文 || 标签),响应头 Encrypted: 2。
+	// 只在客户端声明能力(X-Horosa-Crypto: gcm1)且本请求带会话钥时启用,其余照旧 Encrypted: 1。
+	public static String encryptGcm(byte[] plaindata, byte[] key) {
+		try{
+			byte[] iv = new byte[GCM_IV_BYTES];
+			GCM_RANDOM.nextBytes(iv);
+			Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+			cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(GCM_TAG_BITS, iv));
+			byte[] ct = cipher.doFinal(plaindata);
+			byte[] out = new byte[iv.length + ct.length];
+			System.arraycopy(iv, 0, out, 0, iv.length);
+			System.arraycopy(ct, 0, out, iv.length, ct.length);
+			return SecurityUtility.base64(out);
+		}catch(Exception e){
+			throw new EncryptException(e);
+		}
+	}
+
+	public static byte[] decryptGcm(String b64, byte[] key) {
+		try{
+			byte[] all = SecurityUtility.fromBase64(b64);
+			if(all == null || all.length <= GCM_IV_BYTES) {
+				throw new IllegalArgumentException("gcm.envelope");
+			}
+			byte[] iv = new byte[GCM_IV_BYTES];
+			System.arraycopy(all, 0, iv, 0, GCM_IV_BYTES);
+			Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+			cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(GCM_TAG_BITS, iv));
+			return cipher.doFinal(all, GCM_IV_BYTES, all.length - GCM_IV_BYTES);
+		}catch(Exception e){
+			throw new DecryptException(e);
+		}
+	}
 	private static String ivStr = "0123456789ABCDEF";
 	private static byte[] ivRaw = new byte[128];
 	static {
@@ -47,35 +167,16 @@ public class SimpleWebSocketSecUtility {
 	}
 	
 	public static byte[] decrypt(String codedstr, String modulus, String privateExponent, int timeout, boolean forceTimeout){
+		// webencrypt_keycache_v1:先取会话钥(缓存命中免模幂),再按旧语义解信封。
+		byte[] rckey;
 		try{
-			String[] parts = codedstr.split(",");
-			byte[] rckey = RSAUtility.decrypt(parts[1], modulus, privateExponent);
-			if(forceTimeout) {
-				if(parts.length < 3) {
-					throw new DecryptTimeoutException("cypher.timeout");
-				}
-			}
-			
-			if(parts.length > 2 && timeout > 0 && forceTimeout){
-				String tmb64 = parts[2];
-				byte[] tmdata = SecurityUtility.fromBase64(tmb64);
-				byte[] tmplaindata = AESUtility.decrypt(tmdata, rckey);
-				String tmstr = new String(tmplaindata, "UTF-8");
-				long ms = ConvertUtility.getValueAsLong(tmstr);
-				long now = System.currentTimeMillis();
-				if(now > ms + timeout * 1000){
-					throw new DecryptTimeoutException("cypher.timeout");
-				}
-			}
-			
-			byte[] codeddata = SecurityUtility.fromBase64(parts[0]);
-			byte[] plaindata = AESUtility.decrypt(codeddata, rckey);
-			return plaindata;
-		}catch(DecryptTimeoutException e){
+			rckey = sessionKey(codedstr, modulus, privateExponent);
+		}catch(DecryptException e){
 			throw e;
 		}catch(Exception e){
 			throw new DecryptException(e);
 		}
+		return decryptWithKey(codedstr, rckey, timeout, forceTimeout);
 	}
 	
 	public static String encrypt(byte[] plaindata, int rcKeyLength, String modulus, String publicExponent){

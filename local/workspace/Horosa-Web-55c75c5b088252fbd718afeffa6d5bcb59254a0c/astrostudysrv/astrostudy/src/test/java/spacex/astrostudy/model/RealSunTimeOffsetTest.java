@@ -41,4 +41,16 @@ public class RealSunTimeOffsetTest {
 		int real = RealSunTimeOffset.getOffsetByDate("2026-11-03 12:00:00", "+08:00", "116e00");
 		assertEquals(-960 + 16.4 * 60, real, 20);
 	}
+
+	/** 经度串的分按 1/60 度计:118°27′E → 118.45°,+08:00 下经度时差 −372 s(此前误作 118 + 1/27 度 → −471 s)。 */
+	@Test
+	public void longitudeMinutesAreSixtiethsOfDegree() {
+		assertEquals(-372, RealSunTimeOffset.getMeanSolarOffset("+08:00", "118e27"));
+		assertEquals(-7776, RealSunTimeOffset.getMeanSolarOffset("+08:00", "87e36"));
+		assertEquals(4, RealSunTimeOffset.getMeanSolarOffset("+08:00", "120e01"));
+		assertEquals(240, RealSunTimeOffset.getMeanSolarOffset("-05:00", "74w00"));
+		assertEquals(288, RealSunTimeOffset.getMeanSolarOffset("+10:00", "151e12"));
+		int real = RealSunTimeOffset.getOffsetByDate("2026-11-03 12:00:00", "+08:00", "118e27");
+		assertEquals(-372 + 16.4 * 60, real, 20);
+	}
 }

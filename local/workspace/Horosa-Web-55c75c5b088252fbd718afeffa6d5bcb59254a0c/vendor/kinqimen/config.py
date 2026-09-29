@@ -371,7 +371,7 @@ def pan_earth_min_r(year, month, day, hour, minute):
     return dict(zip(pan_earth_v, pan_earth_k))
  
 def _select_ju(option, year, month, day, hour, minute):
-    """horosa_qimen_lazyju_v1(PERF-R9):按 option 选定局法并**只求值选中的那一个**。
+    """horosa_qimen_lazyju_v1:按 option 选定局法并**只求值选中的那一个**。
 
     原本有 **七处**(zhifu_pai / zhifu_pai_ke / zhishi_pai / zhishi_pai_ke /
     pan_door / pan_star / pan_god)都写成
@@ -385,7 +385,7 @@ def _select_ju(option, year, month, day, hour, minute):
        但 config 侧原本**没有**默认值:option 越界时 qmju 为 None,调用方下一行 `qmju[0]`
        抛 TypeError,webqimensrv 捕获后返回 `ResultCode -1` 错误信封。
        若照抄 kinqimen 的带默认写法,越界请求会从「错误信封」悄悄变成「按拆补法出盘」——
-       那是**功能改变**,不是性能优化。黄金矩阵已钉住 option ∈ {0, 5} 的 -1 信封来守住这一点。
+       那是**功能改变**,不是性能优化。回归矩阵已钉住 option ∈ {0, 5} 的 -1 信封来守住这一点。
     """
     _juf = {1: qimen_ju_name_chaibu,
             2: qimen_ju_name_zhirun,
@@ -574,7 +574,7 @@ def zhifu_n_zhishi(year, month, day, hour, minute, option):
     chour = multi_key_dict_get(liujiashun_dict(), gz[3])
     eg = list("休死傷杜中開驚生景")
     eight_gods = list("蓬芮沖輔禽心柱任英")
-    # horosa_qimen_cse_v1(PERF-R9):原式对 zhishi_pai / zhifu_pai **各调用两次**(一次取 keys、
+    # horosa_qimen_cse_v1:原式对 zhishi_pai / zhifu_pai **各调用两次**(一次取 keys、
     # 一次取 values),而这两个函数内部都要做一次完整的定局推算。本函数每个 /qimen/pan 请求被调
     # 15 次、每次实测 ~20ms —— 仅这一处就占请求的一大块。
     # 等价性比原式**更强**:keys() 与 values() 现在取自**同一个** dict 对象,顺序必然一一对应;
@@ -877,7 +877,7 @@ if __name__ == '__main__':
 
 
 
-# horosa_qimen_req_memo_v1(PERF-R10 B1)—— 请求级 memo 重绑定(机制在 jieqi._req_memo,
+# horosa_qimen_req_memo_v1—— 请求级 memo 重绑定(机制在 jieqi._req_memo,
 # 键含两个日界开关;webqimensrv 每请求 begin 即清)。kinqimen.py 走 `import config` 的
 # 属性查找 ⇒ 调用时拿到的就是包装体;本模块内互调经 globals 同理。
 # ★ pan_sky_minute 永不得入 memo:kinqimen.py 对其返回值 `del sky["中"]` 就地变异,

@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { claimTrigger, identityOf } from '../../utils/singleTrigger';   // [#84] 双触发收敛
 import { Row, Col, Divider, Tree } from 'antd';
 import AstroChart from './AstroChart';
 import * as AstroConst from '../../constants/AstroConst';
@@ -453,6 +454,10 @@ class AstroDecennials extends Component{
 
 	rebuildTimeline(chartObj = this.props.value){
 		if(!chartObj){
+			return;
+		}
+		// [#84] 双触发收敛:挂钩与 componentDidUpdate(value 换新)对同一张盘各重建一次 → 同盘同设置第二路跳过
+		if(!claimTrigger(this, 'rebuildTimeline', `${chartObj.chartId || identityOf(chartObj)}|${JSON.stringify(this.state.settings)}`)){
 			return;
 		}
 		const timelineMeta = buildDecennialTimeline(chartObj, this.state.settings);

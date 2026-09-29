@@ -4,6 +4,7 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 
+import boundless.utility.ConvertUtility;
 import boundless.utility.DateTimeUtility;
 import boundless.utility.FormatUtility;
 import boundless.utility.JsonUtility;
@@ -266,8 +267,8 @@ public class BaZiHelper {
 		params.put("zone", zone);
 		params.put("useLocalMao", useLocalMao);
 		params.put("byLon", byLon);
-		// 节气窗算法代次(窗口包含性自愈版):参与 paramhash 缓存键,旧代次污染缓存自然失效
-		params.put("_v", "w4");
+		// 节气窗算法代次(窗口包含性自愈版):参与 paramhash 缓存键,旧代次污染缓存自然失效;w5 = 交节时刻改为精确黄经
+		params.put("_v", "w5");
 
 		Map<String, Object> res = AstroHelper.getJieQiBirth(params);
 		return res;
@@ -287,7 +288,7 @@ public class BaZiHelper {
 		params.put("zone", zone);
 		params.put("useLocalMao", useLocalMao);
 		params.put("byLon", byLon);
-		params.put("_v", "w4");
+		params.put("_v", "w5");
 
 		Map<String, Object> res = AstroHelper.requestNoCache(AstroHelper.JieQiBirth, params);
 		return res;
@@ -321,6 +322,26 @@ public class BaZiHelper {
 		return ganzi;
 	}
 	
+	/**
+	 * 节气窗里的「立春」:ord == 0 的节(南半球只改名、不改 ord),有多个时取离生辰最近的一个;没有则返回 null。
+	 * 不能按固定下标取 —— 节气窗会在生辰前补项以保证包住生辰,二月立春前出生时立春不在 [2]。
+	 */
+	static Map<String, Object> findLichun(Map<String, Object>[] jieqi, double birthJdn) {
+		Map<String, Object> best = null;
+		double bestDist = Double.MAX_VALUE;
+		for(Map<String, Object> map : jieqi) {
+			if(map == null || map.get("ord") == null || ConvertUtility.getValueAsInt(map.get("ord"), -1) != 0 || !Boolean.TRUE.equals(map.get("jie"))) {
+				continue;
+			}
+			double dist = Math.abs(ConvertUtility.getValueAsDouble(map.get("jdn")) - birthJdn);
+			if(dist < bestDist) {
+				best = map;
+				bestDist = dist;
+			}
+		}
+		return best;
+	}
+
 	public static GanZi getYearColumn(int ad, String birth, String zone, Map<String, Object>[] jieqi, PhaseType phaseType) {
 		int[] tmparts = DateTimeUtility.getDateTimeParts(birth);
 		int year = tmparts[0];
@@ -341,16 +362,19 @@ public class BaZiHelper {
 			zi = BCYearZiRemainder.get(ziremainder);						
 		}
 		
+		// 一、二月出生:早于立春算上一年。一律与窗口里的立春本身比较 —— 儒略历年份(约 800–1582 年)立春落在一月下旬,
+		// 一月不能一律算上一年;窗口里找不到立春才退回旧规则(一月算上一年、二月比 [2])。
 		boolean prevflag = false;
 		int m = tmparts[1] - 1;
-		if(m == Calendar.JANUARY) {
-			prevflag = true;
-		}else if(m == Calendar.FEBRUARY) {
-			Map<String, Object> map = jieqi[2];
-			double jiejdn = (double) map.get("jdn");
+		if(m == Calendar.JANUARY || m == Calendar.FEBRUARY) {
 			double jdn = DateTimeUtility.getDateNum(birth, zone);
-			if(jdn < jiejdn) {
+			Map<String, Object> lichun = findLichun(jieqi, jdn);
+			if(lichun != null) {
+				prevflag = jdn < ConvertUtility.getValueAsDouble(lichun.get("jdn"));
+			}else if(m == Calendar.JANUARY) {
 				prevflag = true;
+			}else {
+				prevflag = jdn < (double) jieqi[2].get("jdn");
 			}
 		}
 		

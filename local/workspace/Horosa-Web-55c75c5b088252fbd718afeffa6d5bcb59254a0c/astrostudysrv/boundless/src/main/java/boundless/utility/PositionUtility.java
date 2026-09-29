@@ -186,6 +186,14 @@ public class PositionUtility {
     	return londeg + dir + lonmin;
     }
 
+    /**
+     * 「度 + 方位字母 + 分」串的数值部分:度 + 分 / 60(如 118e27 → 118.45°、87e36 → 87.6°、120e5 → 120°05′)。
+     * 与前端本地排盘、计算服务的解析同口径;此前误作「度 + 1 / 分」,真太阳时 / 平太阳时偏移最多差约 4 分钟。
+     */
+    static double parseDegreeMinute(String degStr, String minStr){
+    	return ConvertUtility.getValueAsDouble(degStr, 0) + ConvertUtility.getValueAsDouble(minStr, 0) / 60.0;
+    }
+
     public static double convertLatStrToDegree(String lat){
     	int positive = 1;
     	String latstr = lat.toLowerCase();
@@ -198,22 +206,7 @@ public class PositionUtility {
     		// 防御:无 n/s 分隔(畸形或十进制度数)→ 按十进制度解析,失败归 0,绝不越界崩盘
     		try { return Double.parseDouble(latstr.replaceAll("[^0-9.\\-]", "")); } catch(Exception ex){ return 0; }
     	}
-    	String min = parts[1];
-    	int minInt;
-    	if(parts[1].length() == 2){
-    		if(parts[1].substring(0, 1).equals("0")){
-    			min = min.substring(1);
-    		}
-    		minInt = ConvertUtility.getValueAsInt(min);
-    	}else{
-    		minInt = ConvertUtility.getValueAsInt(min) * 10;
-    	}
-
-    	double deg = ConvertUtility.getValueAsDouble(parts[0]);
-    	if(minInt != 0){
-    		deg = deg + (1.0 / minInt);
-    	}
-    	return deg * positive;
+    	return parseDegreeMinute(parts[0], parts[1]) * positive;
     }
 
     public static double convertLonStrToDegree(String lon){
@@ -229,22 +222,7 @@ public class PositionUtility {
     		try { return Double.parseDouble(lonstr.replaceAll("[^0-9.\\-]", "")); } catch(Exception ex){ return 0; }
     	}
 
-    	String minstr = parts[1];
-    	int min;
-    	if(parts[1].length() == 2){
-    		if(parts[1].substring(0, 1).equals("0")){
-    			minstr = minstr.substring(1);
-    		}
-    		min = ConvertUtility.getValueAsInt(minstr);
-    	}else{
-    		min = ConvertUtility.getValueAsInt(minstr) * 10;
-    	}
-
-    	double deg = ConvertUtility.getValueAsInt(parts[0]);
-    	if(min != 0){
-    		deg = deg + (1.0 / min);
-    	}
-    	return deg * positive;
+    	return parseDegreeMinute(parts[0], parts[1]) * positive;
     }
 
     

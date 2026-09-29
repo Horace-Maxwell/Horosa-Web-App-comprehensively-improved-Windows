@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/utils/perfFlags.js b/astrostudyui/src/utils/perfFlags.js
-index 30f8bd8e..8e10c732 100644
+index 1525f09b..a61ea149 100644
 --- a/astrostudyui/src/utils/perfFlags.js
 +++ b/astrostudyui/src/utils/perfFlags.js
-@@ -329,3 +329,66 @@ export function stepSelectPrefetchEnabled(){
+@@ -346,3 +346,66 @@ export function stepSelectPrefetchEnabled(){
  export function agentBatchSelectEnabled(){
  	return flagEnabled('horosa.perf.agentBatchSelect');
  }

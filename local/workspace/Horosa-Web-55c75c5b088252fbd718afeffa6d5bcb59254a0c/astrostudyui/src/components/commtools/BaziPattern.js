@@ -6,9 +6,6 @@ import { isNumber } from '../../utils/helper';
 import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorage';
 import {BaziMonthTime, SixtyJiaZi} from '../../constants/ZWConst';
 import RichEditor from '../RichEditor';
-// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
-// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
-// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 const { Option } = Select;
 
@@ -383,7 +380,7 @@ export default class BaziPattern extends Component{
             let type = item.type;
             if(type === 0){
                 let col = (
-                    <Col span={6} key={key}>
+                    <Col span={6} key={`s1-${idx}`}>
                         {key}：
                         <Select size='small' style={{width: '50%'}} value={this.state[key]}
                             onChange={(val)=>{this.changeAttribute(key, val);}}
@@ -399,7 +396,7 @@ export default class BaziPattern extends Component{
                 cols.push(col);
             }else if(type === 1){
                 let col = (
-                    <Col span={6} key={key}>
+                    <Col span={6} key={`s2-${idx}`}>
                         {key}：
                         <Select size='small' style={{width: '50%'}} value={this.state[key]}
                             onChange={(val)=>{this.changeAttribute(key, val);}}
@@ -433,7 +430,7 @@ export default class BaziPattern extends Component{
         let monthes = BaziMonthTime.month[gan];
         let opts = monthes.map((item, idx)=>{
             return (
-                <Option key={item} value={item}>{item}</Option>
+                <Option key={`s3-${idx}`} value={item}>{item}</Option>
             );
         })
         return opts;
@@ -448,7 +445,7 @@ export default class BaziPattern extends Component{
         let times = BaziMonthTime.time[gan];
         let opts = times.map((item, idx)=>{
             return (
-                <Option key={item} value={item}>{item}</Option>
+                <Option key={`s4-${idx}`} value={item}>{item}</Option>
             );
         })
         return opts;
@@ -465,12 +462,12 @@ export default class BaziPattern extends Component{
         let dom = this.genDom();
         let yopts = SixtyJiaZi.map((item, idx)=>{
             return (
-                <Option key={item} value={item}>{item}</Option>
+                <Option key={`s5-${idx}`} value={item}>{item}</Option>
             )
         });
         let dopts = SixtyJiaZi.map((item, idx)=>{
             return (
-                <Option key={item} value={item}>{item}</Option>
+                <Option key={`s6-${idx}`} value={item}>{item}</Option>
             )
         });
         let mopts = this.genMonthOptions();

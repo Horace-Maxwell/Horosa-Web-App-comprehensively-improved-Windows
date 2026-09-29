@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/relative/AspectInfo.js b/astrostudyui/src/components/relative/AspectInfo.js
-index e7394a3..f42ddef 100644
+index 28759aea..fbfd6bbb 100644
 --- a/astrostudyui/src/components/relative/AspectInfo.js
 +++ b/astrostudyui/src/components/relative/AspectInfo.js
 @@ -3,11 +3,13 @@ import { Row, Col, Divider, Popover, } from 'antd';
@@ -17,24 +17,6 @@ index e7394a3..f42ddef 100644
  
  let pars = new Set()
  let planets = new Set()
-@@ -66,7 +68,7 @@ class AspectInfo extends Component{
- 					this.props.showPlanetHouseInfo
- 				);
- 					let dom = (
--						<div key={randomStr(8)}>
-+						<div key={j}>
- 							<span style={{fontFamily: AstroConst.AstroFont}}>
- 								&emsp;{
- 									wrapWithMeaning(
-@@ -108,7 +110,7 @@ class AspectInfo extends Component{
- 			if(i % 2 === 0){
- 				if(i > 0){
- 					let dom = (
--						<div key={randomStr(8)}>
-+						<div key={`rowgroup-${i}`}>
- 							<Row>
- 								{cols}
- 							</Row>
 @@ -122,7 +124,7 @@ class AspectInfo extends Component{
  			cols.push(divs[i]);
  		}

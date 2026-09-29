@@ -124,7 +124,10 @@ describe('命盘储存→载入 全字段透传哨兵（保存/消费/还原 三
 
 	it('接线哨兵：fetchByChartData 走 applyRecordToFields + setF 新entry写，旧就地改型灭绝', ()=>{
 		const slice = sliceBetween(read('models/astro.js'), '*fetchByChartData', '*fetchByFields');
-		expect(slice).toContain('applyRecordToFields(state.fields, values)');
+		// 字段构造收成 buildFields(base) 闭包(温启恢复在响应回来后可用最新 fields 重建):仍必须经 applyRecordToFields
+		// 不可变还原,且首次构造以 state.fields 为底;setF 只用于 memo×8 的新 entry 写
+		expect(slice).toContain('applyRecordToFields(base, values)');
+		expect(slice).toContain('fields = buildFields(state.fields)');
 		expect(slice).toContain('const setF');
 		// 就地改共享 entry 的旧型（fields.X.value = ...）不许回潮：① prevProps 值比对失明 ② 失败脏写
 		expect(slice).not.toMatch(/fields\.\w+\.value\s*=/);

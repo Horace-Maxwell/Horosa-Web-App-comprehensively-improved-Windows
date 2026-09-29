@@ -2,8 +2,9 @@
 // 未设环境变量时什么都不做(断言与产物不变)。
 // 只给指纹 dump 用:推运类技法目标时刻缺省 = 此刻,不钉住的话两次拍指纹之间墙钟一走,角分乃至界主都会漂(不是行为变化)。
 // 源码里没有按 Date.now 忙等的循环(已核),冻结时钟不会挂死;jest 自己的超时走真实定时器,不受影响。
-export function installFixedNow(){
-	const iso = process.env.HOROSA_FIXED_NOW;
+// isoOverride(可选):调用方自带缺省时刻(只在本测试文件的 VM 上下文里钉 Date,不写 process.env —— 同一工作进程后续文件不受影响)。
+export function installFixedNow(isoOverride){
+	const iso = process.env.HOROSA_FIXED_NOW || isoOverride;
 	if(!iso){ return false; }
 	const fixed = new Date(iso).getTime();
 	if(!Number.isFinite(fixed)){ return false; }

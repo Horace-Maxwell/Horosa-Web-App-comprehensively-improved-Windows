@@ -192,6 +192,97 @@ const KENTANG_MODULES = {
 	electionscan:    { page: 'zeri', policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'na:征象搜索区间扫描型,无步进主轴' } },
 };
 
+// ── 子技法级(R5 T9:R3 之后新增 / 细分的技法都进矩阵;真源 = 各聚合页的子页签 / 模块 / rail / TabPane 登记表)──────
+// 行键 = 宿主页/子键(与死开关审计器 PAGES 的 page 标签同构);轴取值缺省**继承**某一页面级行(inherit),
+// 只在子技法的性质与宿主不同处显式覆盖(axes);后端由 kentang 模块承载的子技法用 module 回链 KENTANG_MODULES 行。
+// 哨兵(perfCoverage.test.js):真源 ↔ 本表 双向零缺零多、inherit 目标与 module 目标必须存在、覆盖值合法、零 todo。
+// 继承依据:择日十技法 / 数算 rail / 其他技法页签 = 内嵌各技法自身的盘与引擎(Z0–Z9 战役:择日八技法 = 内嵌技法盘),
+// 性能资产随内嵌组件一起继承;差异只在「输入面」(确认制起盘 / 随机冻结 / 上传驱动),逐行注明。
+const SUBTECHNIQUES = {
+	// 择日(ZERI_SUBTABS)
+	'zeri/tianxing':    { inherit: 'zeri' },
+	'zeri/qimenzeri':   { inherit: 'dunjia', axes: { stepPrefetch: 'na:择日内嵌奇门=确认制起盘(步进只改草稿零请求)', stepSelect: 'na:同左', dataPrewarm: 'na:确认制起盘,起盘一下由 kentangCache L1/L3 承接' } },
+	'zeri/huanglizeri': { inherit: 'calendar' },
+	'zeri/bazizeri':    { inherit: 'bazi' },
+	'zeri/taiyizeri':   { inherit: 'taiyi', axes: { stepPrefetch: 'na:择日内嵌太乙=确认制起盘(步进只改草稿零请求)', stepSelect: 'na:同左' } },
+	'zeri/ziweizeri':   { inherit: 'ziwei' },
+	'zeri/liurengzeri': { inherit: 'liureng', axes: { stepPrefetch: 'na:择日内嵌六壬=确认制起课(步进只改草稿零请求)', stepSelect: 'na:同左', dataPrewarm: 'na:确认制起课' } },
+	'zeri/sanshizeri':  { inherit: 'sanshiunited' },
+	'zeri/qizhengzeri': { inherit: 'guolao' },
+	'zeri/indiazeri':   { inherit: 'indiachart' },
+	// 卜·其他(CNYIBU_SUBTABS)
+	'cnyibu/suzhan':     { inherit: 'cnyibu', axes: { netCache: 'existing', localMemo: 'na:网络型(宿占走 /chart 家族)' } },
+	'cnyibu/jinkou':     { inherit: 'cnyibu', module: 'jinkou' },
+	'cnyibu/tongshefa':  { inherit: 'cnyibu', axes: { netCache: 'na:纯本地统摄法引擎', stepPrefetch: 'na:无时间步进主轴', stepSelect: 'na:同左', drawGuard: 'na:声明式 React' } },
+	'cnyibu/huangji':    { inherit: 'cnyibu', module: 'wangji' },
+	'cnyibu/wuzhao':     { inherit: 'cnyibu', module: 'wuzhao' },
+	'cnyibu/taixuan':    { inherit: 'cnyibu', module: 'taixuan', axes: { stepPrefetch: 'na:蓍法种子在体,预取恐钉死起课,禁', stepSelect: 'na:同左' } },
+	'cnyibu/jingjue':    { inherit: 'cnyibu', module: 'jingjue', axes: { stepPrefetch: 'na:揲蓍种子在体,可缓存不可预取', stepSelect: 'na:同左' } },
+	'cnyibu/shenyishu':  { inherit: 'cnyibu', module: 'shenyishu' },
+	'cnyibu/geomancy':   { inherit: 'cnyibu', module: 'geomancy', axes: { stepPrefetch: 'na:随机成卦冻结,绝不预取', stepSelect: 'na:同左' } },
+	'cnyibu/guice':      { inherit: 'guazhan', axes: { localMemo: 'existing', scu: 'done' } },
+	'cnyibu/xiaoliuren': { inherit: 'guazhan', axes: { stepPrefetch: 'na:时间起课本地即时', stepSelect: 'na:同左' } },
+	'cnyibu/xiaochengtu': { inherit: 'guazhan' },
+	'cnyibu/feigong':    { inherit: 'guazhan', axes: { stepPrefetch: 'na:定局本地即时', stepSelect: 'na:同左' } },
+	'cnyibu/lingqi':     { inherit: 'guazhan', axes: { stepPrefetch: 'na:掷棋随机冻结,绝不预取', stepSelect: 'na:同左' } },
+	// 辅盘(AUX_SUBTABS)
+	'auxchart/germanytech': { inherit: 'auxchart', axes: { drawGuard: 'existing(90° 中点盘 canvas 签名守卫)' } },
+	'auxchart/hellenastro': { inherit: 'auxchart' },
+	'auxchart/dwadasamsa':  { inherit: 'auxchart' },
+	'auxchart/locastro':    { inherit: 'auxchart', axes: { drawGuard: 'existing(地图图层自管增量)', stepPrefetch: 'na:地图型无时间步进主轴', stepSelect: 'na:同左' } },
+	'auxchart/relocation':  { inherit: 'auxchart' },
+	'auxchart/harmonic':    { inherit: 'auxchart', axes: { stepPrefetch: 'na:调波盘=确认制「计算调波盘」', stepSelect: 'na:同左' } },
+	'auxchart/draconic':    { inherit: 'auxchart' },
+	'auxchart/otherbu':     { inherit: 'auxchart', axes: { netCache: 'na:骰子随机起卦冻结', stepPrefetch: 'na:随机冻结,绝不预取', stepSelect: 'na:同左', dataPrewarm: 'na:随机冻结' } },
+	'auxchart/horary':      { inherit: 'auxchart', axes: { stepPrefetch: 'na:卜卦盘=确认制「重算星盘」', stepSelect: 'na:同左' } },
+	'auxchart/election':    { inherit: 'auxchart', module: 'qizhengelection', axes: { stepPrefetch: 'na:择日区间扫描型,无步进主轴', stepSelect: 'na:同左' } },
+	'auxchart/mundane':     { inherit: 'auxchart' },
+	'auxchart/babylon':     { inherit: 'auxchart' },
+	// 命·传统(CNTRADITION_SUBTABS)
+	'cntradition/guasym':     { inherit: 'cntradition' },
+	'cntradition/cuangong12': { inherit: 'cntradition' },
+	'cntradition/pithy':      { inherit: 'cntradition' },
+	// 其他技法(MING_OTHER_TECHNIQUE_TABS)
+	'mingother/cetian':      { inherit: 'mingother', module: 'cetian' },
+	'mingother/xianqin':     { inherit: 'mingother', module: 'xianqin' },
+	'mingother/yizhangjing': { inherit: 'mingother', axes: { netCache: 'na:纯本地一掌经引擎', stepPrefetch: 'na:本地即时', stepSelect: 'na:本地即时', localMemo: 'existing' } },
+	// 数算 rail(KinAstroMain.renderTechniqueRail shusuan)
+	'shusuan/shaozi':     { inherit: 'shusuan', module: 'shaozi' },
+	'shusuan/tieban':     { inherit: 'shusuan', module: 'tieban' },
+	'shusuan/fendjing':   { inherit: 'shusuan', module: 'fendjing' },
+	'shusuan/beiji':      { inherit: 'shusuan', module: 'beiji' },
+	'shusuan/nanji':      { inherit: 'shusuan', module: 'nanji' },
+	'shusuan/chunzi':     { inherit: 'shusuan', module: 'chunzi' },
+	'shusuan/canping':    { inherit: 'shusuan', module: 'shaozi' },
+	'shusuan/heluo':      { inherit: 'shusuan', axes: { netCache: 'na:纯本地河洛理数引擎', stepPrefetch: 'na:本地即时', stepSelect: 'na:本地即时', localMemo: 'existing' } },
+	'shusuan/zhengchuan': { inherit: 'shusuan', axes: { netCache: 'na:古籍条文(静态)', stepPrefetch: 'na:参考文本', stepSelect: 'na:参考文本', localMemo: 'na:静态' } },
+	// 玄学史左栏子页(xuanshiState.XUANSHI_SUBPAGES;零动红线,全部继承)
+	'xuanshi/overview': { inherit: 'xuanshi' }, 'xuanshi/events': { inherit: 'xuanshi' }, 'xuanshi/celestial': { inherit: 'xuanshi' },
+	'xuanshi/micro': { inherit: 'xuanshi' }, 'xuanshi/figures': { inherit: 'xuanshi' }, 'xuanshi/map': { inherit: 'xuanshi' },
+	'xuanshi/persons': { inherit: 'xuanshi' }, 'xuanshi/stories': { inherit: 'xuanshi' }, 'xuanshi/timeline': { inherit: 'xuanshi' },
+	'xuanshi/encyclopedia': { inherit: 'xuanshi' }, 'xuanshi/search': { inherit: 'xuanshi' }, 'xuanshi/desk': { inherit: 'xuanshi' },
+	// 黄历页签(CalendarMain TabPane)
+	'calendar/nongli': { inherit: 'calendar' }, 'calendar/huangli': { inherit: 'calendar' }, 'calendar/tongshu': { inherit: 'calendar' }, 'calendar/rizi': { inherit: 'calendar' },
+};
+
+/** 子技法行(解析继承后的九轴;origin 记每轴来源:inherit:<页> / override)。 */
+export function getPerfCoverageSubtechniques(){
+	const out = {};
+	Object.keys(SUBTECHNIQUES).forEach((id)=>{
+		const row = SUBTECHNIQUES[id];
+		const base = PAGES[row.inherit] || null;
+		const axes = {};
+		const origin = {};
+		PERF_AXES.forEach((ax)=>{
+			if(row.axes && Object.prototype.hasOwnProperty.call(row.axes, ax)){ axes[ax] = row.axes[ax]; origin[ax] = 'override'; }
+			else if(base){ axes[ax] = base.axes[ax]; origin[ax] = `inherit:${row.inherit}`; }
+			else { axes[ax] = 'todo'; origin[ax] = 'missing-inherit'; }
+		});
+		out[id] = { inherit: row.inherit, module: row.module || null, axes, origin };
+	});
+	return out;
+}
+
 export function getPerfCoveragePages(){
 	return PAGES;
 }
@@ -207,6 +298,9 @@ export function countPerfTodos(){
 		Object.values(row.axes).forEach((v)=>{ if(String(v).startsWith('todo')){ n += 1; } });
 	});
 	Object.values(KENTANG_MODULES).forEach((row)=>{
+		Object.values(row.axes).forEach((v)=>{ if(String(v).startsWith('todo')){ n += 1; } });
+	});
+	Object.values(getPerfCoverageSubtechniques()).forEach((row)=>{
 		Object.values(row.axes).forEach((v)=>{ if(String(v).startsWith('todo')){ n += 1; } });
 	});
 	return n;

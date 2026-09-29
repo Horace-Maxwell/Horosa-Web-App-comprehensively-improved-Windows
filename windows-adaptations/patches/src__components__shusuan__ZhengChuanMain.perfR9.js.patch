@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/shusuan/ZhengChuanMain.js b/astrostudyui/src/components/shusuan/ZhengChuanMain.js
-index 964f743b..b5e29167 100644
+index 68bc1685..e2f0b976 100644
 --- a/astrostudyui/src/components/shusuan/ZhengChuanMain.js
 +++ b/astrostudyui/src/components/shusuan/ZhengChuanMain.js
 @@ -21,6 +21,7 @@ import { calcXinyi, bakeTable, xiangTable, xingqingTable, XINYI_GONG } from '../
@@ -26,7 +26,7 @@ index 964f743b..b5e29167 100644
  	componentDidMount() {
  		this.loadVerses();
  		this.saveSnap();
-@@ -324,7 +327,15 @@ class ZhengChuanMain extends Component {
+@@ -344,7 +347,15 @@ class ZhengChuanMain extends Component {
  				size="small"
  				className="horosa-huangji-tabs horosa-zhengchuan-tabs"
  			>

@@ -23,7 +23,6 @@ class GuaDesc extends Component{
 		}
 
 		let res = [];
-		// res 为固定次序的九段(标题/卦辞/爻辞/彖/象),每段各出现一次,故字面量键即稳定且互不重复。
 		let title = (
 			<Title level={3} key="title"><a href={gua.url} target='_blank'>第{gua.ord}卦，{gua.name}卦，{gua.desc}</a></Title>
 		);
@@ -37,7 +36,7 @@ class GuaDesc extends Component{
 		let yaotitle = (<Title level={4} key="yaoTitle">爻辞</Title>);
 		let yao = gua['爻辞'].map((item, idx)=>{
 			let dom = (
-				<li key={idx}>
+				<li key={`s5-${idx}`}>
 					<Text strong mark>{item}</Text>
 					<div>象曰：{gua['爻象'][idx]}</div>
 				</li>

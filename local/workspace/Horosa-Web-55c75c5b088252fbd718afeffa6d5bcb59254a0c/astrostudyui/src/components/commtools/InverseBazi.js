@@ -10,9 +10,6 @@ import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorag
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // [Q-317/T-304] 全局日界 / 晚子时
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';                              // [Q-317] 候选回代校验(与八字页同引擎)
 import { getStore } from '../../utils/storageutil';                                              // [Q-317] 当前盘时区/经纬
-// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
-// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
-// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 const { Option } = Select;
 
@@ -254,7 +251,7 @@ export default class InverseBazi extends Component{
             const c = checks[idx];
             const mark = c ? (c.ok ? (c.adjusted ? `　✓（夜子时按当前口径归 ${c.text.split(' ')[1]}，原 ${c.from}）` : '　✓') : '　✗ 按当前日界 / 晚子时口径不成立') : '';
             return (
-                <Col span={24} key={idx}>
+                <Col span={24} key={`s1-${idx}`}>
                     <span style={c && !c.ok ? { color: 'var(--horosa-muted)', textDecoration: 'line-through' } : undefined}>{item}</span><span style={{ fontSize: 12, color: c && c.ok ? 'var(--horosa-accent-strong)' : 'var(--horosa-danger)' }}>{mark}</span>
                 </Col>
             )
@@ -287,7 +284,7 @@ export default class InverseBazi extends Component{
         let monthes = BaziMonthTime.month[gan];
         let opts = monthes.map((item, idx)=>{
             return (
-                <Option key={item} value={item}>{item}</Option>
+                <Option key={`s2-${idx}`} value={item}>{item}</Option>
             );
         })
         return opts;
@@ -302,7 +299,7 @@ export default class InverseBazi extends Component{
         let times = BaziMonthTime.time[gan];
         let opts = times.map((item, idx)=>{
             return (
-                <Option key={item} value={item}>{item}</Option>
+                <Option key={`s3-${idx}`} value={item}>{item}</Option>
             );
         })
         return opts;
@@ -319,12 +316,12 @@ export default class InverseBazi extends Component{
         let dom = this.genDom();
         let yopts = SixtyJiaZi.map((item, idx)=>{
             return (
-                <Option key={item} value={item}>{item}</Option>
+                <Option key={`s4-${idx}`} value={item}>{item}</Option>
             )
         });
         let dopts = SixtyJiaZi.map((item, idx)=>{
             return (
-                <Option key={item} value={item}>{item}</Option>
+                <Option key={`s5-${idx}`} value={item}>{item}</Option>
             )
         });
         let mopts = this.genMonthOptions();

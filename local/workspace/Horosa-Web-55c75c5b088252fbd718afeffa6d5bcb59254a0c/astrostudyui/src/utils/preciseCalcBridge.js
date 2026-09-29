@@ -359,13 +359,31 @@ function hasSeedTerms(seed, terms){
 	return true;
 }
 
+// [#54] 联机路径也要有「正月初一口径年干支」:后端 /nongli/time 不产 yearGZByLunar,六爻「定年界线=正月初一」在联机时
+// 恒回落立春(死开关),只有离线回落才生效。缺键时按同一份本地历法补上(与离线回落同源、同口径),其余字段一字不动;
+// 本地历法域外(极端年份)补不出就保持原样。已带该键的结果(离线回落 / 新后端)不碰。
+function ensureYearGZByLunar(result, reqParams){
+	if(!result || typeof result !== 'object' || result.yearGZByLunar){
+		return result;
+	}
+	try{
+		const local = buildLocalNongliFallback(reqParams);
+		if(local && local.yearGZByLunar){
+			return { ...result, yearGZByLunar: local.yearGZByLunar };
+		}
+	}catch(e){
+		// 本地历法失败 → 不补,行为与此前一致
+	}
+	return result;
+}
+
 export async function fetchPreciseNongli(params){
 	const reqParams = normalizeNongliParams(params);
 	const key = buildKey(reqParams, NONG_LI_KEYS);
 	if(key && nongliMem.has(key)){
 		return nongliMem.get(key);
 	}
-	const localHit = getNongliLocalCache(reqParams);
+	const localHit = ensureYearGZByLunar(getNongliLocalCache(reqParams), reqParams);
 	if(localHit){
 		if(key){
 			pushCache(nongliMem, key, localHit);
@@ -382,7 +400,7 @@ export async function fetchPreciseNongli(params){
 				silent: true,
 				timeoutMs: PRECISE_REQ_TIMEOUT_MS,
 			});
-			const result = rsp && rsp[ResultKey] ? rsp[ResultKey] : null;
+			const result = ensureYearGZByLunar(rsp && rsp[ResultKey] ? rsp[ResultKey] : null, reqParams);
 			if(result){
 				pushCache(nongliMem, key, result);
 				setNongliLocalCache(reqParams, result);

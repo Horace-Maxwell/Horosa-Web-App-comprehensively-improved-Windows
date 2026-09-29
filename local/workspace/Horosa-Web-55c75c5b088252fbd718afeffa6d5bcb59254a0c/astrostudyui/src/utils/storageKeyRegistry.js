@@ -54,6 +54,7 @@ export const STORAGE_KEY_REGISTRY = [
 	{ key: 'ziweiSihuaCustom', kind: 'user-data', backup: true, label: '紫微自定义四化表(主存;IDB 另有镜像自愈)' },
 	// [Q-309/T-314] 纠正:CalculatorFormula 实为后端「公式帮助表」7 天缓存(Calculator.js 拉取 result.formula 落盘,配额清理白名单),非用户公式。
 	{ key: 'CalculatorFormula', kind: 'cache', backup: false, label: '计算器公式帮助表缓存(后端拉取,7 天;非用户数据)' },
+	{ key: 'horosa.boot.lastChart.v1', kind: 'cache', backup: false, label: '温启恢复上次的盘快照(载入命盘 record 口径 + 页签;7 天窗;丢了只是启动回空白默认态)' },
 	// [Q-309/T-314] 工具箱三组历史键(常量标识符 / 模板串写入,穷举哨兵抓不到 → 此前未登记,备份靠兜底、存储健康报未登记):
 	{ key: 'baziInverse', kind: 'settings', backup: true, label: '八字反查表单态(工具箱;最近一次查询条件)' },
 	{ key: 'baziPattern', kind: 'settings', backup: true, label: '八字格局表单态(工具箱;最近一次查询条件)' },
@@ -182,10 +183,6 @@ export const STORAGE_KEY_REGISTRY = [
 	{ key: 'horosa.map.consent.v1', kind: 'device-local', backup: false, label: '地图加载同意(设备+当下决定,不迁移)' },
 	{ key: 'horosa.shell.zoom', kind: 'device-local', backup: false, label: '壳层缩放(屏幕相关)' },
 	{ key: 'horosa.window.size.v1', kind: 'device-local', backup: false, label: '窗口尺寸(屏幕相关)' },
-	// horosa_windows_storage_keys_v1(Windows-ahead):壳侧温启现场恢复键(utils/bootChartRestore.js,
-	// PERF-R10 boot_chart_restore)。设备会话态:存的是「上次退出时的主盘现场」,跨机带走反而错
-	// (新机首启会恢复别机的盘);丢失零资产损失(下次启动少一次自动恢复而已)。
-	{ key: 'horosa.boot.lastChart.v1', kind: 'device-local', backup: false, label: '温启现场恢复:最近主盘现场快照(设备会话态)' },
 	{ key: 'horosa.report.debugLog', kind: 'device-local', backup: false, label: '报告调试日志开关' },
 	{ key: 'horosa.test.third.v1', kind: 'device-local', backup: false, label: 'safeStorage 自检探针键' },
 	{ key: 'ziweiLateZiMigrated', kind: 'device-local', backup: false, label: '紫微晚子时迁移标志(带走会骗新机跳过迁移)' },

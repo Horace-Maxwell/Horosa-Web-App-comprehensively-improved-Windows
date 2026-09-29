@@ -1,4 +1,7 @@
+import contextlib
 import math
+import os
+import threading
 import traceback
 
 import swisseph
@@ -202,19 +205,59 @@ def center_flag(center):
     return CENTER_FLAGS.get(str(center or 'geo').lower(), 0)
 
 
+# 请求内黄经 memo:同一请求里同 (天体, jd, 中心, 站心坐标) 只算一次(星历表等端点实测同请求重复 32–50%)。
+# 结果只取决于这四项(标志只含地心 / 日心 / 站心,不含恒星黄道;星历路径与 JPL 文件进程内恒定)→ 与每次现算逐字节相同。
+# 范围 = 一次请求:由 webchartsrv 的请求工具按服务前缀开启、请求结束清空;进程内直调默认不开。
+# 开关:HOROSA_SWE_LON_MEMO=0 → 不 memo(旧行为)。
+_SWE_LON_MEMO_ON = os.environ.get('HOROSA_SWE_LON_MEMO', '1').lower() not in ('0', 'false', 'no', 'off')
+_SWE_LON_TL = threading.local()
+
+
+def swe_lon_memo_begin():
+    _SWE_LON_TL.memo = {} if _SWE_LON_MEMO_ON else None
+
+
+def swe_lon_memo_end():
+    _SWE_LON_TL.memo = None
+
+
+@contextlib.contextmanager
+def swe_lon_memo():
+    """在 with 块内开启请求级黄经 memo(已开启则沿用外层)。"""
+    outer = getattr(_SWE_LON_TL, 'memo', None)
+    if outer is None:
+        swe_lon_memo_begin()
+    try:
+        yield
+    finally:
+        if outer is None:
+            swe_lon_memo_end()
+
+
 def swe_lon(body, jd, center='geo', lat=0.0, lon=0.0, alt=0.0):
     c = str(center or 'geo').lower()
+    topo = None
+    memo = getattr(_SWE_LON_TL, 'memo', None)
     if c == 'topo':
         # 站心必须先置观测点:否则 swisseph 冷启抛「geographic position has not been set」,
         # 或复用上一次全局 set_topo 的位置(跨请求泄漏 → 非确定性、不可 golden)。
         # 每次显式置点(无坐标→(0,0,0) 确定性兜底):永不抛、永不泄漏、同输入同输出。
         try:
-            swisseph.set_topo(float(lon or 0.0), float(lat or 0.0), float(alt or 0.0))
+            topo = (float(lon or 0.0), float(lat or 0.0), float(alt or 0.0))
+            swisseph.set_topo(topo[0], topo[1], topo[2])
         except Exception:
-            pass
+            memo = None   # 置点失败时结果取决于先前的全局站心位置 → 这一次不进 memo
+    if memo is not None:
+        key = (body, jd, c, topo)
+        hit = memo.get(key)
+        if hit is not None:
+            return hit
     xx, _ = swisseph.calc_ut(jd, PLANET_SWISS_IDS[body],
                              swisseph.FLG_SWIEPH | swisseph.FLG_SPEED | center_flag(c))
-    return norm360(xx[0]), xx[3], xx
+    res = (norm360(xx[0]), xx[3], xx)
+    if memo is not None:
+        memo[key] = res
+    return res
 
 
 def sign_index(lon):

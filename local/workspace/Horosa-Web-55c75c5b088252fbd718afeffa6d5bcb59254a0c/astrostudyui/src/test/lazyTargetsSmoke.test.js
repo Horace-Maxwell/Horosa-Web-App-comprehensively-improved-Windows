@@ -21,7 +21,7 @@ while ((m = re.exec(indexSource))) {
 	targets.push(m[1]);
 }
 
-describe('全技法 lazy 目标可载入(marker 投影悬空第三道锁)', () => {
+describe('全技法 lazy 目标可载入(模块顶层零悬空引用)', () => {
 	it('解析到的 lazy 目标数量应覆盖全技法(>=20)', () => {
 		expect(targets.length).toBeGreaterThanOrEqual(20);
 	});

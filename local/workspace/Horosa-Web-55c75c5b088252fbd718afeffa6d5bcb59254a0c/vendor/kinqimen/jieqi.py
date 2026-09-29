@@ -34,7 +34,7 @@ def _get_hour_gan_next(explicit=None):
     return getattr(_TLS, 'hour_gan_next', 1)
 
 
-# horosa_qimen_req_memo_v1(PERF-R10 B1)—— 请求级纯函数 memo(Tier-2)。
+# horosa_qimen_req_memo_v1 —— 请求级纯函数 memo。
 # 剩余热点是同参跨函数重复:gangzhi 在 pan/gpan/ypan/qimen_ju_day/gong_chengsun… 一次
 # /qimen/pan 里被同参调用十余次(每次 sxtwl+ephem 重算),zhifu_n_zhishi 15 次,
 # dingju_jieqi/zhirun_jieqi 链每次重走 _anchor_solstice 游标。这些函数对
@@ -45,7 +45,7 @@ def _get_hour_gan_next(explicit=None):
 #     每空闲线程一份单请求 memo)。
 #   · 键不可哈希(如 sxtwl Day 对象)→ 直通原函数(fail-open,memo 是优化不是功能)。
 #   · list/dict 出参发浅拷贝 —— 与「每次重算返回新容器」的契约一致(元素为字符串/
-#     标量,R9 Tier-2 已逐调用点审计零深层变异)。
+#     标量,各调用点已逐一核对零深层变异)。
 #   · kill-switch:HOROSA_QIMEN_REQ_MEMO=0 ⇒ begin 不建容器 ⇒ 全体直通,逐字节旧行为。
 import os as _os
 _REQ_MEMO_ON = _os.environ.get('HOROSA_QIMEN_REQ_MEMO', '1').lower() not in ('0', 'false', 'no', 'off')
@@ -97,10 +97,10 @@ tian_gan = '甲乙丙丁戊己庚辛壬癸'
 di_zhi = '子丑寅卯辰巳午未申酉戌亥'
 
 #%% 甲子平支
-# horosa_qimen_jiazi_const_v1(PERF-R9):六十甲子是编译期常量,原实现却在**每次调用**重建整张表。
+# horosa_qimen_jiazi_const_v1:六十甲子是编译期常量,原实现却在**每次调用**重建整张表。
 # cProfile 实测:单个 /qimen/pan 请求调用 4,712 次 → 282,720 次 lambda + 286,319 次 str.format,
 # 占整个请求 profile 时间的 46%。
-# 安全性:20 个调用点已逐一审计(config.py 14 处 / jieqi.py 3 处 / kinqimen.py 5 处),
+# 安全性:20 个调用点已逐一核对(config.py 14 处 / jieqi.py 3 处 / kinqimen.py 5 处),
 # 全部只读 —— 切片、new_list 的 `olist[a:]+olist[:a]`、dict(zip(...))、split_list、repeat_list,
 # 无一处就地变异,故共享同一份常量与每次重建逐字节等价。
 # 回滚:把 return 改成 `list(_JIAZI_CONST)`(保留「每次新列表」的契约,仍省掉 format/lambda)。
@@ -574,7 +574,7 @@ def gangzhi(year, month, day, hour, minute, after23_new_day=None, hour_gan_use_n
 # horosa_qimen_req_memo_v1 —— 模块尾统一重绑定(单插入点,免逐 def 装饰)。
 # config.py 的按名 import 发生在本模块执行完之后 ⇒ 拿到的就是包装体;kinqimen.py 走
 # `import config` 的属性查找同理;模块内互调经 globals 在调用时解析 ⇒ 同样命中包装体。
-# 名单 = R9 Tier-2 审计清单。★刻意剔除 _last_shangyuan_before:实参是 sxtwl Day 对象
+# 名单 = 逐函数核对清单。★刻意剔除 _last_shangyuan_before:实参是 sxtwl Day 对象
 # (身份哈希,键永不复现 = 零命中纯开销),其收益由外层 _anchor_solstice(标量键)承接。
 get_jieqi_start_date = _req_memo(get_jieqi_start_date)
 get_current_jieqi_start_date = _req_memo(get_current_jieqi_start_date)

@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/astro/AstroDecennials.js b/astrostudyui/src/components/astro/AstroDecennials.js
-index 4a06e996..a5363890 100644
+index 976ccc62..dab475ab 100644
 --- a/astrostudyui/src/components/astro/AstroDecennials.js
 +++ b/astrostudyui/src/components/astro/AstroDecennials.js
-@@ -30,6 +30,7 @@ import styles from '../../css/styles.less';
+@@ -31,6 +31,7 @@ import styles from '../../css/styles.less';
  import { XQSelect as Select } from '../xq-ui';
  import { natalClassicalParams } from './AstroExtraCommon';
  import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
@@ -10,7 +10,7 @@ index 4a06e996..a5363890 100644
  
  const { Option } = Select;
  const { TreeNode } = Tree;
-@@ -399,6 +400,8 @@ class AstroDecennials extends Component{
+@@ -400,6 +401,8 @@ class AstroDecennials extends Component{
  
  	componentDidUpdate(prevProps, prevState){
  		if(prevProps.value !== this.props.value){

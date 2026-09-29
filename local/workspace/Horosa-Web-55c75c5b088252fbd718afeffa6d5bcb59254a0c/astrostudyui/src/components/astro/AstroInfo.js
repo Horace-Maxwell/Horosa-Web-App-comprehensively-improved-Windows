@@ -243,7 +243,7 @@ class AstroInfo extends Component{
 			let objs = item.map((obj, oidx)=>{
 				let decl = chart.planets[obj].decl;
 				let span = (
-					<span style={{fontFamily: AstroConst.AstroFont}} key={obj}>
+					<span style={{fontFamily: AstroConst.AstroFont}} key={`s1-${oidx}`}>
 						<Popover content={'赤纬：' + Math.round(decl * 1000)/1000 + '度' }>
 						{this.planetLabel(obj, chart)}&emsp;
 						</Popover>
@@ -252,7 +252,7 @@ class AstroInfo extends Component{
 				return span;
 			});
 			let row = (
-				<Row gutter={6} key={idx}>
+				<Row gutter={6} key={`s2-${idx}`}>
 					<Col span={8}>平行星体{idx+1}</Col>
 					<Col span={16}>
 						{objs}
@@ -268,7 +268,7 @@ class AstroInfo extends Component{
 			let objs = planet.map((obj, idx)=>{
 				let decl = chart.planets[obj].decl;
 				let span = (
-					<span style={{fontFamily: AstroConst.AstroFont}} key={obj}>
+					<span style={{fontFamily: AstroConst.AstroFont}} key={`s3-${idx}`}>
 						<Popover content={'赤纬：' + Math.round(decl * 1000)/1000 + '度' } >
 						{this.planetLabel(obj, chart)}&emsp;
 						</Popover>
@@ -281,7 +281,7 @@ class AstroInfo extends Component{
 			}
 			let decl = chart.planets[id].decl;
 			let row = (
-				<Row gutter={6} key={id}>
+				<Row gutter={6} key={`s4-${id}`}>
 					<Col span={8}>
 						相对
 						<span style={{fontFamily: AstroConst.AstroFont}}>
@@ -568,9 +568,8 @@ class AstroInfo extends Component{
 				continue;
 			}
 			if(this.canDisplayPlanet(MinDelta[0].id) && this.canDisplayPlanet(MinDelta[1].id)){
-				// 被围星 key 在 attacks 内唯一,四类围攻块每星最多各出现一次 → 「星-类别」组合即稳定唯一键。
 				let dom = (
-					<div key={`${key}-minDelta`} style={{fontFamily: AstroConst.AstroFont}}>
+					<div key={`s5-${key}`} style={{fontFamily: AstroConst.AstroFont}}>
 						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
 						<span>
 							{this.planetLabel(MinDelta[0].id, this.props.value)}&nbsp;
@@ -595,7 +594,7 @@ class AstroInfo extends Component{
 
 			if(MarsSaturn.length > 0 && this.canDisplayPlanet(MarsSaturn[0].id) && this.canDisplayPlanet(MarsSaturn[1].id)){
 				let dom = (
-					<div key={`${key}-marsSaturn`} style={{fontFamily: AstroConst.AstroFont}}>
+					<div key={`s6-${key}`} style={{fontFamily: AstroConst.AstroFont}}>
 						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
 						<span>
 							{this.planetLabel(MarsSaturn[0].id, this.props.value)}&nbsp;
@@ -619,7 +618,7 @@ class AstroInfo extends Component{
 			}
 			if(SunMoon.length > 0 && this.canDisplayPlanet(SunMoon[0].id) && this.canDisplayPlanet(SunMoon[1].id)){
 				let dom = (
-					<div key={`${key}-sunMoon`} style={{fontFamily: AstroConst.AstroFont}}>
+					<div key={`s7-${key}`} style={{fontFamily: AstroConst.AstroFont}}>
 						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
 						<span>
 							{this.planetLabel(SunMoon[0].id, this.props.value)}&nbsp;
@@ -643,7 +642,7 @@ class AstroInfo extends Component{
 			}
 			if(VenusJupiter.length > 0 && this.canDisplayPlanet(VenusJupiter[0].id) && this.canDisplayPlanet(VenusJupiter[1].id)){
 				let dom = (
-					<div key={`${key}-venusJupiter`} style={{fontFamily: AstroConst.AstroFont}}>
+					<div key={`s8-${key}`} style={{fontFamily: AstroConst.AstroFont}}>
 						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
 						<span>
 							{this.planetLabel(VenusJupiter[0].id, this.props.value)}&nbsp;
@@ -688,7 +687,7 @@ class AstroInfo extends Component{
 				continue;
 			}
 			let dom = (
-				<div key={key} style={{fontFamily: AstroConst.AstroFont}}>
+				<div key={`s9-${key}`} style={{fontFamily: AstroConst.AstroFont}}>
 					<span>{this.planetLabel(obj[0].id, this.props.value)}</span>&nbsp;与&nbsp;
 					<span>{this.planetLabel(obj[1].id, this.props.value)}</span>&nbsp;夹&nbsp;
 					<span>{this.planetLabel(key, this.props.value)}</span>
@@ -715,7 +714,7 @@ class AstroInfo extends Component{
 			}
 			if(key === 'BySunMoon' && this.canDisplayPlanet(obj.id)){
 				let dom = (
-					<div key={key} style={{fontFamily: AstroConst.AstroFont}}>
+					<div key={`s10-${key}`} style={{fontFamily: AstroConst.AstroFont}}>
 						<span>{this.planetLabel(AstroConst.SUN, this.props.value)}</span>&nbsp;与&nbsp;
 						<span>{this.planetLabel(AstroConst.MOON, this.props.value)}</span>&nbsp;夹&nbsp;
 						<span>{this.planetLabel(obj.id, this.props.value)}</span>
@@ -729,7 +728,7 @@ class AstroInfo extends Component{
 				let dom = null;
 				if(obj.SunMoon){
 					dom = (
-						<div key={key} style={{fontFamily: AstroConst.AstroFont}}>
+						<div key={`s11-${key}`} style={{fontFamily: AstroConst.AstroFont}}>
 							<span>{this.planetLabel(obj.SunMoon[0].id, this.props.value)}</span>&nbsp;与&nbsp;
 							<span>{this.planetLabel(obj.SunMoon[1].id, this.props.value)}</span>&nbsp;夹&nbsp;
 							<span>{this.planetLabel(key, this.props.value)}</span>
@@ -739,7 +738,7 @@ class AstroInfo extends Component{
 				}
 				if(dom === null && this.canDisplayPlanet(obj[0].id) && this.canDisplayPlanet(obj[1].id)){
 					dom = (
-						<div key={key} style={{fontFamily: AstroConst.AstroFont}}>
+						<div key={`s12-${key}`} style={{fontFamily: AstroConst.AstroFont}}>
 							<span>{this.planetLabel(obj[0].id, this.props.value)}</span>&nbsp;与&nbsp;
 							<span>{this.planetLabel(obj[1].id, this.props.value)}</span>&nbsp;夹&nbsp;
 							<span>{this.planetLabel(key, this.props.value)}</span>
@@ -781,7 +780,7 @@ class AstroInfo extends Component{
 			if(span < 90){
 				if(!this.canDisplayPlanet(left.id) || !this.canDisplayPlanet(right.id) || !this.canDisplayPlanet(mid.id)){ continue; }   // 仅渲染层隐藏,不改几何
 				rows.push(
-					<div key={mid.id} className="horosa-classical-line">
+					<div key={`s13-${i}`} className="horosa-classical-line">
 						{this.planetLabel(left.id, this.props.value)}&nbsp;与&nbsp;{this.planetLabel(right.id, this.props.value)}&nbsp;围绕&nbsp;{this.planetLabel(mid.id, this.props.value)}
 						<span style={{color: 'var(--horosa-muted, #999)', marginLeft: 6}}>（跨 {span.toFixed(1)}°）</span>
 					</div>

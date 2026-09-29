@@ -13,6 +13,7 @@ import boundless.utility.ConvertUtility;
 import boundless.utility.StringUtility;
 import spacex.astrostudy.constants.PhaseType;
 import spacex.astrostudy.helper.ParamHashCacheHelper;
+import spacex.astrostudy.helper.NongliHelper;
 import spacex.astrostudy.model.FourColumns;
 import spacex.astrostudy.model.godrule.GodRule;
 import spacex.astrostudycn.constants.TimeZiAlg;
@@ -44,6 +45,7 @@ public class LiuRengController {
 		Boolean isDiurnal = (Boolean) params.get("isDiurnal");
 		int ad = ConvertUtility.getValueAsInt(params.get("ad"), 1);
 
+		params.put("_calRev", NongliHelper.CALENDAR_CACHE_REV);   // 历法口径代次:只进缓存键,不参与计算
 		Object obj = ParamHashCacheHelper.get("/liureng/gods", params, (args)->{
 			LiuReng bz = new LiuReng(ad, dtstr, zone, lon, lat, timealg, zodiacalLon, godKeyPos, after23NewDay, lateZiHourUseNextDay);
 			if(!StringUtility.isNullOrEmpty(yue) && isDiurnal != null) {
@@ -93,7 +95,7 @@ public class LiuRengController {
 		// → 全局或合一选「直接时间」时,同一时刻两页六壬时柱可分属两个时辰,月将加时与天地盘整体不同。
 		// 注:本键恒入 params(缺省也 put),故 ParamHash 缓存键对所有请求一致变更、不会与旧键碰撞。
 		int timeAlgCode = TransData.getValueAsInt("timeAlg", TimeZiAlg.RealSun.getCode());
-		map.put("timeAlg", TimeZiAlg.fromCode(timeAlgCode));
+		map.put("timeAlg", TimeZiAlg.fromCode(timeAlgCode).calcBasis());   // 缓存键与模型同口径(春分定卯时 = 直接时间)
 		map.put("useZodicalLon", false);
 		map.put("phaseType", PhaseType.ShuiTu);
 
@@ -217,6 +219,7 @@ public class LiuRengController {
 		params.put("guaAd", reqGuaAd);
 		params.put("guaAfter23NewDay", reqGuaAfter23NewDay);
 		
+		params.put("_calRev", NongliHelper.CALENDAR_CACHE_REV);   // 历法口径代次:只进缓存键,不参与计算
 		Object obj = ParamHashCacheHelper.get("/liureng/runyear", params, (args)->{
 			BaZi bz = new BaZi(ad, dtstr, zone, lon, lat, timealg, zodiacalLon, godKeyPos, after23NewDay, false, lateZiHourUseNextDay);
 			bz.calculateFourColumn(phaseType);

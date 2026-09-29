@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZiLegacyView.js b/astrostudyui/src/components/cntradition/BaZiLegacyView.js
-index e73de330..edf0ebe7 100644
+index b91d4c7f..35df1692 100644
 --- a/astrostudyui/src/components/cntradition/BaZiLegacyView.js
 +++ b/astrostudyui/src/components/cntradition/BaZiLegacyView.js
-@@ -9,6 +9,7 @@ import MainDirection from './MainDirection';
- import SmallDirection from './SmallDirection';
- import GanHeCong from './GanHeCong';
+@@ -11,6 +11,7 @@ import GanHeCong from './GanHeCong';
  import ZiHeCong from './ZiHeCong';
+ import { baziAgeText } from './baziAgeText';
+ import { addDisplayYears } from '../../utils/dateStrSafe';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const TabPane = Tabs.TabPane;
  
-@@ -512,38 +513,75 @@ export class BaZiLegacyMain extends Component{
+@@ -515,39 +516,76 @@ export class BaZiLegacyMain extends Component{
  }
  
  export class BaZiLegacyInfoPanel extends Component{
@@ -37,6 +37,7 @@ index e73de330..edf0ebe7 100644
  	render(){
  		const bazi = this.props.value || {};
  		const four = bazi.fourColumns || {};
+ 		const ageStyle = this.props.ageStyle || 'nominal';   // 「年龄」档下传三处岁数(行运概略 / 大运 / 小运)
  		const height = this.props.height || 760;
  		const legacyHeight = typeof height === 'number' ? height + 130 : height;
 +		const cur = this.state.legacyTab;
@@ -45,11 +46,11 @@ index e73de330..edf0ebe7 100644
 +			<Tabs className="horosa-bazi-legacy-tabs" activeKey={cur} onChange={this.changeLegacyTab}>
  				<TabPane tab="行运概略" key="overview">
 -					<div className="horosa-bazi-legacy-overview-adapt">
--						<MainDirectionSimple value={bazi} height={legacyHeight} />
+-						<MainDirectionSimple value={bazi} height={legacyHeight} ageStyle={ageStyle} />
 -					</div>
 +					<FreezeSubTab active={cur === 'overview'}>{()=>(
 +						<div className="horosa-bazi-legacy-overview-adapt">
-+							<MainDirectionSimple value={bazi} height={legacyHeight} />
++							<MainDirectionSimple value={bazi} height={legacyHeight} ageStyle={ageStyle} />
 +						</div>
 +					)}</FreezeSubTab>
  				</TabPane>
@@ -72,15 +73,15 @@ index e73de330..edf0ebe7 100644
 +					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="大运" key="main">
--					<MainDirection value={bazi} height={legacyHeight} />
+-					<MainDirection value={bazi} height={legacyHeight} ageStyle={ageStyle} />
 +					<FreezeSubTab active={cur === 'main'}>{()=>(
-+						<MainDirection value={bazi} height={legacyHeight} />
++						<MainDirection value={bazi} height={legacyHeight} ageStyle={ageStyle} />
 +					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="小运" key="small">
--					<SmallDirection value={bazi} height={legacyHeight} />
+-					<SmallDirection value={bazi} height={legacyHeight} ageStyle={ageStyle} />
 +					<FreezeSubTab active={cur === 'small'}>{()=>(
-+						<SmallDirection value={bazi} height={legacyHeight} />
++						<SmallDirection value={bazi} height={legacyHeight} ageStyle={ageStyle} />
 +					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="天干" key="gan">

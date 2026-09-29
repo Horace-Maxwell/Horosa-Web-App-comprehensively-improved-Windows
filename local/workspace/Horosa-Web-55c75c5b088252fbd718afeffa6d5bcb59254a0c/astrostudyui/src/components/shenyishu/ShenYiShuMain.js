@@ -1,4 +1,5 @@
 import QuickDockBar from '../common/QuickDockBar';
+import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // [#84] 双触发收敛
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Component } from 'react';
 import { InputNumber, Spin } from 'antd';
@@ -405,6 +406,11 @@ class ShenYiShuMain extends Component{
 		if(!payload){
 			return;
 		}
+		// [#84] 双触发收敛:挂钩与 componentDidUpdate(可多达三路)同一次改动各进一次 → 请求体全同的后几路跳过
+		const panTrig = claimTrigger(this, 'fetchPan', JSON.stringify(payload));
+		if(!panTrig){
+			return;
+		}
 		const reqSeq = ++this.requestSeq;
 		this.setState({ loading: true });
 		try{
@@ -418,6 +424,7 @@ class ShenYiShuMain extends Component{
 				saveModuleAISnapshotLazy('shenyishu', ()=>buildSnapshotText(pan));
 			});
 		}catch(e){
+			settleTrigger(this, 'fetchPan', panTrig, false);
 			console.warn('shenyishu backend failed', e);
 			if(!this.unmounted && reqSeq === this.requestSeq){
 				this.setState({ loading: false });

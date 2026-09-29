@@ -3,6 +3,7 @@ import { isDesktopBridgeAvailable, getDesktopInvokeApi } from '../../utils/aiAna
 import { ServerRoot } from '../../utils/constants';
 import { markServiceOnline } from '../../utils/serviceStatus';
 import { renegotiateLocalServerRoot } from '../../utils/backendIdentity';
+import { bootContext } from '../../utils/backendBootGate';   // [R5 S8] 壳送来的启动上下文(early / 更新后首启 / 壳启动时刻)
 
 // 2026-07-04 事故复盘:探测地址必须每次从活绑定 ServerRoot 现算——旧版 useMemo 把 URL 冻结,
 // 服务地址自愈换根后本组件仍对旧(毒)端口无限轮询。
@@ -22,45 +23,13 @@ function currentProbeUrl() {
 //  · 分阶段文案(10s / 30s / 60s 不同提示信息);
 //  · Tauri 环境下加「打开诊断中心」「重启后端」操作按钮;
 //  · 长时间未就绪时显示后端地址,便于用户检查。
-// horosa_startupgate_desktop_elapsed_v1(Windows 桌面壳增强;Mac/网页零影响):
-// 温启窗口(工作区已可见→后端就绪,约 0.6s→4s)此前无任何数字反馈(6s 阈值温启到不了)。
-// 桌面壳的 getBootstrapConfig 带 runtimeStartedAtMs(壳层启动锚,覆盖 pre-nav 段)与
-// expectedTotalMs(startup-history 最近 10 次 trusted 中位)→ 本组件 t=0 起显示一行小字
-// 「已用时 x.x 秒 ・ 以往约 y.y 秒」。无 window.horosaDesktop(Mac/网页)= 死分支,渲染逐字节不变。
-function readDesktopStartupCfg() {
-  try {
-    if (typeof window === 'undefined' || !window.horosaDesktop || typeof window.horosaDesktop.getBootstrapConfig !== 'function') {
-      return null;
-    }
-    const cfg = window.horosaDesktop.getBootstrapConfig();
-    if (!cfg || cfg.startupUx === false) { return null; }
-    return {
-      anchorMs: Number(cfg.runtimeStartedAtMs) || null,
-      expectedMs: Number(cfg.expectedTotalMs) || null,
-    };
-  } catch (e) {
-    return null;
-  }
-}
-
 export default function StartupGate() {
   const [ready, setReady] = React.useState(false);
-  const [elapsed, setElapsed] = React.useState(0); // 秒
-  const startRef = React.useRef(Date.now());
-  const desktopCfgRef = React.useRef(readDesktopStartupCfg());
-  const [desktopElapsedMs, setDesktopElapsedMs] = React.useState(() => (
-    desktopCfgRef.current && desktopCfgRef.current.anchorMs
-      ? Math.max(0, Date.now() - desktopCfgRef.current.anchorMs)
-      : 0
-  ));
-
-  React.useEffect(() => {
-    // horosa_startupgate_desktop_elapsed_v1:仅桌面壳建 100ms 子表(0.1s 粒度);Mac 不进入。
-    if (!desktopCfgRef.current) { return undefined; }
-    const anchor = desktopCfgRef.current.anchorMs || startRef.current;
-    const sub = setInterval(() => { setDesktopElapsedMs(Date.now() - anchor); }, 100);
-    return () => clearInterval(sub);
-  }, []);
+  // [R5 S8] 桌面壳提前导航时「已用时」从壳启动时刻起算(URL boot=epoch 毫秒),页面挂载前那段也算进去;
+  // 更新后首启(firstLaunch=1)从 t=0 就给出「更新已完成,正在恢复启动」的明确文案,不再等 6 s 阈值。
+  const bootCtxRef = React.useRef(bootContext());
+  const startRef = React.useRef(bootCtxRef.current.bootStartedAtMs || Date.now());
+  const [elapsed, setElapsed] = React.useState(() => Math.max(0, Math.floor((Date.now() - startRef.current) / 1000))); // 秒
 
   React.useEffect(() => {
     if (!currentProbeUrl() || typeof fetch !== 'function') { setReady(true); return undefined; }
@@ -137,6 +106,10 @@ export default function StartupGate() {
   // 分阶段文案：6s 内首次启动正常等；6-15s 提示在解压；15-30s 提示首启较慢；30s+ 提示可能需手动重启
   let mainMsg = '首次启动需准备本地排盘引擎,通常约 10 秒,请稍候。';
   let extraMsg = null;
+  if (bootCtxRef.current.firstLaunch && elapsed < 15) {
+    // [R5 S8] 更新后首启:壳以前把这句写在启动页上;现在提前进界面,由本层顶着同一句。
+    mainMsg = '更新已完成,正在恢复启动,通常约 10 秒,请稍候。';
+  }
   if (elapsed >= 30) {
     mainMsg = '本地服务长时间未就绪 (已等待 ' + elapsed + 's)。';
     extraMsg = '建议:点「重启后端」让 app 重新启动本地服务；若仍无效请打开诊断中心查看日志或重启 星阙 整体。';
@@ -202,10 +175,9 @@ export default function StartupGate() {
         <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
           {mainMsg}
         </div>
-        {desktopCfgRef.current ? (
+        {bootCtxRef.current.early ? (
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
-            已用时 {(desktopElapsedMs / 1000).toFixed(1)} 秒
-            {desktopCfgRef.current.expectedMs ? ` ・ 以往约 ${(desktopCfgRef.current.expectedMs / 1000).toFixed(1)} 秒` : ''}
+            已用时 {elapsed} 秒
           </div>
         ) : null}
         {extraMsg ? (

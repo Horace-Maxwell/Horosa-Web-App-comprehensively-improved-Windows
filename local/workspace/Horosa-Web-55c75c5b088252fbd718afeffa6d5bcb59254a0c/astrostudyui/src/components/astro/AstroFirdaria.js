@@ -148,7 +148,7 @@ class AstroFirdaria extends Component{
 			let tbldom = this.genFirdariaDom(ds);
 			const interp = getFirdariaInterp(pd.mainDirect);
 			const cell = (
-				<div key={`firdaria-cell-${i}`}>
+				<div key={`s2-${i}`}>
 					{interp ? (
 						<div style={{ fontSize: 11, opacity: 0.78, lineHeight: '16px', margin: '0 0 4px', padding: '4px 8px', background: 'var(--horosa-accent-soft, rgba(184,134,11,0.08))', borderRadius: 6 }}>
 							<b>{interp.mainShort}主限</b> · {interp.mainTheme}
@@ -165,19 +165,18 @@ class AstroFirdaria extends Component{
 			let cols = [];
 			for(let j=0; j<rowobj.length; j++){
 				let dom = (
-					<Col key={j} span={8}>{rowobj[j]}</Col>
+					<Col key={`s3-${j}`} span={8}>{rowobj[j]}</Col>
 				);
 				cols.push(dom);
 			}
 			let dom = (
-				<Row key={`row-${i}`} gutter={12}>
+				<Row key={`s4-${i}`} gutter={12}>
 					{cols}
 				</Row>
 			);
 			doms.push(dom);
 			if(i < rows.length - 1){
-				// Row 与 Divider 推进同一个 doms 数组，故各自带前缀避免同 i 撞键
-				let divider = <Divider key={`divider-${i}`} dashed={true} />
+				let divider = <Divider key={`s5-${i}`} dashed={true} />
 				doms.push(divider)	
 			}
 		}

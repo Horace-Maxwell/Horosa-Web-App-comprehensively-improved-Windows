@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/relative/AntisciaInfo.js b/astrostudyui/src/components/relative/AntisciaInfo.js
-index aa7388c..4d19218 100644
+index 3ca73e51..05704829 100644
 --- a/astrostudyui/src/components/relative/AntisciaInfo.js
 +++ b/astrostudyui/src/components/relative/AntisciaInfo.js
 @@ -3,11 +3,13 @@ import { Row, Col, Divider, Popover, } from 'antd';
@@ -26,15 +26,6 @@ index aa7388c..4d19218 100644
  		divs.push(divider);
  		for(let idx=0; idx<anti.length; idx++){
  			let obj = anti[idx];
-@@ -74,7 +76,7 @@ class AntisciaInfo extends Component{
- 				this.props.showPlanetHouseInfo
- 			);
- 				let dom = (
--					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-+					<div key={`anti-${idx}`} style={{fontFamily: AstroConst.AstroFont}}>
- 						<span style={{fontFamily: AstroConst.NormalFont}}>{title}&nbsp;</span>
- 						{this.renderLabel(labelA, obj.idA)}&nbsp;与&nbsp;
- 						<span style={{fontFamily: AstroConst.NormalFont}}>{innerTitle}&nbsp;</span>
 @@ -85,7 +87,7 @@ class AntisciaInfo extends Component{
  			divs.push(dom);
  		}
@@ -44,14 +35,3 @@ index aa7388c..4d19218 100644
  		divs.push(divider);
  		let canti = chart.cantiscias;
  		for(let idx=0; idx<canti.length; idx++){
-@@ -102,8 +104,9 @@ class AntisciaInfo extends Component{
- 				obj.idB,
- 				this.props.showPlanetHouseInfo
- 			);
-+				// 与上方映点循环共用同一个 divs 数组，故 key 加前缀区分
- 				let dom = (
--					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-+					<div key={`canti-${idx}`} style={{fontFamily: AstroConst.AstroFont}}>
- 						<span style={{fontFamily: AstroConst.NormalFont}}>{title}&nbsp;</span>
- 						{this.renderLabel(labelA, obj.idA)}&nbsp;与&nbsp;
- 						<span style={{fontFamily: AstroConst.NormalFont}}>{innerTitle}&nbsp;</span>

@@ -195,9 +195,7 @@ public class JsonConverter extends MappingJackson2HttpMessageConverter {
 			}
 			if(needEncryp(outputMessage) && privexp!= null){
 				byte[] raw = str.getBytes("UTF-8");
-				str = SimpleWebSocketSecUtility.encrypt(raw, modulus, privexp);
-				outputMessage.getHeaders().add("Encrypted", "1");
-				outputMessage.getHeaders().set("Encrypted", "1");
+				str = ResponseCrypto.encrypt(raw, modulus, privexp, outputMessage.getHeaders());   // webencrypt_gcm_v1
 			}else {
 				outputMessage.getHeaders().add("SimpleData", "1");
 				outputMessage.getHeaders().set("SimpleData", "1");				
@@ -211,9 +209,7 @@ public class JsonConverter extends MappingJackson2HttpMessageConverter {
 			if(needEncryp(outputMessage) && privexp!= null) {
 				String str = JsonUtility.encodePretty(object);
 				byte[] raw = str.getBytes("UTF-8");
-				String encoded = SimpleWebSocketSecUtility.encrypt(raw, modulus, privexp);
-				outputMessage.getHeaders().add("Encrypted", "1");
-				outputMessage.getHeaders().set("Encrypted", "1");
+				String encoded = ResponseCrypto.encrypt(raw, modulus, privexp, outputMessage.getHeaders());   // webencrypt_gcm_v1
 				outputMessage.getBody().write(encoded.getBytes("UTF-8"));
 
 				TransData.clearTransData();
@@ -260,9 +256,7 @@ public class JsonConverter extends MappingJackson2HttpMessageConverter {
 			if(needEncryp(outputMessage) && privexp!= null) {
 				String str = JsonUtility.encodePretty(map);
 				byte[] raw = str.getBytes("UTF-8");
-				String encoded = SimpleWebSocketSecUtility.encrypt(raw, modulus, privexp);
-				outputMessage.getHeaders().add("Encrypted", "1");
-				outputMessage.getHeaders().set("Encrypted", "1");
+				String encoded = ResponseCrypto.encrypt(raw, modulus, privexp, outputMessage.getHeaders());   // webencrypt_gcm_v1
 				outputMessage.getBody().write(encoded.getBytes("UTF-8"));
 
 				TransData.clearTransData();

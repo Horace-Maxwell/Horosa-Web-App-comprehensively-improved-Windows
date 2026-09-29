@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/models/astro.js b/astrostudyui/src/models/astro.js
-index 36de7b96..9ce52c3b 100644
+index 42828ad9..458c76ec 100644
 --- a/astrostudyui/src/models/astro.js
 +++ b/astrostudyui/src/models/astro.js
-@@ -8,11 +8,15 @@ import {randomStr,} from '../utils/helper';
+@@ -8,11 +8,13 @@ import {randomStr,} from '../utils/helper';
  import { DefLat, DefLon, DefGpsLat, DefGpsLon, ServerRoot, } from '../utils/constants';
  import { showChartServiceError as showChartServiceErrorRich } from '../components/common/ChartServiceErrorModal';
  import { saveAstroAISnapshotLazy, } from '../utils/astroAiSnapshot';
@@ -15,12 +15,10 @@ index 36de7b96..9ce52c3b 100644
 +// [Windows-ahead] stepStreak:horosa_pump_skew_v1 连击计量读端(见 buildStepPrefetchTasks 偏斜分支)。
 +import { registerArmPlanBuilder, armStepPrefetch, reportStepUnit, currentStepUnit, shouldArmForTab, stepStreak } from '../utils/stepPrefetchArm';
 +// (F1 收敛后 early-boot 守卫由 armStepPrefetch 体内承担,本文件不再直接消费 backendBootGate。)
-+// PERF-R10 S2(horosa_boot_chart_restore_v1):出盘 settle 后落「上次工作现场」快照(空闲写)。
-+import { saveBootChartSnapshot } from '../utils/bootChartRestore';
  // R4-B5(horosa_option_prefetch_v1):选项 Hamming-1 投机 —— 构参注入同 arm,settle 尾空闲投机。
  import { registerOptionChartTaskBuilder, speculateChartOptions } from '../utils/optionPrefetch';
  import { perfBegin } from '../utils/perfMark';
-@@ -29,6 +33,24 @@ const DefaultHouseSystem = 1;
+@@ -32,6 +34,24 @@ const DefaultHouseSystem = 1;
  // recordFieldsRestore 不能反向 import 本模型)。捕获逻辑与还原清单同居 recordFieldsRestore。
  registerFieldsBaselineFactory(()=>newEmptyFields());
  
@@ -45,7 +43,7 @@ index 36de7b96..9ce52c3b 100644
  function newEmptyFields(){
  	const fields = {
  		cid: {
-@@ -646,9 +668,29 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
+@@ -651,9 +671,29 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
  	let plan;
  	if(stepHint && stepHint.dir){
  		const d = Math.max(2, depth || 2);
@@ -78,7 +76,7 @@ index 36de7b96..9ce52c3b 100644
  		}
  	}else if(depth > 0){
  		plan = [];
-@@ -736,28 +778,18 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
+@@ -741,28 +781,18 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
  	return tasks;
  }
  
@@ -118,7 +116,7 @@ index 36de7b96..9ce52c3b 100644
  });
  
  // R4-B2:把任务构造器注入武装模块(utils 不反向 import models)。
-@@ -1304,6 +1336,40 @@ export default {
+@@ -1311,6 +1341,40 @@ export default {
  		},
  
  
@@ -159,7 +157,7 @@ index 36de7b96..9ce52c3b 100644
  		*fetch({ payload: values }, { call, put, select }){
  			const param = {
  				...values,
-@@ -1335,11 +1401,12 @@ export default {
+@@ -1342,11 +1406,12 @@ export default {
  
              yield put({
                  type: 'save',
@@ -173,7 +171,7 @@ index 36de7b96..9ce52c3b 100644
  
  			if(values.nohook){
  				return;
-@@ -1428,7 +1495,7 @@ export default {
+@@ -1486,7 +1551,7 @@ export default {
  			}
  			yield put({
                  type: 'save',
@@ -182,28 +180,22 @@ index 36de7b96..9ce52c3b 100644
  					chartObj: Result,
  					fields: fields,
  					byChartData: true,
-@@ -1438,6 +1505,12 @@ export default {
- 					_dayBoundaryRecordPinned: recordPinsDayBoundary(values),   // [Q-314] 命盘自带口径 → 钉住共享层,全局事件不覆盖
+@@ -1497,6 +1562,7 @@ export default {
+ 					...(values.bootRestore ? { bootChartRestore: 'done' } : {}),   // [R5 S7] 温启恢复已落盘
                  },
              });
 +			markChartRefreshEnd();
-+			// horosa_boot_chart_restore_v1(载入命盘也刷新现场)。util 内部构不出合法 record
-+			// 会自答 null,此处仍包 try:快照是优化,任何异常不许碰载入主流程。
-+			try{
-+				saveBootChartSnapshot(fields, state.currentTab);
-+			}catch(e){ /* optimization only — never surface */ }
  
  			if(values.nohook){
  				return;
-@@ -1582,11 +1655,13 @@ export default {
+@@ -1641,11 +1707,12 @@ export default {
  					type: 'save',
  					payload: { chartObj: Result },
  				});
 -				// 武装/预取全是优化:整块 try —— 任何异常静默,绝不许碰快车道主流程。
 +				markChartRefreshEnd();   // horosa_interaction_span_v1:快车道不打 end = 三族报伪造渲染时间(R9 Ship0a)
-+				// 快照+武装+投机全是优化:整块 try —— 任何异常静默,绝不许碰快车道主流程。
++				// 武装+投机全是优化:整块 try —— 任何异常静默,绝不许碰快车道主流程。
  				try{
-+					saveBootChartSnapshot(fieldValues, astroState.currentTab);   // horosa_boot_chart_restore_v1
  					if(stepHint){
  						// settle 后预取「下一步」:用户已停手+主盘已回,天然错峰(风暴防护在调度器内)
 -						reportStepUnit(astroState.currentTab, stepHint.unit);
@@ -211,7 +203,7 @@ index 36de7b96..9ce52c3b 100644
  						submitStepPrefetch(buildStepPrefetchTasks(fieldValues, { ...stepHint, depth: stepPrefetchDepth() }, astroState));
  					}else if(stepPrefetchArmEnabled() && shouldArmForTab(astroState.currentTab)){
  						// R4-B2:无向 settle(初盘/确定/改设置/切回)也武装当前档位 ±depth ——
-@@ -1602,11 +1677,15 @@ export default {
+@@ -1661,11 +1728,12 @@ export default {
  
              yield put({
                  type: 'save',
@@ -222,13 +214,10 @@ index 36de7b96..9ce52c3b 100644
                  },
              });
 +			markChartRefreshEnd();
-+			try{
-+				saveBootChartSnapshot(fieldValues, astroState.currentTab);   // horosa_boot_chart_restore_v1
-+			}catch(e){ /* optimization only — never surface */ }
  
  			if(values.nohook){
  				return;
-@@ -1624,7 +1703,7 @@ export default {
+@@ -1683,7 +1751,7 @@ export default {
  			// 同快车道分支:优化整块 try,异常静默不碰主流程。
  			try{
  				if(stepHint){

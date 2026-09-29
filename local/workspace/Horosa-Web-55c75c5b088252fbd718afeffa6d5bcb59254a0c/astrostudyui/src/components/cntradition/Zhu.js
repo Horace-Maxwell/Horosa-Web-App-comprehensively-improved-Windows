@@ -22,14 +22,13 @@ class Zhu extends Component{
 
 		let cols = stems.map((item, idx)=>{
 			return (
-				<Col span={24} style={{textAlign: 'center'}} key={`stem-${idx}`}>
+				<Col span={24} style={{textAlign: 'center'}} key={`s1-${idx}`}>
 					<span>{BaZiMsg[item.polar] + item.cell + BaZiMsg[item.element]}&bull;{BaZiMsg[item.relative]}</span>
 				</Col>
 			);
 		});
 		for(let i=cols.length; i<3; i++){
-			// padding cols share the `cols` array with the mapped stems above, so use a distinct prefix
-			let emptycol = (<Col span={24} key={`empty-${i}`}><span>&nbsp;</span></Col>);
+			let emptycol = (<Col span={24} key={`s2-${i}`}><span>&nbsp;</span></Col>);
 			cols.push(emptycol);
 		}
 

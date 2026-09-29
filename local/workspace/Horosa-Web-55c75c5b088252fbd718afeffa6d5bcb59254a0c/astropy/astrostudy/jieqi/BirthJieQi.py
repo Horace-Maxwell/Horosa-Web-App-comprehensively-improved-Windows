@@ -5,13 +5,23 @@ from flatlib.datetime import Datetime
 from flatlib.geopos import GeoPos
 from flatlib.chart import Chart
 from flatlib import const
+from flatlib.ephem import swe
 
 from astrostudy.helper import distance
 from . import jieqiconst
 
 # v3.0.1 perf ROUND-5 (HOROSA_JIEQI_FAST_APPROACH,与 NongLi/YearJieQi 同一开关):
 # _ascChart 的瘦 Chart 快路径开关。kill-switch 同 HOROSA_JIEQI_FAST_APPROACH=0。
+# R5 P0-3:同开关再覆盖 approach(节气牛顿求解,每请求 ~8 个节气 × 3-5 步)与 computeSpring / computeLocal
+# 的卯时基准盘 —— 原每步建整张默认盘(全行星 + 宫位 + 阿拉伯点)只读太阳经度 / 速度 / 赤经;
+# approach 与 YearJieQi.approach 同写法直取 swe.sweObject(SUN),基准盘换太阳瘦盘,收敛判据与公式一字不动。
 _JIEQI_FAST_APPROACH = os.environ.get('HOROSA_JIEQI_FAST_APPROACH', '1').lower() not in ('0', 'false', 'no', 'off')
+
+# 卯时上升求解的牛顿迭代上限。按赤经法实测恒 ≤ 5 步收敛;按黄经法在 |纬度| ≳ 50°(看季节)上升点黄经
+# 跳变,可永不收敛 —— 此前请求永不返回、工作线程永久空转。上限 5 万步(每步约 28 µs,最坏约 1.4 s 退出):
+# 纬度 40–58° 临界带 600 例里能收敛的最多 3,476 步、其余 ≤ 950 步,1 千 ~ 5 万步之间无一收敛;常规纬度 ≤ 193 步
+# → 现有能收敛的输入结果逐字节不变。超限返回 None,由调用方回退并在结果里注明(maoFallback)。
+_ASC_APPROACH_MAX_ITER = 50000
 
 
 def takeTime(obj):
@@ -63,17 +73,32 @@ class BirthJieQi:
             if data['byLon'] == 1:
                 self.byLon = 1
 
+    # 求解目标 = 节气黄经本身(此前目标再多加 1/7200 度,交节时刻系统性晚约 12 秒,交节后 12 秒内出生的月柱与本地引擎不同)。
     def approach(self, dt, jieqiLon):
+        if _JIEQI_FAST_APPROACH:
+            sun = swe.sweObject(const.SUN, dt.jd, swe.SEDEFAULT_FLAG)
+            delta = distance(jieqiLon, sun['lon'])
+            deltatm = delta / sun['lonspeed']
+            newjd = dt.jd + deltatm
+            newtm = Datetime.fromJD(newjd, self.zone)
+            while abs(delta) > 0.0003:
+                sun = swe.sweObject(const.SUN, newtm.jd, swe.SEDEFAULT_FLAG)
+                delta = distance(jieqiLon, sun['lon'])
+                deltatm = delta / sun['lonspeed']
+                newjd = newtm.jd + deltatm
+                newtm = Datetime.fromJD(newjd, self.zone)
+            return newtm
+        # kill-switch fallback (HOROSA_JIEQI_FAST_APPROACH=0): original Chart-based loop
         chart = Chart(dt, self.pos, const.TROPICAL, hsys=const.HOUSES_WHOLE_SIGN)
         sun = chart.getObject(const.SUN)
-        delta = distance(jieqiLon, sun.lon) + 1/7200
+        delta = distance(jieqiLon, sun.lon)
         deltatm = delta / sun.lonspeed
         newjd = dt.jd + deltatm
         newtm = Datetime.fromJD(newjd, self.zone)
         while abs(delta) > 0.0003:
             chart = Chart(newtm, self.pos, const.TROPICAL, hsys=const.HOUSES_WHOLE_SIGN)
             sun = chart.getObject(const.SUN)
-            delta = distance(jieqiLon, sun.lon) + 1/7200
+            delta = distance(jieqiLon, sun.lon)
             deltatm = delta / sun.lonspeed
             newjd = newtm.jd + deltatm
             newtm = Datetime.fromJD(newjd, self.zone)
@@ -97,7 +122,11 @@ class BirthJieQi:
         deltatm = delta / speed
         newjd = dt.jd + deltatm
         newtm = Datetime.fromJD(newjd, self.zone)
+        it = 0
         while abs(delta) > 0.0003:
+            it += 1
+            if it > _ASC_APPROACH_MAX_ITER:
+                return None   # 不收敛:交调用方回退
             chart = self._ascChart(newtm)
             asc = chart.getAngle(const.ASC)
             delta = distance(sunlon, asc.lon) + 11/60
@@ -114,7 +143,11 @@ class BirthJieQi:
         deltatm = delta / speed
         newjd = dt.jd + deltatm
         newtm = Datetime.fromJD(newjd, self.zone)
+        it = 0
         while abs(delta) > 0.0003:
+            it += 1
+            if it > _ASC_APPROACH_MAX_ITER:
+                return None   # 不收敛:交调用方回退
             chart = self._ascChart(newtm)
             asc = chart.getAngle(const.ASC)
             delta = distance(sunra, asc.ra) + 11/60
@@ -129,6 +162,11 @@ class BirthJieQi:
         sun = chart.getObject(const.SUN)
         sunra = sun.ra
         newtm = self.ascApproachByRA(maoTm, sunra)
+        if newtm is None:
+            # 防御(实测未见):按赤经也不收敛 → 不做卯时校正,按 05:00 基准(timeOffset = 0),结果里注明
+            self.maoFallback = 'none'
+            self.mao = '05:00:00'
+            return
         maostr = newtm.toCNString()
         parts = maostr.split(' ')
         self.mao = parts[1]
@@ -138,6 +176,11 @@ class BirthJieQi:
         sun = chart.getObject(const.SUN)
         sunlon = sun.lon
         newtm = self.ascApproach(maoTm, sunlon)
+        if newtm is None:
+            # 高纬按黄经求上升点不收敛 → 退到按赤经(恒收敛),结果里注明
+            self.maoFallback = 'byRA'
+            self.computeTimeZiByRA(chart)
+            return
         maostr = newtm.toCNString()
         parts = maostr.split(' ')
         self.mao = parts[1]
@@ -156,6 +199,11 @@ class BirthJieQi:
             self.computeTimeZiByLon(chart)
         else:
             self.computeTimeZiByRA(chart)
+        if getattr(self, 'maoFallback', None) == 'none':
+            # 防御回退(按赤经也不收敛):不做卯时校正,两种时差都记 0
+            self.timeOffsetJDN = 0.0
+            self.timeOffset = 0
+            return
 
         tm = Datetime('{0}/{1}/{2}'.format(self.year, self.month, self.day), '05:00', self.zone)
         maotm = Datetime('{0}/{1}/{2}'.format(self.year, self.month, self.day), self.mao, self.zone)
@@ -172,14 +220,14 @@ class BirthJieQi:
         parts = dtstr.split(' ')
         time = "06:00"
         dateTime = Datetime(parts[0], time, self.zone)
-        chart = Chart(dateTime, self.pos, const.TROPICAL, hsys=const.HOUSES_WHOLE_SIGN)
+        chart = self._ascChart(dateTime)   # computeTimeZi 只读 chart.date 与太阳赤经 / 经度 → 太阳瘦盘(开关关 = 整盘)
         self.computeTimeZi(chart)
 
     def computeLocal(self):
         date = self.date
         time = "06:00"
         dateTime = Datetime(date, time, self.zone)
-        chart = Chart(dateTime, self.pos, const.TROPICAL, hsys=const.HOUSES_WHOLE_SIGN)
+        chart = self._ascChart(dateTime)   # 同 computeSpring
         self.computeTimeZi(chart)
 
     def calcChart(self):
@@ -227,7 +275,7 @@ class BirthJieQi:
             dateTime = Datetime(date, '00:00', self.zone)
             newtm = self.approach(dateTime, jieqi['lon'])
 
-            timestr = newtm.toCNString()
+            timestr = jieqiconst.cnTimeRounded(newtm)
             tparts = timestr.split('-')
             if tparts[0] == '':
                 sz = len(tparts)
@@ -263,7 +311,7 @@ class BirthJieQi:
             newtm = self.approach(seed, pinfo['lon'])
             jieqi24.insert(0, {
                 'ord': pinfo['ord'], 'jieqi': pkey, 'jie': pinfo['jie'],
-                'time': newtm.toCNString(), 'ad': newtm.ad(), 'jdn': newtm.jd,
+                'time': jieqiconst.cnTimeRounded(newtm), 'ad': newtm.ad(), 'jdn': newtm.jd,
             })
             guard += 1
         while jieqi24 and guard < 30 and sum(1 for q in jieqi24 if q['jdn'] > birth_jd) < 4:
@@ -275,7 +323,7 @@ class BirthJieQi:
             newtm = self.approach(seed, ninfo['lon'])
             jieqi24.append({
                 'ord': ninfo['ord'], 'jieqi': nkey, 'jie': ninfo['jie'],
-                'time': newtm.toCNString(), 'ad': newtm.ad(), 'jdn': newtm.jd,
+                'time': jieqiconst.cnTimeRounded(newtm), 'ad': newtm.ad(), 'jdn': newtm.jd,
             })
             guard += 1
         res['jieqi'] = self.adjustJieqi(jieqi24)
@@ -302,6 +350,8 @@ class BirthJieQi:
         res['timeOffsetJDN'] = self.timeOffsetJDN
         res['birthJDN'] = self.dateTime.jd
         res['mao'] = self.mao
+        if getattr(self, 'maoFallback', None):
+            res['maoFallback'] = self.maoFallback   # 只在回退时出现;收敛的响应逐字节不变
 
         return res
 

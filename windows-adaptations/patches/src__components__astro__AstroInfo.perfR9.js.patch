@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroInfo.js b/astrostudyui/src/components/astro/AstroInfo.js
-index 53a39274..dd58d882 100644
+index ed458829..675a92c2 100644
 --- a/astrostudyui/src/components/astro/AstroInfo.js
 +++ b/astrostudyui/src/components/astro/AstroInfo.js
 @@ -2,7 +2,6 @@ import { Component } from 'react';
@@ -20,126 +20,7 @@ index 53a39274..dd58d882 100644
  
  // G16 单度主星体系:迦勒底连续序(默认,后端算)/ 三分序(保罗式,前端派生)。
  const MONOMOIRIA_SYSTEM_OPTIONS = [
-@@ -241,7 +243,7 @@ class AstroInfo extends Component{
- 			let objs = item.map((obj, oidx)=>{
- 				let decl = chart.planets[obj].decl;
- 				let span = (
--					<span style={{fontFamily: AstroConst.AstroFont}} key={randomStr(8)}>
-+					<span style={{fontFamily: AstroConst.AstroFont}} key={obj}>
- 						<Popover content={'赤纬：' + Math.round(decl * 1000)/1000 + '度' }>
- 						{this.planetLabel(obj, chart)}&emsp;
- 						</Popover>
-@@ -250,7 +252,7 @@ class AstroInfo extends Component{
- 				return span;
- 			});
- 			let row = (
--				<Row gutter={6} key={randomStr(8)}>
-+				<Row gutter={6} key={idx}>
- 					<Col span={8}>平行星体{idx+1}</Col>
- 					<Col span={16}>
- 						{objs}
-@@ -266,7 +268,7 @@ class AstroInfo extends Component{
- 			let objs = planet.map((obj, idx)=>{
- 				let decl = chart.planets[obj].decl;
- 				let span = (
--					<span style={{fontFamily: AstroConst.AstroFont}} key={randomStr(8)}>
-+					<span style={{fontFamily: AstroConst.AstroFont}} key={obj}>
- 						<Popover content={'赤纬：' + Math.round(decl * 1000)/1000 + '度' } >
- 						{this.planetLabel(obj, chart)}&emsp;
- 						</Popover>
-@@ -279,7 +281,7 @@ class AstroInfo extends Component{
- 			}
- 			let decl = chart.planets[id].decl;
- 			let row = (
--				<Row gutter={6} key={randomStr(8)}>
-+				<Row gutter={6} key={id}>
- 					<Col span={8}>
- 						相对
- 						<span style={{fontFamily: AstroConst.AstroFont}}>
-@@ -566,8 +568,9 @@ class AstroInfo extends Component{
- 				continue;
- 			}
- 			if(this.canDisplayPlanet(MinDelta[0].id) && this.canDisplayPlanet(MinDelta[1].id)){
-+				// 被围星 key 在 attacks 内唯一,四类围攻块每星最多各出现一次 → 「星-类别」组合即稳定唯一键。
- 				let dom = (
--					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-+					<div key={`${key}-minDelta`} style={{fontFamily: AstroConst.AstroFont}}>
- 						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
- 						<span>
- 							{this.planetLabel(MinDelta[0].id, this.props.value)}&nbsp;
-@@ -592,7 +595,7 @@ class AstroInfo extends Component{
- 
- 			if(MarsSaturn.length > 0 && this.canDisplayPlanet(MarsSaturn[0].id) && this.canDisplayPlanet(MarsSaturn[1].id)){
- 				let dom = (
--					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-+					<div key={`${key}-marsSaturn`} style={{fontFamily: AstroConst.AstroFont}}>
- 						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
- 						<span>
- 							{this.planetLabel(MarsSaturn[0].id, this.props.value)}&nbsp;
-@@ -616,7 +619,7 @@ class AstroInfo extends Component{
- 			}
- 			if(SunMoon.length > 0 && this.canDisplayPlanet(SunMoon[0].id) && this.canDisplayPlanet(SunMoon[1].id)){
- 				let dom = (
--					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-+					<div key={`${key}-sunMoon`} style={{fontFamily: AstroConst.AstroFont}}>
- 						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
- 						<span>
- 							{this.planetLabel(SunMoon[0].id, this.props.value)}&nbsp;
-@@ -640,7 +643,7 @@ class AstroInfo extends Component{
- 			}
- 			if(VenusJupiter.length > 0 && this.canDisplayPlanet(VenusJupiter[0].id) && this.canDisplayPlanet(VenusJupiter[1].id)){
- 				let dom = (
--					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-+					<div key={`${key}-venusJupiter`} style={{fontFamily: AstroConst.AstroFont}}>
- 						<span>{this.planetLabel(key, this.props.value)}</span>&nbsp;被&nbsp;
- 						<span>
- 							{this.planetLabel(VenusJupiter[0].id, this.props.value)}&nbsp;
-@@ -685,7 +688,7 @@ class AstroInfo extends Component{
- 				continue;
- 			}
- 			let dom = (
--				<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-+				<div key={key} style={{fontFamily: AstroConst.AstroFont}}>
- 					<span>{this.planetLabel(obj[0].id, this.props.value)}</span>&nbsp;与&nbsp;
- 					<span>{this.planetLabel(obj[1].id, this.props.value)}</span>&nbsp;夹&nbsp;
- 					<span>{this.planetLabel(key, this.props.value)}</span>
-@@ -712,7 +715,7 @@ class AstroInfo extends Component{
- 			}
- 			if(key === 'BySunMoon' && this.canDisplayPlanet(obj.id)){
- 				let dom = (
--					<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-+					<div key={key} style={{fontFamily: AstroConst.AstroFont}}>
- 						<span>{this.planetLabel(AstroConst.SUN, this.props.value)}</span>&nbsp;与&nbsp;
- 						<span>{this.planetLabel(AstroConst.MOON, this.props.value)}</span>&nbsp;夹&nbsp;
- 						<span>{this.planetLabel(obj.id, this.props.value)}</span>
-@@ -726,7 +729,7 @@ class AstroInfo extends Component{
- 				let dom = null;
- 				if(obj.SunMoon){
- 					dom = (
--						<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-+						<div key={key} style={{fontFamily: AstroConst.AstroFont}}>
- 							<span>{this.planetLabel(obj.SunMoon[0].id, this.props.value)}</span>&nbsp;与&nbsp;
- 							<span>{this.planetLabel(obj.SunMoon[1].id, this.props.value)}</span>&nbsp;夹&nbsp;
- 							<span>{this.planetLabel(key, this.props.value)}</span>
-@@ -736,7 +739,7 @@ class AstroInfo extends Component{
- 				}
- 				if(dom === null && this.canDisplayPlanet(obj[0].id) && this.canDisplayPlanet(obj[1].id)){
- 					dom = (
--						<div key={randomStr(8)} style={{fontFamily: AstroConst.AstroFont}}>
-+						<div key={key} style={{fontFamily: AstroConst.AstroFont}}>
- 							<span>{this.planetLabel(obj[0].id, this.props.value)}</span>&nbsp;与&nbsp;
- 							<span>{this.planetLabel(obj[1].id, this.props.value)}</span>&nbsp;夹&nbsp;
- 							<span>{this.planetLabel(key, this.props.value)}</span>
-@@ -778,7 +781,7 @@ class AstroInfo extends Component{
- 			if(span < 90){
- 				if(!this.canDisplayPlanet(left.id) || !this.canDisplayPlanet(right.id) || !this.canDisplayPlanet(mid.id)){ continue; }   // 仅渲染层隐藏,不改几何
- 				rows.push(
--					<div key={randomStr(8)} className="horosa-classical-line">
-+					<div key={mid.id} className="horosa-classical-line">
- 						{this.planetLabel(left.id, this.props.value)}&nbsp;与&nbsp;{this.planetLabel(right.id, this.props.value)}&nbsp;围绕&nbsp;{this.planetLabel(mid.id, this.props.value)}
- 						<span style={{color: 'var(--horosa-muted, #999)', marginLeft: 6}}>（跨 {span.toFixed(1)}°）</span>
- 					</div>
-@@ -797,7 +800,7 @@ class AstroInfo extends Component{
+@@ -797,7 +799,7 @@ class AstroInfo extends Component{
  			if(!this.canDisplayPlanet(obj.id)){ return; }
  			let ev = obj.phasisEvent ? `（${PHASIS_EVENT_LABEL[obj.phasisEvent] || obj.phasisEvent}）` : '';
  			rows.push(
@@ -148,7 +29,7 @@ index 53a39274..dd58d882 100644
  					{this.planetLabel(obj.id, this.props.value)}&nbsp;{PHASE_LABEL[obj.phase] || obj.phase}
  					{obj.phasisElong != null ? <span style={{color:'var(--horosa-muted, #999)'}}>&nbsp;(距日 {Number(obj.phasisElong).toFixed(1)}°)</span> : null}
  					{ev}
-@@ -815,7 +818,7 @@ class AstroInfo extends Component{
+@@ -815,7 +817,7 @@ class AstroInfo extends Component{
  			if(!obj || !obj.joy){ return; }
  			if(!this.canDisplayPlanet(obj.id)){ return; }
  			rows.push(
@@ -157,7 +38,7 @@ index 53a39274..dd58d882 100644
  					{this.planetLabel(obj.id, this.props.value)}&nbsp;喜乐&nbsp;（{obj.joyHouse}宫）
  				</div>
  			);
-@@ -835,16 +838,17 @@ class AstroInfo extends Component{
+@@ -835,16 +837,17 @@ class AstroInfo extends Component{
  			if(!obj || obj.ofSect === undefined || !this.canDisplayPlanet(obj.id)){ return; }
  			(obj.ofSect ? ofSect : contra).push(obj.id);
  		});
@@ -180,7 +61,7 @@ index 53a39274..dd58d882 100644
  			line('同宗', ofSect),
  			line('异宗', contra),
  		];
-@@ -858,7 +862,7 @@ class AstroInfo extends Component{
+@@ -858,7 +861,7 @@ class AstroInfo extends Component{
  			let o = objs.find((x)=> x && x.id === id);
  			if(!o || !o.feral || !this.canDisplayPlanet(id)){ return; }
  			rows.push(
@@ -189,7 +70,7 @@ index 53a39274..dd58d882 100644
  					{this.planetLabel(id, this.props.value)}&nbsp;野逸
  				</div>
  			);
-@@ -871,7 +875,7 @@ class AstroInfo extends Component{
+@@ -871,7 +874,7 @@ class AstroInfo extends Component{
  		let objs = (perchart && perchart.objects) || [];
  		let find = (id) => objs.find((o)=> o && o.id === id);
  		let line = (label, o) => (o && o.mansion) ? (
@@ -198,7 +79,7 @@ index 53a39274..dd58d882 100644
  				<span style={{color:'#999'}}>{label}：</span>第{o.mansion.idx}宿 {o.mansion.cn}<span style={{color:'#999'}}>（{o.mansion.nature} · {o.mansion.use}）</span>
  			</div>
  		) : null;
-@@ -903,7 +907,7 @@ class AstroInfo extends Component{
+@@ -903,7 +906,7 @@ class AstroInfo extends Component{
  			let o = objs.find((x)=> x && x.id === id);
  			if(!o || !this.canDisplayPlanet(id) || (!o.monomoiria && !o.ninthPart && !o.darijan)){ return; }
  			rows.push(
@@ -207,7 +88,7 @@ index 53a39274..dd58d882 100644
  					{this.planetLabel(id, this.props.value)}&emsp;
  					<span style={m}>单度</span>&nbsp;{g(monoOf(o))}&ensp;
  					<span style={m}>九分</span>&nbsp;{g(o.ninthPart)}&ensp;
-@@ -923,7 +927,7 @@ class AstroInfo extends Component{
+@@ -923,7 +926,7 @@ class AstroInfo extends Component{
  			let o = objs.find((x)=> x && x.id === id);
  			if(!o || !o.degreeGender || !this.canDisplayPlanet(id)){ return; }
  			rows.push(
@@ -216,7 +97,7 @@ index 53a39274..dd58d882 100644
  					{this.planetLabel(id, this.props.value)}&nbsp;{o.degreeGender === 'masculine' ? '阳性度' : '阴性度'}
  				</div>
  			);
-@@ -943,7 +947,7 @@ class AstroInfo extends Component{
+@@ -943,7 +946,7 @@ class AstroInfo extends Component{
  			if(!o || !o.degreeQuality || !this.canDisplayPlanet(id)){ return; }
  			let gender = o.degreeGender === 'masculine' ? '阳性度' : (o.degreeGender === 'feminine' ? '阴性度' : '');
  			rows.push(
@@ -225,7 +106,7 @@ index 53a39274..dd58d882 100644
  					{this.planetLabel(id, this.props.value)}&nbsp;<span style={{color: COL[o.degreeQuality]}}>{Q[o.degreeQuality] || o.degreeQuality}</span>
  					<span style={{color: 'var(--horosa-muted, #999)', marginLeft: 6}}>{TIP[o.degreeQuality] || ''}</span>
  					{gender ? <span style={{color: 'var(--horosa-muted, #999)', marginLeft: 8}}>· {gender}</span> : null}
-@@ -966,7 +970,7 @@ class AstroInfo extends Component{
+@@ -966,7 +969,7 @@ class AstroInfo extends Component{
  			let tags = Object.keys(o.specialDegree).filter((k)=> o.specialDegree[k]);
  			if(!tags.length){ return; }
  			rows.push(
@@ -234,7 +115,7 @@ index 53a39274..dd58d882 100644
  					{this.planetLabel(id, this.props.value)}&nbsp;
  					{tags.map((k)=> <span key={k} style={{color: COL[k], marginRight: 8}}>{LBL[k] || k}<span style={{opacity: 0.6, fontSize: 11}}>（{TIP[k]}）</span></span>)}
  				</div>
-@@ -987,7 +991,7 @@ class AstroInfo extends Component{
+@@ -987,7 +990,7 @@ class AstroInfo extends Component{
  			if(!o || !o.apogeeDir || !this.canDisplayPlanet(id)){ return; }
  			let m = { color: 'var(--horosa-muted, #999)' };
  			rows.push(
@@ -243,7 +124,7 @@ index 53a39274..dd58d882 100644
  					{this.planetLabel(id, this.props.value)}&nbsp;
  					<span style={{color: o.apogeeDir === 'rising' ? 'var(--horosa-gold, #b8860b)' : 'var(--horosa-jade, #3a9a6a)'}}>{DIR[o.apogeeDir] || o.apogeeDir}</span>
  					<span style={{...m, marginLeft: 8}}>{NUM[o.numberTrend] || ''}</span>
-@@ -1009,7 +1013,7 @@ class AstroInfo extends Component{
+@@ -1009,7 +1012,7 @@ class AstroInfo extends Component{
  			if(!parts || !parts.length){ return; }
  			let pos = (o.signlon != null) ? degreePosition(o.signlon) : '';
  			rows.push(
@@ -252,7 +133,7 @@ index 53a39274..dd58d882 100644
  					{this.planetLabel(id, this.props.value)}&emsp;
  					{pos ? <span style={{color:'var(--horosa-muted, #999)'}}>{pos}</span> : null}&nbsp;{parts.join('、')}
  				</div>
-@@ -1027,7 +1031,7 @@ class AstroInfo extends Component{
+@@ -1027,7 +1030,7 @@ class AstroInfo extends Component{
  			if(!this.canDisplayPlanet(obj.id)){ return; }
  			let modeTxt = (obj.id === 'Moon' && obj.oobMode) ? (obj.oobMode === 'going' ? '（远行）' : '（回归）') : '';
  			rows.push(

@@ -160,9 +160,8 @@ async function loadZhengChuanMods(){
 	}
 	return zcMods;
 }
-import { calculate as heluoCalc, daYun as heluoDaYun, judge as heluoJudge, buildSnapshotText as buildHeluoSnapshotText, solarTermHuagong as heluoSolarTermHuagong } from './heluoLocal';
+import { calculate as heluoCalc, daYun as heluoDaYun, judge as heluoJudge, buildSnapshotText as buildHeluoSnapshotText, heluoSolarTermOfDate } from './heluoLocal';
 import { buildYizhangjingModel, buildYizhangjingSnapshotText } from './yizhangjingReport';
-import { Solar as HeluoSolar } from 'lunar-javascript';
 // P5 主限法盘快照：方位法/度数换算的中文标签 + 默认（纯 util，无组件依赖、不回环 aiAnalysisContext）。
 import { getPdMethodLabel, getPdTimeKeyLabel, DEFAULT_PD_METHOD, DEFAULT_PD_TIME_KEY, DEFAULT_PD_TYPE, pdPairParamsFor } from './primaryDirectionSync';
 
@@ -1797,6 +1796,7 @@ function buildChartBaziParams(record){
 		//   缺省取与 BaZi.js 一致的默认 → 默认即现状字节级一致。直接读 record(与 school 同范式,不入 buildFieldObject)。
 		minggongMethod: (record && record.minggongMethod) || 'tongxing',
 		fenyeVersion: (record && record.fenyeVersion) || 'common',
+		southMonth: (record && record.southMonth) || 'none',
 		dayunPrecision: (record && record.dayunPrecision) || 'precise',
 		cangVersion: (record && record.cangVersion) || 'common',
 		after23NewDay: fields.after23NewDay.value,
@@ -2111,33 +2111,10 @@ async function buildCanpingSnapshotForRecord(record, opts){
 	}
 }
 
-// 河洛真实节气化工（镜像 HeLuoMain.solarTerm）：据出生公历日算所处节气 + 是否四立前 18 日(土用)，
-// 再据取化工法返回 {hg,fh,...}。无 lunar 数据 → null（judge 回退 MONTH_HG 月支近似）。
-const HELUO_LI_TERMS = ['立春', '立夏', '立秋', '立冬'];
-export function heluoSolarTermForDate(dateStr, quHuaGong){
-	try{
-		const [y, m, d] = `${dateStr || ''}`.split('-').map((x)=>parseInt(x, 10));
-		if(!y || !m || !d){ return null; }
-		const solar = HeluoSolar.fromYmd(y, m, d);
-		const lunar = solar.getLunar();
-		const prev = lunar.getPrevJieQi(true);
-		const prevName = prev.getName();
-		const jd = solar.getJulianDay();
-		const tbl = lunar.getJieQiTable();
-		const tuyong = HELUO_LI_TERMS.some((n)=>{
-			const t = tbl[n];
-			if(!t){ return false; }
-			const diff = t.getJulianDay() - jd;
-			return diff >= 0 && diff <= 18;
-		});
-		// [Q-436] 三候(节气内 5 日一候)与页面 HeLuoMain.solarTerm 同式 → [起卦详情]「氣運」行两路同值。纯增字段。
-		const daysIn = Math.max(0, Math.floor(jd - prev.getSolar().getJulianDay()));
-		const hou = Math.min(3, Math.floor(daysIn / 5) + 1);
-		const houLabel = `${prevName}${['初候', '二候', '三候'][hou - 1]}·${prevName}後`;
-		return { ...heluoSolarTermHuagong(prevName, tuyong, { quHuaGong: quHuaGong || 'tuWangKunGen' }), term: prevName, hou, houLabel };
-	}catch(e){
-		return null;
-	}
+// 河洛真实节气化工:与河洛页同一份单源 heluoSolarTermOfDate(出生当日所处节气 + 土用 + 三候 → {hg,fh,...});
+// 按出生地时区换算后再比节气(东八区不变)。无 lunar 数据 → null(judge 回退 MONTH_HG 月支近似)。
+export function heluoSolarTermForDate(dateStr, quHuaGong, zone){
+	return heluoSolarTermOfDate(dateStr, zone, quHuaGong);
 }
 
 // opts.quHuaGong（AI 挂载「每技法设置」）：'tuWangKunGen'(土王寄坤艮,默认) / 'siFangBoOnly'(直取四方伯)。
@@ -2179,8 +2156,9 @@ async function buildHeluoSnapshotForRecord(record, opts){
 		let st = null;
 		{
 			let dateStr = '';
-			try{ dateStr = `${buildChartBaziParams(record).date || ''}`; }catch(e){ dateStr = ''; }
-			st = heluoSolarTermForDate(dateStr, overrideQuHuaGong || 'tuWangKunGen');
+			let zone = '';
+			try{ const bp = buildChartBaziParams(record); dateStr = `${bp.date || ''}`; zone = bp.zone || ''; }catch(e){ dateStr = ''; }
+			st = heluoSolarTermForDate(dateStr, overrideQuHuaGong || 'tuWangKunGen', zone);
 		}
 		const jg = heluoJudge(chart, b.fourPillars, b.monthZhi, st);
 		// [Q-436] [起卦详情] 段:与页面 heluoSnapshotDetail(getModel) 同形(四柱/月支/节气三候/年纳音/干支年基准);extras 由 builder 内 chartExtras 同源算。
@@ -3137,6 +3115,10 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 				// P4 区间扫描：end 非空且 step 有值 → 循环多段（每段一个推运时点）；缺省=单点=现状。
 				datetimeEnd: record.datetimeEnd,
 				scanStep: record.scanStep,
+				// [#80] 小限摘要粒度 / 起点(只喂文本 builder,见 runOnePoint textParams):此前本分支漏传 → 命盘挂载这两个齿轮恒按
+				// 年 / 上升出摘要,改了没用(差分套件的「通过」全靠「推运时间 = 此刻」跨分钟漂移出的假差分)。未改时 undefined = 缺省 年 / 上升。
+				profGrain: record.profGrain,
+				profStart: record.profStart,
 			}) || '') : '';
 		}
 		case 'zodialrelease': {

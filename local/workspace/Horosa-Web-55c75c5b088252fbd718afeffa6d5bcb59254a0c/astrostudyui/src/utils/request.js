@@ -3,7 +3,7 @@ import * as forge from 'node-forge';
 import { message } from 'antd';
 import * as Constants from './constants';
 import { isObject, } from './helper';
-import { encryptRSA, decryptRSA, } from './rsahelper';
+import { encryptRSA, decryptRSA, responseCryptoCapability, decryptGcmResponse, RESPONSE_CRYPTO_HEADER } from './rsahelper';
 import { getErrMsg } from '../msg/errmsg';
 import { markServiceOnline, markServiceOffline, isBackendUnreachableError } from './serviceStatus';
 import { renegotiateLocalServerRoot } from './backendIdentity';
@@ -13,7 +13,8 @@ import { classifyRequestFailure } from './requestFailure';
 import { recordRequestFailure, stripUrlQuery } from './requestTelemetry';
 // horosa_prefetch_runtime_whitelist_v1(R4-B1):预取作用域内的 URL 闸(纵深防御)。
 // 非预取作用域恒放行 —— 用户真实请求逐字节零行为变化。
-import { guardPrefetchUrl } from './stepPrefetch';
+import { guardPrefetchUrl, isInPrefetchScope } from './stepPrefetch';
+import { tagRequestPriority } from './requestPriority';   // [R5 T5] 后台预取请求带优先级头
 
 var tmDelta = 0;
 // eslint-disable-next-line import/no-cycle
@@ -333,6 +334,14 @@ export function buildSignedFetchOptions(options) {
         ClientVer: Constants.ClientVer,
     };
     opts.headers.Signature = sign(usrtoken, opts.headers, opts.body);
+    // [R5 T0] 声明响应加密能力(会话钥 GCM):不参与签名(签名只含 Channel/App/Ver + 正文),服务端不认识就照旧
+    if(Constants.NeedEncrypt && typeof responseCryptoCapability === 'function'){
+        let cap = null;
+        try{ cap = responseCryptoCapability(); }catch(e){ cap = null; }
+        if(cap){
+            opts.headers[RESPONSE_CRYPTO_HEADER || 'X-Horosa-Crypto'] = cap;
+        }
+    }
     opts.body = encrypt(opts.body);
     return opts;
 }
@@ -357,11 +366,15 @@ function encryptNoTimestamp(str){
     return encryptRSA(str, tm);
 }
 
-function decrpyt(str, response){
+// [R5 T0] 响应解密单一出口:Encrypted: 2 = 会话钥 AES-GCM(WebCrypto 异步)/ 1 = 旧 RSA 信封 / 其它 = 明文
+export async function decryptResponse(str, response){
     if(str === undefined || str === null || str === ''){
         return str;
     }
     let encrypted = response.headers.get('Encrypted');
+    if(encrypted && encrypted === '2'){
+        return decryptGcmResponse(str);
+    }
     if(encrypted && encrypted === '1'){
         return decryptRSA(str);
     }
@@ -530,6 +543,11 @@ export default async function request(url, options) {
     if (!guardPrefetchUrl(url)) {
         return undefined;
     }
+    // [R5 T5] 后台预取(步进预取作用域 / 空闲预热作用域 / 显式 priority)必须在【任何 await 之前】按同步作用域判定并打头:
+    // 去重层的 runner 要等 L3 读(await)之后才调 requestCore,放在那里判定会读到已退出的作用域 ——
+    // 可去重端点(/chart 等,恰是预取的主战场)就永远不带头。去重键只含 url + body、不含请求头,
+    // 前台同参请求照旧复用在途的预取往返。
+    options = tagRequestPriority(options, isInPrefetchScope());
     // 计算类幂等端点:同参进行中共享一次往返 + 30s 会话缓存(白名单内;返回深拷贝;
     // perfFlag horosa.perf.requestDedupe 可关)。白名单外 100% 走原路径零差异。
     if (dedupeEligible(url, options)) {
@@ -539,6 +557,7 @@ export default async function request(url, options) {
 }
 
 async function requestCore(url, options) {
+    // [R5 T5] 优先级头已在 request() 入口按同步作用域打好(见上),此处不再判定。
     // [B1] 桌面壳提前导航(URL 带 early=1)时,后端可能尚未监听:发 fetch 前按目标根探活排队。
     // 非 early 模式同步 no-op;L1/L2/L3 缓存命中在 dedupedRequest 层先返回,不经此门。
     await waitForBackendBoot(url);
@@ -594,7 +613,7 @@ async function requestCore(url, options) {
         let data = {};
         try{
             let rsptxt = await response.text();
-            rsptxt = decrpyt(rsptxt, response);
+            rsptxt = await decryptResponse(rsptxt, response);
             let simpledt = response.headers.get('SimpleData');
             if(simpledt && simpledt === '1'){
                 data = rsptxt;
@@ -610,7 +629,11 @@ async function requestCore(url, options) {
             // 分类修正(2026-07-04 事故复盘):HTTP 200 但响应解不出本协议 ≠「服务不可达」——
             // 典型根因是端口被其它进程占用/服务地址陈旧。标记 horosaIdentitySuspect,
             // 由外层触发身份握手再协商;绝不再把 statusCode:200 报成「未就绪」。
-            if(response.status === 200){
+            if(e && e.code === 'crypto.v2'){
+                // 会话钥加密的响应解不开:rsahelper 已把本页降回旧信封(此后请求不再声明能力)。这不是端口 / 地址问题,
+                // 不触发再协商;服务端已处理过这次请求,不自动重放(写类端点重放会重复提交),提示重试即可。
+                err[Constants.ResultMessageKey] = '本地服务响应解密失败,已自动切换兼容模式,请重试。';
+            }else if(response.status === 200){
                 err[Constants.ResultMessageKey] = '本地服务响应异常(' + err.url + ' 返回了非本应用协议的内容,疑似端口被其它程序占用),已自动重新定位服务,请重试。';
                 err.horosaIdentitySuspect = true;
             }else{
@@ -881,7 +904,7 @@ export async function uploadFile(obj, onUploadComplete){
 
     const respheaders = getResponseHeaders(response);
     let rsptxt = await response.text();
-    rsptxt = decrpyt(rsptxt, response);
+    rsptxt = await decryptResponse(rsptxt, response);
     let data = null;
     let ret = null;
     let simpledt = response.headers.get('SimpleData');

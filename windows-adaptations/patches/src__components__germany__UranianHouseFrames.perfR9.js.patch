@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/germany/UranianHouseFrames.js b/astrostudyui/src/components/germany/UranianHouseFrames.js
-index 5126af2e..89fd571e 100644
+index 237b7967..0c7144b5 100644
 --- a/astrostudyui/src/components/germany/UranianHouseFrames.js
 +++ b/astrostudyui/src/components/germany/UranianHouseFrames.js
 @@ -1,4 +1,7 @@
@@ -10,7 +10,7 @@ index 5126af2e..89fd571e 100644
  // 顶部 XQSelect 六框下拉(子午/上升/太阳/月亮/交点/地球)看一框盘 + XQTable 落宫表 + 「缩略全览」看六小轮。
  // 主框盘复用标准星盘设置 AstroChart(同主占星盘):用所选框的 12 宫 cusps 重写本命盘 houses,各点用本命盘原始
  //   objects(全保真:字形/逆行/落座度),画成与主盘一致的 12 宫盘。缩略全览仍用轻量 UranianFrameWheel(六小轮)。
-@@ -13,6 +16,30 @@ import * as AstroText from '../../constants/AstroText';
+@@ -15,6 +18,30 @@ import * as AstroText from '../../constants/AstroText';
  import { XQSelect, XQTable } from '../xq-ui';
  import AstroChart from '../astro/AstroChart';
  import UranianFrameWheel from './UranianFrameWheel';
@@ -41,7 +41,7 @@ index 5126af2e..89fd571e 100644
  import { equalHouseFramework, planetHouse } from '../../utils/uranianDial';
  import { getStoredUranianDisplay, saveUranianDisplay } from './UranianDialStyle';
  import { schoolToBackendParams } from './UranianSchools';
-@@ -156,6 +183,12 @@ export default class UranianHouseFrames extends Component {
+@@ -158,6 +185,12 @@ export default class UranianHouseFrames extends Component {
  		this._measure = this._measure.bind(this);
  		if (this.props.hook) this.props.hook.fun = () => { if (!this.unmounted) { this.load(); this._measure(); } };
  	}
@@ -54,8 +54,8 @@ index 5126af2e..89fd571e 100644
  	componentDidMount(){
  		this.unmounted = false;
  		this.load();
-@@ -194,11 +227,13 @@ export default class UranianHouseFrames extends Component {
- 			const m = (mid && mid[Constants.ResultKey]) ? mid[Constants.ResultKey] : mid;
+@@ -202,11 +235,13 @@ export default class UranianHouseFrames extends Component {
+ 			if (!chartObj || !m) { settleTrigger(this, 'load', framesTrig, false); }   // request 吞错 resolve 空 → 同参允许重试
  			const tnp = (m && m.tnp) || [];
  			const points = collectPoints(chartObj, tnp);
 +			// horosa_panel_ready_v1:六宫框子盘的中栏(框盘)+右栏(落宫表)全部由 points/houseFrames 派生,
@@ -69,4 +69,4 @@ index 5126af2e..89fd571e 100644
 +				this.setState({ points, houseFrames: degradeFrames(points), degraded: true, loading: false }, ()=>{ markPanelReady('auxchart'); });
  			}
  		} catch (e){
- 			if (!this.unmounted) this.setState({ loading: false, note: '排盘失败,请稍后重试' });
+ 			settleTrigger(this, 'load', framesTrig, false);

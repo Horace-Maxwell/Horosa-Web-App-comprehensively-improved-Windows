@@ -34,14 +34,18 @@ import { safeLocalStorageSet } from './safeStorage';
 //   safeLocalStorageSet('horosa.perf.hoverPrefetch', '0')         // 导航悬停预取 chunk(关=点击才载)
 //   safeLocalStorageSet('horosa.perf.netResultCache', '0')        // 请求结果 L3 持久缓存(IndexedDB,跨重启 0 往返)
 //   safeLocalStorageSet('horosa.perf.bootGate', '0')              // [B1] early 导航后端探活门(关=请求直发,未起时报错重试)
+//   safeLocalStorageSet('horosa.perf.bootGateFastRetry', '0')     // [R5 S2] 就绪门探活重试 50ms(关=回旧 350ms;壳确认事件两档都即时放行)
+//   safeLocalStorageSet('horosa.perf.requestPriorityLane', '0')   // [R5 T5] 后台预取请求带 X-Horosa-Priority 头(引擎侧让用户请求先算;关=永不加头)
 //   safeLocalStorageSet('horosa.perf.rsaSessionKey', '0')         // [A2] RSA 会话密钥复用(关=每请求重算 2048 位模幂)
+//   safeLocalStorageSet('horosa.perf.cryptoV2', '0')              // [R5 T0] 响应改会话钥 AES-GCM + WebCrypto 异步解(关=旧 RSA 信封 + 主线程 JS 解)
 //   safeLocalStorageSet('horosa.perf.recordStoreFastWrite', '0')  // [P0-S5] 记录库写路径:逐记录序列化缓存+装饰排序+缓存对象身份保持(关=整库 stringify/parse 旧路径)
 //   safeLocalStorageSet('horosa.perf.sourcesCache', '0')          // [P0-S2] AI 分析源列表指纹缓存+引用稳定+单条 O(1) 查找(关=每次全建新数组)
 //   safeLocalStorageSet('horosa.perf.agentBatchSelect', '0')      // AI 助手批量建档只在批尾选中末条(关=逐条选中)
 //   safeLocalStorageSet('horosa.perf.contextCachePrune', '0')     // [P0-S4] AI 源上下文缓存条数上限裁剪(关=缓存只增不减)
+//   safeLocalStorageSet('horosa.perf.usageOrderedPreload', '0')   // [R5 N2] chunk 预载 / 引擎与数据预热按本机技法使用频次排序(关=写死的概率序)
 // 恢复:对应 key removeItem 或设 '1'。
 
-function flagEnabled(key){
+export function flagEnabled(key){
 	try{
 		if(typeof window !== 'undefined' && window.localStorage){
 			return window.localStorage.getItem(key) !== '0';
@@ -148,6 +152,19 @@ export function bootGateEnabled(){
 	// [B1] 桌面壳 early 导航(前后端启动重叠)时,请求层按目标根探活排队;
 	// 关=请求直发(后端未起时走既有报错/重试/离线横幅,行为回到旧序)。
 	return flagEnabled('horosa.perf.bootGate');
+}
+
+// [R5 S2] 就绪门探活重试间隔 50ms(回环拒连探测近零成本;旧 350ms 让首盘平均多等 175ms)。
+// 关=回旧 350ms。壳的 horosa:backend-confirmed 事件与之无关:两档都是事件一到立即放行。
+export function bootGateFastRetryEnabled(){
+	return flagEnabled('horosa.perf.bootGateFastRetry');
+}
+
+// [R5 T0] 响应加解密 v2:请求头声明能力(X-Horosa-Crypto: gcm1),服务端用请求里已协商的会话钥做 AES-128-GCM
+// (免每响应 RSA 私钥运算),前端用浏览器原生 WebCrypto 异步解、不占主线程。关=服务端回旧 RSA 信封(Encrypted: 1)。
+// 依赖会话钥复用(rsaSessionKey 关时本能力自动不声明)与 crypto.subtle 在场。
+export function cryptoV2Enabled(){
+	return flagEnabled('horosa.perf.cryptoV2');
 }
 
 export function rsaSessionKeyEnabled(){

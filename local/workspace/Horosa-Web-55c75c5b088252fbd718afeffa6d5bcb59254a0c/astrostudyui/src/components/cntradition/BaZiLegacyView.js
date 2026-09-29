@@ -9,6 +9,8 @@ import MainDirection from './MainDirection';
 import SmallDirection from './SmallDirection';
 import GanHeCong from './GanHeCong';
 import ZiHeCong from './ZiHeCong';
+import { baziAgeText } from './baziAgeText';
+import { addDisplayYears } from '../../utils/dateStrSafe';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
 const TabPane = Tabs.TabPane;
@@ -194,13 +196,14 @@ class LegacyDirectionSections extends Component{
 		return (
 			<div>
 				{items.map((sub, idx)=>{
-					const year = Number(dir.startYear || 0) + (safeArray(dir.subDirect).indexOf(sub));
-					const age = Number(dir.age || 0) + (safeArray(dir.subDirect).indexOf(sub));
+					const year = addDisplayYears(Number(dir.startYear || 0), safeArray(dir.subDirect).indexOf(sub));   // 跨公元纪元不出 0 年
+					// dir.age 是虚岁(见 baziAgeText):按「年龄」档显示,此前恒标「周岁」却填虚岁,整体大一岁。
+					const age = (dir.age !== undefined && dir.age !== null && `${dir.age}` !== '') ? Number(dir.age) + (safeArray(dir.subDirect).indexOf(sub)) : null;
 					return (
 						<div className="horosa-bazi-legacy-sub-row" key={`${dir.startYear}-${idx}-${getGanzi(sub)}`}>
 							<span>{getGanzi(sub)}</span>
 							<span>{sub.naying || ''}</span>
-							<span>{year || ''}　{age ? `${age}周岁` : ''}</span>
+							<span>{year || ''}　{baziAgeText(age, this.props.ageStyle || 'nominal')}</span>
 						</div>
 					);
 				})}
@@ -506,7 +509,7 @@ export class BaZiLegacyMain extends Component{
 					})}
 				</div>
 				<div className="horosa-bazi-legacy-divider" />
-				<LegacyDirectionSections value={bazi} />
+				<LegacyDirectionSections value={bazi} ageStyle={(this.props.baziOpt && this.props.baziOpt.ageStyle) || 'nominal'} />
 			</div>
 		);
 	}
@@ -536,6 +539,7 @@ export class BaZiLegacyInfoPanel extends Component{
 	render(){
 		const bazi = this.props.value || {};
 		const four = bazi.fourColumns || {};
+		const ageStyle = this.props.ageStyle || 'nominal';   // 「年龄」档下传三处岁数(行运概略 / 大运 / 小运)
 		const height = this.props.height || 760;
 		const legacyHeight = typeof height === 'number' ? height + 130 : height;
 		const cur = this.state.legacyTab;
@@ -544,7 +548,7 @@ export class BaZiLegacyInfoPanel extends Component{
 				<TabPane tab="行运概略" key="overview">
 					<FreezeSubTab active={cur === 'overview'}>{()=>(
 						<div className="horosa-bazi-legacy-overview-adapt">
-							<MainDirectionSimple value={bazi} height={legacyHeight} />
+							<MainDirectionSimple value={bazi} height={legacyHeight} ageStyle={ageStyle} />
 						</div>
 					)}</FreezeSubTab>
 				</TabPane>
@@ -565,12 +569,12 @@ export class BaZiLegacyInfoPanel extends Component{
 				</TabPane>
 				<TabPane tab="大运" key="main">
 					<FreezeSubTab active={cur === 'main'}>{()=>(
-						<MainDirection value={bazi} height={legacyHeight} />
+						<MainDirection value={bazi} height={legacyHeight} ageStyle={ageStyle} />
 					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="小运" key="small">
 					<FreezeSubTab active={cur === 'small'}>{()=>(
-						<SmallDirection value={bazi} height={legacyHeight} />
+						<SmallDirection value={bazi} height={legacyHeight} ageStyle={ageStyle} />
 					)}</FreezeSubTab>
 				</TabPane>
 				<TabPane tab="天干" key="gan">

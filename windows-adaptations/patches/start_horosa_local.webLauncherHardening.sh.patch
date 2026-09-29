@@ -1,5 +1,5 @@
 diff --git a/start_horosa_local.sh b/start_horosa_local.sh
-index 07ab1e53..8b8a1a4f 100644
+index b9e02bfd..568b673d 100644
 --- a/start_horosa_local.sh
 +++ b/start_horosa_local.sh
 @@ -752,11 +752,13 @@ _rc_backend=0; wait "${_rc_backend_pid}" || _rc_backend=$?
@@ -16,7 +16,7 @@ index 07ab1e53..8b8a1a4f 100644
    exit 3
  fi
  
-@@ -927,7 +929,10 @@ pid_alive() {
+@@ -943,7 +945,10 @@ pid_alive() {
  # Python 组装/Python spawn 之后才出生(账本实测 ~468ms)。此处把 Java 组装+spawn 提到
  # 最前(其全部前置=pid/端口回收+java/python resolve+trap,均已就绪),前端检查与 Python
  # 组装转到 Java 出生之后进行 —— 纯重排零语义变化;失败路径由既有 trap cleanup_on_fail 兜。
@@ -28,7 +28,7 @@ index 07ab1e53..8b8a1a4f 100644
    HOROSA_DESKTOP_MONGO_OPTIONAL="${DESKTOP_MONGO_OPTIONAL}" \
    HOROSA_DESKTOP_MONGO_SKIP_PING="${DESKTOP_MONGO_SKIP_PING}" \
    HOROSA_MONGO_FALLBACK_DIR="${MONGO_FALLBACK_DIR}" \
-@@ -1024,11 +1029,14 @@ ledger_log sh.java_spawned
+@@ -1076,11 +1081,14 @@ ledger_log sh.java_spawned
  ensure_frontend_build
  ledger_log sh.fe_check_done
  
@@ -45,7 +45,7 @@ index 07ab1e53..8b8a1a4f 100644
  launch_detached "${PY_LOG}" "${PYTHON_LAUNCH_CMD[@]}" >"${PY_PID_FILE}"
  if ! pid_alive "${PY_PID_FILE}"; then
    diag_log "python launch FAILED: pid 文件为空/进程未存活 (pidfile='$(cat "${PY_PID_FILE}" 2>/dev/null || echo "<unreadable>")', 日志目录可写? 磁盘?)"
-@@ -1050,8 +1058,10 @@ READY_STALL_SECS="${HOROSA_READY_STALL_SECS:-90}"
+@@ -1102,8 +1110,10 @@ READY_STALL_SECS="${HOROSA_READY_STALL_SECS:-90}"
  READY_TOTAL_CAP_SECS="${HOROSA_READY_TOTAL_CAP_SECS:-900}"
  _progress_fingerprint() {
    local pyb jab pyc jac ll pypid japid
@@ -58,7 +58,7 @@ index 07ab1e53..8b8a1a4f 100644
    pypid="$(cat "${PY_PID_FILE}" 2>/dev/null || true)"
    japid="$(cat "${JAVA_PID_FILE}" 2>/dev/null || true)"
    pyc=""
-@@ -1181,6 +1191,7 @@ if [ "${ready}" -ne 1 ]; then
+@@ -1239,6 +1249,7 @@ if [ "${ready}" -ne 1 ]; then
    bind_err_re='Address already in use|Errno 48|BindException|Port [0-9]+ was already in use'
    if { tail -n 160 "${PY_LOG}" 2>/dev/null || true; tail -n 160 "${JAVA_LOG}" 2>/dev/null || true; } | grep -Eq "${bind_err_re}"; then
      diag_log "===== run end (failed: port bind conflict, exit 3 retryable) ====="
@@ -66,7 +66,7 @@ index 07ab1e53..8b8a1a4f 100644
      exit 3
    fi
    diag_log "===== run end (failed) ====="
-@@ -1279,3 +1290,14 @@ echo "html:     ${HTML_PATH}"
+@@ -1337,3 +1348,14 @@ echo "html:     ${HTML_PATH}"
  echo "logs:     ${LOG_DIR}"
  echo ""
  echo "stop:     ${ROOT}/stop_horosa_local.sh"

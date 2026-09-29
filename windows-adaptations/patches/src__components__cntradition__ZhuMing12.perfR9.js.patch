@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/cntradition/ZhuMing12.js b/astrostudyui/src/components/cntradition/ZhuMing12.js
-index 73e75ff..dca7612 100644
+index ec81d9cd..e33b3adc 100644
 --- a/astrostudyui/src/components/cntradition/ZhuMing12.js
 +++ b/astrostudyui/src/components/cntradition/ZhuMing12.js
 @@ -1,7 +1,9 @@
@@ -13,21 +13,7 @@ index 73e75ff..dca7612 100644
  
  export default class ZhuMing12 extends Component{
  	constructor(props) {
-@@ -20,18 +22,19 @@ export default class ZhuMing12 extends Component{
- 
- 		let cols = stems.map((item, idx)=>{
- 			return (
--				<Col span={24} style={{textAlign: 'center'}} key={randomStr(8)}>
-+				<Col span={24} style={{textAlign: 'center'}} key={`stem-${idx}`}>
- 					<span>{BaZiMsg[item.polar] + item.cell + BaZiMsg[item.element]}&bull;{BaZiMsg[item.relative]}</span>
- 				</Col>
- 			);
- 		});
- 		for(let i=cols.length; i<3; i++){
--			let emptycol = (<Col span={24} key={randomStr(8)}><span>&nbsp;</span></Col>);
-+			// padding cols share the `cols` array with the mapped stems above, so use a distinct prefix
-+			let emptycol = (<Col span={24} key={`empty-${i}`}><span>&nbsp;</span></Col>);
- 			cols.push(emptycol);
+@@ -31,7 +33,7 @@ export default class ZhuMing12 extends Component{
  		}
  
  		let dom = (

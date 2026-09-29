@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/huangji/HuangJiMain.js b/astrostudyui/src/components/huangji/HuangJiMain.js
-index 33287c80..7e4a3457 100644
+index a139a7b2..03761db1 100644
 --- a/astrostudyui/src/components/huangji/HuangJiMain.js
 +++ b/astrostudyui/src/components/huangji/HuangJiMain.js
-@@ -18,6 +18,8 @@ import { formatHumanValue } from '../../utils/humanReadableFields';
+@@ -19,6 +19,8 @@ import { formatHumanValue } from '../../utils/humanReadableFields';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { parseDateParts } from '../../utils/dateStrSafe';
  import { definePageSettings } from '../../utils/pageSettingsStore';
@@ -11,167 +11,21 @@ index 33287c80..7e4a3457 100644
  
  const { Option } = Select;
  const { TabPane } = Tabs;
-@@ -97,10 +99,93 @@ async function postWangJi(path, payload){
- 	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
- }
- 
-+// v3.5.1 收敛:结果级缓存退役 —— postWangJi 内部已走上游 utils/kentangCache
-+// (L1/L2/L3 + 在途去重);步进预取结果落上游缓存,真点同键即命中。保留本入口名,
-+// 登记的预取器与真点共用同一路径(键构造同源不变)。
-+function postWangJiCached(path, payload){
-+	return postWangJi(path, payload);
-+}
-+
- function fmtValue(value){
- 	return formatHumanValue(value);
- }
- 
-+// horosa_wangji_classics_ondemand_v1 —— 典籍正文按需取。
-+// 后端 /wangji/pan 只回典籍目录(level+title,~12KB);全书正文(皇極經世書 ~980KB)改由
-+// /wangji/classic 按 classicKey 取一次,存进本模块级缓存,再合并回 state 里的 sections。
-+// 因此:① 历史年/随机历史年/改典籍 触发的重新起盘不再各拖一份全书;② 章节切换(changeClassicSection)
-+// 与显示切换(changeClassicView)仍是纯本地读 state,零网络、瞬时;③ AI 快照读的是同一份已合并
-+// sections,正文一字不少(合并在 setState 之前完成,见 fetchPan / buildHuangJiSnapshotForFields)。
-+const CLASSIC_SECTION_CACHE = {};
-+const CLASSIC_SECTION_PENDING = {};
-+
-+function classicsHaveContent(classics){
-+	if(!classics || !Array.isArray(classics.sections) || !classics.sections.length){
-+		return true; // 无章节 = 无正文可缺(旧盘/空数据不触发取数)
-+	}
-+	return classics.sections.some((item)=>item && typeof item.content === 'string');
-+}
-+
-+// 取(并缓存)某部典籍的全文 sections;同 key 并发只发一次请求。失败回 null(调用方降级为目录态)。
-+function loadClassicSections(classicKey){
-+	const key = classicKey || DEFAULT_CLASSIC;
-+	if(CLASSIC_SECTION_CACHE[key]){
-+		return Promise.resolve(CLASSIC_SECTION_CACHE[key]);
-+	}
-+	if(CLASSIC_SECTION_PENDING[key]){
-+		return CLASSIC_SECTION_PENDING[key];
-+	}
-+	const task = postWangJi('classic', { classicKey: key }).then((res)=>{
-+		const sections = res && Array.isArray(res.sections) ? res.sections : null;
-+		if(sections){
-+			CLASSIC_SECTION_CACHE[key] = sections;
-+		}
-+		delete CLASSIC_SECTION_PENDING[key];
-+		return sections;
-+	}).catch(()=>{
-+		delete CLASSIC_SECTION_PENDING[key];
-+		return null;
-+	});
-+	CLASSIC_SECTION_PENDING[key] = task;
-+	return task;
-+}
-+
-+// 把全文按章节序号合并进盘里的目录(就地写 content);长度/标题对不上则不写,宁缺勿错配。
-+function mergeClassicContent(classics, sections){
-+	if(!classics || !Array.isArray(classics.sections) || !Array.isArray(sections)){
-+		return false;
-+	}
-+	if(classics.sections.length !== sections.length){
-+		return false;
-+	}
-+	for(let i = 0; i < sections.length; i += 1){
-+		if(!sections[i] || sections[i].title !== classics.sections[i].title){
-+			return false;
-+		}
-+	}
-+	classics.sections.forEach((item, idx)=>{
-+		item.content = sections[idx].content || '';
-+	});
-+	classics.withContent = true;
-+	return true;
-+}
-+
-+// 已有正文即刻返回;否则取一次再合并。绝不抛(典籍取数失败不能拖垮主盘)。
-+async function ensureClassicContent(pan){
-+	const classics = pan && pan.classics ? pan.classics : null;
-+	if(!classics || classicsHaveContent(classics)){
-+		return pan;
-+	}
-+	try{
-+		const sections = await loadClassicSections(classics.selectedKey || DEFAULT_CLASSIC);
-+		mergeClassicContent(classics, sections);
-+	}catch(e){
-+		// 降级:右栏「经典」显示目录态,与后端不可达时的既有表现一致
-+		console.warn('kinwangji classic fetch failed', e);
-+	}
-+	return pan;
-+}
-+
- // opts(可选)：{ classicSectionIndex } —— 选中典籍章节序号(与右栏「典籍」选择联动);缺省取首章(与 UI 初始态一致)。
- export function buildSnapshotText(pan, xinyi, opts){
- 	if(!pan){
-@@ -178,6 +263,8 @@ export async function buildHuangJiSnapshotForFields(fields, opts){
- 		if(!pan){
- 			return '';
- 		}
-+		// horosa_wangji_classics_ondemand_v1:无头快照同样要拿到典籍正文([经典原文] 段读 sections[idx].content)。
-+		await ensureClassicContent(pan);
- 		let xinyi = null;
- 		const xm = o.xinyiMethod && o.xinyiMethod !== 'none' ? o.xinyiMethod : '';
- 		if(xm){
-@@ -266,6 +353,7 @@ class HuangJiMain extends Component{
- 		}
- 	}
- 
-+
- 	componentDidMount(){
- 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
- 		this.unmounted = false;
-@@ -303,7 +391,14 @@ class HuangJiMain extends Component{
- 		}
- 		let text = '';
- 		try{
--			text = `${buildSnapshotText(this.state.pan, this.state.xinyi, { classicSectionIndex: this.state.classicSectionIndex }) || ''}`.trim();
-+			// horosa_wangji_classics_ondemand_v1:本回调是同步的,不能 await 取正文。
-+			// 正常路径下 fetchPan/restore 已把正文合并进 state.pan;这里再做一次「模块缓存命中即同步补齐」
-+			// 的兜底(命中即零延迟),确保 [经典原文] 段绝不因按需取而丢正文。
-+			const pan = this.state.pan;
-+			if(pan && pan.classics && !classicsHaveContent(pan.classics)){
-+				mergeClassicContent(pan.classics, CLASSIC_SECTION_CACHE[pan.classics.selectedKey || DEFAULT_CLASSIC]);
-+			}
-+			text = `${buildSnapshotText(pan, this.state.xinyi, { classicSectionIndex: this.state.classicSectionIndex }) || ''}`.trim();
- 		}catch(e){
- 			text = '';
- 		}
-@@ -350,6 +445,17 @@ class HuangJiMain extends Component{
- 			const xinyi = this.state.xinyi;
- 			const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
- 			saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
-+			// horosa_wangji_classics_ondemand_v1:存档盘(clickSaveCase 存的是已合并的 state.pan)本就带正文;
-+			// 万一是缺正文的旧档/降级档,这里异步补齐并重存快照——正文只会迟到,不会丢。
-+			if(pan && pan.classics && !classicsHaveContent(pan.classics)){
-+				ensureClassicContent(pan).then(()=>{
-+					if(this.unmounted || this.state.pan !== pan){
-+						return;
-+					}
-+					saveModuleAISnapshot('huangji', `${buildSnapshotText(pan, xinyi, snapOpts) || ''}`.trim());
-+					this.forceUpdate();
-+				}).catch(()=>{});
-+			}
+@@ -552,6 +554,23 @@ class HuangJiMain extends Component{
  		});
- 		return true;
- 	}
-@@ -455,6 +561,24 @@ class HuangJiMain extends Component{
- 		};
  	}
  
 +	// horosa_prefetch_registry_v1(PERF-R10 P6):供 CnYiBuMain 'cnyibu' 预取器按活跃子页转发。
-+	// 只报 pan(单阶段、确定性);构参与 fetchPan 同源(parseFieldsDateTime + 当前
-+	// historyYear/classicKey)⇒ 缓存键逐字节同键;classic 正文有模块缓存不需预取。
++	// 只报 pan(单阶段、确定性);构参走 buildPanPayload 与 fetchPan 单源(含 slimClassics=1)
++	// ⇒ 缓存键逐字节同键;典籍正文由上游 loadClassicFull 模块缓存按需取,不需预取。
 +	getStepPrefetchTasks(steppedFields){
 +		try{
-+			const dt = parseFieldsDateTime(steppedFields);
-+			if(!dt){ return []; }
-+			const payload = { ...dt, historyYear: this.state.historyYear, classicKey: this.state.classicKey };
++			if(!parseFieldsDateTime(steppedFields)){ return []; }
++			const payload = this.buildPanPayload(steppedFields);
 +			return [{
 +				name: 'wangji',
 +				path: '/wangji/pan',
-+				run: ()=> postWangJiCached('pan', payload).catch(()=>{ /* 预取失败静默 */ }),
++				run: ()=> postWangJi('pan', payload).catch(()=>{ /* 预取失败静默 */ }),
 +			}];
 +		}catch(e){
 +			return [];
@@ -181,7 +35,7 @@ index 33287c80..7e4a3457 100644
  	async fetchPan(fields){
  		const payload = this.buildPanPayload(fields);
  		if(!payload){
-@@ -469,6 +593,8 @@ class HuangJiMain extends Component{
+@@ -572,6 +591,8 @@ class HuangJiMain extends Component{
  				return;
  			}
  			this.setState({ pan, xinyi, loading: false }, ()=>{
@@ -190,7 +44,7 @@ index 33287c80..7e4a3457 100644
  				const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
  				saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
  			});
-@@ -868,23 +994,38 @@ class HuangJiMain extends Component{
+@@ -972,23 +993,38 @@ class HuangJiMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

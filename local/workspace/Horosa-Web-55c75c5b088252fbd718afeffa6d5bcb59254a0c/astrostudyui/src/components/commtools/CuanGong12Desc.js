@@ -1,11 +1,9 @@
 import { Component } from 'react';
 import { Row, Col, Divider } from 'antd';
+
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import styles from '../../css/styles.less';
-// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
-// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
-// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
 export default class CuanGong12Desc extends Component{
@@ -53,7 +51,7 @@ export default class CuanGong12Desc extends Component{
         }
         let lis = this.state.starSu.map((item, idx)=>{
             return (
-                <li key={idx}>
+                <li key={`s1-${idx}`}>
                     <h4>{item.name}：</h4>{item.event}
                     <div>{item.mind}</div>
                 </li>
@@ -65,7 +63,7 @@ export default class CuanGong12Desc extends Component{
             for(let key in this.state.typeSu){
                 let val = this.state.typeSu[key];
                 let li = (
-                    <li key={key}>
+                    <li key={`s2-${key}`}>
                         <h4>{key}：</h4>{val}
                     </li>
                 );
@@ -94,7 +92,7 @@ export default class CuanGong12Desc extends Component{
         }
         let lis = this.state.stars.map((item, idx)=>{
             return (
-                <li key={idx}>
+                <li key={`s3-${idx}`}>
                     <h4>{item.name}：</h4>{item.event}
                 </li>
             )

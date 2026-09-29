@@ -158,3 +158,17 @@ def test_zhirun_futou_eve_late_zi_consistency():
 def test_wurun_futou_eve_late_zi_consistency():
     """无闰(zhirun_jieqi_noleap)同修晚子时进位;该时点无闰未触发 → 与置闰同值。"""
     assert kq_config.qimen_ju_name_wurun(2015, 1, 2, 23, 30) == kq_config.qimen_ju_name_zhirun(2015, 1, 2, 23, 30)
+
+
+def test_jiazi_shared_constant_survives_full_pan():
+    """六十甲子是进程内共享常量(jiazi() 直接返回同一个列表,不再每次重建):四种定局法 × 多个时刻整盘起完之后
+    必须原封不动 —— 任何调用点就地改了它(reverse / sort / 元素赋值)都会污染全进程后续所有奇门盘。"""
+    table = kq_config.jiazi()
+    before = list(table)
+    assert len(before) == 60 and before[0] == "甲子" and before[-1] == "癸亥"
+    for dt in (_DT, (1990, 1, 1, 23, 30), (2033, 12, 21, 12, 0)):
+        q = kq.Qimen(*dt)
+        for opt in (1, 2, 3, 4):
+            q.pan(opt)
+    assert kq_config.jiazi() is table
+    assert list(table) == before

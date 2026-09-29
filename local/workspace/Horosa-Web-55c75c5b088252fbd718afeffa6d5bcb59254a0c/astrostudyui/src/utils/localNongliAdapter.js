@@ -1,5 +1,6 @@
 import { Solar } from 'lunar-javascript';
 import { isLunarJsYearReliable } from './lunarDomainGuard';
+import { bjShiftMinutes, shiftSolarMinutes } from './beijingTimeShift';
 
 const GAN = '甲乙丙丁戊己庚辛壬癸'.split('');
 const ZHI = '子丑寅卯辰巳午未申酉戌亥'.split('');
@@ -181,12 +182,16 @@ export function buildLocalJieqiYearSeed(year, zone){
 	}catch(e){
 		table = null;
 	}
+	// 节气表按北京时间编;非东八区把交节时刻折成当地钟表、交节日干支按当地日期(与后端 /jieqi/year 同口径)。
+	// 使用方(奇门当前节气 / 节气页本地回退 / 奇门择日扫描 / AI 挂载)都拿它与当地钟表比较。东八区平移 0 → 逐字节不变。
+	const toLocal = -bjShiftMinutes(zone);
 	for(let i=0; i<JIEQI_STD.length; i++){
 		const term = JIEQI_STD[i];
-		const solar = table && table[term] ? table[term] : null;
-		if(!solar || !solar.toYmdHms){
+		const bjSolar = table && table[term] ? table[term] : null;
+		if(!bjSolar || !bjSolar.toYmdHms){
 			continue;
 		}
+		const solar = toLocal ? shiftSolarMinutes(bjSolar, toLocal) : bjSolar;
 		const time = solar.toYmdHms();
 		const date = solar.toYmd ? solar.toYmd() : time.substring(0, 10);
 		seed[term] = {

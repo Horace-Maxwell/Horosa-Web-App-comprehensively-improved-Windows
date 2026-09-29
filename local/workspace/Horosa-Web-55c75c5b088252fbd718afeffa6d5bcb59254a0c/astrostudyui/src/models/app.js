@@ -6,10 +6,12 @@ import { newChartSeedValue } from '../utils/newChartSeeds';
 import { Modal,  } from 'antd';
 import {getStore, } from '../utils/storageutil';
 import * as Constants from '../utils/constants';
+import { waitForBackendBoot } from '../utils/backendBootGate';
+import { restoredSubTab } from '../constants/SubTabRegistry';
 import * as appService from '../services/app';
 import {setDispatch} from '../utils/request';
 import {detectPlatform} from '../utils/helper';
-import { loadBootChartSnapshot } from '../utils/bootChartRestore';
+import { loadBootChartSnapshot } from '../utils/bootChartRestore';   // [R5 S7] 温启直接显示上次的盘
 import * as AstroConst from '../constants/AstroConst';
 import { setTmDelta } from '../utils/request';
 import { normalizeAppearanceMode } from '../utils/appearance';
@@ -162,6 +164,35 @@ function userInfoToFields(flds, userInfo){
     if(userInfo.pdaspects){
         flds.pdaspects.value = userInfo.pdaspects;
     }
+}
+
+// [R5 S7] 启动首盘二选一:setup 里已按快照重放上次的盘(pending / done)→ 只落 fields(预测设置 / 用户档),不再起
+// 「此刻」盘;无快照 / 恢复失败(failed)/ 用户已先动手(dropped)→ 今日路径「此刻」。
+const BOOT_RESTORE_PENDING_TIMEOUT_MS = 30000;
+// 兜底计时从「后端可达」起算:桌面壳提前导航(early)时后端可能要几十秒才起(更新后首启常见),若从页面挂载起算,
+// 恢复请求还在就绪门里排队就会被判失败、另起「此刻」盘(恢复白费且多一次冷算)。非 early 模式就绪门立即返回,计时同旧。
+async function bootRestoreWait(ms){
+    try{ await waitForBackendBoot(`${Constants.ServerRoot}/chart`); }catch(e){ /* 门异常不影响兜底计时 */ }
+    await new Promise((resolve)=>setTimeout(resolve, ms));
+}
+export function* bootChartOrNow(fld, select, put, call){
+    const astrost = yield select((s)=>s.astro);
+    const flag = astrost ? astrost.bootChartRestore : null;
+    if(flag === 'pending' || flag === 'done'){
+        yield put({ type: 'astro/save', payload: { fields: fld, bootFieldsApplied: true } });
+        if(flag === 'pending' && typeof call === 'function'){
+            // 兜底:恢复若既没成功也没标 failed / dropped(例如重放链路抛了异常),不能让首屏永远空着 ——
+            // 等一段后仍 pending 且没有任何盘 → 回今日路径「此刻」(有盘 / 已换态则什么都不做)
+            yield call(bootRestoreWait, BOOT_RESTORE_PENDING_TIMEOUT_MS);
+            const later = yield select((s)=>s.astro);
+            if(later && later.bootChartRestore === 'pending' && !later.chartObj){
+                yield put({ type: 'astro/save', payload: { bootChartRestore: 'failed' } });
+                yield put({ type: 'astro/nowChart', payload: { fields: later.fields || fld } });
+            }
+        }
+        return;
+    }
+    yield put({ type: 'astro/nowChart', payload: { fields: fld } });
 }
 
 function applyPredictiveSetupToFields(flds, appst){
@@ -488,12 +519,7 @@ export default {
                         admin: false,
                     },
                 });
-                yield put({
-                    type: 'astro/nowChart',
-                    payload: {
-                        fields: fld,
-                    },
-                });
+                yield* bootChartOrNow(fld, select, put, call);   // [R5 S7]
                 return;
             }
             const Result = rsp.Result;
@@ -506,12 +532,7 @@ export default {
                     ...astrost.fields,
                 };
                 applyPredictiveSetupToFields(fld, appst);
-                yield put({
-                    type: 'astro/nowChart',
-                    payload: {
-                        fields: fld,
-                    },
-                });    
+                yield* bootChartOrNow(fld, select, put, call);   // [R5 S7]
                 return;
             }
             
@@ -542,12 +563,7 @@ export default {
                 },
             });
 
-            yield put({
-                type: 'astro/nowChart',
-                payload: {
-                    fields: fld,
-                },
-            });
+            yield* bootChartOrNow(fld, select, put, call);   // [R5 S7]
 
         },
 
@@ -866,22 +882,26 @@ export default {
             dispatch({
                 type: 'rules/ziwei',
                 payload:{},
-            });
+            });                           
 
-            // horosa_boot_chart_restore_v1(PERF-R10 S2):温启恢复上次工作现场 —— 快照按
-            // fetchByChartData 的 record 口径重放(与「手动载入命盘」逐字节同管线:选项条件
-            // 还原/memo 覆盖/hook 全套)。L3 命中时后端未就绪也能先画;miss 时经 boot 门排队,
-            // 与用户手动出盘无异。仅桌面壳 + 7 天窗 + kill-switch,全部在 loadBootChartSnapshot
-            // 内裁决;用户启动瞬间手动出盘 → fieldsEpoch latest-wins 作废恢复响应,零打架。
+            // [R5 S7] 温启直接显示上次的盘:快照按 fetchByChartData 的 record 口径重放(与手动载入命盘同管线)。
+            // 请求层 L1/L3 命中不经就绪门 ⇒ 后端未起也能先画;miss 时排队等后端,与手动出盘无异。
+            // 桌面壳 / 开关 / 7 天窗 / 坏档 全在 loadBootChartSnapshot 内裁决;checkUser 看到 pending/done 就不再起
+            // 「此刻」盘;恢复失败回落「此刻」;用户先动手则丢弃恢复(latest-wins)。
             try{
                 const bootSnap = loadBootChartSnapshot();
                 if(bootSnap){
-                    if(bootSnap.currentTab){
-                        dispatch({ type: 'astro/save', payload: { currentTab: bootSnap.currentTab } });
-                    }
-                    dispatch({ type: 'astro/fetchByChartData', payload: bootSnap.record });
+                    // 页签与子页签成对恢复(与页签点击派发同形:currentTab + currentSubTab),避免子页签跨页签错配
+                    dispatch({
+                        type: 'astro/save',
+                        payload: {
+                            bootChartRestore: 'pending',
+                            ...(bootSnap.currentTab ? { currentTab: bootSnap.currentTab, currentSubTab: restoredSubTab(bootSnap.currentTab, bootSnap.currentSubTab) } : {}),
+                        },
+                    });
+                    dispatch({ type: 'astro/fetchByChartData', payload: { ...bootSnap.record, bootRestore: true } });
                 }
-            }catch(e){ /* 恢复是优化不是功能,失败静默回空白默认态 */ }
+            }catch(e){ /* 恢复是优化不是功能,失败静默回今日路径 */ }
 
             return ()=>{
                 if(roTimer){ clearInterval(roTimer); }

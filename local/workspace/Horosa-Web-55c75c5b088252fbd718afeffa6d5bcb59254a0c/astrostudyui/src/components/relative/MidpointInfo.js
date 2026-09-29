@@ -3,13 +3,11 @@ import { Row, Col, Divider, Popover, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from '../astro/AstroHelper';
+
 import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
 import { buildMeaningTipByCategory, buildAspectMeaningTip, } from '../astro/AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover';
 import styles from '../../css/styles.less';
-// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
-// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
-// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 const LIST_POINTS = [
     AstroConst.ASC, AstroConst.MC, AstroConst.DESC, AstroConst.IC,
@@ -64,7 +62,7 @@ class MidpointInfo extends Component{
 				continue;
 			}
 			let domtitle = (
-				<div key={`title-${key}`}>
+				<div key={`s1-${i}`}>
 						<span style={{fontFamily: AstroConst.NormalFont}}>{title}&nbsp;</span>
 						{this.renderLabel(
 							appendPlanetHouseInfoById(
@@ -82,9 +80,8 @@ class MidpointInfo extends Component{
 			for(let idx=0; idx<obj.length; idx++){
 				let asp = obj[idx];
 
-				// 标题/相位/空行同推 divs，故用外层行星 key 与内层序号组合避免撞 key
 				let dom = (
-						<div key={`asp-${key}-${idx}`} style={{fontFamily: AstroConst.AstroFont}}>
+						<div key={`s2-${idx}`} style={{fontFamily: AstroConst.AstroFont}}>
 							<span>&emsp;{
 								wrapWithMeaning(
 									<span>{AstroText.AstroMsg['Asp' + asp.aspect]}&nbsp;</span>,
@@ -122,7 +119,7 @@ class MidpointInfo extends Component{
 			}
 
 			let space = (
-				<div key={`space-${key}`}><span>&nbsp;</span></div>
+				<div key={`s3-${i}`}><span>&nbsp;</span></div>
 			);
 			divs.push(space);
 		}

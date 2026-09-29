@@ -3,7 +3,7 @@
 // 否则停在任意子技法切走再切回被静默打回首档(灵棋经/塔罗 × 风水/AI分析 实测三组复现的病)。
 import {
 	CNYIBU_SUBTABS, AUX_SUBTABS, ZERI_SUBTABS, CNTRADITION_SUBTABS,
-	firstSubTab, resolveSubTab, rememberSubTab, recallSubTab,
+	firstSubTab, resolveSubTab, rememberSubTab, recallSubTab, restoredSubTab,
 } from '../SubTabRegistry';
 
 const GROUPS = [
@@ -118,5 +118,23 @@ describe('[Q-417/T-377] 合盘子页签回落', () => {
 		expect(idx).not.toContain("key === 'direction' || key === 'relativechart'");
 		const rel = fs.readFileSync(path.resolve(__dirname, '../../components/astro/AstroRelative.js'), 'utf8');
 		expect((rel.match(/rememberSubTab\('relativechart'/g) || []).length).toBe(2);
+	});
+});
+
+describe('温启恢复的子页签校验', () => {
+	test('已登记组:合法原样、失效键回落首档;未登记主页签原样(交宿主);空值 → null', () => {
+		expect(restoredSubTab('cnyibu', 'lingqi')).toBe('lingqi');
+		expect(restoredSubTab('cnyibu', 'tarot')).toBe('suzhan');            // 已升一级、不再是子页签
+		expect(restoredSubTab('auxchart', 'no-such-tab')).toBe('germanytech');
+		expect(restoredSubTab('relativechart', 'germanytech')).toBe('Comp');
+		expect(restoredSubTab('zeri', undefined)).toBe('tianxing');
+		expect(restoredSubTab('direction', 'pd')).toBe('pd');
+		expect(restoredSubTab('astrochart', null)).toBe(null);
+	});
+	test('models/app.js 温启恢复经 restoredSubTab 写回子页签(源码哨兵)', () => {
+		const fs = require('fs');
+		const path = require('path');
+		const src = fs.readFileSync(path.resolve(__dirname, '../../models/app.js'), 'utf8');
+		expect(src).toContain('currentSubTab: restoredSubTab(bootSnap.currentTab, bootSnap.currentSubTab)');
 	});
 });

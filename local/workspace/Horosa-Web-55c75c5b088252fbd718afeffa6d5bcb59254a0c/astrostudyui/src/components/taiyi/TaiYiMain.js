@@ -1,4 +1,5 @@
 import { Component, createRef } from 'react';
+import { claimTrigger, settleTrigger, identityOf } from '../../utils/singleTrigger';   // [#84] 双触发收敛
 import { message, Spin } from 'antd';
 import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
@@ -673,6 +674,11 @@ class TaiYiMain extends Component {
 		if(!params){
 			return;
 		}
+		// [#84] 双触发收敛:挂钩(hook.fun)与 componentDidUpdate(fields 换新)同一次改动各进一次 → 同参(请求参数 / 选项 / fields 身份)第二路跳过
+		const nongliTrig = claimTrigger(this, 'requestNongli', JSON.stringify([params, this.state.options]) + '|' + identityOf(fields || this.props.fields));
+		if(!nongliTrig){
+			return;
+		}
 		this.setState({ loading: true });
 		if (this.unmounted) {
 			return;
@@ -686,6 +692,7 @@ class TaiYiMain extends Component {
 		if (this.unmounted) {
 			return;
 		}
+		if (!nongli) { settleTrigger(this, 'requestNongli', nongliTrig, false); }   // 历法服务未回 → 同参允许重试
 		this.setState({ nongli });
 		if(!nongli && this.state.options && this.state.options.timeBasis === 'trueSolar'){
 			try{ message.warning('历法服务未在 3.5 秒内返回，真太阳时暂不可得：本次按直接时间立局（概览 / 快照已如实标注）'); }catch(e){ /* 提示失败不阻断 */ }   // [SS-16] 超时显式提示

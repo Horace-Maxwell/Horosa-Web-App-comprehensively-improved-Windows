@@ -73,12 +73,12 @@ export default class BaziPithy extends Component{
         for(let i=0; i<10; i++){
             let gan = Gan[i];
             let li = (
-                <li key={gan}>{pithy['三字诀'][gan]}</li>
+                <li key={`s2-${i}`}>{pithy['三字诀'][gan]}</li>
             );
             colword3.push(li);
 
             let li4 = (
-                <li key={gan}>{pithy['四字诀'][gan]}</li>
+                <li key={`s3-${i}`}>{pithy['四字诀'][gan]}</li>
             )
             colword4.push(li4);
         }
@@ -87,7 +87,7 @@ export default class BaziPithy extends Component{
         for(let i=0; i<12; i++){
             let zi = Zi[i];
             let li = (
-                <li key={zi}>{pithy['三字诀'][zi]}</li>
+                <li key={`s4-${i}`}>{pithy['三字诀'][zi]}</li>
             );
             colword3zi.push(li);
         }
@@ -95,7 +95,7 @@ export default class BaziPithy extends Component{
         let nayin = [];
         for(let key in pithy['纳音断运']){
             let li = (
-                <li key={key}>{pithy['纳音断运'][key]}</li>
+                <li key={`s5-${key}`}>{pithy['纳音断运'][key]}</li>
             )
             nayin.push(li);
         }
@@ -105,7 +105,7 @@ export default class BaziPithy extends Component{
             let ary = pithy['五行颠倒'][key];
 
             let li = (
-                <li key={key}>{ary.join('，')}</li>
+                <li key={`s6-${key}`}>{ary.join('，')}</li>
             )
             wxdom.push(li);
         }

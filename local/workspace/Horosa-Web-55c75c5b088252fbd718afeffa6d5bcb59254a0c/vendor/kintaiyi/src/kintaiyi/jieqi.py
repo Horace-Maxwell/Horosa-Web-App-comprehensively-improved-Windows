@@ -21,9 +21,9 @@ tian_gan = '甲乙丙丁戊己庚辛壬癸'
 di_zhi = '子丑寅卯辰巳午未申酉戌亥'
 
 #%% 甲子平支
-# horosa_kin_jiazi_const_v1(PERF-R10 B2):六十甲子/刻表是编译期常量,原实现每次调用重建
+# horosa_kin_jiazi_const_v1:六十甲子/刻表是编译期常量,原实现每次调用重建
 # (60 次 lambda+format / 每刻表 144 键 dict)。copy-return(list(_C)/dict(cached))与逐次
-# 重建逐字节等价 —— 「每次新容器」契约保持,调用点变异审计降级为纵深防御。
+# 重建逐字节等价 —— 「每次新容器」契约保持,调用点变异核对降级为纵深防御。
 # kill:HOROSA_KIN_JIAZI_CONST=0 ⇒ 原实现原文路径。
 # 勿重复劳动:kinwangji 两树与 kinastro/astro/wangji、kinastro/astro/bazi 上游已做
 # (@lru_cache/_JIAZI_SEQ);kinjinkou 平铺 jieqi.py 与 kinastro/astro/sanshi/kinliuren*.py

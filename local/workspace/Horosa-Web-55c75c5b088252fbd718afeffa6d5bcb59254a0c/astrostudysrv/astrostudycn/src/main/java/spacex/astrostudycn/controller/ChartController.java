@@ -61,8 +61,10 @@ public class ChartController {
 		keyparams.putAll(params);
 		keyparams.remove("gpsLat");
 		keyparams.remove("gpsLon");
+		keyparams.put("_calRev", NongliHelper.CALENDAR_CACHE_REV);   // 结果附带 Java 四柱农历:历法口径代次只进缓存键(与 /chart13、/chart12 同)
 		Object obj = ParamHashCacheHelper.get("/chart", keyparams, (args)->{
-			long _pt0 = System.currentTimeMillis();
+			args.remove("_calRev");   // 代次只进缓存键(哈希已先算好),不发给排盘引擎
+			long _pt0 = System.currentTimeMillis();   // horosa_chart_perf_line_v1(JV-2):/chart 分段计时起点(置于 _calRev 剥离之后)
 			Map<String, Object> astroArgs = args;
 			if(ConvertUtility.getValueAsInt(args.get("doubingSu28"), 0) == SU28_MODE_ZHENG_SIDEREAL) {
 				astroArgs = new HashMap<String, Object>();
@@ -138,7 +140,9 @@ public class ChartController {
 		keyparams.putAll(params);
 		keyparams.remove("gpsLat");
 		keyparams.remove("gpsLon");
+		keyparams.put("_calRev", NongliHelper.CALENDAR_CACHE_REV);   // 结果附带 Java 农历:历法口径代次只进缓存键
 		Object obj = ParamHashCacheHelper.get("/chart13", keyparams, (args)->{
+			args.remove("_calRev");   // 代次只进缓存键(哈希已先算好),不发给排盘引擎
 			Map<String, Object> res = AstroHelper.getChart13(args);
 			int ad = ConvertUtility.getValueAsInt(args.get("ad"), 1);
 			NongliHelper.fillNongli(res, args, ad);
@@ -159,7 +163,9 @@ public class ChartController {
 		keyparams.putAll(params);
 		keyparams.remove("gpsLat");
 		keyparams.remove("gpsLon");
+		keyparams.put("_calRev", NongliHelper.CALENDAR_CACHE_REV);   // 结果附带 Java 农历:历法口径代次只进缓存键
 		Object obj = ParamHashCacheHelper.get("/chart12", keyparams, (args)->{
+			args.remove("_calRev");   // 代次只进缓存键(哈希已先算好),不发给排盘引擎
 			Map<String, Object> res = AstroHelper.getChart12(args);
 			int ad = ConvertUtility.getValueAsInt(args.get("ad"), 1);
 			NongliHelper.fillNongli(res, args, ad);

@@ -5,9 +5,6 @@ import { isNumber } from '../../utils/helper';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import {NaYin, SixtyJiaZi} from '../../constants/ZWConst';
-// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
-// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
-// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 const { Option } = Select;
 
@@ -62,12 +59,12 @@ export default class NaYing extends Component{
                 style.backgroundColor = 'var(--horosa-accent-soft, #33CCFF)';
             }
             let col = (
-                <Col span={24} key={ganzi}><div style={style}>{ganzi}--{wx}</div></Col>
+                <Col span={24} key={`s1-${i}`}><div style={style}>{ganzi}--{wx}</div></Col>
             )
             cols.push(col);
             if(i % 10 === 9){
                 let topcol = (
-                    <Col key={`group-${i}`} span={4}>
+                    <Col key={`s2-${i}`} span={4}>
                         <Row>{cols}</Row>
                     </Col>
                 );
@@ -91,7 +88,7 @@ export default class NaYing extends Component{
         let dom = this.genDom();
         let opts = SixtyJiaZi.map((item, idx)=>{
             return (
-                <Option key={item} value={item}>{item}</Option>
+                <Option key={`s3-${idx}`} value={item}>{item}</Option>
             )
         });
 

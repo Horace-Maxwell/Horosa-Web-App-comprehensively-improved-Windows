@@ -97,7 +97,10 @@ function resetRequestCaches(){
 	try{ __ktCacheResetForTest(); }catch(_e){ /* noop */ }
 	try{ __clearDedupe(); }catch(_e){ /* noop */ }
 }
-installFixedNow();   // [指纹包] HOROSA_FIXED_NOW 设了才钉住此刻(推运类缺省目标时刻=此刻);未设零副作用
+// [#80] 缺省钉住此刻(HOROSA_FIXED_NOW 设了以它为准):推运类缺省目标时刻 = 此刻,基线两遍连跑定噪声、候选却可能跨过分钟 →
+// 「推运时间」等此刻行的漂移被当成强证据(profection.profGrain / profStart 实为死齿轮,此前的 OK 全是这种假报)。
+// 钉住后判定跨天可复现;只钉本文件 VM 上下文的 Date,不写 process.env。
+installFixedNow('2026-09-26T12:00:00+08:00');
 
 const realFetch = global.fetch;
 let ONLINE = false;
@@ -385,6 +388,7 @@ describe('🔴 全技法齿轮差分闸(表驱动;后端在线时正文/请求/�
 				rec.value = cands0[0];
 				if(!ONLINE && schema.kind !== 'localStorage'){ rec.verdict = 'UNVERIFIED-OFFLINE'; continue; }
 				let found = false; let anyObservable = false; let lastNote = '';
+				const triedPairs = []; // [#80] 判死时落盘本齿轮试过的每组 基线 / 候选 正文(前 12 组),定位「候选与缺省同文」
 				let weak = null; // 首个弱命中 { via, value, sample };强命中才结束搜索,弱命中继续找强证据(v0 试全部候选,其余变体各试首候选)
 				const baseValOf = (bl)=>(Object.prototype.hasOwnProperty.call(ctxOv, name) ? ctxOv[name] : (Object.prototype.hasOwnProperty.call(bl, name) ? bl[name] : field.default));
 				const noteWeak = (d, tag, value)=>{ if(!weak){ weak = { via: `${d.via}@${tag}`, value, sample: d.sample }; } };
@@ -397,6 +401,7 @@ describe('🔴 全技法齿轮差分闸(表驱动;后端在线时正文/请求/�
 					for(const cand of cands){
 						const ov = await runCtx(variants[vi], key, { ...ctxOv, [name]: cand });
 						rec.tries += 1;
+						if(triedPairs.length < 12){ triedPairs.push({ base, ov, cand, tag: `v${vi}` }); }
 						const d = diffOf(base, ov, field, cand, baseValOf(baselineV));
 						anyObservable = anyObservable || d.observable;
 						lastNote = `${base.b1.status}/${ov.status}${ov.err ? ' ' + ov.err.message : ''}`;
@@ -456,6 +461,18 @@ describe('🔴 全技法齿轮差分闸(表驱动;后端在线时正文/请求/�
 				if(!anyObservable){ rec.verdict = 'UNVERIFIED-EMPTY'; rec.note = lastNote; continue; }
 				rec.verdict = DEAD_EXEMPT[`${key}.${name}`] ? 'EXEMPT' : 'FAIL-DEAD';
 				rec.note = DEAD_EXEMPT[`${key}.${name}`] || lastNote;
+				// [#80] 判死落盘(HOROSA_DIFFNET_DEAD_DUMP_DIR 设了才写,缺省零行为差):基线两遍定的噪声行 + 最后一组候选正文 / 状态,
+				// 用来区分「齿轮真死」与「负载下子请求失败、候选与缺省都退化成同一段」。
+				if(rec.verdict === 'FAIL-DEAD' && process.env.HOROSA_DIFFNET_DEAD_DUMP_DIR && triedPairs.length){
+					try{
+						triedPairs.forEach((lp, i)=>{
+							fs.writeFileSync(`${process.env.HOROSA_DIFFNET_DEAD_DUMP_DIR}/${key}__${name}__DEAD__${String(i).padStart(2, '0')}.txt`,
+								`#CAND ${JSON.stringify(lp.cand)} @${lp.tag} tries=${rec.tries}\n#BASE-STATUS ${lp.base.b1.status}\n#OV-STATUS ${lp.ov.status}${lp.ov.err ? ' ' + lp.ov.err.message : ''}\n`
+								+ `#BASE-CONTENT\n${lp.base.b1.content}\n#OV-CONTENT\n${lp.ov.content}\n#NOISE-LINES\n${[...lp.base.noiseLines].join('\n')}\n`
+								+ `#BASE-REQ\n${lp.base.b1.req.join('\n')}\n#OV-REQ\n${lp.ov.req.join('\n')}\n`);
+						});
+					}catch(_e){ /* 落盘失败不影响判定 */ }
+				}
 			}
 			const bad = RESULTS.filter((r)=>r.key === key && (r.verdict === 'FAIL-OVERRIDE' || r.verdict === 'FAIL-DEAD'));
 			expect(bad.map((r)=>`${r.verdict} ${key}.${r.name}=${JSON.stringify(r.value)}`)).toEqual([]);

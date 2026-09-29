@@ -1,12 +1,14 @@
 diff --git a/astrostudyui/src/components/cntradition/MDSYear.js b/astrostudyui/src/components/cntradition/MDSYear.js
-index f0834c0..cb86f18 100644
+index 4beac34f..dc487420 100644
 --- a/astrostudyui/src/components/cntradition/MDSYear.js
 +++ b/astrostudyui/src/components/cntradition/MDSYear.js
-@@ -1,9 +1,11 @@
+@@ -1,11 +1,13 @@
  import { Component } from 'react';
  import { Row, Col, Popover} from 'antd';
 -import { randomStr } from '../../utils/helper';
  import { BaZiMsg } from '../../msg/bazimsg';
+ import { baziAgeText } from './baziAgeText';
+ import { addDisplayYears } from '../../utils/dateStrSafe';
  import { resolveStarCharger } from './starChargerLazy';
  import DateTime from '../comp/DateTime';
 +// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
@@ -15,16 +17,12 @@ index f0834c0..cb86f18 100644
  
  function gongName(gong12, palace, part){
  	return gong12 && gong12[palace] && gong12[palace][part] && gong12[palace][part].name
-@@ -97,10 +99,10 @@ class MDSYear extends Component{
+@@ -99,7 +101,7 @@ class MDSYear extends Component{
  				</div>
  			)
  			return (
--				<Popover title={(sub.ganzi || '') + '，公元' + y + '年，' + nowage + '周岁'} key={randomStr(8)}
-+				<Popover title={(sub.ganzi || '') + '，公元' + y + '年，' + nowage + '周岁'} key={`year-${idx}`}
+-				<Popover title={(sub.ganzi || '') + '，公元' + y + '年，' + baziAgeText(nowage, this.props.ageStyle)} key={randomStr(8)}
++				<Popover title={(sub.ganzi || '') + '，公元' + y + '年，' + baziAgeText(nowage, this.props.ageStyle)} key={`year-${idx}`}
  					content={condom}
  				>
--					<Row key={randomStr(8)} style={{width: '100%'}}>
-+					<Row key={`year-row-${idx}`} style={{width: '100%'}}>
- 						<Col span={24} className={y >= now.year ? 'horosa-bazi-year-cell horosa-bazi-year-cell-future' : 'horosa-bazi-year-cell'} style={yStyle}>
- 							<span>{sub.ganzi || ''}</span>
- 						</Col>
+ 					<Row key={`s2-${idx}`} style={{width: '100%'}}>

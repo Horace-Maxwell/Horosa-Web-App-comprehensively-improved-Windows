@@ -1,6 +1,8 @@
 import { Component } from 'react';
 import { Row, Col, Popover} from 'antd';
 import { BaZiMsg } from '../../msg/bazimsg';
+import { baziAgeText } from './baziAgeText';
+import { addDisplayYears } from '../../utils/dateStrSafe';
 import { resolveStarCharger } from './starChargerLazy';
 import DateTime from '../comp/DateTime';
 // horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
@@ -81,7 +83,7 @@ class MDSYear extends Component{
 
 		let subdoms = subs.map((sub, idx)=>{
 			sub = sub || {};
-			let y = startYear + idx;
+			let y = addDisplayYears(startYear, idx);   // 跨公元纪元不出 0 年
 			let yStyle = y >= now.year ? futureStyle : yearStyle;
 			let nowage = age + idx;
 			let gong12dom = null;
@@ -99,10 +101,10 @@ class MDSYear extends Component{
 				</div>
 			)
 			return (
-				<Popover title={(sub.ganzi || '') + '，公元' + y + '年，' + nowage + '周岁'} key={`year-${idx}`}
+				<Popover title={(sub.ganzi || '') + '，公元' + y + '年，' + baziAgeText(nowage, this.props.ageStyle)} key={`year-${idx}`}
 					content={condom}
 				>
-					<Row key={`year-row-${idx}`} style={{width: '100%'}}>
+					<Row key={`s2-${idx}`} style={{width: '100%'}}>
 						<Col span={24} className={y >= now.year ? 'horosa-bazi-year-cell horosa-bazi-year-cell-future' : 'horosa-bazi-year-cell'} style={yStyle}>
 							<span>{sub.ganzi || ''}</span>
 						</Col>

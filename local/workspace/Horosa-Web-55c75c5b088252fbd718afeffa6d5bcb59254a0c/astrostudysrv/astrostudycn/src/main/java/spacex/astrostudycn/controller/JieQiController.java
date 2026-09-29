@@ -24,7 +24,11 @@ import spacex.astrostudycn.model.OnlyFourColumns;
 @Controller
 @RequestMapping("/jieqi")
 public class JieQiController {
-	private static final String JieQiYearCacheRev = "jieqi_year_bazi_v5";
+	// v6:二月立春前的年柱改按窗口里的立春本身判定、换算后跨出节气窗时重取窗口 —— 每节四柱有变,旧年缓存(180 天)须失效。
+	// v7:经纬度串按「度 + 分 / 60」解析(真太阳时 / 平太阳时偏移随之改正)、日柱不再重复减一天。
+	// v8:时刻串秒数进位(不再出 :60)、四柱附带农历随时间算法、交节时刻改为精确黄经、海外农历按北京时间编算的农历表查。
+	// v9:农历置闰按日期定冬至所在月(2033 年闰十一月等)。
+	private static final String JieQiYearCacheRev = "jieqi_year_bazi_v9";
 
 	@ResponseBody
 	@RequestMapping("/year")
@@ -65,6 +69,7 @@ public class JieQiController {
 						boolean after23NewDay = ConvertUtility.getValueAsInt(args.get("after23NewDay"), 1) == 1;
 						boolean lateZiHourUseNextDay = ConvertUtility.getValueAsInt(args.get("lateZiHourUseNextDay"), 1) == 1;
 						OnlyFourColumns bz = new OnlyFourColumns(ad, tm, zone, lon, lat, after23NewDay, BaZiGender.Male, TimeZiAlg.RealSun, false, lateZiHourUseNextDay);
+						bz.setSouthMonthFlip(true);   // 节气页:南纬节气名按季节对调,月柱同步对冲(页内帮助文档写明)
 						Map<String, Object> map = bz.getNongli();
 						chart.put("nongli", ObjectUtility.toMap(map));
 					}
@@ -101,6 +106,7 @@ public class JieQiController {
 		for(Map<String, Object> map : jieqi24) {
 			String tmstr = (String) map.get("time");
 			BaZi bz = new BaZi(ad, tmstr, zone, lon, lat, timealg, zodiacalLon, godKeyPos, false);
+			bz.setSouthMonthFlip(true);   // 节气页:南纬月柱同步对冲(页内帮助文档写明)
 			// 二十四节气页这里只需要四柱，不需要额外的神煞/预测链路。
 			bz.calculateFourColumn(phaseType);
 			Map<String, Object> bazi = new HashMap<String, Object>();
@@ -154,7 +160,7 @@ public class JieQiController {
 			params.put("jieqis", TransData.get("jieqis"));
 		}
 		int timealg = TransData.getValueAsInt("timeAlg", 0);
-		params.put("timeAlg", TimeZiAlg.fromCode(timealg));
+		params.put("timeAlg", TimeZiAlg.fromCode(timealg).calcBasis());   // 缓存键与模型同口径(春分定卯时 = 直接时间)
 		boolean byLon = TransData.getValueAsBool("byLon", false);
 		params.put("useZodicalLon", byLon);
 		if(TransData.containsParam("godKeyPos")) {

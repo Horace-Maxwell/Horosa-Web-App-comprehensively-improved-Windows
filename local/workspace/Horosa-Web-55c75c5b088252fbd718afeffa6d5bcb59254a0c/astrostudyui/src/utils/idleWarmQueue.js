@@ -14,28 +14,31 @@
 //   · 任务失败静默跳过(预热是优化不是功能,绝不影响业务);
 //   · kill-switch:localStorage horosa.perf.idleWarmQueue = '0'(perfFlags 同款约定)。
 import { idleWarmQueueEnabled, dataWarmTasksEnabled } from './perfFlags';
+import { runInBackgroundScope } from './requestPriority';
+import { orderByUsage } from './techUsage';
 
 // 引擎层注册表:动态 import 高频技法的本地纯计算模块(与导航概率序同基准)。
 // 只列「用户首点该技法必然要初始化」的模块;新技法引擎按同格式追加。
+// [R5 N2] 每项带 navKey(所属导航页),出队前按本机使用频次稳定排序(techUsage.orderByUsage;无记录 = 原序)。
 const ENGINE_WARM_IMPORTS = [
-	() => import('./baziLunarLocal'),          // 八字本地历法引擎(主盘走本地)
-	() => import('./baziShenShaLocal'),        // 八字神煞
-	() => import('../components/ziwei/ZiweiCalc'),      // 紫微本地引擎(流派/四化表)
-	() => import('../components/guazhan/GuaZhanMain'),  // 六爻装卦引擎(卦表)
-	() => import('../components/lrzhan/LiuRengMain'),   // 大六壬(课经/神煞表)
-	() => import('../components/dunjia/DunJiaCalc'),    // 奇门排盘引擎
-	() => import('../components/taiyi/TaiYiCalc'),      // 太乙本地推演
-	() => import('./heluoLocal'),              // 河洛理数
-	() => import('./zhengchuanTiebanLocal'),   // 神数正传·铁板(秘数表)
-	() => import('./zhengchuanShaoziLocal'),   // 神数正传·邵子(卦数/气数/太玄玉景)
-	() => import('./zhengchuanLiuqinLocal'),   // 神数正传·六亲(姓氏谱/遁甲盘/四象)
-	() => import('./zhengchuanXinyiLocal'),    // 神数正传·心易(八刻分命/条文秘数表)
-	() => import('../components/guice/GuiceMain'),      // 皇极轨策(起卦十二法/演数/断法/十应/大定;组件级 lazy → 预热即首点不等)
-	() => import('../components/xiaochengtu/XiaoChengTuMain'), // 小成图(九宫布图/正旁推/股市卦)
-	() => import('../components/feigong/FeiGongMain'),  // 飞宫小奇门(十二局/命宫/月运流年)
-	() => import('../components/xiaoliuren/XiaoLiuRenMain'), // 小六壬(两派掌诀/三传)
-	() => import('../divination/horary/horaryEngine'),  // 卜卦盘引擎
-	() => import('../divination/election/electionEngine'), // 择日引擎
+	{ navKey: 'bazi', load: () => import('./baziLunarLocal') },          // 八字本地历法引擎(主盘走本地)
+	{ navKey: 'bazi', load: () => import('./baziShenShaLocal') },        // 八字神煞
+	{ navKey: 'ziwei', load: () => import('../components/ziwei/ZiweiCalc') },      // 紫微本地引擎(流派/四化表)
+	{ navKey: 'guazhan', load: () => import('../components/guazhan/GuaZhanMain') },  // 六爻装卦引擎(卦表)
+	{ navKey: 'liureng', load: () => import('../components/lrzhan/LiuRengMain') },   // 大六壬(课经/神煞表)
+	{ navKey: 'dunjia', load: () => import('../components/dunjia/DunJiaCalc') },    // 奇门排盘引擎
+	{ navKey: 'taiyi', load: () => import('../components/taiyi/TaiYiCalc') },      // 太乙本地推演
+	{ navKey: 'shusuan', load: () => import('./heluoLocal') },              // 河洛理数
+	{ navKey: 'shusuan', load: () => import('./zhengchuanTiebanLocal') },   // 神数正传·铁板(秘数表)
+	{ navKey: 'shusuan', load: () => import('./zhengchuanShaoziLocal') },   // 神数正传·邵子(卦数/气数/太玄玉景)
+	{ navKey: 'shusuan', load: () => import('./zhengchuanLiuqinLocal') },   // 神数正传·六亲(姓氏谱/遁甲盘/四象)
+	{ navKey: 'shusuan', load: () => import('./zhengchuanXinyiLocal') },    // 神数正传·心易(八刻分命/条文秘数表)
+	{ navKey: 'cnyibu', load: () => import('../components/guice/GuiceMain') },      // 皇极轨策(起卦十二法/演数/断法/十应/大定;组件级 lazy → 预热即首点不等)
+	{ navKey: 'cnyibu', load: () => import('../components/xiaochengtu/XiaoChengTuMain') }, // 小成图(九宫布图/正旁推/股市卦)
+	{ navKey: 'cnyibu', load: () => import('../components/feigong/FeiGongMain') },  // 飞宫小奇门(十二局/命宫/月运流年)
+	{ navKey: 'cnyibu', load: () => import('../components/xiaoliuren/XiaoLiuRenMain') }, // 小六壬(两派掌诀/三传)
+	{ navKey: 'auxchart', load: () => import('../divination/horary/horaryEngine') },  // 卜卦盘引擎
+	{ navKey: 'auxchart', load: () => import('../divination/election/electionEngine') }, // 择日引擎
 ];
 
 // 数据层任务注册(各技法自行登记「按当前命盘的真实取数」,如填 L1/L2/后端 paramhash 的
@@ -67,13 +70,17 @@ export function registerDataWarmTask(taskKey, fn){
 	}
 }
 
-/** 按登记序把注册表铺成 scheduleDataWarmGroup 吃的任务数组。 */
+/** 按登记序把注册表铺成 scheduleDataWarmGroup 吃的任务数组;[R5 N2] 再按本机使用频次稳定排序(taskKey 冒号前 = 导航键)。 */
 export function buildRegisteredDataWarmTasks(fields, chartObj){
 	const tasks = [];
 	DATA_WARM_REGISTRY.forEach((fn, name)=>{
 		tasks.push({ name, task: ()=> fn(fields, chartObj) });
 	});
-	return tasks;
+	return orderByUsage(tasks, (t)=>String(t.name).split(':')[0]);
+}
+/** 测试/诊断:引擎预热表的导航键序(出队序)。 */
+export function __engineWarmOrder(usage){
+	return orderByUsage(ENGINE_WARM_IMPORTS, (e)=>e.navKey, usage).map((e)=>e.navKey);
 }
 
 /** 测试/诊断:当前登记的任务名(即执行序)。 */
@@ -138,7 +145,7 @@ export function scheduleDataWarmGroup(generationKey, tasks){
 			return;
 		}
 		Promise.resolve()
-			.then(entry.task)
+			.then(()=>runInBackgroundScope(entry.task))   // [R5 T5] 任务同步起调的请求带后台优先级头
 			.catch(()=>{ /* 预热失败静默:首点回到冷即付的现状 */ })
 			.finally(()=>{ scheduleIdle(pump); });
 	};
@@ -188,7 +195,7 @@ export function startIdleWarmQueue(options = {}){
 	const tasks = Array.isArray(options.__tasksOverride)
 		? options.__tasksOverride.slice()
 		: [
-			...ENGINE_WARM_IMPORTS.map((imp, i) => ({ name: `engine:${i}`, task: imp })),
+			...orderByUsage(ENGINE_WARM_IMPORTS, (e)=>e.navKey).map((e, i) => ({ name: `engine:${e.navKey}:${i}`, task: e.load })),
 			...DATA_WARM_TASKS,
 		];
 	const next = ()=>{
@@ -201,7 +208,7 @@ export function startIdleWarmQueue(options = {}){
 			return;
 		}
 		Promise.resolve()
-			.then(entry.task)
+			.then(()=>runInBackgroundScope(entry.task))   // [R5 T5] 任务同步起调的请求带后台优先级头
 			.catch(()=>{ /* 预热失败静默:首点回到冷即付的现状 */ })
 			.finally(()=>{ scheduleIdle(next); });
 	};

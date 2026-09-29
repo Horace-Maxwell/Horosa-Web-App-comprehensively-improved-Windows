@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroYearSystem129.js b/astrostudyui/src/components/astro/AstroYearSystem129.js
-index 991f6386..4763a6d4 100644
+index 22d26582..e3941a81 100644
 --- a/astrostudyui/src/components/astro/AstroYearSystem129.js
 +++ b/astrostudyui/src/components/astro/AstroYearSystem129.js
 @@ -1,12 +1,12 @@
@@ -48,7 +48,7 @@ index 991f6386..4763a6d4 100644
  		);
  	}
  
-@@ -153,12 +159,13 @@ class AstroYearSystem129 extends Component{
+@@ -153,10 +159,10 @@ class AstroYearSystem129 extends Component{
  		let rowobj = null;
  		for(let i = 0; i < data.length; i++){
  			if(i % 3 === 0){ rowobj = []; rows.push(rowobj); }
@@ -57,12 +57,7 @@ index 991f6386..4763a6d4 100644
  		}
  		for(let i = 0; i < rows.length; i++){
 -			const cols = rows[i].map((d) => <Col key={randomStr(8)} span={8}>{d}</Col>);
--			doms.push(<Row key={randomStr(8)} gutter={12}>{cols}</Row>);
--			if(i < rows.length - 1){ doms.push(<Divider key={randomStr(8)} dashed={true} />); }
 +			const cols = rows[i].map((d, ci) => <Col key={ci} span={8}>{d}</Col>);
-+			// Row 与 Divider 交替推进同一个 doms 数组，故各自带前缀避免撞 key
-+			doms.push(<Row key={`row-${i}`} gutter={12}>{cols}</Row>);
-+			if(i < rows.length - 1){ doms.push(<Divider key={`divider-${i}`} dashed={true} />); }
+ 			doms.push(<Row key={`s3-${i}`} gutter={12}>{cols}</Row>);
+ 			if(i < rows.length - 1){ doms.push(<Divider key={`s4-${i}`} dashed={true} />); }
  		}
- 
- 		return (

@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import json
 import os
+import threading
 
 # 從坤集結構模組匯入核心資料與扣入法工具
 from astro.tieban.kunji_full_structure import (
@@ -42,6 +43,27 @@ from astro.tieban.kunji_full_structure import (
 # ============================================================================
 # 基礎常數 (Basic Constants) - 原文第 1-2 頁
 # ============================================================================
+
+# 诗词库(verses.json 796 KB)/ 足本条文库(tiaowen_full_12000.json 1.3 MB)按进程只载一次:原每次排盘新建计算器
+# 都重读两份 JSON(约 8.6 ms,占该端点一半以上);分类检索改查载入时建好的分类索引(原每次全表线性扫,
+# 每次排盘约 21 次、约 5.8 ms)。库载入后只读:排盘路径对 lookup 返回的条目与检索结果只读,足本条文 get / search /
+# get_range 本就返回副本 → 共享与每次新建输出逐字节相同。只缓存成功载入的数据(失败照旧各自回退)。
+# 开关:HOROSA_TIEBAN_DB_MEMO=0 → 每个实例各自载入、分类检索线性扫(旧行为)。
+_TIEBAN_DB_MEMO_ON = os.environ.get("HOROSA_TIEBAN_DB_MEMO", "1").lower() not in ("0", "false", "no", "off")
+_TIEBAN_DB_MEMO: Dict[Tuple[str, str], Any] = {}
+_TIEBAN_DB_MEMO_LOCK = threading.Lock()
+
+
+def _build_category_index(verses: Dict[str, Dict]) -> Optional[Dict[Any, List[str]]]:
+    """分类 → 条文编号列表(保持原字典顺序);任何异常返回 None(检索照旧线性扫)。"""
+    try:
+        idx: Dict[Any, List[str]] = {}
+        for number, verse_data in verses.items():
+            idx.setdefault(verse_data.get('category'), []).append(number)
+        return idx
+    except Exception:
+        return None
+
 
 HEAVENLY_STEMS = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"]
 EARTHLY_BRANCHES = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
@@ -1148,12 +1170,22 @@ class VerseDatabase:
             verses_path = os.path.join(script_dir, 'data', 'verses.json')
             
             if os.path.exists(verses_path):
+                if _TIEBAN_DB_MEMO_ON:
+                    hit = _TIEBAN_DB_MEMO.get(('verses', verses_path))
+                    if hit is not None:
+                        self.meta, self.verses, self._cat_index = hit
+                        return
                 with open(verses_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     # 保存 meta 信息
                     self.meta = data.get('_meta', {})
                     # 過濾掉 _meta 鍵
                     self.verses = {k: v for k, v in data.items() if not k.startswith('_')}
+                if _TIEBAN_DB_MEMO_ON and self.verses:
+                    entry = (self.meta, self.verses, _build_category_index(self.verses))
+                    with _TIEBAN_DB_MEMO_LOCK:
+                        entry = _TIEBAN_DB_MEMO.setdefault(('verses', verses_path), entry)
+                    self.meta, self.verses, self._cat_index = entry
             else:
                 # 如果文件不存在，使用預設條文
                 self._load_sample_verses()
@@ -1297,6 +1329,14 @@ class VerseDatabase:
         List[Dict[str, Any]]
             匹配的條文列表
         """
+        idx = getattr(self, '_cat_index', None)
+        if idx is not None:
+            try:
+                numbers = idx.get(category, ())
+            except TypeError:   # 不可哈希的查询值:走下方原线性扫
+                numbers = None
+            if numbers is not None:
+                return [{'number': number, **self.verses[number]} for number in numbers]
         results = []
         for number, verse_data in self.verses.items():
             if verse_data.get('category') == category:
@@ -1400,12 +1440,17 @@ class TiaowenDatabase:
         """確保資料已載入（延遲載入實作）"""
         if self._data is not None:
             return
+        data_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data", self._DATA_FILENAME
+        )
+        if _TIEBAN_DB_MEMO_ON:
+            hit = _TIEBAN_DB_MEMO.get(('tiaowen', data_path))
+            if hit is not None:
+                self._data = hit
+                return
         self._data = {}
         try:
-            data_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                "data", self._DATA_FILENAME
-            )
             if os.path.exists(data_path):
                 with open(data_path, "r", encoding="utf-8") as f:
                     raw = json.load(f)
@@ -1414,6 +1459,9 @@ class TiaowenDatabase:
                     self._data[num] = v if isinstance(v, dict) else {"text": v, "note": "", "is_blank": False}
         except Exception:
             pass  # 靜默失敗，返回空資料庫
+        if _TIEBAN_DB_MEMO_ON and self._data:
+            with _TIEBAN_DB_MEMO_LOCK:
+                self._data = _TIEBAN_DB_MEMO.setdefault(('tiaowen', data_path), self._data)
     
     @property
     def total(self) -> int:

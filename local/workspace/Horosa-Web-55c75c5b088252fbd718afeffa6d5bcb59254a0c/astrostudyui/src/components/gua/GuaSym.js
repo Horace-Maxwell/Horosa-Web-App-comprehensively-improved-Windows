@@ -27,9 +27,8 @@ export default class GuaSym extends Component{
         if(meiyi){
             for(let key in meiyi){
                 let list = meiyi[key];
-                let title = (<Title level={4} key={`meiyi-title-${key}`}>{key}</Title>);
-                // 标题与列表并列推进同一个 res 数组，故用不同前缀 + 分类名保证兄弟唯一
-                let ul = this.genSymList(list, `meiyi-list-${key}`);
+                let title = (<Title level={4} key={`s1-${key}`}>{key}</Title>);
+                let ul = this.genSymList(list);
                 res.push(title);
                 res.push(ul);
             }    
@@ -58,7 +57,7 @@ export default class GuaSym extends Component{
         if(!Array.isArray(list)){ return null; }
         let lis = list.map((item, idx)=>{
             return (
-                <li key={idx}>
+                <li key={`s4-${idx}`}>
                     <Text>{item}</Text>
                 </li>
             )

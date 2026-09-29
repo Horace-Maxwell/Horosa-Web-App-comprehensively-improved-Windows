@@ -364,7 +364,7 @@ class AstroSolarReturn extends Component{
 			if(i % 2 === 0){
 				if(i > 0){
 					let dom = (
-						<div key={`row-${i}`}>
+						<div key={`s1-${i}`}>
 							<Row>
 								{cols}
 							</Row>

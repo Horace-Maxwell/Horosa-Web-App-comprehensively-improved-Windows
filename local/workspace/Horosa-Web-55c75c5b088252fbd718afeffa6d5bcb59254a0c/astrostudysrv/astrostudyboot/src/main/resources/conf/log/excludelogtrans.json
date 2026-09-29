@@ -7,5 +7,13 @@
 	"/common/regionJson",
 	"/common/countries",
 	"/common/region",
-	"/common/region/children"
+	"/common/region/children",
+	"/aianalysis/providers/models",
+	"/aianalysis/chat",
+	"/aianalysis/chat/stream",
+	"/aianalysis/providers/diagnose",
+	"/aianalysis/materials/extract",
+	"/aianalysis/websearch",
+	"/aianalysis/webfetch",
+	"/aianalysis/embeddings"
 ]

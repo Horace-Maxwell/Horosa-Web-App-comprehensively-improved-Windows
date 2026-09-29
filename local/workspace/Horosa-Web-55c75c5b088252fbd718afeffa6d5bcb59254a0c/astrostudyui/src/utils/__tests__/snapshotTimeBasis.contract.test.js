@@ -12,7 +12,7 @@ describe('timeBasisLine · 单行格式', ()=>{
 	test('八字默认真太阳时;缺参按「钟表时」+ 否/否', ()=>{
 		expect(buildTimeBasisLine({ timeAlg: 0 })).toBe('时间基准：真太阳时(经度+均时差校正)；晚子时归次日：否；23 点换日：否');
 		expect(buildTimeBasisLine({})).toBe('时间基准：钟表时(按输入钟面时刻,无真太阳时校正)；晚子时归次日：否；23 点换日：否');
-		expect(buildTimeBasisLine({ timeAlg: '2', lateZiHourUseNextDay: 1, after23NewDay: '1', zone: '+08:00' })).toBe('时间基准：春分定卯时；晚子时归次日：是；23 点换日：是；时区：+08:00');
+		expect(buildTimeBasisLine({ timeAlg: '2', lateZiHourUseNextDay: 1, after23NewDay: '1', zone: '+08:00' })).toBe('时间基准：春分定卯时(尚无独立换算,按钟表时刻)；晚子时归次日：是；23 点换日：是；时区：+08:00');
 		expect(timeBasisLabel(1)).toMatch(/钟表时/);
 	});
 });

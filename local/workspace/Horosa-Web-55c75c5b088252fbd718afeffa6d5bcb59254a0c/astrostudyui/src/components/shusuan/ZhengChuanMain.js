@@ -63,7 +63,7 @@ class ZhengChuanMain extends Component {
 
 	constructor(props) {
 		super(props);
-		this.state = { verses: null, auxTab: '' };   // auxTab: 右栏所在之目（空 = 取首目）
+		this.state = { verses: null, versesFor: null, auxTab: '' };   // auxTab: 右栏所在之目（空 = 取首目）;versesFor: 当前 verses 属于哪一派
 		this.lastSnapKey = '';
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 	}
@@ -100,14 +100,34 @@ class ZhengChuanMain extends Component {
 		}
 	}
 
-	/** 条文正文库按需载入（独立 chunk）；条文号已同步显示，正文到达后 setState 填入。 */
+	/**
+	 * 条文正文库按需载入（独立 chunk）；条文号已同步显示，正文到达后 setState 填入。
+	 * [#83] 条文库按【派系归属】管理(state.versesFor):
+	 *   · 切到无条文库的派(大定 / 六亲 / 心易)不清库 —— 渲染只认「归属 = 当前派」的库,切回原派直接复用;
+	 *     旧实现在此分支清库却不复位「已为哪派发起过」的标记 → 铁板→大定→铁板 之后永远「条文库载入中」;
+	 *   · 晚到的旧派结果不许串到当前派(回来时已切走 → 丢弃);
+	 *   · 在途去重只按「在途派」判;加载失败清在途标记,下次 opts 变化即重试(旧实现吞错后永不再载)。
+	 */
 	loadVerses() {
 		const s = this.school();
 		const loader = s === 'tieban' ? loadTiebanVerses : (s === 'shaozi' ? loadShaoziVerses : null);
-		if (!loader) { if (this.state.verses) this.setState({ verses: null }); return; }
-		if (this._versesFor === s) return;
-		this._versesFor = s;
-		loader().then((v) => { if (!this._unmounted) this.setState({ verses: v }); }).catch(() => {});
+		if (!loader) { return; }
+		if (this.state.versesFor === s && this.state.verses) { return; }
+		if (this._versesInFlight === s) { return; }
+		this._versesInFlight = s;
+		loader().then((v) => {
+			if (this._versesInFlight === s) { this._versesInFlight = null; }
+			if (this._unmounted || this.school() !== s) { return; }
+			this.setState({ verses: v, versesFor: s });
+		}).catch(() => {
+			if (this._versesInFlight === s) { this._versesInFlight = null; }
+		});
+	}
+
+	/** 当前派可用的条文库(归属不符 = 无;大定等无条文库的派恒为 null)。 */
+	currentVerses() {
+		const s = this.school();
+		return (this.state.versesFor === s && this.state.verses) ? this.state.verses : null;
 	}
 
 	// AI 导出/挂载实时取数：导出侧派发 refresh 事件，这里用当前显示的盘即时构建快照并回填，
@@ -118,7 +138,7 @@ class ZhengChuanMain extends Component {
 		let text = '';
 		try {
 			const m = this.getModel();
-			if (m) text = `${buildZhengChuanSnapshotText(m, this.state.verses || {}) || ''}`.trim();
+			if (m) text = `${buildZhengChuanSnapshotText(m, this.currentVerses() || {}) || ''}`.trim();
 		} catch (e) { text = ''; }
 		if (text) {
 			saveModuleAISnapshot('zhengchuan', text, { source: 'react', savedAt: Date.now() });
@@ -253,10 +273,10 @@ class ZhengChuanMain extends Component {
 		if (this.props.slot === 'aux') return;
 		const m = this.getModel();
 		if (!m) return;
-		const key = `${m.school}|${this._modelKey}|${this.state.verses ? 'v' : '-'}`;
+		const key = `${m.school}|${this._modelKey}|${this.currentVerses() ? 'v' : '-'}`;
 		if (key === this.lastSnapKey) return;
 		this.lastSnapKey = key;
-		const text = buildZhengChuanSnapshotText(m, this.state.verses || {});
+		const text = buildZhengChuanSnapshotText(m, this.currentVerses() || {});
 		if (text) saveModuleAISnapshot('zhengchuan', text, { source: 'react', savedAt: Date.now() });
 	}
 
@@ -298,7 +318,7 @@ class ZhengChuanMain extends Component {
 
 	verse(n) {
 		if (n === null || n === undefined) return '';
-		const v = this.state.verses;
+		const v = this.currentVerses();
 		if (!v) return '…';                       // 条文库载入中：条文号已出，正文稍候
 		return v[String(n)] || '';
 	}
@@ -598,7 +618,7 @@ class ZhengChuanMain extends Component {
 			liuqin: this.renderLiuqin, xinyi: this.renderXinyi,
 		};
 		const body = (RENDER[m.school] || this.renderTieban).call(this, m, aux);
-		const loading = (m.school === 'tieban' || m.school === 'shaozi') && !this.state.verses;
+		const loading = (m.school === 'tieban' || m.school === 'shaozi') && !this.currentVerses();
 		// 右栏只出内容，不套盘（盘是中栏之事）
 		if (aux) {
 			return (

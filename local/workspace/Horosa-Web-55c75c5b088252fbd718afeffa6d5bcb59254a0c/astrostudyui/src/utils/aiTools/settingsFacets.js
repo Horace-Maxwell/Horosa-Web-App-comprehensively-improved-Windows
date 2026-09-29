@@ -26,14 +26,8 @@ export const DENIED_SETTING_KEY_RE = /apiKey|token|secret|provider|horosa\.sec\.
 
 // ── app 面(全局显示偏好):键集=globalSetup 字面量;三个显示数组只读(v1 不开放改写)。
 export const APP_PREF_READONLY_KEYS = ['chartDisplay', 'planetDisplay', 'lotsDisplay'];
-export const APP_PREF_EXEMPT_KEYS = ['chartDisplayDefaultsVersion', 'planetDisplayDefaultsVersion'];
-function colorThemeOptions(){
-	const out = [];
-	for(let i = 0; i < 16; i++){
-		if(AstroConst.normalizeColorThemeIndex(i) === i){ out.push({ value: i, label: `配色 ${i}` }); }
-	}
-	return out;
-}
+// colorTheme:[#70] 全仓无消费者(盘面调色板已由界面明暗单源映射),不再暴露为可设项;键在 globalSetup 里只作迁移兼容保留 → 豁免
+export const APP_PREF_EXEMPT_KEYS = ['chartDisplayDefaultsVersion', 'planetDisplayDefaultsVersion', 'colorTheme'];
 const SWITCH_OPTIONS = [{ value: 0, label: '关' }, { value: 1, label: '开' }];
 export function appPrefSpec(){
 	return [
@@ -41,7 +35,7 @@ export function appPrefSpec(){
 		{ key: 'wheelArt', label: '盘面美术', type: 'select', options: AstroConst.WHEEL_ART_OPTIONS, normalize: (v)=>AstroConst.normalizeWheelArt(v) },
 		{ key: 'planetListStyle', label: '星体列表样式', type: 'select', options: [{ value: 'full', label: '完整' }, { value: 'degreeOnly', label: '仅度数' }, { value: 'glyphOnly', label: '仅符号' }] },
 		{ key: 'indiaChartStyle', label: '印度盘式', type: 'select', options: AstroConst.INDIA_CHART_STYLE_OPTIONS, normalize: (v)=>AstroConst.normalizeIndiaChartStyle(v) },
-		{ key: 'colorTheme', label: '配色主题', type: 'select', options: colorThemeOptions(), normalize: (v)=>AstroConst.normalizeColorThemeIndex(v) },
+		// [#70] 「配色主题」(colorTheme)全仓无消费者,盘面调色板已由界面明暗单源映射(utils/appearance.js);该键不再暴露为可设项(模型里的键只作迁移兼容保留)。
 		{ key: 'appearanceMode', label: '外观(浅色/深色/跟随系统)', type: 'select', options: APPEARANCE_MODES.map((m)=>({ value: m, label: m })), normalize: (v)=>normalizeAppearanceMode(v) },
 		{ key: 'showPdBounds', label: '显示主限界', type: 'switch', options: SWITCH_OPTIONS },
 		{ key: 'pdMethod', label: '主限法方法', type: 'select', options: SUPPORTED_PD_METHODS.map((m)=>({ value: m, label: m })) },

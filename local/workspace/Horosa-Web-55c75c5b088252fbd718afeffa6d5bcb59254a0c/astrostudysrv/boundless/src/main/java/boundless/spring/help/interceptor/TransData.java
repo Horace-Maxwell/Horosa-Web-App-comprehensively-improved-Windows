@@ -7,6 +7,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +48,29 @@ public class TransData {
 	
 	private static NamedThreadLocal<Map<String, Object>>  responseMapThreadLocal =   
 			new NamedThreadLocal<Map<String, Object>>("BoundlessResponseMap"); 
+
+	// horosa_response_order_v1:响应主体表保插入序(LinkedHashMap)。
+	// 旧实现:线程本地 HashMap 每次 clear() + putAll,而 clear() 不缩容。池线程处理过大响应后表已扩容,
+	// 同一份结果在不同线程上迭代出的桶序不同;getResponseData 再拷进新 HashMap,顶层键序就随线程历史漂移,
+	// 同参响应逐字节不可复现。改为 LinkedHashMap 后,输出顺序 = 生产方插入顺序,与线程历史无关。
+	// 开关:系统属性 horosa.response.ordered(缺省 true)优先,其次环境变量 HOROSA_JAVA_ORDERED_RESPONSE(0 / false 回旧 HashMap)。
+	static final boolean ORDERED_RESPONSE = orderedResponseOn();
+
+	static boolean orderedResponseOn() {
+		String prop = System.getProperty("horosa.response.ordered");
+		if (prop != null && !prop.trim().isEmpty()) {
+			return !("false".equalsIgnoreCase(prop.trim()) || "0".equals(prop.trim()));
+		}
+		String env = System.getenv("HOROSA_JAVA_ORDERED_RESPONSE");
+		if (env != null && !env.trim().isEmpty()) {
+			return !("false".equalsIgnoreCase(env.trim()) || "0".equals(env.trim()));
+		}
+		return true;
+	}
+
+	private static Map<String, Object> newResponseMap() {
+		return ORDERED_RESPONSE ? new LinkedHashMap<String, Object>() : new HashMap<String, Object>();
+	}
 	
 	
 	private static boolean prettyResponse = PropertyPlaceholder.getPropertyAsBool("response.prettyformat", true);
@@ -190,7 +214,7 @@ public class TransData {
 	private static Map<String, Object> getResponseMap(){
 		Map<String, Object> map = responseMapThreadLocal.get();
 		if(map == null){
-			map = new HashMap<String, Object>();
+			map = newResponseMap();
 			responseMapThreadLocal.set(map);
 		}
 		return map;
@@ -451,7 +475,7 @@ public class TransData {
 			return list;
 		}
 		
-		Map<String, Object> resmap = new HashMap<String, Object>();
+		Map<String, Object> resmap = newResponseMap();
 		resmap.putAll(map);
 		return resmap;
 	}
@@ -614,7 +638,7 @@ public class TransData {
 	public static void set(List list){
 		Map<String, Object> map = responseMapThreadLocal.get();
 		if(map == null){
-			map = new HashMap<String, Object>();
+			map = newResponseMap();
 			responseMapThreadLocal.set(map);
 		}
 		map.put(KeyConstants.ResponseOnlyList, list);
@@ -623,7 +647,7 @@ public class TransData {
 	public static void set(Map<String, Object> res){
 		Map<String, Object> map = responseMapThreadLocal.get();
 		if(map == null){
-			map = new HashMap<String, Object>();
+			map = newResponseMap();
 			responseMapThreadLocal.set(map);
 		}
 		map.clear();
@@ -633,7 +657,7 @@ public class TransData {
 	public static void set(String key, Object value){
 		Map<String, Object> map = responseMapThreadLocal.get();
 		if(map == null){
-			map = new HashMap<String, Object>();
+			map = newResponseMap();
 			responseMapThreadLocal.set(map);
 		}
 		map.put(key, value);
@@ -642,7 +666,7 @@ public class TransData {
 	public static void setAll(Map<String, Object> res){
 		Map<String, Object> map = responseMapThreadLocal.get();
 		if(map == null){
-			map = new HashMap<String, Object>();
+			map = newResponseMap();
 			responseMapThreadLocal.set(map);
 		}
 		map.putAll(res);

@@ -47,7 +47,7 @@ Array [
   "horosa.astro.customTerms.v1 :: settings :: backup=true",
   "horosa.babylon.settings.v1 :: settings :: backup=true",
   "horosa.backup.lastResult :: device-local :: backup=false",
-  "horosa.boot.lastChart.v1 :: device-local :: backup=false",
+  "horosa.boot.lastChart.v1 :: cache :: backup=false",
   "horosa.chart.classicalGlobals.v1 :: settings :: backup=true",
   "horosa.chart.divinationJudgeGlobals.v1 :: settings :: backup=true",
   "horosa.chart.newChartSeeds.v1 :: settings :: backup=true",

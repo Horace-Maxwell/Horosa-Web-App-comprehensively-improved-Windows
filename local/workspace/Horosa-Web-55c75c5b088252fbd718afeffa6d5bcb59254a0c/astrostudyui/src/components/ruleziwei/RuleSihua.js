@@ -20,7 +20,7 @@ class RuleSihua extends Component{
 		for(let g in gan){
 			let stars = gan[g];
 			let row = (
-				<Row key={g}>
+				<Row key={`s1-${g}`}>
 					<Col span={4}>{g + '：'}</Col>
 					<Col span={5} style={ZWConst.SihuaColor[0]}>{stars[0]}</Col>
 					<Col span={5} style={ZWConst.SihuaColor[1]}>{stars[1]}</Col>
@@ -49,7 +49,7 @@ class RuleSihua extends Component{
 				let rule = rules[j];
 				if(rule === '=='){
 					li = (
-						<hr key={j} />
+						<hr key={`s2-${j}`} />
 					);
 				}else{
 					if(rule instanceof Array){
@@ -63,17 +63,16 @@ class RuleSihua extends Component{
 						)
 					}else{
 						li = (
-							<li key={j}>{rule}</li>
+							<li key={`s3-${j}`}>{rule}</li>
 						);	
 					}
 				}
 	
 				lis.push(li);
 			}
-			// 内层 ul 复合 i:它随外层化曜循环逐轮重建,裸字面量会跨轮撞键
 			rulesDom[i] = (
-				<div key={i} style={{width: 400}}>
-					<ul key={`rules-${i}`}>
+				<div key={`s4-${i}`} style={{width: 400}}>
+					<ul key={`s5-${i}`}>
 						{lis}
 					</ul>
 				</div>

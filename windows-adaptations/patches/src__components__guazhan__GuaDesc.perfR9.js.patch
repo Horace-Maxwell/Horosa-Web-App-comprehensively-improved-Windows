@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/guazhan/GuaDesc.js b/astrostudyui/src/components/guazhan/GuaDesc.js
-index 23f0282..2529f5f 100644
+index 89e9db0c..f3c9d117 100644
 --- a/astrostudyui/src/components/guazhan/GuaDesc.js
 +++ b/astrostudyui/src/components/guazhan/GuaDesc.js
 @@ -1,8 +1,10 @@
@@ -14,11 +14,9 @@ index 23f0282..2529f5f 100644
  
  const { Title, Paragraph, Text } = Typography;
  const { TabPane } = Tabs;
-@@ -21,20 +23,21 @@ class GuaDesc extends Component{
- 		}
+@@ -22,16 +24,16 @@ class GuaDesc extends Component{
  
  		let res = [];
-+		// res 为固定次序的九段(标题/卦辞/爻辞/彖/象),每段各出现一次,故字面量键即稳定且互不重复。
  		let title = (
 -			<Title level={3} key={randomStr(8)}><a href={gua.url} target='_blank'>第{gua.ord}卦，{gua.name}卦，{gua.desc}</a></Title>
 +			<Title level={3} key="title"><a href={gua.url} target='_blank'>第{gua.ord}卦，{gua.name}卦，{gua.desc}</a></Title>
@@ -36,12 +34,8 @@ index 23f0282..2529f5f 100644
 +		let yaotitle = (<Title level={4} key="yaoTitle">爻辞</Title>);
  		let yao = gua['爻辞'].map((item, idx)=>{
  			let dom = (
--				<li key={randomStr(8)}>
-+				<li key={idx}>
- 					<Text strong mark>{item}</Text>
- 					<div>象曰：{gua['爻象'][idx]}</div>
- 				</li>
-@@ -43,7 +46,7 @@ class GuaDesc extends Component{
+ 				<li key={`s5-${idx}`}>
+@@ -43,7 +45,7 @@ class GuaDesc extends Component{
  			return dom
  		});
  		let yaoci = (
@@ -50,7 +44,7 @@ index 23f0282..2529f5f 100644
  				<ul>
  					{yao}
  				</ul>
-@@ -52,13 +55,13 @@ class GuaDesc extends Component{
+@@ -52,13 +54,13 @@ class GuaDesc extends Component{
  		res.push(yaotitle);
  		res.push(yaoci)
  

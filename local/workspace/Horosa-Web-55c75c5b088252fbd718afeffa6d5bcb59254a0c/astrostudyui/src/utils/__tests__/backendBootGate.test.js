@@ -4,6 +4,9 @@ import {
 	waitForBackendBoot,
 	isEarlyBootMode,
 	__resetBackendBootGateForTest,
+	bootContext, __bootGateGiveUpMsForTest,
+	__bootGateRetryMsForTest,
+	BACKEND_CONFIRMED_EVENT,
 } from '../backendBootGate';
 
 const JAVA_ROOT = 'http://127.0.0.1:9999';
@@ -105,5 +108,77 @@ describe('[B1] backendBootGate', ()=>{
 		}finally{
 			window.localStorage.removeItem('horosa.perf.bootGate');
 		}
+	});
+
+	// [R5 S2] 壳确认事件一到即放行:重试间隔故意放到 1s,探活恒拒连;20ms 后置旗标并派事件 → 远早于下一次重试就返回。
+	test('[R5 S2] 壳 horosa:backend-confirmed 事件到达即放行,不等下一次重试', async ()=>{
+		__resetBackendBootGateForTest({ retryMs: 1000, giveUpMs: 5000 });
+		setSearch('?early=1');
+		fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+		const t0 = Date.now();
+		setTimeout(()=>{
+			window.__horosaBackendConfirmed = true;
+			window.dispatchEvent(new Event(BACKEND_CONFIRMED_EVENT));
+		}, 20);
+		await waitForBackendBoot(`${JAVA_ROOT}/chart`);
+		expect(Date.now() - t0).toBeLessThan(600);
+	});
+
+	// [R5 S2] 重试间隔:缺省 50ms;perfFlag bootGateFastRetry=0 回旧 350ms;测试注入优先。
+	test('[R5 S2] 探活重试间隔按 perfFlag:缺省 50,关=350,注入优先', ()=>{
+		__resetBackendBootGateForTest();
+		expect(__bootGateRetryMsForTest()).toBe(50);
+		window.localStorage.setItem('horosa.perf.bootGateFastRetry', '0');
+		expect(__bootGateRetryMsForTest()).toBe(350);
+		window.localStorage.removeItem('horosa.perf.bootGateFastRetry');
+		__resetBackendBootGateForTest({ retryMs: 7 });
+		expect(__bootGateRetryMsForTest()).toBe(7);
+	});
+});
+
+describe('[R5 S8] 启动上下文与更新后首启的兜底放行上限', ()=>{
+	test('URL 无参:非 early、非首启、无 boot;兜底 90 s', ()=>{
+		__resetBackendBootGateForTest();
+		setSearch('');
+		expect(bootContext()).toEqual({ early: false, firstLaunch: false, bootStartedAtMs: null });
+		expect(__bootGateGiveUpMsForTest()).toBe(90000);
+	});
+	test('early=1&firstLaunch=1&boot=<epoch>:上下文齐全,兜底拉长到 900 s(= 启动脚本就绪总上限);注入值优先', ()=>{
+		__resetBackendBootGateForTest();
+		setSearch('?early=1&firstLaunch=1&boot=1790000000000');
+		expect(bootContext()).toEqual({ early: true, firstLaunch: true, bootStartedAtMs: 1790000000000 });
+		expect(__bootGateGiveUpMsForTest()).toBe(900000);
+		// 与启动脚本的就绪总上限同值:脚本续命期间页面不得先放行
+		const fs = require('fs');
+		const path = require('path');
+		const sh = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'start_horosa_local.sh'), 'utf8');
+		const m = sh.match(/READY_TOTAL_CAP_SECS="\$\{HOROSA_READY_TOTAL_CAP_SECS:-(\d+)\}"/);
+		expect(m && Number(m[1]) * 1000).toBe(900000);
+		__resetBackendBootGateForTest({ giveUpMs: 123 });
+		setSearch('?early=1&firstLaunch=1');
+		expect(__bootGateGiveUpMsForTest()).toBe(123);
+	});
+	test('排盘服务直连路径(fetchChartWithRetry)同样先过就绪门:未监听则等,起了才发真请求', async ()=>{
+		const { fetchChartWithRetry } = require('../chartFetch');
+		__resetBackendBootGateForTest({ retryMs: 5, giveUpMs: 5000 });
+		setSearch('?early=1');
+		const CHART_ROOT = 'http://127.0.0.1:8899';
+		const calls = [];
+		global.fetch = jest.fn((u, o)=>{
+			calls.push(String(u));
+			if(calls.length === 1){ return Promise.reject(new TypeError('Failed to fetch')); }
+			if(calls.length === 2){ return Promise.resolve({ ok: true, type: 'opaque' }); }
+			return Promise.resolve({ ok: true, status: 200 });
+		});
+		const resp = await fetchChartWithRetry(`${CHART_ROOT}/qimen/pan`, { method: 'POST', body: '{}' });
+		expect(resp.status).toBe(200);
+		// 两次探活(根路径)之后才发真请求;真请求只发一次(不再靠拒连重试碰运气)
+		expect(calls).toEqual([`${CHART_ROOT}/`, `${CHART_ROOT}/`, `${CHART_ROOT}/qimen/pan`]);
+		delete global.fetch;
+	});
+	test('boot 非法(非数字/负数)→ null,不影响其它字段', ()=>{
+		__resetBackendBootGateForTest();
+		setSearch('?early=1&boot=abc');
+		expect(bootContext()).toEqual({ early: true, firstLaunch: false, bootStartedAtMs: null });
 	});
 });

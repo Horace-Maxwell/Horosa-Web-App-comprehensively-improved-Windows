@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZiFineChart.js b/astrostudyui/src/components/cntradition/BaZiFineChart.js
-index 7b48b24e..b23c37d5 100644
+index dec92ffb..d636b48f 100644
 --- a/astrostudyui/src/components/cntradition/BaZiFineChart.js
 +++ b/astrostudyui/src/components/cntradition/BaZiFineChart.js
 @@ -1,4 +1,5 @@
@@ -8,7 +8,7 @@ index 7b48b24e..b23c37d5 100644
  import { BaZiMsg } from '../../msg/bazimsg';
  import { getSelfZuo, hiddenStemsOf, xunKongOf } from '../../utils/baziLunarLocal';
  import { filterShenShaByGroups } from '../../utils/baziShenShaLocal';
-@@ -357,6 +358,25 @@ const ELEMENT_CN = {
+@@ -358,6 +359,25 @@ const ELEMENT_CN = {
  };
  
  class BaZiFineChart extends Component{

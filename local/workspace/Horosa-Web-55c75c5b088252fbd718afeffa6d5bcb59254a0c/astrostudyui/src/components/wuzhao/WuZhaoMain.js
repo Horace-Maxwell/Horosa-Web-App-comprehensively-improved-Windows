@@ -1,4 +1,5 @@
 import QuickDockBar from '../common/QuickDockBar';
+import { claimTrigger, settleTrigger, identityOf } from '../../utils/singleTrigger';   // [#84] 双触发收敛
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 // 🔴 必须显式 import React:JSX 转译后是 React.createElement,webpack 下有自动注入
 // 兜着,但 jest 直测 render / SSR 场景会 ReferenceError(仓库既有教训)。
@@ -685,6 +686,13 @@ class WuZhaoMain extends Component{
 	// opts.reseed=false:只改判读/显示档位重取时沿用当前种子(不换兆);缺省(起盘/换时地)取新种子=重掷。
 	async fetchPan(fields, opts){
 		const reseed = !(opts && opts.reseed === false);
+		// [#84] 双触发收敛:挂钩与 componentDidUpdate 同一次改动各进一次;随机诸式每路都取新种 = 同一次改动掷两次兆。
+		// 判重放在取种之前:签名 = 不含新种的请求体 + 是否重掷(沿用种子时带上当前种子),全同的第二路跳过(不换兆)。
+		const sigPayload = this.buildPanPayload(fields, reseed ? -1 : this.state.castSeed);
+		const panTrig = claimTrigger(this, 'fetchPan', sigPayload ? `${JSON.stringify(sigPayload)}|reseed=${reseed ? 1 : 0}|${identityOf(fields)}` : null);
+		if(!panTrig){
+			return;
+		}
 		const seed = reseed ? newCastSeed() : this.state.castSeed;
 		if(reseed && seed !== this.state.castSeed){ this.setState({ castSeed: seed }); }
 		const payload = this.buildPanPayload(fields, seed);
@@ -704,6 +712,7 @@ class WuZhaoMain extends Component{
 				saveModuleAISnapshotLazy('wuzhao', ()=>buildSnapshotText(pan));
 			});
 		}catch(e){
+			settleTrigger(this, 'fetchPan', panTrig, false);
 			console.warn('kinwuzhao backend failed', e);
 			if(!this.unmounted && reqSeq === this.requestSeq){
 				this.setState({ loading: false });

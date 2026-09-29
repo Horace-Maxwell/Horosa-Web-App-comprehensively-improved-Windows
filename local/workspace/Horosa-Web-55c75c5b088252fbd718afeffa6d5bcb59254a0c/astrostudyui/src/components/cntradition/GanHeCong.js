@@ -1,10 +1,8 @@
 import { Component } from 'react';
 import { Row, Col } from 'antd';
 import { XQCard as Card } from '../xq-ui';
+
 import styles from '../../css/styles.less';
-// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
-// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
-// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 function relationItemText(item){
 	if(!item){
@@ -35,16 +33,15 @@ class GanHeCong extends Component{
 			}
 			let spans = ary.map((item, idx)=>{
 				return (
-					<span key={idx}>{relationItemText(item)}&emsp;</span>
+					<span key={`s1-${idx}`}>{relationItemText(item)}&emsp;</span>
 				)
 			});
-			// 尾部箭头段唯一,且字面量键不会与前面的数字下标键相撞。
 			let spanhe = (
-				<span key="he">&rarr;&emsp;{key}</span>
+				<span key={`s2-${key}`}>&rarr;&emsp;{key}</span>
 			);
 			spans.push(spanhe);
 			let row = (
-				<Row key={key}>
+				<Row key={`s3-${key}`}>
 					<Col offset={1} span={23}>
 						{spans}
 					</Col>
@@ -65,11 +62,11 @@ class GanHeCong extends Component{
 			if(!Array.isArray(ary) || ary.length < 2){
 				continue;
 			}
-			let gan0 = (<span key="gan0">{relationItemText(ary[0])}&emsp;</span>);
-			let gan1 = (<span key="gan1">{relationItemText(ary[1])}&emsp;</span>);
-			let cong = (<span key="cong">冲</span>);
+			let gan0 = (<span key={`s4-${key}`}>{relationItemText(ary[0])}&emsp;</span>);
+			let gan1 = (<span key={`s5-${key}`}>{relationItemText(ary[1])}&emsp;</span>);
+			let cong = (<span key={`s6-${key}`}>冲</span>);
 			let row = (
-				<Row key={key}>
+				<Row key={`s7-${key}`}>
 					<Col offset={1} span={23}>
 						{gan0} 
 						{cong} 

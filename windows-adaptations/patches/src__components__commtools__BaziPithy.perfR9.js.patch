@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/commtools/BaziPithy.js b/astrostudyui/src/components/commtools/BaziPithy.js
-index 1097822a..0aeda395 100644
+index ef877602..de03e54b 100644
 --- a/astrostudyui/src/components/commtools/BaziPithy.js
 +++ b/astrostudyui/src/components/commtools/BaziPithy.js
 @@ -1,11 +1,13 @@
@@ -28,45 +28,3 @@ index 1097822a..0aeda395 100644
                  <Divider orientation='left'>{key}</Divider>
                  <ul>
                      {lis}
-@@ -70,12 +73,12 @@ export default class BaziPithy extends Component{
-         for(let i=0; i<10; i++){
-             let gan = Gan[i];
-             let li = (
--                <li key={randomStr(8)}>{pithy['三字诀'][gan]}</li>
-+                <li key={gan}>{pithy['三字诀'][gan]}</li>
-             );
-             colword3.push(li);
- 
-             let li4 = (
--                <li key={randomStr(8)}>{pithy['四字诀'][gan]}</li>
-+                <li key={gan}>{pithy['四字诀'][gan]}</li>
-             )
-             colword4.push(li4);
-         }
-@@ -84,7 +87,7 @@ export default class BaziPithy extends Component{
-         for(let i=0; i<12; i++){
-             let zi = Zi[i];
-             let li = (
--                <li key={randomStr(8)}>{pithy['三字诀'][zi]}</li>
-+                <li key={zi}>{pithy['三字诀'][zi]}</li>
-             );
-             colword3zi.push(li);
-         }
-@@ -92,7 +95,7 @@ export default class BaziPithy extends Component{
-         let nayin = [];
-         for(let key in pithy['纳音断运']){
-             let li = (
--                <li key={randomStr(8)}>{pithy['纳音断运'][key]}</li>
-+                <li key={key}>{pithy['纳音断运'][key]}</li>
-             )
-             nayin.push(li);
-         }
-@@ -102,7 +105,7 @@ export default class BaziPithy extends Component{
-             let ary = pithy['五行颠倒'][key];
- 
-             let li = (
--                <li key={randomStr(8)}>{ary.join('，')}</li>
-+                <li key={key}>{ary.join('，')}</li>
-             )
-             wxdom.push(li);
-         }

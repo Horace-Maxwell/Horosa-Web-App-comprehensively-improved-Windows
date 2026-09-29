@@ -3,6 +3,8 @@ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Row, Col, Divider, Popover} from 'antd';
 import { XQCard as Card, XQTabs as Tabs } from '../xq-ui';
 import { BaZiMsg } from '../../msg/bazimsg';
+import { baziAgeText } from './baziAgeText';
+import { parseYearFromDateStr, addDisplayYears } from '../../utils/dateStrSafe';
 import { birthMonthDayFromBazi, resolveStarCharger } from './starChargerLazy';
 import styles from '../../css/styles.less';
 // horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
@@ -140,22 +142,27 @@ class MainDirection extends Component{
 	}
 
 
+	// 流年行岁数:下传「年龄」档则按档(虚岁「N岁」/ 周岁「N−1周岁」),未传保持旧式「N岁」。
+	ageText(age){
+		return this.props.ageStyle ? baziAgeText(age, this.props.ageStyle) : `${age}岁`;
+	}
+
 	genSubDirectDom(dir, startYear, age, mainDirect, directTime, height){
 		let dirdoms = [];
 			for(let i=0; i<dir.length; i++){
 				let sub = dir[i] || {};
-				let y = startYear + i;
+				let y = addDisplayYears(startYear, i);   // 跨公元纪元不出 0 年
 				let dirtm = y;
 				let gods = this.genGodsDom(sub);
 				// starCharger 惰性化：null 时按公历年补算（buildStarChargerForYear，与 eager 逐字等价）。
 				let starCharger = resolveStarCharger(sub.starCharger, sub.year != null ? sub.year : y, this._birthMonth, this._birthDay);
 				let popcontent = (
 					<div style={{width: 350}}>
-						<Row key="stemBranch" style={{width: 350}}>
-							<Col span={24} key="stem">
+						<Row key={`s7-${i}`} style={{width: 350}}>
+							<Col span={24} key={`s8-${i}`}>
 								{describeStemBranch(sub.stem)}
 							</Col>
-							<Col span={24} key="branch">
+							<Col span={24} key={`s9-${i}`}>
 								{describeStemBranch(sub.branch)}
 							</Col>
 						</Row>
@@ -166,12 +173,12 @@ class MainDirection extends Component{
 					</div>
 				)
 				let titlerow = (
-					<Popover content={popcontent} title={(sub.ganzi || '') + ' ' + dirtm + ' ' + (age + i) + '岁'} key={i}>
-						<Row key={i}>
+					<Popover content={popcontent} title={(sub.ganzi || '') + ' ' + dirtm + ' ' + this.ageText(age + i)} key={i}>
+						<Row key={`s11-${i}`}>
 							<Col span={4}>{sub.ganzi || ''}</Col>
 							<Col span={6}>{sub.naying || ''}</Col>
 							<Col span={9}>{dirtm}</Col>
-							<Col span={5}>{age + i}岁</Col>
+							<Col span={5}>{this.ageText(age + i)}</Col>
 					</Row>
 				</Popover>
 			);
@@ -241,14 +248,20 @@ class MainDirection extends Component{
 		};
 
 			let doms = this.genDirectionDom(safeArray(rec.direction), rec.directTime, height);
-			let directAge = Number.isFinite(rec.directAge) ? rec.directAge.toFixed(0) : '';
-			let directYear = typeof rec.directTime === 'string' ? rec.directTime.substr(0, 4) : '';
+			// 上运岁数:八字页下传「年龄」档时取首步大运的岁数(虚岁数据按档显示,本地引擎盘此前无 directAge → 空白);
+			// 未传档保持旧式(Java 起运实足年数取整 +「周岁」)。年份经 dateStrSafe 取,公元前不截错。
+			const firstDir = safeArray(rec.direction)[0];
+			let directAge = this.props.ageStyle
+				? (firstDir ? baziAgeText(firstDir.age, this.props.ageStyle) : '')
+				: (Number.isFinite(rec.directAge) ? `${rec.directAge.toFixed(0)}周岁` : '周岁');
+			const directTimeYear = typeof rec.directTime === 'string' ? parseYearFromDateStr(rec.directTime) : NaN;
+			let directYear = Number.isFinite(directTimeYear) ? `${directTimeYear}` : (firstDir && firstDir.startYear !== undefined ? `${firstDir.startYear}` : '');
 
 		return (
 			<div className={styles.scrollbar} style={style}>
 				<Row style={{marginLeft:20}}>
 						<Col span={24} style={{fontSize: 16, fontWeight: 'bold'}}>
-							{'上运时间：' + directAge + '周岁 ' + directYear + ' '}
+							{'上运时间：' + directAge + ' ' + directYear + ' '}
 						</Col>
 				</Row>
 				<Tabs defaultActiveKey="0" tabPosition='right' style={{marginTop: 15}}>

@@ -3,6 +3,7 @@ import { chartSCUEnabled } from '../../utils/perfFlags';
 import { BaZiMsg } from '../../msg/bazimsg';
 import { getSelfZuo, hiddenStemsOf, xunKongOf } from '../../utils/baziLunarLocal';
 import { filterShenShaByGroups } from '../../utils/baziShenShaLocal';
+import { addDisplayYears, displayYearDiff } from '../../utils/dateStrSafe';
 
 const GAN_HE = [
 	['甲', '己', '土'], ['乙', '庚', '金'], ['丙', '辛', '水'], ['丁', '壬', '木'], ['戊', '癸', '火'],
@@ -235,12 +236,12 @@ function getSelectedDirection(rec, selection){
 	if(!block && selection.luckType !== 'small' && selection.year !== null && selection.year !== undefined){
 		block = dirs.find((item)=>{
 			const start = Number(item && item.startYear);
-			return Number.isFinite(start) && Number(selection.year) >= start && Number(selection.year) < start + 10;
+			return Number.isFinite(start) && Number(selection.year) >= start && Number(selection.year) < addDisplayYears(start, 10);
 		}) || null;
 	}
 	let sub = selection.yearRaw || null;
 	if(!sub && block && Array.isArray(block.subDirect) && selection.year !== null && selection.year !== undefined){
-		const index = Number(selection.year) - Number(block.startYear);
+		const index = displayYearDiff(Number(block.startYear), Number(selection.year));   // 跨公元纪元不多算 0 年
 		if(index >= 0 && index < block.subDirect.length){
 			sub = block.subDirect[index];
 		}

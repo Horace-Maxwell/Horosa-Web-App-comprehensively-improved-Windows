@@ -8,7 +8,7 @@ Created on Sun Dec  22 16:22:37 2019
 from collections import Counter
 import re, itertools, time
 
-# horosa_kin_jiazi_const_v1(PERF-R10 B2):同族常量提升,copy-return 等价;
+# horosa_kin_jiazi_const_v1:同族常量提升,copy-return 等价;
 # 实例方法版按 (Gan,Zhi) 键缓存 —— 不预设类属性不可定制,自定义干支照样正确。
 import os as _os
 _KIN_CONST_ON = _os.environ.get('HOROSA_KIN_JIAZI_CONST', '1').lower() not in ('0', 'false', 'no', 'off')

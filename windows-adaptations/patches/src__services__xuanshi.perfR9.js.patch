@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/services/xuanshi.js b/astrostudyui/src/services/xuanshi.js
-index 44047a7..ea349b2 100644
+index 44047a73..88bba5d9 100644
 --- a/astrostudyui/src/services/xuanshi.js
 +++ b/astrostudyui/src/services/xuanshi.js
 @@ -4,7 +4,31 @@ import { ServerRoot } from '../utils/constants';
@@ -35,7 +35,7 @@ index 44047a7..ea349b2 100644
  
  async function _post(action, payload) {
  	const body = JSON.stringify(payload || {});
-@@ -36,25 +60,32 @@ export function postXuanShi(action, payload) {
+@@ -36,25 +60,31 @@ export function postXuanShi(action, payload) {
  // 幂等只读端点缓存(同 action+payload 复用)
  export async function postXuanShiCached(action, payload) {
  	const key = `${action}:${JSON.stringify(payload || {})}`;
@@ -69,12 +69,11 @@ index 44047a7..ea349b2 100644
 -export const fetchFigures = (p) => postXuanShi('figures', p);
 +export const fetchMicrochronology = (p) => postXuanShiCached('microchronology', p);
 +// 微年表长文本按需取回(列表被 limit 截断后的兜底路径)
-+export const fetchMicrochronologyDetail = (event_id) => postXuanShiCached('microchronology_detail', { event_id });
 +export const fetchFigures = (p) => postXuanShiCached('figures', p);
  export const fetchFigure = (slug) => postXuanShiCached('figure', { slug });
  export const fetchTechniques = (p) => postXuanShiCached('techniques', p || {});
  export const fetchTechnique = (slug) => postXuanShiCached('technique', { slug });
-@@ -62,7 +93,7 @@ export const fetchCelestialTerms = () => postXuanShiCached('celestial-terms', {}
+@@ -62,7 +92,7 @@ export const fetchCelestialTerms = () => postXuanShiCached('celestial-terms', {}
  export const fetchCelestialTerm = (slug) => postXuanShiCached('celestial-term', { slug });
  export const fetchDynasties = () => postXuanShiCached('dynasties', {});
  export const fetchDynasty = (slug) => postXuanShiCached('dynasty', { slug });

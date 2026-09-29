@@ -43,6 +43,48 @@ _STAR_LRU = OrderedDict()
 _STAR_LRU_LOCK = threading.Lock()
 
 
+# 恒星批的拷贝:原存入 / 命中都整批 deepcopy(每盘 4 批约 0.55 ms)。恒星对象属性实测皆为不可变值(str / float / 元组),
+# 快克隆 = 新建容器 + 逐颗浅拷贝;属性值只要不是纯不可变值(含元素可变的元组、各种子类)仍照旧 deepcopy;同一对象
+# 多处引用保持共享 → 与 deepcopy 在结构与隔离上等价(消费者改的仍只是自己的副本)。任何异常退回 deepcopy。
+# 开关:HOROSA_STAR_LRU_FASTCLONE=0 → 回整批 deepcopy。
+_STAR_LRU_FASTCLONE = os.environ.get('HOROSA_STAR_LRU_FASTCLONE', '1').lower() not in ('0', 'false', 'no', 'off')
+_IMMUTABLE_ATOM_TYPES = (str, int, float, bool, type(None), bytes, complex)
+
+
+def _isImmutableValue(v):
+    tv = type(v)
+    if tv in _IMMUTABLE_ATOM_TYPES:
+        return True
+    if tv is tuple:
+        return all(_isImmutableValue(x) for x in v)
+    return False
+
+
+def _cloneStarList(starList):
+    if not _STAR_LRU_FASTCLONE:
+        return copy.deepcopy(starList)
+    try:
+        new = copy.copy(starList)
+        for ak, av in starList.__dict__.items():
+            if ak != 'content' and not _isImmutableValue(av):
+                setattr(new, ak, copy.deepcopy(av))
+        memo = {}
+        content = {}
+        for k, star in starList.content.items():
+            c = memo.get(id(star))
+            if c is None:
+                c = copy.copy(star)
+                for sk, sv in star.__dict__.items():
+                    if not _isImmutableValue(sv):
+                        setattr(c, sk, copy.deepcopy(sv))
+                memo[id(star)] = c
+            content[k] = c
+        new.content = content
+        return new
+    except Exception:
+        return copy.deepcopy(starList)
+
+
 def _siderealCtxKey():
     ctx = swe._SIDEREAL_CONTEXT
     return (getattr(ctx, 'mode', None), getattr(ctx, 't0', 0.0), getattr(ctx, 'ayan_t0', 0.0))
@@ -54,12 +96,12 @@ def _starLruLookup(kind, IDs, date, pos, height, flags):
         hit = _STAR_LRU.get(key)
         if hit is not None:
             _STAR_LRU.move_to_end(key)
-            return key, copy.deepcopy(hit)
+            return key, _cloneStarList(hit)
     return key, None
 
 
 def _starLruStore(key, starList):
-    pristine = copy.deepcopy(starList)
+    pristine = _cloneStarList(starList)
     with _STAR_LRU_LOCK:
         _STAR_LRU[key] = pristine
         _STAR_LRU.move_to_end(key)

@@ -81,14 +81,13 @@ def _candidateEphePath():
     return SEACTIVE_PATH
 
 
-# horosa_ephe_path_fastpath_v1(PERF-R9):记录「当前真正生效的星历路径」,让 ensureEphePath
-# 在无人改动时直接短路。这是安全的,因为 _guardedSetEphePath 自下方 `swisseph.set_ephe_path = ...`
-# 起就是**进程内唯一入口** —— 全部 vendor/kinastro 模块的 `swe.set_ephe_path("")` 都经运行时
-# 属性查找路由到这里,所以这个变量不可能落后于真实状态;一旦有人改了路径,下面的比较立刻失配、
-# 照旧恢复,语义与改动前完全一致。
-# 为什么值得:applySiderealMode 每次 swe 调用都会走一趟 ensureEphePath —— 实测单次
-# BirthJieQi.compute() 里 `swisseph.set_ephe_path` 被调 **680 次、耗时 82ms = 该端点的 61%**,
-# 而 /jieqi/birth 又是 /chart 里 baziAssemble 的最大单项。一处短路,整条链受益。
+# [R5 T1] 星历路径短路(与 Windows 版同名开关 HOROSA_EPHE_PATH_FASTPATH):记录「当前真正生效的星历路径」,
+# 让 ensureEphePath 在无人改动时直接跳过。安全的根据:_guardedSetEphePath 自下方
+# `swisseph.set_ephe_path = ...` 起就是进程内唯一入口 —— 全部 vendor/kinastro 模块的 `swe.set_ephe_path("")`
+# 都经运行时属性查找路由到这里,所以追踪变量不可能落后于真实状态;一旦有人改了路径,比较立刻失配、照旧恢复,
+# 语义与改动前完全一致(输出逐字节相同,tests/test_perf_r5_batch1.py 钉住)。
+# 为什么值得:applySiderealMode 每次 swe 调用都走一趟 ensureEphePath,而 C 库 swe_set_ephe_path 会顺带
+# 关闭已打开的星历文件 → 每张本命盘重设 177 次、约 6.6ms(约 20%),文件被反复关闭重开。
 # kill-switch:HOROSA_EPHE_PATH_FASTPATH=0 → 每次都照旧真正调用。
 _EPHE_PATH_ACTIVE = None
 _JPL_FILE_ACTIVE = None
@@ -98,24 +97,23 @@ _EPHE_FASTPATH = os.environ.get('HOROSA_EPHE_PATH_FASTPATH', '1').lower() not in
 def _guardedSetEphePath(path):
     # Several bundled kinastro modules reset pyswisseph to its process default
     # with set_ephe_path(""). Keep the packaged swefiles path active instead.
-    global _EPHE_PATH_ACTIVE
+    global _EPHE_PATH_ACTIVE, _JPL_FILE_ACTIVE
     if path is None or str(path).strip() == '':
         path = _candidateEphePath() or ''
+    # C 侧 swe_set_ephe_path 会重置 JPL 文件名:作废 JPL 追踪,ensureEphePath 随后照旧重设(与改前「每次路径后都重设」同义);
+    # 路径追踪只在调用成功后记,调用抛错时不留「假已设」。
+    _JPL_FILE_ACTIVE = None
+    ret = _SET_EPHE_PATH(path)
     _EPHE_PATH_ACTIVE = path
-    return _SET_EPHE_PATH(path)
+    return ret
 
 
 swisseph.set_ephe_path = _guardedSetEphePath
 
 
-# horosa_ephe_path_fastpath_v1 的第二半 —— 必须与短路成对存在,否则短路是不安全的。
-# 背景:`swe_set_ephe_path()` 在 C 库里会**顺带关闭已打开的星历文件**。原实现每次 swe 调用
-# 都重设路径,于是文件被反复关闭+重开(那正是被测出的 82ms 里的实际工作量)。短路之后
-# 文件句柄常驻 —— 这对性能是纯收益、对生产也无害(更新时安装器本就会先结束进程),
-# 但它带来一个必须堵住的洞:**任何人调用 swisseph.close() 之后,_EPHE_PATH_ACTIVE 就
-# 陈旧了**,ensureEphePath 会误以为路径还生效而跳过重设。
-# 因此把 close 也纳入守卫:一旦有人真的关了,追踪器立刻作废,下一次 ensureEphePath 照旧重设。
-# (当前产品代码无人调用它 —— 已 grep 确认;此举是为了让短路在结构上安全,而不是靠「没人调用」。)
+# 短路的另一半 —— 必须与之成对存在,否则短路不安全:短路后星历文件句柄常驻(纯收益,更新时安装器本就先结束进程),
+# 但任何人调用 swisseph.close() 之后追踪变量就陈旧了。把 close 也纳入守卫:一关即作废追踪,下一次 ensureEphePath 照旧重设。
+# (当前产品代码无人调用 close —— 已 grep 确认;此举是让短路在结构上安全,而不是靠「没人调用」。)
 _SWE_CLOSE = getattr(swisseph, 'close', None)
 
 if _SWE_CLOSE is not None:
@@ -129,12 +127,8 @@ if _SWE_CLOSE is not None:
 
 
 def closeEphemerisFiles():
-    """显式释放 swisseph 持有的星历文件句柄(并作废路径追踪器)。
-
-    生产代码不需要调用它 —— 句柄常驻是正常且更快的工作方式。
-    存在的意义:测试/工具需要**移动或删除 .se1 文件**时,Windows 不允许改名被打开的文件,
-    必须先显式关闭。调用后一切照旧:下一次 ensureEphePath 会重新建立路径。
-    """
+    """显式释放 swisseph 持有的星历文件句柄(并作废路径追踪器)。生产代码不需要调用;测试 / 工具要移动或删除
+    .se1 文件时先调它。调用后一切照旧:下一次 ensureEphePath 会重新建立路径。"""
     if _SWE_CLOSE is not None:
         swisseph.close()
 
@@ -301,9 +295,8 @@ def setPath(path):
 def ensureEphePath():
     """Restore flatlib's Swiss Ephemeris path after shared-process callers change it.
 
-    horosa_ephe_path_fastpath_v1(PERF-R9):路径未被任何人改动时直接短路。
-    语义不变 —— 只要有外部调用者动过路径,_EPHE_PATH_ACTIVE 立刻与 SEACTIVE_PATH 失配,
-    这里照旧恢复(见 _guardedSetEphePath 处的说明:它是进程内唯一入口)。
+    [R5 T1] 路径未被任何人改动时直接短路。语义不变 —— 只要有外部调用者动过路径,_EPHE_PATH_ACTIVE 立刻与
+    SEACTIVE_PATH 失配,这里照旧恢复(见 _guardedSetEphePath 处的说明:它是进程内唯一入口)。
     """
     global _JPL_FILE_ACTIVE
     if SEACTIVE_PATH and (not _EPHE_FASTPATH or _EPHE_PATH_ACTIVE != SEACTIVE_PATH):

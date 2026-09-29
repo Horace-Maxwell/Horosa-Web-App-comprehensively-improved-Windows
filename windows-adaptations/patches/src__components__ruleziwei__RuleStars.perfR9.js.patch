@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/ruleziwei/RuleStars.js b/astrostudyui/src/components/ruleziwei/RuleStars.js
-index c66b3a3..5ad87e6 100644
+index ec68e1c4..b2520ab9 100644
 --- a/astrostudyui/src/components/ruleziwei/RuleStars.js
 +++ b/astrostudyui/src/components/ruleziwei/RuleStars.js
 @@ -1,7 +1,9 @@
@@ -13,15 +13,6 @@ index c66b3a3..5ad87e6 100644
  import STAR_MEANING from '../ziwei/data/tables/ziweiStarMeaning.json';   // WP-7 星曜含义结构化
  
  class RuleStars extends Component{
-@@ -26,7 +28,7 @@ class RuleStars extends Component{
- 			let dom = this.genPopoverDom(rules, star);
- 			let title = star + '';
- 			let col = (
--				<Col span={4} key={randomStr(8)}>
-+				<Col span={4} key={star}>
- 					<Popover content={dom} title={title}>
- 						{star}
- 					</Popover>					
 @@ -45,7 +47,7 @@ class RuleStars extends Component{
  		const lab = { opacity: 0.6, marginRight: 3 };
  		if(m){
@@ -40,24 +31,7 @@ index c66b3a3..5ad87e6 100644
  		return null;
  	}
  
-@@ -68,7 +70,7 @@ class RuleStars extends Component{
- 			let li = null;
- 			if(rule === '=='){
- 				li = (
--					<hr key={randomStr(8)} />
-+					<hr key={i} />
- 				);
- 			}else{
- 				if(rule instanceof Array){
-@@ -82,16 +84,16 @@ class RuleStars extends Component{
- 					)
- 				}else{
- 					li = (
--						<li key={randomStr(8)}>{rule}</li>
-+						<li key={i}>{rule}</li>
- 					);	
- 				}
- 			}
+@@ -89,9 +91,9 @@ class RuleStars extends Component{
  			lis.push(li);
  		}
  		let rulesDom = (

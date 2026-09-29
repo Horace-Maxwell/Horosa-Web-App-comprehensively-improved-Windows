@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/ruleziwei/RuleHuaDesc.js b/astrostudyui/src/components/ruleziwei/RuleHuaDesc.js
-index 943b6ec..318db5d 100644
+index b5133f30..870cd2a6 100644
 --- a/astrostudyui/src/components/ruleziwei/RuleHuaDesc.js
 +++ b/astrostudyui/src/components/ruleziwei/RuleHuaDesc.js
 @@ -1,7 +1,9 @@
@@ -13,33 +13,7 @@ index 943b6ec..318db5d 100644
  
  class RuleHuaDesc extends Component{
  	constructor(props) {
-@@ -19,7 +21,7 @@ class RuleHuaDesc extends Component{
- 			let rules = huas[key];
- 			let dom = this.genPopoverDom(rules);
- 			let col = (
--				<Col span={8} key={randomStr(8)}>
-+				<Col span={8} key={key}>
- 					<Popover content={dom} title={key}>
- 						{key}
- 					</Popover>					
-@@ -37,7 +39,7 @@ class RuleHuaDesc extends Component{
- 			let li = null;
- 			if(rule === '=='){
- 				li = (
--					<hr key={randomStr(8)} />
-+					<hr key={i} />
- 				);
- 			}else{
- 				if(rule instanceof Array){
-@@ -51,15 +53,15 @@ class RuleHuaDesc extends Component{
- 					)
- 				}else{
- 					li = (
--						<li key={randomStr(8)}>{rule}</li>
-+						<li key={i}>{rule}</li>
- 					);	
- 				}
- 			}
+@@ -58,8 +60,8 @@ class RuleHuaDesc extends Component{
  			lis.push(li);
  		}
  		let rulesDom = (
@@ -50,37 +24,6 @@ index 943b6ec..318db5d 100644
  					{lis}
  				</ul>
  			</div>
-@@ -80,7 +82,7 @@ class RuleHuaDesc extends Component{
- 			let dom = this.genPopoverDomInObj(hua);
- 			let title = key + '在命盘'
- 			let col = (
--				<Col span={12} key={randomStr(8)}>
-+				<Col span={12} key={key}>
- 					<Popover content={dom} title={title}>
- 						<span style={ZWConst.SihuaColor[key]}>{title}</span>						
- 					</Popover>					
-@@ -101,18 +103,18 @@ class RuleHuaDesc extends Component{
- 				let li = null;
- 				if(rule === '=='){
- 					li = (
--						<hr key={randomStr(8)} />
-+						<hr key={i} />
- 					);
- 				}else{
- 					li = (
--						<li key={randomStr(8)}>{rule}</li>
-+						<li key={i}>{rule}</li>
- 					);
- 				}
- 				houslis.push(li);
- 			}
- 
- 			let house = (
--				<li key={randomStr(8)}>
-+				<li key={key}>
- 					<div>
- 						{key}
- 					</div>
 @@ -123,8 +125,8 @@ class RuleHuaDesc extends Component{
  		}
  

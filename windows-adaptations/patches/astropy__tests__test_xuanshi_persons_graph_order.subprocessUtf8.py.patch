@@ -1,0 +1,17 @@
+diff --git a/astropy/tests/test_xuanshi_persons_graph_order.py b/astropy/tests/test_xuanshi_persons_graph_order.py
+index 73a0f7c3..ba856ea6 100644
+--- a/astropy/tests/test_xuanshi_persons_graph_order.py
++++ b/astropy/tests/test_xuanshi_persons_graph_order.py
+@@ -25,7 +25,11 @@ _SNIPPET = (
+ def _run(seed):
+     env = dict(os.environ)
+     env['PYTHONHASHSEED'] = str(seed)
+-    out = subprocess.run([sys.executable, '-c', _SNIPPET], capture_output=True, text=True, env=env, timeout=120)
++    # horosa_subprocess_utf8_v1(Windows 适配,跨平台安全,建议上游化):子进程按 ensure_ascii=False 打印中文人名,
++    # Windows 下管道两端都按 locale 码页(cp1252/GBK)编解码 → 父进程 reader 线程 UnicodeDecodeError、stdout 变 None。
++    # 两端显式 UTF-8:子进程 PYTHONIOENCODING + 父进程 encoding;Mac/Linux(本就 UTF-8)逐字节同行为。
++    env['PYTHONIOENCODING'] = 'utf-8'
++    out = subprocess.run([sys.executable, '-c', _SNIPPET], capture_output=True, text=True, encoding='utf-8', errors='replace', env=env, timeout=120)
+     assert out.returncode == 0, out.stderr[-400:]
+     return out.stdout.strip().splitlines()[-1]
+ 

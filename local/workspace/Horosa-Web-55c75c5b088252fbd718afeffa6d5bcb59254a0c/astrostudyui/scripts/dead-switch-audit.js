@@ -167,6 +167,8 @@
 	function key(el, k, code) { el.dispatchEvent(new KeyboardEvent('keydown', { key: k, keyCode: code, which: code, bubbles: true, cancelable: true })); el.dispatchEvent(new KeyboardEvent('keyup', { key: k, keyCode: code, which: code, bubbles: true, cancelable: true })); }
 	function mouse(el, type) { el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window })); }
 	async function settleAfter(ms) {
+		// [R5 P0-4] 计时台架钩:timeAct 期间把「固定等待 + 等 spinner」换成「指纹反应 → 稳定」采样(只在台架调用期间挂上,平时为 null)
+		if (HDS.__settleOverride) { await HDS.__settleOverride(ms); return; }
 		await sleep(ms);
 		var t0 = Date.now();
 		var cap = PROFILE.settleMaxMs || 8000;   // 重算型页面(一次重算全部技法可达数十秒)由 profile 抬高上限
@@ -901,6 +903,86 @@
 		var cs = getComputedStyle(inner);
 		return cs.display !== 'none' && cs.visibility !== 'hidden' && parseFloat(cs.opacity || '1') > 0.1;
 	}
+	// ── [R5 P0-4] 性能矩阵台架:计时拨值 / 计时切页 ────────────────────────────────────────────
+	// 与 run/probe 同一套 act(拨值 / 复原)与指纹(HDS.fp:主区 DOM,画布页不含画布),只把 settle 换成采样:
+	//   每 40ms 取一次指纹;首次与拨前不同 = tReact(手势 → 首次 DOM 反应);其后连续 gapMs 无变化且无 spinner = tStable。
+	//   capMs 内一直没反应 → tReact=null,tStable=过 noReactMs 且无 spinner 的时刻(纯本地、DOM 不变的控件)。
+	// 计时起点 = act 里点击后紧接的 settle 调用点(select 打开下拉的 300ms 不计入)。
+	function makeSampler(fp0, opts) {
+		var st = { tReact: null, tStable: null, polls: 0, spinSeen: false, t0: null };
+		st.run = async function () {
+			var t0 = performance.now(); st.t0 = t0;
+			var cap = opts.capMs || 12000, gap = opts.gapMs || 350, noReact = opts.noReactMs || 1500;
+			// tStable = 最后一次观察到变化(或 spinner 消失)的时刻,之后连续 gapMs 无变化才采信;quiet 窗本身不计入
+			var last = fp0, lastChange = t0, lastSpinAt = null;
+			while (performance.now() - t0 < cap) {
+				await sleep(40); st.polls++;
+				var spin = vis('.ant-spin-spinning').length > 0; if (spin) { st.spinSeen = true; lastSpinAt = performance.now(); }
+				var f = HDS.fp();
+				var same = (f.all === last.all) && (f.text === last.text);
+				if (!same) { if (st.tReact == null) { st.tReact = performance.now() - t0; } last = f; lastChange = performance.now(); continue; }
+				if (spin) { continue; }
+				var quietSince = Math.max(lastChange, lastSpinAt || 0);
+				if (st.tReact != null && performance.now() - quietSince >= gap) { st.tStable = quietSince - t0; break; }
+				if (st.tReact == null && performance.now() - t0 >= noReact) { st.tStable = lastSpinAt ? (lastSpinAt - t0) : 0; break; }
+			}
+			if (st.tStable == null) { st.tStable = Math.max(lastChange, lastSpinAt || 0) - t0; st.capped = true; }
+		};
+		return st;
+	}
+	// 页内交互样本(window.__horosaPerf 环形缓冲,每条带 t = Date.now())按时间戳切段:拨值段 / 复原段各归各的,
+	// 不再把复原的取盘与重渲算进拨值格(#84 起因:两段混算被误读成「每次拨值取盘两遍」)。
+	function perfSince(t0, t1) {
+		try {
+			var all = (window.__horosaPerf && window.__horosaPerf.recent) ? window.__horosaPerf.recent(512) : [];
+			return all.filter(function (e) { return e && e.t >= t0 && (t1 == null || e.t < t1); })
+				.map(function (e) { return { tech: e.tech, op: e.op, phase: e.phase, ms: e.ms }; });
+		} catch (e) { return []; }
+	}
+	HDS.timeAct = async function (c, opts) {
+		opts = opts || {};
+		var fresh = resolveFresh(c) || c;
+		var fp0 = HDS.fp();
+		var wall0 = Date.now();
+		var s1 = makeSampler(fp0, opts); var used = 0;
+		HDS.__settleOverride = async function () { if (used++ === 0) { await s1.run(); } };
+		var r;
+		try { r = await act(fresh, { waitMs: 0, tryIdx: opts.tryIdx || 0 }); } finally { HDS.__settleOverride = null; }
+		if (!r || r.skip) { return { name: c.name, kind: c.kind, ctx: c.ctx, skip: (r && r.skip) || 'no-act' }; }
+		if (used === 0) { await s1.run(); }
+		var fpA = HDS.fp();
+		var wall1 = Date.now();
+		var out = { name: c.name, kind: c.kind, ctx: c.ctx, from: r.from, to: r.to, picked: r.picked, 取值数: r.取值数,
+			tReact: s1.tReact == null ? null : Math.round(s1.tReact), tStable: Math.round(s1.tStable), polls: s1.polls, spinSeen: s1.spinSeen,
+			reacted: !(fpA.all === fp0.all && fpA.text === fp0.text), perf: perfSince(wall0, wall1), wall: [wall0, wall1] };
+		if (opts.restore !== false && r.undo) {
+			var s2 = makeSampler(fpA, opts); var used2 = 0;
+			HDS.__settleOverride = async function () { if (used2++ === 0) { await s2.run(); } };
+			try { await r.undo(); } finally { HDS.__settleOverride = null; }
+			if (used2 === 0) { await s2.run(); }
+			var fpB = HDS.fp();
+			out.restore = { tReact: s2.tReact == null ? null : Math.round(s2.tReact), tStable: Math.round(s2.tStable), restored: (fpB.all === fp0.all && fpB.text === fp0.text), perf: perfSince(wall1, null), wallEnd: Date.now() };
+		}
+		return out;
+	};
+	// 按名字(+ctx)找回控件再计时(宿主经 evaluate 传不了 DOM 节点)
+	HDS.timeActByName = async function (rootSel, name, ctx, opts) {
+		var list = HDS.controls(rootSel).filter(function (c) { return SWITCHABLE.indexOf(c.kind) >= 0 && c.name === name && (!ctx || c.ctx === ctx); });
+		if (!list.length) { return { name: name, ctx: ctx, skip: 'not-found' }; }
+		return HDS.timeAct(list[0], opts);
+	};
+	// 计时切页:起点 = navigate 调用;主区指纹首变 = tReact;稳定 = tStable(gap 缺省 400ms,cap 25s)
+	HDS.timeNav = async function (tab, sub, opts) {
+		opts = opts || {}; opts.gapMs = opts.gapMs || 400; opts.capMs = opts.capMs || 25000; opts.noReactMs = opts.noReactMs || 2500;
+		var live = window.__horosaWorkspaceUiDebug ? window.__horosaWorkspaceUiDebug() : null;
+		if (!live || !live.navigate) { return { skip: 'no-navigate' }; }
+		var fp0 = HDS.fp();
+		var s = makeSampler(fp0, opts);
+		var t0 = performance.now();
+		var r = live.navigate(tab, sub);
+		await s.run();
+		return { tab: tab, sub: sub || null, nav: String(r).slice(0, 60), tReact: s.tReact == null ? null : Math.round(s.tReact), tStable: Math.round(s.tStable), polls: s.polls, spinSeen: s.spinSeen, wall: Math.round(performance.now() - t0) };
+	};
 	HDS.blockedBy = function () {
 		var blockers = [].slice.call(document.querySelectorAll('.ant-modal-wrap, .ant-drawer'))
 			.filter(function (e) { var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && modalOpen(e); });

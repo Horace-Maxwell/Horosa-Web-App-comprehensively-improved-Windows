@@ -449,7 +449,7 @@ def push_request_terms(termsVariant, leoBoundFirst=False, geminiBoundEmended=Fal
     [WP-7] tv==4 自定义界表:昼表必备(非法整表回落埃及);夜表可缺(缺=昼夜同表),
     夜表消费在 setupPlanets(isDiurnal 判定后,锁内安全,照迦勒底范式)。"""
     tv = parse_terms_variant(termsVariant)
-    _PERCHART_TERMS_LOCK.acquire()
+    _acquire_first_lock_with_priority(_PERCHART_TERMS_LOCK)   # [R5 T5] 首把锁走优先级车道
     global _CUSTOM_TERMS_NIGHT_ACTIVE, _PUSH_TERMS_DAY_ACTIVE
     orig = essential.TERMS
     _CUSTOM_TERMS_NIGHT_ACTIVE = None
@@ -483,7 +483,7 @@ def pop_request_terms(token):
         _CUSTOM_TERMS_NIGHT_ACTIVE = None   # [WP-7] 清自定义夜表槽(防跨请求泄漏)
         _PUSH_TERMS_DAY_ACTIVE = None       # [R4-P1] 清昼表槽
     finally:
-        _PERCHART_TERMS_LOCK.release()
+        _PERCHART_TERMS_LOCK.release(); _notify_first_lock_released()
 
 
 # G20-P2 三分集变体:默认 Dorothean(=ESSENTIAL_DIGNITIES,零回归);Ptolemaic 二主(无共同主、水象单主火星)。
@@ -678,6 +678,80 @@ def pop_request_scores(token):
         _PERCHART_SCORES_LOCK.release()
 
 
+# ── [R5 T5] 请求优先级车道 ─────────────────────────────────────────────────
+# 下方七把模块级锁让本命 / 推运全族在多线程下实际完全串行:用户点一下产生的真请求会排在前端预取(±步、
+# 选项投机、数据预热)之后。这里在拿锁之前加一道「前台优先」:标了 prefetch 的请求只要发现有前台请求正在
+# 等锁就先让(至多等 _PRIORITY_YIELD_MAX_S 秒,防饿死),前台请求永远不让。只改排队顺序,不改任何计算 /
+# 输出;不标头的请求一律视作前台 = 旧行为。线程本地的优先级由 webchartsrv 的 CherryPy 工具按请求头
+# X-Horosa-Priority 设置(kill:HOROSA_PRIORITY_LANE=0,由 webchartsrv 读后经 set_priority_lane_enabled 传入)。
+import threading as _prio_threading
+import time as _prio_time
+_PRIORITY_LOCAL = _prio_threading.local()
+_PRIORITY_COND = _prio_threading.Condition()
+_PRIORITY_FG_WAITING = [0]
+_PRIORITY_LANE_ON = [True]
+_PRIORITY_YIELD_MAX_S = 5.0
+PRIORITY_STATS = {'yielded': 0, 'fg': 0, 'bg': 0}
+
+
+def set_priority_lane_enabled(on):
+    _PRIORITY_LANE_ON[0] = bool(on)
+
+
+def set_request_priority(kind):
+    """'prefetch' = 后台预取(让前台);其它 / None = 前台。每个请求由 CherryPy 工具在 handler 前调用。"""
+    _PRIORITY_LOCAL.kind = 'prefetch' if kind == 'prefetch' else 'fg'
+
+
+def get_request_priority():
+    return getattr(_PRIORITY_LOCAL, 'kind', 'fg')
+
+
+def _acquire_first_lock_with_priority(lock):
+    """临界区首把锁(界系锁)的获取:
+    · 前台:登记「正在等锁」→ 阻塞拿锁 → 撤销登记并唤醒让路者(原生 Lock 里只有前台在阻塞等,释放时必到前台手里);
+    · 预取:只要有前台在等就不去碰锁(等通知,有上限);无前台时非阻塞试锁,拿不到就等「释放通知 / 5ms」再试;
+      让路超过 _PRIORITY_YIELD_MAX_S 后老老实实阻塞拿锁(不饿死)。
+    车道关 / 不标头 = 直接阻塞拿锁 = 旧行为。只改排队顺序,不改任何计算 / 输出。"""
+    if not _PRIORITY_LANE_ON[0]:
+        lock.acquire()
+        return
+    if get_request_priority() != 'prefetch':
+        PRIORITY_STATS['fg'] += 1
+        with _PRIORITY_COND:
+            _PRIORITY_FG_WAITING[0] += 1
+        try:
+            lock.acquire()
+        finally:
+            with _PRIORITY_COND:
+                _PRIORITY_FG_WAITING[0] -= 1
+                _PRIORITY_COND.notify_all()
+        return
+    PRIORITY_STATS['bg'] += 1
+    deadline = _prio_time.monotonic() + _PRIORITY_YIELD_MAX_S
+    while True:
+        with _PRIORITY_COND:
+            while _PRIORITY_FG_WAITING[0] > 0:
+                remain = deadline - _prio_time.monotonic()
+                if remain <= 0:
+                    break
+                PRIORITY_STATS['yielded'] += 1
+                _PRIORITY_COND.wait(timeout=remain)
+        if lock.acquire(blocking=False):
+            return
+        if _prio_time.monotonic() >= deadline:
+            lock.acquire()
+            return
+        with _PRIORITY_COND:
+            _PRIORITY_COND.wait(timeout=0.005)
+
+
+def _notify_first_lock_released():
+    """首把锁释放后唤醒等通知的预取(与前台无关)。"""
+    with _PRIORITY_COND:
+        _PRIORITY_COND.notify_all()
+
+
 # ── 五族古典临界区统一入口(0d) ────────────────────────────────────────────
 # 此前只有 /chart、/chart13、/chart12、/relative 手写五对 push/pop;推运全族端点
 # (websrv/webpredictsrv.py)一对都没有——界系/三分/宫头5°律/点公式口径/旺位异文在
@@ -690,9 +764,10 @@ def push_classical_request(data):
     data 缺省/非 dict → 全默认(terms/trip 仍按默认表 push=与主盘 index 行为一致)。
     中途异常回滚已 push 的族(pop 对 None 令牌安全 no-op)再抛。"""
     from flatlib.tools.arabicparts import push_request_lots_doc_reverse
-    from flatlib.aspects import push_request_orb_policy
+    from flatlib.aspects import push_request_orb_policy, enterAspectMemoScope
     d = data if isinstance(data, dict) else {}
     tokens = [None, None, None, None, None, None, None]
+    enterAspectMemoScope()   # [R5 T3] 相位请求级 memo 随临界区开启(pop 时关闭;异常回滚也关)
     try:
         tokens[0] = push_request_terms(d.get('termsVariant', 0), d.get('leoBoundFirst'), d.get('geminiBoundEmended'),
                                        d.get('customTermsDay'), d.get('customTermsNight'))
@@ -703,7 +778,8 @@ def push_classical_request(data):
         tokens[5] = push_request_scores(d.get('dignityDebilities', 1))
         tokens[6] = push_request_orb_policy(d.get('orbSystem'), d.get('luminaryOrbBonus'))
         return tokens
-    except Exception:
+    except BaseException:
+        # 含 KeyboardInterrupt / SystemExit:相位 memo 作用域也必须随之关闭,否则本线程深度永不归零、表跨请求累积
         pop_classical_request(tokens)
         raise
 
@@ -711,7 +787,8 @@ def push_classical_request(data):
 def pop_classical_request(tokens):
     """反序 pop 七族;tokens=None 或某位 None(未 push/守卫早退)一律安全。"""
     from flatlib.tools.arabicparts import pop_request_lots_doc_reverse
-    from flatlib.aspects import pop_request_orb_policy
+    from flatlib.aspects import pop_request_orb_policy, exitAspectMemoScope
+    exitAspectMemoScope()    # [R5 T3] 先关 memo 作用域(无论 tokens 形状;深度归零即丢表)
     if not tokens:
         return
     if len(tokens) > 6:
@@ -1331,44 +1408,6 @@ class PerChart:
         if abs(ae - arcus) <= 5.0:
             planet.phasisEvent = self._phasis_event(obj)
 
-    # horosa_phasis_bounded_v1(PERF-R10 B5)—— 高纬度整盘 8-16 秒的根治。
-    # 病根:heliacal_ut 从 birth_jd-15 起**无上界**前搜(默认最多扫 5 个会合周期),而下方的
-    # 采用窗只有 ±7 天 —— 极昼下窗内根本不存在事件,单次搜索 2.03s、两事件×多星占整盘 99.7%。
-    # 两层限界,各自独立字节安全(响应只携带 label/None,窗外与异常本就恒 None):
-    #   ① 可行性预筛:偕日事件时刻要求太阳俯角 ≥ arcus(最弱 Venus 5.0°);若 [birth±8.5d]
-    #     内太阳**最深**高度 > -1.0°(5.0 - 模型余量 2.0 - 采样余量 2.0),窗内不可能有事件
-    #     时刻 ⇒ 直接 None(≡ 旧「搜到窗外事件→丢弃→None」/「抛→None」)。逐小时采样:
-    #     极区近地平的高度极小值是**平的**(太阳擦边走),小时步距误差远小于 4° 余量;
-    #     结果挂 self 盘内缓存(两事件×五星共享一次预筛)。任何异常 → True(不筛,fail-open)。
-    #   ② HELFLAG_SEARCH_1_PERIOD:被采用的事件必在首个会合周期内(jd ≤ start+22d,而最短
-    #     会合周期=水星 115.9d);首周期找不到 ⇒ heliacal_ut 抛 ⇒ except ⇒ None(≡ 旧路径的
-    #     远事件→丢弃→None)。把默认 5 周期的扫描截到 1 个。
-    # kill:HOROSA_PHASIS_BOUNDED=0 ⇒ 两层全关,逐字节旧路径。黄金矩阵含 north-hi 用例钉住。
-    _PHASIS_BOUNDED = __import__('os').environ.get('HOROSA_PHASIS_BOUNDED', '1').lower() not in ('0', 'false', 'no', 'off')
-    _PHASIS_SEARCH_1_PERIOD = getattr(swisseph, 'HELFLAG_SEARCH_1_PERIOD', 2048)
-
-    def _phasisWindowFeasible(self):
-        cached = getattr(self, '_phasisFeasibleWin', None)
-        if cached is not None:
-            return cached
-        feasible = True
-        try:
-            geopos = (float(self.pos.lon), float(self.pos.lat), 0.0)
-            birth_jd = self.dateTime.jd
-            deepest = 90.0
-            jd = birth_jd - 8.5
-            while jd <= birth_jd + 8.5:
-                xx = swisseph.calc_ut(jd, swisseph.SUN, swisseph.FLG_SWIEPH)[0]
-                alt = swisseph.azalt(jd, swisseph.ECL2HOR, geopos, 1013.25, 15.0, (xx[0], xx[1]))[1]
-                if alt < deepest:
-                    deepest = alt
-                jd += 1.0 / 24.0
-            feasible = deepest <= -1.0
-        except Exception:
-            feasible = True
-        self._phasisFeasibleWin = feasible
-        return feasible
-
     def _phasis_event(self, obj):
         """birth 临近(≤7 天)该星偕日升→morningRising(晨星初现);偕日没→eveningSetting(昏星初没)。任何异常返 None。"""
         try:
@@ -1377,10 +1416,6 @@ class PerChart:
             observer = [36.0, 1.0, 0.0, 0.0, 0.0, 0.0]
             birth_jd = self.dateTime.jd
             flag = swisseph.FLG_SWIEPH | swisseph.HELFLAG_HIGH_PRECISION
-            if self._PHASIS_BOUNDED:
-                if not self._phasisWindowFeasible():
-                    return None
-                flag |= self._PHASIS_SEARCH_1_PERIOD
             for event, label in ((swisseph.HELIACAL_RISING, 'morningRising'), (swisseph.HELIACAL_SETTING, 'eveningSetting')):
                 tret = swisseph.heliacal_ut(birth_jd - 15.0, geopos, atmo, observer, obj, event, flag)
                 jd = tret[0] if isinstance(tret, (list, tuple)) else tret

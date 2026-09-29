@@ -3,7 +3,7 @@ import { Spin, Empty, Pagination, Select, Input, InputNumber } from 'antd';
 import echarts from './echartsCore';
 import { fetchCelestial, fetchMicrochronology, fetchDecadeOmens, fetchCelestialEvent } from '../../services/xuanshi';
 import { marked } from 'marked';
-import { resolveChartDate, collapseSoftBreaks, celestialCalendarLabel, celestialDateWithCalendar } from './xuanshiDate';   // [Q-495/T-457] 日期按来源标历法
+import { resolveChartDate, collapseSoftBreaks, celestialCalendarLabel, celestialDateWithCalendar, chartDateExactLabel } from './xuanshiDate';   // [Q-495/T-457] 日期按来源标历法
 import XuanShiStar from './XuanShiStar';
 import { fixedPopupFrame } from '../../utils/zoomDomain';
 
@@ -173,11 +173,13 @@ export default class XuanShiCelestial extends React.Component {
 
 	// 十年密度下钻:取该年代逐年天象(微年表);再点同一年代则收起
 	async loadMicro(decade) {
-		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
+		// [#82 同类] 本函数用【自己的】序号:与 load() 共用 _loadSeq 时,列表加载中展开某个年代会把列表响应判成过期、
+		// loading 再也不清(列表卡在加载态)。各守各的条件。
+		const __seq = (this._microSeq = (this._microSeq || 0) + 1);
 		if (this.state.microDecade === decade) { this.setState({ microDecade: null, micro: null }); return; }
 		this.setState({ microDecade: decade, micro: null, microLoading: true, microPage: 1 });
 		try {
-			const r = await fetchMicrochronology({ decade }); if(__seq !== this._loadSeq){ return; } // 该年代全部事件(不受列表 omen 过滤影响)
+			const r = await fetchMicrochronology({ decade }); if(__seq !== this._microSeq){ return; } // 该年代全部事件(不受列表 omen 过滤影响)
 			// 源数据同一天象在多个 topic CSV 各存一份(原文最多重复 32 次)→ 按(原文+日期)去重
 			const seen = new Set();
 			const events = (r.events || []).filter((e) => { const k = `${e.original || e.interpretation || ''}|${e.modern_date_disp || e.date_phrase || ''}`; if (seen.has(k)) { return false; } seen.add(k); return true; });
@@ -369,7 +371,7 @@ export default class XuanShiCelestial extends React.Component {
 							return (
 								<div style={{ marginTop: 14 }}>
 									{/* [Q-487/T-449] 近似日期(月级/年级/年段)标「约」并说明起盘取法,不再冒充精确日。 */}
-									<div className="xuanshi-hint" style={{ marginBottom: 8 }}>{rd.exact ? `公历 ${rd.disp}${rd.calendar === 'julian' ? `（儒略历 ${rd.md} 起盘）` : ''}` : `${rd.disp}（${rd.note || '按年份最早'}${rd.calendar === 'julian' ? '·儒略历' : ''}）`} —— 排此历史日之盘(按朝代都城近似经纬·都城地方平时)</div>
+									<div className="xuanshi-hint" style={{ marginBottom: 8 }}>{rd.exact ? chartDateExactLabel(rd) : `${rd.disp}（${rd.note || '按年份最早'}${rd.calendar === 'julian' ? '·儒略历' : ''}）`} —— 排此历史日之盘(按朝代都城近似经纬·都城地方平时)</div>
 									<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
 										<span className="xuanshi-btn is-primary" onClick={() => this.props.onChartLink(d, 'astrochart')}>排此日 · 占星盘</span>
 										<span className="xuanshi-btn" onClick={() => this.props.onChartLink(d, 'guolao')}>排此日 · 七政四余</span>

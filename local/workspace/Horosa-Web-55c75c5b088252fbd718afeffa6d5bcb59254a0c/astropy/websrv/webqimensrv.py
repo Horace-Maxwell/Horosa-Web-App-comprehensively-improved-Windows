@@ -197,7 +197,7 @@ class QiMenSrv:
             # v2.2.1: 通过 sys.modules 拿到已经被 config.py/kinqimen.py 加载的 jieqi 模块。
             # 这是 vendor/kinqimen/jieqi.py (sys.path 加在 module load 时)。
             # ★ 预初始化 None:try 体若在赋值前抛,下面的 memo 分支不得 UnboundLocalError
-            #   (webchartsrv.py:291 同类前科)。
+            #   (同类问题曾见于其它服务)。
             _qm_jieqi = None
             try:
                 import sys as _sys

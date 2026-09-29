@@ -18,11 +18,12 @@ import FourZhuGuaDesc from './FourZhuGuaDesc';
 import BaZiLuckFlowPanel from './BaZiLuckFlowPanel';
 import BaZiAppInfoPanel from './BaZiAppInfoPanel';
 import { BaZiLegacyMain, BaZiLegacyInfoPanel } from './BaZiLegacyView';
+import { baziAgeText, baziAgeValue } from './baziAgeText';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { Solar } from 'lunar-javascript';
-import { buildLocalBaziResult, buildFlowDays, buildFlowHours, buildFlowMonthsByYear, getSelfZuo } from '../../utils/baziLunarLocal';
+import { buildLocalBaziResult, buildFlowDays, buildFlowHours, buildFlowMonthsByYear, getSelfZuo, isSouthLatitude } from '../../utils/baziLunarLocal';
 import { filterShenShaByGroups } from '../../utils/baziShenShaLocal';
-import { parseDateParts } from '../../utils/dateStrSafe';
+import { parseDateParts, parseYearFromDateStr, addDisplayYears, displayYearDiff } from '../../utils/dateStrSafe';
 // [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
 import { visualFloorPx } from '../../utils/zoomDomain';
 
@@ -40,6 +41,16 @@ const EMPTY_BAZI = {};
 const EMPTY_PARAMS = {};
 
 const BaZiOptKey = 'baziopt';
+// 本页「年龄」档(虚岁 nominal / 周岁 real),供其他模块换算岁数时同口径;读不到按虚岁(缺省)。
+export function loadBaziAgeStyle(){
+	try{
+		const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(BaZiOptKey) : null;
+		const opt = raw ? JSON.parse(raw) : null;
+		return opt && opt.ageStyle === 'real' ? 'real' : 'nominal';
+	}catch(e){
+		return 'nominal';
+	}
+}
 const BAZI_CORE_ENDPOINT = '/bazi/birth';
 const BAZI_DIRECT_ENDPOINT = '/bazi/direct';
 
@@ -405,6 +416,10 @@ function buildBaziSnapshotText(params, result){
 		lines.push(`| ${label} | ${c.ganzhi} | ${c.cang} | ${c.shishen} | ${c.naying} | ${c.nayingPhase} | ${c.xingYun} | ${c.ziZuo} | ${c.kong} |`);
 	});
 	lines.push(`胎元：${gzText(four.tai)}`);
+	// 南纬出生标明月令口径(北纬不输出)
+	if(isSouthLatitude(params)){
+		lines.push(`南半球月令：${params && params.southMonth === 'chong' ? '对冲(月支取对冲之支)' : '不对冲(月柱同北半球)'}`);
+	}
 	// [Q-367/T-348] 公元前等本地引擎不可用而回退 Java 的域:Java 只识 xingming,tongxing/shufa 都走子平数法表 → 按实际口径如实标注。
 	const _mgLabel = (params && params.minggongMethod === 'shufa') ? '子平数法' : ((result && result.local) ? '通行版' : '子平数法(本域回退)');
 	lines.push(`命宫：${gzText(four.ming)}（起法：${_mgLabel}）`);
@@ -576,7 +591,7 @@ function buildBaziSnapshotText(params, result){
 				const yr = d.yearGanzi || {};
 				const ageVal = d.age === undefined || d.age === null || !Number.isFinite(Number(d.age))
 					? '无'
-					: (realAge ? Math.max(0, Number(d.age) - 1) : Number(d.age));
+					: baziAgeValue(d.age, realAge ? 'real' : 'nominal');
 				lines.push(`| ${d.year !== undefined ? d.year : '无'} | ${ageVal} | ${sub.ganzi || '无'} | ${yr.ganzi || '无'} |`);
 			});
 		}
@@ -589,9 +604,11 @@ function buildBaziSnapshotText(params, result){
 		// （startYear/startAge/dayunGz/yearGzs 组装式不动），旧行标签词（起始年/起始年龄/大运/流年）上移表头。
 		lines.push('| 板块 | 起始年 | 起始年龄 | 大运 | 流年 |');
 		lines.push('| --- | --- | --- | --- | --- |');
+		// 起始年龄随「年龄」档(虚岁默认「N岁」逐字不变 / 周岁「N−1周岁」),与上面小运表同一口径 —— 此前恒写虚岁。
+		const overviewAgeStyle = `${(params && params.ageStyle) || ''}` === 'real' ? 'real' : 'nominal';
 		bazi.direction.forEach((block, idx)=>{
 			const startYear = block && block.startYear !== undefined ? `${block.startYear}` : '';
-			const startAge = block && block.age !== undefined ? `${block.age}` : '';
+			const startAge = block && block.age !== undefined ? baziAgeText(block.age, overviewAgeStyle) : '';
 			const dayunGz = getGz(block ? block.mainDirect : null);
 			const startYearNum = block && block.startYear !== undefined ? Number(block.startYear) : null;
 			const yearGzs = (block && block.subDirect && block.subDirect.length ? block.subDirect : [])
@@ -600,14 +617,14 @@ function buildBaziSnapshotText(params, result){
 					if(!gz){
 						return '';
 					}
-					const yearNum = Number.isFinite(startYearNum) ? startYearNum + subIdx : null;
+					const yearNum = Number.isFinite(startYearNum) ? addDisplayYears(startYearNum, subIdx) : null;   // 跨公元纪元不出 0 年
 					if(Number.isFinite(yearNum)){
 						return `${yearNum}-${gz}`;
 					}
 					return gz;
 				})
 				.filter(Boolean);
-			lines.push(`| 板块${idx + 1} | ${startYear} | ${startAge}岁 | ${dayunGz} | ${yearGzs.join(' ')} |`);
+			lines.push(`| 板块${idx + 1} | ${startYear} | ${startAge} | ${dayunGz} | ${yearGzs.join(' ')} |`);
 		});
 	}
 
@@ -717,6 +734,36 @@ export function resolveChartBazi(coreBazi, directBazi){
 	};
 }
 
+// [八字·年龄口径] 页面各处(行运面板 / 细盘 / 旧版界面 / AI 快照)把 direction[].age、smallDirection[].age 当虚岁读
+// (出生即 1 岁,本地引擎原生口径)。Java /bazi/birth、/bazi/direct 的大运岁是「起运年 − 出生年」、小运岁从 0 起 ——
+// 公元前 / 域外年份回退 Java 时,页面上的大运 / 流年 / 小运岁数整体小一岁。取数入口统一对齐为虚岁:
+// 大运按天文年差算(公元前 1 年之后即公元 1 年,跨纪元不多算一年),小运逐年 +1。
+export function alignJavaBaziAges(result){
+	const bazi = result && result.bazi;
+	if(!bazi || typeof bazi !== 'object'){
+		return result;
+	}
+	const nongli = bazi.nongli || {};
+	const birthYear = parseYearFromDateStr(nongli.clockTime || nongli.birth || '');
+	(Array.isArray(bazi.direction) ? bazi.direction : []).forEach((d)=>{
+		if(!d){
+			return;
+		}
+		const startYear = Number(d.startYear);
+		if(Number.isFinite(startYear) && Number.isFinite(birthYear) && d.startYear !== null && d.startYear !== ''){
+			d.age = displayYearDiff(birthYear, startYear) + 1;
+		}else if(d.age !== undefined && d.age !== null && Number.isFinite(Number(d.age))){
+			d.age = Number(d.age) + 1;
+		}
+	});
+	(Array.isArray(bazi.smallDirection) ? bazi.smallDirection : []).forEach((d)=>{
+		if(d && d.age !== undefined && d.age !== null && Number.isFinite(Number(d.age))){
+			d.age = Number(d.age) + 1;
+		}
+	});
+	return result;
+}
+
 function buildBaziKey(params){
 	try{
 		return JSON.stringify(params || {});
@@ -749,7 +796,7 @@ async function fetchBaziCached(params, options){
 		body: JSON.stringify(params),
 		silent: opt.silent !== false,
 	}).then((data)=>{
-		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
+		const result = data && data[Constants.ResultKey] ? alignJavaBaziAges(data[Constants.ResultKey]) : null;
 		if(key && result){
 			pushCache(baziMem, key, clonePlain(result));
 		}
@@ -766,7 +813,8 @@ async function fetchBaziCached(params, options){
 	return clonePlain(result);
 }
 
-async function fetchBaziDirectCached(params, options){
+// 导出:其他模块取八字底稿时与本页、对话挂载走同一个取数入口(本地引擎优先;公元前 / 域外年份回退 Java,岁数在此对齐为虚岁)。
+export async function fetchBaziDirectCached(params, options){
 	const opt = options || {};
 	const disableCache = opt.cache === false;
 	const key = disableCache ? '' : buildBaziKey(params);
@@ -790,7 +838,7 @@ async function fetchBaziDirectCached(params, options){
 		body: JSON.stringify(params),
 		silent: opt.silent !== false,
 	}).then((data)=>{
-		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
+		const result = data && data[Constants.ResultKey] ? alignJavaBaziAges(data[Constants.ResultKey]) : null;
 		if(key && result){
 			pushCache(baziDirectMem, key, clonePlain(result));
 		}
@@ -931,6 +979,7 @@ class BaZi extends Component{
 		// 其余(界面样式/刑冲破害/流派等纯显示)不重取——school 切换=纯重绘瞬时,绝不进 needRefetch。
 		const needRefetch = (prev.minggongMethod || 'tongxing') !== (opt.minggongMethod || 'tongxing')
 				|| (prev.fenyeVersion || 'common') !== (opt.fenyeVersion || 'common')
+				|| (prev.southMonth || 'none') !== (opt.southMonth || 'none')
 				|| (prev.cangVersion || 'common') !== (opt.cangVersion || 'common')
 				|| (prev.dayunPrecision || 'precise') !== (opt.dayunPrecision || 'precise');
 		const patch = { baziOpt: opt };
@@ -1000,6 +1049,8 @@ class BaZi extends Component{
 			adjustJieqi: flds.adjustJieqi.value,
 			minggongMethod: (this.state.baziOpt && this.state.baziOpt.minggongMethod) || 'tongxing',
 			fenyeVersion: (this.state.baziOpt && this.state.baziOpt.fenyeVersion) || 'common',
+			// 南半球月令(不对冲 none 缺省 / 对冲 chong):只对南纬生效,改变月柱 → 进 params 让缓存键随之失效并重算。
+			southMonth: (this.state.baziOpt && this.state.baziOpt.southMonth) || 'none',
 			// 藏干版本（分野加权 fenye / 通行版 common）：影响五行力量打分（月柱当令司令加权）→ 进 params 让缓存键随之失效并重算。
 			cangVersion: (this.state.baziOpt && this.state.baziOpt.cangVersion) || 'common',
 			dayunPrecision: (this.state.baziOpt && this.state.baziOpt.dayunPrecision) || 'precise',
@@ -1288,7 +1339,7 @@ class BaZi extends Component{
 						</div>
 						<div className="horosa-inspector-panel horosa-astro-content-panel horosa-bazi-info-panel">
 							{isLegacyUi ? (
-								<BaZiLegacyInfoPanel value={bazi} fields={this.effFields()} height={tabHeight} />
+								<BaZiLegacyInfoPanel value={bazi} fields={this.effFields()} height={tabHeight} ageStyle={(this.state.baziOpt && this.state.baziOpt.ageStyle) || 'nominal'} />
 							) : (
 								<BaZiAppInfoPanel value={bazi} fields={this.effFields()} height={tabHeight} showShenSha={!(this.state.baziOpt && this.state.baziOpt.showShenSha === false)} shenshaGroups={this.state.baziOpt && this.state.baziOpt.shenshaGroups} zodiacBoundary={(this.state.baziOpt && this.state.baziOpt.zodiacBoundary) || 'lichun'} school={(this.state.baziOpt && this.state.baziOpt.school) || 'zonghe'} flowSelection={this.state.flowSelection} />
 							)}

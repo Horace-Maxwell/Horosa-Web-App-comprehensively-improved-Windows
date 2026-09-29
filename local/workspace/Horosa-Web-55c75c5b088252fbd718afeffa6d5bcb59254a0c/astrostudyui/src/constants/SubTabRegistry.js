@@ -74,3 +74,18 @@ export function recallSubTab(group, list, current, fallback){
 	if(Array.isArray(list) && list.indexOf(remembered) >= 0){ return remembered; }
 	return fallback !== undefined ? fallback : firstSubTab(list);
 }
+
+// 温启恢复(bootChartRestore)的快照可能来自旧版本:子页签键改名 / 下架后原样写回会落到空白子页。
+// 已登记的组按合法集回落首档,其余主页签的子页签原样交给宿主页(与导航层 changeTab 同一真值源)。
+const RESTORE_SUBTAB_GROUPS = {
+	auxchart: AUX_SUBTABS,
+	cnyibu: CNYIBU_SUBTABS,
+	cntradition: CNTRADITION_SUBTABS,
+	zeri: ZERI_SUBTABS,
+	relativechart: RELATIVE_SUBTABS,
+};
+export function restoredSubTab(tab, sub){
+	const list = RESTORE_SUBTAB_GROUPS[tab];
+	if(list){ return resolveSubTab(list, sub); }
+	return sub || null;
+}

@@ -59,7 +59,9 @@ def figure_cooccurrence_graph(limit_nodes: int = 70, min_weight: int = 2) -> dic
     for e in edges:
         used.add(e["source"])
         used.add(e["target"])
-    nodes = [{"id": n, "weight": deg[n]} for n in used]
+    # 节点顺序固定为「共现权重降序、同权按人名」:原按字符串集合迭代,顺序随进程哈希种子变 → 同一请求每次启动
+    # 输出不同,前端力导向图按下标排初始位置,布局也跟着每次不同。节点集合与边不变。
+    nodes = [{"id": n, "weight": deg[n]} for n in sorted(used, key=lambda n: (-deg[n], n))]
     return {"nodes": nodes, "edges": edges}
 
 

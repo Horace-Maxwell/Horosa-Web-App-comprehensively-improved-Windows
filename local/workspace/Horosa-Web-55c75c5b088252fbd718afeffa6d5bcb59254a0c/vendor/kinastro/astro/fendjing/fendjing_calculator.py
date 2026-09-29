@@ -21,7 +21,7 @@ from astro.i18n import t, auto_cn
 TIANGAN = list("甲乙丙丁戊己庚辛壬癸")
 DIZHI = list("子丑寅卯辰巳午未申酉戌亥")
 
-# horosa_kin_jiazi_const_v1(PERF-R10 B2):两处嵌套 def jiazi() 每次调用重建六十甲子 →
+# horosa_kin_jiazi_const_v1:两处嵌套 def jiazi() 每次调用重建六十甲子 →
 # 提升为模块常量;_jiazi_seq() 的返回只进 new_list(index+切片拼接,产新列表,零变异),
 # 共享常量安全。kill:HOROSA_KIN_JIAZI_CONST=0 ⇒ 逐次重建旧路径。
 import os as _os

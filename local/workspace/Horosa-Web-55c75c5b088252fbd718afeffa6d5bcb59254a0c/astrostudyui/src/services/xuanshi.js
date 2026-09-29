@@ -84,7 +84,6 @@ export const fetchCelestialEvent = (event_id) => postXuanShiCached('celestial_ev
 export const fetchDecadeOmens = (p) => postXuanShiCached('decade_omens', p || {});
 export const fetchMicrochronology = (p) => postXuanShiCached('microchronology', p);
 // 微年表长文本按需取回(列表被 limit 截断后的兜底路径)
-export const fetchMicrochronologyDetail = (event_id) => postXuanShiCached('microchronology_detail', { event_id });
 export const fetchFigures = (p) => postXuanShiCached('figures', p);
 export const fetchFigure = (slug) => postXuanShiCached('figure', { slug });
 export const fetchTechniques = (p) => postXuanShiCached('techniques', p || {});

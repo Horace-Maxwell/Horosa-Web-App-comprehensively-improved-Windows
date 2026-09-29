@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/ruleziwei/RuleHouses.js b/astrostudyui/src/components/ruleziwei/RuleHouses.js
-index f07496d..4e72abb 100644
+index 48200ee3..1e5f7f5a 100644
 --- a/astrostudyui/src/components/ruleziwei/RuleHouses.js
 +++ b/astrostudyui/src/components/ruleziwei/RuleHouses.js
 @@ -1,7 +1,9 @@
@@ -13,15 +13,6 @@ index f07496d..4e72abb 100644
  import STAR_MEANING from '../ziwei/data/tables/ziweiStarMeaning.json';   // WP-7 十二宫含义
  
  class RuleHouses extends Component{
-@@ -29,7 +31,7 @@ class RuleHouses extends Component{
- 			let dom = this.genPopoverDom(rules, house);
- 			let title = house + '';
- 			let col = (
--				<Col span={6} key={randomStr(8)}>
-+				<Col span={6} key={house}>
- 					<Popover content={dom} title={title}>
- 						{house}
- 					</Popover>					
 @@ -43,7 +45,7 @@ class RuleHouses extends Component{
  	genPopoverDom(rules, house){
  		let meaning = house ? STAR_MEANING.houses[house] : null;   // WP-7 十二宫含义
@@ -31,15 +22,7 @@ index f07496d..4e72abb 100644
  		) : null;
  		let lis = [];
  		for(let i=0; i<rules.length; i++){
-@@ -63,16 +65,16 @@ class RuleHouses extends Component{
- 					)
- 				}else{
- 					li = (
--						<li key={randomStr(8)}>{rule}</li>
-+						<li key={i}>{rule}</li>
- 					);	
- 				}
- 			}
+@@ -70,9 +72,9 @@ class RuleHouses extends Component{
  			lis.push(li);
  		}
  		let rulesDom = (
@@ -51,12 +34,3 @@ index f07496d..4e72abb 100644
  					{lis}
  				</ul>
  			</div>
-@@ -93,7 +95,7 @@ class RuleHouses extends Component{
- 			let rules = ZWRules.RuleHouseType[key];
- 			let dom = this.genPopoverDom(rules);
- 			let col = (
--				<Col span={6} key={randomStr(8)}>
-+				<Col span={6} key={key}>
- 					<Popover content={dom} title={key}>
- 						{key}
- 					</Popover>					

@@ -1,5 +1,5 @@
 diff --git a/astrostudysrv/boundless/src/main/java/boundless/log/AppLoggers.java b/astrostudysrv/boundless/src/main/java/boundless/log/AppLoggers.java
-index 217b2b73..ebc92333 100644
+index 217b2b73..1f434bd7 100644
 --- a/astrostudysrv/boundless/src/main/java/boundless/log/AppLoggers.java
 +++ b/astrostudysrv/boundless/src/main/java/boundless/log/AppLoggers.java
 @@ -181,7 +181,18 @@ public class AppLoggers {
@@ -15,7 +15,7 @@ index 217b2b73..ebc92333 100644
  	static String resolvedBaseDir(){
 +		String prop = System.getProperty("horosa.log.basedir");
 +		if(!StringUtility.isNullOrEmpty(prop)){
-+			String p = prop.replace('\', '/');
++			String p = prop.replace('\\', '/');
 +			return p.endsWith("/") ? p : p + "/";
 +		}
  		String b = null;

@@ -298,7 +298,18 @@ public class NongliHelper {
 		return getNongliMonths(year, zone, null);
 	}
 
-	// HOROSA_NONGLI_DAY_PERSIST_REV nongli_day_persist_v1 — desktop knob: when the env var
+	// 八字 / 六壬等控制器结果缓存的历法口径代次:这些结果缓存在本地文件里(1 天,跨版本保留),键里带上它;
+	// 历法口径一变就升一格,升级后不再返回旧口径的缓存结果。cal2 = 时刻串秒数进位 / 农历随时间算法 / 交节精确时刻 / 北京农历表;cal3 = 置闰按日期定冬至所在月。
+	public static final String CALENDAR_CACHE_REV = "cal3";
+
+	// 农历编算用的标准时区(北京时间);逐日农历一律查这份朔日表。
+	private static final String NONGLI_TABLE_ZONE = "+08:00";
+
+	private static boolean isNongliTableZone(String zone) {
+		return zone != null && getLonFromZone(zone).equals(getLonFromZone(NONGLI_TABLE_ZONE));
+	}
+
+	// nongli_day_persist_v1 — desktop knob: when the env var
 	// HOROSA_NONGLI_DAY_PERSIST is set to "0", skip the per-DAY nongli cache read/write against the
 	// external cache store (year-table persistence at getNongliMonths stays untouched — that is the
 	// expensive compute worth persisting). The day row is a pure derivation of the in-memory month
@@ -401,8 +412,11 @@ public class NongliHelper {
 				nexty = 1;
 				nextad = 1;
 			}
-			Map<String, Object>[] months = getNongliMonths(year, zone, ctx);
-			Map<String, Object>[] nextmonths = getNongliMonths(nexty + "", zone, ctx);
+			// 农历按国标口径以东经 120° 标准时(北京时间)编算:整年朔日表一律取东八区那份,再以出生地日期查表
+			// (逐日查表只比日历日期,两边同一时区换算、时区相消)。东八区与原先逐字节相同;其他时区此前按当地时区求朔
+			// 得「当地农历」,与八字主盘 / 紫微本地路径(查北京农历表)可差一天。
+			Map<String, Object>[] months = getNongliMonths(year, NONGLI_TABLE_ZONE, ctx);
+			Map<String, Object>[] nextmonths = getNongliMonths(nexty + "", NONGLI_TABLE_ZONE, ctx);
 			return getNongli(ad, birth, zone, months, nextmonths, nextad, lon, ctx, persistCache);
 		}
 		
@@ -580,7 +594,14 @@ public class NongliHelper {
 						if(dtAd < 0 && !dt.startsWith("-")) {
 							dt = "-" + dt;
 						}
-						dtNum = ConvertUtility.getValueAsDouble(map.get("jdn"));
+						if(isNongliTableZone(zone)) {
+							// 东八区:原逻辑(下月朔的时刻比当地零点,等价于「下月初一的日期 = 出生日期」),逐字节不变
+							dtNum = ConvertUtility.getValueAsDouble(map.get("jdn"));
+						}else {
+							// 其他时区:朔日表按北京时间编算,只比日历日期(下月初一的北京日期 = 出生地日期);
+							// 拿朔的时刻比当地零点会随时差错位(纽约零点比北京朔早约 13 小时,除夕会被判成正月初一)
+							dtNum = DateTimeUtility.getDateNum(dt+" 00:00:00", zone);
+						}
 						delta = dateNum - dtNum;
 						if(Math.abs(delta) < 1) {
 							idx = k;
@@ -628,7 +649,12 @@ public class NongliHelper {
 			res.put("dayInt", dayInt);
 
 		if(firstDt.equals(date)) {
-			res.put("moonTime", map.get("time"));
+			// 朔的时刻取自北京时间编算的朔日表;出生地不在东八区时标明是北京时间(当地同一日期可能尚未到朔)。
+			Object moonTime = map.get("time");
+			if(moonTime != null && !isNongliTableZone(zone)) {
+				moonTime = moonTime + "（北京时间）";
+			}
+			res.put("moonTime", moonTime);
 			res.put("moonJdn", map.get("jdn"));
 		}
 		

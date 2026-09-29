@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/shenyishu/ShenYiShuMain.js b/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
-index 253b3f88..30a06be8 100644
+index d34f0d48..e05190b4 100644
 --- a/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
 +++ b/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
-@@ -16,6 +16,8 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
+@@ -17,6 +17,8 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
  import { formatHumanValue } from '../../utils/humanReadableFields';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { parseDateParts } from '../../utils/dateStrSafe';
@@ -11,7 +11,7 @@ index 253b3f88..30a06be8 100644
  
  const { TabPane } = Tabs;
  const { Option } = Select;
-@@ -48,7 +50,7 @@ function parseFieldsDateTime(fields){
+@@ -49,7 +51,7 @@ function parseFieldsDateTime(fields){
  	};
  }
  
@@ -20,7 +20,7 @@ index 253b3f88..30a06be8 100644
  	let rsp = null;
  	try{
  		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('shenyishu', path), {
-@@ -80,6 +82,11 @@ async function postShenYiShu(path, payload){
+@@ -81,6 +83,11 @@ async function postShenYiShu(path, payload){
  	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
  }
  
@@ -32,7 +32,7 @@ index 253b3f88..30a06be8 100644
  function fmtValue(value){
  	return formatHumanValue(value);
  }
-@@ -163,6 +170,7 @@ class ShenYiShuMain extends Component{
+@@ -164,6 +171,7 @@ class ShenYiShuMain extends Component{
  		}
  	}
  
@@ -40,7 +40,7 @@ index 253b3f88..30a06be8 100644
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.unmounted = false;
-@@ -369,6 +377,29 @@ class ShenYiShuMain extends Component{
+@@ -370,6 +378,29 @@ class ShenYiShuMain extends Component{
  		};
  	}
  
@@ -70,7 +70,7 @@ index 253b3f88..30a06be8 100644
  	async fetchPan(fields){
  		const payload = this.buildPanPayload(fields);
  		if(!payload){
-@@ -382,6 +413,8 @@ class ShenYiShuMain extends Component{
+@@ -388,6 +419,8 @@ class ShenYiShuMain extends Component{
  				return;
  			}
  			this.setState({ pan, loading: false }, ()=>{
@@ -79,7 +79,7 @@ index 253b3f88..30a06be8 100644
  				saveModuleAISnapshotLazy('shenyishu', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -647,25 +680,38 @@ class ShenYiShuMain extends Component{
+@@ -654,25 +687,38 @@ class ShenYiShuMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

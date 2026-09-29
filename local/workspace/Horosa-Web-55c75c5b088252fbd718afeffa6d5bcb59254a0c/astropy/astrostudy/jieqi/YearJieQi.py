@@ -107,17 +107,18 @@ class YearJieQi:
             return jieqi24
         return res
 
+    # 求解目标 = 节气黄经本身(此前目标再多加 1/7200 度,交节时刻系统性晚约 12 秒,交节后 12 秒内出生的月柱与本地引擎不同)。
     def approach(self, dt, jieqiLon):
         if _JIEQI_FAST_APPROACH:
             _logJieqiFastApproach()
             sun = swe.sweObject(const.SUN, dt.jd, swe.SEDEFAULT_FLAG)
-            delta = distance(jieqiLon, sun['lon']) + 1/7200
+            delta = distance(jieqiLon, sun['lon'])
             deltatm = delta / sun['lonspeed']
             newjd = dt.jd + deltatm
             newtm = Datetime.fromJD(newjd, self.zone)
             while abs(delta) > 0.0003:
                 sun = swe.sweObject(const.SUN, newtm.jd, swe.SEDEFAULT_FLAG)
-                delta = distance(jieqiLon, sun['lon']) + 1/7200
+                delta = distance(jieqiLon, sun['lon'])
                 deltatm = delta / sun['lonspeed']
                 newjd = newtm.jd + deltatm
                 newtm = Datetime.fromJD(newjd, self.zone)
@@ -125,14 +126,14 @@ class YearJieQi:
         # kill-switch fallback (HOROSA_JIEQI_FAST_APPROACH=0): original Chart-based loop
         chart = Chart(dt, self.pos, const.TROPICAL, hsys=const.HOUSES_WHOLE_SIGN)
         sun = chart.getObject(const.SUN)
-        delta = distance(jieqiLon, sun.lon) + 1/7200
+        delta = distance(jieqiLon, sun.lon)
         deltatm = delta / sun.lonspeed
         newjd = dt.jd + deltatm
         newtm = Datetime.fromJD(newjd, self.zone)
         while abs(delta) > 0.0003:
             chart = Chart(newtm, self.pos, const.TROPICAL, hsys=const.HOUSES_WHOLE_SIGN)
             sun = chart.getObject(const.SUN)
-            delta = distance(jieqiLon, sun.lon) + 1/7200
+            delta = distance(jieqiLon, sun.lon)
             deltatm = delta / sun.lonspeed
             newjd = newtm.jd + deltatm
             newtm = Datetime.fromJD(newjd, self.zone)
@@ -154,7 +155,7 @@ class YearJieQi:
             dateTime = Datetime(date, '00:00', self.zone)
             newtm = self.approach(dateTime, jieqi['lon'])
 
-            dtstr = newtm.toCNString()
+            dtstr = jieqiconst.cnTimeRounded(newtm)
             obj = {
                 'ord': jieqi['ord'],
                 'jieqi': key,
@@ -203,7 +204,7 @@ class YearJieQi:
         dateTime = Datetime(date, '00:00', self.zone)
         newtm = self.approach(dateTime, jieqi['lon'])
 
-        dtstr = newtm.toCNString()
+        dtstr = jieqiconst.cnTimeRounded(newtm)
         parts = dtstr.split(' ')
 
         obj = {

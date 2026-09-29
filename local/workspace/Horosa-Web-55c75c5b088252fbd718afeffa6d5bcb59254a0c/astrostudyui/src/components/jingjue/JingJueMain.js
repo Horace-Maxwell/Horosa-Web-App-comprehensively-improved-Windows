@@ -1,4 +1,5 @@
 import QuickDockBar from '../common/QuickDockBar';
+import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // [#84] 双触发收敛
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Component } from 'react';
 import { InputNumber, Spin } from 'antd';
@@ -331,6 +332,11 @@ class JingJueMain extends Component{
 		if(!dt){
 			return;
 		}
+		// [#84] 双触发收敛:挂钩与 componentDidUpdate 同一次改动各进一次 → 时刻与种子全同的第二路跳过
+		const panTrig = claimTrigger(this, 'fetchPan', JSON.stringify({ ...dt, seed: this.state.seed }));
+		if(!panTrig){
+			return;
+		}
 		const reqSeq = ++this.requestSeq;
 		this.setState({ loading: true });
 		try{
@@ -347,6 +353,7 @@ class JingJueMain extends Component{
 				saveModuleAISnapshotLazy('jingjue', ()=>buildSnapshotText(pan));
 			});
 		}catch(e){
+			settleTrigger(this, 'fetchPan', panTrig, false);
 			console.warn('jingjue backend failed', e);
 			if(!this.unmounted && reqSeq === this.requestSeq){
 				this.setState({ loading: false });

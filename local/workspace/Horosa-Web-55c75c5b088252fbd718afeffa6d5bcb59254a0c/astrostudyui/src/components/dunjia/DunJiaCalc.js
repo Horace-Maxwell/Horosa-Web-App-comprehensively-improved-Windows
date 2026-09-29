@@ -3260,3 +3260,6 @@ export function buildDunJiaSnapshotText(pan){
 
 	return lines.join('\n');
 }
+
+// 仅供单测:当前节气解析(种子 → 本地种子 → nongli 兜底),不改任何行为。
+export const __testing__ = { resolveCurrentJieqi };

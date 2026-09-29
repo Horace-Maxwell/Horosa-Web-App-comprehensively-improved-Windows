@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/wuzhao/WuZhaoMain.js b/astrostudyui/src/components/wuzhao/WuZhaoMain.js
-index 42c34476..306c5a43 100644
+index 1705fb02..19876e17 100644
 --- a/astrostudyui/src/components/wuzhao/WuZhaoMain.js
 +++ b/astrostudyui/src/components/wuzhao/WuZhaoMain.js
-@@ -20,6 +20,10 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
+@@ -21,6 +21,10 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
  import { formatHumanValue } from '../../utils/humanReadableFields';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
  import { parseDateParts } from '../../utils/dateStrSafe';
@@ -13,7 +13,7 @@ index 42c34476..306c5a43 100644
  import WuZhaoBoard from './WuZhaoBoard';
  
  const { Option } = Select;
-@@ -204,7 +208,7 @@ function parseFieldsDateTime(fields){
+@@ -205,7 +209,7 @@ function parseFieldsDateTime(fields){
  	};
  }
  
@@ -22,7 +22,7 @@ index 42c34476..306c5a43 100644
  	const roots = [];
  	const endpoints = [];
  	if(typeof window !== 'undefined'){
-@@ -264,6 +268,21 @@ async function postWuZhao(path, payload){
+@@ -265,6 +269,21 @@ async function postWuZhao(path, payload){
  	throw lastError || new Error('wuzhao.fetch.failed');
  }
  
@@ -44,7 +44,7 @@ index 42c34476..306c5a43 100644
  function fmtValue(value){
  	return formatHumanValue(value);
  }
-@@ -447,6 +466,7 @@ class WuZhaoMain extends Component{
+@@ -448,6 +467,7 @@ class WuZhaoMain extends Component{
  		}
  	}
  
@@ -52,7 +52,7 @@ index 42c34476..306c5a43 100644
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.unmounted = false;
-@@ -679,6 +699,8 @@ class WuZhaoMain extends Component{
+@@ -687,6 +707,8 @@ class WuZhaoMain extends Component{
  				return;
  			}
  			this.setState({ pan, loading: false }, ()=>{
@@ -61,7 +61,7 @@ index 42c34476..306c5a43 100644
  				saveModuleAISnapshotLazy('wuzhao', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -1268,32 +1290,53 @@ class WuZhaoMain extends Component{
+@@ -1277,32 +1299,53 @@ class WuZhaoMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

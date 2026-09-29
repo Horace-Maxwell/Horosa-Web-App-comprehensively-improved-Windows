@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroGivenYear.js b/astrostudyui/src/components/astro/AstroGivenYear.js
-index 23376bc0..8755ddaf 100644
+index 522585b7..c558b295 100644
 --- a/astrostudyui/src/components/astro/AstroGivenYear.js
 +++ b/astrostudyui/src/components/astro/AstroGivenYear.js
 @@ -9,7 +9,7 @@ import * as AstroText from '../../constants/AstroText';
@@ -96,15 +96,6 @@ index 23376bc0..8755ddaf 100644
  		if(this.state.dirChart === undefined || this.state.dirChart === null){
  			return null;
  		}
-@@ -324,7 +364,7 @@ class AstroGivenYear extends Component{
- 			if(i % 2 === 0){
- 				if(i > 0){
- 					let dom = (
--						<div key={randomStr(8)}>
-+						<div key={`row-${i}`}>
- 							<Row>
- 								{cols}
- 							</Row>
 @@ -338,7 +378,7 @@ class AstroGivenYear extends Component{
  			cols.push(divs[i]);
  		}

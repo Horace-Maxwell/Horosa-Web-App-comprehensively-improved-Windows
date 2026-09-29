@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/comp/TipsBoard.js b/astrostudyui/src/components/comp/TipsBoard.js
-index eee60c7..3c8ea24 100644
+index bde71cb8..4a40a5d8 100644
 --- a/astrostudyui/src/components/comp/TipsBoard.js
 +++ b/astrostudyui/src/components/comp/TipsBoard.js
 @@ -1,8 +1,10 @@
@@ -14,34 +14,7 @@ index eee60c7..3c8ea24 100644
  
  
  export default class TipsBoard extends Component{
-@@ -28,28 +30,29 @@ export default class TipsBoard extends Component{
-                 if(item instanceof Array){
-                     let lis = item.map((li, idx)=>{
-                         if(li === '=='){
--                            return (<Divider dashed={true} key={randomStr(8)} />)
-+                            return (<Divider dashed={true} key={idx} />)
-                         }
-                         return (
--                            <li key={randomStr(8)}>{li}</li>
-+                            <li key={idx}>{li}</li>
-                         )
-                     });
-                     let res = (
--                        <ul key={randomStr(8)}>
-+                        // 此处 idx 为外层 tips.map 的下标(内层同名参数已出作用域)
-+                        <ul key={idx}>
-                             {lis}
-                         </ul>                        
-                     )
-                     return res;
-                 }else{
-                     if(item === '=='){
--                        return (<Divider dashed={true} key={randomStr(8)}/>)
-+                        return (<Divider dashed={true} key={idx}/>)
-                     }
--                    return (<li key={randomStr(8)}>{item}</li>)
-+                    return (<li key={idx}>{item}</li>)
-                 }
+@@ -49,7 +51,7 @@ export default class TipsBoard extends Component{
              });
          }else{
              itemdoms = (

@@ -7,6 +7,7 @@ it('timeAlg 四档全有中文标签(此前 3 打印裸数字「时间基准：3
 	expect(timeBasisLabel(0)).toMatch(/真太阳时/);
 	expect(timeBasisLabel(1)).toMatch(/钟表时/);
 	expect(timeBasisLabel(2)).toMatch(/春分定卯时/);
+	expect(timeBasisLabel(2)).toMatch(/按钟表时刻/);   // 春分定卯时尚无独立换算,两引擎均按直接时间算:快照不许写成另一种换算
 	expect(timeBasisLabel(3)).toMatch(/平太阳时/);
 	expect(timeBasisLabel(3)).not.toBe('3');
 });

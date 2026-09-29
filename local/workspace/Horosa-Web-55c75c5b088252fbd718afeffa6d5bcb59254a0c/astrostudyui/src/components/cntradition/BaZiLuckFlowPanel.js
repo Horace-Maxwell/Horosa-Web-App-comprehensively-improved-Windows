@@ -1,12 +1,13 @@
 import { Component } from 'react';
 import { markInteractionStart } from '../../utils/perfMark';
-import { parseYearFromDateStr } from '../../utils/dateStrSafe';
+import { parseYearFromDateStr, addDisplayYears, displayYearDiff } from '../../utils/dateStrSafe';
 import { julianDayIndex } from '../../utils/julianDayIndex';
 import { Spin } from 'antd';
 import { Solar, SolarMonth } from 'lunar-javascript';
 import { BaziMonthTime, NaYin, SixtyJiaZi } from '../../constants/ZWConst';
 import { fetchPreciseJieqiYear } from '../../utils/preciseCalcBridge';
 import { buildFlowMonthsByYear } from '../../utils/baziLunarLocal';
+import { baziAgeValue } from './baziAgeText';
 
 const GANS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
 const ZHIS = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
@@ -149,8 +150,9 @@ function dayGanzi(date){
 	return SixtyJiaZi[mod(days + DAY_OFFSET, 60)];
 }
 
+// 年份是「显示年」(公元前 1 年 = -1,无 0 年)→ 按天文年差取干支,公元前不错一位。
 function yearGanzi(year){
-	return SixtyJiaZi[mod(year - 1984, 60)];
+	return SixtyJiaZi[mod(displayYearDiff(1984, year), 60)];
 }
 
 function dateLabel(date){
@@ -213,9 +215,9 @@ function birthYearFrom(value){
 	return Number.isFinite(parsed) ? parsed : new Date().getFullYear();
 }
 
-// 虚岁(默认,与原星阙梯位一致,出生=1岁) / 周岁(real=虚岁-1,出生=0岁)。仅展示层换算。
+// 虚岁(默认,与原星阙梯位一致,出生=1岁) / 周岁(real=虚岁-1,出生=0岁)。仅展示层换算(单源见 baziAgeText)。
 function ageNum(age, ageStyle){
-	return ageStyle === 'real' ? Math.max(0, Number(age) - 1) : Number(age);
+	return baziAgeValue(age, ageStyle);
 }
 
 function buildLuckItems(value, dayStem, showXiaoyun, ageStyle){
@@ -224,7 +226,7 @@ function buildLuckItems(value, dayStem, showXiaoyun, ageStyle){
 	const items = [];
 	if(dirs.length && showXiaoyun !== false){
 		const firstStart = num(dirs[0].startYear, birthYear);
-		const firstAge = Math.max(1, num(dirs[0].age, firstStart - birthYear + 1) - 1);
+		const firstAge = Math.max(1, num(dirs[0].age, displayYearDiff(birthYear, firstStart) + 1) - 1);
 		items.push({
 			id: 'small',
 			type: 'small',
@@ -238,8 +240,8 @@ function buildLuckItems(value, dayStem, showXiaoyun, ageStyle){
 	}
 	dirs.forEach((dir, idx)=>{
 		const pillar = normalizePillar(dir.mainDirect, dayStem);
-		const startYear = num(dir.startYear, birthYear + idx * 10);
-		const age = num(dir.age, startYear - birthYear + 1);
+		const startYear = num(dir.startYear, addDisplayYears(birthYear, idx * 10));
+		const age = num(dir.age, displayYearDiff(birthYear, startYear) + 1);
 		items.push({
 			id: `direct-${idx}`,
 			type: 'direct',
@@ -256,9 +258,10 @@ function buildLuckItems(value, dayStem, showXiaoyun, ageStyle){
 
 export function buildSmallYears(value, birthYear, firstStartYear, dayStem, ageStyle){
 	const small = Array.isArray(value.smallDirection) ? value.smallDirection : [];
-	const total = Math.max(1, firstStartYear - birthYear);
+	// 年份跨公元纪元不出 0 年(addDisplayYears / displayYearDiff;公元年份逐字不变)。
+	const total = Math.max(1, displayYearDiff(birthYear, firstStartYear));
 	return Array.from({ length: total }).map((_, idx)=>{
-		const year = birthYear + idx;
+		const year = addDisplayYears(birthYear, idx);
 		const src = small[idx] || small.find((item)=>num(item.year, -1) === year);
 		// 🔴 小运干支源统一:Java /bazi/direct 的 smallDirection 元素小运柱在 src.direct(顶层无 ganzi),
 		// 前端 buildLocalBaziResult 的 src.direct 亦为小运柱(且顶层另有 ganzi)。旧码 normalizePillar(src)
@@ -290,7 +293,7 @@ function buildYearItems(luck, dayStem, ageStyle){
 	}
 	const sub = Array.isArray(luck.raw && luck.raw.subDirect) ? luck.raw.subDirect : [];
 	return Array.from({ length: 10 }).map((_, idx)=>{
-		const year = luck.startYear + idx;
+		const year = addDisplayYears(luck.startYear, idx);
 		const raw = sub[idx];
 		const pillar = normalizePillar(raw || yearGanzi(year), dayStem);
 		return {
@@ -541,7 +544,7 @@ class BaZiLuckFlowPanel extends Component{
 				const years = item.years || [];
 				return years.some((year)=>year.year === now.getFullYear());
 			}
-			return now.getFullYear() >= item.startYear && now.getFullYear() < item.startYear + 10;
+			return now.getFullYear() >= item.startYear && now.getFullYear() < addDisplayYears(item.startYear, 10);
 		}) || luckItems[0];
 		const years = this.yearItemsOf(luck, dayStem, this.props.ageStyle);
 		const year = years.find((item)=>item.year === now.getFullYear()) || years[0];

@@ -94,7 +94,7 @@ public class OnlyFourColumns extends BaZi {
 		int[] calparts = DateTimeUtility.getDateTimeParts(cal);
 		int dirYear = calparts[0];
 		int birthYear = this.oldBirthParts[0];
-		int age = dirYear - birthYear;
+		int age = historicalYearDiff(birthYear, dirYear);
 		
 		int mainDirJiaziIdx = (monthIdx + 1) % 60;
 		this.direction = new FateDirect[9];
@@ -126,7 +126,7 @@ public class OnlyFourColumns extends BaZi {
 		int[] calparts = DateTimeUtility.getDateTimeParts(cal);
 		int dirYear = calparts[0];
 		int birthYear = this.oldBirthParts[0];
-		int age = dirYear - birthYear;
+		int age = historicalYearDiff(birthYear, dirYear);
 				
 		int mainDirJiaziIdx = (monthIdx + 59) % 60;
 		this.direction = new FateDirect[9];

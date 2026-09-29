@@ -2,6 +2,7 @@ import { Component } from 'react';
 import { Row, Col, Popover} from 'antd';
 import { randomStr } from '../../utils/helper';
 import { BaZiMsg } from '../../msg/bazimsg';
+import { baziAgeText } from './baziAgeText';
 
 function gongName(gong12, palace, part){
 	return gong12 && gong12[palace] && gong12[palace][part] && gong12[palace][part].name
@@ -84,7 +85,7 @@ class MDSDirect extends Component{
 			<div className="horosa-bazi-direct-card horosa-bazi-main-direction-card" style={{background: this.background}}>
 				<Row>
 					<Col span={24} style={ageStyle}>
-						<span>{age}周岁</span>
+						<span>{baziAgeText(age, this.props.ageStyle)}</span>
 					</Col>
 					<Col span={24} style={yearStyle}>
 						<span>{dir.startYear}</span>

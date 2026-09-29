@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/taixuan/TaiXuanMain.js b/astrostudyui/src/components/taixuan/TaiXuanMain.js
-index 819d7180..c822a526 100644
+index 3d34104e..14c18de7 100644
 --- a/astrostudyui/src/components/taixuan/TaiXuanMain.js
 +++ b/astrostudyui/src/components/taixuan/TaiXuanMain.js
-@@ -15,6 +15,8 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
+@@ -16,6 +16,8 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
  import { formatHumanValue } from '../../utils/humanReadableFields';
  import { parseDateParts } from '../../utils/dateStrSafe';
  import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // [Q-392/T-374] 四柱须吃全局日界/晚子时(此前后端恒取缺省)
@@ -11,7 +11,7 @@ index 819d7180..c822a526 100644
  
  const { TabPane } = Tabs;
  
-@@ -54,7 +56,7 @@ function defaultSeed(){
+@@ -55,7 +57,7 @@ function defaultSeed(){
  	return Math.floor((Date.now() + Math.random() * 1000000) % 1000000000);
  }
  
@@ -20,7 +20,7 @@ index 819d7180..c822a526 100644
  	let rsp = null;
  	try{
  		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('taixuan', path), {
-@@ -86,6 +88,12 @@ async function postTaiXuan(path, payload){
+@@ -87,6 +89,12 @@ async function postTaiXuan(path, payload){
  	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
  }
  
@@ -33,7 +33,7 @@ index 819d7180..c822a526 100644
  function fmtValue(value){
  	return formatHumanValue(value);
  }
-@@ -198,6 +206,7 @@ class TaiXuanMain extends Component{
+@@ -199,6 +207,7 @@ class TaiXuanMain extends Component{
  		}
  	}
  
@@ -41,7 +41,7 @@ index 819d7180..c822a526 100644
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.unmounted = false;
-@@ -356,6 +365,14 @@ class TaiXuanMain extends Component{
+@@ -357,6 +366,14 @@ class TaiXuanMain extends Component{
  		this.setState({ seed: defaultSeed() });
  	}
  
@@ -56,7 +56,7 @@ index 819d7180..c822a526 100644
  	async fetchPan(fields){
  		const dt = parseFieldsDateTime(fields);
  		if(!dt){
-@@ -372,6 +389,8 @@ class TaiXuanMain extends Component{
+@@ -378,6 +395,8 @@ class TaiXuanMain extends Component{
  				return;
  			}
  			this.setState({ pan, loading: false }, ()=>{
@@ -65,7 +65,7 @@ index 819d7180..c822a526 100644
  				saveModuleAISnapshotLazy('taixuan', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -587,23 +606,35 @@ class TaiXuanMain extends Component{
+@@ -594,23 +613,35 @@ class TaiXuanMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

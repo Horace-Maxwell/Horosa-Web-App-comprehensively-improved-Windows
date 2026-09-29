@@ -13,7 +13,7 @@ import boundless.utility.StringUtility;
 
 public class CacheHelper {
 
-	// horosa_cachehelper_needcache_sysprop_v1(PERF-R10 B3):与 ParamHashCacheHelper 同源的
+	// horosa_cachehelper_needcache_sysprop_v1:与 ParamHashCacheHelper 同源的
 	// 「先 -D 再属性文件」。PropertyPlaceholder 不读 -D ⇒ 桌面启动器此前无法关掉 comm 缓存;
 	// 而桌面机器上没有 Redis,/ziwei/birth、/calendar/month、/nongli/time 每次 miss 都要付
 	// 一次连接异常 + JedisPool 重建 + 两行错误日志(System.gc 已被 -XX:+DisableExplicitGC 中和,

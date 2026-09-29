@@ -1,5 +1,8 @@
 // 兼容层必须最先执行(第三方产物可能裸调新 API)——一切其他 import 都排它后面。
 import './utils/legacyWebkitCompat'
+// [R5 P0-1] 前端启动账本首段:umi 主包开始执行(无桥 no-op;见 utils/startupLedger)
+import { markWebLedger as __hwlMark } from './utils/startupLedger'
+try{ __hwlMark('web.umi_exec'); }catch(__hwlErr){ /* 纯观测 */ }
 // 🔴 壳级缩放自恢复(启动档位单源 = utils/shellZoom.readBootstrapShellZoom:壳导航以 URL query 为准——确定性送达
 // 正确 origin/document;页面自刷新以 localStorage 键为准——URL 还是启动那一刻的旧 query,而壳每次 ⌘± 换档都写键。
 // 浏览器/dev 两源皆无=恒 1 零影响)。含 body 的 fixed 包含块补偿;壳的 __HOROSA_APPLY_SHELL_ZOOM(init script)后到幂等覆盖。

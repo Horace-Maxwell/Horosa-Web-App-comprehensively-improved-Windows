@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/gua/GuaSym.js b/astrostudyui/src/components/gua/GuaSym.js
-index 1ebf279c..3f539a05 100644
+index a9ea485f..c5136b0c 100644
 --- a/astrostudyui/src/components/gua/GuaSym.js
 +++ b/astrostudyui/src/components/gua/GuaSym.js
 @@ -1,7 +1,9 @@
@@ -13,19 +13,7 @@ index 1ebf279c..3f539a05 100644
  
  import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
  const { Title, Paragraph, Text } = Typography;
-@@ -25,8 +27,9 @@ export default class GuaSym extends Component{
-         if(meiyi){
-             for(let key in meiyi){
-                 let list = meiyi[key];
--                let title = (<Title level={4} key={randomStr(8)}>{key}</Title>);
--                let ul = this.genSymList(list);
-+                let title = (<Title level={4} key={`meiyi-title-${key}`}>{key}</Title>);
-+                // 标题与列表并列推进同一个 res 数组，故用不同前缀 + 分类名保证兄弟唯一
-+                let ul = this.genSymList(list, `meiyi-list-${key}`);
-                 res.push(title);
-                 res.push(ul);
-             }    
-@@ -34,15 +37,15 @@ export default class GuaSym extends Component{
+@@ -34,15 +36,15 @@ export default class GuaSym extends Component{
  
          let symbolize = val.symbolize;
          if(symbolize && symbolize.length){
@@ -44,7 +32,7 @@ index 1ebf279c..3f539a05 100644
              res.push(notxt);
          }
  
-@@ -50,19 +53,19 @@ export default class GuaSym extends Component{
+@@ -50,7 +52,7 @@ export default class GuaSym extends Component{
  		return dom;
      }
  
@@ -53,12 +41,7 @@ index 1ebf279c..3f539a05 100644
          // 🔒 防黑屏:类象某分类值非数组(数据缺/半成品)时 list.map 抛 TypeError → 无边界即整页空白。
          if(!Array.isArray(list)){ return null; }
          let lis = list.map((item, idx)=>{
-             return (
--                <li key={randomStr(8)}>
-+                <li key={idx}>
-                     <Text>{item}</Text>
-                 </li>
-             )
+@@ -62,7 +64,7 @@ export default class GuaSym extends Component{
          });
  
          return (

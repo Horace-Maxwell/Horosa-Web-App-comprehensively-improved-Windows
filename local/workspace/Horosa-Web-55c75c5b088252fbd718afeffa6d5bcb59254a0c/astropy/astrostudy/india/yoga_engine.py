@@ -870,7 +870,7 @@ class YogaEngine:
                 ['jupiter', 'venus', 'mercury']))
         # Chamara 拂尘:≥2 自然吉曜共居 1/7/9/10。
         for h in (1, 7, 9, 10):
-            # horosa_yoga_planet_order_v1(PERF-R9):NATURAL_BENEFICS/MALEFICS 是 **set**,
+            # horosa_yoga_planet_order_v1:NATURAL_BENEFICS/MALEFICS 是 **set**,
             # 直接遍历会继承哈希顺序 → 同一张盘每次启动后 yogas[].planets 排列可能不同
             # (实测跨进程仅顺序有别)。改为遍历有序的 CLASSICAL_PLANETS 再按集合过滤 ——
             # 成员逐元素等价,顺序变确定。本文件 963 行原本就是这个正确写法,此处补齐。

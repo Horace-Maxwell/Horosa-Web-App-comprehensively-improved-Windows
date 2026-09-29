@@ -894,6 +894,22 @@ trap cleanup_on_fail EXIT
 launch_detached() {
   local log_file="$1"
   shift
+  # [R5 S3] 原生脱离(缺省):bash 作业控制把子进程放进自己的进程组(与原「新会话」在信号隔离上等价:
+  # 脚本退出 / 壳对脚本的任何信号都不会波及后端;后端仍由 pid 文件 + stop 脚本收,退出零残留不变),
+  # stdin/stdout/stderr 全部改接日志文件(不继承壳的管道,壳 output() 不会被拖住)。
+  # 为什么:原路径为拉起 Java 专门起一个完整内嵌 Python 只调一次 Popen,本次启动首次拉起解释器的冷成本
+  # 实测 75~287ms(10 次账本中位 ~180ms),而它正压在 Java 出生之前的关键路径上;bash 原生约 10ms。
+  # kill-switch:HOROSA_LAUNCH_NATIVE=0 → 回内嵌 Python 跳板(旧路径,逐字节保留在下方)。
+  if [ "${HOROSA_LAUNCH_NATIVE:-1}" != "0" ]; then
+    local _ld_pid
+    set -m
+    ( exec "$@" </dev/null >>"${log_file}" 2>&1 ) &
+    _ld_pid=$!
+    set +m
+    disown "${_ld_pid}" >/dev/null 2>&1 || true
+    printf '%s\n' "${_ld_pid}"
+    return 0
+  fi
   "${PYTHON_BIN}" - "${log_file}" "$@" <<'PY'
 import subprocess
 import sys
@@ -974,12 +990,48 @@ CDS_JSA="${BOOT_EXPLODED}/.app-cds.jsa"
 # ⚠️ CDS 铁律:JDK 对 classpath「目录」做 dump 校验(non-empty directory 拒绝),唯 `-cp .`
 # 豁免;且运行加载 .jsa 的 classpath 必须与训练一致 → exploded 的训练与运行都固定为
 # 「cd boot-exploded && java -cp . JarLauncher」,用 bash -c 'cd "$0" && exec "$@"' 包一层。
+# [R5 T7] 桌面无 Redis 时 comm 缓存每次 miss = 连接异常 + RemoteCache.reconnect() 里的显式 System.gc()
+# (独立探针:缺省 JVM 每次 get/put ≈ 7.5 ms 且各一次 Full GC;-XX:+DisableExplicitGC 后 ≈ 0.5 ms 零 GC)。
+#   · HOROSA_JAVA_EXPLICIT_GC=1 回「显式 GC 生效」;缺省加 -XX:+DisableExplicitGC(纯 GC 提示忽略,零语义)。
+#   · HOROSA_COMM_CACHE=1 回属性文件口径(cachehelper.needcache=true);缺省传 -Dcachehelper.needcache=false
+#     —— 无 Redis 的桌面上 comm 缓存本就恒 miss 必算,关掉 = 今日净效果,输出字节全等(Java 侧先读 -D 再属性文件)。
+# [R5 S5] 引导两小刀(各 −几十 ms,零语义;同会话 ladder 6 次 p50 为据):
+#   · -XX:-UsePerfData:不再在 /tmp 建 hsperfdata mmap 文件(只影响 jps/jstat 可见性,本产品无任何脚本用它们);
+#     HOROSA_JAVA_PERFDATA=1 回旧。
+#   · -Dlog4j2.disableJmx=true:log4j2 不注册 JMX MBean(spring.jmx 早已关,无消费者);HOROSA_JAVA_LOG4J_JMX=1 回旧。
+JAVA_R5_OPTS=()
+if [ "${HOROSA_JAVA_EXPLICIT_GC:-0}" != "1" ]; then
+  JAVA_R5_OPTS+=(-XX:+DisableExplicitGC)
+fi
+if [ "${HOROSA_COMM_CACHE:-0}" != "1" ]; then
+  JAVA_R5_OPTS+=(-Dcachehelper.needcache=false)
+fi
+if [ "${HOROSA_JAVA_PERFDATA:-0}" != "1" ]; then
+  JAVA_R5_OPTS+=(-XX:-UsePerfData)
+fi
+if [ "${HOROSA_JAVA_LOG4J_JMX:-0}" != "1" ]; then
+  JAVA_R5_OPTS+=(-Dlog4j2.disableJmx=true)
+fi
+# [R5 S5] DispatcherServlet 在 Tomcat 启动时就初始化(load-on-startup=1;Boot 缺省 -1 = 首个请求才初始化,
+#   与 lazy-init 叠加后「Java 已 started → 首个探测请求才付 MVC 初始化 → 下一轮轮询才看见就绪」白等 ~170 ms;
+#   同一份初始化只是提前做,失败即启动失败而不是首请求失败)。HOROSA_JAVA_MVC_EAGER=0 回旧。
+if [ "${HOROSA_JAVA_MVC_EAGER:-1}" = "1" ]; then
+  JAVA_R5_OPTS+=(-Dspring.mvc.servlet.load-on-startup=1)
+fi
+# [R5 S5] 不让 Spring Boot 再初始化一遍日志系统:log4j2 早在 main() 里第一次取 Logger 时就按类路径 log4j2.xml
+#   配好了(同一份配置),Boot 的 Log4J2LoggingSystem 在 environment-prepared 又重配一次(~70 ms,appender 全部重建);
+#   本产品不用 logging.* 属性 / log4j2-spring.xml / Boot 日志关闭钩(log4j2 自带 shutdownHook 照旧)。
+#   HOROSA_JAVA_BOOT_LOGGING=1 回旧(Boot 接管日志系统)。
+if [ "${HOROSA_JAVA_BOOT_LOGGING:-0}" != "1" ]; then
+  JAVA_R5_OPTS+=(-Dorg.springframework.boot.logging.LoggingSystem=none)
+fi
+
 if [ "${JAVA_EXPLODED_MODE}" = "1" ] && [ "${HOROSA_JAVA_CDS:-1}" = "1" ] && [ -s "${CDS_JSA}" ]; then
   # exploded + AppCDS(.jsa 由首启后台自训练产出;archive 失配时 JVM 自动忽略退普通启动,天然安全)
   diag_log "java launch: exploded + AppCDS (${CDS_JSA})"
   JAVA_LAUNCH_CMD+=(
     /bin/bash -c 'cd "$0" && exec "$@"' "${BOOT_EXPLODED}"
-    "${JAVA_BIN}" -XX:SharedArchiveFile="${CDS_JSA}" -Xlog:cds=off
+    "${JAVA_BIN}" ${JAVA_R5_OPTS[@]+"${JAVA_R5_OPTS[@]}"} -XX:SharedArchiveFile="${CDS_JSA}" -Xlog:cds=off
     -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop
     -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false -Dhorosa.cache.lazyinit=true
     -cp . org.springframework.boot.loader.JarLauncher
@@ -994,7 +1046,7 @@ elif [ "${JAVA_EXPLODED_MODE}" = "1" ]; then
   diag_log "java launch: exploded (no CDS yet)"
   JAVA_LAUNCH_CMD+=(
     /bin/bash -c 'cd "$0" && exec "$@"' "${BOOT_EXPLODED}"
-    "${JAVA_BIN}" -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop
+    "${JAVA_BIN}" ${JAVA_R5_OPTS[@]+"${JAVA_R5_OPTS[@]}"} -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop
     -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false -Dhorosa.cache.lazyinit=true
     -cp . org.springframework.boot.loader.JarLauncher
     --server.port="${BACKEND_PORT}"
@@ -1006,7 +1058,7 @@ elif [ "${JAVA_EXPLODED_MODE}" = "1" ]; then
   )
 else
   JAVA_LAUNCH_CMD+=(
-    "${JAVA_BIN}" -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false -Dhorosa.cache.lazyinit=true -jar "${JAR}"
+    "${JAVA_BIN}" ${JAVA_R5_OPTS[@]+"${JAVA_R5_OPTS[@]}"} -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false -Dhorosa.cache.lazyinit=true -jar "${JAR}"
     --server.port="${BACKEND_PORT}"
     --server.address=127.0.0.1
     --astrosrv=http://127.0.0.1:${CHART_PORT}
@@ -1115,6 +1167,12 @@ while true; do
     if [ "${java_listen_seen:-0}" = "0" ] && http_responding "http://127.0.0.1:${BACKEND_PORT}/heartbeat"; then
       java_listen_seen=1
       ledger_log sh.java_listen_ready
+      # [R5 S5] Java 端口一可应答就把轮询间隔收到 0.05s:此后每轮只剩本地回环 curl,JVM 引导期抢核的顾虑已过
+      #(引导已到 Tomcat 在听);就绪判定语义不变,只是「就绪 → 被看见」的量化等待从 ≤0.2s 缩到 ≤0.05s。
+      # HOROSA_READY_FAST_POLL=0 回恒定间隔。
+      if [ "${HOROSA_READY_FAST_POLL:-1}" = "1" ]; then
+        poll_interval="0.05"
+      fi
     fi
     if signed_backend_http_responding "http://127.0.0.1:${BACKEND_PORT}/common/time"; then
       java_seen=1

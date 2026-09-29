@@ -76,20 +76,18 @@ export function textToYear(text) {
 
 // 解析事件/天象可起盘的公历日期(优先级:精确 modern_date → 已抽取 year → 文本帝王纪年 → period 朝代段最早)。
 // 不用 dynasty 兜底:天象 dynasty 是史书朝代(汉书载春秋事会误导);「只有朝代无时间」→ 返 null(不显排盘按钮)。
-// [Q-251/T-213] 1582-10-15(格里历启用)之前:全仓日期引擎(前端 DateTime.calcJdn / 后端 flatlib)按儒略历解释年月日,
-// 而 modern_date 是儒略日换算出的「格里历」日期 → 直接喂入会晚「格里−儒略」天数(767 年 4 天、1054 年 6 天)。
-// 天象条目已下发 julian_date(儒略历日期),该日期正是引擎口径 → 优先取之;显示仍用公历(modern_date_disp)。
+// [Q-251/T-213] 1582-10-15(格里历启用)之前:全仓日期引擎(前端 DateTime.calcJdn / 后端 flatlib)按儒略历解释年月日。
+// [#73,2026-09-23] 库内约定收成一种:**modern_date 就是史料所载的儒略历日期**(1582-10-15 前),直接喂引擎即正确;
+// `julian_date` 列已整列置空(此前带该列的 8,349 行,其 julian_date 是「儒略日期再减去儒略−格里差」的错列,起盘早 3~7 天,
+// 而 modern_date 按儒略历读的干支日与所载干支 100% 吻合)。下面的 julian_date 分支只为旧载荷兼容保留,库内不再命中。
 function beforeGregorianReform(md) {
 	const m = /^(-?\d{1,5})-(\d{1,2})-(\d{1,2})/.exec(`${md || ''}`);
 	if (!m) { return false; }
 	const y = parseInt(m[1], 10), mo = parseInt(m[2], 10), d = parseInt(m[3], 10);
 	return y < 1582 || (y === 1582 && (mo < 10 || (mo === 10 && d < 15)));
 }
-// [Q-495/T-457] 天象 `modern_date` 同一列混着两种历法,而显示层一律标「公历」:
-//   · 带 julian_date 的条目 —— modern_date 是由儒略日换算出的**格里历**(真公历);
-//   · 不带 julian_date 的条目(如《宋史》微年表) —— modern_date 就是史料所载的**儒略历**日期。
-// 1582-10-15 之前两者可差 4~10 天。统一标签会让人把儒略日期当公历读(也让两页列表看起来自相矛盾)。
-// 这里按来源如实标注:有 julian_date=公历;无且在改历之前=儒略历;改历之后两历同值,仍标公历。
+// [Q-495/T-457] 显示层按历法如实标注,不一律标「公历」:改历之前的 modern_date 是儒略历日期 → 标「儒略历」;
+// 改历之后两历同值,标「公历」。(带 julian_date 的旧载荷仍按「modern_date=公历」标注,库内已无此类行,见上 #73。)
 export function celestialCalendarKind(ev) {
 	const md = ev && (ev.modern_date || ev.modern_date_disp);
 	if (!md) { return ''; }
@@ -124,22 +122,31 @@ export function resolveChartDate(ev) {
 				return { md: `${y}-01-01`, disp: `约 ${gregYearLabel(y)}`, exact: false, precision: prec, note: prec === 'interval' ? '史料只给年段,按起始年 1 月 1 日正午起盘' : '史料只到年,按该年 1 月 1 日正午起盘' };
 			}
 		}
-		const isJulian = ev.julian_date && /^-?\d{1,5}-\d{1,2}-\d{1,2}/.test(`${ev.julian_date}`) && beforeGregorianReform(ev.modern_date);
-		const md = isJulian ? `${ev.julian_date}` : ev.modern_date;
+		// 旧载荷兼容:带 julian_date 者 md 取儒略日、disp 仍是公历换算日(库内已无此类行,见文件头 #73)
+		const legacyJulian = !!(ev.julian_date && /^-?\d{1,5}-\d{1,2}-\d{1,2}/.test(`${ev.julian_date}`) && beforeGregorianReform(ev.modern_date));
+		const md = legacyJulian ? `${ev.julian_date}` : ev.modern_date;
+		// [#73] 单一约定:改历前的 modern_date 就是儒略历日期,起盘与显示同一个日子,一律标「儒略历」
+		const calendar = (legacyJulian || beforeGregorianReform(md)) ? 'julian' : 'gregorian';
+		const dispCalendar = legacyJulian ? 'gregorian' : calendar;
 		if (prec === 'month') {
 			const mm = /^(-?\d{1,4}-\d{1,2})/.exec(`${disp}`);
-			return { md, disp: `约 ${mm ? mm[1] : disp}`, exact: false, precision: 'month', calendar: isJulian ? 'julian' : undefined, note: '史料只到月,按库内合成日正午起盘' };
+			return { md, disp: `约 ${mm ? mm[1] : disp}`, exact: false, precision: 'month', calendar, dispCalendar, note: '史料只到月,按库内合成日正午起盘' };
 		}
-		if (isJulian) {
-			return { md, disp, exact: true, calendar: 'julian' };
-		}
-		return { md, disp, exact: true };
+		return { md, disp, exact: true, calendar, dispCalendar };
 	}
 	let y = null;
 	if (ev.year != null && ev.year !== '' && Number.isFinite(Number(ev.year))) { y = Number(ev.year); }
 	// 不再从文本帝王纪年/朝代段推断(防止搞错):无 year/modern_date 即不显排盘按钮
 	if (y == null) { return null; }
 	return { md: `${y}-01-01`, disp: `约 ${gregYearLabel(y)}`, exact: false };
+}
+
+// 「排此日」提示行的日期段(两页共用):精确日按历法如实标注 —— 改历前「儒略历 767年8月14日 起盘」、改历后「公历 1604年10月9日」;
+// 旧载荷(disp=公历换算日、md=儒略日)保留「公历 X(儒略历 Y 起盘)」形。近似日(年/月级)由各页自拼(带「约」与说明)。
+export function chartDateExactLabel(rd) {
+	if (!rd || !rd.exact) { return ''; }
+	if (rd.calendar === 'julian' && rd.dispCalendar === 'gregorian') { return `公历 ${rd.disp}（儒略历 ${rd.md} 起盘）`; }
+	return rd.calendar === 'julian' ? `儒略历 ${rd.disp} 起盘` : `公历 ${rd.disp}`;
 }
 
 // marked breaks 关闭后段内单软换行会渲成空格;中文之间不应有空格 → CJK(及中文标点)间的单换行直接相接。

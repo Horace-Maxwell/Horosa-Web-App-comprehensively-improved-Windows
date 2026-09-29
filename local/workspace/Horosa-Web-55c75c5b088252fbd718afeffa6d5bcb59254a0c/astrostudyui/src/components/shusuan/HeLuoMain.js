@@ -9,14 +9,14 @@ import { XQTabs as Tabs } from '../xq-ui';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import calc, {
-	daYun, liuNian, liuYue, liuRi, judge, periodLiShu, guaRelations, chartExtras, duiGua, solarTermHuagong,
+	daYun, liuNian, liuYue, liuRi, judge, periodLiShu, guaRelations, chartExtras, duiGua, heluoSolarTermOfDate,
 	yaoText, guaInfo, yaoName, buildSnapshotText, NAME_TO_TRI, guaLines,
 	classifyErShu, zhongZong, shunFanShu, seasonFit, isXiongPair, mingGe,
 	wangShuai, jiNian, shiJi,
 } from '../../utils/heluoLocal';
 import { Gua64 } from '../gua/GuaConst';   // 复用 六爻/统摄法 的纳甲六亲世应
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
-import { parseDateParts, parseYearFromDateStr } from '../../utils/dateStrSafe';
+import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 import { ganzhiYearBase } from '../../utils/ganzhiYearBase';
 
 // 纳甲天干（内卦/外卦）：仅乾坤内外异，余卦内外同
@@ -35,7 +35,6 @@ function fieldVal(fields, key, fallback = '') {
 	return fields[key].value;
 }
 
-const LI_TERMS = ['立春', '立夏', '立秋', '立冬'];
 
 // slot: 'center'(主信息·滑动) | 'aux'(辅助信息·卡片)。四柱来自 baziLunarLocal（星阙自己的八字，不走后端）。
 
@@ -135,28 +134,10 @@ class HeLuoMain extends Component {
 		}
 	}
 
-	// 真实节气：化工(象限+土用) + 三候(节气内 5 日一候)。
-	solarTerm(dateStr) {
-		try {
-			const _hp = parseDateParts(dateStr) || {};
-			const y = _hp.year, m = _hp.month, d = _hp.day;
-			const solar = Solar.fromYmd(y, m, d);
-			const lunar = solar.getLunar();
-			const prev = lunar.getPrevJieQi(true);
-			const prevName = prev.getName();
-			const jd = solar.getJulianDay();
-			const tbl = lunar.getJieQiTable();
-			const tuyong = LI_TERMS.some((n) => {
-				const t = tbl[n];
-				if (!t) return false;
-				const diff = t.getJulianDay() - jd;
-				return diff >= 0 && diff <= 18;
-			});
-			const daysIn = Math.max(0, Math.floor(jd - prev.getSolar().getJulianDay()));
-			const hou = Math.min(3, Math.floor(daysIn / 5) + 1);
-			const houLabel = `${prevName}${['初候', '二候', '三候'][hou - 1]}·${prevName}後`;
-			return { ...solarTermHuagong(prevName, tuyong, { quHuaGong: this.props.quHuaGong || 'tuWangKunGen' }), term: prevName, hou, houLabel };
-		} catch (e) { return null; }
+	// 真实节气：化工(象限+土用) + 三候(节气内 5 日一候)。单源 heluoSolarTermOfDate(与 AI 挂载同一份);
+	// 按出生地时区换算后再比节气(东八区不变)。
+	solarTerm(dateStr, zone) {
+		return heluoSolarTermOfDate(dateStr, zone, this.props.quHuaGong || 'tuWangKunGen');
 	}
 
 	// 某公历年某节气的交时 label（'MM-DD HH:mm'）；display-only、零回归，复用 lunar-javascript。
@@ -241,7 +222,7 @@ class HeLuoMain extends Component {
 		try { chart = calc({ fourPillars, gender, hourZhi, birthYear, monthZhi, opts: this.props.opts || {} }); } catch (e) { return cache(null); }
 		if (!chart.xian.name || !chart.hou.name) return cache(null);
 		const dy = daYun(chart.xian, chart.hou, birthYear);
-		const st = this.solarTerm(dateStr);
+		const st = this.solarTerm(dateStr, params.zone);
 		const jg = judge(chart, fourPillars, monthZhi, st);
 		const nayinStr = (fc.year && (fc.year.naying || fc.year.nayin)) || '';
 		const nayin = '金木水火土'.includes(nayinStr.slice(-1)) ? nayinStr.slice(-1) : '';

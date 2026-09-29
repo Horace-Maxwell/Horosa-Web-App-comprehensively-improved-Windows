@@ -1,13 +1,14 @@
 // components/babylon/BabylonMain.js —— 巴比伦占星容器:文类子 Tab(轴1)+ 派系设置(轴2)。
 // 数据基座:一次 /chart(恒星黄道·毕宿锚)请求供各产品共用(LRU + inflight 去重 + 240ms prefetch)。
 import { Component } from 'react';
+import { claimTrigger, settleTrigger, identityOf } from '../../utils/singleTrigger';   // [#84] 双触发收敛
 import { XQTabs as Tabs, XQSelect } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import {
 	babylonChartParams, chartToLons, babylonBirthJdn, buildBabylonSnapshotText,
-	fetchBabylonEphemeris, digestBabylonEphemeris, computeNaKur,
+	fetchBabylonEphemeris, digestBabylonEphemeris, computeNaKur, EPHEM_MIN_JDN,
 } from '../../utils/babylonAiSnapshot';
 import { PRODUCTS, SCHEME_ORDER, BABYLON_SCHEMES, schemeOf, judgeOpts, BABYLON_PARAM_SPEC, schemeAffectsTab, schemeVaryingKeysForTab, schemeVaryingKeysElsewhere, schemeKeyLabel } from '../../divination/babylon/babylonSchools';   // [Q-346] 派系是否作用于本页 / [Q-150] 作用范围逐条自证
 import { buildHoroscope } from '../../divination/babylon/horoscope';
@@ -102,6 +103,9 @@ class BabylonMain extends Component{
 	async refresh(){
 		const params = babylonChartParams(this.props.fields);
 		if(!params){ return; }
+		// [#84] 双触发收敛:挂钩与 componentDidUpdate(fields 换新)同一次改动各进一次 → 同参第二路跳过
+		const refreshTrig = claimTrigger(this, 'refresh', JSON.stringify(params) + '|' + identityOf(this.props.fields));
+		if(!refreshTrig){ return; }
 		const seq = ++this.reqSeq;
 		const jdn = babylonBirthJdn(this.props.fields);
 		// 星盘与实算历象(朔望/邻近食)并行;历象失败→null(图式行照常,零阻塞)
@@ -110,6 +114,8 @@ class BabylonMain extends Component{
 			fetchBabylonEphemeris(this.props.fields, jdn).catch(() => null),
 		]);
 		if(this.unmounted || seq !== this.reqSeq){ return; }
+		// 星盘未取到 / 支持区间内历象未取到 → 同参允许重试(历象在支持区间外本就为空,不算失败)
+		if(!result || (!ephem && jdn && jdn >= EPHEM_MIN_JDN)){ settleTrigger(this, 'refresh', refreshTrig, false); }
 		let ephemDigest = digestBabylonEphemeris(ephem, jdn);
 		this.setState({ chartObj: result, ephemDigest });
 		// NA/KUR 观测量(满月日/残月晨的日月升落)二段轻请求;回填不阻塞首屏。

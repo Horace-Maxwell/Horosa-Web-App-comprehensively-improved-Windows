@@ -20,7 +20,7 @@ import cherrypy
 
 try:
     import jsonpickle
-    _HAS_REAL_JSONPICKLE = True
+    _JSONPICKLE_REAL = True
 except ImportError:
     class _JsonpickleCompat:
         @staticmethod
@@ -28,37 +28,14 @@ except ImportError:
             return json.dumps(obj, ensure_ascii=False, default=str)
 
     jsonpickle = _JsonpickleCompat()
-    _HAS_REAL_JSONPICKLE = False
+    _JSONPICKLE_REAL = False
 
-
-# horosa_fast_json_encode_v1(PERF-R10 B6):对**纯 JSON 树**,`json.dumps(obj)`(全默认参)
-# 与 `jsonpickle.encode(obj, unpicklable=False)` 逐字节相等(含 unicode/int 键/float/大整数,
-# 4/4 探针 EQ 实测)——而前者跳过 jsonpickle 的类型巡检层,大响应端点省 5-40ms。
-# shim 只在三个条件同时成立才走快径:开关开 + 真 jsonpickle 在场(compat 桩用 ensure_ascii=False
-# **不等价**,绝不套快径)+ 默认参调用;json.dumps 抛 TypeError/ValueError(非 JSON 类型/环)
-# 即回退原实现 —— 回退触发本身零漂移(by construction)。全矩阵 --verify 是硬闸:任何漂移
-# ⇒ 本项废弃。kill:HOROSA_FAST_JSON_ENCODE=0 ⇒ 恒走原实现。
-_FAST_JSON_ON = os.environ.get("HOROSA_FAST_JSON_ENCODE", "1").lower() not in ("0", "false", "no", "off")
-
-
-class _FastJsonEncodeShim:
-    def __init__(self, real):
-        self._real = real
-
-    def __getattr__(self, name):
-        return getattr(self._real, name)
-
-    def encode(self, obj, unpicklable=False, **kw):
-        if _FAST_JSON_ON and unpicklable is False and not kw:
-            try:
-                return json.dumps(obj)
-            except (TypeError, ValueError):
-                pass
-        return self._real.encode(obj, unpicklable=unpicklable, **kw)
-
-
-if _HAS_REAL_JSONPICKLE:
-    jsonpickle = _FastJsonEncodeShim(jsonpickle)
+# [R5 T2] 响应 JSON 快径:单源见 websrv/fastjson.py(允许名单式扁平化;名单外回退真 jsonpickle;HOROSA_FAST_JSON_ENCODE=0 关)
+if _JSONPICKLE_REAL:
+    from websrv.fastjson import install as _install_fast_json, install_global as _install_fast_json_global
+    # [R5 P0-3] 进程级:所有挂载服务共用真 jsonpickle 模块,先把它的 encode 换成快径版(HOROSA_FAST_JSON_GLOBAL=0 关)
+    _install_fast_json_global(jsonpickle)
+    jsonpickle = _install_fast_json(jsonpickle)
 
 # Ensure flatlib is resolvable from bundled sources.
 _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -192,9 +169,9 @@ ledger_mark('py.imports_done', t0=_PY_T0)
 # 请求级三段计时(HOROSA_PY_CHART_TIMING)并入启动账本:
 # 开=对 /chart 记 init/build/encode 三段写账本;默认关=输出与响应逐字节不变。
 _PY_CHART_TIMING = os.environ.get('HOROSA_PY_CHART_TIMING', '0').lower() in ('1', 'true', 'yes', 'on')
-# horosa_chart_no_stdout_dump_v1:默认关。置 1 恢复「每个 /chart 打印整个请求字典」的旧行为
-# (只应在本机排障时开 —— 该字典含出生日期/时间/经纬度/地名等个人数据)。
-_CHART_DEBUG_DUMP = os.environ.get('HOROSA_CHART_DEBUG_DUMP', '0').lower() in ('1', 'true', 'yes', 'on')
+# horosa_chart_no_stdout_dump_v1:PERF-R9 起 /chart 不再把整份请求字典(出生日期/时间/经纬度/地名等个人数据)
+# 打到 stdout;v3.11.2 上游 [R5 T2] 直接删除该 print,原 HOROSA_CHART_DEBUG_DUMP 复现开关随之退役。
+# 本标记留作五层契约哨兵/apply.sh 定位(删掉它不影响行为,但会让发布门失去这条纵深)。
 
 
 
@@ -298,12 +275,8 @@ class WebChartSrv:
             _geoerr = validate_geo(data)
             if _geoerr:
                 return jsonpickle.encode(_geoerr, unpicklable=False)
-            # horosa_chart_no_stdout_dump_v1:原先每个 /chart 都 print(data) —— 把**整个请求字典**
-            # (含出生日期/时间/经纬度/地名等个人数据)同步写进 stdout。三重代价:①打包件里 stdout
-            # 经管道回主进程并落日志文件,写盘在请求路径上同步发生;②它是调试残留,产线无人读;
-            # ③把用户出生信息持续写进日志文件本身就不应该。需要时用下面的 _CHART_DEBUG_DUMP 显式开。
-            if _CHART_DEBUG_DUMP:
-                print(data, flush=True)
+            # [R5 T2] 此处原有 print(data):每次请求把整份参数(出生日期 / 时间 / 经纬度 / 地名)同步写 stdout,
+            # 打包件里 stdout 经管道回壳并落日志文件(本机已 31 MB)—— 请求路径上的同步 I/O + 隐私,故删(Windows PY-14 同款)。
 
             _cls_tokens = push_classical_request(data)
             _pt0 = time.perf_counter() if _PY_CHART_TIMING else 0.0
@@ -705,6 +678,46 @@ STARTUP_GATE = threading.Event()
 _GATE_FIRST_WAIT_LOGGED = [False]
 
 
+_PRIORITY_LANE_ON = os.environ.get('HOROSA_PRIORITY_LANE', '1').lower() not in ('0', 'false', 'no', 'off')
+
+
+def _priority_lane_tool():
+    # [R5 T5] 每个请求都设一次(线程池线程复用,不设会沿用上一个请求的值);缺头 / 其它值 = 前台 = 旧行为
+    try:
+        from astrostudy import perchart as _pc
+        _pc.set_priority_lane_enabled(_PRIORITY_LANE_ON)
+        kind = None
+        if _PRIORITY_LANE_ON:
+            kind = (cherrypy.request.headers.get('X-Horosa-Priority') or '').strip().lower()
+        _pc.set_request_priority(kind)
+    except Exception:
+        pass
+
+
+# [R5 P0-3] 请求内黄经 memo(astroextra.swe_lon)只对下列服务前缀开启:同请求里同 (天体, jd, 中心, 站心坐标)
+# 只算一次,请求结束清空;其它请求一律无 memo。开关 HOROSA_SWE_LON_MEMO=0 见 astroextra。
+_SWE_LON_MEMO_PREFIXES = (
+    '/astroextra/',
+)
+
+
+def _swe_lon_memo_tool():
+    req = cherrypy.request
+    path = (req.script_name or '') + (req.path_info or '')
+    ax = sys.modules.get('astrostudy.astroextra')
+    if not path.startswith(_SWE_LON_MEMO_PREFIXES):
+        if ax is not None:
+            ax.swe_lon_memo_end()   # 保险:非目标请求一律无 memo(线程复用不带进上一请求的 memo)
+        return
+    if ax is None:
+        try:
+            from astrostudy import astroextra as ax
+        except Exception:
+            return
+    ax.swe_lon_memo_begin()
+    req.hooks.attach('on_end_request', ax.swe_lon_memo_end)
+
+
 def _startup_gate_tool():
     if STARTUP_GATE.is_set():
         return
@@ -931,6 +944,11 @@ if __name__ == '__main__':
     cherrypy.tools.cors = cherrypy._cptools.HandlerTool(CORS)
     cherrypy.tools.startup_gate = cherrypy.Tool('before_handler', _startup_gate_tool, priority=10)
     cherrypy.config.update({'tools.startup_gate.on': True})
+    # [R5 T5] 请求优先级车道:X-Horosa-Priority: prefetch 的请求在 perchart 古典临界区前让前台请求先拿锁
+    cherrypy.tools.priority_lane = cherrypy.Tool('before_handler', _priority_lane_tool, priority=11)
+    cherrypy.config.update({'tools.priority_lane.on': True})
+    cherrypy.tools.swe_lon_memo = cherrypy.Tool('before_handler', _swe_lon_memo_tool, priority=12)
+    cherrypy.config.update({'tools.swe_lon_memo.on': True})
 
     cherrypy.tree.mount(WebChartSrv(), '/')
     mount_core_services()

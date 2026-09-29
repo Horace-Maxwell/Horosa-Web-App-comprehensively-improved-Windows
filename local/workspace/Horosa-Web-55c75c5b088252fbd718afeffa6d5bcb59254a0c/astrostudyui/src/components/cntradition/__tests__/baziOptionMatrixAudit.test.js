@@ -47,4 +47,9 @@ describe('[L1] 八字起盘键逐档定向锚', ()=>{
 		expect(zichu).not.toBe(zizheng);
 		expect(build({ after23NewDay: 1 })).toBe(base);                           // 正午:三态无载荷
 	});
+	test('🔴 南半球月令:南纬盘「对冲」必变(月柱对冲之支);北纬盘恒等(仅南纬生效,数据依赖非死)', ()=>{
+		const south = { zone: '+10:00', lon: '151e12', lat: '33s52', gpsLon: 151.2, gpsLat: -33.87 };
+		expect(build({ ...south, southMonth: 'chong' })).not.toBe(build({ ...south, southMonth: 'none' }));
+		expect(build({ southMonth: 'chong' })).toBe(base);
+	});
 });

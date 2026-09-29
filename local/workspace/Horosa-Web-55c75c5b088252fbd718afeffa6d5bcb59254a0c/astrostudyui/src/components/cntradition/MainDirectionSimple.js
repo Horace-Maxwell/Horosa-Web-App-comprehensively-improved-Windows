@@ -1,14 +1,12 @@
 import { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Row, Col } from 'antd';
+
 import { BaZiMsg } from '../../msg/bazimsg';
 import MDSDirect from './MDSDirect';
 import MDSYear from './MDSYear';
 import { birthMonthDayFromBazi } from './starChargerLazy';
 import styles from '../../css/styles.less';
-// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
-// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
-// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 
 class MainDirectionSimple extends Component{
@@ -31,7 +29,7 @@ class MainDirectionSimple extends Component{
 	}
 
 
-	genDoms(dirs, birthMonth, birthDay){
+	genDoms(dirs, birthMonth, birthDay, ageStyle){
 		let dom = [];
 		if(dirs && dirs.length){
 			let sz = dirs.length;
@@ -40,17 +38,17 @@ class MainDirectionSimple extends Component{
 				let dir = dirs[i];
 				if(i !== 0 && (i % 8 == 0)) {
 					let col = (
-						<Col span={24} key={`hr-${i}`}><hr /></Col>
+						<Col span={24} key={`s1-${i}`}><hr /></Col>
 					);
 					dom.push(col);
 				}
 				let col = (
-					<Col span={span} key={`dir-${i}`}>
+					<Col span={span} key={`s2-${i}`}>
 						<Row>
-							<Col span={24}><MDSDirect value={dir} /></Col>
+							<Col span={24}><MDSDirect value={dir} ageStyle={ageStyle} /></Col>
 						</Row>
 						<Row>
-							<Col span={24}><MDSYear value={dir} birthMonth={birthMonth} birthDay={birthDay} /></Col>
+							<Col span={24}><MDSYear value={dir} birthMonth={birthMonth} birthDay={birthDay} ageStyle={ageStyle} /></Col>
 						</Row>
 					</Col>
 				)
@@ -72,7 +70,8 @@ class MainDirectionSimple extends Component{
 
 		// starCharger 惰性补算所需出生月/日（从 nongli.birth 解析），下传 MDSYear。
 		const bmd = birthMonthDayFromBazi(rec);
-		let doms = this.genDoms(rec.direction, bmd.month, bmd.day);
+		// ageStyle:八字页旧版界面下传「年龄」档;反推八字等不传 → 子卡原样「N周岁」(见 baziAgeText)。
+		let doms = this.genDoms(rec.direction, bmd.month, bmd.day, this.props.ageStyle);
 
 		return (
 			<div className={styles.scrollbar} style={style}>

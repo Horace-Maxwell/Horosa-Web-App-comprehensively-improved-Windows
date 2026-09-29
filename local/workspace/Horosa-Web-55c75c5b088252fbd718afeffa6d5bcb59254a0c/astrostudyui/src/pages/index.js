@@ -20,6 +20,7 @@ import AstroFormComp from '../components/astro/AstroFormComp';
 import AstroChartMain from '../components/astro/AstroChartMain';
 import TechniqueErrorBoundary from '../components/common/TechniqueErrorBoundary';
 import { makeLazyBoundary } from '../utils/lazyBoundary';
+import { orderByUsage, recordTechniqueVisit } from '../utils/techUsage';
 import { clientToFixed } from '../utils/zoomDomain';
 // Windows-ahead:城市库空闲预载开关(与上游懒加载/缩放域改造无关,勿随 import 区重写一并丢)。
 // ★v3.9.5 实撞第二次(#86 同型):上游在本区新增 clientToFixed 的 import,我方这一行的 hunk
@@ -40,7 +41,7 @@ const LAZY_PRELOAD_QUEUE = [];   // {factory, order}
 function lazyPreloadable(factory, opts = {}){
 	const Wrapped = makeLazyBoundary(factory);
 	// preload 用的是同一个 healingFactory(React.lazy 幂等,共享同一 promise)。
-	LAZY_PRELOAD_QUEUE.push({ factory: Wrapped.preload, order: opts.order || 2 });
+	LAZY_PRELOAD_QUEUE.push({ factory: Wrapped.preload, order: opts.order || 2, navKey: opts.navKey || null });
 	if(opts.navKey){
 		registerNavPreload(opts.navKey, Wrapped.preload);
 	}
@@ -53,8 +54,8 @@ function startIdlePreload(){
 	lazyPreloadStarted = true;
 	// 概率序:hot(高频技法)→normal→heavy(重可视化);同档保声明序。
 	// 此前按 import 声明序(3D/天文馆最先)与真实使用频率倒挂,高频技法反而最后就绪。
-	const queue = LAZY_PRELOAD_QUEUE.slice()
-		.sort((a, b) => a.order - b.order)
+	// [R5 N2] 档位序之上再按本机使用频次稳定排序:常用技法先就绪,没记录的项保持档位序(全新安装 = 旧序)。
+	const queue = orderByUsage(LAZY_PRELOAD_QUEUE.slice().sort((a, b) => a.order - b.order), (e) => e.navKey)
 		.map((e) => e.factory);
 	const next = ()=>{
 		// [R3-D1] 每空闲拍预载 2 个(原 1):31 chunk 全就绪窗口减半;仍走 requestIdleCallback
@@ -108,6 +109,8 @@ import ChartsGps from '../components/user/ChartsGps';
 // [B6] 笔记面板转 lazy:其饿链拖 Quill+node-forge 进首屏 vendors(explorer 实测);lazyPreloadable 自带 Suspense+边界。
 const ChartMemo = lazyPreloadable(() => import('../components/comp/ChartMemo'), { order: 3 });
 import FreezeInactive from '../components/comp/FreezeInactive';
+import { markWebLedger, markStaticCacheStats } from '../utils/startupLedger';
+import { saveBootChartSnapshot } from '../utils/bootChartRestore';   // [R5 S7] 温启直接显示上次的盘:每次出盘落快照   // [R5 P0-1] 前端启动账本
 import { AUX_SUBTABS, CNYIBU_SUBTABS, CNTRADITION_SUBTABS, ZERI_SUBTABS, RELATIVE_SUBTABS, recallSubTab } from '../constants/SubTabRegistry';
 const JieQiChartsMain = lazyPreloadable(() => import('../components/jieqi/JieQiChartsMain'), { order: 2, navKey: 'jieqichart' });
 const CnTraditionMain = lazyPreloadable(() => import('../components/cntradition/CnTraditionMain'), { order: 2, navKey: 'cntradition' });
@@ -352,6 +355,9 @@ function computeRefreshSignature(fields, chartObj){
 function AstroIndex({dispatch, astro, app, user, rules, }){
     // 首屏就绪后空闲预载全部技法 chunk(不影响启动;切技法零等待)。
     React.useEffect(()=>{
+        // [R5 P0-1] 主导航可点(主页组件首次 commit 之后)
+        markWebLedger('web.nav_interactive');
+        setTimeout(()=>{ try{ markStaticCacheStats(); }catch(e){ /* 观测 */ } }, 0);   // [R5 N2] 静态缓存命中观测(空闲一拍后统计,不占首屏)
         startIdlePreload();
         // WS-3c 空闲预热队列:chunk 预载(上行,1s 起步)之后错峰启动(4s 起步),
         // 动态 import 高频本地引擎模块(常量表/JIT 挪进空闲)——暖后任意技法首点亚秒;
@@ -385,6 +391,17 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
     // 一致,结果自然落各自 L1;首点=命中即时)。组以 chartId 为代(新盘作废旧组);任务内
     // 动态 import(不拖 chunk 进主包,顺带引擎预热);全部 silent、只进确定性端点、交互即让路。
     // 双闸:horosa.perf.idleWarmQueue(总)/ horosa.perf.dataWarmTasks(细)。失败静默。
+    // [R5 P0-1] 首张盘已提交(chartObj 首次带 chartId 的 commit 之后;只记一次)
+    React.useEffect(()=>{
+        if(chartObj && chartObj.chartId){ markWebLedger('web.first_chart_paint'); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chartObj && chartObj.chartId]);
+    // [R5 S7] 温启直接显示上次的盘:每次出盘(chartObj 换代)把当前 fields + 页签按载入命盘 record 口径落快照
+    // (deferredStorage 空闲写;桌面壳 / 开关 / 合法性全在 util 内裁决;快照是优化,任何异常不许碰出盘主流程)
+    React.useEffect(()=>{
+        if(!(chartObj && chartObj.chartId)){ return; }
+        try{ saveBootChartSnapshot(fields, currentTab, currentSubTab); }catch(e){ /* optimization only */ }
+    }, [chartObj && chartObj.chartId]);
     React.useEffect(()=>{
         if(!(chartObj && chartObj.chartId) || !fields || !(fields.date && fields.date.value)){ return; }
         const warmFields = fields;
@@ -459,6 +476,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
     }
 
     function changeTab(key){
+        recordTechniqueVisit(key);   // [R5 N2] 切页计数(设备本地),预载 / 预热序按它排
         // 切页流畅度:盘(fields+chartId)签名未变 → 跳过 predictHook.fun(keep-alive 面板已最新 → 切换瞬间);
         // 变了才刷新并记签名 → 盘变必刷新、零降级。刷新放 dispatch 之后 setTimeout(0) → 切换观感瞬间、刷新随后带 spinner。
         const currentSig = computeRefreshSignature(fields, chartObj);

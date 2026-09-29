@@ -14,7 +14,7 @@ from angan import Angan
 import config
 
 
-# ── horosa_qimen_pan_memo_v1(PERF-R9)────────────────────────────────────────────
+# ── horosa_qimen_pan_memo_v1 ────────────────────────────────────────────
 # 症状:`webqimensrv.pan` 先 `_mode_result(...)`(hour/overall 模式即 `qimen_obj.pan(...)`),
 # 紧接着又 `qimen_obj.overall(...)`,而 `overall()` 内部**再调一次** `self.pan(option, school)`
 # —— 同参数、同结果,整整算两遍。cProfile 实测 `pan()` ncalls=2、cumtime 0.563s,
@@ -25,7 +25,7 @@ import config
 #   · 两个 thread-local 开关(日界 `after23` / 晚子时 `hour_gan_next`)在 `:199-207`
 #     即**实例构造之前**设定,实例存活期内不可能变;
 #   ⇒ 实例生命周期 == 请求生命周期,不存在跨请求、跨开关的串染面。
-#     这与仓库里已发货的 `perchart.py` 实例级 memo 是同一形状。
+#     这与本仓既有的实例级 memo 是同一形状。
 #
 # 为什么共享对象不会泄漏到响应:`webqimensrv._json_safe`(:47-61)对 dict/list 一律**重建**,
 # 所以 `selected` 与 `all_raw` 仍是两棵互不相干的树,`:140` 的 `minute is not selected`
@@ -159,7 +159,7 @@ class Qimen:
     @_instance_memo
     def pan_earth_r(self, option):
         """時家奇門地盤(逆)設置, option 1:拆補 2:置閏"""
-        # horosa_qimen_cse_v1(PERF-R9):同一函数同参调两次(取 values 与 keys)。改取自同一
+        # horosa_qimen_cse_v1:同一函数同参调两次(取 values 与 keys)。改取自同一
         # dict —— 顺序一一对应的保证比原式更强(原式是两个独立构造的 dict,只是恰好相同)。
         _pe = self.pan_earth(option)
         pan_earth_v = list(_pe.values())

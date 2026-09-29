@@ -1,54 +1,8 @@
 diff --git a/astropy/websrv/webchartsrv.py b/astropy/websrv/webchartsrv.py
-index b4ce9aed..1e5a9925 100644
+index 80994426..9397d999 100644
 --- a/astropy/websrv/webchartsrv.py
 +++ b/astropy/websrv/webchartsrv.py
-@@ -20,6 +20,7 @@ import cherrypy
- 
- try:
-     import jsonpickle
-+    _HAS_REAL_JSONPICKLE = True
- except ImportError:
-     class _JsonpickleCompat:
-         @staticmethod
-@@ -27,6 +28,37 @@ except ImportError:
-             return json.dumps(obj, ensure_ascii=False, default=str)
- 
-     jsonpickle = _JsonpickleCompat()
-+    _HAS_REAL_JSONPICKLE = False
-+
-+
-+# horosa_fast_json_encode_v1(PERF-R10 B6):对**纯 JSON 树**,`json.dumps(obj)`(全默认参)
-+# 与 `jsonpickle.encode(obj, unpicklable=False)` 逐字节相等(含 unicode/int 键/float/大整数,
-+# 4/4 探针 EQ 实测)——而前者跳过 jsonpickle 的类型巡检层,大响应端点省 5-40ms。
-+# shim 只在三个条件同时成立才走快径:开关开 + 真 jsonpickle 在场(compat 桩用 ensure_ascii=False
-+# **不等价**,绝不套快径)+ 默认参调用;json.dumps 抛 TypeError/ValueError(非 JSON 类型/环)
-+# 即回退原实现 —— 回退触发本身零漂移(by construction)。全矩阵 --verify 是硬闸:任何漂移
-+# ⇒ 本项废弃。kill:HOROSA_FAST_JSON_ENCODE=0 ⇒ 恒走原实现。
-+_FAST_JSON_ON = os.environ.get("HOROSA_FAST_JSON_ENCODE", "1").lower() not in ("0", "false", "no", "off")
-+
-+
-+class _FastJsonEncodeShim:
-+    def __init__(self, real):
-+        self._real = real
-+
-+    def __getattr__(self, name):
-+        return getattr(self._real, name)
-+
-+    def encode(self, obj, unpicklable=False, **kw):
-+        if _FAST_JSON_ON and unpicklable is False and not kw:
-+            try:
-+                return json.dumps(obj)
-+            except (TypeError, ValueError):
-+                pass
-+        return self._real.encode(obj, unpicklable=unpicklable, **kw)
-+
-+
-+if _HAS_REAL_JSONPICKLE:
-+    jsonpickle = _FastJsonEncodeShim(jsonpickle)
- 
- # Ensure flatlib is resolvable from bundled sources.
- _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
-@@ -76,6 +108,31 @@ CORE_SERVICE_SPECS = [
+@@ -85,6 +85,31 @@ CORE_SERVICE_SPECS = [
  ]
  
  
@@ -80,7 +34,7 @@ index b4ce9aed..1e5a9925 100644
  def _core_lazy_enabled():
      return os.environ.get('HOROSA_CORE_LAZY', '1') not in ('0', 'false', 'no', 'off')
  
-@@ -92,7 +149,12 @@ def mount_core_services():
+@@ -101,7 +126,12 @@ def mount_core_services():
  def prewarm_core_services():
      loaded = 0
      failed = 0
@@ -93,7 +47,7 @@ index b4ce9aed..1e5a9925 100644
          try:
              app = cherrypy.tree.apps.get(spec["mount"])
              root = getattr(app, "root", None)
-@@ -105,11 +167,34 @@ def prewarm_core_services():
+@@ -114,11 +144,34 @@ def prewarm_core_services():
              traceback.print_exc()
      return loaded, failed
  
@@ -122,27 +76,13 @@ index b4ce9aed..1e5a9925 100644
  # 请求级三段计时(HOROSA_PY_CHART_TIMING)并入启动账本:
  # 开=对 /chart 记 init/build/encode 三段写账本;默认关=输出与响应逐字节不变。
  _PY_CHART_TIMING = os.environ.get('HOROSA_PY_CHART_TIMING', '0').lower() in ('1', 'true', 'yes', 'on')
-+# horosa_chart_no_stdout_dump_v1:默认关。置 1 恢复「每个 /chart 打印整个请求字典」的旧行为
-+# (只应在本机排障时开 —— 该字典含出生日期/时间/经纬度/地名等个人数据)。
-+_CHART_DEBUG_DUMP = os.environ.get('HOROSA_CHART_DEBUG_DUMP', '0').lower() in ('1', 'true', 'yes', 'on')
++# horosa_chart_no_stdout_dump_v1:PERF-R9 起 /chart 不再把整份请求字典(出生日期/时间/经纬度/地名等个人数据)
++# 打到 stdout;v3.11.2 上游 [R5 T2] 直接删除该 print,原 HOROSA_CHART_DEBUG_DUMP 复现开关随之退役。
++# 本标记留作五层契约哨兵/apply.sh 定位(删掉它不影响行为,但会让发布门失去这条纵深)。
  
  
  
-@@ -213,7 +298,12 @@ class WebChartSrv:
-             _geoerr = validate_geo(data)
-             if _geoerr:
-                 return jsonpickle.encode(_geoerr, unpicklable=False)
--            print(data)
-+            # horosa_chart_no_stdout_dump_v1:原先每个 /chart 都 print(data) —— 把**整个请求字典**
-+            # (含出生日期/时间/经纬度/地名等个人数据)同步写进 stdout。三重代价:①打包件里 stdout
-+            # 经管道回主进程并落日志文件,写盘在请求路径上同步发生;②它是调试残留,产线无人读;
-+            # ③把用户出生信息持续写进日志文件本身就不应该。需要时用下面的 _CHART_DEBUG_DUMP 显式开。
-+            if _CHART_DEBUG_DUMP:
-+                print(data, flush=True)
- 
-             _cls_tokens = push_classical_request(data)
-             _pt0 = time.perf_counter() if _PY_CHART_TIMING else 0.0
-@@ -732,7 +822,12 @@ def _run_warmups():
+@@ -782,7 +835,12 @@ def _run_warmups():
      elif _par_env == '1':
          _parallel = True
      else:
@@ -156,7 +96,7 @@ index b4ce9aed..1e5a9925 100644
      # [R4-P3a] PD 入并行组开关。🔴 缺省【关】(2026-08-03 同会话 ladder 实测定档):script 档
      # (untrusted 并行)PD 入组=并行窗四线程,与同窗 JVM 引导抢核【双输】——py 门开 1440→1857ms、
      # java_http_ready 2528→3551ms(R3「温启并行双输回串行」同族形态,冷启档同样成立)。
-@@ -759,6 +854,66 @@ def _run_warmups():
+@@ -809,6 +867,66 @@ def _run_warmups():
      # [R4-P0 观察位] 门开绝对时刻显式化(改前基线里门开时刻要靠 warmup 末段推算)。
      ledger_mark('py.gate_open', t0=_PY_T0)
      STARTUP_GATE.set()

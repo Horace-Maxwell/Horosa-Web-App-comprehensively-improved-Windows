@@ -1,3 +1,5 @@
+import os
+import threading
 import traceback
 import re
 
@@ -27,6 +29,27 @@ ensure_kinastro_path()
 
 from astro.chunzi import ChunZiShu, BRANCHES, MANSIONS_28  # noqa: E402
 from astro.shaozi import calculate_ganzhi_from_datetime  # noqa: E402
+
+
+# 蠢子数诗词库(4,574 条 CSV + 代码索引)按进程只建一次:原每请求重读 CSV、整表 to_dict 建索引(约 15 ms,
+# 占该端点大半)。构造之后引擎只读 df / code_index,查询都新建对象或对子表 .copy() → 共享实例与每请求新建
+# 输出逐字节相同。开关:HOROSA_CHUNZI_DB_MEMO=0 → 每请求新建(旧行为)。
+_CHUNZI_DB_MEMO_ON = os.environ.get("HOROSA_CHUNZI_DB_MEMO", "1").lower() not in ("0", "false", "no", "off")
+_CHUNZI_DB = [None]
+_CHUNZI_DB_LOCK = threading.Lock()
+
+
+def _chunzi_db():
+    if not _CHUNZI_DB_MEMO_ON:
+        return ChunZiShu()
+    db = _CHUNZI_DB[0]
+    if db is None:
+        with _CHUNZI_DB_LOCK:
+            db = _CHUNZI_DB[0]
+            if db is None:
+                db = ChunZiShu()
+                _CHUNZI_DB[0] = db
+    return db
 
 
 KE_OPTIONS = [{"value": str(item), "label": f"{item}刻"} for item in range(1, 11)]
@@ -294,7 +317,7 @@ class ChunZiSrv:
                     lunar_month = max(1, min(12, to_int(data.get("chunziLunarMonth") or data.get("lunarMonth"), dt.month)))
                     lunar_day = max(1, min(30, to_int(data.get("chunziLunarDay") or data.get("lunarDay"), min(30, dt.day))))
 
-            czs = ChunZiShu()
+            czs = _chunzi_db()
             chart = czs.cast_chart(
                 gender,
                 gz["year"],

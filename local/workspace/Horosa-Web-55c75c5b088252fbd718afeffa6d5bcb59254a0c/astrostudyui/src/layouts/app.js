@@ -11,6 +11,7 @@ import { bindCrossWindowPrefs } from '../utils/aiAgent/prefs';
 import { emitAutomationEvent } from '../utils/aiAgent/automation/events';
 import TaskCenterBell from '../components/aianalysis/TaskCenterBell';
 import { reportDesktopBridgeDiag, reportPageTelemetry } from '../utils/desktopBridgeDiag';
+import { markWebLedger } from '../utils/startupLedger';   // [R5 P0-1] 前端启动账本
 import { subscribeServiceStatus } from '../utils/serviceStatus';
 import { snapshot as requestTelemetrySnapshot } from '../utils/requestTelemetry';
 import { remindersEnabled, upcomingBirthdays } from '../utils/upcomingReminders';
@@ -51,6 +52,8 @@ const App = ({children, dispatch, app, user, astro, })=>{
     // [V5-A3] 影子副本启动对账:主存(localStorage)键缺失而壳层镜像在 → 写回并提示;
     // 存在的主存永远优先(绝不覆盖)。非桌面环境 no-op。挂布局层与健康横幅同位。
     React.useEffect(()=>{
+        // [R5 P0-1] 首帧已提交(布局层 effect = 首次 commit 之后;不靠 rAF)
+        markWebLedger('web.first_render');
         reconcileShadowOnBoot().then((r)=>{
             if(r && r.restored && r.restored.length){
                 message.info(`已从本机影子副本恢复 ${r.restored.length} 项本地档案数据`);
@@ -71,6 +74,14 @@ const App = ({children, dispatch, app, user, astro, })=>{
         // [P3] 定时任务接线:壳侧每 60 秒 __horosaSchedulerTick(偏好 scheduler_enabled 缺省关=壳零动作);页面按子开关决定跑不跑,缺省关=零定时器零执行
         bindSchedulerTicks();
         // [挂载自检] 真栈审计钩:仅 localStorage['horosa.debug.mountAudit']==='1' 时惰性装载(缺省键缺席=零路径零 chunk);
+        // [#59] 壳按窗口宽度封顶缩放档:⌘+ 超限时壳 eval 本钩子说明原因(布局视口宽必须 ≥ 1000 CSS px)。
+        if(typeof window !== 'undefined'){
+            window.__HOROSA_SHELL_ZOOM_CAPPED = (cap, width)=>{
+                const capTxt = Number.isFinite(cap) ? `${Number(cap).toFixed(1)}×` : '上限';
+                const widthTxt = Number.isFinite(width) && width > 0 ? `(当前窗口宽 ${Math.round(width)} px)` : '';
+                message.info(`此窗口宽度下缩放上限为 ${capTxt}${widthTxt}:拉宽窗口或换更大的屏幕可以继续放大`, 4);
+            };
+        }
         // 暴露 window.__horosaMountAudit(无头重算/模块快照/段过滤同一份代码),供预览/自动化机读核对「无头重算=组件快照」。
         try{
             if(typeof localStorage !== 'undefined' && localStorage.getItem('horosa.debug.mountAudit') === '1'){

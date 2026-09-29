@@ -30,24 +30,23 @@ export default class TipsBoard extends Component{
                 if(item instanceof Array){
                     let lis = item.map((li, idx)=>{
                         if(li === '=='){
-                            return (<Divider dashed={true} key={idx} />)
+                            return (<Divider dashed={true} key={`s1-${idx}`} />)
                         }
                         return (
-                            <li key={idx}>{li}</li>
+                            <li key={`s2-${idx}`}>{li}</li>
                         )
                     });
                     let res = (
-                        // 此处 idx 为外层 tips.map 的下标(内层同名参数已出作用域)
-                        <ul key={idx}>
+                        <ul key={`s3-${idx}`}>
                             {lis}
                         </ul>                        
                     )
                     return res;
                 }else{
                     if(item === '=='){
-                        return (<Divider dashed={true} key={idx}/>)
+                        return (<Divider dashed={true} key={`s4-${idx}`}/>)
                     }
-                    return (<li key={idx}>{item}</li>)
+                    return (<li key={`s5-${idx}`}>{item}</li>)
                 }
             });
         }else{

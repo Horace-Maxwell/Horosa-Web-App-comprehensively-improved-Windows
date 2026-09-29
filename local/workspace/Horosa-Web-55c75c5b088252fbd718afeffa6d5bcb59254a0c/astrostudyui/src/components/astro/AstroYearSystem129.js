@@ -163,9 +163,8 @@ class AstroYearSystem129 extends Component{
 		}
 		for(let i = 0; i < rows.length; i++){
 			const cols = rows[i].map((d, ci) => <Col key={ci} span={8}>{d}</Col>);
-			// Row 与 Divider 交替推进同一个 doms 数组，故各自带前缀避免撞 key
-			doms.push(<Row key={`row-${i}`} gutter={12}>{cols}</Row>);
-			if(i < rows.length - 1){ doms.push(<Divider key={`divider-${i}`} dashed={true} />); }
+			doms.push(<Row key={`s3-${i}`} gutter={12}>{cols}</Row>);
+			if(i < rows.length - 1){ doms.push(<Divider key={`s4-${i}`} dashed={true} />); }
 		}
 
 		return (

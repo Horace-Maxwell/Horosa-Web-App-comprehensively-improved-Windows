@@ -76,7 +76,7 @@ class AntisciaInfo extends Component{
 				this.props.showPlanetHouseInfo
 			);
 				let dom = (
-					<div key={`anti-${idx}`} style={{fontFamily: AstroConst.AstroFont}}>
+					<div key={`s2-${idx}`} style={{fontFamily: AstroConst.AstroFont}}>
 						<span style={{fontFamily: AstroConst.NormalFont}}>{title}&nbsp;</span>
 						{this.renderLabel(labelA, obj.idA)}&nbsp;与&nbsp;
 						<span style={{fontFamily: AstroConst.NormalFont}}>{innerTitle}&nbsp;</span>
@@ -104,9 +104,8 @@ class AntisciaInfo extends Component{
 				obj.idB,
 				this.props.showPlanetHouseInfo
 			);
-				// 与上方映点循环共用同一个 divs 数组，故 key 加前缀区分
 				let dom = (
-					<div key={`canti-${idx}`} style={{fontFamily: AstroConst.AstroFont}}>
+					<div key={`s4-${idx}`} style={{fontFamily: AstroConst.AstroFont}}>
 						<span style={{fontFamily: AstroConst.NormalFont}}>{title}&nbsp;</span>
 						{this.renderLabel(labelA, obj.idA)}&nbsp;与&nbsp;
 						<span style={{fontFamily: AstroConst.NormalFont}}>{innerTitle}&nbsp;</span>
