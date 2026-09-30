@@ -346,7 +346,11 @@ def main():
                     help="复用已在跑的服务(如 http://127.0.0.1:8899);"
                          "注意 capture 与 verify 必须同模式")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--list-all", action="store_true",
+                    help="漂移/翻转/错误清单不截断(缺省各印前 40/20 条 —— #100 课四「看漂移必看全量」,#109 课五又撞一次)")
     args = ap.parse_args()
+    cap40 = None if args.list_all else 40
+    cap20 = None if args.list_all else 20
 
     cases = matrix.build_cases(quick=args.quick, groups=args.groups)
     if args.case:
@@ -389,7 +393,7 @@ def main():
             print("[golden] cases   : %d" % len(cases))
             print("[golden] passes  : %d" % args.selftest)
             print("[golden] unstable: %d" % len(unstable))
-            for cid in unstable[:40]:
+            for cid in unstable[:cap40]:
                 print("   ! unstable : %s" % cid)
             return 1 if unstable else 0
 
@@ -493,13 +497,13 @@ def main():
         print("[golden] errored        : %d" % len(errored))
         print("[golden] missing in base: %d" % len(missing))
 
-        for cid, was, now in rc_flip[:40]:
+        for cid, was, now in rc_flip[:cap40]:
             print("   ! RC %s -> %s : %s" % (was, now, cid))
-        for cid in raw_drift[:40]:
+        for cid in raw_drift[:cap40]:
             print("   ! raw drift : %s" % cid)
-        for cid in canon_drift[:20]:
+        for cid in canon_drift[:cap20]:
             print("   ~ key order : %s" % cid)
-        for cid, err in errored[:20]:
+        for cid, err in errored[:cap20]:
             print("   ! error     : %s  %s" % (cid, err))
         for cid in missing[:20]:
             print("   ! missing   : %s" % cid)
