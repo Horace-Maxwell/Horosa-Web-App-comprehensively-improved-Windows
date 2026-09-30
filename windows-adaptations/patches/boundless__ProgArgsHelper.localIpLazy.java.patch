@@ -1,0 +1,18 @@
+diff --git a/astrostudysrv/boundless/src/main/java/boundless/utility/ProgArgsHelper.java b/astrostudysrv/boundless/src/main/java/boundless/utility/ProgArgsHelper.java
+index f75afaa5..abfd13ba 100644
+--- a/astrostudysrv/boundless/src/main/java/boundless/utility/ProgArgsHelper.java
++++ b/astrostudysrv/boundless/src/main/java/boundless/utility/ProgArgsHelper.java
+@@ -41,6 +41,13 @@ public class ProgArgsHelper {
+ 		if(StringUtility.isNullOrEmpty(orgv)){
+ 			return "";
+ 		}
++		// horosa_localip_lazy_v1(PERF-R13 J6):只有值里真有 $127.0.0.1 / $LOCALHOST 占位符才枚举网卡。
++		// 此前每个属性值都先无条件走 IPUtility.getLocalIps() —— Windows 上 NetworkInterface 逐卡 isLoopback/
++		// getMacAddr 是 JNI 慢路径(虚拟网卡多的机器 ~200ms,JFR 实测占 Java 启动 7.7%),而桌面参数表
++		// 里根本没有这两个占位符 —— 无占位符时输出逐字节不变(替换本就是空操作),只省掉那次枚举。
++		if(orgv.indexOf("$127.0.0.1") < 0 && orgv.indexOf("$LOCALHOST") < 0){
++			return orgv.replace("$APP_PATH", ApplicationUtility.getAppPath());
++		}
+ 		String[] ips = IPUtility.getLocalIps();
+ 		if(ips == null || ips.length == 0){
+ 			return orgv.replace("$APP_PATH", ApplicationUtility.getAppPath());

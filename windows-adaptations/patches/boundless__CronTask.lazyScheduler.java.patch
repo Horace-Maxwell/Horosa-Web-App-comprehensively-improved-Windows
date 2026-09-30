@@ -1,0 +1,55 @@
+diff --git a/astrostudysrv/boundless/src/main/java/boundless/types/period/CronTask.java b/astrostudysrv/boundless/src/main/java/boundless/types/period/CronTask.java
+index 059325cf..6914c586 100644
+--- a/astrostudysrv/boundless/src/main/java/boundless/types/period/CronTask.java
++++ b/astrostudysrv/boundless/src/main/java/boundless/types/period/CronTask.java
+@@ -49,11 +49,22 @@ public class CronTask {
+ 		}
+ 	}
+ 	
+-	private Scheduler cron = new Scheduler(); 
++	// horosa_cron_lazy_v1(PERF-R13 J5):Scheduler 改为首次需要时才建。cron4j Scheduler 构造会触发
++	// GUIDGenerator 静态块逐张网卡取 MAC(Windows JNI 慢路径,JFR 实测每个 CronTask bean ~200ms),而桌面壳
++	// 以 HOROSA_ENABLE_STARTUP_CRON=0 起 Java 时 setParameters 直接返回、这个 Scheduler 从未被用到。
++	// 启用 cron 时行为逐字节同前(setParameters 内首次访问即构造)。
++	private Scheduler cron = null;
++
++	private Scheduler cron(){
++		if(cron == null){
++			cron = new Scheduler();
++		}
++		return cron;
++	} 
+ 	private Method scheduleM;
+ 	
+ 	public void stop(){
+-		if(cron.isStarted()){
++		if(cron != null && cron.isStarted()){
+ 			cron.stop();
+ 		}
+ 	}
+@@ -92,11 +103,11 @@ public class CronTask {
+ 				initM.invoke(null);
+ 			}
+ 			
+-			if(cron.isStarted()){
+-				cron.stop();
++			if(cron().isStarted()){
++				cron().stop();
+ 			}
+ 			
+-			cron.schedule(pattern, ()->{
++			cron().schedule(pattern, ()->{
+ 				try{
+ 					this.scheduleM.invoke(null);
+ 				}catch(Exception e){
+@@ -104,8 +115,8 @@ public class CronTask {
+ 				}
+ 			});
+ 			
+-			cron.start();
+-			cronList.add(cron);
++			cron().start();
++			cronList.add(cron());
+ 
+ 		}catch(Exception e){
+ 			QueueLog.error(logger, e);

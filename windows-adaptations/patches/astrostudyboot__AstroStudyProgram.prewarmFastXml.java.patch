@@ -1,0 +1,156 @@
+diff --git a/astrostudysrv/astrostudyboot/src/main/java/spacex/astrostudyboot/AstroStudyProgram.java b/astrostudysrv/astrostudyboot/src/main/java/spacex/astrostudyboot/AstroStudyProgram.java
+index 5ddb975c..6a33d8d1 100644
+--- a/astrostudysrv/astrostudyboot/src/main/java/spacex/astrostudyboot/AstroStudyProgram.java
++++ b/astrostudysrv/astrostudyboot/src/main/java/spacex/astrostudyboot/AstroStudyProgram.java
+@@ -26,7 +26,7 @@ import spacex.basecomm.model.AppInfo;
+ 
+ @SpringBootApplication(exclude={MongoAutoConfiguration.class,MongoDataAutoConfiguration.class})
+ @EnableAutoConfiguration(exclude={DataSourceAutoConfiguration.class,MongoAutoConfiguration.class,MongoDataAutoConfiguration.class})
+-@ImportResource("classpath:conf/spring-config.xml")
++@ImportResource(value = "classpath:conf/spring-config.xml", reader = AstroStudyProgram.HorosaFastXmlReader.class)
+ public class AstroStudyProgram {
+ 
+ 	public static void main(String[] args) {
+@@ -35,7 +35,7 @@ public class AstroStudyProgram {
+ 		final boolean profile = "1".equals(System.getenv("HOROSA_JAVA_STARTUP_PROFILE"));
+ 		mainMark(profile, "main.enter");
+ 		ProgArgsHelper.init(args);
+-		
++
+ 		AppInfo info = new AppInfo();
+ 		info.version = AstroStudyProgram.class.getPackage().getImplementationVersion();
+ 		info.version = info.version == null ? "1.0.0" : info.version;
+@@ -43,6 +43,9 @@ public class AstroStudyProgram {
+ 		info.channel = ClientChannel.Server.getCode() + "";
+ 		HttpHelper.setAppInfo(info);
+ 		mainMark(profile, "main.appinfo_done");
++		// horosa_java_prewarm_v1 ①:与 Spring 引导并行的 JDK 一次性开销预付。放在 log4j 初始化(上面 HttpHelper →
++		// PropertyPlaceholder 静态块)之后起线程 —— 与 main 的类加载风暴错开(A/B 实测放 main 入口时 main.pre +70ms)。
++		startPreSpringPrewarm();
+ 		
+ 		SpringApplicationBuilder builder = new SpringApplicationBuilder(AstroStudyProgram.class).web(WebApplicationType.SERVLET);
+ 		mainMark(profile, "main.builder_done");
+@@ -138,6 +141,123 @@ public class AstroStudyProgram {
+ 		};
+ 	}
+ 
++	// ─────────────────────────────────────────────────────────────────────────────
++	// horosa_java_prewarm_v1(PERF-R13 J3):两段并行预热,零功能变化(只做幂等的类初始化 / JDK 缓存预填)。
++	//  ① 起点段(main 入口起线程,与 Spring 引导并行):SecureRandom 首播种(JDK getSystemEntropy 会列举
++	//     %TEMP% + 解析本机名;Tomcat createTempDir / SessionIdGenerator 首用即付,JFR 实测 ~100ms)、
++	//     SSLContext 缺省实例(cacerts;AI 服务 bean 构造 java.net.http.HttpClient 时首用即付 ~60ms)、
++	//     本机名解析(log4j hostName 查找)、SnakeYAML / Jackson 类初始化(propertyConfiguration /
++	//     消息转换器首用即付)。刻意不碰 HttpClientUtility:它会 SSLContext.setDefault(信任全部),
++	//     早于 AI bean 构造会改变 AI 客户端拿到的信任上下文 —— 顺序敏感,留给就绪段。
++	//  ② 就绪段(ApplicationStarted 后起线程):/chart 首请求冷路径 —— QiMengHelper 静态块经 POI 解析
++	//     奇门年卦.xlsx(JFR 实测温启恢复 miss 时首盘 2.0s 里绝大部分是它:POI/XMLBeans 数千类加载 +
++	//     解析;NongliHelper 填四柱农历时首用)、BC provider、GCM/RSA 工具、JsonUtility、
++	//     HttpClientUtility(Java→Python 转发的 SSL 上下文)。类初始化由 JVM init-lock 串行化:请求若与
++	//     预热撞上只会等剩余部分,严格不慢于自己冷付;预热过的类进下一次动态 CDS 归档(此前恢复命中的
++	//     会话从不加载它们 ⇒ 从不入档)。
++	//  kill:HOROSA_JAVA_PREWARM=0(两段全关)。线程 daemon + MIN_PRIORITY + 逐项 try/catch(Throwable)。
++	// ─────────────────────────────────────────────────────────────────────────────
++	static final String HOROSA_JAVA_PREWARM_REV = "horosa_java_prewarm_v1";
++
++	private static boolean prewarmEnabled() {
++		String v = System.getenv("HOROSA_JAVA_PREWARM");
++		if (v == null) {
++			return true;
++		}
++		String t = v.trim();
++		return !("0".equals(t) || "false".equalsIgnoreCase(t) || "off".equalsIgnoreCase(t));
++	}
++
++	@FunctionalInterface
++	interface PrewarmStep {
++		void run() throws Throwable;
++	}
++
++	private static void prewarmStep(PrewarmStep r) {
++		try {
++			r.run();
++		} catch (Throwable ignore) {
++			// best-effort:失败静默,首用回到「冷即付」的现状语义
++		}
++	}
++
++	private static void startPrewarmThread(String name, Runnable body) {
++		if (!prewarmEnabled()) {
++			return;
++		}
++		try {
++			Thread t = new Thread(body, name);
++			t.setDaemon(true);
++			t.setPriority(Thread.MIN_PRIORITY);
++			t.start();
++		} catch (Throwable ignore) {
++			// 线程都起不来就算了:纯优化
++		}
++	}
++
++	/** ① 起点段 —— 只碰 JDK 与无全局副作用的第三方类初始化。单独 kill:HOROSA_JAVA_PREWARM_PRE=0。 */
++	private static void startPreSpringPrewarm() {
++		String pre = System.getenv("HOROSA_JAVA_PREWARM_PRE");
++		if (pre != null && ("0".equals(pre.trim()) || "false".equalsIgnoreCase(pre.trim()))) {
++			return;
++		}
++		startPrewarmThread("horosa-prewarm-pre", () -> {
++			prewarmStep(() -> new java.security.SecureRandom().nextInt());
++			prewarmStep(() -> javax.net.ssl.SSLContext.getDefault());
++			prewarmStep(() -> java.net.InetAddress.getLocalHost());
++			prewarmStep(() -> new org.yaml.snakeyaml.Yaml().load("horosa: 1"));
++			prewarmStep(() -> new com.fasterxml.jackson.databind.ObjectMapper()
++					.writeValueAsString(java.util.Collections.singletonMap("horosa", Integer.valueOf(1))));
++		});
++	}
++
++	/** ② 就绪段 —— /chart 首请求冷路径上的静态初始化(类名缺席即跳过,随上游演进无害)。 */
++	@Bean
++	public CommandLineRunner horosaFirstRequestPrewarm() {
++		return (args) -> startPrewarmThread("horosa-prewarm-post", () -> {
++			final ClassLoader cl = AstroStudyProgram.class.getClassLoader();
++			final String[] classes = {
++					"spacex.astrostudy.helper.QiMengHelper",
++					"boundless.security.SecurityUtility",
++					"boundless.security.GCMUtility",
++					"boundless.security.RSAUtility",
++					"boundless.spring.help.interceptor.ResponseCrypto",
++					"boundless.utility.JsonUtility",
++					"boundless.net.http.HttpClientUtility",
++					"spacex.astrostudy.helper.NongliHelper",
++					"spacex.astrostudycn.model.OnlyFourColumns",
++					"spacex.astrostudy.helper.predict.PlanetSignPredictHelper",
++			};
++			for (final String cn : classes) {
++				prewarmStep(() -> {
++					try {
++						Class.forName(cn, true, cl);
++					} catch (ClassNotFoundException e) {
++						// 类名随上游演进可能改动:缺席即跳过
++					}
++				});
++			}
++		});
++	}
++
++	// horosa_xml_fast_v1(PERF-R13 J2):@ImportResource 的 XML 读取器关掉 XSD 校验(namespaceAware 保持开,
++	// context:/mvc:/util: 命名空间处理器不受影响)。JFR 实测四个 spring XML 的 XSD 语法解析 + 校验落在
++	// Spring 刷新临界路径上(~80-230ms);bean 定义集(HOROSA_JAVA_BEAN_DUMP 快照:名/类/scope/lazy/来源 +
++	// 处理器映射)在校验开关两态下逐字节相同(发布链门核)。kill:HOROSA_XML_VALIDATE=1 恢复校验。
++	public static class HorosaFastXmlReader extends org.springframework.beans.factory.xml.XmlBeanDefinitionReader {
++		static final String HOROSA_XML_FAST_REV = "horosa_xml_fast_v1";
++
++		public HorosaFastXmlReader(org.springframework.beans.factory.support.BeanDefinitionRegistry registry) {
++			super(registry);
++			String v = System.getenv("HOROSA_XML_VALIDATE");
++			String t = v == null ? "" : v.trim();
++			if (!("1".equals(t) || "true".equalsIgnoreCase(t) || "on".equalsIgnoreCase(t))) {
++				setValidating(false);
++				setNamespaceAware(true);
++			}
++		}
++	}
++
+ //	@Bean
+ //	public FilterRegistrationBean<RSAFilter> rsaFilter(){
+ //		RSAFilter filter = new RSAFilter();

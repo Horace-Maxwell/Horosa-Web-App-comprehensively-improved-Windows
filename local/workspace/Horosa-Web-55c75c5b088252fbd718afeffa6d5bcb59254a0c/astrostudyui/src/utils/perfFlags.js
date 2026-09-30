@@ -370,6 +370,14 @@ export function stepPrefetchSkewEnabled(){
 	return flagEnabled('horosa.perf.stepPrefetchSkew');
 }
 
+// PERF-R13 F1(horosa_pump_gap_v1,Windows-ahead):泵拍间隔按「上个任务是否真去了网络」分档 ——
+// 缓存直供(<8ms)零间隔;真网络任务 max(80, 耗时) 封顶 120ms。旧节拍给缓存命中也等满 80ms,
+// 一轮 ±3 武装 12 任务空转 ~1s,重端点技法在 2.5s 步进节奏下 +2 目标常常没轮到(真机验收
+// p95 250-490ms 的 miss 全出自这里)。只改调度节拍,任务集合/白名单/预算/代际不动。关=旧节拍。
+export function stepPrefetchPumpGapEnabled(){
+	return flagEnabled('horosa.perf.stepPrefetchPumpGap');
+}
+
 // PERF-R12 W3d-G5(horosa_guolao_render_slice_v1):七政 bundle 全命中路径的中间 setState 合并
 // —— 流年盘+Moira 规则都已在缓存时跳过中间帧,终态一次落齐(字节一致,少一整轮重渲);
 // 规则缓存窥探为假(冷/在途)⇒ 保留中间帧,流年环照旧先行上屏。关=恒两段式。

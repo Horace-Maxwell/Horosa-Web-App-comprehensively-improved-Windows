@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 3.11.2
+version: 3.11.3
 date-released: 2026-09-29
 authors:
   - given-names: Horace
@@ -12,7 +12,7 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v3.11.2 beta is a local-first metaphysics workstation. This release is a major
+  Horosa for Windows v3.11.3 beta is a local-first metaphysics workstation. This release is a major
   upgrade of the AI assistant, from single-turn Q&A to an agent that can act, remember and connect:
   an action layer (off by default) lets the model create charts and cases, cast headlessly, change
   chart conventions and display preferences, switch technique pages and load workspaces — read-only

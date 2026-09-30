@@ -64,6 +64,9 @@
    "astrostudyui/src/components/astro3d/AstroChartMain3D.js": 1,
    "astrostudyui/src/components/commtools/CommToolsMain.js": 1
   },
+  "horosa_cron_lazy_v1": {
+   "astrostudysrv/boundless/src/main/java/boundless/types/period/CronTask.java": 1
+  },
   "horosa_data_warm_registry_v1": {
    "astrostudyui/src/utils/__tests__/dataWarmTasks.test.js": 1,
    "astrostudyui/src/utils/dataWarmTasks.js": 1,
@@ -178,6 +181,9 @@
    "astrostudyui/src/models/astro.js": 2,
    "astrostudyui/src/utils/perfMark.js": 1
   },
+  "horosa_java_prewarm_v1": {
+   "astrostudysrv/astrostudyboot/src/main/java/spacex/astrostudyboot/AstroStudyProgram.java": 3
+  },
   "horosa_jieqi24_memo_v1": {
    "astrostudyui/src/components/jieqi/JieQiChartsMain.js": 1
   },
@@ -226,6 +232,9 @@
    "astrostudyui/src/components/dunjia/DunJiaMain.js": 1,
    "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 1,
    "astrostudyui/src/components/sanshi/__tests__/liveTimePropagation.test.js": 3
+  },
+  "horosa_localip_lazy_v1": {
+   "astrostudysrv/boundless/src/main/java/boundless/utility/ProgArgsHelper.java": 1
   },
   "horosa_luopan_dial_viewport_cap_v1": {
    "astrostudyui/src/components/fengshui/LiqiWorkspace.js": 2,
@@ -393,11 +402,20 @@
    "astrostudyui/src/utils/perfFlags.js": 1,
    "astrostudyui/src/utils/stepPrefetch.js": 3
   },
+  "horosa_pump_gap_v1": {
+   "astrostudyui/src/utils/__tests__/stepPrefetchPumpGap.test.js": 2,
+   "astrostudyui/src/utils/perfFlags.js": 1,
+   "astrostudyui/src/utils/stepPrefetch.js": 2
+  },
   "horosa_pump_skew_v1": {
    "astrostudyui/src/models/astro.js": 4,
    "astrostudyui/src/utils/__tests__/stepPrefetch.test.js": 2,
    "astrostudyui/src/utils/perfFlags.js": 1,
    "astrostudyui/src/utils/stepPrefetchArm.js": 1
+  },
+  "horosa_py_early_gate_v1": {
+   "astropy/tests/test_early_gate.py": 1,
+   "astropy/websrv/webchartsrv.py": 7
   },
   "horosa_sanshi_no_drop_step_v1": {
    "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 1,
@@ -534,6 +552,9 @@
    "astrostudyui/src/components/wuzhao/WuZhaoMain.js": 1,
    "astrostudyui/src/utils/__tests__/kentangCacheWuzhaoGuard.test.js": 1,
    "astrostudyui/src/utils/kentangCache.js": 1
+  },
+  "horosa_xml_fast_v1": {
+   "astrostudysrv/astrostudyboot/src/main/java/spacex/astrostudyboot/AstroStudyProgram.java": 2
   },
   "horosa_xuanshi_longtext_ondemand_v1": {
    "astropy/websrv/webchartsrv.py": 1,

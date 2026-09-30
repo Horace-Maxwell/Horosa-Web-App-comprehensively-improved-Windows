@@ -35,7 +35,7 @@
 //     · 一拍之内先把旧代 entry 全部丢干净,直接执行遇到的第一个当代任务(丢旧不耗拍);
 //     · rIC timeout 2000→500:繁忙期每 ~500ms 保底一拍,配合上一条即「连点稳态仍在派发」。
 //   验收硬指标:20 连点期间预取派发 ≥15(jest fake-timer + 真机 interact_probe 双验)。
-import { stepPrefetchEnabled, stepSelectPrefetchEnabled, stepPrefetchFastFirstEnabled } from './perfFlags';
+import { stepPrefetchEnabled, stepSelectPrefetchEnabled, stepPrefetchFastFirstEnabled, stepPrefetchPumpGapEnabled } from './perfFlags';
 
 /** 允许预取的端点前缀(显式白名单;哨兵对照此数组,增删须同步测试)
  *  —— kentang 各技法 /{key}/pan【逐条枚举,绝不通配】:通配 '/*\/pan' 会把 seedInBody 族
@@ -105,6 +105,9 @@ const MIN_GAP_MS = 80;
 // 让出一帧(submit 在 settle 之后 = 主渲染已提交),与 livelock 修的 500ms 保底互补:
 // fast-first 管「首目标 ±1 的第一拍要快」,保底管「长队列在繁忙期持续有拍」。
 const FAST_FIRST_DELAY_MS = 32;
+// horosa_pump_gap_v1(PERF-R13 F1):缓存直供判据(<8ms 不可能是网络往返)与真网络任务后的拍间隔封顶。
+const CACHE_SERVED_MS = 8;
+const PUMP_GAP_CAP_MS = 120;
 
 let generation = 0;
 let running = false;
@@ -230,10 +233,22 @@ function pump(){
 			.catch(()=>{ /* 预取失败静默:回到冷即付现状,正式请求自会兜底 */ })
 			.finally(()=>{
 				lastTaskDurationMs = Date.now() - startedAt;
+				// horosa_pump_gap_v1(Windows-ahead,PERF-R13 F1):拍间隔按「上个任务真去了网络没有」分档 ——
+				//   · 缓存直供(<8ms:chartMem/L1/L2 命中,连点回拨的反向目标全是这种)⇒ 零间隔,下一拍立即;
+				//     旧规则给它们也等满 80ms,一轮 ±3 武装 12 任务光空转就烧掉 ~1s,重端点技法(七政/印占/六爻/
+				//     太乙)在 2.5s 步进节奏下 +2 目标常常还没轮到 ⇒ 真机验收 p95 250-490ms 的 miss 全出自这里;
+				//   · 真网络任务 ⇒ max(80, 耗时) 但封顶 PUMP_GAP_CAP_MS:错峰仍在,只是不再把一个 480ms 的重请求
+				//     翻倍成 960ms 的泵空窗(后端 X-Horosa-Priority 车道本就让前台先拿锁,泵不需要靠空窗让路)。
+				// 只改调度节拍,任务集合/白名单/预算/代际/latest-wins 全不动;结果落缓存,逐字节同前。
+				// kill:horosa.perf.stepPrefetchPumpGap(关=恒 max(80, 耗时) 旧节拍)。
+				let gapMs = Math.max(MIN_GAP_MS, lastTaskDurationMs);
+				if(stepPrefetchPumpGapEnabled()){
+					gapMs = lastTaskDurationMs < CACHE_SERVED_MS ? 0 : Math.min(gapMs, PUMP_GAP_CAP_MS);
+				}
 				setTimeout(()=>{
 					running = false;
 					pump();
-				}, Math.max(MIN_GAP_MS, lastTaskDurationMs));
+				}, gapMs);
 			});
 	};
 	// horosa_pump_fastfirst_v1(Windows-ahead,PERF-R12 W3a①):排干旧代后队头若是本代

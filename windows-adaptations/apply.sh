@@ -942,4 +942,22 @@ echo "== 39. v3.9.3 上游契约测硬编码仓库布局(Horosa-Web/ 目录名)�
 # 剥前缀,macOS 上解析到同一文件(行为等价,可上游化)。
 apply_patch horosa_ws_dirname_agnostic_v1        astrostudyui/src/utils/__tests__/classicalParamSpec.contract.test.js  src__utils__tests__classicalParamSpec.wsDirnameAgnostic.test.js.patch
 
+echo "== 40. PERF-R13 宗师轮(Java 启动临界路径 / Python 首屏早门 / 预取泵节拍;全带 kill-switch、功能零降级)— Java 三件 REQUIRES a jar rebuild =="
+# J6 ProgArgsHelper:属性值里无 $127.0.0.1 / $LOCALHOST 占位符时不枚举网卡(Windows NetworkInterface JNI ~200ms);输出逐字节同。
+apply_patch horosa_localip_lazy_v1   astrostudysrv/boundless/src/main/java/boundless/utility/ProgArgsHelper.java            boundless__ProgArgsHelper.localIpLazy.java.patch
+# J5 CronTask:cron4j Scheduler 首次需要时才建(其 GUIDGenerator 静态块逐张网卡取 MAC ~200ms);壳以 HOROSA_ENABLE_STARTUP_CRON=0 起 Java 时从未用到,启用 cron 时行为同前。
+apply_patch horosa_cron_lazy_v1      astrostudysrv/boundless/src/main/java/boundless/types/period/CronTask.java              boundless__CronTask.lazyScheduler.java.patch
+# J2+J3 AstroStudyProgram:@ImportResource 非校验 XML 读取器(bean 定义集两态逐字节同;HOROSA_XML_VALIDATE=1 回校验)+ 两段并行预热
+#   (起点段 SecureRandom/SSLContext/本机名/YAML/Jackson;就绪段 QiMengHelper[POI 解析 奇门年卦.xlsx,温启恢复 miss 首盘 2.0s 的主因]/
+#    BC/GCM/RSA/JsonUtility/HttpClientUtility/农历链;kill HOROSA_JAVA_PREWARM=0,起点段单独 HOROSA_JAVA_PREWARM_PRE=0)。
+apply_patch horosa_java_prewarm_v1   astrostudysrv/astrostudyboot/src/main/java/spacex/astrostudyboot/AstroStudyProgram.java astrostudyboot__AstroStudyProgram.prewarmFastXml.java.patch
+echo "   ^^ boundless + astrostudyboot are BACKEND Java. Rebuild: boundless install -> basecomm -> astrostudy -> astrostudycn install -> astrostudyboot clean package, then copy to bundle."
+# P1 webchartsrv(§16/§21 累积补丁就地更新,guard 不变):首屏早门 —— STARTUP_GATE 在 PD + 核心服务(−cetian)装完即开,
+#   kentang 挂载点改等 KENTANG_GATE(时刻 = 旧单门);HOROSA_PY_EARLY_GATE=1 由壳传入,服务侧缺省关(上游门时序测试不变量原样)。
+# F1 stepPrefetch + perfFlags(累积补丁就地更新,guard 不变):泵拍间隔分档(缓存直供零间隔 / 真网络后封顶 120ms;horosa.perf.stepPrefetchPumpGap)。
+cp "$OV/files/astrostudyui/src/utils/__tests__/stepPrefetchPumpGap.test.js" "$WS/astrostudyui/src/utils/__tests__/stepPrefetchPumpGap.test.js" && ok "stepPrefetchPumpGap.test.js"
+cp "$OV/files/astropy/tests/test_early_gate.py" "$WS/astropy/tests/test_early_gate.py" && ok "test_early_gate.py"
+# 壳侧同轮(HARNESS_MANIFEST 域,不经本脚本):horosa_uber_split_v1(自家模块 jar 独立类路径项,uber 只合并第三方 lib;
+#   build-uber-jar.py --split 冲突预检 + 旁车清单)/ HOROSA_PY_EARLY_GATE 透传。
+
 echo "== done. Verify: npm run selfcheck (windows-ahead / perf sentinels must all pass). =="
