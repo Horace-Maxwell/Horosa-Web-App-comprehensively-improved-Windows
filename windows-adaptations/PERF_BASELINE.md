@@ -197,6 +197,19 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.11.2(2026-09-30 同步轮·Mac 第二轮全面性能优化对位 + 八字/农历节气口径修正;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `1e10215f`)**:
+  warmReady 中位 **5327 / 5301ms**(p95 5418 / 5362),两臂相距 **-0.5%** = 构建自洽,无回归信号。
+  **workspaceVisible 872 / 875ms**(p95 899 / 906,预算 1500 内 ✓);spawnToVisible 1152 / 1154ms。
+  预算裁决 warmReady(预算 4500ms):A=OVER(check #64 machine state first) / B=OVER(check #64 machine state first);工件:`docs/perf-artifacts/startup_ab_v3112_warmstamp.json`。
+- **🔴 #64 机器态照录**:`currentClockMHz 2611 / maxClockMHz 2611`(turboSuppressedLikely=True)+ `mumuRunning: True`(owner 应用,未动)· vmmem False。
+  相对 v3.11.1 戳(5495/5520)的读法沿 v3.9.5/v3.10.0 盲点注:指纹只记进程在否不记实时负载,绝对值只作双臂/跨轮对照。 本轮双臂 5327/5301 比 v3.11.1 戳 5495/5520 快 3.1%/4.0%(机器态指纹逐项相同:2611/2611 睿频压制 + MuMu 常驻),未触发 #64 同机旧版对照;预算裁决 OVER 沿三轮同态读法(4500 预算是无压制机器的口径)。
+- **★JV-13 `HOROSA_SPRING_LAZY_INIT=1` A/B(上游 LazyInitXmlScanPostProcessor 落地后重测,n=5/臂)**:warmReady 中位 A(缺省 off)5325 / B(lazy on)5175ms(p95 5455 / 5225,Δ -2.8%);workspaceVisible 858 / 864ms。工件 `docs/perf-artifacts/startup_ab_v3112_lazyinit.json`。裁决:差异在双臂噪音带内,缺省保持 off(上游定点惰化已在 jar 内生效)。
+- **★启动路径代码面(逐处核过,#109 壳侧对位)**:壳 `horosa_early_nav_post_update_v1`(早导航 URL 加 boot=/firstLaunch=,只在更新裁决 success 时挂)/ `horosa_rv_ready_compare_v1`(双非空守卫,早导航期零多余重载)/ `horosa:backend-confirmed` 只派一次 / `horosa_jvm_r5_flags_v1`(-XX:-UsePerfData · DispatcherServlet 启动期初始化 · Boot LoggingSystem=none)/ `horosa_ready_fast_poll_v1`(探活 100→50ms);Java 侧上游 LazyInitXmlScanPostProcessor + 就绪后预热 + StartupLedgerListener now 盘预热(原 JV-7 退役,不重复);Python 侧 fastjson 全服务快径 / 星历路径短路(上游同名开关)。**⇒ 本版温启只有「更快」方向的改动;A/B 与预算裁决为证据面,jar 已重建(RUNTIME_VERSION 3.11.2-runtime1 三处)。**
+- **★台架结构限制照旧**:`resourceMode: direct` 且 ready 即被杀 ⇒ 加速档不建成,绝对值恒是「失活态」读数,只作对照。
+- **★增量更新**:差量门实测 **16MB / 1.9% 下载 / 98.1% 复用**(真变 66MB,预算 148MB;107 段 ranged GET);**CDS 档 byte-identical vs 3.11.1**(payload determinism 16,121 文件零 pip RECORD / 零 direct_url / manifest 无时间戳) —— 本版改动落在 app.asar 与后端 jar 的 basecomm/boundless/astrostudy/astrostudycn 四个嵌套 jar + Python 源,存量用户仍是无感升级。
+
 ### 温启对照 v3.11.1(2026-09-22 同步轮·盘面随界面主题重画 + 排盘设置「新盘种子」;horosa_warm_ab_stamp_v1)
 
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `b6370c55`)**:
