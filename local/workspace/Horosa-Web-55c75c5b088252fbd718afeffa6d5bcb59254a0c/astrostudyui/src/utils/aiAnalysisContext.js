@@ -167,7 +167,7 @@ import { getPdMethodLabel, getPdTimeKeyLabel, DEFAULT_PD_METHOD, DEFAULT_PD_TIME
 
 const DEFAULT_PD_ASPECTS = [0, 60, 90, 120, 180];
 // [挂载预算] 上下文字数预算单一真值：发送路径（AIAnalysisMain）与默认裁剪上限共用，消灭散落的字面量。
-// [#80·2026-09-10] 20000 → 24000：这是**未知模型**的保底(已知模型按窗口实算)。用户报障那盘挂了四技法，
+// [Windows #80·2026-09-10] 20000 → 24000：这是**未知模型**的保底(已知模型按窗口实算)。用户报障那盘挂了四技法，
 //   gpt-6-astra 不在模型窗口表里 → 回落保底 → 西占 26085 字被裁到 4334、印占 26803 被裁到 6379，
 //   AI 于是如实说「缺 Dasha 表 / 分盘 / 行运」。24000 字 ≈ 15k token，对 ≥32k 窗口的未知模型仍安全。
 export const AI_CONTEXT_MAX_CHARS = 24000;
@@ -2907,7 +2907,7 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 		case 'indiachart': {
 			// 挂载分盘可调(2026-07-05):record.indiaChartnum 经挂载齿轮设定;缺省 1=D1 现状零回归。
 			const indiaChartnum = Number(record && record.indiaChartnum) || 1;
-			// [#80] 附加分盘(D9 婚姻 / D7 子女…)与主盘同挂,各出一份简表;缺省空 = 零回归。
+			// [Windows #80] 附加分盘(D9 婚姻 / D7 子女…)与主盘同挂,各出一份简表;缺省空 = 零回归。
 			return await buildIndiaSnapshotForFields(buildFieldObject(record), indiaChartnum,
 				record && record.indiaExtraVargas);
 		}
@@ -2947,7 +2947,7 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 			return chartObj ? (await buildPrenatalSyzygySnapshotText(chartObj) || '') : '';
 		}
 		case 'prog': {
-			// [#80] 二次推运（回归黄道）：西占主流行运。与恒星支同一后端 /astroextra/progressions、
+			// [Windows #80] 二次推运（回归黄道）：西占主流行运。与恒星支同一后端 /astroextra/progressions、
 			// 同一 builder（只差不下发 zodiacal），此前只有页面没有技法键 ⇒ AI 挂不到「西占的行运推运」。
 			const chartObjP = await fetchChartResultForRecord(record);
 			if(!chartObjP){ return ''; }
@@ -3115,7 +3115,7 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 				// P4 区间扫描：end 非空且 step 有值 → 循环多段（每段一个推运时点）；缺省=单点=现状。
 				datetimeEnd: record.datetimeEnd,
 				scanStep: record.scanStep,
-				// [#80] 小限摘要粒度 / 起点(只喂文本 builder,见 runOnePoint textParams):此前本分支漏传 → 命盘挂载这两个齿轮恒按
+				// [Windows #80] 小限摘要粒度 / 起点(只喂文本 builder,见 runOnePoint textParams):此前本分支漏传 → 命盘挂载这两个齿轮恒按
 				// 年 / 上升出摘要,改了没用(差分套件的「通过」全靠「推运时间 = 此刻」跨分钟漂移出的假差分)。未改时 undefined = 缺省 年 / 上升。
 				profGrain: record.profGrain,
 				profStart: record.profStart,
@@ -3404,7 +3404,7 @@ function hasMatchingSavedAstroSnapshot(record){
 	if(!snapshot || !snapshot.content){
 		return null;
 	}
-	// [#79] payload 格式版本守卫:拆段/改表后的旧格式快照(version<ASTRO_SNAPSHOT_FORMAT_VERSION 或缺位=1)不得整份复用,
+	// [Windows #79] payload 格式版本守卫:拆段/改表后的旧格式快照(version<ASTRO_SNAPSHOT_FORMAT_VERSION 或缺位=1)不得整份复用,
 	// 否则挂载仍喂「分宫制宫头当主宰」的旧表。身份签名不动(签名位有钉死测试);最坏多算一次。常量缺位(mock)按 1=不拦。
 	const requiredFormat = Number(ASTRO_SNAPSHOT_FORMAT_VERSION) || 1;
 	if((Number(snapshot.version) || 1) < requiredFormat){

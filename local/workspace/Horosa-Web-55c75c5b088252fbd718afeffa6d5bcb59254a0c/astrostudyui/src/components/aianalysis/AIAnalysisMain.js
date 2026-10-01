@@ -409,7 +409,7 @@ function buildProviderOptionsFromForm(values){
 	if(requestTimeoutMs){
 		providerOptions.requestTimeoutMs = requestTimeoutMs;
 	}
-	// [#77] 流式看门狗两参(毫秒;空=默认 180s/1800s;仅前端消费,后端剥离不下发上游)
+	// [Windows #77] 流式看门狗两参(毫秒;空=默认 180s/1800s;仅前端消费,后端剥离不下发上游)
 	const streamStallMs = parseNumberText(values.streamStallMs, '流式空闲上限', { integer: true });
 	if(streamStallMs){
 		providerOptions.streamStallMs = streamStallMs;
@@ -2504,7 +2504,7 @@ function AIAnalysisMain(props){
 		const _numCtx = profile && profile.providerType === 'ollama'
 			? Number((profile.providerOptions || {}).num_ctx) || undefined
 			: undefined;
-		// [#80] 策略里填了「挂载字数预算」就用它,没填按模型窗口实算 —— 单一入口,各调用点同源。
+		// [Windows #80] 策略里填了「挂载字数预算」就用它,没填按模型窗口实算 —— 单一入口,各调用点同源。
 		const ctxCharBudget = mountCharBudgetFor(_selModel, { numCtx: _numCtx, floorChars: AI_CONTEXT_MAX_CHARS, policy: _policy });
 		const clipDetail = clipContextLayersDetailed(layers, { maxChars: ctxCharBudget, fairShare: true });
 		if(isMountedRef.current && !silent){
@@ -2537,7 +2537,7 @@ function AIAnalysisMain(props){
 			// [Q-290/PP-18] 非缓存家族同样先稳定后挥发(无断点);单一家族分组时 kept 顺序不变
 			_sysJoined = _joinLayers(_stableL.concat(_volatileL));
 		}
-		// [#80] 整层被丢弃时给模型留痕。此前被丢的层在提示词里**连标题带内容一起消失**，模型根本不知道
+		// [Windows #80] 整层被丢弃时给模型留痕。此前被丢的层在提示词里**连标题带内容一起消失**，模型根本不知道
 		//   有这么一份资料存在，只会按剩下的内容作答；丢弃只在本地 UI 留一个红 Tag。
 		//   追加在缓存断点**之后**：被丢的集合逐轮会变，放进稳定前缀会打断上游前缀缓存。
 		if(clipDetail.dropped && clipDetail.dropped.length){

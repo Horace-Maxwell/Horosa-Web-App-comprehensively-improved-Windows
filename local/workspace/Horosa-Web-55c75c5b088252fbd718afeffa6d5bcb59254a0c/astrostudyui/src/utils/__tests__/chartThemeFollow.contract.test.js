@@ -1,4 +1,4 @@
-// 盘面随主题重画 · 合同(FL-20260922-1:切明暗后宿盘 / 七政 / 六壬 / 卦…停在旧色)。三条机械锁 + 行为断言:
+// 盘面随主题重画 · 合同(切明暗后宿盘 / 七政 / 六壬 / 卦…停在旧色)。三条机械锁 + 行为断言:
 //   ① 凡「宿主组件」(挂着 svg / canvas 并命令式 draw 的类组件)必挂 watchChartAppearance(…)(单源订阅),豁免只许带理由且理由仍成立;
 //   ② 组件里不许再各自 new MutationObserver 观察 data-horosa-appearance(单源在 utils/appearance.js);
 //   ③ 盘面调色板 setColorTheme( 只在 utils/appearance.js 切(app.js / index.js 只调 syncChartPalette);
@@ -131,7 +131,7 @@ describe('行为', ()=>{
 	});
 });
 
-// ── AST 三锁(FL-20260922-3/4):调色板只能在「绘制那一刻」读 ─────────────────────────────────────────────
+// ── AST 三锁:调色板只能在「绘制那一刻」读 ─────────────────────────────────────────────
 // 模块初始化期(常量表)/ 实例字段(constructor 或任何方法里 this.x = …AstroColor…)读到的都是当时主题的色,切明暗后重画也换不掉;
 // 宿主 render() 里读调色板(如 <svg style.backgroundColor>)的,主题回调只重画不重渲染同样停旧 → 必须 forceUpdate / setState。
 describe('源码级 AST 锁(调色板只许绘制时读)', ()=>{

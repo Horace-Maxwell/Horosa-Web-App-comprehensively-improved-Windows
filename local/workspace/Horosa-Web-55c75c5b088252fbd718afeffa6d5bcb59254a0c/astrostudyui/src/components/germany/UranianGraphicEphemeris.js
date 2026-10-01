@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // [#84] 双触发收敛
+import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // 双触发收敛
 import { markPanelReady } from '../../utils/perfMark';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import moment from 'moment';
@@ -158,7 +158,7 @@ export default class UranianGraphicEphemeris extends Component {
 			startTime: '00:00:00', endTime: '00:00:00',
 			planets: this.planetSet(), includeTransits: false,
 		};
-		// [#84] 双触发收敛:挂钩与 componentDidUpdate 同一次改动各进一次 → 请求参数全同的第二路跳过
+		// 双触发收敛:挂钩与 componentDidUpdate 同一次改动各进一次 → 请求参数全同的第二路跳过
 		const ephemTrig = claimTrigger(this, 'requestData', JSON.stringify(params));
 		if (!ephemTrig) { return; }
 		this.setState({ loading: true, note: null });

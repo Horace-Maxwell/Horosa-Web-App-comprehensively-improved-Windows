@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/huangji/HuangJiMain.js b/astrostudyui/src/components/huangji/HuangJiMain.js
-index a139a7b2..03761db1 100644
+index e6d37921..dd64bd67 100644
 --- a/astrostudyui/src/components/huangji/HuangJiMain.js
 +++ b/astrostudyui/src/components/huangji/HuangJiMain.js
 @@ -19,6 +19,8 @@ import { formatHumanValue } from '../../utils/humanReadableFields';

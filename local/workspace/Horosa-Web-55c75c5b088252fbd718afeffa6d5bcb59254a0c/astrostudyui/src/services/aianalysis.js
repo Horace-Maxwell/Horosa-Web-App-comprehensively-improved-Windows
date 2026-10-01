@@ -314,7 +314,7 @@ export async function requestAIAnalysisChatStream(rawValues, handlers = {}){
 	//      推理模型「只思考不出 token」时该节永远转圈、且 concurrency=1 下卡死整份报告。
 	//   修①:看门狗只在「真有内容 token(delta 事件)」时重置 —— 心跳不再续命,故「只心跳不出 token」超过 STALL_MS 即 fail-fast。
 	//   修②:另设不可重置的 MAX_STREAM_MS 绝对上限,兜「token 龟速但永不收尾」。两者皆 → 抛错 → 上层标 failed → 队列推进,绝不永久挂起。
-	// [#77 根修] 三层超时语义(Windows 仓 issue「GLM/qwen 回答卡在一半提示超时/思考过久提示重试」):
+	// [Windows #77 根修] 三层超时语义(Windows 仓 issue「GLM/qwen 回答卡在一半提示超时/思考过久提示重试」):
 	//   连接+首响应头 = withTimeout(requestTimeoutMs,默认 120s;流体阶段 timer 已清不受管)
 	//   空闲看门狗 STALL = 距上个真产出 token(delta/reasoning)的上限——默认 90s→180s(深思模型
 	//     经部分中转网关思考期不流式转发,90s 真空即误杀;心跳仍不续命,fail-fast 语义不变)

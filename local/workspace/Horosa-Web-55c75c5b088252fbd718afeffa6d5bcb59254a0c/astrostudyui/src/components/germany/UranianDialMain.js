@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // [#84] 双触发收敛
+import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // 双触发收敛
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import moment from 'moment';
 import { Row, Col, Slider, Tree, Collapse, Table, Modal, Input } from 'antd';
@@ -409,7 +409,7 @@ export default class UranianDialMain extends Component {
 		const perr = dialParamsError(params);
 		if (perr) { if (!this.unmounted) this.setState({ dataNote: perr }); return; }
 		if (!this.unmounted && this.state.dataNote) this.setState({ dataNote: null });
-		// [#84] 双触发收敛:挂钩与 componentDidUpdate 同一次改动各进一次 → 请求体全同的第二路跳过
+		// 双触发收敛:挂钩与 componentDidUpdate 同一次改动各进一次 → 请求体全同的第二路跳过
 		let natalBody = null;
 		try {
 			// B5 戴维森:开关开且已选合盘人 → 请求附 davison(第二人出生参数);后端只增响应字段。

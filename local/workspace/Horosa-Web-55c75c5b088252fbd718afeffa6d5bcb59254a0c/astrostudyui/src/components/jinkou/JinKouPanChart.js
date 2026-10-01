@@ -41,7 +41,7 @@ function extractBranch(value){
 }
 
 class JinKouPanChart {
-	// bgColor / color 按访问时读当前调色板(切明暗后重画即新色);显式赋值仍优先 —— 构造期 this.x = AstroColor.y 会把旧主题的色存进实例(FL-20260922-3)
+	// bgColor / color 按访问时读当前调色板(切明暗后重画即新色);显式赋值仍优先 —— 构造期 this.x = AstroColor.y 会把旧主题的色存进实例
 	get bgColor(){ return this._bgColorOverride !== undefined ? this._bgColorOverride : AstroConst.AstroColor.Fill; }
 	set bgColor(v){ this._bgColorOverride = v; }
 	get color(){ return this._colorOverride !== undefined ? this._colorOverride : AstroConst.AstroColor.Stroke; }

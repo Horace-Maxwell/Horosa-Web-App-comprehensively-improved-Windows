@@ -1,4 +1,4 @@
-// [#54] 六爻「定年界线=正月初一」联机路径:后端 /nongli/time 不产 yearGZByLunar 时,桥按本地历法补键(与离线回落同源);
+// 六爻「定年界线=正月初一」联机路径:后端 /nongli/time 不产 yearGZByLunar 时,桥按本地历法补键(与离线回落同源);
 // 后端已带该键则一字不动;补键只加不改其余字段。
 import request from '../request';
 import { fetchPreciseNongli } from '../preciseCalcBridge';

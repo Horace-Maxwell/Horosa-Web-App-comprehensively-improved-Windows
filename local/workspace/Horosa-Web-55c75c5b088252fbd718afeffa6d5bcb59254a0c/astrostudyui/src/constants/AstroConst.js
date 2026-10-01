@@ -1503,7 +1503,7 @@ export function normalizeIndiaAnnualChartType(value){
     return value === 'tithi' ? 'tithi' : 'varsha';
 }
 
-// [#80] 挂载分盘可选集单一真值源:挂载齿轮的「挂载分盘」与「附加分盘」两处选项、
+// [Windows #80] 挂载分盘可选集单一真值源:挂载齿轮的「挂载分盘」与「附加分盘」两处选项、
 //   以及附加分盘简表的段内小标题都读它 —— 免得 D 序号与中文名在三处各写各的。
 export const INDIA_MOUNT_VARGA_OPTIONS = [
     { value: 1, label: 'D1 命盘' }, { value: 2, label: 'D2 财富' }, { value: 3, label: 'D3 兄弟' },

@@ -17,7 +17,7 @@ export const CHAT_CONTEXT_POLICY_EVENT = 'horosa:chat-context-policy-changed';
 export const DEFAULT_CONTEXT_POLICY = Object.freeze({
 	historyMode: 'window',
 	historyTokenBudget: null,
-	// [#80] 挂载字数预算:null = 按当前模型上下文窗口实算(contextCharBudgetForModel);
+	// [Windows #80] 挂载字数预算:null = 按当前模型上下文窗口实算(contextCharBudgetForModel);
 	//   填数 = 固定该值(只夹下限 2000,不受 capChars 封顶——用户自己填的就是他要的)。
 	mountCharBudget: null,
 	historyMinKeep: 4,

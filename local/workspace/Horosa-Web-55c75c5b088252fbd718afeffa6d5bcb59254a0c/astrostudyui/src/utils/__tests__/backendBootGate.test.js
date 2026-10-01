@@ -181,4 +181,24 @@ describe('[R5 S8] 启动上下文与更新后首启的兜底放行上限', ()=>{
 		setSearch('?early=1&boot=abc');
 		expect(bootContext()).toEqual({ early: true, firstLaunch: false, bootStartedAtMs: null });
 	});
+	test('上下文读完即从地址栏摘掉 firstLaunch / boot(手动刷新不再重演首启口径);early 与服务根参数保留', ()=>{
+		__resetBackendBootGateForTest();
+		setSearch('?early=1&firstLaunch=1&boot=1790000000000&srv=http%3A%2F%2F127.0.0.1%3A9999&rv=3.11.2-runtime1');
+		expect(bootContext()).toEqual({ early: true, firstLaunch: true, bootStartedAtMs: 1790000000000 });
+		const p = new URLSearchParams(window.location.search);
+		expect(p.get('firstLaunch')).toBeNull();
+		expect(p.get('boot')).toBeNull();
+		expect(p.get('early')).toBe('1');
+		expect(p.get('srv')).toBe('http://127.0.0.1:9999');
+		expect(p.get('rv')).toBe('3.11.2-runtime1');
+		// 本会话缓存的上下文不受地址栏变化影响;重读(= 手动刷新后的新会话)按摘掉后的地址栏 → 非首启、无 boot
+		expect(bootContext().firstLaunch).toBe(true);
+		__resetBackendBootGateForTest();
+		expect(bootContext()).toEqual({ early: true, firstLaunch: false, bootStartedAtMs: null });
+		// 没有一次性参数时不碰地址栏
+		setSearch('?early=1&srv=x');
+		__resetBackendBootGateForTest();
+		bootContext();
+		expect(window.location.search).toBe('?early=1&srv=x');
+	});
 });

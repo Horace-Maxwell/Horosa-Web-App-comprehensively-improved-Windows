@@ -1,4 +1,4 @@
-// [FL-20260902-1] 壳→页面事件桥死开关:打包版无 window.__TAURI__(withGlobalTauri 默认 false)且无 capabilities
+// 壳→页面事件桥死开关:打包版无 window.__TAURI__(withGlobalTauri 默认 false)且无 capabilities
 // → `__TAURI__.event.listen` 永远挂不上,壳侧每 30 分钟的自动备份 tick 从未被接收。
 // 判别向量:只模拟打包版真实全局(有 __TAURI_INTERNALS__、无 __TAURI__),改前红改后绿。
 import * as desktop from '../aiAnalysisDesktop';

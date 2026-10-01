@@ -92,7 +92,7 @@ describe('T2 新写法:三种引擎语义下全部正确', () => {
 	});
 });
 
-describe('T2b 容器实测值不套版面地板(FL-20260906-30:缩放档裁底根因)', () => {
+describe('T2b 容器实测值不套版面地板(缩放档裁底根因)', () => {
 	it('缩放 1.5 档、窗高 1000:容器 595 < 660 → 原样 595(不是 660)', () => {
 		expect(resolveWorkspaceHeight({
 			containerHeight: 595, layoutViewportHeight: 667, physicalClientHeight: 1000,

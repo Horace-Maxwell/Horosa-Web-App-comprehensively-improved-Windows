@@ -398,7 +398,7 @@ function buildExtendedDashaSnapshotLines(chartObj, sys, fields){
 	return out;
 }
 
-// [#80] 小运(Antardasha)全展:此前只在「当前大运」里挑出当下这一支,其余八个大运的小运
+// [Windows #80] 小运(Antardasha)全展:此前只在「当前大运」里挑出当下这一支,其余八个大运的小运
 // 后端本就随每个 mahadasha 一并返回(IndiaChartMain 逐条渲染在用),快照却整片不出 ——
 // AI 因此答「没有完整的 Dasha 表」。9×9=81 行 ≈4 千字,在挂载预算内;超上限则截断并明说截了。
 export const DASHA_ANTAR_ROW_MAX = 120;
@@ -1202,7 +1202,7 @@ function buildIndiaSnapshotText(chartObj, fields, chartnum, hook){
 }
 
 // 供 AI 分析无头复算：按出生字段取印度盘（默认 D1 命盘）并生成快照文本。
-// [#80] 无头取盘参数解析单源:整盘快照与附加分盘简表共用一份,免两层各写各的(FL-20260909 同族)。
+// [Windows #80] 无头取盘参数解析单源:整盘快照与附加分盘简表共用一份,免两层各写各的。
 function resolveIndiaHeadlessParams(fields, chartnum){
 	const params = fieldsToParams(fields, {});
 	// 无头复算:挂载给了 indiaSchool 但未显式给岁差/宫制时,按该派预设补默认(与组件在场同口径)。
@@ -1225,14 +1225,14 @@ function resolveIndiaHeadlessParams(fields, chartnum){
 	return params;
 }
 
-// [#80] 附加分盘要挂哪几张:归一(值域/去重/上限 4)后再剔掉主盘自身 —— 主盘已有整段,
+// [Windows #80] 附加分盘要挂哪几张:归一(值域/去重/上限 4)后再剔掉主盘自身 —— 主盘已有整段,
 // 再出一份简表是纯浪费预算。纯函数,便于逐向量判据。
 export function planIndiaExtraVargas(mainChartnum, extraVargas){
 	const main = resolveIndiaFractal(mainChartnum, null);
 	return AstroConst.normalizeIndiaExtraVargas(extraVargas).filter((n)=>n !== main);
 }
 
-// [#80] 附加分盘简表:只挑该分盘自己的落宫面(宫位宫头 + 星与虚点 + 行星),
+// [Windows #80] 附加分盘简表:只挑该分盘自己的落宫面(宫位宫头 + 星与虚点 + 行星),
 // 不重复大运/瑜伽/相位等段 —— 整张分盘快照约 2.6 万字,N 张全出会把挂载预算吃穿。
 // 纯函数(吃已建好的整段快照文本),取数在 buildIndiaSnapshotForFields 里。
 export function pickIndiaVargaBriefLines(astroText, chartnum){

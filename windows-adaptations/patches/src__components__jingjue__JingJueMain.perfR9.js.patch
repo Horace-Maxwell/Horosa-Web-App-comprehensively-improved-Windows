@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/jingjue/JingJueMain.js b/astrostudyui/src/components/jingjue/JingJueMain.js
-index e0b15e03..9b912ec6 100644
+index 95ff18c4..9a8093e5 100644
 --- a/astrostudyui/src/components/jingjue/JingJueMain.js
 +++ b/astrostudyui/src/components/jingjue/JingJueMain.js
 @@ -15,6 +15,8 @@ import { cachedKentangFetch } from '../../utils/kentangCache';

@@ -1,10 +1,10 @@
 diff --git a/astrostudyui/src/components/germany/UranianGraphicEphemeris.js b/astrostudyui/src/components/germany/UranianGraphicEphemeris.js
-index 45d678be..d8011896 100644
+index 780bdac4..5e2b4abf 100644
 --- a/astrostudyui/src/components/germany/UranianGraphicEphemeris.js
 +++ b/astrostudyui/src/components/germany/UranianGraphicEphemeris.js
 @@ -1,5 +1,6 @@
  import { Component } from 'react';
- import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // [#84] 双触发收敛
+ import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // 双触发收敛
 +import { markPanelReady } from '../../utils/perfMark';
  import { safeLocalStorageSet } from '../../utils/safeStorage';
  import moment from 'moment';

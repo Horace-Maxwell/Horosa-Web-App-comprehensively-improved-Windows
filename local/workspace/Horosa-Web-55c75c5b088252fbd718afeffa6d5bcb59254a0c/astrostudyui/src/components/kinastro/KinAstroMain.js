@@ -1,5 +1,5 @@
 import React, { Component, Suspense } from 'react';   // React/Suspense:神数正传组件级 lazy 所需
-import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // [#84] 双触发收敛
+import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // 双触发收敛
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { Checkbox, Collapse, Input, InputNumber, Modal, Spin, Switch } from 'antd';
 import DateTime from '../comp/DateTime';
@@ -1762,7 +1762,7 @@ class KinAstroMain extends Component{
 		if(this._inFlightSig === sig){
 			return;
 		}
-		// [#84] 双触发收敛:上面只挡「在途」同签名;缓存命中时第一路瞬间落地,挂钩 / 更新钩子的后几路仍会整套重来 →
+		// 双触发收敛:上面只挡「在途」同签名;缓存命中时第一路瞬间落地,挂钩 / 更新钩子的后几路仍会整套重来 →
 		// 同签名在同一拍(见 utils/singleTrigger 时间窗)内再次触发也跳过。
 		const panTrig = claimTrigger(this, 'fetchPan', sig);
 		if(!panTrig){

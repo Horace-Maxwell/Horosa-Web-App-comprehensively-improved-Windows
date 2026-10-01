@@ -1,4 +1,4 @@
-// [#92] 八字本地引擎:年柱 / 月柱 / 交节距离(起运、节后天数)按出生的绝对时刻取,日柱 / 时柱仍按当地钟表。
+// 八字本地引擎:年柱 / 月柱 / 交节距离(起运、节后天数)按出生的绝对时刻取,日柱 / 时柱仍按当地钟表。
 // lunar-javascript 的节气表按北京时间排;此前非东八区直接喂当地钟表 → 交节在当地钟表上偏「8 − 时区」小时。
 // 1990 年芒种 = 06-05 22:46:30 UTC(北京 06-06 06:46:30;巴黎 06-05 23:46:30;纽约 06-05 17:46:30;东京 06-06 07:46:30)。
 import { buildLocalBaziResult, buildLocalNongliLite } from '../baziLunarLocal';
@@ -8,7 +8,7 @@ const run = (zone, lon, lat, date, time, extra = {})=>buildLocalBaziResult({
 }).bazi;
 const pillars = (b)=>b.fourColumns.year.ganzi + b.fourColumns.month.ganzi + b.fourColumns.day.ganzi + b.fourColumns.time.ganzi;
 
-describe('[#92] 非东八区按绝对时刻换月', ()=>{
+describe('非东八区按绝对时刻换月', ()=>{
 	test('巴黎 / 纽约芒种后 2 时 14 分出生 → 壬午月(日柱 / 时柱仍按当地钟表)', ()=>{
 		const paris = run('+01:00', '2e21', '48n51', '1990-06-06', '02:00:00');
 		expect(pillars(paris)).toBe('庚午壬午壬寅辛丑');

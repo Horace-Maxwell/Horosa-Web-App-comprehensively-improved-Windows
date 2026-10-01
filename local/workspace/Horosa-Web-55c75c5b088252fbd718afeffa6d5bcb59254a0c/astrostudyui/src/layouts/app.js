@@ -74,7 +74,7 @@ const App = ({children, dispatch, app, user, astro, })=>{
         // [P3] 定时任务接线:壳侧每 60 秒 __horosaSchedulerTick(偏好 scheduler_enabled 缺省关=壳零动作);页面按子开关决定跑不跑,缺省关=零定时器零执行
         bindSchedulerTicks();
         // [挂载自检] 真栈审计钩:仅 localStorage['horosa.debug.mountAudit']==='1' 时惰性装载(缺省键缺席=零路径零 chunk);
-        // [#59] 壳按窗口宽度封顶缩放档:⌘+ 超限时壳 eval 本钩子说明原因(布局视口宽必须 ≥ 1000 CSS px)。
+        // 壳按窗口宽度封顶缩放档:⌘+ 超限时壳 eval 本钩子说明原因(布局视口宽必须 ≥ 1000 CSS px)。
         if(typeof window !== 'undefined'){
             window.__HOROSA_SHELL_ZOOM_CAPPED = (cap, width)=>{
                 const capTxt = Number.isFinite(cap) ? `${Number(cap).toFixed(1)}×` : '上限';
@@ -88,7 +88,7 @@ const App = ({children, dispatch, app, user, astro, })=>{
                 import(/* webpackChunkName: "mount-audit-debug" */ '../utils/mountAuditDebug').then((m)=>m.installMountAuditHook()).catch(()=>{});
             }
         }catch(_e){ /* noop */ }
-        // [FL-20260902-1] 桌面桥自检上报:全局/ACL 真值进壳侧账本(真机结论有据可查)
+        // 桌面桥自检上报:全局/ACL 真值进壳侧账本(真机结论有据可查)
         reportDesktopBridgeDiag().catch(()=>{});
         // 页面侧请求失败计数进壳侧账本:后端离线跳变即报;此外每 10 分钟总数有变才报(无桥两者皆静默)。
         let prevOnline = null;

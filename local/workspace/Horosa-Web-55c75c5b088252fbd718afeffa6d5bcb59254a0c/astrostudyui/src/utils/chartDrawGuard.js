@@ -1,7 +1,7 @@
 import * as AstroConst from '../constants/AstroConst';
 import { subscribeAppearance } from './appearance';
 
-// 主题重画订阅(单源;FL-20260922-1):盘面颜色是绘制时从 AstroConst.AstroColor 烘焙进 SVG / canvas 的,切明暗后不重画就停在旧色。
+// 主题重画订阅(单源):盘面颜色是绘制时从 AstroConst.AstroColor 烘焙进 SVG / canvas 的,切明暗后不重画就停在旧色。
 // 每个「宿主组件」(挂着 svg/canvas、调 draw 的那个)在 componentDidMount 挂一次,componentWillUnmount 调返回的 detach;
 // 回调里按各盘的重画入口重画(forceUpdate 更新 svg 底色内联样式 + drawChart 重建内容)。调色板切换与广播都在 utils/appearance.js,
 // 回调时调色板已就位(不必再跨帧等)。合帧、去重、卸载后不回调 —— 由 subscribeAppearance 保证。

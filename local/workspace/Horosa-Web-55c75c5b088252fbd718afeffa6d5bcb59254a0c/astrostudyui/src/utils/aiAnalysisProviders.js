@@ -412,7 +412,7 @@ export const MODEL_CONTEXT_WINDOWS = [
 	// 兜底的 `claude-` 之前;此前 claude 一律按 200K,Sonnet 5 的 1M 窗口被砍成 200K ⇒ 挂载预算凭空少一大截。
 	{ match: 'claude-sonnet-5', tokens: 1000000 },
 	{ match: 'claude-', tokens: 200000 },
-	// [#80] gpt-6 家族(astra 等):用户实测标称 1,050,000。此前表里最新只到 gpt-5,`gpt-6-astra`
+	// [Windows #80] gpt-6 家族(astra 等):用户实测标称 1,050,000。此前表里最新只到 gpt-5,`gpt-6-astra`
 	//   对 13 条 match 全不命中 → contextWindowForModel 回 null → 挂载预算掉到地板 20000 字,
 	//   四技法均分后西占只剩 4334 字(原始 26085)。放在 gpt-5 之前只为醒目,匹配是子串不依赖顺序。
 	{ match: 'gpt-6', tokens: 1050000 },
@@ -443,7 +443,7 @@ export function contextWindowForModel(model){
 //   往 8k 窗口塞 2 万字被引擎静默截断(这正是本函数要治的病);
 // - 大窗口模型 → 上限 capChars(默认 120000 字)封顶;
 // - opts.explicitChars(用户在「对话上下文策略 → 挂载字数预算」里填的数)一律优先,只夹下限不夹顶。
-//   [#80] 硬顶此前 60000:实算下**凡窗口 ≥ 约 78.9k 的模型一律恰好拿到 60000**((win−16384)×0.96 先撞顶),
+//   [Windows #80] 硬顶此前 60000:实算下**凡窗口 ≥ 约 78.9k 的模型一律恰好拿到 60000**((win−16384)×0.96 先撞顶),
 //   也就是说这个顶就是当今所有主流模型的真实预算。抬到 120000 的判据:用户报障那盘四技法原始量
 //   西占 26085 + 印占 26803 + 八字/紫微 ≈ 2 万 ≈ 7.3 万字,扣 15% 尾仓后 120000×0.85=102000 字 ⇒ 一个字不裁。
 // 分摊:窗口 1/4(1k..16k)预留输出,余量六成给挂载层(其余给对话/检索/系统)。
@@ -461,7 +461,7 @@ export function contextCharBudgetForModel(model, opts = {}){
 	return Math.max(2000, Math.min(cap, chars));
 }
 
-// [#80] 挂载字数预算单一入口:策略里填了就用策略的,没填就按模型窗口实算。
+// [Windows #80] 挂载字数预算单一入口:策略里填了就用策略的,没填就按模型窗口实算。
 //   对话页 / 目标任务 / 报告页三处一律调它 —— 各自散着调 contextCharBudgetForModel 迟早漂成两套口径。
 export function mountCharBudgetFor(model, opts = {}){
 	const policy = opts.policy && typeof opts.policy === 'object' ? opts.policy : null;

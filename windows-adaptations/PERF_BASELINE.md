@@ -11,14 +11,12 @@
 ## 本版验收头
 
 - version: 3.11.3
-- build: release(v3.11.2 **Mac 第二轮全面性能优化对位轮**:上游启动与流畅度[界面与本地服务并行准备 /
-  温启直接出上次的盘 / 前台优先于预取 / 一次改动只重算一次 ×13 页 / 会话钥 AES-GCM 原生解密 / Java 组件按需
-  初始化+就绪后预实例化 / 预载按使用频次]+ 计算提速[本命盘 38→17.5ms、响应编码 5.7→1.0ms、奇门 89→1ms、
-  铁板 15.5→3.7ms、蠢子 19.4→7.0ms、皇极典籍按需 1.96MB→27KB、天象微年表 27.8MB→0.44MB]—— 我方 PY-1..21 /
-  JV-3/5/6/8/9/10 多数按上游 checklist 改 upstreamed(退役迁哨兵),PY-22 撤回,PY-6/7 作废,门后预热 PY-13/PY-23
-  保留;壳侧六项(rv 早导航 / 就绪确认事件 / 早入界面参数 / 缩放封顶钩子 / 账本命令 / 修复单飞)对位 Electron。
-  八字/农历/节气口径修正 + 六爻间爻 + 缓存代次 v6→v9/w5→w6/cal3(**金标必有漂移,走 #97 四步裁定**)。
-- date: 2026-09-29(v3.11.2 同步轮;逐技法全表存档日 2026-07-22,本轮温启 A/B + 差量门 + 金标裁定为验收面)
+- build: release(v3.11.3 = **Windows PERF-R13 宗师级性能轮(J1-J6 / P1-P2 / F1,gotcha #110)+ Mac v3.11.3 同步对位(#111)**:
+  上游 3.11.3 = 安装/更新后首开预检(macOS 独有,Windows 无对应动作)+ 排盘服务分级门(`CORE_GATE` + 1.5s 宽限;
+  与我方首屏门 `EARLY_GATE` 并存,缺省态时序 = 上游)+ 天象库只读 immutable 打开 + 温启快照页签取上次停留 +
+  一次性启动上下文读完即摘 URL + 交易日志规则/冷路径回退开关;我方 PERF-R13 八项全部保留(Java 临界路径
+  −0.5s / Python 首屏门 2.1→0.96s / 泵拍分档中性)。**金标预判零漂移**(Python 只改门与只读打开;走 --verify 实证)。
+- date: 2026-09-30(v3.11.3 合并发布轮;逐技法全表存档日 2026-07-22,本轮温启 A/B + 逐技法 step 验收 + F1 同建 A/B + 导航探针 + 差量门 + 金标为验收面)
 - commit: 见本轮发布 commit(v3.11.2 同步轮)
 - 机器态: Xeon W-11955M;CurrentClockSpeed **2611 == 基频**(睿频压制)+ MuMu/vmmem 7 进程常驻
   (owner 应用,未动)——#64 特征全中,本表数字仍为保守值;与 3.5.0 轮同机同态,跨轮可比。
@@ -197,6 +195,36 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.11.3(2026-09-30 PERF-R13 宗师级性能轮·Windows-only 零功能变化;horosa_warm_ab_stamp_v1)
+
+- **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `aabb11f0`)**:
+  warmReady 中位 **4372 / 4454ms**(p95 4454 / 4474),两臂相距 **+1.9%** = 构建自洽,无回归信号。
+  **workspaceVisible 775 / 778ms**(p95 798 / 817,预算 1500 内 ✓);spawnToVisible 1031 / 1038ms。
+  预算裁决 warmReady(预算 4500ms):**A=PASS / B=PASS**(v3.11.2 戳 5327/5301 两臂皆 OVER);工件:`docs/perf-artifacts/startup_ab_v3113_warmstamp.json`。
+- **🔴 #64 机器态照录**:`currentClockMHz 2611 / maxClockMHz 2611`(turboSuppressedLikely=True)+ `mumuRunning: True`(owner 应用,未动)· vmmem False —— 与 v3.11.2 戳**同机器态**。
+  相对 v3.11.2 戳 **−17.9% / −16.0%**(5327→4372 / 5301→4454);workspaceVisible −11%(872→775);spawnToVisible −10.5%(1152→1031)。
+  本台架恒为「失活态」读数(`resourceMode: direct`、阶梯未建成,ladder uberJar/staticJsa=false)—— 本轮改动里 J1 拆分类路径只在阶梯态生效,
+  故这里的 −17% 全部来自 J2/J3/J5/J6(Java 临界路径)+ P1/P2(Python 首屏门/导入)+ 壳侧零改动;阶梯态读数见下方分相账本行。
+- **★阶梯态(真实用户温启,隔离档案 + 共享 TEMP 阶梯建成后)分相账本**:改前(v3.11.2 打包件,4 轮):史 totalMs 3147/2967/3002/3025,
+  java `jvm_to_ctx_ready` 2428-2549ms,py `gate_open` 2558-2758ms,web `boot_gate_open` 2626-2787ms,首盘 `first_chart_paint` 恢复命中 834/839ms · 未命中 4894/5313ms;
+  **改后(v3.11.3 打包件,同一隔离档案,首轮建阶梯后 3 轮)**:史 totalMs **2689 / 2504 / 2582**(−15~−17%;spawnToPorts 2299/2146/2148 vs 2616-2743),
+  java `jvm_to_ctx_ready` **2111 / 1976 / 2002**(−20%),py `listening` 570-588(−150ms)· **`gate_open` 1017-1116ms(−1.5s)** · `gate_kentang_open` 2623-2733(= 旧单门时刻,按设计不变),
+  web `boot_gate_open` **2366-2449**(−260ms),`first_chart_paint` 恢复命中 **764 / 823ms**;恢复未命中 **4200ms**(改前 4894-5313;门开后首个 /chart 仍等就绪段预热收尾,
+  余量在 QiMengHelper POI 解析本身),java `self_warmup` 472-494(改前 733-1519,类已预热)。阶梯首轮(新载荷物化 + uber/静态归档重建)ready 46s,与每个新版本载荷换代同频。
+- **★启动路径代码面(逐处核过,gotcha #110)**:Java `ProgArgsHelper.replaceLocalIp` 占位符前置(网卡枚举 0.23s)/ `CronTask` Scheduler 惰性(0.21s)/
+  `HorosaFastXmlReader` XSD off(bean 集两态 253 逐字节同)/ 两段预热线程(起点段 log4j 之后起;就绪段 QiMengHelper POI 等)/ 壳 `horosa_uber_split_v1`
+  (自家 8 jar 独立项,静态 CDS key 含拆分清单 ⇒ 本版首次温启会后台重建一次静态归档,与每个新版本载荷换代同频)/ Python 两道门
+  (`HOROSA_PY_EARLY_GATE=1` 壳传;kentang 门时刻不变)/ 壳 bootstrap mimetypes shim(−120ms 导入)。独立起 Java A/B(无 CDS,3 次中位):**3.28s → 2.78s**;
+  独立起 Python:首屏门 **2.10s → 0.96s**。
+- **★证据面(零功能变化)**:金标 **3823 ZERO DRIFT**(raw/key-order/ResultCode/errored/missing 全 0)· `HOROSA_JAVA_BEAN_DUMP` 校验开关两态 253 bean + 处理器映射逐字节同 ·
+  真机逐页 `technique-open-smoke` 26/26 + 风水 20/20 · Java 数据探针 17/17(四柱三路径互证 + 2033 闰冬月 + `Encrypted: 2`)· jest 泵金标 4 + 既有 28 · pytest 早门 4 + 上游 12。
+- **★增量更新**:差量门见本轮 selfcheck(dist:win 末尾);本版改动落在 app.asar(壳 + 前端)与后端 jar 的 boundless / basecomm / astrostudyboot 三个嵌套 jar 内。
+- **★逐技法 step/option 验收(perf_acceptance,r13 隔离档案阶梯态,repeat 10,settle 2.5s;`docs/perf-artifacts/perf_accept_v3113_20260930.json`)**:54 项 **PASS 18 · 超标 6 · 无数据 30**(改前 v3.11.2 打包件同台架 PASS 17 · 超标 7 · 无数据 30;无数据 = option 场景多数技法找不到 toggle,台架覆盖面限制非产品问题);太乙 step p95 280→200 转 PASS、易卜 197→43。
+  **F1(泵拍间隔分档)效果面 = 同构建开/关 A/B**(8 重技法 step,localStorage kill-switch `horosa.perf.stepPrefetchPumpGap=0` 关,同档案连跑;`perf_accept_v3113_f1_off_20260930-1726.json` / `perf_accept_v3113_f1_on_20260930-1729.json`):
+  p50/p95 —— 七政 旧 111/486 · 开① 125/554 · 关 100/580 · 开② 111/378;印占 123/344 · 120/317 · 117/316 · 115/282;六壬 112/258 · 164/459 · 193/245 · 114/245;六爻 202/417 · 191/303 · 265/387 · 304/388;太乙 93/280 · 61/200 · 54/225 · 67/387;易卜 48/197 · 40/43 · 36/49 · 37/61。
+  **裁决:同建同旗两次 p95 相差 ±100-200ms(n=11-12,p95≈max),开/关无方向性差异 ⇒ F1 中性(既非 miss 成因也非解药),保留(纯调度节拍、开关在、结果落缓存逐字节同)。** miss 簇形状四组全同 —— 第 5-9 步 300-580ms、首步与反向末步全命中 —— 是 12 任务串行泵在 2.5s 步进节奏下对 100ms+ 端点的**结构性欠吞吐**(泵一轮 ≈ 12 × (耗时+间隔) > 2.5s),不是某个开关能翻的;下轮候选:行进方向优先出队(+1/+2 先于 −3)/ 缓存直供任务不占拍 / 前台 miss 期间暂停泵让出后端。数字属人(#64 边界不动);owner 1s 判据全部达标(全表最大 p95 580ms)。
+- **★导航切页(四段之三,本轮零代码改动面,铁律 17 对位)**:新构建 `scripts/perf-r13/nav_latency_probe.cjs` ×2 轮(27 页 × 冷/热两遍,r13 隔离档案阶梯态):settle 中位 **冷 306/316ms · 热 291/272ms**(改前 v3.11.2 件 305/281),header 中位 冷 52-66 · 热 92-98(改前 50/94);慢页集合与改前完全相同(星运 ~0.9s / 天文馆 0.8-1.3s / 黄历 ~0.7s —— DOM-settle 判据对天文馆动画噪声大,同页两轮 1309 vs 798),**切页零回归**;工件 `docs/perf-artifacts/nav_latency_probe_v3113_20260930.json` 与 `nav_latency_probe_v3113_run2_20260930.json`。
+
 ### 温启对照 v3.11.2(2026-09-30 同步轮·Mac 第二轮全面性能优化对位 + 八字/农历节气口径修正;horosa_warm_ab_stamp_v1)
 
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `1e10215f`)**:

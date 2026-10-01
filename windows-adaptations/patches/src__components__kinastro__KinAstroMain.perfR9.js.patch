@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/kinastro/KinAstroMain.js b/astrostudyui/src/components/kinastro/KinAstroMain.js
-index 2b205fce..f57e3b3e 100644
+index 41cae7aa..9b84ea97 100644
 --- a/astrostudyui/src/components/kinastro/KinAstroMain.js
 +++ b/astrostudyui/src/components/kinastro/KinAstroMain.js
 @@ -10,7 +10,9 @@ import CanPingMain from '../shusuan/CanPingMain';

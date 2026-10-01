@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/taixuan/TaiXuanMain.js b/astrostudyui/src/components/taixuan/TaiXuanMain.js
-index 3d34104e..14c18de7 100644
+index 3ce8bbc9..b8f66ee1 100644
 --- a/astrostudyui/src/components/taixuan/TaiXuanMain.js
 +++ b/astrostudyui/src/components/taixuan/TaiXuanMain.js
 @@ -16,6 +16,8 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k

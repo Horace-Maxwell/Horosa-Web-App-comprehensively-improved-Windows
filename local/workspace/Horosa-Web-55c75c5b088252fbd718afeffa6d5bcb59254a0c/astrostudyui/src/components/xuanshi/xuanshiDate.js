@@ -77,7 +77,7 @@ export function textToYear(text) {
 // 解析事件/天象可起盘的公历日期(优先级:精确 modern_date → 已抽取 year → 文本帝王纪年 → period 朝代段最早)。
 // 不用 dynasty 兜底:天象 dynasty 是史书朝代(汉书载春秋事会误导);「只有朝代无时间」→ 返 null(不显排盘按钮)。
 // [Q-251/T-213] 1582-10-15(格里历启用)之前:全仓日期引擎(前端 DateTime.calcJdn / 后端 flatlib)按儒略历解释年月日。
-// [#73,2026-09-23] 库内约定收成一种:**modern_date 就是史料所载的儒略历日期**(1582-10-15 前),直接喂引擎即正确;
+// 库内约定收成一种:**modern_date 就是史料所载的儒略历日期**(1582-10-15 前),直接喂引擎即正确;
 // `julian_date` 列已整列置空(此前带该列的 8,349 行,其 julian_date 是「儒略日期再减去儒略−格里差」的错列,起盘早 3~7 天,
 // 而 modern_date 按儒略历读的干支日与所载干支 100% 吻合)。下面的 julian_date 分支只为旧载荷兼容保留,库内不再命中。
 function beforeGregorianReform(md) {
@@ -125,7 +125,7 @@ export function resolveChartDate(ev) {
 		// 旧载荷兼容:带 julian_date 者 md 取儒略日、disp 仍是公历换算日(库内已无此类行,见文件头 #73)
 		const legacyJulian = !!(ev.julian_date && /^-?\d{1,5}-\d{1,2}-\d{1,2}/.test(`${ev.julian_date}`) && beforeGregorianReform(ev.modern_date));
 		const md = legacyJulian ? `${ev.julian_date}` : ev.modern_date;
-		// [#73] 单一约定:改历前的 modern_date 就是儒略历日期,起盘与显示同一个日子,一律标「儒略历」
+		// 单一约定:改历前的 modern_date 就是儒略历日期,起盘与显示同一个日子,一律标「儒略历」
 		const calendar = (legacyJulian || beforeGregorianReform(md)) ? 'julian' : 'gregorian';
 		const dispCalendar = legacyJulian ? 'gregorian' : calendar;
 		if (prec === 'month') {

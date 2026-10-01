@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/ziwei/ZiWeiMain.js b/astrostudyui/src/components/ziwei/ZiWeiMain.js
-index c4c0a79a..3a46fdc1 100644
+index 054aa94c..193e2650 100644
 --- a/astrostudyui/src/components/ziwei/ZiWeiMain.js
 +++ b/astrostudyui/src/components/ziwei/ZiWeiMain.js
 @@ -1,10 +1,13 @@

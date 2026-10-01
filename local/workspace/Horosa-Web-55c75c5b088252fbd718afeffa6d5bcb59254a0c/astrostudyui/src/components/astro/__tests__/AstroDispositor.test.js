@@ -1,4 +1,4 @@
-// [#79] 主宰星链面板两表渲染合同(此前零组件级覆盖):整宫表/分宫表标题与折叠、极区回退表头、译名。
+// [Windows #79] 主宰星链面板两表渲染合同(此前零组件级覆盖):整宫表/分宫表标题与折叠、极区回退表头、译名。
 import fs from 'fs';
 import path from 'path';
 import React from 'react';

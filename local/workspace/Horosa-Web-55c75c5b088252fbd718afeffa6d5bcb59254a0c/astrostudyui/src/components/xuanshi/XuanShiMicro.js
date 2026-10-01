@@ -43,7 +43,7 @@ export default class XuanShiMicro extends React.Component {
 				history: this.state.history || undefined,
 				omen_type: this.state.omen || undefined,
 				decade: this.state.decade != null ? this.state.decade : undefined,
-				// [#75] 本页只画前 MICRO_RENDER_LIMIT 条:后端按有效年排序后截同样的前 N 条下发(统计仍按全部命中行),
+				// 本页只画前 MICRO_RENDER_LIMIT 条:后端按有效年排序后截同样的前 N 条下发(统计仍按全部命中行),
 				// 不筛选时载荷约 12.9 MB → 0.17 MB。开关 horosa.perf.xuanshiMicroLimit=0 回全量。
 				limit: flagEnabled('horosa.perf.xuanshiMicroLimit') ? MICRO_RENDER_LIMIT : undefined,
 			}); if(__seq !== this._loadSeq){ return; }

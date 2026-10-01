@@ -402,6 +402,13 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         if(!(chartObj && chartObj.chartId)){ return; }
         try{ saveBootChartSnapshot(fields, currentTab, currentSubTab); }catch(e){ /* optimization only */ }
     }, [chartObj && chartObj.chartId]);
+    // 快照里的页签 = 「上次停留」而不是「上次出盘」:出盘后切页签也把同一份 fields 按新页签重落快照
+    // (deferredStorage 同键合并、空闲写,代价可忽略;没出过盘不写)
+    React.useEffect(()=>{
+        if(!(chartObj && chartObj.chartId)){ return; }
+        try{ saveBootChartSnapshot(fields, currentTab, currentSubTab); }catch(e){ /* optimization only */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentTab, currentSubTab]);
     React.useEffect(()=>{
         if(!(chartObj && chartObj.chartId) || !fields || !(fields.date && fields.date.value)){ return; }
         const warmFields = fields;

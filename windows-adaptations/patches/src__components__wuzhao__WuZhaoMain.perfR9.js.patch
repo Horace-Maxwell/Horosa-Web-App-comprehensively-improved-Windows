@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/wuzhao/WuZhaoMain.js b/astrostudyui/src/components/wuzhao/WuZhaoMain.js
-index 1705fb02..19876e17 100644
+index c9d40ce0..d2fd2a71 100644
 --- a/astrostudyui/src/components/wuzhao/WuZhaoMain.js
 +++ b/astrostudyui/src/components/wuzhao/WuZhaoMain.js
 @@ -21,6 +21,10 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k

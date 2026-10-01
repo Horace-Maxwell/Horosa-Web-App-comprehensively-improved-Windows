@@ -5,7 +5,7 @@ export const APPEARANCE_DARK = 'dark';
 import { safeLocalStorageSet } from './safeStorage';
 import * as AstroConst from '../constants/AstroConst';
 
-// ── 主题 → 盘面调色板(单源;FL-20260922-1)──────────────────────────────────────────────────────
+// ── 主题 → 盘面调色板(单源)──────────────────────────────────────────────────────
 // 盘面(d3 / canvas)的颜色来自 AstroConst.AstroColor 这份**烘焙调色板**,不是 CSS 变量:切明暗时它必须先换到位,
 // 再改 <html data-horosa-appearance>,最后广播 APPEARANCE_APPLIED_EVENT —— 每张盘(watchChartAppearance)收到广播才重画,
 // 读到的一定是已切换的调色板。此前调色板由 layouts/app.js 与 pages/index.js 各自在 render 里切(晚一帧且可能互相覆写),

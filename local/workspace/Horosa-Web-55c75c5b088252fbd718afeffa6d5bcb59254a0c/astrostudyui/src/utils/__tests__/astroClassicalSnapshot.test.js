@@ -167,7 +167,7 @@ describe('AI 四同步补齐 16 项 GAP — 用户名条目逐一覆盖', ()=>{
 		expect(out).toContain('命主星：');
 	});
 
-	// [#79] 分宫制宫神星表自 [主宰星链] 拆出成独立段;[主宰星链] 改挂整宫制宫主表 + 判读口径行(宫主/主宰口径=整宫制=nR)。
+	// [Windows #79] 分宫制宫神星表自 [主宰星链] 拆出成独立段;[主宰星链] 改挂整宫制宫主表 + 判读口径行(宫主/主宰口径=整宫制=nR)。
 	const sliceSec = (content, title)=>{
 		const hit = `${content}`.split('\n\n').find((p)=>p.indexOf(`[${title}]\n`) === 0 || p === `[${title}]`);
 		return hit ? hit.split('\n').slice(1) : null;

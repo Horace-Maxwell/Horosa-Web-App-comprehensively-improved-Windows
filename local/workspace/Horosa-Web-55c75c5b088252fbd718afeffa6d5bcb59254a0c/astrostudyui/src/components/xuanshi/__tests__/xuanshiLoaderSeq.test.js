@@ -1,4 +1,4 @@
-// [#82] 玄学史加载序号:同一组件里「不同的加载函数」不得共用同一个序号字段。
+// 玄学史加载序号:同一组件里「不同的加载函数」不得共用同一个序号字段。
 // 病史:XuanShiStories 的 load() 与 loadDynastyOptions() 共用 _loadSeq —— 挂载时先 load(序号 1、置 loading)
 // 再 loadDynastyOptions(序号 2),列表响应回来 1 !== 2 被当过期丢弃且无人清 loading → 故事专题首开永远「载入…」
 // (v3.11.0 起已发布)。XuanShiCelestial 的 load() / loadMicro() 同模式潜伏。
@@ -25,7 +25,7 @@ const STORIES = [
 function deferred(){ let resolve; const p = new Promise((r) => { resolve = r; }); return { p, resolve }; }
 const flush = async () => { await act(async () => { await new Promise((r) => setTimeout(r, 0)); }); };
 
-describe('[#82] 故事专题挂载:列表必落地、加载态必清(两请求任意先后)', () => {
+describe('故事专题挂载:列表必落地、加载态必清(两请求任意先后)', () => {
 	let host;
 	beforeEach(() => { host = document.createElement('div'); document.body.appendChild(host); svc.fetchStories.mockReset(); });
 	afterEach(() => { ReactDOM.unmountComponentAtNode(host); host.remove(); });
@@ -82,7 +82,7 @@ function walk(dir, out){
 	});
 	return out;
 }
-test('[#82] 源码:任一序号字段只被一个方法自增(不同加载函数不得共用序号)', () => {
+test('源码:任一序号字段只被一个方法自增(不同加载函数不得共用序号)', () => {
 	const root = path.join(__dirname, '..', '..');
 	const offenders = [];
 	let seen = 0;

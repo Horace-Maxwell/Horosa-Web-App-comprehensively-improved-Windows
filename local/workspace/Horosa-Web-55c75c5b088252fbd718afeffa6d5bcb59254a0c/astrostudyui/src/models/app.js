@@ -763,7 +763,7 @@ export default {
             }
             const dispatchWorkspaceHeight = (h, extraPayload)=>{
                 // 🔴 这里曾是 `h < MinWorkspaceHeight(660) → 不派发`:缩放 1.5 档容器只有 595 时,正确的高度反而被拦下,
-                // 页根停在旧值/地板值 → 底部被裁(FL-20260906-30)。合理性下限只挡未布局/过渡态的垃圾值。
+                // 页根停在旧值/地板值 → 底部被裁。合理性下限只挡未布局/过渡态的垃圾值。
                 if(!(h >= CONTAINER_HEIGHT_SANITY_MIN)){
                     return;
                 }

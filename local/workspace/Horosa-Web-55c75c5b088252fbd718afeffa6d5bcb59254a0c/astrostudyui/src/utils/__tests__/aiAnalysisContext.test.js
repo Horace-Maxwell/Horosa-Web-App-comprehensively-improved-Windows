@@ -91,7 +91,7 @@ const mockLoadAstroAISnapshot = jest.fn(()=>null);
 jest.mock('../astroAiSnapshot', ()=>({
 	buildAstroSnapshotContent: jest.fn(()=> 'snapshot'),
 	loadAstroAISnapshot: (...args)=>mockLoadAstroAISnapshot(...args),
-	ASTRO_SNAPSHOT_FORMAT_VERSION: 2,   // [#79] payload 格式版本(旧格式快照不得整份复用)
+	ASTRO_SNAPSHOT_FORMAT_VERSION: 2,   // [Windows #79] payload 格式版本(旧格式快照不得整份复用)
 }));
 
 const mockSaveModuleAISnapshot = jest.fn();
@@ -548,7 +548,7 @@ describe('aiAnalysisContext', ()=>{
 		]);
 	});
 
-	test('[#79] 同签名但旧格式(version 1 / 缺位)的星盘快照不得整份复用 → 走 live 重建', async ()=>{
+	test('[Windows #79] 同签名但旧格式(version 1 / 缺位)的星盘快照不得整份复用 → 走 live 重建', async ()=>{
 		for(const stale of [{ version: 1 }, {}]){
 			mockLoadAstroAISnapshot.mockReturnValue({
 				...stale,

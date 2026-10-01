@@ -24,7 +24,7 @@ describe('[F2] contextWindowForModel / contextCharBudgetForModel', ()=>{
 
 	test('未知模型 → 保底;大窗口 → cap 封顶', ()=>{
 		expect(contextCharBudgetForModel('my-secret-model', { floorChars: AI_CONTEXT_MAX_CHARS })).toBe(AI_CONTEXT_MAX_CHARS);
-		// [#80] 算法断言显式给 capChars,不再钉缺省值 —— 否则抬顶时这条测试跟着漂,
+		// [Windows #80] 算法断言显式给 capChars,不再钉缺省值 —— 否则抬顶时这条测试跟着漂,
 		// 判不出「封顶逻辑还在不在」(缺省值本身的哨兵在 aiContextBudget case7/case10)。
 		const CAP = 60000;
 		expect(contextCharBudgetForModel('claude-fable-5', { floorChars: AI_CONTEXT_MAX_CHARS, capChars: CAP })).toBe(CAP);

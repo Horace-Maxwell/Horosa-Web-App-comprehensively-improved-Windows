@@ -1,16 +1,7 @@
 diff --git a/astropy/websrv/webchartsrv.py b/astropy/websrv/webchartsrv.py
-index 80994426..76418a36 100644
+index 3bfd5acf..4f807385 100644
 --- a/astropy/websrv/webchartsrv.py
 +++ b/astropy/websrv/webchartsrv.py
-@@ -59,7 +59,7 @@ from websrv._guards import validate_geo
- # 现挂载零导入、监听提前;warmup 线程在开门前逐个预装(prewarm)——任何业务 POST 的最早
- # 可服务时刻不晚于旧方案(单一 STARTUP_GATE 语义不变,sid_mode 并发安全同旧)。
- # kill-switch:HOROSA_CORE_LAZY=0 回退旧饿加载(eager import + 直挂)。
--from websrv.kentang.registry import mount_kentang_services, _LazyMountedService, _load_service
-+from websrv.kentang.registry import mount_kentang_services, _LazyMountedService, _load_service, KENTANG_SERVICE_SPECS
- 
- CORE_SERVICE_SPECS = [
-     {"key": "predict", "mount": "/predict", "module": "websrv.webpredictsrv", "class_name": "PredictSrv"},
 @@ -85,6 +85,31 @@ CORE_SERVICE_SPECS = [
  ]
  
@@ -101,56 +92,56 @@ index 80994426..76418a36 100644
  
  
  
-@@ -621,6 +680,26 @@ def ensure_chart_port_free(host, port, attempts=12, wait=0.5):
- # kill-switch:HOROSA_PY_WARMUP_SYNC=1 回退旧同步顺序。
- STARTUP_GATE = threading.Event()
+@@ -657,6 +716,27 @@ def _request_targets_kentang(req):
+     return (getattr(req, 'script_name', '') or '') in _KENTANG_MOUNTS
  
-+# horosa_py_early_gate_v1(PERF-R13 P1):启动门拆成两道。
-+#   STARTUP_GATE  —— 首屏面(根 /chart、/predict、/jieqi 等核心服务):真 astropy 序钉 + PD 预热 + 核心服务
-+#                    (cetian 除外)装载完成即开 —— 实测门开时刻 ~2.5s → ~1.2s(kentang 1.1s / india 0.3s /
-+#                    cetian 0.12s 全挪到门后空闲段,预热工作总量不变,只是不再挡首屏)。
-+#   KENTANG_GATE  —— kentang 挂载点(太乙/六壬/奇门/…,按 KENTANG_SERVICE_SPECS 现读):仍在 kentang 预热完成
-+#                    后才开 —— 与旧单门时刻相同,v3.2.0「桩 astropy 先于真 astropy」的顺序免疫层原样保留
-+#                    (kentang 业务 POST 绝不早于 _warm_real_astropy + prewarm_kentang_services)。
-+#   请求按 cherrypy.request.script_name(挂载点)选门;GET/OPTIONS/HEAD 探活照旧不设门。
-+#   kill:HOROSA_PY_EARLY_GATE=0 ⇒ 两道门同刻置位,时序与旧单门逐字节相同。
-+KENTANG_GATE = threading.Event()
-+_KENTANG_MOUNTS = frozenset(spec.get("mount") for spec in KENTANG_SERVICE_SPECS if spec.get("mount"))
+ 
++# horosa_py_early_gate_v1(PERF-R13 P1,Windows-ahead;v3.11.3 起与上游分级门并存):第三道、更早的「首屏门」。
++#   上游分级门(CORE_GATE + 宽限)在**全部非卜类段**装完后开,且非卜类请求还要再等卜类段最多 1.5s 宽限 ——
++#   平时卜类段紧跟着完成 ⇒ 请求实际仍在全门时刻放行(上游的目标场景是「首次加载检查拖慢卜类段」)。
++#   Windows 温启每次都要付这一段:首屏门 EARLY_GATE 在真 astropy 序钉 + PD 预热 + 核心服务(cetian 除外)装完
++#   即开(独立起服务实测 2.1s → 0.96s;kentang 1.1s / india 0.3s / cetian 0.12s 全挪到门后,预热总量不变),
++#   开着时非卜类请求**不经宽限**直接放行;卜类挂载点(按 KENTANG_SERVICE_SPECS 现读)照旧等全门 STARTUP_GATE
++#   (= 旧单门时刻,v3.2.0「桩 astropy 先于真 astropy」顺序免疫层原样:kentang 业务 POST 绝不早于
++#   _warm_real_astropy + prewarm_kentang_services)。GET/OPTIONS/HEAD 探活照旧不设门。
++#   开关:HOROSA_PY_EARLY_GATE=1 才启用(桌面壳显式传入);缺省/=0 ⇒ 首屏门与全门同刻置位,请求时序退回上游
++#   分级门 —— 上游 tests/test_startup_gate_tiers.py 与 test_warmup_parallel.py 的不变量在缺省态原样成立。
++EARLY_GATE = threading.Event()
 +
 +
 +def _early_gate_enabled():
-+    return os.environ.get('HOROSA_PY_EARLY_GATE', '1').lower() not in ('0', 'false', 'no', 'off')
++    return os.environ.get('HOROSA_PY_EARLY_GATE', '0').lower() in ('1', 'true', 'yes', 'on')
 +
 +
 +# 首屏面核心键 = CORE_SERVICE_SPECS 全部 − cetian(策天飞星:kinastro 栈冷 import ~120ms,非首屏)− 门后集合。
 +FIRST_SCREEN_CORE_EXCLUDE = frozenset({'cetian'})
 +
- 
++
  _GATE_FIRST_WAIT_LOGGED = [False]
  
-@@ -666,16 +745,18 @@ def _swe_lon_memo_tool():
  
- 
- def _startup_gate_tool():
--    if STARTUP_GATE.is_set():
--        return
+@@ -706,11 +786,19 @@ def _startup_gate_tool():
      req = cherrypy.request
-+    # horosa_py_early_gate_v1:kentang 挂载点等第二道门(时刻同旧单门),其余等首屏门。
-+    gate = KENTANG_GATE if (getattr(req, 'script_name', '') or '') in _KENTANG_MOUNTS else STARTUP_GATE
-+    if gate.is_set():
-+        return
      if req.method in ('GET', 'OPTIONS', 'HEAD'):
          return  # 探活/预检不碰计算与 sid_mode
++    _is_kentang = _request_targets_kentang(req)
++    # horosa_py_early_gate_v1:首屏门已开且非卜类挂载点 ⇒ 直接放行(不经上游核心门的宽限等待)。
++    if _early_gate_enabled() and not _is_kentang and EARLY_GATE.is_set():
++        return
      # [R4-P0 观察位] 门真实咬到业务 POST 时记一次(等待时长+路径)——P3-b 分级门的裁决数据
      # (装机首启 early-nav 下首个 /chart 是否撞门、撞多久;<300ms 则分级门判不做)。纯旁路。
      _wait_t0 = time.perf_counter()
-     # 兜底超时:warmup 异常挂死也不至于永久拒绝服务(warmup 平常 1.5-2s)
--    STARTUP_GATE.wait(timeout=60)
-+    gate.wait(timeout=60)
-     if not _GATE_FIRST_WAIT_LOGGED[0]:
-         _GATE_FIRST_WAIT_LOGGED[0] = True
-         try:
-@@ -715,16 +796,17 @@ def _warmup_stage_pd():
+     _via = 'full'
+-    if _tiered_gate_enabled() and not _request_targets_kentang(req):
++    if _early_gate_enabled() and not _is_kentang:
++        # horosa_py_early_gate_v1:非卜类请求等首屏门(PD + 核心−cetian 装完即开);60 秒兜底同旧
++        if EARLY_GATE.wait(timeout=60) and not STARTUP_GATE.is_set():
++            _via = 'early'
++    elif _tiered_gate_enabled() and not _is_kentang:
+         # 核心门 60 秒都没开 = warmup 挂死,兜底放行(同旧);开了就再给卜类段剩余的宽限
+         if CORE_GATE.wait(timeout=60):
+             _opened = _CORE_GATE_OPENED_AT[0]
+@@ -761,16 +849,20 @@ def _warmup_stage_pd():
          traceback.print_exc()
  
  
@@ -162,7 +153,10 @@ index 80994426..76418a36 100644
      try:
          t_core = time.perf_counter()
 -        _c_loaded, _c_failed = prewarm_core_services()
-+        _c_loaded, _c_failed = prewarm_core_services(only_keys=only_keys, exclude_keys=exclude_keys)
++        if only_keys is None and exclude_keys is None:
++            _c_loaded, _c_failed = prewarm_core_services()   # 缺省调用形保留(上游 test_core_lazy_mount 以此字面做源序断言)
++        else:
++            _c_loaded, _c_failed = prewarm_core_services(only_keys=only_keys, exclude_keys=exclude_keys)
          _core_ms = (time.perf_counter() - t_core) * 1000.0
 -        print('core services prewarm ready in {0:.3f}s (loaded={1}, failed={2})'.format(
 -            _core_ms / 1000.0, _c_loaded, _c_failed), flush=True)
@@ -173,7 +167,7 @@ index 80994426..76418a36 100644
      except Exception:
          traceback.print_exc()
  
-@@ -782,13 +864,31 @@ def _run_warmups():
+@@ -828,13 +920,31 @@ def _run_warmups():
      elif _par_env == '1':
          _parallel = True
      else:
@@ -192,12 +186,12 @@ index 80994426..76418a36 100644
 -    if _pd_parallel:
 +    if _early_gate_enabled():
 +        # horosa_py_early_gate_v1:首屏面(PD + 核心服务−cetian)串行先装 → 首屏门即开;其余(cetian /
-+        # india / kentang)按原并行档位继续 → 装完开 kentang 门。真 astropy 序钉在上方 _warm_real_astropy
-+        # 恒第一,kentang 门仍在 prewarm_kentang_services 之后 ⇒ 顺序免疫不破。
++        # india / kentang)按原并行档位继续 → 非卜类段装完开上游核心门、全部装完开全门。真 astropy 序钉在上方
++        # _warm_real_astropy 恒第一,全门仍在 prewarm_kentang_services 之后 ⇒ 顺序免疫不破。
 +        _warmup_stage_pd()
 +        _warmup_stage_core(exclude_keys=FIRST_SCREEN_CORE_EXCLUDE)
-+        ledger_mark('py.gate_open', t0=_PY_T0)
-+        STARTUP_GATE.set()
++        ledger_mark('py.gate_early_open', t0=_PY_T0)
++        EARLY_GATE.set()
 +        _stages = (
 +            lambda: _warmup_stage_core(only_keys=FIRST_SCREEN_CORE_EXCLUDE, label='core services (rest)', seg='py.warmup_core_rest'),
 +            _warmup_stage_india,
@@ -207,18 +201,12 @@ index 80994426..76418a36 100644
          # 冷启/untrusted 并行档:四段真并行,门开时刻 sum(pd+3段) → max(4段)
          # (R3 三段并行已证 sum→max 大赢;PD ~370-570ms 原恒串行前置,并入再省一段)。
          _stages = (_warmup_stage_pd, _warmup_stage_core, _warmup_stage_india, _warmup_stage_kentang)
-@@ -807,8 +907,72 @@ def _run_warmups():
-         for _fn in _stages:
-             _fn()
+@@ -863,6 +973,68 @@ def _run_warmups():
      # [R4-P0 观察位] 门开绝对时刻显式化(改前基线里门开时刻要靠 warmup 末段推算)。
--    ledger_mark('py.gate_open', t0=_PY_T0)
--    STARTUP_GATE.set()
-+    if not STARTUP_GATE.is_set():
-+        ledger_mark('py.gate_open', t0=_PY_T0)
-+        STARTUP_GATE.set()
-+    # horosa_py_early_gate_v1:kentang 门 = 全部门前预热完成(旧单门时刻)。
-+    ledger_mark('py.gate_kentang_open', t0=_PY_T0)
-+    KENTANG_GATE.set()
+     ledger_mark('py.gate_open', t0=_PY_T0)
+     STARTUP_GATE.set()
++    # horosa_py_early_gate_v1:全门(= 旧单门时刻)开后首屏门必开 —— 缺省态两门同刻,请求时序即上游分级门。
++    EARLY_GATE.set()
 +    # horosa_electionscan_postgate_prewarm_v1:POST_GATE 集合的门后装载(注记见
 +    # CORE_SERVICE_SPECS 上方)。刻意放在门后段**首位**(先于 kentang modules 与 xuanshi
 +    # 两级预热)——冷 import 窗口最小化(~gate+1.1s 内收口);与邻居同款 try/except 吞错。
@@ -282,11 +270,11 @@ index 80994426..76418a36 100644
  
  
  if __name__ == '__main__':
-@@ -844,6 +1008,7 @@ if __name__ == '__main__':
+@@ -897,6 +1069,7 @@ if __name__ == '__main__':
+     if not _warmup_sync:
          threading.Thread(target=_run_warmups, name='horosa-warmup', daemon=True).start()
      else:
++        EARLY_GATE.set()   # horosa_py_early_gate_v1:同步档三道门同刻开
+         CORE_GATE.set()
          STARTUP_GATE.set()
-+        KENTANG_GATE.set()   # horosa_py_early_gate_v1:同步档两道门同刻开
  
-     cherrypy.engine.start()
-     # P0 启动握手:监听后向 stdout 报端口,壳/launcher 可确认「此端口确为本次起的 chart 后端」(消 TOCTOU/误判)。

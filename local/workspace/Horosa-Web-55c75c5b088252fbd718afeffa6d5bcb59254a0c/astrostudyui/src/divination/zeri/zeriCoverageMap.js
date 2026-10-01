@@ -209,7 +209,7 @@ export const ZERI_COVERAGE_MAP = {
 			'来因宫': { exempt: '真 gap:来因宫(生年干落宫)可判但首版未建叶,补全轮待议' },
 			'八字大运': { exempt: '大运为本命推演量,不随候选时刻语义成立(lite 引擎亦不产)' },
 			'命中格局': { types: ['star_tong_gong', 'sanfang_has', 'liuji_count', 'liusha_count', 'kong_jie_ming'] },
-			// [#80] 运限概览:与「运限」同族(全大限×流年映射表),同理由豁免。
+			// [Windows #80] 运限概览:与「运限」同族(全大限×流年映射表),同理由豁免。
 			'运限概览': { exempt: '运限为本命推演量,非候选时刻征象' },
 			'运限': { exempt: '运限为本命推演量,非候选时刻征象' },
 			'流派叠层': { exempt: '多流派四化对照显示层;判定面四化条件随当前流派单值(sihua_* 类)' },

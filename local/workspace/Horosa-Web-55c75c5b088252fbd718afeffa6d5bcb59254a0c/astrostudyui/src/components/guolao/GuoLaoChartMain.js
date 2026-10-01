@@ -1,5 +1,5 @@
 import { Component, memo } from 'react';
-import { claimTrigger, settleTrigger, identityOf } from '../../utils/singleTrigger';   // [#84] 双触发收敛
+import { claimTrigger, settleTrigger, identityOf } from '../../utils/singleTrigger';   // 双触发收敛
 import { buildTimeBasisLine, GUOLAO_TIME_BASIS_NOTE } from '../../utils/timeBasisLine';
 import { fieldsSchemaBaseline } from '../../utils/recordFieldsRestore';   // [Q-190/T-130] 首开只补空的判默认基准
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
@@ -3198,7 +3198,7 @@ class GuoLaoChartMain extends Component{
 		// 流年盘:Moira/天星择日 在转盘上画;Horosa原盘 不画转盘但右栏「流年星曜/流年七政动态/流年落入」仍需流年盘数据,
 		// 故所有样式都取流年盘(否则 classic 下右栏流年段空白显示「无数据」)。坚七政自有流年路径,不在此分支。
 		const needTransit = (style !== GUOLAO_CHART_STYLE_QIZHENG);
-		// [#84] 双触发收敛:同一次取盘,componentDidUpdate(props.value 换新)与 doHook 挂钩(requestChartObj)各进一次;
+		// 双触发收敛:同一次取盘,componentDidUpdate(props.value 换新)与 doHook 挂钩(requestChartObj)各进一次;
 		// 输入(本命参数 / 流年时刻 / 盘式 / 引擎 / 源盘 / fields 身份)全同 → 第二路跳过,免整套三段重来(见 utils/singleTrigger)。
 		const bundleTrig = claimTrigger(this, 'guolaoBundle', JSON.stringify([
 			params, this.state.moiraTransitTime ? identityOf(this.state.moiraTransitTime) : 'now', style, this.state.engineMode,
@@ -3215,7 +3215,7 @@ class GuoLaoChartMain extends Component{
 		// 此前 Promise.all([本命,流年]) 把两冷盘塞同一阻塞段(后端冷算串行≈2×单盘=撞 <1s 红线);拆两段后首屏只等本命盘。
 		// 流年环/流曜/格局走既有 transitLoading/moiraLoading 过渡态稍后毫秒级补入,默认显示口径不变,缓存键(byte-perfect)不动。
 		let natalRaw = null;
-		let natalFailed = false;   // [#84] 本命盘未取到(抛错或空回)→ 画的是回落旧盘,须报失败让同参可重试
+		let natalFailed = false;   // 本命盘未取到(抛错或空回)→ 画的是回落旧盘,须报失败让同参可重试
 		try{
 			natalRaw = reuse ? srcChart : await fetchGuolaoChartCached(params, {silent: true});
 			if(!reuse && !natalRaw){ natalFailed = true; }

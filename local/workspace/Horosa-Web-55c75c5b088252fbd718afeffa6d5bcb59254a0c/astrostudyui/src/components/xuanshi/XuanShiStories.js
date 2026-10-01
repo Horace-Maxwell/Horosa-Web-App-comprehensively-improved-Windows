@@ -41,7 +41,7 @@ export default class XuanShiStories extends React.Component {
 
 	// [Q-492/T-454] 朝代选项的单一来源:一次无筛选取数(已发布全量 ≤LIMIT),与当前筛选无关。
 	async loadDynastyOptions() {
-		// [#82] 本函数用【自己的】序号:此前与 load() 共用 _loadSeq,挂载时先 load(序号 1、置 loading)再调本函数(序号 2),
+		// 本函数用【自己的】序号:此前与 load() 共用 _loadSeq,挂载时先 load(序号 1、置 loading)再调本函数(序号 2),
 		// 列表响应回来被当成过期结果丢弃且无人清 loading → 故事专题首开永远「载入…」(v3.11.0 起)。各守各的条件,互不作废。
 		const __seq = (this._dynSeq = (this._dynSeq || 0) + 1);
 		try {

@@ -101,7 +101,7 @@ class JinKouChart extends Component{
 		// 关键:调色板 AstroColor 由 app.js/index.js 响应 appearance 用 setColorTheme 切换,index.js「滞后一帧」
 		// 且可能用旧值覆写(见 AstroChart 注释)。若属性一变就立刻重绘,会读到旧调色板(暗黑下盘底仍白)。
 		// 故跨两帧延后重绘:首帧待 app.js 调色板就位,次帧兜底 index.js 的滞后覆写,确保读到已切换到位的盘底色。
-		// 必须先 forceUpdate 再重画:render 里 <svg style.backgroundColor> 也读调色板,宿主不重渲染时底色停在旧主题(FL-20260922-1 同族)。
+		// 必须先 forceUpdate 再重画:render 里 <svg style.backgroundColor> 也读调色板,宿主不重渲染时底色停在旧主题。
 		this._detachAppearance = watchChartAppearance(()=>{ if(this._unmounted){ return; } this.forceUpdate(()=>{ this.redrawForAppearance(); }); });
 		// 隐藏容器(tab 未选中,svg 0×0)期间数据更新时绘制停旧画面,切回 tab 无 React 更新可触发
 		// 重画 → 表新盘旧;svg 尺寸变化(含 0→非0)时补一次 drawChart(签名守卫防重画风暴)。

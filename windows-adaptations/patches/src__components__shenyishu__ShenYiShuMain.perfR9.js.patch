@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/shenyishu/ShenYiShuMain.js b/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
-index d34f0d48..e05190b4 100644
+index 38bfa175..f873c37c 100644
 --- a/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
 +++ b/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
 @@ -17,6 +17,8 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k

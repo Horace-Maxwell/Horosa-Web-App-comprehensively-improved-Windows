@@ -182,7 +182,7 @@ export async function pruneBackups(now){
 }
 
 // [B1] 壳层 timer 接线(layouts 启动一次)。
-// [FL-20260902-1] 旧写法 `window.__TAURI__.event.listen(...)` 在打包版从未挂上:withGlobalTauri 缺省 false
+// 旧写法 `window.__TAURI__.event.listen(...)` 在打包版从未挂上:withGlobalTauri 缺省 false
 // → 没有 window.__TAURI__;且 capabilities 为空 → core:event:allow-listen 未授权,拿 __TAURI_INTERNALS__ 也 listen 不了。
 // 改走壳→页面既有范式:壳侧 window.eval 调 `window.__horosaAutoBackupTick`,页面未就绪时进
 // `__horosaPendingAutoBackupTicks` 队列,绑定时补跑一次(多条 pending 只跑一轮,内容指纹未变自动跳过)。

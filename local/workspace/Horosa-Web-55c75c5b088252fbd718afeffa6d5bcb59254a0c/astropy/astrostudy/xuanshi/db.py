@@ -29,10 +29,15 @@ _CONNS: dict[str, sqlite3.Connection] = {}
 
 
 def _open_readonly(path: str) -> sqlite3.Connection:
-    """以只读 URI 打开 sqlite；不存在则抛 FileNotFoundError。"""
+    """以只读 URI 打开 sqlite；不存在则抛 FileNotFoundError。
+
+    immutable=1:库文件在安装目录里只读、运行期绝不写,让 SQLite 不加锁、不建 -shm / -wal 边车。
+    editorial.sqlite 是 WAL 模式 —— 不带 immutable 时 SQLite 要先建 -shm 才能读,在不可写目录下
+    连只读都打不开(实测),而打包已不再携带这些边车文件(它们是打包机运行痕迹、字节随机器变)。
+    """
     if not os.path.exists(path):
         raise FileNotFoundError(f"xuanshi data not found: {path}")
-    uri = "file:" + path + "?mode=ro"
+    uri = "file:" + path + "?mode=ro&immutable=1"
     conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn

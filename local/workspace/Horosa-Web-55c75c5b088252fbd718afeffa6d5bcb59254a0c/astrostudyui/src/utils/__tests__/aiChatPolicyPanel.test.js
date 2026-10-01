@@ -86,7 +86,7 @@ describe('渲染判别向量', ()=>{
 describe('[D5] 细项档数单源', ()=>{
 	it('🔴 FIELD_SPECS 现为十一档;面板标题按长度计数为「十一档」;纯函数层源码不再写死「八档」', ()=>{
 		const fs = require('fs'); const path = require('path');
-		expect(FIELD_SPECS.length).toBe(11);   // [#80] +挂载字数预算
+		expect(FIELD_SPECS.length).toBe(11);   // [Windows #80] +挂载字数预算
 		const src = fs.readFileSync(path.join(__dirname, '../aiChat/policyPanel.js'), 'utf8');
 		expect(src.indexOf('八档')).toBe(-1);
 		const host = document.createElement('div'); document.body.appendChild(host);

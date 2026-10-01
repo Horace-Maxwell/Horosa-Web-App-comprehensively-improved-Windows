@@ -1,11 +1,11 @@
 diff --git a/astrostudyui/src/components/guolao/GuoLaoChartMain.js b/astrostudyui/src/components/guolao/GuoLaoChartMain.js
-index 04be0679..c0d73b2a 100644
+index 97e93580..441f2839 100644
 --- a/astrostudyui/src/components/guolao/GuoLaoChartMain.js
 +++ b/astrostudyui/src/components/guolao/GuoLaoChartMain.js
 @@ -1,10 +1,12 @@
 -import { Component } from 'react';
 +import { Component, memo } from 'react';
- import { claimTrigger, settleTrigger, identityOf } from '../../utils/singleTrigger';   // [#84] 双触发收敛
+ import { claimTrigger, settleTrigger, identityOf } from '../../utils/singleTrigger';   // 双触发收敛
  import { buildTimeBasisLine, GUOLAO_TIME_BASIS_NOTE } from '../../utils/timeBasisLine';
  import { fieldsSchemaBaseline } from '../../utils/recordFieldsRestore';   // [Q-190/T-130] 首开只补空的判默认基准
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';

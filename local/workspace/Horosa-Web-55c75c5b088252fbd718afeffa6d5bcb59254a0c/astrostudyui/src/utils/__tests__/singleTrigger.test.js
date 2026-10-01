@@ -1,9 +1,9 @@
-// [#84] 双触发收敛通用件:同签名第二路跳过 / A→B→A 照常 / 失败可重试 / 时间窗 / 开关 / 身份编号
+// 双触发收敛通用件:同签名第二路跳过 / A→B→A 照常 / 失败可重试 / 时间窗 / 开关 / 身份编号
 import fs from 'fs';
 import path from 'path';
 import { claimTrigger, settleTrigger, identityOf, SINGLE_TRIGGER_WINDOW_MS, __resetSingleTrigger } from '../singleTrigger';
 
-describe('[#84] singleTrigger', ()=>{
+describe('singleTrigger', ()=>{
 	const owner = {};
 	beforeEach(()=>{ __resetSingleTrigger(owner); localStorage.removeItem('horosa.perf.singleTrigger'); });
 
@@ -70,7 +70,7 @@ const WIRED = [
 	'huangji/HuangJiMain', 'jingjue/JingJueMain', 'shenyishu/ShenYiShuMain', 'taixuan/TaiXuanMain', 'wuzhao/WuZhaoMain',
 	'kinastro/KinAstroMain',
 ];
-test('[#84] 13 处双触发重算都经 claimTrigger 认领', ()=>{
+test('13 处双触发重算都经 claimTrigger 认领', ()=>{
 	const root = path.join(__dirname, '..', '..', 'components');
 	const missing = WIRED.filter((f)=>!/claimTrigger\(this, '/.test(fs.readFileSync(path.join(root, `${f}.js`), 'utf8')));
 	expect(missing).toEqual([]);
@@ -91,7 +91,7 @@ const SETTLE_MIN = {
 	'wuzhao/WuZhaoMain': ['fetchPan', 1],
 	'kinastro/KinAstroMain': ['fetchPan', 1],
 };
-test('[#84] 未抛出的失败也回报失败(同参可重试)', ()=>{
+test('未抛出的失败也回报失败(同参可重试)', ()=>{
 	const root = path.join(__dirname, '..', '..', 'components');
 	const short = [];
 	Object.keys(SETTLE_MIN).forEach((f)=>{
@@ -106,7 +106,7 @@ test('[#84] 未抛出的失败也回报失败(同参可重试)', ()=>{
 	expect(bab).toMatch(/!ephem && jdn && jdn >= EPHEM_MIN_JDN/);
 });
 // 五兆:判重必须先于「重掷取种」(否则第二路先换了种子再判,签名永远不同 → 一次改动掷两次兆)
-test('[#84] 五兆判重先于重掷取种', ()=>{
+test('五兆判重先于重掷取种', ()=>{
 	const src = fs.readFileSync(path.join(__dirname, '..', '..', 'components', 'wuzhao', 'WuZhaoMain.js'), 'utf8');
 	const body = src.slice(src.indexOf('async fetchPan(fields, opts){'));
 	expect(body.indexOf("claimTrigger(this, 'fetchPan'")).toBeGreaterThan(0);

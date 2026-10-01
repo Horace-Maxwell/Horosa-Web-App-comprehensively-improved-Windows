@@ -1,4 +1,4 @@
-// [#83] 神数正传条文库:按派系归属管理。病史:切到大定(无条文库)时清库却不复位「已为哪派发起过」→ 铁板→大定→铁板
+// 神数正传条文库:按派系归属管理。病史:切到大定(无条文库)时清库却不复位「已为哪派发起过」→ 铁板→大定→铁板
 // 之后永远「条文库载入中」(v3.9.4 起);另有两处同源潜伏:晚到的旧派结果串到当前派、加载失败后永不再载。
 import React from 'react';
 import ReactDOM from 'react-dom';
@@ -32,7 +32,7 @@ function deferred(){ let resolve; let reject; const p = new Promise((r, j) => { 
 const flush = async () => { await act(async () => { await new Promise((r) => setTimeout(r, 0)); }); };
 function versesProxy(tag){ return new Proxy({}, { get: (_t, k) => (typeof k === 'string' ? `${tag}-${k}` : undefined) }); }
 
-describe('[#83] 神数正传条文库按派系归属', () => {
+describe('神数正传条文库按派系归属', () => {
 	let host; let inst;
 	const mount = async (school) => { await act(async () => { ReactDOM.render(<ZhengChuanMain slot="center" fields={fields} opts={{ school }} ref={(r) => { inst = r; }} />, host); }); };
 	beforeEach(() => { host = document.createElement('div'); document.body.appendChild(host); tieban.loadTiebanVerses.mockReset(); shaozi.loadShaoziVerses.mockReset(); });

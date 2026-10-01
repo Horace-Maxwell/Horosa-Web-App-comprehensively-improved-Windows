@@ -1,4 +1,4 @@
-// [#80] 推运(progressions)AI 快照单一真值源。
+// [Windows #80] 推运(progressions)AI 快照单一真值源。
 //
 // 由来:`/astroextra/progressions` 一直只有**恒星黄道**那一支(vedicprog)能挂给 AI,
 // 页面上主流的**回归黄道**二次/三次/小推运(AstroProgressions.js)从来没有技法键 ——
@@ -145,7 +145,7 @@ export function buildVedicProgSnapshotText(chartObj, opts){
 	return buildProgSnapshotText(chartObj, opts, 'vedicprog');
 }
 
-// [#80] 回归黄道二次推运(西占主流行运):此前只有页面、没有技法键,AI 挂不到。
+// [Windows #80] 回归黄道二次推运(西占主流行运):此前只有页面、没有技法键,AI 挂不到。
 export function buildTropicalProgSnapshotText(chartObj, opts){
 	return buildProgSnapshotText(chartObj, opts, 'prog');
 }

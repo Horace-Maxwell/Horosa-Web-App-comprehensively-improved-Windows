@@ -81,7 +81,7 @@ export default function ServiceStatusBanner() {
     return stop;
   }, [online]);
 
-  const hasTauri = isDesktopBridgeAvailable();   // [FL-20260902-1] 打包版无 window.__TAURI__,只探它=按钮永不出现
+  const hasTauri = isDesktopBridgeAvailable();   // 打包版无 window.__TAURI__,只探它=按钮永不出现
 
   const handleRetry = React.useCallback(async () => {
     if (!ServerRoot || retrying) return;

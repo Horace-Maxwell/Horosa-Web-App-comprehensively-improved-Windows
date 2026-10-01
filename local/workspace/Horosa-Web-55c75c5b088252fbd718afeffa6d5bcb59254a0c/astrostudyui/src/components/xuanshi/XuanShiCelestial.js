@@ -173,7 +173,7 @@ export default class XuanShiCelestial extends React.Component {
 
 	// 十年密度下钻:取该年代逐年天象(微年表);再点同一年代则收起
 	async loadMicro(decade) {
-		// [#82 同类] 本函数用【自己的】序号:与 load() 共用 _loadSeq 时,列表加载中展开某个年代会把列表响应判成过期、
+		// 本函数用【自己的】序号:与 load() 共用 _loadSeq 时,列表加载中展开某个年代会把列表响应判成过期、
 		// loading 再也不清(列表卡在加载态)。各守各的条件。
 		const __seq = (this._microSeq = (this._microSeq || 0) + 1);
 		if (this.state.microDecade === decade) { this.setState({ microDecade: null, micro: null }); return; }

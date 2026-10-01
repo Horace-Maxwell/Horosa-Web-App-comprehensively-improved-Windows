@@ -521,7 +521,7 @@ describe('同参去重(策略 dedupSameCall,缺省关)+ 上下文策略接线', 
 	});
 });
 
-// [FL-20260904-2] 失败收口:工具执行后上游停流/500 抛错时,页面 catch 调 failRound 归档当前轮。
+// 失败收口:工具执行后上游停流/500 抛错时,页面 catch 调 failRound 归档当前轮。
 // 端到端真栈实抓——此前 trace.stopReason 恒 null、当前轮(含已完成的建档结果)整个丢掉,回放/账本看不出错在哪。
 describe('failRound · 流层抛错的失败收口', ()=>{
 	beforeEach(()=>{ window.localStorage.setItem(AGENT_ENABLED_KEY, '1'); });

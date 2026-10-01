@@ -81,7 +81,7 @@ export async function headlessLayerExtras({ source, techniqueKeys, conversation 
 	return out;
 }
 
-// [#80] 整层被丢弃时给模型留痕(与对话页 AIAnalysisMain 同一句;此前无头轮丢层无声)。追加在缓存断点之后:被丢集合逐轮会变。
+// [Windows #80] 整层被丢弃时给模型留痕(与对话页 AIAnalysisMain 同一句;此前无头轮丢层无声)。追加在缓存断点之后:被丢集合逐轮会变。
 export function droppedLayersNote(dropped){
 	const names = (Array.isArray(dropped) ? dropped : [])
 		.map((item)=>`${(item && (item.title || item.key)) || ''}`.replace(/^使用技法：/, ''))
@@ -103,7 +103,7 @@ export async function buildHeadlessSystemPrompt({ source, techniqueKeys, systemP
 	const extraLayers = await headlessLayerExtras({ source, techniqueKeys: keys, conversation });
 	const layers = buildContextLayers({ sourceContext: ctx, techniqueContexts, materials: [], bundles: [], templates: [], retrievedChunks: [], conversationMessages: [], systemPrompt: systemPrompt || '', extraLayers });
 	const numCtx = profile && profile.providerType === 'ollama' ? Number((profile.providerOptions || {}).num_ctx) || undefined : undefined;
-	// [#80] 无头轮同样吃用户设的挂载字数预算(策略键是全局的,后台任务不该比对话页看得少)
+	// [Windows #80] 无头轮同样吃用户设的挂载字数预算(策略键是全局的,后台任务不该比对话页看得少)
 	const clip = clipContextLayersDetailed(layers, { maxChars: mountCharBudgetFor(model, { numCtx, floorChars: AI_CONTEXT_MAX_CHARS, policy: readContextPolicy() }), fairShare: true });
 	const join = (arr)=>arr.map((item)=>`${item.title}\n${item.content}`).join('\n\n').trim();
 	const volatileKeys = { 'retrieved-context': 1, 'recent-history': 1 };

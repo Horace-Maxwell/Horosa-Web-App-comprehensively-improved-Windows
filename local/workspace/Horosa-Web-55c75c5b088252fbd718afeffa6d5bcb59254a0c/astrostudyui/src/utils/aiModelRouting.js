@@ -223,7 +223,7 @@ export function providerOptionsForRoute(route, base, { profile, model, thinkingL
 
 // [进阶审计 D1] 短调用消费方(判官/审阅/规划/子任务/合并稿/综合/目标自检)的**单源**:此前六处各自写
 // `applyThinkingLevel({...profile.providerOptions}, 'off')`,从不读 routeOptions → 表格里这四行的 思考档/推理档/温度/输出上限
-// 写了键、从不生效(FL-20260907-2)。底 = 目标档案自身 providerOptions 经 baseThinking(缺省 'off' = 今日字节);
+// 写了键、从不生效。底 = 目标档案自身 providerOptions 经 baseThinking(缺省 'off' = 今日字节);
 // 再按该槽的 routeOptions 施加(routed:false 语义:槽空 = 底对象原样返回 → 缺省路径逐字节零变化)。
 export function providerOptionsForSlot(slot, profile, model, { applyThinkingLevel, routeOptions, baseThinking = 'off' } = {}){
 	const seed = { ...((profile && profile.providerOptions) || {}) };

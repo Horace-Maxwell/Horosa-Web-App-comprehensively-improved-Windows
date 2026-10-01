@@ -359,7 +359,7 @@ function hasSeedTerms(seed, terms){
 	return true;
 }
 
-// [#54] 联机路径也要有「正月初一口径年干支」:后端 /nongli/time 不产 yearGZByLunar,六爻「定年界线=正月初一」在联机时
+// 联机路径也要有「正月初一口径年干支」:后端 /nongli/time 不产 yearGZByLunar,六爻「定年界线=正月初一」在联机时
 // 恒回落立春(死开关),只有离线回落才生效。缺键时按同一份本地历法补上(与离线回落同源、同口径),其余字段一字不动;
 // 本地历法域外(极端年份)补不出就保持原样。已带该键的结果(离线回落 / 新后端)不碰。
 function ensureYearGZByLunar(result, reqParams){

@@ -1,4 +1,4 @@
-// 桌面桥自检上报(FL-20260902-1 的证据面):字段集合同、浏览器 preview 静默 no-op、有桥时上报进壳侧账本。
+// 桌面桥自检上报(桥死开关的证据面):字段集合同、浏览器 preview 静默 no-op、有桥时上报进壳侧账本。
 import { collectDesktopBridgeDiag, reportDesktopBridgeDiag, probeEventListenAcl, reportPageTelemetry, __resetPageTelemetryForTests } from '../desktopBridgeDiag';
 import * as desktop from '../aiAnalysisDesktop';
 import { recordRequestFailure, __resetRequestTelemetryForTests } from '../requestTelemetry';

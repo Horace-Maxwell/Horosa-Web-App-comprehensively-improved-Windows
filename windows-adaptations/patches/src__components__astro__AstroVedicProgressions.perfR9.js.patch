@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroVedicProgressions.js b/astrostudyui/src/components/astro/AstroVedicProgressions.js
-index a28236ab..363afc92 100644
+index 9d9c8a69..a53fe4c2 100644
 --- a/astrostudyui/src/components/astro/AstroVedicProgressions.js
 +++ b/astrostudyui/src/components/astro/AstroVedicProgressions.js
 @@ -7,6 +7,8 @@ import { unwrapResult, fmtNum, chartParams, chartRequestKey, cardStyle, parkLoad

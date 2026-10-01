@@ -1,5 +1,5 @@
 import QuickDockBar from '../common/QuickDockBar';
-import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // [#84] 双触发收敛
+import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // 双触发收敛
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
 import { Component } from 'react';
@@ -104,7 +104,7 @@ function fmtValue(value){
 	return formatHumanValue(value);
 }
 
-// [#75] 典籍正文按需取:盘请求带 slimClassics=1,后端只回典籍目录(level + title,标 contentOmitted);
+// 典籍正文按需取:盘请求带 slimClassics=1,后端只回典籍目录(level + title,标 contentOmitted);
 // 全书正文(约 1.96 MB)由 /wangji/classic 按典籍键取一次、模块级缓存,合并回盘后与旧盘逐字节相同
 // (classics 仍是 meta / selectedKey / sections 三键同序,节对象同形)。合并前逐节核对典籍键 / 节数 / level / title,
 // 对不齐或正文取数失败 → 回退一次不带标记的全文盘(旧口径),绝不让缺正文的盘进入 state / 快照 / 存档。
@@ -258,7 +258,7 @@ export async function buildHuangJiSnapshotForFields(fields, opts){
 			historyYear: hy,
 			classicKey: o.classicKey || DEFAULT_CLASSIC,
 		});
-		if(panPayload.slimClassics){ loadClassicFull(panPayload.classicKey); }   // [#75] 正文与盘并行取
+		if(panPayload.slimClassics){ loadClassicFull(panPayload.classicKey); }   // 正文与盘并行取
 		const pan = await ensurePanClassics(await postWangJi('pan', panPayload), panPayload);
 		if(!pan){
 			return '';
@@ -435,7 +435,7 @@ class HuangJiMain extends Component{
 			const xinyi = this.state.xinyi;
 			const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
 			saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
-			// [#75] 存档盘正常都带正文(落 state 前已合并);万一是缺正文的档,异步补齐并重存快照 —— 正文只会迟到、不会丢。
+			// 存档盘正常都带正文(落 state 前已合并);万一是缺正文的档,异步补齐并重存快照 —— 正文只会迟到、不会丢。
 			// 只按典籍键合并正文,绝不重新起盘(档里的盘是档的时刻,不是当前表单时刻)。
 			if(panNeedsClassics(pan)){
 				const reqSeq = this.requestSeq;
@@ -497,7 +497,7 @@ class HuangJiMain extends Component{
 					const payload = this.buildPanPayload(flds);
 					if(!payload){ return; }
 					postWangJi('pan', payload).catch(()=>null);
-					if(payload.slimClassics){ loadClassicFull(payload.classicKey); }   // [#75] 正文一并预取
+					if(payload.slimClassics){ loadClassicFull(payload.classicKey); }   // 正文一并预取
 					this.fetchXinyi(flds, false).catch(()=>null);
 				}catch(e){ /* 预取失败无害 */ }
 			}, 150);
@@ -576,7 +576,7 @@ class HuangJiMain extends Component{
 		if(!payload){
 			return;
 		}
-		// [#84] 双触发收敛:挂钩与 componentDidUpdate 同一次改动各进一次 → 起盘请求体与心易选项全同的第二路跳过
+		// 双触发收敛:挂钩与 componentDidUpdate 同一次改动各进一次 → 起盘请求体与心易选项全同的第二路跳过
 		const panTrig = claimTrigger(this, 'fetchPan', JSON.stringify([payload, this.state.xinyiOptions]));
 		if(!panTrig){
 			return;
@@ -584,7 +584,7 @@ class HuangJiMain extends Component{
 		const reqSeq = ++this.requestSeq;
 		this.setState({ loading: true });
 		try{
-			if(payload.slimClassics){ loadClassicFull(payload.classicKey); }   // [#75] 正文与盘并行取(命中缓存即零请求)
+			if(payload.slimClassics){ loadClassicFull(payload.classicKey); }   // 正文与盘并行取(命中缓存即零请求)
 			const pan = await ensurePanClassics(await postWangJi('pan', payload), payload);
 			const xinyi = await this.fetchXinyi(fields, false);
 			if(this.unmounted || reqSeq !== this.requestSeq){

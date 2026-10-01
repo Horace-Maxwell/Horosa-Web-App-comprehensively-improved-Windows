@@ -60,7 +60,7 @@ export function extractFacts(text){
 	return counts;
 }
 
-// [#80] 剥掉新增的 [运限概览] 段:本闸只证「表化没动数值」,新增内容段另有专测(见文件末)。
+// [Windows #80] 剥掉新增的 [运限概览] 段:本闸只证「表化没动数值」,新增内容段另有专测(见文件末)。
 function stripOverview(text){
 	const t = `${text || ''}`;
 	const i = t.indexOf('[运限概览]');
@@ -106,7 +106,7 @@ describe('紫微 v2 数值不变证明(基线 fixture ↔ 新 builder)', () => {
 		expect(diff).toEqual([]);
 	});
 
-	// [#80] 无条件运限概览:此前紫微不选运限就一个流年都不给,AI 只能答「缺少完整流年」。
+	// [Windows #80] 无条件运限概览:此前紫微不选运限就一个流年都不给,AI 只能答「缺少完整流年」。
 	it('运限概览:无条件产出、每大限一行、末列给全该限流年公历年-干支,且不依赖「今天」', async () => {
 		const now = await buildZiweiSnapshotForParams({ ...BASE_PARAMS });   // 不带 period
 		expect(now).toContain('[运限概览]');
@@ -129,7 +129,7 @@ describe('紫微 v2 数值不变证明(基线 fixture ↔ 新 builder)', () => {
 		const now = await buildZiweiSnapshotForParams({ ...BASE_PARAMS, period: { daxian: [2], liunian: [], liuyue: [], liuri: [], liushi: [] } });
 		expect(now).toContain('| 宫位 | 干支 | 大限 | 星曜（四化括注） |');
 		expect(now).toContain('| --- | --- | --- | --- |');
-		// [#80] 计数收到「宫位总览」那张表上:新增的 [运限概览] 段也是 GFM 表,全文计数会把它算进来。
+		// [Windows #80] 计数收到「宫位总览」那张表上:新增的 [运限概览] 段也是 GFM 表,全文计数会把它算进来。
 		const overviewIdx = now.indexOf('[运限概览]');
 		const summaryBlock = overviewIdx >= 0 ? now.slice(0, overviewIdx) : now;
 		expect((summaryBlock.match(/^\| /gm) || []).length).toBe(14); // 表头+12 宫(分隔行以 | - 开头不匹配 "| ")

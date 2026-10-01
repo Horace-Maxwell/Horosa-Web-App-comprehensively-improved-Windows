@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroDecennials.js b/astrostudyui/src/components/astro/AstroDecennials.js
-index 976ccc62..dab475ab 100644
+index d6718cfc..87f2420b 100644
 --- a/astrostudyui/src/components/astro/AstroDecennials.js
 +++ b/astrostudyui/src/components/astro/AstroDecennials.js
 @@ -31,6 +31,7 @@ import styles from '../../css/styles.less';

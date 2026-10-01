@@ -1,4 +1,4 @@
-// [#77 根修制度化] 流式三层超时语义契约:空闲看门狗(只认真产出续命)/总时长硬顶/
+// [Windows #77 根修制度化] 流式三层超时语义契约:空闲看门狗(只认真产出续命)/总时长硬顶/
 // providerOptions 两键覆盖与 handlers 优先级。mock fetch+受控 reader+fake timers 驱动。
 // 判别向量:默认值(180000/1800000)注错即「默认档」两例红(执行轮已实证)。
 import { TextEncoder as NodeTextEncoder, TextDecoder as NodeTextDecoder } from 'util';
@@ -43,7 +43,7 @@ function mockFetchWith(stream){
 const flush = async (n = 4)=>{ for(let i = 0; i < n; i++){ await Promise.resolve(); } };
 const sse = (type, json)=>`event:${type}\ndata:${JSON.stringify(json)}\n\n`;
 
-describe('[#77] 流式看门狗三层语义', ()=>{
+describe('[Windows #77] 流式看门狗三层语义', ()=>{
 	beforeEach(()=>{ jest.useFakeTimers(); });
 	afterEach(()=>{ jest.useRealTimers(); jest.restoreAllMocks(); });
 

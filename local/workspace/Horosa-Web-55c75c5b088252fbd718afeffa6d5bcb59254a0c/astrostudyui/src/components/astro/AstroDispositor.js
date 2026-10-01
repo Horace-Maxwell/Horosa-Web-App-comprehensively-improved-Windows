@@ -1,7 +1,7 @@
 import React from 'react';
 // components/astro/AstroDispositor.js
 // 主宰星链（dispositor chains）+ 宫主两表。纯前端派生，嵌于本命「古典」tab。
-// [#79] 宫主派生走 utils/wholeSignRulers 单源(与 AI 快照 [主宰星链]/[分宫制宫神星表] 同一组函数,本组件不再自带查表):
+// [Windows #79] 宫主派生走 utils/wholeSignRulers 单源(与 AI 快照 [主宰星链]/[分宫制宫神星表] 同一组函数,本组件不再自带查表):
 //   上表 = 整宫制宫主表(宫主/主宰口径:自上升星座起算,与行星「nR」宫主标记同源);
 //   下表 = 当前分宫制宫神星表(行星力量/实际落宫口径,非主宰依据);上升整宫制盘两表相同 → 下表折叠为一行说明。
 import { Component } from 'react';

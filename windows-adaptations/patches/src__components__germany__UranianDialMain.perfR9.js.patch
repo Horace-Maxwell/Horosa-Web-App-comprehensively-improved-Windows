@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/germany/UranianDialMain.js b/astrostudyui/src/components/germany/UranianDialMain.js
-index b139d534..b4f1c4cf 100644
+index 67093d90..5223e3f7 100644
 --- a/astrostudyui/src/components/germany/UranianDialMain.js
 +++ b/astrostudyui/src/components/germany/UranianDialMain.js
 @@ -20,11 +20,78 @@ import { XQSelect, XQTabs, XQSideSection, XQSwitch, XQSegmented, XQDatePicker, X

@@ -270,7 +270,7 @@ function findDaxianForYear(chart, daxianItems, year){
 	return null;
 }
 
-// [#80] 无条件「运限概览」段。
+// [Windows #80] 无条件「运限概览」段。
 //   病理:八字给 AI 的 [大运] / [流年行运概略] 是**无条件段**(不碰齿轮也有全大运 × 各 10 流年的公历年+干支);
 //   紫微此前什么都不给 —— 除非用户在 40 项设置里翻到最末组、往一个叫「流年小限」的**文本框**里手打年份。
 //   用户报障「紫微挂载设置里似乎没找着流年的勾选项」,AI 也如实答「有本命盘和大限,缺少完整流年、流月盘」。
@@ -633,7 +633,7 @@ function buildZiWeiSnapshotText(params, result){
 		lines.push('');
 	}
 
-	// [#80] 运限概览:无条件段(与八字 [大运]/[流年行运概略] 对称)。可在「纳入内容」里取消勾选。
+	// [Windows #80] 运限概览:无条件段(与八字 [大运]/[流年行运概略] 对称)。可在「纳入内容」里取消勾选。
 	const overviewLines = buildZiweiPeriodOverviewLines(chart);
 	if(overviewLines.length){ lines.push(...overviewLines); }
 

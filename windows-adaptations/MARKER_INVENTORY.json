@@ -240,6 +240,9 @@
    "astrostudyui/src/components/fengshui/LiqiWorkspace.js": 2,
    "astrostudyui/src/components/fengshui/__tests__/liqiSchoolsMountSmoke.test.js": 1
   },
+  "horosa_mac_only_test_guard_v1": {
+   "astropy/tests/test_native_prewarm_priority.py": 1
+  },
   "horosa_moira_stable_key_v1": {
    "astrostudyui/src/services/__tests__/perfR10CacheUnify.test.js": 2,
    "astrostudyui/src/services/_requestCache.js": 1,
@@ -415,7 +418,7 @@
   },
   "horosa_py_early_gate_v1": {
    "astropy/tests/test_early_gate.py": 1,
-   "astropy/websrv/webchartsrv.py": 7
+   "astropy/websrv/webchartsrv.py": 8
   },
   "horosa_sanshi_no_drop_step_v1": {
    "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 1,

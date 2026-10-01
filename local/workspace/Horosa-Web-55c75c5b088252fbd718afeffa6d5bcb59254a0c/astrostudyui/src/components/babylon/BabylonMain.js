@@ -1,7 +1,7 @@
 // components/babylon/BabylonMain.js —— 巴比伦占星容器:文类子 Tab(轴1)+ 派系设置(轴2)。
 // 数据基座:一次 /chart(恒星黄道·毕宿锚)请求供各产品共用(LRU + inflight 去重 + 240ms prefetch)。
 import { Component } from 'react';
-import { claimTrigger, settleTrigger, identityOf } from '../../utils/singleTrigger';   // [#84] 双触发收敛
+import { claimTrigger, settleTrigger, identityOf } from '../../utils/singleTrigger';   // 双触发收敛
 import { XQTabs as Tabs, XQSelect } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
@@ -103,7 +103,7 @@ class BabylonMain extends Component{
 	async refresh(){
 		const params = babylonChartParams(this.props.fields);
 		if(!params){ return; }
-		// [#84] 双触发收敛:挂钩与 componentDidUpdate(fields 换新)同一次改动各进一次 → 同参第二路跳过
+		// 双触发收敛:挂钩与 componentDidUpdate(fields 换新)同一次改动各进一次 → 同参第二路跳过
 		const refreshTrig = claimTrigger(this, 'refresh', JSON.stringify(params) + '|' + identityOf(this.props.fields));
 		if(!refreshTrig){ return; }
 		const seq = ++this.reqSeq;

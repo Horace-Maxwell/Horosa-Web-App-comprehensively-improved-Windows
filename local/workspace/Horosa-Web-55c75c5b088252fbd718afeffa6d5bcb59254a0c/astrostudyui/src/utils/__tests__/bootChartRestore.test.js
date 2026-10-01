@@ -91,3 +91,19 @@ test('门:非桌面壳 / kill-switch / 7 天窗 / 坏档 → null', ()=>{
 	window.localStorage.setItem(KEY, '{broken');
 	expect(loadBootChartSnapshot()).toBeNull();          // 坏档
 });
+
+describe('温启快照的页签 = 上次停留(切页签也重落快照)', ()=>{
+	test('pages/index.js:出盘 chartId 换代 与 切页签 两个效果都调用 saveBootChartSnapshot,后者依赖 [currentTab, currentSubTab] 且未出盘不写', ()=>{
+		const fs = require('fs');
+		const path = require('path');
+		const src = fs.readFileSync(path.join(__dirname, '..', '..', 'pages', 'index.js'), 'utf8');
+		const calls = src.split('saveBootChartSnapshot(fields, currentTab, currentSubTab)').length - 1;
+		expect(calls).toBeGreaterThanOrEqual(2);
+		const depsAt = src.indexOf('}, [currentTab, currentSubTab]);');
+		expect(depsAt).toBeGreaterThan(0);
+		const effectStart = src.lastIndexOf('React.useEffect(', depsAt);
+		const body = src.slice(effectStart, depsAt);
+		expect(body).toContain('saveBootChartSnapshot(fields, currentTab, currentSubTab)');
+		expect(body).toContain('chartObj.chartId');
+	});
+});

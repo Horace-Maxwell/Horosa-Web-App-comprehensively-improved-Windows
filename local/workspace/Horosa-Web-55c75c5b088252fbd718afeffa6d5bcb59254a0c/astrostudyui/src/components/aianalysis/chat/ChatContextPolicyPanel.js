@@ -54,7 +54,7 @@ export default function ChatContextPolicyPanel({ model, numCtx }){
 				{PRESET_OPTIONS.map((o)=>(<Radio.Button key={o.value} value={o.value} title={o.help}>{o.label}</Radio.Button>))}
 			</Radio.Group>
 			<div className={styles.infoStrip} data-policy-budget="1">{budgetText(policy, model, numCtx)}</div>
-			{/* [#80] 挂载预算与历史预算是两套(前者按字数管命盘/技法快照,后者按 token 管真消息),各自显示实算值 */}
+			{/* [Windows #80] 挂载预算与历史预算是两套(前者按字数管命盘/技法快照,后者按 token 管真消息),各自显示实算值 */}
 			<div className={styles.infoStrip} data-policy-mount-budget="1">{mountBudgetText(policy, model, numCtx)}</div>
 			<div className={[styles.infoStrip, styles.inline].join(' ')} data-compact-suggest-row="1">
 				<span>压缩提醒阈值</span>

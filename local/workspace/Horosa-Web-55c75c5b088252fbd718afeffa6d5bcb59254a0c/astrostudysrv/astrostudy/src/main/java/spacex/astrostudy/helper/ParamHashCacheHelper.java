@@ -234,7 +234,8 @@ public class ParamHashCacheHelper {
 					// what a future handler stuffs into its response. Cold vs warm now return the same
 					// (plain) shape, eliminating type drift between paths. Idempotent for pure Maps.
 					// Failure: fall back to the original raw obj so we're never worse than before.
-					obj = persistable(obj);
+					// -Dparamhash.persistable=false 回旧口(不往返;见 ParamHashPersistPolicy)。
+					obj = ParamHashPersistPolicy.apply(obj, ParamHashCacheHelper::persistable);
 					saveToRedis(cacheKey, obj, expInSec);
 					saveToLocal(cleanScope, hash, obj, expInSec);
 				}

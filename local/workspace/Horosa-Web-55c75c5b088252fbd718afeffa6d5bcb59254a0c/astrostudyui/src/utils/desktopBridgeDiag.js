@@ -1,4 +1,4 @@
-// [FL-20260902-1] 桌面桥自检上报(启动一次):把「页面到底有没有 window.__TAURI__ / __TAURI_INTERNALS__、
+// 桌面桥自检上报(启动一次):把「页面到底有没有 window.__TAURI__ / __TAURI_INTERNALS__、
 // plugin:event|listen 是否被 ACL 拒」写进壳侧启动账本(诊断包随之导出)。真机结论以此为据,不靠猜。
 // 浏览器 preview(无桥)静默跳过;老壳无 bridge_diag_report_command 时 invoke 抛错也静默。
 import { isDesktopBridgeAvailable, invokeDesktopCommand } from './aiAnalysisDesktop';

@@ -195,7 +195,7 @@ describe('aiContextBudget（挂载预算三修）', ()=>{
 
 	// ② total === maxChars 恰好等界：仍走快路径（含等号语义），逐字节相等。
 	test('case2: 总量恰好等于 maxChars 仍全保留，与旧算法逐字节相等', ()=>{
-		// [#80] 算法测试自带预算:此前钉 AI_CONTEXT_MAX_CHARS,缺省一动(20000→24000)整条假红。
+		// [Windows #80] 算法测试自带预算:此前钉 AI_CONTEXT_MAX_CHARS,缺省一动(20000→24000)整条假红。
 		//   缺省值的哨兵是 case7,这里只测「恰好等界仍走快路径」这条语义。
 		const BUDGET = 20000;
 		const layers = [
@@ -236,7 +236,7 @@ describe('aiContextBudget（挂载预算三修）', ()=>{
 	// ④ 6 技法触界 + fairShare：全部技法在 kept（无整层静默丢），每层 ≥ min(原长,600)，
 	//    Σ ≤ maxChars，被裁层止于段边界且尾带旧裁剪 marker，dropped 为空。
 	test('case4: 6 技法触界 fairShare 公平分摊，段对齐裁剪且绝不静默丢层', ()=>{
-		// [#80] 同 case2:公平分摊行为用自带预算判定,不随缺省漂。
+		// [Windows #80] 同 case2:公平分摊行为用自带预算判定,不随缺省漂。
 		const BUDGET = 20000;
 		const techSpecs = [
 			['technique:bazi', '甲', 6, 93],
@@ -348,7 +348,7 @@ describe('aiContextBudget（挂载预算三修）', ()=>{
 	// ⑦ 常量哨兵：AI_CONTEXT_MAX_CHARS 单一真值；发送路径不再散落 maxChars: 24000 字面量。
 	//（本 case 断言本仓 AIAnalysisMain 发送路径契约,随本仓架构走）
 
-	// ⑨⑩ [#80] 挂载预算:显式覆盖 + 各模型族预算表。
+	// ⑨⑩ [Windows #80] 挂载预算:显式覆盖 + 各模型族预算表。
 	//   病理:gpt-6-astra 不命中 13 条模型窗口表任何一条 → contextWindowForModel 回 null → 预算掉到保底,
 	//   四技法均分后西占只剩 4334 字(原始 26085)、印占 6379(原始 26803),AI 于是如实说「缺 Dasha 表/分盘/行运」。
 	//   缺省翻转(地板 20000→24000、硬顶 60000→120000)按铁律必须有字节判据 ⇒ 下面这张表把每族的预算钉死。

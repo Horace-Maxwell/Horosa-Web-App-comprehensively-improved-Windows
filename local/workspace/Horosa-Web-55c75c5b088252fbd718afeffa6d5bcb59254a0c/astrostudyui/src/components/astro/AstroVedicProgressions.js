@@ -22,7 +22,7 @@ function methodTab(method){
 	return method.method === 'secondary' ? '二次推运' : (method.method === 'tertiary' ? '三次推运' : '小推运');
 }
 
-// [#80] builder 已抽到共享 astroProgSnapshot.js(恒星/回归两支同源);此处按原名再导出,
+// [Windows #80] builder 已抽到共享 astroProgSnapshot.js(恒星/回归两支同源);此处按原名再导出,
 // 既有 import 路径不变。
 export { buildVedicProgSnapshotText };
 

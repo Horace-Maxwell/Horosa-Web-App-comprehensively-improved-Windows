@@ -77,7 +77,7 @@ describe('[W1] astro 古典衍化四段 opt-in', ()=>{
 		});
 	});
 
-	// [#79] 泛化到所有 v-window union 块(v56/v57/…):①∩DEFAULT_OFF=∅(默认关段禁入 union,防口径倒挂);
+	// [Windows #79] 泛化到所有 v-window union 块(v56/v57/…):①∩DEFAULT_OFF=∅(默认关段禁入 union,防口径倒挂);
 	// ②union 每段 ∈ 该键 preset(「产出了但没登记 preset 的段会被静默删」——union 进来的段名必须真存在于 preset)。
 	it('全部 AI_EXPORT_V*_SECTION_UNION 块:∩ DEFAULT_OFF = ∅ 且 每段 ∈ 该键 preset(v56/v57 必在)', ()=>{
 		const src = fs.readFileSync(path.join(__dirname, '../aiExport.js'), 'utf8');

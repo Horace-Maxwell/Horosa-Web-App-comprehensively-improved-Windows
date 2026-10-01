@@ -541,22 +541,14 @@ public class TransData {
 		head.remove(KeyConstants.RequestObject);
 		head.remove(KeyConstants.ResponseObject);
 		head.remove(KeyConstants.CurrentUser);
-		for(String p : RemovedParams) {
-			head.remove(p);
-			head.remove(p.toUpperCase());
-			head.remove(p.toLowerCase());			
-		}
+		boundless.spring.help.TransLogRules.removeParamsIgnoreCase(head, RemovedParams);
 		
 		IUser user = TransData.getCurrentUser();
 		if(user != null){
 			head.put("user", user.toMap());
 		}
 		map.remove(KeyConstants.MultipartObject);
-		for(String p : RemovedParams) {
-			map.remove(p);
-			map.remove(p.toUpperCase());
-			map.remove(p.toLowerCase());			
-		}
+		boundless.spring.help.TransLogRules.removeParamsIgnoreCase(map, RemovedParams);
 		
 		Map<String, Object> mulmap = new HashMap<String, Object>();
 		if(multiparts.length > 0){

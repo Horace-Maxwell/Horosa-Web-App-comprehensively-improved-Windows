@@ -232,7 +232,7 @@ describe('[Q-024] Anthropic 思考形态按型号', () => {
 
 // 🔴 #54 输出预算键单一真值源：前后端两套判据曾各自「正确」却对不上通道，
 // 前端按协议家族选键把裸 max_tokens 塞进 providerOptions → gpt-5.x 恒 400。
-describe('[#54] maxTokensKeyForModel 代际单源', ()=>{
+describe('maxTokensKeyForModel 代际单源', ()=>{
 	test('OpenAI 新代（gpt-5/6/7 与 o 系）→ max_completion_tokens', ()=>{
 		['gpt-5.5', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-6', 'gpt-7-mini', 'o1', 'o3-pro', 'o4-mini'].forEach((m)=>{
 			expect(isOpenAIReasoningModel(m)).toBe(true);

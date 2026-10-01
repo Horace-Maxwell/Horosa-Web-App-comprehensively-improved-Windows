@@ -8,7 +8,7 @@ import { chartSCUEnabled } from '../../utils/perfFlags';
 // 数据:/germany/midpoint(含 houseFrames)+ /chart(取各点黄经/字形)。后端缺 houseFrames 时前端等宫降级合成。
 // showHouseFrames(WP-1 持久化开关)关时本 Tab 在 AstroGermany 里隐藏;此处再兜一层提示。
 import React, { Component } from 'react';
-import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // [#84] 双触发收敛
+import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // 双触发收敛
 import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import { Row, Col, Switch, Spin, Empty } from 'antd';
 import request from '../../utils/request';
@@ -219,7 +219,7 @@ export default class UranianHouseFrames extends Component {
 		const params = fieldsToParams(this.props.fields);
 		if (!paramsReady(params)){ this.setState({ note: '请先设置出生日期/时间与经纬度', points: [], houseFrames: null }); return; }
 		const sp = schoolToBackendParams(this.state.school); // {school, includeTnp, ..., frames}
-		// [#84] 双触发收敛:挂钩与 componentDidUpdate 同一次改动各进一次 → 参数与流派全同的第二路跳过
+		// 双触发收敛:挂钩与 componentDidUpdate 同一次改动各进一次 → 参数与流派全同的第二路跳过
 		const framesTrig = claimTrigger(this, 'load', JSON.stringify([params, sp]));
 		if (!framesTrig){ return; }
 		this.setState({ loading: true, note: null });

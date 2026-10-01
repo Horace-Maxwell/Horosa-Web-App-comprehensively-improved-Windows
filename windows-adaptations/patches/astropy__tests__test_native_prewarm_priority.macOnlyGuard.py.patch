@@ -1,0 +1,19 @@
+diff --git a/astropy/tests/test_native_prewarm_priority.py b/astropy/tests/test_native_prewarm_priority.py
+index 0b32ce7c..e7a0572c 100644
+--- a/astropy/tests/test_native_prewarm_priority.py
++++ b/astropy/tests/test_native_prewarm_priority.py
+@@ -23,6 +23,14 @@ WEB = os.path.join(REPO, 'Horosa-Web')
+ PRIORITY = os.path.join(REPO, 'Horosa_Desktop_Installer', 'config', 'native_prewarm_priority.json')
+ EMBEDDED_PY = os.path.join(REPO, 'runtime', 'mac', 'python', 'bin', 'python3')
+ 
++# horosa_mac_only_test_guard_v1(Windows 适配,跨平台安全,建议上游化):顺序表是 macOS 安装器资产
++# (Horosa_Desktop_Installer/config/…),Windows 树没有该目录 —— 与其 FileNotFoundError 红,不如按
++# 「本树没有被测资产」跳过;macOS 树上文件在,两条测试原样跑。
++pytestmark = pytest.mark.skipif(
++    not os.path.exists(PRIORITY),
++    reason='native_prewarm_priority.json (macOS installer asset) is not part of this tree',
++)
++
+ sys.path.insert(0, os.path.dirname(__file__))
+ from test_runtime_deps_slim import FORBIDDEN_RUNTIME_MODULES  # noqa: E402  打包排除表单源
+ 

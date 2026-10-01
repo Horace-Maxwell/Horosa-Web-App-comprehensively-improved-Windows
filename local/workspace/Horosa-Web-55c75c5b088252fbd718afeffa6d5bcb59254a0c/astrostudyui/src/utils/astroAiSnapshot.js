@@ -21,7 +21,7 @@ function classicalGlobalValueSafe(key){
 import { currentEgyptSchool, egyptSchoolFromFields } from '../divination/data/egyptianSchools'; // 埃及流派口径(record 随盘键优先,回落全局)
 // 古典衍化四段(opt-in)行构建:零组件依赖单源(与 AstroDerivedHouses/AstroKlimata/AstroEminence/AstroThemaMundi 同引)。
 import { buildDerivedHousesSnapshotLines, buildKlimataSnapshotLines, buildEminenceSnapshotLines, buildThemaMundiSnapshotLines } from './astroClassicalDerived';
-import { buildWholeSignRulerRows, buildHouseSystemRulerRows, resolveHouseSystem, derivedWholeSignLabelOf, rulerOfSign, WHOLE_SIGN_RULERS_HEADERS, HOUSE_SYSTEM_RULERS_HEADERS } from './wholeSignRulers'; // [#79] 宫主派生单源(与 AstroDispositor 同函数;整宫/分宫两表口径分离)
+import { buildWholeSignRulerRows, buildHouseSystemRulerRows, resolveHouseSystem, derivedWholeSignLabelOf, rulerOfSign, WHOLE_SIGN_RULERS_HEADERS, HOUSE_SYSTEM_RULERS_HEADERS } from './wholeSignRulers'; // [Windows #79] 宫主派生单源(与 AstroDispositor 同函数;整宫/分宫两表口径分离)
 
 export const ASTRO_AI_SNAPSHOT_KEY = 'horosa.ai.snapshot.astro.v1';
 let ASTRO_AI_SNAPSHOT_MEMORY = null;
@@ -31,7 +31,7 @@ const DEFAULT_PLANET_INFO_EXPORT = {
 	showRuler: 1,
 };
 const PLANET_HOUSE_INFO_NOTE = '说明：行星名后括号中的 nR 为宫主宫位标记；逆行会明确写为“逆行”。';
-// [#79] 快照 payload 格式版本:[主宰星链] 改挂整宫制宫主表+判读口径行、分宫制宫神星表拆成独立段 → 2。
+// [Windows #79] 快照 payload 格式版本:[主宰星链] 改挂整宫制宫主表+判读口径行、分宫制宫神星表拆成独立段 → 2。
 // hasMatchingSavedAstroSnapshot 以此拒绝整份复用旧格式快照(最坏多算一次);身份签名(createAstroSnapshotSignature)不动。
 export const ASTRO_SNAPSHOT_FORMAT_VERSION = 2;
 const WHOLE_SIGN_RULERS_HEAD = '◆ 整宫制宫主表(wholeSignRulers)';
@@ -1036,7 +1036,7 @@ function buildDispositorSection(chartObj){
 		}
 		lines.push(`${msg(id)}：${chain.map((k)=>msg(k)).join(' → ')}`);
 	});
-	// [#79] 宫主/主宰口径 = 整宫制(自上升星座起算),与 [起盘信息] 行星后的 nR 标记同源(后端 perchart 同样自 Asc 座起数 12 宫取庙主)。
+	// [Windows #79] 宫主/主宰口径 = 整宫制(自上升星座起算),与 [起盘信息] 行星后的 nR 标记同源(后端 perchart 同样自 Asc 座起数 12 宫取庙主)。
 	// 此前此处挂的是「当前分宫制宫头星座」的宫神星表 —— 与同一份快照里的 nR 口径互相打架,AI 按四分仪宫头定主宰
 	// (4/10 宫与整宫制不同)。分宫制表迁出成独立段 [分宫制宫神星表](行星力量/落宫口径)。派生单源 utils/wholeSignRulers。
 	const wsRows = buildWholeSignRulerRows(chartObj);
@@ -1702,7 +1702,7 @@ export function buildAstroSnapshotContent(chartObj, fields, options = {}){
 	sections.push(buildSectionText('希腊点', buildLotsSection(chartObj)));
 	sections.push(buildSectionText('12分度', buildDodecaSection(chartObj)));
 	sections.push(buildSectionText('主宰星链', buildDispositorSection(chartObj)));
-	sections.push(buildSectionText('分宫制宫神星表', buildHouseSystemRulerSection(chartObj, fields))); // [#79] 独立段(默认勾选;preset×9 + v57 union)
+	sections.push(buildSectionText('分宫制宫神星表', buildHouseSystemRulerSection(chartObj, fields))); // [Windows #79] 独立段(默认勾选;preset×9 + v57 union)
 	sections.push(buildSectionText('古典', buildClassicalSection(chartObj)));
 	// [衍化四段] 古典 tab 衍化组件(派生宫转宫/气候带/显赫计分/世界范式盘)快照镜像 —— 🔴 opt-in:
 	// 仅本命 astro 快照保存路径(models/astro 四效果)与挂载 astrochart 分支传 classicalDerived;

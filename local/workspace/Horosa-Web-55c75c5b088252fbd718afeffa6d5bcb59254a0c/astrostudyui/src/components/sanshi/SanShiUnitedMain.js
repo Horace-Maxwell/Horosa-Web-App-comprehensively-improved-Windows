@@ -2483,7 +2483,7 @@ class SanShiInputPanel extends Component{
 							</Select>
 						</label>
 						<label className="horosa-sanshi-select-field" title={Number(opt.guireng) !== 0 ? '星历阳阴系只在贵人体系=六壬法贵人时生效;当前贵人体系下两档恒同' : undefined}>
-							<span>昼夜阳阴{Number(opt.guireng) !== 0 ? '（仅六壬法贵人生效）' : ''}</span>
+							<span>昼夜阳阴</span>
 							{/* [Q-164/T-87·SS-19] 与独立六壬页同律置灰 */}
 							<Select size="small" dropdownMatchSelectWidth={false} disabled={Number(opt.guireng) !== 0} value={opt.yinyangSystem || 'danmu'} onChange={(v)=>this.props.onOptionChange('yinyangSystem', v)}>
 								{LR_YINYANG_SYSTEM_OPTIONS.map((item)=><Option key={item.value} value={item.value}>{item.label}</Option>)}

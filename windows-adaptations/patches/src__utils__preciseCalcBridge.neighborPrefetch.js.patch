@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/preciseCalcBridge.js b/astrostudyui/src/utils/preciseCalcBridge.js
-index 8e8ef2c2..f099c75a 100644
+index bbe7a25d..44cd4b44 100644
 --- a/astrostudyui/src/utils/preciseCalcBridge.js
 +++ b/astrostudyui/src/utils/preciseCalcBridge.js
 @@ -10,6 +10,7 @@ import {

@@ -1027,7 +1027,7 @@ const INDIA_CHART_FIELDS = [
 	{ name: 'indiaVarshaLon', label: '年盘·经度(空=本命;须与纬度同填才生效)', type: 'text', default: '', group: '行运/年度' },
 	{ name: 'indiaChartnum', label: '挂载分盘（Varga）', type: 'select', default: 1, group: '排盘',
 		options: AstroConst.INDIA_MOUNT_VARGA_OPTIONS.map((o)=>(o.value === 1 ? { value: 1, label: 'D1 命盘（默认）' } : o)) },
-	// [#80] 附加分盘:主盘之外再挂几张(如婚姻 D9 + 子女 D7),各出一份「宫头 + 星曜落宫」简表。
+	// [Windows #80] 附加分盘:主盘之外再挂几张(如婚姻 D9 + 子女 D7),各出一份「宫头 + 星曜落宫」简表。
 	// 整张分盘快照约 2.6 万字,附加张按简表出免得把挂载预算吃穿;缺省不选 = 不发请求、不加段 = 零回归。
 	{ name: 'indiaExtraVargas', label: `附加分盘（简表，最多 ${AstroConst.INDIA_MOUNT_EXTRA_VARGA_MAX} 张）`,
 		type: 'multiselect', default: [], group: '排盘', placeholder: '不选=只挂主盘',
@@ -1671,7 +1671,7 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	decennials: { kind: 'record', fields: DECENNIALS_FIELDS },
 	planetaryarc: { kind: 'record', fields: PLANETARY_ARC_FIELDS },
 	persiandirected: { kind: 'record', fields: PERSIAN_DIRECTED_FIELDS },
-	// [#80] 回归黄道二次推运:与恒星支同一后端同一 builder,齿轮同形。
+	// [Windows #80] 回归黄道二次推运:与恒星支同一后端同一 builder,齿轮同形。
 	prog: { kind: 'record', fields: PROG_TARGET_FIELDS },
 	vedicprog: { kind: 'record', fields: PROG_TARGET_FIELDS },
 	jaynesprog: { kind: 'record', fields: PROG_TARGET_FIELDS },
@@ -1764,7 +1764,7 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 		// 留空=custom 档回落本机编辑器所存表。builder 端 normalizeSihuaCustomTable 校验,坏值不注入。
 		{ name: 'sihuaCustomTable', label: '自定义四化表(JSON,配合流派=自定义)', type: 'text', default: '', group: '流派',
 			placeholder: '{"甲":["廉贞","破军","武曲","太阳"],...} 留空=用本机表' },
-		// [#80] 运限组提前:此前排在 40 项的最末组(时间换算→流派→传本 19 项→流派叠层 10 项→运限),
+		// [Windows #80] 运限组提前:此前排在 40 项的最末组(时间换算→流派→传本 19 项→流派叠层 10 项→运限),
 		//   460px 抽屉里要一路滚到底才看得见,用户报障「似乎没找着流年的勾选项」。仅调声明顺序,渲染按声明序分组。
 		// 多选语义：大限/流年/流月对所选每项各产一段(流年×流月笛卡尔);流日/流时锚定到所选的第一个上层。
 		// 全空(默认)=不追加[运限]段=现状(守「默认即现状」,逐字节一致)。总段数上限~50,超限截断+提示行。
@@ -1775,7 +1775,7 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 			{ value: '0', label: '男顺女逆（默认）' }, { value: '1', label: '阳男阴女顺(中州)' },
 		] },
 		{ name: 'daxianSel', label: '大限(命盘宫位序0–11,可多选)', type: 'multiselect', default: [], group: '运限', options: ZIWEI_DAXIAN_OPTIONS },
-		// [#80] 标签此前叫「流年小限」——用户找「流年」找不着(报障原话「紫微挂载设置里似乎没找着流年的勾选项」)。
+		// [Windows #80] 标签此前叫「流年小限」——用户找「流年」找不着(报障原话「紫微挂载设置里似乎没找着流年的勾选项」)。
 		//   这里留空≠不给流年:[运限概览] 段无条件给全大限×流年的年份干支映射;填年份才另出该年的完整流曜与四化落宫。
 		{ name: 'liunianSel', label: '流年(公历年,逗号分隔,如 1996,2000;小限随年并出;留空=只看运限概览)', type: 'text', default: '', group: '运限' },
 		{ name: 'liuyueSel', label: '流月(农历月1–12,可多选)', type: 'multiselect', default: [], group: '运限', options: LUNAR_MONTH_OPTIONS },

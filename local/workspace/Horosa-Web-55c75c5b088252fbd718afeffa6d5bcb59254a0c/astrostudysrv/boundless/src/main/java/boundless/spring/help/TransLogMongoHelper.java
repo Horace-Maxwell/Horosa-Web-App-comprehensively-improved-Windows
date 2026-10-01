@@ -53,7 +53,7 @@ public class TransLogMongoHelper {
 		if(UseTransSet){
 			try{
 				String json = FileUtility.getStringFromClassPath("conf/log/logtranscodes.json");
-				transSet = JsonUtility.decodeSet(json, String.class);
+				transSet = TransLogRules.normalizeTransCodes(JsonUtility.decodeSet(json, String.class));
 			}catch(Exception e){
 				QueueLog.error(AppLoggers.ErrorLogger, "data/logtranscodes.json has some error or miss");
 				transSet = new HashSet<String>();
@@ -61,7 +61,7 @@ public class TransLogMongoHelper {
 		}
 		try{
 			String json = FileUtility.getStringFromClassPath("conf/log/excludelogtrans.json");
-			excludeTransSet = JsonUtility.decodeSet(json, String.class);
+			excludeTransSet = TransLogRules.normalizeTransCodes(JsonUtility.decodeSet(json, String.class));
 		}catch(Exception e){
 			QueueLog.error(AppLoggers.ErrorLogger, "conf/log/excludelogtrans.json has some error or miss");
 		}
@@ -79,14 +79,17 @@ public class TransLogMongoHelper {
 	}
 	
 	
-	private static void logTransCode(String path, HttpServletRequest request, HttpServletResponse response){
-		if(excludeTransSet.contains(path)){
-			return;
+	/** 是否跳过记账:排除表命中,或开了白名单但不在白名单(两表已统一小写,查询不分大小写,见 TransLogRules)。 */
+	static boolean shouldSkipTransLog(String path){
+		if(TransLogRules.transCodeIn(excludeTransSet, path)){
+			return true;
 		}
-		if(UseTransSet){
-			if(!transSet.contains(path)){
-				return;
-			}
+		return UseTransSet && !TransLogRules.transCodeIn(transSet, path);
+	}
+
+	private static void logTransCode(String path, HttpServletRequest request, HttpServletResponse response){
+		if(shouldSkipTransLog(path)){
+			return;
 		}
 		
 		if(path.equals("/")) {

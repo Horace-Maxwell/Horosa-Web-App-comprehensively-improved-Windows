@@ -50,6 +50,19 @@ export function bootContext(){
 		}
 	}catch(e){ /* 保守:当作无上下文 */ }
 	bootContextCache = ctx;
+	// 一次性上下文读完即从地址栏摘掉 firstLaunch / boot:更新后首启的会话里用户手动刷新(URL 不变)时,不再把
+	// 「更新已完成,正在恢复启动」文案与 900 s 首启兜底再演一遍。early=1 与 srv / chartSrv / kentangSrv / rv 原样保留
+	// (就绪门探活与壳收尾 ready 的同参比对要用它们)。
+	if(ctx.firstLaunch || ctx.bootStartedAtMs !== null){
+		try{
+			const url = new URL(window.location.href);
+			url.searchParams.delete('firstLaunch');
+			url.searchParams.delete('boot');
+			if(window.history && typeof window.history.replaceState === 'function'){
+				window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+			}
+		}catch(e){ /* 保守:留在地址栏只是多演一次首启口径 */ }
+	}
 	return ctx;
 }
 

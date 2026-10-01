@@ -235,7 +235,7 @@ class GuoLaoChart extends Component{
 		this.drawChart();
 		this.scheduleDrawRetry();
 		// [R4-B7/C17] 隐藏容器(tab 未选中,svg 0×0)期间数据更新 → 绘制停旧画面,切回 tab 无 React
-		// 更新可触发重画 = 表新盘旧;svg 尺寸变化(含 0→非0)时补一次 drawChart(FL-20260712-5 同型收口,
+		// 更新可触发重画 = 表新盘旧;svg 尺寸变化(含 0→非0)时补一次 drawChart(同型收口,
 		// 签名守卫 :169 防重画风暴)。样板=JinKouChart。
 		this._detachSvgResize = watchChartSvgResize(this.state.chartid, this.drawChart);
 		// 主题重画(单源订阅):componentDidUpdate 会 drawChart(签名含主题指纹,必真重画)

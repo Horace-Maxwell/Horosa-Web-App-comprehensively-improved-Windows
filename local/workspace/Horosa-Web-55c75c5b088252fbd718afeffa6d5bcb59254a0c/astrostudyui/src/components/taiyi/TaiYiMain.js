@@ -1,5 +1,5 @@
 import { Component, createRef } from 'react';
-import { claimTrigger, settleTrigger, identityOf } from '../../utils/singleTrigger';   // [#84] 双触发收敛
+import { claimTrigger, settleTrigger, identityOf } from '../../utils/singleTrigger';   // 双触发收敛
 import { message, Spin } from 'antd';
 import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
@@ -674,7 +674,7 @@ class TaiYiMain extends Component {
 		if(!params){
 			return;
 		}
-		// [#84] 双触发收敛:挂钩(hook.fun)与 componentDidUpdate(fields 换新)同一次改动各进一次 → 同参(请求参数 / 选项 / fields 身份)第二路跳过
+		// 双触发收敛:挂钩(hook.fun)与 componentDidUpdate(fields 换新)同一次改动各进一次 → 同参(请求参数 / 选项 / fields 身份)第二路跳过
 		const nongliTrig = claimTrigger(this, 'requestNongli', JSON.stringify([params, this.state.options]) + '|' + identityOf(fields || this.props.fields));
 		if(!nongliTrig){
 			return;

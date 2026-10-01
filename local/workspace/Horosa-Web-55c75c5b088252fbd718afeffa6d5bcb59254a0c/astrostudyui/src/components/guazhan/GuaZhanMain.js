@@ -401,7 +401,7 @@ export const GUAZHAN_PAGE_SETTINGS = definePageSettings('horosa.guazhan.settings
 });
 
 class GuaZhanMain extends Component{
-	// 生爻配色按访问时读当前调色板(切明暗后新爻即新色);构造期数组会把旧主题的色存死(FL-20260922-3)
+	// 生爻配色按访问时读当前调色板(切明暗后新爻即新色);构造期数组会把旧主题的色存死
 	get genColor(){
 		return [
 			AstroConst.AstroColor.Stroke,

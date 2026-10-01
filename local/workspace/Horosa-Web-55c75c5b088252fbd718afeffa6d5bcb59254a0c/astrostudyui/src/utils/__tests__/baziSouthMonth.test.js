@@ -1,4 +1,4 @@
-// [#93] 南半球月令:缺省不对冲(与 Java 路径同口径);「对冲」只对南纬生效 —— 月支取对冲之支、按年干五虎遁重起月干,
+// 南半球月令:缺省不对冲(与 Java 路径同口径);「对冲」只对南纬生效 —— 月支取对冲之支、按年干五虎遁重起月干,
 // 胎元 / 命宫 / 大运随之由引擎自算;北纬两档恒等。AI 快照在南纬盘标明所用口径。
 import { buildLocalBaziResult, isSouthLatitude } from '../baziLunarLocal';
 import { buildBaziSnapshotForParams } from '../../components/cntradition/BaZi';
@@ -7,7 +7,7 @@ const SYD = { date: '1990-05-18', time: '10:00:00', zone: '+10:00', lon: '151e12
 const BJ = { date: '1990-05-18', time: '10:00:00', zone: '+08:00', lon: '118e27', lat: '31n38', gpsLon: 118.45, gpsLat: 31.63 };
 const run = (p)=>buildLocalBaziResult({ timeAlg: 1, after23NewDay: 1, lateZiHourUseNextDay: 1, gender: 1, ...p }).bazi;
 
-describe('[#93] 南半球月令', ()=>{
+describe('南半球月令', ()=>{
 	test('南纬:缺省不对冲 → 辛巳月;对冲 → 丁亥月,胎元戊寅、首运戊子', ()=>{
 		expect(run(SYD).fourColumns.month.ganzi).toBe('辛巳');
 		const c = run({ ...SYD, southMonth: 'chong' });

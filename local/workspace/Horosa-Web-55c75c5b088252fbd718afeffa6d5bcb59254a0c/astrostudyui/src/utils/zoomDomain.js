@@ -173,7 +173,7 @@ export function measureLayoutHeightOf(el){
 //                      但偏小只是版面略紧,好过拿错值铺出死带。
 // 容器实测值的合理性下限:小于它(未布局/隐藏/过渡态)才不当真值,往下回落。
 // 🔴 不是 660 那种「版面最小高度」地板——容器量到多少就是多少:缩放 1.5 档、窗高 1000 时容器只有 595,
-// 套 660 地板会把页根顶得比容器高 65,底部被 overflow:hidden 裁掉(真 WebKit 与 Chromium 逐位相同,FL-20260906-30)。
+// 套 660 地板会把页根顶得比容器高 65,底部被 overflow:hidden 裁掉(真 WebKit 与 Chromium 逐位相同)。
 export const CONTAINER_HEIGHT_SANITY_MIN = 200;
 
 export function resolveWorkspaceHeight(opts){

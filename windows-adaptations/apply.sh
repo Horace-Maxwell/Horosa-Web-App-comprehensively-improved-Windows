@@ -644,6 +644,10 @@ apply_patch horosa_numpy2_scalar_assert_v1  astropy/tests/test_taiyi_game_theory
 # ensure_ascii=False 打印中文人名 → Windows 管道两端按 locale 码页(cp1252/GBK)编解码 → reader 线程 UnicodeDecodeError、
 # stdout 变 None → AttributeError 假红(#99/#102 同族:上游测试的 POSIX/UTF-8 环境假设)。两端显式 UTF-8,不改产品码不改判据。
 apply_patch horosa_subprocess_utf8_v1       astropy/tests/test_xuanshi_persons_graph_order.py     astropy__tests__test_xuanshi_persons_graph_order.subprocessUtf8.py.patch
+# [#111,v3.11.3] 上游新测试 test_native_prewarm_priority:配对 macOS 安装器资产 Horosa_Desktop_Installer/config/native_prewarm_priority.json
+# (首启原生库预检顺序表,Windows 无对应动作,树里没有该目录)→ open() FileNotFoundError 红。加模块级 skipif(文件不存在即跳过),
+# macOS 树上文件在 ⇒ 两条测试原样跑;不改判据不改产品码(#109 row 90 同族:上游测试的单平台资产假设)。
+apply_patch horosa_mac_only_test_guard_v1   astropy/tests/test_native_prewarm_priority.py         astropy__tests__test_native_prewarm_priority.macOnlyGuard.py.patch
 # 步进预取金标:任务序(近端优先 + 技法端点先于同向 chart)、技法登记方收到【已步进】的 fields
 # (旧版传基准 fields = 预取当前那张盘 = 白打)、每个任务必须自带 path 声明。
 apply_patch stepPrefetchFastFirst "astrostudyui/src/utils/__tests__/stepPrefetch.test.js"  src__utils____tests____stepPrefetch.prefetchRegistry.test.js.patch

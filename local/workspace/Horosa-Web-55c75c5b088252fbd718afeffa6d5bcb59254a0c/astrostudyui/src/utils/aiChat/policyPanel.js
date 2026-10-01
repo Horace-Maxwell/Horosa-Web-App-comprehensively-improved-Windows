@@ -13,7 +13,7 @@ export const PRESET_OPTIONS = [
 export const FIELD_SPECS = [
 	{ key: 'historyMode', label: '历史裁剪', kind: 'select', options: [{ value: 'legacy', label: '不裁(旧版)' }, { value: 'window', label: '按预算裁' }], help: '「按预算裁」才用到 历史 token 预算 / 最少·最多保留条数 / 保留图片数;「挂载字数预算」与工具轮回放各档两种模式都生效' },   // [AR-33] 逐字段写明适用模式(此前一句「下面的」把挂载字数预算也说成只在窗口模式生效)
 	{ key: 'historyTokenBudget', label: '历史 token 预算', kind: 'intOrNull', min: 500, max: 200000, help: '留空=按当前模型窗口自动(卡片上方显示估算)' },
-	// [#80] 挂载(命盘/技法快照)字数预算。此前只按模型窗口实算、用户无处可调:模型不在窗口目录表里
+	// [Windows #80] 挂载(命盘/技法快照)字数预算。此前只按模型窗口实算、用户无处可调:模型不在窗口目录表里
 	//   (如 gpt-6 系)就回落保底,四技法均分后单家只剩四五千字,整张 Dasha 表/分盘被裁掉。
 	{ key: 'mountCharBudget', label: '挂载字数预算', kind: 'intOrNull', min: 2000, max: 400000, help: '留空=按当前模型窗口自动(卡片上方显示估算);填数=固定该字数,不受自动上限封顶;两种历史裁剪模式都生效' },
 	{ key: 'historyMinKeep', label: '最少保留条数', kind: 'int', min: 0, max: 200, help: '即使超预算也至少保留这么多条' },
@@ -65,7 +65,7 @@ export function budgetText(policy, model, numCtx){
 	return `当前模型「${model || '未选'}」历史预算≈${n} token(按模型窗口 10% 取,夹在 ${HISTORY_BUDGET_MIN}–${HISTORY_BUDGET_MAX})`;
 }
 
-// [#80] 「当前模型挂载预算≈N 字」:固定值优先;否则按模型窗口实算(未知模型=保底)。
+// [Windows #80] 「当前模型挂载预算≈N 字」:固定值优先;否则按模型窗口实算(未知模型=保底)。
 export function mountBudgetText(policy, model, numCtx){
 	const p = policy || DEFAULT_CONTEXT_POLICY;
 	if(Number.isFinite(p.mountCharBudget) && p.mountCharBudget > 0){ return `挂载预算固定为 ${p.mountCharBudget} 字`; }

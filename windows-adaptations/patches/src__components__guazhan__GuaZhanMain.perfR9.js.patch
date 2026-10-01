@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/guazhan/GuaZhanMain.js b/astrostudyui/src/components/guazhan/GuaZhanMain.js
-index c1d5ca9a..6cee11b2 100644
+index 5d62e79c..9c8fca10 100644
 --- a/astrostudyui/src/components/guazhan/GuaZhanMain.js
 +++ b/astrostudyui/src/components/guazhan/GuaZhanMain.js
-@@ -38,6 +38,8 @@ import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/d
+@@ -39,6 +39,8 @@ import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/d
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  // [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
  import { visualFloorPx } from '../../utils/zoomDomain';
@@ -11,7 +11,7 @@ index c1d5ca9a..6cee11b2 100644
  
  const {Option} = Select;
  const { TabPane } = Tabs;
-@@ -784,6 +786,12 @@ class GuaZhanMain extends Component{
+@@ -788,6 +790,12 @@ class GuaZhanMain extends Component{
  		let desc = await this.requestGuaDescReturn();
  		this.setState({
  			guaDesc: desc,
@@ -24,7 +24,7 @@ index c1d5ca9a..6cee11b2 100644
  		});
  	}
  
-@@ -2039,7 +2047,12 @@ class GuaZhanMain extends Component{
+@@ -2040,7 +2048,12 @@ class GuaZhanMain extends Component{
  		const muted = { color: 'var(--horosa-astro-muted, #928b82)', fontSize: 13 };
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-guazhan-tabs">
@@ -37,7 +37,7 @@ index c1d5ca9a..6cee11b2 100644
  					<div className="horosa-guazhan-info-card" style={scrollStyle}>
  						{analysis ? <LiuYaoXunKong analysis={analysis} /> : null}
  						{this.renderInfoRows()}
-@@ -2066,34 +2079,45 @@ class GuaZhanMain extends Component{
+@@ -2067,34 +2080,45 @@ class GuaZhanMain extends Component{
  							</div>
  						) : null}
  					</div>
