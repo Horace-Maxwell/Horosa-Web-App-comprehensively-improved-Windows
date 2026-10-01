@@ -197,6 +197,15 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
 ### 温启对照 v3.11.3(2026-09-30 PERF-R13 宗师级性能轮·Windows-only 零功能变化;horosa_warm_ab_stamp_v1)
 
+- **★最终发货构建戳(2026-10-01,feat `b8a26e17` = PERF-R13 + Mac v3.11.3 同步;`docs/perf-artifacts/startup_ab_v3113_final_warmstamp.json`)**:
+  warmReady 中位 **4566 / 4487ms**(p95 4770 / 4536,两臂 −1.7% 自洽);workspaceVisible **795 / 786**;spawnToVisible 1057 / 1044。
+  机器态同前(2611/2611 睿频压制 + MuMu 常驻);相对 PERF-R13 过渡构建戳 4372/4454 为 +4.4%/+0.7%(两臂互差 80ms 的噪声带内;Mac 同步面
+  在启动路径上只多了 Java 日志规则/持久化开关与前端 replaceState,无量级改动),**相对 v3.11.2 戳 5327/5301 = −14.3% / −15.4%**;
+  预算 4500:A 4566 OVER 1.5% / B PASS —— 按 #64 口径与 R13 戳同机器态同代码路径,判噪声不判回归(R13 戳双 PASS 已在此机器态下建立)。
+  **阶梯态分相(r13 隔离档案,首轮建阶梯 58s 后 3 轮;`warm_phase_history/ledger_v3113final.jsonl`)**:史 totalMs **2803 / 2438 / 2621**(R13 过渡件 2689/2504/2582;v3.11.2 2967-3147),
+  java `jvm_to_ctx_ready` **2245 / 1911 / 2104**,py `listening` 579-610,**`gate_early_open` 1084-1137**(= R13 的首屏门时刻)· `gate_core_open` 1347-1420(上游核心门,新)· `gate_open` 2648-2762(全门 = 旧单门时刻),
+  web `boot_gate_open` 2137-2465,`first_chart_paint` 恢复命中 **781 / 806**(未命中轮 4383)。**四段裁决:首启(=安装期物化后首开)/ 温启 / 切页(导航探针 settle 中位 279/262 vs 改前 305/281)/ 技法内改选项(逐技法 18 PASS · 6 结构性 miss 簇 · 30 无数据,同 R13)—— 无一段比 v3.11.2 慢。**
+
 - **构建自洽 A/B(startup_ab,双臂同构建 A=B,6/臂弃首样 ⇒ n=5,commit `aabb11f0`)**:
   warmReady 中位 **4372 / 4454ms**(p95 4454 / 4474),两臂相距 **+1.9%** = 构建自洽,无回归信号。
   **workspaceVisible 775 / 778ms**(p95 798 / 817,预算 1500 内 ✓);spawnToVisible 1031 / 1038ms。
