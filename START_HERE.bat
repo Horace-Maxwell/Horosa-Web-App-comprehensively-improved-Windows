@@ -1,7 +1,6 @@
 @echo off
 setlocal EnableExtensions
 for %%I in ("%~dp0.") do set "REPO_ROOT=%%~fI"
-set "HOROSA_REPO_ROOT=%REPO_ROOT%"
 if not defined HOROSA_WORKSPACE_DIR set "HOROSA_WORKSPACE_DIR=%REPO_ROOT%\local\workspace"
 
 title Horosa Windows Stable Launcher
@@ -17,7 +16,6 @@ if not "%EXIT_CODE%"=="0" (
   echo Startup failed.
   echo Please check:
   echo   %REPO_ROOT%\README.md
-  echo   %REPO_ROOT%\docs\SELFCHECK_LOG.md
   echo   %REPO_ROOT%\log\HOROSA_RUN_ISSUES.md
 )
 endlocal & exit /b %EXIT_CODE%

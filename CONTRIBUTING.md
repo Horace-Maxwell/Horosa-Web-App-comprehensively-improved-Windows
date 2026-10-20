@@ -11,7 +11,7 @@ Thank you for contributing to Horosa for Windows.
 ## Pull request workflow
 
 1. Sync from `main`
-2. Create a focused branch, preferably `codex/<topic>` or `feature/<topic>`
+2. Create a focused branch, preferably `fix/<topic>` or `feature/<topic>`
 3. Keep the scope limited and explain affected modules clearly
 4. Run the minimum local checks before opening the PR
 5. Update docs when behavior, contracts, or release-facing flows change

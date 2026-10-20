@@ -11,7 +11,7 @@
 ## Pull Request 流程
 
 1. 先同步最新 `main`
-2. 新建聚焦分支，建议使用 `codex/<topic>` 或 `feature/<topic>`
+2. 新建聚焦分支，建议使用 `fix/<topic>` 或 `feature/<topic>`
 3. 控制改动范围，并明确写出影响的模块
 4. 提交 PR 前完成最少本地检查
 5. 如果改动影响文档、契约或发布行为，必须同 PR 一起更新

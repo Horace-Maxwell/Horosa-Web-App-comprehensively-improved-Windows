@@ -40,7 +40,6 @@ if not defined PS_EXE if exist "%ProgramFiles(x86)%\PowerShell\7\pwsh.exe" set "
 if not defined PS_EXE for /f "delims=" %%I in ('where pwsh.exe 2^>nul') do if not defined PS_EXE set "PS_EXE=%%I"
 if not defined PS_EXE set "PS_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 
-set "HOROSA_REPO_ROOT=%ROOT%\.."
 "%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\Horosa_Local_Windows.ps1" %*
 if errorlevel 1 (
   set "ISSUE_FILE=%ROOT%\..\log\HOROSA_RUN_ISSUES.md"

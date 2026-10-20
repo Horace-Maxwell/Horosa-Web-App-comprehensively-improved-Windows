@@ -1562,7 +1562,9 @@ function Reset-BrowserProfileWindowPlacement {
         continue
       }
 
-      $json = $raw | ConvertFrom-Json -Depth 100
+      # No -Depth here: Windows PowerShell 5.1 (the .bat fallback engine) has no such parameter and
+      # would throw, silently disabling this reset; both engines parse nested JSON fine without it.
+      $json = $raw | ConvertFrom-Json
       if ($json -and $json.browser) {
         foreach ($propName in @('app_window_placement', 'window_placement')) {
           if ($json.browser.PSObject.Properties[$propName]) {
@@ -1623,7 +1625,7 @@ function Ensure-BrowserProfileZoomPreference {
     if (Test-Path $preferencesPath -PathType Leaf) {
       $raw = Get-Content -Path $preferencesPath -Raw -Encoding UTF8
       if (-not [string]::IsNullOrWhiteSpace($raw)) {
-        $json = $raw | ConvertFrom-Json -Depth 100
+        $json = $raw | ConvertFrom-Json   # no -Depth: absent on Windows PowerShell 5.1
       }
     }
 
@@ -1741,9 +1743,10 @@ function Test-Python311 {
 }
 
 function Test-PythonDepsReady {
-  param([string]$PythonCmdOrPath)
+  # The single import probe for "can this Python run the chart service" (one import list to maintain).
+  param([string]$PythonCmdOrPath, [string]$ProjectRoot = $ProjectDir)
   try {
-    $flatlibPath = Join-Path $ProjectDir 'flatlib-ctrad2'
+    $flatlibPath = Join-Path $ProjectRoot 'flatlib-ctrad2'
     $flatlibEscaped = $flatlibPath.Replace('\', '\\')
     & $PythonCmdOrPath -c "import os,sys;p=r'$flatlibEscaped';p and os.path.isdir(os.path.join(p,'flatlib')) and sys.path.insert(0,p);import cherrypy,jsonpickle,swisseph,flatlib,ephem,streamlit,pandas,plotly,svgwrite,fpdf,pytz,opencc,zhconv,sxtwl,cn2an,cnlunar,bidict,kinliuren,drawsvg,kerykeion;import astropy.units;print('ok')" *> $null
     return ($LASTEXITCODE -eq 0)
@@ -2139,8 +2142,7 @@ function Ensure-PythonPipAvailable {
     $getPipUrls += $env:HOROSA_GET_PIP_URL.Trim()
   }
   $getPipUrls += @(
-    'https://bootstrap.pypa.io/get-pip.py',
-    'https://bootstrap.pypa.io/pip/3.11/get-pip.py'
+    'https://bootstrap.pypa.io/get-pip.py'
   )
   if (-not (Invoke-DownloadWithFallback -Urls $getPipUrls -OutFile $getPipPath -TimeoutSec 180)) {
     return $false
@@ -2334,21 +2336,8 @@ function Install-Java17 {
       Write-Host ("[WARN] {0} reported success but Java 17 was not detected. Trying next option..." -f $c.Name)
     }
   }
-  if (Install-Java17Portable) {
-    $resolvedPortable = Resolve-Java -RequireJdk:$RequireJdk
-    if ($resolvedPortable) {
-      Write-Host ("[OK] Portable Java 17 ready: {0}" -f $resolvedPortable)
-      return $true
-    }
-    if ($RequireJdk) {
-      $portableJava = $PortableJavaExe
-      $portableJavac = $PortableJavacExe
-      if ((Test-Path $portableJava) -and (Test-Path $portableJavac)) {
-        Write-Host ("[OK] Portable Java 17 files ready: {0}" -f $portableJava)
-        return $true
-      }
-    }
-  }
+  # No portable retry here: the only caller (Ensure-BackendJava) reaches winget only after
+  # Install-Java17Portable has already failed, so retrying it would just repeat the same download.
   return $false
 }
 
@@ -2369,15 +2358,14 @@ function Get-Java17DownloadUrls {
   )
 
   $urls += @(
-    'https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse?project=jdk',
-    'https://download.oracle.com/java/17/latest/jdk-17_windows-x64_bin.zip'
+    'https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse?project=jdk'
   )
   return @($urls | Where-Object { $_ -match '^https?://' } | Select-Object -Unique)
 }
 
 function Install-Java17Portable {
   try {
-    Write-Host 'winget install failed, trying portable Java 17 download...'
+    Write-Host 'Trying portable Java 17 download...'
     $portableRoot = $RuntimeWindowsDir
     $javaTarget = $PortableJavaRuntimeDir
     $tmpDir = Join-Path $env:TEMP ('horosa_java17_' + [DateTime]::Now.ToString('yyyyMMdd_HHmmss'))
@@ -2505,8 +2493,9 @@ function Install-MavenPortable {
     New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
     New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
 
+    # archive.apache.org keeps every release; downloads.apache.org only carries the newest ones
+    # (its 3.9.11 link is gone), so it is not listed.
     $urls = @(
-      'https://downloads.apache.org/maven/maven-3/3.9.11/binaries/apache-maven-3.9.11-bin.zip',
       'https://archive.apache.org/dist/maven/maven-3/3.9.11/binaries/apache-maven-3.9.11-bin.zip'
     )
     $downloaded = Invoke-DownloadWithFallback -Urls $urls -OutFile $zipPath -TimeoutSec 240
@@ -3005,43 +2994,30 @@ function Ensure-PythonRuntimeDeps {
     [string]$PythonExe,
     [string]$ProjectRoot
   )
-  $checkDeps = {
-    param([string]$Exe, [string]$ProjRoot)
-    try {
-      $flatlibPath = Join-Path $ProjRoot 'flatlib-ctrad2'
-      $flatlibEscaped = $flatlibPath.Replace('\', '\\')
-      & $Exe -c "import os,sys;p=r'$flatlibEscaped';p and os.path.isdir(os.path.join(p,'flatlib')) and sys.path.insert(0,p);import cherrypy,jsonpickle,swisseph,flatlib,ephem,streamlit,pandas,plotly,svgwrite,fpdf,pytz,opencc,zhconv,sxtwl,cn2an,cnlunar,bidict,kinliuren,drawsvg,kerykeion;import astropy.units;print('ok')" *> $null
-      return ($LASTEXITCODE -eq 0)
-    } catch {
-      return $false
-    }
-  }
+  # astropy/requirements.txt is tracked product source (and pinned by a release sentinel), so it is
+  # the only dependency list; every success path below ends in the same Test-PythonDepsReady probe.
+  $requirementsPath = Join-Path $ProjectRoot 'astropy\requirements.txt'
 
   $installFromWheelDir = {
     param([string]$Exe, [string]$WheelDir, [string]$ProjRoot)
     if (-not (Test-Path $WheelDir)) { return $false }
     try {
       Write-Host ("Installing Python dependencies from local wheelhouse: {0}" -f $WheelDir)
-      $requirementsPath = Join-Path $ProjRoot 'astropy\requirements.txt'
-      if (Test-Path $requirementsPath) {
-        & $Exe -m pip install --disable-pip-version-check --no-input --no-index --find-links $WheelDir -r $requirementsPath
-      } else {
-        & $Exe -m pip install --disable-pip-version-check --no-input --no-index --find-links $WheelDir cherrypy jsonpickle pyswisseph ephem streamlit pandas plotly svgwrite fpdf2 pytz opencc-python-reimplemented zhconv sxtwl cn2an cnlunar bidict kinliuren drawsvg kerykeion astropy
-      }
+      & $Exe -m pip install --disable-pip-version-check --no-input --no-index --find-links $WheelDir -r $requirementsPath
       if ($LASTEXITCODE -ne 0) { return $false }
-      return (& $checkDeps $Exe $ProjRoot)
+      return (Test-PythonDepsReady -PythonCmdOrPath $Exe -ProjectRoot $ProjRoot)
     } catch {
       return $false
     }
   }
 
-  try {
-    if (& $checkDeps $PythonExe $ProjectRoot) {
-      Write-Host 'Python dependencies already satisfied, skip install.'
-      return $true
-    }
-  } catch {
-    # continue to install
+  if (Test-PythonDepsReady -PythonCmdOrPath $PythonExe -ProjectRoot $ProjectRoot) {
+    Write-Host 'Python dependencies already satisfied, skip install.'
+    return $true
+  }
+  if (-not (Test-Path $requirementsPath)) {
+    Write-Host ("[ERROR] Missing {0}; cannot install Python dependencies." -f $requirementsPath)
+    return $false
   }
 
   try {
@@ -3064,14 +3040,9 @@ function Ensure-PythonRuntimeDeps {
 
   try {
     Write-Host 'Installing Python dependencies for local runtime (online fallback)...'
-    $requirementsPath = Join-Path $ProjectRoot 'astropy\requirements.txt'
-    if (Test-Path $requirementsPath) {
-      & $PythonExe -m pip install --disable-pip-version-check --no-input -r $requirementsPath
-    } else {
-      & $PythonExe -m pip install --disable-pip-version-check --no-input cherrypy jsonpickle pyswisseph ephem streamlit pandas plotly svgwrite fpdf2 pytz opencc-python-reimplemented zhconv sxtwl cn2an cnlunar bidict kinliuren drawsvg kerykeion astropy
-    }
+    & $PythonExe -m pip install --disable-pip-version-check --no-input -r $requirementsPath
     if ($LASTEXITCODE -ne 0) { return $false }
-    return (& $checkDeps $PythonExe $ProjectRoot)
+    return (Test-PythonDepsReady -PythonCmdOrPath $PythonExe -ProjectRoot $ProjectRoot)
   } catch {
     Write-Host ("Python dependency install failed: {0}" -f $_.Exception.Message)
     return $false
@@ -3100,61 +3071,6 @@ function Sync-BundledFrontend {
   return $false
 }
 
-function Ensure-FrontendStaticLayout {
-  param([string]$DistPath)
-
-  if (-not $DistPath) { return }
-  $indexPath = Join-Path $DistPath 'index.html'
-  if (-not (Test-Path $indexPath)) { return }
-
-  $html = Get-Content -Path $indexPath -Raw -ErrorAction SilentlyContinue
-  if (-not $html) { return }
-  if ($html -notmatch '/static/umi\.') { return }
-
-  $staticDir = Join-Path $DistPath 'static'
-  New-Item -ItemType Directory -Force -Path $staticDir | Out-Null
-
-  $fixed = $false
-  Get-ChildItem -Path $DistPath -File -Filter 'umi.*' | ForEach-Object {
-    $dest = Join-Path $staticDir $_.Name
-    if (-not (Test-Path $dest)) {
-      Copy-Item -Path $_.FullName -Destination $dest -Force
-      $fixed = $true
-    }
-  }
-
-  if ($fixed) {
-    Write-Host '[OK] Repaired frontend static layout for /static assets.'
-  }
-
-  # Some bundles reference font URLs as url(static/...) inside /static/umi*.css.
-  # Browser then requests /static/static/* when CSS is served from /static/.
-  # Mirror first-level static files into static/static to avoid font 404.
-  $nestedStaticDir = Join-Path $staticDir 'static'
-  $needsNestedMirror = $false
-  Get-ChildItem -Path $staticDir -File -Filter 'umi*.css' -ErrorAction SilentlyContinue | ForEach-Object {
-    $cssText = Get-Content -Path $_.FullName -Raw -ErrorAction SilentlyContinue
-    if ($cssText -and $cssText -match 'url\(\s*static\/') {
-      $needsNestedMirror = $true
-    }
-  }
-
-  if ($needsNestedMirror) {
-    New-Item -ItemType Directory -Force -Path $nestedStaticDir | Out-Null
-    Get-ChildItem -Path $staticDir -File -ErrorAction SilentlyContinue | ForEach-Object {
-      $dest = Join-Path $nestedStaticDir $_.Name
-      if (-not (Test-Path $dest)) {
-        Copy-Item -Path $_.FullName -Destination $dest -Force
-        $fixed = $true
-      }
-    }
-  }
-
-  if ($needsNestedMirror -and $fixed) {
-    Write-Host '[OK] Repaired frontend nested static assets for relative font URLs.'
-  }
-}
-
 function Get-BackendJarDownloadUrls {
   $urls = @()
   if ($env:HOROSA_BOOT_JAR_URL) {
@@ -3175,12 +3091,8 @@ function Get-BackendJarDownloadUrls {
     (Join-Path $CommonBundleRoot 'astrostudyboot.urls.txt')
   )
 
-  # GitHub source ZIP stores this LFS-tracked jar as a pointer file, so keep a public
-  # binary URL as a built-in fallback for one-click startup users.
-  $urls += @(
-    'https://media.githubusercontent.com/media/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/main/local/workspace/runtime/windows/bundle/astrostudyboot.jar'
-  )
-
+  # No built-in public URL: the jar is not published in the repository, so a clone without it
+  # builds it locally with Maven (Ensure-BackendJar) unless a mirror URL is configured above.
   return @($urls | Where-Object { $_ -match '^https?://' } | Select-Object -Unique)
 }
 
@@ -3550,31 +3462,6 @@ function Install-NodeJsPortable {
     Write-Host ("Portable Node.js download failed: {0}" -f $_.Exception.Message)
     return $false
   }
-}
-
-function Install-NodeJs {
-  if (Install-WithWinget -PackageId 'OpenJS.NodeJS.LTS' -DisplayName 'Node.js LTS') {
-    return $true
-  }
-  if (Install-WithWinget -PackageId 'OpenJS.NodeJS' -DisplayName 'Node.js') {
-    return $true
-  }
-  return (Install-NodeJsPortable)
-}
-
-function Ensure-NodeJs {
-  $resolved = Resolve-NodeJs
-  if ($resolved) { return $resolved }
-
-  if (Install-NodeJs) {
-    Start-Sleep -Seconds 2
-    $resolved = Resolve-NodeJs
-    if ($resolved) {
-      Write-Host ("[OK] Node.js ready: {0}" -f $resolved)
-    }
-  }
-
-  return $resolved
 }
 
 function Get-NodeJsSourceLabel {
@@ -3998,7 +3885,7 @@ function Should-RunWarmup {
     if ([string]::IsNullOrWhiteSpace($raw)) {
       return $true
     }
-    $marker = $raw | ConvertFrom-Json -Depth 20
+    $marker = $raw | ConvertFrom-Json   # no -Depth: absent on Windows PowerShell 5.1
     if ($marker -and $marker.fingerprint -eq $Fingerprint) {
       Write-Host ("[warmup] Cache hit, skip runtime warmup. fingerprint={0}" -f $Fingerprint)
       return $false
@@ -4065,7 +3952,9 @@ function Invoke-HorosaWarmup {
       -RedirectStandardOutput $warmOut `
       -RedirectStandardError $warmErr
 
-    if (-not (Wait-Process -Id $proc.Id -Timeout 180 -ErrorAction SilentlyContinue)) {
+    # Wait-Process never writes to the pipeline, so testing its output always read as "timed out";
+    # WaitForExit returns $true only when the process really finished in time.
+    if (-not $proc.WaitForExit(180000)) {
       Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
       Write-Host '[WARN] Runtime warmup timed out after 180s, continue without blocking startup.'
       return
@@ -4211,7 +4100,8 @@ if ($needsFrontendRebuild) {
   }
 }
 
-Ensure-FrontendStaticLayout -DistPath $DistDir
+# (The /static/ asset-layout repair for web `dist` builds lives in astrostudyui/scripts/umi-runner.js,
+# which runs it after every build, so the launcher no longer duplicates it.)
 $NodeBin = if ($script:NodeBin) { $script:NodeBin } else { Resolve-NodeJs }
 if ($NodeBin -and (-not $script:NodeSourceLabel)) {
   $script:NodeSourceLabel = Get-NodeJsSourceLabel -NodeExe $NodeBin
@@ -4267,11 +4157,9 @@ if (-not (Test-Path (Join-Path $PyRuntimeDir 'python.exe'))) {
   }
 }
 
+# Ensure-PythonRuntimeDeps only returns $true after Test-PythonDepsReady passed, so no re-check here
+# (the duplicate import probe used to cost ~2.5 s on every launch).
 $depsReady = Ensure-PythonRuntimeDeps -PythonExe $PythonBin -ProjectRoot $ProjectDir
-if ($depsReady -and (-not (Test-PythonDepsReady -PythonCmdOrPath $PythonBin))) {
-  Write-Host '[WARN] Python dependency check failed after install attempt; will try fallback.'
-  $depsReady = $false
-}
 if (-not $depsReady) {
   $currentVersion = Get-PythonVersionInfo -PythonCmdOrPath $PythonBin
   $isPython311 = $false

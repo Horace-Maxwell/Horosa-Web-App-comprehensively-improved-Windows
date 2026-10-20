@@ -827,7 +827,7 @@ if (Test-BackendJarNeedsBuild -ProjDir $ProjectDir -TargetJarPath $JarSrc) {
   # Fail loudly rather than silently ship a stale jar: if backend source is STILL newer than the (target) jar
   # after the rebuild attempt, the jar does not contain the latest backend change -- do NOT fall back to it.
   if (Test-BackendJarNeedsBuild -ProjDir $ProjectDir -TargetJarPath $JarSrc) {
-    throw "astrostudyboot.jar is stale (backend source is newer than the built jar) and could not be rebuilt. Build it manually (see .claude/skills/horosa-dev/SKILL.md section 5) or set HOROSA_JAVA_HOME to a JDK 17, then rerun."
+    throw "astrostudyboot.jar is stale (backend source is newer than the built jar) and could not be rebuilt. Build it manually with Maven (install the changed backend modules, then 'mvn -DskipTests clean package' in astrostudysrv\astrostudyboot) or set HOROSA_JAVA_HOME to a JDK 17, then rerun."
   }
 }
 

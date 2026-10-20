@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
-# Re-apply the Windows-only adaptations onto a freshly wholesale-replaced product source.
+# Re-apply the Windows-only adaptations onto a freshly refreshed product source.
 #
-# WHY THIS EXISTS: the Windows product source (local/workspace/Horosa-Web-*/) is gitignored
-# (build-harness-only repo) + is wholesale-replaced from the Mac repo on every sync. The Mac
-# tree LACKS these Windows adaptations, so each sync drops them. A `git reset --hard` / wipe
-# also loses them. They were once lost with no recovery (the v2.5.0 "disaster"), so they now
-# live HERE, tracked in git, and this script restores them deterministically.
+# WHY THIS EXISTS: the product source (local/workspace/Horosa-Web-*/) is tracked but refreshed as a
+# whole from the shared product tree, which does not contain these Windows adaptations, so every
+# refresh drops them. They live here (patches/ + files/) and this script restores them
+# deterministically; release_selfcheck.py sentinels + MARKER_INVENTORY.json verify the result.
 #
-# USAGE (from repo root, after wholesale-replacing the product source from the Mac clone):
-#   bash windows-adaptations/apply.sh <workspace-product-dir> [mac-clone-Horosa-Web-dir]
+# USAGE (from repo root, after refreshing the product source):
+#   bash windows-adaptations/apply.sh <workspace-product-dir> [shared-source-clone-Horosa-Web-dir]
 # e.g.
 #   bash windows-adaptations/apply.sh \
 #     local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c \
-#     tmp/mac-sync-2.5.0/Horosa-Web
+#     <shared-source-clone>/Horosa-Web
 set -uo pipefail
 OV="$(cd "$(dirname "$0")" && pwd)"
 WS="${1:?usage: apply.sh <workspace-product-dir> [mac-clone-Horosa-Web-dir]}"
