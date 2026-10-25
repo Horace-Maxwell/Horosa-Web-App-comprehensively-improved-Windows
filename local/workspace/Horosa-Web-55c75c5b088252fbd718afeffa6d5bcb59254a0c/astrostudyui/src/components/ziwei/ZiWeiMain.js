@@ -470,7 +470,6 @@ function buildZiWeiSnapshotText(params, result){
 	lines.push(`四化流派：${schoolLabel}`);
 	// 传本/排盘开关(非默认才注记,供 AI 知悉本盘用了哪套传本)。
 	const tbNotes = [];
-	if(ZWEngineOptions.daxianSpan !== 10){ tbNotes.push('大限跨度=局数年(钦天)'); }
 	if(ZWEngineOptions.tianmaBasis !== 'month'){ tbNotes.push('天马=年支三合马'); }
 	if(ZWEngineOptions.starSet !== 'full'){ tbNotes.push('星集=精简18星(河洛)'); }
 	if(ZWEngineOptions.sanPan && ZWEngineOptions.sanPan !== 'tian'){ tbNotes.push(`观察盘=${ZWEngineOptions.sanPan === 'di' ? '地盘(身宫起)' : '人盘(福德起)'}`); }
@@ -800,7 +799,7 @@ export async function buildZiweiSnapshotForParams(params){
 		// 全局残留清不掉——复审 F2 附带缺口)
 		if(params[k] !== undefined && params[k] !== null && (Array.isArray(params[k]) || `${params[k]}` !== '')){
 			prevEngine[k] = ZWEngineOptions[k];
-			ZWEngineOptions[k] = params[k];
+			ZWEngineOptions[k] = k === 'daxianSpan' ? 10 : params[k];
 			hasEngineOverride = true;
 		}
 	});
@@ -825,7 +824,7 @@ export async function buildZiweiSnapshotForParams(params){
 			return '';
 		}
 		// WP-F:挂载/导出快照与 live 同口径——传本开关非默认时,用本地引擎重排盘+重算格局,
-		// 使快照「传本设置」注记与实际盘数据一致(否则注记说局数年、盘却是 Java 默认 10 年)。失败回退 Java。
+		// 使快照「传本设置」注记与实际盘数据一致。失败回退 Java;两条路径均为十年大限。
 		if(ziweiNeedsLocalEngine()){
 			try{
 				const birth = { date: params.date, time: params.time, zone: params.zone, lon: params.lon, lat: params.lat, gpsLon: params.gpsLon, gpsLat: params.gpsLat, ad: 1, gender: params.gender };

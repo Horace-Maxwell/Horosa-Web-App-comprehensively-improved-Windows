@@ -98,7 +98,7 @@ describe('WP-D 流派预设', () => {
 		expect(ZIWEI_SCHOOL_PRESETS.zhongzhou.sihua).toBe('zhongzhou');
 		expect(ZIWEI_SCHOOL_PRESETS.zhongzhou.shangShi).toBe('yinyang');
 		expect(ZIWEI_SCHOOL_PRESETS.zhongzhou.borrowPalace).toBe(true);
-		expect(ZIWEI_SCHOOL_PRESETS.qintian.daxianSpan).toBe('ju');
+		expect(ZIWEI_SCHOOL_PRESETS.qintian.daxianSpan).toBe(10);
 		expect(ZIWEI_SCHOOL_PRESETS.quanshu.sihua).toBe('quanshu');
 		// [B3] 全书派四化+亮度同套(修「选全书派不切全书亮度」接线洞);中州派亮度=默认表(基表即中州口径)
 		expect(ZIWEI_SCHOOL_PRESETS.quanshu.brightnessSource).toBe('quanshu');
@@ -116,8 +116,9 @@ describe('WP-D 流派预设', () => {
 		expect(presetMatches('sanhe', 'beipai', dflt)).toBe(true);
 		expect(presetOf('beipai', dflt, 'sanhe')).toBe('sanhe');
 		expect(presetOf('beipai', dflt, 'feixing')).toBe('feixing');   // 同源消歧:保留用户所选
+		expect(presetOf('beipai', dflt, 'qintian')).toBe('qintian');   // 同为十年,仍保留钦天预设名
 		const tweaked = { ...dflt, daxianSpan: 'ju' };
-		expect(presetOf('beipai', tweaked, 'sanhe')).toBe('qintian');  // 改成局数年→钦天
+		expect(presetOf('beipai', tweaked, 'sanhe')).toBe('custom');   // 旧版局数年不再被认作钦天排法
 		const offAll = { ...dflt, starSet: 'north18', huoling: 'nanpai' };
 		expect(presetOf('beipai', offAll, 'sanhe')).toBe('custom');    // 无单一 preset 匹配→自定义
 	});

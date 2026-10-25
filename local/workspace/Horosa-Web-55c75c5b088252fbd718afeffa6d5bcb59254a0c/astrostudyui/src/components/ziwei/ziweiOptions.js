@@ -2,7 +2,7 @@ import { registerZwEngineOptionsForBrightness } from './data/ziweiTables';   // 
 // 紫微「传本/流派」排盘开关（可变单例，镜像 ZWConst.ZWSchool 模式；默认＝现状零回归）。
 // 任一项非默认 → ZiWeiMain.requestZiWei 走本地 ZiweiCalc 引擎(Java 不支持这些开关);全默认 → 仍走 Java(字节零回归)。
 export const ZWEngineOptions = {
-	daxianSpan: 10,        // 10=三合10年(默认) / 'ju'=钦天局数年
+	daxianSpan: 10,        // 保留旧记录字段;各派大限均为十年,局数只决定起限虚岁
 	tianmaBasis: 'month',  // month=现状月马(默认) / year=年支三合马
 	starSet: 'full',       // full=全星(默认) / north18=精简18星(河洛)
 	sanPan: 'tian',        // tian=天盘(默认) / di=地盘 / ren=人盘(中州三盘观察法)
@@ -44,15 +44,14 @@ export const ZW_ENGINE_FORWARD_KEYS = ['daxianSpan', 'tianmaBasis', 'starSet', '
 	'xiaoxianMode'];   // [B15b] 本地引擎 (16) 段消费(smallDirection 口径);不触发 needsLocalEngine
 export function collectEngineOpts(src){
 	const out = {};
-	ZW_ENGINE_FORWARD_KEYS.forEach((k)=>{ out[k] = src[k]; });
+	ZW_ENGINE_FORWARD_KEYS.forEach((k)=>{ out[k] = k === 'daxianSpan' ? 10 : src[k]; });
 	return out;
 }
 
 // 是否需要走本地引擎(任一开关非默认,或流派 preset 非现状)。四化版(beipai/zhongzhou/quanshu)单独走 getActiveSiHuaGan，
 // 不在此触发本地(四化是前端 getSiHua 渲染层，转/Java 盘皆可)。
 export function ziweiNeedsLocalEngine(){
-	return ZWEngineOptions.daxianSpan !== 10
-		|| ZWEngineOptions.tianmaBasis !== 'month'
+	return ZWEngineOptions.tianmaBasis !== 'month'
 		|| ZWEngineOptions.starSet !== 'full'
 		|| ZWEngineOptions.sanPan !== 'tian'
 		|| ZWEngineOptions.shangShi !== 'fixed'
@@ -73,8 +72,7 @@ export function ziweiNeedsLocalEngine(){
 
 // 选项常量(左栏下拉用)
 export const DAXIAN_SPAN_OPTIONS = [
-	{ value: 10, label: '10 年(三合·默认)' },
-	{ value: 'ju', label: '局数年(钦天)' },
+	{ value: 10, label: '10 年(各派通用)' },
 ];
 // 天马依据:两表逐支同位、本是同一颗星。选年支三合马时,年支系的「年马」会自动跳过
 // (否则同盘出现两颗马星)。默认保持 month 以守既有盘与前后端字节一致;正统紫微多用年支三合马。

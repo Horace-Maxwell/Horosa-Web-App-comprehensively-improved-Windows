@@ -219,7 +219,7 @@ describe('ZiweiCalc · WP-H 天地人三盘(中州观察法)', ()=>{
 	});
 });
 
-describe('ZiweiCalc · WP-C 庙旺数值化 + 大限跨度(局数年)', ()=>{
+describe('ZiweiCalc · WP-C 庙旺数值化 + 十年大限', ()=>{
 	const LEVELS = ['庙', '旺', '得', '利', '平', '闲', '不', '陷', '得地', '利益', '平和', '不得地'];
 	test('主星带庙旺亮度(starlight 属亮度表值域)', ()=>{
 		const c = assembleNatalChart({ yearGan: '丙', yearZi: '寅', monthInt: 8, leap: false, dayInt: 15, timeZi: '午', male: true });
@@ -227,13 +227,24 @@ describe('ZiweiCalc · WP-C 庙旺数值化 + 大限跨度(局数年)', ()=>{
 		c.houses.forEach((h)=>{ h.starsMain.forEach((s)=>{ if(s.starlight){ lit++; expect(LEVELS).toContain(s.starlight); } }); });
 		expect(lit).toBeGreaterThan(0);   // 主星均带庙旺(STAR_LIGHT 覆盖14主星)
 	});
-	test('大限跨度:默认10年命宫=[局,局+9];daxianSpan=ju→局数年命宫=[局,2局-1]', ()=>{
-		const base = { yearGan: '甲', yearZi: '子', monthInt: 6, leap: false, dayInt: 10, timeZi: '子', male: true };
-		const ten = assembleNatalChart({ ...base });
-		const ju = ten.wuxingJu;
-		expect(ten.houses[ten.lifeHouseIndex].direction).toEqual([ju, ju + 9]);
-		const juYears = assembleNatalChart({ ...base, daxianSpan: 'ju' });
-		expect(juYears.houses[juYears.lifeHouseIndex].direction).toEqual([ju, ju + ju - 1]);
+	test('五局×阴阳男女:局数起限、逐宫十年;旧版ju及数值短限不改变年龄或顺逆', ()=>{
+		const seen = new Set();
+		GAN.forEach((yearGan, gi)=>{
+			[true, false].forEach((male)=>{
+				[undefined, 'ju', 5].forEach((daxianSpan)=>{
+					const c = assembleNatalChart({ yearGan, yearZi: ZHI[gi], monthInt: 6, leap: false, dayInt: 10, timeZi: '子', male, daxianSpan });
+					const ju = c.wuxingJu;
+					seen.add(ju);
+					expect(c.houses[c.lifeHouseIndex].direction).toEqual([ju, ju + 9]);
+					const step = (gi % 2 === 0) === male ? 1 : -1;
+					for(let k = 0; k < 12; k++){
+						const h = c.houses[(c.lifeHouseIndex + step * k + 12) % 12];
+						expect(h.direction).toEqual([ju + 10 * k, ju + 10 * k + 9]);
+					}
+				});
+			});
+		});
+		expect([...seen].sort()).toEqual([2, 3, 4, 5, 6]);
 	});
 	function findHouseOf2(c, name){ for(let i = 0; i < 12; i++){ if(STAR_FIELDS.some((f)=>(c.houses[i][f] || []).some((s)=>s.name === name))){ return i; } } return -1; }
 	test('天马依据:寅年 year基→天马@申(8);month基与 year基落宫不同(传本)', ()=>{
