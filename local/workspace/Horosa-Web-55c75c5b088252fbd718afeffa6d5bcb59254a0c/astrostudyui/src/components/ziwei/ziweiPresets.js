@@ -15,7 +15,7 @@ export const ZIWEI_SCHOOL_PRESETS = {
 	sanhe:     { label: '三合派(通用)', sihua: 'beipai', ...D },
 	feixing:   { label: '飞星派', sihua: 'beipai', ...D },                       // 排盘同三合,读法走四化盘
 	zhongzhou: { label: '中州派', sihua: 'zhongzhou', ...D, shangShi: 'yinyang', borrowPalace: true },// 中州四化+天伤阴阳互换+借宫安星;亮度=默认表(基表即中州五档口径,血统金标钉死),配任何新源都是死选项
-	qintian:   { label: '钦天派', sihua: 'beipai', ...D, daxianSpan: 'ju' },      // 大限=局数年
+	qintian:   { label: '钦天派', sihua: 'beipai', ...D },                     // 局数起限,仍十年一限
 	quanshu:   { label: '全书派', sihua: 'quanshu', ...D, brightnessSource: 'quanshu' },  // 《全书》四化(庚天同科/壬天府科)+《全书》煞星亮度改订(修「选全书派不切全书亮度」接线洞)
 	heluo:     { label: '河洛派', sihua: 'beipai', ...D, starSet: 'north18', qishuWei: true },    // 精简18星+气数位一六共宗
 	ziyun:     { label: '紫云派', sihua: 'beipai', ...D, taiSuiRuGua: true },     // 三合 base + 太岁入卦

@@ -103,8 +103,8 @@ export function assembleNatalChart(ctx){
 	const lifeGanzi = houses[lifeIdx].ganzi;
 	const juInfo = coreWuxingJu(lifeGanzi.charAt(0), zi(lifeGanzi.charAt(1)));
 	const ju = juInfo.ju;
-	// 大限跨度:默认10年;钦天派 daxianSpan='ju' → 局数年(水二2…火六6)。
-	const span = ctx.daxianSpan === 'ju' ? ju : (ctx.daxianSpan || 10);
+	// 五行局数决定起限虚岁,每限固定十年(钦天亦同)。
+	// 旧记录中的 daxianSpan='ju' 或数值短限仅兼容读取,不再缩短大限。
 	// [P3b] 长生起法档:huo_tu=火土同宫(土五起寅);默认 shui_tu=水土同宫(现状零回归)
 	const csStart = zi((ctx.changshengStart === 'huo_tu' ? CHANGSHENG_START_HUO_TU : CHANGSHENG_START)[ju]);
 	// [B11] 长生顺逆档:always_forward=全顺行 —— 🔴 铁律:仅喂 phase 环,大限 direction 与
@@ -121,10 +121,6 @@ export function assembleNatalChart(ctx){
 			houses[i].direction = idx === 0 ? [ju, ju + 9] : [10 * (12 - idx) + ju, 10 * (12 - idx) + ju + 9];
 		}else {
 			houses[i].direction = [10 * idx + ju, 10 * idx + ju + 9];
-		}
-		if(span !== 10){   // 钦天=局数年：跨度换 span，起虚岁仍 ju + span*k（k=大限序）
-			const k = fwd ? (idx === 0 ? 0 : 12 - idx) : idx;
-			houses[i].direction = [ju + span * k, ju + span * k + span - 1];
 		}
 	}
 

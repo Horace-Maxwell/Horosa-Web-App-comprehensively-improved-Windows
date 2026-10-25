@@ -56,9 +56,9 @@ describe('[A1] 引擎键转发行为哨兵(全走 calcZiwei 入口,防「转了�
 	});
 	test('其余转发键逐键敏感探针(经 calcZiwei 产生可观测差异)', () => {
 		const base = calcZiwei(BIRTH, {});
-		// daxianSpan:direction 跨度变
+		// 旧版 daxianSpan:兼容读取,大限与默认十年盘一致
 		const ju = calcZiwei(BIRTH, { daxianSpan: 'ju' });
-		expect(ju.houses[ju.lifeHouseIndex].direction[1] - ju.houses[ju.lifeHouseIndex].direction[0] + 1).toBe(ju.wuxingJu);
+		expect(ju.houses.map((h)=>h.direction)).toEqual(base.houses.map((h)=>h.direction));
 		// tianmaBasis:年马消失
 		const ym = calcZiwei(BIRTH, { tianmaBasis: 'year' });
 		expect(findHouseOf(base, '年马')).toBeGreaterThanOrEqual(0);
@@ -101,7 +101,7 @@ describe('[A1] 转发清单哨兵(表与集合对账)', () => {
 	test('collectEngineOpts 逐键取值(含 undefined 透传语义)', () => {
 		const src = { daxianSpan: 'ju', kuiYue: 'geng_ma_hu' };
 		const out = collectEngineOpts(src);
-		expect(out.daxianSpan).toBe('ju');
+		expect(out.daxianSpan).toBe(10);
 		expect(out.kuiYue).toBe('geng_ma_hu');
 		expect(Object.keys(out).sort()).toEqual([...ZW_ENGINE_FORWARD_KEYS].sort());
 	});

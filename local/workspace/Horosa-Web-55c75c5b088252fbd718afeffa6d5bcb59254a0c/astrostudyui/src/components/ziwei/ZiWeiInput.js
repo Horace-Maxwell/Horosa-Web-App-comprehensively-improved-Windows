@@ -69,8 +69,9 @@ class ZiWeiInput extends Component{
 		ZWEngineOptions.xiaoxianMode = xiaoxianMode;   // [B15] 单例为消费真值(ZWLuckPanel 读它);LS 键沿用
 
 		// 传本/排盘开关(本地引擎):大限跨度/天马依据/星集/三盘。读 localStorage→同步可变单例 ZWEngineOptions(默认=现状零回归)。
-		const lsNum = (k, def)=>{ const v = localStorage.getItem(k); return v === null ? def : (v === 'ju' ? 'ju' : (Number.isNaN(Number(v)) ? v : Number(v))); };
-		ZWEngineOptions.daxianSpan = lsNum('ziweiDaxianSpan', 10);
+		// 迁移旧版局数年设置;不改动四化流派或其他传本选项。
+		ZWEngineOptions.daxianSpan = 10;
+		if(localStorage.getItem('ziweiDaxianSpan') !== null){ safeLocalStorageSet('ziweiDaxianSpan', '10'); }
 		ZWEngineOptions.tianmaBasis = localStorage.getItem('ziweiTianmaBasis') || 'month';
 		ZWEngineOptions.starSet = localStorage.getItem('ziweiStarSet') || 'full';
 		ZWEngineOptions.sanPan = localStorage.getItem('ziweiSanPan') || 'tian';
@@ -518,7 +519,7 @@ class ZiWeiInput extends Component{
 	}
 
 	// 传本/排盘开关:写可变单例 ZWEngineOptions + localStorage,重绘(→requestZiWei 走本地引擎双路)。
-	onDaxianSpanChange(val){ ZWEngineOptions.daxianSpan = val; safeLocalStorageSet('ziweiDaxianSpan', String(val)); this.setState({ daxianSpan: val }); this.redrawChart(); }
+	onDaxianSpanChange(){ ZWEngineOptions.daxianSpan = 10; safeLocalStorageSet('ziweiDaxianSpan', '10'); this.setState({ daxianSpan: 10 }); this.redrawChart(); }
 	onTianmaBasisChange(val){ ZWEngineOptions.tianmaBasis = val; safeLocalStorageSet('ziweiTianmaBasis', val); this.setState({ tianmaBasis: val }); this.redrawChart(); }
 	onStarSetChange(val){ ZWEngineOptions.starSet = val; safeLocalStorageSet('ziweiStarSet', val); this.setState({ starSet: val }); this.redrawChart(); }
 	onSanPanChange(val){ ZWEngineOptions.sanPan = val; safeLocalStorageSet('ziweiSanPan', val); this.setState({ sanPan: val }); this.redrawChart(); }
