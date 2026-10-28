@@ -34,6 +34,7 @@
 | 观测样本静默丢失 | 打点归属键错/守卫吞样本 ⇒ 验收永远量不到 | P5 观测覆盖门(键=navigationPages,陈旧豁免 FAIL)+ 归属键契约(#75) |
 | 「今天」被缓存冻住 | 服务端 now() 派生字段入缓存/金标 | kentangCache qizhengkin 年键守卫;金标 now 字段白名单归一(gochara,#78) |
 | 启动加速毒害物化/CDS 档案 | 后台建档(uber/static dump)被杀留半成品、双建造者交错写同一 .tmp、加速换来损坏运行时 | **原子 dump**(.tmp+尺寸校验+rename,JV-16)+ 跨进程阶梯锁单写者(evaluateLadderLock 纯裁决可单测)+ 物化 sha256 fail-closed 不变;e2e/node:test 钉行为 |
+| 加速链被尺寸 / 数量下限静默关掉 | 后端依赖集一变(v3.12.0 删模块瘦身),按旧体积写死的「合格」下限把新产物判无效 ⇒ uber 类路径 / 静态 CDS 永不启用 —— 功能门全绿、只是变慢 | `uber-jar floor vs payload libs` 门(运行时 uber 下限 ≤ 待合并库字节和一半)+ stage-runtime 用 lib/↔classpath.idx 结构判据代替库数下限;发布轮同机温启 A/B 先查日志 `Static CDS archive ready` / `uber classpath layout`(#113 课二十) |
 |(总则)| 任何单项优化不可回退 | **每项优化独立 kill-switch**,P3a/P3b/P3c 三向反查逼其入账;账→代码 P2 双向核;retired 行不得留活哨兵(P4) |
 
 > **证据惯例**:后端改动 = 黄金矩阵逐字节零漂移 + 开关置 0 复跑零漂移;前端改动 = 金标

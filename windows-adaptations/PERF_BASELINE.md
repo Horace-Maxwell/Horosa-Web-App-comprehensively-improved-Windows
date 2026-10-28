@@ -10,18 +10,19 @@
 
 ## 本版验收头
 
-- version: 3.11.3
-- build: release(v3.11.3 = **Windows PERF-R13 宗师级性能轮(J1-J6 / P1-P2 / F1,gotcha #110)+ Mac v3.11.3 同步对位(#111)**:
-  上游 3.11.3 = 安装/更新后首开预检(macOS 独有,Windows 无对应动作)+ 排盘服务分级门(`CORE_GATE` + 1.5s 宽限;
-  与我方首屏门 `EARLY_GATE` 并存,缺省态时序 = 上游)+ 天象库只读 immutable 打开 + 温启快照页签取上次停留 +
-  一次性启动上下文读完即摘 URL + 交易日志规则/冷路径回退开关;我方 PERF-R13 八项全部保留(Java 临界路径
-  −0.5s / Python 首屏门 2.1→0.96s / 泵拍分档中性)。**金标预判零漂移**(Python 只改门与只读打开;走 --verify 实证)。
-- date: 2026-09-30(v3.11.3 合并发布轮;逐技法全表存档日 2026-07-22,本轮温启 A/B + 逐技法 step 验收 + F1 同建 A/B + 导航探针 + 差量门 + 金标为验收面)
-- commit: 见本轮发布 commit(v3.11.2 同步轮)
-- 机器态: Xeon W-11955M;CurrentClockSpeed **2611 == 基频**(睿频压制)+ MuMu/vmmem 7 进程常驻
-  (owner 应用,未动)——#64 特征全中,本表数字仍为保守值;与 3.5.0 轮同机同态,跨轮可比。
-- 台架: 隔离打包件(win-unpacked,LOCALAPPDATA/APPDATA 双隔离 + 端口基址 18899/19999,
-  绝不触碰 owner 常驻 app)+ CDP 真实输入事件(HOROSA_PERF_DEBUG_PORT=9333, connect-only)。
+- version: 3.12.0
+- build: release(v3.12.0 = **Mac v3.12.0 同步(界面简繁 / AI 对话双盘挂载 / 外部连接 REST 与终端命令 / 1582 年以前与公元前历法校正 /
+  系统代理下本机直连 / 后端删 8 个未用模块与云 SDK,gotcha #113)+ 维护轮 #112**;Windows 侧性能面本轮只动一处 = 运行时 uber 合并下限
+  对位后端瘦身(200MB → 32MB,否则 uber 类路径与静态 CDS 阶梯整条不启用,#113 课二十),PERF-R13 八项全部保留。
+  金标 54 漂移逐叶裁定为上游「结果会变」条后重钉零漂(#113 课十八)。
+- date: 2026-10-28(v3.12.0 同步发布轮;**新机首轮** —— 本轮四段对照一律同机背靠背 A/B:A = v3.11.3 发货件 win-unpacked,B = 本构建;
+  新机数字不与旧机历史行跨机比)
+- commit: 见本轮发布 commit(feat 9c5262b1 + chore)
+- 机器态: 新机(Windows 11 Home 26200);CurrentClockSpeed **2000 == MaxClockSpeed 2000** + MuMu 常驻(owner 应用,未动);
+  owner 常驻 3.11.3 占 8899/9999(其 :9999 本轮挂死,未动)—— #64 特征在,两臂同机同态,只比相对值。
+- 台架: 隔离打包件(win-unpacked,LOCALAPPDATA/APPDATA 双隔离 + 端口基址 48899/49999 / 18899/19999,
+  绝不触碰 owner 常驻 app)+ CDP 真实输入事件(HOROSA_PERF_DEBUG_PORT=9333, connect-only);perf-r13 三探针本轮加
+  `-Exe` / `HOROSA_PERF_EXE` 换臂(同机背靠背旧版臂,#64)。
 
 ## 口径(与 perf_acceptance.cjs 字面锁步)
 
@@ -195,6 +196,28 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.12.0(2026-10-28 同步轮·新机首轮同机背靠背 A/B:A = v3.11.3 发货件 / B = 本构建;horosa_warm_ab_stamp_v1)
+
+- **★温启(阶梯态:同一隔离档案,首轮建阶梯后 3 轮;`warm_phase_probe.ps1 -Exe`)**:史 totalMs A **2511 / 2421 / 2334** vs
+  B **2370 / 2195 / 2159ms**(−5.6% / −9.3% / −7.5%);首开(载荷物化 + 阶梯首建)A 23,909 vs B **20,241ms**(−15%,载荷 1.49 → 1.30 GB)。
+  分相:java `jvm_to_ctx_ready` A 2018/1997/1872 vs B 2014/1839/1788 · py `listening` 487-503 vs 482-502 · `gate_early_open` 668-694 vs 670-696 ·
+  `gate_core_open` 810-838 vs 828-858 · `gate_open` 1505-1553 vs 1565-1599 · web `boot_gate_open` 2330-2347 vs 1990-2359 ·
+  首盘恢复命中 `first_chart_paint` 557/578 vs 580/595。B 的 uber 拆出 5 个自家 jar(上游删了另 3 个模块),静态 CDS 首轮即建成。
+- **🔴 本轮抓到并已修的回归(修前构建、同台架)**:B 温启 **3682 / 3934 / 3755ms(+55%)** —— 运行时 uber 下限 200MB 拒掉后端瘦身后
+  ~126MB 的真 uber ⇒ uber 类路径 / 静态 CDS 阶梯 / 动态 AppCDS 全部不启用(构建期零告警、真机功能门全绿)。修 = 下限 32MB +
+  新门 `uber-jar floor vs payload libs`(旧下限阴性自证红;#113 课二十)。修后即上一条。
+- **导航切页(四段之三;`nav_latency_probe.cjs`,27 页 × 冷 / 热两遍)**:settle 中位 A **266 / 267** vs B **271 / 269ms**(±2% 噪声带),
+  header 中位 78/84 vs 70/87,零 skipped;修前构建同为 272/274(切页与 uber 无关)。
+- **技法内步进 / 改选项(四段之四;perf_acceptance repeat 10,两轮)**:A PASS 19·MISS 5 / B 21·3;A 21·3 / B 19·5(30 无数据同 R13)——
+  判定计数随轮翻转 = 噪声带;最大 p95 345 / 393 · 311 / 364ms(owner 1s 判据全达标)。**定向复核(repeat 30,A-B-A-B 夹测)**:
+  印占 step p50 A 209/175 vs B 229/221、p95 267/253 vs 268/347;三式合一 p50 156/227 vs 232/235、p95 268/264 vs 284/268。
+  印占中位约 +20-45ms,与上游本版印占载荷 +17%(618 → 721 KB/盘:小运以下起讫到时分 + 六力六源式,金标 18 例已裁定)同向同量级 =
+  功能内容成本、非 Windows 回归;三式合一在噪声带内。长连步两臂都 MISS = R13 已记的「12 任务串行泵结构性欠吞吐」,与版本无关。
+- **首启 / 敌意环境**:首开 23.9 → 20.2s(同上);敌意双码页 ready 22.8 / 20.7s(GBK / UTF-8)。
+- **★增量更新**:差量 vs LIVE v3.11.3 下载 **17 MB(2.6%)/ 复用 97.4%**(真变 45 MB,预算 118 MB);CDS 档字节同 3.11.3;
+  发货 Python 95 包与 3.11.3 同名同版(新锁 `python-payload.lock` + 门,#113 课二十一)。
+- 工件:`docs/perf-artifacts/2026-10-28-v3.12.0/`(warm_history / ledger、accept、nav 各 A/B;`beforefix_*` = 修前构建;`focus_*` = 定向复核四腿)。
+
 ### 温启对照 v3.11.3(2026-09-30 PERF-R13 宗师级性能轮·Windows-only 零功能变化;horosa_warm_ab_stamp_v1)
 
 - **★最终发货构建戳(2026-10-01,feat `b8a26e17` = PERF-R13 + Mac v3.11.3 同步;`docs/perf-artifacts/startup_ab_v3113_final_warmstamp.json`)**:
