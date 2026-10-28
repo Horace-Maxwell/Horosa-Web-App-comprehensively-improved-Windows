@@ -22,7 +22,7 @@ describe('aiAnalysisExport', ()=>{
 		expect(jsonText).toContain('"role": "user"');
 	});
 
-	// [E4] BOM 政策:人读格式(md/txt)带 BOM(TextEdit/记事本按本地编码猜 → 中文乱);
+	// BOM 政策:人读格式(md/txt)带 BOM(TextEdit/记事本按本地编码猜 → 中文乱);
 	// json 机读绝不带(BOM 炸 JSON.parse)。
 	// 断言走原始字节:Response.text() 按规范剥 BOM,用它验首字符永远看不到 0xFEFF。
 	test('会话导出 md/txt 带 UTF-8 BOM;json 不带且可 JSON.parse', async ()=>{
@@ -71,8 +71,8 @@ describe('aiAnalysisExport', ()=>{
 	});
 });
 
-// [Q-321/M-49] 会话 docx 轻量 Markdown 渲染:此前整条消息塞进一个 TextRun → 换行与分段全丢、标记原样。
-describe('[Q-321] 会话 docx 段落渲染', ()=>{
+// 会话 docx 轻量 Markdown 渲染:此前整条消息塞进一个 TextRun → 换行与分段全丢、标记原样。
+describe('会话 docx 段落渲染', ()=>{
 	const runsOf = (para)=>(para && para.root ? para.root.filter((x)=>x && x.constructor && x.constructor.name === 'TextRun') : []);
 	const textOf = (para)=>JSON.stringify(para);
 	test('空行分段:三段正文 → 三个 Paragraph;首段带 [role] 前缀', ()=>{

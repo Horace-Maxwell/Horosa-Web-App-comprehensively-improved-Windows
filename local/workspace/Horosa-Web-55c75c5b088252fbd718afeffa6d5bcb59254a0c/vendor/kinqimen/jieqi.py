@@ -66,6 +66,15 @@ def end_request_memo():
     except AttributeError:
         pass
 
+
+def clear_request_switches():
+    """请求收尾:撤掉本线程上的两个日界开关(下一请求不会继承上一请求的口径;未设时回到缺省 1/1)。"""
+    for _k in ('after23', 'hour_gan_next'):
+        try:
+            delattr(_TLS, _k)
+        except AttributeError:
+            pass
+
 def _req_memo(fn):
     _name = fn.__name__
     def _wrapped(*args):
@@ -121,6 +130,13 @@ def new_list(olist, o):
     res1 = olist[a:] + olist[:a]
     return res1
 #%% 節氣計算
+def _civil_moment(year, month, day, hour=0, minute=0):
+    """民用历时刻(sxtwl 收发的是民用历标签:1582 以前儒略历)。stdlib datetime / date 是外推格里历:
+    1500-02-29 抛错,跨世纪闰日 / 跨 1582 的日差也按格里历算。恒为同一类型,可互相比较、相减得 timedelta。"""
+    from kin_year_domain import civil_moment
+    return civil_moment(year, month, day, hour, minute)
+
+
 def get_jieqi_start_date(year, month, day, hour, minute):
     """
     Get the start date and time of the current solar term (jieqi) for the given date and time.
@@ -141,7 +157,7 @@ def get_jieqi_start_date(year, month, day, hour, minute):
             "時": int(t.h),
             "分": round(t.m),
             "節氣": jqmc[jq_index-1],
-            "時間":datetime.datetime(t.Y, t.M, t.D, int(t.h), round(t.m))
+            "時間":_civil_moment(t.Y, t.M, t.D, int(t.h), round(t.m))
         }
     else:
         # If no solar term on this day, find the previous solar term
@@ -159,7 +175,7 @@ def get_jieqi_start_date(year, month, day, hour, minute):
                     "時": int(t.h),
                     "分": round(t.m),
                     "節氣": jqmc[jq_index-1],
-                    "時間":datetime.datetime(t.Y, t.M, t.D, int(t.h), round(t.m))
+                    "時間":_civil_moment(t.Y, t.M, t.D, int(t.h), round(t.m))
                 }
             
 def _jieqi_instant(day_obj):
@@ -169,7 +185,7 @@ def _jieqi_instant(day_obj):
     ValueError;改用 timedelta 承接進位,無進位時值與舊寫法逐分鐘一致。
     """
     t = sxtwl.JD2DD(day_obj.getJieQiJD())
-    return datetime.datetime(t.Y, t.M, t.D) + datetime.timedelta(hours=int(t.h), minutes=round(t.m))
+    return _civil_moment(t.Y, t.M, t.D) + datetime.timedelta(hours=int(t.h), minutes=round(t.m))
 
 def get_current_jieqi_start_date(year, month, day, hour, minute):
     """時刻感知:返回「當前時刻所處節氣」的交節時刻與名稱。
@@ -178,7 +194,7 @@ def get_current_jieqi_start_date(year, month, day, hour, minute):
     節氣當天但尚未到交節時刻時,真正所處的仍是上一個節氣(其交節時刻 <= now)。
     逐日向前回掃,取第一個交節時刻 <= now 的節氣(節氣間距~15天,40天足夠)。
     """
-    now = datetime.datetime(year, month, day, hour, minute)
+    now = _civil_moment(year, month, day, hour, minute)
     cur = sxtwl.fromSolar(year, month, day)
     for _ in range(40):
         if cur.hasJieQi():
@@ -233,7 +249,7 @@ def get_next_jieqi_start_date(year, month, day, hour, minute):
                 "時": int(t.h),
                 "分": round(t.m),
                 "節氣": jqmc[jq_index-1],
-                "時間":datetime.datetime(t.Y, t.M, t.D, int(t.h), round(t.m))
+                "時間":_civil_moment(t.Y, t.M, t.D, int(t.h), round(t.m))
             }
         current_day = current_day.after(1)
 
@@ -271,7 +287,7 @@ def _day_gz(day):
     return tian_gan[day.getDayGZ().tg] + di_zhi[day.getDayGZ().dz]
 
 def _solar_date(day):
-    return datetime.date(day.getSolarYear(), day.getSolarMonth(), day.getSolarDay())
+    return _civil_moment(day.getSolarYear(), day.getSolarMonth(), day.getSolarDay())
 
 def _last_shangyuan_before(day_obj):
     """day_obj 之前(不含當日)最近的上元符頭日。"""
@@ -284,7 +300,7 @@ def _last_shangyuan_before(day_obj):
 
 def _anchor_solstice(year, month, day):
     """管轄當日之『至』(其上元符頭 F* ≤ 當日)。先檢未來(下一至的超神前窗),再回溯。"""
-    target = datetime.date(year, month, day)
+    target = _civil_moment(year, month, day)
     d = fromSolar(year, month, day)
     for _ in range(30):                       # 下一至若其 F* 已 ≤ 當日(當日落在其超神前窗)
         d = d.after(1)
@@ -311,7 +327,7 @@ def _zhirun_effective_date(year, month, day, hour):
     與元的日界口徑一致;after23=0(傳統日界)時保持日曆日,兩口徑各自自洽。
     """
     if hour == 23 and _get_after23():
-        nd = datetime.date(year, month, day) + datetime.timedelta(days=1)
+        nd = _civil_moment(year, month, day) + datetime.timedelta(days=1)
         return nd.year, nd.month, nd.day
     return year, month, day
 
@@ -467,7 +483,7 @@ def gangzhi1(year, month, day, hour, minute, after23_new_day=None, hour_gan_use_
     if year < 1 or year > 9999:
         # 全年份域回退(共享件,口径与主链一致;域内原路径零变)
         from kin_year_domain import extreme_pillars
-        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, minute, after23=(1 if after23_new_day is None else after23_new_day), hour_gan_next=(1 if hour_gan_use_next_day is None else hour_gan_use_next_day))
+        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, minute, after23=_get_after23(after23_new_day), hour_gan_next=_get_hour_gan_next(hour_gan_use_next_day))
         try:
             _gm = ke_jiazi_d(_zi).get(str(hour) + ":" + str(minute // 10) + "0")
         except Exception:
@@ -507,7 +523,7 @@ def gangzhi(year, month, day, hour, minute, after23_new_day=None, hour_gan_use_n
     if year < 1 or year > 9999:
         # 全年份域回退(共享件,口径与主链一致;域内原路径零变)
         from kin_year_domain import extreme_pillars
-        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, minute, after23=(1 if after23_new_day is None else after23_new_day), hour_gan_next=(1 if hour_gan_use_next_day is None else hour_gan_use_next_day))
+        _y, _m, _d, _h, _zi = extreme_pillars(year, month, day, hour, minute, after23=_get_after23(after23_new_day), hour_gan_next=_get_hour_gan_next(hour_gan_use_next_day))
         try:
             _gm = ke_jiazi_d(_zi).get(str(hour) + ":" + str(minute // 10) + "0")
         except Exception:
@@ -543,8 +559,8 @@ def gangzhi(year, month, day, hour, minute, after23_new_day=None, hour_gan_use_n
         _sd = fromSolar(year, month, day)
         if _sd.hasJieQi() and jqmc[_sd.getJieQi() - 1] in JIE_TERMS:
             _t = sxtwl.JD2DD(_sd.getJieQiJD())
-            _crossing = datetime.datetime(_t.Y, _t.M, _t.D, int(_t.h), round(_t.m))
-            if datetime.datetime(year, month, day, hour, minute) < _crossing:
+            _crossing = _civil_moment(_t.Y, _t.M, _t.D, int(_t.h), round(_t.m))
+            if _civil_moment(year, month, day, hour, minute) < _crossing:
                 _prev = _sd.before(1)
                 mTG1 = tian_gan[_prev.getMonthGZ().tg] + di_zhi[_prev.getMonthGZ().dz]
                 if jqmc[_sd.getJieQi() - 1] == '立春':

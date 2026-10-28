@@ -1,4 +1,4 @@
-// [R4 随盘保真] 非默认捕获行为锁:捕获矩阵(纯函数)+ addChart 全链(生成器驱动→真落库)。
+// 非默认捕获行为锁:捕获矩阵(纯函数)+ addChart 全链(生成器驱动→真落库)。
 // 语义:保存命盘时凡当前 fields ≠ schema 默认的技法键随盘落库(埃及历范式推广,用户拍板);
 // 全默认零落键;载入经 applyRecordToFields 还原 —— 同一命例重开不随全局漂移。
 import { captureNonDefaultTechniqueFields, applyRecordToFields } from '../recordFieldsRestore';
@@ -26,7 +26,7 @@ function runEffect(effectFn, action, stubState){
 	return puts;
 }
 
-describe('[R4] 随盘保真·非默认捕获', ()=>{
+describe('随盘保真·非默认捕获', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});
@@ -65,7 +65,7 @@ describe('[R4] 随盘保真·非默认捕获', ()=>{
 		expect(defProbe.hsys).toBe(3);   // 3 恒非默认(基准不可能默认 3)
 	});
 
-	it('🔴 addChart 全链:非默认键随盘真落库、表单信封键不被覆写、载入还原对称', ()=>{
+	it('🔴 addChart 全链(「存为命盘」= 按当前盘新建):非默认键随盘真落库、表单信封键不被覆写、载入还原对称', ()=>{
 		const DateTime = require('../../components/comp/DateTime').default;
 		const tm = new DateTime();
 		tm.setZone('+08:00');
@@ -89,6 +89,7 @@ describe('[R4] 随盘保真·非默认捕获', ()=>{
 				lon: '121e30',
 				gender: 1,      // 表单显式男 → 捕获的 0 不得覆写
 				isPub: 0,
+				fromCurrent: true,
 			},
 		}, stubState);
 		const rec = listLocalCharts().find((r)=>r.cid === 'local-cap-1');
@@ -97,14 +98,32 @@ describe('[R4] 随盘保真·非默认捕获', ()=>{
 		expect(rec.zodiacal).toBe(1);
 		expect(rec.termsVariant).toBe(2);
 		expect(rec.gender).toBe(1);                 // 信封优先
-		expect(rec.fieldsCaptureGen).toBe(1);       // [Q-256/T-219] 新记录带代次标记
+		expect(rec.fieldsCaptureGen).toBe(1);       // 新记录带代次标记
 		// 载入侧对称:还原进 fields
 		const restored = applyRecordToFields({}, rec);
 		expect(restored.hsys.value).toBe(3);
 		expect(restored.termsVariant.value).toBe(2);
 	});
 
-	it('[Q-256/T-219] 有标记的记录缺清单键 → 复位到 schema 默认(不沿用上一张盘);无标记旧记录维持现状', ()=>{
+	it('🔴 页面「新增命盘」(不是按当前盘新建):随盘设置按新命盘缺省(与 AI 建档 / 名人库加入同一 withNewChartDefaults),不抄当前盘面', ()=>{
+		// eslint-disable-next-line global-require
+		require('../../models/astro');
+		const { withNewChartDefaults } = require('../newChartCapture');
+		const DateTime = require('../../components/comp/DateTime').default;
+		const tm = new DateTime();
+		tm.setZone('+08:00');
+		const birth = tm.parse('1992-03-03 09:30:00', 'YYYY-MM-DD HH:mm:ss');
+		const stubState = { astro: { fields: { hsys: { name: ['hsys'], value: 3 }, zodiacal: { name: ['zodiacal'], value: 1 }, termsVariant: { name: ['termsVariant'], value: 2 } } } };
+		runEffect(userModel.effects.addChart, { payload: { cid: 'local-cap-new', name: '另一个人', birth, lat: '31n12', lon: '121e30', gender: 1, isPub: 0, fromCurrent: false } }, stubState);
+		const rec = listLocalCharts().find((r)=>r.cid === 'local-cap-new');
+		const expected = withNewChartDefaults({}, { forStore: true });
+		['hsys', 'zodiacal', 'termsVariant'].forEach((k)=>expect(rec[k]).toEqual(expected[k]));
+		expect(rec.hsys).not.toBe(3);
+		expect(rec.fromCurrent).toBeUndefined();   // 控制标志不入库
+		expect(rec.fieldsCaptureGen).toBe(1);
+	});
+
+	it('有标记的记录缺清单键 → 复位到 schema 默认(不沿用上一张盘);无标记旧记录维持现状', ()=>{
 		// eslint-disable-next-line global-require
 		require('../../models/astro');   // 注册基准工厂
 		const { fieldsSchemaBaseline, RECORD_FIELDS_CAPTURE_MARK } = require('../recordFieldsRestore');

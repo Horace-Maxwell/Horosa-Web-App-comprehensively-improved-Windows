@@ -1,4 +1,4 @@
-// [Q-411/M-157] 请求超时单源钳位:前端等待与下发后端的 providerOptions.requestTimeoutMs 同一个数;
+// 请求超时单源钳位:前端等待与下发后端的 providerOptions.requestTimeoutMs 同一个数;
 //   越界只存在于存量旧档(表单已加范围校验),钳到 [1000, 600000];留空/非法 → 剥掉键(两层各走缺省)。
 import { TextEncoder as NodeTextEncoder, TextDecoder as NodeTextDecoder } from 'util';
 if(typeof global.TextEncoder === 'undefined'){ global.TextEncoder = NodeTextEncoder; }
@@ -6,7 +6,7 @@ if(typeof global.TextDecoder === 'undefined'){ global.TextDecoder = NodeTextDeco
 // eslint-disable-next-line import/first
 import { clampRequestTimeoutMs, withClampedRequestTimeout, REQUEST_TIMEOUT_MIN_MS, REQUEST_TIMEOUT_MAX_MS, diagnoseProvider } from '../aianalysis';
 
-describe('[Q-411/M-157] 超时钳位', ()=>{
+describe('超时钳位', ()=>{
 	test('clamp:越界钳到边界;空/非法/非正 → null', ()=>{
 		expect(clampRequestTimeoutMs(500)).toBe(REQUEST_TIMEOUT_MIN_MS);
 		expect(clampRequestTimeoutMs(900000)).toBe(REQUEST_TIMEOUT_MAX_MS);

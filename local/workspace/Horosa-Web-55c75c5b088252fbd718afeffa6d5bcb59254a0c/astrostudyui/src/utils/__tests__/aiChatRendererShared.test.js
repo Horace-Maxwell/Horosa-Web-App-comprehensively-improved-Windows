@@ -1,14 +1,15 @@
-// [D55] 聊天气泡渲染器单源:主页只能 import 共享 aiMarkdownRender(净化硬化同源),不得再内联 marked/DOMPurify 配置;
+// 聊天气泡渲染器单源:主页只能 import 共享 aiMarkdownRender(净化硬化同源),不得再内联 marked/DOMPurify 配置;
 //   净化语料:form/input/button/iframe/script 与 style 里的 url() 一律不放行。
 const fs = require('fs');
 const path = require('path');
 import { renderRichMarkdownToHtml, sanitizeRenderedHtml } from '../aiMarkdownRender';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const MAIN = path.resolve(__dirname, '..', '..', 'components', 'aianalysis', 'AIAnalysisMain.js');
 const strip = (s)=>s.replace(/^\s*\/\/.*$/mg, '');
 
 it('🔴 主页 import 共享渲染器;零内联 DOMPurify.sanitize( / marked.setOptions( / hljs.highlightElement(', ()=>{
-	const src = strip(fs.readFileSync(MAIN, 'utf8'));
+	const src = strip(readSource(MAIN));
 	expect(src).toContain("from '../../utils/aiMarkdownRender'");
 	expect(src).not.toContain('DOMPurify.sanitize(');
 	expect(src).not.toContain('marked.setOptions(');

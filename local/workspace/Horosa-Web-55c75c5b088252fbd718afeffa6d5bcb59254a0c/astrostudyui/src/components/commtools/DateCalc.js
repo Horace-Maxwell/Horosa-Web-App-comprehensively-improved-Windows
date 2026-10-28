@@ -6,9 +6,10 @@ import request from '../../utils/request';
 import DateTimeSelector from '../comp/DateTimeSelector';
 import DateTime from '../comp/DateTime';
 import NongLi from '../calendar/NongLi';
+import { leapPrefix } from '../../utils/lunarText';
 import {Week} from '../../msg/types';
 
-// [Q-311/T-292] 起始日 + 整数天数 → 目标 DateTime(JDN 加减;保留时分秒与时区;公元前用 ad=-1 + 正年数)
+// 起始日 + 整数天数 → 目标 DateTime(JDN 加减;保留时分秒与时区;公元前用 ad=-1 + 正年数)
 export function dateCalcTarget(orgdt, num){
 	const n = Math.trunc(Number(num)) || 0;
 	const destJdn = orgdt.getOnlyDateNum() + n;
@@ -73,10 +74,13 @@ export default class DateCalc extends Component{
 
 	async requestNongli(){
 		const params = this.genParams();
+		// 请求代次:只认最后一次发出的那个月(快速改日期时,先发的晚回会把月历拉回上一个月、清掉选中日)
+		const seq = (this._monthReqSeq = (this._monthReqSeq || 0) + 1);
 
 		const data = await request(`${Constants.ServerRoot}/calendar/month`, {
 			body: JSON.stringify(params),
 		});
+		if(seq !== this._monthReqSeq || this._unmounted){ return; }
 		if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 		const result = data[Constants.ResultKey];
 
@@ -90,7 +94,7 @@ export default class DateCalc extends Component{
 	}
 
     changeNum(val){
-        // [Q-311/T-292 ④] 天数只收整数:小数天数曾得非法日期「1990-05-19.5」
+        // 天数只收整数:小数天数曾得非法日期「1990-05-19.5」
         const n = Number(val);
         this.setState({
             number: Number.isFinite(n) ? Math.trunc(Math.abs(n)) : 0,
@@ -135,7 +139,7 @@ export default class DateCalc extends Component{
             dt = tmpdt.value;
         }
         let orgdt = dt.clone();
-        // [Q-311/T-292 ①②③] 目标日期 = 起始日 JDN + n → 历日(getOnlyDateNum ↔ calDateFromJdn 互逆;与反向拨目标 onDestTimeChanged 同源):
+        // 目标日期 = 起始日 JDN + n → 历日(getOnlyDateNum ↔ calDateFromJdn 互逆;与反向拨目标 onDestTimeChanged 同源):
         // 此前逐月加天数(DateTime.addDate)跨 1582-10-05…14 改历段少算 10 天、公元前闰年判错,反向拨目标后又被它改写。
         // 共享 addDate(时间选择器 ±日步进)不在本页改动范围。
         dt = dateCalcTarget(orgdt, num);
@@ -156,14 +160,14 @@ export default class DateCalc extends Component{
     genResultDom(){
         let dt = this.state.destDate;
         let str = dt.format('YYYY-MM-DD');
-        // [Q-309/T-315 ③] 点日历日格此前只写 dateSelected、界面零反应 → 在结果旁读出所点日(公历 + 农历 + 干支/节气,有则显)。
+        // 点日历日格此前只写 dateSelected、界面零反应 → 在结果旁读出所点日(公历 + 农历 + 干支/节气,有则显)。
         const sel = this.state.dateSelected;
         if(sel && sel.birth){
             const parts = [];
             const ymd = `${sel.birth}`.split(' ')[0];
             if(ymd){ parts.push(ymd); }
             const nl = [sel.month, sel.dayInt !== undefined && sel.dayInt !== null ? sel.dayInt : sel.day].filter((x)=>x !== undefined && x !== null && x !== '').join('');
-            if(nl){ parts.push(`农历${nl}`); }
+            if(nl){ parts.push(`农历${leapPrefix(sel)}${nl}`); }   // 日历格的月名不带「闰」,另有 leap 标志(与农历页同一判据)
             if(sel.ganzi){ parts.push(sel.ganzi); }
             if(sel.jieqi){ parts.push(sel.jieqi); }
             return `${str}　·　所点：${parts.join(' ')}`;
@@ -172,7 +176,12 @@ export default class DateCalc extends Component{
     }
 
     componentDidMount(){
+        this._unmounted = false;
         this.requestNongli();
+    }
+
+    componentWillUnmount(){
+        this._unmounted = true;
     }
 
     render(){

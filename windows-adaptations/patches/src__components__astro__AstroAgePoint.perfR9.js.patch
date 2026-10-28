@@ -1,22 +1,22 @@
 diff --git a/astrostudyui/src/components/astro/AstroAgePoint.js b/astrostudyui/src/components/astro/AstroAgePoint.js
-index 247f4ea6..231e7d34 100644
+index f8fcf6df..50f314be 100644
 --- a/astrostudyui/src/components/astro/AstroAgePoint.js
 +++ b/astrostudyui/src/components/astro/AstroAgePoint.js
-@@ -10,6 +10,7 @@ import * as AstroText from '../../constants/AstroText';
- // [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明)。namespace import + typeof 守卫:
+@@ -12,6 +12,7 @@ import * as AstroText from '../../constants/AstroText';
  // 测试环境可能部分 mock astroAiSnapshot(只留 buildAstroSnapshotContent 等),缺函数时回 [] 保底。
  import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+ import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
  const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
-@@ -144,7 +145,8 @@ class AstroAgePoint extends Component {
- 				timeoutMs: 60000,
+@@ -149,7 +150,8 @@ class AstroAgePoint extends Component {
  			});
- 			if(!this._mounted) return;
--			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: k });
+ 			if(!this._mounted || seq !== this._loadSeq) return;
+ 			clearLoadFailure(this);
+-			this.setState({ result: unwrapResult(data) || {}, resultSig, loading: false, requestKey: k });
 +			// horosa_panel_ready_v1:年龄推进点表(本技法唯一可见内容)落定的那一次 setState。
-+			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: k }, ()=>{ markPanelReady('direction'); });
++			this.setState({ result: unwrapResult(data) || {}, resultSig, loading: false, requestKey: k }, ()=>{ markPanelReady('direction'); });
  		}catch(e){
- 			if(!this._mounted) return;
- 			this.setState({ loading: false, requestKey: k });
+ 			if(!this._mounted || seq !== this._loadSeq) return;
+ 			parkLoadFailure(this, k);   // 失败不记成已完成:窗口期后同一张盘自动重试

@@ -7,14 +7,16 @@
 // 用关键词规则判断，不调 LLM（省 token、即时、可单测）。
 
 // 软件用法类：命中任一规则即判为 software，并给出对应 helpKey（指向 HELP_DOCS）。
-const SOFTWARE_PATTERNS = [
-	{ re: /(重点标注|重点加粗|加粗|写作规范|结论先行|骨架|判断分层|置信度|措辞|统稿|形态自检|生成前校准|速览页)/, helpKey: 'report.writing' },
-	{ re: /(导出|下载|保存为|pdf|docx|word|生成报告|报告怎么)/i, helpKey: 'export' },
+const SOFTWARE_PATTERNS = [];
+const EXPORT_WORDS = ['导出', '下载', '保存为', 'pdf', 'docx', 'word'];
+let STARTER_EXPORT_TEXT = '怎么导出对话或技法页的判读？';
+SOFTWARE_PATTERNS.push(
+	{ re: new RegExp(`(${EXPORT_WORDS.join('|')})`, 'i'), helpKey: 'export' },
 	{ re: /(怎么|如何|怎样|怎么样).{0,4}挂载|挂载.{0,4}(案例|命盘|事盘)|在哪.{0,6}挂载|怎么.{0,4}(选择|加载|添加).{0,4}(案例|资料)/, helpKey: 'mount' },
 	{ re: /(大限|大运|流年|流月|运限|行运).{0,6}(怎么看|如何看|怎么算|怎样看|是什么|含义|代表什么)/, helpKey: 'concepts.daxian' },
 	{ re: /(紫微|十二宫|12宫|宫位).{0,6}(含义|是什么|怎么看|都有哪些|哪些|分别|代表什么)/, helpKey: 'concepts.ziwei-palaces' },
 	{ re: /(怎么用|怎样用|如何使用|使用说明|用法|这套.{0,4}分析|功能介绍|介绍一下|支持哪些|都支持|能做什么|有哪些功能|下一步|新手|入门|怎么开始|从哪开始)/, helpKey: 'usage' },
-];
+);
 
 // 命/事类：问某个具体命主/事件的结果，需要挂载案例。
 const CASE_PATTERN = /(这张|这个命|这个盘|此命|此人|该命主|命主|我的命|我的盘|本命|这件事|这次|今年|明年|后年|去年|何时|什么时候|应期|运势|财运|事业|婚姻|婚恋|姻缘|感情|健康|疾病|学业|考试|官司|搬家|置业|吉凶|用神|格局|配偶|子女|父母|六亲|这个事盘|这张事盘)/;
@@ -42,7 +44,7 @@ export function needsMountBeforeSend({ text, activeSource, extraSystemContext, a
 
 // 静态建议问题(无挂载时也可点；都是软件用法类，点击即带帮助回答)。
 export const STARTER_PROMPTS = [
-	{ text: '怎么导出 PDF / docx 报告？', category: 'software', helpKey: 'export' },
+	{ text: STARTER_EXPORT_TEXT, category: 'software', helpKey: 'export' },
 	{ text: '大限 / 流年怎么看？', category: 'software', helpKey: 'concepts.daxian' },
 	{ text: '紫微 12 宫分别代表什么？', category: 'software', helpKey: 'concepts.ziwei-palaces' },
 	{ text: '怎么挂载案例来分析？', category: 'software', helpKey: 'mount' },

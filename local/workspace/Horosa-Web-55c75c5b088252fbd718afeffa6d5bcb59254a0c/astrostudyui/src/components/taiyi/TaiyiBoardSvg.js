@@ -327,7 +327,7 @@ export default function TaiyiBoardSvg(props){
 								const ringAngle = (ps) => { const i = LAYER3_BRANCH_GUA.indexOf(ps); return i < 0 ? null : -90 + i * 22.5; };
 								const els = [];
 								// 正宫落点→绝气(分野底染色)。淡填八正宫扇区,气象一目了然(最底层,opacity 极低不压盘)。
-								const QI_FILL = { 绝阳: 'var(--horosa-danger, #c0563a)', 绝阴: 'var(--horosa-info, #4a7fb5)', 绝气: 'var(--horosa-text-muted, #8a8a8a)', 易气: 'var(--horosa-accent, #d7ad69)', 和: 'var(--horosa-ok, #5a9367)' };
+								const QI_FILL = { 绝阳: 'var(--horosa-danger, #c0563a)', 绝阴: 'var(--horosa-info, #4a7fb5)', 绝气: 'var(--horosa-text-secondary, #8a8a8a)', 易气: 'var(--horosa-accent, #d7ad69)', 和: 'var(--horosa-jx-ji, #5a9367)' };
 								const sectorPath = (ang) => {
 									const a0 = ang - 11.25, a1 = ang + 11.25;
 									const s1 = polarPoint(centerX, centerY, r1, a0), s2 = polarPoint(centerX, centerY, r4, a0);
@@ -359,18 +359,20 @@ export default function TaiyiBoardSvg(props){
 									const pp = polarPoint(centerX, centerY, r4 + 18, fyAng);
 									const fyCos = Math.cos(fyAng * Math.PI / 180);
 									const fyAnchor = fyCos > 0.35 ? 'start' : (fyCos < -0.35 ? 'end' : 'middle');
-									els.push(<text key={`ty-fy-${ps}`} x={pp.x} y={pp.y} textAnchor={fyAnchor} dominantBaseline="middle" fill="var(--horosa-text-muted, #8a8a8a)" stroke="none" fontSize="11" fontFamily={TAIYI_FONT}>{`${info.men}·${info.zhou}·${info.qi}`}</text>);
+									els.push(<text key={`ty-fy-${ps}`} x={pp.x} y={pp.y} textAnchor={fyAnchor} dominantBaseline="middle" fill="var(--horosa-text-secondary, #8a8a8a)" stroke="none" fontSize="11" fontFamily={TAIYI_FONT}>{`${info.men}·${info.zhou}·${info.qi}`}</text>);
 								});
-								// 目/将 markers:四目(昌/击/计/定)内环 r4+40、主客大将外环 r4+62,分环避重叠;r=8 小圆+白字。
+								// 目/将 markers:四目(昌/击/计/定)内环 r4+40、主客大将外环 r4+62,分环避重叠;r=8 小圆 + 实底配字。
+								// 小圆底是随主题换值的语义色(暗色下 accent / info 是浅色),字不能写死白:金底配 on-accent,其余配 on-solid(合同成对算)。
+								const inkOn = (color) => (/--horosa-(accent|gold)\b/.test(color) ? 'var(--horosa-on-accent)' : 'var(--horosa-on-solid)');
 								const mark = (ps, color, lb, key, rad) => {
 									const ang = ringAngle(ps); if (ang === null) { return; }
 									const pp = polarPoint(centerX, centerY, rad, ang);
 									els.push(<circle key={`ty-mk-${key}`} cx={pp.x} cy={pp.y} r="8" fill={color} />);
-									els.push(<text key={`ty-mkt-${key}`} x={pp.x} y={pp.y} textAnchor="middle" dominantBaseline="middle" fill="#fff" stroke="none" fontSize="10.5" fontFamily={TAIYI_FONT}>{lb}</text>);
+									els.push(<text key={`ty-mkt-${key}`} x={pp.x} y={pp.y} textAnchor="middle" dominantBaseline="middle" fill={inkOn(color)} stroke="none" fontSize="10.5" fontFamily={TAIYI_FONT}>{lb}</text>);
 								};
 								mark(pan.skyeyes, 'var(--horosa-accent, #d7ad69)', '昌', 'wc', r4 + 40);
 								mark(pan.sf, 'var(--horosa-info, #4a7fb5)', '击', 'sj', r4 + 40);
-								mark(pan.jigod, 'var(--horosa-text-muted, #8a8a8a)', '计', 'js', r4 + 40);   // 计神(中性)
+								mark(pan.jigod, 'var(--horosa-text-secondary, #8a8a8a)', '计', 'js', r4 + 40);   // 计神(中性)
 								mark(pan.se, 'var(--horosa-text-soft, #6c6c6c)', '定', 'dm', r4 + 40);       // 定目(次要)
 								mark(pan.homeGeneralPalace, 'var(--horosa-accent, #d7ad69)', '主', 'hg', r4 + 62);   // 主大将(金·外环)
 								mark(pan.awayGeneralPalace, 'var(--horosa-info, #4a7fb5)', '客', 'ag', r4 + 62);     // 客大将(蓝·外环)
@@ -390,15 +392,15 @@ export default function TaiyiBoardSvg(props){
 										els.push(<line key={`gj-${gi}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="var(--horosa-danger, #c0563a)" strokeWidth="2" strokeDasharray={g.kind === 'dui' ? '9 5' : '4 3'} />);
 									}
 								});
-								els.push(<text key="ty-zz" x={centerX} y={centerY + 56} textAnchor="middle" dominantBaseline="middle" fill="var(--horosa-text-muted, #8a8a8a)" stroke="none" fontSize="13" fontFamily={TAIYI_FONT}>考治不居</text>);
+								els.push(<text key="ty-zz" x={centerX} y={centerY + 56} textAnchor="middle" dominantBaseline="middle" fill="var(--horosa-text-secondary, #8a8a8a)" stroke="none" fontSize="13" fontFamily={TAIYI_FONT}>考治不居</text>);
 								// 图例(右下角):昌/击/计/定/主/客 markers 释义 + 分野气色。停放 viewBox 右下空白,不压盘面。
-								const LEGEND = [['昌', 'var(--horosa-accent, #d7ad69)', '文昌'], ['击', 'var(--horosa-info, #4a7fb5)', '始击'], ['计', 'var(--horosa-text-muted, #8a8a8a)', '计神'], ['定', 'var(--horosa-text-soft, #6c6c6c)', '定目'], ['主', 'var(--horosa-accent, #d7ad69)', '主大将'], ['客', 'var(--horosa-info, #4a7fb5)', '客大将']];
+								const LEGEND = [['昌', 'var(--horosa-accent, #d7ad69)', '文昌'], ['击', 'var(--horosa-info, #4a7fb5)', '始击'], ['计', 'var(--horosa-text-secondary, #8a8a8a)', '计神'], ['定', 'var(--horosa-text-soft, #6c6c6c)', '定目'], ['主', 'var(--horosa-accent, #d7ad69)', '主大将'], ['客', 'var(--horosa-info, #4a7fb5)', '客大将']];
 								const lgX = width - 96, lgY0 = 44;
 								LEGEND.forEach(([lb, col, desc], li) => {
 									const ly = lgY0 + li * 20;
 									els.push(<circle key={`lg-c-${li}`} cx={lgX} cy={ly} r="7" fill={col} />);
-									els.push(<text key={`lg-l-${li}`} x={lgX} y={ly} textAnchor="middle" dominantBaseline="middle" fill="#fff" stroke="none" fontSize="9.5" fontFamily={TAIYI_FONT}>{lb}</text>);
-									els.push(<text key={`lg-d-${li}`} x={lgX + 13} y={ly} dominantBaseline="middle" fill="var(--horosa-text-muted, #8a8a8a)" stroke="none" fontSize="11" fontFamily={TAIYI_FONT}>{desc}</text>);
+									els.push(<text key={`lg-l-${li}`} x={lgX} y={ly} textAnchor="middle" dominantBaseline="middle" fill={inkOn(col)} stroke="none" fontSize="9.5" fontFamily={TAIYI_FONT}>{lb}</text>);
+									els.push(<text key={`lg-d-${li}`} x={lgX + 13} y={ly} dominantBaseline="middle" fill="var(--horosa-text-secondary, #8a8a8a)" stroke="none" fontSize="11" fontFamily={TAIYI_FONT}>{desc}</text>);
 								});
 								return els;
 							})()}

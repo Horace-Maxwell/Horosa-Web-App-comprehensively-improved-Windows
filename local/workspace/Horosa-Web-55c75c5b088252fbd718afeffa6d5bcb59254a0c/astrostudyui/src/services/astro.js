@@ -1,6 +1,7 @@
 import request from '../utils/request';
 import { ServerRoot } from '../utils/constants';
 import { chartCloneLiteEnabled } from '../utils/perfFlags';
+import { registerProcessCache } from '../utils/processCacheRegistry';
 
 // R4-B6:96 → 192。步进预取每 settle 最多灌数条 /chart,加上技法族的自有预取,
 // 96 条在「连点步进 + 来回拨」下会把用户刚看过的盘挤出去(命中率反降)。容量是纯内存
@@ -8,6 +9,7 @@ import { chartCloneLiteEnabled } from '../utils/perfFlags';
 const CHART_CACHE_MAX = 192;
 const chartMem = new Map();
 const chartInflight = new Map();
+registerProcessCache('services.astro.chart', ()=>{ chartMem.clear(); chartInflight.clear(); });   // 同参复用上次结果:登记清空函数(只供审计仪器取样前清空)
 
 function clonePlain(obj){
 	if(obj === undefined || obj === null){
@@ -73,7 +75,7 @@ export function fetchChart(values, requestOptions){
 		markChartCacheHit();
 		return Promise.resolve(clonePlain(chartMem.get(key)));
 	}
-	// [R4-B5b] 带 AbortController signal 的请求不入在途共享:A 被 abort 会连坐搭车的 B。
+	// 带 AbortController signal 的请求不入在途共享:A 被 abort 会连坐搭车的 B。
 	// 缓存读(上)与成功响应写缓存(下,pushCache 用 key)照常——被 abort 的 promise reject,
 	// 走不到 then,不会污染 chartMem。
 	const shareKey = opts.signal ? '' : key;
@@ -115,12 +117,6 @@ export function fetchChart(values, requestOptions){
 	return req.then((rsp)=>clonePlain(rsp));
 }
 
-export function fetchAllowedCharts(values){
-    return request(`${ServerRoot}/allowedcharts`, {
-        body: JSON.stringify(values),
-    });
-}
-
-// [R4] fetchFateEvents/dlTrain 已删:唯一调用方是 models/astro 里 `localOnly=true` 写死的
+// fetchFateEvents/dlTrain 已删:唯一调用方是 models/astro 里 `localOnly=true` 写死的
 // 永不可达分支(登录多用户时代残留),分支收敛后此处零引用。人生事件走本地存储。
 

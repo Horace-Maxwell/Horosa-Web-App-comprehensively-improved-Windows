@@ -6,6 +6,7 @@ import DunJiaBoard from '../dunjia/DunJiaBoard';
 import { computeQimenScanPan } from '../../divination/zeri/qimenScanEngine';
 
 import { clientToFixed } from '../../utils/zoomDomain';
+import { geoDepKey } from './zeriHostUtils';
 const BOARD_BASE_W = 662;
 const BOARD_BASE_H = 870;
 
@@ -14,7 +15,7 @@ export default function QimenMiniBoardPopup({ row, geoParams, options, seeds, on
 	const pan = useMemo(()=>{
 		try{
 			const text = `${row && row.pick ? row.pick : ''}`;
-			const m = /^(\d{1,4}-\d{2}-\d{2})[ ](\d{2}:\d{2})/.exec(text);
+			const m = /^(-?\d{1,5}-\d{2}-\d{2})[ ](\d{2}:\d{2})/.exec(text);   // 年带符号 1–5 位
 			if(!m){
 				return null;
 			}
@@ -22,7 +23,9 @@ export default function QimenMiniBoardPopup({ row, geoParams, options, seeds, on
 		}catch(e){
 			return null;
 		}
-	}, [row && row.pick, JSON.stringify(options || {})]);
+	// 依赖带上地点与找局种子:浮窗开着时宿主换了地点重扫(预览地点换成新的冻结地点),盘随之重排
+	// (此前只认时刻与参数,照旧显示旧地点的盘 —— 与概览浮窗其余各卡同病同修)
+	}, [row && row.pick, JSON.stringify(options || {}), geoDepKey(geoParams), JSON.stringify(seeds || {})]);
 	const dragFrom = (e, mode)=>{
 		e.preventDefault();
 		e.stopPropagation();
@@ -56,17 +59,17 @@ export default function QimenMiniBoardPopup({ row, geoParams, options, seeds, on
 			<div onMouseDown={(e)=>dragFrom(e, 'drag')}
 				style={{ cursor: 'move', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid rgba(148,163,184,.25)', userSelect: 'none' }}>
 				<span style={{ fontWeight: 600, fontSize: 13 }}>概览 · {row ? row.start : ''}</span>
-				<span style={{ fontSize: 11, opacity: 0.55 }}>{pan ? pan.juText : ''} · 速览(本地排盘,与扫描同源)</span>
+				<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>{pan ? pan.juText : ''} · 速览(本地排盘,与扫描同源)</span>
 				<span style={{ flex: 1 }} />
 				<span onMouseDown={(e)=>e.stopPropagation()} onClick={onClose}
-					style={{ cursor: 'pointer', fontSize: 16, lineHeight: 1, opacity: 0.65, padding: '0 4px' }}>×</span>
+					style={{ cursor: 'pointer', fontSize: 16, lineHeight: 1, color: 'var(--horosa-text-secondary)', padding: '0 4px' }}>×</span>
 			</div>
 			{/* 浮窗挂 body 门户,壳作用域样式(图例胶囊等)靠本类补挂——app.less 图例规则并列含此作用域 */}
 			<div className="horosa-qimen-mini-board" style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', justifyContent: 'center' }}>
 				{pan ? (
 					<DunJiaBoard pan={pan} boardScale={boardScale} />
 				) : (
-					<div style={{ padding: 20, opacity: 0.6, fontSize: 12 }}>排盘失败</div>
+					<div style={{ padding: 20, color: 'var(--horosa-text-secondary)', fontSize: 12 }}>排盘失败</div>
 				)}
 			</div>
 			<div onMouseDown={(e)=>dragFrom(e, 'resize')}

@@ -14,6 +14,7 @@ export default class CaseAddFormComp extends Component{
 				currentCase: {
 					...flds,
 				},
+				currentCaseRecord: null,   // 表单值已不是原样记录(补取 / 覆盖层改走表单字段兜底;保存成功后 setCurrentCase 重设)
 			};
 			this.props.dispatch({
 				type: 'user/save',

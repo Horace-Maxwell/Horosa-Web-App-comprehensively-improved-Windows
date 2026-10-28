@@ -1,4 +1,4 @@
-// [AR-32·2026-09-17] 进阶页五处开关此前 useState(()=>isXxx()) 只在挂载时读一次:另一窗口改了键(storage 事件 → prefs 重发
+// 进阶页五处开关此前 useState(()=>isXxx()) 只在挂载时读一次:另一窗口改了键(storage 事件 → prefs 重发
 // AGENT_PREFS_EVENT)本窗口显示仍陈旧,行为却按实时键判 → 显示与行为不一致。合同:偏好事件到来 → 各面板重读自己的键。
 // 判别向量:直接写键(绕过 setter,不触发本窗口 emit)→ 派偏好事件 → 开关 aria-checked 翻转;不派事件 → 仍是旧值(证明是订阅在起作用)。
 import React from 'react';

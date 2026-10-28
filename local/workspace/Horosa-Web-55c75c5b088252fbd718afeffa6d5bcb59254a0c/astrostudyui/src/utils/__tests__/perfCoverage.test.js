@@ -1,4 +1,4 @@
-// [R3-A0] 全技法性能覆盖矩阵哨兵 —— 「所有技法都要顶级性能」的机器强制。
+// 全技法性能覆盖矩阵哨兵 —— 「所有技法都要顶级性能」的机器强制。
 // 真源穷举:pages/index.js 导航行(含抽屉三页) + integrations/kentang/serviceRoot.js 模块表。
 // 断言:双向一致(真源↔矩阵零缺零多)、九轴齐全、取值合法、随机类模块绝不预取。
 // todo 数不在此断言(开发期允许在途)——收口清零由 preflight R3 哨兵把关(release 门)。
@@ -30,7 +30,7 @@ function kentangKeysFromSource(){
 	return keys;
 }
 
-describe('[R3-A0] 全技法性能覆盖矩阵哨兵', ()=>{
+describe('全技法性能覆盖矩阵哨兵', ()=>{
 	const pages = getPerfCoveragePages();
 	const kentang = getPerfCoverageKentang();
 
@@ -88,7 +88,7 @@ describe('[R3-A0] 全技法性能覆盖矩阵哨兵', ()=>{
 	});
 });
 
-// [R5 T9] 子技法级矩阵哨兵:R3 之后新增 / 细分的技法(择日十技法 / 卜·其他 14 / 辅盘 12 / 玄学史 12 子页 /
+// 子技法级矩阵哨兵:R3 之后新增 / 细分的技法(择日十技法 / 卜·其他 14 / 辅盘 12 / 玄学史 12 子页 /
 // 数算 9 rail / 其他技法 3 / 命·传统 3 / 黄历 4)都必须在矩阵里,真源 = 各登记表;继承目标与 kentang 模块回链必须存在。
 function subtechniqueKeysFromSource(){
 	const keys = new Set();
@@ -108,7 +108,7 @@ function subtechniqueKeysFromSource(){
 	return keys;
 }
 
-describe('[R5-T9] 子技法级性能覆盖矩阵哨兵', ()=>{
+describe('子技法级性能覆盖矩阵哨兵', ()=>{
 	const subs = getPerfCoverageSubtechniques();
 	const pages = getPerfCoveragePages();
 	const kentang = getPerfCoverageKentang();

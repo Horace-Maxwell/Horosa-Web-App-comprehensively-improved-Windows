@@ -19,6 +19,7 @@ from astrostudy.xuanshi import editorial as xs_editorial
 from astrostudy.xuanshi import omen as xs_omen
 from astrostudy.xuanshi import period as xs_period
 from astrostudy.xuanshi import queries as xs_queries
+from astrostudy.xuanshi import textquery as xs_textquery
 
 
 def _params():
@@ -61,6 +62,17 @@ def _bool(data, key, default=None):
     if s in ("0", "false", "no", "n", "off"):
         return False
     return default
+
+
+def _query(data, *keys):
+    """检索词:按 keys 顺序取第一个非空字符串;带 ``q_any``(同一关键词的其它写法,列表)时合成写法元组
+    (任一写法命中即算,见 textquery);简繁写法由 textquery 在后端补全,只发 ``q`` 的客户端与页面同口径。"""
+    base = None
+    for k in keys:
+        base = _str(data, k)
+        if base:
+            break
+    return xs_textquery.merge(base, data.get("q_any"))
 
 
 def _list(data, key):
@@ -111,7 +123,7 @@ class XuanShiSrv:
         try:
             d = _params()
             res = xs_queries.list_events(
-                q=_str(d, "q"),
+                q=_query(d, "q"),
                 tradition=_str(d, "tradition"),
                 dynasty=_str(d, "dynasty"),
                 technique=_str(d, "technique"),
@@ -160,7 +172,7 @@ class XuanShiSrv:
                 year_to=_int(d, "year_to", _int(d, "yearTo")),
                 has_crosswalk=_bool(d, "has_crosswalk", _bool(d, "hasCrosswalk")),
                 in_chapter=_bool(d, "in_chapter", _bool(d, "inChapter")),
-                keyword=_str(d, "keyword", _str(d, "q")),
+                keyword=_query(d, "keyword", "q"),
                 page=_int(d, "page", 1),
                 page_size=_int(d, "page_size", _int(d, "pageSize", 30)),
             )
@@ -242,7 +254,7 @@ class XuanShiSrv:
             if status == "all":  # 列传子页：列全部人物(含未成稿 stub)
                 status = None
             dynasty = _str(d, "dynasty")
-            q = _str(d, "q")
+            q = _query(d, "q")
             limit = _int(d, "limit", 100)
             offset = _int(d, "offset", 0)
             items = xs_editorial.list_figures(
@@ -382,7 +394,7 @@ class XuanShiSrv:
                 status=_str(d, "status", "published"),
                 limit=_int(d, "limit", 50),
                 offset=_int(d, "offset", 0),
-                search_text=_str(d, "search_text", _str(d, "q")),
+                search_text=_query(d, "search_text", "q"),
             )
             return jsonpickle.encode(res, unpicklable=False)
         except Exception as e:
@@ -492,7 +504,7 @@ class XuanShiSrv:
             d = _params()
             res = xs_queries.facets(
                 tradition=_str(d, "tradition"),
-                q=_str(d, "q"),
+                q=_query(d, "q"),
                 dynasties=_list(d, "dynasty"),
                 techniques=_list(d, "technique"),
                 histories=_list(d, "history"),
@@ -514,7 +526,7 @@ class XuanShiSrv:
         try:
             d = _params()
             res = xs_queries.search_events(
-                _str(d, "q", _str(d, "query", "")) or "",
+                _query(d, "q", "query") or "",
                 limit=_int(d, "limit", 30),
                 tradition=_str(d, "tradition"),
             )

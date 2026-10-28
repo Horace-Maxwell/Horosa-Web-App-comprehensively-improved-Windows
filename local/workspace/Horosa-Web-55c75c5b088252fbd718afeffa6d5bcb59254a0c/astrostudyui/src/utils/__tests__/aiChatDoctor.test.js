@@ -1,4 +1,4 @@
-// [批二⑫] /doctor 合同:纯函数全缺不抛;脱敏(sk-/Bearer/长随机串 → ***,baseUrl 只留 origin);定级(上游错误 bad / 全自动审批 warn / 围栏模式 warn / 心跳过期 warn / 后台失败 warn);文本可复制;浮层行 data-doctor-row。
+// /doctor 合同:纯函数全缺不抛;脱敏(sk-/Bearer/长随机串 → ***,baseUrl 只留 origin);定级(上游错误 bad / 全自动审批 warn / 围栏模式 warn / 心跳过期 warn / 后台失败 warn);文本可复制;浮层行 data-doctor-row。
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { act } from 'react-dom/test-utils';

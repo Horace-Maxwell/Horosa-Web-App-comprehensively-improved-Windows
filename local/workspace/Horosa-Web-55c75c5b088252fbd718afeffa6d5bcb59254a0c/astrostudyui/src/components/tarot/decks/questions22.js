@@ -1,6 +1,6 @@
 // 大牌「自问」表(马赛传统的每牌自省问句;古籍口径,原创中文转述,非穷尽)。键=sid。
 // 供单卡详情面板「自问」区与「塔罗提问」协议;8/11 按牌身(非编号)登记,换号体系不受影响。
-import { isTrumpArcana } from '../engine/arcana.js'; // [QA-9] 王牌判据单一真值源
+import { isTrumpArcana } from '../engine/arcana.js'; // 王牌判据单一真值源
 export const MAJOR_QUESTIONS = {
 	the_fool: ['我正在(或应当)释放什么?', '我的道路通向哪里?', '这股巨大能量该如何引导?'],
 	the_magician: ['我在开始/决定什么?', '我手上有哪些潜在可能?'],

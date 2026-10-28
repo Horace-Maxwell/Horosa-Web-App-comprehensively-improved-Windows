@@ -1,5 +1,5 @@
-// [压测二轮·D6] 自动化引擎失控面:跨规则事件环(A 的动作发 B 的事件,B 的动作又发 A 的事件)、事件风暴、
-// 「动作恒失败 → 冷却不写 → 通知刷屏」、以及「引擎注入的 deps 从来就是空的(三件公共动作恒不可用)」。
+// 自动化引擎失控面:跨规则事件环(A 的动作发 B 的事件,B 的动作又发 A 的事件)、事件风暴、
+// 「动作恒失败 → 冷却不写 → 通知刷屏」、以及「引擎注入的 deps 从来就是空的(三件动作恒不可用)」。
 // 现有合同在 automationEngine.test.js;本文件只加压测/失控向量,不重复既有断言。
 import fs from 'fs';
 import path from 'path';
@@ -98,8 +98,8 @@ describe('A3 失败也要冷却', ()=>{
 
 describe('A4 引擎 deps 接线', ()=>{
 	it('🔴 A4 源码锁:bindAutomationEngine 真的被喂了 selectSource / runBrief / archiveIdleConversations 三件', ()=>{
-		// 当前代码为何红:layouts/app.js:66 是**裸调** `bindAutomationEngine();`(:64 那次只在带报告套件的构建里、且只带 exportReportDocx),
-		// 于是 actions.js 的三件公共动作 d.selectSource / d.runBrief / d.archiveIdleConversations 恒为 undefined ——
+		// 当前代码为何红:layouts/app.js:66 是**裸调** `bindAutomationEngine();`,
+		// 于是 actions.js 的三件动作 d.selectSource / d.runBrief / d.archiveIdleConversations 恒为 undefined ——
 		// 用户建的规则一条也跑不动,只会不停推「动作不可用」通知。
 		// 判据同时接受两种修法:三键直接写在 app.js 的调用参数里,或走共享构造器 aiAgent/automation/deps.js。
 		const appPath = path.resolve(__dirname, '..', '..', 'layouts', 'app.js');
@@ -115,7 +115,7 @@ describe('A4 引擎 deps 接线', ()=>{
 		['selectSource', 'runBrief', 'archiveIdleConversations'].forEach((k)=>{ expect(wired).toContain(k); });
 	});
 
-	it('A4b 判别力:deps 为空时三件公共动作确实全部不可用(这正是裸调造成的现状)', async ()=>{
+	it('A4b 判别力:deps 为空时三件动作确实全部不可用(这正是裸调造成的现状)', async ()=>{
 		const runners = buildActionRunners({});
 		expect(await runners['select-source']({}, detail('record.saved', { cid: 'local-1' }))).toEqual({ ok: false, reason: '当前页面不支持切换分析源' });
 		expect(await runners['start-brief']({}, detail('task.done', {}))).toEqual({ ok: false, reason: '简报动作不可用' });

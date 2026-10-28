@@ -102,21 +102,6 @@ public class HttpUriRequestHystrixCommand extends HystrixCommand<String> {
         return "";  
     }  
 	
-	// #14(跨平台):请求目标是否本地回环(loopback)。回环一律直连、不走系统代理(见 doCmd setProxy)。
-	private static boolean isLoopbackTarget(HttpUriRequest request){
-		try{
-			if(request == null || request.getURI() == null){ return false; }
-			String host = request.getURI().getHost();
-			if(host == null){ return false; }
-			host = host.trim().toLowerCase();
-			return host.equals("localhost")
-				|| host.equals("127.0.0.1") || host.startsWith("127.")
-				|| host.equals("::1") || host.equals("[::1]") || host.equals("0:0:0:0:0:0:0:1");
-		}catch(Exception e){
-			return false;
-		}
-	}
-
 	public static String doCmd(String user, String password, HttpUriRequest request,
 			Map<String, String> headers, String contenttype, int timeoutMS, HttpStatusCode status, SSLConnectionSocketFactory sslFactory) {
 		return doCmd(user, password, request, headers, contenttype, timeoutMS, status, null, sslFactory);
@@ -126,11 +111,12 @@ public class HttpUriRequestHystrixCommand extends HystrixCommand<String> {
 			Map<String, String> headers, String contenttype, int timeoutMS, HttpStatusCode status, Map<String, String> respHeadMap, 
 			SSLConnectionSocketFactory sslFactory){
 		try{
-			// #14(跨平台):本地回环目标(127.0.0.1/localhost/::1,如内置排盘服务 :8899)一律直连、不走系统代理。
+			// 本机目标(127.0.0.1/localhost/::1,如内置排盘服务 :8899)一律直连、不走系统代理(单一判据 getHttpHostFor)。
 			// 开系统代理(Clash/v2ray 等)时 JVM -Djava.net.useSystemProxies=true 会把回环调用也塞进代理 →
 			// 代理转发 127.0.0.1 卡顿/超时(12–17s)→「排盘失败:本地排盘服务未就绪」;重启/修复无效(代理配置持久)。
+			// 这里管 HTTP 代理这一层;连接用的裸 Socket 查到的 SOCKS 代理由全局 LoopbackDirectProxySelector 管。
 			// 外部请求(api.openai.com 等)仍照常走代理(getHttpHost),AI 流式 #9 不受影响。
-			RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(isLoopbackTarget(request) ? null : HttpClientUtility.getHttpHost()).build();
+			RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(HttpClientUtility.getHttpHostFor(request == null ? null : request.getURI())).build();
 			boolean pooled = !BraveHelper.existZipkin() && sslFactory == null;
 			CloseableHttpClient client;
 			if(pooled){
@@ -196,7 +182,7 @@ public class HttpUriRequestHystrixCommand extends HystrixCommand<String> {
 						status.statCode = statcode;
 						status.phase = reason;
 					}
-					String jsonheads = JsonUtility.encode(repsheaders);
+					String jsonheads = JsonUtility.encode(redactSensitiveHeaders(repsheaders));
 					String requestjsonhead = JsonUtility.encode(redactSensitiveHeaders(headermap));
 					String str = "";
 					try{
@@ -227,7 +213,7 @@ public class HttpUriRequestHystrixCommand extends HystrixCommand<String> {
 					try{ response.close(); }catch(Exception e){ /* 归还连接 */ }
 				}
 			}catch(Exception e){
-				HttpClientUtility.log.error("请求{}失败, cause:{}", stripQuery(request.getURI().toString()), e.getMessage());
+				HttpClientUtility.log.error("请求{}失败, cause:{}", boundless.utility.SecretRedactor.redactText(stripQuery(request.getURI().toString())), boundless.utility.SecretRedactor.redactText(e.getMessage()));
 				throw e;
 			}finally{
 				if(!pooled){
@@ -243,19 +229,13 @@ public class HttpUriRequestHystrixCommand extends HystrixCommand<String> {
 		}
 	}
 
-	// 出站请求失败时不要把凭据回显到错误信息/日志：屏蔽敏感请求头的值，保留其余头与响应体。
+	// 出站请求失败时不要把凭据回显到错误信息/日志:敏感请求头判定走单源 SecretRedactor,本机地址头另行屏蔽。
 	static Map<String, String> redactSensitiveHeaders(Map<String, String> headers){
-		Map<String, String> copy = new HashMap<String, String>();
-		if(headers == null){
-			return copy;
-		}
-		for(Entry<String, String> entry : headers.entrySet()){
-			String key = entry.getKey() == null ? "" : entry.getKey().toLowerCase();
-			boolean sensitive = key.equals("authorization") || key.equals("x-api-key")
-				|| key.equals("api-key") || key.equals("apikey") || key.equals("x-goog-api-key")
-				|| key.equals("cookie") || key.equals("set-cookie") || key.equals("proxy-authorization")
-				|| key.equals("localip");
-			copy.put(entry.getKey(), sensitive ? "***redacted***" : entry.getValue());
+		Map<String, String> copy = boundless.utility.SecretRedactor.redactHeaders(headers);
+		for(Entry<String, String> entry : copy.entrySet()){
+			if(entry.getKey() != null && entry.getKey().equalsIgnoreCase("localip")){
+				entry.setValue(boundless.utility.SecretRedactor.MASK);
+			}
 		}
 		return copy;
 	}

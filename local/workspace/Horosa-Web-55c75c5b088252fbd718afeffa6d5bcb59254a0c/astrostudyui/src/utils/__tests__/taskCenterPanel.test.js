@@ -1,5 +1,5 @@
 // 任务中心 UI(P1)合同:铃铛出现条件(无任务/通知且行动能力关=不渲染;开/有通知=渲染并计角标);面板列出任务与通知、取消按钮走 cancelTask;待办列出审批与提问。
-// [I5] 追加「data-* 定位面」源码锁:端到端驱动器按 data 属性点按钮(不按文案),属性名漂了=驱动器静默点不到 → 假绿。
+// 追加「data-* 定位面」源码锁:端到端驱动器按 data 属性点按钮(不按文案),属性名漂了=驱动器静默点不到 → 假绿。
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { act } from 'react-dom/test-utils';
@@ -73,7 +73,7 @@ describe('TaskCenterPanel', ()=>{
 	});
 });
 
-describe('[复查 D33] 账本丢失监听可拆除', ()=>{
+describe('账本丢失监听可拆除', ()=>{
 	const idx = require('../aiAgent/tasks/index');
 	const { listNotices } = require('../aiAgent/tasks/noticeStore');
 	it('bind → reset → bind 再派一次 ledger-lost ⇒ 只推一条通知(此前监听不拆、重复绑定重复推)', async ()=>{

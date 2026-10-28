@@ -1,4 +1,4 @@
-// [B-A7] SSE 解析器纯函数契约:event/data 帧、CRLF、多行 data、半帧 flush。
+// SSE 解析器纯函数契约:event/data 帧、CRLF、多行 data、半帧 flush。
 import { __testing__ } from '../aianalysis';
 
 const { createSseParser } = __testing__;

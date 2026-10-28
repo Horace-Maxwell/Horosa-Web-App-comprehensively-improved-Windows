@@ -143,7 +143,7 @@ describe('表行换算:arc→年龄 / 顺逆判据', () => {
 	});
 });
 
-describe('播放目标角([G3] dirGroup.rotation.y 补间终点;角公式与旧 skyGroup 承载完全同值)', () => {
+describe('播放目标角(dirGroup.rotation.y 补间终点;角公式与旧 skyGroup 承载完全同值)', () => {
 	test('direct(正弧):0 → −arc·π/180', () => {
 		expect(playTargetAngleRad(30)).toBeCloseTo(-30 * DEG, 12);
 		expect(playTargetAngleRad(0.5)).toBeCloseTo(-0.5 * DEG, 12);
@@ -260,14 +260,14 @@ describe('🔴 三件套挂载契约(缺一即隐性坏)', () => {
 	});
 });
 
-// [G3] 方向语义源码契约:旋转唯一承载者=dirGroup(应星固定于本命位不动)。
+// 方向语义源码契约:旋转唯一承载者=dirGroup(应星固定于本命位不动)。
 // 病史:旧版补间整 skyGroup(应星连黄道一起转走)+ selGroup 复制锚一物两标,
 // 用户实读成「应星在动/方向搞反了」——本组契约钉死修后语义,回潮即红。
-describe('🔴 [G3] 旋转承载者契约:唯 dirGroup 转,skyGroup 恒 0(应星不动)', () => {
+describe('🔴 旋转承载者契约:唯 dirGroup 转,skyGroup 恒 0(应星不动)', () => {
 	const engineSrc = fs.readFileSync(path.join(__dirname, '..', 'PDSphereEngine.js'), 'utf8');
 
 	test('播放/拖拽/复位三路补间全部经 _applyDirRotation 中枢(dirGroup+真位层同角,逐帧真位更新)', () => {
-		// [C1] 改锁:旋转赋值收口到 _applyDirRotation —— 分散直写会漏真位层同步(复合运动断一半)。
+		// 改锁:旋转赋值收口到 _applyDirRotation —— 分散直写会漏真位层同步(复合运动断一半)。
 		expect(engineSrc).toMatch(/this\._applyDirRotation\(target \* eased\)/);
 		expect(engineSrc).toMatch(/this\._applyDirRotation\(from \+ \(target - from\)/);
 		expect(engineSrc).toMatch(/this\._applyDirRotation\(from \* \(1 - easeInOutCubic/);
@@ -290,12 +290,12 @@ describe('🔴 [G3] 旋转承载者契约:唯 dirGroup 转,skyGroup 恒 0(应星
 		expect(engineSrc).toMatch(/this\.dirGroup\.add\(marker\)/);
 	});
 
-	test('[G1] 实体点=glyph 即本体(注释块+占星字形通道在位)', () => {
-		expect(engineSrc).toMatch(/\[G1\] 实体点=glyph 即本体/);
+	test('实体点=glyph 即本体(注释块+占星字形通道在位)', () => {
+		expect(engineSrc).toMatch(/\/\/ 实体点=glyph 即本体/);
 		expect(engineSrc).toMatch(/fontFamily: 'ywastrochart'/);
 	});
 
-	test('[G2] 黄道刻度=ywastrochart 字形,emoji 清零', () => {
+	test('黄道刻度=ywastrochart 字形,emoji 清零', () => {
 		expect(engineSrc).not.toMatch(/[♈♉♊♋♌♍♎♏♐♑♒♓]/);
 	});
 });
@@ -338,8 +338,8 @@ describe('fetchPd3D 服务(幂等缓存/在途合流/Java 剥壳)', () => {
 	});
 });
 
-// ═══ [C1] 复合运动·真位层纯数学(自转×公转;弧=物理历时,诸曜沿黄道自行) ═══
-describe('[C1] 复合运动真位层(elapsedDaysForArc/eclToEqTrue/properSpeedOfPoint/trueMotionDeltaLon)', () => {
+// ═══ 复合运动·真位层纯数学(自转×公转;弧=物理历时,诸曜沿黄道自行) ═══
+describe('复合运动真位层(elapsedDaysForArc/eclToEqTrue/properSpeedOfPoint/trueMotionDeltaLon)', () => {
 	const M = require('../pdSphereMath');
 
 	test('弧→历时:360.98564736629° = 1 平太阳日;90°≈5.98时;converse 负弧历时为负;NaN→0', () => {
@@ -403,7 +403,7 @@ describe('[C1] 复合运动真位层(elapsedDaysForArc/eclToEqTrue/properSpeedOf
 		expect(M.bodySpeedMapOf(null)).toEqual({});
 	});
 
-	test('[C1] 真位层源契约:纯 glyph 无点无环 / 单一银白 / 静止收敛门 / 历时用带符号弧', () => {
+	test('真位层源契约:纯 glyph 无点无环 / 单一银白 / 静止收敛门 / 历时用带符号弧', () => {
 		const src = fs.readFileSync(path.join(__dirname, '..', 'PDSphereEngine.js'), 'utf8');
 		const layer = (src.match(/_buildTrueMotionLayer\(row, conv\)\{[\s\S]*?\n\t\}/) || [''])[0];
 		expect(layer.length).toBeGreaterThan(200);

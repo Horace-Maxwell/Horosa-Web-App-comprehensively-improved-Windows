@@ -1,5 +1,5 @@
 diff --git a/astropy/astrostudy/xuanshi/__init__.py b/astropy/astrostudy/xuanshi/__init__.py
-index 8a4e010..aa76076 100644
+index 8a4e0105..aa76076b 100644
 --- a/astropy/astrostudy/xuanshi/__init__.py
 +++ b/astropy/astrostudy/xuanshi/__init__.py
 @@ -15,9 +15,40 @@

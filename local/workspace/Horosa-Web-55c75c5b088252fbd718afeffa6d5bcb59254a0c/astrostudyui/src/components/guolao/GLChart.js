@@ -4,6 +4,18 @@ import GuoLaoNatalChart from './GuoLaoNatalChart';
 import GLSZSignChart from './GLSZSignChart';
 import * as SZConst from '../suzhan/SZConst';
 
+// 七政宿盘盘形单源(版面量尺寸与画盘选圆 / 方同一判据):fields.szshape 有值即为准,缺省回落宿盘盘形单例。
+export function glChartShape(fields){
+	const f = fields && fields.szshape;
+	if(f && f.value !== undefined && f.value !== null){
+		const parsed = parseInt(f.value, 10);
+		if(Number.isFinite(parsed)){
+			return parsed;
+		}
+	}
+	return SZConst.SZChart.shape;
+}
+
 class GLChart {
 	constructor(chartid, chartObj, fields, tooltipId, onTipClick){
 		this.fields = fields;
@@ -52,7 +64,8 @@ class GLChart {
 	
 		this.svgTopgroup = this.svg.append('g');
 
-		const isCircleChart = SZConst.SZChart.shape === SZConst.SZChart_Circle;
+		// 盘形与版面(GuoLaoChart.getChartShape)同源:字段有值以字段为准,缺省才回落宿盘盘形单例。
+		const isCircleChart = glChartShape(this.fields) === SZConst.SZChart_Circle;
 		let option = {
 			x: this.margin,
 			y: this.margin,

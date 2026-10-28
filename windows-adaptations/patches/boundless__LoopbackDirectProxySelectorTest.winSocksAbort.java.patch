@@ -1,0 +1,44 @@
+diff --git a/astrostudysrv/boundless/src/test/java/boundless/net/http/LoopbackDirectProxySelectorTest.java b/astrostudysrv/boundless/src/test/java/boundless/net/http/LoopbackDirectProxySelectorTest.java
+index 5b2e2792..031a13c9 100644
+--- a/astrostudysrv/boundless/src/test/java/boundless/net/http/LoopbackDirectProxySelectorTest.java
++++ b/astrostudysrv/boundless/src/test/java/boundless/net/http/LoopbackDirectProxySelectorTest.java
+@@ -48,6 +48,8 @@ public class LoopbackDirectProxySelectorTest {
+ 	private String savedHttpPort;
+ 	private ServerSocket fakeHttpOnlyProxy;
+ 	private Thread fakeProxyThread;
++	// horosa_win_socks_abort_v1:假代理收到的连接数(复现前提的平台无关判据,见 rawSocketToLoopbackStaysDirectUnderSystemSocksProxy)
++	private final java.util.concurrent.atomic.AtomicInteger proxyHits = new java.util.concurrent.atomic.AtomicInteger();
+ 
+ 	@Before
+ 	public void setUp() throws Exception {
+@@ -58,6 +60,7 @@ public class LoopbackDirectProxySelectorTest {
+ 		fakeProxyThread = new Thread(() -> {
+ 			while (!fakeHttpOnlyProxy.isClosed()) {
+ 				try (Socket s = fakeHttpOnlyProxy.accept()) {
++					proxyHits.incrementAndGet();
+ 					s.setSoTimeout(2000);
+ 					try {
+ 						s.getInputStream().read(new byte[64]);
+@@ -179,8 +182,13 @@ public class LoopbackDirectProxySelectorTest {
+ 				s.connect(dest, 3000);
+ 				fail("预期 SOCKS 握手失败(复现前提不成立)");
+ 			} catch (SocketException expected) {
+-				assertTrue("应是 SOCKS 握手错误:" + expected, String.valueOf(expected.getMessage()).toLowerCase().contains("socks"));
++				// horosa_win_socks_abort_v1:Windows 上假代理回完 400 即关连接,JDK 的 SOCKS 客户端读回包时先收到
++				// WSAECONNABORTED / WSAECONNRESET(「An established connection was aborted…」,文字不含 socks)——
++				// 复现前提改为「报 SOCKS 握手错误,或这次连接确实先进了假代理」;修复段的断言不变。
++				assertTrue("应是 SOCKS 握手错误:" + expected,
++						String.valueOf(expected.getMessage()).toLowerCase().contains("socks") || proxyHits.get() > 0);
+ 			}
++			int hitsBeforeFix = proxyHits.get();
+ 
+ 			// 修复:装上本机直连选择器后同一个连接直达目标
+ 			ProxySelector.setDefault(new LoopbackDirectProxySelector(everythingVia(Proxy.Type.SOCKS, proxyPort())));
+@@ -192,6 +200,7 @@ public class LoopbackDirectProxySelectorTest {
+ 				int n = in.read(buf);
+ 				assertEquals("OK\n", new String(buf, 0, n, StandardCharsets.US_ASCII));
+ 			}
++			assertEquals("装上直连选择器后不应再进假代理", hitsBeforeFix, proxyHits.get());
+ 		}
+ 	}
+ 

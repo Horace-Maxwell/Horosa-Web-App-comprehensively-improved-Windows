@@ -45,12 +45,13 @@ def _norm360(x: float) -> float:
 
 def julian_day(year: int, month: int, day: int, hour: float, zone: float = 0.0) -> Optional[float]:
     """儒略日(世界时)。hour 为当地小时之小数,zone 为时区偏移(东正西负)。
-    负年沿仓内既定编码(前导负号=负年),swe.julday 原生即按此办。"""
+    year 为天文年(公元前 1 年 = 0);日期按民用历(1582-10-15 以前儒略历),与起盘引擎同口径。"""
     swe = _swe()
     if swe is None:
         return None
     try:
-        return float(swe.julday(int(year), int(month), int(day), float(hour) - float(zone)))
+        from astrostudy.civil_calendar import civil_julday
+        return float(civil_julday(int(year), int(month), int(day), float(hour) - float(zone)))
     except (ValueError, TypeError, OverflowError):
         return None
 

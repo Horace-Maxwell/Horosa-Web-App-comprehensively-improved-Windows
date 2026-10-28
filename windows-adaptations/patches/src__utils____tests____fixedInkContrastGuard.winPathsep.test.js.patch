@@ -1,0 +1,16 @@
+diff --git a/astrostudyui/src/utils/__tests__/fixedInkContrastGuard.test.js b/astrostudyui/src/utils/__tests__/fixedInkContrastGuard.test.js
+index 8cd6d30b..b1c68eb5 100644
+--- a/astrostudyui/src/utils/__tests__/fixedInkContrastGuard.test.js
++++ b/astrostudyui/src/utils/__tests__/fixedInkContrastGuard.test.js
+@@ -666,7 +666,10 @@ function classInk(){
+ function allHits(){
+ 	const out = [];
+ 	FILES.forEach((f)=>{
+-		const rel = path.relative(SRC, f);
++		// horosa_win_pathsep_posix_v1(Windows 侧移植适配;建议上游化):`path.relative` 在 Windows 返回反斜杠分隔
++		// (`components\acg\AcgD3Map.js`),而 ALLOW / FIXED_BG / NON_DOM 三张登记表都按 POSIX 写法比对 ⇒ 画布文件不再跳过、
++		// 定色面板的登记底色不生效、合法登记全被报成违规且登记表反被判「过期」(macOS 恒绿)。归一到 POSIX;判据零放宽。
++		const rel = path.relative(SRC, f).split(path.sep).join('/');
+ 		const src = fs.readFileSync(f, 'utf8');
+ 		if(rel.endsWith('.js')){
+ 			if(!/color|background/i.test(src) || NON_DOM.some(([nf])=>nf === rel)){ return; }

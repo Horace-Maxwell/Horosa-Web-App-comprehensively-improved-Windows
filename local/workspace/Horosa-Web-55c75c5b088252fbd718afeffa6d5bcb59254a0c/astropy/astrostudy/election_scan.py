@@ -32,6 +32,7 @@ import swisseph
 
 import flatlib.ephem.swe  # noqa: F401  副作用:激活打包星历路径(set_ephe_path 守卫)
 from astrostudy.astroextra import zone_value, date_time_from_jd
+from astrostudy.civil_calendar import civil_julday, civil_ymd_valid, display_year, parse_civil_date
 
 # ---------------------------------------------------------------------------
 # 条件类型注册表 —— 前后端契约锚点
@@ -120,15 +121,21 @@ def _wrap180(x):
 
 
 def _jd_from(date_text, time_text, zone, ad=1):
-    """本地 date/time/zone → UT 儒略日。date 收 'YYYY/MM/DD' 或 'YYYY-MM-DD';ad=-1 → 天文年号 1-y。"""
-    parts = str(date_text).replace('-', '/').split('/')
-    y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
-    if int(ad or 1) < 0:
-        y = 1 - y
+    """本地 date/time/zone → UT 儒略日。date 收 'YYYY/MM/DD' / 'YYYY-MM-DD' / '-YYYY-MM-DD'(历史纪年,前导负号=公元前);
+    ad=-1 且年份不带负号 → 公元前该年。按民用历换算(1582-10-15 以前儒略历),与起盘、结果时刻串同一口径。"""
+    y, m, d = parse_civil_date(date_text, ad)
+    if not civil_ymd_valid(display_year(y), m, d):
+        # 1582-10-05..14 改历缺口 / 2 月 30 日:按公式代入会落到别的日子(缺口日 +10 天),报错不扫
+        raise ValueError('日期不存在: {0}(1582-10-05 至 10-14 为改历缺口)'.format(str(date_text).strip()))
     seg = (str(time_text or '00:00:00').split(':') + ['0', '0'])[:3]
     hh, mm, ss = int(seg[0]), int(seg[1] or 0), int(seg[2] or 0)
-    local_jd = swisseph.julday(y, m, d, hh + mm / 60.0 + ss / 3600.0)
+    local_jd = civil_julday(y, m, d, hh + mm / 60.0 + ss / 3600.0)
     return local_jd - zone_value(zone) / 24.0
+
+
+def _minute_text(rec):
+    """date_time_from_jd 的结果 → 'YYYY-MM-DD HH:MM'(年份位数 / 负号任意,不按固定下标截断)。"""
+    return '{0} {1}'.format(rec['date'], rec['time'][:5])
 
 
 # ---------------------------------------------------------------------------
@@ -356,12 +363,12 @@ class ScanContext(object):
                 self.sid_mode = None
         node_type = str(data.get('westNodeType') or data.get('nodeType') or 'mean').lower()
         self.node_swe = swisseph.TRUE_NODE if node_type == 'true' else swisseph.MEAN_NODE
-        # [Q-418/T-381] 希腊点口径与主排盘 perchart._applyLotVariants 同式:福点反转 / 福点变体 / 赫尔墨斯六点反转
+        # 希腊点口径与主排盘 perchart._applyLotVariants 同式:福点反转 / 福点变体 / 赫尔墨斯六点反转
         # (此前扫描写死昼 ASC+月−日、夜 ASC+日−月,全局关反转或改变体时夜间点类判定与主盘相反)。
         self.lot_rev_on = str(data.get('lotReversal', 1)) not in ('0', 'false', 'False')
         self.lot_fortune_variant = data.get('lotFortuneVariant') or 'standard'
         self.hermetic_rev_on = str(data.get('hermeticLotsReversal', 1)) not in ('0', 'false', 'False')
-        # [Q-268/T-254] 自定义恒星黄道 'user' 档:历元 JD + 该历元 ayanamsa 度值(与 perchart SIDM_USER 同参);
+        # 自定义恒星黄道 'user' 档:历元 JD + 该历元 ayanamsa 度值(与 perchart SIDM_USER 同参);
         # 缺参回落 normalize_ayanamsa(默认 lahiri)——此前全仓不读两键,扫描按 Lahiri 判、所见主盘按自定义。
         self.user_ayan = None
         if str(self.ayanamsa).strip().lower() == 'user':
@@ -423,7 +430,7 @@ class ScanContext(object):
         v = self._ayan_cache.get(key)
         if v is None:
             if self.user_ayan is not None:
-                # [Q-268/T-254] user 档:deg(t0) + 岁差率 50.290966″/儒略年(与前端 customCalibreStores 同式)
+                # user 档:deg(t0) + 岁差率 50.290966″/儒略年(与前端 customCalibreStores 同式)
                 _t0, _deg = self.user_ayan
                 v = _deg + (50.290966 / 3600.0) * ((jd - _t0) / 365.25)
             else:
@@ -581,11 +588,15 @@ class LightMoment(object):
     # -- 宫位(极区兜底:swisseph 报错回退 Porphyry,照主排盘 flatlib sweHouses 同款策略) --
     def houses(self):
         if self._cusps is None:
+            code = self.ctx.hsys_code
             try:
-                cusps, ascmc = swisseph.houses_ex(self.jd, self.ctx.lat, self.ctx.lon,
-                                                  self.ctx.hsys_code)
+                cusps, ascmc = swisseph.houses_ex(self.jd, self.ctx.lat, self.ctx.lon, code)
             except swisseph.Error:
-                cusps, ascmc = swisseph.houses_ex(self.jd, self.ctx.lat, self.ctx.lon, b'O')
+                code = b'O'
+                cusps, ascmc = swisseph.houses_ex(self.jd, self.ctx.lat, self.ctx.lon, code)
+            # 极圈内天顶口径与主排盘同源:MC 恒取子午线上中天交点(部分分宫制 swisseph 会换成 IC)。
+            ascmc, _ = flatlib.ephem.swe.upperMeridianAscmc(
+                lambda c: swisseph.houses_ex(self.jd, self.ctx.lat, self.ctx.lon, c), code, ascmc, self.ctx.lat)
             self._cusps = tuple(_norm360(c) for c in cusps)
             self._ascmc = tuple(_norm360(a) for a in ascmc)
         return self._cusps
@@ -613,7 +624,7 @@ class LightMoment(object):
         return d <= 5.0
 
     # -- 阿拉伯点(arabicparts.partLon 逐字;昼夜判据=is_diurnal('geo') 与既有 point_relation
-    #    福点式同源)。[Q-418/T-381] 请求级口径与主排盘 _applyLotVariants 同式:
+    #    福点式同源)。请求级口径与主排盘 _applyLotVariants 同式:
     #    lotReversal=0 → 福点恒昼式;lotFortuneVariant='moonAboveNight' → 月在地平上时福点恒用夜式;
     #    hermeticLotsReversal=0 → 夜盘精神点(赫尔墨斯六点之首)用昼式。缺省全开 = 旧式逐字不变。 --
     def lot_lon(self, key):
@@ -670,7 +681,7 @@ class LightMoment(object):
             from flatlib.datetime import Datetime
             from flatlib.geopos import GeoPos
             rec = date_time_from_jd(self.jd, self.ctx.zone)
-            date = Datetime(rec['date'].replace('-', '/'), rec['time'], self.ctx.zone)
+            date = Datetime(rec['date'], rec['time'], self.ctx.zone)
             pos = GeoPos(self.ctx.lat, self.ctx.lon)
             zodiacal = fconst.SIDEREAL if self.ctx.zodiacal else fconst.TROPICAL
             self._chart = Chart(date, pos, zodiacal, hsys=self.ctx.hsys_name,
@@ -976,12 +987,12 @@ def _resolve_point(point, ctx):
         return lon_fn, decl_fn, 361.0  # 周日运动:一天一整圈
     if kind == 'lot':
         lot = str(point.get('id') or 'fortuna').lower()
-        # [W8 全谱轮] 四希腊点放开(lot_lon 早已实现 spirit/basis/exaltation——原拒单=纯值域收窄)
+        # 四希腊点放开(lot_lon 早已实现 spirit/basis/exaltation——原拒单=纯值域收窄)
         if lot not in ('fortuna', 'spirit', 'basis', 'exaltation'):
             raise ValueError('lot 点支持 fortuna/spirit/basis/exaltation')
 
         def lon_fn(m, _lot=lot):
-            # [W8] 统一走 ElectionMoment.lot_lon(四点同源缓存;原地硬算 fortuna 公式会把
+            # 统一走 ElectionMoment.lot_lon(四点同源缓存;原地硬算 fortuna 公式会把
             # spirit/basis/exaltation 全算成福点)
             return m.lot_lon(_lot)
 
@@ -1218,7 +1229,7 @@ def _eval_in_house(params, ctx, domain):
         raise ValueError('houses 取值需在 1-12')
     jd0, jd1 = domain
 
-    # [Q-464/T-426] 整宫制 × 恒星黄道:宫=恒星座差(whole_sign_house,与引擎宫喜乐 / 偶然尊贵同口径),
+    # 整宫制 × 恒星黄道:宫=恒星座差(whole_sign_house,与引擎宫喜乐 / 偶然尊贵同口径),
     # 此前用回归整宫宫头落宫 → 与同树其它条件及所见恒星盘分叉;其它分宫制 / 回归制原路。
     whole_sidereal = bool(ctx.zodiacal) and ctx.hsys_code == b'W'
 
@@ -1553,14 +1564,14 @@ def _eval_considerations(params, ctx, domain):
             lon = _sid_lon(ctx.moment(jd), 'Moon', ctx)
             return rng[0] <= lon < rng[1]
     elif item in ('moon_early_sign', 'moon_late_sign'):
-        early = float(params['earlyDeg']) if params.get('earlyDeg') not in (None, '') else 3.0   # [Q-271/ZC-27] 0 是合法值(只看末度),不可 or 成 3
+        early = float(params['earlyDeg']) if params.get('earlyDeg') not in (None, '') else 3.0   # 0 是合法值(只看末度),不可 or 成 3
         late = float(params.get('lateDeg') or 27.0)
 
         def pred(jd):
             _sign, signlon = _sign_pos(ctx.moment(jd), 'Moon', ctx)
             return (signlon < early) if item == 'moon_early_sign' else (signlon >= late)
     else:  # asc_near_boundary
-        early = float(params['earlyDeg']) if params.get('earlyDeg') not in (None, '') else 3.0   # [Q-271/ZC-27] 0 是合法值(只看末度),不可 or 成 3
+        early = float(params['earlyDeg']) if params.get('earlyDeg') not in (None, '') else 3.0   # 0 是合法值(只看末度),不可 or 成 3
         late = float(params.get('lateDeg') or 27.0)
 
         def pred(jd):
@@ -1618,7 +1629,7 @@ def _besieged_core(params, lons):
     orb_r = float(params.get('orbRight') or 8.0)
     rescue = params.get('rescue') or {}
     rescue_on = bool(rescue.get('enabled', True))
-    # [Q-423/T-388] 空救星 = 真「无救星」,不再回落金木:`or` 把显式空列表也当缺失,
+    # 空救星 = 真「无救星」,不再回落金木:`or` 把显式空列表也当缺失,
     # 于是「开计救援但一颗救星都不选」照按金星木星救援,与用户所选相反且 validate 不拦。
     # 键缺失(旧档/未发)才取历史缺省。
     _rk = rescue.get('rescuers')
@@ -1700,7 +1711,7 @@ def _eval_besieged(params, ctx, domain):
         raise ValueError('besieged.mode 需为 body/ray')
     mitigation = params.get('mitigation') or {}
     reception_breaks = bool(mitigation.get('receptionBreaks', False))
-    # [Q-423/T-388] 同上:显式空列表 = 无救星(取星键集时自然不含救星)。
+    # 同上:显式空列表 = 无救星(取星键集时自然不含救星)。
     _rk2 = (params.get('rescue') or {}).get('rescuers')
     rescuers = list(_rk2) if isinstance(_rk2, (list, tuple)) else ['Venus', 'Jupiter']
     jd0, jd1 = domain
@@ -1926,7 +1937,7 @@ def _eval_cusp_state(params, ctx, domain):
     def pred(jd):
         cusps = ctx.moment(jd).houses()
         lon = cusps[idx] if idx < len(cusps) else cusps[0]
-        # [Q-464/T-426] 恒星黄道下宫头落座/近座界按恒星黄经判(减 ayanamsa,与 in_sign / 上升近座界考量同口径);回归制原样。
+        # 恒星黄道下宫头落座/近座界按恒星黄经判(减 ayanamsa,与 in_sign / 上升近座界考量同口径);回归制原样。
         if ctx.zodiacal:
             lon = _norm360(lon - ctx.ayanamsa_deg(jd))
         if mode == 'near_boundary':
@@ -2040,7 +2051,7 @@ def scan(data):
     ctx._syz_hi = jd1
 
     from astrostudy import perchart
-    # [F8] 收编复合临界区(七族全:terms 含自定义表体/scores/orb 等——旧散 push 只 2 族,
+    # 收编复合临界区(七族全:terms 含自定义表体/scores/orb 等——旧散 push 只 2 族,
     # dignityDebilities/orbSystem 等发了不生效);termsVariant/triplicity 保持 eff 优先语义。
     _cls_req = dict(data) if isinstance(data, dict) else {}
     if ctx.eff.get('termsVariant') is not None:
@@ -2068,8 +2079,8 @@ def scan(data):
         rec_s = date_time_from_jd(s, zone)
         rec_e = date_time_from_jd(e, zone)
         if precision == 'minute':
-            start_text = rec_s['datetime'][:16]
-            end_text = rec_e['datetime'][:16]
+            start_text = _minute_text(rec_s)
+            end_text = _minute_text(rec_e)
         else:
             start_text = rec_s['datetime']
             end_text = rec_e['datetime']
@@ -2115,7 +2126,7 @@ def explain(data):
     ad = int(data.get('ad') or 1)
     t = data.get('t') or ''
     try:
-        date_part, time_part = t.replace('-', '/').split(' ')
+        date_part, time_part = t.strip().split(' ')
         jd = _jd_from(date_part, time_part, zone, ad)
     except Exception as exc:
         return {'err': 'invalid_range', 'detail': 't 需为 YYYY/MM/DD HH:mm:ss ({0})'.format(exc)}
@@ -2128,7 +2139,7 @@ def explain(data):
     ctx._syz_lo = jd - 40.0
     ctx._syz_hi = jd + 1.0
     from astrostudy import perchart as _pch
-    # [F8] 同扫描端:复合临界区七族全。
+    # 同扫描端:复合临界区七族全。
     _cls_req = dict(data) if isinstance(data, dict) else {}
     if ctx.eff.get('termsVariant') is not None:
         _cls_req['termsVariant'] = ctx.eff.get('termsVariant')

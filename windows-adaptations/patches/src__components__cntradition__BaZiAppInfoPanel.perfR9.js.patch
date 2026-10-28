@@ -1,14 +1,15 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZiAppInfoPanel.js b/astrostudyui/src/components/cntradition/BaZiAppInfoPanel.js
-index 5c1f6f1..5efd2da 100644
+index 7bef8265..6076e472 100644
 --- a/astrostudyui/src/components/cntradition/BaZiAppInfoPanel.js
 +++ b/astrostudyui/src/components/cntradition/BaZiAppInfoPanel.js
-@@ -1,4 +1,5 @@
+@@ -1,5 +1,6 @@
  import { Component } from 'react';
+ import { leapPrefix } from '../../utils/lunarText';
 +import { chartSCUEnabled } from '../../utils/perfFlags';
  import { BaZiMsg } from '../../msg/bazimsg';
  import { calcFlowShenSha, filterShenShaByGroups } from '../../utils/baziShenShaLocal';
  
-@@ -68,7 +69,32 @@ function infoPair(label, value){
+@@ -49,7 +50,33 @@ function infoPair(label, value){
  	);
  }
  
@@ -23,7 +24,8 @@ index 5c1f6f1..5efd2da 100644
 +//
 +// 修法：按「输入依赖」把面板切成三个各自带 sCU 的相邻子块（DOM 顺序与旧版逐字一致）：
 +//   1) BaZiInfoStaticSections —— 依赖 value / fields / school / zodiacBoundary
-+//   2) BaZiFlowGodsSection    —— 依赖 value / flowSelection（点选行运时只有它重渲）
++//   2) BaZiFlowGodsSection    —— 依赖 value / flowSelection / shenshaGroups（点选行运时只有它重渲;
++//                                神煞分组须由组合层转交,子块里的 this.props 只有组合层给的那几个）
 +//   3) BaZiInfoAuxSection     —— 依赖 value
 +// 三个 sCU 一律「拿不准就判变」：任一列出的输入引用不等即返 true，父组件每次都用最新 props
 +// 构造它们 —— 该更新时必更新，零陈旧、零降级。渲染方法体逐字照搬旧版（props 名不变）。
@@ -42,7 +44,7 @@ index 5c1f6f1..5efd2da 100644
  	renderBasic(bazi, fields){
  		const nongli = bazi.nongli || {};
  		const name = fields && fields.name ? fields.name.value : '';
-@@ -323,6 +349,77 @@ class BaZiAppInfoPanel extends Component{
+@@ -304,6 +331,78 @@ class BaZiAppInfoPanel extends Component{
  		);
  	}
  
@@ -114,13 +116,14 @@ index 5c1f6f1..5efd2da 100644
 +			return true;   // kill-switch 沿用既有 horosa.perf.chartSCU
 +		}
 +		return nextProps.value !== this.props.value
-+			|| nextProps.flowSelection !== this.props.flowSelection;
++			|| nextProps.flowSelection !== this.props.flowSelection
++			|| nextProps.shenshaGroups !== this.props.shenshaGroups;
 +	}
 +
  	renderFlowGods(bazi){
  		// 神煞面板显示「当前所选 大运/流年/流月/流日」之神煞（四柱神煞已在细盘呈现，此处不重复）。
  		const four = bazi.fourColumns || {};
-@@ -353,6 +450,19 @@ class BaZiAppInfoPanel extends Component{
+@@ -334,6 +433,19 @@ class BaZiAppInfoPanel extends Component{
  		);
  	}
  
@@ -140,7 +143,7 @@ index 5c1f6f1..5efd2da 100644
  	renderAux(four){
  		const aux = [
  			['胎元', four.tai],
-@@ -375,66 +485,31 @@ class BaZiAppInfoPanel extends Component{
+@@ -356,66 +468,32 @@ class BaZiAppInfoPanel extends Component{
  		);
  	}
  
@@ -221,6 +224,7 @@ index 5c1f6f1..5efd2da 100644
 +					<BaZiFlowGodsSection
 +						value={this.props.value}
 +						flowSelection={this.props.flowSelection}
++						shenshaGroups={this.props.shenshaGroups}
 +					/>
 +				)}
 +				<BaZiInfoAuxSection value={this.props.value} />

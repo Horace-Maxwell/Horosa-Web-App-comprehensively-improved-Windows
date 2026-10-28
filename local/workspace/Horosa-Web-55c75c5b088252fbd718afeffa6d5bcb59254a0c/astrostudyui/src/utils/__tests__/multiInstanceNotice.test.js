@@ -1,10 +1,10 @@
-// [R3] 多实例提示行为锁:端口判定纯函数 + 组件显隐/可关。
+// 多实例提示行为锁:端口判定纯函数 + 组件显隐/可关。
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { act } from 'react-dom/test-utils';
 import MultiInstanceNotice, { isSecondaryInstancePort } from '../../components/common/MultiInstanceNotice';
 
-describe('[R3] MultiInstanceNotice', ()=>{
+describe('MultiInstanceNotice', ()=>{
 	let host;
 	beforeEach(()=>{
 		host = document.createElement('div');
@@ -39,5 +39,27 @@ describe('[R3] MultiInstanceNotice', ()=>{
 			btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 		});
 		expect(host.textContent).toBe('');
+	});
+});
+
+describe('主实例只认首选口(阶梯外的随机兜底口也是独立实例)', ()=>{
+	const { isPrimaryInstancePort, isIndependentInstance } = require('../../components/common/MultiInstanceNotice');
+	it('判据', ()=>{
+		expect(isPrimaryInstancePort('38991')).toBe(true);
+		expect(isPrimaryInstancePort('51234')).toBe(false);
+		expect(isIndependentInstance('51234', true)).toBe(true);     // 桌面里的随机兜底口
+		expect(isIndependentInstance('51234', false)).toBe(false);   // 浏览器开发端口不提示
+		expect(isIndependentInstance('38992', false)).toBe(true);
+		expect(isIndependentInstance('38991', true)).toBe(false);
+		expect(isIndependentInstance('', true)).toBe(false);
+	});
+	it('桌面随机口显示提示', ()=>{
+		const React = require('react');
+		const ReactDOM = require('react-dom');
+		const host = document.createElement('div');
+		ReactDOM.render(React.createElement(MultiInstanceNotice, { port: '51234', desktop: true }), host);
+		expect(host.textContent.length).toBeGreaterThan(0);
+		ReactDOM.render(React.createElement(MultiInstanceNotice, { port: '51234', desktop: false }), document.createElement('div'));
+		ReactDOM.unmountComponentAtNode(host);
 	});
 });

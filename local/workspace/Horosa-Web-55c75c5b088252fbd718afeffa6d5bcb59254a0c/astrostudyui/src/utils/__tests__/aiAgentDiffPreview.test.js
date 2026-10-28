@@ -1,4 +1,4 @@
-// [批二③] 写前 diff 预览合同:diff 纯函数;三件工具 preview 形状;运行时 ask 时把预览交给审批台;组件渲染 data-agent-diff。
+// 写前 diff 预览合同:diff 纯函数;三件工具 preview 形状;运行时 ask 时把预览交给审批台;组件渲染 data-agent-diff。
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { act } from 'react-dom/test-utils';
@@ -26,13 +26,14 @@ describe('diff 纯函数', ()=>{
 });
 
 describe('工具预览形状', ()=>{
-	it('set_settings.preview:当前值 → 改后值,只含本次要改的键;create_chart_record / create_case_record 归一字段', ()=>{
+	it('set_settings.preview:当前值 → 改后值,只含本次要改的键;create_chart_record / create_case_record 归一字段', async ()=>{
 		registerBuiltinTools();
 		const setTool = getTool('set_settings');
-		const p = setTool.preview({ facet: 'chart', values: { hsys: 0 } });
-		expect(p && p.title).toContain('chart');
-		expect(`${p.after}`).toContain('hsys: 0');
-		expect(`${p.before}`).toContain('hsys:');
+		require('../aiTools/workspaceBridge').registerWorkspaceBridge({ changeCond: ()=>{} });   // 页面在场(缺桥时整面只读、不出审批卡)
+		const p = await setTool.preview({ facet: 'chart', values: { hsys: 0 } });   // 预览可 async(页面面要先载入 schema)
+		expect(p && p.title).toContain('当前盘');
+		expect(`${p.after}`).toContain('宫位制: 整宫制');   // 审批卡写设置项与档位的中文名
+		expect(`${p.before}`).toContain('宫位制:');
 		const c = getTool('create_chart_record').preview({ name: '张三', birth: '1990-01-01 08:00', place: '北京', gender: 'male' });
 		expect(c.before).toBe('');
 		expect(c.after).toContain('名字: 张三');

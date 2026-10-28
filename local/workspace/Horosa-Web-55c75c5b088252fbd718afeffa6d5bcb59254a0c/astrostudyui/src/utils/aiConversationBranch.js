@@ -12,6 +12,15 @@ export function buildForkMessages(list, uptoIndexInclusive, branchConversationId
 	}));
 }
 
+// 编辑过正文的命令轮已不是那条命令了:去掉命令芯片,本轮技法照旧(编辑后重问仍按当时那几门技法);正文没改 = 原样
+function editedTurnOf(targetUser, content){
+	const t = targetUser && targetUser.turn;
+	if(!t || !t.command || `${content}` === `${(targetUser && targetUser.content) || ''}`){ return t; }
+	const rest = { ...t };
+	delete rest.command;
+	return Object.keys(rest).length ? rest : undefined;
+}
+
 export function buildEditBranchMessages(list, targetIndex, targetUser, content, branchConversationId){
 	const prefix = (list || []).slice(0, targetIndex).map((item)=>({
 		...item,
@@ -23,6 +32,7 @@ export function buildEditBranchMessages(list, targetIndex, targetUser, content, 
 		...(targetUser || {}),
 		id: null,
 		content,
+		...(targetUser && targetUser.turn ? { turn: editedTurnOf(targetUser, content) } : {}),   // 没有本轮请求的消息形状不变
 		editedFromMessageId: targetUser ? targetUser.id : null,
 		conversationId: branchConversationId,
 		branchConversationId,

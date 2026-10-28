@@ -1,5 +1,5 @@
 diff --git a/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java b/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java
-index d77d0da1..7a25effd 100644
+index 72e4dd9b..776a7682 100644
 --- a/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java
 +++ b/astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/controller/ChartController.java
 @@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,7 +11,7 @@ index d77d0da1..7a25effd 100644
  import boundless.spring.help.interceptor.TransData;
  import boundless.utility.ConvertUtility;
  import boundless.utility.JsonUtility;
-@@ -33,6 +35,11 @@ public class ChartController {
+@@ -34,6 +36,11 @@ public class ChartController {
  	// 七政命度接线代次(缓存盐+回显都用它;曾 v4/v5 两处手抄漂移——回显停在 v4,盐已到 v5)
  	private static final String GUOLAO_LIFE_REV = "life_cotrans_v5_gumao_custom";
  
@@ -23,7 +23,7 @@ index d77d0da1..7a25effd 100644
  	private static final int SU28_MODE_ZHENG_SIDEREAL = 4;
  	private static final double ZHENG_AYANAMSHA_BASE_DEGREE = 4.0;
  	private static final double ZHENG_AYANAMSHA_BASE_YEAR = 1300.0;
-@@ -57,6 +64,7 @@ public class ChartController {
+@@ -58,6 +65,7 @@ public class ChartController {
  		keyparams.put("_calRev", NongliHelper.CALENDAR_CACHE_REV);   // 结果附带 Java 四柱农历:历法口径代次只进缓存键(与 /chart13、/chart12 同)
  		Object obj = ParamHashCacheHelper.get("/chart", keyparams, (args)->{
  			args.remove("_calRev");   // 代次只进缓存键(哈希已先算好),不发给排盘引擎
@@ -31,7 +31,7 @@ index d77d0da1..7a25effd 100644
  			Map<String, Object> astroArgs = args;
  			if(ConvertUtility.getValueAsInt(args.get("doubingSu28"), 0) == SU28_MODE_ZHENG_SIDEREAL) {
  				astroArgs = new HashMap<String, Object>();
-@@ -65,6 +73,7 @@ public class ChartController {
+@@ -66,6 +74,7 @@ public class ChartController {
  				astroArgs.put("guolaoZhengSidereal", 1);
  			}
  			Map<String, Object> res = AstroHelper.getChart(astroArgs);
@@ -39,7 +39,7 @@ index d77d0da1..7a25effd 100644
  			Map<String, Object> reqparams = (Map<String, Object>) res.get("params");
  			if(reqparams != null) {
  				reqparams.put("doubingSu28", args.get("doubingSu28"));
-@@ -99,11 +108,22 @@ public class ChartController {
+@@ -100,11 +109,22 @@ public class ChartController {
  				applyZhengSiderealSu28(chart, args);
  				chart.put("nongli", map);
  			}else {

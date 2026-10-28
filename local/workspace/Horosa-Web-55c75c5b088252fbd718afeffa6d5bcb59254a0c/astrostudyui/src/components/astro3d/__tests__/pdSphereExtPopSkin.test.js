@@ -15,12 +15,13 @@
 // 故这里锁**源码级契约**,守最容易被后人"顺手简化"掉的几处。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.join(__dirname, '..', '..', '..');
 const PANEL = fs.readFileSync(path.join(SRC, 'components', 'astro', 'PdExtensionPanel.js'), 'utf8');
 const SPHERE = fs.readFileSync(path.join(SRC, 'components', 'astro3d', 'AstroPDSphere.js'), 'utf8');
 const TABLE = fs.readFileSync(path.join(SRC, 'components', 'astro', 'AstroPrimaryDirection.js'), 'utf8');
-const APPLESS = fs.readFileSync(path.join(SRC, 'layouts', 'app.less'), 'utf8');
+const APPLESS = readSource(path.join(SRC, 'layouts', 'app.less'));
 
 const CLS = 'horosa-pdsphere-ext-pop';
 

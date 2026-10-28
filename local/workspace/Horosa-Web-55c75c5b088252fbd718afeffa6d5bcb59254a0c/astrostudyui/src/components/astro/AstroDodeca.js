@@ -1,13 +1,12 @@
 // components/astro/AstroDodeca.js
 // 十二分度（Dodecatemoria / 12th-parts）：座内度数 ×12 自座首前进。纯前端派生，嵌于本命「古典」tab。
 import { Component } from 'react';
-import { astroSymbol, fmtNum, cardStyle, SmallTable } from './AstroExtraCommon';
-import { SIGNS, SIGN_ORDER } from '../../divination/data/signs';
+import { astroSymbol, fmtNum, cardStyle, SmallTable, signCnName as sn } from './AstroExtraCommon';
+import { SIGN_ORDER } from '../../divination/data/signs';
 
 function norm360(x){ return ((x % 360) + 360) % 360; }
 function dodecaLon(lon){ const L = norm360(lon); return norm360(Math.floor(L / 30) * 30 + (L % 30) * 12); }
 function signOf(lon){ return SIGN_ORDER[Math.floor(norm360(lon) / 30)]; }
-const sn = (s) => (SIGNS[s] && SIGNS[s].cn) || s || '-';
 
 const BODY_IDS = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto', 'North Node', 'Pars Fortuna', 'Asc', 'MC'];
 
@@ -47,7 +46,7 @@ class AstroDodeca extends Component {
 						{ key: 'sign2', title: '再12分度', render: (_v, r) => `${sn(r.sign2)} ${fmtNum(r.signlon2, 1)}°` },
 					]}
 				/>
-				<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>座内度数×12 自该座 0° 起前进取得；古典用于细察星体精微落点。「再12分度」= 对 12 分度再取一次 12 分度（双重细分），用于区分出生时刻极为接近的两盘。</div>
+				<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6 }}>座内度数×12 自该座 0° 起前进取得；古典用于细察星体精微落点。「再12分度」= 对 12 分度再取一次 12 分度（双重细分），用于区分出生时刻极为接近的两盘。</div>
 			</div>
 		);
 	}

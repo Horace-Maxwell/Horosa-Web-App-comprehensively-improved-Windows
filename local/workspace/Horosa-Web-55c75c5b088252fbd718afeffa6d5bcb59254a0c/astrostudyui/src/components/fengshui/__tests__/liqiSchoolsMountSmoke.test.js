@@ -9,8 +9,10 @@
  *
  * ## 本用例
  * 面板表现读 FengShuiMain 的 LIQI_SCHOOLS(新增流派自动进覆盖面),逐派用组件缺省 state 真挂载(ReactDOM + act),断言:
- *   ① 不抛、window 零未捕获;② 左栏参数列存在;③ 不可用态(命理派缺省)必须画出「参数不足」提示卡而不是崩;
- *   ④ 源码级负锚:LiqiWorkspace 顶层 render 必含 available===false 守卫。
+ *   ① 不抛、window 零未捕获;② 左栏参数列存在;③ 不可用态(命理派缺省,参数不足)必须画出 LIQI_UNAVAILABLE_HINT 提示、右栏不渲染,而不是崩;
+ *   ④ 源码级负锚:LiqiWorkspace 顶层 render 必含 available===false 收口(unavailable 时盘区换提示、右栏 null)。
+ * v3.12.0 起不可用态守卫由组件自带(LIQI_UNAVAILABLE_HINT / horosa-fengshui-liqi-unavailable,条件同为 result.available === false),
+ * 本用例改钉该形态;罗盘盘径可视高度封顶仍是本地补丁(④ 一并钉)。
  */
 global.React = require('react');
 if(!window.matchMedia){
@@ -28,12 +30,13 @@ import { act } from 'react-dom/test-utils';
 import fs from 'fs';
 import path from 'path';
 import { LIQI_SCHOOLS } from '../FengShuiMain';
-import LiqiWorkspace from '../LiqiWorkspace';
+import LiqiWorkspace, { LIQI_UNAVAILABLE_HINT } from '../LiqiWorkspace';
 
 jest.setTimeout(120000);
 const SRC = fs.readFileSync(path.resolve(__dirname, '..', 'LiqiWorkspace.js'), 'utf8');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// school 传数组 = 同一实例上依次切到各派(页内切换流派),返回最后一派的状态
 async function mountSchool(school){
 	const errors = [];
 	const onErr = (ev) => errors.push(String((ev.error && ev.error.stack) || ev.message));
@@ -41,9 +44,13 @@ async function mountSchool(school){
 	const container = document.createElement('div');
 	document.body.appendChild(container);
 	try{
-		await act(async () => { ReactDOM.render(<LiqiWorkspace school={school} active geo={null} />, container); });
+		for(const s of [].concat(school)){
+			await act(async () => { ReactDOM.render(<LiqiWorkspace school={s} active geo={null} />, container); });
+		}
 		await act(async () => { await sleep(30); });
-		return { errors, text: container.textContent || '', params: !!container.querySelector('.horosa-fengshui-liqi-params'), html: container.innerHTML.length };
+		const panel = container.querySelector('.horosa-fengshui-liqi-panel');
+		return { errors, text: container.textContent || '', params: !!container.querySelector('.horosa-fengshui-liqi-params'), html: container.innerHTML.length,
+			unavailable: !!container.querySelector('.horosa-fengshui-liqi-chart .horosa-fengshui-liqi-unavailable'), panelEmpty: !!panel && panel.childNodes.length === 0 };
 	}finally{
 		try{ await act(async () => { ReactDOM.unmountComponentAtNode(container); }); }catch(e){ errors.push('unmount: ' + e.message); }
 		container.remove();
@@ -67,16 +74,29 @@ describe('风水理气工作区 · 逐派缺省挂载冒烟(面板表现读 LIQI
 		expect(r.html).toBeGreaterThan(0);
 	});
 
-	test('命理派缺省(命主年未填)= 不可用态:画「参数不足」提示卡,不崩(issue #84 直接回归)', async () => {
+	test('命理派缺省(命主年未填)= 参数不足的不可用态:盘区出提示、右栏空,不崩(issue #84 直接回归)', async () => {
 		const r = await mountSchool('mingli');
 		expect(r.errors).toEqual([]);
-		expect(r.text).toContain('参数不足');
+		expect(r.unavailable).toBe(true);
+		expect(r.text).toContain(LIQI_UNAVAILABLE_HINT.mingli);
 		expect(r.text).toContain('命主年');
+		expect(r.panelEmpty).toBe(true);
 	});
 
-	test('源码级:顶层 render 带 available===false 守卫(负锚防回潮)', () => {
-		expect(SRC).toContain('horosa_liqi_unavailable_guard_v1');
-		expect(SRC).toContain('if (result.available === false) {');
+	test('页内切换:八宅 → 命理派进不可用态出提示;命理派 → 八宅即出盘、提示消失', async () => {
+		const into = await mountSchool(['bazhai', 'mingli']);
+		expect(into.errors).toEqual([]);
+		expect(into.unavailable).toBe(true);
+		const back = await mountSchool(['mingli', 'bazhai']);
+		expect(back.errors).toEqual([]);
+		expect(back.unavailable).toBe(false);
+		expect(back.panelEmpty).toBe(false);
+	});
+
+	test('源码级:顶层 render 带 available===false 收口(负锚防回潮)', () => {
+		expect(SRC).toContain('const unavailable = result.available === false;');
+		expect(SRC).toContain('{unavailable ? null : renderPanel()}');
+		expect(SRC).toContain('horosa-fengshui-liqi-unavailable');
 		expect(SRC).toContain('horosa_luopan_dial_viewport_cap_v1');
 		expect(SRC).toContain('Math.min(chartBox.w, chartBox.h, viewportCap)');
 	});

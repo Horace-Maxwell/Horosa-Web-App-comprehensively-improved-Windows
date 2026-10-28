@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { leapPrefix } from '../../utils/lunarText';
 import { chartSCUEnabled } from '../../utils/perfFlags';
 import { BaZiMsg } from '../../msg/bazimsg';
 import { calcFlowShenSha, filterShenShaByGroups } from '../../utils/baziShenShaLocal';
@@ -37,26 +38,6 @@ function hiddenText(item){
 	return stems.map((stem)=>`${stem.cell || ''}${stem.relative || ''}`).filter(Boolean).join(' ');
 }
 
-function collectGods(item){
-	if(!item){
-		return [];
-	}
-	const gods = [];
-	if(Array.isArray(item.shenSha)){
-		gods.push(...item.shenSha);
-	}
-	if(Array.isArray(item.goodGods)){
-		gods.push(...item.goodGods);
-	}
-	if(Array.isArray(item.neutralGods)){
-		gods.push(...item.neutralGods);
-	}
-	if(Array.isArray(item.badGods)){
-		gods.push(...item.badGods);
-	}
-	return Array.from(new Set(gods.filter(Boolean)));
-}
-
 function infoPair(label, value){
 	if(value === undefined || value === null || value === ''){
 		return null;
@@ -79,7 +60,8 @@ function infoPair(label, value){
 //
 // 修法：按「输入依赖」把面板切成三个各自带 sCU 的相邻子块（DOM 顺序与旧版逐字一致）：
 //   1) BaZiInfoStaticSections —— 依赖 value / fields / school / zodiacBoundary
-//   2) BaZiFlowGodsSection    —— 依赖 value / flowSelection（点选行运时只有它重渲）
+//   2) BaZiFlowGodsSection    —— 依赖 value / flowSelection / shenshaGroups（点选行运时只有它重渲;
+//                                神煞分组须由组合层转交,子块里的 this.props 只有组合层给的那几个）
 //   3) BaZiInfoAuxSection     —— 依赖 value
 // 三个 sCU 一律「拿不准就判变」：任一列出的输入引用不等即返 true，父组件每次都用最新 props
 // 构造它们 —— 该更新时必更新，零陈旧、零降级。渲染方法体逐字照搬旧版（props 名不变）。
@@ -99,7 +81,7 @@ class BaZiInfoStaticSections extends Component{
 		const nongli = bazi.nongli || {};
 		const name = fields && fields.name ? fields.name.value : '';
 		const gender = BaZiMsg[bazi.gender] || '';
-		const lunarText = nongli.year ? `${nongli.year}年${nongli.leap ? '闰' : ''}${nongli.month || ''}${nongli.day || ''}` : '';
+		const lunarText = nongli.year ? `${nongli.year}年${leapPrefix(nongli)}${nongli.month || ''}${nongli.day || ''}` : '';
 		const timeAlgNames = { 0: '真太阳时', 1: '直接时间', 2: '春分定卯时', 3: '平太阳时' };
 		const timeAlgVal = fields && fields.timeAlg ? fields.timeAlg.value : 0;
 		const formClock = (fields && fields.date && fields.time) ? `${fields.date.value.format('YYYY-MM-DD')} ${fields.time.value.format('HH:mm:ss')}` : '';
@@ -417,7 +399,8 @@ class BaZiFlowGodsSection extends Component{
 			return true;   // kill-switch 沿用既有 horosa.perf.chartSCU
 		}
 		return nextProps.value !== this.props.value
-			|| nextProps.flowSelection !== this.props.flowSelection;
+			|| nextProps.flowSelection !== this.props.flowSelection
+			|| nextProps.shenshaGroups !== this.props.shenshaGroups;
 	}
 
 	renderFlowGods(bazi){
@@ -507,6 +490,7 @@ class BaZiAppInfoPanel extends Component{
 					<BaZiFlowGodsSection
 						value={this.props.value}
 						flowSelection={this.props.flowSelection}
+						shenshaGroups={this.props.shenshaGroups}
 					/>
 				)}
 				<BaZiInfoAuxSection value={this.props.value} />

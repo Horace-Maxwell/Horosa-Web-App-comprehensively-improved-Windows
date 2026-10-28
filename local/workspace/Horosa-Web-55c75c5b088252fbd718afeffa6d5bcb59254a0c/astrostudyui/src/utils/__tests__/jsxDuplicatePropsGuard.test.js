@@ -2,7 +2,7 @@
 //
 // 🔴 病理:JSX 里同名属性后者胜、前者被静默丢弃 —— 编译不报错、运行不抛异常,
 //    只是某个属性凭空消失。本仓实测三处:
-//    · 挂载设置面板的「纳入内容」段传了两个 className → 基础类
+//    · 挂载设置的「纳入内容」段传了两个 className → 基础类
 //      horosa-side-input-section 被丢掉,与同一面板里的「排盘参数」段外观不一致;
 //    · CalendarMain 的 Tabs 传了两个 className → 右侧竖排轨样式 xq-tabs-rail 被丢掉;
 //    · IndiaChart 对渲染件重复传 overlayPoints(同值,故无行为差,但属同类笔误)。

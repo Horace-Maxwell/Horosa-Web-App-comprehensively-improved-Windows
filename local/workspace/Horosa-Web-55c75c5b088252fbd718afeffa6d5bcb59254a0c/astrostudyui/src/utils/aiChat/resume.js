@@ -1,6 +1,7 @@
-// [批二⑪] 会话 resume(借鉴 Claude Code --continue / /resume):记住上次打开的对话(uiPrefs chatAssist.lastConversationId),
+// 会话 resume:记住上次打开的对话(uiPrefs chatAssist.lastConversationId),
 // 开关「启动时继续上次」(uiPrefs chatAssist.resumeLast,缺省关 = 不记、不开 = 零变化);/resume 浮层列最近 5 个对话点一下继续。
 // 只在开关开着时才写 lastConversationId(缺省不往 uiPrefs 里塞新字段)。
+import { parseDateTimeMs } from '../dateTimeParse';
 import { loadUiPrefs, saveUiPrefs } from '../aiAnalysisStore';
 
 export const RESUME_RECENT_MAX = 5;
@@ -29,7 +30,7 @@ export function rememberLastConversation(id){
 	writeChatAssist((n)=>{ n.lastConversationId = cid; });
 	return true;
 }
-function ts(c){ return Date.parse((c && (c.updatedAt || c.createdAt)) || '') || 0; }
+function ts(c){ return parseDateTimeMs((c && (c.updatedAt || c.createdAt)) || '') || 0; }
 export function recentConversations(conversations, n){
 	const max = Number(n) > 0 ? Number(n) : RESUME_RECENT_MAX;
 	return (Array.isArray(conversations) ? conversations : []).filter((c)=>c && c.id && !c.archived).slice(0).sort((a, b)=>ts(b) - ts(a)).slice(0, max);

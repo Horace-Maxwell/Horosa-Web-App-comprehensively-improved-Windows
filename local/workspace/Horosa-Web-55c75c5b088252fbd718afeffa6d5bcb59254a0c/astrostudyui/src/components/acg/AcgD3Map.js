@@ -1,10 +1,12 @@
 import { Component } from 'react';
+import { clampChipTranslate, placeChip } from './acgLabelClamp';
 import { watchChartAppearance } from '../../utils/chartDrawGuard';
 import * as d3 from 'd3';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import world from './world.geo.json';
 import { pointerToLocal } from '../../utils/zoomDomain';
+import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
 
 // Two appearance themes (follow the app's data-horosa-appearance). Planet colours stay
 // recognisable but are deepened in light mode; the casing/label-chip flip so lines and
@@ -18,26 +20,28 @@ const THEMES = {
 		markerFill: '#ffffff', markerStroke: 'rgba(7,11,18,0.7)',
 		tipBg: 'rgba(16,20,28,0.95)', tipFg: '#f0f3f8', tipBorder: 'rgba(255,255,255,0.12)',
 		colors: {
-			Sun: '#F2A93B', Moon: '#9FB2C9', Mercury: '#39B5A6', Venus: '#E07AB0', Mars: '#E2493B',
-			Jupiter: '#8C82F0', Saturn: '#C79A5E', Uranus: '#34C5D6', Neptune: '#6E90F2', Pluto: '#AEB4BD',
-			'North Node': '#D98C4A', 'South Node': '#C9B07A', Chiron: '#5DAE54',
-			'Dark Moon': '#B188DA', 'Purple Clouds': '#CB8BD9',
-			Ceres: '#7FB069', Pallas: '#C99BD6', Juno: '#E0A458', Vesta: '#D4726A', Eris: '#8A94A6',
+			Sun: '#F2A93B', Moon: '#A7BAE9', Mercury: '#3FB8A4', Venus: '#E676AB', Mars: '#E63931',
+			Jupiter: '#8B84F3', Saturn: '#B28643', Uranus: '#2EC3D5', Neptune: '#5897E9', Pluto: '#BCC1C7',
+			'North Node': '#E1884F', 'South Node': '#C9B181', Chiron: '#289630',
+			'Dark Moon': '#9472B1', 'Purple Clouds': '#CC69F1',
+			Ceres: '#82B16B', Pallas: '#CA99D6', Juno: '#FEBE97', Vesta: '#D57671', Eris: '#8C95A8',
 		},
 	},
 	light: {
 		ocean: '#e9eff6', land: '#f4f2ea', border: '#c6ccd5', grid: '#d4dbe3', gridOpacity: 0.85,
 		casing: 'rgba(255,255,255,0.92)',
 		chipBg: '#ffffff', chipBorder: 'rgba(40,46,58,0.88)',
-		geo: { equator: '#7d8896', ecliptic: '#b07d14', tropic: '#9aa3af', paran: '#5b6b86' },
+		geo: { equator: '#7d8896', ecliptic: '#b07d14', tropic: '#798595', paran: '#5b6b86' },
 		markerFill: '#222831', markerStroke: 'rgba(255,255,255,0.92)',
 		tipBg: 'rgba(28,33,42,0.96)', tipFg: '#f4f6fa', tipBorder: 'rgba(0,0,0,0.18)',
+		// 亮底标签字 ≥ 3:1(日 #DD8E12 / 婚神 #C48328 / 回归线 #9aa3af 旧值在白底片 2.2–2.7:1,同色相压深);
+		// 同图 20 体两两 CIEDE2000 ≥ 12(压深后日 / 婚神只差 2.1、日 / 北交 8.6,线与标签分不出;婚神改偏棕、北交偏橙,合同测试看守)
 		colors: {
-			Sun: '#DD8E12', Moon: '#4F6F9C', Mercury: '#1C9A8C', Venus: '#CF4F92', Mars: '#CC382B',
-			Jupiter: '#5A4BC0', Saturn: '#866428', Uranus: '#108EA0', Neptune: '#3357C4', Pluto: '#565C66',
-			'North Node': '#BC6A28', 'South Node': '#937B3F', Chiron: '#358230',
-			'Dark Moon': '#7E52B6', 'Purple Clouds': '#9A55AE',
-			Ceres: '#5E9147', Pallas: '#A768B8', Juno: '#C48328', Vesta: '#B4534B', Eris: '#6A7486',
+			Sun: '#A87406', Moon: '#396CB0', Mercury: '#049886', Venus: '#CB4F8E', Mars: '#E22B07',
+			Jupiter: '#594BBB', Saturn: '#7A5A27', Uranus: '#108CA0', Neptune: '#034388', Pluto: '#4D5055',
+			'North Node': '#AF5504', 'South Node': '#8A7D4C', Chiron: '#1E7424',
+			'Dark Moon': '#715185', 'Purple Clouds': '#A72AA7',
+			Ceres: '#619347', Pallas: '#A169B7', Juno: '#AF7C59', Vesta: '#AD5349', Eris: '#697284',
 		},
 	},
 };
@@ -150,7 +154,7 @@ class AcgD3Map extends Component {
 	}
 
 	componentDidMount() {
-		this.ro = new ResizeObserver(this.onResize);
+		this.ro = createDeferredResizeObserver(this.onResize);
 		if (this.hostRef.current) this.ro.observe(this.hostRef.current);
 		this._detachAppearance = watchChartAppearance(this.onAppearance);
 		this.rebuild();
@@ -303,6 +307,8 @@ class AcgD3Map extends Component {
 		let bb;
 		try { bb = text.node().getBBox(); } catch (e) { bb = { x: -9, y: -7, width: 18, height: 14 }; }
 		const px = 3.5, py = 2;
+		// 收进画布:投影点贴边时芯片按点居中会有一半落在画布外(svg 裁掉 3–4px);放得下时位置不变
+		placeChip(g, xy, bb, { x: px, y: py }, this.size);
 		g.insert('rect', 'text')
 			.attr('x', (bb.x - px).toFixed(1)).attr('y', (bb.y - py).toFixed(1))
 			.attr('width', (bb.width + 2 * px).toFixed(1)).attr('height', (bb.height + 2 * py).toFixed(1))
@@ -697,8 +703,15 @@ class AcgD3Map extends Component {
 				if (showLabels && L.mc && typeof L.mc.lon === 'number') {
 					const xy = this.projection([L.mc.lon, 80]);
 					if (xy && isFinite(xy[0]) && isFinite(xy[1])) {
-						this.labelG.append('text').attr('x', xy[0].toFixed(1)).attr('y', xy[1].toFixed(1)).attr('text-anchor', 'middle')
+						const tn = this.labelG.append('text').attr('x', xy[0].toFixed(1)).attr('y', xy[1].toFixed(1)).attr('text-anchor', 'middle')
 							.attr('font-size', 9).attr('fill', scol).style('stroke', 'none').text(st.name);
+						// 恒星名同样收进画布(与芯片同一收边函数;外框按画布坐标量,换算成相对投影点的偏移)
+						let sb = null;
+						try { sb = tn.node().getBBox(); } catch (e) { sb = null; }
+						if (sb && sb.width > 0) {
+							const c = clampChipTranslate(xy[0], xy[1], { x: sb.x - xy[0], y: sb.y - xy[1], width: sb.width, height: sb.height }, { x: 0, y: 0 }, this.size.w, this.size.h);
+							if (c.x !== xy[0] || c.y !== xy[1]) tn.attr('x', c.x.toFixed(1)).attr('y', c.y.toFixed(1));
+						}
 					}
 				}
 			});

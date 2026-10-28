@@ -14,7 +14,7 @@ import * as AstroConst from './AstroConst';
  */
 export const PLANET_ONLY_IN = (function build(){
 	const map = {};
-	(AstroConst.LIST_URANIAN || []).forEach(function (id) {
+	AstroConst.LIST_URANIAN.forEach(function (id) {
 		map[id] = '量化盘（汉堡学派）';
 	});
 	map[AstroConst.LIFEMASTERDEG74] = '七政四余盘';

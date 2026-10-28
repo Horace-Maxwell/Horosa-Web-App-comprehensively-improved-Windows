@@ -12,10 +12,10 @@
 import { parseAiExportDocument, mdInlineSegments } from './aiExportDocModel';
 
 const FONT_URLS = ['./fonts/HorosaCJK-subset.ttf', '/fonts/HorosaCJK-subset.ttf'];
-// [E11] 真 Bold 字重(与 Regular 同源 Noto Sans CJK SC、同 upem、码位完全一致;
+// 真 Bold 字重(与 Regular 同源 Noto Sans CJK SC、同 upem、码位完全一致;
 // 由 scripts/build_cjk_bold_subset.py 生成并硬校验)。取不到 → 回落下面的描边合成,绝不失败。
 const BOLD_FONT_URLS = ['./fonts/HorosaCJK-Bold-subset.ttf', '/fonts/HorosaCJK-Bold-subset.ttf'];
-// [E5] 描边合成粗体系数(×字号):**Bold 字体不可用时的降级路径**——用 Tr2(FillAndOutline)
+// 描边合成粗体系数(×字号):**Bold 字体不可用时的降级路径**——用 Tr2(FillAndOutline)
 //   描边增重。零字体资产、advance 宽度不变、文字提取不重复(双遍偏移法会让复制出重复词)。
 const BOLD_STROKE = 0.028;
 let _fontBytesPromise = null;
@@ -60,9 +60,9 @@ function segmentAtoms(text){
 	return atoms;
 }
 
-// [E5] 富文本换行:runs(mdInlineSegments 产物)→ 行数组;原子级装箱(与 wrapText 同款贪心),
+// 富文本换行:runs(mdInlineSegments 产物)→ 行数组;原子级装箱(与 wrapText 同款贪心),
 // 行内相邻同样式原子合并回 run(减少 drawText 次数)。空 runs → 单空行(与 wrapText 空段行为一致)。
-// [E11] 🔴 fontOf(bold) 取代原来的单一 font 参数:真 Bold 字重的 advance **与 Regular 不同**
+// 🔴 fontOf(bold) 取代原来的单一 font 参数:真 Bold 字重的 advance **与 Regular 不同**
 // (旧注释「Tr2 不改宽度、量宽无需区分粗细」自此失效)—— 量宽与落笔必须用同一副字体,
 // 否则整份 PDF 断行错位、表格串列。atom.bf = 本原子是否真用 Bold 字面(false 且 bold=true
 // 时走描边合成降级)。
@@ -149,7 +149,7 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 	//   唯 TrueType(glyf) + subset:false 同时满足「字体文件有效」与「全字形在位」(三向实证:poppler 0 错、
 	//   pdftext 全文可提、pdftoppm 渲染逐字正确)。字体已是 GB2312+繁+韩 子集(~2.7MB)非全字库,整嵌可控。
 	const font = await pdf.embedFont(fontBytes, { subset: false });
-	// [E11] 真 Bold 字重:同源同覆盖的 Bold 子集(build_cjk_bold_subset.py 硬校验码位一致)。
+	// 真 Bold 字重:同源同覆盖的 Bold 子集(build_cjk_bold_subset.py 硬校验码位一致)。
 	// 取不到 / 内嵌失败 → boldFont=null,粗体段自动回落到 Tr2 描边合成(旧路径完整保留)。
 	let boldFont = null;
 	let boldCharSet = null;
@@ -199,7 +199,7 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 		}
 	};
 
-	// [E5] 单行富文本落笔(不动全局 y):粗体段以 Tr2(填充+描边)合成粗。drawText 内部 q…Q 包裹,
+	// 单行富文本落笔(不动全局 y):粗体段以 Tr2(填充+描边)合成粗。drawText 内部 q…Q 包裹,
 	// 在其之前置的 Tr/线宽/描边色被继承进文本绘制,绘后显式复位 Tr0(状态在 Q 后仍持续,必须复位)。
 	const drawRunsLineAt = (runsLine, x, baselineY, size, color)=>{
 		let cx = x;
@@ -209,7 +209,7 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 			const f = fontOf(r.bf);
 			let w = 0;
 			try{ w = f.widthOfTextAtSize(r.text, size); }catch(e){ w = size * r.text.length; }
-			// [E11] 行内码:补一块浅底(与应用内 .xq-md-v2 的 code 底色同一视觉语言)。
+			// 行内码:补一块浅底(与应用内 .xq-md-v2 的 code 底色同一视觉语言)。
 			// 本引擎只内嵌一副 CJK 字族,没有等宽/斜体字面 —— 用底色/字色区分,不硬造字形。
 			if(r.code){
 				page.drawRectangle({ x: cx - 1, y: baselineY - size * 0.22, width: w + 2, height: size * 1.18, color: rgb(0.955, 0.955, 0.965) });
@@ -217,7 +217,7 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 			// 纯斜体段:无斜体字面,退而用弱化字色表示语气(与应用内 em 的 text-soft 一致)
 			const runColor = (r.em && !r.bold && !r.code) ? rgb(0.42, 0.42, 0.46) : color;
 			if(r.bf){
-				// [E11] 真 Bold 字面:直接用 Bold 字体落笔,不再描边
+				// 真 Bold 字面:直接用 Bold 字体落笔,不再描边
 				page.drawText(r.text, { x: cx, y: baselineY, size, font: f, color });
 			}else if(r.bold){
 				// 降级:Bold 字体不可用(或该字未被覆盖)→ Tr2 描边合成
@@ -228,13 +228,13 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 				page.drawText(r.text, { x: cx, y: baselineY, size, font: f, color: runColor });
 			}
 			if(r.del){
-				// [E11] 删除线:tokenizer 现在会产 del 段,PDF 端补一条细横线(此前 ~~ 记号被吃掉、无表现)
+				// 删除线:tokenizer 现在会产 del 段,PDF 端补一条细横线(此前 ~~ 记号被吃掉、无表现)
 				page.drawRectangle({ x: cx, y: baselineY + size * 0.28, width: w, height: Math.max(0.4, size * 0.045), color });
 			}
 			cx += w;
 		}
 	};
-	// [E5] 富 runs 流式绘制(自动换行+跨页;对应纯文本版 drawLines 的 runs 版)。
+	// 富 runs 流式绘制(自动换行+跨页;对应纯文本版 drawLines 的 runs 版)。
 	const drawRuns = (runs, size, color, opts = {})=>{
 		const x = opts.x != null ? opts.x : M;
 		const maxW = opts.maxW != null ? opts.maxW : contentW;
@@ -246,7 +246,7 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 			y -= lh;
 		}
 	};
-	// [E5] 富文本段绘制:逐段(\n)消化行内记号(**粗**/*斜*/`码` 剥记号,粗体真加粗)。
+	// 富文本段绘制:逐段(\n)消化行内记号(**粗**/*斜*/`码` 剥记号,粗体真加粗)。
 	const drawRichText = (text, size, color, opts = {})=>{
 		const paras = `${text == null ? '' : text}`.split('\n');
 		for(let p = 0; p < paras.length; p++){ drawRuns(mdInlineSegments(paras[p]), size, color, opts); }
@@ -260,7 +260,7 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 		const pad = 3;
 		const cellMaxW = colW - 2 * pad;
 		const lh = size * 1.35;
-		// [E11] 🔴 forceBold 必须在**量宽时**就传进去:表头整行加粗,而真 Bold 的 advance 比
+		// 🔴 forceBold 必须在**量宽时**就传进去:表头整行加粗,而真 Bold 的 advance 比
 		// Regular 宽——沿用旧的「画的时候再 map bold:true」会按细体的宽度排版、表头串列。
 		const measureRow = (cells, forceBold)=>{
 			const wrapped = [];
@@ -294,7 +294,7 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 			}
 		};
 		const headerMeasured = (block.headers && block.headers.length) ? measureRow(block.headers, true) : null;
-		// [A3] 跨页表头重绘:长表 body 行触底换页后,新页首行必须先重画表头(与打印路径
+		// 跨页表头重绘:长表 body 行触底换页后,新页首行必须先重画表头(与打印路径
 		// `<thead>` 每页重复的行为对齐)。旧式表头只画一次,第二页起裸行无表头。
 		const ensureRowWithHeader = (rowH)=>{
 			if(y - rowH < M + FOOT){
@@ -314,7 +314,7 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 		y -= 5;
 	};
 
-	// [B2] 新块型渲染:code/quote/list(有序·嵌套)/image/hr —— 与 IR 解析器同步扩面。
+	// 新块型渲染:code/quote/list(有序·嵌套)/image/hr —— 与 IR 解析器同步扩面。
 	const drawCode = (block)=>{
 		const size = 8.5;
 		const lh = size * 1.5;
@@ -410,7 +410,7 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 		}
 		if(block.type === 'note'){ drawRichText(block.text || '', 9.5, MUTED, { lh: 1.5 }); return; }
 		if(block.type === 'kv'){
-			// [E5] 键整体加粗(键内 **引导词** 记号一并消化),值走行内分段。kv 键值均为单行(解析约定)。
+			// 键整体加粗(键内 **引导词** 记号一并消化),值走行内分段。kv 键值均为单行(解析约定)。
 			const kvRuns = mdInlineSegments(`${block.key}：`).map((s)=>({ ...s, bold: true })).concat(mdInlineSegments(`${block.value || ''}`));
 			drawRuns(kvRuns, 10.5, INK, { lh: 1.55 });
 			return;
@@ -434,10 +434,10 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 	}
 
 	// —— 标题 + 头部 ——
-	// [B1] 报告链直供 IR(__docOverride):跳过纯文本反推,标题不再带「· AI 导出」尾缀。
+	// 调用方直供 IR(__docOverride):跳过纯文本反推,标题不再带「· AI 导出」尾缀。
 	const docOverride = payload && payload.__docOverride;
 	const doc = docOverride || parseAiExportDocument(payload && payload.text);
-	// [E11] 封面 + 目录页:仅报告链(hooks.cover)启用 —— 技法 AI 导出走原路径,产物字节不变。
+	// 封面 + 目录页:仅调用方传 hooks.cover 时启用 —— 技法 AI 导出走原路径,产物字节不变。
 	const cover = (hooks && hooks.cover) || null;
 	const docTitle = docOverride ? `${(payload && payload.tech) || '报告'}` : `${(payload && payload.tech) || '导出'} · AI 导出`;
 	const tocPages = [];
@@ -479,11 +479,11 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 		page.drawRectangle({ x: M, y: y - barH + 3, width: contentW, height: barH, color: SECBG });
 		page.drawText(`${sec.title || ''}`, { x: M + 7, y: y - barH + 8, size: 11, font: fontOf(true), color: rgb(1, 1, 1) });
 		y -= barH + 7;
-		for(const b of (sec.blocks || [])){ await drawBlock(b); }   // [B2] image 块 embed 为异步
+		for(const b of (sec.blocks || [])){ await drawBlock(b); }   // image 块 embed 为异步
 		y -= 5;
 	}
 
-	// [E11] 目录回填:此时才知道每节落在第几页 —— 点线引导 + 右对齐页码。
+	// 目录回填:此时才知道每节落在第几页 —— 点线引导 + 右对齐页码。
 	if(cover && tocPages.length){
 		const secs = doc.sections || [];
 		let tp = 0;
@@ -512,12 +512,12 @@ export async function buildExportPdfVectorBlob(payload, hooks){
 		}
 	}
 
-	// —— 页码 + [B3] 导出主题(水印/页眉/页脚,每页绘制;theme 缺省=只画页码,零变)——
+	// —— 页码 + 导出主题(水印/页眉/页脚,每页绘制;theme 缺省=只画页码,零变)——
 	const theme = (hooks && hooks.theme) || null;
 	const pages = pdf.getPages();
 	const total = pages.length;
 	for(let i = 0; i < total; i++){
-		// [E11] 有封面时:封面页不画页码/页眉(通行的书籍排版口径),其余页加一条细页眉线 + 报告名。
+		// 有封面时:封面页不画页码/页眉(通行的书籍排版口径),其余页加一条细页眉线 + 报告名。
 		const isCoverPage = !!cover && i === 0;
 		if(!isCoverPage){
 			const label = `${i + 1} / ${total}`;

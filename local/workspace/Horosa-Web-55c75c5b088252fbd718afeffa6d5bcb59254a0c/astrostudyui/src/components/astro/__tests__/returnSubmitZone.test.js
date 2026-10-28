@@ -1,4 +1,4 @@
-// [Q-303/T-290] 返照 / 流年盘「提交」带上所选时区(与 DateTimeSelector 自动请求同源),不再沿用上一次响应写回的旧 dirZone。
+// 返照 / 流年盘「提交」带上所选时区(与 DateTimeSelector 自动请求同源),不再沿用上一次响应写回的旧 dirZone。
 import DateTime from '../../comp/DateTime';
 
 global.React = require('react');

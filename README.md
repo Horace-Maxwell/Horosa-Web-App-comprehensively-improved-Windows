@@ -11,13 +11,13 @@
 
 命 · 卜 · 工具 三区 —— **26 门主技法 · 60+ 子技法流派**（完整清单见[全功能清单](#三全功能清单)）
 
-[![Version](https://img.shields.io/badge/version-3.11.3-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.11.3)
+[![Version](https://img.shields.io/badge/version-3.12.0-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.12.0)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.11.3)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.11.3)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.12.0)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.12.0)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.11.3/Horosa-Setup-3.11.3.exe) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.12.0/Horosa-Setup-3.12.0.exe) ·
 [中文详版](README_ZH.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -31,10 +31,11 @@
 1. [星阙是什么](#一星阙是什么)
 2. [技术栈](#二技术栈)
 3. [全功能清单（命 / 卜 / 工具）](#三全功能清单)
-4. [网页版一键启动（从源码）](#四网页版一键启动从源码)
-5. [许可与第三方](#五许可与第三方)
-6. [致谢](#六致谢)
-7. [文档与入口](#七文档与入口)
+4. [网页版一键启动(从源码)](#网页版一键启动从源码)
+5. [终端 · MCP · REST(把星阙交给 AI)](#终端--mcp--rest把星阙交给-ai)
+6. [许可与第三方](#四许可与第三方)
+7. [致谢](#五致谢)
+8. [文档与入口](#六文档与入口)
 
 ---
 
@@ -44,9 +45,9 @@
 
 目标是：**不再在十几个单一用途的网页排盘器之间来回切换，也不用手工拼装底层的 Python / Java / 星历运行时**。下载一个离线的安装包，打开就是成品。
 
-本仓承担 Windows 这一侧的交付：应用源码、共享运行时、Windows 适配层，以及面向最终用户的 NSIS 离线安装包（`Horosa-Setup-3.11.3.exe`）发布。
+本仓承担 Windows 这一侧的交付：应用源码、共享运行时、Windows 适配层，以及面向最终用户的 NSIS 离线安装包（`Horosa-Setup-3.12.0.exe`）发布。
 
-- **当前版本**：3.11.3（运行时 `3.11.3-runtime1`）
+- **当前版本**：3.12.0（运行时 `3.12.0-runtime1`）
 - **平台**：Windows 10 / 11（`x64`）
 - **许可**：AGPL-3.0-only
 
@@ -95,7 +96,7 @@
 | 桌面壳 | **Electron** | 原生外壳：生命周期 / 窗口 / 运行时引导 / 应用内更新（增量下载 + Ed25519 验签）/ 缩放持久化；离线运行时随包交付 |
 | 前端 | **React 17 + UMI 3 + TypeScript / JS**，Ant Design | D3 绘盘、Babylon.js / Three.js 三维、Plotly 星体地图、Monaco 编辑 AI 导出模板 |
 | 后端（业务） | **Java 17 / Spring Boot 2.7**（多模块 Maven） | 承载占星与中国术数核心服务；监听 `:9999`（前端请求体 RSA 加密），重计算转发 Python |
-| 后端（计算） | **Python 3.11** | 封装 Swiss Ephemeris（`pyswisseph`）+ flatlib（改写版）+ vendored 传统术数计算引擎；CherryPy REST `:8899` |
+| 后端（计算） | **Python 3.11+**（桌面包内置 3.11） | 封装 Swiss Ephemeris（`pyswisseph`）+ flatlib（改写版）+ vendored 传统术数计算引擎；CherryPy REST `:8899` |
 
 **端口约定**：前端 ↔ Java `:9999`（RSA 加密信封）；Java ↔ Python `:8899`；前端静态端口动态分配（多实例不撞）。
 
@@ -240,7 +241,7 @@
 
 ---
 
-## 四、网页版一键启动(从源码)
+## 网页版一键启动(从源码)
 
 不装 exe,直接从源码把星阙跑成本地网页版(适合开发者或想跑源码的用户):
 
@@ -249,12 +250,20 @@
 - **首次运行 SmartScreen**:未签名脚本可能触发 Windows 提示,选「更多信息 → 仍要运行」即可。
 - **Git Bash / WSL 用户**:也可用产品源里的 `start_horosa_local.sh` / `stop_horosa_local.sh`(同一套服务,跨平台)。
 
----
+## 终端 · MCP · REST(把星阙交给 AI)
 
-## 五、许可与第三方
+星阙的全部 AI 工具(建档、起盘、合盘取数、各流派择日、名人库、玄学史……)都能交给外部 AI 客户端或本机脚本调用 —— Windows 上由桌面版提供,在「AI 分析 › 进阶 › 外部连接」里开启:
+
+- **交给 AI(MCP)**:打开「外部智能体连接」,面板里一键复制 Claude Desktop / Claude Code / Codex 等客户端的接入配置(令牌只在复制时取一次,不随状态外泄)。
+- **终端**:「终端命令 horosa」一键安装(加进当前用户的 PATH,随时可移除);之后在任意终端里 `horosa status` / `horosa tools` / `horosa call <工具> k=v …` / `horosa records 张` …(`--json` 机器可读)。
+- **REST**:打开「REST 接口」后,本机脚本可用 `http://127.0.0.1:<端口>/api/v1` 调同一套工具(OpenAPI 现生成;与 MCP 同端口、同令牌)。
+- 审批与上限同外部客户端策略:写入要确认、可撤销,删除永不开放;长调用有进度、能取消。
+- 不开 App 的无头一键部署(`./horosa setup` / `./horosa start`)与批量验证运行包面向 macOS / Linux;Windows 上请用以上桌面版接入方式,或在 WSL2(Ubuntu 24.04 / Debian 12)里运行批量验证运行包。
+
+## 四、许可与第三方
 
 - **本项目**：[AGPL-3.0-only](LICENSE)。
-- **法律与隐私**：服务条款 / 隐私政策 / 安全说明 / 网络说明 / 开源声明，见 [docs/legal](docs/legal/)（中英双语）。
+- **法律与隐私**：服务条款 / 隐私政策 / 安全说明 / 网络说明 / 开源声明,见 [docs/legal](docs/legal/)(中英双语)。
 - **第三方**：完整清单与许可证文本见 [THIRD_PARTY_NOTICES.md](local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/THIRD_PARTY_NOTICES.md)。
   - vendored 传统术数计算引擎：部分上游声明 MIT（许可证文本在对应 `vendor/*/LICENSE` 保留）；部分上游未声明许可，单独标注、不擅自假定为任何开源许可。
   - 天球坐标参考数据 d3-celestial（BSD 3-Clause；星座线 / IAU 边界 / 中国三垣派生）。
@@ -263,7 +272,7 @@
 
 ---
 
-## 六、致谢
+## 五、致谢
 
 星阙的源流不能忘。最早的星阙 Horosa 由**郑大哥**一手创建，**荀爽-Herakleios** 参与辅助设计，并把相关 App 与 Web 公开出来，后来者才有得研究、学习与延展。本 Windows 版正是在他们搭好的星阙体系、术数工作流与公开分享精神之上，继续做 Windows 交付、运行时打包、功能整合与体验改良。
 
@@ -271,10 +280,10 @@
 
 ---
 
-## 七、文档与入口
+## 六、文档与入口
 
-- 从源码本地部署：完整产品源码随仓库发布于 [`local/workspace/Horosa-Web-…/`](local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/)（前端 `astrostudyui` · Java 后端 `astrostudysrv` · Python 排盘 `astropy` · 术数引擎 `vendor` · 星历 `flatlib-ctrad2`）；运行时准备脚本见 [`prepareruntime/`](prepareruntime/)，Windows 适配层见 [`windows-adaptations/`](windows-adaptations/)。工具链 Java 17 / Maven / Node 18+ / Python 3.11；用 Maven 构建 `astrostudysrv/` 产出后端 jar，然后 `bash start_horosa_local.sh`（Git Bash / WSL）。桌面打包工程（Electron + NSIS）私有维护、不在本仓库。
+- 从源码本地部署：完整产品源码随仓库发布于 [`local/workspace/Horosa-Web-…/`](local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/)（前端 `astrostudyui` · Java 后端 `astrostudysrv` · Python 排盘 `astropy` · 术数引擎 `vendor` · 星历 `flatlib-ctrad2`）；运行时准备脚本见 [`prepareruntime/`](prepareruntime/)，Windows 适配层见 [`windows-adaptations/`](windows-adaptations/)。工具链 Java 17 / Maven / Node 18+ / Python 3.11；用 `mvn -f astrostudysrv/pom.xml -DskipTests clean install` 一条命令按依赖顺序构建全部模块、产出后端 jar，然后 `bash start_horosa_local.sh`（Git Bash / WSL）。桌面打包工程（Electron + NSIS）私有维护、不在本仓库。
 - 社区文档：[CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) · [SUPPORT.md](SUPPORT.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-- 法律与隐私：[docs/legal](docs/legal/)（服务条款 · 隐私政策 · 安全 · 网络 · 开源声明）
+- 法律与隐私：[docs/legal](docs/legal/)(服务条款 · 隐私政策 · 安全 · 网络 · 开源声明)
 - 语言详版：[README_ZH.md](README_ZH.md) · [README_EN.md](README_EN.md)
-- 安装疑难解答（SmartScreen 提示 / 杀毒软件误报 / 磁盘与路径要求 / 离线使用与手动更新 / ARM 设备支持 / 系统语言无关）：见 [README_ZH.md「常见问题」](README_ZH.md#常见问题) 或 [README_EN.md “FAQ”](README_EN.md#faq)
+- 安装疑难解答（SmartScreen 提示 / 杀毒软件误报 / 磁盘与路径要求 / 离线使用与手动更新 / ARM 设备支持 / 系统语言无关）：见 [README_ZH.md「常见问题」](README_ZH.md#六常见问题) 或 [README_EN.md “FAQ”](README_EN.md#6-faq)

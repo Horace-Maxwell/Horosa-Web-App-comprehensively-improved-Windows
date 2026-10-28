@@ -340,7 +340,7 @@ class Azimuth extends Component{
 						</div>
 					</Col>
 				</Row>
-				{/* [Q-306/T-298] 海拔输入已移除:纯前端 calcAzimuthLocal 不吃海拔(物理影响极小),留着是死开关 */}
+				{/* 海拔输入已移除:纯前端 calcAzimuthLocal 不吃海拔(物理影响极小),留着是死开关 */}
 				<Row style={{marginTop: 20}}>
 					<Col offset={18} span={6}>
 						<Button type='primary' onClick={this.requestCalc}>计算</Button>

@@ -1,4 +1,4 @@
-// AI 助手·进度清单 note_progress(借鉴 Claude Code 的 todo 面板):多步任务里模型把步骤与状态报出来,动作条头部实时显示。
+// AI 助手·进度清单 note_progress:多步任务里模型把步骤与状态报出来,动作条头部实时显示。
 // read/interactive:零落库、零副作用、不进账本;每次调用整份替换(最多 20 条),Turn 结束即随 trace 留在气泡里。
 import { GUIDE } from './_shared';
 

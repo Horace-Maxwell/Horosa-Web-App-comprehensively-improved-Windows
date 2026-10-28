@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/__tests__/chartFreeContract.test.js b/astrostudyui/src/utils/__tests__/chartFreeContract.test.js
-index 95e4ada..f6061cf 100644
+index 95e4adaa..f6061cf4 100644
 --- a/astrostudyui/src/utils/__tests__/chartFreeContract.test.js
 +++ b/astrostudyui/src/utils/__tests__/chartFreeContract.test.js
 @@ -22,9 +22,12 @@ describe('🔴 chartFree 契约:声明者源码零 chartObj 消费', () => {

@@ -15,7 +15,7 @@ export function makeZeriStressKit({
 	evaluateTree,       // (compiled, pan) → {pass}
 	compileTree,
 	plateKeyOf,         // 可选:行内同盘探针用
-	keyMaskOf,          // 可选:[十一轮] 掩码家(六壬/奇门/三式)必传——探针必须比「引擎
+	keyMaskOf,          // 可选:掩码家(六壬/奇门/三式)必传——探针必须比「引擎
 	                    // 实际折叠用的掩码 key」,比全位 key 会把合法的跨昼夜/跨柱合并行判假红
 	offsetMin,          // 墙钟偏移(分)
 	geo,
@@ -95,7 +95,7 @@ export function makeZeriStressKit({
 					mismatches.push(`行终点外一分钟漏收 ${r.end}`);
 				}
 				// 行内同盘探针:行中点+黄金分割点的 plateKey 必须与行首同(欠分裂显影)。
-				// [十一轮] mask 与引擎同源同树计算——掩码家探针比掩码 key;行内点 pass 必真
+				// mask 与引擎同源同树计算——掩码家探针比掩码 key;行内点 pass 必真
 				// (pass 边界由引擎分钟级分解保证;此探针网「时辰中段翻 pass 而采样漏」缺口)。
 				if(plateKeyOf && r.endMs - r.startMs > 2 * MIN){
 					const headPan = cachedPanAt(r.startMs, options);

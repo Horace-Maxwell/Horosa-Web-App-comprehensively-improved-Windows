@@ -26,7 +26,7 @@ export function solarToLunarYmd(year, month, day){
 	}catch(_e){ return null; }
 }
 
-// [Q-263/T-243] 钟点 → 时支(23–1 子 … 21–23 亥)。
+// 钟点 → 时支(23–1 子 … 21–23 亥)。
 const HOUR_BRANCHES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 export function hourBranchOf(hour){
 	const h = Number(hour);
@@ -34,7 +34,7 @@ export function hourBranchOf(hour){
 	return HOUR_BRANCHES[Math.floor((((h % 24) + 24) % 24 + 1) / 2) % 12];
 }
 
-// [Q-263/T-243] 公历时刻 → 节气月序(寅 1 … 丑 12;lunar-javascript getMonthZhiExact 按节气,含时刻);域外/异常返 null。
+// 公历时刻 → 节气月序(寅 1 … 丑 12;lunar-javascript getMonthZhiExact 按节气,含时刻);域外/异常返 null。
 const JIE_MONTH_BRANCHES = ['寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥', '子', '丑'];
 export function solarToJieMonthIndex(year, month, day, hour, minute){
 	try{
@@ -79,7 +79,7 @@ export function parseFieldsDateTime(fields){
 		lat: fields.lat && fields.lat.value ? fields.lat.value : '',
 		lon: fields.lon && fields.lon.value ? fields.lon.value : '',
 		gender: fields.gender && fields.gender.value !== undefined ? fields.gender.value : 1,
-		// [Q-265/T-250·SO-13] 地名随载荷下发(策天 [起盘] 段「地点」行此前恒为后端占位串;缺名后端不出该行)
+		// 地名随载荷下发(策天 [起盘] 段「地点」行此前恒为后端占位串;缺名后端不出该行)
 		pos: fields.pos && fields.pos.value ? `${fields.pos.value}` : '',
 	};
 }
@@ -95,10 +95,13 @@ export function computeKinFieldsResync(fields, prevSyncSrc){
 	if(!dt){
 		return null;
 	}
-	const src = { gender: normBinaryGender(dt.gender), year: dt.year, month: dt.month, day: dt.day };
+	const src = { gender: normBinaryGender(dt.gender), year: dt.year, month: dt.month, day: dt.day, hour: dt.hour, minute: dt.minute };
 	const genderChanged = !prevSyncSrc || prevSyncSrc.gender !== src.gender;
 	const dateChanged = !prevSyncSrc || prevSyncSrc.year !== src.year || prevSyncSrc.month !== src.month || prevSyncSrc.day !== src.day;
-	if(!genderChanged && !dateChanged){
+	// 同一天只改时刻(步进小时、载入同日另一时辰的命例、交节当天跨过节气时刻):南极「手动古法」的时支与节月
+	// 都随时刻定,此前只在日期变了才重填 → 时支停在旧值、盘按旧时支起。其余锚点只看日期,不动。
+	const timeChanged = !prevSyncSrc || prevSyncSrc.hour !== src.hour || prevSyncSrc.minute !== src.minute;
+	if(!genderChanged && !dateChanged && !timeChanged){
 		return null;
 	}
 	const next = { fieldsSyncSrc: src };
@@ -106,21 +109,25 @@ export function computeKinFieldsResync(fields, prevSyncSrc){
 		next.gender = src.gender;
 	}
 	if(dateChanged){
-		// [挂载自检 F-21] 农历锚点字段(演禽入式/蠢子数)此前直接灌**公历**年月日:蠢子数按「農曆月/日」匹配诗词、
+		// 农历锚点字段(演禽入式/蠢子数)此前直接灌**公历**年月日:蠢子数按「農曆月/日」匹配诗词、
 		// 演禽手动农历也以此为初值 → 公历数字冒充农历。现真换算(lunar-javascript,闰月按本月序);域外(BC/万年后)才退公历。
 		const lunar = solarToLunarYmd(src.year, src.month, src.day);
 		next.lunarYear = lunar ? lunar.year : src.year;
 		next.lunarMonth = lunar ? lunar.month : src.month;
 		next.lunarDay = lunar ? lunar.day : Math.min(30, src.day);
 		next.nanjiLunarYear = lunar ? lunar.year : src.year;
-		// [Q-263/T-243] 南极「节月」= 节气月序(寅月=1 … 丑月=12,与帮助「节月即节气月序」一致),此前灌公历月 → 5 月 18 日月柱错一位(午,应巳)。
+		// 南极「节月」= 节气月序(寅月=1 … 丑月=12,与帮助「节月即节气月序」一致),此前灌公历月 → 5 月 18 日月柱错一位(午,应巳)。
 		const jieMonth = solarToJieMonthIndex(dt.year, dt.month, dt.day, dt.hour, dt.minute);
 		next.nanjiSolarMonth = jieMonth || src.month;
 		next.nanjiDay = Math.min(31, src.day);
-		// [Q-263/T-243] 时支初值按出生时辰(此前恒「子」,与「空=自出」口径不符;页面恒显式下发,后端回落用不上)。
+		// 时支初值按出生时辰(此前恒「子」,与「空=自出」口径不符;页面恒显式下发,后端回落用不上)。
 		if(Number.isFinite(Number(dt.hour))){ next.nanjiHourZhi = hourBranchOf(dt.hour); }
 		next.chunziLunarMonth = lunar ? lunar.month : src.month;
 		next.chunziLunarDay = lunar ? lunar.day : Math.min(30, src.day);
+	}else if(timeChanged){
+		const jieMonth = solarToJieMonthIndex(dt.year, dt.month, dt.day, dt.hour, dt.minute);
+		next.nanjiSolarMonth = jieMonth || src.month;
+		if(Number.isFinite(Number(dt.hour))){ next.nanjiHourZhi = hourBranchOf(dt.hour); }
 	}
 	return next;
 }

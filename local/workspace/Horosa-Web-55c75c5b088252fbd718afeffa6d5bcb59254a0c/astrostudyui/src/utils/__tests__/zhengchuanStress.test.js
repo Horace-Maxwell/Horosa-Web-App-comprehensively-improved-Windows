@@ -189,7 +189,7 @@ describe('压测 · 六亲：演算时辰 12 × 天象 4 全组合（48/48）', 
 				const it = r.items[k];
 				if (ZHI.indexOf(it.gong) < 0) bad.push(`${yg}/${gender}/${k}: 宫=${it.gong}`);
 				if (!it.dun) return bad.push(`${yg}/${gender}/${k}: 旬遁无果`);
-				if ('鼠牛虎兔龍蛇馬羊猴雞狗豬'.indexOf(it.dun.shengxiao) < 0) bad.push(`${yg}/${gender}/${k}: 属相=${it.dun.shengxiao}`);
+				if ('鼠牛虎兔龙蛇马羊猴鸡狗猪'.indexOf(it.dun.shengxiao) < 0) bad.push(`${yg}/${gender}/${k}: 属相=${it.dun.shengxiao}`);
 				if (!(it.dun.p >= 1 && it.dun.p <= 9)) bad.push(`${yg}/${gender}/${k}: 落宫=${it.dun.p} 越九宫`);
 			});
 		}));

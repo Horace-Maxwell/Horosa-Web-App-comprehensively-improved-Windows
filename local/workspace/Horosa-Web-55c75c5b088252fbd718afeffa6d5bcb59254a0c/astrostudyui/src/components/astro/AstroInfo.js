@@ -3,7 +3,7 @@ import { Row, Col, Divider, Popover, } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
-import { derivedWholeSignLabelOf, rulerOfSign } from '../../utils/wholeSignRulers';
+import { derivedWholeSignLabelOf, rulerOfSign, polarMcOf } from '../../utils/wholeSignRulers';
 import { bodyPartsOf, degreePosition, } from '../../divination/data/bodyParts';
 import AstroLifespan from './AstroLifespan';
 import AstroDodeca from './AstroDodeca';
@@ -12,7 +12,7 @@ import { astroSymbol } from './AstroExtraCommon';
 import { buildPatternOverview, toOverviewRows, connectionPurityById } from '../../utils/astroPatternOverview';
 import { buildMeaningTipByCategory, } from './AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
-import * as Constants from '../../utils/constants';
+import { readGlobalSetupField } from '../../utils/globalSetupStore';
 import { XQSegmented } from '../xq-ui';
 import { monomoiriaTriplicity } from '../../divination/data/monomoiriaTriplicity';
 import { CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
@@ -32,7 +32,7 @@ const PHASE_LABEL = { cazimi: '核心', combust: '焦伤', underBeams: '日光�
 const PHASIS_EVENT_LABEL = { morningRising: '晨星初现', eveningSetting: '昏星初没' };
 const STATUS_PLANET_IDS = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
 
-// [Q-254/T-233] 取值序改为「请求入参(fields 标签)优先、后端 echo 兜底」,与 AI 快照 [起盘信息](astroAiSnapshot)
+// 取值序改为「请求入参(fields 标签)优先、后端 echo 兜底」,与 AI 快照 [起盘信息](astroAiSnapshot)
 // 同序:fields 就是发出去的排盘入参,右栏标注与快照恒同源;此前 echo 优先 → echo 命名不一/派生盘时两处分叉。
 // 派生盘(调波/龙盘/十三分/十二分)宫位实为「变换后上升整宫」→ 标注只认实算口径(与快照同一 helper)。
 export function resolveAstroDisplayMode(perchart, fields){
@@ -52,7 +52,7 @@ export function resolveAstroDisplayMode(perchart, fields){
 class AstroInfo extends Component{
 
 	componentDidMount(){
-		// [SURF-3] 古典全局(含 never 键)改档即时重渲右栏:子卡(显赫/寿命/状态盘)自身也各挂监听,
+		// 古典全局(含 never 键)改档即时重渲右栏:子卡(显赫/寿命/状态盘)自身也各挂监听,
 		// 本层监听兜住直接消费面与容器级派生,防「改档右栏恒旧值」。
 		this._onClassicalGlobals = () => this.forceUpdate();
 		if(typeof window !== 'undefined'){ window.addEventListener(CLASSICAL_GLOBALS_EVENT, this._onClassicalGlobals); }
@@ -132,20 +132,22 @@ class AstroInfo extends Component{
 				zodiacal: null,
 			};
 		}
+		// 逐键取值:宿主只传了部分字段(内嵌星盘 / 空态)时缺的键按空值,不抛错
+		const fv = (k)=>(fields[k] ? fields[k].value : null);
 		const params = {
-			date: fields.date.value ? fields.date.value.format('YYYY-MM-DD') : null,
-			time: fields.time.value ? fields.time.value.format('HH:mm:ss') : null,
-			zone: fields.zone.value,
-			lat: fields.lat.value,
-			lon: fields.lon.value,
-			hsys: AstroConst.HouseSys[fields.hsys.value],
-			zodiacal: AstroText.AstroMsg[AstroConst.ZODIACAL[fields.zodiacal.value]],
-			tradition: fields.tradition.value,
-			strongRecption: fields.strongRecption.value,
-			simpleAsp: fields.simpleAsp.value,
-			virtualPointReceiveAsp: fields.virtualPointReceiveAsp.value,
-			predictive: fields.predictive.value,
-			pdaspects: fields.pdaspects.value,
+			date: fv('date') ? fv('date').format('YYYY-MM-DD') : null,
+			time: fv('time') ? fv('time').format('HH:mm:ss') : null,
+			zone: fv('zone'),
+			lat: fv('lat'),
+			lon: fv('lon'),
+			hsys: AstroConst.HouseSys[fv('hsys')],
+			zodiacal: AstroText.AstroMsg[AstroConst.ZODIACAL[fv('zodiacal')]],
+			tradition: fv('tradition'),
+			strongRecption: fv('strongRecption'),
+			simpleAsp: fv('simpleAsp'),
+			virtualPointReceiveAsp: fv('virtualPointReceiveAsp'),
+			predictive: fv('predictive'),
+			pdaspects: fv('pdaspects'),
 		};
 	
 		return params;
@@ -164,15 +166,8 @@ class AstroInfo extends Component{
 			return this.props.showOnlyRulExaltReception === 1 || this.props.showOnlyRulExaltReception === true;
 		}
 		try{
-			if(typeof window === 'undefined' || !window.localStorage){
-				return false;
-			}
-			const raw = window.localStorage.getItem(Constants.GlobalSetupKey);
-			if(!raw){
-				return false;
-			}
-			const setup = JSON.parse(raw);
-			return !!(setup && (setup.showOnlyRulExaltReception === 1 || setup.showOnlyRulExaltReception === true));
+			const v = readGlobalSetupField('showOnlyRulExaltReception');   // 全局设置单源的内存镜像
+			return v === 1 || v === true;
 		}catch(e){
 			return false;
 		}
@@ -875,7 +870,7 @@ class AstroInfo extends Component{
 		let find = (id) => objs.find((o)=> o && o.id === id);
 		let line = (label, o) => (o && o.mansion) ? (
 			<div key={label} style={{marginBottom:2}}>
-				<span style={{color:'#999'}}>{label}：</span>第{o.mansion.idx}宿 {o.mansion.cn}<span style={{color:'#999'}}>（{o.mansion.nature} · {o.mansion.use}）</span>
+				<span style={{color:'var(--horosa-text-secondary)'}}>{label}：</span>第{o.mansion.idx}宿 {o.mansion.cn}<span style={{color:'var(--horosa-text-secondary)'}}>（{o.mansion.nature} · {o.mansion.use}）</span>
 			</div>
 		) : null;
 		let rows = [line('月亮宿', find('Moon')), line('上升宿', find('Asc'))].filter(Boolean);
@@ -971,7 +966,7 @@ class AstroInfo extends Component{
 			rows.push(
 				<div key={id} className="horosa-classical-line">
 					{this.planetLabel(id, this.props.value)}&nbsp;
-					{tags.map((k)=> <span key={k} style={{color: COL[k], marginRight: 8}}>{LBL[k] || k}<span style={{opacity: 0.6, fontSize: 11}}>（{TIP[k]}）</span></span>)}
+					{tags.map((k)=> <span key={k} style={{color: COL[k], marginRight: 8}}>{LBL[k] || k}<span style={{color: 'var(--horosa-text-secondary)', fontSize: 11}}>（{TIP[k]}）</span></span>)}
 				</div>
 			);
 		});
@@ -1081,11 +1076,15 @@ class AstroInfo extends Component{
 				['黄道', zodiacal],
 				['宫位制', hsys],
 			];
-			// [0j] 极区宫制回退徽记:极圈内象限制(Placidus/Koch 等)数学无解时后端兜底 Porphyry,
+			// 极区宫制回退徽记:极圈内象限制(Placidus/Koch 等)数学无解时后端兜底 Porphyry,
 			// houses 元素带 hsysFallback(此前静默回退,响应仍标请求宫制,高纬用户看不出宫顶已非所选制)。
 			const hFallback = (perchart.houses && perchart.houses[0] && perchart.houses[0].hsysFallback) || null;
 			if(hFallback){
 				rows.push(['宫制回退', <span key="hfb" style={{ color: 'var(--horosa-warn, #b8860b)', fontFamily: AstroConst.NormalFont }}>⚠ 极区该制无解 · 已回退 {hFallback}</span>]);
+			}
+			// 极区天顶徽记:极圈内上中天交点落地平下时,MC 一律按上中天取(各分宫制同值),宫头仍按所选制。
+			if(polarMcOf(perchart)){
+				rows.push(['极区天顶', <span key="pmc" style={{ color: 'var(--horosa-warn, #b8860b)', fontFamily: AstroConst.NormalFont }}>⚠ 天顶在地平下 · MC 按上中天取(各分宫制同值)</span>]);
 			}
 			// B3 格局速览(纯本盘数据,无需分析请求):命主星(1R) + 三围(围攻/围荣/围耀) + 互容 + 接纳。
 			// 庙主查表走 utils/wholeSignRulers.rulerOfSign 单源(与 AI 快照命主星/宫主两表同函数;禁再写本地表,preflight [240])。
@@ -1111,10 +1110,10 @@ class AstroInfo extends Component{
 			const renderOvItem = (it, i)=> (
 				<span key={`ovi-${i}`} style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'baseline', maxWidth: '100%' }}>
 					<span style={{ whiteSpace: 'nowrap' }}>{(it.parts || []).map((p, j)=> p.g ? <span key={j}>{astroSymbol(p.g)}</span> : <span key={j} style={{ fontFamily: AstroConst.NormalFont, margin: '0 1px' }}>{p.t}</span>)}</span>
-					{it.note ? <span style={{ fontFamily: AstroConst.NormalFont, color: TONE_COL[it.tone] || 'var(--horosa-muted, #999)', marginLeft: 3, fontSize: 11, overflowWrap: 'anywhere', whiteSpace: 'normal' }}>{it.note}</span> : null}
+					{it.note ? <span className="horosa-legacy-wrap-anywhere" style={{ fontFamily: AstroConst.NormalFont, color: TONE_COL[it.tone] || 'var(--horosa-muted, #999)', marginLeft: 3, fontSize: 11, overflowWrap: 'anywhere', whiteSpace: 'normal' }}>{it.note}</span> : null}
 				</span>
 			);
-			const ovEmpty = (txt)=> <span style={{ fontFamily: AstroConst.NormalFont, opacity: 0.5 }}>{txt}</span>;
+			const ovEmpty = (txt)=> <span style={{ fontFamily: AstroConst.NormalFont, color: 'var(--horosa-text-secondary)' }}>{txt}</span>;
 			return (
 				<div className={`horosa-astro-info-scroll horosa-astro-content-scroll ${styles.scrollbar}`} style={astyle}>
 					<div className="horosa-info-card">

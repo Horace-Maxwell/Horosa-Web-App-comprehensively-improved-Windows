@@ -1,4 +1,4 @@
-// [Q-296/T-280/T-281] 卜卦 · 流派三分制随档下发 + Dorotheus 共主计分 + 燃烧豁免真执行。
+// 卜卦 · 流派三分制随档下发 + Dorotheus 共主计分 + 燃烧豁免真执行。
 import { runHorary } from '../horaryEngine';
 import { horaryBackendFields, horaryTriplicityOf, HORARY_SCHOOL_ORDER, HORARY_SCHOOLS } from '../horarySchools';
 import { almutenAt } from '../../engine/almuten';

@@ -1,4 +1,4 @@
-// [进阶审计 D6] 跨窗口同步合同:进阶页六类订阅(模型路由/槽参数/具名方案/口径/口径分层/上下文策略)此前只听本窗 CustomEvent,
+// 跨窗口同步合同:进阶页六类订阅(模型路由/槽参数/具名方案/口径/口径分层/上下文策略)此前只听本窗 CustomEvent,
 // 第二个窗口改了键,本窗口的卡片与胶囊永远陈旧(端到端用例 S155 双窗口实抓)。现在同时听 storage 事件(只在别的窗口写入时触发;key 为空=整库被清)。
 import { subscribeModelRoutes, subscribeRouteOptions, subscribeRouteProfiles, MODEL_ROUTES_KEY, ROUTE_OPTIONS_KEY, ROUTE_PROFILES_KEY } from '../aiModelRouting';
 import { subscribePersona, PERSONA_KEY } from '../aiChat/persona';
@@ -15,7 +15,7 @@ const CASES = [
 	['subscribeContextPolicy', subscribeContextPolicy, CHAT_CONTEXT_POLICY_KEY, ()=>window.localStorage.setItem(CHAT_CONTEXT_POLICY_KEY, JSON.stringify({ historyMode: 'legacy' })), (v)=>v.historyMode === 'legacy'],
 ];
 
-describe('[D6] 进阶页订阅听跨窗口 storage 事件', ()=>{
+describe('进阶页订阅听跨窗口 storage 事件', ()=>{
 	beforeEach(()=>{ window.localStorage.clear(); });
 	afterEach(()=>{ window.localStorage.clear(); });
 	test.each(CASES)('🔴 %s:本键的 storage 事件 → 回调收到重读值;无关键不触发;key=null(整库清空)触发;退订后不再触发', (name, subscribe, key, write, check)=>{

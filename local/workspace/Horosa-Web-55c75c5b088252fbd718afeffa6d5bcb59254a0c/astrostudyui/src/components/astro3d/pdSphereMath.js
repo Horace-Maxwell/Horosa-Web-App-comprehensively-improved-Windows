@@ -7,6 +7,7 @@
 // 与黄道系同构,只是把 (λ,β) 换成 (α,δ)。
 // 数据源:/predict/pd3d 响应(rows/points/circles/frame),形态契约由后端
 // tests/test_pd3d_endpoint.py 看守,本模块的 kind 映射表与其语义型枚举互为镜像。
+import { parseDateTimeMs } from '../../utils/dateTimeParse';
 import { sph } from './sphMath';
 import { norm360 } from './morphMath';
 
@@ -112,7 +113,7 @@ export function isConverseRow(row){
 /** 表行应期日期('YYYY/MM/DD…')→ ms;沿用快照链 replace(/\//g,'-') 解析口径;不可解析返 NaN */
 export function rowDateMs(dateText){
 	const t = `${dateText || ''}`.trim().replace(/\//g, '-');
-	return t ? Date.parse(t) : NaN;
+	return t ? parseDateTimeMs(t) : NaN;
 }
 
 /**
@@ -188,7 +189,7 @@ export function effectiveEq(point, cat){
 	};
 }
 
-// —— [WP-2] 相遇连线端点几何:迫星等赤纬圈 ∩ 应星位置圈 真交点 ——
+// —— 相遇连线端点几何:迫星等赤纬圈 ∩ 应星位置圈 真交点 ——
 // 大圆参数式 P(t)=u·cosT+w·sinT(u,w 单位正交);等赤纬面 y=sin(δ) →
 // u.y·cosT + w.y·sinT = sinδ,即 r·cos(T−φ)=sinδ(r=√(u.y²+w.y²), φ=atan2(w.y,u.y))。
 // 返回两交点(单位向量)或 null(无交/圈几乎与赤纬面平行)。命中时刻两交点之一与迫星
@@ -215,7 +216,7 @@ export function declCircleGreatIntersect(declDeg, basis){
 	return [at(phi + dT), at(phi - dT)];
 }
 
-// 采样折线(Placidus/Topocentric)最近等赤纬命中:各段逐点找 |decl−δ| 最小的采样点
+// 采样多段线(Placidus/Topocentric)最近等赤纬命中:各段逐点找 |decl−δ| 最小的采样点
 // (误差<采样步长,plan 风险表判可接受)。segs=[[{ra,decl}…]…];返回 {ra,decl} 或 null。
 export function declCirclePolylineHit(declDeg, segs){
 	let best = null;
@@ -237,7 +238,7 @@ export const CIRCLE_KIND_RENDER = {
 	'meridian': 'frame-highlight',        // MC 应星:子午圈高亮
 	'prime-vertical': 'frame-highlight',  // Vertex 应星:卯酉圈高亮
 	'position-circle': 'great-circle',    // Regio/Campanus:过地平南北点与应星的大圆(前端叉积直画)
-	'sampled': 'polyline',                // Placidus/Topocentric/legacy 半弧:采样折线(允许断段,逐段画)
+	'sampled': 'polyline',                // Placidus/Topocentric/legacy 半弧:采样多段线(允许断段,逐段画)
 	'ecliptic-meridian': 'thin-arc',      // 黄道系方位:过黄道极与应星的细圆弧
 	'hour-circle': 'thin-arc',            // 核族:过天极与应星的时圈细圆弧
 };
@@ -252,7 +253,7 @@ export const FRAME_HIGHLIGHT_TARGET = {
 /** 虚点判据:points[pid].kind ∈ {term, antiscia, aspect} = 派生虚点(小号灰点);其余为本命实点 */
 export const VIRTUAL_POINT_KINDS = new Set(['term', 'antiscia', 'aspect']);
 
-// —— [D2] 方向语义(正统主限法:应星固定、迫星相位点奔向应星的「成相位圈」) ——
+// —— 方向语义(正统主限法:应星固定、迫星相位点奔向应星的「成相位圈」) ——
 // 主限法经典表述「促发星被引导至应星(promissor directed to significator)」:应星(significator)
 // 是固定的真实征象本体,迫星(promissor)的相位点被周日主动带到应星身上才算成相位。
 // 故【全族统一】应星固定、迫星相位点动——moverOfRow 恒返 'prom'。
@@ -271,7 +272,7 @@ export const VIRTUAL_POINT_KINDS = new Set(['term', 'antiscia', 'aspect']);
 
 const AXIS_SIG_RE = /^(MC|Asc|Vertex|House\d+)$/i;
 
-/** [D2] 该行应星是否属「轴/世俗/界」族(旋转 −arc);否则行星/北交/福点族(旋转 +arc)。 */
+/** 该行应星是否属「轴/世俗/界」族(旋转 −arc);否则行星/北交/福点族(旋转 +arc)。 */
 function isAxisFamilyRow(row){
 	const cat = `${(row && row.cat) || ''}`;
 	if(cat === 'M' || cat === 'T'){
@@ -295,13 +296,13 @@ export function sigBaseIdOf(pid){
 	return parts.slice(1, parts.length - 1).join('_').trim();
 }
 
-/** [D2] 行动方:全族恒 'prom'(迫星相位点动、应星固定)——正统「促发星被引导至应星」。
+/** 行动方:全族恒 'prom'(迫星相位点动、应星固定)——正统「促发星被引导至应星」。
  *  (D1 曾让行星族「应星动」=两个等价镜像里的另一支,已定案改为全族迫星动。) */
 export function moverOfRow(){
 	return 'prom';
 }
 
-/** [D2] 迫星旋转角(弧度):把迫星相位点绕天极转到应星的成相位圈上。
+/** 迫星旋转角(弧度):把迫星相位点绕天极转到应星的成相位圈上。
  *  行星/北交/福点族 = +arc(arc=RA(sig)−RA(prom),迫星 +arc 落到应星赤经圈);
  *  轴类/M/T 族 = −arc(arc=RA(prom)−RA(sig),迫星 −arc 落到应星轴圈/位置圈)。
  *  sph 约定 rotation.y=α ⇔ 组内点世界 RA=ra+α;故 +arc 使迫星 RA→RA+arc=应星 RA(planet 族)。 */
@@ -322,7 +323,7 @@ export function sigEqOf(point){
 	return { ra: Number(point.ra) || 0, decl: Number(point.decl) || 0 };
 }
 
-// ═══ [C1] 复合运动·真位层(primum mobile 周日旋转 × 星体黄道自行) ═══
+// ═══ 复合运动·真位层(primum mobile 周日旋转 × 星体黄道自行) ═══
 // 主限的物理实相:出生后天球整体西移(周日运动)之同时,诸曜仍沿黄道自行(公转位移)。
 // 引擎弧(byte-validated)按经典「引导至本命位」口径以冻结本命点计 —— 不动;本层是纯可视化加法:
 // 把「弧 = 多少物理时间、这段时间里星体真位挪了多远」诚实画出来(冻结迫星仍精确命中,

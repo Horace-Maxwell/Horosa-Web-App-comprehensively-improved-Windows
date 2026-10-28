@@ -1,6 +1,6 @@
 // 大牌逆位「旅程叙事」层(神话-心理向的 22 条逆位叙事;传统母题综合,原创中文转述,仅供联想非定义)。
 // 三段式分组逻辑:1-7 逆位≈与正位相反;8-14 逆位=把力量投射于他人;15-21 逆位=转入内在层面运作。键=sid。
-import { isTrumpArcana } from '../engine/arcana.js'; // [QA-9] 王牌判据单一真值源
+import { isTrumpArcana } from '../engine/arcana.js'; // 王牌判据单一真值源
 export const HEROINE_GROUPS = [
 	{ range: [0, 7], label: '与正位相反(处境倒置)' },
 	{ range: [8, 14], label: '投射于他人(力量外置)' },

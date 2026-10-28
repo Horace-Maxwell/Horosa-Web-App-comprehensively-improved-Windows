@@ -99,4 +99,24 @@ export function getLayoutViewportWidth(){
 	try{ return Math.round(window.innerWidth) || 0; }catch(e){ return 0; }
 }
 
+// 页面**排版**用的布局视口:地板到工作区包络 960 × 560(工作区本身已按这个下限排、外层可滚,见 zoomDomain.WORKSPACE_MIN_LAYOUT_*)。
+// 只给工作区里的页面定尺寸用;浮层 / 弹窗 / 对齐库仍用上面两个真视口读数(不能超出窗口)。
+function pageFloor(key){
+	try{
+		// eslint-disable-next-line global-require
+		const z = require('./zoomDomain');
+		return key === 'w' ? z.PAGE_MIN_LAYOUT_VIEWPORT_W : z.PAGE_MIN_LAYOUT_VIEWPORT_H;
+	}catch(e){ return key === 'w' ? 960 : 560; }
+}
+
+export function getPageLayoutHeight(){
+	const h = getLayoutViewportHeight();
+	return h > 0 ? Math.max(h, pageFloor('h')) : h;
+}
+
+export function getPageLayoutWidth(){
+	const w = getLayoutViewportWidth();
+	return w > 0 ? Math.max(w, pageFloor('w')) : w;
+}
+
 export const SHELL_ZOOM_STORAGE_KEY = KEY;

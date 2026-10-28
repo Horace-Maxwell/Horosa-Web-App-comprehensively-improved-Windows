@@ -84,4 +84,26 @@ describe('legacyWebkitCompat(macOS 12.0-12.2 兼容层)', () => {
         applyHasFallbackNow();
         expect(document.getElementById('t1').classList.contains('horosa-main-tab-hidden-parent')).toBe(false);
     });
+
+    test(':has 回退:底坞所在层的加与撤(只认直接父层、只认 div / section / main)', () => {
+        document.body.innerHTML = `
+            <div class="horosa-workspace-shell">
+              <section id="p1"><div class="horosa-bottom-quick-dock"></div></section>
+              <div id="g"><div id="p2"><span class="horosa-bottom-quick-dock"></span></div></div>
+              <ul id="p3"><li class="horosa-bottom-quick-dock"></li></ul>
+            </div>
+            <div id="outside"><div class="horosa-bottom-quick-dock"></div></div>`;
+        applyHasFallbackNow();
+        const has = (id) => document.getElementById(id).classList.contains('horosa-bottom-quick-dock-parent');
+        expect(has('p1')).toBe(true);
+        expect(has('p2')).toBe(true);
+        expect(has('g')).toBe(false);
+        expect(has('p3')).toBe(false);
+        expect(has('outside')).toBe(false);
+        // 坞挪走后回退类同步撤销
+        document.getElementById('p1').innerHTML = '';
+        applyHasFallbackNow();
+        expect(has('p1')).toBe(false);
+        expect(has('p2')).toBe(true);
+    });
 });

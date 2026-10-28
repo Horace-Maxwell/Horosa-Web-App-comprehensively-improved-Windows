@@ -1,4 +1,4 @@
-// [Z1·黄历择日] 结果行「日卡」浮窗:交互逐字对齐奇门 QimenMiniBoardPopup(遮罩点击关/内容阻冒泡),
+// 结果行「日卡」浮窗:交互逐字对齐奇门 QimenMiniBoardPopup(遮罩点击关/内容阻冒泡),
 // 内容=复用 HuangLiDayCard(与老黄历页右栏同一组件同一数据链,判定单源)。
 import { buildHuangliDay } from '../../components/calendar/huangliDay';
 import HuangLiDayCard from '../calendar/HuangLiDayCard';
@@ -7,7 +7,7 @@ export default function HuangliDayPopup({ row, onClose }){
 	if(!row){
 		return null;
 	}
-	const m = /^(\d{1,4})-(\d{2})-(\d{2})/.exec(`${row.pick || row.start || ''}`);
+	const m = /^(-?\d{1,5})-(\d{2})-(\d{2})/.exec(`${row.pick || row.start || ''}`);   // 年带符号 1–5 位
 	let day = null;
 	if(m){
 		try{
@@ -37,7 +37,7 @@ export default function HuangliDayPopup({ row, onClose }){
 					<span style={{ flex: 1 }} />
 					<a onClick={onClose} style={{ fontSize: 12 }}>关闭 ✕</a>
 				</div>
-				{day ? <HuangLiDayCard day={day} /> : <div style={{ opacity: 0.6, padding: 16 }}>该日超出可算域。</div>}
+				{day ? <HuangLiDayCard day={day} /> : <div style={{ color: 'var(--horosa-text-secondary)', padding: 16 }}>该日超出可算域。</div>}
 			</div>
 		</div>
 	);

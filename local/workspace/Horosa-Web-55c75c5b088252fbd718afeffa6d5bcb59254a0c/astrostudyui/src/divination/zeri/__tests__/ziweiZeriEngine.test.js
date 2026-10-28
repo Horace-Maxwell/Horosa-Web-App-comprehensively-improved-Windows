@@ -1,4 +1,4 @@
-// [Z4·紫微择日] 引擎+注册表金标。锚=2026-01-01 12:30 +08:00 男 Java兼容口径(初一年界:
+// 引擎+注册表金标。锚=2026-01-01 12:30 +08:00 男 Java兼容口径(初一年界:
 // 年柱乙巳——非立春界丙午,shangShi 判别组因此=阴男;2026-08-28 dump 定谳)。
 // 判别纪律(定案19):15 个扫描参数逐键「换档必变盘」三层断言;两个"疑似死开关"复盘:
 // timeAlg @12:58 同盘=选点无判别力(北京 116°E<120°E 真太阳时-17.6分,11:05 才跨界),
@@ -17,7 +17,7 @@ const ev = (type, params, pan, natal)=>{
 	return ZIWEI_CONDITION_TYPES[type].evaluate(p, params, makeZiweiZeriEvalCtx(p, natal || null));
 };
 
-describe('[Z4] 注册表契约+锚盘正反双判', ()=>{
+describe('注册表契约+锚盘正反双判', ()=>{
 	it('🔴 每类 spec 契约齐且 ≥20 类;口径三键与 parity 套件单源相等(防漂移)', ()=>{
 		const keys = Object.keys(ZIWEI_CONDITION_TYPES);
 		expect(keys.length).toBeGreaterThanOrEqual(20);
@@ -143,7 +143,7 @@ describe('[Z4] 注册表契约+锚盘正反双判', ()=>{
 	});
 });
 
-describe('[Z4] 🔴 扫描参数逐键判别(换档必变盘;定案19 三层断言)', ()=>{
+describe('🔴 扫描参数逐键判别(换档必变盘;定案19 三层断言)', ()=>{
 	const pan = (opts, d, t)=>computeZiweiScanPan(GEO, opts || {}, d || '2026-01-01', t || '12:30:00');
 
 	it('yearBoundary(立春↔初一窗内 2026-02-10):局与四化整套确不同', ()=>{
@@ -165,6 +165,20 @@ describe('[Z4] 🔴 扫描参数逐键判别(换档必变盘;定案19 三层断�
 		expect(ZHI12[z1.ziweiIndex]).toBe('申');	// 进日
 		expect(ZHI12[z2.ziweiIndex]).toBe('亥');	// 不进日
 		expect(key(z1)).not.toBe(key(z2));
+	});
+
+	it('🔴 晚子时=跟随全局(缺省)时「随日柱进位」仍生效:全局日界=23 点换日 → 与子初换日同盘、与日历日不同', ()=>{
+		const key = (x)=>[ZHI12[x.lifeHouseIndex], x.wuxingJuText, ZHI12[x.ziweiIndex]].join('|');
+		const g = { after23NewDay: 1, lateZiHourUseNextDay: 1 };
+		const zGlobal = pan({ ...g, ziweiLunarBasis: 'ziwei' }, '2026-01-01', '23:30:00');
+		const cGlobal = pan({ ...g }, '2026-01-01', '23:30:00');
+		const zChu = pan({ ziweiLunarBasis: 'ziwei', lateZi: 'zi_chu' }, '2026-01-01', '23:30:00');
+		expect(ZHI12[zGlobal.ziweiIndex]).toBe('申');	// 进日
+		expect(key(zGlobal)).toBe(key(zChu));
+		expect(key(zGlobal)).not.toBe(key(cGlobal));
+		// 全局日界=子正换日(23 点不换日):随日柱进位也不进日,与日历日同盘
+		const z0 = pan({ after23NewDay: 0, lateZiHourUseNextDay: 1, ziweiLunarBasis: 'ziwei' }, '2026-01-01', '23:30:00');
+		expect(ZHI12[z0.ziweiIndex]).toBe('亥');
 	});
 
 	it('timeAlg(真太阳时 11:05 界时刻):时支巳/午确不同(12:58 同盘=选点无判别力的反面教材)', ()=>{
@@ -227,7 +241,7 @@ describe('[Z4] 🔴 扫描参数逐键判别(换档必变盘;定案19 三层断�
 	});
 });
 
-describe('[Z4] lite↔Java 24 例网格扩锚+plateKey 不变量+性能哨兵', ()=>{
+describe('lite↔Java 24 例网格扩锚+plateKey 不变量+性能哨兵', ()=>{
 	jest.setTimeout(120000);
 
 	it('🔴 calcZiweiFromLite 过 Java 24 例网格(核心面 parity;决策10 扫描引擎接入门槛)', ()=>{
@@ -268,7 +282,7 @@ describe('[Z4] lite↔Java 24 例网格扩锚+plateKey 不变量+性能哨兵', 
 	});
 });
 
-describe('[Z4] 扫描引擎(外壳第四实例:恒等+行内同盘探针)', ()=>{
+describe('扫描引擎(外壳第四实例:恒等+行内同盘探针)', ()=>{
 	jest.setTimeout(120000);
 	const OPTS = {};
 	const TREE = compileZiweiTree({ kind: 'group', joiner: 'all', children: [newZiweiLeaf('ming_gong_zhi')] });	// 命宫子(约1/12 命中)
@@ -317,7 +331,7 @@ describe('[Z4] 扫描引擎(外壳第四实例:恒等+行内同盘探针)', ()=>
 		expect(ex.mingText).toBe('命宫午·破军');
 		expect(ex.juText).toBe('木三局');
 	});
-	it('🔴 [W5 全谱轮] 7 新类正反双判(锚盘 dump 实跑:命午破军衰·身同宫·年干乙·杀破狼/英星入庙/文星失位·田宅乙酉)', ()=>{
+	it('🔴 7 新类正反双判(锚盘 dump 实跑:命午破军衰·身同宫·年干乙·杀破狼/英星入庙/文星失位·田宅乙酉)', ()=>{
 		// 格局:杀破狼在(不破)/紫府同宫不在;避格档
 		expect(ev('geju_hit', { mode: 'with', broken: 'any', values: ['杀破狼'] }).pass).toBe(true);
 		expect(ev('geju_hit', { mode: 'with', broken: 'intact', values: ['杀破狼'] }).pass).toBe(true);

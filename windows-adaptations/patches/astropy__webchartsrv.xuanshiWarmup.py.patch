@@ -1,5 +1,5 @@
 diff --git a/astropy/websrv/webchartsrv.py b/astropy/websrv/webchartsrv.py
-index 3bfd5acf..4f807385 100644
+index 8bab870c..b76587b2 100644
 --- a/astropy/websrv/webchartsrv.py
 +++ b/astropy/websrv/webchartsrv.py
 @@ -85,6 +85,31 @@ CORE_SERVICE_SPECS = [
@@ -34,52 +34,30 @@ index 3bfd5acf..4f807385 100644
  def _core_lazy_enabled():
      return os.environ.get('HOROSA_CORE_LAZY', '1') not in ('0', 'false', 'no', 'off')
  
-@@ -98,10 +123,21 @@ def mount_core_services():
-             cherrypy.tree.mount(_load_service(spec), spec["mount"])
+@@ -101,11 +126,35 @@ def mount_core_services():
+ def prewarm_core_services():
+     return _prewarm_specs(CORE_SERVICE_SPECS, "core")
  
- 
--def prewarm_core_services():
-+def prewarm_core_services(only_keys=None, exclude_keys=None):
-     loaded = 0
-     failed = 0
++
++def _prewarm_core_subset(only_keys=None, exclude_keys=None):
++    # 门前预装实际走这里(上游 prewarm_core_services 原样保留:卫生锁要求它只有一句 _prewarm_specs 调用)。
 +    # horosa_electionscan_postgate_prewarm_v1:POST_GATE 集合内的键不在门前装
-+    # (由门后段的 prewarm_postgate_core_services 承接;开关关闭时集合为空=原样)。
-+    # horosa_py_early_gate_v1:only_keys / exclude_keys 把同一预装拆成「首屏面」与「其余」两次调用
-+    # (两者都为 None 时行为逐字节同旧)。
++    # (由门后段的 prewarm_postgate_core_services 承接;开关关闭时集合为空=全量,与 prewarm_core_services 同)。
++    # horosa_py_early_gate_v1:only_keys / exclude_keys 把同一预装拆成「首屏面」与「其余」两次调用。
 +    skip = _postgate_core_keys()
-     for spec in CORE_SERVICE_SPECS:
-+        if spec.get("key") in skip:
-+            continue
-+        if only_keys is not None and spec.get("key") not in only_keys:
-+            continue
-+        if exclude_keys is not None and spec.get("key") in exclude_keys:
-+            continue
-         try:
-             app = cherrypy.tree.apps.get(spec["mount"])
-             root = getattr(app, "root", None)
-@@ -114,11 +150,34 @@ def prewarm_core_services():
-             traceback.print_exc()
-     return loaded, failed
- 
++    specs = [
++        spec for spec in CORE_SERVICE_SPECS
++        if spec.get("key") not in skip
++        and (only_keys is None or spec.get("key") in only_keys)
++        and (exclude_keys is None or spec.get("key") not in exclude_keys)
++    ]
++    return _prewarm_specs(specs, "core")
++
 +
 +def prewarm_postgate_core_services():
 +    # 门后装载 POST_GATE 集合(与门前同构;饿加载态 root 非 _LazyMountedService ⇒ 天然 no-op)。
-+    loaded = 0
-+    failed = 0
-+    for spec in CORE_SERVICE_SPECS:
-+        if spec.get("key") not in _postgate_core_keys():
-+            continue
-+        try:
-+            app = cherrypy.tree.apps.get(spec["mount"])
-+            root = getattr(app, "root", None)
-+            if isinstance(root, _LazyMountedService):
-+                root._horosa_load()
-+                loaded += 1
-+        except Exception:
-+            failed += 1
-+            print("[core] postgate prewarm failed %s" % spec.get("key"), flush=True)
-+            traceback.print_exc()
-+    return loaded, failed
++    keys = _postgate_core_keys()
++    return _prewarm_specs([spec for spec in CORE_SERVICE_SPECS if spec.get("key") in keys], "core postgate")
 +
  ledger_mark('py.imports_done', t0=_PY_T0)
  
@@ -92,7 +70,7 @@ index 3bfd5acf..4f807385 100644
  
  
  
-@@ -657,6 +716,27 @@ def _request_targets_kentang(req):
+@@ -631,6 +680,27 @@ def _request_targets_kentang(req):
      return (getattr(req, 'script_name', '') or '') in _KENTANG_MOUNTS
  
  
@@ -120,7 +98,7 @@ index 3bfd5acf..4f807385 100644
  _GATE_FIRST_WAIT_LOGGED = [False]
  
  
-@@ -706,11 +786,19 @@ def _startup_gate_tool():
+@@ -677,11 +747,19 @@ def _startup_gate_tool():
      req = cherrypy.request
      if req.method in ('GET', 'OPTIONS', 'HEAD'):
          return  # 探活/预检不碰计算与 sid_mode
@@ -128,7 +106,7 @@ index 3bfd5acf..4f807385 100644
 +    # horosa_py_early_gate_v1:首屏门已开且非卜类挂载点 ⇒ 直接放行(不经上游核心门的宽限等待)。
 +    if _early_gate_enabled() and not _is_kentang and EARLY_GATE.is_set():
 +        return
-     # [R4-P0 观察位] 门真实咬到业务 POST 时记一次(等待时长+路径)——P3-b 分级门的裁决数据
+     # 门真实咬到业务 POST 时记一次(等待时长+路径)——P3-b 分级门的裁决数据
      # (装机首启 early-nav 下首个 /chart 是否撞门、撞多久;<300ms 则分级门判不做)。纯旁路。
      _wait_t0 = time.perf_counter()
      _via = 'full'
@@ -141,22 +119,19 @@ index 3bfd5acf..4f807385 100644
          # 核心门 60 秒都没开 = warmup 挂死,兜底放行(同旧);开了就再给卜类段剩余的宽限
          if CORE_GATE.wait(timeout=60):
              _opened = _CORE_GATE_OPENED_AT[0]
-@@ -761,16 +849,20 @@ def _warmup_stage_pd():
+@@ -729,16 +807,17 @@ def _warmup_stage_pd():
          traceback.print_exc()
  
  
 -def _warmup_stage_core():
 +def _warmup_stage_core(only_keys=None, exclude_keys=None, label='core services', seg='py.warmup_core'):
-     # [B5] 核心 14 服务预装(开门前):挂载阶段零导入的债在此偿清 —— 门保证业务 POST
+     # 核心 14 服务预装(开门前):挂载阶段零导入的债在此偿清 —— 门保证业务 POST
      # 必在预装后,任何请求最早可服务时刻不晚于旧方案;失败留给首个真实请求响亮 500。
 +    # horosa_py_early_gate_v1:可按键集拆两次(首屏面 / 其余),缺省参数 = 旧行为。
      try:
          t_core = time.perf_counter()
 -        _c_loaded, _c_failed = prewarm_core_services()
-+        if only_keys is None and exclude_keys is None:
-+            _c_loaded, _c_failed = prewarm_core_services()   # 缺省调用形保留(上游 test_core_lazy_mount 以此字面做源序断言)
-+        else:
-+            _c_loaded, _c_failed = prewarm_core_services(only_keys=only_keys, exclude_keys=exclude_keys)
++        _c_loaded, _c_failed = _prewarm_core_subset(only_keys=only_keys, exclude_keys=exclude_keys)
          _core_ms = (time.perf_counter() - t_core) * 1000.0
 -        print('core services prewarm ready in {0:.3f}s (loaded={1}, failed={2})'.format(
 -            _core_ms / 1000.0, _c_loaded, _c_failed), flush=True)
@@ -167,7 +142,7 @@ index 3bfd5acf..4f807385 100644
      except Exception:
          traceback.print_exc()
  
-@@ -828,13 +920,31 @@ def _run_warmups():
+@@ -796,13 +875,31 @@ def _run_warmups():
      elif _par_env == '1':
          _parallel = True
      else:
@@ -178,7 +153,7 @@ index 3bfd5acf..4f807385 100644
 +        # 按 truthy 家族解析,两种启动器语义一致;缺省 '0' 行为不变。
 +        _trusted_env = os.environ.get('HOROSA_TRUSTED_RUNTIME', '0').strip().lower()
 +        _parallel = _trusted_env not in ('1', 'true', 'yes', 'on')
-     # [R4-P3a] PD 入并行组开关。🔴 缺省【关】(2026-08-03 同会话 ladder 实测定档):script 档
+     # PD 入并行组开关。🔴 缺省【关】(2026-08-03 同会话 ladder 实测定档):script 档
      # (untrusted 并行)PD 入组=并行窗四线程,与同窗 JVM 引导抢核【双输】——py 门开 1440→1857ms、
      # java_http_ready 2528→3551ms(R3「温启并行双输回串行」同族形态,冷启档同样成立)。
      # 代码路径保留:显式 HOROSA_PY_PD_PARALLEL=1 才开(装机首启档 Java 未必同窗,可另测再议)。
@@ -201,8 +176,8 @@ index 3bfd5acf..4f807385 100644
          # 冷启/untrusted 并行档:四段真并行,门开时刻 sum(pd+3段) → max(4段)
          # (R3 三段并行已证 sum→max 大赢;PD ~370-570ms 原恒串行前置,并入再省一段)。
          _stages = (_warmup_stage_pd, _warmup_stage_core, _warmup_stage_india, _warmup_stage_kentang)
-@@ -863,6 +973,68 @@ def _run_warmups():
-     # [R4-P0 观察位] 门开绝对时刻显式化(改前基线里门开时刻要靠 warmup 末段推算)。
+@@ -831,6 +928,68 @@ def _run_warmups():
+     # 门开绝对时刻显式化(改前基线里门开时刻要靠 warmup 末段推算)。
      ledger_mark('py.gate_open', t0=_PY_T0)
      STARTUP_GATE.set()
 +    # horosa_py_early_gate_v1:全门(= 旧单门时刻)开后首屏门必开 —— 缺省态两门同刻,请求时序即上游分级门。
@@ -240,7 +215,7 @@ index 3bfd5acf..4f807385 100644
 +    # (上面的 kentang prewarm 已盖),而在 global_summary() 首算(全表 load_events()
 +    # SELECT + 译名 join + celestial 装载,冷 ~2.3s)。放在门开之后:绝不延长业务请求
 +    # 的等待窗;global_summary 纯只读 + 模块级 memo,预热与首点返回同一 dict,逐字节
-+    # 一致,只是把成本从可见点击路径挪进空闲。失败静默=首点回到冷即付的现状。
++    # 一致,只是把成本从可见点击路径挪进空闲。失败只打日志=首点回到冷即付的现状。
 +    # kill-switch:HOROSA_XUANSHI_WARMUP=0。
 +    if os.environ.get('HOROSA_XUANSHI_WARMUP', '1').lower() not in ('0', 'false', 'no', 'off'):
 +        try:
@@ -251,13 +226,13 @@ index 3bfd5acf..4f807385 100644
 +            print('xuanshi summary warmup ready in {0:.3f}s'.format(_xs_ms / 1000.0), flush=True)
 +            ledger_mark('py.warmup_xuanshi_summary', t0=_PY_T0, ms=_xs_ms)
 +        except Exception:
-+            pass
++            traceback.print_exc()
 +        # horosa_xuanshi_longtext_ondemand_v1:上面那发只暖到 summary 端点(20KB/59ms,且客户端已去重),
 +        # 天象微年表页首屏真正付的是 microchronology 无筛选那一发(全表扫 + 全量序列化)。它不走
 +        # load_events memo,故 summary 预热盖不到 —— 这里按「前端进页时的同一组参数」
 +        # (无筛选 + limit=MICRO_LIST_LIMIT)预热 celestial 模块自己的 micro memo:预热与首点命中
 +        # 同一 memo 键、返回同一 dict,逐字节一致,只是把成本从可见点击路径挪进空闲。
-+        # 失败静默 = 首点回到冷即付的现状;kill-switch 同上 HOROSA_XUANSHI_WARMUP=0。
++        # 失败只打日志 = 首点回到冷即付的现状;kill-switch 同上 HOROSA_XUANSHI_WARMUP=0。
 +        try:
 +            t4 = time.perf_counter()
 +            from astrostudy.xuanshi import celestial as _xs_ce
@@ -266,11 +241,11 @@ index 3bfd5acf..4f807385 100644
 +            print('xuanshi microchronology warmup ready in {0:.3f}s'.format(_mc_ms / 1000.0), flush=True)
 +            ledger_mark('py.warmup_xuanshi_micro', t0=_PY_T0, ms=_mc_ms)
 +        except Exception:
-+            pass
++            traceback.print_exc()
  
  
  if __name__ == '__main__':
-@@ -897,6 +1069,7 @@ if __name__ == '__main__':
+@@ -865,6 +1024,7 @@ if __name__ == '__main__':
      if not _warmup_sync:
          threading.Thread(target=_run_warmups, name='horosa-warmup', daemon=True).start()
      else:

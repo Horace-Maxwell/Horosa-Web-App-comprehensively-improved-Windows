@@ -54,7 +54,7 @@ describe('judge / merge / history', ()=>{
 	});
 });
 
-// ---- [压测二轮·D5·V2] 多模型判官返回越界值:score 钳制、未知 best 整条作废(由调用方回落首份)、ranking 去重补齐 ----
+// ---- 多模型判官返回越界值:score 钳制、未知 best 整条作废(由调用方回落首份)、ranking 去重补齐 ----
 describe('V2 判官越界', ()=>{
 	it('V2 score 99/-5/非数 钳到 1..10;best 不在候选集 → null(钩子据此回落首份);ranking 重复与未知 id 去掉后按候选集补齐', ()=>{
 		const ids = ['c1', 'c2', 'c3'];
@@ -76,8 +76,8 @@ describe('V2 判官越界', ()=>{
 	});
 });
 
-// [Q-331/M-52] 候选截断:此前固定 6000 字硬切且无标注 —— 判官对着半截候选打分、合并稿采用了残稿,用户看不出来。
-describe('[Q-331] 多模型候选截断:动态上限 + 截断标注', ()=>{
+// 候选截断:此前固定 6000 字硬切且无标注 —— 判官对着半截候选打分、合并稿采用了残稿,用户看不出来。
+describe('多模型候选截断:动态上限 + 截断标注', ()=>{
 	test('candidateCharCap:无预算=旧行为 6000;有预算按份数分且夹在 1500..24000', ()=>{
 		expect(candidateCharCap({ count: 3 })).toBe(BESTOF_CANDIDATE_CHAR_CAP);
 		expect(candidateCharCap({ count: 2, charBudget: 40000 })).toBe(16000);

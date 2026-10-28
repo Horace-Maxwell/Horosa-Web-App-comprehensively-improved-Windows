@@ -1,7 +1,8 @@
-// [V5-D15] 生日/整寿提醒(用户明令:设置里可开关;默认关,主动开启才提示)。
+// 生日/整寿提醒(用户明令:设置里可开关;默认关,主动开启才提示)。
 // 第一期=阳历生日 ±windowDays 窗口+逢十整寿标注;农历生日/换大限提醒列后续
 // (需历法引擎与技法运限逻辑接线)。纯函数可测;启动时布局层 enabled 才跑。
 import { safeLocalStorageGet, safeLocalStorageSet } from './safeStorage';
+import { parseDateParts, datePartOf, displayYearDiff } from './dateStrSafe';
 
 const ENABLED_KEY = 'horosa.reminders.enabled.v1';
 
@@ -24,11 +25,12 @@ export function upcomingBirthdays(records, now, windowDays){
 		if(!r || !r.birth || r.archived === true){
 			return;
 		}
-		const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(`${r.birth}`);
-		if(!m){
+		// 生辰串经日期串单源拆(公元前 / 公元 1–999 年 / 五位年都认)
+		const bp = parseDateParts(datePartOf(`${r.birth}`));
+		if(!bp){
 			return;
 		}
-		const [, by, bm, bd] = m;
+		const by = bp.year; const bm = bp.month; const bd = bp.day;
 		let next = new Date(today.getFullYear(), +bm - 1, +bd);
 		if(next < today){
 			next = new Date(today.getFullYear() + 1, +bm - 1, +bd);
@@ -37,7 +39,7 @@ export function upcomingBirthdays(records, now, windowDays){
 		if(inDays > win){
 			return;
 		}
-		const turnsAge = next.getFullYear() - (+by);
+		const turnsAge = displayYearDiff(by, next.getFullYear());   // 跨公元元年不多算一个 0 年
 		if(turnsAge <= 0){
 			return;
 		}

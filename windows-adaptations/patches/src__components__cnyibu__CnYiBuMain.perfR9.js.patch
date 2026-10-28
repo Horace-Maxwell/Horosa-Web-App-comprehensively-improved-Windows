@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/cnyibu/CnYiBuMain.js b/astrostudyui/src/components/cnyibu/CnYiBuMain.js
-index 5bff9bd5..b52f8b72 100644
+index d1443269..7c6c48c0 100644
 --- a/astrostudyui/src/components/cnyibu/CnYiBuMain.js
 +++ b/astrostudyui/src/components/cnyibu/CnYiBuMain.js
 @@ -3,32 +3,48 @@ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
@@ -7,7 +7,7 @@ index 5bff9bd5..b52f8b72 100644
  import { XQTabs as Tabs } from '../xq-ui';
  import { randomStr } from '../../utils/helper';
 +import { makeHealingFactory } from '../../utils/lazyBoundary';
- // [C2·性能] 十子技法组件级 lazy(照下方 guice 四件既有范式):进「卜·其他」只拉壳+当前子页,
+ // 十子技法组件级 lazy(照下方 guice 四件既有范式):进「卜·其他」只拉壳+当前子页,
  // 其余子页首次点击才拉(idle 预取与悬停预取照旧);ref 经 React.lazy 透传,dock 判空自动降级。
 -const SuZhanMain = React.lazy(() => import(/* webpackChunkName: "suzhan-main" */ '../suzhan/SuZhanMain'));
 -const JinKouMain = React.lazy(() => import(/* webpackChunkName: "jinkou-main" */ '../jinkou/JinKouMain'));

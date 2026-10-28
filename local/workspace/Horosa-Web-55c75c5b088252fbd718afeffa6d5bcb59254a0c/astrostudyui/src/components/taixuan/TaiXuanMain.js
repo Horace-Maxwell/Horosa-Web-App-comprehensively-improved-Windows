@@ -8,14 +8,15 @@ import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../com
 import { subscribeRemoteNongli, geoPatchFromRec } from '../../utils/divinationTimeDraft';
 import XQIcon from '../xq-icons';
 import { XQButton as Button, XQTabs as Tabs, XQSideSection } from '../xq-ui';
-import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
-import { ServerRoot, ResultKey } from '../../utils/constants';
-import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
-import { cachedKentangFetch } from '../../utils/kentangCache';
+import { saveModuleAISnapshotLazy, saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { castSourceKey, castFailureKeeps } from '../../utils/derivedChartSource';
+import { postKentang } from '../../services/kentangPost';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { formatHumanValue } from '../../utils/humanReadableFields';
 import { parseDateParts } from '../../utils/dateStrSafe';
-import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // [Q-392/T-374] 四柱须吃全局日界/晚子时(此前后端恒取缺省)
+import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
+import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
+import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // 四柱须吃全局日界/晚子时(此前后端恒取缺省)
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -44,7 +45,7 @@ function parseFieldsDateTime(fields){
 		date: dateStr,
 		time: timeStr,
 		zone: fields.zone && fields.zone.value ? fields.zone.value : '',
-		// [Q-392/T-374] 四柱(年/月/日/时)由后端 extreme_pillars 算,而它此前恒取缺省
+		// 四柱(年/月/日/时)由后端 extreme_pillars 算,而它此前恒取缺省
 		// after23=1 / hour_gan_next=1 / zone_hours=8.0 —— 全局选「24 点换日」时 23 点档的太玄日柱
 		// 比八字页多跳一天;非 +08:00 时区的月柱/年柱在交节与立春前后 (8−时区) 小时内可能错一柱。
 		// 起筮(种子)本身按钟表日期,不受此三键影响。
@@ -57,43 +58,7 @@ function defaultSeed(){
 	return Math.floor((Date.now() + Math.random() * 1000000) % 1000000000);
 }
 
-async function postTaiXuanRaw(path, payload){
-	let rsp = null;
-	try{
-		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('taixuan', path), {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json; charset=UTF-8',
-			},
-			body: JSON.stringify(payload),
-		}, { retries: 0 });
-		const rawText = await rawResponse.text();
-		rsp = rawText ? JSON.parse(rawText) : null;
-		if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'taixuan.local.fetch.failed');
-		}
-	}catch(e){
-		const rawResponse = await cachedKentangFetch(`${ServerRoot}/taixuan/${path}`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json; charset=UTF-8',
-			},
-			body: JSON.stringify(payload),
-		}, { retries: 0 });
-		const rawText = await rawResponse.text();
-		rsp = rawText ? JSON.parse(rawText) : null;
-	}
-	if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-		throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'taixuan.fetch.failed');
-	}
-	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
-}
-
-// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache(seedInBody:
-// 同 payload[含 seed]→同卦;「起筮」换 seed=换键必重取,随机语义零损失)。
-function postTaiXuan(path, payload){
-	return postTaiXuanRaw(path, payload);
-}
+function postTaiXuan(path, payload){ return postKentang('taixuan', path, payload); }
 
 function fmtValue(value){
 	return formatHumanValue(value);
@@ -151,7 +116,7 @@ export async function buildTaiXuanSnapshotForFields(fields, opts){
 	if(!dt){ return ''; }
 	try{
 		const optSeed = opts && opts.seed !== undefined && opts.seed !== null && opts.seed !== '' ? Number(opts.seed) : null;
-		// [挂载自检 F-23] seed=0 是页面允许输入、后端 random.seed(0) 接受的合法种子;此前 `> 0` 把 0 当未设 → 改走时间派生换卦。
+		// seed=0 是页面允许输入、后端 random.seed(0) 接受的合法种子;此前 `> 0` 把 0 当未设 → 改走时间派生换卦。
 		const seed = (Number.isFinite(optSeed) && optSeed >= 0)
 			? Math.floor(optSeed) % 1000000000
 			: (// 🔴 起课种子 BC 安全:旧式 replace(/-/g,'') 连负号一并抹 → BC 年与同数公元年折叠。
@@ -164,7 +129,7 @@ export async function buildTaiXuanSnapshotForFields(fields, opts){
 }
 
 class TaiXuanMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -178,6 +143,7 @@ class TaiXuanMain extends Component{
 		this.state = {
 			loading: false,
 			pan: null,
+			panSig: '',	// 屏上这张盘的起课签名(时刻 + 地点),取失败时据此判留存 / 清掉
 			rightPanelTab: 'overview',
 			seed: defaultSeed(),
 		};
@@ -207,7 +173,6 @@ class TaiXuanMain extends Component{
 		}
 	}
 
-
 	componentDidMount(){
 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		this.unmounted = false;
@@ -220,6 +185,7 @@ class TaiXuanMain extends Component{
 	}
 
 	componentDidUpdate(prevProps, prevState){
+		clearPendingTimeOnFieldsChange(this, prevProps);
 		if(prevProps.fields !== this.props.fields && this.props.fields){
 			if(!this.restoreFromCurrentCase()){
 				this.fetchPan(this.props.fields);
@@ -274,7 +240,7 @@ class TaiXuanMain extends Component{
 			return false;
 		}
 		if(!force && this.lastRestoredCaseId === saved.caseVersion){
-			// [X1·P2-7] 与 wuzhao 同类修:去重命中曾返 false → fields 再变时落 else 分支 fetchPan
+			// 与 wuzhao 同类修:去重命中曾返 false → fields 再变时落 else 分支 fetchPan
 			// 覆盖已还原冻结盘;已持有盘 → 返 true 拦下,盘丢了才放行向下重还原。
 			if(this.state.pan){ return true; }
 		}
@@ -286,6 +252,7 @@ class TaiXuanMain extends Component{
 		this.setState({
 			loading: false,
 			pan: payload.pan || null,
+			panSig: '',	// 存档盘按存档的时刻,不与此刻的起课参数比:之后起盘取失败时不拿它顶
 			seed: options.seed !== undefined ? options.seed : this.state.seed,
 		}, ()=>{
 			const pan = this.state.pan;
@@ -312,18 +279,21 @@ class TaiXuanMain extends Component{
 		this.onFieldsChange(geoPatchFromRec(rec, this.props.fields));
 	}
 	onTimeChanged(value){
+		notePendingTime(this, value && (value.time || value.value));
 		const dt = value.time;
 		this.onFieldsChange({
 			date: { value: dt.clone() },
 			time: { value: dt.clone() },
 			ad: { value: dt.ad },
 			zone: { value: dt.zone },
-			// [R3-A2] 步进方向提示:驱动 settle 后 /chart ±步预取(消费后即剥离)
+			// 步进方向提示:驱动 settle 后 /chart ±步预取(消费后即剥离)
 			...(value.step ? { __stepHint: value.step } : {}),
 		});
 	}
 
 	getTimeFieldsFromSelector(baseFields){
+		const _pend = pendingTimePatch(this);   // 改了时间还没等到全局盘回来:以最新改动为准(见 utils/pendingTimeDraft)
+		if(_pend){ return { ...(baseFields || {}), ..._pend }; }
 		if(!this.timeHook || !this.timeHook.getValue){
 			return null;
 		}
@@ -384,6 +354,7 @@ class TaiXuanMain extends Component{
 		if(!panTrig){
 			return;
 		}
+		const castSig = `${castSourceKey(fields)}#${this.state.seed}`;
 		const reqSeq = ++this.requestSeq;
 		this.setState({ loading: true });
 		try{
@@ -394,7 +365,7 @@ class TaiXuanMain extends Component{
 			if(this.unmounted || reqSeq !== this.requestSeq){
 				return;
 			}
-			this.setState({ pan, loading: false }, ()=>{
+			this.setState({ pan, panSig: castSig, loading: false }, ()=>{
 				// horosa_panel_ready_v1:pan 落定 = 中栏与右栏(皆由 pan 派生)画完的那一次 setState。
 				markPanelReady('cnyibu');
 				saveModuleAISnapshotLazy('taixuan', ()=>buildSnapshotText(pan));
@@ -403,7 +374,10 @@ class TaiXuanMain extends Component{
 			settleTrigger(this, 'fetchPan', panTrig, false);
 			console.warn('taixuanshifa backend failed', e);
 			if(!this.unmounted && reqSeq === this.requestSeq){
-				this.setState({ loading: false });
+				// 取失败:与屏上那张盘同一起课时刻地点(只改了设置)→ 留存;换了时刻 / 地点 → 屏上那张是上一课,清掉(连同 AI 快照槽)
+				const keep = castFailureKeeps(this.state.panSig, castSig);
+				this.setState(keep ? { loading: false } : { loading: false, pan: null, panSig: '' });
+				if(!keep){ clearModuleAISnapshot('taixuan'); }
 			}
 		}
 	}
@@ -452,7 +426,7 @@ class TaiXuanMain extends Component{
 							<InputNumber value={this.state.seed} min={0} max={999999999} onChange={(v)=>this.setState({ seed: v || 0 })} />
 						</label>
 					</div>
-					<div className="horosa-taixuan-note">太玄筮法上游使用随机揲筮。星阙用种子固定本盘，点击“重起”会换一组新筮数。</div>
+					<div className="horosa-taixuan-note">太玄筮法本为随机揲筮。本页用种子固定本盘(同一种子再起结果相同)，点击“重起”会换一组新筮数。</div>
 				</XQSideSection>
 				<div className="horosa-huangji-action-row">
 					<Button type="primary" onClick={this.clickPlot}>起盘</Button>
@@ -493,7 +467,7 @@ class TaiXuanMain extends Component{
 			{ label: '时柱', value: gz.hour },
 		];
 		return (
-			<div className="horosa-taixuan-board">
+			<div className="horosa-taixuan-board" ref={ownedBoxSizeRef(this, 'board', narrowBoardVars)}>
 				<div className="horosa-huangji-board-header">
 					<div>
 						<h2 className="horosa-taixuan-title">太玄筮法</h2>
@@ -508,7 +482,7 @@ class TaiXuanMain extends Component{
 					<div><span>方州部家</span><strong>{fmtValue(tx.head)}</strong></div>
 					<div><span>休咎</span><strong>{fmtValue(xh.judgment)}</strong></div>
 					<div><span>占 / 玄赞</span><strong>{fmtValue(tx.zhanNumber)} / {fmtValue(xh.xuanZan)}</strong></div>
-					<div><span>冬至起算</span><strong>{fmtValue(winter.date)}，{fmtValue(winter.days)}日</strong></div>
+					<div><span>冬至起算</span><strong>{winter.date ? `${fmtValue(winter.date)}，${fmtValue(winter.days)}日` : '—'}</strong></div>
 					<div className="horosa-huangji-ganzhi-card">
 						<span>干支</span>
 						<div className="horosa-huangji-ganzhi-grid">

@@ -1,4 +1,5 @@
 // 新建定时任务弹窗(P3):类型 + 标题 + 排期(每天/每周/每月/仅一次)+ 命盘/技法 + 提示词 + 错过策略 + 通知;提交即建「已排期」任务(与工具 schedule_task 同一实体形状)。
+import { parseDateTimeMs } from '../../utils/dateTimeParse';
 import React from 'react';
 import { snapshotModelSelection } from '../../utils/aiAgent/tasks/modelSnapshot';
 import { Modal, Input, InputNumber, Select, Switch, message } from 'antd';
@@ -7,6 +8,7 @@ import { SCHEDULE_TYPES, SCHEDULED_KINDS, SCHEDULED_KIND_LABELS, WEEKDAY_LABELS,
 import { isAgentEnabled, isSchedulerEnabled } from '../../utils/aiAgent/prefs';
 import { listAnalysisSources } from '../../utils/aiAnalysisSources';
 import { listAnalysisTechniqueOptions } from '../../utils/aiAnalysisContext';
+import { scriptFilterBy } from '../../utils/scriptMode';
 
 const TYPE_LABELS = { daily: '每天', weekly: '每周', monthly: '每月', once: '仅一次' };
 const soft = { color: 'var(--horosa-text-soft, #8a8f99)' };
@@ -71,13 +73,13 @@ export default function ScheduledTaskModal({ open, onClose, onCreated }){
 					{type === 'once'
 						? <input type="datetime-local" className="horosa-native-date" value={at} onChange={(e)=>setAt(e.target.value)} data-schedule-at="1" style={{ fontSize: 12 }} />
 						: <input type="time" className="horosa-native-date" value={time} onChange={(e)=>setTime(e.target.value)} data-schedule-time="1" style={{ fontSize: 12 }} />}
-					<span style={soft} data-schedule-next={next || ''}>{next ? `下次:${new Date(next).toLocaleString()}` : (type === 'once' ? '时刻须在未来' : '时间格式 HH:mm')}</span>
+					<span style={soft} data-schedule-next={next || ''}>{next ? `下次:${new Date(parseDateTimeMs(next)).toLocaleString()}` : (type === 'once' ? '时刻须在未来' : '时间格式 HH:mm')}</span>
 				</div>
 				{aiKind ? (
 					<div style={{ display: 'flex', gap: 8 }}>
-						<Select size="small" allowClear placeholder="挂载命盘/事盘(不挂=通用天象简报/月运)" value={sourceCid} onChange={setSourceCid} style={{ flex: '1 1 50%' }} showSearch optionFilterProp="label"
+						<Select filterOption={scriptFilterBy('label')} size="small" allowClear placeholder="挂载命盘/事盘(不挂=通用天象简报/月运)" value={sourceCid} onChange={setSourceCid} style={{ flex: '1 1 50%' }} showSearch optionFilterProp="label"
 							options={sources.slice(0, 200).map((s)=>({ value: s.id, label: `${s.title}${s.sourceType === 'case' ? '(事盘)' : ''}` }))} />
-						<Select size="small" mode="multiple" placeholder="技法(可选,≤6)" value={techniques} onChange={(v)=>setTechniques((v || []).slice(0, 6))} style={{ flex: '1 1 50%' }} options={techOptions} maxTagCount={3} />
+						<Select filterOption={scriptFilterBy()} size="small" mode="multiple" placeholder="技法(可选,≤6)" value={techniques} onChange={(v)=>setTechniques((v || []).slice(0, 6))} style={{ flex: '1 1 50%' }} options={techOptions} maxTagCount={3} />
 					</div>
 				) : null}
 				{kind === 'custom-prompt' ? <Input.TextArea rows={3} maxLength={2000} value={prompt} onChange={(e)=>setPrompt(e.target.value)} placeholder="到点要问 AI 的话,例:结合我的命盘,今天开会谈合作要注意什么?" data-schedule-prompt="1" /> : null}

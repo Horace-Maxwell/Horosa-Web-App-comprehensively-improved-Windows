@@ -14,7 +14,7 @@ let host;
 beforeEach(()=>{ host = document.createElement('div'); document.body.appendChild(host); requestAIAnalysisChatStream.mockClear(); });
 afterEach(()=>{ act(()=>{ ReactDOM.unmountComponentAtNode(host); }); host.remove(); });
 
-it('🔴 [Q-287/PP-11] 旁问带窗口化主线历史:mainline 过滤替代稿与流式中消息,历史夹在 system 与本问之间', async ()=>{
+it('🔴 旁问带窗口化主线历史:mainline 过滤替代稿与流式中消息,历史夹在 system 与本问之间', async ()=>{
 	const profile = { id: 'p1', providerType: 'openai', apiKey: 'k', baseUrl: 'http://x', providerOptions: {} };
 	const messages = [
 		{ id: 'u1', role: 'user', content: '我的大运是哪一步', streamStatus: 'done' },
@@ -49,13 +49,13 @@ it('🔴 旁问:system 来自 buildResolvedPrompt、请求无 tools、不落库;
 	expect(values.messages[1].content).toBe('上升狮子是什么意思');
 	expect(document.querySelector('[data-side-answer="1"]').textContent).toBe('上升狮子=外显自信');
 	expect(saveConversationMessage).not.toHaveBeenCalled();
-	// [Q-287/PP-11] 无主线消息时仍是 [system, user] 两条(下一例验带历史)
+	// 无主线消息时仍是 [system, user] 两条(下一例验带历史)
 	expect(values.messages.length).toBe(2);
 	await act(async ()=>{ document.querySelector('[data-side-mainline="1"]').click(); await flush(); });
 	expect(onMainline).toHaveBeenCalledWith('上升狮子是什么意思');
 });
 
-// [Q-324] 旁问是旁路:页面给了无副作用的构造就必须用它(否则与主发送并发时,横幅裁剪账/usage 稳定层指纹串台)
+// 旁问是旁路:页面给了无副作用的构造就必须用它(否则与主发送并发时,横幅裁剪账/usage 稳定层指纹串台)
 it('🔴 旁问优先用 buildResolvedPromptQuiet(无副作用构造),不碰会写页面态的那个', async ()=>{
 	const profile = { id: 'p1', providerType: 'openai', apiKey: 'k', baseUrl: 'http://x', providerOptions: {} };
 	const loud = jest.fn(async ()=>({ systemPrompt: '【会写页面态】' }));

@@ -2,11 +2,11 @@ import React, { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
 import { createSignatureMemo } from '../../utils/memoBySignature';
+import { fieldVal, devFreeze } from '../shusuan/shusuanShared';   // 数算族共用小工具(单源)
 import { sharedNativeModelEnabled } from '../../utils/perfFlags';
 import { Empty, Select } from 'antd';
-import { XQTabs as Tabs } from '../xq-ui';
+import { XQTabs as Tabs, XQDesignScaleBox } from '../xq-ui';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
-import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { buildYizhangjingModel, buildYizhangjingSnapshotText } from '../../utils/yizhangjingReport';
 import { BRANCHES, ZODIAC, STARS, gradeOf, daoOf, xiaoxianStarAt, xiaoxianStarAtDir, xunShenAt, starLabel, daoLabel } from '../../utils/yizhangjingLocal';
 
@@ -17,13 +17,9 @@ import LORE from '../../utils/data/yizhangjingLore.json';
 import DATA from '../../utils/data/yizhangjingData.json';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import './yizhangjing.less';
+import { chartDayBoundary } from '../../utils/dayBoundaryResolve';
 
 const { TabPane } = Tabs;
-
-function fieldVal(fields, key, fallback = '') {
-	if (!fields || !fields[key] || fields[key].value === undefined || fields[key].value === null) return fallback;
-	return fields[key].value;
-}
 
 // 受控：opts 由上层左栏（KinAstroMain）提供；slot: 'center'(主·盘) | 'aux'(右·子tab明细)。
 // 四柱农历来自 baziLunarLocal（星阙自己的农历，不走后端）；岁首=正月初一（异八字立春）。
@@ -33,23 +29,13 @@ function fieldVal(fields, key, fallback = '') {
 // center 先算、aux 同签名直接命中(4 槽足够:两实例只差 slot,签名同源)。
 // 共享引用只读契约:各消费方 render 不就地改写 model(dev 下深冻结保险丝);关开关=各算各的旧行为。
 const sharedModelMemo = createSignatureMemo(4);
-const devFreeze = (v) => {
-	if(process.env.NODE_ENV !== 'production' && v && typeof v === 'object'){
-		try{ deepFreeze(v); }catch(e){ /* 冻结失败不碍事 */ }
-	}
-	return v;
-};
-function deepFreeze(o){
-	Object.freeze(o);
-	Object.keys(o).forEach((k) => {
-		const c = o[k];
-		if(c && typeof c === 'object' && !Object.isFrozen(c)){ deepFreeze(c); }
-	});
-}
+
+// 十二宫格盘的设计宽(布局 px):最小窗口 1 档的盘宽(此宽下格内字零越界);低于它时按它排版再等比缩小(XQDesignScaleBox)
+export const YIZHANGJING_BOARD_DESIGN_W = 391;
 
 class YiZhangJingMain extends Component {
 	// horosa_shusuan_native_scu_v1(PERF-R9;v3.5.1 起与上游 [R3-A6] 守卫合一 —— 语义同 wrapperPropsEqual,单一实现防双 sCU)
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -64,7 +50,6 @@ class YiZhangJingMain extends Component {
 		this.lastSnapKey = '';
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 	}
-
 
 	componentDidMount() {
 		this.saveSnap();
@@ -120,14 +105,13 @@ class YiZhangJingMain extends Component {
 			date: dateStr,
 			time: timeMoment.format('HH:mm:ss'),
 			lon: fieldVal(f, 'lon', ''),
-			// [挂载自检 命④ P1] 时区:此前不传 → baziLunarLocal 按 +08:00 校正真太阳时,非东八区记录页面四柱与 AI 挂载(记录时区)分叉。
+			// 时区:此前不传 → baziLunarLocal 按 +08:00 校正真太阳时,非东八区记录页面四柱与 AI 挂载(记录时区)分叉。
 			zone: fieldVal(f, 'zone', '') || (f && f.date && f.date.value && f.date.value.zone) || '',
 			gender: this.props.gender !== undefined ? Number(this.props.gender) : fieldVal(f, 'gender', 1),
 			timeAlg: fieldVal(f, 'timeAlg', 1),
-			// [Q-358/T-339] 日界 / 晚子时改读盘面 fields(载盘还原 / 八字左栏改过的值),缺席才回退全局:此前恒读全局 →
+			// 日界 / 晚子时改读盘面 fields(载盘还原 / 八字左栏改过的值),缺席才回退全局:此前恒读全局 →
 			//   左栏或存盘日界 ≠ 全局时,23 点档出生者本页四柱与八字页、AI 挂载分叉。缺省(fields 由全局播种)逐字不变。
-			after23NewDay: fieldVal(f, 'after23NewDay', defaultAfter23NewDay()),
-			lateZiHourUseNextDay: fieldVal(f, 'lateZiHourUseNextDay', defaultLateZiHourUseNextDay()),
+			...chartDayBoundary(f),   // 日界 / 晚子时单源(本盘优先、缺读全局)
 		};
 		const opts = this.props.opts || {};
 		const sig = JSON.stringify({ ...params, opts });
@@ -174,7 +158,7 @@ class YiZhangJingMain extends Component {
 		const c = m.chart;
 		// 去重键须用「原始 props.opts」而非 c.opts（引擎归一后 opts 仅含排盘项 mgMethod/N/flowSet，
 		// 不含报告/显示层开关 shenshaLayer 等）；否则单独切神煞合参层不改键→被动快照不刷新→AI 挂载读到旧值。
-		// [Q-265/T-250·SO-22] 键改用 this._modelKey(全部输入签名,含性别与 opts):旧键不含性别 → 性别改顺逆四宫全变而快照不重写。
+		// 键改用 this._modelKey(全部输入签名,含性别与 opts):旧键不含性别 → 性别改顺逆四宫全变而快照不重写。
 		const key = this._modelKey || `${c.input.yearBranch}|${c.input.month}|${c.input.day}|${c.input.hourBranch}|${JSON.stringify(this.props.opts || {})}`;
 		if (key === this.lastSnapKey) return;
 		this.lastSnapKey = key;
@@ -221,7 +205,9 @@ class YiZhangJingMain extends Component {
 				</div>
 			);
 		});
+		// 栏宽不足设计宽时按设计宽排版再整体等比缩(放得下时逐像素不变):星名大字不再两字竖排、底注不再与宫名叠字
 		return (
+			<XQDesignScaleBox designWidth={YIZHANGJING_BOARD_DESIGN_W}>
 			<div className="horosa-yizhangjing-board">
 				{cells}
 				<div className="horosa-yizhangjing-hub" style={{ gridColumn: '2 / 4', gridRow: '2 / 4' }}>
@@ -235,6 +221,7 @@ class YiZhangJingMain extends Component {
 					</div>
 				</div>
 			</div>
+			</XQDesignScaleBox>
 		);
 	}
 
@@ -248,7 +235,7 @@ class YiZhangJingMain extends Component {
 				{s.rows.map((r, i) => (
 					<div key={i} className={`ss-seg ${gc(r.grade)}`} style={{ flexGrow: r.weight }} title={`${r.shi}·${r.age}`}>
 						<span className="ss-shi">{r.shi.split('·')[0]}</span>
-						<span className="ss-star">{r.star}</span>
+						<span className="ss-star">{starLabel(r.star, m.naming)}</span>
 						<span className="ss-w">{r.weight}%</span>
 					</div>
 				))}
@@ -366,7 +353,7 @@ class YiZhangJingMain extends Component {
 						{!np.matched ? <p className="dim">四星组合未落精确表，按上/中/下品数估算层次。</p> : null}
 					</div>
 				))}
-				{m.nianyun ? this.card(`年上运程 · 生年星${c.pillars[0].star}`, <div className="horosa-yizhangjing-text"><p>{m.nianyun}</p></div>) : null}
+				{m.nianyun ? this.card(`年上运程 · 生年星${starLabel(c.pillars[0].star, m.naming)}`, <div className="horosa-yizhangjing-text"><p>{m.nianyun}</p></div>) : null}
 				{(m.pillarQuickHits && m.pillarQuickHits.length) ? this.card('各柱逢星速断', (
 					<div className="horosa-yizhangjing-text">
 						{m.pillarQuickHits.map((r, i) => <p key={i}><b>{r.pillar}柱</b>（{r.stars.join('/')}）：{r.text}</p>)}
@@ -374,7 +361,7 @@ class YiZhangJingMain extends Component {
 				)) : null}
 				{this.card('主星象义（时柱）', <div className="horosa-yizhangjing-text"><p>{(m.pillars[3] || {}).xiangyi || '—'}</p></div>)}
 				{m.rishi ? this.card(`交互格 · 日${m.dayStar}×时${m.timeStar}`, <div className="horosa-yizhangjing-text"><p>{m.rishi}</p></div>) : null}
-				{m.zhiye ? this.card(`职业适性 · 月柱${m.monthStar}`, <div className="horosa-yizhangjing-text"><p>{m.zhiye}</p></div>) : null}
+				{m.zhiye ? this.card(`职业适性 · 月柱${starLabel(m.monthStar, m.naming)}`, <div className="horosa-yizhangjing-text"><p>{m.zhiye}</p></div>) : null}
 				<div className="horosa-yizhangjing-subhead">重犯（伏吟）</div>
 				{this.renderChongfan(m)}
 			</div>
@@ -393,7 +380,7 @@ class YiZhangJingMain extends Component {
 						{(m.renshi || []).map((g, i) => (
 							<tr key={i} className={i === 0 ? 'hot' : ''}>
 								<th>{`${g.palace}`.replace(/\(.*\)/, '')}{shensha[g.palace] ? <span className="rb-dot" /> : null}</th>
-								<td>{g.branch}·<b>{g.label || g.star}</b></td>
+								<td>{g.branch}·<b>{g.label || starLabel(g.star, m.naming)}</b></td>
 								<td>{g.grade}</td>
 								<td className="lt">{g.meaning || '—'}</td>
 							</tr>
@@ -409,7 +396,7 @@ class YiZhangJingMain extends Component {
 	renderDuanfa(m) {
 		const cl = m.clashes || {};
 		const pol = m.polarity || {};
-		const gen = (DATA.general) || {};
+		const gen = DATA.general;
 		return (
 			<div>
 				{this.card('刑冲害叠断', (
@@ -463,14 +450,14 @@ class YiZhangJingMain extends Component {
 		if (!m.repeats.length) return this.card('重犯（伏吟）', <div className="horosa-yizhangjing-text"><p className="dim">四柱无重犯（四星各异）。</p></div>);
 		return (
 			<div>
-				{m.repeats.map((r, i) => this.card(`${r.star} ×${r.count}（${r.count}犯）`, (
+				{m.repeats.map((r, i) => this.card(`${starLabel(r.star, m.naming)} ×${r.count}（${r.count}犯）`, (
 					<div className="horosa-yizhangjing-text">
 						<p><b>详解：</b>{r.detail || '—'}</p>
 						<div className="horosa-yizhangjing-row"><span>速断·常见组</span><strong className={r.chosen === 'alpha' ? 'hot' : ''}>{r.alpha || '—'}</strong></div>
 						<div className="horosa-yizhangjing-row"><span>速断·异传组</span><strong className={r.chosen === 'beta' ? 'hot' : ''}>{r.beta || '—'}</strong></div>
 					</div>
 				)))}
-				<p className="horosa-yizhangjing-note">两组口诀结论有别，依所宗取用；当前左栏选「{m.repeats[0].chosen === 'beta' ? '异传组' : '常见组'}」。{(DATA.gradeTables && DATA.gradeTables.chongfanRule) || ''}</p>
+				<p className="horosa-yizhangjing-note">两组口诀结论有别，依所宗取用；当前左栏选「{m.repeats[0].chosen === 'beta' ? '异传组' : '常见组'}」。{DATA.gradeTables.chongfanRule || ''}</p>
 			</div>
 		);
 	}
@@ -484,7 +471,7 @@ class YiZhangJingMain extends Component {
 						{m.dayun.map((d, i) => (
 							<tr key={i}>
 								<td>{d.from}–{d.to}</td>
-								<td>{d.branch}·<b>{d.star}</b><br /><span className="dim">{d.dao}·{d.grade}{d.wuxing ? '·' + d.wuxing : ''}</span></td>
+								<td>{d.branch}·<b>{starLabel(d.star, m.naming)}</b><br /><span className="dim">{daoLabel(d.dao, m.daoTerm)}·{d.grade}{d.wuxing ? '·' + d.wuxing : ''}</span></td>
 								<td className="lt">{d.yunshi || '—'}</td>
 							</tr>
 						))}
@@ -518,7 +505,7 @@ class YiZhangJingMain extends Component {
 					<div className="horosa-yizhangjing-tablewrap">
 						<table className="horosa-yizhangjing-table horosa-yizhangjing-vtable">
 							<thead><tr><th>虚岁</th><th>小限星</th></tr></thead>
-							<tbody>{rows.map((r) => <tr key={r.age}><th>{r.age}</th><td className="lt">{r.star}</td></tr>)}</tbody>
+							<tbody>{rows.map((r) => <tr key={r.age}><th>{r.age}</th><td className="lt">{starLabel(r.star, m.naming)}</td></tr>)}</tbody>
 						</table>
 						<p className="dim">第13岁起循环，规律同上。</p>
 					</div>
@@ -545,15 +532,15 @@ class YiZhangJingMain extends Component {
 						{(m.xunRoles && m.xunRoles.length) ? (
 							<p className="dim">巡宫四位：{m.xunRoles.map((r) => `${r.pillar}${r.role}=${r.shen}`).join('　')}</p>
 						) : null}
-						{flowYunshi ? <p className="dim">运×时（论流年用月柱星{m.monthStar}×流年星{flowStar}）：{flowYunshi}</p> : null}
+						{flowYunshi ? <p className="dim">运×时（论流年用月柱星{starLabel(m.monthStar, m.naming)}×流年星{starLabel(flowStar, m.naming)}）：{flowYunshi}</p> : null}
 						<p className="dim">流年落「{BRANCHES[flowIdx]}{ZODIAC[flowIdx]}」，以其上起太岁顺布十二神；表头标「年/月/日/时/命」处即四柱与命宫落宫值神。</p>
 					</div>
 				)) : null}
 				{m.flowSub ? this.card('流月·流日·流时（一律顺行）', (
 					<div className="horosa-yizhangjing-text">
-						<div className="horosa-yizhangjing-row"><span>流月</span><strong>{m.flowSub.month.branch}·{m.flowSub.month.star}</strong></div>
-						<div className="horosa-yizhangjing-row"><span>流日</span><strong>{m.flowSub.day.branch}·{m.flowSub.day.star}</strong></div>
-						<div className="horosa-yizhangjing-row"><span>流时</span><strong>{m.flowSub.time.branch}·{m.flowSub.time.star}</strong></div>
+						<div className="horosa-yizhangjing-row"><span>流月</span><strong>{m.flowSub.month.branch}·{starLabel(m.flowSub.month.star, m.naming)}</strong></div>
+						<div className="horosa-yizhangjing-row"><span>流日</span><strong>{m.flowSub.day.branch}·{starLabel(m.flowSub.day.star, m.naming)}</strong></div>
+						<div className="horosa-yizhangjing-row"><span>流时</span><strong>{m.flowSub.time.branch}·{starLabel(m.flowSub.time.star, m.naming)}</strong></div>
 						<p className="dim">流年宫起正月→初一→子时顺行（示本命年流值，切流年支后随之变）。</p>
 					</div>
 				)) : null}
@@ -571,7 +558,7 @@ class YiZhangJingMain extends Component {
 			<div className="horosa-yizhangjing-tablewrap">
 				<table className="horosa-yizhangjing-table horosa-yizhangjing-vtable">
 					<thead><tr><th>虚岁</th><th>宫·星</th></tr></thead>
-					<tbody>{m.tongxian.map((t) => <tr key={t.age}><th>{t.age}</th><td className="lt">{`${t.palace}`.replace(/\(.*\)/, '')}·{t.star}（{t.dao}·{t.grade}）</td></tr>)}</tbody>
+					<tbody>{m.tongxian.map((t) => <tr key={t.age}><th>{t.age}</th><td className="lt">{`${t.palace}`.replace(/\(.*\)/, '')}·{starLabel(t.star, m.naming)}（{daoLabel(t.dao, m.daoTerm)}·{t.grade}）</td></tr>)}</tbody>
 				</table>
 			</div>
 		));
@@ -599,7 +586,7 @@ class YiZhangJingMain extends Component {
 						<div className="horosa-yizhangjing-shensha-cell" key={grp.palace}>
 							<div className="horosa-yizhangjing-shensha-head">
 								<span className="horosa-yizhangjing-shensha-pal">{grp.palace.replace(/\(.*\)/, '')}</span>
-								<span className="horosa-yizhangjing-shensha-loc">{grp.branch}·{grp.star}</span>
+								<span className="horosa-yizhangjing-shensha-loc">{grp.branch}·{starLabel(grp.star, m.naming)}</span>
 							</div>
 							{grp.items.map((it, k) => (
 								<div className="horosa-yizhangjing-shensha-row" key={it.name + k}>
@@ -617,9 +604,9 @@ class YiZhangJingMain extends Component {
 
 	renderLore(m) {
 		const c = m.chart;
-		const hourMain = (LORE.poems && LORE.poems.hourMain && LORE.poems.hourMain[c.input.hourBranch]) || null;
+		const hourMain = LORE.poems.hourMain[c.input.hourBranch] || null;
 		// 「X月生人诗」按真实农历生月（非定月法折算月）——与题头生辰一致。
-		const monthPoem = (LORE.poems && LORE.poems.month && LORE.poems.month[MONTH_LABELS[(m.input && m.input.lunarMonth) || c.input.month]]) || null;
+		const monthPoem = LORE.poems.month[MONTH_LABELS[(m.input && m.input.lunarMonth) || c.input.month]] || null;
 		const hg = m.hourGroupPick;
 		const ds = m.dayStarPick;
 		const hd = m.hourDetail;
@@ -628,7 +615,7 @@ class YiZhangJingMain extends Component {
 				{monthPoem ? this.card('本月生人诗（文献）', <div className="horosa-yizhangjing-text"><p className="poem">{monthPoem.poem}</p><p>{monthPoem.prose}</p></div>) : null}
 				{hourMain ? this.card('本时生人（文献）', <div className="horosa-yizhangjing-text"><p>{hourMain.text}</p></div>) : null}
 				{hg && hg.poem ? this.card(`时组诗（${hg.key}）`, <div className="horosa-yizhangjing-text"><p className="poem">{hg.poem}</p></div>) : null}
-				{ds && ds.text ? this.card(`逐日值星 · ${ds.star}`, (
+				{ds && ds.text ? this.card(`逐日值星 · ${starLabel(ds.star, m.naming)}`, (
 					<div className="horosa-yizhangjing-text"><p className="dim">值日：{ds.days}</p><p>{ds.text}</p></div>
 				)) : null}
 				{hd && (hd.prose || (hd.poems && hd.poems.length)) ? this.card(`时辰细断 · ${c.input.hourBranch}时${m.hourSub}${hd.range ? '（' + hd.range + '）' : ''}`, (
@@ -646,12 +633,12 @@ class YiZhangJingMain extends Component {
 	renderSiZhuLore(m) {
 		const labels = ['年柱 · 祖上', '月柱 · 父母事业', '日柱 · 夫妻', '时柱 · 自身主星'];
 		const pillars = m.chart.pillars;
-		const anyFull = pillars.some((p) => LORE.starFull && LORE.starFull[p.star]);
+		const anyFull = pillars.some((p) => LORE.starFull[p.star]);
 		return (
 			<div>
 				{pillars.map((p, i) => {
-					const full = (LORE.starFull && LORE.starFull[p.star]) || '';
-					return this.card(`${labels[i]} · ${p.star}`, (
+					const full = LORE.starFull[p.star] || '';
+					return this.card(`${labels[i]} · ${starLabel(p.star, m.naming)}`, (
 						full
 							? <pre className="horosa-yizhangjing-pre">{full}</pre>
 							: <div className="horosa-yizhangjing-text"><p className="dim">暂无该星逐星全文。</p></div>
@@ -670,7 +657,7 @@ class YiZhangJingMain extends Component {
 		const TAB_ALIAS = { chongfan: 'geju', flow: 'dayun' };
 		const activeTab = TAB_ALIAS[this.state.tab] || this.state.tab;
 		const showLiunian = m.annualMethod !== 'xiaoxian';
-		const pillarStarData = (star) => (DATA.data && DATA.data[star]) || {};
+		const pillarStarData = (star) => DATA.data[star] || {};
 		return (
 			<div className="horosa-yizhangjing-aux">
 				<Tabs activeKey={activeTab} onChange={(k) => this.setState({ tab: k })} tabPosition="top" className="horosa-yizhangjing-tabs">
@@ -685,7 +672,7 @@ class YiZhangJingMain extends Component {
 						))}
 						{this.card('命宫 · 格局速览', (
 							<div>
-								<div className="horosa-huangji-info-row"><span>命宫</span><strong>{c.mingBranch}·{c.mingStar}</strong></div>
+								<div className="horosa-huangji-info-row"><span>命宫</span><strong>{c.mingBranch}·{starLabel(c.mingStar, m.naming)}</strong></div>
 								<div className="horosa-huangji-info-row"><span>四宫等第</span><strong>{c.fourPalaceRank}</strong></div>
 								<div className="horosa-huangji-info-row"><span>命格</span><strong>{c.mingGe}</strong></div>
 								<div className="horosa-huangji-info-row"><span>九品定格</span><strong>{(m.ninePinExact && m.ninePinExact.grade) || c.nineGrade}</strong></div>
@@ -695,7 +682,7 @@ class YiZhangJingMain extends Component {
 							<div className="horosa-yizhangjing-tablewrap">
 								<table className="horosa-yizhangjing-table horosa-yizhangjing-vtable">
 									<thead><tr><th>世</th><th>柱·星</th><th>权重</th><th>品级</th></tr></thead>
-									<tbody>{m.sishi.rows.map((r, i) => <tr key={i}><th>{r.shi.split('·')[0]}</th><td>{r.pillar}·{r.star}</td><td>{r.weight}%</td><td className={r.grade === '上品' ? 'hot' : ''}>{r.grade}</td></tr>)}</tbody>
+									<tbody>{m.sishi.rows.map((r, i) => <tr key={i}><th>{r.shi.split('·')[0]}</th><td>{r.pillar}·{starLabel(r.star, m.naming)}</td><td>{r.weight}%</td><td className={r.grade === '上品' ? 'hot' : ''}>{r.grade}</td></tr>)}</tbody>
 								</table>
 							</div>
 						)) : null}
@@ -712,7 +699,7 @@ class YiZhangJingMain extends Component {
 						{m.pillars.map((p, i) => {
 							const jy = pillarStarData(p.star).jingyue || '';
 							const pq = (m.posQuick && m.posQuick[i] && m.posQuick[i].text) || '';
-							return this.card(`${['年柱(祖上)', '月柱(父母/兄弟/事业)', '日柱(夫妻)', '时柱(子女/自身·主星)'][i]}：${p.star}（${p.dao}·${p.grade}）`, (
+							return this.card(`${['年柱(祖上)', '月柱(父母/兄弟/事业)', '日柱(夫妻)', '时柱(子女/自身·主星)'][i]}：${starLabel(p.star, m.naming)}（${daoLabel(p.dao, m.daoTerm)}·${p.grade}）`, (
 								<div className="horosa-yizhangjing-text">
 									<p><b>该柱：</b>{p.text || '—'}</p>
 									{jy ? <p className="poem"><b>经曰：</b>{jy}</p> : null}

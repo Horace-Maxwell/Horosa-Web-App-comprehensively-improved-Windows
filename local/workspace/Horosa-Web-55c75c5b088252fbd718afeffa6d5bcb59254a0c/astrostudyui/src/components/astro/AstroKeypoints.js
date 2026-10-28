@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import moment from 'moment';
+import { birthMomentOfChart } from '../../utils/civilMoment';
 import { Row, Col } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
@@ -67,11 +68,8 @@ class AstroKeypoints extends Component{
 	}
 
 	currentAge(){
-		const p = (this.props.value && this.props.value.params) ? this.props.value.params : {};
-		const birth = `${p.birth || ''}`.trim();
-		if(!birth){ return null; }
-		const m = moment(birth.replace(/\//g, '-'), ['YYYY-MM-DD HH:mm:ss', 'YYYY-MM-DD HH:mm', 'YYYY-MM-DD']);
-		if(!m.isValid()){ return null; }
+		const m = birthMomentOfChart(this.props.value);   // 出生时刻单源(全年份域)
+		if(!m){ return null; }
 		return moment().diff(m, 'years');
 	}
 
@@ -82,11 +80,11 @@ class AstroKeypoints extends Component{
 		const curAge = this.currentAge();
 		return (
 			<div className={`${styles.scrollbar}`} style={{ height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', padding: '4px 8px 12px' }}>
-				<div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>数字相位推运<span style={{ fontSize: 12, opacity: 0.55, marginLeft: 8, fontWeight: 400 }}>120 年关键点 · 小年因数激活</span></div>
-				<div style={{ fontSize: 11.5, opacity: 0.6, lineHeight: '17px', marginBottom: 10 }}>各星与「自释放点起第 k 个星座」挂钩数字 k；凡年龄为 k 或其小年之倍数即激活（过运传递：释放点 → 该星），两端星体组合于该年被引动。</div>
+				<div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>数字相位推运<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', marginLeft: 8, fontWeight: 400 }}>120 年关键点 · 小年因数激活</span></div>
+				<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: '17px', marginBottom: 10 }}>各星与「自释放点起第 k 个星座」挂钩数字 k；凡年龄为 k 或其小年之倍数即激活（过运传递：释放点 → 该星），两端星体组合于该年被引动。</div>
 				<Row gutter={12} style={{ marginBottom: 12 }}>
 					<Col span={12}>
-						<div style={{ fontSize: 11.5, opacity: 0.6, marginBottom: 4 }}>释放点</div>
+						<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', marginBottom: 4 }}>释放点</div>
 						<Select value={opts.mode} onChange={(v) => this.changeOpt('mode', v)} style={{ width: '100%' }}>
 							{Object.keys(RELEASE_MODES).map((k) => <Option value={k} key={k}>{RELEASE_MODES[k]}</Option>)}
 						</Select>
@@ -115,7 +113,7 @@ class AstroKeypoints extends Component{
 							return (
 								<div key={i} style={{ display: 'flex', gap: 6, padding: '5px 10px', fontSize: 11.5, borderTop: '1px solid rgba(128,128,128,0.06)', background: active ? 'var(--horosa-accent-soft, rgba(184,134,11,0.14))' : 'transparent' }}>
 									<span style={{ width: 34, fontWeight: active ? 700 : 400 }}>{row.age}</span>
-									<span style={{ width: 60, opacity: 0.6 }}>{row.factors.length ? row.factors.map((f) => f.join('×')).join(' ') : '质'}</span>
+									<span style={{ width: 60, color: 'var(--horosa-text-secondary)' }}>{row.factors.length ? row.factors.map((f) => f.join('×')).join(' ') : '质'}</span>
 									<span style={{ flex: 1 }}>{row.posActive.map((x) => x.planetCn).join('·') || '-'}</span>
 									<span style={{ flex: 1 }}>{row.tableActive.map((x) => x.planetCn).join('·') || '-'}</span>
 								</div>
@@ -123,7 +121,7 @@ class AstroKeypoints extends Component{
 						})}
 					</div>
 				) : (
-					<div style={{ fontSize: 12.5, opacity: 0.55, padding: '12px 0' }}>缺释放点数据，无法计算。请确认本命盘已排出。</div>
+					<div style={{ fontSize: 12.5, color: 'var(--horosa-text-secondary)', padding: '12px 0' }}>缺释放点数据，无法计算。请确认本命盘已排出。</div>
 				)}
 			</div>
 		);

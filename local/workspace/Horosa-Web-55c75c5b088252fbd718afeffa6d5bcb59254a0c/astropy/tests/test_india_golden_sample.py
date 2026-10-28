@@ -167,7 +167,7 @@ def test_nakshatra_lagna():
     """上升 → 柳宿（Ashlesha）pada4，宿主 Mercury。"""
     nak = nakshatra_from_lon(LON['Lagna'])
     assert nak['name'] == 'Ashlesha'
-    assert nak['label'] == '星'   # 中文宿（柳宿口径下的「星」位）
+    assert nak['label'] == '柳'   # 中文宿名单源 nakshatra_data.labelCn(Ashlesha=柳)
     assert nak['pada'] == 4
     assert nak['lord'] == const.MERCURY
 
@@ -176,7 +176,7 @@ def test_nakshatra_moon():
     """月亮 → 箕宿/斗（Purva Ashadha）pada3，宿主 Venus。"""
     nak = nakshatra_from_lon(LON[const.MOON])
     assert nak['name'] == 'Purva Ashadha'
-    assert nak['label'] == '斗'
+    assert nak['label'] == '箕'   # Purva Ashadha=箕(宿曜经通行对照)
     assert nak['pada'] == 3
     assert nak['lord'] == const.VENUS
 

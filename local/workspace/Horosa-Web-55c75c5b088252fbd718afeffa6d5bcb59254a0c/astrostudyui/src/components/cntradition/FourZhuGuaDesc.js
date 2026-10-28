@@ -6,6 +6,7 @@ import GuaChartDiv from '../gua/GuaChartDiv';
 import styles from '../../css/styles.less';
 
 import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
+import ExternalLink from '../common/ExternalLink';
 const { Option } = Select;
 
 export default class FourZhuGuaDesc extends Component{
@@ -137,7 +138,7 @@ export default class FourZhuGuaDesc extends Component{
                 gua64 = zhu.tongGua;
             }
             gua64descDom = (
-                <a href={gua64.url} target='_blank'>{gua64.desc}</a>
+                <ExternalLink href={gua64.url}>{gua64.desc}</ExternalLink>
             )
         }
 

@@ -61,3 +61,24 @@ describe('金锁玉关', ()=>{
 		expect(r.palaces.length).toBe(8);
 	});
 });
+
+describe('金锁玉关 · 切砂水后形态', ()=>{
+	const { jinsuoXingOptionsFor, pruneJinsuoXing } = require('../jinsuo');
+	test('🔴 原选的形态不在新一侧的档里 → 去掉;还在 → 原样(同一对象);切到平 → 去掉', ()=>{
+		// 找一座两侧都有形态、且水侧有砂侧没有的形态的山
+		const shans = ['子', '癸', '丑', '艮', '寅', '甲', '卯', '乙', '辰', '巽', '巳', '丙', '午', '丁', '未', '坤', '申', '庚', '酉', '辛', '戌', '乾', '亥', '壬'];
+		const sn = shans.find((s)=>{
+			const w = jinsuoXingOptionsFor(s, 'water').map((x)=>x.key);
+			const d = jinsuoXingOptionsFor(s, 'sand').map((x)=>x.key);
+			return w.length && d.length && w.some((k)=>d.indexOf(k) < 0);
+		});
+		expect(sn).toBeTruthy();
+		const sand = jinsuoXingOptionsFor(sn, 'sand').map((x)=>x.key);
+		const onlyWater = jinsuoXingOptionsFor(sn, 'water').map((x)=>x.key).find((k)=>sand.indexOf(k) < 0);
+		const xs = { [sn]: onlyWater, 其它: 'x' };
+		expect(pruneJinsuoXing(xs, sn, 'sand')).toEqual({ 其它: 'x' });
+		expect(pruneJinsuoXing(xs, sn, 'water')).toBe(xs);
+		expect(pruneJinsuoXing(xs, sn, 'flat')).toEqual({ 其它: 'x' });
+		expect(pruneJinsuoXing({}, sn, 'sand')).toEqual({});
+	});
+});

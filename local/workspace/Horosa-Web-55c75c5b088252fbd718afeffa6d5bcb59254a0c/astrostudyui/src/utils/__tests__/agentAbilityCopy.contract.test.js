@@ -26,7 +26,7 @@ it('🔴 面板文案 = 「开启后,」+ 生成句 + 「。默认关闭。」;�
 	expect(agentAbilityCopy([])).toContain('所有写入只增不删');
 });
 
-// [Q-294/M-109·AR-26] 本机 MCP 首开确认文案 ≡ 目录里对 origin=mcp 开放的工具:改设置 / 切换界面 / 出网 都要在;只对 in-app 开放的工具不进句;不再宣称「不会删除或覆盖」
+// 本机 MCP 首开确认文案 ≡ 目录里对 origin=mcp 开放的工具:改设置 / 切换界面 / 出网 都要在;只对 in-app 开放的工具不进句;不再宣称「不会删除或覆盖」
 it('🔴 MCP 首开确认文案由目录生成:含 mcp 可达的写入 / 界面 / 出网工具,不含仅 in-app 工具,不含「不会删除或覆盖」;面板函数与生成句逐字相等', ()=>{
 	registerBuiltinTools();
 	const defs = listTools();

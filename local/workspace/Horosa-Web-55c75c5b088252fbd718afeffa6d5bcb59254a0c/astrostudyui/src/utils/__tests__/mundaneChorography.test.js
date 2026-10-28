@@ -23,7 +23,7 @@ describe('世运盘 分野 数据完整性', () => {
 		expect(SIGN_CHOROGRAPHY.aquarius.countries.modern).toContain('俄罗斯(现代)');
 	});
 
-	test('[G2] 数据集真分叉:classical 档只出古典层且不列城市;modern 档合并两层+城市', () => {
+	test('数据集真分叉:classical 档只出古典层且不列城市;modern 档合并两层+城市', () => {
 		const FACTS = { meta: { ascSign: 'gemini' }, lons: { asc: 65, mc: 340 } };
 		const classical = describeChorography(FACTS, 'classical');
 		const modern = describeChorography(FACTS, 'modern');

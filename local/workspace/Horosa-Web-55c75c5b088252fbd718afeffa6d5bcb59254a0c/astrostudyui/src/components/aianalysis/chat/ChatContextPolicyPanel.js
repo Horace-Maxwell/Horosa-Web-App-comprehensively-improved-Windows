@@ -36,10 +36,10 @@ function FieldRow({ spec, policy }){
 
 export default function ChatContextPolicyPanel({ model, numCtx }){
 	const [policy, setPolicy] = React.useState(()=>readContextPolicy());
-	const [autoTokens, setAutoTokens] = React.useState(()=>readCompactAutoTokens());   // [批二⑧] 压缩提醒阈值(uiPrefs;缺省空=不提醒)
+	const [autoTokens, setAutoTokens] = React.useState(()=>readCompactAutoTokens());   // 压缩提醒阈值(uiPrefs;缺省空=不提醒)
 	React.useEffect(()=>subscribeContextPolicy((p)=>setPolicy(p)), []);
 	const preset = contextPolicyPresetName(policy);
-	// [进阶审计 D8] 缺省=窗口(键不存在):状态标「缺省」、「恢复现状」无可恢复 → 禁用;键存在(含用户明确选的窗口档)才可恢复
+	// 缺省=窗口(键不存在):状态标「缺省」、「恢复现状」无可恢复 → 禁用;键存在(含用户明确选的窗口档)才可恢复
 	const stored = hasStoredContextPolicy();
 	const status = !stored
 		? <AdvStatus>缺省·{PRESET_LABEL[preset] || preset}</AdvStatus>

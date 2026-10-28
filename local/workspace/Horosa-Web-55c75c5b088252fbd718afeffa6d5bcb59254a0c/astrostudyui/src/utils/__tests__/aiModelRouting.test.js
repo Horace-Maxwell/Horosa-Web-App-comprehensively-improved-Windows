@@ -1,4 +1,4 @@
-// 按任务用模型(C4)合同:六槽读写(全空删键/合并/订阅)· resolveRoute 与报告侧同口径(档案缺回落/模型缺回落/同目标 routed:false)·
+// 按任务用模型(C4)合同:六槽读写(全空删键/合并/订阅)· resolveRoute 各调用方同口径(档案缺回落/模型缺回落/同目标 routed:false)·
 // roundSlot(行动能力关=终稿;开且未收口=工具轮)· shouldRequestClose(仅终稿≠工具轮且本轮无调用且未收口)· providerOptionsForRoute(同目标原对象;异目标以目标档案为底只带通用键)。
 import { MODEL_ROUTES_KEY, ROUTE_SLOTS, readModelRoutes, writeModelRoutes, clearModelRoutes, subscribeModelRoutes, hasAnyRoute, resolveRoute, roundSlot, shouldRequestClose, providerOptionsForRoute, normalizeModelRoutes } from '../aiModelRouting';
 import { encodeModelSelection } from '../aiAnalysisProviders';
@@ -10,9 +10,9 @@ const enc = encodeModelSelection;
 
 beforeEach(()=>{ window.localStorage.clear(); });
 
-describe('六槽读写', ()=>{
+describe('七槽读写(第七槽 utility = 辅助短调用)', ()=>{
 	it('缺省全空且键不存在;写一槽只存非空;全部清空即删键;订阅收到归一化对象;未知键丢弃', ()=>{
-		expect(readModelRoutes()).toEqual({ toolRounds: '', final: '', judge: '', review: '', planner: '', subagent: '' });
+		expect(readModelRoutes()).toEqual({ toolRounds: '', final: '', judge: '', review: '', planner: '', subagent: '', utility: '' });
 		expect(hasAnyRoute(readModelRoutes())).toBe(false);
 		const seen = [];
 		const off = subscribeModelRoutes((r)=>seen.push(r));
@@ -29,7 +29,7 @@ describe('六槽读写', ()=>{
 		off();
 		expect(seen.length).toBe(4);
 		expect(Object.keys(seen[0]).sort()).toEqual([...ROUTE_SLOTS].sort());
-		expect(normalizeModelRoutes('junk')).toEqual({ toolRounds: '', final: '', judge: '', review: '', planner: '', subagent: '' });
+		expect(normalizeModelRoutes('junk')).toEqual({ toolRounds: '', final: '', judge: '', review: '', planner: '', subagent: '', utility: '' });
 	});
 });
 

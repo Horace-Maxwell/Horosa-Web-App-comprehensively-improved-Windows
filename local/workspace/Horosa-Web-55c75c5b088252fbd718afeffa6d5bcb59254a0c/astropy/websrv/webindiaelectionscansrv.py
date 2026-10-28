@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# [Z8] 印度择日·征象扫描端点(算法本体在 astrostudy/india_election_scan.py,本文件只做薄壳)。
+# 印度择日·征象扫描端点(算法本体在 astrostudy/india_election_scan.py,本文件只做薄壳)。
 # 形制照 QiZhengKinSrv 系:jsonpickle {ResultCode, Result};错误 ResultCode=-1(前端缓存壳不缓存)。
 import traceback
 

@@ -13,6 +13,7 @@ import DstZoneIndicator from './DstZoneIndicator';
 import {getHousesOption} from './CompHelper';
 import { XQButton, XQInput, XQSelect } from '../xq-ui';
 import * as AstroConst from '../../constants/AstroConst';
+import { SU28_MODE_GROUPS } from '../guolao/guolaoData';
 
 const Option = XQSelect.Option;
 const OptGroup = XQSelect.OptGroup;
@@ -433,7 +434,7 @@ export default class ChartFormData extends Component{
 							<Col span={24}>宫位制：</Col>
 							<Col span={24}>
 								<XQSelect value={flds.hsys.value} onChange={this.changeHSys} style={{width: '100%'}}>
-									{ getHousesOption() }
+									{ getHousesOption(false, flds.hsys ? flds.hsys.value : undefined) }
 								</XQSelect>
 							</Col>
 						</Row>
@@ -534,9 +535,13 @@ export default class ChartFormData extends Component{
 						<Row>
 							<Col span={24}>七政四余排盘法：</Col>
 							<Col span={24}>
+								{/* 宿法九档同源(与宿盘 / 七政页同一张表);此前只列 0 / 1 两档,存过其它档的盘显示裸数字 */}
 								<XQSelect value={flds.doubingSu28.value} onChange={this.changeDoubingSu28} style={{width: '100%'}}>
-									<Option value={0}>现实距星法</Option>
-									<Option value={1}>斗柄定房法</Option>
+									{SU28_MODE_GROUPS.map((g)=>(
+										<OptGroup key={g.header} label={g.header}>
+											{g.options.map((o)=><Option key={o.value} value={o.value}>{o.label}</Option>)}
+										</OptGroup>
+									))}
 								</XQSelect>
 							</Col>
 						</Row>

@@ -4,7 +4,7 @@
 import { XQButton, XQSideSection } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 
-// [挂载自检 F-36] onSave 有值才渲染「存为事盘」(黄历/八字/紫微/七政/印度五宿主此前无存档钮 → 择日事盘类型恒无实例)。
+// onSave 有值才渲染「存为事盘」(黄历/八字/紫微/七政/印度五宿主此前无存档钮 → 择日事盘类型恒无实例)。
 export default function ZeriHostEntry({ label, onOpen, onSave, saveLabel }){
 	return (
 		<XQSideSection iconName={sideSectionIcon('search')} title={label} collapsible={false}>

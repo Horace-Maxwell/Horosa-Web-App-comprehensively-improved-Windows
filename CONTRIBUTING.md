@@ -26,6 +26,19 @@ npm ci
 npm run build:file
 ```
 
+The backend is a multi-module Maven project driven by the aggregator pom (`astrostudysrv/pom.xml`); its `<modules>` list is the only module list. Always build and test through the aggregator:
+
+```bash
+cd local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c
+# Build every module from source in dependency order and produce astrostudyboot/target/astrostudyboot.jar
+# (this one command is all a clean machine needs)
+mvn -f astrostudysrv/pom.xml -DskipTests clean install
+# Run the unit tests of selected modules (-am compiles the sibling modules they depend on in the same build)
+mvn -f astrostudysrv/pom.xml test -pl boundless,astrostudy -am
+```
+
+Do not `cd` into a module and install modules one by one: on a clean machine the local repository has neither the parent pom nor the sibling modules, so the second module fails to resolve; on an existing machine it silently links stale copies from `~/.m2`.
+
 For docs / governance / [`prepareruntime/`](prepareruntime/) / [`windows-adaptations/`](windows-adaptations/) changes, verify links and relative paths still resolve. (The desktop packaging project — Electron + NSIS — is maintained privately and is not part of this repo.)
 
 ## Required doc sync

@@ -1,0 +1,192 @@
+diff --git a/astrostudyui/src/components/planetarium/babylon/PlanetariumRenderer.js b/astrostudyui/src/components/planetarium/babylon/PlanetariumRenderer.js
+index 66156aeb..58ff163a 100644
+--- a/astrostudyui/src/components/planetarium/babylon/PlanetariumRenderer.js
++++ b/astrostudyui/src/components/planetarium/babylon/PlanetariumRenderer.js
+@@ -29,12 +29,30 @@ import {
+ } from './itemText';
+ import { noise2, paintSkySurface, paintHorizonMistSurface, planetTextureSize, paintPlanetSurface, paintMoonPhase } from './textures';
+ 
++import { planetariumOnDemandRenderEnabled, planetariumMetricsThrottleEnabled } from '../../../utils/perfFlags';
++
++// perf:planetariumRenderGating —— 天文馆渲染时机门控参数(只动时机不动内容):
++//   IDLE_FRAME_MS:静止时降帧间隔(~10fps);静止画面在任何帧率下视觉一致,留出 CPU 给主线程消除卡顿。
++//   SETTLE_MS:一次交互后维持满帧的时窗(拖动顺滑 + 覆盖惯性/收尾),之后回落到降帧。
++const PLANETARIUM_IDLE_FRAME_MS = 100;
++const PLANETARIUM_SETTLE_MS = 600;
++
+ export class PlanetariumRenderer {
+ 	constructor(canvas, onPick, onMetrics, onInteraction){
+ 		this.canvas = canvas;
+ 		this.onPick = onPick;
+ 		this.onMetrics = onMetrics;
+ 		this.onInteraction = onInteraction;
++		// perf:planetariumRenderGating —— 渲染循环时机门控状态(内容/语义一字不动)。
++		this._loopRunning = false;
++		this._onDemand = planetariumOnDemandRenderEnabled();
++		this._metricsThrottle = planetariumMetricsThrottleEnabled();
++		this._playing = false;
++		this._renderRequested = false;
++		this._settleUntil = 0;
++		this._lastIdleRender = 0;
++		this._lastMetricEmit = 0;
++		this._boundRenderTick = null;
+ 		this.engine = new BABYLON.Engine(canvas, true, {
+ 			preserveDrawingBuffer: false,
+ 			stencil: false,
+@@ -150,6 +168,7 @@ export class PlanetariumRenderer {
+ 				return;
+ 			}
+ 			evt.preventDefault();
++			this.markCameraSettle();
+ 			if(this.viewMode === 'orbit'){
+ 				this.camera.radius = clamp(this.camera.radius + (evt.deltaY > 0 ? 64 : -64), ORBIT_MIN_RADIUS, ORBIT_MAX_RADIUS);
+ 				return;
+@@ -165,6 +184,7 @@ export class PlanetariumRenderer {
+ 			if(this.onInteraction){
+ 				this.onInteraction();
+ 			}
++			this.markCameraSettle();
+ 			this.pointerDrag = {
+ 				id: evt.pointerId,
+ 				x: evt.clientX,
+@@ -200,6 +220,7 @@ export class PlanetariumRenderer {
+ 				if(this.camera){ this.camera.lockedTarget = null; }
+ 			}
+ 			evt.preventDefault();
++			this.markCameraSettle();
+ 			if(this.viewMode === 'orbit'){
+ 				if(this.onInteraction){
+ 					this.onInteraction();
+@@ -326,21 +347,8 @@ export class PlanetariumRenderer {
+ 			}
+ 		});
+ 
+-		this.engine.runRenderLoop(()=>{
+-			if(this.scene){
+-				this.updateGroundScenePosition();
+-				this.applyLabelVisibility();
+-				this.applyGridLod();
+-				this.scene.render();
+-				if(this.onMetrics){
+-					const fps = Math.round(this.engine.getFps());
+-					this.onMetrics({
+-						fps: Number.isFinite(fps) ? Math.min(240, Math.max(0, fps)) : 0,
+-						meshes: this.scene.meshes.length,
+-					});
+-				}
+-			}
+-		});
++		// perf:planetariumRenderGating —— 循环体抽成具名 _renderTick(可停/起 + 静止降帧 + metrics 节流),内容不变。
++		this._startRenderLoop();
+ 		this.resizeHandler = ()=>{
+ 			if(this.engine){
+ 				// Keep the backing store at full device resolution; re-apply on resize so
+@@ -3008,8 +3016,108 @@ export class PlanetariumRenderer {
+ 		return true;
+ 	}
+ 
++	// perf:planetariumRenderGating —— 每帧渲染体(原 runRenderLoop 闭包,内容一字不动;新增静止降帧 + metrics 节流)。
++	_renderTick(){
++		if(!this.scene){
++			return;
++		}
++		const t = nowMs();
++		// A2 静止降帧:可见+激活但「未播放 / 无补间动画 / 非刚交互(settle)/ 未被显式请求」时,
++		// 渲染降到 ~10fps。静止画面在任何帧率下视觉完全一致,且把 CPU 让回主线程消除全局卡顿;
++		// 任何变更最迟 ≤PLANETARIUM_IDLE_FRAME_MS 上屏(不漏帧、不陈旧),播放/拖动/动画期间仍满帧。
++		if(this._onDemand){
++			const live = this._renderRequested
++				|| this._playing
++				|| (this.scene.animatables && this.scene.animatables.length > 0)
++				|| (t < this._settleUntil);
++			if(!live){
++				if(this._lastIdleRender && (t - this._lastIdleRender) < PLANETARIUM_IDLE_FRAME_MS){
++					return;
++				}
++			}
++			this._renderRequested = false;
++			this._lastIdleRender = t;
++		}
++		this.updateGroundScenePosition();
++		this.applyLabelVisibility();
++		this.applyGridLod();
++		this.scene.render();
++		if(this.onMetrics){
++			// B:FPS/网格调试读数节流到 ~2Hz(getFps 本就是滚动均值,2Hz 与 60Hz 读同一值类、零精度损失)。
++			if(!this._metricsThrottle || !this._lastMetricEmit || (t - this._lastMetricEmit) >= 500){
++				this._lastMetricEmit = t;
++				const fps = Math.round(this.engine.getFps());
++				this.onMetrics({
++					fps: Number.isFinite(fps) ? Math.min(240, Math.max(0, fps)) : 0,
++					meshes: this.scene.meshes.length,
++				});
++			}
++		}
++	}
++
++	_startRenderLoop(){
++		if(this._loopRunning || !this.engine){
++			return;
++		}
++		if(!this._boundRenderTick){
++			this._boundRenderTick = this._renderTick.bind(this);
++		}
++		this.engine.runRenderLoop(this._boundRenderTick);
++		this._loopRunning = true;
++	}
++
++	startRenderLoop(){
++		this._startRenderLoop();
++	}
++
++	// A1:隐藏/非激活时停渲染循环(只停「画」,scene/engine/state 全保留;恢复时 renderOnce 重绘实况)。
++	stopRenderLoop(){
++		if(!this.engine){
++			this._loopRunning = false;
++			return;
++		}
++		if(this._boundRenderTick){
++			this.engine.stopRenderLoop(this._boundRenderTick);
++		}else{
++			this.engine.stopRenderLoop();
++		}
++		this._loopRunning = false;
++	}
++
++	// 单帧硬渲染:恢复显示时立即重绘当前实况帧(无陈旧、无 A→B 跳变)。
++	renderOnce(){
++		if(!this.scene || !this.engine){
++			return;
++		}
++		this.updateGroundScenePosition();
++		this.applyLabelVisibility();
++		this.applyGridLod();
++		this.scene.render();
++		this._renderRequested = false;
++		this._lastIdleRender = nowMs();
++	}
++
++	// 显式请求下一帧满帧(场景内容变更后调用 → ≤1 帧上屏;静止降帧下仍即时可见)。
++	requestRender(){
++		this._renderRequested = true;
++	}
++
++	// 一次用户交互/相机变更 → 短窗内维持满帧(拖动顺滑 + 覆盖惯性/收尾)。
++	markCameraSettle(){
++		this._settleUntil = nowMs() + PLANETARIUM_SETTLE_MS;
++	}
++
++	// React 侧 speed 变化时同步(播放中恒满帧)。
++	setPlaying(playing){
++		this._playing = !!playing;
++		if(playing){
++			this._renderRequested = true;
++		}
++	}
++
+ 	dispose(){
+ 		this.disposed = true;
++		this._loopRunning = false;
+ 		window.removeEventListener('resize', this.resizeHandler);
+ 		if(this.wheelHandler){
+ 			this.canvas.removeEventListener('wheel', this.wheelHandler);

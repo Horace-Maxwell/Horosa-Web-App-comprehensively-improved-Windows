@@ -20,7 +20,9 @@ import {
 	resolveObjectGlyph,
 	indiaChartShouldUpdate,
 	INDIA_CHART_SCU_KEYS_MIRROR,
+	buildChartHeightStyle,
 } from './IndiaSouthChart';
+import { indiaDiagramBoardRef } from '../../utils/boxSizeVars';
 import '../../css/styles.less';
 
 const NORTH_HOUSE_LABEL_POSITIONS = {
@@ -70,9 +72,26 @@ const NORTH_OBJECT_ANCHOR_POSITIONS = {
 	12: [75, 12, 14, 14],
 };
 
+// 紧凑版式(盘边 < 600,见 utils/boxSizeVars.indiaDiagramSizeVars)的本格锚区:宫号 / 座符 = [x, y] 中心,
+// 行星块 = [x, y, w, h](中心 + 宽高,单位 = 盘边 %)。三者互不相交,且按紧凑字号(宫号 3.2u + 宫头度 2.3u、座符 3.6u)整块落在本宫多边形内:
+// 三角宫的行星块取「宫号与座符之间」那段内接矩形,菱形宫取菱形中段 —— 行星字再多也只在锚区里等比缩,不会越过对角线。
+export const NORTH_COMPACT_LABEL = {
+	1: [50, 5.5], 2: [12, 5], 3: [5, 12], 4: [7.5, 50], 5: [5, 88], 6: [12, 95],
+	7: [50, 94.5], 8: [88, 95], 9: [95, 88], 10: [92.5, 50], 11: [95, 12], 12: [88, 5],
+};
+export const NORTH_COMPACT_SIGN = {
+	1: [50, 40], 2: [25, 20], 3: [20, 25], 4: [40, 50], 5: [20, 75], 6: [25, 80],
+	7: [50, 60], 8: [75, 80], 9: [80, 75], 10: [60, 50], 11: [80, 25], 12: [75, 20],
+};
+export const NORTH_COMPACT_OBJECTS = {
+	1: [50, 22.5, 24, 19], 2: [26, 10, 16, 12], 3: [10, 26, 12, 16], 4: [22, 50, 20, 24],
+	5: [10, 74, 12, 16], 6: [26, 90, 16, 12], 7: [50, 77.5, 24, 19], 8: [74, 90, 16, 12],
+	9: [90, 74, 12, 16], 10: [78, 50, 20, 24], 11: [90, 26, 12, 16], 12: [74, 10, 16, 12],
+};
+
 // 北印盘 12 宫的标准多边形(viewBox 0..100):4 个菱形(1/4/7/10)+ 8 个三角(角宫)。
 // WP-A 相映高亮按宫形在 SVG 里画浅色面,避免给叠满整盘的分层 div 着色而糊满全盘。
-const NORTH_HOUSE_POLYGONS = {
+export const NORTH_HOUSE_POLYGONS = {
 	1: '50,0 75,25 50,50 25,25',
 	2: '0,0 50,0 25,25',
 	3: '0,0 25,25 0,50',
@@ -87,18 +106,16 @@ const NORTH_HOUSE_POLYGONS = {
 	12: '100,0 75,25 50,0',
 };
 
-function buildChartHeightStyle(height){
-	const value = height || 720;
-	return {
-		'--india-chart-height': typeof value === 'number' ? `${value}px` : value,
-	};
-}
-
 function signNumberForHouse(houseNumber, ascSignNumber){
 	return ((ascSignNumber + houseNumber - 2) % 12) + 1;
 }
 
 class IndiaNorthChart extends Component{
+	componentDidUpdate(){
+		// 数据 / 显示项变了而盘尺寸没变:行星块重新装进锚区(紧凑版式才有内联量)
+		if(this._idgRef){ this._idgRef.refit(); }
+	}
+
 	shouldComponentUpdate(nextProps){
 		// 北印为图形盘,消费 counterClockwise(镜像)→ 用含镜像项的 keys。
 		return indiaChartShouldUpdate(this, nextProps, INDIA_CHART_SCU_KEYS_MIRROR);
@@ -151,23 +168,29 @@ class IndiaNorthChart extends Component{
 		const sign = SIGN_NAMES[signNumber];
 		const signName = AstroText.AstroMsgCN[sign] || sign;
 		const cuspDegree = getHouseCuspDegree(chartObj, houseNumber, signNumber, this.props.degreeDisplayMode);
+		const cLabel = NORTH_COMPACT_LABEL[houseNumber];
+		const cSign = NORTH_COMPACT_SIGN[houseNumber];
+		const cObj = NORTH_COMPACT_OBJECTS[houseNumber];
 		return (
 			<div
 				key={`north_house_${houseNumber}`}
 				className="horosa-india-diagram-layer"
 				title={`第${houseNumber}宫 · ${signName}`}
+				data-cell-poly={mirrorPolygonIf(NORTH_HOUSE_POLYGONS[houseNumber], doMirror)}
+				data-cell-label={`宫${houseNumber}`}
 			>
-				<div className="horosa-india-diagram-house horosa-india-diagram-house-corner" style={{ left: `${mirrorXIf(labelPos[0], doMirror)}%`, top: `${labelPos[1]}%` }}>
+				<div className="horosa-india-diagram-house horosa-india-diagram-house-corner" style={{ left: `${mirrorXIf(labelPos[0], doMirror)}%`, top: `${labelPos[1]}%`, '--idg-cl': `${mirrorXIf(cLabel[0], doMirror)}%`, '--idg-ct': `${cLabel[1]}%` }}>
 					<div className="horosa-india-square-roman">{getHouseLabel(houseNumber)}</div>
 					{cuspDegree ? <div className="horosa-india-square-cusp">{cuspDegree}</div> : null}
 				</div>
-				<div className="horosa-india-diagram-sign horosa-india-diagram-sign-corner" aria-label={`${signNumber} ${signName}`} style={{ left: `${mirrorXIf(signPos[0], doMirror)}%`, top: `${signPos[1]}%` }}>
+				<div className="horosa-india-diagram-sign horosa-india-diagram-sign-corner" aria-label={`${signNumber} ${signName}`} style={{ left: `${mirrorXIf(signPos[0], doMirror)}%`, top: `${signPos[1]}%`, '--idg-cl': `${mirrorXIf(cSign[0], doMirror)}%`, '--idg-ct': `${cSign[1]}%` }}>
 					<span className="horosa-india-square-sign-symbol">{getSignSymbol(signNumber)}</span>
 				</div>
 				<div
 					className="horosa-india-diagram-object-anchor horosa-india-diagram-object-anchor-roomy"
 					data-house={houseNumber}
-					style={{ left: `${mirrorXIf(objectsPos[0], doMirror)}%`, top: `${objectsPos[1]}%`, width: `${objectsPos[2]}%`, height: `${objectsPos[3]}%` }}
+					style={{ left: `${mirrorXIf(objectsPos[0], doMirror)}%`, top: `${objectsPos[1]}%`, width: `${objectsPos[2]}%`, height: `${objectsPos[3]}%`,
+						'--idg-cl': `${mirrorXIf(cObj[0], doMirror)}%`, '--idg-ct': `${cObj[1]}%`, '--idg-cw': `${cObj[2]}%`, '--idg-ch': `${cObj[3]}%` }}
 				>
 					{this.renderObjects(objects, houseNumber, signNumber)}
 				</div>
@@ -200,7 +223,7 @@ class IndiaNorthChart extends Component{
 		}
 		return (
 			<div className="horosa-india-square-shell xq-chart-renderer xq-chart-renderer-india" style={chartHeightStyle}>
-				<div className="horosa-india-square-board horosa-india-diagram-board horosa-india-north-board xq-india-board">
+				<div className="horosa-india-square-board horosa-india-diagram-board horosa-india-north-board xq-india-board" data-clip-strict-text="" ref={this._idgRef || (this._idgRef = indiaDiagramBoardRef())}>
 					<svg className="horosa-india-diagram-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
 						<rect x="0" y="0" width="100" height="100" />
 						{aspectedHouses.map((h)=>(

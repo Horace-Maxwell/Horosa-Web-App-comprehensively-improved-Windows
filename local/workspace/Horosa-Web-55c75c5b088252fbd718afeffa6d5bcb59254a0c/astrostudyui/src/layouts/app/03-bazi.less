@@ -1,0 +1,2569 @@
+// 全站样式 · 八字页。
+// 由 layouts/app.less 在它的 `:global { … }` 里按原顺序 @import:本文件的规则全在 :global 作用域内(不要再包一层 :global)。
+
+    .horosa-workspace-shell .horosa-bazi-direct-card {
+        border: 1px solid var(--horosa-border);
+        border-radius: 6px;
+        color: var(--horosa-text);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-year-cell {
+        border-radius: 4px;
+        border: 1px solid var(--horosa-border);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-summary {
+        margin: 4px 2px 14px;
+        padding: 10px 16px;
+        border: 1px solid var(--horosa-border);
+        border-radius: var(--horosa-radius);
+        background:
+            linear-gradient(90deg, var(--horosa-gold-soft), transparent 42%),
+            var(--horosa-panel-soft);
+        color: var(--horosa-text);
+        line-height: 1.65;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-summary-inner {
+        display: flex;
+        /* 1.8 档中栏 269px:右侧三颗盘式按钮定宽 400px 把文案挤成 0 宽(逐字竖排、按钮压在字上)。
+           允许换行:文案基准宽 200px、按钮组可折行且不超行宽;≥700px 的常规宽度下仍是原来的单行(文案 214px + 按钮 400px 放得下)。 */
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 16px;
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-summary-copy {
+        flex: 1 1 200px;
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-summary-style-actions {
+        display: flex;
+        flex: 0 1 auto;
+        flex-wrap: wrap;
+        max-width: 100%;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 28px;
+        margin-left: auto;
+        padding-right: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-summary-style-button {
+        min-width: 112px;
+        height: 42px;
+        border: 1px solid rgba(215, 173, 105, 0.22);
+        border-radius: 8px;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent),
+            rgba(255, 255, 255, 0.018);
+        color: rgba(239, 228, 210, 0.84);
+        font-size: 15px;
+        font-weight: 760;
+        cursor: pointer;
+        transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-summary-style-button:hover,
+    .horosa-workspace-shell .horosa-bazi-summary-style-button.is-active {
+        border-color: var(--horosa-astro-line-strong);
+        background: rgba(231, 189, 117, 0.10);
+        color: var(--horosa-astro-gold);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-summary-style-button {
+        border-color: var(--horosa-border);
+        background: #ffffff;
+        color: var(--horosa-text-soft);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-summary-style-button:hover,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-summary-style-button.is-active {
+        border-color: var(--horosa-gold);
+        background: rgba(184, 137, 63, 0.11);
+        color: var(--horosa-gold);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-summary a {
+        color: var(--horosa-accent-strong);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-pillar-card {
+        min-height: 100%;
+        padding: 14px 10px;
+        border: 1px solid var(--horosa-border);
+        border-radius: var(--horosa-radius);
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 58%),
+            var(--horosa-panel-soft);
+        color: var(--horosa-text);
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    }
+
+    :root[data-horosa-appearance='dark'] .horosa-workspace-shell .horosa-bazi-pillar-card {
+        background:
+            linear-gradient(180deg, rgba(216, 173, 99, 0.10), rgba(216, 173, 99, 0.03) 70%),
+            var(--horosa-panel-soft);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-day-master-card {
+        border-color: var(--horosa-gold);
+        box-shadow: inset 0 0 0 1px rgba(216, 173, 99, 0.18), 0 14px 34px rgba(184, 137, 63, 0.12);
+    }
+
+    :root[data-horosa-appearance='dark'] .horosa-workspace-shell .horosa-bazi-day-master-card {
+        background:
+            radial-gradient(circle at 50% 0%, rgba(216, 173, 99, 0.20), transparent 42%),
+            linear-gradient(180deg, rgba(216, 173, 99, 0.12), rgba(216, 173, 99, 0.04) 76%),
+            var(--horosa-panel-soft);
+        box-shadow: inset 0 0 0 1px rgba(216, 173, 99, 0.24), 0 18px 38px rgba(0, 0, 0, 0.28);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-four-pillars {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-core-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-core-pillar-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 315px;
+        padding: 18px 12px 16px;
+        text-align: center;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-pillar-title {
+        color: var(--horosa-text);
+        font-size: 18px;
+        font-weight: 760;
+        line-height: 1.2;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-pillar-meta,
+    .horosa-workspace-shell .horosa-bazi-pillar-foot {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-height: 42px;
+        color: var(--horosa-text-soft);
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.35;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-pillar-foot {
+        width: 100%;
+        min-height: 64px;
+        padding: 9px 10px 8px;
+        border: 1px solid rgba(216, 173, 99, 0.14);
+        border-radius: 8px;
+        background: rgba(216, 173, 99, 0.045);
+        align-items: center;
+        justify-content: flex-end;
+        color: var(--horosa-muted);
+        font-size: 12px;
+        font-family: inherit;
+        text-align: center;
+    }
+
+    .horosa-workspace-shell button.horosa-bazi-pillar-foot {
+        cursor: pointer;
+        transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+    }
+
+    .horosa-workspace-shell button.horosa-bazi-pillar-foot:hover,
+    .horosa-workspace-shell button.horosa-bazi-pillar-foot:focus {
+        border-color: rgba(216, 173, 99, 0.44);
+        background: rgba(216, 173, 99, 0.11);
+        color: var(--horosa-text-soft);
+        outline: none;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-pillar-foot span {
+        display: block;
+        overflow: hidden;
+        max-width: 100%;
+        text-overflow: ellipsis;
+        white-space: normal;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-pillar-foot em {
+        display: block;
+        margin-top: 2px;
+        color: var(--horosa-accent-strong);
+        font-size: 11px;
+        font-style: normal;
+        font-weight: 700;
+        opacity: 0.82;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-core-glyphs {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        width: 86px;
+        min-height: 142px;
+        margin: 13px 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-core-glyphs span {
+        display: block;
+        font-size: 58px;
+        font-weight: 760;
+        line-height: 0.95;
+        text-shadow: 0 8px 26px rgba(0, 0, 0, 0.14);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-day-master-card .horosa-bazi-core-glyphs {
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-aux-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        padding-top: 2px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-aux-chip {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        width: 100%;
+        min-height: 58px;
+        padding: 10px 14px;
+        border: 1px solid rgba(216, 173, 99, 0.18);
+        border-radius: 8px;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 70%),
+            var(--horosa-panel-soft);
+        color: var(--horosa-text);
+        cursor: pointer;
+        box-shadow: none;
+        transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-aux-chip:hover,
+    .horosa-workspace-shell .horosa-bazi-aux-chip:focus {
+        border-color: var(--horosa-gold);
+        background: var(--horosa-gold-soft);
+        outline: none;
+        transform: translateY(-1px);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-aux-chip span {
+        color: var(--horosa-text-soft);
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-aux-chip strong {
+        min-width: 0;
+        overflow: hidden;
+        color: var(--horosa-accent-strong);
+        font-size: 15px;
+        font-weight: 780;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .horosa-bazi-detail-popover {
+        max-width: 280px;
+    }
+
+    .horosa-bazi-detail-popover .ant-popover-inner {
+        border-color: var(--horosa-border-strong);
+        background: var(--horosa-surface-raised);
+        color: var(--horosa-text);
+    }
+
+    .horosa-bazi-detail-popover .ant-popover-inner-content {
+        padding: 12px;
+        color: var(--horosa-text);
+    }
+
+    .horosa-bazi-detail-card {
+        min-width: 210px;
+        color: var(--horosa-text);
+    }
+
+    .horosa-bazi-pillar-detail-card {
+        min-width: 190px;
+        color: var(--horosa-text);
+        text-align: center;
+    }
+
+    .horosa-bazi-pillar-detail-title {
+        margin-bottom: 8px;
+        color: var(--horosa-accent-strong);
+        font-size: 14px;
+        font-weight: 760;
+        line-height: 1.25;
+    }
+
+    .horosa-bazi-pillar-detail-row {
+        padding: 3px 0;
+        color: var(--horosa-text-soft);
+        font-size: 13px;
+        font-weight: 650;
+        line-height: 1.35;
+        white-space: nowrap;
+    }
+
+    .horosa-bazi-detail-card .ant-row,
+    .horosa-bazi-detail-card .ant-col,
+    .horosa-bazi-detail-card span {
+        color: inherit;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-core-glyphs {
+        background: transparent;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-aux-chip {
+        border-color: var(--horosa-border);
+        background: var(--horosa-surface-solid);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-pillar-foot {
+        border-color: var(--horosa-border);
+        background: rgba(184, 137, 63, 0.045);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-scroll {
+        padding: 4px 7px 14px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-style-switch {
+        display: flex;
+        justify-content: flex-end;
+        gap: 6px;
+        margin: 2px 2px 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-style-switch .ant-btn {
+        min-width: 54px;
+        border-radius: 6px;
+        font-weight: 700;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-main-stack {
+        display: grid;
+        /* 行的 px 下限不随壳缩放折算:1.8 档主栈只有 474px,398+220 的下限把两行撑到 626 → 盘槽被钉 398 而盘(JS 按 0.62 配比)只有 290,
+           槽底留 108px 死带,流年槽被顶出栈外裁掉。下限改 min(原值, 占比):栈够高(≥686,即 1.0 档常见窗口)时逐位等于原值,零回归。 */
+        grid-template-rows: minmax(~"min(398px, 58%)", 1.28fr) minmax(~"min(220px, 34%)", 0.72fr);
+        gap: 8px;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        padding: 8px 10px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-main-stack-fine {
+        /* 行的 px 下限不随壳缩放折算:1.8 档主栈只有 474px,398+220 的下限把两行撑到 626 → 盘槽被钉 398 而盘(JS 按 0.62 配比)只有 290,
+           槽底留 108px 死带,流年槽被顶出栈外裁掉。下限改 min(原值, 占比):栈够高(≥686,即 1.0 档常见窗口)时逐位等于原值,零回归。 */
+        grid-template-rows: minmax(~"min(398px, 58%)", 1.28fr) minmax(~"min(220px, 34%)", 0.72fr);
+        gap: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-main-chart-slot,
+    .horosa-workspace-shell .horosa-bazi-main-flow-slot {
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-main-stack-fine .horosa-bazi-main-chart-slot {
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-width: thin;
+        overscroll-behavior: contain;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-main-stack-fine .horosa-bazi-main-chart-slot .horosa-bazi-scroll {
+        padding-bottom: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-main-stack-fine .horosa-bazi-fine-chart {
+        margin-bottom: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-main-chart-slot .horosa-bazi-scroll {
+        margin-top: 0 !important;
+        padding: 0 4px 6px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-main-chart-slot .horosa-bazi-summary {
+        margin-bottom: 8px !important;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-main-flow-slot {
+        border-top: 1px solid rgba(215, 173, 105, 0.13);
+        padding-top: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-main-stack-fine .horosa-bazi-main-flow-slot {
+        padding-top: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-chart {
+        min-width: 0;
+        width: 100%;
+        overflow: hidden;
+        border: 1px solid var(--horosa-border);
+        border-radius: 16px;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent 38%),
+            var(--horosa-panel-soft);
+        color: var(--horosa-text);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-chart-simple {
+        min-height: 100%;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-chart-simple .horosa-bazi-fine-relation-row {
+        display: none;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-chart-simple .horosa-bazi-fine-label,
+    .horosa-workspace-shell .horosa-bazi-fine-chart-simple .horosa-bazi-fine-cell {
+        padding-top: 6px;
+        padding-bottom: 6px;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-fine-chart {
+        border-color: var(--horosa-border);
+        background: var(--horosa-surface-solid);
+        box-shadow: 0 18px 38px rgba(33, 38, 48, 0.06);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-row {
+        display: grid;
+        grid-template-columns: 62px repeat(6, minmax(0, 1fr));
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-chart-core .horosa-bazi-fine-row {
+        grid-template-columns: 62px repeat(4, minmax(0, 1fr));
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-header,
+    .horosa-workspace-shell .horosa-bazi-fine-main-star-row,
+    .horosa-workspace-shell .horosa-bazi-fine-info-row:nth-last-child(odd) {
+        background: rgba(255, 255, 255, 0.035);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-fine-header,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-fine-main-star-row,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-fine-info-row:nth-last-child(odd) {
+        background: #fbfbfa;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-label,
+    .horosa-workspace-shell .horosa-bazi-fine-cell {
+        min-width: 0;
+        padding: 10px 6px;
+        color: var(--horosa-text);
+        text-align: center;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-label {
+        color: var(--horosa-muted);
+        font-size: 14px;
+        font-weight: 760;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-cell {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        font-size: 15px;
+        font-weight: 720;
+        line-height: 1.28;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-natal-start {
+        border-left: 1px solid var(--horosa-border);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-header .horosa-bazi-fine-cell {
+        color: var(--horosa-muted);
+        font-size: 16px;
+        font-weight: 780;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-main-star-row .horosa-bazi-fine-cell strong {
+        color: var(--horosa-text);
+        font-size: 16px;
+        font-weight: 820;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-stem-row,
+    .horosa-workspace-shell .horosa-bazi-fine-branch-row {
+        border-top: 1px solid rgba(142, 148, 158, 0.10);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-branch-row {
+        background: rgba(255, 255, 255, 0.022);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-fine-branch-row {
+        background: #f7f7f5;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-glyph {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 46px;
+        font-size: 37px;
+        font-weight: 860;
+        line-height: 1;
+        text-shadow: 0 10px 26px rgba(0, 0, 0, 0.12);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-chart-simple .horosa-bazi-fine-glyph {
+        min-width: 36px;
+        font-size: 32px;
+    }
+
+    /* ── 流派实时标记层(P0):喜用描边提亮 / 忌降饱和 / 盲派宾主签 / 顶部流派徽标条 ── */
+    .horosa-workspace-shell .horosa-bazi-fine-glyph.is-yong {
+        filter: brightness(1.12);
+        background: linear-gradient(transparent 84%, color-mix(in srgb, var(--horosa-accent) 60%, transparent) 84%); @supports not (color: color-mix(in srgb, red, red)) { background: linear-gradient(transparent 84%, rgba(var(--horosa-accent-rgb), 0.6) 84%); }
+        border-radius: 3px;
+        text-shadow: 0 0 18px color-mix(in srgb, var(--horosa-accent) 38%, transparent), 0 10px 26px rgba(0, 0, 0, 0.12); @supports not (color: color-mix(in srgb, red, red)) { text-shadow: 0 0 18px rgba(var(--horosa-accent-rgb), 0.38), 0 10px 26px rgba(0, 0, 0, 0.12); }
+    }
+
+    /* 忌:降饱和 + 淡化。字是 32px 大字(WCAG 大字档 ≥ 3:1),五行色 ≥ 4.5 × 0.75 后仍 ≥ 3;别再压到 0.7 以下 */
+    .horosa-workspace-shell .horosa-bazi-fine-glyph.is-ji {
+        filter: saturate(0.35);
+        opacity: 0.75;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-school-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 10px;
+        margin: 0 0 6px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--horosa-border-soft, rgba(120, 120, 120, 0.22));
+        background: color-mix(in srgb, var(--horosa-accent) 5%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-accent-rgb), 0.05); }
+        font-size: 12px;
+        line-height: 1.6;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-school-name {
+        font-weight: 800;
+        color: var(--horosa-accent);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-school-xi {
+        color: var(--horosa-accent);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-school-ji {
+        color: var(--horosa-text-secondary);
+        text-decoration: line-through;
+        text-decoration-color: color-mix(in srgb, var(--horosa-jx-xiong, #c0392b) 55%, transparent); @supports not (color: color-mix(in srgb, red, red)) { text-decoration-color: rgba(var(--horosa-jx-xiong-rgb, 192, 57, 43), 0.55); }
+        text-decoration-thickness: 1px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-school-role {
+        color: var(--horosa-text-secondary);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-role-tag {
+        font-style: normal;
+        font-size: 10px;
+        line-height: 15px;
+        padding: 0 5px;
+        margin-left: 4px;
+        border-radius: 7px;
+        vertical-align: 1px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-role-tag.is-zhu {
+        color: var(--horosa-accent);
+        border: 1px solid color-mix(in srgb, var(--horosa-accent) 45%, transparent); @supports not (color: color-mix(in srgb, red, red)) { border: 1px solid rgba(var(--horosa-accent-rgb), 0.45); }
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-role-tag.is-bin {
+        color: var(--horosa-text-secondary);
+        border: 1px solid var(--horosa-border-soft, rgba(120, 120, 120, 0.28));
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-cur {
+        font-style: normal;
+        font-size: 10px;
+        line-height: 15px;
+        padding: 0 5px;
+        margin-right: 5px;
+        border-radius: 7px;
+        color: var(--horosa-accent);
+        border: 1px solid color-mix(in srgb, var(--horosa-accent) 45%, transparent); @supports not (color: color-mix(in srgb, red, red)) { border: 1px solid rgba(var(--horosa-accent-rgb), 0.45); }
+        background: color-mix(in srgb, var(--horosa-accent) 9%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-accent-rgb), 0.09); }
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-relation-row {
+        min-height: 28px;
+        padding: 2px 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-relation-grid {
+        position: relative;
+        display: block;
+        grid-column: 2 / span 6;
+        min-width: 0;
+        width: 100%;
+        padding: 0 5px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-relation {
+        position: absolute;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        min-width: 0;
+        height: 24px;
+        color: var(--horosa-muted);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-relation::before {
+        content: "";
+        position: absolute;
+        top: 14px;
+        right: 7px;
+        left: 7px;
+        height: 10px;
+        border: 2px solid rgba(142, 148, 158, 0.34);
+        border-bottom: 0;
+        border-radius: 6px 6px 0 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-branch-relations .horosa-bazi-fine-relation::before {
+        top: 3px;
+        border-top: 0;
+        border-bottom: 2px solid rgba(142, 148, 158, 0.34);
+        border-radius: 0 0 6px 6px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-relation span {
+        position: relative;
+        z-index: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 28px;
+        height: 24px;
+        padding: 0 6px;
+        border-radius: 999px;
+        background: var(--horosa-surface-raised);
+        color: var(--horosa-text);
+        font-size: 13px;
+        font-weight: 820;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.13);
+    }
+
+    /* 五行实底药丸:字走 on-solid(暗色五行色是浅亮色,白字只有 2:1) */
+    .horosa-workspace-shell .horosa-bazi-fine-relation-fire span { background: var(--horosa-bazi-fire); color: var(--horosa-on-solid, #fff); }
+    .horosa-workspace-shell .horosa-bazi-fine-relation-water span { background: var(--horosa-bazi-water); color: var(--horosa-on-solid, #fff); }
+    .horosa-workspace-shell .horosa-bazi-fine-relation-wood span { background: var(--horosa-bazi-wood); color: var(--horosa-on-solid, #fff); }
+    .horosa-workspace-shell .horosa-bazi-fine-relation-metal span { background: var(--horosa-bazi-metal); color: var(--horosa-on-solid, #fff); }
+    .horosa-workspace-shell .horosa-bazi-fine-relation-earth span { background: var(--horosa-bazi-earth); color: var(--horosa-on-solid, #fff); }
+    .horosa-workspace-shell .horosa-bazi-fine-relation-clash span { background: rgba(142, 148, 158, 0.22); color: var(--horosa-text); }
+    .horosa-workspace-shell .horosa-bazi-fine-relation-xing span { background: rgba(214, 138, 58, 0.24); color: var(--horosa-text); }
+    .horosa-workspace-shell .horosa-bazi-fine-relation-hai span { background: rgba(150, 110, 196, 0.24); color: var(--horosa-text); }
+    .horosa-workspace-shell .horosa-bazi-fine-relation-po span { background: rgba(120, 126, 134, 0.20); color: var(--horosa-muted, #8c8c8c); }
+
+    /* 横向相邻互动连线:叠在天干/地支行上,行内垂直居中 */
+    .horosa-workspace-shell .horosa-bazi-fine-row-wrap { position: relative; }
+    .horosa-workspace-shell .horosa-bazi-fine-hconn-layer { position: absolute; left: 62px; right: 0; top: 0; bottom: 0; pointer-events: none; z-index: 1; }
+    .horosa-workspace-shell .horosa-bazi-fine-conn { position: absolute; }
+    .horosa-workspace-shell .horosa-bazi-fine-conn-h { transform: translateY(-50%); }
+    .horosa-workspace-shell .horosa-bazi-fine-conn-h .horosa-bazi-fine-conn-line { display: block; width: 100%; height: 0; border-top: 2px solid var(--horosa-bazi-interaction, #c4c8cd); }
+    /* 纵向相邻互动连线:天干与地支之间的专用间隔行,箭头落于此不压字 */
+    .horosa-workspace-shell .horosa-bazi-fine-vconn-row { min-height: 22px; }
+    .horosa-workspace-shell .horosa-bazi-fine-vconn-cell { position: relative; }
+    .horosa-workspace-shell .horosa-bazi-fine-vconn-cell .horosa-bazi-fine-conn-vline { position: absolute; left: 50%; top: 3px; bottom: 3px; width: 0; border-left: 2px solid var(--horosa-bazi-interaction, #c4c8cd); transform: translateX(-50%); }
+    .horosa-workspace-shell .horosa-bazi-fine-conn-arrow { position: absolute; width: 0; height: 0; }
+    .horosa-workspace-shell .horosa-bazi-fine-conn-arrow-right { right: -2px; top: 50%; transform: translateY(-50%); border-left: 7px solid var(--horosa-bazi-interaction, #c4c8cd); border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; }
+    .horosa-workspace-shell .horosa-bazi-fine-conn-arrow-left { left: -2px; top: 50%; transform: translateY(-50%); border-right: 7px solid var(--horosa-bazi-interaction, #c4c8cd); border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; }
+    .horosa-workspace-shell .horosa-bazi-fine-vconn-cell .horosa-bazi-fine-conn-arrow-down { bottom: -1px; left: 50%; transform: translateX(-50%); border-top: 7px solid var(--horosa-bazi-interaction, #c4c8cd); border-left: 4.5px solid transparent; border-right: 4.5px solid transparent; }
+    .horosa-workspace-shell .horosa-bazi-fine-vconn-cell .horosa-bazi-fine-conn-arrow-up { top: -1px; left: 50%; transform: translateX(-50%); border-bottom: 7px solid var(--horosa-bazi-interaction, #c4c8cd); border-left: 4.5px solid transparent; border-right: 4.5px solid transparent; }
+
+    .horosa-workspace-shell .horosa-bazi-fine-hidden-row {
+        border-top: 1px solid var(--horosa-border);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-hidden-row .horosa-bazi-fine-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        min-height: 50px;
+        padding-top: 5px;
+        padding-bottom: 5px;
+        color: var(--horosa-text-soft);
+        font-size: 13px;
+        line-height: 1.12;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-hidden-row .horosa-bazi-fine-cell span {
+        display: block;
+        min-height: 14px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-shensha-row {
+        border-top: 1px solid rgba(142, 148, 158, 0.10);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-shensha-row .horosa-bazi-fine-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        min-height: 64px;
+        padding-top: 6px;
+        padding-bottom: 6px;
+        color: var(--horosa-text);
+        font-size: 11px;
+        line-height: 1.14;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-shensha-row .horosa-bazi-fine-cell span {
+        display: block;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-empty {
+        color: var(--horosa-muted);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-info-row {
+        border-top: 1px solid rgba(142, 148, 158, 0.10);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-hidden-row .horosa-bazi-fine-label,
+    .horosa-workspace-shell .horosa-bazi-fine-info-row .horosa-bazi-fine-label {
+        padding-top: 5px;
+        padding-bottom: 5px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-info-row .horosa-bazi-fine-cell {
+        min-height: 30px;
+        padding-top: 5px;
+        padding-bottom: 5px;
+        color: var(--horosa-text);
+        font-size: 13px;
+        line-height: 1.18;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-scroll .ant-divider {
+        margin: 16px 0 14px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-scroll .ant-divider-inner-text {
+        color: var(--horosa-gold);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-main-direction-card {
+        padding: 6px 4px;
+        border-color: var(--horosa-border-strong);
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.10), transparent),
+            var(--horosa-bazi-direct-bg) !important;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-year-cell {
+        margin: 3px 1px;
+        border-color: var(--horosa-border);
+        background: var(--horosa-panel-soft) !important;
+        transition: border-color 0.16s ease, background 0.16s ease;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-year-cell-future {
+        border-color: var(--horosa-border-strong);
+        background:
+            linear-gradient(180deg, var(--horosa-cyan-soft), transparent),
+            var(--horosa-bazi-year-bg) !important;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 2px 2px 12px;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    // 紧凑面板:各排平分高度、但不小于自身内容(网格 minmax(min-content, 1fr));放不下时面板纵向滚动,不再把每排压到内容以下、把最后一排截掉
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-auto-rows: minmax(min-content, 1fr);
+        gap: 6px;
+        height: 100%;
+        max-height: none !important;
+        padding: 0 2px 2px;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 12px;
+        color: var(--horosa-text-soft);
+        font-weight: 650;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-row {
+        display: grid;
+        grid-template-columns: 54px minmax(0, 1fr);
+        align-items: stretch;
+        min-height: 112px;
+        border: 1px solid var(--horosa-border);
+        border-radius: 12px;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
+            var(--horosa-panel-bg);
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.10);
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-row {
+        grid-template-columns: 50px minmax(0, 1fr);
+        min-height: 0;
+        border-radius: 8px;
+        box-shadow: none;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-day-row {
+        min-height: 96px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-day-row {
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-label {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-right: 1px solid var(--horosa-border);
+        background: var(--horosa-panel-soft);
+        color: var(--horosa-text);
+        text-align: center;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-label strong {
+        display: block;
+        width: 1.2em;
+        line-height: 1.12;
+        font-size: 20px;
+        font-weight: 780;
+        letter-spacing: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-label strong {
+        font-size: 17px;
+        line-height: 1.05;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-label span {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 28px;
+        height: 18px;
+        padding: 0 6px;
+        border-radius: 999px;
+        background: var(--horosa-accent-soft);
+        color: var(--horosa-accent-strong);
+        font-size: 11px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-label span {
+        min-width: 24px;
+        height: 16px;
+        padding: 0 5px;
+        font-size: 10px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-axis {
+        display: flex;
+        align-items: stretch;
+        gap: 0;
+        min-width: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x proximity;
+        scrollbar-width: thin;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-item {
+        position: relative;
+        flex: 0 0 72px;
+        min-width: 72px;
+        padding: 10px 8px 8px;
+        border: 0;
+        border-right: 1px solid var(--horosa-border);
+        border-radius: 0;
+        background: transparent;
+        color: var(--horosa-text);
+        text-align: center;
+        cursor: pointer;
+        scroll-snap-align: start;
+        transition: background 0.16s ease, color 0.16s ease;
+    }
+
+    // 紧凑面板的横向滚动条原本就被压成零高看不见,却会在小窗 / 大缩放下从格子里扣掉高度(WebKit 不把后出现的横向滚动条补进条带高度)
+    // → 正式隐藏;横向照旧可用触控板 / Shift+滚轮滑动
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-axis {
+        scrollbar-width: none;
+    }
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-axis::-webkit-scrollbar {
+        display: none;
+        height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-item {
+        flex-basis: 64px;
+        min-width: 64px;
+        padding: 5px 4px 3px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-item:hover,
+    .horosa-workspace-shell .horosa-bazi-flow-item:focus {
+        background: var(--horosa-panel-soft);
+        outline: none;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-item.is-selected {
+        background: rgba(142, 148, 158, 0.16);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-flow-item.is-selected {
+        background: rgba(28, 31, 36, 0.055);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-cap {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 7px;
+        border-radius: 0 0 8px 8px;
+        background: transparent;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-cap {
+        height: 5px;
+        border-radius: 0 0 6px 6px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-item.is-selected .horosa-bazi-flow-cap {
+        background: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-top,
+    .horosa-workspace-shell .horosa-bazi-flow-sub,
+    .horosa-workspace-shell .horosa-bazi-flow-foot {
+        display: block;
+        color: var(--horosa-text-soft);
+        white-space: nowrap;
+        line-height: 1.15;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-top {
+        margin-bottom: 6px;
+        font-size: 18px;
+        font-weight: 650;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-top {
+        margin-bottom: 1px;
+        font-size: 12px;
+        line-height: 1;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-sub {
+        min-height: 18px;
+        margin-bottom: 8px;
+        font-size: 14px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-sub {
+        min-height: 9px;
+        margin-bottom: 1px;
+        font-size: 9px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-pillar,
+    .horosa-workspace-shell .horosa-bazi-flow-label-only {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        min-height: 42px;
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-pillar,
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-label-only {
+        gap: 0;
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-pillar {
+        flex-direction: row;
+        gap: 5px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-pillar span {
+        display: inline-flex;
+        align-items: baseline;
+        justify-content: center;
+        gap: 1px;
+        line-height: 1.05;
+        white-space: nowrap;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-pillar b,
+    .horosa-workspace-shell .horosa-bazi-flow-label-only b {
+        font-size: 24px;
+        font-weight: 780;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-pillar b,
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-label-only b {
+        font-size: 13px;
+        line-height: 0.96;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-pillar em {
+        color: var(--horosa-cinnabar, #b53a32);
+        font-size: 15px;
+        font-style: normal;
+        font-weight: 760;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-pillar em {
+        font-size: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-foot {
+        margin-top: 6px;
+        overflow: hidden;
+        color: var(--horosa-text-secondary);
+        font-size: 11px;
+        text-overflow: ellipsis;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-foot {
+        display: none;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-day-row .horosa-bazi-flow-item {
+        flex-basis: 66px;
+        min-width: 66px;
+        padding-top: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-day-row .horosa-bazi-flow-item {
+        flex-basis: 54px;
+        min-width: 54px;
+        padding-top: 6px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-day-row .horosa-bazi-flow-sub,
+    .horosa-workspace-shell .horosa-bazi-flow-day-row .horosa-bazi-flow-foot {
+        display: none;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-flow-row {
+        background: #ffffff;
+        box-shadow: 0 10px 24px rgba(64, 76, 92, 0.10);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-flow-label {
+        background: #fbfbfa;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-app-info-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        height: 100%;
+        min-height: 0;
+        padding: 10px;
+        overflow: auto;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-card {
+        flex: 0 0 auto;
+        padding: 13px 14px;
+        border: 1px solid var(--horosa-border);
+        border-radius: 10px;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 62%),
+            var(--horosa-panel-soft);
+        color: var(--horosa-text);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-info-card {
+        background: #ffffff;
+        box-shadow: 0 10px 22px rgba(64, 76, 92, 0.08);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-card h3 {
+        margin: 0 0 10px;
+        color: var(--horosa-gold);
+        font-size: 15px;
+        font-weight: 820;
+        line-height: 1.2;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-card-hero {
+        border-color: rgba(215, 173, 105, 0.28);
+        background:
+            linear-gradient(135deg, rgba(216, 173, 99, 0.16), transparent 48%),
+            var(--horosa-panel-soft);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-info-card-hero {
+        background:
+            linear-gradient(135deg, rgba(248, 204, 118, 0.20), transparent 50%),
+            #ffffff;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-name {
+        margin-bottom: 10px;
+        color: var(--horosa-text);
+        font-size: 19px;
+        font-weight: 860;
+        line-height: 1.25;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px 10px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-pair {
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-pair span,
+    .horosa-workspace-shell .horosa-bazi-info-table-row span,
+    .horosa-workspace-shell .horosa-bazi-info-lines span,
+    .horosa-workspace-shell .horosa-bazi-info-mini-grid span {
+        display: block;
+        color: var(--horosa-muted);
+        font-size: 12px;
+        font-weight: 720;
+        line-height: 1.2;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-pair strong {
+        display: block;
+        overflow-wrap: break-word; overflow-wrap: anywhere;
+        color: var(--horosa-text);
+        font-size: 13px;
+        font-weight: 760;
+        line-height: 1.35;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-table {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-table-row {
+        display: grid;
+        grid-template-columns: 42px 48px minmax(58px, 1fr) minmax(58px, 1fr);
+        gap: 8px;
+        align-items: center;
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-table-row strong {
+        color: var(--horosa-text);
+        font-size: 15px;
+        font-weight: 820;
+        line-height: 1.1;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-table-row em {
+        overflow: hidden;
+        color: var(--horosa-text-soft);
+        font-size: 12px;
+        font-style: normal;
+        font-weight: 650;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-lines {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-lines p {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr);
+        gap: 9px;
+        margin: 0;
+        color: var(--horosa-text);
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.42;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-wuxing-bars {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-wuxing-row {
+        display: grid;
+        grid-template-columns: 20px minmax(0, 1fr) 46px;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-wuxing-label {
+        font-size: 13px;
+        font-weight: 800;
+        text-align: center;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-wuxing-track {
+        position: relative;
+        height: 10px;
+        border-radius: 6px;
+        background: rgba(142, 148, 158, 0.16);
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-wuxing-fill {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        border-radius: 6px;
+        opacity: 0.88;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-wuxing-pct {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--horosa-text);
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-wuxing-verdict {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+        font-size: 13px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-wuxing-verdict span {
+        color: var(--horosa-text-secondary);
+        font-weight: 700;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-wuxing-verdict strong {
+        color: var(--horosa-text);
+        font-size: 15px;
+        font-weight: 800;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-wuxing-verdict em {
+        color: var(--horosa-text-secondary);
+        font-style: normal;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-wuxing-formula {
+        margin-top: 8px;
+        color: var(--horosa-text-secondary);
+        font-size: 11px;
+        line-height: 1.5;
+        opacity: 0.82;
+    }
+
+    /* 三维分列(得令/得地/得势)胶囊行:得=金调、失/不得=弱化;悬浮展开逐维明细 */
+    .horosa-workspace-shell .horosa-bazi-wuxing-dims {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 7px;
+        cursor: help;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-dim-pill {
+        font-size: 11px;
+        line-height: 18px;
+        padding: 0 8px;
+        border-radius: 9px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-dim-pill.is-got {
+        color: var(--horosa-accent);
+        border: 1px solid color-mix(in srgb, var(--horosa-accent) 45%, transparent); @supports not (color: color-mix(in srgb, red, red)) { border: 1px solid rgba(var(--horosa-accent-rgb), 0.45); }
+        background: color-mix(in srgb, var(--horosa-accent) 10%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-accent-rgb), 0.1); }
+    }
+
+    .horosa-workspace-shell .horosa-bazi-dim-pill.is-miss {
+        color: var(--horosa-text-secondary);
+        border: 1px dashed var(--horosa-border);
+        opacity: 0.85;
+    }
+
+    /* 成败救应徽章行:成格金/破格红/败中复成青/待复核灰 */
+    .horosa-workspace-shell .horosa-bazi-chengbai {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin: -2px 0 8px 40px;
+        font-size: 12px;
+        line-height: 1.55;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-chengbai strong {
+        flex: none;
+        font-size: 11px;
+        line-height: 18px;
+        padding: 0 8px;
+        border-radius: 9px;
+        font-weight: 700;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-chengbai span {
+        color: var(--horosa-text-secondary);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-chengbai.is-cheng strong {
+        color: var(--horosa-accent);
+        border: 1px solid color-mix(in srgb, var(--horosa-accent) 45%, transparent); @supports not (color: color-mix(in srgb, red, red)) { border: 1px solid rgba(var(--horosa-accent-rgb), 0.45); }
+        background: color-mix(in srgb, var(--horosa-accent) 10%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-accent-rgb), 0.1); }
+    }
+
+    .horosa-workspace-shell .horosa-bazi-chengbai.is-bai strong {
+        color: var(--horosa-jx-xiong, #c0392b);
+        border: 1px solid color-mix(in srgb, var(--horosa-jx-xiong, #c0392b) 45%, transparent); @supports not (color: color-mix(in srgb, red, red)) { border: 1px solid rgba(var(--horosa-jx-xiong-rgb, 192, 57, 43), 0.45); }
+        background: color-mix(in srgb, var(--horosa-jx-xiong, #c0392b) 9%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-jx-xiong-rgb, 192, 57, 43), 0.09); }
+    }
+
+    .horosa-workspace-shell .horosa-bazi-chengbai.is-jiu strong {
+        color: var(--horosa-jx-ji, #1f8a70);
+        border: 1px solid color-mix(in srgb, var(--horosa-jx-ji, #1f8a70) 45%, transparent); @supports not (color: color-mix(in srgb, red, red)) { border: 1px solid rgba(var(--horosa-jx-ji-rgb, 31, 138, 112), 0.45); }
+        background: color-mix(in srgb, var(--horosa-jx-ji, #1f8a70) 9%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-jx-ji-rgb, 31, 138, 112), 0.09); }
+    }
+
+    .horosa-workspace-shell .horosa-bazi-chengbai.is-hold strong {
+        color: var(--horosa-text-secondary);
+        border: 1px dashed var(--horosa-border);
+    }
+
+    /* 虚邀杂格真假小签 */
+    .horosa-workspace-shell .horosa-bazi-zage-q {
+        font-style: normal;
+        font-size: 10px;
+        line-height: 15px;
+        padding: 0 5px;
+        margin-left: 5px;
+        border-radius: 7px;
+        vertical-align: 1px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-zage-q.is-zhen {
+        color: var(--horosa-accent);
+        border: 1px solid color-mix(in srgb, var(--horosa-accent) 45%, transparent); @supports not (color: color-mix(in srgb, red, red)) { border: 1px solid rgba(var(--horosa-accent-rgb), 0.45); }
+    }
+
+    .horosa-workspace-shell .horosa-bazi-zage-q.is-jia {
+        color: var(--horosa-jx-xiong, #c0392b);
+        border: 1px solid color-mix(in srgb, var(--horosa-jx-xiong, #c0392b) 40%, transparent); @supports not (color: color-mix(in srgb, red, red)) { border: 1px solid rgba(var(--horosa-jx-xiong-rgb, 192, 57, 43), 0.4); }
+        opacity: 0.9;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-zage-q.is-hold {
+        color: var(--horosa-text-secondary);
+        border: 1px dashed var(--horosa-border);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-geju-row {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 7px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-geju-row span {
+        color: var(--horosa-text-secondary);
+        font-size: 12px;
+        font-weight: 700;
+        min-width: 32px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-geju-row strong {
+        color: var(--horosa-text);
+        font-size: 15px;
+        font-weight: 800;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-geju-row em {
+        color: var(--horosa-text-secondary);
+        font-style: normal;
+        font-size: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong {
+        margin-top: 4px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-els {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 2px 0 6px 40px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-xi,
+    .horosa-workspace-shell .horosa-bazi-yong-ji {
+        padding: 3px 9px;
+        border-radius: 7px;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-xi {
+        color: var(--horosa-bazi-wood);
+        border: 1px solid var(--horosa-bazi-wood);
+        background: rgba(35, 122, 69, 0.08);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-ji {
+        color: var(--horosa-bazi-fire);
+        border: 1px solid var(--horosa-bazi-fire);
+        background: rgba(199, 45, 34, 0.08);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-note {
+        margin-left: 40px;
+        color: var(--horosa-text-secondary);
+        font-size: 11px;
+        line-height: 1.5;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-table {
+        margin-top: 8px;
+        border: 1px solid rgba(142, 148, 158, 0.16);
+        border-radius: 9px;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-thead,
+    .horosa-workspace-shell .horosa-bazi-yong-trow {
+        display: grid;
+        grid-template-columns: 86px minmax(0, 1fr) minmax(0, 0.7fr);
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-thead {
+        color: var(--horosa-text-secondary);
+        font-weight: 700;
+        background: rgba(142, 148, 158, 0.07);
+        font-size: 11px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-trow {
+        border-top: 1px solid rgba(142, 148, 158, 0.1);
+        cursor: help;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-trow.is-active {
+        background: rgba(199, 45, 34, 0.06);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-trow.is-active .horosa-bazi-yong-school {
+        color: var(--horosa-bazi-fire);
+        font-weight: 800;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-table .horosa-bazi-yong-xi {
+        color: var(--horosa-bazi-wood);
+        font-weight: 700;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-table .horosa-bazi-yong-ji {
+        color: var(--horosa-text-secondary);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-yong-foot {
+        padding: 5px 10px 7px;
+        color: var(--horosa-text-secondary);
+        font-size: 10px;
+        line-height: 1.5;
+        border-top: 1px solid rgba(142, 148, 158, 0.1);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-mp-tag,
+    .horosa-workspace-shell .horosa-bazi-flow-tag {
+        font-style: normal;
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--horosa-text-secondary);
+        margin-left: 6px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-empty {
+        color: var(--horosa-text-secondary);
+        font-size: 11px;
+        line-height: 1.5;
+    }
+
+    /* 流运神煞行：标签(大运/流年/流月/流日 + 干支)不换行，神煞列表在右侧自然流动 */
+    .horosa-workspace-shell .horosa-bazi-flow-lines p {
+        grid-template-columns: max-content minmax(0, 1fr);
+        align-items: baseline;
+        gap: 10px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-key {
+        white-space: nowrap;
+        color: var(--horosa-text-secondary);
+        font-weight: 700;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-key b {
+        margin-left: 5px;
+        color: var(--horosa-text);
+        font-weight: 800;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-flow-gods {
+        font-weight: 600;
+        line-height: 1.45;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-mp-cells {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+        margin: 8px 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-mp-cell {
+        text-align: center;
+        padding: 6px 4px;
+        border: 1px solid rgba(142, 148, 158, 0.16);
+        border-radius: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-mp-cell.is-zhu {
+        border-color: var(--horosa-bazi-fire);
+        background: rgba(199, 45, 34, 0.05);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-mp-role {
+        display: block;
+        font-size: 10px;
+        color: var(--horosa-text-secondary);
+        font-weight: 700;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-mp-cell strong {
+        display: block;
+        font-size: 16px;
+        margin: 2px 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-mp-cell em {
+        font-style: normal;
+        font-size: 10px;
+        color: var(--horosa-text-secondary);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-mp-head {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--horosa-text-secondary);
+        margin-top: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-mp-gong {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        padding: 3px 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-mp-gong i {
+        font-style: normal;
+        font-size: 10px;
+        padding: 0 5px;
+        border-radius: 6px;
+        background: rgba(142, 148, 158, 0.12);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-mp-gong i.rel-克 { color: var(--horosa-bazi-metal); }
+    .horosa-workspace-shell .horosa-bazi-mp-gong i.rel-生 { color: var(--horosa-bazi-wood); }
+
+    .horosa-workspace-shell .horosa-bazi-mp-empty,
+    .horosa-workspace-shell .horosa-bazi-mp-note {
+        font-size: 11px;
+        color: var(--horosa-text-secondary);
+        line-height: 1.5;
+        margin-top: 6px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-mp-fei {
+        font-size: 11px;
+        color: var(--horosa-text);
+        line-height: 1.5;
+        margin-top: 6px;
+        font-weight: 600;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-bge {
+        margin-top: 10px;
+        padding-top: 9px;
+        border-top: 1px dashed rgba(142, 148, 158, 0.24);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-bge-head {
+        color: var(--horosa-bazi-metal);
+        font-size: 12px;
+        font-weight: 800;
+        margin-bottom: 6px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-bge-item {
+        margin-bottom: 7px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-bge-name {
+        color: var(--horosa-text);
+        font-size: 13px;
+        font-weight: 800;
+        margin-right: 7px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-bge-item em {
+        color: var(--horosa-text-secondary);
+        font-style: normal;
+        font-size: 11px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-bge-yong {
+        color: var(--horosa-text);
+        font-size: 12px;
+        margin-top: 2px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-bge-note {
+        color: var(--horosa-text-secondary);
+        font-size: 11px;
+        line-height: 1.5;
+        margin-top: 1px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fenye-ruler {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 9px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fenye-ruler span {
+        color: var(--horosa-text-secondary);
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fenye-ruler strong {
+        color: var(--horosa-text);
+        font-size: 15px;
+        font-weight: 800;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fenye-ruler em {
+        color: var(--horosa-text-secondary);
+        font-style: normal;
+        font-size: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fenye-segs {
+        display: flex;
+        gap: 7px;
+        flex-wrap: wrap;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fenye-seg {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+        padding: 4px 8px;
+        border: 1px solid rgba(142, 148, 158, 0.18);
+        border-radius: 7px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fenye-seg b {
+        font-weight: 800;
+        color: var(--horosa-text);
+        font-size: 13px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fenye-seg i {
+        font-style: normal;
+        color: var(--horosa-text-secondary);
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fenye-seg.is-active {
+        border-color: var(--horosa-bazi-fire);
+        background: rgba(199, 45, 34, 0.1);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-nayin-zhu {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-nayin-zhu strong {
+        font-weight: 800;
+        font-size: 15px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-nayin-zhu em {
+        font-style: normal;
+        color: var(--horosa-text-secondary);
+        font-size: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-nayin-rows {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-nayin-row {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-nayin-label {
+        min-width: 76px;
+        color: var(--horosa-text-secondary);
+        font-size: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-nayin-row strong {
+        font-weight: 700;
+        font-size: 13px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-nayin-row em {
+        font-style: normal;
+        color: var(--horosa-text-secondary);
+        font-size: 11px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-nayin-chain {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-nayin-chain-label {
+        color: var(--horosa-text-secondary);
+        font-size: 11px;
+        margin-right: 4px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-nayin-chain-seg {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-nayin-chain-seg b {
+        font-weight: 800;
+        font-size: 13px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-nayin-chain-seg i {
+        font-style: normal;
+        font-size: 11px;
+        color: var(--horosa-text-secondary);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-nayin-chain-seg i.rel-我克,
+    .horosa-workspace-shell .horosa-bazi-nayin-chain-seg i.rel-克我 {
+        color: var(--horosa-bazi-metal);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-nayin-chain-seg i.rel-我生,
+    .horosa-workspace-shell .horosa-bazi-nayin-chain-seg i.rel-生我 {
+        color: var(--horosa-bazi-wood);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-ancient {
+        padding: 4px 2px 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-ancient-note {
+        color: var(--horosa-text-secondary);
+        font-size: 12px;
+        line-height: 1.6;
+        margin-bottom: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-anc-table {
+        border: 1px solid rgba(142, 148, 158, 0.16);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-anc-tr {
+        display: grid;
+        grid-template-columns: 66px repeat(5, minmax(0, 1fr));
+        border-bottom: 1px solid rgba(142, 148, 158, 0.12);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-anc-tr:last-child {
+        border-bottom: none;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-anc-th {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 4px;
+        color: var(--horosa-text-secondary);
+        font-size: 12px;
+        font-weight: 700;
+        background: rgba(142, 148, 158, 0.06);
+        border-right: 1px solid rgba(142, 148, 158, 0.12);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-anc-td {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        padding: 8px 6px;
+        min-width: 0;
+        text-align: center;
+        font-size: 13px;
+        border-right: 1px solid rgba(142, 148, 158, 0.08);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-anc-td:last-child {
+        border-right: none;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-anc-td.is-primary {
+        background: rgba(199, 45, 34, 0.05);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-anc-td.is-fifth {
+        background: rgba(142, 148, 158, 0.04);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-anc-head {
+        color: var(--horosa-text);
+        font-size: 13px;
+        font-weight: 800;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-anc-head em {
+        display: block;
+        font-style: normal;
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--horosa-text-secondary);
+        margin-top: 2px;
+        color: var(--horosa-text-secondary);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-anc-glyph {
+        font-size: 26px;
+        font-weight: 800;
+        line-height: 1.05;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-anc-self {
+        color: var(--horosa-bazi-fire);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-anc-hide {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        font-size: 12px;
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-anc-nayin {
+        font-weight: 800;
+        font-size: 13px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-anc-gods {
+        font-size: 11px;
+        color: var(--horosa-text);
+        line-height: 1.5;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-xy-list {
+        padding: 4px 2px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-xy-item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 84px;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 12px;
+        border: 1px solid rgba(142, 148, 158, 0.14);
+        border-radius: 10px;
+        margin-bottom: 8px;
+        transition: border-color 0.15s ease;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-xy-item:hover {
+        border-color: rgba(142, 148, 158, 0.32);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-xy-chip {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        cursor: pointer;
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-xy-chip-label {
+        color: var(--horosa-text-secondary);
+        font-size: 12px;
+        font-weight: 700;
+        flex: none;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-xy-chip-gz b {
+        font-size: 18px;
+        font-weight: 800;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-xy-chip-naying {
+        color: var(--horosa-text-secondary);
+        font-style: normal;
+        font-size: 11px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-xy-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 1px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-xy-year {
+        color: var(--horosa-text);
+        font-weight: 700;
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-xy-age {
+        color: var(--horosa-text-secondary);
+        font-weight: 600;
+        font-size: 11px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-ancient-chain {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: rgba(142, 148, 158, 0.08);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-ancient-chain-label {
+        color: var(--horosa-text-secondary);
+        font-size: 12px;
+        font-weight: 800;
+        margin-right: 4px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-ancient-chain-seg {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-ancient-chain-seg b {
+        font-size: 16px;
+        font-weight: 800;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-ancient-chain-seg em {
+        font-style: normal;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--horosa-text-secondary);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-ancient-chain-seg em.rel-克,
+    .horosa-workspace-shell .horosa-bazi-ancient-chain-seg em.rel-被克 {
+        color: var(--horosa-bazi-fire);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-ancient-chain-seg em.rel-生,
+    .horosa-workspace-shell .horosa-bazi-ancient-chain-seg em.rel-被生 {
+        color: var(--horosa-bazi-wood);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-siling {
+        color: var(--horosa-bazi-fire);
+        font-weight: 900;
+        position: relative;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-fine-siling::after {
+        content: '令';
+        font-size: 9px;
+        vertical-align: super;
+        opacity: 0.8;
+        margin-left: 1px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-mini-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-mini-grid div {
+        min-width: 0;
+        padding: 8px 9px;
+        border: 1px solid rgba(142, 148, 158, 0.13);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.025);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-info-mini-grid div {
+        background: #fbfbfa;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-info-mini-grid strong {
+        display: block;
+        overflow: hidden;
+        margin-top: 3px;
+        color: var(--horosa-text);
+        font-size: 15px;
+        font-weight: 820;
+        line-height: 1.15;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-ui .horosa-bazi-chart-panel {
+        overflow: hidden;
+        background: var(--horosa-surface-solid) !important;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-main {
+        height: 100%;
+        min-height: 0;
+        padding: 26px 32px 34px;
+        overflow: auto;
+        color: var(--horosa-text);
+        background: var(--horosa-surface-solid);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 22px;
+        font-size: 18px;
+        font-weight: 760;
+        line-height: 1.7;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-header span,
+    .horosa-workspace-shell .horosa-bazi-legacy-header strong {
+        margin-right: 10px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-header p {
+        margin: 0;
+        color: var(--horosa-text);
+        font-size: 17px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-header button {
+        flex: 0 0 auto;
+        border: 0;
+        background: transparent;
+        color: #1682f3;
+        font-size: 18px;
+        font-weight: 760;
+        cursor: pointer;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-pillar-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 24px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-pillar {
+        min-width: 0;
+        padding: 0 8px;
+        text-align: center;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-pillar h3 {
+        margin: 0 0 10px;
+        color: var(--horosa-text);
+        font-size: 23px;
+        font-weight: 860;
+        line-height: 1.25;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-pillar-meta {
+        min-height: 27px;
+        color: var(--horosa-text);
+        font-size: 18px;
+        font-weight: 720;
+        line-height: 1.5;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-glyphs {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 116px;
+        margin: 12px 0 18px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-glyphs span {
+        display: block;
+        font-size: 42px;
+        font-weight: 880;
+        line-height: 1;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-pillar-body {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: center;
+        color: var(--horosa-text);
+        font-size: 16px;
+        font-weight: 680;
+        line-height: 1.38;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-line {
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+        max-width: 100%;
+        min-height: 22px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-line span {
+        display: none;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-line strong {
+        max-width: 100%;
+        color: var(--horosa-text);
+        font-weight: 720;
+        overflow-wrap: break-word; overflow-wrap: anywhere;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-pillar-aux .horosa-bazi-legacy-glyphs {
+        min-height: 92px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-pillar-aux .horosa-bazi-legacy-glyphs span:empty {
+        display: none;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-divider {
+        height: 1px;
+        margin: 34px 0 30px;
+        background: var(--horosa-border);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-luck-matrix {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-luck-col {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-luck-head {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 86px;
+        background: var(--horosa-bazi-direct-bg);
+        color: var(--horosa-text);
+        text-align: center;
+        line-height: 1.25;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-luck-head span {
+        font-size: 13px;
+        font-weight: 690;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-luck-head strong {
+        margin: 4px 0;
+        font-size: 20px;
+        font-weight: 780;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-luck-head b {
+        font-size: 26px;
+        font-weight: 860;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-year-chip {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 40px;
+        background: var(--horosa-bazi-year-bg);
+        color: var(--horosa-text);
+        font-size: 18px;
+        font-weight: 780;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-detail-pane {
+        position: relative;
+        min-height: 310px;
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-detail-pane h3 {
+        margin: 0 0 24px;
+        color: var(--horosa-text);
+        font-size: 22px;
+        font-weight: 860;
+        line-height: 1.3;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-detail-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 28px;
+        max-width: calc(100% - 180px);
+        margin-bottom: 26px;
+        font-size: 20px;
+        font-weight: 760;
+        line-height: 1.65;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-detail-grid strong,
+    .horosa-workspace-shell .horosa-bazi-legacy-detail-grid span {
+        display: block;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-year-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px 34px;
+        max-width: calc(100% - 180px);
+        padding-top: 20px;
+        border-top: 1px solid var(--horosa-border);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-year-list div {
+        display: grid;
+        grid-template-columns: 52px minmax(0, 1fr) 60px 58px;
+        gap: 8px;
+        color: var(--horosa-text);
+        font-size: 18px;
+        font-weight: 680;
+        line-height: 1.5;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-side-list {
+        position: absolute;
+        top: 42px;
+        right: 0;
+        width: 148px;
+        padding-left: 16px;
+        border-left: 1px solid var(--horosa-border);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-side-list div {
+        padding: 11px 0;
+        color: var(--horosa-text);
+        font-size: 17px;
+        font-weight: 650;
+        line-height: 1.35;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-side-list .is-active {
+        color: var(--horosa-link);
+        font-weight: 820;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-tabs {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+        padding: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-tabs > .ant-tabs-nav {
+        flex: 0 0 auto;
+        margin: 0 0 10px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-tabs > .ant-tabs-content-holder {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-tabs > .ant-tabs-content-holder > .ant-tabs-content {
+        height: 100%;
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-tabs .ant-tabs-tabpane {
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+        padding: 8px 2px 14px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-overview-adapt {
+        height: 100%;
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-overview-adapt .ant-row > .ant-col-3 {
+        flex: 0 0 33.333333%;
+        max-width: 33.333333%;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-tabs .ant-card,
+    .horosa-workspace-shell .horosa-bazi-legacy-tabs .ant-card-bordered {
+        border-color: var(--horosa-border);
+        background: var(--horosa-panel-soft);
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-tabs .ant-card-head {
+        min-height: 38px;
+        border-bottom-color: var(--horosa-border);
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-tabs .ant-card-head-title,
+    .horosa-workspace-shell .horosa-bazi-legacy-tabs .ant-card-body,
+    .horosa-workspace-shell .horosa-bazi-legacy-tabs .ant-row,
+    .horosa-workspace-shell .horosa-bazi-legacy-tabs .ant-col {
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-direction-sections {
+        display: flex;
+        flex-direction: column;
+        gap: 26px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-direction-title {
+        display: grid;
+        grid-template-columns: minmax(22px, 1fr) auto minmax(22px, 1fr);
+        align-items: center;
+        gap: 18px;
+        margin-bottom: 20px;
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-direction-title span {
+        height: 1px;
+        background: var(--horosa-border);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-direction-title strong {
+        font-size: 22px;
+        font-weight: 860;
+        line-height: 1.2;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-sub-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px 42px;
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-sub-row {
+        display: grid;
+        grid-template-columns: 54px minmax(72px, 1fr) minmax(128px, 1.2fr);
+        gap: 12px;
+        align-items: center;
+        min-height: 30px;
+        color: var(--horosa-text);
+        font-size: 18px;
+        font-weight: 690;
+        line-height: 1.32;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-card-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-card-list section,
+    .horosa-workspace-shell .horosa-bazi-legacy-simple-list > div {
+        padding: 14px 16px;
+        border: 1px solid var(--horosa-border);
+        border-radius: 8px;
+        background: var(--horosa-panel-soft);
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-card-list h3 {
+        margin: 0 0 10px;
+        color: var(--horosa-gold);
+        font-size: 16px;
+        font-weight: 840;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-card-list p,
+    .horosa-workspace-shell .horosa-bazi-legacy-card-list a,
+    .horosa-workspace-shell .horosa-bazi-legacy-simple-list span {
+        display: block;
+        margin: 0 0 6px;
+        color: var(--horosa-text);
+        font-size: 15px;
+        font-weight: 680;
+        line-height: 1.55;
+        overflow-wrap: break-word; overflow-wrap: anywhere;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-simple-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-simple-list strong {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--horosa-gold);
+        font-size: 16px;
+        font-weight: 820;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-legacy-empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 180px;
+        color: var(--horosa-muted);
+        font-size: 15px;
+        font-weight: 720;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-legacy-main,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-legacy-ui .horosa-bazi-chart-panel {
+        background: #ffffff !important;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-legacy-card-list section,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bazi-legacy-simple-list > div {
+        background: #ffffff;
+    }

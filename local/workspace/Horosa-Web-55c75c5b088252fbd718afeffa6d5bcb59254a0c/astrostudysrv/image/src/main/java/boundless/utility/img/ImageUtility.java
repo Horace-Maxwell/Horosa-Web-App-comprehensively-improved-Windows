@@ -15,7 +15,6 @@ import java.awt.font.TextAttribute;
 import java.awt.font.TextLayout;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferByte;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -26,9 +25,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.text.AttributedCharacterIterator;
 import java.text.AttributedString;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -39,15 +36,6 @@ import javax.imageio.stream.ImageOutputStream;
 import javax.imageio.stream.MemoryCacheImageOutputStream;
 
 import org.imgscalr.Scalr;
-import org.opencv.core.CvType;
-import org.opencv.core.KeyPoint;
-import org.opencv.core.Mat;
-import org.opencv.core.MatOfKeyPoint;
-import org.opencv.core.MatOfPoint;
-import org.opencv.core.Rect;
-import org.opencv.core.Scalar;
-import org.opencv.features2d.MSER;
-import org.opencv.imgproc.Imgproc;
 
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
@@ -55,7 +43,6 @@ import com.google.zxing.MultiFormatWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 
-import boundless.console.OSinfo;
 import boundless.io.FileUtility;
 import boundless.log.AppLoggers;
 import boundless.log.QueueLog;
@@ -63,12 +50,10 @@ import boundless.security.SecurityUtility;
 import boundless.types.FileType;
 import boundless.types.OutParameter;
 import boundless.utility.ConvertUtility;
-import boundless.utility.ProcessUtility;
 import boundless.utility.StringUtility;
 
 
 public class ImageUtility {
-	private static boolean initOpenCVFlag = false;
 	// Keep captcha font initialization JVM-safe: built-ins first, classpath fonts are optional.
 	private static Font[] myFonts = new Font[]{
     		new Font("Serif", Font.BOLD, 8),
@@ -79,45 +64,6 @@ public class ImageUtility {
 	
 	public static final String QRCodeTitleSeperator = "__^title^__";
 	
-	static{
-		String os = System.getProperty("os.name");
-		String ver = System.getProperty("os.version");
-		QueueLog.info(CustomOpenCV.logger, "os: {}, {}", os, ver);
-
-		if(OSinfo.isLinux()){
-			ProcessUtility.execute("ldd --version", null, (lines)->{
-				try{
-					String glibc = lines.get(0);
-					String[] parts = StringUtility.splitString(glibc, ' ');
-					double glibcver = ConvertUtility.getValueAsDouble(parts[parts.length-1]);
-					QueueLog.info(CustomOpenCV.logger, "glibc: {}, glibcver:{}", glibc, glibcver);
-					
-					if(glibcver >= 2.17){
-						QueueLog.info(CustomOpenCV.logger, "init opencv ...");
-						initOpenCV();
-					}
-				}catch(Exception e){
-					QueueLog.error(CustomOpenCV.logger, e);
-				}
-			});
-		}else{
-			QueueLog.info(CustomOpenCV.logger, "init opencv ...");
-			initOpenCV();
-		}
-	}
-	
-	public static void initOpenCV(){
-		if(initOpenCVFlag){
-			return;
-		}
-		try{
-			CustomOpenCV.loadLocally();
-			initOpenCVFlag = true;
-		}catch(Throwable e){
-			QueueLog.error(CustomOpenCV.logger, e);
-		}	
-	}
-
 	/**
 	 * 按指定的宽度等比例缩放图片
 	 * @param originalImageFile
@@ -1010,114 +956,6 @@ public class ImageUtility {
 		
 	}
 
-	public static Mat img2Mat(BufferedImage in) {
-        Mat out;
-        byte[] data;
-        int r, g, b;
-
-        if (in.getType() == BufferedImage.TYPE_INT_RGB) {
-            out = new Mat(in.getHeight(), in.getWidth(), CvType.CV_8UC3);
-            data = new byte[in.getWidth() * in.getHeight() * (int) out.elemSize()];
-            int[] dataBuff = in.getRGB(0, 0, in.getWidth(), in.getHeight(), null, 0, in.getWidth());
-            for (int i = 0; i < dataBuff.length; i++) {
-                data[i * 3] = (byte) ((dataBuff[i] >> 0) & 0xFF);
-                data[i * 3 + 1] = (byte) ((dataBuff[i] >> 8) & 0xFF);
-                data[i * 3 + 2] = (byte) ((dataBuff[i] >> 16) & 0xFF);
-            }
-        } else {
-            out = new Mat(in.getHeight(), in.getWidth(), CvType.CV_8UC1);
-            data = new byte[in.getWidth() * in.getHeight() * (int) out.elemSize()];
-            int[] dataBuff = in.getRGB(0, 0, in.getWidth(), in.getHeight(), null, 0, in.getWidth());
-            for (int i = 0; i < dataBuff.length; i++) {
-                r = (byte) ((dataBuff[i] >> 0) & 0xFF);
-                g = (byte) ((dataBuff[i] >> 8) & 0xFF);
-                b = (byte) ((dataBuff[i] >> 16) & 0xFF);
-                data[i] = (byte) ((0.21 * r) + (0.71 * g) + (0.07 * b));
-            }
-        }
-        out.put(0, 0, data);
-        return out;
-    }
-	
-	public static BufferedImage toGray(BufferedImage bi){
-		Mat mat = img2Mat(bi);
-		Mat mGray = new Mat(mat.size(), CvType.CV_8UC4);
-		Imgproc.cvtColor(mat, mGray, Imgproc.COLOR_BGR2GRAY);
-		
-		BufferedImage gray = new BufferedImage(mGray.width(), mGray.height(), BufferedImage.TYPE_BYTE_GRAY);
-		byte[] data = ((DataBufferByte) gray.getRaster().getDataBuffer()).getData();
-		mGray.get(0, 0, data);
-		return gray;
-	}
-	
-	public static List<Mat> detectText(Mat img) {
-		Mat mRgba = img.clone();
-		Mat mGray = new Mat(img.size(), CvType.CV_8UC4);
-		Imgproc.cvtColor(img, mGray, Imgproc.COLOR_BGR2GRAY);// 转化成灰度图
-
-		Scalar CONTOUR_COLOR = new Scalar(255);
-		
-	    MatOfKeyPoint keypoint = new MatOfKeyPoint();
-	    List<KeyPoint> listpoint = new ArrayList<KeyPoint>();
-	    KeyPoint kpoint = new KeyPoint();
-	    Mat mask = Mat.zeros(mGray.size(), CvType.CV_8UC1);
-	    int rectanx1;
-	    int rectany1;
-	    int rectanx2;
-	    int rectany2;
-
-	    Scalar zeos = new Scalar(0, 0, 0);
-	    List<MatOfPoint> contour2 = new ArrayList<MatOfPoint>();
-	    Mat kernel = new Mat(1, 50, CvType.CV_8UC1, Scalar.all(255));
-	    Mat morbyte = new Mat();
-	    Mat hierarchy = new Mat();
-
-	    Rect rectan3 = new Rect();//
-	    int imgsize = mRgba.height() * mRgba.width();
-		//
-	    MSER detector = MSER.create();
-        detector.detect(mGray, keypoint);
-        listpoint = keypoint.toList();
-        //
-        for (int ind = 0; ind < listpoint.size(); ind++) {
-            kpoint = listpoint.get(ind);
-            rectanx1 = (int) (kpoint.pt.x - 0.5 * kpoint.size);
-            rectany1 = (int) (kpoint.pt.y - 0.5 * kpoint.size);
-            rectanx2 = (int) (kpoint.size);
-            rectany2 = (int) (kpoint.size);
-            if (rectanx1 <= 0)
-                rectanx1 = 1;
-            if (rectany1 <= 0)
-                rectany1 = 1;
-            if ((rectanx1 + rectanx2) > mGray.width())
-                rectanx2 = mGray.width() - rectanx1;
-            if ((rectany1 + rectany2) > mGray.height())
-                rectany2 = mGray.height() - rectany1;
-            Rect rectant = new Rect(rectanx1, rectany1, rectanx2, rectany2);
-            Mat roi = new Mat(mask, rectant);
-            roi.setTo(CONTOUR_COLOR);
-        }
-       
-        Imgproc.morphologyEx(mask, morbyte, Imgproc.MORPH_DILATE, kernel);
-        Imgproc.findContours(morbyte, contour2, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_NONE);
-        
-        List<Mat> areas = new LinkedList<Mat>();
-        for (int ind = 0; ind < contour2.size(); ind++) {
-            rectan3 = Imgproc.boundingRect(contour2.get(ind));
-            if(rectan3.area() > 0.5 * imgsize || rectan3.area() < 100 || rectan3.width / rectan3.height < 2) {
-                Mat roi = new Mat(morbyte, rectan3);
-                roi.setTo(zeos);
-            }else{
-            	Imgproc.rectangle(mRgba, rectan3.br(), rectan3.tl(), CONTOUR_COLOR);
-            	Rect rectCrop = new Rect(rectan3.x, rectan3.y, rectan3.width, rectan3.height);
-            	Mat crop = new Mat(mRgba, rectCrop);
-            	areas.add(crop);
-            }
-        }
-		
-		return areas;
-	}
-	
 	public static int getBright(int c){
 		int  r   = (c & 0x00ff0000) >> 16;
 		int  g = (c & 0x0000ff00) >> 8;

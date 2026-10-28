@@ -1,6 +1,7 @@
-// AI 对话·压缩(A5;借鉴 Codex /compact、Claude Code /compact):把压缩点之前的对话压成一段摘要,之后只发「摘要层 + 压缩点之后的消息」。
+// AI 对话·压缩(A5):把压缩点之前的对话压成一段摘要,之后只发「摘要层 + 压缩点之后的消息」。
 // 数据:conversations.compact = { summary, uptoCreatedAt, coveredCount, model, inputHash, at };消息从不删除,取消压缩=清字段即恢复原样。
 // 纯函数:压缩输入组装(工具结果折叠、封顶 24k、增量含前摘要)/ 主线视图 applyCompact / 摘要层(priority 88:资料后·检索前,非 volatile → 落缓存断点之前)。
+import { parseDateTimeMs } from '../dateTimeParse';
 import { foldToolResultContent } from '../aiAgent/protocol';
 
 export const COMPACT_LAYER_KEY = 'compact-summary';
@@ -14,7 +15,7 @@ export const COMPACT_SYSTEM = [
 	'去掉:寒暄、重复、过程性措辞。用要点式,不超过 600 字;不要编造对话里没有的内容;不要输出前言后语。',
 ].join('\n');
 
-// [批二⑧] /compact <指令>:用户附加要求(≤300 字)追加在固定压缩规则之后——优先满足,但不得违背保留清单;空指令 = 与 COMPACT_SYSTEM 逐字相同(缺省零变化)
+// /compact <指令>:用户附加要求(≤300 字)追加在固定压缩规则之后——优先满足,但不得违背保留清单;空指令 = 与 COMPACT_SYSTEM 逐字相同(缺省零变化)
 export const COMPACT_INSTRUCTION_MAX = 300;
 export function buildCompactSystem(instruction){
 	const ins = `${instruction || ''}`.replace(/\s+/g, ' ').trim().slice(0, COMPACT_INSTRUCTION_MAX);
@@ -30,7 +31,7 @@ function hash32(str){
 export function messageTime(m){
 	const c = m && m.createdAt;
 	if(typeof c === 'number'){ return c; }
-	const t = Date.parse(c || '');
+	const t = parseDateTimeMs(c || '');
 	return Number.isFinite(t) ? t : 0;
 }
 
@@ -47,7 +48,7 @@ export function compactLayer(compact){
 	return { key: COMPACT_LAYER_KEY, title: `之前的对话摘要(已压缩 ${compact.coveredCount || 0} 条)`, content: `${compact.summary}`.slice(0, COMPACT_SUMMARY_MAX_CHARS), priority: COMPACT_LAYER_PRIORITY };
 }
 
-// [Q-287/M-102 ④] 压缩输入里每条消息的截断:此前一律走工具折叠的 600 字上限、且只留开头 ——
+// 压缩输入里每条消息的截断:此前一律走工具折叠的 600 字上限、且只留开头 ——
 //   长回答的**结论在末尾**,压缩摘要因此永远看不到结论(用户感觉「压完就忘了刚说定的事」)。
 //   现在:工具结果信封仍按 600 字折叠(它的价值在 code/message/摘要,尾部无意义);
 //   普通正文改「留头 + 留尾」,总量放到 1800 字,中间标注省略了多少。

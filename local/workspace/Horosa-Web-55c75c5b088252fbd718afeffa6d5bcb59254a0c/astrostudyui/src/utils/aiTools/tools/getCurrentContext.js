@@ -26,7 +26,7 @@ export default {
 		const ui = ctxUi(ctx);
 		let analysisSource = null;
 		try{ analysisSource = typeof ui.getSelectedSource === 'function' ? ui.getSelectedSource() : null; }catch(e){ analysisSource = null; }
-		// [批五] 当前路由与可导航的技法页表(navigate_to_technique 的键值域;页面未登记桥时为 null / [])
+		// 当前路由与可导航的技法页表(navigate_to_technique 的键值域;页面未登记桥时为 null / [])
 		let route = null; let routes = [];
 		try{ route = typeof ui.currentRoute === 'function' ? (ui.currentRoute() || null) : null; }catch(e){ route = null; }
 		try{ routes = typeof ui.listRoutes === 'function' ? (ui.listRoutes() || []) : []; }catch(e){ routes = []; }

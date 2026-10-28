@@ -45,6 +45,10 @@ public class AstroHelper {
 		return OuterWrappedPaths;
 	}
 
+	/** 连不上本地排盘引擎的业务码与稳定键(前端 requestFailure.isEngineLinkFailure 认这两个,改动须两边同步)。 */
+	public static final int EngineLinkErrorCode = 200009;
+	public static final String EngineLinkErrorKey = "local.engine.unreachable";
+
 	public static final String AstroSrvUrl = PropertyPlaceholder.getProperty("astrosrv", "http://127.0.0.1:8899");
 	public static final String SolarReturn = PropertyPlaceholder.getProperty("solarreturn", "/predict/solarreturn");
 	public static final String LunarReturn = PropertyPlaceholder.getProperty("lunarreturn", "/predict/lunarreturn");
@@ -109,7 +113,7 @@ public class AstroHelper {
 		return (Map<String, Object>)obj;
 	}
 	
-	// [R5 T5] 请求优先级车道:前端预取请求带 X-Horosa-Priority: prefetch,原样转给排盘引擎(引擎侧让前台请求先拿锁)。
+	// 请求优先级车道:前端预取请求带 X-Horosa-Priority: prefetch,原样转给排盘引擎(引擎侧让前台请求先拿锁)。
 	// 只转这一个头、只认这一个值;缺头 / 其它值 = 前台 = 旧行为。读的是 Servlet 请求对象,不经签名(签名只覆盖三个客户端头 + 正文)。
 	static final String PRIORITY_HEADER = "X-Horosa-Priority";
 
@@ -129,7 +133,12 @@ public class AstroHelper {
 	}
 
 	public static Map<String, Object> requestNoCache(String path, Map<String, Object> params){
-		String url = String.format("%s%s", AstroSrvUrl, path);
+		return requestEngineAt(AstroSrvUrl, path, params);
+	}
+
+	/** [测试缝] 指定引擎根地址发一次不缓存的请求;生产路径只经 requestNoCache(根 = AstroSrvUrl)。 */
+	static Map<String, Object> requestEngineAt(String engineRoot, String path, Map<String, Object> params){
+		String url = String.format("%s%s", engineRoot, path);
 		String jsonData = JsonUtility.encode(params);
 		Map<String, String> headers = new HashMap<String, String>();
 		String prio = priorityHeaderToForward();
@@ -137,7 +146,17 @@ public class AstroHelper {
 			headers.put(PRIORITY_HEADER, prio);
 		}
 		Map<String, String> respHeadMap = new HashMap<String, String>();
-		String str = HttpClientUtility.uploadString(url, headers, "application/json; charset=UTF-8", jsonData, respHeadMap);
+		String str;
+		try{
+			str = HttpClientUtility.uploadString(url, headers, "application/json; charset=UTF-8", jsonData, respHeadMap);
+		}catch(RuntimeException e){
+			// 连不上本地排盘引擎(连接被拒 / 被代理拦截 / 连接超时)→ 固定业务码 + 稳定键,前端据此给可见提示
+			// (哪怕是不弹错的后台请求);原异常作 cause 留在日志里。读超时 / HTTP 错误等不在此列,原样上抛。
+			if(HttpClientUtility.isConnectFailure(e)){
+				throw new ErrorCodeException(EngineLinkErrorCode, EngineLinkErrorKey, e);
+			}
+			throw e;
+		}
 		Map<String, Object> jsonres = JsonUtility.toDictionary(str);
 		if(jsonres.containsKey("err")) {
 			throw new ErrorCodeException(200001, jsonres.get("err").toString());
@@ -218,6 +237,9 @@ public class AstroHelper {
 
 	
 	public static Map<String, Object> getRelativeChart(Map<String, Object> params){
+		// 合盘参数代次盐:组合盘宫制由「恒整宫」改为按所选宫制取中点(并带宫制说明字段),
+		// 旧缓存键必须整体失效,否则升级后同 body 命中旧的整宫响应。今后合盘链语义变更时升盐。
+		params.put("_v", "r2");
 		return request(RelativeChart, params);
 	}
 	
@@ -278,7 +300,7 @@ public class AstroHelper {
 	}
 
 	public static Map<String, Object> getAstroExtraAnalysis(Map<String, Object> params){
-		// [SURF-1] 古典设置接入 analysis 的代次盐:白名单扩键+Python 临界区接活后,
+		// 古典设置接入 analysis 的代次盐:白名单扩键+Python 临界区接活后,
 		// 旧 paramhash 磁盘缓存(不含古典键维度)必须整体失效,否则改档命中旧响应。
 		params.put("_v", "cls1");
 		return request(AstroExtraAnalysis, params);

@@ -38,3 +38,25 @@ describe('buildSmallYears · 小运柱干支源(Java/前端两结构)', () => {
 		years.forEach((y)=>{ expect(y.pillar.ganzi.length).toBe(2); }); // yearGanzi(year) 兜底,干支两字
 	});
 });
+
+describe('大运流年紧凑面板:窗口小 / 缩放大时各排不被压到内容以下', () => {
+	// 此前各排平分高度、最小 48px,面板 overflow:hidden:空间不够时每排被压到内容以下、最后一排被截;
+	// 横向滚动条又在小窗下从格子里扣高度(WebKit 不把后出现的横向滚动条补进条带高度)
+	const path = require('path');
+	const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');
+	const css = readSource(path.join(__dirname, '../../../layouts/app.less'));
+	const ruleOf = (sel) => {
+		const i = css.indexOf(`${sel} {`);
+		expect(i).toBeGreaterThanOrEqual(0);
+		return css.slice(i, css.indexOf('}', i));
+	};
+	it('面板:各排不小于内容、放不下时纵向滚动', () => {
+		const body = ruleOf('.horosa-workspace-shell .horosa-bazi-flow-panel-compact');
+		expect(body).toMatch(/grid-auto-rows:\s*minmax\(min-content,\s*1fr\);/);
+		expect(body).toMatch(/overflow-y:\s*auto;/);
+	});
+	it('横向条带不占高度的滚动条已隐藏', () => {
+		expect(ruleOf('.horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-axis')).toMatch(/scrollbar-width:\s*none;/);
+		expect(ruleOf('.horosa-workspace-shell .horosa-bazi-flow-panel-compact .horosa-bazi-flow-axis::-webkit-scrollbar')).toMatch(/display:\s*none;/);
+	});
+});

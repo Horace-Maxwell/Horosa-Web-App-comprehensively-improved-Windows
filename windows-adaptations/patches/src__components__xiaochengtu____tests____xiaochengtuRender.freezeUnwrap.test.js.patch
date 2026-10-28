@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/xiaochengtu/__tests__/xiaochengtuRender.test.js b/astrostudyui/src/components/xiaochengtu/__tests__/xiaochengtuRender.test.js
-index d3b0ca82..78c1dc59 100644
+index e14ee8f6..71faeb83 100644
 --- a/astrostudyui/src/components/xiaochengtu/__tests__/xiaochengtuRender.test.js
 +++ b/astrostudyui/src/components/xiaochengtu/__tests__/xiaochengtuRender.test.js
 @@ -63,7 +63,18 @@ describe('小成图 · 渲染冒烟', ()=>{

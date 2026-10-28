@@ -63,4 +63,25 @@ describe('schedule_task', ()=>{
 		await new Promise((res)=>setTimeout(res, 10));
 		expect((await getTask(r.data.taskId)).status).toBe('cancelled');
 	});
+	it('🔴 外部客户端排的定时任务先暂停(不进到点运行的队列),回包说明要用户点「继续」;用户继续后进入排期;生效前可撤销', async ()=>{
+		setSchedulerEnabled(true);
+		bindTaskCenter();
+		registerBuiltinTools();
+		const r = await runTool('schedule_task', { kind: 'daily-brief', schedule: { type: 'daily', time: '08:00' } }, { origin: 'mcp', requestId: 'mcp-1', clientName: 'codex' });
+		expect(r.ok).toBe(true);
+		expect(r.data.status).toBe('paused');
+		expect(r.data.awaitingUserStart).toBe(true);
+		expect(r.message).toContain('继续');
+		expect(r.summary).toContain('暂停');
+		expect((await listTasks({ status: ['scheduled'], kind: 'scheduled' })).length).toBe(0);   // 心跳只取 scheduled → 不会到点自动跑
+		const { resumeScheduledTask } = require('../aiAgent/tasks/scheduler');
+		const resumed = await resumeScheduledTask(r.data.taskId);
+		expect(resumed.status).toBe('scheduled');
+		expect(Date.parse(resumed.nextRunAt)).toBeGreaterThan(Date.now());
+		const r2 = await runTool('schedule_task', { kind: 'daily-brief', schedule: { type: 'daily', time: '09:00' } }, { origin: 'mcp', requestId: 'mcp-2' });
+		const act = listActions().find((a)=>a.tool === 'schedule_task' && a.undo.payload.taskId === r2.data.taskId);
+		expect(undoAction(act.id).ok).toBe(true);
+		await new Promise((res)=>setTimeout(res, 10));
+		expect((await getTask(r2.data.taskId)).status).toBe('cancelled');
+	});
 });

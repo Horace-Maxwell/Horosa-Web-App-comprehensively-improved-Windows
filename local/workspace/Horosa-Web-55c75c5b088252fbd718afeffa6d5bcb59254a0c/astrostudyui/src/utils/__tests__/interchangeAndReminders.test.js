@@ -1,9 +1,9 @@
-// [V5-D15/D16/D17] 提醒/互换导入/双轨导出 闸。
+// 提醒/互换导入/双轨导出 闸。
 import { parseCsvCharts, parseQckCharts, parseAafCharts, recordsToNdjson, recordsToMarkdown } from '../interchangeFormats';
 import { upcomingBirthdays, remindersEnabled, setRemindersEnabled } from '../upcomingReminders';
 import { upsertLocalChart, listLocalCharts, importLocalChartsBackup } from '../localcharts';
 
-describe('[V5-D16] 互换导入解析(候选记录零写库;坏行如实上报)', ()=>{
+describe('互换导入解析(候选记录零写库;坏行如实上报)', ()=>{
 	it('🔴 CSV 模板:带/不带表头都收;缺列坏行报错跳过不炸', ()=>{
 		const { records, errors } = parseCsvCharts('姓名,性别,生辰,时区,纬度,经度,地点\n甲,男,1990-01-01 08:00,+08:00,39n54,116e23,北京\n乙,女,1991-02-02 09:30,,,,\n坏行没生辰,,,,,,\n丙,,1992-13-99,,,,');
 		expect(records.length).toBe(2);
@@ -35,7 +35,7 @@ describe('[V5-D16] 互换导入解析(候选记录零写库;坏行如实上报)'
 	});
 });
 
-describe('[V5-D17] 双轨导出', ()=>{
+describe('双轨导出', ()=>{
 	it('NDJSON 一行一条可回导;Markdown 含档案要素与不可回导标注', ()=>{
 		window.localStorage.clear();
 		upsertLocalChart({ cid: 'local-x-1', name: '戊', birth: '1994-01-01 08:00:00', zone: '+08:00', memo: '要点', rodden: 'AA', sourceNote: '出生证', journal: [{ at: '2026-08-14 10:00', text: '首断' }] });
@@ -51,7 +51,7 @@ describe('[V5-D17] 双轨导出', ()=>{
 	});
 });
 
-describe('[V5-D15] 生日/整寿提醒(默认关,可开关)', ()=>{
+describe('生日/整寿提醒(默认关,可开关)', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});

@@ -1,7 +1,8 @@
-// AI 助手·定时任务调度器(P3;借鉴 Claude Cowork / ChatGPT 定时任务):壳侧只做 60 秒哑心跳(window.__horosaSchedulerTick),
+// AI 助手·定时任务调度器(P3):壳侧只做 60 秒哑心跳(window.__horosaSchedulerTick),
 // 调度大脑在页面——每跳:总开关+子开关都开才动 → 记 lastTickAt → 找到点任务 → 错过判定(skip/catch-up)→ 串行只跑一个(其余下一跳)。
 // 缺省关=零定时器零执行;应用没开的时段不会有心跳,下次打开按任务的 missedPolicy 跳过或补跑一次(只补最近一次)。
 // 🔴 不得静态 import taskKinds/goalRunner(goalRunner → runtime → aiTools/index → schedule_task 工具 → 本层 成环);跑任务时惰性载入。
+import { parseDateTimeMs } from '../../dateTimeParse';
 import { safeLocalStorageGet, safeLocalStorageSet, safeLocalStorageRemove } from '../../safeStorage';
 import { isDesktopBridgeAvailable } from '../../aiAnalysisDesktop';
 import { isAgentEnabled, isSchedulerEnabled } from '../prefs';
@@ -13,9 +14,9 @@ import { withTimeout } from '../withTimeout';
 import { reportBackgroundFailure } from '../bgSink';
 
 export const SCHEDULER_LAST_TICK_KEY = 'horosa.ai.tasks.scheduler.lastTickAt';   // 本机上次心跳(毫秒);device-local 不备份
-export const SCHEDULER_LEASE_KEY = 'horosa.ai.tasks.scheduler.lease';   // [S1] 本机跳租约 {owner,until}:多窗口同时起跳只有租约主进执行体;device-local 不备份
+export const SCHEDULER_LEASE_KEY = 'horosa.ai.tasks.scheduler.lease';   // 本机跳租约 {owner,until}:多窗口同时起跳只有租约主进执行体;device-local 不备份
 export const SCHEDULER_TICK_INTERVAL_MS = 60 * 1000;
-export const SCHEDULER_PENDING_MAX = 1;   // 页面未绑定期间壳侧只留最新一跳(与 main.rs scheduler_tick_script 的 q.length>1 同构)
+export const SCHEDULER_PENDING_MAX = 1;   // 页面未绑定期间壳侧只留最新一跳(与壳 agent_bridge.rs scheduler_tick_script 的 q.length>1 同构)
 let ticking = false;
 let browserTimer = null;
 // 本窗口身份 = taskRegistry.WINDOW_ID(同一标签页刷新保持;新标签页各一枚)
@@ -35,7 +36,7 @@ function releaseLease(){
 	const cur = readLease();
 	if(cur && cur.owner === TAB_ID){ safeLocalStorageRemove(SCHEDULER_LEASE_KEY); }
 }
-// [S2] 一跳预算:显式 hopTimeoutMs > 任务预算 maxWallMinutes > 缺省预算
+// 一跳预算:显式 hopTimeoutMs > 任务预算 maxWallMinutes > 缺省预算
 function hopTimeoutOf(task, o){
 	const explicit = Number(o && o.hopTimeoutMs);
 	if(Number.isFinite(explicit) && explicit > 0){ return explicit; }
@@ -43,8 +44,9 @@ function hopTimeoutOf(task, o){
 	return Math.max(1000, minutes * 60000);
 }
 
-function fmt(at){
-	const d = at ? new Date(at) : null;
+// 任务时刻的短格式「月-日 时:分」(任务日志与任务中心同一写法);读不出 = 空串
+export function formatTaskTime(at){
+	const d = at ? new Date(parseDateTimeMs(at)) : null;
 	if(!d || Number.isNaN(d.getTime())){ return ''; }
 	const p = (n)=>(n < 10 ? '0' : '') + n;
 	return `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
@@ -60,8 +62,8 @@ export function schedulerGatesOpen(){ return isAgentEnabled() && isSchedulerEnab
 // 到点任务:已排期 + nextRunAt ≤ now,按到点先后排序(纯函数,便于合同测试)
 export function dueTasks(tasks, now){
 	const t = now instanceof Date ? now.getTime() : Number(now || Date.now());
-	return (tasks || []).filter((x)=>x && x.kind === 'scheduled' && x.status === 'scheduled' && x.nextRunAt && Date.parse(x.nextRunAt) <= t)
-		.sort((a, b)=>Date.parse(a.nextRunAt) - Date.parse(b.nextRunAt));
+	return (tasks || []).filter((x)=>x && x.kind === 'scheduled' && x.status === 'scheduled' && x.nextRunAt && parseDateTimeMs(x.nextRunAt) <= t)
+		.sort((a, b)=>parseDateTimeMs(a.nextRunAt) - parseDateTimeMs(b.nextRunAt));
 }
 
 async function defaultRunner(task, ctx){
@@ -70,9 +72,9 @@ async function defaultRunner(task, ctx){
 }
 
 // 跑一个定时任务(到点/补跑/手动):scheduled → running → 回 scheduled(还有下次)| done(once)| failed(失败且无下次)
-// [S1] scheduled→running 走 patchTaskIf 单事务 CAS:两个窗口抢同一到点任务只有一个赢家,抢输回 null(不跑、不记日志)。
-// [S2] 一跳带超时(hopTimeoutOf):执行体挂死 → 到点按失败收口并中止它的信号,ticking 一定释放。
-// [S4] 一跳一个 AbortController 登记进 taskRegistry:用户取消 → 执行体的 ctx.signal 立刻 aborted。
+// scheduled→running 走 patchTaskIf 单事务 CAS:两个窗口抢同一到点任务只有一个赢家,抢输回 null(不跑、不记日志)。
+// 一跳带超时(hopTimeoutOf):执行体挂死 → 到点按失败收口并中止它的信号,ticking 一定释放。
+// 一跳一个 AbortController 登记进 taskRegistry:用户取消 → 执行体的 ctx.signal 立刻 aborted。
 export async function executeScheduledTask(task, opts){
 	const o = opts || {};
 	const now = o.now instanceof Date ? o.now : new Date();
@@ -80,7 +82,7 @@ export async function executeScheduledTask(task, opts){
 	const claim = await patchTaskIf(task.id, { status: 'running', lastRunAt: now.toISOString(), runner: runnerStamp() }, { ifStatus: ['scheduled'] });
 	if(!claim.ok){ return null; }
 	let t = claim.task;
-	// [S46] 跳内心跳:另一窗口启动对账时据此知道这条是活的(不把它标成中断)
+	// 跳内心跳:另一窗口启动对账时据此知道这条是活的(不把它标成中断)
 	const beat = setInterval(()=>{ heartbeatTask(task.id).catch((e)=>reportBackgroundFailure('scheduler.heartbeat', e)); }, RUNNER_HEARTBEAT_MS);
 	await appendLog(task.id, `定时运行(${trigger === 'catch-up' ? '补跑' : (trigger === 'manual' ? '手动' : '到点')})`);
 	const run = typeof o.runner === 'function' ? o.runner : defaultRunner;
@@ -110,12 +112,12 @@ export async function executeScheduledTask(task, opts){
 // 一跳:门关=零动作;记心跳;到点任务按错过策略处理;每跳只跑一个
 export async function runSchedulerTick(opts){
 	const o = opts || {};
-	const now = o.now instanceof Date ? o.now : (o.now ? new Date(o.now) : new Date());
+	const now = o.now instanceof Date ? o.now : (o.now ? new Date(parseDateTimeMs(o.now)) : new Date());
 	const out = { enabled: false, due: 0, ran: 0, skipped: 0, busy: false };
 	if(!(o.force || schedulerGatesOpen())){ return out; }
 	out.enabled = true;
 	if(ticking){ out.busy = true; return out; }
-	// [S1] 跨窗口租约:另一窗口正在跳(且租约未过期)→ 本跳让位
+	// 跨窗口租约:另一窗口正在跳(且租约未过期)→ 本跳让位
 	if(!acquireLease(now.getTime(), Number(o.hopTimeoutMs) > 0 ? Number(o.hopTimeoutMs) : DEFAULT_TASK_BUDGET.maxWallMinutes * 60000)){ out.busy = true; return out; }
 	ticking = true;
 	try{
@@ -131,7 +133,7 @@ export async function runSchedulerTick(opts){
 				// eslint-disable-next-line no-await-in-loop
 				await patchTask(t.id, { nextRunAt: next, ...(next ? {} : { status: 'done', result: { ok: true, summary: '错过且不补跑(仅一次)', at: now.toISOString() } }) });
 				// eslint-disable-next-line no-await-in-loop
-				await appendLog(t.id, `错过 ${fmt(t.nextRunAt)} 的运行(当时应用未开),按策略跳过${next ? `,下次 ${fmt(next)}` : ''}`);
+				await appendLog(t.id, `错过 ${formatTaskTime(t.nextRunAt)} 的运行(当时应用未开),按策略跳过${next ? `,下次 ${formatTaskTime(next)}` : ''}`);
 				out.skipped += 1;
 				continue;
 			}
@@ -169,7 +171,7 @@ export async function resumeScheduledTask(taskId){
 	if(!t || ['paused', 'interrupted'].indexOf(t.status) < 0){ return null; }
 	const next = computeNextRun(t.spec && t.spec.schedule, new Date());
 	if(!next){ return patchTask(taskId, { status: 'done', result: { ok: true, summary: '排期已过期(仅一次)', at: new Date().toISOString() } }); }
-	await appendLog(taskId, `继续:${describeSchedule(t.spec && t.spec.schedule)},下次 ${fmt(next)}`);
+	await appendLog(taskId, `继续:${describeSchedule(t.spec && t.spec.schedule)},下次 ${formatTaskTime(next)}`);
 	return patchTask(taskId, { status: 'scheduled', nextRunAt: next });
 }
 
@@ -190,7 +192,7 @@ export function bindSchedulerTicks(options){
 	return true;
 }
 
-// [D81] 非桌面 60 秒兜底定时器此前没有生产解绑出口(布局层卸载后仍跑);幂等,桌面壳下只拆回调
+// 非桌面 60 秒兜底定时器此前没有生产解绑出口(布局层卸载后仍跑);幂等,桌面壳下只拆回调
 export function unbindSchedulerTicks(){
 	if(browserTimer){ clearInterval(browserTimer); browserTimer = null; }
 	if(typeof window !== 'undefined'){ try{ delete window.__horosaSchedulerTick; }catch(e){ /* noop: delete 失败改赋 undefined */ window.__horosaSchedulerTick = undefined; } }

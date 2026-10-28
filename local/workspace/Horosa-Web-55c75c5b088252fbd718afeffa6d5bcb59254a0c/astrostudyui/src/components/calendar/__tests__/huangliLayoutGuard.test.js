@@ -7,9 +7,10 @@
 // 本套件锚死这两个前提;判别向量已自证:把 '100%' 改回 {height} 时锚 A 必红。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '..', '..', '..');
-const read = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel) => readSource(path.join(SRC, rel));
 
 describe('黄历月历高度链(六周月末行裁切防回归)', () => {
 	it("🔴 锚A:HuangLiMain 传给 <NongLi 的必须是 height='100%'(禁回外框数字)", () => {

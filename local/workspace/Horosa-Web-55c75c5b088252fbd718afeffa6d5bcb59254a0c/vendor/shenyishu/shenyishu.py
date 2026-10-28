@@ -349,7 +349,7 @@ class Shenyishu():
         yTG = Gan[self.cdate.getYearGZ().tg] + Zhi[self.cdate.getYearGZ().dz]
         mTG = Gan[self.cdate.getMonthGZ().tg] + Zhi[self.cdate.getMonthGZ().dz]
         dTG = Gan[self.cdate.getDayGZ().tg] + Zhi[self.cdate.getDayGZ().dz]
-        # 時柱跨日:[Q-310/T-291] 23 时时柱改走全域权威 extreme_pillars(after23/hour_gan_next 四组合口径与八字/主链一致)。
+        # 時柱跨日:23 时时柱改走全域权威 extreme_pillars(after23/hour_gan_next 四组合口径与八字/主链一致)。
         #   旧路径先把「起时所用日」换成次日再调 sxtwl getHourGZ(23),而该库对 23 点本身已按次日干起子 → 进位两次
         #   (1990-05-18 23:30 得丙子,应甲子);[X1] 的 lateZi=0 分支亦以已进位的 cdate 取子时干,after23=1 时同样错。
         #   非 23 时 sxtwl 原路径字节不变。

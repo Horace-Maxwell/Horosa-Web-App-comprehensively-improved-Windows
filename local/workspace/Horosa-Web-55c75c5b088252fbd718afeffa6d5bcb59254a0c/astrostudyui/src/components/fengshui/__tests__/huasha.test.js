@@ -97,7 +97,7 @@ describe('气煞 · 日课类', ()=>{
 		const r2 = huasha({ xiangShan: '午', yun: 8, year: 2013, zuoShanForRike: '子' });
 		expect(r2.qiShaRike.find((x)=>x.key === 'suipo').zuoHit).toBe(false);
 		expect(r2.qiShaRike.find((x)=>x.key === 'suipo').detail).toMatch(/不犯岁破/);
-		// [Q-221/T-183·FT-17] zuoHit 进总断与快照:犯 → 总断转凶并前置一句;不犯 / 未登记 → 总断不变(此前 zuoHit 全仓无读者)
+		// zuoHit 进总断与快照:犯 → 总断转凶并前置一句;不犯 / 未登记 → 总断不变(此前 zuoHit 全仓无读者)
 		expect(r.zuoSuiPo).toBe(true);
 		expect(r.verdict.jx).toBe('bad');
 		expect(r.verdict.text).toMatch(/^坐山亥正犯岁破/);

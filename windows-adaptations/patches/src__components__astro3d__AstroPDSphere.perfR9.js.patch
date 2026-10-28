@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/astro3d/AstroPDSphere.js b/astrostudyui/src/components/astro3d/AstroPDSphere.js
-index 3aefe6a1..c3add95f 100644
+index 4595c62c..7453b800 100644
 --- a/astrostudyui/src/components/astro3d/AstroPDSphere.js
 +++ b/astrostudyui/src/components/astro3d/AstroPDSphere.js
-@@ -177,6 +177,21 @@ function computeReqKey(req){
+@@ -180,6 +180,21 @@ function computeReqKey(req){
  	}
  }
  
@@ -21,10 +21,10 @@ index 3aefe6a1..c3add95f 100644
 +	return true;
 +}
 +
- class AstroPDSphere extends Component{
+ // 表行不出自当前命主时给的空表(同一个引用)
+ const NO_PD_ROWS = Object.freeze([]);
  
- 	constructor(props){
-@@ -229,6 +244,18 @@ class AstroPDSphere extends Component{
+@@ -235,6 +250,18 @@ class AstroPDSphere extends Component{
  		this.setTlZoom = this.setTlZoom.bind(this);
  	}
  
@@ -42,4 +42,4 @@ index 3aefe6a1..c3add95f 100644
 +
  	componentDidMount(){
  		this.unmounted = false;
- 		// [WP-B] 「播完回位」checkbox 与引擎行为同源 localStorage,挂载时同步显示态(引擎在播放时直读该键)。
+ 		// 「播完回位」checkbox 与引擎行为同源 localStorage,挂载时同步显示态(引擎在播放时直读该键)。

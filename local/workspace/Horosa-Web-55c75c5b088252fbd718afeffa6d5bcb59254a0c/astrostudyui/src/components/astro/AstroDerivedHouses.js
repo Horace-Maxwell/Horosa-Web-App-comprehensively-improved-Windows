@@ -1,13 +1,11 @@
 // G19 派生宫 / 转宫(希腊化占星·整宫制):以第 b 宫为第 1 宫,重派十二宫话题。
 // 纯前端派生,嵌本命「古典」tab;读 chartObj.chart.houses + objects[].house;不改主盘。中性表述。
 import { Component } from 'react';
-import { astroSymbol, SmallTable } from './AstroExtraCommon';
-import { SIGNS } from '../../divination/data/signs';
+import { astroSymbol, SmallTable, signCnName as sn } from './AstroExtraCommon';
 import { chartIdOfKey } from '../../utils/dispositorChain';
 // 派生核心 deriveDerivedHouseRows 住 utils/astroClassicalDerived 单源(AI 快照 [古典·派生宫转宫] 段同引)。
 import { deriveDerivedHouseRows } from '../../utils/astroClassicalDerived';
 
-const sn = (s) => (SIGNS[s] && SIGNS[s].cn) || s || '-';
 const symKey = (k) => astroSymbol(chartIdOfKey(k) || k);
 // 快捷基准:以哪个原宫作第 1 宫。
 const PRESETS = [{ b: 1, label: '本命(命1)' }, { b: 4, label: '父母(田4)' }, { b: 7, label: '伴侣(夫7)' }, { b: 5, label: '子女(子5)' }, { b: 10, label: '事业(官10)' }];

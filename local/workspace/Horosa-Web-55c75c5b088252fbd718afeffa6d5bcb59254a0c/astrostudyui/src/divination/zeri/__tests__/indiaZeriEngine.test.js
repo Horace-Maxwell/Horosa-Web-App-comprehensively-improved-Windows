@@ -1,4 +1,4 @@
-// [Z8·印度择日] 前端注册表金标(远端判定形——判定逻辑在 astropy india_election_scan,
+// 前端注册表金标(远端判定形——判定逻辑在 astropy india_election_scan,
 // pytest 金标 9 例看守;此处守前后端契约面):
 // ①类型键集与后端 CONDITION_TYPES 逐键成对(直读 py 文件正则抽——后端加叶前端未接=红)
 // ②判定表 py↔js 逐值 diff(guolao_const↔guolaoData 关键四表——[184] 升级形,两侧任一改=红)
@@ -6,11 +6,12 @@
 import fs from 'fs';
 import path from 'path';
 import { INDIA_CONDITION_TYPES, newIndiaLeaf, newIndiaGroup, indiaLeafSummary, compileIndiaTree, IN_NAK27 } from '../indiaZeriConditionTypes';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const PY_ROOT = path.join(__dirname, '..', '..', '..', '..', '..', 'astropy', 'astrostudy');
 const readPy = (f)=>fs.readFileSync(path.join(PY_ROOT, f), 'utf8');
 
-describe('[Z8] 🔴 前后端契约对拍', ()=>{
+describe('🔴 前后端契约对拍', ()=>{
 	it('🔴 类型键集 ≡ 后端 CONDITION_TYPES(py 文件直读;后端加叶前端未接=红)', ()=>{
 		const py = readPy('india_election_scan.py');
 		const m = py.match(/CONDITION_TYPES = \{([\s\S]*?)\n\}/);
@@ -20,7 +21,7 @@ describe('[Z8] 🔴 前后端契约对拍', ()=>{
 	});
 
 	it('🔴 27 宿名表与 IndiaChartMain.NAKSHATRAS 同序同名(值域同源)', ()=>{
-		const main = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'components', 'astro', 'IndiaChartMain.js'), 'utf8');
+		const main = readSource(path.join(__dirname, '..', '..', '..', 'components', 'astro', 'IndiaChartMain.js'));
 		IN_NAK27.forEach((n)=>{
 			expect(main).toContain(`['${n}',`);
 		});
@@ -36,7 +37,7 @@ describe('[Z8] 🔴 前后端契约对拍', ()=>{
 	});
 });
 
-describe('[Z8] 注册表契约+编译', ()=>{
+describe('注册表契约+编译', ()=>{
 	it('每类 spec 契约齐(≥10 类;远端形 evaluate 缺省合法)', ()=>{
 		const keys = Object.keys(INDIA_CONDITION_TYPES);
 		expect(keys.length).toBeGreaterThanOrEqual(11);

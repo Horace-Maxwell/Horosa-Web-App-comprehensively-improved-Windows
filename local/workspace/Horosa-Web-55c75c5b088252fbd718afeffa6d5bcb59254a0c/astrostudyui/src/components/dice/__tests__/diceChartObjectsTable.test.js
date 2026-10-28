@@ -48,7 +48,7 @@ describe('骰子占 星体行表化 · 数值不变证明', () => {
 	it('星体行已 GFM 表化', () => { expect(build()).toMatch(/\| --- \|/); });
 });
 
-// [Q-455/T-418] 逆行列 + 两盘相位段。
+// 逆行列 + 两盘相位段。
 import { buildChartAspectLines } from '../DiceMain';
 describe('骰子占 · 逆行标记与相位(Q-455)', () => {
 	it('lonspeed<0 的星在「逆行」列标「逆」,其余 —;无速度字段(基线夹具)输出事实集不变', () => {

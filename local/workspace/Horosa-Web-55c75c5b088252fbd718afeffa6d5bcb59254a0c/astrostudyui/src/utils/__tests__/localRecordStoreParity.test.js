@@ -1,4 +1,4 @@
-// 🔴 [S0] 命盘/事盘存储层「字节金标」—— 内核收编(S1..S9)每一步的零回归审阅面。
+// 🔴 命盘/事盘存储层「字节金标」—— 内核收编(S1..S9)每一步的零回归审阅面。
 //
 // 判据:固定输入序列(显式 cid + preserveUpdateTime + 固定 updateTime,绕开 nowStr/随机 cid)
 // 写入后,两个 localStorage 键的**原始字符串**必须与 golden 逐字节相等。
@@ -47,7 +47,7 @@ function seedCases(){
 	});
 }
 
-describe('[S0] 存储层字节金标', ()=>{
+describe('存储层字节金标', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});

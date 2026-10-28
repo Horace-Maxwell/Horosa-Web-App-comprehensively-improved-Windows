@@ -1,5 +1,5 @@
 // 命令面板与执行(A3)合同:ComposerAssist 用 capture 阶段原生 keydown 拦 ↑↓/Enter/Tab/Esc(菜单开时)与 Enter(输入是完整命令时),IME 组合期不拦,非命令不拦;
-// useChatAssist.interceptSend:命令 → 执行并吞掉发送(handleSend 收到渲染后的模板与口径指令);非命令 → false;/goal 门未开只提示;/合盘 找对方并带合盘数据。
+// useChatAssist.interceptSend:命令 → 执行并吞掉发送(handleSend 收到渲染后的模板与口径指令);非命令 → false;/goal 门未开只提示;/合盘 找对方并挂为合盘对方(西洋合盘数据不再塞进本轮附加层,由拼上下文时按「这一对」附进会话层,见 aiChatPairMount)。
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { act } from 'react-dom/test-utils';
@@ -8,6 +8,7 @@ import { useChatAssist } from '../../components/aianalysis/chat/useChatAssist';
 import { listCommandItems } from '../aiChat/commands';
 import { setAgentEnabled, setGoalEnabled } from '../aiAgent/prefs';
 import { writePersona } from '../aiChat/persona';
+import { writePersonaLayer } from '../aiChat/personaLayers';
 
 jest.mock('../aiAnalysisContext', ()=>({ ...jest.requireActual('../aiAnalysisContext'), buildRelativeSnapshotForRecords: jest.fn(async ()=>'【两盘】张三×李四 合盘快照') }));
 jest.mock('../aiAgent/goalRunner', ()=>({ createGoalTask: jest.fn(async ({ goal })=>({ id: 't1', title: goal })) }));
@@ -35,7 +36,7 @@ describe('ComposerAssist 键盘', ()=>{
 		const first = host.querySelector('[role="option"]');
 		expect(first.getAttribute('data-command-item')).toBe('流年');
 		expect(first.getAttribute('data-available')).toBe('1');
-		// [2026-09-11] 分组小标题 + 脚注(条数 = 全部内置命令)
+		// 分组小标题 + 脚注(条数 = 全部内置命令)
 		expect([...host.querySelectorAll('[data-command-group]')].map((x)=>x.getAttribute('data-command-group'))).toEqual(['盘面与分析', '会话', '模型与协作']);
 		expect(host.querySelector('[data-command-foot]').textContent).toContain(`共 ${listCommandItems({ ctx: { activeSource: chart } }).length} 条`);
 		expect(host.querySelector('[role="listbox"]').getAttribute('data-command-count')).toBe(`${listCommandItems({ ctx: { activeSource: chart } }).length}`);
@@ -88,7 +89,7 @@ describe('ComposerAssist @引用', ()=>{
 		ta.setSelectionRange(5, 5);
 		act(()=>{ ta.dispatchEvent(new Event('keyup', { bubbles: true })); });
 		expect(host.querySelector('[data-composer-assist]').getAttribute('data-composer-assist')).toBe('mention');
-		// [2026-09-12 复查三] 菜单宿主把页级滚动安全区变量压到 4px(AI 页全局规则给 inline overflow-y:auto 的元素加 82px 底衬,弹出菜单不该吃)
+		// 菜单宿主把页级滚动安全区变量压到 4px(AI 页全局规则给 inline overflow-y:auto 的元素加 82px 底衬,弹出菜单不该吃)
 		expect(host.querySelector('[data-composer-assist]').style.getPropertyValue('--horosa-scroll-safe-bottom')).toBe('4px');
 		expect(host.querySelectorAll('[data-mention-item]').length).toBe(3);
 		expect([...host.querySelectorAll('[data-mention-group]')].map((x)=>x.getAttribute('data-mention-group'))).toEqual(['命盘', '技法']);
@@ -111,7 +112,7 @@ describe('ComposerAssist @引用', ()=>{
 		act(()=>{ ta2.dispatchEvent(new Event('keyup', { bubbles: true })); });
 		expect(host.querySelector('[data-composer-assist]').getAttribute('data-composer-assist')).toBe('idle');
 	});
-	it('🔴 [2026-09-12 复查] 带关键字时默认高亮落在 bestIndex(最佳命中),Enter 插入它而不是第一组的包含命中', ()=>{
+	it('🔴 带关键字时默认高亮落在 bestIndex(最佳命中),Enter 插入它而不是第一组的包含命中', ()=>{
 		const setPrompt = jest.fn();
 		const items = [{ kind: 'source', type: 'chart', id: 'local-9', name: '李八字', suffix: '', label: '李八字', group: '命盘', groupRank: 0 }, { kind: 'technique', type: 'technique', id: 'bazi', key: 'bazi', name: '八字', suffix: '', label: '八字', group: '技法', groupRank: 10, available: true }];
 		const mentionItems = jest.fn(()=>({ items, hiddenCount: 0, total: 2, bestIndex: 1 }));
@@ -130,28 +131,31 @@ describe('useChatAssist 命令执行', ()=>{
 	function Harness(props){ api = useChatAssist(props.deps); return null; }
 	function mount(deps){ act(()=>{ ReactDOM.render(<Harness deps={deps} />, host); }); return api; }
 	const baseDeps = ()=>({ prompt: '', setPrompt: jest.fn(), messages: [], bundles: [], sources: [chart, other], activeSource: chart, selectedTechniqueKeys: ['bazi'], setSelectedTechniqueKeys: jest.fn(), handleSend: jest.fn(async ()=>{}), applyBundle: jest.fn(), providerProfiles: [], modelSelection: 'p::m' });
-	it('🔴 /流年 2027 → 吞掉发送;技法改为 bazi+ziwei;handleSend 收到含 2027 与命盘名的模板 + 口径指令;非命令 → false 不动', async ()=>{
+	it('🔴 /流年 2027 → 吞掉发送;技法 bazi+ziwei 只作用本轮(本轮请求,不改会话挂载);handleSend 收到含 2027 与命盘名的模板 + 口径指令 + 命令芯片;非命令 → false 不动', async ()=>{
 		const deps = baseDeps();
 		const a = mount(deps);
 		expect(a.interceptSend('今年运势')).toBe(false);
 		expect(a.interceptSend('/流年 2027')).toBe(true);
 		await flush();
 		expect(deps.setPrompt).toHaveBeenCalledWith('');
-		expect(deps.setSelectedTechniqueKeys).toHaveBeenCalledWith(['bazi', 'ziwei']);
+		expect(deps.setSelectedTechniqueKeys).not.toHaveBeenCalled();
 		expect(deps.handleSend).toHaveBeenCalledTimes(1);
-		const [text, extra] = deps.handleSend.mock.calls[0];
+		const [text, extra, turn] = deps.handleSend.mock.calls[0];
 		expect(text).toContain('2027');
 		expect(text).toContain('张三');
 		expect(extra).toContain('【输出格式】');
+		expect(turn).toEqual({ command: { name: '流年', label: '流年', argsText: '2027' }, techniqueKeys: ['bazi', 'ziwei'] });
 	});
-	it('/合盘 李四 → 找到对方、带【合盘数据】进系统上下文;/合盘 无名 → 只提示不发;/goal 门未开 → 提示不建;门开 → createGoalTask', async ()=>{
+	it('/合盘 李四 → 找到对方并挂为合盘对方;只勾八字时不附西洋【合盘数据】;/合盘 无名且没挂对方 → 只提示不发;/goal 门未开 → 提示不建;门开 → createGoalTask', async ()=>{
 		const deps = baseDeps();
+		deps.setPartnerSourceId = jest.fn();
 		const a = mount(deps);
 		expect(a.interceptSend('/合盘 李四')).toBe(true);
 		await flush();
 		expect(deps.handleSend).toHaveBeenCalledTimes(1);
 		expect(deps.handleSend.mock.calls[0][0]).toContain('李四');
-		expect(deps.handleSend.mock.calls[0][1]).toContain('【合盘数据】');
+		expect(deps.setPartnerSourceId).toHaveBeenCalledWith(other.id);
+		expect(`${deps.handleSend.mock.calls[0][1] || ''}`).not.toContain('【合盘数据】');
 		expect(a.interceptSend('/合盘')).toBe(true);
 		await flush();
 		expect(deps.handleSend).toHaveBeenCalledTimes(1);
@@ -171,14 +175,15 @@ describe('useChatAssist 命令执行', ()=>{
 		const seen = []; const onNav = (e)=>seen.push(e.detail); window.addEventListener('horosa:navigate', onNav);
 		expect(a.interceptSend('/事业 2028')).toBe(true);
 		await flush();
-		expect(deps.applyBundle).toHaveBeenCalledWith(expect.objectContaining({ id: 'b1' }));
-		expect(deps.setSelectedTechniqueKeys).toHaveBeenCalledWith(['ziwei']);
+		expect(deps.applyBundle).toHaveBeenCalledWith(expect.objectContaining({ id: 'b1' }), { skipTechniques: true });   // 套组合但不套技法
+		expect(deps.setSelectedTechniqueKeys).not.toHaveBeenCalled();
 		expect(deps.handleSend.mock.calls[0][0]).toBe('看张三2028年事业');
+		expect(deps.handleSend.mock.calls[0][2]).toEqual(expect.objectContaining({ command: expect.objectContaining({ name: '事业', argsText: '2028' }), techniqueKeys: ['ziwei'] }));
 		deps.setPrompt.mockClear();
 		expect(a.interceptSend('/编排 问题')).toBe(true);
 		await flush();
 		expect(deps.handleSend).toHaveBeenCalledTimes(1);   // 子开关未开 → 只提示,不发送
-		expect(deps.setPrompt).not.toHaveBeenCalledWith('');   // [2026-09-12 复查二] 开关门未开同样保留输入(此前先清空再判,「问题」白打)
+		expect(deps.setPrompt).not.toHaveBeenCalledWith('');   // 开关门未开同样保留输入(此前先清空再判,「问题」白打)
 		expect(a.interceptSend('/plan 把三个人建档')).toBe(true);
 		await flush();
 		expect(deps.setPrompt).not.toHaveBeenCalledWith('');
@@ -195,20 +200,40 @@ describe('useChatAssist 命令执行', ()=>{
 		await flush();
 		expect(deps.handleSend).toHaveBeenCalledTimes(1);
 		expect(seen).toEqual([{ key: 'zeri', subTab: undefined, args: '开业' }]);
-		// [2026-09-11] 参数=择日子技法 → subTab 直达(此前 args 只派发不消费)
+		// 参数=择日子技法 → subTab 直达(此前 args 只派发不消费)
 		expect(a.interceptSend('/择日 奇门')).toBe(true);
 		await flush();
 		expect(seen[1]).toEqual({ key: 'zeri', subTab: 'qimenzeri', args: '奇门' });
 		window.removeEventListener('horosa:navigate', onNav);
 	});
-	it('🔴 [2026-09-11] /合盘 @[命盘:李四] 的 @ 语法可用;/命主 打开命主工作区;/任务 派发 horosa:task-center', async ()=>{
+	it('🔴 [双盘挂载] /合盘 只挂对方 + 发模板:西洋合盘数据不再进本轮附加层(改由会话层按「这一对」附,追问不丢);已挂合盘对方时不写名字也合看', async ()=>{
 		const deps = baseDeps();
+		deps.selectedTechniqueKeys = ['astrochart'];
+		deps.setPartnerSourceId = jest.fn();
+		const a = mount(deps);
+		expect(a.interceptSend('/合盘 李四')).toBe(true);
+		await flush();
+		expect(deps.handleSend).toHaveBeenCalledTimes(1);
+		expect(`${deps.handleSend.mock.calls[0][1] || ''}`).not.toContain('【合盘数据】');
+		expect(deps.setPartnerSourceId).toHaveBeenCalledWith(other.id);
+		deps.selectedTechniqueKeys = [];
+		deps.partnerSource = other;
+		expect(a.interceptSend('/合盘')).toBe(true);
+		await flush();
+		expect(deps.handleSend).toHaveBeenCalledTimes(2);
+		expect(deps.handleSend.mock.calls[1][0]).toContain('李四');
+		expect(`${deps.handleSend.mock.calls[1][1] || ''}`).not.toContain('【合盘数据】');
+		expect(deps.setPartnerSourceId).toHaveBeenLastCalledWith(other.id);
+	});
+	it('🔴 /合盘 @[命盘:李四] 的 @ 语法可用;/命主 打开命主工作区;/任务 派发 horosa:task-center', async ()=>{
+		const deps = baseDeps();
+		deps.setPartnerSourceId = jest.fn();
 		const a = mount(deps);
 		expect(a.interceptSend('/合盘 @[命盘:李四] 看看')).toBe(true);
 		await flush();
 		expect(deps.handleSend).toHaveBeenCalledTimes(1);
 		expect(deps.handleSend.mock.calls[0][0]).toContain('李四');
-		expect(deps.handleSend.mock.calls[0][1]).toContain('【合盘数据】');
+		expect(deps.setPartnerSourceId).toHaveBeenCalledWith(other.id);
 		expect(a.overlays.subject.open).toBe(false);
 		expect(a.interceptSend('/命主')).toBe(true);
 		await flush();
@@ -240,7 +265,7 @@ describe('useChatAssist 命令执行', ()=>{
 		expect(a.filterTechniqueSections([])).toEqual([]);
 		expect(a.interceptSend('普通问题')).toBe(false);
 	});
-	it('🔴 [2026-09-12 复查] 同句「切源 + 技法」按切换后的源判可用性:命盘案例下 @[事盘:X] @[技法:六爻] 挂上六爻不提示;无源时 @[命盘:张三] @[技法:八字] 挂上八字', async ()=>{
+	it('🔴 同句「切源 + 技法」按切换后的源判可用性:命盘案例下 @[事盘:X] @[技法:六爻] 挂上六爻不提示;无源时 @[命盘:张三] @[技法:八字] 挂上八字', async ()=>{
 		const kase = { id: 'local-3', sourceType: 'case', title: '搬家事盘', record: { name: '搬家事盘' } };
 		const deps = baseDeps();
 		deps.sources = [chart, other, kase]; deps.selectedTechniqueKeys = []; deps.setSelectedSourceId = jest.fn();
@@ -262,7 +287,7 @@ describe('useChatAssist 命令执行', ()=>{
 		await flush();
 		expect(deps.setSelectedTechniqueKeys).not.toHaveBeenCalled();
 	});
-	it('🔴 [2026-09-12 复查] 技法段过滤:新对话首条发送建立会话(id \'\' → 新 id)不清过滤;从一个已有会话切到另一个才清', async ()=>{
+	it('🔴 技法段过滤:新对话首条发送建立会话(id \'\' → 新 id)不清过滤;从一个已有会话切到另一个才清', async ()=>{
 		const deps = baseDeps();
 		deps.activeConversationId = '';
 		const a = mount(deps);
@@ -286,6 +311,14 @@ describe('useChatAssist 命令执行', ()=>{
 		expect(layers[0].key).toBe('persona');
 		expect(layers[0].priority).toBe(102);
 		expect(layers[0].content).toBe('先结论后依据');
+		// 技法口径:缺省按会话挂载取;给了本轮专用技法(技能 / 命令只作用本轮)就按本轮取 —— 会话没挂八字、本轮带八字,八字口径也要进
+		await act(async ()=>{ writePersonaLayer('technique', 'bazi', '八字口径甲'); await flush(); });
+		deps.selectedTechniqueKeys = []; mount(deps);
+		expect(a.promptLayerExtras()[0].content).not.toContain('八字口径甲');
+		expect(a.promptLayerExtras({ techniqueKeys: ['bazi'] })[0].content).toContain('八字口径甲');
+		deps.selectedTechniqueKeys = ['bazi']; mount(deps);
+		expect(a.promptLayerExtras()[0].content).toContain('八字口径甲');
+		expect(a.promptLayerExtras({ techniqueKeys: [] })[0].content).not.toContain('八字口径甲');
 		expect(a.interceptSend('/init')).toBe(true);
 		await flush();
 		expect(deps.handleSend).not.toHaveBeenCalled();

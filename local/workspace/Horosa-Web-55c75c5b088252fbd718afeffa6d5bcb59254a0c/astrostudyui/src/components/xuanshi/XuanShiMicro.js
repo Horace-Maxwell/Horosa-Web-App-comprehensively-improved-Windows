@@ -6,7 +6,8 @@ import { flagEnabled } from '../../utils/perfFlags';
 // 本页渲染上限(与后端 celestial.MICRO_LIST_LIMIT 同值):列表只画前 N 条,超出时提示「仅显示前 300 条」。
 const MICRO_RENDER_LIMIT = 300;
 import { fixedPopupFrame } from '../../utils/zoomDomain';
-import { collapseSoftBreaks, celestialCalendarLabel, celestialDateWithCalendar } from './xuanshiDate';   // [Q-495/T-457] 日期按来源标历法
+import { collapseSoftBreaks, celestialCalendarLabel, celestialDateWithCalendar } from './xuanshiDate';   // 日期按来源标历法
+import { matchesUserQuery } from '../../utils/scriptMode';
 
 // 天象微年表 —— 对齐标准版 参考天象微年表页:十年期事件密度柱状图(点柱筛选)+ 左栏按史书/按征兆类型
 // + 右栏事件列表(干支/公历/征兆/《史书》卷 chips + 原文 + 政治军事解读)。数据来自星象大典公开事件库。
@@ -36,7 +37,7 @@ export default class XuanShiMicro extends React.Component {
 	persist() { if (this.props.onPersist) { this.props.onPersist('micro', { history: this.state.history, omen: this.state.omen, decade: this.state.decade }); } }
 
 	async load() {
-		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // 序号守卫:旧响应不覆盖新条件
 		this.setState({ loading: true, err: '' });
 		try {
 			const r = await fetchMicrochronology({
@@ -79,7 +80,7 @@ export default class XuanShiMicro extends React.Component {
 					</div>
 					<div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
 						<Select allowClear showSearch size="small" placeholder="全部史书" style={{ minWidth: 150 }} value={history || undefined}
-							options={histOpts} onChange={(v) => this.setFilter({ history: v || '' })} filterOption={(i, o) => (o.label || '').indexOf(i) >= 0} />
+							options={histOpts} onChange={(v) => this.setFilter({ history: v || '' })} filterOption={(i, o) => matchesUserQuery(o.label || '', i, { ci: false })} />
 						<Input.Search placeholder="征兆筛选(如:日食 / 彗 / 流星)" allowClear size="small" style={{ width: 200 }} defaultValue={omen} key={`mo-${isFiltered}`} onSearch={(v) => this.setFilter({ omen: v || '' })} />
 						{isFiltered ? <span className="xuanshi-link" style={{ fontSize: 12 }} onClick={() => this.setState({ history: '', omen: '', decade: null }, () => this.load())}>清空</span> : null}
 					</div>

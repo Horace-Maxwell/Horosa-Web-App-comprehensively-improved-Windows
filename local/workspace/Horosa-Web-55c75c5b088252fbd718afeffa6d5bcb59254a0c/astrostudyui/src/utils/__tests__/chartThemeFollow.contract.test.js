@@ -7,7 +7,9 @@ const fs = require('fs');
 const path = require('path');
 import * as AstroConst from '../../constants/AstroConst';
 import { applyAppearanceToDocument, subscribeAppearance, syncChartPalette, chartColorThemeFor, currentAppearance, APPEARANCE_APPLIED_EVENT, DARK_CHART_COLOR_THEME, APPEARANCE_DARK, APPEARANCE_LIGHT } from '../appearance';
-import { watchChartAppearance } from '../chartDrawGuard';
+import { watchChartAppearance, buildChartDrawSig, sameChartDrawSig } from '../chartDrawGuard';
+import { applyLightFlavorAttribute, currentChartThemeKey } from '../appearance';
+const { readSource, isSourceSetPart } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '..', '..');
 const COMPONENTS = path.join(SRC, 'components');
@@ -29,8 +31,9 @@ function walk(dir, out){
 	return out;
 }
 function census(){
-	return walk(COMPONENTS, []).filter((f)=>{
-		const s = fs.readFileSync(f, 'utf8');
+	// 拆成子模块的大文件按一个整体普查:子模块折回门面(门面按全集读),判据口径与拆分前同
+	return walk(COMPONENTS, []).filter((f)=>!isSourceSetPart(f)).filter((f)=>{
+		const s = readSource(f);
 		return /componentDidMount|useEffect\(/.test(s) && HOST_RE.test(s);
 	}).map((f)=>path.relative(SRC, f).split(path.sep).join('/'));
 }
@@ -42,7 +45,7 @@ describe('源码级三锁', ()=>{
 		expect(hosts.length).toBeGreaterThanOrEqual(20);
 		const missing = [];
 		hosts.forEach((rel)=>{
-			const s = fs.readFileSync(path.join(SRC, rel), 'utf8');
+			const s = readSource(path.join(SRC, rel));
 			const wired = s.indexOf('watchChartAppearance(') >= 0;
 			const allow = ALLOW[rel];
 			if(allow){
@@ -113,6 +116,52 @@ describe('行为', ()=>{
 		applyAppearanceToDocument('dark', 'dark');
 		await flush();
 		expect(calls).toEqual(['dark', 'light']);
+	});
+	it('🔴 浅色配色档(宣纸 ↔ 经典白)也算主题变化:亮色下切档回调一次、同档不回调;暗色下切档不回调', async ()=>{
+		applyAppearanceToDocument('light', 'light');
+		applyLightFlavorAttribute('paper');
+		await flush();
+		const calls = [];
+		const off = subscribeAppearance((a)=>calls.push(a));
+		try{
+			applyLightFlavorAttribute('classic');      // 广播 + 属性变(两信号)
+			await flush();
+			expect(calls).toEqual(['light']);
+			applyLightFlavorAttribute('classic');      // 同档重放
+			await flush();
+			expect(calls).toEqual(['light']);
+			document.documentElement.removeAttribute('data-horosa-light-flavor');   // 无广播,只改属性(别的窗口 / 直改)
+			await flush();
+			expect(calls).toEqual(['light', 'light']);
+			applyAppearanceToDocument('dark', 'dark');
+			await flush();
+			expect(calls).toEqual(['light', 'light', 'dark']);
+			applyLightFlavorAttribute('classic');      // 暗色下被暗色块覆盖:看不出差别,不重画
+			await flush();
+			expect(calls).toEqual(['light', 'light', 'dark']);
+			applyAppearanceToDocument('light', 'light');   // 回到亮色,带着经典白
+			await flush();
+			expect(calls).toEqual(['light', 'light', 'dark', 'light']);
+		}finally{
+			off();
+			applyLightFlavorAttribute('paper');
+			applyAppearanceToDocument('light', 'light');
+		}
+	});
+	it('🔴 绘制签名含配色档:亮色下切档签名不相等(签名守卫不跳过重画);主题指纹三态', ()=>{
+		applyAppearanceToDocument('light', 'light');
+		applyLightFlavorAttribute('paper');
+		const a = buildChartDrawSig(null, { data: 1 });
+		expect(currentChartThemeKey()).toBe('light');
+		applyLightFlavorAttribute('classic');
+		const b = buildChartDrawSig(null, { data: 1 });
+		expect(currentChartThemeKey()).toBe('light:classic');
+		expect(sameChartDrawSig(a, b)).toBe(false);
+		expect(sameChartDrawSig(b, buildChartDrawSig(null, { data: 1 }))).toBe(true);
+		applyAppearanceToDocument('dark', 'dark');
+		expect(currentChartThemeKey()).toBe('dark');
+		applyLightFlavorAttribute('paper');
+		applyAppearanceToDocument('light', 'light');
 	});
 	it('🔴 watchChartAppearance:重画回调在调色板切换之后;回调抛错不外泄;detach 生效', async ()=>{
 		applyAppearanceToDocument('light', 'light');

@@ -86,7 +86,7 @@ def test_planetarium_moira_su28_not_on_equator():
 
 
 def test_true_distance_stars_attached_for_wei_and_gui():
-    """[Q-371/T-350] 胃宿 / 鬼宿星点:后端给 trueStar(35 Ari HR801 / θ Cnc HR3357,J2000 → 当日 + 地平),
+    """胃宿 / 鬼宿星点:后端给 trueStar(35 Ari HR801 / θ Cnc HR3357,J2000 → 当日 + 地平),
     与 REAL 口径的修正赤经(item.ra,宿界用)分开;其余 26 宿无该字段。"""
     import websrv.webplanetariumsrv as w
     pc = perchart.PerChart(dict(CASE))

@@ -1,4 +1,4 @@
-// [WP-7] 自定义界表编辑器(Modal;入口=星盘设置③「界与尊贵」cell 右侧按钮)。
+// 自定义界表编辑器(Modal;入口=星盘设置③「界与尊贵」cell 右侧按钮)。
 // 昼/夜两表页签(「夜表同昼表」勾选=夜表隐藏且不下发);12 座×5 界逐格(星 Select+宽度 InputNumber);
 // 行尾合计实时校验(=30 ✓绿/≠30 ✗红 jx 令牌);非法禁存;「从埃及模板复制」快速起点;JSON 导出/导入。
 // 存 localStorage horosa.astro.customTerms.v1(storageKeyRegistry 已登记);下发由
@@ -21,7 +21,7 @@ function cloneTable(t){
 export default class TermsEditor extends React.Component {
 	constructor(props){
 		super(props);
-		// [Q-254/T-236] 初值=「当前生效表」:随盘表体(props.effective,来自 fields.customTermsDay/Night,后端算的就是它)
+		// 初值=「当前生效表」:随盘表体(props.effective,来自 fields.customTermsDay/Night,后端算的就是它)
 		// 优先,缺则本机编辑器仓;此前恒读本机仓 → 载入过带表体的命盘后,编辑器显示的不是生效表。
 		const eff = props.effective && Array.isArray(props.effective.day) && props.effective.day.length === 12 ? props.effective : null;
 		const saved = eff || loadCustomTerms();
@@ -29,7 +29,7 @@ export default class TermsEditor extends React.Component {
 			tab: 'day',
 			day: cloneTable((saved && saved.day) || EGYPT_TEMPLATE),
 			night: saved && saved.night ? cloneTable(saved.night) : null,   // null=夜同昼
-			importOpen: false,   // [R2-5] 导入 JSON 二级弹层(桌面壳无原生 prompt)
+			importOpen: false,   // 导入 JSON 二级弹层(桌面壳无原生 prompt)
 			importText: '',
 		};
 	}
@@ -61,7 +61,7 @@ export default class TermsEditor extends React.Component {
 			if(ok){
 				message.success('界表 JSON 已复制到剪贴板');
 			}else{
-				// [R4-P3] 桌面壳无原生 prompt(兜底路径也不能用)——把文本放进导入弹层展示,用户可手动全选复制。
+				// 桌面壳无原生 prompt(兜底路径也不能用)——把文本放进导入弹层展示,用户可手动全选复制。
 				this.setState({ importOpen: true, importText: text });
 				message.warning('复制失败:已把 JSON 显示在下方文本框,请手动复制');
 			}
@@ -69,7 +69,7 @@ export default class TermsEditor extends React.Component {
 	}
 
 	importJson(){
-		// [R2-5] 桌面壳(Tauri webview)不支持原生 prompt(AIAnalysisMain 先例注释)——改 TextArea 二级弹层。
+		// 桌面壳(Tauri webview)不支持原生 prompt(AIAnalysisMain 先例注释)——改 TextArea 二级弹层。
 		this.setState({ importOpen: true, importText: '' });
 	}
 
@@ -94,7 +94,7 @@ export default class TermsEditor extends React.Component {
 			return;
 		}
 		message.success('自定义界表已保存');
-		// [Q-254/T-236] 把保存表体交给宿主写回 fields(随盘表体优先于本机仓),否则重排仍用旧随盘表。
+		// 把保存表体交给宿主写回 fields(随盘表体优先于本机仓),否则重排仍用旧随盘表。
 		if(this.props.onSaved){ this.props.onSaved({ day: cloneTable(day), night: night ? cloneTable(night) : null }); }
 		if(this.props.onClose){ this.props.onClose(); }
 	};

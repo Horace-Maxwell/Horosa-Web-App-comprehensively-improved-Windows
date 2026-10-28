@@ -1,15 +1,17 @@
+import { lockDayBoundary, dayBoundaryLockHeld } from '../../utils/dayBoundaryLock';
 import { Component, createRef } from 'react';
 import { claimTrigger, settleTrigger, identityOf } from '../../utils/singleTrigger';   // 双触发收敛
 import { message, Spin } from 'antd';
 import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
-import { saveModuleAISnapshotLazy, saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { loadFreshModuleAISnapshot } from '../../utils/moduleSnapshotRefresh';
 import { fetchPreciseNongli } from '../../utils/preciseCalcBridge';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import PlusMinusTime from '../astro/PlusMinusTime';
 import DateTime from '../comp/DateTime';
 import QuickDockBar from '../common/QuickDockBar';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
-import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
+import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
@@ -34,16 +36,21 @@ import {
 	getMethodLabel,
 	getMethodSource,
 } from './TaiYiCalc';
-import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
+import { openKentangCaseDrawer, getKentangSavedCasePayload, getKentangSavedCaseFieldsPatch } from '../../utils/kentangCaseSave';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { chartDrawGuardEnabled, stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled } from '../../utils/perfFlags';
 // R4-B2(horosa_prefetch_registry_v1):太乙 stage-1 步进预取登记。
 import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { getEffectiveScale } from '../../utils/zoomDomain';
-import { getLayoutViewportWidth, getLayoutViewportHeight } from '../../utils/shellZoom';
 import { definePageSettings } from '../../utils/pageSettingsStore';
 
+import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
+import { sendScopedFields } from '../../utils/scopedFieldsSink';
+import { zeriLockProps, zeriRestoredLockMarks, clearZeriLockMarks, TAIYI_RETIRED_OPTION_KEYS, withoutKeys } from '../../divination/zeri/zeriPageCalibre';
+import { resolveAfter23NewDay } from '../../utils/dayBoundaryResolve';
+import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
+import { castSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 const { Option } = Select;
 const { TabPane } = Tabs;
 // 按 12地支+4卦固定分野（从午位开始顺时针）
@@ -79,7 +86,7 @@ function buildTaiYiNongliParamsPure(flds, options) {
 		gpsLat: flds.gpsLat.value,
 		gpsLon: flds.gpsLon.value,
 		gender: flds.gender.value,
-		after23NewDay: opts.after23NewDay || 0,
+		after23NewDay: resolveAfter23NewDay(opts.after23NewDay),
 	};
 }
 
@@ -112,14 +119,14 @@ export const TAIYI_PAGE_SETTINGS = definePageSettings('horosa.taiyi.settings.v1'
 	tn: { def: 0, oneOf: METHOD_OPTIONS.map((o)=>o.value) },
 	timeBasis: { def: 'direct', oneOf: TIME_BASIS_OPTIONS.map((o)=>o.value) },
 	gameTheory: { def: 0, oneOf: GAME_THEORY_OPTIONS.map((o)=>o.value) },
-	showBoardMark: { def: false },
+	showBoardMark: { label: '盘面标注', def: false },
 	school: { type: 'map', keys: Object.keys(DEFAULT_TAIYI_SCHOOL).reduce((acc, k)=>{
 		acc[k] = { def: DEFAULT_TAIYI_SCHOOL[k], oneOf: (TAIYI_SCHOOL_OPTIONS[k] || []).map((o)=>o.value) };
 		return acc;
 	}, {}) },
 });
 
-// [Q-388/T-368] 盘的 gender(1 男 / 0 女 / -1 未知)→ 太乙命法的 sex 文案('男' / '女';未知按男,与全站口径同)
+// 盘的 gender(1 男 / 0 女 / -1 未知)→ 太乙命法的 sex 文案('男' / '女';未知按男,与全站口径同)
 export function taiyiSexFromGender(gender){
 	return (gender === 0 || gender === '0' || gender === '女') ? '女' : '男';
 }
@@ -133,11 +140,12 @@ class TaiYiMain extends Component {
 		this.state = {
 			loading: false,
 			nongli: null,
+			nongliSig: '',	// nongli 出自哪一课(起课签名):换了起课时刻 / 地点后不拿上一课的农历立这一课
 			pan: null,
 			options: {
 				style: savedSet.style,
 				tn: savedSet.tn,
-				// [Q-388/T-368] 命法性别初值随盘的性别:此前写死「男」且全文件无从 fields.gender 初始化 →
+				// 命法性别初值随盘的性别:此前写死「男」且全文件无从 fields.gender 初始化 →
 				//   全局女命主切到「太乙命法」即以 sex='男' 请求 taiyi_life,事盘还把「男」写进 payload.options。
 				sex: taiyiSexFromGender(props && props.fields && props.fields.gender ? props.fields.gender.value : undefined),
 				timeBasis: savedSet.timeBasis,
@@ -154,7 +162,8 @@ class TaiYiMain extends Component {
 
 		this.unmounted = false;
 		this.timeHook = {};
-		this.taiyiRequestSeq = 0;
+		this.taiyiRequestSeq = 0;   // 立局(recalc)代次
+		this._nongliReqSeq = 0;   // 取历法(requestNongli)代次
 		// 格局缓存(单槽,按 pan 引用):render() 内 computeGeju(pan) 被调 3 次(格局连线 + 点击面板筛选 + 右栏 geju),
 		// 切右栏 tab/选宫/开关标注等任意 setState 重渲都把这纯函数重算 3 遍。pan 是后端每次起盘返回的新对象,
 		// 引用稳定即结果稳定;按引用缓存 → 同 pan 只算一次、跨重渲复用(byte-perfect:同输入同输出)。
@@ -188,16 +197,21 @@ class TaiYiMain extends Component {
 				}
 				this.requestNongli(fields || this.props.fields);
 			};
-			// [Q-268/T-261] 择日宿主取当前页面选项(流派六轴 school / 换日 / 晚子时…):扫描与所见盘同口径。
+			// 择日宿主载入存案时调:本页按 fields 引用变化才还原,宿主传下的 fields 走记忆化、载入事盘时引用不变 → 此前不还原
+			this.props.hook.restoreCase = () => (this.unmounted ? false : this.restoreFromCurrentCase(false));
+			// 择日宿主取当前页面选项(流派六轴 school / 换日 / 晚子时…):扫描与所见盘同口径。
 			this.props.hook.getOptions = () => ({ ...(this.state.options || {}) });
 			// R4-B3(A6):太乙同为【两段式】—— stage-1(/nongli/time)先回来盘才能推。
 			// 与主 /chart 无关,在 /chart 返回之前并行发出即把 stage-1 摘出关键路径
 			// (latency sum→max)。闸:horosa.perf.prewarmRequests(关=此函数不被调用,逐字节旧序)。
-			// [挂载自检 F-37] 择日宿主 pick 前把工作台扫描口径(积年算法 tn)回写到左栏选项,再以冻结 fields 起盘:
+			// 择日宿主 pick 前把工作台扫描口径(古法公式 tn)回写到左栏选项,再以冻结 fields 起盘:
 			// 显示盘/母快照=命中判定口径(此前 fields 不透传 tn,显示盘按左栏旧档自排,挂载文本两套口径并存且不标)。
+			// 已剔除的死键(十精 / 转盘)不收:旧方案 / 历史里带着的不再写进本页 options、随存案落盘
 			this.props.hook.applyOptions = (partial) => new Promise((resolve) => {
-				if (this.unmounted || !partial || typeof partial !== 'object' || !Object.keys(partial).length) { resolve(); return; }
-				this.setState({ options: { ...this.state.options, ...partial } }, resolve);
+				const p = withoutKeys(partial, TAIYI_RETIRED_OPTION_KEYS);
+				if (this.unmounted || !p || typeof p !== 'object' || !Object.keys(p).length) { resolve(); return; }
+				this._zeriRestoredLocks = clearZeriLockMarks(this._zeriRestoredLocks, p);   // 回写过的锁定项不再是「由存案复原」的
+				this.setState({ options: withoutKeys({ ...this.state.options, ...p }, TAIYI_RETIRED_OPTION_KEYS) }, resolve);
 			});
 			this.props.hook.prewarmRequests = (flds) => {
 				if (this.unmounted) {
@@ -238,7 +252,7 @@ class TaiYiMain extends Component {
 	}
 
 
-	// [A7·性能] 重 wrapper sCU(照 BaZi/ZiWeiMain 既有范式):全 props 机械浅比(函数型视为恒等,
+	// 重 wrapper sCU(照 BaZi/ZiWeiMain 既有范式):全 props 机械浅比(函数型视为恒等,
 	// 详 wrapperPropsEqual;开关 horosa.perf.chartSCU 关=恒重渲旧行为),state 引用变照常重渲
 	// (setState 恒换引用)。收益:激活态下宿主无关 dispatch 不再整树白跑本重组件。
 	shouldComponentUpdate(nextProps, nextState){
@@ -253,17 +267,17 @@ class TaiYiMain extends Component {
 		this._lateZiHourUserOverrode = false; // v2.2.1: 同款时柱开关局部覆盖语义
 		if(typeof window !== 'undefined'){
 			this._dayBoundaryListener = (ev) => {
-				if(this._after23BoundaryUserOverrode) return;
+				if(dayBoundaryLockHeld(this, 'after23')) return;
 				const v = ev && ev.detail ? ev.detail.after23NewDay : null;
-				if((v === 0 || v === 1) && typeof this.onOptionChange === 'function'){
+				if(v === 0 || v === 1){
 					this.onOptionChange('after23NewDay', v, { fromGlobal: true });
 				}
 			};
 			window.addEventListener('horosa:day-boundary-changed', this._dayBoundaryListener);
 			this._lateZiHourListener = (ev) => {
-				if(this._lateZiHourUserOverrode) return;
+				if(dayBoundaryLockHeld(this, 'lateZi')) return;
 				const v = ev && ev.detail ? ev.detail.lateZiHourUseNextDay : null;
-				if((v === 0 || v === 1) && typeof this.onOptionChange === 'function'){
+				if(v === 0 || v === 1){
 					this.onOptionChange('lateZiHourUseNextDay', v, { fromGlobal: true });
 				}
 			};
@@ -282,10 +296,15 @@ class TaiYiMain extends Component {
 		}
 	}
 
-	componentDidUpdate(prevProps) {
+	componentDidUpdate(prevProps, prevState) {
+		// 择日宿主:本页选项变了(亲手改 / 宿主回写 / 载入存案)→ 告诉宿主,宿主按同一套过期判据重算「结果已过期」
+		if (this.props.onPageCalibreChange && prevState && prevState.options !== this.state.options) {
+			this.props.onPageCalibreChange();
+		}
+		clearPendingTimeOnFieldsChange(this, prevProps);
 		this.ensureBoardObserver();
 		if (prevProps.fields !== this.props.fields && this.props.fields) {
-			// [Q-388/T-368] 盘的性别变了(载盘 / 外部改全局)→ 命法性别跟随;用户在本页下拉改过的以本页为准
+			// 盘的性别变了(载盘 / 外部改全局)→ 命法性别跟随;用户在本页下拉改过的以本页为准
 			//   (onGenderChange 两边同写,故只在「与上一拍的盘性别不同」时同步,不会把用户选择冲掉)。
 			const prevG = prevProps.fields && prevProps.fields.gender ? prevProps.fields.gender.value : undefined;
 			const nextG = this.props.fields.gender ? this.props.fields.gender.value : undefined;
@@ -296,6 +315,10 @@ class TaiYiMain extends Component {
 				}
 			}
 			if (this.restoreFromCurrentCase(false)) {
+				return;
+			}
+			if (this._skipNextFieldsRecompute) {
+				this._skipNextFieldsRecompute = false;
 				return;
 			}
 			this.requestNongli(this.props.fields);
@@ -321,16 +344,15 @@ class TaiYiMain extends Component {
 				if(!node){
 					return;
 				}
-				// [Tahoe 域混根修·2026-09-17 用户 APP 实报「放大后盘面不随之缩小、被下端遮挡」] 量容器只用布局域读数(clientWidth/clientHeight);rect 域在标准化 zoom 引擎下已×z,当布局 px 用=盘面大 z 倍被裁(旧引擎 rect=布局值故不显)。
-				// 视口钳位同样在布局域:布局视口实测 − rect 位移/z。
+				// 量容器只用布局域读数(clientWidth/clientHeight);rect 域在标准化 zoom 引擎下已×z,当布局 px 用=盘面大 z 倍被裁(旧引擎 rect=布局值故不显)。
 				const zScale = getEffectiveScale() || 1;
 				const r = node.getBoundingClientRect();
 				const layoutW = node.clientWidth || (r.width / zScale);
 				const layoutH = node.clientHeight || (r.height / zScale);
-				const vpW = getLayoutViewportWidth() || layoutW;
-				const vpH = getLayoutViewportHeight() || layoutH;
-				const w = Math.min(layoutW, vpW - r.left / zScale);
-				const h = Math.min(layoutH, vpH - r.top / zScale);
+				// 只认宿主自身的布局尺寸(盘 svg 按 viewBox 等比铺满宿主,由样式定高):不再按窗口右 / 下沿钳 ——
+				// 整页可滚(放大档矮窗)时按窗口底钳是「盘按窗口底封顶」那一族,窗口余高一律走 utils/viewportCap 单源
+				const w = layoutW;
+				const h = layoutH;
 				if(w > 0 && h > 0 && (!this.boardSize || Math.abs(this.boardSize.w - w) > 2 || Math.abs(this.boardSize.h - h) > 2)){
 					this.boardSize = { w, h };
 					if(!this.unmounted){
@@ -342,8 +364,8 @@ class TaiYiMain extends Component {
 			}
 		};
 		this.boardMeasure = measure;
-		if(!this.boardObserver){
-			this.boardObserver = new window.ResizeObserver(measure);
+		if(!this.boardObserver && typeof window !== 'undefined' && typeof window.ResizeObserver === 'function'){
+			this.boardObserver = createDeferredResizeObserver(measure);   // 回调里 forceUpdate 改尺寸:延到下一帧,不构成回环
 		}
 		if(this.boardObservedEl){
 			try{ this.boardObserver.unobserve(this.boardObservedEl); }catch(e){ /* 旧节点可能已脱离 */ }
@@ -368,7 +390,7 @@ class TaiYiMain extends Component {
 		this.unmounted = true;
 		// R4-B2:反注册步进预取器(防卸载后闭包吃到死组件态)。
 		if(this._taiyiStepPrefetcher){
-			try{ unregisterStepPrefetcher('taiyi', this._taiyiStepPrefetcher); }catch(e){ /* ignore */ }
+			unregisterStepPrefetcher('taiyi', this._taiyiStepPrefetcher);
 			this._taiyiStepPrefetcher = null;
 		}
 		if(this.boardObserver){
@@ -417,6 +439,10 @@ class TaiYiMain extends Component {
 	}
 
 	onFieldsChange(field) {
+		// 择日宿主内嵌:改动交给宿主的覆盖层(宿主用新 fields 调 hook 重排),不写主盘
+		if (sendScopedFields(this.props, field)) {
+			return;
+		}
 		if (this.props.dispatch) {
 			const flds = {
 				...(this.props.fields || {}),
@@ -430,22 +456,23 @@ class TaiYiMain extends Component {
 	}
 
 	onTimeChanged(value) {
+		notePendingTime(this, value && (value.time || value.value));
 		const dt = value.time;
 		this.onFieldsChange({
 			date: { value: dt.clone() },
 			time: { value: dt.clone() },
 			ad: { value: dt.ad },
 			zone: { value: dt.zone },
-			// [R3-A2] 步进方向提示透传:驱动 astro model settle 后 /chart ±步预取
+			// 步进方向提示透传:驱动 astro model settle 后 /chart ±步预取
 			// (fetchByFields 消费后即剥离,绝不落 state.fields)
 			...(value.step ? { __stepHint: value.step } : {}),
 		});
-		// [R3-A4] 顺向 +1 步 pan 预取:太乙是「时间变更即重排」流,当前步 T 的 pan 由正式
+		// 顺向 +1 步 pan 预取:太乙是「时间变更即重排」流,当前步 T 的 pan 由正式
 		// 请求落 kentangCache;此处再静默备下 T+1 —— 连点下一下也命中 ≈ 瞬间。
 		this.prefetchNextStepPan(dt, value.step);
 	}
 
-	// [R3-A4] 与真实链同源:genParams→fetchPreciseNongli→fetchTaiyiPan(同一 builder,
+	// 与真实链同源:genParams→fetchPreciseNongli→fetchTaiyiPan(同一 builder,
 	// 键逐字节等);失败静默,结果只落 kentangCache。防抖 150ms(连点只备最后方向)。
 	prefetchNextStepPan(dt, stepHint){
 		try{
@@ -496,7 +523,7 @@ class TaiYiMain extends Component {
 		}catch(e){ /* 预取失败无害 */ }
 	}
 
-	// [R3-A1 下放] 选步长即预取:太乙时间自持(localFields),全局 handler 对本页是错键 ——
+	// 选步长即预取:太乙时间自持(localFields),全局 handler 对本页是错键 ——
 	// 以当前时间为基 ±1 双向预热 pan(第一下步进即命中;第二下起 settle 链 +1 同向接管)。
 	prefetchStepSelect(unit){
 		try{
@@ -515,6 +542,8 @@ class TaiYiMain extends Component {
 	}
 
 	getTimeFieldsFromSelector(baseFields){
+		const _pend = pendingTimePatch(this);   // 改了时间还没等到全局盘回来:以最新改动为准(见 utils/pendingTimeDraft)
+		if(_pend){ return { ...(baseFields || {}), ..._pend }; }
 		if(!this.timeHook || !this.timeHook.getValue){
 			return null;
 		}
@@ -566,6 +595,7 @@ class TaiYiMain extends Component {
 			time: { value: now.clone() },
 			ad: { value: now.ad },
 		};
+		notePendingTime(this, now);   // 「此刻」也是最新改动:窗口期内再点起盘按此刻,不回到更早的草稿
 		this.onFieldsChange(patch);
 		this.requestNongli({ ...base, ...patch });
 	}
@@ -609,7 +639,8 @@ class TaiYiMain extends Component {
 	async recalc(fields, nongli, options) {
 		const reqSeq = ++this.taiyiRequestSeq;
 		const nextFields = fields || this.props.fields;
-		const nextNongli = nongli || this.state.nongli;
+		// 调用方给了农历(哪怕是取失败的 null)就用它;没给才取屏上那份 —— 且只认同一课的(换了时刻 / 地点 → 没有)
+		const nextNongli = nongli === undefined ? this.castNongliFor(nextFields) : nongli;
 		const nextOptions = options || this.state.options;
 		if(!nextFields){
 			return;
@@ -636,7 +667,7 @@ class TaiYiMain extends Component {
 			// 故本次 setState 落定 = 中栏+右栏画完。双 rAF 由 markPanelReady 内部完成。
 			markPanelReady('taiyi');
 			if (displayPan) {
-				// [Z3·太乙择日] 加性 scope 化(奇门/黄历/八字同律):择日页内嵌实例走独立快照槽+composer。
+				// 加性 scope 化(奇门/黄历/八字同律):择日页内嵌实例走独立快照槽+composer。
 				saveModuleAISnapshotLazy(this.props.techniqueScope || 'taiyi', ()=>{
 					const base = buildTaiyiSnapshotText(displayPan);
 					if(typeof this.props.composeAiSnapshot === 'function'){
@@ -669,6 +700,11 @@ class TaiYiMain extends Component {
 		}
 	}
 
+	// 屏上农历只认同一课的:签名对不上本次起课参数 → null(不拿上一课的农历顶)
+	castNongliFor(fields) {
+		return pickKeyedDerived(this.state.nongli, this.state.nongliSig, castSourceKey(fields || this.props.fields));
+	}
+
 	async requestNongli(fields) {
 		const params = this.genParams(fields);
 		if(!params){
@@ -679,6 +715,9 @@ class TaiYiMain extends Component {
 		if(!nongliTrig){
 			return;
 		}
+		// 只认最后一次发起的取历法:代次在进函数时取(此前只在 recalc 里取号,晚回的那次后调 recalc 反而拿到最大号)。
+		// 改档(onOptionChange → recalc)不作废它:回包后按当时的 state.options 重算,最终仍收敛到最新档位。
+		const seq = ++this._nongliReqSeq;
 		this.setState({ loading: true });
 		if (this.unmounted) {
 			return;
@@ -689,13 +728,13 @@ class TaiYiMain extends Component {
 		} catch (e) {
 			console.warn('taiyi precise nongli failed, continuing with kintaiyi calendar fields', e);
 		}
-		if (this.unmounted) {
+		if (this.unmounted || seq !== this._nongliReqSeq) {
 			return;
 		}
 		if (!nongli) { settleTrigger(this, 'requestNongli', nongliTrig, false); }   // 历法服务未回 → 同参允许重试
-		this.setState({ nongli });
+		this.setState({ nongli, nongliSig: castSourceKey(fields || this.props.fields) });
 		if(!nongli && this.state.options && this.state.options.timeBasis === 'trueSolar'){
-			try{ message.warning('历法服务未在 3.5 秒内返回，真太阳时暂不可得：本次按直接时间立局（概览 / 快照已如实标注）'); }catch(e){ /* 提示失败不阻断 */ }   // [SS-16] 超时显式提示
+			try{ message.warning('历法服务未在 3.5 秒内返回，真太阳时暂不可得：本次按直接时间立局（概览与交给 AI 的内容已注明）'); }catch(e){ /* 提示失败不阻断 */ }   // 超时显式提示
 		}
 		await this.recalc(fields || this.props.fields, nongli, this.state.options);
 	}
@@ -708,7 +747,7 @@ class TaiYiMain extends Component {
 	onOptionChange(key, value, opts) {
 		// 用户拍板: 左栏改过 after23NewDay 后,全局事件不再覆盖。fromGlobal 时不打标记。
 		if(key === 'after23NewDay' && !(opts && opts.fromGlobal)){
-			this._after23BoundaryUserOverrode = true;
+			lockDayBoundary(this, 'after23');
 		}
 		// 用户亲手改的口径 → 落盘(全局广播带 fromGlobal,不落;非设置键会被 store 忽略)。
 		// 流派六键是一张表:只落这次亲手改的那个子键(opts.subKey),以库里那份为底 —— 当前 state 里的表可能刚被事盘回灌过。
@@ -724,13 +763,13 @@ class TaiYiMain extends Component {
 			[key]: value,
 		};
 		this.setState({ options }, () => {
-			// [Q-163/T-84·SS-16 裁决 2026-09-18] 切到「真太阳时」而历法服务上次超时(nongli 为空)→ 重取一次再立局(requestNongli 内含 recalc),
+			// 切到「真太阳时」而历法服务上次超时(nongli 为空)→ 重取一次再立局(requestNongli 内含 recalc),
 			// 不再沿用 state 里的 null 静默按直接时间;仍超时则标签如实「本次按直接时间立局」并提示。
-			if(key === 'timeBasis' && value === 'trueSolar' && !this.state.nongli){
+			if(key === 'timeBasis' && value === 'trueSolar' && !this.castNongliFor(this.props.fields)){
 				this.requestNongli(this.props.fields);
 				return;
 			}
-			this.recalc(this.props.fields, this.state.nongli, options);
+			this.recalc(this.props.fields, this.castNongliFor(this.props.fields), options);
 		});
 	}
 
@@ -745,19 +784,32 @@ class TaiYiMain extends Component {
 			return false;
 		}
 		const payload = saved.payload;
-		const options = payload.options && typeof payload.options === 'object' ? payload.options : {};
+		// 旧存案里的已剔除死键(十精 / 转盘;后端不读、无人消费)载回时去掉,不再随下一次存案落盘
+		const options = payload.options && typeof payload.options === 'object' ? withoutKeys(payload.options, TAIYI_RETIRED_OPTION_KEYS) : {};
 		this.lastRestoredCaseId = saved.caseVersion;
 		this.taiyiRequestSeq += 1;
+		this._nongliReqSeq = (this._nongliReqSeq || 0) + 1;   // 在途的取历法作废:盘由存档复原,回包不得再重算盖掉
+		// 择日内嵌:载入存案 = 按存案看盘 —— 宿主覆盖层换成存案那一刻的时间地点(此前亲手改的作废),左栏与之后的重排都回到存案;
+		// 盘面由存档复原,宿主因此重渲染带来的这一次 fields 变化不重排(否则按择日页当前时刻重算,存档的盘被换掉)
+		// 存案取不出时间地点(补丁为空)时宿主 fields 可能不变,不置跳过标记 —— 否则标记留到下一次真实变化,把那次重起吞掉
+		const casePatch = getKentangSavedCaseFieldsPatch(this.props.techniqueScope || 'taiyi') || {};
+		if(sendScopedFields(this.props, casePatch, { replace: true, recompute: false }) && Object.keys(casePatch).length){
+			this._skipNextFieldsRecompute = true;
+		}
+		const restoredOptions = withoutKeys({
+			...this.state.options,
+			// 事盘里没有的口径键回**出厂值**,而不是留着本机保存的偏好:本页口径现在跨会话保留,按出厂口径存下的旧案不带后来才有的键
+			// (流派六键等),不回出厂,之后对这份旧案的重排就是按你现在的偏好排的,与存档里的盘 / 快照对不上。
+			...TAIYI_PAGE_SETTINGS.defaults(),
+			...options,
+		}, TAIYI_RETIRED_OPTION_KEYS);
+		// 择日内嵌:记下哪些锁定项是由存案复原成非扫描口径的(显式标记,见 zeriLockProps 第四参)
+		if (this.props.zeriLocked) { this._zeriRestoredLocks = zeriRestoredLockMarks(this.props.zeriLocked, restoredOptions); }
 		this.setState({
 			loading: false,
-			options: {
-				...this.state.options,
-				// 事盘里没有的口径键回**出厂值**,而不是留着本机保存的偏好:本页口径现在跨会话保留,按出厂口径存下的旧案不带后来才有的键
-				// (流派六键等),不回出厂,之后对这份旧案的重排就是按你现在的偏好排的,与存档里的盘 / 快照对不上。
-				...TAIYI_PAGE_SETTINGS.defaults(),
-				...options,
-			},
+			options: restoredOptions,
 			nongli: payload.nongli || null,
+			nongliSig: castSourceKey({ ...(this.props.fields || {}), ...casePatch }),   // 存档的农历出自存案那一刻
 			pan: payload.pan || null,
 			rightPanelTab: 'overview',
 		}, () => {
@@ -780,10 +832,11 @@ class TaiYiMain extends Component {
 			message.warning('请先起盘后再保存');
 			return;
 		}
-		// [挂载自检 F-36] 择日宿主内(techniqueScope='taiyizeri')按宿主键存档:caseType/module=宿主键,快照取宿主槽
+		// 择日宿主内(techniqueScope='taiyizeri')按宿主键存档:caseType/module=宿主键,快照取宿主槽
 		// (composeAiSnapshot 已并入择时三段);此前硬编 'taiyi' → 存成母技法事盘且无择时段。
 		const scope = this.props.techniqueScope || 'taiyi';
-		const scopeSnap = scope !== 'taiyi' ? loadModuleAISnapshot(scope) : null;
+		// 先请本页按此刻所见重存再读(宿主刚出的择时结果经 composeAiSnapshot 并入;直读槽 = 扫描前的旧文)
+		const scopeSnap = scope !== 'taiyi' ? loadFreshModuleAISnapshot(scope) : null;
 		openKentangCaseDrawer({
 			dispatch: this.props.dispatch,
 			fields: this.props.fields,
@@ -791,7 +844,7 @@ class TaiYiMain extends Component {
 			label: scope === 'taiyizeri' ? '太乙择日' : '太乙',
 			payload: {
 				options: this.state.options,
-				nongli: this.state.nongli,
+				nongli: this.castNongliFor(this.props.fields),
 				pan: this.state.pan,
 				snapshot: (scopeSnap && scopeSnap.content) ? scopeSnap.content : buildTaiyiSnapshotText(this.state.pan),
 			},
@@ -852,12 +905,12 @@ class TaiYiMain extends Component {
 			els.push(<text key={`lb-g-${zhi}`} x={x + 12} y={y + 30} textAnchor="start" dominantBaseline="middle" fill={isMing ? gold : 'var(--horosa-text, #e8e2d2)'} stroke="none" fontSize="19" fontWeight={isMing ? 700 : 560} fontFamily={TAIYI_FONT}>{gname || '　'}</text>);
 			// 地支 + 命/身 徽(右上角)
 			const badge = isMing && isShen ? '命身' : (isMing ? '命' : (isShen ? '身' : ''));
-			els.push(<text key={`lb-z-${zhi}`} x={x + cell - 10} y={y + 26} textAnchor="end" dominantBaseline="middle" fill={badge ? gold : 'var(--horosa-text-muted, #8a8a8a)'} stroke="none" fontSize="14" fontFamily={TAIYI_FONT}>{zhi}{badge ? `·${badge}` : ''}</text>);
+			els.push(<text key={`lb-z-${zhi}`} x={x + cell - 10} y={y + 26} textAnchor="end" dominantBaseline="middle" fill={badge ? gold : 'var(--horosa-text-secondary, #8a8a8a)'} stroke="none" fontSize="14" fontFamily={TAIYI_FONT}>{zhi}{badge ? `·${badge}` : ''}</text>);
 			// 落神(左列竖排,每神一行,fontSize 12,至多 5 行不溢格)
 			items.slice(0, 5).forEach((it, ii) => {
 				els.push(<text key={`lb-s-${zhi}-${ii}`} x={x + 12} y={y + 60 + ii * 20} textAnchor="start" dominantBaseline="middle" fill="var(--horosa-text-soft, #9a8f78)" stroke="none" fontSize="12" fontFamily={TAIYI_FONT}>{String(it).slice(0, 4)}</text>);
 			});
-			// 飛祿/飛馬/黑符 徽(格底右下角,彩色小药丸)
+			// 飛祿/飛馬/黑符 徽(格底右下角,彩色小药丸;字是实底配字 —— 金底 on-accent、其余 on-solid,不写死白)
 			const mk = [];
 			if (zhi === feiLu) { mk.push(['祿', gold]); }
 			if (zhi === feiMa) { mk.push(['馬', 'var(--horosa-info, #4a7fb5)']); }
@@ -865,7 +918,7 @@ class TaiYiMain extends Component {
 			mk.forEach(([lb, col], mi) => {
 				const mx = x + cell - 16 - mi * 22, my = y + cell - 16;
 				els.push(<circle key={`lb-mk-${zhi}-${mi}`} cx={mx} cy={my} r="9" fill={col} />);
-				els.push(<text key={`lb-mkt-${zhi}-${mi}`} x={mx} y={my} textAnchor="middle" dominantBaseline="middle" fill="#fff" stroke="none" fontSize="11" fontFamily={TAIYI_FONT}>{lb}</text>);
+				els.push(<text key={`lb-mkt-${zhi}-${mi}`} x={mx} y={my} textAnchor="middle" dominantBaseline="middle" fill={col === gold ? 'var(--horosa-on-accent)' : 'var(--horosa-on-solid)'} stroke="none" fontSize="11" fontFamily={TAIYI_FONT}>{lb}</text>);
 			});
 		});
 		// 中宫(2×2 合并格):性别乾坤造 + 命身宫 + 命局 + 年卦月卦,居中竖排。
@@ -873,7 +926,7 @@ class TaiYiMain extends Component {
 		els.push(<rect key="lb-center-bg" x={cell} y={cell} width={cell * 2} height={cell * 2} fill="var(--horosa-surface-raised, #16140f)" fillOpacity="0.35" stroke={stroke} strokeWidth="1.5" />);
 		const centerLines = [`${zao} · ${sexLabel}`, `命宫 ${mingZhi || '—'}　身宫 ${shenZhi || '—'}`, `${pan.kook ? pan.kook.text : '—'}`];
 		if (nianGua || yueGua) { centerLines.push(`年卦 ${nianGua || '—'}　月卦 ${yueGua || '—'}`); }
-		els.push(<text key="lb-center" x={cx0} y={cy0 - (centerLines.length - 1) * 15} textAnchor="middle" fill="var(--horosa-text, #e8e2d2)" stroke="none" fontSize="17" fontFamily={TAIYI_FONT}>{centerLines.map((t, i) => <tspan key={i} x={cx0} dy={i === 0 ? 0 : 30} fontSize={i === 0 ? 19 : (i >= 2 ? 14 : 16)} fill={i >= 2 ? 'var(--horosa-text-muted, #8a8a8a)' : 'var(--horosa-text, #e8e2d2)'}>{t}</tspan>)}</text>);
+		els.push(<text key="lb-center" x={cx0} y={cy0 - (centerLines.length - 1) * 15} textAnchor="middle" fill="var(--horosa-text, #e8e2d2)" stroke="none" fontSize="17" fontFamily={TAIYI_FONT}>{centerLines.map((t, i) => <tspan key={i} x={cx0} dy={i === 0 ? 0 : 30} fontSize={i === 0 ? 19 : (i >= 2 ? 14 : 16)} fill={i >= 2 ? 'var(--horosa-text-secondary, #8a8a8a)' : 'var(--horosa-text, #e8e2d2)'}>{t}</tspan>)}</text>);
 		// 外框
 		els.push(<rect key="lb-frame" x={0} y={0} width={W} height={H} fill="none" stroke={stroke} strokeWidth="2.5" />);
 		return (
@@ -922,7 +975,7 @@ class TaiYiMain extends Component {
 
 {/* [择日宿主] 左栏插槽(主太乙页不传=零渲染) */}
 				{typeof this.props.renderLeftExtra === 'function' ? this.props.renderLeftExtra() : null}
-				{/* [观象P1] 太乙左栏分段:时间地点(不折叠)/盘式选项(折叠记忆) */}
+				{/* 太乙左栏分段:时间地点(不折叠)/盘式选项(折叠记忆) */}
 				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 				<SpaceTimePanel
 					fields={fields}
@@ -943,16 +996,16 @@ class TaiYiMain extends Component {
 								<Option value={1}>男</Option>
 							</Select>
 						</label>
-						<label className="horosa-taiyi-select-field">
+						<label className="horosa-taiyi-select-field" title={zeriLockProps(this.props.zeriLocked, 'style', opt.style, this._zeriRestoredLocks).title}>
 							<span>盘式</span>
-							<Select dropdownMatchSelectWidth={false} dropdownClassName="horosa-taiyi-field-dropdown" value={opt.style} onChange={(v) => this.onOptionChange('style', v)}>
+							<Select dropdownMatchSelectWidth={false} dropdownClassName="horosa-taiyi-field-dropdown" value={opt.style} onChange={(v) => this.onOptionChange('style', v)} disabled={!!zeriLockProps(this.props.zeriLocked, 'style', opt.style, this._zeriRestoredLocks).disabled}>
 								{STYLE_OPTIONS.map((item) => <Option key={item.value} value={item.value}>{item.label}</Option>)}
 							</Select>
 						</label>
 						{/* 古法公式(tn)已移入下方「流派设置」分组(算法设置派),此处不再重复 */}
-						<label className="horosa-taiyi-select-field">
+						<label className="horosa-taiyi-select-field" title={zeriLockProps(this.props.zeriLocked, 'timeBasis', opt.timeBasis, this._zeriRestoredLocks).title}>
 							<span>时间基准</span>
-							<Select dropdownMatchSelectWidth={false} dropdownClassName="horosa-taiyi-field-dropdown" value={opt.timeBasis} onChange={(v) => this.onOptionChange('timeBasis', v)}>
+							<Select dropdownMatchSelectWidth={false} dropdownClassName="horosa-taiyi-field-dropdown" value={opt.timeBasis} onChange={(v) => this.onOptionChange('timeBasis', v)} disabled={!!zeriLockProps(this.props.zeriLocked, 'timeBasis', opt.timeBasis, this._zeriRestoredLocks).disabled}>
 								{TIME_BASIS_OPTIONS.map((item) => <Option key={item.value} value={item.value}>{item.label}</Option>)}
 							</Select>
 						</label>
@@ -963,9 +1016,9 @@ class TaiYiMain extends Component {
 							</Select>
 						</label>
 						{!isLifeStyle && (
-							<label className="horosa-taiyi-select-field">
+							<label className="horosa-taiyi-select-field" title={zeriLockProps(this.props.zeriLocked, 'gameTheory', opt.gameTheory, this._zeriRestoredLocks).title}>
 								<span>博弈</span>
-								<Select dropdownMatchSelectWidth={false} dropdownClassName="horosa-taiyi-field-dropdown" value={opt.gameTheory} onChange={(v) => this.onOptionChange('gameTheory', v)}>
+								<Select dropdownMatchSelectWidth={false} dropdownClassName="horosa-taiyi-field-dropdown" value={opt.gameTheory} onChange={(v) => this.onOptionChange('gameTheory', v)} disabled={!!zeriLockProps(this.props.zeriLocked, 'gameTheory', opt.gameTheory, this._zeriRestoredLocks).disabled}>
 									{GAME_THEORY_OPTIONS.map((item) => <Option key={item.value} value={item.value}>{item.label}</Option>)}
 								</Select>
 							</label>
@@ -982,7 +1035,7 @@ class TaiYiMain extends Component {
 
 				{!isLifeStyle && (
 					<XQSideSection iconName="taiyi" title="流派设置" storageKey="taiyi.school" className="horosa-taiyi-input-section">
-						<div style={{ fontSize: 11, color: 'var(--horosa-text-muted, #8a8a8a)', marginBottom: 4 }}>默认=从盘·字节不变;改则按所选流派几何重算主客算与神煞（古法公式 tn 仍由后端重排）</div>
+						<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary, #8a8a8a)', marginBottom: 4 }}>默认＝从盘，不改原盘；改文昌重留 / 计神方向 / 客算间辰 / 始击坐标任一项时，主客算改按古法几何逐宫重算；三基、游神只改所涉神煞的落处</div>
 						<div className="horosa-taiyi-select-grid">
 							{/* 古法公式(积年常数派)归流派设置分组;命法style下前面已隐藏本整段 */}
 							<label className="horosa-taiyi-select-field">
@@ -1040,7 +1093,7 @@ class TaiYiMain extends Component {
 				<span style={{ marginRight: 6 }}>{num === undefined || num === null ? '—' : num}</span>
 				{(tags || []).map((t, i) => {
 					const tone = shuliTone(t);
-					const color = tone === 'bad' ? 'var(--horosa-danger, #c0563a)' : tone === 'good' ? 'var(--horosa-accent, #d7ad69)' : 'var(--horosa-text-muted, #8a8a8a)';
+					const color = tone === 'bad' ? 'var(--horosa-danger, #c0563a)' : tone === 'good' ? 'var(--horosa-accent, #d7ad69)' : 'var(--horosa-text-secondary, #8a8a8a)';
 					return <span key={i} style={{ display: 'inline-block', fontSize: 11, lineHeight: 1.5, padding: '0 5px', marginRight: 4, borderRadius: 7, border: `1px solid ${color}`, color }}>{t}</span>;
 				})}
 			</span>
@@ -1088,14 +1141,14 @@ class TaiYiMain extends Component {
 				['古法出处', panOptions.methodSource || getMethodSource(opt.tn)],
 				['博弈', panOptions.gameTheoryLabel || (opt.gameTheory === 1 ? '开启' : '关闭')],
 				['局式', pan ? (pan.kook && pan.kook.text ? pan.kook.text : '—') : '—'],
-				['流派', pan && pan._schoolNote ? (<span style={{ color: 'var(--horosa-astro-blue, #7fa8d8)' }} title="左栏「流派设置」非默认;被覆盖神煞与主客算据古法重算">{pan._schoolNote}</span>) : '默认(从盘·字节不变)'],
+				['流派', pan && pan._schoolNote ? (<span style={{ color: 'var(--horosa-astro-blue, #7fa8d8)' }} title="左栏「流派设置」非默认;被覆盖神煞与主客算据古法重算">{pan._schoolNote}</span>) : '默认(从盘)'],
 			] });
 			sections.push({ title: '三算·胜负·格局', rows: [
 				['主算', pan ? calCell(pan.homeCal, shuli && shuli.home) : '—'],
 				['客算', pan ? calCell(pan.awayCal, shuli && shuli.away) : '—'],
 				['定算', pan ? calCell(pan.setCal, shuli && shuli.set) : '—'],
 				['胜负', pan && victory ? (
-					<span title={victory.reasons.join('\n')} style={{ fontWeight: 640, color: victory.side === '主胜' ? 'var(--horosa-accent, #d7ad69)' : victory.side === '客胜' ? 'var(--horosa-danger, #c0563a)' : 'var(--horosa-text-muted, #8a8a8a)' }}>{victory.side}</span>
+					<span title={victory.reasons.join('\n')} style={{ fontWeight: 640, color: victory.side === '主胜' ? 'var(--horosa-accent, #d7ad69)' : victory.side === '客胜' ? 'var(--horosa-danger, #c0563a)' : 'var(--horosa-text-secondary, #8a8a8a)' }}>{victory.side}</span>
 				) : '—'],
 				['格局', pan ? (geju.length ? (
 					<span>{geju.map((g, i) => (
@@ -1138,7 +1191,7 @@ class TaiYiMain extends Component {
 				sections.push({ title: '十精(二目·八将)', rows: [
 					['十精', (
 						<span>{shijing.map((it, i) => {
-							const color = it.role === '目' ? 'var(--horosa-accent, #d7ad69)' : it.role === '将' ? 'var(--horosa-astro-blue, #7fa8d8)' : 'var(--horosa-text-muted, #8a8a8a)';
+							const color = it.role === '目' ? 'var(--horosa-accent, #d7ad69)' : it.role === '将' ? 'var(--horosa-astro-blue, #7fa8d8)' : 'var(--horosa-text-secondary, #8a8a8a)';
 							return <span key={i} style={{ display: 'inline-block', fontSize: 11, lineHeight: 1.7, padding: '0 6px', marginRight: 4, marginBottom: 3, borderRadius: 7, border: `1px solid ${color}`, color }}>{it.name}·{it.at}</span>;
 						})}</span>
 					)],

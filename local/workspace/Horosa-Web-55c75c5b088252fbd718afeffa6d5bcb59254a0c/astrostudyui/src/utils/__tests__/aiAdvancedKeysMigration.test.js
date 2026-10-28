@@ -1,4 +1,4 @@
-// [G8] 进阶页 .v1 键的坏值/旧形/非 JSON 迁移:读端必须回缺省、不抛、不把未知字段带进结果;修一次后重读稳定(幂等)。
+// 进阶页 .v1 键的坏值/旧形/非 JSON 迁移:读端必须回缺省、不抛、不把未知字段带进结果;修一次后重读稳定(幂等)。
 import { readContextPolicy, CHAT_CONTEXT_POLICY_KEY } from '../aiChatHistory';
 import { readModelRoutes, readRouteOptions, readRouteProfiles, MODEL_ROUTES_KEY, ROUTE_OPTIONS_KEY, ROUTE_PROFILES_KEY } from '../aiModelRouting';
 import { readPersona, PERSONA_KEY } from '../aiChat/persona';

@@ -1,4 +1,5 @@
-// 量化盘 AI 快照汉堡学派要素段(WP-8)守卫:默认 classic 零回归(空)、介入即附流派/差值/医学/赤纬、医疗免责、禁用词扫描。
+// 量化盘 AI 快照汉堡学派要素段(WP-8)守卫:默认 classic 零回归(空)、介入即附流派/差值/医学、医疗免责、禁用词扫描;
+// 赤纬接触已拆成独立段(不受汉堡门控),守卫见文末。
 import { buildHamburgLines } from '../AstroMidpoint';
 import { SUN, MOON, MERCURY, MARS } from '../../../constants/AstroConst';
 
@@ -57,17 +58,11 @@ describe('量化盘 汉堡学派快照段(WP-8)', () => {
 		expect(lines.some((l) => l.includes('胆汁质'))).toBe(false);
 	});
 
-	it('赤纬接触:result.declination 有平行 → 出赤纬段', () => {
+	it('赤纬接触不再混在汉堡段里(独立段只列一次,不随流派门控)', () => {
 		const result = { declination: { parallel: [{ a: SUN, b: MOON, delta: 0.1 }], contraParallel: [] } };
 		const lines = buildHamburgLines({ ...BASE, school: 'pure' }, [], result, 1);
-		expect(lines.some((l) => l.includes('赤纬接触'))).toBe(true);
-		expect(lines.some((l) => l.includes('平行'))).toBe(true);
-	});
-
-	it('showDeclination=false → 不出赤纬段', () => {
-		const result = { declination: { parallel: [{ a: SUN, b: MOON, delta: 0.1 }], contraParallel: [] } };
-		const lines = buildHamburgLines({ ...BASE, school: 'pure', showDeclination: false }, [], result, 1);
-		expect(lines.some((l) => l.includes('赤纬接触'))).toBe(false);
+		expect(lines[0]).toBe('[汉堡学派要素]');
+		expect(lines.some((l) => l.includes('赤纬'))).toBe(false);
 	});
 
 	it('六宫框:houseFrames.frames.sun.placements → 出太阳局落宫', () => {
@@ -88,7 +83,7 @@ describe('量化盘 汉堡学派快照段(WP-8)', () => {
 	});
 });
 
-// [Q-442/T-405] 六宫框全表(不受汉堡门控)与校时预览段。
+// 六宫框全表(不受汉堡门控)与校时预览段。
 describe('量化盘 快照 · 六宫框落宫全表 / 校时预览(Q-442)', () => {
 	const { buildHouseFramesSection, buildRectifySection } = require('../AstroMidpoint');
 	const { MC, ASC, JUPITER } = require('../../../constants/AstroConst');
@@ -119,5 +114,92 @@ describe('量化盘 快照 · 六宫框落宫全表 / 校时预览(Q-442)', () =
 		expect(lines[0]).toBe('[校时预览]');
 		expect(lines).toContainEqual(expect.stringMatching(/^\| 升职 \| 事业 \| 2000-01-01 \| 9\.8\d \| .*MC→木·0\.1\d°/));
 		expect(lines[lines.length - 1]).toMatch(/^命中合计：\d+$/);
+	});
+});
+
+// 赤纬接触独立段:与 90°中点盘右栏同一开关(缺省开)、同一份后端数据,缺省流派也进快照;关 = 无段。
+describe('量化盘 快照 · 赤纬接触独立段', () => {
+	const { buildDeclinationSection, buildGermanySnapshotText, germanyMidpointRequestParams } = require('../AstroMidpoint');
+	const { JUPITER, SATURN, VENUS } = require('../../../constants/AstroConst');
+	const par = (a, b, decA, decB) => ({ a, b, decA, decB, delta: Math.abs(decA - decB) });
+	const decl = {
+		parallel: [par(SUN, MOON, 20.1, 20.4), par(MARS, JUPITER, -5.48, -5.51), par(VENUS, SATURN, 1, 1.2), par(SUN, MARS, 3, 3.5), par(MOON, VENUS, 7, 7.1), par(MERCURY, SATURN, 9, 9.9), par(MERCURY, MOON, 11, 11.2)],
+		contraParallel: [{ a: SATURN, b: JUPITER, decA: -22.1, decB: 22.5, delta: 0.4 }],
+	};
+	it('缺省 classic、开关开 → 出段,平行 / 反平行全部列出(不截前 6 对)', () => {
+		const lines = buildDeclinationSection({ school: 'classic', showDeclination: true }, { declination: decl });
+		expect(lines[0]).toBe('[赤纬接触]');
+		expect(lines.filter((l) => /^\| 平行 \|/.test(l)).length).toBe(7);
+		expect(lines.filter((l) => /^\| 反平行 \|/.test(l)).length).toBe(1);
+		expect(lines).toContain('| 平行 | 火 ∥ 木 | -5.48° / -5.51° | 0.03° |');
+		expect(lines).toContain('| 反平行 | 土 ⥮ 木 | -22.10° / +22.50° | 0.40° |');
+	});
+	it('开关缺省(undefined)= 开;关(false)= 无段;后端没给该字段 = 无段;给了但无接触 = 段头 + 「暂无」', () => {
+		expect(buildDeclinationSection({}, { declination: decl })[0]).toBe('[赤纬接触]');
+		expect(buildDeclinationSection({ showDeclination: false }, { declination: decl })).toEqual([]);
+		expect(buildDeclinationSection({ showDeclination: true }, {})).toEqual([]);
+		expect(buildDeclinationSection(null, { declination: decl })).toEqual([]);
+		expect(buildDeclinationSection({ showDeclination: true }, { declination: { parallel: [], contraParallel: [] } })).toEqual(['[赤纬接触]', expect.stringMatching(/^（平行≈合/), '容许度内暂无平行 / 反平行']);
+	});
+	it('整份快照:同一份后端结果,开 / 关的正文差且只差这一段;缺省流派不出汉堡段', () => {
+		const params = { date: '1990/05/18', time: '10:00:00', zone: '+08:00', lon: '118e27', lat: '31n38', zodiacal: 0, hsys: 1 };
+		const result = { midpoints: [], aspects: {}, tnp: [], declination: decl };
+		const on = buildGermanySnapshotText(params, null, result, {}, null, { school: 'classic', showDeclination: true });
+		const off = buildGermanySnapshotText(params, null, result, {}, null, { school: 'classic', showDeclination: false });
+		expect(on).toContain('\n[赤纬接触]\n');
+		expect(off).not.toContain('赤纬接触');
+		expect(on).not.toContain('[汉堡学派要素]');
+		expect(on.replace(/\n\n\[赤纬接触\][\s\S]*?(?=\n\n\[|$)/, '')).toBe(off);
+	});
+	it('出参单源:赤纬键随开关下发(缺省开 = true),页面与无头重算同一函数', () => {
+		expect(germanyMidpointRequestParams({}).declination).toBe(true);
+		expect(germanyMidpointRequestParams({ showDeclination: false }).declination).toBe(false);
+		expect(germanyMidpointRequestParams({ showHouseFrames: false, showEastPoint: true }).frames).toBe(true);
+		expect(germanyMidpointRequestParams({ showHouseFrames: false }).frames).toBe(false);
+		expect(germanyMidpointRequestParams({ strictFactors: true }).strictFactors).toBe(true);
+		expect(germanyMidpointRequestParams({}, { date: 'x' }).davison).toEqual({ date: 'x' });
+		const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'AstroMidpoint.js'), 'utf8');
+		const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+		const code = strip(src);
+		// 本命中点请求两条路(页面 requestChart / 无头 buildGermanySnapshotForFields)都经单源;伙伴盘那一路只要流派口径
+		expect((code.match(/germanyMidpointRequestParams\(/g) || []).length).toBeGreaterThanOrEqual(2);   // 页面 + 无头(定义在 UranianSchools)
+		expect(code).not.toMatch(/declination:\s*d(isp|ispReq)\.showDeclination/);
+	});
+});
+
+// 页面中点页签:显示偏好里要后端重算的项变了 → 重取(重取后自存);只是正文口径项变了 → 只重存。
+describe('量化盘 中点页 · 显示偏好变化的快照刷新', () => {
+	beforeEach(() => { jest.useFakeTimers(); try{ localStorage.clear(); }catch(e){ /* ignore */ } });
+	afterEach(() => { jest.useRealTimers(); });
+	const mount = () => {
+		const AstroMidpoint = require('../AstroMidpoint').default;
+		const inst = new AstroMidpoint({ fields: null });
+		inst.requestChartObj = jest.fn();
+		inst.saveGermanySnapshot = jest.fn();
+		inst.componentDidMount();
+		inst.saveGermanySnapshot.mockClear();
+		inst._lastDisplaySig = JSON.stringify(inst.midpointDisplayParams());   // 等同已按当前偏好取过一次
+		return inst;
+	};
+	it('关赤纬 / 关六宫框 / 换流派 → 重取,不拿旧数据重存', () => {
+		const { saveUranianDisplay } = require('../UranianDialStyle');
+		[{ showDeclination: false }, { showHouseFrames: false }, { school: 'cosmo' }].forEach((patch) => {
+			const inst = mount();
+			saveUranianDisplay(patch);
+			jest.advanceTimersByTime(300);
+			expect(inst.requestChartObj).toHaveBeenCalledTimes(1);
+			expect(inst.saveGermanySnapshot).not.toHaveBeenCalled();
+			inst.componentWillUnmount();
+			localStorage.clear();
+		});
+	});
+	it('只改正文口径(校时事件)→ 只重存', () => {
+		const { saveUranianDisplay } = require('../UranianDialStyle');
+		const inst = mount();
+		saveUranianDisplay({ rectifyEvents: [{ label: 'a', date: '2000-01-01', type: 'career' }] });
+		jest.advanceTimersByTime(300);
+		expect(inst.requestChartObj).not.toHaveBeenCalled();
+		expect(inst.saveGermanySnapshot).toHaveBeenCalledTimes(1);
+		inst.componentWillUnmount();
 	});
 });

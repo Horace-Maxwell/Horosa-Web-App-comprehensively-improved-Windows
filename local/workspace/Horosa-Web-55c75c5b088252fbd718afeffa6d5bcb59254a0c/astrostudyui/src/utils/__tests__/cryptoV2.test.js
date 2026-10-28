@@ -1,4 +1,4 @@
-// [R5 T0] 响应加解密 v2 金标:① 能力头只在「开关开 + 会话钥复用 + WebCrypto 在场」时声明;② Encrypted:2 的
+// 响应加解密 v2 金标:① 能力头只在「开关开 + 会话钥复用 + WebCrypto 在场」时声明;② Encrypted:2 的
 // 信封(iv||密文||标签,base64)用会话钥经 WebCrypto 解出原文(UTF-8 中文);③ Encrypted:1 仍走旧 RSA 路径;
 // ④ 篡改标签必失败(GCM 完整性)。js-rsa 在 jsdom 跑不了 → mock(与 rsaSessionKey.test 同法)。
 const mockRsaState = { encCalls: 0 };

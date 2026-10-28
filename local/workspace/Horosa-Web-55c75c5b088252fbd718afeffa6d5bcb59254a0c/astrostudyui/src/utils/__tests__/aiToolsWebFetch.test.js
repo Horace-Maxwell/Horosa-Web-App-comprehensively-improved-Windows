@@ -1,4 +1,4 @@
-// [批三①] web_fetch 合同:缺省关(不进 manifest、调用即 E_TOOL_DISABLED、零出站);开=只经 services.requestWebFetch(零直连);回体归一;守卫拒绝 → E_WEB_FETCH_BLOCKED、其它 → E_WEB_FETCH_FAILED;
+// web_fetch 合同:缺省关(不进 manifest、调用即 E_TOOL_DISABLED、零出站);开=只经 services.requestWebFetch(零直连);回体归一;守卫拒绝 → E_WEB_FETCH_BLOCKED、其它 → E_WEB_FETCH_FAILED;
 // 非 http(s) 前端先拒;signal 透传;标签/错误码/注册表键在位。
 jest.mock('../../services/aianalysis', ()=>({ requestWebFetch: jest.fn() }));
 import { requestWebFetch } from '../../services/aianalysis';

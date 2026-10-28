@@ -1,4 +1,4 @@
-// [挂载自检 F-20·P0] 神数正传·心易:女命记录(gender 0)查女表(此前恒按男)。判别向量:改回 `=== 'Female'` 即红。
+// 神数正传·心易:女命记录(gender 0)查女表(此前恒按男)。判别向量:改回 `=== 'Female'` 即红。
 jest.mock('../request', () => ({ __esModule: true, default: jest.fn(async () => { throw new Error('offline'); }) }));
 jest.mock('../localcharts', () => ({ listLocalCharts: jest.fn(() => []), __esModule: true }));
 jest.mock('../localcases', () => ({ listLocalCases: jest.fn(() => []), getCaseTypeLabel: jest.fn((t) => t), getCaseTypeMeta: jest.fn(() => ({ module: '', value: '' })), CASE_TYPE_OPTIONS: [], __esModule: true }));
@@ -25,7 +25,7 @@ it('🔴 女命(gender 0)与男命(gender 1)的心易查表结果不同(挑有 �
 	expect(tF2).toBe(tF);
 });
 
-// [Q-284/T-276] 性别「未知(按男排)」gender=-1:心易查表与快照均按男(与八字本地引擎「0=女,其余=男」同口径;此前 `=== 1` 判男 → 未知当女命)。
+// 性别「未知(按男排)」gender=-1:心易查表与快照均按男(与八字本地引擎「0=女,其余=男」同口径;此前 `=== 1` 判男 → 未知当女命)。
 it('未知性别(-1)的心易结果与快照 = 男命,不再当坤造', async ()=>{
 	let pick = null;
 	XINYI_ITEMS.forEach((item)=>{ XINYI_SOUNDS_A.forEach((sound)=>{ if(pick){ return; } const m = lookupXiang(item, sound, 1), f = lookupXiang(item, sound, 0); if(m && f && JSON.stringify(m.picked) !== JSON.stringify(f.picked)){ pick = { item, sound }; } }); });

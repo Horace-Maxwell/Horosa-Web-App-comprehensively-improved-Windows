@@ -1,17 +1,18 @@
-// [独立审计 2026-08-18] 占星设置全键「透传终局合同」——行为级四面:
+// 占星设置全键「透传终局合同」——行为级四面:
 // ① 随盘清单完备性:RECORD_FIELDS_RESTORE_MANIFEST ⊇ spec 全键(漏一键=该设置不随盘存档)
 // ② 随盘 roundtrip:全 spec 键非默认 → capture 逐键落 → 以捕获值再构 send 载荷逐键仍在(存→载→发等值链)
 // ③ 判读全局层:classical 仓判读键逐键非默认 → judgeLayerOverrides() 逐键出现(卜卦/择日 AI 挂载共此层)
 // ④ AI 挂载再生构参:aiAnalysisContext.fieldParams 必 spread classicalBackendOverridesFromFields(单源锚,
 //    防回退手写键列表);挂载走主盘同链,行为面由 ② 的 send 函数全键覆盖。
 // 背景:多轮复审(65 项)后行为级压测同日在引擎面(:8899 真打)逐键证活 49/51,
-// 两死档(saturnExalt20 exaltDeg 零消费 / polarMcMode swap 分支实测不可达)已于 2026-08-18 拍板删档,全链退场。
+// 两死档(saturnExalt20 exaltDeg 零消费 / polarMcMode)已于 2026-08-18 拍板删档,全链退场;极区天顶口径改由引擎单源定死。
 import fs from 'fs';
 import path from 'path';
 import { CLASSICAL_PARAM_SPEC } from '../classicalParamSpec';
 import { classicalBackendOverridesFromPlain, setClassicalChartGlobal, __resetClassicalGlobalsCacheForTest } from '../classicalChartGlobals';
 import { RECORD_FIELDS_RESTORE_MANIFEST, captureNonDefaultTechniqueFields, registerFieldsBaselineFactory } from '../recordFieldsRestore';
 import { judgeLayerOverrides } from '../judgeLayerOverrides';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC_ROOT = path.resolve(__dirname, '..', '..');
 
@@ -31,7 +32,7 @@ afterEach(()=>{
 });
 
 describe('① 随盘清单完备性(manifest ⊇ spec 随盘键)', ()=>{
-	// seed='never' 12 键=本机全局偏好层(不进 fields/record 链;AI 快照面由 [F11] 快照敏感键收口,
+	// seed='never' 12 键=本机全局偏好层(不进 fields/record 链;AI 快照面由快照敏感键收口,
 	// 判读面由 judgeLayerOverrides 收口)——设计内分层。枚举冻结:此集扩张必须显式过审,
 	// 防止新键误标 never 而静默丢失随盘性。
 	const LOCAL_ONLY_KEYS = [
@@ -153,7 +154,7 @@ describe('③ 判读全局层(卜卦/择日 AI 挂载共用)', ()=>{
 
 describe('④ AI 挂载再生构参单源锚', ()=>{
 	it('aiAnalysisContext.fieldParams 必 spread classicalBackendOverridesFromFields(防回退手写)', ()=>{
-		const src = fs.readFileSync(path.join(SRC_ROOT, 'utils/aiAnalysisContext.js'), 'utf8');
+		const src = readSource(path.join(SRC_ROOT, 'utils/aiAnalysisContext.js'));
 		const fnStart = src.indexOf('function fieldParams(');
 		expect(fnStart).toBeGreaterThan(0);
 		// 函数超长(主限八键+七政六键+希腊化六项全在里面),窗口给足;锚=单源 spread 存在于函数体内。

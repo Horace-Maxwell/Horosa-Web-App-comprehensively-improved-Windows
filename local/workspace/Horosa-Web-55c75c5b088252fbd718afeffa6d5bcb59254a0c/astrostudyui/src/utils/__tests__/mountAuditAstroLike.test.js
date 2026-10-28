@@ -1,4 +1,4 @@
-// [挂载自检 F-26·P0] 「十三分盘 / 占星地图」聚合键=辅盘页派生盘模块快照(只认本命主),不再把 12 宫本命冒充派生盘。
+// 「十三分盘 / 占星地图」聚合键=辅盘页派生盘模块快照(只认本命主),不再把 12 宫本命冒充派生盘。
 // 判别向量:分派改回 `key === 'astrochart' || key === 'astrochart_like'` 走 buildChartContext 即第 1/2 例红。
 jest.mock('../request', () => ({ __esModule: true, default: jest.fn(async () => ({ Result: {} })) }));
 jest.mock('../localcharts', () => ({ listLocalCharts: jest.fn(() => []), __esModule: true }));
@@ -45,8 +45,8 @@ it('聚合键 schema 改只读(57 占星齿轮对它是本命请求,已撤);派�
 	expect(ASTRO_LIKE_DERIVED_MODULES).toEqual(['hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation']);
 });
 
-// [挂载自检 F-27] 派生盘五键独立技法键:各读本键模块快照(只认本命主),聚合键照旧并挂全部。
-describe('[F-27] 派生盘五键独立技法键', ()=>{
+// 派生盘五键独立技法键:各读本键模块快照(只认本命主),聚合键照旧并挂全部。
+describe('派生盘五键独立技法键', ()=>{
 	const { ANALYSIS_CHART_TECHNIQUES, ANALYSIS_TECHNIQUE_LABELS } = require('../aiAnalysisContext');
 	it('🔴 五键登记为命盘技法(有标签、schema=sectionsOnly)', ()=>{
 		['hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation'].forEach((k)=>{

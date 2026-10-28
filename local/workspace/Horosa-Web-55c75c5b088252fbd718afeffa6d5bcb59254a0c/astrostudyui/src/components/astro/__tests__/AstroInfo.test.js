@@ -5,7 +5,7 @@ jest.mock('../../../utils/helper', ()=>({
 import { resolveAstroDisplayMode, } from '../AstroInfo';
 
 describe('AstroInfo display mode', ()=>{
-	// [Q-254/T-233] 请求入参(fields 标签)优先、echo 兜底 —— 与 AI 快照 [起盘信息] 同序(此前 echo 优先 → 两处分叉)。
+	// 请求入参(fields 标签)优先、echo 兜底 —— 与 AI 快照 [起盘信息] 同序(此前 echo 优先 → 两处分叉)。
 	test('prefers field labels (request params) and falls back to chart echo labels otherwise', ()=>{
 		expect(resolveAstroDisplayMode({
 			zodiacal: 'Sidereal',

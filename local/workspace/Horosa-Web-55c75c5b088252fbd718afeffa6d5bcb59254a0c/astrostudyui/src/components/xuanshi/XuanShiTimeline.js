@@ -1,12 +1,43 @@
 import React from 'react';
 import { Spin, Empty } from 'antd';
 import { fetchTimeline } from '../../services/xuanshi';
-import { gregYearShort } from './xuanshiDate';   // [Q-491] 公元前年份写法单源
+import { gregYearShort } from './xuanshiDate';   // 公元前年份写法单源
 
 // 朝代时间轴 —— 照搬 参考朝代时间轴页:顶部编年横向条带(柱按公历 span 定位、柱高∝事件数、时间刻度)
 // + 朝代×术类 堆叠条 + 图例 + 右侧钻取面板。
 const PALETTE = ['var(--vermilion)', 'var(--jade)', 'var(--gold)', '#8a7e6b', '#d99a6c', '#6c8a99', '#9a6c8a', '#6c9a73', '#a89060', '#7a8a6c', '#a07a8a', '#6c6c8a'];
 const TICKS = [-1000, -500, 0, 500, 1000, 1500];
+
+// 编年条带分泳道(纯函数):并存朝代(三国 / 西晋 / 东晋十六国、五代 / 辽 / 北宋、金 / 南宋)与过窄的短朝代(秦、新莽)
+// 此前同排一层,柱互相压住、名字与年份叠成一团、短柱下的年份被挤成逐字竖排。
+// 每段占「柱宽 ∪ 标签宽」(标签按参考宽 refW 折算成百分比,标签居中于柱),按起年顺序放进第一条放得下的泳道。
+// 没有并存 / 过窄时只有一条泳道 —— 与此前逐像素相同。
+export const TIMELINE_REF_W = 1200;          // 条带最小宽(与下方 minWidth 同值):按它折算标签宽,实际更宽时只会更松
+export const TIMELINE_LABEL_GAP_PX = 6;
+export function timelineLabelPx(name, yearText){
+	return Math.max(Array.from(`${name || ''}`).length * 12, Array.from(`${yearText || ''}`).length * 5.6) + 8;
+}
+export function layoutTimelineLanes(series, firstYear, totalSpan, labelOf, refW = TIMELINE_REF_W){
+	const span = totalSpan || 1;
+	const items = (series || []).map((s, i)=>{
+		const left = ((s.span_start - firstYear) / span) * 100;
+		const width = ((s.span_end - s.span_start) / span) * 100;
+		const lw = (labelOf(s) / refW) * 100;
+		const center = left + width / 2;
+		const gap = (TIMELINE_LABEL_GAP_PX / refW) * 100;
+		return { i, left, width, l: Math.min(left, center - lw / 2) - gap / 2, r: Math.max(left + width, center + lw / 2) + gap / 2 };
+	});
+	const order = items.slice().sort((a, b)=>(a.left - b.left) || (a.i - b.i));
+	const laneEnd = [];
+	const lane = new Array(items.length).fill(0);
+	order.forEach((it)=>{
+		let k = laneEnd.findIndex((end)=>end <= it.l + 1e-9);
+		if(k < 0){ k = laneEnd.length; laneEnd.push(-Infinity); }
+		laneEnd[k] = it.r;
+		lane[it.i] = k;
+	});
+	return { lanes: lane, laneCount: Math.max(1, laneEnd.length) };
+}
 
 export default class XuanShiTimeline extends React.Component {
 	constructor(props) {
@@ -17,7 +48,7 @@ export default class XuanShiTimeline extends React.Component {
 	componentDidMount() { this.load(); }
 
 	async load() {
-		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // 序号守卫:旧响应不覆盖新条件
 		this.setState({ loading: true, err: '' });
 		try { const r = await fetchTimeline({}); if(__seq !== this._loadSeq){ return; } this.setState({ data: r, loading: false }); }
 		catch (e) { this.setState({ loading: false, err: `${e && e.message ? e.message : e}` }); }
@@ -42,6 +73,12 @@ export default class XuanShiTimeline extends React.Component {
 		const firstYear = series.length ? series[0].span_start : 0;
 		const lastYear = series.length ? series[series.length - 1].span_end : 1;
 		const totalSpan = (lastYear - firstYear) || 1;
+		const yearText = (s)=>`${gregYearShort(s.span_start)}–${gregYearShort(s.span_end)}`;
+		const { lanes, laneCount } = layoutTimelineLanes(series, firstYear, totalSpan, (s)=>timelineLabelPx(s.macro, yearText(s)));
+		// 一条泳道:柱高上限 200、条带高 280(与此前相同);多条泳道:各泳道同一比例尺(柱高仍 ∝ 事件数,跨泳道可比),逐道叠放
+		const barMax = laneCount > 1 ? 150 : 200;
+		const laneH = barMax + 48;
+		const stripH = laneCount > 1 ? 32 + laneCount * laneH : 280;
 
 		return (
 			<div>
@@ -57,33 +94,38 @@ export default class XuanShiTimeline extends React.Component {
 
 				{/* 顶部编年横向条带 */}
 				<div className="xuanshi-card" style={{ padding: 18, marginTop: 18 }}>
-					<div style={{ position: 'relative', height: 280, overflowX: 'auto' }}>
-						<div style={{ position: 'relative', height: '100%', minWidth: 1200 }}>
+					<div style={{ position: 'relative', height: stripH, overflowX: 'auto' }}>
+						<div style={{ position: 'relative', height: '100%', minWidth: TIMELINE_REF_W }}>
 							{/* 时间刻度 */}
 							{TICKS.map((tick) => {
 								const left = ((tick - firstYear) / totalSpan) * 100;
 								if (left < 0 || left > 100) { return null; }
 								return (
 									<div key={tick} style={{ position: 'absolute', top: 0, bottom: 0, left: `${left}%`, borderLeft: '1px solid var(--line-soft)' }}>
-										<div style={{ position: 'absolute', top: -2, left: 4, fontSize: 10, color: 'var(--ink-muted)' }}>{gregYearShort(tick)}   /* [Q-491] 与柱标、卡片同一函数 */</div>
+										<div style={{ position: 'absolute', top: -2, left: 4, fontSize: 10, color: 'var(--ink-muted)' }}>{gregYearShort(tick)}{/* 与柱标、卡片同一函数 */}</div>
 									</div>
 								);
 							})}
 							{/* 朝代条 */}
-							{series.map((s) => {
+							{series.map((s, si) => {
 								const left = ((s.span_start - firstYear) / totalSpan) * 100;
 								const width = ((s.span_end - s.span_start) / totalSpan) * 100;
-								const height = Math.round(((s.total || 0) / maxN) * 200);
+								const height = Math.round(((s.total || 0) / maxN) * barMax);
 								const isActive = macro === s.macro;
+								// 泳道 0 在最上;末道柱底离条带底 48(与单道时相同)
+								const bottom = 48 + (laneCount - 1 - lanes[si]) * laneH;
 								return (
-									<div key={s.macro} className="group" title={`${s.macro}(${gregYearShort(s.span_start)}—${gregYearShort(s.span_end)}) ${s.total} 条`}   /* [Q-491] */
+									<div key={s.macro} className="group" title={`${s.macro}(${gregYearShort(s.span_start)}—${gregYearShort(s.span_end)}) ${s.total} 条`}
 										onClick={() => this.selectMacro(s.macro)}
-										style={{ position: 'absolute', bottom: 48, left: `${left}%`, width: `calc(${width}% - 2px)`, height, cursor: 'pointer' }}>
+										style={{ position: 'absolute', bottom, left: `${left}%`, width: `calc(${width}% - 2px)`, height, cursor: 'pointer' }}>
 										<div style={{ height: '100%', borderRadius: '6px 6px 0 0', background: isActive ? 'var(--vermilion)' : 'linear-gradient(180deg, var(--vermilion-soft), var(--vermilion))', border: `1px solid ${isActive ? 'var(--vermilion)' : 'var(--vermilion-soft)'}` }}>
 											<div style={{ fontSize: 10, color: 'var(--paper-card)', textAlign: 'center', paddingTop: 2, overflow: 'hidden', whiteSpace: 'nowrap' }}>{s.total}</div>
 										</div>
-										<div style={{ fontFamily: 'var(--xs-serif)', fontSize: 12, color: isActive ? 'var(--vermilion)' : 'var(--ink-soft)', marginTop: 4, textAlign: 'center', whiteSpace: 'nowrap' }}>{s.macro}</div>
-										<div style={{ fontSize: 9, color: 'var(--ink-muted)', textAlign: 'center' }}>{gregYearShort(s.span_start)}–{gregYearShort(s.span_end)}</div>{/* [Q-491] 公元前写「前N」,与刻度一致 */}
+										{/* 名字与年份居中于柱、不随柱宽折行(短朝代的柱只有几 px 宽,标签跟柱宽绑定就逐字竖排);泳道排布保证相邻标签不相交 */}
+										<div style={{ position: 'relative', left: '50%', width: 'max-content', transform: 'translateX(-50%)', textAlign: 'center' }}>
+											<div style={{ fontFamily: 'var(--xs-serif)', fontSize: 12, color: isActive ? 'var(--vermilion)' : 'var(--ink-soft)', marginTop: 4, textAlign: 'center', whiteSpace: 'nowrap' }}>{s.macro}</div>
+											<div style={{ fontSize: 9, color: 'var(--ink-muted)', textAlign: 'center', whiteSpace: 'nowrap' }}>{yearText(s)}</div>{/* 公元前写「前N」,与刻度一致 */}
+										</div>
 									</div>
 								);
 							})}

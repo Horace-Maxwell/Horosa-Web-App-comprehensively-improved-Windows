@@ -9,9 +9,10 @@ import { buildReadingText } from '../engine/reportText';
 import { AI_EXPORT_PRESET_SECTIONS } from '../../../utils/aiExport';
 import { TECHNIQUE_SETTINGS_SCHEMA } from '../../../utils/techniqueMountSettings';
 import { OPTION_SPEC } from './tarotOptionSpec';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '../../..');
-const read = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel) => readSource(path.join(SRC, rel));
 
 // 牌面决定类的键(改牌面本身)不入判读齿轮:齿轮只动判读层,牌由 deckId/spreadType/seed 冻结。
 // 齿轮定义:{kind, optionsPath, group, fields:[{name,label,type,default,group,options}]}

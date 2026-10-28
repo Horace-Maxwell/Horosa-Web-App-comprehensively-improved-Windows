@@ -1,4 +1,4 @@
-// 🔴 [V6-W3 闸2] 挂载请求体差分真跑闸 —— 「挂载判据必须照前端原样请求体跑」铁律的机械化
+// 🔴 挂载请求体差分真跑闸 —— 「挂载判据必须照前端原样请求体跑」铁律的机械化
 // (pdYearsMount 范式泛化到 astrochart 全齿轮)。地占战役血训:单测喂后端想要的形状、前端发手上
 // 有的形状 → 单测全绿功能全死;唯一可信判据 = mock 掉 fetchChart,拨齿轮后断言**真实请求体**出现
 // 对应差分。星盘实锤(整宫制被 Alcabitius 顶掉)若有此闸,首跑即红。
@@ -77,8 +77,11 @@ const BODY_KEY_MAP = {
 // 拨该键时并拨 extra,再断言请求体差分 —— 契约照 classicalChartGlobals:125。
 const COMBO_KEYS = {
 	vocIncludeOuter: { vocMode: 'by_orb' },
-	// [Q-022/M-30] 条件字段(showWhen)在父档不满足时不计覆盖不下发 → 拨双子界序须同拨经典传本界
+	// 条件字段(showWhen)在父档不满足时不计覆盖不下发 → 拨双子界序须同拨经典传本界
 	geminiBoundEmended: { termsVariant: 2 },
+	// 狮子土星优先只在校勘本界系生效;岁差制只在黄道 = 恒星时生效(显示条件与页面同,父档不满足不下发)
+	leoBoundFirst: { termsVariant: 1 },
+	siderealAyanamsa: { zodiacal: 1 },
 };
 
 // 不进 /chart 请求体的齿轮(显示/快照层消费)——逐键带理由,且仍断言「拨值触发重算」。
@@ -117,7 +120,7 @@ function lastChartFetch(){
 	return mockFetchChartCalls.length ? mockFetchChartCalls[mockFetchChartCalls.length - 1] : null;
 }
 
-describe('[V6-W3 闸2] astrochart 全齿轮拨非现状值 → /chart 请求体逐键差分', ()=>{
+describe('astrochart 全齿轮拨非现状值 → /chart 请求体逐键差分', ()=>{
 	const schema = getTechniqueSettingsSchema('astrochart');
 	const fields = (schema && schema.fields) || [];
 

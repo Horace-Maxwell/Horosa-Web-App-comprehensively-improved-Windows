@@ -155,6 +155,13 @@ class Taiyi:
         """合神"""
         return self.hegod_map.get(self.taishui(ji_style))
 
+    def _civil_day_diff(self, base):
+        """积日:目标民用日与基准日的日序之差(整天)。两边都取当天 00:00 相减;时 / 分由积数公式另计。
+        旧写法 int(带钟点的浮点日差) 向零取整:基准日以前(差为负)钟点 ≥ 01:00 时多算一天,同一天里 00 点与
+        01 点落在两个积日上。基准日以后两种取法逐位相同。ephem 与民用历同口径(1582 以前儒略历、历史纪年)。"""
+        target = Date(f"{self.year:04d}/{self.month:02d}/{self.day:02d} 00:00:00.00")
+        return int(round(target - Date(base)))
+
     def accnum(self, ji_style, taiyi_acumyear):
         """積年數計算"""
         cache_key = f'accnum_{ji_style}_{taiyi_acumyear}'
@@ -174,11 +181,11 @@ class Taiyi:
             accyear = tn_c + lunar_year - 1 + (2 if lunar_year < 0 else 0)
             result = accyear * 12 + 2 + lunar_month
         elif ji_style == 2:  # 日計
-            diff_val = int(Date(f"{self.year:04d}/{self.month:02d}/{self.day:02d} {self.hour:02d}:00:00.00") - Date("1900/06/19 00:00:00.00"))
+            diff_val = self._civil_day_diff("1900/06/19 00:00:00.00")
             config_num = 708011105 - {0: 0, 1: 185, 2: 10153917, 3: 0}.get(taiyi_acumyear, 0)
             result = config_num + diff_val if taiyi_acumyear != 3 else int(round((lunar_year - 423) * (235 / 19) * 29.5306 + lunar_day, 0))
         elif ji_style == 3:  # 時計
-            diff_val_two = int(Date(f"{self.year:04d}/{self.month:02d}/{self.day:02d} {self.hour:02d}:00:00.00") - Date("1900/12/21 00:00:00.00"))
+            diff_val_two = self._civil_day_diff("1900/12/21 00:00:00.00")
             config_num = 708011105 - {0: 0, 1: 10153917, 2: 10153917, 3: 0}.get(taiyi_acumyear, 0)
             accday = config_num + diff_val_two
             result = ((accday - 1) * 12) + (self.hour + 1) // 2 + (1 if taiyi_acumyear != 1 else -11)
@@ -190,7 +197,7 @@ class Taiyi:
                 zhi_num = dict(zip(self.di_zhi, range(1, 13))).get(self._get_gangzhi()[3][1])
                 result = zhi_num if tiangan == dgz_num else ((dgz_num - getfut) * 12) + zhi_num
         elif ji_style == 4:  # 分計
-            diff_val_two = int(Date(f"{self.year:04d}/{self.month:02d}/{self.day:02d} {self.hour:02d}:{self.minute:02d}:00.00") - Date("1900/12/21 00:00:00.00"))
+            diff_val_two = self._civil_day_diff("1900/12/21 00:00:00.00")
             config_num = 708011105 - {0: 0, 1: 10153917, 2: 10153917, 3: 0}.get(taiyi_acumyear, 0)
             accday = config_num + diff_val_two
             result = ((accday - 1) * 23) + (self.hour * 10500) + (self.minute + 1)
@@ -1162,7 +1169,7 @@ class Taiyi:
         return [(y + m + d + h + 55) % 64, config.gua.get((y + m + d + h + 55) % 64)]
 
     def year_gua(self):
-        d = date(self.year, self.month, self.day)
+        d = jieqi._civil_moment(self.year, self.month, self.day)   # 只读年月日;民用历(1500-02-29 不抛错)
         num= self.life_start_gua()[0] + config.calculateAge(d)
         if num> 64:
             return [num, config.gua.get(num% 64)]

@@ -160,11 +160,11 @@
 }
 
 .horosa-guolao-moira-pattern-bad .horosa-guolao-moira-pattern-head span {
-	background: #d98672;
+	background: var(--horosa-jx-xiong);   /* 明暗成对实底(旧 #d98672 上压亮色纸白字 2.7:1);字 = surface-solid,亮白暗墨 */
 }
 
 .horosa-guolao-moira-pattern-notice .horosa-guolao-moira-pattern-head span {
-	background: #8fb6c9;
+	background: var(--horosa-info);
 }
 
 .horosa-guolao-moira-pattern-neutral .horosa-guolao-moira-pattern-head span {
@@ -197,7 +197,7 @@
 
 .horosa-guolao-moira-table-row {
 	display: grid;
-	/* [极档巡检实抓 2026-09-17] 列最小宽写死 px(66/58/70 → 宿星表 58/76/92)在 1.8 档右栏只剩 ~280px 布局宽时总和超宽,
+	/* 列最小宽写死 px(66/58/70 → 宿星表 58/76/92)在 1.8 档右栏只剩 ~280px 布局宽时总和超宽,
 	   整个右栏 tab 内容区长出横向滚动条(七政·宫限实抓 24px)。改 minmax(0, fr):正常宽度下 fr 份额本就大于原最小值,视觉零变化;
 	   窄到不够时各列按比例收窄、内容按字换行(下方 > * 已是 white-space:normal + break-word),不再横向溢出。 */
 	grid-template-columns: 28px minmax(0, 1fr) minmax(0, 0.86fr) minmax(0, 0.95fr);
@@ -312,7 +312,7 @@
 .horosa-guolao-moira-yeargroup-table {
 	display: flex;
 	flex-direction: column;
-	border: 1px solid var(--horosa-line, rgba(148, 130, 98, 0.28));
+	border: 1px solid var(--horosa-border, rgba(148, 130, 98, 0.28));
 	border-radius: 6px;
 	overflow: hidden;
 }
@@ -328,7 +328,7 @@
 }
 
 .horosa-guolao-moira-yeargroup-row + .horosa-guolao-moira-yeargroup-row {
-	border-top: 1px solid var(--horosa-line, rgba(148, 130, 98, 0.18));
+	border-top: 1px solid var(--horosa-border, rgba(148, 130, 98, 0.18));
 }
 
 .horosa-guolao-moira-yeargroup-row:nth-child(even) {
@@ -784,9 +784,9 @@
 }
 
 :root[data-horosa-appearance='light'] .horosa-guolao-election-alt.is-up { color: #2f9159; }
-:root[data-horosa-appearance='light'] .horosa-guolao-election-alt.is-down { color: #8a8f97; }
+:root[data-horosa-appearance='light'] .horosa-guolao-election-alt.is-down { color: var(--horosa-text-secondary); }
 
 :root[data-horosa-appearance='light'] .horosa-guolao-election-tag.tone-good { color: #2f8a54; background: rgba(47, 138, 84, 0.12); border-color: rgba(47, 138, 84, 0.3); }
 :root[data-horosa-appearance='light'] .horosa-guolao-election-tag.tone-weak { color: #c65a44; background: rgba(198, 90, 68, 0.12); border-color: rgba(198, 90, 68, 0.3); }
-:root[data-horosa-appearance='light'] .horosa-guolao-election-tag.tone-retro { color: #b8792c; background: rgba(184, 121, 44, 0.12); border-color: rgba(184, 121, 44, 0.3); }
+:root[data-horosa-appearance='light'] .horosa-guolao-election-tag.tone-retro { color: var(--horosa-warn); background: rgba(184, 121, 44, 0.12); border-color: rgba(184, 121, 44, 0.3); }
 :root[data-horosa-appearance='light'] .horosa-guolao-election-tag.tone-plain { color: #6f6a5f; background: rgba(120, 110, 90, 0.1); border-color: rgba(120, 110, 90, 0.2); }

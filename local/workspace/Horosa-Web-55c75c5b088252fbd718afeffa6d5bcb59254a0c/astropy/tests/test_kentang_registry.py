@@ -67,7 +67,7 @@ def test_cetian_moved_out_of_registry_and_directly_mounted():
     钉:registry 无 cetian;webchartsrv 直挂 /cetian。"""
     keys = {spec["key"] for spec in KENTANG_SERVICE_SPECS}
     assert "cetian" not in keys
-    # [B5] 直挂已升级为 CORE_SERVICE_SPECS 惰性挂载(webchartsrv 自持,不回 registry):
+    # 直挂已升级为 CORE_SERVICE_SPECS 惰性挂载(webchartsrv 自持,不回 registry):
     # 断言按语义查表 —— cetian 在核心 spec 表且落 /cetian、指向自有引擎模块。
     from websrv.webchartsrv import CORE_SERVICE_SPECS
     core = {sp["key"]: sp for sp in CORE_SERVICE_SPECS}

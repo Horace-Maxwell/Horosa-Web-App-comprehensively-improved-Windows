@@ -229,7 +229,8 @@ def nakshatra_detail_from_lon(lon):
     """由恒星黄道经度返回所在宿的全字段 dict。"""
     span = NAK_SPAN
     value = float(lon) % 360.0
-    idx = min(26, int(value / span))
+    from astrostudy.india.primitives import segment_index
+    idx = segment_index(value, span, 27)   # 精确宿界归后一宿(与 nakshatra_from_lon 同一函数)
     return NAKSHATRA_DATA[idx]
 
 
@@ -238,9 +239,9 @@ def nakshatra_detail_from_lon(lon):
 #    主表插一条即全体系错位(test_nakshatra_data.py 断言 27 条 + lord 循环×3 看守)。
 # 边界双文档互证:276°40′00″–280°53′20″(跨 4°13′20″),系 Uttara Ashadha 末 pada(3°20′)
 # + Shravana 前 1/15(0°53′20″);另有资料把止点截成 280°10′53″者系丢 20″之误,勿采。
-# 28 宿序号 22;主神 Vega(织女)。此口径仅用于显示编号与择吉,不参与任何 Dasha/Varga 计算。
+# 28 宿序号 22;宿名「牛」(宿曜 28 宿),主星 Vega(织女)。此口径仅用于显示编号与择吉,不参与任何 Dasha/Varga 计算。
 ABHIJIT_ENTRY = {
-    'index28': 22, 'sanskrit': 'Abhijit', 'labelCn': '织女',
+    'index28': 22, 'sanskrit': 'Abhijit', 'labelCn': '牛',
     'rangeStart': 276.0 + 40.0 / 60.0,                    # 276°40′00″
     'rangeEnd': 280.0 + 53.0 / 60.0 + 20.0 / 3600.0,      # 280°53′20″
     'deity': 'Brahma', 'symbol': '织女星 Vega', 'note': '28 宿择吉口径专用,不入 Vimshottari/Varga',

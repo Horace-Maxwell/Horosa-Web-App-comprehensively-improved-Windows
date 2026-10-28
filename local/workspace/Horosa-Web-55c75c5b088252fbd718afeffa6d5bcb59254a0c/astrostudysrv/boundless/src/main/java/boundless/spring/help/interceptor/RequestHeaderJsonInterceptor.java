@@ -148,14 +148,14 @@ public class RequestHeaderJsonInterceptor implements HandlerInterceptor {
 				response.setHeader(KeyConstants.ResultCode, KeyConstants.FailCode + "");
 			}
 			if(ex != null){
-				response.setHeader(KeyConstants.ResultMessage, ex.getMessage());
+				ResultHeader.setMessage(response, ex.getMessage());
 			}
 			
 			return;
 		}
 		
 		response.setHeader(KeyConstants.ResultCode, KeyConstants.SuccessCode + "");
-		response.setHeader(KeyConstants.ResultMessage, "");
+		ResultHeader.setMessage(response, "");
 
 		if(handler instanceof HandlerMethod){
 			HandlerMethod mhandler = (HandlerMethod)handler;

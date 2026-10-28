@@ -1,0 +1,45 @@
+diff --git a/astrostudyui/src/utils/__tests__/caseRestoreExplicitLoadOnly.test.js b/astrostudyui/src/utils/__tests__/caseRestoreExplicitLoadOnly.test.js
+index c6782153..62c97a91 100644
+--- a/astrostudyui/src/utils/__tests__/caseRestoreExplicitLoadOnly.test.js
++++ b/astrostudyui/src/utils/__tests__/caseRestoreExplicitLoadOnly.test.js
+@@ -82,6 +82,13 @@ const ENTRIES = {
+ 	divination: (module)=>{ const s = getDivinationSavedCasePayload(module); return s ? { marker: s.payload.marker, key: s.caseVersion } : null; },
+ };
+ 
++// horosa_win_pathsep_posix_v1(Windows 侧移植适配;建议上游化):
++// `path.join` / `path.relative` 在 Windows 返回反斜杠分隔 ⇒ 下方 `/components\/zeri\//` 过滤恒不中(择日宿主清单塌成空集,
++// 整组择日入口用例连带红)、WHOLE_RECORD_EMITS / SET_CURRENT_CASE_SITES 两张 POSIX 键登记表恒查不中(macOS 恒绿)。
++// 归一到 POSIX 再过滤 / 比对;判据语义零放宽(仍是「全仓每个点都登记、登记表不过期」)。
++const toPosix = (p)=>p.split(path.sep).join('/');
++const relPosix = (from, to)=>toPosix(path.relative(from, to));
++
+ // 机械求出:各共用件的调用方以字面量模块名调用的那些(新技法接了共用件即自动进矩阵)
+ function walk(dir, acc){
+ 	fs.readdirSync(dir, { withFileTypes: true }).forEach((e)=>{
+@@ -105,7 +112,7 @@ const literalModules = (fnName)=>{
+ const KENTANG_MODULES = literalModules('getKentangSavedCasePayload');
+ const ZERI_SCOPES = (()=>{
+ 	const set = new Set();
+-	COMPONENT_FILES.filter((f)=>/components\/zeri\//.test(f)).forEach((f)=>{
++	COMPONENT_FILES.filter((f)=>/components\/zeri\//.test(toPosix(f))).forEach((f)=>{
+ 		const src = fs.readFileSync(f, 'utf8');
+ 		const re = /restoreZeriWorkbenchFromCase\(\s*this\s*,\s*([A-Z_]+|'[a-z]+')\s*\)/g;
+ 		let m;
+@@ -464,7 +471,7 @@ describe('records-changed 广播点登记', ()=>{
+ 				const args = end >= 0 ? call.slice(0, end + 2) : call;
+ 				if(/\bfields(ByCid)?\s*:/.test(args)){ return; }
+ 				const m = args.match(/source:\s*'([a-z-]+)'/);
+-				const site = `${path.relative(UI_SRC, f)}::${m ? m[1] : '?'}`;
++				const site = `${relPosix(UI_SRC, f)}::${m ? m[1] : '?'}`;
+ 				seen.add(site);
+ 				if(!WHOLE_RECORD_EMITS[site]){ bad.push(`${site}: 不带 fields / fieldsByCid 也没登记整条替换`); }
+ 			});
+@@ -524,7 +531,7 @@ function setCurrentCaseSites(){
+ 				const m = lines[j].match(/^\s*(?:function\s*\*\s*|\*)([A-Za-z0-9_]+)\s*\(/);
+ 				if(m){ fn = m[1]; break; }
+ 			}
+-			out.push({ site: `${path.relative(UI_SRC, f)}::${fn}`, file: f, fn });
++			out.push({ site: `${relPosix(UI_SRC, f)}::${fn}`, file: f, fn });
+ 		});
+ 	});
+ 	return out;

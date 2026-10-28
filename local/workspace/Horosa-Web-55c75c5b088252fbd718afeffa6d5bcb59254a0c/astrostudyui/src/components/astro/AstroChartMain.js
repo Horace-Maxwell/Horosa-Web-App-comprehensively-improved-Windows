@@ -16,6 +16,7 @@ import AstroLots from './AstroLots';
 import AstroPredictPlanetSign from './AstroPredictPlanetSign';
 import AstroAnalysisLab from './AstroAnalysisLab';
 import AstroEgypt from './AstroEgypt';
+import { inspectorEmptyNode, INSPECTOR_EMPTY_RELATIVE } from './inspectorEmpty';
 import AspSelector from './AspSelector';
 import ChartDisplaySelector from './ChartDisplaySelector';
 import PlanetSelector from './PlanetSelector';
@@ -30,13 +31,15 @@ import { geoNameRawPatch } from '../../utils/geoName';
 import { getHousesOption } from '../comp/CompHelper'
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
-import { SCHOOL_PRESETS, SCHOOL_PRESET_OPTIONS, SCHOOL_PRESET_DEFAULT, SCHOOL_PRESET_CUSTOM, normalizeSchoolPreset, presetOf, aspectModelOrbs } from './schoolPresets';
-import { moietyOrbOverrides, DEFAULT_ORBS } from './AstroOrbSetting';
+import { SCHOOL_PRESETS, SCHOOL_PRESET_OPTIONS, SCHOOL_PRESET_DEFAULT, SCHOOL_PRESET_CUSTOM, normalizeSchoolPreset, aspectModelOrbs } from './schoolPresets';
+import { moietyOrbOverrides } from './AstroOrbSetting';
+import { schoolPresetFromFields } from './schoolPresetFromFields';
 import { XQButton, XQIconButton, XQSectionTitle, XQSegmented, XQSelect, XQTabs, XQToggle, XQSideSection } from '../xq-ui';
-import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1] 图标语义映射单源
+import { sideSectionIcon } from '../../constants/sideSectionIcons'; // 图标语义映射单源
 import XQIcon from '../xq-icons';
-// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+// 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
 import { visualFloorPx } from '../../utils/zoomDomain';
+import { confirmDialog } from '../../utils/confirmDialog';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -105,17 +108,25 @@ class AstroContentPanel extends Component{
 		return !wrapperPropsEqual(this.props, nextProps);
 	}
 
-	render(){
-		const chartObj = this.props.value;
-		const fields = this.props.fields;
-		const tabHeight = this.props.tabHeight;
-		const showlots = this.props.showlots;
+	// 右栏页签内容:合盘宿主(带 relativeContext)两张盘没选齐时没有盘,显示空态提示,不把 null 交给盘面组件;
+	// 其余宿主(主盘取数中的一瞬)照旧渲染组件 —— 各组件入口对空值各自兜底(两层都做)。提示文案单源 inspectorEmpty。
+	// ★ 渲染切片:relativeContext 由宿主 AstroChartMain 以 prop 透传到本切片,这里读的是切片自己的 props(不是宿主 this)。
+	renderInspectorBody(chartObj, tabHeight, render){
+		if(chartObj || !this.props.relativeContext){
+			return render();
+		}
+		return <div style={{ height: tabHeight, overflow: 'hidden' }}>{inspectorEmptyNode(INSPECTOR_EMPTY_RELATIVE)}</div>;
+	}
+
+	// 页签本体沿用宿主原 renderContentPanel 的方法名与四参签名(该方法的后续改动可原位并入;
+	// inspectorNullValue 也按此名读右栏挂件清单与逐页签空态判据),入参由下面 render() 从切片 props 取。
+	renderContentPanel(chartObj, fields, tabHeight, showlots){
 		const activeTab = this.state.activeTab;
 		return (
 			<div className="horosa-inspector-panel horosa-astro-content-panel">
 				<XQTabs activeKey={activeTab} onChange={this.changeTab} tabPosition='top' className="horosa-inspector-tabs horosa-content-tabs">
 					<TabPane tab="信息" key="1">
-						<FreezeSubTab active={activeTab === '1'}>{()=>(
+						<FreezeSubTab active={activeTab === '1'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
 							<AstroInfo mode="summary" height={tabHeight}
 								value={chartObj} fields={fields}
 								planetDisplay={this.props.planetDisplay}
@@ -123,10 +134,10 @@ class AstroContentPanel extends Component{
 								showAstroMeaning={this.props.showAstroMeaning}
 								showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
 							/>
-						)}</FreezeSubTab>
+						))}</FreezeSubTab>
 					</TabPane>
 					<TabPane tab="相位" key="2">
-						<FreezeSubTab active={activeTab === '2'}>{()=>(
+						<FreezeSubTab active={activeTab === '2'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
 							<AstroAspect
 								value={chartObj} height={tabHeight}
 								lotsDisplay={this.props.lotsDisplay}
@@ -134,10 +145,10 @@ class AstroContentPanel extends Component{
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 								showAstroMeaning={this.props.showAstroMeaning}
 							/>
-						)}</FreezeSubTab>
+						))}</FreezeSubTab>
 					</TabPane>
 					<TabPane tab="行星" key="3">
-						<FreezeSubTab active={activeTab === '3'}>{()=>(
+						<FreezeSubTab active={activeTab === '3'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
 							<div className="horosa-planet-with-lots" style={{ height: tabHeight }}>
 								<AstroPlanet
 									value={chartObj}
@@ -153,10 +164,10 @@ class AstroContentPanel extends Component{
 									</div>
 								) : null}
 							</div>
-						)}</FreezeSubTab>
+						))}</FreezeSubTab>
 					</TabPane>
 					<TabPane tab="古典" key="4">
-						<FreezeSubTab active={activeTab === '4'}>{()=>(
+						<FreezeSubTab active={activeTab === '4'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
 							<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'auto' }}>
 								<AstroInfo mode="classical" height={tabHeight}
 									value={chartObj} fields={fields}
@@ -178,34 +189,38 @@ class AstroContentPanel extends Component{
 									<AstroKlimata value={chartObj} fields={fields} />
 								</div>
 							</div>
-						)}</FreezeSubTab>
+						))}</FreezeSubTab>
 					</TabPane>
 					<TabPane tab="可能性" key="5">
-						<FreezeSubTab active={activeTab === '5'}>{()=>(
+						<FreezeSubTab active={activeTab === '5'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
 							<AstroPredictPlanetSign height={tabHeight}
 								value={chartObj} fields={fields}
 								planetDisplay={this.props.planetDisplay}
 								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 							/>
-						)}</FreezeSubTab>
+						))}</FreezeSubTab>
 					</TabPane>
 					<TabPane tab="格局" key="6">
-						<FreezeSubTab active={activeTab === '6'}>{()=>(
+						<FreezeSubTab active={activeTab === '6'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
 							<AstroAnalysisLab
 								value={chartObj}
 								height={tabHeight}
 								voidClassical={this.props.voidClassical}
 							/>
-						)}</FreezeSubTab>
+						))}</FreezeSubTab>
 					</TabPane>
 					<TabPane tab="埃及" key="egypt">
-						<FreezeSubTab active={activeTab === 'egypt'}>{()=>(
+						<FreezeSubTab active={activeTab === 'egypt'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
 							<AstroEgypt value={chartObj} height={tabHeight} />
-						)}</FreezeSubTab>
+						))}</FreezeSubTab>
 					</TabPane>
 				</XQTabs>
 			</div>
 		);
+	}
+
+	render(){
+		return this.renderContentPanel(this.props.value, this.props.fields, this.props.tabHeight, this.props.showlots);
 	}
 }
 
@@ -289,7 +304,8 @@ class AstroChartMain extends Component{
 		}
 	}
 
-	// 「新盘种子」:只有本命主页(seedNewCharts)的亲手改动记为新命盘缺省;合盘 / 希腊 / 节气 / 印占等宿主里的同一控件不记
+	// 「新盘种子」:本命主页(seedNewCharts)这里先记一笔;凡经主页 changeCond / 合盘子盘写共用字段的亲手改动,
+	// 在那两个口子上也会记(recordSeedsForFieldWrite)。写本地状态的宿主(分至页、印占)里的同一控件不记
 	noteSeeds(patch){
 		if(this.props.seedNewCharts){ recordNewChartSeeds(patch); }
 	}
@@ -313,36 +329,9 @@ class AstroChartMain extends Component{
 		}
 	}
 
-	// 当前流派预设：由实时七维(黄道/宫制/界/三分/点反转/区分缓冲/相位模型)反查命中的档；
-	// 任一单项被单独改 → 'custom'。三分体系不是 fields，取自 app.tripSystem(默认 Dorothean)。
+	// 当前流派预设:反查单源见 schoolPresetFromFields(AI 设置读数同用)。三分体系 fields 里没有时取 app.tripSystem。
 	currentSchoolPreset(){
-		const f = this.props.fields || {};
-		const zodiac = AstroConst.zodiacSelectValue(
-			f.zodiacal ? f.zodiacal.value : 0,
-			f.siderealAyanamsa ? f.siderealAyanamsa.value : '',
-		);
-		const hsys = f.hsys ? f.hsys.value : '';
-		const termsVariant = f.termsVariant ? f.termsVariant.value : 0;
-		// [Q-254/T-230] 三分制以 fields.triplicity(排盘真值)为准,app.tripSystem 只作镜像/兜底。
-		const tripSystem = (f.triplicity && f.triplicity.value) || this.props.tripSystem || 'Dorothean';
-		const lotReversal = (f.lotReversal && (f.lotReversal.value === 0 || f.lotReversal.value === '0')) ? 0 : 1;
-		const sectBuffer = (f.sectBuffer && f.sectBuffer.value) ? f.sectBuffer.value : 'geo';
-		// 相位模型无独立字段:由「orbs 是否恰为 moiety 覆盖集」反推 —— 非默认键集与 moiety
-		// 覆盖集**全等**才算 degree 档;单点巧合(如手动把金星容许度设成 7)不再令流派下拉跳档。
-		const orbs = (f.orbs && f.orbs.value) ? f.orbs.value : null;
-		const moiety = moietyOrbOverrides();
-		const defOrbMap = DEFAULT_ORBS.reduce((m, d)=>{ m[d.id] = Number(d.orb); return m; }, {});
-		const nonDefaultKeys = orbs ? Object.keys(orbs).filter((k)=>defOrbMap[k] === undefined || Number(orbs[k]) !== defOrbMap[k]) : [];
-		const moietyKeys = Object.keys(moiety);
-		// [Q-254/T-232] 三态:全默认 → whole;恰为 moiety 集 → degree;其它非默认容许度 → custom(任何档都不命中,
-		// 此前归 whole → 手改容许度后流派下拉仍显示原档)。
-		const aspectModel = (orbs
-			&& nonDefaultKeys.length === moietyKeys.length
-			&& moietyKeys.every((k)=>Number(orbs[k]) === Number(moiety[k])))
-			? 'degree' : (nonDefaultKeys.length ? 'custom' : 'whole');
-		// [Q-343/T-324] 第八维:点公式文档序(预设切档会联动写入,此前反查不计它 → 手动改了仍显示原档)。
-		const lotsDocReverse = (f.lotsDocReverse && (f.lotsDocReverse.value === 1 || f.lotsDocReverse.value === '1' || f.lotsDocReverse.value === true)) ? 1 : 0;
-		return presetOf({ zodiac, hsys, termsVariant, tripSystem, lotReversal, sectBuffer, aspectModel, lotsDocReverse });
+		return schoolPresetFromFields(this.props.fields, this.props.tripSystem);
 	}
 
 	// 选流派预设：展开该档 → 一次性写入黄道/宫制/界/三分。
@@ -354,10 +343,21 @@ class AstroChartMain extends Component{
 		if(val === SCHOOL_PRESET_CUSTOM){ return; }
 		const preset = SCHOOL_PRESETS[normalizeSchoolPreset(val)];
 		if(!preset){ return; }
-		// [Q-343/T-324] 当前七维已被单项手改(反查=自定)时,切档会整组覆盖手动值 → 先确认再写(此前静默覆盖)。
-		if(this.currentSchoolPreset() === SCHOOL_PRESET_CUSTOM && typeof window !== 'undefined' && typeof window.confirm === 'function'){
-			if(!window.confirm(`切换到「${preset.label}」将整组改写黄道 / 宫制 / 界系 / 三分 / 点反转 / 区分缓冲 / 相位口径 / 点公式,覆盖当前手动设定的值。继续?`)){ return; }
+		// 当前七维已被单项手改(反查=自定)时,切档会整组覆盖手动值 → 先确认再写(此前静默覆盖)。
+		// 组件式确认(原生 window.confirm 画在页面之外,界面简繁 / 主题都转不到)
+		if(this.currentSchoolPreset() === SCHOOL_PRESET_CUSTOM){
+			confirmDialog({
+				title: `切换到「${preset.label}」?`,
+				content: '将整组改写黄道 / 宫制 / 界系 / 三分 / 点反转 / 区分缓冲 / 相位口径 / 点公式,覆盖当前手动设定的值。',
+				okText: '继续切换',
+			}).then((ok)=>{ if(ok){ AstroChartMain.prototype.applySchoolPreset.call(this, val, preset); } });
+			return;
 		}
+		AstroChartMain.prototype.applySchoolPreset.call(this, val, preset);
+	}
+
+	// 写入预设(确认之后);经原型调用:合盘左栏等借 changeSchoolPreset 的宿主不必自带这个方法
+	applySchoolPreset(val, preset){
 		if(this.props.dispatch){
 			this.props.dispatch({
 				type: 'app/save',
@@ -380,7 +380,7 @@ class AstroChartMain extends Component{
 			sectBuffer: preset.sectBuffer,
 			orbs: aspectModelOrbs(normalizeSchoolPreset(val), moietyOrbOverrides()) || null,
 			// 点公式文档口径:不反转档(如 Ptolemy)一并采文档式的婚姻/子女/朋友/疾病反转;其余档显式清 0。
-			// [Q-343] 改读预设表自身第八维(单一真值源,反查 presetOf 同表),不再由 lotReversal 派生。
+			// 改读预设表自身第八维(单一真值源,反查 presetOf 同表),不再由 lotReversal 派生。
 			lotsDocReverse: Number(preset.lotsDocReverse || 0),
 		};
 		if(this.tmHook.getValue){
@@ -389,9 +389,9 @@ class AstroChartMain extends Component{
 			change.ad = tm.ad;
 			change.zone = tm.zone;
 		}
-		// [Q-260/T-231 裁决 2026-09-18] 流派预设此前只写本盘 fields、不进全局仓(抽屉逐项写全局)→ 换盘 / 重启即回落;现与抽屉同律:
+		// 流派预设此前只写本盘 fields、不进全局仓(抽屉逐项写全局)→ 换盘 / 重启即回落;现与抽屉同律:
 		// 预设里属古典口径的键同写全局(setClassicalChartGlobal 只认 spec 内键,黄道 / 宫制仍是本盘键不入全局)。
-		try{ ['termsVariant', 'triplicity', 'lotReversal', 'sectBuffer', 'lotsDocReverse'].forEach((k)=>{ if(change[k] !== undefined && change[k] !== null){ setClassicalChartGlobal(k, change[k]); } }); }catch(e){ /* 全局仓写入失败不阻断本盘 */ }
+		['termsVariant', 'triplicity', 'lotReversal', 'sectBuffer', 'lotsDocReverse'].forEach((k)=>{ if(change[k] !== undefined && change[k] !== null){ setClassicalChartGlobal(k, change[k]); } });
 		this.props.onChange(change);
 	}
 
@@ -652,6 +652,8 @@ class AstroChartMain extends Component{
 			{ label: '度数', opt: AstroConst.CHART_TXTPLANET },
 			{ label: '界限', opt: AstroConst.CHART_TERM },
 		];
+		// 合盘子页(组合 / 影响 / 时空中点 / 马克斯)嵌入时:标题与「重算」对着当前合盘,而不是本命盘
+		const relCtx = this.props.relativeContext || null;
 		const timeEditor = (
 			<div className="horosa-time-popover">
 				<PlusMinusTime value={dt} onChange={this.changeTime} />
@@ -661,15 +663,22 @@ class AstroChartMain extends Component{
 			<div className="horosa-astro-context-panel horosa-astro-input-panel">
 				<div className="horosa-panel-head">
 					<div>
-						<div className="horosa-panel-kicker">命盘设置</div>
-						<div className="horosa-panel-title">{meta.title}</div>
+						<div className="horosa-panel-kicker">{relCtx ? '合盘设置' : '命盘设置'}</div>
+						<div className="horosa-panel-title">{relCtx && relCtx.title ? relCtx.title : meta.title}</div>
 					</div>
 				</div>
+				{relCtx ? (
+				<div className="horosa-chart-mode-switch">
+					<button type="button" onClick={()=>this.navigateFeature('astrochart')}>单盘</button>
+					<button type="button" className="is-active">多盘</button>
+				</div>
+				) : (
 				<div className="horosa-chart-mode-switch">
 					<button type="button" className="is-active">单盘</button>
 					<button type="button" onClick={()=>this.navigateFeature('relativechart')}>多盘</button>
 				</div>
-				{/* [观象P1] InputPanel 五段式:时间地点(核心不折叠)/盘制流派/样式/显示/重算 */}
+				)}
+				{/* InputPanel 五段式:时间地点(核心不折叠)/盘制流派/样式/显示/重算 */}
 				{showdateselector ? (
 				<XQSideSection iconName={sideSectionIcon('time')} title="时间与地点" collapsible={false}>
 					<div className="horosa-field-block">
@@ -699,6 +708,8 @@ class AstroChartMain extends Component{
 					</div>
 				</XQSideSection>
 				) : null}
+				{/* 黄道 / 宫制 / 流派 / 印度宫制一项都不显示的宿主(如分至页嵌入盘)不出这张空卡 */}
+				{(showzodical || showhsys || showschool || indiahsys) ? (
 				<XQSideSection iconName={sideSectionIcon('school')} title="盘制与流派" storageKey="astro.input.system" className="horosa-side-input-section">
 				{(showzodical || showhsys || showschool) && !indiahsys ? (
 					<div className="horosa-field-block horosa-school-preset-block">
@@ -755,6 +766,7 @@ class AstroChartMain extends Component{
 					) : null}
 				</div>
 				</XQSideSection>
+				) : null}
 				<XQSideSection iconName={sideSectionIcon('chartStyle')} title="星盘样式" storageKey="astro.style" className="horosa-side-input-section">
 					<div className={`horosa-chart-style-block${isIndiaChart ? ' horosa-india-style-block' : ''}`}>
 						{isIndiaChart ? (
@@ -787,8 +799,8 @@ class AstroChartMain extends Component{
 					</div>
 				</XQSideSection>
 				{this.props.hideRecalc ? null : (
-				<XQButton className="horosa-recalculate-button" size="small" iconName="refresh" onClick={this.newChart}>
-					重算星盘
+				<XQButton className="horosa-recalculate-button" size="small" iconName="refresh" onClick={relCtx && relCtx.onRecalc ? relCtx.onRecalc : this.newChart}>
+					{relCtx && relCtx.onRecalc ? '重算合盘' : '重算星盘'}
 				</XQButton>
 				)}
 			</div>
@@ -924,12 +936,12 @@ class AstroChartMain extends Component{
 					showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 					showAstroMeaning={this.props.showAstroMeaning}
 					showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
-					voidClassical={this.props.voidClassical}   /* [Q-253/T-223 ①] 弹层此前不传 → 勾选框恒关、只能开不能关(抽屉版早已传) */
+					voidClassical={this.props.voidClassical}   /* 弹层此前不传 → 勾选框恒关、只能开不能关(抽屉版早已传) */
 					wheelArt={this.props.wheelArt}
 					planetListStyle={this.props.planetListStyle}
 					fields={this.props.fields}
 					dispatch={this.props.dispatch}
-					classicalWriteBack={!this.props.embeddedSubChart}   /* [Q-252/T-218] 嵌入子盘不回写本命 fields */
+					classicalWriteBack={!this.props.embeddedSubChart}   /* 嵌入子盘不回写本命 fields */
 				/>
 			</div>
 		);
@@ -1174,6 +1186,7 @@ class AstroChartMain extends Component{
 							showAstroMeaning={this.props.showAstroMeaning}
 							showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
 							voidClassical={this.props.voidClassical}
+							relativeContext={this.props.relativeContext}
 						/>
 					</div>
 					{this.renderBottomQuickDock()}

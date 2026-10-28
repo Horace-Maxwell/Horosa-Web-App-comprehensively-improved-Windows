@@ -1,4 +1,4 @@
-// [I1] usage 缓存计量归一合同:三家形状 → 同一个 cache_read_input_tokens;已有该键一律不覆盖;非对象不抛。
+// usage 缓存计量归一合同:三家形状 → 同一个 cache_read_input_tokens;已有该键一律不覆盖;非对象不抛。
 // 为什么要有:A/B 分析器与费用闸只认 anthropic 的 cache_read_input_tokens;DeepSeek 报 prompt_cache_hit_tokens、
 // OpenAI 报 prompt_tokens_details.cached_tokens —— 不归一就永远「无缓存计量 → INCONCLUSIVE」,缺省永远翻不动。
 import { normalizeUsage, deriveUsage } from '../aiChat/status';

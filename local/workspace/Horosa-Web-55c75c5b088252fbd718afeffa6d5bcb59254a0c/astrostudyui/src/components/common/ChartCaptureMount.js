@@ -17,7 +17,9 @@ import React from 'react';
 import { Spin } from 'antd';
 import DateTime from '../comp/DateTime';
 import BaZi from '../cntradition/BaZi';
-import ZiWeiMain from '../ziwei/ZiWeiMain';
+import ZiWeiMain, { applyZiweiRecordOverride } from '../ziwei/ZiWeiMain';
+import { buildRecordFieldObject, buildChartZiweiParamsForRecord } from '../../utils/aiAnalysisContext';
+import { resolveAfter23NewDay, resolveLateZiHourUseNextDay } from '../../utils/dayBoundaryResolve';
 
 const FRAME_STYLE = {
 	width: 1400,
@@ -32,8 +34,14 @@ const FRAME_STYLE = {
 // 根据 record 构造完整 fields 对象,兼容 BaZi.genParams / ZiWeiMain.genParams
 // 期望字段: date.value(DateTime), time.value(DateTime), zone, lon, lat, gpsLat, gpsLon,
 //          gender, timeAlg, phaseType, godKeyPos, after23NewDay, lateZiHourUseNextDay, adjustJieqi
+// 与 AI 挂载同一字段构造(八字长生 / 神煞查法、日界、晚子时、时间算法、古典口径等都按记录与其缺键口径取);
+// 此前手搓:phaseType 写死 'core'、godKeyPos 写死 0(都是非法值),日界缺键取 0(全局出厂是 1),也不读记录里的这些键
 function buildFields(record){
 	if(!record) return null;
+	try{
+		const f = buildRecordFieldObject(record);
+		if(f && f.date && f.date.value && f.time && f.time.value){ return f; }
+	}catch(e){ /* 构造失败退回下面的最小字段 */ }
 	const tm = new DateTime();
 	tm.parse(record.birth || '2000-01-01 00:00:00', 'YYYY-MM-DD HH:mm:ss');
 	tm.setAd(record.ad !== undefined ? record.ad : 1);
@@ -52,10 +60,10 @@ function buildFields(record){
 		pos: make(record.pos || ''),
 		name: make(record.name || ''),
 		timeAlg: make(record.timeAlg !== undefined ? record.timeAlg : 0),
-		phaseType: make('core'),
-		godKeyPos: make(0),
-		after23NewDay: make(record.after23NewDay !== undefined ? record.after23NewDay : 0),
-		lateZiHourUseNextDay: make(record.lateZiHourUseNextDay !== undefined ? record.lateZiHourUseNextDay : 1),
+		phaseType: make(record.phaseType !== undefined ? record.phaseType : 0),
+		godKeyPos: make(record.godKeyPos !== undefined ? record.godKeyPos : '年'),
+		after23NewDay: make(resolveAfter23NewDay(record.after23NewDay)),
+		lateZiHourUseNextDay: make(resolveLateZiHourUseNextDay(record.lateZiHourUseNextDay)),
 		adjustJieqi: make(0),
 	};
 }
@@ -69,7 +77,7 @@ function makeIsolatedHook(){ return {}; }
 class CaptureErrorBoundary extends React.Component {
 	constructor(props){ super(props); this.state = { hasError: false, err: null }; }
 	static getDerivedStateFromError(err){ return { hasError: true, err }; }
-	componentDidCatch(err){ try { this.props.onError && this.props.onError(err); } catch(_){} }
+	componentDidCatch(err){ this.props.onError(err); }   // 唯一渲染点恒传 onError(下方 errorHandler,自身不抛)
 	render(){
 		if(this.state.hasError){
 			return (
@@ -87,6 +95,13 @@ export default class ChartCaptureMount extends React.Component {
 	constructor(props){
 		super(props);
 		this.fields = buildFields(props.caseRecord);
+		// 紫微截图按这张盘的随盘紫微设置(四化流派 / 自定义表 / 排盘开关)走临时覆盖,卸载时还原(只还原仍是这次临时值的项);
+		// 此前用的是当前全局紫微设置
+		this.restoreZiwei = null;
+		const ct = props.chartType && typeof props.chartType === 'object' ? props.chartType.type : props.chartType;
+		if(props.caseRecord && `${ct || ''}`.indexOf('ziwei') === 0){
+			try{ this.restoreZiwei = applyZiweiRecordOverride(buildChartZiweiParamsForRecord(props.caseRecord)); }catch(e){ this.restoreZiwei = null; }
+		}
 		this.hook = makeIsolatedHook();
 		this.state = { polling: true };
 		this.mounted = true;
@@ -104,6 +119,7 @@ export default class ChartCaptureMount extends React.Component {
 	componentWillUnmount(){
 		this.mounted = false;
 		if(this.pollTimer){ clearTimeout(this.pollTimer); this.pollTimer = null; }
+		if(this.restoreZiwei){ try{ this.restoreZiwei(); }catch(e){ /* noop */ } this.restoreZiwei = null; }
 	}
 
 	startReadyPoll(){
@@ -118,7 +134,7 @@ export default class ChartCaptureMount extends React.Component {
 			const textLen = root ? (root.textContent || '').trim().length : 0;
 			if(textLen >= MIN_TEXT_LEN){
 				this.readyEmitted = true;
-				try { console.info(`[ChartCaptureMount] ready after ${this.pollCount} polls (textLen=${textLen})`); } catch(_){}
+				console.info(`[ChartCaptureMount] ready after ${this.pollCount} polls (textLen=${textLen})`);
 				// 再多等一帧让 d3 SVG 绘制完成
 				requestAnimationFrame(() => requestAnimationFrame(() => {
 					if(!this.mounted) return;
@@ -129,7 +145,7 @@ export default class ChartCaptureMount extends React.Component {
 			if(this.pollCount >= MAX_POLLS){
 				// 超时仍 emit ready, 让上层用 textContent 阈值过滤决定是否截图
 				this.readyEmitted = true;
-				try { console.warn(`[ChartCaptureMount] poll timeout after ${this.pollCount}x${POLL_MS}ms (textLen=${textLen})`); } catch(_){}
+				console.warn(`[ChartCaptureMount] poll timeout after ${this.pollCount}x${POLL_MS}ms (textLen=${textLen})`);
 				try { this.props.onCaptureReady && this.props.onCaptureReady(); } catch(_){}
 				return;
 			}
@@ -175,6 +191,7 @@ export default class ChartCaptureMount extends React.Component {
 							fields={this.fields}
 							hook={this.hook}
 							dispatch={noopDispatch}
+							engineManagedByHost={!!this.restoreZiwei}
 						/>
 					)}
 				</div>
@@ -187,7 +204,7 @@ export default class ChartCaptureMount extends React.Component {
 		const ct = typeof chartType === 'string' ? chartType : (chartType && chartType.type) || '';
 		const errorHandler = (e)=>{
 			if(this.mounted){
-				try { console.error('[ChartCaptureMount] boundary caught:', e); } catch(_){}
+				console.error('[ChartCaptureMount] boundary caught:', e);
 				try { this.props.onCaptureError && this.props.onCaptureError(e); } catch(_){}
 				// 边界错误时也立刻 emit ready 让上层不死等
 				if(!this.readyEmitted){

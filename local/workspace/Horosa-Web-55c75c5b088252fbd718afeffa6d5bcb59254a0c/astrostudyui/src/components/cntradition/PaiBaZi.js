@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import { leapPrefix } from '../../utils/lunarText';
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Row, Col, Divider } from 'antd';
 import { XQButton as Button } from '../xq-ui';
@@ -143,7 +144,7 @@ class PaiBaZi extends Component{
 		let jiedelta = null;
 		let extraLine = null;
 		if(rec.nongli){
-			let leap = rec.nongli.leap ? '闰' : '';
+			let leap = leapPrefix(rec.nongli);
 			nongli = `${rec.nongli.year}年${leap}${rec.nongli.month}${rec.nongli.day}`;
 			const timeAlgVal = fields.timeAlg ? fields.timeAlg.value : 0;
 			const timeAlgNames = { 0: '真太阳时', 1: '直接时间', 2: '春分定卯时', 3: '平太阳时' };

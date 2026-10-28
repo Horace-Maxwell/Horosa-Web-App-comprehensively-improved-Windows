@@ -1,4 +1,4 @@
-// [V5-D16/D17] 互换格式层:外部格式导入解析(CSV 模板/QuickChart/AAF) + 双轨导出
+// 互换格式层:外部格式导入解析(CSV 模板/QuickChart/AAF) + 双轨导出
 // (NDJSON 机器格式/Markdown 人类格式)。
 //
 // 导入纪律:解析只产「候选记录数组」,一律走 既有导入信封+三闸+去重四闸 入库(本层零写库);
@@ -9,6 +9,7 @@
 
 // ── 通用 CSV 模板导入(自家规格自家定,最可靠通道) ────────────────────────────────
 // 模板列:姓名,性别(男/女/空),生辰(YYYY-MM-DD HH:mm[:ss]),时区(+08:00 可空),纬度,经度,地点
+const CSV_BIRTH_RE = /^-?\d{1,5}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/;
 export function parseCsvCharts(text){
 	const records = [];
 	const errors = [];
@@ -24,14 +25,15 @@ export function parseCsvCharts(text){
 			errors.push(`第 ${i + 1} 行:缺姓名或生辰,跳过`);
 			continue;
 		}
-		if(!/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(birth.trim())){
+		// 年带符号、1–5 位(本 App 自己导出的公元前 '-300-…'、公元 1–999 年 '50-…'、五位年 '12000-…' 都要能导回)
+		if(!CSV_BIRTH_RE.test(birth.trim())){
 			errors.push(`第 ${i + 1} 行:生辰格式应为 YYYY-MM-DD HH:mm,跳过`);
 			continue;
 		}
 		records.push({
 			name: name.trim(),
 			gender: gender === '男' ? 1 : (gender === '女' ? 0 : -1),
-			birth: birth.trim().replace('T', ' ').length === 16 ? `${birth.trim().replace('T', ' ')}:00` : birth.trim().replace('T', ' '),
+			birth: /:\d{2}:\d{2}$/.test(birth.trim()) ? birth.trim().replace('T', ' ') : `${birth.trim().replace('T', ' ')}:00`,   // 缺秒补 :00(不按串长判:年位数不定)
 			zone: (zone || '').trim() || '+08:00',
 			lat: (lat || '').trim() || undefined,
 			lon: (lon || '').trim() || undefined,
@@ -141,7 +143,7 @@ function normalizeDate(date, time){
 	let m = null;
 	let day = null;
 	let mm = null;
-	if((mm = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(d))){
+	if((mm = /^(-?\d{1,5})-(\d{1,2})-(\d{1,2})$/.exec(d))){   // 年带符号 1–5 位
 		[, y, m, day] = mm;
 	}else if((mm = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(d))){
 		[, day, m, y] = mm;
@@ -167,7 +169,7 @@ function normalizeZone(zone){
 	return null;
 }
 
-// ── [D17] 双轨导出 ────────────────────────────────────────────────────────────────
+// ── 双轨导出 ────────────────────────────────────────────────────────────────
 // NDJSON:一行一条完整记录 JSON(可回导:每行本身就是合法记录对象)。
 export function recordsToNdjson(records){
 	return (records || []).filter(Boolean).map((r)=>JSON.stringify(r)).join('\n');

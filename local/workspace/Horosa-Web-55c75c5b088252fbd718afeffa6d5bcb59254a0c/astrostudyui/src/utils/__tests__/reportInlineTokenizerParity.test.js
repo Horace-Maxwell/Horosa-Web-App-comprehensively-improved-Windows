@@ -1,4 +1,4 @@
-// [E11] 行内解析四链 parity 金标。
+// 行内解析四链 parity 金标。
 //
 // 改版前四条链各养一份 `\*\*(.+?)\*\*` 正则,能力互不相同(转义不认、嵌套不认、删除线不认)
 // ⇒ 应用内看到的加粗、docx 里的加粗、PDF 里的加粗、导出 HTML 里的加粗**可以不一样**。
@@ -48,7 +48,7 @@ const CASES = [
 	'普通中文',
 	'**结论**：见 [附录](#a) 链接',
 	'** 记号内侧带空格 **也要一致',
-	// [E11-N] 真机 A/B(deepseek 实跑 18 篇)抓到的形状:判断句加粗 + 句内时间窗又加粗 = 嵌套。
+	// 真机 A/B(deepseek 实跑 18 篇)抓到的形状:判断句加粗 + 句内时间窗又加粗 = 嵌套。
 	// 修复前四链在此**真的不一致**(marked 认第一个内层 <strong>,mdInlineSegments 不认),
 	// 是本组唯一一条从真实模型输出里捞回来的用例 —— 也是「写了加粗却不粗」的头号病因。
 	'**唯需注意火旺之时（如 **2026(丙午)年**、**2027(丁未)年**）官星受制。**',
@@ -75,10 +75,10 @@ const boldFromTokenizer = (s)=>{
 	return out;
 };
 
-describe('[E11] 四链行内解析 parity', ()=>{
+describe('四链行内解析 parity', ()=>{
 	CASES.forEach((raw)=>{
 		test(`加粗集合一致:${JSON.stringify(raw).slice(0, 40)}`, ()=>{
-			// 报告链的真实上游会先跑记号修复,parity 契约建立在修复之后
+			// 真实上游会先跑记号修复,parity 契约建立在修复之后
 			const s = repairInlineEmphasis(raw);
 			expect(boldFromTokenizer(s)).toEqual(boldFromMarked(s));
 		});
@@ -97,7 +97,7 @@ describe('[E11] 四链行内解析 parity', ()=>{
 	});
 });
 
-describe('[E11] 单源纪律:docx / 导出 HTML 两端不得再自养 `**` 正则', ()=>{
+describe('单源纪律:docx / 导出 HTML 两端不得再自养 `**` 正则', ()=>{
 	const read = (rel)=>fs.readFileSync(path.resolve(__dirname, '..', rel), 'utf8');
 	test('docxCommon.mdInlineToRuns 走 mdInlineSegments', ()=>{
 		const src = read('docxCommon.js');

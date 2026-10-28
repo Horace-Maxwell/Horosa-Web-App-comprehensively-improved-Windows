@@ -4,7 +4,7 @@
 //   · 组内只保留可挂集内的键;组内空 → 整组不渲染;
 //   · 不在任何命名域组的键(未登记键)一律落统一「其他」组、恒置尾。
 // 数据仍以传入 options 为真值(value/label 原样),分组只改展示顺序与 OptGroup 归属。
-// [2026-09-12] 此前走 listAIExportTechniqueSettingGroups:它为每个技法算快照选项(读整份 localStorage),而分组只需要键归属;
+// 此前走 listAIExportTechniqueSettingGroups:它为每个技法算快照选项(读整份 localStorage),而分组只需要键归属;
 // @ 菜单每次按键都要分组,改读静态表(键归属与原来逐键相同)。
 import { listAIExportTechniqueGroupDefs } from '../../utils/aiExport';
 

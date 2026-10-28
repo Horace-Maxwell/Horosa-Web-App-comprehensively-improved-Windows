@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/commtools/CommToolsMain.js b/astrostudyui/src/components/commtools/CommToolsMain.js
-index 47fa6390..774b902c 100644
+index 420b24d6..355dfcce 100644
 --- a/astrostudyui/src/components/commtools/CommToolsMain.js
 +++ b/astrostudyui/src/components/commtools/CommToolsMain.js
 @@ -1,7 +1,6 @@
@@ -35,7 +35,7 @@ index 47fa6390..774b902c 100644
 +];
 +
  class CommToolsMain extends Component{
- 	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+ 	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
  	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 @@ -32,7 +46,7 @@ class CommToolsMain extends Component{
  		super(props);

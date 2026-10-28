@@ -1,0 +1,9 @@
+{
+	"_note": "七政择日内嵌页起盘参数(宿主底板经七政页 fieldsToParams 构参的结果,本机偏好全缺省时)。jest qizhengZeriPageParams 锁前端产出 = 本文件,pytest test_qizheng_zeri_page_parity 用它起页面盘与扫描逐项对拍。date / time / name / pos 由用例替换;缓存代次键 _su28Rev 不比。",
+	"params": {"date":"2026/03/01","time":"10:00:00","ad":1,"zone":"+08:00","lat":"39n54","lon":"116e28","gpsLat":39.9,"gpsLon":116.46,"hsys":0,"zodiacal":0,"tradition":1,"doubingSu28":2,"guolaoZhengSidereal":0,"guolaoLifeMode":"asc","strongRecption":0,"simpleAsp":0,"virtualPointReceiveAsp":0,"predictive":0,"name":"七政择日","pos":"北京","after23NewDay":1,"lateZiHourUseNextDay":1},
+	"variants": {
+		"su28Mode3": {"doubingSu28": 3},
+		"nodeTrue": {"guolaoNodeType": "true"},
+		"lilithTrue": {"guolaoLilithType": "true"}
+	}
+}

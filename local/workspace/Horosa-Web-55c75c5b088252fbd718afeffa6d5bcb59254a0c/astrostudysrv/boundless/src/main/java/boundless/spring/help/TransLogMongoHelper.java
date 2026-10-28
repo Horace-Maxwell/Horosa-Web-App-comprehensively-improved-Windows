@@ -33,6 +33,7 @@ import boundless.utility.ConvertUtility;
 import boundless.utility.FormatUtility;
 import boundless.utility.IPUtility;
 import boundless.utility.JsonUtility;
+import boundless.utility.SecretRedactor;
 import boundless.utility.StringUtility;
 import boundless.web.common.IUser;
 import boundless.web.help.AppServerPathHelper;
@@ -201,7 +202,8 @@ public class TransLogMongoHelper {
 				map.put(TransLogField.errstack.toString(), stacktrace);				
 			}
 
-			cache.add(map); 
+			// 落库 / 落回落缓存前整条脱敏(单源):请求头、参数、响应头、结果、错误文字与调用栈里的密钥一律掩掉
+			cache.add(SecretRedactor.redactRecord(map)); 
 		});
 	}
 	

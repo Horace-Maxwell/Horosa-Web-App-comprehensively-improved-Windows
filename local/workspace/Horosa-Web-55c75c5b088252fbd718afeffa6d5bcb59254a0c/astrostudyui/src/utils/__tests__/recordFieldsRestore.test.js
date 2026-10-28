@@ -131,10 +131,15 @@ describe('命盘储存→载入 全字段透传哨兵（保存/消费/还原 三
 		expect(slice).toContain('const setF');
 		// 就地改共享 entry 的旧型（fields.X.value = ...）不许回潮：① prevProps 值比对失明 ② 失败脏写
 		expect(slice).not.toMatch(/fields\.\w+\.value\s*=/);
-		// 事盘还原 saga 同款不可变
+		// 事盘还原 saga 同款不可变:记录 → 字段映射收成共享纯函数 caseRecordFieldsPatch(六爻补取 / 择日宿主覆盖层同用),
+		// applyCase 只把它叠在左栏字段上;映射里仍是 setF 写新 entry,两处都不许就地改共享 entry
 		const userSlice = sliceBetween(read('models/user.js'), '储存全字段保真', 'getCaseTypeMeta');
-		expect(userSlice).toContain('setF(');
+		expect(userSlice).toContain('caseRecordFieldsPatch(values, astrostate.fields)');
 		expect(userSlice).not.toMatch(/flds\.\w+\.value\s*=/);
+		const mapSlice = sliceBetween(read('utils/kentangCaseSave.js'), 'export function caseRecordFieldsPatch', 'const CASE_PATCH_KEYS');
+		expect(mapSlice).toContain('const setF = (key, value)=>{ out[key] = { ...(flds[key] || { name: [key] }), value }; };');
+		expect(mapSlice).not.toMatch(/flds\.\w+\.value\s*=/);
+		expect(mapSlice).not.toMatch(/flds\[\w+\]\.value\s*=/);
 	});
 });
 

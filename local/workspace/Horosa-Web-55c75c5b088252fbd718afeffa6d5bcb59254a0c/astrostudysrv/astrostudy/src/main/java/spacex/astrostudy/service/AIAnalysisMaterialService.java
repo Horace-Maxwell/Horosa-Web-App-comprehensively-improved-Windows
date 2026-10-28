@@ -22,21 +22,19 @@ import boundless.io.FileUtility;
 import boundless.utility.StringUtility;
 
 // 启动时创建(不参与桌面延迟初始化):下方静态块设置的是【进程级】表格 / 文档解析安全阈值(ZipSecureFile),
-// 其它解析入口(命盘数据 Excel 导入 UserDataTransferController → OfficeUtility.readExcel)依赖它在启动时即已生效。
-// 延迟创建会让「启动后、本服务首次被用之前」的导入回到库默认阈值 —— 故显式 @Lazy(false)(LazyInitXmlScanPostProcessor 见类上 @Lazy 即不翻)。
+// 进程内其它经 POI 读表格 / 文档的入口(如内置表格资源的载入)依赖它在启动时即已生效。
+// 延迟创建会让「启动后、本服务首次被用之前」的读取回到库默认阈值 —— 故显式 @Lazy(false)(LazyInitXmlScanPostProcessor 见类上 @Lazy 即不翻)。
 @Lazy(false)
 @Service
 public class AIAnalysisMaterialService {
-	// [D58] 抽取上限(单源):解码后 ≤30 MB;PDF 只抽前 500 页;正文 ≤2,000,000 字;POI 解压比阈值显式配置(zip 炸弹)
+	// 抽取上限(单源):解码后 ≤30 MB;PDF 只抽前 500 页;正文 ≤2,000,000 字;POI 解压比阈值显式配置(zip 炸弹)
 	static final int MAX_DECODED_BYTES = 30 * 1024 * 1024;
 	static final int MAX_BASE64_CHARS = (int) ((long) MAX_DECODED_BYTES * 4 / 3 + 4096);
 	static final int MAX_PDF_PAGES = 500;
 	static final int MAX_TEXT_CHARS = 2000000;
 	static {
-		try {
-			org.apache.poi.openxml4j.util.ZipSecureFile.setMinInflateRatio(0.001d);
-			org.apache.poi.openxml4j.util.ZipSecureFile.setMaxFileCount(2000);
-		} catch(Throwable ignore) { /* 旧版 POI 无此 API 时保持缺省 */ }
+		org.apache.poi.openxml4j.util.ZipSecureFile.setMinInflateRatio(0.001d);
+		org.apache.poi.openxml4j.util.ZipSecureFile.setMaxFileCount(2000);
 	}
 
 	public Map<String, Object> extract(Map<String, Object> params){
@@ -46,7 +44,7 @@ public class AIAnalysisMaterialService {
 		if(StringUtility.isNullOrEmpty(base64Data)) {
 			throw new ErrorCodeException(580101, "缺少 base64Data");
 		}
-		// [D58] 体积上限先于解码(此前无界:Base64.decode 无界、PDF 页数无界、zip 炸弹阈值未配、无超时;前端 50 MB 只是可跳过的软提示)
+		// 体积上限先于解码(此前无界:Base64.decode 无界、PDF 页数无界、zip 炸弹阈值未配、无超时;前端 50 MB 只是可跳过的软提示)
 		if(base64Data.length() > MAX_BASE64_CHARS) {
 			throw new ErrorCodeException(580103, "资料过大:超过 " + (MAX_DECODED_BYTES / (1024 * 1024)) + " MB 上限");
 		}
@@ -75,7 +73,7 @@ public class AIAnalysisMaterialService {
 				PdfExtract pdfExtract = extractPdf(bytes);
 				extractedText = pdfExtract.text;
 				extractMeta.put("pageCount", pdfExtract.pageCount);
-				// [Q-060/AW-23] 页数封顶此前只把**总页数**报回去、不报「被截了」——前端无从判断
+				// 页数封顶此前只把**总页数**报回去、不报「被截了」——前端无从判断
 				// 「pageCount=1200」是全抽了 1200 页还是只抽了前 500 页,界面于是什么都不提示。
 				if(pdfExtract.pageCount > MAX_PDF_PAGES) {
 					extractMeta.put("pagesTruncated", Boolean.TRUE);
@@ -116,7 +114,7 @@ public class AIAnalysisMaterialService {
 			PDFTextStripper stripper = new PDFTextStripper();
 			PdfExtract result = new PdfExtract();
 			result.pageCount = document.getNumberOfPages();
-			// [D58] 页数封顶:超过 MAX_PDF_PAGES 只抽前 N 页(千页 PDF 不再把线程拖死),页数原样报给前端
+			// 页数封顶:超过 MAX_PDF_PAGES 只抽前 N 页(千页 PDF 不再把线程拖死),页数原样报给前端
 			if(result.pageCount > MAX_PDF_PAGES) {
 				stripper.setStartPage(1);
 				stripper.setEndPage(MAX_PDF_PAGES);

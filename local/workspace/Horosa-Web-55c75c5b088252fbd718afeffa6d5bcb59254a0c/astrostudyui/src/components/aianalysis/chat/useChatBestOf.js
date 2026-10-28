@@ -5,7 +5,7 @@ import { message } from 'antd';
 import { requestAIAnalysisChatStream, requestAIAnalysisChat } from '../../../services/aianalysis';
 import { saveConversationMessage } from '../../../utils/aiAnalysisStore';
 import { createStreamFlusher } from '../../../utils/aiStreamFlush';
-import { applyThinkingLevel, parseModelSelection, applyChatParams } from '../../../utils/aiAnalysisProviders';   // [Q-045] 浮层参数单源
+import { applyThinkingLevel, parseModelSelection, applyChatParams } from '../../../utils/aiAnalysisProviders';   // 浮层参数单源
 import { applyResponseSchema, requestStructuredWithFallback } from '../../../utils/aiStructuredOutput';
 import { readModelRoutes, resolveRoute, providerOptionsForSlot } from '../../../utils/aiModelRouting';
 import { planCandidates, estimateCandidatesCost, buildJudgePrompt, buildMergePrompt, parseJudge, JUDGE_SCHEMA, historyContentOf, candidateOverflow } from '../../../utils/aiBestOfN';
@@ -29,14 +29,14 @@ export function useChatBestOf(depsRef, { mainline, confirmCost } = {}){
 		const flushers = candidates.map((c, i)=>createStreamFlusher(()=>patchMessage(assistantId, (m)=>({ ...m, candidates: m.candidates.map((x, j)=>(j === i ? { ...x, text: texts[i] } : x)) }))));
 		const runOne = async (c, i)=>{
 			const t0 = Date.now();
-			// [Q-045] 五类浮层参数走与主发送同一份 applyChatParams(此前只套了思考档 + 温度 + top_p,
+			// 五类浮层参数走与主发送同一份 applyChatParams(此前只套了思考档 + 温度 + top_p,
 			// 停止序列 / 两惩罚在多模型候选上是死的);候选流不挂 response_format,故 withJsonMode:false。
 			let opts = applyChatParams(applyThinkingLevel({ ...(c.profile.providerOptions || {}) }, d.thinkingLevel || 'off', c.profile.providerType, c.model), {
 				profile: c.profile, model: c.model,
 				temperature: d.chatTemperature, topP: d.chatTopP, stopSequences: d.stopSequences,
 				frequencyPenalty: d.frequencyPenalty, presencePenalty: d.presencePenalty, withJsonMode: false,
 			});
-			// [Q-287/PP-11] 历史经窗口策略(与主发送同函数):按候选自身模型/num_ctx 裁(此前全量历史直拼,窗口档对多模型无效);
+			// 历史经窗口策略(与主发送同函数):按候选自身模型/num_ctx 裁(此前全量历史直拼,窗口档对多模型无效);
 			// legacy 档=原数组同引用零裁剪;候选历史不含 agentTrace,replayTrace 无关。
 			let winMsgs = baseMessages;
 			try{
@@ -74,10 +74,10 @@ export function useChatBestOf(depsRef, { mainline, confirmCost } = {}){
 		const ok = results.filter((r)=>r.status === 'done' && `${r.text || ''}`.trim());
 		if(ok.length < 2){ return { best: ok.length ? ok[0].id : null, ranking: ok.map((r)=>r.id), reasons: [], error: ok.length ? null : 'no_candidates', model: null, skipped: true }; }
 		const route = resolveRoute('judge', { routes: readModelRoutes(), providerProfiles: d.providerProfiles, profile, model });
-		// [Q-331/M-52] 候选上限按判官槽模型的挂载预算动态分配,并在截断处标注(此前固定 6000 字硬切、无标注)
+		// 候选上限按判官槽模型的挂载预算动态分配,并在截断处标注(此前固定 6000 字硬切、无标注)
 		const judgeBudget = mountCharBudgetFor(route.model, { policy: readContextPolicy() });
 		const jp = buildJudgePrompt({ question, candidates: ok.map((r)=>({ id: r.id, label: (candidates.find((c)=>c.id === r.id) || {}).label, text: r.text })), charBudget: judgeBudget });
-		// [D1] 判官槽的思考档/推理档/温度/输出上限经单源施加(槽空=今日字节)
+		// 判官槽的思考档/推理档/温度/输出上限经单源施加(槽空=今日字节)
 		let opts = providerOptionsForSlot('judge', route.profile, route.model, { applyThinkingLevel });
 		opts = applyResponseSchema(opts, { name: 'bestof_judge', schema: JUDGE_SCHEMA });
 		opts.requestTimeoutMs = 60000;
@@ -111,7 +111,7 @@ export function useChatBestOf(depsRef, { mainline, confirmCost } = {}){
 		const profile = (d.providerProfiles || []).find((p)=>p && p.id === profileId) || d.activeProviderProfile;
 		if(!profile || !model){ message.warning('请先选择可用模型'); return; }
 		const route = resolveRoute('final', { routes: readModelRoutes(), providerProfiles: d.providerProfiles, profile, model });
-		// [Q-331/M-52] 同判官:上限随终稿槽模型;有候选超限就先告诉用户哪几份是节选
+		// 同判官:上限随终稿槽模型;有候选超限就先告诉用户哪几份是节选
 		const mergeBudget = mountCharBudgetFor(route.model, { policy: readContextPolicy() });
 		const over = candidateOverflow(ok, mergeBudget);
 		if(over.length){
@@ -120,7 +120,7 @@ export function useChatBestOf(depsRef, { mainline, confirmCost } = {}){
 		const mp = buildMergePrompt({ question: cur.bestOf && cur.bestOf.question, candidates: ok, ranking: cur.bestOf && cur.bestOf.ranking, charBudget: mergeBudget });
 		setBusy('merge');
 		try{
-			// [D1] 合并稿走终稿槽:全局思考档为底,再按 final 槽参数施加(槽空=今日字节)
+			// 合并稿走终稿槽:全局思考档为底,再按 final 槽参数施加(槽空=今日字节)
 			const opts = providerOptionsForSlot('final', route.profile, route.model, { applyThinkingLevel, baseThinking: d.thinkingLevel || 'off' });
 			const rsp = await requestAIAnalysisChat({ providerType: route.profile.providerType, apiKey: route.profile.apiKey, baseUrl: route.profile.baseUrl, model: route.model, providerOptions: { ...opts, requestTimeoutMs: 120000 }, messages: [{ role: 'system', content: mp.system }, { role: 'user', content: mp.user }] });
 			const text = rsp && rsp.Result && rsp.Result.content ? `${rsp.Result.content}` : '';
@@ -164,19 +164,19 @@ export function useChatBestOf(depsRef, { mainline, confirmCost } = {}){
 		let candidates = planCandidates({ mode: prefs.mode, selections: prefs.selections, providerProfiles: d.providerProfiles, profile, model, angles: prefs.angles });
 		if(!candidates.length){ candidates = planCandidates({ mode: 'angles', selections: [], providerProfiles: d.providerProfiles, profile, model, angles: ['classic', 'cautious'] }); }
 		if(!candidates.length){ message.warning('候选不足两份:到进阶页「多模型对比」选模型'); return true; }
-		// [Q-324] 多模型对比是旁路:借同一份 system(前缀同构吃缓存)但不写页面态
+		// 多模型对比是旁路:借同一份 system(前缀同构吃缓存)但不写页面态
 		const _buildPrompt = typeof d.buildResolvedPromptQuiet === 'function' ? d.buildResolvedPromptQuiet : d.buildResolvedPrompt;
 		if(typeof d.ensureConversationRecord !== 'function' || typeof _buildPrompt !== 'function'){ message.warning('多模型对比暂不可用'); return true; }
 		const conversation = await d.ensureConversationRecord(q, profile, model);
 		const promptResult = await _buildPrompt(q, profile, undefined);
 		const est = estimateCandidatesCost({ candidates, inputTokens: Math.ceil(`${promptResult.systemPrompt || ''}`.length / 1.6) + Math.ceil(q.length / 1.6), outputTokens: 1200 });
-		// [进阶复查 P3·2026-09-08] 无计价表也要确认(此前无价档直接跑 = 最不知道花多少的配置反而不问):文案改「费用未知」
+		// 无计价表也要确认(此前无价档直接跑 = 最不知道花多少的配置反而不问):文案改「费用未知」
 		if(typeof confirmCost === 'function'){ const ok = await confirmCost({ candidates, est }); if(!ok){ return true; } }
 		const userMessage = await saveConversationMessage({ conversationId: conversation.id, role: 'user', content: q, streamStatus: 'done', checkpoint: buildCheckpoint(d) });
 		const assistant = await saveConversationMessage({ conversationId: conversation.id, role: 'assistant', content: '', streamStatus: 'streaming', candidates: candidates.map((c)=>({ id: c.id, label: c.label, model: c.model, angle: c.angle ? c.angle.key : null, text: '', status: 'streaming' })), bestOf: { mode: prefs.mode, question: q, adoptedId: null, ranking: [], startedAt: now() } });
 		if(typeof d.setMessages === 'function'){ d.setMessages((prev)=>prev.concat(userMessage, assistant)); }
 		if(typeof d.setPrompt === 'function'){ d.setPrompt(''); }
-		// [Q-045] 历史消息带上图片(与主线 streamReply 同式):此前只取 content,带图会话的历史图片在多模型
+		// 历史消息带上图片(与主线 streamReply 同式):此前只取 content,带图会话的历史图片在多模型
 		// 候选里整个丢掉 —— 候选看到的上下文比主线少一截。
 		const history = (typeof mainline === 'function' ? mainline(d.messages || []) : (d.messages || [])).filter((m)=>m && (m.role === 'user' || m.role === 'assistant') && m.streamStatus !== 'streaming').map((m)=>({ role: m.role, content: historyContentOf(m), ...(Array.isArray(m.images) && m.images.length ? { images: m.images } : {}) }));
 		const baseMessages = [{ role: 'system', content: `${promptResult.systemPrompt || ''}` }].concat(history, [{ role: 'user', content: q }]);
@@ -184,7 +184,7 @@ export function useChatBestOf(depsRef, { mainline, confirmCost } = {}){
 		let results = [];
 		try{ results = await streamCandidates({ candidates, baseMessages, assistantId: assistant.id, ac }); }
 		finally{ abortRef.current = null; }
-		// [Q-294/M-109·AR-05③] 「停止全部」后不再跑判官(此前半截文字记 done、≥2 份即照发判官请求):直接取首个有文字的候选
+		// 「停止全部」后不再跑判官(此前半截文字记 done、≥2 份即照发判官请求):直接取首个有文字的候选
 		const j = ac.signal.aborted
 			? (()=>{ const ok = results.filter((r)=>`${r.text || ''}`.trim()); return { best: ok.length ? ok[0].id : null, ranking: ok.map((r)=>r.id), reasons: [], error: ok.length ? null : 'aborted', model: null, skipped: true }; })()
 			: await judgeCandidates({ question: q, results, candidates, profile, model });

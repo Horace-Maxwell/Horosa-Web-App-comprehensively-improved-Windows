@@ -14,21 +14,20 @@ import { loadUiPrefs } from '../../../utils/aiAnalysisStore';
 import { isAgentEnabled, getAgentApprovalMode, subscribeAgentPrefs, isGoalEnabled, isOrchestrateEnabled } from '../../../utils/aiAgent/prefs';
 import { listSessionAllowed, setSessionAllowScope } from '../../../utils/aiAgent/sessionAllow';
 import { pushSteer, takeSteer, peekSteer, subscribeSteer } from '../../../utils/aiAgent/steer';
-// [Q-048④] 与 AIAnalysisMain 落库的两句占位逐字同源(改一处必改另一处)
+// 与 AIAnalysisMain 落库的两句占位逐字同源(改一处必改另一处)
 export const ASSISTANT_PLACEHOLDERS = ['已停止生成。', '模型未返回可用内容'];
 export function isPlaceholderAssistantContent(content){ const t = `${content == null ? '' : content}`.trim(); return !!t && ASSISTANT_PLACEHOLDERS.indexOf(t) >= 0; }
 import { buildPlanSystem, buildPlanUser, parseActionPlan, renderPlanText, approvedPlanDirective, loadPlanManifest } from '../../../utils/aiAgent/planMode';
 import { getToolPolicy } from '../../../utils/aiAgent/prefs';
 import { message } from 'antd';
-import { parseSlashInput, listCommandItems, findCommand, requirementState, gateState, resolveZeriSubTab } from '../../../utils/aiChat/commands';
+import { parseSlashInput, listCommandItems, findCommand, requirementState, gateState, resolveZeriSubTab, COMMANDS_ALLOWED_WHILE_SENDING, listCommandArgItems } from '../../../utils/aiChat/commands';
 import { BUILTIN_SKILLS, skillsOf, parseSkillArgs, renderSkillPrompt, buildSkillDirective, normalizeSkillPack } from '../../../utils/aiChat/skills';
 import ComposerAssist from './ComposerAssist';
 import SkillPackPanel from './SkillPackPanel';
 import { listAnalysisSources, findAnalysisSourceById } from '../../../utils/aiAnalysisSources';
 import { registerWorkspaceUi } from '../../../utils/aiTools/workspaceBridge';
-import { buildRelativeSnapshotForRecords } from '../../../utils/aiAnalysisContext';
 import { createGoalTask } from '../../../utils/aiAgent/goalRunner';
-import { buildMentionCandidates, filterMentionCandidatesDetailed, parseMentions, resolveMentions, techniqueHeadMatch, MENTION_TOKEN_RE } from '../../../utils/aiChat/mentions';
+import { buildMentionCandidates, filterMentionCandidatesDetailed, parseMentions, resolveMentions, resolveSourceByName, techniqueHeadMatch, MENTION_TOKEN_RE } from '../../../utils/aiChat/mentions';
 import { filterContentSections } from '../../../utils/aiChat/sectionFilter';
 import { listAnalysisTechniqueOptions, listAllAnalysisTechniqueOptions, analysisTechniqueLabelMap } from '../../../utils/aiAnalysisContext';
 import TECHNIQUE_PINYIN from '../../../data/techniquePinyin.json';
@@ -47,6 +46,8 @@ import { SCHEDULER_LAST_TICK_KEY } from '../../../utils/aiAgent/tasks/scheduler'
 import { ServerRoot } from '../../../utils/constants';
 import { readModelRoutes, hasAnyRoute, readRouteOptions, hasAnyRouteOption, listRouteProfiles, activeRouteProfile, applyRouteProfile, clearActiveRouteProfile } from '../../../utils/aiModelRouting';
 import { buildCheckpoint as buildCheckpointPure, planRewind, applyCheckpoint } from '../../../utils/aiChat/checkpoint';
+import { normalizeTurnRequest } from '../../../utils/aiChat/turnRequest';
+import UserTurnBody from './UserTurnBody';
 import { requestShortCompletion } from '../../../utils/aiChat/shortCall';
 import { parseModelSelection } from '../../../utils/aiAnalysisProviders';
 import { undoAction } from '../../../utils/aiTools/ledger';
@@ -57,6 +58,7 @@ import { readPersona, subscribePersona, personaLayer, buildInitDraftInput, INIT_
 import { readPersonaLayers, subscribePersonaLayers, PERSONA_SESSION_TEXT_MAX } from '../../../utils/aiChat/personaLayers';
 import { listMemories, subscribeMemory, memoryLayer, extractCandidatesHeuristic, addCandidates, candidatesFromExtraction, MEMORY_EXTRACT_SYSTEM } from '../../../utils/aiChat/memory';
 import { parseShortCallJson } from '../../../utils/aiChat/shortCall';
+import { subjectFactsLayer } from '../../../utils/subjectFacts';
 import { listStoreRecords, listConversationMessages } from '../../../utils/aiAnalysisStore';
 import PersonaMemoryPanel from './PersonaMemoryPanel';
 import SubjectWorkspaceDrawer from './SubjectWorkspaceDrawer';
@@ -71,7 +73,7 @@ import BestOfPanel from './BestOfPanel';
 
 export const CHAT_ASSIST_VERSION = 1;
 
-// [2026-09-11] @ 技法池:全技法并集(命盘类 ∪ 事盘类;起课时间源再并其可起集)+ 当前案例可挂集(建池标灰 / 解析提示 用同一把尺)
+// @ 技法池:全技法并集(命盘类 ∪ 事盘类;起课时间源再并其可起集)+ 当前案例可挂集(建池标灰 / 解析提示 用同一把尺)
 function mentionTechniquePools(activeSource){
 	let all = [];
 	let allowed = [];
@@ -93,14 +95,15 @@ function groupTitleByKeyOf(all){
 	return map;
 }
 
-// [Q-033/Q-034] 生成中仍可执行的斜杠命令:纯导航 / 开面板 / 只读诊断(不动挂载、不切会话、不另起流)。
+// 生成中仍可执行的斜杠命令:纯导航 / 开面板 / 只读诊断(不动挂载、不切会话、不另起流)。
 // 其余命令在生成中一律拦下并保留输入(见 runCommand 的统一闸)。
-const COMMANDS_ALLOWED_WHILE_SENDING = ['择日', '报告', '命主', '任务', 'status', 'doctor', 'help'];
+// 生成中可执行的命令:由命令声明的 allowWhileSending 推出(单源,见 commands.js)
+export { COMMANDS_ALLOWED_WHILE_SENDING };
 
 export function useChatAssist(deps){
 	const depsRef = React.useRef(deps || {});
 	depsRef.current = deps || {};
-	// [批五] 工作区 ui 面登记(AI 分析页在前台时才有):工具 get_current_context 读「当前选中源」、自动化规则「设为当前源」、
+	// 工作区 ui 面登记(AI 分析页在前台时才有):工具 get_current_context 读「当前选中源」、自动化规则「设为当前源」、
 	// 外部客户端批尾选中、撤销后刷源——全部经这份登记;此前生产从未登记过 ui(四处断链)。卸载即注销。
 	// 冻结期(切到别的技法页,页面停止 re-render)deps 会陈旧:助手刚选的源记在 ref 里,渲染追上后清掉。
 	const lastSelectedRef = React.useRef('');
@@ -118,6 +121,20 @@ export function useChatAssist(deps){
 		selectSource: (cid)=>{ lastSelectedRef.current = `${cid || ''}`; const f = depsRef.current.setSelectedSourceId; if(typeof f === 'function'){ f(cid); } },
 		refreshSources: ()=>{ const f = depsRef.current.setSources; if(typeof f === 'function'){ f(listAnalysisSources()); } },
 		setInnerTab: (tab)=>{ const f = depsRef.current.setInnerTab; if(typeof f === 'function'){ f(tab); } },
+		// 页内页签表与当前页签(navigate_to_technique 切 aianalysis 子页签只认这张表)
+		listInnerTabs: ()=>(Array.isArray(depsRef.current.innerTabs) ? depsRef.current.innerTabs.map((t)=>({ key: t.key, label: t.label })) : []),
+		currentInnerTab: ()=>`${depsRef.current.innerTab || ''}`,
+		// 对话挂载读写(set_chat_mount):本人 / 合盘对方 / 挂载技法;与挂载抽屉同一组状态
+		getChatMount: ()=>{
+			const d = depsRef.current;
+			return {
+				sourceId: lastSelectedRef.current || d.selectedSourceId || (d.activeSource && d.activeSource.id) || '',
+				partnerId: `${d.partnerSourceId || ''}`,
+				techniques: Array.isArray(d.selectedTechniqueKeys) ? d.selectedTechniqueKeys.slice() : [],
+			};
+		},
+		setChatTechniques: (keys)=>{ const f = depsRef.current.setSelectedTechniqueKeys; if(typeof f === 'function'){ f(Array.isArray(keys) ? keys.slice() : []); } },
+		setChatPartner: (cid)=>{ const f = depsRef.current.setPartnerSourceId; if(typeof f === 'function'){ f(`${cid || ''}`); } },
 	}), []);
 
 	// 上下文策略(进阶页可改;状态栏展示预设名):订阅写入事件,页面无需自己 useState
@@ -125,24 +142,24 @@ export function useChatAssist(deps){
 	React.useEffect(()=>subscribeContextPolicy((p)=>setPolicy(p)), []);
 	const presetName = React.useMemo(()=>contextPolicyPresetName(policy), [policy]);
 
-	// [A5] 压缩:主线视图=压缩点之后的消息(无压缩=同引用);摘要层进稳定层(priority 88);/compact 一次短调用;取消压缩=清字段
+	// 压缩:主线视图=压缩点之后的消息(无压缩=同引用);摘要层进稳定层(priority 88);/compact 一次短调用;取消压缩=清字段
 	const mainline = React.useCallback((list)=>{
 		const conv = depsRef.current.activeConversation;
 		const out = applyCompact(list, conv && conv.compact ? conv.compact : null);
-		// [C6] 被「按审阅重写」替代的稿不进历史(有替代稿才过滤,否则同引用零变化)
-		// [Q-048④ 裁决 2026-09-18] 占位文字(中止「已停止生成。」/ 空回复「模型未返回可用内容」)不是模型产出,不进后续历史(无占位时同引用零变化)
+		// 被「按审阅重写」替代的稿不进历史(有替代稿才过滤,否则同引用零变化)
+		// 占位文字(中止「已停止生成。」/ 空回复「模型未返回可用内容」)不是模型产出,不进后续历史(无占位时同引用零变化)
 		const drop = (m)=>!!(m && (m.supersededBy || (m.role === 'assistant' && isPlaceholderAssistantContent(m.content))));
 		return out.some(drop) ? out.filter((m)=>!drop(m)) : out;
 	}, []);
-	// [A6] 个人口径 / 记忆:键订阅 + 记忆缓存(写库事件刷新);缺省全关=不产层
+	// 个人口径 / 记忆:键订阅 + 记忆缓存(写库事件刷新);缺省全关=不产层
 	const [persona, setPersona] = React.useState(()=>readPersona());
 	React.useEffect(()=>subscribePersona((p)=>setPersona(p)), []);
 	const personaRef = React.useRef(persona); personaRef.current = persona;
-	// [批二⑨] 分层口径:命主/技法两表(键)+ 会话层(conv.persona);全部受 persona.enabled 总开关约束
+	// 分层口径:命主/技法两表(键)+ 会话层(conv.persona);全部受 persona.enabled 总开关约束
 	const personaLayersRef = React.useRef(readPersonaLayers());
 	const [personaLayersTick, setPersonaLayersTick] = React.useState(0);
 	React.useEffect(()=>subscribePersonaLayers((l)=>{ personaLayersRef.current = l; setPersonaLayersTick((n)=>n + 1); }), []);
-	// [Q-294/M-109·AR-19] 口径「注入中」判据 = 与 promptLayerExtras 同一合成结果(启用 且 全局/命主/技法/会话 任一层非空),供进阶页胶囊与口径卡;
+	// 口径「注入中」判据 = 与 promptLayerExtras 同一合成结果(启用 且 全局/命主/技法/会话 任一层非空),供进阶页胶囊与口径卡;
 	//   此前只看全局文本 → 全局空、分层有字时照样注入却显示「未注入」。personaLayersTick 只为分层改动触发重算。
 	const personaInjecting = React.useMemo(()=>{
 		const d = depsRef.current; const src = d.activeSource; const conv = d.activeConversation;
@@ -158,14 +175,21 @@ export function useChatAssist(deps){
 	}, []);
 	const memoriesRef = React.useRef([]);
 	React.useEffect(()=>{ const load = ()=>listMemories().then((l)=>{ memoriesRef.current = l; }).catch(()=>{}); load(); return subscribeMemory(load); }, []);
-	// 稳定层附加项:口径 102 / 记忆 101 / 压缩摘要 88(裁剪按 priority 降序,口径居首);无=空数组(buildContextLayers 缺省零变化)
-	const promptLayerExtras = React.useCallback(()=>{
+	// 稳定层附加项:口径 102 / 记忆 101 / 命主实况 94.8 / 压缩摘要 88(裁剪按 priority 降序,口径居首);无=空数组(buildContextLayers 缺省零变化)
+	// opts.techniqueKeys(可选)= 本轮专用技法(技能 / 命令的技法只作用本轮时):技法口径按本轮技法取 —— 此前一律按会话挂载取,
+	//   会话没挂八字时 /流年 这一轮带了八字,给八字设的口径却不进请求。缺省 = 会话挂载(此前路径逐字节不变)。
+	const promptLayerExtras = React.useCallback((opts)=>{
 		const out = [];
 		const p = personaRef.current;
 		const srcP = depsRef.current.activeSource; const convP = depsRef.current.activeConversation;
-		const pl = personaLayer(p, { layers: personaLayersRef.current, subjectCid: srcP ? srcP.id : '', subjectTitle: srcP ? srcP.title : '', techniqueKeys: depsRef.current.selectedTechniqueKeys, techniqueLabels: analysisTechniqueLabelMap(depsRef.current.selectedTechniqueKeys), sessionText: convP ? convP.persona : '' });
+		const techKeys = opts && Array.isArray(opts.techniqueKeys) ? opts.techniqueKeys : depsRef.current.selectedTechniqueKeys;
+		const pl = personaLayer(p, { layers: personaLayersRef.current, subjectCid: srcP ? srcP.id : '', subjectTitle: srcP ? srcP.title : '', techniqueKeys: techKeys, techniqueLabels: analysisTechniqueLabelMap(techKeys), sessionText: convP ? convP.persona : '' });
 		if(pl){ out.push(pl); }
 		if(p.memoryInject){ const src = depsRef.current.activeSource; const ml = memoryLayer(memoriesRef.current, { subjectCid: src ? src.id : '' }); if(ml){ out.push(ml); } }
+		// 命主实况:这张命盘开了「发送」才产层(缺省不发 = 零变化);挂载源取法与发送层同(当前源,没有则会话记录的源)
+		const sfSrc = srcP || (convP && convP.sourceRef ? (depsRef.current.sources || []).find((s)=>s && s.id === convP.sourceRef.id) || null : null);
+		const sf = subjectFactsLayer(sfSrc);
+		if(sf){ out.push(sf); }
 		const conv = depsRef.current.activeConversation;
 		const cl = conv && conv.compact ? compactLayer(conv.compact) : null;
 		if(cl){ out.push(cl); }
@@ -185,7 +209,7 @@ export function useChatAssist(deps){
 	const [initDraft, setInitDraft] = React.useState({ busy: false, text: '', conversations: 0 });
 	const [extracting, setExtracting] = React.useState(false);
 	const [subjectOpen, setSubjectOpen] = React.useState(false);
-	const [compactViewOpen, setCompactViewOpen] = React.useState(false);   // [2026-09-11] 状态栏「已压缩 N 条 · 查看」→ 摘要弹窗
+	const [compactViewOpen, setCompactViewOpen] = React.useState(false);   // 状态栏「已压缩 N 条 · 查看」→ 摘要弹窗
 	const shortProfile = React.useCallback(()=>{
 		const d = depsRef.current;
 		const { profileId, model } = parseModelSelection(d.modelSelection);
@@ -203,10 +227,10 @@ export function useChatAssist(deps){
 			for(let i = 0; i < recent.length; i++){ /* eslint-disable-next-line no-await-in-loop */ byId[recent[i].id] = await listConversationMessages(recent[i].id); }
 			const input = buildInitDraftInput({ conversations: recent, messagesByConversation: byId });
 			if(!input.excerpts){ message.info('最近没有可参考的对话,先聊几轮再生成'); return true; }
-			const r = await requestShortCompletion({ profile: pm.profile, model: pm.model, kind: 'init', system: INIT_SYSTEM, user: input.text, timeoutMs: 60000 });
+			const r = await requestShortCompletion({ profile: pm.profile, model: pm.model, kind: 'init', system: INIT_SYSTEM, user: input.text, timeoutMs: 60000, slot: 'utility', providerProfiles: depsRef.current.providerProfiles });   // 「辅助」槽:留空 = 跟随当前模型
 			if(!r.ok){ message.error(`生成失败:${r.error || '无返回'}`); return true; }
 			setInitDraft({ busy: false, text: `${r.content}`.slice(0, PERSONA_TEXT_MAX), conversations: input.conversations, onDismiss: ()=>setInitDraft({ busy: false, text: '', conversations: 0 }) });
-			// [Q-062/AW-31] 「个人口径」面板渲染在**进阶**页,此前却跳到只有接口配置的「设置」页 —— 提示文案说进阶、动作跳设置
+			// 「个人口径」面板渲染在**进阶**页,此前却跳到只有接口配置的「设置」页 —— 提示文案说进阶、动作跳设置
 			if(typeof depsRef.current.setInnerTab === 'function'){ depsRef.current.setInnerTab('advanced'); }
 			message.success('口径草稿已生成,在进阶页「个人口径」里查看并采用');
 		}finally{ setInitDraft((x)=>({ ...x, busy: false })); }
@@ -220,7 +244,7 @@ export function useChatAssist(deps){
 		setExtracting(true);
 		try{
 			const text = live.slice(-40).map((m)=>`${m.role === 'user' ? '用户' : '助手'}:${`${m.content}`.replace(/\s+/g, ' ').slice(0, 600)}`).join('\n').slice(0, 16000);
-			const r = await requestShortCompletion({ profile: pm.profile, model: pm.model, kind: 'memory', system: MEMORY_EXTRACT_SYSTEM, user: text, timeoutMs: 60000 });
+			const r = await requestShortCompletion({ profile: pm.profile, model: pm.model, kind: 'memory', system: MEMORY_EXTRACT_SYSTEM, user: text, timeoutMs: 60000, slot: 'utility', providerProfiles: d.providerProfiles });
 			if(!r.ok){ message.error(`提炼失败:${r.error || '无返回'}`); return; }
 			const src = d.activeSource;
 			const cands = candidatesFromExtraction(parseShortCallJson(r.content), { subjectCid: src ? src.id : '', subjectTitle: src ? src.title : '' });
@@ -233,7 +257,7 @@ export function useChatAssist(deps){
 	React.useEffect(()=>{ const on = ()=>setUiPrefsTick((t)=>t + 1); window.addEventListener(UI_PREFS_CHANGED_EVENT, on); return ()=>window.removeEventListener(UI_PREFS_CHANGED_EVENT, on); }, []);
 	const suggestDoneRef = React.useRef({});   // convId → true:本会话已提醒过压缩
 	const runCompact = React.useCallback(async (argsText)=>{
-		const instruction = typeof argsText === 'string' ? argsText.trim() : '';   // [批二⑧] /compact <指令>;按钮直挂时收到事件对象 → 视为无指令
+		const instruction = typeof argsText === 'string' ? argsText.trim() : '';   // /compact <指令>;按钮直挂时收到事件对象 → 视为无指令
 		const d = depsRef.current;
 		const conv = d.activeConversation;
 		if(!conv){ message.warning('先打开一个对话'); return false; }
@@ -245,9 +269,9 @@ export function useChatAssist(deps){
 		const input = buildCompactInput(live, { prevSummary: conv.compact ? conv.compact.summary : '' });
 		setCompacting(true);
 		try{
-			const r = await requestShortCompletion({ profile, model, kind: 'compact', system: buildCompactSystem(instruction), user: input.text, timeoutMs: 60000 });
+			const r = await requestShortCompletion({ profile, model, kind: 'compact', system: buildCompactSystem(instruction), user: input.text, timeoutMs: 60000, slot: 'utility', providerProfiles: d.providerProfiles });
 			if(!r.ok){ message.error(`压缩失败:${r.error || '无返回'}`); return true; }
-			const rec = compactRecord({ summary: r.content, uptoCreatedAt: input.uptoCreatedAt, coveredCount: (conv.compact ? conv.compact.coveredCount : 0) + input.count, model, inputHash: input.inputHash });
+			const rec = compactRecord({ summary: r.content, uptoCreatedAt: input.uptoCreatedAt, coveredCount: (conv.compact ? conv.compact.coveredCount : 0) + input.count, model: r.model || model, inputHash: input.inputHash });   // 记实际做压缩的模型(辅助槽可能另指)
 			if(!rec){ message.error('压缩结果为空'); return true; }
 			if(typeof d.updateConversationMeta === 'function'){ await d.updateConversationMeta(conv, { compact: rec }); }
 			message.success(`已压缩 ${rec.coveredCount} 条对话为摘要${instruction ? '(按你的附加要求)' : ''};之后只发摘要 + 新消息(可取消)`);
@@ -260,10 +284,10 @@ export function useChatAssist(deps){
 		if(typeof d.updateConversationMeta === 'function'){ await d.updateConversationMeta(conv, { compact: null }); }
 		message.success('已取消压缩,对话恢复原样');
 	}, []);
-	// [A5] 旁问 / 回退 浮层状态
+	// 旁问 / 回退 浮层状态
 	const [side, setSide] = React.useState({ open: false, q: '' });
 	const [rewind, setRewind] = React.useState({ open: false, plan: null, item: null, busy: false });
-	// [C5] 多模型对比:候选并排流式(不带工具)→ 判官 → 采用/合并;有计价表时发送前确认费用
+	// 多模型对比:候选并排流式(不带工具)→ 判官 → 采用/合并;有计价表时发送前确认费用
 	const confirmCost = React.useCallback(({ candidates, est })=>new Promise((resolve)=>{
 		Modal.confirm({ title: '多模型对比:预估费用', content: est.totalUsd == null ? `${candidates.length} 个候选,费用未知(所选模型无计价表)。继续?` : `${candidates.length} 个候选,预估约 $${est.totalUsd.toFixed(4)}${est.unknown ? `(另 ${est.unknown} 个无计价表)` : ''}。继续?`, okText: '发送', cancelText: '取消', onOk: ()=>resolve(true), onCancel: ()=>resolve(false) });
 	}), []);
@@ -272,57 +296,70 @@ export function useChatAssist(deps){
 		if(!item || item.role !== 'assistant' || !Array.isArray(item.candidates) || !item.candidates.length){ return null; }
 		return <BestOfCards item={item} busy={bestOf.busy} onAdopt={(id)=>bestOf.adopt(item.id, id)} onJudge={()=>bestOf.rejudge(item.id)} onMerge={()=>bestOf.merge(item.id)} onStop={()=>bestOf.stop()} />;
 	}, [bestOf]);
-	// [C6] 回答审阅:另一家模型对拍挂载数据 → 批注落消息;按批注重写=新气泡 rewriteOf;确定性问题 deterministicIssues 由页面注入(公版无=[])
+	// 回答审阅:另一家模型对拍挂载数据 → 批注落消息;按批注重写=新气泡 rewriteOf;确定性问题 deterministicIssues 由页面注入(公版无=[])
 	const review = useChatReview(depsRef, { mainline });
 	const reviewNotes = React.useCallback((item)=>{
 		if(!item || item.role !== 'assistant' || (!item.review && !item.rewriteOf && !item.supersededBy)){ return null; }
 		return <ReviewNotes item={item} busy={review.busy} rewriting={review.rewriting} onRewrite={()=>review.rewrite(item)} onRerun={()=>review.run(item)} onStop={review.stop} />;
 	}, [review]);
-	// [C7] 多技法编排:/编排 问题 → 规划→只读子 Turn(只挂该技法层)→综合+分歧标注;面板按技法折叠子 Turn
+	// 多技法编排:/编排 问题 → 规划→只读子 Turn(只挂该技法层)→综合+分歧标注;面板按技法折叠子 Turn
 	const orchestrate = useChatOrchestrate(depsRef, { mainline });
 	const orchestrationPanel = React.useCallback((item)=>{
 		if(!item || item.role !== 'assistant' || !item.orchestration){ return null; }
 		return <OrchestrationPanel item={item} running={!!orchestrate.busy} onStop={orchestrate.stop} />;
 	}, [orchestrate]);
-	// [A3] 斜杠命令 + 技能包:命令面板(输入框首字符 /)、发送口拦截(interceptSend)、技能执行(runSkill:会话级技法/口径 → handleSend 渲染后的模板)
+	// 斜杠命令 + 技能包:命令面板(输入框首字符 /)、发送口拦截(interceptSend)、技能执行(runSkill:会话级技法/口径 → handleSend 渲染后的模板)
 	const [statusDetailOpen, setStatusDetailOpen] = React.useState(false);
-	const runSkill = React.useCallback(async (bundle, argsText)=>{
+	const [helpState, setHelpState] = React.useState({ open: false, focus: '' });   // /help 浮层(focus = /help 后写的命令名)
+	// opts.activeSource / opts.partnerSource:命令参数里的 @ 已解析出的本人 / 对方(页面状态下一拍才更新,这里先按它们算)
+	const runSkill = React.useCallback(async (bundle, argsText, opts = {})=>{
 		const d = depsRef.current;
 		const sk = normalizeSkillPack(bundle);
 		if(!sk){ message.warning('技能不存在'); return true; }
 		const args = parseSkillArgs(sk.argsSpec, argsText);
-		let extra = buildSkillDirective(sk);
+		const extra = buildSkillDirective(sk);
 		let otherSource = null;
 		if(sk.requires === 'two-charts'){
-			// [2026-09-11] /合盘 @[命盘:李四] 也可用:参数里的 @ 标记先解析成名字(#尾号一并保留给精确匹配)
-			const pm = parseMentions(`${argsText || ''}`);
-			const mentioned = pm.mentions.find((m)=>m.type === 'chart' || m.type === 'case');
-			const q = `${mentioned ? mentioned.name : (args.other || argsText || '')}`.trim();
-			const wantSuffix = mentioned && mentioned.suffix ? mentioned.suffix : '';
-			const sources = (d.sources && d.sources.length ? d.sources : listAnalysisSources()) || [];
-			let cands = sources.filter((x)=>x && x.sourceType === 'chart' && x.id !== (d.activeSource && d.activeSource.id) && `${x.title || ''}`.indexOf(q) >= 0);
-			if(wantSuffix && cands.length > 1){ const bySuffix = cands.filter((x)=>`${x.id}`.endsWith(wantSuffix)); if(bySuffix.length === 1){ cands = bySuffix; } }
-			if(!q || !cands.length){ message.warning(q ? `没找到叫「${q}」的命盘` : '写上对方的名字,例:/合盘 李四'); return true; }
-			if(cands.length > 1){ message.warning(`有 ${cands.length} 张命盘都含「${q}」,请写更完整的名字`); return true; }
-			otherSource = cands[0];
-			try{
-				const snap = await buildRelativeSnapshotForRecords(d.activeSource.record, otherSource.record);
-				const text = typeof snap === 'string' ? snap : `${(snap && (snap.text || snap.snapshotText || snap.snapshot)) || ''}`;
-				if(!text.trim()){ message.warning('合盘数据为空'); return true; }
-				extra = `${extra ? `${extra}\n\n` : ''}【合盘数据】\n${text.slice(0, 12000)}`;
-			}catch(e){ message.warning(`合盘数据生成失败:${e && e.message ? e.message : e}`); return true; }
+			const self = opts.activeSource || d.activeSource;
+			if(opts.partnerSource){
+				otherSource = opts.partnerSource;   // 参数里 @ 了对方(runCommand 已按 @ 规则解析)
+			}else{
+				const q = `${args.other || argsText || ''}`.trim();
+				if(!q){
+					// [双盘挂载] 不写名字 = 合看已挂的合盘对方
+					if(!d.partnerSource){ message.warning('写上对方的名字,例:/合盘 李四(或先在挂载抽屉选好合盘对方)'); return true; }
+					otherSource = d.partnerSource;
+				}else{
+					// 找人与 @ 同一套规则(精确同名优先 → 包含 → 同名取最近保存);只有包含命中且多张时列候选让你选
+					const sources = (d.sources && d.sources.length ? d.sources : listAnalysisSources()) || [];
+					const pool = sources.filter((x)=>x && x.sourceType === 'chart' && x.id !== (self && self.id));
+					const r = resolveSourceByName(pool, q, '');
+					if(!r.hit){ message.warning(`没找到叫「${q}」的命盘`); return true; }
+					if(r.ambiguous && !r.exact){ message.warning(`有 ${r.pool.length} 张命盘名字含「${q}」:${r.pool.slice(0, 5).map((x)=>x.title).join('、')}${r.pool.length > 5 ? ' 等' : ''};请写完整名字,或用 @ 选`); return true; }
+					if(r.ambiguous){ message.info(`有多张「${q}」,已取最近保存的一张(可用 @ 选具体哪一张)`); }
+					otherSource = r.hit;
+				}
+			}
+			if(self && otherSource && otherSource.id === self.id){ message.warning('合盘对方不能是当前这张命盘'); return true; }
+			// [双盘挂载] 对方盘按所选技法一并挂载(两人各技法分开标注,发送时现算);西洋合盘数据由拼上下文时按「这一对」附进会话层(追问时仍在)
+			if(typeof d.setPartnerSourceId === 'function'){ d.setPartnerSourceId(otherSource.id); }
 		}
-		// 会话级设置:库内技能套组合(资料/模型/系统提示随组合);技法只改本次对话挂载(不动全局)
-		if(bundle.id && `${bundle.id}`.indexOf('builtin:') !== 0 && typeof d.applyBundle === 'function'){ try{ d.applyBundle(bundle); }catch(e){ /* 组合套用失败不阻断 */ } }
-		if(sk.techniqueKeys.length && typeof d.setSelectedTechniqueKeys === 'function'){ d.setSelectedTechniqueKeys(sk.techniqueKeys.slice(0)); }
-		const promptText = renderSkillPrompt(sk, args, { activeSource: d.activeSource, otherSource });
+		// 会话级设置:库内技能套组合(资料 / 模型 / 系统提示随组合),但**不套组合的技法**——技能的技法只作用本轮(本轮请求 techniqueKeys);
+		//   此前技能把会话挂载整个换成自己的技法且不恢复(/流年 之后原来挂的西洋盘就没了)。要留下来,在气泡上点「保留为挂载」。
+		if(bundle.id && `${bundle.id}`.indexOf('builtin:') !== 0 && typeof d.applyBundle === 'function'){ try{ d.applyBundle(bundle, { skipTechniques: true }); }catch(e){ /* 组合套用失败不阻断 */ } }
+		const promptText = renderSkillPrompt(sk, args, { activeSource: opts.activeSource || d.activeSource, otherSource });
 		if(!promptText){ message.warning('技能提示词为空'); return true; }
-		await new Promise((r)=>setTimeout(r, 0));   // 让 setState 落地(handleSend 读最新技法)
+		const turn = normalizeTurnRequest({
+			command: opts.command || { name: (sk.triggers && sk.triggers[0]) || bundle.name || '技能', label: bundle.name || '', argsText },
+			techniqueKeys: sk.techniqueKeys,
+			partnerSourceId: otherSource ? otherSource.id : '',
+		});
+		await new Promise((r)=>setTimeout(r, 0));   // 让切源 / 套组合的状态落地(本轮技法与对方已显式随本轮请求传入,不靠这一拍)
 		const send = depsRef.current.handleSend;
-		if(typeof send === 'function'){ await send(promptText, extra || undefined); }
+		if(typeof send === 'function'){ await send(promptText, extra || undefined, turn || undefined); }
 		return true;
 	}, []);
-	// [批二⑦] /plan:规划短调用(工具目录摘要 + 目标 → JSON 计划;目录经 planMode.loadPlanManifest 惰性载入)→ PlanCard → 批准后 handleSend(计划正文, 已批准约束)
+	// /plan:规划短调用(工具目录摘要 + 目标 → JSON 计划;目录经 planMode.loadPlanManifest 惰性载入)→ PlanCard → 批准后 handleSend(计划正文, 已批准约束)
 	const PLAN_CLOSED = { open: false, goal: '', plan: null, dropped: [], busy: false };
 	const [planState, setPlanState] = React.useState(PLAN_CLOSED);
 	const runPlan = React.useCallback(async (argsText)=>{
@@ -336,7 +373,7 @@ export function useChatAssist(deps){
 		const hide = message.loading('正在生成行动计划…', 0);
 		try{
 			const manifest = await loadPlanManifest(getToolPolicy().deny);
-			const r = await requestShortCompletion({ profile: pm.profile, model: pm.model, kind: 'plan', system: buildPlanSystem(manifest), user: buildPlanUser(goal, { subjectTitle: d.activeSource ? d.activeSource.title : '', sourceType: d.activeSource ? d.activeSource.sourceType : '', techniqueKeys: d.selectedTechniqueKeys }), timeoutMs: 60000 });
+			const r = await requestShortCompletion({ profile: pm.profile, model: pm.model, kind: 'plan', system: buildPlanSystem(manifest), user: buildPlanUser(goal, { subjectTitle: d.activeSource ? d.activeSource.title : '', sourceType: d.activeSource ? d.activeSource.sourceType : '', techniqueKeys: d.selectedTechniqueKeys }), timeoutMs: 60000, slot: 'planner', providerProfiles: d.providerProfiles });   // 「规划」槽
 			if(!r.ok){ message.error(`计划生成失败:${r.error || '无返回'}`); setPlanState(PLAN_CLOSED); return true; }
 			const parsed = parseActionPlan(r.content, manifest);
 			if(!parsed.ok){ message.error(`计划不可读(${parsed.error}${parsed.detail ? `:${parsed.detail}` : ''}),请换个说法再试`); setPlanState(PLAN_CLOSED); return true; }
@@ -357,7 +394,7 @@ export function useChatAssist(deps){
 		if(typeof f === 'function'){ f(`/plan ${planState.goal}`); }
 		setPlanState(PLAN_CLOSED);
 	}, [planState]);
-	// [批二⑪] 会话 resume:开关开着时记住当前对话;启动(对话列表首次到位)且未打开任何对话时继续上次;/resume 浮层
+	// 会话 resume:开关开着时记住当前对话;启动(对话列表首次到位)且未打开任何对话时继续上次;/resume 浮层
 	const [resumeOpen, setResumeOpen] = React.useState(false);
 	const resumedRef = React.useRef(false);
 	const convIdForResume = depsRef.current.activeConversationId;
@@ -372,7 +409,7 @@ export function useChatAssist(deps){
 		const f = depsRef.current.openConversation;
 		if(c && typeof f === 'function'){ Promise.resolve(f(c)).catch(()=>{}); }
 	}, [convCount]);
-	// [批二⑫] /doctor:采集(全部可失败,失败即「未知」)→ 纯函数定级脱敏 → 浮层
+	// /doctor:采集(全部可失败,失败即「未知」)→ 纯函数定级脱敏 → 浮层
 	const [doctorState, setDoctorState] = React.useState({ open: false, report: null });
 	const runDoctor = React.useCallback(async ()=>{
 		const d = depsRef.current; const pm = shortProfile();
@@ -402,20 +439,119 @@ export function useChatAssist(deps){
 		setDoctorState({ open: true, report });
 		return true;
 	}, [shortProfile, presetName]);
+	const sectionFilterRef = React.useRef({});
+	// @ 解析 → 挂载计划(纯读):正文发送与命令参数共用。两遍:先只解析案例引用拿到「这句话要切到的源」,技法可用性按**切换后**的源判——
+	// 此前按切源前的源判,「@[事盘:X] @[技法:六爻]」被当成命盘案例拒掉六爻、切源后再把旧技法剪光、以 0 技法发送;无源时「@[命盘:张三] @[技法:八字]」同病。
+	// opts.twoCharts:两盘命令(/合盘)的参数里只有一张命盘时它就是对方
+	const planMentions = React.useCallback((mentions, opts = {})=>{
+		const d = depsRef.current;
+		const sources = d.sources && d.sources.length ? d.sources : listAnalysisSources();
+		const pre = resolveMentions(mentions.filter((m)=>m.type === 'chart' || m.type === 'case'), { sources }, opts);
+		const effSource = pre.selectSource || d.activeSource;
+		const pools = mentionTechniquePools(effSource);
+		const plan = resolveMentions(mentions, { sources, materials: d.materials, bundles: d.bundles, templates: d.templates, techniqueOptions: pools.all, allowedTechniqueKeys: pools.allowedKeys, activeSourceType: effSource ? effSource.sourceType : '' }, opts);
+		// 对方不能是(切换后的)本人这张
+		if(plan.partnerSource && effSource && plan.partnerSource.id === effSource.id){ plan.hints.push('合盘对方不能是当前这张命盘,未挂载'); plan.partnerSource = null; }
+		return { plan, effSource };
+	}, []);
+	// 挂载计划 → 页面状态(切源 / 合盘对方 / 引用 / 技法 / 技法段过滤);提示与「没找到」在这里统一弹
+	const applyMentionPlan = React.useCallback((plan)=>{
+		const d = depsRef.current;
+		if(plan.unresolved.length){ message.warning(`没找到:${plan.unresolved.join(' ')}`); }
+		plan.hints.forEach((h)=>message.info(h));
+		if(plan.selectSource && typeof d.setSelectedSourceId === 'function' && (!d.activeSource || d.activeSource.id !== plan.selectSource.id)){ d.setSelectedSourceId(plan.selectSource.id); }
+		// [双盘挂载] 第二个 @命盘 = 合盘对方
+		if(plan.partnerSource && typeof d.setPartnerSourceId === 'function'){ d.setPartnerSourceId(plan.partnerSource.id); }
+		if(plan.referenceIds.length && typeof d.setReferenceIds === 'function'){ const cur = Array.isArray(d.referenceIds) ? d.referenceIds : []; d.setReferenceIds(Array.from(new Set(cur.concat(plan.referenceIds)))); }
+		if(plan.techniqueKeys.length && typeof d.setSelectedTechniqueKeys === 'function'){ const cur = Array.isArray(d.selectedTechniqueKeys) ? d.selectedTechniqueKeys : []; d.setSelectedTechniqueKeys(Array.from(new Set(cur.concat(plan.techniqueKeys)))); }
+		if(Object.keys(plan.sectionFilter).length){ sectionFilterRef.current = { ...sectionFilterRef.current, ...plan.sectionFilter }; }
+	}, []);
+	// 内置命令处理器表(键 = BUILTIN_COMMANDS 的 name;技能类命令不在这里,走 runSkill)。每次渲染重建,runCommand 调用时读最新一份;
+	// 合同测试锁「每条非技能内置命令都有处理器」(commandHandlerNames)。x = { d, parsed, argsText(@ 已解析), effSource }
+	const commandHandlersRef = React.useRef({});
+	const commandHandlers = {
+		help: (x)=>{ setHelpState({ open: true, focus: x.argsText }); return true; },
+		择日: (x)=>{
+			// 参数 = 择日子技法(天星 / 奇门 / 黄历 / …)→ 直达子页签
+			const subTab = resolveZeriSubTab(x.parsed.argsText);
+			if(x.parsed.argsText && !subTab){ message.info(`未识别的择日技法「${x.parsed.argsText}」,已按当前子页打开(可写:天星 / 奇门 / 黄历 / 八字 / 太乙 / 紫微 / 六壬 / 三式 / 七政 / 印度)`); }
+			try{ window.dispatchEvent(new CustomEvent('horosa:navigate', { detail: { key: 'zeri', subTab: subTab || undefined, args: x.parsed.argsText } })); }catch(e){ /* noop */ }
+			return true;
+		},
+		命主: ()=>{ setSubjectOpen(true); return true; },
+		任务: ()=>{ try{ window.dispatchEvent(new CustomEvent('horosa:task-center', { detail: { open: true } })); }catch(e){ /* noop */ } return true; },
+		status: ()=>{ setStatusDetailOpen(true); return true; },
+		plan: (x)=>runPlan(x.argsText),
+		compact: (x)=>runCompact(x.parsed.argsText),
+		init: ()=>runInit(),
+		多模型: (x)=>bestOf.run(x.argsText),
+		编排: (x)=>orchestrate.run(x.argsText),
+		审阅: (x)=>{
+			const list = x.d.messages || []; const last = [...list].reverse().find((m)=>m && m.role === 'assistant' && m.streamStatus !== 'streaming' && `${m.content || ''}`.trim());
+			if(!last){ message.warning('还没有可审阅的回答'); return true; }
+			return review.run(last);
+		},
+		resume: ()=>{ setResumeOpen(true); return true; },
+		profile: (x)=>{   // 具名方案切换(纯本机键操作,零请求)
+			const want = `${x.parsed.argsText || ''}`.trim();
+			const names = listRouteProfiles();
+			if(!want){ message.info(names.length ? `模型方案:${names.map((n)=>(n === activeRouteProfile() ? `[${n}]` : n)).join(' · ')}(方括号=当前;/profile 名字 切换,/profile 现状 回到现状)` : '还没有模型方案:在进阶页「按任务用模型」里「另存为」'); return true; }
+			// 清方案标记不改活键(路由照旧生效);要真正回到跟随当前模型请用进阶页「全部清空」
+			if(want === '现状' || want === 'none'){ clearActiveRouteProfile(); message.success('已退出方案标记（当前路由不变；要回到跟随当前模型请到进阶页点「全部清空」）'); return true; }
+			if(!applyRouteProfile(want)){ message.warning(`没有叫「${want}」的方案${names.length ? `;现有:${names.join(' · ')}` : ''}`); return true; }
+			message.success(`已切换到方案「${want}」`); return true;
+		},
+		doctor: ()=>runDoctor(),
+		side: (x)=>{ setSide({ open: true, q: x.argsText }); return true; },
+		fork: async (x)=>{
+			const list = x.d.messages || []; const last = list[list.length - 1];
+			if(!last || typeof x.d.handleBranchFromMessage !== 'function'){ message.warning('还没有可分叉的消息'); return true; }
+			await x.d.handleBranchFromMessage(last); return true;
+		},
+		goal: async (x)=>{
+			if(!x.argsText){ message.warning('写上目标,例:/goal 把名单里的三个人都建档并各起一份八字快照'); return true; }
+			if(!(isAgentEnabled() && isGoalEnabled())){ message.warning('请先在进阶页打开「AI 助手行动能力」总开关与「目标任务」子开关'); return true; }
+			const dNow = depsRef.current;   // @ 刚改过挂载时读最新的技法
+			const t = await createGoalTask({ goal: x.argsText, sourceCid: x.effSource ? x.effSource.id : null, techniques: Array.isArray(dNow.selectedTechniqueKeys) ? dNow.selectedTechniqueKeys.slice(0, 6) : [], autoStart: true, origin: 'in-app', techniqueOptionOverrides: dNow.techniqueOptionOverrides });
+			message.success(`目标任务「${t.title}」已开始(右下角任务中心可看进度)`);
+			return true;
+		},
+	};
+	commandHandlersRef.current = commandHandlers;
 	const runCommand = React.useCallback(async (text)=>{
 		const d = depsRef.current;
 		const parsed = parseSlashInput(text);
 		if(!parsed){ return false; }
 		const userSkills = skillsOf(d.bundles);
 		const cmd = findCommand(parsed.name, userSkills);
-		// [Q-048② 裁决 2026-09-18·维持现状+补提示] `/etc 目录…` 这类以 / 开头的普通提问会被当命令拦下(设计如此),提示里写明逃逸写法
-		if(!cmd){ message.warning(`未知命令 /${parsed.name}（输入 / 看菜单；要发送以 / 开头的普通文字，请写成 //${parsed.name}…）`, 5); return true; }
-		const st = requirementState(cmd.requires, { activeSource: d.activeSource, argsText: parsed.argsText });
+		// `/etc 目录…` 这类以 / 开头的普通提问会被当命令拦下(设计如此),提示里写明逃逸写法
+		if(!cmd){ message.warning(`未知命令 /${parsed.name}（输入 /help 看全部命令；要发送以 / 开头的普通文字，请写成 //${parsed.name}…）`, 5); return true; }
+		// 参数里的 @ 标记先按 @ 引用解析(与正文 @ 同一个解析器),前提按「解析后生效的本人 / 对方」判。此前只有 /合盘 认:
+		//   `/流年 @[命盘:张三] 2027` 会把原始标记拼进提示词。技能类命令的参数去掉标记(标记已化成挂载动作);
+		//   问句类命令(/side /多模型 /编排 /plan /goal)把标记换回名字,句子照旧通顺。@ 的案例没找到 / 对方不合法 → 只提示、不执行、输入保留。
+		const isSkillCmd = cmd.kind === 'skill' || !!cmd.skill;
+		let argsText = parsed.argsText;
+		let mentionPlan = null;
+		let effSource = d.activeSource;
+		let effPartner = d.partnerSource;
+		if((cmd.mentions || cmd.kind === 'skill') && argsText){
+			const pm = parseMentions(argsText);
+			if(pm.mentions.length){
+				const r = planMentions(pm.mentions, { twoCharts: cmd.requires === 'two-charts' });
+				if(r.plan.unresolved.length){ message.warning(`没找到:${r.plan.unresolved.join(' ')}(输入已保留)`); return true; }
+				if(cmd.requires === 'two-charts' && pm.mentions.some((m)=>m.type === 'chart') && !r.plan.partnerSource){ (r.plan.hints.length ? r.plan.hints : ['没有可用的合盘对方']).forEach((h)=>message.info(h)); return true; }
+				mentionPlan = r.plan;
+				effSource = r.effSource;
+				if(r.plan.partnerSource){ effPartner = r.plan.partnerSource; }
+				argsText = isSkillCmd ? `${argsText}`.replace(MENTION_TOKEN_RE, ' ').replace(/[ \t]{2,}/g, ' ').trim() : pm.text;
+			}
+		}
+		const st = requirementState(cmd.requires, { activeSource: effSource, argsText, partnerSource: effPartner });
 		if(!st.ok){ message.warning(st.why); return true; }   // 前提不满足只提示,输入原样保留(此前先清空再判,参数白打)
 		// 开关门同理:`/编排 问题` `/plan 目标` `/goal 目标` 在开关未开时也只提示,不清输入(各执行器内部的判定保留,这里先拦一道保住已打的字)
 		const gs = gateState(cmd.gate, { agent: isAgentEnabled(), goal: isGoalEnabled(), orchestrate: isOrchestrateEnabled() });
 		if(!gs.ok){ message.warning(gs.why); return true; }
-		// [Q-033/Q-034/M-43/M-44] 生成中统一闸:除「纯导航 / 开面板 / 只读」几条外,命令会改挂载、切会话或另起一条流 ——
+		// 生成中统一闸:除「纯导航 / 开面板 / 只读」几条外,命令会改挂载、切会话或另起一条流 ——
 		//   此前无闸:`/流年` 之类在流中执行会改挂载并把已打的问题清掉;`/fork` `/resume` 切会话会静默掐断正在写的回复。
 		//   拦下时**保留输入**(与前提/开关两闸同款),用户可先停止生成再回车。
 		if(d.sending && COMMANDS_ALLOWED_WHILE_SENDING.indexOf(cmd.name) < 0){
@@ -423,81 +559,29 @@ export function useChatAssist(deps){
 			return true;
 		}
 		if(typeof d.setPrompt === 'function'){ d.setPrompt(''); }
-		if(cmd.name === '择日'){
-			// [2026-09-11] 参数=择日子技法(天星/奇门/黄历/…)→ 直达子页签;此前 args 只派发不消费(承诺了做不到)
-			const subTab = resolveZeriSubTab(parsed.argsText);
-			if(parsed.argsText && !subTab){ message.info(`未识别的择日技法「${parsed.argsText}」,已按当前子页打开(可写:天星 / 奇门 / 黄历 / 八字 / 太乙 / 紫微 / 六壬 / 三式 / 七政 / 印度)`); }
-			try{ window.dispatchEvent(new CustomEvent('horosa:navigate', { detail: { key: 'zeri', subTab: subTab || undefined, args: parsed.argsText } })); }catch(e){ /* noop */ }
-			return true;
-		}
-		if(cmd.name === '命主'){ setSubjectOpen(true); return true; }
-		if(cmd.name === '任务'){ try{ window.dispatchEvent(new CustomEvent('horosa:task-center', { detail: { open: true } })); }catch(e){ /* noop */ } return true; }
-		if(cmd.name === 'status'){ setStatusDetailOpen(true); return true; }
-		if(cmd.name === 'plan'){ return runPlan(parsed.argsText); }
-		if(cmd.name === 'compact'){ return runCompact(parsed.argsText); }
-		if(cmd.name === 'init'){ return runInit(); }
-		if(cmd.name === '多模型'){ return bestOf.run(parsed.argsText); }
-		if(cmd.name === '编排'){ return orchestrate.run(parsed.argsText); }
-		if(cmd.name === '审阅'){
-			const list = d.messages || []; const last = [...list].reverse().find((m)=>m && m.role === 'assistant' && m.streamStatus !== 'streaming' && `${m.content || ''}`.trim());
-			if(!last){ message.warning('还没有可审阅的回答'); return true; }
-			return review.run(last);
-		}
-		if(cmd.name === 'resume'){ setResumeOpen(true); return true; }
-		if(cmd.name === 'profile'){   // [批三②] 具名方案切换(纯本机键操作,零请求)
-			const want = `${parsed.argsText || ''}`.trim();
-			const names = listRouteProfiles();
-			if(!want){ message.info(names.length ? `模型方案:${names.map((n)=>(n === activeRouteProfile() ? `[${n}]` : n)).join(' · ')}(方括号=当前;/profile 名字 切换,/profile 现状 回到现状)` : '还没有模型方案:在进阶页「按任务用模型」里「另存为」'); return true; }
-			// [Q-294/AR-11 裁决 2026-09-18·②文案如实] 清方案标记不改活键(路由照旧生效);要真正回到跟随当前模型请用进阶页「全部清空」
-			if(want === '现状' || want === 'none'){ clearActiveRouteProfile(); message.success('已退出方案标记（当前路由不变；要回到跟随当前模型请到进阶页点「全部清空」）'); return true; }
-			if(!applyRouteProfile(want)){ message.warning(`没有叫「${want}」的方案${names.length ? `;现有:${names.join(' · ')}` : ''}`); return true; }
-			message.success(`已切换到方案「${want}」`); return true;
-		}
-		if(cmd.name === 'doctor'){ return runDoctor(); }
-		if(cmd.name === 'side'){ setSide({ open: true, q: parsed.argsText }); return true; }
-		if(cmd.name === 'fork'){
-			const list = d.messages || []; const last = list[list.length - 1];
-			if(!last || typeof d.handleBranchFromMessage !== 'function'){ message.warning('还没有可分叉的消息'); return true; }
-			await d.handleBranchFromMessage(last); return true;
-		}
-		if(cmd.name === 'goal'){
-			if(!parsed.argsText){ message.warning('写上目标,例:/goal 把名单里的三个人都建档并各起一份八字快照'); return true; }
-			if(!(isAgentEnabled() && isGoalEnabled())){ message.warning('请先在进阶页打开「AI 助手行动能力」总开关与「目标任务」子开关'); return true; }
-			const t = await createGoalTask({ goal: parsed.argsText, sourceCid: d.activeSource ? d.activeSource.id : null, techniques: Array.isArray(d.selectedTechniqueKeys) ? d.selectedTechniqueKeys.slice(0, 6) : [], autoStart: true, origin: 'in-app', techniqueOptionOverrides: d.techniqueOptionOverrides });
-			message.success(`目标任务「${t.title}」已开始(右下角任务中心可看进度)`);
-			return true;
-		}
+		if(mentionPlan){ applyMentionPlan(mentionPlan); await new Promise((r)=>setTimeout(r, 0)); }   // 让切源 / 对方 / 技法落地,下游读最新状态
+		// 命令表即处理器表:按命令名查 commandHandlersRef(每次渲染重建,闭包读最新状态);技能类命令走 runSkill
+		const handler = commandHandlersRef.current[cmd.name];
+		if(handler){ return handler({ d, parsed, argsText, effSource }); }
 		const skillRec = cmd.kind === 'skill' ? userSkills.find((b)=>b.id === cmd.bundleId) : BUILTIN_SKILLS.find((b)=>b.id === cmd.skill);
 		if(!skillRec){ message.warning('这条命令还没接上'); return true; }
-		return runSkill(skillRec, parsed.argsText);
-	}, [runSkill, runCompact, runInit, runPlan, runDoctor, bestOf, review, orchestrate]);
+		return runSkill(skillRec, argsText, { activeSource: effSource, partnerSource: mentionPlan ? mentionPlan.partnerSource : null, command: { name: cmd.name, label: cmd.label, argsText } });
+	}, [runSkill, planMentions, applyMentionPlan]);
 	// 发送口拦截:输入是命令 → 执行并吞掉发送(按钮/回车同一入口);非命令 → false(页面照常发送)
-	// [A4] @引用:发送前解析标记 → 挂载动作(切源/参考/技法/技法段过滤)→ 下一拍以去标记正文重发(overrideText 路径不再拦截)
-	const sectionFilterRef = React.useRef({});
+	// @引用:发送前解析标记 → 挂载动作(切源/参考/技法/技法段过滤)→ 下一拍以去标记正文重发(overrideText 路径不再拦截)
 	const applyMentions = React.useCallback(async (text)=>{
 		const d = depsRef.current;
 		const { mentions, text: cleaned } = parseMentions(text);
 		if(!mentions.length){ return false; }
-		const sources = d.sources && d.sources.length ? d.sources : listAnalysisSources();
-		// 两遍:先只解析案例引用拿到「这句话要切到的源」,技法可用性按**切换后**的源判——此前按切源前的源判,
-		// 「@[事盘:X] @[技法:六爻]」被当成命盘案例拒掉六爻、切源后再把旧技法剪光、以 0 技法发送;无源时「@[命盘:张三] @[技法:八字]」同病
-		const pre = resolveMentions(mentions.filter((m)=>m.type === 'chart' || m.type === 'case'), { sources });
-		const effSource = pre.selectSource || d.activeSource;
-		const pools = mentionTechniquePools(effSource);
-		const plan = resolveMentions(mentions, { sources, materials: d.materials, bundles: d.bundles, templates: d.templates, techniqueOptions: pools.all, allowedTechniqueKeys: pools.allowedKeys, activeSourceType: effSource ? effSource.sourceType : '' });
-		if(plan.unresolved.length){ message.warning(`没找到:${plan.unresolved.join(' ')}`); }
-		plan.hints.forEach((h)=>message.info(h));
-		if(plan.selectSource && typeof d.setSelectedSourceId === 'function' && (!d.activeSource || d.activeSource.id !== plan.selectSource.id)){ d.setSelectedSourceId(plan.selectSource.id); }
-		if(plan.referenceIds.length && typeof d.setReferenceIds === 'function'){ const cur = Array.isArray(d.referenceIds) ? d.referenceIds : []; d.setReferenceIds(Array.from(new Set(cur.concat(plan.referenceIds)))); }
-		if(plan.techniqueKeys.length && typeof d.setSelectedTechniqueKeys === 'function'){ const cur = Array.isArray(d.selectedTechniqueKeys) ? d.selectedTechniqueKeys : []; d.setSelectedTechniqueKeys(Array.from(new Set(cur.concat(plan.techniqueKeys)))); }
-		if(Object.keys(plan.sectionFilter).length){ sectionFilterRef.current = { ...sectionFilterRef.current, ...plan.sectionFilter }; }
+		const { plan } = planMentions(mentions);
+		applyMentionPlan(plan);
 		if(typeof d.setPrompt === 'function'){ d.setPrompt(''); }
 		await new Promise((r)=>setTimeout(r, 0));
 		const send = depsRef.current.handleSend;
 		if(cleaned && typeof send === 'function'){ await send(cleaned); }
 		return true;
-	}, []);
-	// [批二⑤] 插话:流式期间(行动能力开)再发一句 → 排到「正在生成的助手消息」名下,运行时下一轮工具回合附在请求末尾
+	}, [planMentions, applyMentionPlan]);
+	// 插话:流式期间(行动能力开)再发一句 → 排到「正在生成的助手消息」名下,运行时下一轮工具回合附在请求末尾
 	const streamingAssistantId = React.useCallback(()=>{
 		const list = depsRef.current.messages || [];
 		for(let i = list.length - 1; i >= 0; i--){ const m = list[i]; if(m && m.role === 'assistant' && m.streamStatus === 'streaming'){ return m.id; } }
@@ -527,11 +611,11 @@ export function useChatAssist(deps){
 	// 这一步不能清——此前无条件清,新对话第一条 `@[技法段:…]` 的过滤在 IndexedDB 一拍之间被抹掉、全文挂载
 	const convKey = depsRef.current.activeConversationId;
 	const prevConvRef = React.useRef(convKey);
-	// [AR-31] 「本会话不再问」的放行集按对话 id 分集合:当前对话即作用域(渲染期同步设,不等 effect——审批判定在发送后的
+	// 「本会话不再问」的放行集按对话 id 分集合:当前对话即作用域(渲染期同步设,不等 effect——审批判定在发送后的
 	// 工具回合里读,必须已经是本对话的集合;新对话 '' → 建档后切到新 id,发送前点过的放行随之归该对话)
 	setSessionAllowScope(convKey);
 	React.useEffect(()=>{ const prev = prevConvRef.current; prevConvRef.current = convKey; if(prev && prev !== convKey){ sectionFilterRef.current = {}; } }, [convKey]);
-	// [2026-09-11] 拼音:技法标签的全拼/首字母来自构建期静态表 src/data/techniquePinyin.json(pinyin-pro 只在 devDependencies,
+	// 拼音:技法标签的全拼/首字母来自构建期静态表 src/data/techniquePinyin.json(pinyin-pro 只在 devDependencies,
 	// preflight [36] 铁律「不得进运行时 bundle」;表 ≡ 标签重算由 aiChatMentionPinyin.contract 测试看守,改标签须 npm run build:technique-pinyin)
 	const pinyinTextOf = React.useCallback((item)=>{
 		if(!item || (item.kind !== 'technique' && item.kind !== 'section') || !item.key){ return ''; }
@@ -543,7 +627,7 @@ export function useChatAssist(deps){
 		const allowed = new Set(pools.allowedKeys);
 		const srcType = d.activeSource ? d.activeSource.sourceType : '';
 		const whyOf = srcType === 'case' ? '需命盘案例' : (srcType === 'timepoint' ? '需命盘 / 事盘案例' : (srcType ? '需事盘案例' : '先挂载案例'));
-		// [2026-09-12] 技法按术数域分组(与「选择技法」下拉同一分组器,分组表按池缓存);`@八字/` `@bz/` `@ziwei/` 形态 → 头命中(标签 / 键 / 拼音前缀)的技法的段进候选(不必先勾选)
+		// 技法按术数域分组(与「选择技法」下拉同一分组器,分组表按池缓存);`@八字/` `@bz/` `@ziwei/` 形态 → 头命中(标签 / 键 / 拼音前缀)的技法的段进候选(不必先勾选)
 		const groupTitleByKey = groupTitleByKeyOf(pools.all);
 		const q = `${query || ''}`;
 		const slash = q.indexOf('/');
@@ -563,9 +647,23 @@ export function useChatAssist(deps){
 	const slashPrefix = promptText[0] === '/' && promptText[1] !== '/' ? promptText.slice(1).split(/\s/)[0] : null;
 	// 菜单态:two-charts 只要求已挂命盘(menu:true);开关门(gates)在菜单上就置灰并写明去哪开
 	const commandItems = slashPrefix !== null ? listCommandItems({ prefix: slashPrefix, skills: skillsOf(depsRef.current.bundles), ctx: { activeSource: depsRef.current.activeSource, argsText: '', menu: true, gates: { agent: isAgentEnabled(), goal: isGoalEnabled(), orchestrate: isOrchestrateEnabled() } } }) : [];
-	const composer = { prompt: depsRef.current.prompt, setPrompt: depsRef.current.setPrompt, items: commandItems, onRun: runCommand, mentionItems, canSteer, onSteer: steer };   // [批二⑤] 插话芯片走 ComposerAssist(Main 发送钮不动)
+	// 参数补全:命令名后打了空格、光标在参数里 → 按命令声明的 argType 出候选(年份 / 另一张命盘 / 择日子技法 / 模型方案 / 命令名)
+	const commandArgItems = React.useCallback((text)=>{
+		const s = `${text || ''}`;
+		const parsed = parseSlashInput(s);
+		if(!parsed || !/\s/.test(s.slice(1))){ return null; }
+		const d = depsRef.current;
+		const cmd = findCommand(parsed.name, skillsOf(d.bundles));
+		if(!cmd || !cmd.argType){ return null; }
+		const rawArgs = s.slice(1 + s.slice(1).search(/\s/)).replace(/^\s+/, '');
+		let profiles = [];
+		try{ profiles = listRouteProfiles(); }catch(e){ profiles = []; }
+		const r = listCommandArgItems({ cmd, argsText: rawArgs, ctx: { sources: d.sources && d.sources.length ? d.sources : listAnalysisSources(), activeSource: d.activeSource, partnerSource: d.partnerSource, profiles, now: new Date() } });
+		return r.items.length ? { cmd, items: r.items, prefix: s.slice(0, s.length - rawArgs.length), argsText: rawArgs } : null;
+	}, []);
+	const composer = { prompt: depsRef.current.prompt, setPrompt: depsRef.current.setPrompt, items: commandItems, onRun: runCommand, mentionItems, argItems: commandArgItems, canSteer, onSteer: steer };   // 插话芯片走 ComposerAssist(Main 发送钮不动)
 
-	// [A4] 技法段过滤:@技法段 选过的技法只保留所选段(过滤空=原样;未选=原样引用返回,零变化)
+	// 技法段过滤:@技法段 选过的技法只保留所选段(过滤空=原样;未选=原样引用返回,零变化)
 	const filterTechniqueSections = React.useCallback((contexts)=>{
 		const f = sectionFilterRef.current || {};
 		if(!Array.isArray(contexts) || !Object.keys(f).length){ return contexts; }
@@ -580,7 +678,21 @@ export function useChatAssist(deps){
 		});
 		return changed ? out : contexts;
 	}, []);
-	// [A5] 会话检查点:每条用户消息落库时带当时的挂载/引用/技法/系统提示/覆盖/模型/思考/温度/topP
+	// 本轮请求的气泡:命令轮显示芯片 + 本轮技法(可保留为会话挂载)+ 可展开全文;其余消息原样返回正文(逐字节不变)
+	const keepTurnTechniques = React.useCallback((keys)=>{
+		const f = depsRef.current.setSelectedTechniqueKeys;
+		if(!Array.isArray(keys) || !keys.length || typeof f !== 'function'){ return; }
+		f(keys.slice(0));
+		const labels = analysisTechniqueLabelMap(keys);
+		message.success(`已把 ${keys.map((k)=>labels[k] || k).join(' + ')} 设为本会话挂载`);
+	}, []);
+	const userTurnContent = React.useCallback((item)=>{
+		if(!item || !item.turn || !item.turn.command){ return item ? item.content : ''; }
+		const keys = item.turn.techniqueKeys || [];
+		const labels = keys.length ? analysisTechniqueLabelMap(keys) : {};
+		return <UserTurnBody item={item} labelOf={(k)=>labels[k] || k} sessionKeys={depsRef.current.selectedTechniqueKeys} onKeep={keepTurnTechniques} />;
+	}, [keepTurnTechniques]);
+	// 会话检查点:每条用户消息落库时带当时的挂载/引用/技法/系统提示/覆盖/模型/思考/温度/topP
 	const buildCheckpoint = React.useCallback(()=>buildCheckpointPure(depsRef.current), []);
 	const openRewind = React.useCallback((item)=>{
 		const d = depsRef.current;
@@ -602,7 +714,7 @@ export function useChatAssist(deps){
 			const removeSet = new Set(plan.remove);
 			await deleteWhere(AI_ANALYSIS_STORES.messages, (m)=>m && m.conversationId === conv.id && removeSet.has(m.id), { index: 'conversationId', value: conv.id });
 			// ③ 清压缩 ④ 重开会话刷新消息 ⑤ 恢复设置
-			// [Q-032/M-47] 顺序必须是「先重开会话、后恢复设置」:openConversation 会按会话记录重设模型 / 技法 / 系统提示,
+			// 顺序必须是「先重开会话、后恢复设置」:openConversation 会按会话记录重设模型 / 技法 / 系统提示,
 			//   此前先恢复再重开 → 检查点的值当场被会话记录盖回,用户看到的是「回退了但设置没回来」。
 			if(plan.clearCompact && typeof d.updateConversationMeta === 'function'){ await d.updateConversationMeta(conv, { compact: null }); }
 			if(typeof d.openConversation === 'function'){ await d.openConversation(plan.clearCompact ? { ...conv, compact: null } : conv); }
@@ -613,7 +725,7 @@ export function useChatAssist(deps){
 	}, [rewind]);
 	// 进阶页插座(A1a 起;曾在设置页):策略卡;A6 起追加口径/记忆卡。AIAnalysisMain 只渲染 {chatAssist.settingsPanels}
 	const model = modelOfSelection(depsRef.current.modelSelection);
-	// [Q-287/M-102 ③] 键名对齐发送侧:档案里存的是 Ollama 原生 `num_ctx`(设置面写的就是它),
+	// 键名对齐发送侧:档案里存的是 Ollama 原生 `num_ctx`(设置面写的就是它),
 	//   此前策略卡读的是从不写入的 `numCtx` → 恒 undefined → 卡片按「未知模型保底」报数
 	//   (Ollama 实测卡上写 110100 字、实发 5898 字)。兼容旧档的驼峰写法。
 	const numCtx = (()=>{
@@ -621,7 +733,7 @@ export function useChatAssist(deps){
 		const v = Number(po.num_ctx) || Number(po.numCtx) || 0;
 		return v > 0 ? v : undefined;
 	})();
-	// [C4] 按任务用模型:六槽全空=现状;卡片只读渲染,改动才写键
+	// 按任务用模型:六槽全空=现状;卡片只读渲染,改动才写键
 	const settingsPanels = [<ChatContextPolicyPanel key="context-policy" model={model} numCtx={numCtx} />, <ChatModelRoutesPanel key="model-routes" providerProfiles={depsRef.current.providerProfiles} />, <SkillPackPanel key="skill-packs" bundles={depsRef.current.bundles} materials={depsRef.current.materials} reloadBundles={depsRef.current.reloadBundles} />, <PersonaMemoryPanel key="persona-memory" onInit={runInit} initDraft={initDraft} onExtract={runExtract} extracting={extracting} activeSource={depsRef.current.activeSource} activeConversation={depsRef.current.activeConversation} selectedTechniqueKeys={depsRef.current.selectedTechniqueKeys} onSaveSessionPersona={saveSessionPersona} />, <BestOfPanel key="best-of" providerProfiles={depsRef.current.providerProfiles} />];
 
 	// 状态栏(A2):全部数字与气泡同口径(computeSessionStats/estimateContextPct);审批档订阅 prefs 事件;uiPrefs chatAssist.statusBar=false 可关
@@ -632,21 +744,21 @@ export function useChatAssist(deps){
 	const lastUsage = session.lastUsage || null;
 	const contextPct = lastUsage ? estimateContextPct({ stableChars: lastUsage.prompt && lastUsage.prompt.stableChars, volatileChars: lastUsage.prompt && lastUsage.prompt.volatileChars, historyTokens: lastUsage.history && lastUsage.history.keptTokens, contextWindow: contextWindowForModel(model) }) : null;
 	const clip = depsRef.current.promptClipStats && depsRef.current.promptClipStats.stats ? depsRef.current.promptClipStats.stats : null;
-	// [批二⑧] 压缩提醒:保留历史 token ≥ 阈值(策略卡设;缺省空=不提醒)→ 状态栏芯片;每会话只提醒一次(点了/关了就不再出现);只提醒、绝不自动压缩
+	// 压缩提醒:保留历史 token ≥ 阈值(策略卡设;缺省空=不提醒)→ 状态栏芯片;每会话只提醒一次(点了/关了就不再出现);只提醒、绝不自动压缩
 	const historyTokens = lastUsage && lastUsage.history ? lastUsage.history.keptTokens : null;
 	const compactThreshold = uiPrefsTick >= 0 ? readCompactAutoTokens() : null;
 	const convIdNow = depsRef.current.activeConversationId;
 	const suggestCompactOn = !!(convIdNow && !suggestDoneRef.current[convIdNow] && !compacting && shouldSuggestCompact({ historyTokens, threshold: compactThreshold }) && canCompact(depsRef.current.messages || [], depsRef.current.activeConversation ? depsRef.current.activeConversation.compact : null));
 	const suggestCompact = suggestCompactOn ? { tokens: historyTokens, threshold: compactThreshold, onRun: ()=>{ suggestDoneRef.current[convIdNow] = true; runCompact('').catch(()=>{}); }, onDismiss: ()=>{ suggestDoneRef.current[convIdNow] = true; setUiPrefsTick((t)=>t + 1); } } : null;
 	const activeSource = depsRef.current.activeSource;
-	let statusBarVisible = true;
-	try{ const ui = loadUiPrefs(); statusBarVisible = !(ui && ui.chatAssist && ui.chatAssist.statusBar === false); }catch(e){ statusBarVisible = true; }
+	const chatUiPrefs = loadUiPrefs();
+	const statusBarVisible = !(chatUiPrefs && chatUiPrefs.chatAssist && chatUiPrefs.chatAssist.statusBar === false);
 	const statusBarNode = (
 		<ChatStatusBar visible={statusBarVisible} model={model} agentEnabled={agentState.enabled} approvalMode={agentState.approval}
 			mount={clip ? { kept: clip.totalKept, raw: clip.totalRaw, budget: clip.maxChars, clipped: clip.clippedCount, dropped: clip.droppedCount } : null}
 			session={session} cachePct={session.lastCachePct} contextPct={contextPct} presetName={presetName} suggestCompact={suggestCompact}
 			subjectTitle={activeSource ? activeSource.title : ''} onOpenMount={()=>{
-				// [Q-041/M-52] 未挂载案例时「命主」胶囊此前回落到挂载抽屉,而抽屉里没有案例选择器 → 改为聚焦顶栏那个下拉
+				// 未挂载案例时「命主」胶囊此前回落到挂载抽屉,而抽屉里没有案例选择器 → 改为聚焦顶栏那个下拉
 				const pick = depsRef.current.focusSourceSelect;
 				if(!activeSource && typeof pick === 'function'){ pick(); return; }
 				const f = depsRef.current.setMountDrawerOpen; if(typeof f === 'function'){ f(true); }
@@ -667,8 +779,10 @@ export function useChatAssist(deps){
 		composer,
 		runCommand,
 		interceptSend,
+		commandHandlerNames: Object.keys(commandHandlersRef.current),   // 合同测试:每条非技能内置命令都有处理器
+		userTurnContent,
 		canSteer, steer, takeSteer: takeSteerFor, steerPending: (id)=>peekSteer(id), steerTick,
-		bestOf: { busy: bestOf.busy }, orchestrate: { busy: orchestrate.busy },   // [Q-048⑥] 主发送前的并行提示读这两个 busy
+		bestOf: { busy: bestOf.busy }, orchestrate: { busy: orchestrate.busy },   // 主发送前的并行提示读这两个 busy
 		applyMentions,
 		mentionItems,
 		statusBar: { policy, presetName },
@@ -687,6 +801,10 @@ export function useChatAssist(deps){
 				onOpen: (c)=>{ setResumeOpen(false); const f = depsRef.current.openConversation; if(c && typeof f === 'function'){ Promise.resolve(f(c)).catch(()=>{}); } },
 				onTogglePref: (on)=>{ setResumeLast(!!on); if(on && depsRef.current.activeConversationId){ rememberLastConversation(depsRef.current.activeConversationId); } setUiPrefsTick((t)=>t + 1); } },
 			doctor: { open: doctorState.open, report: doctorState.report, onClose: ()=>setDoctorState({ open: false, report: null }) },
+			// /help:清单与命令菜单同一来源(listCommandItems 带可用性 / 开关门);点一条 = 填进输入框
+			help: { open: helpState.open, focus: helpState.focus, items: helpState.open ? listCommandItems({ skills: skillsOf(depsRef.current.bundles), ctx: { activeSource: depsRef.current.activeSource, argsText: '', menu: true, gates: { agent: isAgentEnabled(), goal: isGoalEnabled(), orchestrate: isOrchestrateEnabled() } } }) : [],
+				onClose: ()=>setHelpState({ open: false, focus: '' }),
+				onPick: (it)=>{ setHelpState({ open: false, focus: '' }); const f = depsRef.current.setPrompt; if(it && typeof f === 'function'){ f(`/${it.name}${it.argsHint ? ' ' : ''}`); } } },
 		},
 		resume: { open: ()=>setResumeOpen(true) },
 		doctor: { run: runDoctor, state: doctorState },

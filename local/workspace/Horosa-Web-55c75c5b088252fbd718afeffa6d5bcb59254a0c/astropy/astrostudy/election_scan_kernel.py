@@ -14,6 +14,16 @@ iv_and/iv_or/iv_not/iv_xor/true_intervals/negative_intervals 直接 import,零�
 GROUP_TYPES = ('all', 'any', 'not', 'xor')
 
 
+def zone_days(zone):
+    """固定偏移 zone('+08:00'/'-05:30')→天数(墙钟分钟栅格对齐用;七政 / 印度两引擎共用)。"""
+    txt = str(zone or '+08:00')
+    neg = txt.startswith('-')
+    txt = txt.replace('+', '').replace('-', '')
+    parts = txt.split(':')
+    v = float(parts[0]) + (float(parts[1]) / 60.0 if len(parts) > 1 else 0.0)
+    return (-v if neg else v) / 24.0
+
+
 def make_validate(condition_types, group_types=GROUP_TYPES):
     """condition_types: {type: {'required': [param 键...]}};返回 validate(node)->None|raise。"""
     def validate(node):

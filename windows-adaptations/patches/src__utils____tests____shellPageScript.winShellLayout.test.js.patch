@@ -1,0 +1,29 @@
+diff --git a/astrostudyui/src/utils/__tests__/shellPageScript.test.js b/astrostudyui/src/utils/__tests__/shellPageScript.test.js
+index d8099005..98c80ce6 100644
+--- a/astrostudyui/src/utils/__tests__/shellPageScript.test.js
++++ b/astrostudyui/src/utils/__tests__/shellPageScript.test.js
+@@ -18,8 +18,13 @@ const RUST = path.join(INSTALLER, 'src-tauri', 'src');
+ const TABLE_FILE = path.join(WEB, 'shell_hant_table.js');
+ const PAGES = ['index.html', 'settings.html', 'diagnostics.html'];
+ 
+-const shell = require(path.join(WEB, 'shell_script.js'));
+-const RUN_RE = new RegExp(shell.RUN_SOURCE, 'g');
++// horosa_win_shell_layout_v1(Windows 侧移植适配):这一组核的是 Tauri 壳自带三页(web/)与 Rust 壳源,Windows 壳(Electron)没有这些文件。
++// Electron 侧同一套合同在 desktop_installer_bundle/electron/shell-text.test.js(① 文案表 / ③ 字表新鲜度 / ④ 两页先载 shell-script.js /
++// ⑥ 页面就地转:正文属性转、keep 区与输入值不转、后写入跟着转、切回放回原文)+ 发布自检「shell script mode」门(gen-shell-hant-table.cjs --check)。
++// 只在 Tauri 壳源缺席时跳过;壳源在场(macOS)逐字照跑。
++const HAS_TAURI_WEB = fs.existsSync(path.join(WEB, 'shell_script.js'));
++const shell = HAS_TAURI_WEB ? require(path.join(WEB, 'shell_script.js')) : null;
++const RUN_RE = HAS_TAURI_WEB ? new RegExp(shell.RUN_SOURCE, 'g') : null;
+ 
+ // JS:去掉注释(认得出字符串 / 模板字符串里的 //)
+ function stripJsComments(src){
+@@ -135,7 +140,7 @@ function renderTable(t){
+ 		+ '})(typeof window !== \'undefined\' ? window : null);\n';
+ }
+ 
+-describe('壳自带页面 · 界面简繁', ()=>{
++(HAS_TAURI_WEB ? describe : describe.skip)('壳自带页面 · 界面简繁', ()=>{
+ 	it('① 字表 = 现有源码重新生成的结果', ()=>{
+ 		const now = buildTable();
+ 		if(process.env.UPDATE_SHELL_PAGE_STRINGS === '1'){ fs.writeFileSync(TABLE_FILE, renderTable(now)); }

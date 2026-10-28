@@ -10,7 +10,7 @@
 //   的同款既有竞态被 trailing 拉宽到 250ms,不可接受。故本调度器只累积【选项 delta】,
 //   派发时点经 getFreshBase() 重取当下最新 fields(类组件 this.props 是 live 引用,
 //   trailing 闭包取到的恒为最新),payload = {...fresh, ...delta}:时间键恒最新,选项键恒完整。
-// 乱序由 fetchByFields 的 fieldsEpoch 兜(旧响应作废);关开关=每次选项各发各的旧行为。
+// 乱序由换主盘入口共用的主盘提交代次兜(astro 模型 chartCommitGen,旧响应作废);关开关=每次选项各发各的旧行为。
 import { optionDebounceEnabled } from './perfFlags';
 
 const WINDOW_MS = 250;

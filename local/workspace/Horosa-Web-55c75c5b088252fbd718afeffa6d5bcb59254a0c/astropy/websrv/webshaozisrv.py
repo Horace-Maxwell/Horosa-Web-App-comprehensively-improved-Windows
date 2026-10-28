@@ -5,6 +5,8 @@ import jsonpickle
 
 from websrv.helper import enable_crossdomain
 from websrv.kentang.kinastro_common import (
+    annotate_day_boundary,
+    day_boundary_of,
     authoritative_pillars,
     build_snapshot,
     clean_text,
@@ -12,6 +14,7 @@ from websrv.kentang.kinastro_common import (
     gender_cn,
     json_safe,
     kinastro_source_sections,
+    normalize_ganzhi as _normalize_ganzhi,
     parse_datetime,
     row,
 )
@@ -28,7 +31,7 @@ from astro.shaozi import (  # noqa: E402
 
 
 KE_OPTIONS = ["初刻", "二刻", "三刻", "四刻", "五刻", "六刻", "七刻", "八刻"]
-# [Q-262①/T-241 裁决 2026-09-18] 页面刻数「初刻…八刻」与 64 钥匙时辰表键「子初 / 子三 / 子五 / 子七 …」不同构 → 此前永远查不中
+# 页面刻数「初刻…八刻」与 64 钥匙时辰表键「子初 / 子三 / 子五 / 子七 …」不同构 → 此前永远查不中
 # (正文恒「無此項目資料」占位)。按一时辰八刻两刻一档映射:初/二刻→「初」,三/四刻→「三」,五/六刻→「五」,七/八刻→「七」,
 # 再冠以时支;表内该档缺项时回落「X初」。
 KE_TO_KEY_GROUP = {"初刻": "初", "二刻": "初", "三刻": "三", "四刻": "三", "五刻": "五", "六刻": "五", "七刻": "七", "八刻": "七"}
@@ -37,15 +40,6 @@ def ke_key_for(hour_gz, ke):
     branch = (hour_gz or "")[-1:] if hour_gz else ""
     group = KE_TO_KEY_GROUP.get(ke, "初")
     return f"{branch}{group}" if branch else ke
-GANZHI_STEMS = "甲乙丙丁戊己庚辛壬癸"
-GANZHI_BRANCHES = "子丑寅卯辰巳午未申酉戌亥"
-
-
-def _normalize_ganzhi(value, fallback):
-    text = clean_text(value)
-    if len(text) == 2 and text[0] in GANZHI_STEMS and text[1] in GANZHI_BRANCHES:
-        return text
-    return fallback
 
 
 def _result_attr(result, name, default=""):
@@ -173,11 +167,13 @@ class ShaoZiSrv:
             use_key = bool(data.get("useKey", True))
             gender = gender_cn(data.get("gender"), "男")
             # v2.2.1: 同时传 after23 + lateZi 双开关
-            gz = calculate_ganzhi_from_datetime(dt, data.get("after23NewDay", 1), data.get("lateZiHourUseNextDay", 1))
+            _db = day_boundary_of(data)
+            gz = calculate_ganzhi_from_datetime(dt, _db["after23NewDay"], _db["lateZiHourUseNextDay"])
             # 🔴 标准四柱换全局权威口径(立春界/定气月/儒略JDN,全域含 BC)。
             #    现代域两者一致=零回归;1/2 月未过立春与 BC 年才有差(那正是要修的)。
             #    取不到权威实现时保留旧值,故用 update 而非整体替换。
             _auth_gz = authoritative_pillars(dt, data)
+            _partial = [] if _auth_gz else ["authoritativePillars"]
             if _auth_gz:
                 gz = dict(gz)
                 gz.update(_auth_gz)
@@ -202,7 +198,7 @@ class ShaoZiSrv:
                 month_gz=month_gz,
                 day_gz=day_gz,
                 hour_gz=hour_gz,
-                ke=ke_key_for(hour_gz, ke),   # [Q-262①] 刻数→64 钥匙时辰键
+                ke=ke_key_for(hour_gz, ke),   # 刻数→64 钥匙时辰键
                 use_key=use_key,
             ))
 
@@ -255,6 +251,9 @@ class ShaoZiSrv:
                 },
             }
             pan["sections"] = _build_sections(pan)
+            annotate_day_boundary(pan, _db)
+            if _partial:
+                pan["partialErrors"] = _partial
             pan["snapshot"] = build_snapshot(pan)
             return jsonpickle.encode({"ResultCode": 0, "Result": pan}, unpicklable=False)
         except Exception:

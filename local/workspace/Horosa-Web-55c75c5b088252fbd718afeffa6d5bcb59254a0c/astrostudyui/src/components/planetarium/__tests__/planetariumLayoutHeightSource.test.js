@@ -1,4 +1,4 @@
-// [用户实报 2026-09-17] 天文馆骨架高度不得用 vh:壳缩放(html{zoom})下 vh 与布局域劈叉 → 缩小出底部白边、放大左栏滚不到底。
+// 天文馆骨架高度不得用 vh:壳缩放(html{zoom})下 vh 与布局域劈叉 → 缩小出底部白边、放大左栏滚不到底。
 // 与 layouts/app.js contentStyle「勿用 100vh」同一铁律;骨架高度一律 100%(根壳链定高)或直接量容器。
 import fs from 'fs';
 import path from 'path';

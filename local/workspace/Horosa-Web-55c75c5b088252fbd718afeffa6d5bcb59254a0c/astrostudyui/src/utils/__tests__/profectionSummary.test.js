@@ -1,4 +1,4 @@
-// [Q-105 裁决 2026-09-18]「按能算即能挂」:小限 G9 年/月/日小限摘要抽单源 → 页面 / 无头快照 / 齿轮三处同源。
+// 「按能算即能挂」:小限 G9 年/月/日小限摘要抽单源 → 页面 / 无头快照 / 齿轮三处同源。
 import {
 	deriveProfection, profectionDateTimesFromParams, buildProfectionSummaryLines,
 	PROFECTION_GRAIN_OPTIONS, PROFECTION_START_OPTIONS,

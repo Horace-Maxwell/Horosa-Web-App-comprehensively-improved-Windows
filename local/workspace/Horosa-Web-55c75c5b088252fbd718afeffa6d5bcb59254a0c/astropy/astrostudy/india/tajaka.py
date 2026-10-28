@@ -23,10 +23,7 @@
 
 from astrostudy.india import primitives as prim
 
-try:
-    from flatlib import const
-except Exception:  # pragma: no cover - flatlib 缺失时的退化路径（仅供静态导入）
-    const = None
+from flatlib import const
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -36,7 +33,7 @@ except Exception:  # pragma: no cover - flatlib 缺失时的退化路径（仅�
 SEVEN_PLANETS = [
     const.SUN, const.MOON, const.MARS, const.MERCURY,
     const.JUPITER, const.VENUS, const.SATURN,
-] if const else []
+]
 
 # 星座主星（rasi lord）。
 SIGN_LORD = {
@@ -44,7 +41,7 @@ SIGN_LORD = {
     const.CANCER: const.MOON, const.LEO: const.SUN, const.VIRGO: const.MERCURY,
     const.LIBRA: const.VENUS, const.SCORPIO: const.MARS, const.SAGITTARIUS: const.JUPITER,
     const.CAPRICORN: const.SATURN, const.AQUARIUS: const.SATURN, const.PISCES: const.JUPITER,
-} if const else {}
+}
 
 # 旺/落点（深旺：星座 + 度数）。深落 = 旺点对宫同度。
 EXALTATION = {
@@ -52,11 +49,11 @@ EXALTATION = {
     const.MARS: (const.CAPRICORN, 28.0), const.MERCURY: (const.VIRGO, 15.0),
     const.JUPITER: (const.CANCER, 5.0), const.VENUS: (const.PISCES, 27.0),
     const.SATURN: (const.LIBRA, 20.0),
-} if const else {}
+}
 
 # 阴阳曜（Harsha bala 第 3/4 源、年首昼夜）：阳 = 日/火/木；阴 = 月/水/金/土。
-MASCULINE = {const.SUN, const.MARS, const.JUPITER} if const else set()
-FEMININE = {const.MOON, const.MERCURY, const.VENUS, const.SATURN} if const else set()
+MASCULINE = {const.SUN, const.MARS, const.JUPITER}
+FEMININE = {const.MOON, const.MERCURY, const.VENUS, const.SATURN}
 
 
 def _lon(x):
@@ -109,7 +106,7 @@ def muntha_house_in_annual(muntha_sign, annual_lagna_sign):
 DEEPTAMSA = {
     const.SUN: 15.0, const.MOON: 12.0, const.MARS: 8.0, const.MERCURY: 7.0,
     const.JUPITER: 9.0, const.VENUS: 7.0, const.SATURN: 9.0,
-} if const else {}
+}
 
 # Tajaka 6 类相位（按「目标宫距 from 行星」）：宫距 → (类别, 性质)。
 # 三分(5/9)强吉、六分(3/11)弱吉、四分(4/10)弱凶、对冲(7)强凶、合(1)强凶、半六分(2/12)中性。
@@ -180,7 +177,7 @@ def planet_aspects(planet_signs, planet_lons):
 _HARSHA_HOUSE = {
     const.SUN: 9, const.MOON: 3, const.MARS: 6, const.MERCURY: 1,
     const.JUPITER: 11, const.VENUS: 5, const.SATURN: 12,
-} if const else {}
+}
 # 源 3：阴曜喜 1/2/3/7/8/9 宫；阳曜喜 4/5/6/10/11/12 宫（from lagna）。
 _FEMININE_HOUSES = {1, 2, 3, 7, 8, 9}
 _MASCULINE_HOUSES = {4, 5, 6, 10, 11, 12}
@@ -251,7 +248,7 @@ HADDA_LORDS = {
     const.CAPRICORN: _hl((7, const.MERCURY), (14, const.JUPITER), (22, const.VENUS), (26, const.SATURN), (30, const.MARS)),
     const.AQUARIUS: _hl((7, const.MERCURY), (13, const.VENUS), (20, const.JUPITER), (25, const.MARS), (30, const.SATURN)),
     const.PISCES: _hl((12, const.VENUS), (16, const.JUPITER), (19, const.MERCURY), (28, const.MARS), (30, const.SATURN)),
-} if const else {}
+}
 
 
 # Hadda 学说B:等 6° 五分(少数注家,可选)。奇座 火/土/木/水/金,偶座反序;日月同样永不为界主。
@@ -373,7 +370,7 @@ TRIRAASI_LORDS = {
     const.LIBRA: (const.MERCURY, const.SATURN), const.SCORPIO: (const.MARS, const.VENUS),
     const.SAGITTARIUS: (const.SATURN, const.SATURN), const.CAPRICORN: (const.MARS, const.MARS),
     const.AQUARIUS: (const.JUPITER, const.JUPITER), const.PISCES: (const.MOON, const.MOON),
-} if const else {}
+}
 
 
 def triraasi_lord(lagna_sign, day_birth):
@@ -627,7 +624,7 @@ def all_sahams(planet_lons, lagna_lon, lagna_sign, day_birth):
 _SPEED_RANK = {
     const.SATURN: 0, const.NORTH_NODE: 1, const.SOUTH_NODE: 1, const.JUPITER: 2,
     const.MARS: 3, const.SUN: 4, const.VENUS: 5, const.MERCURY: 6, const.MOON: 7,
-} if const else {}
+}
 
 
 def speed_rank(planet):
@@ -795,6 +792,32 @@ def detect_higher_yogas(planet_signs, planet_lons, retro=None):
     return out
 
 
+# 高阶瑜伽类别 → 中文名(问事卡 / AI 段共用)。
+HIGHER_YOGA_LABELS = {'nakta': '传光 Nakta', 'yamaya': '集光 Yamaya', 'kamboola': '月助 Kamboola'}
+
+
+def higher_yogas_for_pair(higher, lord_a, lord_b):
+    """detect_higher_yogas 结果 → 只取「恰为 lord_a × lord_b 这一对」的条目并展平:
+    [{type, label, a, b, via}]。Nakta / Yamaya:{a,b} == {lord_a,lord_b},via = 居间曜;
+    Kamboola:pair == {lord_a,lord_b},via = 月亮(月与其一成 Ithasala 增力)。
+    同曜(lord_a == lord_b)无「对」可言 → []。"""
+    if not isinstance(higher, dict) or not lord_a or not lord_b or lord_a == lord_b:
+        return []
+    want = {lord_a, lord_b}
+    out = []
+    for typ in ('nakta', 'yamaya'):
+        for y in higher.get(typ) or []:
+            if isinstance(y, dict) and {y.get('a'), y.get('b')} == want:
+                out.append({'type': typ, 'label': HIGHER_YOGA_LABELS[typ],
+                            'a': y.get('a'), 'b': y.get('b'), 'via': y.get('via')})
+    for y in higher.get('kamboola') or []:
+        pair = (y or {}).get('pair') or []
+        if isinstance(y, dict) and len(pair) == 2 and set(pair) == want:
+            out.append({'type': 'kamboola', 'label': HIGHER_YOGA_LABELS['kamboola'],
+                        'a': pair[0], 'b': pair[1], 'via': const.MOON, 'moonWith': y.get('moonWith')})
+    return out
+
+
 # ════════════════════════════════════════════════════════════════════════
 # 8. 年度大运框架（Patyayini / Mudda / Varsha-Narayana）—— 骨架
 # ════════════════════════════════════════════════════════════════════════
@@ -806,7 +829,7 @@ def patyayini_dasa(planet_lons, lagna_lon, year_days=None, lagna_point='degree')
     相邻差 = patyamsa，期长(日) = 年长 × patyamsa / Σpatyamsa（Σ = 最大 krisamsa）。
 
     输入：年度盘七曜黄经 + lagna 黄经。返回 {'order':[{ref,krisamsa,patyamsa,days}], 'totalDays'}。
-    [Q-122/T-30 2026-09-18 原典核对] 第一项(最小 krisamsa)的 patyamsa = 其自身 krisamsa(Charak《Textbook of
+    第一项(最小 krisamsa)的 patyamsa = 其自身 krisamsa(Charak《Textbook of
     Varshaphala》p.47「The dasha lord with the minimum Krishamshas has the same value for its Patyamshas」;
     Raman《Varshaphal》Art.49「not omitting the position of the planet having the lowest number of degrees」),
     故 Σpatyamsa = 最大 krisamsa(与本 docstring 首句一致)。此前首项取 0、Σ = max − min,座内度数最小者恒 0 天。
@@ -841,7 +864,7 @@ MUDDA_SEQUENCE = [
     {'key': 'Jupiter', 'id': const.JUPITER, 'days': 48}, {'key': 'Saturn', 'id': const.SATURN, 'days': 57},
     {'key': 'Mercury', 'id': const.MERCURY, 'days': 51}, {'key': 'Ketu', 'id': const.SOUTH_NODE, 'days': 21},
     {'key': 'Venus', 'id': const.VENUS, 'days': 60},
-] if const else []
+]
 # 起运编号：日1 月2 火3 罗4 木5 土6 水7 计8 金9（余 0→9=金）。
 _MUDDA_NUMBER = {'Sun': 1, 'Moon': 2, 'Mars': 3, 'Rahu': 4, 'Jupiter': 5,
                  'Saturn': 6, 'Mercury': 7, 'Ketu': 8, 'Venus': 9}
@@ -1049,8 +1072,8 @@ def annual_yogini_dasa(annual_moon_lon, year_basis_days=360.0):
         lon = float(annual_moon_lon) % 360.0
     except (TypeError, ValueError):
         return {'available': False, 'reason': 'moon_lon_invalid'}
-    nak_index = int(lon // _NAK_SPAN) + 1                 # 1..27
-    frac = (lon - (nak_index - 1) * _NAK_SPAN) / _NAK_SPAN
+    nak_index = prim.segment_index(lon, _NAK_SPAN, 27) + 1   # 1..27(精确宿界归后一宿)
+    frac = max(0.0, (lon - (nak_index - 1) * _NAK_SPAN) / _NAK_SPAN)
     start8 = (nak_index + 3) % 8
     start_idx = (start8 - 1) % 8                          # 0 基:0→Sankata? 不——(N+3)%8 的 0 对应 8=Sankata
     unit_days = float(year_basis_days) / 36.0

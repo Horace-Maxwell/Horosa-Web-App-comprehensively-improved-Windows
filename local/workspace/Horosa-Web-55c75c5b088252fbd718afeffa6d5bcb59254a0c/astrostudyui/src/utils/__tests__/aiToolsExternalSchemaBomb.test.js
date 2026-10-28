@@ -1,4 +1,4 @@
-// [压测二轮·D3·R5] 外部 MCP 服务器给的 inputSchema 是敌意输入:200 层嵌套 / 灾难性回溯 pattern / 自引用 $ref / 一万个属性。
+// 外部 MCP 服务器给的 inputSchema 是敌意输入:200 层嵌套 / 灾难性回溯 pattern / 自引用 $ref / 一万个属性。
 // 合同:normalizeExternalSchema 必须先做「消毒」(封深度、剥校验关键字、封键数)再交 Ajv;注册后一次 runTool 的参数校验必须是常数级开销。
 // 参考 aiToolsExternal.test.js 的注册/调用打桩方式。
 import { normalizeExternalSchema, registerExternalTools } from '../../integrations/mcpClient';

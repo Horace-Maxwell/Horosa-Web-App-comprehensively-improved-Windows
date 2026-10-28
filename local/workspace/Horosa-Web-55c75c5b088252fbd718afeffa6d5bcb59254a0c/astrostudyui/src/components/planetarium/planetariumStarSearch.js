@@ -6,6 +6,10 @@
 // 纯增量:只新增「点最近星 + 按名搜索」能力,不改任何既有星点渲染/坐标/星等/既有点击行为。
 
 import { STAR_PROPER_NAMES } from './planetariumStarNames';
+import { matchesUserQuery, scriptMatchKey } from '../../utils/scriptMode';
+
+// 名字比对(单源):界面繁体时照屏幕输入繁体(「織女一」)也能命中简体星名;简体模式与原先逐字节等价。
+const hitLabel = (e, q, opts) => !!(e.label && matchesUserQuery(`${e.label}`, q, opts));
 
 function norm3(x, y, z) {
 	const m = Math.sqrt(x * x + y * y + z * z);
@@ -87,7 +91,9 @@ export function buildStarIndex(catalog, properNames) {
 		const proper = (star.id && names[star.id]) || (hr && names[`HR${hr}`]) || (hr && names[hr]) || null;
 		const zh = proper && proper.zh ? proper.zh : null;
 		const en = proper && proper.proper ? proper.proper : null;
-		[star.name, star.bayer, star.flamsteed, star.id, hr && `HR ${hr}`, hr && `HR${hr}`, en, zh, star.constellation]
+		// 星座缩写不单独入索引:精确命中会落到目录里该座随便哪一颗星(按目录序,不是最亮)。
+		// 拜耳 / 弗兰斯蒂德名里本就带缩写(如「α CMa」),按星名搜仍能找到该座的星。
+		[star.name, star.bayer, star.flamsteed, star.id, hr && `HR ${hr}`, hr && `HR${hr}`, en, zh]
 			.forEach((k) => pushKey(byKey, k, star));
 		const label = zh ? `${zh}${en ? ` ${en}` : ''}` : (en || star.name || star.id);
 		entries.push({
@@ -96,7 +102,7 @@ export function buildStarIndex(catalog, properNames) {
 			zh,
 			proper: en,
 			mag: Number.isFinite(Number(star.mag)) ? Number(star.mag) : 99,
-			haystack: [star.name, star.bayer, star.flamsteed, star.id, hr, en, zh, star.constellation]
+			haystack: [star.name, star.bayer, star.flamsteed, star.id, hr, en, zh]
 				.filter(Boolean).join(' ').toLowerCase(),
 		});
 	});
@@ -116,11 +122,15 @@ export function findStarByName(index, query) {
 	if (index.byKey.has(q)) {
 		return index.byKey.get(q);
 	}
-	const pre = index.entries.find((e) => e.haystack.startsWith(q) || (e.label && `${e.label}`.toLowerCase().startsWith(q)));
+	const qk = scriptMatchKey(q).toLowerCase();
+	if (qk !== q && index.byKey.has(qk)) {
+		return index.byKey.get(qk);
+	}
+	const pre = index.entries.find((e) => matchesUserQuery(e.haystack, q, { prefix: true }) || hitLabel(e, q, { prefix: true }));
 	if (pre) {
 		return pre.star;
 	}
-	const sub = index.entries.find((e) => e.haystack.indexOf(q) >= 0);
+	const sub = index.entries.find((e) => matchesUserQuery(e.haystack, q));
 	return sub ? sub.star : null;
 }
 
@@ -159,7 +169,7 @@ export function suggestStars(index, query, limit) {
 	const out = [];
 	for (let i = 0; i < index.entries.length && out.length < cap; i += 1) {
 		const e = index.entries[i];
-		if (e.haystack.indexOf(q) >= 0 || (e.label && `${e.label}`.toLowerCase().indexOf(q) >= 0)) {
+		if (matchesUserQuery(e.haystack, q) || hitLabel(e, q)) {
 			out.push(e);
 		}
 	}

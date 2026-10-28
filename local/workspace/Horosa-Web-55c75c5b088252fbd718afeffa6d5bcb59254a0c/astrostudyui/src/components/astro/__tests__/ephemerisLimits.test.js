@@ -1,4 +1,4 @@
-// [Q-186/T-108 ①] 星历三道后端上限(区间 732 天 / 逐日 370 天 / 行运触发 600 条)由 params.limits 明示,页面与快照共用同一句。
+// 星历三道后端上限(区间 732 天 / 逐日 370 天 / 行运触发 600 条)由 params.limits 明示,页面与快照共用同一句。
 import { ephemerisLimitsText } from '../AstroEphemeris';
 
 global.React = require('react');

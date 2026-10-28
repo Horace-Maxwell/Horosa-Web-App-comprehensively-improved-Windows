@@ -67,9 +67,29 @@ export const TECHNIQUE_HELP_DOCS = {
 // (演禽不在此列:它本身就是 currentTab,只是导航高亮时才归一到宿主 tab。)
 const SUBTECHNIQUE_HELP_KEYS = ['germanytech'];
 
-export function getTechniqueHelpDoc(currentTab, currentSubTab){
+// 一页多技法的宿主页:按页内当前技法挑手册(有独立手册的技法用自己那份,其余用宿主页手册)。
+// 「命·其他」= 策天飞星 / 演禽 / 一掌经:演禽有独立手册;策天与一掌经共用「命·其他」那份。
+// 外部 AI 读 horosa://help/<tab> 仍按 tab 键取,不受影响。
+const HOST_TECHNIQUE_HELP = { mingother: { xianqin: 'yanqin' } };
+
+export function getTechniqueHelpDoc(currentTab, currentSubTab, activeTechnique){
 	if(currentSubTab && SUBTECHNIQUE_HELP_KEYS.indexOf(currentSubTab) >= 0 && TECHNIQUE_HELP_DOCS[currentSubTab]){
 		return TECHNIQUE_HELP_DOCS[currentSubTab];
 	}
+	const hostMap = HOST_TECHNIQUE_HELP[currentTab];
+	const viaTechnique = hostMap && activeTechnique ? hostMap[activeTechnique] : null;
+	if(viaTechnique && TECHNIQUE_HELP_DOCS[viaTechnique]){
+		return TECHNIQUE_HELP_DOCS[viaTechnique];
+	}
 	return TECHNIQUE_HELP_DOCS[currentTab] || null;
+}
+
+// 宿主页当前技法(页内技法条切换时由技法组件写入的运行时口径,与 AI 导出取当前技法同源)。
+export function currentHostTechnique(currentTab){
+	try{
+		const raw = typeof window !== 'undefined' ? window.__horosaKinAstroCurrent : null;
+		return raw && typeof raw === 'object' && raw[currentTab] ? `${raw[currentTab]}` : '';
+	}catch(e){
+		return '';
+	}
 }

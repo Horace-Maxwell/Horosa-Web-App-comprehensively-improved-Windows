@@ -7,6 +7,7 @@ import cherrypy
 import jsonpickle
 
 from websrv.helper import enable_crossdomain
+from websrv.horosa_engine_common import require_civil_ymd as _require_civil_ymd, to_int as _to_int
 
 
 _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -137,15 +138,6 @@ SECTION_LABELS = {
     "分卦": "分卦",
     "運籌博弈分析": "运筹博弈",
 }
-
-
-def _to_int(value, default=0):
-    try:
-        if value is None or value == "":
-            return default
-        return int(value)
-    except Exception:
-        return default
 
 
 def _first(value, default=""):
@@ -522,6 +514,7 @@ class TaiYiSrv:
             day = _to_int(data.get("day"), 1)
             hour = _to_int(data.get("hour"), 0)
             minute = _to_int(data.get("minute"), 0)
+            _require_civil_ymd(year, month, day)   # 不存在的日期报错(改历缺口 / 2 月 30 日 / 公元 0 年)
             # v2.2.1: 全局日界 + 晚子时·时柱起干 通过 thread-local 传给 kintaiyi
             # 默认均为 1=现行行为;仅 hour==23 时影响,其它 23 小时 NO-OP。
             after23_new_day = _to_int(data.get("after23NewDay"), 1)

@@ -1,4 +1,4 @@
-// [Q-452 裁决 A / Q-453 裁决 2026-09-18] 择日快照命中清单:上限全局可配 + 前 N 行判读树 + 奇门行时长。
+// 择日快照命中清单:上限全局可配 + 前 N 行判读树 + 奇门行时长。
 import { appendZeriHitRows, buildZeriRowExplainLines, zeriRowDurationMin, collectZeriUiLeaves } from '../zeriExplainText';
 import { normalizeZeriSnapshotMaxRows, normalizeZeriSnapshotExplainRows, readGlobalZeriSnapshotMaxRows, readGlobalZeriSnapshotExplainRows } from '../../../utils/zeriSnapshotPrefs';
 import { buildBaziZeriSnapshotExtra } from '../baziZeriSnapshot';

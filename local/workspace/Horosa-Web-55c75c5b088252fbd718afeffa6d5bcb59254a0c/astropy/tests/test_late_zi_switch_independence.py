@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""[Q-312/T-293 2026-09-18 口径 B·用户拍板] 晚子时两开关完全独立:
+"""晚子时两开关完全独立:
    after23NewDay 只管日柱是否 23 点进位;lateZiHourUseNextDay=0 = 时干用钟面当天(今日)日干起子时,不看日柱开关。
    此前七路 Python 引擎 / 全域权威在 (1,0) 取「已进位日柱的干」→ 甲申日 甲子时,与 Java BaZiHelper / 本地八字引擎
    (甲申日 壬子时)分叉;奇门页头(本地)与九宫(后端)因此两套时辰。四组合与 jest baziLunarLocal.dayBoundary 矩阵逐字同。"""

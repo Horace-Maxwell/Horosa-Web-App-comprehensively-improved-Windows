@@ -1,4 +1,4 @@
-// 🔴 [S4] 写失败诚实语义 · quota 故障注入金标 —— 本轮最重的静默丢数据修复的行为锁。
+// 🔴 写失败诚实语义 · quota 故障注入金标 —— 本轮最重的静默丢数据修复的行为锁。
 //
 // 此前 writeRaw 全部失败分支 return true:upsert 的 throw 死代码、五处「保存失败」Modal
 // 永不弹,配额写满时 UI 报成功、数据只在内存、重启即丢;且 quota 终败 enableMemoryFallback
@@ -23,7 +23,7 @@ function freshCharts(){
 
 const REC = { cid: 'local-q-1', name: '注错甲', birth: '1990-01-01 08:00:00', zone: '+08:00', updateTime: '2026-08-01 10:00:00', preserveUpdateTime: true };
 
-describe('[S4] quota 故障注入 · 写失败如实上报', ()=>{
+describe('quota 故障注入 · 写失败如实上报', ()=>{
 	afterEach(()=>{
 		jest.restoreAllMocks();
 		window.localStorage.clear();

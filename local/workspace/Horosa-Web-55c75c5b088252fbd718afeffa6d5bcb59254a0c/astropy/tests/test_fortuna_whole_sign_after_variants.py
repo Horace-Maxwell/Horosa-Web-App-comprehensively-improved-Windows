@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""[Q-258/T-221][Q-338/T-319] 福点整宫制(hsys=24)× 福点反转 / 变体 / 站心月:第 1 宫须 = 最终福点所在整座。
+"""福点整宫制(hsys=24)× 福点反转 / 变体 / 站心月:第 1 宫须 = 最终福点所在整座。
 夜盘关反转:福点换式(相差可达数十度)→ 旧码第 1 宫仍按夜式福点定 → 与盘上福点不同座。"""
 import os
 import sys
@@ -48,5 +48,5 @@ def test_lot_reversal_off_house1_follows_relocated_fortuna():
 def test_lot_projection_sign_keeps_house1_on_fortuna_sign():
     pc = _pc({'lotProjection': 'sign'})
     h1, pf = _house1_and_pf(pc)
-    # [Q-259 2026-09-18] 座序计数后福点带 ASC 座内度(不再钉 0°);从福点起十二宫的第 1 宫仍坐福点所在座之首
+    # 座序计数后福点带 ASC 座内度(不再钉 0°);从福点起十二宫的第 1 宫仍坐福点所在座之首
     assert abs(h1 - int(pf // 30) * 30) < 1e-6

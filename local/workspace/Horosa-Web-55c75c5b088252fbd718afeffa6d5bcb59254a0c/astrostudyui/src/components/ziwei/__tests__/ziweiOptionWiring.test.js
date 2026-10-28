@@ -3,7 +3,7 @@
 // 漏 OPT_KEYS=presetMatches 恒真误判。本哨兵把三份清单钉成同一集合,漏任何一处当场红。
 // 🔴 有意不进清单的键(改这里前先读理由):
 //   - taiSuiRelatives:数组类关系人,preset 不设(恒 [])
-//   (xiaoxianMode 已于 [B15] 迁入 ZWEngineOptions 体系,豁免注销,三清单哨兵自动覆盖)
+//   (xiaoxianMode 已迁入 ZWEngineOptions 体系,豁免注销,三清单哨兵自动覆盖)
 import fs from 'fs';
 import path from 'path';
 import { ZIWEI_PRESET_OPT_KEYS } from '../ziweiPresets';

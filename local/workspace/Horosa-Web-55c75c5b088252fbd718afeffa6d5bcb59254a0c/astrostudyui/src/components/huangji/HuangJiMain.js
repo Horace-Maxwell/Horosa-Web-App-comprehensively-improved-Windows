@@ -1,7 +1,7 @@
 import QuickDockBar from '../common/QuickDockBar';
 import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // 双触发收敛
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
+import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { Component } from 'react';
 import { InputNumber, Spin } from 'antd';
 import DateTime from '../comp/DateTime';
@@ -9,19 +9,18 @@ import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../com
 import { subscribeRemoteNongli, geoPatchFromRec } from '../../utils/divinationTimeDraft';
 import XQIcon from '../xq-icons';
 import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection  } from '../xq-ui';
-import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
-import { ServerRoot, ResultKey } from '../../utils/constants';
-import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
+import { saveModuleAISnapshotLazy, saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { castSourceKey, castFailureKeeps } from '../../utils/derivedChartSource';
+import { postKentang } from '../../services/kentangPost';
 import { stepPrefetchEnabled, kentangCacheEnabled, flagEnabled } from '../../utils/perfFlags';
-import { cachedKentangFetch } from '../../utils/kentangCache';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { formatHumanValue } from '../../utils/humanReadableFields';
-import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
-import { parseDateParts } from '../../utils/dateStrSafe';
-import { definePageSettings } from '../../utils/pageSettingsStore';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
+import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
+import { parseFieldsDateTimeWithDayBoundary } from '../../utils/fieldsDateTime';
+import { registerProcessCache } from '../../utils/processCacheRegistry';
 const { Option } = Select;
 const { TabPane } = Tabs;
 
@@ -34,71 +33,12 @@ const METHOD_OPTIONS = [
 
 const DEFAULT_CLASSIC = 'huangji_jingshi_shu';
 
-// 排盘设置跨会话保留:心易发微的「起卦法」。卦数 / 笔画 / 物象 / 方位是每一卦的输入,历史年是每次查看的输入,
-// 经典 / 典籍显示 / 章节是阅读位置 —— 都不保留。事盘回灌走 setState,不经落盘入口。
-export const HUANGJI_PAGE_SETTINGS = definePageSettings('horosa.huangji.settings.v1', {
-	xinyiMethod: { def: 'datetime', oneOf: METHOD_OPTIONS.map((o)=>o.value) },
-});
+// 本页没有跨会话保留的排盘设置。心易发微的「起卦法」:卦数 / 笔画 / 物象 / 方位是每一卦的输入(不保留),离不开这些输入的
+// 三法(先天数 / 后天方位 / 字数)只留法 = 重开后挂载即按缺省输入自动起出同一卦(还进 AI 快照),剩下的「年月日時」就是缺省 ——
+// 没有可保留的了。历史年是每次查看的输入,经典 / 典籍显示 / 章节是阅读位置,也都不保留。旧版存下的那份设置不再读写。
+const XINYI_DEFAULT_METHOD = 'datetime';
 
-function parseFieldsDateTime(fields){
-	if(!fields || !fields.date || !fields.time || !fields.date.value || !fields.time.value){
-		return null;
-	}
-	const dateStr = fields.date.value.format('YYYY-MM-DD');
-	const timeStr = fields.time.value.format('HH:mm:ss');
-	// BC 安全解析:'-7040-07-19' 裸 split('-') 会撕成 [NaN,7040,7,19](年 NaN 静默传播)
-	const _dp = parseDateParts(dateStr);
-	const d = _dp ? [_dp.year, _dp.month, _dp.day] : [];
-	const t = timeStr.split(':').map((item)=>parseInt(item, 10));
-	if(d.length < 3 || t.length < 2){
-		return null;
-	}
-	return {
-		year: d[0],
-		month: d[1],
-		day: d[2],
-		hour: t[0],
-		minute: t[1],
-		second: t[2] || 0,
-		date: dateStr,
-		time: timeStr,
-		zone: fields.zone && fields.zone.value ? fields.zone.value : '',
-		after23NewDay: defaultAfter23NewDay(),
-		lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
-	};
-}
-
-async function postWangJi(path, payload){
-	let rsp = null;
-	try{
-		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('wangji', path), {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json; charset=UTF-8',
-			},
-			body: JSON.stringify(payload),
-		}, { retries: 0 });
-		const rawText = await rawResponse.text();
-		rsp = rawText ? JSON.parse(rawText) : null;
-		if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'wangji.local.fetch.failed');
-		}
-	}catch(e){
-		const rawResponse = await cachedKentangFetch(`${ServerRoot}/wangji/${path}`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json; charset=UTF-8',
-			},
-			body: JSON.stringify(payload),
-		}, { retries: 0 });
-		const rawText = await rawResponse.text();
-		rsp = rawText ? JSON.parse(rawText) : null;
-	}
-	if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-		throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'wangji.fetch.failed');
-	}
-	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
-}
+function postWangJi(path, payload){ return postKentang('wangji', path, payload); }
 
 function fmtValue(value){
 	return formatHumanValue(value);
@@ -111,6 +51,7 @@ function fmtValue(value){
 // 开关 horosa.perf.wangjiClassicsOnDemand=0 → 盘请求不带标记,全文随盘(旧行为)。
 const CLASSIC_FULL_CACHE = {};
 const CLASSIC_FULL_PENDING = {};
+registerProcessCache('huangji.classicFull', ()=>{ Object.keys(CLASSIC_FULL_CACHE).forEach((k)=>{ delete CLASSIC_FULL_CACHE[k]; }); });
 
 function classicsOnDemandEnabled(){
 	return flagEnabled('horosa.perf.wangjiClassicsOnDemand');
@@ -243,7 +184,7 @@ export function buildSnapshotText(pan, xinyi, opts){
 // aiAnalysisContext 复算用;心易发微(xinyi)属占断叠加,挂载默认不带(传 null);无 pan 即返 ''。
 export async function buildHuangJiSnapshotForFields(fields, opts){
 	try{
-		const dt = parseFieldsDateTime(fields);
+		const dt = parseFieldsDateTimeWithDayBoundary(fields);
 		if(!dt){
 			return '';
 		}
@@ -287,7 +228,7 @@ export async function buildHuangJiSnapshotForFields(fields, opts){
 }
 
 class HuangJiMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -302,6 +243,7 @@ class HuangJiMain extends Component{
 		this.state = {
 			loading: false,
 			pan: null,
+			panSig: '',	// 屏上这张盘的起课签名(时刻 + 地点),取失败时据此判留存 / 清掉
 			xinyi: null,
 			rightPanelTab: 'overview',
 			historyYear: dt.year * dt.ad,
@@ -309,7 +251,7 @@ class HuangJiMain extends Component{
 			classicSectionIndex: 0,
 			classicView: 'section',
 			xinyiOptions: {
-				method: HUANGJI_PAGE_SETTINGS.load().xinyiMethod,   // 上次亲手选的起卦法(没存过 = 年月日時起卦)
+				method: XINYI_DEFAULT_METHOD,
 				upperNum: 5,
 				lowerNum: 10,
 				upperStrokes: 5,
@@ -363,6 +305,7 @@ class HuangJiMain extends Component{
 	}
 
 	componentDidUpdate(prevProps){
+		clearPendingTimeOnFieldsChange(this, prevProps);
 		if(prevProps.fields !== this.props.fields && this.props.fields){
 			if(!this.restoreFromCurrentCase()){
 				this.fetchPan(this.props.fields);
@@ -414,8 +357,8 @@ class HuangJiMain extends Component{
 		}
 		const payload = saved.payload;
 		const options = payload.options && typeof payload.options === 'object' ? payload.options : {};
-		// 事盘里没有起卦法时回出厂值,不沿用本机保存的偏好(见 pageSettingsStore.fillMissing 注)
-		const xinyiBase = { ...this.state.xinyiOptions, method: HUANGJI_PAGE_SETTINGS.defaults().xinyiMethod };
+		// 事盘里没有起卦法时回出厂值,不沿用当前页上选的
+		const xinyiBase = { ...this.state.xinyiOptions, method: XINYI_DEFAULT_METHOD };
 		const xinyiOptions = options.xinyiOptions && typeof options.xinyiOptions === 'object'
 			? { ...xinyiBase, ...options.xinyiOptions }
 			: xinyiBase;
@@ -424,6 +367,7 @@ class HuangJiMain extends Component{
 		this.setState({
 			loading: false,
 			pan: payload.pan || null,
+			panSig: '',	// 存档盘按存档的时刻,不与此刻的起课参数比:之后起盘取失败时不拿它顶
 			xinyi: payload.xinyi || null,
 			historyYear: options.historyYear !== undefined ? options.historyYear : this.state.historyYear,
 			classicKey: options.classicKey || this.state.classicKey,
@@ -443,7 +387,7 @@ class HuangJiMain extends Component{
 					const merged = mergeClassicsFull(pan.classics, full);
 					if(!merged || this.unmounted || reqSeq !== this.requestSeq || this.state.pan !== pan){ return; }
 					const fullPan = { ...pan, classics: merged };
-					this.setState({ pan: fullPan }, ()=>{
+					this.setState({ pan: fullPan, panSig: this.state.panSig }, ()=>{
 						saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(fullPan, xinyi, { classicSectionIndex: this.state.classicSectionIndex }));
 					});
 				}).catch(()=>{});
@@ -470,19 +414,20 @@ class HuangJiMain extends Component{
 		this.onFieldsChange(geoPatchFromRec(rec, this.props.fields));
 	}
 	onTimeChanged(value){
+		notePendingTime(this, value && (value.time || value.value));
 		const dt = value.time;
 		this.onFieldsChange({
 			date: { value: dt.clone() },
 			time: { value: dt.clone() },
 			ad: { value: dt.ad },
 			zone: { value: dt.zone },
-			// [R3-A2] 步进方向提示:驱动 astro model settle 后 /chart ±步预取(消费后即剥离)
+			// 步进方向提示:驱动 astro model settle 后 /chart ±步预取(消费后即剥离)
 			...(value.step ? { __stepHint: value.step } : {}),
 		});
 		this.prefetchDraftPan();
 	}
 
-	// [R3-A4] 草稿时间一变即预取该时刻 pan:字段源与 clickPlot 完全同源
+	// 草稿时间一变即预取该时刻 pan:字段源与 clickPlot 完全同源
 	// (getTimeFieldsFromSelector),payload 走 buildPanPayload 单源 → 键逐字节等;
 	// 用户点「起盘」即缓存命中 ≈ 瞬间。失败静默;开关关=零行为。
 	prefetchDraftPan(){
@@ -505,6 +450,8 @@ class HuangJiMain extends Component{
 	}
 
 	getTimeFieldsFromSelector(baseFields){
+		const _pend = pendingTimePatch(this);   // 改了时间还没等到全局盘回来:以最新改动为准(见 utils/pendingTimeDraft)
+		if(_pend){ return { ...(baseFields || {}), ..._pend }; }
 		if(!this.timeHook || !this.timeHook.getValue){
 			return null;
 		}
@@ -543,9 +490,9 @@ class HuangJiMain extends Component{
 		this.fetchPan(nextFields);
 	}
 
-	// [R3-A4] pan 请求体单源:fetchPan 与草稿预取共用同一构造 → 缓存键逐字节等(预取生效前提)。
+	// pan 请求体单源:fetchPan 与草稿预取共用同一构造 → 缓存键逐字节等(预取生效前提)。
 	buildPanPayload(fields){
-		const dt = parseFieldsDateTime(fields);
+		const dt = parseFieldsDateTimeWithDayBoundary(fields);
 		if(!dt){ return null; }
 		return withSlimClassics({
 			...dt,
@@ -559,7 +506,7 @@ class HuangJiMain extends Component{
 	// ⇒ 缓存键逐字节同键;典籍正文由上游 loadClassicFull 模块缓存按需取,不需预取。
 	getStepPrefetchTasks(steppedFields){
 		try{
-			if(!parseFieldsDateTime(steppedFields)){ return []; }
+			if(!parseFieldsDateTimeWithDayBoundary(steppedFields)){ return []; }
 			const payload = this.buildPanPayload(steppedFields);
 			return [{
 				name: 'wangji',
@@ -581,6 +528,7 @@ class HuangJiMain extends Component{
 		if(!panTrig){
 			return;
 		}
+		const castSig = castSourceKey(fields);
 		const reqSeq = ++this.requestSeq;
 		this.setState({ loading: true });
 		try{
@@ -590,7 +538,7 @@ class HuangJiMain extends Component{
 			if(this.unmounted || reqSeq !== this.requestSeq){
 				return;
 			}
-			this.setState({ pan, xinyi, loading: false }, ()=>{
+			this.setState({ pan, panSig: castSig, xinyi, loading: false }, ()=>{
 				// horosa_panel_ready_v1:主盘 + 心易同批落定 = 中栏与右栏画完的那一次 setState。
 				markPanelReady('cnyibu');
 				const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
@@ -600,13 +548,16 @@ class HuangJiMain extends Component{
 			settleTrigger(this, 'fetchPan', panTrig, false);
 			console.warn('kinwangji backend failed', e);
 			if(!this.unmounted && reqSeq === this.requestSeq){
-				this.setState({ loading: false });
+				// 取失败:与屏上那张盘同一起课时刻地点(只改了设置)→ 留存;换了时刻 / 地点 → 屏上那张是上一课,清掉(连同 AI 快照槽)
+				const keep = castFailureKeeps(this.state.panSig, castSig);
+				this.setState(keep ? { loading: false } : { loading: false, pan: null, panSig: '', xinyi: null });
+				if(!keep){ clearModuleAISnapshot('huangji'); }
 			}
 		}
 	}
 
 	async fetchXinyi(fields, updateState = true){
-		const dt = parseFieldsDateTime(fields || this.props.fields) || {};
+		const dt = parseFieldsDateTimeWithDayBoundary(fields || this.props.fields) || {};
 		const opt = this.state.xinyiOptions;
 		const payload = {
 			...dt,
@@ -684,7 +635,6 @@ class HuangJiMain extends Component{
 	}
 
 	changeXinyiOption(key, value){
-		if(key === 'method'){ HUANGJI_PAGE_SETTINGS.save({ xinyiMethod: value }); }   // 其余心易选项是每一卦的输入,不落
 		const xinyiOptions = {
 			...this.state.xinyiOptions,
 			[key]: value,

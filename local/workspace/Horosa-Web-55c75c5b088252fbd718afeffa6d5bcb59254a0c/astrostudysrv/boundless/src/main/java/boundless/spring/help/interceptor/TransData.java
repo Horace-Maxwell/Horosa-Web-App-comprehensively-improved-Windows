@@ -22,12 +22,14 @@ import org.springframework.web.multipart.MultipartFile;
 
 import boundless.io.FileUtility;
 import boundless.spring.help.PropertyPlaceholder;
+import boundless.spring.help.SysInitHelper;
 import boundless.spring.help.springcomp.ApplicationContextProvider;
 import boundless.types.FileType;
 import boundless.types.Tuple3;
 import boundless.utility.ConvertUtility;
 import boundless.utility.FormatUtility;
 import boundless.utility.JsonUtility;
+import boundless.utility.SecretRedactor;
 import boundless.utility.StringUtility;
 import boundless.web.common.IUser;
 import boundless.web.help.AppServerPathHelper;
@@ -57,15 +59,7 @@ public class TransData {
 	static final boolean ORDERED_RESPONSE = orderedResponseOn();
 
 	static boolean orderedResponseOn() {
-		String prop = System.getProperty("horosa.response.ordered");
-		if (prop != null && !prop.trim().isEmpty()) {
-			return !("false".equalsIgnoreCase(prop.trim()) || "0".equals(prop.trim()));
-		}
-		String env = System.getenv("HOROSA_JAVA_ORDERED_RESPONSE");
-		if (env != null && !env.trim().isEmpty()) {
-			return !("false".equalsIgnoreCase(env.trim()) || "0".equals(env.trim()));
-		}
-		return true;
+		return SysInitHelper.propThenEnvOn("horosa.response.ordered", "HOROSA_JAVA_ORDERED_RESPONSE");
 	}
 
 	private static Map<String, Object> newResponseMap() {
@@ -84,7 +78,8 @@ public class TransData {
 	
 	static final String ApiDocKey = "__apidoc__";
 	
-	private static final String RemoveParamStr = PropertyPlaceholder.getProperty("remvedparams", "Password,OldPassword,Pwd,Passwd,UserPassword,LoginPassword,_rsaparam_");
+	/** 交易日志 / 错误日志里要掩掉的参数名:内置表在 SecretRedactor(单源),配置项 remvedparams 只是在它之上追加(同样不分大小写 / 下划线 / 连字符)。 */
+	private static final String RemoveParamStr = PropertyPlaceholder.getProperty("remvedparams", "");
 	private static final String[] RemovedParams = StringUtility.splitString(RemoveParamStr, ',');
 	
 	static{
@@ -541,14 +536,15 @@ public class TransData {
 		head.remove(KeyConstants.RequestObject);
 		head.remove(KeyConstants.ResponseObject);
 		head.remove(KeyConstants.CurrentUser);
-		boundless.spring.help.TransLogRules.removeParamsIgnoreCase(head, RemovedParams);
 		
 		IUser user = TransData.getCurrentUser();
 		if(user != null){
 			head.put("user", user.toMap());
 		}
 		map.remove(KeyConstants.MultipartObject);
-		boundless.spring.help.TransLogRules.removeParamsIgnoreCase(map, RemovedParams);
+		// 写进交易日志 / 错误日志之前脱敏(单源 SecretRedactor:嵌套对象、请求头、网址查询串都管;写时复制,不动请求上下文里的活对象)
+		head = SecretRedactor.redactRecord(head, RemovedParams);
+		map = SecretRedactor.redactRecord(map, RemovedParams);
 		
 		Map<String, Object> mulmap = new HashMap<String, Object>();
 		if(multiparts.length > 0){

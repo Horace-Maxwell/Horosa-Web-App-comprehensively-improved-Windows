@@ -1,4 +1,4 @@
-// [卜卦改进 H9] AI 链同步——官方 gap 八项清零锁+段账。
+// AI 链同步——官方 gap 八项清零锁+段账。
 // ①真形 fixture 快照:八 gap 段头全产出(断法要点/六类问法①-⑥/恒星会合/自然象征/
 //   应期修正链按料产;同主一星/盗窃研判按局面产——此处验无条件五段+条件段逻辑)
 // ②AI_EXPORT_PRESET_SECTIONS.horary 段账=28,与 buildHorarySnapshot 段头集一致(防漏登)
@@ -16,7 +16,7 @@ describe('H9① 快照八 gap 段', () => {
 		const r = freshReal();
 		const j = runHorary(r, 'general', {});
 		const snap = buildHorarySnapshot(j, r);
-		// [复审C1] 第二参=全 Result(receptions/mutuals 在顶层)——存案路径曾传 result.chart
+		// 第二参=全 Result(receptions/mutuals 在顶层)——存案路径曾传 result.chart
 		// 致 [古典接纳] 恒缺;此处按正确形状断言该段在场(真形 fixture 顶层实录接纳数据)。
 		expect(snap).toContain('[古典接纳]');
 		['[断法要点]', '[六类问法]', '[恒星会合]', '[自然象征]', '[行星时]'].forEach((s) => {

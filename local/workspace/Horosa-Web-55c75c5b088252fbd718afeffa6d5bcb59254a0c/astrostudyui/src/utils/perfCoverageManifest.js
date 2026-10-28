@@ -1,4 +1,4 @@
-// [R3-A0] 全技法性能覆盖矩阵 —— 「所有技法都要顶级性能」的机器台账(单一真值源)。
+// 全技法性能覆盖矩阵 —— 「所有技法都要顶级性能」的机器台账(单一真值源)。
 //
 // 行 = 页面级技法(pages/index.js navigationPages 全集,含抽屉三页)
 //    + kentang 后端模块(integrations/kentang/serviceRoot.js 全集,`page` 字段回链宿主页)。
@@ -150,18 +150,6 @@ const PAGES = {
 		netCache: 'done:electionscan 走 cachedKentangFetch 三层(确定性扫描,按月段天然命中);奇门找局=纯本地引擎零 HTTP,无网络轴', stepPrefetch: 'existing:DivinationChartShell 本地预取器(fields 自持,同辅盘三盘)', stepSelect: 'existing:同左', optionPrefetch: 'na:征象扫描属重计算,投机预取判弊>利',
 		dataPrewarm: 'na:进页即可用,扫描按需触发', localMemo: 'na:网络型(奇门找局分块让主线程+命中/跨度双上限)', scu: 'existing:壳层 wrapperPropsEqual', drawGuard: 'existing', keepStale: 'na:扫描结果显式触发,无陈旧窗口',
 	} },
-	astroreader: { kind: 'TOOL', axes: {
-		netCache: 'na:阅读器(登录态内容)', stepPrefetch: 'na:阅读器', stepSelect: 'na:阅读器', optionPrefetch: 'na:阅读器',
-		dataPrewarm: 'na:阅读器', localMemo: 'na:阅读器', scu: 'na:内容滚动页', drawGuard: 'na:阅读器', keepStale: 'na:阅读器',
-	} },
-	liveplayer: { kind: 'TOOL', axes: {
-		netCache: 'na:直播流', stepPrefetch: 'na:直播流', stepSelect: 'na:直播流', optionPrefetch: 'na:直播流',
-		dataPrewarm: 'na:直播流', localMemo: 'na:直播流', scu: 'na:播放器', drawGuard: 'na:播放器', keepStale: 'na:直播流',
-	} },
-	admintools: { kind: 'TOOL', axes: {
-		netCache: 'na:管理页(登录态)', stepPrefetch: 'na:管理页', stepSelect: 'na:管理页', optionPrefetch: 'na:管理页',
-		dataPrewarm: 'na:管理页', localMemo: 'na:管理页', scu: 'na:低频管理页', drawGuard: 'na:管理页', keepStale: 'na:管理页',
-	} },
 };
 
 // ── kentang 后端模块级(C 型;page=宿主页) ────────────────────────────────────
@@ -173,7 +161,7 @@ const KENTANG_MODULES = {
 	taiyi:           { page: 'taiyi',    policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'done' } },
 	jinkou:          { page: 'cnyibu',   policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'done' } },
 	wangji:          { page: 'cnyibu',   policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'done' } },
-	wuzhao:          { page: 'cnyibu',   policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'done' } },   // [Q-210] 随机诸式请求体带 castSeed → 同体确定
+	wuzhao:          { page: 'cnyibu',   policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'done' } },   // 随机诸式请求体带 castSeed → 同体确定
 	taixuan:         { page: 'cnyibu',   policy: 'seedInBody',    axes: { netCache: 'done', stepPrefetch: 'na:蓍法种子在体(服务端 random.seed(body.seed),同 body 确定可缓存;预取恐钉死起课,禁)' } },
 	jingjue:         { page: 'cnyibu',   policy: 'seedInBody',    axes: { netCache: 'done', stepPrefetch: 'na:揲蓍种子在体(同上,可缓存不可预取)' } },
 	shenyishu:       { page: 'cnyibu',   policy: 'deterministic', axes: { netCache: 'done', stepPrefetch: 'done' } },

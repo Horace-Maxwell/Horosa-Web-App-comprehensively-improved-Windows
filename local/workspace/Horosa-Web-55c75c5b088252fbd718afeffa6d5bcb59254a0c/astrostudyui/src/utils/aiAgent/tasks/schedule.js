@@ -1,6 +1,7 @@
 // AI 助手·定时任务的排期纯函数(P3):零 import,工具(schedule_task)/弹窗/调度器共用同一口径。
 // 口径:一律本地钟面(new Date(y,m,d,hh,mm) 构造)——跨夏令时保持钟面不漂;月度日期只许 1..28(29-31 钳到 28,短月不存在的日子不做顺延猜测);
 // once 已过期即 null(调用方据此判 E_SCHEDULE_INVALID / 任务 done)。四类任务的提示词模板也在此(纯字符串,无副作用)。
+import { parseDateTimeMs } from '../../dateTimeParse';
 export const SCHEDULE_TYPES = ['daily', 'weekly', 'monthly', 'once'];
 export const MONTH_DAY_MAX = 28;
 export const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
@@ -13,8 +14,8 @@ const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 function toDate(v){
 	if(v instanceof Date){ return Number.isNaN(v.getTime()) ? null : v; }
-	if(typeof v === 'number' && Number.isFinite(v)){ return new Date(v); }
-	if(typeof v === 'string' && v.trim()){ const d = new Date(v.trim()); return Number.isNaN(d.getTime()) ? null : d; }
+	if(typeof v === 'number' && Number.isFinite(v)){ return new Date(parseDateTimeMs(v)); }
+	if(typeof v === 'string' && v.trim()){ const d = new Date(parseDateTimeMs(v.trim())); return Number.isNaN(d.getTime()) ? null : d; }
 	return null;
 }
 function parseTime(t){ const m = TIME_RE.exec(`${t || ''}`); return m ? { hh: Number(m[1]), mm: Number(m[2]) } : null; }
@@ -94,7 +95,7 @@ export function dateStamp(now){
 }
 
 // 四类任务的用户消息模板(纯函数;custom-prompt 用用户原文,空则兜底一句)
-// [Q-400/M-145] opts.hasSource:到点时挂载源是否真在(sourceCid 空 / 指向已删档案 → false)。无挂载时改用「无命盘·通用天象」文案,
+// opts.hasSource:到点时挂载源是否真在(sourceCid 空 / 指向已删档案 → false)。无挂载时改用「无命盘·通用天象」文案,
 // 不再对着没有案例层的系统提示写「请基于挂载的命盘」(AI 会编一张盘)。缺省(不传)=按旧文案(零回归)。
 export function buildScheduledPrompt(spec, now, opts){
 	const s = spec && typeof spec === 'object' ? spec : {};

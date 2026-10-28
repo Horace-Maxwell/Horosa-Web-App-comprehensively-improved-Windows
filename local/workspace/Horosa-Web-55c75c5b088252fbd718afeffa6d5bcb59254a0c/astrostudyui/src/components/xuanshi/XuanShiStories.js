@@ -3,6 +3,7 @@ import { Spin, Empty, Select, Input } from 'antd';
 import { marked } from 'marked';
 import { fetchStories, fetchStory } from '../../services/xuanshi';
 import XuanShiStar from './XuanShiStar';
+import { matchesUserQuery } from '../../utils/scriptMode';
 
 // 故事专题 —— 编辑层 story(已发布 30 篇):专题故事卡(封面字符+标题+摘要+朝代/难度/时长)
 // + 详情(body_html 走 prose 成熟 markdown 渲染 + 右栏「专题档案」:频道/朝代/时期/难度/阅读/出处/标签)。
@@ -25,12 +26,12 @@ export default class XuanShiStories extends React.Component {
 	persist() { if (this.props.onPersist) { this.props.onPersist('stories', { dynasty: this.state.dynasty, q: this.state.q, page: 1 }); } }
 
 	async load() {
-		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // 序号守卫:旧响应不覆盖新条件
 		this.setState({ loading: true, err: '' });
 		try {
 			const r = await fetchStories({ status: 'published', dynasty: this.state.dynasty || undefined, q: this.state.q || undefined, limit: LIMIT, offset: 0 }); if(__seq !== this._loadSeq){ return; }
 			const items = Array.isArray(r) ? r : (r.items || r.stories || []);
-			// [Q-492/T-454] 朝代选项**不再**从当前结果回写:选中某朝代后结果里只剩这一朝,
+			// 朝代选项**不再**从当前结果回写:选中某朝代后结果里只剩这一朝,
 			// 下拉就只剩这一项(换朝代必须先清空;持久化了朝代再进页首屏同样只有一项)。
 			// 这里只做并集补全,完整值域另由 loadDynastyOptions() 的无筛选取数提供。
 			const dyn = [...new Set([...(this.state.dynasties || []), ...items.map((s) => s.dynasty).filter(Boolean)])];
@@ -39,7 +40,7 @@ export default class XuanShiStories extends React.Component {
 		this.persist();
 	}
 
-	// [Q-492/T-454] 朝代选项的单一来源:一次无筛选取数(已发布全量 ≤LIMIT),与当前筛选无关。
+	// 朝代选项的单一来源:一次无筛选取数(已发布全量 ≤LIMIT),与当前筛选无关。
 	async loadDynastyOptions() {
 		// 本函数用【自己的】序号:此前与 load() 共用 _loadSeq,挂载时先 load(序号 1、置 loading)再调本函数(序号 2),
 		// 列表响应回来被当成过期结果丢弃且无人清 loading → 故事专题首开永远「载入…」(v3.11.0 起)。各守各的条件,互不作废。
@@ -132,7 +133,7 @@ export default class XuanShiStories extends React.Component {
 				<div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', margin: '16px 0 14px' }}>
 					<Select allowClear showSearch placeholder="朝代" size="small" style={{ minWidth: 140 }} value={this.state.dynasty || undefined}
 						options={(dynasties || []).map((x) => (Array.isArray(x) ? { value: x[0], label: `${x[0]} (${x[1]})` } : { value: x, label: x }))}
-						onChange={(v) => this.setFilter({ dynasty: v || '' })} filterOption={(i, o) => (o.label || '').indexOf(i) >= 0} />
+						onChange={(v) => this.setFilter({ dynasty: v || '' })} filterOption={(i, o) => matchesUserQuery(o.label || '', i, { ci: false })} />
 					<Input.Search placeholder="标题 / 关键词" allowClear size="small" style={{ width: 220 }} defaultValue={this.state.q} onSearch={(v) => this.setFilter({ q: v })} />
 					<span className="xuanshi-stat-sub" style={{ marginLeft: 'auto' }}>{items.length} 篇专题</span>
 				</div>

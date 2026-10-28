@@ -1,4 +1,4 @@
-// [Z3·太乙择日] 引擎+注册表金标。锚1=2026-01-01 12:30 +08:00 tn=0(阳遁六十七局,后端
+// 引擎+注册表金标。锚1=2026-01-01 12:30 +08:00 tn=0(阳遁六十七局,后端
 // parity 同锚);判别纪律(定案19):tn 0/1 两档同刻局数 67≠19=判别时刻三层断言。
 // 🔴 换日/晚子时/tenching 三参数对太乙判定面零效果(积数按绝对时辰序列,与日归属无关;
 // 2026-08-28 dump 实证 23:30 两档同盘、00:30 与前夜 23:30 同盘)——工作台不设此三档,
@@ -13,7 +13,7 @@ const ev = (type, params, pan)=>{
 	return TAIYI_CONDITION_TYPES[type].evaluate(p, params, makeTaiyiZeriEvalCtx(p));
 };
 
-describe('[Z3] 注册表契约+锚盘正反双判', ()=>{
+describe('注册表契约+锚盘正反双判', ()=>{
 	it('🔴 每类 spec 契约齐且 ≥16 类(jiyuan_is 已删:style=3 恒空串死开关)', ()=>{
 		const keys = Object.keys(TAIYI_CONDITION_TYPES);
 		expect(keys.length).toBeGreaterThanOrEqual(16);
@@ -60,7 +60,7 @@ describe('[Z3] 注册表契约+锚盘正反双判', ()=>{
 		expect(ev('victory_side', { value: 'home' }).pass).toBe(true);
 	});
 
-	it('🔴 [W1 全谱轮] 8 新类+3 扩档正反双判(锚盘真值 dump 实跑取得,非手推)', ()=>{
+	it('🔴 8 新类+3 扩档正反双判(锚盘真值 dump 实跑取得,非手推)', ()=>{
 		// 数理:主算25=无门·主大灾+长数;定算26=重阴数…;前缀匹配不误中子类
 		expect(ev('shuli_kind', { suan: 'home', kinds: ['无门'] }).pass).toBe(true);
 		expect(ev('shuli_kind', { suan: 'home', kinds: ['重阳数'] }).pass).toBe(false);
@@ -86,7 +86,7 @@ describe('[Z3] 注册表契约+锚盘正反双判', ()=>{
 		// 三元/五子元:锚盘 sanyuan 空(style=3 无纪元)判否;五子元=丙子元
 		expect(ev('sanyuan_wuziyuan', { dim: 'wuziyuan', wz: ['丙子元'] }).pass).toBe(true);
 		expect(ev('sanyuan_wuziyuan', { dim: 'wuziyuan', wz: ['甲子元'] }).pass).toBe(false);
-		// [Q-269/T-258] 时计扫描盘的三元由同盘年计积年纪元回落:全选三元必命中;单选只中其一
+		// 时计扫描盘的三元由同盘年计积年纪元回落:全选三元必命中;单选只中其一
 		expect(ev('sanyuan_wuziyuan', { dim: 'sanyuan', sy: ['上元', '中元', '下元'] }).pass).toBe(true);
 		const _sy = ['上元', '中元', '下元'].filter((x)=>ev('sanyuan_wuziyuan', { dim: 'sanyuan', sy: [x] }).pass);
 		expect(_sy.length).toBe(1);
@@ -173,7 +173,7 @@ describe('[Z3] 注册表契约+锚盘正反双判', ()=>{
 	});
 });
 
-describe('[Z3] 扫描引擎(外壳第三实例:恒等+行内同盘探针)', ()=>{
+describe('扫描引擎(外壳第三实例:恒等+行内同盘探针)', ()=>{
 	jest.setTimeout(120000);
 	const OPTS = { tn: 0 };
 	const TREE = compileTaiyiTree({ kind: 'group', joiner: 'all', children: [newTaiyiLeaf('suan_parity')] });	// 主算奇(逐时辰变,有真有假)

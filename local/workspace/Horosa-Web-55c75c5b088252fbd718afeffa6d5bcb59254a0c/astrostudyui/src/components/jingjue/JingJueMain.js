@@ -8,16 +8,17 @@ import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../com
 import { subscribeRemoteNongli, geoPatchFromRec } from '../../utils/divinationTimeDraft';
 import XQIcon from '../xq-icons';
 import { XQButton as Button, XQTabs as Tabs, XQSideSection } from '../xq-ui';
-import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
-import { ServerRoot, ResultKey } from '../../utils/constants';
-import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
-import { cachedKentangFetch } from '../../utils/kentangCache';
+import { saveModuleAISnapshotLazy, saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { castSourceKey, castFailureKeeps } from '../../utils/derivedChartSource';
+import { postKentang } from '../../services/kentangPost';   // 本机优先、失败回落远端(多页共用)
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { formatHumanValue } from '../../utils/humanReadableFields';
 import { parseDateParts } from '../../utils/dateStrSafe';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
+import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
+import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
 const { TabPane } = Tabs;
 
 function parseFieldsDateTime(fields){
@@ -53,37 +54,7 @@ function defaultSeed(){
 // 🔴 故意【不加】horosa_kentang_result_cache_v1 结果缓存:荆诀是蓍草随机分揲
 // (webjingjuesrv.py 的 seed 默认 random.randint,每次现摇),同 payload 不必同卦;
 // 缓存会把某一次分揲结果钉死 = 功能降级(与 _requestCache.js 头部禁令一致)。
-async function postJingJue(path, payload){
-	let rsp = null;
-	try{
-		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('jingjue', path), {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json; charset=UTF-8',
-			},
-			body: JSON.stringify(payload),
-		}, { retries: 0 });
-		const rawText = await rawResponse.text();
-		rsp = rawText ? JSON.parse(rawText) : null;
-		if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'jingjue.local.fetch.failed');
-		}
-	}catch(e){
-		const rawResponse = await cachedKentangFetch(`${ServerRoot}/jingjue/${path}`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json; charset=UTF-8',
-			},
-			body: JSON.stringify(payload),
-		}, { retries: 0 });
-		const rawText = await rawResponse.text();
-		rsp = rawText ? JSON.parse(rawText) : null;
-	}
-	if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-		throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'jingjue.fetch.failed');
-	}
-	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
-}
+function postJingJue(path, payload){ return postKentang('jingjue', path, payload); }
 
 function fmtValue(value){
 	return formatHumanValue(value);
@@ -113,7 +84,7 @@ export async function buildJingJueSnapshotForFields(fields, opts){
 	if(!dt){ return ''; }
 	try{
 		const optSeed = opts && opts.seed !== undefined && opts.seed !== null && opts.seed !== '' ? Number(opts.seed) : null;
-		// [挂载自检 F-23] seed=0 是页面允许输入、后端 random.seed(0) 接受的合法种子;此前 `> 0` 把 0 当未设 → 改走时间派生换卦。
+		// seed=0 是页面允许输入、后端 random.seed(0) 接受的合法种子;此前 `> 0` 把 0 当未设 → 改走时间派生换卦。
 		const seed = (Number.isFinite(optSeed) && optSeed >= 0)
 			? Math.floor(optSeed) % 1000000000
 			: (// 🔴 起课种子 BC 安全:旧式 replace(/-/g,'') 连负号一并抹 → BC 年与同数公元年折叠。
@@ -126,7 +97,7 @@ export async function buildJingJueSnapshotForFields(fields, opts){
 }
 
 class JingJueMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -140,6 +111,7 @@ class JingJueMain extends Component{
 		this.state = {
 			loading: false,
 			pan: null,
+			panSig: '',	// 屏上这张盘的起课签名(时刻 + 地点 + 种子),取失败时据此判留存 / 清掉
 			rightPanelTab: 'overview',
 			seed: defaultSeed(),
 		};
@@ -169,7 +141,6 @@ class JingJueMain extends Component{
 		}
 	}
 
-
 	componentDidMount(){
 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		this.unmounted = false;
@@ -182,6 +153,7 @@ class JingJueMain extends Component{
 	}
 
 	componentDidUpdate(prevProps, prevState){
+		clearPendingTimeOnFieldsChange(this, prevProps);
 		if(prevProps.fields !== this.props.fields && this.props.fields){
 			if(!this.restoreFromCurrentCase()){
 				this.fetchPan(this.props.fields);
@@ -247,6 +219,7 @@ class JingJueMain extends Component{
 		this.setState({
 			loading: false,
 			pan: payload.pan || null,
+			panSig: '',	// 存档盘按存档的时刻,不与此刻的起课参数比:之后起盘取失败时不拿它顶
 			seed: options.seed !== undefined ? options.seed : this.state.seed,
 		}, ()=>{
 			const pan = this.state.pan;
@@ -273,18 +246,21 @@ class JingJueMain extends Component{
 		this.onFieldsChange(geoPatchFromRec(rec, this.props.fields));
 	}
 	onTimeChanged(value){
+		notePendingTime(this, value && (value.time || value.value));
 		const dt = value.time;
 		this.onFieldsChange({
 			date: { value: dt.clone() },
 			time: { value: dt.clone() },
 			ad: { value: dt.ad },
 			zone: { value: dt.zone },
-			// [R3-A2] 步进方向提示:驱动 settle 后 /chart ±步预取(消费后即剥离)
+			// 步进方向提示:驱动 settle 后 /chart ±步预取(消费后即剥离)
 			...(value.step ? { __stepHint: value.step } : {}),
 		});
 	}
 
 	getTimeFieldsFromSelector(baseFields){
+		const _pend = pendingTimePatch(this);   // 改了时间还没等到全局盘回来:以最新改动为准(见 utils/pendingTimeDraft)
+		if(_pend){ return { ...(baseFields || {}), ..._pend }; }
 		if(!this.timeHook || !this.timeHook.getValue){
 			return null;
 		}
@@ -337,6 +313,7 @@ class JingJueMain extends Component{
 		if(!panTrig){
 			return;
 		}
+		const castSig = `${castSourceKey(fields)}#${this.state.seed}`;
 		const reqSeq = ++this.requestSeq;
 		this.setState({ loading: true });
 		try{
@@ -347,7 +324,7 @@ class JingJueMain extends Component{
 			if(this.unmounted || reqSeq !== this.requestSeq){
 				return;
 			}
-			this.setState({ pan, loading: false }, ()=>{
+			this.setState({ pan, panSig: castSig, loading: false }, ()=>{
 				// horosa_panel_ready_v1:pan 落定 = 中栏与右栏(皆由 pan 派生)画完的那一次 setState。
 				markPanelReady('cnyibu');
 				saveModuleAISnapshotLazy('jingjue', ()=>buildSnapshotText(pan));
@@ -356,7 +333,10 @@ class JingJueMain extends Component{
 			settleTrigger(this, 'fetchPan', panTrig, false);
 			console.warn('jingjue backend failed', e);
 			if(!this.unmounted && reqSeq === this.requestSeq){
-				this.setState({ loading: false });
+				// 取失败:与屏上那张盘同一起课时刻地点(只改了设置)→ 留存;换了时刻 / 地点 → 屏上那张是上一课,清掉(连同 AI 快照槽)
+				const keep = castFailureKeeps(this.state.panSig, castSig);
+				this.setState(keep ? { loading: false } : { loading: false, pan: null, panSig: '' });
+				if(!keep){ clearModuleAISnapshot('jingjue'); }
 			}
 		}
 	}
@@ -406,7 +386,7 @@ class JingJueMain extends Component{
 							<InputNumber value={this.state.seed} min={0} max={999999999} onChange={(v)=>this.setState({ seed: v || 0 })} />
 						</label>
 					</div>
-					<div className="horosa-taixuan-note">上游荆诀使用随机三十算起课。星阙用种子固定本课，点击“重起”会换一组新三分。</div>
+					<div className="horosa-taixuan-note">荆诀本为随机三十算起课。本页用种子固定本课(同一种子再起结果相同)，点击“重起”会换一组新三分。</div>
 				</XQSideSection>
 				<div className="horosa-huangji-action-row">
 					<Button type="primary" onClick={this.clickPlot}>起课</Button>
@@ -440,7 +420,7 @@ class JingJueMain extends Component{
 		const jj = pan.jingjue || {};
 		const gua = jj.gua || {};
 		return (
-			<div className="horosa-taixuan-board horosa-jingjue-board">
+			<div className="horosa-taixuan-board horosa-jingjue-board" ref={ownedBoxSizeRef(this, 'board', narrowBoardVars)}>
 				<div className="horosa-huangji-board-header">
 					<div>
 						<h2 className="horosa-taixuan-title">荆诀</h2>

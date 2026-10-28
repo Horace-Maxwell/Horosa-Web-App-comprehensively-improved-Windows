@@ -116,7 +116,8 @@
 	   放到 1180px 并按宽度分档抬字号/行高(窄栏仍会自动缩回,不会挤出横滚)。 */
 	.horosa-babylon-grid144 {
 		display: grid;
-		grid-template-columns: 68px repeat(12, 1fr);
+		// 列下限放得下两字星座名(放大档每格二十几 px 时「白羊」逐字竖排);栏宽不够时宿主横滚,宽时与 1fr 等分逐像素相同
+		grid-template-columns: 68px repeat(12, minmax(30px, 1fr));
 		gap: 3px;
 		width: 100%;
 		max-width: 1180px;

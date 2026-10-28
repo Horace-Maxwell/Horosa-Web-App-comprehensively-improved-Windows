@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/election/ElectionMain.js b/astrostudyui/src/components/election/ElectionMain.js
-index 445d4866..94d8ce13 100644
+index 2f480cfd..48809a9e 100644
 --- a/astrostudyui/src/components/election/ElectionMain.js
 +++ b/astrostudyui/src/components/election/ElectionMain.js
 @@ -23,6 +23,7 @@ import { SIGNS, SIGN_ORDER } from '../../divination/data/signs';
- import moment from 'moment';
  import { definePageSettings } from '../../utils/pageSettingsStore';
  import { shellFieldSchema, seedShellFromSaved } from '../../utils/divinationShellSettings';
+ import { toSlashDate, civilDateStrOfJdn, civilJdnOfDateStr } from '../../utils/dateStrSafe';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const Option = XQSelect.Option;
  
-@@ -502,6 +503,13 @@ class ElectionMain extends Component{
+@@ -506,6 +507,13 @@ class ElectionMain extends Component{
  	}
  
  	renderRight({ chart, extra }){

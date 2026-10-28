@@ -1,4 +1,5 @@
 import moment from 'moment';
+import { birthMomentOfChart, civilDateAfterDays } from './civilMoment';
 import * as AstroConst from '../constants/AstroConst';
 // [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明;astroAiSnapshot 不回引本文件,无环)。
 // namespace import + typeof 守卫:测试环境可能部分 mock astroAiSnapshot(只留 buildAstroSnapshotContent 等),
@@ -47,12 +48,9 @@ function lonOf(chartObj, id){
 	return null;
 }
 
+// 出生时刻单源(全年份域:公元前 / 公元 1–99 年 / 五位年不误读;见 utils/civilMoment)
 function parseBirth(chartObj){
-	const p = (chartObj && chartObj.params) ? chartObj.params : {};
-	const birth = `${p.birth || ''}`.trim();
-	if(!birth){ return null; }
-	const m = moment(birth.replace(/\//g, '-'), ['YYYY-MM-DD HH:mm:ss', 'YYYY-MM-DD HH:mm', 'YYYY-MM-DD']);
-	return m.isValid() ? m : null;
+	return birthMomentOfChart(chartObj);
 }
 
 export function computeLunationPhase(elong){
@@ -70,7 +68,7 @@ export function buildLunationPhases(chartObj, opts){
 	const natalElong = norm360(moonLon - sunLon);
 	const natalPhase = computeLunationPhase(natalElong);
 	const birth = parseBirth(chartObj);
-	const dateAt = (age) => (birth ? moment(birth).add(Math.round(age * 365.2422), 'days').format('YYYY-MM-DD') : '');
+	const dateAt = (age) => (birth ? civilDateAfterDays(birth, age * 365.2422) : '');   // 民用历日期标签(1582 以前儒略历)
 	// 起点：出生当下的相（age 0）。然后逐个 45° 边界往后排到 maxAge。
 	const timeline = [{ age: 0, date: dateAt(0), elong: natalElong, phase: natalPhase, isStart: true }];
 	// 下一个 45° 边界对应的累计度数。

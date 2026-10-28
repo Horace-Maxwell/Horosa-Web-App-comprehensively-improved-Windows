@@ -1,4 +1,4 @@
-// [批三④⑥] 通知脚本钩 + stdio 代理配置合同:动作表含 notify-script;非桌面运行器回 ok:false 且不抛;deps.notifyScript 非桌面抛错;载荷形状(event/title/at/payload,无路径无令牌);
+// 通知脚本钩 + stdio 代理配置合同:动作表含 notify-script;非桌面运行器回 ok:false 且不抛;deps.notifyScript 非桌面抛错;载荷形状(event/title/at/payload,无路径无令牌);
 // 面板标签在位;Claude Desktop 配置在有 binaryPath+endpointFile 时用 command/args 形态且不含令牌,否则回落 http。
 import { AUTOMATION_ACTION_TYPES, buildActionRunners } from '../aiAgent/automation/actions';
 import { buildDefaultAutomationDeps } from '../aiAgent/automation/deps';

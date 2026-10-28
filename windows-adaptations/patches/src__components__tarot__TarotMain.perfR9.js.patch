@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/tarot/TarotMain.js b/astrostudyui/src/components/tarot/TarotMain.js
-index 99241665..309714a2 100644
+index 255648e0..a6591770 100644
 --- a/astrostudyui/src/components/tarot/TarotMain.js
 +++ b/astrostudyui/src/components/tarot/TarotMain.js
 @@ -23,6 +23,8 @@ import { cardElement } from './engine/cardSchema';
@@ -11,7 +11,7 @@ index 99241665..309714a2 100644
  // settings↔state 键映射单源(保存/载入同表,防「存而不载」)——正文与 roundtrip 哨兵见 engine/settingsMap.js。
  import { settingsFromState, statePatchFromSavedSettings } from './engine/settingsMap';
  import { REVERSAL_MODE_GROUPS, REVERSAL_TEMPLATES } from './engine/reversalModes';
-@@ -249,6 +251,7 @@ class TarotMain extends Component{
+@@ -258,6 +260,7 @@ class TarotMain extends Component{
  		if(this.props.hook){ this.props.hook.fun = () => { if(!this.unmounted){ this.restoreFromCurrentCase(); } }; }
  	}
  
@@ -19,7 +19,7 @@ index 99241665..309714a2 100644
  	componentDidMount(){
  		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
  		this.unmounted = false;
-@@ -289,6 +292,10 @@ class TarotMain extends Component{
+@@ -298,6 +301,10 @@ class TarotMain extends Component{
  		if(seed === undefined || seed === null || seed === ''){ return; }
  		const reading = buildReading(this.state.deckId, this.state.spreadType, `${seed}`, settingsFromState(this.state));
  		this.setState({ reading, lastSeed: `${seed}` }, () => {
@@ -30,7 +30,7 @@ index 99241665..309714a2 100644
  			saveModuleAISnapshotLazy('tarot', () => buildReadingText(this.state.reading, this.state.question, { clarifier: !!this.state.clarifierShown }));
  		});
  	}
-@@ -1026,7 +1033,9 @@ class TarotMain extends Component{
+@@ -1043,7 +1050,9 @@ class TarotMain extends Component{
  		const summary = reading && reading.summary;
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-content-tabs horosa-tarot-tabs">
@@ -40,7 +40,7 @@ index 99241665..309714a2 100644
  					<div className="horosa-tarot-reading">
  						{this.state.question ? <div className="horosa-info-card"><div className="horosa-info-card-title">所问</div><div>{this.state.question}</div></div> : null}
  						{reading && reading.firstReversal && !reading.firstReversal.error ? (
-@@ -1063,8 +1072,10 @@ class TarotMain extends Component{
+@@ -1080,8 +1089,10 @@ class TarotMain extends Component{
  							</div>
  						) : <div className="horosa-tarot-empty">尚未抽牌</div>}
  					</div>
@@ -49,9 +49,9 @@ index 99241665..309714a2 100644
  				<TabPane tab="牌位" key="positions">
 +					<FreezeSubTab active={activeKey === 'positions'}>{() => (
  					<table className="horosa-tarot-table">
- 						<thead><tr><th>位置</th><th>牌</th><th>正逆</th><th>含义</th></tr></thead>
+ 						<thead><tr><th style={labelCellStyle('位置')}>位置</th><th style={labelCellStyle('牌')}>牌</th><th style={labelCellStyle('正逆')}>正逆</th><th style={labelCellStyle('含义')}>含义</th></tr></thead>
  						<tbody>{draws.map((d) => (
-@@ -1076,8 +1087,10 @@ class TarotMain extends Component{
+@@ -1093,8 +1104,10 @@ class TarotMain extends Component{
  							</tr>
  						))}</tbody>
  					</table>
@@ -60,9 +60,9 @@ index 99241665..309714a2 100644
  				<TabPane tab="牌义" key="meanings">
 +					<FreezeSubTab active={activeKey === 'meanings'}>{() => (
  					<table className="horosa-tarot-table">
- 						<thead><tr><th>牌</th>{caps.reversals !== false ? <th>正逆</th> : null}{isTarot ? <th>对应</th> : null}{caps.dignities ? <th>尊位</th> : null}<th>关键义</th></tr></thead>
+ 						<thead><tr><th style={labelCellStyle('牌')}>牌</th>{caps.reversals !== false ? <th style={labelCellStyle('正逆')}>正逆</th> : null}{isTarot ? <th style={labelCellStyle('对应')}>对应</th> : null}{caps.dignities ? <th style={labelCellStyle('尊位')}>尊位</th> : null}<th style={labelCellStyle('关键义')}>关键义</th></tr></thead>
  						<tbody>{draws.map((d) => {
-@@ -1096,14 +1109,15 @@ class TarotMain extends Component{
+@@ -1112,14 +1125,15 @@ class TarotMain extends Component{
  							);
  						})}</tbody>
  					</table>

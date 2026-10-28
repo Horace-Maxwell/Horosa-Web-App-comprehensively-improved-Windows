@@ -1,4 +1,4 @@
-// [挂载自检 F-21] 演禽/蠢子数农历锚点:auto 档真换算,不再拿公历月日冒充农历。
+// 演禽/蠢子数农历锚点:auto 档真换算,不再拿公历月日冒充农历。
 import { solarToLunarYmd, computeKinFieldsResync } from '../kinAstroFieldsSync';
 
 describe('农历锚点真换算', ()=>{

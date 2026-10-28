@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/homepage/PageHeader.js b/astrostudyui/src/components/homepage/PageHeader.js
-index df02a759..fc69ea52 100644
+index 54e561de..9f15bb50 100644
 --- a/astrostudyui/src/components/homepage/PageHeader.js
 +++ b/astrostudyui/src/components/homepage/PageHeader.js
-@@ -42,7 +42,8 @@ import { openExternalUrl, hasTauriInvoke, invokeDesktopCommand } from '../../uti
+@@ -46,7 +46,8 @@ import { openExternalUrl, hasTauriInvoke, invokeDesktopCommand } from '../../uti
  import styles from './PageHeader.less';
  import { getLayoutViewportWidth } from '../../utils/shellZoom';
  

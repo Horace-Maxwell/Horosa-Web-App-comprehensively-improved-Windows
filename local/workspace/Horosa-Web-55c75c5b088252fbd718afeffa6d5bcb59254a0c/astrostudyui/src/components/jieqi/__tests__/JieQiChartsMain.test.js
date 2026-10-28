@@ -56,7 +56,7 @@ describe('JieQiChartsMain chart compatibility', ()=>{
 		})).toBe(false);
 	});
 
-	// [Q-424/T-389] 日界 / 晚子时进兼容判据:全局改成 24 点换日(after23NewDay=0)后,按 23 点换日取的旧盘不得复用。
+	// 日界 / 晚子时进兼容判据:全局改成 24 点换日(after23NewDay=0)后,按 23 点换日取的旧盘不得复用。
 	test('day-boundary keys participate: after23NewDay/lateZiHourUseNextDay change → incompatible; both default → compatible', ()=>{
 		const base = { year: 2026, ad: 1, zone: '+08:00', lat: '26n04', lon: '119e19', gpsLat: 26.04, gpsLon: 119.19, hsys: 3, zodiacal: 1, doubingSu28: 0 };
 		const chartObj = { params: { ...base } };

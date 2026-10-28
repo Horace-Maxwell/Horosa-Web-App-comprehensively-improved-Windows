@@ -18,7 +18,7 @@ beforeAll(()=>{
 		font: '', textBaseline: '', fillStyle: '', shadowColor: '', shadowBlur: 0,
 		measureText: (t)=>({ width: Math.max(8, `${t}`.length * 10) }),
 		fillText: ()=>{}, clearRect: ()=>{}, drawImage: ()=>{},
-		fillRect: ()=>{},   // [WP-D] makeStarSprite→getGlowTexture 用(星空氛围层)
+		fillRect: ()=>{},   // makeStarSprite→getGlowTexture 用(星空氛围层)
 		getImageData: ()=>({ data: new Uint8ClampedArray(4) }),
 		save: ()=>{}, restore: ()=>{}, scale: ()=>{},
 		beginPath: ()=>{}, arc: ()=>{}, fill: ()=>{}, stroke: ()=>{},
@@ -46,7 +46,7 @@ function mkEngine(){
 	return engine;
 }
 
-describe('[WP-4] setData 全链 smoke(真 fixture 建场链;THREE=全仓 stub)', ()=>{
+describe('setData 全链 smoke(真 fixture 建场链;THREE=全仓 stub)', ()=>{
 	test('①setData 分步建场零失败(R-undefined 型作用域错在此必红)', ()=>{
 		const engine = mkEngine();
 		const errs = [];
@@ -103,7 +103,7 @@ describe('[WP-4] setData 全链 smoke(真 fixture 建场链;THREE=全仓 stub)',
 		expect(sel && sel.row && sel.row.cat).toBe('M');
 		engine.dispose();
 	});
-	// —— [WP-E] 防回潮三测:T 类分派 / PD_COLOR 语义键契约 / 建场全链 console 干净 ——
+	// —— 防回潮三测:T 类分派 / PD_COLOR 语义键契约 / 建场全链 console 干净 ——
 	test('⑦T 类行(cat=T,界)选中不抛(几何按行 cat 分派;pdTerms 开启产出的行)', ()=>{
 		const engine = mkEngine();
 		const tRes = { ...FIXTURE, rows: [{ ...FIXTURE.rows[0], cat: 'T' }] };
@@ -120,15 +120,15 @@ describe('[WP-4] setData 全链 smoke(真 fixture 建场链;THREE=全仓 stub)',
 			expect(Number.isFinite(PD_COLOR[k])).toBe(true);
 		});
 	});
-	test('⑩[G3] 选中态机:显隐策略生效(restore 非空)+ 运动资产不再挂 skyGroup + 实体点 glyph 化字段', ()=>{
+	test('⑩选中态机:显隐策略生效(restore 非空)+ 运动资产不再挂 skyGroup + 实体点 glyph 化字段', ()=>{
 		const engine = mkEngine();
 		engine.setData(FIXTURE);
 		engine.selectRow(0);
 		// 显隐/高亮还原钩非空 = 应星高亮+其余隐去策略确实执行(纯 JS 数组,stub 下真实可断言)
 		expect(engine._selection.restore.length).toBeGreaterThan(0);
-		// [G3] extraSky 兼容字段恒空 —— 选中行运动资产全数改挂 dirGroup(skyGroup 零残留)
+		// extraSky 兼容字段恒空 —— 选中行运动资产全数改挂 dirGroup(skyGroup 零残留)
 		expect(engine._selection.extraSky).toEqual([]);
-		// [G1] 实体点 glyph 化:非虚点条目带 isSprite 标记与 selK 基档
+		// 实体点 glyph 化:非虚点条目带 isSprite 标记与 selK 基档
 		let sawSprite = false;
 		engine.pointMeshMap.forEach((entry)=>{
 			if(!entry.isVirtual){
@@ -140,7 +140,7 @@ describe('[WP-4] setData 全链 smoke(真 fixture 建场链;THREE=全仓 stub)',
 		expect(sawSprite).toBe(true);
 		engine.dispose();
 	});
-	test('⑫[D2] 动方入选中态机:全族恒 prom(应星固定、迫星动)——行星与 MC 行同为 prom', ()=>{
+	test('⑫动方入选中态机:全族恒 prom(应星固定、迫星动)——行星与 MC 行同为 prom', ()=>{
 		const engine = mkEngine();
 		engine.setData(FIXTURE);
 		const iSig = FIXTURE.rows.findIndex((r)=>!/MC|Asc|Vertex|House/i.test(r.sig));
@@ -148,12 +148,12 @@ describe('[WP-4] setData 全链 smoke(真 fixture 建场链;THREE=全仓 stub)',
 		expect(iSig).toBeGreaterThanOrEqual(0);
 		expect(iMc).toBeGreaterThanOrEqual(0);
 		engine.selectRow(iSig);
-		expect(engine._selection.mover).toBe('prom');   // [D2] 行星族亦迫星动(D1 曾 'sig')
+		expect(engine._selection.mover).toBe('prom');   // 行星族亦迫星动(D1 曾 'sig')
 		engine.selectRow(iMc);
 		expect(engine._selection.mover).toBe('prom');
 		engine.dispose();
 	});
-	test('⑬[L1] 圈层开关:六圈层组全登记+setFrameLayers 状态生效且持久化(标注总开关含内)', ()=>{
+	test('⑬圈层开关:六圈层组全登记+setFrameLayers 状态生效且持久化(标注总开关含内)', ()=>{
 		const engine = mkEngine();
 		engine.setData(FIXTURE);
 		// 六圈全登记(ecliptic/equator/grid + 地平三圈;labels 是横切开关不占组)

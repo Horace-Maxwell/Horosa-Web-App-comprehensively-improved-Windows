@@ -3,6 +3,18 @@ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { APPEARANCE_DARK } from '../../utils/appearance';
 import { openExternalUrl } from '../../utils/aiAnalysisDesktop';
 import { getDeclaredZoom } from '../../utils/zoomDomain';
+import { findCelebrityChart, buildCelebrityChartValues, CELEBRITY_REFRESH_KEYS } from '../../utils/astrodata/celebrityDedupe';
+import { attachScriptDocument, scriptQueryVariants } from '../../utils/scriptMode';
+
+// 名人库同编号重复导入时只刷新这些出生数据键(与命盘列表导入名人库 JSON 同一份)
+export { CELEBRITY_REFRESH_KEYS };
+
+// 加入 / 刷新 effect 的回值 → 回报给名人库页的状态:已落盘 = ok 状态;只在本次运行有效 = 'session';没写进 = 'failed'
+export function importStatusOf(ret, okStatus){
+	if(ret === false){ return 'failed'; }
+	if(ret === 'session'){ return 'session'; }
+	return okStatus;
+}
 
 /**
  * Astrodata —— A/AA 名人星盘目录(内嵌「工具 · 数据库」页)。
@@ -53,7 +65,7 @@ export function frameMinHeight(){
 }
 
 class AstrodataPage extends React.Component {
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -95,6 +107,7 @@ class AstrodataPage extends React.Component {
 	}
 
 	componentWillUnmount(){
+		if(this._detachScriptDoc){ this._detachScriptDoc(); this._detachScriptDoc = null; }
 		window.removeEventListener('message', this.onMsg);
 		window.removeEventListener('resize', this.onResize);
 		if(this.zoomObserver){
@@ -160,6 +173,15 @@ class AstrodataPage extends React.Component {
 	onFrameLoad = () => {
 		this.postTheme();
 		this.syncZoom(true);
+		// 界面简繁:名人库页是同源 iframe,把它的文档挂进显示层(换页重挂;跨源 / 拿不到文档的跳过)
+		if(this._detachScriptDoc){ this._detachScriptDoc(); this._detachScriptDoc = null; }
+		try{
+			const frame = this.iframeRef.current;
+			const doc = frame && frame.contentDocument;
+			if(doc){ this._detachScriptDoc = attachScriptDocument(doc); }
+			// 页内检索(sql.js LIKE)同口径:界面繁体时查询词连同简体归一 / 繁体显示写法一起查,任一写法命中即算
+			if(frame && frame.contentWindow){ frame.contentWindow.__horosaScriptQueryVariants = scriptQueryVariants; }
+		}catch(e){ /* 跨源:不转换 */ }
 	};
 
 	onMsg = (e) => {
@@ -169,7 +191,29 @@ class AstrodataPage extends React.Component {
 		const frame = this.iframeRef.current;
 		if(frame && e.source && e.source !== frame.contentWindow){ return; }
 		if(d.type === 'astrodata:importChart' && d.chart){
-			this.props.dispatch({ type: 'user/addLocalChartQuiet', payload: d.chart });
+			// 去重键与 AI 建档同源(名人库编号 / 同名同生辰):AI 已按同名同生辰建过 → 不再建第二条;
+			// 同编号已存在 → 原地刷新出生数据,但名字与分组保持你改过的;在归档里的不动。
+			// 结果回报给名人库页,由它如实提示(此前一律提示「已加入」,其实可能什么都没做)。
+			const reply = (status, name) => {
+				const target = (e && e.source) || (frame && frame.contentWindow);
+				try{ if(target && target.postMessage){ target.postMessage({ type: 'astrodata:importResult', status, name: name || '' }, '*'); } }catch(err){ /* ignore */ }
+			};
+			const existing = findCelebrityChart({ id: d.chart.cid, name: d.chart.name, birth: d.chart.birth });
+			if(existing && existing.archived === true){ reply('archived', existing.name); return; }
+			if(existing && existing.cid !== d.chart.cid){ reply('exists', existing.name); return; }
+			if(existing){
+				// 同编号刷新:只刷新出生数据(时刻 / 时区 / 经纬度 / 地名)与名人库编号;名字、分组、性别、备注、
+				// 随盘设置等一律保持现档(不经「新建」路径,也不给旧档补代次标记)。
+				const patch = { cid: existing.cid, celebrityId: d.chart.celebrityId || d.chart.cid };
+				CELEBRITY_REFRESH_KEYS.forEach((k)=>{ if(d.chart[k] !== undefined){ patch[k] = d.chart[k]; } });
+				const ret = this.props.dispatch({ type: 'user/refreshLocalChartQuiet', payload: patch });
+				Promise.resolve(ret).then((st)=>reply(importStatusOf(st, 'refreshed'), existing.name), ()=>reply('failed', existing.name));
+				return;
+			}
+			// 评级 / 回源链接 / 有无出生时间随消息的 meta 来;旧页面没带 meta 时评级取分组里的那一项
+			const meta = d.meta && typeof d.meta === 'object' ? d.meta : { rodden: Array.isArray(d.chart.group) ? d.chart.group[1] : '' };
+			const ret = this.props.dispatch({ type: 'user/addLocalChartQuiet', payload: buildCelebrityChartValues(d.chart, meta) });
+			Promise.resolve(ret).then((st)=>reply(importStatusOf(st, 'imported'), d.chart.name), ()=>reply('failed', d.chart.name));
 			return;
 		}
 		// 外链(来源 Astro-Databank / Wikipedia / CC 等):桌面 webview 里 target=_blank 无反应 → 交宿主在系统浏览器打开。

@@ -9,6 +9,21 @@ export default {
 		immer: false,
 	},
 	antd: {},
+	// antd 文字三色接主题变量(变量在 layouts/app/01-base.less 亮 / 暗两个 :root 各定义一份;兜底 = antd 原值)。
+	// 不接时 antd 把 rgba(0,0,0,.85) / #bfbfbf 编译死在样式表里:暗色下 h1–h6、提示条标题、未单独着色的正文是黑字隐身,
+	// 亮色下选择框 / 输入框占位符在宣纸底只有 1.6–1.8:1。只接这三个 —— 它们在 antd 源码里不进任何颜色函数
+	// (fade / tint / shade 之类遇到 var() 会编译失败;@text-color-secondary 进了 shade(),故不接)。
+	// 链接三色同理(antd 原值 #1890ff 在宣纸底只有 2.9:1):@link-color 只进 color 声明与按钮配色 mixin(不进颜色函数);
+	// 悬停 / 按下两色在 antd 里由 colorPalette(@link-color) 现算 —— 一并显式改接,那两条现算式就不再求值。
+	// 合同:src/utils/__tests__/themeContrastContract.test.js。
+	theme: {
+		'@text-color': 'var(--horosa-ant-text, rgba(0, 0, 0, 0.85))',
+		'@heading-color': 'var(--horosa-ant-heading, rgba(0, 0, 0, 0.85))',
+		'@input-placeholder-color': 'var(--horosa-placeholder, #bfbfbf)',
+		'@link-color': 'var(--horosa-link, #1890ff)',
+		'@link-hover-color': 'var(--horosa-link-hover, #40a9ff)',
+		'@link-active-color': 'var(--horosa-link-active, #096dd9)',
+	},
 	dynamicImport: {},
 	// 性能分包:多个技法路由 chunk 曾各自内联同一批重依赖(three/lunar/kinastro 等被双份
 	// 打进 5.7MB+4.8MB 两个 chunk,双份下载双份解析)。把 ≥2 处引用的重库/重源码提成命名
@@ -103,10 +118,5 @@ export default {
 		config.plugin('moment-locale-trim')
 			.use(webpack.ContextReplacementPlugin, [/moment[\\/]locale$/, /zh-cn/]);
 	},
-	dll: false,
-	hardSource: false,
-	pwa: false,
-	hd: false,
-	fastClick: false,
 	title: '星阙 - 玄学与星座云平台',
 }

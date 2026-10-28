@@ -2,11 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import { buildTimeBasisLine, timeBasisLabel } from '../timeBasisLine';
 import { AGENT_SYSTEM_RULES } from '../aiAgent/protocol';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 // 跨技法「时间基准」自声明合同:三处 [起盘信息] 构造器(八字/七政×2/星盘)必须经 buildTimeBasisLine 追加一行,
 // AI 守则必须告诉模型「各技法时间基准可不同,以自声明为准」——否则同一时刻八字丁酉/七政戊戌会被模型判为算错。
 const ROOT = path.resolve(__dirname, '..', '..');
-const read = (rel)=>fs.readFileSync(path.join(ROOT, rel), 'utf8');
+const read = (rel)=>readSource(path.join(ROOT, rel));
 
 describe('timeBasisLine · 单行格式', ()=>{
 	test('八字默认真太阳时;缺参按「钟表时」+ 否/否', ()=>{

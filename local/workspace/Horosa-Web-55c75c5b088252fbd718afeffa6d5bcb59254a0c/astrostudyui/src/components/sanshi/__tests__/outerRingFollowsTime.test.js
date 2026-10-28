@@ -18,6 +18,7 @@
  */
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 // 盘面绘制已单源迁至 SanshiUnitedBoard(择日概览共享;2026-08-30)——渲染锚(outerShift 等
 // renderLiuRengMarks 体内常量)在 Board;数据/布局纯函数(getOuterLabelLayout 等)仍在 Main。
@@ -28,7 +29,7 @@ const FLAGS = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'utils', 'p
 
 describe('三式外圈随时间校正(horosa_sanshi_outer_follow_time_v1)', () => {
 	test('① componentDidUpdate 的 chartObj 校正不带 awaitingChartSync 前置条件', () => {
-		const i = SRC.indexOf('componentDidUpdate(prevProps){');
+		const i = SRC.search(/componentDidUpdate\(prevProps(?:,\s*prevState)?\)\{/);	// 签名可带 prevState
 		expect(i).toBeGreaterThan(-1);
 		const body = SRC.slice(i, i + 2600);
 		// 必须有「chartObj 变了 + 已起盘 ⇒ refreshAll(force)」这条
@@ -97,11 +98,14 @@ describe('六壬环角宫排版(用户三轮点单定版)', () => {
 
 describe('遁甲/择日 全屏遮罩已撤为中栏小徽标(用户明令)', () => {
 	const DJ = fs.readFileSync(path.join(__dirname, '..', '..', 'dunjia', 'DunJiaMain.js'), 'utf8');
-	const LESS = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'layouts', 'app.less'), 'utf8');
+	const LESS = readSource(path.join(__dirname, '..', '..', '..', 'layouts', 'app.less'));
 
 	test('DunJiaMain 不再用 <Spin> 包裹整个三栏', () => {
-		expect(DJ).not.toMatch(/<Spin spinning=\{this\.state\.loading\}>/);
-		expect(DJ).not.toMatch(/^import \{ Spin[,}]/m);
+		const { jsxNodesInFile } = require('../../../utils/__tests__/helpers/jsxProps');
+		const { importBindings } = require('../../../utils/__tests__/helpers/importSpecs');
+		const djFile = path.join(__dirname, '..', '..', 'dunjia', 'DunJiaMain.js');
+		expect(jsxNodesInFile(djFile, 'Spin').filter((e) => e.attrs.spinning === 'this.state.loading')).toEqual([]);
+		expect(importBindings(DJ).filter((b) => b.source === 'antd' && b.imported === 'Spin')).toEqual([]);
 	});
 
 	test('中栏右上角小徽标在位', () => {

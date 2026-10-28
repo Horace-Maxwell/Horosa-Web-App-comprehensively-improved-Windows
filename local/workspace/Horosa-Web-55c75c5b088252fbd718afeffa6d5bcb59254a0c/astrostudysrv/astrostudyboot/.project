@@ -3,16 +3,11 @@
 	<name>astrostudyboot</name>
 	<comment></comment>
 	<projects>
-		<project>astrodeeplearn</project>
-		<project>astroesp</project>
-		<project>astroreader</project>
 		<project>astrostudy</project>
 		<project>astrostudycn</project>
 		<project>basecomm</project>
 		<project>boundless</project>
 		<project>image</project>
-		<project>media</project>
-		<project>medialib</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

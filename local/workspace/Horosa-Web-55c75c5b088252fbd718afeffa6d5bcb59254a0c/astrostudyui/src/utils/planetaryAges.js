@@ -1,4 +1,5 @@
 import moment from 'moment';
+import { birthMomentOfChart } from './civilMoment';
 import * as AstroConst from '../constants/AstroConst';
 import * as AstroText from '../constants/AstroText';
 // [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明;astroAiSnapshot 不回引本文件,无环)。
@@ -34,14 +35,9 @@ export const PLANETARY_AGES = [
 	{ planet: AstroConst.SATURN, from: 68, to: Infinity },
 ];
 
+// 出生时刻单源(全年份域:公元前 / 公元 1–99 年 / 五位年不误读;见 utils/civilMoment)
 function parseBirthMoment(chartObj){
-	const p = (chartObj && chartObj.params) ? chartObj.params : {};
-	const birth = `${p.birth || ''}`.trim();
-	if(!birth){
-		return null;
-	}
-	const m = moment(birth.replace(/\//g, '-'), ['YYYY-MM-DD HH:mm:ss', 'YYYY-MM-DD HH:mm', 'YYYY-MM-DD']);
-	return m.isValid() ? m : null;
+	return birthMomentOfChart(chartObj);
 }
 
 // 计算各年龄带 + 当前年龄；叠加该带主星的本命落座（仅展示，缺则留空）。

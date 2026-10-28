@@ -1,15 +1,15 @@
-// 旁问面板(A5;借鉴 Codex /side):临时问一句,右侧小面板流式作答——不进主线、不落库、不带工具;
-// [Q-324] system 走页面的 buildResolvedPromptQuiet:与主发送**同一份**构造(前缀逐字节同构、照吃缓存),但一个页面态都不写
+// 旁问面板(A5):临时问一句,右侧小面板流式作答——不进主线、不落库、不带工具;
+// system 走页面的 buildResolvedPromptQuiet:与主发送**同一份**构造(前缀逐字节同构、照吃缓存),但一个页面态都不写
 // ——否则旁问与主发送并发时会把横幅的裁剪账与 usage.prompt 稳定层指纹串台。
 // 「转入主线」把问题交给 handleSend 正常发送。关闭即丢。
 import React from 'react';
 import { Drawer, Input, Button, message } from 'antd';
 import { requestAIAnalysisChatStream } from '../../../services/aianalysis';
-import { applyThinkingLevel, parseModelSelection, applyChatParams } from '../../../utils/aiAnalysisProviders';   // [Q-045] 浮层参数单源
+import { applyThinkingLevel, parseModelSelection, applyChatParams } from '../../../utils/aiAnalysisProviders';   // 浮层参数单源
 import { readContextPolicy, windowChatMessages } from '../../../utils/aiChatHistory';
 import { historyContentOf } from '../../../utils/aiBestOfN';
 
-// [Q-287/PP-11] 旁问口径:带窗口化的主线历史(与主发送同 windowChatMessages;此前只发 [system,user],历史全靠 system 的
+// 旁问口径:带窗口化的主线历史(与主发送同 windowChatMessages;此前只发 [system,user],历史全靠 system 的
 // 「最近对话」层——缺省窗口档该层不产生 → 旁问「刚才说的大运是哪一步」答不上,切不裁档才答得上)。
 function sideHistory(d, mainline){
 	const list = Array.isArray(d.messages) ? d.messages : [];
@@ -40,7 +40,7 @@ export default function SideQuestionPanel({ open, initialQuestion, onClose, deps
 		try{
 			const pr = await _buildPrompt(text, profile, undefined);
 			const system = pr && (pr.systemPrompt || pr.prompt || pr.system) ? `${pr.systemPrompt || pr.prompt || pr.system}` : '';
-			// [Q-045] 旁问此前只套思考档,浮层里的温度 / top_p / 停止序列 / 两惩罚 / JSON 模式一概不发;
+			// 旁问此前只套思考档,浮层里的温度 / top_p / 停止序列 / 两惩罚 / JSON 模式一概不发;
 			// 现在与主发送同一份 applyChatParams —— 旁问问的是同一盘,参数口径该一致。
 			const opts = applyChatParams(applyThinkingLevel({ ...(profile.providerOptions || {}) }, d.thinkingLevel || 'off', profile.providerType, model), {
 				profile, model,

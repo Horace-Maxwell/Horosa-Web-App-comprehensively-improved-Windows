@@ -1,4 +1,4 @@
-// [批五·P2] resolve_place 工具面合同(此前只有 normalize/place 纯函数测试,工具壳零覆盖):解析成功形状 / 零命中错误码 / 多候选不擅自解析 / cacheable 只读。
+// resolve_place 工具面合同(此前只有 normalize/place 纯函数测试,工具壳零覆盖):解析成功形状 / 零命中错误码 / 多候选不擅自解析 / cacheable 只读。
 import { registerBuiltinTools } from '../aiTools';
 import { runTool, exportToolManifest, __resetToolsForTests } from '../aiTools/registry';
 

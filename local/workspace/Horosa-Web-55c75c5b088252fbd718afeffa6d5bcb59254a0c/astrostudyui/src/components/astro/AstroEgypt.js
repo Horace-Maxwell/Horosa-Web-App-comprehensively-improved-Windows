@@ -6,7 +6,7 @@ import { Component } from 'react';
 import { Input, Select } from 'antd';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
-import { astroSymbol, cardStyle, SmallTable, chartParams, chartRequestKey, unwrapResult } from './AstroExtraCommon';
+import { astroSymbol, cardStyle, SmallTable, chartParams, chartRequestKey, unwrapResult, signCnName as sn } from './AstroExtraCommon';
 import { XQTabs, XQSectionTitle, XQSelect } from '../xq-ui';
 import { SIGNS, SIGN_ORDER } from '../../divination/data/signs';
 import {
@@ -25,13 +25,13 @@ import {
 import { EGYPT_GODS, egyptianGodSegmentText, egyptianGodSign, EGYPT_GODS_DISCLAIMER } from '../../divination/data/egyptianGods';
 import { paransForDegree, circumpolarSplit, PARAN_KINDS, PARAN_ORB_DEFAULT, PARAN_NOTE } from '../../divination/data/egyptianParans';
 import { decanImageAt, DECAN_IMAGE_NOTE, EXTRA_ZODIAC_FIGURES, EXTRA_ZODIAC_NOTE } from '../../divination/data/egyptianDecanImages';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 
 // jest partial-mock 防御:本文件因 buildEgyptSectionLines 被 astroAiSnapshot 引入更多测试模块链,
 // 个别套件对 xq-ui 做部分 mock(XQTabs=undefined)→ 顶层取值炸整链。可选链兜底:mock 环境只调
 // 纯函数不渲染组件;生产 XQTabs 恒真,行为零差。
 const TabPane = (XQTabs || {}).TabPane;
 const norm360 = (x) => ((x % 360) + 360) % 360;
-const sn = (s) => (SIGNS[s] && SIGNS[s].cn) || s || '-';
 // 座 glyph 走项目 ywastro 字体(同行星 glyph),而非 Unicode 星座符号(系统会渲成彩色 emoji)。
 // astroSymbol 以 AstroConst 大写 id(如 'Aries')为键取 AstroMsg;signs.js 的 .en 即该键。
 const sgKey = (s) => (SIGNS[s] && SIGNS[s].en) || s;
@@ -76,7 +76,7 @@ export function buildEgyptSectionLines(chartObj, school){
 		lines.push(`◆ 所用口径：${v.diff.map((d) => `${d.label}=${d.valueLabel}`).join('；')}`);
 	}
 	// ◆ 各行星落旬:逐点 旬序/旬位/主显名/面主 + 旬星塔罗(与 renderDecanRing/renderTarot 本盘列同源同算)
-	// [Q-540/T-502] 主显名标签随「旬名传统」档:埃及本名/科普特-希腊名/赫尔墨斯名(此前恒标「埃及名」,选后两档时标签错)。
+	// 主显名标签随「旬名传统」档:埃及本名/科普特-希腊名/赫尔墨斯名(此前恒标「埃及名」,选后两档时标签错)。
 	const namingLabel = ((EGYPT_DECAN_NAMINGS[v.school && v.school.decanNaming] || EGYPT_DECAN_NAMINGS[EGYPT_DECAN_NAMING_DEFAULT]) || {}).label || '埃及本名';
 	const nameTag = namingLabel === '埃及本名' ? '埃及名' : namingLabel;
 	lines.push('◆ 各行星落旬');
@@ -116,7 +116,7 @@ class AstroEgypt extends Component {
 	constructor(props){
 		super(props);
 		// 流派持久化读回;petosirisMod 由流派轴统管(旧 state 键退役,数字占面板改读流派)
-		// [Q-255/AS-27 裁决 2026-09-18] 载入存有 egypt_* 随盘七轴的命盘 → 以随盘口径为初值(AI 快照本就优先读随盘),不再只读本机仓致页面与快照口径不同
+		// 载入存有 egypt_* 随盘七轴的命盘 → 以随盘口径为初值(AI 快照本就优先读随盘),不再只读本机仓致页面与快照口径不同
 		this.state = { nameInput: '', lunarDay: 1, school: egyptSchoolFromFields(this.props.fields) || currentEgyptSchool(), extra: null, extraKey: '', paranOrb: PARAN_ORB_DEFAULT };
 		this._viewCache = null;
 		this._mounted = false;
@@ -144,9 +144,13 @@ class AstroEgypt extends Component {
 			silent: true,
 			timeoutMs: 30000,
 		}).then((data) => {
+			// 回包时盘已换:在途标记挡掉了新盘那次取数 → 丢弃旧盘结果并立刻为新盘补取
+			const currentKey = this.props.value && this.props.value.chart ? chartRequestKey(this.props.value, 'egypt-calendar') : null;
+			const superseded = currentKey !== key;
 			this._loadingExtra = false;
 			if(!this._mounted){ return; }
-			this.setState({ extra: unwrapResult(data) || {}, extraKey: key });
+			if(superseded){ this.ensureExtra(); return; }
+			this.setState({ extra: unwrapResult(data) || {}, extraSig: natalSourceKey(chartObj), extraKey: key });
 		}).catch(() => {
 			this._loadingExtra = false;
 			if(!this._mounted){ return; }
@@ -158,7 +162,9 @@ class AstroEgypt extends Component {
 	// 轻量记忆化:同一 (chartObj, school) 不重复派生(36 旬表 + 9 点 + 历法换算)
 	view(){
 		const chartObj = this.props.value;
-		const { school, extra } = this.state;
+		const { school } = this.state;
+		// 天狼偕日升只用出自当前命主的那份(换盘后补取在途 / 取失败时不拿上一位命主的)
+		const extra = pickKeyedDerived(this.state.extra, this.state.extraSig, natalSourceKey(chartObj));
 		if(this._viewCache && this._viewCache.chartObj === chartObj
 			&& this._viewCache.school === school && this._viewCache.extra === extra){
 			return this._viewCache.v;
@@ -209,7 +215,7 @@ class AstroEgypt extends Component {
 						);
 					})}
 				</div>
-				<div style={{ fontSize: 11, opacity: 0.62, marginTop: 7, lineHeight: 1.7 }}>
+				<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 7, lineHeight: 1.7 }}>
 					{v.isDefault
 						? '当前为默认档(各轴取最通行口径),与未启用流派切换时的结果完全一致。'
 						: `已改口径：${v.diff.map((d) => `${d.label}=${d.valueLabel}`).join('、')}。`}
@@ -261,7 +267,7 @@ class AstroEgypt extends Component {
 									background: isAsc ? 'var(--horosa-accent-soft, rgba(245,158,11,.22))' : 'var(--horosa-surface, rgba(255,255,255,.5))',
 									boxShadow: isAsc ? '0 0 0 1px var(--horosa-accent, #f59e0b) inset' : 'none',
 								}}>
-								<div style={{ opacity: 0.6, lineHeight: 1.3 }}>{d.number}</div>
+								<div style={{ color: 'var(--horosa-text-secondary)', lineHeight: 1.3 }}>{d.number}</div>
 								<div style={{ fontSize: 13, lineHeight: 1.2, overflow: 'hidden' }}>{sg(d.signId)}</div>
 								<div style={{ lineHeight: 1.2, overflow: 'hidden' }}>{astroSymbol(d.ruler)}</div>
 								<div style={{ minHeight: 14, lineHeight: 1.2, color: 'var(--horosa-accent, #f59e0b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -271,8 +277,8 @@ class AstroEgypt extends Component {
 						);
 					})}
 				</div>
-				<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
-					{/* [Q-539] 此处写死「迦勒底面主」与「旬主星制」轴(迦勒底外貌 / 三分性旬星)矛盾 —— 旬主随该轴变 */}
+				<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6 }}>
+					{/* 此处写死「迦勒底面主」与「旬主星制」轴(迦勒底外貌 / 三分性旬星)矛盾 —— 旬主随该轴变 */}
 					每格=一旬(10°):上=旬序、座 glyph、旬主(按设置页「旬主星制」所选派法)、本盘落此旬之点。高亮=当前上升所在旬。
 				</div>
 			</div>
@@ -301,7 +307,7 @@ class AstroEgypt extends Component {
 						{ key: 'ruler', title: '旬主', render: (val) => astroSymbol(val) },
 					]}
 				/>
-				<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
+				<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6 }}>
 					「#」按当前旬序锚定编号(黄道序自白羊起 / 恒星序自天狼所主之旬起);「原位」恒为古代恒星旬序(天狼 Sothis=1,对齐 0°巨蟹)。
 					加粗列=当前名录传统的主显名。高亮=当前上升旬。
 				</div>
@@ -330,7 +336,7 @@ class AstroEgypt extends Component {
 						{ key: 'pts', title: '本盘', render: (_v, r) => (pmap[r.greek] ? pmap[r.greek].map((id) => POINT_CN[id]).join('') : '') },
 					]}
 				/>
-				<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
+				<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6 }}>
 					小阿卡那每花色 2–10(9 张)× 4 花色 = 36,与 36 旬双射;牌之「行星入座」按迦勒底制即该旬面主
 					{v.school.decanRuler === 'chaldean' ? '(当前正是此制)' : '(当前旬主星制为三分性制,故「旬主」列与塔罗牌面的行星标注不再一致)'}。
 				</div>
@@ -369,7 +375,7 @@ class AstroEgypt extends Component {
 							上升正当<b>第 {v.ascDecan.number} 旬</b>（{sn(v.ascDecan.signId)}{v.ascDecan.decanInSign}）
 							{ascTal ? <span> → 此刻宜作「{ascTal.secretName}」护符，主 {ascTal.bodyPart}、御 {ascTal.disease}。</span> : null}
 						</div>
-					) : <div style={{ opacity: 0.65 }}>无上升数据，无法判「旬当上升」之候。</div>}
+					) : <div style={{ color: 'var(--horosa-text-secondary)' }}>无上升数据，无法判「旬当上升」之候。</div>}
 					{moonDecan ? (
 						<div>
 							月行<b>第 {moonDecan.number} 旬</b>（{sn(moonDecan.signId)}{moonDecan.decanInSign}）
@@ -379,13 +385,13 @@ class AstroEgypt extends Component {
 					{v.ascDecan && decanImageAt(v.ascDecan.greek) ? (
 						<div style={{ marginTop: 2 }}>
 							所升之象：{decanImageAt(v.ascDecan.greek).image}
-							{decanImageAt(v.ascDecan.greek).effect ? <span> —— {decanImageAt(v.ascDecan.greek).effect}</span> : <span style={{ opacity: 0.55 }}> —— （原文未给所主）</span>}
+							{decanImageAt(v.ascDecan.greek).effect ? <span> —— {decanImageAt(v.ascDecan.greek).effect}</span> : <span style={{ color: 'var(--horosa-text-secondary)' }}> —— （原文未给所主）</span>}
 						</div>
 					) : null}
 					{v.ascDecan && moonDecan && v.ascDecan.greek === moonDecan.greek ? (
 						<div style={{ color: 'var(--horosa-accent, #f59e0b)' }}>上升与月同落一旬 —— 两候并至，古法以为最得时。</div>
 					) : null}
-					<div style={{ fontSize: 11, opacity: 0.62, marginTop: 3, lineHeight: 1.7 }}>
+					<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 3, lineHeight: 1.7 }}>
 						成时之候取「该旬正当上升」与「月行至该旬」两条本盘可判者；其余候（旬主星尊贵、避月受损等）
 						另见格局与行星页，此处不重复陈列，也不代为裁断。
 					</div>
@@ -413,7 +419,7 @@ class AstroEgypt extends Component {
 							</div>
 						))}
 					</div>
-					<div style={{ fontSize: 11, opacity: 0.62, marginTop: 6, lineHeight: 1.7 }}>
+					<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6, lineHeight: 1.7 }}>
 						秘名刻于护符,佩戴以护对应身体部位、御对应疾病;逐旬载体抄本差异大,多标「待核」。
 						<br />{DECAN_IMAGE_NOTE}
 					</div>
@@ -424,11 +430,11 @@ class AstroEgypt extends Component {
 						rowKey={(r) => r.en}
 						rows={EXTRA_ZODIAC_FIGURES}
 						columns={[
-							{ key: 'cn', title: '星座', render: (val, r) => <span>{val} <span style={{ opacity: 0.6 }}>{r.en}</span></span> },
+							{ key: 'cn', title: '星座', render: (val, r) => <span>{val} <span style={{ color: 'var(--horosa-text-secondary)' }}>{r.en}</span></span> },
 							{ key: 'effect', title: '效验', render: (val) => val },
 						]}
 					/>
-					<div style={{ fontSize: 11, opacity: 0.62, marginTop: 6 }}>{EXTRA_ZODIAC_NOTE}</div>
+					<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6 }}>{EXTRA_ZODIAC_NOTE}</div>
 				</div>
 			</div>
 		);
@@ -482,7 +488,7 @@ class AstroEgypt extends Component {
 						</tbody>
 					</table>
 				</div>
-				<div style={{ fontSize: 11, opacity: 0.62, marginTop: 6, lineHeight: 1.7 }}>
+				<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6, lineHeight: 1.7 }}>
 					格内数=该旬列该夜时「{clock.column}」的旬星古代恒星序号。
 					{hereCol ? `橙列=本盘出生日所在旬列(第 ${hereCol} 列,按${v.anchor.label}锚点)。` : ''}
 					{ascAncient ? `蓝格=本盘上升旬(古代序第 ${ascAncient})出现之处。` : ''}
@@ -518,11 +524,12 @@ class AstroEgypt extends Component {
 					<div>名字数值 N(isopsephy)= <b>{N}</b></div>
 					<div>Petosiris:R =(N+D)mod {petosirisMod} = <b>{R}</b> → <b>{verdict.label}</b></div>
 					<div>Democritus 位根 pythmen(N+D)= <b>{root}</b></div>
-					<div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>{verdict.note}</div>
+					<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 4 }}>{verdict.note}</div>
 				</div>
 				<div style={{ marginTop: 10 }}>
 					<div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>希腊字母数值表(isopsephy)</div>
-					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: 2 }}>
+					{/* 窄栏退列(列下限放得下「字母 + 数值」),宽时与 9 等分逐像素相同;此前放大档整表撑出页签被裁 */}
+					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(max(48px, calc((100% - 16px) / 9 - 1px)), 1fr))', gap: 2 }}>
 						{GREEK_ISOPSEPHY.map((g) => (
 							<div key={g.letter} style={{ border: '1px solid rgba(148,163,184,.25)', borderRadius: 4, padding: '2px 4px', textAlign: 'center', fontSize: 11 }}>
 								<span style={{ fontSize: 14 }}>{g.letter}</span> {g.value}
@@ -557,7 +564,7 @@ class AstroEgypt extends Component {
 						]}
 					/>
 				</div>
-				<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>{HEMEROLOGY_NOTE}</div>
+				<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6 }}>{HEMEROLOGY_NOTE}</div>
 			</div>
 		);
 	}
@@ -588,7 +595,7 @@ class AstroEgypt extends Component {
 						{ key: 'note', title: '备注', render: (v) => v },
 					]}
 				/>
-				<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>火/木/土均以「荷鲁斯+修饰」命名,是埃及行星命名的显著特征。</div>
+				<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6 }}>火/木/土均以「荷鲁斯+修饰」命名,是埃及行星命名的显著特征。</div>
 			</div>
 		);
 	}
@@ -624,14 +631,14 @@ class AstroEgypt extends Component {
 								{v.sirius.deltaDays === null ? '' : `（本盘生日${v.sirius.deltaDays === 0 ? '恰为该日' : (v.sirius.deltaDays > 0 ? `在其后 ${v.sirius.deltaDays} 日` : `在其前 ${-v.sirius.deltaDays} 日`)}）`}
 							</div>
 						) : null}
-						<div style={{ fontSize: 11, opacity: 0.62, marginTop: 4, lineHeight: 1.7 }}>
+						<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 4, lineHeight: 1.7 }}>
 							{v.anchor.note}<br />
 							游移年无闰日，绝对日期完全取决于所选锚点；换锚点只改年号不改月日（三纪元本属同一部连续历）。
 							引用本页日期时务必连锚点一并注明，否则不可复现。
 						</div>
 					</div>
 				) : (
-					<div style={{ fontSize: 12, opacity: 0.65 }}>本盘无可用出生日期，无法换算埃及民用日。</div>
+					<div style={{ fontSize: 12, color: 'var(--horosa-text-secondary)' }}>本盘无可用出生日期，无法换算埃及民用日。</div>
 				)}
 			</div>
 		);
@@ -655,7 +662,7 @@ class AstroEgypt extends Component {
 						{ key: 'name', title: '月名', render: (v) => v },
 					]}
 				/>
-				<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
+				<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6 }}>
 					序号日 dayOfYear = 季×120 + 月×30 + 日(1..360);+5 闰余日(各系一神诞,见吉凶日页)。
 					绝对公历换算须选历史锚点(锚点不同绝对日期不同),本页只列结构与月名。
 				</div>
@@ -706,9 +713,9 @@ class AstroEgypt extends Component {
 						]}
 					/>
 				) : (
-					<div style={{ fontSize: 12, opacity: 0.65 }}>本盘无度级细分数据（需已起本命盘且后端返回古典字段）。</div>
+					<div style={{ fontSize: 12, color: 'var(--horosa-text-secondary)' }}>本盘暂无度级细分数据（请先起本命盘；已起盘仍为空时点「重算星盘」再试）。</div>
 				)}
-				<div style={{ fontSize: 11, opacity: 0.62, marginTop: 6, lineHeight: 1.7 }}>
+				<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6, lineHeight: 1.7 }}>
 					本页为<b>只读回显</b>：以上各量均由排盘时一并算出（度质表、单度主星表、十度分表皆源出埃及度级传统），
 					此处不另设控件、不重复计算，只把已算而未曾露面的量按埃及源流归拢一处。
 					<br />「所落旬 / 旬主」随「设置」页的流派口径变动；其余各列由排盘参数决定，与埃及流派轴无关。
@@ -729,7 +736,7 @@ class AstroEgypt extends Component {
 			return (
 				<div style={cardStyle}>
 					<XQSectionTitle>共升星(E12)</XQSectionTitle>
-					<div style={{ fontSize: 12, opacity: 0.65 }}>
+					<div style={{ fontSize: 12, color: 'var(--horosa-text-secondary)' }}>
 						需已起本命盘(取地理纬度与年份)方可实算共升星。
 					</div>
 				</div>
@@ -759,7 +766,7 @@ class AstroEgypt extends Component {
 						onChange={(val) => this.setState({ paranOrb: Number(val) })}>
 						{[0.5, 1, 1.5, 2, 3].map((o) => (<Select.Option key={`${o}`} value={o}>{o}°</Select.Option>))}
 					</XQSelect>
-					<span style={{ opacity: 0.6 }}>命中 {rows.length} 条</span>
+					<span style={{ color: 'var(--horosa-text-secondary)' }}>命中 {rows.length} 条</span>
 				</div>
 				{rows.length ? (
 					<SmallTable scrollX
@@ -769,13 +776,13 @@ class AstroEgypt extends Component {
 							{ key: 'point', title: '点', render: (val) => <span>{astroSymbol(val)} {POINT_CN[val] || val}</span> },
 							{ key: 'decan', title: '所落旬', render: (val) => (val ? `第${val.number}旬` : '—') },
 							{ key: 'kind', title: '关系', render: (val) => kindCn[val] || val },
-							{ key: 'star', title: '恒星', render: (s) => <span>{s.name_cn}{s.isRoyal ? ' ★' : ''} <span style={{ opacity: 0.6 }}>{s.name_en}</span></span> },
+							{ key: 'star', title: '恒星', render: (s) => <span>{s.name_cn}{s.isRoyal ? ' ★' : ''} <span style={{ color: 'var(--horosa-text-secondary)' }}>{s.name_en}</span></span> },
 							{ key: 'star2', title: '星等', render: (_val, r) => (r.star.magnitude != null ? r.star.magnitude.toFixed(1) : '—') },
 							{ key: 'delta', title: '差', render: (val) => `${val >= 0 ? '+' : ''}${val.toFixed(2)}°` },
 						]}
 					/>
 				) : (
-					<div style={{ fontSize: 12, opacity: 0.65 }}>此容许度下本盘各点无共升星命中；可放宽容许度再看。</div>
+					<div style={{ fontSize: 12, color: 'var(--horosa-text-secondary)' }}>此容许度下本盘各点无共升星命中；可放宽容许度再看。</div>
 				)}
 				{(split.always.length || split.never.length) ? (
 					<div style={{ fontSize: 11, opacity: 0.7, marginTop: 8, lineHeight: 1.75 }}>
@@ -784,7 +791,7 @@ class AstroEgypt extends Component {
 						{split.never.length ? <span>永不升起 —— {split.never.map((s) => s.name_cn).join('、')}。</span> : null}
 					</div>
 				) : null}
-				<div style={{ fontSize: 11, opacity: 0.62, marginTop: 6, lineHeight: 1.7 }}>{PARAN_NOTE}</div>
+				<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6, lineHeight: 1.7 }}>{PARAN_NOTE}</div>
 			</div>
 		);
 	}
@@ -815,10 +822,10 @@ class AstroEgypt extends Component {
 							: <span style={{ opacity: 0.7 }}> 当前版本在此日<b>无归属</b>（该版本本身留有缺口，未代为补洞）</span>}
 					</div>
 				) : (
-					<div style={{ fontSize: 12, opacity: 0.65, marginBottom: 8 }}>本盘无可用出生日期。</div>
+					<div style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', marginBottom: 8 }}>本盘无可用出生日期。</div>
 				)}
 				{v.birth ? (
-					<div style={{ fontSize: 11, opacity: 0.62, marginBottom: 8, lineHeight: 1.7 }}>
+					<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 8, lineHeight: 1.7 }}>
 						{sameAcrossEditions
 							? '两版在本盘生日上判归相同 —— 换版本此处不会变（分歧只在少数日期段，见下表「日期段」列）。'
 							: '本盘生日正落在两版的分歧段上：换版本会改判归。'}
@@ -835,7 +842,7 @@ class AstroEgypt extends Component {
 						{ key: 'note', title: '备注', render: (val) => val || '' },
 					]}
 				/>
-				<div style={{ fontSize: 11, opacity: 0.62, marginTop: 6, lineHeight: 1.7 }}>
+				<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6, lineHeight: 1.7 }}>
 					与西方十二星座「每座一段连续日期」不同，本体系每位神对应 2–4 段<b>不连续</b>日期，全年共 28 段。
 					段界各读物略有出入，故按版本组织（改版见本页最末「设置」页 · 众神版本）。
 				</div>
@@ -866,7 +873,7 @@ class AstroEgypt extends Component {
 						{ key: 'here', title: '本盘', render: (v) => v },
 					]}
 				/>
-				<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
+				<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6 }}>
 					四分法:世界按四三分性分四象限(西北火/东北土/东南风/西南水)。地域为浓缩举要,世运盘可据此叠加地理。高亮=本盘有星落此座。
 				</div>
 			</div>
@@ -890,7 +897,7 @@ class AstroEgypt extends Component {
 								· 塔罗 {TAROT_SUIT_CN[ascDecan.tarotSuit]}{ascDecan.tarotPip}「{ascDecan.tarotTitle}」
 								· 身体部位 {decanBodyPart(ascDecan.signId, ascDecan.decanInSign)}
 							</div>
-						) : <div style={{ fontSize: 12, opacity: 0.6 }}>无上升数据。</div>}
+						) : <div style={{ fontSize: 12, color: 'var(--horosa-text-secondary)' }}>无上升数据。</div>}
 					</div>
 				) : (
 					<div style={{ ...cardStyle, fontSize: 12, opacity: 0.7 }}>请先起本命盘,以读取上升与行星落旬。</div>

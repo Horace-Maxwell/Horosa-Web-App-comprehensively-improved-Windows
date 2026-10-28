@@ -6,7 +6,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
- * [Q-195/T-121] 均时差 NOAA/Meeus 级数金标:独立天文年历锚点(非与前端同式自证)。
+ * 均时差 NOAA/Meeus 级数金标:独立天文年历锚点(非与前端同式自证)。
  */
 public class RealSunTimeOffsetTest {
 

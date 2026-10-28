@@ -20,9 +20,9 @@ import { WEST_SCHOOLS, WEST_SCHOOL_ORDER, schoolOf } from '../../divination/elec
 import { ELECTION_PARAM_SPEC, calibreOverrideCount, electionCalibreDefaults, resolveElectionParams } from '../../divination/election/electionParams';
 import { fetchReturnSet, fetchPdHitsNearElection } from '../../divination/election/returnCharts';
 import { SIGNS, SIGN_ORDER } from '../../divination/data/signs';
-import moment from 'moment';
 import { definePageSettings } from '../../utils/pageSettingsStore';
 import { shellFieldSchema, seedShellFromSaved } from '../../utils/divinationShellSettings';
+import { toSlashDate, civilDateStrOfJdn, civilJdnOfDateStr } from '../../utils/dateStrSafe';
 import { markPanelReady } from '../../utils/perfMark';
 
 const Option = XQSelect.Option;
@@ -43,7 +43,7 @@ export const ELECTION_TOPICS = [
 	{ value: 'pursue_love', label: '追求爱情 / 求职' },
 	{ value: 'team_departure', label: '队伍出发 / 比赛' },
 	{ value: 'surgery', label: '手术' },
-	{ value: 'medication', label: '用药 / 服药' },   // [Q-151/AX-19②] 引擎早有用药判据(月落主病星座+吉相),此前页面不可达
+	{ value: 'medication', label: '用药 / 服药' },   // 引擎早有用药判据(月落主病星座+吉相),此前页面不可达
 	{ value: 'banquet', label: '宴会 / 就职典礼' },
 	{ value: 'travel', label: '出行' },
 	{ value: 'blessing', label: '祈福 / 安香 / 法会' },
@@ -67,7 +67,7 @@ export const ELECTION_TOPIC_GROUPS = [
 	{ label: '术法护符', values: ['blessing', 'talisman'] },
 ];
 
-const GRADE_DOT = { 极佳: '#2f9e6f', 不错: '#1aa3b8', 中等: '#3b82f6', 欠佳: '#e07a3b', '不宜（含红线）': '#cf3b3b' };
+const GRADE_DOT = { 极佳: 'var(--horosa-grade-excellent, #2f9e6f)', 不错: 'var(--horosa-grade-good, #1aa3b8)', 中等: 'var(--horosa-grade-fair, #3b82f6)', 欠佳: 'var(--horosa-grade-poor, #e07a3b)', '不宜（含红线）': 'var(--horosa-grade-bad, #cf3b3b)' };
 
 // 排盘设置跨会话保留(用户实报:排盘设置改了之后每次重开软件都要重设)。只收口径:
 // 西方流派 / 逐项口径覆盖层(稀疏:只存显式改过的项,缺席 = 随流派)/ 黄道 / 宫制。
@@ -85,7 +85,7 @@ export const ELECTION_PAGE_SETTINGS = definePageSettings('horosa.election.settin
 });
 
 class ElectionMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -130,7 +130,7 @@ class ElectionMain extends Component{
 		if(!baseDt || !baseDt.format){ return; }
 		const baseStr = baseDt.format('YYYY-MM-DD');
 		const geo = this.geoFromFields();
-		const minus = (d) => moment(baseStr, 'YYYY-MM-DD').subtract(d, 'days').format('YYYY-MM-DD');
+		const minus = (d) => civilDateStrOfJdn(civilJdnOfDateStr(baseStr) - d);   // 民用历日序数往前数 d 天(公元前 / 1582 以前都对)
 		const fieldsLike = { zone: geo.zone, lon: geo.lon, lat: geo.lat, gpsLat: geo.gpsLat, gpsLon: geo.gpsLon, hsys: geo.hsys, zodiacal: geo.zodiacal, siderealAyanamsa: geo.siderealAyanamsa, tradition: geo.tradition };
 		const mk = async (m) => { if(!m){ return null; } const R = await chartAtMoment(m, fieldsLike); return R ? buildFacts(R) : null; };
 		this.setState({ mundaneLoading: true });
@@ -158,7 +158,7 @@ class ElectionMain extends Component{
 
 	// WP-8 危象日:病始日期(正午)排盘取月黄经,存 extra.crisisBase(引擎纯陈述不扣分)。
 	async fetchCrisisBase(dateStr, setExtra){
-		if(!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)){ setExtra({ crisisBase: null }); return; }
+		if(!dateStr || !/^-?\d{4,5}-\d{2}-\d{2}$/.test(dateStr)){ setExtra({ crisisBase: null }); return; }
 		const geo = this.geoFromFields();
 		const fieldsLike = { zone: geo.zone, lon: geo.lon, lat: geo.lat, gpsLat: geo.gpsLat, gpsLon: geo.gpsLon, hsys: geo.hsys, zodiacal: geo.zodiacal, siderealAyanamsa: geo.siderealAyanamsa, tradition: geo.tradition };
 		this.setState({ crisisLoading: true });
@@ -224,7 +224,7 @@ class ElectionMain extends Component{
 		const parts = `${rec.birth}`.split(' ');
 		const natalParams = {
 			ad: rec.ad != null ? rec.ad : 1,
-			date: (parts[0] || '').replace(/-/g, '/'), time: parts[1] || '12:00:00',
+			date: toSlashDate(parts[0] || ''), time: parts[1] || '12:00:00',
 			zone: rec.zone, lat: rec.lat, lon: rec.lon,
 			gpsLat: rec.gpsLat, gpsLon: rec.gpsLon,
 			hsys: (f.hsys ? f.hsys.value : 0),
@@ -245,6 +245,9 @@ class ElectionMain extends Component{
 		if(!baseDt){ return; }
 		const cands = generateCandidates(baseDt, mode, mode === 'hours' ? { startHour: 6, endHour: 22 } : { days: 14 });
 		this.setState({ scanning: true, scanOpen: true, scanResults: null, scanMode: mode });
+		// 只认最后一次扫描:连点「按时 / 按日」时先发的晚回不许盖掉后发的结果
+		const scanSeq = (this._scanReqSeq || 0) + 1;
+		this._scanReqSeq = scanSeq;
 		const topicId = this._topicId;
 		Promise.all(cands.map((c) => {
 			const f = {
@@ -266,6 +269,7 @@ class ElectionMain extends Component{
 				};
 			}).catch(() => null);
 		})).then((rows) => {
+			if(scanSeq !== this._scanReqSeq){ return; }
 			this.setState({ scanning: false, scanResults: rankResults(rows) });
 		});
 	}
@@ -328,7 +332,7 @@ class ElectionMain extends Component{
 		this._westSchool = extra.westSchool || 'modern_main';
 		this._elecOpts = {
 			westSchool: this._westSchool, surgeryPart: extra.surgeryPart || null, crisisBase: extra.crisisBase || null,
-			...judgeLayerOverrides(),   // [R5-P2] 判读全局层:扫描候选评分与主判读卡(ElectionJudgment:278)同口径,否则改三态/空亡后两处分叉
+			...judgeLayerOverrides(),   // 判读全局层:扫描候选评分与主判读卡(ElectionJudgment:278)同口径,否则改三态/空亡后两处分叉
 			electionParams: extra.electionParams || null,
 			tradeSide: extra.tradeSide || '', talismanStar: extra.talismanStar || null,
 			surgeryPartOpposite: !!extra.surgeryPartOpposite,
@@ -529,7 +533,7 @@ class ElectionMain extends Component{
 						<div className="horosa-divi-note" style={{ marginBottom: 10 }}>{buildScanRecommendation(r)}「没有完美的择日盘」——以下为窗口内消去法排名，分高者先。</div>
 						{r.map((row, i) => (
 							<div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 4px', borderBottom: '1px dashed rgba(148,163,184,.2)' }}>
-								<span style={{ width: 18, textAlign: 'right', opacity: 0.5, fontSize: 12 }}>{i + 1}</span>
+								<span style={{ width: 18, textAlign: 'right', color: 'var(--horosa-text-secondary)', fontSize: 12 }}>{i + 1}</span>
 								<span style={{ width: 78, fontWeight: 600 }}>{row.label}</span>
 								<span style={{ width: 8, height: 8, borderRadius: 4, background: GRADE_DOT[row.grade] || '#888', flexShrink: 0 }} />
 								<span style={{ width: 40 }}>{row.score}</span>
@@ -538,7 +542,7 @@ class ElectionMain extends Component{
 							</div>
 						))}
 					</div>
-				) : (this.state.scanning ? null : <div style={{ padding: 16, opacity: 0.6 }}>无候选结果。</div>)}
+				) : (this.state.scanning ? null : <div style={{ padding: 16, color: 'var(--horosa-text-secondary)' }}>无候选结果。</div>)}
 			</Modal>
 		);
 	}
@@ -548,7 +552,7 @@ class ElectionMain extends Component{
 			<div style={{ height: '100%', flex: '1 1 auto', minWidth: 0, width: '100%' }}>
 				<DivinationChartShell
 					title="择日盘"
-					wheelArt={this.props.wheelArt}   /* [Q-150/T-61] 盘面美术 / 外环样式随「设置→星盘设置」全局变更(壳内订阅同步) */
+					wheelArt={this.props.wheelArt}   /* 盘面美术 / 外环样式随「设置→星盘设置」全局变更(壳内订阅同步) */
 					chartStyle={this.props.chartStyle}
 					kicker="择日设置"
 					pageClass="horosa-election-page"

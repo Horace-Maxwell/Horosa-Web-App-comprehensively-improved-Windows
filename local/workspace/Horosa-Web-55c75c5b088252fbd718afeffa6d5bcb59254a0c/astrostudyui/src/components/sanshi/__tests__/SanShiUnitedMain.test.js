@@ -9,13 +9,15 @@ jest.mock('../../astro/PlusMinusTime', ()=>null);
 jest.mock('../../../utils/request', ()=>jest.fn());
 jest.mock('../../../utils/moduleAiSnapshot', ()=>({
 	saveModuleAISnapshot: jest.fn(),
+	clearModuleAISnapshot: jest.fn(),
 }));
 jest.mock('../../../utils/preciseCalcBridge', ()=>({
 	fetchPreciseNongli: jest.fn(),
 	fetchPreciseJieqiSeed: jest.fn(),
 }));
 
-import SanShiUnitedMain, { buildSanShiUnitedSnapshotText, QIMEN_OPTIONS } from '../SanShiUnitedMain';
+import SanShiUnitedMain, { buildSanShiUnitedSnapshotText, QIMEN_OPTIONS, SANSHI_RECALC_HELD, SANSHI_CAST_CHART_WAIT_MS } from '../SanShiUnitedMain';
+import { castSourceKey } from '../../../utils/derivedChartSource';
 import { calcDunJia } from '../../dunjia/DunJiaCalc';
 import DateTime from '../../comp/DateTime';
 
@@ -301,7 +303,7 @@ describe('SanShiUnitedMain chart-list synchronization', ()=>{
 	});
 });
 
-describe('SanShiUnitedMain · [Q-152/Q-153/Q-154] 六壬缓存键昼夜 / 快照课序 / 奇门本地口径路由', ()=>{
+describe('SanShiUnitedMain · 六壬缓存键昼夜 / 快照课序 / 奇门本地口径路由', ()=>{
 	function mockBackends(){
 		global.fetch = jest.fn((url)=>{
 			if(`${url}`.indexOf('/qimen/pan') >= 0){
@@ -351,10 +353,12 @@ describe('SanShiUnitedMain · [Q-152/Q-153/Q-154] 六壬缓存键昼夜 / 快照
 	function chartWithDiurnal(isDiurnal){
 		const c = buildChart('sanshi-diurnal');
 		c.chart.isDiurnal = isDiurnal;
+		// 参照盘回包带起盘参数(起课时刻地点):与 fields 同一刻才拿来定昼夜 / 月将
+		c.params = { birth: '2026-05-24 15:30:00', zone: '+08:00', lon: '119e19', lat: '26n04' };
 		return c;
 	}
 
-	it('🔴 [Q-152] 六壬层缓存键含昼夜:同日同时辰跨日出/日没(chartObj.isDiurnal 翻转)不再命中旧包', async ()=>{
+	it('🔴 六壬层缓存键含昼夜:同日同时辰跨日出/日没(chartObj.isDiurnal 翻转)不再命中旧包', async ()=>{
 		const fields = buildFields('sanshi-diurnal', 'Diurnal', '2026-05-24 15:30:00', '119e19', '26n04');
 		const component = mountLike(new SanShiUnitedMain({ fields, chartObj: chartWithDiurnal(true), hook: {} }));
 		mockBackends();
@@ -373,7 +377,64 @@ describe('SanShiUnitedMain · [Q-152/Q-153/Q-154] 六壬缓存键昼夜 / 快照
 		a.forEach((seg, i)=>{ if(i !== 4){ expect(seg).toBe(b[i]); } });
 	});
 
-	it('🔴 [Q-153] 实时快照[大六壬]课序:一课=raw[0](日干上神)…四课=raw[3],与盘面/独立六壬页同序', ()=>{
+	it('🔴 参照盘是别的起课时刻的:这一课先不落(屏上留上一课 + 更新中),这一刻的参照盘到了才落,底盘与课同一次落定', async ()=>{
+		const fields = buildFields('sanshi-cast', 'Cast', '2026-05-24 15:30:00', '119e19', '26n04');
+		const stale = chartWithDiurnal(true);
+		stale.params = { ...stale.params, birth: '2026-05-24 13:30:00' };   // 上一刻的主盘(新时刻的还在途)
+		const component = mountLike(new SanShiUnitedMain({ fields, chartObj: stale, hook: {} }));
+		component.state = { ...component.state, dunjia: { tag: 'prev' }, lessonSig: 'prev' };
+		mockBackends();
+		expect(await component.performRecalcByNongli(fields, NONGLI, null, '2026-05-24 15:29:00')).toBe(SANSHI_RECALC_HELD);
+		expect(component.state.dunjia).toEqual({ tag: 'prev' });
+		expect(component.state.loading).toBe(true);
+		expect(component._castChartWait && component._castChartWait.key).toBe(castSourceKey(fields));
+		const fresh = chartWithDiurnal(true);
+		component.props = { ...component.props, chartObj: fresh };
+		expect(await component.performRecalcByNongli(fields, NONGLI, null, '2026-05-24 15:29:00')).toBe(true);
+		expect(component.state.castChart).toBe(fresh);
+		expect(component.state.lessonSig).toBe(castSourceKey(fields));
+		expect(component.state.liurengSnapshotInput.chartForLr).toBeTruthy();   // 六壬层按这一刻的参照盘起
+		expect(component._castChartWait).toBeNull();
+	});
+
+	it('🔴 等不到这一刻的参照盘:超时后按「没有参照盘」落(月将 / 外圈留空、昼夜本地算),不拿上一刻的底盘', async ()=>{
+		jest.useFakeTimers();
+		try{
+			const fields = buildFields('sanshi-cast2', 'Cast', '2026-05-24 15:30:00', '119e19', '26n04');
+			const stale = chartWithDiurnal(true);
+			stale.params = { ...stale.params, birth: '2026-05-24 13:30:00' };
+			const component = mountLike(new SanShiUnitedMain({ fields, chartObj: stale, hook: {} }));
+			component.state = { ...component.state, plottedFields: fields };
+			mockBackends();
+			expect(await component.performRecalcByNongli(fields, NONGLI, null, '2026-05-24 15:29:00')).toBe(SANSHI_RECALC_HELD);
+			const refreshed = [];
+			component.refreshAll = (f, force)=>{ refreshed.push([castSourceKey(f), force]); return Promise.resolve(); };
+			jest.advanceTimersByTime(SANSHI_CAST_CHART_WAIT_MS - 1);
+			expect(refreshed).toEqual([]);
+			jest.advanceTimersByTime(1);
+			expect(refreshed).toEqual([[castSourceKey(fields), true]]);
+			jest.useRealTimers();
+			expect(await component.performRecalcByNongli(fields, NONGLI, null, '2026-05-24 15:29:00')).toBe(true);
+			expect(component.state.castChart).toBeNull();
+			expect(component.state.liurengSnapshotInput.chartForLr).toBeNull();   // 没有这一刻的参照盘:六壬层不拿上一刻的底盘起
+			expect(component.state.dunjia).toBeTruthy();
+		}finally{
+			jest.useRealTimers();
+		}
+	});
+
+	it('🔴 取失败:与屏上同一课(只改设置)留存;换了起课时刻清掉整课', ()=>{
+		const a = buildFields('sanshi-f', 'F', '2026-05-24 15:30:00', '119e19', '26n04');
+		const b = buildFields('sanshi-f', 'F', '2026-05-24 17:30:00', '119e19', '26n04');
+		const component = mountLike(new SanShiUnitedMain({ fields: a, hook: {} }));
+		component.state = { ...component.state, dunjia: { tag: 'A' }, nongli: { tag: 'A' }, lessonSig: castSourceKey(a), loading: true };
+		component.settleCastFailure(a);
+		expect([component.state.dunjia.tag, component.state.loading]).toEqual(['A', false]);
+		component.settleCastFailure(b);
+		expect([component.state.dunjia, component.state.nongli, component.state.lessonSig, component.state.castChart]).toEqual([null, null, '', null]);
+	});
+
+	it('🔴 实时快照[大六壬]课序:一课=raw[0](日干上神)…四课=raw[3],与盘面/独立六壬页同序', ()=>{
 		const raw = [['天空', '丑', '甲'], ['贵人', '未', '丑'], ['玄武', '戌', '亥'], ['太阴', '巳', '戌']];
 		const fields = buildFields('sanshi-snap', 'Snap', '2026-05-24 15:30:00', '119e19', '26n04');
 		const dunjia = calcDunJia(fields, NONGLI, { ...QIMEN_OPTIONS, qijuMethod: 'chaibu', timeAlg: 1 }, { year: 2026 });
@@ -394,7 +455,21 @@ describe('SanShiUnitedMain · [Q-152/Q-153/Q-154] 六壬缓存键昼夜 / 快照
 		expect(text.indexOf('一课：')).toBeLessThan(text.indexOf('四课：'));
 	});
 
-	it('🔴 [Q-154] 时家转盘 + 七组本地口径任一非缺省 → 不再取后端(与飞盘同旁路),本地盘按所选生效;全缺省仍走后端', async ()=>{
+	it('🔴 农历退回主盘那份(恒真太阳时)而所选不是真太阳时:快照的「时间算法」如实注明;正常时不加', ()=>{
+		const raw = [['天空', '丑', '甲'], ['贵人', '未', '丑'], ['玄武', '戌', '亥'], ['太阴', '巳', '戌']];
+		const fields = buildFields('sanshi-fb', 'Fb', '2026-05-24 15:30:00', '119e19', '26n04');
+		const dunjia = calcDunJia(fields, NONGLI, { ...QIMEN_OPTIONS, qijuMethod: 'chaibu', timeAlg: 1 }, { year: 2026 });
+		const mk = (nongli)=>buildSanShiUnitedSnapshotText({
+			fields, options: { timeAlg: 1 }, nongli, dunjia, keData: { raw },
+			sanChuan: { cuang: ['子', '丑', '寅'], tianJiang: ['贵人', '螣蛇', '朱雀'] },
+			lrLayout: { yue: '巳', upZi: [], downZi: [], houseTianJiang: [] },
+		});
+		const { SANSHI_TRUE_SOLAR_FALLBACK_NOTE } = require('../SanShiUnitedMain');
+		expect(mk({ ...NONGLI, __trueSolarFallback: true })).toContain(`时间算法：直接时间${SANSHI_TRUE_SOLAR_FALLBACK_NOTE}`);
+		expect(mk(NONGLI)).not.toContain(SANSHI_TRUE_SOLAR_FALLBACK_NOTE);
+	});
+
+	it('🔴 时家转盘 + 七组本地口径任一非缺省 → 不再取后端(与飞盘同旁路),本地盘按所选生效;全缺省仍走后端', async ()=>{
 		const fields = buildFields('sanshi-route', 'Route', '2026-05-24 15:30:00', '119e19', '26n04');
 		const component = mountLike(new SanShiUnitedMain({ fields, chartObj: buildChart('sanshi-route'), hook: {} }));
 		mockBackends();

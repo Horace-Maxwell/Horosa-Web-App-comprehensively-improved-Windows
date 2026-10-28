@@ -1,4 +1,4 @@
-// [Q-307/T-303] 衍生盘六个独立导出键(hellenastro/dwadasamsa/harmonic/draconic/relocation/locastro)进「星曜后天信息」集合:
+// 衍生盘六个独立导出键(hellenastro/dwadasamsa/harmonic/draconic/relocation/locastro)进「星曜后天信息」集合:
 // 自身设置生效;无自身设置时回落聚合键 astrochart_like(挂载侧仍按聚合键读)→ 同一张衍生盘导出与挂载吃同一开关。
 import { loadAIExportSettings, applyPlanetInfoFilterByContext } from '../aiExport';
 

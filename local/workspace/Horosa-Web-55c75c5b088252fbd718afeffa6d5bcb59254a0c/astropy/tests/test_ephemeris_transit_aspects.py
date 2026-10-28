@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""[Q-179/T-94] 星历「行运触发」过零判据:旧式 |Δ|-aspect 对合(0°)恒 ≥0、冲(180°)恒 ≤0 → 永不出合/冲。
+"""星历「行运触发」过零判据:旧式 |Δ|-aspect 对合(0°)恒 ≥0、冲(180°)恒 ≤0 → 永不出合/冲。
 本测试用线性运动的假天体(monkeypatch swe_lon/PerChart/chart_points)扫描一整圈,断言每个相位恰各命中应有次数,
 且合相式在冲位、冲相式在合位的 ±180 跳变不被误判为过零(无假命中)。"""
 import os
@@ -68,7 +68,7 @@ def test_moon_fast_body_no_false_hits_at_antipode(monkeypatch):
 
 
 def test_hits_sorted_by_time_then_truncated_with_stats(monkeypatch):
-    # [Q-186/T-108 ②] 此前满 max_hits 即整体停扫(按星体嵌套序填满);现全量扫完按时间排序再截,stats 回填。
+    # 此前满 max_hits 即整体停扫(按星体嵌套序填满);现全量扫完按时间排序再截,stats 回填。
     class _Fake:
         pass
 
@@ -90,7 +90,7 @@ def test_hits_sorted_by_time_then_truncated_with_stats(monkeypatch):
 
 
 def test_build_ephemeris_reports_limits(monkeypatch):
-    # [Q-186/T-108 ①] 区间 >732 天 / 逐日 >370 天在 params.limits 明示(此前静默截断)。
+    # 区间 >732 天 / 逐日 >370 天在 params.limits 明示(此前静默截断)。
     monkeypatch.setattr(astroextra, 'calc_transit_aspects', lambda *a, **k: [])
     monkeypatch.setattr(astroextra, 'calc_ingresses', lambda *a, **k: [])
     monkeypatch.setattr(astroextra, 'calc_stations', lambda *a, **k: [])

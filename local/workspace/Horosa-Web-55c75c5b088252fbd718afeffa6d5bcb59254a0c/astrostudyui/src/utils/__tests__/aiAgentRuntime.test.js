@@ -69,7 +69,7 @@ describe('总开关判别向量', ()=>{
 		expect(agent.toolChoice()).toBe('auto');
 		const msgs = agent.messagesForRound(BASE);
 		expect(msgs[0].role).toBe('system');
-		// [Q-290/PP-22] 守则按当次目录生成:测试目录无两件界面工具 → 第 9 条去掉
+		// 守则按当次目录生成:测试目录无两件界面工具 → 第 9 条去掉
 		const { agentSystemRulesFor } = require('../aiAgent/protocol');
 		expect(msgs[0].content.indexOf(agentSystemRulesFor(MANIFEST.map((t)=>t.name)))).toBe(0);
 		expect(msgs[0].content).not.toContain('9) 界面动作');
@@ -513,7 +513,7 @@ describe('同参去重(策略 dedupSameCall,缺省关)+ 上下文策略接线', 
 		// 缺省策略(不传 contextPolicy)= 与旧 expandHistory(traceTurns:2) 逐字节相同
 		const agent3 = createAgentTurn({ profile: { id: 'p' }, model: 'm', registry: mkReg(okData) });
 		agent3.beginRound();
-		expect(JSON.stringify(agent3.messagesForRound(base))).toBe(JSON.stringify(injectSystemRules(expandHistory(base, { traceTurns: 2 }), require('../aiAgent/protocol').agentSystemRulesFor(['probe_read']))));   // [Q-290/PP-22]
+		expect(JSON.stringify(agent3.messagesForRound(base))).toBe(JSON.stringify(injectSystemRules(expandHistory(base, { traceTurns: 2 }), require('../aiAgent/protocol').agentSystemRulesFor(['probe_read']))));
 		// opts.traceTurns 仍优先于策略的 traceTurnsFull(向后兼容)
 		const agent4 = createAgentTurn({ profile: { id: 'p' }, model: 'm', registry: mkReg(okData), traceTurns: 3, contextPolicy: { traceTurnsFull: 1 } });
 		agent4.beginRound();
@@ -634,7 +634,7 @@ describe('P0 审批三档·类别收紧·信任档案·反问通道(运行时接
 	});
 });
 
-describe('[进阶复查 2026-09-08] D12 读级类别档 / D14 来源目录 / D15 fail-closed / D16 计额 / D17 ledgerLost / P1 会话放行', ()=>{
+describe('D12 读级类别档 / D14 来源目录 / D15 fail-closed / D16 计额 / D17 ledgerLost / P1 会话放行', ()=>{
 	const MAN2 = MANIFEST.concat([
 		{ name: 'probe_ext', level: 'read', category: 'external', description: 'e', inputSchema: { type: 'object', additionalProperties: false, properties: {} }, annotations: { readOnlyHint: true, destructiveHint: false } },
 		{ name: 'probe_q', level: 'read', category: 'query', description: 'q', inputSchema: { type: 'object', additionalProperties: false, properties: {} }, annotations: { readOnlyHint: true, destructiveHint: false } },
@@ -738,14 +738,14 @@ describe('[进阶复查 2026-09-08] D12 读级类别档 / D14 来源目录 / D15
 	});
 });
 
-describe('[复查 D24/D65] 非对话来源:读级「询问」自动放行(deny 保留)· 会话放行集只对对话来源', ()=>{
+describe('非对话来源:读级「询问」自动放行(deny 保留)· 会话放行集只对对话来源', ()=>{
 	const prefs3 = require('../aiAgent/prefs');
 	const sess = require('../aiAgent/sessionAllow');
 	beforeEach(()=>{ window.localStorage.clear(); sess.__resetSessionAllowForTests(); window.localStorage.setItem(AGENT_ENABLED_KEY, '1'); prefs3.setAgentEnabled(true); recordToolCapability('p', 'm', true); });
 	const READ_MAN = [{ name: 'q_read', level: 'read', category: 'query', description: 'r', inputSchema: { type: 'object', additionalProperties: false, properties: {} }, annotations: { readOnlyHint: true, destructiveHint: false } },
 		{ name: 'x_ext', level: 'read', category: 'external', description: 'r', inputSchema: { type: 'object', additionalProperties: false, properties: {} }, annotations: { readOnlyHint: true, destructiveHint: false } }];
 	function regOf(impl){ const runTool = jest.fn(async (n, a, c)=>impl(n, a, c)); return { exportToolManifest: ()=>READ_MAN, runTool, getTool: (n)=>READ_MAN.find((m)=>m.name === n) }; }
-	it('🔴 [D24] 显式「查询=每次确认」:对话来源问(无通道 ⇒ fail-closed);goal/mcp/automation 来源自动放行并打 autoApproved 标记', async ()=>{
+	it('🔴 显式「查询=每次确认」:对话来源问(无通道 ⇒ fail-closed);goal/mcp/automation 来源自动放行并打 autoApproved 标记', async ()=>{
 		prefs3.setAgentApprovalCategory('query', 'on-request');
 		// 对话来源无审批通道 ⇒ E_APPROVAL_DENIED(D15)
 		const regA = regOf(()=>({ ok: true, data: { hit: 1 } }));
@@ -762,7 +762,7 @@ describe('[复查 D24/D65] 非对话来源:读级「询问」自动放行(deny �
 			expect(g.trace().rounds[0].results[0].ok).toBe(true);
 		}
 	});
-	it('🔴 [D24] 显式「外部=只读」的 deny 在 goal 来源仍生效(只把 ask 降 auto,不放行 deny)', async ()=>{
+	it('🔴 显式「外部=只读」的 deny 在 goal 来源仍生效(只把 ask 降 auto,不放行 deny)', async ()=>{
 		prefs3.setAgentApprovalCategory('external', 'read-only');
 		const reg = regOf(()=>({ ok: true }));
 		const g = createAgentTurn({ profile: { id: 'p' }, model: 'm', registry: reg, origin: 'goal', requestApproval: ()=>Promise.resolve(true) });
@@ -770,7 +770,7 @@ describe('[复查 D24/D65] 非对话来源:读级「询问」自动放行(deny �
 		expect(reg.runTool).not.toHaveBeenCalled();
 		expect(g.trace().rounds[0].results[0].code).toBe('E_APPROVAL_DENIED');
 	});
-	it('🔴 [D65] 「本会话不再问」只对对话来源:同名写入在 goal 来源仍询问', async ()=>{
+	it('🔴 「本会话不再问」只对对话来源:同名写入在 goal 来源仍询问', async ()=>{
 		window.localStorage.setItem(AGENT_APPROVAL_KEY, 'on-request');
 		sess.allowToolForSession('probe_add');
 		const ask = jest.fn(()=>Promise.resolve(false));
@@ -788,8 +788,8 @@ describe('[复查 D24/D65] 非对话来源:读级「询问」自动放行(deny �
 	});
 });
 
-// [Q-290/M-105·PP-14] 围栏模式收口轮:末尾追加「本轮不要再输出动作块」提示;路由收口记 route_close(不再误记 max_rounds)。
-describe('[Q-290/PP-14] 围栏模式收口', ()=>{
+// 围栏模式收口轮:末尾追加「本轮不要再输出动作块」提示;路由收口记 route_close(不再误记 max_rounds)。
+describe('围栏模式收口', ()=>{
 	beforeEach(()=>{ window.localStorage.setItem(AGENT_ENABLED_KEY, '1'); });
 	it('text 模式轮数上限收口轮:请求末条 user 含「收口」提示;模型仍发动作块 → max_rounds + E_LIMIT', async ()=>{
 		recordToolCapability('p', 'tm', false);

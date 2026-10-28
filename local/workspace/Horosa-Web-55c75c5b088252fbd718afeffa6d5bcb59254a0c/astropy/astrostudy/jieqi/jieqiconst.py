@@ -308,33 +308,6 @@ def getYearGanZi(year):
 
 
 
-def getJieQiInterval(lon):
-    res = {
-        'start': {
-            'lon': 0,
-            'jieqi': ''
-        },
-        'end': {
-            'lon': 0,
-            'jieqi': ''
-        }
-    }
-    for jq in JieQi:
-        # JieQiLon[jq] 是 dict({'lon':…}),原直接与数值比较在 Py3 抛 TypeError(一调即崩)
-        if JieQiLon[jq]['lon'] < lon:
-            continue
-        elif JieQiLon[jq]['lon'] >= lon:
-            res['end']['jieqi'] = jq
-            res['end']['lon'] = JieQiLon[jq]['lon']
-            idx = JieQi.index(jq)
-            idx = (idx - 1 + 24) % 24
-            prevjq = JieQi[idx]
-            res['start']['jieqi'] = prevjq
-            res['start']['lon'] = JieQiLon[prevjq]['lon']
-            break
-    return res
-
-
 def cnTimeRounded(tm):
     """节气时刻的显示串:四舍五入到整秒(Datetime.toCNString 在星历换算域内直接截掉小数秒,交节时刻会显示早最多 1 秒)。
     只用于节气时刻的 'time' 串;jdn / tm 仍是精确时刻。域外(约 9999 年以后)toCNString 本就四舍五入,原样返回。"""

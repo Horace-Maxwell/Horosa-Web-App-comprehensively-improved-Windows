@@ -7,6 +7,7 @@ import { DEFAULT_TASK_BUDGET } from '../../utils/aiAgent/tasks';
 import { isAgentEnabled, isGoalEnabled } from '../../utils/aiAgent/prefs';
 import { listAnalysisSources } from '../../utils/aiAnalysisSources';
 import { listAnalysisTechniqueOptions } from '../../utils/aiAnalysisContext';
+import { scriptFilterBy } from '../../utils/scriptMode';
 
 export default function GoalTaskModal({ open, onClose, onCreated }){
 	const [goal, setGoal] = React.useState('');
@@ -19,7 +20,7 @@ export default function GoalTaskModal({ open, onClose, onCreated }){
 	const source = sources.find((s)=>s.id === sourceCid) || null;
 	const techOptions = React.useMemo(()=>{ try{ return (listAnalysisTechniqueOptions(source || { sourceType: 'chart' }) || []).map((o)=>({ value: o.value, label: o.label || o.value })); }catch(e){ return []; } }, [source]);
 	const gated = !(isAgentEnabled() && isGoalEnabled());
-	// [Q-294/M-109·AR-10] 建任务时判当前模型是否有计价表:无价时费用维永不触发,弹窗明说而不是显示「$0.000/上限」
+	// 建任务时判当前模型是否有计价表:无价时费用维永不触发,弹窗明说而不是显示「$0.000/上限」
 	const [unpricedModel, setUnpricedModel] = React.useState('');
 	React.useEffect(()=>{
 		if(!open){ return undefined; }
@@ -61,9 +62,9 @@ export default function GoalTaskModal({ open, onClose, onCreated }){
 					<span>分钟 <InputNumber size="small" min={1} max={120} value={budget.maxWallMinutes} onChange={(v)=>setBudget((b)=>({ ...b, maxWallMinutes: v || 1 }))} style={{ width: 70 }} /></span>
 				</div>
 				<div style={{ display: 'flex', gap: 8 }}>
-					<Select size="small" allowClear placeholder="挂载命盘/事盘(可选)" value={sourceCid} onChange={setSourceCid} style={{ flex: '1 1 50%' }} showSearch optionFilterProp="label"
+					<Select filterOption={scriptFilterBy('label')} size="small" allowClear placeholder="挂载命盘/事盘(可选)" value={sourceCid} onChange={setSourceCid} style={{ flex: '1 1 50%' }} showSearch optionFilterProp="label"
 						options={sources.slice(0, 200).map((s)=>({ value: s.id, label: `${s.title}${s.sourceType === 'case' ? '(事盘)' : ''}` }))} />
-					<Select size="small" mode="multiple" placeholder="技法(可选,≤6)" value={techniques} onChange={(v)=>setTechniques((v || []).slice(0, 6))} style={{ flex: '1 1 50%' }} options={techOptions} maxTagCount={3} />
+					<Select filterOption={scriptFilterBy()} size="small" mode="multiple" placeholder="技法(可选,≤6)" value={techniques} onChange={(v)=>setTechniques((v || []).slice(0, 6))} style={{ flex: '1 1 50%' }} options={techOptions} maxTagCount={3} />
 				</div>
 				<div style={{ color: 'var(--horosa-text-soft, #8a8f99)' }}>写入策略跟随「AI 助手行动能力」审批档:每次确认时任务会停在待办等你点允许(30 分钟不理视为跳过)。所有写入进账本可撤销。</div>
 			</div>

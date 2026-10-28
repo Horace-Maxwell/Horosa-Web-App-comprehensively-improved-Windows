@@ -5,6 +5,7 @@ import {randomStr, setupFloatingTooltip} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import { chartDrawGuardEnabled, chartSCUEnabled } from '../../utils/perfFlags';
 import ZWChart from './ZWChart';
+import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
 
 // horosa_ziwei_chart_scu_v1:本组件 render 与 drawChart 实际消费的**全部** props。
 // 逐项相等 → 跳过这次 re-render(连带跳过 cDU→scheduleDrawChart 的双 rAF + getElementById +
@@ -119,7 +120,7 @@ class ZiWeiChart extends Component{
 			return svgdom.clientWidth > 0 && svgdom.clientHeight > 0;
 		}
 
-		// [Tahoe 域混根修] 量容器必须用布局域读数(offsetWidth/offsetHeight,border-box),
+		// 量容器必须用布局域读数(offsetWidth/offsetHeight,border-box),
 		// 绝不用 getBoundingClientRect:rect 域在壳缩放(html zoom)≠1 时已被缩放,把 rect 值
 		// 写回 style.width(布局域 px)=跨域写错尺寸(z>1 盘面超宽被两侧遮裁/z<1 偏小)。
 		// 读写同域直量,任何 zoom 引擎语义下 by construction 成立;z=1 时与旧 rect 写法逐值相等。
@@ -170,7 +171,7 @@ class ZiWeiChart extends Component{
 		this.zwchart.luckSihuaLayers = this.props.luckSihuaLayers || null;
 		this.zwchart.luckShowZihua = this.props.luckShowZihua !== false; // 默认 true（无运限=本命四化+自化）
 		this.zwchart.luckLabelLayers = this.props.luckLabelLayers || null;
-		// [D3] 流年神煞上盘:选中流年支透传(house 绘制期经 resolveSmallStarsForDisplay 消费)。
+		// 流年神煞上盘:选中流年支透传(house 绘制期经 resolveSmallStarsForDisplay 消费)。
 		this.zwchart.flowZhi = this.props.luckFlowZhi || null;
 
 		// 重绘签名守卫(流畅度):cDU 无条件 scheduleDrawChart,父组件无关 setState(tips/输入区)
@@ -284,14 +285,15 @@ class ZiWeiChart extends Component{
 		let divtip = d3.select('#' + this.state.tooltipId);
 		this.setupToolTip(divtip);
 		const svgdom = document.getElementById(this.state.chartid);
-		if(svgdom && typeof ResizeObserver !== 'undefined'){
-			this.resizeObserver = new ResizeObserver(()=>{
-				this.scheduleDrawChart();
+		// 观察盘舞台(viewport 的父层,即 ensureChartSurfaceSize 量的那个盒):写尺寸只写它的后代(viewport 与 svg),不回到被观察的盒。
+		// 走延帧观察器统一入口 —— 换档帧里由工作区观察器同步跑(首帧即终值),此前观察 svg + viewport、回调再排两拍 rAF,换档后晚 2 帧。
+		const stage = svgdom ? (svgdom.parentElement && svgdom.parentElement.parentElement) || svgdom.parentElement : null;
+		if(stage){
+			this.resizeObserver = createDeferredResizeObserver(()=>{
+				if(this.drawFrame){ cancelAnimationFrame(this.drawFrame); this.drawFrame = null; }
+				this.drawChart();
 			});
-			this.resizeObserver.observe(svgdom);
-			if(svgdom.parentElement){
-				this.resizeObserver.observe(svgdom.parentElement);
-			}
+			if(this.resizeObserver){ this.resizeObserver.observe(stage); }
 		}
 		// 主题(明暗)切换只改 <html data-horosa-appearance>；盘底等烘焙色不重绘则停在旧主题(切明暗紫微盘不变·很丑)。
 		// 经 watchChartAppearance(单源订阅)主动重绘(重绘签名已含 appearance，故确实重画)。仿 AstroChart 同款修法。

@@ -1,4 +1,4 @@
-// [进阶复查 D18·2026-09-08] 本机 MCP 服务 list_changed 发射器:去抖(同 kind 合一)、未启用零定时器零 invoke、dispose 即停、坏 kind 拒。
+// 本机 MCP 服务 list_changed 发射器:去抖(同 kind 合一)、未启用零定时器零 invoke、dispose 即停、坏 kind 拒。
 import { createAgentNotifier, desktopAgentNotify, AGENT_NOTIFY_KINDS } from '../aiAnalysisDesktop';
 
 const sleep = (ms)=>new Promise((r)=>setTimeout(r, ms));

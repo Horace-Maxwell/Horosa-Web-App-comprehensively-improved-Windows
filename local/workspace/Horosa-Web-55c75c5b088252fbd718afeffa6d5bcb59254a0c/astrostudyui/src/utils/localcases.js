@@ -1,9 +1,10 @@
-import { createLocalRecordStore, nowStr, normalizeGroup, normalizePayload } from './localRecordStore';
+import { createLocalRecordStore, nowStr, normalizeGroup, normalizePayload, TRASH_CAP } from './localRecordStore';
 import { emitAutomationEvent } from './aiAgent/automation/events';
+import { isCaseDivTimeText } from './caseDivTime';
 
 const LocalCasesKey = 'horosa.localCases.v1';
 
-// [S1 内核收编] 与 localcharts.js 同批:存储机械层收编进 localRecordStore 单一内核,
+// 与 localcharts.js 同批:存储机械层收编进 localRecordStore 单一内核,
 // 本文件只保留域层(事盘类型注册表/别名归一/记录构造)。公开 API 逐字节不变(金标看守)。
 export const CASE_TYPE_OPTIONS = [
 	{ value: 'liuyao', label: '六爻', subTab: null, tab: 'guazhan', module: 'guazhan' },
@@ -134,6 +135,14 @@ export function getCaseTypeMeta(type){
 	};
 }
 
+// 从文件导入时的坏条目:没有起课时间(空 / 写法认不出)—— 载入只能按「此刻」起课,导进来就是一条与原事对不上的盘。
+// 跳过并在导入结果里列出(全量恢复不判,见 localRecordStore validateItem)
+export function caseImportProblem(item){
+	const d = item ? item.divTime : undefined;
+	if(d && typeof d === 'object' && typeof d.format === 'function'){ return null; }
+	return isCaseDivTimeText(d) ? null : '没有起课时间';
+}
+
 const store = createLocalRecordStore({
 	storageKey: LocalCasesKey,
 	searchField: 'event',
@@ -144,6 +153,7 @@ const store = createLocalRecordStore({
 	deleteErrorCode: 'local.case.delete.failed',
 	warnLabel: 'case',
 	trashKey: 'horosa.localCases.trash.v1',
+	validateItem: caseImportProblem,
 });
 
 export function listLocalCases(filter){
@@ -159,7 +169,7 @@ export function getPagedLocalCases(params){
 	return store.getPaged(params);
 }
 
-// [P0-S2] 单条读取(内核 cid 索引 O(1);不过滤归档;共享只读引用,禁原地改)。
+// 单条读取(内核 cid 索引 O(1);不过滤归档;共享只读引用,禁原地改)。
 export function getLocalCase(cid){
 	return store.getByCid(cid);
 }
@@ -193,7 +203,7 @@ export function buildLocalCaseRecord(values){
 		updateTime: values.preserveUpdateTime && values.updateTime ? values.updateTime : nowStr(),
 		payload: normalizePayload(values.payload),
 		sourceModule: values.sourceModule ? values.sourceModule : caseMeta.module,
-		// [R4] 事盘备注(present 才落,旧档体积零变):命盘有 8 个 memo* 槽,事盘此前 0 个 ——
+		// 事盘备注(present 才落,旧档体积零变):命盘有 8 个 memo* 槽,事盘此前 0 个 ——
 		// 断后复盘/应期回填只能改「事件」标题混写。经编辑表单填写。
 		memo: values.memo !== undefined && values.memo !== null && values.memo !== '' ? `${values.memo}` : undefined,
 	};
@@ -202,7 +212,7 @@ export function buildLocalCaseRecord(values){
 
 export function upsertLocalCase(values){
 	const __saved = store.upsert(values);
-	// [P4] 自动化事件:存档后广播(引擎默认关;emit 永不抛错、不阻塞保存)
+	// 自动化事件:存档后广播(引擎默认关;emit 永不抛错、不阻塞保存)
 	try{ emitAutomationEvent('record.saved', { kind: 'case', cid: __saved && __saved.cid ? __saved.cid : (values && values.cid) }); }catch(e){ /* noop */ }
 	return __saved;
 }
@@ -215,22 +225,25 @@ export function exportLocalCasesBackup(){
 	return store.exportBackup();
 }
 
-export function importLocalCasesBackup(payload){
-	return store.importBackup(payload);
+// opts.sameCid:同一 ID 的口径(缺省 'newer' = 更新时间较新的那一版整条胜出、本机较新或一样新保留本机,替换时管理字段留本机的;
+// 'backup' = 一律用备份里的那一版;'merge' = 按字段合并);opts.mergeCids = 只有这些按字段合并;
+// opts.respectLocalDeletions = 本机之后删掉的(还在回收站 / 删除日志里)不带回
+export function importLocalCasesBackup(payload, opts){
+	return store.importBackup(payload, opts);
 }
 
-// [S4] 存储健康态(横幅/诊断用):mode 'persistent'|'memory' + 最近写失败原因。
+// 存储健康态(横幅/诊断用):mode 'persistent'|'memory' + 最近写失败原因。
 export function getLocalCasesStoreHealth(){
 	return store.getHealth();
 }
 
-// [S8] 导入三闸的纯函数面(校验/预览),UI 在确认后才调 importLocalCasesBackup 真写。
+// 导入三闸的纯函数面(校验/预览),UI 在确认后才调 importLocalCasesBackup 真写。
 export function validateLocalCasesBackup(payload){
 	return store.validateBackupEnvelope(payload);
 }
 
-export function previewLocalCasesBackup(payload){
-	return store.previewImportBackup(payload);
+export function previewLocalCasesBackup(payload, opts){
+	return store.previewImportBackup(payload, opts);
 }
 
 // [V] 置顶/置底(与命盘侧同款)。
@@ -239,12 +252,12 @@ export function pinLocalCase(cid, tier){
 }
 
 // [V] 上移/下移(与命盘侧同款)。
-// [V5-D1/D2/D3] 归档/星标/使用足迹(内核管理字段;全链保真由未知键保全承载)。
+// 归档/星标/使用足迹(内核管理字段;全链保真由未知键保全承载)。
 export function flagLocalCase(cid, field, on){
 	return store.setFlag(cid, field, on);
 }
 
-// [批五] 整体改写标签列表(AI 加标签工具与其撤销;不刷新 updateTime)
+// 整体改写标签列表(AI 加标签工具与其撤销;不刷新 updateTime)
 export function setLocalCaseTags(cid, tags){
 	return store.setTags(cid, tags);
 }
@@ -257,13 +270,24 @@ export function moveLocalCase(cid, dir){
 	return store.moveRecord(cid, dir);
 }
 
-// [R3] 回收站(与命盘侧同款)。
+// 回收站(与命盘侧同款)。
 export function listLocalCasesTrash(){
 	return store.listTrash();
 }
 
+// 回收站现有(没过期的)条数与上限:批量删除确认框写明超出上限的几条转入删除日志
+export const LOCAL_CASES_TRASH_CAP = TRASH_CAP;
+export function countLocalCasesLiveTrash(){
+	return store.countLiveTrash();
+}
+
 export function restoreLocalCaseFromTrash(cid){
 	return store.restoreFromTrash(cid);
+}
+
+// 删除日志找回并把这条从日志里摘掉(再点不会再多一条副本)
+export function restoreLocalCaseFromDeletedLog(entry){
+	return store.restoreFromDeletedLog(entry);
 }
 
 export function purgeLocalCaseTrashItem(cid){

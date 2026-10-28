@@ -16,6 +16,17 @@ describe('UranianSchools 四流派预设', () => {
     expect(w.cosmogramDefault).toBe(false);
   });
 
+  it('classic 图形星历盘基 = 90°(与图形星历页缺省同值;选默认派不再把盘基切成 22.5)', () => {
+    expect(SCHOOL_PRESETS.classic.ephemBase).toBe(90);
+    const fs = require('fs');
+    const path = require('path');
+    const ge = fs.readFileSync(path.join(__dirname, '..', 'UranianGraphicEphemeris.js'), 'utf8');
+    expect(ge).toContain('[90, 45, 22.5].indexOf(disp.base) >= 0 ? disp.base : 90');
+    // 其它派保持各自盘基
+    expect(SCHOOL_PRESETS.pure.ephemBase).toBe(22.5);
+    expect(SCHOOL_PRESETS.uranian.ephemBase).toBe(22.5);
+  });
+
   it('classic 个人点含白羊点 + 南交(汉堡六点+白羊)', () => {
     const keys = SCHOOL_PRESETS.classic.personalKeys;
     expect(keys).toContain(ARIES_POINT);

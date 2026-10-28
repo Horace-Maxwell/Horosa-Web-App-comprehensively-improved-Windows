@@ -79,7 +79,7 @@ public class HttpGetBytesHystrixCommand extends HystrixCommand<byte[]>{
 			String proxyHost,int proxyPort){
 		try{
 			
-			Builder cfgBuilder =  RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(HttpClientUtility.getHttpHost());
+			Builder cfgBuilder =  RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(HttpClientUtility.getHttpHostFor(url));
 			if(!StringUtility.isNullOrEmpty(proxyHost))
 			{
 				HttpHost host = new HttpHost(proxyHost, proxyPort);
@@ -159,7 +159,7 @@ public class HttpGetBytesHystrixCommand extends HystrixCommand<byte[]>{
 				}
 				return raw;
 			}catch(Exception e){
-				HttpClientUtility.log.error("{}, cause:{}", url, e.getMessage());
+				HttpClientUtility.log.error("{}, cause:{}", boundless.utility.SecretRedactor.redactText(url), boundless.utility.SecretRedactor.redactText(e.getMessage()));
 				throw e;
 			}finally{
 				try{

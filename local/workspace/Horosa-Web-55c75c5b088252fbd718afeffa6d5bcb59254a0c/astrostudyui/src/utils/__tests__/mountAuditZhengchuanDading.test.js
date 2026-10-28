@@ -1,4 +1,4 @@
-// [挂载自检 F-47] 神数正传·大定「所推之年」齿轮(zcDadingYear)无头必须消费:页面按所推之年自八字推运表
+// 神数正传·大定「所推之年」齿轮(zcDadingYear)无头必须消费:页面按所推之年自八字推运表
 // 派生 虚岁/大运/小运/岁君(deriveDadingYearPillars),无头此前只透传不消费 → 恒回落本命四柱。
 // 判别向量:同盘 大定 school,所推之年 2020 vs 未填 → 「大运／小运／岁君」行必不同,且岁君=2020 太岁 庚子。
 jest.mock('../request', () => ({ __esModule: true, default: jest.fn(async () => ({ Result: {} })) }));

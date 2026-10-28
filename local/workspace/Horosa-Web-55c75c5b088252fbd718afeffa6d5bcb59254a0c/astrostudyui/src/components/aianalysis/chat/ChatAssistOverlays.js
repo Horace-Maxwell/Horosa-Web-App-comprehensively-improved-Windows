@@ -8,8 +8,9 @@ import SubjectWorkspaceDrawer from './SubjectWorkspaceDrawer';
 import PlanCard from './PlanCard';
 import DoctorPanel from './DoctorPanel';
 import { Switch } from 'antd';
+import { groupCommandItems, commandMatches } from '../../../utils/aiChat/commands';
 
-// [批二⑪] /resume:最近 5 个对话 + 「启动时自动继续上次」开关(缺省关;打开浮层不写键,只在拨开关时写)
+// /resume:最近 5 个对话 + 「启动时自动继续上次」开关(缺省关;打开浮层不写键,只在拨开关时写)
 function ResumePanel({ resume }){
 	const r = resume || {};
 	if(!r.open){ return null; }
@@ -23,7 +24,7 @@ function ResumePanel({ resume }){
 				</label>
 				{items.length ? items.map((c)=>(
 					<div key={c.id} data-resume-item={c.id} data-active={r.activeId === c.id ? '1' : '0'} onClick={()=>{ if(typeof r.onOpen === 'function'){ r.onOpen(c); } }}
-						style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '6px 8px', borderRadius: 6, cursor: 'pointer', background: r.activeId === c.id ? 'var(--horosa-surface-2, rgba(127,127,127,0.12))' : 'transparent' }}>
+						style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '6px 8px', borderRadius: 6, cursor: 'pointer', background: r.activeId === c.id ? 'var(--horosa-surface-sunken, rgba(127,127,127,0.12))' : 'transparent' }}>
 						<span style={{ flex: '1 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title || '(未命名对话)'}{c.sourceRef && c.sourceRef.title ? <span style={{ color: 'var(--horosa-text-soft, #8a8f99)' }}> · {c.sourceRef.title}</span> : null}</span>
 						<span style={{ flex: '0 0 auto', color: 'var(--horosa-text-soft, #8a8f99)' }}>{`${c.updatedAt || c.createdAt || ''}`.slice(0, 16).replace('T', ' ')}</span>
 					</div>
@@ -33,7 +34,7 @@ function ResumePanel({ resume }){
 	);
 }
 
-// [A3] /status:展开本会话状态(与状态栏同一口径的数字)
+// /status:展开本会话状态(与状态栏同一口径的数字)
 function StatusDetail({ statusDetail }){
 	const sd = statusDetail || {};
 	if(!sd.open){ return null; }
@@ -58,7 +59,7 @@ function StatusDetail({ statusDetail }){
 	);
 }
 
-// [2026-09-11] 压缩摘要:状态栏「已压缩 N 条 · 查看」→ 看摘要正文(此前只有「取消」,摘要正文没有任何地方能看到);弹窗里可取消压缩
+// 压缩摘要:状态栏「已压缩 N 条 · 查看」→ 看摘要正文(此前只有「取消」,摘要正文没有任何地方能看到);弹窗里可取消压缩
 function CompactSummary({ compactView }){
 	const cv = compactView || {};
 	if(!cv.open){ return null; }
@@ -72,12 +73,46 @@ function CompactSummary({ compactView }){
 	);
 }
 
+// /help:全部命令按组列出(名字 / 别名 / 参数 / 说明 / 能不能用及原因);/help 命令名 只看那一条;点一条 = 填进输入框
+function HelpPanel({ help }){
+	const h = help || {};
+	if(!h.open){ return null; }
+	const all = Array.isArray(h.items) ? h.items : [];
+	const focus = `${h.focus || ''}`.trim().replace(/^\//, '');
+	const hit = focus ? all.filter((it)=>commandMatches(it, focus) || `${it.label || ''}` === focus) : [];
+	const shown = hit.length ? hit : all;
+	const groups = groupCommandItems(shown);
+	const soft = 'var(--horosa-text-soft, #8a8f99)';
+	return (
+		<Modal title={hit.length ? `命令帮助 · /${hit[0].name}` : '命令帮助'} open visible onCancel={h.onClose} footer={null} width={560}>
+			<div data-command-help="1" style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12.5, maxHeight: 'calc(64 * var(--horosa-lvh, 1vh))', overflowY: 'auto' }}>
+				{focus && !hit.length ? <div style={{ color: soft }}>没有叫「/{focus}」的命令,下面是全部命令。</div> : null}
+				{groups.map((g)=>(
+					<div key={g.group} data-command-help-group={g.group}>
+						<div style={{ fontSize: 11, letterSpacing: '0.04em', color: soft, marginBottom: 4 }}>{g.group}</div>
+						{g.items.map((it)=>(
+							<div key={`${it.kind}:${it.name}`} data-command-help-item={it.name} data-available={it.available === false ? '0' : '1'} onClick={()=>{ if(typeof h.onPick === 'function'){ h.onPick(it); } }}
+								style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', opacity: it.available === false ? 0.6 : 1 }}>
+								<span><b>/{it.name}</b>{it.argsHint ? <span style={{ color: soft }}> {it.argsHint}</span> : null}{(it.aliases || []).length ? <span style={{ color: soft }}> · 也可写 {(it.aliases || []).map((a)=>`/${a}`).join(' ')}</span> : null}</span>
+								<span>{it.help || it.label}</span>
+								{it.available === false && it.why ? <span style={{ color: soft }}>暂不可用:{it.why}</span> : null}
+							</div>
+						))}
+					</div>
+				))}
+				<div style={{ color: soft, borderTop: '1px solid var(--horosa-border, #e5e7eb)', paddingTop: 8 }}>输入框第一个字打 / 弹命令菜单;参数里可以 @ 命盘 / 技法 / 资料;要发送以 / 开头的普通文字,写成 //。</div>
+			</div>
+		</Modal>
+	);
+}
+
 export default function ChatAssistOverlays(props){
 	const p = props || {};
-	const anyOpen = (p.statusDetail && p.statusDetail.open) || (p.side && p.side.open) || (p.rewind && p.rewind.open) || (p.subject && p.subject.open) || (p.plan && p.plan.open) || (p.resume && p.resume.open) || (p.doctor && p.doctor.open) || (p.compactView && p.compactView.open);
+	const anyOpen = (p.help && p.help.open) || (p.statusDetail && p.statusDetail.open) || (p.side && p.side.open) || (p.rewind && p.rewind.open) || (p.subject && p.subject.open) || (p.plan && p.plan.open) || (p.resume && p.resume.open) || (p.doctor && p.doctor.open) || (p.compactView && p.compactView.open);
 	if(!anyOpen){ return null; }
 	return (
 		<React.Fragment>
+			{p.help && p.help.open ? <HelpPanel help={p.help} /> : null}
 			{p.statusDetail && p.statusDetail.open ? <StatusDetail statusDetail={p.statusDetail} /> : null}
 			{p.compactView && p.compactView.open ? <CompactSummary compactView={p.compactView} /> : null}
 			{p.side && p.side.open ? <SideQuestionPanel open initialQuestion={p.side.initialQuestion} onClose={p.side.onClose} deps={p.side.deps} mainline={p.side.mainline} onMainline={p.side.onMainline} /> : null}

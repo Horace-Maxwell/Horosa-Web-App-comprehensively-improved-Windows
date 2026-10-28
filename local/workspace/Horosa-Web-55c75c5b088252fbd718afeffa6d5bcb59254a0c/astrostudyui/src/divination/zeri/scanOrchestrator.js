@@ -2,15 +2,13 @@
 // 顺序而非并发:后端逐段本就要满算,并发只会挤占本地 CPU;顺序还天然给出进度与可取消点。
 import { fetchElectionScan } from '../../services/electionScan';
 import { splitByMonth, stitchIntervals } from './intervalOps';
+import { wallTextToMs, nonexistentWallDateMessage } from './hourlyScanEngine';
 
 export const MAX_TOTAL_HITS = 1000;
 export const MAX_SPAN_DAYS_TOTAL = 1830; // 前端总范围 ≤5 年(后端每段另有 93 天硬限)
 
 function spanDays(startDate, endDate){
-	const p = (d)=>{
-		const seg = String(d).replace(/-/g, '/').split('/');
-		return Date.UTC(Number(seg[0]), Number(seg[1]) - 1, Number(seg[2]));
-	};
+	const p = (d)=>wallTextToMs(String(d).replace(/\//g, '-'));   // 墙钟单一来源(0-99 年不走 Date.UTC)
 	return (p(endDate) - p(startDate)) / 86400000;
 }
 
@@ -21,6 +19,10 @@ function spanDays(startDate, endDate){
  * 返回 { intervals, truncated, stats:{segments, evalPoints} };取消抛 AbortError。
  */
 export async function runScan({ base, tree, onProgress, signal }){
+	const missing = nonexistentWallDateMessage(base.startDate, base.endDate);
+	if(missing){
+		throw new Error(missing);
+	}
 	const total = spanDays(base.startDate, base.endDate);
 	if(!(total >= 0)){
 		throw new Error('时间段无效:结束需晚于开始');
@@ -66,14 +68,14 @@ export async function runScan({ base, tree, onProgress, signal }){
 	};
 }
 
-// ── [十二轮] 远端家通用分段编排(七政/印度;用户实报 395 天被 93 天单请求上限拒)──
+// ── 远端家通用分段编排(七政/印度;用户实报 395 天被 93 天单请求上限拒)──
 // 与上面天星 runScan 同思想:前端按自然月切段顺序请求、拼接、流式进度、可取消;
 // py 端 93 天硬限保留为单段防呆(段=自然月 ≤31 天,永不触)。总上限与本地家同 5 年。
 // 响应行为纯字符串 {start,end,pick}(无 Jd)→ 拼接按分钟差 ≤1 判段界共点(py 输出
 // 分钟粒度截断,段界收在月首 00:00 两侧精确相接;1 分钟容差兜秒截断偏差)。
 const wallMinuteMs = (s)=>{
-	const m = /^(-?\d+)-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(`${s}`);
-	return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5])) : NaN;
+	const m = /^(-?\d+-\d{2}-\d{2})[ T](\d{2}:\d{2})/.exec(`${s}`);
+	return m ? wallTextToMs(`${m[1]} ${m[2]}`) : NaN;   // 墙钟单一来源(0-99 年不走 Date.UTC)
 };
 function stitchTextIntervals(lists){
 	const all = [];
@@ -95,6 +97,10 @@ function stitchTextIntervals(lists){
 const dashDate = (d)=>`${d}`.replace(/\//g, '-');
 
 export async function runSegmentedRemoteScan({ payload, fetchFn, onProgress, signal, maxTotalHits = MAX_TOTAL_HITS, maxSpanDaysTotal = MAX_SPAN_DAYS_TOTAL }){
+	const missing = nonexistentWallDateMessage(payload.startDate, payload.endDate);
+	if(missing){
+		throw new Error(missing);
+	}
 	const total = spanDays(payload.startDate, payload.endDate);
 	if(!(total >= 0)){
 		throw new Error('时间段无效:结束需晚于开始');

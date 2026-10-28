@@ -172,7 +172,7 @@ export function huasha({
 		if (all.indexOf(w.name.split('／')[0]) >= 0) { wupinKeys.add(w.key); }
 	});
 
-	// [Q-221/T-183·FT-17] 坐山正犯岁破(zuoHit):此前算出后只拼进说明句、无人读 → 进总断与快照(大凶忌动)。
+	// 坐山正犯岁破(zuoHit):此前算出后只拼进说明句、无人读 → 进总断与快照(大凶忌动)。
 	const zuoSuiPo = rike.find((x)=>x.key === 'suipo' && x.zuoHit);
 	const zuoSuiPoText = zuoSuiPo ? `坐山${zuoShanForRike}正犯岁破——大凶,本年忌动土修造` : '';
 	const withZuo = (v)=>(zuoSuiPo ? { text: `${zuoSuiPoText}；${v.text}`, jx: 'bad' } : v);

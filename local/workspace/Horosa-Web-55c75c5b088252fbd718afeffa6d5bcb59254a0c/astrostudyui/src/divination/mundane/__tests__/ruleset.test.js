@@ -67,7 +67,7 @@ describe('mundane victor · termsVariant/triplicityVariant 接线', () => {
 		const none = computeAlmuten(facts);                      // 引擎默认(无变体)
 		expect(def).toBeTruthy();
 		// modern=egyptian/dorothean → 与引擎默认表同口径:基分逐星一致(computeAlmuten 零污染锚);
-		// [G6] 终分 = 基分 + 偶然增减(当令/焦伤/逆行/被围攻),明细逐项可稽。
+		// 终分 = 基分 + 偶然增减(当令/焦伤/逆行/被围攻),明细逐项可稽。
 		['mercury', 'venus', 'mars', 'sun', 'jupiter', 'saturn', 'moon'].forEach((p) => {
 			const row = def.scores.find((s) => s.planet === p);
 			const base = row ? row.base : 0;
@@ -82,7 +82,7 @@ describe('mundane victor · termsVariant/triplicityVariant 接线', () => {
 		}
 	});
 
-	it('[G6] 偶然层:焦伤/逆行显著降格,可令胜者易主', () => {
+	it('偶然层:焦伤/逆行显著降格,可令胜者易主', () => {
 		const facts = factsAt(12, 'aries');
 		// mercury 为白羊 12° 埃及界主(基分领先);给它焦伤+逆行 → −10,胜者应易主。
 		facts.planets.mercury = { lon: 8, sign: 'aries', signlon: 8, house: 1, combustion: 'combust', retro: true };

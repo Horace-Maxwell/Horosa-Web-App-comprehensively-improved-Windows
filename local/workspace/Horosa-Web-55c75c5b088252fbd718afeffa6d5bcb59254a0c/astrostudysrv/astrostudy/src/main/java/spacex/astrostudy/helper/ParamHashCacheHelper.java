@@ -180,21 +180,18 @@ public class ParamHashCacheHelper {
 		if(params != null) {
 			req.putAll(params);
 		}
-		if(fun == null) {
-			return null;
-		}
 		if(!EnableCache) {
 			return fun.apply(new HashMap<String, Object>(req));
 		}
 
-		String cacheKey = buildCacheKey(scope, req);
+		String cleanScope = sanitizeScope(scope);
+		String hash = hash(req);
+		String cacheKey = CacheHelper.buildCacheKey(Prefix, cleanScope, hash);
 		Object obj = getFromRedis(cacheKey);
 		if(obj != null) {
 			return obj;
 		}
 
-		String cleanScope = sanitizeScope(scope);
-		String hash = hash(req);
 		LocalPayload local = getFromLocal(cleanScope, hash, expInSec);
 		if(local.expired) {
 			removeRedis(cacheKey);
@@ -433,8 +430,6 @@ public class ParamHashCacheHelper {
 
 	private static LocalPayload getFromLocal(String scope, String hash, int expInSec) {
 		LocalPayload payload = new LocalPayload();
-		payload.value = null;
-		payload.expired = false;
 		if(!EnableLocal) {
 			return payload;
 		}

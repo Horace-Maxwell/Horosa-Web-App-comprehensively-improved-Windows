@@ -114,6 +114,13 @@ describe('intervalOps', ()=>{
 		expect(segs[2]).toEqual({ startDate: '2026/10/01', startTime: '00:00:00', endDate: '2026/10/03', endTime: '18:30:00' });
 	});
 
+	test('splitByMonth 公元前 / 跨公元元年:年月按民用日期串解析,无公元 0 年', ()=>{
+		const segs = splitByMonth('-0001/11/15', '00:00:00', '0001/02/03', '12:00:00');
+		expect(segs.map((x)=>x.startDate)).toEqual(['-0001/11/15', '-0001/12/01', '0001/01/01', '0001/02/01']);
+		expect(segs[segs.length - 1].endDate).toBe('0001/02/03');
+		const bc = splitByMonth('-0300-03-10', '06:00:00', '-0300-04-02', '18:00:00');
+		expect(bc.map((x)=>x.startDate)).toEqual(['-0300/03/10', '-0300/04/01']);
+	});
 	test('splitByMonth 同月单段', ()=>{
 		const segs = splitByMonth('2026/08/02', '00:00:00', '2026/08/20', '23:59:59');
 		expect(segs).toHaveLength(1);

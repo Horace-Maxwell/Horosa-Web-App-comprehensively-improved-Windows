@@ -1,4 +1,4 @@
-// [压测二轮·D6] 通知洪泛:一次批量任务能在几秒内推上百条通知 —— 页面侧必须先自己限流(桌面横幅令牌桶 + 同文去重),
+// 通知洪泛:一次批量任务能在几秒内推上百条通知 —— 页面侧必须先自己限流(桌面横幅令牌桶 + 同文去重),
 // 不能把「壳侧再限流」当唯一防线(壳的限流器管不到 IDB 落库量,也管不到用户看到的 100 个横幅动画)。
 import { pushNotice, listNotices, trimNotices, unreadCount, NOTICE_MAX, DESKTOP_NOTIFY_KEY } from '../aiAgent/tasks/noticeStore';
 import { safeLocalStorageSet } from '../safeStorage';

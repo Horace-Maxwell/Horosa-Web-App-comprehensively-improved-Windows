@@ -1,4 +1,4 @@
-// [2026-09-11] 任务中心第二入口合同:进阶页「打开任务中心」两枚按钮与斜杠命令 /任务 都派发 horosa:task-center;
+// 任务中心第二入口合同:进阶页「打开任务中心」两枚按钮与斜杠命令 /任务 都派发 horosa:task-center;
 // TaskCenterBell 收到事件即打开抽屉(即便行动能力关/零任务时铃铛本不渲染,也因事件强制出现)。
 import React from 'react';
 import ReactDOM from 'react-dom';

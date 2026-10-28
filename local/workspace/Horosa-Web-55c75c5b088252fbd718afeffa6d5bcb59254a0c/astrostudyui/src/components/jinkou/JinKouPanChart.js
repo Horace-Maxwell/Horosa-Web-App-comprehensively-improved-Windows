@@ -1,4 +1,5 @@
 import * as d3 from 'd3';
+import { leapPrefix } from '../../utils/lunarText';
 import * as AstroConst from '../../constants/AstroConst';
 import { formatDate } from '../../utils/helper';
 import { drawTextH, } from '../graph/GraphHelper';
@@ -10,6 +11,14 @@ import GodChart from '../liureng/GodChart';
 import * as LRConst from '../liureng/LRConst';
 import { HourZi, } from '../gua/GuaConst';
 import { JinKouElementColor } from './JinKouCalc';
+import { fitSvgDesignBox } from '../../utils/svgDesignBox';
+
+// 金口诀盘的设计尺寸下限(CSS px):外边距 20×2 + 标题 50 + 两行象限各 ≥ 306(表格段 72+150+44 + 两处间距 20 + 象限内边距 20)= 702 高;
+// 宽 660 是四课 / 三传两张表的字号与列宽拐点(实测:宽 540 时最小字 9 px、互叠 16 对,≥ 660 稳定)。
+// 盘比它小时按设计尺寸画、viewBox 整体等比缩回(此前按实际宽度直接画、字号随宽线性缩,1.8 档宽 271 时最小字不到 1 px;
+// 又靠撑高 702 + 中栏双滚动兜住高度)。放得下时不写 viewBox,逐像素不变。
+export const JK_DESIGN_MIN_W = 660;
+export const JK_DESIGN_MIN_H = 702;
 
 function safeText(val, def = '—'){
 	if(val === undefined || val === null || val === ''){
@@ -112,11 +121,10 @@ class JinKouPanChart {
 		if(svgdom === undefined || svgdom === null){
 			return null;
 		}
-		const width = svgdom.clientWidth;
-		const height = svgdom.clientHeight;
-		if(width === 0 || height === 0){
+		if(svgdom.clientWidth === 0 || svgdom.clientHeight === 0){
 			return null;
 		}
+		const { width, height } = fitSvgDesignBox(svgdom, JK_DESIGN_MIN_W, JK_DESIGN_MIN_H);
 
 		const realW = width - this.margin * 2;
 		const realH = height - this.margin * 2;
@@ -727,12 +735,12 @@ class JinKouPanChart {
 				txt = `${txt}； 八字:${fourcol.year.ganzi}年 ${fourcol.month.ganzi}月 ${fourcol.day.ganzi}日 ${fourcol.time.ganzi}时`;
 			}
 			if(this.nongli){
-				const leap = this.nongli.leap ? '闰' : '';
+				const leap = leapPrefix(this.nongli);
 				txt = `${txt}（${leap}${this.nongli.month}${this.nongli.day}）`;
 			}
 
 		}else if(this.nongli){
-			const leap = this.nongli.leap ? '闰' : '';
+			const leap = leapPrefix(this.nongli);
 			txt = `真太阳时:${this.nongli.birth}； 农历:${this.nongli.year}年 ${this.nongli.monthGanZi}月 ${this.nongli.dayGanZi}日 ${this.nongli.time}时（${leap}${this.nongli.month}${this.nongli.day}）`;
 		}else{
 			const dt = new Date();

@@ -1,4 +1,4 @@
-// [六爻死开关审计 L1 金标 · 2026-08-08] 左栏「断卦设置(流派)」全键全档引擎差分实证。
+// 左栏「断卦设置(流派)」全键全档引擎差分实证。
 // 探索轮(200 固定种子样本)已定谳,本文件固化断言:
 //   ① 引擎键逐档 anyDiff>0(改档必改判读);低命中键配定向样本(随机撒不到≠死,playbook 铁律)
 //   ② 渲染/起卦键恒 SAME=「不进引擎」结构契约(它们的活性在 Board/CastPad,由 liuyaoBoard 测试+真机看守;
@@ -45,7 +45,7 @@ function diffCount(key, val){
 	return n;
 }
 
-describe('[L1] 引擎键逐档:改档必改判读(200 固定种子样本 anyDiff)', ()=>{
+describe('引擎键逐档:改档必改判读(200 固定种子样本 anyDiff)', ()=>{
 	test('🔴 askType 全 20 非默认档逐档有差异', ()=>{
 		['opponent', 'wealth', 'career', 'marriage_m', 'marriage_f', 'illness', 'parents', 'children', 'doctor', 'sibling',
 			'thief', 'weather_rain', 'weather_sun', 'lost', 'travel', 'lawsuit', 'home', 'guishen', 'study', 'guochao']
@@ -99,7 +99,7 @@ describe('[L1] 引擎键逐档:改档必改判读(200 固定种子样本 anyDiff
 	});
 });
 
-describe('[L1] 渲染/起卦键「不进引擎」结构契约(恒 SAME;活性由 Board/CastPad 层看守)', ()=>{
+describe('渲染/起卦键「不进引擎」结构契约(恒 SAME;活性由 Board/CastPad 层看守)', ()=>{
 	test('14 键逐个:引擎输出恒等', ()=>{
 		const RENDER_AXES = {
 			changshengUse: 'four', changshengYinYang: 'classic', writeDir: 'topDown', titleAlign: 'right',
@@ -111,7 +111,7 @@ describe('[L1] 渲染/起卦键「不进引擎」结构契约(恒 SAME;活性由
 	});
 });
 
-describe('[L1] jinTuiTu 结构性空载事实锁', ()=>{
+describe('jinTuiTu 结构性空载事实锁', ()=>{
 	test('🔴 全域穷举(64 卦×63 动爻组合×动位):纳甲动变无 戌↔丑 本变对 ⇒ 两口径恒等(UI 已置灰)', ()=>{
 		let payload = 0;
 		Gua64.forEach((g)=>{
@@ -133,7 +133,7 @@ describe('[L1] jinTuiTu 结构性空载事实锁', ()=>{
 	});
 });
 
-describe('[L1] getLiuyaoOptionsKey 机械完备性(测试 oracle;曾漏 yongOverride 前科)', ()=>{
+describe('getLiuyaoOptionsKey 机械完备性(测试 oracle;曾漏 yongOverride 前科)', ()=>{
 	test('🔴 DEFAULT 全键逐键造变体 → key 必变(键面机械派生,不再手抄维护)', ()=>{
 		const VARIANT = {
 			school: 'zengshan', askType: 'wealth', yongOverride: '父母', yuepoMode: 'always', tuChangsheng: 'fire',

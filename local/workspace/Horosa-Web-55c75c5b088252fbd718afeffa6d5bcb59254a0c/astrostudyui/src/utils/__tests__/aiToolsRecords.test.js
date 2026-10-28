@@ -164,6 +164,23 @@ describe('create_case_record', ()=>{
 		expect(r.data.duplicate).toBe(true);
 		expect(localcases.listLocalCases({}).length).toBe(1);
 	});
+	it('🔴 同题同一分钟同类、所问不同 → 两条都落库;所问相同 → 回已有那条;allowDuplicate 才再建', async ()=>{
+		const a = await runTool('create_case_record', { caseType: 'liureng', divTime: '2026-05-01 10:00', event: '问事', question: '问财运' }, ctx());
+		const b = await runTool('create_case_record', { caseType: 'liureng', divTime: '2026-05-01 10:00', event: '问事', question: '问婚姻' }, ctx());
+		expect(b.data.created).toBe(true); expect(b.data.cid).not.toBe(a.data.cid);
+		expect(localcases.listLocalCases({}).length).toBe(2);
+		const again = await runTool('create_case_record', { caseType: 'liureng', divTime: '2026-05-01 10:00', event: '问事', question: '问财运' }, ctx());
+		expect(again.data.duplicate).toBe(true); expect(again.data.cid).toBe(a.data.cid);
+		const forced = await runTool('create_case_record', { caseType: 'liureng', divTime: '2026-05-01 10:00', event: '问事', question: '问财运', allowDuplicate: true }, ctx());
+		expect(forced.data.created).toBe(true);
+		expect(localcases.listLocalCases({}).length).toBe(3);
+		// 用户手建、没记指纹的旧档:按所问(备注)比
+		localcases.upsertLocalCase({ event: '手建', caseType: 'liureng', divTime: '2026-05-02 09:00:00', memo: '问出行' });
+		const hand = await runTool('create_case_record', { caseType: 'liureng', divTime: '2026-05-02 09:00', event: '手建', question: '问出行' }, ctx());
+		expect(hand.data.duplicate).toBe(true);
+		const hand2 = await runTool('create_case_record', { caseType: 'liureng', divTime: '2026-05-02 09:00', event: '手建', question: '问搬家' }, ctx());
+		expect(hand2.data.created).toBe(true);
+	});
 	it('gender=unknown 事盘不写 gender 键(与手工存盘同形)', async ()=>{
 		await runTool('create_case_record', { caseType: 'taiyi', gender: 'unknown' }, ctx());
 		const row = JSON.parse(window.localStorage.getItem(CASES_KEY))[0];

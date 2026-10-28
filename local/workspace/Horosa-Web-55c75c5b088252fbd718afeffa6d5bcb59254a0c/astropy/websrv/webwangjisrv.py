@@ -1,7 +1,6 @@
 import os
 import sys
 import traceback
-from numbers import Integral, Real
 
 import cherrypy
 import cn2an
@@ -9,6 +8,14 @@ import jsonpickle
 from cn2an import an2cn
 
 from websrv.helper import enable_crossdomain
+from websrv.horosa_engine_common import (
+    require_civil_ymd as _require_civil_ymd,
+    clean_text as _clean_text,
+    plain_format_value as _format_value,
+    plain_json_safe as _json_safe,
+    plain_row as _row,
+    to_int as _to_int,
+)
 
 
 _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -46,58 +53,6 @@ GUA_UNICODE = {
     "旅": "䷷", "巽": "䷸", "兌": "䷹", "渙": "䷺", "節": "䷻",
     "中孚": "䷼", "小過": "䷽", "既濟": "䷾", "未濟": "䷿",
 }
-
-
-def _to_int(value, default=0):
-    try:
-        if value is None or value == "":
-            return default
-        return int(value)
-    except Exception:
-        return default
-
-
-def _clean_text(value, default=""):
-    if value is None:
-        return default
-    text = str(value).strip()
-    return text if text else default
-
-
-def _json_safe(value):
-    if isinstance(value, dict):
-        return {_clean_text(key): _json_safe(val) for key, val in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_json_safe(item) for item in value]
-    if isinstance(value, Integral) and not isinstance(value, bool):
-        return int(value)
-    if isinstance(value, Real) and not isinstance(value, bool):
-        return float(value)
-    if hasattr(value, "item"):
-        try:
-            return _json_safe(value.item())
-        except Exception:
-            return _clean_text(value)
-    return value
-
-
-def _format_value(value):
-    if value is None or value == "":
-        return ""
-    if isinstance(value, dict):
-        parts = []
-        for key, val in value.items():
-            text = _format_value(val)
-            if text:
-                parts.append(f"{key}：{text}")
-        return "；".join(parts)
-    if isinstance(value, list):
-        return "、".join([_format_value(item) for item in value if _format_value(item)])
-    return _clean_text(value)
-
-
-def _row(label, value):
-    return {"label": label, "value": _format_value(value) or "—"}
 
 
 def _gua_row(label, name, moving_line=None):
@@ -299,9 +254,8 @@ def _xinyi_result(data):
     method = _clean_text(data.get("method"), "number")
     if method == "datetime":
         result = datetime_qigua(
-            _to_int(data.get("year"), 2025),
-            _to_int(data.get("month"), 1),
-            _to_int(data.get("day"), 1),
+            *_require_civil_ymd(_to_int(data.get("year"), 2025), _to_int(data.get("month"), 1),
+                                _to_int(data.get("day"), 1)),
             _to_int(data.get("hour"), 0),
         )
     elif method == "direction":
@@ -364,6 +318,7 @@ class WangJiSrv:
             day = _to_int(data.get("day"), 1)
             hour = _to_int(data.get("hour"), 0)
             minute = _to_int(data.get("minute"), 0)
+            _require_civil_ymd(year, month, day)   # 不存在的日期报错(改历缺口 / 2 月 30 日 / 公元 0 年)
             history_year = _to_int(data.get("historyYear"), year)
             classic_key = _clean_text(data.get("classicKey"), "huangji_jingshi_shu")
             # 子初/子正換日：透過 thread-local 把全局換日設置注入 wangji 引擎（避免深透傳）
@@ -374,16 +329,10 @@ class WangJiSrv:
             _jieqi_set_a23(_a23)
             # v2.2.1: 晚子时·时柱起干 thread-local 注入
             _lz = _to_int(data.get("lateZiHourUseNextDay"), 1)
-            try:
-                from kinwangji.jieqi import set_hour_gan_use_next_day as _jieqi_set_lz
-                _jieqi_set_lz(_lz)
-            except (ImportError, AttributeError):
-                pass
-            try:
-                from kinwangji.wanji import set_hour_gan_use_next_day as _wanji_set_lz
-                _wanji_set_lz(_lz)
-            except (ImportError, AttributeError):
-                pass
+            from kinwangji.jieqi import set_hour_gan_use_next_day as _jieqi_set_lz
+            from kinwangji.wanji import set_hour_gan_use_next_day as _wanji_set_lz
+            _jieqi_set_lz(_lz)
+            _wanji_set_lz(_lz)
             result = _json_safe(wanji_four_gua(year, month, day, hour, minute))
             solar_term = jq(year, month, day, hour, minute)
             wangxiang = gong_wangzhuai(solar_term)

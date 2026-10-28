@@ -1,7 +1,7 @@
 import { Component } from 'react';
-import { safeLocalStorageSet } from '../../utils/safeStorage';
+import { safeLocalStorageSet as rawLocalStorageSet } from '../../utils/safeStorage';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { Checkbox, Collapse, message } from 'antd';
+import { Checkbox, Collapse, Tooltip, message } from 'antd';
 import {convertLatToStr, convertLonToStr} from '../astro/AstroHelper';
 import { dstAwareZoneAt } from '../../utils/timezone';
 import { geoNameFieldPatch } from '../../utils/geoName';
@@ -9,8 +9,10 @@ import * as ZWCont from '../../constants/ZWConst';
 import * as ZiWeiHelper from './ZiWeiHelper';
 import ZWSihuaCustomModal from './ZWSihuaCustomModal';
 import ZWBrightnessCustomModal from './ZWBrightnessCustomModal';
-import { normalizeBrightnessCustomTable, resetBrightnessCustomCache } from './data/ziweiTables';
+import { reassertZiweiTempOverrides } from './ziweiTempOverrideScope';
+import { normalizeBrightnessCustomTable, resetBrightnessCustomCache, ZWBrightnessCustom } from './data/ziweiTables';
 import { mirrorZiweiCustomTable, restoreZiweiCustomTablesOnce } from '../../utils/ziweiCustomTablesPersist';
+import { ZIWEI_RECORD_SETTINGS, ZIWEI_RECORD_SETTINGS_EVENT, registerZiweiEngineAdapter, noteZiweiUserPrefWrite, clearZiweiSessionTables } from '../../utils/ziweiRecordSettings';
 import DateTime from '../comp/DateTime';
 import SpaceTimePanel from '../comp/SpaceTimePanel';
 // R4-B2(S1 止血):紫微是 chartFree(本页不消费 /chart),旧默认让选步长走全局 handler
@@ -18,7 +20,7 @@ import SpaceTimePanel from '../comp/SpaceTimePanel';
 // 只预取登记的 /ziwei/birth ±depth)。
 import { armStepPrefetch } from '../../utils/stepPrefetchArm';
 import { XQSelect as Select, XQSideSection } from '../xq-ui';
-import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
+import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import XQIcon from '../xq-icons';
 import { ZWEngineOptions, DAXIAN_SPAN_OPTIONS, TIANMA_BASIS_OPTIONS, STAR_SET_OPTIONS, SANPAN_OPTIONS, SHANGSHI_OPTIONS, LEAP_MONTH_OPTIONS, LATE_ZI_OPTIONS, YEAR_BOUNDARY_OPTIONS, HUOLING_OPTIONS, KONG_NAMING_OPTIONS, BRIGHTNESS_SOURCE_OPTIONS, LIFE_MASTER_BY_OPTIONS, LIU_YUE_BASIS_OPTIONS, LIUNIAN_SIHUA_GAN_OPTIONS, CHANGSHENG_START_OPTIONS, CHANGSHENG_DIRECTION_OPTIONS, KUIYUE_OPTIONS, KONGWANG_STYLE_OPTIONS } from './ziweiOptions';
 import { ZW_DISPLAY_PRESETS, ZW_DISPLAY_PRESET_KEYS, displayPresetOf, ZIWEI_SCHOOL_PRESETS, ZIWEI_PRESET_OPTIONS, presetOf } from './ziweiPresets';
@@ -33,6 +35,39 @@ const SHENGXIAO_OPTIONS = [
 	{ value: '午', label: '午（马）' }, { value: '未', label: '未（羊）' }, { value: '申', label: '申（猴）' },
 	{ value: '酉', label: '酉（鸡）' }, { value: '戌', label: '戌（狗）' }, { value: '亥', label: '亥（猪）' },
 ];
+
+
+// 本页写偏好一律经此:写完若是随盘的排盘设置键,同步记进「你自己的设置」(新盘种子)。
+// 载入记录时的还原由单源件直接写偏好,不经这里 —— 所以只有你在本页亲手改的才算你自己的设置。
+function safeLocalStorageSet(key, value){
+	const ok = rawLocalStorageSet(key, value);
+	if(ok){ try{ noteZiweiUserPrefWrite(key); }catch(e){ /* 记种子失败不影响本次改设置 */ } }
+	return ok;
+}
+
+// 紫微排盘设置随盘:载入命盘还原设置时,本模块已加载就同步写引擎单例(四化流派另刷新四化缓存);偏好由单源件写
+registerZiweiEngineAdapter({
+	write(spec, value){
+		if(spec.opt === '@school'){
+			ZWCont.ZWSchool.school = value;
+			ZWCont.refreshActiveSiHua();
+			ZiWeiHelper.resetHuaMap();
+			return;
+		}
+		ZWEngineOptions[spec.opt || spec.key] = value;
+	},
+	// 载入记录带来的会话临时表(不写本机):注入 / 撤掉引擎的覆盖槽并失效相关缓存
+	setSessionTable(kind, text){
+		if(kind === 'brightness'){
+			ZWBrightnessCustom.override = text ? normalizeBrightnessCustomTable(text) : null;
+			resetBrightnessCustomCache();
+			return;
+		}
+		ZWCont.ZWSihuaCustom.override = text ? ZWCont.normalizeSihuaCustomTable(text) : null;
+		ZWCont.refreshActiveSiHua();
+		ZiWeiHelper.resetHuaMap();
+	},
+});
 
 class ZiWeiInput extends Component{
 	
@@ -59,6 +94,9 @@ class ZiWeiInput extends Component{
 		let ssl = localStorage.getItem('ziweiShowStarLight');
 		if(ssl !== null){ showStarLight = (ssl + '' === '1'); }
 
+		// 宿主管着引擎单例(截图挂载按这张盘的随盘紫微设置临时覆盖):下面照常按本机偏好同步一遍,随后放回宿主的值,
+		// 左栏显示取单例现值 —— 此前构造这一步把截图要用的随盘设置冲成了本机偏好
+		const hostEngine = props && props.keepEngine ? { school: ZWCont.ZWSchool.school, opts: { ...ZWEngineOptions } } : null;
 		// P1-A 四化流派：默认 beipai（=现状）；立即同步全局单例 + 兼容垫片 + 失效四化缓存。
 		let sihuaSchool = localStorage.getItem('ziweiSihuaSchool') || 'beipai';
 		ZWCont.ZWSchool.school = sihuaSchool;
@@ -66,7 +104,7 @@ class ZiWeiInput extends Component{
 		ZiWeiHelper.resetHuaMap();
 		// P1-B 小限顺逆：'0'=男顺女逆(现状) / '1'=阳男阴女顺(中州)
 		let xiaoxianMode = localStorage.getItem('ziweiXiaoxianYinyang') || '0';
-		ZWEngineOptions.xiaoxianMode = xiaoxianMode;   // [B15] 单例为消费真值(ZWLuckPanel 读它);LS 键沿用
+		ZWEngineOptions.xiaoxianMode = xiaoxianMode;   // 单例为消费真值(ZWLuckPanel 读它);LS 键沿用
 
 		// 传本/排盘开关(本地引擎):大限跨度/天马依据/星集/三盘。读 localStorage→同步可变单例 ZWEngineOptions(默认=现状零回归)。
 		const lsNum = (k, def)=>{ const v = localStorage.getItem(k); return v === null ? def : (v === 'ju' ? 'ju' : (Number.isNaN(Number(v)) ? v : Number(v))); };
@@ -76,7 +114,7 @@ class ZiWeiInput extends Component{
 		ZWEngineOptions.sanPan = localStorage.getItem('ziweiSanPan') || 'tian';
 		ZWEngineOptions.shangShi = localStorage.getItem('ziweiShangShi') || 'fixed';
 		ZWEngineOptions.leapMonth = localStorage.getItem('ziweiLeapMonth') || 'mid_split';
-		// [A3] 晚子时默认档改「跟随全局」:存量 LS 'zi_chu'(旧默认,从未有人显式选过强制档)一次性迁移
+		// 晚子时默认档改「跟随全局」:存量 LS 'zi_chu'(旧默认,从未有人显式选过强制档)一次性迁移
 		// 'global' 并落哨兵键;迁移后用户再显式选「子初换日(强制)」存 'zi_chu' 不再被吞。
 		{
 			const lzRaw = localStorage.getItem('ziweiLateZi');
@@ -114,13 +152,21 @@ class ZiWeiInput extends Component{
 		ZWEngineOptions.flowHuoLing = lsBool('ziweiFlowHuoLing');
 		ZWEngineOptions.flowShenshaOnChart = lsBool('ziweiFlowShenshaOnChart');
 		try{ ZWEngineOptions.taiSuiRelatives = JSON.parse(localStorage.getItem('ziweiTaiSuiRelatives') || '[]') || []; }catch(e){ ZWEngineOptions.taiSuiRelatives = []; }
+		if(hostEngine){
+			Object.keys(hostEngine.opts).forEach((k)=>{ ZWEngineOptions[k] = hostEngine.opts[k]; });
+			ZWCont.ZWSchool.school = hostEngine.school;
+			ZWCont.refreshActiveSiHua();
+			ZiWeiHelper.resetHuaMap();
+			sihuaSchool = hostEngine.school;
+			xiaoxianMode = ZWEngineOptions.xiaoxianMode;
+		}
 
 		this.state = {
 			showTips: showTips,
 			showOthers: showOthers,
 			showSmall: showSmall,
 			showStarLight: showStarLight,
-			// [D1] 开关族A(纯显示层;默认=现状零回归)
+			// 开关族A(纯显示层;默认=现状零回归)
 			showLaiyin: ZiWeiHelper.zwShowLaiyin(),
 			showBodyPalace: ZiWeiHelper.zwShowBodyPalace(),
 			sixEvilBlack: ZiWeiHelper.zwSixEvilBlack(),
@@ -168,6 +214,10 @@ class ZiWeiInput extends Component{
 			flowShenshaOnChart: ZWEngineOptions.flowShenshaOnChart,
 			taiSuiRelatives: ZWEngineOptions.taiSuiRelatives,
 			zwPresetPicked: localStorage.getItem('ziweiPreset') || 'sanhe',
+		}
+		// 左栏显示按本机偏好(上面已取);若此刻有按盘临时覆盖在途(截图正在出图),把它压回引擎单例(宿主管着时上面已放回宿主值)
+		if(!hostEngine){
+			reassertZiweiTempOverrides();
 		}
 
         this.tmHook = {
@@ -379,14 +429,14 @@ class ZiWeiInput extends Component{
 		ZiWeiHelper.bumpZwDisplayRev('showStarLight', val);
 	}
 
-	// [D1] 开关族A通用 handler:纯显示层(写 LS+广播;不进排盘请求体故不必 redrawChart)。
+	// 开关族A通用 handler:纯显示层(写 LS+广播;不进排盘请求体故不必 redrawChart)。
 	onDisplayFlagToggle(lsKey, stateKey, checked){
 		safeLocalStorageSet(lsKey, checked ? 1 : 0);
 		this.setState({ [stateKey]: checked });
 		ZiWeiHelper.bumpZwDisplayRev(stateKey, checked);
 	}
 
-	// [D4] 显示预设(完整/标准/精简):批量写 LS+批量 setState+🔴单次 bump(逐键 bump 会连环重绘)。
+	// 显示预设(完整/标准/精简):批量写 LS+批量 setState+🔴单次 bump(逐键 bump 会连环重绘)。
 	applyDisplayPreset(name){
 		const p = ZW_DISPLAY_PRESETS[name];
 		if(!p){ return; }
@@ -409,13 +459,13 @@ class ZiWeiInput extends Component{
 		ZiWeiHelper.bumpZwDisplayRev('displayPreset', name);
 	}
 
-	// [D4] 盘面显示预设下拉:选三档即套组合;「自定义」=当前混合态的显示占位,选中零动作。
+	// 盘面显示预设下拉:选三档即套组合;「自定义」=当前混合态的显示占位,选中零动作。
 	onDisplayPresetChange(val){
 		if(val === 'custom'){ return; }
 		this.applyDisplayPreset(val);
 	}
 
-	// [D4] 当前命中的显示预设(全键相等才亮;无 LS 键按各开关默认值读)。
+	// 当前命中的显示预设(全键相等才亮;无 LS 键按各开关默认值读)。
 	currentDisplayPreset(){
 		const DFLT_ON = ['ziweiShowOthers', 'ziweiShowStarLight', 'ziweiShowLaiyin', 'ziweiShowBodyPalace', 'ziweiShowShaHuagai', 'ziweiShowShaSande', 'ziweiShowShaTaizuo', 'ziweiShowSfszLine'];
 		return displayPresetOf((lk)=>{
@@ -426,7 +476,7 @@ class ZiWeiInput extends Component{
 		});
 	}
 
-	// [D4] 中宫内容三档(clean/bazi/full):纯显示层,写 LS+广播。
+	// 中宫内容三档(clean/bazi/full):纯显示层,写 LS+广播。
 	onCenterContentChange(val){
 		safeLocalStorageSet('ziweiCenterContent', val);
 		this.setState({ centerContent: val });
@@ -470,7 +520,7 @@ class ZiWeiInput extends Component{
 		const boolMap = { flowLuanXi: 'ziweiFlowLuanXi', flowHuoLing: 'ziweiFlowHuoLing', flowShenshaOnChart: 'ziweiFlowShenshaOnChart', childLimit: 'ziweiChildLimit', zhongxian: 'ziweiZhongxian', huoPan: 'ziweiHuoPan', qishuWei: 'ziweiQishuWei', borrowPalace: 'ziweiBorrowPalace', taiSuiRuGua: 'ziweiTaiSuiRuGua' };
 		Object.keys(boolMap).forEach((k)=>{ ZWEngineOptions[k] = !!p[k]; safeLocalStorageSet(boolMap[k], p[k] ? 1 : 0); });
 		safeLocalStorageSet('ziweiPreset', val);
-		// [Q-190/T-129] 回填 state 的键此前是手抄的,漏了 lifeMasterBy / liuYueBasis / liunianSihuaGan /
+		// 回填 state 的键此前是手抄的,漏了 lifeMasterBy / liuYueBasis / liunianSihuaGan /
 		// changshengStart / changshengDirection / kuiYue / kongwangStyle / flowLuanXi / flowHuoLing /
 		// flowShenshaOnChart 十项 → 引擎与 LS 已按预设、这十个控件仍显示套预设前的值(盘面与界面对不上)。
 		// 改为从上面两张映射表机械派生(state 键名与 lsMap/boolMap 的键名同名),此后加键不可能再漏回填。
@@ -479,7 +529,7 @@ class ZiWeiInput extends Component{
 		Object.keys(boolMap).forEach((k)=>{ statePatch[k] = !!p[k]; });
 		this.setState(statePatch);
 		this.redrawChart();
-		// [B15b] preset 批量套含推演层/显示层键(小限顺逆/流年取干/流月起法/亮度源…)——这些键不进请求体,
+		// preset 批量套含推演层/显示层键(小限顺逆/流年取干/流月起法/亮度源…)——这些键不进请求体,
 		// 两 preset 只差这类键时 redrawChart 会被 requestDedupe 挡住(盘面纹丝不动的死档族病灶)。
 		// 补一次广播兜底:盘面强制重绘 + 已选运限快照重派生(rederiveLuckSel);重排真发生时本广播幂等无害。
 		ZiWeiHelper.bumpZwDisplayRev('preset', val);
@@ -492,6 +542,7 @@ class ZiWeiInput extends Component{
 			return;
 		}
 		mirrorZiweiCustomTable('sihua', json);
+		clearZiweiSessionTables('sihua');   // 亲手编辑了你自己的四化表 → 只撤载入盘带来的临时四化表(亮度表不动)
 		this.applySihuaSchool('custom');
 		this.setState({ sihuaSchool: 'custom', sihuaCustomOpen: false });
 		this.redrawChart();
@@ -552,6 +603,31 @@ class ZiWeiInput extends Component{
 			if(restored.includes('sihua')){ ZiWeiHelper.resetHuaMap(); }
 			ZiWeiHelper.bumpZwDisplayRev('customTablesRestored', restored.join(','));
 		}).catch(()=>{ /* 自愈失败静默:主存路径不受影响 */ });
+		// 紫微排盘设置随盘:载入命盘时设置已写回引擎单例与本机偏好(utils/ziweiRecordSettings),这里只把左栏显示对齐;
+		// 盘面由载入流程随后按新字段重排(不在此 redrawChart —— 那会把页面上旧盘的时间回写进字段)。
+		if(typeof window !== 'undefined' && typeof window.addEventListener === 'function'){
+			this._zwRecordSettingsListener = (ev)=>{ this.syncFromEngineOptions(ev && ev.detail ? ev.detail.cid : ''); };
+			window.addEventListener(ZIWEI_RECORD_SETTINGS_EVENT, this._zwRecordSettingsListener);
+		}
+	}
+
+	componentWillUnmount(){
+		if(this._zwRecordSettingsListener && typeof window !== 'undefined'){
+			window.removeEventListener(ZIWEI_RECORD_SETTINGS_EVENT, this._zwRecordSettingsListener);
+			this._zwRecordSettingsListener = null;
+		}
+	}
+
+	// 左栏各项从引擎单例重读(键名与 state 同名;四化流派走 ZWSchool,小限顺逆走 xiaoxianMode)
+	syncFromEngineOptions(cid){
+		const patch = { sihuaSchool: ZWCont.ZWSchool.school };
+		ZIWEI_RECORD_SETTINGS.forEach((spec)=>{
+			if(spec.opt === '@school'){ return; }
+			const k = spec.opt || spec.key;
+			patch[k] = ZWEngineOptions[k];
+		});
+		this.setState(patch);
+		ZiWeiHelper.bumpZwDisplayRev('recordSettings', cid || '');
 	}
 
 	onBrightnessCustomOk(table){
@@ -562,6 +638,7 @@ class ZiWeiInput extends Component{
 			return;
 		}
 		mirrorZiweiCustomTable('brightness', json);   // IDB 镜像(异步尽力而为):LS 意外丢失时启动自愈恢复
+		clearZiweiSessionTables('brightness');   // 亲手编辑了你自己的亮度表 → 只撤载入盘带来的临时亮度表(四化表不动)
 		resetBrightnessCustomCache();
 		this.setState({ brightnessCustomOpen: false });
 		ZiWeiHelper.bumpZwDisplayRev('brightnessCustom', 'saved');
@@ -598,7 +675,7 @@ class ZiWeiInput extends Component{
 		safeLocalStorageSet(lsKey, checked ? 1 : 0);
 		this.setState({ [stateKey]: checked });
 		this.redrawChart();
-		// [D1] 统一补显示层广播:overlay 开关多为纯后处理,不进排盘请求体——只靠 redrawChart
+		// 统一补显示层广播:overlay 开关多为纯后处理,不进排盘请求体——只靠 redrawChart
 		// 会被 requestDedupe 命中导致盘面不刷新(死开关族病灶);广播让盘面组件自重绘兜底。
 		ZiWeiHelper.bumpZwDisplayRev(optKey, checked);
 	}
@@ -685,6 +762,8 @@ class ZiWeiInput extends Component{
 		let timeAlg = fields.timeAlg && fields.timeAlg.value !== undefined && fields.timeAlg.value !== null
 			? fields.timeAlg.value
 			: 0;
+		// 紫微只分真太阳时 / 直接时间(排盘参数把平太阳时等别的档按真太阳时算,buildZiweiBirthParams):显示实际所用口径,不露原始值
+		timeAlg = Number(timeAlg) === 1 ? 1 : 0;
 
 		return (
 			<div className="horosa-ziwei-input-stack">
@@ -708,7 +787,7 @@ class ZiWeiInput extends Component{
 
 				<XQSideSection iconName={sideSectionIcon('switches')} title="选项" storageKey="ziwei.options" className="horosa-side-input-section">
 					<div className="horosa-ziwei-select-grid">
-						{/* [Q-193/T-139] 紫微必须男女有别(命局阴阳男女、大限顺逆、小限起宫皆随之):
+						{/* 紫微必须男女有别(命局阴阳男女、大限顺逆、小限起宫皆随之):
 						    「未知」实际按男排(ZiweiCalc male = gender !== 0,Java 同),但界面此前不说,
 						    快照里「性别:未知」与「命局:阳男」并列自相矛盾 —— 选项直接写明按男排。 */}
 						<label className="horosa-ziwei-select-field" title="紫微命局阴阳男女、大限顺逆、小限起宫都依性别;选「未知」时一律按男排">
@@ -742,7 +821,7 @@ class ZiWeiInput extends Component{
 						<label className="horosa-ziwei-select-field">
 							<span>四化流派</span>
 							<Select value={this.state.sihuaSchool} onChange={this.onSihuaSchoolChange} size='small'>
-								<Option value="beipai">通用·飞星(现状)</Option>
+								<Option value="beipai">通用·飞星(默认)</Option>
 								<Option value="zhongzhou">中州派</Option>
 								<Option value="quanshu">全书系</Option>
 								<Option value="beixiang">北派(天相忌)</Option>
@@ -761,12 +840,13 @@ class ZiWeiInput extends Component{
 						<Checkbox checked={this.state.showTips} onChange={this.onTipsChange}>允许提示</Checkbox>
 						<Checkbox checked={this.state.showOthers} onChange={this.onShowOthersChange}>显示杂曜</Checkbox>
 						<Checkbox checked={this.state.showSmall} onChange={this.onShowSmallChange}>显示十二神</Checkbox>
-						{/* [Q-584/T-546] 庙旺标注只在三合盘(及演禽借宫盘)生效,四化盘不画星名下庙旺(ZWHouse.shouldShowStarLight);
-						    此前四化盘时恒可勾、无提示 → 置灰 + 说明,勾选值保留(切回三合盘即生效)。 */}
-						<span title={zwchart === ZWCont.ZWChart_SiHua ? '四化盘不画星名下庙旺;切「盘式」为三合盘后生效' : undefined}>
+						{/* 庙旺标注只在三合盘(及演禽借宫盘)生效,四化盘不画星名下庙旺(ZWHouse.shouldShowStarLight);
+						    四化盘时置灰,勾选值保留(切回三合盘即生效)。说明放悬停提示,不写进标签(格子窄,括注会折成两行)。
+						    Tooltip 直接包勾选框:Checkbox 把 onMouseEnter/Leave 挂在外层 label 上,置灰时悬停照样出提示 */}
+						<Tooltip title={zwchart === ZWCont.ZWChart_SiHua ? '四化盘不标庙旺;「盘式」切到三合盘后生效' : ''}>
 							<Checkbox checked={this.state.showStarLight} onChange={this.onShowStarLightChange}
-								disabled={zwchart === ZWCont.ZWChart_SiHua}>庙旺标注{zwchart === ZWCont.ZWChart_SiHua ? '（三合盘生效）' : ''}</Checkbox>
-						</span>
+								disabled={zwchart === ZWCont.ZWChart_SiHua}>庙旺标注</Checkbox>
+						</Tooltip>
 						<Checkbox checked={this.state.showLaiyin} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowLaiyin', 'showLaiyin', e.target.checked)}>来因标记</Checkbox>
 						<Checkbox checked={this.state.showBodyPalace} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowBodyPalace', 'showBodyPalace', e.target.checked)}>身宫标记</Checkbox>
 						<Checkbox checked={this.state.showSfszLine} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowSfszLine', 'showSfszLine', e.target.checked)}>对宫指示线</Checkbox>
@@ -792,7 +872,7 @@ class ZiWeiInput extends Component{
 					<Collapse ghost size="small" className="horosa-ziwei-school-collapse">
 						<Collapse.Panel header="流派·传本设置" key="school">
 							<div className="horosa-ziwei-select-grid">
-							<div style={{ gridColumn: '1 / -1', fontSize: 11, opacity: 0.65, marginTop: 2 }}>定盘口径</div>
+							<div style={{ gridColumn: '1 / -1', fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 2 }}>定盘口径</div>
 							<label className="horosa-ziwei-select-field">
 								<span>定年界线</span>
 								<Select value={this.state.yearBoundary} onChange={this.onYearBoundaryChange} size='small'>
@@ -817,7 +897,7 @@ class ZiWeiInput extends Component{
 									{LIFE_MASTER_BY_OPTIONS.map((o)=><Option key={o.value} value={o.value}>{o.label}</Option>)}
 								</Select>
 							</label>
-							<div style={{ gridColumn: '1 / -1', fontSize: 11, opacity: 0.65, marginTop: 2 }}>安星异同</div>
+							<div style={{ gridColumn: '1 / -1', fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 2 }}>安星异同</div>
 							<label className="horosa-ziwei-select-field">
 								<span>天马依据</span>
 								<Select value={this.state.tianmaBasis} onChange={this.onTianmaBasisChange} size='small'>
@@ -872,7 +952,7 @@ class ZiWeiInput extends Component{
 									{STAR_SET_OPTIONS.map((o)=><Option key={o.value} value={o.value}>{o.label}</Option>)}
 								</Select>
 							</label>
-							<div style={{ gridColumn: '1 / -1', fontSize: 11, opacity: 0.65, marginTop: 2 }}>运限推法</div>
+							<div style={{ gridColumn: '1 / -1', fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 2 }}>运限推法</div>
 							<label className="horosa-ziwei-select-field">
 								<span>大限跨度</span>
 								<Select value={this.state.daxianSpan} onChange={this.onDaxianSpanChange} size='small'>
@@ -894,7 +974,7 @@ class ZiWeiInput extends Component{
 							<label className="horosa-ziwei-select-field">
 								<span>小限顺逆</span>
 								<Select value={this.state.xiaoxianMode} onChange={this.onXiaoxianModeChange} size='small'>
-									<Option value="0">男顺女逆（现状）</Option>
+									<Option value="0">男顺女逆（默认）</Option>
 									<Option value="1">阳男阴女顺（中州）</Option>
 								</Select>
 							</label>
@@ -904,7 +984,7 @@ class ZiWeiInput extends Component{
 									{SANPAN_OPTIONS.map((o)=><Option key={o.value} value={o.value}>{o.label}</Option>)}
 								</Select>
 							</label>
-							<div style={{ gridColumn: '1 / -1', fontSize: 11, opacity: 0.65, marginTop: 2 }}>亮度标注</div>
+							<div style={{ gridColumn: '1 / -1', fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 2 }}>亮度标注</div>
 							<label className="horosa-ziwei-select-field">
 								<span>星曜亮度</span>
 								<Select value={this.state.brightnessSource} onChange={this.onBrightnessSourceChange} size='small'>
@@ -932,7 +1012,7 @@ class ZiWeiInput extends Component{
 								<Checkbox checked={this.state.taiSuiRuGua} onChange={(e)=>this.onOverlayToggle('taiSuiRuGua', 'taiSuiRuGua', 'ziweiTaiSuiRuGua', e.target.checked)}>紫云太岁入卦(关系人生肖落宫)</Checkbox>
 								{this.state.taiSuiRuGua && (
 									<div style={{ marginTop: 4 }}>
-										{/* [P2e] 多关系人列表编辑器:引擎/快照本就支持 [{branch,role,sex}] 多人+南北斗判性
+										{/* 多关系人列表编辑器:引擎/快照本就支持 [{branch,role,sex}] 多人+南北斗判性
 										    (dou=男南斗/女北斗),旧 UI 只给单生肖且 role/sex 恒空=dou 恒「北斗(女)」(复查实锤) */}
 										{(this.state.taiSuiRelatives || []).map((r, i)=>(
 											<div key={i} style={{ display: 'flex', gap: 4, marginTop: 2, alignItems: 'center' }}>

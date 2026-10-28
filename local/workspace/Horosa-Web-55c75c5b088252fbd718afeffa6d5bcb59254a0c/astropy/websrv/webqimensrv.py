@@ -1,12 +1,19 @@
 import os
 import sys
+import sys as _sys
 import traceback
-from numbers import Integral, Real
 
 import cherrypy
 import jsonpickle
 
 from websrv.helper import enable_crossdomain
+from websrv.horosa_engine_common import (
+    require_civil_ymd as _require_civil_ymd,
+    clean_text as _clean_text,
+    plain_json_safe as _json_safe,
+    plain_row as _row,
+    to_int as _to_int,
+)
 
 
 _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -26,58 +33,6 @@ MODE_LABELS = {
     "golden": "金函玉镜",
     "overall": "综合排盘",
 }
-
-
-def _to_int(value, default=0):
-    try:
-        if value is None or value == "":
-            return default
-        return int(value)
-    except Exception:
-        return default
-
-
-def _clean_text(value, default=""):
-    if value is None:
-        return default
-    text = str(value).strip()
-    return text if text else default
-
-
-def _json_safe(value):
-    if isinstance(value, dict):
-        return {_clean_text(key): _json_safe(val) for key, val in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_json_safe(item) for item in value]
-    if isinstance(value, Integral) and not isinstance(value, bool):
-        return int(value)
-    if isinstance(value, Real) and not isinstance(value, bool):
-        return float(value)
-    if hasattr(value, "item"):
-        try:
-            return _json_safe(value.item())
-        except Exception:
-            return _clean_text(value)
-    return value
-
-
-def _format_value(value):
-    if value is None or value == "":
-        return ""
-    if isinstance(value, dict):
-        parts = []
-        for key, val in value.items():
-            text = _format_value(val)
-            if text:
-                parts.append(f"{key}：{text}")
-        return "；".join(parts)
-    if isinstance(value, list):
-        return "、".join([_format_value(item) for item in value if _format_value(item)])
-    return _clean_text(value)
-
-
-def _row(label, value):
-    return {"label": label, "value": _format_value(value) or "—"}
 
 
 def _palace_rows(raw):
@@ -188,30 +143,25 @@ class QiMenSrv:
             day = _to_int(data.get("day"), 1)
             hour = _to_int(data.get("hour"), 0)
             minute = _to_int(data.get("minute"), 0)
+            _require_civil_ymd(year, month, day)   # 不存在的日期报错(改历缺口 / 2 月 30 日 / 公元 0 年)
             # v2.2.1: 全局日界 + 晚子时·时柱起干 两个开关。
             # 默认均为 1(现行行为, hour==23 进位 + 时干用次日干起子时)。
             # 仅 hour==23 时影响,其它 23 小时一律 NO-OP。
             # 用 thread-local 设给 kinqimen 引擎,无需改 Qimen 类签名(每个请求独立设)。
             after23_new_day = _to_int(data.get("after23NewDay"), 1)
             late_zi_hour_use_next_day = _to_int(data.get("lateZiHourUseNextDay"), 1)
-            # v2.2.1: 通过 sys.modules 拿到已经被 config.py/kinqimen.py 加载的 jieqi 模块。
-            # 这是 vendor/kinqimen/jieqi.py (sys.path 加在 module load 时)。
-            # ★ 预初始化 None:try 体若在赋值前抛,下面的 memo 分支不得 UnboundLocalError
-            #   (同类问题曾见于其它服务)。
-            _qm_jieqi = None
-            try:
-                import sys as _sys
-                _qm_jieqi = _sys.modules.get('jieqi')
-                if _qm_jieqi is not None and hasattr(_qm_jieqi, 'set_after23_new_day'):
-                    _qm_jieqi.set_after23_new_day(after23_new_day)
-                if _qm_jieqi is not None and hasattr(_qm_jieqi, 'set_hour_gan_use_next_day'):
-                    _qm_jieqi.set_hour_gan_use_next_day(late_zi_hour_use_next_day)
-            except Exception:
-                pass
-            # horosa_qimen_req_memo_v1:必须在两个开关设定**之后** begin(键含开关值只是纵深
-            # 防御);begin 即清 ⇒ 异常路径无需 finally(纯函数+含开关键,残留在语义上无害,
-            # 下一请求 begin 即清;kill-switch HOROSA_QIMEN_REQ_MEMO 在 jieqi 模块内裁决)。
-            if _qm_jieqi is not None and hasattr(_qm_jieqi, 'begin_request_memo'):
+            # v2.2.1: 通过 sys.modules 拿到已经被 config.py/kinqimen.py 加载的 jieqi 模块
+            # (vendor/kinqimen/jieqi.py,sys.path 加在 module load 时)。两个开关是 jieqi 的线程局部量:
+            # 设不上就整请求报错(绝不静默沿用本线程上一个请求的口径);算完在 finally 里撤掉,不留到下一请求。
+            _qm_jieqi = _sys.modules.get('jieqi')
+            if _qm_jieqi is None or not hasattr(_qm_jieqi, 'set_after23_new_day') \
+                    or not hasattr(_qm_jieqi, 'set_hour_gan_use_next_day'):
+                raise RuntimeError('kinqimen 日界开关不可用')
+            _qm_jieqi.set_after23_new_day(after23_new_day)
+            _qm_jieqi.set_hour_gan_use_next_day(late_zi_hour_use_next_day)
+            # horosa_qimen_req_memo_v1:必须在两个开关设定**之后** begin(键含开关值只是纵深防御);
+            # begin 即清,finally 里 end + 撤开关(kill-switch HOROSA_QIMEN_REQ_MEMO 在 jieqi 模块内裁决)。
+            if hasattr(_qm_jieqi, 'begin_request_memo'):
                 _qm_jieqi.begin_request_memo()
             # 定局法 → option:1拆补/2置闰/3茅山/4无闰(qijuMethod 优先,缺则回退数字 option,默认 2 置闰保持旧默认)
             _qm_option_map = {"chaibu": 1, "zhirun": 2, "maoshan": 3, "wurun": 4}
@@ -260,3 +210,10 @@ class QiMenSrv:
                 "ResultCode": -1,
                 "Result": "qimen calculation failed",
             }, unpicklable=False)
+        finally:
+            _qm = _sys.modules.get('jieqi')
+            if _qm is not None:
+                if hasattr(_qm, 'end_request_memo'):
+                    _qm.end_request_memo()
+                if hasattr(_qm, 'clear_request_switches'):
+                    _qm.clear_request_switches()

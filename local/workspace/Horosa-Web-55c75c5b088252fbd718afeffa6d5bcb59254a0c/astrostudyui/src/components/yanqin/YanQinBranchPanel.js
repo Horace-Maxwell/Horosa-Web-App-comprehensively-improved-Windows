@@ -30,9 +30,10 @@ import { isLunarJsYearReliable } from '../../utils/lunarDomainGuard';
 import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
 
 const { TabPane } = Tabs;
-const WUXING_COLOR = { 木: '#3a7d44', 火: '#c0392b', 土: '#b8860b', 金: '#9a8478', 水: '#2c6e9b' };
-const NATURE_COLOR = { 大吉: '#2e7d32', 吉: '#3c9a4e', 半吉: '#7cb342', '半吉半凶': '#b8860b', 凶: '#c0392b', 大凶: '#8e1b1b' };
-const TONE_COLOR = { best: '#2e7d32', good: '#43a047', mid: '#b8860b', bad: '#c0392b', worst: '#8e1b1b' };
+// 五行 / 吉凶 / 得地色:既当字色又当药丸实底(药丸字 = on-solid),一律用明暗成对的主题语义色(主题合同逐对算过对比度)
+const WUXING_COLOR = { 木: 'var(--horosa-bazi-wood)', 火: 'var(--horosa-bazi-fire)', 土: 'var(--horosa-bazi-earth)', 金: 'var(--horosa-bazi-metal)', 水: 'var(--horosa-bazi-water)' };
+const NATURE_COLOR = { 大吉: 'var(--horosa-grade-excellent)', 吉: 'var(--horosa-jx-ji)', 半吉: 'var(--horosa-jx-he)', '半吉半凶': 'var(--horosa-jx-other)', 凶: 'var(--horosa-jx-xiong)', 大凶: 'var(--horosa-danger)' };
+const TONE_COLOR = { best: 'var(--horosa-grade-excellent)', good: 'var(--horosa-jx-ji)', mid: 'var(--horosa-jx-other)', bad: 'var(--horosa-jx-xiong)', worst: 'var(--horosa-danger)' };
 const TONE_LABEL = { best: '极得地·大化吉', good: '得地·吉', mid: '平/视禽而定', bad: '失位·凶弱', worst: '极凶' };
 const MONTHS = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '冬', '腊'];
 
@@ -62,7 +63,7 @@ function chip(label, mansion) {
 	return (
 		<span className="yq-chip" key={label}>
 			<span className="yq-chip-label">{label}</span>
-			<span className="yq-chip-pill" style={{ background: WUXING_COLOR[YAO_TO_WUXING[mansion.yao]] || '#666' }}>
+			<span className="yq-chip-pill" style={{ background: WUXING_COLOR[YAO_TO_WUXING[mansion.yao]] || 'var(--horosa-text-secondary)' }}>
 				<i className="yq-dot" />{mansion.name}
 			</span>
 		</span>
@@ -215,7 +216,7 @@ export default class YanQinBranchPanel extends Component {
 					<div className="yq-hero">
 						<div className="yq-meta">{cast.ganzhi}日 · {cast.yuan}元{cast.jiang}将 · {cast.weekday}曜</div>
 						<div className="yq-hero-name" style={{ color: WUXING_COLOR[YAO_TO_WUXING[cast.dayQin.yao]] }}>{cast.dayQin.name}</div>
-						<span className="yq-badge" style={{ background: NATURE_COLOR[di.nature] || '#666' }}>{di.nature || '—'}</span>
+						<span className="yq-badge" style={{ background: NATURE_COLOR[di.nature] || 'var(--horosa-text-secondary)' }}>{di.nature || '—'}</span>
 					</div>
 					<div className="yq-divider" />
 					<div className="yq-chip-row">{chip('年禽', cast.yearQin)}{chip('日禽', cast.dayQin)}{chip('时禽', cast.hourQin)}{chip('翻禽', cast.fanQin)}</div>
@@ -423,7 +424,7 @@ export default class YanQinBranchPanel extends Component {
 						<span className="yq-arc-sep">→</span>
 						<span className="yq-arc-node" style={{ color: cast.fanQin ? WUXING_COLOR[YAO_TO_WUXING[cast.fanQin.yao]] : 'inherit' }}>{cast.fanQin ? cast.fanQin.name : '—'}</span>
 					</div>
-					<div className="yq-note">初传日禽(共用) → 中传时禽(我/体) → 末传翻禽(彼/用)。我 <b>{me ? me.name : '—'}</b> / 彼 <b>{they ? they.name : '—'}</b>。</div>
+					<div className="yq-note">初传日禽(共用) → 中传时禽 → 末传翻禽;我 / 彼按左栏「演法设置 · 我/彼归属」:{r.note}。我 <b>{me ? me.name : '—'}</b> / 彼 <b>{they ? they.name : '—'}</b>。</div>
 				</div>
 			</div>
 		);

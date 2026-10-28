@@ -6,6 +6,8 @@ import jsonpickle
 
 from websrv.helper import enable_crossdomain
 from websrv.kentang.kinastro_common import (
+    annotate_day_boundary,
+    day_boundary_of,
     authoritative_pillars,
     build_snapshot,
     clean_text,
@@ -14,6 +16,7 @@ from websrv.kentang.kinastro_common import (
     gender_cn,
     json_safe,
     kinastro_source_sections,
+    normalize_ganzhi as _normalize_ganzhi,
     parse_datetime,
     row,
     to_int,
@@ -31,16 +34,7 @@ METHOD_OPTIONS = [
     {"value": "kunji", "label": "扣入法"},
     {"value": "suanpan", "label": "算盘打数"},
 ]
-GANZHI_STEMS = "甲乙丙丁戊己庚辛壬癸"
-GANZHI_BRANCHES = "子丑寅卯辰巳午未申酉戌亥"
 PALACE_ORDER = ["命宫", "兄弟宫", "夫妻宫", "子女宫", "财帛宫", "疾厄宫", "迁移宫", "交友宫", "官禄宫", "田宅宫", "福德宫", "父母宫"]
-
-
-def _normalize_ganzhi(value, fallback):
-    text = clean_text(value)
-    if len(text) == 2 and text[0] in GANZHI_STEMS and text[1] in GANZHI_BRANCHES:
-        return text
-    return fallback
 
 
 def _ganzhi_obj(text):
@@ -267,7 +261,8 @@ class TieBanSrv:
             start_age = max(0, min(120, to_int(data.get("startAge"), 0)))
             dayun_steps = max(1, min(12, to_int(data.get("dayunSteps"), 8)))
 
-            gz = calculate_ganzhi_from_datetime(dt, data.get("after23NewDay", 1))
+            _db = day_boundary_of(data)
+            gz = calculate_ganzhi_from_datetime(dt, _db["after23NewDay"], _db["lateZiHourUseNextDay"])
 
             # 🔴 标准四柱换全局权威口径(立春界/定气月/儒略JDN,全域含 BC)。
 
@@ -276,6 +271,7 @@ class TieBanSrv:
             #    取不到权威实现时保留旧值,故用 update 而非整体替换。
 
             _auth_gz = authoritative_pillars(dt, data)
+            _partial = [] if _auth_gz else ["authoritativePillars"]
 
             if _auth_gz:
 
@@ -368,6 +364,9 @@ class TieBanSrv:
                 },
             }
             pan["sections"] = _build_sections(pan)
+            annotate_day_boundary(pan, _db)
+            if _partial:
+                pan["partialErrors"] = _partial
             pan["snapshot"] = build_snapshot(pan)
             return jsonpickle.encode({"ResultCode": 0, "Result": pan}, unpicklable=False)
         except Exception:

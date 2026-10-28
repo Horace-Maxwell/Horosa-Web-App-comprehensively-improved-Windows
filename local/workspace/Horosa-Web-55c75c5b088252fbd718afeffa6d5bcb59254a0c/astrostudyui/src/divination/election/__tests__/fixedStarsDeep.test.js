@@ -47,7 +47,7 @@ describe('引擎面:王者命中注记 + 星等轨', () => {
 		const sec = j.sections.find((s) => s.key === 'fixed_stars');
 		expect(sec.findings.map((f) => f.message).join('|')).toContain('四王者·北方守望');
 	});
-	it('starOrbFor byMagnitude:[Q-297] 与后端 FixedStar._ORBS 同表(<2:7.5 / <3:5.5 / <4:3.5 / <5:1.5 / 余 0.5;无王者封顶)', () => {
+	it('starOrbFor byMagnitude:与后端 FixedStar._ORBS 同表(<2:7.5 / <3:5.5 / <4:3.5 / <5:1.5 / 余 0.5;无王者封顶)', () => {
 		expect(starOrbFor(by('Achernar'), { fixedStarOrbMode: 'byMagnitude' })).toBe(7.5);
 		expect(starOrbFor(by('Regulus'), { fixedStarOrbMode: 'byMagnitude' })).toBe(7.5);   // 1.35 等:后端 7.5°,不再封顶 5°
 		const acu = by('Aculeus');

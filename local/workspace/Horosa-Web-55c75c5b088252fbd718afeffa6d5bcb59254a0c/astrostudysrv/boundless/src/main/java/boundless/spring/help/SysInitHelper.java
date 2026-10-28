@@ -16,7 +16,8 @@ public class SysInitHelper {
 	public static final String InitMethodKey = "initMethod";
 	public static final String InitMethodParamKey = "initMethodParam";
 	
-	private static boolean flagEnabled(String key) {
+	/** 缺省开的启动开关:同名系统属性优先,其次同名环境变量;取值 0 / false / off(去首尾空白、不分大小写)为关。 */
+	public static boolean flagEnabled(String key) {
 		if(StringUtility.isNullOrEmpty(key)) {
 			return true;
 		}
@@ -29,6 +30,22 @@ public class SysInitHelper {
 		}
 		value = value.trim();
 		return !("0".equals(value) || "false".equalsIgnoreCase(value) || "off".equalsIgnoreCase(value));
+	}
+
+	/**
+	 * 缺省开的回退阀:系统属性 propKey 优先(非空白才算设了),其次环境变量 envKey;
+	 * 取值 false(不分大小写)或 0(均去首尾空白)为关,其余一律为开。
+	 */
+	public static boolean propThenEnvOn(String propKey, String envKey) {
+		String prop = System.getProperty(propKey);
+		if (prop != null && !prop.trim().isEmpty()) {
+			return !("false".equalsIgnoreCase(prop.trim()) || "0".equals(prop.trim()));
+		}
+		String env = System.getenv(envKey);
+		if (env != null && !env.trim().isEmpty()) {
+			return !("false".equalsIgnoreCase(env.trim()) || "0".equals(env.trim()));
+		}
+		return true;
 	}
 
 	public void setParameters(Map<String, Object> param){

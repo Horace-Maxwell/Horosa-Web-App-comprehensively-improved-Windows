@@ -1,4 +1,4 @@
-// [压测二轮·D6] 账本写不进去时的合同(用户拍板):**写不进账本就拒绝执行**——「可一键撤销」是对用户的承诺,
+// 账本写不进去时的合同(用户拍板):**写不进账本就拒绝执行**——「可一键撤销」是对用户的承诺,
 // 不能因为 localStorage 满了就悄悄降级成「做了但撤不了」。另:账本已积到上百条时,配额失败要先裁半再重试。
 import { registerBuiltinTools } from '../aiTools';
 import { runTool, __resetToolsForTests } from '../aiTools/registry';
@@ -100,4 +100,64 @@ it('🔴 D17 预留成功、提交失败 → 记录已落地但 ledgerLost:true 
 		expect(seen[0].origin).toBe('in-app');
 		expect(typeof seen[0].actionId).toBe('string');
 	}finally{ window.removeEventListener('horosa:agent-ledger-lost', onLost); }
+});
+
+describe('配额吃紧时:幂等回放内容先让位,裁掉可撤销动作要明示', ()=>{
+	const { findActionByIdempotencySlot, LEDGER_TRIMMED_EVENT } = require('../aiTools/ledger');
+	const { peekIdempotent } = require('../aiTools/registry');
+	// 账本键超过 limit 字符即撞配额(其余键照常可写)
+	function capLedger(limit){
+		const realSet = window.localStorage.setItem.bind(window.localStorage);
+		jest.spyOn(Storage.prototype, 'setItem').mockImplementation(function setItem(k, v){
+			if(`${k}` === LEDGER_KEY && `${v}`.length > limit){ const e = new Error('The quota has been exceeded.'); e.name = 'QuotaExceededError'; throw e; }
+			return realSet(`${k}`, v);
+		});
+	}
+	const seed = (n, replyChars)=>{
+		for(let i = n - 1; i >= 0; i--){
+			appendAction({ id: `act-${i}`, origin: 'mcp', clientName: 'probe', tool: 'create_chart_record', level: 'additive', args: { name: `甲${i}` }, summary: `建档 ${i}`, result: { ok: true },
+				undo: { kind: 'trash-record', payload: { store: 'chart', cid: `c${i}` } },
+				idem: { slot: `mcp|probe|create_chart_record|k${i}`, argsKey: `{"name":"甲${i}"}`, reply: { message: '已建档', code: null, data: { cid: `c${i}`, blob: 'x'.repeat(replyChars) } } } });
+		}
+	};
+	it('🔴 回放内容先让位:账本条目一条不丢(撤销承诺不缩水),同键重试仍判得出「已写过」(回放退成摘要)', async ()=>{
+		seed(100, 3000);
+		const full = window.localStorage.getItem(LEDGER_KEY).length;
+		const trimmed = [];
+		const onTrim = (e)=>trimmed.push(e.detail);
+		window.addEventListener(LEDGER_TRIMMED_EVENT, onTrim);
+		try{
+			capLedger(Math.floor(full / 3));   // 带回放内容的整表写不进;去掉回放内容的写得进
+			appendAction({ id: 'act-new', origin: 'in-app', tool: 'create_chart_record', level: 'additive', args: {}, summary: '新的一条', result: { ok: true }, undo: { kind: 'trash-record', payload: { store: 'chart', cid: 'cn' } } });
+			expect(listActions().length).toBe(101);
+			expect(trimmed).toEqual([]);
+			const old = findActionByIdempotencySlot('mcp|probe|create_chart_record|k99', 30 * 60 * 1000, Date.now());
+			expect(old && old.idem.argsKey).toBe('{"name":"甲99"}');
+			expect(old.idem.reply).toBeUndefined();
+			const peek = await peekIdempotent('create_chart_record', { name: '甲99' }, { origin: 'mcp', clientName: 'probe', idempotencyKey: 'k99' });
+			expect(peek.state).toBe('hit');
+			expect(peek.result.replayed).toBe(true);
+			expect(peek.result.undo.actionId).toBe('act-99');
+		}finally{ window.removeEventListener(LEDGER_TRIMMED_EVENT, onTrim); }
+	});
+	it('🔴 去掉回放内容仍写不进 → 裁半,并派「较早的可撤销动作已移出账本」事件(带条数)', ()=>{
+		seed(100, 10);
+		const lean = window.localStorage.getItem(LEDGER_KEY).length;
+		const trimmed = [];
+		const onTrim = (e)=>trimmed.push(e.detail);
+		window.addEventListener(LEDGER_TRIMMED_EVENT, onTrim);
+		try{
+			capLedger(Math.floor(lean * 0.6));
+			appendAction({ id: 'act-new', origin: 'in-app', tool: 'create_chart_record', level: 'additive', args: {}, summary: '新的一条', result: { ok: true }, undo: { kind: 'none' } });
+			const kept = listActions().length;
+			expect(kept).toBeLessThan(101);
+			expect(trimmed.length).toBe(1);
+			expect(trimmed[0].dropped).toBe(101 - kept);
+			expect(trimmed[0].undoable).toBe(101 - kept);   // 裁掉的全是还能撤销的建档
+		}finally{ window.removeEventListener(LEDGER_TRIMMED_EVENT, onTrim); }
+	});
+	it('通知中心接这条事件(与「未进账本」同一处接线)', ()=>{
+		const src = require('fs').readFileSync(require('path').join(__dirname, '../aiAgent/tasks/index.js'), 'utf8');
+		expect(src).toContain(`addEventListener('${LEDGER_TRIMMED_EVENT}'`);
+	});
 });

@@ -1,4 +1,4 @@
-// [V5-B] 自动备份体系闸:sha256 金标/分段校验和/GFS 表驱动/文件名往返/版本协商/坏段隔离。
+// 自动备份体系闸:sha256 金标/分段校验和/GFS 表驱动/文件名往返/版本协商/坏段隔离。
 jest.mock('../aiAnalysisDesktop', ()=>({
 	isDesktopBridgeAvailable: jest.fn(()=>false),
 	invokeDesktopCommand: jest.fn(()=>Promise.resolve()),
@@ -12,7 +12,7 @@ import {
 
 const DAY = 24 * 3600 * 1000;
 
-describe('[V5-B5] sha256 与分段校验和', ()=>{
+describe('sha256 与分段校验和', ()=>{
 	it('🔴 sha256 标准测试向量(FIPS 180-4 金标,实现错一位都过不了)', ()=>{
 		expect(sha256Hex('')).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
 		expect(sha256Hex('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
@@ -51,7 +51,7 @@ describe('[V5-B5] sha256 与分段校验和', ()=>{
 	});
 });
 
-describe('[V5-B7] 版本协商', ()=>{
+describe('版本协商', ()=>{
 	it('🔴 minReaderVersion 高于本 app → 明确拒读指引升级,绝不静默丢段', ()=>{
 		const v = validateUnifiedBackup({ format: UNIFIED_BACKUP_FORMAT, version: 9, minReaderVersion: 9, charts: { charts: [] } });
 		expect(v).toMatchObject({ ok: false, reason: 'reader-too-old' });
@@ -60,7 +60,7 @@ describe('[V5-B7] 版本协商', ()=>{
 	});
 });
 
-describe('[V5-B3] GFS 梯度保留(纯函数表驱动)', ()=>{
+describe('GFS 梯度保留(纯函数表驱动)', ()=>{
 	const now = new Date(2026, 7, 14, 12, 0, 0).getTime();
 
 	it('近 48 小时全保', ()=>{
@@ -91,7 +91,7 @@ describe('[V5-B3] GFS 梯度保留(纯函数表驱动)', ()=>{
 	});
 });
 
-describe('[V5-B1] 自动备份执行器', ()=>{
+describe('自动备份执行器', ()=>{
 	it('文件名 ↔ 时间戳往返;非法名拒解析', ()=>{
 		const at = new Date(2026, 7, 14, 9, 30, 5).getTime();
 		const name = backupFileName(at);

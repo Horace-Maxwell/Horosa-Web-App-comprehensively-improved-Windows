@@ -1,8 +1,9 @@
-// [A4] 随盘自定义四化表注入链金标:
+// 随盘自定义四化表注入链金标:
 //   ① normalizeSihuaCustomTable 三态(合法/坏值/部分合法补全)
 //   ② ZWSihuaCustom.override 优先级(custom 档:注入表 > localStorage > beipai 兜底)
 //   ③ builder set/finally 源码守卫(注入必配对清理;绝不写 localStorage)
 import * as ZWConst from '../../../constants/ZWConst';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const LEGAL = {
 	甲: ['廉贞', '破军', '武曲', '太阳'], 乙: ['天机', '天梁', '紫微', '太阴'],
@@ -12,7 +13,7 @@ const LEGAL = {
 	壬: ['天梁', '紫微', '左辅', '武曲'], 癸: ['破军', '巨门', '太阴', '贪狼'],
 };
 
-describe('[A4] normalizeSihuaCustomTable', ()=>{
+describe('normalizeSihuaCustomTable', ()=>{
 	test('合法 JSON 字符串/对象均归一;十干齐全逐干相等', ()=>{
 		const a = ZWConst.normalizeSihuaCustomTable(JSON.stringify(LEGAL));
 		const b = ZWConst.normalizeSihuaCustomTable(LEGAL);
@@ -35,7 +36,7 @@ describe('[A4] normalizeSihuaCustomTable', ()=>{
 	});
 });
 
-describe('[A4] ZWSihuaCustom.override 优先级(custom 档)', ()=>{
+describe('ZWSihuaCustom.override 优先级(custom 档)', ()=>{
 	const prevSchool = ZWConst.ZWSchool.school;
 	afterEach(()=>{
 		ZWConst.ZWSihuaCustom.override = null;
@@ -65,24 +66,35 @@ describe('[A4] ZWSihuaCustom.override 优先级(custom 档)', ()=>{
 	});
 });
 
-describe('[A4] builder set/finally 源码守卫', ()=>{
-	test('🔴 ZiWeiMain 注入必配对 finally 清 null;归一经 normalizeSihuaCustomTable;绝不写 localStorage', ()=>{
+describe('按盘临时覆盖(挂载快照 / 盘面截图共用 applyZiweiRecordOverride)', ()=>{
+	test('🔴 随盘自定义四化表:归一后注入、还原清掉、四化缓存随之失效;全程不写本机偏好', ()=>{
+		const { applyZiweiRecordOverride } = require('../ZiWeiMain');
+		const ZiWeiHelper = require('../ZiWeiHelper');
+		const prevSchool = ZWConst.ZWSchool.school;
+		const writes = jest.spyOn(Storage.prototype, 'setItem');
+		const resets = jest.spyOn(ZiWeiHelper, 'resetHuaMap');
+		try{
+			ZWConst.ZWSihuaCustom.override = null;
+			const restore = applyZiweiRecordOverride({ sihuaSchool: 'custom', sihuaCustomTable: JSON.stringify(LEGAL) });
+			expect(ZWConst.ZWSihuaCustom.override).toEqual(ZWConst.normalizeSihuaCustomTable(JSON.stringify(LEGAL)));
+			const nReset = resets.mock.calls.length;
+			restore();
+			expect(ZWConst.ZWSihuaCustom.override).toBe(null);
+			expect(resets.mock.calls.length).toBeGreaterThan(nReset);
+			expect(writes.mock.calls.filter((c)=>/ziwei/i.test(`${c[0]}`))).toEqual([]);
+		}finally{
+			writes.mockRestore(); resets.mockRestore();
+			ZWConst.ZWSchool.school = prevSchool; ZWConst.ZWSihuaCustom.override = null; ZWConst.refreshActiveSiHua();
+		}
+	});
+	test('透传键在发后端前删除(请求体不带随盘表)', ()=>{
 		const fs = require('fs'); const path = require('path');
 		const src = fs.readFileSync(path.resolve(__dirname, '..', 'ZiWeiMain.js'), 'utf8');
-		expect(src.includes('normalizeSihuaCustomTable(params.sihuaCustomTable)')).toBe(true);
-		expect(src.includes('ZWConst.ZWSihuaCustom.override = customSihua')).toBe(true);
-		expect(src.includes('ZWConst.ZWSihuaCustom.override = null')).toBe(true);
-		// finally 块内清理(set 与清都伴随 resetHuaMap 失效缓存)
-		const fin = src.slice(src.indexOf('ZWConst.ZWSihuaCustom.override = null'));
-		expect(fin.slice(0, 400).includes('resetHuaMap')).toBe(true);
-		// 随盘表绝不落本机 LS(ziweiSihuaCustom 键只允许出现在读取注释,写入仅 ZiWeiInput 编辑器)
-		expect(src.includes("safeLocalStorageSet('ziweiSihuaCustom'")).toBe(false);
-		// 透传键在发后端前删除
 		expect(src.includes('delete p.sihuaCustomTable')).toBe(true);
 	});
 	test('aiAnalysisContext 透传守卫:record.sihuaCustomTable 非空才挂', ()=>{
 		const fs = require('fs'); const path = require('path');
-		const src = fs.readFileSync(path.resolve(__dirname, '..', '..', '..', 'utils', 'aiAnalysisContext.js'), 'utf8');
+		const src = readSource(path.resolve(__dirname, '..', '..', '..', 'utils', 'aiAnalysisContext.js'));
 		expect(src.includes('params.sihuaCustomTable = record.sihuaCustomTable')).toBe(true);
 	});
 });

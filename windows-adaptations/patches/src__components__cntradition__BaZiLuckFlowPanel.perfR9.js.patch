@@ -1,14 +1,14 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZiLuckFlowPanel.js b/astrostudyui/src/components/cntradition/BaZiLuckFlowPanel.js
-index c22f6153..5d5e8b6e 100644
+index 3e23a845..7015e744 100644
 --- a/astrostudyui/src/components/cntradition/BaZiLuckFlowPanel.js
 +++ b/astrostudyui/src/components/cntradition/BaZiLuckFlowPanel.js
 @@ -1,4 +1,5 @@
  import { Component } from 'react';
 +import { markInteractionStart } from '../../utils/perfMark';
- import { parseYearFromDateStr, addDisplayYears, displayYearDiff } from '../../utils/dateStrSafe';
+ import { parseYearFromDateStr, addDisplayYears, displayYearDiff, parseDateParts } from '../../utils/dateStrSafe';
+ import { civilLocalDate, civilYmdOfLocalDate } from '../../utils/civilCalendar';
  import { julianDayIndex } from '../../utils/julianDayIndex';
- import { Spin } from 'antd';
-@@ -417,9 +418,55 @@ function buildDayItems(monthItem, dayStem){
+@@ -427,9 +428,55 @@ function buildDayItems(monthItem, dayStem){
  	});
  }
  
@@ -64,7 +64,7 @@ index c22f6153..5d5e8b6e 100644
  		this.state = {
  			luckId: '',
  			yearId: '',
-@@ -432,6 +479,27 @@ class BaZiLuckFlowPanel extends Component{
+@@ -442,6 +489,27 @@ class BaZiLuckFlowPanel extends Component{
  		this.emitSelection = this.emitSelection.bind(this);
  	}
  
@@ -92,7 +92,7 @@ index c22f6153..5d5e8b6e 100644
  	componentDidMount(){
  		if(!this.props.fullValue && this.props.onLoad){
  			this.props.onLoad();
-@@ -469,7 +537,7 @@ class BaZiLuckFlowPanel extends Component{
+@@ -479,7 +547,7 @@ class BaZiLuckFlowPanel extends Component{
  
  	resetSelection(value){
  		const dayStem = this.getDayStem(value);
@@ -101,7 +101,7 @@ index c22f6153..5d5e8b6e 100644
  		const now = new Date();
  		let luck = luckItems.find((item)=>{
  			if(item.type === 'small'){
-@@ -478,11 +546,11 @@ class BaZiLuckFlowPanel extends Component{
+@@ -488,11 +556,11 @@ class BaZiLuckFlowPanel extends Component{
  			}
  			return now.getFullYear() >= item.startYear && now.getFullYear() < addDisplayYears(item.startYear, 10);
  		}) || luckItems[0];
@@ -116,7 +116,7 @@ index c22f6153..5d5e8b6e 100644
  		const day = days.find((item)=>item.date && item.date.getFullYear() === now.getFullYear() && item.date.getMonth() === now.getMonth() && item.date.getDate() === now.getDate()) || days[0];
  		this.setState({
  			luckId: luck ? luck.id : '',
-@@ -498,18 +566,23 @@ class BaZiLuckFlowPanel extends Component{
+@@ -508,18 +576,23 @@ class BaZiLuckFlowPanel extends Component{
  	}
  
  	emitSelection(){
@@ -144,7 +144,7 @@ index c22f6153..5d5e8b6e 100644
  		const day = dayItems.find((item)=>item.id === this.state.dayId) || dayItems[0];
  		const isSmall = luck && luck.type === 'small';
  		this.props.onSelectionChange({
-@@ -527,15 +600,15 @@ class BaZiLuckFlowPanel extends Component{
+@@ -537,15 +610,15 @@ class BaZiLuckFlowPanel extends Component{
  			yearPillar: year ? ((isSmall && year.liunianPillar) ? year.liunianPillar : year.pillar) : null,
  			monthPillar: month && month.pillar ? month.pillar : null,
  			dayPillar: day && day.pillar ? day.pillar : null,
@@ -163,7 +163,7 @@ index c22f6153..5d5e8b6e 100644
  		const year = yearItems.find((item)=>item.id === this.state.yearId) || yearItems[0];
  		return year && year.year ? year.year : null;
  	}
-@@ -609,7 +682,18 @@ class BaZiLuckFlowPanel extends Component{
+@@ -619,7 +692,18 @@ class BaZiLuckFlowPanel extends Component{
  					{badge ? <span>{badge}</span> : null}
  				</div>
  				<div className="horosa-bazi-flow-axis">
@@ -183,7 +183,7 @@ index c22f6153..5d5e8b6e 100644
  				</div>
  			</div>
  		);
-@@ -664,13 +748,13 @@ class BaZiLuckFlowPanel extends Component{
+@@ -674,13 +758,13 @@ class BaZiLuckFlowPanel extends Component{
  			);
  		}
  		const dayStem = this.getDayStem(value);
@@ -201,7 +201,7 @@ index c22f6153..5d5e8b6e 100644
  		const day = dayItems.find((item)=>item.id === this.state.dayId) || dayItems[0];
  		return (
  			<div
-@@ -678,9 +762,9 @@ class BaZiLuckFlowPanel extends Component{
+@@ -688,9 +772,9 @@ class BaZiLuckFlowPanel extends Component{
  				style={{ maxHeight: typeof height === 'number' ? height - 22 : undefined }}
  			>
  				{this.renderAxis('大运', '起运', luckItems, luck ? luck.id : '', (item)=>{
@@ -214,7 +214,7 @@ index c22f6153..5d5e8b6e 100644
  					this.setState({
  						luckId: item.id,
  						yearId: years[0] ? years[0].id : '',
-@@ -689,8 +773,8 @@ class BaZiLuckFlowPanel extends Component{
+@@ -699,8 +783,8 @@ class BaZiLuckFlowPanel extends Component{
  					}, this.emitSelection);
  				})}
  				{this.renderAxis('流年', '', yearItems, year ? year.id : '', (item)=>{
@@ -225,7 +225,7 @@ index c22f6153..5d5e8b6e 100644
  					this.setState({
  						yearId: item.id,
  						monthId: months[0] ? months[0].id : '',
-@@ -701,7 +785,7 @@ class BaZiLuckFlowPanel extends Component{
+@@ -711,7 +795,7 @@ class BaZiLuckFlowPanel extends Component{
  					});
  				})}
  				{this.renderAxis('流月', '', monthItems, month ? month.id : '', (item)=>{

@@ -6,7 +6,7 @@
 // (原注写「数字与宫廷待后续波次」,那是 Wave A 时的状态;后续波次已补齐,注释此前未同步更新——
 //  逐表实数为 22/40/16,合 78。文件头是读者判断覆盖率的唯一入口,过时即误导。)
 // accessor 对缺条返回 null,消费端自动隐藏该层。
-import { isTrumpArcana } from '../engine/arcana.js'; // [QA-9] 王牌判据单一真值源
+import { isTrumpArcana } from '../engine/arcana.js'; // 王牌判据单一真值源
 export const TRAD_MAJOR = {
 	the_fool: {
 		up: '狂热、痴迷、放浪;误入歧途与脱序;名声受损;沉醉、盲目、着迷于幻象;不理性而无所觉;天真;不受节制的欲念;胡言;亦作慰藉与补偿',

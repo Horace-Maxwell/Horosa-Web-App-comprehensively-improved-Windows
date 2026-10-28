@@ -61,6 +61,18 @@ describe('种子来源', () => {
 		expect(resolveLingqiSeed('time_seed', null, f)).toBe(`t-${computeTimeSeed(f)}`);
 		expect(resolveLingqiSeed('random', null, null)).toMatch(/^rnd-\d+$/);
 	});
+	test('手动种子:字符串种子(锁定复现锁进来的 rnd-… / t-…)原样;清空 / 纯空白回落 0;输入框是文本框', () => {
+		expect(resolveLingqiSeed('manual', 'rnd-123456', null)).toBe('rnd-123456');
+		expect(resolveLingqiSeed('manual', 't-2608101529', null)).toBe('t-2608101529');
+		expect(resolveLingqiSeed('manual', '', null)).toBe('0');
+		expect(resolveLingqiSeed('manual', '   ', null)).toBe('0');
+		const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'LingQiMain.js'), 'utf8');
+		const at = src.indexOf("this.field('手动种子',");
+		expect(at).toBeGreaterThan(0);
+		const blk = src.slice(at, at + 300);
+		expect(blk).toContain('<Input size="small"');
+		expect(blk).not.toContain('<InputNumber');
+	});
 });
 
 describe('三才数性与耦敌(刘基后序明文,不推衍)', () => {

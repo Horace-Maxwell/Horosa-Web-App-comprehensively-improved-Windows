@@ -1,4 +1,4 @@
-// [D2] 宫格增量信息金标:
+// 宫格增量信息金标:
 //   ① 四开关默认关 ② dayGanOf 三形状夹具 ③ mingGanOf ④ yearAgesOf 支序推岁 ⑤ formatAgeStrip 截断
 //   ⑥ 两盘接线源码守卫(徽在运限槽后调/条在标题带上;kinastro 跳过)
 import fs from 'fs';
@@ -8,7 +8,7 @@ import * as ZiWeiHelper from '../ZiWeiHelper';
 const D2_FLAGS = ['ziweiShowMingSihua', 'ziweiShowDaySihua', 'ziweiShowYearAges', 'ziweiShowXiaoxianAges'];
 afterEach(()=>{ D2_FLAGS.forEach((k)=>{ try{ localStorage.removeItem(k); }catch(e){ /* noop */ } }); });
 
-describe('[D2] 开关默认关+UI wiring', ()=>{
+describe('开关默认关+UI wiring', ()=>{
 	test('🔴 四开关默认全关(零绘制=现状);Checkbox 挂通用 handler', ()=>{
 		expect(ZiWeiHelper.zwShowMingSihua()).toBe(false);
 		expect(ZiWeiHelper.zwShowDaySihua()).toBe(false);
@@ -21,7 +21,7 @@ describe('[D2] 开关默认关+UI wiring', ()=>{
 	});
 });
 
-describe('[D2] 取数纯函数', ()=>{
+describe('取数纯函数', ()=>{
 	test('🔴 dayGanOf 三形状夹具:fourColumns 优先→bazi.dayGanZi→bazi.bazi.day;全缺 null', ()=>{
 		expect(ZiWeiHelper.dayGanOf({ fourColumns: { day: { ganzi: '甲子' } }, bazi: { dayGanZi: '乙丑' } })).toBe('甲');
 		expect(ZiWeiHelper.dayGanOf({ bazi: { dayGanZi: '乙丑', bazi: { day: { ganzi: '丙寅' } } } })).toBe('乙');
@@ -48,7 +48,7 @@ describe('[D2] 取数纯函数', ()=>{
 	});
 });
 
-describe('[D2] 两盘接线源码守卫', ()=>{
+describe('两盘接线源码守卫', ()=>{
 	test('🔴 徽:两盘 drawStar 内 drawLuckSihuaForStar 之后调 drawStemSihuaChips;条:drawLaiYing 后调 drawAgeStrips', ()=>{
 		['ZWHouse.js', 'ZWHouseSangHe.js'].forEach((f)=>{
 			const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');

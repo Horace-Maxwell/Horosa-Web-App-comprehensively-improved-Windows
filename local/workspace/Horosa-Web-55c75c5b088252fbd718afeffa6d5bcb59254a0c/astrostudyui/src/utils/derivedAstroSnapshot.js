@@ -1,4 +1,4 @@
-// [审计修·派生盘快照重定源] 六个占星派生键(hellenastro/dwadasamsa/harmonic/draconic/relocation
+// 六个占星派生键(hellenastro/dwadasamsa/harmonic/draconic/relocation
 // 及其聚合 astrochart_like)的导出/挂载正文曾恒为**本命盘**(astro 单例)冒充分盘 —— 派生盘只活在
 // 各页组件 state,全仓无一处把它存进快照。本 util 提供统一「出盘即存本键模块快照」:
 // 正文 = 整张派生盘(与本命同一 buildAstroSnapshotContent,段名 ⊆ 各键既有 preset)+ 可选专属段。

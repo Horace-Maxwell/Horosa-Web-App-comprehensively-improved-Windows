@@ -64,7 +64,7 @@ describe('星运/自坐 · 集成（2026-06-22 丙午/甲午/丁卯/己酉，日
 	});
 });
 
-// [B 三档接活 2026-08-08] phaseType 长生三派统一内核(changShengOf):与 Java 权威 wuxingphase.json
+// phaseType 长生三派统一内核(changShengOf):与 Java 权威 wuxingphase.json
 // 逐格全等。曾为半截接线(档0≡档2 死档对、档1 只动戊己)——golden 锚锚住的是错值,按
 // 「golden 是法律,错了重生成」纪律更新:byte-perfect 锚转移到档2(=lunar 原值)。
 describe('phaseType 长生派别覆盖（resolveDiShiByPhaseType）', () => {

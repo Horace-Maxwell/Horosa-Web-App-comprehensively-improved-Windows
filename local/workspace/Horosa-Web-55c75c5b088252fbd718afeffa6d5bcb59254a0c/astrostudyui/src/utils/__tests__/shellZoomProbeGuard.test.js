@@ -1,20 +1,24 @@
 // [Tahoe 根治锁] 壳缩放探针链结构哨兵 + 同构对偶锁。
 //
-// 为什么必须有对偶锁:壳(main.rs init script)与 global.js 各持一份探针决策实现,历史上
+// 为什么必须有对偶锁:壳(init script,src-tauri/src/shell_init.rs)与 global.js 各持一份探针决策实现,历史上
 // audit_app_layout.py 的「逐字对齐」内嵌拷贝已经悄悄漂移成假话(闸门测的不是跑的)。
 // 本锁把两份实现的核心函数体做规范化比对——任何一侧单改必红,再没有静默劈叉。
-// 形态自适应:壳仓不在(精简发行形态)则跨仓项跳过,本仓项照测(照 layoutDomainStaticGuard T3 先例)。
+// 壳目录不在则跨目录项跳过,本目录项照测(照 layoutDomainStaticGuard T3 先例)。
 const fs = require('fs');
 const path = require('path');
 
 const SRC = path.resolve(__dirname, '..', '..');
 const GLOBAL_JS = path.join(SRC, 'global.js');
-const MAIN_RS = path.resolve(SRC, '..', '..', '..', 'Horosa_Desktop_Installer', 'src-tauri', 'src', 'main.rs');
+// 壳层源码按职责拆成多个 .rs(main.rs + 各模块):锚分布在 shell_init.rs / ui_windows.rs / main.rs,读整个目录拼起来
+const SHELL_SRC_DIR = path.resolve(SRC, '..', '..', '..', 'Horosa_Desktop_Installer', 'src-tauri', 'src');
+const MAIN_RS = path.join(SHELL_SRC_DIR, 'main.rs');
 const MODELS_APP = path.join(SRC, 'models', 'app.js');
 
 const globalSrc = fs.readFileSync(GLOBAL_JS, 'utf8');
 const mainRsPresent = fs.existsSync(MAIN_RS);
-const mainRsSrc = mainRsPresent ? fs.readFileSync(MAIN_RS, 'utf8') : '';
+const mainRsSrc = mainRsPresent
+	? fs.readdirSync(SHELL_SRC_DIR).filter((f)=>f.endsWith('.rs')).sort().map((f)=>fs.readFileSync(path.join(SHELL_SRC_DIR, f), 'utf8')).join('\n')
+	: '';
 
 // 从源文本切出 `var <name> = function ...` 到配对 `};`(括号计数,注释内花括号已先剥)。
 function extractFn(src, name){
@@ -63,7 +67,7 @@ describe('T1 global.js 探针加固结构锚', ()=>{
 	});
 });
 
-describe('T2 main.rs 壳侧三改结构锚(壳仓缺席则跳过)', ()=>{
+describe('T2 壳侧三改结构锚(壳仓缺席则跳过)', ()=>{
 	test('🔴 抽取锚/resize 桥/zoom-snap 三标记在位', ()=>{
 		if(!mainRsPresent){ return; }
 		expect(mainRsSrc).toContain('[zoom-apply-fn:begin]');
@@ -92,7 +96,7 @@ describe('T3 同构对偶锁:探针决策核心两处逐 token 相同', ()=>{
 			.toBe(normalize('var a = function () { s = "b"; }; // c2'));
 	});
 
-	test('🔴 __applyBodyComp:global.js 与 main.rs 抽取段规范化后逐字节相同', ()=>{
+	test('🔴 __applyBodyComp:global.js 与壳 init script 抽取段规范化后逐字节相同', ()=>{
 		if(!mainRsPresent){ return; }
 		const a = extractFn(globalSrc, '__applyBodyComp');
 		const b = extractFn(mainRsSrc, '__applyBodyComp');

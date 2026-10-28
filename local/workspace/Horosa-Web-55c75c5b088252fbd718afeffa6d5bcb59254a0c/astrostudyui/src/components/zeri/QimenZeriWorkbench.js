@@ -4,8 +4,7 @@
 // 差异仅三点:条件注册表=QIMEN_CONDITION_TYPES(本地求值);参数区=奇门 22 参数子集(死开关裁剪:
 // 仅收板面生效项);结果表多「局」列,概览浮窗=DunJiaBoard 迷你盘。
 import { useState, useEffect, useRef } from 'react';
-import { saveBlobSmart } from '../../utils/aiAnalysisExport';
-import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // [Q-478] 空数字框统一校验
+import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // 空数字框统一校验
 import { Modal, Dropdown, Menu, message } from 'antd';
 import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
 import GeoCoordModal from '../amap/GeoCoordModal';
@@ -19,16 +18,16 @@ import { qimenZeriSchemeStore } from '../../divination/zeri/schemeStore';
 import QimenMiniBoardPopup from './QimenMiniBoardPopup';
 import ZeriRowBadge from './ZeriRowBadge';
 import {
-	PAIPAN_OPTIONS, QIJU_METHOD_OPTIONS, SCHOOL_OPTIONS, ZHISHI_OPTIONS, YUEJIA_QIJU_OPTIONS,
-	KONG_MODE_OPTIONS, MA_MODE_OPTIONS, YIXING_OPTIONS, TIME_ALG_OPTIONS, DAY_SWITCH_OPTIONS, ZHIRUN_LEAP_OPTIONS,
+	PAIPAN_OPTIONS, QIJU_METHOD_OPTIONS, SCHOOL_OPTIONS, ZHISHI_OPTIONS,
+	KONG_MODE_OPTIONS, MA_MODE_OPTIONS, TIME_ALG_OPTIONS, DAY_SWITCH_OPTIONS,
+	qijuMethodOptionsFor, qijuMethodSelectValue,
 } from '../dunjia/DunJiaCalc';
+import { QIMEN_ZHIRUN_LEAP_FIELD, QIMEN_YUEJIA_QIJU_FIELD, QIMEN_SHIFT_PALACE_FIELD } from './qimenWorkbenchFields';
+import { downloadJson, JOINER_OPTIONS, getAt, mapAt, removeAt, collectUiLeaves, GATE_CN2, dateStrOf } from './zeriTreeOps';
+import { withFullDefaults } from './zeriOptionDefaults';
 
-// [Q-410] 单源保存(桌面壳保存桥选目录;浏览器 <a download>);取消 / 失败静默不报成功(本处本就无成功提示)。
-function downloadJson(text, filename){
-	try{
-		return saveBlobSmart(filename, new Blob([text], { type: 'application/json;charset=utf-8' }));
-	}catch(e){ return null; /* 受限 webview 环境静默 */ }
-}
+// 排盘体例缺省 = 时家;起局法档位 / 回显随它(与奇门页、三式合一页同一判据:非时家刻家只有「本家默认 / 阴盘」)
+const paiPanOf = (o)=>(o.paiPanType === undefined || o.paiPanType === null || o.paiPanType === '' ? 3 : o.paiPanType);
 
 const Option = XQSelect.Option;
 const OptGroup = XQSelect.OptGroup;
@@ -43,13 +42,7 @@ const QIMEN_CATEGORY_ORDER = (()=>{
 	return seen;
 })();
 
-const JOINER_OPTIONS = [
-	{ value: 'all', label: '且 AND' },
-	{ value: 'any', label: '或 OR' },
-	{ value: 'xor', label: '异或 XOR' },
-];
-
-// 晚子时时干开关(v2.2.1 语义,与 DunJiaMain 左栏同款两档)。
+// 晚子时时干开关(v2.2.1 语义;奇门页不设此控件,始终随全局,这里给择日扫描单独选)。
 const LATE_ZI_OPTIONS = [
 	{ value: 1, label: '晚子时·次日干起(默认)' },
 	{ value: 0, label: '晚子时·当日干起' },
@@ -57,19 +50,20 @@ const LATE_ZI_OPTIONS = [
 
 // 参数区描述表(值/标签全取 DunJiaCalc 官方常量,置灰联动复刻 DunJiaMain 左栏三条)。
 // 死开关裁剪:性别/盘类/封局/相关人员与扫描判定无关,不入本区。
-const PARAM_FIELDS = [
-	{ key: 'paiPanType', label: '奇门类型', options: PAIPAN_OPTIONS },
-	{ key: 'qijuMethod', label: '取局法', options: QIJU_METHOD_OPTIONS },
-	{ key: 'zhirunLeapDays', label: '置闰阈值', options: ZHIRUN_LEAP_OPTIONS, when: (o)=>o.qijuMethod === 'zhirun' },
+export const QIMEN_WORKBENCH_PARAM_FIELDS = [
+	{ key: 'paiPanType', label: '排盘', options: PAIPAN_OPTIONS },
+	{ key: 'qijuMethod', label: '起局', options: QIJU_METHOD_OPTIONS, optionsFor: (o)=>qijuMethodOptionsFor(paiPanOf(o)), valueOf: (o)=>qijuMethodSelectValue(paiPanOf(o), o.qijuMethod) },
+	// 置闰天数 / 月家起局:与三式择日工作台同一份描述(qimenWorkbenchFields)
+	QIMEN_ZHIRUN_LEAP_FIELD,
 	{ key: 'shuziReportNumber', label: '报数', kind: 'input', when: (o)=>o.qijuMethod === 'shuzi' },
-	{ key: 'school', label: '盘面起法', options: SCHOOL_OPTIONS },
-	{ key: 'zhiShiType', label: '值使取法', options: ZHISHI_OPTIONS, disabled: (o)=>o.school !== '转盘' },
-	{ key: 'yueJiaQiJuType', label: '月家起局', options: YUEJIA_QIJU_OPTIONS, disabled: (o)=>Number(o.paiPanType) !== 1 },
-	{ key: 'kongMode', label: '空亡方式', options: KONG_MODE_OPTIONS },
-	{ key: 'yimaMode', label: '驿马方式', options: MA_MODE_OPTIONS },
-	{ key: 'shiftPalace', label: '移星', options: YIXING_OPTIONS },
+	{ key: 'school', label: '盘式', options: SCHOOL_OPTIONS },
+	{ key: 'zhiShiType', label: '值使', options: ZHISHI_OPTIONS, disabled: (o)=>o.school !== '转盘' },
+	QIMEN_YUEJIA_QIJU_FIELD,
+	{ key: 'kongMode', label: '空亡', options: KONG_MODE_OPTIONS },
+	{ key: 'yimaMode', label: '驿马', options: MA_MODE_OPTIONS },
+	QIMEN_SHIFT_PALACE_FIELD,
 	{ key: 'timeAlg', label: '时间算法', options: TIME_ALG_OPTIONS },
-	{ key: 'after23NewDay', label: '换日', options: DAY_SWITCH_OPTIONS },
+	{ key: 'after23NewDay', label: '日界', options: DAY_SWITCH_OPTIONS },
 	{ key: 'lateZiHourUseNextDay', label: '晚子时时干', options: LATE_ZI_OPTIONS },
 ];
 
@@ -78,40 +72,11 @@ function optionLabel(list, value){
 	return hit ? hit.label : `${value === undefined || value === null ? '—' : value}`;
 }
 
-// ── 树路径纯工具(path=[]=根;[i,j]=children 索引链;与天星工作台同构) ──
-function getAt(tree, path){
-	let node = tree;
-	for(const i of path){
-		if(!node || !node.children){ return null; }
-		node = node.children[i];
-	}
-	return node || null;
-}
-function mapAt(tree, path, fn){
-	if(!path.length){ return fn(tree); }
-	const [head, ...rest] = path;
-	return { ...tree, children: tree.children.map((c, i) => (i === head ? mapAt(c, rest, fn) : c)) };
-}
-function removeAt(tree, path){
-	if(!path.length){ return tree; }
-	const parent = path.slice(0, -1);
-	const idx = path[path.length - 1];
-	return mapAt(tree, parent, (g) => ({ ...g, children: g.children.filter((_, i) => i !== idx) }));
-}
-
 // ── 详情展开:explain 树递归渲染(设定=UI 树叶 DFS 序,compile 不增删叶,先序一致) ──
-function collectUiLeaves(node, out){
-	if(!node){ return out; }
-	if(node.kind === 'leaf'){ out.push(node); return out; }
-	(node.children || []).forEach((c) => collectUiLeaves(c, out));
-	return out;
-}
-
-const GATE_CN2 = { all: '且(全部满足)', any: '或(任一满足)', xor: '异或(奇数满足)', not: '非(取反)' };
 
 function renderExplainNode(node, uiLeaves, counter, depth){
 	const passTag = (ok) => (
-		<span style={{ fontWeight: 700, color: ok ? '#2f9e63' : '#e5484d' }}>{ok ? '✓' : '✗'}</span>
+		<span style={{ fontWeight: 700, color: ok ? 'var(--horosa-jx-ji)' : 'var(--horosa-danger)' }}>{ok ? '✓' : '✗'}</span>
 	);
 	if(node.kind === 'group'){
 		return (
@@ -126,11 +91,11 @@ function renderExplainNode(node, uiLeaves, counter, depth){
 	return (
 		<div key={`l${counter.i}`} style={{ padding: '5px 0 5px 0', marginLeft: depth ? 14 : 0, borderBottom: '1px dashed rgba(148,163,184,.16)' }}>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 12 }}>
-				<span style={{ opacity: 0.55 }}>设定</span>
+				<span style={{ color: 'var(--horosa-text-secondary)' }}>设定</span>
 				<span>{ui ? qimenLeafSummary(ui) : ((QIMEN_CONDITION_TYPES[node.type] || {}).label || node.type)}</span>
 			</div>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, marginTop: 2 }}>
-				<span style={{ opacity: 0.55 }}>实际</span>
+				<span style={{ color: 'var(--horosa-text-secondary)' }}>实际</span>
 				<span style={{ opacity: 0.9 }}>{node.actual}</span>
 				{passTag(node.pass)}
 			</div>
@@ -138,11 +103,8 @@ function renderExplainNode(node, uiLeaves, counter, depth){
 	);
 }
 
-function pad2(n){ return n < 10 ? `0${n}` : `${n}`; }
-function dateStrOf(d){ return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
-
 export default function QimenZeriWorkbench({
-	open, onClose, cfg, onCfgChange, geo, onGeoChange, options, onOptionsChange, onReloadFromBoard,
+	open, onClose, cfg, onCfgChange, geo, onGeoChange, options, onOptionsChange, optionDefaults, onReloadFromBoard,
 	tree, frozenTree, onTreeChange, onRun, onCancelScan, onPickInterval, onExplain, previewCtx, scanEpoch, resultsStale,
 	scanning, progress, results, truncated, scanErr,
 }){
@@ -165,7 +127,7 @@ export default function QimenZeriWorkbench({
 		if(scanning){ setView('result'); }
 	}, [scanning]);
 
-	// [R4-B7/C16 靶②] 「从未打开过」粘性短路(与天星 ConditionBuilderModal 同款):弹窗关着时
+	// 「从未打开过」粘性短路(与天星 ConditionBuilderModal 同款):弹窗关着时
 	// 宿主每次 render 白建 ~650 行元素树;打开过后永远走完整树(草稿/视图态/关闭动画全保留)。
 	const everOpenRef = useRef(!!open);
 	if(open && !everOpenRef.current){ everOpenRef.current = true; }
@@ -189,7 +151,7 @@ export default function QimenZeriWorkbench({
 
 	const draftLeaf = { kind: 'leaf', type: draftType, negate: draftNegate, params: draftParams };
 	const draftSpec = QIMEN_CONDITION_TYPES[draftType] || {};
-	// [Q-478/T-440] 空数字框先判(与表单红框同一判据),再走各类型自校验。
+	// 空数字框先判(与表单红框同一判据),再走各类型自校验。
 	const draftError = emptyNumberFieldError(draftSpec, draftParams) || (draftSpec.validate ? draftSpec.validate(draftParams) : '');
 
 	const appendTargetPath = selectedIsGroup ? selectedPath : [];
@@ -210,7 +172,7 @@ export default function QimenZeriWorkbench({
 	};
 
 	const applyScheme = (rec) => {
-	// [F7 根修] 载入前审计值域:方案里的条件类/选项值可能已随版本演进被删——
+	// 载入前审计值域:方案里的条件类/选项值可能已随版本演进被删——
 	// 那类行会静默恒不命中(needValues 只拦空、compile 不查值域、evaluate includes 恒 false)。
 	// 审计只提示不拦载入:用户看得见哪些行失效,自行改设;静默才是事故。
 	const __schemeIssues = (rec && rec.tree) ? auditTreeAgainstRegistry(rec.tree, QIMEN_CONDITION_TYPES) : [];
@@ -221,7 +183,8 @@ export default function QimenZeriWorkbench({
 		if(rec && rec.config){
 			if(rec.config.cfg){ onCfgChange({ ...cfg, ...rec.config.cfg }); }
 			if(rec.config.geo && typeof onGeoChange === 'function'){ onGeoChange({ ...(geo || {}), ...rec.config.geo }); }
-			if(rec.config.options && typeof onOptionsChange === 'function'){ onOptionsChange({ ...opts, ...rec.config.options }); }
+			// 方案 / 历史里没写的参数回出厂值(宿主完整缺省打底),不取本会话现值:否则会话里改过、方案没写的键混进来,再扫得到的不是当时的结果
+			if(rec.config.options && typeof onOptionsChange === 'function'){ onOptionsChange(withFullDefaults(optionDefaults, rec.config.options), { source: 'scheme' }); }
 		}
 		setSelectedPath(null);
 	};
@@ -234,7 +197,7 @@ export default function QimenZeriWorkbench({
 				<Menu.Item key={s.id}>
 					<span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
 						<a onClick={(e) => { e.preventDefault(); applyScheme(s); }}>{s.name}</a>
-						<a style={{ color: '#e5484d', fontSize: 11 }}
+						<a style={{ color: 'var(--horosa-danger)', fontSize: 11 }}
 							onClick={(e) => { e.preventDefault(); e.stopPropagation(); qimenZeriSchemeStore.deleteScheme(s.id); setSchemeTick(schemeTick + 1); }}>删</a>
 					</span>
 				</Menu.Item>
@@ -255,7 +218,7 @@ export default function QimenZeriWorkbench({
 	const selIndex = selectedPath && selectedPath.length ? selectedPath[selectedPath.length - 1] : -1;
 	const joinerToolbar = (
 		<div style={{ padding: '8px 10px', borderTop: '1px solid rgba(148,163,184,.2)' }}>
-			<div style={{ fontSize: 11, opacity: 0.65, marginBottom: 6 }}>
+			<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 6 }}>
 				连接门·取反{!selectedNode ? '(先点选右侧一行)' : (selIndex === 0 ? '(首行无连接门,可取反)' : '')}
 			</div>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -300,7 +263,7 @@ export default function QimenZeriWorkbench({
 							flexShrink: 0,
 						}}>{JOINER_CN[node.joiner || 'all']}</span>
 					) : null}
-					{node.negate ? <span style={{ color: '#e5484d', fontWeight: 700, flexShrink: 0 }}>非</span> : null}
+					{node.negate ? <span style={{ color: 'var(--horosa-danger)', fontWeight: 700, flexShrink: 0 }}>非</span> : null}
 					{isGroup ? (
 						<span style={{ fontSize: 12, fontWeight: 600 }}>分组({(node.children || []).length} 条)</span>
 					) : (
@@ -314,7 +277,7 @@ export default function QimenZeriWorkbench({
 					<div style={{ marginTop: 6, paddingLeft: 10, borderLeft: '2px solid rgba(212,175,55,.35)' }}>
 						{(node.children || []).map((c, i) => renderRow(c, [...path, i], i, depth + 1))}
 						{!(node.children || []).length ? (
-							<div style={{ padding: '6px 2px', fontSize: 12, opacity: 0.5 }}>空分组:选中本组后左侧「添加到列表」即入组,或删除本组。</div>
+							<div style={{ padding: '6px 2px', fontSize: 12, color: 'var(--horosa-text-secondary)' }}>空分组:选中本组后左侧「添加到列表」即入组,或删除本组。</div>
 						) : null}
 					</div>
 				) : null}
@@ -326,7 +289,7 @@ export default function QimenZeriWorkbench({
 		<div>
 			{(rootNode.children || []).map((c, i) => renderRow(c, [i], i, 1))}
 			{!(rootNode.children || []).length ? (
-				<div style={{ padding: '10px 4px', fontSize: 12, opacity: 0.55 }}>尚无条件——左侧构造后点「添加到列表」。</div>
+				<div style={{ padding: '10px 4px', fontSize: 12, color: 'var(--horosa-text-secondary)' }}>尚无条件——左侧构造后点「添加到列表」。</div>
 			) : null}
 		</div>
 	);
@@ -341,7 +304,7 @@ export default function QimenZeriWorkbench({
 
 	const paramChips = [
 		optionLabel(PAIPAN_OPTIONS, opts.paiPanType),
-		optionLabel(QIJU_METHOD_OPTIONS, opts.qijuMethod),
+		optionLabel(qijuMethodOptionsFor(paiPanOf(opts)), qijuMethodSelectValue(paiPanOf(opts), opts.qijuMethod)),
 		optionLabel(SCHOOL_OPTIONS, opts.school),
 		`空亡${optionLabel(KONG_MODE_OPTIONS, opts.kongMode)}`,
 		`驿马${optionLabel(MA_MODE_OPTIONS, opts.yimaMode)}`,
@@ -351,7 +314,7 @@ export default function QimenZeriWorkbench({
 
 	const paramGrid = (
 		<div style={{ display: 'grid', gridTemplateColumns: '64px minmax(0,1fr) 64px minmax(0,1fr)', gap: '8px 8px', alignItems: 'center', marginTop: 8 }}>
-			{PARAM_FIELDS.filter((f) => !f.when || f.when(opts)).map((f) => {
+			{QIMEN_WORKBENCH_PARAM_FIELDS.filter((f) => !f.when || f.when(opts)).map((f) => {
 				const disabled = f.disabled ? f.disabled(opts) : false;
 				return [
 					<span key={`${f.key}_l`} style={{ fontSize: 12, opacity: 0.7, textAlign: 'right', whiteSpace: 'nowrap' }}>{f.label}</span>,
@@ -361,11 +324,11 @@ export default function QimenZeriWorkbench({
 							style={{ width: '100%', boxSizing: 'border-box' }}
 							onChange={(e) => onOptionsChange({ ...opts, [f.key]: e.target.value })} />
 					) : (
-						<XQSelect key={`${f.key}_c`} size="small" style={{ width: '100%' }} value={opts[f.key]}
+						<XQSelect key={`${f.key}_c`} size="small" style={{ width: '100%' }} value={f.valueOf ? f.valueOf(opts) : opts[f.key]}
 							disabled={disabled} dropdownMatchSelectWidth={false}
 							getPopupContainer={(t) => t.closest('.ant-modal-body') || t.parentElement}
 							onChange={(v) => onOptionsChange({ ...opts, [f.key]: v })}>
-							{f.options.map((o) => (<Option key={`${o.value}`} value={o.value}>{o.label}</Option>))}
+							{(f.optionsFor ? f.optionsFor(opts) : f.options).map((o) => (<Option key={`${o.value}`} value={o.value}>{o.label}</Option>))}
 						</XQSelect>
 					),
 				];
@@ -390,7 +353,7 @@ export default function QimenZeriWorkbench({
 							onChange={(e) => onCfgChange({ ...cfg, startDate: e.target.value })} />
 						<input type="time" className="horosa-native-date" style={{ width: 86 }} value={cfg.startTime}
 							onChange={(e) => onCfgChange({ ...cfg, startTime: e.target.value })} />
-						<span style={{ opacity: 0.6 }}>→</span>
+						<span style={{ color: 'var(--horosa-text-secondary)' }}>→</span>
 						<input type="date" className="horosa-native-date" style={{ width: 118 }} value={cfg.endDate}
 							onChange={(e) => onCfgChange({ ...cfg, endDate: e.target.value })} />
 						<input type="time" className="horosa-native-date" style={{ width: 86 }} value={cfg.endTime}
@@ -408,7 +371,7 @@ export default function QimenZeriWorkbench({
 						<GeoCoordModal lat={geo && geo.gpsLat} lng={geo && geo.gpsLon} onOk={(rec) => onGeoChange(rec)}>
 							<XQButton size="small">{geoLabel}</XQButton>
 						</GeoCoordModal>
-						<span style={{ fontSize: 11, opacity: 0.6 }}>时区 {geo && geo.zone !== undefined ? geo.zone : '—'}</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>时区 {geo && geo.zone !== undefined ? geo.zone : '—'}</span>
 						<XQButton size="small" onClick={onReloadFromBoard} title="用左栏「起盘选项」当前值覆盖本面板的地点与参数">从主盘重载</XQButton>
 						<span style={{ flex: 1 }} />
 						<XQButton size="small" onClick={() => setParamsOpen(!paramsOpen)}>{paramsOpen ? '收起参数 ▲' : '编辑参数 ▼'}</XQButton>
@@ -424,7 +387,7 @@ export default function QimenZeriWorkbench({
 				<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)' }}>构造条件</div>
 				<div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
 					<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
-						<span style={{ fontSize: 11, opacity: 0.65 }}>条件类型</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>条件类型</span>
 						{/* 下拉挂进 Modal 内(getPopupContainer):body 门户浮层垂出 Modal 底边悬在遮罩上,
 						    近旁点击会命中遮罩整台关闭(真机实抓;幽灵浮层同族病根治法) */}
 						<XQSelect size="small" style={{ minWidth: 150 }} value={draftType}
@@ -451,7 +414,7 @@ export default function QimenZeriWorkbench({
 					}}>
 						{qimenLeafSummary(draftLeaf)}
 					</div>
-					{draftError ? <div style={{ color: '#e5484d', fontSize: 12, marginTop: 6 }}>{draftError}</div> : null}
+					{draftError ? <div style={{ color: 'var(--horosa-danger)', fontSize: 12, marginTop: 6 }}>{draftError}</div> : null}
 				</div>
 				{joinerToolbar}
 				<div style={{ padding: 10, borderTop: '1px solid rgba(148,163,184,.2)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -474,7 +437,7 @@ export default function QimenZeriWorkbench({
 					<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)', display: 'flex', alignItems: 'center', gap: 8 }}
 						title="点击行选中后,用左下「连接门·取反」四钮直接改该行;行首徽标=本行与上方结果的连接门">
 						已选条件
-						<span style={{ fontSize: 11, opacity: 0.55, fontWeight: 400 }}>点行选中·左下改门/取反</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>点行选中·左下改门/取反</span>
 					</div>
 					<div style={{ flex: 1, overflowY: 'auto', padding: 10 }} onClick={() => setSelectedPath(null)}>
 						{renderNode(tree)}
@@ -490,7 +453,7 @@ export default function QimenZeriWorkbench({
 							<XQButton size="small">载入方案▾</XQButton>
 						</Dropdown>
 						<XQButton size="small" onClick={() => setView('schemes')}>方案管理…</XQButton>
-						{scanErr ? <span style={{ color: '#e5484d', fontSize: 12, marginLeft: 8 }}>{scanErr}</span> : null}
+						{scanErr ? <span style={{ color: 'var(--horosa-danger)', fontSize: 12, marginLeft: 8 }}>{scanErr}</span> : null}
 					</div>
 				</div>
 			</div>
@@ -513,29 +476,29 @@ export default function QimenZeriWorkbench({
 					</span>
 				) : null}
 			</div>
-			{!scanning && scanErr ? <div style={{ color: '#e5484d', fontSize: 12, marginBottom: 8 }}>{scanErr}</div> : null}
+			{!scanning && scanErr ? <div style={{ color: 'var(--horosa-danger)', fontSize: 12, marginBottom: 8 }}>{scanErr}</div> : null}
 			{resultsStale ? (
-				<div style={{ color: '#8a6d1a', background: 'rgba(212,175,55,.12)', border: '1px solid rgba(212,175,55,.4)', borderRadius: 6, fontSize: 12, padding: '5px 10px', marginBottom: 8 }}>
+				<div style={{ color: 'var(--horosa-sev-medium)', background: 'rgba(212,175,55,.12)', border: '1px solid rgba(212,175,55,.4)', borderRadius: 6, fontSize: 12, padding: '5px 10px', marginBottom: 8 }}>
 					⚠ 条件/参数/时间范围已被修改:下方结果对应「上一次找局」——请重新点「找局」。
 				</div>
 			) : null}
 			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, opacity: 0.6, padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
 					<span style={{ width: 36 }}>#</span>
 					<span style={{ flex: 1 }}>开始(点击=起始时刻起盘)</span>
 					<span style={{ flex: 1 }}>结束(点击=结束时刻起盘)</span>
 					<span style={{ width: 64, textAlign: 'right' }}>时长</span>
 					<span style={{ width: 118, textAlign: 'center' }}>局</span>
 					<span style={{ width: 64, textAlign: 'center' }}>详情</span>
-					<span style={{ width: 52 }}>盘</span>{/* 行内只有「盘」一列,表头等宽占位;[Q-271/ZC-24] 曾多一列「概览」空占位把两 flex 列压窄、表头与行错位 */}
+					<span style={{ width: 52 }}>盘</span>{/* 行内只有「盘」一列,表头等宽占位;曾多一列「概览」空占位把两 flex 列压窄、表头与行错位 */}
 				</div>
 				{(!results || !results.length) && !scanning ? (
-					<div style={{ padding: 24, opacity: 0.6 }}>{results ? '时间范围内无满足条件的时辰。' : '尚未找局。'}</div>
+					<div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>{results ? '时间范围内无满足条件的时辰。' : '尚未找局。'}</div>
 				) : null}
 				{(results || []).map((row, i) => (
 					<div key={i} style={{ borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
 						<div style={{ display: 'flex', gap: 10, padding: '9px 12px', alignItems: 'center' }}>
-							<span style={{ width: 36, textAlign: 'right', opacity: 0.5, fontSize: 12 }}>{i + 1}</span>
+							<span style={{ width: 36, textAlign: 'right', color: 'var(--horosa-text-secondary)', fontSize: 12 }}>{i + 1}</span>
 							<span style={{ flex: 1, fontSize: 13, cursor: 'pointer' }} title="以时段起始时刻起盘"
 								onClick={() => onPickInterval(row, 'start')}>{row.start}</span>
 							<span style={{ flex: 1, fontSize: 13, cursor: 'pointer' }} title="以时段结束时刻起盘"
@@ -568,11 +531,11 @@ export default function QimenZeriWorkbench({
 						</div>
 						{expandKey === `${scanEpoch || 0}:${i}` ? (
 							<div style={{ padding: '4px 12px 10px 58px', background: 'rgba(212,175,55,.04)' }}>
-								<div style={{ fontSize: 11, opacity: 0.55, marginBottom: 4 }}>
+								<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 4 }}>
 									以时段起始时刻逐条判读(设定 vs 实际;判定与扫描引擎同源)
 								</div>
-								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).loading ? <div style={{ fontSize: 12, opacity: 0.6 }}>判读中…</div> : null}
-								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).err ? <div style={{ fontSize: 12, color: '#e5484d' }}>{explainMap[`${scanEpoch || 0}:${i}`].err}</div> : null}
+								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).loading ? <div style={{ fontSize: 12, color: 'var(--horosa-text-secondary)' }}>判读中…</div> : null}
+								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).err ? <div style={{ fontSize: 12, color: 'var(--horosa-danger)' }}>{explainMap[`${scanEpoch || 0}:${i}`].err}</div> : null}
 								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).tree
 									? renderExplainNode(explainMap[`${scanEpoch || 0}:${i}`].tree, collectUiLeaves(frozenTree || tree, []), { i: 0 }, 0)
 									: null}
@@ -614,13 +577,13 @@ export default function QimenZeriWorkbench({
 			</div>
 			{schemeMsg ? <div style={{ fontSize: 12, marginBottom: 8, opacity: 0.8 }}>{schemeMsg}</div> : null}
 			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, opacity: 0.6, padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
 					<span style={{ flex: 1 }}>方案名</span>
 					<span style={{ width: 150 }}>保存时间</span>
 					<span style={{ width: 70, textAlign: 'right' }}>条件数</span>
 					<span style={{ width: 250, textAlign: 'right' }}>操作</span>
 				</div>
-				{!schemes.length ? <div style={{ padding: 24, opacity: 0.6 }}>暂无已存方案——条件页底部「保存方案」。</div> : null}
+				{!schemes.length ? <div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>暂无已存方案——条件页底部「保存方案」。</div> : null}
 				{schemes.map((s) => (
 					<div key={s.id} style={{ display: 'flex', gap: 10, padding: '8px 12px', alignItems: 'center', borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
 						{renameId === s.id ? (
@@ -648,7 +611,7 @@ export default function QimenZeriWorkbench({
 					</div>
 				))}
 			</div>
-			<div style={{ fontSize: 11, opacity: 0.5, marginTop: 8 }}>
+			<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 8 }}>
 				导出为 JSON 可跨设备/跨用户分享;导入同名方案以文件内容覆盖本地。
 			</div>
 		</div>
@@ -660,7 +623,7 @@ export default function QimenZeriWorkbench({
 				// 警示驻标题栏(标题与 × 之间,用户规格):字号缩小塞一行,窄屏自动折行。
 				<div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingRight: 34 }}>
 					<span style={{ flexShrink: 0 }}>奇门择日·找局工作台</span>
-					<span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 400, color: '#8a6d1a', lineHeight: 1.35, whiteSpace: 'normal' }}>
+					<span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 400, color: 'var(--horosa-sev-medium)', lineHeight: 1.35, whiteSpace: 'normal' }}>
 						⚠ 结果为盘面条件的机械筛选,仅供术数研习参考;不构成任何现实决策依据,勿迷信滥用——据此行事,后果自负。
 					</span>
 				</div>

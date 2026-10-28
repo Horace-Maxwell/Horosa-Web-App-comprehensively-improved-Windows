@@ -31,6 +31,13 @@ AstroColor['Desc'] = '#ff7b62';
 AstroColor['MC'] = '#e6bb6b';
 AstroColor['IC'] = '#d1dde9';
 
+// 行星环的留(S)/ 顺(D)/ 逆(R)标、度数的分、王星标(盘面字;按本套盘面底挑,画的那一刻经 AstroConst.AstroColor 读)
+AstroColor['StationS'] = '#c9973a';
+AstroColor['StationD'] = '#4fae72';
+AstroColor['Retrograde'] = '#e06a5f';
+AstroColor['MinuteText'] = '#a39a8c';
+AstroColor['RoyalStar'] = '#d4af37';
+
 AstroColor['Aries'] = '#ff6f58';
 AstroColor['Taurus'] = '#d5b052';
 AstroColor['Gemini'] = '#5bc5e8';
@@ -51,15 +58,16 @@ AstroColor['Asp90'] = '#ff725f';
 AstroColor['Asp120'] = '#65d08a';
 AstroColor['Asp180'] = '#f26183';
 
-AstroColor['命'] = '#d7a94f';
-AstroColor['业'] = '#d7a94f';
-AstroColor['胎'] = '#d7a94f';
+// 宿关系扇区填色:字(Stroke #a88855)画在它上面 —— 旧的实心浅金 #d7a94f 上只有 1.5:1,改暗金底
+AstroColor['命'] = '#3a2e16';
+AstroColor['业'] = '#3a2e16';
+AstroColor['胎'] = '#3a2e16';
 
-AstroColor['意'] = '#d7a94f';
-AstroColor['事'] = '#d7a94f';
-AstroColor['克'] = '#d7a94f';
-AstroColor['聚'] = '#d7a94f';
-AstroColor['同'] = '#d7a94f';
+AstroColor['意'] = '#3a2e16';
+AstroColor['事'] = '#3a2e16';
+AstroColor['克'] = '#3a2e16';
+AstroColor['聚'] = '#3a2e16';
+AstroColor['同'] = '#3a2e16';
 
 AstroColor['SixHouses'] = 'transparent';
 

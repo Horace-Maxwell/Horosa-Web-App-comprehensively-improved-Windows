@@ -1,4 +1,4 @@
-// [WP-1] 古典参数 spec 单源五方全等契约。
+// 古典参数 spec 单源五方全等契约。
 // 病根:一键至少七方登记(默认仓/类型表/播种/挂载齿轮/抽屉控件/Java 白名单/快照自陈),
 // 历史漂移实锤=viaCombustaVariant 漏播种、三开关漏 UI。本契约锁:任何一方漏键/值漂即红。
 // 五方:①spec≡CLASSICAL_GLOBAL_DEFAULTS ②spec≡newEmptyFields 播种(按 seed 语义)
@@ -21,24 +21,24 @@ const NON_DEFAULT_SAMPLE = {
 	partileDef: 'le1', antisciaOrb: 2,
 	fixedStarOrbMode: 'byMagnitude', fixedStarOrb: 2,
 	houseCuspAdvance: 0,
-	// [WP-2] 天文口径批
+	// 天文口径批
 	combustOwnChariotExempt: 1, westLilithType: 'true', topocentricMoon: 1,
 	stationMarking: 'absSpeed', eclipseTimeMode: 'syzygy',
-	// [WP-3] 希腊点变体批
+	// 希腊点变体批
 	hermeticLotsReversal: 0, erosConstruction: 'valens', lotFortuneVariant: 'moonAboveNight',
 	lotFatherCombustAlt: 1, lotProjection: 'sign',
-	// [WP-4] 尊贵与判定批
+	// 尊贵与判定批
 	dignityDebilities: 0, peregrineScore: 0, almutenTripMode: 'sectRulerOnly',
 	domicileMasterMethod: 'bound', dynamicalDivisions: 1, busyPlaces: '1,4,7,10',
 	planetaryHourMethod: 'equal24',
-	// [WP-5a] 容许度体系批
+	// 容许度体系批
 	orbSystem: 'byAspect', luminaryOrbBonus: 20, transitOrb: 3,
 	aspectShowOnlyApplying: 1, separatingOrbCap: 2,
-	// [WP-5b] 相位对象扩展
+	// 相位对象扩展
 	aspectIncludeCusps: 1, aspectIncludeLots: 1, aspectIncludeMidpoints: 1,
-	// [WP-6] 返照专项
+	// 返照专项
 	solarReturnVariant: 'hellenistic', returnLatitudeMode: 'withLatitude',
-	// [WP-8] 灵学扩展
+	// 灵学扩展
 	vulcanCalc: 'baker', rayWeighting: 'equal',
 };
 
@@ -190,7 +190,7 @@ describe('全局仓写读经 spec 键(端到端)', () => {
 	});
 });
 
-// ── [F17] 横向复制点契约(对抗复审元观察:纵线契约之外的四个复制点每批全停更) ──
+// ── 横向复制点契约(对抗复审元观察:纵线契约之外的四个复制点每批全停更) ──
 describe('横向复制点全等(第三闸/回显白名单/PD 收缩/卜卦构参)', () => {
 	const fs = require('fs');
 	const path = require('path');
@@ -260,7 +260,7 @@ describe('横向复制点全等(第三闸/回显白名单/PD 收缩/卜卦构参
 	});
 });
 
-// ── [R5] 合同③b:挂载齿轮 options 集 ⊇ spec options 集(值域全等;label 不比) ──
+// ── 合同③b:挂载齿轮 options 集 ⊇ spec options 集(值域全等;label 不比) ──
 // P2-4(apparent)/P2-5(15°) 两缺档实锤:合同③只锁键/default/globalCurrent,options 集是盲区——
 // spec 加档、齿轮不加 → 全局改新档后齿轮回显异常且不能逐盘钉。负向:齿轮多出 spec 没有的值也红(野档)。
 describe('挂载齿轮 options 集与 spec 全等', () => {

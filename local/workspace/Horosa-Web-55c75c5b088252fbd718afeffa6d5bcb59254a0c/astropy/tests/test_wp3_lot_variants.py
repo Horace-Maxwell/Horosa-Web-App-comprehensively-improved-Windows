@@ -1,4 +1,4 @@
-# [WP-3] 希腊点变体批双向量锚(perchart._applyLotVariants 一体后处理)。
+# 希腊点变体批双向量锚(perchart._applyLotVariants 一体后处理)。
 import pytest
 from astrostudy.perchart import PerChart
 from flatlib import const
@@ -113,7 +113,7 @@ def test_father_combust_alt():
 
 
 def test_lot_projection_sign():
-    # [Q-259/T-222 2026-09-18] 整星座投射改为真按座序计数:座 = A 座→B 座的座数自 ASC 座再数;座内度 = ASC 座内度
+    # 整星座投射改为真按座序计数:座 = A 座→B 座的座数自 ASC 座再数;座内度 = ASC 座内度
     # (一手来源不给度;两点座内度相等时 Paulus 度式即退化为 ASC 度 + 整数座)。特殊式(基础点 / 旺宫点)仍归座首。
     sg = PerChart({**DAY, 'lotProjection': 'sign'})
     asc_deg = sg.chart.getAngle(const.ASC).lon % 30

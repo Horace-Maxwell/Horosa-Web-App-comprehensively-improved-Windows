@@ -5,13 +5,19 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.net.InetSocketAddress;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.junit.Test;
+
+import com.sun.net.httpserver.HttpServer;
 
 import boundless.exception.ErrorCodeException;
 
@@ -134,6 +140,45 @@ public class AIWebSearchServiceTest {
 			fail("未知引擎应报未配置");
 		} catch (ErrorCodeException e) {
 			assertEquals(AIWebSearchService.ERR_NOT_CONFIGURED, e.getCode());
+		}
+	}
+
+	/** brave / searxng 把检索词拼进地址:按 UTF-8 百分号编码(中文、空格、& + / 都不得原样进地址)。 */
+	@Test
+	public void braveAndSearxngEncodeQueryAsUtf8() throws Exception {
+		HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+		final List<String> seen = new CopyOnWriteArrayList<String>();
+		server.createContext("/", ex -> {
+			seen.add(ex.getRequestURI().getPath() + "?" + ex.getRequestURI().getRawQuery() + "|" + ex.getRequestHeaders().getFirst("X-Subscription-Token"));
+			byte[] body = (ex.getRequestURI().getPath().startsWith("/res/") ? "{\"web\":{\"results\":[]}}" : "{\"results\":[]}").getBytes(StandardCharsets.UTF_8);
+			ex.sendResponseHeaders(200, body.length);
+			ex.getResponseBody().write(body);
+			ex.close();
+		});
+		server.start();
+		try {
+			String base = "http://127.0.0.1:" + server.getAddress().getPort();
+			String q = "紫微 a&b c+d/易";
+			String encoded = URLEncoder.encode(q, StandardCharsets.UTF_8);
+			assertEquals("%E7%B4%AB%E5%BE%AE+a%26b+c%2Bd%2F%E6%98%93", encoded);
+			AIWebSearchService svc = new AIWebSearchService();
+			Map<String, Object> brave = new LinkedHashMap<String, Object>();
+			brave.put("engine", "brave");
+			brave.put("query", q);
+			brave.put("apiKey", "unit-test-token");
+			brave.put("baseUrl", base);
+			brave.put("maxResults", 3);
+			assertEquals(q, svc.search(brave).get("query"));
+			Map<String, Object> searx = new LinkedHashMap<String, Object>();
+			searx.put("engine", "searxng");
+			searx.put("query", q);
+			searx.put("baseUrl", base + "/");
+			assertEquals(q, svc.search(searx).get("query"));
+			assertEquals(Arrays.asList(
+				"/res/v1/web/search?q=" + encoded + "&count=3|unit-test-token",
+				"/search?format=json&q=" + encoded + "|null"), seen);
+		} finally {
+			server.stop(0);
 		}
 	}
 }

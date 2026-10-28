@@ -53,7 +53,7 @@ class AcgReferencePanel extends Component {
 					{this.props.planets ? (
 						<>
 							<div style={H()}>天顶点 · 天底点（此星直落头顶处）</div>
-							<div style={{ fontSize: 11, opacity: 0.55, margin: '0 0 4px' }}>天顶=行星正当头顶的地点(纬=赤纬);天底=其对跖点。OOB=赤纬超黄赤交角(越回归线,能量出格)。</div>
+							<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', margin: '0 0 4px' }}>天顶=行星正当头顶的地点(纬=赤纬);天底=其对跖点。OOB=赤纬超黄赤交角(越回归线,能量出格)。</div>
 							{Object.keys(this.props.planets).map((pk) => {
 								const z = this.props.planets[pk].zenith;
 								if (!z) return null;
@@ -61,7 +61,7 @@ class AcgReferencePanel extends Component {
 								const fmtLon = (v) => `${Math.abs(v).toFixed(1)}°${v >= 0 ? 'E' : 'W'}`;
 								return (
 									<div key={pk} style={{ ...ROW, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-										<span>{PLANET_CN[pk] || pk}{this.props.planets[pk].oob ? <span style={{ color: '#e0793f', fontSize: 10, marginLeft: 5 }}>OOB</span> : null}</span>
+										<span>{PLANET_CN[pk] || pk}{this.props.planets[pk].oob ? <span style={{ color: 'var(--horosa-decl-oob)', fontSize: 10, marginLeft: 5 }}>OOB</span> : null}</span>
 										<span style={{ opacity: 0.8, fontSize: 11 }}>天顶 {fmtLat(z.lat)} {fmtLon(z.lon)} · 天底 {fmtLat(-z.lat)} {fmtLon(z.lon > 0 ? z.lon - 180 : z.lon + 180)}</span>
 									</div>
 								);
@@ -75,7 +75,7 @@ class AcgReferencePanel extends Component {
 							<div style={{ fontWeight: 600, fontSize: 12.5, marginBottom: 2 }}>{PLANET_CN[p] || p}</div>
 							{ANGLE_ORDER.map((a) => (
 								<div key={a} style={{ fontSize: 11.5, lineHeight: 1.55, opacity: 0.82, padding: '1px 0' }}>
-									<span style={{ opacity: 0.6 }}>{ANGLE_NAME[a]}</span>：{PLANET_ANGLE[p][a]}
+									<span style={{ color: 'var(--horosa-text-secondary)' }}>{ANGLE_NAME[a]}</span>：{PLANET_ANGLE[p][a]}
 								</div>
 							))}
 						</div>

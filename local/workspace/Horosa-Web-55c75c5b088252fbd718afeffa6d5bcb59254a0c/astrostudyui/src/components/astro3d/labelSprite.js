@@ -24,7 +24,7 @@ export function ensureAstroFont(){
 		const face = new FontFace('ywastrochart', `url(${astroFontUrl})`);
 		fontReadyPromise = face.load().then((loaded)=>{
 			document.fonts.add(loaded);
-		}).catch(()=>{ /* 字体加载失败:canvas 落系统字体,字形显示为码点兜底 */ });
+		}).catch(()=>{ fontReadyPromise = null; /* 字体加载失败:本次 canvas 落系统字体兜底;不缓存失败,下次再试 */ });
 	}catch(e){
 		fontReadyPromise = Promise.resolve();
 	}
@@ -36,7 +36,7 @@ export function ensureAstroFont(){
 ensureAstroFont();
 
 // 深色行星色(海王深蓝/冥王暗紫等)在黑底不可读——HSL 亮度抬升到下限,色相不变。
-// [G1] export:主限天球实体点改「白字烘焙+material 乘性染色」后,染色端也要同一套抬亮(纯加法导出)。
+// export:主限天球实体点改「白字烘焙+material 乘性染色」后,染色端也要同一套抬亮(纯加法导出)。
 export function liftLuma(hexColor, minLuma){
 	if(!minLuma || minLuma <= 0){
 		return hexColor;
@@ -124,20 +124,24 @@ export function makeTextSprite(text, opt = {}){
 	canvas.height = h;
 	// 尺寸设置会重置 ctx 状态,重设字体
 	const ctx2 = canvas.getContext('2d');
-	ctx2.font = `${weight} ${px}px ${fontFamily}`;
-	ctx2.textBaseline = 'top';
-	ctx2.fillStyle = color;
-	if(opt.glow){
-		// 一遍收敛光晕打底 + 双遍无阴影锐利本体收笔:发光但不糊(用户实测调优)
-		ctx2.shadowColor = color;
-		ctx2.shadowBlur = px * 0.18;
-		ctx2.fillText(text, drawX, px * 0.1 + pad * 0.4);
-		ctx2.shadowBlur = 0;
-		ctx2.fillText(text, drawX, px * 0.1 + pad * 0.4);
-		ctx2.fillText(text, drawX, px * 0.1 + pad * 0.4);
-	}else{
-		ctx2.fillText(text, drawX, px * 0.1);
-	}
+	const paint = ()=>{
+		ctx2.clearRect(0, 0, canvas.width, canvas.height);
+		ctx2.font = `${weight} ${px}px ${fontFamily}`;
+		ctx2.textBaseline = 'top';
+		ctx2.fillStyle = color;
+		if(opt.glow){
+			// 一遍收敛光晕打底 + 双遍无阴影锐利本体收笔:发光但不糊(用户实测调优)
+			ctx2.shadowColor = color;
+			ctx2.shadowBlur = px * 0.18;
+			ctx2.fillText(text, drawX, px * 0.1 + pad * 0.4);
+			ctx2.shadowBlur = 0;
+			ctx2.fillText(text, drawX, px * 0.1 + pad * 0.4);
+			ctx2.fillText(text, drawX, px * 0.1 + pad * 0.4);
+		}else{
+			ctx2.fillText(text, drawX, px * 0.1);
+		}
+	};
+	paint();
 
 	const texture = new THREE.CanvasTexture(canvas);
 	texture.colorSpace = THREE.SRGBColorSpace;
@@ -147,7 +151,18 @@ export function makeTextSprite(text, opt = {}){
 	const sprite = new THREE.Sprite(material);
 	// 世界尺寸:高=worldSize,宽按画布纵横比;对齐旧 TextGeometry size 的观感
 	sprite.scale.set(worldSize * (w / h), worldSize, 1);
+	// 界面简繁切换后重画(canvas 上的字画好就不会自己变):登记重画函数,材质释放时摘掉
+	const repaint = ()=>{ paint(); texture.needsUpdate = true; };
+	textSpritePainters.add(repaint);
+	if(typeof material.addEventListener === 'function'){ material.addEventListener('dispose', ()=>textSpritePainters.delete(repaint)); }
 	return sprite;
+}
+
+// 在用的文字 sprite 重画函数(界面简繁切换后由宿主经 watchChartScript 调 repaintTextSprites;按需渲染的宿主随后再 render 一帧)
+const textSpritePainters = new Set();
+export function repaintTextSprites(){
+	textSpritePainters.forEach((fn)=>{ try{ fn(); }catch(e){ /* 单张失败不影响其余 */ } });
+	return textSpritePainters.size;
 }
 
 // 光点纹理缓存(同色同参共享一张 canvas 纹理,数百恒星零重复分配)

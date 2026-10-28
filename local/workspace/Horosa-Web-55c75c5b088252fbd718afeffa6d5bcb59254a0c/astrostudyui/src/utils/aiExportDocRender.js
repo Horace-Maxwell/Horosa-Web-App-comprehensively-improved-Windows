@@ -21,7 +21,7 @@ function preambleLines(doc){
 // —— docx 派生视图 ——
 
 function kvParagraph(block){
-	// [E5] 键/值均走行内样式:键含 **引导词** 时记号由 mdInlineToRuns 消化(键整体仍加粗),
+	// 键/值均走行内样式:键含 **引导词** 时记号由 mdInlineToRuns 消化(键整体仍加粗),
 	// 此前裸 TextRun 会把 `**键**：` 的星号字面写进 docx(双重丑:又有星号又加粗)。
 	return new Paragraph({
 		children: mdInlineToRuns(`${block.key}：`, { bold: true }).concat(mdInlineToRuns(`${block.value || ''}`)),
@@ -29,7 +29,7 @@ function kvParagraph(block){
 }
 
 function pParagraphs(block){
-	// [A2] 正文/项目符号统一走 mdInlineToRuns:**粗**/*斜*/`码` 转真样式 run。
+	// 正文/项目符号统一走 mdInlineToRuns:**粗**/*斜*/`码` 转真样式 run。
 	// 此前只有表格单元格走(makeDocxTableCell),正文却裸 TextRun 原样输出星号——同文件自相矛盾。
 	return `${block.text || ''}`.split('\n').map((line)=>{
 		const t = line.trim();
@@ -44,7 +44,7 @@ function blockToDocxChildren(block){
 	if(block.type === 'table'){
 		return [makeDocxTable(block.headers || [], block.rows || [], block.aligns || []), new Paragraph({ children: [new TextRun('')] })];
 	}
-	// [B2] 与 IR 解析器同步的五型:code/quote/list/image/hr。
+	// 与 IR 解析器同步的五型:code/quote/list/image/hr。
 	if(block.type === 'code'){
 		return `${block.text || ''}`.split('\n').map((l)=>new Paragraph({
 			shading: { type: 'clear', color: 'auto', fill: 'F4F4F6' },
@@ -86,7 +86,7 @@ function blockToDocxChildren(block){
 		return [new Paragraph({ border: { bottom: { style: 'single', size: 6, color: 'CCCCCC', space: 4 } }, children: [new TextRun('')] })];
 	}
 	if(block.type === 'subhead'){
-		// [E5] 子题/说明两型此前裸 TextRun,`◆ **重点**` 的星号字面落 xml——补接行内样式(与正文/列表对齐)。
+		// 子题/说明两型此前裸 TextRun,`◆ **重点**` 的星号字面落 xml——补接行内样式(与正文/列表对齐)。
 		return [new Paragraph({ heading: HEADING[3], children: mdInlineToRuns(block.text || '') })];
 	}
 	if(block.type === 'note'){
@@ -140,7 +140,7 @@ function el(tag, cssText, text){
 	return node;
 }
 
-// [E5] 行内 markdown → DOM 片段:粗/斜/码转真样式(此前全块型走 textContent,`**` 字面进 PDF)。
+// 行内 markdown → DOM 片段:粗/斜/码转真样式(此前全块型走 textContent,`**` 字面进 PDF)。
 // 换行由宿主块的 white-space:pre-wrap 保留(粗/斜段的正则不跨 \n,纯文本段的 \n 原样入文本节点)。
 function appendInlineMd(node, text){
 	mdInlineSegments(`${text == null ? '' : text}`).forEach((seg)=>{

@@ -5,24 +5,17 @@ import { randomStr } from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { projectToDial, cursorReadout, spreadDialAngles, antiscion } from '../../utils/uranianDial';
-import { factorLabel } from '../../data/uranianMeanings';
 import { TNP_GLYPH_PATHS, appendTnpGlyphD3 } from './UranianGlyphs';
-
-// 字形 hover 名(增强):原名 · 因子义(factorLabel 缺则只剩原名)。
-const glyphTip = (id) => { const n = AstroText.AstroMsgCN[id] || id; const lab = factorLabel(id); return lab && lab !== n ? n + ' · ' + lab : n; };
+import { TAU, norm360, polar, glyphTip } from './uranianDialShared';
 
 // 宇宙图(Cosmogram)= 量化盘第三盘式:外环按真实黄经(360°)画行星(=模数盘几何),
 // 内侧再叠一圈「折叠记号环」——把每个真位 projectToDial 到所选盘基(默认 90°)的折叠位,
 // 画放射记号 + 字形,让用户一眼看清真位与谐波折叠位的并置。指针/读数与模数盘共用 uranianDial 引擎。
 // 几何与模数盘同源(外环 360°、可拖红指针、除本命外每环可旋转);只【新增】内层折叠记号环,不改读数口径。
 
-const TAU = Math.PI * 2;
-const norm360 = (x) => ((x % 360) + 360) % 360;
-// 逆时针(0°在正上、度数向左增)，与全站星盘一致。
-const polar = (cx, cy, R, deg) => { const a = deg / 360 * TAU; return [cx - R * Math.sin(a), cy - R * Math.cos(a)]; };
 const RING_TONE = { natal: 'currentColor', transit: '#c0392b', solararc: '#1f7a5a',
 	// WP-9 合盘叠盘人(最多 4):取应用既有强调色族,四人以蓝/紫/青/琥珀区分(与本命 currentColor/行运红/太阳弧绿 不撞)。
-	syn0: 'var(--horosa-accent, #2f7df1)', syn1: '#8e6fd0', syn2: '#1f8a8a', syn3: '#c08a2f',
+	syn0: 'var(--horosa-accent, #2f7df1)', syn1: 'var(--horosa-hue-purple)', syn2: 'var(--horosa-hue-teal)', syn3: 'var(--horosa-warn)',   // 明暗成对(旧写死琥珀 #c08a2f 在亮盘底 2.7:1)
 	// B5:组合盘=暗金 / 戴维森=朱橘(与行运凶红、合盘四色均不撞;图例经既有 RING_TONE 机制自动带出)。
 	composite: 'var(--horosa-gold, #b8860b)', davison: 'var(--horosa-cinnabar, #e2603f)' };
 const POINTER_COLOR = '#e23b3b';

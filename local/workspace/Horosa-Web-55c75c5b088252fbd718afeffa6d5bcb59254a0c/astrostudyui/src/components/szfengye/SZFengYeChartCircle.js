@@ -4,6 +4,7 @@ import * as SZConst from '../suzhan/SZConst';
 import {randomStr,} from '../../utils/helper';
 import Su28ChartCircle from '../su28/Su28ChartCircle';
 import * as AstroText from '../../constants/AstroText';
+import { fillTextFromStroke } from '../graph/GraphHelper';
 
 class SZFengYeChartCircle extends Su28ChartCircle{
 	constructor(option){
@@ -99,7 +100,7 @@ class SZFengYeChartCircle extends Su28ChartCircle{
 					let trans = 'translate(' + posx + ', ' + posy + ') rotate(' + rotang + ')';
 					return trans;	
 				})
-				.text(function(d){return d});
+				.text(function(d){return d}).call(fillTextFromStroke);
 		}
 
 	}
@@ -169,7 +170,7 @@ class SZFengYeChartCircle extends Su28ChartCircle{
 					let trans = 'translate(' + posx + ', ' + posy + ') rotate(' + rotang + ')';
 					return trans;	
 				})
-				.text(function(d){return d});
+				.text(function(d){return d}).call(fillTextFromStroke);
 		}
 	}
 

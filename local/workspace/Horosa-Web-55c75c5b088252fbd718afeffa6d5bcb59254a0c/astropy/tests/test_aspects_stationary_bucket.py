@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""[Q-337/T-318] 虚点接纳相位开启 + 慢行星留驻窗口:aspectsByCat 主动方 movement=Stationary 此前 KeyError → 整张盘 param error。
+"""虚点接纳相位开启 + 慢行星留驻窗口:aspectsByCat 主动方 movement=Stationary 此前 KeyError → 整张盘 param error。
 现留驻归入「无运动」桶(结果形状不变)。锚:2020-04-26 02:53 +08:00 31n14 121e28(冥王留点时刻)。"""
 import os
 import sys

@@ -4,6 +4,7 @@ import {
 	updateCheckSilent,
 	updateStartBackground,
 	updateInstallAndRestart,
+	openExternalUrl,
 } from '../../utils/aiAnalysisDesktop';
 import styles from './UpdateNotifier.less';
 
@@ -61,7 +62,7 @@ export function reduceUpdateEvent(state, payload){
 			mode: payload.mode || '',
 			estimateBytes: payload.downloadBytes != null ? payload.downloadBytes : null,
 			reusePct: payload.reusePct != null ? payload.reusePct : null,
-			// [V-3] 无 sha 可校验(更新清单不可得):只通知不自动下载,卡片把「立即更新」换「打开发布页」。
+			// 无 sha 可校验(更新清单不可得):只通知不自动下载,卡片把「立即更新」换「打开发布页」。
 			// 老壳不发此字段 → 判空退化为 false(照常显示下载),行为与今天一致。
 			notifyOnly: payload.notifyOnly === true,
 			message: payload.message || '',
@@ -115,7 +116,7 @@ export function reduceUpdateEvent(state, payload){
 		return { phase: PHASE_IDLE, toast: '已是最新版本' };
 	}
 	if(phase === 'notify-only'){
-		// [V-3] 后台下载被 notify-only 短路(老前端点了「立即更新」也会走到这里):
+		// 后台下载被 notify-only 短路(老前端点了「立即更新」也会走到这里):
 		// 回到 available 卡并切成「打开发布页」形态,绝不停留在假的下载中状态。
 		return {
 			phase: PHASE_AVAILABLE,
@@ -156,7 +157,7 @@ class UpdateNotifier extends React.Component {
 			currentVersion: '',
 			notes: '',
 			releaseUrl: '',
-			notifyOnly: false, // [V-3] 无 sha 可校验时=true:只通知不自动下载
+			notifyOnly: false, // 无 sha 可校验时=true:只通知不自动下载
 			toast: '',
 			// 可视化 v2(全部可空,空即退回老样式)
 			mode: '',            // 'incremental' | 'full'
@@ -261,7 +262,8 @@ class UpdateNotifier extends React.Component {
 	onViewNotes(){
 		const url = this.state.releaseUrl;
 		if(url){
-			try{ window.open(url, '_blank'); }catch(e){ /* noop */ }
+			// 桌面 webview 不处理新窗口,window.open 会被吞掉(点了没反应);走壳的外链命令,网页端回落 window.open
+			openExternalUrl(url);
 		}
 	}
 
@@ -321,7 +323,7 @@ class UpdateNotifier extends React.Component {
 		let body = null;
 		if(phase === PHASE_AVAILABLE){
 			// 「本次需下载约 63 MB(增量更新,复用 90%)」/「完整更新,约 611 MB」/「大小待定」
-			// [V-3] notifyOnly:无资产尺寸可估(URL 皆空),改显停止自动下载的原因。
+			// notifyOnly:无资产尺寸可估(URL 皆空),改显停止自动下载的原因。
 			let sizeLine = null;
 			if(this.state.notifyOnly){
 				sizeLine = this.state.message

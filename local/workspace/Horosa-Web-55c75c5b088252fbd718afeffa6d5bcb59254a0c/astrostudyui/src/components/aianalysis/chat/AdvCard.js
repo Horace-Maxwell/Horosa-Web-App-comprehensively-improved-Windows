@@ -1,6 +1,6 @@
 // 「进阶」页的卡片外壳与行组件(单一视觉来源):所有高级能力设置卡共用同一套头部(图标格/标题/状态胶囊/说明/动作)
 // 与正文节奏;卡片自身只放内容。data-* 与 style 等透传到根节点(测试与 自动化驱动器按 data-* 定位)。
-// [批四] 新增:id(分区锚,导轨/胶囊跳转目标)· tone="danger"(危险区外观)· reset(头部统一「恢复默认」动作,缺省态隐藏)
+// 新增:id(分区锚,导轨/胶囊跳转目标)· tone="danger"(危险区外观)· reset(头部统一「恢复默认」动作,缺省态隐藏)
 //        · toolbar(头与正文之间的工具条)· AdvStatus tone=warn|danger · AdvSubHead(折叠面板头:标题/说明/状态/计数,自带分区锚)。
 import React from 'react';
 import { Switch, Button } from 'antd';

@@ -178,7 +178,7 @@ describe('AI 四同步补齐 16 项 GAP — 用户名条目逐一覆盖', ()=>{
 		expect(sec).toBeTruthy();
 		expect(sec[0]).toMatch(/^◆ 当前分宫制(\(.+\))?宫神星表\(houseRows\)$/);
 		expect(sec[1]).toBe('| 宫 | 宫头座 | 宫主 | 宫主落宫 | 宫主落座 |');
-		// [v2 表化重钉] v1 行「1宫(座)：宫主 X 落 …」→ GFM 表行「| 1宫 | 座 | 宫主 | 落宫 | 落座 |」。
+		// v1 行「1宫(座)：宫主 X 落 …」→ GFM 表行「| 1宫 | 座 | 宫主 | 落宫 | 落座 |」。
 		expect(sec.join('\n')).toMatch(/\| 1宫 \| [^|\n]+ \| [^|\n]+ \| [^|\n]+ \| [^|\n]+ \|/);
 		expect(sliceSec(out, '主宰星链').join('\n')).not.toContain('houseRows');
 	});
@@ -215,7 +215,7 @@ describe('AI 四同步补齐 16 项 GAP — 用户名条目逐一覆盖', ()=>{
 
 	it('FIX-7 月宿 nakshatra 出现在行星段', ()=>{
 		const out = buildAstroSnapshotContent(fullChart, null);
-		// [v2 表化重钉] v1 行「月宿：第18宿 …」→ ◆位置与速度 表「月宿」列 cell(值零变化)。
+		// v1 行「月宿：第18宿 …」→ ◆位置与速度 表「月宿」列 cell(值零变化)。
 		expect(out).toContain('月宿');
 		expect(out).toMatch(/\|[^|\n]*第18宿 Jyeshtha（心宿） 第2步·宿主水星[^|\n]*\|/);
 	});

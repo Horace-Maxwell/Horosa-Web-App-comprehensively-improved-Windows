@@ -41,7 +41,7 @@ export function identityCheckDisabled(){
 
 function fetchWithTimeout(url, ms){
 	const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-	const timer = ctrl ? setTimeout(()=>{ try{ ctrl.abort(); }catch(e){} }, ms) : null;
+	const timer = ctrl ? setTimeout(()=>{ ctrl.abort(); }, ms) : null;
 	return fetch(url, {
 		method: 'GET',
 		cache: 'no-store',

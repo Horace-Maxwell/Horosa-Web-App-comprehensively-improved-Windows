@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/huangji/HuangJiMain.js b/astrostudyui/src/components/huangji/HuangJiMain.js
-index e6d37921..dd64bd67 100644
+index 60c25d22..80f70d26 100644
 --- a/astrostudyui/src/components/huangji/HuangJiMain.js
 +++ b/astrostudyui/src/components/huangji/HuangJiMain.js
-@@ -19,6 +19,8 @@ import { formatHumanValue } from '../../utils/humanReadableFields';
- import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
- import { parseDateParts } from '../../utils/dateStrSafe';
- import { definePageSettings } from '../../utils/pageSettingsStore';
+@@ -15,6 +15,8 @@ import { postKentang } from '../../services/kentangPost';
+ import { stepPrefetchEnabled, kentangCacheEnabled, flagEnabled } from '../../utils/perfFlags';
+ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
+ import { formatHumanValue } from '../../utils/humanReadableFields';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
- const { Option } = Select;
- const { TabPane } = Tabs;
-@@ -552,6 +554,23 @@ class HuangJiMain extends Component{
+ import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
+ import { parseFieldsDateTimeWithDayBoundary } from '../../utils/fieldsDateTime';
+@@ -499,6 +501,23 @@ class HuangJiMain extends Component{
  		});
  	}
  
@@ -20,7 +20,7 @@ index e6d37921..dd64bd67 100644
 +	// ⇒ 缓存键逐字节同键;典籍正文由上游 loadClassicFull 模块缓存按需取,不需预取。
 +	getStepPrefetchTasks(steppedFields){
 +		try{
-+			if(!parseFieldsDateTime(steppedFields)){ return []; }
++			if(!parseFieldsDateTimeWithDayBoundary(steppedFields)){ return []; }
 +			const payload = this.buildPanPayload(steppedFields);
 +			return [{
 +				name: 'wangji',
@@ -35,16 +35,16 @@ index e6d37921..dd64bd67 100644
  	async fetchPan(fields){
  		const payload = this.buildPanPayload(fields);
  		if(!payload){
-@@ -572,6 +591,8 @@ class HuangJiMain extends Component{
+@@ -520,6 +539,8 @@ class HuangJiMain extends Component{
  				return;
  			}
- 			this.setState({ pan, xinyi, loading: false }, ()=>{
+ 			this.setState({ pan, panSig: castSig, xinyi, loading: false }, ()=>{
 +				// horosa_panel_ready_v1:主盘 + 心易同批落定 = 中栏与右栏画完的那一次 setState。
 +				markPanelReady('cnyibu');
  				const snapOpts = { classicSectionIndex: this.state.classicSectionIndex };
  				saveModuleAISnapshotLazy('huangji', ()=>buildSnapshotText(pan, xinyi, snapOpts));
  			});
-@@ -972,23 +993,38 @@ class HuangJiMain extends Component{
+@@ -922,23 +943,38 @@ class HuangJiMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

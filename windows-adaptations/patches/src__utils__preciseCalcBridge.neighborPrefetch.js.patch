@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/utils/preciseCalcBridge.js b/astrostudyui/src/utils/preciseCalcBridge.js
-index bbe7a25d..44cd4b44 100644
+index 978c8f93..154cdec2 100644
 --- a/astrostudyui/src/utils/preciseCalcBridge.js
 +++ b/astrostudyui/src/utils/preciseCalcBridge.js
-@@ -10,6 +10,7 @@ import {
+@@ -11,6 +11,7 @@ import {
  } from './localCalcCache';
  import { buildLocalBaziResult } from './baziLunarLocal';
  import { buildLocalJieqiYearSeed } from './localNongliAdapter';
 +import { neighborPrefetchEnabled } from './perfFlags';
- 
- const NONG_LI_KEYS = ['date', 'time', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'ad', 'gender', 'after23NewDay', 'lateZiHourUseNextDay', 'timeAlg'];
- const JIE_QI_SEED_KEYS = ['year', 'ad', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'timeAlg', 'jieqis', 'seedOnly'];
-@@ -482,6 +483,29 @@ export async function fetchPreciseJieqiYear(params){
+ import { registerProcessCache } from './processCacheRegistry';
+ import { dateKeyOfStr } from './dateStrSafe';
+ import { normalizeZone } from './zoneText';
+@@ -436,6 +437,29 @@ export async function fetchPreciseJieqiYear(params){
  	return req;
  }
  

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""[Q-486/T-448][Q-485/T-447][Q-484/T-446][Q-483/T-445] 玄学史 · 天象年份 / 朝代 / 微年表类筛 / 地图朝代计数。
+"""玄学史 · 天象年份 / 朝代 / 微年表类筛 / 地图朝代计数。
 
 判别向量全部取自取证行(改前红、改后绿):
   · date_phrase_to_year('大中祥符四年二月壬辰') 曾=847(被「大中」截走),应 1011;
@@ -61,7 +61,7 @@ def test_judgement_vectors_from_db():
     assert sum(1 for e in ev if e['dynasty'] == '北宋' and e['year'] and e['year'] > 1127) == 0
     # ±1 年容农历跨年(effective_dynasty 文档口径):TWCHRON-01441 无年号、公历 0317-01-29(东晋三月才建)→ 317 仍归西晋
     assert sum(1 for e in ev if e['dynasty'] == '西晋' and e['year'] and e['year'] > 317) == 0
-    # [TL-36/T-217] 有公历日期的天象不再落「无年」(此前 10,256 条被起年 / 终年筛选整体排除)
+    # 有公历日期的天象不再落「无年」(此前 10,256 条被起年 / 终年筛选整体排除)
     assert sum(1 for e in ev if e['year'] is None and e.get('modern_date')) == 0
     assert by['TWCHRON-01441']['year'] == 317
     # 大中祥符 404 条不再落 840 年代

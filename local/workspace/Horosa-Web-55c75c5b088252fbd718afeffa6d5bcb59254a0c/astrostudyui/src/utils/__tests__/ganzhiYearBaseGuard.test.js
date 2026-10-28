@@ -2,7 +2,7 @@
 //
 // 病灶回顾：术数技法的「第 N 岁流年」以**干支年**为基准，立春前出生者的公历年已跨、干支年未跨；
 // 直接拿出生公历年当 base 会让流年整体错一位（河洛 2026-01-31 命例：年柱乙巳，旧算首年给丙午）。
-// 同一条旧公式 (y-4)%10 早被 reportTimeAnchor.test.js 钉死过，但河洛/参评两条链没吃到那次修。
+// 同一条旧公式 (y-4)%10 在别处修过，但河洛/参评两条链没吃到那次修。
 import fs from 'fs';
 import path from 'path';
 import { ganzhiYearBase, ganzhiOfSolarYear } from '../ganzhiYearBase';
@@ -12,10 +12,12 @@ import {
 	qiyunFromLunarDate,
 	CANPING_DAYUN_RULES,
 } from '../canpingLocal';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '..', '..');
 const stripComments = (t) => t.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
-const read = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel) => readSource(path.join(SRC, rel));
+const { jsxNodesInFile } = require('./helpers/jsxProps');
 
 describe('干支年基准（立春界）', () => {
 	it('立春后出生：干支年 === 出生公历年（零回归）', () => {
@@ -54,8 +56,11 @@ describe('干支年基准（立春界）', () => {
 describe('参评数：性别接线（死开关锁）', () => {
 	it('宿主必须下发 gender，组件必须 props 优先', () => {
 		const host = stripComments(read('components/kinastro/KinAstroMain.js'));
-		expect((host.match(/<CanPingMain[^>]*gender=\{this\.state\.gender\}/g) || []).length).toBe(2);
-		expect((host.match(/<ZhengChuanMain[^>]*gender=\{this\.state\.gender\}/g) || []).length).toBe(2);
+		const hostFile = path.join(SRC, 'components/kinastro/KinAstroMain.js');
+		expect(host.length).toBeGreaterThan(0);
+		['CanPingMain', 'ZhengChuanMain'].forEach((tag) => {
+			expect([tag, jsxNodesInFile(hostFile, tag).filter((e) => e.attrs.gender === 'this.state.gender').length]).toEqual([tag, 2]);
+		});
 		['components/shusuan/CanPingMain.js', 'components/shusuan/ZhengChuanMain.js'].forEach((rel) => {
 			expect(stripComments(read(rel)).includes('this.props.gender !== undefined')).toBe(true);
 		});
@@ -81,7 +86,7 @@ describe('参评数：性别接线（死开关锁）', () => {
 
 	it('快照去重键含 gender 与 opts（改性别/换档必刷新）', () => {
 		const t = stripComments(read('components/shusuan/CanPingMain.js'));
-		// [Q-265/SO-22 2026-09-18] 键优先取 this._modelKey(=全部输入签名,含性别 / 时间算法 / 日界 / opts),回退串仍含 g:/o:
+		// 键优先取 this._modelKey(=全部输入签名,含性别 / 时间算法 / 日界 / opts),回退串仍含 g:/o:
 		expect(/const key = this\._modelKey \|\| `[^`]*g:\$\{r\.gender\}[^`]*o:/.test(t)).toBe(true);
 		expect(/_modelKey = sig/.test(t)).toBe(true);
 	});

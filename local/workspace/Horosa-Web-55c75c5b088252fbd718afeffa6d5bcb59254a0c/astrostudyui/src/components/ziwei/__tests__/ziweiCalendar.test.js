@@ -50,7 +50,7 @@ describe('WP-8 晚子时双盘(calcZiwei dual)', ()=>{
 	});
 });
 
-// [Q-291 裁决 2026-09-18] 闰月归月:月系星(左辅右弼 / 天刑天姚等)与斗君随所选归月规则与命身同移(《全书》「闰月作下月」、
+// 闰月归月:月系星(左辅右弼 / 天刑天姚等)与斗君随所选归月规则与命身同移(《全书》「闰月作下月」、
 //   《宣微》十五分界;典籍与主流传本皆「生月一经认定,命身与月系同移」,与内核 resolveLeapMonth 的 palaceMonth===starMonth 同口径);
 //   仅「命身下月·月系上月」(split_star_month,存疑变体)月系留本月。修前:月系星恒用 monthInt → 缺省档闰月十六日后生者
 //   命身归下月而月系星仍按本月布(本组前三例红);非闰月与归本月的档位字节不变。
@@ -61,7 +61,7 @@ function findHouseOf(chart, starName){
 	}
 	return -1;
 }
-describe('[Q-291] 闰月归月:月系星 / 斗君随归月规则(仅 split_star_month 留本月)', ()=>{
+describe('闰月归月:月系星 / 斗君随归月规则(仅 split_star_month 留本月)', ()=>{
 	const b = { yearGan: '甲', yearZi: '子', leap: true, monthInt: 4, dayInt: 20, timeZi: '子', male: true };
 	const plain4 = assembleNatalChart({ ...b, leap: false, monthInt: 4 });
 	const plain5 = assembleNatalChart({ ...b, leap: false, monthInt: 5 });

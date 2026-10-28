@@ -1,0 +1,16 @@
+diff --git a/astrostudyui/src/utils/__tests__/shellStrings.test.js b/astrostudyui/src/utils/__tests__/shellStrings.test.js
+index 110d6ee4..dccb0691 100644
+--- a/astrostudyui/src/utils/__tests__/shellStrings.test.js
++++ b/astrostudyui/src/utils/__tests__/shellStrings.test.js
+@@ -7,7 +7,10 @@ import path from 'path';
+ 
+ const { toHant, isTradFormChar } = require('../scriptConvert/hantConverter');
+ 
+-const TABLE = path.resolve(__dirname, '../../../../../Horosa_Desktop_Installer/src-tauri/shell_strings.json');
++// horosa_win_shell_const_v1(Windows 侧移植适配):Windows 壳是 Electron,同格式的壳层文案表住在
++// desktop_installer_bundle/electron/shell-strings.json(id → { hans, hant });Tauri 表缺席时核它。判据零放宽:繁体栏仍须与转换器逐字一致。
++const TAURI_TABLE = path.resolve(__dirname, '../../../../../Horosa_Desktop_Installer/src-tauri/shell_strings.json');
++const TABLE = fs.existsSync(TAURI_TABLE) ? TAURI_TABLE : path.resolve(__dirname, '../../../../../../../desktop_installer_bundle/electron/shell-strings.json');
+ const SRC = path.resolve(__dirname, '../..');
+ 
+ describe('壳层原生文案表', ()=>{

@@ -1,4 +1,4 @@
-// [Q-438/T-401] 邵子参评数快照:右栏「四柱」「起数」卡(四柱 / 顺数·逆数·子上轮)进 [起盘]/[本命] 段。
+// 邵子参评数快照:右栏「四柱」「起数」卡(四柱 / 顺数·逆数·子上轮)进 [起盘]/[本命] 段。
 import { calculate, buildSnapshotText } from '../canpingLocal';
 
 const BASE = { yearGz: '庚午', monthBranch: '卯', dayBranch: '卯', hourBranch: '午', gender: '男', method: 'ming', qiyunAge: 1, lunarMonth: 2, lunarDay: 19 };

@@ -50,15 +50,4 @@
 	    </property>
 	</bean>
 	
-<!-- 		
-	<bean id="initMqtt" class="boundless.spring.help.SysInitHelper">
-	    <property name="parameters">
-	        <map>
-		        <entry key="taskClass" value="spacex.basecomm.helper.MqttHelper" />
-		        <entry key="initMethod" value="initDoorQueue" />
-	        </map>
-	    </property>
-	</bean>
- -->	
- 			
 </beans>

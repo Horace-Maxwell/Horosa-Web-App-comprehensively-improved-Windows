@@ -1,4 +1,4 @@
-// [批三②] 槽参数四键 + 具名方案合同:归一(越界剔除)/合并写(''=清键)/施加(温度不发给推理模型;effort 只发 OpenAI 系推理模型;max_tokens 落键)/方案另存·切换·删除·脏判定/上限;缺省两键不存在=现状。
+// 槽参数四键 + 具名方案合同:归一(越界剔除)/合并写(''=清键)/施加(温度不发给推理模型;effort 只发 OpenAI 系推理模型;max_tokens 落键)/方案另存·切换·删除·脏判定/上限;缺省两键不存在=现状。
 import { ROUTE_OPTIONS_KEY, ROUTE_PROFILES_KEY, readRouteOptions, writeRouteOptions, providerOptionsForRoute, applySlotParams, normalizeRouteOptions, readRouteProfiles, saveRouteProfile, applyRouteProfile, removeRouteProfile, clearActiveRouteProfile, isRouteProfileDirty, listRouteProfiles, ROUTE_PROFILES_MAX, writeModelRoutes, readModelRoutes, MODEL_ROUTES_KEY } from '../aiModelRouting';
 import { applyThinkingLevel } from '../aiAnalysisProviders';
 import { BUILTIN_COMMANDS } from '../aiChat/commands';
@@ -43,7 +43,7 @@ it('方案:另存抄活键并置 active;切换抄回活键;脏判定;删除不�
 	writeModelRoutes({ final: 'oa::gpt-4.1' });
 	writeRouteOptions({ final: { thinking: 'high' } });
 	expect(saveRouteProfile('  强档  ').active).toBe('强档');
-	expect(readRouteProfiles().profiles['强档']).toEqual({ routes: { toolRounds: '', final: 'oa::gpt-4.1', judge: '', review: '', planner: '', subagent: '' }, routeOptions: { final: { thinking: 'high' } } });
+	expect(readRouteProfiles().profiles['强档']).toEqual({ routes: { toolRounds: '', final: 'oa::gpt-4.1', judge: '', review: '', planner: '', subagent: '', utility: '' }, routeOptions: { final: { thinking: 'high' } } });
 	expect(isRouteProfileDirty('强档')).toBe(false);
 	writeRouteOptions({ final: { thinking: 'low' } });
 	expect(isRouteProfileDirty('强档')).toBe(true);

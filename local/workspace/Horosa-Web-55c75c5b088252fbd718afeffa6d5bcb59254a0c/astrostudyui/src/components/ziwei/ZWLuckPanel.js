@@ -7,7 +7,7 @@ import * as ZiWeiHelper from './ZiWeiHelper';
 import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 import { ganzhiYearBase } from '../../utils/ganzhiYearBase';
 import { childLimits, zhongxianOf } from './ziweiCore';   // WP-1 童限 / WP-2 沈氏三限
-import { XIAOXIAN_START } from './data/ziweiTables';      // [B15b] 小限起宫表单源(曾双源字面量,金标对拍锁)
+import { XIAOXIAN_START } from './data/ziweiTables';      // 小限起宫表单源(曾双源字面量,金标对拍锁)
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { ZWEngineOptions } from './ziweiOptions';
 
@@ -15,7 +15,7 @@ const DIZI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '�
 const GANS = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
 const LUNAR_MONTH = ['正月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '冬月', '腊月'];
 const SHICHEN = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
-// [D0] 四化底色并入 ZWConst.ZWColor 单源(本地副本已删;值经逐项核对相同)。
+// 四化底色并入 ZWConst.ZWColor 单源(本地副本已删;值经逐项核对相同)。
 const LEVEL_LABEL = { daxian: '大限', liunian: '流年小限', xiaoxian: '小限', liuyue: '流月', liuri: '流日', liushi: '流时' };
 
 // ——— 干支基础（纯前端，绝不返回 undefined） ———
@@ -42,8 +42,8 @@ function hourGan(dayGan, hourIdx /*0=子*/) {
 // 连续 JDN → 日干支（锚点 2026-05-18=壬辰[jiazi 28]，与 BaZiLuckFlowPanel 同源，绝对单调）
 const DAY_ANCHOR_JDI = julianDayIndex(2026, 5, 18);
 const DAY_ANCHOR_IDX = 28;
-function dayGanziByDate(date) {
-	const jdi = julianDayIndex(date.getFullYear(), date.getMonth() + 1, date.getDate());
+// 日干支按连续日序(民用历:1582 以前儒略历;日序由 julianDayIndex 单源给)
+function dayGanziByJdi(jdi) {
 	const idx = (((jdi - DAY_ANCHOR_JDI + DAY_ANCHOR_IDX) % 60) + 60) % 60;
 	return GANS[idx % 10] + DIZI[idx % 12];
 }
@@ -60,7 +60,7 @@ function houseName(chart, idx, short) {
 	const name = h && h.name ? h.name : '—';
 	return short ? name.replace(/[宫宮]$/, '') : name;
 }
-// [Issue#53 同族·同类未扩面] 流年/小限的公历年基准必须是**干支年**,不是出生公历年:
+// 流年/小限的公历年基准必须是**干支年**,不是出生公历年:
 // 两者只在换年界(立春或正月初一,随 ziweiOptions.yearBoundary)之后才重合。界前出生者直接
 // 拿 parseYearFromDateStr(生日) 当 base,会让运限首年整体错一位——盘面生年干支与右栏流年
 // 首条自相矛盾,且本函数同时供 AI 挂载复算(见下方注释),错会一并进快照文本。
@@ -112,7 +112,7 @@ function buildLiunianItems(chart, daxian) {
 			gan: gz.charAt(0), zhi, mingIndex,
 			top: `${year}`, sub: `${gz}`,
 		};
-		// [B10] 流年四化取干两法:ming_gong_gan=以流年命宫宫干起四化(飞星系用法)。
+		// 流年四化取干两法:ming_gong_gan=以流年命宫宫干起四化(飞星系用法)。
 		// 默认档不加字段(item 形状字节稳);消费点统一 `layer.sihuaGan || layer.gan`。
 		// 流曜恒用 layer.gan(流曜按流年干,不随此档);流月干独立五虎遁不受染。
 		if(ZWEngineOptions.liunianSihuaGan === 'ming_gong_gan' && mingIndex >= 0 && chart.houses[mingIndex] && chart.houses[mingIndex].ganzi){
@@ -130,9 +130,9 @@ function buildXiaoxianItems(chart, daxian) {
 	const startIdx = houseIdxByBranch(chart, startZhi);
 	if (startIdx < 0) return [];
 	// P1-B 小限顺逆：'0'=男顺女逆(现状默认，零回归) / '1'=阳男阴女顺、阴男阳女逆(中州)。
-	// [B15] 迁入 ZWEngineOptions 单例(挂载/导出走 builder set/finally 临时覆盖,不再兜转 localStorage);
+	// 迁入 ZWEngineOptions 单例(挂载/导出走 builder set/finally 临时覆盖,不再兜转 localStorage);
 	// LS 键 ziweiXiaoxianYinyang 沿用,由 ZiWeiInput 构造器读入单例。
-	// [B15b] 判定单源化:ZiWeiHelper.xiaoxianClockwise(内核=ziweiCore.xiaoxianClockwiseFor,读同一单例)——
+	// 判定单源化:ZiWeiHelper.xiaoxianClockwise(内核=ziweiCore.xiaoxianClockwiseFor,读同一单例)——
 	// 盘面岁数条/本地引擎与本函数三消费点同口径,金标对拍锁(ziweiXiaoxianSyncWiring)。
 	const clockwise = ZiWeiHelper.xiaoxianClockwise(chart);
 	const birthY = birthYearOf(chart);
@@ -157,7 +157,7 @@ function buildLiuyueItems(chart, year) {
 	const gz = yearGanzi(year);
 	const yearGan = gz.charAt(0);
 	const yearZhi = gz.charAt(1);
-	// [P3c] 流月起法两档:doujun 斗君宫起正月(默认=现状,三合/四化主流) / taisui 太岁宫(流年支所在宫)起正月。
+	// 流月起法两档:doujun 斗君宫起正月(默认=现状,三合/四化主流) / taisui 太岁宫(流年支所在宫)起正月。
 	// 本函数同时喂 UI 面板与快照 builder(ZiWeiMain import),两处口径自动一致。
 	const anchorZhi = ZWEngineOptions.liuYueBasis === 'taisui'
 		? yearZhi
@@ -180,26 +180,22 @@ function buildLiuyueItems(chart, year) {
 function buildLiuriItems(chart, year, liuyue) {
 	if (!chart || !liuyue) return [];
 	let days = 30;
-	let firstSolar = null;
+	let firstJdi = null;   // 本月初一的民用历日序(逐日 +1,不经 JS Date:Date 外推格里历会跳过 1582 以前的儒略闰日)
 	try {
 		const lm = LunarMonth.fromYm(year, liuyue.month);
 		if (lm && typeof lm.getDayCount === 'function') days = lm.getDayCount();
 	} catch (e) { days = 30; }
 	try {
 		const s = Lunar.fromYmd(year, liuyue.month, 1).getSolar();
-		// AD 1-99 绕开 Date 构造器 0-99→1900+ 映射(流日轴日干支曾整体平移 1900 年)
-		firstSolar = new Date(0);
-		firstSolar.setFullYear(s.getYear(), s.getMonth() - 1, s.getDay());
-		firstSolar.setHours(0, 0, 0, 0);
-	} catch (e) { firstSolar = null; }
+		// 日序直接取 lunar-js 给的民用历日期(1582 以前儒略历);不经 Date 构造器(0-99 年会被当成 19xx)
+		firstJdi = julianDayIndex(s.getYear(), s.getMonth(), s.getDay());
+		if (!Number.isFinite(firstJdi)) firstJdi = null;
+	} catch (e) { firstJdi = null; }
 	const out = [];
 	for (let d = 1; d <= days; d++) {
 		let ganzi = '';
-		if (firstSolar) {
-			const dt = new Date(0);
-			dt.setFullYear(firstSolar.getFullYear(), firstSolar.getMonth(), firstSolar.getDate() + (d - 1));
-			dt.setHours(0, 0, 0, 0);
-			ganzi = dayGanziByDate(dt);
+		if (firstJdi !== null) {
+			ganzi = dayGanziByJdi(firstJdi + (d - 1));
 		}
 		const zhi = ganzi ? ganzi.charAt(1) : '';
 		const mingIndex = (liuyue.mingIndex + (d - 1)) % 12;
@@ -255,7 +251,7 @@ function luckSelectLiuri(chart, item, prev) {
 function luckSelectLiushi(chart, item, prev) {
 	return { ...(prev || emptyLuckSel()), liushi: item };
 }
-// [B15b] 运限口径改档(小限顺逆/流年四化取干/流月起法…)后,已选运限是「点击时刻的快照对象」——
+// 运限口径改档(小限顺逆/流年四化取干/流月起法…)后,已选运限是「点击时刻的快照对象」——
 // 不重派生就会与按钮列表自相矛盾(实测:改小限顺逆后芯片列表已按新口径,详情卡/叠宫层/AI period 仍旧口径)。
 // 本函数按各层身份键(start/year/age/month/day/hourIdx)在新口径 build 结果里整链重找:
 // 口径未变时逐层值等(幂等,仅换引用);变了则 mingIndex/ganzi/sihuaGan 全部跟随。ZiWeiMain 广播监听统一调用。
@@ -296,7 +292,7 @@ export {
 class ZWLuckPanel extends Component {
 	// 受控组件：选择态由父级(ZiWeiMain)的 luckSel 单一真值源驱动(props.value)，pick* 经 props.onChange 上报。
 	// 初值/默认/最深层高亮 全由 ZiWeiMain 派生（与命盘九宫格共用同一 luckSel），本组件不持本地选择态。
-	// [D3] 例外:版式(compact 单行横滚/wrap 折行)是右栏 React 局部显示态,自持 setState 即可——
+	// 例外:版式(compact 单行横滚/wrap 折行)是右栏 React 局部显示态,自持 setState 即可——
 	// 豁免 bumpZwDisplayRev(广播只为 SVG 盘面组件解 requestDedupe;本面板是 React 树,setState 自然重渲)。
 	constructor(props){
 		super(props);
@@ -434,7 +430,7 @@ class ZWLuckPanel extends Component {
 		const chart = this.props.chart || {};
 		const mingIdx = layer.mingIndex;
 		const oppIdx = (mingIdx + 6) % 12;
-		// [B10-fix] 流年四化取干:消费期现算(effLayerSihuaGan)——切档立即生效于已选流年,不再吃 item 快照
+		// 流年四化取干:消费期现算(effLayerSihuaGan)——切档立即生效于已选流年,不再吃 item 快照
 		const sihua = ZiWeiHelper.getLayerSihua(chart, ZiWeiHelper.effLayerSihuaGan(chart, layer)) || [];
 		// P0-2：流曜下沉到全部层级（大限/流年/小限/流月/流日/流时各按本层干支起流曜），不再只限流年。
 		const flowStars = ZiWeiHelper.getFlowStars(layer.gan, layer.zhi, ZiWeiHelper.hourZhiOf(chart)) || [];
@@ -459,7 +455,7 @@ class ZWLuckPanel extends Component {
 				)}
 				<div className="horosa-ziwei-luck-sihua">
 					{sihua.map((h) => (
-						<span key={h.star} className="hua" style={{ background: (ZWConst.ZWColor[h.hua] && ZWConst.ZWColor[h.hua].bg) || '#888' }}>
+						<span key={h.star} className="hua" style={{ background: ZWConst.ZWHuaInk[h.hua] || 'var(--horosa-text-secondary)' }}>
 							<b>{h.hua}</b>{h.star}<i>{houseName(chart, h.houseIndex, true)}</i>
 						</span>
 					))}
@@ -488,7 +484,7 @@ class ZWLuckPanel extends Component {
 					<div style={{ fontSize: 11, color: 'var(--horosa-text-soft, #888)', marginBottom: 4 }}>运限三合</div>
 					<div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4 }}>
 						{sanhe.map((p, idx) => {
-							const colors = ['#fff5d6', '#e0f5e9']; // 运财帛=金黄, 运官禄=浅绿(术数语义中性, 明暗皆可读)
+							const colors = ['var(--horosa-gold-soft)', 'var(--horosa-success-soft)']; // 运财帛=金黄淡底, 运官禄=浅绿淡底(明暗成对的主题淡底;字用主题字色)
 							return (
 								<div key={idx} style={{
 									padding: '4px 6px',
@@ -497,12 +493,12 @@ class ZWLuckPanel extends Component {
 									fontSize: 11.5,
 									lineHeight: 1.4,
 								}}>
-									<div style={{ fontWeight: 600, color: '#555' }}>
-										{p.runName}：<span style={{ color: '#222' }}>{p.palaceName}</span>
-										{p.ganZhi && <span style={{ color: '#999', marginLeft: 4 }}>{p.ganZhi}</span>}
+									<div style={{ fontWeight: 600, color: 'var(--horosa-text-soft)' }}>
+										{p.runName}：<span style={{ color: 'var(--horosa-text)' }}>{p.palaceName}</span>
+										{p.ganZhi && <span style={{ color: 'var(--horosa-text-secondary)', marginLeft: 4 }}>{p.ganZhi}</span>}
 									</div>
-									<div style={{ color: '#444', marginTop: 2 }}>
-										{p.stars && p.stars.length ? p.stars.join('、') : <span style={{ color: '#bbb' }}>(无主辅星)</span>}
+									<div style={{ color: 'var(--horosa-text-soft)', marginTop: 2 }}>
+										{p.stars && p.stars.length ? p.stars.join('、') : <span style={{ color: 'var(--horosa-text-secondary)' }}>(无主辅星)</span>}
 									</div>
 								</div>
 							);

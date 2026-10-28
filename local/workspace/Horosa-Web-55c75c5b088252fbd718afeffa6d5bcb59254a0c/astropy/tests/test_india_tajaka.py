@@ -328,7 +328,7 @@ def test_pancha_uchcha_book_example():
 
 # ── 年度大运框架 ─────────────────────────────────────────────────────────
 def test_patyayini_order_and_total():
-    """Patyayini：按 krisamsa 升序;[Q-122/T-30 原典核对] 首项 patyamsa = 自身 krisamsa(Charak p.47 / Raman Art.49),
+    """Patyayini：按 krisamsa 升序;首项 patyamsa = 自身 krisamsa(Charak p.47 / Raman Art.49),
     Σpatyamsa = 最大 krisamsa;期长和 ≈ 年长。此前首项恒 0 天(Σ = max − min)。"""
     lons = {const.VENUS: 1 * 30 + 1.0, const.MERCURY: 2 * 30 + 4.0, const.MOON: 3 * 30 + 4.8,
             const.SATURN: 1 * 30 + 6.5, const.SUN: 5 * 30 + 17.0, const.MARS: 7 * 30 + 23.0,
@@ -430,7 +430,7 @@ def test_hadda_table_equals_egyptian_terms_all_signs():
 
 
 def test_mudda_dasa_present_when_natal_inputs_given():
-    """[Q-123/T-31] 生产链此前从不传本命首运曜/月宿余比 → Mudda 恒缺;webindiasrv 现从本命 jyotish 抽取并传入。"""
+    """生产链此前从不传本命首运曜/月宿余比 → Mudda 恒缺;webindiasrv 现从本命 jyotish 抽取并传入。"""
     annual = {
         const.SUN: {'sign': const.PISCES, 'lon': 11 * 30 + 5.0},
         const.MOON: {'sign': const.PISCES, 'lon': 11 * 30 + 15.0},

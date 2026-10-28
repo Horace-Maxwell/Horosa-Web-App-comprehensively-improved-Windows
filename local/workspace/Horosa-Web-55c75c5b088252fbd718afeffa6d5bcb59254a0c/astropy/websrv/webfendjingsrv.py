@@ -5,6 +5,8 @@ import jsonpickle
 
 from websrv.helper import enable_crossdomain
 from websrv.kentang.kinastro_common import (
+    annotate_day_boundary,
+    day_boundary_of,
     build_snapshot,
     clean_text,
     display_text,
@@ -118,6 +120,7 @@ class FenDingJingSrv:
                 return jsonpickle.encode({"ResultCode": 0, "Result": "ok"}, unpicklable=False)
             data = cherrypy.request.json or {}
             dt = parse_datetime(data)
+            _db = day_boundary_of(data)   # 日界单源(缺键按出厂缺省,并写进回包)
             timezone_value = timezone_to_float(data.get("zone") or data.get("timezone"), 8.0)
             chart = compute_fendjing_chart(
                 dt.year,
@@ -126,8 +129,8 @@ class FenDingJingSrv:
                 dt.hour,
                 dt.minute,
                 timezone=timezone_value,
-                after23_new_day=data.get("after23NewDay", 1),
-                hour_gan_use_next_day=data.get("lateZiHourUseNextDay", 1),   # [Q-264/T-247] 全局「晚子时」
+                after23_new_day=_db["after23NewDay"],
+                hour_gan_use_next_day=_db["lateZiHourUseNextDay"],   # 全局「晚子时」(日界单源 day_boundary_of)
             )
             stem_override = bool(data.get("stemOverride"))
             year_stem = _valid_stem(data.get("yearStem"), chart.get("year_gz", "甲")[0])
@@ -186,6 +189,7 @@ class FenDingJingSrv:
                 },
             }
             pan["sections"] = _build_sections(pan)
+            annotate_day_boundary(pan, _db)
             pan["snapshot"] = build_snapshot(pan)
             return jsonpickle.encode({"ResultCode": 0, "Result": pan}, unpicklable=False)
         except Exception:

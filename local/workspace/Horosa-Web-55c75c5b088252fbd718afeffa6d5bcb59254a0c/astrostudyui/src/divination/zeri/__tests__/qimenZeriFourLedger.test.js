@@ -1,4 +1,4 @@
-// [奇门择日 T3] 四本账哨兵:导航/储存/AI 挂载/AI 导出四套注册表在位 + 快照段头逐字成对 +
+// 四本账哨兵:导航/储存/AI 挂载/AI 导出四套注册表在位 + 快照段头逐字成对 +
 // 键归一不受染。漏任一本 = 老用户静默缺功能(加技法四本账铁律);本测试把八账钉死。
 import fs from 'fs';
 import path from 'path';
@@ -9,6 +9,7 @@ import { ANALYSIS_TECHNIQUE_LABELS, ANALYSIS_CASE_TECHNIQUES } from '../../../ut
 import { isSectionsOnlyTechnique, getTechniqueSettingsSchema } from '../../../utils/techniqueMountSettings';
 import { buildQimenZeriSnapshotExtra } from '../qimenZeriSnapshot';
 import { newQimenLeaf, newQimenGroup } from '../qimenConditionTypes';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 describe('账本一:导航', ()=>{
 	test('ZERI_SUBTABS 含 qimenzeri 且尾部追加(首档天星不变)', ()=>{
@@ -42,12 +43,12 @@ describe('账本三:AI 挂载', ()=>{
 		expect(getTechniqueSettingsSchema('qimenzeri')).toBeTruthy();
 	});
 	test('键归一不受染:aiAnalysisContext 源中 qimenzeri 绝不被 remap 成 qimen', ()=>{
-		const src = fs.readFileSync(path.resolve(__dirname, '../../../utils/aiAnalysisContext.js'), 'utf8');
+		const src = readSource(path.resolve(__dirname, '../../../utils/aiAnalysisContext.js'));
 		expect(/qimenzeri['"]?\s*:\s*['"]qimen['"]/.test(src)).toBe(false);
 		expect(src).toContain(`case 'qimenzeri':`);
 	});
 	test('🔴 挂载分支兼容快照双形(对象包.content/纯字符串;按字符串直读对象=挂出 [object Object])', ()=>{
-		const src = fs.readFileSync(path.resolve(__dirname, '../../../utils/aiAnalysisContext.js'), 'utf8');
+		const src = readSource(path.resolve(__dirname, '../../../utils/aiAnalysisContext.js'));
 		const at = src.indexOf(`case 'qimenzeri':`);
 		const caseBlock = src.slice(at, at + 1200);
 		expect(caseBlock).toContain(`typeof payload.snapshot === 'object'`);

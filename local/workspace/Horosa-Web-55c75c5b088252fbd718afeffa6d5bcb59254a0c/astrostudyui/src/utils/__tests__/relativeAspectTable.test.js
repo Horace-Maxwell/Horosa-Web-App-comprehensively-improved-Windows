@@ -80,7 +80,7 @@ describe('合盘六相位段表化 · 数值不变证明', () => {
 	});
 });
 
-// [Q-441/T-404] 比较盘页签快照增 A/B 两盘盘体(响应 inner=A / outer=B,与双轮盘同源);无两盘对象时逐字同旧。
+// 比较盘页签快照增 A/B 两盘盘体(响应 inner=A / outer=B,与双轮盘同源);无两盘对象时逐字同旧。
 describe('合盘 比较盘 · A/B 两盘盘体进快照(Q-441)', () => {
 	const { AI_EXPORT_PRESET_SECTIONS } = require('../aiExport');
 	const mini = (sunLon) => ({ chart: {

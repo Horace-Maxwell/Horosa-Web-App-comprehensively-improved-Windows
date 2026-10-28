@@ -78,7 +78,7 @@ export function guaByDir(dir) {
 	return DIR_TO_GUA[dir] || null;
 }
 
-// 成員动态定義：优先级短路（有子女 > 已婚 > 未婚按兄/姐数，取模 3 循环）。
+// 成员动态定义：优先级短路（有子女 > 已婚 > 未婚按兄/姐数，取模 3 循环）。
 export function resolveMemberRole(p) {
 	const F = (role, gua) => ({ role, benmingGua: gua });
 	if (!p) return F('长女', '巽');

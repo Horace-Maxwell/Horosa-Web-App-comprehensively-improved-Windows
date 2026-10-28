@@ -1,3 +1,4 @@
+import { leapPrefix } from '../../utils/lunarText';
 import {
 	TAIYI_STYLE_OPTIONS,
 	TAIYI_ACCUM_OPTIONS,
@@ -6,13 +7,10 @@ import {
 	getTaiyiStyleLabel,
 	getTaiyiAccumLabel,
 } from './core/TaiYiCore';
-import request from '../../utils/request';
-import { ServerRoot, ResultKey } from '../../utils/constants';
-import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
-import { cachedKentangFetch } from '../../utils/kentangCache';
+import { postKentang } from '../../services/kentangPost';
 import buildLocalBaziResult from '../../utils/baziLunarLocal';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
-import { parseDateParts } from '../../utils/dateStrSafe';
+import { parseFieldsDateTime, parseDateTimeText } from '../../utils/fieldsDateTime';
 
 export const STYLE_OPTIONS = [
 	...TAIYI_STYLE_OPTIONS.slice(),
@@ -28,19 +26,9 @@ export const METHOD_SOURCE_OPTIONS = [
 	{ value: 3, source: '《太乙局》' },
 ];
 
-export const TENCHING_OPTIONS = [
-	{ value: 0, label: '無' },
-	{ value: 1, label: '有' },
-];
-
 export const SEX_OPTIONS = [
 	{ value: '男', label: '男' },
 	{ value: '女', label: '女' },
-];
-
-export const ROTATION_OPTIONS = [
-	{ value: '固定', label: '固定' },
-	{ value: '轉動', label: '轉動' },
 ];
 
 export const TIME_BASIS_OPTIONS = [
@@ -91,19 +79,19 @@ function buildOptions(opt, pan, nongli){
 		methodLabel,
 		methodSource,
 		accumLabel: methodLabel,
-		// [Q-101/T-01] tenching / rotation 两键已剔除:后端全仓零读取、前端零消费者的纯标签死键
+		// tenching / rotation 两键已剔除:后端全仓零读取、前端零消费者的纯标签死键
 		// (硬造默认值随请求发出;标签 tenchingLabel / rotationLabel 亦无人读)。
 		sexLabel: options.sex || (pan && pan.sex) || '男',
-		// [Q-163/T-84·SS-16] 真太阳时档在历法服务超时(nongli 为空)时 resolveCalculationDateTime 已按直接时间立局,
+		// 真太阳时档在历法服务超时(nongli 为空)时 resolveCalculationDateTime 已按直接时间立局,
 		//   标签曾恒写「真太阳时」→ 概览/快照如实标注本次按直接时间(计算路径不变,只改文案)。
 		timeBasisLabel: options.timeBasis === 'trueSolar'
 			? (nongli && nongli.birth ? '真太阳时' : '真太阳时（历法服务未回，本次按直接时间立局）')
 			: '直接时间',
 		daySwitchLabel: options.after23NewDay === 1 ? '23点算第二天' : '24点算第二天',
-		// [挂载自检 F-57] 后端因随包运行时缺 scipy 未算博弈时回传 gameTheoryUnavailable → 如实标注「本次未算」(不撒谎);
+		// 后端因随包运行时缺 scipy 未算博弈时回传 gameTheoryUnavailable → 如实标注「本次未算」(不撒谎);
 		// 依赖齐全或关闭时逐字不变。
 		gameTheoryLabel: options.gameTheory === 1
-			? (pan && pan.gameTheoryUnavailable ? `开启（运行时缺 ${pan.gameTheoryUnavailable}，本次未算）` : '开启')
+			? (pan && pan.gameTheoryUnavailable ? `开启（本机计算组件不全，本次未算博弈）` : '开启')
 			: '关闭',
 	};
 }
@@ -117,7 +105,7 @@ function formatNongliText(nongli){
 		return '';
 	}
 	const year = safeText(nongli.year);
-	const leap = nongli.leap ? '闰' : '';
+	const leap = leapPrefix(nongli);
 	const month = safeText(nongli.month);
 	const day = safeText(nongli.day);
 	return `${year ? `${year}年` : ''}${leap}${month}${day}`.trim();
@@ -171,13 +159,18 @@ function applyNongliDisplay(pan, nongli, baziLocal){
 	}
 	const baziNongli = baziLocal && baziLocal.bazi ? baziLocal.bazi.nongli : null;
 	const four = baziLocal && baziLocal.bazi && baziLocal.bazi.fourColumns ? baziLocal.bazi.fourColumns : null;
+	// 农历行与节后天数随时间基准(与四柱同一本地结果;本地按所选基准换算):此前取 /nongli/time 那份(恒按真太阳时),
+	// 选直接时间(缺省)时日界附近农历写成前一天、日柱却是当天。本地给不出(域外年份)才用历法服务那份。
+	const localLunar = baziNongli && safeText(baziNongli.month) && safeText(baziNongli.day)
+		? `${safeText(baziNongli.yearGZByLunar) ? `${safeText(baziNongli.yearGZByLunar)}年` : ''}${leapPrefix(baziNongli)}${safeText(baziNongli.month)}${safeText(baziNongli.day)}`.trim()
+		: '';
 	return {
 		...pan,
-		lunarText: (nongli && formatNongliText(nongli)) || pan.lunarText,
+		lunarText: localLunar || (nongli && formatNongliText(nongli)) || pan.lunarText,
 		// 真太阳时 与 直接时间 都稳定显示(与所选时间基准无关);随基准变的只是四柱/计算基准 —— 和八字一致
 		realSunTime: (baziNongli && safeText(baziNongli.solarTime)) || (nongli && safeText(nongli.birth)) || pan.realSunTime,
 		clockTime: (baziNongli && safeText(baziNongli.clockTime)) || pan.clockTime,
-		jiedelta: (nongli && safeText(nongli.jiedelta)) || pan.jiedelta,
+		jiedelta: (baziNongli && safeText(baziNongli.jiedelta)) || (nongli && safeText(nongli.jiedelta)) || pan.jiedelta,
 		ganzhi: {
 			year: pillarFromFourColumns(four, 'year') || pickPillar(nongli, 'year', 'yearGanZi') || (pan.ganzhi && pan.ganzhi.year) || '',
 			month: pillarFromFourColumns(four, 'month') || pickPillar(nongli, 'month', 'monthGanZi') || (pan.ganzhi && pan.ganzhi.month) || '',
@@ -208,49 +201,6 @@ export function calcTaiyi(fields, nongli, options){
 	}, nongli, baziLocal);
 }
 
-function parseFieldsDateTime(fields){
-	if(!fields || !fields.date || !fields.time){
-		return null;
-	}
-	const dateStr = fields.date.value.format('YYYY-MM-DD');
-	const timeStr = fields.time.value.format('HH:mm:ss');
-	// BC 安全解析:'-7040-07-19' 裸 split('-') 会撕成 [NaN,7040,7,19](年 NaN 静默传播)
-	const _dp = parseDateParts(dateStr);
-	const d = _dp ? [_dp.year, _dp.month, _dp.day] : [];
-	const t = timeStr.split(':').map((item)=>parseInt(item, 10));
-	if(d.length < 3 || t.length < 2){
-		return null;
-	}
-	return {
-		year: d[0],
-		month: d[1],
-		day: d[2],
-		hour: t[0],
-		minute: t[1],
-		second: t[2] || 0,
-		date: dateStr,
-		time: timeStr,
-	};
-}
-
-function parseDateTimeText(text){
-	const raw = safeText(text).trim();
-	const match = raw.match(/^(-?\d{1,6})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
-	if(!match){
-		return null;
-	}
-	return {
-		year: parseInt(match[1], 10),
-		month: parseInt(match[2], 10),
-		day: parseInt(match[3], 10),
-		hour: parseInt(match[4], 10),
-		minute: parseInt(match[5], 10),
-		second: parseInt(match[6] || '0', 10),
-		date: `${match[1].padStart(4, '0')}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`,
-		time: `${match[4].padStart(2, '0')}:${match[5].padStart(2, '0')}:${(match[6] || '0').padStart(2, '0')}`,
-	};
-}
-
 function resolveCalculationDateTime(fields, nongli, options){
 	const direct = parseFieldsDateTime(fields);
 	if(options && options.timeBasis === 'trueSolar'){
@@ -271,38 +221,6 @@ export function normalizeBackendPan(pan, options, nongli, baziLocal){
 	}, nongli, baziLocal);
 }
 
-// horosa_kentang_result_cache_v1 —— 太乙 /taiyi/pan 直连缓存(LRU 48)。缓存的是**后端原始 pan**
-// (ResultKey 剥壳后、normalizeBackendPan 之前),归一化/农历显示仍每次按当前 opt+nongli 现算,
-// 故切流派/切旋转等只改归一化的选项不会吃到错盘。
-// 确定性论证:payload = resolveCalculationDateTime(格式化字串+整数)+ style/tn/sex/
-// timeBasis/两个日界开关/enableGameTheory + nongli 派生真太阳时字串;无 Date 对象、无随机、无「现在时刻」;
-// 后端 webtaiyisrv.py 全文无 random/now(已 grep 核对)→ 同 payload 必同盘。关闸即逐字回到直连。
-async function fetchTaiyiPanRaw(payload){
-	let rsp = null;
-	try{
-		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('taiyi', 'pan'), {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json; charset=UTF-8',
-			},
-			body: JSON.stringify(payload),
-		});
-		const rawText = await rawResponse.text();
-		rsp = rawText ? JSON.parse(rawText) : null;
-		if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'taiyi.local.fetch.failed');
-		}
-	}catch(e){
-		rsp = await request(`${ServerRoot}/taiyi/pan`, {
-			body: JSON.stringify(payload),
-			silent: true,
-			timeoutMs: 45000,
-			retry: { retries: 2 },
-		});
-	}
-	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
-}
-
 export async function fetchTaiyiPan(fields, nongli, options){
 	const dt = resolveCalculationDateTime(fields, nongli, options || {});
 	if(!dt){
@@ -314,9 +232,9 @@ export async function fetchTaiyiPan(fields, nongli, options){
 		style: opt.style !== undefined ? opt.style : 3,
 		tn: opt.tn !== undefined ? opt.tn : 0,
 		sex: opt.sex || '男',
-		// [Q-101/T-01] 不再发 tenching / rotation(后端不读;此前硬造默认值随请求发出,是死键)。
+		// 不再发 tenching / rotation(后端不读;此前硬造默认值随请求发出,是死键)。
 		timeBasis: opt.timeBasis || 'direct',
-		// [Q-163/T-85·SS-17] 兜底曾硬钉 0(24 点换日)≠页面缺省(全局出厂 23 点换日)→ 无头/无存档时段盘与页面不一;改随实时全局。
+		// 兜底曾硬钉 0(24 点换日)≠页面缺省(全局出厂 23 点换日)→ 无头/无存档时段盘与页面不一;改随实时全局。
 		after23NewDay: opt.after23NewDay !== undefined ? opt.after23NewDay : defaultAfter23NewDay(),
 		// v2.2.1: 之前漏传 lateZi 给后端 → 太乙 23 点切晚子时·时柱起干不变。后端 webtaiyisrv.py 已支持。
 		lateZiHourUseNextDay: opt.lateZiHourUseNextDay !== undefined ? opt.lateZiHourUseNextDay : defaultLateZiHourUseNextDay(),
@@ -324,8 +242,8 @@ export async function fetchTaiyiPan(fields, nongli, options){
 		realSunTime: nongli ? (nongli.birth || '') : '',
 		jiedelta: nongli ? (nongli.jiedelta || '') : '',
 	};
-	// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache(三层+在途去重)。
-	const pan = await fetchTaiyiPanRaw(payload);
+	// 只打本机计算服务(单一来源 postKentang;不再失败改走 Java 同名路径 —— Java 没有这条路由,还会吞掉真实报错)
+	const pan = await postKentang('taiyi', 'pan', payload, { cacheConfig: undefined });
 	const baziLocal = buildTaiyiBaziLocal(fields, opt);
 	const normalized = normalizeBackendPan(pan, opt, nongli, baziLocal);
 	if(normalized && !normalized.clockTime && fields && fields.date && fields.date.value && fields.time && fields.time.value){
@@ -414,10 +332,6 @@ export function getStyleLabel(value){
 		return '太乙命法';
 	}
 	return getTaiyiStyleLabel(value);
-}
-
-export function getAccumLabel(value){
-	return getTaiyiAccumLabel(value);
 }
 
 export function getMethodLabel(value){

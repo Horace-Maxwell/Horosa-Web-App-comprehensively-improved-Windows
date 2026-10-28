@@ -1,19 +1,7 @@
 // 风水 · 玄空大卦 向/坐 六十四卦 六爻卦象 SVG（向卦·坐卦并列，阳实阴虚，卦名/卦运/零正）。
 // 亮/暗双主题(--fs-* 令牌)。上卦(外)在上、下卦(内)在下，自下而上六爻。
 import React from 'react';
-
-// 八卦 → [下,中,上] 阳1阴0。
-const GUA8_BIN = {
-	乾: [1, 1, 1], 兑: [1, 1, 0], 离: [1, 0, 1], 震: [1, 0, 0],
-	巽: [0, 1, 1], 坎: [0, 1, 0], 艮: [0, 0, 1], 坤: [0, 0, 0],
-};
-
-// 六爻数组（自下而上）：下卦三爻 + 上卦三爻。
-function hexYao(lower, upper) {
-	const lo = GUA8_BIN[lower] || [0, 0, 0];
-	const up = GUA8_BIN[upper] || [0, 0, 0];
-	return [lo[0], lo[1], lo[2], up[0], up[1], up[2]];   // idx0=初爻(底)
-}
+import { hexYao } from './chartGeom';   // 八卦二进制取自 fengshuiData.GUA8_BIN(与此前本文件内那份逐值相同)
 
 function Hexagram({ x, y, w, yao, accent }) {
 	const lineH = 12; const gap = 9; const yaoW = w;

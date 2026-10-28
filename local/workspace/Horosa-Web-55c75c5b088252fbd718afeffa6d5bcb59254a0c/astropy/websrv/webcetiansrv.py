@@ -50,6 +50,7 @@ from astrostudy.cetian_yiyu import (
     ruyuan_month_row,
 )
 from astrostudy.cetian_yiyu_data import YIYU_XIU_FENYE
+from astrostudy.civil_calendar import astro_year
 from astrostudy.cetian_yiyu_texts import YIYU_TEXTS
 
 # 僧道起法宮名(移語本「僧道起法」節,按書法宮序同位替換;僅顯示層,判定層恆用通行宮名)。
@@ -394,7 +395,7 @@ class CeTianSrv:
             timezone = timezone_to_float(data.get("zone") or data.get("timezone"), 8.0)
             latitude = coord_to_float(data.get("lat") or data.get("latitude"), 26.0667)
             longitude = coord_to_float(data.get("lon") or data.get("longitude"), 119.3167)
-            # [Q-265/T-250·SO-13] 不再回落占位串「星阙地点」:前端下发地名(fields.pos)则写,缺名则 [起盘] 段不出「地点」行
+            # 不再回落占位串「星阙地点」:前端下发地名(fields.pos)则写,缺名则 [起盘] 段不出「地点」行
             location = clean_text(data.get("location") or data.get("place") or data.get("pos"), "")
             gender = gender_cn(data.get("gender"), "男")
             chart = json_safe(compute_cetian_ziwei_chart(
@@ -458,7 +459,7 @@ class CeTianSrv:
                             row("依据", "原法=标准紫微嫁接(五行局/按农历日起紫微/四化飞化格局),非本书"),
                             row("说明", "命/身/紫微/宫序按古籍安星法；庙旺/身宫/大限口径可切两古籍流派(默认移语本)；流年飞星、神煞四表、杂曜、断诀依《正命二十八宿移语》。")
                             if not is_kentang else
-                            row("说明", "左栏可切「书法/原法」;原法另可选 农历(sxtwl/原) 与 正曜(逆布/顺布)。"),
+                            row("说明", "左栏可切「书法/原法」;原法另可选 农历(天文历算(修正) / 原(闰月旧法)) 与 正曜(逆布/顺布)。"),
                         ],
                     },
                 ],
@@ -515,7 +516,8 @@ class CeTianSrv:
                 zayao, zayao_notes = compute_zayao(
                     year_b, year_s, chart.get("lunar_month", 1), chart.get("lunar_day", 1),
                     hour_b, shen_b, tianluo_mode=tianluo_mode)
-                liunian = compute_liunian(liunian_year, chart.get("lunar_year", liunian_year),
+                # 虚岁按天文年相减(lunar_year 是历史纪年:公元前 300 年 = 天文年 -299,跨公元元年无 0 年)
+                liunian = compute_liunian(liunian_year, astro_year(chart.get("lunar_year", liunian_year)),
                                           hour_b, qisha_mode=qisha_mode)
                 shensha = compute_shensha(liunian["branch"], liunian["stem"], year_s,
                                           chart.get("lunar_month", 1))

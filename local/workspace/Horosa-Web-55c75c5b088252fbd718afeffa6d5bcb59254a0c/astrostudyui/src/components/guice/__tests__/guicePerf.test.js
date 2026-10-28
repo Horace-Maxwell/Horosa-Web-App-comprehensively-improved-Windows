@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 
 const SRC = path.join(__dirname, '..', 'GuiceMain.js');
+const { jsxNodes } = require('../../../utils/__tests__/helpers/jsxProps');
 const src = fs.readFileSync(SRC, 'utf8');
 const scuBody = (src.match(/shouldComponentUpdate\(nextProps, nextState\) \{[\s\S]*?\n\t\}/) || [''])[0];
 
@@ -67,7 +68,7 @@ describe('轨策·性能 · 盘之签名 memo', () => {
 // 这种只需时刻的法子都报「所需之输入未足」(live 实跑抓出;jest 因喂的是自造的 fields 而全绿放过)。
 // 下列键名皆经浏览器实测真对象核过,三处反直觉尤须钉死。
 describe('轨策 · ctx 取数源与键名(照想当然写=起卦恒失败)', () => {
-	// [X1 审计后重构] 派生逻辑移居 ctxLive();ctx() 只做「事盘冻结 ctx 优先,否则 ctxLive」分派。
+	// 派生逻辑移居 ctxLive();ctx() 只做「事盘冻结 ctx 优先,否则 ctxLive」分派。
 	// 取形守卫改瞄 ctxLive(取数源断言不变),另钉 ctx() 的分派形状。
 	const body = (src.match(/\n\tctxLive\(\) \{[\s\S]*?\n\t\}/) || [''])[0];
 	const dispatchBody = (src.match(/\n\tctx\(\) \{[\s\S]*?\n\t\}/) || [''])[0];
@@ -77,10 +78,12 @@ describe('轨策 · ctx 取数源与键名(照想当然写=起卦恒失败)', ()
 		expect(dispatchBody).toContain('this.ctxLive()');
 	});
 
-	test('🔴 取自 props.value.chart.nongli,不得取 props.fields.nongli(fields 上压根没有 nongli)', () => {
-		expect(body).toContain('this.props.value && this.props.value.chart');
-		expect(body).toContain('chart.nongli');
-		expect(body).not.toMatch(/props\.fields[\s\S]*nongli/);
+	test('🔴 取自 props.value.chart.nongli(经与小六壬 / 飞宫同一单源 resolveDivinationNongli),不得取 props.fields.nongli(fields 上压根没有 nongli)', () => {
+		expect(body).toContain('resolveDivinationNongli(this.state.localFields, this.props.fields, this.props.value)');
+		expect(body).not.toMatch(/props\.fields\.nongli/);
+		const { resolveDivinationNongli } = require('../../../utils/divinationTimeDraft');
+		const nongli = { year: '丙午', date: '2026-01-01' };
+		expect(resolveDivinationNongli(null, { date: '2026-01-01', time: '12:00', zone: 8, nongli: { year: '错' }, timeAlg: { value: 0 } }, { params: { birth: '2026-01-01 12:00:00', zone: 8 }, chart: { nongli } })).toBe(nongli);
 	});
 
 	test('🔴 时柱在 bazi.time,不在 bazi.hour(后者恒 undefined)', () => {
@@ -91,7 +94,7 @@ describe('轨策 · ctx 取数源与键名(照想当然写=起卦恒失败)', ()
 
 	test('🔴 nongli.year 是干支(如「丙午」)非公历年 —— 公历年只能自 nongli.date 取', () => {
 		expect(body).toContain('nl.date');
-		expect(body).toMatch(/parseInt\(`\$\{nl\.date \|\| ''\}`\.slice\(0, 4\), 10\)/);
+		expect(body).toMatch(/leadingYearOf\(nl\.date \|\| ''\)/);   // 带符号年单源(公元前 / 五位年不按位置切)
 		expect(body).not.toMatch(/year:\s*nl\.year/);       // 拿它当公历年 = 错
 		expect(body).not.toMatch(/nl\.solarYear/);          // 无此键
 	});
@@ -122,14 +125,17 @@ describe('轨策·性能 · 组件级 lazy(不点本页签则零成本)', () => 
 	});
 	test('lazy 处必有 Suspense 边界(否则整页白)', () => {
 		expect(host).toContain('<Suspense fallback');
-		expect(host).toMatch(/<Suspense fallback[\s\S]{0,200}<GuiceMain/);
+		const g = jsxNodes(host, 'GuiceMain');
+		expect(g.length).toBeGreaterThan(0);
+		expect(g.every((e) => e.ancestors.includes('Suspense'))).toBe(true);
+		expect(jsxNodes(host, 'Suspense').every((s) => s.attrs.fallback !== undefined)).toBe(true);
 	});
 	// 🔴 lazy 之 ref 是【异步】挂上的 —— 容器 componentDidMount 补的那一拍跑在 chunk 解析前,
 	//    彼时 ref.current 尚 null,dock 遂拿着空 config 定格:起卦/保存全不见,只剩「AI助手」
 	//    (真机点开才现形;本组旧判据只验了 ref 写在 JSX 上,故当时全绿放过)。
 	//    修法是 callback ref(attachChildRef):真挂上那一刻补一拍。
 	test('ref 经 attachChildRef 挂(dock 靠 childRefs.guice 取 getQuickDockConfig)', () => {
-		expect(host).toMatch(/<GuiceMain[\s\S]{0,80}ref=\{this\.attachChildRef\('guice'\)\}/);
+		expect(jsxNodes(host, 'GuiceMain').map((e) => e.attrs.ref)).toEqual(["this.attachChildRef('guice')"]);
 	});
 
 	test("🔴 attachChildRef 在 null→实例那一刻补拍(不补 = lazy 子页的 dock 永远是空的)", () => {
@@ -155,10 +161,11 @@ describe('轨策·性能 · 组件级 lazy(不点本页签则零成本)', () => 
 // 因显式喂 slot 而全绿放过 —— 测了宿主根本不用的契约)。此哨兵机械守之。
 describe('轨策 · 宿主范式相符(照错=左右两栏消失)', () => {
 	const host = fs.readFileSync(path.join(__dirname, '..', '..', 'cnyibu', 'CnYiBuMain.js'), 'utf8');
-	const guiceTag = (host.match(/<GuiceMain[\s\S]*?\/>/) || [''])[0];
+	const guiceTags = jsxNodes(host, 'GuiceMain');
 
 	test('🔴 宿主确实不喂 slot(前提:喂了则本组的判据须随之改)', () => {
-		expect(guiceTag).not.toMatch(/\bslot=/);
+		expect(guiceTags.length).toBeGreaterThan(0);
+		expect(guiceTags.filter((e) => Object.prototype.hasOwnProperty.call(e.attrs, 'slot'))).toEqual([]);
 	});
 
 	test('🔴 故组件在无 slot 时须自出三栏 —— 左(input-panel)/中(chart-stage)/右(inspector-panel)', () => {
@@ -195,14 +202,14 @@ describe('轨策 · 右栏六目：改任一开关，眼前之目必有动静', 
 	const render = (src.match(/renderAux\(p\) \{[\s\S]*?\n\t\}/) || [''])[0];
 
 	test('🔴 六目一概 forceRender（漏之即「改了不属眼前这目的选项，右栏不动」）', () => {
-		const panes = src.match(/<TabPane tab="[^"]+" key="\w+"[^>]*>/g) || [];
+		const panes = jsxNodes(src, 'TabPane').filter((e) => typeof e.attrs.tab === 'string' && typeof e.attrs.key === 'string');
 		expect(panes.length).toBe(6);
-		const noForce = panes.filter((p) => !p.includes('forceRender'));
+		const noForce = panes.filter((p) => p.attrs.forceRender !== true).map((p) => p.attrs.key);
 		expect(noForce).toEqual([]);
 	});
 
 	test('🔴 直断目摄诸端之要 —— 含时方（其为默认所停之目；不摄则开了时方眼前不动）', () => {
-		const ov = (src.match(/<TabPane tab="直断"[\s\S]*?<\/TabPane>/) || [''])[0];
+		const ov = (jsxNodes(src, 'TabPane').find((e) => e.attrs.tab === '直断') || { source: '' }).source;
 		expect(ov).toContain("'时方'");
 		expect(ov).toContain('p.shiFang');
 		// 并摄演数/体用/十应之要（此前已修，一并守住）

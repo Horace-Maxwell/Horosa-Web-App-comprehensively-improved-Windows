@@ -1,11 +1,11 @@
 diff --git a/astrostudyui/src/components/common/__tests__/quickDockContract.test.js b/astrostudyui/src/components/common/__tests__/quickDockContract.test.js
-index f9cbf002..b4f6ef30 100644
+index 6458362e..352fbcb5 100644
 --- a/astrostudyui/src/components/common/__tests__/quickDockContract.test.js
 +++ b/astrostudyui/src/components/common/__tests__/quickDockContract.test.js
-@@ -97,12 +97,16 @@ describe('QuickDockBar 组件契约', () => {
+@@ -98,12 +98,16 @@ describe('QuickDockBar 组件契约', () => {
  describe('全站快捷栏静态契约(源码扫描)', () => {
  	const files = listMainFiles();
- 	const read = (f)=>fs.readFileSync(f, 'utf8');
+ 	const read = (f)=>readSource(f);
 +	// horosa_win_pathsep_posix_v1:path.relative 在 Windows 返回反斜杠分隔,与下方
 +	// WHITELIST/EXEMPT 的正斜杠字面量不匹配 → 白名单页被误判为 offender、契约测试假红。
 +	// 归一到 POSIX 分隔符再比对(macOS path.sep='/' 时为 no-op,行为逐字节不变;跨平台 bug,建议上游化 Mac)。
@@ -20,7 +20,7 @@ index f9cbf002..b4f6ef30 100644
  			.filter((rel)=>!WHITELIST.includes(rel));
  		expect(offenders).toEqual([]);
  	});
-@@ -125,7 +129,7 @@ describe('全站快捷栏静态契约(源码扫描)', () => {
+@@ -126,7 +130,7 @@ describe('全站快捷栏静态契约(源码扫描)', () => {
  		};
  		const hits = [];
  		files.forEach((f)=>{
@@ -29,7 +29,7 @@ index f9cbf002..b4f6ef30 100644
  			if(EXEMPT.includes(rel)){ return; }
  			dockSpans(read(f)).forEach((span)=>{
  				FORBIDDEN.forEach((label)=>{
-@@ -144,7 +148,7 @@ describe('全站快捷栏静态契约(源码扫描)', () => {
+@@ -145,7 +149,7 @@ describe('全站快捷栏静态契约(源码扫描)', () => {
  		const offenders = files.filter((f)=>{
  			const src = read(f);
  			return src.includes('QuickDockBar') && (/\blookup=\{/.test(src) || /\blookup:\s*\{/.test(src));
@@ -38,9 +38,9 @@ index f9cbf002..b4f6ef30 100644
  		expect(offenders).toEqual([]);
  	});
  
-@@ -178,6 +182,20 @@ describe('全站快捷栏静态契约(源码扫描)', () => {
- 		const container = read(path.join(COMPONENTS_DIR, 'cnyibu/CnYiBuMain.js'));
+@@ -185,6 +189,20 @@ describe('全站快捷栏静态契约(源码扫描)', () => {
  		expect(container).toContain('getQuickDockConfig');
+ 		expect(container).not.toContain('TarotMain');
  		expect(container).not.toContain('runChildAction');
 -		expect(container.includes("tab === 'suzhan'")).toBe(false);
 +		// horosa_win_pathsep_posix_v1(同补丁承载,单键纪律 #29):

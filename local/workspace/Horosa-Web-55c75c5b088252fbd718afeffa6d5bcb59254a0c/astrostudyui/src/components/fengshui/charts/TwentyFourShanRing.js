@@ -2,14 +2,10 @@
 // 成熟设计:暖金外环 + 柔色内盘 + 长生阶语义色 + 坐向高亮。亮/暗双主题(--fs-* 令牌)。
 // 尺寸/字号加大版:山名带更宽、长生阶自成一环、字体放大,便于阅读。
 import React from 'react';
+import { polar } from './chartGeom';
 import { SHAN_ORDER, SHAN_CENTER_DEG } from '../fengshuiData';
 
 const STAGE_JX_COLOR = { good: 'var(--fs-good,#2e9c5a)', bad: 'var(--fs-bad,#c0392b)', neutral: 'var(--fs-muted,#9aa)' };
-
-function polar(cx, cy, r, deg) {
-	const a = (deg - 90) * Math.PI / 180;   // 0°=正上(北),顺时针
-	return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
-}
 
 // props: ring[{shuangshan, zhi, stage, jx}]、zuoShan、xiangShan、size。
 export default function TwentyFourShanRing({ ring = null, zuoShan = null, xiangShan = null, size = 700 }) {

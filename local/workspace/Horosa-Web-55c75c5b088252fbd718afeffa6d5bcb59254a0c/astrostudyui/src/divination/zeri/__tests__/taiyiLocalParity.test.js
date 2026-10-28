@@ -1,4 +1,4 @@
-// [Z3·太乙择日] 本地引擎↔后端 kentang parity 网格金标(决策10:扫描用本地引擎的接入门槛)。
+// 本地引擎↔后端 kentang parity 网格金标(决策10:扫描用本地引擎的接入门槛)。
 // 真值采集:2026-08-28 后端 /taiyi/pan 实采五锚(键名 year/month/day/hour/minute 数值形——
 // 首采曾用 date/time 串形被后端静默忽略、三时刻同盘,判别纪律当场抓获假请求)。
 // 五锚判别力自证:换刻变盘/tn 档变盘/style 档变盘(定案19 三层断言之「确不同」)。
@@ -19,11 +19,19 @@ const ANCHORS = [
 	['2026-08-15', '15:30:00', { style: 3, tn: 0 }, { kook: '陰遁四十五局', taiyiPalace: '子', taiyiNum: 2, skyeyes: '坤', sf: '酉', homeCal: 38, awayCal: 31, setCal: 25, homeGeneral: 8, awayGeneral: 1, jigod: '子', hegod: '巳', wufuNum: 1 }],
 	['2026-09-10', '11:00:00', { style: 3, tn: 0 }, { kook: '陰遁六十七局', taiyiPalace: '子', taiyiNum: 2, skyeyes: '乾', sf: '戌', homeCal: 25, awayCal: 26, setCal: 26, homeGeneral: 5, awayGeneral: 6, jigod: '寅', hegod: '未', wufuNum: 1 }],
 ];
+// 积日基准日(1900-12-21)以前:后端积日按民用日序整天相减(旧写法向零取整,钟点 ≥ 01:00 多一天、差 12 局号)。
+// 真值为后端修正后实采;pytest test_kintaiyi_accum_day_ordinal 以同一组时刻锁后端积数 == 本地,两边任何一边改取整都红。
+const PRE_BASE_ANCHORS = [
+	['1850-06-01', '12:30:00', { style: 3, tn: 0 }, { kook: '陽遁十九局', taiyiPalace: '子', taiyiNum: 8, skyeyes: '申', sf: '艮', homeCal: 8, awayCal: 32, setCal: 14, homeGeneral: 8, awayGeneral: 2, jigod: '申', hegod: '未', wufuNum: 3 }],
+	['1850-06-01', '00:00:00', { style: 3, tn: 0 }, { kook: '陽遁十三局', taiyiPalace: '酉', taiyiNum: 6, skyeyes: '巽', sf: '辰', homeCal: 18, awayCal: 19, setCal: 19, homeGeneral: 8, awayGeneral: 9, jigod: '寅', hegod: '丑', wufuNum: 3 }],
+	['1600-03-01', '09:30:00', { style: 3, tn: 0 }, { kook: '陽遁四十二局', taiyiPalace: '坤', taiyiNum: 7, skyeyes: '亥', sf: '辰', homeCal: 27, awayCal: 12, setCal: 34, homeGeneral: 7, awayGeneral: 2, jigod: '酉', hegod: '申', wufuNum: 1 }],
+	['0050-03-10', '12:30:00', { style: 3, tn: 0 }, { kook: '陽遁三十一局', taiyiPalace: '艮', taiyiNum: 3, skyeyes: '巽', sf: '戌', homeCal: 33, awayCal: 10, setCal: 34, homeGeneral: 3, awayGeneral: 5, jigod: '申', hegod: '未', wufuNum: 3 }],
+];
 // style=5(命法)后端真值已采但不入锚:命法按生辰非候选时刻,不是择日扫描对象;
 // 扫描引擎 style 恒 3(taiyiZeriScanEngine 定谳),本地引擎亦未实现命法档。
 
-describe('[Z3] 太乙本地引擎↔后端五锚 parity(扫描接入门槛)', ()=>{
-	ANCHORS.forEach(([d, t, opts, exp], i)=>{
+describe('太乙本地引擎↔后端五锚 parity(扫描接入门槛)', ()=>{
+	[...ANCHORS, ...PRE_BASE_ANCHORS].forEach(([d, t, opts, exp], i)=>{
 		it(`🔴 锚${i + 1}: ${d} ${t} style=${opts.style} tn=${opts.tn} 判定面逐键 == 后端`, ()=>{
 			const p = pan(d, t, opts);
 			expect(p).toBeTruthy();

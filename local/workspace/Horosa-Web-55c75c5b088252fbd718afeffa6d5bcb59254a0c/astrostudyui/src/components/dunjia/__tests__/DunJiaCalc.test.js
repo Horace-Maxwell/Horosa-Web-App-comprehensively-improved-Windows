@@ -90,7 +90,7 @@ function buildLocalNongliForTest(date, time){
 
 describe('DunJiaCalc options', ()=>{
 	test('排盘体例:年/月/日/刻家(0/1/2/4)走本地全盘,时家(3)走 Ken 后端;综合(5)无确切算法未暴露', ()=>{
-		expect(PAIPAN_OPTIONS.map((item)=>item.value)).toEqual([0, 1, 2, 3, 4, 6]);   // [H-F] 刻家(4)复活;[H-G] 金函系日家(6)=查表独立体系;综合(5)仍不暴露
+		expect(PAIPAN_OPTIONS.map((item)=>item.value)).toEqual([0, 1, 2, 3, 4, 6]);   // 刻家(4)复活;金函系日家(6)=查表独立体系;综合(5)仍不暴露
 		PAIPAN_OPTIONS.forEach((item)=>{
 			// 年/月/日/刻家/金函日家走本地 calcDunJia;时家走 Ken 后端(转盘字节护栏)。
 			expect(isKinqimenMode(item.value)).toBe(item.value === 3);
@@ -408,24 +408,31 @@ describe('DunJiaCalc options', ()=>{
 		expect(afterDaxue.jieqi).toEqual('大雪');
 	});
 
-	test('默认晚子时不提前换日，拆补与手机版口径一致', ()=>{
+	// 选项缺日界键时,引擎取全局现值(与页面 / 请求体 / 择日扫描同一口径;此前引擎内部写死 0,与全局缺省 1 不同)
+	test('缺日界键时随全局:出厂 23 点换日,全局改 24 点换日后 = 显式 0', ()=>{
 		const fields = makeFields('1982-07-28', '23:48:00');
 		const nongli = buildLocalNongliForTest('1982-07-28', '23:48:00');
-		const defaultPan = calcDunJia(fields, nongli, makeOptions({
-			qijuMethod: 'chaibu',
-			timeAlg: 1,
-		}), {});
-		const ziZhengPan = calcDunJia(fields, nongli, makeOptions({
-			qijuMethod: 'chaibu',
-			timeAlg: 1,
-			after23NewDay: 0,
-		}), {});
-		// 用户语义(拍板,见 DunJiaCalc:DAY_SWITCH_OPTIONS): after23NewDay=0「24点算第二天」=日柱进位次日。
-		expect(defaultPan.options.daySwitchLabel).toEqual('24点算第二天');
-		expect(defaultPan.juText).toEqual(ziZhengPan.juText);
-		expect(defaultPan.ganzhi.day).toEqual(ziZhengPan.ganzhi.day);
-		expect(defaultPan.ganzhi.time).toEqual(ziZhengPan.ganzhi.time);
-		expect(pickMap(defaultPan.tianGan)).toEqual(pickMap(ziZhengPan.tianGan));
+		const explicit = (v)=>calcDunJia(fields, nongli, makeOptions({ qijuMethod: 'chaibu', timeAlg: 1, after23NewDay: v }), {});
+		const missing = ()=>calcDunJia(fields, nongli, makeOptions({ qijuMethod: 'chaibu', timeAlg: 1 }), {});
+		const same = (a, b)=>{
+			expect(a.options.daySwitchLabel).toEqual(b.options.daySwitchLabel);
+			expect(a.juText).toEqual(b.juText);
+			expect(a.ganzhi.day).toEqual(b.ganzhi.day);
+			expect(a.ganzhi.time).toEqual(b.ganzhi.time);
+			expect(pickMap(a.tianGan)).toEqual(pickMap(b.tianGan));
+		};
+		const prev = localStorage.getItem('globalSetup');
+		try{
+			localStorage.removeItem('globalSetup');
+			expect(missing().options.daySwitchLabel).toEqual('23点算第二天');
+			same(missing(), explicit(1));
+			localStorage.setItem('globalSetup', JSON.stringify({ dayBoundary: 'after24' }));
+			// 用户语义(拍板,见 DunJiaCalc:DAY_SWITCH_OPTIONS): after23NewDay=0「24点算第二天」
+			expect(missing().options.daySwitchLabel).toEqual('24点算第二天');
+			same(missing(), explicit(0));
+		}finally{
+			if(prev === null){ localStorage.removeItem('globalSetup'); } else { localStorage.setItem('globalSetup', prev); }
+		}
 	});
 
 	// 置闰超神接气:2015-12-22(超神距未达置闰阈值 dgap=8<9)→ 冬至阳遁七局中元(本引擎口径;用户确认正确,
@@ -1035,7 +1042,7 @@ describe('DunJiaCalc · 各家对齐第2标准参考盘(2025-11-24)', ()=>{
 describe('DunJiaCalc · 压力测试 全盘式 × 定局 × 排盘 笛卡尔扫描(WP-F)', ()=>{
 	const SCHOOLS = ['转盘', '飞盘', '混合'];
 	const METHODS = ['chaibu', 'zhirun', 'maoshan', 'wurun', 'shuzi'];
-	const PAIPAN = [0, 1, 2, 3, 4];   // [H-F] 刻家(4)复活(十分局);金函(6)=查表独立体系另测;综合(5)仍下架
+	const PAIPAN = [0, 1, 2, 3, 4];   // 刻家(4)复活(十分局);金函(6)=查表独立体系另测;综合(5)仍下架
 	// 含超神/接气/至界/年界/晚子时边界,真盘历法(buildLocalNongliForTest)
 	const DATES = [
 		['2026-08-20', '10:00:00'],   // 处暑超神(置闰=阴一上元)
@@ -1321,7 +1328,7 @@ describe('DunJiaCalc · 本轮新增 golden(混合/茅山/置闰天数)', ()=>{
 	}, 30000);
 });
 
-// [挂载自检 F-50/F-51] 挂载 schema 经 select 传 0/'0'(页面传布尔 false):中门参与两形态同构;盘类随 opts 进 pan.options(无头/三式重算路径)。
+// 挂载 schema 经 select 传 0/'0'(页面传布尔 false):中门参与两形态同构;盘类随 opts 进 pan.options(无头/三式重算路径)。
 describe('DunJiaCalc · 挂载自检:中门参与 0≡false + 盘类随 opts 进 pan.options', ()=>{
 	const nongli = {
 		yearJieqi: '丙午', year: '丙午', monthGanZi: '癸巳', dayGanZi: '己丑', time: '甲子',
@@ -1346,7 +1353,7 @@ describe('DunJiaCalc · 挂载自检:中门参与 0≡false + 盘类随 opts 进
 	});
 });
 
-describe('DunJiaCalc · [Q-154/Q-155] 奇门路由与节气种子判据单源(独立页/三式/择日共用)', ()=>{
+describe('DunJiaCalc · 奇门路由与节气种子判据单源(独立页/三式/择日共用)', ()=>{
 	const BASE = { paiPanType: 3, qijuMethod: 'zhirun', school: '转盘', zhiShiType: 0, zhirunLeapDays: 9, godsPreset: 'baihu_xuanwu', jiGongMode: 'kun', anGanMode: 'off', showAnZhi: false, kongMarkBoth: false, shiftPalace: 0, shiftZhiFuMode: 'follow' };
 	test('七组本地口径:全缺省 → 空(可走后端);任一非缺省 → 列出键名(后端不收、合并不施加的键)', ()=>{
 		expect(qimenLocalOnlyOverrides(BASE)).toEqual([]);
@@ -1420,7 +1427,7 @@ describe('DunJiaCalc · [Q-154/Q-155] 奇门路由与节气种子判据单源(�
 	});
 });
 
-describe('DunJiaCalc · [T-548] 当前节气含中气(后端 nongli.jieqi 仅交节当日有值;jiedelta 只给节令)', ()=>{
+describe('DunJiaCalc · 当前节气含中气(后端 nongli.jieqi 仅交节当日有值;jiedelta 只给节令)', ()=>{
 	// 复刻生产 /nongli/time 形态:非交节日 jieqi=null、jiedelta=「节令后第N天」(不含中气)。
 	function prodNongli(date, time, jiedelta){
 		const n = buildLocalNongliForTest(date, time);
@@ -1460,7 +1467,7 @@ describe('DunJiaCalc · [T-548] 当前节气含中气(后端 nongli.jieqi 仅交
 	});
 });
 
-describe('DunJiaCalc · [Q-389/T-370] 公元前日期解析(parseDateTime 带符号年)', ()=>{
+describe('DunJiaCalc · 公元前日期解析(parseDateTime 带符号年)', ()=>{
 	test("'-500-06-15' → 年 -500/月 6/日 15:年家=下元阴遁七局(此前切成 年0/月500/日6 → 恒中元阴四)", ()=>{
 		const fields = makeFields('-500-06-15', '12:00:00');
 		const nongli = { yearGanZi: '辛丑', year: '辛丑', yearJieqi: '辛丑', monthGanZi: '甲午', dayGanZi: '甲子', time: '庚午', timeGanZi: '庚午', jieqi: '芒种', jiedelta: '芒种后第10天', birth: '-500-06-15 12:00:00' };

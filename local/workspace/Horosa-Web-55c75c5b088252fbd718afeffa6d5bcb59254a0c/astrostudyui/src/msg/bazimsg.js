@@ -21,22 +21,31 @@ export const BaZiMsg = {
 	'Female': '坤造',
 };
 
+// 五行色 = 主题语义色(亮 / 暗各一份,layouts/app/01-base.less 的 --horosa-bazi-*,与八字 / 日历同源)。
+// 此前是一套固定十六进制:金 #ffcf40 在宣纸底 1.4:1、水 #0a2e81 在暗底 1.7:1。只用于行内 style 的 color(CSS 变量可解析)。
+const WX_VAR = {
+	Wood: 'var(--horosa-bazi-wood, #237a45)',
+	Fire: 'var(--horosa-bazi-fire, #c72d22)',
+	Earth: 'var(--horosa-bazi-earth, #805526)',
+	Metal: 'var(--horosa-bazi-metal, #866a00)',
+	Water: 'var(--horosa-bazi-water, #275fc7)',
+};
 export const BaZiColor = {
-	'Wood': '#006400',
-	'Fire': '#c81808',
-	'Earth': '#704214',
-	'Metal': '#ffcf40',
-	'Water': '#0a2e81',
-	'PositiveWood': '#006400',
-	'PositiveFire': '#c81808',
-	'PositiveEarth': '#704214',
-	'PositiveMetal': '#ffcf40',
-	'PositiveWater': '#0a2e81',
-	'NegativeWood': '#006400',
-	'NegativeFire': '#c81808',
-	'NegativeEarth': '#704214',
-	'NegativeMetal': '#ffcf40',
-	'NegativeWater': '#0a2e81',
+	'Wood': WX_VAR.Wood,
+	'Fire': WX_VAR.Fire,
+	'Earth': WX_VAR.Earth,
+	'Metal': WX_VAR.Metal,
+	'Water': WX_VAR.Water,
+	'PositiveWood': WX_VAR.Wood,
+	'PositiveFire': WX_VAR.Fire,
+	'PositiveEarth': WX_VAR.Earth,
+	'PositiveMetal': WX_VAR.Metal,
+	'PositiveWater': WX_VAR.Water,
+	'NegativeWood': WX_VAR.Wood,
+	'NegativeFire': WX_VAR.Fire,
+	'NegativeEarth': WX_VAR.Earth,
+	'NegativeMetal': WX_VAR.Metal,
+	'NegativeWater': WX_VAR.Water,
 };
 
 export const ZhiColor = {

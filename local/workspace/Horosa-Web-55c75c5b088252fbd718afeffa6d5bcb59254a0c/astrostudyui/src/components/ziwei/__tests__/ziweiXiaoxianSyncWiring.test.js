@@ -1,4 +1,4 @@
-// [B15b] 小限顺逆·全链同步金标 —— 病灶回归锁(2026-08-08 用户真机实锤):
+// 小限顺逆·全链同步金标 —— 病灶回归锁(2026-08-08 用户真机实锤):
 //   改「小限顺逆」档后 ①盘面小限岁数条(排盘期 smallDirection 烙死)纹丝不动;②右栏芯片列表(消费期现算)
 //   已按新口径,而已选中详情卡/叠宫层/金框/AI period(luckSel 点击时快照)仍旧口径 —— 同屏自相矛盾。
 // 根修三件套:口径纯函数单源(ziweiCore.xiaoxianClockwiseFor) + 岁数条渲染期现算(ZiWeiHelper.xiaoxianAgesOf)
@@ -37,7 +37,7 @@ const SG0 = ZWEngineOptions.liunianSihuaGan;
 const LY0 = ZWEngineOptions.liuYueBasis;
 afterEach(()=>{ ZWEngineOptions.xiaoxianMode = XX0; ZWEngineOptions.liunianSihuaGan = SG0; ZWEngineOptions.liuYueBasis = LY0; });
 
-describe('[B15b] 口径纯函数(单一真值源)', ()=>{
+describe('口径纯函数(单一真值源)', ()=>{
 	test('XIAOXIAN_START 表单源:expandSanHe 展开与经典字面量逐支相等(ZWLuckPanel 曾自带手写副本,已删)', ()=>{
 		const classic = { '寅': '辰', '午': '辰', '戌': '辰', '申': '戌', '子': '戌', '辰': '戌', '亥': '丑', '卯': '丑', '未': '丑', '巳': '未', '酉': '未', '丑': '未' };
 		ZHI.forEach((z)=>{ expect(XIAOXIAN_START[z]).toBe(classic[z]); });
@@ -73,7 +73,7 @@ describe('[B15b] 口径纯函数(单一真值源)', ()=>{
 	});
 });
 
-describe('[B15b] 本地引擎 smallDirection 口径接线', ()=>{
+describe('本地引擎 smallDirection 口径接线', ()=>{
 	test('默认档:阴男盘 smallDirection 与 Java 直译逐宫字节一致(零回归锚)', ()=>{
 		const c = makeChart();
 		const perHouse = Array.from({ length: 12 }, ()=>[]);
@@ -96,7 +96,7 @@ describe('[B15b] 本地引擎 smallDirection 口径接线', ()=>{
 	});
 });
 
-describe('[B15b] 渲染层 xiaoxianAgesOf 与右栏 buildXiaoxianItems 单源互证', ()=>{
+describe('渲染层 xiaoxianAgesOf 与右栏 buildXiaoxianItems 单源互证', ()=>{
 	test('🔴 阴男盘两档岁数条确变,且逐岁与右栏宫支互证(同屏自相矛盾病灶的回归锚)', ()=>{
 		const c = makeChart();
 		const dx = buildDaxianItems(c)[0];
@@ -127,7 +127,7 @@ describe('[B15b] 渲染层 xiaoxianAgesOf 与右栏 buildXiaoxianItems 单源互
 	});
 });
 
-describe('[B15b] rederiveLuckSel 快照整链重派生', ()=>{
+describe('rederiveLuckSel 快照整链重派生', ()=>{
 	function pick2029(c){
 		const dx = buildDaxianItems(c)[0];
 		let sel = luckSelectDaxian(c, dx, null);
@@ -195,7 +195,7 @@ describe('[B15b] rederiveLuckSel 快照整链重派生', ()=>{
 	});
 });
 
-describe('[B15b] 静态接线锁(剥注释;L2 铁律:注释里出现键名≠代码消费了它)', ()=>{
+describe('静态接线锁(剥注释;L2 铁律:注释里出现键名≠代码消费了它)', ()=>{
 	const strip = (s)=>s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 	const read = (f)=>strip(fs.readFileSync(path.resolve(__dirname, '..', f), 'utf8'));
 	test('ZiWeiMain 广播监听器内真调 rederiveLuckSel(全键触发,不设白名单)', ()=>{

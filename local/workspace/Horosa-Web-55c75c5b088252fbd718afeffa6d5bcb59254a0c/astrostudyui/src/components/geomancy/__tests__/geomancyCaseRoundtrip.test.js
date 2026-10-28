@@ -94,6 +94,22 @@ describe('地占 · 事盘存档往返', () => {
 		expect(fresh.state.granular).toBeDefined();
 	});
 
+	test('🔴 载入存档后起卦法按存档记下的当时那一法(与灵棋同),不切成「手动 + 冻结种子」;没记的旧档照旧', () => {
+		mk({ seedMode: 'time_seed' }).clickSaveCase();
+		const saved = global.__savedCase.payload;
+		expect(saved.options.castMethod).toBe('time_seed');
+		global.__mockCase = { caseVersion: 'v-tm', payload: saved };
+		const a = mk({ seedMode: 'random' });
+		a.restoreFromCurrentCase(true);
+		expect(a.state.seedMode).toBe('time_seed');
+		expect(a.state.result).toEqual(saved.result);   // 盘面仍是存档那一盘
+		global.__mockCase = { caseVersion: 'v-legacy', payload: { options: { question: '旧', seedMode: 'manual', seed: 7 }, result: LIVE.european_classical } };
+		const b = mk({ seedMode: 'random' });
+		b.restoreFromCurrentCase(true);
+		expect(b.state.seedMode).toBe('manual');
+		expect(b.state.manualSeed).toBe(7);
+	});
+
 	test('历史条目同样带齐并可回放', () => {
 		// pushHistory 走 safeLocalStorageSet 封装,故直接读回 key,不去拦截 setItem(拦截会因封装而落空)
 		window.localStorage.removeItem('horosaGeomancyHistory');

@@ -1,31 +1,6 @@
 import { Component } from 'react';
 import AstroChartMain from '../astro/AstroChartMain';
-
-function paramsToFields(param, flds){
-	let fields = {
-		...flds,
-		date:{
-			value: param.date
-		},
-		time:{
-			value: param.time
-		},
-		ad: {
-			value: param.ad ? param.ad : flds.ad.value,
-		},
-		zone:{
-			value: param.zone
-		},
-		lat:{
-			value: param.lat
-		},
-		lon:{
-			value: param.lon
-		},
-		// hsys/zodiacal/siderealAyanamsa 保留全局 flds(左栏当前选择),不被 record 老快照覆盖。
-	}
-	return fields;
-}
+import { paramsToFields } from './relativeFields';
 
 class AstroTimeSpace extends Component{
 	constructor(props) {
@@ -69,7 +44,7 @@ class AstroTimeSpace extends Component{
 
 		return (
 			<div style={{height: height}}>
-					<AstroChartMain embeddedSubChart
+					<AstroChartMain embeddedSubChart relativeContext={this.props.relativeContext}
 						value={resobj} 
 					fields={fields} 
 					hidedateselector={1}
@@ -84,7 +59,7 @@ class AstroTimeSpace extends Component{
 						onChange={this.props.onChange}
 						showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 						showAstroMeaning={this.props.showAstroMeaning}
-						showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* [Q-253/T-223] 四键补传:弹层显示值与主页同源 */
+						showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* 四键补传:弹层显示值与主页同源 */
 						voidClassical={this.props.voidClassical}
 						planetListStyle={this.props.planetListStyle}
 						aspects={this.props.aspects}

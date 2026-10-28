@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/stepPrefetch.js b/astrostudyui/src/utils/stepPrefetch.js
-index 19c7afad..4599036a 100644
+index 3a97d8a3..659c1781 100644
 --- a/astrostudyui/src/utils/stepPrefetch.js
 +++ b/astrostudyui/src/utils/stepPrefetch.js
 @@ -35,7 +35,7 @@

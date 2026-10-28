@@ -1,4 +1,4 @@
-// [QA3a] 奇门 H 批新档压测大矩阵:全值域笛卡尔(抽样)×冲突组合×边界×异形输入。
+// 奇门 H 批新档压测大矩阵:全值域笛卡尔(抽样)×冲突组合×边界×异形输入。
 //   验收标准=qimen_qa_spec.md 对照表;不变式:任意组合零抛+九宫结构+域合法;
 //   非默认档快照注记齐全性;异形档位一律回落默认(绝不半死)。
 import {
@@ -9,6 +9,7 @@ import {
 } from '../DunJiaCalc';
 import { JINHAN_TABLE, JINHAN_STAR_JI, JINHAN_DOOR_JI } from '../jinhanRiJia';
 import { buildLocalBaziResult } from '../../../utils/baziLunarLocal';
+const { readSource, fnBody } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 function getGanzi(p){ return (p && (p.ganzhi || p.ganZhi)) || ''; }
 function localNongli(date, time){
@@ -36,7 +37,7 @@ function invariants(pan, label){
 	return true;
 }
 
-describe('[QA3a] 奇门新档压测大矩阵', ()=>{
+describe('奇门新档压测大矩阵', ()=>{
 	// ── ① 家族定局档全枚举 × 双基准时刻 ──
 	test('家族档全枚举:年2×月3×日3×刻(2×2)×金函2,双时刻,零抛+结构+juText 非空', ()=>{
 		const times = [['2026-02-17', '09:05:00'], ['2025-07-15', '23:30:00']];
@@ -130,7 +131,7 @@ describe('[QA3a] 奇门新档压测大矩阵', ()=>{
 	});
 
 	// ── ⑤ 冲突/交叉组合 ──
-	test('[Q-298/T-285] 刻家子正换时:初局/刻柱/分遁与刻序同用偶数整点时辰(01:30 → 子时第 8 刻;23:30 → 当日亥时第 8 刻);关档逐字不变', ()=>{
+	test('刻家子正换时:初局/刻柱/分遁与刻序同用偶数整点时辰(01:30 → 子时第 8 刻;23:30 → 当日亥时第 8 刻);关档逐字不变', ()=>{
 		const on = calc('2026-02-17', '01:30:00', { paiPanType: 4, keZiZhengHuanShi: true });
 		const off = calc('2026-02-17', '01:30:00', { paiPanType: 4, keZiZhengHuanShi: false });
 		expect(on.keIndex).toBe(8);  expect(off.keIndex).toBe(3);
@@ -232,11 +233,11 @@ describe('[QA3a] 奇门新档压测大矩阵', ()=>{
 	});
 });
 
-// ══ [QA3b] AI 四链结构守卫 ═══
-describe('[QA3b] 挂载齿轮/导出/存档链', ()=>{
+// ══ AI 四链结构守卫 ═══
+describe('挂载齿轮/导出/存档链', ()=>{
 	const fs = require('fs');
 	const path = require('path');
-	const read = (rel)=>fs.readFileSync(path.join(__dirname, rel), 'utf8');
+	const read = (rel)=>readSource(path.join(__dirname, rel));
 
 	test('🔴 挂载齿轮键名对齐:QIMEN_FIELDS 每个 name ∈ 独立页 DEFAULT_OPTIONS 键集(schema 名写错=齿轮改了引擎读不到)', ()=>{
 		const { getTechniqueSettingsSchema } = require('../../../utils/techniqueMountSettings');
@@ -267,9 +268,8 @@ describe('[QA3b] 挂载齿轮/导出/存档链', ()=>{
 
 	test('🔴 挂载重算合并制守卫:regenerateQimenSnapshot 必须 {...DEFAULT, ...存档 options} 全量透传(白名单制=丢新键)', ()=>{
 		const ctx = read('../../../utils/aiAnalysisContext.js');
-		const i = ctx.indexOf('async function regenerateQimenSnapshot');
-		expect(i).toBeGreaterThan(0);
-		const seg = ctx.slice(i, i + 1600);
+		const seg = fnBody(ctx, 'async function regenerateQimenSnapshot(');   // 只截这个函数自己(花括号配平;全集里后面接的是别的文件)
+		expect(seg).toBeTruthy();
 		expect(seg.includes('...DEFAULT_QIMEN_OPTIONS')).toBe(true);
 		expect(seg.includes('...(qs && qs.options ? qs.options : {})')).toBe(true);
 		expect(seg.includes('calcDunJia(fields, nongli, options')).toBe(true);
@@ -290,8 +290,8 @@ describe('[QA3b] 挂载齿轮/导出/存档链', ()=>{
 	});
 });
 
-// ══ [W1·审计补缺] 五合配干进快照:盘面每宫恒画的注记(cell.tianGan||diGan 经 QIMEN_WU_HE)快照曾恒缺 ═══
-describe('[W1] 五合配干快照锚', ()=>{
+// ══ 五合配干进快照:盘面每宫恒画的注记(cell.tianGan||diGan 经 QIMEN_WU_HE)快照曾恒缺 ═══
+describe('五合配干快照锚', ()=>{
 	test('🔴 [盘面要素] 含五合配干行,且逐宫与单源表一致(与 DunJiaBoard 同判据)', ()=>{
 		const { QIMEN_WU_HE } = require('../DunJiaCalc');
 		const pan = calc('2026-02-17', '09:05:00', { paiPanType: 2 });

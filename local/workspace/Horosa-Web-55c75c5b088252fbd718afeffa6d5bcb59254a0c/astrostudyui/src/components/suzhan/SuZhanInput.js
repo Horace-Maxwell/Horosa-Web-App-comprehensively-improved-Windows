@@ -11,6 +11,7 @@ import DateTime from '../comp/DateTime';
 import { XQSelect as Select } from '../xq-ui';
 import { SU28_MODE_GROUPS } from '../guolao/guolaoData';
 import { recordNewChartSeeds } from '../../utils/newChartSeeds';
+import { setStoredGuolaoSu28Mode } from '../guolao/GuoLaoChartStyle';
 
 const {Option} = Select;
 
@@ -39,13 +40,9 @@ class SuZhanInput extends Component{
 		}
 		let houseStartMode = localStorage.getItem('suzhanHouseStartMode');
 		if(houseStartMode !== undefined && houseStartMode !== null){
-			try{
-				houseStartMode = parseInt(houseStartMode, 10);
-				if(houseStartMode === SZConst.SZHouseStart_ASC){
-					SZConst.SZChart.houseStartMode = SZConst.SZHouseStart_ASC;
-				}
-			}catch(e){
-				SZConst.SZChart.houseStartMode = SZConst.SZHouseStart_Bazi;
+			houseStartMode = parseInt(houseStartMode, 10);
+			if(houseStartMode === SZConst.SZHouseStart_ASC){
+				SZConst.SZChart.houseStartMode = SZConst.SZHouseStart_ASC;
 			}
 		}
 
@@ -94,8 +91,11 @@ class SuZhanInput extends Component{
 	}
 
 	onChartTypeChange(val){
-		SZConst.SZChart.chart = val;
-		safeLocalStorageSet('suzhanChartType', val);
+		// 内嵌的只读宿盘(分至页等)只改宿主自己的盘(经字段,画盘按字段取),不改全站单例、不写本机偏好
+		if(!this.props.embeddedReadOnly){
+			SZConst.SZChart.chart = val;
+			safeLocalStorageSet('suzhanChartType', val);
+		}
 		if(this.props.onFieldsChange){
 			this.props.onFieldsChange({
 				szchart: {
@@ -106,8 +106,10 @@ class SuZhanInput extends Component{
 	}
 
 	onChartShapeChange(val){
-		SZConst.SZChart.shape = val;
-		safeLocalStorageSet('suzhanChartShape', val);
+		if(!this.props.embeddedReadOnly){
+			SZConst.SZChart.shape = val;
+			safeLocalStorageSet('suzhanChartShape', val);
+		}
 		if(this.props.onFieldsChange){
 			this.props.onFieldsChange({
 				szshape: {
@@ -118,7 +120,12 @@ class SuZhanInput extends Component{
 	}
 
 	onDoubingSu28Change(val){
-		recordNewChartSeeds({ doubingSu28: val });   // 「新盘种子」:宿法亲手改动 = 新命盘缺省
+		// 「新盘种子」:宿法亲手改动 = 新命盘缺省(与七政页共写同一键:七政自己的存储一并跟上,两页最后一次亲手选的生效)。
+		// 内嵌的只读宿盘(分至页等)只改宿主自己的盘,不记缺省、不写本机偏好。
+		if(!this.props.embeddedReadOnly){
+			recordNewChartSeeds({ doubingSu28: val });
+			setStoredGuolaoSu28Mode(val);
+		}
 		if(this.props.onFieldsChange){
 			this.props.onFieldsChange({
 				doubingSu28: {
@@ -129,8 +136,12 @@ class SuZhanInput extends Component{
 	}
 
 	onHouseStartModeChange(val){
-		SZConst.SZChart.houseStartMode = val;
-		safeLocalStorageSet('suzhanHouseStartMode', val);
+		// 亲手改 = 新盘缺省记一笔(种子是唯一来源;旧偏好键只作镜像);只读嵌入(分至页内的宿盘)单例与这两样都不写
+		if(!this.props.embeddedReadOnly){
+			SZConst.SZChart.houseStartMode = val;
+			recordNewChartSeeds({ houseStartMode: val === SZConst.SZHouseStart_ASC ? 1 : 0 });
+			safeLocalStorageSet('suzhanHouseStartMode', val);
+		}
 		if(this.props.onFieldsChange){
 			this.props.onFieldsChange({
 				houseStartMode: {
@@ -240,7 +251,7 @@ class SuZhanInput extends Component{
 					</Select>
 				</Col>
 				<Col lg={12} xl={8}>
-					{/* [Q-203/T-146] 宿法与七政/挂载共写全局 doubingSu28 九档键:此前只列 0/1 两档,进过七政页被写成其它档后下拉显裸值、快照标错;改用同源全档。 */}
+					{/* 宿法与七政/挂载共写全局 doubingSu28 九档键:此前只列 0/1 两档,进过七政页被写成其它档后下拉显裸值、快照标错;改用同源全档。 */}
 					<Select value={fields.doubingSu28.value} onChange={this.onDoubingSu28Change} size='small' style={{width:'100%'}}>
 						{SU28_MODE_GROUPS.map((g)=>(
 							<Select.OptGroup key={g.header} label={g.header}>

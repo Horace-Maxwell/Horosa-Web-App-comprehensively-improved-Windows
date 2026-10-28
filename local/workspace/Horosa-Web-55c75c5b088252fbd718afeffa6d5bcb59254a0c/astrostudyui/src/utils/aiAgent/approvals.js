@@ -22,6 +22,28 @@ function settle(key, allowed, reason){
 }
 export const AGENT_APPROVAL_EVENT = 'horosa:agent-approval-changed';
 
+// 写前预览(单一来源:对话 / 任务的运行时与外部客户端的本机桥都经它):工具自报 { title, before, after },
+// 3 秒超时、各段截到 2 万字;工具没有 preview / 抛错 / 超时 = 无预览(审批照常)。
+export const APPROVAL_PREVIEW_TIMEOUT_MS = 3000;
+export const APPROVAL_PREVIEW_MAX_CHARS = 20000;
+export async function buildApprovalPreview(def, args, ctx){
+	if(!def || typeof def.preview !== 'function'){ return null; }
+	let timer = null;
+	try{
+		const p = await Promise.race([
+			Promise.resolve().then(()=>def.preview(args, ctx || {})),
+			new Promise((resolve)=>{ timer = setTimeout(()=>resolve(null), APPROVAL_PREVIEW_TIMEOUT_MS); }),
+		]);
+		if(!p || typeof p !== 'object'){ return null; }
+		const reject = p.reject && typeof p.reject === 'object' && p.reject.code ? { code: `${p.reject.code}`, message: `${p.reject.message || ''}` } : null;   // 工具自报执行必拒(如设置无变化)
+		return { title: `${p.title || ''}`.slice(0, 120), before: `${p.before || ''}`.slice(0, APPROVAL_PREVIEW_MAX_CHARS), after: `${p.after || ''}`.slice(0, APPROVAL_PREVIEW_MAX_CHARS), ...(reject ? { reject } : {}) };
+	}catch(e){
+		return null;
+	}finally{
+		if(timer){ clearTimeout(timer); }
+	}
+}
+
 function emit(){
 	try{
 		if(typeof window !== 'undefined' && typeof window.dispatchEvent === 'function'){
@@ -30,7 +52,7 @@ function emit(){
 	}catch(e){ /* noop */ }
 }
 
-// options.timeoutMs:[G8] 到点按「未允许」落定并撤台(目标/定时任务的等审批不再永远挂在动作条上);缺省无超时(页面主线由用户/停止收口)
+// options.timeoutMs:到点按「未允许」落定并撤台(目标/定时任务的等审批不再永远挂在动作条上);缺省无超时(页面主线由用户/停止收口)
 export function requestApproval(messageKey, call, options){
 	const o = options || {};
 	return new Promise((resolve)=>{
@@ -49,7 +71,7 @@ export function requestApproval(messageKey, call, options){
 	});
 }
 
-// [P1·2026-09-08] 同名待审一并落定:「本会话不再问 / 永久放行」点一次,同轮并行排队的同名调用不再各问一次;返回落定条数。
+// 同名待审一并落定:「本会话不再问 / 永久放行」点一次,同轮并行排队的同名调用不再各问一次;返回落定条数。
 // (此前这里有个 cancelPendingApprovals(messageKey) 全仓零调用:会话切换/停止由 abort 信号撤台,已删。)
 // messageKey 给定 ⇒ 只落定该消息键内的同名待审(动作条/任务中心必传);不给 ⇒ 跨键(仅测试/旧调用方)。
 export function resolveApprovalsByName(name, allowed, messageKey){
@@ -79,7 +101,7 @@ export function approvalReasonOf(messageKey, callId){
 }
 
 export function listPendingApprovals(messageKey){
-	// [D71] 条目带 level:任务中心「请求执行 / 请求写入」文案此前读 a.level 恒 undefined ⇒ 恒「请求写入」(D27 文案死路径)
+	// 条目带 level:任务中心「请求执行 / 请求写入」文案此前读 a.level 恒 undefined ⇒ 恒「请求写入」(D27 文案死路径)
 	return Array.from(pending.values()).filter((p)=>!messageKey || p.messageKey === messageKey).map((p)=>({ callId: p.call.callId, messageKey: p.messageKey, name: p.call.name, level: p.call.level, args: p.call.args, preview: p.preview || null }));
 }
 

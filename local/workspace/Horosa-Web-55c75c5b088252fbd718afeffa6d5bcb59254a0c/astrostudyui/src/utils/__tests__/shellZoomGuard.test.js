@@ -7,9 +7,10 @@ import fs from 'fs';
 import path from 'path';
 import { getShellZoom, getLayoutViewportHeight, resolveBootstrapZoom, SHELL_ZOOM_STORAGE_KEY } from '../shellZoom';
 import { __resetScaleCacheForTest } from '../zoomDomain';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '..', '..');
-const read = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel) => readSource(path.join(SRC, rel));
 
 describe('壳缩放链守卫', () => {
 	afterEach(() => {

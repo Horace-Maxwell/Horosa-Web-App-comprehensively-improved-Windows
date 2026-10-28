@@ -1,20 +1,12 @@
 diff --git a/astrostudyui/src/components/shusuan/HeLuoMain.js b/astrostudyui/src/components/shusuan/HeLuoMain.js
-index 9dcd54d1..0e4a0cad 100644
+index a2157c9b..b516265b 100644
 --- a/astrostudyui/src/components/shusuan/HeLuoMain.js
 +++ b/astrostudyui/src/components/shusuan/HeLuoMain.js
-@@ -58,6 +58,7 @@ function deepFreeze(o){
- }
+@@ -42,6 +42,7 @@ function heluoSnapshotDetail(m) {
+ const sharedModelMemo = createSignatureMemo(4);
  
  class HeLuoMain extends Component {
 +	// horosa_shusuan_native_scu_v1(PERF-R9;v3.5.1 起与上游 [R3-A6] 守卫合一 —— 语义同 wrapperPropsEqual,单一实现防双 sCU)
- 	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+ 	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
  	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
  	shouldComponentUpdate(nextProps, nextState){
-@@ -74,6 +75,7 @@ class HeLuoMain extends Component {
- 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
- 	}
- 
-+
- 	componentDidMount() {
- 		this.saveSnap();
- 		// v2.2.1: 监听全局日界 / 晚子时·时柱起干切换 → 强制重渲(getModel 内部用 defaultAfter23NewDay/defaultLateZiHourUseNextDay 实时读 localStorage)。

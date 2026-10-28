@@ -1,9 +1,10 @@
 import React from 'react';
-import { watchChartAppearance } from '../../utils/chartDrawGuard';
+import { watchChartAppearance, watchChartScript } from '../../utils/chartDrawGuard';
 import { Spin, Empty } from 'antd';
 import echarts from './echartsCore';
 import chinaGeo from '../../assets/china.geo.json';
 import { fetchMap } from '../../services/xuanshi';
+import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
 
 // 玄学地图 —— 对齐参考地理地图页:echarts 中国底图(宣纸×墨,始终渲染)+ 古都钉点(朱砂 effectScatter,
 // 半径 ∝ 活动量)+ 朝代游历 chips + 右栏「城市榜」。底图常驻:某朝代 0 钉点时也显示地图、仅无散点(非空白)。
@@ -42,25 +43,27 @@ export default class XuanShiMap extends React.Component {
 		// [Tahoe 订阅补齐] 容器 RO:窗口事件断链引擎/容器变窗口不变的场景都能驱动 echarts 重排。
 		try {
 			if (typeof ResizeObserver !== 'undefined' && this._mapEl.current) {
-				this._hostRO = new ResizeObserver(this._onResize);
+				this._hostRO = createDeferredResizeObserver(this._onResize);
 				this._hostRO.observe(this._mapEl.current);
 			}
 		} catch (e) { this._hostRO = null; }
 		// 主题切换 → 重渲底图配色(参考用 reload,这里就地重渲更顺滑)
 		this._detachAppearance = watchChartAppearance(() => this.renderChart());
+		this._detachScript = watchChartScript(() => this.renderChart());   // 界面简繁:echarts 的字画在 canvas 上
 	}
 
 	componentWillUnmount() {
 		window.removeEventListener('resize', this._onResize);
 		if (this._hostRO) { try { this._hostRO.disconnect(); } catch (e) { /* noop */ } this._hostRO = null; }
 		if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; }
+		if(this._detachScript){ this._detachScript(); this._detachScript = null; }
 		if (this._chart) { this._chart.dispose(); this._chart = null; }
 	}
 
 	persist() { if (this.props.onPersist) { this.props.onPersist('map', { period: this.state.period }); } }
 
 	async load() {
-		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // 序号守卫:旧响应不覆盖新条件
 		this.setState({ loading: true, err: '' });
 		try {
 			// 与参考 app 完全一致:直接按所选 period 过滤(后端 by_period.get(period));
@@ -143,8 +146,8 @@ export default class XuanShiMap extends React.Component {
 				</div>
 				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,calc(3.4 * var(--horosa-lvw, 1vw)),38px)' }}>地理地图</h1>
 				<div className="xuanshi-section-sub" style={{ margin: '8px 0 14px' }}>
-					{/* [Q-483/T-445] 选了朝代后 count 已由后端改按该期计数(此前恒全时期),页头随之标明所属期。 */}
-					把研究行的 region/place 钉到中国地图。<b style={{ color: 'var(--ink)' }}>{points.length}</b> 个城市 · <b style={{ color: 'var(--ink)' }}>{pinCount.toLocaleString()}</b> 个事件钉点{period ? `（${period}）` : '（全时期）'}。
+					{/* 选了朝代后 count 已由后端改按该期计数(此前恒全时期),页头随之标明所属期。 */}
+					把记录里的地区 / 地点钉到中国地图。<b style={{ color: 'var(--ink)' }}>{points.length}</b> 个城市 · <b style={{ color: 'var(--ink)' }}>{pinCount.toLocaleString()}</b> 个事件钉点{period ? `（${period}）` : '（全时期）'}。
 				</div>
 
 				{/* 朝代游历 chips */}

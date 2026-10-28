@@ -1,22 +1,22 @@
 diff --git a/astrostudyui/src/components/astro/AstroDistributions.js b/astrostudyui/src/components/astro/AstroDistributions.js
-index 187b8148..90734034 100644
+index 4384b445..569f5120 100644
 --- a/astrostudyui/src/components/astro/AstroDistributions.js
 +++ b/astrostudyui/src/components/astro/AstroDistributions.js
-@@ -12,6 +12,7 @@ import * as AstroText from '../../constants/AstroText';
- import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+@@ -14,6 +14,7 @@ import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
  import UpdatingBadge from '../common/UpdatingBadge';
  import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+ import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
  const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
-@@ -127,7 +128,8 @@ class AstroDistributions extends Component {
- 				this.setState({ loading: false, requestKey: k });
+@@ -133,7 +134,8 @@ class AstroDistributions extends Component {
  				return;
  			}
--			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: k });
+ 			clearLoadFailure(this);
+-			this.setState({ result: unwrapResult(data) || {}, resultSig, loading: false, requestKey: k });
 +			// horosa_panel_ready_v1:界推运表(本技法唯一可见内容)落定的那一次 setState。
-+			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: k }, ()=>{ markPanelReady('direction'); });
++			this.setState({ result: unwrapResult(data) || {}, resultSig, loading: false, requestKey: k }, ()=>{ markPanelReady('direction'); });
  		}catch(e){
- 			if(!this._mounted) return;
- 			this.setState({ loading: false, requestKey: k });
+ 			if(!this._mounted || seq !== this._loadSeq) return;
+ 			parkLoadFailure(this, k);

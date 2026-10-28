@@ -1,6 +1,7 @@
 import moment from 'moment';
 import * as AstroConst from '../constants/AstroConst';
 import * as AstroText from '../constants/AstroText';
+import { zonedBirthMomentOfChart, civilDateOfMoment } from './civilMoment';
 
 export const DECENNIAL_START_MODE_SECT_LIGHT = 'sect_light';
 export const DECENNIAL_ORDER_ZODIACAL = 'zodiacal';
@@ -107,45 +108,10 @@ const MINUTES_PER_YEAR = 12 * MINUTES_PER_MONTH;
 const ACTUAL_YEAR_SCALE_NUMERATOR = 1461;
 const ACTUAL_YEAR_SCALE_DENOMINATOR = 1440;
 
-function normalizeDateInput(dateText){
-	return `${dateText || ''}`.trim().replace(/\//g, '-');
-}
-
-function normalizeTimeInput(timeText){
-	const text = `${timeText || ''}`.trim();
-	if(!text){
-		return '00:00:00';
-	}
-	if(text.length === 5){
-		return `${text}:00`;
-	}
-	return text;
-}
-
+// 出生时刻:民用历单源(公元前负号、公元前 1 年、儒略闰日都认),落在出生时区上(缺省东八区);
+// 不再交给 moment 的格式解析 / 引擎猜(公元前丢负号、'-0001' 被猜成 2001 年、1500-02-29 挪到 3 月 1 日)。
 function parseBirthMoment(chartObj){
-	const params = chartObj && chartObj.params ? chartObj.params : {};
-	let dateText = '';
-	let timeText = '';
-	if(params.birth){
-		const parts = `${params.birth}`.trim().split(/\s+/);
-		dateText = parts[0] || '';
-		timeText = parts[1] || '';
-	}else{
-		dateText = params.date || '';
-		timeText = params.time || '';
-	}
-	const zone = `${params.zone || '+08:00'}`.trim();
-	const raw = `${normalizeDateInput(dateText)} ${normalizeTimeInput(timeText)} ${zone}`;
-	const parsed = moment.parseZone(raw, [
-		'YYYY-MM-DD HH:mm:ss Z',
-		'YYYY-M-D HH:mm:ss Z',
-		'YYYY-MM-DD HH:mm Z',
-		'YYYY-M-D HH:mm Z',
-	], true);
-	if(parsed.isValid()){
-		return parsed;
-	}
-	return moment.parseZone(raw);
+	return zonedBirthMomentOfChart(chartObj, '+08:00');
 }
 
 function getChartObject(chartObj, objId){
@@ -309,9 +275,14 @@ function scaleNominalSegments(segments, calendarType, roundUnit = 1){
 	return scaled;
 }
 
+// 期界标签:日期经民用历单源(1582-10-15 以前写儒略历日期、公元前带负号;以后与 format('YYYY-MM-DD') 逐字相同),时分取出生地钟面。
+function civilLabelOf(m, withTime){
+	const date = civilDateOfMoment(m);
+	return withTime ? `${date} ${m.format('HH:mm')}` : date;
+}
+
 function formatRange(startMoment, endMoment, withTime){
-	const fmt = withTime ? 'YYYY-MM-DD HH:mm' : 'YYYY-MM-DD';
-	return `${startMoment.format(fmt)} - ${endMoment.format(fmt)}`;
+	return `${civilLabelOf(startMoment, withTime)} - ${civilLabelOf(endMoment, withTime)}`;
 }
 
 function formatNominalOffset(totalMinutes, level){
@@ -379,8 +350,8 @@ function buildNode(level, key, planet, startMoment, endMoment, nowMoment, sublev
 		planet,
 		date: formatRange(startMoment, endMoment, withTime),
 		nominal: formatNominalRange(startOffsetMinutes, endOffsetMinutes, level),
-		startText: startMoment.format(withTime ? 'YYYY-MM-DD HH:mm' : 'YYYY-MM-DD'),
-		endText: endMoment.format(withTime ? 'YYYY-MM-DD HH:mm' : 'YYYY-MM-DD'),
+		startText: civilLabelOf(startMoment, withTime),
+		endText: civilLabelOf(endMoment, withTime),
 		active,
 		startOffsetMinutes,
 		endOffsetMinutes,
@@ -605,7 +576,7 @@ export function getDecennialDayMethodLabel(dayMethod){
 
 export function getDecennialCalendarLabel(calendarType){
 	if(calendarType === DECENNIAL_CALENDAR_ACTUAL){
-		return '365.25天/年（儒略年；回归年为 365.2422 天）';   // [Q-176/T-116c] 换算比 1461/1440 即儒略年,不是回归年
+		return '365.25天/年（儒略年；回归年为 365.2422 天）';   // 换算比 1461/1440 即儒略年,不是回归年
 	}
 	return '360天/年（按30天/月换算）';
 }

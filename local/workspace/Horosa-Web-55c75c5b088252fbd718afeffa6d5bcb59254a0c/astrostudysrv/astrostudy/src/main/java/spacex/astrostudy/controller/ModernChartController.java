@@ -104,7 +104,7 @@ public class ModernChartController {
 				"houseCuspAdvance", "cazimiOrb", "combustOrb", "underBeamsOrb", "vocMode", "vocIncludeOuter", "starOrb", "starOrbMode", "antisciaOrb", "viaCombustaVariant",
 				// 两个 0/1 流派开关(点公式文档序反转/交点入旺)——与 astrostudycn ChartController 同步补齐
 				"lotsDocReverse", "nodeExaltation",
-				// [F3] 天文口径/希腊点变体/尊贵计分/容许度体系/相位对象/自定义表体批——与两 Controller 全集同步
+				// 天文口径/希腊点变体/尊贵计分/容许度体系/相位对象/自定义表体批——与两 Controller 全集同步
 				// (缺省请求体零变;Python webmodernsrv 复合临界区+inner/outer 每盘键消费)
 				"combustOwnChariotExempt", "westLilithType", "topocentricMoon", "stationMarking",
 				"hermeticLotsReversal", "erosConstruction", "lotFortuneVariant", "lotFatherCombustAlt", "lotProjection",

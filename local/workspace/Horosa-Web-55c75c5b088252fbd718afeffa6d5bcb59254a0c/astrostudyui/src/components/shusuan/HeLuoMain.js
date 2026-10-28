@@ -2,12 +2,12 @@ import { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
 import { createSignatureMemo } from '../../utils/memoBySignature';
+import { fieldVal, devFreeze } from './shusuanShared';   // 数算族共用小工具(单源)
 import { sharedNativeModelEnabled } from '../../utils/perfFlags';
 import { Empty } from 'antd';
 import { Solar } from 'lunar-javascript';
 import { XQTabs as Tabs } from '../xq-ui';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
-import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import calc, {
 	daYun, liuNian, liuYue, liuRi, judge, periodLiShu, guaRelations, chartExtras, duiGua, heluoSolarTermOfDate,
 	yaoText, guaInfo, yaoName, buildSnapshotText, NAME_TO_TRI, guaLines,
@@ -18,22 +18,19 @@ import { Gua64 } from '../gua/GuaConst';   // 复用 六爻/统摄法 的纳甲�
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 import { ganzhiYearBase } from '../../utils/ganzhiYearBase';
+import { chartDayBoundary } from '../../utils/dayBoundaryResolve';
 
 // 纳甲天干（内卦/外卦）：仅乾坤内外异，余卦内外同
 const NAJIA_GAN = { 乾: ['甲', '壬'], 坤: ['乙', '癸'], 震: ['庚', '庚'], 巽: ['辛', '辛'], 坎: ['戊', '戊'], 離: ['己', '己'], 艮: ['丙', '丙'], 兌: ['丁', '丁'] };
 const LIUQIN_SHORT = { 父母: '父', 兄弟: '兄', 官鬼: '官', 妻财: '財', 妻財: '財', 子孙: '子', 子孫: '子' };
 const { TabPane } = Tabs;
 
-// [Q-436] 快照 [起卦详情] 段所需模型片段(与中栏「起卦详情」卡同一 getModel 产物;无头侧由 aiAnalysisContext 同形构造)。
+// 快照 [起卦详情] 段所需模型片段(与中栏「起卦详情」卡同一 getModel 产物;无头侧由 aiAnalysisContext 同形构造)。
 function heluoSnapshotDetail(m) {
 	if (!m) return null;
 	return { fourPillars: m.fourPillars, monthZhi: m.monthZhi, st: m.st, nayin: m.nayin, birthYear: m.birthYear, extras: m.extras };
 }
 
-function fieldVal(fields, key, fallback = '') {
-	if (!fields || !fields[key] || fields[key].value === undefined || fields[key].value === null) return fallback;
-	return fields[key].value;
-}
 
 
 // slot: 'center'(主信息·滑动) | 'aux'(辅助信息·卡片)。四柱来自 baziLunarLocal（星阙自己的八字，不走后端）。
@@ -43,23 +40,10 @@ function fieldVal(fields, key, fallback = '') {
 // center 先算、aux 同签名直接命中(4 槽足够:两实例只差 slot,签名同源)。
 // 共享引用只读契约:各消费方 render 不就地改写 model(dev 下深冻结保险丝);关开关=各算各的旧行为。
 const sharedModelMemo = createSignatureMemo(4);
-const devFreeze = (v) => {
-	if(process.env.NODE_ENV !== 'production' && v && typeof v === 'object'){
-		try{ deepFreeze(v); }catch(e){ /* 冻结失败不碍事 */ }
-	}
-	return v;
-};
-function deepFreeze(o){
-	Object.freeze(o);
-	Object.keys(o).forEach((k) => {
-		const c = o[k];
-		if(c && typeof c === 'object' && !Object.isFrozen(c)){ deepFreeze(c); }
-	});
-}
 
 class HeLuoMain extends Component {
 	// horosa_shusuan_native_scu_v1(PERF-R9;v3.5.1 起与上游 [R3-A6] 守卫合一 —— 语义同 wrapperPropsEqual,单一实现防双 sCU)
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -75,10 +59,9 @@ class HeLuoMain extends Component {
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 	}
 
-
 	componentDidMount() {
 		this.saveSnap();
-		// v2.2.1: 监听全局日界 / 晚子时·时柱起干切换 → 强制重渲(getModel 内部用 defaultAfter23NewDay/defaultLateZiHourUseNextDay 实时读 localStorage)。
+		// v2.2.1: 监听全局日界 / 晚子时·时柱起干切换 → 强制重渲(getModel 内部经 chartDayBoundary:本盘没值时实时读全局)。
 		if(typeof window !== 'undefined'){
 			this._dayBoundaryListener = () => { if(!this._unmounted) this.forceUpdate(); };
 			this._lateZiHourListener = () => { if(!this._unmounted) this.forceUpdate(); };
@@ -164,15 +147,14 @@ class HeLuoMain extends Component {
 			date: dateStr,
 			time: timeMoment.format('HH:mm:ss'),
 			lon: fieldVal(f, 'lon', ''),
-			// [挂载自检 F-19·P0] 时区:此前不传 → baziLunarLocal 按 +08:00 校正真太阳时,非东八区命例四柱错、与 AI 挂载分叉。
+			// 时区:此前不传 → baziLunarLocal 按 +08:00 校正真太阳时,非东八区命例四柱错、与 AI 挂载分叉。
 			zone: fieldVal(f, 'zone', '') || (f && f.date && f.date.value && f.date.value.zone) || '',
 			// 性别以左栏下拉(props.gender '1'/'0')为准，接线到本地引擎；缺省回退 fields。
 			gender: this.props.gender !== undefined ? Number(this.props.gender) : fieldVal(f, 'gender', 1),
 			timeAlg: fieldVal(f, 'timeAlg', 1),
-			// [Q-358/T-339] 日界 / 晚子时改读盘面 fields(载盘还原 / 八字左栏改过的值),缺席才回退全局:此前恒读全局 →
+			// 日界 / 晚子时改读盘面 fields(载盘还原 / 八字左栏改过的值),缺席才回退全局:此前恒读全局 →
 			//   左栏或存盘日界 ≠ 全局时,23 点档出生者本页四柱与八字页、AI 挂载分叉。缺省(fields 由全局播种)逐字不变。
-			after23NewDay: fieldVal(f, 'after23NewDay', defaultAfter23NewDay()),
-			lateZiHourUseNextDay: fieldVal(f, 'lateZiHourUseNextDay', defaultLateZiHourUseNextDay()),
+			...chartDayBoundary(f),
 		};
 		// 实例 memo:输入签名(四柱参数+日界/晚子+取化工法)不变即返缓存,避免 render/componentDidUpdate→saveSnap/
 		// 快照 handler 多处反复跑「八字+calc+daYun+solarTerm+judge+extras」全量重算(卡顿根因)。算法不变。
@@ -417,7 +399,7 @@ class HeLuoMain extends Component {
 								<tr key={y.age} className={`${drilled ? 'is-active' : ''}${open ? ' is-open' : ''}`} onClick={() => this.setState({ openYao: open ? '' : `ln:${lkey}` })}>
 									<td>{y.age}</td>
 									{/* 干支＝干支年;并列公历年便于对年份(该干支年自当年立春起算,故非整公历年) */}
-									<td>{y.ganzhi}{y.year ? <div style={{ fontSize: '11px', opacity: 0.55, fontWeight: 'normal' }}>{y.year}年{lichun ? ` · 立春 ${lichun}` : ''}</div> : null}</td>
+									<td>{y.ganzhi}{y.year ? <div style={{ fontSize: '11px', color: 'var(--horosa-text-secondary)', fontWeight: 'normal' }}>{y.year}年{lichun ? ` · 立春 ${lichun}` : ''}</div> : null}</td>
 									<td>{y.gua}</td>
 									<td>{yaoName(y.lines, y.pos)}</td>
 									<td className="horosa-heluo-tagcell">{this.liShuCell(y.lines, m.jg, m.chart)}</td>
@@ -457,7 +439,7 @@ class HeLuoMain extends Component {
 							const mws = YUE_SEASON[mo.zhi] ? wangShuai(mo.gua, YUE_SEASON[mo.zhi]) : null;
 							return [
 								<tr key={mo.month} className={`${drilled ? 'is-active' : ''}${open ? ' is-open' : ''}`} onClick={() => this.setState({ openYao: open ? '' : `ly:${mkey}` })}>
-									<td>{mo.label}月{jieTs ? <div style={{ fontSize: '11px', opacity: 0.55, fontWeight: 'normal' }}>{jieName} {jieTs}</div> : null}</td>
+									<td>{mo.label}月{jieTs ? <div style={{ fontSize: '11px', color: 'var(--horosa-text-secondary)', fontWeight: 'normal' }}>{jieName} {jieTs}</div> : null}</td>
 									<td>{mo.gua}</td>
 									<td>{yaoName(mo.lines, mo.pos)}</td>
 									<td className="horosa-heluo-tagcell">{this.liShuCell(mo.lines, m.jg, m.chart)}</td>

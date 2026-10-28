@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js b/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js
-index da77b94c..684d352d 100644
+index c63f9cfe..a276c888 100644
 --- a/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js
 +++ b/astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js
-@@ -251,10 +251,17 @@ describe('wheelArt 传链完备性总锁(机械扫描,新增消费点必须显
+@@ -252,10 +252,17 @@ describe('wheelArt 传链完备性总锁(机械扫描,新增消费点必须显
  		'components/astro/AstroZR.js',
  	]);
  
@@ -21,7 +21,7 @@ index da77b94c..684d352d 100644
  			const src = fs.readFileSync(full, 'utf8');
  			let idx = 0;
  			for(;;){
-@@ -286,7 +293,7 @@ describe('wheelArt 传链完备性总锁(机械扫描,新增消费点必须显
+@@ -287,7 +294,7 @@ describe('wheelArt 传链完备性总锁(机械扫描,新增消费点必须显
  			}
  			const m = src.match(/const\s+\w*_SCU_KEYS\s*=\s*\[([\s\S]*?)\]/);
  			if(m && !m[1].includes("'wheelArt'")){

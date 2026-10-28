@@ -64,6 +64,11 @@ jest.mock('../../components/jinkou/JinKouState', ()=>({
 jest.mock('../../components/dunjia/DunJiaCalc', ()=>({
 	calcDunJia: jest.fn(()=>({ kind: 'qimen-pan' })),
 	buildDunJiaSnapshotText: jest.fn(()=> '自动生成的奇门快照'),
+	migrateLegacyQimenSchool: jest.requireActual('../../components/dunjia/DunJiaCalc').migrateLegacyQimenSchool,
+	// 齿轮的中门飞宫 / 混合层档名取 DunJiaCalc 的共用常量(纯数据,用真值)
+	FEI_MEN_ZHONG_CAN_LABELS: jest.requireActual('../../components/dunjia/DunJiaCalc').FEI_MEN_ZHONG_CAN_LABELS,
+	MIX_LAYER_LABELS: jest.requireActual('../../components/dunjia/DunJiaCalc').MIX_LAYER_LABELS,
+	mixLayerDefaultLabel: jest.requireActual('../../components/dunjia/DunJiaCalc').mixLayerDefaultLabel,
 }));
 
 jest.mock('../../components/taiyi/TaiYiCalc', ()=>({
@@ -96,7 +101,8 @@ jest.mock('../../divination/election/electionSnapshot', ()=>({
 	buildElectionSnapshot: jest.fn(()=> '自动生成的择日盘快照'),
 }));
 
-jest.mock('../../components/comp/DateTime', ()=> jest.fn().mockImplementation(()=>({
+// 替身同时带上「此刻按盘时区」两个静态入口(DateTime.nowForChart / wallClockForChart),与真类同形
+jest.mock('../../components/comp/DateTime', ()=> Object.assign(jest.fn().mockImplementation(()=>({
 	ad: 1,
 	zone: '+08:00',
 	clone(){
@@ -111,7 +117,7 @@ jest.mock('../../components/comp/DateTime', ()=> jest.fn().mockImplementation(()
 		}
 		return '10:00:00';
 	},
-})));
+})), { nowForChart(){ return new this(); }, nowInZone(){ return new this(); }, wallClockForChart(){ return new Date(); } }));
 
 import fs from 'fs';
 import path from 'path';
@@ -121,6 +127,7 @@ import {
 	buildPromptContextForTests,
 	clipContextLayersDetailed,
 } from '../aiAnalysisContext';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 // ============ oracle：改前 clipContextLayers 旧算法原样拷贝（一行不改） ============
 function legacyClip(layers, options = {}){

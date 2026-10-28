@@ -1,4 +1,4 @@
-// 🔴 [V5-C9] schema 夹具矩阵(Room 范式):每个历史 schemaVersion 冻结一份「旧世界备份」
+// 🔴 schema 夹具矩阵(Room 范式):每个历史 schemaVersion 冻结一份「旧世界备份」
 // fixture,测试跑 v_n → 当前版 的完整导入路径逐字段校验 —— 「从很老版本一步跳到最新」
 // 的组合路径永远有 golden 覆盖。
 //
@@ -12,7 +12,7 @@ import { LOCAL_RECORD_SCHEMA_VERSION } from '../localRecordStore';
 
 const FIXTURES_ROOT = path.join(__dirname, '..', '..', 'test', 'fixtures');
 
-describe('[V5-C9] schema 夹具矩阵', ()=>{
+describe('schema 夹具矩阵', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});

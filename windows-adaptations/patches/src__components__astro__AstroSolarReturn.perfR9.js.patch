@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroSolarReturn.js b/astrostudyui/src/components/astro/AstroSolarReturn.js
-index 787172f5..d8741a28 100644
+index 2f6f7bed..33434332 100644
 --- a/astrostudyui/src/components/astro/AstroSolarReturn.js
 +++ b/astrostudyui/src/components/astro/AstroSolarReturn.js
 @@ -9,7 +9,7 @@ import * as AstroText from '../../constants/AstroText';
@@ -10,8 +10,8 @@ index 787172f5..d8741a28 100644
 +import { convertToArray} from '../../utils/helper';
  import styles from '../../css/styles.less';
  import DateTime from '../comp/DateTime';
- import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-@@ -20,6 +20,11 @@ import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+ import { returnPickerSeed } from '../../utils/returnPickerSeed';
+@@ -22,6 +22,11 @@ import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
  import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
  import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
  import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
@@ -23,7 +23,7 @@ index 787172f5..d8741a28 100644
  
  const TabPane = Tabs.TabPane;
  const Option = Select.Option;
-@@ -38,6 +43,7 @@ class AstroSolarReturn extends Component{
+@@ -40,6 +45,7 @@ class AstroSolarReturn extends Component{
  		this.requestData = this.requestData.bind(this);
  		this.genAspectDom = this.genAspectDom.bind(this);
  		this.changeDblChartType = this.changeDblChartType.bind(this);
@@ -31,7 +31,7 @@ index 787172f5..d8741a28 100644
  		this.renderPlanetLabel = this.renderPlanetLabel.bind(this);
  		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
  
-@@ -70,6 +76,9 @@ class AstroSolarReturn extends Component{
+@@ -72,6 +78,9 @@ class AstroSolarReturn extends Component{
  			},
  			dirChart: null,
  			inverse: DIRECTION_PAGE_SETTINGS.load().solarReturnInverse,   // 上次亲手选的双盘内外圈
@@ -41,7 +41,7 @@ index 787172f5..d8741a28 100644
  		}
  
  		if(this.state.params.date){
-@@ -122,7 +131,13 @@ class AstroSolarReturn extends Component{
+@@ -124,7 +133,13 @@ class AstroSolarReturn extends Component{
  	}
  
  	genNatalParams(chartObj){
@@ -53,38 +53,41 @@ index 787172f5..d8741a28 100644
 +		// 盘对象自此只读 —— 这也是任何按引用比较的 memo/sCU 能成立的前提。
 +		const src = (chartObj && chartObj.params) ? chartObj.params : {};
 +		let qryparam = { ...src };
- 		let datetime = new DateTime();
+ 		// 「今年 / 此刻」按本盘时区(DateTime.nowForChart);东八区盘逐位不变
+ 		let datetime = DateTime.nowForChart(qryparam.zone);
  		if(qryparam.birth){
- 			let parts = qryparam.birth.split(' ');
-@@ -211,6 +226,8 @@ class AstroSolarReturn extends Component{
+@@ -212,6 +227,8 @@ class AstroSolarReturn extends Component{
  		};
  
  		this.setState(st, ()=>{
 +			// horosa_panel_ready_v1:返照盘数据落定(中栏盘 + 右栏相位同源于 st.dirChart)的唯一提交点。
 +			markPanelReady('direction');
  			const chartValue = chartValueAtRequest;
- 			saveModuleAISnapshotLazy('solarreturn', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'solarreturn'), {
- 				module: 'solarreturn',
-@@ -278,7 +295,30 @@ class AstroSolarReturn extends Component{
+ 			saveModuleAISnapshotLazy('solarreturn', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'solarreturn'), this.snapshotMeta());
+ 		});
+@@ -277,7 +294,33 @@ class AstroSolarReturn extends Component{
  		});
  	}
  
 +	// horosa_aspect_dom_memo_v1(PERF-R9 Ship 6):右栏相位清单的输出**只**由三样东西决定 ——
-+	// state.dirChart(返照盘结果对象,每次请求整体替换)、props.value(本命盘)、props.showPlanetHouseInfo
++	// shownDirChart()(返照盘结果对象,每次请求整体替换;v3.12.0 起按命主来源键配对)、props.value(本命盘)、props.showPlanetHouseInfo
 +	// (renderPlanetLabel 唯一读到的 prop)。三者引用全同 ⇒ 输出逐字节相同,直接复用上次的元素树:
 +	// 「更新中」角标开合、子页签切换、父组件重渲等与相位无关的重渲不再重建数百个 React 元素。
 +	// 任一引用变化(含内容整体替换)立即重建 —— 不存在陈旧,亦不依赖任何深比较。
  	genAspectDom(){
++		// v3.12.0 起派生盘按来源键配对(shownDirChart:换盘在途 / 新盘取盘失败时视为无盘),
++		// 缓存键随之取「实际渲染的那张」而非 state.dirChart —— 否则换盘瞬间会把上一位命主的相位树当缓存命中。
++		const dir = this.shownDirChart();
 +		const cache = this._aspectDomCache;
 +		if(cache
-+			&& cache.dir === this.state.dirChart
++			&& cache.dir === dir
 +			&& cache.natal === this.props.value
 +			&& cache.phi === this.props.showPlanetHouseInfo){
 +			return cache.dom;
 +		}
 +		const dom = this.buildAspectDom();
 +		this._aspectDomCache = {
-+			dir: this.state.dirChart,
++			dir: dir,
 +			natal: this.props.value,
 +			phi: this.props.showPlanetHouseInfo,
 +			dom: dom,
@@ -93,10 +96,10 @@ index 787172f5..d8741a28 100644
 +	}
 +
 +	buildAspectDom(){
- 		if(this.state.dirChart === undefined || this.state.dirChart === null){
+ 		if(this.shownDirChart() === undefined || this.shownDirChart() === null){
  			return null;
  		}
-@@ -338,7 +378,7 @@ class AstroSolarReturn extends Component{
+@@ -337,7 +380,7 @@ class AstroSolarReturn extends Component{
  			cols.push(divs[i]);
  		}
  		rows.push((
@@ -105,7 +108,7 @@ index 787172f5..d8741a28 100644
  				{cols}
  			</Row>
  		));
-@@ -358,6 +398,10 @@ class AstroSolarReturn extends Component{
+@@ -357,6 +400,10 @@ class AstroSolarReturn extends Component{
  		});
  	}
  
@@ -116,7 +119,7 @@ index 787172f5..d8741a28 100644
  	componentDidMount(){
  		this.unmounted = false;
  		if(typeof window !== 'undefined'){
-@@ -472,6 +516,7 @@ class AstroSolarReturn extends Component{
+@@ -481,6 +528,7 @@ class AstroSolarReturn extends Component{
  			overflowX:'hidden',
  		};
  		let chartHeight = height - 50;
@@ -124,10 +127,10 @@ index 787172f5..d8741a28 100644
  
  		return (
  			<div>
-@@ -480,12 +525,18 @@ class AstroSolarReturn extends Component{
+@@ -489,12 +537,18 @@ class AstroSolarReturn extends Component{
  						{/* keep-stale 角标:重取期间旧返照盘留在盘面,右上角提示「更新中…」;首次加载(无旧盘)不显示 */}
  						<div style={{ position: 'relative' }}>
- 						{this.state.updating && this.state.dirChart ? <UpdatingBadge /> : null}
+ 						{this.state.updating && this.shownDirChart() ? <UpdatingBadge /> : null}
 +						{/* horosa_freeze_subtabs_v1:三张盘此前全部常驻重渲(每次切时间/改选项都画 3 张)。
 +						    改受控 + FreezeSubTab:只有前台那张参与重渲;切回时拿本轮最新 children 立即渲一帧,
 +						    不卸载、不重发请求、不丢滚动位置。截图只取激活面板(pageScreenshot.findActiveTechniquePane),
@@ -145,7 +148,7 @@ index 787172f5..d8741a28 100644
  										wheelArt={this.props.wheelArt}
  										chartDisplay={this.props.chartDisplay}
  										planetDisplay={this.props.planetDisplay}
-@@ -493,9 +544,11 @@ class AstroSolarReturn extends Component{
+@@ -502,9 +556,11 @@ class AstroSolarReturn extends Component{
  										showAstroMeaning={this.props.showAstroMeaning}
  										height={chartHeight}
  									/>
@@ -158,7 +161,7 @@ index 787172f5..d8741a28 100644
  										wheelArt={this.props.wheelArt}
  										chartDisplay={this.props.chartDisplay}
  										planetDisplay={this.props.planetDisplay}
-@@ -503,15 +556,18 @@ class AstroSolarReturn extends Component{
+@@ -512,15 +568,18 @@ class AstroSolarReturn extends Component{
  										showAstroMeaning={this.props.showAstroMeaning}
  										height={chartHeight}
  									/>

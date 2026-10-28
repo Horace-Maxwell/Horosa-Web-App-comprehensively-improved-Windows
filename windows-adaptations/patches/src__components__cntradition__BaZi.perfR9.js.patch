@@ -1,19 +1,22 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZi.js b/astrostudyui/src/components/cntradition/BaZi.js
-index bc230933..c2965aed 100644
+index 344b19a0..3a7b1b28 100644
 --- a/astrostudyui/src/components/cntradition/BaZi.js
 +++ b/astrostudyui/src/components/cntradition/BaZi.js
-@@ -1,8 +1,9 @@
+@@ -1,4 +1,4 @@
 -import { Component } from 'react';
 +import { Component, memo } from 'react';
+ import { responseCacheable } from '../../utils/resultEnvelope';
+ import { leapPrefix } from '../../utils/lunarText';
  import { splitBaziCalibrePatch, applyBaziCalibreOverride } from '../../utils/baziCalibreScope';
- import { recordNewChartSeeds } from '../../utils/newChartSeeds';
+@@ -6,6 +6,7 @@ import { recordNewChartSeeds } from '../../utils/newChartSeeds';
+ import { sendScopedFields } from '../../utils/scopedFieldsSink';
  import { buildTimeBasisLine } from '../../utils/timeBasisLine';
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 +import { markPanelReady } from '../../utils/perfMark';
  import { safeLocalStorageSet } from '../../utils/safeStorage';
  import { XQTabs as Tabs } from '../xq-ui';
  import CnTraditionInput from './CnTraditionInput';
-@@ -28,6 +29,17 @@ import { visualFloorPx } from '../../utils/zoomDomain';
+@@ -34,6 +35,17 @@ import { registerProcessCache } from '../../utils/processCacheRegistry';
  
  const TabPane = Tabs.TabPane;
  
@@ -28,10 +31,10 @@ index bc230933..c2965aed 100644
 +const EMPTY_BAZI = {};
 +const EMPTY_PARAMS = {};
 +
- const BaZiOptKey = 'baziopt';
+ const BaZiOptKey = BAZI_OPT_STORAGE_KEY;   // 键名单源(挂载重算回落页面保存值读同一把键)
  // 本页「年龄」档(虚岁 nominal / 周岁 real),供其他模块换算岁数时同口径;读不到按虚岁(缺省)。
  export function loadBaziAgeStyle(){
-@@ -1001,9 +1013,18 @@ class BaZi extends Component{
+@@ -1041,9 +1053,18 @@ class BaZi extends Component{
  		});
  	}
  
@@ -51,21 +54,25 @@ index bc230933..c2965aed 100644
  		});
  	}
  
-@@ -1037,6 +1058,32 @@ class BaZi extends Component{
+@@ -1078,6 +1099,36 @@ class BaZi extends Component{
  		return params;
  	}
  
 +	// horosa_bazi_param_memo_v1：render 期的 genParams 结果稳定化。
 +	// genParams 的全部输入 = fields（引用）+ this.state.baziOpt（引用）；两者同引用 ⇒ 输出逐字段相同，
 +	// 直接复用旧对象。旧码每次 render 新建对象 → 作为 jieqiParams 传下去会让行运面板的 memo 恒失效。
++	// genParams 的日界 / 晚子时经 chartDayBoundary 取(本盘缺键时读全局现值)→ 两键解析值一并进键,
++	// 全局改了而 fields 引用未变时不复用旧对象。
 +	memoBaziParams(fields){
 +		const opt = this.state.baziOpt;
++		const db = chartDayBoundary(fields);
 +		const cache = this._paramsCache;
-+		if(cache && cache.fields === fields && cache.opt === opt){
++		if(cache && cache.fields === fields && cache.opt === opt
++			&& cache.a23 === db.after23NewDay && cache.lz === db.lateZiHourUseNextDay){
 +			return cache.out;
 +		}
 +		const out = this.genParams(fields);
-+		this._paramsCache = { fields, opt, out };
++		this._paramsCache = { fields, opt, a23: db.after23NewDay, lz: db.lateZiHourUseNextDay, out };
 +		return out;
 +	}
 +
@@ -84,7 +91,7 @@ index bc230933..c2965aed 100644
  	async prefetchBazi(fields){
  		if(fields === undefined || fields === null){
  			return;
-@@ -1073,7 +1120,14 @@ class BaZi extends Component{
+@@ -1115,7 +1166,14 @@ class BaZi extends Component{
  			flowSelection: this.state.currentBaziKey === currentBaziKey ? this.state.flowSelection : null,
  		};
  
@@ -97,10 +104,10 @@ index bc230933..c2965aed 100644
 +		this.setState(st, ()=>{
 +			markPanelReady('bazi');
 +		});
- 		// 惰性构建:快照文本拼装挪出排盘关键路径(params/result 为局部量,闭包安全)。
- 		// 须带 school（断命流派）→ 否则不触发 refresh 的场景 AI 快照恒标「传统综合」(与 handleSnapshotRefreshRequest 同口径)。
- 		// [Q-191/T-135] 年龄档与生肖岁首进快照参数(两项此前只作用于页面,快照拿不到)。
-@@ -1221,11 +1275,11 @@ class BaZi extends Component{
+ 		this.saveBaziSnapshot(params, result);
+ 	}
+ 
+@@ -1279,11 +1337,11 @@ class BaZi extends Component{
  		}
  		let tabHeight = height - 20;
  
@@ -115,7 +122,7 @@ index bc230933..c2965aed 100644
  		const isFineChart = this.state.chartStyle === 'fine' || this.state.chartStyle === 'ancient';
  		const isLegacyUi = this.state.baziOpt && this.state.baziOpt.uiMode === 'legacy';
  		// 盘槽高度只由主栈的网格行决定(样式单源),盘的滚动盒一律 100% 贴槽 —— 此前 JS 另按「工作区高 × 0.62」给滚动盒 px 高,
-@@ -1240,7 +1294,7 @@ class BaZi extends Component{
+@@ -1298,7 +1356,7 @@ class BaZi extends Component{
  						<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-bazi-input-panel">
  							{/* [择日宿主] 左栏插槽:择日入口板块(主八字页不传=零渲染) */}
  							{typeof this.props.renderLeftExtra === 'function' ? this.props.renderLeftExtra() : null}
@@ -123,8 +130,8 @@ index bc230933..c2965aed 100644
 +							<MemoCnTraditionInput
  								fields={this.effFields()}
  								baziOpt={this.state.baziOpt}
- 								chartStyle={this.state.chartStyle}   /* [Q-190/T-131] 左栏据此判「古法盘下这项不画」 */
-@@ -1266,7 +1320,7 @@ class BaZi extends Component{
+ 								chartStyle={this.state.chartStyle}   /* 左栏据此判「古法盘下这项不画」 */
+@@ -1324,7 +1382,7 @@ class BaZi extends Component{
  										/>
  									</div>
  									<div className="horosa-bazi-main-flow-slot">

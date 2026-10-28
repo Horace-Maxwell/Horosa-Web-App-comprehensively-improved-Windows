@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/commtools/BaziPattern.js b/astrostudyui/src/components/commtools/BaziPattern.js
-index d3a586ff..c75b08be 100644
+index d0637ac2..0ecbb841 100644
 --- a/astrostudyui/src/components/commtools/BaziPattern.js
 +++ b/astrostudyui/src/components/commtools/BaziPattern.js
-@@ -356,12 +356,16 @@ export default class BaziPattern extends Component{
+@@ -357,12 +357,16 @@ export default class BaziPattern extends Component{
      }
  
      changeAttribute(key, val){

@@ -1,0 +1,57 @@
+diff --git a/astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js b/astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js
+index 4c8662ef..57ae2ad9 100644
+--- a/astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js
++++ b/astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js
+@@ -612,17 +612,38 @@ describe('内嵌页口径 × 扫描口径:四个内嵌页的每个可改键都
+ 	});
+ 
+ 	test('锁定的控件在内嵌页里置灰,宿主把锁定表交给内嵌页;锁定判据带控件当前值(与控件 value 同一表达式)', ()=>{
++		// horosa_win_slice_form_v1(Windows 侧移植适配):六壬 / 三式合一的左栏在我方渲染切片里是子组件,切片内 this 不是宿主,
++		// 存案标记经 props 进入。两种切片形与上游原形三形皆认:
++		//   上游原形   zeriLockProps(this.props.zeriLocked, 'k', V, this._zeriRestoredLocks)(TaiYiMain 等未切片宿主)
++		//   类切片形   zeriLockProps(this.props.zeriLocked, 'k', V, this.props.zeriRestoredLocks)(三式合一 horosa_sanshi_render_slice_v1)
++		//   函数局部形 const L = zeriLockProps(p.zeriLocked, 'k', p.X, p.zeriRestoredLocks); … title={L.title} … value={p.X} … disabled={!!L.disabled}
++		//              (六壬 horosa_liureng_render_slice_v1 的 LiuRengInputPanel)
++		// 判据零放宽:第三参仍须与同一行 Select 的 value 逐字相同、第四参仍须是存案标记、title 与 disabled 同一判据;两种切片形另钉
++		// 宿主把原值交给切片(zeriLocked={this.props.zeriLocked} / zeriRestoredLocks={this._zeriRestoredLocks};局部形再钉 X={this.state.k})。
++		const hostWired = (t)=>t.indexOf('zeriLocked={this.props.zeriLocked}') >= 0 && t.indexOf('zeriRestoredLocks={this._zeriRestoredLocks}') >= 0;
++		const sliceLockedForm = (t, k)=>{
++			const d = t.match(new RegExp(`const (\\w+) = zeriLockProps\\(p\\.zeriLocked, '${k}', p\\.(\\w+), p\\.zeriRestoredLocks\\);`));
++			if(!d){ return false; }   // 认不出局部形 → 照走上游原判据(原样红)
++			const lock = d[1];
++			const prop = d[2];
++			expect([k, new RegExp(`value=\\{p\\.${prop}\\}[^\\n]*?disabled=\\{!!${lock}\\.disabled\\}`).test(t)]).toEqual([k, true]);
++			expect([k, t.indexOf(`title={${lock}.title}`) >= 0]).toEqual([k, true]);
++			expect([k, t.indexOf(`${prop}={this.state.${k}}`) >= 0, hostWired(t)]).toEqual([k, true, true]);
++			return true;
++		};
+ 		const lockedIn = (file, keys)=>{
+ 			const t = read(file);
+ 			keys.forEach((k)=>{
+ 				// 同一行 <Select … value={V} … disabled={!!zeriLockProps(this.props.zeriLocked, 'k', V, 标记).disabled}>:V 两处逐字相同;
+ 				// 第四参 = 本页载入存案时记下的显式存案标记(不再按「值不等」推定来自存案)
+-				const re = new RegExp(`value=\\{([^{}]*)\\}[^\\n]*?disabled=\\{!!zeriLockProps\\(this\\.props\\.zeriLocked, '${k}', ([^,{}]*), this\\._zeriRestoredLocks\\)\\.disabled\\}`);
++				const re = new RegExp(`value=\\{([^{}]*)\\}[^\\n]*?disabled=\\{!!zeriLockProps\\(this\\.props\\.zeriLocked, '${k}', ([^,{}]*), (this\\._zeriRestoredLocks|this\\.props\\.zeriRestoredLocks)\\)\\.disabled\\}`);
+ 				const m = t.match(re);
++				if(!m && sliceLockedForm(t, k)){ return; }
+ 				expect([k, !!m]).toEqual([k, true]);
+ 				expect([k, m[2].trim()]).toEqual([k, m[1].trim()]);
+ 				// 悬停说明同一判据(载入存案时的提示)
+-				expect([k, t.indexOf(`title={zeriLockProps(this.props.zeriLocked, '${k}', ${m[2].trim()}, this._zeriRestoredLocks).title}`) >= 0]).toEqual([k, true]);
++				expect([k, t.indexOf(`title={zeriLockProps(this.props.zeriLocked, '${k}', ${m[2].trim()}, ${m[3]}).title}`) >= 0]).toEqual([k, true]);
++				if(m[3] !== 'this._zeriRestoredLocks'){ expect([k, hostWired(t)]).toEqual([k, true]); }
+ 			});
+ 			// 全文件不许有不带当前值 / 不带存案标记的锁定判据
+ 			expect(t.match(/zeriLockProps\(this\.props\.zeriLocked, '\w+'\)/g)).toBe(null);
+@@ -780,7 +801,10 @@ function dayBoundaryScanFiles(){
+ 		if(!/^\.\.?\//.test(r.from)){ return; }
+ 		const base = path.join(path.dirname(rel(r.file)), r.from);
+ 		const f = fs.existsSync(`${base}.js`) ? `${base}.js` : (fs.existsSync(path.join(base, 'index.js')) ? path.join(base, 'index.js') : null);
+-		if(f){ set.add(path.relative(SRC, f)); }
++		// horosa_win_pathsep_posix_v1(Windows 侧移植适配;建议上游化):`path.relative` 在 Windows 返回反斜杠分隔
++		// (`components\dunjia\DunJiaCalc.js`),而 zeriFiles() 与下方期望表 / DB_PENDING 都是 POSIX 写法 ⇒ 技法引擎
++		// 「不在扫描面」、同一文件以两种写法各进 Set 一次(macOS 恒绿)。归一到 POSIX 再入集合;扫描面零变化。
++		if(f){ set.add(path.relative(SRC, f).split(path.sep).join('/')); }
+ 	});
+ 	return Array.from(set);
+ }

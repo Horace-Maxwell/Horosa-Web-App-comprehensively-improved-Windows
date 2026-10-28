@@ -129,8 +129,9 @@ function readPanes(src){
 
 const IMPORT_MAP = readImportMap(INDEX_SRC);
 const PANES = readPanes(INDEX_SRC);
-// v3.11.0 实测 30 个顶层技法页;下限钉死防「解析失效 ⇒ 空集 ⇒ 全绿」。上游新增只会更多。
-const MIN_PANES = 30;
+// v3.11.0 实测 30 个顶层技法页;v3.12.0 上游撤掉书库 / 多媒体 / 管理工具三页(BookMain / MediaMain / AdminToolsMain)后为 27。
+// 下限钉死防「解析失效 ⇒ 空集 ⇒ 全绿」;上游再撤页时须核对后同步下调,不许为过而降。
+const MIN_PANES = 27;
 
 // ───────── 首屏 props:与 index.js 传给各面板的完全同源(dva 各模型初始态) ─────────
 const astroModel = require('../../models/astro').default;

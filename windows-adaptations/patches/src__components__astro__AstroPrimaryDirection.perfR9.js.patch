@@ -1,14 +1,14 @@
 diff --git a/astrostudyui/src/components/astro/AstroPrimaryDirection.js b/astrostudyui/src/components/astro/AstroPrimaryDirection.js
-index d5bed971..57a4363f 100644
+index a3e69ded..cf1c84db 100644
 --- a/astrostudyui/src/components/astro/AstroPrimaryDirection.js
 +++ b/astrostudyui/src/components/astro/AstroPrimaryDirection.js
 @@ -1,4 +1,5 @@
  import { fetchPdPoles } from '../../services/astroPd3d';
 +import { markPanelReady } from '../../utils/perfMark';
  import { Component } from 'react';
- import { fetchPd3D } from '../../services/astroPd3d'; // [WP-5.2] pd3d 调试透镜(hover 显示引擎坐标,零后端改动)
+ import { fetchPd3D } from '../../services/astroPd3d'; // pd3d 调试透镜(hover 显示引擎坐标,零后端改动)
  import { safeLocalStorageSet } from '../../utils/safeStorage';
-@@ -328,6 +329,11 @@ class AstroPrimaryDirection extends Component{
+@@ -332,6 +333,11 @@ class AstroPrimaryDirection extends Component{
  	}
  
  	componentDidUpdate(prevProps){

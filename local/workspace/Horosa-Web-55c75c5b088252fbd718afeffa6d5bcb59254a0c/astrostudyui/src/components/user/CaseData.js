@@ -11,6 +11,7 @@ import { applyDstToFields } from '../../utils/timezone';
 import { applyGeoNameToFields } from '../../utils/geoName';
 import DstZoneIndicator from '../comp/DstZoneIndicator';
 import { CASE_TYPE_OPTIONS, getCaseTypeMeta, listLocalCases, upsertLocalCase } from '../../utils/localcases';
+import { toRecordCopy } from '../../utils/localRecordStore';
 import RecordRevisionsModal from '../common/RecordRevisionsModal';
 import { RecordJournalModal } from '../common/RecordToolsModals';
 import { XQButton, XQInput, XQSelect, XQTextArea } from '../xq-ui';
@@ -25,7 +26,7 @@ export default class CaseData extends Component{
 			fields: {
 				...this.props.fields,
 			},
-			// [V6 复查轮] 历史版本/断事日志 Modal 开关(与命盘编辑页 ChartData 同款;事盘内核
+			// 历史版本/断事日志 Modal 开关(与命盘编辑页 ChartData 同款;事盘内核
 			// 本就双 kind 记版本与日志,此前只缺查看入口 —— 「入口进每个盘的编辑页」含事盘)。
 			revisionsOpen: false,
 			journalOpen: false,
@@ -58,7 +59,7 @@ export default class CaseData extends Component{
 		});
 	}
 
-	// [V6 复查轮] 取当前编辑事盘的完整记录(历史/日志 Modal 用):按 cid 从库读最新态。
+	// 取当前编辑事盘的完整记录(历史/日志 Modal 用):按 cid 从库读最新态。
 	currentRecord(){
 		try{
 			const cid = this.state.fields && this.state.fields.cid ? this.state.fields.cid.value : null;
@@ -114,7 +115,7 @@ export default class CaseData extends Component{
 		this.setValue('event', e.target.value);
 	}
 
-	// [R4] 事盘备注(断后复盘/应期回填);旧 currentCase 无 memo 槽时补建,防 setValue 取 undefined 炸。
+	// 事盘备注(断后复盘/应期回填);旧 currentCase 无 memo 槽时补建,防 setValue 取 undefined 炸。
 	changeMemo(e){
 		const flds = this.state.fields;
 		if(!flds.memo){
@@ -367,7 +368,7 @@ export default class CaseData extends Component{
 							</Col>
 						</Row>
 					</Col>
-					{/* [R4] 「是否公开」控件已隐藏:纯本地桌面版无发布语义(isPub 槽与数据字段保留,旧档兼容)。 */}
+					{/* 「是否公开」控件已隐藏:纯本地桌面版无发布语义(isPub 槽与数据字段保留,旧档兼容)。 */}
 				</Row>
 
 				<Row gutter={12} style={{ marginTop: margintop }}>
@@ -392,7 +393,7 @@ export default class CaseData extends Component{
 					</Col>
 					<Col span={12}>
 						<XQButton onClick={this.clickReturn}>{returnTitle}</XQButton>
-						{/* [V6 复查轮] 历史版本/断事日志入口(与命盘编辑页同款;仅编辑已存事盘时显示) */}
+						{/* 历史版本/断事日志入口(与命盘编辑页同款;仅编辑已存事盘时显示) */}
 						{flds.cid && flds.cid.value ? (
 							<>
 								<XQButton style={{ marginLeft: 8 }} onClick={()=>this.setState({ revisionsOpen: true })} title='查看该事盘历史版本(每次修改自动留存最近 10 版),可恢复为副本'>历史版本</XQButton>
@@ -409,11 +410,7 @@ export default class CaseData extends Component{
 							record={this.currentRecord()}
 							onClose={()=>this.setState({ revisionsOpen: false })}
 							onRestoreAsCopy={(snap)=>{
-								const dup = { ...snap };
-								delete dup.cid;
-								delete dup.schemaVersion;
-								dup.event = `${dup.event || ''}(历史版)`;
-								upsertLocalCase(dup);
+								upsertLocalCase(toRecordCopy(snap, { titleKey: 'event', suffix: '(历史版)' }));
 							}}
 						/>
 						<RecordJournalModal

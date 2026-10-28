@@ -1,7 +1,7 @@
 import { fetchPdPoles } from '../../services/astroPd3d';
 import { markPanelReady } from '../../utils/perfMark';
 import { Component } from 'react';
-import { fetchPd3D } from '../../services/astroPd3d'; // [WP-5.2] pd3d 调试透镜(hover 显示引擎坐标,零后端改动)
+import { fetchPd3D } from '../../services/astroPd3d'; // pd3d 调试透镜(hover 显示引擎坐标,零后端改动)
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Popover, Checkbox } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
@@ -17,6 +17,7 @@ import XQIcon from '../xq-icons';
 import { PD_SCHOOL_PRESETS, PD_SCHOOL_PRESET_OPTIONS, PD_SCHOOL_PRESET_CUSTOM, pdPresetOf } from './pdSchoolPresets';
 import PdExtensionPanel from './PdExtensionPanel';
 import { getLayoutViewportHeight, getLayoutViewportWidth } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
+import { matchesUserQuery } from '../../utils/scriptMode';
 import { SUPPORTED_PD_METHODS,
 	SUPPORTED_PD_PROJECTIONS, SUPPORTED_PD_FRAMES, SUPPORTED_PD_FRAMEWORKS,
 	PD_PROJECTION_LABELS, PD_FRAME_LABELS, PD_FRAMEWORK_LABELS ,
@@ -25,6 +26,9 @@ import { SUPPORTED_PD_METHODS,
 	SUPPORTED_PD_TIME_KEYS,
 	PD_SYNC_REV,
 } from '../../utils/primaryDirectionSync';
+import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
+import { toSlashDate, civilWallMsOfStr, civilDateStrOfMs, yearMonthKey } from '../../utils/dateStrSafe';
+import { pickKeyedDerived } from '../../utils/derivedChartSource';
 
 const Option = Select.Option;
 // 🔴 PD_SYNC_REV 只能 import,绝不在此另写字面量。
@@ -235,7 +239,7 @@ class AstroPrimaryDirection extends Component{
 			pdTimeKeyCustomValue: (props.pdTimeKeyCustom && Number(props.pdTimeKeyCustom) > 0) ? Number(props.pdTimeKeyCustom) : null,
 			pdSignificatorsValue: Array.isArray(props.pdSignificators) ? props.pdSignificators : [],
 			pdPromissorTypesValue: Array.isArray(props.pdPromissorTypes) ? props.pdPromissorTypes : [],
-			termsVariantValue: (()=>{ const n = Number(props.termsVariant); return (Number.isFinite(n) && n >= 0 && n <= 4) ? n : 0; })(),   // [F4][R2-12]
+			termsVariantValue: (()=>{ const n = Number(props.termsVariant); return (Number.isFinite(n) && n >= 0 && n <= 4) ? n : 0; })(),
 			// 分页大小受控+持久化:antd4 在 total>50 时自动显示「X 条/页」选择器,此前 pageSize 写死 50
 			// 又无 onChange → 用户改完被立即重置(「点了没反应」)。
 			pdPageSize: readPdPageSize(),
@@ -316,7 +320,7 @@ class AstroPrimaryDirection extends Component{
 				this.setState({ toolbarH: h });
 			}
 		};
-		this._toolbarRO = new ResizeObserver(sync);
+		this._toolbarRO = createDeferredResizeObserver(sync);
 		this._toolbarRO.observe(el);
 		sync();
 	}
@@ -368,7 +372,7 @@ class AstroPrimaryDirection extends Component{
 		const nextFramework = SUPPORTED_PD_FRAMEWORKS.indexOf(this.props.pdFramework) >= 0 ? this.props.pdFramework : 'aspect';
 		const nextParallel = this.props.pdParallel ? 1 : 0;
 		const nextRapt = this.props.pdRaptParallel ? 1 : 0;
-		const nextTermsVariant = (()=>{ const n = Number(this.props.termsVariant); return (Number.isFinite(n) && n >= 0 && n <= 4) ? n : 0; })();   // [F4][R2-12]
+		const nextTermsVariant = (()=>{ const n = Number(this.props.termsVariant); return (Number.isFinite(n) && n >= 0 && n <= 4) ? n : 0; })();
 		if(this.state.pdMethodValue !== nextMethod
 			|| this.state.pdTimeKeyValue !== nextTimeKey
 			|| this.state.pdYearsValue !== nextYears
@@ -540,8 +544,8 @@ class AstroPrimaryDirection extends Component{
 			},
 			onFilter: (value, record)=>{
 				if(record[dataIndex]){
-					let txt = record[dataIndex].toString().toLowerCase();
-					return txt.includes(value.toLowerCase());	
+					// 用户输入的检索词经单源比对(界面繁体时与屏幕同口径)
+					return matchesUserQuery(record[dataIndex].toString(), value);
 				}
 				return false;
 			},
@@ -558,7 +562,7 @@ class AstroPrimaryDirection extends Component{
 					ref={node => {
 						this.searchInput = node;
 					}}
-					placeholder={`输入年数`}
+					placeholder={`输入年份`}
 					value={selectedKeys[0]}
 					onChange={e => setSelectedKeys(e.target.value ? [e.target.value] : [])}
 					onPressEnter={() => this.handleSearch(selectedKeys, confirm)}
@@ -689,7 +693,7 @@ class AstroPrimaryDirection extends Component{
 
 	getSelectedTermsVariant(){
 		const v = this.state.termsVariantValue;
-		return (Number.isFinite(Number(v)) && v >= 0 && v <= 4) ? Number(v) : 0;   // [F4][R2-12]
+		return (Number.isFinite(Number(v)) && v >= 0 && v <= 4) ? Number(v) : 0;
 	}
 
 	getSelectedPdTimeKeyCustom(){
@@ -750,7 +754,7 @@ class AstroPrimaryDirection extends Component{
 	}
 
 	handleTermsVariantChange(value){
-		this.setState({ termsVariantValue: (Number.isFinite(Number(value)) && value >= 0 && value <= 4) ? Number(value) : 0 });   // [F4][R2-12]
+		this.setState({ termsVariantValue: (Number.isFinite(Number(value)) && value >= 0 && value <= 4) ? Number(value) : 0 });
 	}
 
 	handlePdTimeKeyCustomChange(value){
@@ -766,11 +770,11 @@ class AstroPrimaryDirection extends Component{
 		this.setState({ pdPromissorTypesValue: Array.isArray(vals) ? vals : [] });
 	}
 
-	requestPdPoles(){
-		// Pole 列:极点随 (盘,投影,S 集) 变;按组合键去重,列开着才取。
+	// Pole 列请求体(盘 + 投影 + 定局 + S 集):既是请求,也是结果的来源键(结果只在键一致时用)
+	pdPolesRequestBody(){
 		const chart = this.props.value || {};
 		const params = chart.params || {};
-		if(!params.birth){ return; }
+		if(!params.birth){ return null; }
 		const applied = this.getAppliedPdState();
 		const birthParts = `${params.birth}`.split(' ');
 		const body = {
@@ -782,15 +786,32 @@ class AstroPrimaryDirection extends Component{
 			pdtype: applied.pdtype,
 			...(Array.isArray(params.pdSignificators) && params.pdSignificators.length ? { pdSignificators: params.pdSignificators } : {}),
 		};
+		return body;
+	}
+
+	pdPolesRequestKey(){
+		const body = this.pdPolesRequestBody();
+		return body ? JSON.stringify(body) : '';
+	}
+
+	// 出自当前请求键的极点表才用:换盘 / 改投影后旧极点表作废(此前只要有过一份就不再取 → 一直显示上一张盘的极点)
+	shownPdPolesData(){
+		return pickKeyedDerived(this.state.pdPolesData, this.state.pdPolesDataSig, this.pdPolesRequestKey());
+	}
+
+	requestPdPoles(){
+		// Pole 列:极点随 (盘,投影,S 集) 变;按组合键去重,列开着才取。
+		const body = this.pdPolesRequestBody();
+		if(!body){ return; }
 		const key = JSON.stringify(body);
 		if(this.pdPolesKey === key){ return; }
 		this.pdPolesKey = key;
 		fetchPdPoles(body).then((res)=>{
 			if(this.pdPolesKey !== key){ return; }
 			const poles = res && res.poles ? res.poles : (res && res.data && res.data.poles ? res.data.poles : null);
-			this.setState({ pdPolesData: poles || {} });
+			this.setState({ pdPolesData: poles || {}, pdPolesDataSig: key });
 		}).catch(()=>{
-			if(this.pdPolesKey === key){ this.setState({ pdPolesData: {} }); }
+			if(this.pdPolesKey === key){ this.setState({ pdPolesData: {}, pdPolesDataSig: key }); }
 		});
 	}
 
@@ -895,7 +916,7 @@ class AstroPrimaryDirection extends Component{
 				: (SUPPORTED_PD_FRAMEWORKS.indexOf(this.props.pdFramework) >= 0 ? this.props.pdFramework : 'aspect')),
 			pdParallel: (params.pdParallel !== undefined && params.pdParallel !== null ? params.pdParallel : this.props.pdParallel) ? 1 : 0,
 			pdRaptParallel: (params.pdRaptParallel !== undefined && params.pdRaptParallel !== null ? params.pdRaptParallel : this.props.pdRaptParallel) ? 1 : 0,
-			termsVariant: (()=>{ const v = params.termsVariant !== undefined && params.termsVariant !== null ? Number(params.termsVariant) : Number(this.props.termsVariant); return (Number.isFinite(v) && v >= 0 && v <= 4) ? v : 0; })(),   // [F4][R2-12](v 已 Number)
+			termsVariant: (()=>{ const v = params.termsVariant !== undefined && params.termsVariant !== null ? Number(params.termsVariant) : Number(this.props.termsVariant); return (Number.isFinite(v) && v >= 0 && v <= 4) ? v : 0; })(),   // [R2-12](v 已 Number)
 			pdSignificators: Array.isArray(params.pdSignificators) ? params.pdSignificators : (Array.isArray(this.props.pdSignificators) ? this.props.pdSignificators : []),
 			pdPromissorTypes: Array.isArray(params.pdPromissorTypes) ? params.pdPromissorTypes : (Array.isArray(this.props.pdPromissorTypes) ? this.props.pdPromissorTypes : []),
 			pdTimeKeyCustom: (()=>{ const v = Number(params.pdTimeKeyCustom !== undefined && params.pdTimeKeyCustom !== null ? params.pdTimeKeyCustom : this.props.pdTimeKeyCustom); return (Number.isFinite(v) && v > 0) ? v : null; })(),
@@ -951,9 +972,9 @@ class AstroPrimaryDirection extends Component{
 	}
 
 
-	// [WP-5.2] pd3d 调试透镜:首次 hover 懒拉一次 pd3d(与主限天球同引擎同参),Popover 显示
+	// pd3d 调试透镜:首次 hover 懒拉一次 pd3d(与主限天球同引擎同参),Popover 显示
 	// 该行迫星/应星的引擎坐标(λ/β/α/δ 双口径)。失败静默(透镜是调试辅助,不打扰主表)。
-	// [Q-364/T-346] 透镜坐标必须跟着「这张盘」走:本组件在星运页不带 key,改生辰或换盘时不重挂载,
+	// 透镜坐标必须跟着「这张盘」走:本组件在星运页不带 key,改生辰或换盘时不重挂载,
 	// 旧实现只以「lensPoints 已有值」短路 → 表格已重算、悬停浮层还在报上一张盘的 λβαδ,
 	// 而脚注偏偏写着「与主限天球/表格同源」。改为按盘参签名缓存:签名一变即作废重拉。
 	lensSignature(){
@@ -973,15 +994,15 @@ class AstroPrimaryDirection extends Component{
 			// 盘换了:作废旧坐标(并让在途请求的回包按签名自弃),下面重新拉一次。
 			this._lensSig = sig;
 			this._lensLoading = false;
-			if(this.state && this.state.lensPoints){ this.setState({ lensPoints: null }); }
+			// 旧坐标由 shownLensPoints 按签名自动作废(不必再清 state)
 		}
-		if(this._lensLoading || (this.state && this.state.lensPoints)){ return; }
+		if(this._lensLoading || this.shownLensPoints()){ return; }
 		const chart = this.props.value || {};
 		const p = chart.params || {};
 		if(!p.birth && !p.date){ return; }
 		const birthParts = `${p.birth || ''}`.trim().split(/\s+/);
 		const req = {
-			date: (p.date || (birthParts[0] || '').replace(/-/g, '/')),
+			date: (p.date || toSlashDate(birthParts[0] || '')),
 			time: (p.time || birthParts[1] || '12:00:00'),
 			ad: p.ad !== undefined ? p.ad : 1,
 			zone: p.zone, lat: p.lat, lon: p.lon, gpsLat: p.gpsLat, gpsLon: p.gpsLon,
@@ -1000,14 +1021,18 @@ class AstroPrimaryDirection extends Component{
 		this._lensLoading = true;
 		const reqSig = this._lensSig;
 		fetchPd3D(req).then((res)=>{
-			if(this._lensSig !== reqSig){ return; }   // [Q-364] 回包晚于换盘 → 丢弃(否则新盘又被旧坐标盖住)
+			if(this._lensSig !== reqSig){ return; }   // 回包晚于换盘 → 丢弃(否则新盘又被旧坐标盖住)
 			this._lensLoading = false;
 			const r = res && (res.Result || res);
-			if(r && r.points){ this.setState({ lensPoints: r.points }); }
+			if(r && r.points){ this.setState({ lensPoints: r.points, lensPointsSig: reqSig }); }
 		}).catch(()=>{ if(this._lensSig === reqSig){ this._lensLoading = false; } });
 	}
+	// 透镜坐标只用出自当前盘参签名的那份
+	shownLensPoints(){
+		return pickKeyedDerived(this.state.lensPoints, this.state.lensPointsSig, this.lensSignature());
+	}
 	lensCoordText(id){
-		const pts = (this.state && this.state.lensPoints) || null;
+		const pts = this.shownLensPoints() || null;
 		const pt = pts && pts[id];
 		if(!pt){ return pts ? '(引擎点表无此 id)' : '坐标载入中…(hover 稍候)'; }
 		const f = (v)=>{ const d = Math.floor(Math.abs(v)); const mn = Math.round((Math.abs(v) - d) * 60); return `${v < 0 ? '-' : ''}${d}°${mn < 10 ? '0' : ''}${mn}′`; };
@@ -1021,7 +1046,7 @@ class AstroPrimaryDirection extends Component{
 					<div style={{ fontSize: 12, lineHeight: 1.8, maxWidth: 380 }}>
 						<div><b>迫星</b> {this.convertText(record.Promittor)}：{this.lensCoordText(record.Promittor)}</div>
 						<div><b>应星</b> {this.convertText(record.Significator)}：{this.lensCoordText(record.Significator)}</div>
-						<div style={{ opacity: 0.65 }}>引擎坐标与主限天球/表格同源(pd3d);λβ=黄道 αδ=赤道,投影=β取0。</div>
+						<div style={{ color: 'var(--horosa-text-secondary)' }}>引擎坐标与主限天球/表格同源(pd3d);λβ=黄道 αδ=赤道,投影=β取0。</div>
 					</div>
 				}>
 				<span style={{ cursor: 'help' }}>{this.convertText(text)}</span>
@@ -1359,22 +1384,23 @@ class AstroPrimaryDirection extends Component{
 		const birthMs = (()=>{
 			const b = chart.params && chart.params.birth ? `${chart.params.birth}` : '';
 			if(!b){ return null; }
-			const d = new Date(b.replace(' ', 'T'));
-			return Number.isFinite(d.getTime()) ? d.getTime() : null;   // BC 盘等解析失败 → 年龄列显 —
+			const w = civilWallMsOfStr(b.trim());   // 民用历墙钟轴(公元前历史纪年、1582 以前儒略历)
+			return Number.isFinite(w) ? w : null;   // 解析失败 → 年龄列显 —
 		})();
 		const ageOf = (dateText)=>{
 			if(birthMs === null || !dateText){ return '—'; }
-			const d = new Date(`${dateText}`.replace(' ', 'T'));
-			if(!Number.isFinite(d.getTime())){ return '—'; }
-			return ((d.getTime() - birthMs) / (365.25 * 24 * 3600 * 1000)).toFixed(1);
+			const w = civilWallMsOfStr(`${dateText}`.trim());
+			if(!Number.isFinite(w)){ return '—'; }
+			return ((w - birthMs) / (365.25 * 24 * 3600 * 1000)).toFixed(1);
 		};
 		const orbYears = this.state.pdOrbYears || 0.25;
 		const orbRangeOf = (dateText)=>{
-			const d = new Date(`${dateText || ''}`.replace(' ', 'T'));
-			if(!Number.isFinite(d.getTime())){ return '—'; }
+			// 民用历墙钟轴上前后各挪 orb 年(1582 以前儒略历、公元前历史纪年),标签取年月
+			const w = civilWallMsOfStr(`${dateText || ''}`.trim());
+			if(!Number.isFinite(w)){ return '—'; }
 			const ms = orbYears * 365.25 * 24 * 3600 * 1000;
-			const fmt = (t)=>{ const x = new Date(t); return `${x.getFullYear()}-${`${x.getMonth() + 1}`.padStart(2, '0')}`; };
-			return `${fmt(d.getTime() - ms)} ~ ${fmt(d.getTime() + ms)}`;
+			const fmt = (t)=>yearMonthKey(civilDateStrOfMs(t));
+			return `${fmt(w - ms)} ~ ${fmt(w + ms)}`;
 		};
 		let columns = [{
 			title: isHorosaLegacy ? '赤经' : 'Arc',
@@ -1414,7 +1440,7 @@ class AstroPrimaryDirection extends Component{
 			width: 260,
 			render: (text, record)=>{
 				// 类型语义已织进 convertText 模板(D/S/N glyph 单行);透镜保留
-				return this.renderLensPopover(text, record); // [WP-5.2] hover 透镜:迫星/应星引擎坐标
+				return this.renderLensPopover(text, record); // hover 透镜:迫星/应星引擎坐标
 			},
 			...this.genStarColFilter('Promittor', filterKeys, true)
 		},{
@@ -1428,7 +1454,7 @@ class AstroPrimaryDirection extends Component{
 			},
 			...this.genStarColFilter('Significator', filterKeys)
 		},{
-			// [Q-176/T-116e] 引擎出的应期日期是 **UTC 墙钟**(signasctime 以 Datetime.fromJD(jd, 0) 取);
+			// 引擎出的应期日期是 **UTC 墙钟**(signasctime 以 Datetime.fromJD(jd, 0) 取);
 			// 列头此前不注,东八区用户临近午夜的应期会与本地日期差一天。引擎受金标约束不动,只补标注。
 			title: <span title='应期日期为世界时(UTC)墙钟;本地时区换算后可能相差一天'>日期(UTC)</span>,
 			dataIndex: 'Date',
@@ -1456,8 +1482,9 @@ class AstroPrimaryDirection extends Component{
 				render: (_t, record)=>orbRangeOf(record.Date) });
 		}
 		if(hasCol('pole')){
-			if(!this.state.pdPolesData){ this.requestPdPoles(); }
-			const polesMap = this.state.pdPolesData || {};
+			const shownPoles = this.shownPdPolesData();
+			if(!shownPoles){ this.requestPdPoles(); }
+			const polesMap = shownPoles || {};
 			tailCols.push({ title: '极点', key: 'PdPole', width: 76,	// 实测最长「-17.76°」= 52px
 				render: (_t, record)=>{
 					const base = `${record.Significator || ''}`.split('_')[1];
@@ -1750,8 +1777,8 @@ class AstroPrimaryDirection extends Component{
 									: (pds.length === 0 ? '此设置下,该年龄区间没有命中的定向'
 										: `已算出 ${pds.length} 条,但都被当前筛选隐藏了`)}</div>
 								<div style={{ fontSize: 12, opacity: 0.85 }}>{pds.length === 0 && needsPdRecompute ? '改完设置后,点工具栏右侧的「计算」出表'
-									: (pds.length === 0 ? '可加大年龄上限、放宽允星,或换一种弧算法再试'
-										: '放宽工具栏的「相位」筛选即可看到')}</div>
+									: (pds.length === 0 ? '可加大年龄上限、在工具栏「扩展」里多勾几类应星 / 迫星,或换一种弧算法再试'
+										: '点表头「迫星」等列的筛选漏斗,放宽或重置筛选即可看到')}</div>
 							</div>
 						) }}
 						pagination={{

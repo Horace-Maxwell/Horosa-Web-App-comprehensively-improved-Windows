@@ -1,11 +1,11 @@
-// [G4] 主限天球时间轴 3.0 纯函数:缩放/刻度/glyph 简写章/车道装箱(组件只消费,逻辑全在此测)。
+// 主限天球时间轴 3.0 纯函数:缩放/刻度/glyph 简写章/车道装箱(组件只消费,逻辑全在此测)。
 import {
 	TL_ZOOM_MIN, TL_ZOOM_MAX, clampZoom, fitPxPerYear, niceTickStep,
 	glyphSegsOf, rowGlyphSegs, estSegsWidth, packLanes,
 } from '../pdTimelineMath';
 import * as AstroText from '../../../constants/AstroText';
 
-describe('[G4] 缩放/刻度', ()=>{
+describe('缩放/刻度', ()=>{
 	test('clampZoom:钳制于上下限,坏值回落下限', ()=>{
 		expect(clampZoom(0)).toBe(TL_ZOOM_MIN);
 		expect(clampZoom(99999)).toBe(TL_ZOOM_MAX);
@@ -30,7 +30,7 @@ describe('[G4] 缩放/刻度', ()=>{
 	});
 });
 
-describe('[G4] glyph 简写段(ywastrochart 与 2D 盘同源)', ()=>{
+describe('glyph 简写段(ywastrochart 与 2D 盘同源)', ()=>{
 	test('行星本体 N_Mars_0 → 单段火星字形(astro)', ()=>{
 		const segs = glyphSegsOf('N_Mars_0');
 		expect(segs).toHaveLength(1);
@@ -62,7 +62,7 @@ describe('[G4] glyph 简写段(ywastrochart 与 2D 盘同源)', ()=>{
 	});
 });
 
-describe('[G4] 车道装箱(区间防撞)', ()=>{
+describe('车道装箱(区间防撞)', ()=>{
 	test('不撞进同道/撞则下移;每道内区间零重叠', ()=>{
 		const evs = [{ x: 10, w: 16 }, { x: 40, w: 16 }, { x: 12, w: 16 }, { x: 14, w: 16 }].map((e, i)=>({ ...e, id: i }));
 		const placed = packLanes(evs, 3, 2);

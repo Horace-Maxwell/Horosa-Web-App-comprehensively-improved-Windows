@@ -1,4 +1,4 @@
-// [批五] 会话内「界面操作轨迹」:导航 / 合盘配对这类不落盘的界面动作不进持久账本(账本合同=可撤销的写入;导航跨刷新无意义),
+// 会话内「界面操作轨迹」:导航 / 合盘配对这类不落盘的界面动作不进持久账本(账本合同=可撤销的写入;导航跨刷新无意义),
 // 只记内存环(≤ UI_TRAIL_MAX)+ 事件广播;动作条按 turnId 渲染「回到上一页」;刷新即清,零 localStorage、零数据层 import。
 export const UI_TRAIL_MAX = 20;
 export const UI_TRAIL_EVENT = 'horosa:agent-ui-trail';

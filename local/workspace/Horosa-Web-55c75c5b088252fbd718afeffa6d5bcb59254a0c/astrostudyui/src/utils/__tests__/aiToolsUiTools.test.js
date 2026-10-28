@@ -1,4 +1,4 @@
-// [批五] 操控软件五件工具合同:目录形状(ui 类别 read 级 / origins 只对 in-app+mcp / 外部注解 readOnlyHint=false)、
+// 操控软件五件工具合同:目录形状(ui 类别 read 级 / origins 只对 in-app+mcp / 外部注解 readOnlyHint=false)、
 // navigate_to_technique(缺桥 / 非法键 / 同路由 no-op / 切换并记轨迹 / 回退)、compare_records(缺记录 / 同盘 / 等合盘页登记 / 配对与回退)、
 // star_record / pin_record / add_record_tag(只增落库、账本 restore-record-flag 撤销、写后被改过拒撤、重复调用 no-op)、
 // 运行时:ui 类调用排在只读之后执行且每 Turn ≤ MAX_UI_PER_TURN。
@@ -105,15 +105,15 @@ describe('compare_records', ()=>{
 });
 
 describe('star_record / pin_record / add_record_tag', ()=>{
-	it('🔴 星标:落库 → 账本 restore-record-flag → 撤销回到无;重复加星 no-op 不进账本;写后被手工改过拒撤', async ()=>{
+	it('🔴 星标:落库 → 账本 restore-record-flag → 撤销回到无;重复加星无变化不进账本;写后被手工改过拒撤', async ()=>{
 		const cid = await mkChart('星标甲');
 		const n0 = listActions().length;
 		const r = await runTool('star_record', { recordId: cid }, ctx());
 		expect(r.ok).toBe(true); expect(getLocalChart(cid).starred).toBe(true); expect(r.undo.kind).toBe('restore-record-flag');
 		expect(listActions().length).toBe(n0 + 1);
 		const again = await runTool('star_record', { recordId: cid }, ctx());
-		// 重复加星 no-op:additive 调用照例记一条账(与载入工作区同款),但撤销类型为 none(没有可撤的东西)
-		expect(again.data.changed).toBe(false); expect(again.undo.kind).toBe('none'); expect(listActions().length).toBe(n0 + 2);
+		// 重复加星 = 无变化:不进账本、没有撤销句柄(没有动作可撤),回包标 noChange
+		expect(again.ok).toBe(true); expect(again.data.changed).toBe(false); expect(again.noChange).toBe(true); expect(again.undo).toBeUndefined(); expect(listActions().length).toBe(n0 + 1);
 		expect(undoAction(r.undo.actionId).ok).toBe(true);
 		expect(!!getLocalChart(cid).starred).toBe(false);
 		const r2 = await runTool('star_record', { recordId: cid }, ctx());

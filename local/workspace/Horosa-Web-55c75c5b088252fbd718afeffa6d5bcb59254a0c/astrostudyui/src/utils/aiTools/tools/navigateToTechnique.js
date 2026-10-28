@@ -1,10 +1,45 @@
-// [批五] 界面动作:切到某个技法页(等于用户点主导航)。read 级 + ui 类别:不落盘、不改数据,自动执行但可见可回退——
+// 界面动作:切到某个技法页(等于用户点主导航)。read 级 + ui 类别:不落盘、不改数据,自动执行但可见可回退——
 // 每次切页记进会话内轨迹(动作条「回到上一页」)+ 目标区域闪一圈金边;同一页不重复切;只对 in-app / mcp 开放(目标任务/自动化/定时任务无人看屏,永不导航)。
 import { ctxUi, GUIDE } from './_shared';
+import { waitForWorkspaceUi, getWorkspaceUi } from '../workspaceBridge';
 import { pushUiTrail, undoUiTrail } from '../../aiAgent/uiTrail';
 import { spotlight } from '../../aiAgent/agentSpotlight';
 
 const KEY_RE = '^[a-zA-Z][a-zA-Z0-9_-]{0,31}$';
+// AI 分析页的页内页签(分析 / 历史 / 资料 / 模版 / 设置 / 进阶 …)不走主导航的子页签表,由对话桥给页签表
+export const AI_PAGE_KEY = 'aianalysis';
+export const AI_INNER_TAB_WAIT_MS = 3000;
+
+async function switchAiInnerTab(args, ui, ctx, label){
+	const before = ui.currentRoute() || {};
+	const prevInner = typeof ui.currentInnerTab === 'function' ? ui.currentInnerTab() : '';
+	if(before.tab === AI_PAGE_KEY && prevInner === args.subTab){
+		return { ok: true, data: { tab: AI_PAGE_KEY, subTab: args.subTab, changed: false }, summary: `已在${label}`, message: '已经在该页签,无需切换' };
+	}
+	if(before.tab !== AI_PAGE_KEY){
+		const r = ui.navigate(AI_PAGE_KEY);
+		if(!r || r.ok === false){ return { ok: false, code: 'E_ARGS_INVALID', message: (r && r.message) || '切换失败' }; }
+	}
+	// 首次进 AI 分析页有挂载时间:等对话桥登记页签表
+	const setInner = await waitForWorkspaceUi('setInnerTab', AI_INNER_TAB_WAIT_MS);
+	const live = getWorkspaceUi();
+	const tabs = typeof live.listInnerTabs === 'function' ? (live.listInnerTabs() || []) : [];
+	if(typeof setInner !== 'function' || !tabs.length){ return { ok: false, code: 'E_BRIDGE_UNAVAILABLE', message: 'AI 分析页还没就绪,稍后再试' }; }
+	const hit = tabs.find((t)=>t && t.key === args.subTab);
+	if(!hit){ return { ok: false, code: 'E_ARGS_INVALID', message: `AI 分析页没有这个页签:${args.subTab};可用:${tabs.map((t)=>t.key).join(' ')}` }; }
+	const fromInner = typeof live.currentInnerTab === 'function' ? live.currentInnerTab() : prevInner;
+	setInner(args.subTab);
+	const turnId = `${(ctx && ctx.requestId) || ''}`.split(':')[0];
+	const trailId = pushUiTrail({ kind: 'route', turnId, label: `已切到${label} · ${hit.label}`, before: { tab: before.tab || null, subTab: before.tab === AI_PAGE_KEY ? (fromInner || null) : (before.subTab || null) }, after: { tab: AI_PAGE_KEY, subTab: args.subTab },
+		undo: ()=>{
+			if(before.tab && before.tab !== AI_PAGE_KEY){ return ui.navigate(before.tab, before.subTab || undefined); }
+			const back = getWorkspaceUi().setInnerTab;
+			if(fromInner && typeof back === 'function'){ back(fromInner); return { ok: true }; }
+			return { ok: false, message: '没有上一页' };
+		} });
+	spotlight({ selector: '#mainContent', label: `AI 已切到${label} · ${hit.label}`, undo: ()=>undoUiTrail(trailId) });
+	return { ok: true, data: { tab: AI_PAGE_KEY, subTab: args.subTab, changed: true, trailId }, summary: `切到${label} · ${hit.label}`, message: `已切到${label}的「${hit.label}」页签(动作条可回到上一页)` };
+}
 
 export function routeLabel(routes, key){
 	const hit = (routes || []).find((r)=>r && r.key === key);
@@ -22,7 +57,7 @@ export default {
 		type: 'object', additionalProperties: false, required: ['technique'],
 		properties: {
 			technique: { type: 'string', minLength: 1, maxLength: 32, pattern: KEY_RE, description: '技法页键(取自 get_current_context.routes[].key,如 bazi / ziwei / astrochart / aianalysis)' },
-			subTab: { type: 'string', minLength: 1, maxLength: 32, pattern: KEY_RE, description: '子页签键(可选;仅聚合页有)' },
+			subTab: { type: 'string', minLength: 1, maxLength: 32, pattern: KEY_RE, description: '子页签键(可选;聚合页有;aianalysis 的页内页签如 analysis / history / materials / templates / settings / advanced)' },
 		},
 	},
 	async run(args, ctx){
@@ -33,6 +68,7 @@ export default {
 			return { ok: false, code: 'E_ARGS_INVALID', message: `没有这个技法页:${args.technique};可用:${routes.map((r)=>r.key).join(' ')}` };
 		}
 		const label = routeLabel(routes, args.technique);
+		if(args.technique === AI_PAGE_KEY && args.subTab){ return switchAiInnerTab(args, ui, ctx, label); }
 		const before = ui.currentRoute() || {};
 		if(before.tab === args.technique && (!args.subTab || before.subTab === args.subTab)){
 			return { ok: true, data: { tab: args.technique, subTab: before.subTab || null, changed: false }, summary: `已在${label}`, message: '已经在该页,无需切换' };

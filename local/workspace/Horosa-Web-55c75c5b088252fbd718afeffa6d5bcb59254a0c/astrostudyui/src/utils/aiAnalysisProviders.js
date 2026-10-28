@@ -43,7 +43,7 @@ export const PROVIDER_PRESETS = {
 		defaultEmbeddingModels: [],
 		requestTimeoutMs: 120000,
 		anthropicApiVersion: '2023-06-01',
-		// 新建档默认 8192(旧默认 2048 对报告级长文常触截断续写):仅新档预设,已存档字段不动。
+		// 新建档默认 8192(旧默认 2048 对长文常触截断续写):仅新档预设,已存档字段不动。
 		anthropicMaxTokens: '8192',
 		anthropicThinkingBudget: '',
 		anthropicTopP: '',
@@ -76,7 +76,7 @@ export const PROVIDER_PRESETS = {
 		requestTimeoutMs: 120000,
 		ollamaKeepAlive: '5m',
 		ollamaNumCtx: '8192',
-		// 新建档默认 2048(旧 1024 报告长节常截断);仅新档预设,已存档不动。
+		// 新建档默认 2048(旧 1024 长段落常截断);仅新档预设,已存档不动。
 		ollamaNumPredict: '2048',
 		ollamaTopK: '40',
 		ollamaTopP: '0.9',
@@ -153,6 +153,13 @@ function uniqueTextList(list){
 	return result;
 }
 
+// 接口地址清理(与后端 AIAnalysisProxyService.cleanBaseUrl 同口径):任意位置的零宽 / 方向控制字符去掉,首尾 Unicode 空白去掉。
+// 从中文文档复制来的地址常带尾部全角空格、零宽字符,存进档案后每次外呼都在 URI 解析处报错
+const INVISIBLE_URL_CHARS = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\u180E\u00AD]/g;
+export function cleanProviderBaseUrl(raw){
+	return `${raw == null ? '' : raw}`.replace(INVISIBLE_URL_CHARS, '').trim();
+}
+
 export function getProviderPreset(providerType = 'openai'){
 	const key = `${providerType || 'openai'}`.trim().toLowerCase();
 	return PROVIDER_PRESETS[key] || PROVIDER_PRESETS.openai;
@@ -174,8 +181,8 @@ export function isOpenAiFamily(protocolFamily){
 	return pf === 'openai' || pf === 'openai-compatible';
 }
 
-// [Q-323] temperature 的**上限按接口家族**分:Anthropic Messages API 是 0..1,OpenAI / Gemini / Ollama 是 0..2。
-// 参数浮层滑杆、报告采样、路由槽此前一律按 0..2 钳,拨到 >1 的档发给 Anthropic 必 400 —— 只靠「自愈剥参重发」
+// temperature 的**上限按接口家族**分:Anthropic Messages API 是 0..1,OpenAI / Gemini / Ollama 是 0..2。
+// 参数浮层滑杆、采样参数、路由槽此前一律按 0..2 钳,拨到 >1 的档发给 Anthropic 必 400 —— 只靠「自愈剥参重发」
 // 兜住(每请求最多 2 轮),等于白付一次往返且用户设的值被整个丢掉。单源在此,三处入口共用。
 export const TEMPERATURE_MAX_DEFAULT = 2;
 export const TEMPERATURE_MAX_BY_FAMILY = { anthropic: 1 };
@@ -191,7 +198,7 @@ export function clampTemperatureForFamily(temperature, protocolFamily){
 	return n < 0 ? 0 : (n > max ? max : n);
 }
 
-// [Q-045] 参数浮层五类参数的**单源**施加:温度(按家族夹逼)· top_p · 停止序列 · 频率/存在惩罚 · JSON 模式。
+// 参数浮层五类参数的**单源**施加:温度(按家族夹逼)· top_p · 停止序列 · 频率/存在惩罚 · JSON 模式。
 // 主发送与三条旁路(多模型候选 / 按审阅重写 / 旁问)共用 —— 此前三处各写一小段,只套了「思考档 + 温度 + top_p」,
 // 停止序列、两惩罚、JSON 模式在这三条路上全是死的(浮层里拨了,请求体里没有)。
 // withJsonMode=false:调用方自己要挂 response_format(结构化审阅 / 判官)时不让 JSON 模式来抢这把键。
@@ -284,7 +291,7 @@ const MODEL_PRICING = [
 	{ prefix: 'gpt-4o-mini', in: 0.00015, out: 0.0006 },
 	{ prefix: 'gpt-4o', in: 0.0025, out: 0.01 },
 	{ prefix: 'gpt-4-turbo', in: 0.01, out: 0.03 },
-	// [Q-043/M-54] gpt-4.1 家族此前无价档 → 前缀最长匹配落到 `gpt-4`($30/$60 的初代价),费用估算高一个数量级
+	// gpt-4.1 家族此前无价档 → 前缀最长匹配落到 `gpt-4`($30/$60 的初代价),费用估算高一个数量级
 	{ prefix: 'gpt-4.1-nano', in: 0.0001, out: 0.0004 },
 	{ prefix: 'gpt-4.1-mini', in: 0.0004, out: 0.0016 },
 	{ prefix: 'gpt-4.1', in: 0.002, out: 0.008 },
@@ -301,7 +308,7 @@ const MODEL_PRICING = [
 	{ prefix: 'claude-3-haiku', in: 0.00025, out: 0.00125, cacheIn: 0.00003, cacheWrite: 0.0003 },
 	// Gemini
 	{ prefix: 'gemini-2.5-pro', in: 0.00125, out: 0.005 },
-	// [Q-043/M-54] 2.5 Flash 官方 $0.30/$2.50 per 1M(此前照抄 1.5 Flash 的 $0.075/$0.30,低了 4~8 倍)
+	// 2.5 Flash 官方 $0.30/$2.50 per 1M(此前照抄 1.5 Flash 的 $0.075/$0.30,低了 4~8 倍)
 	{ prefix: 'gemini-2.5-flash', in: 0.0003, out: 0.0025 },
 	{ prefix: 'gemini-2.0-flash', in: 0.00010, out: 0.0004 },
 	{ prefix: 'gemini-1.5-pro', in: 0.00125, out: 0.005 },
@@ -318,7 +325,7 @@ const MODEL_PRICING = [
 	// Anthropic Claude 5 / 4.8 代(缓存读=0.1×in / 写=1.25×in)
 	{ prefix: 'claude-fable-5', in: 0.010, out: 0.050, cacheIn: 0.001, cacheWrite: 0.0125 },
 	{ prefix: 'claude-opus-4-8', in: 0.005, out: 0.025, cacheIn: 0.0005, cacheWrite: 0.00625 },
-	// [Q-043/M-54] Sonnet 5 官方 $2/$10 per 1M(此前照抄 Sonnet 4 的 $3/$15)
+	// Sonnet 5 官方 $2/$10 per 1M(此前照抄 Sonnet 4 的 $3/$15)
 	{ prefix: 'claude-sonnet-5', in: 0.002, out: 0.010, cacheIn: 0.0002, cacheWrite: 0.0025 },
 	{ prefix: 'claude-haiku-4-5', in: 0.001, out: 0.005, cacheIn: 0.0001, cacheWrite: 0.00125 },
 	// OpenAI gpt-5.x 代(gpt-5.6=sol 别名)
@@ -376,20 +383,43 @@ export function estimateUsageCost(model, inputTokens, outputTokens, extra){
 	return { cost, currency: 'USD', cacheSavings };
 }
 
-// reasoning 模型（自带思考、拒绝 temperature）——与后端 isOpenAIReasoningModel 同步。
-// 已覆盖 OpenAI o1/o3/o4/o5/o6/o7 + gpt-5/6/7 系列 + DeepSeek reasoner / *-r1 / 通用 thinking 命名。
-export function isReasoningModel(model){
-	const m = ('' + (model || '')).toLowerCase();
-	return /(^|\/)(gpt-?[567]|o[13-7])/.test(m) || /reasoner|-?r1\b|thinking/.test(m);
-}
-
-// OpenAI **代际**判据（窄于 isReasoningModel：只认 OpenAI 自家 o 系与 gpt-5/6/7，
-// 不含 deepseek-reasoner/*-r1——后者仍用 max_tokens）。与后端 isOpenAIReasoningModel 同口径。
-export function isOpenAIReasoningModel(model){
+// 模型名的代际数字:去掉 vendor 前缀(openrouter 的 openai/gpt-5)后按「家族前缀 + 主版本号」取数,与名单无关 ——
+// 新一代(gpt-8 / o9 / gemini-4 …)上线即按数字比较判定,不必再改名单(曾写死 gpt-[567] / o[13-7],新一代必漏)。
+function modelBaseName(model){
 	let m = ('' + (model || '')).toLowerCase().trim();
 	const slash = m.lastIndexOf('/');
-	if(slash >= 0){ m = m.slice(slash + 1); }   // 剥 openrouter 之类的 vendor 前缀
-	return /^(gpt-?[567]|o[13-7])/.test(m);
+	if(slash >= 0){ m = m.slice(slash + 1); }
+	return m;
+}
+function majorOf(m, re){
+	const r = m.match(re);
+	return r ? Number(r[1]) : null;
+}
+// gpt 主版本(与后端 AIAnalysisProxyService.gptMajorOf 同一条规则,共用对拍用例表):
+//   一位数 = 主版本(gpt-4o → 4);1 开头的两位数 = 两位代际(gpt-10 → 10);别的两位数 = Azure 去点写法(gpt-35-turbo = gpt-3.5 → 3);
+//   三位及以上不认(null)。此前 /^gpt-?(\d+)/ 把 gpt-35 读成 35 代 → 判成推理 / 视觉模型
+export function gptMajorOf(base){
+	const r = /^gpt-?(\d+)/.exec(`${base || ''}`);
+	if(!r){ return null; }
+	const d = r[1];
+	if(d.length === 1){ return Number(d); }
+	if(d.length === 2){ return d[0] === '1' ? Number(d) : Number(d[0]); }
+	return null;
+}
+
+// OpenAI **代际**判据（窄于 isReasoningModel：只认 OpenAI 自家 o 系(主版本 ≥1)与 gpt 主版本 ≥5,
+// 不含 deepseek-reasoner/*-r1——后者仍用 max_tokens）。与后端 isOpenAIReasoningModel 同口径(共用一份对拍用例表)。
+export function isOpenAIReasoningModel(model){
+	const m = modelBaseName(model);
+	if(/^gpt-?\d/.test(m)){ const gpt = gptMajorOf(m); return gpt !== null && gpt >= 5; }
+	const o = majorOf(m, /^o(\d+)/);
+	return o !== null && o >= 1;
+}
+
+// reasoning 模型（自带思考、拒绝 temperature）:OpenAI 推理代际 + DeepSeek reasoner / *-r1 / 通用 thinking 命名。
+export function isReasoningModel(model){
+	const m = ('' + (model || '')).toLowerCase();
+	return isOpenAIReasoningModel(model) || /reasoner|-?r1\b|thinking/.test(m);
 }
 
 // 🔴 输出预算键单一真值源（#54）：键名由「协议家族 × 模型代际」双因子决定。
@@ -408,7 +438,7 @@ export function maxTokensKeyForModel(protoFamily, model){
 // [挂载预算] 现役模型上下文窗口(tokens,输入侧)。前缀/子串匹配,未知模型返回 null
 // (调用方回落保底预算,行为与旧固定常量一致=零回归)。窗口值取各家公开标称。
 export const MODEL_CONTEXT_WINDOWS = [
-	// [Q-043/M-54] contextWindowForModel 取**数组里第一条命中**(不是最长匹配),所以细分档必须排在
+	// contextWindowForModel 取**数组里第一条命中**(不是最长匹配),所以细分档必须排在
 	// 兜底的 `claude-` 之前;此前 claude 一律按 200K,Sonnet 5 的 1M 窗口被砍成 200K ⇒ 挂载预算凭空少一大截。
 	{ match: 'claude-sonnet-5', tokens: 1000000 },
 	{ match: 'claude-', tokens: 200000 },
@@ -462,7 +492,7 @@ export function contextCharBudgetForModel(model, opts = {}){
 }
 
 // [Windows #80] 挂载字数预算单一入口:策略里填了就用策略的,没填就按模型窗口实算。
-//   对话页 / 目标任务 / 报告页三处一律调它 —— 各自散着调 contextCharBudgetForModel 迟早漂成两套口径。
+//   各调用处一律调它 —— 各自散着调 contextCharBudgetForModel 迟早漂成两套口径。
 export function mountCharBudgetFor(model, opts = {}){
 	const policy = opts.policy && typeof opts.policy === 'object' ? opts.policy : null;
 	const explicit = policy && Number(policy.mountCharBudget) > 0 ? Number(policy.mountCharBudget) : Number(opts.explicitChars) || 0;
@@ -476,8 +506,8 @@ export function effectiveMaxTokensForModel(model, maxTokens){
 	// kimi-k 系(k2.x/k3.x 及后续代)是思考模型但不入 isReasoningModel(其 temperature 钳制在
 	// 后端代理侧,进正则会改聊天温度行为);此处仅作「输出预算」判定,scoped 不外溢。
 	// 🔴 教训(Windows #47):勿写死单一代号(曾写 ^kimi-k2,k3 一出即漏)——一律认「kimi-k+数字」。
-	// [Q-289 裁决 2026-09-18] Anthropic 思考恒开型号(Fable / Mythos:关闭档只能 effort:low,思考 token 仍占 max_tokens)同享余量,
-	// 否则报告短调用 16–900 的上限被思考吃光 → 空结论 / JSON 不可解析;Sonnet 5 / Opus 5 关闭档真能关思考,不放大。
+	// Anthropic 思考恒开型号(Fable / Mythos:关闭档只能 effort:low,思考 token 仍占 max_tokens)同享余量,
+	// 否则短调用 16–900 的上限被思考吃光 → 空结论 / JSON 不可解析;Sonnet 5 / Opus 5 关闭档真能关思考,不放大。
 	const reasoning = (!!m && isReasoningModel(m)) || /^kimi-k\d/.test(m) || anthropicThinkingOffForm(m) === 'always';
 	if(reasoning){
 		return Math.min(Math.max(mt * 2, mt + 6000), 16384);
@@ -487,13 +517,13 @@ export function effectiveMaxTokensForModel(model, maxTokens){
 
 // 把通用「思考档」映射进 providerOptions（不破坏既有键）。
 // maxTokens（可选）：Anthropic 硬约束 budget_tokens < max_tokens，传入则据此 clamp，防再触发 400。
-// [D66] DeepSeek v4 系(deepseek-v4-flash/pro)有标准思考开关 thinking:{type:'enabled'|'disabled'}(真模型实测:缺省思考会把
+// DeepSeek v4 系(deepseek-v4-flash/pro)有标准思考开关 thinking:{type:'enabled'|'disabled'}(真模型实测:缺省思考会把
 //   max_tokens 吃光 → finish=length、正文空;reasoning_effort 对它无效)。思考档 off ⇒ 显式 disabled(否则「关思考」等于没关),
 //   非 off ⇒ enabled。只认 deepseek-v4 前缀(旧别名 deepseek-chat/reasoner 不动 = 零回归)。
-//   [2026-09-11 真模型实抓] 官方 /models 已把 v4-flash 改名 deepseek-flash(无 v4 字样):旧判定漏过它 → 思考档 off 不再下发
+//   官方 /models 已把 v4-flash 改名 deepseek-flash(无 v4 字样):旧判定漏过它 → 思考档 off 不再下发
 //   thinking:disabled → 判官/审阅等 JSON 短调用的 max_tokens 被 reasoning_content 吃光、正文空 → 「unparseable」/「没有返回合法 JSON」。
 //   故 deepseek 供应商下 deepseek-flash / deepseek-pro(及带日期/后缀的变体)一并按 v4 系认;旧别名 chat/reasoner 仍不动。
-//   [Q-327 裁决 2026-09-18] 网关转发的前缀名(openrouter `deepseek/deepseek-v4-flash`、siliconflow `deepseek-ai/DeepSeek-V4-Pro`)此前不被识别 →
+//   网关转发的前缀名(openrouter `deepseek/deepseek-v4-flash`、siliconflow `deepseek-ai/DeepSeek-V4-Pro`)此前不被识别 →
 //   思考档对它们静默失效(关不掉思考)。改为剥厂商前缀后识别;带 deepseek / deepseek-ai 厂商前缀者视同官方档(flash / pro 新名亦认)。
 //   字段形态按网关分派(见 applyDeepseekThinking):官方与 openai 兼容档 thinking:{type};openrouter 只认 reasoning:{enabled,effort};
 //   siliconflow 用 enable_thinking / thinking_budget。custom 档按官方形态(走 OpenRouter / SiliconFlow 请选对应预设)。
@@ -505,7 +535,7 @@ export function isDeepseekV4Model(model, providerType){
 	if(providerType !== 'deepseek' && !vendorPrefixed){ return false; }
 	return /^deepseek-v[4-9]/.test(m) || /^deepseek-(flash|pro)(?:$|[-_.:@0-9])/.test(m);
 }
-// [Q-327] DeepSeek v4 思考开关按网关出字段:on=false 关、true 开;effLevel/budget 只在开档使用。
+// DeepSeek v4 思考开关按网关出字段:on=false 关、true 开;effLevel/budget 只在开档使用。
 function applyDeepseekThinking(o, on, effLevel, providerType, budget){
 	if(providerType === 'openrouter'){
 		// OpenRouter 统一推理参数:reasoning:{enabled, effort};不认 thinking。effort 只收 low|medium|high(更高档封顶 high)。
@@ -524,14 +554,17 @@ function applyDeepseekThinking(o, on, effLevel, providerType, budget){
 	o.thinking = { type: on ? 'enabled' : 'disabled' };
 	return o;
 }
-// [Q-024/M-35/M-98] Anthropic 思考形态按型号(官方每型号表):
+// Anthropic 思考形态按型号(官方每型号表):
 //   'adaptive' = Opus 4.7 起(4.7/4.8/5)、Sonnet 5、Fable 5/5.1、Mythos 5/5.1 —— thinking:{type:'adaptive'} + output_config.effort,不接受采样参数;
 //   'budget'   = Haiku 4.5、Sonnet 4.x、Opus 4.6 及更早、Claude 3.x —— thinking:{type:'enabled',budget_tokens},max_tokens 须 > budget。
+export const ANTHROPIC_FAMILY_RE = /^claude-(opus|sonnet|haiku)-(\d+)(?:[-.](\d{1,2})(?!\d))?/;
 export function anthropicThinkingMode(model){
 	const m = `${model || ''}`.toLowerCase().replace(/^.*\//, '');
 	if(!m){ return 'budget'; }
 	if(/^claude-(fable|mythos)/.test(m)){ return 'adaptive'; }
-	const mm = /^claude-(opus|sonnet|haiku)-(\d+)(?:[-.](\d+))?/.exec(m);
+	// 小版本号只认 1–2 位且后面不跟数字:8 位日期段(claude-opus-4-20250514)是日期后缀,不是小版本(此前读成 20250514 ≥ 7 → 误判 adaptive)。
+	// 与后端 ANTHROPIC_FAMILY_RE 同一条正则(共用对拍用例表 anthropicThinkingModeCases.tsv)
+	const mm = ANTHROPIC_FAMILY_RE.exec(m);
 	if(!mm){ return 'budget'; }
 	const fam = mm[1]; const major = Number(mm[2]); const minor = mm[3] !== undefined ? Number(mm[3]) : 0;
 	if(major >= 5){ return fam === 'haiku' ? 'budget' : 'adaptive'; }
@@ -557,7 +590,7 @@ export function applyThinkingLevel(opts, level, providerType, model, maxTokens){
 	if(!level || level === 'off'){
 		if(isDeepseekV4Model(model, providerType)){ return applyDeepseekThinking({ ...(opts || {}) }, false, 'off', providerType, 0); }
 		if(providerType === 'anthropic'){
-			// [Q-063/M-65] 关闭档一律不带档案里的 thinking(旧档 budget 形态曾在关闭档强开思考);按型号给「关闭」形态。
+			// 关闭档一律不带档案里的 thinking(旧档 budget 形态曾在关闭档强开思考);按型号给「关闭」形态。
 			const o0 = stripAnthropicThinkingKeys({ ...(opts || {}) });
 			const off = anthropicThinkingOffForm(model);
 			if(off === 'disabled'){ o0.thinking = { type: 'disabled' }; }
@@ -568,7 +601,7 @@ export function applyThinkingLevel(opts, level, providerType, model, maxTokens){
 	}
 	const o = { ...(opts || {}) };
 	let budget = THINKING_BUDGET[level] || THINKING_BUDGET.medium;
-	// [E2] 思考预算自定义数值档:'custom:<n>'(或直接数字)→ budget=clamp(1024..65536);
+	// 思考预算自定义数值档:'custom:<n>'(或直接数字)→ budget=clamp(1024..65536);
 	// effort 类接口(OpenAI reasoning_effort)按数值折档。非法数值 → 落回 medium(不抛)。
 	let effLevel = level;
 	const customM = /^custom:(\d+)$/.exec(`${level}`);
@@ -577,12 +610,12 @@ export function applyThinkingLevel(opts, level, providerType, model, maxTokens){
 		budget = Math.max(1024, Math.min(65536, Math.round(numLevel)));
 		effLevel = budget >= 16000 ? 'xhigh' : (budget >= 6000 ? 'medium' : 'low');
 	}
-	if(isDeepseekV4Model(model, providerType)){ return applyDeepseekThinking(o, true, effLevel, providerType, budget); }   // [Q-327] 按网关出字段(档位 / 预算已折算)
+	if(isDeepseekV4Model(model, providerType)){ return applyDeepseekThinking(o, true, effLevel, providerType, budget); }   // 按网关出字段(档位 / 预算已折算)
 	if(providerType === 'anthropic'){
-		const profileCap = Number(o.thinking_budget_cap) || (o.thinking && Number(o.thinking.budget_tokens)) || 0;   // [Q-063] 档案预算上限
+		const profileCap = Number(o.thinking_budget_cap) || (o.thinking && Number(o.thinking.budget_tokens)) || 0;   // 档案预算上限
 		stripAnthropicThinkingKeys(o);
 		if(anthropicThinkingMode(model) === 'adaptive'){
-			// [Q-024/M-35] 自适应型号:thinking:{type:'adaptive'} + output_config.effort(档位映射);预算键对其无意义
+			// 自适应型号:thinking:{type:'adaptive'} + output_config.effort(档位映射);预算键对其无意义
 			o.thinking = { type: 'adaptive' };
 			o.output_config = { effort: ANTHROPIC_EFFORT_BY_LEVEL[effLevel] || 'medium' };
 			return o;
@@ -593,7 +626,7 @@ export function applyThinkingLevel(opts, level, providerType, model, maxTokens){
 		if(cap){ budget = Math.max(1024, Math.min(budget, cap - 512)); }
 		if(profileCap >= 1024){ budget = Math.min(budget, profileCap); }
 		o.thinking = { type: 'enabled', budget_tokens: budget };
-	}else if(/(^|\/)(gpt-?[567]|o[13-7])/.test(('' + (model || '')).toLowerCase())){
+	}else if(isOpenAIReasoningModel(model)){
 		// OpenAI o/gpt-5+ 系（与 isReasoningModel 的 OpenAI 半边同口径；勿再收窄——曾漏 gpt-6/7、o6/7 致思考档静默失效）。
 		// reasoning_effort 仅认 low|medium|high → 更高档(xhigh/max)封顶为 high;custom 数值按 effLevel 折档
 		o.reasoning_effort = (effLevel === 'xhigh' || effLevel === 'max') ? 'high' : effLevel;
@@ -606,12 +639,12 @@ export function applyThinkingLevel(opts, level, providerType, model, maxTokens){
 	return o;
 }
 
-// [Q-044] 思考档「哪些档对当前模型真有差别」——**由 applyThinkingLevel 自证**,不另维护一张会漂的表:
+// 思考档「哪些档对当前模型真有差别」——**由 applyThinkingLevel 自证**,不另维护一张会漂的表:
 // 逐档跑一遍、只取思考相关键做指纹,指纹与前面某档相同即「无差异」,浮层据此置灰并在 title 里写明等同哪一档。
 // 现实里的三类无差异:① OpenAI o/gpt-5 系的 reasoning_effort 只认 low|medium|high ⇒ 极高/最大 == 高;
 // ② DeepSeek V4 系只有 enabled/disabled 两态 ⇒ 五个非关闭档彼此相同;
 // ③ Ollama / DeepSeek reasoner(R1)等无标准思考参数 ⇒ 所有档都等于「关闭」(拨了完全没用,此前照样可选)。
-const THINKING_EFFECT_KEYS = ['thinking', 'reasoning_effort', 'output_config', 'reasoning', 'enable_thinking', 'thinking_budget'];   // [Q-327] 含网关形态键
+const THINKING_EFFECT_KEYS = ['thinking', 'reasoning_effort', 'output_config', 'reasoning', 'enable_thinking', 'thinking_budget'];   // 含网关形态键
 function thinkingEffectSignature(opts){
 	const o = opts || {};
 	const picked = {};
@@ -632,13 +665,13 @@ export function thinkingLevelEffects(providerType, model, baseOpts){
 	});
 }
 
-// 报告思考档的轻量持久化（localStorage）。
+// 思考档的轻量持久化（localStorage）。
 const THINKING_LS_KEY = 'horosa.report.thinkingLevel';
 export function getPersistedThinkingLevel(){
 	try{ return localStorage.getItem(THINKING_LS_KEY) || 'off'; }catch(_){ return 'off'; }
 }
 export function setPersistedThinkingLevel(v){
-	try{ safeLocalStorageSet(THINKING_LS_KEY, v || 'off'); }catch(_){}
+	safeLocalStorageSet(THINKING_LS_KEY, v || 'off');
 }
 
 // [调试钩·gated] 真模型 A/B 驱动器在页面内直接取计价与窗口函数(webpack 打包后不可 import):

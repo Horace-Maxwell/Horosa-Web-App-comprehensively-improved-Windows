@@ -45,9 +45,12 @@ const ctx = ()=>({ origin: 'in-app', requestId: 'stress', dispatch, ui: { select
 beforeEach(()=>{
 	window.localStorage.clear();
 	__resetToolsForTests(); __resetLedgerForTests(); __resetWorkspaceBridgeForTests();
-	dispatch = jest.fn(); changeCond = jest.fn();
+	// 假桥与真页面同口径落值:设置撤销要核对「当前值 == 写后值」,app/save 必须真并进全局仓
+	const st = { app: { appearanceMode: 'light', colorTheme: 0, showPdBounds: 0 }, astro: { fields: { hsys: { value: 1 }, zodiacal: { value: 0 }, pos: { value: '北京' } } } };
+	dispatch = jest.fn((a)=>{ if(a && a.type === 'app/save'){ st.app = { ...st.app, ...a.payload }; } });
+	changeCond = jest.fn((patch)=>{ const f = { ...st.astro.fields }; Object.keys(patch || {}).forEach((k)=>{ if(k !== 'confirmed'){ f[k] = { value: patch[k] }; } }); st.astro = { ...st.astro, fields: f }; });
 	registerWorkspaceBridge({ dispatch, changeCond });
-	setGlobalStore({ app: { appearanceMode: 'light', colorTheme: 0, showPdBounds: 0 }, astro: { fields: { hsys: { value: 1 }, zodiacal: { value: 0 }, pos: { value: '北京' } } } });
+	setGlobalStore(st);
 	registerBuiltinTools();
 });
 
@@ -193,6 +196,7 @@ describe('设置五面全值域往返', ()=>{
 				}
 				for(const opt of item.options.slice(0, 6)){
 					const r = await runTool('set_settings', { facet, technique, values: { [item.key]: opt.value } }, ctx());
+					if(!r.ok && r.code === 'E_SETTING_NO_CHANGE'){ expect(currentAll()).toBe(prior); continue; }   // 写的就是现值:拒、不记账本
 					expect(r.ok).toBe(true);
 					written += 1;
 					const u = undoAction(r.undo.actionId);

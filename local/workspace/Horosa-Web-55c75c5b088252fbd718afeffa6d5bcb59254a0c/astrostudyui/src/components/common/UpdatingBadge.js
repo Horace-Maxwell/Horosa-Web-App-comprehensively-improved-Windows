@@ -11,7 +11,7 @@ export default function UpdatingBadge({ text }){
 		<div style={{
 			position: 'absolute', top: 10, right: 14, zIndex: 6,
 			fontSize: 11.5, lineHeight: '18px',
-			color: 'var(--horosa-text-muted, rgba(180,184,196,0.92))',
+			color: 'var(--horosa-text-secondary, rgba(180,184,196,0.92))',
 			background: 'var(--horosa-panel-soft, rgba(20,22,28,0.72))',
 			border: '1px solid var(--horosa-border, rgba(255,255,255,0.12))',
 			padding: '2px 10px', borderRadius: 11, pointerEvents: 'none',

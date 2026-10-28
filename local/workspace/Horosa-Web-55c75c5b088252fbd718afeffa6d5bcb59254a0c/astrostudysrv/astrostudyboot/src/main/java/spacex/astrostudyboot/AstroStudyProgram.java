@@ -17,7 +17,6 @@ import org.springframework.context.annotation.ImportResource;
 
 import com.thetransactioncompany.cors.CORSFilter;
 
-import boundless.spring.help.interceptor.RSAFilter;
 import boundless.utility.ProgArgsHelper;
 import spacex.astrostudy.constants.ClientApp;
 import spacex.basecomm.constants.ClientChannel;
@@ -30,6 +29,9 @@ import spacex.basecomm.model.AppInfo;
 public class AstroStudyProgram {
 
 	public static void main(String[] args) {
+		// 进程第一件事:装「本机地址直连」的全局代理选择器。必须早于任何出站连接与任何取 ProxySelector 的客户端构造
+		// (开系统代理时,连本地排盘服务 / 本机数据库的裸 Socket 会被当成 SOCKS 代理流量 → 本地排盘全线失败)。
+		boundless.net.http.LoopbackDirectProxySelector.install();
 		// 测量轮(HOROSA_JAVA_STARTUP_PROFILE=1)顺手记 main() 里 Spring 起跑前的三个刻度(相对 JVM 起点),
 		// 归因「JVM 起点 → spring.boot.application.starting」这段(启动器类路径装配 / 主类静态初始化 / SpringApplication 构造)。
 		final boolean profile = "1".equals(System.getenv("HOROSA_JAVA_STARTUP_PROFILE"));
@@ -74,7 +76,7 @@ public class AstroStudyProgram {
 	// 测量轮启动分析器句柄(默认 null;StartupLedgerListener 读取后落账)。
 	static volatile org.springframework.boot.context.metrics.buffering.BufferingApplicationStartup startupProfiler = null;
 
-	// [R5-S5] 延迟初始化补全:spring.main.lazy-initialization=true 时,XML component-scan 扫出的、无启动/停机钩子的
+	// 延迟初始化补全:spring.main.lazy-initialization=true 时,XML component-scan 扫出的、无启动/停机钩子的
 	// 控制器/服务也翻为 lazy(Boot 自带的处理器只补「未显式设置」的定义,XML 扫描器写死了 false)。
 	// -Dhorosa.lazyinit.xmlscan=false / HOROSA_JAVA_XML_SCAN_LAZY=0 回旧;lazy-initialization 未开时本处理器恒无操作。
 	// 翻过的 bean 由 StartupLedgerListener 在就绪后的自热身线程里后台预实例化(HOROSA_JAVA_LAZY_PREWARM=0 关)。
@@ -84,15 +86,9 @@ public class AstroStudyProgram {
 		return new boundless.spring.help.LazyInitXmlScanPostProcessor(lazy);
 	}
 	
-	private CORSFilter newCORSFilter(){
-		CORSFilter corsFilter = new CORSFilter();
-		
-		return corsFilter;
-	}
-	
 	@Bean
 	public FilterRegistrationBean<CORSFilter> corsingFilter(){
-		CORSFilter corsFilter = newCORSFilter();
+		CORSFilter corsFilter = new CORSFilter();
 		FilterRegistrationBean<CORSFilter> registration = new FilterRegistrationBean<CORSFilter>();
 		
 		registration.setFilter(corsFilter);
@@ -104,7 +100,10 @@ public class AstroStudyProgram {
 	    // 前端每新增一个 X-Horosa-* 请求头必须同步登记(jest 合同 corsHeadersContract 机械核对本串 ↔ 前端 utils 的头名)。
 	    // X-Horosa-Crypto(响应加解密 v2 能力声明)/ X-Horosa-Priority(预取优先级)于 2026-09-25 补入。
 	    registration.addInitParameter("cors.supportedHeaders", "Accept, Accept-Encoding, Accept-Language, Host, Origin, X-Requested-With, Content-Type, User-Agent, Content-Length, Last-Modified, Access-Control-Request-Headers, HTTP_X_REAL_IP, HTTP_X_FORWARDED_FOR, x-forwarded-for, Token, x-remote-IP, x-originating-IP, x-remote-addr, x-remote-ip, x-client-ip, x-client-IP, X-Real-ip, ImgTokenListName, SmsTokenListName, _IMGTOKENLIST, _SMSTOKENLIST, Signature, LocalIp, ClientChannel, ClientApp, ClientVer, X-Horosa-Crypto, X-Horosa-Priority");
-	    registration.addInitParameter("cors.exposedHeaders", "Set-Cookie, ResultCode, ResultMessage, ImgTokenListName, SmsTokenListName, Signature, NeedLogin, Encrypted, SimpleData, RawData");
+	    // 跨源响应头放行表:前端 JS 读得到的响应头只有这里列的(加 CORS 安全名单里的几个标准头)。错误信息写在响应头 Result
+	    // (KeyConstants.ResultMessage = "Result"),此前表里只有并不存在的 ResultMessage → 前端读不到后端给的具体错误文字、只剩 HTTP 状态文字。
+	    // 前端每读一个响应头必须在此登记(jest 合同 corsHeadersContract 机械核对 response.headers.get(…) ↔ 本串)。
+	    registration.addInitParameter("cors.exposedHeaders", "Set-Cookie, ResultCode, Result, ResultMessage, ImgTokenListName, SmsTokenListName, Signature, NeedLogin, Encrypted, SimpleData, RawData");
 	    registration.addInitParameter("cors.supportsCredentials", "true");
 	    registration.setName("CORS");
 	    registration.setOrder(1);
@@ -257,19 +256,5 @@ public class AstroStudyProgram {
 			}
 		}
 	}
-
-//	@Bean
-//	public FilterRegistrationBean<RSAFilter> rsaFilter(){
-//		RSAFilter filter = new RSAFilter();
-//		FilterRegistrationBean<RSAFilter> reg = new FilterRegistrationBean<RSAFilter>();
-//		reg.setFilter(filter);
-//		reg.setOrder(2);
-//		
-//		reg.addUrlPatterns("/*");
-//		reg.setName("RSAFilter");
-//		
-//		return reg;
-//	}
-	
 
 }

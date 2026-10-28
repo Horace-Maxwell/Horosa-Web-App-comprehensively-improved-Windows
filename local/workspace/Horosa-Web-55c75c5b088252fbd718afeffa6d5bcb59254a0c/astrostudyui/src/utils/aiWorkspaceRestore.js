@@ -3,13 +3,24 @@
 // 一个只含单店的包能把其余二十多个店清空,且无事务无回滚(D54)。
 export const AI_BACKUP_MAX_ZIP_BYTES = 200 * 1024 * 1024;
 // 备份 manifest 的 snapshotVersion 上限:大于它的包来自更新的版本(字段语义可能变了),拒绝而不是猜。
-// [Q-051/M-62] 必须 = 本版能写出的最高值(aiAnalysisStore.AI_ANALYSIS_SCHEMA_VERSION);此前钉死 1 而导出写 5 →
+// 必须 = 本版能写出的最高值(aiAnalysisStore.AI_ANALYSIS_SCHEMA_VERSION);此前钉死 1 而导出写 5 →
 // 本软件导出的每一份备份都被判「由更新版本创建」拒绝(jest aiWorkspaceRestore 锁两者相等 + 「当前值 + 1 必拒」)。
 export const AI_BACKUP_SNAPSHOT_VERSION_MAX = 5;
-// [Q-058/M-78] 带密钥的店(接口档案 / 集成档案):导出包已剥密(apiKey 空 + apiKeyRedacted),恢复时按 id 保留本机 Key
+// 带密钥的店(接口档案 / 集成档案):导出包已剥密(apiKey 空 + apiKeyRedacted),恢复时按 id 保留本机 Key
 // (与统一备份 restoreAiWorkspace「本机已有保留」同口径),否则恢复=清空本机全部 Key。
 const SECRET_STORE_NAMES = ['provider_profiles', 'integration_profiles'];
 const SECRET_FIELDS = ['apiKey', 'token', 'authorization', 'Authorization', 'secret', 'clientSecret'];
+// 寄住在 workspace_meta 里的本机镜像(紫微自定义四化 / 亮度表的 IDB 镜像):单独恢复 AI 工作区时一律保本机 ——
+// 镜像跟的是 localStorage 里的现表(恢复 AI 工作区不动它),换成备份里的旧镜像后,LS 这把键一旦丢失(清理工具 / 驱逐),
+// 启动自愈就会把旧表写回,当前的自定义表被静默换掉。
+export const ZIWEI_CUSTOM_TABLE_MIRROR_IDS = ['ziwei_custom_sihua_table', 'ziwei_custom_brightness_table'];
+const WORKSPACE_META_STORE = 'workspace_meta';
+export function keepLocalDeviceMirrors(storeName, incoming, local){
+	if(`${storeName || ''}` !== WORKSPACE_META_STORE || !Array.isArray(incoming)){ return incoming; }
+	const isMirror = (r)=>!!(r && typeof r === 'object' && ZIWEI_CUSTOM_TABLE_MIRROR_IDS.indexOf(`${r.id}`) >= 0);
+	return [...incoming.filter((r)=>!isMirror(r)), ...(Array.isArray(local) ? local.filter(isMirror) : [])];
+}
+
 export function mergeLocalSecrets(storeName, incoming, local){
 	if(SECRET_STORE_NAMES.indexOf(`${storeName || ''}`) < 0 || !Array.isArray(incoming)){ return incoming; }
 	const byId = new Map();
@@ -30,7 +41,7 @@ export function mergeLocalSecrets(storeName, incoming, local){
 			&& mine.headers && typeof mine.headers === 'object' && mine.headers.Authorization){
 			out.headers = { ...out.headers, Authorization: mine.headers.Authorization };
 		}
-		// [Q-059/M-79] 额外请求头(包内已剥空)按头名回填本机值
+		// 额外请求头(包内已剥空)按头名回填本机值
 		const inEh = out.providerOptions && typeof out.providerOptions === 'object' && out.providerOptions.extraHeaders && typeof out.providerOptions.extraHeaders === 'object' ? out.providerOptions.extraHeaders : null;
 		const myEh = mine.providerOptions && typeof mine.providerOptions === 'object' && mine.providerOptions.extraHeaders && typeof mine.providerOptions.extraHeaders === 'object' ? mine.providerOptions.extraHeaders : null;
 		if(inEh && myEh){
@@ -54,7 +65,7 @@ export function planWorkspaceRestore(payload, storeKeys){
 	if(sv !== undefined && sv !== null && `${sv}` !== '' && (!Number.isFinite(Number(sv)) || Number(sv) > AI_BACKUP_SNAPSHOT_VERSION_MAX)){
 		return { ok: false, error: 'backup.version.future', present: [], absent: keys.slice(), total: 0, snapshotVersion: sv };
 	}
-	// [Q-412/M-162] 全量备份(命盘列表「导出全量备份」)把 AI 工作区嵌在 aiWorkspace 段:识别并直接取其 stores(unified=true 供提示);
+	// 全量备份(命盘列表「导出全量备份」)把 AI 工作区嵌在 aiWorkspace 段:识别并直接取其 stores(unified=true 供提示);
 	// 全量包无 aiWorkspace 段 → 独立错误码,界面指路而不是笼统「缺少工作区数据」。
 	let stores = payload.stores && typeof payload.stores === 'object' && !Array.isArray(payload.stores) ? payload.stores : null;
 	let unified = false;
@@ -75,7 +86,9 @@ export function planWorkspaceRestore(payload, storeKeys){
 	return { ok: true, present, absent, total, stores, unified };
 }
 
-// 执行:只动 plan.present 的店。deps = { clearStore, bulkPutStoreRecords, listStoreRecords, putStoreRecord?, metaStore? }
+// 执行:只动 plan.present 的店。deps = { clearStore, bulkPutStoreRecords, listStoreRecords, putStoreRecord?, metaStore?, assertDurable? }
+// assertDurable:动库之前先确认库真打开了(aiAnalysisStore.assertAiStoreDurable);库读不开时抛错、一条不动 ——
+// 否则快照、清店、写入全落在内存回退里,界面报「已恢复」,库里还是旧数据。
 // 顺序:逐店内存快照 → 写「进行中」句柄 → 逐店 clear+bulkPut → 成功写 ok 句柄;任一店抛错 → 已动过的店按快照回滚 → 写 rolled-back 句柄 → rethrow。
 export async function restoreWorkspaceStores(plan, deps){
 	if(!plan || !plan.ok){ throw new Error((plan && plan.error) || 'backup.invalid'); }
@@ -83,6 +96,7 @@ export async function restoreWorkspaceStores(plan, deps){
 	if(typeof d.clearStore !== 'function' || typeof d.bulkPutStoreRecords !== 'function' || typeof d.listStoreRecords !== 'function'){
 		throw new Error('restore.deps.missing');
 	}
+	if(typeof d.assertDurable === 'function'){ await d.assertDurable(); }
 	const snapshots = {};
 	for(let i = 0; i < plan.present.length; i++){
 		const name = plan.present[i];
@@ -103,7 +117,7 @@ export async function restoreWorkspaceStores(plan, deps){
 			// eslint-disable-next-line no-await-in-loop
 			await d.clearStore(name);
 			// eslint-disable-next-line no-await-in-loop
-			await d.bulkPutStoreRecords(name, mergeLocalSecrets(name, plan.stores[name], snapshots[name]), name);   // [Q-058/M-78]
+			await d.bulkPutStoreRecords(name, keepLocalDeviceMirrors(name, mergeLocalSecrets(name, plan.stores[name], snapshots[name]), snapshots[name]), name);
 		}
 	}catch(e){
 		for(let i = 0; i < touched.length; i++){

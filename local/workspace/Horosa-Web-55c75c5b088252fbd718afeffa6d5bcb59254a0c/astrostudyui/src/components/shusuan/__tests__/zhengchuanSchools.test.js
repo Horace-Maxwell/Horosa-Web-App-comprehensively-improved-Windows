@@ -11,6 +11,7 @@ import path from 'path';
 import { SCHOOL_LABEL, SCHOOL_KEYS } from '../zhengchuanSchools';
 
 const SRC = (...p) => path.join(__dirname, '..', '..', ...p);
+const { jsxNodes, jsxNodesInFile } = require('../../../utils/__tests__/helpers/jsxProps');
 
 describe('神数正传 · 流派名单一源', () => {
 	test('五流派齐备', () => {
@@ -39,8 +40,9 @@ describe('神数正传 · 流派名单一源', () => {
 	test('🔴 左栏下拉由单一源派生，不再手抄五行 Option（抄则必与盘题漂）', () => {
 		const host = fs.readFileSync(SRC('kinastro', 'KinAstroMain.js'), 'utf8');
 		expect(host).toMatch(/Object\.keys\(ZHENGCHUAN_SCHOOL_LABEL\)/);
+		const hostOptions = jsxNodesInFile(SRC('kinastro', 'KinAstroMain.js'), 'Option');
 		SCHOOL_KEYS.forEach((k) => {
-			expect(host).not.toMatch(new RegExp(`<Option value="${k}">[^<]+</Option>`));
+			expect([k, hostOptions.filter((o) => o.attrs.value === k && o.children && !/^\{/.test(o.children)).length]).toEqual([k, 0]);
 		});
 	});
 
@@ -65,7 +67,10 @@ describe('神数正传 · 右栏子tab', () => {
 	});
 
 	test('🔴 诸目一概 forceRender —— 漏之即「改了不属眼前这目的选项，右栏不动」', () => {
-		expect(body).toMatch(/<TabPane[^>]*forceRender/);
+		const panes = jsxNodes(src, 'TabPane').filter((e) => e.fns.includes('auxTabs'));
+		expect(body.length).toBeGreaterThan(0);
+		expect(panes.length).toBeGreaterThan(0);
+		expect(panes.filter((e) => e.attrs.forceRender !== true)).toEqual([]);
 	});
 
 	test('只一目则不出页签（徒增一层）；无目则不出', () => {

@@ -16,6 +16,9 @@ from flatlib.predictives import profections
 from flatlib.tools import arabicparts
 from astrostudy.signasctime import SignAscTime
 from astrostudy import helper
+from astrostudy.civil_calendar import (
+    LEAP_DAY_MAR1, astro_year, civil_jdn_display, civil_ymd_from_jdn, display_year, flatlib_civil_string,
+    format_civil_date, format_display_date, parse_civil_date, reset_ad_for_date, solar_anniversary_jdn)
 from astrostudy import solararc
 from astrostudy import firdaria
 from astrostudy import zreleasing
@@ -73,6 +76,32 @@ CORE_PD_VERTEX_ID = 'Vertex'
 
 
 
+def _civil_cn_string(dt):
+    """flatlib Datetime → 'YYYY-MM-DD HH:MM:SS'(民用历:1582 以前儒略历、历史纪年;年份按 civil_calendar
+    补到 4 位、公元前前导负号,与前端 formatSignedDate 同形)。公元 1000 年以后与 dt.toCNString() 逐字相同。"""
+    return flatlib_civil_string(dt)
+
+
+def _civil_years_after(display_y, count):
+    """本命年之后第 1..count 年的 (历史纪年, 天文年);跨公元元年不产生 0 年。"""
+    a0 = astro_year(int(display_y))
+    return [(display_year(a0 + i), a0 + i) for i in range(1, count + 1)]
+
+
+def _anniversary_rows(display_y, month, day, count):
+    """本命日之后第 1..count 个太阳年周年日 → [(起盘串 'Y/M/D', 显示串 'Y-M-D')],两串同一天。
+    周年日取在连续太阳年轴上(civil_calendar.solar_anniversary_jdn,与主限法同一函数):按民用历月日取时,
+    1582 年以前出生的行跨改历后整体晚太阳年约 10 天(小限少转 0.83°)。1582-10-15 以后出生与按民用历
+    月日取逐位相同。2 月 29 日生、目标年平年取 3 月 1 日(起盘引擎实际算的那天;主限法取 2 月 28 日)。
+    标签按民用历(1582 以前儒略历、历史纪年)写出。"""
+    birth_jdn = civil_jdn_display(int(display_y), int(month), int(day))
+    rows = []
+    for k in range(1, int(count) + 1):
+        y, m, d = civil_ymd_from_jdn(solar_anniversary_jdn(birth_jdn, k, LEAP_DAY_MAR1))
+        rows.append((format_display_date(y, m, d, '/'), format_display_date(y, m, d)))
+    return rows
+
+
 def _fill_user_ayan(perchart, target):
     """[SURF-R2u] 内层构参只回填 siderealAyanamsa 键名,user 档的 t0/ayan_t0 三参丢失 →
     推运盘(返照/推运内圈等)在自定义恒星黄道下静默回落默认岁差。user 档时补两附参。"""
@@ -123,7 +152,7 @@ _PD_METHOD_REGISTRY = {
 # 应随所选方位法变化。下列 8 个有把握的方位法直接映射到对应 swisseph 宫位系统；
 # morinus 亦有原生 swisseph 宫制('M')一并映上。equal_hour_circle / in_zodiaco_lon /
 # in_zodiaco_abs / 任何未列出的方法一律 fallback 到本命盘宫制(self.perchart.house)——
-# 诚实不臆造(equal_hour_circle 旧法层曾沿用本命宫制;frame 层已映 Meridian,见 _PD_FRAME_HSYS [Q-531])。
+# 诚实不臆造(equal_hour_circle 旧法层曾沿用本命宫制;frame 层已映 Meridian,见 _PD_FRAME_HSYS)。
 # 注：此映射只改盘的「宫位/四角分宫」，不改被推进的星体经度(刚体 RA+arc，与方位法无关)，
 # 故不影响表格(getPrimaryDirection)字节级一致——盘表分属两条独立渲染路径。
 _PD_CHART_METHOD_HSYS = {
@@ -176,7 +205,7 @@ _PD_PROJECTION_REGISTRY = {
 }
 
 # 定局 frame → 盘面宫制。
-# [Q-531/T-493] equal_hour_circle(Equal·时圈=赤道等分、宫首取时圈)此前「无干净 swisseph 等价 → 回落本命盘宫制」,
+# equal_hour_circle(Equal·时圈=赤道等分、宫首取时圈)此前「无干净 swisseph 等价 → 回落本命盘宫制」,
 # 而 3D 主限天球前端 pdHouseCusps 该档按赤经等分(第 10 宫 RA=RAMC 逐宫 +30°)闭式画宫首 → 同档两处宫首分叉。
 # 赤道自 RAMC 等分 30° 再沿时圈投到黄道 = swisseph Meridian(轴旋)制之定义,故映为 Meridian,与天球同口径;
 # 缺省 alcabitius 及其余档字节不变。
@@ -1246,7 +1275,7 @@ class PerPredict:
 
     def _pdChartHouseSystem(self, pd_method):
         """解析主限法盘所用宫制:定局 frame 维单独决定(_PD_FRAME_HSYS);
-        frame=None/未映射回退本命盘宫制(equal_hour_circle 已映 Meridian [Q-531])。带双重兜底防越界。
+        frame=None/未映射回退本命盘宫制(equal_hour_circle 已映 Meridian)。带双重兜底防越界。
         旧 pd_method 入参保留兼容:resolved frame 恒优先(旧值经 _PD_METHOD_TO_PAIR
         推导后与 _PD_CHART_METHOD_HSYS 逐键等价,盘面零回归)。"""
         _proj, frame = self._pdResolveProjectionFrame()
@@ -1274,11 +1303,16 @@ class PerPredict:
             # 极圈内象限制无解 → ascmc 与分宫制无关,用 b'W' 安全取得(常规纬度不走此路径)。
             _, ascmc, _, _ = swisseph.houses_ex2(chart.date.jd, lat, lon, b'W', flag)
         armc = angle.norm(float(ascmc[2]) + float(arc))
+        dir_code = swhsys
         try:
             hlist, dir_ascmc = swisseph.houses_armc(armc, lat, float(obliquity), swhsys)
         except swisseph.Error:
             # 同上:盘面宫顶在极圈对象限制回退 Porphyry(与 flatlib sweHouses 兜底口径一致)。
+            dir_code = b'O'
             hlist, dir_ascmc = swisseph.houses_armc(armc, lat, float(obliquity), b'O')
+        # 极圈内天顶口径与本命盘同源:MC 恒取子午线上中天交点(纬度 < 65° 逐位不变)。
+        dir_ascmc, _ = swe.upperMeridianAscmc(
+            lambda c: swisseph.houses_armc(armc, lat, float(obliquity), c), dir_code, dir_ascmc, lat)
         hlist = tuple(hlist) + (hlist[0],)
         houses = []
         for i in range(12):
@@ -1976,13 +2010,12 @@ class PerPredict:
 
     def getProfection(self, nodeRetrograde=False, asporb=-1):
         res = []
-        for i in range(1, 100):
-            year = int(self.perchart.year) + i
-            date = '{0}/{1}/{2}'.format(year, self.perchart.month, self.perchart.day)
+        # 连续太阳年轴逐年周年日(跨公元元年不产生 0 年;跨 1582 改历不少 10 天)
+        for date, date_label in _anniversary_rows(self.perchart.year, self.perchart.month, self.perchart.day, 99):
             dt = Datetime(date, self.perchart.time, self.perchart.zone)
             chart = profections.compute(self.perchart.chart, dt, False, nodeRetrograde)
             obj = {
-                'date': '{0}-{1}-{2}'.format(year, self.perchart.month, self.perchart.day),
+                'date': date_label,
                 'chart': {
                     'objects': getChartObjects(chart),
                     'aspects': self.getAspects(chart, asporb)
@@ -2010,17 +2043,17 @@ class PerPredict:
 
     def getSolarReturn(self, params, asporb=-1):
         res = []
-        st = int(self.perchart.year) + 1
-        ed = int(self.perchart.year) + 90
         zone = params['zone']
 
-        for i in range(st, ed):
+        # 本命后 89 年逐年(历史纪年,跨公元元年不产生 0 年);显示串经民用历补位
+        for i, _ay in _civil_years_after(self.perchart.year, 89):
             chart = self.perchart.chart.solarReturn(i)
             srdt = Datetime.fromJD(chart.date.jd, zone)
-            srdtstr = srdt.toCNString()
+            srdtstr = _civil_cn_string(srdt)
             dirparts = srdtstr.split(' ')
             cparams = copy.deepcopy(params)
             cparams['date'] = dirparts[0]
+            reset_ad_for_date(cparams)   # 派生盘日期换了:纪元标志随新日期(公元前本命推到公元后不再被当成公元前)
             cparams['time'] = dirparts[1]
             cparams['siderealAyanamsa'] = self.perchart.siderealAyanamsa
             _fill_user_ayan(self.perchart, cparams)
@@ -2071,9 +2104,10 @@ class PerPredict:
             params['returnLatitudeMode'] = 'withLatitude'
             params['_isReturnChart'] = 1   # dirChart(PerChart) 端赤经落宫仅此标记生效,主盘零效
         srdt = Datetime.fromJD(srDate.jd, srDate.utcoffset)
-        srdtstr = srdt.toCNString()
+        srdtstr = _civil_cn_string(srdt)
         dirparts = srdtstr.split(' ')
         params['date'] = dirparts[0]
+        reset_ad_for_date(params)   # 派生盘日期换了:纪元标志随新日期(公元前本命推到公元后不再被当成公元前)
         params['time'] = dirparts[1]
         params['siderealAyanamsa'] = self.perchart.siderealAyanamsa
         _fill_user_ayan(self.perchart, params)
@@ -2104,9 +2138,10 @@ class PerPredict:
             params['returnLatitudeMode'] = 'withLatitude'
             params['_isReturnChart'] = 1
         srdt = Datetime.fromJD(srDate.jd, srDate.utcoffset)
-        srdtstr = srdt.toCNString()
+        srdtstr = _civil_cn_string(srdt)
         dirparts = srdtstr.split(' ')
         params['date'] = dirparts[0]
+        reset_ad_for_date(params)   # 派生盘日期换了:纪元标志随新日期(公元前本命推到公元后不再被当成公元前)
         params['time'] = dirparts[1]
         params['siderealAyanamsa'] = self.perchart.siderealAyanamsa
         _fill_user_ayan(self.perchart, params)
@@ -2137,9 +2172,10 @@ class PerPredict:
         lrDate = dateLunarReturn(returnDate, moon.lon, self.perchart.zodiacal)
         chart = Chart(lrDate, pos, self.perchart.zodiacal, hsys=self.perchart.house, IDs=const.LIST_OBJECTS, sidereal_mode=self.perchart.siderealMode)
         srdt = Datetime.fromJD(lrDate.jd, lrDate.utcoffset)
-        srdtstr = srdt.toCNString()
+        srdtstr = _civil_cn_string(srdt)
         dirparts = srdtstr.split(' ')
         params['date'] = dirparts[0]
+        reset_ad_for_date(params)   # 派生盘日期换了:纪元标志随新日期(公元前本命推到公元后不再被当成公元前)
         params['time'] = dirparts[1]
         params['siderealAyanamsa'] = self.perchart.siderealAyanamsa
         _fill_user_ayan(self.perchart, params)
@@ -2157,25 +2193,25 @@ class PerPredict:
             'lots': self.perchart.getPars(chart)
         }
 
-        parts = dirparts[0].split('-')
-        m = parts[1]
-        if int(parts[2]) < 5:
-            dt = '{0}/{1}/21'.format(parts[0], parts[1])
+        # 第一返照落在月初(< 5 日)时同月再找一次;年月日按民用历日期串解析(公元前前导负号不撕裂)
+        ay1, m, d1 = parse_civil_date(dirparts[0])
+        if d1 < 5:
+            dt = format_civil_date(ay1, m, 21, '/')
             tm = '00:00'
             zone = params['zone']
             returnDate = Datetime(dt, tm, zone)
             seclrDate = dateLunarReturn(returnDate, moon.lon, self.perchart.zodiacal)
             secchart = Chart(seclrDate, pos, self.perchart.zodiacal, hsys=self.perchart.house, IDs=const.LIST_OBJECTS, sidereal_mode=self.perchart.siderealMode)
             srdt = Datetime.fromJD(seclrDate.jd, seclrDate.utcoffset)
-            srdtstr1 = srdt.toCNString()
+            srdtstr1 = _civil_cn_string(srdt)
             dirparts1 = srdtstr1.split(' ')
             params1 = copy.deepcopy(params)
             params1['date'] = dirparts1[0]
+            reset_ad_for_date(params1)   # 派生盘日期换了:纪元标志随新日期(公元前本命推到公元后不再被当成公元前)
             params1['time'] = dirparts1[1]
             params1['siderealAyanamsa'] = self.perchart.siderealAyanamsa
             _fill_user_ayan(self.perchart, params1)
-            parts = dirparts1[0].split('-')
-            if parts[1] == m:
+            if parse_civil_date(dirparts1[0])[1] == m:
                 obj1 = {
                     'date': srdtstr1,
                     'pos': {
@@ -2187,7 +2223,7 @@ class PerPredict:
                         'aspects': self.getAspects(secchart, asporb)
                     },
                     'dirParams': params1,
-                    # [Q-185/T-106] 第二返照对比盘的阿拉伯点此前用第一返照 chart 算(外圈点与本盘星位错位)→ 按自身 secchart 算。
+                    # 第二返照对比盘的阿拉伯点此前用第一返照 chart 算(外圈点与本盘星位错位)→ 按自身 secchart 算。
                     'lots': self.perchart.getPars(secchart)
                 }
                 obj['secLuneReturn'] = obj1
@@ -2202,6 +2238,7 @@ class PerPredict:
         givenDate = Datetime(dt, tm, zone)
         chart = Chart(givenDate, pos, self.perchart.zodiacal, hsys=self.perchart.house, IDs=const.LIST_OBJECTS, sidereal_mode=self.perchart.siderealMode)
         params['date'] = parts[0]
+        reset_ad_for_date(params)   # 派生盘日期换了:纪元标志随新日期(公元前本命推到公元后不再被当成公元前)
         params['time'] = parts[1]
         params['siderealAyanamsa'] = self.perchart.siderealAyanamsa
         _fill_user_ayan(self.perchart, params)
@@ -2222,15 +2259,14 @@ class PerPredict:
 
     def getSolarArc(self, asporb, nodeRetrograde=False):
         res = []
-        for i in range(1, 100):
-            year = int(self.perchart.year) + i
-            date = '{0}/{1}/{2}'.format(year, self.perchart.month, self.perchart.day)
+        # 连续太阳年轴逐年周年日(跨公元元年不产生 0 年;跨 1582 改历不少 10 天)
+        for date, date_label in _anniversary_rows(self.perchart.year, self.perchart.month, self.perchart.day, 99):
             dt = Datetime(date, self.perchart.time, self.perchart.zone)
             chart = solararc.compute(self.perchart.chart, dt, asporb, nodeRetrograde)
             objs = chart['objects']
             objs.sort(key=takeLon)
             obj = {
-                'date': '{0}-{1}-{2}'.format(year, self.perchart.month, self.perchart.day),
+                'date': date_label,
                 'chart': {
                     'objects': objs,
                     'aspects': chart['aspects']
@@ -2241,7 +2277,7 @@ class PerPredict:
         return res
 
     def getSolarArcByDate(self, date, asporb, nodeRetrograde=False, zone=None):
-        # [Q-173/T-113 2026-09-18] 目标时刻按推运页所选时区(dirZone)解释;缺省仍按本命时区(与小限同式)
+        # 目标时刻按推运页所选时区(dirZone)解释;缺省仍按本命时区(与小限同式)
         parts = date.split(' ');
         dt = helper.getChartDate(parts[0])
         tm = parts[1] if len(parts) > 1 else '00:00'
@@ -2269,15 +2305,14 @@ class PerPredict:
 
     def getPlanetaryArc(self, asporb, nodeRetrograde=False, arcSource=const.MOON):
         res = []
-        for i in range(1, 100):
-            year = int(self.perchart.year) + i
-            date = '{0}/{1}/{2}'.format(year, self.perchart.month, self.perchart.day)
+        # 连续太阳年轴逐年周年日(跨公元元年不产生 0 年;跨 1582 改历不少 10 天)
+        for date, date_label in _anniversary_rows(self.perchart.year, self.perchart.month, self.perchart.day, 99):
             dt = Datetime(date, self.perchart.time, self.perchart.zone)
             chart = solararc.compute(self.perchart.chart, dt, asporb, nodeRetrograde, arcSource)
             objs = chart['objects']
             objs.sort(key=takeLon)
             obj = {
-                'date': '{0}-{1}-{2}'.format(year, self.perchart.month, self.perchart.day),
+                'date': date_label,
                 'chart': {
                     'objects': objs,
                     'aspects': chart['aspects']
@@ -2291,7 +2326,7 @@ class PerPredict:
         parts = date.split(' ')
         dt = helper.getChartDate(parts[0])
         tm = parts[1] if len(parts) > 1 else '00:00'
-        saDate = Datetime(dt, tm, zone or self.perchart.zone)   # [Q-173] dirZone
+        saDate = Datetime(dt, tm, zone or self.perchart.zone)   # dirZone
         chart = solararc.compute(self.perchart.chart, saDate, asporb, nodeRetrograde, arcSource)
         objs = chart['objects']
         objs.sort(key=takeLon)
@@ -2321,7 +2356,7 @@ class PerPredict:
         parts = date.split(' ')
         dt = helper.getChartDate(parts[0])
         tm = parts[1] if len(parts) > 1 else '00:00'
-        target = Datetime(dt, tm, zone or self.perchart.zone)   # [Q-173] dirZone
+        target = Datetime(dt, tm, zone or self.perchart.zone)   # dirZone
         ageYears = (target.jd - self.perchart.chart.date.jd) / 365.2421904
         res = symbolicdir.compute(self.perchart.chart, ageYears, rateKey, asporb, nodeRetrograde, direction)
         objs = res['objects']

@@ -1,4 +1,4 @@
-// AI 助手·list_actions 工具合同:只读;缺省不含已撤销;按来源过滤;limit;不暴露参数全文;撤销权不在工具。
+// AI 助手·list_actions 工具合同:只读;缺省不含已撤销;按来源过滤;limit / offset 翻页;total = 过滤后条数;不暴露参数全文;撤销权不在工具。
 import def, { ACTION_ORIGINS } from '../aiTools/tools/listActions';
 import { appendAction, __resetLedgerForTests } from '../aiTools/ledger';
 
@@ -20,12 +20,13 @@ describe('list_actions', ()=>{
 		expect(def.inputSchema.properties.origin.enum).toEqual(ACTION_ORIGINS);
 		expect(def.description).toContain('撤销只能由用户');
 	});
-	it('缺省:最新在前、不含已撤销、每条形状固定且不带 args 全文;total 计全部', async ()=>{
+	it('缺省:最新在前、不含已撤销、每条形状固定且不带 args 全文;total 计过滤后的条数', async ()=>{
 		const r = await def.run({});
 		expect(r.ok).toBe(true);
 		expect(r.data.items.map((x)=>x.actionId)).toEqual(['a4', 'a2', 'a1']);
-		expect(r.data.total).toBe(4);
+		expect(r.data.total).toBe(3);   // 缺省不含已撤销:a3 不计
 		expect(r.data.shown).toBe(3);
+		expect(r.data.nextOffset).toBe(null);
 		r.data.items.forEach((x)=>{ expect(Object.keys(x).sort()).toEqual(['actionId', 'at', 'clientName', 'level', 'origin', 'summary', 'tool', 'undoKind', 'undone'].sort()); expect(x.args).toBeUndefined(); });
 		expect(JSON.stringify(r)).not.toContain('私密备注');
 		expect(r.data.items.find((x)=>x.actionId === 'a2')).toEqual(expect.objectContaining({ origin: 'mcp', clientName: 'codex', undoKind: 'trash-record', undone: false }));
@@ -40,6 +41,19 @@ describe('list_actions', ()=>{
 		expect(lim.data.items.length).toBe(1);
 		expect(lim.data.shown).toBe(1);
 		expect(lim.summary).toContain('1');
+	});
+	it('offset 翻页:total 随过滤走,nextOffset 指下一页起点,末页为 null', async ()=>{
+		const p1 = await def.run({ limit: 2, includeUndone: true });
+		expect(p1.data.items.map((x)=>x.actionId)).toEqual(['a4', 'a3']);
+		expect(p1.data.total).toBe(4); expect(p1.data.offset).toBe(0); expect(p1.data.nextOffset).toBe(2);
+		const p2 = await def.run({ limit: 2, includeUndone: true, offset: p1.data.nextOffset });
+		expect(p2.data.items.map((x)=>x.actionId)).toEqual(['a2', 'a1']);
+		expect(p2.data.nextOffset).toBe(null);
+		const mcp = await def.run({ origin: 'mcp', limit: 1 });
+		expect(mcp.data.total).toBe(1); expect(mcp.data.nextOffset).toBe(null);
+		const inApp = await def.run({ origin: 'in-app', includeUndone: true, limit: 1 });
+		expect(inApp.data.items.map((x)=>x.actionId)).toEqual(['a3']); expect(inApp.data.total).toBe(2); expect(inApp.data.nextOffset).toBe(1);
+		expect((await def.run({ offset: 99 })).data.items).toEqual([]);
 	});
 	it('账本为空 → ok 且 items=[](不是错误)', async ()=>{
 		__resetLedgerForTests();

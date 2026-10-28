@@ -1,6 +1,6 @@
 // 高德地图 CSP 白名单完整性守卫（制度化·FL 装机专发类 2026-07-13 首治 / 2026-07-14 二次根治）。
-// ★真表面 = main.rs 的 tiny_http 响应头 CSP（主界面走 http://127.0.0.1，不走 tauri:// → tauri.conf
-// 的 csp 管不到地图）；只校验 tauri.conf = 假绿。故本测首先校验 main.rs，tauri.conf 为次。
+// ★真表面 = 壳层静态服务(src-tauri/src/static_server.rs)的 tiny_http 响应头 CSP（主界面走 http://127.0.0.1，不走 tauri:// → tauri.conf
+// 的 csp 管不到地图）；只校验 tauri.conf = 假绿。故本测首先校验壳层静态服务，tauri.conf 为次。
 // 病根：打包 CSP ①未放行 AMap 域(*.amap.com/*.autonavi.com) ②script-src 缺 'unsafe-eval'（AMap 2.0
 // 运行时用 eval+WebAssembly）→ macOS WKWebView 严格执行 → 地图白屏；preview 无 CSP、Windows WebView2
 // 宽松故 dev/Win 假绿，唯 Mac 装机版暴露。此测与 release_preflight.sh [128] 双护（jest=早警，preflight=硬闸）。
@@ -21,9 +21,9 @@ function findInstallerFile(start, ...rel) {
 	return null;
 }
 function findTauriConf(start) { return findInstallerFile(start, 'tauri.conf.json'); }
-// ★真表面 = main.rs 的 tiny_http 响应头 CSP（主界面走 http://127.0.0.1，tauri.conf 的 csp 管不到这里）。
-function findMainRs(start) { return findInstallerFile(start, 'src', 'main.rs'); }
-function extractMainRsCsp(src) {
+// ★真表面 = 壳层静态服务 static_server.rs 的 tiny_http 响应头 CSP（主界面走 http://127.0.0.1，tauri.conf 的 csp 管不到这里）。
+function findShellCspRs(start) { return findInstallerFile(start, 'src', 'static_server.rs'); }
+function extractShellCsp(src) {
 	// CSP 以 Rust 字节串 &b"default-src ... frame-src 'self'"[..] 形式内嵌；CSP 内无双引号故 [^"]* 稳。
 	const m = `${src || ''}`.match(/&b"(default-src[^"]*)"/);
 	return m ? m[1] : null;
@@ -47,9 +47,9 @@ function allows(sources, host) {
 }
 
 const confPath = findTauriConf(__dirname);
-const mainRsPath = findMainRs(__dirname);
+const shellCspPath = findShellCspRs(__dirname);
 
-// 对一份 CSP dirs 断言 AMap 所需放行齐全（复用于 main.rs 真表面 + tauri.conf launcher）。
+// 对一份 CSP dirs 断言 AMap 所需放行齐全（复用于壳层静态服务真表面 + tauri.conf launcher）。
 function assertAmapCsp(dirs) {
 	['webapi.amap.com', 'restapi.amap.com', 'jsapi.amap.com'].forEach((h)=>{
 		['script-src', 'connect-src', 'img-src'].forEach((d)=>{
@@ -67,17 +67,17 @@ describe('高德地图 CSP 白名单完整性（Mac WKWebView 严格执行 → �
 		expect(typeof AMapKey === 'string' && AMapKey.length > 0).toBe(true);
 	});
 
-	// ★最关键：main.rs 的 tiny_http 响应头才是地图真正生效的 CSP 表面（主界面走 http://127.0.0.1，
+	// ★最关键：壳层静态服务的 tiny_http 响应头才是地图真正生效的 CSP 表面（主界面走 http://127.0.0.1，
 	// 不走 tauri:// 协议）。tauri.conf 的 csp 管不到主界面 → 只校验它=假绿。故此项必须存在且通过。
-	(mainRsPath ? test : test.skip)('★main.rs tiny_http CSP（地图真表面）放行全部 AMap 域 + worker blob + unsafe-eval', () => {
-		const csp = extractMainRsCsp(fs.readFileSync(mainRsPath, 'utf8'));
-		expect(csp).toBeTruthy();               // 抽不到=main.rs 结构变了，须人工核
+	(shellCspPath ? test : test.skip)('★壳层静态服务 tiny_http CSP（地图真表面）放行全部 AMap 域 + worker blob + unsafe-eval', () => {
+		const csp = extractShellCsp(fs.readFileSync(shellCspPath, 'utf8'));
+		expect(csp).toBeTruthy();               // 抽不到=static_server.rs 结构变了，须人工核
 		assertAmapCsp(parseCsp(csp));
 	});
 
-	// 次表面：tauri.conf.json launcher（无地图，但保持与 main.rs 一致=纵深防御）。
+	// 次表面：tauri.conf.json launcher（无地图，但保持与壳层静态服务一致=纵深防御）。
 	// 域(webapi=脚本/UI, restapi=地名/逆地理, jsapi/o4=瓦片) + worker blob + unsafe-eval 全查。
-	(confPath ? test : test.skip)('tauri.conf launcher CSP 与 main.rs 一致：全 AMap 域 + worker blob + unsafe-eval', () => {
+	(confPath ? test : test.skip)('tauri.conf launcher CSP 与壳层静态服务一致：全 AMap 域 + worker blob + unsafe-eval', () => {
 		const conf = JSON.parse(fs.readFileSync(confPath, 'utf8'));
 		assertAmapCsp(parseCsp(conf.app.security.csp));
 	});

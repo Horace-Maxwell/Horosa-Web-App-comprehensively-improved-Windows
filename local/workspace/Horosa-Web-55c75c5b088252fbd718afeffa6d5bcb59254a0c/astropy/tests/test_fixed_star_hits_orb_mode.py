@@ -1,4 +1,4 @@
-"""[Q-340/T-321] 格局页恒星触发(fixed_star_hits)接「按星等」档与随盘轨值:
+"""格局页恒星触发(fixed_star_hits)接「按星等」档与随盘轨值:
 此前只按单一平轨值,fixedStarOrbMode='byMagnitude' / 随盘 starOrb 对恒星触发无效(与 /chart 汇合恒星口径分离)。"""
 from astrostudy.perchart import PerChart
 from astrostudy.astroextra import fixed_star_hits, _analyze_chart_inner

@@ -13,8 +13,9 @@
 //    以后任一侧改了值而另一侧没跟,这里立刻红。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
-const LESS = fs.readFileSync(path.join(__dirname, '../app.less'), 'utf8');
+const LESS = readSource(path.join(__dirname, '../app.less'));
 
 /** 取某个选择器块内的全部 --horosa-astro-* 声明(按出现序) */
 function astroVarsIn(selectorAnchor){
@@ -70,6 +71,16 @@ describe('portal 层 astro 变量与作用域内定义等价', ()=>{
 			const lightHead = LESS.slice(Math.max(0, lightIdx - 500), lightIdx);
 			expect([sel, lightHead.includes(`'light'] ${sel},`) || sel === '.ant-dropdown']).toEqual([sel, true]);
 		});
+	});
+
+	it('同一组也挂在根上(作用域与 portal 之外的页面同样解析得到;暗色基线 :root、亮色覆盖 :root[light])', ()=>{
+		// 回归原案:金融「食与月相」日数徽标写 var(--horosa-astro-gold),不在任何作用域里 → 声明作废、退回继承的 antd 缺省黑,暗底黑字
+		const darkIdx = LESS.indexOf(PORTAL_DARK);
+		const darkHead = LESS.slice(Math.max(0, darkIdx - 400), darkIdx);
+		expect(darkHead).toMatch(/\n\s*:root,\s*\n\s*\.ant-drawer,/);
+		const lightIdx = LESS.indexOf(PORTAL_LIGHT);
+		const lightHead = LESS.slice(Math.max(0, lightIdx - 700), lightIdx);
+		expect(lightHead).toMatch(/\n\s*:root\[data-horosa-appearance='light'\],\s*\n/);
 	});
 
 	it('🔴 塔罗单卡详情抽屉的正文色确实走这套变量(回归原案)', ()=>{

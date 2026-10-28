@@ -47,7 +47,7 @@ function Group({ title, options, selected, onChange, minWidth, headClassName }){
 					    (亮色主题 6.75:1,暗主题该 token 自动变亮);dark 档另有更高特异度规则
 					    盖成亮金 #d8ab52(暗底 8.85:1),两档同色系不同明度档。 */}
 					<a className='horosa-pd-ext-link' onClick={()=>onChange(options.map((o)=>o.value))}>全选</a>
-					<span style={{ opacity: 0.4, margin: '0 4px' }}>|</span>
+					<span style={{ color: 'var(--horosa-text-secondary)', margin: '0 4px' }}>|</span>
 					<a className='horosa-pd-ext-link' onClick={()=>onChange([])}>清空</a>
 				</span>
 			</span>

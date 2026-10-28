@@ -4,15 +4,17 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
+import { signDegMin, astroMsgText as msg } from '../astro/AstroHelper';
 import { classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { planetaryPictures, midpointList, spiegelContacts, solarArcDirections, compositeChart, SA_RATE, planetHouse, rectificationHits } from '../../utils/uranianDial';
 import moment from 'moment';
-// [Q-147/T-54] 太阳弧速率三档人话(与 90°盘工具条同名;naibod 为缺省不成行)。
-const SA_KEY_LABEL = { naibod: 'Naibod(0°59′08″/年)', oneDeg: '1°/年', cardan: 'Cardan(0°59′12″/年)' };
+import { momentOfCivilDateTimeStr } from '../../utils/civilMoment';
+// 太阳弧速率三档人话(与 90°盘工具条同名;naibod 为缺省不成行)。
+const SA_KEY_LABEL = { naibod: '均日弧(0°59′08″/年)', oneDeg: '1°/年', cardan: '59′12″(0°59′12″/年)' };   // 与左栏「太阳弧换算」同名
 import { getStoredUranianDisplay, URANIAN_DISPLAY_EVENT } from './UranianDialStyle';
-import { personalSetForSchool, schoolToBackendParams, SCHOOL_OPTIONS } from './UranianSchools';
+import { personalSetForSchool, schoolToBackendParams, SCHOOL_OPTIONS, germanyMidpointRequestParams } from './UranianSchools';
 import { medicalMeaning, factorLabel } from '../../data/uranianMeanings';
 import { tnpReferenceList, TNP_CALIBRE_NOTE, TNP_GROUP_LABEL } from '../../data/uranianTnpReference';
 import { chartToPoints, firstSynastryPartnerParams } from './UranianDialMain';
@@ -34,7 +36,7 @@ function fieldsToParams(fields){
 		hsys: fields.hsys.value,
 		zodiacal: fields.zodiacal.value,
 		siderealAyanamsa: fields.siderealAyanamsa ? fields.siderealAyanamsa.value : '',
-		// [SURF-R5g2] user 岁差三元(R4u 第三域):germany 双腿此前 'user' 档同回落 Lahiri
+		// user 岁差三元(R4u 第三域):germany 双腿此前 'user' 档同回落 Lahiri
 		// (页面与 AI 挂载共用本函数=两侧一致地错,一并修)。
 		...((`${fields.siderealAyanamsa ? fields.siderealAyanamsa.value : ''}` === 'user')
 			? require('../../utils/customCalibreStores').userAyanParamsFrom((k) => (fields[k] ? fields[k].value : undefined))
@@ -46,24 +48,11 @@ function fieldsToParams(fields){
 		predictive: 0,
 		name: fields.name.value,
 		pos: fields.pos.value,
-		// [SURF-5] 古典设置单源接入(量化盘本地构参副本此前零古典键);条件发送=默认态字节不变。
+		// 古典设置单源接入(量化盘本地构参副本此前零古典键);条件发送=默认态字节不变。
 		...classicalBackendOverridesFromFields(fields),
 	};
 
 	return params;
-}
-
-function msg(id){
-	if(id === undefined || id === null){
-		return '';
-	}
-	if(AstroText.AstroTxtMsg[id]){
-		return AstroText.AstroTxtMsg[id];
-	}
-	if(AstroText.AstroMsg[id]){
-		return `${AstroText.AstroMsg[id]}`;
-	}
-	return `${id}`;
 }
 
 function round3(val){
@@ -71,19 +60,6 @@ function round3(val){
 		return '';
 	}
 	return `${Math.round(Number(val) * 1000) / 1000}`;
-}
-
-function splitDegree(degree){
-	let d = Number(degree);
-	if(Number.isNaN(d)){
-		return [0, 0];
-	}
-	if(d < 0){
-		d += 360;
-	}
-	const deg = Math.floor(d % 30);
-	const min = Math.floor(((d % 30) - deg) * 60);
-	return [deg, min];
 }
 
 function aspectText(asp){
@@ -95,7 +71,7 @@ function aspectText(asp){
 }
 
 function formatSignDegree(sign, signlon){
-	const sd = splitDegree(signlon);
+	const sd = signDegMin(signlon);
 	return `${sd[0]}˚${msg(sign)}${sd[1]}分`;
 }
 
@@ -121,7 +97,7 @@ function pickAstroSections(text, sectionNames){
 	return blocks.join('\n\n').trim();
 }
 
-// 汉堡学派要素(WP-8):流派 / 六宫框 / 差值表 / 医学四液 / 赤纬平行,聚合入快照供 AI 读盘。
+// 汉堡学派要素(WP-8):流派 / 六宫框 / 差值表 / 医学四液,聚合入快照供 AI 读盘(赤纬接触另成独立段,见 buildDeclinationSection)。
 // 门控 showHamburg:用户介入任一汉堡功能即附加——非默认流派 / 差值表 / 十字指针 / 合盘叠加,
 // 以及映点(showAntiscia)/中点列表(showMidpointList)/行星图(showPlanetPicture)/和点(showSumPoints)/差距(showArcOpenings)。
 // 注:只纳入「默认 false 的用户主动开关」;showHouseFrames/showDeclination 在 classic 默认即 true,不能进门控
@@ -156,7 +132,7 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
 	if(disp.extendedAxes) calibres.push('扩展映点轴(15°固定星座;仅360°盘有别)');
 	if(disp.showEastPoint) calibres.push('东点入点集');
 	if(disp.showVertex) calibres.push('宿命点入点集');
-	// [Q-147/T-54] saKey 三档(naibod 默认 / oneDeg / cardan)与 SA_RATE 单源同名;非默认才成行(缺省字节不变)。
+	// saKey 三档(naibod 默认 / oneDeg / cardan)与 SA_RATE 单源同名;非默认才成行(缺省字节不变)。
 	if(disp.saKey && disp.saKey !== 'naibod') calibres.push(`太阳弧速率:${SA_KEY_LABEL[disp.saKey] || disp.saKey}`);
 	if(calibres.length){
 		out.push(`口径：${calibres.join('；')}`);
@@ -178,7 +154,7 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
 	// 差值表(WP-3):太阳弧到期(naibod),目标年龄命中标★。
 	if(disp.showDiffList){
 		const targetAge = Number.isFinite(Number(disp.diffTargetAge)) ? Number(disp.diffTargetAge) : 30;
-		// [Q-147/T-54] 差值表吃用户太阳弧速率与盘基(此前钉死 naibod/90°,与盘面差值表口径分叉);缺省档逐字同旧。
+		// 差值表吃用户太阳弧速率与盘基(此前钉死 naibod/90°,与盘面差值表口径分叉);缺省档逐字同旧。
 		const saKey = SA_RATE[disp.saKey] ? disp.saKey : 'naibod';
 		const dialBase = Number(disp.dialBase) > 0 ? Number(disp.dialBase) : 90;
 		const diffs = solarArcDirections(pts, dialBase, { saKey, targetAge, win: 1, maxAge: 90 });
@@ -233,18 +209,6 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
 		out.push('（仅为体质倾向参考，不替代医疗诊断）');
 	}
 
-	// 赤纬平行/反平行(WP-11):后端 declination top 接触(仅 showDeclination 开时)。
-	const decl = (disp.showDeclination !== false && result && result.declination && typeof result.declination === 'object') ? result.declination : null;
-	if(decl){
-		const par = Array.isArray(decl.parallel) ? decl.parallel : [];
-		const cp = Array.isArray(decl.contraParallel) ? decl.contraParallel : [];
-		if(par.length || cp.length){
-			out.push('赤纬接触：');
-			par.slice(0, 6).forEach((p)=>out.push(`  ${msg(p.a)} ∥ ${msg(p.b)}（平行≈合，Δ${Number(p.delta).toFixed(2)}°）`));
-			cp.slice(0, 6).forEach((p)=>out.push(`  ${msg(p.a)} ⥮ ${msg(p.b)}（反平行≈冲，Δ${Number(p.delta).toFixed(2)}°）`));
-		}
-	}
-
 	// ── [组合盘](B5):开启且伙伴点集可得时附(extras.compositePts 由异步快照链拉取;页面中点 Tab 无此数据则跳)。 ──
 	const cpts = extras && Array.isArray(extras.compositePts) ? extras.compositePts : null;
 	if(disp.showComposite && cpts && cpts.length){
@@ -283,15 +247,16 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
 
 // PERF-R8 P2(数据层空闲预热):按当前盘 fields 预热 /germany/midpoint —— 与量化盘
 // (germanytech,辅盘默认子页)首点的 requestChart 同一构造:fieldsToParams(fields) +
-// 存储流派派生(school/orb/personalOrb,**不含** declination 键——那是 AI 无头版的口径,
-// body 不同不可混用)→ url+body 逐字节一致 → requestDedupe L1/L2 命中。silent 丢结果,
+// 显示口径出参 germanyMidpointRequestParams(与 AstroMidpoint.midpointDisplayParams 同一单源,
+// 含 declination / frames / strictFactors / davison;此前自拼 school/orb/personalOrb 三键,上游扩键后
+// body 不再同键 ⇒ 预热静默落空)→ url+body 逐字节一致 → requestDedupe L1/L2 命中。silent 丢结果,
 // 绝不 setState/dispatch。失败静默。
 export async function warmGermanyMidpoint(fields){
 	try{
 		if(!fields || !fields.date || !fields.date.value || !fields.date.value.format){ return null; }
 		const params = fieldsToParams(fields);
 		const disp = getStoredUranianDisplay();
-		const schoolParams = { ...schoolToBackendParams(disp.school), orb: disp.orb, personalOrb: disp.orbPersonal };
+		const schoolParams = germanyMidpointRequestParams(disp, disp.showDavison ? firstSynastryPartnerParams(disp) : null);
 		return await request(`${Constants.ServerRoot}/germany/midpoint`, {
 			body: JSON.stringify({ ...params, ...schoolParams }),
 			silent: true,
@@ -301,6 +266,33 @@ export async function warmGermanyMidpoint(fields){
 	}catch(e){
 		return null; // 预热失败静默:首点回到冷即付的现状
 	}
+}
+
+// /germany/midpoint 的显示口径出参单源在 UranianSchools(中点页 / 90° 中点盘 / AI 无头重算三路共用;此处转出,旧引用路径不变)。
+export { germanyMidpointRequestParams };
+
+// 赤纬接触(平行 / 反平行)全表:左栏「赤纬接触」开着(disp.showDeclination≠false,缺省开)即进快照,不受汉堡门控 ——
+// 与 90°中点盘右栏同一份后端 declination 数据、同一开关(此前只在汉堡段里报前 6 对,缺省 classic 不进汉堡段 → 页面列着、AI 看不见,
+// 挂载齿轮开 / 关也对正文零作用)。后端没给该字段(关了赤纬 / 旧后端)= 不产段。
+export function buildDeclinationSection(disp, result){
+	const out = [];
+	if(!disp || disp.showDeclination === false){ return out; }
+	const decl = result && result.declination && typeof result.declination === 'object' ? result.declination : null;
+	if(!decl){ return out; }
+	const par = Array.isArray(decl.parallel) ? decl.parallel : [];
+	const cp = Array.isArray(decl.contraParallel) ? decl.contraParallel : [];
+	const deg = (v)=>(Number.isFinite(Number(v)) ? `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(2)}°` : '—');
+	out.push('[赤纬接触]');
+	out.push('（平行≈合：两点赤纬同号、相差在容许度内；反平行≈冲：异号、绝对值相差在容许度内；行星与虚星入算，四轴不入算）');
+	if(!par.length && !cp.length){
+		out.push('容许度内暂无平行 / 反平行');
+		return out;
+	}
+	out.push('| 接触 | 点对 | 赤纬 | 差 |');
+	out.push('| --- | --- | --- | --- |');
+	par.forEach((p)=>out.push(`| 平行 | ${msg(p.a)} ∥ ${msg(p.b)} | ${deg(p.decA)} / ${deg(p.decB)} | ${Number.isFinite(Number(p.delta)) ? Number(p.delta).toFixed(2) : '—'}° |`));
+	cp.forEach((p)=>out.push(`| 反平行 | ${msg(p.a)} ⥮ ${msg(p.b)} | ${deg(p.decA)} / ${deg(p.decB)} | ${Number.isFinite(Number(p.delta)) ? Number(p.delta).toFixed(2) : '—'}° |`));
+	return out;
 }
 
 // 供 AI 分析无头复算：取本命西洋盘 + 中点盘，生成量化盘快照（不依赖组件挂载）。
@@ -321,13 +313,7 @@ export async function buildGermanySnapshotForFields(fields, dispOverride){
 	// 供给面与 90°盘页面同参面(第3组):strictFactors/frames(live+东点)/davison 条件下发——
 	// 默认全关时逐字节同旧请求(零回归);开启后快照与页面判读永不分叉。
 	const partnerParams = (dispReq.showComposite || dispReq.showDavison) ? firstSynastryPartnerParams(dispReq) : null;
-	const schoolReq = {
-		...schoolToBackendParams(dispReq.school), orb: dispReq.orb, personalOrb: dispReq.orbPersonal,
-		declination: dispReq.showDeclination !== false,
-		frames: dispReq.showHouseFrames !== false || !!dispReq.showEastPoint,
-		...(dispReq.strictFactors ? { strictFactors: true } : {}),
-		...(dispReq.showDavison && partnerParams ? { davison: partnerParams } : {}),
-	};
+	const schoolReq = germanyMidpointRequestParams(dispReq, dispReq.showDavison ? partnerParams : null);
 	const mpData = await request(`${Constants.ServerRoot}/germany/midpoint`, {
 		body: JSON.stringify({ ...params, ...schoolReq }),
 		silent: true,
@@ -354,12 +340,12 @@ export async function buildGermanySnapshotForFields(fields, dispOverride){
 			if(cpts.length) extras = { compositePts: cpts, partnerLabel: partnerParams.name || '叠盘对象' };
 		}catch(e){ /* 伙伴盘拉取失败 → 跳过组合段(仅数据可得时附) */ }
 	}
-	// [Q-227/T-191] 合并后的显示口径一并传入正文:此前正文 [行星图][映点][中点列表][汉堡学派要素] 重新读全局显示仓,
+	// 合并后的显示口径一并传入正文:此前正文 [行星图][映点][中点列表][汉堡学派要素] 重新读全局显示仓,
 	// 与后端段(随 dispReq)成「一份快照两套口径」;页面路径不传 = 读全局 = 现状字节不变。
 	return buildGermanySnapshotText(params, chartObj, result, fields, extras, dispReq);
 }
 
-// [Q-442/T-405] 六宫框全框×全点落宫表:页签「六宫框」开着(disp.showHouseFrames≠false)即进快照,不受汉堡门控;
+// 六宫框全框×全点落宫表:页签「六宫框」开着(disp.showHouseFrames≠false)即进快照,不受汉堡门控;
 // 此前只在汉堡段里报「太阳局四点」。落宫取后端 frames[key].placements[id],缺则按 cusps 前端定宫(与六宫框页 tableRows 同式)。
 // 六框中性命名(定局法),与 UranianHouseFrames 同表。
 const HF_FRAMES = [
@@ -390,14 +376,15 @@ export function buildHouseFramesSection(disp, result, dialPoints){
 	return out;
 }
 
-// [Q-442/T-405] 校时预览段:与「校时」页签同一纯函数 rectificationHits(事件日期→弧年×速率→推进 MC/Asc→命中本命因子);
+// 校时预览段:与「校时」页签同一纯函数 rectificationHits(事件日期→弧年×速率→推进 MC/Asc→命中本命因子);
 // 有待校事件才产段。Asc 微调滑块是即时预览态(松手即弃),不进快照;命中表按 0 微调。
 const RECTIFY_TYPE_CN = { marriage: '婚姻', children: '生育', career: '事业', move: '迁居', loss: '丧亲', accident: '意外', other: '其他' };
 export function buildRectifySection(disp, params, dialPoints){
 	const out = [];
 	const events = disp && Array.isArray(disp.rectifyEvents) ? disp.rectifyEvents.filter((e)=>e && e.date) : [];
 	if(!events.length){ return out; }
-	const birth = params && params.date ? moment(`${params.date} ${params.time || '00:00:00'}`, 'YYYY/MM/DD HH:mm:ss') : null;
+	// 出生时刻经民用历单源(公元前 / 1582 以前儒略历 / 公元 1–99 年都对;不用 moment(串, 格式))
+	const birth = params && params.date ? momentOfCivilDateTimeStr(`${params.date} ${params.time || '00:00:00'}`) : null;
 	if(!birth || !birth.isValid()){ return out; }
 	const pts = Array.isArray(dialPoints) ? dialPoints : [];
 	const lonOf = (id)=>{ const o = pts.find((p)=>p.id === id); return o && Number.isFinite(Number(o.lon)) ? Number(o.lon) : null; };
@@ -415,7 +402,7 @@ export function buildRectifySection(disp, params, dialPoints){
 	});
 	const results = rectificationHits(evInput, angles, pts, base, orb, SA_RATE[saKey]);
 	out.push('[校时预览]');
-	out.push(`（已录事件推进 MC/Asc 看是否触动本命因子，只预览不改盘；盘基 ${base}°·容许 ${orb}°·太阳弧 ${({ oneDeg: '1°/年', cardan: 'Cardan', naibod: 'Naibod' })[saKey] || 'Naibod'}；1°MC≈4 分钟出生时间）`);
+	out.push(`（已录事件推进 MC/Asc 看是否触动本命因子，只预览不改盘；盘基 ${base}°·容许 ${orb}°·太阳弧 ${({ oneDeg: '1°/年', cardan: '59′12″', naibod: '均日弧' })[saKey] || '均日弧'}；1°MC≈4 分钟出生时间）`);
 	out.push('| 事件 | 类型 | 日期 | 弧° | 命中(轴→本命因子·角距) |');
 	out.push('| --- | --- | --- | --- | --- |');
 	results.forEach((r, i)=>{
@@ -456,7 +443,7 @@ export function buildGermanySnapshotText(params, chartObj, result, fields, extra
 	if(midpoints.length === 0){
 		lines.push('暂无中点数据');
 	}else{
-		// [v2 排版] 中点逐行改 GFM 表(经 v1/v2 归一器直通、docx/PDF 渲染真表)。
+		// 中点逐行改 GFM 表(经 v1/v2 归一器直通、docx/PDF 渲染真表)。
 		// 单元格值表达式逐字同源:msg(idA)/msg(idB)/formatSignDegree;
 		// 因子对分隔「|」→「/」(GFM 单元格不容裸竖线,与本文[中点列表]既有对记号一致)。
 		lines.push('| 中点 | 位置 |');
@@ -520,7 +507,7 @@ export function buildGermanySnapshotText(params, chartObj, result, fields, extra
 		lines.push('暂无可折叠因子');
 	}else{
 		lines.push('（盘基 90°；各因子折叠位相近者互成硬相位 0/90/180/270）');
-		// [v2 排版] 折叠位逐行改 GFM 表(单元格值表达式逐字同源:msg(f.id)/f.fold.toFixed(2))。
+		// 折叠位逐行改 GFM 表(单元格值表达式逐字同源:msg(f.id)/f.fold.toFixed(2))。
 		lines.push('| 因子 | 折叠位 |');
 		lines.push('| --- | --- |');
 		dialFactors.sort((a, b)=>a.fold - b.fold).forEach((f)=>{
@@ -536,7 +523,7 @@ export function buildGermanySnapshotText(params, chartObj, result, fields, extra
 	tnpList.forEach((t)=>pushPoint(t.id, t.lon));
 	pushPoint(AstroConst.ARIES_POINT, 0);
 	// 流派/容许度随「90°中点盘」存储派生(与盘一致);缺省 classic → 个人点含白羊+南交、orb 1°,即现状口径。
-	// [Q-227/T-191] 无头挂载路径传入合并口径 dispIn(全局仓 + 齿轮覆盖),正文与请求同源。
+	// 无头挂载路径传入合并口径 dispIn(全局仓 + 齿轮覆盖),正文与请求同源。
 	const disp = (dispIn && typeof dispIn === 'object') ? dispIn : getStoredUranianDisplay();
 	const snapPersonal = personalSetForSchool(disp.school);
 	const SNAP_BASE = 90;
@@ -550,7 +537,7 @@ export function buildGermanySnapshotText(params, chartObj, result, fields, extra
 		lines.push('暂无行星图');
 	}else{
 		lines.push('（敏感点和差式 A+B−C=D，含个人点/TNP 优先）');
-		// [v2 排版] 和差式逐行改 GFM 表(单元格值表达式逐字同源:msg(a/b/c/d)/p.sep.toFixed(2))。
+		// 和差式逐行改 GFM 表(单元格值表达式逐字同源:msg(a/b/c/d)/p.sep.toFixed(2))。
 		lines.push('| 和差式 A+B−C | 落点 D | 误差 |');
 		lines.push('| --- | --- | --- |');
 		pics.forEach((p)=>lines.push(`| ${msg(p.a)} + ${msg(p.b)} − ${msg(p.c)} | ${msg(p.d)} | ${p.sep.toFixed(2)}° |`));
@@ -563,7 +550,7 @@ export function buildGermanySnapshotText(params, chartObj, result, fields, extra
 		lines.push('暂无映点接触');
 	}else{
 		lines.push('（Spiegelpunkt 回照接触；90°盘上回照与对映折叠重合）');
-		// [v2 排版] 映点接触逐行改 GFM 表(单元格值表达式逐字同源:msg(s.a)/msg(s.b)/s.sep.toFixed(2))。
+		// 映点接触逐行改 GFM 表(单元格值表达式逐字同源:msg(s.a)/msg(s.b)/s.sep.toFixed(2))。
 		lines.push('| 映点对 | 误差 |');
 		lines.push('| --- | --- |');
 		sp.forEach((s)=>lines.push(`| ${msg(s.a)} ⟷ ${msg(s.b)} | ${s.sep.toFixed(2)}° |`));
@@ -575,17 +562,22 @@ export function buildGermanySnapshotText(params, chartObj, result, fields, extra
 	if(mpl.length === 0){
 		lines.push('暂无中点');
 	}else{
-		// [v2 排版] 中点列表逐行改 GFM 表(单元格值表达式逐字同源:msg(m.a)/msg(m.b)/m.lon.toFixed(2))。
+		// 中点列表逐行改 GFM 表(单元格值表达式逐字同源:msg(m.a)/msg(m.b)/m.lon.toFixed(2))。
 		lines.push('| 因子 | 折叠位 |');
 		lines.push('| --- | --- |');
 		mpl.slice(0, 120).forEach((m)=>lines.push(`| ${msg(m.a)} / ${msg(m.b)} | ${m.lon.toFixed(2)}° |`));
 	}
 
-	// [Q-442/T-405] 六宫框全表(页签开着即进,不受汉堡门控)与校时预览(有待校事件才进)。
+	// 六宫框全表 / 赤纬接触(开关开着即进,不受汉堡门控)与校时预览(有待校事件才进)。
 	const framesSection = buildHouseFramesSection(disp, result, dialPoints);
 	if(framesSection.length){
 		lines.push('');
 		lines.push(...framesSection);
+	}
+	const declSection = buildDeclinationSection(disp, result);
+	if(declSection.length){
+		lines.push('');
+		lines.push(...declSection);
 	}
 	const rectifySection = buildRectifySection(disp, params, dialPoints);
 	if(rectifySection.length){
@@ -593,7 +585,7 @@ export function buildGermanySnapshotText(params, chartObj, result, fields, extra
 		lines.push(...rectifySection);
 	}
 
-	// 汉堡学派要素(WP-8):流派/六宫框/差值/医学/赤纬,仅用户介入汉堡功能时附加(默认 classic 零回归)。
+	// 汉堡学派要素(WP-8):流派/六宫框/差值/医学,仅用户介入汉堡功能时附加(默认 classic 零回归)。
 	const hamburgLines = buildHamburgLines(disp, dialPoints, result, SNAP_ORB, extras);
 	if(hamburgLines.length){
 		lines.push('');
@@ -632,18 +624,12 @@ class AstroMidpoint extends Component{
 	}
 
 	async requestChart(params){
-		// [SURF-R5m] 乱序/卸载防(同批 seq 范式;onFieldsChange 连改连发窗口小但存在)。
+		// 乱序/卸载防(同批 seq 范式;onFieldsChange 连改连发窗口小但存在)。
 		const seq = ++this._mpSeq || (this._mpSeq = 1);
 		// 流派出参随「90°中点盘」存储派生(同盘口径);默认 classic 即现状字节零回归,不扰后端缓存。
 		// 第3组:strictFactors/frames(live+东点)/davison 与 90°盘、挂载链同参面(供给三链一致)。
-		const disp = getStoredUranianDisplay();
-		const partnerParams = disp.showDavison ? firstSynastryPartnerParams(disp) : null;
-		const schoolParams = {
-			...schoolToBackendParams(disp.school), orb: disp.orb, personalOrb: disp.orbPersonal,
-			frames: disp.showHouseFrames !== false || !!disp.showEastPoint,
-			...(disp.strictFactors ? { strictFactors: true } : {}),
-			...(partnerParams ? { davison: partnerParams } : {}),
-		};
+		const schoolParams = this.midpointDisplayParams();
+		this._lastDisplaySig = JSON.stringify(schoolParams);
 		const data = await request(`${Constants.ServerRoot}/germany/midpoint`, {
 			body: JSON.stringify({ ...params, ...schoolParams }),
 		});
@@ -701,6 +687,11 @@ class AstroMidpoint extends Component{
 			return;
 		}
 		this.saveGermanySnapshot(pending.params, pending.result);
+	}
+
+	midpointDisplayParams(){
+		const disp = getStoredUranianDisplay();
+		return germanyMidpointRequestParams(disp, disp.showDavison ? firstSynastryPartnerParams(disp) : null);
 	}
 
 	saveGermanySnapshot(paramsOverride, resultOverride){
@@ -771,11 +762,23 @@ class AstroMidpoint extends Component{
 		this.unmounted = false;
 		if(typeof window !== 'undefined' && window.addEventListener){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
-			// [Q-442] 显示偏好(流派/六宫框页签/校时事件/口径开关…)改了 → 去抖重存页面快照:此前只在盘/中点数据变化时存,
+			// 显示偏好(流派/六宫框页签/校时事件/口径开关…)改了 → 去抖重存页面快照:此前只在盘/中点数据变化时存,
 			// 「校时」录事件、开关「六宫框」后快照仍是旧的(右栏已变)。会重取后端的开关走 requestChart 自存,去抖合并。
+			// 改的若是要后端重算的项(流派 / 容许度 / 赤纬 / 六宫框 / 东点 / 严格因子集 / 戴维森),只重存会让正文按新口径、
+			// 中点 / 相位 / 赤纬 / 宫框数据仍是旧请求的(一份快照两套口径;关过再开的赤纬 / 六宫框整段缺)→ 出参变了就重取。
 			this._onUranianDisplay = ()=>{
+				// horosa_snapshot_idle_v1:空闲队列里还没跑的那次快照作废 —— 它跑起来是改前的数据配改后的口径
+				// (正是上面说的两套口径);下面的去抖回调要么重取(requestChart 自排新快照)、要么按当前 state 重存。
+				this._pendingSnapshot = null;
 				clearTimeout(this._dispSnapTimer);
-				this._dispSnapTimer = setTimeout(()=>{ if(!this.unmounted){ this.saveGermanySnapshot(); } }, 250);
+				this._dispSnapTimer = setTimeout(()=>{
+					if(this.unmounted){ return; }
+					if(this._lastDisplaySig !== undefined && JSON.stringify(this.midpointDisplayParams()) !== this._lastDisplaySig){
+						this.requestChartObj(this.props.fields);
+						return;
+					}
+					this.saveGermanySnapshot();
+				}, 250);
 			};
 			window.addEventListener(URANIAN_DISPLAY_EVENT, this._onUranianDisplay);
 		}

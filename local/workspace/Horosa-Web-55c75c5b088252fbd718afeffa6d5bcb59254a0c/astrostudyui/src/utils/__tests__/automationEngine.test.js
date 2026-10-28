@@ -20,7 +20,8 @@ beforeEach(async ()=>{
 it('🔴 事件层零 import(静态判别);事件名白名单;订阅可退订;emit 不抛', ()=>{
 	const src = fs.readFileSync(path.resolve(__dirname, '..', 'aiAgent', 'automation', 'events.js'), 'utf8');
 	expect(src.split('\n').filter((l)=>/^import\b/.test(l)).length).toBe(0);
-	expect(AUTOMATION_EVENTS).toEqual(['app.start', 'record.saved', 'turn.end', 'tool.before', 'tool.after', 'task.done', 'report.done']);   // [批二④] +tool.before(可否决)
+	const wantEvents = ['app.start', 'record.saved', 'turn.end', 'tool.before', 'tool.after', 'task.done'];   // +tool.before(可否决)
+	expect(AUTOMATION_EVENTS).toEqual(wantEvents);
 	expect(isAutomationEventName('record.saved')).toBe(true);
 	expect(isAutomationEventName('nope')).toBe(false);
 	const seen = [];
@@ -90,7 +91,7 @@ it('🔴 匹配/冷却/每事件上限:条件不符不触发;冷却内跳过;同
 	expect(second.skipped).toEqual([{ ruleId: 'rc', reason: 'cooldown' }]);
 });
 
-// [压测二轮·A3] 合同改为「尝试即计冷却」:动作恒失败的规则同样写 lastFiredAt(否则每来一条事件重试一次+刷一条通知;见 aiAgentAutomationStress A3)
+// 合同改为「尝试即计冷却」:动作恒失败的规则同样写 lastFiredAt(否则每来一条事件重试一次+刷一条通知;见 aiAgentAutomationStress A3)
 it('🔴 动作抛错 / 未知动作:只留痕(通知)不反噬;规则按「尝试」计冷却(fired 仍为空)', async ()=>{
 	setAutomationEnabled(true);
 	await saveRule({ id: 'r1', name: '会炸的', event: 'app.start', enabled: true, actions: [{ type: 'select-source' }, { type: 'nope' }], cooldownMs: 0 });
@@ -132,4 +133,36 @@ it('🔴 调用点确实在发事件:数据层两处 record.saved、工具面 to
 	const off1 = bindAutomationEngine({});
 	const off2 = bindAutomationEngine({});
 	expect(off1).toBe(off2);
+});
+
+test('事件已不认识的旧规则:照列出来(标 orphanEvent、事件为空),可删;引擎永不命中', async ()=>{
+	const { putStoreRecord } = require('../aiAnalysisStore');
+	await clearStore(AI_ANALYSIS_STORES.automationRules);
+	await putStoreRecord(AI_ANALYSIS_STORES.automationRules, { id: 'old1', name: '旧事件规则', event: 'no.such.event', enabled: true, actions: [{ type: 'select-source' }] }, 'rule');
+	const rows = await listRules();
+	const r = rows.find((x)=>x.id === 'old1');
+	expect(r).toBeTruthy();
+	expect([r.event, r.orphanEvent]).toEqual(['', 'no.such.event']);
+	expect(matchRule(r, { event: 'record.saved', payload: {} })).toBe(false);
+	await removeRule('old1');
+	expect((await listRules()).some((x)=>x.id === 'old1')).toBe(false);
+	const panel = fs.readFileSync(path.join(__dirname, '../../components/aianalysis/AutomationRulesPanel.js'), 'utf8');
+	expect(panel).toContain('(此版本没有的事件,不会触发,可删)');
+});
+
+test('事件为空 / 缺失的坏记录同样列出(orphanEvent =「(空)」)、可删;记触发时间只并在原始记录上(事件已不认识的规则原事件不丢)', async ()=>{
+	const { putStoreRecord } = require('../aiAnalysisStore');
+	const { markRuleFired } = require('../aiAgent/automation/ruleStore');
+	await clearStore(AI_ANALYSIS_STORES.automationRules);
+	await putStoreRecord(AI_ANALYSIS_STORES.automationRules, { id: 'blank1', name: '空事件', event: '', enabled: true, actions: [{ type: 'select-source' }] }, 'rule');
+	await putStoreRecord(AI_ANALYSIS_STORES.automationRules, { id: 'nokey1', name: '缺事件', enabled: true, actions: [{ type: 'select-source' }] }, 'rule');
+	await putStoreRecord(AI_ANALYSIS_STORES.automationRules, { id: 'old2', name: '旧事件规则', event: 'no.such.event', enabled: true, actions: [{ type: 'select-source' }] }, 'rule');
+	const rows = await listRules();
+	expect(['blank1', 'nokey1'].map((id)=>(rows.find((x)=>x.id === id) || {}).orphanEvent)).toEqual(['(空)', '(空)']);
+	await markRuleFired('old2', '2026-10-18T00:00:00.000Z');
+	const raw = (await listStoreRecords(AI_ANALYSIS_STORES.automationRules)).find((x)=>x.id === 'old2');
+	expect([raw.event, raw.lastFiredAt]).toEqual(['no.such.event', '2026-10-18T00:00:00.000Z']);
+	expect((await listRules()).find((x)=>x.id === 'old2').orphanEvent).toBe('no.such.event');
+	for(const id of ['blank1', 'nokey1', 'old2']){ await removeRule(id); }
+	expect((await listRules()).length).toBe(0);
 });

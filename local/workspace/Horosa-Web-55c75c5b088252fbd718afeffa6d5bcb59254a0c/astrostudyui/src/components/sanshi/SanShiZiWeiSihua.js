@@ -45,7 +45,7 @@ function pickYearGan(chart){
 	return '';
 }
 
-// [YA v42] AI 快照取数(供三式合一 buildSanShiUnitedSnapshotText 复用):与本 tab 完全同一套计算
+// AI 快照取数(供三式合一 buildSanShiUnitedSnapshotText 复用):与本 tab 完全同一套计算
 // (pickYearGan/getLayerSihua/buildDaxianItems/buildLiunianItems/houseName),给定盘与当前大运/流年
 // 选中下标,产出 生年/大运/流年 四化文本行;无盘或无四化返 [](调用方不产段,零回归)。纯函数,组件行为不变。
 export function buildSanShiZiweiSihuaSnapshotLines(chart, daxianIdx, liunianIdx){
@@ -89,7 +89,7 @@ export function buildSanShiZiweiSihuaSnapshotLines(chart, daxianIdx, liunianIdx)
 		}
 	}
 	if(lines.length){
-		lines.push(`四化随当前紫微流派（${ZWConst.ZWSchool ? ZWConst.ZWSchool.school : 'beipai'}）取表；按起课时间排盘。`);
+		lines.push(`四化随当前紫微流派（${ZWConst.zwSihuaSchoolLabel(ZWConst.ZWSchool ? ZWConst.ZWSchool.school : 'beipai')}）取表；按起课时间排盘。`);
 	}
 	return lines;
 }
@@ -106,7 +106,7 @@ export default class SanShiZiWeiSihua extends Component {
 	componentDidUpdate(){ this.maybeFetch(); this.notifySnapshotState(); }
 	componentWillUnmount(){ this._seq++; }
 
-	// [YA v42] 把当前盘与大运/流年选中态上报父级(可选 props.onSnapshotState)——供三式合一快照
+	// 把当前盘与大运/流年选中态上报父级(可选 props.onSnapshotState)——供三式合一快照
 	// builder 产 [紫微四化] 段。不传该 prop 时 no-op,行为与旧版完全一致;同值去重防冗余回调。
 	notifySnapshotState(){
 		if(typeof this.props.onSnapshotState !== 'function'){
@@ -152,14 +152,14 @@ export default class SanShiZiWeiSihua extends Component {
 		return (
 			<div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
 				{rows.map((r)=>{
-					const col = ZWConst.ZWColor[r.hua] || { bg: '#888', color: '#fff' };
+					const bg = ZWConst.ZWHuaInk[r.hua] || 'var(--horosa-text-secondary)';   // 界面药丸:明暗成对四化色 + on-solid 字(盘面徽标色不搬来当界面底)
 					const palace = r.houseIndex >= 0 ? houseName(chart, r.houseIndex, true) : '—';
 					return (
 						<span
 							key={r.hua}
-							style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 8px', borderRadius: 4, background: col.bg, color: col.color, fontSize: 12, lineHeight: '18px' }}
+							style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 8px', borderRadius: 4, background: bg, color: 'var(--horosa-on-solid)', fontSize: 12, lineHeight: '18px' }}
 						>
-							<b>{r.hua}</b>{r.star}<i style={{ opacity: 0.85, fontStyle: 'normal' }}>·{palace}</i>
+							<b>{r.hua}</b>{r.star}<i style={{ fontStyle: 'normal' }}>·{palace}</i>
 						</span>
 					);
 				})}
@@ -211,7 +211,7 @@ export default class SanShiZiWeiSihua extends Component {
 					</div>
 				))}
 				<div style={{ fontSize: 11, color: 'var(--horosa-text-soft, #8a8f99)', marginTop: 4, lineHeight: 1.6 }}>
-					四化随当前紫微流派（{ZWConst.ZWSchool ? ZWConst.ZWSchool.school : 'beipai'}）取表；按起课时间排盘。
+					四化随当前紫微流派（{ZWConst.zwSihuaSchoolLabel(ZWConst.ZWSchool ? ZWConst.ZWSchool.school : 'beipai')}）取表；按起课时间排盘。
 				</div>
 			</div>
 		);

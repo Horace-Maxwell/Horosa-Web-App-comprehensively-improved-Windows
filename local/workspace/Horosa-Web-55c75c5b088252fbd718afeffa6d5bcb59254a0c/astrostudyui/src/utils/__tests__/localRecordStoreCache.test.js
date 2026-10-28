@@ -1,4 +1,4 @@
-// [S9] 读缓存行为锁:raw 原串比对缓存键(免整库重 parse)+失效性天然正确+共享引用契约审计。
+// 读缓存行为锁:raw 原串比对缓存键(免整库重 parse)+失效性天然正确+共享引用契约审计。
 import { upsertLocalChart, listLocalCharts } from '../localcharts';
 import { upsertLocalCase, listLocalCases } from '../localcases';
 
@@ -13,7 +13,7 @@ function deepFreeze(obj){
 	return obj;
 }
 
-describe('[S9] 读缓存', ()=>{
+describe('读缓存', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});

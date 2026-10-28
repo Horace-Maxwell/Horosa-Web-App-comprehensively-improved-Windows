@@ -1,15 +1,17 @@
 // components/astro/AstroAgePoint.js
 // 年龄推进点（Age Point）：年龄点自上升点起沿 Koch 宫顺行，每宫 6 年、72 年一周。
 // 报每岁落座/落宫，并高亮与本命星合相的关键岁数。后端 /predict/agepoint。
+import { civilInstantMsOfStr } from '../../utils/dateStrSafe';
 import { Component } from 'react';
 import { Spin } from 'antd';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
-import { unwrapResult, astroSymbol, chartParams, chartRequestKey, cardStyle, SmallTable } from './AstroExtraCommon';
+import { unwrapResult, astroSymbol, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
 import * as AstroText from '../../constants/AstroText';
 // [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明)。namespace import + typeof 守卫:
 // 测试环境可能部分 mock astroAiSnapshot(只留 buildAstroSnapshotContent 等),缺函数时回 [] 保底。
 import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { markPanelReady } from '../../utils/perfMark';
 
 const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
@@ -22,7 +24,7 @@ function apName(id){
 	return AstroText.AstroTxtMsg[id] || `${id}`;
 }
 
-// [Q-184/T-103] 一行内多颗合本命:后端 points[i].aspects=[{aspectTo,aspectAge}](精确穿越岁数);旧字段 aspectTo 仅首颗 → 兼容回退。
+// 一行内多颗合本命:后端 points[i].aspects=[{aspectTo,aspectAge}](精确穿越岁数);旧字段 aspectTo 仅首颗 → 兼容回退。
 function rowAspects(p){
 	if(!p){ return []; }
 	if(Array.isArray(p.aspects) && p.aspects.length){ return p.aspects; }
@@ -63,7 +65,7 @@ export async function buildAgePointSnapshotText(chartObj){
 	lines.push(...birthHeaderLines(chartObj));
 	lines.push('[年龄推进点（Age Point / Huber）]');
 	lines.push('年龄点自上升点起，沿 Koch 宫顺行，每宫 6 年、72 年回归上升；落于本命星处（合相）为人生关键节点。');
-	// [Q-184/T-103] 关键岁数=宫内线性插值的连续穿越解(精确岁数),此前只在整岁取点 ±1° 判合 → 漏报。
+	// 关键岁数=宫内线性插值的连续穿越解(精确岁数),此前只在整岁取点 ±1° 判合 → 漏报。
 	if(crossings.length){
 		lines.push('');
 		lines.push('关键岁数（合本命，精确穿越岁数）：' + crossings.map((c) => `${fmtAge(c.age)}岁合${apName(c.aspectTo)}`).join('；'));
@@ -79,7 +81,7 @@ export async function buildAgePointSnapshotText(chartObj){
 	// [YB] 尾部 [当前时点]+[方法说明];定位行=当前年龄对应的年龄点行(取 age≤当前年龄的最大行)。
 	const extraLines = [];
 	const birthRaw = (chartObj && chartObj.params && chartObj.params.birth) ? `${chartObj.params.birth}`.trim() : '';
-	const birthMs = birthRaw ? Date.parse(birthRaw.replace(/\//g, '-').replace(' ', 'T')) : NaN;
+	const birthMs = birthRaw ? civilInstantMsOfStr(birthRaw.replace(/\//g, '-').replace(' ', 'T')) : NaN;   // 民用历真实时刻(1582 以前 / 公元前)
 	if(Number.isFinite(birthMs)){
 		const curAge = (Date.now() - birthMs) / (365.2425 * 24 * 3600 * 1000);
 		let curPoint = null;
@@ -127,15 +129,17 @@ class AstroAgePoint extends Component {
 
 	componentDidUpdate(){
 		const k = chartRequestKey(this.props.value, 'agepoint');
-		if(k && k !== this.state.requestKey && !this.state.loading){ this.load(); }
+		if(k && k !== this.state.requestKey && !this.state.loading && !loadParked(this, k)){ this.load(); }
 	}
 
 	ensureLoaded(){
 		const k = chartRequestKey(this.props.value, 'agepoint');
-		if(k && k !== this.state.requestKey && !this.state.loading){ setTimeout(this.load, 0); }
+		if(k && k !== this.state.requestKey && !this.state.loading && !loadParked(this, k)){ setTimeout(this.load, 0); }
 	}
 
 	async load(){
+		const seq = ++this._loadSeq || (this._loadSeq = 1);   // 只认最后一次:换盘 / 改参连发时先发的晚回不覆盖
+		const resultSig = natalSourceKey(this.props.value);   // 本次结果出自哪位命主(读时与当前盘比)
 		if(!this.props.value){ return; }
 		const k = chartRequestKey(this.props.value, 'agepoint');
 		this.setState({ loading: true });
@@ -144,21 +148,28 @@ class AstroAgePoint extends Component {
 				body: JSON.stringify({ ...chartParams(this.props.value) }),
 				timeoutMs: 60000,
 			});
-			if(!this._mounted) return;
+			if(!this._mounted || seq !== this._loadSeq) return;
+			clearLoadFailure(this);
 			// horosa_panel_ready_v1:年龄推进点表(本技法唯一可见内容)落定的那一次 setState。
-			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: k }, ()=>{ markPanelReady('direction'); });
+			this.setState({ result: unwrapResult(data) || {}, resultSig, loading: false, requestKey: k }, ()=>{ markPanelReady('direction'); });
 		}catch(e){
-			if(!this._mounted) return;
-			this.setState({ loading: false, requestKey: k });
+			if(!this._mounted || seq !== this._loadSeq) return;
+			parkLoadFailure(this, k);   // 失败不记成已完成:窗口期后同一张盘自动重试
+			this.setState({ loading: false });
 		}
+	}
+
+	// 出自当前命主的结果才用:换盘后新结果在途 / 取失败时 state 里是上一位命主的 → 当没有(同一命主只改设置仍旧表留存)
+	shownResult(){
+		return pickKeyedDerived(this.state.result, this.state.resultSig, natalSourceKey(this.props.value));
 	}
 
 	render(){
 		this.ensureLoaded();
-		const r = this.state.result || {};
+		const r = this.shownResult() || {};
 		const ap = r.agepoint || {};
 		const points = ap.points || [];
-		const keyAges = keyCrossings(ap, points);   // [Q-184/T-103] 精确穿越岁数(连续解),非整岁邻域采样
+		const keyAges = keyCrossings(ap, points);   // 精确穿越岁数(连续解),非整岁邻域采样
 		const height = this.props.height ? this.props.height - 20 : 700;
 		const sym = (id) => astroSymbol(id);
 		return (
@@ -195,7 +206,7 @@ class AstroAgePoint extends Component {
 								} },
 							]}
 						/>
-						<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>年龄点自上升点起，沿 Koch 宫顺行，每宫 6 年、72 年回归上升；落于本命星处（合相）为人生关键节点。</div>
+						<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6 }}>年龄点自上升点起，沿 Koch 宫顺行，每宫 6 年、72 年回归上升；落于本命星处（合相）为人生关键节点。</div>
 					</div>
 				</div>
 			</Spin>

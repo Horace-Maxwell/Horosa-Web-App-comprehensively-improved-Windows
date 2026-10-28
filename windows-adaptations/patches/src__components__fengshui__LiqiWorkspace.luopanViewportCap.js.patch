@@ -1,0 +1,29 @@
+diff --git a/astrostudyui/src/components/fengshui/LiqiWorkspace.js b/astrostudyui/src/components/fengshui/LiqiWorkspace.js
+index 65831fb7..358152a7 100644
+--- a/astrostudyui/src/components/fengshui/LiqiWorkspace.js
++++ b/astrostudyui/src/components/fengshui/LiqiWorkspace.js
+@@ -2,6 +2,7 @@
+ // 与户型图两法(canvas)互斥;选纯前端流派时由 FengShuiMain 渲染本组件。
+ import React, { useEffect, useMemo, useRef, useState } from 'react';
+ import { XQSelect, XQSegmented } from '../xq-ui';
++import { getLayoutViewportHeight } from '../../utils/shellZoom';   // horosa_luopan_dial_viewport_cap_v1:罗盘直径按可视高度封顶
+ import LuoshuGrid from './charts/LuoshuGrid';
+ import TwentyFourShanRing from './charts/TwentyFourShanRing';
+ import EightPalaceDisk from './charts/EightPalaceDisk';
+@@ -625,9 +626,14 @@ export default function LiqiWorkspace({ school, geo = null, active = true }) {
+ 		}
+ 		if (school === 'zeri') { return renderZeriChart(); }
+ 		if (school === 'luopan') {
+-			// 罗盘直径吃满中栏可用面积(min(宽,高)-边距;容器即视口约束,天然不超屏);量测未就绪时回退 760。
++			// 罗盘直径吃满中栏可用面积(min(宽,高)-边距);量测未就绪时回退 760。
++			// horosa_luopan_dial_viewport_cap_v1(issue #84):中栏格高实测由左栏参数列表撑到 ~1550 CSS px(栅格按内容撑高,并非视口约束),
++			// 盘径吃满 min(宽,高) 即超出屏幕;界面缩放时「宽绑定 ↔ 高绑定」切换、栅格在窄档重排 ⇒ 视觉直径忽大忽小(真机 0.6→1.4 缩放实抓
++			// 802→876→949→1022→1009→933)。改按可视高度封顶:盘始终贴合可视区域,缩放下尺寸稳定、不超屏、不来回跳。
++			const viewportH = getLayoutViewportHeight();
++			const viewportCap = viewportH > 200 ? viewportH - 24 : Infinity;
+ 			const dialSize = (chartBox.w > 120 && chartBox.h > 120)
+-				? Math.max(640, Math.floor(Math.min(chartBox.w, chartBox.h)) - 16)
++				? Math.max(640, Math.floor(Math.min(chartBox.w, chartBox.h, viewportCap)) - 16)
+ 				: 760;
+ 			// 🔴 用 effLayers（盘式过滤后）而非 lp.layers：三元盘明载没有人盘中针/天盘缝针廿四山、
+ 			//    也没有七十二龙/一百二十龙/六十龙分金——切档时盘面上这些层必须真的消失。

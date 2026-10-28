@@ -1,25 +1,26 @@
 diff --git a/astrostudyui/src/components/guazhan/GuaDesc.js b/astrostudyui/src/components/guazhan/GuaDesc.js
-index 89e9db0c..f3c9d117 100644
+index 7207712e..ab9e2421 100644
 --- a/astrostudyui/src/components/guazhan/GuaDesc.js
 +++ b/astrostudyui/src/components/guazhan/GuaDesc.js
-@@ -1,8 +1,10 @@
+@@ -1,9 +1,11 @@
  import { Component } from 'react';
  import { Typography } from 'antd';
 -import {randomStr, } from '../../utils/helper';
  import styles from '../../css/styles.less';
  import { XQTabs as Tabs } from '../xq-ui';
+ import ExternalLink from '../common/ExternalLink';
 +// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
 +// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
 +// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
  
  const { Title, Paragraph, Text } = Typography;
  const { TabPane } = Tabs;
-@@ -22,16 +24,16 @@ class GuaDesc extends Component{
+@@ -23,16 +25,16 @@ class GuaDesc extends Component{
  
  		let res = [];
  		let title = (
--			<Title level={3} key={randomStr(8)}><a href={gua.url} target='_blank'>第{gua.ord}卦，{gua.name}卦，{gua.desc}</a></Title>
-+			<Title level={3} key="title"><a href={gua.url} target='_blank'>第{gua.ord}卦，{gua.name}卦，{gua.desc}</a></Title>
+-			<Title level={3} key={randomStr(8)}><ExternalLink href={gua.url}>第{gua.ord}卦，{gua.name}卦，{gua.desc}</ExternalLink></Title>
++			<Title level={3} key="title"><ExternalLink href={gua.url}>第{gua.ord}卦，{gua.name}卦，{gua.desc}</ExternalLink></Title>
  		);
  		res.push(title);
  
@@ -35,7 +36,7 @@ index 89e9db0c..f3c9d117 100644
  		let yao = gua['爻辞'].map((item, idx)=>{
  			let dom = (
  				<li key={`s5-${idx}`}>
-@@ -43,7 +45,7 @@ class GuaDesc extends Component{
+@@ -44,7 +46,7 @@ class GuaDesc extends Component{
  			return dom
  		});
  		let yaoci = (
@@ -44,7 +45,7 @@ index 89e9db0c..f3c9d117 100644
  				<ul>
  					{yao}
  				</ul>
-@@ -52,13 +54,13 @@ class GuaDesc extends Component{
+@@ -53,13 +55,13 @@ class GuaDesc extends Component{
  		res.push(yaotitle);
  		res.push(yaoci)
  

@@ -8,10 +8,11 @@ import { normalizeSkillPack, skillsOf, exportSkillPack, planSkillImport, bundleF
 import { triggerConflicts } from '../../../utils/aiChat/commands';
 import { listAnalysisTechniqueOptions } from '../../../utils/aiAnalysisContext';
 import { AdvCard, AdvStatus, ADV_SECTION_IDS, advStyles as styles } from './AdvCard';
+import { scriptFilterBy } from '../../../utils/scriptMode';
 
 const REQ_LABELS = { chart: '一张命盘', timepoint: '一个时间点', 'two-charts': '两张命盘', any: '任意案例' };
 
-// [Q-410] 单源保存(桌面壳保存桥);失败如实提示,取消不报。
+// 单源保存(桌面壳保存桥);失败如实提示,取消不报。
 function downloadJson(name, obj){
 	try{
 		const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
@@ -31,7 +32,7 @@ function SkillEditor({ open, bundle, bundles, onClose, onSaved }){
 	const [schoolNote, setSchoolNote] = React.useState(base.schoolNote);
 	const [description, setDescription] = React.useState(base.description);
 	React.useEffect(()=>{ if(open){ setName(bundle ? bundle.name : ''); setTriggers(base.triggers.join(' ')); setRequires(base.requires); setTechniqueKeys(base.techniqueKeys); setPromptTemplate(base.promptTemplate); setArgsSpecText(base.argsSpec.map((a)=>`${a.name}${a.label && a.label !== a.name ? `:${a.label}` : ''}${a.default ? `=${a.default}` : ''}`).join(' ')); setOutputFormat(base.outputFormat); setSchoolNote(base.schoolNote); setDescription(base.description); } }, [open, bundle, base]);
-	// [Q-401 裁决 2026-09-18] 技法候选随「前提」过滤:命盘 / 两张命盘 → 命盘类技法;时间点 → 起课类技法;任意 → 两类并集(去重)。此前恒只列命盘类。
+	// 技法候选随「前提」过滤:命盘 / 两张命盘 → 命盘类技法;时间点 → 起课类技法;任意 → 两类并集(去重)。此前恒只列命盘类。
 	const techOptions = React.useMemo(()=>{
 		const pick = (st)=>{ try{ return (listAnalysisTechniqueOptions({ sourceType: st }) || []).map((o)=>({ value: o.value, label: o.label || o.value })); }catch(e){ return []; } };
 		if(requires === 'timepoint'){ return pick('timepoint'); }
@@ -62,13 +63,13 @@ function SkillEditor({ open, bundle, bundles, onClose, onSaved }){
 					<Input size="small" placeholder="触发词(空格分隔;打 /事业 即用)" value={triggers} onChange={(e)=>setTriggers(e.target.value)} data-skill-triggers="1" style={{ flex: '1 1 50%' }} />
 					<Select size="small" value={requires} onChange={setRequires} style={{ flex: '0 0 150px' }} data-skill-requires="1" options={SKILL_REQUIRES.map((r)=>({ value: r, label: `需要:${REQ_LABELS[r]}` }))} />
 				</div>
-				<Select size="small" mode="multiple" placeholder="技法(用技能时只改本次对话的挂载技法)" data-skill-techniques="1" value={techniqueKeys} onChange={(v)=>setTechniqueKeys((v || []).slice(0, 12))} options={techOptions} maxTagCount={4} />
+				<Select filterOption={scriptFilterBy()} size="small" mode="multiple" placeholder="技法(用技能时只改本次对话的挂载技法)" data-skill-techniques="1" value={techniqueKeys} onChange={(v)=>setTechniqueKeys((v || []).slice(0, 12))} options={techOptions} maxTagCount={4} />
 				<Input.TextArea rows={4} placeholder="提示词模板:可用 {{year}} 这类参数、{{source}} 命盘名;例:分析{{source}}在 {{year}} 年的事业…" value={promptTemplate} onChange={(e)=>setPromptTemplate(e.target.value)} data-skill-template="1" />
 				<Input size="small" placeholder="参数(空格分隔):year:年份=今年 target:目标" data-skill-args="1" value={argsSpecText} onChange={(e)=>setArgsSpecText(e.target.value)} />
 				<Input size="small" placeholder="输出格式(可选,只随触发技能的那一条消息发送)" data-skill-output="1" value={outputFormat} onChange={(e)=>setOutputFormat(e.target.value)} />
 				<Input size="small" placeholder="口径备注(可选,只随触发的那一条发送;流派/术语约定)" data-skill-note="1" value={schoolNote} onChange={(e)=>setSchoolNote(e.target.value)} />
 				<Input size="small" placeholder="一句话说明(菜单里显示)" data-skill-description="1" value={description} onChange={(e)=>setDescription(e.target.value)} />
-				<div className={styles.soft}>保存即版本 +1(旧版留档 5 份);用技能只改本次对话的挂载技法与会话系统提示(口径备注 / 输出格式只随触发的那一条发送);会记住你上次用的技法作为界面偏好,不改其它全局设置。   {/* [Q-294/AR-20] 文案如实 */}</div>
+				<div className={styles.soft}>保存即版本 +1(旧版留档 5 份);用技能只改本次对话的挂载技法与会话系统提示(口径备注 / 输出格式只随触发的那一条发送);会记住你上次用的技法作为界面偏好,不改其它全局设置。   {/* 文案如实 */}</div>
 			</div>
 		</Modal>
 	);

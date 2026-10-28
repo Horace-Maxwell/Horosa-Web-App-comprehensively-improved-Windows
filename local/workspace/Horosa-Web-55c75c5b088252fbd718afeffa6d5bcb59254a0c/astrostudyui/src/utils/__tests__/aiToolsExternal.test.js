@@ -32,7 +32,7 @@ it('🔴 准入:只读放行;无 readOnlyHint 且不在清单 → 拒;删除类�
 	expect(admitExternalTool(RO('get_current_time'), SPEC)).toEqual(expect.objectContaining({ ok: true, name: 'ext_time_get_current_time', via: 'readOnlyHint' }));
 	const write = { name: 'write_file', description: 'd', inputSchema: {} };
 	expect(admitExternalTool(write, SPEC).ok).toBe(false);
-	// [Q-292/M-106] 只读档:清单也不放行写工具(此前放行且按只读级自动执行);按清单档:清单放行且按写入级注册
+	// 只读档:清单也不放行写工具(此前放行且按只读级自动执行);按清单档:清单放行且按写入级注册
 	expect(admitExternalTool(write, { ...SPEC, allowTools: ['write_file'] }).ok).toBe(false);
 	expect(admitExternalTool(write, { ...SPEC, readOnlyOnly: false, allowTools: ['write_file'] })).toEqual(expect.objectContaining({ ok: true, level: 'additive', via: 'allowlist' }));
 	expect(admitExternalTool(RO('get_current_time'), SPEC).level).toBe('read');

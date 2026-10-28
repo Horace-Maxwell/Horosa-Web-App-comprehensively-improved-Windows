@@ -207,6 +207,11 @@ jest.mock('../../components/jinkou/JinKouState', ()=>({
 jest.mock('../../components/dunjia/DunJiaCalc', ()=>({
 	calcDunJia: jest.fn(()=>({ kind: 'qimen-pan' })),
 	buildDunJiaSnapshotText: jest.fn(()=> '自动生成的奇门快照'),
+	migrateLegacyQimenSchool: jest.requireActual('../../components/dunjia/DunJiaCalc').migrateLegacyQimenSchool,
+	// 齿轮的中门飞宫 / 混合层档名取 DunJiaCalc 的共用常量(纯数据,用真值)
+	FEI_MEN_ZHONG_CAN_LABELS: jest.requireActual('../../components/dunjia/DunJiaCalc').FEI_MEN_ZHONG_CAN_LABELS,
+	MIX_LAYER_LABELS: jest.requireActual('../../components/dunjia/DunJiaCalc').MIX_LAYER_LABELS,
+	mixLayerDefaultLabel: jest.requireActual('../../components/dunjia/DunJiaCalc').mixLayerDefaultLabel,
 }));
 
 jest.mock('../../components/taiyi/TaiYiCalc', ()=>({
@@ -239,7 +244,8 @@ jest.mock('../../divination/election/electionSnapshot', ()=>({
 	buildElectionSnapshot: jest.fn(()=> '自动生成的择日盘快照'),
 }));
 
-jest.mock('../../components/comp/DateTime', ()=> jest.fn().mockImplementation(()=>({
+// 替身同时带上「此刻按盘时区」两个静态入口(DateTime.nowForChart / wallClockForChart),与真类同形
+jest.mock('../../components/comp/DateTime', ()=> Object.assign(jest.fn().mockImplementation(()=>({
 	ad: 1,
 	zone: '+08:00',
 	clone(){
@@ -254,7 +260,7 @@ jest.mock('../../components/comp/DateTime', ()=> jest.fn().mockImplementation(()
 		}
 		return '10:00:00';
 	},
-})));
+})), { nowForChart(){ return new this(); }, nowInZone(){ return new this(); }, wallClockForChart(){ return new Date(); } }));
 
 import {
 	ANALYSIS_CASE_TECHNIQUES,
@@ -361,7 +367,7 @@ describe('aiAnalysisContext', ()=>{
 		expect(tpOptions).toContain('huangli');
 		expect(tpOptions).not.toContain('tongshefa');    // 非时间可推仍不进(挂事盘)
 		// 真空壳技法已从下拉移除（选了挂不出内容）：节气盘×6/辅助(cntradition)/骰子(otherbu)/风水
-		// [D2] relative 已回归清单:buildTechniqueContext 特判读合盘页模块快照(可挂出内容,不再空壳)。
+		// relative 已回归清单:buildTechniqueContext 特判读合盘页模块快照(可挂出内容,不再空壳)。
 		expect(chartOptions).not.toContain('cntradition');
 		expect(chartOptions).toContain('relative');
 		expect(chartOptions).not.toContain('jieqi');
@@ -487,16 +493,22 @@ describe('aiAnalysisContext', ()=>{
 		});
 	});
 
-	test('[Q-020/M-25] 技法层模块快照:带旧口径签名的不再复用(重算),无签名旧存量与当前签名的照常复用', async ()=>{
+	test('技法层模块快照:带旧口径签名的不再复用(重算),无签名旧存量与当前签名的照常复用', async ()=>{
 		const { loadModuleAISnapshot } = require('../moduleAiSnapshot');
 		const { mountCalibreSignature } = require('../mountCalibreSignature');
 		const meta = { date: '2026/04/04', time: '10:00', zone: '+08:00' };
 		const sources = listAnalysisSources();
 		const chartSource = sources.find((item)=>item.sourceType === 'chart');
+		// 挂载在缓存认得出命主时会先请页面刷新再读一次槽:整次挂载期间都按这一份槽,结束后还原缺省桩
 		const runBazi = async (snap)=>{
-			loadModuleAISnapshot.mockImplementationOnce((m)=>(m === 'bazi' ? snap : null));
-			const [ctx] = await getAnalysisTechniqueContexts(chartSource, ['bazi'], {});
-			return ctx;
+			const dflt = loadModuleAISnapshot.getMockImplementation();
+			loadModuleAISnapshot.mockImplementation((m)=>(m === 'bazi' ? snap : null));
+			try{
+				const [ctx] = await getAnalysisTechniqueContexts(chartSource, ['bazi'], {});
+				return ctx;
+			}finally{
+				loadModuleAISnapshot.mockImplementation(dflt);
+			}
 		};
 		const stale = await runBazi({ content: '旧口径八字快照', meta, calibreSig: 'v1:deadbeef' });
 		expect(stale.content).not.toBe('旧口径八字快照');
@@ -506,7 +518,7 @@ describe('aiAnalysisContext', ()=>{
 		expect(fresh.content).toBe('当前签名八字快照');
 	});
 
-	test('[Q-020/M-24] 源层上下文(full 与 meta)带随盘日界/晚子时口径:缓存记录重组不再丢键', async ()=>{
+	test('源层上下文(full 与 meta)带随盘日界/晚子时口径:缓存记录重组不再丢键', async ()=>{
 		const { listLocalCharts } = require('../localcharts');
 		listLocalCharts.mockImplementationOnce(()=>[{
 			cid: 'chart-dr', name: '日界盘', birth: '2026-04-04 23:30:00', zone: '+08:00', lon: '118e27', lat: '31n38', group: '[]',
@@ -665,7 +677,7 @@ describe('aiAnalysisContext', ()=>{
 		const chartSource = sources.find((item)=>item.sourceType === 'chart');
 		const expectedByTechnique = {
 			astrochart: 'snapshot',
-			// [挂载自检 F-26] astrochart_like 改读派生盘页快照(缺则 missing),不再冒充本命盘 → 不在「必有内容」集内。
+			// astrochart_like 改读派生盘页快照(缺则 missing),不再冒充本命盘 → 不在「必有内容」集内。
 			indiachart: '印度律盘结构化快照',
 			relative: '关系盘结构化快照',
 			guolao: '七政四余结构化快照',

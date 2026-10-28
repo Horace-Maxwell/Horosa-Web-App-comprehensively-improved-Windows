@@ -82,13 +82,13 @@ public class OutboundUrlGuardTest {
 		// 放行:回环非自身端口(本机 searxng 是明面用法)、公网、带端口、带查询
 		assertEquals("http://127.0.0.1:8080/search", OutboundUrlGuard.validate("http://127.0.0.1:8080/search"));
 		assertEquals("https://example.com/a?q=1", OutboundUrlGuard.validate("https://example.com/a?q=1"));
-		// [D34] 首尾空白:回 trim 后的串(此前回原串,到 HttpRequest 的 URI.create 抛裸 IllegalArgumentException)
+		// 首尾空白:回 trim 后的串(此前回原串,到 HttpRequest 的 URI.create 抛裸 IllegalArgumentException)
 		assertEquals("https://example.com/a", OutboundUrlGuard.validate("  https://example.com/a \n"));
 		// 文案永不回显地址
 		assertFalse(rejectReason("http://user:pw@secret-host.example/").contains("secret-host"));
 	}
 
-	/** [AR-34] 基础档「回环禁自身端口」的别名绕过:`localhost.` 与 `[::ffff:127.0.0.1]` 不是回环字面量,却解析到回环 → 带自身端口必拒;非自身端口照放;解析失败不拒。 */
+	/** 基础档「回环禁自身端口」的别名绕过:`localhost.` 与 `[::ffff:127.0.0.1]` 不是回环字面量,却解析到回环 → 带自身端口必拒;非自身端口照放;解析失败不拒。 */
 	@Test
 	public void basicGuardLoopbackAliasOnOwnPort() {
 		OutboundUrlGuard.setResolverForTests(publicOnlyResolver());
@@ -113,7 +113,7 @@ public class OutboundUrlGuardTest {
 	public void strictGuardLiteralLayerVectors() {
 		OutboundUrlGuard.setResolverForTests(publicOnlyResolver());
 		try {
-			// [D29] 点分十进制才判私网:10.gov / 172.today / fcc.gov / fdroid.org 是公网名字;172.32.0.1 不在 172.16/12
+			// 点分十进制才判私网:10.gov / 172.today / fcc.gov / fdroid.org 是公网名字;172.32.0.1 不在 172.16/12
 			assertEquals("http://10.gov/x", OutboundUrlGuard.validateStrict("http://10.gov/x", false));
 			assertEquals("http://172.today/", OutboundUrlGuard.validateStrict("http://172.today/", false));
 			assertEquals("http://fcc.gov/", OutboundUrlGuard.validateStrict("http://fcc.gov/", false));
@@ -123,7 +123,7 @@ public class OutboundUrlGuardTest {
 			for (String u : mustReject) {
 				assertTrue(u, strictReason(u, false).contains("本机或内网"));
 			}
-			// [D28] 单前缀文案:基础档的拒绝原因经严格档只加一层前缀(ASCII 冒号,全仓无全角冒号)
+			// 单前缀文案:基础档的拒绝原因经严格档只加一层前缀(ASCII 冒号,全仓无全角冒号)
 			assertEquals("网页地址不允许:只允许 http/https", strictReason("ftp://example.com/", false));
 			assertEquals("网页地址不允许:不允许访问该主机", strictReason("http://169.254.169.254/", false));
 			assertEquals("网页地址不允许:不允许读取本机或内网地址", strictReason("http://10.0.0.1/", false));
@@ -137,11 +137,11 @@ public class OutboundUrlGuardTest {
 		OutboundUrlGuard.setResolverForTests(publicOnlyResolver());
 		try {
 			assertEquals("https://example.com/", OutboundUrlGuard.validateStrict("https://example.com/", false));
-			// [D21] 公网名字解析到回环 ⇒ 拒;解析失败 / 无结果 ⇒ 拒(读不到也不该读)
+			// 公网名字解析到回环 ⇒ 拒;解析失败 / 无结果 ⇒ 拒(读不到也不该读)
 			assertTrue(strictReason("http://inner.example/", false).contains("解析到本机或内网"));
 			assertTrue(strictReason("http://dead.example/", false).contains("解析失败"));
 			assertTrue(strictReason("http://empty.example/", false).contains("无解析结果"));
-			// [D30] allowLoopback 只放回环字面量(127.x / localhost / ::1):名字主机照样解析判定;非回环私网字面量照拒;自身端口照拒
+			// allowLoopback 只放回环字面量(127.x / localhost / ::1):名字主机照样解析判定;非回环私网字面量照拒;自身端口照拒
 			assertEquals("http://127.0.0.1:18081/x", OutboundUrlGuard.validateStrict("http://127.0.0.1:18081/x", true));
 			assertEquals("http://localhost:18081/x", OutboundUrlGuard.validateStrict("http://localhost:18081/x", true));
 			assertEquals("http://[::1]:18081/x", OutboundUrlGuard.validateStrict("http://[::1]:18081/x", true));
@@ -178,5 +178,20 @@ public class OutboundUrlGuardTest {
 		assertTrue(OutboundUrlGuard.isPrivateOrLocalHost("x.localhost"));
 		assertFalse(OutboundUrlGuard.isPrivateOrLocalHost("fcc.gov"));
 		assertFalse(OutboundUrlGuard.isPrivateOrLocalHost("10.gov"));
+	}
+
+	/** 从文档复制来的地址带全角空格 / 零宽字符:与 AI 接口地址同一清理口径(UpstreamUrlText.clean),清理后照常放行;
+	 *  中间夹着真不合法的字符时报第几个字符、是什么字符,文案仍不回显地址。 */
+	@Test
+	public void invisibleCharsAreCleanedLikeBaseUrl() {
+		assertEquals("https://searx.example.com", OutboundUrlGuard.validate("https://searx.example.com\u3000"));
+		assertEquals("https://searx.example.com/search", OutboundUrlGuard.validate("\u200Bhttps://searx.\u200Bexample.com/search\u00A0"));
+		assertEquals("http://127.0.0.1:8888", OutboundUrlGuard.validateStrict("\uFEFFhttp://127.0.0.1:8888 ", true));
+		String reason = rejectReason("https://searx.exa mple.com");
+		assertTrue(reason, reason.contains("第 18 个字符"));
+		assertTrue(reason, reason.contains("U+0020"));
+		assertFalse(reason, reason.contains("searx"));
+		assertEquals("", UpstreamUrlText.clean(null));
+		assertEquals(UpstreamUrlText.clean("\u3000https://a.b\u200D/x\u3000"), AIAnalysisProxyService.cleanBaseUrl("\u3000https://a.b\u200D/x\u3000"));
 	}
 }

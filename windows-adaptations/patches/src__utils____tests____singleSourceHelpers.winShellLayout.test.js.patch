@@ -1,0 +1,20 @@
+diff --git a/astrostudyui/src/utils/__tests__/singleSourceHelpers.test.js b/astrostudyui/src/utils/__tests__/singleSourceHelpers.test.js
+index f2738853..2c3e5c02 100644
+--- a/astrostudyui/src/utils/__tests__/singleSourceHelpers.test.js
++++ b/astrostudyui/src/utils/__tests__/singleSourceHelpers.test.js
+@@ -119,10 +119,13 @@ describe('读源码的导入锁一律按 AST 认 import', () => {
+ 		expect(hits).toEqual([]);
+ 	});
+ 	// 发布前自检的 pf_imports(preflight/import_specs.js)用同一份助手:排版 / 先后 / 同条多名都认,少一个名字、只写在注释里都红
+-	test('预检的导入判据与本助手同口径', () => {
++	// horosa_win_shell_layout_v1(Windows 侧移植适配):核的是 macOS 发布预检的 pf_imports(Horosa_Desktop_Installer/scripts/preflight/import_specs.js),
++	// Windows 仓不带这份预检脚本(找不到 = node 退出码 1 ⇒ 首条断言假红)。只在脚本缺席时跳过;在场(macOS)照跑。
++	const PF_IMPORT_SPECS = path.resolve(SRC, '..', '..', '..', 'Horosa_Desktop_Installer', 'scripts', 'preflight', 'import_specs.js');
++	(fs.existsSync(PF_IMPORT_SPECS) ? test : test.skip)('预检的导入判据与本助手同口径', () => {
+ 		const os = require('os');
+ 		const { execFileSync } = require('child_process');
+-		const cli = path.resolve(SRC, '..', '..', '..', 'Horosa_Desktop_Installer', 'scripts', 'preflight', 'import_specs.js');
++		const cli = PF_IMPORT_SPECS;
+ 		const ui = path.resolve(SRC, '..');
+ 		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pf-imports-'));
+ 		const run = (code, stmt) => {

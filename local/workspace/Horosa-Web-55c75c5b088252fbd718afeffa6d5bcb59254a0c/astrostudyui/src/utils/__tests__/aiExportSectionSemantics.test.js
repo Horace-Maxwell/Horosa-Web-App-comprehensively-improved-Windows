@@ -1,4 +1,4 @@
-// [YF v45] 段勾选「所见即所得」语义金标 —— 四 bug 防复发:
+// 段勾选「所见即所得」语义金标 —— 四 bug 防复发:
 //   ①清空按钮死(空数组被当未自定义→UI 回全勾) ②勾了不纳入(清空后 toggle 反向)
 //   ③挂载与导出行为分叉(导出主链强推段,挂载封装不强推) ④三式合一等取消不掉(运行时强推)。
 // 语义定案:键不存在=未自定义(preset−默认关);空数组=显式全清(全不纳入);非空=白名单逐字尊重。
@@ -13,6 +13,7 @@ import {
 	applyPlanetInfoFilterByContext,
 	__aiExportTesting__,
 } from '../aiExport';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const { applyUserSectionFilter, normalizeAIExportSettings, AI_EXPORT_FORCED_INCLUDE_SECTIONS } = __aiExportTesting__;
 
@@ -22,7 +23,7 @@ describe('v45 迁移(normalizeAIExportSettings)', ()=>{
 	test('v<45 空数组=旧清空尸块 → 删键(回未自定义,与旧行为可见面一致)', ()=>{
 		const out = normalizeAIExportSettings({ version: 44, sections: { bazi: [], ziwei: ['星曜'] } });
 		expect(Object.prototype.hasOwnProperty.call(out.sections, 'bazi')).toBe(false);
-		// [v56] v44 存档同时落进 v56 窗(窗口独立逐窗累加,同 v49 系先例)→ ziwei 自定义者补 身宫/八字大运 段
+		// v44 存档同时落进 v56 窗(窗口独立逐窗累加,同 v49 系先例)→ ziwei 自定义者补 身宫/八字大运 段
 		expect(out.sections.ziwei).toEqual(['星曜', '身宫', '八字大运']);
 		expect(out.version).toBe(AI_EXPORT_SETTINGS_VERSION);
 	});
@@ -47,7 +48,7 @@ describe('v45 迁移(normalizeAIExportSettings)', ()=>{
 		expect(out.sections.liureng).toEqual(['三传']);
 		expect(Object.prototype.hasOwnProperty.call(out.sections, 'qimen')).toBe(false);
 	});
-	test('[Q-451/v58] 键内段级 union 只补本版新段:旧版存档补「七政」,当前版存档不再补', ()=>{
+	test('键内段级 union 只补本版新段:旧版存档补「七政」,当前版存档不再补', ()=>{
 		expect(normalizeAIExportSettings({ version: 45, sections: { sanshiunited: ['太乙·主算'] } }).sections.sanshiunited).toEqual(['太乙·主算', '七政']);
 		expect(normalizeAIExportSettings({ version: AI_EXPORT_SETTINGS_VERSION, sections: { sanshiunited: ['太乙·主算'] } }).sections.sanshiunited).toEqual(['太乙·主算']);
 	});
@@ -147,11 +148,11 @@ describe('导出主链与挂载封装同语义', ()=>{
 	});
 });
 
-// ── [v49] 风水三新段的键内 union 迁移 ────────────────────────────────────
+// ── 风水三新段的键内 union 迁移 ────────────────────────────────────
 // 场景：老用户自定义过风水导出段（勾了一部分），本版风水新增三段。
 // 需求：新段补进去（否则被白名单静默滤掉、导出设置里也勾不到），且不得复活用户取消过的旧段，
 // 也不得让 v45+ 存档重走「全 preset union」（那会违「取消=真取消」铁律）。
-describe('[v49] 风水三新段 union 迁移', ()=>{
+describe('风水三新段 union 迁移', ()=>{
 	const { AI_EXPORT_PRESET_SECTIONS } = require('../aiExport');
 	const V49 = ['风水·玄空六法', '风水·命理派', '风水·综合罗经'];
 
@@ -181,8 +182,8 @@ describe('[v49] 风水三新段 union 迁移', ()=>{
 });
 
 
-// [v50] babylon「微黄道」段:同 v49 机制的下一窗
-describe('[v50] babylon 微黄道段 union 迁移', ()=>{
+// babylon「微黄道」段:同 v49 机制的下一窗
+describe('babylon 微黄道段 union 迁移', ()=>{
 	const { AI_EXPORT_PRESET_SECTIONS } = require('../aiExport');
 
 	it('已自定义过 babylon 的老用户(v49 存档):补上「微黄道」,原勾选不动、被取消段不复活', ()=>{
@@ -208,10 +209,10 @@ describe('[v50] babylon 微黄道段 union 迁移', ()=>{
 });
 
 
-// ── [v56] 内容完备性审计批·紫微「身宫」段 union 迁移 ──────────────────────
+// ── 内容完备性审计批·紫微「身宫」段 union 迁移 ──────────────────────
 // 场景:老用户自定义过紫微导出段;本版快照补上恒缺的 [身宫](盘面/深报早有,快照反方向审计首批)。
 // 同 v49-v55 键内段级一次性 union:新段本版才诞生、用户无从取消过,并入不复活任何被取消项。
-describe('[v56] 紫微身宫段 union 迁移', ()=>{
+describe('紫微身宫段 union 迁移', ()=>{
 	const { AI_EXPORT_PRESET_SECTIONS } = require('../aiExport');
 
 	it('已自定义过紫微的 v55 存档:补上「身宫/八字大运」,原勾选不动、被取消段不复活(取消=真取消)', ()=>{
@@ -227,7 +228,7 @@ describe('[v56] 紫微身宫段 union 迁移', ()=>{
 		expect(nb.sections.bazi).toEqual(['起盘信息', '干支合冲']);
 		// astrochart 同窗:补衍化三段;世界范式盘=默认关段不入 union(口径倒挂防线)
 		const na = normalizeAIExportSettings({ version: 55, sections: { astrochart: ['起盘信息'] } });
-		// [v57] 同一 v55 存档再进 v57 窗:尾插「分宫制宫神星表」(#79 拆段,窗口独立逐窗累加)
+		// 同一 v55 存档再进 v57 窗:尾插「分宫制宫神星表」(#79 拆段,窗口独立逐窗累加)
 		expect(na.sections.astrochart).toEqual(['起盘信息', '古典·派生宫转宫', '古典·气候带', '古典·显赫计分', '分宫制宫神星表']);
 		expect(na.sections.astrochart).not.toContain('古典·世界范式盘');
 	});
@@ -251,9 +252,9 @@ describe('[v56] 紫微身宫段 union 迁移', ()=>{
 	});
 });
 
-// ── [v57] Windows #79 西占宫主口径:「分宫制宫神星表」自 [主宰星链] 拆出成独立段(九个西占键)union 迁移 ──
+// ── Windows #79 西占宫主口径:「分宫制宫神星表」自 [主宰星链] 拆出成独立段(九个西占键)union 迁移 ──
 // 同 v49-v56 键内段级一次性 union:新段本版才诞生、用户无从取消过,并入不复活任何被取消项;[主宰星链] 段名不变不入 union。
-describe('[v57] 分宫制宫神星表 union 迁移(九个西占键)', ()=>{
+describe('分宫制宫神星表 union 迁移(九个西占键)', ()=>{
 	const { AI_EXPORT_PRESET_SECTIONS, AI_EXPORT_SETTINGS_VERSION: CUR } = require('../aiExport');
 	const KEYS = ['astrochart', 'astrochart_like', 'hellenastro', 'dwadasamsa', 'harmonic', 'draconic', 'relocation', 'locastro', 'mundane'];
 
@@ -272,12 +273,21 @@ describe('[v57] 分宫制宫神星表 union 迁移(九个西占键)', ()=>{
 		expect(normalizeAIExportSettings({ version: CUR, sections: { mundane: ['起盘信息'] } }).sections.mundane).toEqual(['起盘信息']);
 		const n = normalizeAIExportSettings({ version: 56, sections: { fengshui: ['起盘信息'] } });
 		KEYS.forEach((key)=>expect(n.sections[key]).toBeUndefined());
-		// [Q-451/v58] 键内段级一次性 union 的新窗:只补**本版才诞生**的段、只补已自定义过该键的用户,
+		// 键内段级一次性 union 的新窗:只补**本版才诞生**的段、只补已自定义过该键的用户,
 		//   且不复活被取消项(显式全清仍是全清)。三式合一此版新增「七政」。
 		expect(normalizeAIExportSettings({ version: 57, sections: { sanshiunited: ['起盘信息'] } }).sections.sanshiunited).toEqual(['起盘信息', '七政']);
 		expect(normalizeAIExportSettings({ version: CUR, sections: { sanshiunited: ['起盘信息'] } }).sections.sanshiunited).toEqual(['起盘信息']);
 		expect(normalizeAIExportSettings({ version: 57, sections: { sanshiunited: [] } }).sections.sanshiunited).toEqual([]);
 		expect(normalizeAIExportSettings({ version: 57, sections: { astrochart: ['起盘信息'] } }).sections.sanshiunited).toBeUndefined();
+		// 下一窗:量化盘「赤纬接触」独立段(自汉堡段拆出);只补已自定义过量化盘的用户,显式全清仍是全清,v59 起不再重跑
+		expect(normalizeAIExportSettings({ version: 58, sections: { germany: ['中点', '六宫框落宫'] } }).sections.germany).toEqual(['中点', '六宫框落宫', '赤纬接触']);
+		expect(normalizeAIExportSettings({ version: 58, sections: { germany: [] } }).sections.germany).toEqual([]);
+		expect(normalizeAIExportSettings({ version: 58, sections: { astrochart: ['起盘信息'] } }).sections.germany).toBeUndefined();
+		expect(CUR).toBeGreaterThanOrEqual(59);
+		expect(normalizeAIExportSettings({ version: CUR, sections: { germany: ['中点'] } }).sections.germany).toEqual(['中点']);
+		const g = AI_EXPORT_PRESET_SECTIONS.germany;
+		expect(g[g.indexOf('六宫框落宫') + 1]).toBe('赤纬接触');   // 段序 = builder 文档序(六宫框之后、校时预览之前)
+		expect(g[g.indexOf('赤纬接触') + 1]).toBe('校时预览');
 	});
 
 	it('preset 九键皆含「分宫制宫神星表」且紧随「主宰星链」(设置面平铺自动出现,默认勾选)', ()=>{
@@ -294,8 +304,8 @@ describe('[v57] 分宫制宫神星表 union 迁移(九个西占键)', ()=>{
 	});
 });
 
-// ── [M-2] 挂载封装补禁段剥离(与导出主链收敛) ──────────────────────────
-describe('[M-2] 挂载封装 FORBIDDEN 剥离', ()=>{
+// ── 挂载封装补禁段剥离(与导出主链收敛) ──────────────────────────
+describe('挂载封装 FORBIDDEN 剥离', ()=>{
 	const { applyAIExportSectionFilterToSnapshot } = require('../aiExport');
 	const SAMPLE = '[大格]\n贼克法。\n\n[右侧栏目]\n(纯 UI 回显噪音)\n\n[小局]\n元首课。';
 
@@ -315,8 +325,8 @@ describe('[M-2] 挂载封装 FORBIDDEN 剥离', ()=>{
 	});
 });
 
-// [挂载自检 F-38] 节气盘导出:①勾了段但本内容一段不含 → 真取消(不再回吐全文盖过显式勾选);②整键优先整年快照。
-describe('[F-38] 节气盘分键/整键导出语义', ()=>{
+// 节气盘导出:①勾了段但本内容一段不含 → 真取消(不再回吐全文盖过显式勾选);②整键优先整年快照。
+describe('节气盘分键/整键导出语义', ()=>{
 	const { applyAIExportSectionFilterToSnapshot } = require('../aiExport');
 	const CUR = '[春分星盘]\n甲\n\n[春分宿盘]\n乙';
 	test('🔴 只勾夏至段,内容是春分盘 → ""(此前回吐全文)', ()=>{
@@ -330,7 +340,7 @@ describe('[F-38] 节气盘分键/整键导出语义', ()=>{
 	});
 	test('整键 extractJieQiContent 源码锚:整年快照(jieqi)先于当前盘(jieqi_current)', ()=>{
 		const fs = require('fs'); const path = require('path');
-		const src = fs.readFileSync(path.join(__dirname, '..', 'aiExport.js'), 'utf8');
+		const src = readSource(path.join(__dirname, '..', 'aiExport.js'));
 		const i = src.indexOf('async function extractJieQiContent(');
 		const body = src.slice(i, i + 900);
 		expect(body.indexOf("requestModuleSnapshotRefresh('jieqi')")).toBeGreaterThan(0);

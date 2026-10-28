@@ -70,6 +70,15 @@ describe('planetariumStarSearch — 按名搜索', () => {
 	test('未知名返回 null', () => {
 		expect(findStarByName(index, '不存在xyz')).toBeNull();
 	});
+	test('星座缩写本身不是搜索目标:不再精确命中该座目录序第一颗;拜耳名里带缩写的照常命中', () => {
+		const idx = buildStarIndex([
+			{ id: 'bsc5-1', name: 'HR 1', constellation: 'And', mag: 6.7 },
+			{ id: 'bsc5-15', name: 'α And', bayer: 'α And', constellation: 'And', mag: 2.06 },
+		]);
+		expect(idx.byKey.has('and')).toBe(false);
+		expect(findStarByName(idx, 'And').id).toBe('bsc5-15');   // 经拜耳名「α And」命中(该座最亮的那颗),不是目录序第一颗
+		expect(findStarByName(idx, 'HR 1').id).toBe('bsc5-1');
+	});
 	test('autocomplete 按亮度优先', () => {
 		const s = suggestStars(index, 'a', 5); // matches CMa/Lyr/And haystacks
 		expect(s.length).toBeGreaterThan(0);

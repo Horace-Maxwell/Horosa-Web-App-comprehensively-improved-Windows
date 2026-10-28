@@ -1,4 +1,4 @@
-// AI 助手·智能体运行时(借鉴 Codex Thread→Turn→Item):一个 assistant 气泡 = 一个 Turn;
+// AI 助手·智能体运行时:一个 assistant 气泡 = 一个 Turn;
 // 每轮 = 一次流式请求 + (若模型发起调用)执行工具 + 回喂;循环由页面 do/while 驱动:
 //   do{ agent.beginRound(); stream(messages: agent.messagesForRound(base), tools: agent.toolDefs(), toolChoice: agent.toolChoice()) }while(await agent.settleRound())
 // 总开关(prefs.isAgentEnabled)关 → NULL_AGENT:请求体无 tools/无规则块,消息与旧 map 逐字段等价 = 完全现状路径。
@@ -6,11 +6,12 @@ import { isAgentEnabled, getAgentApprovalMode, getAgentApprovalCategories, getTr
 import { resolveApprovalDecision, autoAllowReadLevel } from './approvalPolicy';
 import { isToolSessionAllowed } from './sessionAllow';
 import { getToolCapability, recordToolCapability, isUnsupportedToolsError } from './caps';
-import { buildTextProtocolRules, parseActionBlockDetailed, protocolErrorCall } from './textProtocol';   // [Q-288] 围栏协议错要回喂
+import { buildTextProtocolRules, parseActionBlockDetailed, protocolErrorCall } from './textProtocol';   // 围栏协议错要回喂
 import { agentSystemRulesFor, plainMessages, expandHistory, expandTraceToMessages, injectSystemRules, formatToolResultContent, mergeUsageAcrossRounds } from './protocol';
 import * as defaultRegistry from '../aiTools/registry';
 import { registerBuiltinTools } from '../aiTools';
 import { withTimeout } from './withTimeout';
+import { buildApprovalPreview, APPROVAL_PREVIEW_TIMEOUT_MS, APPROVAL_PREVIEW_MAX_CHARS } from './approvals';
 import { steerLine } from './steer';
 import { readContextPolicy } from '../aiChatHistory';
 
@@ -21,7 +22,7 @@ export const AGENT_STOP_REASONS = ['stop', 'aborted', 'max_rounds', 'error'];
 // 模块缺席或读取抛错一律回缺省——缺省 = 最近 2 Turn 原样回放、不折叠、不去重 = 现状字节等价。
 export const DEFAULT_AGENT_CONTEXT_POLICY = Object.freeze({ traceTurnsFull: 2, traceTurnsFolded: 0, foldedResultMaxChars: Object.freeze({ read: 1200, additive: 600 }), dedupSameCall: false });
 
-// [Q-290/PP-21③] 改名 normalizeAgentTracePolicy:与 aiChatHistory 的同名归一函数同名异义(此处只取 trace 回放四键、不设上限),避免混用
+// 改名 normalizeAgentTracePolicy:与 aiChatHistory 的同名归一函数同名异义(此处只取 trace 回放四键、不设上限),避免混用
 function normalizeAgentTracePolicy(raw){
 	const p = raw && typeof raw === 'object' ? raw : {};
 	// 只认真数字(null/字符串一律走缺省;Number(null)=0 会把「未设」当成 0)
@@ -39,11 +40,9 @@ function normalizeAgentTracePolicy(raw){
 	};
 }
 
-// 容错读取:策略键由聊天历史模块(aiChatHistory)负责持久化与钳制,这里只消费;读取抛错一律回缺省(一个 Turn 不能因策略读取而失败)
+// 策略键由聊天历史模块(aiChatHistory)负责持久化与钳制,这里只消费;readContextPolicy 对缺键 / 坏 JSON / 非对象一律回缺省、永不抛
 export function readAgentContextPolicy(){
-	let policy = null;
-	try{ policy = readContextPolicy(); }catch(e){ policy = null; }
-	return normalizeAgentTracePolicy(policy);
+	return normalizeAgentTracePolicy(readContextPolicy());
 }
 
 // 同参判定用的稳定序列化:对象键排序、undefined 略过(与 JSON 一致)、数组保序
@@ -68,15 +67,15 @@ export const NULL_AGENT = Object.freeze({
 	trace(){ return null; },
 	mergeUsage(u){ return u; },
 	hasActivity(){ return false; },
-	// [C4] 模型路由钩:总开关关时页面仍会调,一律空实现(单轮、无收口)
+	// 模型路由钩:总开关关时页面仍会调,一律空实现(单轮、无收口)
 	setRoundModel(){},
 	requestClose(){},
 	isClosing(){ return false; },
 	currentCallCount(){ return 0; },
 });
 
-export const PREVIEW_TIMEOUT_MS = 3000;
-export const PREVIEW_MAX_CHARS = 20000;
+export const PREVIEW_TIMEOUT_MS = APPROVAL_PREVIEW_TIMEOUT_MS;   // 写前预览上限单源在 approvals.buildApprovalPreview
+export const PREVIEW_MAX_CHARS = APPROVAL_PREVIEW_MAX_CHARS;
 
 function newTurnId(){
 	return `turn-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -94,7 +93,7 @@ export function createAgentTurn(opts = {}){
 	// 类别档/信任档案/来源也在 Turn 创建时读一次(与策略同纪律:一个 Turn 内判定面不变)
 	const approvalCategories = opts.approvalCategories || getAgentApprovalCategories();
 	const trustedRecords = Array.isArray(opts.trustedRecords) ? opts.trustedRecords : getTrustedRecords();
-	// [批二②] 按工具名放行/禁用:同样一 Turn 一读;deny 的工具不进本 Turn 的工具目录,模型硬调也拒
+	// 按工具名放行/禁用:同样一 Turn 一读;deny 的工具不进本 Turn 的工具目录,模型硬调也拒
 	const toolPolicy = normalizeToolPolicy(opts.toolPolicy || getToolPolicy());
 	const origin = opts.origin ? `${opts.origin}` : 'in-app';
 	const taskId = opts.taskId ? `${opts.taskId}` : undefined;
@@ -107,7 +106,7 @@ export function createAgentTurn(opts = {}){
 		rounds: [],
 		cur: null,
 		closing: false,
-		closingBy: null,   // [PP-14] 'limit'(轮数上限)| 'route'(终稿槽收口)
+		closingBy: null,   // 'limit'(轮数上限)| 'route'(终稿槽收口)
 		stopReason: null,
 		fallbackTried: false,
 		resend: false,
@@ -115,13 +114,13 @@ export function createAgentTurn(opts = {}){
 		additiveCalls: 0, uiCalls: 0,
 		readCache: new Map(),   // 同参去重:key=工具名|writeEpoch|稳定序列化参数 → { callId, promise }
 		writeEpoch: 0,          // 任一 additive 成功即 +1,此前的只读结果全部失效
-		closeRequested: false,  // [C4] 页面在「本轮无调用但终稿模型≠工具轮模型」时请求再收口一轮(只生效一次)
-		roundModel: '',         // [C4] 页面每轮 setRoundModel:本轮实际用的模型(进 trace,动作条按轮显示)
-		todos: [],              // [批二⑥] note_progress 最近一次报的进度清单(整份替换;进 trace,动作条头部显示)
-		pendingSteer: '',       // [批二⑤] 本轮要附在请求末尾的用户插话(beginRound 从 opts.steer 取一次,取即清)
-		steers: [],             // [批二⑤] 本 Turn 消费过的插话(进 trace,动作条可显示)
+		closeRequested: false,  // 页面在「本轮无调用但终稿模型≠工具轮模型」时请求再收口一轮(只生效一次)
+		roundModel: '',         // 页面每轮 setRoundModel:本轮实际用的模型(进 trace,动作条按轮显示)
+		todos: [],              // note_progress 最近一次报的进度清单(整份替换;进 trace,动作条头部显示)
+		pendingSteer: '',       // 本轮要附在请求末尾的用户插话(beginRound 从 opts.steer 取一次,取即清)
+		steers: [],             // 本 Turn 消费过的插话(进 trace,动作条可显示)
 	};
-	// [进阶复查 D14·2026-09-08] 目录按调用来源列:目标/定时/自动规则轮不再向模型宣告 origins 合同外的工具(此前宣告了、一调即 E_TOOL_DISABLED)
+	// 目录按调用来源列:目标/定时/自动规则轮不再向模型宣告 origins 合同外的工具(此前宣告了、一调即 E_TOOL_DISABLED)
 	const manifest = ()=>(registry.exportToolManifest({ origin }) || []).filter((t)=>t && toolPolicy.deny.indexOf(t.name) < 0);
 	const signal = opts.signal;
 	const aborted = ()=>!!(signal && signal.aborted);
@@ -136,8 +135,8 @@ export function createAgentTurn(opts = {}){
 		const rounds = state.rounds.concat(state.cur && (state.cur.text || state.cur.toolCalls.length || state.cur.results.length) ? [state.cur] : []);
 		return {
 			version: 1, mode: state.mode, turnId: state.turnId, stopReason: state.stopReason,
-			steers: state.steers.slice(),   // [批二⑤] 本 Turn 消费过的用户插话
-			todos: state.todos.slice(),     // [批二⑥] 进度清单(最近一次 note_progress)
+			steers: state.steers.slice(),   // 本 Turn 消费过的用户插话
+			todos: state.todos.slice(),     // 进度清单(最近一次 note_progress)
 			rounds: rounds.map((r)=>({
 				index: r.index, text: r.text, reasoning: r.reasoning || undefined, usage: r.usage || undefined, providerMeta: r.providerMeta || undefined, finishReason: r.finishReason || undefined, model: r.model || undefined,
 				toolCalls: r.toolCalls.map((c)=>({ id: c.id, name: c.name, args: c.args, parseError: c.parseError || undefined })),
@@ -172,7 +171,7 @@ export function createAgentTurn(opts = {}){
 	}
 	function currentCalls(){
 		if(state.mode === 'text'){
-			// [Q-288] 协议错(坏 JSON / 多块 / 重复 id)不再静默丢:变成一条伪调用,由 executeCalls 落成
+			// 协议错(坏 JSON / 多块 / 重复 id)不再静默丢:变成一条伪调用,由 executeCalls 落成
 			// 结构化失败结果回喂给模型 —— 此前模型只看到「什么也没发生」,只能反复重试同一个坏块。
 			const parsed = parseActionBlockDetailed(state.cur.text);
 			if(parsed.error){ const pc = protocolErrorCall(parsed.error); return pc ? [pc] : []; }
@@ -200,33 +199,36 @@ export function createAgentTurn(opts = {}){
 		}else if(call.parseError){
 			result = { ok: false, code: 'E_ARGS_INVALID', message: `参数不是合法 JSON: ${call.parseError}` };
 		}else{
-			// 审批三档(never 全自动/on-request 每次确认/read-only 只读)× 类别收紧 × 信任档案 × [批二②] 工具名策略:纯函数判定,全级别计算
+			// 审批三档(never 全自动/on-request 每次确认/read-only 只读)× 类别收紧 × 信任档案 × 工具名策略:纯函数判定,全级别计算
 			// (只读工具此前不进判定;deny 名单要对只读工具同样生效)
 			const def0 = typeof registry.getTool === 'function' ? registry.getTool(call.name) : null;
-			// [D65] 「本会话不再问」的放行集只对对话来源生效:此前对所有来源缺省读它,对话里点过一次后,之后创建的目标/定时任务同名写入不再询问
+			// 「本会话不再问」的放行集只对对话来源生效:此前对所有来源缺省读它,对话里点过一次后,之后创建的目标/定时任务同名写入不再询问
 			const sessionAllow = typeof opts.sessionAllow === 'function' ? opts.sessionAllow : (origin === 'in-app' ? isToolSessionAllowed : ()=>false);
 			let decision = resolveApprovalDecision({ level, def: def0, args: call.args, mode: approvalMode, categories: approvalCategories, trustedRecords, toolPolicy, sessionAllow });
 			if(decision === 'ask' && autoAllowReadLevel(origin, level)){ decision = 'auto'; entry.autoApproved = 'no-channel'; }
 			if(decision === 'deny'){
-				// [D12] 读级工具被拒只可能来自显式类别档「只读」(外部不出网 / 反问不弹 / 界面不动);写入类来自总档或类别档只读
+				// 读级工具被拒只可能来自显式类别档「只读」(外部不出网 / 反问不弹 / 界面不动);写入类来自总档或类别档只读
 				const deniedCat = def0 && def0.category ? `${def0.category}` : 'query';
-				// [D36] 禁用名的分支不可达(manifest 已剥、executeCalls 先拒),不再在此重复判
+				// 禁用名的分支不可达(manifest 已剥、executeCalls 先拒),不再在此重复判
 				result = { ok: false, code: 'E_APPROVAL_DENIED', message: level === 'read' ? `类别「${deniedCat}」已被用户设为只读(不出网/不反问/不动界面),${call.name} 未执行` : '当前审批档为只读,写入动作未执行' };
 				entry.status = 'skipped';
 			}else if(decision === 'ask' && typeof opts.requestApproval !== 'function'){
-				// [进阶复查 D15·2026-09-08] 判「询问」却没有审批通道 = fail-closed 拒绝;此前这里静默放行执行(今日活调用方都带通道,属潜在陷阱)
+				// 判「询问」却没有审批通道 = fail-closed 拒绝;此前这里静默放行执行(今日活调用方都带通道,属潜在陷阱)
 				result = { ok: false, code: 'E_APPROVAL_DENIED', message: `${call.name} 需要你确认,但本调用路径没有审批通道,未执行`, data: { reason: 'no-approval-channel' } };
 				entry.status = 'skipped';
 			}else if(decision === 'ask'){
 				let allowed = false;
-				// [批二③] 写前预览:工具自报 before/after(3s 超时;失败/超时 = 无预览,审批照常),随待审条目一起交给审批台
-				let preview = null;
-				if(def0 && typeof def0.preview === 'function'){
-					try{
-						const p = await withTimeout(Promise.resolve().then(()=>def0.preview(call.args, { origin, taskId })), PREVIEW_TIMEOUT_MS, { code: 'E_TOOL_TIMEOUT', message: '预览超时' });
-						if(p && typeof p === 'object'){ preview = { title: `${p.title || ''}`.slice(0, 120), before: `${p.before || ''}`.slice(0, PREVIEW_MAX_CHARS), after: `${p.after || ''}`.slice(0, PREVIEW_MAX_CHARS) }; }
-					}catch(e){ preview = null; }
-				}
+				// 无变化预检(与注册表执行前同一个 def.noChange;外部桥同样先经它):什么也不会改 → 直接回该结果,不弹审批卡
+				const noChange = level === 'additive' && typeof registry.peekNoChange === 'function' ? await registry.peekNoChange(call.name, call.args, { origin, taskId, ui: opts.ui, getStore: opts.getStore }) : null;
+				// 写前预览:工具自报 before/after(3s 超时;失败/超时 = 无预览,审批照常),随待审条目一起交给审批台
+				const preview = noChange ? null : await buildApprovalPreview(def0, call.args, { origin, taskId });
+				if(noChange){
+					result = noChange;
+				}else if(preview && preview.reject){
+					// 预览自报 reject({code,message})= 执行必拒:不弹审批卡,直接按该码回(零写入、不记账本)
+					result = { ok: false, code: preview.reject.code, message: preview.reject.message };
+					entry.status = 'failed';
+				}else{
 				// 等审批时用户点「停止」:abort 信号必须能解开等待(否则 settleRound 永不返回,气泡永远 streaming)
 				try{
 					allowed = await new Promise((resolve)=>{
@@ -242,6 +244,7 @@ export function createAgentTurn(opts = {}){
 				if(!allowed){
 					result = { ok: false, code: 'E_USER_SKIPPED', message: '用户跳过了该动作' };
 					entry.status = 'skipped';
+				}
 				}
 			}
 		}
@@ -266,9 +269,9 @@ export function createAgentTurn(opts = {}){
 					try{
 						return await withTimeout(registry.runTool(call.name, call.args, {
 							origin, taskId, requestId: `${state.turnId}:${state.cur.index}:${call.id}`, dispatch: opts.dispatch, getStore: opts.getStore, ui: opts.ui, signal, lastUserMessage: opts.lastUserMessage,
-								// [D77] 本 Turn 的档案::模型交给建任务类工具做创建时快照(schedule_task 此前读 ctx.modelSelection 而运行时从不注入 = 死参数;目标任务里再建任务会钉住 UI 当前模型而非任务自己的模型)
+								// 本 Turn 的档案::模型交给建任务类工具做创建时快照(schedule_task 此前读 ctx.modelSelection 而运行时从不注入 = 死参数;目标任务里再建任务会钉住 UI 当前模型而非任务自己的模型)
 								modelSelection: profileId && model ? `${profileId}::${model}` : undefined,
-								// [Q-285/M-96] 本 Turn 的每技法会话覆盖交给建任务类工具做创建时快照(目标任务后台轮按「快照 ?? 同类默认」拼挂载)
+								// 本 Turn 的每技法会话覆盖交给建任务类工具做创建时快照(目标任务后台轮按「快照 ?? 同类默认」拼挂载)
 								techniqueOptionOverrides: opts.techniqueOptionOverrides && typeof opts.techniqueOptionOverrides === 'object' ? opts.techniqueOptionOverrides : undefined,
 							// 反问通道(ask_user):页面/任务中心提供 requestElicitation;缺席时工具回 E_ELICIT_UNAVAILABLE
 							elicit: typeof opts.requestElicitation === 'function' ? (q)=>opts.requestElicitation({ ...(q || {}), callId: call.id, name: call.name, signal }) : undefined,
@@ -280,7 +283,7 @@ export function createAgentTurn(opts = {}){
 				})();
 				if(key){ state.readCache.set(key, { callId: call.id, promise: run }); }
 				result = await run;
-				// [批二⑥] 进度清单:每次调用整份替换(工具本身零落库;清单只活在 trace 里)
+				// 进度清单:每次调用整份替换(工具本身零落库;清单只活在 trace 里)
 				if(call.name === 'note_progress' && result && result.ok && result.data && Array.isArray(result.data.items)){ state.todos = result.data.items.slice(0, 20); }
 			}
 		}
@@ -289,14 +292,14 @@ export function createAgentTurn(opts = {}){
 			: formatToolResultContent(result, { maxChars: limits.RESULT_MAX_CHARS });
 		entry.ok = !!(result && result.ok);
 		// 任一写入成功即换代:此前缓存的只读结果全部失效(键含 writeEpoch,顺手清空释放引用)
-		if(level === 'additive' && entry.ok){ state.writeEpoch += 1; state.readCache.clear(); }
+		if(level === 'additive' && entry.ok && !result.noChange){ state.writeEpoch += 1; state.readCache.clear(); }   // 无变化不是写入
 		entry.code = result ? result.code : undefined;
 		entry.content = fmt.content;
 		entry.truncated = fmt.truncated;
 		entry.isError = !entry.ok;
 		entry.summary = result && (result.summary || result.message) ? `${result.summary || result.message}` : (entry.ok ? '完成' : '失败');
 		entry.undo = result && result.undo && result.undo.actionId ? { actionId: result.undo.actionId, kind: result.undo.kind, label: result.undo.label } : undefined;
-		// [进阶复查 D17·2026-09-08] 预留成功而账本提交失败 → 动作已落地却不可撤销:进 trace 让动作条与通知中心告诉用户(此前全仓无人消费)
+		// 预留成功而账本提交失败 → 动作已落地却不可撤销:进 trace 让动作条与通知中心告诉用户(此前全仓无人消费)
 		entry.ledgerLost = result && result.ledgerLost === true ? true : undefined;
 		if(entry.status !== 'skipped'){ entry.status = entry.ok ? 'completed' : 'failed'; }
 		entry.endedAt = new Date().toISOString();
@@ -309,7 +312,7 @@ export function createAgentTurn(opts = {}){
 		const categoryOf = (name)=>{ const t = man.find((x)=>x.name === name); return t && t.category ? `${t.category}` : 'query'; };
 		const accepted = [];
 		calls.forEach((c, i)=>{
-			// [Q-288] 协议错先于一切判定(否则空工具名会被报成「未知工具」,把真因盖掉)
+			// 协议错先于一切判定(否则空工具名会被报成「未知工具」,把真因盖掉)
 			if(c.protocolError){
 				const code = c.protocolCode || 'E_PROTOCOL_DUP_ID';
 				state.cur.results.push({ callId: c.id, name: c.name || '(协议)', level: null, args: c.args || {}, ok: false, code, content: JSON.stringify({ __horosaType: 'toolResult', untrusted: true, ok: false, code, message: c.protocolError }), summary: '协议错', status: 'failed', isError: true, startedAt: new Date().toISOString(), endedAt: new Date().toISOString() });
@@ -320,10 +323,10 @@ export function createAgentTurn(opts = {}){
 				state.cur.results.push({ callId: c.id, name: c.name, level, args: c.args, ok: false, code: 'E_LIMIT', content: JSON.stringify({ __horosaType: 'toolResult', untrusted: true, ok: false, code: 'E_LIMIT', message: '本轮调用数超限,已跳过' }), summary: '超限跳过', status: 'skipped', isError: true, startedAt: new Date().toISOString(), endedAt: new Date().toISOString() });
 				return;
 			}
-			// [进阶复查 D16·2026-09-08] 过了每 Turn 总额判定的每一次尝试都计额(含被禁用/未知名/超类别上限):此前被拒不计 → 模型可硬调禁用工具 ~48 次/Turn
+			// 过了每 Turn 总额判定的每一次尝试都计额(含被禁用/未知名/超类别上限):此前被拒不计 → 模型可硬调禁用工具 ~48 次/Turn
 			state.totalCalls += 1;
 			if(!level && toolPolicy.deny.indexOf(c.name) >= 0){
-				// [批二②] 用户禁用的工具不在本 Turn 目录里;模型硬调 → 明确回「已被禁用」而不是「未知工具」(否则模型会去猜名字)
+				// 用户禁用的工具不在本 Turn 目录里;模型硬调 → 明确回「已被禁用」而不是「未知工具」(否则模型会去猜名字)
 				const dmsg = `工具 ${c.name} 已被用户禁用,未执行`;
 				state.cur.results.push({ callId: c.id, name: c.name, level: null, args: c.args, ok: false, code: 'E_APPROVAL_DENIED', content: JSON.stringify({ __horosaType: 'toolResult', untrusted: true, ok: false, code: 'E_APPROVAL_DENIED', message: dmsg }), summary: dmsg, status: 'skipped', isError: true, startedAt: new Date().toISOString(), endedAt: new Date().toISOString() });
 				return;
@@ -336,7 +339,7 @@ export function createAgentTurn(opts = {}){
 				state.cur.results.push({ callId: c.id, name: c.name, level, args: c.args, ok: false, code: 'E_LIMIT', content: JSON.stringify({ __horosaType: 'toolResult', untrusted: true, ok: false, code: 'E_LIMIT', message: '本次对话写入动作已达上限,请用户确认后再继续' }), summary: '写入超限', status: 'skipped', isError: true, startedAt: new Date().toISOString(), endedAt: new Date().toISOString() });
 				return;
 			}
-			// [批五] 界面动作(导航/合盘配对)每 Turn 封顶:切来切去用户看不过来;超出回 E_LIMIT 不执行
+			// 界面动作(导航/合盘配对)每 Turn 封顶:切来切去用户看不过来;超出回 E_LIMIT 不执行
 			const isUi = categoryOf(c.name) === 'ui';
 			if(isUi && state.uiCalls >= limits.MAX_UI_PER_TURN){
 				state.cur.results.push({ callId: c.id, name: c.name, level, args: c.args, ok: false, code: 'E_LIMIT', content: JSON.stringify({ __horosaType: 'toolResult', untrusted: true, ok: false, code: 'E_LIMIT', message: `本轮界面动作已达上限 ${limits.MAX_UI_PER_TURN} 次,未执行` }), status: 'skipped', summary: '界面动作超限', startedAt: new Date().toISOString(), endedAt: new Date().toISOString() });
@@ -346,7 +349,7 @@ export function createAgentTurn(opts = {}){
 			if(isUi){ state.uiCalls += 1; }
 			accepted.push({ call: c, level, ui: isUi });
 		});
-		// read 并行 / additive 串行(写入顺序=模型给出顺序;并发写同库无意义且难撤销)/ [批五] ui 类界面动作最后串行(先读后动,切页放在本轮末尾)
+		// read 并行 / additive 串行(写入顺序=模型给出顺序;并发写同库无意义且难撤销)/ ui 类界面动作最后串行(先读后动,切页放在本轮末尾)
 		await Promise.all(accepted.filter((a)=>a.level === 'read' && !a.ui).map((a)=>execOne(a.call, 'read')));
 		// 批量建档抑制:同批多条建档不逐条选中分析源(焦点逐条跳动),建档工具经 ctx.deferSelect 只登记 cid,
 		// 批尾对最后一条成功建档 refreshSources+selectSource 一次;单条(batch.total===1)由工具侧照旧立即选中。
@@ -380,7 +383,7 @@ export function createAgentTurn(opts = {}){
 			if(!state.resend && state.cur && (state.cur.results.length || state.cur.text || state.cur.toolCalls.length)){ state.rounds.push(state.cur); }
 			state.resend = false;
 			state.cur = freshRound();
-			// [批二⑤] 插话:每轮开始时问一次页面队列(取即清);首轮之前用户还没机会插话,自然为空
+			// 插话:每轮开始时问一次页面队列(取即清);首轮之前用户还没机会插话,自然为空
 			state.pendingSteer = '';
 			if(typeof opts.steer === 'function'){
 				let s = '';
@@ -396,13 +399,13 @@ export function createAgentTurn(opts = {}){
 			if(state.mode !== 'native'){ return undefined; }
 			return state.closing ? 'none' : 'auto';
 		},
-		// [C4] 模型路由:页面每轮开始前告知本轮模型(进 trace);流结束后若「无调用且终稿≠本轮」请求再收口一轮
+		// 模型路由:页面每轮开始前告知本轮模型(进 trace);流结束后若「无调用且终稿≠本轮」请求再收口一轮
 		setRoundModel(m){ state.roundModel = `${m || ''}`; if(state.cur){ state.cur.model = state.roundModel || model || undefined; } },
 		requestClose(){ if(!state.closing){ state.closeRequested = true; } },
 		isClosing(){ return !!state.closing; },
 		currentCallCount(){ return state.cur ? currentCalls().length : 0; },
 		messagesForRound(base){
-			// [Q-290/PP-22] 守则按当次目录生成(界面动作条目随两件界面工具是否在目录中出现)
+			// 守则按当次目录生成(界面动作条目随两件界面工具是否在目录中出现)
 			const _man = manifest();
 			const _baseRules = agentSystemRulesFor(_man.map((t)=>t.name));
 			const rules = state.mode === 'text' ? `${_baseRules}\n\n${buildTextProtocolRules(_man)}` : _baseRules;
@@ -415,10 +418,10 @@ export function createAgentTurn(opts = {}){
 			// 本 Turn 已完成的各轮(assistant 调用 + 工具结果)追加在末尾,明确不折叠:同 Turn 各轮请求互为前缀,
 			// 折叠会改写已发出的前缀、反而打断上游前缀缓存;且本 Turn 的结果正是模型下一轮要读的原文。
 			const soFar = expandTraceToMessages({ mode: state.mode, rounds: state.rounds });
-			// [批二⑤] 用户插话附在最末(最近消息位):模型下一轮工具回合先读到它;插话只进本轮请求,不进历史不进账本
+			// 用户插话附在最末(最近消息位):模型下一轮工具回合先读到它;插话只进本轮请求,不进历史不进账本
 			const tail = [];
 			if(state.pendingSteer){ tail.push({ role: 'user', content: steerLine(state.pendingSteer) }); }
-			// [Q-290/M-105·PP-14] 围栏(text)模式收口轮:原生模式发 tool_choice:'none',围栏模式无此机制,模型照常输出动作块
+			// 围栏(text)模式收口轮:原生模式发 tool_choice:'none',围栏模式无此机制,模型照常输出动作块
 			//   → settleRound 以「已达上限,未执行」跳过,终稿常只剩「我先查一下……」。收口轮末尾追加一条 user 提示。
 			if(state.closing && state.mode === 'text'){ tail.push({ role: 'user', content: '【收口】本轮不要再输出任何动作块,直接根据已有工具结果给出最终结论。' }); }
 			return tail.length ? history.concat(soFar, tail) : history.concat(soFar);
@@ -469,15 +472,15 @@ export function createAgentTurn(opts = {}){
 			const calls = currentCalls();
 			if(state.mode === 'text'){ state.cur.toolCalls = calls.map((c)=>({ id: c.id, name: c.name, index: 0, argumentsText: '', args: c.args, parseError: null })); }
 			if(state.mode === 'native' && state.rounds.length === 0 && cap === 'unknown' && !state.cur.error){ recordToolCapability(profileId, model, true); }
-			// [C4] 无调用但页面请求收口(终稿模型≠工具轮模型):本轮正文作废,再跑恰一轮 toolChoice=none 由终稿模型作答
+			// 无调用但页面请求收口(终稿模型≠工具轮模型):本轮正文作废,再跑恰一轮 toolChoice=none 由终稿模型作答
 			if(!calls.length && state.closeRequested && !state.closing){
-				state.closeRequested = false; state.closing = true; state.closingBy = 'route';   // [PP-14] 路由收口(终稿槽≠工具槽)单独记
+				state.closeRequested = false; state.closing = true; state.closingBy = 'route';   // 路由收口(终稿槽≠工具槽)单独记
 				state.rounds.push(state.cur); state.cur = null; emitTrace();
 				return true;
 			}
 			if(!calls.length || state.closing){
 				if(calls.length){ finalizeUnresolved('E_LIMIT', state.closingBy === 'route' ? '终稿收口轮不执行工具调用,未执行' : '本次对话调用轮数已达上限,未执行'); }
-				// [Q-290/M-105·PP-14] 路由收口记 route_close,不再误记成轮数上限
+				// 路由收口记 route_close,不再误记成轮数上限
 				state.stopReason = state.closing && calls.length ? (state.closingBy === 'route' ? 'route_close' : 'max_rounds') : 'stop';
 				state.rounds.push(state.cur); state.cur = null; emitTrace();
 				return false;

@@ -2,19 +2,20 @@
 // 每槽存一个 encodeModelSelection(profileId, model) 串,全空=现状(跟随当前模型,请求字节不变)。
 // 纪律:resolveRoute 与既有按角色解析模型的口径一致——档案找不到回落当前档案,模型缺回落当前模型;
 // 轮规划是纯函数(roundSlot/shouldRequestClose),页面钩子只做粘合;缺省路径零字节变化。
-import { safeJsonParseFromStorage, safeJsonStringifyToStorage, safeLocalStorageRemove } from './safeStorage';
+import { safeJsonParseFromStorage, safeJsonStringifyToStorage, safeLocalStorageRemove, noteSettingNotSaved } from './safeStorage';
 import { parseModelSelection, isReasoningModel, getProviderProtocolFamily, isOpenAiFamily, maxTokensKeyForModel, clampTemperatureForFamily, isOpenAIReasoningModel, } from './aiAnalysisProviders';
 
 export const MODEL_ROUTES_KEY = 'horosa.ai.chat.modelRoutes.v1';
 export const MODEL_ROUTES_EVENT = 'horosa:ai-model-routes-changed';
-export const ROUTE_SLOTS = ['toolRounds', 'final', 'judge', 'review', 'planner', 'subagent'];
+export const ROUTE_SLOTS = ['toolRounds', 'final', 'judge', 'review', 'planner', 'subagent', 'utility'];
 export const ROUTE_SLOT_META = {
 	toolRounds: { label: '工具调用轮', help: '行动能力开启时,带工具的各轮用它(便宜、快);留空=跟随当前模型' },
 	final: { label: '终稿', help: '最后一轮不带工具的回答用它(强模型);与工具轮不同时自动多收口一轮' },
 	judge: { label: '判官', help: '目标任务自检 / 多模型对比打分用它(异源判官防自我偏袒)' },
 	review: { label: '审阅', help: '「审阅」对拍数据挑错用它(优先另一家)' },
-	planner: { label: '规划', help: '多技法分工的拆解计划用它' },
+	planner: { label: '规划', help: '多技法分工的拆解计划、/plan 的行动计划用它' },
 	subagent: { label: '子任务', help: '多技法分工的各子任务用它(只读、≤3 轮)' },
+	utility: { label: '辅助', help: '压缩对话 / 生成口径 / 记忆提炼 / 自动起标题这类短调用用它(便宜、快);留空=跟随当前模型' },
 };
 
 export function normalizeModelRoutes(raw){
@@ -42,7 +43,7 @@ export function writeModelRoutes(patch){
 	if(!hasAnyRoute(next)){ safeLocalStorageRemove(MODEL_ROUTES_KEY); emit(next); return next; }
 	const compact = {};
 	ROUTE_SLOTS.forEach((k)=>{ if(next[k]){ compact[k] = next[k]; } });
-	try{ safeJsonStringifyToStorage(MODEL_ROUTES_KEY, compact); }catch(e){ /* 配额等:保持内存值 */ }
+	safeJsonStringifyToStorage(MODEL_ROUTES_KEY, compact);   // 写不进(配额等)返回 false:内存值照常广播
 	emit(next);
 	return next;
 }
@@ -58,7 +59,7 @@ export function subscribeModelRoutes(fn){
 	if(typeof window === 'undefined' || typeof fn !== 'function'){ return ()=>{}; }
 	const h = (e)=>fn(normalizeModelRoutes(e && e.detail ? e.detail : readModelRoutes()));
 	window.addEventListener(MODEL_ROUTES_EVENT, h);
-	// [进阶审计 D6·2026-09-07] 跨窗口:另一个窗口写了本键(或整个 storage 被清),本窗口的订阅者也要重读 —— storage 事件只在别的窗口触发,本窗口写入仍走上面的 CustomEvent
+	// 跨窗口:另一个窗口写了本键(或整个 storage 被清),本窗口的订阅者也要重读 —— storage 事件只在别的窗口触发,本窗口写入仍走上面的 CustomEvent
 	const sh = (e)=>{ const k = e && e.key != null ? `${e.key}` : ''; if(!k || k === MODEL_ROUTES_KEY){ fn(normalizeModelRoutes(readModelRoutes())); } };
 	window.addEventListener('storage', sh);
 	return ()=>{ window.removeEventListener(MODEL_ROUTES_EVENT, h); window.removeEventListener('storage', sh); };
@@ -97,12 +98,12 @@ export function shouldRequestClose({ routes, agentEnabled, closing, hadToolCalls
 }
 
 // 路由到别的目标时重建 providerOptions:以目标档案自己的 providerOptions 为底,只带过与家族无关的通用键;同目标=原对象(零变化)
-// [批二⑩] 按槽的思考档:键 horosa.ai.chat.routeOptions.v1 = { [slot]: { thinking } };缺省不存在/全空 = 现状(全局思考档)。
+// 按槽的思考档:键 horosa.ai.chat.routeOptions.v1 = { [slot]: { thinking } };缺省不存在/全空 = 现状(全局思考档)。
 // 槽档优先于全局档;同目标(未改模型)也生效:先剥掉全局档写进去的思考键,再按槽档施加;'off' = 该槽明确不思考。
 export const ROUTE_OPTIONS_KEY = 'horosa.ai.chat.routeOptions.v1';
 export const ROUTE_OPTIONS_EVENT = 'horosa:ai-route-options-changed';
 export const ROUTE_THINKING_RE = /^(off|low|medium|high|xhigh|max|custom:\d{4,5})$/;
-// [批三②] 槽参数四键:thinking(思考档)/ reasoningEffort(low|medium|high,只对 OpenAI 系推理模型下发)/ temperature(0..2,推理模型不发)/ maxTokens(1..200000 → max_tokens)
+// 槽参数四键:thinking(思考档)/ reasoningEffort(low|medium|high,只对 OpenAI 系推理模型下发)/ temperature(0..2,推理模型不发)/ maxTokens(1..200000 → max_tokens)
 export const ROUTE_EFFORTS = ['low', 'medium', 'high'];
 export const ROUTE_TEMPERATURE_MAX = 2;
 export const ROUTE_MAX_TOKENS_MAX = 200000;
@@ -147,7 +148,13 @@ export function writeRouteOptions(patch){
 	});
 	const next = normalizeRouteOptions(merged);
 	if(!hasAnyRouteOption(next)){ safeLocalStorageRemove(ROUTE_OPTIONS_KEY); }
-	else{ try{ safeJsonStringifyToStorage(ROUTE_OPTIONS_KEY, next); }catch(e){ /* 配额 */ } }
+	else if(safeJsonStringifyToStorage(ROUTE_OPTIONS_KEY, next) !== true){
+		// 没写进(存储满)→ 按存储里实际的值广播与返回,并提示没能保存
+		noteSettingNotSaved(ROUTE_OPTIONS_KEY);
+		const truth = readRouteOptions();
+		emitRouteOptions(truth);
+		return truth;
+	}
 	emitRouteOptions(next);
 	return next;
 }
@@ -156,13 +163,13 @@ export function subscribeRouteOptions(fn){
 	if(typeof window === 'undefined' || typeof fn !== 'function'){ return ()=>{}; }
 	const h = (e)=>fn(normalizeRouteOptions(e && e.detail ? e.detail : readRouteOptions()));
 	window.addEventListener(ROUTE_OPTIONS_EVENT, h);
-	// [进阶审计 D6·2026-09-07] 跨窗口:另一个窗口写了本键(或整个 storage 被清),本窗口的订阅者也要重读 —— storage 事件只在别的窗口触发,本窗口写入仍走上面的 CustomEvent
+	// 跨窗口:另一个窗口写了本键(或整个 storage 被清),本窗口的订阅者也要重读 —— storage 事件只在别的窗口触发,本窗口写入仍走上面的 CustomEvent
 	const sh = (e)=>{ const k = e && e.key != null ? `${e.key}` : ''; if(!k || k === ROUTE_OPTIONS_KEY){ fn(normalizeRouteOptions(readRouteOptions())); } };
 	window.addEventListener('storage', sh);
 	return ()=>{ window.removeEventListener(ROUTE_OPTIONS_EVENT, h); window.removeEventListener('storage', sh); };
 }
 // 剥掉三家的思考键(applyThinkingLevel 会写的那几把),不动其它 providerOptions
-export const THINKING_OPTION_KEYS = ['thinking', 'reasoning_effort', 'output_config', 'thinking_budget_cap'];   // [Q-024] Anthropic 自适应形态两键同剥
+export const THINKING_OPTION_KEYS = ['thinking', 'reasoning_effort', 'output_config', 'thinking_budget_cap'];   // Anthropic 自适应形态两键同剥
 export function stripThinkingOptions(opts){
 	const o = { ...(opts || {}) };
 	THINKING_OPTION_KEYS.forEach((k)=>{ delete o[k]; });
@@ -174,8 +181,8 @@ export function stripThinkingOptions(opts){
 }
 
 export const ROUTE_CARRY_KEYS = ['temperature', 'top_p', 'stop', 'frequency_penalty', 'presence_penalty', 'response_format', 'requestTimeoutMs'];
-// [批三②] 槽参数施加:temperature(推理模型不发)/ 输出上限 / reasoning_effort(只对 OpenAI 系推理模型;其它家族无此键,发了会 400)
-// [进阶审计 D7] 输出上限必须写**家族 × 代际**正确的键(单源 maxTokensKeyForModel):OpenAI o/gpt-5+ 系是 max_completion_tokens、
+// 槽参数施加:temperature(推理模型不发)/ 输出上限 / reasoning_effort(只对 OpenAI 系推理模型;其它家族无此键,发了会 400)
+// 输出上限必须写**家族 × 代际**正确的键(单源 maxTokensKeyForModel):OpenAI o/gpt-5+ 系是 max_completion_tokens、
 //   Gemini 是 maxOutputTokens、Ollama 是 num_predict。此前一律写 max_tokens:聊天路径早已按推理模型兜底注入 max_completion_tokens(=10096),
 //   槽写的 max_tokens 被后端丢弃 → 路由表「输出上限」对 o 系/gemini/ollama 是死格(端到端用例 S105 实抓:敲 999,请求体仍 10096)。
 //   写槽值时把其它输出键一并清掉,免得两把键同发让上游/后端二选一。
@@ -183,13 +190,13 @@ const OUTPUT_CAP_KEYS = ['max_tokens', 'max_completion_tokens', 'maxOutputTokens
 export function applySlotParams(opts, so, providerType, model){
 	const o = { ...(opts || {}) };
 	const s = so || {};
-	// [Q-323] 槽温度按家族夹逼:路由槽存的是 0..2(与 OpenAI 同域),原样发给 Anthropic 的 >1 档必 400
+	// 槽温度按家族夹逼:路由槽存的是 0..2(与 OpenAI 同域),原样发给 Anthropic 的 >1 档必 400
 	if(s.temperature !== undefined && !isReasoningModel(model)){ o.temperature = clampTemperatureForFamily(s.temperature, getProviderProtocolFamily(providerType)); }
 	if(s.maxTokens !== undefined){
 		OUTPUT_CAP_KEYS.forEach((k)=>{ delete o[k]; });
 		o[maxTokensKeyForModel(getProviderProtocolFamily(providerType), model)] = s.maxTokens;
 	}
-	// [Q-399 裁决 2026-09-18] 推理档判据与对话页思考档同源:只对 OpenAI o / gpt-5+ 代际写 reasoning_effort(isOpenAIReasoningModel);
+	// 推理档判据与对话页思考档同源:只对 OpenAI o / gpt-5+ 代际写 reasoning_effort(isOpenAIReasoningModel);
 	// 此前用 isReasoningModel(含 deepseek-reasoner / *-r1 / *thinking*)比标签「OpenAI 推理档」宽。DeepSeek 实测(2026-09-18)对该键 200 容忍,但按裁决收窄。
 	if(s.reasoningEffort !== undefined && isOpenAIReasoningModel(model) && isOpenAiFamily(getProviderProtocolFamily(providerType))){ o.reasoning_effort = s.reasoningEffort; }
 	return o;
@@ -221,7 +228,7 @@ export function providerOptionsForRoute(route, base, { profile, model, thinkingL
 	return params ? applySlotParams(opts, so, route.profile.providerType, route.model) : opts;
 }
 
-// [进阶审计 D1] 短调用消费方(判官/审阅/规划/子任务/合并稿/综合/目标自检)的**单源**:此前六处各自写
+// 短调用消费方(判官/审阅/规划/子任务/合并稿/综合/目标自检)的**单源**:此前六处各自写
 // `applyThinkingLevel({...profile.providerOptions}, 'off')`,从不读 routeOptions → 表格里这四行的 思考档/推理档/温度/输出上限
 // 写了键、从不生效。底 = 目标档案自身 providerOptions 经 baseThinking(缺省 'off' = 今日字节);
 // 再按该槽的 routeOptions 施加(routed:false 语义:槽空 = 底对象原样返回 → 缺省路径逐字节零变化)。
@@ -233,7 +240,7 @@ export function providerOptionsForSlot(slot, profile, model, { applyThinkingLeve
 	return providerOptionsForRoute({ profile, model, routed: false, slot }, base, { profile, model, thinkingLevel: baseThinking, applyThinkingLevel, routeOptions: ro });
 }
 
-// ── [批三②] 具名方案:键 horosa.ai.chat.routeProfiles.v1 = { profiles: { [name]: { routes, routeOptions } }, active: '' }
+// ── 具名方案:键 horosa.ai.chat.routeProfiles.v1 = { profiles: { [name]: { routes, routeOptions } }, active: '' }
 //    active 空 = 现状(两把活键就是真值);「另存为」把当前两把活键抄进方案;「切换」把方案抄回活键并记 active;删方案不动活键。
 export const ROUTE_PROFILES_KEY = 'horosa.ai.chat.routeProfiles.v1';
 export const ROUTE_PROFILES_EVENT = 'horosa:ai-route-profiles-changed';
@@ -259,7 +266,12 @@ function emitRouteProfiles(v){
 function writeRouteProfiles(next){
 	const v = normalizeRouteProfiles(next);
 	if(!Object.keys(v.profiles).length && !v.active){ safeLocalStorageRemove(ROUTE_PROFILES_KEY); }
-	else{ try{ safeJsonStringifyToStorage(ROUTE_PROFILES_KEY, v); }catch(e){ /* 配额 */ } }
+	else if(safeJsonStringifyToStorage(ROUTE_PROFILES_KEY, v) !== true){
+		noteSettingNotSaved(ROUTE_PROFILES_KEY);
+		const truth = readRouteProfiles();
+		emitRouteProfiles(truth);
+		return truth;
+	}
 	emitRouteProfiles(v);
 	return v;
 }
@@ -308,7 +320,7 @@ export function subscribeRouteProfiles(fn){
 	if(typeof window === 'undefined' || typeof fn !== 'function'){ return ()=>{}; }
 	const h = (e)=>fn(normalizeRouteProfiles(e && e.detail ? e.detail : readRouteProfiles()));
 	window.addEventListener(ROUTE_PROFILES_EVENT, h);
-	// [进阶审计 D6·2026-09-07] 跨窗口:另一个窗口写了本键(或整个 storage 被清),本窗口的订阅者也要重读 —— storage 事件只在别的窗口触发,本窗口写入仍走上面的 CustomEvent
+	// 跨窗口:另一个窗口写了本键(或整个 storage 被清),本窗口的订阅者也要重读 —— storage 事件只在别的窗口触发,本窗口写入仍走上面的 CustomEvent
 	const sh = (e)=>{ const k = e && e.key != null ? `${e.key}` : ''; if(!k || k === ROUTE_PROFILES_KEY){ fn(readRouteProfiles()); } };
 	window.addEventListener('storage', sh);
 	return ()=>{ window.removeEventListener(ROUTE_PROFILES_EVENT, h); window.removeEventListener('storage', sh); };

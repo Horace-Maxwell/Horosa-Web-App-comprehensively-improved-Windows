@@ -1,4 +1,4 @@
-// [C8e] 内容完备性 gap 棘轮:注册表里 'gap:' 结论的条目集(键.税则)只减不增。
+// 内容完备性 gap 棘轮:注册表里 'gap:' 结论的条目集(键.税则)只减不增。
 // coverage 锁只保「每键有结论、gap 带说明」,不逼存量——注册表可以在「全绿」下长期吐假文;本锁把
 // 「新增一条 gap」变成必须改基线的显式决策,并把存量 gap 数打进测试输出。
 import { AI_EXPORT_CONTENT_AUDIT, AI_EXPORT_CONTENT_GAP_BASELINE } from '../aiExportContentAudit';
@@ -16,7 +16,7 @@ function currentGapEntries(){
 	return out.sort();
 }
 
-describe('[C8e] 内容完备性 gap 棘轮(只减不增)', ()=>{
+describe('内容完备性 gap 棘轮(只减不增)', ()=>{
 	const current = currentGapEntries();
 	const baseline = Array.from(new Set(AI_EXPORT_CONTENT_GAP_BASELINE)).sort();
 

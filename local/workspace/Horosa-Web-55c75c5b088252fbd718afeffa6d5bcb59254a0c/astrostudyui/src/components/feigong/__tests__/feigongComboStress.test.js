@@ -1,4 +1,4 @@
-// [P3] 飞宫小奇门 · 组合压测:起支三模式全域 × 日干支 10×12 × 命宫年龄/性别边界 —— 局/宫面/主客/快照全链。
+// 飞宫小奇门 · 组合压测:起支三模式全域 × 日干支 10×12 × 命宫年龄/性别边界 —— 局/宫面/主客/快照全链。
 import {
 	resolveQiZhi, buildJu, mingGong, yuanShenMap, tianXingMap, jianXingZhi,
 } from '../core/feigongJu';
@@ -9,7 +9,7 @@ import { buildFeiGongSnapshotText } from '../FeiGongMain';
 const ZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 const GAN = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
 
-describe('[P3] 飞宫组合压测 · 起支三模式', ()=>{
+describe('飞宫组合压测 · 起支三模式', ()=>{
 	test('hour/manualZhi:十二支全域直通;非法支 → null', ()=>{
 		ZHI.forEach((z)=>{
 			expect(resolveQiZhi({ mode: 'hour', hourZhi: z })).toBe(z);
@@ -28,7 +28,7 @@ describe('[P3] 飞宫组合压测 · 起支三模式', ()=>{
 	});
 });
 
-describe('[P3] 飞宫组合压测 · 全局面(12 起支 × 10 日干 × 12 日支 = 1440 局)', ()=>{
+describe('飞宫组合压测 · 全局面(12 起支 × 10 日干 × 12 日支 = 1440 局)', ()=>{
 	test('全组合:局结构完备(原神/天星 12 支全 + 八宫门干)+主客合法+宫面 12 方位非空+快照非空', ()=>{
 		ZHI.forEach((qz)=>{
 			GAN.forEach((dg)=>{
@@ -73,7 +73,7 @@ describe('[P3] 飞宫组合压测 · 全局面(12 起支 × 10 日干 × 12 日�
 	});
 });
 
-describe('[P3] 飞宫组合压测 · 命宫(年龄全域 × 性别)', ()=>{
+describe('飞宫组合压测 · 命宫(年龄全域 × 性别)', ()=>{
 	const ju = buildJu({ zhi: '申', dayGan: '壬', dayZhi: '辰' });
 	test('1..120 × 男女:不抛;gong∈1..9 或 null(原典未载档),flags 数组恒在', ()=>{
 		['male', 'female'].forEach((gender)=>{
@@ -95,7 +95,7 @@ describe('[P3] 飞宫组合压测 · 命宫(年龄全域 × 性别)', ()=>{
 	});
 });
 
-describe('[P3] 飞宫组合压测 · 快照层(AI 导出/挂载共用)', ()=>{
+describe('飞宫组合压测 · 快照层(AI 导出/挂载共用)', ()=>{
 	test('抽样 24 局:快照含起支/建起/中宫双干;坏局安全', ()=>{
 		ZHI.forEach((qz, i)=>{
 			const ju = buildJu({ zhi: qz, dayGan: GAN[i % 10], dayZhi: ZHI[(i + 3) % 12] });

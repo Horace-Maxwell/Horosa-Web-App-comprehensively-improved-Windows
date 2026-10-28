@@ -1,4 +1,4 @@
-// [进阶复查 D14·2026-09-08] 每来源目录合同:运行时向模型宣告的目录 = exportToolManifest({ origin });
+// 每来源目录合同:运行时向模型宣告的目录 = exportToolManifest({ origin });
 // 凡宣告的工具在该来源下 runTool 永不回 E_TOOL_DISABLED(宣告即可调;参数不合规回 E_ARGS_INVALID 等属正常)。
 import { registerBuiltinTools } from '../aiTools';
 import { exportToolManifest, runTool, __resetToolsForTests } from '../aiTools/registry';

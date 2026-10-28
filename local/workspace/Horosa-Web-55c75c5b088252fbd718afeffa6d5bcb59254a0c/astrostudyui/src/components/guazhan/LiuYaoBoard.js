@@ -69,7 +69,7 @@ export function LiuYaoZhuangTable({ analysis, movingSet, title, hideXunKong, sim
 	const showSha = !!(settings && settings.shensha && settings.shensha.on);
 	const showLiu = !!(settings && settings.sixGods);
 	const showBian = moving.size > 0;
-	// [G7] 旺衰列开关(默认开);[G8] 悬停提示总开关(默认开,关=title 族不渲染);[G5] 简显位集(之卦卡用)
+	// 旺衰列开关(默认开);悬停提示总开关(默认开,关=title 族不渲染);简显位集(之卦卡用)
 	const showWs = !(settings && settings.wangShuaiCol === false);
 	const tipsOn = !(settings && settings.showTips === false);
 	const simp = simplifyPositions || null;
@@ -158,7 +158,7 @@ export function LiuYaoZhuangTable({ analysis, movingSet, title, hideXunKong, sim
 	);
 }
 
-// [F1] 装卦表紧凑「日·月」列:两行小标签(生=jade/克冲破=danger/合=accent/值=cinnabar),完整 why 走 title。
+// 装卦表紧凑「日·月」列:两行小标签(生=jade/克冲破=danger/合=accent/值=cinnabar),完整 why 走 title。
 function ryTagTone(tone){ return tone === 'bad' ? C.danger : tone === 'good' ? C.jade : C.accent; }
 function ryMiniLine(label, rel){
 	const tags = (rel && rel.tags) || [];
@@ -208,9 +208,9 @@ const EMPTY_SET = new Set();
 export function LiuYaoRelatedCards({ analysis }){
 	if(!analysis || !analysis.related){ return null; }
 	const r = analysis.related;
-	// [G6] 关联卦显隐组合:null=全显(默认);数组=仅显所选。既有 movingOnly 联动(之卦卡置空)保持在前,再过显隐。
+	// 关联卦显隐组合:null=全显(默认);数组=仅显所选。既有 movingOnly 联动(之卦卡置空)保持在前,再过显隐。
 	const sel = analysis.settings && Array.isArray(analysis.settings.relatedCards) ? analysis.settings.relatedCards : null;
-	// [G5] 之卦简显:开=之卦卡仅动爻位标五行六亲;动爻位集取本卦动变(dongBian.moves)。
+	// 之卦简显:开=之卦卡仅动爻位标五行六亲;动爻位集取本卦动变(dongBian.moves)。
 	const simpBian = (analysis.settings && analysis.settings.bianguaSimplify && analysis.dongBian && analysis.dongBian.moves)
 		? new Set(analysis.dongBian.moves.map((m) => m.pos)) : null;
 	const cards = [
@@ -327,7 +327,7 @@ function RiYueLine({ label, rel }){
 	);
 }
 
-// [F1] 日辰·月建对六爻引动(概览+断诀共用);始终渲染(核心外力,不加开关)。
+// 日辰·月建对六爻引动(概览+断诀共用);始终渲染(核心外力,不加开关)。
 export function LiuYaoRiYueView({ analysis }){
 	const ry = analysis && analysis.riYue;
 	if(!ry || !ry.perYao || !ry.perYao.length){ return null; }
@@ -353,7 +353,7 @@ export function LiuYaoRiYueView({ analysis }){
 	);
 }
 
-// [F1] 扩展神煞·月令神煞逐爻(受 shenshaEx.on gating,由 facade 决定是否有数据)。
+// 扩展神煞·月令神煞逐爻(受 shenshaEx.on gating,由 facade 决定是否有数据)。
 export function LiuYaoShenShaExView({ analysis }){
 	const ex = analysis && analysis.shenShaEx;
 	if(!ex || !ex.perYao || !ex.perYao.some((p) => p.shensha.length)){ return null; }
@@ -370,7 +370,7 @@ export function LiuYaoShenShaExView({ analysis }){
 	);
 }
 
-// [F1] 月建六神(月令定局):本月六神各值一支(定局),再看卦中何爻临之。
+// 月建六神(月令定局):本月六神各值一支(定局),再看卦中何爻临之。
 // 六神只落六支,卦中未必爻爻皆临 → 列全六爻(临者标神、不临标「不临」),并先给出本月定局全表,免「只四个」之惑。
 export function LiuYaoYueLiuShenView({ analysis }){
 	const yl = analysis && analysis.yueLiuShenAnn;
@@ -408,7 +408,7 @@ export function LiuYaoYueLiuShenView({ analysis }){
 	);
 }
 
-// [A1-A4] 世应关系 / 卦变吉凶 / 动态四态 / 间爻(概览显要位置)。
+// 世应关系 / 卦变吉凶 / 动态四态 / 间爻(概览显要位置)。
 // 间爻标签配色与日月引动行同口径:旺衰按旺衰色,动 = 朱,暗动 = 金,空 / 月破与冲克 = 红,生 = 玉,合 = 金,比和 = 淡。
 function jianTagColor(t){
 	if(WANGSHUAI_COLOR[t]){ return WANGSHUAI_COLOR[t]; }
@@ -558,7 +558,7 @@ function RefRow({ k, v, hi, i, n }){
 		</div>
 	);
 }
-// [T8·顶级美化] 爻位象:三分栏表(身/宅/人事列头分色),取代原「足｜宅基｜…」挤压一格。
+// 爻位象:三分栏表(身/宅/人事列头分色),取代原「足｜宅基｜…」挤压一格。
 function YaoWeiXiangBlock(){
 	const cols = '46px 1fr 1fr 1.15fr';
 	return (
@@ -583,7 +583,7 @@ function YaoWeiXiangBlock(){
 		</div>
 	);
 }
-// [T8·顶级美化] 常见占类断法纲要:每类一张卡(占类名+用神药丸,吉/凶分色两段),取代原挤压一行。
+// 常见占类断法纲要:每类一张卡(占类名+用神药丸,吉/凶分色两段),取代原挤压一行。
 function ZhanLeiGangYaoBlock(){
 	return (
 		<div style={{ marginBottom: 12 }}>
@@ -605,7 +605,7 @@ function ZhanLeiGangYaoBlock(){
 		</div>
 	);
 }
-// [B2] 断卦总纲·古赋(折叠长文)
+// 断卦总纲·古赋(折叠长文)
 function GuFuBlock(){
 	return (
 		<div style={{ marginBottom: 12 }}>
@@ -622,7 +622,7 @@ function GuFuBlock(){
 		</div>
 	);
 }
-// [B3] 代表性名家与地域支系(表)
+// 代表性名家与地域支系(表)
 function MingjiaBlock(){
 	const cols = '1.1fr 1.5fr 0.8fr';
 	return (

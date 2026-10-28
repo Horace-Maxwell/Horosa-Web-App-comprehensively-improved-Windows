@@ -182,6 +182,18 @@ def repeat_list(n: int, thelist: List[str]) -> List[str]:
 # ---------------------------------------------------------------------------
 
 
+def _civil_moment(year: int, month: int, day: int, hour: int = 0, minute: int = 0) -> Any:
+    """民用历时刻(sxtwl 收发的是民用历标签:1582 以前儒略历)。stdlib datetime 是外推格里历,1500-02-29 抛错。
+    恒为同一类型(可互相比较、相减);1582-10-15 以后与 datetime 逐位同算术。"""
+    from kin_year_domain import civil_moment
+    return civil_moment(year, month, day, hour, minute)
+
+
+def _is_moment(value: Any) -> bool:
+    from kin_year_domain import is_moment
+    return is_moment(value)
+
+
 def _build_jieqi_dict(t: Any, jq_index: int) -> Dict[str, Any]:
     """Build a standard jieqi result dictionary from an sxtwl time struct.
 
@@ -199,7 +211,7 @@ def _build_jieqi_dict(t: Any, jq_index: int) -> Dict[str, Any]:
         "時": int(t.h),
         "分": round(t.m),
         "節氣": jqmc[jq_index - 1],
-        "時間": datetime.datetime(t.Y, t.M, t.D, int(t.h), round(t.m)),
+        "時間": _civil_moment(t.Y, t.M, t.D, int(t.h), round(t.m)),
     }
 
 
@@ -502,7 +514,7 @@ def jq(year: int, month: int, day: int, hour: int, minute: int) -> str:
     """
     _validate_datetime_args(year, month, day, hour, minute)
     try:
-        current_datetime = datetime.datetime(year, month, day, hour, minute)
+        current_datetime = _civil_moment(year, month, day, hour, minute)
         jq_start_dict = get_jieqi_start_date(year, month, day, hour, minute)
         next_jq_start_dict = get_next_jieqi_start_date(year, month, day, hour, minute)
 
@@ -517,8 +529,7 @@ def jq(year: int, month: int, day: int, hour: int, minute: int) -> str:
         next_jq_start_datetime: datetime.datetime = next_jq_start_dict["時間"]
         jq_name: str = jq_start_dict["節氣"]
 
-        if not (isinstance(jq_start_datetime, datetime.datetime)
-                and isinstance(next_jq_start_datetime, datetime.datetime)):
+        if not (_is_moment(jq_start_datetime) and _is_moment(next_jq_start_datetime)):
             raise ValueError(
                 f"Jieqi times are not datetime objects: {jq_start_datetime}, "
                 f"{next_jq_start_datetime}"
@@ -741,7 +752,7 @@ def gangzhi1(
                 cdate_for_hour = fromSolar(_tdd[0], _tdd[1], _tdd[2])
                 hTG = f"{tian_gan[cdate_for_hour.getHourGZ(0).tg]}{di_zhi[cdate_for_hour.getHourGZ(0).dz]}"
         else:
-            # [Q-312 口径 B] lateZi=0: 时干用钟面当天(今日)的日干起子时,与日柱开关独立(after23 进位时 cdate 已是次日,须退回今日)
+            # lateZi=0: 时干用钟面当天(今日)的日干起子时,与日柱开关独立(after23 进位时 cdate 已是次日,须退回今日)
             _day_tg = fromSolar(year, month, day).getDayGZ().tg
             _h_tg_idx = (_day_tg % 5 * 2 + 0) % 10
             hTG = tian_gan[_h_tg_idx] + di_zhi[0]
@@ -815,7 +826,7 @@ def gangzhi(
                 cdate_for_hour = fromSolar(_tdd[0], _tdd[1], _tdd[2])
                 hTG = f"{tian_gan[cdate_for_hour.getHourGZ(0).tg]}{di_zhi[cdate_for_hour.getHourGZ(0).dz]}"
         else:
-            # [Q-312 口径 B] lateZi=0: 钟面当天日干起子时(与日柱开关独立)
+            # lateZi=0: 钟面当天日干起子时(与日柱开关独立)
             _day_tg = fromSolar(year, month, day).getDayGZ().tg
             hTG = tian_gan[(_day_tg % 5 * 2 + 0) % 10] + di_zhi[0]
     else:

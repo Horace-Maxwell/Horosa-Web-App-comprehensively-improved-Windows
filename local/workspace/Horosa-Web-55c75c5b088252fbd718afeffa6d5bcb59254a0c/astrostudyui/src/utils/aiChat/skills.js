@@ -1,4 +1,4 @@
-// AI 助手·技能包(A3;借鉴 Claude Code Skills / Cursor):把「用哪些技法 + 口径 + 输出格式 + 提示词模板 + 参数」打成一个包,一键使用、可导出分享。
+// AI 助手·技能包(A3):把「用哪些技法 + 口径 + 输出格式 + 提示词模板 + 参数」打成一个包,一键使用、可导出分享。
 // 数据形状:技能包 = 组合(bundles 记录)附加 skill 字段,零新 store;内置技能不落库(BUILTIN_SKILLS,id 以 builtin: 开头)。
 // 纪律:本文件纯函数零副作用(导入/导出只做形状与版本判定,写库由调用方);模板只做 {{name}} 替换,不执行任何表达式。
 import { triggerConflicts } from './commands';
@@ -12,12 +12,16 @@ export { SKILL_MAX_TRIGGERS, SKILL_MAX_TEMPLATE, SKILL_MAX_SYSTEM_PROMPT };
 
 function cleanList(list, max){ return Array.from(new Set((Array.isArray(list) ? list : []).map((x)=>`${x == null ? '' : x}`.trim()).filter(Boolean))).slice(0, max || 64); }
 
+// 参数类型:text(缺省,原样)· year(年份,渲染前规整,见 normalizeYearArg)
+export const ARG_TYPES = ['text', 'year'];
 export function normalizeArgsSpec(list){
 	return (Array.isArray(list) ? list : []).map((a)=>{
 		if(!a || typeof a !== 'object'){ return null; }
 		const name = `${a.name || ''}`.trim().replace(/[^A-Za-z0-9_一-龥]/g, '');
 		if(!name){ return null; }
-		return { name, label: `${a.label || name}`.slice(0, 40), default: a.default === undefined || a.default === null ? '' : `${a.default}`.slice(0, 200) };
+		const out = { name, label: `${a.label || name}`.slice(0, 40), default: a.default === undefined || a.default === null ? '' : `${a.default}`.slice(0, 200) };
+		if(ARG_TYPES.indexOf(a.type) >= 0 && a.type !== 'text'){ out.type = a.type; }   // 缺省 text 不写键(老包形状不变)
+		return out;
 	}).filter(Boolean).slice(0, 6);
 }
 
@@ -31,7 +35,7 @@ export function normalizeSkillPack(bundle){
 		triggers: cleanList((sk.triggers || []).map((t)=>`${t || ''}`.replace(/^\//, '')), SKILL_MAX_TRIGGERS),
 		requires: SKILL_REQUIRES.indexOf(sk.requires) >= 0 ? sk.requires : 'any',
 		techniqueKeys: cleanList(sk.techniqueKeys, 12),
-		// [Q-329① 裁决 2026-09-18] 撤 sections 字段:全仓无读取方(编辑器不写、导入保留、无消费),归一化即丢弃;老包带该键亦不再保留
+		// 撤 sections 字段:全仓无读取方(编辑器不写、导入保留、无消费),归一化即丢弃;老包带该键亦不再保留
 		promptTemplate: `${sk.promptTemplate || ''}`.slice(0, SKILL_MAX_TEMPLATE),
 		argsSpec: normalizeArgsSpec(sk.argsSpec),
 		outputFormat: `${sk.outputFormat || ''}`.slice(0, 1000),
@@ -54,6 +58,24 @@ export function parseSkillArgs(argsSpec, argsText){
 	return out;
 }
 
+// 年份参数规整(纯):2027 / 2027年 / 2027 年 / 二〇二七年 / 今年 明年 后年 大后年 去年 前年 大前年 → 数字年;
+// 认不出就原样返回(不吞用户写的字)。此前只认数字与「今年 / 明年」:`/流年 2027年` 拼成「2027年 年」,`/流年 后年` 拼成「后年 年」。
+const CN_DIGITS = { '〇': '0', '零': '0', '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9' };
+const RELATIVE_YEARS = { 今年: 0, 明年: 1, 后年: 2, 大后年: 3, 去年: -1, 前年: -2, 大前年: -3 };
+export function normalizeYearArg(value, now){
+	const raw = `${value == null ? '' : value}`.trim();
+	if(!raw){ return raw; }
+	const base = (now instanceof Date ? now : new Date()).getFullYear();
+	const compact = raw.replace(/\s+/g, '');
+	if(Object.prototype.hasOwnProperty.call(RELATIVE_YEARS, compact)){ return `${base + RELATIVE_YEARS[compact]}`; }
+	const body = compact.replace(/年$/, '');
+	if(/^\d{1,4}$/.test(body)){ return `${Number(body)}`; }
+	if(body.length === 4 && body.split('').every((ch)=>Object.prototype.hasOwnProperty.call(CN_DIGITS, ch))){ return `${Number(body.split('').map((ch)=>CN_DIGITS[ch]).join(''))}`; }
+	const bc = /^(?:公元)?前(\d{1,4})$/.exec(body);
+	if(bc){ return `公元前${Number(bc[1])}`; }
+	return raw;
+}
+
 const DYNAMIC_DEFAULTS = {
 	今年: ()=>`${new Date().getFullYear()}`,
 	明年: ()=>`${new Date().getFullYear() + 1}`,
@@ -65,8 +87,10 @@ const hasOwn = (o, k)=>Object.prototype.hasOwnProperty.call(o, k);
 export function renderSkillPrompt(skill, args, ctx){
 	const sk = skill && skill.promptTemplate !== undefined ? skill : normalizeSkillPack({ skill }) || { promptTemplate: '' };
 	const vars = { ...(args || {}) };
-	// [J5d] 只认自有键:vars/DYNAMIC_DEFAULTS 都是普通对象,{{constructor}}/{{__proto__}} 走原型链会把构造器源码渲染进请求体
+	// 只认自有键:vars/DYNAMIC_DEFAULTS 都是普通对象,{{constructor}}/{{__proto__}} 走原型链会把构造器源码渲染进请求体
 	Object.keys(vars).forEach((k)=>{ const v = `${vars[k] == null ? '' : vars[k]}`; if(hasOwn(DYNAMIC_DEFAULTS, v)){ vars[k] = DYNAMIC_DEFAULTS[v](); } });
+	// 年份参数(type:'year';老包里名叫 year 的参数同样按年份处理)渲染前规整
+	(sk.argsSpec || []).forEach((a)=>{ if(a && (a.type === 'year' || a.name === 'year') && hasOwn(vars, a.name)){ vars[a.name] = normalizeYearArg(vars[a.name]); } });
 	const c = ctx || {};
 	vars.source = c.activeSource && c.activeSource.title ? `${c.activeSource.title}` : (hasOwn(vars, 'source') ? vars.source : '');
 	vars.other = c.otherSource && c.otherSource.title ? `${c.otherSource.title}` : (hasOwn(vars, 'other') ? vars.other : '');
@@ -83,19 +107,27 @@ export function buildSkillDirective(skill){
 }
 
 // 内置技能(不落库;触发词即内置命令名,菜单里内置优先)
+// [双盘挂载] /合盘 附「西洋合盘数据」(比较盘 / 组合盘 / 影响盘,由两张盘现算)的条件:没挂任何技法(那时它是唯一的合盘数据)
+// 或挂了西洋本命类技法。只挂紫微 / 八字等其它体系时不附 —— 两人的盘面已按所选技法双盘挂载,再塞一份西洋相位只会让模型串体系。
+export const WESTERN_SYNASTRY_TECHNIQUES = ['astrochart', 'astrochart_like', 'hellenastro'];
+export function shouldAttachWesternSynastry(techniqueKeys){
+	const keys = Array.isArray(techniqueKeys) ? techniqueKeys : [];
+	return !keys.length || keys.some((k)=>WESTERN_SYNASTRY_TECHNIQUES.indexOf(k) >= 0);
+}
+
 export const BUILTIN_SKILLS = [
-	{ id: 'builtin:liunian', name: '流年', skill: { version: 1, triggers: ['流年'], requires: 'chart', techniqueKeys: ['bazi', 'ziwei'], argsSpec: [{ name: 'year', label: '年份', default: '今年' }],
+	{ id: 'builtin:liunian', name: '流年', skill: { version: 1, triggers: ['流年'], requires: 'chart', techniqueKeys: ['bazi', 'ziwei'], argsSpec: [{ name: 'year', label: '年份', default: '今年', type: 'year' }],
 		promptTemplate: '请结合八字与紫微斗数,分析{{source}}在 {{year}} 年的流年:整体走势、事业财运、感情家庭、健康提醒,各 2-3 条,标注依据(流年干支/流年宫位);末尾给出 {{year}} 年最需留意的一件事与一条可执行建议。',
 		outputFormat: '分节小标题 + 要点式;每条要点先结论后依据;不超过 600 字。', schoolNote: '', description: '八字 + 紫微看指定年份' } },
 	{ id: 'builtin:hepan', name: '合盘', skill: { version: 1, triggers: ['合盘'], requires: 'two-charts', techniqueKeys: [], argsSpec: [{ name: 'other', label: '对方', default: '' }],
-		promptTemplate: '请基于下面给出的两张命盘的合盘数据,分析{{source}}与{{other}}的关系:相处模式、互补与摩擦点、长期走向,各 2-3 条并标注依据;末尾一条相处建议。',
+		promptTemplate: '请对照本轮同时挂载的两张命盘(本人「{{source}}」、对方「{{other}}」,各技法分开标注;若另附合盘数据一并参考),分析两人的关系:相处模式、互补与摩擦点、长期走向,各 2-3 条并标注依据(写明出自哪一方的哪项盘面);末尾一条相处建议。',
 		outputFormat: '分节小标题 + 要点式;不超过 600 字。', schoolNote: '', description: '两张命盘合看' } },
 	{ id: 'builtin:brief', name: '简报', skill: { version: 1, triggers: ['简报'], requires: 'chart', techniqueKeys: ['bazi', 'ziwei'], argsSpec: [],
 		promptTemplate: '请给{{source}}一页简报:命局特点(3 条)、当前大运/大限要点(2 条)、近期注意(2 条)、一句话总评;每条先结论后依据。',
 		outputFormat: '一页以内,要点式,不超过 400 字。', schoolNote: '', description: '当前命盘一页简报' } },
 ];
 
-// [J5c] 技能包随包带的会话系统指令封顶:一个技能包不能把每次请求的稳定层撑爆(导入/导出都截)
+// 技能包随包带的会话系统指令封顶:一个技能包不能把每次请求的稳定层撑爆(导入/导出都截)
 const clipSystemPrompt = (s)=>`${s || ''}`.slice(0, SKILL_MAX_SYSTEM_PROMPT);
 
 // 导出:不含资料正文,只含技能字段与组合的基本设置(materialIds 只留名单);带格式头
@@ -117,7 +149,7 @@ export function planSkillImport(text, existingBundles){
 	if(!skill || !skill.triggers.length){ return { ok: false, reason: '技能包缺触发词' }; }
 	const name = `${pack.name || ''}`.trim();
 	if(!name){ return { ok: false, reason: '技能包缺名字' }; }
-	// [J5a] 触发词撞内置命令:回 conflicts 让界面拒导入(内置命令永远优先,外来包不得顶替 /compact /流年 这类名字)
+	// 触发词撞内置命令:回 conflicts 让界面拒导入(内置命令永远优先,外来包不得顶替 /compact /流年 这类名字)
 	const conflicts = triggerConflicts(skill.triggers);
 	const existing = (existingBundles || []).find((b)=>b && `${b.name || ''}`.trim() === name) || null;
 	if(existing){
@@ -139,7 +171,7 @@ export function bundleFromSkillPack(pack, base){
 	return b;
 }
 
-// [Q-416 裁决 2026-09-18] 模版页组合弹窗改「默认挂载技法」时对技能包同步写 skill.techniqueKeys(纯):
+// 模版页组合弹窗改「默认挂载技法」时对技能包同步写 skill.techniqueKeys(纯):
 // 非技能包 / 技法未变 → {}(零变化);变了 → 技能升版 + 旧版留档(≤5,与技能包编辑器同律)。此前两处各写各的 → 组合与技能技法分叉
 export function syncSkillTechniqueKeys(bundle, keys, nowIso){
 	const prev = normalizeSkillPack(bundle);

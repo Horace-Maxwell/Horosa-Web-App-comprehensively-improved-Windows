@@ -1,0 +1,260 @@
+// 全站样式 · 卜卦盘 / 择日盘右栏卡片、世俗盘、夏令时提示。
+// 由 layouts/app.less 按原顺序 @import(顺序即层叠次序);新规则要包在本文件的 :global { } 里。
+
+/* ===== 卜卦盘 / 择日盘 右栏卡片化（结构/中性色，明暗双色用主题 token；不动术数语义色）===== */
+:global {
+	.horosa-divi-judge { padding: 10px 10px 16px; }
+	.horosa-divi-card {
+		border: 1px solid var(--horosa-border-soft, rgba(148,163,184,.26));
+		background: var(--horosa-surface, rgba(148,163,184,.06));
+		border-radius: 10px;
+		padding: 10px 12px;
+		margin-bottom: 9px;
+	}
+	.horosa-divi-card-head {
+		display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+		font-weight: 600; font-size: 13px; margin-bottom: 5px;
+		color: var(--horosa-text, inherit);
+	}
+	.horosa-divi-line { font-size: 12.5px; line-height: 1.75; color: var(--horosa-text-secondary, #6b7280); }
+	.horosa-divi-line.is-pos { color: var(--horosa-jx-ji); }
+	.horosa-divi-line.is-neg { color: var(--horosa-jx-xiong); }
+	.horosa-divi-line.is-warn { color: var(--horosa-warn); }
+	.horosa-divi-score { font-size: 28px; font-weight: 700; line-height: 1.05; color: var(--horosa-text, inherit); }
+	/* 「/100」:继承分数色(评级语义色)整体再乘 .55 → 暗底 1.9:1;改走次级字色、不叠透明度 */
+	.horosa-divi-score small { font-size: 13px; font-weight: 400; color: var(--horosa-muted); }
+	.horosa-divi-banner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 9px; }
+	.horosa-divi-two { display: flex; gap: 10px; }
+	.horosa-divi-two > div { flex: 1; min-width: 0; }
+	.horosa-divi-barrow { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+	/* 固定 120px 装不下最长项「命度/上升（第三考量）」(需 124px);因 overflow:visible,溢出的字不是被裁
+	   而是压到右侧数值条上。min-width 起底 + 允许按内容伸展,短标签仍对齐在 128px 处。 */
+	.horosa-divi-barrow .lbl { min-width: 128px; font-size: 12px; color: var(--horosa-text-secondary, #6b7280); flex-shrink: 0; }
+	.horosa-divi-barrow .num { width: 24px; text-align: right; font-size: 12px; flex-shrink: 0; color: var(--horosa-text-secondary, #6b7280); }
+	.horosa-divi-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--horosa-border-soft, rgba(148,163,184,.22)); overflow: hidden; }
+	.horosa-divi-bar > i { display: block; height: 100%; border-radius: 4px; }
+	.horosa-divi-note { font-size: 12px; line-height: 1.65; opacity: .75; padding: 9px 11px; background: var(--horosa-surface, rgba(148,163,184,.07)); border-radius: 8px; margin-top: 6px; }
+	.horosa-divi-kv { font-size: 12.5px; line-height: 1.85; color: var(--horosa-text, inherit); }
+	.horosa-divi-kv b { font-weight: 600; }
+	.horosa-divi-muted { font-size: 12px; color: var(--horosa-text-secondary); margin-top: 6px; }
+	/* 右栏判断内容：随内容高度（不强行撑满整列），过长则自身滚动 */
+	.horosa-divi-judge { overflow: auto; }
+	/* 卜卦/择日右栏：卡片贴合内容、顶部对齐；下方留白让位给页面背景，而非一张巨大空卡片 */
+	.horosa-horary-page .horosa-inspector-panel,
+	.horosa-election-page .horosa-inspector-panel {
+		align-self: start;
+		max-height: 100%;
+		overflow: auto;
+	}
+	.horosa-horary-page .horosa-content-tabs,
+	.horosa-election-page .horosa-content-tabs {
+		height: auto !important;
+	}
+
+	/* 世俗盘：右栏随内容滚动（与卜卦/择日一致），避免长判词被遮挡 */
+	.horosa-mundane-page .horosa-inspector-panel {
+		align-self: start;
+		max-height: 100%;
+		overflow: auto;
+	}
+	/* 与择日盘一致：内容 tab 高度随内容(否则 content-tabs 默认满高,面板 align-self:start 下内部不滚→长内容被截断) */
+	.horosa-mundane-page .horosa-content-tabs {
+		height: auto !important;
+	}
+	/* 关键:全局 .ant-tabs-tabpane>* 被强制 height:100%+max-height:100%,内容容器须自带 overflow:auto 方可滚动
+	   (同择日盘 .horosa-divi-judge);否则长判词被 tabpane 的 overflow:hidden 截断、面板也不滚。 */
+	.horosa-mundane-page .horosa-content-tabs .ant-tabs-tabpane > * {
+		overflow-y: auto;
+		min-height: 0;
+	}
+	/* 世俗盘左栏控件：清爽统一 */
+	.horosa-mundane-left .horosa-field-label.sub { font-size: 11.5px; color: var(--horosa-text-secondary); margin: 10px 0 4px; font-weight: 600; }
+	.horosa-mundane-moment {
+		display: flex; flex-direction: column; gap: 2px;
+		margin-top: 10px; padding: 8px 11px; border-radius: 8px;
+		background: var(--horosa-accent-soft, rgba(184,134,11,.08));
+		border: 1px solid var(--horosa-border-soft, rgba(184,134,11,.18));
+	}
+	.horosa-mundane-moment .lbl { font-size: 10.5px; color: var(--horosa-text-secondary); }
+	.horosa-mundane-moment .val { font-size: 12.5px; font-weight: 600; letter-spacing: .02em; }
+	.horosa-mundane-controls { margin-top: 4px; }
+	.horosa-mundane-hint { font-size: 11.5px; color: var(--horosa-text-secondary); line-height: 1.55; margin-top: 8px; padding: 7px 9px; background: var(--horosa-surface, rgba(148,163,184,.07)); border-radius: 7px; }
+	.horosa-mundane-err { font-size: 11px; color: var(--horosa-cinnabar, #c0392b); margin-top: 8px; }
+	.horosa-mundane-scanlist {
+		margin-top: 10px; max-height: 260px; overflow-y: auto;
+		border: 1px solid var(--horosa-border-soft, rgba(148,163,184,.16)); border-radius: 8px;
+	}
+	.horosa-mundane-scanlist .empty { font-size: 11.5px; color: var(--horosa-text-secondary); padding: 9px 11px; }
+	.horosa-mundane-scanlist .row {
+		display: flex; align-items: center; justify-content: space-between; gap: 6px;
+		padding: 7px 11px; cursor: pointer; font-size: 11.5px;
+		border-top: 1px solid var(--horosa-border-soft, rgba(148,163,184,.1));
+	}
+	.horosa-mundane-scanlist .row:first-child { border-top: none; }
+	.horosa-mundane-scanlist .row:hover { background: var(--horosa-surface, rgba(148,163,184,.08)); }
+	.horosa-mundane-scanlist .row.active { background: var(--horosa-accent-soft, rgba(184,134,11,.14)); font-weight: 600; }
+	.horosa-mundane-scanlist .row .t { white-space: nowrap; }
+	.horosa-mundane-scanlist .row .s { opacity: .85; white-space: nowrap; }
+	.horosa-mundane-scanlist .row .s em { font-style: normal; color: var(--horosa-text-secondary); margin-left: 4px; }
+	.horosa-mundane-regionform { margin-top: 8px; display: flex; flex-direction: column; gap: 7px; }
+	.horosa-mundane-regionform .row2 { display: flex; gap: 6px; }
+	.horosa-mundane-regionform .row2 > * { flex: 1; min-width: 0; }
+	.horosa-mundane-steps { margin: 0 0 4px; padding-left: 18px; font-size: 11px; opacity: .72; line-height: 1.75; }
+	.horosa-mundane-steps li { margin-bottom: 1px; }
+	.horosa-mundane-steps b { color: var(--horosa-accent, #b8860b); font-weight: 600; }
+	/* 世俗/卜卦/择日 左栏：加宽列宽（245→300+），并杜绝横向滚动（长日食扫描行/选择器不再撑出滑动条）。仅作用于三个占卜页，不影响本命盘。 */
+	/* 🔴 前缀 .horosa-workspace-shell 不是装饰:辅盘族规则(app.less «辅盘子盘右栏加宽» 一节)特异度 (0,4,0),
+	   若这里只有 (0,3,0),卜卦/择日/世俗**在辅盘内**时左栏会被那条通则压成 285px 上限,
+	   长复选框标签当场被 ellipsis 截成「问题真…」、三档「时空中点」挤成两行。
+	   提到 (0,4,0) 且源码序在后 → 这三页的左栏宽度由本条独占裁定。改动前先量左栏实宽。 */
+	.horosa-workspace-shell .horosa-astro-no-bottom-dock.horosa-mundane-page .horosa-astro-redesign-grid,
+	.horosa-workspace-shell .horosa-astro-no-bottom-dock.horosa-horary-page .horosa-astro-redesign-grid,
+	.horosa-workspace-shell .horosa-astro-no-bottom-dock.horosa-election-page .horosa-astro-redesign-grid {
+		/* 右栏与占星主页签同量级(此前 20vw/350 上限,判读表被挤到看不清);
+		   中列 minmax(0,1fr) 无硬下限,窄屏自动让位,不会撞 grid 的 overflow:hidden。 */
+		grid-template-columns: clamp(~"min(300px, 33%)", calc(19 * var(--horosa-lvw, 1vw)), 348px) minmax(0, 1fr) clamp(~"min(320px, 35%)", calc(24 * var(--horosa-lvw, 1vw)), 400px) !important;
+	}
+	.horosa-mundane-page .horosa-astro-input-panel,
+	.horosa-horary-page .horosa-astro-input-panel,
+	.horosa-election-page .horosa-astro-input-panel { overflow-x: hidden; }
+	.horosa-mundane-left { min-width: 0; }
+	.horosa-mundane-scanlist .row .t,
+	.horosa-mundane-scanlist .row .s { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+	/* 卜卦/择日/世俗 左栏所有动作按钮：统一加高(40px)、圆角、悬浮反馈。时间微调行 + 图标按钮保持紧凑。 */
+	.horosa-astro-input-panel .ant-btn.ant-btn-sm {
+		height: 40px !important;
+		min-height: 40px;
+		border-radius: 9px;
+		font-size: 13px;
+		font-weight: 500;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		line-height: 1.2;
+		transition: background .15s ease, border-color .15s ease, color .15s ease;
+	}
+	.horosa-astro-input-panel .ant-btn.ant-btn-sm:hover {
+		border-color: var(--horosa-accent, #b8860b);
+		color: var(--horosa-accent, #b8860b);
+	}
+	/* 时间微调行(此刻/确定/四分钟) + 图标按钮(±)：保持紧凑，不随上面变高 */
+	.horosa-astro-input-panel .horosa-time-adjust-inline .ant-btn.ant-btn-sm,
+	.horosa-astro-input-panel .ant-btn.ant-btn-icon-only.ant-btn-sm {
+		height: 28px !important;
+		min-height: 28px;
+		border-radius: 6px;
+		font-weight: 400;
+	}
+	.horosa-astro-input-panel > .horosa-recalculate-button.ant-btn-sm {
+		background: var(--horosa-accent-soft, rgba(184, 134, 11, .1));
+		border-color: var(--horosa-border-soft, rgba(184, 134, 11, .3));
+		font-weight: 600;
+	}
+
+	/* 证词逐条独占一行、留白、虚线分隔（避免挤在一行） */
+	.horosa-divi-testi { padding: 6px 2px; font-size: 12.8px; line-height: 1.72; border-bottom: 1px dashed var(--horosa-border-soft, rgba(148,163,184,.16)); display: flex; gap: 6px; }
+	.horosa-divi-testi:last-child { border-bottom: none; }
+	.horosa-divi-testi .dot { flex-shrink: 0; }
+	.horosa-divi-testi.is-pos .dot { color: var(--horosa-grade-excellent, #2f9e6f); }
+	.horosa-divi-testi.is-neg .dot { color: var(--horosa-grade-bad, #cf5b45); }
+	.horosa-divi-subhead { font-size: 12.5px; font-weight: 600; margin: 4px 0 2px; color: var(--horosa-text, inherit); }
+	.horosa-divi-subhead.pos { color: var(--horosa-grade-excellent, #2f9e6f); }
+	.horosa-divi-subhead.neg { color: var(--horosa-grade-bad, #cf5b45); }
+	/* 严重度药丸（中文，可读） */
+	.horosa-divi-sev { display: inline-block; min-width: 50px; text-align: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; color: var(--horosa-on-solid, #fff); flex-shrink: 0; }
+	/* 药丸底 = 明 / 暗各一份的评级语义色,字 = on-solid(旧固定色白字:#d2a01f 1.9 / #93a1b0 2.6 / #e07a3b 2.9:1) */
+	.horosa-divi-sev.sev-critical { background: var(--horosa-grade-bad, #cf3b3b); }
+	.horosa-divi-sev.sev-high { background: var(--horosa-grade-poor, #e07a3b); }
+	.horosa-divi-sev.sev-medium { background: var(--horosa-sev-medium, #d2a01f); }
+	.horosa-divi-sev.sev-low { background: var(--horosa-sev-low, #93a1b0); }
+	.horosa-divi-sev.sev-info { background: var(--horosa-sev-info, #7c8796); }
+	/* 择日·危象日 原生日期输入(明暗双主题) */
+	.horosa-native-date {
+		height: 26px; padding: 2px 8px; font-size: 12px; border-radius: 6px;
+		border: 1px solid var(--horosa-border-soft, rgba(148,163,184,.28));
+		background: var(--horosa-surface, rgba(148,163,184,.06));
+		color: var(--horosa-text, inherit);
+		color-scheme: light dark;
+		outline: none;
+	}
+	.horosa-native-date:focus { border-color: var(--horosa-accent, #b8860b); }
+	.horosa-divi-flag { display: flex; gap: 8px; align-items: flex-start; padding: 7px 2px; border-bottom: 1px dashed var(--horosa-border-soft, rgba(148,163,184,.16)); }
+	.horosa-divi-flag:last-child { border-bottom: none; }
+	.horosa-divi-flag .msg { flex: 1; font-size: 12.5px; line-height: 1.6; color: var(--horosa-text, inherit); }
+	.horosa-divi-legend { font-size: 11.5px; line-height: 1.65; opacity: .72; margin-bottom: 8px; padding: 7px 9px; background: var(--horosa-surface, rgba(148,163,184,.07)); border-radius: 7px; }
+	.horosa-divi-verdict-big { font-size: 15px; font-weight: 700; padding: 11px 13px; border-radius: 10px; margin-bottom: 10px; border: 1px solid var(--horosa-border-soft, rgba(148,163,184,.26)); }
+	.horosa-divi-verdict-big .sub { font-size: 12px; font-weight: 400; opacity: .8; margin-top: 4px; line-height: 1.55; }
+	.horosa-divi-verdict-big.lean-yes { background: rgba(47,158,111,.12); border-color: rgba(47,158,111,.4); }
+	.horosa-divi-verdict-big.lean-no { background: rgba(207,91,69,.12); border-color: rgba(207,91,69,.4); }
+	.horosa-divi-verdict-big.lean-even { background: rgba(210,160,31,.12); border-color: rgba(210,160,31,.4); }
+	.horosa-divi-kv .tag { display: inline-block; padding: 0 6px; border-radius: 6px; background: var(--horosa-accent-soft, rgba(148,163,184,.18)); font-size: 12px; margin: 0 2px; }
+}
+
+/* ===== 出生信息表单 · 时区/夏令时(DST)自动校正指示（结构/中性色，明暗双色走 token）===== */
+:global {
+	.horosa-dst-indicator {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 9px;
+		padding: 7px 13px;
+		border-radius: 9px;
+		background: var(--horosa-panel-soft, rgba(242, 247, 254, 0.78));
+		border: 1px solid var(--horosa-border, rgba(76, 98, 134, 0.17));
+		font-size: 12.5px;
+		line-height: 1.5;
+		color: var(--horosa-text-soft, #52627a);
+	}
+	.horosa-dst-indicator .horosa-dst-icon {
+		font-size: 14px;
+		line-height: 1;
+		opacity: 0.9;
+	}
+	.horosa-dst-indicator .horosa-dst-zone {
+		font-weight: 600;
+		letter-spacing: 0.2px;
+		color: var(--horosa-text, #162033);
+	}
+	.horosa-dst-indicator .horosa-dst-state {
+		display: inline-flex;
+		align-items: center;
+		padding: 1px 9px;
+		border-radius: 10px;
+		font-size: 11.5px;
+		font-weight: 600;
+		background: var(--horosa-accent-soft, rgba(120, 134, 156, 0.14));
+		color: var(--horosa-muted, #68758a);
+	}
+	.horosa-dst-indicator.is-dst .horosa-dst-state {
+		background: var(--horosa-gold-soft, rgba(154, 106, 37, 0.16));
+		color: var(--horosa-gold, #9a6a25);
+	}
+	.horosa-dst-indicator .horosa-dst-offset {
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+		letter-spacing: 0.3px;
+		color: var(--horosa-text, #162033);
+	}
+	.horosa-dst-indicator .horosa-dst-meta {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		color: var(--horosa-muted, #68758a);
+	}
+	.horosa-dst-indicator .horosa-dst-apply {
+		display: inline-flex;
+		align-items: center;
+		padding: 1px 9px;
+		border-radius: 8px;
+		font-weight: 600;
+		cursor: pointer;
+		color: var(--horosa-accent, #9a6a25);
+		background: var(--horosa-accent-soft, rgba(154, 106, 37, 0.12));
+		transition: background 0.15s ease, color 0.15s ease;
+	}
+	.horosa-dst-indicator .horosa-dst-apply:hover {
+		text-decoration: underline;
+		filter: brightness(1.04);
+	}
+}

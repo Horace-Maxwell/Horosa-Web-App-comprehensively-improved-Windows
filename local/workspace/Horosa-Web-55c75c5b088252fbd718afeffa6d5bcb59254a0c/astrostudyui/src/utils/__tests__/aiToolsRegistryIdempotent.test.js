@@ -1,4 +1,4 @@
-// [压测二轮·D3·R6] 每开一个 Turn 就整表覆盖注册一次内置工具:18 条 console.warn 刷屏 + Ajv 校验器缓存被清空(每 Turn 重编译一遍全部 schema)。
+// 每开一个 Turn 就整表覆盖注册一次内置工具:18 条 console.warn 刷屏 + Ajv 校验器缓存被清空(每 Turn 重编译一遍全部 schema)。
 // 合同:registerBuiltinTools 幂等 —— 同一份定义再注册一次应短路(零 warn、工具定义同引用、validators 不失效)。
 import { createAgentTurn } from '../aiAgent/runtime';
 import { registerBuiltinTools } from '../aiTools';

@@ -109,10 +109,10 @@ function findStar(chart, name){
 	return null;
 }
 
-// ══ [B2] 《全书》七档全表 quanshu_full 数据金标(锚点+规则式,不做全表快照) ═══
+// ══ 《全书》七档全表 quanshu_full 数据金标(锚点+规则式,不做全表快照) ═══
 // 谱系=通行整理表(2026-08-07 考据签字);全表快照抓不到语义错,规则式恰是本轮抓出两个
 // 参考源数据腐坏(索引基错位/行内复制错)的手段。
-describe('[B2] quanshu_full 七档全表数据金标', ()=>{
+describe('quanshu_full 七档全表数据金标', ()=>{
 	const { STAR_LIGHT_SOURCES } = require('../data/ziweiTables');
 	const FULL = STAR_LIGHT_SOURCES.quanshu_full;
 	const LEVELS7 = new Set(['庙', '旺', '得', '利', '平', '不', '陷']);
@@ -153,7 +153,7 @@ describe('[B2] quanshu_full 七档全表数据金标', ()=>{
 		expect(FULL['破军']['子']).toBe('庙');   // 破军子午庙(通说)
 		expect(FULL['巨门']['寅']).toBe('庙');   // 巨机居卯庙旺之乡(寅卯庙)
 	});
-	test('🔴 [G4] 每非默认源效差集非空且两两不同(防死选项/重复选项)', ()=>{
+	test('🔴 每非默认源效差集非空且两两不同(防死选项/重复选项)', ()=>{
 		const { BRIGHTNESS_SOURCE_OPTIONS } = require('../ziweiOptions');
 		const allStars = Object.keys(STAR_LIGHT);
 		const diffMap = (src)=>{

@@ -21,7 +21,7 @@ function DockButton({ item }){
 			key={item.key}
 			className={`horosa-bottom-quick-button${item.active ? ' is-active' : ''}`}
 			onClick={item.onClick}
-			// [R3-D1] 跨页动词通用悬停预载:声明 navKey 的项悬停即预载目标 chunk(显式 onHover 优先)
+			// 跨页动词通用悬停预载:声明 navKey 的项悬停即预载目标 chunk(显式 onHover 优先)
 			onMouseEnter={item.onHover || (item.navKey ? ()=>preloadNavByKey(item.navKey) : undefined)}
 			disabled={!!item.disabled}
 			title={item.title || item.label}
@@ -63,7 +63,7 @@ export default function QuickDockBar(props){
 	const tail = [];
 	if(save){
 		tail.push({ key: 'save', label: '保存', icon: 'quickNote', onClick: save, disabled: !hasResult });
-		// [R4] 有「保存」必有「载入」:此前存了案只能绕行右上角用户菜单才能读回(技法页零载入
+		// 有「保存」必有「载入」:此前存了案只能绕行右上角用户菜单才能读回(技法页零载入
 		// 入口)。开事盘列表抽屉(内有类型/标签/检索三筛),无盘态也可用。零逐技法接线。
 		tail.push({
 			key: 'load',
@@ -98,7 +98,7 @@ export default function QuickDockBar(props){
 				},
 			}}
 		>
-			<button type="button" className="horosa-bottom-quick-button" disabled={!!disabled}>
+			<button type="button" className="horosa-bottom-quick-button" disabled={!!disabled} title={typeof label === 'string' ? label : undefined}>
 				<span className="horosa-bottom-quick-icon"><XQIcon name={icon} /></span>
 				<span>{label}</span>
 			</button>

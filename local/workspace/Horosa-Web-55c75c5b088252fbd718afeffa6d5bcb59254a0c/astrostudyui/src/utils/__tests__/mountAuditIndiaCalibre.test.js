@@ -1,4 +1,4 @@
-// [挂载自检 F-39·P0] 印占快照 [起盘信息] 口径行=印占实参(恒星黄道·岁差 + 印度分宫制),不再照抄西占 fields 的「回归黄道，Alcabitus」。
+// 印占快照 [起盘信息] 口径行=印占实参(恒星黄道·岁差 + 印度分宫制),不再照抄西占 fields 的「回归黄道，Alcabitus」。
 import { indiaCalibreLine, replaceIndiaCalibreLine } from '../../components/astro/IndiaChart';
 import * as AstroConst from '../../constants/AstroConst';
 

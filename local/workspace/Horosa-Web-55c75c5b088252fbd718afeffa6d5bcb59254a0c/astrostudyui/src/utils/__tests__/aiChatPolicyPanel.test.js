@@ -11,7 +11,7 @@ beforeEach(()=>{ window.localStorage.clear(); });
 describe('纯函数层', ()=>{
 	it('预设选项 = CONTEXT_POLICY_PRESETS 键集;presetPatch 逐键等于预设;未知名 null', ()=>{
 		expect(PRESET_OPTIONS.map((o)=>o.value)).toEqual(Object.keys(CONTEXT_POLICY_PRESETS));
-		// [Q-290/PP-21②] 预设补丁不含 mountCharBudget(点预设不再清掉用户填的挂载字数预算)
+		// 预设补丁不含 mountCharBudget(点预设不再清掉用户填的挂载字数预算)
 		Object.keys(CONTEXT_POLICY_PRESETS).forEach((k)=>{ const { mountCharBudget, ...rest } = CONTEXT_POLICY_PRESETS[k]; expect(presetPatch(k)).toEqual(rest); expect(Object.prototype.hasOwnProperty.call(presetPatch(k), 'mountCharBudget')).toBe(false); });
 		expect(presetPatch('nope')).toBe(null);
 	});
@@ -52,7 +52,7 @@ describe('渲染判别向量', ()=>{
 		const panel = host.querySelector('[data-chat-context-policy-panel]');
 		expect(panel.getAttribute('data-preset')).toBe('window');   // 缺省=窗口
 		expect(host.querySelector('[data-policy-budget]').textContent).toContain('≈');
-		// [D8] 缺省(键不存在)时「恢复现状」无可恢复 → 禁用;状态标「缺省·窗口」
+		// 缺省(键不存在)时「恢复现状」无可恢复 → 禁用;状态标「缺省·窗口」
 		const restoreBtn = ()=>Array.from(host.querySelectorAll('button')).find((b)=>b.textContent.indexOf('恢复现状') >= 0);
 		expect(restoreBtn().disabled).toBe(true);
 		expect(host.textContent).toContain('缺省·窗口');
@@ -60,7 +60,7 @@ describe('渲染判别向量', ()=>{
 		const legacy = radios.find((r)=>r.value === 'legacy');
 		act(()=>{ legacy.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
 		expect(readContextPolicy().historyMode).toBe('legacy');
-		// [D8] 不裁档已写键 → 可恢复(修前按 preset==='legacy' 禁用 = 反了)
+		// 不裁档已写键 → 可恢复(修前按 preset==='legacy' 禁用 = 反了)
 		expect(restoreBtn().disabled).toBe(false);
 		expect(host.textContent).not.toContain('缺省·');
 		expect(host.querySelector('[data-chat-context-policy-panel]').getAttribute('data-preset')).toBe('legacy');
@@ -82,8 +82,8 @@ describe('渲染判别向量', ()=>{
 	});
 });
 
-// ---- [进阶审计 D5] 细项档数由 FIELD_SPECS.length 派生:注释/手册写死「八档」曾与十档面板漂移 ----
-describe('[D5] 细项档数单源', ()=>{
+// ---- 细项档数由 FIELD_SPECS.length 派生:注释/手册写死「八档」曾与十档面板漂移 ----
+describe('细项档数单源', ()=>{
 	it('🔴 FIELD_SPECS 现为十一档;面板标题按长度计数为「十一档」;纯函数层源码不再写死「八档」', ()=>{
 		const fs = require('fs'); const path = require('path');
 		expect(FIELD_SPECS.length).toBe(11);   // [Windows #80] +挂载字数预算
@@ -96,7 +96,7 @@ describe('[D5] 细项档数单源', ()=>{
 	});
 });
 
-it('🔴 [AR-33] 细项帮助按字段写明适用模式:历史裁剪不再笼统说「下面的」都只在窗口模式生效;挂载字数预算注明两模式都生效;保留图片数注明只在按预算裁生效', ()=>{
+it('🔴 细项帮助按字段写明适用模式:历史裁剪不再笼统说「下面的」都只在窗口模式生效;挂载字数预算注明两模式都生效;保留图片数注明只在按预算裁生效', ()=>{
 	const { FIELD_SPECS } = require('../aiChat/policyPanel');
 	const spec = (k)=>FIELD_SPECS.find((f)=>f.key === k);
 	expect(spec('historyMode').help).not.toContain('下面的');

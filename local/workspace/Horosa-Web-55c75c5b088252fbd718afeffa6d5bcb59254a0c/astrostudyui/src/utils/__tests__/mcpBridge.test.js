@@ -7,7 +7,7 @@ import { AGENT_ENABLED_KEY, setAgentEnabled } from '../aiAgent/prefs';
 import * as desktop from '../aiAnalysisDesktop';
 
 const flush = ()=>new Promise((r)=>setTimeout(r, 0));
-const ANY_MAN = [{ name: 'create_chart_record', level: 'additive' }, { name: 'list_records', level: 'read' }, { name: 'nope', level: 'read' }, { name: 'x', level: 'read' }];   // [D13] 桥不再执行目录外名字:通用夹具把本文件用到的名字全部列进目录
+const ANY_MAN = [{ name: 'create_chart_record', level: 'additive' }, { name: 'list_records', level: 'read' }, { name: 'nope', level: 'read' }, { name: 'x', level: 'read' }];   // 桥不再执行目录外名字:通用夹具把本文件用到的名字全部列进目录
 
 beforeEach(()=>{
 	window.localStorage.clear();
@@ -70,7 +70,7 @@ describe('请求处理', ()=>{
 		expect(threw.result.isError).toBe(true);
 		expect(JSON.parse(threw.result.content[0].text).code).toBe('E_TOOL_THREW');
 	});
-	it('串行:第二个请求等第一个完成', async ()=>{
+	it('两条请求都恰回一次(两道调度的细节见 mcpBridgeSchedule)', async ()=>{
 		jest.spyOn(desktop, 'isDesktopBridgeAvailable').mockReturnValue(true);
 		const order = [];
 		jest.spyOn(desktop, 'invokeDesktopCommand').mockImplementation(async (cmd, args)=>{ if(cmd === 'agent_tool_result_command'){ order.push(args.id); } return {}; });
@@ -79,7 +79,7 @@ describe('请求处理', ()=>{
 		window.__horosaAgentTool({ id: 'a', method: 'tools/list' });
 		window.__horosaAgentTool({ id: 'b', method: 'tools/list' });
 		for(let i = 0; i < 6; i++){ await flush(); }
-		expect(order).toEqual(['a', 'b']);
+		expect(order.slice().sort()).toEqual(['a', 'b']);
 	});
 	it('长文本硬上限截断打标', ()=>{
 		const r = truncateForMcp('x'.repeat(MCP_TEXT_HARD_LIMIT + 10));
@@ -248,7 +248,7 @@ describe('外部客户端档(P0):限流 / 只读直拒 / 每次确认 / 防再�
 	});
 });
 
-describe('[进阶复查 D18·2026-09-08] list_changed 发射器(绑桥时装、解绑即拆;去抖 500ms)', ()=>{
+describe('list_changed 发射器(绑桥时装、解绑即拆;去抖 500ms)', ()=>{
 	const sleep = (ms)=>new Promise((r)=>setTimeout(r, ms));
 	const prefs = require('../aiAgent/prefs');
 	const { emitAutomationEvent } = require('../aiAgent/automation/events');
@@ -289,14 +289,14 @@ describe('[进阶复查 D18·2026-09-08] list_changed 发射器(绑桥时装、�
 	});
 });
 
-describe('[复查·桥预算/落定原因/拒绝桶/目录缓存/通知器同一性]', ()=>{
+describe('桥预算 / 落定原因 / 拒绝桶 / 目录缓存 / 通知器同一性', ()=>{
 	const prefs2 = require('../aiAgent/prefs');
 	const approvals2 = require('../aiAgent/approvals');
 	const codeOf2 = (r)=>JSON.parse(r.result.content[0].text).code;
 	const flush2 = ()=>new Promise((r)=>setTimeout(r, 0));
 	const MAN2 = [{ name: 'create_chart_record', level: 'additive' }, { name: 'list_records', level: 'read' }];
 	beforeEach(()=>{ window.localStorage.setItem(AGENT_ENABLED_KEY, '1'); setAgentEnabled(true); });
-	it('🔴 [D25] 执行预算 = 客户端预算 − 审批已耗:10s 预算、审批 8s 后允许 ⇒ runTool 只拿到 ≈2s 且整体 ≤10s 落定;审批 12s 后允许 ⇒ 预算耗尽不执行', async ()=>{
+	it('🔴 执行预算 = 客户端预算 − 审批已耗:10s 预算、审批 8s 后允许 ⇒ runTool 只拿到 ≈2s 且整体 ≤10s 落定;审批 12s 后允许 ⇒ 预算耗尽不执行', async ()=>{
 		prefs2.setExternalPolicy({ approval: 'on-request' });
 		let seen = null;
 		const runTool = jest.fn(async ()=>({ ok: true }));
@@ -311,7 +311,7 @@ describe('[复查·桥预算/落定原因/拒绝桶/目录缓存/通知器同一
 		expect(seen).toBeGreaterThanOrEqual(650);
 		expect(Date.now() - t0).toBeLessThan(1300 + 400);
 	});
-	it('🔴 [D25] 审批耗尽预算后才允许 ⇒ E_TOOL_TIMEOUT 且不执行(此前审批等满后执行又拿一份预算,最坏 2×)', async ()=>{
+	it('🔴 审批耗尽预算后才允许 ⇒ E_TOOL_TIMEOUT 且不执行(此前审批等满后执行又拿一份预算,最坏 2×)', async ()=>{
 		prefs2.setExternalPolicy({ approval: 'on-request' });
 		const runTool = jest.fn(async ()=>({ ok: true }));
 		const p = handleAgentToolRequest({ id: 32, method: 'tools/call', params: { name: 'create_chart_record', arguments: {}, _meta: { timeoutMs: 3200 } }, clientName: 'b25b' }, { exportToolManifest: ()=>MAN2, runTool });
@@ -321,7 +321,7 @@ describe('[复查·桥预算/落定原因/拒绝桶/目录缓存/通知器同一
 		expect(codeOf2(r)).toBe('E_TOOL_TIMEOUT');
 		expect(runTool).not.toHaveBeenCalled();
 	});
-	it('🔴 [D32] 到点前点「跳过」⇒ E_USER_SKIPPED(按落定原因出码,不再按耗时猜)', async ()=>{
+	it('🔴 到点前点「跳过」⇒ E_USER_SKIPPED(按落定原因出码,不再按耗时猜)', async ()=>{
 		prefs2.setExternalPolicy({ approval: 'on-request' });
 		const runTool = jest.fn(async ()=>({ ok: true }));
 		const p = handleAgentToolRequest({ id: 33, method: 'tools/call', params: { name: 'create_chart_record', arguments: {}, _meta: { timeoutMs: 3400 } }, clientName: 'b32' }, { exportToolManifest: ()=>MAN2, runTool });
@@ -332,7 +332,7 @@ describe('[复查·桥预算/落定原因/拒绝桶/目录缓存/通知器同一
 		expect(codeOf2(r)).toBe('E_USER_SKIPPED');
 		expect(runTool).not.toHaveBeenCalled();
 	});
-	it('🔴 [D35] 目录外名字洪水:拒绝走独立桶,超过 max(5×上限,60)/分钟 ⇒ E_LIMIT;正常调用桶不受影响;目录只构建一次(缓存)', async ()=>{
+	it('🔴 目录外名字洪水:拒绝走独立桶,超过 max(5×上限,60)/分钟 ⇒ E_LIMIT;正常调用桶不受影响;目录只构建一次(缓存)', async ()=>{
 		prefs2.setExternalPolicy({ approval: 'auto', maxCallsPerMinute: 2 });
 		const exporter = jest.fn(()=>MAN2);
 		const runTool = jest.fn(async ()=>({ ok: true }));
@@ -345,7 +345,24 @@ describe('[复查·桥预算/落定原因/拒绝桶/目录缓存/通知器同一
 		const ok = await handleAgentToolRequest({ id: 900, method: 'tools/call', params: { name: 'list_records', arguments: {} }, clientName: 'flood' }, d);
 		expect(ok.result.isError).toBe(false);
 	});
-	it('🔴 [D33] 通知器同 tick 关-开:目录订阅不重复', async ()=>{
+	it('🔴 开关翻转作废目录缓存:开了「无头分析」tools/call 立刻认得 run_analysis,关了立刻不认(此前要等别的注册事件刷缓存,开着也回「未知工具」)', async ()=>{
+		prefs2.setExternalPolicy({ approval: 'auto' });
+		const exporter = jest.fn(()=>MAN2.concat(prefs2.isHeadlessEnabled() ? [{ name: 'run_analysis', level: 'read' }] : []));
+		const runTool = jest.fn(async ()=>({ ok: true, data: { content: 'x' } }));
+		const d = { exportToolManifest: exporter, runTool, subscribeToolCatalog: ()=>()=>{} };
+		const call = async (id)=>handleAgentToolRequest({ id, method: 'tools/call', params: { name: 'run_analysis', arguments: { question: 'q' } }, clientName: 'flip' }, d);
+		expect(codeOf2(await call(1))).toBe('E_TOOL_NOT_FOUND');
+		expect(codeOf2(await call(2))).toBe('E_TOOL_NOT_FOUND');
+		expect(exporter).toHaveBeenCalledTimes(1);   // 没翻开关:缓存命中
+		prefs2.setHeadlessEnabled(true);
+		const on = await call(3);
+		expect(on.result.isError).toBe(false);
+		expect(runTool).toHaveBeenCalledTimes(1);
+		prefs2.setHeadlessEnabled(false);
+		expect(codeOf2(await call(4))).toBe('E_TOOL_NOT_FOUND');
+		expect(runTool).toHaveBeenCalledTimes(1);
+	});
+	it('🔴 通知器同 tick 关-开:目录订阅不重复', async ()=>{
 		const { __notifySubscriptionCountForTests } = require('../aiAgent/mcpBridge');
 		jest.spyOn(desktop, 'isDesktopBridgeAvailable').mockReturnValue(true);
 		jest.spyOn(desktop, 'invokeDesktopCommand').mockResolvedValue({});

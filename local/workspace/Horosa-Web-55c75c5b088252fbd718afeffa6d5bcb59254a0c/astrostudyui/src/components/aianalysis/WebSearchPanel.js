@@ -1,19 +1,21 @@
-// 联网检索面板(P7;出站②,默认关):总开关(首开有隐私提示)+ 引擎/地址/Key + 测试检索;[批三①] 网页读取(出站③)独立子开关。
+// 联网检索面板(P7;出站②,默认关):总开关(首开有隐私提示)+ 引擎/地址/Key + 测试检索;网页读取(出站③)独立子开关。
 // Key 存在集成档案(与接口档案同一加密钩),发请求时逐次带上;界面用密码框、不回显已存值。onStatus:向折叠头上报状态(可选)。
 import React from 'react';
 import { Button, Input, Modal, Select, Switch, Tag, message } from 'antd';
 import { isWebSearchEnabled, setWebSearchEnabled, isWebFetchEnabled, setWebFetchEnabled, subscribeAgentPrefs } from '../../utils/aiAgent/prefs';
 import { WEB_SEARCH_ENGINES, engineMeta, getActiveSearchProfile, saveSearchProfile, removeSearchProfile, runWebSearch } from '../../integrations/webSearch';
-import { WEB_FETCH_MAX_CHARS, WEB_FETCH_DEFAULT_CHARS } from '../../integrations/webFetch';   // [D42] 文案数字与工具上限同源
+import { WEB_FETCH_MAX_CHARS, WEB_FETCH_DEFAULT_CHARS } from '../../integrations/webFetch';   // 文案数字与工具上限同源
 import { AdvSwitchRow, advStyles as styles } from './chat/AdvCard';
+import { cleanProviderBaseUrl } from '../../utils/aiAnalysisProviders';
 
-// [W1] 纯函数:表单 → 待落库档案。换引擎绝不沿用旧引擎的 Key / 地址 / 档案 id(密钥是「每家一把」);同引擎密钥留空 = 不改。
+// 纯函数:表单 → 待落库档案。换引擎绝不沿用旧引擎的 Key / 地址 / 档案 id(密钥是「每家一把」);同引擎密钥留空 = 不改。
 // 回 { ok:false, reason:'need-key'|'need-baseUrl' } 或 { ok:true, profile, replaceId }(replaceId = 换引擎时要替换掉的旧档案 id)
 export function mergeSearchProfileForm(profile, form){
 	const engine = `${(form && form.engine) || 'tavily'}`;
 	const meta = engineMeta(engine) || {};
 	const typedKey = `${(form && form.apiKey) || ''}`.trim();
-	const baseUrl = `${(form && form.baseUrl) || ''}`.trim();
+	// 与 AI 接口地址同一清理口径(零宽 / 方向控制字符、首尾 Unicode 空白;后端 UpstreamUrlText 同口径)
+	const baseUrl = cleanProviderBaseUrl(form && form.baseUrl);
 	const same = !!(profile && profile.engine === engine);
 	const apiKey = typedKey || (same ? `${profile.apiKey || ''}` : '');
 	if(meta.needsKey && !apiKey){ return { ok: false, reason: 'need-key' }; }
@@ -23,8 +25,8 @@ export function mergeSearchProfileForm(profile, form){
 
 export default function WebSearchPanel({ onStatus }){
 	const [on, setOn] = React.useState(()=>isWebSearchEnabled());
-	const [fetchOn, setFetchOn] = React.useState(()=>isWebFetchEnabled());   // [批三①] 网页读取(出站③)独立子开关
-	React.useEffect(()=>subscribeAgentPrefs(()=>{ setOn(isWebSearchEnabled()); setFetchOn(isWebFetchEnabled()); }), []);   // [AR-32] 跨窗口改键后重读
+	const [fetchOn, setFetchOn] = React.useState(()=>isWebFetchEnabled());   // 网页读取(出站③)独立子开关
+	React.useEffect(()=>subscribeAgentPrefs(()=>{ setOn(isWebSearchEnabled()); setFetchOn(isWebFetchEnabled()); }), []);   // 跨窗口改键后重读
 	const [profile, setProfile] = React.useState(null);
 	const [form, setForm] = React.useState({ engine: 'tavily', baseUrl: '', apiKey: '' });
 	const [busy, setBusy] = React.useState('');
@@ -59,7 +61,7 @@ export default function WebSearchPanel({ onStatus }){
 	}
 
 	const meta = engineMeta(form.engine) || {};
-	// [Q-294/M-109·AR-25] 「测试检索」测的是已保存档案:表单与已存档案不一致(换了引擎 / 改了地址 / 键入了新密钥)时先保存再测
+	// 「测试检索」测的是已保存档案:表单与已存档案不一致(换了引擎 / 改了地址 / 键入了新密钥)时先保存再测
 	const formDirty = !profile || form.engine !== profile.engine || `${form.baseUrl || ''}`.trim() !== `${profile.baseUrl || ''}`.trim() || !!`${form.apiKey || ''}`.trim();
 	async function save(){
 		const merged = mergeSearchProfileForm(profile, form);

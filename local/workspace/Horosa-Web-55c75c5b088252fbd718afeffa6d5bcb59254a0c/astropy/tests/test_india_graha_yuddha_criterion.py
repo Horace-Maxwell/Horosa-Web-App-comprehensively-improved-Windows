@@ -26,6 +26,7 @@ def _engine_with(objs, criterion=None):
     from astrostudy.india.jyotish_engine import JyotishEngine
     eng = JyotishEngine.__new__(JyotishEngine)   # 绕过全量 __init__(仓内既有范式)
     eng.chart = _FakeChart(objs)
+    eng.d1_chart = eng.chart                     # 星战恒以 D1 判
     if criterion is not None:
         eng.yuddha_criterion = criterion
     return eng

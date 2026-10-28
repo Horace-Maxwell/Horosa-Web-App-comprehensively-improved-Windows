@@ -1,4 +1,6 @@
-export function hasTauriInvoke(){   // [Q-305] 导出供页头「诊断报告」菜单判壳环境
+import { toDisplayScript } from './scriptMode';
+
+export function hasTauriInvoke(){   // 导出供页头「诊断报告」菜单判壳环境
 	return !!(
 		typeof window !== 'undefined'
 		&& (
@@ -127,7 +129,7 @@ export async function openExternalUrl(url){
 	}
 }
 
-// [Q-308/M-105] 本地版本号(不联网、不写更新节流戳):「关于」只要版本号,不该顺手做一次联网检查。
+// 本地版本号(不联网、不写更新节流戳):「关于」只要版本号,不该顺手做一次联网检查。
 //   壳缺席(网页端)→ null;旧壳没有该命令 → 调用抛错,调用方按 null 处理(退回「玄学与星座云平台」文案)。
 export async function appVersionLocal(){
 	if(!hasTauriInvoke()){
@@ -163,7 +165,7 @@ export async function updateInstallAndRestart(){
 }
 
 // ── AI 助手·行动能力/外部智能体连接(壳侧命令;非桌面壳或旧壳缺命令时一律返回 available:false,绝不抛给 UI) ──
-// [进阶审计 D9·2026-09-07] 数组结果不能展开:`{...[a,b]}` 变成 {0:a,1:b},调用方读 `.value` 恒 undefined —— 壳侧
+// 数组结果不能展开:`{...[a,b]}` 变成 {0:a,1:b},调用方读 `.value` 恒 undefined —— 壳侧
 // `mcp_client_list_command` 返回 Vec → 外部服务器清单在打包版里永远是空表(桌面桥 mock 的 端到端用例实抓)。数组一律包成 value。
 export function __wrapOptionalForTests(r){
 	return { available: true, ...(r && typeof r === 'object' && !Array.isArray(r) ? r : { value: r }) };
@@ -178,6 +180,11 @@ async function invokeOptional(command, args){
 	}
 }
 
+// 界面简繁档告诉壳(原生菜单栏 / 原生对话框随档换写法;旧壳不认这条命令时 available:false,静默)
+export async function desktopSetShellScript(mode){
+	return invokeOptional('set_shell_script_command', { mode: mode === 'hant' ? 'hant' : 'hans' });
+}
+
 // 页面总开关同步给壳(壳启动外部智能体服务时要求页面侧总开关也为开)
 export async function desktopSetAgentEnabled(enabled){
 	return invokeOptional('set_agent_enabled_command', { enabled: !!enabled });
@@ -190,7 +197,7 @@ export async function desktopMcpServerStatus(){
 export async function desktopMcpServerSetEnabled(enabled){
 	return invokeOptional('mcp_server_set_enabled_command', { enabled: !!enabled });
 }
-// [D74] 外部客户端策略「每分钟调用上限」镜像到壳令牌桶(壳此前写死 60/分钟,页面 >60 全部无效);非桌面 ⇒ available:false 零 invoke
+// 外部客户端策略「每分钟调用上限」镜像到壳令牌桶(壳此前写死 60/分钟,页面 >60 全部无效);非桌面 ⇒ available:false 零 invoke
 export async function desktopMcpServerSetLimits(callsPerMinute){
 	const raw = Number(callsPerMinute);
 	const n = Number.isFinite(raw) ? Math.max(1, Math.min(600, Math.round(raw))) : 60;   // 0 ⇒ 钳到 1(不是「缺省 60」);非数 ⇒ 60
@@ -198,12 +205,12 @@ export async function desktopMcpServerSetLimits(callsPerMinute){
 }
 
 
-// [P6] 外部 MCP 服务器:清单/连接/调用全部经壳;令牌只落壳侧 0600 文件,页面永不持有
+// 外部 MCP 服务器:清单/连接/调用全部经壳;令牌只落壳侧 0600 文件,页面永不持有
 export async function desktopMcpClientList(){
 	return invokeOptional('mcp_client_list_command');
 }
 
-// [Q-294/M-109·AR-24] keepHeaders:编辑已带令牌的 http 服务器且令牌框留空 → 壳侧保留已存 headers(此前整份 upsert 把令牌清空)
+// keepHeaders:编辑已带令牌的 http 服务器且令牌框留空 → 壳侧保留已存 headers(此前整份 upsert 把令牌清空)
 export async function desktopMcpClientUpsert(spec, opts){
 	return invokeOptional('mcp_client_upsert_command', { spec, keepHeaders: !!(opts && opts.keepHeaders) });
 }
@@ -228,13 +235,33 @@ export async function desktopMcpServerRotateToken(){
 	return invokeOptional('mcp_server_rotate_token_command');
 }
 
-// 令牌按需取(状态查询不再携带令牌):仅面板「复制」按钮调用。
-// [P1] 桌面横幅:壳侧命令(偏好 show_status_notifications 门 + 脱控制字符 + 限流 6/min 突发 3 + 10s 同文去重);返回 { shown, reason }
-export async function desktopShowNotification(title, body){
-	return invokeDesktopCommand('show_desktop_notification_command', { title: `${title || ''}`, body: `${body || ''}` });
+// 本机 REST 接口(同一服务 /api/v1、同一令牌、同一套工具)子开关:壳侧落偏好并立即生效,回状态(restEnabled / restUrl)
+export async function desktopMcpServerSetRestEnabled(enabled){
+	return invokeOptional('mcp_server_set_rest_enabled_command', { enabled: !!enabled });
 }
 
-// [P3] 定时任务:壳侧 60 秒哑心跳开关镜像(偏好 scheduler_enabled,缺省 false)与状态(ticks/lastTickAt/killSwitch)
+// 终端命令垫片(~/.local/bin/horosa → 本应用二进制 --horosa-cli):状态 / 安装 / 移除;壳只碰带本应用标记的那一个文件,回最新状态
+// { path, installed, current(指向正在运行的这份程序), foreign(同名文件不是星阙写的), target, binaryPath }
+export async function desktopCliShimStatus(){
+	return invokeOptional('cli_shim_status_command');
+}
+export async function desktopCliShimInstall(){
+	return invokeOptional('cli_shim_install_command');
+}
+export async function desktopCliShimRemove(){
+	return invokeOptional('cli_shim_remove_command');
+}
+
+// 令牌按需取(状态查询不再携带令牌):仅面板「复制」按钮调用。
+// 桌面横幅:壳侧命令(偏好 show_status_notifications 门 + 脱控制字符 + 限流 6/min 突发 3 + 10s 同文去重);返回 { shown, reason }
+// 横幅画在网页之外(显示层转不到):标题与正文在交给壳之前按界面简繁转(toDisplayScript)。
+// 交给壳去画的字一律在本桥里转(内容构建层不读界面档位)
+export async function desktopShowNotification(title, body){
+	return invokeDesktopCommand('show_desktop_notification_command', { title: toDisplayScript(title || ''), body: toDisplayScript(body || '') });
+}
+
+
+// 定时任务:壳侧 60 秒哑心跳开关镜像(偏好 scheduler_enabled,缺省 false)与状态(ticks/lastTickAt/killSwitch)
 export async function desktopSetSchedulerEnabled(enabled){
 	return invokeOptional('set_scheduler_enabled_command', { enabled: !!enabled });
 }
@@ -244,7 +271,7 @@ export async function desktopMcpServerRevealToken(){
 	return invokeOptional('mcp_server_reveal_token_command');
 }
 
-// [批三⑥] 通知外部脚本钩(仅桌面壳):状态 / 设置(开时壳侧校验路径六道门)/ 运行(自动化动作与面板「测试运行」;载荷=一个 JSON 参数,零 shell)
+// 通知外部脚本钩(仅桌面壳):状态 / 设置(开时壳侧校验路径六道门)/ 运行(自动化动作与面板「测试运行」;载荷=一个 JSON 参数,零 shell)
 export async function desktopNotifyHookStatus(){
 	return invokeOptional('notify_hook_status_command');
 }
@@ -255,7 +282,7 @@ export async function desktopNotifyHookRun(payload, test){
 	return invokeOptional('notify_hook_run_command', { payload: payload && typeof payload === 'object' ? payload : { text: `${payload || ''}` }, test: !!test });
 }
 
-// [进阶复查 D18·2026-09-08] 本机 MCP 服务 list_changed 通知:壳侧 agent_notify_command(kind) 早已在(mcp_server 宣告三面 listChanged:true),
+// 本机 MCP 服务 list_changed 通知:壳侧 agent_notify_command(kind) 早已在(mcp_server 宣告三面 listChanged:true),
 // 页面此前从未调用 —— 记录/模版/工具面变了外部客户端永远不知。去抖发射器:每 kind 一个定时器;未启用/桥不可用 = 零定时器零 invoke。
 export const AGENT_NOTIFY_KINDS = ['tools', 'resources', 'prompts'];
 export async function desktopAgentNotify(kind){

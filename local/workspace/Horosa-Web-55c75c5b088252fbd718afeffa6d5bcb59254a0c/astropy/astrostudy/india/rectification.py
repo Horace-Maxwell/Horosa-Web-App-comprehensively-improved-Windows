@@ -168,7 +168,7 @@ def resolution_diagnostics(lagna_lons, step_seconds):
     adequate = max_delta <= KP_NARROWEST_SUB_DEG
     suggested = step_seconds
     if not adequate and max_delta > 0:
-        suggested = max(1, int(float(step_seconds) * KP_NARROWEST_SUB_DEG / max_delta))
+        suggested = max(1, int(float(step_seconds) * KP_NARROWEST_SUB_DEG / max_delta))   # segment-ok: 步长建议,非段界取序
     return {'maxLagnaDeltaDeg': round(max_delta, 4),
             'narrowestSubDeg': round(KP_NARROWEST_SUB_DEG, 4),
             'adequate': adequate,

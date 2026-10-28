@@ -31,25 +31,32 @@ AstroColor['Desc'] = '#898f9e';
 AstroColor['MC'] = '#898f9e';
 AstroColor['IC'] = '#898f9e';
 
-AstroColor['Aries'] = '#35404c';
-AstroColor['Taurus'] = '#35404c';
-AstroColor['Gemini'] = '#35404c';
-AstroColor['Cancer'] = '#35404c';
-AstroColor['Leo'] = '#35404c';
-AstroColor['Virgo'] = '#35404c';
-AstroColor['Libra'] = '#35404c';
-AstroColor['Scorpio'] = '#35404c';
-AstroColor['Sagittarius'] = '#35404c';
-AstroColor['Capricorn'] = '#35404c';
-AstroColor['Aquarius'] = '#35404c';
-AstroColor['Pisces'] = '#35404c';
+// 行星环的留(S)/ 顺(D)/ 逆(R)标、度数的分、王星标(盘面字;按本套盘面底挑,画的那一刻经 AstroConst.AstroColor 读)
+AstroColor['StationS'] = '#c9973a';
+AstroColor['StationD'] = '#4fae72';
+AstroColor['Retrograde'] = '#e06a5f';
+AstroColor['MinuteText'] = '#a39a8c';
+AstroColor['RoyalStar'] = '#d4af37';
+
+AstroColor['Aries'] = '#63788e';
+AstroColor['Taurus'] = '#63788e';
+AstroColor['Gemini'] = '#63788e';
+AstroColor['Cancer'] = '#63788e';
+AstroColor['Leo'] = '#63788e';
+AstroColor['Virgo'] = '#63788e';
+AstroColor['Libra'] = '#63788e';
+AstroColor['Scorpio'] = '#63788e';
+AstroColor['Sagittarius'] = '#63788e';
+AstroColor['Capricorn'] = '#63788e';
+AstroColor['Aquarius'] = '#63788e';
+AstroColor['Pisces'] = '#63788e';
 
 
-AstroColor['Asp0'] = '#191970';
+AstroColor['Asp0'] = '#6868dd';
 AstroColor['Asp60'] = '#33CCC3';
 AstroColor['Asp90'] = '#FE8090';
 AstroColor['Asp120'] = '#1B8C09';
-AstroColor['Asp180'] = '#470024';
+AstroColor['Asp180'] = '#e50074';
 
 AstroColor['命'] = '#082567';
 AstroColor['业'] = '#082567';

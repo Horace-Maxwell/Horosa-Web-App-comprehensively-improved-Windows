@@ -143,6 +143,12 @@ describe('place 离线地名', ()=>{
 describe('zone/gender/caseType', ()=>{
 	test('用户明说优先;经纬夏令时;缺经纬回退 +08:00', ()=>{
 		expect(resolveZone({ userZone: '-05:00' }).zone).toBe('-05:00');
+		// 用户明说的时区可带秒(地方平时,名人库 / 命盘记录同一写法):原样采用,不按经纬度另推
+		expect(resolveZone({ userZone: '+00:09:21', gpsLat: 51.5, gpsLon: -0.1, dateStr: '1850-01-01' })).toEqual({ zone: '+00:09:21', source: 'user', iana: null });
+		expect(resolveZone({ userZone: '-05:00:00' }).zone).toBe('-05:00:00');
+		// 写错的不收(按经纬度 / 回退)
+		expect(resolveZone({ userZone: '+0:9:21' }).source).toBe('fallback');
+		expect(resolveZone({ userZone: '+00:09:2' }).source).toBe('fallback');
 		const la = resolveZone({ gpsLat: 34.05, gpsLon: -118.24, dateStr: '1990-06-01' });
 		expect(la.zone).toBe('-07:00'); expect(la.source).toBe('dst-aware');
 		expect(resolveZone({ gpsLat: 34.05, gpsLon: -118.24, dateStr: '1990-01-15' }).zone).toBe('-08:00');

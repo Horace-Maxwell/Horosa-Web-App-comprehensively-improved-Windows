@@ -9,6 +9,8 @@ import jsonpickle
 import pendulum
 
 from websrv.helper import enable_crossdomain
+from websrv.horosa_engine_common import require_civil_ymd as _require_civil_ymd, to_int as _to_int
+from astrostudy.civil_calendar import stdlib_datetime_ok as _stdlib_datetime_ok
 
 
 _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,15 +25,6 @@ from kinjinkou import JinkoujueApi  # noqa: E402
 DI_ZHI = list("子丑寅卯辰巳午未申酉戌亥")
 GAN = list("甲乙丙丁戊己庚辛壬癸")
 ROW_KEYS = ["人元", "贵神", "将神", "地分"]
-
-
-def _to_int(value, default=0):
-    try:
-        if value is None or value == "":
-            return default
-        return int(value)
-    except Exception:
-        return default
 
 
 def _clean_text(value, default=""):
@@ -243,22 +236,19 @@ class JinKouSrv:
             # jinkoujue_api.py 是 kinjinkou 真正算 hour pillar 的地方。
             after23_new_day = _to_int(data.get("after23NewDay"), 1)
             late_zi_hour_use_next_day = _to_int(data.get("lateZiHourUseNextDay"), 1)
-            try:
-                from kinjinkou.jinkoujue import jinkoujue_api as _jk_api
-                if hasattr(_jk_api, 'set_after23_new_day'):
-                    _jk_api.set_after23_new_day(after23_new_day)
-                if hasattr(_jk_api, 'set_hour_gan_use_next_day'):
-                    _jk_api.set_hour_gan_use_next_day(late_zi_hour_use_next_day)
-            except Exception:
-                pass
+            from kinjinkou.jinkoujue import jinkoujue_api as _jk_api
+            _jk_api.set_after23_new_day(after23_new_day)
+            _jk_api.set_hour_gan_use_next_day(late_zi_hour_use_next_day)
             difen = _branch(data.get("difen"), "子")
             yuejiang = _branch(data.get("yuejiang")) or None
             zhanshi = _branch(data.get("zhanshi")) or None
-            if 1 <= year <= 9999:
+            _require_civil_ymd(year, month, day)   # 不存在的日期报错(改历缺口 / 2 月 30 日 / 公元 0 年)
+            if _stdlib_datetime_ok(year, month, day):
                 dt = pendulum.datetime(year, month, day, hour, minute, second, tz=_pendulum_tz(data.get("zone")))
             else:
-                # 全年份域:pendulum 域限 1~9999;下游 paipan 只读 y/m/d/h/min 五字段,
-                # 域外用轻量承载(gangzhi1 已接全域回退,BC/远期口径与主链一致)
+                # pendulum 是外推格里历、只到 1~9999 年:1582 以前的儒略闰日(1500-02-29)直接抛错。
+                # 下游 paipan 只读 y/m/d/h/min 五字段,1582-10-15 以前 / 万年以后用轻量承载
+                # (gangzhi1 已接全域回退,BC/远期口径与主链一致)
                 from types import SimpleNamespace
                 dt = SimpleNamespace(year=year, month=month, day=day, hour=hour, minute=minute, second=second)
             api = JinkoujueApi()

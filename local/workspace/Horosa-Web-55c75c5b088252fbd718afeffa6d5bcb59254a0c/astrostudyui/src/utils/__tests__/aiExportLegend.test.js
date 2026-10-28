@@ -4,11 +4,12 @@ import fs from 'fs';
 import path from 'path';
 import { getAIExportLegendLines, buildAIExportLegendSection } from '../aiExportLegend';
 import { __aiExportTesting__, isAIExportLegendEnabled } from '../aiExport';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 const { normalizeAIExportPrefs } = __aiExportTesting__;
 
 const SRC = path.resolve(__dirname, '..', '..');
 
-describe('[D47] 图例注册表', ()=>{
+describe('图例注册表', ()=>{
 	it('首批 ziwei/bazi/astrochart 各 1..15 行;每行含「=」或「：」;未填技法零行', ()=>{
 		['ziwei', 'bazi', 'astrochart'].forEach((k)=>{
 			const lines = getAIExportLegendLines(k);
@@ -30,7 +31,7 @@ describe('[D47] 图例注册表', ()=>{
 	});
 });
 
-describe('[D47] 缺省关 + 勾选后才拼装', ()=>{
+describe('缺省关 + 勾选后才拼装', ()=>{
 	it('偏好缺省 legend:false;显式 true 才开;isAIExportLegendEnabled 同口径', ()=>{
 		expect(normalizeAIExportPrefs(null).legend).toBe(false);
 		expect(normalizeAIExportPrefs({}).legend).toBe(false);
@@ -42,7 +43,7 @@ describe('[D47] 缺省关 + 勾选后才拼装', ()=>{
 		expect(isAIExportLegendEnabled(null)).toBe(false);
 	});
 	it('拼装点受 isAIExportLegendEnabled 门控;设置面有勾选(data-ai-export-legend)', ()=>{
-		const exp = fs.readFileSync(path.join(SRC, 'utils', 'aiExport.js'), 'utf8').replace(/\/\/[^\n]*/g, '');
+		const exp = readSource(path.join(SRC, 'utils', 'aiExport.js')).replace(/\/\/[^\n]*/g, '');
 		const i = exp.indexOf('buildAIExportLegendSection(usedExportKey)');
 		expect(i).toBeGreaterThan(0);
 		expect(exp.slice(Math.max(0, i - 400), i)).toContain('isAIExportLegendEnabled()');

@@ -1,24 +1,25 @@
 diff --git a/astrostudyui/src/components/calendar/TongshuMain.js b/astrostudyui/src/components/calendar/TongshuMain.js
-index 79a7cf28..3aa6e714 100644
+index 321f3f23..028708b3 100644
 --- a/astrostudyui/src/components/calendar/TongshuMain.js
 +++ b/astrostudyui/src/components/calendar/TongshuMain.js
-@@ -14,32 +14,66 @@ import { sanyuanLiexiuDay, sanyuanYearPoints } from './tongshu/sanyuanLiexiu';
+@@ -14,6 +14,9 @@ import { sanyuanLiexiuDay, sanyuanYearPoints } from './tongshu/sanyuanLiexiu';
  import { wutuMonth } from './tongshu/wutu';
  import { xuankongDay, xuankongForHour } from './tongshu/xuankong';
  import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 +import { techniqueResultCacheEnabled } from '../../utils/perfFlags';
 +import { markInteractionStart, markPanelReady } from '../../utils/perfMark';
 +import { calendarPanelShouldUpdate } from './NongLiMain';
+ import { civilMonthDays, civilJdnOfYmd } from '../../utils/civilCalendar';
+ import { civilJdnOfDateStr } from '../../utils/dateStrSafe';
  
- const MODULE = 'calendar-tongshu';
- 
+@@ -22,26 +25,57 @@ const MODULE = 'calendar-tongshu';
  function verdictTone(level) { return level === 'good' ? 'is-good' : (level === 'bad' ? 'is-bad' : 'is-neutral'); }
  
  // 董公中栏：本月逐日值日（建除 + 金神七煞/三吉星 + 所选用事宜/忌），点击选日。
 -function DonggongMonth({ y, m, activeYmd, event, onPick }) {
--	const days = new Date(y, m, 0).getDate();
+-	// 本月真实存在的日号(民用历单源:1500-02 有 29 日,1582-10 没有 5–14 日)
 -	const rows = [];
--	for (let d = 1; d <= days; d++) {
+-	for (const d of civilMonthDays(y, m)) {
 -		const r = donggongDay({ y, m, d });
 -		const yv = yongshiVerdict(buildHuangliDay(y, m, d), event);
 -		const ymd = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -57,9 +58,9 @@ index 79a7cf28..3aa6e714 100644
 +// 董公本月逐日数据(纯计算部分):月+用事为键 memo;JSX(activeYmd 高亮)留在组件里现拼。
 +function donggongMonthData(y, m, event) {
 +	return tsMemo(`dg|${y}|${m}|${event || ''}`, ()=>{
-+		const days = new Date(y, m, 0).getDate();
++		// 本月真实存在的日号(民用历单源:1500-02 有 29 日,1582-10 没有 5–14 日)
 +		const out = [];
-+		for (let d = 1; d <= days; d++) {
++		for (const d of civilMonthDays(y, m)) {
 +			out.push({
 +				d,
 +				ymd: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
@@ -88,7 +89,7 @@ index 79a7cf28..3aa6e714 100644
  	return <div className='horosa-tongshu-month'>{rows}</div>;
  }
  
-@@ -93,7 +127,7 @@ function DonggongDetail({ y, m, d, event }) {
+@@ -95,7 +129,7 @@ function DonggongDetail({ y, m, d, event }) {
  
  // 奇门叠数：12 时辰各自叠数与吉凶（出行择时），点击看诗解。选中时辰由 TongshuMain 持有。
  function QimenPanes({ y, m, d, selHour, onSelHour }) {
@@ -97,7 +98,7 @@ index 79a7cf28..3aa6e714 100644
  	const active = selHour ? r.rows.find((x)=> x.hourZhi === selHour) : (r.rows.find((x)=> x.jx === '吉') || r.rows[0]);
  	return {
  		mid: (
-@@ -135,14 +169,15 @@ function QimenPanes({ y, m, d, selHour, onSelHour }) {
+@@ -137,14 +171,15 @@ function QimenPanes({ y, m, d, selHour, onSelHour }) {
  
  // 三垣列宿：本日天帝加临 + 距最近加临 + 十六吉曜按「用事类」高亮断语库。
  function SanyuanPanes({ y, m, d, use = '建宅', onPick }) {
@@ -110,13 +111,13 @@ index 79a7cf28..3aa6e714 100644
  	const USE_FIELDS = ['建宅', '安葬', '修造', '造命'];
  	const useField = USE_FIELDS.includes(use) ? use : '建宅';
  	// 距最近天帝加临日（含跨年前后）：跨 y-1/y/y+1 三年取全部点位求最小天差。
- 	const sel = new Date(y, m - 1, d).getTime();
+ 	const sel = civilJdnOfYmd(y, m, d);   // 民用历日序数(跨改历不多算 10 天)
 -	const allPts = [...sanyuanYearPoints(y - 1), ...points, ...sanyuanYearPoints(y + 1)];
 +	const allPts = [...yearPts(y - 1), ...points, ...yearPts(y + 1)];
  	let nearest = null;
  	allPts.forEach((p)=>{
- 		const [py, pm, pd] = p.ymd.split('-').map((n)=> parseInt(n, 10));
-@@ -200,7 +235,7 @@ function SanyuanPanes({ y, m, d, use = '建宅', onPick }) {
+ 		const diff = civilJdnOfDateStr(p.ymd) - sel;
+@@ -201,7 +236,7 @@ function SanyuanPanes({ y, m, d, use = '建宅', onPick }) {
  
  // 天元乌兔：本月逐日乌兔值星（太阳/太阴/九星），点击选日。
  function WutuPanes({ y, m, d, onPick }) {
@@ -125,7 +126,7 @@ index 79a7cf28..3aa6e714 100644
  	const activeYmd = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
  	const active = M.rows.find((r)=> r.ymd === activeYmd) || M.rows[0];
  	const starCls = (jx)=> (jx === 'good' ? 'is-good' : 'is-bad');
-@@ -251,9 +286,9 @@ function xkTagCls(jx) { return jx === 'good' ? 'is-good' : (jx === 'bad' ? 'is-b
+@@ -252,9 +287,9 @@ function xkTagCls(jx) { return jx === 'good' ? 'is-good' : (jx === 'bad' ? 'is-b
  
  // 三元玄空：12 时辰玄空日课（五吉/日课吉凶），点击看四柱卦象。
  function XuankongPanes({ y, m, d, mingYear, selHour, onSelHour }) {
@@ -137,11 +138,11 @@ index 79a7cf28..3aa6e714 100644
  	const P = full.pillars;
  	// rel 为完整五机名（生入/克入/同旺/生成/合十/生出/克出/无关），按进神吉·退神凶着色。
  	const rowOf = (label, p, rel)=> (
-@@ -308,15 +343,9 @@ function XuankongPanes({ y, m, d, mingYear, selHour, onSelHour }) {
+@@ -309,15 +344,9 @@ function XuankongPanes({ y, m, d, mingYear, selHour, onSelHour }) {
  }
  
  class TongshuMain extends Component {
--	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+-	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 -	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 -	shouldComponentUpdate(nextProps, nextState){
 -		if(nextState !== this.state){
@@ -156,7 +157,7 @@ index 79a7cf28..3aa6e714 100644
  	constructor(props) {
  		super(props);
  		const settings = loadTongshuSettings();
-@@ -324,23 +353,44 @@ class TongshuMain extends Component {
+@@ -325,23 +354,44 @@ class TongshuMain extends Component {
  		this.onSettingChange = this.onSettingChange.bind(this);
  		this.onDateChange = this.onDateChange.bind(this);
  		this.pickDay = this.pickDay.bind(this);
@@ -204,7 +205,7 @@ index 79a7cf28..3aa6e714 100644
  	}
  
  	saveAISnapshot() {
-@@ -361,6 +411,9 @@ class TongshuMain extends Component {
+@@ -362,6 +412,9 @@ class TongshuMain extends Component {
  			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
  		}
  		this.saveAISnapshot();
@@ -214,7 +215,7 @@ index 79a7cf28..3aa6e714 100644
  	}
  
  	componentWillUnmount() {
-@@ -369,6 +422,11 @@ class TongshuMain extends Component {
+@@ -370,6 +423,11 @@ class TongshuMain extends Component {
  		}
  	}
  
@@ -226,7 +227,7 @@ index 79a7cf28..3aa6e714 100644
  	renderPanes() {
  		const s = this.state.settings;
  		const ymd = this.ymd();
-@@ -382,7 +440,7 @@ class TongshuMain extends Component {
+@@ -383,7 +441,7 @@ class TongshuMain extends Component {
  			};
  		}
  		if (s.school === 'qimen') {
@@ -235,7 +236,7 @@ index 79a7cf28..3aa6e714 100644
  		}
  		if (s.school === 'sanyuanliexiu') {
  			return SanyuanPanes({ y, m, d, use: s.liexiuUse, onPick: this.pickDay });
-@@ -391,7 +449,7 @@ class TongshuMain extends Component {
+@@ -392,7 +450,7 @@ class TongshuMain extends Component {
  			return WutuPanes({ y, m, d, onPick: this.pickDay });
  		}
  		if (s.school === 'sanyuan') {

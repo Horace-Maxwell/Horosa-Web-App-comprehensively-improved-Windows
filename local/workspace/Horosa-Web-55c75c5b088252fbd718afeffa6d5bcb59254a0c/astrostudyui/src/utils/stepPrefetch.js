@@ -297,7 +297,7 @@ export function submitStepPrefetch(tasks, opts){
 	}
 	generation += 1;
 	const gen = generation;
-	// [R3-A1 上游] 显式 opts.budget 硬顶 5(选步长双向 ±2=4 任务;绝不放开成风暴);
+	// 显式 opts.budget 硬顶 5(选步长双向 ±2=4 任务;绝不放开成风暴);
 	// 缺省走 BUDGET_PER_SETTLE(R4-B2 武装 ±3 一轮 ≤12,串行泵+白名单闸即节流)。
 	const budget = opts && Number.isInteger(opts.budget) && opts.budget > 0
 		? Math.min(opts.budget, 5)
@@ -308,7 +308,7 @@ export function submitStepPrefetch(tasks, opts){
 	pump();
 }
 
-// —— [R3-A1] 选步长即预取:DateTimeSelector.changeTimeType(opt-in 宿主)→ 此处 ——
+// —— 选步长即预取:DateTimeSelector.changeTimeType(opt-in 宿主)→ 此处 ——
 // 与 settle 后预取共用同一队列/代际/预算体系;处理器由 models/astro 注册
 // (R4-B2 起处理器 = 武装引擎:按当前技法 ±stepPrefetchDepth 全窗,见 astro.js)。
 // 同 unit 5s 去重:反复点同档不重复排队(切档立即生效,latest-wins 覆盖旧代)。

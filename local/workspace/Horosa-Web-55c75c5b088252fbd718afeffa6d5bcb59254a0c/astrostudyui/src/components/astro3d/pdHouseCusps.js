@@ -1,6 +1,6 @@
 // 主限天球 · 后天宫位(house cusp)客户端计算(纯函数,零依赖,jest 可测)。
 //
-// [E1·显示] 后端 /predict/pd3d 只回 frame(armc/phi/eps)不回宫首,故 12 宫首在前端算。
+// 后端 /predict/pd3d 只回 frame(armc/phi/eps)不回宫首,故 12 宫首在前端算。
 // 全程球面第一性原理:黄经(β=0)↔赤经/赤纬标准变换 + 各宫制的分宫机制。
 // 号序约定:cusp[0]=第 1 宫(命宫)…cusp[9]=第 10 宫(天顶 MC)…cusp[i] 与 cusp[i+6] 恒差 180°。
 //
@@ -170,7 +170,7 @@ export function houseCusps(system, ramc, phi, eps){
 		return { cusps: opp(c), full: true };
 	}
 	// campanus/morinus/koch 及未知:分宫机制(卯酉圈等分/黄道系赤经等分/出生地平弧)
-	// [Q-532/T-494] 本页尚未实现这三制的中间宫首(Morinus / Campanus / Koch 各有标准闭式,后端 swisseph 亦出全 12 宫;
+	// 本页尚未实现这三制的中间宫首(Morinus / Campanus / Koch 各有标准闭式,后端 swisseph 亦出全 12 宫;
 	// 只是天球层未接),只出四轴(诚实少列,不臆造中间宫首)。帮助文案同口径。
 	const c = new Array(12).fill(null);
 	c[0] = asc; c[9] = mc; c[3] = ic; c[6] = dsc;
@@ -187,7 +187,7 @@ const PD_FRAME_TO_CUSP_SYSTEM = {
 	regiomontanus: 'regiomontanus',
 	topocentric: 'topocentric',
 	meridian: 'meridian',
-	equal_hour_circle: 'meridian',   // [Q-531/T-493] 时圈等分=Meridian 定义(与后端 _PD_FRAME_HSYS 同映),两档同系
+	equal_hour_circle: 'meridian',   // 时圈等分=Meridian 定义(与后端 _PD_FRAME_HSYS 同映),两档同系
 	porphyry: 'porphyry',
 };
 

@@ -2,7 +2,7 @@ from flatlib import const
 from astrostudy.perchart import PerChart
 
 
-# [Q-148/T-55] 派生盘宫位口径标记:四类变换盘一律「变换后上升整宫」,前端标注据此说真话。
+# 派生盘宫位口径标记:四类变换盘一律「变换后上升整宫」,前端标注据此说真话。
 DERIVED_HOUSE_MODE = 'wholeFromAsc'
 
 
@@ -51,7 +51,7 @@ class ThirteenthChart:
             newlon = house1lon + 30*(hid - 1)
             obj.size = 30
             obj.relocate(newlon)
-            # [Q-148/T-55] 四类变换盘的宫位恒是「变换后 ASC 整宫」,与请求里的分宫制无关;
+            # 四类变换盘的宫位恒是「变换后 ASC 整宫」,与请求里的分宫制无关;
             # 不打标记时前端只能照 params.hsys 回显用户分宫制 → 标注与数值分叉。
             # 手法同极区回退的 hsysFallback(House.__dict__ 直出前端)。
             obj.hsysDerived = DERIVED_HOUSE_MODE
@@ -103,7 +103,7 @@ class DodecatemoriaChart:
             newlon = house1lon + 30*(hid - 1)
             obj.size = 30
             obj.relocate(newlon)
-            # [Q-148/T-55] 四类变换盘的宫位恒是「变换后 ASC 整宫」,与请求里的分宫制无关;
+            # 四类变换盘的宫位恒是「变换后 ASC 整宫」,与请求里的分宫制无关;
             # 不打标记时前端只能照 params.hsys 回显用户分宫制 → 标注与数值分叉。
             # 手法同极区回退的 hsysFallback(House.__dict__ 直出前端)。
             obj.hsysDerived = DERIVED_HOUSE_MODE
@@ -149,7 +149,7 @@ class HarmonicChart:
             newlon = house1lon + 30*(hid - 1)
             obj.size = 30
             obj.relocate(newlon)
-            # [Q-148/T-55] 四类变换盘的宫位恒是「变换后 ASC 整宫」,与请求里的分宫制无关;
+            # 四类变换盘的宫位恒是「变换后 ASC 整宫」,与请求里的分宫制无关;
             # 不打标记时前端只能照 params.hsys 回显用户分宫制 → 标注与数值分叉。
             # 手法同极区回退的 hsysFallback(House.__dict__ 直出前端)。
             obj.hsysDerived = DERIVED_HOUSE_MODE
@@ -196,7 +196,7 @@ class DraconicChart:
             newlon = house1lon + 30*(hid - 1)
             obj.size = 30
             obj.relocate(newlon)
-            # [Q-148/T-55] 四类变换盘的宫位恒是「变换后 ASC 整宫」,与请求里的分宫制无关;
+            # 四类变换盘的宫位恒是「变换后 ASC 整宫」,与请求里的分宫制无关;
             # 不打标记时前端只能照 params.hsys 回显用户分宫制 → 标注与数值分叉。
             # 手法同极区回退的 hsysFallback(House.__dict__ 直出前端)。
             obj.hsysDerived = DERIVED_HOUSE_MODE

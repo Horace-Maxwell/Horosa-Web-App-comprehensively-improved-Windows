@@ -1,4 +1,4 @@
-// [十二轮] 远端家分段编排契约(七政/印度共用 runSegmentedRemoteScan)——用户实报
+// 远端家分段编排契约(七政/印度共用 runSegmentedRemoteScan)——用户实报
 // 「395 天被 93 天单请求上限拒」的根修资产。py 端 93 天限保留为单段防呆(段=自然月)。
 import { runSegmentedRemoteScan } from '../scanOrchestrator';
 
@@ -7,7 +7,7 @@ const basePayload = {
 	zone: '+08:00', gpsLat: 39.9, gpsLon: 116.46, conditions: { type: 'all', conditions: [] },
 };
 
-describe('[十二轮] runSegmentedRemoteScan', ()=>{
+describe('runSegmentedRemoteScan', ()=>{
 	it('🔴 395 天 → 十四个自然月段;每段日期归一为 - 分隔且 ≤93 天(py 防呆永不触)', async ()=>{
 		const bodies = [];
 		const fetchFn = jest.fn(async (body)=>{ bodies.push(body); return { intervals: [], truncated: false, stats: { evalPoints: 10 } }; });

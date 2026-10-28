@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { saveBlobSmart } from '../../utils/aiAnalysisExport';
 import { Modal, Dropdown, Menu, message } from 'antd';
 import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
 import * as AstroConst from '../../constants/AstroConst';
@@ -7,7 +6,7 @@ import { getHousesOption } from '../comp/CompHelper';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import ConditionParamsForm from './ConditionParamsForm';
 import { CONDITION_TYPES, newLeaf, newGroup, JOINER_CN, auditTreeAgainstRegistry } from '../../divination/zeri/conditionTypes';
-import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // [Q-478] 空数字框统一校验
+import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // 空数字框统一校验
 import { formatGpsDms } from '../../divination/zeri/tianxingSnapshot';
 import { conditionSummary } from '../../divination/zeri/conditionGlyph';
 import { fetchChart } from '../../services/astro';
@@ -17,45 +16,10 @@ import {
 	listSchemes, saveScheme, deleteScheme, listHistory,
 	renameScheme, exportSchemes, importSchemes,
 } from '../../divination/zeri/schemeStore';
-
-// [Q-410] 单源保存(桌面壳保存桥选目录;浏览器 <a download>);取消 / 失败静默不报成功(本处本就无成功提示)。
-function downloadJson(text, filename){
-	try{
-		return saveBlobSmart(filename, new Blob([text], { type: 'application/json;charset=utf-8' }));
-	}catch(e){ return null; /* 受限 webview 环境静默 */ }
-}
+import { downloadJson, JOINER_OPTIONS, getAt, mapAt, removeAt, collectUiLeaves, GATE_CN2 } from './zeriTreeOps';
 
 const Option = XQSelect.Option;
 const OptGroup = XQSelect.OptGroup;
-
-const JOINER_OPTIONS = [
-	{ value: 'all', label: '且 AND' },
-	{ value: 'any', label: '或 OR' },
-	{ value: 'xor', label: '异或 XOR' },
-];
-
-// ── 树路径纯工具(path=[]=根;[i,j]=children 索引链) ──
-function getAt(tree, path){
-	let node = tree;
-	for(const i of path){
-		if(!node || !node.children){ return null; }
-		node = node.children[i];
-	}
-	return node || null;
-}
-
-function mapAt(tree, path, fn){
-	if(!path.length){ return fn(tree); }
-	const [head, ...rest] = path;
-	return { ...tree, children: tree.children.map((c, i) => (i === head ? mapAt(c, rest, fn) : c)) };
-}
-
-function removeAt(tree, path){
-	if(!path.length){ return tree; }
-	const parent = path.slice(0, -1);
-	const idx = path[path.length - 1];
-	return mapAt(tree, parent, (g) => ({ ...g, children: g.children.filter((_, i) => i !== idx) }));
-}
 
 // 天星择日·征象搜索工作台:大固定窗(1180×~680,不可缩放),四区制——
 //   左上=征象构造(类型+参数+glyph 预览) | 左下=动作(添加/替换/子分组/清空/搜索)
@@ -110,7 +74,7 @@ function MiniChartPopup({ params, title, onClose, display }){
 				<span style={{ fontWeight: 600, fontSize: 13 }}>概览 · {title}</span>
 				<span style={{ flex: 1 }} />
 				<span onMouseDown={(e) => e.stopPropagation()} onClick={onClose}
-					style={{ cursor: 'pointer', fontSize: 16, lineHeight: 1, opacity: 0.65, padding: '0 4px' }}>×</span>
+					style={{ cursor: 'pointer', fontSize: 16, lineHeight: 1, color: 'var(--horosa-text-secondary)', padding: '0 4px' }}>×</span>
 			</div>
 			<div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
 				{chartObj ? (
@@ -123,7 +87,7 @@ function MiniChartPopup({ params, title, onClose, display }){
 							showAstroMeaning={(display || {}).showAstroMeaning} />
 					</div>
 				) : (
-					<div style={{ padding: 20, opacity: 0.6, fontSize: 12 }}>{err || '排盘中…'}</div>
+					<div style={{ padding: 20, color: 'var(--horosa-text-secondary)', fontSize: 12 }}>{err || '排盘中…'}</div>
 				)}
 			</div>
 			<div onMouseDown={(e) => dragFrom(e, 'resize')}
@@ -134,18 +98,10 @@ function MiniChartPopup({ params, title, onClose, display }){
 }
 
 // ── R4 详情展开:explain 树(编译形)递归渲染;设定文本=UI 树叶 DFS 序映射(compile 不增删叶,先序一致) ──
-function collectUiLeaves(node, out){
-	if(!node){ return out; }
-	if(node.kind === 'leaf'){ out.push(node); return out; }
-	(node.children || []).forEach((c) => collectUiLeaves(c, out));
-	return out;
-}
-
-const GATE_CN2 = { all: '且(全部满足)', any: '或(任一满足)', xor: '异或(奇数满足)', not: '非(取反)' };
 
 function renderExplainNode(node, uiLeaves, counter, depth){
 	const passTag = (ok) => (
-		<span style={{ fontWeight: 700, color: ok ? '#2f9e63' : '#e5484d' }}>{ok ? '✓' : '✗'}</span>
+		<span style={{ fontWeight: 700, color: ok ? 'var(--horosa-jx-ji)' : 'var(--horosa-danger)' }}>{ok ? '✓' : '✗'}</span>
 	);
 	if(node.kind === 'group'){
 		return (
@@ -161,14 +117,14 @@ function renderExplainNode(node, uiLeaves, counter, depth){
 	return (
 		<div key={`l${counter.i}`} style={{ padding: '5px 0 5px 0', marginLeft: depth ? 14 : 0, borderBottom: '1px dashed rgba(148,163,184,.16)' }}>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 12 }}>
-				<span style={{ opacity: 0.55 }}>设定</span>
+				<span style={{ color: 'var(--horosa-text-secondary)' }}>设定</span>
 				{segs ? segs.map((sg, i) => (
 					<span key={i} style={sg.glyph ? { fontFamily: AstroConst.AstroFont, fontSize: 16 } : {}}>{sg.text}</span>
 				)) : <span>{(CONDITION_TYPES[node.type] || {}).label || node.type}</span>}
-				{ui && ui.negate ? <span style={{ color: '#e5484d' }}>(取反)</span> : null}
+				{ui && ui.negate ? <span style={{ color: 'var(--horosa-danger)' }}>(取反)</span> : null}
 			</div>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, marginTop: 2 }}>
-				<span style={{ opacity: 0.55 }}>实际</span>
+				<span style={{ color: 'var(--horosa-text-secondary)' }}>实际</span>
 				<span style={{ opacity: 0.9 }}>{node.actual}</span>
 				{passTag(node.pass)}
 			</div>
@@ -199,7 +155,7 @@ export default function ConditionBuilderModal({
 		if(scanning){ setView('result'); }
 	}, [scanning]);
 
-	// [R4-B7/C16 靶②] 「从未打开过」粘性短路:弹窗关着时宿主每次 render(步进/改条件/扫描进度)
+	// 「从未打开过」粘性短路:弹窗关着时宿主每次 render(步进/改条件/扫描进度)
 	// 都要白跑本函数体的派生计算 + 白建 ~650 行元素树(antd Modal open=false 不挂 DOM 但构造照付)。
 	// 打开过一次后永远走完整树(内部 12+ useState 草稿/视图态与关闭动画全保留,零功能降级);
 	// 粘性标记在全部 hooks 之后短路,不违 hooks 规则。
@@ -224,7 +180,7 @@ export default function ConditionBuilderModal({
 	};
 
 	const draftLeaf = { kind: 'leaf', type: draftType, negate: draftNegate, params: draftParams };
-	// [Q-478/T-440] 空数字框先判(与表单红框同一判据),再走类型自校验。
+	// 空数字框先判(与表单红框同一判据),再走类型自校验。
 	const draftError = emptyNumberFieldError(CONDITION_TYPES[draftType], draftParams)
 		|| ((CONDITION_TYPES[draftType] && CONDITION_TYPES[draftType].validate)
 			? CONDITION_TYPES[draftType].validate(draftParams) : '');
@@ -247,7 +203,7 @@ export default function ConditionBuilderModal({
 	};
 
 	const applyScheme = (rec) => {
-	// [F7 根修] 载入前审计值域:方案里的条件类/选项值可能已随版本演进被删——
+	// 载入前审计值域:方案里的条件类/选项值可能已随版本演进被删——
 	// 那类行会静默恒不命中(needValues 只拦空、compile 不查值域、evaluate includes 恒 false)。
 	// 审计只提示不拦载入:用户看得见哪些行失效,自行改设;静默才是事故。
 	const __schemeIssues = (rec && rec.tree) ? auditTreeAgainstRegistry(rec.tree, CONDITION_TYPES) : [];
@@ -267,7 +223,7 @@ export default function ConditionBuilderModal({
 				<Menu.Item key={s.id}>
 					<span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
 						<a onClick={(e) => { e.preventDefault(); applyScheme(s); }}>{s.name}</a>
-						<a style={{ color: '#e5484d', fontSize: 11 }}
+						<a style={{ color: 'var(--horosa-danger)', fontSize: 11 }}
 							onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteScheme(s.id); setSchemeTick(schemeTick + 1); }}>删</a>
 					</span>
 				</Menu.Item>
@@ -294,7 +250,7 @@ export default function ConditionBuilderModal({
 	const selIndex = selectedPath && selectedPath.length ? selectedPath[selectedPath.length - 1] : -1;
 	const joinerToolbar = (
 		<div style={{ padding: '8px 10px', borderTop: '1px solid rgba(148,163,184,.2)' }}>
-			<div style={{ fontSize: 11, opacity: 0.65, marginBottom: 6 }}>
+			<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 6 }}>
 				连接门·取反{!selectedNode ? '(先点选右侧一行)' : (selIndex === 0 ? '(首行无连接门,可取反)' : '')}
 			</div>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -339,7 +295,7 @@ export default function ConditionBuilderModal({
 							flexShrink: 0,
 						}}>{JOINER_CN[node.joiner || 'all']}</span>
 					) : null}
-					{node.negate ? <span style={{ color: '#e5484d', fontWeight: 700, flexShrink: 0 }}>非</span> : null}
+					{node.negate ? <span style={{ color: 'var(--horosa-danger)', fontWeight: 700, flexShrink: 0 }}>非</span> : null}
 					{isGroup ? (
 						<span style={{ fontSize: 12, fontWeight: 600 }}>分组({(node.children || []).length} 条)</span>
 					) : (
@@ -357,7 +313,7 @@ export default function ConditionBuilderModal({
 					<div style={{ marginTop: 6, paddingLeft: 10, borderLeft: '2px solid rgba(212,175,55,.35)' }}>
 						{(node.children || []).map((c, i) => renderRow(c, [...path, i], i, depth + 1))}
 						{!(node.children || []).length ? (
-							<div style={{ padding: '6px 2px', fontSize: 12, opacity: 0.5 }}>空分组:选中本组后左侧「添加到列表」即入组,或删除本组。</div>
+							<div style={{ padding: '6px 2px', fontSize: 12, color: 'var(--horosa-text-secondary)' }}>空分组:选中本组后左侧「添加到列表」即入组,或删除本组。</div>
 						) : null}
 					</div>
 				) : null}
@@ -369,7 +325,7 @@ export default function ConditionBuilderModal({
 		<div>
 			{(rootNode.children || []).map((c, i) => renderRow(c, [i], i, 1))}
 			{!(rootNode.children || []).length ? (
-				<div style={{ padding: '10px 4px', fontSize: 12, opacity: 0.55 }}>尚无征象——左侧构造后点「添加到列表」。</div>
+				<div style={{ padding: '10px 4px', fontSize: 12, color: 'var(--horosa-text-secondary)' }}>尚无征象——左侧构造后点「添加到列表」。</div>
 			) : null}
 		</div>
 	);
@@ -387,7 +343,7 @@ export default function ConditionBuilderModal({
 							onChange={(e) => onCfgChange({ ...cfg, startDate: e.target.value })} />
 						<input type="time" className="horosa-native-date" value={cfg.startTime}
 							onChange={(e) => onCfgChange({ ...cfg, startTime: e.target.value })} />
-						<span style={{ opacity: 0.6 }}>→</span>
+						<span style={{ color: 'var(--horosa-text-secondary)' }}>→</span>
 						<input type="date" className="horosa-native-date" value={cfg.endDate}
 							onChange={(e) => onCfgChange({ ...cfg, endDate: e.target.value })} />
 						<input type="time" className="horosa-native-date" value={cfg.endTime}
@@ -405,7 +361,7 @@ export default function ConditionBuilderModal({
 								{cfg.pos ? `📍 ${cfg.pos}` : (cfg.gpsLat !== undefined ? `📍 ${formatGpsDms(cfg.gpsLon, cfg.gpsLat)}` : '选择地点…')}
 							</XQButton>
 						</GeoCoordModal>
-						<span style={{ fontSize: 11, opacity: 0.65 }}>黄道</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>黄道</span>
 						<XQSelect size="small" style={{ minWidth: 118 }} value={zodiacValue} dropdownMatchSelectWidth={false}
 							onChange={(v) => {
 								const p = AstroConst.parseZodiacSelectValue(v);
@@ -417,7 +373,7 @@ export default function ConditionBuilderModal({
 								</OptGroup>
 							))}
 						</XQSelect>
-						<span style={{ fontSize: 11, opacity: 0.65 }}>宫制</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>宫制</span>
 						<XQSelect size="small" style={{ minWidth: 108 }} value={Number(cfg.hsys || 0)} dropdownMatchSelectWidth={false}
 							onChange={(v) => onCfgChange({ ...cfg, hsys: Number(v) })}>
 							{getHousesOption(true)}
@@ -427,7 +383,7 @@ export default function ConditionBuilderModal({
 				<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)' }}>构造征象</div>
 				<div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
 					<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
-						<span style={{ fontSize: 11, opacity: 0.65 }}>征象类型</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>征象类型</span>
 						<XQSelect size="small" style={{ minWidth: 140 }} value={draftType}
 							onChange={(v) => resetDraft(v)} dropdownMatchSelectWidth={false}>
 							{Object.entries(CONDITION_TYPES).map(([key, spec]) => (
@@ -445,7 +401,7 @@ export default function ConditionBuilderModal({
 						border: '1px dashed rgba(212,175,55,.5)', background: 'rgba(212,175,55,.05)',
 						display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap',
 					}}>
-						{draftNegate ? <span style={{ color: '#e5484d', fontWeight: 700 }}>非</span> : null}
+						{draftNegate ? <span style={{ color: 'var(--horosa-danger)', fontWeight: 700 }}>非</span> : null}
 						{conditionSummary(draftLeaf).map((s, i) => (
 							<span key={i} title={s.title || undefined}
 								style={s.glyph ? { fontFamily: AstroConst.AstroFont, fontSize: 17 } : { fontSize: 12 }}>
@@ -453,7 +409,7 @@ export default function ConditionBuilderModal({
 							</span>
 						))}
 					</div>
-					{draftError ? <div style={{ color: '#e5484d', fontSize: 12, marginTop: 6 }}>{draftError}</div> : null}
+					{draftError ? <div style={{ color: 'var(--horosa-danger)', fontSize: 12, marginTop: 6 }}>{draftError}</div> : null}
 				</div>
 				{joinerToolbar}
 				<div style={{ padding: 10, borderTop: '1px solid rgba(148,163,184,.2)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -475,7 +431,7 @@ export default function ConditionBuilderModal({
 				<div style={{ flex: 1, minHeight: 0, border: '1px solid rgba(148,163,184,.25)', borderRadius: 8, display: 'flex', flexDirection: 'column' }}>
 					<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)', display: 'flex', alignItems: 'center', gap: 8 }}>
 						已选征象
-						<span style={{ fontSize: 11, opacity: 0.55, fontWeight: 400 }}>点击行选中→左下「连接门·取反」直接改;行首徽标=与上方结果的连接门</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>点击行选中→左下「连接门·取反」直接改;行首徽标=与上方结果的连接门</span>
 					</div>
 					<div style={{ flex: 1, overflowY: 'auto', padding: 10 }} onClick={() => setSelectedPath(null)}>
 						{renderNode(tree)}
@@ -491,7 +447,7 @@ export default function ConditionBuilderModal({
 							<XQButton size="small">载入方案▾</XQButton>
 						</Dropdown>
 						<XQButton size="small" onClick={() => setView('schemes')}>方案管理…</XQButton>
-						{scanErr ? <span style={{ color: '#e5484d', fontSize: 12, marginLeft: 8 }}>{scanErr}</span> : null}
+						{scanErr ? <span style={{ color: 'var(--horosa-danger)', fontSize: 12, marginLeft: 8 }}>{scanErr}</span> : null}
 					</div>
 				</div>
 			</div>
@@ -514,28 +470,28 @@ export default function ConditionBuilderModal({
 					</span>
 				) : null}
 			</div>
-			{!scanning && scanErr ? <div style={{ color: '#e5484d', fontSize: 12, marginBottom: 8 }}>{scanErr}</div> : null}
+			{!scanning && scanErr ? <div style={{ color: 'var(--horosa-danger)', fontSize: 12, marginBottom: 8 }}>{scanErr}</div> : null}
 			{resultsStale ? (
-				<div style={{ color: '#8a6d1a', background: 'rgba(212,175,55,.12)', border: '1px solid rgba(212,175,55,.4)', borderRadius: 6, fontSize: 12, padding: '5px 10px', marginBottom: 8 }}>
+				<div style={{ color: 'var(--horosa-sev-medium)', background: 'rgba(212,175,55,.12)', border: '1px solid rgba(212,175,55,.4)', borderRadius: 6, fontSize: 12, padding: '5px 10px', marginBottom: 8 }}>
 					⚠ 征象条件已被修改:下方结果与详情对应「上一次搜索」的条件——请重新点「开始搜索」。
 				</div>
 			) : null}
 			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, opacity: 0.6, padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
 					<span style={{ width: 36 }}>#</span>
 					<span style={{ flex: 1 }}>开始(点击=起始时刻起盘)</span>
 					<span style={{ flex: 1 }}>结束(点击=结束时刻起盘)</span>
 					<span style={{ width: 76, textAlign: 'right' }}>时长</span>
 					<span style={{ width: 64, textAlign: 'center' }}>详情</span>
-					<span style={{ width: 52 }}>盘</span>{/* 行内只有「盘」一列,表头等宽占位;[Q-271/ZC-24] 曾多一列「概览」空占位把两 flex 列压窄、表头与行错位 */}
+					<span style={{ width: 52 }}>盘</span>{/* 行内只有「盘」一列,表头等宽占位;曾多一列「概览」空占位把两 flex 列压窄、表头与行错位 */}
 				</div>
 				{(!results || !results.length) && !scanning ? (
-					<div style={{ padding: 24, opacity: 0.6 }}>{results ? '时间段内无满足全部条件的时刻。' : '尚未搜索。'}</div>
+					<div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>{results ? '时间段内无满足全部条件的时刻。' : '尚未搜索。'}</div>
 				) : null}
 				{(results || []).map((row, i) => (
 					<div key={i} style={{ borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
 						<div style={{ display: 'flex', gap: 10, padding: '9px 12px', alignItems: 'center' }}>
-							<span style={{ width: 36, textAlign: 'right', opacity: 0.5, fontSize: 12 }}>{i + 1}</span>
+							<span style={{ width: 36, textAlign: 'right', color: 'var(--horosa-text-secondary)', fontSize: 12 }}>{i + 1}</span>
 							<span style={{ flex: 1, fontSize: 13, cursor: 'pointer' }} title="以区间起始时刻起盘"
 								onClick={() => onPickInterval(row, 'start')}>{row.start}</span>
 							<span style={{ flex: 1, fontSize: 13, cursor: 'pointer' }} title="以区间结束时刻起盘"
@@ -565,13 +521,13 @@ export default function ConditionBuilderModal({
 						</div>
 						{expandKey === `${scanEpoch || 0}:${i}` ? (
 							<div style={{ padding: '4px 12px 10px 58px', background: 'rgba(212,175,55,.04)' }}>
-								<div style={{ fontSize: 11, opacity: 0.55, marginBottom: 4 }}>
+								<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 4 }}>
 									以区间起始时刻逐条判读(设定 vs 实际;判定与扫描引擎同源)
 								</div>
-								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).loading ? <div style={{ fontSize: 12, opacity: 0.6 }}>判读中…</div> : null}
-								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).err ? <div style={{ fontSize: 12, color: '#e5484d' }}>{explainMap[`${scanEpoch || 0}:${i}`].err}</div> : null}
+								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).loading ? <div style={{ fontSize: 12, color: 'var(--horosa-text-secondary)' }}>判读中…</div> : null}
+								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).err ? <div style={{ fontSize: 12, color: 'var(--horosa-danger)' }}>{explainMap[`${scanEpoch || 0}:${i}`].err}</div> : null}
 								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).tree
-									? renderExplainNode(explainMap[`${scanEpoch || 0}:${i}`].tree, collectUiLeaves(frozenTree || tree, []), { i: 0 }, 0)   /* [Q-271/ZC-24] 冻结树配冻结判读(九家同律;活树增删后按序配对会错位) */
+									? renderExplainNode(explainMap[`${scanEpoch || 0}:${i}`].tree, collectUiLeaves(frozenTree || tree, []), { i: 0 }, 0)   /* 冻结树配冻结判读(九家同律;活树增删后按序配对会错位) */
 									: null}
 							</div>
 						) : null}
@@ -611,13 +567,13 @@ export default function ConditionBuilderModal({
 			</div>
 			{schemeMsg ? <div style={{ fontSize: 12, marginBottom: 8, opacity: 0.8 }}>{schemeMsg}</div> : null}
 			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, opacity: 0.6, padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
 					<span style={{ flex: 1 }}>方案名</span>
 					<span style={{ width: 150 }}>保存时间</span>
 					<span style={{ width: 70, textAlign: 'right' }}>条件数</span>
 					<span style={{ width: 250, textAlign: 'right' }}>操作</span>
 				</div>
-				{!schemes.length ? <div style={{ padding: 24, opacity: 0.6 }}>暂无已存方案——条件页底部「保存方案」。</div> : null}
+				{!schemes.length ? <div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>暂无已存方案——条件页底部「保存方案」。</div> : null}
 				{schemes.map((s) => (
 					<div key={s.id} style={{ display: 'flex', gap: 10, padding: '8px 12px', alignItems: 'center', borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
 						{renameId === s.id ? (
@@ -645,7 +601,7 @@ export default function ConditionBuilderModal({
 					</div>
 				))}
 			</div>
-			<div style={{ fontSize: 11, opacity: 0.5, marginTop: 8 }}>
+			<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 8 }}>
 				导出为 JSON 可跨设备/跨用户分享;导入同名方案以文件内容覆盖本地。
 			</div>
 		</div>

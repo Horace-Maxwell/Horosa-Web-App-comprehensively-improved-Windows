@@ -246,7 +246,7 @@ export function buildPredictiveSnapshotText(natalChartObj, params, result, metho
 		lines.push('无');
 	}
 
-	// [Q-105 裁决 2026-09-18]「按能算即能挂」:小限页 G9 年/月/日小限摘要(粒度 params.profGrain、起点 params.profStart,
+	// 「按能算即能挂」:小限页 G9 年/月/日小限摘要(粒度 params.profGrain、起点 params.profStart,
 	// 页面态由 snapshotParams 带入、无头态由齿轮带入;缺省 年/上升 = 页面控件缺省)进快照独立段,导出段目录同步登记。
 	if(methodKey === 'profection'){
 		lines.push('');

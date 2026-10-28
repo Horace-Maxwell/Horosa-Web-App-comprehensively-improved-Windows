@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { claimTrigger, settleTrigger, identityOf, SINGLE_TRIGGER_WINDOW_MS, __resetSingleTrigger } from '../singleTrigger';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 describe('singleTrigger', ()=>{
 	const owner = {};
@@ -72,7 +73,7 @@ const WIRED = [
 ];
 test('13 处双触发重算都经 claimTrigger 认领', ()=>{
 	const root = path.join(__dirname, '..', '..', 'components');
-	const missing = WIRED.filter((f)=>!/claimTrigger\(this, '/.test(fs.readFileSync(path.join(root, `${f}.js`), 'utf8')));
+	const missing = WIRED.filter((f)=>!/claimTrigger\(this, '/.test(readSource(path.join(root, `${f}.js`))));
 	expect(missing).toEqual([]);
 });
 // 失败回报棘轮:request() 吞错 resolve 空、阶段性回落(旧盘 / 本地规则)都不抛。收敛前第二路会顺带重试,
@@ -96,7 +97,7 @@ test('未抛出的失败也回报失败(同参可重试)', ()=>{
 	const short = [];
 	Object.keys(SETTLE_MIN).forEach((f)=>{
 		const [slot, min] = SETTLE_MIN[f];
-		const src = fs.readFileSync(path.join(root, `${f}.js`), 'utf8');
+		const src = readSource(path.join(root, `${f}.js`));
 		const n = src.split(`settleTrigger(this, '${slot}'`).length - 1;
 		if(n < min){ short.push(`${f}:${slot} ${n}<${min}`); }
 	});

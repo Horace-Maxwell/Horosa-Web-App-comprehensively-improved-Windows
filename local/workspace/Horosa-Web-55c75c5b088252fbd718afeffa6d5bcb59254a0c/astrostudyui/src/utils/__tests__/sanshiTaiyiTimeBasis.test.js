@@ -1,8 +1,9 @@
-// [Q-107 A 裁决 2026-09-18] 三式合一·太乙区补「时间基准」(与独立太乙页同源;缺省 direct=此前钉死值)。
+// 三式合一·太乙区补「时间基准」(与独立太乙页同源;缺省 direct=此前钉死值)。
 import fs from 'fs';
 import path from 'path';
 import { getTechniqueSettingsSchema } from '../techniqueMountSettings';
 import { TIME_BASIS_OPTIONS } from '../../components/taiyi/TaiYiCalc';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 describe('Q-107 A 三式太乙时间基准', ()=>{
 	it('齿轮:sanshiunited 含 taiyiTimeBasis(select,缺省 direct,选项=太乙页同源 direct/trueSolar)', ()=>{
@@ -20,7 +21,7 @@ describe('Q-107 A 三式太乙时间基准', ()=>{
 		expect(main).toMatch(/timeBasis: options && options\.taiyiTimeBasis === 'trueSolar' \? 'trueSolar' : 'direct'/);
 		expect(main).toMatch(/options\.taiyiTimeBasis = payload\.options\.taiyiTimeBasis/);
 		expect(main).toMatch(/'gameTheory', 'taiyiTimeBasis'/);
-		const ctx = fs.readFileSync(path.join(__dirname, '../aiAnalysisContext.js'), 'utf8');
+		const ctx = readSource(path.join(__dirname, '../aiAnalysisContext.js'));
 		expect(ctx).toMatch(/po\.taiyiTimeBasis !== undefined\)\{ options\.timeBasis = po\.taiyiTimeBasis; \}/);
 	});
 });

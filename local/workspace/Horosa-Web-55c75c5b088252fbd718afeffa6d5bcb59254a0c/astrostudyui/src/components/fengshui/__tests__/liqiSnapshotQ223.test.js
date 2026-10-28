@@ -1,4 +1,4 @@
-// [Q-223/T-186·T-187] 风水快照缺行族(FT-24)+ 金锁形态过滤(FT-25)+ 角度归一(FT-29)+ 分至跨 0 年(FT-22)。
+// 风水快照缺行族(FT-24)+ 金锁形态过滤(FT-25)+ 角度归一(FT-29)+ 分至跨 0 年(FT-22)。
 import { buildSnapshot, zuoShanYearCheck } from '../LiqiWorkspace';
 import { xuankong } from '../xuankong';
 import { bazhai } from '../bazhai';
@@ -6,7 +6,7 @@ import { yearGods } from '../zeri';
 import { jinsuoXingOptionsFor } from '../jinsuo';
 import { JINSUO_SHAN_DUAN } from '../fengshuiJinsuoDuanjue';
 
-describe('[Q-223/FT-24] 风水快照补行', () => {
+describe('风水快照补行', () => {
 	test('① 玄空:给了 year+month → 快照含「流月飞星」行(月入中/向首流月星),有流月会断则含之', () => {
 		const r = xuankong(8, '午', { year: 2026, month: 5 });
 		const t = buildSnapshot('xuankong', r);
@@ -35,7 +35,7 @@ describe('[Q-223/FT-24] 风水快照补行', () => {
 	});
 });
 
-describe('[Q-223/FT-25] 金锁 24 山形态只列该山该侧断诀会命中的形', () => {
+describe('金锁 24 山形态只列该山该侧断诀会命中的形', () => {
 	test('壬水只有 直去/葫芦;壬砂无形态项;平(flat)无', () => {
 		const shui = jinsuoXingOptionsFor('壬', 'water').map((x)=>x.label);
 		expect(shui).toEqual(expect.arrayContaining(['直去（不回头）', '形如葫芦']));

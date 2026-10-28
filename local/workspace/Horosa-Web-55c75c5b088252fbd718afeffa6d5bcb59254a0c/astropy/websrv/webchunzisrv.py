@@ -8,6 +8,8 @@ import jsonpickle
 
 from websrv.helper import enable_crossdomain
 from websrv.kentang.kinastro_common import (
+    annotate_day_boundary,
+    day_boundary_of,
     authoritative_pillars,
     build_snapshot,
     clean_text,
@@ -54,7 +56,7 @@ def _chunzi_db():
 
 KE_OPTIONS = [{"value": str(item), "label": f"{item}刻"} for item in range(1, 11)]
 MANSION_OPTIONS = [{"value": item, "label": item} for item in MANSIONS_28]
-# [Q-265/SO-21②] 二十八宿简体 → 库内繁体(与南极 XIU_ALIASES 同表)
+# 二十八宿简体 → 库内繁体(与南极 XIU_ALIASES 同表)
 MANSION_ALIASES = {"氏": "氐", "虚": "虛", "娄": "婁", "毕": "畢", "参": "參", "张": "張", "翌": "翼", "轸": "軫", "嘴": "觜"}
 RESULT_LIMIT_OPTIONS = [{"value": item, "label": f"{item}条"} for item in (10, 20, 30, 50)]
 
@@ -69,7 +71,13 @@ def _gender_for_chunzi(value):
 
 
 def _auto_ke(dt):
-    return max(1, min(10, (dt.minute // 12) + 1))
+    """按时辰内位置推刻:十刻、每刻 12 分(10 × 12 = 120 分 = 一个时辰)。
+    时辰从奇数点起(子时 23 点):奇数点 / 23 点是时辰第一个小时,已过 = 分钟;偶数点是第二个小时,已过 = 60 + 分钟。
+    dt 与时柱同一时刻基准(同一个 dt 进 calculate_ganzhi_from_datetime)。
+    只看分钟会让 6–10 刻永远到不了(偶数点出生者恒落 1–5 刻)。"""
+    hour, minute = int(dt.hour), int(dt.minute)
+    offset = minute if (hour == 23 or hour % 2 == 1) else 60 + minute
+    return max(1, min(10, offset // 12 + 1))
 
 
 def _verse_to_dict(czs, item):
@@ -249,8 +257,8 @@ def _build_sections(pan):
 def _solar_to_lunar_md(dt):
     """公历日 → (农历月序 1..12, 农历日 1..30);闰月按其本月序。sxtwl 缺席或域外时返 None(调用方退公历并自陈)。"""
     try:
-        import sxtwl  # noqa: PLC0415
-        day = sxtwl.fromSolar(int(dt.year), int(dt.month), int(dt.day))
+        from astrostudy.civil_calendar import sxtwl_from_civil  # noqa: PLC0415
+        day = sxtwl_from_civil(int(dt.year), int(dt.month), int(dt.day))
         lm = int(day.getLunarMonth())
         ld = int(day.getLunarDay())
         if 1 <= lm <= 12 and 1 <= ld <= 30:
@@ -278,11 +286,13 @@ class ChunZiSrv:
             dt = parse_datetime(data)
             timezone_value = timezone_to_float(data.get("zone") or data.get("timezone"), 8.0)
             gender = _gender_for_chunzi(data.get("gender"))
-            gz = calculate_ganzhi_from_datetime(dt, data.get("after23NewDay", 1))
+            _db = day_boundary_of(data)
+            gz = calculate_ganzhi_from_datetime(dt, _db["after23NewDay"], _db["lateZiHourUseNextDay"])
             # 🔴 标准四柱换全局权威口径(立春界/定气月/儒略JDN,全域含 BC)。
             #    现代域两者一致=零回归;1/2 月未过立春与 BC 年才有差(那正是要修的)。
             #    取不到权威实现时保留旧值,故用 update 而非整体替换。
             _auth_gz = authoritative_pillars(dt, data)
+            _partial = [] if _auth_gz else ["authoritativePillars"]
             if _auth_gz:
                 gz = dict(gz)
                 gz.update(_auth_gz)
@@ -307,7 +317,7 @@ class ChunZiSrv:
             lunar_month = None
             lunar_day = None
             if lunar_mode != "none":
-                # [挂载自检 F-21] 引擎按「農曆月/日」匹配诗词:此前 auto 档回落 dt.month/dt.day 是**公历**数字
+                # 引擎按「農曆月/日」匹配诗词:此前 auto 档回落 dt.month/dt.day 是**公历**数字
                 # (页面 auto 也灌公历)→ 两侧都把公历当农历查表且 [起盘] 行标成农历。现 auto 档真换算(sxtwl,
                 # 闰月按本月序);manual 档才读用户给的月日;换算失败才退公历(并由 payload 自陈)。
                 auto_md = _solar_to_lunar_md(dt) if lunar_mode == "auto" else None
@@ -339,7 +349,7 @@ class ChunZiSrv:
             tag_text = clean_text(data.get("chunziTags") or data.get("tags"))
             tags = [item.strip() for item in tag_text.replace("，", ",").split(",") if item.strip()]
             source_tags = [source_text(item) for item in tags]
-            # [Q-265/T-250·SO-21②] 宿名简体归一(此前精确匹配繁体,填「虚/娄/毕/参/张/轸」静默回落「室」)
+            # 宿名简体归一(此前精确匹配繁体,填「虚/娄/毕/参/张/轸」静默回落「室」)
             mansion_name = _valid(MANSION_ALIASES.get(clean_text(data.get("chunziMansion") or data.get("mansion")), clean_text(data.get("chunziMansion") or data.get("mansion"))), MANSIONS_28, "室")
             hour_branch = _valid(data.get("chunziHourBranch") or data.get("hourBranch"), BRANCHES, gz["hour"][1])
 
@@ -419,6 +429,9 @@ class ChunZiSrv:
                 },
             }
             pan["sections"] = _build_sections(pan)
+            annotate_day_boundary(pan, _db)
+            if _partial:
+                pan["partialErrors"] = _partial
             pan["snapshot"] = build_snapshot(pan)
             return jsonpickle.encode({"ResultCode": 0, "Result": pan}, unpicklable=False)
         except Exception:

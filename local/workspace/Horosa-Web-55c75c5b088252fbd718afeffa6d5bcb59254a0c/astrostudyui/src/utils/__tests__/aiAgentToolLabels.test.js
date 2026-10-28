@@ -1,4 +1,4 @@
-// [批二①] 工具标签合同:每件注册进目录的内置工具都有中文标签(动作条不许出现裸英文名);外部工具即时拼「外部·」。
+// 工具标签合同:每件注册进目录的内置工具都有中文标签(动作条不许出现裸英文名);外部工具即时拼「外部·」。
 import { registerBuiltinTools, listTools } from '../aiTools';
 import { __resetToolsForTests } from '../aiTools/registry';
 import { AGENT_TOOL_LABELS, toolLabel } from '../aiTools/labels';

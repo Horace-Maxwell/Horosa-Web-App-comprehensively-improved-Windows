@@ -6,13 +6,13 @@ import { act } from 'react-dom/test-utils';
 import { useChatAssist } from '../../components/aianalysis/chat/useChatAssist';
 
 const streamCalls = [];
-// [压测二轮·D5·B1/B2] 部分/全部候选失败:用例可临时接管流的行为(缺省=原来的两路都成功)
+// 部分/全部候选失败:用例可临时接管流的行为(缺省=原来的两路都成功)
 var mockBestOfHook = { stream: null };
 jest.mock('../../services/aianalysis', ()=>({
 	requestAIAnalysisChatStream: jest.fn(async (values, handlers)=>{ streamCalls.push(values); if(mockBestOfHook && typeof mockBestOfHook.stream === 'function'){ return mockBestOfHook.stream(values, handlers); } const tag = values.messages[0].content.indexOf('经典派') >= 0 ? '经典' : '审慎'; handlers.onEvent({ type: 'delta', json: { delta: `${tag}回答` } }); handlers.onEvent({ type: 'usage', json: { input_tokens: 10, output_tokens: 5 } }); handlers.onEvent({ type: 'done', json: {} }); }),
 	requestAIAnalysisChat: jest.fn(async (values)=>{ const sys = values.messages[0].content; if(sys.indexOf('【多模型判官】') === 0){ return { Result: { content: JSON.stringify({ best: 'c2', ranking: ['c2', 'c1'], reasons: [{ id: 'c2', score: 9, reason: '稳' }] }) } }; } return { Result: { content: '合并稿' } }; }),
 }));
-// [P3·2026-09-08] 无计价表也弹费用确认(文案「费用未知」):jsdom 里自动按「发送」,并记下文案供断言
+// 无计价表也弹费用确认(文案「费用未知」):jsdom 里自动按「发送」,并记下文案供断言
 var mockConfirmCalls = [];
 jest.mock('antd', ()=>{ const antd = jest.requireActual('antd'); return { ...antd, Modal: { ...antd.Modal, confirm: (o)=>{ mockConfirmCalls.push(o); if(o && typeof o.onOk === 'function'){ o.onOk(); } return { destroy(){} }; } } }; });
 jest.mock('../aiAnalysisStore', ()=>({ ...jest.requireActual('../aiAnalysisStore'), saveConversationMessage: jest.fn(async (m)=>({ id: m.id || `msg-${Math.random().toString(36).slice(2, 8)}`, ...m })) }));
@@ -35,7 +35,7 @@ it('🔴 /多模型:未设置 → 当前模型 × 经典/审慎两路;请求无 
 	await flush(); await flush(); await flush();
 	expect(deps.ensureConversationRecord).toHaveBeenCalledWith('今年事业如何', profile, 'mock-model');
 	expect(streamCalls.length).toBe(2);
-	// [P3] 无计价表:仍先弹确认,文案「费用未知」(此前无价档直接跑)
+	// 无计价表:仍先弹确认,文案「费用未知」(此前无价档直接跑)
 	expect(mockConfirmCalls.length).toBe(1);
 	expect(`${mockConfirmCalls[0].content}`).toContain('费用未知');
 	streamCalls.forEach((v)=>{ expect(v.tools).toBeUndefined(); expect(v.toolChoice).toBeUndefined(); expect(v.messages[0].content.indexOf('【系统】前缀')).toBe(0); expect(v.messages[v.messages.length - 1].content).toBe('今年事业如何'); });
@@ -57,7 +57,7 @@ it('🔴 /多模型:未设置 → 当前模型 × 经典/审慎两路;请求无 
 	expect(api.bestOfCards({ role: 'assistant', content: 'x' })).toBe(null);
 });
 
-// ---- [压测二轮·D5·B1/B2] 候选部分失败 / 全部失败 ----
+// ---- 候选部分失败 / 全部失败 ----
 function mkDeps(){
 	let messages = [];
 	const deps = { prompt: '', setPrompt: jest.fn(), sending: false, messages, setMessages: jest.fn((fn)=>{ messages = typeof fn === 'function' ? fn(messages) : fn; deps.messages = messages; }), bundles: [], sources: [], activeSource: null, providerProfiles: [profile], modelSelection: 'p1::mock-model', activeProviderProfile: profile, thinkingLevel: 'off',
@@ -107,8 +107,8 @@ it('B2 两路全失败:content 空、streamStatus=error、errorInfo 说明,且�
 	expect(requestAIAnalysisChat).not.toHaveBeenCalled();
 });
 
-// ---- [进阶审计 D1] 判官槽参数:此前判官请求硬编码 applyThinkingLevel(...,'off'),表格里判官行的温度/上限写了键从不生效 ----
-it('🔴 [D1] 判官槽 temperature 0.3 / maxTokens 555 进判官请求;槽空孪生两键皆无(缺省字节锁)', async ()=>{
+// ---- 判官槽参数:此前判官请求硬编码 applyThinkingLevel(...,'off'),表格里判官行的温度/上限写了键从不生效 ----
+it('🔴 判官槽 temperature 0.3 / maxTokens 555 进判官请求;槽空孪生两键皆无(缺省字节锁)', async ()=>{
 	const { writeRouteOptions } = require('../aiModelRouting');
 	writeRouteOptions({ judge: { temperature: 0.3, maxTokens: 555 } });
 	let deps = mkDeps();

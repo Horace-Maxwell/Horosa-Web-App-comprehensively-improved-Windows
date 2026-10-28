@@ -17,7 +17,7 @@ class AstroEminence extends Component{
 		this.state = { open: false };
 	}
 	componentDidMount(){
-		// [SURF-3] never 键(busyPlaces/dynamicalDivisions/domicileMasterMethod/rayWeighting)
+		// never 键(busyPlaces/dynamicalDivisions/domicileMasterMethod/rayWeighting)
 		// 改档即时重渲——此前只刷设置抽屉自己,本卡展开态也恒旧值。
 		this._onClassicalGlobals = () => this.forceUpdate();
 		if(typeof window !== 'undefined'){ window.addEventListener(CLASSICAL_GLOBALS_EVENT, this._onClassicalGlobals); }
@@ -29,10 +29,10 @@ class AstroEminence extends Component{
 		const { open } = this.state;
 		const chartObj = this.props.value;
 		const data = computeEminence(chartObj);
-		// [F12] 主宰光体/七射线/祝融星:此前仅 AI 快照可见(半死开关)——补 UI 消费面。
+		// 主宰光体/七射线/祝融星:此前仅 AI 快照可见(半死开关)——补 UI 消费面。
 		// 全默认态:pred 恒有结论(Valens 三判据),射线/祝融星只在开启档才出行(零回归=不开不显)。
 		let pred = null;
-		if(open){   // [R4-P3] 收起态短路:pred/rays 只在展开时算(标题行只消费 computeEminence 总分)
+		if(open){   // 收起态短路:pred/rays 只在展开时算(标题行只消费 computeEminence 总分)
 		try{
 			pred = computePredominator(chartObj, {
 				busyPlaces: `${classicalGlobalValue('busyPlaces') || '1,4,5,7,10,11'}`.split(',').map((x) => parseInt(x, 10)).filter((n) => Number.isFinite(n)),
@@ -40,15 +40,15 @@ class AstroEminence extends Component{
 				domicileMasterMethod: classicalGlobalValue('domicileMasterMethod'),
 				termsVariant: chartObj && chartObj.params ? chartObj.params.termsVariant : 0,
 				geminiBoundEmended: chartObj && chartObj.params ? chartObj.params.geminiBoundEmended : 0,
-				// [N3] 自定义界表体(回显/随盘)——缺则 termRulerAt('custom') 回落本机仓,换机显示≠计算
+				// 自定义界表体(回显/随盘)——缺则 termRulerAt('custom') 回落本机仓,换机显示≠计算
 				customTermsDay: chartObj && chartObj.params ? chartObj.params.customTermsDay : undefined,
 				customTermsNight: chartObj && chartObj.params ? chartObj.params.customTermsNight : undefined,
 			});
 		}catch(e){ pred = null; }
 		}
-		const rayMode = open ? classicalGlobalValue('rayWeighting') : 'off';   // [R4-P3] 收起态短路
+		const rayMode = open ? classicalGlobalValue('rayWeighting') : 'off';   // 收起态短路
 		let rays = null;
-		// [R2-1] computeSevenRays 返回 { totals, max, weighting } 无 ok 字段——门卫按 totals 数组判,勿写 rays.ok(恒假=死门)。
+		// computeSevenRays 返回 { totals, max, weighting } 无 ok 字段——门卫按 totals 数组判,勿写 rays.ok(恒假=死门)。
 		try{ rays = (rayMode === 'equal' || rayMode === 'weighted') ? computeSevenRays(chartObj, rayMode) : null; }catch(e){ rays = null; }
 		const raysOn = !!(rays && Array.isArray(rays.totals));
 		const vulcan = chartObj && chartObj.vulcan ? chartObj.vulcan : null;
@@ -60,7 +60,7 @@ class AstroEminence extends Component{
 						<span className="horosa-classical-zh">显赫程度</span>
 						<span className="horosa-classical-en">Eminence</span>
 					</span>
-					<span style={{ color: MUTED, fontSize: 12, flex: '0 0 auto' }}>
+					<span style={{ color: MUTED, fontSize: 12, flex: '0 0 auto', whiteSpace: 'nowrap' }}>
 						{data.ok ? <span style={{ color: data.levelColor, fontWeight: 600, marginRight: 8 }}>{data.level}　{data.total}/10</span> : null}
 						{open ? '收起 ▲' : '展开 ▼'}
 					</span>
@@ -100,7 +100,7 @@ class AstroEminence extends Component{
 									<div>
 										<span style={{ color: MUTED }}>主宰光体　</span>
 										{astroSymbol(pred.winner)}（日 {pred.sunScore} 分 / 月 {pred.moonScore} 分）
-										<span style={{ color: MUTED, marginLeft: 8 }}>主宰主星</span>　{pred.master ? astroSymbol(`${pred.master}`.charAt(0).toUpperCase() + `${pred.master}`.slice(1)) : '—'}{/* [R2-2] domicile/termRulerAt 产小写星名,AstroMsg 键空间首字母大写 */}
+										<span style={{ color: MUTED, marginLeft: 8 }}>主宰主星</span>　{pred.master ? astroSymbol(`${pred.master}`.charAt(0).toUpperCase() + `${pred.master}`.slice(1)) : '—'}{/* domicile/termRulerAt 产小写星名,AstroMsg 键空间首字母大写 */}
 										<span style={{ color: MUTED, marginLeft: 4 }}>（{pred.method === 'bound' ? '界主派' : '庙主派'}）</span>
 									</div>
 								</div>

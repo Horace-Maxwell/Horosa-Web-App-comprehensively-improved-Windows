@@ -82,3 +82,49 @@ describe('域外农历拼装(deriveNongliRemote 纯函数层)', () => {
 		expect(out.bazi.day.ganzi).toBe(getDayGanZhi(-12025, 7, 20)); // 日柱=庚辰(与八字盘一致)
 	});
 });
+
+describe('域外农历:时间算法与晚子时(与本地引擎同口径)', () => {
+	const { shiftClockForTimeAlg, dateOfJdn } = require('../divinationTimeDraft');
+	const { getOnlyDateNum } = require('../localNongliAdapter');
+	test('儒略 / 格里日序互逆(含公元前与 1582 切换两侧)', () => {
+		[[-7040, 7, 19], [-4, 2, 29], [-50000, 1, 1], [1582, 10, 4], [1582, 10, 15], [2026, 2, 28], [12000, 12, 31]].forEach(([y, m, d]) => {
+			expect(dateOfJdn(getOnlyDateNum(y, m, d))).toEqual({ year: y, month: m, day: d });
+		});
+		expect(getOnlyDateNum(1582, 10, 15) - getOnlyDateNum(1582, 10, 4)).toBe(1);
+	});
+	test('🔴 直接时间 / 没给不换;平太阳时只换经度时差;真太阳时再加均时差;跨日进位', () => {
+		const t = { ay: 12000, month: 6, day: 15, hour: 23, minute: 50, second: 0 };
+		expect(shiftClockForTimeAlg(t, { timeAlg: 1, lon: '121e28', zone: '+08:00' })).toEqual(t);
+		expect(shiftClockForTimeAlg(t, { lon: '121e28', zone: '+08:00' })).toEqual(t);
+		// 121°28′ 东经,东八区:经度时差 = (121.4667-120)×4 分 ≈ +5 分 52 秒 → 23:55:52
+		const mean = shiftClockForTimeAlg(t, { timeAlg: 3, lon: '121e28', zone: '+08:00' });
+		expect(mean).toEqual({ ay: 12000, month: 6, day: 15, hour: 23, minute: 55, second: 52 });
+		// 真太阳时 = 平太阳时再加均时差(与本地引擎同一公式;11 月初均时差约 +16 分)
+		const { equationOfTimeAtJd } = require('../baziLunarLocal');
+		const nov = { ay: 2026, month: 11, day: 3, hour: 10, minute: 0, second: 0 };
+		const s3 = shiftClockForTimeAlg(nov, { timeAlg: 3, lon: '121e28', zone: '+08:00' });
+		const s0 = shiftClockForTimeAlg(nov, { timeAlg: 0, lon: '121e28', zone: '+08:00' });
+		const secs = (x) => x.hour * 3600 + x.minute * 60 + x.second;
+		const jd = getOnlyDateNum(2026, 11, 3) - 0.5 + (10 - 8) / 24;
+		expect(Math.abs(secs(s0) - secs(s3) - equationOfTimeAtJd(jd) * 60)).toBeLessThanOrEqual(1);
+		expect(secs(s0) - secs(s3)).toBeGreaterThan(15 * 60);
+		// 乌鲁木齐 87°36′ 东经,东八区,凌晨 00:30:平太阳时 ≈ 前一日 22:20(换日)
+		const back = shiftClockForTimeAlg({ ay: -2000, month: 3, day: 1, hour: 0, minute: 30, second: 0 }, { timeAlg: 3, lon: '87e36', zone: '+08:00' });
+		expect([back.month, back.day, back.hour]).toEqual([2, 29, 22]);   // 天文年 -2000 能被 4 整除 = 儒略闰年,前一日是 2 月 29 日
+	});
+	test('晚子时:默认日柱不进位、时干用次日日干;23 点算第二天 → 日柱进位;晚子时用今日干 → 时干用今日', () => {
+		const months = [{ date: '12000-06-10', name: '五月', year: '庚申', leap: 0, ad: 1 }, { date: '12000-07-09', name: '六月', year: '庚申', leap: 0, ad: 1 }];
+		const jieqi = [{ jieqi: '立春', jie: true, jdn: 5000000 }, { jieqi: '芒种', jie: true, jdn: 6104117.99 }];
+		const base = { ay: 12000, month: 6, day: 15, hour: 23 };
+		const today = getDayGanZhi(12000, 6, 15);
+		const next = getDayGanZhi(12000, 6, 16);
+		const hourFrom = (gan) => { const G = '甲乙丙丁戊己庚辛壬癸'; return `${G[((G.indexOf(gan) % 5) * 2) % 10]}子`; };
+		const d0 = assembleNongliFromTables(base, months, jieqi, 6104135);
+		expect(d0.bazi.day.ganzi).toBe(today);
+		expect(d0.bazi.time.ganzi).toBe(hourFrom(next.charAt(0)));
+		const d1 = assembleNongliFromTables({ ...base, after23NewDay: 1 }, months, jieqi, 6104135);
+		expect(d1.bazi.day.ganzi).toBe(next);
+		const d2 = assembleNongliFromTables({ ...base, lateZiHourUseNextDay: 0 }, months, jieqi, 6104135);
+		expect(d2.bazi.time.ganzi).toBe(hourFrom(today.charAt(0)));
+	});
+});

@@ -68,7 +68,7 @@ class BabylonMicrozodiac extends Component{
 						<span style={{ fontSize: 12.5 }}>
 							当前位置:<b>{selSign ? selSign.cn : sign} {sexFormat(deg, { frac: 1 })}°</b>(L={L.toFixed(2)}°)
 						</span>
-						<span style={{ fontSize: 11, opacity: 0.65 }}>点网格单元可任选微段中点</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>点网格单元可任选微段中点</span>
 					</div>
 					<div className="horosa-babylon-grid144">
 						<div className="cell head">宫\段</div>

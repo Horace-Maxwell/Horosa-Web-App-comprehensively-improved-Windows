@@ -2,13 +2,10 @@
 // 语义色：旺相 good / 孤虚 muted / 空亡（龟甲戊己·甲己龙）bad。干支标注为通行三合盘口径，须按门派校。
 // 亮/暗双主题(--fs-* 令牌)。
 import React from 'react';
+import { polar, CHAR_PITCH, RadialText } from './chartGeom';
 import { CHUANSHAN_72, TOUDI_60, FENJIN_120 } from '../fengshuiData';
 
 const norm = (d)=>((Number(d) % 360) + 360) % 360;
-function polar(cx, cy, r, deg) {
-	const a = (deg - 90) * Math.PI / 180;
-	return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
-}
 function sectorPath(cx, cy, rIn, rOut, deg0, deg1) {
 	let sweep = norm(deg1 - deg0);
 	if (sweep === 0) { sweep = 360; }
@@ -24,22 +21,7 @@ const FILL = {
 	bad: 'var(--fs-bad-bg,rgba(192,57,43,.18))',
 	neutral: 'var(--fs-tile,rgba(127,140,170,.06))',
 };
-const CHAR_PITCH = 1.20;   // 同罗经：实测盒高/字号上界 1.183，取 1.20 留余量
 const TEXT = { good: 'var(--fs-good,#2e9c5a)', bad: 'var(--fs-bad,#c0392b)', neutral: 'var(--fs-muted,#9aa)' };
-
-function RadialText({ cx, cy, rIn, rOut, deg, text, fs, fill, weight }) {
-	const s = `${text || ''}`;
-	if (!s) { return null; }
-	const step = Math.min(fs * CHAR_PITCH, (rOut - rIn) / s.length);
-	const first = (rIn + rOut) / 2 - (s.length - 1) * step / 2;
-	return (
-		<g transform={`rotate(${deg} ${cx} ${cy})`}>
-			{s.split('').map((ch, i)=>(
-				<text key={i} x={cx} y={cy - (first + i * step)} fontSize={fs} textAnchor="middle" dominantBaseline="central" fill={fill} fontWeight={weight}>{ch}</text>
-			))}
-		</g>
-	);
-}
 
 const RINGS = [
 	{ key: 'chuanshan', label: '穿山七十二龙', cells: CHUANSHAN_72, r0: 0.52, r1: 0.68 },

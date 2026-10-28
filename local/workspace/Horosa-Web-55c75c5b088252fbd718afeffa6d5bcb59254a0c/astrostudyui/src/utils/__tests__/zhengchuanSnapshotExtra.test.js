@@ -1,4 +1,4 @@
-// [Q-439/T-402] 神数正传快照:铁板「流年总纲」(天四声序列/后天命数/覆盖)与大定「死月扫描」全表进快照,
+// 神数正传快照:铁板「流年总纲」(天四声序列/后天命数/覆盖)与大定「死月扫描」全表进快照,
 // 值与页面同一模型字段(r.liunian.seq/houTian、r.month.scan)逐项对应;段头已登记 preset。
 import { calcTieban } from '../zhengchuanTiebanLocal';
 import { dadingDeathYear, dadingDeathMonth } from '../zhengchuanDadingLocal';

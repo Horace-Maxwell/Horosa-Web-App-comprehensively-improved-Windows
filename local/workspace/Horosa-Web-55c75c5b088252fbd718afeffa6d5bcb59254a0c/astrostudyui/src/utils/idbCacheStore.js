@@ -14,7 +14,7 @@
 const DB_NAME = 'horosa-cache-v1';
 const DB_VERSION = 1;
 const STORE = 'kv';
-// [A1] 8→32MB:L3 网络结果缓存(net. 前缀)入驻共享店;IndexedDB 是磁盘量级配额,
+// 8→32MB:L3 网络结果缓存(net. 前缀)入驻共享店;IndexedDB 是磁盘量级配额,
 // 32MB 仍九牛一毛;LRU 逐出保护不变,既有住户(nongli/节气等)只多不少。
 const TOTAL_BUDGET_BYTES = 32 * 1024 * 1024;
 
@@ -61,7 +61,7 @@ function openDb(){
 			resolve(db);
 		};
 		req.onerror = ()=>{ idbBroken = true; resolve(null); };
-		req.onblocked = ()=>{ resolve(null); };
+		req.onblocked = ()=>{ dbPromise = null; resolve(null); };   // 被旧连接阻塞是暂时的:只让这一次落空,下次重开(不缓存空句柄)
 	});
 	return dbPromise;
 }
@@ -240,7 +240,7 @@ export function idbClearByPrefix(prefix){
 	}).catch(()=>false);
 }
 
-// 单键读(BookReader 等按需读场景)。miss/失败=null。
+// 单键读(按需读场景)。miss/失败=null。
 export function idbGet(key){
 	return openDb().then((db)=>{
 		if(!db){ return null; }
@@ -254,10 +254,4 @@ export function idbGet(key){
 			return rec && typeof rec.v === 'string' ? rec.v : null;
 		});
 	}).catch(()=>null);
-}
-
-// 测试钩子:等待所有挂起写入落盘(jest 用)。
-export function idbFlushForTest(){
-	flushPendingToIdb();
-	return openDb().then(()=>{});
 }

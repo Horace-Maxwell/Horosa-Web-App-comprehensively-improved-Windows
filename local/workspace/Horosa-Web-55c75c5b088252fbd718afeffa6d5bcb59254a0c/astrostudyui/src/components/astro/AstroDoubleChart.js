@@ -4,7 +4,7 @@ import { chartDrawGuardEnabled } from '../../utils/perfFlags';
 import { Component } from 'react';
 import {randomStr} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
-import * as Constants from '../../utils/constants';
+import { readGlobalSetupField } from '../../utils/globalSetupStore';
 import AstroChartCircle from './AstroChartCircle';
 
 class AstroDoubleChart extends Component{
@@ -67,12 +67,8 @@ class AstroDoubleChart extends Component{
 			return this.props.showAstroMeaning === 1 || this.props.showAstroMeaning === true;
 		}
 		try{
-			const json = localStorage.getItem(Constants.GlobalSetupKey);
-			if(!json){
-				return false;
-			}
-			const cfg = JSON.parse(json);
-			return cfg && (cfg.showAstroMeaning === 1 || cfg.showAstroMeaning === true);
+			const v = readGlobalSetupField('showAstroMeaning');   // 全局设置单源的内存镜像
+			return v === 1 || v === true;
 		}catch(e){
 			return false;
 		}

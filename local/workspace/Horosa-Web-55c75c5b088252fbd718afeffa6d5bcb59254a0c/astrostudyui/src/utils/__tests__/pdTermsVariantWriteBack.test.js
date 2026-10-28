@@ -1,4 +1,4 @@
-// [Q-169 裁决 2026-09-18] 界系是全局设定 → 主限法工具条「计算」所选界系覆写全局:
+// 界系是全局设定 → 主限法工具条「计算」所选界系覆写全局:
 // buildPrimaryDirectionFetchFields 回写 fields.termsVariant(排盘真值;归一化与 app 仓/请求体同律:1..4 有效,其余 0)。
 import { buildPrimaryDirectionFetchFields } from '../../components/direction/AstroDirectMain';
 

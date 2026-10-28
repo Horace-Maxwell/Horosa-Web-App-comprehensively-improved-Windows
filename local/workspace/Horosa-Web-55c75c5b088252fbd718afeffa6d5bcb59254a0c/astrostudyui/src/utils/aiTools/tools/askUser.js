@@ -33,7 +33,7 @@ export default {
 		const shown = inputType === 'confirm' ? ['是', '否'] : options;
 		let r = null;
 		try{
-			// [Q-294/M-109·AR-22] 透传调用中止信号:通道被中止(桥超时 / 用户停止)时反问待办立即落定,不再挂到自己的超时
+			// 透传调用中止信号:通道被中止(桥超时 / 用户停止)时反问待办立即落定,不再挂到自己的超时
 			r = await ctx.elicit({ question: args.question, inputType, options: shown, placeholder: args.placeholder || '', timeoutMs: (args.timeoutSec || 300) * 1000, ...(ctx.signal ? { signal: ctx.signal } : {}) });
 		}catch(e){
 			return { ok: false, code: 'E_ELICIT_UNAVAILABLE', message: e && e.message ? e.message : '提问通道异常' };

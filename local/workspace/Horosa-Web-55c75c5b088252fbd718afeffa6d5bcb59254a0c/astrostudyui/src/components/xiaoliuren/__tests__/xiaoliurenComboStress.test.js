@@ -1,4 +1,4 @@
-// [P3] 小六壬 · 组合压测:选项全组合 × 输入边界 —— 中间区(三传/判读)与快照层同验。
+// 小六壬 · 组合压测:选项全组合 × 输入边界 —— 中间区(三传/判读)与快照层同验。
 // 选项面(与左栏一一对应):school{main,dao} × 取数{按占时=合法三数, 手动} × 三数边界。
 import { sanChuan, teLi, analyze, qiKe } from '../core/xiaoliurenKe';
 import { MAIN_RING, DAO_RING } from '../core/xiaoliurenConst';
@@ -6,7 +6,7 @@ import { buildXiaoLiuRenSnapshotText } from '../XiaoLiuRenMain';
 
 const SCHOOLS = ['main', 'dao'];
 
-describe('[P3] 小六壬组合压测 · 起课核(school × 三数全域)', ()=>{
+describe('小六壬组合压测 · 起课核(school × 三数全域)', ()=>{
 	test('两流派 × m,d,h ∈ 1..13 全组合(2×13³=4394):不抛,三传恒属对应环', ()=>{
 		SCHOOLS.forEach((school)=>{
 			const ring = school === 'dao' ? DAO_RING : MAIN_RING;
@@ -81,7 +81,7 @@ describe('[P3] 小六壬组合压测 · 起课核(school × 三数全域)', ()=>
 	});
 });
 
-describe('[P3] 小六壬组合压测 · 快照层(AI 导出/挂载共用文本)', ()=>{
+describe('小六壬组合压测 · 快照层(AI 导出/挂载共用文本)', ()=>{
 	test('两流派 × 有/无问事 × 有/无特例:快照非空且含流派与三传', ()=>{
 		SCHOOLS.forEach((school)=>{
 			[['留连', 6], ['大安', 1]].forEach(([, seed])=>{

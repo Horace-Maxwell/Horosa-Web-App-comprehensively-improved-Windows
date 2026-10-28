@@ -27,7 +27,7 @@ export default function BestOfCards({ item, onAdopt, onJudge, onMerge, onStop, b
 		<div data-bestof="cards" data-bestof-count={cands.length} style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '4px 0', '--horosa-scroll-safe-bottom': '4px' }}>{/* 候选卡正文是气泡内的小滚动框,不吃页级底栏滚动安全区(82px 底衬) */}
 			<div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(cands.length, 2)}, minmax(0, 1fr))`, gap: 8 }}>
 				{cands.map((c)=>(
-					<div key={c.id} data-bestof-card={c.id} data-bestof-status={c.status || ''} style={{ border: `1px solid ${bo.adoptedId === c.id ? 'var(--horosa-primary, #1677ff)' : 'var(--horosa-border, #e5e7eb)'}`, borderRadius: 8, padding: 8, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+					<div key={c.id} data-bestof-card={c.id} data-bestof-status={c.status || ''} style={{ border: `1px solid ${bo.adoptedId === c.id ? 'var(--horosa-link, #1677ff)' : 'var(--horosa-border, #e5e7eb)'}`, borderRadius: 8, padding: 8, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
 						<div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12 }}>
 							<Tag style={{ margin: 0 }}>{c.id}</Tag>
 							<span style={{ flex: '1 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.label}>{c.label}</span>

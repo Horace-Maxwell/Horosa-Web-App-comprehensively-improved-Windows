@@ -186,7 +186,7 @@ export default class Calculator extends Component{
         if(expr){
             expr = expr + fun;
         }else{
-            // [Q-309/T-312] 空表达式时常量 / 单位项自带的前导 * 会得到「*pi」必报错 → 去掉前导乘号。
+            // 空表达式时常量 / 单位项自带的前导 * 会得到「*pi」必报错 → 去掉前导乘号。
             expr = `${fun}`.replace(/^\*/, '');
         }
 
@@ -195,7 +195,7 @@ export default class Calculator extends Component{
         });
     }
 
-    // [Q-309/T-312] 变量值校验:每段须 名=值;缺 = 的片段后端会越界报错 → 前端先拦并指出哪一段。
+    // 变量值校验:每段须 名=值;缺 = 的片段后端会越界报错 → 前端先拦并指出哪一段。
     validateVars(){
         const raw = this.state.vars;
         if(raw === undefined || raw === null || `${raw}`.trim() === ''){ return null; }
@@ -206,7 +206,7 @@ export default class Calculator extends Component{
         }
         return null;
     }
-    // [Q-309/T-312] 非法表达式后端返 NaN/空 → 明确提示而不是显示 NaN / 0xNaN。
+    // 非法表达式后端返 NaN/空 → 明确提示而不是显示 NaN / 0xNaN。
     resultInvalid(val){
         return val === undefined || val === null || (typeof val === 'number' && !Number.isFinite(val)) || (typeof val === 'string' && !Number.isFinite(Number(val)));
     }

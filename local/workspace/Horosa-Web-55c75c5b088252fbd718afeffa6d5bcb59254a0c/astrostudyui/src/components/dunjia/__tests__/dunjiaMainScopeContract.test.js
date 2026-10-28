@@ -1,4 +1,4 @@
-// [奇门择日 T5] DunJiaMain scope 化源码契约锁(fs+regex,照 helpDocsGuard 范式)。
+// DunJiaMain scope 化源码契约锁(fs+regex,照 helpDocsGuard 范式)。
 // keep-alive(FreezeInactive)下独立奇门页与择日页两实例并存,竞写面(live 态单例/AI 快照槽/
 // window 全局兜底/案例链/导出刷新事件)必须全部走 this.scope —— 谁回潮硬编码 'qimen' 谁红。
 import fs from 'fs';

@@ -1,4 +1,4 @@
-// [卜卦改进 H4b] 后端金矿门控消费——backendConditionNotes 开关(default false=现状零回归;
+// 后端金矿门控消费——backendConditionNotes 开关(default false=现状零回归;
 // renaissance/medieval 学理绑定 true)。真形 fixture 上验判别力:
 // ①默认关:单星证词与旧行为字节同构(无 station/degree_quality/benign 键)
 // ②开:留驻/度性/特殊度注记+围荣围耀正面证词入 findings

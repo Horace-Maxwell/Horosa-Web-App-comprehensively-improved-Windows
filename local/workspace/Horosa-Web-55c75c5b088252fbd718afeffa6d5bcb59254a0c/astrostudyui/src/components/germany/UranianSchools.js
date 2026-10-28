@@ -3,13 +3,6 @@
 // 默认 classic = 现状默认(虚星开/90°盘/orb 1/无十字指针/无宫框/折叠盘)→ 切 classic 即零回归基线。
 import { SUN, MOON, ASC, MC, NORTH_NODE, SOUTH_NODE, ARIES_POINT } from '../../constants/AstroConst';
 
-export const SCHOOL = {
-	CLASSIC: 'classic',
-	PURE: 'pure',
-	URANIAN: 'uranian',
-	COSMO: 'cosmo',
-};
-
 export const SCHOOL_OPTIONS = [
 	{ value: 'classic', label: '原始汉堡' },
 	{ value: 'pure', label: '纯净派' },
@@ -26,7 +19,7 @@ export const SCHOOL_OPTIONS = [
 export const SCHOOL_PRESETS = {
 	classic: {
 		includeTnp: true, personalKeys: [SUN, MOON, ASC, MC, NORTH_NODE, SOUTH_NODE, ARIES_POINT],
-		dialBase: 90, crossPointer: false, showHouseFrames: true, orbMidpoint: 1.0, orbPersonal: 1.0, ephemBase: 22.5, cosmogramDefault: false,
+		dialBase: 90, crossPointer: false, showHouseFrames: true, orbMidpoint: 1.0, orbPersonal: 1.0, ephemBase: 90, cosmogramDefault: false,   // 图形星历盘基 90° = 该页缺省(选默认派不再把盘基切到 22.5)
 		extendedAxes: false, strictFactors: false,
 	},
 	pure: {
@@ -85,4 +78,17 @@ export function personalSetForSchool(s) {
 export function schoolToBackendParams(s) {
 	const p = presetForSchool(s);
 	return { school: s, frames: p.showHouseFrames };
+}
+
+// /germany/midpoint 的显示口径出参(流派 / 容许度 / 赤纬 / 六宫框(含东点) / 严格因子集 / 戴维森):中点页、90° 中点盘页与 AI 无头重算同一份,
+// 页面快照与挂载快照的后端段永不分叉(此前各页手抄,曾漏赤纬键)。partnerParams 由调用方按 showDavison 给。
+export function germanyMidpointRequestParams(disp, partnerParams){
+	const d = disp && typeof disp === 'object' ? disp : {};
+	return {
+		...schoolToBackendParams(d.school), orb: d.orb, personalOrb: d.orbPersonal,
+		declination: d.showDeclination !== false,
+		frames: d.showHouseFrames !== false || !!d.showEastPoint,
+		...(d.strictFactors ? { strictFactors: true } : {}),
+		...(partnerParams ? { davison: partnerParams } : {}),
+	};
 }

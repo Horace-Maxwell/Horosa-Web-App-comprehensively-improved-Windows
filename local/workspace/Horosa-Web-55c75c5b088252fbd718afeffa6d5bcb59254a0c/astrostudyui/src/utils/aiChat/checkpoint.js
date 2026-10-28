@@ -1,10 +1,11 @@
-// AI 对话·检查点与回退(A5;借鉴 Gemini CLI / Claude Code 的 checkpoint):每条用户消息落库时带 checkpoint(挂载源/引用/技法/系统提示/覆盖/模型/思考/温度/topP),
+// AI 对话·检查点与回退(A5):每条用户消息落库时带 checkpoint(挂载源/引用/技法/系统提示/覆盖/模型/思考/温度/topP),
 // 「回退到此」= 先逐条撤销被删 assistant 消息里的写入动作(新→旧;任一失败即停,不删消息),再删该用户消息及其后所有消息,最后按 checkpoint 恢复设置、清压缩。
 // 本文件纯函数零副作用:只算计划,不删不撤(执行住钩子)。绝不 import 工具注册表。
+import { parseDateTimeMs } from '../dateTimeParse';
 export const CHECKPOINT_VERSION = 1;
-export const CHECKPOINT_FIELDS = ['sourceId', 'referenceIds', 'techniqueKeys', 'sessionSystemPrompt', 'techniqueOptionOverrides', 'modelSelection', 'thinkingLevel', 'chatTemperature', 'chatTopP'];
+export const CHECKPOINT_FIELDS = ['sourceId', 'referenceIds', 'techniqueKeys', 'sessionSystemPrompt', 'techniqueOptionOverrides', 'modelSelection', 'thinkingLevel', 'chatTemperature', 'chatTopP', 'partnerSourceId'];
 
-function ts(m){ const c = m && m.createdAt; if(typeof c === 'number'){ return c; } const t = Date.parse(c || ''); return Number.isFinite(t) ? t : 0; }
+function ts(m){ const c = m && m.createdAt; if(typeof c === 'number'){ return c; } const t = parseDateTimeMs(c || ''); return Number.isFinite(t) ? t : 0; }
 
 export function buildCheckpoint(deps){
 	const d = deps || {};
@@ -19,6 +20,7 @@ export function buildCheckpoint(deps){
 		thinkingLevel: `${d.thinkingLevel || ''}`,
 		chatTemperature: d.chatTemperature === undefined ? null : d.chatTemperature,
 		chatTopP: d.chatTopP === undefined ? null : d.chatTopP,
+		partnerSourceId: `${d.partnerSourceId || ''}`,   // [双盘挂载] 合盘对方随检查点回退
 	};
 }
 
@@ -61,9 +63,11 @@ export function applyCheckpoint(checkpoint, setters){
 	if(cp.techniqueOptionOverrides && typeof cp.techniqueOptionOverrides === 'object'){ call(s.setTechniqueOptionOverrides, cp.techniqueOptionOverrides, 'techniqueOptionOverrides'); }
 	if(cp.modelSelection){ call(s.setModelSelection, cp.modelSelection, 'modelSelection'); }
 	if(cp.thinkingLevel){ call(s.setThinkingLevel, cp.thinkingLevel, 'thinkingLevel'); }
-	// [Q-032/M-47] 温度 / top_p:CHECKPOINT_FIELDS 早已声明、buildCheckpoint 也写了,但此前不恢复 = 只写不读。
+	// 温度 / top_p:CHECKPOINT_FIELDS 早已声明、buildCheckpoint 也写了,但此前不恢复 = 只写不读。
 	//   null 是合法值(=「默认,不下发」),故按 !== undefined 判,不能用真值判。
 	if(cp.chatTemperature !== undefined){ call(s.setChatTemperature, cp.chatTemperature, 'chatTemperature'); }
 	if(cp.chatTopP !== undefined){ call(s.setChatTopP, cp.chatTopP, 'chatTopP'); }
+	// 早于双盘挂载的检查点没有这一键 = 不动当前对方盘;有键('' 也算)才恢复
+	if(cp.partnerSourceId !== undefined){ call(s.setPartnerSourceId, `${cp.partnerSourceId || ''}`, 'partnerSourceId'); }
 	return done;
 }

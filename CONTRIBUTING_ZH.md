@@ -26,6 +26,18 @@ npm ci
 npm run build:file
 ```
 
+后端是由聚合 pom（`astrostudysrv/pom.xml`）管理的多模块 Maven 工程，模块清单只在它的 `<modules>` 里。一律从聚合 pom 构建与测试：
+
+```bash
+cd local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c
+# 按依赖顺序从源码构建全部模块，产出 astrostudyboot/target/astrostudyboot.jar（全新环境也只需这一条）
+mvn -f astrostudysrv/pom.xml -DskipTests clean install
+# 只跑部分模块的单元测试（-am 让它们依赖的兄弟模块在同一次构建里一起编译）
+mvn -f astrostudysrv/pom.xml test -pl boundless,astrostudy -am
+```
+
+不要进到单个模块目录里逐个 `install`：全新环境的本地仓库里没有父 pom 与兄弟模块，第二个模块就会解析失败；已有环境则会悄悄用到本地仓库里的旧版本。
+
 文档 / 治理 / [`prepareruntime/`](prepareruntime/) / [`windows-adaptations/`](windows-adaptations/) 改动，核对链接与相对路径仍有效即可。（桌面打包工程 —— Electron + NSIS —— 私有维护、不在本仓库。）
 
 ## 必须同步的文档

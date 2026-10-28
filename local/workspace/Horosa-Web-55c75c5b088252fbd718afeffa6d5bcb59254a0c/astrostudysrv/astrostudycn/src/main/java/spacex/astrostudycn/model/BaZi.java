@@ -171,7 +171,7 @@ public class BaZi {
 	}
 	
 	private void setup() {
-		// [Q-189/T-128] 值 3(枚举旧名 LocalMao)统一为「平太阳时」(仅经度时差),与前端本地引擎 baziLunarLocal timeAlg=3
+		// 值 3(枚举旧名 LocalMao)统一为「平太阳时」(仅经度时差),与前端本地引擎 baziLunarLocal timeAlg=3
 		// 及三处视图标签同口径;不再走 Python 地方卯时(computeLocal 以当日卯正对齐 05:00)路径 → useLocalMao 恒 0。
 		int useLocalMao = 0;
 		int byLon = this.useZodicalLon ? 1 : 0;
@@ -196,7 +196,7 @@ public class BaZi {
 		// Always expose both the clock/direct input time and the true solar time,
 		// regardless of the selected timeAlg, so the UI can show both without
 		// changing the calculation basis (which still follows timeAlg below).
-		// [Q-195/T-121] 真太阳时偏移改为完整日时 NOAA 均时差(与本地引擎同式),不再按月-日查表。
+		// 真太阳时偏移改为完整日时 NOAA 均时差(与本地引擎同式),不再按月-日查表。
 		int realSunOffsetSeconds = RealSunTimeOffset.getOffsetByDate(this.oldBirth, this.zone, this.lon);
 		String realSunBirth = JdnHelper.getDateFromJdn(
 			this.oldBirthJdn + realSunOffsetSeconds / 3600.0 / 24.0,
@@ -209,7 +209,7 @@ public class BaZi {
 			this.timeOffset = realSunOffsetSeconds;
 			this.timeOffsetJDN = this.timeOffset / 3600.0 / 24.0;
 		}else if(this.timeAlg == TimeZiAlg.LocalMao) {
-			// [Q-189/T-128] 平太阳时:仅经度时差(去均时差),与本地引擎 timeAlg=3 同口径。
+			// 平太阳时:仅经度时差(去均时差),与本地引擎 timeAlg=3 同口径。
 			this.timeOffset = RealSunTimeOffset.getMeanSolarOffset(this.zone, this.lon);
 			this.timeOffsetJDN = this.timeOffset / 3600.0 / 24.0;
 		}else if(this.timeAlg == TimeZiAlg.DirectTime) {

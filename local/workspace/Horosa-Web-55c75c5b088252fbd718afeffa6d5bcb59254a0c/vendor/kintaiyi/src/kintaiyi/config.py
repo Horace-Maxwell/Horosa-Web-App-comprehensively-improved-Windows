@@ -449,7 +449,7 @@ def gangzhi1(year, month, day, hour, minute):
                 dd_next = list(d_next.tuple())
                 day_tg_idx = fromSolar(dd_next[0], dd_next[1], dd_next[2]).getDayGZ().tg
         else:
-            # [Q-312 口径 B] lateZi=0: 钟面当天日干起子时(与日柱开关独立;after23 进位时 cdate 已是次日,须退回今日)
+            # lateZi=0: 钟面当天日干起子时(与日柱开关独立;after23 进位时 cdate 已是次日,须退回今日)
             day_tg_idx = fromSolar(year, month, day).getDayGZ().tg
         hTG = tian_gan[(day_tg_idx % 5 * 2 + 0) % 10] + di_zhi[0]
     if year < 1900:
@@ -547,7 +547,7 @@ def gangzhi(year, month, day, hour, minute):
                 dd_next = list(d_next.tuple())
                 day_tg_idx = fromSolar(dd_next[0], dd_next[1], dd_next[2]).getDayGZ().tg
         else:
-            # [Q-312 口径 B] lateZi=0: 钟面当天日干起子时(与日柱开关独立;after23 进位时 cdate 已是次日,须退回今日)
+            # lateZi=0: 钟面当天日干起子时(与日柱开关独立;after23 进位时 cdate 已是次日,须退回今日)
             day_tg_idx = fromSolar(year, month, day).getDayGZ().tg
         hTG = tian_gan[(day_tg_idx % 5 * 2 + 0) % 10] + di_zhi[0]
     if year < 1900:
@@ -559,8 +559,8 @@ def gangzhi(year, month, day, hour, minute):
         _sd = fromSolar(year, month, day)
         if _sd.hasJieQi() and jieqi.jqmc[_sd.getJieQi() - 1] in JIE_TERMS:
             _t = JD2DD(_sd.getJieQiJD())
-            _crossing = datetime.datetime(_t.Y, _t.M, _t.D, int(_t.h), round(_t.m))
-            if datetime.datetime(year, month, day, hour, minute) < _crossing:
+            _crossing = jieqi._civil_moment(_t.Y, _t.M, _t.D, int(_t.h), round(_t.m))
+            if jieqi._civil_moment(year, month, day, hour, minute) < _crossing:
                 _prev = _sd.before(1)
                 mTG1 = tian_gan[_prev.getMonthGZ().tg] + di_zhi[_prev.getMonthGZ().dz]
                 if jieqi.jqmc[_sd.getJieQi() - 1] == '立春':

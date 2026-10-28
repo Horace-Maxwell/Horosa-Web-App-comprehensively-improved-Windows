@@ -18,12 +18,12 @@ export default {
 		properties: {
 			query: { type: 'string', minLength: 1, maxLength: 300, description: '检索词' },
 			maxResults: { type: 'integer', minimum: 1, maximum: WEB_SEARCH_MAX_RESULTS, default: 5 },
-			freshness: { type: 'string', maxLength: 10, description: '时效:day/week/month/year 或天数(可选;只有 Tavily 引擎消费,其它引擎忽略此参数)' },   // [Q-294/M-109·AR-25] 如实标明生效范围
+			freshness: { type: 'string', maxLength: 10, description: '时效:day/week/month/year 或天数(可选;只有 Tavily 引擎消费,其它引擎忽略此参数)' },   // 如实标明生效范围
 			site: { type: 'string', maxLength: 100, description: '限定站点域名(可选)' },
 		},
 	},
 	async run(args, ctx){
-		// [Q1] ctx.signal 下传:用户点停止 → 这次出站检索同样中止
+		// ctx.signal 下传:用户点停止 → 这次出站检索同样中止
 		const r = await runWebSearch({ query: args.query, maxResults: args.maxResults, freshness: args.freshness, site: args.site, signal: ctx && ctx.signal });
 		if(!r.ok){ return { ok: false, code: r.code, message: r.message }; }
 		return {

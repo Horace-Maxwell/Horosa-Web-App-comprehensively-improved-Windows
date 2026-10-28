@@ -15,16 +15,17 @@ const GLYPH_KEY = {
 	moon: AstroConst.MOON, sun: AstroConst.SUN, jupiter: AstroConst.JUPITER, venus: AstroConst.VENUS,
 	mercury: AstroConst.MERCURY, saturn: AstroConst.SATURN, mars: AstroConst.MARS,
 };
-function glyph(k){ return (AstroText.AstroMsg && AstroText.AstroMsg[GLYPH_KEY[k]]) || ''; }
+function glyph(k){ return AstroText.AstroMsg[GLYPH_KEY[k]] || ''; }
 // 度分显示(P1 阅读友好);六十进制分号记号保留在数理星历专业表
 function degMin(deg){
 	const d = Math.floor(deg);
 	const m = Math.round((deg - d) * 60);
 	return m >= 60 ? `${d + 1}°0′` : `${d}°${m}′`;
 }
+// 星名字色走全站七曜语义色(明暗成对,合同 themeContrastContract 分档;旧定色土星 #5b5347 暗底 2.6:1)
 const PLANET_COLOR = {
-	moon: '#4f6f9c', sun: '#c07a17', jupiter: '#7d5bA6', venus: '#c25c8a',
-	mercury: '#3d8f74', saturn: '#5b5347', mars: '#bf3c36',
+	moon: 'var(--horosa-planet-moon)', sun: 'var(--horosa-planet-sun)', jupiter: 'var(--horosa-planet-jupiter)', venus: 'var(--horosa-planet-venus)',
+	mercury: 'var(--horosa-planet-mercury)', saturn: 'var(--horosa-planet-saturn)', mars: 'var(--horosa-planet-mars)',
 };
 function natureBadge(nature){
 	if(!nature){ return null; }
@@ -48,6 +49,8 @@ class BabylonHoroscope extends Component{
 		const ink = dark ? '#d3c49b' : '#4a381c';
 		const soft = dark ? 'rgba(211,196,155,0.45)' : 'rgba(112,86,44,0.45)';
 		const faint = dark ? 'rgba(211,196,155,0.22)' : 'rgba(112,86,44,0.2)';
+		// 盘面上的说明字 / 楔形名:不透明度不低于 0.8(线条仍用 soft;旧字也用 soft = 0.45,亮底 2.0:1)
+		const softInk = dark ? 'rgba(211,196,155,0.82)' : 'rgba(112,86,44,0.85)';
 		const gold = dark ? '#c2a35c' : '#9a6a25';
 		const bandFill = dark ? 'rgba(194,163,92,0.07)' : 'rgba(154,106,37,0.055)';
 		const bandFillAlt = dark ? 'rgba(194,163,92,0.028)' : 'rgba(154,106,37,0.022)';
@@ -124,7 +127,7 @@ class BabylonHoroscope extends Component{
 								<text fontSize="15" fill={ink} textAnchor="middle" fontWeight="600" letterSpacing="2">{s.cn}</text>
 							</g>
 							<g transform={`translate(${cx2},${cy2}) rotate(${rot})`}>
-								<text fontSize="7.2" fill={soft} textAnchor="middle" letterSpacing="0.5" fontStyle="italic">{cuneShort}</text>
+								<text fontSize="7.2" fill={softInk} textAnchor="middle" letterSpacing="0.5" fontStyle="italic">{cuneShort}</text>
 							</g>
 							{isExalt ? (
 								<g transform={`translate(${ang(mid, R_SIGN_IN - 9)[0]},${ang(mid, R_SIGN_IN - 9)[1]}) rotate(${rot})`}>
@@ -192,7 +195,7 @@ class BabylonHoroscope extends Component{
 					const color = PLANET_COLOR[r.key] || '#777';
 					const rot = rotOf(r.dispLon);
 					return (
-						<g key={r.key} opacity={r.combust ? 0.55 : 1}>
+						<g key={r.key} opacity={r.combust ? 0.72 : 1}>
 							<line x1={tickX1} y1={tickY1} x2={tickX2} y2={tickY2} stroke={color} strokeWidth="1.6" />
 							<line x1={lx1} y1={ly1} x2={lx2} y2={ly2} stroke={color} strokeWidth="0.55" opacity="0.4" />
 							<text x={x} y={y + 7.5} fontSize="22" fill={color} textAnchor="middle"
@@ -215,9 +218,9 @@ class BabylonHoroscope extends Component{
 					return <line key={a} x1={x1} y1={y1} x2={x2} y2={y2} stroke={faint} strokeWidth="0.7" />;
 				})}
 				<text x={C} y={C - 14} fontSize="11.5" fill={ink} textAnchor="middle" fontWeight="600" letterSpacing="3">恒星黄道</text>
-				<text x={C} y={C + 4} fontSize="8.5" fill={soft} textAnchor="middle" letterSpacing="1.5">毕宿锚 · 塞琉古框架</text>
+				<text x={C} y={C + 4} fontSize="8.5" fill={softInk} textAnchor="middle" letterSpacing="1.5">毕宿锚 · 塞琉古框架</text>
 				<line x1={C - 34} y1={C + 13} x2={C + 34} y2={C + 13} stroke={faint} strokeWidth="0.6" />
-				<text x={C} y={C + 27} fontSize="8" fill={soft} textAnchor="middle" letterSpacing="1">无宫位 · 无相位 · 无上升</text>
+				<text x={C} y={C + 27} fontSize="8" fill={softInk} textAnchor="middle" letterSpacing="1">无宫位 · 无相位 · 无上升</text>
 			</svg>
 		);
 	}
@@ -262,7 +265,7 @@ class BabylonHoroscope extends Component{
 
 	renderReadout(){
 		const bab = this.props.bab;
-		if(!bab){ return <div style={{ opacity: 0.6, padding: 12 }}>等待星历数据…</div>; }
+		if(!bab){ return <div style={{ color: 'var(--horosa-text-secondary)', padding: 12 }}>等待星历数据…</div>; }
 		const opts = this.props.opts || {};
 		const eraText = opts.era === 'arsacid'
 			? `安息纪元 ${bab.babylonianDate.seYear - 64} 年`
@@ -278,14 +281,14 @@ class BabylonHoroscope extends Component{
 				<div className="horosa-babylon-card">
 					<div className="horosa-babylon-card-title">七曜按宫(固定序 月-日-木-金-水-土-火)</div>
 					{bab.rows.map((r) => r.missing ? (
-						<div key={r.key} style={{ opacity: 0.5 }}>{r.key} · 待星历数据</div>
+						<div key={r.key} style={{ color: 'var(--horosa-text-secondary)' }}>{r.key} · 待星历数据</div>
 					) : (
 						<div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '3px 0' }}>
 							<span style={{ fontFamily: AstroConst.AstroFont, fontSize: 15, color: PLANET_COLOR[r.key], width: 18, textAlign: 'center' }}>{glyph(r.key)}</span>
 							<span style={{ width: 44 }}>{r.cn}</span>
 							<span style={{ flex: 1 }}>
 								{r.signInfo ? r.signInfo.cn : ''} {degMin(r.deg)}
-								<span style={{ opacity: 0.55, marginLeft: 5, fontSize: 11 }}>{r.signInfo ? r.signInfo.cune : ''}</span>
+								<span style={{ color: 'var(--horosa-text-secondary)', marginLeft: 5, fontSize: 11 }}>{r.signInfo ? r.signInfo.cune : ''}</span>
 							</span>
 							{r.combust ? <span className="horosa-babylon-badge muted">已没 ŠÚ</span> : null}
 							{r.inExalt ? <span className="horosa-babylon-badge ji">秘密之屋</span> : null}

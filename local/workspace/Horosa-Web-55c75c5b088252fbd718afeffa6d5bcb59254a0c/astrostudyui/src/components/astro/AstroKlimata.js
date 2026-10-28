@@ -44,7 +44,7 @@ class AstroKlimata extends Component{
 						<span className="horosa-classical-zh">七气候带</span>
 						<span className="horosa-classical-en">Klimata · 斜升时间</span>
 					</span>
-					<span style={{ color: MUTED, fontSize: 12, flex: '0 0 auto' }}>{open ? '收起 ▲' : '展开 ▼'}</span>
+					<span style={{ color: MUTED, fontSize: 12, flex: '0 0 auto', whiteSpace: 'nowrap' }}>{open ? '收起 ▲' : '展开 ▼'}</span>
 				</div>
 				{open ? (
 					<div style={{ marginTop: 8 }}>

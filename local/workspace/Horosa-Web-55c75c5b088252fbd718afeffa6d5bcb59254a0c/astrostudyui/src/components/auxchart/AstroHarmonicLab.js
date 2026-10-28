@@ -6,9 +6,10 @@ import { XQButton as Button } from '../xq-ui';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from '../astro/AstroExtraCommon';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { markPanelReady } from '../../utils/perfMark';
 
-// [Q-151/AX-20] 调波数夹取整数 1-360:此前空串/小数原样下发,后端 int('') / int('2.5') 抛错回 {'err':'param error'}。
+// 调波数夹取整数 1-360:此前空串/小数原样下发,后端 int('') / int('2.5') 抛错回 {'err':'param error'}。
 export function clampHarmonic(raw, fallback = 9){
 	const n = Number.parseInt(`${raw === undefined || raw === null ? '' : raw}`.trim(), 10);
 	if(!Number.isFinite(n)){ return fallback; }
@@ -51,10 +52,12 @@ class AstroHarmonicLab extends Component{
 	}
 
 	async load(){
+		const seq = ++this._loadSeq || (this._loadSeq = 1);   // 只认最后一次:换盘 / 改参连发时先发的晚回不覆盖
+		const resultSig = natalSourceKey(this.props.value);   // 本次结果出自哪位命主(读时与当前盘比)
 		if(!this.props.value){
 			return;
 		}
-		const harmonic = clampHarmonic(this.state.harmonic);   // [Q-151/AX-20] 夹取整数 1-360
+		const harmonic = clampHarmonic(this.state.harmonic);   // 夹取整数 1-360
 		const key = chartRequestKey(this.props.value, `harmonic|${harmonic}`);
 		this.setState({loading: true});
 		try{
@@ -66,15 +69,15 @@ class AstroHarmonicLab extends Component{
 				}),
 				timeoutMs: 30000,
 			});
-			if(!this._mounted) return;
+			if(!this._mounted || seq !== this._loadSeq) return;
 			clearLoadFailure(this);
 			const res = unwrapResult(data) || {};
 			// horosa_panel_ready_v1:调波盘中栏(调波整盘)+右栏(相位/位置表)全由 result 派生,
 			// 这一次 setState 即「面板数据落定」→ 在其回调里盖章(与其余 10 个辅盘子盘同一技法键)。
-			this.setState({result: res, loading: false, requestKey: key}, ()=>{
+			this.setState({result: res, resultSig, loading: false, requestKey: key}, ()=>{
 				markPanelReady('auxchart');
 			});
-			// [审计修·派生盘快照重定源] 出盘即存:整张调波盘 + [调波盘] 专属段(H数/位置表/同频)。
+			// 出盘即存:整张调波盘 + [调波盘] 专属段(H数/位置表/同频)。
 			saveDerivedAstroSnapshot('harmonic', res.chart, this.props.fields, ()=>{
 				const out = ['[调波盘]'];
 				out.push(`调波数：H${res.harmonic || this.state.harmonic || ''}`);
@@ -87,16 +90,21 @@ class AstroHarmonicLab extends Component{
 				return out.length > 1 ? out : [];
 			});
 		}catch(e){
-			// [Q-151/AX-20] 失败不把 key 记成已完成(否则同 key 不再自动重试);泊车该 key,窗口期后自动重试,「计算调波盘」钮可立即重试。
+			// 失败不把 key 记成已完成(否则同 key 不再自动重试);泊车该 key,窗口期后自动重试,「计算调波盘」钮可立即重试。
 			parkLoadFailure(this, key);
-			if(!this._mounted) return;
+			if(!this._mounted || seq !== this._loadSeq) return;
 			this.setState({loading: false, loadError: (e && e.message) || '调波盘计算失败'});
 		}
 	}
 
+	// 出自当前命主的结果才用:换盘后新结果在途 / 取失败时 state 里是上一位命主的 → 当没有(同一命主只改设置仍旧表留存)
+	shownResult(){
+		return pickKeyedDerived(this.state.result, this.state.resultSig, natalSourceKey(this.props.value));
+	}
+
 	render(){
 		this.ensureLoaded();
-		const result = this.state.result || {};
+		const result = this.shownResult() || {};
 		const chartObj = result.chart || null;
 		const height = this.props.height ? this.props.height : 760;
 		return (

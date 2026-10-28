@@ -95,11 +95,20 @@ describe('G20 流派预设 schoolPresets', () => {
 		expect(SCHOOL_PRESETS.houlding.aspectModel).toBe('degree');
 		expect(SCHOOL_PRESETS.zoller.aspectModel).toBe('degree');
 		expect(SCHOOL_PRESETS.houlding.lotReversal).toBe(1);
-		// valens/dykes:全默认三新维
+		// valens/dykes:点反转 / 区分缓冲同为默认;相位口径分界(Valens 整座,Dykes 半容许度)
 		['valens', 'dykes'].forEach((k)=>{
 			expect(SCHOOL_PRESETS[k].lotReversal).toBe(1);
 			expect(SCHOOL_PRESETS[k].sectBuffer).toBe('geo');
-			expect(SCHOOL_PRESETS[k].aspectModel).toBe('whole');
+		});
+		expect(SCHOOL_PRESETS.valens.aspectModel).toBe('whole');
+		expect(SCHOOL_PRESETS.dykes.aspectModel).toBe('degree');
+	});
+
+	test('🔴 六档两两可区分:每档八项取值经 presetOf 反查都回到自己(不再有选甲显示乙)', () => {
+		Object.keys(SCHOOL_PRESETS).forEach((k)=>{
+			const p = SCHOOL_PRESETS[k];
+			expect(presetOf({ zodiac: p.zodiac, hsys: p.hsys, termsVariant: p.termsVariant, tripSystem: p.tripSystem,
+				lotReversal: p.lotReversal, sectBuffer: p.sectBuffer, aspectModel: p.aspectModel, lotsDocReverse: p.lotsDocReverse })).toBe(k);
 		});
 	});
 
@@ -142,7 +151,7 @@ describe('G20 流派预设 schoolPresets', () => {
 	});
 });
 
-// [Q-343/T-324] 第八维 lotsDocReverse:预设表自带(Ptolemy=1 其余 0)、反查计入;老调用方不传仍命中(零回归)。
+// 第八维 lotsDocReverse:预设表自带(Ptolemy=1 其余 0)、反查计入;老调用方不传仍命中(零回归)。
 describe('schoolPresets · lotsDocReverse 联动维(Q-343)', () => {
 	const { SCHOOL_PRESETS, presetOf } = require('../schoolPresets');
 	it('各档自带 lotsDocReverse,且恰与 lotReversal 反相(不反转档采文档式)', () => {
@@ -164,8 +173,8 @@ describe('schoolPresets · lotsDocReverse 联动维(Q-343)', () => {
 	});
 });
 
-// [Q-254/T-232] 界系 3(迦勒底)/4(自定义)不属任何档、容许度手改(aspectModel 'custom')→ 反查必落「自定」。
-describe('presetOf [Q-254/T-232] 非档取值必落自定', () => {
+// 界系 3(迦勒底)/4(自定义)不属任何档、容许度手改(aspectModel 'custom')→ 反查必落「自定」。
+describe('presetOf 非档取值必落自定', () => {
 	const bd = () => {
 		const br = SCHOOL_PRESETS.brennan;
 		return { zodiac: br.zodiac, hsys: br.hsys, termsVariant: br.termsVariant, tripSystem: br.tripSystem, lotReversal: br.lotReversal, sectBuffer: br.sectBuffer, aspectModel: br.aspectModel };

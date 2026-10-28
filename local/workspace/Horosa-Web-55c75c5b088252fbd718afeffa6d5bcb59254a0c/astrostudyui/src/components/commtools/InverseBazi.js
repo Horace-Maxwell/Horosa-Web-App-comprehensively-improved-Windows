@@ -7,9 +7,11 @@ import * as Constants from '../../utils/constants';
 import {BaziMonthTime, SixtyJiaZi} from '../../constants/ZWConst';
 import MainDirectionSimple from '../cntradition/MainDirectionSimple';
 import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorage';
-import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // [Q-317/T-304] 全局日界 / 晚子时
-import { buildLocalBaziResult } from '../../utils/baziLunarLocal';                              // [Q-317] 候选回代校验(与八字页同引擎)
-import { getStore } from '../../utils/storageutil';                                              // [Q-317] 当前盘时区/经纬
+import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // 全局日界 / 晚子时
+import { buildLocalBaziResult } from '../../utils/baziLunarLocal';                              // 候选回代校验(与八字页同引擎)
+import { getStore } from '../../utils/storageutil';                                              // 当前盘时区/经纬
+import { matchesUserQuery } from '../../utils/scriptMode';
+import { civilJdnOfDateStr, civilDateStrOfJdn } from '../../utils/dateStrSafe';
 
 const { Option } = Select;
 
@@ -105,13 +107,13 @@ export default class InverseBazi extends Component{
 		});
 		// 🔒 后端不可达/出错 → request 已 toast 提示;此处静默退出避免 data[ResultKey] 崩页(打包 app 内更易触发,WKWebView 弹白屏)
 		const result = data && data[Constants.ResultKey];
-        // [Q-309/T-315 ②] 反查失败 / 无候选:清掉旧结果并提示,不再让上一次的候选与大运概略留在页上冒充本次结果。
+        // 反查失败 / 无候选:清掉旧结果并提示,不再让上一次的候选与大运概略留在页上冒充本次结果。
         if(!result || !result.Dates || !result.Dates.length){
             this.setState({ dates: [], dateChecks: [], paibazi: null, ruleNote: '' });
             if(data){ message.info('未找到符合该四柱的日期(可放宽起始年份或改变方向)'); }
             return;
         }
-        // [Q-317/T-304] ① 后端反查按固定口径(23 点换日 / 夜子时 23:30 按次日干)出候选;此处按【全局】日界 / 晚子时用八字页同一本地引擎回代校验:
+        // ① 后端反查按固定口径(23 点换日 / 夜子时 23:30 按次日干)出候选;此处按【全局】日界 / 晚子时用八字页同一本地引擎回代校验:
         //    四柱全等才保留;夜子时候选不等时改试同日 00:30 / 次日 00:30(同一子时的另一种换日归属),仍不等则标「按当前口径不成立」。
         // ② 大运概略改用当前盘的时区 / 经纬 + 全局两键(此前钉 +08:00 与福州、走后端缺省 23 点换日)。
         const geo = this.currentGeo();
@@ -211,7 +213,7 @@ export default class InverseBazi extends Component{
         });
     }
 
-    // [Q-317/T-304] 当前盘时区 / 经纬(astro fields;缺则回落默认)。
+    // 当前盘时区 / 经纬(astro fields;缺则回落默认)。
     currentGeo(){
         try{
             const st = getStore();
@@ -220,7 +222,7 @@ export default class InverseBazi extends Component{
             return { zone: v('zone') || '+08:00', lon: v('lon') || '119e19', lat: v('lat') || '26n04' };
         }catch(e){ return { zone: '+08:00', lon: '119e19', lat: '26n04' }; }
     }
-    // [Q-317/T-304] 候选回代:用八字页同一本地引擎按全局口径重排四柱;夜子时候选不等则改试 00:30 归属。
+    // 候选回代:用八字页同一本地引擎按全局口径重排四柱;夜子时候选不等则改试 00:30 归属。
     verifyCandidate(text, want, geo, rule){
         const pillarsOf = (date, time)=>{
             try{
@@ -235,7 +237,8 @@ export default class InverseBazi extends Component{
         const d0 = parts[0]; const t0 = parts[1] || '12:00';
         if(eq(pillarsOf(d0, t0))){ return { text, ok: true }; }
         if(/^23:/.test(t0) || /^00:/.test(t0)){
-            const shift = (ymd, days)=>{ const m = `${ymd}`.match(/^(-?\d+)[-/](\d+)[-/](\d+)$/); if(!m) return null; const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + days)); return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`; };
+            // 前后挪一天:民用历日序数加减(公元 1–99 年不被 Date.UTC 当成 19xx;1582 以前儒略历)
+            const shift = (ymd, days)=>{ const j = civilJdnOfDateStr(`${ymd}`); return Number.isFinite(j) ? civilDateStrOfJdn(j + days) : null; };
             const alts = /^23:/.test(t0) ? [[shift(d0, 1), '00:30'], [d0, '00:30']] : [[shift(d0, -1), '23:30'], [d0, '23:30']];
             for(let i = 0; i < alts.length; i++){
                 const [ad, at] = alts[i];
@@ -345,7 +348,7 @@ export default class InverseBazi extends Component{
                             placeholder='年柱'
                             onChange={this.changeYear}
                             filterOption={(input, option) => {
-                                return option.value.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                                return matchesUserQuery(option.value, input)
                             }}
                         >
                             {yopts}
@@ -360,7 +363,7 @@ export default class InverseBazi extends Component{
                             placeholder='月柱'
                             onChange={this.changeMonth}
                             filterOption={(input, option) => {
-                                return option.value.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                                return matchesUserQuery(option.value, input)
                             }}
                         >
                             {mopts}
@@ -375,7 +378,7 @@ export default class InverseBazi extends Component{
                             placeholder='日柱'
                             onChange={this.changeDate}
                             filterOption={(input, option) => {
-                                return option.value.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                                return matchesUserQuery(option.value, input)
                             }}
                         >
                             {dopts}
@@ -390,7 +393,7 @@ export default class InverseBazi extends Component{
                             placeholder='时柱'
                             onChange={this.changeTime}
                             filterOption={(input, option) => {
-                                return option.value.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                                return matchesUserQuery(option.value, input)
                             }}
                         >
                             {topts}

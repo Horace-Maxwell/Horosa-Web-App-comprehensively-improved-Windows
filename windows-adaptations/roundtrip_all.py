@@ -22,6 +22,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
@@ -58,6 +59,39 @@ def parse_targets():
                 files.add(m.group(2))
     files.add('astrostudyui/package.json')   # apply.sh §3 整块重写 scripts
     return sorted(files), sorted(dirs)
+
+
+def retry_io(fn, *a):
+    # 刚写过的文件可能正被杀软 / 索引器瞬时占用(Windows 报 EINVAL / EACCES / EPERM):有限次退避重试(#113 实撞:
+    # 重置阶段第 40 余个文件写入即 EINVAL,首版没有 finally ⇒ 工作树被留在半重置态,靠快照手工还原)
+    for attempt in range(1, 9):
+        try:
+            return fn(*a)
+        except OSError:
+            if attempt == 8:
+                raise
+            time.sleep(0.5 * attempt)
+
+
+def find_bash():
+    # apply.sh 要 Git Bash:从 PowerShell 起本脚本时 bash 往往不在 PATH;PATH 里的 bash 也可能是 System32\bash.exe(WSL 启动器,
+    # 路径语义完全不同)—— 依次取 HOROSA_BASH、Git for Windows 缺省安装位置、PATH 上非 System32 的 bash。
+    cands = [os.environ.get('HOROSA_BASH', '')]
+    for base in (os.environ.get('ProgramFiles', ''), os.environ.get('ProgramW6432', ''), os.environ.get('LOCALAPPDATA', '') + os.sep + 'Programs'):
+        if base:
+            cands.append(os.path.join(base, 'Git', 'bin', 'bash.exe'))
+    w = shutil.which('bash')
+    if w and 'system32' not in w.lower():
+        cands.append(w)
+    for c in cands:
+        if c and os.path.isfile(c):
+            return c
+    return 'bash'
+
+
+def write_bytes(p, data):
+    with open(p, 'wb') as f:
+        f.write(data)
 
 
 def walk_files(d):
@@ -109,63 +143,67 @@ def main():
                 snap_hash[os.path.relpath(fpath, WS).replace('\\', '/')] = sha(fpath)
     print('snapshot: {0} files -> {1}'.format(sum(1 for v in snap_hash.values() if v), SNAP))
 
-    # 2) reset every target to pure upstream
-    written = removed = 0
-    for rel in files:
-        blob = upstream_blob(rel)
-        p = os.path.join(WS, rel)
-        if blob is None:
-            if os.path.isfile(p):
-                os.remove(p)
+    mism, bad, rej = [None], [None], []
+    try:
+        # 2) reset every target to pure upstream
+        written = removed = 0
+        for rel in files:
+            blob = upstream_blob(rel)
+            p = os.path.join(WS, rel)
+            if blob is None:
+                if os.path.isfile(p):
+                    retry_io(os.remove, p)
+                    removed += 1
+            else:
+                os.makedirs(os.path.dirname(p), exist_ok=True)
+                retry_io(write_bytes, p, blob)
+                written += 1
+        for d in dirs:
+            p = os.path.join(WS, d)
+            if os.path.isdir(p):
+                shutil.rmtree(p)
                 removed += 1
-        else:
+        print('reset: {0} written from upstream, {1} removed (not in upstream)'.format(written, removed))
+
+        # 3) apply.sh
+        r = subprocess.run([find_bash(), os.path.join(OV, 'apply.sh'), WS, clone], capture_output=True, text=True, encoding='utf-8', errors='replace')
+        log = (r.stdout or '') + (r.stderr or '')
+        bad = [l for l in log.splitlines() if '[!!]' in l or 'FAILED' in l or 'fuzz' in l or '.rej' in l]
+        print('apply.sh exit={0}; warning lines={1}'.format(r.returncode, len(bad)))
+        for l in bad[:30]:
+            print('    ' + l[:220])
+        rej = [f for sub in ('astrostudyui/src', 'astrostudyui/scripts', 'astropy', 'astrostudysrv')
+               for f in walk_files(os.path.join(WS, sub)) if f.endswith('.rej') or f.endswith('.orig')]
+        print('.rej/.orig after apply: {0}'.format(len(rej)))
+
+        # 4) compare
+        mism = []
+        for rel, h in snap_hash.items():
+            p = os.path.join(WS, rel)
+            cur = sha(p) if os.path.isfile(p) else None
+            if cur != h:
+                mism.append((rel, h, cur))
+        print('ROUND-TRIP: {0}/{1} byte-identical; mismatches={2}'.format(len(snap_hash) - len(mism), len(snap_hash), len(mism)))
+        for rel, h, cur in mism[:60]:
+            print('   MISMATCH {0}  snap={1} now={2}'.format(rel, str(h)[:12], str(cur)[:12]))
+    finally:
+        # 5) restore snapshot unconditionally (idempotent when exact) —— 任何一步抛错也必须走到这里
+        for rel, h in snap_hash.items():
+            p = os.path.join(WS, rel)
+            if h is None:
+                if os.path.isfile(p):
+                    retry_io(os.remove, p)
+                continue
             os.makedirs(os.path.dirname(p), exist_ok=True)
-            with open(p, 'wb') as f:
-                f.write(blob)
-            written += 1
-    for d in dirs:
-        p = os.path.join(WS, d)
-        if os.path.isdir(p):
-            shutil.rmtree(p)
-            removed += 1
-    print('reset: {0} written from upstream, {1} removed (not in upstream)'.format(written, removed))
-
-    # 3) apply.sh
-    r = subprocess.run(['bash', os.path.join(OV, 'apply.sh'), WS, clone], capture_output=True, text=True, encoding='utf-8', errors='replace')
-    log = (r.stdout or '') + (r.stderr or '')
-    bad = [l for l in log.splitlines() if '[!!]' in l or 'FAILED' in l or 'fuzz' in l or '.rej' in l]
-    print('apply.sh exit={0}; warning lines={1}'.format(r.returncode, len(bad)))
-    for l in bad[:30]:
-        print('    ' + l[:220])
-    rej = [f for sub in ('astrostudyui/src', 'astrostudyui/scripts', 'astropy', 'astrostudysrv')
-           for f in walk_files(os.path.join(WS, sub)) if f.endswith('.rej') or f.endswith('.orig')]
-    print('.rej/.orig after apply: {0}'.format(len(rej)))
-
-    # 4) compare
-    mism = []
-    for rel, h in snap_hash.items():
-        p = os.path.join(WS, rel)
-        cur = sha(p) if os.path.isfile(p) else None
-        if cur != h:
-            mism.append((rel, h, cur))
-    print('ROUND-TRIP: {0}/{1} byte-identical; mismatches={2}'.format(len(snap_hash) - len(mism), len(snap_hash), len(mism)))
-    for rel, h, cur in mism[:60]:
-        print('   MISMATCH {0}  snap={1} now={2}'.format(rel, str(h)[:12], str(cur)[:12]))
-
-    # 5) restore snapshot unconditionally (idempotent when exact)
-    for rel, h in snap_hash.items():
-        p = os.path.join(WS, rel)
-        if h is None:
-            if os.path.isfile(p):
-                os.remove(p)
-            continue
-        os.makedirs(os.path.dirname(p), exist_ok=True)
-        shutil.copy2(os.path.join(SNAP, rel), p)
-    for f in rej:
-        try:
-            os.remove(f)
-        except OSError:
-            pass
+            retry_io(shutil.copy2, os.path.join(SNAP, rel), p)
+        for d in dirs:
+            if not os.path.isdir(os.path.join(WS, d)) and os.path.isdir(os.path.join(SNAP, d)):
+                shutil.copytree(os.path.join(SNAP, d), os.path.join(WS, d))
+        for f in rej:
+            try:
+                os.remove(f)
+            except OSError:
+                pass
     ok = not mism and not bad and not rej
     print('snapshot restored; {0}'.format('ALL EQUAL' if ok else 'NOT CLEAN — fix and re-run'))
     return 0 if ok else 1

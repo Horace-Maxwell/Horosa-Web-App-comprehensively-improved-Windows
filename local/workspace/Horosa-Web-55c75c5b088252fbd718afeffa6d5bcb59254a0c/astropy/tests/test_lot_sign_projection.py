@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""[Q-259/T-222] lotProjection='sign' 真按座序计数(此前是度式投射后归座首);[Q-301/T-289] 胜利点昼式 = ASC + 木星 − 精神。"""
+"""lotProjection='sign' 真按座序计数(此前是度式投射后归座首);胜利点昼式 = ASC + 木星 − 精神。"""
 import os
 import sys
 

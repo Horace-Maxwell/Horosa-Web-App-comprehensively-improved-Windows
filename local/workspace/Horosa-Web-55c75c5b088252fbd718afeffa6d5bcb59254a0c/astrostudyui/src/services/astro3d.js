@@ -1,5 +1,7 @@
 import request from '../utils/request';
+import { responseCacheable } from '../utils/resultEnvelope';
 import { ServerRoot } from '../utils/constants';
+import { registerProcessCache } from '../utils/processCacheRegistry';
 
 // 3D 星盘多中心引擎(WS-2):POST /chart3d/state(Java Chart3DController 白名单转发
 // Python astrostudy/chart3d.py)。响应 schema 与 chart3d.state() 精确对齐:
@@ -14,6 +16,7 @@ import { ServerRoot } from '../utils/constants';
 const STATE_CACHE_MAX = 48;
 const stateMem = new Map();
 const stateInflight = new Map();
+registerProcessCache('services.astro3d.state', ()=>{ stateMem.clear(); stateInflight.clear(); });   // 同参复用上次结果:登记清空函数(只供审计仪器取样前清空)
 
 function clonePlain(obj){
 	if(obj === undefined || obj === null){
@@ -67,7 +70,7 @@ export function fetchChart3DState(values, requestOptions){
 		body: JSON.stringify(values),
 		...opts,
 	}).then((rsp)=>{
-		if(key && rsp && !rsp.err){
+		if(key && responseCacheable(rsp)){   // 只缓存真成功的回包(业务错误 Result.err / 顶层 err 不进缓存,判据单一出处 resultEnvelope)
 			pushCache(stateMem, key, clonePlain(rsp));
 		}
 		return rsp;

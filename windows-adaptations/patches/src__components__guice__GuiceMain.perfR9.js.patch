@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/guice/GuiceMain.js b/astrostudyui/src/components/guice/GuiceMain.js
-index 7064f634..4d694f9e 100644
+index 1ec9ef7e..3bb9fb20 100644
 --- a/astrostudyui/src/components/guice/GuiceMain.js
 +++ b/astrostudyui/src/components/guice/GuiceMain.js
-@@ -19,6 +19,7 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
- import { XQSideSection } from '../xq-ui';
+@@ -20,6 +20,7 @@ import { XQSideSection } from '../xq-ui';
  import { sideSectionIcon } from '../../constants/sideSectionIcons';
- import { deriveLocalNongli, deriveNongliUniversalSync, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+ import { deriveLocalNongli, deriveNongliUniversalSync, resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+ import { leadingYearOf } from '../../utils/dateStrSafe';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const STORE_KEY = 'horosa.guice.settings.v1';
  // 八卦 → 其三爻（自下而上）。取仓内既有之 Gua8.value，不另造一份（两份必漂）。
-@@ -257,7 +258,9 @@ class GuiceMain extends Component {
+@@ -258,7 +259,9 @@ class GuiceMain extends Component {
  		});
  		if (!r) return this.setState({ error: '所需之输入未足 —— 本法不可起卦', gua: null, frozenCtx: null });
  		if (r.error) return this.setState({ error: r.error, gua: null, frozenCtx: null });

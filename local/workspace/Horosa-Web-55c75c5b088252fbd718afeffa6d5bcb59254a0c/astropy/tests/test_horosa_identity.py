@@ -44,7 +44,7 @@ def _call_identity_deep():
 
 
 def test_horosa_identity_deep_ok(monkeypatch):
-    # [V-5] deep=1 → 真算通过时 deep:ok + proto:2;不带 deep 的响应无 deep 字段(向后兼容)
+    # deep=1 → 真算通过时 deep:ok + proto:2;不带 deep 的响应无 deep 字段(向后兼容)
     monkeypatch.delenv('HOROSA_IDENTITY_DEEP_FAIL', raising=False)
     data = _call_identity_deep()
     assert data['proto'] == 2

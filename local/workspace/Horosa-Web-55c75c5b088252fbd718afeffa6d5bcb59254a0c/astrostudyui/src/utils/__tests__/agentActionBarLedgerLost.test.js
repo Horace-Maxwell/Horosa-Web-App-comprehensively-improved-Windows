@@ -1,4 +1,4 @@
-// [进阶复查 D17 + P1·2026-09-08] 动作条:账本丢失徽标(不可撤销、无撤销钮);审批行三档钮(允许 / 本会话不再问 / 永久放行 / 跳过)。
+// 动作条:账本丢失徽标(不可撤销、无撤销钮);审批行三档钮(允许 / 本会话不再问 / 永久放行 / 跳过)。
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { act } from 'react-dom/test-utils';

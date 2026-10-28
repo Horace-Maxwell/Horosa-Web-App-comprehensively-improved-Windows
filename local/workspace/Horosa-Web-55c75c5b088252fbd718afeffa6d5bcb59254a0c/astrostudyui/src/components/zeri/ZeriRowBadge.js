@@ -7,7 +7,7 @@ import React from 'react';
 
 export default function ZeriRowBadge({ text }){
 	const t = `${text === undefined || text === null ? '' : text}`.trim();
-	if(!t){ return <span style={{ opacity: 0.5 }}>—</span>; }
+	if(!t){ return <span style={{ color: 'var(--horosa-text-secondary)' }}>—</span>; }
 	const parts = t.split(/[·\s]+/).map((p) => p.trim()).filter(Boolean);
 	return (
 		<span style={{

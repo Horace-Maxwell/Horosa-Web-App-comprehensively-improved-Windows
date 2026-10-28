@@ -1,12 +1,13 @@
-// [挂载自检 六壬/三式 P0] 无头六壬 castOpts 单源:补 solarYear/benmingZhi/xingnianZhi;三式断卦层传 castOpts 形态 + 自家 override。
+// 无头六壬 castOpts 单源:补 solarYear/benmingZhi/xingnianZhi;三式断卦层传 castOpts 形态 + 自家 override。
 // 判别向量:helper 去掉 solarYear 兜底/本命行年透传即第 1 例红;三式改回把 override 当 castOpts 传即源码锚红。
 import fs from 'fs';
 import path from 'path';
 import { liurengHeadlessCastOpts } from '../aiAnalysisContext';
 import { pickSanshiLiurengCastOpts } from '../../components/sanshi/SanShiUnitedMain';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const UI = path.join(__dirname, '..', '..');
-const read = (rel)=>fs.readFileSync(path.join(UI, rel), 'utf8');
+const read = (rel)=>readSource(path.join(UI, rel));
 
 it('🔴 castOpts:存档带 solarYear/benmingZhi/xingnianZhi 原样透传;缺 solarYear 按 record.divTime 年份兜底;缺本命/行年不造键', ()=>{
 	const full = liurengHeadlessCastOpts({ castMethod: 'benming', yueJiangMethod: 'jieqi', solarYear: 2026, benmingZhi: '午', xingnianZhi: '子' }, { divTime: '2026-05-15 10:12:00' });
@@ -34,7 +35,7 @@ it('🔴 接线锚:三式断卦层第 8 参=castOpts+castOverride;六壬 builder
 	expect(lr).toContain('solarYear: getSolarYearFromField(flds && flds.date ? flds.date : null),');
 });
 
-it('🔴 [Q-156/T-73] 事盘无头入口白名单:regenerateCaseTechniqueSnapshot 手写 liurengOpts 必透传 solarYear/benmingZhi/xingnianZhi(漏则九~十二客/本命行年加时静默退回正时正将而快照仍标所选)', ()=>{
+it('🔴 事盘无头入口白名单:regenerateCaseTechniqueSnapshot 手写 liurengOpts 必透传 solarYear/benmingZhi/xingnianZhi(漏则九~十二客/本命行年加时静默退回正时正将而快照仍标所选)', ()=>{
 	const ctx = read('utils/aiAnalysisContext.js');
 	const m = ctx.match(/export async function regenerateCaseTechniqueSnapshot[\s\S]*?const liurengOpts = \{([\s\S]*?)\n\t\};/);
 	expect(m).toBeTruthy();

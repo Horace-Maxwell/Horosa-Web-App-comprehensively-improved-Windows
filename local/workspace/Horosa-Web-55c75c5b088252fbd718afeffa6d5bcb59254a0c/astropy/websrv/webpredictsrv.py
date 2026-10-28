@@ -3,7 +3,7 @@ import traceback
 import jsonpickle
 import cherrypy
 
-# [R5 T2] 响应 JSON 快径:单源见 websrv/fastjson.py(HOROSA_FAST_JSON_ENCODE=0 关)
+# 响应 JSON 快径:单源见 websrv/fastjson.py(HOROSA_FAST_JSON_ENCODE=0 关)
 from websrv.fastjson import install as _install_fast_json
 jsonpickle = _install_fast_json(jsonpickle)
 from flatlib import const
@@ -263,7 +263,7 @@ class PredictSrv:
                 if data['datetime'] == None or data['datetime'] == '':
                     res = predict.getSolarArc(asporb, nodeRetrograde)
                 else:
-                    # [Q-173/T-113] 目标时刻时区随推运页 dirZone(空则本命时区)
+                    # 目标时刻时区随推运页 dirZone(空则本命时区)
                     res = predict.getSolarArcByDate(data['datetime'], asporb, nodeRetrograde, zone=(data.get('dirZone') or None))
             else:
                 res = predict.getSolarArc()
@@ -295,7 +295,7 @@ class PredictSrv:
             asporb = data['asporb'] if 'asporb' in data.keys() else 1
             arcSource = data['arcSource'] if 'arcSource' in data.keys() else const.MOON
             if 'datetime' in data.keys() and data['datetime'] != None and data['datetime'] != '':
-                res = predict.getPlanetaryArcByDate(data['datetime'], asporb, nodeRetrograde, arcSource, zone=(data.get('dirZone') or None))   # [Q-173]
+                res = predict.getPlanetaryArcByDate(data['datetime'], asporb, nodeRetrograde, arcSource, zone=(data.get('dirZone') or None))
             else:
                 res = predict.getPlanetaryArc(asporb, nodeRetrograde, arcSource)
             return jsonpickle.encode(res, unpicklable=False)
@@ -321,7 +321,7 @@ class PredictSrv:
             asporb = data['asporb'] if 'asporb' in data.keys() else 1
             nodeRetrograde = data['nodeRetrograde'] if 'nodeRetrograde' in data.keys() else False
             direction = data['direction'] if 'direction' in data.keys() else 'direct'
-            res = predict.getPersianDirectedByDate(data['datetime'], rateKey, asporb, nodeRetrograde, direction, zone=(data.get('dirZone') or None))   # [Q-173]
+            res = predict.getPersianDirectedByDate(data['datetime'], rateKey, asporb, nodeRetrograde, direction, zone=(data.get('dirZone') or None))
             return jsonpickle.encode(res, unpicklable=False)
         except:
             traceback.print_exc()

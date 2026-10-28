@@ -11,7 +11,7 @@ import { buildExportPdfVectorBlob } from '../aiExportPdfVector';
 const FONT_PATH = path.join(__dirname, '../../../public/fonts/HorosaCJK-subset.ttf');
 const BOLD_FONT_PATH = path.join(__dirname, '../../../public/fonts/HorosaCJK-Bold-subset.ttf');
 
-// [E11] mock 要按 URL 分发两副字体(Regular / Bold)—— 只喂 Regular 的话「真 Bold 落笔」
+// mock 要按 URL 分发两副字体(Regular / Bold)—— 只喂 Regular 的话「真 Bold 落笔」
 // 这条路径在测试里就是空转,断言等于没验。
 function toAb(p){
 	const buf = fs.readFileSync(p);
@@ -42,7 +42,7 @@ function pdfInfo(bytes){
 	// 解压所有 Flate 流再判(否则「可选中」判据随压缩策略漂移,正是旧测漏字体乱码的次因)。
 	const zlib = require('zlib');
 	let deep = s;
-	// [E5] ops=页面内容流文本(按流字典过滤:剔除字体 /Length1、/ObjStm、图片流)——查 Tr 等操作符
+	// ops=页面内容流文本(按流字典过滤:剔除字体 /Length1、/ObjStm、图片流)——查 Tr 等操作符
 	// 专用。混入字体二进制的 deep 在 latin1 下会随机撞出短串,操作符断言禁用 deep 防假阳/假阴。
 	let ops = s;
 	const re = /stream\r?\n/g; let m;
@@ -63,8 +63,8 @@ function pdfInfo(bytes){
 		hasType0: /\/Type0\b/.test(deep),          // CID Type0 复合字体 = 中文可选
 		hasToUnicode: /\/ToUnicode\b/.test(deep),  // 有 ToUnicode CMap = 可选可搜(复制得回原字)
 		sizeKB: Math.round(bytes.length / 1024),
-		ops,   // [E5] 内容流文本(含原始字节+过滤解压),查 Tr 等操作符专用
-		deep,  // [E11] 全流解压文本(含 ObjStm 里的字体字典),查 /FontFile2、BaseFont 名专用
+		ops,   // 内容流文本(含原始字节+过滤解压),查 Tr 等操作符专用
+		deep,  // 全流解压文本(含 ObjStm 里的字体字典),查 /FontFile2、BaseFont 名专用
 	};
 }
 
@@ -141,9 +141,9 @@ describe('矢量 PDF 引擎 · 穷举内容结构', () => {
 		expect(info.sizeKB).toBeGreaterThan(3);
 	});
 
-	// [A3] 跨页表头重绘契约:长表跨到的每一页,该页首个表行必须是表头(与打印路径
+	// 跨页表头重绘契约:长表跨到的每一页,该页首个表行必须是表头(与打印路径
 	// `<thead>` 每页重复对齐)。旧缺陷=表头只画首页,第二页起裸行。
-	test('[A3] 长表跨页:每页首个表行=表头', async () => {
+	test('长表跨页:每页首个表行=表头', async () => {
 		const rows = [];
 		const blob = await buildExportPdfVectorBlob(
 			{ tech: '跨页表', filenameBase: 'x', text: `【全年吉日】\n\n${bigTable(80, 5)}` },
@@ -160,7 +160,7 @@ describe('矢量 PDF 引擎 · 穷举内容结构', () => {
 		expect(rows.filter((r)=> r.isHeader).length).toBe(pagesSeen.length);
 	});
 
-	// [E11] 粗体贯通改真字重:**粗** 剥记号入文,粗体段改用**真 Bold 子集字体**落笔
+	// 粗体贯通改真字重:**粗** 剥记号入文,粗体段改用**真 Bold 子集字体**落笔
 	// (Noto Sans CJK SC Bold,与 Regular 同覆盖)——PDF 里必须内嵌两副 TrueType 字体,
 	// 且不再出现 Tr2 描边合成。Tr2 只保留为「Bold 取不到」的降级路径,由下一例守。
 	const BOLD_TEXT = [
@@ -173,7 +173,7 @@ describe('矢量 PDF 引擎 · 穷举内容结构', () => {
 		'|---|---|',
 		'| 婚姻 | **宜早** |',
 	].join('\n');
-	test('[E11] 行内加粗:记号消化 + 真 Bold 字重内嵌(不再描边合成)', async () => {
+	test('行内加粗:记号消化 + 真 Bold 字重内嵌(不再描边合成)', async () => {
 		const blob = await buildExportPdfVectorBlob({ tech: '粗体', filenameBase: 'x', text: BOLD_TEXT });
 		const info = pdfInfo(await blobBytes(blob));
 		expect(info.valid).toBe(true);
@@ -187,7 +187,7 @@ describe('矢量 PDF 引擎 · 穷举内容结构', () => {
 		expect(/\b2\s+Tr\b/.test(pdfInfo(await blobBytes(plain)).ops)).toBe(false);
 	});
 
-	test('[E11] 降级路径:Bold 字体取不到 → 回落 Tr2 描边合成(正文绝不缺席)', async () => {
+	test('降级路径:Bold 字体取不到 → 回落 Tr2 描边合成(正文绝不缺席)', async () => {
 		jest.resetModules();
 		mockFonts({ boldOk: false });
 		try{

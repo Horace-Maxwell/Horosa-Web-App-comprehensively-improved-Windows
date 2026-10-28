@@ -1,14 +1,14 @@
-// docx 构造助手 · 单源（v2 底座:自 reportExport.js 逐字平移,行为零变化）。
+// docx 构造助手 · 单源（v2 底座:由原导出模块逐字平移,行为零变化）。
 // 供文稿 docx 导出与技法导出 docx(aiExportDocRender)共用。
 // ⚠️ 本文件静态 import 'docx'(较重):aiExport 主链严禁静态 import 本文件——
 //   必须经 aiExportDocRender 动态 import(代码分包),否则 docx 进主包(哨兵看护)。
-// docx 的对齐/边框等枚举在 jest 下偶尔解构为 undefined,沿用字符串字面量(reportExport 先例)。
+// docx 的对齐/边框等枚举在 jest 下偶尔解构为 undefined,沿用字符串字面量。
 
 import { TextRun, Paragraph, Table, TableRow, TableCell } from 'docx';
 import { mdInlineSegments } from './aiExportDocModel';
 
 // 行内 markdown(***粗斜*** / **粗** / *斜* / `码` / ~~删~~ / 转义)→ docx TextRun[];
-// 段落与表格单元格共用。[E11] 分词一律走 aiExportDocModel.mdInlineSegments 单一 tokenizer,
+// 段落与表格单元格共用。分词一律走 aiExportDocModel.mdInlineSegments 单一 tokenizer,
 // **本函数不得再自养 `\*\*` 正则** —— 四条消费链能力分叉正是「所见≠所得」的根因(哨兵[201] 看守)。
 export function mdInlineToRuns(text, baseOpts){
 	const base = baseOpts || {};
@@ -25,7 +25,7 @@ export function mdInlineToRuns(text, baseOpts){
 	return runs.length ? runs : [new TextRun({ ...base, text: '' })];
 }
 
-// [B2] dataURL 图片尺寸嗅探(PNG IHDR / JPEG SOF0-2):docx ImageRun 必须显式宽高,
+// dataURL 图片尺寸嗅探(PNG IHDR / JPEG SOF0-2):docx ImageRun 必须显式宽高,
 // 盲设会拉伸变形。解析失败返回 null → 调用方用保守默认。
 export function sniffImageSize(u8){
 	try{
@@ -76,7 +76,7 @@ export function makeDocxTable(headers, bodyRows, aligns){
 	return new Table({ rows });
 }
 
-// dataURL → Uint8Array(docx ImageRun 输入;自 reportExport 平移)。
+// dataURL → Uint8Array(docx ImageRun 输入)。
 export function dataUrlToUint8Array(dataUrl){
 	if(!dataUrl || typeof dataUrl !== 'string') return null;
 	const idx = dataUrl.indexOf(',');

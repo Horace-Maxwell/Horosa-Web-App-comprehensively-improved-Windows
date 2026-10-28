@@ -1,4 +1,4 @@
-// [Q-020/M-26] 挂载抽屉 text 字段:normalize 产出的对象数组(紫微太岁关系人)按 branch:role:sex 反序列化显示,不再 [object Object]。
+// 挂载抽屉 text 字段:normalize 产出的对象数组(紫微太岁关系人)按 branch:role:sex 反序列化显示,不再 [object Object]。
 import { textFieldDisplayValue } from '../TechniqueSettingsFields';
 import { pruneOptionsToNonDefault } from '../../../utils/techniqueMountSettings';
 

@@ -160,19 +160,28 @@ function fieldValue(fields, key){
 // 当前分宫制:{ num, label, isAscWholeSign }。
 // 取值序与 [起盘信息] 同:fields.hsys(请求入参)→ params.hsys(请求 echo)→ 反查 chart.hsys 文本。
 // 数字位命中即为权威(fields 就是发出去的排盘入参);仅当数字位缺失才信后端文本。
-// [Q-148/T-55] 派生盘(调波/龙盘/十三分/十二分)的宫位被后端强制为「变换后上升整宫」、每宫 30°,
+// 派生盘(调波/龙盘/十三分/十二分)的宫位被后端强制为「变换后上升整宫」、每宫 30°,
 // 与请求里的分宫制无关;此前标注仍照 params.hsys 报用户分宫制(如 Alcabitus)= 标注与数值分叉。
 // 后端在每宫打 houses[].hsysDerived='wholeFromAsc'(手法同极区回退的 hsysFallback),此处据此改标注,
 // 数值一概不动(龙盘宫头是否改刚性旋转另议,那会改产物)。
 export const DERIVED_WHOLE_SIGN_LABEL = '整宫(变换后上升)';
-export function derivedWholeSignLabelOf(chart){
+// 组合盘:所选宫制属整宫一类 / 合不出有效宫头时,后端按组合上升起整宫并逐宫打 'compositeWholeFromAsc'
+// (此前前端仍按左栏标所选宫制、宫主表也不折叠)
+export const COMPOSITE_WHOLE_SIGN_LABEL = '整宫(组合上升)';
+function derivedModeOf(chart){
 	const houses = chart && Array.isArray(chart.houses) ? chart.houses : [];
 	for(let i=0; i<houses.length; i++){
-		if(houses[i] && houses[i].hsysDerived === 'wholeFromAsc'){
-			return DERIVED_WHOLE_SIGN_LABEL;
+		const m = houses[i] && houses[i].hsysDerived;
+		if(m === 'wholeFromAsc' || m === 'compositeWholeFromAsc'){
+			return m;
 		}
 	}
 	return '';
+}
+export function derivedWholeSignLabelOf(chart){
+	const m = derivedModeOf(chart);
+	if(m === 'compositeWholeFromAsc'){ return COMPOSITE_WHOLE_SIGN_LABEL; }
+	return m ? DERIVED_WHOLE_SIGN_LABEL : '';
 }
 
 export function resolveHouseSystem(chartObj, fields){
@@ -197,11 +206,12 @@ export function resolveHouseSystem(chartObj, fields){
 	// 极区回退:象限制在极圈内无解时后端兜底 Porphyry,响应仍标请求宫制、逐宫带 hsysFallback
 	// (flatlib swe.py)。表头必须说真话——宫头是按回退制算的,否则「当前分宫制(Placidus)」是假话。
 	const fallback = houseSystemFallbackOf(chart);
-	const derivedLabel = derivedWholeSignLabelOf(chart);   // [Q-148] 派生盘:标注只认宫位实算口径
+	const derivedLabel = derivedWholeSignLabelOf(chart);   // 派生盘:标注只认宫位实算口径
 	const label = derivedLabel || (fallback ? `${baseLabel}→回退${fallback}` : baseLabel);
-	const isAscWholeSign = num !== null
+	// 组合盘改按组合上升起了整宫:宫位就是上升整宫,宫主表按整宫折叠(派生盘的数值口径另议,不在此改)
+	const isAscWholeSign = derivedModeOf(chart) === 'compositeWholeFromAsc' ? true : (num !== null
 		? numIsAscWholeSign(num)
-		: (echoText === AstroConst.HSYS_Whole_Sign || echoText === '整宫制');
+		: (echoText === AstroConst.HSYS_Whole_Sign || echoText === '整宫制'));
 	// 形状保持 { num, label, isAscWholeSign };仅极区回退时附 fallback(既有精确断言零变)
 	return fallback ? { num, label, isAscWholeSign, fallback } : { num, label, isAscWholeSign };
 }
@@ -215,6 +225,17 @@ export function houseSystemFallbackOf(chart){
 			const num = houseSystemNumOfText(fb);
 			return (num !== null ? AstroConst.HouseSys[num] : '') || `${fb}`;
 		}
+	}
+	return '';
+}
+
+// 极区天顶标记:houses[].polarMc(flatlib swe.upperMeridianAscmc 打的,值 'upperMeridian')。本时刻极圈内
+// 子午线上中天交点落地平下 —— 各分宫制 MC 一律按上中天交点取(swisseph 对部分制会换成 IC,已统一改回)。
+export const POLAR_MC_NOTE = '极区天顶：本时刻子午线上中天交点在地平以下；各分宫制的 MC 一律按上中天交点取（不换作 IC），宫头仍按所选分宫制。';
+export function polarMcOf(chart){
+	const houses = chart && Array.isArray(chart.houses) ? chart.houses : [];
+	for(let i=0; i<houses.length; i++){
+		if(houses[i] && houses[i].polarMc){ return `${houses[i].polarMc}`; }
 	}
 	return '';
 }

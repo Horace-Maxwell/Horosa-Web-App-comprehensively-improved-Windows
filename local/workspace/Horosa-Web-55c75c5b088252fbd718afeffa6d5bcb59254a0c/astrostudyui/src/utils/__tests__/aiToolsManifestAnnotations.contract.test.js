@@ -1,4 +1,4 @@
-// [D89] MCP 导出面工具注解真话:openWorldHint 对出网类(external 类别 / 外部服务器工具)为 true(此前恒 false = 对 Codex/Claude Code 谎报「不出网」);
+// MCP 导出面工具注解真话:openWorldHint 对出网类(external 类别 / 外部服务器工具)为 true(此前恒 false = 对 Codex/Claude Code 谎报「不出网」);
 //   title = 中文标签单源;interactive 类带 anthropic/requiresUserInteraction(Claude Code 每次弹确认、不提供「不再问」);
 //   负锚:运行时 toolDefs() 送上游的定义只含 name/description/inputSchema(注解只在 MCP 面,模型请求体字节零变)。
 import { registerBuiltinTools } from '../aiTools';

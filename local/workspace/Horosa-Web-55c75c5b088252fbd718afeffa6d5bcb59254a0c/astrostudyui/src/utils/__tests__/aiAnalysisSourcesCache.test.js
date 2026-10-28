@@ -1,4 +1,4 @@
-// [P0-S2] listAnalysisSources 指纹缓存 + 引用稳定 + findAnalysisSourceById 单条 O(1) 查找。
+// listAnalysisSources 指纹缓存 + 引用稳定 + findAnalysisSourceById 单条 O(1) 查找。
 //
 // 判据总纲:真库(不 mock 内核)seed 命盘 30 + 事盘 20(字符串 snapshot / 对象 snapshot / 空 payload 三型),
 // 输出与本文件内联的「旧算法参考实现」深度相等(含顺序/snapshotStatus/module/tags);写后按指纹只重建变化条目;
@@ -107,7 +107,7 @@ function seedBig(nCharts, nCases){
 	window.localStorage.setItem(CASES_KEY, JSON.stringify(cases));
 }
 
-describe('[P0-S2] listAnalysisSources 指纹缓存', ()=>{
+describe('listAnalysisSources 指纹缓存', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 		__resetSourcesCacheForTests();

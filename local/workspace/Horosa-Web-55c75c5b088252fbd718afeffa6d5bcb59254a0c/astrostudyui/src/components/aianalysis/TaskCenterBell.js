@@ -1,12 +1,13 @@
 // 任务中心铃铛(P1):右下角悬浮按钮,角标=未读通知数 + 活动任务数。
 // 出现条件:有任务/通知,或行动能力开启——全新安装首次打开界面零变化。点开 → TaskCenterPanel 抽屉。
-// [2026-09-11] 第二入口:斜杠命令 /任务 与进阶页「打开任务中心」按钮派发 window 事件 horosa:task-center {open:true} → 直接打开抽屉(铃铛随之出现)。
+// 第二入口:斜杠命令 /任务 与进阶页「打开任务中心」按钮派发 window 事件 horosa:task-center {open:true} → 直接打开抽屉(铃铛随之出现)。
 import React from 'react';
 import { Badge, Button, Tooltip } from 'antd';
 import { listTasks, subscribeTasks, unreadCount, subscribeNotices, listNotices } from '../../utils/aiAgent/tasks';
 import { isAgentEnabled, subscribeAgentPrefs } from '../../utils/aiAgent/prefs';
 import { listPendingApprovals, subscribeApprovals } from '../../utils/aiAgent/approvals';
 import { listPendingElicitations, subscribeElicitations } from '../../utils/aiAgent/elicitations';
+import { pendingProposalCount, subscribeProposals } from '../../utils/aiAgent/proposals';
 import TaskCenterPanel from './TaskCenterPanel';
 
 export const ACTIVE_TASK_STATUSES = ['queued', 'scheduled', 'running', 'paused', 'waiting', 'interrupted'];
@@ -19,7 +20,7 @@ export default function TaskCenterBell(){
 	const [agentOn, setAgentOn] = React.useState(()=>isAgentEnabled());
 	const refresh = React.useCallback(()=>{
 		Promise.all([listTasks(), listNotices({ limit: 1 }), unreadCount()]).then(([tasks, notices, unread])=>{
-			const todo = listPendingApprovals().length + listPendingElicitations().length;
+			const todo = listPendingApprovals().length + listPendingElicitations().length + pendingProposalCount();   // 待采纳的档案提案也算待办
 			setCounts({ tasks: tasks.length, active: tasks.filter((t)=>ACTIVE_TASK_STATUSES.indexOf(t.status) >= 0).length, unread, notices: notices.length, todo });
 		}).catch(()=>{});
 	}, []);
@@ -28,6 +29,7 @@ export default function TaskCenterBell(){
 	React.useEffect(()=>subscribeNotices(refresh), [refresh]);
 	React.useEffect(()=>subscribeApprovals(refresh), [refresh]);
 	React.useEffect(()=>subscribeElicitations(refresh), [refresh]);
+	React.useEffect(()=>subscribeProposals(refresh), [refresh]);
 	React.useEffect(()=>subscribeAgentPrefs((d)=>setAgentOn(!!(d && d.enabled))), []);
 	const [forced, setForced] = React.useState(false);
 	React.useEffect(()=>{

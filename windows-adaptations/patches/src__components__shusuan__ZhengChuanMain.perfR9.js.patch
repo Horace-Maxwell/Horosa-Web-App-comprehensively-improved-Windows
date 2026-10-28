@@ -1,32 +1,24 @@
 diff --git a/astrostudyui/src/components/shusuan/ZhengChuanMain.js b/astrostudyui/src/components/shusuan/ZhengChuanMain.js
-index 601b0591..c988d1c2 100644
+index cefa2bd5..7ab1a3d6 100644
 --- a/astrostudyui/src/components/shusuan/ZhengChuanMain.js
 +++ b/astrostudyui/src/components/shusuan/ZhengChuanMain.js
-@@ -21,6 +21,7 @@ import { calcXinyi, bakeTable, xiangTable, xingqingTable, XINYI_GONG } from '../
- import { buildZhengChuanSnapshotText } from '../../utils/zhengchuanSnapshot';
- import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+@@ -24,6 +24,7 @@ import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
  import { SCHOOL_LABEL } from './zhengchuanSchools';
+ import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
+ import { chartDayBoundary } from '../../utils/dayBoundaryResolve';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const { TabPane } = Tabs;
  
-@@ -50,6 +51,7 @@ function deepFreeze(o){
- }
+@@ -38,6 +39,7 @@ export { deriveDadingYearPillars } from '../../utils/zhengchuanDadingLocal';
+ const sharedModelMemo = createSignatureMemo(4);
  
  class ZhengChuanMain extends Component {
 +	// horosa_shusuan_native_scu_v1(PERF-R9;v3.5.1 起与上游 [R3-A6] 守卫合一 —— 语义同 wrapperPropsEqual,单一实现防双 sCU)
- 	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+ 	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
  	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
  	shouldComponentUpdate(nextProps, nextState){
-@@ -66,6 +68,7 @@ class ZhengChuanMain extends Component {
- 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
- 	}
- 
-+
- 	componentDidMount() {
- 		this.loadVerses();
- 		this.saveSnap();
-@@ -344,7 +347,15 @@ class ZhengChuanMain extends Component {
+@@ -350,7 +352,15 @@ class ZhengChuanMain extends Component {
  				size="small"
  				className="horosa-huangji-tabs horosa-zhengchuan-tabs"
  			>

@@ -1,47 +1,17 @@
 diff --git a/astrostudyui/src/components/taixuan/TaiXuanMain.js b/astrostudyui/src/components/taixuan/TaiXuanMain.js
-index 3ce8bbc9..b8f66ee1 100644
+index 46105b55..c07f2d88 100644
 --- a/astrostudyui/src/components/taixuan/TaiXuanMain.js
 +++ b/astrostudyui/src/components/taixuan/TaiXuanMain.js
-@@ -16,6 +16,8 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
- import { formatHumanValue } from '../../utils/humanReadableFields';
- import { parseDateParts } from '../../utils/dateStrSafe';
- import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // [Q-392/T-374] 四柱须吃全局日界/晚子时(此前后端恒取缺省)
+@@ -17,6 +17,8 @@ import { parseDateParts } from '../../utils/dateStrSafe';
+ import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
+ import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
+ import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // 四柱须吃全局日界/晚子时(此前后端恒取缺省)
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const { TabPane } = Tabs;
  
-@@ -55,7 +57,7 @@ function defaultSeed(){
- 	return Math.floor((Date.now() + Math.random() * 1000000) % 1000000000);
- }
- 
--async function postTaiXuan(path, payload){
-+async function postTaiXuanRaw(path, payload){
- 	let rsp = null;
- 	try{
- 		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('taixuan', path), {
-@@ -87,6 +89,12 @@ async function postTaiXuan(path, payload){
- 	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
- }
- 
-+// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache(seedInBody:
-+// 同 payload[含 seed]→同卦;「起筮」换 seed=换键必重取,随机语义零损失)。
-+function postTaiXuan(path, payload){
-+	return postTaiXuanRaw(path, payload);
-+}
-+
- function fmtValue(value){
- 	return formatHumanValue(value);
- }
-@@ -199,6 +207,7 @@ class TaiXuanMain extends Component{
- 		}
- 	}
- 
-+
- 	componentDidMount(){
- 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
- 		this.unmounted = false;
-@@ -357,6 +366,14 @@ class TaiXuanMain extends Component{
+@@ -334,6 +336,14 @@ class TaiXuanMain extends Component{
  		this.setState({ seed: defaultSeed() });
  	}
  
@@ -56,16 +26,16 @@ index 3ce8bbc9..b8f66ee1 100644
  	async fetchPan(fields){
  		const dt = parseFieldsDateTime(fields);
  		if(!dt){
-@@ -378,6 +395,8 @@ class TaiXuanMain extends Component{
+@@ -356,6 +366,8 @@ class TaiXuanMain extends Component{
  				return;
  			}
- 			this.setState({ pan, loading: false }, ()=>{
+ 			this.setState({ pan, panSig: castSig, loading: false }, ()=>{
 +				// horosa_panel_ready_v1:pan 落定 = 中栏与右栏(皆由 pan 派生)画完的那一次 setState。
 +				markPanelReady('cnyibu');
  				saveModuleAISnapshotLazy('taixuan', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -594,23 +613,35 @@ class TaiXuanMain extends Component{
+@@ -575,23 +587,35 @@ class TaiXuanMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

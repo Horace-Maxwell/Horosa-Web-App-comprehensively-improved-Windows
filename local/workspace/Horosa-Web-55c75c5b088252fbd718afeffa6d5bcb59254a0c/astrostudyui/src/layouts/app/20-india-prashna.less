@@ -1,0 +1,292 @@
+// 全站样式 · 印占问事 / 校时 / 敏感点 / 风险区。
+// 由 layouts/app.less 按原顺序 @import(顺序即层叠次序);新规则要包在本文件的 :global { } 里。
+
+
+/* ── 印占 KP 补齐(问事/校时/敏感点/风险区)新类 ── */
+:global {
+.horosa-india-prashna-schools { display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0 4px; }
+.horosa-india-prashna-school { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--horosa-astro-text, #e8ecf3); cursor: pointer; }
+.horosa-india-prashna-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.horosa-india-prashna-verdict { font-size: 20px; font-weight: 700; margin: 4px 0 8px; color: var(--horosa-astro-text, #e8ecf3); }
+.horosa-india-prashna-verdict.is-ji { color: var(--horosa-jx-ji, #4caf7d); }
+.horosa-india-prashna-verdict.is-xiong { color: var(--horosa-jx-xiong, #d77b7b); }
+.horosa-india-prashna-csl .horosa-india-data-row { display: grid; grid-template-columns: 44px 76px 1fr 1fr; gap: 6px; }
+.horosa-india-risk-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--horosa-astro-muted, #8fa0b9); cursor: pointer; }
+/* 风险区中性灰,不作凶色渲染(伦理敏感,避免视觉恐吓) */
+.horosa-india-risk-body { margin-top: 8px; }
+.horosa-india-risk-body .horosa-india-data-row strong { color: var(--horosa-astro-muted, #8fa0b9); }
+.horosa-india-sensitive-hot strong { color: var(--horosa-astro-gold, #d7ad69); }
+.horosa-india-rectify-warn { color: var(--horosa-jx-xiong, #d77b7b) !important; }
+// —— 出生时间校正器抽屉(portal 到 body,不吃 workspace-shell 前缀样式;变量仅用 :global 层的) ——
+.horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-content {
+	background:
+		linear-gradient(180deg, rgba(216, 173, 99, 0.05), transparent 42%),
+		#050607 !important;
+	color: var(--horosa-text, #efe4d2);
+	box-shadow: -18px 0 56px rgba(0, 0, 0, 0.42);
+}
+.horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-header {
+	border-bottom: 1px solid rgba(216, 173, 99, 0.22);
+	background: rgba(5, 6, 7, 0.98) !important;
+}
+.horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-title,
+.horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-close {
+	color: var(--horosa-text, #efe4d2) !important;
+	font-weight: 620;
+	letter-spacing: 0.01em;
+}
+.horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-body {
+	background: transparent;
+	color: var(--horosa-text, #efe4d2);
+	padding: 18px 20px 24px;
+}
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-content,
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-body {
+	background: var(--horosa-surface-raised, #fbf8f2) !important;
+	color: var(--horosa-text, #2a2f3a);
+}
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-header {
+	border-color: var(--horosa-border, rgba(0, 0, 0, 0.09));
+	background: var(--horosa-surface-raised, #fbf8f2) !important;
+}
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-title,
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer.xq-drawer .ant-drawer-close {
+	color: var(--horosa-text, #2a2f3a) !important;
+}
+
+.horosa-india-rectify-drawer { display: flex; flex-direction: column; gap: 14px; }
+
+// 参数区:金线卡 + 四列
+.horosa-india-rectify-controls {
+	display: grid;
+	grid-template-columns: 118px 118px minmax(0, 1fr) auto;
+	gap: 12px;
+	align-items: end;
+	padding: 12px 14px;
+	border: 1px solid rgba(216, 173, 99, 0.24);
+	border-radius: 12px;
+	background: linear-gradient(180deg, rgba(216, 173, 99, 0.07), rgba(216, 173, 99, 0.02));
+}
+.horosa-india-rectify-field {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	min-width: 0;
+}
+.horosa-india-rectify-field > span {
+	font-size: 11px;
+	line-height: 1.2;
+	letter-spacing: 0.04em;
+	color: rgba(216, 173, 99, 0.85);
+	white-space: nowrap;
+}
+.horosa-india-rectify-field.is-action { justify-content: flex-end; }
+.horosa-india-rectify-field .horosa-india-pill-toggle { min-width: 96px; padding: 5px 18px; }
+// 抽屉暗壳里的 antd 控件调暗(light 主题还原默认)
+.horosa-india-rectify-xqdrawer .ant-input-number,
+.horosa-india-rectify-xqdrawer .ant-select-selection {
+	background: rgba(255, 255, 255, 0.045);
+	border-color: rgba(216, 173, 99, 0.28);
+	color: var(--horosa-text, #efe4d2);
+}
+.horosa-india-rectify-xqdrawer .ant-input-number-input,
+.horosa-india-rectify-xqdrawer .ant-select-selection-selected-value { color: var(--horosa-text, #efe4d2); }
+.horosa-india-rectify-xqdrawer .ant-select-arrow { color: var(--horosa-text-secondary); }
+.horosa-india-rectify-xqdrawer .ant-input-number-handler-wrap { background: rgba(255, 255, 255, 0.06); border-left-color: rgba(216, 173, 99, 0.2); }
+.horosa-india-rectify-xqdrawer .ant-input-number-handler .anticon { color: var(--horosa-text-secondary); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer .ant-input-number,
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer .ant-select-selection {
+	background: #fff;
+	border-color: var(--horosa-border, rgba(0, 0, 0, 0.12));
+	color: var(--horosa-text, #2a2f3a);
+}
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer .ant-input-number-input,
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer .ant-select-selection-selected-value { color: var(--horosa-text, #2a2f3a); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer .ant-input-number-handler-wrap { background: #f6f2ea; border-left-color: rgba(0, 0, 0, 0.08); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-xqdrawer .ant-input-number-handler .anticon { color: var(--horosa-text-secondary); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-field > span { color: var(--horosa-gold, #9a6a25); }
+
+// 步长诊断行:状态点 + 细字
+.horosa-india-rectify-diag {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	font-size: 12px;
+	line-height: 1.55;
+	color: var(--horosa-text-secondary);
+}
+.horosa-india-rectify-diag > i {
+	flex: none;
+	align-self: center;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+}
+.horosa-india-rectify-diag.is-ok > i { background: #7fb07f; box-shadow: 0 0 6px rgba(127, 176, 127, 0.55); }
+.horosa-india-rectify-diag.is-warn { color: var(--horosa-jx-xiong, #d77b7b); }
+.horosa-india-rectify-diag.is-warn > i { background: #d77b7b; box-shadow: 0 0 6px rgba(215, 123, 123, 0.55); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-diag { color: var(--horosa-text-secondary); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-diag.is-warn { color: #b04a4a; }
+
+// 分节标题:金字 + 右侧弱说明
+.horosa-india-rectify-section {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 10px;
+	margin-top: 2px;
+	padding-bottom: 5px;
+	border-bottom: 1px solid rgba(216, 173, 99, 0.16);
+}
+.horosa-india-rectify-section > em {
+	font-style: normal;
+	font-size: 13px;
+	font-weight: 640;
+	letter-spacing: 0.03em;
+	color: var(--horosa-gold, #d8ad63);
+}
+.horosa-india-rectify-section > i {
+	font-style: normal;
+	font-size: 11px;
+	color: var(--horosa-text-secondary);
+}
+:root[data-horosa-appearance='light'] .horosa-india-rectify-section { border-bottom-color: rgba(154, 106, 37, 0.2); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-section > i { color: var(--horosa-text-secondary); }
+
+// 子主区段:曜章 + 等宽区间 + 采样 chip,两列流式
+.horosa-india-rectify-runs {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 6px 12px;
+	max-height: 300px;
+	overflow-y: auto;
+	padding-right: 2px;
+}
+.horosa-india-rectify-run {
+	display: grid;
+	grid-template-columns: 74px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	border: 1px solid rgba(216, 173, 99, 0.14);
+	border-radius: 9px;
+	background: rgba(255, 255, 255, 0.028);
+}
+.horosa-india-rectify-run > strong {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--horosa-text, #efe4d2);
+	white-space: nowrap;
+}
+/* 徽标是实节点(不用 content: attr() 生成 —— 伪元素里的字不经界面简繁显示层,繁体界面会停在「罗 / 计」) */
+.horosa-india-rectify-run > strong > .horosa-india-rectify-glyph {
+	font-style: normal;
+	flex: none;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 10px;
+	font-weight: 640;
+	color: #0c0b08;
+	background: linear-gradient(180deg, #cfa952, #a9873a);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+.horosa-india-rectify-run > span {
+	font-family: 'SF Mono', Menlo, monospace;
+	font-size: 11.5px;
+	letter-spacing: 0.01em;
+	color: rgba(239, 228, 210, 0.78);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.horosa-india-rectify-run > em {
+	font-style: normal;
+	font-size: 10.5px;
+	line-height: 16px;
+	padding: 0 7px;
+	border-radius: 8px;
+	color: rgba(216, 173, 99, 0.9);
+	background: rgba(216, 173, 99, 0.12);
+	white-space: nowrap;
+}
+:root[data-horosa-appearance='light'] .horosa-india-rectify-run { background: rgba(154, 106, 37, 0.045); border-color: rgba(154, 106, 37, 0.18); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-run > span { color: rgba(42, 47, 58, 0.72); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-run > em { color: var(--horosa-gold, #9a6a25); background: rgba(154, 106, 37, 0.12); }
+
+// Top 候选:序号金徽 + 等宽时间 + 徽章组 + 采用
+.horosa-india-rectify-tops { display: flex; flex-direction: column; gap: 8px; }
+.horosa-india-rectify-top {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 14px;
+	border: 1px solid rgba(216, 173, 99, 0.22);
+	border-radius: 11px;
+	background: linear-gradient(180deg, rgba(216, 173, 99, 0.075), rgba(216, 173, 99, 0.02));
+}
+.horosa-india-rectify-rank {
+	flex: none;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 12px;
+	font-weight: 680;
+	color: #0c0b08;
+	background: linear-gradient(180deg, #cfa952, #a9873a);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+.horosa-india-rectify-top > strong {
+	font-family: 'SF Mono', Menlo, monospace;
+	font-size: 15px;
+	font-weight: 640;
+	letter-spacing: 0.02em;
+	color: var(--horosa-text, #efe4d2);
+}
+.horosa-india-rectify-score {
+	font-size: 12px;
+	font-weight: 640;
+	color: var(--horosa-gold, #d8ad63);
+	white-space: nowrap;
+}
+.horosa-india-rectify-badge {
+	font-size: 10.5px;
+	line-height: 17px;
+	padding: 0 8px;
+	border-radius: 9px;
+	color: rgba(239, 228, 210, 0.75);
+	background: rgba(255, 255, 255, 0.06);
+	border: 1px solid rgba(216, 173, 99, 0.18);
+	white-space: nowrap;
+}
+.horosa-india-rectify-badge.is-good { color: #8fc48f; border-color: rgba(127, 176, 127, 0.4); background: rgba(127, 176, 127, 0.1); }
+.horosa-india-rectify-top .horosa-india-pill-toggle { margin-left: auto; }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-top { border-color: rgba(154, 106, 37, 0.26); background: linear-gradient(180deg, rgba(154, 106, 37, 0.06), rgba(154, 106, 37, 0.015)); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-badge { color: var(--horosa-text-secondary); background: rgba(154, 106, 37, 0.06); border-color: rgba(154, 106, 37, 0.2); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-badge.is-good { color: #4a7d4a; }
+
+// 尾注与空态
+.horosa-india-rectify-note {
+	font-size: 11.5px;
+	line-height: 1.6;
+	color: var(--horosa-text-secondary);
+}
+.horosa-india-rectify-empty {
+	padding: 26px 0 12px;
+	text-align: center;
+	font-size: 12.5px;
+	color: var(--horosa-text-secondary);
+}
+:root[data-horosa-appearance='light'] .horosa-india-rectify-note { color: var(--horosa-text-secondary); }
+:root[data-horosa-appearance='light'] .horosa-india-rectify-empty { color: var(--horosa-text-secondary); }
+:root[data-horosa-appearance='light'] .horosa-india-prashna-school { color: var(--horosa-astro-text, #2a2f3a); }
+}

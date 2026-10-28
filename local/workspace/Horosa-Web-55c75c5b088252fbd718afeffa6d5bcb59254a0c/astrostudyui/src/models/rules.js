@@ -1,5 +1,3 @@
-import { history } from 'umi';
-import { Modal, } from 'antd';
 import * as service from '../services/rules';
 
 

@@ -55,4 +55,35 @@ describe('自动规则面板', ()=>{
 		await flush(); await flush();
 		expect((await listRules()).length).toBe(0);
 	});
+
+	test('🔴 事件已不认识 / 事件为空的规则:照列、标「不会触发」,编辑与启停不可用(只能删);启用计数不算它们', async ()=>{
+		const { putStoreRecord, AI_ANALYSIS_STORES } = require('../aiAnalysisStore');
+		await putStoreRecord(AI_ANALYSIS_STORES.automationRules, { id: 'o1', name: '旧事件规则', event: 'no.such.event', enabled: true, actions: [{ type: 'select-source' }, { type: 'no-such-action' }] }, 'rule');
+		await putStoreRecord(AI_ANALYSIS_STORES.automationRules, { id: 'o2', name: '空事件规则', event: '', enabled: true, actions: [{ type: 'select-source' }] }, 'rule');
+		const statuses = [];
+		await act(async ()=>{ ReactDOM.render(<AutomationRulesPanel onStatus={(st)=>statuses.push(st)} />, host); await new Promise((r)=>setTimeout(r, 0)); });
+		await flush();
+		click(host.querySelector('[data-automation-switch="1"]')); await flush();
+		const rows = Array.from(host.querySelectorAll('.ant-table-row'));
+		expect(rows.length).toBe(2);
+		rows.forEach((row)=>{
+			expect(row.textContent).toContain('不会触发');
+			expect(row.querySelector('[data-rule-edit]').disabled).toBe(true);
+			expect(row.querySelector('[data-rule-toggle]').disabled).toBe(true);
+			expect(row.querySelector('[data-rule-delete]').disabled).toBe(false);
+		});
+		// 只写中文说明,不在表格里露原始事件名(放悬停提示)
+		expect(host.textContent).toContain('(此版本没有的事件,不会触发,可删)');
+		expect(host.textContent).not.toContain('no.such.event');
+		expect(host.textContent).not.toContain('(空)(此版本');
+		expect(Array.from(host.querySelectorAll('[data-rule-orphan-event="1"]')).map((n)=>n.getAttribute('title')).sort()).toEqual(['(空)', 'no.such.event']);
+		expect(statuses[statuses.length - 1].text).toBe('0/2 条启用');
+		// 此版本没有的动作同样只写中文说明,原始动作名放悬停提示
+		expect(host.textContent).not.toContain('no-such-action');
+		const oa = host.querySelector('[data-rule-orphan-action="1"]');
+		expect([oa && oa.textContent, oa && oa.getAttribute('title')]).toEqual(['把这个档设为当前分析源、(此版本没有的动作)', 'no-such-action']);
+		for(const row of rows){ click(row.querySelector('[data-rule-delete]')); await flush(); await flush(); }
+		expect((await listRules()).length).toBe(0);
+		click(host.querySelector('[data-automation-switch="1"]')); await flush();
+	});
 });

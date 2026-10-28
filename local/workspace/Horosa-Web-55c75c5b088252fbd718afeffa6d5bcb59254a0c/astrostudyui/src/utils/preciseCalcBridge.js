@@ -1,4 +1,5 @@
 import request from './request';
+import { responseCacheable } from './resultEnvelope';
 import { ServerRoot, ResultKey } from './constants';
 import {
 	getNongliLocalCache,
@@ -11,6 +12,9 @@ import {
 import { buildLocalBaziResult } from './baziLunarLocal';
 import { buildLocalJieqiYearSeed } from './localNongliAdapter';
 import { neighborPrefetchEnabled } from './perfFlags';
+import { registerProcessCache } from './processCacheRegistry';
+import { dateKeyOfStr } from './dateStrSafe';
+import { normalizeZone } from './zoneText';
 
 const NONG_LI_KEYS = ['date', 'time', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'ad', 'gender', 'after23NewDay', 'lateZiHourUseNextDay', 'timeAlg'];
 const JIE_QI_SEED_KEYS = ['year', 'ad', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'timeAlg', 'jieqis', 'seedOnly'];
@@ -31,72 +35,12 @@ const jieqiYearMem = new Map();
 const jieqiYearInflight = new Map();
 const jieqiSeedMem = new Map();
 const jieqiSeedInflight = new Map();
+registerProcessCache('preciseCalc.nongliJieqi', ()=>{
+	[nongliMem, nongliInflight, jieqiYearMem, jieqiYearInflight, jieqiSeedMem, jieqiSeedInflight].forEach((m)=>m.clear());
+});
 
 function safe(v, d = ''){
 	return v === undefined || v === null ? d : `${v}`;
-}
-
-function parseZoneHour(zone){
-	const text = safe(zone).trim();
-	if(!text){
-		return null;
-	}
-	const mStd = text.match(/^([+-])(\d{1,2})(?::?(\d{2}))?$/);
-	if(mStd){
-		const sign = mStd[1] === '-' ? -1 : 1;
-		const hh = parseInt(mStd[2], 10);
-		const mm = parseInt(mStd[3] || '0', 10);
-		if(!Number.isNaN(hh) && !Number.isNaN(mm)){
-			return sign * (hh + mm / 60);
-		}
-	}
-	const mUtc = text.match(/^(?:UTC|GMT)\s*([+-])(\d{1,2})(?::?(\d{2}))?$/i);
-	if(mUtc){
-		const sign = mUtc[1] === '-' ? -1 : 1;
-		const hh = parseInt(mUtc[2], 10);
-		const mm = parseInt(mUtc[3] || '0', 10);
-		if(!Number.isNaN(hh) && !Number.isNaN(mm)){
-			return sign * (hh + mm / 60);
-		}
-	}
-	const mCn = text.match(/^([东西])\s*(\d{1,2})(?:[:：]?(\d{1,2}))?\s*区?$/);
-	if(mCn){
-		const sign = mCn[1] === '西' ? -1 : 1;
-		const hh = parseInt(mCn[2], 10);
-		const mm = parseInt(mCn[3] || '0', 10);
-		if(!Number.isNaN(hh) && !Number.isNaN(mm)){
-			return sign * (hh + mm / 60);
-		}
-	}
-	const numeric = Number(text);
-	if(Number.isFinite(numeric)){
-		return numeric;
-	}
-	return null;
-}
-
-function formatZoneHour(hour){
-	if(hour === null || hour === undefined || Number.isNaN(hour)){
-		return '+08:00';
-	}
-	const sign = hour < 0 ? '-' : '+';
-	const abs = Math.abs(hour);
-	let hh = Math.floor(abs);
-	let mm = Math.round((abs - hh) * 60);
-	if(mm >= 60){
-		hh += 1;
-		mm -= 60;
-	}
-	return `${sign}${`${hh}`.padStart(2, '0')}:${`${mm}`.padStart(2, '0')}`;
-}
-
-function normalizeZone(zone, fallback = '+08:00'){
-	const parsed = parseZoneHour(zone);
-	if(parsed !== null && !Number.isNaN(parsed)){
-		return formatZoneHour(parsed);
-	}
-	const fb = parseZoneHour(fallback);
-	return formatZoneHour((fb !== null && !Number.isNaN(fb)) ? fb : 8);
 }
 
 function normalizeAd(ad, date){
@@ -134,13 +78,22 @@ function normalizeBit(value, def = 0){
 	return 0;
 }
 
+// 时间算法四档 → 农历换算实际口径:0 真太阳时 / 1 直接时间 / 3 平太阳时;2 春分定卯时尚无独立换算,按直接时间
+// (与后端 TimeZiAlg.calcBasis、本地八字引擎同口径)。此前按 0/1 二值归一,2 / 3 都被折成真太阳时。
+export function normalizeNongliTimeAlg(value){
+	const n = Number(value);
+	if(n === 1 || n === 2){ return 1; }
+	if(n === 3){ return 3; }
+	return normalizeBit(value, 0);
+}
+
 function normalizeNongliParams(params){
 	const src = params || {};
 	return {
 		...src,
 		zone: normalizeZone(src.zone, '+08:00'),
 		ad: normalizeAd(src.ad, src.date),
-		timeAlg: normalizeBit(src.timeAlg, 0),
+		timeAlg: normalizeNongliTimeAlg(src.timeAlg),
 		after23NewDay: normalizeBit(src.after23NewDay, 0),
 		// v2.2.1: 默认 1 = 跟现行 lunar.js Exact 行为一致(用次日干起子时);=0 才是新行为(用今日干起子时)。
 		lateZiHourUseNextDay: normalizeBit(src.lateZiHourUseNextDay, 1),
@@ -189,7 +142,7 @@ function toDateKey(time){
 		return '';
 	}
 	const date = txt.split(' ')[0] || '';
-	return date.replace(/-/g, '');
+	return dateKeyOfStr(date);
 }
 
 function normalizeDayGanzhi(entry){
@@ -241,7 +194,7 @@ function buildLocalNongliFallback(params){
 		if(!result.jieqi){
 			result.jieqi = jieqiFromText(result.jiedelta);
 		}
-		// [Q-202/T-145] 与后端 /nongli/time 同形:year=干支年(本地 buildNongli 的 year 是汉字数字)、monthInt/dayInt=农历数字月日
+		// 与后端 /nongli/time 同形:year=干支年(本地 buildNongli 的 year 是汉字数字)、monthInt/dayInt=农历数字月日
 		// (六爻 genTimeGua/buildTimeGua 读这三键;此前回落形态 year 汉字→支序 -1、月日 undefined → NaN 抛错/返回 null)。
 		result.year = result.yearGanZi || result.year;
 		if(result.monthInt === undefined || result.monthInt === null){ result.monthInt = nongli.monthNum != null ? nongli.monthNum : (result.monthNum != null ? result.monthNum : undefined); }
@@ -401,7 +354,8 @@ export async function fetchPreciseNongli(params){
 				timeoutMs: PRECISE_REQ_TIMEOUT_MS,
 			});
 			const result = ensureYearGZByLunar(rsp && rsp[ResultKey] ? rsp[ResultKey] : null, reqParams);
-			if(result){
+			// 业务错误(Result.err / 顶层 err)不是结果:不进缓存、不写本机缓存,走下面的本地兜底(判据单一出处 resultEnvelope)
+			if(result && responseCacheable(rsp)){
 				pushCache(nongliMem, key, result);
 				setNongliLocalCache(reqParams, result);
 				return result;
@@ -458,7 +412,7 @@ export async function fetchPreciseJieqiYear(params){
 				timeoutMs: PRECISE_REQ_TIMEOUT_MS,
 			});
 			const result = rsp && rsp[ResultKey] ? rsp[ResultKey] : null;
-			if(result){
+			if(result && responseCacheable(rsp)){   // 业务错误不进缓存、不写本机缓存(判据单一出处 resultEnvelope)
 				const filledResult = fillJieqiDayGanzhiFromLocal(result, reqParams);
 				pushCache(jieqiYearMem, key, filledResult);
 				setJieqiYearLocalCache(reqParams, filledResult);

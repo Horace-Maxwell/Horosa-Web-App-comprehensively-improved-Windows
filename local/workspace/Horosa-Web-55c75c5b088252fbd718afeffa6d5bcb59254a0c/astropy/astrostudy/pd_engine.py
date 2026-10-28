@@ -516,7 +516,7 @@ def term_boundaries(variant=0):
         if v in (1, 2):
             table = _dtables.TETRABIBLOS_TERMS if v == 1 else _dtables.LILLY_TERMS
         else:
-            # [Q-519/T-481] 迦勒底界(3)/自定义界表(4):表由请求级 push_request_terms 换入 essential.TERMS(夜盘经
+            # 迦勒底界(3)/自定义界表(4):表由请求级 push_request_terms 换入 essential.TERMS(夜盘经
             # setupPlanets 换夜表),此处取当前生效表 → 主限法「界」行与分配星按所选界系算(此前一律回落埃及)。
             from flatlib.dignities import essential as _essential
             table = _essential.TERMS

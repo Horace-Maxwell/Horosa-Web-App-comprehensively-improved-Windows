@@ -17,7 +17,7 @@ import { guardPrefetchUrl } from './stepPrefetch';
 // 最终失败(重试耗尽 / 不可重试)统一留痕:与 request 路径同一环形缓冲,抛出语义不变。
 import { classifyRequestFailure } from './requestFailure';
 import { recordRequestFailure } from './requestTelemetry';
-// [v3.11.2 温启恢复] 桌面壳 early 导航下本路径(直连排盘服务)同样先过就绪门:温启恢复到卜类 / 玄学史等页时,
+// 桌面壳 early 导航下本路径(直连排盘服务)同样先过就绪门:温启恢复到卜类 / 玄学史等页时,
 // 组件挂载即发的第一枪不再打到尚未监听的端口(此前拒连只重试两次即抛错,面板空白且不自动重取)。
 // 非 early 模式 waitForBackendBoot 立即返回,零行为变化。
 import { waitForBackendBoot } from './backendBootGate';

@@ -1,10 +1,10 @@
-// [R5 N2] 技法使用频次 + 按频次排序:计数持久化 / 稳定排序语义 / 开关关回原序 / 键数上限 / 坏数据容错
+// 技法使用频次 + 按频次排序:计数持久化 / 稳定排序语义 / 开关关回原序 / 键数上限 / 坏数据容错
 import {
 	TECH_USAGE_KEY, readTechniqueUsage, recordTechniqueVisit, orderByUsage, __resetTechniqueUsageForTest,
 } from '../techUsage';
 import { __engineWarmOrder, registerDataWarmTask, buildRegisteredDataWarmTasks } from '../idleWarmQueue';
 
-describe('[R5 N2] techUsage', ()=>{
+describe('techUsage', ()=>{
 	beforeEach(()=>{ __resetTechniqueUsageForTest(); localStorage.removeItem('horosa.perf.usageOrderedPreload'); });
 
 	test('切页计数持久化,坏数据回空', ()=>{

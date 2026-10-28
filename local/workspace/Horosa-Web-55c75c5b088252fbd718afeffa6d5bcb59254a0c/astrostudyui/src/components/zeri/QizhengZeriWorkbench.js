@@ -1,10 +1,9 @@
-// [Z7·七政择日] 择时工作台(太乙版派生;远端扫描形)。左列:①时间范围·地点+三口径参数
+// 择时工作台(太乙版派生;远端扫描形)。左列:①时间范围·地点+三口径参数
 // (宿制两档[回归今宿/回归古制]/罗计交点[平/真]/月孛远地点[平/真]——判别力 pytest 金标证;
 // 主页其余宿制七档为显示制,扫描 gap 帮助明示,死开关律不入面) ②构造条件(10 类远端判定)。
 // 结果表分钟级区间(远端 /qizhengelectionscan 产;93 天限单请求)。
 import { useState, useEffect, useRef } from 'react';
-import { saveBlobSmart } from '../../utils/aiAnalysisExport';
-import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // [Q-478] 空数字框统一校验
+import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // 空数字框统一校验
 import { Modal, Dropdown, Menu, message } from 'antd';
 import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
 import ConditionParamsForm from './ConditionParamsForm';
@@ -16,56 +15,24 @@ import {
 	QIZHENG_CONDITION_TYPES, newQizhengLeaf, newQizhengGroup, qizhengLeafSummary,
 } from '../../divination/zeri/qizhengZeriConditionTypes';
 import { qizhengZeriSchemeStore } from '../../divination/zeri/schemeStore';
+import { downloadJson, JOINER_OPTIONS, getAt, mapAt, removeAt, collectUiLeaves, GATE_CN2, dateStrOf } from './zeriTreeOps';
+import { withFullDefaults } from './zeriOptionDefaults';
 
-// [Q-410] 单源保存(桌面壳保存桥选目录;浏览器 <a download>);取消 / 失败静默不报成功(本处本就无成功提示)。
-function downloadJson(text, filename){
-	try{
-		return saveBlobSmart(filename, new Blob([text], { type: 'application/json;charset=utf-8' }));
-	}catch(e){ return null; /* 受限 webview 环境静默 */ }
+// 工作台参数表。渲染与宿主完整缺省(zeriOptionDefaults)同读这一份。
+export function qizhengWorkbenchParamFields(){
+	return [
+		{ key: 'su28Mode', label: '宿度制', dv: 2, options: [{ value: 2, label: '回归今宿' }, { value: 3, label: '回归古制开禧' }] },
+		{ key: 'nodeType', label: '罗计取法', dv: 'mean', options: [{ value: 'mean', label: '平交点' }, { value: 'true', label: '真交点' }] },
+		{ key: 'lilithType', label: '月孛取法', dv: 'mean', options: [{ value: 'mean', label: '平远地点' }, { value: 'true', label: '真远地点' }] },
+	];
 }
 
 const Option = XQSelect.Option;
 const OptGroup = XQSelect.OptGroup;
 
-const JOINER_OPTIONS = [
-	{ value: 'all', label: '且 AND' },
-	{ value: 'any', label: '或 OR' },
-	{ value: 'xor', label: '异或 XOR' },
-];
-
-// ── 树路径纯工具(与天星/奇门工作台同构) ──
-function getAt(tree, path){
-	let node = tree;
-	for(const i of path){
-		if(!node || !node.children){ return null; }
-		node = node.children[i];
-	}
-	return node || null;
-}
-function mapAt(tree, path, fn){
-	if(!path.length){ return fn(tree); }
-	const [head, ...rest] = path;
-	return { ...tree, children: tree.children.map((c, i) => (i === head ? mapAt(c, rest, fn) : c)) };
-}
-function removeAt(tree, path){
-	if(!path.length){ return tree; }
-	const parent = path.slice(0, -1);
-	const idx = path[path.length - 1];
-	return mapAt(tree, parent, (g) => ({ ...g, children: g.children.filter((_, i) => i !== idx) }));
-}
-
-function collectUiLeaves(node, out){
-	if(!node){ return out; }
-	if(node.kind === 'leaf'){ out.push(node); return out; }
-	(node.children || []).forEach((c) => collectUiLeaves(c, out));
-	return out;
-}
-
-const GATE_CN2 = { all: '且(全部满足)', any: '或(任一满足)', xor: '异或(奇数满足)', not: '非(取反)' };
-
 function renderExplainNode(node, uiLeaves, counter, depth){
 	const passTag = (ok) => (
-		<span style={{ fontWeight: 700, color: ok ? '#2f9e63' : '#e5484d' }}>{ok ? '✓' : '✗'}</span>
+		<span style={{ fontWeight: 700, color: ok ? 'var(--horosa-jx-ji)' : 'var(--horosa-danger)' }}>{ok ? '✓' : '✗'}</span>
 	);
 	if(node.kind === 'group'){
 		return (
@@ -80,20 +47,17 @@ function renderExplainNode(node, uiLeaves, counter, depth){
 	return (
 		<div key={`l${counter.i}`} style={{ padding: '5px 0 5px 0', marginLeft: depth ? 14 : 0, borderBottom: '1px dashed rgba(148,163,184,.16)' }}>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 12 }}>
-				<span style={{ opacity: 0.55 }}>设定</span>
+				<span style={{ color: 'var(--horosa-text-secondary)' }}>设定</span>
 				<span>{ui ? qizhengLeafSummary(ui) : ((QIZHENG_CONDITION_TYPES[node.type] || {}).label || node.type)}</span>
 			</div>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, marginTop: 2 }}>
-				<span style={{ opacity: 0.55 }}>实际</span>
+				<span style={{ color: 'var(--horosa-text-secondary)' }}>实际</span>
 				<span style={{ opacity: 0.9 }}>{node.actual}</span>
 				{passTag(node.pass)}
 			</div>
 		</div>
 	);
 }
-
-function pad2(n){ return n < 10 ? `0${n}` : `${n}`; }
-function dateStrOf(d){ return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
 
 // 类别序:显式优先序保持既有分组次序;注册表出现的新类别自动追加——
 // 新增条件类携新类别绝不静默消失(W0 基建;曾为硬编码常量=下拉静默吞类唯一落点)。
@@ -107,7 +71,7 @@ const CATEGORY_ORDER = (()=>{
 })();
 
 export default function QizhengZeriWorkbench({
-	open, onClose, cfg, onCfgChange, geo, onGeoChange, options, onOptionsChange,
+	open, onClose, cfg, onCfgChange, geo, onGeoChange, options, onOptionsChange, optionDefaults,
 	tree, frozenTree, onPreviewPan, onPreviewExplain, previewGeo, previewOptions, onTreeChange, onRun, onCancelScan, onPickInterval, onExplain, scanEpoch, resultsStale,
 	scanning, progress, results, truncated, scanErr,
 }){
@@ -151,7 +115,7 @@ export default function QizhengZeriWorkbench({
 
 	const draftLeaf = { kind: 'leaf', type: draftType, negate: draftNegate, params: draftParams };
 	const draftSpec = QIZHENG_CONDITION_TYPES[draftType] || {};
-	// [Q-478/T-440] 空数字框先判(与表单红框同一判据),再走各类型自校验。
+	// 空数字框先判(与表单红框同一判据),再走各类型自校验。
 	const draftError = emptyNumberFieldError(draftSpec, draftParams) || (draftSpec.validate ? draftSpec.validate(draftParams) : '');
 
 	const appendTargetPath = selectedIsGroup ? selectedPath : [];
@@ -172,7 +136,7 @@ export default function QizhengZeriWorkbench({
 	};
 
 	const applyScheme = (rec) => {
-	// [F7 根修] 载入前审计值域:方案里的条件类/选项值可能已随版本演进被删——
+	// 载入前审计值域:方案里的条件类/选项值可能已随版本演进被删——
 	// 那类行会静默恒不命中(needValues 只拦空、compile 不查值域、evaluate includes 恒 false)。
 	// 审计只提示不拦载入:用户看得见哪些行失效,自行改设;静默才是事故。
 	const __schemeIssues = (rec && rec.tree) ? auditTreeAgainstRegistry(rec.tree, QIZHENG_CONDITION_TYPES) : [];
@@ -183,7 +147,8 @@ export default function QizhengZeriWorkbench({
 		if(rec && rec.config){
 			if(rec.config.cfg){ onCfgChange({ ...cfg, ...rec.config.cfg }); }
 			if(rec.config.geo && typeof onGeoChange === 'function'){ onGeoChange({ ...(geo || {}), ...rec.config.geo }); }
-			if(rec.config.options && typeof onOptionsChange === 'function'){ onOptionsChange({ ...(options || {}), ...rec.config.options }); }
+			// 方案 / 历史里没写的参数回出厂值(宿主完整缺省打底),不取本会话现值:否则会话里改过、方案没写的键混进来,再扫得到的不是当时的结果
+			if(rec.config.options && typeof onOptionsChange === 'function'){ onOptionsChange(withFullDefaults(optionDefaults, rec.config.options), { source: 'scheme' }); }
 		}
 		setSelectedPath(null);
 	};
@@ -196,7 +161,7 @@ export default function QizhengZeriWorkbench({
 				<Menu.Item key={s.id}>
 					<span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
 						<a onClick={(e) => { e.preventDefault(); applyScheme(s); }}>{s.name}</a>
-						<a style={{ color: '#e5484d', fontSize: 11 }}
+						<a style={{ color: 'var(--horosa-danger)', fontSize: 11 }}
 							onClick={(e) => { e.preventDefault(); e.stopPropagation(); qizhengZeriSchemeStore.deleteScheme(s.id); setSchemeTick(schemeTick + 1); }}>删</a>
 					</span>
 				</Menu.Item>
@@ -217,7 +182,7 @@ export default function QizhengZeriWorkbench({
 	const selIndex = selectedPath && selectedPath.length ? selectedPath[selectedPath.length - 1] : -1;
 	const joinerToolbar = (
 		<div style={{ padding: '8px 10px', borderTop: '1px solid rgba(148,163,184,.2)' }}>
-			<div style={{ fontSize: 11, opacity: 0.65, marginBottom: 6 }}>
+			<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 6 }}>
 				连接门·取反{!selectedNode ? '(先点选右侧一行)' : (selIndex === 0 ? '(首行无连接门,可取反)' : '')}
 			</div>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -262,7 +227,7 @@ export default function QizhengZeriWorkbench({
 							flexShrink: 0,
 						}}>{JOINER_CN[node.joiner || 'all']}</span>
 					) : null}
-					{node.negate ? <span style={{ color: '#e5484d', fontWeight: 700, flexShrink: 0 }}>非</span> : null}
+					{node.negate ? <span style={{ color: 'var(--horosa-danger)', fontWeight: 700, flexShrink: 0 }}>非</span> : null}
 					{isGroup ? (
 						<span style={{ fontSize: 12, fontWeight: 600 }}>分组({(node.children || []).length} 条)</span>
 					) : (
@@ -275,7 +240,7 @@ export default function QizhengZeriWorkbench({
 					<div style={{ marginTop: 6, paddingLeft: 10, borderLeft: '2px solid rgba(212,175,55,.35)' }}>
 						{(node.children || []).map((c, i) => renderRow(c, [...path, i], i, depth + 1))}
 						{!(node.children || []).length ? (
-							<div style={{ padding: '6px 2px', fontSize: 12, opacity: 0.5 }}>空分组:选中本组后左侧「添加到列表」即入组,或删除本组。</div>
+							<div style={{ padding: '6px 2px', fontSize: 12, color: 'var(--horosa-text-secondary)' }}>空分组:选中本组后左侧「添加到列表」即入组,或删除本组。</div>
 						) : null}
 					</div>
 				) : null}
@@ -287,7 +252,7 @@ export default function QizhengZeriWorkbench({
 		<div>
 			{(rootNode.children || []).map((c, i) => renderRow(c, [i], i, 1))}
 			{!(rootNode.children || []).length ? (
-				<div style={{ padding: '10px 4px', fontSize: 12, opacity: 0.55 }}>尚无条件——左侧构造后点「添加到列表」。</div>
+				<div style={{ padding: '10px 4px', fontSize: 12, color: 'var(--horosa-text-secondary)' }}>尚无条件——左侧构造后点「添加到列表」。</div>
 			) : null}
 		</div>
 	);
@@ -311,7 +276,7 @@ export default function QizhengZeriWorkbench({
 							onChange={(e) => onCfgChange({ ...cfg, startDate: e.target.value })} />
 						<input type="time" className="horosa-native-date" style={{ width: 86 }} value={cfg.startTime}
 							onChange={(e) => onCfgChange({ ...cfg, startTime: e.target.value })} />
-						<span style={{ opacity: 0.6 }}>→</span>
+						<span style={{ color: 'var(--horosa-text-secondary)' }}>→</span>
 						<input type="date" className="horosa-native-date" style={{ width: 118 }} value={cfg.endDate}
 							onChange={(e) => onCfgChange({ ...cfg, endDate: e.target.value })} />
 						<input type="time" className="horosa-native-date" style={{ width: 86 }} value={cfg.endTime}
@@ -327,15 +292,11 @@ export default function QizhengZeriWorkbench({
 						<GeoCoordModal lat={geo && geo.gpsLat} lng={geo && geo.gpsLon} onOk={(rec) => onGeoChange(rec)}>
 							<XQButton size="small">{geo && geo.pos ? `📍 ${geo.pos}` : (geo && geo.gpsLat !== undefined ? `📍 ${formatGpsDms(geo.gpsLon, geo.gpsLat)}` : '选择地点…')}</XQButton>
 						</GeoCoordModal>
-						<span style={{ fontSize: 11, opacity: 0.6 }}>时区 {geo && geo.zone !== undefined ? geo.zone : '—'}</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>时区 {geo && geo.zone !== undefined ? geo.zone : '—'}</span>
 						{/* 三口径参数(判别力 pytest 金标证;主页宿制其余七档为显示制,扫描后续轮——帮助明示) */}
-						{[
-							{ key: 'su28Mode', label: '宿制', dv: 2, options: [{ value: 2, label: '回归今宿' }, { value: 3, label: '回归古制开禧' }] },
-							{ key: 'nodeType', label: '罗计交点', dv: 'mean', options: [{ value: 'mean', label: '平交点' }, { value: 'true', label: '真交点' }] },
-							{ key: 'lilithType', label: '月孛', dv: 'mean', options: [{ value: 'mean', label: '平远地点' }, { value: 'true', label: '真远地点' }] },
-						].map((f) => (
+						{qizhengWorkbenchParamFields().map((f) => (
 							<span key={f.key} style={{ display: 'inline-flex', gap: 4, alignItems: 'center', fontSize: 11 }}>
-								<span style={{ opacity: 0.6 }}>{f.label}</span>
+								<span style={{ color: 'var(--horosa-text-secondary)' }}>{f.label}</span>
 								<XQSelect size="small" value={(options || {})[f.key] !== undefined ? (options || {})[f.key] : f.dv} dropdownMatchSelectWidth={false}
 									getPopupContainer={(t) => t.closest('.ant-modal-body') || t.parentElement}
 									onChange={(v) => onOptionsChange({ ...(options || {}), [f.key]: v })}>
@@ -348,7 +309,7 @@ export default function QizhengZeriWorkbench({
 				<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)' }}>构造条件</div>
 				<div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
 					<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
-						<span style={{ fontSize: 11, opacity: 0.65 }}>条件类型</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>条件类型</span>
 						<XQSelect size="small" style={{ minWidth: 150 }} value={draftType}
 							onChange={(v) => resetDraft(v)} dropdownMatchSelectWidth={false}
 							getPopupContainer={(t) => t.closest('.ant-modal-body') || t.parentElement}>
@@ -373,7 +334,7 @@ export default function QizhengZeriWorkbench({
 					}}>
 						{qizhengLeafSummary(draftLeaf)}
 					</div>
-					{draftError ? <div style={{ color: '#e5484d', fontSize: 12, marginTop: 6 }}>{draftError}</div> : null}
+					{draftError ? <div style={{ color: 'var(--horosa-danger)', fontSize: 12, marginTop: 6 }}>{draftError}</div> : null}
 				</div>
 				{joinerToolbar}
 				<div style={{ padding: 10, borderTop: '1px solid rgba(148,163,184,.2)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -396,7 +357,7 @@ export default function QizhengZeriWorkbench({
 					<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)', display: 'flex', alignItems: 'center', gap: 8 }}
 						title="点击行选中后,用左下「连接门·取反」四钮直接改该行;行首徽标=本行与上方结果的连接门">
 						已选条件
-						<span style={{ fontSize: 11, opacity: 0.55, fontWeight: 400 }}>点行选中·左下改门/取反</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>点行选中·左下改门/取反</span>
 					</div>
 					<div style={{ flex: 1, overflowY: 'auto', padding: 10 }} onClick={() => setSelectedPath(null)}>
 						{renderNode(tree)}
@@ -412,7 +373,7 @@ export default function QizhengZeriWorkbench({
 							<XQButton size="small">载入方案▾</XQButton>
 						</Dropdown>
 						<XQButton size="small" onClick={() => setView('schemes')}>方案管理…</XQButton>
-						{scanErr ? <span style={{ color: '#e5484d', fontSize: 12, marginLeft: 8 }}>{scanErr}</span> : null}
+						{scanErr ? <span style={{ color: 'var(--horosa-danger)', fontSize: 12, marginLeft: 8 }}>{scanErr}</span> : null}
 					</div>
 				</div>
 			</div>
@@ -435,14 +396,14 @@ export default function QizhengZeriWorkbench({
 					</span>
 				) : null}
 			</div>
-			{!scanning && scanErr ? <div style={{ color: '#e5484d', fontSize: 12, marginBottom: 8 }}>{scanErr}</div> : null}
+			{!scanning && scanErr ? <div style={{ color: 'var(--horosa-danger)', fontSize: 12, marginBottom: 8 }}>{scanErr}</div> : null}
 			{resultsStale ? (
-				<div style={{ color: '#8a6d1a', background: 'rgba(212,175,55,.12)', border: '1px solid rgba(212,175,55,.4)', borderRadius: 6, fontSize: 12, padding: '5px 10px', marginBottom: 8 }}>
+				<div style={{ color: 'var(--horosa-sev-medium)', background: 'rgba(212,175,55,.12)', border: '1px solid rgba(212,175,55,.4)', borderRadius: 6, fontSize: 12, padding: '5px 10px', marginBottom: 8 }}>
 					⚠ 条件/时间范围已被修改:下方结果对应「上一次择时」——请重新点「择时」。
 				</div>
 			) : null}
 			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, opacity: 0.6, padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
 					<span style={{ width: 36 }}>#</span>
 					<span style={{ flex: 1 }}>开始(点击=起始时刻起盘)</span>
 					<span style={{ flex: 1 }}>结束(点击=结束时刻起盘)</span>
@@ -451,12 +412,12 @@ export default function QizhengZeriWorkbench({
 					<span style={{ width: 44 }}>盘</span>{/* 行内多「盘」列,表头必须等宽占位——缺列致两 flex 列压窄整行左移(用户实报错位) */}
 				</div>
 				{(!results || !results.length) && !scanning ? (
-					<div style={{ padding: 24, opacity: 0.6 }}>{results ? '时间范围内无满足条件的时辰。' : '尚未择时。'}</div>
+					<div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>{results ? '时间范围内无满足条件的时辰。' : '尚未择时。'}</div>
 				) : null}
 				{(results || []).map((row, i) => (
 					<div key={i} style={{ borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
 						<div style={{ display: 'flex', gap: 10, padding: '9px 12px', alignItems: 'center' }}>
-							<span style={{ width: 36, textAlign: 'right', opacity: 0.5, fontSize: 12 }}>{i + 1}</span>
+							<span style={{ width: 36, textAlign: 'right', color: 'var(--horosa-text-secondary)', fontSize: 12 }}>{i + 1}</span>
 							<span style={{ flex: 1, fontSize: 13, cursor: 'pointer' }} title="以时段起始时刻起盘"
 								onClick={() => onPickInterval(row, 'start')}>{row.start}</span>
 							<span style={{ flex: 1, fontSize: 13, cursor: 'pointer' }} title="以时段结束时刻起盘"
@@ -485,11 +446,11 @@ export default function QizhengZeriWorkbench({
 							</div>
 						{expandKey === `${scanEpoch || 0}:${i}` ? (
 							<div style={{ padding: '4px 12px 10px 58px', background: 'rgba(212,175,55,.04)' }}>
-								<div style={{ fontSize: 11, opacity: 0.55, marginBottom: 4 }}>
+								<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 4 }}>
 									以时段起始时刻逐条判读(设定 vs 实际;判定与扫描引擎同源)
 								</div>
-								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).loading ? <div style={{ fontSize: 12, opacity: 0.6 }}>判读中…</div> : null}
-								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).err ? <div style={{ fontSize: 12, color: '#e5484d' }}>{explainMap[`${scanEpoch || 0}:${i}`].err}</div> : null}
+								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).loading ? <div style={{ fontSize: 12, color: 'var(--horosa-text-secondary)' }}>判读中…</div> : null}
+								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).err ? <div style={{ fontSize: 12, color: 'var(--horosa-danger)' }}>{explainMap[`${scanEpoch || 0}:${i}`].err}</div> : null}
 								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).tree
 									? renderExplainNode(explainMap[`${scanEpoch || 0}:${i}`].tree, collectUiLeaves(frozenTree || tree, []), { i: 0 }, 0)
 									: null}
@@ -531,13 +492,13 @@ export default function QizhengZeriWorkbench({
 			</div>
 			{schemeMsg ? <div style={{ fontSize: 12, marginBottom: 8, opacity: 0.8 }}>{schemeMsg}</div> : null}
 			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, opacity: 0.6, padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
 					<span style={{ flex: 1 }}>方案名</span>
 					<span style={{ width: 150 }}>保存时间</span>
 					<span style={{ width: 70, textAlign: 'right' }}>条件数</span>
 					<span style={{ width: 250, textAlign: 'right' }}>操作</span>
 				</div>
-				{!schemes.length ? <div style={{ padding: 24, opacity: 0.6 }}>暂无已存方案——条件页底部「保存方案」。</div> : null}
+				{!schemes.length ? <div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>暂无已存方案——条件页底部「保存方案」。</div> : null}
 				{schemes.map((s) => (
 					<div key={s.id} style={{ display: 'flex', gap: 10, padding: '8px 12px', alignItems: 'center', borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
 						{renameId === s.id ? (
@@ -565,7 +526,7 @@ export default function QizhengZeriWorkbench({
 					</div>
 				))}
 			</div>
-			<div style={{ fontSize: 11, opacity: 0.5, marginTop: 8 }}>
+			<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 8 }}>
 				导出为 JSON 可跨设备/跨用户分享;导入同名方案以文件内容覆盖本地。
 			</div>
 		</div>
@@ -576,7 +537,7 @@ export default function QizhengZeriWorkbench({
 			title={(
 				<div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingRight: 34 }}>
 					<span style={{ flexShrink: 0 }}>七政择日·择时工作台</span>
-					<span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 400, color: '#8a6d1a', lineHeight: 1.35, whiteSpace: 'normal' }}>
+					<span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 400, color: 'var(--horosa-sev-medium)', lineHeight: 1.35, whiteSpace: 'normal' }}>
 						⚠ 结果为七政盘面的机械筛选,仅供术数研习参考;不构成任何现实决策依据,勿迷信滥用——据此行事,后果自负。
 					</span>
 				</div>
@@ -598,7 +559,7 @@ export default function QizhengZeriWorkbench({
 				<ZeriMiniPanPopup
 					geo={previewGeo || geo}	/* 冻结地点优先:概览口径=扫描口径(活 geo 曾致扫后改地点概览错盘) */
 					tech="qizheng"
-					techOptions={previewOptions || options}	/* [Q-271/ZC-22] 冻结参数优先:概览口径=扫描口径(活 options 曾致扫后改参数概览错盘) */
+					techOptions={previewOptions || options}	/* 冻结参数优先:概览口径=扫描口径(活 options 曾致扫后改参数概览错盘) */
 					row={previewRow}
 					computePan={typeof onPreviewPan === 'function' ? onPreviewPan : null}
 					onExplain={typeof onPreviewExplain === 'function' ? onPreviewExplain : null}

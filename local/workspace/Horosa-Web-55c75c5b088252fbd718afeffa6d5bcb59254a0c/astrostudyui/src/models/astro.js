@@ -1,7 +1,7 @@
-import { history } from 'umi';
 import { normalizeBaziCalibreOverride, recordPinsDayBoundary } from '../utils/baziCalibreScope';
 import {getStore, } from '../utils/storageutil';
-import { Modal, } from 'antd';
+import { Modal, message, } from 'antd';
+import { RECORD_DISPLAY_FIELDS } from '../utils/localRecordStore';
 import DateTime from '../components/comp/DateTime';
 import * as service from '../services/astro';
 import {randomStr,} from '../utils/helper';
@@ -19,18 +19,17 @@ import { registerArmPlanBuilder, armStepPrefetch, reportStepUnit, currentStepUni
 import { registerOptionChartTaskBuilder, speculateChartOptions } from '../utils/optionPrefetch';
 import { perfBegin } from '../utils/perfMark';
 import { loadLocalFateEvents, saveLocalFateEvents, } from '../utils/localdeeplearn';
-import * as AstroConst from '../constants/AstroConst';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../utils/dayBoundary';
 import { applyRecordToFields, registerFieldsBaselineFactory } from '../utils/recordFieldsRestore';
+import { applyZiweiRecordSettings, restoreZiweiUserSeed, dropZiweiSessionTablesUnlessFor } from '../utils/ziweiRecordSettings';
 import { classicalGlobalValue, classicalGlobalOverrides, classicalBackendOverridesFromFields } from '../utils/classicalChartGlobals';
 // 「新盘种子」:随盘键(黄道 / 宫制 / 时间算法 / 八字长生·神煞 / 宿法 / 印占 / 主限法口径)的新命盘缺省 = 上次亲手设的值;
 // 没存过 = 内建默认逐字节零回归;载入记录时由 recordFieldsRestore 先复位到内建默认(记录自带口径永远优先)。
 import { newChartSeedValue, newChartSeedExtraEntries } from '../utils/newChartSeeds';
 
 let dtm = new DateTime();
-const DefaultHouseSystem = 1;
 
-// [R4 随盘保真] newEmptyFields = 「非默认捕获」的基准注册(工厂注入防循环 import:
+// newEmptyFields = 「非默认捕获」的基准注册(工厂注入防循环 import:
 // recordFieldsRestore 不能反向 import 本模型)。捕获逻辑与还原清单同居 recordFieldsRestore。
 registerFieldsBaselineFactory(()=>newEmptyFields());
 
@@ -63,7 +62,7 @@ function newEmptyFields(){
 			name: ['ad'],
 		},
 		date: {
-			value: dtm.clone(),   // [Q-313] 不再直接引用模块级 dtm(共享引用被外部改写会串)
+			value: dtm.clone(),   // 不再直接引用模块级 dtm(共享引用被外部改写会串)
 			name: ['date'],
 		},
 		time: {
@@ -99,7 +98,7 @@ function newEmptyFields(){
 			name: ['pos'],
 		},
 		hsys: {
-			value: newChartSeedValue('hsys'),   // 新盘种子(缺省 DefaultHouseSystem)
+			value: newChartSeedValue('hsys'),   // 新盘种子(缺省宫制见 newChartSeeds)
 			name: ['hsys'],
 		},
 		indiaHsys: {
@@ -253,13 +252,13 @@ function newEmptyFields(){
 			value: classicalGlobalValue('antisciaOrb'),
 			name: ['antisciaOrb'],
 		},
-		// [对标战役 0b] 二批第十键 viaCombustaVariant 此前独漏播种(九键有它没有)→用户改 narrow 重启后
+		// 二批第十键 viaCombustaVariant 此前独漏播种(九键有它没有)→用户改 narrow 重启后
 		// 首发盘 fields 无此键、classicalBackendOverridesFromFields 取 undefined 不下发,静默回落 standard。
 		viaCombustaVariant: {
 			value: classicalGlobalValue('viaCombustaVariant'),
 			name: ['viaCombustaVariant'],
 		},
-		// [对标战役 0c] 三个 0/1 流派开关(点公式文档序/交点入旺/土星旺20°):schema 历史无此三键,
+		// 三个 0/1 流派开关(点公式文档序/交点入旺/土星旺20°):schema 历史无此三键,
 		// 照 termsVariant 条件播种范式——仅全局仓非默认才播 wrapper,默认态 fields 键集逐字节不变。
 		...(classicalGlobalOverrides().lotsDocReverse !== undefined ? {
 			lotsDocReverse: { value: classicalGlobalValue('lotsDocReverse'), name: ['lotsDocReverse'] },
@@ -267,7 +266,7 @@ function newEmptyFields(){
 		...(classicalGlobalOverrides().nodeExaltation !== undefined ? {
 			nodeExaltation: { value: classicalGlobalValue('nodeExaltation'), name: ['nodeExaltation'] },
 		} : {}),
-		// [WP-2] 天文口径批五键:同 termsVariant 条件播种范式(schema 历史无此键,仅全局非默认才播,
+		// 天文口径批五键:同 termsVariant 条件播种范式(schema 历史无此键,仅全局非默认才播,
 		// 默认态 fields 键集逐字节不变;eclipseTimeMode 纯全局显示口径不进 fields)。
 		...(classicalGlobalOverrides().combustOwnChariotExempt !== undefined ? {
 			combustOwnChariotExempt: { value: classicalGlobalValue('combustOwnChariotExempt'), name: ['combustOwnChariotExempt'] },
@@ -330,9 +329,8 @@ function newEmptyFields(){
 			vulcanCalc: { value: classicalGlobalValue('vulcanCalc'), name: ['vulcanCalc'] },
 		} : {}),
 		houseStartMode: {
-			// [X1] 宿占「人事十二宫起盘」持久化读回:写侧存 localStorage(suzhanHouseStartMode),
-			// 初值曾硬编码 0 → 用户选 ASC 重启即静默回退八字公式起盘。SSR/jest 无 localStorage 时守 0。
-			value: (typeof localStorage !== 'undefined' && parseInt(localStorage.getItem('suzhanHouseStartMode'), 10) === 1) ? 1 : 0,
+			// 新盘种子(缺省 0 八字;宿占页亲手改记一笔,旧版偏好 suzhanHouseStartMode 已一次性并入)
+			value: newChartSeedValue('houseStartMode'),
 			name: ['houseStartMode'],
 		},
 				predictive: {
@@ -492,12 +490,12 @@ function fieldsToParams(fields){
 		southchart: fields.southchart.value,
 		zodiacal: fields.zodiacal.value,
 		siderealAyanamsa: fields.siderealAyanamsa ? fields.siderealAyanamsa.value : '',
-		// [WP-7] 自定义恒星黄道 'user' 档:随行附历元参数(fields 优先,缺读当前槽;后端 SIDM_USER)。
+		// 自定义恒星黄道 'user' 档:随行附历元参数(fields 优先,缺读当前槽;后端 SIDM_USER)。
 		...((fields.siderealAyanamsa && `${fields.siderealAyanamsa.value}` === 'user')
 			? require('../utils/customCalibreStores').userAyanParamsFrom((k) => (fields[k] ? fields[k].value : undefined))
 			: {}),
 		tradition: fields.tradition.value,
-		// [SURF-R3f] termsVariant/geminiBoundEmended 手写条件段已删:spread(下行)按 spec 全覆盖
+		// termsVariant/geminiBoundEmended 手写条件段已删:spread(下行)按 spec 全覆盖
 		// 且归一化更严(int 强转+值域校验);旧手写段在 spread 前=恒被覆盖的死代码,唯一「生效」
 		// 场景是 termsVariant=4 无合法表时 spread 自删而手写键存活→请求带 4 被后端回落——
 		// 删除后前端即降级不发 4,恰是 WP-7 设计意图。
@@ -628,11 +626,20 @@ function closeAllDrawer(msg){
 
 // doHook rAF 合并用:未执行的上一帧任务句柄(latest-wins,见 *doHook)。
 let pendingHookFrame = null;
-// 「点时间→出盘」快车道之世代号:每次 fetchByFields 递增;/chart 返回时若已非当代,
-// 该响应作废(不 save 不弹错)——快速连拨时间时旧响应绝不覆写新状态(latest-wins)。
-// 只在 fieldsFastCommit 开关开启时参与判定:关开关=连丢弃行为一起回到旧序。
-let fieldsEpoch = 0;
-// [R4-B5b] /chart 主链在途请求的 AbortController(模块级单例:新发先 abort 旧)。
+// 主盘提交代次(单一出处,模块级):fetch / fetchByChartData / nowChart / fetchByFields 四个换主盘的入口
+// 在第一个 yield 之前同步取号(fetchByFields 与主链 AbortController 同一原子段取),/chart 回来后、落库之前
+// 不是最新的一次就静默作废(不 save 不弹错)——「最后发起的那次才落库」(latest-wins),跨入口同样成立:
+// 连着载入两张命盘、载入在途时步进时间 / 点此刻 / 载入事盘,晚到的旧响应都不再把新盘盖回去。
+// 正确性不随性能开关:快车道开关只管 fields 先不先行提交,不管旧响应丢不丢。
+let chartCommitGen = 0;
+function takeChartCommitTicket(){
+	chartCommitGen += 1;
+	return chartCommitGen;
+}
+function chartCommitTicketLive(ticket){
+	return ticket === chartCommitGen;
+}
+// /chart 主链在途请求的 AbortController(模块级单例:新发先 abort 旧)。
 let chartMainAbortCtl = null;
 
 // —— WP-P1 步进预取:主请求 settle 后,把「下一步」的盘预先算好塞进缓存 ——
@@ -781,7 +788,7 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
 	return tasks;
 }
 
-// [R3-A1] 选步长即预取处理器:DateTimeSelector 选定步长档(opt-in 宿主)→ 武装引擎。
+// 选步长即预取处理器:DateTimeSelector 选定步长档(opt-in 宿主)→ 武装引擎。
 // R4-B2(武装引擎接管上游触发线):上游触发面(opt-in 宿主 + 5s 去重)保持原样;
 // ±stepPrefetchDepth 全窗(默认 3;技法端点任务随 chart 一起构造,见 builder);
 // NO_ARM/early-boot/reportStepUnit(settle 兜底取档靠它)全在 armStepPrefetch 体内。
@@ -830,10 +837,6 @@ function hooking(hook, currentTab, fields, chartObj){
 		if(hook[currentTab].fun){
 			hook[currentTab].fun(chartObj);
 		}
-	}else if(currentTab === 'astroreader'){
-		if(hook[currentTab].fun){
-			hook[currentTab].fun();
-		}
 	}
 
 }
@@ -844,18 +847,25 @@ let now = new DateTime();
 // 私有函数测不到 —— 导出不改任何运行时行为(dva 只吃 default)。
 export { fieldsToParams as __fieldsToParamsForTest, buildStepPrefetchTasks as __buildStepPrefetchTasksForTest };
 
-export default { 
+const model = {
 	namespace: 'astro',
 	state:{
 		height: 660,
 		chartObj: null,
-		bootChartRestore: null,      // [R5 S7] 温启恢复状态:null / 'pending' / 'done' / 'dropped' / 'failed'
-		bootFieldsApplied: false,    // [R5 S7] checkUser 已在恢复期落过 fields(失败回落「此刻」由恢复方负责)
+		bootChartRestore: null,      // 温启恢复状态:null / 'pending' / 'done' / 'dropped' / 'failed'
+		bootFieldsApplied: false,    // checkUser 已在恢复期落过 fields(失败回落「此刻」由恢复方负责)
 		drawerVisible: closeAllDrawer('init'),
 		currentTab: 'astrochart',
-		// [Q-314 裁决 A] 八字本页口径覆盖层(日界 / 晚子时 / 时间算法;只八字页读;新命盘 / 载入复位)+ 载入命盘自带口径钉住共享层
+		// 八字本页口径覆盖层(日界 / 晚子时 / 时间算法;只八字页读;新命盘 / 载入复位)+ 载入命盘自带口径钉住共享层
 		baziCalibreOverride: {},
 		_dayBoundaryRecordPinned: false,
+		// 「左栏亲手改过日界 / 晚子时」的锁只属于当时那张盘:换盘(载入 / 新命盘 / 此刻)一律复位;
+		// chartEpoch 每换一张盘 +1,技法页组件实例上的锁按它判是不是同一张盘(utils/dayBoundaryLock.js)
+		_after23BoundaryUserOverrode: false,
+		_lateZiHourUserOverrode: false,
+		chartEpoch: 0,
+		// 「用户已动手」代次:用户操作改 fields 一律经 saveUserFields(+1);温启恢复的响应回来时它变了就丢弃(latest-wins,与主盘提交代次并列)
+		userFieldsRev: 0,
 		currentSubTab: null,
 		currentChart: null,
 		memoType: 0,
@@ -957,12 +967,6 @@ export default {
 			aianalysis:{
 				fun: null
 			},
-			astroreader:{
-				fun: null
-			},
-			admintools:{
-				fun: null
-			},
 			guolao:{
 				fun: null
 			},
@@ -985,8 +989,15 @@ export default {
 	
 
 	reducers: {
+		// 用户操作触发的 fields 写入(左栏 / 表单 / 显示设置 / 跳转到盘…):与 save 相同,另把「用户已动手」代次 +1。
+		// 温启恢复据此判用户是否已先动手 —— 此前只认 chartObj 变 / 快车道代次推进,紫微左栏改字段两者都不动,回包按快照重建盖掉
+		saveUserFields(state, action){
+			const next = model.reducers.save(state, action);
+			return { ...next, userFieldsRev: ((state && state.userFieldsRev) || 0) + 1 };
+		},
+
 		save(state, {payload: values}){
-			// [R3-A2 中央防漏网] __stepHint 是「步进方向提示」瞬态字段,只供 fetchByFields
+			// __stepHint 是「步进方向提示」瞬态字段,只供 fetchByFields
 			// 消费(其内已剥);个别宿主(紫微/八字/三式 syncFields)把 patch 原样 save ——
 			// 在唯一入口统一剥离,保证它永不落 redux/存档。
 			if(values && values.fields && Object.prototype.hasOwnProperty.call(values.fields, '__stepHint')){
@@ -1093,8 +1104,10 @@ export default {
 		syncAfter23NewDay(state, { payload }){
 			const value = payload && payload.after23NewDay;
 			if(value !== 0 && value !== 1) return state;
-			// [Q-314 裁决 A 2026-09-18] 共享层只被「载入命盘自带口径」钉住(随盘值 > 全局);八字左栏改动已分到本页覆盖层,
-			// 不再锁死全局同步(此前锁到重启,其它技法对全局失聪)。_after23BoundaryUserOverrode 旧锁保留兼容(全仓已无写入者)。
+			// 共享层只被「载入命盘自带口径」钉住(随盘值 > 全局);八字左栏改动已分到本页覆盖层,
+			// 不再锁死全局同步(此前锁到重启,其它技法对全局失聪)。_after23BoundaryUserOverrode 旧锁仍有写入者:
+			// 金口诀 / 六壬 / 卦占左栏改日界时置位(紫微同样派发,但紫微左栏没有日界控件、走不到),且本会话内不复位 ——
+			// 置位后「设置 → 日界」的全局改动不再同步到共享 fields(各页本页覆盖层另算)。
 			if(state && (state._dayBoundaryRecordPinned || state._after23BoundaryUserOverrode)) return state;
 			const next = { ...state };
 			if(next.fields && next.fields.after23NewDay){
@@ -1109,7 +1122,7 @@ export default {
 		syncLateZiHourMode(state, { payload }){
 			const value = payload && payload.lateZiHourUseNextDay;
 			if(value !== 0 && value !== 1) return state;
-			// [Q-314 裁决 A] 同上:只被载入命盘自带口径钉住;旧锁保留兼容。
+			// 同上:只被载入命盘自带口径钉住;旧锁保留兼容。
 			if(state && (state._dayBoundaryRecordPinned || state._lateZiHourUserOverrode)) return state;
 			const next = { ...state };
 			if(next.fields && next.fields.lateZiHourUseNextDay){
@@ -1126,7 +1139,7 @@ export default {
 			return { ...state, _after23BoundaryUserOverrode: !!(payload && payload.value) };
 		},
 
-		// [Q-314 裁决 A] 八字本页覆盖层:merge 写(只认三键整数)/ 清空;载入命盘自带口径钉住共享层。
+		// 八字本页覆盖层:merge 写(只认三键整数)/ 清空;载入命盘自带口径钉住共享层。
 		setBaziCalibreOverride(state, { payload }){
 			const merged = normalizeBaziCalibreOverride({ ...(state.baziCalibreOverride || {}), ...((payload && payload.override) || {}) });
 			return { ...state, baziCalibreOverride: merged };
@@ -1156,6 +1169,12 @@ export default {
 		},
 
 		*openDrawer({ payload: values }, { call, put, select }){
+			// 事盘编辑抽屉只认带 record 的派发(唯一派发方:事盘列表「编辑」恒带)。没带 record → 什么都不做:
+			// 不开抽屉、不关别的抽屉、不换当前事盘(此前抽屉照开、显示的是当前事盘的表单,与「没带 record 什么都不做」不符)
+			if(values && values.key === 'caseedit' && !values.record){
+				if(typeof console !== 'undefined' && console.warn){ console.warn('[astro/openDrawer] caseedit 需要 record,已忽略'); }
+				return;
+			}
 			let drawer = closeAllDrawer('*openDrawer');
 			drawer[values.key] = true;
 
@@ -1174,7 +1193,7 @@ export default {
 			}else if(values.key === 'chartadd'){
 				yield put({
 					type: 'user/newCurrentChart',
-					payload: values.record ? values.record : { },
+					payload: values.record ? values.record : (values.fromCurrent ? { fromCurrent: true } : { }),
 				});
 			}else if(values.key === 'chartlist'){
 				yield put({
@@ -1192,51 +1211,14 @@ export default {
 					payload: values.record ? values.record : {},
 				});
 			}else if(values.key === 'caseedit'){
-				let record = values.record;
-				if(record){
-					yield put({
-						type: 'user/setCurrentCase',
-						payload: {
-							...values.record,
-							drawerVisible: drawer,
-						},
-					});
-				}else{
-					const userstate = yield select((s)=>s.user);
-					if(userstate.currentCase && userstate.currentCase.cid && userstate.currentCase.cid.value){
-						let caze = userstate.currentCase;
-						record = {
-							cid: caze.cid.value,
-							event: caze.event.value,
-							caseType: caze.caseType.value,
-							divTime: caze.divTime.value,
-							zone: caze.zone.value,
-							lat: caze.lat.value,
-							lon: caze.lon.value,
-							gpsLat: caze.gpsLat.value,
-							gpsLon: caze.gpsLon.value,
-							pos: caze.pos.value,
-							isPub: caze.isPub.value,
-							creator: caze.creator.value,
-							updateTime: caze.updateTime.value,
-							group: caze.group.value,
-							payload: caze.payload.value,
-							sourceModule: caze.sourceModule.value,
-							drawerVisible: drawer,
-						};
-						yield put({
-							type: 'user/setCurrentCase',
-							payload: record,
-						});
-					}else{
-						yield put({
-							type: 'openDrawer',
-							payload: {
-								key: 'caseadd',
-							},
-						});
-					}
-				}
+				// 没带 record 的已在函数开头挡掉(不从当前事盘的表单字段反拼记录:会漏性别 / 备注 / 时间算法等键,编辑保存时抹掉)
+				yield put({
+					type: 'user/setCurrentCase',
+					payload: {
+						...values.record,
+						drawerVisible: drawer,
+					},
+				});
 			}else if(values.key === 'chartdeeplearn'){
 				let record = values.record;
 				if(record){
@@ -1321,10 +1303,12 @@ export default {
 							payload: record,
 						});			
 					}else{
+						// 当前这张还没存过:编辑 = 把它存为命盘(带上它的批注)
 						yield put({
 							type: 'openDrawer',
 							payload: {
 								key: 'chartadd',
+								fromCurrent: true,
 							},
 						});			
 					}
@@ -1376,6 +1360,7 @@ export default {
 		},
 
 		*fetch({ payload: values }, { call, put, select }){
+			const commitTicket = takeChartCommitTicket();   // 第一个 yield 之前取号(主盘提交代次)
 			const param = {
 				...values,
 				date: values.date.format('YYYY/MM/DD'),
@@ -1392,6 +1377,7 @@ export default {
 			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
 
 			const rsp = yield call(service.fetchChart, param);
+			if(!chartCommitTicketLive(commitTicket)){ return; }   // 之后又换过主盘:旧响应作废
 			if(!isValidChartResponse(rsp)){
 				showChartServiceError();
 				return;
@@ -1428,12 +1414,13 @@ export default {
 		},
 
 		*fetchByChartData({ payload: values }, { call, put, select }){
+			const commitTicket = takeChartCommitTicket();   // 第一个 yield 之前取号(主盘提交代次)
             const state = yield select((s)=>s.astro);
 			// 载入还原（不可变）：record 里保存的每个排盘选项键按 RECORD_FIELDS_RESTORE_MANIFEST 条件还原
 			// （record 缺键=保持当前值，legacy 零冲击）；命中键与下方核心键一律写「新 entry」——
 			// 旧实现 {...state.fields} 后就地改共享 entry，① 组件层 prevProps 与 props 同对象、值比对失明,
 			// ② /chart 失败时 state 已被改一半（脏写）。清单见 utils/recordFieldsRestore.js（哨兵守全枚举）。
-			// [R5 S7] 字段构造收成闭包:温启恢复(bootRestore)在响应回来后若 checkUser 已换过 fields(预测设置 / 用户档),
+			// 字段构造收成闭包:温启恢复(bootRestore)在响应回来后若 checkUser 已换过 fields(预测设置 / 用户档),
 			// 用**最新** fields 重建一次,record 键仍然覆盖 ⇒ 盘与选项一致,且 checkUser 的补充不丢。
 			const buildFields = (base)=>{
 				const f = applyRecordToFields(base, values);
@@ -1447,6 +1434,12 @@ export default {
 				set('name', values.name);
 				set('pos', values.pos);
 				set('ad', tm.ad);
+				// 温启没钉住的盘:快照不带时间算法(不钉住),而它是新盘种子键、缺键会被复位成内建默认 →
+				// 用快照另记的值回填(旧快照没有这一项时取种子现值,与「此刻」盘同源)
+				if(values.bootRestore && (values.timeAlg === undefined || values.timeAlg === null)){
+					const ta = values.bootUnpinnedTimeAlg !== undefined && values.bootUnpinnedTimeAlg !== null ? values.bootUnpinnedTimeAlg : newChartSeedValue('timeAlg');
+					if(ta !== undefined && ta !== null){ set('timeAlg', ta); }
+				}
 				return f;
 			};
 			let fields = null;
@@ -1466,21 +1459,25 @@ export default {
 			const param = fieldsToParams(fields);
 			const astroState = yield select((allState)=>allState.astro);
 			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
-			const bootEpoch = fieldsEpoch;
+			const bootUserRev = (state && state.userFieldsRev) || 0;
 			let rsp = yield call(service.fetchChart, param);
 			if(values.bootRestore){
-				// [R5 S7] 温启恢复:响应回来时用户若已先动手(已有盘提交 / 快车道代际已推进)→ 丢弃,latest-wins;
+				// 温启恢复:响应回来时用户若已先动手(已有盘提交 / 快车道代际已推进)→ 丢弃,latest-wins;
 				// 服务异常静默(恢复是优化不是功能,不弹错):标 failed,若 checkUser 已落过 fields 就由这里回落「此刻」,
 				// 否则 checkUser 看到 failed 自己走「此刻」(两处只跑一处,不出双盘)。
 				const now = yield select((s)=>s.astro);
-				if(now.chartObj !== state.chartObj || fieldsEpoch !== bootEpoch){
+				// 温启没落成时,上次那张盘带来的紫微临时表只在当前看的仍是那张盘时留着(否则「此刻」盘照用它的表)
+				const keepSessionFor = (st)=>{ try{ dropZiweiSessionTablesUnlessFor(st && st.fields && st.fields.cid ? st.fields.cid.value : ''); }catch(e){ /* ignore */ } };
+				if(now.chartObj !== state.chartObj || !chartCommitTicketLive(commitTicket) || ((now.userFieldsRev || 0) !== bootUserRev)){
+					keepSessionFor(now);
 					yield put({ type: 'save', payload: { bootChartRestore: 'dropped' } });
 					return;
 				}
 				if(!isValidChartResponse(rsp)){
+					keepSessionFor(null);   // 回落「此刻」(新盘)
 					yield put({ type: 'save', payload: { bootChartRestore: 'failed' } });
 					if(now.bootFieldsApplied){
-						yield put({ type: 'nowChart', payload: { fields: now.fields } });
+						yield put({ type: 'nowChart', payload: { fields: now.fields, asNewChart: true } });   // 温启恢复失败回落的「此刻」盘 = 新盘
 					}
 					return;
 				}
@@ -1493,14 +1490,16 @@ export default {
 					if(JSON.stringify(param2) !== JSON.stringify(param)){
 						rsp = yield call(service.fetchChart, param2);
 						const again = yield select((s)=>s.astro);
-						if(again.chartObj !== state.chartObj || fieldsEpoch !== bootEpoch){
+						if(again.chartObj !== state.chartObj || !chartCommitTicketLive(commitTicket) || ((again.userFieldsRev || 0) !== bootUserRev)){
+							keepSessionFor(again);
 							yield put({ type: 'save', payload: { bootChartRestore: 'dropped' } });
 							return;
 						}
 						if(!isValidChartResponse(rsp)){
+							keepSessionFor(null);
 							yield put({ type: 'save', payload: { bootChartRestore: 'failed' } });
 							if(again.bootFieldsApplied){
-								yield put({ type: 'nowChart', payload: { fields: again.fields } });
+								yield put({ type: 'nowChart', payload: { fields: again.fields, asNewChart: true } });
 							}
 							return;
 						}
@@ -1510,10 +1509,16 @@ export default {
 					}
 				}
 			}
+			// 列表连着载入两张 / 载入在途时又步进时间、点此刻:不是最后发起的那次 → 作废(不落库、不弹错、不改紫微设置)
+			if(!chartCommitTicketLive(commitTicket)){ return; }
 			if(!isValidChartResponse(rsp)){
 				showChartServiceError();
 				return;
 			}
+			// 紫微排盘设置随盘:排盘成功后、字段更新与页面重排之前,把记录里的紫微设置写回引擎单例与本机偏好
+			// (温启恢复不套用;排盘失败不改设置,免得左栏已是新盘设置、盘面仍是旧盘);失败不阻断载入。
+			try{ applyZiweiRecordSettings(values); }catch(e){ /* 紫微设置还原失败不影响载入本身 */ }
+			if(values.__pendingCurrentChart){ yield put({ type: 'user/save', payload: { currentChart: values.__pendingCurrentChart } }); }
 			const Result = rsp.Result;
 			Result.params.name = values.name;
 			Result.params.pos = values.pos;
@@ -1531,6 +1536,8 @@ export default {
 			setF('memoSuZhan', values.memoSuZhan);
 
 			let type = state.memoType;
+			// 换盘代次在提交这一刻按最新 state 加一(不沿用发请求前读到的值:两次提交才不会是同一代次)
+			const chartEpochNext = (((yield select((s)=>s.astro)) || {}).chartEpoch || 0) + 1;
 			let memo = '';
 			if(type === 0){
 				memo = fields.memoAstro.value;
@@ -1557,9 +1564,16 @@ export default {
 					byChartData: true,
 					memo: memo,
 					memoType: type,
-					baziCalibreOverride: {},                                   // [Q-314] 载入命盘:八字本页覆盖层复位(随盘值 > 本页左栏)
-					_dayBoundaryRecordPinned: recordPinsDayBoundary(values),   // [Q-314] 命盘自带口径 → 钉住共享层,全局事件不覆盖
-					...(values.bootRestore ? { bootChartRestore: 'done' } : {}),   // [R5 S7] 温启恢复已落盘
+					baziCalibreOverride: {},                                   // 载入命盘:八字本页覆盖层复位(随盘值 > 本页左栏)
+					// 命盘自带口径 → 钉住共享层,全局事件不覆盖;温启带回「左栏亲手改过」的 → 不钉住,恢复亲手改过的标志(只锁那一键)
+					_dayBoundaryRecordPinned: values.bootDayBoundaryUserOverride ? false : recordPinsDayBoundary(values),
+					// 换了一张盘:「亲手改过」的锁复位(只属于改的那张盘);温启带回的是同一张盘亲手改过的那一键 → 照样锁
+					_after23BoundaryUserOverrode: !!(values.bootDayBoundaryUserOverride && values.bootDayBoundaryUserOverride.after23),
+					_lateZiHourUserOverrode: !!(values.bootDayBoundaryUserOverride && values.bootDayBoundaryUserOverride.lateZi),
+					chartEpoch: chartEpochNext,
+					...(values.bootRestore ? { bootChartRestore: 'done' } : {}),   // 温启恢复已落盘
+					// 列表载入:当前命盘与字段同一次提交(排盘失败时两边都不变,见 user/setCurrentChart)
+					...(values.__pendingCurrentChart ? { currentChart: values.__pendingCurrentChart, ...(values.drawerVisible ? { drawerVisible: values.drawerVisible } : {}) } : {}),
                 },
             });
 			markChartRefreshEnd();
@@ -1604,23 +1618,9 @@ export default {
 			}
 			const param = fieldsToParams(fieldValues);
 			param.cid = null;
-			const astroState = yield select((state)=>state.astro);
-			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
-			// [A8 生产接线] 交互真尺:改动进入 → compute(响应/提交)→ commit(rAF 渲染近似)。
-			// 取消/失败路径不记(避免把 stale 响应算进延迟分布)。
-			const pm = perfBegin(astroState.currentTab || 'chart', stepHint ? `step:${stepHint.unit}` : 'fields');
-
-			// —— 「点时间→出盘」快车道(2026-07 极速化大修) ——
-			// 病根:此前 fields 的 save 排在 /chart 网络之后 → 纯本地技法(八字/数算/风水…)
-			// 也被迫等一次网络(实测热态 229ms 占总延迟 70%),网络失败则 fields 根本不更新。
-			// 修法:当前 tab 的 hook 自述 chartFree(=本页中右栏不消费 chartObj)时,fields 立即
-			// 提交+立即 doHook —— 本地技法一次性整体出(<100ms);/chart 照发,回来单独补 chartObj。
-			// 非 chartFree 页维持「到齐才 save{fields+chartObj}」的原子性(逐字节旧序),但先把
-			// 本页的请求集并行预热(prewarm,silent,经 requestDedupe 在途共享)→ latency=max 而非 sum。
-			const fastCommitOn = fieldsFastCommitEnabled();
 			// 🔴🔴 [代际与取消必须原子](horosa_chart_epoch_abort_atomic_v1)以下两件事之间**绝不允许有
 			// yield**,否则两个并发 effect 会互相残杀、一个响应都保不下来:
-			//   ① `++fieldsEpoch` —— 决定「谁的响应不被当作过期货丢弃」;
+			//   ① 取主盘提交代次(takeChartCommitTicket)—— 决定「谁的响应不被当作过期货丢弃」;
 			//   ② abort 旧 AbortController + 建新的 —— 决定「谁的请求不被网络层取消」。
 			// 病史(用户实测三轮「三式改时间盘不动」的真身,horosa_sanshi_outer_follow_time_v1 的下游):
 			// 原实现把 ② 放在函数开头、① 放在 `yield select(state.astro)` 之后。dva 的 effect 默认
@@ -1632,18 +1632,33 @@ export default {
 			// 实测日志形如 `start epoch=2 / start epoch=3 / abort epoch=2 / abort epoch=3`——
 			// 两条 abort、零条 SAVE,即此病的指纹。合并为原子段后,「最后进来的」必然同时拿到
 			// 最大 epoch 与活着的 controller,两道机制判据统一。
-			const epoch = fastCommitOn ? ++fieldsEpoch : 0;
-			// [R4-B5b] /chart 主链 AbortController:新发先 abort 旧在途(网络层取消——释放连接与
-			// 后端算力;结果层正确性由 fieldsEpoch 代际保证,两层互补)。带 signal 的请求在
+			// 整段放在第一个 yield 之前:与另外三个换主盘入口同一判据(第一个 yield 之前取号),跨入口的先后也按发起先后算。
+			const commitTicket = takeChartCommitTicket();
+			// /chart 主链 AbortController:新发先 abort 旧在途(网络层取消——释放连接与
+			// 后端算力;结果层正确性由主盘提交代次保证,两层互补)。带 signal 的请求在
 			// services 层不入 chartInflight 共享(A abort 不连坐 B);abort 失败路径在 request 层
 			// 短路(不自愈/不弹错)。浅拷贝挂载,绝不变异调用方传入的 __requestOptions 对象。
 			if(mainChainAbortEnabled() && typeof AbortController !== 'undefined' && !requestOptions.signal){
 				if(chartMainAbortCtl){
-					try{ chartMainAbortCtl.abort(); }catch(e){ /* 已 settled 无害 */ }
+					chartMainAbortCtl.abort();   // 已 settled 的控制器再 abort 是空操作,不抛
 				}
 				chartMainAbortCtl = new AbortController();
 				requestOptions = { ...requestOptions, signal: chartMainAbortCtl.signal };
 			}
+			const astroState = yield select((state)=>state.astro);
+			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
+			// 交互真尺:改动进入 → compute(响应/提交)→ commit(rAF 渲染近似)。
+			// 取消/失败路径不记(避免把 stale 响应算进延迟分布)。
+			const pm = perfBegin(astroState.currentTab || 'chart', stepHint ? `step:${stepHint.unit}` : 'fields');
+
+			// —— 「点时间→出盘」快车道(2026-07 极速化大修) ——
+			// 病根:此前 fields 的 save 排在 /chart 网络之后 → 纯本地技法(八字/数算/风水…)
+			// 也被迫等一次网络(实测热态 229ms 占总延迟 70%),网络失败则 fields 根本不更新。
+			// 修法:当前 tab 的 hook 自述 chartFree(=本页中右栏不消费 chartObj)时,fields 立即
+			// 提交+立即 doHook —— 本地技法一次性整体出(<100ms);/chart 照发,回来单独补 chartObj。
+			// 非 chartFree 页维持「到齐才 save{fields+chartObj}」的原子性(逐字节旧序),但先把
+			// 本页的请求集并行预热(prewarm,silent,经 requestDedupe 在途共享)→ latency=max 而非 sum。
+			const fastCommitOn = fieldsFastCommitEnabled();
 			const activeHook = astroState.predictHook && astroState.predictHook[astroState.currentTab];
 			const fastPath = fastCommitOn && !!(activeHook && activeHook.chartFree === true);
 
@@ -1675,14 +1690,14 @@ export default {
 			try{
 				rsp = yield call(service.fetchChart, param, requestOptions);
 			}catch(abortErr){
-				// [R4-B5b] 被新请求 abort 的旧主链:静默退场(新请求自有其成败路径)。
+				// 被新请求 abort 的旧主链:静默退场(新请求自有其成败路径)。
 				// 其它错误维持旧行为原样上抛(request 层早已按 silent 决定 surface 与否)。
 				if(abortErr && (abortErr.name === 'AbortError' || (requestOptions.signal && requestOptions.signal.aborted))){
 					return;
 				}
 				throw abortErr;
 			}
-			if(fastCommitOn && epoch !== fieldsEpoch){
+			if(!chartCommitTicketLive(commitTicket)){
 				// 已有更新的一次时间变更在途/完成 —— 本响应作废,静默丢弃(连错误弹窗也不弹:
 				// 旧请求失败不该打断用户正在进行的新操作;新请求自有其成败路径)。
 				return;
@@ -1800,10 +1815,15 @@ export default {
 			yield put({ type: 'nowChart', payload: { fields: st && st.fields ? st.fields : undefined } });
 		},
 		*nowChart({ payload: values }, { call, put, select }){
+			const commitTicket = takeChartCommitTicket();   // 第一个 yield 之前取号(主盘提交代次)
 			let fields = values.fields;
-			if(fields === undefined || fields === null){
+			const isNewChart = fields === undefined || fields === null;
+			// 「当新盘处理」:带着字段起的盘也可以按新盘语义收尾(启动时的「此刻」盘、玄学史建盘)——紫微用回你自己的设置。
+			// 此前只有不带字段(「新命盘」按钮)才用回,启动的此刻盘沿用了上一张载入的盘的紫微设置
+			const treatAsNewChart = isNewChart || !!(values && values.asNewChart);
+			if(isNewChart){
 				fields = newEmptyFields();
-				// [Q-313/T-295] 「新命盘」=此刻:newEmptyFields 的日期取模块级常量 dtm(模型载入时 new 一次,从不刷新)→ 起的是应用启动时刻的盘。
+				// 「新命盘」=此刻:newEmptyFields 的日期取模块级常量 dtm(模型载入时 new 一次,从不刷新)→ 起的是应用启动时刻的盘。
 				// 只在本路径换成真「此刻」(newEmptyFields 仍是非默认捕获的基准工厂,不动)。
 				const nowDt = new DateTime();
 				fields = { ...fields, ad: { ...fields.ad, value: nowDt.ad }, date: { ...fields.date, value: nowDt }, time: { ...fields.time, value: nowDt.clone() } };
@@ -1813,9 +1833,15 @@ export default {
 			param.includePrimaryDirection = shouldIncludePrimaryDirection(astroState);
 
 			const rsp = yield call(service.fetchChart, param);
+			if(!chartCommitTicketLive(commitTicket)){ return; }   // 之后又换过主盘:旧响应作废(也不用回紫微种子)
 			if(!isValidChartResponse(rsp)){
 				showChartServiceError();
 				return;
+			}
+			if(treatAsNewChart){
+				// 「新命盘」:紫微用回你自己的设置(载入记录只改本盘生效值,不改你的新盘种子)。
+				// 排盘成功后才用回(失败 = 盘没换,左栏设置也不该换;与载入命盘同一时序)。
+				try{ restoreZiweiUserSeed(); }catch(e){ /* 用回失败:保持当前设置 */ }
 			}
 			const Result = rsp.Result;
 			Result.chartId = randomStr(8);
@@ -1826,14 +1852,19 @@ export default {
 			saveAstroAISnapshotLazy(Result, fields, { classicalDerived: true });   // 本命主盘快照带古典衍化四段(opt-in,嵌套消费方不带)
 
 			let drawer = closeAllDrawer('*nowChart');
+			// 换盘代次在提交这一刻按最新 state 加一(不沿用发请求前读到的值)
+			const chartEpochNext = (((yield select((s)=>s.astro)) || {}).chartEpoch || 0) + 1;
             yield put({
                 type: 'save',
                 payload: {  
 					fields: fields,
 					chartObj: Result,
 					drawerVisible: drawer,
-					baziCalibreOverride: {},            // [Q-314] 新命盘:八字本页覆盖层复位
-					_dayBoundaryRecordPinned: false,   // [Q-314] 新命盘:共享层不再钉住(跟随全局)
+					baziCalibreOverride: {},            // 新命盘:八字本页覆盖层复位
+					_dayBoundaryRecordPinned: false,   // 新命盘:共享层不再钉住(跟随全局)
+					_after23BoundaryUserOverrode: false,   // 新命盘 / 此刻:上一张盘上亲手改的日界 / 晚子时锁不带过来
+					_lateZiHourUserOverrode: false,
+					chartEpoch: chartEpochNext,
                 },
             });
 
@@ -1849,19 +1880,6 @@ export default {
 			}
 
 			let path = values.path;
-			if(path[0] === 'astroreader'){
-				const userState = yield select((s)=>s.user);
-				if(userState.userInfo === undefined || userState.userInfo === null){
-					yield put({
-						type: 'save',
-						payload: {
-							currentTab: 'astrochart',
-						},
-					});		
-					return;
-				}	
-			}
-
 			let payload = {
 				currentTab: path[0],
 			};
@@ -1885,7 +1903,7 @@ export default {
 				},
 			});		
 
-			// [R4 死分支收敛] 曾有 `const localOnly = true` 写死的服务端 fetchFateEvents 分支
+			// 曾有 `const localOnly = true` 写死的服务端 fetchFateEvents 分支
 			// (登录多用户时代残留,永不可达)——纯本地桌面形态定谳后收敛为本地唯一路径。
 			const localResult = loadLocalFateEvents(values.cid);
 			yield put({
@@ -1906,8 +1924,8 @@ export default {
 					Val30000: state.deeplearn.Val30000,
 					Val40000: state.deeplearn.Val40000,
 				};
-				// [R4 死分支收敛] 服务端 dlTrain 分支同上,收敛为本地唯一路径。
-				saveLocalFateEvents(param);
+				// 服务端 dlTrain 分支同上,收敛为本地唯一路径。写不进(存储满 / 原内容读不出又没能另存)如实提示
+				if(!saveLocalFateEvents(param)){ message.error('本机存储已满(或原有的命主实况读不出),没能保存这次填写'); }
 			}
 
             yield put({
@@ -1917,6 +1935,24 @@ export default {
                 },
             });
 
+		},
+
+		// 当前命盘只改了展示字段(别的窗口改名 / 改地名等,不影响起盘、不重排):左栏字段与盘面参数里的展示字段跟上库里那版。
+		// 只动 RECORD_DISPLAY_FIELDS 里 astro.fields 有的键(名字 / 地名),且只在字段属于这条记录时;不推进任何代次、不重新请求。
+		*patchRecordDisplayFields({ payload: rec }, { put, select }){
+			const state = yield select((s)=>s.astro);
+			if(!rec || !state || !state.fields || !state.fields.cid || `${state.fields.cid.value}` !== `${rec.cid}`){ return; }
+			const fields = { ...state.fields };
+			const params = state.chartObj && state.chartObj.params ? { ...state.chartObj.params } : null;
+			let changed = false;
+			RECORD_DISPLAY_FIELDS.forEach((k)=>{
+				if(!fields[k] || rec[k] === undefined){ return; }
+				const v = rec[k] === null ? '' : rec[k];
+				if(fields[k].value !== v){ fields[k] = { ...fields[k], value: v }; changed = true; }
+				if(params && Object.prototype.hasOwnProperty.call(params, k) && params[k] !== v){ params[k] = v; changed = true; }
+			});
+			if(!changed){ return; }
+			yield put({ type: 'save', payload: { fields, ...(params ? { chartObj: { ...state.chartObj, params } } : {}) } });
 		},
 
 		*syncAndRecalcFromDayBoundary(_, { put, select }) {
@@ -1946,6 +1982,7 @@ export default {
 				}
 			};
 			window.addEventListener('horosa:day-boundary-changed', handler);
+			return ()=>window.removeEventListener('horosa:day-boundary-changed', handler);
 		},
 
 		syncFromGlobalLateZiHour({ dispatch }){
@@ -1959,7 +1996,10 @@ export default {
 				}
 			};
 			window.addEventListener('horosa:late-zi-hour-mode-changed', handler);
+			return ()=>window.removeEventListener('horosa:late-zi-hour-mode-changed', handler);
 		},
 	},
 
-}
+};
+
+export default model;

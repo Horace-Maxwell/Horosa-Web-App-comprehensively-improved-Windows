@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/utils/kentangCache.js b/astrostudyui/src/utils/kentangCache.js
-index 4e610389..c3135bf6 100644
+index e1932568..70c7dde2 100644
 --- a/astrostudyui/src/utils/kentangCache.js
 +++ b/astrostudyui/src/utils/kentangCache.js
-@@ -86,6 +86,21 @@ function payloadCacheable(moduleKey, bodyStr){
+@@ -77,6 +77,21 @@ function payloadCacheable(moduleKey, bodyStr){
  			}
  		}catch(e){ return false; }
  	}

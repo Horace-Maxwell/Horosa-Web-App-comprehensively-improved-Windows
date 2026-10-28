@@ -4,7 +4,7 @@ import { XQTabs as Tabs } from '../xq-ui';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
-import { moiraMergeStellarRelationRows as mergeStellarRelationRows, moiraBuildLimitTable as buildLimitTable, moiraBirthYearBasis as birthYearBasis, moiraCurrentLimitIndex as currentLimitIndex, MOIRA_PLANET_DEFS, } from './GuoLaoMoiraWheel';
+import { moiraMergeStellarRelationRows as mergeStellarRelationRows, moiraBuildLimitTable as buildLimitTable, moiraBirthYearBasis as birthYearBasis, moiraCurrentLimitIndex as currentLimitIndex, MOIRA_PLANET_DEFS, moiraNormDegree as norm, moiraStemBranchForYear as stemBranchForYear, moiraFormatGodName as formatGodName, } from './GuoLaoMoiraWheel';
 import { calcAzimuthLocal } from '../commtools/Azimuth';
 import { convertLatStrToDegree, convertLonStrToDegree } from '../astro/AstroHelper';
 import { shanAtDeg } from '../fengshui/liqiCore';
@@ -72,8 +72,6 @@ const ANGLE_ORDER = [
 	{ id: AstroConst.MC, name: '顶' },
 ];
 
-const STEM_BRANCHES = ['甲子', '乙丑', '丙寅', '丁卯', '戊辰', '己巳', '庚午', '辛未', '壬申', '癸酉', '甲戌', '乙亥', '丙子', '丁丑', '戊寅', '己卯', '庚辰', '辛巳', '壬午', '癸未', '甲申', '乙酉', '丙戌', '丁亥', '戊子', '己丑', '庚寅', '辛卯', '壬辰', '癸巳', '甲午', '乙未', '丙申', '丁酉', '戊戌', '己亥', '庚子', '辛丑', '壬寅', '癸卯', '甲辰', '乙巳', '丙午', '丁未', '戊申', '己酉', '庚戌', '辛亥', '壬子', '癸丑', '甲寅', '乙卯', '丙辰', '丁巳', '戊午', '己未', '庚申', '辛酉', '壬戌', '癸亥'];
-
 // G6 报时星(时星):chart.timerStar 给七政英文 id(随报时星太阳时档变);映射中文显示。
 const PLANET_CN_BY_ID = (function(){ const m = {}; PLANET_ORDER.forEach((d)=>{ m[d.id] = d.name; }); return m; })();
 function timerStarName(id){
@@ -124,15 +122,6 @@ function safeMap(val){
 	return val && typeof val === 'object' ? val : {};
 }
 
-function joinYearItems(items){
-	return safeList(items).map((item)=>{
-		if(item && typeof item === 'object'){
-			return [item.name, item.star ? `化${item.star}` : ''].filter(Boolean).join(' ');
-		}
-		return `${item || ''}`;
-	}).filter(Boolean).join('、');
-}
-
 function hasUnverifiedMoiraPatternSource(value){
 	return value && (
 		value.styleSource === 'moira-dsl-not-evaluated'
@@ -172,36 +161,11 @@ function joinNames(list){
 	return arr.length ? arr.join('、') : '无';
 }
 
-function formatGodName(name){
-	let val = `${name || ''}`.replace(/\s+/g, '');
-	if(!val){
-		return '';
-	}
-	val = val.split(/[\/／]/)[0];
-	const aliases = {
-		天乙贵人: '天贵',
-		玉堂贵人: '玉贵',
-	};
-	return aliases[val] || val;
-}
-
 function msg(id){
 	if(id === undefined || id === null){
 		return '';
 	}
 	return AstroText.AstroMsgCN[id] || AstroText.AstroTxtMsg[id] || AstroText.AstroMsg[id] || `${id}`;
-}
-
-function norm(deg){
-	let val = Number(deg);
-	if(!Number.isFinite(val)){
-		return 0;
-	}
-	val %= 360;
-	if(val < 0){
-		val += 360;
-	}
-	return val;
 }
 
 // 黄仪/赤仪显示口径(chart.displayCoord 单一真值源;旧数据回退恒星制旧判据)。
@@ -301,11 +265,6 @@ function compactDegreeText(lon){
 	const deg = `${Math.floor(val % 30)}`.padStart(2, '0');
 	const min = `${Math.floor(((val % 30) - Math.floor(val % 30)) * 60)}`.padStart(2, '0');
 	return `${deg}.${min}`;
-}
-
-function stemBranchForYear(year){
-	const idx = ((Number(year) - 1984) % 60 + 60) % 60;
-	return STEM_BRANCHES[idx] || '';
 }
 
 function yearFromParams(params){
@@ -849,7 +808,7 @@ function hasRenderableChart(rootValue){
 	return safeList(rootValue && rootValue.chart && rootValue.chart.objects).length > 0;
 }
 
-// [Q-231/Q-434/Q-435] 右栏「命身与限度」「三主·命宫配干·化曜」「难仇恩用」「飞限·童限·小限·月限·限度」「行运法」
+// 右栏「命身与限度」「三主·命宫配干·化曜」「难仇恩用」「飞限·童限·小限·月限·限度」「行运法」
 // 诸卡的事实层单源:面板渲染与 AI 快照([起盘信息] 命度/身度/宿主行、[三主与化曜]、[限法实算])都从这里取值,
 // 保证「页面显示什么、快照就写什么」。纯函数、零 React。transitValue 缺(无头挂载)时,月限所需的流年月支
 // 由调用方传入本地历法算得的伪 root(见 GuoLaoChartMain.buildGuolaoInfoFactsForSnapshot),缺则月限行省略。
@@ -1053,7 +1012,7 @@ function GuoLaoMoiraPanel(props){
 		);
 	}
 
-	// [Q-231/Q-434/Q-435] 命/身度·宿主·三主·难仇恩用·五限·行运法 全取自 buildGuolaoMoiraInfoFacts(与 AI 快照同源)。
+	// 命/身度·宿主·三主·难仇恩用·五限·行运法 全取自 buildGuolaoMoiraInfoFacts(与 AI 快照同源)。
 	const infoFacts = buildGuolaoMoiraInfoFacts({ value, rootValue, transitValue: transitRoot, params, transitParams, display, fields: props.fields });
 	const anchors = infoFacts.anchors;
 	const life = infoFacts.life;
@@ -1187,7 +1146,7 @@ function GuoLaoMoiraPanel(props){
 					const rl = infoFacts.runLaw;
 					if(!rl){ return null; }
 					if(rl.type === ''){
-						// [Q-188/T-125] 与大限环同源:年界基准(元旦/立春/冬至)→ birthFrac + 岁次年号偏移(缺省元旦 → 表逐字同旧)。
+						// 与大限环同源:年界基准(元旦/立春/冬至)→ birthFrac + 岁次年号偏移(缺省元旦 → 表逐字同旧)。
 						return (
 							<Section title="大限（古度限度法 · 自命宫整宫界起 · 照 Moira）">
 								<div className="horosa-guolao-moira-house-list horosa-guolao-moira-limit-list">

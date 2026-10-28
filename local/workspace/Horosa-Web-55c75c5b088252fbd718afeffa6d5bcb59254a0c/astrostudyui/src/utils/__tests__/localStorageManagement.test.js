@@ -572,7 +572,7 @@ describe('tag aggregation for filter dropdowns', ()=>{
 	});
 });
 
-describe('[R4] store 级排序与事盘类型筛选', ()=>{
+describe('store 级排序与事盘类型筛选', ()=>{
 	it('orderBy=name 中文 locale 排序、orderDir 双向;缺省仍 updateTime 倒序(零回归)', ()=>{
 		window.localStorage.clear();
 		upsertLocalChart({ cid: 'c1', name: '张三', birth: '1990-01-01 08:00:00', zone: '+08:00', updateTime: '2026-08-01 10:00:00', preserveUpdateTime: true });

@@ -19,6 +19,9 @@
 //   stateAlias  (可选)页面 render 里给 this.state 起的别名(如 const s = this.state → 's'),枚举器据此认 s.X。
 //   consumers   (可选)设置件单独成文件、由多个组件共用时,列出这些组件:读 / 写 / 可改键枚举都在它们身上查。
 //   keyAliases  (可选)组件 state 键名 → 本表字段名(叫法不同或各页各存时用)。
+//   noPageControl (可选)保留着、但页面上没有控件改它的键(每个写理由):设置描述不列、助手不可写 —— 与页面同口径
+//               (页面改不到的值,助手改了也只是存进去、页面上看不出;合同 aiPageFacetControl 看守:设置描述里的可改项必须在页面上有控件,
+//               登记在这里的键必须真的没有控件)。键已经没人读写的,直接从 schema / fields 撤掉,不要登记在这里。
 //
 // 全站口径:只保留「设置」(口径 / 流派 / 算法 / 显示偏好),不保留「输入」(时间地点 / 占事 / 起卦数字 / 逐盘手填);
 // 只在用户亲手改控件的 handler 里落盘 —— 载入命盘事盘回灌、宿主页下发口径、全局设置广播都不落。
@@ -206,14 +209,6 @@ export const PAGE_SETTINGS_REGISTRY = [
 		},
 	},
 	{
-		page: 'huangji', storageKey: 'horosa.huangji.settings.v1', file: 'components/huangji/HuangJiMain.js', exportName: 'HUANGJI_PAGE_SETTINGS', changeVia: 'stateKey',
-		fields: ['xinyiMethod'],
-		exempt: {
-			historyYear: '历史年是每次查看的输入',
-			...sameReason(['classicKey', 'classicSectionIndex', 'classicView'], '经典 / 章节 / 显示方式是阅读位置,不是排盘口径'),
-		},
-	},
-	{
 		page: 'planetarium', storageKey: 'horosa.planetarium.settings.v1', file: 'components/planetarium/PlanetariumBabylon.js', exportName: 'PLANETARIUM_PAGE_SETTINGS', changeVia: 'stateKey',
 		fields: ['layers', 'magLimit', 'viewMode'],
 		exempt: {
@@ -224,7 +219,7 @@ export const PAGE_SETTINGS_REGISTRY = [
 	{
 		// 改设置的入口有三十多个且零非用户入口 → componentDidUpdate 里按保留键前后值统一落盘(前提由合同测试看守)
 		page: 'acg', storageKey: 'horosa.acg.settings.v1', file: 'components/acg/AstroAcg.js', exportName: 'ACG_PAGE_SETTINGS', changeVia: 'stateDiff',
-		fields: ['lines', 'projection', 'mapStyle', 'showLabels', 'showGeo', 'showLS', 'showAspects', 'showPoints', 'showMidpoints', 'showLots', 'showCrossings', 'showCuspLines', 'showStars', 'showStarParans', 'showTreasure', 'showZones', 'zoneWidth', 'showGeodetic', 'geodetic', 'geodeticVar', 'geodeticZero', 'hsys', 'orb', 'mode', 'coord', 'posType', 'horizon', 'nodeType', 'lilithType', 'draconic', 'harmonic', 'vibration', 'showVibration', 'midpointMode', 'ayanamsa', 'lsMode', 'paranMode'],
+		fields: ['lines', 'projection', 'mapStyle', 'showLabels', 'showGeo', 'showLS', 'showAspects', 'showPoints', 'showMidpoints', 'showLots', 'showCrossings', 'showCuspLines', 'showStars', 'showStarParans', 'showTreasure', 'showZones', 'zoneWidth', 'showGeodetic', 'geodetic', 'geodeticVar', 'geodeticZero', 'hsys', 'orb', 'mode', 'coord', 'posType', 'horizon', 'nodeType', 'lilithType', 'draconic', 'harmonic', 'showVibration', 'midpointMode', 'ayanamsa', 'lsMode', 'paranMode'],
 		exempt: {
 			...sameReason(['acgData', 'linesSet', 'pointReport', 'pointLoading', 'clickMarker'], '后端数据 / 由 lines 派生的集合 / 落点报告,不是设置'),
 			...sameReason(['drawerVisible', 'layersOpen', 'refOpen', 'pointOpen', 'lsDialOpen'], '抽屉 / 面板开合是视图态'),

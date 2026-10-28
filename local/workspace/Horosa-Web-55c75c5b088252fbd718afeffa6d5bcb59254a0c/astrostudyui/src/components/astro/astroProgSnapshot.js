@@ -7,24 +7,34 @@
 //
 // 恒星支输出与抽取前逐字相同(variant 表复刻原字面);回归支为新增。
 import request from '../../utils/request';
+import DateTime from '../comp/DateTime';
 import * as Constants from '../../utils/constants';
 import * as AstroText from '../../constants/AstroText';
 import { unwrapResult, fmtDegree, fmtNum, chartParams } from './AstroExtraCommon';
 import { buildStarAndLotPositionLines, buildHouseCuspLines, buildPredictiveBirthLines, buildCurrentMomentLines, buildMethodNoteLines, } from '../../utils/astroAiSnapshot';
 import { MINOR_VARIANT_LABEL } from './AstroProgChart';
 
-function today(){
+// 推运目标日缺省「今日」YYYY-MM-DD。二次 / 三次 / 小推运、恒星推运、赤纬推运各页与本文件共用。
+// zone = 本盘所用时区:给了就是真实此刻在该时区的日期(DateTime.nowForChart,目标日与盘时区配套下发);不给 = 本机今日(原样)
+export function today(zone){
+	if(zone){ return DateTime.nowForChart(zone).format('YYYY-MM-DD'); }
 	const dt = new Date();
 	return `${dt.getFullYear()}-${`${dt.getMonth() + 1}`.padStart(2, '0')}-${`${dt.getDate()}`.padStart(2, '0')}`;
 }
 
 const EVENT_POINTS = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Asc', 'MC'];
 
-// [YB v42] 补厚 helper 容错:个别测试套件整模块 mock astroAiSnapshot 且只保留部分导出,
+// 补厚 helper 容错:个别测试套件整模块 mock astroAiSnapshot 且只保留部分导出,
 // 缺失导出经 import 拿到 undefined → 直接调用会炸掉整个 builder;生产环境恒为函数,此守卫零行为差。
 const safeHelperLines = (fn, ...args)=>(typeof fn === 'function' ? fn(...args) : []);
 
-function methodTab(method){
+// 推运法 → 页签名。
+// 盘所用时区(盘对象回包里的 params.zone)
+export function chartZone(chartObj){
+	return chartObj && chartObj.params && chartObj.params.zone ? `${chartObj.params.zone}` : '';
+}
+
+export function methodTab(method){
 	return method.method === 'secondary' ? '二次推运' : (method.method === 'tertiary' ? '三次推运' : '小推运');
 }
 
@@ -35,7 +45,7 @@ export const PROG_SNAPSHOT_VARIANTS = {
 	vedicprog: {
 		zodiacal: 1,
 		section: '恒星推运（Vedic Sidereal）',
-		// [Q-176/T-116b] 「截至今日」写死,而紧接的下一行就是非今日的「目标日期」→ 改成中性说法。
+		// 「截至今日」写死,而紧接的下一行就是非今日的「目标日期」→ 改成中性说法。
 		intro: '二次/三次/小限推运在恒星黄道（sidereal）下计算；下表为二次推运，推至下方所列目标日期。',
 		posCol: '恒星推运位置',
 	},
@@ -48,12 +58,12 @@ export const PROG_SNAPSHOT_VARIANTS = {
 };
 
 // 推运 AI 快照(无头):内部 fetch /astroextra/progressions,与组件同口径。无数据返回 ''。
-// opts:targetDate + targetTime(目标时刻)+ minorVariant(小推运月长,缺省 synodic=标准朔望月 [Q-180])。
+// opts:targetDate + targetTime(目标时刻)+ minorVariant(小推运月长,缺省 synodic=标准朔望月)。
 export async function buildProgSnapshotText(chartObj, opts, variantKey){
 	const variant = PROG_SNAPSHOT_VARIANTS[`${variantKey || ''}`];
 	if(!chartObj || !variant){ return ''; }
 	const o = opts && typeof opts === 'object' ? opts : {};
-	const targetDate = `${o.targetDate || ''}`.trim() || today();
+	const targetDate = `${o.targetDate || ''}`.trim() || today(chartZone(chartObj));
 	const targetTime = `${o.targetTime || ''}`.trim() || '12:00:00';
 	const minorVariant = `${o.minorVariant || ''}`.trim() || 'synodic';
 	let result = null;
@@ -85,7 +95,7 @@ export async function buildProgSnapshotText(chartObj, opts, variantKey){
 	lines.push(`目标日期：${targetDate} ${targetTime}（各法推运时刻=按该法折算，见各小节）`);
 	const natalStars = buildStarAndLotPositionLines(chartObj);
 	const natalHouses = buildHouseCuspLines(chartObj);
-	// [YB v42] 生辰行并入既有 [本命盘配置] 段头部(裸行版,不新开段;无生辰数据 → 输出与现状逐字一致)。
+	// 生辰行并入既有 [本命盘配置] 段头部(裸行版,不新开段;无生辰数据 → 输出与现状逐字一致)。
 	const natalBirth = safeHelperLines(buildPredictiveBirthLines, chartObj);
 	if(natalStars.length || natalHouses.length || natalBirth.length){
 		lines.push('');
@@ -101,7 +111,7 @@ export async function buildProgSnapshotText(chartObj, opts, variantKey){
 	secondary.positions.filter((p) => EVENT_POINTS.indexOf(p.id) >= 0).forEach((p) => {
 		lines.push(`| ${sym(p.id)} | ${fmtDegree(p)} |`);
 	});
-	// [YB v42] UI 有 二次/三次/小推运 三法 Tab + 与本命相位表,此前导出只有二次推运位置一张表。
+	// UI 有 二次/三次/小推运 三法 Tab + 与本命相位表,此前导出只有二次推运位置一张表。
 	// 单次 fetch 已带回全部三法(与组件同一接口同一回包),零额外成本 → 三法全量各出小节,
 	// 段内纯增(◆ 子题并入既有 [时段盘配置 二次推运位置] 段,既有二次推运表逐字不动)。
 	const aspTxt = (v) => (AstroText.AstroTxtMsg[`Asp${fmtNum(v, 0)}`] || `${fmtNum(v, 0)}°`);
@@ -113,7 +123,7 @@ export async function buildProgSnapshotText(chartObj, opts, variantKey){
 			lines.push('');
 			lines.push(`◆ ${label} 推运位置`);
 			if(when){ lines.push(`推运时刻：${when}`); }
-			// [Q-180] 小推运写明所用月长档(此前三法全出却不写档,AI 无从分辨「引擎历史值≈无推进」与标准朔望月)。
+			// 小推运写明所用月长档(此前三法全出却不写档,AI 无从分辨「引擎历史值≈无推进」与标准朔望月)。
 			if(m.method === 'minor'){ lines.push(`月长算法：${MINOR_VARIANT_LABEL[minorVariant] || minorVariant}`); }
 			lines.push(`| 点 | ${variant.posCol} | 速度 |`);
 			lines.push('| --- | --- | --- |');
@@ -133,7 +143,7 @@ export async function buildProgSnapshotText(chartObj, opts, variantKey){
 	};
 	pushMethodBlocks(secondary, false);
 	methods.forEach((m) => { if(m && m !== secondary){ pushMethodBlocks(m, true); } });
-	// [YB v42] 尾部补 [当前时点]/[方法说明](共享 helper;段头已登 preset)。
+	// 尾部补 [当前时点]/[方法说明](共享 helper;段头已登 preset)。
 	lines.push('');
 	lines.push(...safeHelperLines(buildCurrentMomentLines, chartObj));
 	lines.push(...safeHelperLines(buildMethodNoteLines, variantKey));

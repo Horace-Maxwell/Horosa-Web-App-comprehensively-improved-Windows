@@ -12,9 +12,10 @@
 import fs from 'fs';
 import path from 'path';
 import { shouldUseDirectAttach } from '../aiAnalysisRag';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC_ROOT = path.join(__dirname, '..', '..');
-const MAIN = fs.readFileSync(path.join(SRC_ROOT, 'components', 'aianalysis', 'AIAnalysisMain.js'), 'utf8');
+const MAIN = readSource(path.join(SRC_ROOT, 'components', 'aianalysis', 'AIAnalysisMain.js'));
 const RAG = fs.readFileSync(path.join(SRC_ROOT, 'utils', 'aiAnalysisRag.js'), 'utf8');
 
 const SHORT = { extractedText: 'x'.repeat(100) };			// 远低于阈值 → auto 下直挂
@@ -76,7 +77,7 @@ describe('🔴 默认检索策略 · 消费链层(源码级,防被静默摘线)'
 		const fn = MAIN.slice(MAIN.indexOf('async function retrieveMaterialContext'));
 		const body = fn.slice(0, 900);
 		expect(body).toContain('retrieveMaterialContext(query, resolvedRefs, embeddingTarget, retrievalMode)');
-		// [B1] 分拣收编进 partitionMaterialsByRetrieval 单源(内部调 shouldUseDirectAttach,
+		// 分拣收编进 partitionMaterialsByRetrieval 单源(内部调 shouldUseDirectAttach,
 		// 契约层已断三档改判)。判据换锚同一意图:mode 必须作为第二实参传入单源,红=收了没往下传。
 		expect(body).toMatch(/partitionMaterialsByRetrieval\([^,]+,\s*retrievalMode\)/);
 	});

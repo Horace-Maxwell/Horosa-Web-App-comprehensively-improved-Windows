@@ -6,8 +6,9 @@
 // 报「当前页面没有可导出文本」。导航新增/改名而未登记 → 本哨兵当场红。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
-const read = (rel)=>fs.readFileSync(path.join(__dirname, rel), 'utf8');
+const read = (rel)=>readSource(path.join(__dirname, rel));
 
 function extractNavEntries(){
 	const src = read('../../pages/index.js');
@@ -46,9 +47,6 @@ const EXEMPT = {
 	astrodata: '名人数据库浏览页,无文本导出语义',
 	shusuan: '数算页导出走 store fallback(历史现状;顶栏链如需接入另立项)',
 	mingother: '命·其他(演禽/一掌经)导出走 store fallback(历史现状;顶栏链如需接入另立项)',
-	astroreader: '书籍阅读器,无文本导出语义',
-	liveplayer: '直播视图,无文本导出语义',
-	admintools: '管理工具页,无导出语义',
 };
 
 describe('[制度化] 主导航×AI导出三分类全覆盖哨兵', ()=>{

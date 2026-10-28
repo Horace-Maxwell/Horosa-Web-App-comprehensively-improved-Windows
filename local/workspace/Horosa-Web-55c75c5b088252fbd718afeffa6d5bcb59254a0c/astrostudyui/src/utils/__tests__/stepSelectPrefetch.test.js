@@ -1,4 +1,4 @@
-// [R3-A1] 选步长即预取金标:选定步长档那一刻(未点 ±)就双向 ±1、±2 预取。
+// 选步长即预取金标:选定步长档那一刻(未点 ±)就双向 ±1、±2 预取。
 // 覆盖:处理器注册/触发、同 unit 5s 去重、开关双闸、depth=2 任务形状(键与真点同源)、
 // 预算硬顶、日历等未挂 prop 宿主零触发(由 opt-in prop 结构保证,此处锁 fire 面契约)。
 import {
@@ -31,7 +31,7 @@ beforeEach(()=>{
 	}catch(e){ /* ignore */ }
 });
 
-describe('[R3-A1] fireStepSelectPrefetch', ()=>{
+describe('fireStepSelectPrefetch', ()=>{
 	test('注册处理器后触发,unit 原样传达', ()=>{
 		const seen = [];
 		registerStepSelectHandler((unit)=>seen.push(unit));

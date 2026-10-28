@@ -1,8 +1,8 @@
 diff --git a/verify_horosa_local.sh b/verify_horosa_local.sh
-index 5f7339b..e2cab8d 100644
+index c1567661..f888cc83 100644
 --- a/verify_horosa_local.sh
 +++ b/verify_horosa_local.sh
-@@ -94,7 +94,9 @@ port_listening() {
+@@ -100,7 +100,9 @@ port_listening() {
  file_mtime() {
    local path="$1"
    if [ -f "${path}" ]; then

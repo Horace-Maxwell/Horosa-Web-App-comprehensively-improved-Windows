@@ -1,4 +1,4 @@
-// [挂载自检 F-18·P0] 河洛无头 [命运篇] 化工按真实节气(与河洛页 solarTermHuagong 同源),不再走月支近似 MONTH_HG。
+// 河洛无头 [命运篇] 化工按真实节气(与河洛页 solarTermHuagong 同源),不再走月支近似 MONTH_HG。
 // 判别向量:把 buildHeluoSnapshotForRecord 的 st 改回 null 即第 2 例红(挑的是节气象限≠月支近似的日期)。
 jest.mock('../request', () => ({ __esModule: true, default: jest.fn(async () => { throw new Error('offline'); }) }));
 jest.mock('../localcharts', () => ({ listLocalCharts: jest.fn(() => []), __esModule: true }));

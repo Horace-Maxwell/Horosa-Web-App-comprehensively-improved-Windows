@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import spacex.astrostudycn.helper.CivilDateParts;
+
 public class QizhengMoiraRuleService {
 	// 黄仪/赤仪显示口径(chart.displayCoord 单一真值源,python 按宿度制 byLon/byRA 宣告):
 	// 黄仪=度数取 lon(黄经),赤仪=取 ra(赤经)。ThreadLocal 承载(单例并发安全),
@@ -1143,6 +1145,16 @@ public class QizhengMoiraRuleService {
 		}
 	}
 
+	/**
+	 * 「冬」判据:出生日期的月份为 11 / 12 / 1(与前端 localMoiraIsWinter 同口径)。日期串经 CivilDateParts 取段:
+	 * 公元前 "-300/12/10" 不会把年当成月;认不出月份按 1 月(旧缺省)。
+	 */
+	static boolean isWinterMonthOf(String date) {
+		CivilDateParts p = CivilDateParts.parse(date);
+		int month = p != null && p.month != null ? p.month.intValue() : 1;
+		return month == 11 || month == 12 || month == 1;
+	}
+
 	private class MoiraStyleContext {
 		private final Map<String, Object> chart;
 		private final Map<String, Map<String, Object>> byId;
@@ -1248,8 +1260,7 @@ public class QizhengMoiraRuleService {
 				return !isDay();
 			}
 			if("冬".equals(name)) {
-				int month = datePart(1, 1);
-				return month == 11 || month == 12 || month == 1;
+				return isWinterMonthOf(str(params.get("date"), ""));
 			}
 			if(name.endsWith("会") || name.endsWith("遇")) {
 				String core = name.substring(0, name.length() - 1);
@@ -1505,16 +1516,6 @@ public class QizhengMoiraRuleService {
 				hour = 12;
 			}
 			return hour >= 6 && hour < 18;
-		}
-
-		private int datePart(int idx, int defVal) {
-			String date = str(params.get("date"), "");
-			date = date.replace('/', '-');
-			String[] parts = date.split("-");
-			if(parts.length > idx) {
-				return parseIntSafe(parts[idx], defVal);
-			}
-			return defVal;
 		}
 
 		private boolean nearSignBoundary(double lon) {

@@ -695,7 +695,7 @@ def _eval_almuten_is(params, ctx, domain):
 
 def _eval_distribution_state(params, ctx, domain):
     """分布权重:元素/模式/半球计数(astroextra.distribution 同式,含 ASC/MC 轴半球式)。
-    includeOuter 默认 true=十星(扫描条件既有口径,默认不变);false=七政(格局页签「分布权重」自 [Q-557] 起只计七政)。op=max 为严格最大(平局 False)。"""
+    includeOuter 默认 true=十星(扫描条件既有口径,默认不变);false=七政(格局页签「分布权重」只计七政)。op=max 为严格最大(平局 False)。"""
     axis = params.get('axis')
     key = params.get('key')
     op = params.get('op') or 'max'
@@ -1546,7 +1546,7 @@ def _leaf_actual(m, ctx, leaf):
             return '中点 {0:.2f}°'.format(mid)
         if t == 'day_window':
             rec = _es.date_time_from_jd(m.jd, ctx.zone)
-            return '当地时刻 {0}'.format(rec['datetime'][11:16])
+            return '当地时刻 {0}'.format(rec['time'][:5])
         if t == 'light_dynamics':
             bodies = _snap_for_light(m, ctx)
             node_lon = m.planet('North Node')['lon'] if p.get('item') == 'bending' else None

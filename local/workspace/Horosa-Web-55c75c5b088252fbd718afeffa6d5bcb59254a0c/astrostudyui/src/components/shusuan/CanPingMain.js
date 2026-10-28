@@ -4,20 +4,17 @@ import { parseYearFromDateStr } from '../../utils/dateStrSafe';
 import { ganzhiYearBase } from '../../utils/ganzhiYearBase';
 import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
 import { createSignatureMemo } from '../../utils/memoBySignature';
+import { fieldVal, devFreeze } from './shusuanShared';   // 数算族共用小工具(单源)
 import { sharedNativeModelEnabled } from '../../utils/perfFlags';
 import { Empty } from 'antd';
 import { XQTabs as Tabs } from '../xq-ui';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
-import { defaultAfter23NewDay, defaultLateZiHourUseNextDay, lunarByDayBoundary } from '../../utils/dayBoundary';
+import { lunarByDayBoundary } from '../../utils/dayBoundary';
 import { calculate as canpingCalculate, liunianSeries, buildSnapshotText } from '../../utils/canpingLocal';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { chartDayBoundary } from '../../utils/dayBoundaryResolve';
 
 const { TabPane } = Tabs;
-
-function fieldVal(fields, key, fallback = '') {
-	if (!fields || !fields[key] || fields[key].value === undefined || fields[key].value === null) return fallback;
-	return fields[key].value;
-}
 
 // 受控：method 由上层(数算宿主)左栏「取法」提供；slot: 'center'(主信息·滑动) | 'aux'(辅助信息·卡片)。
 // 四柱来自 baziLunarLocal（星阙自己的八字，不走后端）。
@@ -27,23 +24,10 @@ function fieldVal(fields, key, fallback = '') {
 // center 先算、aux 同签名直接命中(4 槽足够:两实例只差 slot,签名同源)。
 // 共享引用只读契约:各消费方 render 不就地改写 model(dev 下深冻结保险丝);关开关=各算各的旧行为。
 const sharedModelMemo = createSignatureMemo(4);
-const devFreeze = (v) => {
-	if(process.env.NODE_ENV !== 'production' && v && typeof v === 'object'){
-		try{ deepFreeze(v); }catch(e){ /* 冻结失败不碍事 */ }
-	}
-	return v;
-};
-function deepFreeze(o){
-	Object.freeze(o);
-	Object.keys(o).forEach((k) => {
-		const c = o[k];
-		if(c && typeof c === 'object' && !Object.isFrozen(c)){ deepFreeze(c); }
-	});
-}
 
 class CanPingMain extends Component {
 	// horosa_shusuan_native_scu_v1(PERF-R9;v3.5.1 起与上游 [R3-A6] 守卫合一 —— 语义同 wrapperPropsEqual,单一实现防双 sCU)
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -59,10 +43,9 @@ class CanPingMain extends Component {
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 	}
 
-
 	componentDidMount() {
 		this.saveSnap();
-		// v2.2.1: 监听全局日界 / 晚子时·时柱起干切换 → 强制重渲(getModel 内部用 defaultAfter23NewDay/defaultLateZiHourUseNextDay 实时读 localStorage)。
+		// v2.2.1: 监听全局日界 / 晚子时·时柱起干切换 → 强制重渲(getModel 内部经 chartDayBoundary:本盘没值时实时读全局)。
 		if(typeof window !== 'undefined'){
 			this._dayBoundaryListener = () => { if(!this._unmounted) this.forceUpdate(); };
 			this._lateZiHourListener = () => { if(!this._unmounted) this.forceUpdate(); };
@@ -132,16 +115,15 @@ class CanPingMain extends Component {
 			date: dateStr,
 			time: timeMoment.format('HH:mm:ss'),
 			lon: fieldVal(f, 'lon', ''),
-			// [挂载自检 F-19·P0] 时区:此前不传 → baziLunarLocal 按 +08:00 校正真太阳时,非东八区命例四柱错、与 AI 挂载分叉。
+			// 时区:此前不传 → baziLunarLocal 按 +08:00 校正真太阳时,非东八区命例四柱错、与 AI 挂载分叉。
 			zone: fieldVal(f, 'zone', '') || (f && f.date && f.date.value && f.date.value.zone) || '',
 			// 性别以左栏下拉(props.gender '1'/'0')为准,接线到本地引擎;缺省回退 fields。
 			// 🔴 此前只读 fields → 左栏改性别本命条文不换层(男命/女命)=死开关(用户实测)。
 			gender: this.props.gender !== undefined ? Number(this.props.gender) : fieldVal(f, 'gender', 1),
 			timeAlg: fieldVal(f, 'timeAlg', 1),
-			// [Q-358/T-339] 日界 / 晚子时改读盘面 fields(载盘还原 / 八字左栏改过的值),缺席才回退全局:此前恒读全局 →
+			// 日界 / 晚子时改读盘面 fields(载盘还原 / 八字左栏改过的值),缺席才回退全局:此前恒读全局 →
 			//   左栏或存盘日界 ≠ 全局时,23 点档出生者本页四柱与八字页、AI 挂载分叉。缺省(fields 由全局播种)逐字不变。
-			after23NewDay: fieldVal(f, 'after23NewDay', defaultAfter23NewDay()),
-			lateZiHourUseNextDay: fieldVal(f, 'lateZiHourUseNextDay', defaultLateZiHourUseNextDay()),
+			...chartDayBoundary(f),
 		};
 		const method = this.curMethod();
 		// 实例 memo:输入签名(四柱参数+取法+日界/晚子)不变即返缓存,避免 render/componentDidUpdate→saveSnap/
@@ -191,12 +173,12 @@ class CanPingMain extends Component {
 		const birthYear = ganzhiYearBase(parseYearFromDateStr(dateStr) || 0, yearGz);
 		// 起运岁按生日推算需农历月/日（《参评诀》单月三十逆数、双月初一顺数）
 		const nl = bazi.lunar || bazi.nongli || {};
-		// [Q-358·续] 农历月 / 日按日界口径(23 点档「子初换日」随日柱进位次日,与八字日柱、紫微同源;其余逐字不变)
+		// 农历月 / 日按日界口径(23 点档「子初换日」随日柱进位次日,与八字日柱、紫微同源;其余逐字不变)
 		const lb = lunarByDayBoundary(nl);
 		const lunarMonth = lb.monthNum || 0;
 		const lunarDay = lb.dayNum || 0;
 		const dayunRule = (this.props.opts && this.props.opts.dayunRule) || 'mingGongQiyun';
-		// [Win-D69] 八字大运法真源注入:bazi.direction=lunar-js 节气起运(与八字模块同一函数
+		// 八字大运法真源注入:bazi.direction=lunar-js 节气起运(与八字模块同一函数
 		// 同一结果),干支/起讫虚岁/公历年份逐字节同源——用户实测「起运岁数与年份对不上」的根治。
 		// 远程农历桥分支(域外年)无 direction → 不注入,引擎回退旧排序法(零崩)。
 		let baziYun = null;
@@ -227,7 +209,7 @@ class CanPingMain extends Component {
 		const r = m.r;
 		// 🔴 去重键必须含**一切影响输出的维度**:漏 gender 会让改性别后条文真变而快照不刷新
 		// (AI 导出/挂载读陈旧盘);漏 opts 同理(大运法换档)。河洛同坑已修,此处对齐。
-		// [Q-265/T-250·SO-22] 键改用 this._modelKey(=全部输入签名:日期/时/经度/时区/性别/时间算法/日界/取法/opts;与正传同法):
+		// 键改用 this._modelKey(=全部输入签名:日期/时/经度/时区/性别/时间算法/日界/取法/opts;与正传同法):
 		//   旧键 `${yearGz}|${method}|g|o` 不含月/日/时支与出生年 → 改时辰或月份(年柱不变)本命数与流年表真变而快照不重写。
 		const key = this._modelKey || `${r.fourPillars.yearGz}|${r.method}|g:${r.gender}|o:${JSON.stringify(this.props.opts || {})}`;
 		if (key === this.lastSnapKey) return;
@@ -291,7 +273,7 @@ class CanPingMain extends Component {
 
 				<div className="horosa-huangji-info-card">
 					{/* 标题随大运法档实变（防「换了档看不出换没换」）；起运岁另附推算明细。
-					    [Win-D69] baziSourced=八字真源注入成功:起运/年份与八字盘同源,表加干支与公历年两列。 */}
+					    baziSourced=八字真源注入成功:起运/年份与八字盘同源,表加干支与公历年两列。 */}
 					<div className="horosa-huangji-info-heading">大运（歲運）· {r.dayunRule === 'baziStyle' ? `八字大运法·${r.dayunForward ? '顺行' : '逆行'}${r.baziSourced ? '·与八字盘同源' : ''}` : '命宫顺行'}{r.baziSourced ? ` · 节气起运（自 ${r.qiyunAge} 岁行运）` : (r.qiyunDetail && r.qiyunDetail.usable ? ` · 起运 ${r.qiyunDetail.years}岁${r.qiyunDetail.months ? `${r.qiyunDetail.months}个月` : ''}（自 ${r.qiyunAge} 岁行运）` : ' · 一岁起运')}</div>
 					<table className="horosa-canping-table horosa-canping-dayun">
 						<thead><tr><th>年龄</th>{r.baziSourced ? <th>公历年</th> : null}<th>{r.baziSourced ? '干支' : '支'}</th><th>顺 · 歲運</th><th>逆 · 歲運</th></tr></thead>

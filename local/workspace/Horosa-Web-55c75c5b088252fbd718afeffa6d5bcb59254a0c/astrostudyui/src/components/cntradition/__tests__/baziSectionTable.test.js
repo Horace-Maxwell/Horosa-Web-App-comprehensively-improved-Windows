@@ -34,19 +34,19 @@ const FIX = path.join(__dirname, 'fixtures', 'baziSectionTableBaseline.txt');
 // 表化【之后】新增的解读行（三维分列/成败救应/新补神煞四味/各派忌列），不属「表化等价」比较域：
 // 基线冻结于新增前且须保持旧格式（第 2 个用例守此），故仅在本断言按行剔除，表化守卫职责不变。
 // 各自正确性由 baziWuxingDimensions / baziChengBai / baziShenShaAug2 / baziZaGeXuYao 覆盖。
-// [W1 内容补缺] 十二串宫行 + [干支合冲] 段(干合/干冲/支合拱会刑冲穿破)同属表化后新增,
-// 剔出比较域;正确性由 baziMountSnapshot [W1] 金标(逐行钉死)覆盖。
-// [D3 跨技法时间基准] [起盘信息] 段新增的「时间基准：…」自声明行同属表化后新增(告诉模型这张盘按哪种时间口径起,
+// 十二串宫行 + [干支合冲] 段(干合/干冲/支合拱会刑冲穿破)同属表化后新增,
+// 剔出比较域;正确性由 baziMountSnapshot 金标(逐行钉死)覆盖。
+// [起盘信息] 段新增的「时间基准：…」自声明行同属表化后新增(告诉模型这张盘按哪种时间口径起,
 // 与表化等价无关);正确性由 snapshotTimeBasis.contract.test.js 锁死。
-// [挂载自检 F-54] [大运] 段新增「起运：…」行(页面信息面板恒显的起运信息+精度档;表化后新增,剔出比较域;正确性由 mountAuditResiduals 金标覆盖)。
-// [Q-191/T-135] [起盘信息] 段新增「生肖：X(岁首=立春/正月初一)」行(页面信息卡恒显、快照此前没有;
+// [大运] 段新增「起运：…」行(页面信息面板恒显的起运信息+精度档;表化后新增,剔出比较域;正确性由 mountAuditResiduals 金标覆盖)。
+// [起盘信息] 段新增「生肖：X(岁首=立春/正月初一)」行(页面信息卡恒显、快照此前没有;
 // 两档在正月初一与立春之间出生的人正好差一个生肖)——同属表化后新增,剔出比较域。
 const ADDED_LINE_RE = /^(起运：|生肖：|三维分列|· 得令|· 得地|· 得势|成败：|十二串宫：|时间基准：|\[干支合冲\]|干合：|干冲：|支[合拱会刑冲穿破]：)/;
 const ADDED_TOKENS = ['福星贵人', '德秀贵人', '国印贵人', '天喜', '调候以寒暖燥湿论急缓', '本派不单列忌神'];
 // 通关派 note 本轮追加的忌神句（五行随盘而变，按句型整段剔除）。
 const ADDED_PHRASE_RE = /[；;]忌.夺通关。?/g;
 function stripAddedFacts(text) {
-	// [W1] 小运表(内容级补缺)整块剔除:标记行起、连续表行止;正确性由 baziMountSnapshot [W1] 金标覆盖。
+	// 小运表(内容级补缺)整块剔除:标记行起、连续表行止;正确性由 baziMountSnapshot 金标覆盖。
 	const src = `${text || ''}`.split('\n');
 	const noXiaoYun = [];
 	let inXiaoYun = false;
@@ -66,7 +66,7 @@ function stripAddedFacts(text) {
 			// | 流派 | 喜用 | 忌 | 备注 | → cells = ['', 流派, 喜用, 忌, 备注, '']
 			// 仅格局派/通关派两行：其忌列本轮由空补为真数据；余派忌列原有内容，须留在比较域。
 			if (cells.length === 6 && /^(格局派|通关派)/.test(cells[1].trim())) { cells[3] = ' — '; return cells.join('|'); }
-			// [Q-431/T-394] [四柱与三元] 表新增「纳音长生」列(第 6 列;各柱纳音五行坐支的十二长生位)——表化后新增,剔出比较域;
+			// [四柱与三元] 表新增「纳音长生」列(第 6 列;各柱纳音五行坐支的十二长生位)——表化后新增,剔出比较域;
 			//   正确性由 baziNayinPhaseColumn 金标覆盖。
 			if (cells.length === 11 && /^(柱|年柱|月柱|日柱|时柱)$/.test(cells[1].trim())) { cells.splice(6, 1); return cells.join('|'); }
 			return l;
@@ -98,8 +98,8 @@ describe('八字 [四柱与三元]/[五行力量]/[格局·用神] 表化 · 数
 	});
 });
 
-// [Q-431/T-394] 纳音长生列金标:各柱纳音五行坐该支的十二长生位与页面古法盘「纳音长生」行同源字段 nayingPhase。
-describe('[Q-431] [四柱与三元] 纳音长生列', () => {
+// 纳音长生列金标:各柱纳音五行坐该支的十二长生位与页面古法盘「纳音长生」行同源字段 nayingPhase。
+describe('[四柱与三元] 纳音长生列', () => {
 	it('表头含「纳音长生」且四柱各出一个十二长生名(与 baseline 柱序同)', async () => {
 		const now = await build();
 		const seg = now.slice(now.indexOf('[四柱与三元]'), now.indexOf('[神煞（四柱与三元）]'));

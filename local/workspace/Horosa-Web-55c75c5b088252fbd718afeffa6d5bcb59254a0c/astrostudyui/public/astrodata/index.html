@@ -126,7 +126,7 @@ input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 
 @keyframes sh{to{background-position:-200% 0}}
 
 /* modal */
-.mask{position:fixed;inset:0;background:rgba(5,7,18,.62);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
+.mask{position:fixed;inset:0;background:rgba(5,7,18,.62);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
 .mask.on{opacity:1;pointer-events:auto}
 .drawer{position:fixed;top:0;right:0;height:100%;width:min(780px,calc(96 * var(--lvw, 1vw)));background:var(--bg2);border-left:1px solid var(--line);box-shadow:var(--shadow);transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);z-index:50;display:flex;flex-direction:column}
 .drawer.on{transform:none}
@@ -206,7 +206,7 @@ footer b{color:var(--mut)}
 <div class="wrap">
   <aside class="panel sticky">
     <h2 id="h-filter">检索筛选</h2>
-    <p class="hint" id="h-hint">59,199 位 · 全部离线</p>
+    <p class="hint" id="h-hint">全部离线</p>
     <label class="f" id="l-kw">关键词</label>
     <div class="searchbox"><input id="q" placeholder="姓名 / 职业 / 出生地…"><span class="kbd">/</span></div>
     <div class="row2">
@@ -267,17 +267,17 @@ const I18N={
  zh:{filter:'检索筛选',kw:'关键词',mode:'模式',scope:'范围',gender:'性别',year:'出生年',rod:'Rodden',sort:'排序',sun:'太阳星座 ☉',cat:'分类',reset:'清空全部筛选',prev:'‹ 上一页',next:'下一页 ›',
    s1:'人物 (A/AA)',s2:'含 Wikipedia 传记',s3:'分类维度',tag:'高可信名人出生数据与星盘目录 —— 可搜索、按星座与分类筛选、直达含黄道星盘轮的详情。',hint:t=>`${t} 位 · 全部离线`,
    born:'出生',place:'地点',coord:'坐标',zone:'时区',source:'数据来源',collector:'采集者',acc:'时间精度',chart:'星盘',sun2:'太阳',moon:'月亮',asc:'上升',
-   viewAdb:'Astro-Databank 原页',viewWiki:'Wikipedia',imp:'复制命盘数据',impHost:'导入为命盘',rel:'关系',evt:'生平事件',cats:'分类标签',notime:'出生时间未知,上升/宫位不可用',
-   any:'不限',none:'没有符合条件的记录',adjust:'试试放宽筛选条件',showing:(t,a,b)=>`共 <b>${t}</b> 位 · 显示 ${a}–${b}`,wikicred:'传记摘要来自 Wikipedia,CC BY-SA 4.0',copied:'命盘数据已复制',imported:'已加入命盘列表',psize:'每页',jump:'跳至',pageInd:(k,n)=>`第 ${k} / ${n} 页`,
+   viewAdb:'Astro-Databank 原页',viewWiki:'Wikipedia',imp:'复制命盘数据',impHost:'导入为命盘',rel:'关系',evt:'生平事件',cnt:(a,b)=>`亲属 ${a} · 事件 ${b}`,cats:'分类标签',notime:'出生时间未知,上升/宫位不可用',
+   any:'不限',none:'没有符合条件的记录',adjust:'试试放宽筛选条件',showing:(t,a,b)=>`共 <b>${t}</b> 位 · 显示 ${a}–${b}`,wikicred:'传记摘要来自 Wikipedia,CC BY-SA 4.0',copied:'命盘数据已复制',imported:'已加入命盘列表',impExists:n=>`命盘列表里已有这位的档案「${n}」,未重复加入`,impArchived:n=>`这位的档案「${n}」在归档里,未重复加入(可到命盘列表的归档里找回)`,impRefreshed:'命盘列表里已有这条档案,已按名人库资料更新出生时刻与地点(名字、分组、性别、备注等保持你的)',impSession:'已写入命盘列表,但本机存储不可用,只在本次运行有效;重启前请在命盘列表导出备份',impFailed:'没能加入命盘列表:本机存储空间不足,清理后再试',psize:'每页',jump:'跳至',pageInd:(k,n)=>`第 ${k} / ${n} 页`,
    opt:{mode:['包含','前缀','精确'],scope:['全部','姓名','标题','传记'],gender:['全部','男','女','未知'],sort:['相关度','姓名','生日 ↑','生日 ↓']},phkw:'姓名 / 职业 / 出生地…',phcat:'Nobel / 出生地 / 1946 births…'},
  en:{filter:'Filters',kw:'Keyword',mode:'Mode',scope:'Scope',gender:'Gender',year:'Birth yr',rod:'Rodden',sort:'Sort',sun:'Sun sign ☉',cat:'Categories',reset:'Clear all filters',prev:'‹ Prev',next:'Next ›',
    s1:'People (A/AA)',s2:'With Wikipedia bio',s3:'Category facets',tag:'A directory of high-reliability celebrity birth data & charts — search, filter by sign & category, open a detail view with a zodiac wheel.',hint:t=>`${t} people · fully offline`,
    born:'Born',place:'Place',coord:'Coords',zone:'Zone',source:'Data source',collector:'Collector',acc:'Time accuracy',chart:'Chart',sun2:'Sun',moon:'Moon',asc:'Asc',
-   viewAdb:'Astro-Databank page',viewWiki:'Wikipedia',imp:'Copy chart data',impHost:'Add to charts',rel:'Relationships',evt:'Life events',cats:'Category tags',notime:'Birth time unknown — Ascendant/houses unavailable',
-   any:'Any',none:'No matching records',adjust:'Try relaxing the filters',showing:(t,a,b)=>`<b>${t}</b> people · showing ${a}–${b}`,wikicred:'Biography summary from Wikipedia, CC BY-SA 4.0',copied:'Chart data copied',imported:'Added to chart list',psize:'Per page',jump:'Go to',pageInd:(k,n)=>`Page ${k} / ${n}`,
+   viewAdb:'Astro-Databank page',viewWiki:'Wikipedia',imp:'Copy chart data',impHost:'Add to charts',rel:'Relationships',evt:'Life events',cnt:(a,b)=>`${a} relations · ${b} events`,cats:'Category tags',notime:'Birth time unknown — Ascendant/houses unavailable',
+   any:'Any',none:'No matching records',adjust:'Try relaxing the filters',showing:(t,a,b)=>`<b>${t}</b> people · showing ${a}–${b}`,wikicred:'Biography summary from Wikipedia, CC BY-SA 4.0',copied:'Chart data copied',imported:'Added to chart list',impExists:n=>`Already in your chart list as “${n}” — not added again`,impArchived:n=>`“${n}” is in your archive — not added again (restore it from the archive)`,impRefreshed:'Already in your chart list — birth time and place refreshed from the database (your name, groups, gender and notes kept)',impSession:'Saved to your chart list, but local storage is unavailable — it lasts only for this session; export a backup from the chart list before restarting',impFailed:'Could not add: local storage is full',psize:'Per page',jump:'Go to',pageInd:(k,n)=>`Page ${k} / ${n}`,
    opt:{mode:['Contains','Prefix','Exact'],scope:['All','Name','Title','Bio'],gender:['All','Male','Female','Unknown'],sort:['Relevance','Name','Birth ↑','Birth ↓']},phkw:'Name / profession / birthplace…',phcat:'Nobel / birthplace / 1946 births…'}
 };
-let db=null,lang='zh',page=0,pageSize=24,total=0,selectedCats=[];
+let db=null,lang='zh',page=0,pageSize=24,total=0,selectedCats=[],PERSONS=0;
 let VOCAB={},CATZH={};   // 中文封闭词表(关系/事件/来源/时间精度…)+ 分类(en->zh);仅中文模式用,数据随库
 const EMBEDDED=(window.parent&&window.parent!==window);
 const isZh=()=>lang==='zh';
@@ -318,6 +318,7 @@ async function boot(buf){
   try{qy("SELECT en,zh FROM category_zh").forEach(r=>CATZH[r.en]=r.zh);}catch(e){}
   $('loading').style.display='none';
   const g=(k)=>+one("SELECT value FROM meta WHERE key=?",[k]);
+  PERSONS=g('persons')||0;   // 人数取库内计数(不写死)
   animateCount($('s1'),g('persons'));animateCount($('s2'),g('with_wikipedia'));animateCount($('s3'),g('categories'));
   buildSunPick();buildLegend();wireEvents();setLang('zh');renderFacet();search();
 }
@@ -333,11 +334,22 @@ function buildSunPick(){
 }
 function buildLegend(){$('legend').innerHTML=['fire','earth','air','water'].map(e=>`<span><i style="background:${EL_COLOR[e]}"></i>${EL_NAME[e][lang==='zh'?1:0]}</span>`).join('');}
 
+/* ---------- 检索词的写法 ----------
+   星阙界面切到繁体时,宿主页把「查询词的其它写法」(简体归一 / 繁体显示)挂在 window.__horosaScriptQueryVariants;
+   SQL 里任一写法命中即算。独立打开本页、或界面简体时只有原词(SQL 与原先逐字相同)。 */
+function kwAlts(kw){
+  const out=[kw];
+  try{const f=window.__horosaScriptQueryVariants;if(typeof f==='function'){(f(kw)||[]).forEach(v=>{const s=`${v==null?'':v}`.trim();if(s&&out.indexOf(s)<0)out.push(s);});}}catch(e){}
+  return out;
+}
+
 /* ---------- facet ---------- */
 function renderFacet(){
   const kw=$('catq').value.trim();let sql,p=[];
   if(kw&&isZh()){ // 中文模式:中文分类文本 或 英文原名 皆可命中(未译的自由分类仍能用英文词找到,LEFT JOIN 保留未译项)
-    sql="SELECT c.category category,COUNT(*) cnt FROM category c LEFT JOIN category_zh z ON z.en=c.category WHERE z.zh LIKE ? OR c.category LIKE ? COLLATE NOCASE GROUP BY c.category ORDER BY cnt DESC LIMIT 40";p=['%'+kw+'%','%'+kw+'%'];
+    const alts=kwAlts(kw);
+    sql="SELECT c.category category,COUNT(*) cnt FROM category c LEFT JOIN category_zh z ON z.en=c.category WHERE "+alts.map(()=>"z.zh LIKE ? OR c.category LIKE ? COLLATE NOCASE").join(' OR ')+" GROUP BY c.category ORDER BY cnt DESC LIMIT 40";
+    alts.forEach(a=>p.push('%'+a+'%','%'+a+'%'));
   }else if(kw){
     sql="SELECT category,COUNT(*) cnt FROM category WHERE category LIKE ? COLLATE NOCASE GROUP BY category ORDER BY cnt DESC LIMIT 40";p=['%'+kw+'%'];
   }else{
@@ -358,8 +370,9 @@ function buildWhere(){
     const cols=(isZh()
       ?{any:['name_zh','name','title','pos_zh','summary_zh'],name:['name_zh','name'],title:['title'],bio:['summary_zh','wiki_summary']}
       :{any:['name','title','pos','wiki_summary'],name:['name'],title:['title'],bio:['wiki_summary']})[scope];
-    const pat=mode==='exact'?kw:mode==='prefix'?kw+'%':'%'+kw+'%';const op=mode==='exact'?'= ? COLLATE NOCASE':'LIKE ? COLLATE NOCASE';
-    w.push('('+cols.map(c=>{p.push(pat);return `${c} ${op}`;}).join(' OR ')+')');}
+    const patOf=k=>mode==='exact'?k:mode==='prefix'?k+'%':'%'+k+'%';const op=mode==='exact'?'= ? COLLATE NOCASE':'LIKE ? COLLATE NOCASE';
+    const alts=kwAlts(kw);
+    w.push('('+cols.map(c=>alts.map(a=>{p.push(patOf(a));return `${c} ${op}`;}).join(' OR ')).join(' OR ')+')');}
   const g=$('gender').value;if(g!==''){w.push('gender=?');p.push(+g);}
   const yr=$('year').value.trim();if(/^\d{1,4}$/.test(yr)){w.push('birth_year=?');p.push(+yr);}
   const rod=$('rod').value;if(rod){w.push('rodden=?');p.push(rod);}
@@ -393,7 +406,7 @@ function card(r){
     <div class="top"><div><h3>${esc(nm(r))}</h3><div class="sub">${esc(r.title)}</div></div><span class="rr">✦ ${esc(r.rodden)}</span></div>
     <div class="triad">${triadHtml(r)}</div>
     <div class="meta-line"><span><b>${T().born}</b> ${esc(bn(r))||'—'}${r.has_time?'':` <span class="notime">?</span>`}</span></div>
-    <div class="meta-line"><span><b>${T().place}</b> ${esc(ps(r))||'—'}</span><span>${r.rel_count} rel · ${r.evt_count} evt</span></div>
+    <div class="meta-line"><span><b>${T().place}</b> ${esc(ps(r))||'—'}</span><span>${T().cnt(r.rel_count,r.evt_count)}</span></div>
     ${sm(r)?`<p class="bio">${esc(sm(r))}</p>`:''}
     ${cats.length?`<div class="chips">${cats.slice(0,5).map(c=>`<span class="chip">${esc(catDisp(c))}</span>`).join('')}</div>`:''}
   </article>`;
@@ -502,12 +515,45 @@ function openDetail(id){
   $('mask').classList.add('on');$('drawer').classList.add('on');$('drawer').setAttribute('aria-hidden','false');
 }
 function closeDetail(){$('mask').classList.remove('on');$('drawer').classList.remove('on');$('drawer').setAttribute('aria-hidden','true');}
+// 备注与宿主 celebrityMemo 同一句式(来源 + Rodden + 回源链接;时辰未知另起一行),单测逐字锁
+function celebrityMemo(r){
+  const lines=[`来自名人库(Astro-Databank,Rodden ${r.rodden||'?'})${r.adb_url?`:${r.adb_url}`:''}`];
+  if(!r.has_time){lines.push('出生时辰未知,按正午 12:00 建档;上升 / 宫位不可用');}
+  return lines.join('\n');
+}
 function importChart(r){
-  const chart={cid:r.cid,name:r.name,birth:r.birth_chart,zone:r.zone,lat:r.lat,lon:r.lon,gpsLat:r.gpsLat,gpsLon:r.gpsLon,pos:r.pos,gender:r.gender,isPub:0,doubingSu28:0,group:['Astrodatabank',r.rodden||''],creator:'local'};
-  // [Q-378/T-358] 时辰未知(has_time=0)入库写备注(与 AI 建档「出生时辰未知,按正午 12:00 建档」同形),否则入库后与普通命盘无异。
-  if(!r.has_time){chart.memo='出生时辰未知,按正午 12:00 建档;上升/宫位不可用';}
-  if(EMBEDDED){window.parent.postMessage({type:'astrodata:importChart',chart},'*');toast(T().imported);return;}
+  // 不写死宿度制等排盘设置:宿主按「此刻点新命盘会用的设置」补齐(与 AI 建档同一构造)
+  const chart={cid:r.cid,celebrityId:r.cid,name:r.name,birth:r.birth_chart,zone:r.zone,lat:r.lat,lon:r.lon,gpsLat:r.gpsLat,gpsLon:r.gpsLon,pos:r.pos,gender:r.gender,isPub:0,group:['Astrodatabank',r.rodden||''],creator:'local'};
+  if(EMBEDDED){
+    // 宿主回报导入结果(新加 / 已有 / 在归档 / 已更新 / 只在本次运行 / 失败)再提示;宿主不回话(旧版)时按原样提示「已加入」。
+    // 等回报期间再点不重复发送(连点两次此前会先「已加入」再「已更新」)。
+    if(IMP.timer)return;
+    IMP.fallbackShown=false;
+    IMP.timer=setTimeout(()=>{IMP.timer=null;IMP.fallbackShown=true;toast(T().imported);},1500);
+    window.parent.postMessage({type:'astrodata:importChart',chart,meta:{rodden:r.rodden||'',sourceUrl:r.adb_url||'',hasTime:!!r.has_time}},'*');
+    return;
+  }
+  // 单独打开本页(不在软件里):复制成命盘备份 JSON,在命盘列表「导入」。带备注与名人库标志:软件按「导入为命盘」处理
+  // (新人按此刻点新命盘会用的设置补齐;已有这位只刷新出生时刻与地点,你改过的都保留)
+  chart.memo=celebrityMemo(r);chart.importAsNewChart=1;
   navigator.clipboard.writeText(JSON.stringify({format:'horosa-local-charts',version:1,total:1,charts:[chart]},null,2)).then(()=>toast(T().copied)).catch(()=>toast(T().copied));
+}
+const IMP={timer:null,fallbackShown:false};
+if(EMBEDDED){
+  window.addEventListener('message',function(e){
+    var d=e&&e.data;if(!d||d.type!=='astrodata:importResult')return;
+    if(e.source&&e.source!==window.parent)return;
+    var shown=IMP.fallbackShown;
+    if(IMP.timer){clearTimeout(IMP.timer);IMP.timer=null;}
+    IMP.fallbackShown=false;
+    var t=T(),n=`${d.name||''}`;
+    if(d.status==='exists'){toast(t.impExists(n));}
+    else if(d.status==='archived'){toast(t.impArchived(n));}
+    else if(d.status==='refreshed'){toast(t.impRefreshed);}
+    else if(d.status==='session'){toast(t.impSession);}
+    else if(d.status==='failed'){toast(t.impFailed);}
+    else if(!shown){toast(t.imported);}
+  });
 }
 function toast(m){const d=document.createElement('div');d.className='toast';d.textContent=m;document.body.appendChild(d);setTimeout(()=>{d.style.opacity='0';d.style.transition='opacity .3s';setTimeout(()=>d.remove(),300);},1600);}
 
@@ -519,7 +565,7 @@ function setLang(l){
   for(const id in m){const e=$(id);if(e)e.textContent=L[m[id]];}
   ['mode','scope','gender','sort'].forEach(id=>{const el=$(id);if(el&&L.opt[id])L.opt[id].forEach((t,i)=>{if(el.options[i])el.options[i].text=t;});});
   $('q').placeholder=L.phkw;$('catq').placeholder=L.phcat;
-  $('h-hint').textContent=L.hint((59199).toLocaleString());
+  $('h-hint').textContent=L.hint(PERSONS?PERSONS.toLocaleString():'–');
   {const pl=$('psize-lab');if(pl&&pl.firstChild)pl.firstChild.nodeValue=L.psize+' ';}
   $('footer').innerHTML=l==='zh'
    ?`占星数据来源 <a href="https://www.astro.com/astro-databank" target="_blank" rel="noopener"><b>Astro-Databank / Astrodienst AG</b></a> —— 依其版权条款,出生/事件数据记录仅供<b>非商业</b>占星研究使用,Rodden Rating 随数据保留,每条附回源页链接。传记摘要来自 <a href="https://en.wikipedia.org" target="_blank" rel="noopener">English Wikipedia</a>(<a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener">CC BY-SA 4.0</a>),各附原文链接。本页不含 Astro-Databank 传记正文与任何图片。`
@@ -539,10 +585,12 @@ function wireEvents(){
   $('psize').onchange=()=>{const v=parseInt($('psize').value,10);pageSize=(v===24||v===48||v===96)?v:24;page=0;search();};
   $('reset').onclick=()=>{['q','year','catq'].forEach(id=>$(id).value='');['mode','scope','gender','rod','sort'].forEach(id=>$(id).selectedIndex=0);selectedCats=[];window._sun='';buildSunPick();page=0;renderFacet();search();};
   $('dclose').onclick=closeDetail;$('mask').onclick=closeDetail;
+  // 焦点在任一表单控件(输入框 / 下拉 / 多行框 / 可编辑区)时,方向键与「/」归控件自己,不翻页、不抢焦点
+  const inFormControl=()=>{const a=document.activeElement;return !!a&&(/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)||a.isContentEditable);};
   document.addEventListener('keydown',e=>{
     if(e.key==='Escape')closeDetail();
-    if(e.key==='/'&&document.activeElement.tagName!=='INPUT'){e.preventDefault();$('q').focus();}
-    if(!$('drawer').classList.contains('on')&&document.activeElement.tagName!=='INPUT'){if(e.key==='ArrowRight')go(1);if(e.key==='ArrowLeft')go(-1);}
+    if(e.key==='/'&&!inFormControl()){e.preventDefault();$('q').focus();}
+    if(!$('drawer').classList.contains('on')&&!inFormControl()){if(e.key==='ArrowRight')go(1);if(e.key==='ArrowLeft')go(-1);}
   });
 }
 (function initZoom(){

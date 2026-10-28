@@ -11,6 +11,7 @@ import CITIES from '../../data/cities.json';
 import CITY_TRAD_SIMP from '../../data/cityTradSimpMap.json';
 import { enrichCity, toCityItem, searchCities } from './cityMatch';
 import styles from './GeoCoordSelector.less';
+import { datePartOf } from '../../utils/dateStrSafe';
 
 const { Option } = Select;
 
@@ -228,7 +229,7 @@ class GeoCoordSelector extends Component{
 			try{ return d.format('YYYY-MM-DD'); }catch(e){ /* noop */ }
 		}
 		if(typeof d === 'string' && d){
-			return d.slice(0, 10);
+			return datePartOf(d);
 		}
 		// 兜底用今天：让弹窗时区预览始终可算（真实换算由表单 changeGeo→applyDstToFields 按出生日期处理）。
 		const now = new Date();

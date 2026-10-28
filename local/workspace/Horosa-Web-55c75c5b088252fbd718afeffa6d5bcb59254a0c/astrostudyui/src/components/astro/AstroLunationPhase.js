@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import moment from 'moment';
+import { birthMomentOfChart } from '../../utils/civilMoment';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { buildLunationPhases, buildLunationPhaseSnapshotText, phaseAtAge, PHASES_8, LUNATION_DEFAULT_OPTS } from '../../utils/lunationPhase';
 import styles from '../../css/styles.less';
@@ -50,11 +51,8 @@ class AstroLunationPhase extends Component{
 	}
 
 	currentAge(){
-		const p = (this.props.value && this.props.value.params) ? this.props.value.params : {};
-		const birth = `${p.birth || ''}`.trim();
-		if(!birth){ return null; }
-		const m = moment(birth.replace(/\//g, '-'), ['YYYY-MM-DD HH:mm:ss', 'YYYY-MM-DD HH:mm', 'YYYY-MM-DD']);
-		if(!m.isValid()){ return null; }
+		const m = birthMomentOfChart(this.props.value);   // 出生时刻单源(全年份域)
+		if(!m){ return null; }
 		return moment().diff(m, 'years', true);
 	}
 
@@ -65,19 +63,19 @@ class AstroLunationPhase extends Component{
 		const curPhase = (curAge != null) ? phaseAtAge(this.props.value, curAge) : null;
 		return (
 			<div className={`${styles.scrollbar}`} style={{ height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', padding: '4px 8px 12px' }}>
-				<div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>月相推运<span style={{ fontSize: 12, opacity: 0.55, marginLeft: 8, fontWeight: 400 }}>次限日月八相 · 约 29.5 年一轮</span></div>
-				<div style={{ fontSize: 11.5, opacity: 0.6, lineHeight: '17px', marginBottom: 10 }}>由本命日月黄经差按次限推进率推算推运月相；八相各 45°，主导人生节律的「萌发—显化—释放」循环阶段。</div>
+				<div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>月相推运<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', marginLeft: 8, fontWeight: 400 }}>次限日月八相 · 约 29.5 年一轮</span></div>
+				<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: '17px', marginBottom: 10 }}>由本命日月黄经差按次限推进率推算推运月相；八相各 45°，主导人生节律的「萌发—显化—释放」循环阶段。</div>
 				{d && d.natalPhase ? (
 					<div>
 						<div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
 							<div style={{ flex: 1, minWidth: 130, padding: '10px 14px', border: '1px solid rgba(128,128,128,0.16)', borderRadius: 8 }}>
-								<div style={{ fontSize: 11, opacity: 0.6 }}>本命月相</div>
+								<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>本命月相</div>
 								<div style={{ fontSize: 16, fontWeight: 700 }}>{d.natalPhase.name}</div>
-								<div style={{ fontSize: 11, opacity: 0.6 }}>日月差 {d.natalElong.toFixed(1)}°</div>
+								<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>日月差 {d.natalElong.toFixed(1)}°</div>
 							</div>
 							{curPhase ? (
 								<div style={{ flex: 1, minWidth: 130, padding: '10px 14px', border: '1px solid var(--horosa-accent, rgba(184,134,11,0.4))', borderRadius: 8, background: 'var(--horosa-accent-soft, rgba(184,134,11,0.10))' }}>
-									<div style={{ fontSize: 11, opacity: 0.6 }}>当前推运月相（{curAge.toFixed(1)} 岁）</div>
+									<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>当前推运月相（{curAge.toFixed(1)} 岁）</div>
 									<div style={{ fontSize: 16, fontWeight: 700, color: 'var(--horosa-accent, #b8860b)' }}>{curPhase.name}</div>
 									<div style={{ fontSize: 11, opacity: 0.7 }}>{curPhase.keyword}</div>
 								</div>
@@ -90,7 +88,7 @@ class AstroLunationPhase extends Component{
 								return (
 									<div key={ph.key} style={{ display: 'flex', gap: 8, padding: '5px 10px', fontSize: 11.5, borderTop: i ? '1px solid rgba(128,128,128,0.06)' : 'none', background: on ? 'var(--horosa-accent-soft, rgba(184,134,11,0.14))' : 'transparent' }}>
 										<span style={{ width: 64, fontWeight: on ? 700 : 500 }}>{ph.name}</span>
-										<span style={{ width: 44, opacity: 0.5 }}>{ph.lo}–{ph.hi}°</span>
+										<span style={{ width: 44, color: 'var(--horosa-text-secondary)' }}>{ph.lo}–{ph.hi}°</span>
 										<span style={{ flex: 1, opacity: 0.8 }}>{ph.keyword}</span>
 									</div>
 								);
@@ -103,7 +101,7 @@ class AstroLunationPhase extends Component{
 								return (
 									<div key={i} style={{ display: 'flex', gap: 8, padding: '5px 10px', fontSize: 11.5, borderTop: i ? '1px solid rgba(128,128,128,0.06)' : 'none', background: on ? 'var(--horosa-accent-soft, rgba(184,134,11,0.12))' : 'transparent' }}>
 										<span style={{ width: 70, opacity: 0.7 }}>{t.age.toFixed(1)} 岁{t.isStart ? '·本命' : ''}</span>
-										<span style={{ width: 86, opacity: 0.6 }}>{t.date || '-'}</span>
+										<span style={{ width: 86, color: 'var(--horosa-text-secondary)' }}>{t.date || '-'}</span>
 										<span style={{ flex: 1, fontWeight: 500 }}>{t.phase.name}</span>
 									</div>
 								);
@@ -111,7 +109,7 @@ class AstroLunationPhase extends Component{
 						</div>
 					</div>
 				) : (
-					<div style={{ fontSize: 12.5, opacity: 0.55, padding: '12px 0' }}>缺日月黄经数据，无法推算。请确认本命盘已排出。</div>
+					<div style={{ fontSize: 12.5, color: 'var(--horosa-text-secondary)', padding: '12px 0' }}>缺日月黄经数据，无法推算。请确认本命盘已排出。</div>
 				)}
 			</div>
 		);

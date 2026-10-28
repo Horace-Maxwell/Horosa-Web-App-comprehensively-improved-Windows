@@ -1,4 +1,4 @@
-// [2026-09-11] 技法拼音表(src/data/techniquePinyin.json)≡ 当前 ANALYSIS_TECHNIQUE_LABELS 用构建脚本重算(pinyin-pro 只在构建期/测试期,
+// 技法拼音表(src/data/techniquePinyin.json)≡ 当前 ANALYSIS_TECHNIQUE_LABELS 用构建脚本重算(pinyin-pro 只在构建期/测试期,
 // 不进运行时 bundle:preflight [36]);改标签后忘记 npm run build:technique-pinyin 即红。
 const path = require('path');
 import TABLE from '../../data/techniquePinyin.json';

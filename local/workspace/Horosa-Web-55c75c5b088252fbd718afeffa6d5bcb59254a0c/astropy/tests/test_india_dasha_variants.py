@@ -31,8 +31,8 @@ def test_default_variants_byte_identical():
 
 
 def test_spec_integrity_and_tolerant_resolve():
-    # 22 = 21 原键 + vedhaBlockers(过运 Vedha 遮蔽者;罗计计入/除名,默认 all=零回归)
-    assert len(VARIANT_SPECS) == 22
+    # 23 = 21 原键 + vedhaBlockers(过运 Vedha 遮蔽者)+ deeptadiKhala(Dīptādi Khala 归属;默认 = 现状零回归)
+    assert len(VARIANT_SPECS) == 23
     for k, spec in VARIANT_SPECS.items():
         assert spec['default'] in spec['values'], k
         assert spec['values'][0] == spec['default'], (k, '首值须为默认')

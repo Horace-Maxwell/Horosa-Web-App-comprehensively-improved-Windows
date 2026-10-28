@@ -1,4 +1,4 @@
-// [Q-317/T-304] 八字反查候选回代:按全局日界 / 晚子时用本地引擎校验;夜子时候选不等时改试 00:30 归属;不成立标 ✗。
+// 八字反查候选回代:按全局日界 / 晚子时用本地引擎校验;夜子时候选不等时改试 00:30 归属;不成立标 ✗。
 import React from 'react';
 global.React = React;
 import InverseBazi from '../../components/commtools/InverseBazi';

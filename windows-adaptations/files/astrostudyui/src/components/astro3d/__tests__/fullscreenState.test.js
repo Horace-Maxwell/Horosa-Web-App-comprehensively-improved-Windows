@@ -6,7 +6,7 @@
  * (能力位,Electron 恒真)而非状态位;②无 fullscreenchange 订阅 ⇒ Esc 退出后标志卡 true,
  * 全屏再也进不去;③尺寸按 `window.screen.*` 猜。当时以 helper/AstroChart3D 两补丁承载。
  * v3.9.4(上游收编,#49 退役):Mac 以**自有符号形**重实现同三处修(注释直接引用 Issue#68),
- * 并扩到古籍阅读器 BookReader —— 两补丁退役,本测试改写为**钉上游实现形**:
+ * 并扩到古籍阅读器 BookReader(v3.12.0 阅读器随书库被上游删除)—— 两补丁退役,本测试改写为**钉上游实现形**:
  * 行为面(checkFullScreen 状态位语义,仍是导出函数)+ 源扫描面(订阅数组/实测盒子)。
  * 任何一针红 = 上游把这套修回退/改坏了,Windows 用户将复现 issue #68。
  */
@@ -51,11 +51,8 @@ describe('horosa_fullscreen_state_v1 · 订阅与实测(源扫描面,issue #68 �
 		expect(src.includes('getBoundingClientRect')).toBe(true);   // 实测盒子,不再 screen.* 猜
 	});
 
-	it('BookReader:同款订阅成对(上游 v3.9.4 扩展面,一并钉住)', () => {
-		const src = read('components/reader/BookReader.js');
-		const n = src.split(EVTS).length - 1;
-		expect(n).toBeGreaterThanOrEqual(2);
-	});
+	// (v3.12.0:古籍阅读器 components/reader/ 随书库功能被上游删除,BookReader 一例撤)
+
 
 	it('checkFullScreen 函数体内不得回潮能力位判据(负锚:只认真代码形态)', () => {
 		const src = read('utils/helper.js');

@@ -1,4 +1,4 @@
-// [P3] 小成图 · 组合压测:起卦法三模式 × 配数流派 × 动爻多选 × 用宫全档 —— 起卦/佈局/推导/快照全链。
+// 小成图 · 组合压测:起卦法三模式 × 配数流派 × 动爻多选 × 用宫全档 —— 起卦/佈局/推导/快照全链。
 import {
 	qiGuaManual, qiGuaByNumbers, qiGuaByStock, qiGuaByYaoQian, guaByTianDiShu, guaByXianTian, flipYao, linesOfHex,
 } from '../core/xiaochengtuQiGua';
@@ -10,7 +10,7 @@ const GUA8 = ['乾', '兑', '离', '震', '巽', '坎', '艮', '坤'];
 const DONG_SETS = [[], [1], [6], [1, 2, 3, 4], [1, 2, 3, 4, 5, 6], [3, 5]];
 const GONGS = Object.keys(DI_PAN).map(Number); // 1,2,3,4,6,7,8,9(无中五)
 
-describe('[P3] 小成图组合压测 · 手动本卦(8×8 卦 × 6 组动爻 × 8 用宫 = 3072 链)', ()=>{
+describe('小成图组合压测 · 手动本卦(8×8 卦 × 6 组动爻 × 8 用宫 = 3072 链)', ()=>{
 	test('全组合:起卦不抛,之卦=翻动爻自洽,佈局/推导/数占/四象/快照全链非空', ()=>{
 		GUA8.forEach((up)=>{
 			GUA8.forEach((lo)=>{
@@ -50,7 +50,7 @@ describe('[P3] 小成图组合压测 · 手动本卦(8×8 卦 × 6 组动爻 × 
 	});
 });
 
-describe('[P3] 小成图组合压测 · 两数配卦(数域 × 两流派)', ()=>{
+describe('小成图组合压测 · 两数配卦(数域 × 两流派)', ()=>{
 	test('天地数:mod10 余0作10;先天:mod8 余0作8 —— 1..40 全域自洽', ()=>{
 		for(let n = 1; n <= 40; n += 1){
 			const td = guaByTianDiShu(n);
@@ -78,7 +78,7 @@ describe('[P3] 小成图组合压测 · 两数配卦(数域 × 两流派)', ()=>
 	});
 });
 
-describe('[P3] 小成图组合压测 · 股价起卦', ()=>{
+describe('小成图组合压测 · 股价起卦', ()=>{
 	test('数位和取余口径(整数位/小数位分立;字符串保尾 0)', ()=>{
 		const qi = qiGuaByStock({ open: '12.34', close: '56.70' });
 		expect(qi).toBeTruthy();
@@ -100,7 +100,7 @@ describe('[P3] 小成图组合压测 · 股价起卦', ()=>{
 	});
 });
 
-describe('[P3] 小成图组合压测 · 应期推演链(64 本卦 × 8 用宫 = 512 局)', ()=>{
+describe('小成图组合压测 · 应期推演链(64 本卦 × 8 用宫 = 512 局)', ()=>{
 	test('全局不抛;成链者字段自洽(月为十二月建之一、日为初/十/二十某)', ()=>{
 		let full = 0;
 		GUA8.forEach((up)=>{
@@ -127,7 +127,7 @@ describe('[P3] 小成图组合压测 · 应期推演链(64 本卦 × 8 用宫 = 
 	});
 });
 
-describe('[P3] 小成图组合压测 · 摇钱三变(种子域)', ()=>{
+describe('小成图组合压测 · 摇钱三变(种子域)', ()=>{
 	test('种子 1..300:必成卦、counts 域合法、之卦=翻动爻自洽', ()=>{
 		for(let s = 1; s <= 300; s += 1){
 			const qi = qiGuaByYaoQian({ seed: s });

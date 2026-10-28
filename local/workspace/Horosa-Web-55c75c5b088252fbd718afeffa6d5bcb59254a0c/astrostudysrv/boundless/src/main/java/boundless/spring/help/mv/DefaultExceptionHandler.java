@@ -1,6 +1,5 @@
 package boundless.spring.help.mv;
 
-import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,6 +34,7 @@ import boundless.log.QueueLog;
 import boundless.spring.help.PropertyPlaceholder;
 import boundless.spring.help.interceptor.ActionResultCode;
 import boundless.spring.help.interceptor.KeyConstants;
+import boundless.spring.help.interceptor.ResultHeader;
 import boundless.types.OutParameter;
 import boundless.utility.StringUtility;
 
@@ -48,7 +48,6 @@ public class DefaultExceptionHandler implements HandlerExceptionResolver {
 		
 		OutParameter<String> msg = new OutParameter<String>();
 		String errmsg = null;
-		String encmsg = null;
 		int errcode = -1;
 		Map<String, Object> errmap = new HashMap<String, Object>();
 		if(ex instanceof NeedLoginException){
@@ -84,13 +83,8 @@ public class DefaultExceptionHandler implements HandlerExceptionResolver {
 			}
 		}
 		
-		encmsg = errmsg;
-		try{
-			encmsg = URLEncoder.encode(errmsg, "UTF-8");
-		}catch(Exception e){
-		}
 		response.setHeader(KeyConstants.ResultCode, errcode + "");
-		response.setHeader(KeyConstants.ResultMessage, encmsg);
+		ResultHeader.setMessage(response, errmsg);
 		errmap.put(KeyConstants.ResultCode, errcode);
 		errmap.put(KeyConstants.ResultMessage, errmsg);
 

@@ -1,8 +1,9 @@
 import * as d3 from 'd3';
+import { leapPrefix } from '../../utils/lunarText';
 import * as AstroConst from '../../constants/AstroConst';
 import * as Su28Helper from './Su28Helper';
 import HouseSu from './HouseSu';
-import { drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
+import { fillTextFromStroke, drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
 import {randomStr, genHtml} from '../../utils/helper';
 
 class HouseSuCenter extends HouseSu{
@@ -38,7 +39,7 @@ class HouseSuCenter extends HouseSu{
 	drawTitle(){
 		let nongli = this.su28chart.chartObj.nongli;
 		let bazi = nongli.bazi;
-		let leap = nongli.leap ? '闰' : '';
+		let leap = leapPrefix(nongli);
 		let nonglistr = `${nongli.year}年${leap}${nongli.month}${nongli.day}${nongli.time.substr(1)}时`;
 		let baziganzi = `${bazi.year.ganzi},${bazi.month.ganzi},${bazi.day.ganzi},${bazi.time.ganzi}时`;
 		let realtm = nongli.birth.split(' ');
@@ -85,7 +86,7 @@ class HouseSuCenter extends HouseSu{
 				.attr('stroke', this.color)
 				.attr('font-size', `${fz}px`)
 				.attr('x', x).attr('y', y)
-				.text(txt);
+				.text(txt).call(fillTextFromStroke);
 
 			if(txt.indexOf('四柱') >= 0){
 				this.genTooltipByTips(txtgrp[i], zutips)

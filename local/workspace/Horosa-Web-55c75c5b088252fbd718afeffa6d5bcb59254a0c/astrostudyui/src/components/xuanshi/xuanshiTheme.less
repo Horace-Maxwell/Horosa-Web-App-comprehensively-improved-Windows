@@ -12,11 +12,13 @@
 		--paper-card: #fffcf3;
 		--ink: #1c1611;
 		--ink-soft: #4a4036;
-		--ink-muted: #8a7e6b;
+		--ink-muted: #72675a;   /* 次级字:纸卡 / 纸底 ≥ 4.5:1(旧 #8a7e6b 3.4–3.9) */
 		--line: #ddd2b9;
 		--line-soft: #ebe2cb;
 		--vermilion: #a63d2a;
 		--vermilion-soft: rgba(166, 61, 42, .10);
+		--on-vermilion: #fff7ef;   /* 朱砂实底上的字(亮:浅字 / 暗:深墨 —— 暗色朱砂是浅橙,浅字只有 2.7:1) */
+		--on-heat: #fff8ee;        /* 天象热力格(定色朱砂 × 透明度)深格上的字:亮色纸底上压深后用浅字;暗色纸底上格子始终偏暗,用正文墨 */
 		--jade: #4d7560;
 		--jade-soft: rgba(77, 117, 96, .10);
 		--gold: #b48a3c;
@@ -80,11 +82,13 @@
 		--paper-card: #2b231a;
 		--ink: #efe6d2;
 		--ink-soft: #cab9a0;
-		--ink-muted: #93876f;
+		--ink-muted: #a3977e;
 		--line: #3a3122;
 		--line-soft: #2c2519;
 		--vermilion: #e87a64;
 		--vermilion-soft: rgba(232, 122, 100, .14);
+		--on-vermilion: #1a1610;
+		--on-heat: var(--ink);
 		--jade: #7eaf94;
 		--jade-soft: rgba(126, 175, 148, .14);
 		--gold: #d4ad5e;
@@ -102,7 +106,7 @@
 		flex: 0 0 34px;
 		border-radius: 7px;
 		background: var(--vermilion);
-		color: #fff7ef;
+		color: var(--on-vermilion, #fff7ef);
 		font-family: "Ma Shan Zheng", var(--xs-serif);
 		font-size: 21px;
 		line-height: 1;
@@ -151,7 +155,7 @@
 		transition: border-color .15s, color .15s, background .15s;
 		&:hover { border-color: var(--ink-muted); color: var(--ink); }
 	}
-	.xuanshi-btn.is-primary { background: var(--vermilion); border-color: var(--vermilion); color: #fff7ef; }
+	.xuanshi-btn.is-primary { background: var(--vermilion); border-color: var(--vermilion); color: var(--on-vermilion, #fff7ef); }
 
 	.xuanshi-deco-line { height: 1px; background: linear-gradient(90deg, transparent, var(--line) 18%, var(--line) 82%, transparent); margin: 30px 0; }
 
@@ -274,14 +278,14 @@
 	// 摘要四要素 dl
 	.xuanshi-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 18px; margin: 10px 0; }
 	@media (max-width: 720px) { .xuanshi-facts { grid-template-columns: 1fr; } }
-	.xuanshi-facts .is-wide { grid-column: 1 / -1; }
+	.xuanshi-facts .is-wide { grid-column-start: 1; grid-column-end: -1; }   /* 起止分写:`1 / -1` 会被 LESS 算成 -1 */
 	.xuanshi-facts dt { font-size: 11px; color: var(--ink-muted); }
 	.xuanshi-facts dd { font-size: 13.5px; line-height: 1.6; color: var(--ink-soft); margin: 0 0 2px; }
 
 	// 详情面包屑
 	.xuanshi-crumbs { font-size: 12px; color: var(--ink-muted); margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
 		.xuanshi-crumb { cursor: pointer; &:hover { color: var(--ink); } }
-		.xuanshi-crumb-sep { opacity: .5; }
+		.xuanshi-crumb-sep { color: var(--ink-muted); }
 	}
 
 	// 详情两栏布局：正文 + 右侧 meta(窄屏堆叠)
@@ -317,7 +321,7 @@
 		padding: 0 24px; background: var(--ink); color: var(--paper);
 		border: none; cursor: pointer; font-size: 14px; letter-spacing: .12em;
 		border-radius: 0 9px 9px 0; transition: background .15s;
-		&:hover { background: var(--vermilion); color: #fff7ef; }
+		&:hover { background: var(--vermilion); color: var(--on-vermilion, #fff7ef); }
 	}
 
 	.xuanshi-facets { display: flex; flex-direction: column; gap: 14px; margin-top: 20px; }
@@ -336,9 +340,10 @@
 		cursor: pointer; transition: all .15s; font-family: inherit; line-height: 1.5;
 		&:hover { border-color: var(--ink-soft); background: var(--paper-soft); }
 	}
-	.xuanshi-fchip.is-active { background: var(--vermilion); color: #fff7ef; border-color: var(--vermilion); }
-	.xuanshi-fchip.is-active .xuanshi-fchip-n { color: rgba(255, 248, 238, .75); }
-	.xuanshi-fchip.is-zero { color: var(--ink-muted); opacity: .5; }
+	.xuanshi-fchip.is-active { background: var(--vermilion); color: var(--on-vermilion, #fff7ef); border-color: var(--vermilion); }
+	.xuanshi-fchip.is-active .xuanshi-fchip-n { color: var(--on-vermilion, #fff7ef); opacity: .85; }
+	/* 零命中:虚线框 + 次级字色表达「空」;不再整片 .5 透明(字只剩 1.8–2.1:1) */
+	.xuanshi-fchip.is-zero { color: var(--ink-muted); border-style: dashed; }
 	.xuanshi-fchip.is-trad { font-family: var(--xs-serif); }
 	.xuanshi-fchip-label { white-space: nowrap; }
 	.xuanshi-fchip-n { font-size: 10.5px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
@@ -360,7 +365,7 @@
 		padding: 9px 18px; background: var(--ink); color: var(--paper);
 		border: none; border-radius: 8px; cursor: pointer; font-size: 13.5px;
 		letter-spacing: .06em; transition: background .15s, color .15s; white-space: nowrap;
-		&:hover { background: var(--vermilion); color: #fff7ef; }
+		&:hover { background: var(--vermilion); color: var(--on-vermilion, #fff7ef); }
 	}
 
 	.xuanshi-examples { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; margin-top: 13px; padding-left: 8px; }
@@ -387,7 +392,7 @@
 		transition: background .15s, color .15s;
 		&:hover { color: var(--ink); }
 	}
-	.xuanshi-trad-tab.is-active { background: var(--vermilion); color: #fff7ef; }
+	.xuanshi-trad-tab.is-active { background: var(--vermilion); color: var(--on-vermilion, #fff7ef); }
 	.xuanshi-trad-tab .xuanshi-trad-n { font-size: 12px; opacity: .8; font-variant-numeric: tabular-nums; }
 	.xuanshi-trad-note { margin-left: 6px; font-size: 11px; color: var(--ink-muted); }
 
@@ -405,7 +410,7 @@
 		&:last-child { border-right: none; }
 		&:hover { color: var(--ink); background: var(--paper-soft); }
 	}
-	.xuanshi-density-btn.is-active { background: var(--vermilion); color: #fff7ef; }
+	.xuanshi-density-btn.is-active { background: var(--vermilion); color: var(--on-vermilion, #fff7ef); }
 
 	.xuanshi-evlist {
 		border: 1px solid var(--line); border-radius: 12px; background: var(--paper-card);
@@ -463,7 +468,7 @@
 	.xuanshi-fig-seal {
 		display: inline-flex; align-items: center; justify-content: center; text-align: center;
 		width: 50px; height: 50px; flex: 0 0 50px; border-radius: 8px;
-		background: var(--vermilion); color: #fff7ef;
+		background: var(--vermilion); color: var(--on-vermilion, #fff7ef);
 		font-family: "Ma Shan Zheng", var(--xs-serif); line-height: 1.05;
 		letter-spacing: .02em; word-break: break-all; padding: 3px;
 		box-shadow: var(--xs-shadow-sm); user-select: none;
@@ -482,7 +487,9 @@
 		padding: 12px 14px; margin-bottom: 18px;
 	}
 
-	.xuanshi-celcols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 18px 0; }
+	/* 两列;每列不足 200px(放大档中段只剩两三百 px)时退成单列 —— 列下限 max(200px, 半宽):宽时恰两列(与原两等分相同),
+	   窄时名字列不再被挤到二十来 px、逐字竖排 */
+	.xuanshi-celcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(~"max(min(200px, 100%), calc((100% - 16px) / 2 - 1px))", 1fr)); gap: 16px; margin: 18px 0; }
 	@media (max-width: 720px) { .xuanshi-celcols { grid-template-columns: 1fr; } }
 	.xuanshi-celcol { border: 1px solid var(--line); border-radius: 12px; background: var(--paper-card); padding: 14px 16px; }
 	.xuanshi-celcol-list { max-height: 320px; overflow-y: auto; padding-right: 4px; }
@@ -492,10 +499,11 @@
 		&:hover { background: var(--paper-soft); color: var(--ink); }
 	}
 	.xuanshi-celcol-row.is-active { background: var(--vermilion-soft); color: var(--vermilion); }
-	.xuanshi-celcol-name { font-family: var(--xs-serif); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	/* 名字放不下一行时折行(不再省略):文档缩放下内核常画不出省略号(全站退成硬裁),放大档名字被截却看不出被截 */
+	.xuanshi-celcol-name { font-family: var(--xs-serif); min-width: 0; overflow-wrap: break-word; }
 	.xuanshi-celcol-n { font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
 
-	// 星象大典中段:十年期堆叠面积图(echarts)+ 源CSV·史书 双列(对齐标准版 1.4fr/1fr)
+	// 星象大典中段:十年期堆叠面积图(echarts)+ 原始条目·史书 双列(对齐标准版 1.4fr/1fr)
 	.xuanshi-cel-mid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin: 18px 0; align-items: start; }
 	@media (max-width: 900px) { .xuanshi-cel-mid { grid-template-columns: 1fr; } }
 	.xuanshi-cel-mid .xuanshi-celcols { margin: 0; }
@@ -599,7 +607,7 @@
 
 		.btn { display: inline-flex; align-items: center; gap: .35rem; padding: .45rem .9rem; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--paper-card); color: var(--ink); font-size: .85rem; cursor: pointer; transition: background .15s ease, border-color .15s ease, color .15s ease, transform .12s ease; }
 		.btn:hover { background: var(--paper-soft); border-color: var(--ink-muted); }
-		.btn-primary { background: var(--vermilion); color: #fff8ee; border-color: var(--vermilion); }
+		.btn-primary { background: var(--vermilion); color: var(--on-vermilion, #fff7ef); border-color: var(--vermilion); }
 		.btn-primary:hover { filter: brightness(1.06); }
 		.btn-ghost { background: transparent; border-color: transparent; color: var(--ink-soft); }
 		.btn-ghost:hover { background: var(--paper-soft); border-color: var(--line-soft); color: var(--ink); }
@@ -608,7 +616,7 @@
 		.view-switch button { padding: .35rem .7rem; color: var(--ink-muted); border-right: 1px solid var(--line-soft); cursor: pointer; background: transparent; transition: background .1s ease, color .1s ease; }
 		.view-switch button:last-child { border-right: none; }
 		.view-switch button:hover { color: var(--ink); background: var(--paper-soft); }
-		.view-switch button.active { background: var(--vermilion); color: #fff8ee; }
+		.view-switch button.active { background: var(--vermilion); color: var(--on-vermilion, #fff7ef); }
 
 		.mobile-tile { display: flex; align-items: center; padding: .55rem .7rem; font-size: 13px; color: var(--ink-soft); background: var(--paper-card); border: 1px solid var(--line-soft); border-radius: 8px; cursor: pointer; transition: background .1s ease, border-color .1s ease; }
 		.mobile-tile:hover { background: var(--paper-soft); border-color: var(--vermilion-soft); color: var(--ink); }

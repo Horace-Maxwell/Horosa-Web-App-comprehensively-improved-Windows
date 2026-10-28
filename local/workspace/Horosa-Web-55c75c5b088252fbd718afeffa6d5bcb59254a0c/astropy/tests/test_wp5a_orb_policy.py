@@ -1,4 +1,4 @@
-# [WP-5a] 容许度体系批双向量锚(flatlib aspects 请求级 orb 政策)。
+# 容许度体系批双向量锚(flatlib aspects 请求级 orb 政策)。
 from astrostudy.perchart import PerChart, push_classical_request, pop_classical_request
 from flatlib import aspects as fasp
 

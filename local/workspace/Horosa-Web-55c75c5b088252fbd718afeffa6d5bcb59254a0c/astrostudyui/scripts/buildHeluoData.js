@@ -269,7 +269,11 @@ function main() {
 		};
 	});
 
-	fs.writeFileSync(OUT, JSON.stringify(out, null, '\t'), 'utf8');
+	// 勘误:底本录入的错字(繁体原文里量词作「隻」;繁体原文在界面上照原样显示,显示层不会替它改)
+	const ERRATA = [['嘹亮賓鴻一只飛', '嘹亮賓鴻一隻飛']];
+	let json = JSON.stringify(out, null, '\t');
+	ERRATA.forEach(([from, to])=>{ json = json.split(from).join(to); });
+	fs.writeFileSync(OUT, json, 'utf8');
 	const names = Object.keys(out);
 	console.log(`wrote ${names.length} 卦 → ${OUT}`);
 	console.log('first/last:', names[0], '...', names[names.length - 1]);

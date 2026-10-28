@@ -1,4 +1,4 @@
-// [Q-059/M-79·M-82] 鉴权定制(额外请求头)令牌与 apiKey 同走静态加密/剥密;解密失败态写库保留原密文(不用空串覆盖)。
+// 鉴权定制(额外请求头)令牌与 apiKey 同走静态加密/剥密;解密失败态写库保留原密文(不用空串覆盖)。
 import { webcrypto } from 'crypto';
 import { redactSecretRecord } from '../aiSecretStores';
 import { mergeLocalSecrets } from '../aiWorkspaceRestore';
@@ -17,7 +17,7 @@ afterEach(()=>{ delete window.__TAURI__; });
 const REC = { id: 'provider-q059', name: 'GW', providerType: 'openai', apiKey: 'sk-live-q059',
 	providerOptions: { extraHeaders: { Authorization: 'Bearer gw-token-q059', 'x-api-key': 'xk-q059', Accept: 'application/json' }, requestTimeoutMs: 1000 } };
 
-describe('[Q-059/M-79] 额外请求头静态加密', ()=>{
+describe('额外请求头静态加密', ()=>{
 	test('桥可用:落库密文(非空字符串值逐个加密)/ 读出解回明文;备份剥密置空并打 extraHeadersRedacted;检索不含令牌', async ()=>{
 		mockBridge();
 		let store; let secure;
@@ -57,7 +57,7 @@ describe('[Q-059/M-79] 额外请求头静态加密', ()=>{
 	});
 });
 
-describe('[Q-059/M-82] 解密失败态写库保留原密文', ()=>{
+describe('解密失败态写库保留原密文', ()=>{
 	test('换主密钥后读出置空+标记;未重填直接写回 → 库内密文原样;重填新值 → 覆盖', async ()=>{
 		mockBridge();
 		let store; let secure;

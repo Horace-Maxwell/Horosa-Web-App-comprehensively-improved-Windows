@@ -1,18 +1,21 @@
-// AI 助手·任务实体(P1):目标任务/定时任务/报告作业/扫描 的统一记录,落 IndexedDB agent_tasks(随 AI 工作区备份)。
+// AI 助手·任务实体(P1):目标任务/定时任务/扫描等后台任务的统一记录,落 IndexedDB agent_tasks(随 AI 工作区备份)。
 // 状态机只在本层转移(patchTask 校验合法迁移);运行控制器(取消/暂停/继续)住 taskRegistry(纯内存);
 // 撤销/取消只能由用户在界面点按钮——AI 工具(create_goal_task/schedule_task)只能「建」不能「删」。
+import { parseDateTimeMs } from '../../dateTimeParse';
 import { reportBackgroundFailure } from '../bgSink';
 import { AI_ANALYSIS_STORES, putStoreRecord, getStoreRecord, listStoreRecords, updateStoreRecordIf, deleteStoreRecords, countStoreRecords } from '../../aiAnalysisStore';
 import { emitAutomationEvent } from '../automation/events';
 import { controllerOf, unregisterRunning, WINDOW_ID } from './taskRegistry';
 
 export const TASK_EVENT = 'horosa:agent-tasks-changed';
-export const TASK_KINDS = ['goal', 'scheduled', 'report', 'scan'];
+export const TASK_KINDS = ['goal', 'scheduled', 'scan'];
+// 各类任务没写标题时的缺省标题
+const TASK_KIND_TITLES = { goal: '目标任务', scheduled: '定时任务', scan: '扫描' };
 export const TASK_STATUSES = ['queued', 'scheduled', 'running', 'paused', 'waiting', 'done', 'failed', 'cancelled', 'interrupted'];
 export const TASK_TERMINAL = ['done', 'failed', 'cancelled'];
 export const TASK_LOG_MAX = 200;
-export const TASK_KEEP_MAX = 1000;   // [K3] 终态任务最多留这么多条(最新优先);活跃任务永不裁
-// [S46] 跑任务的窗口每 RUNNER_HEARTBEAT_MS 往记录里写一次 runner.heartbeatAt;超过 RUNNER_STALE_MS 没心跳 = 那个窗口已经没了
+export const TASK_KEEP_MAX = 1000;   // 终态任务最多留这么多条(最新优先);活跃任务永不裁
+// 跑任务的窗口每 RUNNER_HEARTBEAT_MS 往记录里写一次 runner.heartbeatAt;超过 RUNNER_STALE_MS 没心跳 = 那个窗口已经没了
 export const RUNNER_HEARTBEAT_MS = 30 * 1000;
 export const RUNNER_STALE_MS = 90 * 1000;
 export function runnerStamp(){ return { owner: WINDOW_ID, heartbeatAt: nowIso() }; }
@@ -26,7 +29,7 @@ export async function heartbeatTask(id){
 export function runnerAliveElsewhere(task, now){
 	const r = task && task.runner;
 	if(!r || !r.heartbeatAt || r.owner === WINDOW_ID){ return false; }
-	const at = Date.parse(r.heartbeatAt) || 0;
+	const at = parseDateTimeMs(r.heartbeatAt) || 0;
 	return at > 0 && ((now || Date.now()) - at) < RUNNER_STALE_MS;
 }
 export const TASK_SCHEMA_VERSION = 1;
@@ -67,7 +70,7 @@ const taskCache = new Map();
 function remember(t){ if(t && t.id){ taskCache.set(t.id, t); } return t; }
 export function peekTaskSync(id){ return taskCache.get(`${id}`) || null; }
 export function __resetTaskCacheForTests(){ taskCache.clear(); }
-// [T2] 启动预热:把库里的任务灌进同步镜像——冷启动/刷新后账本撤销(同步契约)才不会把库里存在的任务报成 E_TASK_NOT_FOUND
+// 启动预热:把库里的任务灌进同步镜像——冷启动/刷新后账本撤销(同步契约)才不会把库里存在的任务报成 E_TASK_NOT_FOUND
 export async function warmTaskCache(){
 	const list = await listTasks({});
 	return list.length;
@@ -81,7 +84,7 @@ export function normalizeTask(input){
 	return {
 		...t,
 		kind, status,
-		title: `${t.title || ''}`.slice(0, 120) || (kind === 'goal' ? '目标任务' : (kind === 'scheduled' ? '定时任务' : (kind === 'report' ? '报告作业' : '扫描'))),
+		title: `${t.title || ''}`.slice(0, 120) || TASK_KIND_TITLES[kind] || '目标任务',
 		origin: `${t.origin || 'in-app'}`,
 		progress: Number.isFinite(t.progress) ? Math.max(0, Math.min(100, t.progress)) : 0,
 		budget,
@@ -103,11 +106,11 @@ export async function createTask(spec){
 	const rec = normalizeTask({ ...(spec || {}), createdAt: nowIso(), updatedAt: nowIso() });
 	const saved = remember(await putStoreRecord(AI_ANALYSIS_STORES.agentTasks, rec, 'task'));
 	emit();
-	schedulePruneTasks();   // [K3] 建一条就异步回收一次(单飞;表长 ≤ 上限时零 getAll)
+	schedulePruneTasks();   // 建一条就异步回收一次(单飞;表长 ≤ 上限时零 getAll)
 	return saved;
 }
 
-// [K3] 裁剪终态任务:done/failed/cancelled 按 updatedAt 新在前只留 keep 条,活跃任务(排队/排期/运行/暂停/等待/中断)一条不动。
+// 裁剪终态任务:done/failed/cancelled 按 updatedAt 新在前只留 keep 条,活跃任务(排队/排期/运行/暂停/等待/中断)一条不动。
 // 回删除条数;表长 ≤ keep 时只做一次 count(不整表读)。
 export async function pruneTasks(opts){
 	const keep = Math.max(0, Number(opts && opts.keep) || TASK_KEEP_MAX);
@@ -156,7 +159,7 @@ export async function patchTask(id, patch){
 	return afterTaskWrite(saved, id);
 }
 
-// 写后统一收尾:同步镜像 / 终态注销控制器 / 变更事件 / [P4] done 广播一次(其它状态不发,免噪声)
+// 写后统一收尾:同步镜像 / 终态注销控制器 / 变更事件 / done 广播一次(其它状态不发,免噪声)
 function afterTaskWrite(saved, id){
 	remember(saved);
 	if(saved && (TASK_TERMINAL.indexOf(saved.status) >= 0 || saved.status === 'interrupted')){ unregisterRunning(id); }
@@ -165,7 +168,7 @@ function afterTaskWrite(saved, id){
 	return saved;
 }
 
-// [S5] 比较并交换:只有当前状态在 ifStatus 里(且迁移合法)才写,单事务内完成——两个窗口抢同一到点任务只有一个赢家。
+// 比较并交换:只有当前状态在 ifStatus 里(且迁移合法)才写,单事务内完成——两个窗口抢同一到点任务只有一个赢家。
 // 回 { ok, task, reason? },不抛(抢输是正常分支不是异常)。
 export async function patchTaskIf(id, patch, opts){
 	const o = opts || {};

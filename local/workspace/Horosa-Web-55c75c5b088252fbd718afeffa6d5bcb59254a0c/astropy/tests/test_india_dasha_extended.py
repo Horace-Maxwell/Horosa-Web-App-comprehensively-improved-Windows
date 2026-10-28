@@ -116,7 +116,7 @@ def test_shashtihayani_28nak_group_seed():
     lords = [(k, y) for k, y in dx.SHASHTIHAYANI.lords]
     assert dx.SHASHTIHAYANI.lords[dx.shashtihayani_seed_index(1, lords)][0] == 'Jupiter'
     assert dx.SHASHTIHAYANI.lords[dx.shashtihayani_seed_index(27, lords)][0] == 'Mars'
-    # Abhijit(月落 28 宿织女段)：传 moon_nak_name='Abhijit' → Saturn 组。
+    # Abhijit(月落 28 宿牛宿段)：传 moon_nak_name='Abhijit' → Saturn 组。
     idx = dx.shashtihayani_seed_index(21, lords, moon_nak_name='Abhijit')
     assert dx.SHASHTIHAYANI.lords[idx][0] == 'Saturn'
 

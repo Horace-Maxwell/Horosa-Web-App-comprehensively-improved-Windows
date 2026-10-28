@@ -18,8 +18,9 @@ const SLIDERS = [
 	{ key: '摄像机视野', min: 30, max: 120, step: 1 },
 	{ key: '摄像机天球经度', min: 0, max: 360, step: 1 },
 	{ key: '摄像机天球纬度', min: -90, max: 90, step: 1 },
-	{ key: '太阳光强度', min: 0, max: 10, step: 0.1 },
-	{ key: '环境光强度', min: 0, max: 2, step: 0.05 },
+	// 光强两档的可见效果在缺省值(6.5 / 0.3)即封顶(Astro3D 按「值 ÷ 缺省」映射透明度),上限只到缺省,免得后段拖了没变化
+	{ key: '太阳光强度', min: 0, max: 6.5, step: 0.1 },
+	{ key: '环境光强度', min: 0, max: 0.3, step: 0.01 },
 	{ key: '恒星距离行星圈', min: 0, max: 500, step: 5 },
 	{ key: '恒星半径', min: 0.5, max: 8, step: 0.1 },
 ];

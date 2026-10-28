@@ -10,14 +10,11 @@
 特色排布引擎(北极/先秦神数的内部命理干支非标准四柱)不在此列。需 :8899 在线,否则 skip。
 """
 import json
-import urllib.request
 
-import os
 import pytest
 
 from kin_year_domain import extreme_pillars
-
-BASE = "http://127.0.0.1:8899"
+from srv_gate import post, require_srv_mark
 
 # 展示标准四柱(年月日时柱)的数算/卜系引擎 → 四柱必 = 权威
 STANDARD_PILLAR_ENDPOINTS = [
@@ -33,24 +30,12 @@ CASES = [
 
 
 def _post(path, body, timeout=60):
-    req = urllib.request.Request(
-        BASE + path, data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json"})
-    return json.loads(urllib.request.urlopen(req, timeout=timeout).read())
+    return post(path, body, timeout=timeout)
 
 
-def _online():
-    try:
-        return _post("/healthz", {}, timeout=3).get("ok") is True
-    except Exception:
-        return False
-
-
-# 假绿闸:干净机上 :8899 未起会静默 skip 87 例而不飘红 —— 发版基线跑法必须
-# HOROSA_REQUIRE_SRV=1(此时不再 skip,离线即连接错误红给你看)。日常本地无服务仍可 skip。
-pytestmark = pytest.mark.skipif(
-    (not _online()) and os.environ.get('HOROSA_REQUIRE_SRV') != '1',
-    reason="local :8899 not online (set HOROSA_REQUIRE_SRV=1 to fail loudly instead of skip)")
+# 假绿闸:干净机上 :8899 未起会静默 skip 整模块而不飘红 —— 发版基线跑法必须
+# HOROSA_REQUIRE_SRV=1(此时不再 skip,离线即连接错误红给你看)。判据单源在 srv_gate.py。
+pytestmark = require_srv_mark()
 
 
 @pytest.mark.parametrize("key", STANDARD_PILLAR_ENDPOINTS)

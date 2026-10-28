@@ -25,6 +25,8 @@
 
 from flatlib import const
 
+from astrostudy.india.primitives import PLANET_CN, SIGN_CN
+
 
 # ── 行星集合 ──────────────────────────────────────────────────────────────
 # 过运只取 7 实体曜 + 罗睺/计都(外行星不入古典过运)。
@@ -42,18 +44,6 @@ GOCHARA_PLANETS = [SUN, MOON, MARS, MERCURY, JUPITER, VENUS, SATURN, RAHU, KETU]
 
 # 节点过运代理：罗睺似土星、计都似火星(标准口径)。
 NODE_PROXY = {RAHU: SATURN, KETU: MARS}
-
-PLANET_CN = {
-    SUN: '太阳', MOON: '月亮', MARS: '火星', MERCURY: '水星', JUPITER: '木星',
-    VENUS: '金星', SATURN: '土星', RAHU: '罗睺', KETU: '计都',
-}
-
-SIGN_CN = {
-    const.ARIES: '白羊', const.TAURUS: '金牛', const.GEMINI: '双子', const.CANCER: '巨蟹',
-    const.LEO: '狮子', const.VIRGO: '处女', const.LIBRA: '天秤', const.SCORPIO: '天蝎',
-    const.SAGITTARIUS: '射手', const.CAPRICORN: '摩羯', const.AQUARIUS: '水瓶',
-    const.PISCES: '双鱼',
-}
 
 
 # ── 标准过运「吉宫」表（相对本命月；从命用同表，参照换 lagna）──────────────

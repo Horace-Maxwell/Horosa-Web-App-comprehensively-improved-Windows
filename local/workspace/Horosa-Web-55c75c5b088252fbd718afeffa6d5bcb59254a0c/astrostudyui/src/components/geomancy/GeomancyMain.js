@@ -1,25 +1,27 @@
 import QuickDockBar from '../common/QuickDockBar';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { safeLocalStorageSet } from '../../utils/safeStorage';
+import { GEOMANCY_HISTORY_MAX, pushGeomancyHistory } from './geomancyHistory';
+import { safeLocalStorageSet, readUserDataJson } from '../../utils/safeStorage';
 import { definePageSettings } from '../../utils/pageSettingsStore';
 // 🔴 React 须显式导入:JSX 编译成 React.createElement,应用构建靠 umi 自动注入才没炸,
 //    但 jest 直接载入本模块时无此注入 → render 期 ReferenceError。仓内同族坑已犯过一次。
 import React, { Component } from 'react';
 import { Input, InputNumber, Spin, message } from 'antd';
 import XQIcon from '../xq-icons';
-import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
-import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
-import { ServerRoot, ResultKey } from '../../utils/constants';
+import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection, XQDesignScaleBox } from '../xq-ui';
+import { saveModuleAISnapshotLazy, saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { castSourceKey, castFailureKeeps } from '../../utils/derivedChartSource';
+import { postKentang } from '../../services/kentangPost';
 import { AstroFont } from '../../constants/AstroConst';
-import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
-import { cachedKentangFetch } from '../../utils/kentangCache';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import TechniqueErrorBoundary from '../common/TechniqueErrorBoundary';
 import { getSignSymbol } from '../astro/IndiaSouthChart';
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
+import { QUESITED_HOUSE_OPTIONS, TURN_HOUSE_LABELS } from './geomancyOptions';
 import { subscribeRemoteNongli, paramsFromFields, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields } from '../../utils/divinationTimeDraft';
 import './GeomancyMain.less';
+import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
 
 const { TabPane } = Tabs;
 const { Option } = Select;
@@ -165,7 +167,7 @@ const FIGURE_GROUPS = [
 const PARITY_SCOPE_ZH = { shield16: '全盘十六图', mothers: '四母', houses12: '十二宫' };
 
 const HISTORY_KEY = 'horosaGeomancyHistory';
-const HISTORY_MAX = 30;
+const HISTORY_MAX = GEOMANCY_HISTORY_MAX;
 // 时地改动的静默期:时间面板选年/选月/选日各吐一拍,合并成一次重算(逐拍打后端既慢又白费)。
 const RECAST_DEBOUNCE_MS = 260;
 
@@ -184,23 +186,9 @@ const QUESTION_TYPE_OPTIONS = [
 	{ key: 'custom', label: '💬 自订问题', short: '自订' },
 ];
 
-// 所问宫十二项 —— **判读的真值源**。问类只是快捷预设,正法是「取与问题主题对应之宫的图」。
+// 所问宫十二项 —— **判读的真值源**(档名在 geomancyOptions.js,与 AI 挂载齿轮同一份)。问类只是快捷预设。
 // 🔴 此前所问宫只能由问类查表得出,而表里 custom→1、life→1 与问者宫(恒一)撞车,
 //    q==t 使完美恒「入主」、相位恒「合」;前端默认问类正是 custom,故开箱即坏。
-const QUESITED_HOUSE_OPTIONS = [
-	{ v: 1, label: '一命 · 本人身体' },
-	{ v: 2, label: '二财 · 钱财动产' },
-	{ v: 3, label: '三兄弟 · 近邻消息' },
-	{ v: 4, label: '四田宅 · 家宅根基' },
-	{ v: 5, label: '五子女 · 恋爱子嗣' },
-	{ v: 6, label: '六疾厄 · 疾病仆役' },
-	{ v: 7, label: '七夫妻 · 婚姻合伙对手' },
-	{ v: 8, label: '八疾死 · 遗产他人之财' },
-	{ v: 9, label: '九迁移 · 远行学问' },
-	{ v: 10, label: '十官禄 · 事业名誉' },
-	{ v: 11, label: '十一福德 · 友朋愿望' },
-	{ v: 12, label: '十二玄秘 · 暗敌隐患' },
-];
 // 问类 → 预设所问宫(与引擎 question_house 表同源;改此处须同改引擎数据)
 const QUESTION_TYPE_HOUSE = {
 	life: 1, health: 6, wealth: 2, marriage: 7, career: 10, children: 5,
@@ -249,7 +237,7 @@ function computeTimeSeed(fields){
 const TRADITION_OPTIONS = [
 	{ key: 'european_classical', label: '古典定局派', short: '古典' },
 	{ key: 'european_planetary', label: '行星共鸣派', short: '共鸣' },
-	// [X1·P1-21] 现代综合派引擎口径与古典定局同(traditions 仅 id/label 异);label 如实标注,不臆造分歧。
+	// 现代综合派引擎口径与古典定局同(traditions 仅 id/label 异);label 如实标注,不臆造分歧。
 	{ key: 'european_modern', label: '现代综合派(判读同古典口径)', short: '现代' },
 	{ key: 'arabic_raml', label: '阿拉伯沙占派', short: '沙占' },
 	{ key: 'india_ramal', label: '印度骰占派', short: '骰占' },
@@ -404,33 +392,7 @@ function fmtDegMin(v){
 	return m >= 60 ? `${d + 1}°00′` : `${d}°${String(m).padStart(2, '0')}′`;
 }
 
-async function postGeomancy(path, payload){
-	let rsp = null;
-	try{
-		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('geomancy', path), {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-			body: JSON.stringify(payload),
-		}, { retries: 0 });
-		const rawText = await rawResponse.text();
-		rsp = rawText ? JSON.parse(rawText) : null;
-		if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'geomancy.local.fetch.failed');
-		}
-	}catch(e){
-		const rawResponse = await cachedKentangFetch(`${ServerRoot}/geomancy/${path}`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-			body: JSON.stringify(payload),
-		}, { retries: 0 });
-		const rawText = await rawResponse.text();
-		rsp = rawText ? JSON.parse(rawText) : null;
-	}
-	if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-		throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'geomancy.fetch.failed');
-	}
-	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
-}
+function postGeomancy(path, payload){ return postKentang('geomancy', path, payload); }
 
 function figureLine(fig, role){
 	if(!fig){ return ''; }
@@ -496,7 +458,7 @@ export function buildGeomancySnapshotText(result){
 		return lines.join('\n');
 	}
 	lines.push('[判定]');
-	// [X1·P1-22] 首母中止警示(约 1/8 盘触发,后端早已算出而前端/AI 双盲):传统口径此占应中止另占。
+	// 首母中止警示(约 1/8 盘触发,后端早已算出而前端/AI 双盲):传统口径此占应中止另占。
 	if(reading.haltedOnFirstMother){ lines.push('⚠ 首母中止：首母落 Rubeus/Cauda 之属,依所选传本传统应中止本占、另择时再占(以下判读仅作参考)。'); }
 	// 时间流(传本口径):右证=过去、法官=现在、左证=未来。
 	// ⚠️ 此前左证误标「现在」而法官无时间标 —— 与传本相左,已按传本改正。
@@ -507,7 +469,7 @@ export function buildGeomancySnapshotText(result){
 	if(reading.rightWitness){ lines.push(figureLine(reading.rightWitness, '右证(过去/问者/事主)')); }
 	if(reading.leftWitness){ lines.push(figureLine(reading.leftWitness, '左证(未来/所问/条件环境)')); }
 	if(reading.primaryHouse){ lines.push(`主宫：第 ${reading.primaryHouse} 宫`); }
-	// [X1·P1-23] sikidy/hakata 流派中栏特有结论入快照(此前 AI 全盲):三道校验/红 Sikidy/诸侯列;四片开合/断语。
+	// sikidy/hakata 流派中栏特有结论入快照(此前 AI 全盲):三道校验/红 Sikidy/诸侯列;四片开合/断语。
 	if(reading.sikidy){
 		const sk = reading.sikidy;
 		lines.push(`异或表盘：三道校验${sk.valid ? '通过' : '未过'}${sk.red_sikidy ? '；红 Sikidy(大凶)' : ''}${Array.isArray(sk.princes) && sk.princes.length ? `；诸侯列:${sk.princes.join('、')}` : ''}`);
@@ -785,7 +747,7 @@ export async function buildGeomancySnapshotForFields(fields, opts){
 		let planetaryChartZodiac = o.planetaryChartZodiac;
 		let planetaryChartNodes = o.planetaryChartNodes;
 		let planetaryChartExtras = o.planetaryChartExtras;
-		// [挂载自检 F-48] 无头挂载(noPageFallback)只认被挂载记录自身的问占参数;缺问句=该档不可复算 → ''(missing),
+		// 无头挂载(noPageFallback)只认被挂载记录自身的问占参数;缺问句=该档不可复算 → ''(missing),
 		// 绝不回落「页面当前载入的地占事盘」(与塔罗 T-1 同病同修:否则挂 A 记录读到 B 的盘=张冠李戴)。页面自身导出路径仍可兜底。
 		if((question === undefined || question === null) && !o.noPageFallback){
 			const saved = getKentangSavedCasePayload('geomancy');
@@ -857,6 +819,15 @@ export async function buildGeomancySnapshotForFields(fields, opts){
 // 所问、问类、所问宫、手工种子、报数、转宫是每一卦的输入;中栏视图有「未亲手切过则自动切换」的逻辑,都不进。
 // 逐项覆盖(granular)是稀疏覆盖层:只存用户显式改过的项,没改过 = 库里没有 = 不发给后端(跟随流派预设)。
 // 流派候选可能由后端下发(随内核增减),只校验类型与长度。事盘回灌走 setState,不经这些 handler。
+// 载入存档后的起卦法:存档记下的 castMethod(你当时实际用的起卦法)优先;报数另由十六数判;
+// 没记的旧档按存档的 seedMode,再缺按当前。
+export function restoredGeomancySeedMode(options, current){
+	const o = options || {};
+	const known = (k)=>SEED_MODE_OPTIONS.some((it)=>it.key === k);
+	if(o.castMethod && o.castMethod !== 'numbers' && known(o.castMethod)){ return o.castMethod; }
+	return o.seedMode || current;
+}
+
 export const GEOMANCY_PAGE_SETTINGS = definePageSettings('horosa.geomancy.settings.v1', {
 	// 「手工指定种子 / 报数起卦」离不开逐卦输入(种子 / 十六个数,不保留):只留法不留数,重开后种子是 0、报数是空的 ——
 	// 前者每次都起同一卦,后者一点起盘就报错。这两法不进候选(选了照常用,只是不记;库里仍是上一次选的独立起卦法)。
@@ -869,19 +840,27 @@ export const GEOMANCY_PAGE_SETTINGS = definePageSettings('horosa.geomancy.settin
 		acc[f.key] = f.bool ? { def: false } : { def: '', oneOf: (f.options || []).map((o)=>o.key) };
 		return acc;
 	}, {}) },
-	planetaryChart: { def: false },
-	planetaryChartZodiac: { def: 'classical', oneOf: PCHART_ZODIAC_OPTIONS.map((o)=>o.key) },
-	planetaryChartNodes: { def: false },
-	planetaryChartExtras: { def: false },
-	showUnicodeGlyph: { def: false },
-	triangleSchool: { def: 'recent', oneOf: TRIANGLE_SCHOOLS.map((o)=>o.key) },   // 右栏「地占三角」含义取哪一派(显示偏好)
+	planetaryChart: { label: '另起行星地占盘', def: false },
+	planetaryChartZodiac: { label: '星座对应表', def: 'classical', oneOf: PCHART_ZODIAC_OPTIONS.map((o)=>o.key) },
+	planetaryChartNodes: { label: '加北交·南交(南交取对宫)', def: false },
+	planetaryChartExtras: { label: '加月孛·三王星', def: false },
+	showUnicodeGlyph: { label: '并显 Unicode 字形', def: false },
+	triangleSchool: { label: '地占三角含义流派', def: 'recent', oneOf: TRIANGLE_SCHOOLS.map((o)=>o.key) },   // 右栏「地占三角」含义取哪一派(显示偏好)
 });
 function savedGeomancySettings(){
 	return GEOMANCY_PAGE_SETTINGS.load();
 }
 
+// 方形宫盘 / 两式方盘的设计尺寸(布局 px):低于它时按它排版再等比缩小(XQDesignScaleBox)。
+// 方形宫盘是按可用高定边长的正方网格(格 overflow:hidden):取「四行格里的图名 / 宫号 / 点阵整段放得下」的最小边长(真内核实测 620 起零裁切),
+// 设计高 = 边长 + 标题与间距;两式方盘取最小窗口 1 档的盘宽(此宽下图名零越界)。
+export const GEOMANCY_SQUARE_DESIGN_W = 640;
+export const GEOMANCY_SQUARE_DESIGN_H = 696;
+export const GEOMANCY_POLY_DESIGN_W = 416;
+export const GEOMANCY_POLY_DESIGN_H = 476;
+
 class GeomancyMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -895,6 +874,7 @@ class GeomancyMain extends Component{
 		this.state = {
 			loading: false,
 			result: null,
+			resultSig: '',	// 屏上这一盘的起盘签名(时刻 + 地点 + 种子),取失败时据此判留存 / 清掉
 			question: '',
 			questionType: 'custom',
 			// 所问宫默认随问类预设(custom→一宫)。
@@ -993,12 +973,9 @@ class GeomancyMain extends Component{
 		window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 	}
 
+	// 读端单源 readUserDataJson:坏数据先留档(留不成就不让之后的写盖掉原串),再当空
 	loadHistory(){
-		try{
-			const raw = window.localStorage.getItem(HISTORY_KEY);
-			const arr = raw ? JSON.parse(raw) : [];
-			this.setState({ history: Array.isArray(arr) ? arr.slice(0, HISTORY_MAX) : [] });
-		}catch(e){ /* ignore */ }
+		this.setState({ history: readUserDataJson(HISTORY_KEY, []).slice(0, HISTORY_MAX) });
 	}
 
 	pushHistory(result){
@@ -1023,25 +1000,19 @@ class GeomancyMain extends Component{
 			planetaryChartExtras: this.state.planetaryChartExtras,
 			ts: Date.now(),
 		};
-		let next = [entry];
-		try{
-			const raw = window.localStorage.getItem(HISTORY_KEY);
-			const prev = raw ? JSON.parse(raw) : [];
-			if(Array.isArray(prev)){
-				// 🔴 一次起卦只占一条:钉盘重算(改时地/流派/传本/所问宫…)出的还是**同一副卦**,
-				//    若照旧追加,拖一下时间选择器就能把三十条上限刷满、把真正起过的卦挤出去。
-				//    故种子相同即原地替换首条(该条随之反映当前设置,回放亦得最新那份判读)。
-				// 判据须含起卦源:报数盘的默认种子恒为 0,只比种子会把两组不同的十六数误当同一盘。
-				const castKey = (e)=>[e && e.seed, e && e.castMethod || '',
-					JSON.stringify((e && e.castNumbers) || null)].join('|');
-				const same = prev.length && prev[0] && Number.isFinite(Number(entry.seed))
-					&& castKey(prev[0]) === castKey(entry);
-				next = same ? [entry, ...prev.slice(1)] : [entry, ...prev];
-			}
-		}catch(e){ /* ignore */ }
-		next = next.slice(0, HISTORY_MAX);
-		try{ safeLocalStorageSet(HISTORY_KEY, JSON.stringify(next)); }catch(e){ /* ignore */ }
-		this.setState({ history: next });
+		// 🔴 一次起卦只占一条:钉盘重算(改时地/流派/传本/所问宫…)出的还是**同一副卦**,
+		//    若照旧追加,拖一下时间选择器就能把三十条上限刷满、把真正起过的卦挤出去(口径单源 geomancyHistory.js)。
+		const prev = readUserDataJson(HISTORY_KEY, []);
+		const next = pushGeomancyHistory(prev, entry);
+		let ok = false;
+		try{ ok = safeLocalStorageSet(HISTORY_KEY, JSON.stringify(next)); }catch(e){ ok = false; }
+		// 写不进(存储满 / 坏原串封锁):列表按存储里实际的显示,不冒充已记下
+		this.setState({ history: ok ? next : readUserDataJson(HISTORY_KEY, []).slice(0, HISTORY_MAX) });
+	}
+
+	// 写槽 meta 单一来源:平时写槽与刷新应答共用(刷新一次后槽的 meta 不变)
+	snapshotMeta(){
+		return snapshotMetaFromFields(this.activeFields(), { source: 'react', savedAt: Date.now() });
 	}
 
 	handleSnapshotRefreshRequest(evt){
@@ -1052,7 +1023,7 @@ class GeomancyMain extends Component{
 		let text = '';
 		try{ text = `${buildGeomancySnapshotText(result) || ''}`.trim(); }catch(e){ text = ''; }
 		if(text){
-			saveModuleAISnapshot('geomancy', text);
+			saveModuleAISnapshot('geomancy', text, this.snapshotMeta());
 			if(evt && evt.detail && typeof evt.detail === 'object'){
 				evt.detail.snapshotText = text;
 			}
@@ -1067,6 +1038,8 @@ class GeomancyMain extends Component{
 		const options = payload.options && typeof payload.options === 'object' ? payload.options : {};
 		this.lastRestoredCaseId = saved.caseVersion;
 		this.requestSeq += 1;
+		this._freshCastSeq = null;   // 在途的新起盘已作废,它挂起的补排一并作废
+		this._recastAfterFresh = false;
 		// 🔴 载档整个提交周期内一律不许重算。真机 setState 是异步的:此处清掉的本地时地草稿要到
 		//    下一拍才生效,而那一拍 restored 已是 false、签名却变了 —— 存档盘就被重算覆盖掉了
 		//    (jest 若用同步 setState 模拟,这条永远测不出来)。并作废在途的时地重排。
@@ -1076,18 +1049,21 @@ class GeomancyMain extends Component{
 		this.setState({
 			loading: false,
 			result: payload.result || null,
+			resultSig: '',	// 存档盘按存档的时刻,不与此刻的起盘参数比:之后起盘取失败时不拿它顶
 			question: options.question !== undefined ? options.question : this.state.question,
 			questionType: options.questionType || this.state.questionType,
 			quesitedHouse: options.quesitedHouse !== undefined && options.quesitedHouse !== null
 				? Number(options.quesitedHouse) : this.state.quesitedHouse,
-			// 报数盘同理:存档带十六数者起卦法复位为报数,否则照存档所记(有盘时存的是 manual+种子)
+			// 报数盘同理:存档带十六数者起卦法复位为报数;其余按存档里记下的你当时的起卦法(castMethod)——
+			// 与灵棋同:盘面直接用存档结果,「再起卦」照你的起卦法起新的;当时确是手动种子才回到手动。
+			// 没记 castMethod 的旧档照旧按存档的 seedMode(有盘时存的是 manual + 种子)
 			seedMode: (Array.isArray(options.castNumbers) && options.castNumbers.length === 16)
-				? 'numbers' : (options.seedMode || this.state.seedMode),
+				? 'numbers' : restoredGeomancySeedMode(options, this.state.seedMode),
 			manualSeed: options.seed !== undefined ? options.seed : this.state.manualSeed,
 			// 🔴 castMethod 此前**存而不载**:保存时 seedMode 被硬写成 'manual'(锁定复现用),
 			// 真正用过的起卦法(掷骰/抛硬币/沙痕/掷片/报数)只记在 castMethod 里,而无人读回 →
 			// 载档后「这一卦当初是怎么起的」这条信息彻底丢失。此处如实读回;
-			// seedMode 仍保持 manual+冻结种子(复现锁语义不动),两者各司其职。
+			// seedMode 按存档所记读回(restoredGeomancySeedMode),种子照旧钉住(载档重算不重掷)。
 			castMethod: options.castMethod || this.state.castMethod || null,
 			// 载档必清本地时地草稿:否则左栏仍显示用户先前改的草稿时地,与存档所记不符
 			// (guice:71 / lingqi / feigong / xiaoliuren / xiaochengtu 皆已如此)。
@@ -1115,8 +1091,8 @@ class GeomancyMain extends Component{
 			this._lastCastParamSig = this.castParamSig();
 			this._suppressRecast = false;
 			const result = this.state.result;
-			// [X1·P2-40] 快照带时地 meta:命盘挂载缓存路径可确凿命中,免每次挂载都复算。
-			if(result){ saveModuleAISnapshotLazy('geomancy', ()=>buildGeomancySnapshotText(result), snapshotMetaFromFields(this.activeFields(), { source: 'react', savedAt: Date.now() })); }
+			// 快照带起课时地 meta(事盘路径与报告来源认得出是哪一局);刷新应答写同一份
+			if(result){ saveModuleAISnapshotLazy('geomancy', ()=>buildGeomancySnapshotText(result), this.snapshotMeta()); }
 		});
 		return true;
 	}
@@ -1138,10 +1114,6 @@ class GeomancyMain extends Component{
 		this.setState({ localFields: { ...base, ...geoPatchFromRec(rec, base) } });
 	}
 	async clickCast(pinnedSeed){
-		// 待触发的时地重排就此作废:用户改完时地立刻点「起盘」时,那一拍会在新盘出来后又多打一次
-		// (盘不会错,requestSeq 挡得住乱序,但白费一次往返)。
-		if(this._recastTimer){ clearTimeout(this._recastTimer); this._recastTimer = null; }
-		const seq = ++this.requestSeq;
 		const seedMode = this.state.seedMode;
 		// pinnedSeed(有限数)= 用既有母图种子定盘重算:同护盾盘、赋义随流派/范围/黄道变,不重新揲卦。
 		// (onClick 透传的是 event 对象,Number.isFinite 自然过滤掉,不会误当种子。)
@@ -1216,22 +1188,44 @@ class GeomancyMain extends Component{
 		// 时间起卦:由左栏所选时间(精确到分)算确定性种子塞 timeSeed,使同一时刻起卦可复现;
 		// 不塞则后端走 secrets.randbelow 退化真随机,刷新即变盘(后端 webgeomancysrv.py 已就绪接收 timeSeed)。
 		else if(seedMode === 'time_seed'){ payload.timeSeed = computeTimeSeed(af); }
-		// [Q-210/T-142] 随机/掷骰/抛硬币/沙痕/掷片:此前请求体不带种子(服务端 secrets.randbelow),缓存却按体命中 → 同问题同时地再起盘恒同卦。
+		// 随机/掷骰/抛硬币/沙痕/掷片:此前请求体不带种子(服务端 secrets.randbelow),缓存却按体命中 → 同问题同时地再起盘恒同卦。
 		// 起盘时客户端取新随机种子入体(后端 cast_method 非 manual/time 时「有显式 seed 则用」并回传实际种子)→ 每次起盘新卦、同体复现、缓存自洽。
 		if(payload.seed === undefined && payload.timeSeed === undefined && !(Array.isArray(payload.castNumbers) && payload.castNumbers.length)){
 			payload.seed = Math.floor(Math.random() * 2147483647);
 		}
+		// 待触发的时地重排就此作废:用户改完时地立刻点「起盘」时,那一拍会在新盘出来后又多打一次
+		// (盘不会错,requestSeq 挡得住乱序,但白费一次往返)。只在真发请求时作废 —— 报数不足等没发出去的点击
+		// 不能把待触发的重排一并丢掉(否则那次时地改动就再也作用不到当前盘)。
+		if(this._recastTimer){ clearTimeout(this._recastTimer); this._recastTimer = null; }
+		// 序号在真发请求时才取:报数不足等没发出去的点击不作废在途的那一盘
+		const seq = ++this.requestSeq;
+		// 新起一盘(不钉种子)在途:期间要钉种子重排的(改流派 / 范围 / 时地等)先挂起,等新盘落定按新盘的种子补排 ——
+		// 否则重排拿的是旧盘种子,又是更晚的请求,新起的那一盘被挡掉。新起盘的请求体已带全部当前设置,先前挂起的补排作废
+		if(pinned === null){ this._freshCastSeq = seq; this._recastAfterFresh = false; }
 		this.setState({ loading: true });
+		const settleFresh = ()=>{
+			const was = this._freshCastSeq === seq;
+			if(was){ this._freshCastSeq = null; }
+			if(was && this._recastAfterFresh){ this._recastAfterFresh = false; this.recastPinned(); }
+		};
+		// 起盘签名:时刻地点 + 种子。钉种子重排(改流派 / 范围 / 黄道)是同一盘换口径;新起一盘(取新种子)是另一盘
+		const castBase = castSourceKey(af);
+		const castSig = pinned !== null ? `${castBase}#${pinned}` : `${castBase}#new:${seq}`;
 		try{
 			const result = await postGeomancy('reading', payload);
 			if(this.unmounted || seq !== this.requestSeq){ return; }
-			this.setState({ loading: false, result }, ()=>{
-				saveModuleAISnapshotLazy('geomancy', ()=>buildGeomancySnapshotText(result), snapshotMetaFromFields(this.activeFields(), { source: 'react', savedAt: Date.now() }));
+			const usedSeed = result && result.reading && result.reading.seed !== undefined && result.reading.seed !== null ? result.reading.seed : payload.seed;
+			this.setState({ loading: false, result, resultSig: `${castBase}#${usedSeed}` }, ()=>{
+				saveModuleAISnapshotLazy('geomancy', ()=>buildGeomancySnapshotText(result), this.snapshotMeta());
 				this.pushHistory(result);
+				settleFresh();
 			});
 		}catch(e){
 			if(this.unmounted || seq !== this.requestSeq){ return; }
-			this.setState({ loading: false });
+			// 取失败:同一盘只换口径 → 留存;新起的一盘 / 换了时刻地点 → 屏上那盘是上一盘,清掉(连同 AI 快照槽)
+			const keep = castFailureKeeps(this.state.resultSig, castSig);
+			this.setState(keep ? { loading: false } : { loading: false, result: null, resultSig: '' }, settleFresh);
+			if(!keep){ clearModuleAISnapshot('geomancy'); }
 			message.error('地占起盘失败，请稍后重试');
 		}
 	}
@@ -1327,6 +1321,11 @@ class GeomancyMain extends Component{
 	// 仅赋义随设置与时地变;否则随机/时间起卦下会重新揲卦得另一副盘,切一次流派整盘跳变(原 bug)。
 	// 未起盘则什么都不算 —— 此时左栏改动只是下一次起卦的草稿。
 	recastPinned(){
+		// 新起的一盘还在途:挂起,等它落定按新盘的种子补排(见 clickCast)
+		if(this._freshCastSeq !== null && this._freshCastSeq !== undefined && this._freshCastSeq === this.requestSeq){
+			this._recastAfterFresh = true;
+			return;
+		}
 		const reading = this.state.result && this.state.result.reading;
 		if(!reading){ return; }
 		const seed = reading.seed;
@@ -2098,14 +2097,17 @@ class GeomancyMain extends Component{
 				</div>
 			);
 		});
+		// 栏宽不足设计宽时按设计宽排版再整体等比缩(放得下时逐像素不变):格里的拉丁图名 / 宫号不再被裁,盘心字不再越放大越小
 		return (
-			<div className="horosa-geomancy-square">
-				<div className="horosa-geomancy-shield-title">方形宫盘 · 十二宫{rtl ? ' · 自右向左' : ''}</div>
-				<div className="horosa-geomancy-sq-grid">
-					{cells}
-					{this.renderBoardCenter(reading, 'horosa-geomancy-sq-center')}
+			<XQDesignScaleBox designWidth={GEOMANCY_SQUARE_DESIGN_W} designHeight={GEOMANCY_SQUARE_DESIGN_H}>
+				<div className="horosa-geomancy-square">
+					<div className="horosa-geomancy-shield-title">方形宫盘 · 十二宫{rtl ? ' · 自右向左' : ''}</div>
+					<div className="horosa-geomancy-sq-grid">
+						{cells}
+						{this.renderBoardCenter(reading, 'horosa-geomancy-sq-center')}
+					</div>
 				</div>
-			</div>
+			</XQDesignScaleBox>
 		);
 	}
 
@@ -2127,7 +2129,7 @@ class GeomancyMain extends Component{
 			el.style.setProperty('--geo-center-k', String(Math.max(0.3, Math.round(k * 1000) / 1000)));
 		};
 		apply();
-		this._centerRO = new ResizeObserver(apply);
+		this._centerRO = createDeferredResizeObserver(apply);
 		this._centerRO.observe(el);
 	}
 
@@ -2257,7 +2259,9 @@ class GeomancyMain extends Component{
 		const mirror = (pts)=>(rtl
 			? pts.split(' ').map((s)=>{ const [x, y] = s.split(',').map(Number); return `${100 - x},${y}`; }).join(' ')
 			: pts);
+		// 栏宽不足设计宽时按设计宽 × 设计高排版再整体等比缩(放得下时逐像素不变):图名不再越出方盘、压到宫号 / 点阵上
 		return (
+			<XQDesignScaleBox designWidth={GEOMANCY_POLY_DESIGN_W} designHeight={GEOMANCY_POLY_DESIGN_H} designGutter={16}>
 			<div className={`horosa-geomancy-polychart ${opts.cls}`}>
 				<div className="horosa-geomancy-shield-title">{opts.title}{rtl ? ' · 自右向左' : ''}</div>
 				<div className="horosa-geomancy-poly-board">
@@ -2296,6 +2300,7 @@ class GeomancyMain extends Component{
 					{opts.center ? this.renderBoardCenter(reading, 'horosa-geomancy-poly-center') : null}
 				</div>
 			</div>
+			</XQDesignScaleBox>
 		);
 	}
 
@@ -2372,7 +2377,9 @@ class GeomancyMain extends Component{
 					{hasPChart ? <button type="button" className={`horosa-geomancy-switch-btn${view === 'planetwheel' ? ' is-active' : ''}`} onClick={()=>this.setCenterView('planetwheel')}>行星地占盘</button> : null}
 				</div>
 				{['wheel', 'squarehouse', 'north', 'medieval'].indexOf(view) < 0 ? this.renderPlanetHint(reading) : null}
-				<div className="horosa-geomancy-board-stage">{stage}</div>
+				{/* 方形宫盘 / 两式方盘按舞台可用高定边长:舞台挂 is-fit-height(弹性基准 0,高 = 可用高,确定值)——
+				    此前舞台按内容定基准、盘又按舞台高的百分比定边,循环依赖让结果随切换历史漂(同一窗口时而 757、时而 812,后者撑出滚动条) */}
+				<div className={`horosa-geomancy-board-stage${['squarehouse', 'north', 'medieval'].indexOf(view) >= 0 ? ' is-fit-height' : ''}`}>{stage}</div>
 			</div>
 		);
 	}
@@ -2620,13 +2627,13 @@ class GeomancyMain extends Component{
 		const r = result.reading || {};
 		if(r.structuralOnly){ return this.renderStructuralNotice(r); }
 		const houses = r.houses || [];
-		// [X1·P1-20] 读取范围真门控:L0 仅判官 / L1 +解读技法 / L2 盾牌全局(中栏恒在,解读同 L1) /
+		// 读取范围真门控:L0 仅判官 / L1 +解读技法 / L2 盾牌全局(中栏恒在,解读同 L1) /
 		// L3 +十二宫(默认,字节不变) / L4 = L3 并标注占星定局体系(黄道体系选择器所出,不臆造新层)。
 		const depth = ({ L0: 0, L1: 1, L2: 2, L3: 3, L4: 4 })[this.state.readingScope];
 		const lvl = depth === undefined ? 3 : depth;
 		return (
 			<div className="horosa-geomancy-reading">
-				{/* [X1·P1-22] 首母中止警示:后端算出而此前前端零渲染(约 1/8 盘触发) */}
+				{/* 首母中止警示:后端算出而此前前端零渲染(约 1/8 盘触发) */}
 				{r.haltedOnFirstMother ? (
 					<div className="horosa-geomancy-card" style={{ borderColor: 'var(--horosa-danger, #cf1322)' }}>
 						<div className="horosa-geomancy-card-title" style={{ color: 'var(--horosa-danger, #cf1322)' }}>⚠ 首母中止</div>
@@ -3051,7 +3058,7 @@ class GeomancyMain extends Component{
 		}
 		// [转宫] 以所选之宫为新命宫,按转宫式重算指示与完美 —— 问「他人之事」「事中之事」时用。
 		const d = r.derived;
-		const HOUSE_LABEL = ['一命', '二财', '三兄弟', '四田宅', '五子女', '六疾厄', '七夫妻', '八疾死', '九迁移', '十官禄', '十一福德', '十二玄秘'];
+		const HOUSE_LABEL = TURN_HOUSE_LABELS;
 		return (
 			<div className="horosa-geomancy-card">
 				<div className="horosa-geomancy-card-title">解读技法</div>
@@ -3274,7 +3281,7 @@ class GeomancyMain extends Component{
 		);
 	}
 
-	// [C4] 十六图 ↔ 十六主形 线形对照(静态)。中栏结构对照盘只在该流派下可见,此处让用户不切流派也能查。
+	// 十六图 ↔ 十六主形 线形对照(静态)。中栏结构对照盘只在该流派下可见,此处让用户不切流派也能查。
 	// ⚠️ 必带边界声明:独立圣传体系,仅结构同构对照,不套地占含义、不构成占断。
 	renderOduTable(figures){
 		const rows = (figures || []).filter((f)=>f && f.odu)

@@ -2,7 +2,7 @@ import * as d3 from 'd3';
 import React, { Component } from 'react';
 import {randomStr} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
-import * as Constants from '../../utils/constants';
+import { readGlobalSetupField } from '../../utils/globalSetupStore';
 import { chartDrawGuardEnabled, chartSCUEnabled } from '../../utils/perfFlags';
 import { watchChartSvgResize, watchChartAppearance } from '../../utils/chartDrawGuard';
 import { sameDisplayList, shallowPropsEqual } from '../../utils/chartUpdateGuard';
@@ -245,12 +245,8 @@ class AstroChart extends Component{
 			return this.props.showAstroMeaning === 1 || this.props.showAstroMeaning === true;
 		}
 		try{
-			const json = localStorage.getItem(Constants.GlobalSetupKey);
-			if(!json){
-				return false;
-			}
-			const cfg = JSON.parse(json);
-			return cfg && (cfg.showAstroMeaning === 1 || cfg.showAstroMeaning === true);
+			const v = readGlobalSetupField('showAstroMeaning');   // 全局设置单源的内存镜像
+			return v === 1 || v === true;
 		}catch(e){
 			return false;
 		}

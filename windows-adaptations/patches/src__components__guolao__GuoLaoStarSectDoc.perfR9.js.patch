@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/guolao/GuoLaoStarSectDoc.js b/astrostudyui/src/components/guolao/GuoLaoStarSectDoc.js
-index 3ee837b..03f8599 100644
+index 3ee837b7..03f8599a 100644
 --- a/astrostudyui/src/components/guolao/GuoLaoStarSectDoc.js
 +++ b/astrostudyui/src/components/guolao/GuoLaoStarSectDoc.js
 @@ -28,18 +28,41 @@ function Table({ head, rows }){

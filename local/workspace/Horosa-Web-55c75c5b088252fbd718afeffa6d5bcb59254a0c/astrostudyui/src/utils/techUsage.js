@@ -1,4 +1,4 @@
-// [R5 N2] 技法使用频次(设备本地)—— 预载序 / 空闲预热序按「这台机器上谁最常用」动态化。
+// 技法使用频次(设备本地)—— 预载序 / 空闲预热序按「这台机器上谁最常用」动态化。
 //
 // 病根:chunk 预载(pages/index.js startIdlePreload)、引擎空闲预热(idleWarmQueue ENGINE_WARM_IMPORTS)、
 // 排盘后数据预热(dataWarmTasks 登记序)都是写死的「全体用户首点概率序」;一个天天只用六壬的用户,

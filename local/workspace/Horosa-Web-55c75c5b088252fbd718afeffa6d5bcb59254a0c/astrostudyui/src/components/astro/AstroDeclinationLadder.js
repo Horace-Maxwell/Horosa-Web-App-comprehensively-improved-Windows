@@ -1,5 +1,6 @@
 import { Component, createRef } from 'react';
 import { astroSymbol, cardStyle } from './AstroExtraCommon';
+import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
 
 // 赤纬图（Declination graph）：赤纬非黄经，圆盘表达不了，故专门画。
 // 成熟做法（避免行星符号在赤纬密集处堆叠看不清）：
@@ -42,7 +43,7 @@ class AstroDeclinationLadder extends Component{
 		// [Tahoe 订阅补齐] 容器 RO:量的是 ref 容器宽(由外层布局决定,measure 不改它,无循环)。
 		try{
 			if(typeof ResizeObserver !== 'undefined' && this.ref.current){
-				this._hostRO = new ResizeObserver(this.measure);
+				this._hostRO = createDeferredResizeObserver(this.measure);
 				this._hostRO.observe(this.ref.current);
 			}
 		}catch(e){ this._hostRO = null; }
@@ -50,7 +51,7 @@ class AstroDeclinationLadder extends Component{
 	componentDidUpdate(){ this.measure(); }
 	componentWillUnmount(){
 		if(typeof window !== 'undefined'){ window.removeEventListener('resize', this.measure); }
-		if(this._hostRO){ try{ this._hostRO.disconnect(); }catch(e){ /* noop */ } this._hostRO = null; }
+		if(this._hostRO){ this._hostRO.disconnect(); this._hostRO = null; }
 	}
 
 	measure(){
@@ -90,7 +91,8 @@ class AstroDeclinationLadder extends Component{
 		const eqColor = 'var(--horosa-text-soft, #8a8472)';
 		const parColor = 'var(--horosa-ziwei-period-month, #2f9e44)';
 		const contraColor = 'var(--horosa-ziwei-period-hour, #e8590c)';
-		const oobColor = 'var(--horosa-ziwei-period-day, #e64980)';
+		// 出界玫色走主题语义色(亮 / 暗各一份):旧值借紫微流日色(未定义,只剩兜底 #e64980),图例行再整行 .6 透明 → 2.2:1。
+		const oobColor = 'var(--horosa-decl-oob, #e64980)';
 		const dotColor = 'var(--horosa-text, #d8d2c4)';
 
 		const ticks = [];
@@ -113,7 +115,7 @@ class AstroDeclinationLadder extends Component{
 				whiteSpace: 'nowrap', pointerEvents: 'none', lineHeight: 1,
 			};
 			const glyph = <span key="g" style={{ fontSize: GLYPH, lineHeight: 1, color: oob ? oobColor : 'inherit', fontWeight: oob ? 700 : 400 }}>{astroSymbol(it.id)}</span>;
-			const degLab = <span key="d" style={{ fontSize: DEG, opacity: 0.6 }}>{deg}</span>;
+			const degLab = <span key="d" style={{ fontSize: DEG, color: 'var(--horosa-text-secondary)' }}>{deg}</span>;
 			return (
 				<div key={side + it.id} style={style}>
 					{isNatal ? [degLab, glyph] : [glyph, degLab]}
@@ -124,7 +126,8 @@ class AstroDeclinationLadder extends Component{
 		return (
 			<div ref={this.ref} style={{ ...cardStyle, position: 'relative', height: hostH, overflow: 'hidden' }}>
 				<div style={{ position: 'absolute', top: 10, left: 0, right: 0, textAlign: 'center', fontSize: 13, fontWeight: 600, opacity: 0.85 }}>赤纬图</div>
-				<div style={{ position: 'absolute', top: 30, left: 0, right: 0, textAlign: 'center', fontSize: 11, opacity: 0.6 }}>平行<span style={{ color: parColor }}>━</span>　反平行<span style={{ color: contraColor }}>━</span>　<span style={{ color: oobColor }}>玫色＝赤纬出界</span></div>
+				{/* 图例:说明字走次级字色、色块与玫色字保持原色;不再整行乘透明度(色块与字一起被淡化到 2:1) */}
+				<div style={{ position: 'absolute', top: 30, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: 'var(--horosa-muted, #8a8472)' }}>平行<span style={{ color: parColor }}>━</span>　反平行<span style={{ color: contraColor }}>━</span>　<span style={{ color: oobColor }}>玫色＝赤纬出界</span></div>
 				<div style={{ position: 'absolute', top: 40, left: natalSpineX, transform: 'translateX(-50%)', fontSize: 13, fontWeight: 600, opacity: 0.9 }}>本命</div>
 				<div style={{ position: 'absolute', top: 40, left: progSpineX, transform: 'translateX(-50%)', fontSize: 13, fontWeight: 600, opacity: 0.9 }}>推运</div>
 				<svg width={W} height={H} style={{ position: 'absolute', left: 0, top: 0 }}>

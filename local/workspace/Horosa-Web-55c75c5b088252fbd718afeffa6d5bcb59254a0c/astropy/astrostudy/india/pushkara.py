@@ -23,7 +23,8 @@ def pushkara_flags(sign_no, lon_in_sign):
     if PUSHKARA_NAVAMSA:
         pair = PUSHKARA_NAVAMSA.get(int(sign_no))
         if pair:
-            nav_idx = int(float(lon_in_sign) // (30.0 / 9.0)) + 1
+            from astrostudy.india.primitives import segment_index
+            nav_idx = segment_index(float(lon_in_sign), 30.0 / 9.0, 9) + 1
             out['navamsa'] = nav_idx in pair
     if PUSHKARA_BHAGA:
         deg = PUSHKARA_BHAGA.get(int(sign_no))

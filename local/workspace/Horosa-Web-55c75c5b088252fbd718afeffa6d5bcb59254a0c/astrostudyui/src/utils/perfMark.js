@@ -1,4 +1,4 @@
-// [A8] 交互延迟测量架:选项改动 → 计算完成(→ 渲染提交)三段埋点。
+// 交互延迟测量架:选项改动 → 计算完成(→ 渲染提交)三段埋点。
 // 设计约束:
 //   · 零依赖、零副作用、单次开销 ≈ performance.now() 两次 + 环形缓冲一写(纳秒级),生产可常开;
 //   · kill-switch horosa.perf.interactionMarks(默认开;localStorage 置 '0' 关);
@@ -95,7 +95,6 @@ export function perfWrap(technique, option, fn){
 const STEP_START_MARK = 'horosa:step:refresh-start';
 let stepT0 = 0;
 let stepTech = '';
-let stepGen = 0;
 
 // horosa_gesture_start_v1 —— 起点的**通用**来源。
 // 给二十多个组件逐个手工补起点,既漏得快也错得快。正确的抽象是:这些交互本质上全是
@@ -120,7 +119,6 @@ function onGestureCapture(){
 	gestureTech = currentTech || '-';
 	// 手势本身也直接成为一枚起点:很多技法内部选项**不经过** changeCond,
 	// 没有任何显式起点会跟上来,此时这一枚就是唯一的起点。
-	stepGen += 1;
 	stepT0 = gestureT0;
 	stepTech = gestureTech;
 }
@@ -146,7 +144,6 @@ export function markInteractionStart(technique){
 		stepTech = tech;
 		return;
 	}
-	stepGen += 1;
 	stepT0 = nowMs();
 	stepTech = tech;
 	try{
@@ -199,7 +196,6 @@ export function perfReset(){
 	// 连同**在途的起点**一起清 —— 否则 reset 之后第一条样本会跟 reset 之前的某次点击
 	// 配对,量出一个包含「切页签+等稳定」整段的巨大首样本。
 	stepT0 = 0;
-	stepGen += 1;
 	gestureT0 = 0;
 }
 

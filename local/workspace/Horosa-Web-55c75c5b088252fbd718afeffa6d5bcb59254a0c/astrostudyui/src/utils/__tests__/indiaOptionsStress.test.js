@@ -216,15 +216,18 @@ describe('印占 选项穷举压测（normalize/默认包/AI 快照 万无一失
 		expect(withOpts.dashaSeed).toBe('lagna');
 		expect(withOpts.transitDate).toBe('2026/06/27');
 		expect(withOpts.tajakaYear).toBe(2030);
-		// [Q-128/T-36] vargaSet 已停发(后端 jyotishByVarga 前端零读者、每次响应多约 2.1 MB;齿轮同撤)
+		// vargaSet 已停发(后端 jyotishByVarga 前端零读者、每次响应多约 2.1 MB;齿轮同撤)
 		expect(withOpts.vargaSet).toBeUndefined();
 
-		// 缺省零回归:dashaSeed/transitDate/vargaSet 不进请求体;tajakaYear 回退当前年(既有默认行为)。
+		// 缺省:dashaSeed/vargaSet 不进请求体;tajakaYear 回退当前年;过运日恒下发本地今天
+		// (进前端 LRU 与后端参数缓存键 —— 跨日后不得拿到前一天的过运)。
 		const bare = fieldsToParams(baseFields);
 		expect(bare.dashaSeed).toBeUndefined();
-		expect(bare.transitDate).toBeUndefined();
+		// 「今日 / 今年」= 真实此刻按本盘时区(+08:00)换算(东八区本机上即本地今天)
+		const zNow = require('moment')().utcOffset('+08:00');
+		expect(bare.transitDate).toBe(zNow.format('YYYY/MM/DD'));
 		expect(bare.vargaSet).toBeUndefined();
-		expect(bare.tajakaYear).toBe(new Date().getFullYear());
+		expect(bare.tajakaYear).toBe(zNow.year());
 		// 默认起点 'moon' 也不下发(零 cache churn)。
 		expect(fieldsToParams({ ...baseFields, indiaDashaSeed: { value: 'moon' } }).dashaSeed).toBeUndefined();
 	});

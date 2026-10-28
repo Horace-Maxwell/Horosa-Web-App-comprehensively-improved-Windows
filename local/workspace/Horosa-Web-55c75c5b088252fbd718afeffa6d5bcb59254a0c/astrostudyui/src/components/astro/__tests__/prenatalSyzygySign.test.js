@@ -1,4 +1,4 @@
-// [Q-185/T-107] 产前朔望摘要卡:日月各按自身黄经取座(望且月在地平上的盘,月亮不是取度体时此前座为「-」、太阳恒取取度体所在座)。
+// 产前朔望摘要卡:日月各按自身黄经取座(望且月在地平上的盘,月亮不是取度体时此前座为「-」、太阳恒取取度体所在座)。
 import { signItemOfLon } from '../AstroPrenatalSyzygy';
 import { fmtDegree } from '../AstroExtraCommon';
 

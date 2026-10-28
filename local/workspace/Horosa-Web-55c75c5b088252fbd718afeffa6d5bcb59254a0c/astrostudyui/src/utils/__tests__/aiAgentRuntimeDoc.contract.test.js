@@ -10,7 +10,8 @@ import { AUTOMATION_ACTION_TYPES } from '../aiAgent/automation/actions';
 
 const DOC = path.resolve(__dirname, '..', '..', '..', '..', '..', 'docs', 'AI_AGENT_RUNTIME.md');
 const CN = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
-const read = ()=>fs.readFileSync(DOC, 'utf8');
+// 按渲染后所见来读:去掉 HTML 注释(注释里的文字渲染时不显示,不算手册内容)
+const read = ()=>fs.readFileSync(DOC, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
 
 beforeEach(()=>{ window.localStorage.clear(); __resetToolsForTests(); });
 
@@ -36,4 +37,15 @@ it('🔴 事件表 / 动作表 / 类别表:每个常量键在手册里以反引�
 	expect(catLine).toContain(`${CN[TOOL_CATEGORIES.length]}类 ${TOOL_CATEGORIES.join('/')} 各`);
 	expect(doc).not.toContain('六类 records');
 	expect(doc).not.toContain('**三个动作**');
+});
+
+it('🔴 手册与无头说明照实写明:终端人工确认与管理令牌不是安全边界(伪终端里的代理 --yes 直接过、管理令牌同账户可读)', ()=>{
+	const HEADLESS = path.resolve(path.dirname(DOC), 'HEADLESS.md');
+	const readPlain = (p)=>fs.readFileSync(p, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+	[read(), readPlain(HEADLESS)].forEach((doc)=>{
+		expect(doc).toMatch(/不是安全边界/);
+		expect(doc).toMatch(/伪终端/);
+		expect(doc).toMatch(/管理令牌/);
+		expect(doc).toMatch(/谁能在你的账户下(执行|跑)命令/);
+	});
 });

@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { responseCacheable } from '../../utils/resultEnvelope';
 import { saveDerivedAstroSnapshot } from '../../utils/derivedAstroSnapshot';
 import { classicalBackendOverridesFromFields } from '../../utils/classicalChartGlobals';
 import AstroChartMain from '../astro/AstroChartMain';
@@ -7,6 +8,7 @@ import * as Constants from '../../utils/constants';
 import { randomStr, } from '../../utils/helper';
 import styles from '../../css/styles.less';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+import { registerProcessCache } from '../../utils/processCacheRegistry';
 import { markPanelReady } from '../../utils/perfMark';
 
 function fieldsToParams(fields){
@@ -53,6 +55,7 @@ function fieldsToParams(fields){
 const CHART13_CACHE_MAX = 64;
 const chart13Mem = new Map();
 const chart13Inflight = new Map();
+registerProcessCache('hellen.chart13', ()=>{ chart13Mem.clear(); chart13Inflight.clear(); });   // 同参复用上次结果:登记清空函数(只供审计仪器取样前清空)
 
 function clonePlain(obj){
 	if(obj === undefined || obj === null){
@@ -104,7 +107,7 @@ async function fetchChart13Cached(params, silent, endpoint){
 		silent: !!silent,
 	}).then((data)=>{
 		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
-		if(key && result){
+		if(key && result && responseCacheable(data)){   // 只缓存真成功的回包(业务错误 Result.err / 顶层 err 不进缓存,判据单一出处 resultEnvelope)
 			pushCache(chart13Mem, key, clonePlain(result));
 		}
 		return result;
@@ -169,7 +172,7 @@ class AstroChart13 extends Component{
 		this.setState(st, ()=>{
 			markPanelReady('auxchart');
 		});
-		// [审计修·派生盘快照重定源] 此前导出/挂载读 astro 单例=本命盘冒充分盘;出盘即存本键快照。
+		// 此前导出/挂载读 astro 单例=本命盘冒充分盘;出盘即存本键快照。
 		try{
 			const snapKey = this.props.endpoint === 'chart12' ? 'dwadasamsa' : 'hellenastro';
 			saveDerivedAstroSnapshot(snapKey, result, this.props.fields, null);
@@ -251,8 +254,8 @@ class AstroChart13 extends Component{
 						lotsDisplay={this.props.lotsDisplay}
 						showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 						showAstroMeaning={this.props.showAstroMeaning}
-						planetListStyle={this.props.planetListStyle}   /* [Q-356/T-337] 传到底,行星列表密度改完即时生效 */
-						voidClassical={this.props.voidClassical}   /* [Q-149/T-56] 宿主链补传(格局页空亡古典义 / 仅本垣擢升互容) */
+						planetListStyle={this.props.planetListStyle}   /* 传到底,行星列表密度改完即时生效 */
+						voidClassical={this.props.voidClassical}   /* 宿主链补传(格局页空亡古典义 / 仅本垣擢升互容) */
 						showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
 					/>
 			</div>

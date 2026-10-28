@@ -1,3 +1,4 @@
+import { safeStorageSetOn } from './safeStorage';
 const WindowSizeKey = 'horosa.window.size.v1';
 const WindowSizeVersion = 1;
 const MinWidth = 640;
@@ -85,8 +86,7 @@ export function saveWindowSize(win = typeof window !== 'undefined' ? window : nu
 		return false;
 	}
 	try{
-		storage.setItem(WindowSizeKey, JSON.stringify(payload));
-		return true;
+		return safeStorageSetOn(storage, WindowSizeKey, JSON.stringify(payload));
 	}catch(e){
 		return false;
 	}

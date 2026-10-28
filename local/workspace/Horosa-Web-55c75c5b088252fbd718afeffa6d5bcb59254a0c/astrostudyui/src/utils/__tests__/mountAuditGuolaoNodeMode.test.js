@@ -1,4 +1,4 @@
-// [挂载自检 F-14·P0 / F-16] 七政无头快照:罗计换位与页面同源;宿度制白名单单源。
+// 七政无头快照:罗计换位与页面同源;宿度制白名单单源。
 // 真栈实抓背景:页面存快照前 applyGuolaoNodeMode(北罗南计=深换 NORTH/SOUTH_NODE id),无头此前喂原始 /chart result →
 // 快照 [起盘信息] 标「北罗南计」而各表罗/计仍在北计南罗位置。判别向量:把 buildGuolaoSnapshotForFields 里的
 // display 改回 result 即红(第二例);把白名单改回 [0..7] 即红(第三例)。

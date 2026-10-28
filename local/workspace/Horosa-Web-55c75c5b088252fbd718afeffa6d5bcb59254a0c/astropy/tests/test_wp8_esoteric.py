@@ -1,4 +1,4 @@
-# [WP-8] 灵学扩展双向量锚(祝融星两法)。
+# 灵学扩展双向量锚(祝融星两法)。
 from astrostudy.perchart import PerChart
 
 BASE = {'date': '1991/08/21', 'time': '14:30:00', 'zone': '+08:00', 'lat': '31n14', 'lon': '121e28'}

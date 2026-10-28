@@ -1,4 +1,4 @@
-// 八卦阳宅法计算内核单测：卦位映射 / 成員动态定義 / 64卦合成 / 应期成格 / 排位升降 / 形神。
+// 八卦阳宅法计算内核单测：卦位映射 / 成员动态定义 / 64卦合成 / 应期成格 / 排位升降 / 形神。
 import { degreeToGua, resolveMemberRole, composeHexagram, computeTiming, guaByDir, computeRankShift, namePositionRelation, guaBySectorNum, SECTOR_NUM_TO_GUA } from '../baguaCore';
 
 describe('degreeToGua — 8卦各45°铺满，必落卦无无人带', () => {
@@ -40,7 +40,7 @@ describe('guaByDir — 8 方位 → 卦', () => {
 	});
 });
 
-describe('resolveMemberRole — 成員动态定義 9 条 + 优先级短路', () => {
+describe('resolveMemberRole — 成员动态定义 9 条 + 优先级短路', () => {
 	test('有子女最高优先（盖过已婚与兄姐数）', () => {
 		expect(resolveMemberRole({ sex: 'M', hasChildren: true, married: false })).toEqual({ role: '父', benmingGua: '乾' });
 		expect(resolveMemberRole({ sex: 'F', hasChildren: true, married: true, olderSistersUnmarried: 5 })).toEqual({ role: '母', benmingGua: '坤' });

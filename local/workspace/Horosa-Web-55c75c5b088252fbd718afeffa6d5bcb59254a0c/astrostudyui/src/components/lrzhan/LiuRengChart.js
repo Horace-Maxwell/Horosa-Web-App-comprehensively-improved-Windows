@@ -6,6 +6,7 @@ import {randomStr, setupFloatingTooltip} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import RengChart from './RengChart';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
+import { inZoomChangeFrame } from '../../utils/zoomSyncRemeasure';
 
 class LiuRengChart extends Component{
 	constructor(props) {
@@ -39,6 +40,7 @@ class LiuRengChart extends Component{
 			onMetaInfoClick: this.openMetaDialog,
 			chartType: this.props.chartType,
 			compactPreview: this.props.compactPreview,
+			timeAlg: this.props.timeAlg,
 		};
 		this.rengchart = new RengChart(opt);
 
@@ -51,9 +53,9 @@ class LiuRengChart extends Component{
 	// [PERF-R9 Ship 6] 盘面组件 sCU —— 与 DunJiaBoard 同范式,但比它更保守:
 	//   · 本组件自身 state 变(metaDialog 开合)→ 恒重渲;
 	//   · props 只要有任一项变(wrapperPropsEqual 全键机械浅比,函数型视为恒等)→ 恒重渲,
-	//     故 componentDidUpdate 里那 10 项 props 的 d3 重画判据【一次都不会被吞掉】(props 变必渲,
+	//     故 componentDidUpdate 里那 11 项 props 的 d3 重画判据【一次都不会被吞掉】(props 变必渲,
 	//     渲了 didUpdate 必跑,判据原样)。本 sCU 只吃掉「props 与 state 都没变」的那种纯冗余重渲
-	//     —— 那种情况下旧代码走完 render 后 componentDidUpdate 的 10 项比较也全等、什么都不做,
+	//     —— 那种情况下旧代码走完 render 后 componentDidUpdate 的 11 项比较也全等、什么都不做,
 	//     即跳过前后行为逐字节一致(只少付一次 svg+Modal 的 reconcile)。
 	//   · 触发源:父组件 LiuRengMain/SanShiUnitedMain 因右栏子页签、选中态、loading 等无关 state
 	//     重渲时会带着完全相同的 props 下来,而六壬主盘是本族最重的 DOM。
@@ -124,6 +126,7 @@ class LiuRengChart extends Component{
 		this.rengchart.onMetaInfoClick = this.openMetaDialog;
 		this.rengchart.chartType = this.props.chartType;
 		this.rengchart.compactPreview = !!this.props.compactPreview;
+		this.rengchart.timeAlg = this.props.timeAlg;
 
 		this.rengchart.draw();
 	}
@@ -148,6 +151,8 @@ class LiuRengChart extends Component{
 		const svgdom = document.getElementById(this.state.chartid);
 		if(svgdom && svgdom.parentNode && typeof window !== 'undefined' && typeof window.ResizeObserver === 'function'){
 			this.hostResizeObserver = new window.ResizeObserver(()=>{
+				// 换档当帧就地重画(观察的是宿主,重画只改 svg —— 不回到被观察的宿主),首帧即按终值排;其余时候照旧排进下一帧
+				if(inZoomChangeFrame()){ this.safeDrawChart(); return; }
 				this.handleResize();
 			});
 			this.hostResizeObserver.observe(svgdom.parentNode);
@@ -166,6 +171,7 @@ class LiuRengChart extends Component{
 			|| prevProps.guireng !== this.props.guireng
 			|| prevProps.castOverride !== this.props.castOverride
 			|| prevProps.panStyleName !== this.props.panStyleName
+			|| prevProps.timeAlg !== this.props.timeAlg
 			|| prevProps.chartType !== this.props.chartType
 			|| prevProps.compactPreview !== this.props.compactPreview){
 			this.safeDrawChart();

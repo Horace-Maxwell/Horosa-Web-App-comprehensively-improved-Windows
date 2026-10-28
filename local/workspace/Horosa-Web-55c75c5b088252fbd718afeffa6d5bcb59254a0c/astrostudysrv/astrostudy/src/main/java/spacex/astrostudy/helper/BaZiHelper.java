@@ -711,7 +711,7 @@ public class BaZiHelper {
 		int ganremainder = YearGanRemainderInv.get(gan);
 		int ziremainder = YearZiRemainderInv.get(zi);
 		
-		// [Q-304/T-294] 公元前:显示年为负(无 0 年,BC1=-1),干支按天文年(BC 年 +1)取正余数(floorMod);
+		// 公元前:显示年为负(无 0 年,BC1=-1),干支按天文年(BC 年 +1)取正余数(floorMod);
 		// 此前 year % 10 对负年得负余数永远匹配不上(除庚申),一直递减到 int 回卷(约 21 亿次)才命中 → 请求线程空转。
 		int year = fromyear;
 		int ganrem = Math.floorMod(year < 0 ? year + 1 : year, 10);
@@ -870,7 +870,7 @@ public class BaZiHelper {
 			}else {
 				fromyear += 60;
 			}			
-			// [Q-304] 上界:最多扫 200 个六十年窗(1.2 万年);此前 cnt 达上限后仍可能写越界,且 date 恒 null 时无限循环
+			// 上界:最多扫 200 个六十年窗(1.2 万年);此前 cnt 达上限后仍可能写越界,且 date 恒 null 时无限循环
 			if(++windows > 200) { break; }
 		}while(cnt < count);
 		

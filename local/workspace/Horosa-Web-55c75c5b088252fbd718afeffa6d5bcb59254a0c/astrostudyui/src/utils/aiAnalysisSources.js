@@ -6,12 +6,13 @@
 // 语义上也正确 —— 本模块只依赖 localcharts/localcases 两个轻存储层,零技法构建器。
 // aiAnalysisContext 反向 re-export listAnalysisSources 保兼容(旧 import 路径不破)。
 //
-// [P0-S2] 指纹缓存(开关 horosa.perf.sourcesCache,默认开):
+// 指纹缓存(开关 horosa.perf.sourcesCache,默认开):
 // - 每条记录按「entry 构造实际读到的字段」拼指纹;命中即复用上次的 entry 对象(免 normalizeTags /
 //   extractCaseSnapshotText 的 JSON 解析),未命中才构建;缓存 Map 每次调用整体换代(消失的记录自然掉出)。
 // - 记录集(序列+对象)与上次逐元素相同 → 返回同一数组引用(setState 同引用免重渲)。
 // - findAnalysisSourceById 单条经内核 cid 索引 O(1) 查找,返回与列表同一 entry 对象。
 // 关=每次全建新数组/新 entry(旧行为)。输出内容两态逐字段相同(参考实现对拍测试看守)。
+import { parseDateTimeMs } from './dateTimeParse';
 import { getCaseTypeLabel, getCaseTypeMeta, listLocalCases, getLocalCase } from './localcases';
 import { listLocalCharts, getLocalChart } from './localcharts';
 import { sourcesCacheEnabled } from './perfFlags';
@@ -25,6 +26,15 @@ export function safeParseJson(txt, defVal = null){
 	}catch(e){
 		return defVal;
 	}
+}
+
+// 记录 payload 两种形态都认:库里存的是 JSON 串,内存里新建 / 合成的记录常是对象 ——
+// 此前 safeParseJson(record.payload) 遇对象必解析失败(JSON.parse 一个对象恒抛)返回 null,整份存档当没有
+export function parseRecordPayload(raw){
+	if(raw && typeof raw === 'object'){
+		return raw;
+	}
+	return typeof raw === 'string' && raw ? safeParseJson(raw, null) : null;
 }
 
 export function normalizeTags(group){
@@ -111,7 +121,7 @@ export function summarizeCasePayload(record, payload){
 }
 
 export function extractCaseSnapshotText(record){
-	const payload = safeParseJson(record.payload, null);
+	const payload = parseRecordPayload(record.payload);
 	if(!payload){
 		return {
 			content: summarizeCasePayload(record, null),
@@ -179,9 +189,9 @@ function buildCaseEntry(item){
 	};
 }
 
-// 排序键与旧比较器同源:Date.parse(updatedAt || time) || 0,倒序;稳定排序下平局按输入序(命盘在前、事盘在后)。
+// 排序键与旧比较器同源:parseDateTimeMs(updatedAt || time) || 0,倒序;稳定排序下平局按输入序(命盘在前、事盘在后)。
 function entryTs(entry){
-	return Date.parse(entry.updatedAt || entry.time || '') || 0;
+	return parseDateTimeMs(entry.updatedAt || entry.time || '') || 0;
 }
 
 // ---- 指纹缓存 ----

@@ -35,7 +35,7 @@ export function slugToolName(server, tool){
 }
 
 // 准入判定:回 { ok, name, level, reason };只读判据在前,命名闸在后(名字合规但会写的一样拒)
-// [Q-292/M-106] 两档语义(此前两档准入条件完全相同、开关只改拒绝文案,且清单里的写工具按只读级自动执行):
+// 两档语义(此前两档准入条件完全相同、开关只改拒绝文案,且清单里的写工具按只读级自动执行):
 //   只读档(readOnlyOnly≠false,缺省):只准入声明 annotations.readOnlyHint===true 的工具,允许清单**不**放行写工具;
 //   按清单档:readOnlyHint 工具照常准入(level read),清单内未声明只读的工具按写入级(level additive)注册 → 走写入级审批,不自动执行。
 //   壳侧 mcp_client.rs::admit_tool 同一规则(最后一跳也成立)。
@@ -74,7 +74,7 @@ export function registerExternalTools(spec, tools){
 		try{
 			registerTool({
 				name: verdict.name,
-				level: verdict.level || 'read',   // [Q-292] 清单放行的写工具按写入级注册(审批档按写入级判)
+				level: verdict.level || 'read',   // 清单放行的写工具按写入级注册(审批档按写入级判)
 				category: 'external',
 				origin: 'external',
 				undoKind: 'none',
@@ -96,7 +96,7 @@ export function registerExternalTools(spec, tools){
 	return { registered, rejected };
 }
 
-// [R5] 外部 schema 先消毒再交 Ajv:外部服务器给的 inputSchema 是敌意输入(200 层嵌套 / 灾难性回溯 pattern / 自引用 $ref / 一万个属性)。
+// 外部 schema 先消毒再交 Ajv:外部服务器给的 inputSchema 是敌意输入(200 层嵌套 / 灾难性回溯 pattern / 自引用 $ref / 一万个属性)。
 // 规则:深度封顶(根=1,≥EXTERNAL_SCHEMA_MAX_DEPTH 的节点不再描述内部)、剥全部校验/引用类关键字(pattern/format/$ref/dependencies…)、
 // 键数封顶、enum 封顶、字符串关键字封长;一律包成顶层封闭对象(Ajv removeAdditional 才有依据)。正常 schema 原样通过(R5b)。
 export const EXTERNAL_SCHEMA_MAX_DEPTH = 6;
@@ -156,7 +156,7 @@ export function unregisterExternalTools(spec){
 	return n;
 }
 
-// [Q-294/M-109·AR-16] 页面注册表里这台服务器已注册的工具数:壳侧连接跨页面刷新存活、注册表却是页面内存 → 刷新后「已连接」但 AI 一个工具都没有;
+// 页面注册表里这台服务器已注册的工具数:壳侧连接跨页面刷新存活、注册表却是页面内存 → 刷新后「已连接」但 AI 一个工具都没有;
 //   面板据此把绿标降级为「工具未载入」并提示重新检测(不在挂载时自动重连:connect 会断开重开进程,属出站副作用,须用户点)
 export function externalToolsRegisteredFor(spec){
 	const prefix = slugToolName((spec && (spec.id || spec.name)) || 'ext', '').replace(/_+$/, '');

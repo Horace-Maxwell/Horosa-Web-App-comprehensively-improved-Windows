@@ -1,8 +1,16 @@
 diff --git a/astrostudyui/src/utils/localRecordStore.js b/astrostudyui/src/utils/localRecordStore.js
-index b1b965ff..e47550ac 100644
+index 43eb0c84..a8de103f 100644
 --- a/astrostudyui/src/utils/localRecordStore.js
 +++ b/astrostudyui/src/utils/localRecordStore.js
-@@ -386,7 +386,18 @@ export function createLocalRecordStore(config){
+@@ -469,6 +469,7 @@ export function createLocalRecordStore(config){
+ 		if(raw !== null && raw === lastRawText && lastParsedList){
+ 			return lastParsedList.slice();
+ 		}
++		noteRawSeenForVersion(raw);
+ 		const ary = safeParseJson(raw, CORRUPT);
+ 		if(!(ary instanceof Array)){
+ 			// 键在、内容却解析不出 / 不是数组(截断、手改、外部工具误写):不能当空库 —— 当空,下一次保存就把原内容
+@@ -572,7 +573,34 @@ export function createLocalRecordStore(config){
  	// 改为如实返回 { persisted, reason:'ok'|'memory-mode'|'quota'|'storage-error' }:
  	// - quota 终败**不再粘死内存模式**(用户删几条/清缓存后下一次写自动重试真储存);
  	// - memory-mode / storage-error 走降级事件+横幅(会话内数据仍可用,不逐次弹错)。
@@ -16,15 +24,31 @@ index b1b965ff..e47550ac 100644
 +	function getWriteVersion(){
 +		return writeVersion;
 +	}
++	// 读侧补位:主存键也会不经 writeRaw 变内容 —— 别的窗口写库、影子副本对账写回、坏主存从空库重来(readRaw 内直写 '[]')。
++	// readRaw 未命中读缓存、拿到与上次所见不同的原串时同样自增;首次读只记底不自增(冷启首键不白失效)。
++	// 只在未命中路径比对,不加轮询;原串不变则不自增(主存键缺失时每次都走未命中,也不会反复自增)。
++	let versionSeenRaw = null;
++	let versionSeenInit = false;
++	function noteRawSeenForVersion(raw){
++		if(!versionSeenInit){
++			versionSeenInit = true;
++			versionSeenRaw = raw;
++			return;
++		}
++		if(raw !== versionSeenRaw){
++			versionSeenRaw = raw;
++			writeVersion += 1;
++		}
++	}
  	function writeRaw(list){
 +		writeVersion += 1; // 所有写路径(含内存回退)都经此,先自增再落盘
  		const next = list instanceof Array ? list.slice() : [];
  		memoryList = next;
  		if(fallbackToMemoryStore){
-@@ -1023,5 +1034,5 @@ export function createLocalRecordStore(config){
- 		cidIndexOf = null;
+@@ -1646,5 +1674,5 @@ export function createLocalRecordStore(config){
+ 		trashWriteLocked = false;
  	}
  
--	return { list, listTags, getPaged, getByCid, upsert, remove, setPin, moveRecord, setFlag, setTags, touchRecord, exportBackup, importBackup, validateBackupEnvelope, previewImportBackup, getHealth, listTrash, restoreFromTrash, purgeTrashItem, clearTrash, __resetForTests };
-+	return { list, listTags, getPaged, getByCid, upsert, remove, setPin, moveRecord, setFlag, setTags, touchRecord, exportBackup, importBackup, validateBackupEnvelope, previewImportBackup, getHealth, listTrash, restoreFromTrash, purgeTrashItem, clearTrash, __resetForTests, getWriteVersion };
+-	return { list, listTags, getPaged, getByCid, upsert, remove, setPin, moveRecord, setFlag, setTags, touchRecord, exportBackup, importBackup, validateBackupEnvelope, previewImportBackup, getHealth, listTrash, countLiveTrash, restoreFromTrash, restoreRecord, restoreFromDeletedLog, purgeTrashItem, clearTrash, backfillMissingField, countMissingField, __resetForTests };
++	return { list, listTags, getPaged, getByCid, upsert, remove, setPin, moveRecord, setFlag, setTags, touchRecord, exportBackup, importBackup, validateBackupEnvelope, previewImportBackup, getHealth, listTrash, countLiveTrash, restoreFromTrash, restoreRecord, restoreFromDeletedLog, purgeTrashItem, clearTrash, backfillMissingField, countMissingField, __resetForTests, getWriteVersion };
  }

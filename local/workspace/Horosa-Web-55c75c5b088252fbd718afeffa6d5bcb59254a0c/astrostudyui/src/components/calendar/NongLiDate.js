@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { leapPrefix } from '../../utils/lunarText';
 import { Row, Col, Popover, } from 'antd';
 import { randomStr } from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
@@ -80,10 +81,7 @@ class NongLiDate extends Component{
 	}
 
 	genPopContent(date){
-		let month = date.month;
-		if(date.leap){
-			month = '闰' + month;
-		}
+		let month = `${leapPrefix(date)}${date.month}`;
 
 		let mt = '';
 		if(date.dayInt === 1){

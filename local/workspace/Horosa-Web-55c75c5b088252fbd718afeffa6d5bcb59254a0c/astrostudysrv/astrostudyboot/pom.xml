@@ -12,6 +12,7 @@
         <maven-jar-plugin.version>3.2.2</maven-jar-plugin.version>
 	</properties>
 
+	<!-- 升级时同步改聚合 pom(../pom.xml)的 spring-boot.version:库模块按同一版本管理依赖 -->
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
@@ -30,24 +31,6 @@
 		<dependency>
 			<groupId>spacex</groupId>
 			<artifactId>astrostudycn</artifactId>
-			<version>1.0.0</version>
-		</dependency>
-
-		<dependency>
-			<groupId>spacex</groupId>
-			<artifactId>astrodeeplearn</artifactId>
-			<version>1.0.0</version>
-		</dependency>
-
-		<dependency>
-			<groupId>spacex</groupId>
-			<artifactId>astroreader</artifactId>
-			<version>1.0.0</version>
-		</dependency>
-
-		<dependency>
-			<groupId>spacex</groupId>
-			<artifactId>astroesp</artifactId>
 			<version>1.0.0</version>
 		</dependency>
 

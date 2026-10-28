@@ -29,7 +29,7 @@ def _koch_cusps(jd, lat, lon):
 
 
 def crossings_of(kc, natal, max_age=72):
-    """[Q-184/T-103] 关键岁数(合本命)连续解:年龄点在每宫内按黄道跨度线性插值,对每颗本命星求其被穿越的精确岁数
+    """关键岁数(合本命)连续解:年龄点在每宫内按黄道跨度线性插值,对每颗本命星求其被穿越的精确岁数
     (age = 6·宫序 + 6·宫内弧比),72 年一周后按周期外推至 max_age。此前只在整岁取点、±1° 判合 → 穿越时刻不在整岁
     邻域即漏报(种子盘报 3 次实际 7 次)。返回按岁数升序的 [{age, aspectTo, apLon}]。"""
     out = []
@@ -59,7 +59,7 @@ def compute(perchart, max_age=72):
     chart = perchart.getChart()
     jd = chart.date.jd
     asc, kc = _koch_cusps(jd, perchart.pos.lat, perchart.pos.lon)
-    # [Q-361/T-342] 恒星黄道盘:houses_ex2 出的 Koch 宫头恒为回归黄经,而本命星取自 PerChart(恒星黄经)→ 两组经度相差岁差值
+    # 恒星黄道盘:houses_ex2 出的 Koch 宫头恒为回归黄经,而本命星取自 PerChart(恒星黄经)→ 两组经度相差岁差值
     # 互比,合本命岁数与落座全部失真。以盘上升点(与盘同黄道)对回归上升点之差作偏移,把宫头/上升点/年龄点整体换到盘黄道;
     # 回归盘偏移≈0(仅浮点噪声),结果逐字同旧。
     try:
@@ -100,7 +100,7 @@ def compute(perchart, max_age=72):
             'aspect': None,
             'cuspCrossing': frac == 0.0,        # 进入新宫的整岁
         })
-    # [Q-184/T-103] 合本命按连续穿越解标到所在整岁行(aspectAge=精确岁数;同一岁多颗 → aspects 列表,aspectTo 取首颗)
+    # 合本命按连续穿越解标到所在整岁行(aspectAge=精确岁数;同一岁多颗 → aspects 列表,aspectTo 取首颗)
     crossings = crossings_of(kc, natal, max_age)
     for c in crossings:
         idx = int(c['age'])

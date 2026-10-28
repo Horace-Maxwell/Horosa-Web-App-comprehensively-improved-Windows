@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# [U-I G1] locale 兜底:GUI(LaunchServices)拉起的进程通常无 LANG——非 ASCII(中文
+# locale 兜底:GUI(LaunchServices)拉起的进程通常无 LANG——非 ASCII(中文
 # 用户名)home 路径在 Java/Python 子进程里有编解码风险;仅缺失时兜底,不覆盖显式设置。
 if [ -z "${LANG:-}" ]; then export LANG=zh_CN.UTF-8; fi
 
@@ -26,13 +26,27 @@ else
   STARTUP_TIMEOUT="${HOROSA_STARTUP_TIMEOUT:-300}"
 fi
 SKIP_UI_BUILD="${HOROSA_SKIP_UI_BUILD:-0}"
+# 只起后端、不要网页前端(./horosa 无头模式:它不用网页,新克隆也还没建过前端产物)
+SKIP_UI_CHECK="${HOROSA_SKIP_UI_CHECK:-0}"
 SKIP_RUNTIME_WARMUP="${HOROSA_SKIP_RUNTIME_WARMUP:-0}"
 CHART_PORT="${HOROSA_CHART_PORT:-8899}"
 BACKEND_PORT="${HOROSA_SERVER_PORT:-9999}"
 # pid 文件名带端口后缀=会话隔离(双实例/快切用户共用同一共享树时,固定名互覆 →
 # 停服杀错对方实例或漏杀自己留僵尸;与 stop_horosa_local.sh 同一命名约定)。
-PY_PID_FILE="${ROOT}/.horosa_py.${CHART_PORT}.pid"
-JAVA_PID_FILE="${ROOT}/.horosa_java.${BACKEND_PORT}.pid"
+# pid 文件放哪:本目录对当前账户可写(单账户机 / 安装者本人)就放本目录,与以往相同;
+# 多账户机上其他账户只读加载共享运行环境,写不进 → 落到本账户自己的缓存目录(按本目录路径分子目录,
+# 不同运行环境互不串)。HOROSA_PID_DIR 显式给出时以它为准。stop 脚本与桌面壳(启动前的预停检查)用同一规则。
+# [pid-dir:begin]
+if [ -n "${HOROSA_PID_DIR:-}" ]; then
+  PID_DIR="${HOROSA_PID_DIR}"
+elif [ -w "${ROOT}" ]; then
+  PID_DIR="${ROOT}"
+else
+  PID_DIR="${HOME:-${TMPDIR:-/tmp}}/Library/Caches/horosa-run/${ROOT//\//_}"
+fi
+# [pid-dir:end]
+PY_PID_FILE="${PID_DIR}/.horosa_py.${CHART_PORT}.pid"
+JAVA_PID_FILE="${PID_DIR}/.horosa_java.${BACKEND_PORT}.pid"
 DESKTOP_MONGO_OPTIONAL="${HOROSA_DESKTOP_MONGO_OPTIONAL:-1}"
 # 本地文档缓存必须每用户独立:放共享树会让多用户并发读写同一 JSON(无文件锁)互踩。
 MONGO_FALLBACK_DIR="${HOROSA_MONGO_FALLBACK_DIR:-${HOME}/.horosa-cache/mongo-fallback}"
@@ -47,7 +61,7 @@ DESKTOP_MONGO_SKIP_PING="${HOROSA_DESKTOP_MONGO_SKIP_PING:-0}"
 DESKTOP_SPRING_LAZY_INIT="${HOROSA_DESKTOP_SPRING_LAZY_INIT:-1}"
 DESKTOP_JAVA_FAST_START="${HOROSA_DESKTOP_JAVA_FAST_START:-1}"
 DESKTOP_JAVA_EXTRA_TOOL_OPTIONS="${HOROSA_DESKTOP_JAVA_EXTRA_TOOL_OPTIONS:--XX:+UseSerialGC -Xverify:none -Xms128m -Xmx512m}"
-# [V-5] 软 OOM 转硬死:JVM 默认 OOM 后进程苟活(抛 OOM 的线程死、身份线程仍答)——
+# 软 OOM 转硬死:JVM 默认 OOM 后进程苟活(抛 OOM 的线程死、身份线程仍答)——
 # 看门狗探针恒 Ok,业务却半死。ExitOnOutOfMemoryError 让 OOM 即进程退 → TcpDead →
 # 既有看门狗 40s 内自动拉起(前端自动换根+恢复提示)。HOROSA_JAVA_EXIT_ON_OOM=0 关。
 if [ "${HOROSA_JAVA_EXIT_ON_OOM:-1}" = "1" ]; then
@@ -71,6 +85,9 @@ if [ -z "${HOROSA_PYTHON:-}" ]; then
 fi
 if [ -z "${HOROSA_JAVA_BIN:-}" ] && [ -x "${ROOT_PARENT}/runtime/mac/java/bin/java" ]; then
   JAVA_BIN="${ROOT_PARENT}/runtime/mac/java/bin/java"
+elif [ -z "${HOROSA_JAVA_BIN:-}" ] && [ -x "${ROOT_PARENT}/.runtime/mac/java/bin/java" ]; then
+  # ./horosa setup 在没有 Homebrew 时直接下载的 JDK 落在 .runtime/mac/java(与网页版启动器同一位置)
+  JAVA_BIN="${ROOT_PARENT}/.runtime/mac/java/bin/java"
 fi
 
 if [ ! -f "${HTML_PATH}" ]; then
@@ -79,6 +96,7 @@ fi
 
 mkdir -p "${LOG_DIR}"
 mkdir -p "${DIAG_DIR}"
+mkdir -p "${PID_DIR}"
 mkdir -p "$(dirname "${DIAG_FILE}")"
 
 diag_log() {
@@ -185,8 +203,8 @@ cleanup_stale_pid_file() {
 
 # glob 清理所有会话的死 pid 文件(含旧版无后缀名与其他端口后缀;只清「pid 已死」的,
 # 另一实例活着的 pid 文件原样保留)。
-for stale_pid_file in "${ROOT}"/.horosa_py.pid "${ROOT}"/.horosa_java.pid \
-  "${ROOT}"/.horosa_py.*.pid "${ROOT}"/.horosa_java.*.pid "${ROOT}"/.horosa_web.*.pid; do
+for stale_pid_file in "${PID_DIR}"/.horosa_py.pid "${PID_DIR}"/.horosa_java.pid \
+  "${PID_DIR}"/.horosa_py.*.pid "${PID_DIR}"/.horosa_java.*.pid "${PID_DIR}"/.horosa_web.*.pid; do
   [ -e "${stale_pid_file}" ] || continue
   cleanup_stale_pid_file "${stale_pid_file}"
 done
@@ -413,7 +431,10 @@ java_bin_ready() {
   # 返回非零的桩——于是即使内置 java 完全可执行（ARM64 17.x），探测也被该桩拖成失败，
   # 叠加 REQUIRE_EMBEDDED_RUNTIME 严格模式 → 误报 "java runtime not found"，软件起不来。
   # 该 python 包装并无超时等额外保护，与直接 `java -version` 行为等价，故移除该脆弱依赖。
-  "${java_bin}" -version >/dev/null 2>&1
+  # 版本要 17+(后端 jar 按 17 编译;PATH 上的 8 / 11 能跑 -version 但起不来服务)
+  local ver
+  ver="$("${java_bin}" -version 2>&1 | sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' | head -n 1)" || ver=""
+  [ -n "${ver}" ] && [ "${ver}" -ge 17 ] 2>/dev/null
 }
 
 resolve_java_bin() {
@@ -694,7 +715,7 @@ reclaim_or_block_pid_file() {
   fi
   local cmd
   cmd="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
-  if printf '%s\n' "${cmd}" | grep -Eq "${sig}"; then
+  if grep -Eq "${sig}" <<< "${cmd}"; then
     diag_log "reclaim own live backend pid=${pid} (${pid_file}) sig=${sig}"
     kill -9 "${pid}" >/dev/null 2>&1 || true
     rm -f "${pid_file}"
@@ -742,7 +763,7 @@ reclaim_stale_port() {
   port_listening "${port}" && return 1 || return 0
 }
 
-# [S2] 双端口回收并行:两次 netstat 互不依赖,并行省一截串行等待(语义逐口不变,exit 3 照旧)。
+# 双端口回收并行:两次 netstat 互不依赖,并行省一截串行等待(语义逐口不变,exit 3 照旧)。
 reclaim_stale_port "${CHART_PORT}" "webchartsrv" &
 _rc_chart_pid=$!
 reclaim_stale_port "${BACKEND_PORT}" "astrostudyboot" &
@@ -787,31 +808,40 @@ fi
 ledger_log sh.java_mode "{\"exploded\":${JAVA_EXPLODED_MODE}}"
 
 if [ "${JAVA_EXPLODED_MODE}" != "1" ] && [ -f "${BUNDLE_JAR}" ]; then
-  if [ ! -f "${JAR}" ]; then
+  # 运行环境对当前账户只读(多账户机上的其他账户):不往里拷 jar,直接用随包 jar 启动(内容相同)。
+  # 拷出来的 jar 不再放开给所有账户写(那等于让别的账户改你要执行的代码),按本账户 umask 落盘即可。
+  JAR_DIR="$(dirname "${JAR}")"
+  _jar_parent="${JAR_DIR}"
+  while [ ! -d "${_jar_parent}" ] && [ "${_jar_parent}" != "/" ]; do _jar_parent="$(dirname "${_jar_parent}")"; done
+  if [ ! -f "${JAR}" ] && [ ! -w "${_jar_parent}" ]; then
+    diag_log "runtime tree read-only for this account, launching bundled jar in place: ${BUNDLE_JAR}"
+    JAR="${BUNDLE_JAR}"
+  elif [ ! -f "${JAR}" ]; then
     diag_log "target jar missing, fallback to bundled jar: ${BUNDLE_JAR}"
     echo "backend target jar missing, using bundled jar fallback."
-    if ! mkdir -p "$(dirname "${JAR}")"; then
-      diag_log "jar dir create FAILED (权限/磁盘?): $(dirname "${JAR}") — 多用户场景需 postinstall a+rwX"
-      echo "cannot create jar dir (permission/disk?): $(dirname "${JAR}")"
+    if ! mkdir -p "${JAR_DIR}"; then
+      diag_log "jar dir create FAILED (权限/磁盘?): ${JAR_DIR}"
+      echo "cannot create jar dir (permission/disk?): ${JAR_DIR}"
       exit 1
     fi
     if ! cp -f "${BUNDLE_JAR}" "${JAR}"; then
-      diag_log "jar copy FAILED (磁盘满/权限?): ${BUNDLE_JAR} -> ${JAR} (df: $(df -h "$(dirname "${JAR}")" 2>/dev/null | tail -1 || true))"
+      diag_log "jar copy FAILED (磁盘满/权限?): ${BUNDLE_JAR} -> ${JAR} (df: $(df -h "${JAR_DIR}" 2>/dev/null | tail -1 || true))"
       echo "cannot copy backend jar (disk full / permission denied?)"
       rm -f "${JAR}" 2>/dev/null || true
       exit 1
     fi
-    # 多用户机权限延续:首拷 jar/目录按本用户 umask 归私有,别的用户会卡在上方两个分支。
-    chmod a+rwX "$(dirname "${JAR}")" 2>/dev/null || true
-    chmod a+rw "${JAR}" 2>/dev/null || true
   elif [ "${BUNDLE_JAR}" -nt "${JAR}" ] && ! cmp -s "${BUNDLE_JAR}" "${JAR}"; then
-    diag_log "bundled jar newer than target jar, refreshing target from bundle"
-    if ! cp -f "${BUNDLE_JAR}" "${JAR}"; then
-      diag_log "jar refresh FAILED (磁盘满/权限?): ${BUNDLE_JAR} -> ${JAR}"
-      echo "cannot refresh backend jar (disk full / permission denied?)"
-      exit 1
+    if [ ! -w "${JAR}" ] || [ ! -w "${JAR_DIR}" ]; then
+      diag_log "bundled jar newer than target jar but target read-only for this account, launching bundled jar in place"
+      JAR="${BUNDLE_JAR}"
+    else
+      diag_log "bundled jar newer than target jar, refreshing target from bundle"
+      if ! cp -f "${BUNDLE_JAR}" "${JAR}"; then
+        diag_log "jar refresh FAILED (磁盘满/权限?): ${BUNDLE_JAR} -> ${JAR}"
+        echo "cannot refresh backend jar (disk full / permission denied?)"
+        exit 1
+      fi
     fi
-    chmod a+rw "${JAR}" 2>/dev/null || true
   fi
 fi
 if [ "${JAVA_EXPLODED_MODE}" != "1" ] && [ ! -f "${JAR}" ]; then
@@ -853,7 +883,7 @@ if [ -n "${PY_ROOT}" ] && [ -f "${PY_ROOT}/Python" ] && [ -d "${PY_ROOT}/lib" ];
   diag_log "python launch isolation enabled for embedded runtime: ${PY_ROOT}"
 fi
 
-# [S2] PY_MINOR 探测下沉:嵌入式隔离(PYTHON_LAUNCH_NOUSERSITE=1,桌面 trusted 常态)下
+# PY_MINOR 探测下沉:嵌入式隔离(PYTHON_LAUNCH_NOUSERSITE=1,桌面 trusted 常态)下
 # EXTRA_PY_SITE 根本不进 PYTHONPATH —— 旧式无条件 spawn 一次 python 纯属白付(~50-80ms)。
 # 仅非隔离(dev 系统 python)才探测用户 site 目录;行为对两种模式逐字节不变。
 if [ "${PYTHON_LAUNCH_NOUSERSITE}" != "1" ]; then
@@ -894,7 +924,7 @@ trap cleanup_on_fail EXIT
 launch_detached() {
   local log_file="$1"
   shift
-  # [R5 S3] 原生脱离(缺省):bash 作业控制把子进程放进自己的进程组(与原「新会话」在信号隔离上等价:
+  # 原生脱离(缺省):bash 作业控制把子进程放进自己的进程组(与原「新会话」在信号隔离上等价:
   # 脚本退出 / 壳对脚本的任何信号都不会波及后端;后端仍由 pid 文件 + stop 脚本收,退出零残留不变),
   # stdin/stdout/stderr 全部改接日志文件(不继承壳的管道,壳 output() 不会被拖住)。
   # 为什么:原路径为拉起 Java 专门起一个完整内嵌 Python 只调一次 Popen,本次启动首次拉起解释器的冷成本
@@ -941,7 +971,7 @@ pid_alive() {
   kill -0 "${pid}" >/dev/null 2>&1
 }
 
-# [S1] Java 早生:Java 是启动唯一大墙(spawn→http ready ~2.5s),旧序里它在 前端检查/
+# Java 早生:Java 是启动唯一大墙(spawn→http ready ~2.5s),旧序里它在 前端检查/
 # Python 组装/Python spawn 之后才出生(账本实测 ~468ms)。此处把 Java 组装+spawn 提到
 # 最前(其全部前置=pid/端口回收+java/python resolve+trap,均已就绪),前端检查与 Python
 # 组装转到 Java 出生之后进行 —— 纯重排零语义变化;失败路径由既有 trap cleanup_on_fail 兜。
@@ -957,7 +987,7 @@ JAVA_LAUNCH_CMD=(env -u _JAVA_OPTIONS -u JAVA_TOOL_OPTIONS -u JDK_JAVA_OPTIONS -
   needtranslog="${NEED_TRANSLOG}")
 
 if [ "${DESKTOP_JAVA_FAST_START}" = "1" ]; then
-  # [S3] banner-mode=off:省 Spring 启动横幅的构造/打日志(纯装饰输出,语义零变化)。
+  # banner-mode=off:省 Spring 启动横幅的构造/打日志(纯装饰输出,语义零变化)。
   JAVA_FAST_TOOL_OPTIONS="-Dlog4j2.statusLevel=WARN -Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom -Dspring.backgroundpreinitializer.ignore=true -Dspring.main.banner-mode=off"
   if [ "${JAVA_EXPLODED_MODE}" != "1" ]; then
     # 旧 fat-jar 路径原样保留 C1 快启;exploded 路径不再限档(C2 全速:启动 2.6s 仍远快于旧 7.0s,
@@ -978,8 +1008,10 @@ if [ "${DESKTOP_SPRING_LAZY_INIT}" = "1" ]; then
   )
 fi
 
-# #9:让内置 Java 自动走 macOS/Windows 系统代理(getHttpHost/流式 client 经 ProxySelector 取用)。
-# localhost/127.0.0.1 默认 bypass,本地 :9999/:8899 不受影响;无系统代理则等同直连。
+# #9:让内置 Java 自动走 macOS/Windows 系统代理(getHttpHost/流式 client 经 ProxySelector 取用);无系统代理则等同直连。
+# 本机地址直连的真正保证在代码层:后端入口第一件事装 LoopbackDirectProxySelector(localhost/127.*/::1/0.0.0.0
+# 一律 NO_PROXY,HTTP 与 SOCKS 两层都绕开)。JDK 走系统代理时 http.nonProxyHosts / socksNonProxyHosts 并不参与判定
+# (只在显式设了 *.proxyHost 时才看),下面每条启动路径仍两个都带上,作双保险。
 # 运行环境确定性(全球任意系统设置下行为一致):
 # · -Duser.language/-Duser.country 钉死 JVM locale——泰语系统 JVM 默认历法是佛历
 #   (SimpleDateFormat 年+543)、土耳其语 i 大小写特例、阿拉伯语数字符号,全类灭除;
@@ -990,12 +1022,12 @@ CDS_JSA="${BOOT_EXPLODED}/.app-cds.jsa"
 # ⚠️ CDS 铁律:JDK 对 classpath「目录」做 dump 校验(non-empty directory 拒绝),唯 `-cp .`
 # 豁免;且运行加载 .jsa 的 classpath 必须与训练一致 → exploded 的训练与运行都固定为
 # 「cd boot-exploded && java -cp . JarLauncher」,用 bash -c 'cd "$0" && exec "$@"' 包一层。
-# [R5 T7] 桌面无 Redis 时 comm 缓存每次 miss = 连接异常 + RemoteCache.reconnect() 里的显式 System.gc()
+# 桌面无 Redis 时 comm 缓存每次 miss = 连接异常 + RemoteCache.reconnect() 里的显式 System.gc()
 # (独立探针:缺省 JVM 每次 get/put ≈ 7.5 ms 且各一次 Full GC;-XX:+DisableExplicitGC 后 ≈ 0.5 ms 零 GC)。
 #   · HOROSA_JAVA_EXPLICIT_GC=1 回「显式 GC 生效」;缺省加 -XX:+DisableExplicitGC(纯 GC 提示忽略,零语义)。
 #   · HOROSA_COMM_CACHE=1 回属性文件口径(cachehelper.needcache=true);缺省传 -Dcachehelper.needcache=false
 #     —— 无 Redis 的桌面上 comm 缓存本就恒 miss 必算,关掉 = 今日净效果,输出字节全等(Java 侧先读 -D 再属性文件)。
-# [R5 S5] 引导两小刀(各 −几十 ms,零语义;同会话 ladder 6 次 p50 为据):
+# 引导两小刀(各 −几十 ms,零语义;同会话 ladder 6 次 p50 为据):
 #   · -XX:-UsePerfData:不再在 /tmp 建 hsperfdata mmap 文件(只影响 jps/jstat 可见性,本产品无任何脚本用它们);
 #     HOROSA_JAVA_PERFDATA=1 回旧。
 #   · -Dlog4j2.disableJmx=true:log4j2 不注册 JMX MBean(spring.jmx 早已关,无消费者);HOROSA_JAVA_LOG4J_JMX=1 回旧。
@@ -1012,13 +1044,13 @@ fi
 if [ "${HOROSA_JAVA_LOG4J_JMX:-0}" != "1" ]; then
   JAVA_R5_OPTS+=(-Dlog4j2.disableJmx=true)
 fi
-# [R5 S5] DispatcherServlet 在 Tomcat 启动时就初始化(load-on-startup=1;Boot 缺省 -1 = 首个请求才初始化,
+# DispatcherServlet 在 Tomcat 启动时就初始化(load-on-startup=1;Boot 缺省 -1 = 首个请求才初始化,
 #   与 lazy-init 叠加后「Java 已 started → 首个探测请求才付 MVC 初始化 → 下一轮轮询才看见就绪」白等 ~170 ms;
 #   同一份初始化只是提前做,失败即启动失败而不是首请求失败)。HOROSA_JAVA_MVC_EAGER=0 回旧。
 if [ "${HOROSA_JAVA_MVC_EAGER:-1}" = "1" ]; then
   JAVA_R5_OPTS+=(-Dspring.mvc.servlet.load-on-startup=1)
 fi
-# [R5 S5] 不让 Spring Boot 再初始化一遍日志系统:log4j2 早在 main() 里第一次取 Logger 时就按类路径 log4j2.xml
+# 不让 Spring Boot 再初始化一遍日志系统:log4j2 早在 main() 里第一次取 Logger 时就按类路径 log4j2.xml
 #   配好了(同一份配置),Boot 的 Log4J2LoggingSystem 在 environment-prepared 又重配一次(~70 ms,appender 全部重建);
 #   本产品不用 logging.* 属性 / log4j2-spring.xml / Boot 日志关闭钩(log4j2 自带 shutdownHook 照旧)。
 #   HOROSA_JAVA_BOOT_LOGGING=1 回旧(Boot 接管日志系统)。
@@ -1032,7 +1064,7 @@ if [ "${JAVA_EXPLODED_MODE}" = "1" ] && [ "${HOROSA_JAVA_CDS:-1}" = "1" ] && [ -
   JAVA_LAUNCH_CMD+=(
     /bin/bash -c 'cd "$0" && exec "$@"' "${BOOT_EXPLODED}"
     "${JAVA_BIN}" ${JAVA_R5_OPTS[@]+"${JAVA_R5_OPTS[@]}"} -XX:SharedArchiveFile="${CDS_JSA}" -Xlog:cds=off
-    -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop
+    -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" "-DsocksNonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop
     -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false -Dhorosa.cache.lazyinit=true
     -cp . org.springframework.boot.loader.JarLauncher
     --server.port="${BACKEND_PORT}"
@@ -1046,7 +1078,7 @@ elif [ "${JAVA_EXPLODED_MODE}" = "1" ]; then
   diag_log "java launch: exploded (no CDS yet)"
   JAVA_LAUNCH_CMD+=(
     /bin/bash -c 'cd "$0" && exec "$@"' "${BOOT_EXPLODED}"
-    "${JAVA_BIN}" ${JAVA_R5_OPTS[@]+"${JAVA_R5_OPTS[@]}"} -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop
+    "${JAVA_BIN}" ${JAVA_R5_OPTS[@]+"${JAVA_R5_OPTS[@]}"} -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" "-DsocksNonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop
     -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false -Dhorosa.cache.lazyinit=true
     -cp . org.springframework.boot.loader.JarLauncher
     --server.port="${BACKEND_PORT}"
@@ -1058,7 +1090,7 @@ elif [ "${JAVA_EXPLODED_MODE}" = "1" ]; then
   )
 else
   JAVA_LAUNCH_CMD+=(
-    "${JAVA_BIN}" ${JAVA_R5_OPTS[@]+"${JAVA_R5_OPTS[@]}"} -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false -Dhorosa.cache.lazyinit=true -jar "${JAR}"
+    "${JAVA_BIN}" ${JAVA_R5_OPTS[@]+"${JAVA_R5_OPTS[@]}"} -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" "-DsocksNonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-desktop -Duser.language=zh -Duser.country=CN -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Dparamhash.cache.redis.enable=false -Dhorosa.cache.lazyinit=true -jar "${JAR}"
     --server.port="${BACKEND_PORT}"
     --server.address=127.0.0.1
     --astrosrv=http://127.0.0.1:${CHART_PORT}
@@ -1078,7 +1110,11 @@ if ! pid_alive "${JAVA_PID_FILE}"; then
 fi
 ledger_log sh.java_spawned
 
-ensure_frontend_build
+if [ "${SKIP_UI_CHECK}" = "1" ]; then
+  HTML_PATH="(不需要:只起后端)"
+else
+  ensure_frontend_build
+fi
 ledger_log sh.fe_check_done
 
 # horosa_web_python_utf8_v1:①剥离宿主 PYTHONHOME/PYTHONSTARTUP/PYTHONUSERBASE(经典
@@ -1247,7 +1283,7 @@ if [ "${ready}" -ne 1 ]; then
   # set -euo pipefail 下 grep 无匹配返回 1 会提前中止脚本,故必须用 if 守卫;仅匹配明确的 bind
   # 错,绝不用裸 'port'(否则 Spring banner / --server.port= 这类正常输出会被误判为端口冲突)。
   bind_err_re='Address already in use|Errno 48|BindException|Port [0-9]+ was already in use'
-  if { tail -n 160 "${PY_LOG}" 2>/dev/null || true; tail -n 160 "${JAVA_LOG}" 2>/dev/null || true; } | grep -Eq "${bind_err_re}"; then
+  if grep -Eq "${bind_err_re}" < <(tail -n 160 "${PY_LOG}" 2>/dev/null || true; tail -n 160 "${JAVA_LOG}" 2>/dev/null || true); then
     diag_log "===== run end (failed: port bind conflict, exit 3 retryable) ====="
     echo "端口冲突(退出码 3=可重试):换端口重试,或先运行 stop_horosa_local.sh。Port conflict (exit 3 = retryable)."
     exit 3
@@ -1291,7 +1327,7 @@ maybe_train_cds_background() {
   diag_log "cds train scheduled (port ${train_port})"
   (
     sleep 6
-    if curl -s -o /dev/null -m 1 "http://127.0.0.1:${train_port}/heartbeat" 2>/dev/null; then exit 0; fi
+    if curl -s --noproxy '*' -o /dev/null -m 1 "http://127.0.0.1:${train_port}/heartbeat" 2>/dev/null; then exit 0; fi
     tmp_jsa="${jsa}.tmp.$$"
     env SPRING_MAIN_LAZY_INITIALIZATION="${lazy_env}" \
       HOROSA_DESKTOP_MONGO_OPTIONAL="${DESKTOP_MONGO_OPTIONAL}" \
@@ -1302,7 +1338,7 @@ maybe_train_cds_background() {
       "${JAVA_BIN}" -XX:ArchiveClassesAtExit="${tmp_jsa}" \
       -Dlog4j2.statusLevel=WARN -Djava.awt.headless=true \
       -Djava.security.egd=file:/dev/./urandom -Dspring.backgroundpreinitializer.ignore=true \
-      -Djava.net.useSystemProxies=true -Dhorosa.runtime.owner=horosa-cds-train \
+      -Djava.net.useSystemProxies=true "-Dhttp.nonProxyHosts=localhost|127.*|[::1]" "-DsocksNonProxyHosts=localhost|127.*|[::1]" -Dhorosa.runtime.owner=horosa-cds-train \
       -cp . org.springframework.boot.loader.JarLauncher \
       --server.port="${train_port}" --server.address=127.0.0.1 \
       --astrosrv=http://127.0.0.1:${CHART_PORT} --mongodb.ip=127.0.0.1 --redis.ip=127.0.0.1 \
@@ -1310,7 +1346,7 @@ maybe_train_cds_background() {
     tpid=$!
     tries=0
     while [ "${tries}" -lt 120 ]; do
-      if curl -s -o /dev/null -m 1 "http://127.0.0.1:${train_port}/heartbeat" 2>/dev/null; then break; fi
+      if curl -s --noproxy '*' -o /dev/null -m 1 "http://127.0.0.1:${train_port}/heartbeat" 2>/dev/null; then break; fi
       kill -0 "${tpid}" 2>/dev/null || break
       tries=$((tries + 1))
       sleep 0.5
@@ -1320,7 +1356,7 @@ maybe_train_cds_background() {
     # [R3-B2] 与打包预训链同款端点面(五链扩类捕获,两处训练恒一致)。
     # [R4-P4-2] +/rules/ziwei;清单与 package_runtime_payload.sh 逐字 lockstep(preflight[199])。
     for _cds_ep in "/chart" "/common/time" "/bazi/direct" "/liureng/gods" "/ziwei/birth" "/jieqi/year" "/rules/ziwei"; do
-      curl -s -o /dev/null -m 3 -X POST -H 'Content-Type: application/json' -d '{}' \
+      curl -s --noproxy '*' -o /dev/null -m 3 -X POST -H 'Content-Type: application/json' -d '{}' \
         "http://127.0.0.1:${train_port}${_cds_ep}" 2>/dev/null || true
     done
     kill -TERM "${tpid}" 2>/dev/null || true

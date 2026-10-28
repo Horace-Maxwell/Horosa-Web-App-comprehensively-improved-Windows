@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Dict, List
+from typing import Dict
 
 FIRE, AIR, WATER, EARTH = 3, 2, 1, 0
 ELEMENT_ROWS = [FIRE, AIR, WATER, EARTH]   # 自上而下 火气水地
@@ -66,14 +66,6 @@ def opposite(fig: int) -> int:
     倒卦非自反者取倒卦,倒卦自反者(道路/群众/牢狱/会合)取逆卦。八对全等,见单测。"""
     r = reverse(fig)
     return r if r != fig else inverse(fig)
-
-
-def figure_rows(fig: int) -> List[int]:
-    return [row(fig, b) for b in ELEMENT_ROWS]
-
-
-def to_ascii(fig: int) -> str:
-    return "\n".join(" *  " if row(fig, b) else "* * " for b in ELEMENT_ROWS)
 
 
 # ---- 查询 ----

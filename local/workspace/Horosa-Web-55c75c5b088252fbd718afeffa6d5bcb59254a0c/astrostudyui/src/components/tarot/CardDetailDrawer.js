@@ -27,7 +27,7 @@ MAJORS_CORR.forEach((m) => { MAJOR_BY_SID[m.id] = m; });
 const card_ = { border: '1px solid rgba(215,173,105,0.22)', borderRadius: 8, padding: '8px 10px', marginBottom: 10, background: 'rgba(215,173,105,0.04)' };
 const ct_ = { fontSize: 12.5, fontWeight: 600, color: 'var(--horosa-astro-gold, #d7ad69)', marginBottom: 6 };
 const line_ = { fontSize: 12.5, lineHeight: 1.75, color: 'var(--horosa-astro-text, #e8ecf3)' };
-const kv = (k, v) => (v ? <div style={line_} key={k}><span style={{ opacity: 0.65 }}>{k}：</span>{v}</div> : null);
+const kv = (k, v) => (v ? <div style={line_} key={k}><span style={{ color: 'var(--horosa-text-secondary)' }}>{k}：</span>{v}</div> : null);
 
 class CardDetailDrawer extends Component{
 	constructor(props){
@@ -48,7 +48,7 @@ class CardDetailDrawer extends Component{
 		const { card, deck, view, visible, onClose } = this.props;
 		if(!card){ return <Drawer visible={visible} onClose={onClose} width={430} title="牌详情" />; }
 		const v = view || {};
-		// [QA-9] 认 *_trump:此前写死 'major',维斯康蒂/米兰凯特的大牌在详情面板走小牌分支(秘传称号/别名/字母/星座区间/女主叙事六处全错)
+		// 认 *_trump:此前写死 'major',维斯康蒂/米兰凯特的大牌在详情面板走小牌分支(秘传称号/别名/字母/星座区间/女主叙事六处全错)
 		const isMajor = isTrumpArcana(card.arcana);
 		const isCourt = !!card.court;
 		const scaleRow = SCALE_ORDER.map((sk) => ({ sk, meta: SCALE_META[sk], c: isMajor ? scaleColor(card, sk) : minorScaleColor(card, sk) })).filter((x) => x.c);
@@ -112,7 +112,7 @@ class CardDetailDrawer extends Component{
 					<div style={card_}>
 						<div style={ct_}>主题占断</div>
 						{DOMAIN_KEYS.map((k) => kv(DOMAIN_CN[k], domains[k]))}
-						{domains.health ? <div style={{ ...line_, fontSize: 11, opacity: 0.6 }}>健康域为传统占验视角,非医疗建议。</div> : null}
+						{domains.health ? <div style={{ ...line_, fontSize: 11, color: 'var(--horosa-text-secondary)' }}>健康域为传统占验视角,非医疗建议。</div> : null}
 					</div>
 				) : null}
 				{(rxHint || heroine || (note && note.reverseImage)) ? (
@@ -155,7 +155,7 @@ class CardDetailDrawer extends Component{
 							if(savePersonalMeaning(card.sid, '')){ message.success('已清除'); this.setState({ personalDraft: null }); }
 						}}>清除</Button> : null}
 					</div>
-					<div style={{ ...line_, fontSize: 11, opacity: 0.6, marginTop: 4 }}>个人义只适用于本人;代解他人时以解牌者义库为准。不入快照、不随案例同步。</div>
+					<div style={{ ...line_, fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 4 }}>个人义只适用于本人;代解他人时以解牌者义库为准。不入快照、不随案例同步。</div>
 				</div>
 			</Drawer>
 		);

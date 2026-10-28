@@ -19,7 +19,7 @@ class ChartsGps extends Component{
 
 	}
 
-	// [Q-417/T-378 裁决 2026-09-18] 「我的命盘分布」此前只挂在不可达的登录态菜单、数据源=账号云端列表(user/fetchCharts)。
+	// 「我的命盘分布」此前只挂在不可达的登录态菜单、数据源=账号云端列表(user/fetchCharts)。
 	// 账号功能已随本机化撤下 → 入口移到公共菜单,数据源改本机命盘库(listLocalCharts;记录自带 gpsLat/gpsLon 或 lat/lon,
 	// PointsCluster 两形都认);仍有云端列表(props.charts)时优先照旧。「查询分布」= 重读本机库。
 	readLocal(){

@@ -1,11 +1,13 @@
 import request from '../utils/request';
+import { responseCacheable } from '../utils/resultEnvelope';
 import { ServerRoot } from '../utils/constants';
+import { registerProcessCache } from '../utils/processCacheRegistry';
 
 // 主限法 3D 天球(WS-3):POST /predict/pd3d(Java PredictiveController /pd3d 白名单转发
 // Python perpredict.getPrimaryDirection3D)。响应 schema 与后端精确对齐:
 //   { rows:   [{i, arc, prom, sig, cat, date}],          // 与 /predict/pd 的 pdlist 逐位同源
 //     points: { id: {lon, lat, ra, decl, raZ, declZ, kind} },  // 本命实点 + 虚点(映点/界/相位)
-//     circles:{ sigId: {type, points?} },                 // 应星位置圈(语义型/采样折线)
+//     circles:{ sigId: {type, points?} },                 // 应星位置圈(语义型/采样多段线)
 //     frame:  { armc, phi, eps, epsMean, jd, pdMethod, pdTimeKey } }
 // 请求体与 /predict/pd 完全同源(AstroDirectMain.buildPrimaryDirectionRequest 构造,
 // 本服务不自造参数 —— 防两处构参漂移)。
@@ -17,6 +19,7 @@ import { ServerRoot } from '../utils/constants';
 const PD3D_CACHE_MAX = 24;
 const pd3dMem = new Map();
 const pd3dInflight = new Map();
+registerProcessCache('services.astroPd3d', ()=>{ pd3dMem.clear(); pd3dInflight.clear(); });   // 同参复用上次结果:登记清空函数(只供审计仪器取样前清空)
 
 function clonePlain(obj){
 	if(obj === undefined || obj === null){
@@ -79,7 +82,7 @@ export function fetchPd3D(values, requestOptions){
 		...opts,
 	}).then((data)=>{
 		const rsp = unwrapPd3dResponse(data);
-		if(key && rsp && !rsp.err){
+		if(key && responseCacheable(data) && responseCacheable(rsp)){   // 只缓存真成功的回包(业务错误 Result.err / 顶层 err 不进缓存,判据单一出处 resultEnvelope)
 			pushCache(pd3dMem, key, clonePlain(rsp));
 		}
 		return rsp;

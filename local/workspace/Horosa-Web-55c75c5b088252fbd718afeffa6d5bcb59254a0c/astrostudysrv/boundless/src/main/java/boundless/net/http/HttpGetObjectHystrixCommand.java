@@ -56,7 +56,7 @@ public class HttpGetObjectHystrixCommand extends HystrixCommand<Object>{
 	
 	public static Object doCmd(String user, String password, String url, Map<String, String> headers, int timeoutMS){
 		try{
-			RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(HttpClientUtility.getHttpHost()).build();
+			RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(HttpClientUtility.getHttpHostFor(url)).build();
 			HttpClientBuilder builder = null;
 			if(BraveHelper.existZipkin()){
 				builder = BraveHelper.getHttpClientBuilder(url);
@@ -102,7 +102,7 @@ public class HttpGetObjectHystrixCommand extends HystrixCommand<Object>{
 				ObjectInputStream in = new ObjectInputStream(response.getEntity().getContent());       	
 				return in.readObject();
 			}catch(Exception e){
-				HttpClientUtility.log.error("{}, cause:{}", url, e.getMessage());
+				HttpClientUtility.log.error("{}, cause:{}", boundless.utility.SecretRedactor.redactText(url), boundless.utility.SecretRedactor.redactText(e.getMessage()));
 				throw e;
 			}finally{
 				try{

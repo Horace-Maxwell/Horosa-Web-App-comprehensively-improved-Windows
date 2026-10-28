@@ -1,29 +1,20 @@
 diff --git a/astrostudyui/src/components/wuzhao/WuZhaoMain.js b/astrostudyui/src/components/wuzhao/WuZhaoMain.js
-index c9d40ce0..d2fd2a71 100644
+index 3277da49..17de0407 100644
 --- a/astrostudyui/src/components/wuzhao/WuZhaoMain.js
 +++ b/astrostudyui/src/components/wuzhao/WuZhaoMain.js
-@@ -21,6 +21,10 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
+@@ -20,6 +20,10 @@ import { stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags'
+ import { cachedKentangFetch } from '../../utils/kentangCache';
+ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
  import { formatHumanValue } from '../../utils/humanReadableFields';
- import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
- import { parseDateParts } from '../../utils/dateStrSafe';
 +// 我方结果缓存(techniqueResultCacheEnabled/cachedKentangCall)已按 #78 收敛 SOP 退役 ——
 +// 上游自带的 kentangCacheEnabled + cachedKentangFetch 是其超集,上面已 import,勿重复引入。
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  import WuZhaoBoard from './WuZhaoBoard';
  
- const { Option } = Select;
-@@ -205,7 +209,7 @@ function parseFieldsDateTime(fields){
- 	};
- }
- 
--async function postWuZhao(path, payload){
-+async function postWuZhaoRaw(path, payload){
- 	const roots = [];
- 	const endpoints = [];
- 	if(typeof window !== 'undefined'){
-@@ -265,6 +269,21 @@ async function postWuZhao(path, payload){
- 	throw lastError || new Error('wuzhao.fetch.failed');
+ import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
+@@ -179,6 +183,17 @@ function appendUnique(list, value){
+ 	}
  }
  
 +// horosa_kentang_result_cache_v1 —— 五兆 /wuzhao/pan 直连缓存,**带确定性判据**。
@@ -32,36 +23,24 @@ index c9d40ce0..d2fd2a71 100644
 +//    (random.randint,每次不同)——对这条路缓存会把随机揲筮结果钉死 = 功能降级,严禁。
 +//    只有 ① mode==='ganzhi'(干支数值法 gangzhi_paipan,纯计算)
 +//        ② manual===true(手动折竹:manualSplits 全量入 payload,后端不再摇随机)
-+//    这两种才是「同 payload 必同盘」。故下方 wuzhaoCacheable 为准入闸,不满足即直连(与今日逐字一致)。
-+// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache;上述「自动揲筮
++//    这两种才是「同 payload 必同盘」。不满足即直连(与今日逐字一致)。
++// v3.5.1 收敛:结果级缓存退役 —— 下方 postWuZhao 内部已走上游 utils/kentangCache;上述「自动揲筮
 +// 不可缓存」的守卫下沉到 kentangCache.payloadCacheable(horosa_wuzhao_random_guard_v1,
 +// Windows-ahead:上游矩阵把 wuzhao 误标 deterministic,fetch 级缓存会把无 seed 的
 +// random.randint 揲筮钉死 —— 在唯一缓存层拦,比在每个调用点拦更不可能漏)。
-+function postWuZhao(path, payload){
-+	return postWuZhaoRaw(path, payload);
-+}
-+
- function fmtValue(value){
- 	return formatHumanValue(value);
- }
-@@ -448,6 +467,7 @@ class WuZhaoMain extends Component{
- 		}
- 	}
- 
-+
- 	componentDidMount(){
- 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
- 		this.unmounted = false;
-@@ -687,6 +707,8 @@ class WuZhaoMain extends Component{
+ async function postWuZhao(path, payload){
+ 	const roots = [];
+ 	const endpoints = [];
+@@ -651,6 +666,8 @@ class WuZhaoMain extends Component{
  				return;
  			}
- 			this.setState({ pan, loading: false }, ()=>{
+ 			this.setState({ pan, panSig: castSig, loading: false }, ()=>{
 +				// horosa_panel_ready_v1:pan 落定 = 中栏与右栏(皆由 pan 派生)画完的那一次 setState。
 +				markPanelReady('cnyibu');
  				saveModuleAISnapshotLazy('wuzhao', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -1277,32 +1299,53 @@ class WuZhaoMain extends Component{
+@@ -1249,32 +1266,53 @@ class WuZhaoMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

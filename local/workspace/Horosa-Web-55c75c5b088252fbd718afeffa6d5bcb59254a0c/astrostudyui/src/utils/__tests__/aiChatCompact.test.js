@@ -74,7 +74,7 @@ describe('buildCompactInput / compactRecord / canCompact', ()=>{
 	});
 });
 
-// ---- [压测二轮·D6·X2] 回退之后再旁问:提示词装配链在「历史被清空 + 压缩点悬空」下不得抛 ----
+// ---- 回退之后再旁问:提示词装配链在「历史被清空 + 压缩点悬空」下不得抛 ----
 describe('X2 回退后的提示词装配', ()=>{
 	const { planRewind } = require('../aiChat/checkpoint');
 	const base = { sourceContext: null, techniqueContexts: [], materials: [], bundles: [], templates: [], retrievedChunks: [], systemPrompt: '【口径】子平' };
@@ -114,8 +114,8 @@ describe('X2 回退后的提示词装配', ()=>{
 	});
 });
 
-// [Q-287/M-102 ④] 压缩输入的每条截断:此前一律 600 字且只留开头 → 长回答的结论(在末尾)永远进不了摘要。
-describe('[Q-287] 压缩输入按「留头 + 留尾」截断', ()=>{
+// 压缩输入的每条截断:此前一律 600 字且只留开头 → 长回答的结论(在末尾)永远进不了摘要。
+describe('压缩输入按「留头 + 留尾」截断', ()=>{
 	it('短消息原样;长消息头尾都在、中间标注省略字数', ()=>{
 		expect(clipMessageForCompact('短')).toBe('短');
 		const body = `${'头'.repeat(3000)}结论在最后一句`;

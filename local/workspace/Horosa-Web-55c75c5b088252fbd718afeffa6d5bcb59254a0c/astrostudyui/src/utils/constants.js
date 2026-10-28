@@ -1,5 +1,6 @@
 
 
+import { safeStorageSetOn } from './safeStorage';
 const isLocalHost =
 	typeof window !== 'undefined' &&
 	(
@@ -21,11 +22,8 @@ function safeStorageGet(storage, key){
 }
 
 function safeStorageSet(storage, key, value){
-	try{
-		if(storage && storage.setItem){
-			storage.setItem(key, value);
-		}
-	}catch(e){}
+	// 经存储单源:配额满先清可再生缓存再重试
+	return safeStorageSetOn(storage, key, value);
 }
 
 const LOCAL_ROOT_STORAGE_KEY = 'horosaLocalServerRoot';
@@ -186,22 +184,15 @@ export function localServerRootCandidates(){
 	return list;
 }
 export const MobileServer = 'https://mobileweb.horosa.com';
-export const WebSockServer = 'ws://www.horosa.com:26900/ws';
-export const RtmpPushServer = 'https://rtmpush.horosa.com';
-export const RtmpPlayServer = 'https://rtmp.horosa.com';
-export const HasRtspPlayer = false;
 
 // export const ServerRoot = 'http://localhost:9999';
 
 export const NeedEncrypt = true;
 
-export const NeedWS = false;
-
 export const ResultCodeKey = 'ResultCode';
 export const ResultKey = 'Result';
 export const ResultMessageKey = 'Result';
 export const TokenKey = 'Token';
-export const UserDataKey = 'UserData';
 export const LoginIdKey = 'LoginId';
 export const NeedLoginKey = 'NeedLogin';
 
@@ -220,14 +211,7 @@ export const DefLon = '119e19';
 export const DefGpsLat = 26.076417371316914;
 export const DefGpsLon = 119.31516153077507;
 
-export const AccessDenyCode = 900;
-export const UploadFailCode = 800;
-
 export const TableOddRowBgColor = 'var(--horosa-table-row-alt, rgba(47, 125, 241, 0.06))';
-
-export const TimeInterval = 15000;
 
 export const EmailRegex = new RegExp("(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|\"(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21\\x23-\\x5b\\x5d-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])*\")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x21-\\x5a\\x53-\\x7f]|\\\\[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f])+)\\])");
 export const GlobalSetupKey = 'globalSetup';
-
-export const HomePageKey = 'pchomepage';

@@ -11,6 +11,7 @@ from collections import Counter, defaultdict
 from typing import Any, Optional
 
 from . import db
+from . import textquery
 from .fmt import fmt_modern
 from .omen import CANONICAL_LABELS, fold_to_canonical
 
@@ -52,7 +53,7 @@ def _modern_year(md: Optional[str]) -> Optional[int]:
 
 
 def effective_year(date_phrase: Optional[str], stored_year: Optional[int], modern_date: Optional[str]) -> Optional[int]:
-    """[Q-486/T-448] 天象「公历年」的运行时纠偏(库列 ``year`` 由旧版 date_phrase_to_year 生成,433 条错一两百年:
+    """天象「公历年」的运行时纠偏(库列 ``year`` 由旧版 date_phrase_to_year 生成,433 条错一两百年:
     「大中祥符」被「大中」截走成 847、「建中靖国」被「建中」截走成 780、「泰定帝泰定四年」只取到元年、
     唐肃宗「上元」记成高宗 674…)。库文件只读不改,这里按修好的解析器重算:
       · 年号纪年解析成功 → 以之为准(同名年号按 modern_date 年份择近);
@@ -65,7 +66,7 @@ def effective_year(date_phrase: Optional[str], stored_year: Optional[int], moder
         return y
     if stored_year is not None:
         return stored_year
-    # [TL-36/T-217 2026-09-18] 年号解析不了且库列 year 为空,但 modern_date 有公历日期(10,256 条)→ 取公历日期之年,
+    # 年号解析不了且库列 year 为空,但 modern_date 有公历日期(10,256 条)→ 取公历日期之年,
     # 否则起年 / 终年筛选会把这些有日期的天象全部排除(帮助称按公历年筛)。三者皆空才 None。
     return hint
 
@@ -74,7 +75,7 @@ _MACRO_SPAN: dict[str, tuple[int, int]] = {name: (a, b) for name, a, b in all_ma
 
 
 def effective_dynasty(stored: Optional[str], year: Optional[int]) -> Optional[str]:
-    """[Q-485/T-447] 星象大典「朝代」= 按公历年归入的大朝代(帮助原话),而库列 dynasty 按**史书归属**填写
+    """星象大典「朝代」= 按公历年归入的大朝代(帮助原话),而库列 dynasty 按**史书归属**填写
     (《宋史》整体记北宋 → 1127 年后 2,023 条仍标北宋、316 年后 116 条仍标西晋,选「南宋 / 东晋」查不到)。
     规则:库列是大朝代名且其区间容得下该年(±1 年容农历跨年)→ 沿用(辽 / 金 / 西夏等史书归属正确者不动);
     容不下 → 按年重归(year_to_macro);库列非大朝代名或无年 → 原样。
@@ -140,7 +141,7 @@ def load_events(force: bool = False) -> list[dict[str, Any]]:
     except Exception:
         rows = []
     events = [_row_to_event(r) for r in rows]
-    # [Q-486/T-448] SQL 按旧 year 列排序;纠偏后按有效年重排(无年者沿后,原相对序不变)。
+    # SQL 按旧 year 列排序;纠偏后按有效年重排(无年者沿后,原相对序不变)。
     events.sort(key=lambda e: (e["year"] is None, e["year"] if e["year"] is not None else 0, e["source_file"], e["row_index"]))
     _CACHE["events"] = events
     if force:
@@ -217,7 +218,7 @@ def filter_events(
     in_chapter: Optional[bool] = None,
     keyword: Optional[str] = None,
 ) -> list[dict[str, Any]]:
-    kw = (keyword or "").strip().lower()
+    kw = textquery.lowered(keyword)   # 一个关键词或它的几种写法(任一写法命中即算)
     out: list[dict[str, Any]] = []
     for e in events:
         if dynasty and e["dynasty"] != dynasty:
@@ -241,7 +242,7 @@ def filter_events(
                 e["original"] or "", e["interpretation"] or "", e["date_phrase"] or "",
                 e["subject"] or "", e["action"] or "", e["target"] or "", e["omen_raw"] or "",
             ]).lower()
-            if kw not in hay:
+            if not textquery.hits(hay, kw):
                 continue
         out.append(e)
     return out
@@ -439,7 +440,7 @@ def microchronology(
     if history:
         where.append("history=?")
         params.append(history)
-    # [Q-484/T-446] 左栏「按征兆类型」的计数是 fold_to_canonical 归一后的类计数,点击却把类名当子串去
+    # 左栏「按征兆类型」的计数是 fold_to_canonical 归一后的类计数,点击却把类名当子串去
     # LIKE omen / omen_raw / original 三列 →「星变 30」点开得 11,239 条(「流星星变」被「星变」命中、原文提到
     # 「客星」「月食」的其它类也被带入)。现:类名 ∈ 14 类 → 与计数同一函数在 Python 侧按归一类精确过滤;
     # 非类名(自由文本)才保留子串匹配。
@@ -448,7 +449,7 @@ def microchronology(
         where.append("(omen LIKE ? OR omen_raw LIKE ? OR original LIKE ?)")
         like = f"%{omen_type}%"
         params.extend([like, like, like])
-    # [Q-486/T-448] 十年期过滤改到 Python 侧按纠偏后的有效年(库列 year 有 433 条错一两百年)。
+    # 十年期过滤改到 Python 侧按纠偏后的有效年(库列 year 有 433 条错一两百年)。
     sql = f"""
         SELECT {_MICRO_LIST_COLS}
         FROM celestial_event
@@ -482,7 +483,7 @@ def microchronology(
             by_decade[d] += 1
             if omen:
                 decade_omens_map[d][omen] += 1
-    # [Q-486/T-448] SQL 的 ORDER BY 用旧 year 列;按有效年稳定重排(无年者沿后),再按 limit 截断下发。
+    # SQL 的 ORDER BY 用旧 year 列;按有效年稳定重排(无年者沿后),再按 limit 截断下发。
     hits.sort(key=lambda h: (h[1] is None, h[1] if h[1] is not None else 0))
     kept = hits if lim is None else hits[:lim]
     texts = _micro_texts(conn, [h[0]["_rid"] for h in kept]) if kept else {}
@@ -495,7 +496,7 @@ def microchronology(
             "history": r["history"],
             "volume_no": r["volume_no"],
             "paragraph_no": r["paragraph_no"],
-            "period": effective_dynasty(r["dynasty"], year),   # [Q-485/T-447] 与大典同律按年重归
+            "period": effective_dynasty(r["dynasty"], year),   # 与大典同律按年重归
             "title": r["date_phrase"] or r["modern_date_disp"] or r["event_id"],
             "original": t["original"] if t is not None else None,
             "year": year,
@@ -508,11 +509,11 @@ def microchronology(
             "subject": r["subject"] or "",
             "target": r["target"] or "",
             "modern_date_disp": r["modern_date_disp"] or "",
-            # [Q-495/T-457 → #73] 库内约定单一:modern_date 就是史料所载的儒略历日期(1582-10-15 前),
+            # 库内约定单一:modern_date 就是史料所载的儒略历日期(1582-10-15 前),
             # julian_date 列已整列置空(旧值是换算方向做反的错列,起盘早 3~7 天);此处继续下发该字段只为载荷形状稳定,
             # 前端「无 julian_date 且改历前 → 儒略历」路径即正确路径。
             "julian_date": r["julian_date"] or "",
-            # [Q-487/T-449] 精度同下发:月级/年级/年段的合成日期不得被当精确日(排此日提示「约」+ 年级按 1 月 1 日)。
+            # 精度同下发:月级/年级/年段的合成日期不得被当精确日(排此日提示「约」+ 年级按 1 月 1 日)。
             "modern_precision": r["modern_precision"] or "",
         })
     summary = {

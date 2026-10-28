@@ -18,7 +18,7 @@ describe('persona 键', ()=>{
 		expect(window.localStorage.getItem(PERSONA_KEY)).toBe(null);
 		writePersona({ memoryCapture: true });
 		expect(JSON.parse(window.localStorage.getItem(PERSONA_KEY)).memoryCapture).toBe(true);
-		// [Q-294/M-109·AR-18] 清空只清文本与「启用注入」,记忆注入/自动沉淀/同时用于报告 三开关保留 → 键仍在;三开关也关才删键
+		// 清空只清文本与「启用注入」,记忆注入 / 自动沉淀等开关保留 → 键仍在;这些开关也关才删键
 		writePersona({ text: 'y', enabled: true, memoryInject: true });
 		clearPersona();
 		expect(readPersona()).toEqual({ text: '', enabled: false, memoryInject: true, memoryCapture: true, applyToReport: false });
@@ -58,7 +58,7 @@ describe('persona/memory 层', ()=>{
 	});
 });
 
-describe('[复查 D5] 「清空全部口径」钮(clearPersona + clearPersonaLayers 接线)', ()=>{
+describe('「清空全部口径」钮(clearPersona + clearPersonaLayers 接线)', ()=>{
 	const React = require('react');
 	const ReactDOM = require('react-dom');
 	const { act } = require('react-dom/test-utils');

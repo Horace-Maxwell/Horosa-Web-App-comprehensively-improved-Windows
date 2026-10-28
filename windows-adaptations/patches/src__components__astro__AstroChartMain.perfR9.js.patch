@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/astro/AstroChartMain.js b/astrostudyui/src/components/astro/AstroChartMain.js
-index 2550d14a..c627add6 100644
+index 0fbe8d62..559b0e70 100644
 --- a/astrostudyui/src/components/astro/AstroChartMain.js
 +++ b/astrostudyui/src/components/astro/AstroChartMain.js
-@@ -36,6 +36,8 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1
- import XQIcon from '../xq-icons';
- // [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+@@ -40,6 +40,8 @@ import XQIcon from '../xq-icons';
+ // 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
  import { visualFloorPx } from '../../utils/zoomDomain';
+ import { confirmDialog } from '../../utils/confirmDialog';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const TabPane = XQTabs.TabPane;
  const Option = XQSelect.Option;
-@@ -63,6 +65,149 @@ function formatTrueSolarTime(value){
+@@ -67,6 +69,161 @@ function formatTrueSolarTime(value){
  	return `${value}`.replace(' ', '，');
  }
  
@@ -54,17 +54,25 @@ index 2550d14a..c627add6 100644
 +		return !wrapperPropsEqual(this.props, nextProps);
 +	}
 +
-+	render(){
-+		const chartObj = this.props.value;
-+		const fields = this.props.fields;
-+		const tabHeight = this.props.tabHeight;
-+		const showlots = this.props.showlots;
++	// 右栏页签内容:合盘宿主(带 relativeContext)两张盘没选齐时没有盘,显示空态提示,不把 null 交给盘面组件;
++	// 其余宿主(主盘取数中的一瞬)照旧渲染组件 —— 各组件入口对空值各自兜底(两层都做)。提示文案单源 inspectorEmpty。
++	// ★ 渲染切片:relativeContext 由宿主 AstroChartMain 以 prop 透传到本切片,这里读的是切片自己的 props(不是宿主 this)。
++	renderInspectorBody(chartObj, tabHeight, render){
++		if(chartObj || !this.props.relativeContext){
++			return render();
++		}
++		return <div style={{ height: tabHeight, overflow: 'hidden' }}>{inspectorEmptyNode(INSPECTOR_EMPTY_RELATIVE)}</div>;
++	}
++
++	// 页签本体沿用宿主原 renderContentPanel 的方法名与四参签名(该方法的后续改动可原位并入;
++	// inspectorNullValue 也按此名读右栏挂件清单与逐页签空态判据),入参由下面 render() 从切片 props 取。
++	renderContentPanel(chartObj, fields, tabHeight, showlots){
 +		const activeTab = this.state.activeTab;
 +		return (
 +			<div className="horosa-inspector-panel horosa-astro-content-panel">
 +				<XQTabs activeKey={activeTab} onChange={this.changeTab} tabPosition='top' className="horosa-inspector-tabs horosa-content-tabs">
 +					<TabPane tab="信息" key="1">
-+						<FreezeSubTab active={activeTab === '1'}>{()=>(
++						<FreezeSubTab active={activeTab === '1'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
 +							<AstroInfo mode="summary" height={tabHeight}
 +								value={chartObj} fields={fields}
 +								planetDisplay={this.props.planetDisplay}
@@ -72,10 +80,10 @@ index 2550d14a..c627add6 100644
 +								showAstroMeaning={this.props.showAstroMeaning}
 +								showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
 +							/>
-+						)}</FreezeSubTab>
++						))}</FreezeSubTab>
 +					</TabPane>
 +					<TabPane tab="相位" key="2">
-+						<FreezeSubTab active={activeTab === '2'}>{()=>(
++						<FreezeSubTab active={activeTab === '2'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
 +							<AstroAspect
 +								value={chartObj} height={tabHeight}
 +								lotsDisplay={this.props.lotsDisplay}
@@ -83,10 +91,10 @@ index 2550d14a..c627add6 100644
 +								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 +								showAstroMeaning={this.props.showAstroMeaning}
 +							/>
-+						)}</FreezeSubTab>
++						))}</FreezeSubTab>
 +					</TabPane>
 +					<TabPane tab="行星" key="3">
-+						<FreezeSubTab active={activeTab === '3'}>{()=>(
++						<FreezeSubTab active={activeTab === '3'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
 +							<div className="horosa-planet-with-lots" style={{ height: tabHeight }}>
 +								<AstroPlanet
 +									value={chartObj}
@@ -102,10 +110,10 @@ index 2550d14a..c627add6 100644
 +									</div>
 +								) : null}
 +							</div>
-+						)}</FreezeSubTab>
++						))}</FreezeSubTab>
 +					</TabPane>
 +					<TabPane tab="古典" key="4">
-+						<FreezeSubTab active={activeTab === '4'}>{()=>(
++						<FreezeSubTab active={activeTab === '4'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
 +							<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'auto' }}>
 +								<AstroInfo mode="classical" height={tabHeight}
 +									value={chartObj} fields={fields}
@@ -127,41 +135,45 @@ index 2550d14a..c627add6 100644
 +									<AstroKlimata value={chartObj} fields={fields} />
 +								</div>
 +							</div>
-+						)}</FreezeSubTab>
++						))}</FreezeSubTab>
 +					</TabPane>
 +					<TabPane tab="可能性" key="5">
-+						<FreezeSubTab active={activeTab === '5'}>{()=>(
++						<FreezeSubTab active={activeTab === '5'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
 +							<AstroPredictPlanetSign height={tabHeight}
 +								value={chartObj} fields={fields}
 +								planetDisplay={this.props.planetDisplay}
 +								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 +							/>
-+						)}</FreezeSubTab>
++						))}</FreezeSubTab>
 +					</TabPane>
 +					<TabPane tab="格局" key="6">
-+						<FreezeSubTab active={activeTab === '6'}>{()=>(
++						<FreezeSubTab active={activeTab === '6'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
 +							<AstroAnalysisLab
 +								value={chartObj}
 +								height={tabHeight}
 +								voidClassical={this.props.voidClassical}
 +							/>
-+						)}</FreezeSubTab>
++						))}</FreezeSubTab>
 +					</TabPane>
 +					<TabPane tab="埃及" key="egypt">
-+						<FreezeSubTab active={activeTab === 'egypt'}>{()=>(
++						<FreezeSubTab active={activeTab === 'egypt'}>{()=>this.renderInspectorBody(chartObj, tabHeight, ()=>(
 +							<AstroEgypt value={chartObj} height={tabHeight} />
-+						)}</FreezeSubTab>
++						))}</FreezeSubTab>
 +					</TabPane>
 +				</XQTabs>
 +			</div>
 +		);
++	}
++
++	render(){
++		return this.renderContentPanel(this.props.value, this.props.fields, this.props.tabHeight, this.props.showlots);
 +	}
 +}
 +
  class AstroChartMain extends Component{
  
  	constructor(props) {
-@@ -92,7 +237,6 @@ class AstroChartMain extends Component{
+@@ -96,7 +253,6 @@ class AstroChartMain extends Component{
  		this.navigateDirectionTool = this.navigateDirectionTool.bind(this);
  		this.renderInputOptionPopovers = this.renderInputOptionPopovers.bind(this);
  		this.renderInputPanel = this.renderInputPanel.bind(this);
@@ -169,34 +181,48 @@ index 2550d14a..c627add6 100644
  		this.renderBottomQuickDock = this.renderBottomQuickDock.bind(this);
  
  		if(this.props.hook){
-@@ -882,90 +1026,6 @@ class AstroChartMain extends Component{
+@@ -891,113 +1047,6 @@ class AstroChartMain extends Component{
  		);
  	}
  
+-	// 右栏页签内容:合盘宿主(带 relativeContext)两张盘没选齐时没有盘,显示空态提示,不把 null 交给盘面组件;
+-	// 其余宿主(主盘取数中的一瞬)照旧渲染组件 —— 各组件入口对空值各自兜底(两层都做)。提示文案单源 inspectorEmpty。
+-	renderInspectorBody(chartObj, tabHeight, render){
+-		if(chartObj || !this.props.relativeContext){
+-			return render();
+-		}
+-		return <div style={{ height: tabHeight, overflow: 'hidden' }}>{inspectorEmptyNode(INSPECTOR_EMPTY_RELATIVE)}</div>;
+-	}
+-
 -	renderContentPanel(chartObj, fields, tabHeight, showlots){
 -		return (
 -			<div className="horosa-inspector-panel horosa-astro-content-panel">
 -				<XQTabs defaultActiveKey="1" tabPosition='top' className="horosa-inspector-tabs horosa-content-tabs">
 -					<TabPane tab="信息" key="1">
--						<AstroInfo mode="summary" height={tabHeight}
+-						{this.renderInspectorBody(chartObj, tabHeight, ()=>(
+-							<AstroInfo mode="summary" height={tabHeight}
 -							value={chartObj} fields={fields}
 -							planetDisplay={this.props.planetDisplay}
 -							showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 -							showAstroMeaning={this.props.showAstroMeaning}
 -							showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
 -						/>
+-						))}
 -					</TabPane>
 -					<TabPane tab="相位" key="2">
--						<AstroAspect
+-						{this.renderInspectorBody(chartObj, tabHeight, ()=>(
+-							<AstroAspect
 -							value={chartObj} height={tabHeight}
 -							lotsDisplay={this.props.lotsDisplay}
 -							planetDisplay={this.props.planetDisplay}
 -							showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 -							showAstroMeaning={this.props.showAstroMeaning}
 -						/>
+-						))}
 -					</TabPane>
 -					<TabPane tab="行星" key="3">
--						<div className="horosa-planet-with-lots" style={{ height: tabHeight }}>
+-						{this.renderInspectorBody(chartObj, tabHeight, ()=>(
+-							<div className="horosa-planet-with-lots" style={{ height: tabHeight }}>
 -							<AstroPlanet
 -								value={chartObj}
 -								fill={true}
@@ -211,8 +237,10 @@ index 2550d14a..c627add6 100644
 -								</div>
 -							) : null}
 -						</div>
+-						))}
 -					</TabPane>
 -						<TabPane tab="古典" key="4">
+-						{this.renderInspectorBody(chartObj, tabHeight, ()=>(
 -							<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'auto' }}>
 -								<AstroInfo mode="classical" height={tabHeight}
 -									value={chartObj} fields={fields}
@@ -234,24 +262,31 @@ index 2550d14a..c627add6 100644
 -								<AstroKlimata value={chartObj} fields={fields} />
 -							</div>
 -							</div>
+-						))}
 -					</TabPane>
 -						<TabPane tab="可能性" key="5">
+-						{this.renderInspectorBody(chartObj, tabHeight, ()=>(
 -							<AstroPredictPlanetSign height={tabHeight}
 -								value={chartObj} fields={fields}
 -							planetDisplay={this.props.planetDisplay}
 -								showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 -							/>
--						</TabPane>
+-						))}
+-					</TabPane>
 -						<TabPane tab="格局" key="6">
+-						{this.renderInspectorBody(chartObj, tabHeight, ()=>(
 -							<AstroAnalysisLab
 -								value={chartObj}
 -								height={tabHeight}
 -								voidClassical={this.props.voidClassical}
 -							/>
--						</TabPane>
+-						))}
+-					</TabPane>
 -						<TabPane tab="埃及" key="egypt">
+-						{this.renderInspectorBody(chartObj, tabHeight, ()=>(
 -							<AstroEgypt value={chartObj} height={tabHeight} />
--						</TabPane>
+-						))}
+-					</TabPane>
 -					</XQTabs>
 -				</div>
 -			);
@@ -260,7 +295,7 @@ index 2550d14a..c627add6 100644
  
  	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
  	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
-@@ -977,6 +1037,31 @@ class AstroChartMain extends Component{
+@@ -1009,6 +1058,31 @@ class AstroChartMain extends Component{
  		return !wrapperPropsEqual(this.props, nextProps);
  	}
  
@@ -292,7 +327,7 @@ index 2550d14a..c627add6 100644
  	render(){
  		let chartObj = this.props.value;
  		let fields = this.props.fields;
-@@ -1069,7 +1154,18 @@ class AstroChartMain extends Component{
+@@ -1101,7 +1175,19 @@ class AstroChartMain extends Component{
  									)
  								}
  						</div>
@@ -308,6 +343,7 @@ index 2550d14a..c627add6 100644
 +							showAstroMeaning={this.props.showAstroMeaning}
 +							showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
 +							voidClassical={this.props.voidClassical}
++							relativeContext={this.props.relativeContext}
 +						/>
  					</div>
  					{this.renderBottomQuickDock()}

@@ -70,25 +70,24 @@ function parseDialStyle(v){
 // 流派合法集;非法回退 classic。
 const SCHOOL_SET = new Set(['classic', 'pure', 'uranian', 'cosmo']);
 
-// horosa_aux_render_slice_v1(A2):模块级解析缓存 —— 原来每调一次就 localStorage.getItem +
-// JSON.parse + ~30 键规范化(AstroGermany 每 render 1 次、AstroMidpoint 请求/快照路径 4 处、
-// 90°盘/六宫框构造各 1 次)。本键唯一写入口就是下方 saveUranianDisplay(KEY 未导出,全站 grep
-// 核实全部写者:UranianDialMain saveDisp/changeSchool/onRectifyEventsChange 三处),故在写点
-// 同步置空缓存即「写驱动失效」:失效点=写点,零轮询、零事件面、外部无从绕过。
+// horosa_aux_render_slice_v1(A2):模块级解析缓存 —— 原来每调一次就 JSON.parse + ~30 键规范化
+// (AstroGermany 每 render 1 次、AstroMidpoint 请求/快照路径 4 处、90°盘/六宫框构造各 1 次)。
+// 缓存按落盘原串作键:每次照读 localStorage.getItem(KEY),原串与上次解析时逐字相同才复用,
+// 否则重解析 —— 存储始终是唯一真源,任何写者(saveUranianDisplay / 备份恢复直写原串 / 别的窗口 /
+// localStorage.clear)改了都立刻读到新值,与无缓存时逐次重读完全一致(此前「写点失效」只认
+// saveUranianDisplay 一个写口,存储被别处改过后会一直返回旧值)。
 // 返回浅拷贝,保持「每次调用全新顶层对象」的既有契约(调用方可安全 spread/覆写顶层键);嵌套数组
 // (openPanels/synastryPeople/rectifyEvents)按只读契约共享 —— 全部消费方已核:构造函数 slice/map
 // 复制、其余只读(全站无 disp.xxx.push/sort/splice)。kill-switch 复用 horosa.perf.localEngineMemo
 // (memoEnabled;关=逐次重解析旧行为)。
 let _dispCache = null;
+let _dispCacheRaw = null;
 
 export function getStoredUranianDisplay(){
-	if (memoEnabled() && _dispCache) return { ..._dispCache };
 	try {
 		const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(KEY) : null;
-		if (!raw){
-			if (memoEnabled()) _dispCache = { ...DEFAULTS };
-			return { ...DEFAULTS };
-		}
+		if (!raw) return { ...DEFAULTS };
+		if (_dispCache && raw === _dispCacheRaw && memoEnabled()) return { ..._dispCache };
 		const obj = JSON.parse(raw) || {};
 		const parsed = {
 			dialStyle: parseDialStyle(obj.dialStyle),
@@ -127,7 +126,10 @@ export function getStoredUranianDisplay(){
 			// —— WP-10 校时事件:[{label,date,type}] 数组;非数组回退空(date 为 ISO 串,解析交给组件)。
 			rectifyEvents: Array.isArray(obj.rectifyEvents) ? obj.rectifyEvents.filter((x) => x && typeof x === 'object') : DEFAULTS.rectifyEvents,
 		};
-		if (memoEnabled()) _dispCache = parsed;
+		if (memoEnabled()){
+			_dispCache = parsed;
+			_dispCacheRaw = raw;
+		}
 		return { ...parsed };
 	} catch (e) {
 		// 读/解析异常(隐私模式、串损坏):不缓存,行为=现状逐次重试,坏环境不被粘住。
@@ -135,28 +137,19 @@ export function getStoredUranianDisplay(){
 	}
 }
 
-// [Q-355/T-336] 写显示偏好后派一个事件:偏好里有几项(六宫框)是**父组件**在自己的 render 里读的,
+// 写显示偏好后派一个事件:偏好里有几项(六宫框)是**父组件**在自己的 render 里读的,
 // 子组件 setState 不会让父组件重渲 —— 开了六宫框页签不出现、关了页签还在(点进去回退行星中点),
 // 要等其它操作顺带触发父组件重渲才对得上。订阅方见 URANIAN_DISPLAY_EVENT。
 export const URANIAN_DISPLAY_EVENT = 'horosa:uranian-display-changed';
 
 export function saveUranianDisplay(next){
-	let merged;
+	const merged = { ...getStoredUranianDisplay(), ...(next || {}) };
 	try {
-		merged = { ...getStoredUranianDisplay(), ...(next || {}) };
 		if (typeof localStorage !== 'undefined') safeLocalStorageSet(KEY, JSON.stringify(merged));
-		// horosa_aux_render_slice_v1(A2):写点失效 —— 下一次读重新解析真实落盘值
-		// (含 safeLocalStorageSet 配额失败静默时回读旧值的语义,与无缓存时逐次重读完全一致)。
-		_dispCache = null;
-	} catch (e) {
-		_dispCache = null; // 兜底:异常路径同样失效,绝不让缓存领先于存储
-		merged = { ...getStoredUranianDisplay(), ...(next || {}) };
+	} catch (e) { /* 写盘失败不影响本次返回值与广播 */ }
+	if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+		window.dispatchEvent(new CustomEvent(URANIAN_DISPLAY_EVENT, { detail: merged }));
 	}
-	try {
-		if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
-			window.dispatchEvent(new CustomEvent(URANIAN_DISPLAY_EVENT, { detail: merged }));
-		}
-	} catch (e) { /* 事件派发失败不影响写入 */ }
 	return merged;
 }
 

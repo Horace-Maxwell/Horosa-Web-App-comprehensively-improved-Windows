@@ -1,0 +1,23 @@
+diff --git a/astrostudyui/src/divination/zeri/__tests__/zeriLockRestoreMarks.test.js b/astrostudyui/src/divination/zeri/__tests__/zeriLockRestoreMarks.test.js
+index 66f75596..fe669664 100644
+--- a/astrostudyui/src/divination/zeri/__tests__/zeriLockRestoreMarks.test.js
++++ b/astrostudyui/src/divination/zeri/__tests__/zeriLockRestoreMarks.test.js
+@@ -124,8 +124,17 @@ describe('六壬 / 太乙 / 三式内嵌页:存案标记只由载入存案置、
+ 		const t = fs.readFileSync(path.join(SRC, 'components', 'sanshi', 'SanShiUnitedMain.js'), 'utf8');
+ 		expect(t).toMatch(/this\._zeriRestoredLocks = zeriRestoredLockMarks\(this\.props\.zeriLocked, normalizedOptions\)/);
+ 		expect(t).toMatch(/this\._zeriRestoredLocks = clearZeriLockMarks\(this\._zeriRestoredLocks, partial\)/);
++		// horosa_win_slice_form_v1(Windows 侧移植适配):合一页左栏在我方渲染切片里是子组件 SanShiInputPanel(见 SanShiUnitedMain 的
++		// render-slice 注记),存案标记仍是宿主实例字段 `_zeriRestoredLocks`(上两条照旧钉宿主置 / 清),经
++		// `zeriRestoredLocks={this._zeriRestoredLocks}` 下传,子组件里同一控件的第四参写作 `this.props.zeriRestoredLocks`。
++		// 两形皆认,但同一文件只许一形(子组件里残留 `this._zeriRestoredLocks` = 读不到宿主字段);判据零放宽:三个锁定控件
++		// 的 title + disabled 两处仍都带显式存案标记,且切片形必须真的从宿主字段下传。
++		const sliceForm = t.includes('zeriRestoredLocks={this._zeriRestoredLocks}');
++		const marksOf = (form)=>(form ? 'this\\.props\\.zeriRestoredLocks' : 'this\\._zeriRestoredLocks');
++		const count = (k, marks)=>(t.match(new RegExp(`zeriLockProps\\(this\\.props\\.zeriLocked, '${k}', [^)]*, ${marks}\\)`, 'g')) || []).length;
+ 		Object.keys(SANSHI_ZERI_LOCKED).forEach((k)=>{
+-			expect([k, (t.match(new RegExp(`zeriLockProps\\(this\\.props\\.zeriLocked, '${k}', [^)]*, this\\._zeriRestoredLocks\\)`, 'g')) || []).length]).toEqual([k, 2]);
++			expect([k, count(k, marksOf(sliceForm))]).toEqual([k, 2]);
++			expect([k, count(k, marksOf(!sliceForm))]).toEqual([k, 0]);
+ 		});
+ 	});
+ });

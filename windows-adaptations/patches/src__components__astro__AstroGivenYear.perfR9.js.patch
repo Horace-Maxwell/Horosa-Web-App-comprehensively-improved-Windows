@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroGivenYear.js b/astrostudyui/src/components/astro/AstroGivenYear.js
-index 522585b7..c558b295 100644
+index 1552ef91..d1f839f2 100644
 --- a/astrostudyui/src/components/astro/AstroGivenYear.js
 +++ b/astrostudyui/src/components/astro/AstroGivenYear.js
 @@ -9,7 +9,7 @@ import * as AstroText from '../../constants/AstroText';
@@ -10,8 +10,8 @@ index 522585b7..c558b295 100644
 +import { convertToArray} from '../../utils/helper';
  import styles from '../../css/styles.less';
  import DateTime from '../comp/DateTime';
- import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-@@ -20,6 +20,11 @@ import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+ import { returnPickerSeed } from '../../utils/returnPickerSeed';
+@@ -22,6 +22,11 @@ import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
  import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
  import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
  import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
@@ -23,7 +23,7 @@ index 522585b7..c558b295 100644
  
  const TabPane = Tabs.TabPane;
  const Option = Select.Option;
-@@ -38,6 +43,7 @@ class AstroGivenYear extends Component{
+@@ -40,6 +45,7 @@ class AstroGivenYear extends Component{
  		this.requestData = this.requestData.bind(this);
  		this.genAspectDom = this.genAspectDom.bind(this);
  		this.changeDblChartType = this.changeDblChartType.bind(this);
@@ -31,7 +31,7 @@ index 522585b7..c558b295 100644
  		this.renderPlanetLabel = this.renderPlanetLabel.bind(this);
  		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
  
-@@ -70,6 +76,9 @@ class AstroGivenYear extends Component{
+@@ -72,6 +78,9 @@ class AstroGivenYear extends Component{
  			},
  			dirChart: null,
  			inverse: DIRECTION_PAGE_SETTINGS.load().givenYearInverse,   // 上次亲手选的双盘内外圈
@@ -41,7 +41,7 @@ index 522585b7..c558b295 100644
  		}
  
  		if(this.state.params.date){
-@@ -122,7 +131,13 @@ class AstroGivenYear extends Component{
+@@ -124,7 +133,13 @@ class AstroGivenYear extends Component{
  	}
  
  	genNatalParams(chartObj){
@@ -53,38 +53,41 @@ index 522585b7..c558b295 100644
 +		// 盘对象自此只读 —— 这也是任何按引用比较的 memo/sCU 能成立的前提。
 +		const src = (chartObj && chartObj.params) ? chartObj.params : {};
 +		let qryparam = { ...src };
- 		let datetime = new DateTime();
+ 		// 「今年 / 此刻」按本盘时区(DateTime.nowForChart);东八区盘逐位不变
+ 		let datetime = DateTime.nowForChart(qryparam.zone);
  		if(qryparam.birth){
- 			let parts = qryparam.birth.split(' ');
-@@ -211,6 +226,8 @@ class AstroGivenYear extends Component{
+@@ -212,6 +227,8 @@ class AstroGivenYear extends Component{
  		};
  
  		this.setState(st, ()=>{
 +			// horosa_panel_ready_v1:推运盘数据落定(中栏盘 + 右栏相位同源于 st.dirChart)的唯一提交点。
 +			markPanelReady('direction');
  			const chartValue = chartValueAtRequest;
- 			saveModuleAISnapshotLazy('givenyear', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'givenyear'), {
- 				module: 'givenyear',
-@@ -278,7 +295,30 @@ class AstroGivenYear extends Component{
+ 			saveModuleAISnapshotLazy('givenyear', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'givenyear'), this.snapshotMeta());
+ 		});
+@@ -277,7 +294,33 @@ class AstroGivenYear extends Component{
  		});
  	}
  
 +	// horosa_aspect_dom_memo_v1(PERF-R9 Ship 6):右栏相位清单的输出**只**由三样东西决定 ——
-+	// state.dirChart(推运结果对象,每次请求整体替换)、props.value(本命盘)、props.showPlanetHouseInfo
++	// shownDirChart()(推运结果对象,每次请求整体替换;v3.12.0 起按命主来源键配对)、props.value(本命盘)、props.showPlanetHouseInfo
 +	// (renderPlanetLabel 唯一读到的 prop)。三者引用全同 ⇒ 输出逐字节相同,直接复用上次的元素树:
 +	// 「更新中」角标开合、子页签切换、父组件重渲等与相位无关的重渲不再重建数百个 React 元素。
 +	// 任一引用变化(含内容整体替换)立即重建 —— 不存在陈旧,亦不依赖任何深比较。
  	genAspectDom(){
++		// v3.12.0 起派生盘按来源键配对(shownDirChart:换盘在途 / 新盘取盘失败时视为无盘),
++		// 缓存键随之取「实际渲染的那张」而非 state.dirChart —— 否则换盘瞬间会把上一位命主的相位树当缓存命中。
++		const dir = this.shownDirChart();
 +		const cache = this._aspectDomCache;
 +		if(cache
-+			&& cache.dir === this.state.dirChart
++			&& cache.dir === dir
 +			&& cache.natal === this.props.value
 +			&& cache.phi === this.props.showPlanetHouseInfo){
 +			return cache.dom;
 +		}
 +		const dom = this.buildAspectDom();
 +		this._aspectDomCache = {
-+			dir: this.state.dirChart,
++			dir: dir,
 +			natal: this.props.value,
 +			phi: this.props.showPlanetHouseInfo,
 +			dom: dom,
@@ -93,10 +96,10 @@ index 522585b7..c558b295 100644
 +	}
 +
 +	buildAspectDom(){
- 		if(this.state.dirChart === undefined || this.state.dirChart === null){
+ 		if(this.shownDirChart() === undefined || this.shownDirChart() === null){
  			return null;
  		}
-@@ -338,7 +378,7 @@ class AstroGivenYear extends Component{
+@@ -337,7 +380,7 @@ class AstroGivenYear extends Component{
  			cols.push(divs[i]);
  		}
  		rows.push((
@@ -105,7 +108,7 @@ index 522585b7..c558b295 100644
  				{cols}
  			</Row>
  		));
-@@ -358,6 +398,10 @@ class AstroGivenYear extends Component{
+@@ -357,6 +400,10 @@ class AstroGivenYear extends Component{
  		});
  	}
  
@@ -113,10 +116,10 @@ index 522585b7..c558b295 100644
 +		this.setState({ chartTab: key });
 +	}
 +
- 	// AI 导出/挂载实时取数:导出侧派发 refresh 事件,这里用当前显示的盘即时构建快照并回填,
- 	// 保证「显示什么就导出什么」——不依赖懒存缓存是否已物化(reload/rehydrate 未重排时缓存可能为空,
- 	// 此前缺此监听 → 显示有盘却报「当前页面没有可导出文本」)。
-@@ -474,6 +518,7 @@ class AstroGivenYear extends Component{
+ 	// 写槽 meta 单一来源:平时写槽与刷新应答共用(刷新一次后槽的 meta 不变)
+ 	snapshotMeta(){
+ 		return { module: 'givenyear' };
+@@ -483,6 +530,7 @@ class AstroGivenYear extends Component{
  			overflowX:'hidden',
  		};
  		let chartHeight = height - 50;
@@ -124,10 +127,10 @@ index 522585b7..c558b295 100644
  
  		return (
  			<div className="horosa-givenyear-page">
-@@ -482,12 +527,17 @@ class AstroGivenYear extends Component{
+@@ -491,12 +539,17 @@ class AstroGivenYear extends Component{
  						{/* keep-stale 角标:重取期间旧盘留在盘面,右上角提示「更新中…」;首次加载(无旧盘)不显示 */}
  						<div style={{ position: 'relative' }}>
- 						{this.state.updating && this.state.dirChart ? <UpdatingBadge /> : null}
+ 						{this.state.updating && this.shownDirChart() ? <UpdatingBadge /> : null}
 +						{/* horosa_freeze_subtabs_v1:三张盘此前全部常驻重渲。改受控 + FreezeSubTab:
 +						    只有前台那张参与重渲;切回时拿本轮最新 children 立即渲一帧,不卸载、不重发请求、
 +						    不丢滚动位置。截图只取激活面板,AI 快照走数据不走 DOM,导出/截图零影响。 */}
@@ -144,7 +147,7 @@ index 522585b7..c558b295 100644
  										wheelArt={this.props.wheelArt}
  										chartDisplay={this.props.chartDisplay}
  										planetDisplay={this.props.planetDisplay}
-@@ -495,9 +545,11 @@ class AstroGivenYear extends Component{
+@@ -504,9 +557,11 @@ class AstroGivenYear extends Component{
  										showAstroMeaning={this.props.showAstroMeaning}
  										height={chartHeight}
  									/>
@@ -157,7 +160,7 @@ index 522585b7..c558b295 100644
  										wheelArt={this.props.wheelArt}
  										chartDisplay={this.props.chartDisplay}
  										planetDisplay={this.props.planetDisplay}
-@@ -505,15 +557,18 @@ class AstroGivenYear extends Component{
+@@ -514,15 +569,18 @@ class AstroGivenYear extends Component{
  										showAstroMeaning={this.props.showAstroMeaning}
  										height={chartHeight}
  									/>

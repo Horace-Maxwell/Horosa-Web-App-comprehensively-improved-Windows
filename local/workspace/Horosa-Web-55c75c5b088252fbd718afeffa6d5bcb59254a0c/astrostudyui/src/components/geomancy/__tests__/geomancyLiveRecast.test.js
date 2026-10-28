@@ -13,8 +13,11 @@ jest.mock('../../../utils/moduleAiSnapshot', () => ({
 // 拦后端:把每次真正发出的请求体记下来 —— 判据落在"送进请求体的值"上,而非组件内部状态。
 jest.mock('../../../utils/kentangCache', () => ({
 	cachedKentangFetch: jest.fn(async (url, init) => {
-		global.__calls.push(JSON.parse(init.body));
-		return { text: async () => JSON.stringify({ ResultCode: 0, Result: global.__nextResult }) };
+		const body = JSON.parse(init.body);
+		global.__calls.push(body);
+		// 可选:按请求体给结果、并可挂起(测在途竞态用)
+		const out = global.__resultFor ? await global.__resultFor(body) : global.__nextResult;
+		return { text: async () => JSON.stringify({ ResultCode: 0, Result: out }) };
 	}),
 }));
 
@@ -362,5 +365,79 @@ describe('地占 · 不该重算的场合一次也不许打后端', () => {
 		expect(global.__calls).toHaveLength(1);
 		expect(global.__calls[0].castNumbers)
 			.toEqual(LIVE.book_numbers.reading.settings.cast_numbers);   // 还是存档那副卦
+	});
+});
+
+describe('地占 · 新起一盘在途时改设置', () => {
+	afterEach(() => { global.__resultFor = null; });
+	test('🔴 钉种子重排先挂起,新盘落定后按新盘的种子补排(此前拿旧盘种子再发一次,新起的那一盘被挡掉)', async () => {
+		const withSeed = (seed) => ({ ...LIVE.european_classical, reading: { ...LIVE.european_classical.reading, seed } });
+		const i = mk(withSeed(42), { seedMode: 'random' }, { fields: F1 });
+		let release;
+		const gate = new Promise((r) => { release = r; });
+		global.__resultFor = async (body) => {
+			if (body.seed === 42) { return withSeed(42); }
+			if (global.__calls.length === 1) { await gate; return withSeed(777); }
+			return withSeed(body.seed);
+		};
+		const cast = i.clickCast();
+		i.changeGeomancyOpt('readingScope', 'L2');
+		expect(global.__calls).toHaveLength(1);                 // 重排挂起,没拿旧种子 42 再发
+		release();
+		await cast;
+		await flush();
+		expect(i.state.result.reading.seed).toBe(777);
+		expect(global.__calls).toHaveLength(2);                 // 新盘落定后补排一次
+		expect(global.__calls[1].seed).toBe(777);
+		expect(global.__calls[1].readingScope).toBe('L2');
+	});
+	test('挂起补排后又点一次起盘:新请求已带当前设置,落定后不再多补一次', async () => {
+		const withSeed = (seed) => ({ ...LIVE.european_classical, reading: { ...LIVE.european_classical.reading, seed } });
+		const i = mk(withSeed(42), { seedMode: 'random' }, { fields: F1 });
+		let release;
+		const gate = new Promise((r) => { release = r; });
+		global.__resultFor = async (body) => { if (global.__calls.length === 1) { await gate; } return withSeed(body.seed); };
+		const first = i.clickCast();
+		i.changeGeomancyOpt('readingScope', 'L2');          // 挂起
+		const second = i.clickCast();                       // 第二次新起盘:请求体已含 L2
+		expect(global.__calls[1].readingScope).toBe('L2');
+		release();
+		await first; await second; await flush();
+		expect(global.__calls).toHaveLength(2);
+	});
+	test('挂起补排后载入事盘:在途新盘作废,补排标记一并清掉(之后起盘不多打一次)', async () => {
+		const withSeed = (seed) => ({ ...LIVE.european_classical, reading: { ...LIVE.european_classical.reading, seed } });
+		const i = mk(withSeed(42), { seedMode: 'random' }, { fields: F1 });
+		let release;
+		const gate = new Promise((r) => { release = r; });
+		global.__resultFor = async (body) => { if (global.__calls.length === 1) { await gate; } return withSeed(body.seed); };
+		const first = i.clickCast();
+		i.changeGeomancyOpt('readingScope', 'L2');
+		global.__mockCase = { caseVersion: 'gc1|t', payload: { options: { readingScope: 'L1' }, result: withSeed(5) } };
+		i.restoreFromCurrentCase(true);
+		global.__mockCase = null;
+		expect(i._recastAfterFresh).toBe(false);
+		expect(i._freshCastSeq).toBe(null);
+		release(); await first; await flush();
+		const n = global.__calls.length;
+		await i.clickCast(); await flush();
+		expect(global.__calls.length).toBe(n + 1);
+	});
+});
+
+describe('地占 · 没发出去的起盘不丢待触发的时地重排', () => {
+	test('报数不足的起盘报错返回:先前排下的时地重排照样触发', async () => {
+		const i = mk(LIVE.european_classical, { seedMode: 'numbers', castNumbers: '1 2 3' }, { fields: F1 });
+		i.props = { ...i.props, fields: F2 };
+		i.componentDidUpdate({ ...PROPS, fields: F1 });   // 排下一拍重排
+		const { message } = require('antd');
+		const err = jest.spyOn(message, 'error').mockImplementation(() => {});
+		await i.clickCast();                              // 报数不足:不发请求
+		expect(global.__calls).toHaveLength(0);
+		jest.advanceTimersByTime(400);
+		await flush();
+		expect(global.__calls).toHaveLength(1);           // 时地重排照样打了
+		expect(global.__calls[0].lon).toBe(convertLonToStr(121.47));
+		err.mockRestore();
 	});
 });

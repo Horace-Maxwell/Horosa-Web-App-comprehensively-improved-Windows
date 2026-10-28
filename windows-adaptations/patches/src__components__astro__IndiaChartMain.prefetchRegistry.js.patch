@@ -1,8 +1,10 @@
 diff --git a/astrostudyui/src/components/astro/IndiaChartMain.js b/astrostudyui/src/components/astro/IndiaChartMain.js
-index d4f94fc8..eecf3ee1 100644
+index 71ddc3ab..745ebde5 100644
 --- a/astrostudyui/src/components/astro/IndiaChartMain.js
 +++ b/astrostudyui/src/components/astro/IndiaChartMain.js
-@@ -1,7 +1,10 @@
+@@ -1,9 +1,12 @@
+ import { civilInstantMsOfStr } from '../../utils/dateStrSafe';
+ import { zeriLockProps } from '../../divination/zeri/zeriPageCalibre';
 -import { Component } from 'react';
 +import { Component, memo } from 'react';
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
@@ -11,12 +13,12 @@ index d4f94fc8..eecf3ee1 100644
 +import { stepPrefetchEnabled } from '../../utils/perfFlags';
 +import { registerStepPrefetcher } from '../../utils/stepPrefetch';
 +import { markPanelReady } from '../../utils/perfMark';
- import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
+ import { sideSectionIcon } from '../../constants/sideSectionIcons';
  import { createPortal } from 'react-dom';
  import moment from 'moment';
-@@ -982,6 +985,239 @@ function canBuildIndiaChartParams(fields){
- 		&& (nullableKeys.indexOf(key) >= 0 || fields[key].value !== null));
- }
+@@ -52,6 +55,239 @@ export { DASHA_SEED_OPTIONS, INDIA_OPTION_FIELD_STATE_MAP, seedIndiaOptionState
+ const TabPane = Tabs.TabPane;
+ const {Option, OptGroup} = Select;
  
 +// ═══════════════════════════════════════════════════════════════════════════════
 +// horosa_india_settings_memo_v1(PERF-R9 Ship 6):左栏「印占设置」提为 React.memo 子组件。
@@ -252,9 +254,9 @@ index d4f94fc8..eecf3ee1 100644
 +});
 +
  class IndiaChartMain extends Component{
- 	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+ 	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
  	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
-@@ -1249,9 +1485,19 @@ class IndiaChartMain extends Component{
+@@ -319,9 +555,19 @@ class IndiaChartMain extends Component{
  		this.hideDashaSubPopover = this.hideDashaSubPopover.bind(this);
  		this.changeJyotishTab = this.changeJyotishTab.bind(this);
  		this.handleMainChartLoad = this.handleMainChartLoad.bind(this);
@@ -266,7 +268,7 @@ index d4f94fc8..eecf3ee1 100644
 +			// (见 withIndiaOptionFields / resolveDateTime / resolveSplitItems 上的注释)。
 +			this._optionFieldsMemo = null;
 +			this._optionFieldsMemoSrc = null;
-+			this._optionFieldsMemoKey = '';
++			this._optionFieldsMemoKey = null;
 +			this._datetmMemo = null;
 +			this._datetmMemoKey = null;
 +			this._splitItemsMemo = null;
@@ -274,9 +276,9 @@ index d4f94fc8..eecf3ee1 100644
  
  		this.tmHook = {
  			getValue: null,
-@@ -1271,10 +1517,56 @@ class IndiaChartMain extends Component{
- 				}
- 				this.requestDashaChart(this.withIndiaOptionFields(fields));
+@@ -366,10 +612,56 @@ class IndiaChartMain extends Component{
+ 				delete rest.chartnum;
+ 				return rest;
  			};
 +			// PERF-R9 Ship 7:/india/chart 与主 /chart 互不依赖(印占盘只吃 fields + 本页选项)——
 +			// 在 /chart 返回【之前】并行发出:latency 从「网络 + 技法」变「max(网络, 技法)」。
@@ -331,7 +333,7 @@ index d4f94fc8..eecf3ee1 100644
  
  	changeTab(key){		
  		let hook = this.state.hook;
-@@ -1319,8 +1611,13 @@ class IndiaChartMain extends Component{
+@@ -419,8 +711,13 @@ class IndiaChartMain extends Component{
  		if(values && values.confirmed === false){
  			return;
  		}
@@ -347,7 +349,7 @@ index d4f94fc8..eecf3ee1 100644
  		let hook = this.state.hook[this.state.currentTab];
  		if(hook.fun){
  			hook.fun(flds);
-@@ -1542,6 +1839,59 @@ class IndiaChartMain extends Component{
+@@ -645,6 +942,59 @@ class IndiaChartMain extends Component{
  		this.setState({ indiaCounterClockwise: !!checked });
  	}
  
@@ -407,7 +409,7 @@ index d4f94fc8..eecf3ee1 100644
  	// WP-B 换第1宫参照:纯显示重数房号(三盘 + 星曜面板宫位),零请求、零后端、不动黄经。
  	changeIndiaLagnaRef(value){
  		const next = value && value.target ? value.target.value : value;
-@@ -1568,10 +1918,40 @@ class IndiaChartMain extends Component{
+@@ -671,10 +1021,57 @@ class IndiaChartMain extends Component{
  			</span>
  		);
  	}
@@ -428,8 +430,13 @@ index d4f94fc8..eecf3ee1 100644
 +		// 故槽位只服务「当前 props.fields」这条渲染主路径;预取/其它源一律绕过(返回新对象,内容不变)。
 +		const memoable = fields === this.props.fields
 +			&& (!optionOverrides || Object.keys(optionOverrides).length === 0);
-+		let memoKey = '';
++		let memoKey = null;
 +		if(memoable){
++			// 依赖表 = 下方实际读取的全部 state(逐项按引用比:对象值 indiaVargaVariantMap / indiaDashaVariants /
++			// prashnaCast 经 setState 换新对象即失效;旧版拼字符串对对象只得 '[object Object]',故改逐项 ===)。
++			// 后 9 项(年长/流派/分盘变体/大运变体/Karaka/Yuddha/年盘口径/三旗/问事)此前漏列 —— 它们的处理函数
++			// 走「setState → withIndiaOptionFields(this.props.fields) 无 override」路径,漏列即取回陈旧对象(起卦/清卦
++			// 无 dispatch 往返,结果整个不生效)。
 +			memoKey = [
 +				this.state.indiaHsysValue,
 +				this.state.indiaAyanamsaValue,
@@ -440,15 +447,27 @@ index d4f94fc8..eecf3ee1 100644
 +				this.state.indiaSthiraStart,
 +				this.state.indiaTransitDateValue,
 +				this.effectiveFractal(),
-+			].map((v)=>(v === null || v === undefined ? '~' : `${v}`)).join('|');
-+			if(this._optionFieldsMemo && this._optionFieldsMemoSrc === fields && this._optionFieldsMemoKey === memoKey){
++				this.state.indiaDashaYearLength,
++				this.state.indiaSchool,
++				this.state.indiaVargaVariantMap,
++				this.state.indiaDashaVariants,
++				this.state.indiaKarakaScheme,
++				this.state.indiaYuddhaCriterion,
++				this.state.indiaAnnualChartType,
++				this.state.indiaTripatakiOn,
++				this.state.prashnaCast,
++			];
++			const prevKey = this._optionFieldsMemoKey;
++			if(this._optionFieldsMemo && this._optionFieldsMemoSrc === fields
++				&& Array.isArray(prevKey) && prevKey.length === memoKey.length
++				&& prevKey.every((v, i)=> v === memoKey[i])){
 +				return this._optionFieldsMemo;
 +			}
 +		}
  		const indiaHsys = optionOverrides.indiaHsys !== undefined && optionOverrides.indiaHsys !== null
  			? AstroConst.normalizeIndiaHouseSystem(optionOverrides.indiaHsys)
  			: (this.state.indiaHsysValue !== null && this.state.indiaHsysValue !== undefined
-@@ -1608,7 +1988,7 @@ class IndiaChartMain extends Component{
+@@ -711,7 +1108,7 @@ class IndiaChartMain extends Component{
  			: (this.state.indiaTransitDateValue !== null && this.state.indiaTransitDateValue !== undefined
  			? this.state.indiaTransitDateValue
  			: (fields.indiaTransitDate ? fields.indiaTransitDate.value : null));
@@ -457,7 +476,7 @@ index d4f94fc8..eecf3ee1 100644
  			...fields,
  			indiaHsys: {
  				...(fields.indiaHsys || { name: ['indiaHsys'] }),
-@@ -1712,6 +2092,12 @@ class IndiaChartMain extends Component{
+@@ -815,6 +1212,12 @@ class IndiaChartMain extends Component{
  				value: this.state.prashnaCast ? this.state.prashnaCast.primaryHouse : undefined,
  			},
  		};
@@ -470,7 +489,7 @@ index d4f94fc8..eecf3ee1 100644
  	}
  
  	// ── G5/G13/G8/G1 设置变更 → 重取(与 changeDashaSystem 同范式) ──
-@@ -2051,6 +2437,18 @@ class IndiaChartMain extends Component{
+@@ -1169,6 +1572,18 @@ class IndiaChartMain extends Component{
  				this.setState({
  					activeJyotishFields: jyotishFields,
  					activeJyotishKey: dashaFieldsKey,
@@ -489,8 +508,8 @@ index d4f94fc8..eecf3ee1 100644
  				});
  			}
  			return;
-@@ -2090,6 +2488,12 @@ class IndiaChartMain extends Component{
- 					lastChartObj: hasJyotishPayload(dashaChartObj) ? dashaChartObj : this.state.lastChartObj,
+@@ -1214,6 +1629,12 @@ class IndiaChartMain extends Component{
+ 					...(hasJyotishPayload(dashaChartObj) ? { lastChartObj: dashaChartObj, lastChartObjSig: activeNatalSig } : {}),
  					dashaLoading: false,
  					dashaUpdating: false,
 +				}, ()=>{
@@ -502,7 +521,7 @@ index d4f94fc8..eecf3ee1 100644
  				});
  			}
  		}catch(e){
-@@ -5042,39 +5446,20 @@ class IndiaChartMain extends Component{
+@@ -4191,39 +4612,20 @@ class IndiaChartMain extends Component{
  			: AstroConst.INDIA_NODE_TYPE_DEFAULT;
  		let jyotishFields = this.state.activeJyotishFields || fields;
  		let chartHeight = '100%';

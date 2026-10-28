@@ -32,23 +32,10 @@ _ALLOW = None
 def _allowed_types():
     global _ALLOW
     if _ALLOW is None:
-        allow = set()
-        try:
-            from flatlib.object import GenericObject, Object, House, FixedStar
-            allow.update((GenericObject, Object, House, FixedStar))
-        except Exception:
-            pass
-        try:
-            from flatlib.datetime import Datetime, Date, Time
-            allow.update((Datetime, Date, Time))
-        except Exception:
-            pass
-        try:
-            from flatlib.geopos import GeoPos
-            allow.add(GeoPos)
-        except Exception:
-            pass
-        _ALLOW = frozenset(allow)
+        from flatlib.object import GenericObject, Object, House, FixedStar
+        from flatlib.datetime import Datetime, Date, Time
+        from flatlib.geopos import GeoPos
+        _ALLOW = frozenset((GenericObject, Object, House, FixedStar, Datetime, Date, Time, GeoPos))
     return _ALLOW
 
 

@@ -12,7 +12,7 @@ describe('normalize / args / render', ()=>{
 		expect(sk.argsSpec).toEqual([{ name: 'year', label: '年份', default: '2027' }]);
 		expect(sk.version).toBe(1);
 	});
-	it('[Q-329① 裁决 2026-09-18] sections 字段撤除:归一化丢弃(老包带键亦不保留);内置三技能无该键', () => {
+	it('sections 字段撤除:归一化丢弃(老包带键亦不保留);内置三技能无该键', () => {
 		const sk = normalizeSkillPack({ skill: { triggers: ['x'], sections: ['a', 'b'] } });
 		expect(Object.prototype.hasOwnProperty.call(sk, 'sections')).toBe(false);
 		BUILTIN_SKILLS.forEach((b)=>{ expect(Object.prototype.hasOwnProperty.call(b.skill, 'sections')).toBe(false); });
@@ -77,13 +77,13 @@ describe('内置技能', ()=>{
 			expect(sk.promptTemplate).toContain('{{source}}');
 		});
 		const ln = normalizeSkillPack(BUILTIN_SKILLS[0]);
-		expect(ln.argsSpec[0]).toEqual({ name: 'year', label: '年份', default: '今年' });
+		expect(ln.argsSpec[0]).toEqual({ name: 'year', label: '年份', default: '今年', type: 'year' });   // 年份参数渲染前规整(2027年 / 后年 …)
 		expect(ln.techniqueKeys).toEqual(['bazi', 'ziwei']);
 		expect(normalizeSkillPack(BUILTIN_SKILLS[1]).requires).toBe('two-charts');
 	});
 });
 
-// ---- [压测二轮·D4·J5] 技能包劫持 ----
+// ---- 技能包劫持 ----
 // 技能包是可以从外部导入的文件:触发词能撞内置命令、defaultSystemPrompt 能塞一整本书、模板占位符能点到原型键。
 describe('J5 技能包劫持面', ()=>{
 	const packWith = (extra)=>JSON.stringify({ format: SKILL_FILE_FORMAT, version: 1, pack: { name: '外来包', skill: { version: 1, triggers: ['compact', '流年'], requires: 'any', promptTemplate: '看{{source}}' }, ...(extra || {}) } });
@@ -135,8 +135,8 @@ describe('J5 技能包劫持面', ()=>{
 	});
 });
 
-// [Q-416 裁决 2026-09-18] 组合弹窗改技法 → 技能包同步(纯)
-describe('syncSkillTechniqueKeys [Q-416]', ()=>{
+// 组合弹窗改技法 → 技能包同步(纯)
+describe('syncSkillTechniqueKeys', ()=>{
 	const pack = { id: 'b1', name: '事业', skill: { version: 2, triggers: ['事业'], requires: 'chart', techniqueKeys: ['bazi'], promptTemplate: 'x' }, skillHistory: [{ at: 't0', skill: { version: 1 } }] };
 	test('非技能包 → 零变化', ()=>{ expect(syncSkillTechniqueKeys({ id: 'b0', name: '普通组合' }, ['bazi'])).toEqual({}); });
 	test('技法未变 → 零变化(不升版)', ()=>{ expect(syncSkillTechniqueKeys(pack, ['bazi'])).toEqual({}); });

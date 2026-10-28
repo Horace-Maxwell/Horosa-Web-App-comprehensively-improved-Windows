@@ -18,6 +18,14 @@ import org.junit.Test;
 
 public class AIAnalysisMaterialServiceTest {
 
+	/** 类一加载即把进程级表格 / 文档解析阈值设好(Excel 导入等其它解析入口共用这两个值)。 */
+	@Test
+	public void classInitSetsProcessWideZipThresholds() throws Exception {
+		Class.forName(AIAnalysisMaterialService.class.getName(), true, AIAnalysisMaterialServiceTest.class.getClassLoader());
+		assertEquals(0.001d, org.apache.poi.openxml4j.util.ZipSecureFile.getMinInflateRatio(), 0d);
+		assertEquals(2000L, org.apache.poi.openxml4j.util.ZipSecureFile.getMaxFileCount());
+	}
+
 	@Test
 	public void extractPlainTextKeepsMetadataAndHashes() {
 		AIAnalysisMaterialService service = new AIAnalysisMaterialService();
@@ -83,7 +91,7 @@ public class AIAnalysisMaterialServiceTest {
 		return params;
 	}
 
-	// [D58] 体积上限先于解码:超限的 base64 在毫秒级被拒(580103),不进 Base64.decode / PDFBox
+	// 体积上限先于解码:超限的 base64 在毫秒级被拒(580103),不进 Base64.decode / PDFBox
 	@Test
 	public void oversizedBase64IsRejectedFastWith580103() {
 		AIAnalysisMaterialService service = new AIAnalysisMaterialService();
@@ -101,7 +109,7 @@ public class AIAnalysisMaterialServiceTest {
 		assertTrue("拒绝应在 1 s 内(不解码)", System.currentTimeMillis() - t0 < 1000L);
 	}
 
-	// [D58] 千页 PDF 只抽前 MAX_PDF_PAGES 页:pageCount 如实、正文不含后面页的文字
+	// 千页 PDF 只抽前 MAX_PDF_PAGES 页:pageCount 如实、正文不含后面页的文字
 	@Test
 	public void hugePdfOnlyExtractsFirstPages() throws Exception {
 		AIAnalysisMaterialService service = new AIAnalysisMaterialService();

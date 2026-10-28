@@ -289,8 +289,8 @@ def mount_kentang_services(cherrypy):
             cherrypy.tree.mount(_load_service(spec), spec["mount"])
 
 
-def prewarm_kentang_services():
-    """空闲预热(监听后后台 warmup 线程调):逐个完成懒服务真加载。
+def _prewarm_specs(specs, tag):
+    """按规格表逐个完成已挂载懒服务的真加载(核心服务与卜类服务共用;tag 只进失败日志前缀)。
 
     吞错——预热失败只打日志,留给首个真实请求以 KentangServiceLoadError 响亮 500
     (加载路径与请求路径同一条,绝无「预热吞掉故障」的口径分叉)。
@@ -300,7 +300,7 @@ def prewarm_kentang_services():
 
     loaded = 0
     failed = 0
-    for spec in KENTANG_SERVICE_SPECS:
+    for spec in specs:
         try:
             app = _cherrypy.tree.apps.get(spec["mount"])
             root = getattr(app, "root", None)
@@ -309,10 +309,15 @@ def prewarm_kentang_services():
                 loaded += 1
         except Exception:
             failed += 1
-            print("[kentang] prewarm failed %s" % spec.get("key"), flush=True)
+            print("[%s] prewarm failed %s" % (tag, spec.get("key")), flush=True)
             traceback.print_exc()
 
     return loaded, failed
+
+
+def prewarm_kentang_services():
+    """空闲预热(监听后后台 warmup 线程调):逐个完成卜类懒服务真加载。返回 (loaded, failed)。"""
+    return _prewarm_specs(KENTANG_SERVICE_SPECS, "kentang")
 
 
 def prewarm_kentang_modules():

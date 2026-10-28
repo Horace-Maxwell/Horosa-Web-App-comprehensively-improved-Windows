@@ -61,6 +61,10 @@ class AstroLots extends Component{
 
 	genLotsDom(chartObj){
 		let doms = [];
+		// 还没有盘:空列表(宿主给空态提示),不许抛错
+		if(!chartObj){
+			return doms;
+		}
 		// 界主按所选界系(含迦勒底,按昼夜;含狮子/双子界内变体),与中间盘界环 / 后端尊贵同口径。
 		let _termsTable = termsTableForVariant(
 			chartObj.params && chartObj.params.termsVariant,

@@ -32,6 +32,8 @@ import { cityDbIdlePreloadEnabled } from '../utils/perfFlags';
 // 用户切任何技法时模块早已就绪(零等待)。preload 引用同一 factory,React.lazy 缓存同一 promise。
 // 悬停预取注册表迁至 utils/navPreload.js —— 模块选择器/快捷坞等公共组件
 // 也要消费,从 pages 导入会成 components ← pages 循环依赖;此处声明时登记,消费方 import util。
+// 导航搜索里 AI 分析页的关键词
+let AI_NAV_KEYWORDS = 'AI 分析 挂载 大模型';
 const LAZY_PRELOAD_QUEUE = [];   // {factory, order}
 // order: 1=hot(高频技法,先预载) 2=normal 3=heavy(3D/天文馆等重可视化,殿后)
 // 自愈 + Suspense + 错误边界三件套已抽到 utils/lazyBoundary.js(单一真值源)——
@@ -54,17 +56,17 @@ function startIdlePreload(){
 	lazyPreloadStarted = true;
 	// 概率序:hot(高频技法)→normal→heavy(重可视化);同档保声明序。
 	// 此前按 import 声明序(3D/天文馆最先)与真实使用频率倒挂,高频技法反而最后就绪。
-	// [R5 N2] 档位序之上再按本机使用频次稳定排序:常用技法先就绪,没记录的项保持档位序(全新安装 = 旧序)。
+	// 档位序之上再按本机使用频次稳定排序:常用技法先就绪,没记录的项保持档位序(全新安装 = 旧序)。
 	const queue = orderByUsage(LAZY_PRELOAD_QUEUE.slice().sort((a, b) => a.order - b.order), (e) => e.navKey)
 		.map((e) => e.factory);
 	const next = ()=>{
-		// [R3-D1] 每空闲拍预载 2 个(原 1):31 chunk 全就绪窗口减半;仍走 requestIdleCallback
+		// 每空闲拍预载 2 个(原 1):31 chunk 全就绪窗口减半;仍走 requestIdleCallback
 		// 空闲档,不与用户交互抢主线程(交互期无空闲拍=天然让路)。
 		const fs = queue.splice(0, 2);
 		if(!fs.length) return;
 		// 🔴 预载失败绝不全静默:模块顶层炸(如 strip 悬空引用)首爆就在这里,吞掉后 webpack
 		// 中毒缓存会让后续点击伪装成「Lazy chunk resolved empty」,真因极难排查(v3.6.0 实案)。
-		Promise.all(fs.map((f)=>Promise.resolve().then(f).catch((e)=>{ try{ console.warn('[lazy-preload] 技法模块预载失败(点击该技法时会再报):', e); }catch(_){ } }))).finally(()=>{
+		Promise.all(fs.map((f)=>Promise.resolve().then(f).catch((e)=>console.warn('[lazy-preload] 技法模块预载失败(点击该技法时会再报):', e)))).finally(()=>{
 			if(typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'){
 				window.requestIdleCallback(next, { timeout: 3000 });
 			}else{
@@ -98,7 +100,7 @@ const AstroChartMain3D = lazyPreloadable(() => import('../components/astro3d/Ast
 const PlanetariumMain = lazyPreloadable(() => import('../components/planetarium/PlanetariumMain'), { order: 3, navKey: 'planetarium' });
 const AuxChartMain = lazyPreloadable(() => import('../components/auxchart/AuxChartMain'), { order: 1, navKey: 'auxchart' });
 const IndiaChartMain = lazyPreloadable(() => import('../components/astro/IndiaChartMain'), { order: 1, navKey: 'indiachart' });
-// [B6] 合盘转 lazy(此前 eager 拖整组件进首屏;快照链亦已在 aiAnalysisContext 动态化,饿链全断)。
+// 合盘转 lazy(此前 eager 拖整组件进首屏;快照链亦已在 aiAnalysisContext 动态化,饿链全断)。
 const AstroRelative = lazyPreloadable(() => import('../components/astro/AstroRelative'), { order: 2, navKey: 'relativechart' });
 const AstroDirectMain = lazyPreloadable(() => import('../components/direction/AstroDirectMain'), { order: 1, navKey: 'direction' });
 import AspSelector from '../components/astro/AspSelector';
@@ -106,11 +108,11 @@ import AstroOrbSetting from '../components/astro/AstroOrbSetting';
 import PlanetSelector from '../components/astro/PlanetSelector';
 import ChartDisplaySelector from '../components/astro/ChartDisplaySelector';
 import ChartsGps from '../components/user/ChartsGps';
-// [B6] 笔记面板转 lazy:其饿链拖 Quill+node-forge 进首屏 vendors(explorer 实测);lazyPreloadable 自带 Suspense+边界。
+// 笔记面板转 lazy:其饿链拖 Quill+node-forge 进首屏 vendors(explorer 实测);lazyPreloadable 自带 Suspense+边界。
 const ChartMemo = lazyPreloadable(() => import('../components/comp/ChartMemo'), { order: 3 });
 import FreezeInactive from '../components/comp/FreezeInactive';
 import { markWebLedger, markStaticCacheStats } from '../utils/startupLedger';
-import { saveBootChartSnapshot } from '../utils/bootChartRestore';   // [R5 S7] 温启直接显示上次的盘:每次出盘落快照   // [R5 P0-1] 前端启动账本
+import { saveBootChartSnapshot } from '../utils/bootChartRestore';   // 温启直接显示上次的盘:每次出盘落快照   // 前端启动账本
 import { AUX_SUBTABS, CNYIBU_SUBTABS, CNTRADITION_SUBTABS, ZERI_SUBTABS, RELATIVE_SUBTABS, recallSubTab } from '../constants/SubTabRegistry';
 const JieQiChartsMain = lazyPreloadable(() => import('../components/jieqi/JieQiChartsMain'), { order: 2, navKey: 'jieqichart' });
 const CnTraditionMain = lazyPreloadable(() => import('../components/cntradition/CnTraditionMain'), { order: 2, navKey: 'cntradition' });
@@ -125,11 +127,8 @@ const CalendarMain = lazyPreloadable(() => import('../components/calendar/Calend
 const FengShuiMain = lazyPreloadable(() => import('../components/fengshui/FengShuiMain'), { order: 2, navKey: 'fengshui' });
 const SanShiUnitedMain = lazyPreloadable(() => import('../components/sanshi/SanShiUnitedMain'), { order: 2, navKey: 'sanshiunited' });
 const AIAnalysisMain = lazyPreloadable(() => import('../components/aianalysis/AIAnalysisMain'), { order: 1, navKey: 'aianalysis' });
-// 此前四项无 navKey → 不在悬停预取注册表,主导航/抽屉/dock 掠过恒 no-op,只能等
-// order 2/3 的 idle 队列殿后 —— 补 navKey(与 drawerNavigationPages/openDrawer 的 key 同名)。
-const BookMain = lazyPreloadable(() => import('../components/reader/BookMain'), { order: 3, navKey: 'astroreader' });
-const MediaMain = lazyPreloadable(() => import('../components/multimedia/MediaMain'), { order: 3, navKey: 'liveplayer' });
-const AdminToolsMain = lazyPreloadable(() => import('../components/admintools/AdminToolsMain'), { order: 3, navKey: 'admintools' });
+// 此前这几项无 navKey → 不在悬停预取注册表,主导航/抽屉/dock 掠过恒 no-op,只能等
+// order 2/3 的 idle 队列殿后 —— 补 navKey(与 navigationPages/openDrawer 的 key 同名)。
 const GuoLaoChartMain = lazyPreloadable(() => import('../components/guolao/GuoLaoChartMain'), { order: 1, navKey: 'guolao' });
 const CommToolsMain = lazyPreloadable(() => import('../components/commtools/CommToolsMain'), { order: 2, navKey: 'commtools' });
 import DLFeature from '../components/deeplearn/DLFeature';
@@ -150,6 +149,7 @@ import { XQDrawer as Drawer, XQModal, XQTabs } from '../components/xq-ui';
 import { scheduleUnconfirmedTimeDispatch, cancelPendingTimeDispatch } from '../utils/timeDispatchScheduler';
 import { registerNavPreload, preloadNavByKey } from '../utils/navPreload';
 import { registerWorkspaceBridge, registerWorkspaceUi } from '../utils/aiTools/workspaceBridge';
+import { recordSeedsForFieldWrite } from '../utils/newChartSeeds';
 
 const TabPane = XQTabs.TabPane;
 
@@ -188,9 +188,6 @@ const mainTabIcons = {
     择日: <XQIcon name="calendar" />,
     '3D星盘': <XQIcon name="sphere3d" />,
     辅助: <XQIcon name="support" />,
-    书籍阅读: <XQIcon name="book" />,
-    星阙直播: <XQIcon name="live" />,
-    管理工具: <XQIcon name="admin" />,
 };
 
 // keywords：该模块内部的术法/别名串（简体 + 常见叫法），供导航搜索匹配「模块内术法」。
@@ -215,10 +212,10 @@ const navigationPages = [
     { label: '风水', key: 'fengshui', icon: 'fengshui', group: '卜', keywords: '风水 纳气盘 八卦阳宅 阳宅 理气 罗盘 八宅 大游年 东西四宅 门主灶 玄空 玄空飞星 兼向 替卦 三合 十二长生 水法 立向 黄泉 拨砂 穿山 透地 分金 金锁玉关 过路阴阳 乾坤国宝 龙门八局 紫白 紫白飞星 辅星水法 翻卦 净阴净阳 纳甲 玄空大卦 六十四卦 卦运 形势 峦头 龙穴砂水向 择日 造命 太岁 三煞 岁破 坐向 元运 玄空六法 谈养吾 零正 雌雄 金龙 挨星 城门 命理派 以命配宅 罗盘 罗经 三针 正针 中针 缝针 天池 圆图 补龙 相主 定穴 倒杖 五黄分运 兼向度界 大玄空 单盘挨星 正神 零神 父母星 合局 反局 拨水入零堂 水破令星 上山下水 水龙 平洋 平洋龙 坐水骑龙 挟龙倚水 向水攀龙 息道 漏道 干水 支水 湖荡 曲水朝堂 化煞 改造化煞 形煞 气煞 枪煞 天堑煞 反弓煞 尖射煞 孤阳煞 孤阴煞 辐射煞 廉贞煞 补偏救弊 镇物 石敢当 葫芦 六帝钱 黄黑煞 斗牛煞 交剑煞 紫黄毒药 阴神满地 令星煞 阳宅判断 峦头断 外六事 内六事 峤星 客星 飞太岁 选宅 室内凶局 用事 紫白择日 斗首 元辰 武财 廉子 贪狼 破鬼' },
     { label: '塔罗', key: 'tarot', icon: 'tarot', group: '卜', keywords: '塔罗 tarot 韦特 RWS 马赛 托特 Thoth 雷诺曼 Lenormand 埃及塔罗 扑克占卜 大牌 小牌 权杖 圣杯 宝剑 星币 凯尔特十字 牌阵 日课 逆位 宫廷牌 定局 计时' },
     { label: '其他', key: 'cnyibu', icon: 'other', group: '卜', keywords: '金口诀 五兆 太玄 荆诀 神易数 皇极经世 宿占 统摄法 地占 天文地占 护盾盘 判官 调和者 16图形 盾牌盘 四片盘 Hakata 异或表盘 Sikidy 皇极轨策 轨策 策数 轨数 万物数 周易数 梅花易数 体用 互卦 三要十应 大定神数 元会运世 邵子 小成图 小成圖 股市卦 飞宫小奇门 小奇门 飞宫 小六壬 掌诀 大安 留连 速喜 赤口 小吉 空亡 灵棋经 灵棋 靈棋 十二棋 灵棋卜 掷棋 棋卦 东方朔' },
-    { label: 'AI分析', key: 'aianalysis', icon: 'ai', group: '工具', keywords: 'AI 分析 挂载 报告 大模型' },
+    { label: 'AI分析', key: 'aianalysis', icon: 'ai', group: '工具', keywords: AI_NAV_KEYWORDS },
     { label: '天文馆', key: 'planetarium', icon: 'globe', group: '工具', keywords: '天文馆 星空 观星 星图 babylon' },
     { label: '黄历', key: 'calendar', icon: 'calendar', group: '工具', keywords: '黄历 农历 老黄历 择日 宜忌 节气' },
-    { label: '辅助', key: 'cntradition', icon: 'support', group: '工具', keywords: '辅助 工具 真太阳时 八卦类象 类象 卦象 十二串宫 十二宫 八字规则 规则速查' },
+    { label: '辅助', key: 'cntradition', icon: 'support', group: '工具', keywords: '辅助 工具 八卦类象 类象 卦象 十二串宫 十二宫 八字规则 规则速查' },
     { label: '玄学史', key: 'xuanshi', icon: 'other', group: '工具', keywords: '玄学史 历史 星象 天象 列传 朝代 地图 关系 二十四史 野载 正史 omen 玄史 中国玄学史' },
     { label: '3D星盘', key: 'astrochart3D', icon: 'sphere3d', group: '工具', keywords: '3D 星盘 三维 天球 立体 球面 星空 相位 映点 接纳 互容 围攻 夹宫 希腊点 3d' },
     { label: '数据库', key: 'astrodata', icon: 'database', group: '工具', keywords: '数据库 名人 命例 名人星盘 星盘库 案例库 出生数据 Rodden AstroDatabank 名人库 celebrity 星盘目录' },
@@ -227,13 +224,8 @@ const navigationPages = [
 
 // 悬停预取:鼠标掠过导航项即预载对应 lazy chunk(React.lazy 幂等,重复调用零成本;
 // 已预载/主包组件 = no-op)。「其他」在命/卜两组重名 → 两个 key 都取。
-// 主导航渲染 label(mainTab),预取按 key —— navigationPages 之外的三个主 tab
-// (内容/管理组,不进模块选择器)手工补映射,否则其悬停恒 no-op。
-const NAV_LABEL_TO_KEYS = {
-	书籍阅读: ['astroreader'],
-	星阙直播: ['liveplayer'],
-	管理工具: ['admintools'],
-};
+// 主导航渲染 label(mainTab),预取按 key。
+const NAV_LABEL_TO_KEYS = {};
 for(const page of navigationPages){
 	if(!NAV_LABEL_TO_KEYS[page.label]){
 		NAV_LABEL_TO_KEYS[page.label] = [];
@@ -355,9 +347,9 @@ function computeRefreshSignature(fields, chartObj){
 function AstroIndex({dispatch, astro, app, user, rules, }){
     // 首屏就绪后空闲预载全部技法 chunk(不影响启动;切技法零等待)。
     React.useEffect(()=>{
-        // [R5 P0-1] 主导航可点(主页组件首次 commit 之后)
+        // 主导航可点(主页组件首次 commit 之后)
         markWebLedger('web.nav_interactive');
-        setTimeout(()=>{ try{ markStaticCacheStats(); }catch(e){ /* 观测 */ } }, 0);   // [R5 N2] 静态缓存命中观测(空闲一拍后统计,不占首屏)
+        setTimeout(markStaticCacheStats, 0);   // 静态缓存命中观测(空闲一拍后统计,不占首屏)
         startIdlePreload();
         // WS-3c 空闲预热队列:chunk 预载(上行,1s 起步)之后错峰启动(4s 起步),
         // 动态 import 高频本地引擎模块(常量表/JIT 挪进空闲)——暖后任意技法首点亚秒;
@@ -372,7 +364,6 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         userInfo,
         charts,
         currentChart,
-        admin,
         pageSize,
         pageIndex,
         total,
@@ -382,7 +373,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         casePageIndex,
         caseTotal,
     } = user;
- 	const { height, fields, chartObj, drawerVisible, predictHook, memo, memoType, currentTab, currentSubTab, deeplearn, baziCalibreOverride} = astro;   // [Q-314] 八字本页口径覆盖层
+ 	const { height, fields, chartObj, drawerVisible, predictHook, memo, memoType, currentTab, currentSubTab, deeplearn, baziCalibreOverride, _dayBoundaryRecordPinned, _after23BoundaryUserOverrode, _lateZiHourUserOverrode } = astro;   // 八字本页口径覆盖层
     const { ziwei, } = rules; 
 
     
@@ -391,22 +382,22 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
     // 一致,结果自然落各自 L1;首点=命中即时)。组以 chartId 为代(新盘作废旧组);任务内
     // 动态 import(不拖 chunk 进主包,顺带引擎预热);全部 silent、只进确定性端点、交互即让路。
     // 双闸:horosa.perf.idleWarmQueue(总)/ horosa.perf.dataWarmTasks(细)。失败静默。
-    // [R5 P0-1] 首张盘已提交(chartObj 首次带 chartId 的 commit 之后;只记一次)
+    // 首张盘已提交(chartObj 首次带 chartId 的 commit 之后;只记一次)
     React.useEffect(()=>{
         if(chartObj && chartObj.chartId){ markWebLedger('web.first_chart_paint'); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chartObj && chartObj.chartId]);
-    // [R5 S7] 温启直接显示上次的盘:每次出盘(chartObj 换代)把当前 fields + 页签按载入命盘 record 口径落快照
+    // 温启直接显示上次的盘:每次出盘(chartObj 换代)把当前 fields + 页签按载入命盘 record 口径落快照
     // (deferredStorage 空闲写;桌面壳 / 开关 / 合法性全在 util 内裁决;快照是优化,任何异常不许碰出盘主流程)
     React.useEffect(()=>{
         if(!(chartObj && chartObj.chartId)){ return; }
-        try{ saveBootChartSnapshot(fields, currentTab, currentSubTab); }catch(e){ /* optimization only */ }
+        try{ saveBootChartSnapshot(fields, currentTab, currentSubTab, { dayBoundaryPinned: !!_dayBoundaryRecordPinned, dayBoundaryUserOverride: { after23: !!_after23BoundaryUserOverrode, lateZi: !!_lateZiHourUserOverrode } }); }catch(e){ /* optimization only */ }
     }, [chartObj && chartObj.chartId]);
     // 快照里的页签 = 「上次停留」而不是「上次出盘」:出盘后切页签也把同一份 fields 按新页签重落快照
     // (deferredStorage 同键合并、空闲写,代价可忽略;没出过盘不写)
     React.useEffect(()=>{
         if(!(chartObj && chartObj.chartId)){ return; }
-        try{ saveBootChartSnapshot(fields, currentTab, currentSubTab); }catch(e){ /* optimization only */ }
+        try{ saveBootChartSnapshot(fields, currentTab, currentSubTab, { dayBoundaryPinned: !!_dayBoundaryRecordPinned, dayBoundaryUserOverride: { after23: !!_after23BoundaryUserOverrode, lateZi: !!_lateZiHourUserOverrode } }); }catch(e){ /* optimization only */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTab, currentSubTab]);
     React.useEffect(()=>{
@@ -431,8 +422,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         });
     }
 
-    // [A3] 跨页跳转桥:AI 助手斜杠命令(/择日 等)派发 horosa:navigate {key, subTab?} → 走 changeTab(与点主导航同一路径);ref 取最新闭包
-    // [2026-09-11] subTab 只认各聚合页登记过的键(与下方 registerWorkspaceUi.navigate 同一张表,抽成 applySubTab 两处共用):/择日 奇门 → zeri/qimenzeri
+    // 跨页跳转桥:AI 助手斜杠命令(/择日 等)派发 horosa:navigate {key, subTab?} → 走 changeTab(与点主导航同一路径);ref 取最新闭包
+    // subTab 只认各聚合页登记过的键(与下方 registerWorkspaceUi.navigate 同一张表,抽成 applySubTab 两处共用):/择日 奇门 → zeri/qimenzeri
     const changeTabRef = React.useRef(null);
     changeTabRef.current = changeTab;
     const dispatchRef = React.useRef(dispatch);
@@ -457,8 +448,8 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         window.addEventListener('horosa:navigate', onNav);
         return () => window.removeEventListener('horosa:navigate', onNav);
     }, []);
-    // [批五] 工作区 ui 面(导航):AI 工具 navigate_to_technique / 载入即跳 / 合盘配对经此走 changeTab(与点主导航同一路径);
-    // 路由表取自 navigationPages(只含本构建登记的页面);子页签只认各聚合页登记过的键;当前路由读 ref(冻结期不陈旧)。
+    // 工作区 ui 面(导航):AI 工具 navigate_to_technique / 载入即跳 / 合盘配对经此走 changeTab(与点主导航同一路径);
+    // 路由表取自 navigationPages(只含已登记的页面);子页签只认各聚合页登记过的键;当前路由读 ref(冻结期不陈旧)。
     const routeRef = React.useRef({ tab: currentTab, subTab: currentSubTab });
     routeRef.current = { tab: currentTab, subTab: currentSubTab };
     React.useEffect(() => registerWorkspaceUi({
@@ -483,7 +474,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
     }
 
     function changeTab(key){
-        recordTechniqueVisit(key);   // [R5 N2] 切页计数(设备本地),预载 / 预热序按它排
+        recordTechniqueVisit(key);   // 切页计数(设备本地),预载 / 预热序按它排
         // 切页流畅度:盘(fields+chartId)签名未变 → 跳过 predictHook.fun(keep-alive 面板已最新 → 切换瞬间);
         // 变了才刷新并记签名 → 盘变必刷新、零降级。刷新放 dispatch 之后 setTimeout(0) → 切换观感瞬间、刷新随后带 spinner。
         const currentSig = computeRefreshSignature(fields, chartObj);
@@ -508,7 +499,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
         }else if(key === 'zeri'){
             nextSubTab = recallSubTab('zeri', ZERI_SUBTABS, currentSubTab, 'tianxing');
         }else if(key === 'relativechart'){
-            // [Q-417/T-377] 合盘:沿用旧 currentSubTab 曾把辅盘的 germanytech 带进来(页头帮助显示量化盘手册);
+            // 合盘:沿用旧 currentSubTab 曾把辅盘的 germanytech 带进来(页头帮助显示量化盘手册);
             //   同其它组走「合法 → 宿主记忆 → 首档」回落(AstroRelative 挂载/切子页签时 rememberSubTab)。
             nextSubTab = recallSubTab('relativechart', RELATIVE_SUBTABS, currentSubTab, 'Comp');
         }else if(key === 'direction'){
@@ -532,7 +523,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                 if(key === 'indiachart' || key === 'cntradition' || key === 'jieqichart'
                     || key === 'otherbu' || key === 'cnyibu' || key === 'tarot' || key === 'germanytech'
                     || key === 'guolao' || key === 'hellenastro'  || key === 'astrochart'
-                    || key === 'locastro' || key === 'admintools' || key === 'astrochart3D'
+                    || key === 'locastro' || key === 'astrochart3D'
                     || key === 'planetarium'
                     || key === 'fengshui' || key === 'sanshiunited' || key === 'aianalysis'
                     || key === 'bazi' || key === 'ziwei' || key === 'guazhan'
@@ -540,8 +531,6 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     || key === 'shusuan' || key === 'mingother'
                     || key === 'auxchart'){
                     predictHook[key].fun(fields);
-                }else if(key === 'astroreader'){
-                    predictHook[key].fun();
                 }else{
                     predictHook[key].fun(chartObj);
                 }
@@ -550,7 +539,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
 
         // R4-B2((c) 时机):切到新技法页签 300ms 后(切换 paint 与可能的刷新已让路)按该技法
         // 最近档位武装 ±depth —— 进页后第一下步进也命中。NO_ARM 技法由 shouldArmForTab 内部拦。
-        try{ setCurrentTechnique(key); }catch(e){ /* 观测归属失败无害 */ }
+        setCurrentTechnique(key);
         setTimeout(()=>{
             try{ armStepPrefetch('tab-activate', { tabOverride: key }); }catch(e){ /* 武装失败静默 */ }
         }, 300);
@@ -657,6 +646,10 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             }
         }
 
+        // 「新盘种子」收在写共用字段的这个口子上:本命主页 / 合盘 / 希腊 · 十二分盘流派预设 / 3D / 汉堡中点 / 七政等
+        // 亲手改的宫制 / 黄道等,都是「下次新命盘的缺省」;AI 助手的改动(fromAgent)与程序回写(programmatic)不记
+        recordSeedsForFieldWrite(fields, flds, values);
+
         const isUnconfirmedTime = values && values.tm !== undefined && values.tm !== null && values.confirmed === false;
         if(isUnconfirmedTime){
             const queuedPayload = {
@@ -749,13 +742,6 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
     const arycaseflds = React.useMemo(()=>convertToArray(currentCase), [currentCase]);
     const aryregflds = React.useMemo(()=>convertToArray(registerFields), [registerFields]);
     const aryloginflds = React.useMemo(()=>convertToArray(loginFields), [loginFields]);
-    const drawerNavigationPages = navigationPages.concat(
-        userInfo ? [
-            { label: '书籍阅读', key: 'astroreader', icon: 'book', group: '内容' },
-            { label: '星阙直播', key: 'liveplayer', icon: 'live', group: '内容' },
-        ] : [],
-        admin ? [{ label: '管理工具', key: 'admintools', icon: 'admin', group: '管理' }] : []
-    );
 
     const activeMainTab = currentTab === 'yanqin' ? 'mingother' : currentTab;
     const isFullHeightWorkspaceTab = fullHeightWorkspaceTabs.has(activeMainTab);
@@ -900,7 +886,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     <AuxChartMain
                         chart={chartObj}
                         onChange={changeCond}
-                        planetListStyle={app.planetListStyle}   /* [Q-356/T-337] 行星列表密度:此前不传 → 下游只能走 localStorage 兜底,被三层浅比 sCU 挡住、改完要切子页签才生效 */
+                        planetListStyle={app.planetListStyle}   /* 行星列表密度:此前不传 → 下游只能走 localStorage 兜底,被三层浅比 sCU 挡住、改完要切子页签才生效 */
                         tripSystem={tripSystem}
                         height={height}
                         fields={fields}
@@ -913,7 +899,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         hook={predictHook.auxchart}
                         chartStyle={chartStyle}
                         wheelArt={wheelArt}
-                        voidClassical={voidClassical}   /* [Q-149/T-56] 宿主链补传:此前断在辅盘,空亡古典义 / 仅本垣擢升互容 两档在派生盘页恒按关(会话态键,无 localStorage 兜底) */
+                        voidClassical={voidClassical}   /* 宿主链补传:此前断在辅盘,空亡古典义 / 仅本垣擢升互容 两档在派生盘页恒按关(会话态键,无 localStorage 兜底) */
                         showOnlyRulExaltReception={showOnlyRulExaltReception}
                         dispatch={dispatch}
                         currentSubTab={currentSubTab}
@@ -934,7 +920,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                         wheelArt={wheelArt}
 	                        showPlanetHouseInfo={showPlanetHouseInfo}
 	                        showAstroMeaning={showAstroMeaning}
-	                        showOnlyRulExaltReception={showOnlyRulExaltReception}   /* [Q-253/T-223] 合盘四子盘弹层四键补传(此前恒显示关/密度恒「完整」) */
+	                        showOnlyRulExaltReception={showOnlyRulExaltReception}   /* 合盘四子盘弹层四键补传(此前恒显示关/密度恒「完整」) */
 	                        voidClassical={voidClassical}
 	                        planetListStyle={app.planetListStyle}
 	                        aspects={aspects}
@@ -1204,47 +1190,6 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                 </TabPane>
 
 
-
-                {
-                    userInfo && (
-                        <TabPane tab={mainTab('书籍阅读', '内容与管理')} key="astroreader">
-                          <FreezeInactive active={activeMainTab === "astroreader"}>
-                            <BookMain 
-                                height={height}
-                                userInfo={userInfo}
-                                dispatch={dispatch}
-                                hook={predictHook.astroreader}
-                            />
-                          </FreezeInactive>
-                        </TabPane>
-                    )
-                }
-
-                {
-                    userInfo && (
-                        <TabPane tab={mainTab('星阙直播')} key="liveplayer">
-                          <FreezeInactive active={activeMainTab === "liveplayer"}>
-                            <MediaMain 
-                                height={height}
-                                dispatch={dispatch}
-                                userInfo={userInfo}
-                                currentSubTab={currentSubTab}
-                                admin={admin}
-                            />
-                          </FreezeInactive>
-                        </TabPane>
-                    )
-                }
-
-                {
-                    admin && (
-                        <TabPane tab={mainTab('管理工具')} key="admintools">
-                          <FreezeInactive active={activeMainTab === "admintools"}>
-                            <AdminToolsMain />
-                          </FreezeInactive>
-                        </TabPane>
-                    )
-                }
 
             </XQTabs>
             </React.Suspense>
@@ -1631,7 +1576,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             </Drawer>
 
             <Drawer
-                title='我的命盘分布'   /* [Q-417/T-378] 与公共菜单「命盘分布」同词;数据源=本机命盘库 */
+                title='我的命盘分布'   /* 与公共菜单「命盘分布」同词;数据源=本机命盘库 */
                 width={900}
                 placement="left"
                 onClose={closeDrawer}
@@ -1704,7 +1649,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
             </Drawer>
 
             <Drawer
-                title='人生事件设置'
+                title='命主实况'
                 width={1000}
                 placement="left"
                 onClose={closeDrawer}
@@ -1747,7 +1692,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                     <HomePageSetup
                         dispatch={dispatch}
                         loading={loading}
-                        pages={drawerNavigationPages}
+                        pages={navigationPages}
                         currentKey={activeMainTab}
                         onNavigate={changeTab}
                         onOpenTools={()=>openDrawer('commtools')}

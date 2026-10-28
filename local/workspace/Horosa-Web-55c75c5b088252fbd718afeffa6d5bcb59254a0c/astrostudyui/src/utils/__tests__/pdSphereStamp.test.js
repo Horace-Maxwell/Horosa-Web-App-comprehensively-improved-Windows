@@ -1,4 +1,4 @@
-// [挂载自检 F-11·P0] 主限天球「当前动画所指」盖章只认同一张盘。
+// 主限天球「当前动画所指」盖章只认同一张盘。
 // 判别向量:readPdSphereStamp 去掉 sig 比对即第 2/4 例红;buildPrimaryDirectSnapshotText 改回直读旧键即第 4 例红。
 jest.mock('../../services/astro', () => ({ fetchChart: jest.fn(async () => ({ Result: {} })) }));
 import { writePdSphereStamp, readPdSphereStamp, pdSphereChartSig, PD_SPHERE_STAMP_KEY, PD_SPHERE_STAMP_TTL_MS } from '../pdSphereStamp';

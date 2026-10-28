@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/stepPrefetchArm.js b/astrostudyui/src/utils/stepPrefetchArm.js
-index fccbaf4f..937b0c0c 100644
+index 62d644f8..139322b0 100644
 --- a/astrostudyui/src/utils/stepPrefetchArm.js
 +++ b/astrostudyui/src/utils/stepPrefetchArm.js
 @@ -65,11 +65,42 @@ export function shouldArmForTab(tabKey){

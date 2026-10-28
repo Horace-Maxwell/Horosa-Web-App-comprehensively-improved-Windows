@@ -98,7 +98,7 @@ for x in gc.SU28[:14]:
     S1_CASES.append(('body_in_xiu·月在%s' % x, _leaf('body_in_xiu', {'body': '月', 'values': [x]})))
 for d in ['庙', '旺', '得', '利', '平', '闲', '陷']:
     S1_CASES.append(('dignity·%s' % d, _leaf('dignity', {'body': '月', 'values': [d]})))
-# [W7 全谱轮] 七态/迟速新档入 S1(恒等扫描机械盖)
+# 七态/迟速新档入 S1(恒等扫描机械盖)
 for d7 in ['垣', '庙', '旺', '乐', '喜', '怒']:
     S1_CASES.append(('dignity_seven·%s' % d7, _leaf('dignity_seven', {'body': '月', 'values': [d7]})))
 for sp in ['slow', 'fast']:

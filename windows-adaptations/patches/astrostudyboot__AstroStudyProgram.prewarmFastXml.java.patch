@@ -1,8 +1,8 @@
 diff --git a/astrostudysrv/astrostudyboot/src/main/java/spacex/astrostudyboot/AstroStudyProgram.java b/astrostudysrv/astrostudyboot/src/main/java/spacex/astrostudyboot/AstroStudyProgram.java
-index 5ddb975c..6a33d8d1 100644
+index b496bd07..6f57c4c7 100644
 --- a/astrostudysrv/astrostudyboot/src/main/java/spacex/astrostudyboot/AstroStudyProgram.java
 +++ b/astrostudysrv/astrostudyboot/src/main/java/spacex/astrostudyboot/AstroStudyProgram.java
-@@ -26,7 +26,7 @@ import spacex.basecomm.model.AppInfo;
+@@ -25,7 +25,7 @@ import spacex.basecomm.model.AppInfo;
  
  @SpringBootApplication(exclude={MongoAutoConfiguration.class,MongoDataAutoConfiguration.class})
  @EnableAutoConfiguration(exclude={DataSourceAutoConfiguration.class,MongoAutoConfiguration.class,MongoDataAutoConfiguration.class})
@@ -11,7 +11,7 @@ index 5ddb975c..6a33d8d1 100644
  public class AstroStudyProgram {
  
  	public static void main(String[] args) {
-@@ -35,7 +35,7 @@ public class AstroStudyProgram {
+@@ -37,7 +37,7 @@ public class AstroStudyProgram {
  		final boolean profile = "1".equals(System.getenv("HOROSA_JAVA_STARTUP_PROFILE"));
  		mainMark(profile, "main.enter");
  		ProgArgsHelper.init(args);
@@ -20,7 +20,7 @@ index 5ddb975c..6a33d8d1 100644
  		AppInfo info = new AppInfo();
  		info.version = AstroStudyProgram.class.getPackage().getImplementationVersion();
  		info.version = info.version == null ? "1.0.0" : info.version;
-@@ -43,6 +43,9 @@ public class AstroStudyProgram {
+@@ -45,6 +45,9 @@ public class AstroStudyProgram {
  		info.channel = ClientChannel.Server.getCode() + "";
  		HttpHelper.setAppInfo(info);
  		mainMark(profile, "main.appinfo_done");
@@ -30,7 +30,7 @@ index 5ddb975c..6a33d8d1 100644
  		
  		SpringApplicationBuilder builder = new SpringApplicationBuilder(AstroStudyProgram.class).web(WebApplicationType.SERVLET);
  		mainMark(profile, "main.builder_done");
-@@ -138,6 +141,123 @@ public class AstroStudyProgram {
+@@ -137,4 +140,121 @@ public class AstroStudyProgram {
  		};
  	}
  
@@ -151,6 +151,4 @@ index 5ddb975c..6a33d8d1 100644
 +		}
 +	}
 +
- //	@Bean
- //	public FilterRegistrationBean<RSAFilter> rsaFilter(){
- //		RSAFilter filter = new RSAFilter();
+ }

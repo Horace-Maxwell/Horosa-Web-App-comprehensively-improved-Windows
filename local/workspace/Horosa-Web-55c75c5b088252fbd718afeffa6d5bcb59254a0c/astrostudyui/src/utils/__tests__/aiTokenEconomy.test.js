@@ -1,4 +1,4 @@
-// [P0-2] 离线线束:合成 45k 字挂载 + 20 Turn(每 Turn ≈1k token 回复 + 3 轮×2 调用×≈6000 字结果的 trace)
+// 离线线束:合成 45k 字挂载 + 20 Turn(每 Turn ≈1k token 回复 + 3 轮×2 调用×≈6000 字结果的 trace)
 // → 用 buildContextLayers/clipContextLayersDetailed(system 组装)+ windowChatMessages(窗口)+ expandHistory(回放)
 //   纯函数组合复现每 Turn 首轮请求的总字符;不启动 React、不发请求。
 // 断言:window 模式(经济档:折叠回放 + 小预算)第 20 Turn ≤ 1.3 × 第 1 Turn;window 缺省档到平台期后逐 Turn 恒等;
@@ -70,7 +70,7 @@ function turnRequestChars(k, rawPolicy){
 
 const TURNS = [1, 2, 5, 10, 15, 20];
 
-describe('[P0-2] token 经济线束', ()=>{
+describe('token 经济线束', ()=>{
 	test('fixture 量级自证:挂载 45k 字、回复 ≈1k token、结果 ≈6000 字', ()=>{
 		expect(MOUNT.length).toBe(45000);
 		expect(REPLY.length).toBe(1600);

@@ -7,9 +7,19 @@ BACKEND_PORT="${HOROSA_SERVER_PORT:-9999}"
 WEB_PORT="${HOROSA_WEB_PORT:-8000}"
 # pid 文件名带端口后缀=会话隔离:双实例/快切用户共用同一共享树时,固定名会互覆,
 # 停服就会杀错对方实例或漏杀自己(遗留僵尸)。端口是会话唯一的,天然做键。
-PY_PID_FILE="${ROOT}/.horosa_py.${CHART_PORT}.pid"
-JAVA_PID_FILE="${ROOT}/.horosa_java.${BACKEND_PORT}.pid"
-WEB_PID_FILE="${ROOT}/.horosa_web.${WEB_PORT}.pid"
+# pid 文件所在目录与 start_horosa_local.sh 同一规则(本目录可写就放本目录;多账户机上只读加载的账户落到自己的缓存目录)。
+# [pid-dir:begin]
+if [ -n "${HOROSA_PID_DIR:-}" ]; then
+  PID_DIR="${HOROSA_PID_DIR}"
+elif [ -w "${ROOT}" ]; then
+  PID_DIR="${ROOT}"
+else
+  PID_DIR="${HOME:-${TMPDIR:-/tmp}}/Library/Caches/horosa-run/${ROOT//\//_}"
+fi
+# [pid-dir:end]
+PY_PID_FILE="${PID_DIR}/.horosa_py.${CHART_PORT}.pid"
+JAVA_PID_FILE="${PID_DIR}/.horosa_java.${BACKEND_PORT}.pid"
+WEB_PID_FILE="${PID_DIR}/.horosa_web.${WEB_PORT}.pid"
 # 杀前身份指纹:pid 可能已被系统回收给无关进程(pid 复用),或 pid 文件被另一实例覆写。
 # 只允许命中本产品服务特征的进程被停;不符=只清文件不动进程。
 PY_CMD_PATTERN='webchartsrv\.py'
@@ -61,7 +71,7 @@ stop_by_pid_file() {
   if [ -n "${expected_pattern}" ]; then
     local cmd
     cmd="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
-    if [ -n "${cmd}" ] && ! printf '%s\n' "${cmd}" | grep -Eq "${expected_pattern}"; then
+    if [ -n "${cmd}" ] && ! grep -Eq "${expected_pattern}" <<< "${cmd}"; then
       echo "${name}: pid ${pid} 非本产品服务(指纹不符),仅清理 pid 文件。"
       rm -f "${pid_file}"
       return
@@ -113,10 +123,10 @@ stop_by_port_pattern() {
     # guard, a second Horosa checkout on the same Mac can stop the wrong
     # services because the fallback matcher only knows the generic process
     # role (webchartsrv.py / astrostudyboot.jar / http.server).
-    if ! printf '%s\n' "${cmd}" | grep -Fq "${ROOT}"; then
+    if ! grep -Fq "${ROOT}" <<< "${cmd}"; then
       continue
     fi
-    if ! printf '%s\n' "${cmd}" | grep -Eq "${pattern}"; then
+    if ! grep -Eq "${pattern}" <<< "${cmd}"; then
       continue
     fi
     if kill_pid_gracefully "${pid}" "${name}(port:${port})"; then
@@ -157,8 +167,8 @@ wait "${STOP_Q3}" || true
 # 指纹不符只清文件,与上方同一「绝不误伤」语义。
 if [ "${HOROSA_STOP_ALL:-0}" = "1" ]; then
   swept_any=0
-  for sweep_pid_file in "${ROOT}"/.horosa_py.*.pid "${ROOT}"/.horosa_java.*.pid "${ROOT}"/.horosa_web.*.pid \
-                        "${ROOT}/.horosa_py.pid" "${ROOT}/.horosa_java.pid" "${ROOT}/.horosa_web.pid"; do
+  for sweep_pid_file in "${PID_DIR}"/.horosa_py.*.pid "${PID_DIR}"/.horosa_java.*.pid "${PID_DIR}"/.horosa_web.*.pid \
+                        "${PID_DIR}/.horosa_py.pid" "${PID_DIR}/.horosa_java.pid" "${PID_DIR}/.horosa_web.pid"; do
     [ -e "${sweep_pid_file}" ] || continue
     case "${sweep_pid_file}" in
       *horosa_py*)   sweep_pattern="${PY_CMD_PATTERN}";   sweep_name="astropy(全实例)" ;;

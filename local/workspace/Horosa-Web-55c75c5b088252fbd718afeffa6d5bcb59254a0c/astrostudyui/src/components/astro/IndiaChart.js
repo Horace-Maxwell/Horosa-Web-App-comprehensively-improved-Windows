@@ -1,23 +1,40 @@
+import { parseDateTimeMs } from '../../utils/dateTimeParse';
+import { civilInstantMsOfStr, formatSignedDate } from '../../utils/dateStrSafe';
+import { civilYmdOfLocalDate } from '../../utils/civilCalendar';
 import { Component } from 'react';
 import AstroChartMain from './AstroChartMain';
 import IndiaEastChart from './IndiaEastChart';
 import IndiaNorthChart from './IndiaNorthChart';
 import IndiaSouthChart from './IndiaSouthChart';
 import request from '../../utils/request';
+import DateTime from '../comp/DateTime';
 import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
 import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
+import { registerProcessCache } from '../../utils/processCacheRegistry';
+import { prashnaYogaNames, prashnaHigherYogaText, pakshaLabel, jyotishPartialErrors, jyotishPartialErrorLabel, indiaDignityLabel, tajikaYearLordViaLabel } from './indiaMain/jyotishData';
+import { charaAntarYears } from './indiaMain/dasha';
 
 const indiaChartCache = new Map();
 const INDIA_CHART_CACHE_MAX = 64;   // LRU 上限:印占 payload 大(yogas+多级dasha+varga+shadbala),会话内键空间随分盘/过运日/大运派别/ayanamsa 发散,须封顶防越用越占内存(全仓唯一曾漏上限者)。
 const indiaChartInflight = new Map();
+registerProcessCache('india.chart', ()=>{ indiaChartCache.clear(); indiaChartInflight.clear(); });
 // v5:引擎新增 sensitivePoints 顶层键 + 服务层挂 sarvatobhadra/prashna(opt-in)/年长参数化。
 // 🔴 凡引擎输出加新键必升此版 —— 否则 LRU 里旧缓存缺新键,右栏新面板静默空盘
 //    (hasCurrentJyotishPayload 只查 jyotish.yogas,抓不到缺键)。
 // v7:大运+行运补齐——引擎新增 chakra/trikona/navamsaDasha/varnada/paryaya/taraDasha/akkg/
 // ayurdayaFinal/fromSun/dashaLink/annualYogini/tripatakiNak 九曜等输出键 + dashaVariants 流派开关。
-const INDIA_CHART_CACHE_REV = 'india_kernel_v8_sbc_transits';
+// v9:六力只出六源式(粗估层删)、KP 意义星按标准四级 + 恒 D1、星期按日出换日、Choghadia 夜段 / Panchaka
+// 公式订正、宿名单源、子运起讫带精确 ISO、过运默认日恒进请求。
+const INDIA_CHART_CACHE_REV = 'india_kernel_v9_calibre';
+
+// 过运缺省日 = 「今日」按本盘时区(DateTime.wallClockForChart;不给时区 = 本机今日,原样)
+function localTodaySlash(zone){
+	const d = DateTime.wallClockForChart(zone);
+	const pad = (n)=>(n < 10 ? `0${n}` : `${n}`);
+	return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
+}
 
 export function fieldsToParams(fields, overrides = {}){
 	const indiaHsys = overrides.indiaHsys !== undefined && overrides.indiaHsys !== null
@@ -67,14 +84,15 @@ export function fieldsToParams(fields, overrides = {}){
 		return (fields[field] && fields[field].value !== undefined && fields[field].value !== null)
 			? fields[field].value : undefined;
 	};
-	// [Q-128/T-36] vargaSet 不再下发:后端为每个分盘再算整份 jyotish 挂 jyotishByVarga,前端全仓零读者(默认四盘每次响应多约 2.1 MB);
+	// vargaSet 不再下发:后端为每个分盘再算整份 jyotish 挂 jyotishByVarga,前端全仓零读者(默认四盘每次响应多约 2.1 MB);
 	// 页面分盘网格自行按 indiaVargaSet 渲染,与请求无关。
 	const transitDate = pickOpt('transitDate', 'indiaTransitDate');
-	if(transitDate){ params.transitDate = transitDate; }
+	// 过运日恒下发(未选 = 本地今天):进前端 LRU 与后端参数缓存键,跨日后不再拿到前一天的过运 / Tara / Sade Sati。
+	params.transitDate = transitDate || localTodaySlash(params.zone);
 	const tajakaYear = pickOpt('tajakaYear', 'indiaTajakaYear');
 	// 年度盘(Varshaphal)默认取当前公历年(用户未显式选年时);随过运盘同为服务器侧轻量补算。
-	params.tajakaYear = tajakaYear || new Date().getFullYear();
-	// [Q-137/T-45·IN-19 裁决 2026-09-18] tajakaApprox 双端死键已删;另七键(日界两键 / strongRecption / simpleAsp / virtualPointReceiveAsp / name / pos)
+	params.tajakaYear = tajakaYear || DateTime.wallClockForChart(params.zone).getFullYear();   // 「今年」按本盘时区
+	// tajakaApprox 双端死键已删;另七键(日界两键 / strongRecption / simpleAsp / virtualPointReceiveAsp / name / pos)
 	// Java 未登记转发、Python india 包零引用 → 不再下发、不进缓存键(此前全局开关或盘名变化会让同一印度盘重取)。
 	const dashaSystem = pickOpt('dashaSystem', 'indiaDashaSystem');
 	// taraDasha/akkg 为前端展示体系(数据恒在响应):不下发 → 与默认树同缓存键、零额外请求。
@@ -128,7 +146,7 @@ export function fieldsToParams(fields, overrides = {}){
 	const prashnaTime = pickOpt('prashnaTime', 'indiaPrashnaTime');
 	if(prashnaTime){
 		params.prashnaTime = prashnaTime;
-		// [Q-126/T-34] KP 问时数:齿轮缺省 1 被 prune 剪掉 → 无头不发 → 后端 missing_or_invalid_number → AI「问事」段恒无 KP;
+		// KP 问时数:齿轮缺省 1 被 prune 剪掉 → 无头不发 → 后端 missing_or_invalid_number → AI「问事」段恒无 KP;
 		// 页面 castPrashna 恒发 1,此处同源:起了卦而数缺/非法 → 1。
 		const prashnaNumber = pickOpt('prashnaNumber', 'indiaPrashnaNumber');
 		const _pn = Number(prashnaNumber);
@@ -330,7 +348,8 @@ function snapshotBirthDate(fields){
 	if(fields.ad && fields.ad.value !== undefined && Number(fields.ad.value) === 0){ return null; }
 	const d = fields.date.value, t = fields.time.value;
 	if(!d.format || !t.format){ return null; }
-	const dt = new Date(`${d.format('YYYY-MM-DD')}T${t.format('HH:mm:ss')}`);
+	// 真实时刻(民用历:1582 以前儒略历、公元前历史纪年;现代与 parseDateTimeMs 逐值相同),与右栏大运树的出生时刻同一天
+	const dt = new Date(civilInstantMsOfStr(`${d.format('YYYY-MM-DD')}T${t.format('HH:mm:ss')}`));
 	return Number.isFinite(dt.getTime()) ? dt : null;
 }
 
@@ -345,9 +364,8 @@ function buildExtendedDashaSnapshotLines(chartObj, sys, fields){
 	const dayMs = 86400000;
 	// 本地切日(与解析同时区自洽,亦与右栏 moment 组树同口径);toISOString 的 UTC 切日会偏一天。
 	const fmt = (ms)=>{
-		const d = new Date(ms);
-		const p = (x)=>String(x).padStart(2, '0');
-		return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+		const q = civilYmdOfLocalDate(new Date(ms));   // 本地那一天的民用历标签(与右栏 flatlibCalendarFields 同口径)
+		return formatSignedDate(q.year, q.month, q.day);
 	};
 	const nowMs = Date.now();
 	const out = [];
@@ -363,16 +381,32 @@ function buildExtendedDashaSnapshotLines(chartObj, sys, fields){
 		out.push(`系统：${DASHA_SYSTEM_SNAPSHOT_LABEL.chara}`);
 		out.push(`起座：${c.seedLabel || c.seed || '—'}（${c.direction === 'reverse' ? '逆推' : '顺推'}）`);
 		let cur = birth ? birth.getTime() : null;
+		const antarMahas = [];
 		pushSeq(c.mahadashas.map((m)=>{
 			const years = m.years || 0;
 			let startS = '—', endS = '—', active = false;
+			const mStart = cur;
 			if(cur !== null){
 				const end = cur + years * yearDays * dayMs;
 				active = nowMs >= cur && nowMs < end;
 				startS = fmt(cur); endS = fmt(end);
 				cur = end;
 			}
+			// 中运:座序取引擎(中运首座开关),各段年数与页面大运树同一份切分(中运分割开关)。
+			const durs = charaAntarYears(m, fields);
+			let ac = mStart;
+			antarMahas.push({ lord: { label: m.rasiLabel || m.rasi }, active, antardashas: (m.antardashas || []).map((a, ai)=>{
+				const dy = durs[ai] || 0;
+				let s0 = null, e0 = null;
+				if(ac !== null){ s0 = fmt(ac); ac += dy * yearDays * dayMs; e0 = fmt(ac); }
+				return { lord: { label: a.rasiLabel || a.rasi }, start: s0, end: e0, years: dy };
+			}) });
 			return { name: m.rasiLabel || m.rasi, years: `${years}`, start: startS, end: endS, active };
+		}));
+		out.push(...buildAntardashaTableLines(antarMahas, {
+			nameOf: (l)=>(l && l.label) || '—',
+			fmtDate: (d)=>(d || '—'),
+			n1: (x)=>(Number.isFinite(+x) ? (+x) : 0),
 		}));
 		return out;
 	}
@@ -416,8 +450,9 @@ export function buildAntardashaTableLines(mahadashas, helpers){
 		m.antardashas.forEach((a)=>{
 			if(!a){ return; }
 			if(rows.length >= DASHA_ANTAR_ROW_MAX){ truncated = true; return; }
-			const st = a.start ? new Date(a.start).getTime() : NaN;
-			const en = a.end ? new Date(a.end).getTime() : NaN;
+			// 段界日期标签是民用历(1582 以前儒略历),换成真实时刻再与此刻比
+			const st = a.start ? civilInstantMsOfStr(`${a.start}`) : NaN;
+			const en = a.end ? civilInstantMsOfStr(`${a.end}`) : NaN;
 			const live = Number.isFinite(st) && Number.isFinite(en) && st <= now && now < en;
 			rows.push(`| ${live ? '▶' : (m.active ? '·' : '')} | ${nameOf(m.lord)} | ${nameOf(a.lord)} | ${fmtDate(a.start)} | ${fmtDate(a.end)} | ${n1(a.years).toFixed(1)} 年 |`);
 		});
@@ -467,21 +502,28 @@ function buildDashaSnapshotLines(chartObj, system, fields){
 		return [];
 	}
 	const nameOf = (lord)=>(lord && (lord.label || lord.key)) || '—';
-	const fmtDate = (d)=>{ const s = `${d || ''}`; const m = s.match(/^(\d{4}-\d{2}-\d{2})/); return m ? m[1] : (s || '—'); };
+	const fmtDate = (d)=>{ const s = `${d || ''}`; const m = s.match(/^(-?\d{4,6}-\d{2}-\d{2})/); return m ? m[1] : (s || '—'); };   // 年带符号(公元前 / 五位年)
 	const n1 = (x)=>(Number.isFinite(+x) ? (+x) : 0);
 	const out = [];
 	const nak = v.moonNakshatra || {};
 	out.push(`系统：${DASHA_SYSTEM_SNAPSHOT_LABEL[sys] || DASHA_SYSTEM_SNAPSHOT_LABEL.vimshottari}`);
-	out.push(`月宿：${nak.label || nak.name || nak.key || '—'}（宿主星 ${nameOf(v.firstLord)}）`);
+	const nakName = (nak.label && nak.name) ? `${nak.name}（${nak.label}宿）` : (nak.label || nak.name || nak.key || '—');
+	out.push(`月宿：${nakName}（宿主星 ${nameOf(v.firstLord)}）`);
 	out.push(`首运：已历 ${n1(v.firstElapsedYears).toFixed(1)} 年、余 ${n1(v.firstBalanceYears).toFixed(1)} 年`);
 	const active = v.mahadashas.find((m)=>m && m.active);
 	if(active){
 		out.push(`当前大运（Mahadasha）：${nameOf(active.lord)}（${fmtDate(active.start)} → ${fmtDate(active.end)}，${n1(active.startAge).toFixed(0)}–${n1(active.endAge).toFixed(0)} 岁）`);
 		if(Array.isArray(active.antardashas) && active.antardashas.length){
-			const now = new Date();
+			// 段界取精确 ISO(当地时刻);只有日期的旧串按当地 0 点解析(new Date('YYYY-MM-DD') 是 UTC 0 点,边界日差一天)。
+			const now = Date.now();
+			const at = (iso, d)=>{
+				// 精确 ISO 是计算服务给的真实时刻(外推格里历);只有日期标签时按民用历换成当地 0 点的真实时刻
+				const t = iso ? parseDateTimeMs(iso) : (d ? civilInstantMsOfStr(`${d}T00:00:00`) : NaN);
+				return Number.isFinite(t) ? t : NaN;
+			};
 			const sub = active.antardashas.find((s)=>{
 				if(!s || !s.start || !s.end){ return false; }
-				const st = new Date(s.start); const en = new Date(s.end);
+				const st = at(s.startIso, s.start); const en = at(s.endIso, s.end);
 				return st <= now && now < en;
 			});
 			if(sub){
@@ -490,7 +532,7 @@ function buildDashaSnapshotLines(chartObj, system, fields){
 		}
 	}
 	out.push('大运序列：');
-	// [v2 排版] 平铺大运时间表改 GFM 表(经归一器直通、docx/PDF 渲染真表)。
+	// 平铺大运时间表改 GFM 表(经归一器直通、docx/PDF 渲染真表)。
 	// 单元格值表达式逐字同源:nameOf/fmtDate/n1;标记列 ▶=当前、·=出生余量(原行首标记原义)。
 	out.push('| 标记 | 主星 | 起 | 止 | 年数 | 年龄段 |');
 	out.push('| --- | --- | --- | --- | --- | --- |');
@@ -502,7 +544,7 @@ function buildDashaSnapshotLines(chartObj, system, fields){
 	return out;
 }
 
-// [v2 表化] GFM 表助手：表头词组 + 行单元格数组 → GFM 表行(表头/分隔/数据)；单元格值逐字同源仅以 | 分隔。
+// GFM 表助手：表头词组 + 行单元格数组 → GFM 表行(表头/分隔/数据)；单元格值逐字同源仅以 | 分隔。
 // 置于函数前(模块层)：不占函数体内字符偏移，护段头 22k 源切片哨兵；散文行由调用方 spread 混排。
 const gfmTable = (heads, rows)=>{
 	const bar = (cells)=>`| ${cells.join(' | ')} |`;
@@ -521,10 +563,14 @@ export function buildJyotishSnapshotLines(chartObj){
 	const p = j.panchanga;
 	if(p){
 		const pl = [];
-		if(p.vara){ pl.push(`星期(Vara)：${p.vara.label || p.vara.name || '—'}（主 ${lordOf(p.vara.lord)}）`); }
+		if(p.vara){
+			const civilNote = (p.vara.civilIndex !== undefined && p.vara.civilIndex !== p.vara.index) ? `；日界=日出,民用日为${p.vara.civilLabel}` : '';
+			pl.push(`星期(Vara)：${p.vara.label || p.vara.name || '—'}（主 ${lordOf(p.vara.lord)}${civilNote}）`);
+		}
 		if(p.tithi){ pl.push(`月相(Tithi)：${`${p.tithi.paksha || ''} ${p.tithi.name || ''}`.trim() || '—'}（第 ${p.tithi.index} 日）`); }
 		if(p.nakshatra){
-			pl.push(`月宿(Nakshatra)：${p.nakshatra.label || p.nakshatra.name || p.nakshatra.key || '—'}`);
+			const pn = p.nakshatra;
+			pl.push(`月宿(Nakshatra)：${(pn.label && pn.name) ? `${pn.name}（${pn.label}宿）` : (pn.label || pn.name || pn.key || '—')}`);
 			const nd = p.nakshatra.detail;
 			if(nd){
 				const bits = [];
@@ -544,7 +590,7 @@ export function buildJyotishSnapshotLines(chartObj){
 
 	const ck = j.jaimini && j.jaimini.charaKarakas;
 	if(Array.isArray(ck) && ck.length){
-		// [Q-135/T-43 (b)] 段名是 aiExport 登记键(不改),但 7 卡拉卡档下仍称「8」并列 7 行会误导 →
+		// 段名是 aiExport 登记键(不改),但 7 卡拉卡档下仍称「8」并列 7 行会误导 →
 		// 段内首行写明所用方案(引擎回传 karakaScheme:'7' 古典不含 Rāhu / '8' 含 Rāhu)。
 		const _scheme = String((j.jaimini && j.jaimini.karakaScheme) || (ck.length === 7 ? '7' : '8'));
 		out['卡拉卡（8 Chara Karakas）'] = [
@@ -570,26 +616,29 @@ export function buildJyotishSnapshotLines(chartObj){
 			const baladi = s.baladi ? `·${s.baladi.label}` : '';
 			const nak = s.nakshatra ? `·${s.nakshatra.name}P${s.nakshatra.pada}` : '';
 			const lajj = Array.isArray(s.lajjitadi) && s.lajjitadi.length ? `·态[${s.lajjitadi.map((la)=>la.label).join('')}]` : '';
-			return [`${s.label}`, `${s.signLabel || s.sign} ${fx(s.signlon, 1)}°·宫${s.house || '—'}`, `${s.dignity}${baladi}${lajj}${nak}`, `${flags.length ? flags.join('/') : ''}`];
+			// 觉醒 Jāgradādi / 情态 Dīptādi / Śayanādi 活动态:页面 Graha 状态行显示的三态一并入快照(情态随 Dīptādi 归属开关变);
+			// Śayanādi 记作「活动」,免与 Lajjitādi 的「态[…]」混读。
+			const avastha = `${s.jagradadi ? `·觉${s.jagradadi.label}` : ''}${s.deeptadi ? `/情${s.deeptadi.label}` : ''}${s.sayanadi ? `·活动${s.sayanadi.stateLabel}` : ''}`;
+			return [`${s.label}`, `${s.signLabel || s.sign} ${fx(s.signlon, 1)}°·宫${s.house || '—'}`, `${indiaDignityLabel(s.dignity)}${baladi}${avastha}${lajj}${nak}`, `${flags.length ? flags.join('/') : ''}`];
 		}));
 	}
 
-	// WP-E1 Vimśopaka（§5.7）：各 varga 组居自/友/旺的分盘数 → 吉位名(越多越吉)。
+	// 分盘吉位 Vaiśeṣikāṁśa:各 varga 组居本三角 / 自宫 / 旺宫的分盘数 → 吉位名(越多越吉;Viṃśopaka 20 分力另段)。
 	const vd = j.strengths && j.strengths.vargaDignity;
 	if(Array.isArray(vd) && vd.length){
-		out['分盘吉位 Vimśopaka'] = gfmTable(['分盘（本盘）', '连座吉位'], vd.map((row)=>{
+		out['分盘吉位 Vaiśeṣikāṁśa'] = gfmTable(['分盘（本盘）', '连座吉位'], vd.map((row)=>{
 			const a = row.amsa || {};
 			const parts = [];
 			const grp = (label, g)=>{ const x = a[g]; if(x && x.count){ parts.push(`${label}${x.count}${x.amsa ? '·' + x.amsa : ''}`); } };
 			grp('六', 'shadvarga'); grp('七', 'saptavarga'); grp('十', 'dasavarga'); grp('十六', 'shodasavarga');
-			return [`${row.label}（本盘${row.d1}）`, `${parts.length ? parts.join(' ') : '无连座吉位'}`];
+			return [`${row.label}（本盘${indiaDignityLabel(row.d1)}）`, `${parts.length ? parts.join(' ') : '无连座吉位'}`];
 		}));
 	}
 
 	const av = j.ashtakavarga;
 	if(av && av.available && Array.isArray(av.sarvaBySign)){
 		const total = av.sarvaBySign.reduce((s, x)=>s + (x.bindu || 0), 0);
-		// [v2 排版] 12 座 SAV 由单行并列改 GFM 表(单元格值表达式逐字同源:x.label/x.bindu);
+		// 12 座 SAV 由单行并列改 GFM 表(单元格值表达式逐字同源:x.label/x.bindu);
 		// 首行总点数摘要保持裸行不动(夹具锚 [0])。
 		out['八分点 SAV'] = [
 			`总点数 ${total}（标准 337）`,
@@ -608,18 +657,21 @@ export function buildJyotishSnapshotLines(chartObj){
 		if(spRows.length){ out['Sodhya Pinda 凝量'] = gfmTable(['曜', '凝量', '座+曜'], spRows); }
 	}
 
-	const sb = j.shadbala && j.shadbala.planets;
-	if(Array.isArray(sb) && sb.length){
-		// [YG 表化] 星×总力同构记录转 GFM 表(值表达式逐字复用;测试锚已随格式同步更新)。
-		out['Shadbala 六力'] = [
-			'| 星曜 | 总力 |',
-			'| --- | --- |',
-			...sb.map((x)=>`| ${x.label} | ${fx(x.totalRupa, 2)} Rupa |`),
-		];
-		// QW8 Ishta/Kashta（吉果/凶果）：仅在引擎给出时输出。
-		const ik = sb.filter((x)=>x.ishta !== undefined && x.ishta !== null);
+	// 六力:唯一来源 = 六源式 shadbalaBphs(与页面「星曜」Shadbala 卡 / 「八分」分量表同值)。
+	const sbAll = j.shadbalaBphs;
+	const SB_PLANETS = [['Sun', '太阳'], ['Moon', '月亮'], ['Mars', '火星'], ['Mercury', '水星'], ['Jupiter', '木星'], ['Venus', '金星'], ['Saturn', '土星']];
+	const sbRows = sbAll ? SB_PLANETS.filter(([k])=>sbAll[k] && typeof sbAll[k].rupas === 'number') : [];
+	if(sbRows.length){
+		out['Shadbala 六力'] = gfmTable(['星曜', '总力', '所需', '达标比'], sbRows.map(([k, cn])=>{
+			const r = sbAll[k];
+			return [cn, `${fx(r.rupas, 2)} Rupa`, `${fx(r.requiredRupas, 1)} Rupa`, `${fx(r.strengthRatio, 2)}${r.sufficient ? '（力足）' : '（力弱）'}`];
+		}));
+		const ik = sbRows.filter(([k])=>sbAll[k].ishta !== undefined && sbAll[k].ishta !== null);
 		if(ik.length){
-			out['Ishta/Kashta 吉凶果'] = gfmTable(['星曜', '吉果', '凶果', '出曜力'], ik.map((x)=>[`${x.label}`, `吉果 ${fx(x.ishta, 1)}`, `凶果 ${fx(x.kashta, 1)}`, `出曜力 ${fx(x.uchchaBala, 1)}`]));
+			out['Ishta/Kashta 吉凶果'] = gfmTable(['星曜', '吉果', '凶果', '出曜力'], ik.map(([k, cn])=>{
+				const r = sbAll[k];
+				return [cn, `吉果 ${fx(r.ishta, 1)}`, `凶果 ${fx(r.kashta, 1)}`, `出曜力 ${fx(r.sthana && r.sthana.uchcha, 1)}`];
+			}));
 		}
 	}
 
@@ -688,7 +740,7 @@ export function buildJyotishSnapshotLines(chartObj){
 
 	// P2 Nāḍī · Bhrigu Bindu（Rahu/Moon 短弧中点）。
 	const nadi = j.nadi;
-	// [Q-393① 裁决 2026-09-18] 所绘为分盘时注明口径:Nāḍī 一组恒取 D1(引擎 Q-393② 已恒取 d1_chart),
+	// 所绘为分盘时注明口径:Nāḍī 一组恒取 D1(引擎 Q-393② 已恒取 d1_chart),
 	// 否则读者会以为它跟着所选分盘走。D1(缺省)不出此行 → 缺省快照字节不变。
 	const nadiVargaNote = Number((j.engine || {}).chartnum || 1) !== 1
 		? `Nāḍī 一组(BB / D150 / 同座合 / 木星推进)恒按 D1 本命盘绝对黄经计算,不随所绘分盘 D${Number((j.engine || {}).chartnum)} 漂移。`
@@ -727,7 +779,7 @@ export function buildJyotishSnapshotLines(chartObj){
 		out['Tripataki 宿距三旗'] = gfmTable(['曜', '宿距', '旗', 'Tārā', '断'],
 			triNak.rows.map((r)=>[PCN2[r.planet] || r.planet, `${r.distance}`, `${r.flag}`, r.taraLabel, r.verdict]));
 	}
-	// [Q-127/T-35] 三旗盘(opt-in 齿轮 tripataki):后端 jyotish.tripataki 此前快照零读者 → 逐月净分(有效吉−凶)按月心/土心各一行;仅开启才产段(缺省字节不变)。
+	// 三旗盘(opt-in 齿轮 tripataki):后端 jyotish.tripataki 此前快照零读者 → 逐月净分(有效吉−凶)按月心/土心各一行;仅开启才产段(缺省字节不变)。
 	const triY = j.tripataki;
 	if(triY && triY.available && triY.byCenter){
 		const triRows = [];
@@ -794,7 +846,9 @@ export function buildJyotishSnapshotLines(chartObj){
 		vargaVar.charts.forEach((ch)=>{
 			const diff = (ch.planets || []).filter((r)=>r.differs);
 			if(!diff.length){ return; }
-			vvRows.push([`${ch.label}（${ch.variants.map((v)=>v.label).join('/')}）`, diff.map((r)=>`${VPCN[r.planet] || r.planet}${r.cells.map((c)=>c.signLabel).join('→')}`).join('，')]);
+			// 本盘所用的那一派(分盘变体设置):换到该分盘时整张盘按它排,AI 须知道对照里哪一列是在用的。
+			const sel = ch.selected && ch.selected !== 'standard' ? (ch.variants.find((v)=>v.key === ch.selected) || {}).label || ch.selected : '';
+			vvRows.push([`${ch.label}（${ch.variants.map((v)=>v.label).join('/')}）${sel ? `；本盘采用 ${sel}` : ''}`, diff.map((r)=>`${VPCN[r.planet] || r.planet}${r.cells.map((c)=>c.signLabel).join('→')}`).join('，')]);
 		});
 		if(vvRows.length){ out['分盘变体对照'] = gfmTable(['分盘（流派）', '差异落座'], vvRows); }
 	}
@@ -816,7 +870,7 @@ export function buildJyotishSnapshotLines(chartObj){
 	// QW7 Bhava Bala（宫位力，12 宫排名 + 最强/最弱）。
 	const bb = j.bhavaBala;
 	if(bb && bb.available && Array.isArray(bb.houses) && bb.houses.length){
-		// [v2 排版] 12 宫力量改 GFM 表(单元格值表达式逐字同源:h.house/fx(h.rupas,2)/h.rank);最强/最弱摘要保持裸行。
+		// 12 宫力量改 GFM 表(单元格值表达式逐字同源:h.house/fx(h.rupas,2)/h.rank);最强/最弱摘要保持裸行。
 		const bl = [
 			'| 宫位 | 力量 | 名次 |',
 			'| --- | --- | --- |',
@@ -878,7 +932,7 @@ export function buildJyotishSnapshotLines(chartObj){
 		}
 		const csl = kp.cuspalSubLords;
 		if(Array.isArray(csl) && csl.length){
-			// [v2 排版] 12 宫头主星链改 GFM 表(单元格值表达式逐字同源:c.house/c.starLord/c.subLord;列名同 UI 星主/子主口径)。
+			// 12 宫头主星链改 GFM 表(单元格值表达式逐字同源:c.house/c.starLord/c.subLord;列名同 UI 星主/子主口径)。
 			out['KP 宫头次主星 CSL'] = [
 				'| 宫位 | 星主 | 子主 |',
 				'| --- | --- | --- |',
@@ -887,8 +941,10 @@ export function buildJyotishSnapshotLines(chartObj){
 		}
 		const sig = kp.significators;
 		if(sig && typeof sig === 'object'){
-			const sl = Object.keys(sig).map((pk)=>[pk, `司宫 ${(sig[pk].ranked || []).join('·')}`]);
-			if(sl.length){ out['KP 意义者 Significators'] = gfmTable(['星曜', '司宫'], sl); }
+			// KP 标准四级:A 星主所占 > B 自占 > C 星主所主 > D 自主(恒按 D1;本命与问事盘同一组装)。
+			const tier = (row, t)=>((row[t] || []).length ? (row[t] || []).join('/') : '—');
+			const sl = Object.keys(sig).map((pk)=>[pk, `司宫 ${(sig[pk].ranked || []).join('·')}`, tier(sig[pk], 'A'), tier(sig[pk], 'B'), tier(sig[pk], 'C'), tier(sig[pk], 'D')]);
+			if(sl.length){ out['KP 意义者 Significators'] = gfmTable(['星曜', '司宫', 'A 星主所占', 'B 自占', 'C 星主所主', 'D 自主'], sl); }
 		}
 		if(kl.length){ out['KP 六级细分 / 当令星'] = kl; }
 	}
@@ -896,7 +952,7 @@ export function buildJyotishSnapshotLines(chartObj){
 	// WP-G 敌友 复合五分(Pañcadhā Maitrī,非对称) — 古籍第6章。
 	const gm = j.grahaMaitri;
 	if(gm && gm.available && Array.isArray(gm.matrix) && gm.matrix.length){
-		// [v2 排版] 星×星矩阵改 GFM 表(与 renderMaitriPanel 同构:行=本星/列=对方/自身格「—」;
+		// 星×星矩阵改 GFM 表(与 renderMaitriPanel 同构:行=本星/列=对方/自身格「—」;
 		// 单元格值表达式逐字同源:planetLabel/compoundCn)。列头取 planetLabels,缺省由首行 cells 推导;
 		// 任一行列数不齐则回退旧平铺行(防列错位)。
 		const gmLabels = Array.isArray(gm.planetLabels) && gm.planetLabels.length
@@ -909,6 +965,8 @@ export function buildJyotishSnapshotLines(chartObj){
 				`| --- | ${gmLabels.map(()=>'---').join(' | ')} |`,
 				...gm.matrix.map((row)=>`| ${row.planetLabel} | ${row.cells.map((c)=>(c.self ? '—' : (c.compoundCn || '—'))).join(' | ')} |`),
 			];
+			// 口径与页面同:临时友敌按出生 D1 宫位(切分盘不变)。
+			if(gm.basis === 'd1'){ out['敌友（复合五分）'].unshift('临时友敌按出生 D1 宫位算(切分盘不变)'); }
 		}else{
 			out['敌友（复合五分）'] = gm.matrix.map((row)=>{
 				const rel = (row.cells || []).filter((c)=>!c.self && c.compoundCn).map((c)=>`${c.planetLabel} ${c.compoundCn}`).join('、');
@@ -951,13 +1009,27 @@ export function buildJyotishSnapshotLines(chartObj){
 	}
 	const rdj = j.rasiDasha;
 	if(rdj){
-		[['narayana', 'Narayana'], ['lagnaKendradi', 'Lagna-Kendradi'], ['sudasa', 'Sudasa'], ['drigdasa', 'Drig'], ['shoola', 'Shoola'], ['niryanaShoola', 'Niryana-Shoola'], ['kalachakra', 'Kalachakra'], ['taraLagna', 'Tara-Lagna'], ['sthira', 'Sthira-固定'], ['yogardha', 'Yogardha-平均'], ['manduka', 'Manduka-蛙跳']].forEach((pair)=>{
-			const d = rdj[pair[0]];
+		// 与页面「大运」页签的座运卡同集:Narayana + 14 系(含 Chakra / Trikoṇa / Navāṁśa / Varṇada)+ 两种 Paryāya 二轮。
+		const RASI_DASHA_SNAPSHOT = [['narayana', 'Narayana'], ['lagnaKendradi', 'Lagna-Kendradi'], ['sudasa', 'Sudasa'], ['drigdasa', 'Drig'], ['shoola', 'Shoola'], ['niryanaShoola', 'Niryana-Shoola'], ['kalachakra', 'Kalachakra'], ['taraLagna', 'Tara-Lagna'], ['sthira', 'Sthira-固定'], ['yogardha', 'Yogardha-平均'], ['manduka', 'Manduka-蛙跳'],
+			['chakra', 'Chakra'], ['trikona', 'Trikona-三角'], ['navamsaDasha', 'Navamsa'], ['varnada', 'Varnada']];
+		const par = rdj.paryaya || {};
+		const rows = RASI_DASHA_SNAPSHOT.map((pair)=>[pair[1], rdj[pair[0]], pair[0]]).concat([
+			['Chara-Paryaya二轮', par.charaParyaya, 'charaParyaya'], ['Sthira-Paryaya二轮', par.sthiraParyaya, 'sthiraParyaya'],
+		]);
+		rows.forEach(([name, d, key])=>{
 			if(d && d.available !== false && Array.isArray(d.mahadashas) && d.mahadashas.length){
-				const tbl = gfmTable(['座', '年数', '神'], d.mahadashas.slice(0, 12).map((m)=>[scS(m.rasi), `${fx(m.years, 1)}年`, `${m.deity || ''}`]));
-				// [Q-125/T-33] Kālachakra「适用条件」开关此前只挂 applicability 对象、页面/快照零读者 → 写明主用/备览
+				const tbl = gfmTable(['座', '年数', '神'], d.mahadashas.slice(0, 12).map((m)=>[scS(m.rasi), `${fx(m.years, 1)}年`, `${m.deity || (key === 'chakra' ? (m.lord || '') : '')}`]));
+				const notes = [];
+				if(d.startRasi && key !== 'kalachakra'){ notes.push(`起座：${scS(d.startRasi)}${d.startRule ? `（${d.startRule}）` : ''}`); }
+				if(d.seed && /Paryaya/.test(name)){ notes.push(`起座：${scS(d.seed)}`); }
+				// Kālachakra:paramāyus / 起座余年 / 轮终换接(周期换接法开关改的就是这一段),与页面卡片注同字段。
+				if(key === 'kalachakra' && (d.paramayush || d.cycleMethod)){
+					notes.push(`paramāyus ${d.paramayush} 年${d.startRasi ? `；起 ${scS(d.startRasi)}（余 ${d.startBalanceYears} 年）` : ''}${d.cycleMethod ? `；换接法 ${d.cycleMethod}` : ''}${d.nextCycle ? `；轮终换接 ${d.nextCycle.nakshatra} 第${d.nextCycle.pada}pada${d.nextCycle.paramayush ? `（paramāyus ${d.nextCycle.paramayush}）` : ''}` : ''}`);
+				}
+				// Kālachakra「适用条件」开关此前只挂 applicability 对象、页面/快照零读者 → 写明主用/备览
 				const ap = d.applicability;
-				out[`座运·${pair[1]}`] = ap ? [tbl, `适用性(${ap.mode === 'navamsa_stronger' ? '月亮 navamsa 座强于 rasi 座才主用' : ap.mode || '通用'})：${ap.applicable === true ? '主用' : (ap.applicable === false ? '备览(条件不成立)' : '判据不足')}`] : tbl;
+				if(ap){ notes.push(`适用性(${ap.mode === 'navamsa_stronger' ? '月亮 navamsa 座强于 rasi 座才主用' : ap.mode || '通用'})：${ap.applicable === true ? '主用' : (ap.applicable === false ? '备览(条件不成立)' : '判据不足')}`); }
+				out[`座运·${name}`] = notes.length ? [...notes, ...tbl] : tbl;
 			}
 		});
 	}
@@ -968,10 +1040,45 @@ export function buildJyotishSnapshotLines(chartObj){
 		if(tjj.dasas && tjj.dasas.mudda && tjj.dasas.mudda.available && Array.isArray(tjj.dasas.mudda.sequence)){
 			out['Tajika Mudda 年运'] = gfmTable(['段', '天数'], tjj.dasas.mudda.sequence.map((m)=>[m.key, `${fx(m.days, 1)}天`]));
 		}
+		// 年主 / 年 Yoginī / Patyāyinī:页面年盘页签都显示;Hadda 界法、年基、Patyāyinī 年常量与上升取点开关改的就是它们。
+		const PCN_T = { Sun: '太阳', Moon: '月亮', Mars: '火星', Mercury: '水星', Jupiter: '木星', Venus: '金星', Saturn: '土星', Rahu: '罗睺', Ketu: '计都', 'North Node': '罗睺', 'South Node': '计都' };
+		const yl = tjj.yearLord;
+		if(yl && yl.planet){
+			out['Tajika 年主'] = [`年主：${PCN_T[yl.planet] || yl.planet}（取用 ${tajikaYearLordViaLabel(yl.via) || '—'}；五分力 ${fx(yl.panchaBala, 2)}）`];
+		}
+		const ay = tjj.dasas && tjj.dasas.annualYogini;
+		if(ay && ay.available && Array.isArray(ay.sequence) && ay.sequence.length){
+			out['Tajika 年 Yoginī'] = [
+				`起 ${ay.startYogini || '—'}；年基 ${fx(ay.yearBasisDays, 2)} 日`,
+				...gfmTable(['Yoginī', '主', '天数', '余'], ay.sequence.map((m)=>[`${m.yogini}`, `${m.lordCN || m.lordKey || ''}`, `${fx(m.days, 1)}天`, `${m.balance != null ? fx(m.balance, 1) : ''}`])),
+			];
+		}
+		const pty = tjj.dasas && tjj.dasas.patyayini;
+		if(pty && Array.isArray(pty.order) && pty.order.length){
+			out['Tajika Patyāyinī 年运'] = [
+				// 年常量四档相差不到 1 天(365.2425 / 365 / 365.2563 / 360),取到 4 位才分得开。
+				`共 ${Number.isFinite(+pty.totalDays) ? +(+pty.totalDays).toFixed(4) : '—'} 天`,
+				...gfmTable(['主', '天数', 'Patyāṁśa'], pty.order.map((m)=>[m.ref === 'lagna' ? '年命' : `${PCN_T[m.ref] || m.ref}`, `${fx(m.days, 1)}天`, `${fx(m.patyamsa, 1)}`])),
+			];
+		}
 	}
 	const gocL = j.gochara && j.gochara.fromLagna;
 	if(Array.isArray(gocL) && gocL.length){
-		out['行运 Gochara（从命）'] = gfmTable(['星曜', '从命宫', '吉凶'], gocL.map((it)=>[`${it.planetLabel || it.label || it.planet}`, `从命第${it.house}宫`, `${(it.good || it.auspicious) ? '吉位' : '凶位'}`]));
+		out['行运 Gochara（从命）'] = gfmTable(['星曜', '从命宫', '吉凶'], gocL.map((it)=>[`${it.planetLabel || it.label || it.planet}`, `从命第${it.house}宫`, `${(it.good || it.auspicious) ? '吉位' : '凶位'}${it.effective === false ? '(Vedha遮)' : ''}`]));
+	}
+	// 从日(第三基准)与过运×大运联动:页面逐曜过运卡都显示,Vedha 遮蔽者开关在这两处也会改判。
+	const gocS = j.gochara && j.gochara.fromSun;
+	if(Array.isArray(gocS) && gocS.length){
+		out['行运 Gochara（从日）'] = gfmTable(['星曜', '从日宫', '吉凶'], gocS.map((it)=>[`${it.planetLabel || it.label || it.planet}`, `从日第${it.house}宫`, `${(it.good || it.auspicious) ? '吉位' : '凶位'}${it.effective === false ? '(Vedha遮)' : ''}`]));
+	}
+	const dl = j.gochara && j.gochara.dashaLink;
+	if(dl && dl.mahaLord){
+		const tfm = (t)=>(t ? `（从月第${t.house}宫·${(t.good || t.auspicious) ? '吉位' : '凶位'}${t.effective === false ? '·Vedha遮' : ''}）` : '');
+		out['过运×大运联动'] = [
+			`体系：${dl.systemLabel || 'Vimshottari'}${dl.atDate ? `；过运日 ${dl.atDate}` : ''}`,
+			`大运主：${(dl.mahaLord || {}).label || (dl.mahaLord || {}).key || '—'}${tfm(dl.transitFromMoon)}`,
+			...(dl.antarLord ? [`中运主：${(dl.antarLord || {}).label || '—'}${tfm(dl.antarTransitFromMoon)}`] : []),
+		];
 	}
 
 	// A 类硬缺：Yoga 面板成立清单（renderYogaPanel 已显示但此前不入快照）。只列成立项：
@@ -1021,7 +1128,7 @@ export function buildJyotishSnapshotLines(chartObj){
 		if(upLines.length){ out['副星 Upagraha'] = upLines; }
 	}
 
-	// [G2/G3/G4] 敏感点(生育点/界位/风险因子仅标注)。降级态不出段(零噪音);绝不出寿数。
+	// 敏感点(生育点/界位/风险因子仅标注)。降级态不出段(零噪音);绝不出寿数。
 	const spx = j.sensitivePoints;
 	if(spx && spx.available){
 		const sl = [];
@@ -1046,7 +1153,7 @@ export function buildJyotishSnapshotLines(chartObj){
 		if(sl.length){ out['敏感点 Sphuta'] = sl; }
 	}
 
-	// [G7] 全吉盘:降级态只输出一句免责 —— 绝不把占位格位当权威喂给 AI。
+	// 全吉盘:降级态只输出一句免责 —— 绝不把占位格位当权威喂给 AI。
 	const sbc = j.sarvatobhadra;
 	if(sbc && sbc.available){
 		if(sbc.vedhaEnabled){
@@ -1058,7 +1165,7 @@ export function buildJyotishSnapshotLines(chartObj){
 		}
 	}
 
-	// [G1/G12] 问事 Praśna(仅已起卦时有 payload;裁决链逐条给 AI 作证据)。
+	// 问事 Praśna(仅已起卦时有 payload;裁决链逐条给 AI 作证据)。
 	const pr = j.prashna;
 	if(pr && pr.available){
 		const pl2 = [`问事时刻：${pr.questionTime}；事项：${pr.matter}`];
@@ -1074,11 +1181,16 @@ export function buildJyotishSnapshotLines(chartObj){
 		if(pr.parashari && pr.parashari.available){
 			const pa = pr.parashari;
 			pl2.push(`Parāśarī：问时 Lagna ${((pa.lagna || {}).signLabel) || ''}；Tārā ${(pa.taraBala || {}).name || '—'}；Chandra 第${(pa.chandraBala || {}).house || '—'}宫`);
+			const pk2 = (pa.moon || {}).paksha;
+			if(pk2){ pl2.push(`问时月相：${pakshaLabel(pk2)}`); }
+			const yn2 = prashnaYogaNames(pa.yogas);
+			if(yn2.length){ pl2.push(`问时 Yoga：${yn2.join('、')}`); }
 		}
 		if(pr.tajika && pr.tajika.available){
 			const tj2 = pr.tajika;
 			const it2 = tj2.ithasala;
 			pl2.push(`Tājika：Lagna主 ${tj2.lagnaLord || '—'} × 事项主 ${tj2.karyaLord || '—'} → ${it2 ? (it2.type === 'eesarpha' ? '离相不成' : `入相 ${it2.type || ''}`) : (tj2.selfLordNote || '无相位')}`);
+			if(Array.isArray(tj2.higherYogas) && tj2.higherYogas.length){ pl2.push(`Tājika 传/集光：${tj2.higherYogas.map(prashnaHigherYogaText).join('、')}`); }
 		}
 		out['问事 Praśna'] = pl2;
 	}
@@ -1091,10 +1203,15 @@ export function buildJyotishSnapshotLines(chartObj){
 		const al = [];
 		const M_CN = { pindayu: 'Pindayu', nisargayu: 'Nisargayu', amsayu: 'Amsayu' };
 		const sel = af.methodSelection || {};
-		al.push(`选定方法：${M_CN[sel.selected] || sel.selected || '—'}${sel.override === 'auto' ? '（自动:最强定法;上升以其主代比,平局取上升）' : '（手动指定）'}`);   // [Q-393①/T-375] 注明代比与平局规则
+		al.push(`选定方法：${M_CN[sel.selected] || sel.selected || '—'}${sel.override === 'auto' ? '（自动:最强定法;上升以其主代比,平局取上升）' : '（手动指定）'}`);   // 注明代比与平局规则
 		if(af.selectedFinal && af.selectedFinal.solarYears != null){
 			al.push(`并入减算总值：${af.selectedFinal.solarYears} 太阳年（${af.selectedFinal.savanaYears} Savana）`);
 		}
+		// 三法各自的减算总值:未被选定的方法也随减算 / 倍数开关变,不列出来这些开关在快照里看不见。
+		const fin3 = af.finals || {};
+		const fin3Parts = ['pindayu', 'nisargayu', 'amsayu'].filter((k)=>fin3[k] && fin3[k].solarYears != null)
+			.map((k)=>`${M_CN[k]} ${fin3[k].solarYears}（${fin3[k].savanaYears} Savana）`);
+		if(fin3Parts.length){ al.push(`三法总值(太阳年)：${fin3Parts.join(' / ')}`); }
 		if(af.ayuClass){ al.push(`寿命档：${af.ayuClass.label}`); }
 		if(af.triPairYears != null){
 			const v = af.triPairVotes || {};
@@ -1117,7 +1234,7 @@ export function buildJyotishSnapshotLines(chartObj){
 	return out;
 }
 
-// [挂载自检 F-39·P0] 印占实际口径行:盘按恒星黄道(印占岁差)+ 印度分宫制算,但 buildAstroSnapshotContent 读的是
+// 印占实际口径行:盘按恒星黄道(印占岁差)+ 印度分宫制算,但 buildAstroSnapshotContent 读的是
 // fields.zodiacal/hsys(印占 fields 恒 0/1)→ [起盘信息] 印「回归黄道，Alcabitus」与实算相反。与 fieldsToParams 同一派生。
 export function indiaCalibreLine(fields, overrides = {}){
 	const f = fields || {};
@@ -1189,16 +1306,37 @@ function buildIndiaSnapshotText(chartObj, fields, chartnum, hook){
 	ensureSection(lines, '行星', planets);
 	ensureSection(lines, '希腊点', lots);
 	ensureSection(lines, '可能性', possibility);
+	const dataSections = buildIndiaSnapshotDataSections(chartObj, fields);
+	Object.keys(dataSections).forEach((title)=>{
+		ensureSection(lines, title, dataSections[title]);
+	});
+	return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// 引擎子块失败的落账名(jyotish.partialErrors)→ 快照「未能计算」段(段名表与页面提示共用 indiaMain/jyotishData)。
+export function indiaPartialErrorLines(chartObj){
+	const names = jyotishPartialErrors(chartObj && chartObj.jyotish).map(jyotishPartialErrorLabel);
+	return names.length ? [`以下各段本次未能计算(不是没有,而是没算出来):${names.join('、')}`] : [];
+}
+
+// 快照里「随回包数据而变」的全部段(大运 + jyotish 各段),按快照里的先后排。流派开关挂载合同
+// (indiaVariantMountContract)直接比这一份:开关改了回包或前端切分,这里必须跟着变。
+export function buildIndiaSnapshotDataSections(chartObj, fields){
+	const out = {};
 	const dashaSystem = fields && fields.indiaDashaSystem ? fields.indiaDashaSystem.value : undefined;
 	const dashaLines = buildDashaSnapshotLines(chartObj, dashaSystem, fields);
 	if(dashaLines.length){
-		ensureSection(lines, '大运Dasha', dashaLines);
+		out['大运Dasha'] = dashaLines;
 	}
-	const jyotishSections = buildJyotishSnapshotLines(chartObj);
+	const jyotishSections = buildJyotishSnapshotLines(chartObj, fields);
 	Object.keys(jyotishSections).forEach((title)=>{
-		ensureSection(lines, title, jyotishSections[title]);
+		if(!(title in out)){ out[title] = jyotishSections[title]; }
 	});
-	return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+	const partial = indiaPartialErrorLines(chartObj);
+	if(partial.length){
+		out['未能计算'] = partial;
+	}
+	return out;
 }
 
 // 供 AI 分析无头复算：按出生字段取印度盘（默认 D1 命盘）并生成快照文本。
@@ -1317,6 +1455,8 @@ class IndiaChart extends Component{
 			this.props.hook.fun = this.props.suppressFetch ? (()=>{}) : (fields)=>{
 				this.requestChartObj(fields);
 			};
+			// 所见那张盘实际所用的 fields(请求过了代次校验、确定上屏的那一次):择日宿主存案取它 —— 内嵌页自己重排、宿主改了工作台没重排、覆盖层里没确定的草稿,都不会让存案的时间地点与所见不一致
+			this.props.hook.getPlottedFields = ()=>this._plottedFields || null;
 		}
 
 	}
@@ -1336,6 +1476,9 @@ class IndiaChart extends Component{
 	}
 
 	async requestChart(params, sourceFields){
+		// 请求代次:只认最后一次发出的(挂载即按当时的 fields 取一次,紧接着按另一组 fields 再取 —— 如择日载入存案按冻结口径重排 ——
+		// 两个回包谁晚到谁上屏,就可能是前一组的盘)
+		const seq = (this._chartReqSeq = (this._chartReqSeq || 0) + 1);
 		let result = null;
 		try{
 			result = await requestIndiaChartData(params);
@@ -1347,7 +1490,8 @@ class IndiaChart extends Component{
 			chartObj: result,
 		};
 
-		if(!this._mounted) return;
+		if(!this._mounted || seq !== this._chartReqSeq) return;
+		if(result){ this._plottedFields = sourceFields || null; }
 		this.setState(st);
 		if(this.props.onChartLoad){
 			this.props.onChartLoad(result, params);

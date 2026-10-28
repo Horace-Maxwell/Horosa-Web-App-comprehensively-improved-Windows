@@ -1,4 +1,4 @@
-// [v44 硬缺修] 果老 [虚实]/[本命化曜] 段 builder(纯函数):有数据出段、无数据空串(零字节变化)。
+// 果老 [虚实]/[本命化曜] 段 builder(纯函数):有数据出段、无数据空串(零字节变化)。
 // 段头与 preset 的一致性由 aiExportRoundtrip 全树守卫另行机器闸。
 import { buildGuolaoWeakSolidSection, buildGuolaoBirthStarsSection } from '../GuoLaoChartMain';
 

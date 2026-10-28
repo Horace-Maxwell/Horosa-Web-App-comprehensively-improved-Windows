@@ -10,6 +10,7 @@ import { chartSCUEnabled } from '../../utils/perfFlags';
 import React, { Component } from 'react';
 import { claimTrigger, settleTrigger } from '../../utils/singleTrigger';   // 双触发收敛
 import { watchChartAppearance } from '../../utils/chartDrawGuard';
+import { signElementInk } from '../../utils/signElementInk';
 import { Row, Col, Switch, Spin, Empty } from 'antd';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
@@ -47,9 +48,10 @@ import { getStoredUranianDisplay, saveUranianDisplay } from './UranianDialStyle'
 import { schoolToBackendParams } from './UranianSchools';
 import { tnpGlyph } from './UranianGlyphs';
 import { classicalBackendOverridesFromFields } from '../../utils/classicalChartGlobals';
-import { getLayoutViewportHeight } from '../../utils/shellZoom';
-// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+import { getPageLayoutHeight } from '../../utils/shellZoom';   // 页面排版视口(地板到工作区包络 960 × 560)
+// 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
 import { visualFloorPx } from '../../utils/zoomDomain';
+import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
 
 // 标准盘所需的「宫头对象」结构:{id:'House1'..'House12', lon, size, sign, signlon}。
 // AstroChartCircle.desposeHouses/getHouse 消费 lon/size/sign/signlon/id;此处从框的 cusps[12] 派生。
@@ -124,7 +126,7 @@ function fieldsToParams(fields){
 		gpsLat: fv(fields, 'gpsLat'), gpsLon: fv(fields, 'gpsLon'),
 		hsys: fv(fields, 'hsys'), zodiacal: fv(fields, 'zodiacal'), siderealAyanamsa: fv(fields, 'siderealAyanamsa') || '',
 		tradition: false, predictive: 0, name: fv(fields, 'name') || '', pos: fv(fields, 'pos') || '',
-		// [SURF-5] 古典设置单源接入;条件发送=默认态字节不变。
+		// 古典设置单源接入;条件发送=默认态字节不变。
 		...classicalBackendOverridesFromFields(fields),
 	};
 }
@@ -176,7 +178,7 @@ export default class UranianHouseFrames extends Component {
 			loading: false,
 			note: null,
 			school: disp.school || 'classic',
-			vh: typeof window !== 'undefined' ? getLayoutViewportHeight() : 900,   // 布局域实测
+			vh: typeof window !== 'undefined' ? getPageLayoutHeight() : 900,   // 布局域实测
 			colW: 0, colH: 0,
 		};
 		this.unmounted = false;
@@ -196,17 +198,17 @@ export default class UranianHouseFrames extends Component {
 		this.load();
 		this._detachAppearance = watchChartAppearance(() => { if (!this.unmounted) { this.load(); } });   // 宫框轮的星座填色取自调色板(烘焙),切主题重算重画
 		if (typeof window !== 'undefined') window.addEventListener('resize', this._onResize);
-		if (typeof ResizeObserver !== 'undefined' && this._host){ this._ro = new ResizeObserver(() => this._measure()); this._ro.observe(this._host); }
+		if (typeof ResizeObserver !== 'undefined' && this._host){ this._ro = createDeferredResizeObserver(() => this._measure()); this._ro.observe(this._host); }
 		this._measure();
 	}
 	componentWillUnmount(){
 		this.unmounted = true;
 		if(this._detachAppearance){ this._detachAppearance(); this._detachAppearance = null; }
 		if (typeof window !== 'undefined') window.removeEventListener('resize', this._onResize);
-		if (this._ro){ try { this._ro.disconnect(); } catch (e) { /* noop */ } this._ro = null; }
+		if (this._ro){ this._ro.disconnect(); this._ro = null; }
 	}
 	componentDidUpdate(prev){ if (prev.fields !== this.props.fields) this.load(); }
-	_onResize(){ if (!this.unmounted){ this.setState({ vh: getLayoutViewportHeight() }); this._measure(); } }
+	_onResize(){ if (!this.unmounted){ this.setState({ vh: getPageLayoutHeight() }); this._measure(); } }
 	_measure(){
 		if (this.unmounted || !this._host) return;
 		const col = this._host.querySelector('.horosa-frames-chart-col');
@@ -287,7 +289,7 @@ export default class UranianHouseFrames extends Component {
 		const m = Math.round((within - d) * 60);
 		const sigName = AstroConst.LIST_SIGNS[si];
 		const sigCh = AstroText.AstroMsg[sigName] || '';
-		const sigColor = (AstroConst.AstroColor && AstroConst.AstroColor[sigName]) || 'inherit';
+		const sigColor = signElementInk(sigName);   // 界面表格:四元素主题字色(盘面配色是为盘面底挑的,不当界面字色)
 		return (
 			<span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
 				{/* 星座字形固定等宽槽:与中点列表同口径,窄字形不贴数字、整列对齐。 */}
@@ -316,8 +318,8 @@ export default class UranianHouseFrames extends Component {
 					<span title={angular ? '角宫(1/4/7/10):最有力位置' : ''}
 						style={{ display: 'inline-block', minWidth: 24, padding: '0 6px', lineHeight: '20px', borderRadius: 10,
 							fontSize: 12, fontWeight: 600, textAlign: 'center', fontVariantNumeric: 'tabular-nums',
-							background: angular ? 'var(--horosa-accent, #b8860b)' : 'var(--horosa-row-alt, rgba(120,120,120,0.12))',
-							color: angular ? '#fff' : 'inherit' }}>{h}</span>
+							background: angular ? 'var(--horosa-accent, #b8860b)' : 'var(--horosa-table-row-alt, rgba(120,120,120,0.12))',
+							color: angular ? 'var(--horosa-on-accent)' : 'inherit' }}>{h}</span>
 				);
 			} },
 		];
@@ -388,14 +390,17 @@ export default class UranianHouseFrames extends Component {
 			</div>
 		);
 
-		const sideScroll = { maxHeight: Math.max(320, height - 24), overflowY: 'auto' };
+		// 同一个槽的高度只有一个来源:宿主 height(props)→ 纵向 flex 链一路 100% 传到三列,两侧滚动盒 / 中列都按自己的格高排
+		//(此前两侧滚动盒写 maxHeight =「height − 24」、中列 minHeight 同一常数,加上 Row / Spin 包装的偏移,比页签框高出 16px、底部被裁)
+		const fill = { height: '100%', minHeight: 0 };
+		const sideScroll = { ...fill, overflowY: 'auto' };
 		return (
-			<div className="horosa-frames-host" ref={(el) => { this._host = el; }} style={{ height }}>
-				<Spin spinning={loading}>
-					<Row className="horosa-frames-layout" gutter={10}>
-						<Col span={5} className="horosa-frames-side-col"><div style={sideScroll}>{left}</div></Col>
-						<Col span={13} className="horosa-frames-chart-col" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: Math.max(320, height - 24) }}>{chart}</Col>
-						<Col span={6} className="horosa-frames-side-col"><div style={sideScroll}>{right}</div></Col>
+			<div className="horosa-frames-host" ref={(el) => { this._host = el; }} style={{ height, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+				<Spin spinning={loading} wrapperClassName="horosa-frames-spin">
+					<Row className="horosa-frames-layout" gutter={10} wrap={false} style={fill}>
+						<Col span={5} className="horosa-frames-side-col" style={fill}><div style={sideScroll}>{left}</div></Col>
+						<Col span={13} className="horosa-frames-chart-col" style={{ ...fill, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>{chart}</Col>
+						<Col span={6} className="horosa-frames-side-col" style={fill}><div style={sideScroll}>{right}</div></Col>
 					</Row>
 				</Spin>
 			</div>

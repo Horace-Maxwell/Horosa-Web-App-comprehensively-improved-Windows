@@ -213,10 +213,10 @@ describe('紫微挂载 round-trip：四化流派 + 运限', () => {
 	});
 });
 
-// ══ [B2-2] AI 快照星曜亮度传导正锚:对象星带 starlight → 宫位总览内联「·档」;切源随动 ═══
+// ══ AI 快照星曜亮度传导正锚:对象星带 starlight → 宫位总览内联「·档」;切源随动 ═══
 // V2 基线夹具用字符串星(无 starlight)故不受影响 —— 这也是历史盲区:真实盘(Java/本地)的星是
 // 对象且恒带 starlight,快照曾全程丢弃(要义却让模型「依庙旺论强弱」=逼臆造,复查实锤)。
-describe('[B2-2] 快照亮度传导(对象星)', () => {
+describe('快照亮度传导(对象星)', () => {
 	const withObjStars = () => {
 		const houses = makeHouses();
 		// 寅宫(idx2)换成对象星带基础亮度(基表:紫微寅庙/贪狼寅平)
@@ -253,9 +253,9 @@ describe('[B2-2] 快照亮度传导(对象星)', () => {
 	});
 });
 
-// ══ [W0·审计补缺] 身宫段 + 换算后时刻行:内容锚金标(「渲染有→快照有」反方向审计首批) ═══
+// ══ 身宫段 + 换算后时刻行:内容锚金标(「渲染有→快照有」反方向审计首批) ═══
 // 夹具默认无 isBody/无 nongli 双时刻字段 → 上方全部既有用例即「缺省不产行」的零回归证明。
-describe('[W0] 身宫段与换算后时刻行', ()=>{
+describe('身宫段与换算后时刻行', ()=>{
 	it('🔴 isBody 宫在 → [身宫] 段产出且落宫与引擎标记一致(判据=house.isBody,与盘面标记同源)', async ()=>{
 		const prev = mockState.chart.houses;
 		const houses = makeHouses();
@@ -295,8 +295,8 @@ describe('[W0] 身宫段与换算后时刻行', ()=>{
 	});
 });
 
-// ══ [W1·审计补缺] 宫位长生内联 + [八字大运] 段:内容锚金标(夹具默认无 phase/无 bazi.direct=零回归) ═══
-describe('[W1] 宫位长生内联与八字大运段', ()=>{
+// ══ 宫位长生内联 + [八字大运] 段:内容锚金标(夹具默认无 phase/无 bazi.direct=零回归) ═══
+describe('宫位长生内联与八字大运段', ()=>{
 	it('house.phase 在 → 宫位格内联「宫名·档」;缺省宫照旧', async ()=>{
 		const prev = mockState.chart.houses;
 		const houses = makeHouses();

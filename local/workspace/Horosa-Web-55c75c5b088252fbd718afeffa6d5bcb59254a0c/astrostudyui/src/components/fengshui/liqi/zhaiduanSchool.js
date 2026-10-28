@@ -196,7 +196,7 @@ export function snapshotLines(r) {
 				+ pend.map((x)=>`${x.name}·${x.label}`).join('；'));
 		}
 		if (r.geoScan.skipped.length) {
-			// [挂载自检 F-1·P1] 不用整行【…】:那会被 AI 导出/挂载的段头正则当成一段,自定义过段的用户后续「客星/大门/主辞/内外合参」全被静默删。
+			// 不用整行【…】:那会被 AI 导出/挂载的段头正则当成一段,自定义过段的用户后续「客星/大门/主辞/内外合参」全被静默删。
 			L.push(`（几何检测未判 ${r.geoScan.skipped.length} 项——缺相应标记；「未检出」不等于「无此凶局」）`);
 		}
 	}

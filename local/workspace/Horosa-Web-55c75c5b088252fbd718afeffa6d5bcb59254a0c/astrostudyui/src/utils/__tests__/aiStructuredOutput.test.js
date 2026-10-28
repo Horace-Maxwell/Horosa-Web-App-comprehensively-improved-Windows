@@ -86,7 +86,7 @@ describe('buildEnumVerdictSchema / parseStructuredJson / schemaFingerprint', ()=
 	});
 });
 
-// ---- [压测二轮·D5·C1] 结构化输出降级:超深 schema 必须整条回落 json_object,绝不半截发出去 ----
+// ---- 结构化输出降级:超深 schema 必须整条回落 json_object,绝不半截发出去 ----
 describe('C1 schema 深度闸', ()=>{
 	const chain = (k)=>{ let n = { type: 'object', properties: { leaf: { type: 'string' } } }; for(let i = 1; i < k; i++){ n = { type: 'object', properties: { inner: n } }; } return n; };
 	// chain(k) = k 层对象 + 一个叶子 → 走 walk 的层数 = k+1;SCHEMA_MAX_DEPTH=5 → chain(4)(共 5 层)通过、chain(5)(共 6 层)拒
@@ -103,8 +103,8 @@ describe('C1 schema 深度闸', ()=>{
 	});
 });
 
-// [D11] 第三级降级(空正文):带 response_format 的结构化短调用拿到空正文 → 去掉 response_format 重发一次;有正文/无 response_format 不重发
-describe('[D11] requestStructuredWithFallback', ()=>{
+// 第三级降级(空正文):带 response_format 的结构化短调用拿到空正文 → 去掉 response_format 重发一次;有正文/无 response_format 不重发
+describe('requestStructuredWithFallback', ()=>{
 	const ok = (text)=>({ Result: { content: text } });
 	test('🔴 首发空正文(DeepSeek 把输出写进 reasoning)→ 去掉 response_format 重发并采用重发结果', async ()=>{
 		const calls = [];

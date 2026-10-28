@@ -40,9 +40,11 @@ public final class OutboundUrlGuard {
 	private OutboundUrlGuard() {
 	}
 
-	/** 通过则原样返回地址;不通过抛 {@link ErrorCodeException}(码 {@link AIWebSearchService#ERR_NOT_CONFIGURED}),文案不含地址。 */
-	public static String validate(String url) {
-		if (url == null || url.trim().isEmpty()) {
+	/** 通过则返回清理过的地址(看不见的字符已去掉,见 {@link UpstreamUrlText#clean});不通过抛 {@link ErrorCodeException}
+	 *  (码 {@link AIWebSearchService#ERR_NOT_CONFIGURED}),文案不含地址(不合法时只说第几个字符、是什么字符)。 */
+	public static String validate(String rawUrl) {
+		String url = UpstreamUrlText.clean(rawUrl);
+		if (url.isEmpty()) {
 			throw reject("地址为空");
 		}
 		if (url.length() > URL_MAX) {
@@ -50,9 +52,15 @@ public final class OutboundUrlGuard {
 		}
 		URI u;
 		try {
-			u = new URI(url.trim());
+			u = new URI(url);
 		} catch (URISyntaxException e) {
-			throw reject("地址不合法");
+			int at = UpstreamUrlText.firstIllegalChar(url);
+			if (at < 0) {
+				at = e.getIndex();
+			}
+			throw reject(at >= 0
+				? String.format("地址不合法(第 %d 个字符处:%s),请检查地址里有没有空格、全角符号或多余字符", at + 1, UpstreamUrlText.describeChar(url, at))
+				: "地址不合法");
 		}
 		String scheme = u.getScheme() == null ? "" : u.getScheme().toLowerCase(Locale.ROOT);
 		if (!"http".equals(scheme) && !"https".equals(scheme)) {
@@ -69,7 +77,7 @@ public final class OutboundUrlGuard {
 		if (h.startsWith("[") && h.endsWith("]")) {
 			h = h.substring(1, h.length() - 1);
 		}
-		// [AR-34] FQDN 尾点(`localhost.`)与不带尾点是同一主机,字面判定前归一(此前 `localhost.` 不算回环字面量,带自身端口照放)
+		// FQDN 尾点(`localhost.`)与不带尾点是同一主机,字面判定前归一(此前 `localhost.` 不算回环字面量,带自身端口照放)
 		while (h.length() > 1 && h.endsWith(".")) {
 			h = h.substring(0, h.length() - 1);
 		}
@@ -84,13 +92,13 @@ public final class OutboundUrlGuard {
 		if (loopback && port > 0 && OWN_PORTS.contains(Integer.valueOf(port))) {
 			throw reject("不允许回环访问本应用自身端口");
 		}
-		// [AR-34·2026-09-17] 回环别名绕过:`localhost.`(带尾点)/ `[::ffff:127.0.0.1]`(IPv4 映射 IPv6)不是回环字面量,此前带自身端口照样放行。
+		// 回环别名绕过:`localhost.`(带尾点)/ `[::ffff:127.0.0.1]`(IPv4 映射 IPv6)不是回环字面量,此前带自身端口照样放行。
 		// 基础档只在「端口 = 自身端口」时多做一次解析(名字→地址;IP 字面量不发 DNS),任一结果为回环即拒;解析失败不拒(基础档不苛求可达)。
 		if (!loopback && port > 0 && OWN_PORTS.contains(Integer.valueOf(port)) && resolvesToLoopback(h)) {
 			throw reject("不允许回环访问本应用自身端口");
 		}
-		// 回 trim 后的串:此前回原串,首尾空格的地址过守卫后到 HttpRequest 的 URI.create 抛裸 IllegalArgumentException
-		return url.trim();
+		// 回清理后的串:此前回原串,首尾空格的地址过守卫后到 HttpRequest 的 URI.create 抛裸 IllegalArgumentException
+		return url;
 	}
 
 	/** 主机名解析后任一地址为回环(127/8、::1、IPv4 映射回环)即真;解析失败 / 无结果 → 假(基础档只拦「解析得到的回环」)。 */
@@ -116,7 +124,7 @@ public final class OutboundUrlGuard {
 		return new ErrorCodeException(AIWebSearchService.ERR_NOT_CONFIGURED, "检索服务地址不允许:" + reason);
 	}
 
-	// ── [批三①] 严格档:网页读取(web_fetch)用。检索是「本机/内网自建引擎是明面用法」,读整页不是——
+	// ── 严格档:网页读取(web_fetch)用。检索是「本机/内网自建引擎是明面用法」,读整页不是——
 	//    任意地址读回体等于把内网页面交给模型,所以严格档再拒:回环(任意端口)/ RFC1918 / 链路本地 / IPv6 ULA / .local .internal .localhost 后缀。
 	//    仅当环境变量 HOROSA_WEBFETCH_ALLOW_LOOPBACK=1(测试假页面 / 用户自建内网页面)才放开这一层;基础规则(元数据/整数地址/userinfo…)永不放开。
 
@@ -153,22 +161,12 @@ public final class OutboundUrlGuard {
 		if (allowLoopback && isLoopbackLiteral(h0)) {
 			return ok;
 		}
-		URI u;
-		try {
-			u = new URI(ok.trim());
-		} catch (URISyntaxException e) {
-			throw new ErrorCodeException(AIWebFetchService.ERR_FETCH_BLOCKED, "网页地址不允许:地址不合法");
-		}
-		String h = u.getHost() == null ? "" : u.getHost().trim().toLowerCase(Locale.ROOT);
-		if (h.startsWith("[") && h.endsWith("]")) {
-			h = h.substring(1, h.length() - 1);
-		}
-		if (isPrivateOrLocalHost(h)) {
+		if (isPrivateOrLocalHost(h0)) {
 			throw new ErrorCodeException(AIWebFetchService.ERR_FETCH_BLOCKED, "网页地址不允许:不允许读取本机或内网地址");
 		}
-		// [进阶复查 D21·2026-09-08] 字面判定之后再按**解析结果**判:公网域名解析到内网/回环 A 记录(DNS 重绑定、内网名字对外解析、
+		// 字面判定之后再按**解析结果**判:公网域名解析到内网/回环 A 记录(DNS 重绑定、内网名字对外解析、
 		// IPv4 映射 IPv6 字面量 ::ffff:127.0.0.1)此前可穿透纯字符串判定。每一跳都走这里(调用方逐跳 validateStrict)。
-		checkResolvedAddresses(h);
+		checkResolvedAddresses(h0);
 		return ok;
 	}
 
@@ -209,7 +207,7 @@ public final class OutboundUrlGuard {
 
 	/** 回环 / 任意 / 链路本地 / 站点本地(RFC1918)/ 多播 / 0.0.0.0/8 / CGNAT 100.64.0.0/10 / 192.0.0.0/24 / 198.18.0.0/15 / 240.0.0.0/4 / IPv6 ULA fc00::/7。 */
 	static boolean isPrivateOrLocalAddress(InetAddress a) {
-		// [D36] NAT64 64:ff9b::/96、6to4 中继 192.88.99.0/24、IPv6 文档段 2001:db8::/32:字面判定与解析判定都算内网/非公网
+		// NAT64 64:ff9b::/96、6to4 中继 192.88.99.0/24、IPv6 文档段 2001:db8::/32:字面判定与解析判定都算内网/非公网
 		try {
 			String hs = a == null ? "" : a.getHostAddress().toLowerCase(Locale.ROOT);
 			if (hs.startsWith("64:ff9b:") || hs.startsWith("2001:db8:") || hs.startsWith("192.88.99.")) {

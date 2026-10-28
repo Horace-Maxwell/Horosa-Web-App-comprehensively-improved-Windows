@@ -2,12 +2,20 @@ import os
 import random
 import sys
 import traceback
-from numbers import Integral, Real
 
 import cherrypy
 import jsonpickle
 
+from astrostudy.civil_calendar import format_display_date
 from websrv.helper import enable_crossdomain
+from websrv.horosa_engine_common import (
+    build_snapshot as _build_snapshot,
+    clean_text as _clean_text,
+    plain_json_safe as _json_safe,
+    require_civil_ymd as _require_civil_ymd,
+    plain_row as _row,
+    to_int as _to_int,
+)
 from websrv import wuzhao_classics as wz_classics
 from websrv import wuzhao_leizhan as wz_leizhan
 
@@ -120,58 +128,6 @@ ELEM_TO_NUM = {"水": 1, "火": 2, "木": 3, "金": 4, "土": 5}
 NUM_TO_ELEM = {1: "水", 2: "火", 3: "木", 4: "金", 5: "土"}
 
 
-def _to_int(value, default=0):
-    try:
-        if value is None or value == "":
-            return default
-        return int(value)
-    except Exception:
-        return default
-
-
-def _clean_text(value, default=""):
-    if value is None:
-        return default
-    text = str(value).strip()
-    return text if text else default
-
-
-def _json_safe(value):
-    if isinstance(value, dict):
-        return {_clean_text(key): _json_safe(val) for key, val in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_json_safe(item) for item in value]
-    if isinstance(value, Integral) and not isinstance(value, bool):
-        return int(value)
-    if isinstance(value, Real) and not isinstance(value, bool):
-        return float(value)
-    if hasattr(value, "item"):
-        try:
-            return _json_safe(value.item())
-        except Exception:
-            return _clean_text(value)
-    return value
-
-
-def _format_value(value):
-    if value is None or value == "":
-        return ""
-    if isinstance(value, dict):
-        parts = []
-        for key, val in value.items():
-            text = _format_value(val)
-            if text:
-                parts.append(f"{key}：{text}")
-        return "；".join(parts)
-    if isinstance(value, list):
-        return "、".join([_format_value(item) for item in value if _format_value(item)])
-    return _clean_text(value)
-
-
-def _row(label, value):
-    return {"label": label, "value": _format_value(value) or "—"}
-
-
 # 注:原「古籍/来源」板块(vendor markdown 直录 + 相关项目链接 + 来源署名)已整块移除。
 # 依赖归属与许可声明的唯一去处是仓根 THIRD_PARTY_NOTICES.md,不在技法界面内展示。
 
@@ -214,7 +170,7 @@ def _normalize_positions(raw):
 
 
 def _shifa_detail_rows(detail):
-    """[Q-447/T-410] 揲筮/掷钱/卜数逐次明细入快照。
+    """揲筮/掷钱/卜数逐次明细入快照。
 
     病灶:页面「掷钱明细 / 揲筮明细 / 五兆卜数」卡逐位列出每一次的结果(阴阳面·撒币五行 → 五行(数)、
     剩策 → 五行(数)、或卜数 → 五行),而 shifaDetail 只挂在返回体、不进 sections —— 快照由 sections 拼成,
@@ -462,16 +418,6 @@ def _build_classic(payload, raw, ganzhi, solar_term, lunar, extras):
         return None
 
 
-def _build_snapshot(pan):
-    lines = []
-    for section in pan.get("sections", []):
-        lines.append(f"[{section.get('title', '')}]")
-        for row in section.get("rows", []):
-            lines.append(f"{row.get('label')}：{row.get('value')}")
-        lines.append("")
-    return "\n".join(lines).strip()
-
-
 _BRANCHES = ("子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥")
 
 
@@ -497,7 +443,7 @@ def _extras(data):
     gender = _clean_text(data.get("gender"))
     if gender not in ("male", "female"):
         gender = ""
-    # [Q-210/T-141/T-143] 随机诸式(敦煌/以钱代筮自动掷)的客户端种子:同种子同兆(存案可复现、改判读档不换兆、
+    # 随机诸式(敦煌/以钱代筮自动掷)的客户端种子:同种子同兆(存案可复现、改判读档不换兆、
     # 缓存按体命中即正确);缺席=旧行为真随机。
     cast_seed = data.get("castSeed")
     try:
@@ -692,6 +638,7 @@ class WuZhaoSrv:
             hour = _to_int(data.get("hour"), 0)
             minute = _to_int(data.get("minute"), 0)
             after23 = _to_int(data.get("after23NewDay"), 1)
+            _require_civil_ymd(year, month, day)   # 不存在的日期报错(改历缺口 / 2 月 30 日 / 公元 0 年)
             # v2.2.1 第二全局开关·晚子时·时柱起干。仅 hour==23 时影响时干;hour!=23 完全 NO-OP。
             late_zi = _to_int(data.get("lateZiHourUseNextDay"), 1)
             mode = _clean_text(data.get("mode"), "ganzhi")
@@ -722,7 +669,7 @@ class WuZhaoSrv:
                 "number": number,
                 "manual": bool(manual_splits),
                 "manualSplits": manual_splits or [],
-                "dateStr": data.get("date", f"{year:04d}-{month:02d}-{day:02d}"),
+                "dateStr": data.get("date", format_display_date(year, month, day)),
                 "timeStr": data.get("time", f"{hour:02d}:{minute:02d}:00"),
                 "solarTerm": solar_term,
                 "lunarDate": {

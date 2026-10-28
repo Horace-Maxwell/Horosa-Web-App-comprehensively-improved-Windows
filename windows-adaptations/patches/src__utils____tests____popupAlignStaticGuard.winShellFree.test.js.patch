@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js b/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js
-index ace44f8b..c35ddd38 100644
+index 2d6021ad..b60a8643 100644
 --- a/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js
 +++ b/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js
-@@ -27,22 +27,49 @@ const EXEMPT = [
+@@ -28,22 +28,49 @@ const EXEMPT = [
  	},
  ];
  
@@ -67,7 +67,7 @@ index ace44f8b..c35ddd38 100644
  }
  
  // 🔴 判定必须按**写回点**粒度,不能按行。
-@@ -154,16 +181,21 @@ const POINTER_EXEMPT = {
+@@ -155,16 +182,21 @@ const POINTER_EXEMPT = {
  	'components/germany/UranianModulusDial.js': '同 UranianCosmogram',
  };
  
@@ -97,7 +97,7 @@ index ace44f8b..c35ddd38 100644
  	});
  	return files;
  }
-@@ -228,8 +260,15 @@ describe('T6 指针 / 物理视口读数必须过换域件', () => {
+@@ -229,8 +261,15 @@ describe('T6 指针 / 物理视口读数必须过换域件', () => {
  	});
  
  	it('🔴 可拖动对话框只许用本仓的 comp/DragModal(第三方同名小件把视觉域位移直接写进 translate,缩放档下不跟手)', () => {

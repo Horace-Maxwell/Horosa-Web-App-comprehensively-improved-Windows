@@ -1,4 +1,4 @@
-// 常驻状态栏(A2;借鉴 Codex /status、Claude Code /cost):输入框上方一行小芯片——
+// 常驻状态栏(A2):输入框上方一行小芯片——
 // 模型 · 审批档/行动关 · 挂载 N 字/预算 M(超预算红、裁剪橙,点击开挂载抽屉)· 本会话 $ · 缓存命中 % · 上下文≈k% · 策略预设 · 命主▸ · 已压缩 N 条(点击查看摘要;弹窗里可取消)。
 // 纯展示:全部数字由钩子算好传入(computeSessionStats/estimateContextPct 与气泡同口径);data-* 供自动化机读;uiPrefs chatAssist.statusBar=false 可关。
 import React from 'react';

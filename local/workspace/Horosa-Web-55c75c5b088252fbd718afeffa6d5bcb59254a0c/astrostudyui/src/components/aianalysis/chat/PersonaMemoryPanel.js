@@ -7,10 +7,14 @@ import { readPersonaLayers, writePersonaLayer, clearPersonaLayers, subscribePers
 import { listAnalysisTechniqueOptions } from '../../../utils/aiAnalysisContext';
 import { listMemories, subscribeMemory, confirmMemory, discardCandidate, toggleMemory, deleteMemory, saveMemory, MEMORY_SUBJECT_TYPES } from '../../../utils/aiChat/memory';
 import { AdvCard, AdvStatus, ADV_SECTION_IDS, advStyles as styles } from './AdvCard';
+import { scriptFilterBy } from '../../../utils/scriptMode';
+
+// 清空口径时保留的开关(与面板上的开关一致)
+let PERSONA_KEPT_SWITCHES = '记忆注入 / 自动沉淀';
 
 const SUBJECT_LABELS = { user: '你本人', chart: '命主', case: '事盘', global: '全局' };
 
-// [Q-294/M-109·AR-08] 候选主体改成「命主」时绑定当前挂载源 id 与标题(注入只收 subject.cid===当前挂载源 id 的命主记忆,
+// 候选主体改成「命主」时绑定当前挂载源 id 与标题(注入只收 subject.cid===当前挂载源 id 的命主记忆,
 //   此前改成命主后 cid 为空 → 永不注入却显示已入库);无挂载源时「命主」不可选并提示。
 function CandidateRow({ m, onChanged, activeSource }){
 	const [text, setText] = React.useState(m.text);
@@ -31,19 +35,27 @@ function CandidateRow({ m, onChanged, activeSource }){
 	);
 }
 
-// [批二⑨] 分层口径页签:命主(bySubject[当前命主 cid])/ 技法(byTechnique[选中技法])/ 会话(随会话记录存);打开不写键,只在「保存」时写
+// 分层口径页签:命主(bySubject[当前命主 cid])/ 技法(byTechnique[选中技法])/ 会话(随会话记录存);打开不写键,只在「保存」时写
 function LayerEditor({ scope, id, title, hint, layers, max, testId }){
 	const cur = id ? (scope === 'subject' ? layers.bySubject[id] : layers.byTechnique[id]) || '' : '';
 	const [text, setText] = React.useState(cur);
 	React.useEffect(()=>{ setText(cur); }, [cur, id]);
 	if(!id){ return <div className={styles.soft} data-persona-layer-empty={scope}>{hint}</div>; }
+	// 按存储里实际写进的那一层判成没成(写不进时写入方回的是存储原值),不写死「已保存」
+	const writeLayer = (value, okText)=>{
+		const r = writePersonaLayer(scope, id, value);
+		const saved = (scope === 'subject' ? r.bySubject : r.byTechnique)[id] || '';
+		const want = `${value || ''}`.trim();
+		const ok = want ? (!!saved && want.indexOf(saved) === 0) : !saved;
+		if(ok){ message.success(okText); }else{ message.error('本机存储已满,没能保存'); }
+	};
 	return (
 		<div data-persona-layer={scope} data-persona-layer-id={id} className={styles.stack}>
 			<div className={styles.soft}>{title}</div>
 			<Input.TextArea rows={4} maxLength={max} value={text} onChange={(e)=>setText(e.target.value)} placeholder="只对这一层生效的补充口径(空=不注入这一层)" data-persona-layer-text={scope} />
 			<div className={styles.inline}>
-				<Button size="small" type="primary" disabled={text === cur} data-persona-layer-save={scope} onClick={()=>{ writePersonaLayer(scope, id, text); message.success('已保存'); }}>保存</Button>
-				{cur ? <Button size="small" danger data-persona-layer-clear={scope} onClick={()=>{ writePersonaLayer(scope, id, ''); message.success('已清除这一层'); }}>清除</Button> : null}
+				<Button size="small" type="primary" disabled={text === cur} data-persona-layer-save={scope} onClick={()=>writeLayer(text, '已保存')}>保存</Button>
+				{cur ? <Button size="small" danger data-persona-layer-clear={scope} onClick={()=>writeLayer('', '已清除这一层')}>清除</Button> : null}
 				<span className={styles.soft}>{text.length}/{max}</span>
 			</div>
 		</div>
@@ -91,7 +103,7 @@ export default function PersonaMemoryPanel({ onInit, initDraft, onExtract, extra
 	const confirmed = memories.filter((m)=>m.status === 'confirmed');
 	const groups = ['user', 'chart', 'case', 'global'].map((t)=>({ type: t, items: confirmed.filter((m)=>m.subject.type === t) })).filter((g)=>g.items.length);
 	const dirty = text !== persona.text;
-	// [Q-294/M-109·AR-19] 状态按「当前挂载源下四层合成是否非空」判(与 useChatAssist.promptLayerExtras 同一合成函数);此前只看全局文本,
+	// 状态按「当前挂载源下四层合成是否非空」判(与 useChatAssist.promptLayerExtras 同一合成函数);此前只看全局文本,
 	//   全局空、命主/技法/会话层有字时照样注入却显示「未注入」
 	const composed = persona.enabled ? composePersonaText(persona.text, layers, { subjectCid: activeSource ? activeSource.id : '', subjectTitle: activeSource ? activeSource.title : '', techniqueKeys: Array.isArray(selectedTechniqueKeys) ? selectedTechniqueKeys : [], sessionText: activeConversation ? activeConversation.persona : '' }) : '';
 	const injecting = !!composed.trim();
@@ -115,8 +127,8 @@ export default function PersonaMemoryPanel({ onInit, initDraft, onExtract, extra
 					<Button size="small" danger data-persona-clear-all="1" onClick={()=>{
 						Modal.confirm({
 							title: '清空全部口径?',
-							// [Q-294/M-109·AR-18] 如实描述:会话口径存在各对话记录里,这里不清;三开关与记忆保留
-							content: '将删除全局口径文本与命主 / 技法分层口径,并关闭「启用注入」;记忆与「记忆注入 / 自动沉淀 / 同时用于报告」开关不受影响。会话口径保存在各对话里,请到「会话」页签逐个清除。此操作不可撤销。',
+							// 如实描述:会话口径存在各对话记录里,这里不清;开关与记忆保留
+							content: `将删除全局口径文本与命主 / 技法分层口径,并关闭「启用注入」;记忆与「${PERSONA_KEPT_SWITCHES}」开关不受影响。会话口径保存在各对话里,请到「会话」页签逐个清除。此操作不可撤销。`,
 							okText: '清空', okType: 'danger', cancelText: '取消',
 							onOk: ()=>{ clearPersona(); clearPersonaLayers(); setText(''); message.success('已清空全部口径'); },
 						});
@@ -152,7 +164,7 @@ export default function PersonaMemoryPanel({ onInit, initDraft, onExtract, extra
 					{layersGate}
 					<div className={styles.inline}>
 						<span className={styles.soft}>技法</span>
-						<Select size="small" style={{ minWidth: 160 }} value={techId || undefined} options={techniqueChoices} onChange={setTechKey} data-persona-technique-select="1" showSearch optionFilterProp="label" />
+						<Select filterOption={scriptFilterBy('label')} size="small" style={{ minWidth: 160 }} value={techId || undefined} options={techniqueChoices} onChange={setTechKey} data-persona-technique-select="1" showSearch optionFilterProp="label" />
 					</div>
 					<LayerEditor scope="technique" id={techId} title={techId ? `${techLabel}:只在这一技法参与本轮时注入` : ''} hint="没有可选技法。" layers={layers} max={PERSONA_LAYER_TEXT_MAX} />
 				</Tabs.TabPane>

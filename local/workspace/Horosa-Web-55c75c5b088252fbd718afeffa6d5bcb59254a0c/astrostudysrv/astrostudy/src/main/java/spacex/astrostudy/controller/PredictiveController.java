@@ -124,7 +124,7 @@ public class PredictiveController {
 		if(TransData.containsParam("termsVariant")) {
 			params.put("termsVariant", TransData.get("termsVariant"));
 		}
-		// [0d] 古典口径键透传(照 astrostudycn ChartController classicalBatch2Keys 范式):
+		// 古典口径键透传(照 astrostudycn ChartController classicalBatch2Keys 范式):
 		// 此前本白名单仅 termsVariant 一键——三分集/福点反转/交点真平/宗派缓冲/宫头5°律/三态阈/
 		// 空亡/恒星/映点/燃烧之路/三流派开关在返照·推运·主限全族被静默丢弃(三层断链之 Java 层)。
 		// 前端仍是「非默认才发」,默认请求体零变化=缓存键零回归。
@@ -133,7 +133,7 @@ public class PredictiveController {
 			"houseCuspAdvance", "cazimiOrb", "combustOrb", "underBeamsOrb", "vocMode", "vocIncludeOuter",
 			"starOrb", "starOrbMode", "antisciaOrb", "viaCombustaVariant",
 			"lotsDocReverse", "nodeExaltation", "orbs", "orbScale",
-			// [WP-2] 天文口径批:返照/推运链同吃(dirChart 与内圈本命经 PerChart 同一参数域)。
+			// 天文口径批:返照/推运链同吃(dirChart 与内圈本命经 PerChart 同一参数域)。
 			"combustOwnChariotExempt", "westLilithType", "topocentricMoon", "stationMarking",
 			"hermeticLotsReversal", "erosConstruction", "lotFortuneVariant", "lotFatherCombustAlt", "lotProjection",
 			"dignityDebilities", "almutenTripMode", "planetaryHourMethod",

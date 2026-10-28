@@ -28,28 +28,9 @@ function randomKeyStr(len){
 	return res.join('');
 }
 
-function hex2Bytes(str){
-    var pos = 0;
-    var len = str.length;
-    if(len %2 != 0){
-       return null; 
-    }
-
-    len /= 2;
-    var hexA = new Array();
-    for(var i=0; i<len; i++){
-       var s = str.substr(pos, 2);
-       var v = parseInt(s, 16);
-       hexA.push(v);
-       pos += 2;
-    }
-
-    return hexA;
-}
-
 const KeyLen = 16;
 
-// [A2] 会话级密钥束:AES 传输钥 + 它的 RSA-2048 密文,每【页面会话】只算一次 modexp。
+// 会话级密钥束:AES 传输钥 + 它的 RSA-2048 密文,每【页面会话】只算一次 modexp。
 // 背景:RSA.encryptedString 是纯 JS 2048 位模幂、跑在主线程,旧式每请求现算一次——
 // 它是 B/C 型「改选项→往返」路径里恒定的固定税。复用后 Java 零改动(后端本就逐请求
 // 解 RSA 块,同一密文解出同一钥)。仅存内存、绝不落盘;kill-switch horosa.perf.rsaSessionKey
@@ -134,7 +115,7 @@ function extractKey(data){
 	return key;
 }
 
-// ── [R5 T0] 响应 v2:会话钥 AES-128-GCM + WebCrypto ─────────────────────────────────────────
+// ── 响应 v2:会话钥 AES-128-GCM + WebCrypto ─────────────────────────────────────────
 // 线协议:服务端见请求头 X-Horosa-Crypto: gcm1 且本请求带会话钥 → 响应体 = base64(iv(12) || 密文 || 标签(16)),
 // 响应头 Encrypted: 2;否则照旧 Encrypted: 1(RSA 信封,decryptRSA)。密钥 = 请求里那把 16 字节 AES 传输钥
 // (ASCII),同会话恒同;CryptoKey 只导入一次。任何一环不在场(无会话钥 / 无 crypto.subtle / 开关关)都不声明能力。

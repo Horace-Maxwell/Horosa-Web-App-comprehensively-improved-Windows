@@ -85,7 +85,3 @@ export function speculateChartOptions(fieldValues, astroState){
 	scheduleDataWarmGroup(`opt:${tab}:${gen}`, tasks.map((t)=>({ name: t.name, task: t.run })));
 	return tasks.length;
 }
-
-export function __resetOptionPrefetchForTest(){
-	chartTaskBuilder = null;
-}

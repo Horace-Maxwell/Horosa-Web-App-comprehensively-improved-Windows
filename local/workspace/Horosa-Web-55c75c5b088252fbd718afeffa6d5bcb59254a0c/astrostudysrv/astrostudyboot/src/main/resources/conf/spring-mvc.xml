@@ -19,10 +19,7 @@
         spacex.basecomm.controller,
         spacex.astrostudy.controller,
         spacex.astrostudy.service,
-        spacex.astrostudycn.controller,
-        spacex.astroreader.controller,
-        spacex.astroesp.controller,
-        spacex.astrodeeplearn.controller">
+        spacex.astrostudycn.controller">
     </context:component-scan>
     
 	<mvc:annotation-driven>
@@ -119,8 +116,6 @@
             <mvc:exclude-mapping path="/user/resetpwd"/> 
             <mvc:exclude-mapping path="/user/check"/> 
             <mvc:exclude-mapping path="/calc/**"/> 
-            <mvc:exclude-mapping path="/live/**"/> 
-            <mvc:exclude-mapping path="/astromedia/**"/>
             <mvc:exclude-mapping path="/aianalysis/**"/>
 
 	        <bean class="spacex.astrostudy.interceptor.PermissionInterceptor" />

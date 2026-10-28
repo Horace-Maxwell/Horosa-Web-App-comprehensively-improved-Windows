@@ -12,8 +12,8 @@ describe('createAstroSnapshotSignature 恒星黄道 ayanāṃśa 入签名', ()=
 		params: { ...baseParams, siderealAyanamsa: ayan },
 	});
 
-	// [V6-W1] 签名升版:尾部追加宫制/黄道数字位(parts[10]/[11]) —— ayanāṃśa 固定在 parts[9]。
-	// [0e] 再升版:parts[14]=古典口径 overrides JSON 段(默认态恒 '{}')。
+	// 签名升版:尾部追加宫制/黄道数字位(parts[10]/[11]) —— ayanāṃśa 固定在 parts[9]。
+	// 再升版:parts[14]=古典口径 overrides JSON 段(默认态恒 '{}')。
 	it('ayanāṃśa 位于 parts[9]（宫制/黄道数字位追加于其后）', ()=>{
 		const sig = createAstroSnapshotSignature(mk('raman'), {});
 		const parts = sig.split('|');
@@ -22,7 +22,7 @@ describe('createAstroSnapshotSignature 恒星黄道 ayanāṃśa 入签名', ()=
 		expect(parts[14]).toBe('{}');    // 默认态口径段恒 '{}'
 	});
 
-	it('[0e] 古典口径入 parts[14]:仅改燃烧上界 → 签名不同(口径级精确失效)', ()=>{
+	it('古典口径入 parts[14]:仅改燃烧上界 → 签名不同(口径级精确失效)', ()=>{
 		const base = createAstroSnapshotSignature(mk('raman'), {});
 		const hot = createAstroSnapshotSignature(mk('raman'), { combustOrb: { value: 8 } });
 		expect(hot.split('|')[14]).toBe('{"combustOrb":8}');
@@ -33,7 +33,7 @@ describe('createAstroSnapshotSignature 恒星黄道 ayanāṃśa 入签名', ()=
 		bp.forEach((seg, i)=>{ if(i !== 14){ expect(seg).toBe(hp[i]); } });
 	});
 
-	it('[0e] 三流派开关(lotsDocReverse 等)与恒星轨映射名(starOrb)入段', ()=>{
+	it('三流派开关(lotsDocReverse 等)与恒星轨映射名(starOrb)入段', ()=>{
 		const sig = createAstroSnapshotSignature(mk('raman'), {
 			lotsDocReverse: { value: 1 }, fixedStarOrb: { value: 2 },
 		});
@@ -41,7 +41,7 @@ describe('createAstroSnapshotSignature 恒星黄道 ayanāṃśa 入签名', ()=
 		expect(sig.split('|')[14]).toBe('{"lotsDocReverse":1,"starOrb":2}');
 	});
 
-	it('[V6-W1] 宫制/黄道数字位:fields 实值入 parts[10]/[11];仅宫制不同 → 签名不同', ()=>{
+	it('宫制/黄道数字位:fields 实值入 parts[10]/[11];仅宫制不同 → 签名不同', ()=>{
 		const a = createAstroSnapshotSignature(
 			{ chart: { zodiacal: '回归黄道', hsys: 'Alcabitius' }, params: { ...baseParams } },
 			{ hsys: { value: 1 }, zodiacal: { value: 0 } },

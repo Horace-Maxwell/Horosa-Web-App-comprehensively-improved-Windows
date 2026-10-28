@@ -4,7 +4,7 @@ import React, { Component } from 'react';
 import { isQuotaError, clearRecoverableCaches } from '../../utils/safeStorage';
 import { idbClearByPrefix } from '../../utils/idbCacheStore';
 
-// [P0] chunk 级失败判据:React.lazy 对已 settle 的工厂 promise 永久缓存(React 17),
+// chunk 级失败判据:React.lazy 对已 settle 的工厂 promise 永久缓存(React 17),
 // 边界内「重试」重挂子树救不回这类错 —— 唯一可靠恢复=整页刷新(HMR 撕裂/更新中途换包/
 // 分包丢失同类;真机实爆:星运整页 Lazy resolves to undefined,重试无效)。
 export function isChunkError(err){
@@ -36,7 +36,7 @@ export default class TechniqueErrorBoundary extends Component {
 
 	componentDidCatch(err, info){
 		// 绝不静默吞:留日志便于定位是哪个技法面板、哪段 render 抛错。
-		try{ console.warn('[TechniqueErrorBoundary] caught render error', this.props.label || '', err, info); }catch(e){ /* noop */ }
+		console.warn('[TechniqueErrorBoundary] caught render error', this.props.label || '', err, info);
 		// 保存 componentStack 以便回退卡片在「技术详情」中直接展示(打包 app devtools 关闭,
 		//   此为唯一可见错误来源:用户截图即可精确定位 app-only/JSC 崩溃)。
 		this.setState({ info });
@@ -49,7 +49,7 @@ export default class TechniqueErrorBoundary extends Component {
 	// 配额自愈:清全部可再生缓存(localStorage 前缀键+IndexedDB 缓存层)后重挂子树。
 	// 缓存是纯派生数据,清了只是重算;用户命盘/设置一律不动。
 	handleClearCacheRetry(){
-		try{ clearRecoverableCaches(); }catch(e){ /* 尽力而为 */ }
+		clearRecoverableCaches();
 		const done = ()=>this.setState({ hasError: false, err: null, info: null });
 		try{
 			idbClearByPrefix('horosa.localcalc.').then(done, done);
@@ -83,6 +83,7 @@ export default class TechniqueErrorBoundary extends Component {
 			const chunk = !quota && isChunkError(this.state.err);
 			return (
 				<div
+					data-horosa-error-boundary="1"   /* 版面巡检认它记 ERRORS 并点「重试」后继续扫(不靠文案,简繁都认) */
 					style={{
 						margin: 16,
 						padding: '20px 22px',
@@ -114,7 +115,7 @@ export default class TechniqueErrorBoundary extends Component {
 									whiteSpace: 'pre-wrap', wordBreak: 'break-word', userSelect: 'text',
 									maxHeight: 220, overflow: 'auto', marginTop: 8, padding: '8px 10px',
 									borderRadius: 6, fontSize: 11, lineHeight: 1.5,
-									background: 'var(--horosa-bg-soft, rgba(0,0,0,0.18))',
+									background: 'var(--horosa-surface-sunken, rgba(0,0,0,0.18))',
 									border: '1px solid var(--horosa-border, rgba(255,255,255,0.1))',
 								}}>{this.errorDetailText()}</pre>
 							</details>
@@ -122,6 +123,7 @@ export default class TechniqueErrorBoundary extends Component {
 					) : null}
 					<button
 						type="button"
+						data-horosa-error-retry={(!quota && !chunk) ? '1' : undefined}
 						onClick={quota ? this.handleClearCacheRetry : (chunk ? ()=>{ try{ window.location.reload(); }catch(e){ /* noop */ } } : this.handleRetry)}
 						style={{
 							cursor: 'pointer',

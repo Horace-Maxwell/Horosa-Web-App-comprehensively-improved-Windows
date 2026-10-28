@@ -131,7 +131,7 @@ class AstroPlanetaryAges extends Component{
 
 	render(){
 		const height = this.props.height ? this.props.height : 760;
-		const style = { height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', boxSizing: 'border-box' };   // [巡检实抓 2026-09-17] 内距计入高度,不再比面板高 5px
+		const style = { height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', boxSizing: 'border-box' };   // 内距计入高度,不再比面板高 5px
 		const { bands, curAge } = buildPlanetaryAges(this.props.value);
 		const glyph = (id) => AstroText.AstroMsg[id] || id;
 		const cn = (id) => (id ? (AstroText.AstroTxtMsg[id] || id) : '');

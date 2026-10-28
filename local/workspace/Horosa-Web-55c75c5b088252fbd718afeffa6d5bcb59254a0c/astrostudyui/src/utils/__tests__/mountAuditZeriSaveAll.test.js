@@ -1,5 +1,5 @@
-// [挂载自检 F-36·拍板落地] 黄历/八字/紫微/七政/印度五择日宿主加「存为事盘」:ZeriMain 传 dispatch;宿主 saveCase →
-// openKentangCaseDrawer(module=本 scope,payload.snapshot=宿主槽快照);事盘源层按 payload.module 认领 payload.snapshot。
+// 黄历/八字/紫微/七政/印度五择日宿主加「存为事盘」:ZeriMain 传 dispatch;宿主 saveCase →
+// openKentangCaseDrawer(module=本 scope,payload.snapshot=宿主槽快照,取前先请内嵌页按此刻所见重存);事盘源层按 payload.module 认领 payload.snapshot。
 import fs from 'fs';
 import path from 'path';
 jest.mock('../request', () => ({ __esModule: true, default: jest.fn(async () => ({ Result: {} })) }));
@@ -30,11 +30,11 @@ it('🔴 五宿主各有 saveCase:module/caseType=本 scope,快照取本 scope �
 		expect(src).toContain("openKentangCaseDrawer({");
 		if(h === 'HuangliZeriMain'){
 			expect(src).toContain("module: 'huanglizeri',");
-			expect(src).toContain("loadModuleAISnapshot('huanglizeri')");
+			expect(src).toContain("zeriCaseSnapshotText(this, 'huanglizeri')");
 			expect(src).toContain('{this.props.dispatch ? <XQButton onClick={this.saveCase} data-zeri-save="1">存为事盘</XQButton> : null}');
 		}else{
 			expect(src).toContain(`const ZERI_SCOPE = '${FIVE[h]}';`);
-			expect(src).toContain('loadModuleAISnapshot(ZERI_SCOPE)');
+			expect(src).toContain('zeriCaseSnapshotText(this, ZERI_SCOPE)');
 			expect(src).toContain('onSave={this.props.dispatch ? this.saveCase : undefined}');
 		}
 	});

@@ -1,4 +1,4 @@
-// [Q-446/T-409] 分至整年快照:① 每节气恒出 [X3D盘] 段(指引段,不重复盘数据);② [X星盘] 段与「当前页签」快照同名段同口径(全口径 buildAstroSnapshotContent)。
+// 分至整年快照:① 每节气恒出 [X3D盘] 段(指引段,不重复盘数据);② [X星盘] 段与「当前页签」快照同名段同口径(全口径 buildAstroSnapshotContent)。
 import { buildJieQiSnapshotText, buildJieQiCurrentSnapshotText } from '../JieQiChartsMain';
 import { AI_EXPORT_PRESET_SECTIONS } from '../../../utils/aiExport';
 
@@ -33,7 +33,7 @@ describe('分至 整年快照 · 3D 段与口径统一', () => {
 	});
 });
 
-// [Q-224/T-180] 整年快照补 [二十四节气] 段(交节时刻+四柱)与「未拉取四盘」明示;段名已登记 preset。
+// 整年快照补 [二十四节气] 段(交节时刻+四柱)与「未拉取四盘」明示;段名已登记 preset。
 describe('分至 整年快照 · [二十四节气] 段与未拉取明示', () => {
 	const jieqi24 = [
 		{ ord: 1, jieqi: '立春', time: '2026-02-04 04:02', bazi: { fourColumns: { year: { ganzi: '丙午' }, month: { ganzi: '庚寅' }, day: { ganzi: '甲子' }, time: { ganzi: '丙寅' } } } },

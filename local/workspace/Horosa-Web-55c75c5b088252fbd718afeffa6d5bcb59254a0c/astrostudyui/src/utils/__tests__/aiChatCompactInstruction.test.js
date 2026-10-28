@@ -1,4 +1,4 @@
-// [批二⑧] /compact <指令> + 阈值提醒合同:空指令=与固定规则逐字相同;指令去多余空白并截 300;阈值偏好归一/读写/事件;状态栏芯片 data-suggest-compact 与两回调;策略卡数值框打开不写键。
+// /compact <指令> + 阈值提醒合同:空指令=与固定规则逐字相同;指令去多余空白并截 300;阈值偏好归一/读写/事件;状态栏芯片 data-suggest-compact 与两回调;策略卡数值框打开不写键。
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { act } from 'react-dom/test-utils';

@@ -1,4 +1,4 @@
-# [R3-B5] warmup 三段并行金标:门时序钉(全部段完成才开门)+ 并行真发生 + 开关回退串行
+# warmup 三段并行金标:门时序钉(全部段完成才开门)+ 并行真发生 + 开关回退串行
 # + 单段失败不阻门。stub 三段本体(不真装模块,零后端依赖),直测 _run_warmups 调度骨架。
 import os
 import sys
@@ -63,7 +63,7 @@ def test_killswitch_serial_order(monkeypatch):
 
 
 def test_auto_mode_serial_on_trusted_parallel_on_untrusted(monkeypatch):
-    # [R3-B5 auto 档] trusted(温启)=串行旧序(不与 Java 抢核);untrusted(首启)=并行(门大幅提前)。
+    # trusted(温启)=串行旧序(不与 Java 抢核);untrusted(首启)=并行(门大幅提前)。
     order = []
 
     def run(trusted):
@@ -113,7 +113,7 @@ def test_stage_failure_does_not_block_gate(monkeypatch):
     assert srv.STARTUP_GATE.is_set()
 
 
-# ── [R4-P3a] PD 并入并行组:重叠金标 + HOROSA_PY_PD_PARALLEL=0 回退旧序 ──
+# ── PD 并入并行组:重叠金标 + HOROSA_PY_PD_PARALLEL=0 回退旧序 ──
 
 def test_pd_joins_parallel_group(monkeypatch):
     # 并行档 + PD 开关显式开(缺省已翻转为关——2026-08-03 ladder 实测四线程与 JVM 抢核双输):

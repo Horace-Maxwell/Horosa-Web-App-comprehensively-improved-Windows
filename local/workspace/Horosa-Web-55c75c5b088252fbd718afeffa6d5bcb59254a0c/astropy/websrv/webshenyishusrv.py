@@ -1,12 +1,19 @@
 import os
 import sys
 import traceback
-from numbers import Integral, Real
 
 import cherrypy
 import jsonpickle
 
+from astrostudy.civil_calendar import format_display_date
 from websrv.helper import enable_crossdomain
+from websrv.horosa_engine_common import (
+    build_snapshot as _build_snapshot,
+    clean_text as _clean_text,
+    plain_json_safe as _json_safe,
+    require_civil_ymd as _require_civil_ymd,
+    to_int as _to_int,
+)
 
 
 _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -43,39 +50,6 @@ def _import_shenyishu():
 
 
 shenyishu_core = _import_shenyishu()
-
-
-def _to_int(value, default=0):
-    try:
-        if value is None or value == "":
-            return default
-        return int(value)
-    except Exception:
-        return default
-
-
-def _clean_text(value, default=""):
-    if value is None:
-        return default
-    text = str(value).strip()
-    return text if text else default
-
-
-def _json_safe(value):
-    if isinstance(value, dict):
-        return {_clean_text(key): _json_safe(val) for key, val in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_json_safe(item) for item in value]
-    if isinstance(value, Integral) and not isinstance(value, bool):
-        return int(value)
-    if isinstance(value, Real) and not isinstance(value, bool):
-        return float(value)
-    if hasattr(value, "item"):
-        try:
-            return _json_safe(value.item())
-        except Exception:
-            return _clean_text(value)
-    return value
 
 
 _DISPLAY_REPLACEMENTS = {
@@ -162,13 +136,6 @@ def _read_vendor_text(filename, fallback=""):
     return content or fallback
 
 
-def _line(label, value, extra=None):
-    item = {"label": label, "value": _format_value(value) or "—"}
-    if extra:
-        item.update(extra)
-    return item
-
-
 def _source_sections():
     readme = _read_vendor_text("README.md", "暂无 README 内容。")
     zh = readme
@@ -247,7 +214,7 @@ def _normalize_result(raw, year, month, day, hour, minute, second, date_str, tim
             "yinyang": {"陽": "阳", "陰": "阴"}.get(item.get("陰陽"), item.get("陰陽")),
         })
 
-    # [X1] 貴人表仅甲/乙年干支载(vendor 上游残表);未载返 None → 诚实标「原表未载」,不伪造卦名。
+    # 貴人表仅甲/乙年干支载(vendor 上游残表);未载返 None → 诚实标「原表未载」,不伪造卦名。
     shensha_items = [{"label": _display_text(key), "value": _display_text(value) or "原表未载"} for key, value in shensha.items()]
     year_gz = ganzhi.get("年", "")
     shensha_items.append({"label": "正禄羊刃", "value": _display_text(shenyishu_core.get_zhenglu_yangren(year_gz))})
@@ -389,16 +356,6 @@ def _build_sections(payload):
     ]
 
 
-def _build_snapshot(payload):
-    lines = []
-    for section in payload.get("sections", []):
-        lines.append(f"[{section.get('title', '')}]")
-        for row in section.get("rows", []):
-            lines.append(f"{row.get('label')}：{row.get('value')}")
-        lines.append("")
-    return "\n".join(lines).strip()
-
-
 class ShenYiShuSrv:
     exposed = True
 
@@ -419,6 +376,7 @@ class ShenYiShuSrv:
             month = _to_int(data.get("month"), 7)
             day = _to_int(data.get("day"), 4)
             minute = _to_int(data.get("minute"), 0)
+            _require_civil_ymd(year, month, day)   # 不存在的日期报错(改历缺口 / 2 月 30 日 / 公元 0 年)
             second = _to_int(data.get("second"), 0)
             hour_source = _clean_text(data.get("hourSource"), "auto")
             raw_hour = data.get("manualHour") if hour_source == "manual" else data.get("hour")
@@ -426,9 +384,9 @@ class ShenYiShuSrv:
             season_source = _clean_text(data.get("seasonSource"), "auto")
             raw_season = data.get("manualSeason") if season_source == "manual" else ""
             season = _normalize_season(raw_season, month)
-            date_str = data.get("date") or f"{year:04d}-{month:02d}-{day:02d}"
+            date_str = data.get("date") or format_display_date(year, month, day)
             time_str = data.get("time") or f"{hour:02d}:{minute:02d}:{second:02d}"
-            # [X1] lateZiHourUseNextDay 全局开关透传(默认 1=旧行为字节不变)。
+            # lateZiHourUseNextDay 全局开关透传(默认 1=旧行为字节不变)。
             result = shenyishu_core.Shenyishu(year, month, day, hour, _to_int(data.get("after23NewDay"), 1), _to_int(data.get("lateZiHourUseNextDay"), 1)).get_bingzhan_result()
             normalized = _normalize_result(result, year, month, day, hour, minute, second, date_str, time_str, hour_source, season_source, season)
             return jsonpickle.encode({"ResultCode": 0, "Result": normalized}, unpicklable=False)

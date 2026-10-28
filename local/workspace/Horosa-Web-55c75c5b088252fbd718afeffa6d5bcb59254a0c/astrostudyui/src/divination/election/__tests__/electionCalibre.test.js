@@ -79,7 +79,7 @@ describe('④ moduleSet:白名单外核心模块不计入总分', () => {
 });
 
 describe('⑤ 空亡口径随流派解算', () => {
-	// [Q-146/T-53] 判别向量重做:classic(1647)不再读后端 isVOC 旗(那面旗按全局口径算),
+	// 判别向量重做:classic(1647)不再读后端 isVOC 旗(那面旗按全局口径算),
 	// 改为按同一张相位表自算。两档的真差别因此落在**目标星集**上:
 	//   classic —— 相位表里任一星与月成入相/正合托勒密相位即不空(表内含四轴/交点等非七政点);
 	//   kenodromia —— 只看对七政(±三王)的入相。
@@ -137,7 +137,7 @@ describe('⑥ sectWeight 真消费 + ⑦ 宿锚变体', () => {
 	});
 });
 
-// [Q-295/T-282] 用星集=七曜为纲 → 三王星红线降为注记(此前只看流派 modernPlanets,现代主流档 + 页面选七曜时仍全额扣分)。
+// 用星集=七曜为纲 → 三王星红线降为注记(此前只看流派 modernPlanets,现代主流档 + 页面选七曜时仍全额扣分)。
 describe('⑧ bodySet=classical7:三王星红线仅注记', () => {
 	const withUranusOnAsc = () => {
 		const r = buildMockResult();

@@ -1,0 +1,33 @@
+diff --git a/astrostudyui/src/utils/__tests__/sourceSetManifest.test.js b/astrostudyui/src/utils/__tests__/sourceSetManifest.test.js
+index 51e65a4f..0b0ad159 100644
+--- a/astrostudyui/src/utils/__tests__/sourceSetManifest.test.js
++++ b/astrostudyui/src/utils/__tests__/sourceSetManifest.test.js
+@@ -8,7 +8,9 @@ const SRC = path.resolve(__dirname, '..', '..');
+ const UI = path.resolve(SRC, '..');
+ const REPO = path.resolve(UI, '..', '..');
+ const FACADES = Object.keys(SOURCE_SETS);
+-const ASTROPY = path.join(REPO, 'Horosa-Web', 'astropy');
++// horosa_ws_dirname_agnostic_v1(Windows 侧移植适配):上游按 `REPO/Horosa-Web/astropy` 定位,把工作区目录名写死成 Horosa-Web;
++// Windows 侧工作区带哈希后缀(Horosa-Web-<sha>)⇒ pySets 九条全 ENOENT。改为本 UI 根的同级 astropy:macOS 上解析到同一目录(行为等价)。
++const ASTROPY = path.join(UI, '..', 'astropy');
+ const PY_FACADES = Object.keys(PY_SOURCE_SETS);
+ const pyModule = (rel)=>rel.replace(/\.py$/, '').split('/').join('.');
+ 
+@@ -106,13 +108,15 @@ describe('拆成子模块的大文件 · 登记表合同', ()=>{
+ 		expect({ depth, min }).toEqual({ depth: 0, min: 0 });
+ 	});
+ 
+-	it('🔴 发布前自检与检查器读的是同一份登记表', ()=>{
++	// horosa_win_shell_layout_v1(Windows 侧移植适配):这一条核 macOS 发布预检(Horosa_Desktop_Installer/scripts/preflight)读同一份登记表;
++	// Windows 发布自检(release_selfcheck.py)的哨兵按具体文件钉,不读登记表(上游再拆文件 = 哨兵直接红,按新落点改钉)。只在预检脚本缺席时跳过。
++	(fs.existsSync(path.join(REPO, 'Horosa_Desktop_Installer', 'scripts', 'preflight', 'lib.sh')) ? it : it.skip)('🔴 发布前自检与检查器读的是同一份登记表', ()=>{
+ 		const lib = fs.readFileSync(path.join(REPO, 'Horosa_Desktop_Installer', 'scripts', 'preflight', 'lib.sh'), 'utf8');
+ 		expect(lib).toContain('PF_SRC_SETS_JSON="${REPO_ROOT}/Horosa-Web/astrostudyui/scripts/source-sets.json"');
+ 		expect(lib).toContain('pf_src_set_check');
+ 		const tool = require(path.join(REPO, 'Horosa_Desktop_Installer', 'scripts', 'source_sets.js'));
+ 		FACADES.forEach((rel)=>{ expect(tool.sourceSetFiles(path.join(SRC, rel))).toEqual(sourceSetFiles(path.join(SRC, rel))); });
+-		Object.keys(PY_SOURCE_SETS).forEach((rel)=>{ const f = path.join(REPO, 'Horosa-Web', 'astropy', rel); expect(tool.sourceSetFiles(f)).toEqual(sourceSetFiles(f)); });
++		Object.keys(PY_SOURCE_SETS).forEach((rel)=>{ const f = path.join(ASTROPY, rel); expect(tool.sourceSetFiles(f)).toEqual(sourceSetFiles(f)); });
+ 	});
+ });
+ 

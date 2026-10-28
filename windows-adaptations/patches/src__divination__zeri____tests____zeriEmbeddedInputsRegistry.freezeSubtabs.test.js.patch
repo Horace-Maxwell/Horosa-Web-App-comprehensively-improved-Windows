@@ -1,0 +1,14 @@
+diff --git a/astrostudyui/src/divination/zeri/__tests__/zeriEmbeddedInputsRegistry.test.js b/astrostudyui/src/divination/zeri/__tests__/zeriEmbeddedInputsRegistry.test.js
+index b9675dc6..fe64458f 100644
+--- a/astrostudyui/src/divination/zeri/__tests__/zeriEmbeddedInputsRegistry.test.js
++++ b/astrostudyui/src/divination/zeri/__tests__/zeriEmbeddedInputsRegistry.test.js
+@@ -66,6 +66,9 @@ const REGISTRY = {
+ 	ziwei: {
+ 		...each(['result', 'rules', 'indicator', 'cnt', 'tips', 'tonglianHi'], 'derived'),
+ 		...each(['centerInfoVisible', 'dualView', 'luckSel'], 'ui'),
++		// horosa_freeze_subtabs_v1(Windows 侧移植适配):我方把紫微右栏四页签改成受控(FreezeSubTab 冻结非激活页签),
++		// 当前页签记在 state.rightTab —— 只决定右栏显示哪一页,不进起盘 / 扫描请求。
++		rightTab: 'ui',
+ 		...each(ZIWEI_PAGE_SCAN_KEYS, 'page'),
+ 		brightnessSource: ex('亮度条件按基表值判;亮度源只改显示层增减'),
+ 		liunianSihuaGan: ex('流年四化取干是运限推演层;择日条件只判候选时刻的本命盘'),

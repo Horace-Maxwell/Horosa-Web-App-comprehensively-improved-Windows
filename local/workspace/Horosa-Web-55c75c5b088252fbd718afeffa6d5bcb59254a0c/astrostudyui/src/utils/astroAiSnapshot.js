@@ -1,10 +1,12 @@
+import { parseLocalDateTimeMs } from './dateTimeParse';
+import { pickFresherSnapshot } from './snapshotSlotRead';
 import { scheduleStorageWrite } from './deferredStorage';
 import { buildTimeBasisLine } from './timeBasisLine';
 import { lazySnapshotBuildEnabled } from './perfFlags';
 import * as AstroConst from '../constants/AstroConst';
 import * as AstroText from '../constants/AstroText';
 import { appendPlanetHouseInfoById, } from './planetHouseInfo';
-import * as Constants from './constants';
+import { readGlobalSetupField } from './globalSetupStore';
 // 寿命格局段:复用本命引擎(纯函数,无 React;已验证不回 import 本文件,无环)。
 import buildFacts from '../divination/engine/chartFacts';
 import { runLifespan } from '../divination/lifespan/lifespanEngine';
@@ -12,16 +14,16 @@ import { bodyPartsOf, degreePosition } from '../divination/data/bodyParts';
 import { buildPatternOverview } from './astroPatternOverview';
 import { SIGNS } from '../divination/data/signs';
 import { buildEgyptSectionLines } from '../components/astro/AstroEgypt'; // [埃及历]段本盘派生(纯函数;已验证无环:AstroEgypt 不回 import 本文件)
-import { classicalBackendOverridesFromFields, classicalGlobalValue , classicalSnapshotNeverSig } from './classicalChartGlobals'; // [0e/0f] 签名末位+口径自陈共用请求体单源(无环:classicalChartGlobals 只依赖 safeStorage)
+import { classicalBackendOverridesFromFields, classicalGlobalValue , classicalSnapshotNeverSig } from './classicalChartGlobals'; // 签名末位+口径自陈共用请求体单源(无环:classicalChartGlobals 只依赖 safeStorage)
 
-// [WP-4] 全局仓安全读(headless/jest 环境 storage 缺失守默认)。
+// 全局仓安全读(headless/jest 环境 storage 缺失守默认)。
 function classicalGlobalValueSafe(key){
 	try{ return classicalGlobalValue(key); }catch(e){ return undefined; }
 }
 import { currentEgyptSchool, egyptSchoolFromFields } from '../divination/data/egyptianSchools'; // 埃及流派口径(record 随盘键优先,回落全局)
 // 古典衍化四段(opt-in)行构建:零组件依赖单源(与 AstroDerivedHouses/AstroKlimata/AstroEminence/AstroThemaMundi 同引)。
 import { buildDerivedHousesSnapshotLines, buildKlimataSnapshotLines, buildEminenceSnapshotLines, buildThemaMundiSnapshotLines } from './astroClassicalDerived';
-import { buildWholeSignRulerRows, buildHouseSystemRulerRows, resolveHouseSystem, derivedWholeSignLabelOf, rulerOfSign, WHOLE_SIGN_RULERS_HEADERS, HOUSE_SYSTEM_RULERS_HEADERS } from './wholeSignRulers'; // [Windows #79] 宫主派生单源(与 AstroDispositor 同函数;整宫/分宫两表口径分离)
+import { buildWholeSignRulerRows, buildHouseSystemRulerRows, resolveHouseSystem, derivedWholeSignLabelOf, rulerOfSign, WHOLE_SIGN_RULERS_HEADERS, HOUSE_SYSTEM_RULERS_HEADERS, polarMcOf, POLAR_MC_NOTE } from './wholeSignRulers'; // [Windows #79] 宫主派生单源(与 AstroDispositor 同函数;整宫/分宫两表口径分离)
 
 export const ASTRO_AI_SNAPSHOT_KEY = 'horosa.ai.snapshot.astro.v1';
 let ASTRO_AI_SNAPSHOT_MEMORY = null;
@@ -192,15 +194,8 @@ function resolveOnlyRulerExaltReception(options = {}){
 		return !!options.onlyRulerExaltReception;
 	}
 	try{
-		if(typeof window === 'undefined' || !window.localStorage){
-			return false;
-		}
-		const raw = window.localStorage.getItem(Constants.GlobalSetupKey);
-		if(!raw){
-			return false;
-		}
-		const setup = JSON.parse(raw);
-		return !!(setup && (setup.showOnlyRulExaltReception === 1 || setup.showOnlyRulExaltReception === true));
+		const v = readGlobalSetupField('showOnlyRulExaltReception');   // 全局设置单源的内存镜像
+		return v === 1 || v === true;
 	}catch(e){
 		return false;
 	}
@@ -250,7 +245,7 @@ function asNameList(ids){
 	return ids.map((id)=>msg(id)).filter(Boolean).join(' , ');
 }
 
-// [WP-34] 收敛单源(fortuneChartPrimitives)
+// 收敛单源(fortuneChartPrimitives)
 const { getObjectsMapPure: getObjectsMap } = require('./fortuneChartPrimitives');
 
 function getStarsMap(chartObj){
@@ -324,7 +319,7 @@ function formatStarsLines(stars){
 	return lines;
 }
 
-// [0f] 古典口径 23 键 → 人话短语（仅非默认键成行;全默认返回 ''=零增行）。
+// 古典口径 23 键 → 人话短语（仅非默认键成行;全默认返回 ''=零增行）。
 // 值翻译与「星盘设置」抽屉/挂载齿轮同语义;WP-1 spec 单源落地后本表改由 spec 派生(消费点不动)。
 const CLS_CALIBRE_LABELS = {
 	termsVariant: { label: '界系', map: { 1: '托勒密·校勘本', 2: '托勒密·经典传本', 3: '迦勒底(推演)', 4: '自定义界表' } },
@@ -346,32 +341,32 @@ const CLS_CALIBRE_LABELS = {
 	viaCombustaVariant: { label: '燃烧之路', map: { narrow: '窄口径(天秤28°–天蝎7°)', scorpioFull: '天秤后15°+天蝎全宫', bothFull: '天秤+天蝎全段' } },
 	lotsDocReverse: { label: '四点文档序公式', map: { 1: '开' } },
 	nodeExaltation: { label: '交点入旺', map: { 1: '开' } },
-	// [WP-2] 天文口径批(sectBuffer 视地平档已由上表 map 覆盖)
+	// 天文口径批(sectBuffer 视地平档已由上表 map 覆盖)
 	combustOwnChariotExempt: { label: '免燃烧例外', map: { 1: '界内三分内免(own chariot)' } },
 	westLilithType: { label: '黑月', map: { true: '真实远地点' } },
 	topocentricMoon: { label: '月亮视差', map: { 1: '站心修正' } },
 	stationMarking: { label: '留驻判定', map: { exactWindow: '距留点≤1日', distance: '距留点≤2′', absSpeed: '日速<1′', relSpeed: '日速<3%均速' } },
-	// [WP-3] 希腊点变体批
-	hermeticLotsReversal: { label: '七星点', map: { 0: '恒同式(批判本校勘)' } },
+	// 希腊点变体批
+	hermeticLotsReversal: { label: '六星点', map: { 0: '恒同式(批判本校勘)' } },   // 后端只按昼夜反转六个点(福点另由开关定)
 	erosConstruction: { label: '爱欲·必然构成', map: { valens: 'Valens 式(福点·精神系)' } },
 	lotFortuneVariant: { label: '福点变体', map: { moonAboveNight: '月在地平上恒夜式' } },
 	lotFatherCombustAlt: { label: '父点', map: { 1: '土星伏替代式(Dorotheus 系)' } },
 	lotProjection: { label: '点度计数', map: { sign: '整星座投射' } },
-	// [WP-4] 尊贵与判定批
+	// 尊贵与判定批
 	dignityDebilities: { label: '弱陷负分', map: { 0: '不计负分' } },
 	almutenTripMode: { label: 'Almuten 三分', map: { sectRulerOnly: '仅当值主' } },
 	planetaryHourMethod: { label: '行星时', map: { unequal: '昼夜不等时(传统)', equal24: '廿四时等分' } },
-	// [WP-5a] 容许度体系批
+	// 容许度体系批
 	orbSystem: { label: '容许度体系', map: { byAspect: '按相位名', wholeSign: '整星座位相', wholeSignMoiety: '整星座内半距和' } },
 	luminaryOrbBonus: { label: '发光体·四轴加成', fmt: (v) => `${v}%` },
-	// [WP-5b] 相位对象扩展
+	// 相位对象扩展
 	aspectIncludeCusps: { label: '宫头相位', map: { 1: '开(≤3°)' } },
 	aspectIncludeLots: { label: '点位相位', map: { 1: '开(受体·≤3°)' } },
 	aspectIncludeMidpoints: { label: '中点相位', map: { 1: '开(日月四轴·硬相≤1.5°)' } },
-	// [WP-6] 返照专项
+	// 返照专项
 	solarReturnVariant: { label: '太阳返照法', map: { hellenistic: '希腊式(月定上升)' } },
 	returnLatitudeMode: { label: '返照落宫', map: { withLatitude: '计入黄纬(Umar al-Tabari 法)' } },
-	// [WP-8] 灵学扩展
+	// 灵学扩展
 	vulcanCalc: { label: '祝融星', map: { weston: '轨道根数法', baker: '水星系推算' } },
 };
 // 头七键的「默认值」(与 classicalChartGlobals 同表;数值键由 helper 判非默认,此表只管头键)。
@@ -400,7 +395,7 @@ export function buildClassicalCalibreLine(fields){
 		}
 	});
 	// 二/四批+三开关:直接复用请求体单源(仅非默认产键;starOrb/starOrbMode 映回前端名翻译)。
-	// [F7] spec 单源化后 overrides 也含头七键 → 跳过已在上循环产过短语的键(否则非默认头键重复行);
+	// spec 单源化后 overrides 也含头七键 → 跳过已在上循环产过短语的键(否则非默认头键重复行);
 	// customTermsDay/Night 是嵌套表体、userAyanT0/Deg 是历元参数,无人话词条 → 以「自定义界表/自定义历元」概括,绝不倾倒数组。
 	const HEAD_DONE = new Set(Object.keys(CLS_CALIBRE_HEAD_DEFAULTS));
 	const ov = classicalBackendOverridesFromFields(fields);
@@ -454,11 +449,11 @@ function buildBaseInfoLines(chartObj, fields, options){
 		lines.push(`排盘规则：日柱开关【${dayLabel}】+ 时柱开关【${hourLabel}】。本盘四柱按此规则计算。`);
 	}
 
-	// [V6-W2] 🔴 取值源统一为「请求参数优先、后端 echo 兜底」(与 buildPredictiveBirthLines:1795 同序):
+	// 🔴 取值源统一为「请求参数优先、后端 echo 兜底」(与 buildPredictiveBirthLines:1795 同序):
 	// fields 数字值就是发出去的排盘入参 —— 标注与计算恒同源;此前 chart echo 优先,与同文件推运行
 	// 双标准并存(echo 缺失/命名不一时标注口径漂)。
 	const zodiacal = AstroConst.ZODIACAL[fieldValue(fields, 'zodiacal')] || chart.zodiacal;
-	// [Q-148/T-55] 派生盘(调波/龙盘/十三分/十二分)宫位被强制为「变换后上升整宫」:
+	// 派生盘(调波/龙盘/十三分/十二分)宫位被强制为「变换后上升整宫」:
 	// fields/echo 里的分宫制不是这张盘实际用的,标注必须说真话(数值不动)。
 	const hsys = derivedWholeSignLabelOf(chart) || AstroConst.HouseSys[fieldValue(fields, 'hsys')] || chart.hsys;
 	if(zodiacal || hsys){
@@ -466,7 +461,11 @@ function buildBaseInfoLines(chartObj, fields, options){
 		const zodiacalTxt = zodiacal ? AstroConst.zodiacalDisplayText(zodiacal, ayanKey) : msg(zodiacal);
 		lines.push(`${zodiacalTxt}，${msg(hsys)}`);
 	}
-	// [0f] 古典口径自陈:AI 此前拿到的是按口径**算好的数**,但快照从不声明用的哪套界表/三分/空亡/
+	// 极区天顶徽记(与盘面信息卡同一标记 houses[].polarMc):AI 须知 MC 取的是上中天交点、可能与 10 宫头不同。
+	if(polarMcOf(chart)){
+		lines.push(POLAR_MC_NOTE);
+	}
+	// 古典口径自陈:AI 此前拿到的是按口径**算好的数**,但快照从不声明用的哪套界表/三分/空亡/
 	// 焦伤阈——模型无法自陈口径,也无从解释「为何界主与常见表不同」。仅列非默认键:默认态零增行,
 	// 旧快照 parity 逐字节不破。
 	const calibre = buildClassicalCalibreLine(fields);
@@ -498,7 +497,7 @@ function buildBaseInfoLines(chartObj, fields, options){
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// [v2 排版批量·表化] 七函数(宫头/星与虚点/相位/行星/希腊点/12分度/主宰星链·宫神星)逐条行改 GFM 表。
+// 七函数(宫头/星与虚点/相位/行星/希腊点/12分度/主宰星链·宫神星)逐条行改 GFM 表。
 // 铁律:值表达式逐字复用(零信息丢失),仅排版骨架换 表头+分隔行+数据行;段头 [X] 零变更;
 // 空值 cell 用 '—'(em dash,不进 fact token 正则),值本身为空串('')时保留空 cell 以区分「行存在但值空」;
 // 绝不输出 undefined/NaN/null 字面量;列固定不因盘裁列;某实体全属性缺 → 不出该行。
@@ -697,8 +696,8 @@ export function buildInfoSection(chartObj, fields, options = {}){
 	return lines;
 }
 
-// [v2 排版批量·表化] 三 ◆ 子块各成一表;事实五元组(主体,相位,对象,相态,误差)/(主体,相位,对象)零变化,
-// 相态=入相/离相/正合(Exact 单列「正合」[Q-254/T-227];此前与 Separative 同折为「离相」),None 相态列 '—'。子块头照 v1 无数据也保留。
+// 三 ◆ 子块各成一表;事实五元组(主体,相位,对象,相态,误差)/(主体,相位,对象)零变化,
+// 相态=入相/离相/正合(Exact 单列「正合」;此前与 Separative 同折为「离相」),None 相态列 '—'。子块头照 v1 无数据也保留。
 function buildAspectSection(chartObj){
 	const lines = [];
 	const aspects = chartObj && chartObj.aspects ? chartObj.aspects : {};
@@ -716,7 +715,7 @@ function buildAspectSection(chartObj){
 		(one.Applicative || []).forEach((asp)=>{
 			normalRows.push([subject, aspectText(asp.asp), msgWithHouse(asp.id, chartObj), '入相', round3(asp.orb)]);
 		});
-		// [Q-254/T-227] 正合(|orbDir|<0.3,不分入离)相态列写「正合」,不再折为「离相」(与右栏相位表同改)。
+		// 正合(|orbDir|<0.3,不分入离)相态列写「正合」,不再折为「离相」(与右栏相位表同改)。
 		(one.Exact || []).forEach((asp)=>{
 			normalRows.push([subject, aspectText(asp.asp), msgWithHouse(asp.id, chartObj), '正合', round3(asp.orb)]);
 		});
@@ -757,7 +756,7 @@ function buildAspectSection(chartObj){
 	lines.push('◆ 星座相位');
 	lines.push(...gfmTableLines(['主体', '相位', '对象'], signRows));
 
-	// [WP-5b] 相位参与对象扩展(段内增行不加段头;默认全关=响应无 extraAspects 字段=零增行)。
+	// 相位参与对象扩展(段内增行不加段头;默认全关=响应无 extraAspects 字段=零增行)。
 	const extra = chartObj && chartObj.extraAspects;
 	if(extra && typeof extra === 'object'){
 		const GROUP_CN = { cusps: '宫头相位(≤3°)', lots: '点位相位(点为受体·≤3°)', midpoints: '中点接触(日月四轴·硬相≤1.5°)' };
@@ -773,7 +772,7 @@ function buildAspectSection(chartObj){
 	return lines;
 }
 
-// [v2 排版批量·表化] 每星 ~24 属性 → 一段五块:◆位置与速度 / ◆坐标 / ◆尊贵与主宰 / ◆映点与东西 各成一表,
+// 每星 ~24 属性 → 一段五块:◆位置与速度 / ◆坐标 / ◆尊贵与主宰 / ◆映点与东西 各成一表,
 // ◆汇合恒星 保持 kv 行组(不定长列表不进表,星名行=v1 星曜行原文,恒星行值零变化)。
 // 每 cell 值表达式与 v1 对应行冒号后逐字一致(坐标 cell 含 ˚ 同 v1);v1 行缺 → cell '—';
 // v1 行存在但值为空串(如 东出星：)→ cell 保留空串。块内全行皆缺的星不出该行,块零行不出块。
@@ -914,7 +913,7 @@ function buildPlanetSection(chartObj){
 	return lines;
 }
 
-// [v2 排版批量·表化] 希腊点 → 表(点位|落座|落宫) + ◆汇合恒星 kv 行组(同 buildPlanetSection 约定)。
+// 希腊点 → 表(点位|落座|落宫) + ◆汇合恒星 kv 行组(同 buildPlanetSection 约定)。
 function buildLotsSection(chartObj){
 	const lines = [];
 	const objectMap = getObjectsMap(chartObj);
@@ -987,7 +986,7 @@ function rulerIdOfLon(lon){
 }
 
 // 12 分度(Dodekatemoria):每星本命黄经 → floor(度/30)*30 + (度%30)*12 落入的分度座。
-// [v2 排版批量·表化] 表(曜|本命|12分度),两位置 cell 值与 v1 行内片段逐字一致。
+// 表(曜|本命|12分度),两位置 cell 值与 v1 行内片段逐字一致。
 function buildDodecaSection(chartObj){
 	const objectMap = getObjectsMap(chartObj);
 	const rows = [];
@@ -1122,14 +1121,14 @@ function buildLifespanSection(chartObj){
 	const lines = [];
 	let res = null;
 	try {
-		// [SURF-3] 太阳三态阈值随设置(与 AstroLifespan 同修):优先本盘回显,兜全局仓;
+		// 太阳三态阈值随设置(与 AstroLifespan 同修):优先本盘回显,兜全局仓;
 		// 此前不传 opts=快照行星状态盘「日下」列恒硬编码 17′/8.5°/17°。
 		const _p = (chartObj && chartObj.params) || {};
 		const _pick = (k) => (_p[k] !== undefined && _p[k] !== null && _p[k] !== '' ? Number(_p[k]) : Number(classicalGlobalValueSafe(k)));
 		const facts = buildFacts(chartObjWithFactsMaps(chartObj), {
 			cazimiOrb: _pick('cazimiOrb'), combustOrb: _pick('combustOrb'), underBeamsOrb: _pick('underBeamsOrb'),
 		});
-		// [D4] method 与组件同键传导(用户换取主法快照即跟),缺省 ptolemy 零回归。
+		// method 与组件同键传导(用户换取主法快照即跟),缺省 ptolemy 零回归。
 		let _lifespanMethod = 'ptolemy';
 		try{ _lifespanMethod = localStorage.getItem('horosa.lifespan.method') || 'ptolemy'; }catch(_){ }
 		res = facts ? runLifespan(facts, { method: _lifespanMethod }) : null;
@@ -1283,22 +1282,22 @@ export function createAstroSnapshotSignature(chartObj, fields, options = {}){
 	// 必入签名，否则换 ayanāṃśa 后 hasMatchingSavedAstroSnapshot 误判旧快照可复用（Lahiri 快照套到 Raman 盘）。
 	// 追加在末位：旧签名无 parts[9] → 解码为 '' → 匹配守卫跳过 → 旧快照行为逐字不变（向后兼容）。
 	const siderealAyanamsa = params.siderealAyanamsa || fieldValue(fields, 'siderealAyanamsa') || '';
-	// [V6-W1] 宫制/黄道**数字位**追加(parts[10]/parts[11]):parts[5]/[6] 是后端 echo 文本
+	// 宫制/黄道**数字位**追加(parts[10]/parts[11]):parts[5]/[6] 是后端 echo 文本
 	// (如 'Alcabitius'),与 record 数字值无可靠映射(前端表还有 Alcabitus 拼写差)——不可比对。
 	// 数字位来源=本次排盘的 fields 实值,与 record 同数轴 → hasMatchingSavedAstroSnapshot 精确
 	// 失效判定「换宫制/换黄道必重算」。旧签名无此二位 → 解码 '' → 守卫跳过(siderealAyanamsa 同范式,向后兼容)。
 	const hsysNum = fieldValue(fields, 'hsys');
 	const zodiacalNum = fieldValue(fields, 'zodiacal');
-	// [V6 二轮复查] parts[12]/[13]=择宫传统/界系数字位:两键改快照正文(界主/接纳/古典段)最重,
+	// parts[12]/[13]=择宫传统/界系数字位:两键改快照正文(界主/接纳/古典段)最重,
 	// 此前不在比对键集 → 命盘页开 tradition=1 落的快照,挂载 tradition=0 的盘整份复用(与宫制
 	// 实锤「根因 B」同构,换了齿轮而已)。同 hsysNum 范式:旧签名缺位=''=守卫跳过,向后兼容。
 	const traditionNum = fieldValue(fields, 'tradition');
 	const termsVariantNum = fieldValue(fields, 'termsVariant');
-	// [0e] parts[14]=古典口径 overrides JSON 段:二/四批 10 键+三开关+三分/福点/交点/区分等此前
+	// parts[14]=古典口径 overrides JSON 段:二/四批 10 键+三开关+三分/福点/交点/区分等此前
 	// 全不在签名 → 改「燃烧上界/空亡口径」等设置不触发快照失效,AI 复用旧口径快照。复用请求体
 	// 单源(仅非默认产键,键插入序=函数内固定序→stringify 稳定):默认态恒 '{}'。比对端
 	// (hasMatchingSavedAstroSnapshot)照 hsysNum 逐位守卫范式:旧签名缺位=''=跳过,向后兼容。
-	// [F11] 追加快照敏感 never 键段(fields 缺键回退全局仓——never 键不播种,消费即读仓)。
+	// 追加快照敏感 never 键段(fields 缺键回退全局仓——never 键不播种,消费即读仓)。
 	const classicalOv = JSON.stringify({
 		...classicalBackendOverridesFromFields(fields),
 		...classicalSnapshotNeverSig((k) => {
@@ -1570,7 +1569,7 @@ export function buildClassicalAnalysisSection(analysis){
 	if(ta.length){ lines.push('逐题主星'); lines.push(ta.join('；')); }
 	const acc = (analysis.accidentalDignity || []).filter((r)=> r && r.planet).map((r)=> `${msg(r.planet)} ${r.score}（${(r.factors || []).join('·')}）`);
 	if(acc.length){ lines.push('偶然尊贵'); lines.push(...acc); }
-	// [审计修] 补 位置/容许度 两列(右栏恒星触发表渲染有快照曾无;字段缺省不产,零回归)。
+	// 补 位置/容许度 两列(右栏恒星触发表渲染有快照曾无;字段缺省不产,零回归)。
 	const fs = (analysis.fixedStarHits || []).map((s)=>{
 		const pos = (s.sign && s.signlon !== undefined && s.signlon !== null) ? `·${formatSignDegree(s.sign, s.signlon)}` : '';
 		const orb = (s.orb !== undefined && s.orb !== null) ? `·容许${fmtNumSafe(s.orb)}°` : '';
@@ -1584,7 +1583,7 @@ export function buildClassicalAnalysisSection(analysis){
 		if(Array.isArray(ph.hours) && ph.hours.length){
 			const day = ph.hours.filter((h)=> h && h.diurnal);
 			const night = ph.hours.filter((h)=> h && !h.diurnal);
-			// [SURF-R1a] 组内序号(与 UI AstroAnalysisLab 同修):默认档已是 sunrise 等长制,
+			// 组内序号(与 UI AstroAnalysisLab 同修):默认档已是 sunrise 等长制,
 			// 短昼盘昼弧≠12 行,旧「index-12」在夜组出 -1/0 假标签;equal24 用整点数。
 			const single = ph.hourMode === 'equal24';
 			const fmtHour = (h, i)=> `${single ? h.index - 1 : i + 1}.${msg(h.ruler)}${h.current ? '←当前' : ''}`;
@@ -1603,7 +1602,7 @@ export function buildClassicalAnalysisSection(analysis){
 		if(eg.decanIndex){ parts.push(`上升第${eg.decanIndex}旬（${msg(eg.decanSign)}）面主${msg(eg.decanRuler)}`); }
 		if(parts.length){ lines.push(`埃及历：${parts.join('；')}`); }
 	}
-	// [审计修] 曾 .filter(b.conj) 只留合相行且丢黄经距——右栏参照星定位表渲染全部行(含 dist);
+	// 曾 .filter(b.conj) 只留合相行且丢黄经距——右栏参照星定位表渲染全部行(含 dist);
 	// 现全行输出,合相加注、非合相带距(与渲染同宽)。
 	const bab = (analysis.babylonianStars || []).filter((b)=> b && (b.planet || b.star)).map((b)=> {
 		// 定名距星表升级:附楔文读法(上/下·前/后 X 肘 Y 指);老数据无此键时保持原行(零回归)。
@@ -1670,7 +1669,7 @@ export function buildClassicalAnalysisSection(analysis){
 	const extra = (analysis.extraLots || []).filter((l)=> l && l.label);
 	if(extra.length){
 		lines.push('阿拉伯点(扩展)');
-		// [审计修] 截断上限对齐 UI(渲染 120,快照曾 60——61-120 条渲染有快照无)。
+		// 截断上限对齐 UI(渲染 120,快照曾 60——61-120 条渲染有快照无)。
 		extra.slice(0, 120).forEach((l)=>{
 			const cnLabel = CLS_LOT_CN[l.label] || l.label;
 			const cat = l.category ? `（${l.category}）` : '';
@@ -1711,17 +1710,17 @@ export function buildAstroSnapshotContent(chartObj, fields, options = {}){
 	if(options.classicalDerived){
 		sections.push(buildSectionText('古典·派生宫转宫', buildDerivedHousesSnapshotLines(chartObj)));
 		sections.push(buildSectionText('古典·气候带', buildKlimataSnapshotLines(chartObj, fields)));
-		// [WP-4] 主宰光体判定项(段内增行):有利宫集/动力学分区/庙界主派/界表档随全局仓与 fields。
+		// 主宰光体判定项(段内增行):有利宫集/动力学分区/庙界主派/界表档随全局仓与 fields。
 		sections.push(buildSectionText('古典·显赫计分', buildEminenceSnapshotLines(chartObj, {
 			busyPlaces: `${classicalGlobalValueSafe('busyPlaces')}`.split(',').map((x) => parseInt(x, 10)).filter((n) => Number.isFinite(n)),
 			dynamicalDivisions: classicalGlobalValueSafe('dynamicalDivisions'),
 			domicileMasterMethod: classicalGlobalValueSafe('domicileMasterMethod'),
 			termsVariant: fieldValue(fields, 'termsVariant'),
-			// [N3] 与 UI 侧(AstroEminence)同口径:双子校勘+自定义表体一并供水,否则界主派两侧结论可分叉
+			// 与 UI 侧(AstroEminence)同口径:双子校勘+自定义表体一并供水,否则界主派两侧结论可分叉
 			geminiBoundEmended: fieldValue(fields, 'geminiBoundEmended'),
 			customTermsDay: fieldValue(fields, 'customTermsDay') || (chartObj && chartObj.params ? chartObj.params.customTermsDay : undefined),
 			customTermsNight: fieldValue(fields, 'customTermsNight') || (chartObj && chartObj.params ? chartObj.params.customTermsNight : undefined),
-			rayWeighting: classicalGlobalValueSafe('rayWeighting'),   // [WP-8] 七射线行(off 零增行)
+			rayWeighting: classicalGlobalValueSafe('rayWeighting'),   // 七射线行(off 零增行)
 		})));
 		sections.push(buildSectionText('古典·世界范式盘', buildThemaMundiSnapshotLines()));
 	}
@@ -1824,11 +1823,7 @@ export function saveAstroAISnapshotLazy(chartObj, fields, options = {}){
 				const content = buildAstroSnapshotContent(chartObj, fields, options);
 				if(content){
 					if(devExpected !== null && content !== devExpected){
-						try{
-							console.warn('[horosa.perf] astro 快照惰性构建内容漂移(chartObj 注册后被突变?),请排查 hook 面板对入参的就地写');
-						}catch(warnErr){
-							// ignore
-						}
+						console.warn('[horosa.perf] astro 快照惰性构建内容漂移(chartObj 注册后被突变?),请排查 hook 面板对入参的就地写');
 					}
 					token.payload = {
 						version: ASTRO_SNAPSHOT_FORMAT_VERSION,
@@ -1871,46 +1866,23 @@ export function loadAstroAISnapshot(){
 			}
 			// 物化为空(本次快照为空)→ 按同步版语义回落旧快照。
 		}
-		if(typeof window !== 'undefined' && window.localStorage){
-			const raw = window.localStorage.getItem(ASTRO_AI_SNAPSHOT_KEY);
-			if(raw){
-				try{
-					const obj = JSON.parse(raw);
-					if(obj && obj.content){
-						obj.content = normalizeAiExportText(obj.content);
-						ASTRO_AI_SNAPSHOT_MEMORY = obj;
-						saveAstroSnapshotToGlobal(obj);
-						return obj;
-					}
-				}catch(parseErr){
-					// 兼容旧版本：astro 快照可能是纯文本直接存储。
-					const txt = normalizeAiExportText(`${raw}`.trim());
-					if(txt){
-						const legacy = {
-							version: 1,
-							createdAt: '',
-							signature: '',
-							chartId: null,
-							content: txt,
-						};
-						ASTRO_AI_SNAPSHOT_MEMORY = legacy;
-						saveAstroSnapshotToGlobal(legacy);
-						return legacy;
-					}
-				}
+		// 读序单一来源(snapshotSlotRead.pickFresherSnapshot,与模块快照同一个函数):本窗口内存那份不比存储旧就用内存;
+		// 存储更新(别的窗口刚写过)以存储为准。此前先读存储:同步存 / 惰性存之后、空闲落盘之前(存储写满时一直不落盘)
+		// 读回上一张盘,还拿它覆盖内存里的新盘。
+		const memRaw = (ASTRO_AI_SNAPSHOT_MEMORY && ASTRO_AI_SNAPSHOT_MEMORY.content) ? ASTRO_AI_SNAPSHOT_MEMORY : loadAstroSnapshotFromGlobal();
+		const raw = (typeof window !== 'undefined' && window.localStorage) ? window.localStorage.getItem(ASTRO_AI_SNAPSHOT_KEY) : null;
+		const picked = pickFresherSnapshot(memRaw, raw, {
+			legacy: (txt)=>({ version: 1, createdAt: '', signature: '', chartId: null, content: txt }),
+		});
+		if(picked.payload){
+			const out = { ...picked.payload, content: normalizeAiExportText(picked.payload.content) };
+			if(picked.source !== 'memory'){
+				ASTRO_AI_SNAPSHOT_MEMORY = out;   // 存储那份更新 / 纯文本旧存量 → 回写内存
+				saveAstroSnapshotToGlobal(out);
+			}else if(!ASTRO_AI_SNAPSHOT_MEMORY || !ASTRO_AI_SNAPSHOT_MEMORY.content){
+				ASTRO_AI_SNAPSHOT_MEMORY = out;   // 内存空、取自全局那份
 			}
-		}
-		const global = loadAstroSnapshotFromGlobal();
-		if(global){
-			ASTRO_AI_SNAPSHOT_MEMORY = global;
-			return global;
-		}
-		if(ASTRO_AI_SNAPSHOT_MEMORY && ASTRO_AI_SNAPSHOT_MEMORY.content){
-			const mem = {
-				...ASTRO_AI_SNAPSHOT_MEMORY,
-				content: normalizeAiExportText(ASTRO_AI_SNAPSHOT_MEMORY.content),
-			};
-			return mem;
+			return out;
 		}
 		return null;
 	}catch(e){
@@ -1973,14 +1945,15 @@ export function buildPredictiveBirthLines(chartObj){
 	const zodiacalRaw = chart.zodiacal || AstroConst.ZODIACAL[`${params.zodiacal}`];
 	if(zodiacalRaw){
 		const ayanKey = params.siderealAyanamsa || chart.siderealAyanamsa || '';
-		const zodiacalTxt = typeof AstroConst.zodiacalDisplayText === 'function'
-			? AstroConst.zodiacalDisplayText(zodiacalRaw, ayanKey)
-			: zodiacalRaw;
+		const zodiacalTxt = AstroConst.zodiacalDisplayText(zodiacalRaw, ayanKey);
 		lines.push(`黄道：${zodiacalTxt}`);
 	}
 	const hsys = AstroConst.HouseSys[`${params.hsys}`] || chart.hsys;
 	if(hsys){
 		lines.push(`宫制：${hsys}`);
+	}
+	if(polarMcOf(chart)){
+		lines.push(POLAR_MC_NOTE);
 	}
 	if(chart.isDiurnal !== undefined && chart.isDiurnal !== null){
 		lines.push(`盘型：${chart.isDiurnal ? '日生盘' : '夜生盘'}`);
@@ -1999,6 +1972,17 @@ export function buildPredictiveBirthHeaderLines(chartObj){
 
 // [当前时点] 基线两行(导出时刻+盘主当前年龄);各键 timeline 定位行经 extraLines 追加
 // (如「当前处于 X 限,距切换 Y」——由各 builder 用自己的时间轴自算)。
+// 出生时刻的真实瞬时:出生钟面按本盘时区解读(±HH:MM / 带秒);没有合法时区 → 按本机时区解读(原样)。
+// 此前一律按本机时区解读 → 本机与盘不在同一时区时「当前年龄」差出时差那么多
+function birthInstantMsInZone(birth, zone){
+	const localMs = parseLocalDateTimeMs(birth);
+	const m = typeof zone === 'string' ? /^([+-])(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(zone) : null;
+	if(!m || !Number.isFinite(localMs)){ return localMs; }
+	const zoneSec = (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 3600 + Number(m[3]) * 60 + Number(m[4] || 0));
+	const tzoMin = new Date(localMs).getTimezoneOffset();
+	return localMs - tzoMin * 60000 - zoneSec * 1000;
+}
+
 export function buildCurrentMomentLines(chartObj, extraLines){
 	const obj = chartObj || {};
 	const params = obj.params || {};
@@ -2006,7 +1990,7 @@ export function buildCurrentMomentLines(chartObj, extraLines){
 	const pad2m = (n)=>(n < 10 ? `0${n}` : `${n}`);
 	const lines = [`导出时刻：${now.getFullYear()}-${pad2m(now.getMonth() + 1)}-${pad2m(now.getDate())} ${pad2m(now.getHours())}:${pad2m(now.getMinutes())}`];
 	if(params.birth){
-		const birthMs = Date.parse(`${params.birth}`.trim().replace(/\//g, '-').replace(' ', 'T'));
+		const birthMs = birthInstantMsInZone(params.birth, params.zone);
 		if(!Number.isNaN(birthMs)){
 			const age = (now.getTime() - birthMs) / (365.2425 * 24 * 3600 * 1000);
 			if(Number.isFinite(age) && age > -1 && age < 200){
@@ -2023,9 +2007,10 @@ export const PREDICTIVE_METHOD_NOTES = {
 	primarydirect: [
 		'主限法：天体按周日运动(赤经/方位弧)推进,约 1 度合 1 年;迫星抵达应星的弧量换算年龄,用于判大事应期。',
 		'读法：表中每行=一次抵达事件;以应星宫职与迫星性质合断吉凶主题。',
+		'日期：整年取第 N 个太阳年周年日、年内按天数比例细分;2 月 29 日生于平年,主限周年日取 2 月 28 日(小限 / 太阳弧 / 行星弧年表的行取 3 月 1 日,同一周岁两表可差一天)。',
 	],
 	zodialrelease: [
-		// [Q-363/T-344] 与算法同口径:缺省基点=福点(可选精神点等),期长=各座守护星小年(狮子 19、巨蟹 25、摩羯 27、水瓶 30…),非行星大年。
+		// 与算法同口径:缺省基点=福点(可选精神点等),期长=各座守护星小年(狮子 19、巨蟹 25、摩羯 27、水瓶 30…),非行星大年。
 		'黄道释放：自所选基点(默认幸运点,可改精神点等)所在星座起,按各星座守护星小年逐座、逐层释放,划分人生篇章(一级期)与子期(二级期)。',
 		'读法：期主星及其本命状态定该段主题;跳宫(LB)为重大转折;与幸运点十度关系看顺逆。',
 	],
@@ -2034,7 +2019,7 @@ export const PREDICTIVE_METHOD_NOTES = {
 		'读法：主期星定大主题、子期星定阶段事项,两星本命状态与彼此关系定吉凶成色。',
 	],
 	distributions: [
-		// [Q-170/T-109] 实现恒以上升为释放点(无「选定释放点」入口),界系随「设置→星盘设置」的全局界表。
+		// 实现恒以上升为释放点(无「选定释放点」入口),界系随「设置→星盘设置」的全局界表。
 		'界推运(分配法)：上升按主限速率行经黄道各界,界主星即该段"分配星";界表用当前全局界系设置。',
 		'读法：分配星与其间同行的本命星(参与星)共同定该段境遇;换界即换阶段。',
 	],
@@ -2042,7 +2027,7 @@ export const PREDICTIVE_METHOD_NOTES = {
 		'年龄推进点：心理占星年龄点每宫约 6 年匀速推进,逐宫走完十二宫。',
 		'读法：落宫定人生课题场域,与本命星的合相/相位标记该年龄的关键事件与心理主题。',
 	],
-	// [Q-106/T-10] 星运三页上线
+	// 星运三页上线
 	ephemeris: [
 		'星历：以本命盘地点与时区列出区间内行星入座、留与顺逆转向、朔望弦与食相,并按容许度筛出行运触发本命点的时刻。',
 		'读法：入座换宫定阶段主题,留点前后事件易停滞反复,食相落宫标重大转折;行运触发行只列精确时刻,结合本命点性质判吉凶。',
@@ -2072,7 +2057,7 @@ export const PREDICTIVE_METHOD_NOTES = {
 		'读法：与日返同理,颗粒度为月;月亮状态与四轴最要紧。',
 	],
 	givenyear: [
-		// [Q-170/T-109] 后端 perpredict 为「给定时刻、给定地点的实时天象盘」,不是二次推运盘(页面也叫天象盘)。
+		// 后端 perpredict 为「给定时刻、给定地点的实时天象盘」,不是二次推运盘(页面也叫天象盘)。
 		'指定年天象盘：按所给年份的时刻与地点起一张实时天象盘,与本命对照。',
 		'读法：天象盘行星落本命宫位与两盘相位定该年主题。',
 	],
@@ -2105,23 +2090,23 @@ export const PREDICTIVE_METHOD_NOTES = {
 		'读法：向运点与本命点的相位事件按年龄排布;近期命中(距今最近)优先解读。',
 	],
 	yearsystem129: [
-		// [Q-170/T-109] 实现用的是**小年**(Σ=129),子限为该主限小年数的七等分(MINOR_YEARS/SEQ_LEN),不是按比例。
+		// 实现用的是**小年**(Σ=129),子限为该主限小年数的七等分(MINOR_YEARS/SEQ_LEN),不是按比例。
 		'129 年系统：以七星小年合计 129 年为总周期,按小年切主限,主限内再七等分为子限。',
 		'读法：主限星定大阶段,子限星定小阶段,起讫日期定应期窗口。',
 	],
 	balbillus: [
-		// [Q-170/T-109 · Q-170/T-110] 实现:主限长度 = 该星小年 × (1 − 离擢升度角距/360)(最近角距档另有日/月/火三星的
+		// 实现:主限长度 = 该星小年 × (1 − 离擢升度角距/360)(最近角距档另有日/月/火三星的
 		// 经验拟合系数);子限按「子星削减年数 × 本层时间单位」自父星起铺开、末段填满父期 —— 不是 129 权重递归。
 		'主/子限期法(Balbillus)：罗马期法,主限长度=该星小年 ×(1 − 离擢升度角距/360),七星按本命黄经序自起始星铺开;子限以「子星削减年数 × 本层时间单位(L2=月)」顺序铺开,末段填满父期。',
 		'读法：主限星与子限星组合断该段主题;换限日期为节点。',
 	],
 	triplicityrulers: [
-		// [Q-170/T-109] 实现取的是**当值光体**(昼日夜月)所在星座的三分性,不是命度所在座。
+		// 实现取的是**当值光体**(昼日夜月)所在星座的三分性,不是命度所在座。
 		'三分主星推运：当值光体(昼生取太阳、夜生取月亮)所在星座的三分性三主星(日/夜/伴)依序主管人生前/中/后三段。',
 		'读法：各段主星的本命状态(庙旺陷落/宫位/受克)直接定该人生阶段的整体成色。',
 	],
 	keypoints: [
-		// [Q-170/T-109] 实现:各星「位置数」k=自释放点起第几座(1–12),年龄被 k 整除即激活该星;
+		// 实现:各星「位置数」k=自释放点起第几座(1–12),年龄被 k 整除即激活该星;
 		// 另有一张专用小年表(3/8/18/5/7/9/13)的倍数同样激活。与「120 的调和因数」无关。
 		'数字相位推运(120 关键点)：每颗星取「自释放点起第几个星座」k(1–12),年龄为 k 的倍数时该星被激活;另按各星专用小年(3/8/18/5/7/9/13)的倍数激活一次。',
 		'读法：命中即激活年;k 越小复现越密;结合被激活点的本命性质定主题。',
@@ -2131,7 +2116,7 @@ export const PREDICTIVE_METHOD_NOTES = {
 		'读法：新月=起始、上弦=建设、满月=显化、下弦=释放;当前相定人生大节奏。',
 	],
 	extrareturns: [
-		// [Q-170/T-109] 后端只求**整回归**时刻,不产 1/4、1/2 周期行。
+		// 后端只求**整回归**时刻,不产 1/4、1/2 周期行。
 		'多重回归：木星/土星等回归本命位置的整回归时刻表。',
 		'读法：整回归=大周期重启(如土星回归约 29.5 岁);两次回归之间可自行取中点作阶段参照,表内不列。',
 	],

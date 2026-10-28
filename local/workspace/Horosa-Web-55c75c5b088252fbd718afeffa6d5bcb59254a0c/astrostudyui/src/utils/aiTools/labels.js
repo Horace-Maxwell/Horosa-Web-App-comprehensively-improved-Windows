@@ -7,6 +7,15 @@ export const AGENT_TOOL_LABELS = {
 	ask_user: '向你提问', list_actions: '查看动作账本', search_materials: '检索资料',
 	create_goal_task: '建目标任务', schedule_task: '排定时任务', web_search: '联网检索', note_progress: '记录进度', web_fetch: '读取网页', run_analysis: '无头分析',
 	navigate_to_technique: '切换技法页', compare_records: '合盘配对', star_record: '加星标', pin_record: '置顶', add_record_tag: '加标签',
+	list_tasks: '查看后台任务', get_task: '读取任务详情', cast_relative: '无头合盘取数',
+	list_election_conditions: '择日条件类', search_election: '择日搜索', explain_election: '择日判读',
+	search_xuanshi: '检索玄学史', get_xuanshi_item: '读取玄学史条目', read_current_page: '读取当前页正文',
+	list_conversations: '列出对话记录', get_conversation: '读取对话正文', get_record_detail: '读取档案详情',
+	append_record_journal: '追加断事日志', link_records: '关联两张档案', set_chat_mount: '设置对话挂载',
+	list_divination_casts: '起卦格式目录', cast_divination_case: '按起卦结果建事盘',
+	propose_record_edit: '提议修改档案', propose_record_archive: '提议归档档案', list_proposals: '查看档案提案',
+	list_zeri_conditions: '各派择日条件类', search_zeri: '各派择日搜索', explain_zeri: '各派择日判读',
+	search_celebrities: '检索名人库', list_celebrity_categories: '名人库分类', get_celebrity: '读取名人资料', create_celebrity_chart: '名人存成命盘',
 };
 
 export function toolLabel(name){

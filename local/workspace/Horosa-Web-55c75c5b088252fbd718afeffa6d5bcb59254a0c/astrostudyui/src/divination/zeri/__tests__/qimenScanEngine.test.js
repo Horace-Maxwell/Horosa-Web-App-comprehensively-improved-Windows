@@ -1,4 +1,4 @@
-// [奇门择日 T2] 扫描引擎金标(全离线):
+// 扫描引擎金标(全离线):
 // ① 冻结基线锚 —— 与 dunjiaSnapshotTableEquiv 同参同时刻(2026-05-15 00:12 拆补阳七下·伏吟局),
 //    扫描须命中且边界分钟精确;晚子时两档(after23NewDay 0/1)分别断言 midnight 截盘/跨 midnight 并盘。
 // ② 至界时辰内翻局 —— 2015-12-22 冬至(拆补 10:30 阴七中 / 14:30 阳七中,dunjiaBackendParity 锚),
@@ -59,7 +59,7 @@ describe('T2① 冻结基线锚 + 晚子时两档', ()=>{
 		expect(row.start).toBe('2026-05-15 00:00');
 		expect(row.end).toBe('2026-05-15 01:00');
 		expect(row.durationMin).toBe(60);
-		// pick=起点+3 分钟内缩([十三轮] 60s→180s:跨链口径实现差兜底,EoT 简式 vs swiss 曾差 89s 穿透 60s)
+		// pick=起点+3 分钟内缩(60s→180s:跨链口径实现差兜底,EoT 简式 vs swiss 曾差 89s 穿透 60s)
 		expect(row.pick).toBe('2026-05-15 00:03:00');
 	}, 30000);
 	test('after23=1(23点换日):子时跨 midnight 并为一行,起于前日 23:00', async ()=>{

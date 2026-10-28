@@ -4,12 +4,18 @@ import * as AstroText from '../../constants/AstroText';
 import { drawPath, drawTextH, drawTextV} from '../graph/GraphHelper';
 import {randomStr,} from '../../utils/helper';
 
+export const YAO_CHANGED_NAME_INK = 'var(--horosa-hue-purple)';
+
 class Yao{
 	// nameColor / color 按访问时读当前调色板(切明暗后重画即新色);显式赋值仍优先 —— 构造期 this.x = AstroColor.y 会把旧主题的色存进实例
 	get nameColor(){ return this._nameColorOverride !== undefined ? this._nameColorOverride : AstroConst.AstroColor.Stroke; }
 	set nameColor(v){ this._nameColorOverride = v; }
 	get color(){ return this._colorOverride !== undefined ? this._colorOverride : AstroConst.AstroColor.Stroke; }
 	set color(v){ this._colorOverride = v; }
+	// 动爻名(六神 / 地支 / 五行 / 六亲与 ○ ✕ 记号):明暗成对的主题色(svg 属性里的 var() 随主题即时换值),与六壬天将同一个色相变量;
+	// 旧写死 #800080 只为亮底挑,暗底只有 1.8:1。显式传入的 nameColor 仍优先。
+	get changedNameColor(){ return this._changedNameColorOverride !== undefined ? this._changedNameColorOverride : YAO_CHANGED_NAME_INK; }
+	set changedNameColor(v){ this._changedNameColorOverride = v; }
 	constructor(option){
 		this.value = -1;
 
@@ -43,7 +49,6 @@ class Yao{
 		this.nameMargin = 10;
 		this.changeMarkWidth = this.showName ? 22 : 0;
 		this.changeNameGap = this.showName ? 10 : 0;
-		this.changedNameColor = '#800080';
 		if(option.nameColor){
 			this.nameColor = option.nameColor;
 			this.changedNameColor = option.nameColor;
@@ -100,22 +105,21 @@ class Yao{
 			h = this.fontSize;
 		}
 		let txty = this.y + this.height/2 - h/2 + this.txtMargin;
-		drawTextH(this.svg, data, txtx, txty, nameW, h, 0, txtColor);	
+		// 前四字按整词定字(只画前四字时也照传整个名字)
+		drawTextH(this.svg, data, txtx, txty, nameW, h, 0, txtColor, undefined, undefined, undefined, undefined, undefined, this.name);	
 
 		if(last){
 			txtx = txtx + nameW;
 			let txtw = nameW/4;
-			data = [last];
-			drawTextH(this.svg, data, txtx, txty, txtw, h, 0, txtColor);	
+			// 第五字单独画(五行字),单字自成一词
+			drawTextH(this.svg, [last], txtx, txty, txtw, h, 0, txtColor, undefined, undefined, undefined, undefined, undefined, last);	
 		}
 		if(this.change){
 			txtx = this.x+w + this.txtMargin;
 			if(this.value === 1){
-				data = ['○'];
-				drawTextH(this.svg, data, txtx, txty, this.changeMarkWidth, h, 0, txtColor);
+				drawTextH(this.svg, ['○'], txtx, txty, this.changeMarkWidth, h, 0, txtColor);
 			}else if(this.value === 0){
-				data = ['✕'];
-				drawTextH(this.svg, data, txtx, txty, this.changeMarkWidth, h, 0, txtColor);
+				drawTextH(this.svg, ['✕'], txtx, txty, this.changeMarkWidth, h, 0, txtColor);
 			}
 		}
 	}

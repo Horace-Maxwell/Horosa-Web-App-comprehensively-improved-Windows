@@ -38,7 +38,7 @@ function reqHit(w, shans) {
 
 // 断诀查检（24 山粒度）。只出断语，不改得位/失位之判。
 //   shans: {山: 'sand'|'water'|'flat'}；xings: {山: 形态key}（形态条件命中才并入）。
-// [Q-223/T-186·FT-25] 某山某侧(砂/水)断诀里真会命中的形态选项:与 duanjueOf 的「形态命中」判据同式
+// 某山某侧(砂/水)断诀里真会命中的形态选项:与 duanjueOf 的「形态命中」判据同式
 //   (选中形的 label 与条件文字互含);左栏下拉只列这些,免得 48 组里 31 组任何形态档都不改盘。
 export function jinsuoXingOptionsFor(shan, actual) {
 	const meta = JINSUO_SHAN_DUAN[shan];
@@ -126,6 +126,17 @@ function nextBenGuaYears(gong, fromYear, count = 3) {
 // 金锁玉关排盘：八方各「砂/水/平」→ 逐方得位失位 + 断 + 化解 + 应期。
 //   sectors: {坎:'sand'|'water'|'flat', …}；yun/year 给了才出应期（缺省零回归）。
 //   应期(7.A.7)：得位之方逢其卦当运或流年本卦星飞临 → 吉应显；失位之方逢凶星飞临 → 灾应。
+// 某山换了砂 / 水 / 平之后,原选的形态不在新一侧的档里 → 去掉(返回新对象;不用动返回原对象)。
+// 此前保留:下拉露出内部键名(如水侧的「midai」挂在只有破军的砂侧),引擎也不会命中
+export function pruneJinsuoXing(xings, shan, actual) {
+	const xg = xings && xings[shan];
+	if (!xg) { return xings; }
+	if (jinsuoXingOptionsFor(shan, actual).some((x)=>x.key === xg)) { return xings; }
+	const nx = { ...xings };
+	delete nx[shan];
+	return nx;
+}
+
 export function jinsuo({ sectors = {}, shans = null, xings = {}, yun, year } = {}) {
 	// 24 山细式（additive）：给了 shans 才启用；不给时与旧路逐字节等（零回归）。
 	const hasShan = !!shans && typeof shans === 'object' && Object.keys(shans).some((k)=>shans[k] && shans[k] !== 'flat');

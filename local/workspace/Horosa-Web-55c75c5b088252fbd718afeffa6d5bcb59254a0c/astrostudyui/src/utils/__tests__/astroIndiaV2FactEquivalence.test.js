@@ -1,4 +1,4 @@
-// [印占 v2 表化 · 值零丢失证明] buildJyotishSnapshotLines 把约 34 段流水散文改成 GFM 表后,
+// buildJyotishSnapshotLines 把约 34 段流水散文改成 GFM 表后,
 // 必须证明「排版变、事实零丢失」。做法:
 //   基线 = git show HEAD 的改前实现(见 fixtures/indiaJyotishBaselineHead.js,散文版);
 //   现行 = 当前 IndiaChart.js 的表化实现;
@@ -62,7 +62,13 @@ const FIXTURE = { jyotish: {
 		{ label: '木星', totalRupa: 7.5, ishta: 42.3, kashta: 17.7, uchchaBala: 55.1 },
 		{ label: '水星', totalRupa: 5.2, ishta: 30.0, kashta: 30.0, uchchaBala: 12.4 },
 	] },
-	shadbalaBphs: { Sun: { vimsopaka: { shadvarga: { total: 12.5 }, saptavarga: { total: 11 }, dasavarga: { total: 13 }, shodasavarga: { total: 10.5 } } } },
+	// 六力唯一来源已改为六源式 shadbalaBphs(粗估层 shadbala 删);基线(改前实现)仍读粗估层,
+	// 两段属「数据源改换」不做散文↔表化等价,另由下方专测锁到 shadbalaBphs 真值。
+	shadbalaBphs: {
+		Sun: { vimsopaka: { shadvarga: { total: 12.5 }, saptavarga: { total: 11 }, dasavarga: { total: 13 }, shodasavarga: { total: 10.5 } } },
+		Jupiter: { rupas: 7.5, requiredRupas: 6.5, strengthRatio: 1.1538, sufficient: true, ishta: 42.3, kashta: 17.7, sthana: { uchcha: 55.1 } },
+		Mercury: { rupas: 5.2, requiredRupas: 7, strengthRatio: 0.7429, sufficient: false, ishta: 30.0, kashta: 30.0, sthana: { uchcha: 12.4 } },
+	},
 	muhurta: {
 		horaTable: { weekday: 2, rows: [
 			{ index: 1, period: 'day', lord: 'Mars', lordCN: '火星', start: '2026-06-23 06:11:00' },
@@ -218,8 +224,16 @@ const FIXTURE = { jyotish: {
 	] },
 } };
 
-const baseOut = baseline(FIXTURE);
-// [Q-135/T-43] 卡拉卡段首行「方案：7/8 卡拉卡,共 N 行」是表化后新增的方案标注(基线散文无此行):事实比对前剥掉,其余逐行零丢失照旧。
+// 庙旺态:基线写引擎枚举,现行按页面同一张中文对照表(INDIA_DIGNITY_CN)写 —— 同一事实换了写法,比对前把基线的枚举译成中文。
+const { INDIA_DIGNITY_CN } = require('../../components/astro/indiaMain/jyotishData');
+const DIGNITY_ENUM_RE = /\b(deep_exaltation|exaltation|moolatrikona|own_sign|debilitation|neutral)\b/g;
+function translateDignity(out, keys){
+	const o = { ...(out || {}) };
+	keys.filter((k)=>Array.isArray(o[k])).forEach((k)=>{ o[k] = o[k].map((ln)=>`${ln}`.replace(DIGNITY_ENUM_RE, (m)=>INDIA_DIGNITY_CN[m])); });
+	return o;
+}
+const baseOut = translateDignity(baseline(FIXTURE), ['星曜状态', '分盘吉位 Vaiśeṣikāṁśa']);
+// 卡拉卡段首行「方案：7/8 卡拉卡,共 N 行」是表化后新增的方案标注(基线散文无此行):事实比对前剥掉,其余逐行零丢失照旧。
 function stripSchemeLine(out){
 	const o = { ...(out || {}) };
 	Object.keys(o).forEach((k)=>{
@@ -229,6 +243,7 @@ function stripSchemeLine(out){
 }
 const curOut = stripSchemeLine(current(FIXTURE));
 const sectionKeys = Object.keys(baseOut);
+const SOURCE_CHANGED = ['Shadbala 六力', 'Ishta/Kashta 吉凶果'];
 
 describe('印占 v2 表化 · fact 等价（值零丢失证明）', ()=>{
 	it('fixture 覆盖足够多段（≥30 段进入比对）', ()=>{
@@ -239,8 +254,8 @@ describe('印占 v2 表化 · fact 等价（值零丢失证明）', ()=>{
 		expect(Object.keys(curOut).sort()).toEqual(Object.keys(baseOut).sort());
 	});
 
-	// 逐段:fact 多重集(A) + 逐行元组集(B) 双判等价。
-	sectionKeys.forEach((key)=>{
+	// 逐段:fact 多重集(A) + 逐行元组集(B) 双判等价(数据源改换段除外,见下方专测)。
+	sectionKeys.filter((key)=>SOURCE_CHANGED.indexOf(key) < 0).forEach((key)=>{
 		it(`段【${key}】改前散文 ↔ 改后表化 事实零丢失`, ()=>{
 			expect(factBag(curOut[key])).toEqual(factBag(baseOut[key]));
 			expect(factRows(curOut[key])).toEqual(factRows(baseOut[key]));
@@ -265,16 +280,26 @@ describe('印占 v2 表化 · fact 等价（值零丢失证明）', ()=>{
 	});
 
 	it('否定对照(关系型串行):把一行的值搬到另一行 → 逐行元组集报红', ()=>{
-		// 构造两行同构表,现行输出;再人工把 shadbala 两星总力对调 → 全局多重集不变,但逐行元组集应变。
+		// 构造两行同构表,现行输出;再人工把 Sodhya Pinda 两曜凝量对调 → 全局多重集不变,但逐行元组集应变。
 		const swapped = JSON.parse(JSON.stringify(FIXTURE));
-		swapped.jyotish.shadbala.planets[0].totalRupa = 5.2; // 木星←水星值
-		swapped.jyotish.shadbala.planets[1].totalRupa = 7.5; // 水星←木星值
+		swapped.jyotish.ashtakavarga.sodhyaPinda.Sun.total = 120; // 日←月值
+		swapped.jyotish.ashtakavarga.sodhyaPinda.Moon.total = 160; // 月←日值
 		const curSwap = current(swapped);
-		const KEY = 'Shadbala 六力';
-		// 对调后全局多重集相同(7.50/5.20 都还在)。
+		const KEY = 'Sodhya Pinda 凝量';
 		expect(factBag(curSwap[KEY])).toEqual(factBag(baseOut[KEY]));
-		// 但逐行元组集不同(木星现在配 5.20、水星配 7.50)→ 证明 factRows 抓得住串行。
 		expect(factRows(curSwap[KEY])).not.toEqual(factRows(baseOut[KEY]));
+	});
+
+	it('六力两段读六源式 shadbalaBphs(与页面同值),不读粗估层', ()=>{
+		const sb = curOut['Shadbala 六力'].join('\n');
+		expect(sb).toMatch(/\| 木星 \| 7\.50 Rupa \| 6\.5 Rupa \| 1\.15（力足） \|/);
+		expect(sb).toMatch(/\| 水星 \| 5\.20 Rupa \| 7\.0 Rupa \| 0\.74（力弱） \|/);
+		const noBphs = JSON.parse(JSON.stringify(FIXTURE));
+		delete noBphs.jyotish.shadbalaBphs;
+		const out2 = current(noBphs);
+		expect(out2['Shadbala 六力']).toBeUndefined();          // 粗估层再多也不出六力段
+		expect(out2['Ishta/Kashta 吉凶果']).toBeUndefined();
+		expect(curOut['Ishta/Kashta 吉凶果'].join('\n')).toMatch(/吉果 42\.3.*凶果 17\.7.*出曜力 55\.1/);
 	});
 
 	it('基线夹具确为改前散文实现（防夹具被误替换成表化版）', ()=>{

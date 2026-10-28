@@ -1,4 +1,4 @@
-// [Q-288] 围栏降级协议:坏块 / 多块 / 参数含三连反引号 / 语言标签带字 / 重复 callId
+// 围栏降级协议:坏块 / 多块 / 参数含三连反引号 / 语言标签带字 / 重复 callId
 // 此前一律**静默丢掉整轮调用**,模型收不到任何反馈,只能反复重发同一个坏块。
 // 现在:能认的更多(标签带字也认),认不了的回喂结构化错误(带码 + 位置 + 成因提示)。
 import { parseActionBlock, parseActionBlockDetailed, protocolErrorCall, ACTION_FENCE } from '../aiAgent/textProtocol';
@@ -10,7 +10,7 @@ it('🔴 正常块照旧解析(零回归);语言标签后带字也认', ()=>{
 	const a = parseActionBlockDetailed(`正文\n${fence(good)}`);
 	expect(a.error).toBe(null);
 	expect(a.hit.calls.map((c)=>c.name)).toEqual(['list_records']);
-	// [Q-288] 标签带字:此前整块不匹配 → 调用凭空消失
+	// 标签带字:此前整块不匹配 → 调用凭空消失
 	const b = parseActionBlockDetailed(`正文\n${fence(good, 'horosa-action json')}`);
 	expect(b.error).toBe(null);
 	expect(b.hit.calls.length).toBe(1);

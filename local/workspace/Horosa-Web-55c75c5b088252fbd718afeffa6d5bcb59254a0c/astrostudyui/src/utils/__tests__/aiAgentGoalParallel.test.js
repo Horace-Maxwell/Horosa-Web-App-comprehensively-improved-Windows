@@ -1,4 +1,4 @@
-// [批三⑤] 并行目标合同:缺省 0=现状(第二条立刻起跑);上限 1 → 第二条保持 queued 且不发请求,第一条结束自动接力起第二条;上限 2 → 两条同时跑;startAllQueuedGoals 受上限约束;键归一 1..3。
+// 并行目标合同:缺省 0=现状(第二条立刻起跑);上限 1 → 第二条保持 queued 且不发请求,第一条结束自动接力起第二条;上限 2 → 两条同时跑;startAllQueuedGoals 受上限约束;键归一 1..3。
 import { startGoalTask, createGoalTask, isGoalLoopRunning, startAllQueuedGoals, __resetGoalRunnerForTests } from '../aiAgent/goalRunner';
 import { listRunningIds } from '../aiAgent/tasks/taskRegistry';
 import { getTask, __resetTaskCacheForTests } from '../aiAgent/tasks/taskStore';

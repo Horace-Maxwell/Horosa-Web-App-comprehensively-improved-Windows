@@ -212,3 +212,55 @@ def test_lajjitadi_in_engine_strengths():
             'lat': '28n36', 'lon': '77e12', 'indiaHsys': 0, 'indiaAyanamsa': 'lahiri'}
     ps = JyotishEngine(IndiaChartKernel(data)).strengths()['planetaryStates']
     assert all('lajjitadi' in p and isinstance(p['lajjitadi'], list) for p in ps)
+
+
+# ── Dīptādi Khala 归属:两种通行口径(流派开关 deeptadiKhala)──────────────────
+def test_deeptadi_khala_rule_two_readings():
+    from astrostudy.india import avastha as A
+    # 缺省(现状):落恶曜之座 → Khala;落陷 / 中性 → Deena
+    assert A.deeptadi_avastha('debilitation')['key'] == 'Deena'
+    assert A.deeptadi_avastha('neutral', in_malefic_sign=True)['key'] == 'Khala'
+    assert A.deeptadi_avastha('neutral')['key'] == 'Deena'
+    # BPHS 通行:落陷 → Khala;中性座 → Deena;落恶曜之座不另成态
+    R = 'debilitation'
+    assert A.deeptadi_avastha('debilitation', khala_rule=R)['key'] == 'Khala'
+    assert A.deeptadi_avastha('debilitation', compound='adhimitra', khala_rule=R)['key'] == 'Khala'
+    assert A.deeptadi_avastha('neutral', in_malefic_sign=True, khala_rule=R)['key'] == 'Deena'
+    assert A.deeptadi_avastha('neutral', in_malefic_sign=True, compound='satru', khala_rule=R)['key'] == 'Duhkhita'
+    assert A.deeptadi_avastha('neutral', khala_rule=R)['key'] == 'Deena'
+    # 两口径共有的各态不变
+    for kw in ({}, {'khala_rule': R}):
+        assert A.deeptadi_avastha('exaltation', **kw)['key'] == 'Deepta'
+        assert A.deeptadi_avastha('own_sign', **kw)['key'] == 'Swastha'
+        assert A.deeptadi_avastha('neutral', compound='mitra', **kw)['key'] == 'Saanta'
+        assert A.deeptadi_avastha('neutral', combust=True, **kw)['key'] == 'Kopita'
+        assert A.deeptadi_avastha('neutral', conjunct_malefic=True, **kw)['key'] == 'Vikala'
+    assert A.DEEPTADI_KHALA_RULES == ('malefic_sign', 'debilitation')
+
+
+def test_deeptadi_khala_switch_reaches_engine():
+    """开关经 dashaVariants 白名单进引擎:落陷曜在 BPHS 口径下由 Deena 变 Khala,其余曜不受影响以外的态不乱。"""
+    from astrostudy.india.jyotish_engine import JyotishEngine
+    from astrostudy.india.dasha_variants import VARIANT_SPECS
+    from websrv.webindiasrv import IndiaChartKernel
+    assert VARIANT_SPECS['deeptadiKhala']['values'][0] == 'malefic_sign'
+    found = None
+    for y in range(1970, 2000):
+        k = IndiaChartKernel({'date': '%d/03/12' % y, 'time': '14:30:00', 'zone': '+05:30', 'lat': '19n04',
+                              'lon': '72e52', 'tradition': False, 'predictive': False, 'zodiacal': 1, 'hsys': 0,
+                              'siderealMode': 'lahiri'})
+        base = JyotishEngine(k).strengths()['planetaryStates']
+        deb = [p for p in base if p.get('dignity') == 'debilitation']
+        if deb:
+            found = (k, base, deb[0]['id'])
+            break
+    assert found, '30 年内应有落陷曜'
+    k, base, pid = found
+    alt = JyotishEngine(k, dasha_variants={'deeptadiKhala': 'debilitation'}).strengths()['planetaryStates']
+    b = {p['id']: p['deeptadi']['key'] for p in base}
+    a = {p['id']: p['deeptadi']['key'] for p in alt}
+    assert a[pid] == 'Khala'
+    debil = {p['id'] for p in base if p.get('dignity') == 'debilitation'}
+    for q in b:
+        if q not in debil and b[q] != 'Khala':
+            assert a[q] == b[q], q                    # 非落陷、缺省非 Khala 者两口径同态

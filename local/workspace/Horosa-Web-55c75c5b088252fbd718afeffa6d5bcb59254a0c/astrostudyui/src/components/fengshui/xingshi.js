@@ -1,4 +1,4 @@
-// 形势派（峦头）判定清单（正统体系）· 龙穴砂水向五诀结构化勾选打分。无飞星盘，纯判定流程。
+// 峦头形势判定清单（正统体系）· 龙穴砂水向五诀结构化勾选打分。无飞星盘，纯判定流程。
 import {
 	XINGSHI_9STAR, LONG_RUSHOU_5, LONG_5SHI, XUE_4TYPE, XUE_5STAR, DINGXUE_9, ZHENGXUE_10,
 	DAOZHANG_12, SHA_NAMES, SHUICHENG_5, SHUI_12,
@@ -74,7 +74,7 @@ export function xingshi(sel = {}) {
 	};
 
 	// 🔴 零回归闸：不显式传 scoreMode:'nine' 时，输出与九纲版落地前逐字节相同
-	//    （形势图判工作台等既有消费方不受影响；其零回归锚测试守之）。
+	//    （既有消费方不受影响；其零回归锚测试守之）。
 	if (s.scoreMode !== 'nine') {
 		const total = longScore + xueScore + shaScore + shuiScore + xiangScore;
 		return { ...base, total, grade: grade(total),

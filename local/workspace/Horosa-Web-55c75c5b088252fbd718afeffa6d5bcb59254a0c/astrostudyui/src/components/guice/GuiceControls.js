@@ -135,7 +135,7 @@ class GuiceControls extends Component {
 				const k = Object.keys(m.needs)[0];
 				if (!need[k]) return null;   // 死控件隐藏
 			}
-			// [P3 压测实爆] 神煞附于时方(guicePan 只在 shiFang 开时携带 shenSha)——时方关则单开
+			// 神煞附于时方(guicePan 只在 shiFang 开时携带 shenSha)——时方关则单开
 			// 神煞全无可视效果=「勾了没反应」。诚实呈现:禁用+说明,开「参时方」即随之生效。
 			const dis = (m.key === 'shenSha' && !s.shiFang)
 				? '神煞附于时方而行(古籍同体),先开「参时方」即随之生效'

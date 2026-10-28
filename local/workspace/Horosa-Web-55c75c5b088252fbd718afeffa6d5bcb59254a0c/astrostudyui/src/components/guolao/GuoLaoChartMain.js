@@ -1,2443 +1,87 @@
 import { Component, memo } from 'react';
 import { claimTrigger, settleTrigger, identityOf } from '../../utils/singleTrigger';   // 双触发收敛
-import { buildTimeBasisLine, GUOLAO_TIME_BASIS_NOTE } from '../../utils/timeBasisLine';
-import { fieldsSchemaBaseline } from '../../utils/recordFieldsRestore';   // [Q-190/T-130] 首开只补空的判默认基准
+import '../../utils/timeBasisLine';
+import '../../utils/recordFieldsRestore';   // 首开只补空的判默认基准
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 // R4-B3(horosa_prefetch_registry_v1):七政三段链式预取登记(R10 情报③)。
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { stepPrefetchEnabled, guolaoMergedPaintEnabled } from '../../utils/perfFlags';
 import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
-import { safeLocalStorageSet } from '../../utils/safeStorage';
-import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+import '../../utils/safeStorage';
+import '../../utils/dayBoundary';
 import { XQModal, XQTabs as Tabs } from '../xq-ui';
 import XQIcon from '../xq-icons';
 import * as Constants from '../../utils/constants';
-import request from '../../utils/request';
+import '../../utils/request';
 import {randomStr,} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
-import DateTime from '../comp/DateTime';
+import '../comp/DateTime';
 import QuickDockBar from '../common/QuickDockBar';
 import GuoLaoInput from './GuoLaoInput';
-import { SU28_MODE_LABEL, EXALT_DEGREE as GL_EXALT_DEG, starDignityStatuses as glStarDignity, starMotionState as glStarMotion, starCombust as glStarCombust } from './guolaoData';
-import { computeDongwei as glDongwei, computeTongxian as glTongxian } from './guolaoTransit';
+import './guolaoData';
+import './guolaoTransit';
 import GuoLaoChart from './GuoLaoChart';
-import GuoLaoMoiraPanel, { buildGuolaoMoiraInfoFacts } from './GuoLaoMoiraPanel';
-import { buildLocalNongliLite } from '../../utils/baziLunarLocal';   // [Q-435] 无头/快照路径的流年月支(月限用)
+import GuoLaoMoiraPanel from './GuoLaoMoiraPanel';
+import '../../utils/baziLunarLocal';   // 无头/快照路径的流年月支(月限用)
 import GuoLaoMoiraWheel, {
-	moiraBuildLimitTable as buildLimitTable,
-	moiraLifeDegree as lifeDegree,
-	moiraBirthYearBasis,
 	moiraGetZiGods,
 	moiraCollectGods,
-	moiraGodsFromRuleHits,
-	moiraLongLifeCharFor,
 } from './GuoLaoMoiraWheel';
 import GuoLaoMoiraPickWheel from './GuoLaoMoiraPickWheel';
 import GuoLaoQizhengWheel from './GuoLaoQizhengWheel';
-import { GUOLAO_CHART_STYLE_MOIRA, GUOLAO_CHART_STYLE_PICK, GUOLAO_CHART_STYLE_QIZHENG, GUOLAO_LIFE_MODE_COTRANS, GUOLAO_LIFE_MODE_YUMAO, GUOLAO_NODE_MODE_NORTH_RAHU, getStoredGuolaoChartStyle, getStoredGuolaoLifeMode, getStoredGuolaoNodeMode, getStoredGuolaoSu28Mode, getStoredGuolaoAyanamsa, getStoredGuolaoDisplay, getStoredMoiraTransitGodsVisible, getStoredGuolaoTrueSolarTime, getStoredGuolaoNodeType, getStoredGuolaoLilithType, getStoredGuolaoBodyMode, getStoredGuolaoTuibianMethod, getStoredGuolaoGufaPrecess, getStoredGuolaoEqTropicalAnchor, normalizeGuolaoLifeMode, normalizeGuolaoNodeMode, setStoredGuolaoChartStyle, setStoredGuolaoLifeMode, setStoredGuolaoNodeMode, setStoredGuolaoSu28Mode, setStoredMoiraTransitGodsVisible, setStoredGuolaoDisplay, getStoredGuolaoElection, setStoredGuolaoElection, getStoredGuolaoEleLifeMode, setStoredGuolaoEleLifeMode, } from './GuoLaoChartStyle';
+import { GUOLAO_CHART_STYLE_MOIRA, GUOLAO_CHART_STYLE_PICK, GUOLAO_CHART_STYLE_QIZHENG, getStoredGuolaoChartStyle, getStoredGuolaoDisplay, getStoredMoiraTransitGodsVisible, normalizeGuolaoLifeMode, normalizeGuolaoNodeMode, normalizeGuolaoSu28Mode, setStoredGuolaoChartStyle, setStoredGuolaoLifeMode, setStoredGuolaoNodeMode, setStoredGuolaoSu28Mode, setStoredMoiraTransitGodsVisible, setStoredGuolaoDisplay, getStoredGuolaoElection, setStoredGuolaoElection, getStoredGuolaoEleLifeMode, setStoredGuolaoEleLifeMode, } from './GuoLaoChartStyle';
+import { recordNewChartSeeds } from '../../utils/newChartSeeds';
+import { sendScopedFields } from '../../utils/scopedFieldsSink';
 import { fetchKinastroQizheng, fetchMoiraQizhengRules, fetchQizhengElection, stableMoiraKey, } from '../../services/qizheng';
 import { peekCachedPost } from '../../services/_requestCache';
 import { getMagneticDeclination } from './electionGeomag';
 import { GuoLaoElectionTable, GuoLaoElectionSearch } from './GuoLaoElectionTable';
 import { saveModuleAISnapshot, saveModuleAISnapshotLazy, } from '../../utils/moduleAiSnapshot';
-import * as AstroText from '../../constants/AstroText';
-import * as SZConst from '../suzhan/SZConst';
-import * as Su28Helper from '../su28/Su28Helper';
+import '../../constants/AstroText';
+import '../suzhan/SZConst';
+import '../su28/Su28Helper';
+import '../astro/AstroHelper';
+// 组件外的模块级助手(纯函数 / 常量 / 表 / 小组件)按职责拆在 ./main/ 下;组件本体与对外导出面仍在本文件。
+import {
+	MOIRA_QUICK_ACTIONS, getStoredGuolaoEngineMode, setStoredGuolaoEngineMode, getStoredKinastroQizhengOptions,
+	setStoredKinastroQizhengOptions,
+} from './main/prefs';
+import {
+	MOIRA_YEAR_STAR_BY_STEM, MOIRA_YEAR_STAR_SEQ, MOIRA_YEAR_STAR_MAP, MOIRA_TEN_GOD_ORG, MOIRA_TEN_GOD_ALT,
+	MOIRA_YEAR_INFO_GROUPS, MOIRA_BIRTH_GOD_ORDER, MOIRA_TRANSIT_GOD_ORDER,
+} from './main/moiraConst';
+import {
+	safeList, safeMap, fmtQizhengKinRowValue, splitQizhengKinDisplayLines, qizhengKinReadingLevel,
+	qizhengKinReadingBadge, hasUnverifiedMoiraPatternSource, isIncompleteMoiraRules, moiraStyleLevelMeta,
+	applyMoiraStyleLevel, joinNames, joinMoiraYearItems,
+} from './main/format';
+import { buildAspectRows, clonePlain, applyGuolaoNodeMode, hasGuolaoRiseSetFields } from './main/aspectsNodeMode';
+import { GUOLAO_SU28_CACHE_REV, guolaoMem, pushCache, buildGuolaoKey, isChartObjMatchParams, isChartObjSameNatal, fetchGuolaoChartCached } from './main/chartCache';
+import { computeGuolaoSeedPatch, fieldsToParams, makeDefaultMoiraTransitTime, paramsWithMoiraTransit } from './main/params';
+import {
+	stemBranchForYear, yearFromParams, baziStemBranch, baziText, lunarText, buildQuickPlanetRows,
+	buildGodRowsFromChart, buildLocalMoiraRules, normalizeGodRows, buildGuolaoSnapshotTextV2,
+} from './main/snapshot';
+import { toSlashDate, parseDateParts } from '../../utils/dateStrSafe';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
+// 对外导出面不变:搬进子模块的导出原样重导出
+export { applyGuolaoNodeMode } from './main/aspectsNodeMode';
+export { guolaoSu28ModeFromFields } from './main/fieldModes';
+export { computeGuolaoSeedPatch, warmGuolaoNatal } from './main/params';
+export {
+	buildHouseSuAndGodsSection, buildGuolaoSnapshotForFields, buildStarDignityMotionSection,
+	buildGuolaoWeakSolidSection, buildGuolaoBirthStarsSection, buildGuolaoMastersSection,
+	buildGuolaoLimitCalcSection, buildGuolaoAspectSection, buildGuolaoLimitSection,
+} from './main/snapshot';
 
 const TabPane = Tabs.TabPane;
 
-const SIMPLE_TOKEN_MAP = {
-	A: '日',
-	B: '月',
-	C: '水',
-	D: '金',
-	E: '火',
-	F: '木',
-	G: '土',
-	H: '天王',
-	I: '海王',
-	J: '冥王',
-	K: '北交',
-	L: '南交',
-	p: '福点',
-	v: '暗月',
-	w: '紫气',
-	y: '凯龙',
-	z: '月亮朔望点',
-	Y: '月亮平均远地点',
-	$: '月亮平均近地点',
-	a: '白羊',
-	b: '金牛',
-	c: '双子',
-	d: '巨蟹',
-	e: '狮子',
-	f: '处女',
-	g: '天秤',
-	h: '天蝎',
-	i: '射手',
-	j: '摩羯',
-	k: '水瓶',
-	l: '双鱼',
-	0: '上升',
-	1: '天顶',
-	2: '天底',
-	3: '下降',
-	4: '谷神星',
-	5: '智神星',
-	6: '婚神星',
-	7: '灶神星',
-	8: '人龙星',
-};
 
-const MOIRA_QUICK_ACTIONS = [
-	{key: 'patterns', label: '格局', icon: 'sideStyle'},
-	{key: 'yearStars', label: '化曜', icon: 'quickPrimary'},
-	{key: 'weakSolid', label: '虚实', icon: 'sideHouses'},
-	{key: 'natalStars', label: '命曜', icon: 'sidePlanets'},
-	{key: 'transitStars', label: '流曜', icon: 'quickTransit'},
-	{key: 'aspects', label: '相位', icon: 'sideSwitch'},
-	{key: 'gods', label: '神煞', icon: 'quickNote'},
-];
-
-const GUOLAO_ENGINE_STORAGE_KEY = 'horosa.guolao.engineMode';
-const GUOLAO_KIN_OPTIONS_STORAGE_KEY = 'horosa.guolao.kinastroQizheng.options';
-
-function getStoredGuolaoEngineMode(){
-	try{
-		return localStorage.getItem(GUOLAO_ENGINE_STORAGE_KEY) === 'kinastro' ? 'kinastro' : 'horosa';
-	}catch(e){
-		return 'horosa';
-	}
-}
-
-function setStoredGuolaoEngineMode(value){
-	const next = value === 'kinastro' ? 'kinastro' : 'horosa';
-	try{
-		safeLocalStorageSet(GUOLAO_ENGINE_STORAGE_KEY, next);
-	}catch(e){}
-	return next;
-}
-
-function formatNativeDate(date){
-	const target = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
-	const y = target.getFullYear();
-	const m = `${target.getMonth() + 1}`.padStart(2, '0');
-	const d = `${target.getDate()}`.padStart(2, '0');
-	return `${y}-${m}-${d}`;
-}
-
-function formatNativeTime(date){
-	const target = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
-	const h = `${target.getHours()}`.padStart(2, '0');
-	const m = `${target.getMinutes()}`.padStart(2, '0');
-	return `${h}:${m}`;
-}
-
-function getStoredKinastroQizhengOptions(){
-	const now = new Date();
-	const defaults = {
-		currentYear: new Date().getFullYear(),
-		transitMode: 'none',
-		transitDate: formatNativeDate(now),
-		transitTime: formatNativeTime(now),
-		showZhangguo: true,
-		showShensha: true,
-		showMingGong: true,
-		electionalStartDate: '',
-		electionalCriteria: 'general',
-		electionalDays: 30,
-	};
-	try{
-		const raw = JSON.parse(localStorage.getItem(GUOLAO_KIN_OPTIONS_STORAGE_KEY) || '{}');
-		return {
-			...defaults,
-			...(raw || {}),
-			currentYear: Number(raw && raw.currentYear) || defaults.currentYear,
-		};
-	}catch(e){
-		return defaults;
-	}
-}
-
-function setStoredKinastroQizhengOptions(value){
-	const next = {
-		...getStoredKinastroQizhengOptions(),
-		...(value || {}),
-	};
-	next.currentYear = Math.max(1, Math.min(9999, Number(next.currentYear) || new Date().getFullYear()));
-	next.electionalDays = Math.max(1, Math.min(60, Number(next.electionalDays) || 30));
-	try{
-		safeLocalStorageSet(GUOLAO_KIN_OPTIONS_STORAGE_KEY, JSON.stringify(next));
-	}catch(e){}
-	return next;
-}
-
-const MOIRA_PLANET_ORDER = [
-	{id: AstroConst.SUN, name: '日'},
-	{id: AstroConst.MOON, name: '月'},
-	{id: AstroConst.VENUS, name: '金'},
-	{id: AstroConst.JUPITER, name: '木'},
-	{id: AstroConst.MERCURY, name: '水'},
-	{id: AstroConst.MARS, name: '火'},
-	{id: AstroConst.SATURN, name: '土'},
-	{id: AstroConst.SOUTH_NODE, name: '计'},
-	{id: AstroConst.NORTH_NODE, name: '罗'},
-	{id: AstroConst.PURPLE_CLOUDS, name: '炁'},
-	{id: AstroConst.DARKMOON, name: '孛'},
-];
-
-const STEM_BRANCHES = ['甲子', '乙丑', '丙寅', '丁卯', '戊辰', '己巳', '庚午', '辛未', '壬申', '癸酉', '甲戌', '乙亥', '丙子', '丁丑', '戊寅', '己卯', '庚辰', '辛巳', '壬午', '癸未', '甲申', '乙酉', '丙戌', '丁亥', '戊子', '己丑', '庚寅', '辛卯', '壬辰', '癸巳', '甲午', '乙未', '丙申', '丁酉', '戊戌', '己亥', '庚子', '辛丑', '壬寅', '癸卯', '甲辰', '乙巳', '丙午', '丁未', '戊申', '己酉', '庚戌', '辛亥', '壬子', '癸丑', '甲寅', '乙卯', '丙辰', '丁巳', '戊午', '己未', '庚申', '辛酉', '壬戌', '癸亥'];
-const MOIRA_YEAR_STAR_BY_STEM = {
-	甲: '火',
-	乙: '孛',
-	丙: '木',
-	丁: '金',
-	戊: '土',
-	己: '月',
-	庚: '水',
-	辛: '炁',
-	壬: '计',
-	癸: '罗',
-};
-const MOIRA_YEAR_STAR_SEQ = ['火', '孛', '木', '金', '土', '月', '水', '炁', '计', '罗'];
-const MOIRA_YEAR_STAR_MAP = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
-const MOIRA_TEN_GOD_ORG = ['天禄', '天暗', '天福', '天耗', '天荫', '天贵', '天嗣', '天刑', '天印', '天囚', '天权'];
-const MOIRA_TEN_GOD_ALT = ['比肩', '劫财', '食神', '伤官', '偏财', '正财', '七杀', '正官', '偏印', '正印'];
-const MOIRA_YEAR_INFO_GROUPS = [
-	['天禄', '科名', '天马', '生官'],
-	['天暗', '科甲', '地驿'],
-	['天福', '文星', '禄元'],
-	['天耗', '魁星', '马元', '值难'],
-	['天荫', '官星', '天元', '职元'],
-	['天贵', '印星', '地元', '局主'],
-	['天嗣', '寿元', '人元', '天经'],
-	['天刑', '催官', '仁元', '地纬'],
-	['天印', '禄神', '血支'],
-	['天囚', '喜神', '血忌'],
-	['天权', '爵星', '产星', '伤官'],
-];
-const MOIRA_BIRTH_GOD_ORDER = ['劫杀', '文昌', '禄勋', '大耗', '月杀', '咸池', '唐符', '天厨', '伏尸', '三刑', '勾神', '蓦越', '黄幡', '的杀', '孤辰', '天喜', '注受', '剑锋', '飞廉', '病符', '紫微', '华盖', '天贵', '六害', '孤虚', '游奕', '年符', '死符', '地雌', '卷舌', '绞杀', '天德', '贯索', '亡神', '国印', '岁殿', '卦气', '空亡', '豹尾', '擎天', '天空', '大杀', '天厄', '月廉', '天雄', '天哭', '天狗', '地耗', '月符', '披头', '红鸾', '岁驾', '小耗', '寡宿', '飞刃', '天耗', '斗杓', '驿马', '阳刃', '阑干', '玉贵', '血刃', '浮沉', '解神'];
-const MOIRA_TRANSIT_GOD_ORDER = ['岁驾', '天空', '地雌', '贯索', '五鬼', '死符', '大耗', '天厄', '天雄', '大杀', '卷舌', '天德', '天狗', '蓦越', '亡神', '天喜', '披头', '血刃', '解神', '天哭', '地解', '劫杀', '的杀', '红鸾', '驿马', '游奕', '擎天', '黄幡', '豹尾', '天厨', '三刑', '六害', '咸池', '阳刃', '禄勋', '天贵'];
-const MOIRA_SPEED_LIMITS = {
-	Venus: {slow: 0.71, fast: 1.245},
-	Jupiter: {slow: 0.05, fast: 0.23},
-	Mercury: {slow: 0.88, fast: 1.50},
-	Mars: {slow: 0.4, fast: 0.70},
-	Saturn: {slow: 0.02, fast: 0.13},
-};
-const MOIRA_PLANET_CN_TO_ID = {
-	日: AstroConst.SUN,
-	月: AstroConst.MOON,
-	水: AstroConst.MERCURY,
-	金: AstroConst.VENUS,
-	火: AstroConst.MARS,
-	木: AstroConst.JUPITER,
-	土: AstroConst.SATURN,
-	罗: AstroConst.NORTH_NODE,
-	计: AstroConst.SOUTH_NODE,
-	炁: AstroConst.PURPLE_CLOUDS,
-	孛: AstroConst.DARKMOON,
-};
-const MOIRA_RULER_BY_SIGN = {
-	Aries: AstroConst.MARS,
-	Taurus: AstroConst.VENUS,
-	Gemini: AstroConst.MERCURY,
-	Cancer: AstroConst.MOON,
-	Leo: AstroConst.SUN,
-	Virgo: AstroConst.MERCURY,
-	Libra: AstroConst.VENUS,
-	Scorpio: AstroConst.MARS,
-	Sagittarius: AstroConst.JUPITER,
-	Capricorn: AstroConst.SATURN,
-	Aquarius: AstroConst.SATURN,
-	Pisces: AstroConst.JUPITER,
-};
-const MOIRA_EXILE_BY_SIGN = {
-	Aries: AstroConst.VENUS,
-	Taurus: AstroConst.MARS,
-	Gemini: AstroConst.JUPITER,
-	Cancer: AstroConst.SATURN,
-	Leo: AstroConst.SATURN,
-	Virgo: AstroConst.JUPITER,
-	Libra: AstroConst.MARS,
-	Scorpio: AstroConst.VENUS,
-	Sagittarius: AstroConst.MERCURY,
-	Capricorn: AstroConst.MOON,
-	Aquarius: AstroConst.SUN,
-	Pisces: AstroConst.MERCURY,
-};
-const MOIRA_OVERCOMING = {
-	日: '月',
-	月: '日',
-	金: '火',
-	木: '金',
-	水: '土',
-	火: '水',
-	土: '木',
-	炁: '金',
-	孛: '土',
-	罗: '水',
-	计: '木',
-};
-
-const GUOLAO_CACHE_MAX = 96;
-const GUOLAO_SU28_CACHE_REV = 'guolao_moira_su28_v9_eqtropical7';
-const GUOLAO_SU28_MODE_ZHENG_SIDEREAL = 4;
-const GUOLAO_SU28_MODE_GUFA_LICHENG = 6;   // WP-D 授时历古法立成(推变黄道·古法不等宫)
-const GUOLAO_SU28_MODE_EQUATORIAL_TROPICAL = 7;   // 额外档 赤道回归制·元明(固定古度宿界·春分/牛前冬至锚)
-const GUOLAO_SU28_MODE_EQUATORIAL_TROPICAL_LIVE = 8;   // 赤道回归·实时(宿宽=盘历元距星真赤经·同款回归锚)
-const guolaoMem = new Map();
-const guolaoInflight = new Map();
-
-function splitDegree(degree){
-	let d = Number(degree);
-	if(Number.isNaN(d)){
-		return [0, 0];
-	}
-	if(d < 0){
-		d += 360;
-	}
-	const deg = Math.floor(d % 30);
-	const min = Math.floor(((d % 30) - deg) * 60);
-	return [deg, min];
-}
-
-function isEncodedToken(text){
-	return /^[A-Za-z0-9${}]$/.test((text || '').trim());
-}
-
-function msg(id){
-	if(id === undefined || id === null){
-		return '';
-	}
-	if(AstroText.AstroTxtMsg[id]){
-		return AstroText.AstroTxtMsg[id];
-	}
-	if(AstroText.AstroMsg[id]){
-		const val = AstroText.AstroMsg[id];
-		if(!isEncodedToken(val)){
-			return `${val}`;
-		}
-	}
-	const one = `${id}`.trim();
-	if(one.length === 1 && SIMPLE_TOKEN_MAP[one]){
-		return SIMPLE_TOKEN_MAP[one];
-	}
-	return `${id}`;
-}
-
-function safeList(val){
-	return Array.isArray(val) ? val : [];
-}
-
-function safeMap(val){
-	return val && typeof val === 'object' ? val : {};
-}
-
-function fmtValue(value){
-	if(value === undefined || value === null || value === ''){
-		return '—';
-	}
-	if(Array.isArray(value)){
-		const text = value.map((item)=>fmtValue(item)).filter((item)=>item && item !== '—').join('、');
-		return text || '—';
-	}
-	if(typeof value === 'object'){
-		const text = Object.keys(value).map((key)=>{
-			const val = fmtValue(value[key]);
-			return val && val !== '—' ? `${key}：${val}` : '';
-		}).filter(Boolean).join('；');
-		return text || '—';
-	}
-	return `${value}`.replace(/None/g, '无');
-}
-
-function isQizhengLimitObject(value){
-	return (value && typeof value === 'object' && !Array.isArray(value)
-		&& (
-			value.start_age !== undefined
-			|| value.end_age !== undefined
-			|| value.start_year !== undefined
-			|| value.end_year !== undefined
-			|| value.palace_name !== undefined
-		))
-		|| (typeof value === 'string' && /(?:palace_name|start_age|end_age|start_year|end_year)\s*[:：]/.test(value));
-}
-
-function parseQizhengLimitValue(value){
-	if(value && typeof value === 'object' && !Array.isArray(value)){
-		return safeMap(value);
-	}
-	if(typeof value !== 'string'){
-		return {};
-	}
-	return value.split(/[;；]/).reduce((map, part)=>{
-		const pair = `${part || ''}`.split(/[:：]/);
-		if(pair.length < 2){
-			return map;
-		}
-		const key = pair.shift().trim();
-		const val = pair.join(':').trim();
-		if(key){
-			map[key] = val;
-		}
-		return map;
-	}, {});
-}
-
-function fmtQizhengLimitObject(value){
-	const item = parseQizhengLimitValue(value);
-	const ageText = item.start_age !== undefined || item.end_age !== undefined
-		? `${fmtValue(item.start_age)}-${fmtValue(item.end_age)}岁`
-		: '';
-	const yearText = item.start_year !== undefined || item.end_year !== undefined
-		? `${fmtValue(item.start_year)}-${fmtValue(item.end_year)}年`
-		: '';
-	const parts = [
-		item.palace_name,
-		item.lord,
-		item.branch_name || item.branch,
-		ageText,
-		yearText,
-	].map((val)=>fmtValue(val)).filter((val)=>val && val !== '—');
-	return parts.join(' | ') || '—';
-}
-
-function fmtQizhengKinRowValue(row){
-	const value = row ? row.value : null;
-	if(isQizhengLimitObject(value)){
-		return fmtQizhengLimitObject(value);
-	}
-	return fmtValue(value);
-}
-
-function splitQizhengKinDisplayLines(value){
-	const text = fmtValue(value);
-	if(!/[;；]/.test(text)){
-		return [text];
-	}
-	const lines = [];
-	let current = '';
-	text.split(/([;；])/).forEach((part)=>{
-		if(!part){
-			return;
-		}
-		current += part;
-		if(part === ';' || part === '；'){
-			const line = current.trim();
-			if(line){
-				lines.push(line);
-			}
-			current = '';
-		}
-	});
-	const last = current.trim();
-	if(last){
-		lines.push(last);
-	}
-	return lines.length ? lines : [text];
-}
-
-function qizhengKinReadingLevel(row){
-	const title = row && row.label ? `${row.label}` : '';
-	const value = fmtQizhengKinRowValue(row);
-	const text = `${title} ${value}`;
-	if(/忌格|忌|凶|破|败|失|刑|害|陷|空亡/.test(text)){
-		return 'bad';
-	}
-	if(/喜格|吉|合格|贵|福|禄|旺|德|拱/.test(text)){
-		return 'good';
-	}
-	return 'neutral';
-}
-
-function qizhengKinReadingBadge(level){
-	if(level === 'bad'){
-		return '忌';
-	}
-	if(level === 'good'){
-		return '吉';
-	}
-	return '断';
-}
-
-function hasUnverifiedMoiraPatternSource(value){
-	return value && (
-		value.styleSource === 'moira-dsl-not-evaluated'
-		|| value.engine === 'moira-rules-on-horosa-ephemeris'
-		|| value.version === 'qizheng-moira-rules-v1'
-	);
-}
-
-function isIncompleteMoiraRules(value){
-	if(!value){
-		return true;
-	}
-	if(hasUnverifiedMoiraPatternSource(value)){
-		return true;
-	}
-	const text = `${value.styleWarning || ''} ${value.summary || ''} ${value.message || ''}`;
-	return (
-		text.indexOf('仍在接入') >= 0
-		|| text.indexOf('暂不输出') >= 0
-		|| text.indexOf('暂不生成') >= 0
-		|| text.indexOf('未返回完整') >= 0
-		|| !Array.isArray(value.patterns)
-	);
-}
-
-function moiraStyleLevelMeta(rules, currentLevel){
-	const min = Number(rules && rules.styleLevelMin) || 1;
-	const max = Number(rules && rules.styleLevelMax) || 5;
-	const def = Number(rules && rules.styleLevel) || 3;
-	let level = currentLevel === undefined || currentLevel === null ? def : Number(currentLevel);
-	if(!Number.isFinite(level)){
-		level = def;
-	}
-	level = Math.max(min, Math.min(max, Math.round(level)));
-	return {
-		min,
-		max,
-		level,
-		displayLevel: max - level,
-		fillMax: Number(rules && rules.styleFillMax) || 6,
-	};
-}
-
-function applyMoiraStyleLevel(list, meta){
-	const displayLevel = Number(meta && meta.displayLevel) || 0;
-	const fillMax = Number(meta && meta.fillMax) || 6;
-	const result = [];
-	safeList(list).forEach((item)=>{
-		const level = Number(item && item.moiraLevel);
-		const rank = Number(item && item.moiraRank);
-		const moiraLevel = Number.isFinite(level) ? level : 0;
-		const moiraRank = Number.isFinite(rank) ? rank : 65536;
-		if(moiraLevel < displayLevel){
-			return;
-		}
-		if(moiraLevel === displayLevel && moiraRank < 65536 && result.length >= fillMax){
-			return;
-		}
-		result.push(item);
-	});
-	return result;
-}
-
-function joinNames(list){
-	const arr = safeList(list).map(formatGodName).filter(Boolean);
-	return arr.length ? arr.join('、') : '无';
-}
-
-function joinMoiraYearItems(items){
-	return safeList(items).map((item)=>{
-		if(item && typeof item === 'object'){
-			return [item.name, item.star ? `化${item.star}` : ''].filter(Boolean).join(' ');
-		}
-		return `${item || ''}`;
-	}).filter(Boolean).join('、');
-}
-
-function formatGodName(name){
-	let val = `${name || ''}`.replace(/\s+/g, '');
-	if(!val){
-		return '';
-	}
-	val = val.split(/[\/／]/)[0];
-	const aliases = {
-		天乙贵人: '天贵',
-		玉堂贵人: '玉贵',
-	};
-	return aliases[val] || val;
-}
-
-function normDegree(val){
-	let deg = Number(val);
-	if(!Number.isFinite(deg)){
-		return null;
-	}
-	deg %= 360;
-	if(deg < 0){
-		deg += 360;
-	}
-	return deg;
-}
-
-// AI 快照显示口径(黄仪=lon/赤仪=ra):buildGuolaoSnapshotTextV2 开头按 chart.displayCoord 装载,
-// 与盘面/右栏同一真值源;渲染单线程,模块级变量安全(同 ACTIVE_SLOTS 模式)。
-let SNAPSHOT_PREFER_LON = false;
-
-function objectLon(obj){
-	const raw = obj && (SNAPSHOT_PREFER_LON && obj.lon !== undefined ? obj.lon : (obj.ra !== undefined ? obj.ra : obj.lon));
-	const lon = normDegree(raw);
-	if(lon !== null){
-		return lon;
-	}
-	const sign = obj && obj.sign ? AstroConst.LIST_SIGNS.indexOf(obj.sign) : -1;
-	const signlon = Number(obj && obj.signlon);
-	if(sign >= 0 && Number.isFinite(signlon)){
-		return normDegree(sign * 30 + signlon);
-	}
-	return null;
-}
-
-function formatSignDegree(lon){
-	const deg = normDegree(lon);
-	if(deg === null){
-		return '';
-	}
-	const sign = AstroConst.LIST_SIGNS[Math.floor(deg / 30) % 12];
-	const parts = splitDegree(deg);
-	return `${msg(sign)} ${parts[0]}度${parts[1]}分`;
-}
-
-function compactDegree(lon){
-	const deg = normDegree(lon);
-	if(deg === null){
-		return '';
-	}
-	const one = Math.floor(deg % 30);
-	const min = Math.floor(((deg % 30) - one) * 60);
-	return `${`${one}`.padStart(2, '0')}.${`${min}`.padStart(2, '0')}`;
-}
-
-function speedText(speed){
-	const num = Number(speed);
-	if(!Number.isFinite(num)){
-		return '';
-	}
-	return `${num > 0 ? '+' : ''}${num.toFixed(4)}`;
-}
-
-function planetStatus(obj){
-	const speed = Number(obj && obj.lonspeed);
-	if(!Number.isFinite(speed)){
-		return '顺';
-	}
-	if(speed < -0.000001){
-		return '逆';
-	}
-	if(Math.abs(speed) < 0.002){
-		return '留';
-	}
-	const limit = MOIRA_SPEED_LIMITS[obj.id];
-	if(limit){
-		const abs = Math.abs(speed);
-		if(abs < limit.slow){
-			return '迟';
-		}
-		if(abs > limit.fast){
-			return '速';
-		}
-	}
-	return '顺';
-}
-
-function stemBranchForYear(year){
-	const num = Number(year);
-	if(!Number.isFinite(num)){
-		return '';
-	}
-	const idx = ((num - 1984) % 60 + 60) % 60;
-	return STEM_BRANCHES[idx] || '';
-}
-
-function yearFromParams(params){
-	const raw = params && params.date ? `${params.date}` : '';
-	const match = raw.match(/-?\d{3,4}/);
-	return match ? Number(match[0]) : new Date().getFullYear();
-}
-
-function getChartRoot(result){
-	return result || {};
-}
-
-function getChart(result){
-	const root = getChartRoot(result);
-	return root.chart || {};
-}
-
-function getBazi(result){
-	const root = getChartRoot(result);
-	const chart = getChart(root);
-	return (chart.nongli && chart.nongli.bazi) || (root.nongli && root.nongli.bazi) || {};
-}
-
-function baziStemBranch(result, key, fallbackYear){
-	const bazi = getBazi(result);
-	const one = bazi[key] || {};
-	if(one.text){
-		return one.text;
-	}
-	if(one.stem && one.branch){
-		const stem = one.stem.cell || one.stem.name || one.stem.text || one.stem;
-		const branch = one.branch.cell || one.branch.name || one.branch.text || one.branch;
-		return `${stem || ''}${branch || ''}`;
-	}
-	return key === 'year' ? stemBranchForYear(fallbackYear) : '';
-}
-
-function baziText(result){
-	return ['year', 'month', 'day', 'time'].map((key)=>baziStemBranch(result, key, '')).filter(Boolean).join(' ');
-}
-
-function lunarText(result){
-	const root = getChartRoot(result);
-	const chart = getChart(root);
-	const nongli = chart.nongli || root.nongli || {};
-	return nongli.text || nongli.nongli || nongli.lunar || nongli.lunarText || '';
-}
-
-function getZiGods(result){
-	const root = getChartRoot(result);
-	const chart = getChart(root);
-	const rootGods = root.nongli && root.nongli.bazi && root.nongli.bazi.guolaoGods
-		? root.nongli.bazi.guolaoGods.ziGods : null;
-	const chartGods = chart.nongli && chart.nongli.bazi && chart.nongli.bazi.guolaoGods
-		? chart.nongli.bazi.guolaoGods.ziGods : null;
-	return chartGods || rootGods || {};
-}
-
-function orderGods(list, order){
-	const priority = new Map(order.map((name, idx)=>[name, idx]));
-	const seen = new Set();
-	return safeList(list).map(formatGodName).filter((item)=>{
-		if(!item || seen.has(item)){
-			return false;
-		}
-		seen.add(item);
-		return true;
-	}).sort((a, b)=>{
-		const ia = priority.has(a) ? priority.get(a) : 999;
-		const ib = priority.has(b) ? priority.get(b) : 999;
-		if(ia !== ib){
-			return ia - ib;
-		}
-		return `${a}`.localeCompare(`${b}`, 'zh-Hans-CN');
-	});
-}
-
-function findChartObject(chart, id){
-	return safeList(chart.objects).find((obj)=>obj && obj.id === id);
-}
-
-function buildQuickPlanetRows(result, rulePlanets){
-	const chart = getChart(result);
-	const ruleMap = new Map(safeList(rulePlanets).map((item)=>[item.id, item]));
-	return MOIRA_PLANET_ORDER.map((def)=>{
-		const obj = findChartObject(chart, def.id);
-		const lon = objectLon(obj);
-		if(!obj || lon === null){
-			return null;
-		}
-		const rule = ruleMap.get(def.id) || {};
-		return {
-			id: def.id,
-			name: def.name,
-			signName: rule.signName || msg(obj.sign) || msg(signFromLon(lon)),
-			degree: rule.degreeText || formatSignDegree(lon),
-			compactDegree: compactDegree(lon),
-			su28: obj.su28 || rule.su28 || '',
-			house: rule.moiraHouse || msg(obj.house) || '',
-			dignity: rule.dignity || '',
-			status: planetStatus(obj),
-			speed: speedText(obj.lonspeed),
-		};
-	}).filter(Boolean);
-}
-
-function buildGodRowsFromChart(result, fields){
-	const chart = getChart(result);
-	const houses = safeList(chart.houses);
-	const ziGods = getZiGods(result);
-	const ascSignIndex = computeAscSignIndex(result, chart, fields);
-	return houses.map((house, idx)=>{
-		const sign = signFromLon(house && house.lon);
-		const zi = sign ? SZConst.SignZi[sign] : '';
-		const one = zi && ziGods ? safeMap(ziGods[zi]) : {};
-		return {
-			house: houseFullLabel(house, idx, ascSignIndex),
-			zi,
-			signName: sign ? msg(sign) : '',
-			goodGods: orderGods(one.goodGods, MOIRA_BIRTH_GOD_ORDER),
-			neutralGods: orderGods(one.neutralGods, MOIRA_BIRTH_GOD_ORDER),
-			badGods: orderGods(one.badGods, MOIRA_BIRTH_GOD_ORDER),
-			taisuiGods: orderGods(one.taisuiGods, MOIRA_TRANSIT_GOD_ORDER),
-		};
-	});
-}
-
-function buildHouseRowsFromChart(result, fields){
-	const chart = getChart(result);
-	const ascSignIndex = computeAscSignIndex(result, chart, fields);
-	return safeList(chart.houses).map((house, idx)=>{
-		const sign = signFromLon(house && house.lon);
-		const signIdx = sign ? AstroConst.LIST_SIGNS.indexOf(sign) : -1;
-		const area = signIdx >= 0 && SZConst.SZSigns[signIdx] && SZConst.SZSigns[signIdx].length >= 2
-			? `${SZConst.SZSigns[signIdx][0]}${SZConst.SZSigns[signIdx][1]}`
-			: '';
-		return {
-			index: idx,
-			name: houseFullLabel(house, idx, ascSignIndex),
-			zi: sign ? (SZConst.SignZi[sign] || '') : '',
-			area,
-			signName: sign ? msg(sign) : '',
-			moiraStarHouse: msg(house && house.id ? house.id : null) || '',
-		};
-	});
-}
-
-function signIndexFromLon(lon){
-	const sign = signFromLon(lon);
-	return sign ? AstroConst.LIST_SIGNS.indexOf(sign) : -1;
-}
-
-function objectSignIndex(chart, id){
-	const obj = findChartObject(chart, id);
-	const lon = objectLon(obj);
-	return lon === null ? -1 : signIndexFromLon(lon);
-}
-
-function localLifeObject(chart, fields){
-	const mode = guolaoLifeModeFromFields(fields);
-	const life = findChartObject(chart, AstroConst.LIFEMASTERDEG74);
-	const asc = findChartObject(chart, AstroConst.ASC);
-	const sun = findChartObject(chart, AstroConst.SUN);
-	if(mode === GUOLAO_LIFE_MODE_YUMAO || mode === GUOLAO_LIFE_MODE_COTRANS){
-		return life || asc || sun || null;
-	}
-	return asc || life || sun || null;
-}
-
-function localLifeSignIndex(chart, fields){
-	const life = localLifeObject(chart, fields);
-	const lon = objectLon(life);
-	return lon === null ? -1 : signIndexFromLon(lon);
-}
-
-function localMoiraHouseSign(lifeSignIndex, houseOffset){
-	return lifeSignIndex < 0 ? -1 : (lifeSignIndex + houseOffset + 12) % 12;
-}
-
-function localSignZi(signIdx){
-	const sign = AstroConst.LIST_SIGNS[(signIdx + 12) % 12];
-	return sign ? (SZConst.SignZi[sign] || '') : '';
-}
-
-function localPlanetCnById(id){
-	const row = MOIRA_PLANET_ORDER.find((item)=>item.id === id);
-	return row ? row.name : msg(id);
-}
-
-function localSignOfCn(chart, name, lifeSignIndex, selfSignIndex, godSigns){
-	const houseMap = {
-		命: localMoiraHouseSign(lifeSignIndex, 0),
-		命宫: localMoiraHouseSign(lifeSignIndex, 0),
-		财: localMoiraHouseSign(lifeSignIndex, 1),
-		财帛: localMoiraHouseSign(lifeSignIndex, 1),
-		兄弟: localMoiraHouseSign(lifeSignIndex, 2),
-		田: localMoiraHouseSign(lifeSignIndex, 3),
-		田宅: localMoiraHouseSign(lifeSignIndex, 3),
-		嗣: localMoiraHouseSign(lifeSignIndex, 4),
-		男女: localMoiraHouseSign(lifeSignIndex, 4),
-		奴: localMoiraHouseSign(lifeSignIndex, 5),
-		奴仆: localMoiraHouseSign(lifeSignIndex, 5),
-		妻: localMoiraHouseSign(lifeSignIndex, 6),
-		夫妻: localMoiraHouseSign(lifeSignIndex, 6),
-		疾: localMoiraHouseSign(lifeSignIndex, 7),
-		疾厄: localMoiraHouseSign(lifeSignIndex, 7),
-		迁: localMoiraHouseSign(lifeSignIndex, 8),
-		迁移: localMoiraHouseSign(lifeSignIndex, 8),
-		官: localMoiraHouseSign(lifeSignIndex, 9),
-		官禄: localMoiraHouseSign(lifeSignIndex, 9),
-		福: localMoiraHouseSign(lifeSignIndex, 10),
-		福德: localMoiraHouseSign(lifeSignIndex, 10),
-		相: localMoiraHouseSign(lifeSignIndex, 11),
-		相貌: localMoiraHouseSign(lifeSignIndex, 11),
-		身: selfSignIndex,
-	};
-	if(Object.prototype.hasOwnProperty.call(houseMap, name)){
-		return houseMap[name];
-	}
-	if(godSigns && godSigns[name] !== undefined){
-		return godSigns[name];
-	}
-	if(MOIRA_PLANET_CN_TO_ID[name]){
-		return objectSignIndex(chart, MOIRA_PLANET_CN_TO_ID[name]);
-	}
-	const signs = ['戌', '酉', '申', '未', '午', '巳', '辰', '卯', '寅', '丑', '子', '亥'];
-	const idx = signs.indexOf(name);
-	return idx >= 0 ? idx : -1;
-}
-
-function localMoiraGodSigns(godRows){
-	const res = {};
-	safeList(godRows).forEach((row)=>{
-		const signIdx = ['戌', '酉', '申', '未', '午', '巳', '辰', '卯', '寅', '丑', '子', '亥'].indexOf(row.zi);
-		if(signIdx < 0){
-			return;
-		}
-		['goodGods', 'neutralGods', 'badGods', 'taisuiGods'].forEach((key)=>{
-			safeList(row[key]).forEach((name)=>{
-				const val = formatGodName(name);
-				if(val && res[val] === undefined){
-					res[val] = signIdx;
-				}
-			});
-		});
-	});
-	return res;
-}
-
-function localMoiraSuRuler(su){
-	if(!su){
-		return '';
-	}
-	if('星房虚昴'.indexOf(su) >= 0){
-		return '日';
-	}
-	if('张心危毕'.indexOf(su) >= 0){
-		return '月';
-	}
-	if('亢牛娄鬼'.indexOf(su) >= 0){
-		return '金';
-	}
-	if('角斗奎井'.indexOf(su) >= 0){
-		return '木';
-	}
-	if('轸壁参箕'.indexOf(su) >= 0){
-		return '水';
-	}
-	if('尾室觜翼'.indexOf(su) >= 0){
-		return '火';
-	}
-	if('氐女胃柳'.indexOf(su) >= 0){
-		return '土';
-	}
-	return '';
-}
-
-function localMoiraIsWinter(params){
-	const raw = `${params && params.date ? params.date : ''}`.replace(/\//g, '-');
-	const month = Number((raw.split('-')[1] || '').replace(/^0+/, ''));
-	return month === 11 || month === 12 || month === 1;
-}
-
-function localMoiraIsDay(params){
-	const hour = Number(`${params && params.time ? params.time : '12:00:00'}`.split(':')[0]);
-	return Number.isFinite(hour) ? hour >= 6 && hour < 18 : true;
-}
-
-function localMoiraNearSignBoundary(lon){
-	if(lon === null){
-		return false;
-	}
-	const val = ((lon % 30) + 30) % 30;
-	return val <= 1 || val >= 29;
-}
-
-function localMoiraNearSuBoundary(chart, lon){
-	if(lon === null){
-		return false;
-	}
-	return safeList(chart && chart.fixedStarSu28).some((item)=>{
-		const ra = normDegree(item && item.ra);
-		if(ra === null){
-			return false;
-		}
-		const diff = Math.abs(normDegree(lon) - ra);
-		return Math.min(diff, 360 - diff) <= 1;
-	});
-}
-
-function localMoiraLostRulership(chart, subject, lifeSignIndex, selfSignIndex, godSigns){
-	const signIdx = localSignOfCn(chart, subject, lifeSignIndex, selfSignIndex, godSigns);
-	if(signIdx < 0){
-		return false;
-	}
-	const sign = AstroConst.LIST_SIGNS[signIdx];
-	const rulerId = MOIRA_RULER_BY_SIGN[sign];
-	const rulerCn = localPlanetCnById(rulerId);
-	const rulerSign = objectSignIndex(chart, rulerId);
-	if(rulerSign < 0){
-		return false;
-	}
-	const rulerOfRulerSign = localPlanetCnById(MOIRA_RULER_BY_SIGN[AstroConst.LIST_SIGNS[rulerSign]]);
-	return rulerOfRulerSign === MOIRA_OVERCOMING[rulerCn];
-}
-
-function addLocalMoiraPattern(list, name, level, score, detail, dsl){
-	list.push({
-		name,
-		level,
-		score,
-		source: 'moira_s.prop-local',
-		dsl,
-		detail,
-	});
-}
-
-function buildLocalMoiraPatterns(chartObj, fields, params, godRows){
-	const chart = getChart(chartObj);
-	const lifeObj = localLifeObject(chart, fields);
-	const lifeLon = objectLon(lifeObj);
-	const lifeSignIndex = localLifeSignIndex(chart, fields);
-	const selfSignIndex = objectSignIndex(chart, AstroConst.MOON);
-	const godSigns = localMoiraGodSigns(godRows);
-	const signOf = (name)=>localSignOfCn(chart, name, lifeSignIndex, selfSignIndex, godSigns);
-	const same = (a, b)=>a >= 0 && b >= 0 && a === b;
-	const rel = (base, offset)=>(base + offset + 12) % 12;
-	const sun = signOf('日');
-	const moon = signOf('月');
-	const venus = signOf('金');
-	const mercury = signOf('水');
-	const darkMoon = signOf('孛');
-	const northNode = signOf('罗');
-	const guan = signOf('官');
-	const fu = signOf('福');
-	const patterns = [];
-	const isDay = localMoiraIsDay(params);
-	const lifeZi = lifeSignIndex >= 0 ? localSignZi(lifeSignIndex) : '';
-
-	if(lifeSignIndex >= 0 && lifeZi && ('戌亥'.indexOf(lifeZi) >= 0)){
-		const diseaseRulerCn = localPlanetCnById(MOIRA_RULER_BY_SIGN[AstroConst.LIST_SIGNS[signOf('疾')]]);
-		if(same(signOf(diseaseRulerCn), lifeSignIndex)){
-			addLocalMoiraPattern(patterns, '八杀朝天', 'good', '3.2.0', '政余喜格：疾厄宫主入命，且命临戌亥。', '@{@{疾厄}[1]}=@命');
-		}
-	}
-	const moonSign = moon;
-	if(moonSign >= 0){
-		const sameMoonSignCount = MOIRA_PLANET_ORDER
-			.map((item)=>objectSignIndex(chart, item.id))
-			.filter((idx)=>idx === moonSign).length;
-		if(!isDay && sameMoonSignCount === 1){
-			addLocalMoiraPattern(patterns, '孤月独明', 'good', '2.3.0', '政余喜格：夜生月曜独居一方。', '?{孤月} & ?夜');
-		}
-	}
-	if(same(sun, rel(guan, 4)) && same(moon, rel(guan, -4)) || same(sun, rel(guan, -4)) && same(moon, rel(guan, 4))){
-		addLocalMoiraPattern(patterns, '日月拱官', 'good', '2.3.0', '政余喜格：日月分拱官禄。', '@日=@官禄+4 & @月=@官禄-4');
-	}
-	if(same(venus, mercury) && !localMoiraIsWinter(params)){
-		addLocalMoiraPattern(patterns, '金水相涵', 'good', '2.3.0', '政余喜格：金水同宫，且不以冬令破格。', '?{金水会} & !?冬');
-	}
-	const noble = signOf(isDay ? '天贵' : '玉贵');
-	if(same(sun, rel(noble, 4)) && same(moon, rel(noble, -4)) || same(sun, rel(noble, -4)) && same(moon, rel(noble, 4))){
-		addLocalMoiraPattern(patterns, '日月拱贵人', 'good', '2.2.0', `政余喜格：${isDay ? '昼取天贵' : '夜取玉贵'}，日月分拱。`, '?昼/夜 & 日月拱贵人');
-	}
-	if(same(lifeSignIndex, signOf('岁驾'))){
-		addLocalMoiraPattern(patterns, '命登岁驾', 'good', '2.0.3', '政余喜格：命度临岁驾。', '@命=@{岁驾}');
-	}
-	if(sun >= 0 && moon >= 0){
-		const sunZi = localSignZi(sun);
-		const moonZi = localSignZi(moon);
-		if(('申酉戌亥子丑'.indexOf(sunZi) >= 0) && ('寅卯辰巳午未'.indexOf(moonZi) >= 0)){
-			addLocalMoiraPattern(patterns, '日月失所', 'bad', '2.3.0', '政余忌格：日居西北、月居东南。', '(?{日西}|?{日北}) & (?{月东}|?{月南})');
-		}
-	}
-	if(localMoiraLostRulership(chart, '官', lifeSignIndex, selfSignIndex, godSigns) && localMoiraLostRulership(chart, '福', lifeSignIndex, selfSignIndex, godSigns)){
-		addLocalMoiraPattern(patterns, '官福失垣', 'bad', '2.2.0', '政余忌格：官禄、福德主失垣。', '?{官失垣} & ?{福失垣}');
-	}
-	if(same(darkMoon, sun)){
-		addLocalMoiraPattern(patterns, '孛犯太阳', 'bad', '2.2.0', '政余忌格：孛与太阳同宫。', '?{日孛遇}');
-	}
-	if(same(northNode, sun)){
-		addLocalMoiraPattern(patterns, '罗犯太阳', 'bad', '2.2.0', '政余忌格：罗与太阳同宫。', '?{日罗遇}');
-	}
-	if(same(northNode, darkMoon)){
-		addLocalMoiraPattern(patterns, '孛罗交战', 'bad', '2.2.0', '政余忌格：罗孛同宫。', '?{罗孛遇}');
-	}
-	if(localMoiraNearSignBoundary(lifeLon) || localMoiraNearSuBoundary(chart, lifeLon)){
-		addLocalMoiraPattern(patterns, '命坐两歧', 'bad', '2.0.4', '政余忌格：命度近宫界或宿界。', '?{命宫歧} | ?{命宿歧}');
-	}
-	return patterns.sort((a, b)=>{
-		const la = a.level === 'good' ? 0 : (a.level === 'bad' ? 1 : 2);
-		const lb = b.level === 'good' ? 0 : (b.level === 'bad' ? 1 : 2);
-		return la - lb;
-	});
-}
-
-function buildLocalMoiraRules(params, chartObj, fields, reason){
-	const godHits = buildGodRowsFromChart(chartObj, fields);
-	const patterns = buildLocalMoiraPatterns(chartObj, fields, params, godHits);
-	return {
-		engine: 'horosa-local-moira-panel-fallback',
-		engineLabel: 'Moira政余格局（本地规则）',
-		summary: `本地已接入 Moira 政余格局规则：命中喜格 ${patterns.filter((item)=>item.level === 'good').length} 条、忌格 ${patterns.filter((item)=>item.level === 'bad').length} 条。`,
-		styleSource: 'moira-dsl-local-evaluated',
-		styleWarning: '',
-		params: {
-			...(params || {}),
-		},
-		anchors: {},
-		houses: buildHouseRowsFromChart(chartObj, fields),
-		planets: [],
-		patterns,
-		godHits,
-		fallbackReason: reason ? `${reason}` : '',
-	};
-}
-
-function normalizeGodRows(rows, order){
-	return safeList(rows).filter(Boolean).map((row)=>({
-		...row,
-		goodGods: orderGods(row.goodGods, order),
-		neutralGods: orderGods(row.neutralGods, order),
-		badGods: orderGods(row.badGods, order),
-		taisuiGods: orderGods(row.taisuiGods, MOIRA_TRANSIT_GOD_ORDER),
-	}));
-}
-
-// 🆕 中文相位名(含度数)用于 AI 挂载快照 + AI 导出 — 避免输出占星字体字形码(R/W/P/M 等)给 LLM 看成乱码。
-// UI 内部渲染走 AstroMsg 字形码 + 占星字体不受影响(各自管线分离)。
-const GUOLAO_ASPECT_LABEL_CN = {
-	Asp0: '合 (0°)',
-	Asp30: '半六合 (30°)',
-	Asp45: '半方 (45°)',
-	Asp60: '六合 (60°)',
-	Asp90: '方 (90°)',
-	Asp120: '三合 (120°)',
-	Asp135: '补半方 (135°)',
-	Asp150: '梅花 (150°)',
-	Asp180: '冲 (180°)',
-};
-function aspectName(deg){
-	if(GUOLAO_ASPECT_LABEL_CN[`Asp${deg}`]){ return GUOLAO_ASPECT_LABEL_CN[`Asp${deg}`]; }
-	if(AstroText.AstroTxtMsg && AstroText.AstroTxtMsg[`Asp${deg}`]){ return AstroText.AstroTxtMsg[`Asp${deg}`]; }
-	return Number.isFinite(Number(deg)) ? `${deg}°` : '';
-}
-
-function buildAspectRows(aspects){
-	const normal = aspects && aspects.normalAsp ? aspects.normalAsp : aspects;
-	const rows = [];
-	if(!normal || typeof normal !== 'object'){
-		return rows;
-	}
-	Object.keys(normal).forEach((key)=>{
-		const bucket = normal[key] || {};
-		[
-			['Applicative', '入相'],
-			['Exact', '精确'],
-			['Separative', '离相'],
-			['None', '容许'],
-		].forEach(([field, state])=>{
-			safeList(bucket[field]).forEach((asp, idx)=>{
-				if(!asp || !asp.id){
-					return;
-				}
-				rows.push({
-					key: `${key}-${asp.id}-${field}-${idx}`,
-					from: msg(key),
-					to: msg(asp.id),
-					aspect: aspectName(asp.asp),
-					state,
-					orb: Number.isFinite(Number(asp.orb)) ? `${Math.round(Number(asp.orb) * 1000) / 1000}` : '',
-				});
-			});
-		});
-	});
-	return rows;
-}
-
-function clonePlain(obj){
-	if(obj === undefined || obj === null){
-		return obj;
-	}
-	try{
-		return JSON.parse(JSON.stringify(obj));
-	}catch(e){
-		return obj;
-	}
-}
-
-function swapGuolaoNodeId(id){
-	if(id === AstroConst.NORTH_NODE){
-		return AstroConst.SOUTH_NODE;
-	}
-	if(id === AstroConst.SOUTH_NODE){
-		return AstroConst.NORTH_NODE;
-	}
-	return id;
-}
-
-function swapGuolaoNodeIdsDeep(value, seen){
-	if(value === undefined || value === null){
-		return value;
-	}
-	if(typeof value === 'string'){
-		return swapGuolaoNodeId(value);
-	}
-	if(typeof value !== 'object'){
-		return value;
-	}
-	const visited = seen || new Set();
-	if(visited.has(value)){
-		return value;
-	}
-	visited.add(value);
-	if(Array.isArray(value)){
-		for(let i = 0; i < value.length; i++){
-			value[i] = swapGuolaoNodeIdsDeep(value[i], visited);
-		}
-		return value;
-	}
-	const keys = Object.keys(value);
-	const entries = keys.map((key)=>[swapGuolaoNodeId(key), swapGuolaoNodeIdsDeep(value[key], visited)]);
-	keys.forEach((key)=>delete value[key]);
-	entries.forEach(([key, val])=>{
-		value[key] = val;
-	});
-	return value;
-}
-
-function guolaoNodeModeFromFields(fields){
-	if(fields && fields.guolaoNodeMode && fields.guolaoNodeMode.value !== undefined && fields.guolaoNodeMode.value !== null){
-		return normalizeGuolaoNodeMode(fields.guolaoNodeMode.value);
-	}
-	return getStoredGuolaoNodeMode();
-}
-
-function guolaoNodeModeName(mode){
-	const normalized = normalizeGuolaoNodeMode(mode);
-	return normalized === GUOLAO_NODE_MODE_NORTH_RAHU ? '北罗南计' : '北计南罗';
-}
-
-export function applyGuolaoNodeMode(chartObj, fields){
-	const next = clonePlain(chartObj);
-	if(!next){
-		return next;
-	}
-	if(guolaoNodeModeFromFields(fields) === GUOLAO_NODE_MODE_NORTH_RAHU){
-		swapGuolaoNodeIdsDeep(next);
-	}
-	return next;
-}
-
-const GUOLAO_RISE_SET_KEYS = {
-	sunrise: true,
-	sunRise: true,
-	sunriseTime: true,
-	sunRiseTime: true,
-	sun_rise: true,
-	guolaoSunRiseTime: true,
-	sunset: true,
-	sunSet: true,
-	sunsetTime: true,
-	sunSetTime: true,
-	sun_set: true,
-	moonrise: true,
-	moonRise: true,
-	moonriseTime: true,
-	moonRiseTime: true,
-	moon_rise: true,
-	moonset: true,
-	moonSet: true,
-	moonsetTime: true,
-	moonSetTime: true,
-	moon_set: true,
-};
-
-function hasGuolaoRiseSetFields(value, seen){
-	if(value === undefined || value === null){
-		return false;
-	}
-	if(typeof value !== 'object'){
-		return false;
-	}
-	const visited = seen || new Set();
-	if(visited.has(value)){
-		return false;
-	}
-	visited.add(value);
-	const keys = Object.keys(value);
-	for(let i = 0; i < keys.length; i++){
-		const key = keys[i];
-		const item = value[key];
-		if(GUOLAO_RISE_SET_KEYS[key] && item !== undefined && item !== null && `${item}`.trim()){
-			return true;
-		}
-		if(item && typeof item === 'object' && hasGuolaoRiseSetFields(item, visited)){
-			return true;
-		}
-	}
-	return false;
-}
-
-function pushCache(map, key, val, max = GUOLAO_CACHE_MAX){
-	if(!map || !key || val === undefined || val === null){
-		return;
-	}
-	if(map.has(key)){
-		map.delete(key);
-	}
-	map.set(key, val);
-	if(map.size > max){
-		const first = map.keys().next().value;
-		if(first){
-			map.delete(first);
-		}
-	}
-}
-
-function normalizeDateText(val){
-	const raw = `${val || ''}`.trim();
-	if(!raw){
-		return '';
-	}
-	const one = raw.indexOf(' ') >= 0 ? raw.split(' ')[0] : raw;
-	return one.replace(/-/g, '/');
-}
-
-function normalizeTimeText(val){
-	const raw = `${val || ''}`.trim();
-	if(!raw){
-		return '';
-	}
-	const one = raw.indexOf(' ') >= 0 ? raw.split(' ')[1] : raw;
-	if(/^\d{2}:\d{2}$/.test(one)){
-		return `${one}:00`;
-	}
-	return one;
-}
-
-function normalizeNumText(val, defVal = 0){
-	const num = Number(val);
-	if(!Number.isFinite(num)){
-		return `${defVal}`;
-	}
-	return `${num}`;
-}
-
-function normalizeGpsText(val){
-	const num = Number(val);
-	if(!Number.isFinite(num)){
-		return '';
-	}
-	return `${Math.round(num * 1000000) / 1000000}`;
-}
-
-function normalizeChartParams(input){
-	const src = input || {};
-	const birth = `${src.birth || ''}`.trim();
-	const birthParts = birth ? birth.split(' ') : [];
-	const birthDate = birthParts[0] || '';
-	const birthTime = birthParts[1] || '';
-	return {
-		date: normalizeDateText(src.date || birthDate),
-		time: normalizeTimeText(src.time || birthTime || '00:00:00'),
-		ad: normalizeNumText(src.ad, 1),
-		zone: `${src.zone || ''}`,
-		lon: `${src.lon || ''}`,
-		lat: `${src.lat || ''}`,
-		gpsLon: normalizeGpsText(src.gpsLon),
-		gpsLat: normalizeGpsText(src.gpsLat),
-		hsys: normalizeNumText(src.hsys, 0),
-		zodiacal: normalizeNumText(src.zodiacal, 0),
-		tradition: normalizeNumText(src.tradition, 0),
-		doubingSu28: normalizeNumText(src.doubingSu28, 0),
-		guolaoZhengSidereal: normalizeNumText(src.guolaoZhengSidereal, 0),
-		siderealAyanamsa: src.siderealAyanamsa ? `${src.siderealAyanamsa}` : '',   // G2 恒星制岁差进缓存键(否则切 ayan 命中旧盘)
-		guolaoTrueSolarTime: (src.trueSolarTime === 'mean' || src.trueSolarTime === 'off') ? src.trueSolarTime : 'true',  // G6 报时星太阳时进缓存键
-		guolaoNodeType: src.guolaoNodeType === 'true' ? 'true' : 'mean',      // G10 罗计交点 真/平
-		guolaoLilithType: src.guolaoLilithType === 'true' ? 'true' : 'mean',  // G11 月孛远地点 真/平
-		guolaoZiqiMode: 'real',  // G12 紫炁仅今法真算;'tablet'(28年立成)假档已隐藏,旧快照残留一律归一回 real
-		guolaoTuibianMethod: (src.guolaoTuibianMethod === 'jintui' || src.guolaoTuibianMethod === 'huiyuan') ? src.guolaoTuibianMethod : 'jiyuan',  // WP-D 授时历古法推变法进缓存键
-		guolaoGufaPrecess: (src.guolaoGufaPrecess === 1 || src.guolaoGufaPrecess === '1') ? 1 : 0,  // WP-D 古宿岁差进缓存键(否则切则命中旧盘)
-		guolaoEqTropicalAnchor: src.guolaoEqTropicalAnchor === 'chunfen' ? 'chunfen' : 'dongzhi',  // 赤道回归锚点进缓存键
-		guolaoBodyMode: `${src.guolaoBodyMode || 'taiyin'}`,  // G20/R3 身宫法(taiyin/youjin/地支自定);进缓存键→切则重取 moira
-		guolaoLifeMode: normalizeGuolaoLifeMode(src.guolaoLifeMode),
-		strongRecption: normalizeNumText(src.strongRecption, 0),
-		simpleAsp: normalizeNumText(src.simpleAsp, 0),
-		virtualPointReceiveAsp: normalizeNumText(src.virtualPointReceiveAsp, 0),
-		predictive: normalizeNumText(src.predictive, 0),
-		// v2.2.1: 两个全局开关必须进 cache key,否则切日界/晚子时后 key 不变 → 命中旧盘,刷新才生效。
-		after23NewDay: normalizeNumText(src.after23NewDay, defaultAfter23NewDay()),
-		lateZiHourUseNextDay: normalizeNumText(src.lateZiHourUseNextDay, defaultLateZiHourUseNextDay()),
-		_su28Rev: src._su28Rev || GUOLAO_SU28_CACHE_REV,
-	};
-}
-
-function buildGuolaoKey(input){
-	try{
-		return JSON.stringify(normalizeChartParams(input));
-	}catch(e){
-		return '';
-	}
-}
-
-function isChartObjMatchParams(chartObj, params){
-	if(!chartObj || !chartObj.params || !params){
-		return false;
-	}
-	const chartKey = buildGuolaoKey(chartObj.params);
-	const paramKey = buildGuolaoKey(params);
-	return !!chartKey && chartKey === paramKey;
-}
-
-async function fetchGuolaoChartCached(params, options){
-	const opt = options || {};
-	const key = buildGuolaoKey(params);
-	const disableCache = opt.cache === false;
-	if(!disableCache && key && guolaoMem.has(key)){
-		const cached = guolaoMem.get(key);
-		if(hasGuolaoRiseSetFields(cached)){
-			return clonePlain(cached);
-		}
-		guolaoMem.delete(key);
-	}
-	if(!disableCache && key && guolaoInflight.has(key)){
-		const inflight = await guolaoInflight.get(key);
-		return clonePlain(inflight);
-	}
-	const req = request(`${Constants.ServerRoot}/chart`, {
-		body: JSON.stringify(params),
-		silent: opt.silent !== false,
-	}).then((data)=>{
-		const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
-		if(!disableCache && key && result){
-			pushCache(guolaoMem, key, clonePlain(result));
-		}
-		return result;
-	}).finally(()=>{
-		if(!disableCache && key){
-			guolaoInflight.delete(key);
-		}
-	});
-	if(!disableCache && key){
-		guolaoInflight.set(key, req);
-	}
-	const result = await req;
-	return clonePlain(result);
-}
-
-// 七政首开「补空」的纯计算:给定 fields,返回要播进去的全局仓值({} = 不用播)。页面首开(ensureGuolaoDefaults)与
-// 空闲预热(warmGuolaoNatal)同用这一份 —— 预热要构出与首点逐字节相同的键,口径存过非出厂值的用户若按出厂值预热就是白跑一趟。
-export function computeGuolaoSeedPatch(fields, opts){
-	if(!fields){ return {}; }
-	const embedded = !!(opts && opts.embedded);
-	// 择日宿主里内嵌的那份**整个不播**(此前只对后加的七键关掉,既有三键仍会播):宿主按「主页出厂档 + 工作台扫描口径」
-	// 自造 fields,补值走的却是全局 fields 派发 —— 全局仓存过非 asc 的命度法时,首开七政择日会拿择日时刻去改主应用当前的盘,
-	// 内嵌实例又因 ensure 返回 true 而不起盘、等不到 fields 变化 → 内嵌盘不出。判别向量在 pageSettingsCaseAndHostSemantics 合同测试。
-	if(embedded){ return {}; }
-	// 载入了记录(cid 有值)一律以记录为准,既有三键与后加七键同律(记录还原把「存档时为默认」复位成 schema 初值,单看取值分不清
-	// 「记录说是默认」与「还没人表态」;把一张按默认存下的旧盘按当前偏好重排 = 盘变了、另存写回记录、与 AI 无头复算对不上)
-	const recordLoaded = !!(fields.cid && fields.cid.value);
-	const su28Mode = getStoredGuolaoSu28Mode();
-	const lifeMode = getStoredGuolaoLifeMode();
-	const nodeMode = getStoredGuolaoNodeMode();
-	const currentSu28 = fields.doubingSu28 ? Number(fields.doubingSu28.value) : null;
-	const currentLifeMode = guolaoLifeModeFromFields(fields);
-	const currentNodeMode = guolaoNodeModeFromFields(fields);
-	// [Q-190/T-130] 首开只「补空」,不覆盖已有值。
-	// 旧实现凡与全局仓不同就写回 fields:先载一张存了 doubingSu28=6 的命盘、再首开七政页 → 盘按全局出、
-	// 另存还会把全局值写进档(AI 无头复算按记录值,两边不一)。
-	// 判据用「随盘保真」同一套口径:fields 值仍等于 schema 初值 = 用户/记录没表态 → 可播全局;
-	// 已经不是初值(记录还原或本会话手改)= 有主,绝不动。
-	const baseline = fieldsSchemaBaseline() || {};
-	const atSchemaDefault = (key, cur)=>{
-		const def = baseline[key] ? baseline[key].value : undefined;
-		if(def === undefined){ return false; }
-		return `${cur}` === `${def}`;
-	};
-	const patch = {};
-	if(!recordLoaded && currentSu28 !== su28Mode && atSchemaDefault('doubingSu28', currentSu28)){
-		patch.doubingSu28 = {
-			value: su28Mode,
-		};
-	}
-	if(!recordLoaded && currentLifeMode !== lifeMode && atSchemaDefault('guolaoLifeMode', currentLifeMode)){
-		patch.guolaoLifeMode = {
-			value: lifeMode,
-		};
-	}
-	if(!recordLoaded && currentNodeMode !== nodeMode && atSchemaDefault('guolaoNodeMode', currentNodeMode)){
-		patch.guolaoNodeMode = {
-			value: nodeMode,
-		};
-	}
-	// 其余「类 A」起盘口径(报时星 / 罗计取法 / 月孛取法 / 身宫法 / 推变法 / 古宿岁差 / 回归等分锚点):
-	// 左栏改动时历来都写了全局仓(setStoredGuolao*),但首开从不读回 —— schema 初值恒非空,左栏那句
-	// 「fields 值 || 存储值」的回退永远走不到 → 改了的口径重开软件即回出厂值(用户实报同类:排盘设置重开要重设)。
-	// 「只补空」之外再加两条:
-	//   · **载入了记录就不播**。记录还原会把「存档时为默认」的键复位成 schema 初值,单看取值分不清「记录说是默认」
-	//     与「还没人表态」;这几键多数直接改盘,把一张按默认存下的旧盘按你现在的偏好重排 = 盘变了、另存还会写回记录、
-	//     与 AI 无头复算(按记录值)也对不上。有记录(cid 有值)一律以记录为准。
-	//   · **自定身宫(某个地支)不播**。那是给某一位命主手工指定的身宫,不是口径;播出去等于把这位的身宫强加给后面每一张盘。
-	//   · **择日宿主里内嵌的那份不播**。宿主自己按「主页出厂档 + 工作台扫描口径」造 fields(显示盘须与命中判定同口径),
-	//     内嵌实例若把全局仓值补进去,一是与扫描口径相左,二是补值走的是全局 fields 派发 —— 会拿宿主的择日时刻去改主应用当前的盘。
-	if(!recordLoaded){
-		[
-			['guolaoTrueSolarTime', getStoredGuolaoTrueSolarTime],
-			['guolaoNodeType', getStoredGuolaoNodeType],
-			['guolaoLilithType', getStoredGuolaoLilithType],
-			['guolaoBodyMode', getStoredGuolaoBodyMode],
-			['guolaoTuibianMethod', getStoredGuolaoTuibianMethod],
-			['guolaoGufaPrecess', getStoredGuolaoGufaPrecess],
-			['guolaoEqTropicalAnchor', getStoredGuolaoEqTropicalAnchor],
-		].forEach(([key, getter])=>{
-			const f = fields[key];
-			const cur = f ? f.value : undefined;
-			const stored = getter();
-			if(cur === undefined || stored === undefined || stored === null){ return; }
-			if(key === 'guolaoBodyMode' && stored !== 'taiyin' && stored !== 'youjin'){ return; }
-			if(`${cur}` !== `${stored}` && atSchemaDefault(key, cur)){
-				patch[key] = { value: stored };
-			}
-		});
-	}
-	return patch;
-}
-
-// R4-B3(数据层空闲预热):按当前命盘 fields 预热七政「本命盘」进 guolao 缓存 —— 与用户
-// 首点走完全相同的 fieldsToParams + fetchGuolaoChartCached 入口(key 同、body 同、结果逐字节同,
-// 只是提前付)。仅暖本命:流年/Moira 规则依赖「此刻」的流年时间=取现时,按预热白名单纪律禁入
-// (步进预取的三段链式版在组件登记里,那里能读到用户显式设置的 transitTime)。
-// 存储样式为七政 kinastro 引擎时跳过(不同引擎路径,预热本命盘对其无效)。失败静默;绝不
-// dispatch 任何全局 state。
-export async function warmGuolaoNatal(fields){
-	try{
-		if(!fields || !fields.date || !fields.date.value || !fields.date.value.format){ return null; }
-		if(!(fields.lon && fields.lon.value) || !(fields.lat && fields.lat.value)){ return null; }
-		if(getStoredGuolaoChartStyle() === GUOLAO_CHART_STYLE_QIZHENG){ return null; }
-		// 页面首开会先把全局仓里的口径补进 fields 再起盘:预热按同一份补过的 fields 构参,键才对得上
-		const params = fieldsToParams({ ...fields, ...computeGuolaoSeedPatch(fields) });
-		return await fetchGuolaoChartCached(params, { silent: true });
-	}catch(e){
-		return null; // 预热失败静默:首点回到冷即付的现状
-	}
-}
-
-// ⚠️ 死代码(零调用,同类自检 v42 定性):主链=buildGuolaoSnapshotTextV2;本函数段头(宫位与星体/宫位二十八宿)
-// 未登 preset 属死码段——若复活必须先登记 preset+migration(全树段头哨兵会咬)。
-function buildGuolaoSnapshotText(params, result){
-	const lines = [];
-	const chart = result && result.chart ? result.chart : {};
-	const houses = chart.houses || [];
-	const objects = chart.objects || [];
-	const signsRA = result && result.signsRA ? result.signsRA : [];
-	const ziGods = result && result.nongli && result.nongli.bazi && result.nongli.bazi.guolaoGods
-		? result.nongli.bazi.guolaoGods.ziGods : null;
-
-	lines.push('[起盘信息]');
-	lines.push(`日期：${params.date} ${params.time}`);
-	lines.push(`时区：${params.zone}`);
-	lines.push(`经纬度：${params.lon} ${params.lat}`);
-	lines.push(buildTimeBasisLine({ timeAlg: params.timeAlg, lateZiHourUseNextDay: params.lateZiHourUseNextDay, after23NewDay: params.after23NewDay, note: GUOLAO_TIME_BASIS_NOTE }));   // [Q-191/T-134] 两套时标说清
-
-	lines.push('');
-	lines.push('[宫位与星体]');
-	houses.forEach((house, idx)=>{
-		lines.push(`宫位：${msg(house.id) || `第${idx + 1}宫`}`);
-		const inHouse = objects.filter((obj)=>obj.house === house.id);
-		if(inHouse.length === 0){
-			lines.push('星体：无');
-			lines.push('');
-			return;
-		}
-		inHouse.forEach((obj)=>{
-			const sd = splitDegree(obj.signlon);
-			const su28 = obj.su28 ? `，宿:${obj.su28}` : '';
-			lines.push(`星体：${msg(obj.id)} ${sd[0]}˚${msg(obj.sign)}${sd[1]}分${su28}`);
-		});
-		lines.push('');
-	});
-
-	if(signsRA.length){
-		lines.push('');
-		lines.push('[宫位二十八宿]');
-		signsRA.forEach((sig)=>{
-			lines.push(`${msg(sig.id)}：赤经${Math.round(sig.ra * 1000) / 1000}`);
-		});
-	}
-
-	if(ziGods){
-		lines.push('');
-		lines.push('[神煞]');
-		Object.keys(ziGods).forEach((zi)=>{
-			const one = ziGods[zi] || {};
-			const all = orderGods(one.allGods || [], MOIRA_BIRTH_GOD_ORDER);
-			const tai = orderGods(one.taisuiGods || [], MOIRA_TRANSIT_GOD_ORDER);
-			lines.push(`${zi}：神煞=${all.join('、') || '无'}；太岁神=${tai.join('、') || '无'}`);
-		});
-	}
-	return lines.join('\n');
-}
-
-function buildGuolaoSuSection(result, planetDisplay){
-	const chart = result && result.chart ? result.chart : {};
-	const suHouses = chart && chart.fixedStarSu28 ? chart.fixedStarSu28 : [];
-	const objects = chart && chart.objects ? chart.objects : [];
-	const lines = [];
-	let visibleSet = null;
-	if(planetDisplay && planetDisplay.length){
-		visibleSet = new Set(planetDisplay);
-	}
-
-	suHouses.forEach((su)=>{
-		lines.push(`${su.name}`);
-		let inSu = objects.filter((obj)=>{
-			if(obj.su28 !== su.name){
-				return false;
-			}
-			if(visibleSet){
-				return visibleSet.has(obj.id);
-			}
-			return AstroConst.isTraditionPlanet(obj.id);
-		});
-		inSu = inSu.sort((a, b)=>{
-			if(a.ra > 300 && b.ra < 30){
-				return -1;
-			}
-			// 环形序须对称全序:跨 0°RA 两向都判,单侧判 = 非对称比较器,sort 行为未定义。
-			if(b.ra > 300 && a.ra < 30){
-				return 1;
-			}
-			return a.ra - b.ra;
-		});
-		if(inSu.length === 0){
-			lines.push('星体：无');
-			lines.push('');
-			return;
-		}
-		inSu.forEach((obj)=>{
-			let radeg = Number(objectLon(obj)) - Number(su.ra);
-			if(Number.isNaN(radeg)){
-				radeg = Number(obj.signlon);
-			}
-			if(radeg < 0){
-				radeg += 360;
-			}
-			const sd = splitDegree(radeg);
-			lines.push(`星体：${msg(obj.id)} ${sd[0]}˚${obj.su28}${sd[1]}分`);
-		});
-		lines.push('');
-	});
-
-	return lines.join('\n').trim();
-}
-
-function signFromLon(lon){
-	if(lon === undefined || lon === null || Number.isNaN(Number(lon))){
-		return null;
-	}
-	let val = Number(lon) % 360;
-	if(val < 0){
-		val += 360;
-	}
-	const idx = Math.floor(val / 30) % 12;
-	return AstroConst.LIST_SIGNS[idx];
-}
-
-function guolaoLifeModeFromFields(fields){
-	if(fields && fields.guolaoLifeMode && fields.guolaoLifeMode.value !== undefined && fields.guolaoLifeMode.value !== null){
-		return normalizeGuolaoLifeMode(fields.guolaoLifeMode.value);
-	}
-	return getStoredGuolaoLifeMode();
-}
-
-// 七政宿度制(su28Mode 0-4)：优先 fields.doubingSu28（页面选/存盘值，数据丢失修复后保真），
-// 缺省回退 getStoredGuolaoSu28Mode（AI 挂载抽屉「宿度制」/全局默认 2）。与 命度/罗计 同口径。
-export function guolaoSu28ModeFromFields(fields){
-	if(fields && fields.doubingSu28 && fields.doubingSu28.value !== undefined && fields.doubingSu28.value !== null){
-		const v = Number(fields.doubingSu28.value);
-		// [挂载自检 F-16] 值域单源 SU28_MODE_LABEL(含 8=赤道回归实时);此前手抄 [0..7] 漏 8 → 存 8 的盘回退全局档。
-		if(Number.isFinite(v) && Object.prototype.hasOwnProperty.call(SU28_MODE_LABEL, v)){
-			return v;
-		}
-	}
-	return getStoredGuolaoSu28Mode();
-}
-
-function guolaoLifeModeName(mode){
-	const normalized = normalizeGuolaoLifeMode(mode);
-	if(normalized === GUOLAO_LIFE_MODE_YUMAO){
-		return '日出安命';
-	}
-	if(normalized === GUOLAO_LIFE_MODE_COTRANS){
-		return '赤黄转换';
-	}
-	if(normalized === 'gumao'){
-		return '遇卯安命(古法)';
-	}
-	if('子丑寅卯辰巳午未申酉戌亥'.indexOf(normalized) >= 0){
-		return `自定命宫·${normalized}`;
-	}
-	return '占星上升';
-}
-
-// [Q-200/T-127] 「第 N 宫」以七政自身命宫为第 1 宫:命度 = lifeDegree(命主取法 asc/日出/赤黄/古法遇卯/自定,黄经,
-// 与右栏「命身与限度」/ 大限表同源),不再读宿占页「人事十二宫起盘」键(八字公式/上升)——此前缺省盘该表第 1 宫≠
-// 同一快照「命宫」,且改宿占起盘法七政快照宫序跟着变。无星体数据返回 -1(沿用后端宫名)。
-function computeAscSignIndex(result, chart, fields){
-	const objects = chart && chart.objects ? chart.objects : [];
-	if(!objects.length){
-		return -1;
-	}
-	const life = Number(lifeDegree(chart, fields, true));
-	if(!Number.isFinite(life)){
-		return -1;
-	}
-	return Math.floor((((life % 360) + 360) % 360) / 30);
-}
-
-function houseFullLabel(house, idx, ascSignIndex){
-	let houseName = msg(house && house.id ? house.id : null) || `第${idx + 1}宫`;
-	const sign = signFromLon(house ? house.lon : null);
-	if(!sign){
-		return houseName;
-	}
-	const signIdx = AstroConst.LIST_SIGNS.indexOf(sign);
-	if(signIdx >= 0 && ascSignIndex >= 0){
-		const hnum = (signIdx - ascSignIndex + 12) % 12 + 1;
-		houseName = `第${hnum}宫`;
-	}
-	const zi = SZConst.SignZi[sign] || '';
-	const area = (SZConst.SZSigns[signIdx] && SZConst.SZSigns[signIdx].length >= 2)
-		? `${SZConst.SZSigns[signIdx][0]}${SZConst.SZSigns[signIdx][1]}`
-		: '';
-	const signName = AstroText.AstroMsgCN[sign] || msg(sign);
-	return `${zi}—${area}—${signName}座—${houseName}`;
-}
-
-// GFM 表化(段内排版,值零变化):行=宫×宿(空宫一行 无/无),宫内星列表一 cell 内联「；」相接,
-// 星字串(曜 d˚宿m分)与旧「星曜：」行逐字同。(宫位,宿,星)元组集合证明见 guolaoSnapshotTables.test.js。
-export function buildHouseSuAndGodsSection(result, planetDisplay, fields){
-	const chart = result && result.chart ? result.chart : {};
-	const houses = chart && chart.houses ? chart.houses : [];
-	const objects = chart && chart.objects ? chart.objects : [];
-	const ascSignIndex = computeAscSignIndex(result, chart, fields);
-	let visibleSet = null;
-	if(planetDisplay && planetDisplay.length){
-		visibleSet = new Set(planetDisplay);
-	}
-	const lines = [];
-
-	houses.forEach((house, idx)=>{
-		const label = houseFullLabel(house, idx, ascSignIndex);
-		let inHouse = objects.filter((obj)=>{
-			if(obj.house !== house.id){
-				return false;
-			}
-			if(visibleSet){
-				return visibleSet.has(obj.id);
-			}
-			return AstroConst.isTraditionPlanet(obj.id);
-		});
-		inHouse = inHouse.sort((a, b)=>{
-			if(a.ra > 300 && b.ra < 30){
-				return -1;
-			}
-			// 环形序须对称全序:跨 0°RA 两向都判,单侧判 = 非对称比较器,sort 行为未定义。
-			if(b.ra > 300 && a.ra < 30){
-				return 1;
-			}
-			return a.ra - b.ra;
-		});
-
-		if(inHouse.length === 0){
-			lines.push(`| ${label} | 无 | 无 |`);
-			return;
-		}
-		const suMap = new Map();
-		inHouse.forEach((obj)=>{
-			const su = obj.su28 || '未知宿';
-			if(!suMap.has(su)){
-				suMap.set(su, []);
-			}
-			suMap.get(su).push(obj);
-		});
-
-		const suKeys = Array.from(suMap.keys()).sort((a, b)=>{
-			const ia = Su28Helper.Su28.indexOf(a);
-			const ib = Su28Helper.Su28.indexOf(b);
-			if(ia < 0 && ib < 0){
-				return `${a}`.localeCompare(`${b}`);
-			}
-			if(ia < 0){
-				return 1;
-			}
-			if(ib < 0){
-				return -1;
-			}
-			return ia - ib;
-		});
-
-		suKeys.forEach((su)=>{
-			const list = suMap.get(su) || [];
-			const stars = list.map((obj)=>{
-				let radeg = Number(objectLon(obj));
-				if(!Number.isNaN(radeg)){
-					const suRef = (chart.fixedStarSu28 || []).find((it)=>it.name === su);
-					if(suRef && suRef.ra !== undefined && suRef.ra !== null){
-						radeg = Number(objectLon(obj)) - Number(suRef.ra);
-						if(radeg < 0){
-							radeg += 360;
-						}
-					}else{
-						radeg = Number(obj.signlon);
-					}
-				}else{
-					radeg = Number(obj.signlon);
-				}
-				const sd = splitDegree(radeg);
-				return `${msg(obj.id)} ${sd[0]}˚${su}${sd[1]}分`;
-			});
-			lines.push(`| ${label} | ${su} | ${stars.join('；') || '无'} |`);
-		});
-	});
-	if(!lines.length){
-		return '';
-	}
-	return ['| 宫位 | 二十八宿 | 星曜 |', '| --- | --- | --- |'].concat(lines).join('\n').trim();
-}
-
-function buildHouseGodsSection(result, fields){
-	const chart = result && result.chart ? result.chart : {};
-	const houses = chart && chart.houses ? chart.houses : [];
-	const ascSignIndex = computeAscSignIndex(result, chart, fields);
-	const rootZiGods = result && result.nongli && result.nongli.bazi && result.nongli.bazi.guolaoGods
-		? result.nongli.bazi.guolaoGods.ziGods : null;
-	const chartZiGods = chart && chart.nongli && chart.nongli.bazi && chart.nongli.bazi.guolaoGods
-		? chart.nongli.bazi.guolaoGods.ziGods : null;
-	const ziGods = chartZiGods || rootZiGods || null;
-	const lines = [];
-
-	houses.forEach((house, idx)=>{
-		lines.push(`宫位：${houseFullLabel(house, idx, ascSignIndex)}`);
-		const sign = signFromLon(house.lon);
-		const zi = sign ? SZConst.SignZi[sign] : null;
-		const gz = ziGods && zi ? ziGods[zi] : null;
-		const allGods = orderGods(gz ? []
-			.concat(gz.goodGods || [])
-			.concat(gz.neutralGods || [])
-			.concat(gz.badGods || []) : [], MOIRA_BIRTH_GOD_ORDER);
-		const taiGods = orderGods(gz ? (gz.taisuiGods || []) : [], MOIRA_TRANSIT_GOD_ORDER);
-		lines.push(`神煞：${allGods.join('、') || '无'}`);
-		lines.push(`太岁神：${taiGods.join('、') || '无'}`);
-		lines.push('');
-	});
-
-	return lines.join('\n').trim();
-}
-
-// 供 AI 分析无头复算：按出生字段取七政四余盘并生成快照（命度/罗计沿用已保存设置，显示全部传统星曜）。
-export async function buildGuolaoSnapshotForFields(fields){
-	if(!fields){
-		return '';
-	}
-	const params = fieldsToParams(fields);
-	const data = await request(`${Constants.ServerRoot}/chart`, {
-		body: JSON.stringify({ ...params, cid: null }),
-		silent: true,
-	});
-	const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
-	if(!result){
-		return '';
-	}
-	// [挂载自检 F-14·P0] 罗计换位与页面同源:页面存快照前 applyGuolaoNodeMode(chartObj, fields)(北罗南计=深换
-	// NORTH/SOUTH_NODE id),再用换位后的盘取 rules、出快照;无头此前直接拿 /chart 原始 result 喂 rules/builder →
-	// 快照 [起盘信息] 标「北罗南计」而 [宫位与二十八宿]/[星曜庙旺]/[相位] 里罗睺/计都仍在北计南罗位置。
-	const display = applyGuolaoNodeMode(result, fields) || result;
-	// [审计修] 无头路径曾漏传第 5 参 moiraRules(恒 undefined)→ 挂载复算恒丢 [虚实]/[本命化曜]/
-	// [流年流曜] 三段、[神煞] 降级历法源——与页面快照不等长。补:远端规则同页面口径,
-	// 不完整/失败回退本地纯算(与 requestMoiraRules 同两级兜底,绝不阻断主体段)。
-	let rules = null;
-	try{
-		const rsp = await fetchMoiraQizhengRules({
-			params, chartObj: display, transitParams: null, transitChartObj: null,
-		}, { silent: true, timeoutMs: 12000 });
-		const remote = rsp && rsp[Constants.ResultKey] ? rsp[Constants.ResultKey] : null;
-		rules = isIncompleteMoiraRules(remote) ? buildLocalMoiraRules(params, display, fields, 'headless-fallback') : remote;
-	}catch(e){
-		try{ rules = buildLocalMoiraRules(params, display, fields, 'headless-error'); }catch(_e){ rules = null; }
-	}
-	return buildGuolaoSnapshotTextV2(params, display, null, fields, rules);
-}
-
-// AI 快照·神煞段与盘面同源(rules 引擎 godHits+十二长生;rules 未到回退历法 ziGods)——
-// 「显示什么就导出什么」:盘面/右栏已切 rules 源,快照必须同步,防 AI 拿到另一套神煞。
-function buildRulesGodsSection(moiraRules){
-	const hits = moiraRules && moiraRules.godHits;
-	if(!hits || !hits.length){
-		return '';
-	}
-	const ZHI12 = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
-	const out = [];
-	ZHI12.forEach((zi)=>{
-		const gods = moiraGodsFromRuleHits(moiraRules, zi, 'birth') || [];
-		const ll = moiraLongLifeCharFor(moiraRules, zi, 'birth');
-		const all = (ll ? [ll] : []).concat(gods);
-		if(all.length){
-			out.push(`${zi}：${all.join('、')}`);
-		}
-	});
-	return out.join('\n');
-}
-
-// AI 快照·星曜庙旺与星点动态段（与右栏「星点动态」表同源函数 glStarDignity/glStarMotion，单一真值）：
-// 每点 曜｜地支｜所属(殿垣庙旺乐喜怒)｜速度态(顺逆留伏迟速)。天海冥无庙旺、升顶无庙旺无自行 → '-'。
-// GFM 表化(段内排版,值零变化):所属/速度态字串(glStarDignity·连、glStarMotion)与旧「所属:X 速度:Y」逐字同,
-// 仅去内联「所属:」「速度:」标签移入表头。31 golden(guolaoDignityMotion.test.js)锚的是底层算法值、不受排版影响;
-// (曜,地支,所属,速度态) 元组集合证明见 guolaoSnapshotTables.test.js。
-export function buildStarDignityMotionSection(result, fields){
-	const chart = result && result.chart ? result.chart : {};
-	const objects = Array.isArray(chart.objects) ? chart.objects : [];
-	if(!objects.length){ return ''; }
-	const ecl = chart.displayCoord === 'ecliptic';
-	const ZLIST = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
-	const ziOf = (lon)=>{ const n = ((lon % 360) + 360) % 360; const s = Math.floor(n / 30) % 12; return ZLIST[(10 - s + 12) % 12] || ''; };
-	const lonOf = (obj)=>{ const raw = obj && (ecl && obj.lon !== undefined ? obj.lon : (obj.ra !== undefined ? obj.ra : obj.lon)); return Number(raw); };
-	const sun = objects.find((o)=>o && o.id === AstroConst.SUN);
-	const sunLon = sun ? lonOf(sun) : NaN;
-	const STAR_POINTS = [
-		['日', AstroConst.SUN], ['月', AstroConst.MOON], ['金', AstroConst.VENUS], ['木', AstroConst.JUPITER],
-		['水', AstroConst.MERCURY], ['火', AstroConst.MARS], ['土', AstroConst.SATURN],
-		['计', AstroConst.SOUTH_NODE], ['罗', AstroConst.NORTH_NODE], ['炁', AstroConst.PURPLE_CLOUDS], ['孛', AstroConst.DARKMOON],
-		['天', AstroConst.URANUS], ['海', AstroConst.NEPTUNE], ['冥', AstroConst.PLUTO],
-	];
-	const ANGLE_POINTS = [['升', AstroConst.ASC], ['顶', AstroConst.MC]];
-	const rows = [];
-	STAR_POINTS.forEach(([name, id])=>{
-		const obj = objects.find((o)=>o && o.id === id);
-		if(!obj){ return; }
-		const lon = lonOf(obj);
-		if(!Number.isFinite(lon)){ return; }
-		const zhi = ziOf(lon);
-		const ex = GL_EXALT_DEG[name];
-		const atPeak = !!(ex && Math.floor((((lon % 360) + 360) % 360) / 30) % 12 === ex.signIndex && Math.abs((((lon % 360) + 360) % 360) % 30 - ex.deg) <= 1);
-		const combust = glStarCombust(name, lon, sunLon);   // Moira 合日 3°(单一真值,与右栏星点动态同源)
-		const belong = glStarDignity(name, zhi, atPeak).join('·') || '-';
-		const motion = glStarMotion(name, Number(obj.lonspeed), combust) || '-';
-		rows.push(`| ${name} | ${zhi} | ${belong} | ${motion} |`);
-	});
-	ANGLE_POINTS.forEach(([name, id])=>{
-		const obj = objects.find((o)=>o && o.id === id);
-		if(!obj){ return; }
-		const lon = lonOf(obj);
-		if(!Number.isFinite(lon)){ return; }
-		rows.push(`| ${name} | ${ziOf(lon)} | - | - |`);
-	});
-	if(!rows.length){
-		return '';
-	}
-	return ['| 曜 | 地支 | 所属 | 速度态 |', '| --- | --- | --- | --- |'].concat(rows).join('\n');
-}
-
-// AI 快照·流年流曜段（右栏「流曜」快捷面板已显示但此前未导出）：与 renderQuickTransitStars 同一取数——
-// 流年干支=rules.yearStars.transit.yearPole（缺则按 UI 同式 stemBranchForYear(流年时间之年) 兜底）；
-// 流年化曜=rules.yearStars.transit.planetRows（曜/化曜/同归项）；流曜落宫=rules.transitYearStars（宫名/化曜/曜名/宫性）。
-// 流年时间口径=UI 默认（paramsWithMoiraTransit 缺省走 makeDefaultMoiraTransitTime，即「当前流年」）。
-// 无规则层或无流年数据（未起盘/headless 复算）→ 返回 ''（不产段）；异常降级 ''，不影响既有段。
-// [虚实] 段(v44 硬缺修):虚实 tab 整层此前显示了完全导不出——虚宫(四柱旬空推)/实宫(四柱地支定)
-// 是果老明确断项。值与 renderQuickWeakSolid 主路同源(moiraRules.weakSolid.houses);无数据不产段。
-export function buildGuolaoWeakSolidSection(moiraRules){
-	try{
-		const rows = safeList(safeMap(safeMap(moiraRules).weakSolid).houses);
-		if(!rows.length){
-			return '';
-		}
-		const out = [];
-		out.push('| 宫位 | 虚实 | 虚柱 | 实柱 |');
-		out.push('| --- | --- | --- | --- |');
-		rows.forEach((house)=>{
-			out.push(`| ${house.house || '—'} | ${house.label || '—'} | ${joinNames(house.weakPillars) || '—'} | ${joinNames(house.solidPillars) || '—'} |`);
-		});
-		out.push('口径：虚宫按四柱旬空推虚；实宫按年、月、日、时四柱地支定实。');
-		return out.join('\n');
-	}catch(e){
-		return '';
-	}
-}
-
-// [本命化曜] 段(v44 半缺修):化曜 tab 此前只导流年侧——本命化曜为核心,十神序/天禄至天权为参考表。
-// 值与 renderQuickYearStars 的本命侧同源(moiraRules.yearStars.birth);无数据不产段。
-export function buildGuolaoBirthStarsSection(moiraRules){
-	try{
-		const birthYearStars = safeMap(safeMap(safeMap(moiraRules).yearStars).birth);
-		const planetRows = safeList(birthYearStars.planetRows);
-		if(!planetRows.length){
-			return '';
-		}
-		const out = [];
-		if(birthYearStars.yearPole){
-			out.push(`本命年柱：${birthYearStars.yearPole}`);
-		}
-		out.push('◆ 本命化曜');
-		planetRows.forEach((row)=>{
-			const items = safeList(row.items).length ? joinNames(row.items) : '';
-			out.push(`${row.star}：化${row.changeTo || '-'}${items && items !== '无' ? `（同归：${items}）` : ''}`);
-		});
-		// [Q-435] 命曜表(右栏「宫位化曜·本命」列 = rules.natalYearStars:宫名/化曜/曜名/宫性)此前不进快照。
-		const natalSignRows = safeList(safeMap(moiraRules).natalYearStars);
-		if(natalSignRows.length){
-			out.push('◆ 命曜落宫');
-			natalSignRows.forEach((row)=>{
-				const pos = [row.quality, row.zi, row.signName].filter(Boolean).join(' · ');
-				out.push(`${row.name}：${row.star || '-'}（${row.shortName || '-'}${pos ? `；${pos}` : ''}）`);
-			});
-		}
-		out.push('◆ 十神序（参考）');
-		out.push(`原十神序：${MOIRA_TEN_GOD_ORG.join('、')}`);
-		out.push(`替代十神序：${MOIRA_TEN_GOD_ALT.join('、')}`);
-		out.push('◆ 天禄至天权（年曜主项）');
-		MOIRA_YEAR_INFO_GROUPS.forEach((items)=>{
-			out.push(`${items[0]}：${items.slice(1).join('、') || '主项'}`);
-		});
-		return out.join('\n');
-	}catch(e){
-		return '';
-	}
-}
-
-function buildGuolaoTransitStarsSection(fields, moiraRules){
-	try{
-		if(!moiraRules){
-			return '';
-		}
-		const currentYearStars = safeMap(safeMap(moiraRules.yearStars).transit);
-		const planetRows = safeList(currentYearStars.planetRows);
-		const signRows = safeList(moiraRules.transitYearStars);
-		if(!planetRows.length && !signRows.length){
-			return '';
-		}
-		const out = [];
-		const yearGz = currentYearStars.yearPole
-			|| stemBranchForYear(yearFromParams(paramsWithMoiraTransit(fields, null)));
-		if(yearGz){
-			out.push(`流年干支：${yearGz}`);
-		}
-		if(planetRows.length){
-			out.push('◆ 流年化曜');
-			planetRows.forEach((row)=>{
-				const items = safeList(row.items).length ? joinNames(row.items) : '';
-				out.push(`${row.star}：化${row.changeTo || '-'}${items && items !== '无' ? `（同归：${items}）` : ''}`);
-			});
-		}
-		if(signRows.length){
-			out.push('◆ 流曜落宫');
-			signRows.forEach((row)=>{
-				const pos = [row.quality, row.zi, row.signName].filter(Boolean).join(' · ');
-				out.push(`${row.name}：${row.star || '-'}（${row.shortName || '-'}${pos ? `；${pos}` : ''}）`);
-			});
-		}
-		return out.join('\n');
-	}catch(e){
-		return '';
-	}
-}
-
-// [Q-231/Q-434/Q-435] AI 快照取右栏「命身与限度 / 三主·化曜 / 难仇恩用 / 五限 / 行运法」诸卡的事实层:
-// 与 GuoLaoMoiraPanel 同一 buildGuolaoMoiraInfoFacts(页面显示什么、快照就写什么)。流年时刻按 fields 缺省
-// (paramsWithMoiraTransit,与 [流年流曜] 段同口径);月限所需流年月支无头无后端流年盘 → 本地历法(lunar.js)
-// 算流年四柱伪 root,页面/无头两路同走此处 → 两路快照逐字相同。任何异常降级 null,不影响既有段。
-function buildGuolaoInfoFactsForSnapshot(params, result, fields, display, moiraRules){
-	try{
-		const transitParams = paramsWithMoiraTransit(fields, null);
-		let transitValue = null;
-		try{
-			const lite = buildLocalNongliLite(transitParams);
-			transitValue = lite && lite.bazi ? { nongli: { bazi: lite.bazi } } : null;
-		}catch(e){ transitValue = null; }
-		return buildGuolaoMoiraInfoFacts({
-			value: moiraRules || {}, rootValue: result || {}, transitValue, params, transitParams, display: display || {}, fields: fields || {},
-		});
-	}catch(e){
-		return null;
-	}
-}
-
-// [Q-231/Q-434] [起盘信息] 命度实值 / 身度 / 命度宿主 / 身度宿主 四行(右栏「命身与限度」卡同源)。
-function buildGuolaoAnchorLines(info){
-	if(!info || !info.life){ return []; }
-	const out = [];
-	const anchorText = (a, extra)=>{
-		const main = `${a.signName || '随盘面'} ${a.degreeText || ''}`.trim();
-		const tail = [a.zi, a.area, a.moiraHouse].concat(extra || []).filter(Boolean).join(' · ');
-		return tail ? `${main}（${tail}）` : main;
-	};
-	out.push(`命度：${anchorText(info.life, [info.lifeModeName])}`);
-	if(info.self && (info.self.signName || info.self.degreeText)){
-		out.push(`身度：${anchorText(info.self)}`);
-	}
-	out.push(`命度宿主：${info.lifeSuHost ? info.lifeSuHost.value : '随盘面'}；身度宿主：${info.selfSuHost ? info.selfSuHost.value : '随盘面'}`);
-	return out;
-}
-
-// [Q-435] [三主与化曜] 段:三主(命主/宫主/度主/身主)+ 命宫配干 + 生年化曜 + 难仇恩用(度/宫两役行)。
-// 「命主取法」齿轮在此对正文生效(命主(宫主)/命主(度主) 与难仇恩用主星随之改变)。
-export function buildGuolaoMastersSection(info){
-	try{
-		if(!info){ return ''; }
-		const out = [];
-		if(info.masterItems && info.masterItems.length){
-			out.push(`◆ 三主 · 命宫配干 · 化曜（${info.useDu ? '专度主' : '主宫主'}）`);
-			info.masterItems.forEach((it)=>{ out.push(`${it.label}：${it.value}`); });
-		}
-		if(info.helperRows && info.helperRows.length){
-			out.push('◆ 难仇恩用（主星五行四役）');
-			const labels = info.helperLabels || ['难', '仇', '恩', '用'];
-			info.helperRows.forEach((row)=>{
-				out.push(`${row.head}(${row.main})：${labels.map((lab, li)=>`${lab}=${row.roles[li] || '-'}`).join('，')}`);
-			});
-		}
-		return out.join('\n');
-	}catch(e){
-		return '';
-	}
-}
-
-// [Q-435] [限法实算] 段:飞限 / 童限 / 小限 / 月限 / 限度(当年虚岁实算)+ 所选「行运法」的实算
-// (洞微本年吊度 / 童限顺排 / 小限宫 / 月限宫)。「行运法」齿轮在此对正文生效(此前只改 [大限] 段一行标签)。
-export function buildGuolaoLimitCalcSection(info){
-	try{
-		if(!info){ return ''; }
-		const out = [];
-		const lim = info.limits;
-		if(lim && lim.items && lim.items.length){
-			out.push(`◆ 飞限 · 童限 · 小限 · 月限 · 限度（${lim.age} 岁 · ${lim.transitYearText}年）`);
-			out.push(lim.items.map((it)=>`${it.label}：${it.value}`).join('；'));
-		}
-		const rl = info.runLaw;
-		if(rl && rl.type === 'dongwei'){
-			out.push(`◆ 行运法实算 · 洞微大限（起限 ${rl.startAge} 岁）`);
-			out.push(rl.curDiaodu ? `本年飞星吊度 ≈ ${rl.curDiaodu.deg}°（${rl.age} 岁）` : '本年飞星吊度：需年龄');
-		}else if(rl && rl.type === 'tong'){
-			out.push(`◆ 行运法实算 · 童限（基数${rl.baseName}）`);
-			out.push(`童限顺排：${(rl.palaces || []).join('→')}；出童限(约)：${rl.exitAge} 岁`);
-		}else if(rl && rl.type === 'month'){
-			out.push(`◆ 行运法实算 · 月限（小限宫起生月逆寻 · 生月${rl.bMonth}）`);
-			out.push(rl.palaceName ? `月限(${rl.age}岁)：${rl.palaceName}（${rl.palaceZi}）` : '月限：需年龄/生月');
-		}else if(rl && rl.type === 'minor'){
-			out.push('◆ 行运法实算 · 小限（生年支加命宫逆数）');
-			out.push(rl.palaceName ? `小限(${rl.age}岁)：${rl.palaceName}（${rl.palaceZi}）` : '小限：需年龄');
-		}
-		return out.join('\n');
-	}catch(e){
-		return '';
-	}
-}
-
-function buildGuolaoSnapshotTextV2(params, result, planetDisplay, fields, moiraRules){
-	// 🔴 模块级 SNAPSHOT_PREFER_LON 只允许在本函数生命周期内为真:曾写脏后永不复位 →
-	// 黄仪盘导过一次快照后,切回赤仪的 UI 渲染(objectLon 全部消费点)改吃黄经,
-	// 盘面与后端不一致且仅在「导过快照」的会话出现。finally 恒复位根治。
-	try{
-		return _buildGuolaoSnapshotTextV2Core(params, result, planetDisplay, fields, moiraRules);
-	}finally{
-		SNAPSHOT_PREFER_LON = false;
-	}
-}
-
-function _buildGuolaoSnapshotTextV2Core(params, result, planetDisplay, fields, moiraRules){
-	const _snapChart = result && result.chart ? result.chart : result;
-	SNAPSHOT_PREFER_LON = !!(_snapChart && _snapChart.displayCoord === 'ecliptic');
-	const lines = [];
-	const chart = result && result.chart ? result.chart : {};
-	const rootZiGods = result && result.nongli && result.nongli.bazi && result.nongli.bazi.guolaoGods
-		? result.nongli.bazi.guolaoGods.ziGods : null;
-	const chartZiGods = chart && chart.nongli && chart.nongli.bazi && chart.nongli.bazi.guolaoGods
-		? chart.nongli.bazi.guolaoGods.ziGods : null;
-	const ziGods = chartZiGods || rootZiGods || null;
-
-	lines.push('[起盘信息]');
-	lines.push(`日期：${params.date} ${params.time}`);
-	lines.push(`时区：${params.zone}`);
-	lines.push(`经纬度：${params.lon} ${params.lat}`);
-	lines.push(buildTimeBasisLine({ timeAlg: params.timeAlg, lateZiHourUseNextDay: params.lateZiHourUseNextDay, after23NewDay: params.after23NewDay, note: GUOLAO_TIME_BASIS_NOTE }));   // [Q-191/T-134] 两套时标说清
-	lines.push(`七政命度：${guolaoLifeModeName(guolaoLifeModeFromFields(fields))}`);
-	lines.push(`罗计：${guolaoNodeModeName(guolaoNodeModeFromFields(fields))}`);
-	// G6/G10/G11 起盘设置注入快照(AI 据此解读报时星/四余取法)。
-	const _gTs = guolaoFieldValue(fields, 'guolaoTrueSolarTime', getStoredGuolaoTrueSolarTime);
-	const _gNt = guolaoFieldValue(fields, 'guolaoNodeType', getStoredGuolaoNodeType);
-	const _gLt = guolaoFieldValue(fields, 'guolaoLilithType', getStoredGuolaoLilithType);
-	lines.push(`报时星太阳时：${_gTs === 'off' ? '钟表时' : (_gTs === 'mean' ? '平太阳时(仅经度)' : '真太阳时(经度+均时差)')}`);
-	lines.push(`罗计取法：${_gNt === 'true' ? '真交点' : '平交点'}；月孛取法：${_gLt === 'true' ? '真远地点' : '平远地点'}`);
-	// G20/G22/G31/G3 身宫法/命主取法/行运法/宿度制 注入快照。身宫法读 fields(类A);命主取法/行运法读全局显示偏好(类B)。
-	const _gBody = guolaoFieldValue(fields, 'guolaoBodyMode', getStoredGuolaoBodyMode);
-// 命主取法/行运法/童限基数:fields(挂载齿轮/存档)优先,缺省回退全局显示偏好 ——
-	// 🔴 曾直读全局 JSON 罐:三值逐字进快照正文且改 [大限] 段结构,却在覆盖机制射程外。
-	const _gDispBase = getStoredGuolaoDisplay();
-	const _gDisp = {
-		..._gDispBase,
-		...(fields.guolaoLifeMasterMode && fields.guolaoLifeMasterMode.value ? { lifeMasterMode: fields.guolaoLifeMasterMode.value } : {}),
-		...(fields.guolaoMinorLimitType && fields.guolaoMinorLimitType.value !== undefined && fields.guolaoMinorLimitType.value !== null && fields.guolaoMinorLimitType.value !== '' ? { minorLimitType: fields.guolaoMinorLimitType.value } : {}),
-		...(fields.guolaoTongxianBase && fields.guolaoTongxianBase.value ? { tongxianBase: fields.guolaoTongxianBase.value } : {}),
-		// [Q-191/T-133] 定童限同样 fields 优先(挂载齿轮/存档)→ 快照 [大限] 段起讫岁与页面一致。
-		...(fields.guolaoLimitChildBase && fields.guolaoLimitChildBase.value ? { limitChildBase: Number(fields.guolaoLimitChildBase.value) } : {}),
-	};
-	const _su28Name = SU28_MODE_LABEL[guolaoSu28ModeFromFields(fields)] || '回归今宿';   // 单源 SU28_MODE_LABEL(WP-A,消第三套漂移)
-	const _lmName = { gong: '宫主', du: '度主', dudegrade: '贬宫主专度主' }[_gDisp.lifeMasterMode || 'gong'] || '宫主';
-	const _mlName = { '': '古度限度法', dongwei: '洞微大限', minor: '小限', month: '月限', tong: '童限' }[_gDisp.minorLimitType || ''] || '古度限度法';
-	const _gBodyName = _gBody === 'youjin' ? '逢酉(琴堂)' : ('子丑寅卯辰巳午未申酉戌亥'.indexOf(_gBody) >= 0 ? `自定身宫·${_gBody}` : '太阴落宫(果老)');
-	lines.push(`宿度制：${_su28Name}；身宫法：${_gBodyName}`);
-	lines.push(`命主取法：${_lmName}；行运法：${_mlName}`);
-	// [Q-231/Q-434] 命度实值 / 身度 / 命度宿主 / 身度宿主(右栏「命身与限度」卡同源)。
-	const _info = buildGuolaoInfoFactsForSnapshot(params, result, fields, _gDisp, moiraRules);
-	buildGuolaoAnchorLines(_info).forEach((l)=>lines.push(l));
-	lines.push('');
-
-	lines.push('[七政四余宫位与二十八宿星曜]');
-	lines.push(buildHouseSuAndGodsSection(result, planetDisplay, fields) || '无');
-	lines.push('');
-	lines.push('[星曜庙旺与星点动态（殿垣庙旺乐喜怒 · 顺逆留伏迟速）]');
-	lines.push(buildStarDignityMotionSection(result, fields) || '无');
-	lines.push('');
-	lines.push('[神煞]');
-	lines.push(buildRulesGodsSection(moiraRules) || buildHouseGodsSection(result, fields) || '无');
-	lines.push('');
-	lines.push('[大限]');
-	lines.push(buildGuolaoLimitSection(chart, fields, params, _gDisp.minorLimitType || '', _gDisp.tongxianBase || 'tong10',
-		{ limitYearBoundary: _gDisp.limitYearBoundary, limitChildBase: _gDisp.limitChildBase }) || '无');
-	lines.push('');
-	// [Q-435] 三主化曜 / 难仇恩用 与 五限实算 / 行运法实算(右栏同源,有数据才产段)。
-	const mastersSection = buildGuolaoMastersSection(_info);
-	if(mastersSection){
-		lines.push('[三主与化曜]');
-		lines.push(mastersSection);
-		lines.push('');
-	}
-	const limitCalcSection = buildGuolaoLimitCalcSection(_info);
-	if(limitCalcSection){
-		lines.push('[限法实算]');
-		lines.push(limitCalcSection);
-		lines.push('');
-	}
-	// 虚实段（v44 硬缺补挂，纯增）：有 weakSolid 规则数据才产段，缺数据时既有输出逐字不变。
-	const weakSolidSection = buildGuolaoWeakSolidSection(moiraRules);
-	if(weakSolidSection){
-		lines.push('[虚实]');
-		lines.push(weakSolidSection);
-		lines.push('');
-	}
-	// 本命化曜段（v44 半缺补挂，纯增）：此前只导流年侧。
-	const birthStarsSection = buildGuolaoBirthStarsSection(moiraRules);
-	if(birthStarsSection){
-		lines.push('[本命化曜]');
-		lines.push(birthStarsSection);
-		lines.push('');
-	}
-	// 流年流曜段（A 类硬缺补挂，纯增）：有流年规则数据才产段，缺数据时既有输出逐字不变。
-	const transitStarsSection = buildGuolaoTransitStarsSection(fields, moiraRules);
-	if(transitStarsSection){
-		lines.push('[流年流曜]');
-		lines.push(transitStarsSection);
-		lines.push('');
-	}
-	lines.push('[政余格局]');
-	lines.push(buildGuolaoPatternSection(result, fields, params) || '无');
-	lines.push('');
-	lines.push('[相位]');
-	lines.push(buildGuolaoAspectSection(result) || '无');
-	return lines.join('\n').trim();
-}
-
-// AI 快照·政余格局段（右栏「格局」面板已显示但此前未导出）：复用盘面同源 buildLocalMoiraPatterns
-// （styleSource=moira-dsl-local-evaluated，本地已评估、非屏蔽态），喜/忌/察看分组与右栏一致；异常降级「无」，不影响既有段。
-function buildGuolaoPatternSection(result, fields, params){
-	try{
-		const godRows = buildGodRowsFromChart(result, fields);
-		const patterns = buildLocalMoiraPatterns(result, fields, params, godRows) || [];
-		if(!patterns.length){
-			return '无';
-		}
-		const fmt = (list)=>list.map((it)=>`${it.name}（${it.detail || it.dsl || ''}）`).join('；');
-		const good = patterns.filter((it)=>it.level === 'good');
-		const bad = patterns.filter((it)=>it.level === 'bad');
-		const other = patterns.filter((it)=>it.level !== 'good' && it.level !== 'bad');
-		const out = [];
-		out.push(`喜格：${good.length ? fmt(good) : '（无）'}`);
-		out.push(`忌格：${bad.length ? fmt(bad) : '（无）'}`);
-		if(other.length){
-			out.push(`察看：${fmt(other)}`);
-		}
-		return out.join('\n');
-	}catch(e){
-		return '无';
-	}
-}
-
-// AI 快照·相位段（右栏「相位」面板已显示但此前未导出）：复用 buildAspectRows，与盘面的相位表同源；异常降级「无」。
-export function buildGuolaoAspectSection(result){
-	try{
-		const chart = getChart(result);
-		const aspects = (chart && chart.aspects) || (result && result.aspects) || null;
-		const rows = buildAspectRows(aspects);
-		if(!rows || !rows.length){
-			return '无';
-		}
-		// GFM 表化(段内排版,值零变化):五元组(主体/相位/对象/状态/误差)与旧行一一对应,
-		// 无误差值 cell='—'(旧行该情形整个省略「，误差X」)。元组集合证明见 guolaoSnapshotTables.test.js。
-		const out = [];
-		out.push('| 主体 | 相位 | 对象 | 状态 | 误差 |');
-		out.push('| --- | --- | --- | --- | --- |');
-		rows.forEach((row)=>{
-			out.push(`| ${row.from} | ${row.aspect} | ${row.to} | ${row.state} | ${row.orb || '—'} |`);
-		});
-		return out.join('\n');
-	}catch(e){
-		return '无';
-	}
-}
-
-// AI 快照·大限段：复用 Moira 命盘轮的命度→十二宫大限算法（moiraBuildLimitTable/lifeDegree），
-// 保证导出/挂载与盘面「命身与限度·大限」列表完全同口径。出生年取自 params.date（YYYY/MM/DD）。
-// [Q-188/T-125] limitOpts:{ limitYearBoundary, limitChildBase } 与右栏/大限环同源(缺省 元旦/9 → 段逐字同旧)。
-export function buildGuolaoLimitSection(chart, fields, params, minorLimitType, tongxianBase, limitOpts){
-	try{
-		const lifeDeg = lifeDegree(chart, fields);
-		const lo = limitOpts && typeof limitOpts === 'object' ? limitOpts : {};
-		const limitBasis = moiraBirthYearBasis(chart, fields, lo.limitYearBoundary || 'gregorian');
-		const limitChildBase = Number(lo.limitChildBase) === 10 ? 10 : 9;
-		const birthYear = (Number(String(params.date || '').split('/')[0]) || 0) + limitBasis.yearShift;
-		const rows = buildLimitTable(lifeDeg, birthYear, limitChildBase, limitBasis.frac);
-		const out = [];
-		if(rows && rows.length){
-			// GFM 表化(段内排版,值零变化):cell 沿用旧行字面片段(第N限/a-b岁/a-b年/约N年),
-			// fact-multiset 证明见 guolaoSnapshotTables.test.js。
-			out.push('古度限度法（命度十二宫大限）：');
-			out.push('| 限 | 宫 | 起讫岁 | 起讫年 | 年数 |');
-			out.push('| --- | --- | --- | --- | --- |');
-			rows.forEach((row)=>{
-				out.push(`| 第${row.index}限 | ${row.palace || '—'} | ${row.fromAge}-${row.toAge}岁 | ${row.fromYear}-${row.toYear}年 | 约${row.years}年 |`);
-			});
-		}
-		// WP-E：所选行运法(类B minorLimitType)结构同入快照——洞微大限含飞星吊度,童限顺排,小限/月限注明法。
-		const mlt = String(minorLimitType || '');
-		if(mlt === 'dongwei'){
-			const sun = findChartObject(chart, AstroConst.SUN);
-			if(sun && Number.isFinite(Number(sun.lon))){
-				const dw = glDongwei(((Number(sun.lon) % 30) + 30) % 30);
-				out.push('');
-				out.push(`洞微大限（命宫顺行·飞星吊度·起限${dw.startAge}岁）：`);
-				out.push('| 限 | 宫 | 起讫岁 | 年数 | 吊度 |');
-				out.push('| --- | --- | --- | --- | --- |');
-				dw.rows.forEach((r)=>{
-					out.push(`| 第${r.index}限 | ${r.palace || '—'} | ${r.fromAge}-${r.toAge}岁 | ${r.years}年 | 入${r.entryDeg}°·每年吊度${r.perYearDeg}° |`);
-				});
-			}
-		}else if(mlt === 'tong'){
-			const sun = findChartObject(chart, AstroConst.SUN);
-			if(sun && Number.isFinite(Number(sun.lon))){
-				const tx = glTongxian(Number(sun.lon), tongxianBase || 'tong10');
-				out.push('');
-				out.push(`童限：命财疾妻福顺排（${tx.palaces.join('→')}），出童限约${tx.exitAge}岁。`);
-			}
-		}else if(mlt === 'minor'){
-			out.push('');
-			out.push('小限：生年支加命宫逆数（age1=命宫宫支，逐年逆行一宫，12年一轮）。');
-		}else if(mlt === 'month'){
-			out.push('');
-			out.push('月限：由当年小限宫起生月、按月逆寻（节气月口径）。');
-		}
-		return out.join('\n');
-	}catch(e){
-		return '';
-	}
-}
-
-function fieldsToParams(fields){
-	const su28Mode = guolaoSu28ModeFromFields(fields);
-	const params = {
-		date: fields.date.value.format('YYYY/MM/DD'),
-		time: fields.time.value.format('HH:mm:ss'),
-		ad: (fields.ad && fields.ad.value !== undefined) ? fields.ad.value : (fields.date.value.ad || 1),
-		zone: fields.zone.value,
-		lat: fields.lat.value,
-		lon: fields.lon.value,
-		gpsLat: fields.gpsLat.value,
-		gpsLon: fields.gpsLon.value,
-		hsys: 0,
-		zodiacal: su28Mode === GUOLAO_SU28_MODE_ZHENG_SIDEREAL ? 1 : 0,
-		tradition: fields.tradition.value,
-		doubingSu28: su28Mode,
-		guolaoZhengSidereal: su28Mode === GUOLAO_SU28_MODE_ZHENG_SIDEREAL ? 1 : 0,
-		guolaoLifeMode: guolaoLifeModeFromFields(fields),
-		strongRecption: fields.strongRecption.value,
-		simpleAsp: fields.simpleAsp.value,
-		virtualPointReceiveAsp: fields.virtualPointReceiveAsp.value,
-		predictive: 0,
-		name: fields.name.value,
-		pos: fields.pos.value,
-		after23NewDay: (fields.after23NewDay && fields.after23NewDay.value !== undefined) ? fields.after23NewDay.value : defaultAfter23NewDay(),
-		lateZiHourUseNextDay: (fields.lateZiHourUseNextDay && fields.lateZiHourUseNextDay.value !== undefined) ? fields.lateZiHourUseNextDay.value : defaultLateZiHourUseNextDay(),
-		_su28Rev: GUOLAO_SU28_CACHE_REV,
-	};
-
-	// G2 恒星制岁差:仅恒星宿度制 + 用户选了 ayanāṃśa 才透传(复用既有 siderealAyanamsa 键;ChartController 已转发、perchart 已用;缺=郑氏默认零回归)。
-	const guolaoAyan = guolaoAyanamsaFromFields(fields);
-	if(su28Mode === GUOLAO_SU28_MODE_ZHENG_SIDEREAL && guolaoAyan){
-		params.siderealAyanamsa = guolaoAyan;
-	}
-
-	// G6 报时星太阳时:仅非默认(真)才透传,默认 true → perchart 缺键即 true → 零回归。
-	const trueSolar = guolaoFieldValue(fields, 'guolaoTrueSolarTime', getStoredGuolaoTrueSolarTime);
-	if(trueSolar === 'mean' || trueSolar === 'off'){
-		params.trueSolarTime = trueSolar;
-	}
-	// G10-13 四余取法:仅非默认才透传(罗计/月孛默认平 mean),默认=零回归。
-	// 紫炁取法只有「今法真算」一档生效('tablet' 假档已隐藏),故永不透传 guolaoZiqiMode → 后端始终走真算。
-	if(guolaoFieldValue(fields, 'guolaoNodeType', getStoredGuolaoNodeType) === 'true'){
-		params.guolaoNodeType = 'true';
-	}
-	if(guolaoFieldValue(fields, 'guolaoLilithType', getStoredGuolaoLilithType) === 'true'){
-		params.guolaoLilithType = 'true';
-	}
-	// WP-D 授时历古法(用制 6):推变黄道术法(纪元闭式默认/进退/会圆)+ 古宿随岁差。仅 mode6 且非默认才透传 → 缺=纪元·不随岁差零回归。
-	if(su28Mode === GUOLAO_SU28_MODE_GUFA_LICHENG){
-		const _tuibian = guolaoFieldValue(fields, 'guolaoTuibianMethod', getStoredGuolaoTuibianMethod);
-		if(_tuibian === 'jintui' || _tuibian === 'huiyuan'){ params.guolaoTuibianMethod = _tuibian; }
-		// 🔴 T-16:guolaoFieldValue 串化后 '0' 也为真 → 「钉死元时」(0)与缺省都被当「随岁差」发 1;按 '1'/'true' 判真(与缓存键 / models/astro.js 构参同口径)
-		const _gufaPrecess = guolaoFieldValue(fields, 'guolaoGufaPrecess', getStoredGuolaoGufaPrecess);
-		if(_gufaPrecess === '1' || _gufaPrecess === 'true'){ params.guolaoGufaPrecess = 1; }
-	}
-	// 赤道回归制锚点(mode7 元明 / mode8 实时 同款):仅两制且非默认(牛前冬至)才透传 → 缺=牛前冬至零回归。
-	if(su28Mode === GUOLAO_SU28_MODE_EQUATORIAL_TROPICAL || su28Mode === GUOLAO_SU28_MODE_EQUATORIAL_TROPICAL_LIVE){
-		const _anchor = guolaoFieldValue(fields, 'guolaoEqTropicalAnchor', getStoredGuolaoEqTropicalAnchor);
-		if(_anchor === 'chunfen'){ params.guolaoEqTropicalAnchor = 'chunfen'; }
-	}
-	// G20/R3 身宫法:琴堂(youjin)或自定身宫(地支子~亥)透传(进 moira params);默认果老(taiyin)不发=零回归。
-	const bodyMode = guolaoFieldValue(fields, 'guolaoBodyMode', getStoredGuolaoBodyMode);
-	if(bodyMode && bodyMode !== 'taiyin'){
-		params.guolaoBodyMode = bodyMode;
-	}
-	// R2 自定命宫:命度法值=地支(子~亥)即自定命宫,已随 guolaoLifeMode 透传(BaZi 按地支当 custom 算),无需额外键。
-
-	return params;
-}
-
-function guolaoFieldValue(fields, key, fallbackGetter){
-	if(fields && fields[key] && fields[key].value !== undefined && fields[key].value !== null && `${fields[key].value}` !== ''){
-		return `${fields[key].value}`;
-	}
-	return fallbackGetter ? fallbackGetter() : '';
-}
-
-function guolaoAyanamsaFromFields(fields){
-	if(fields && fields.guolaoAyanamsa && fields.guolaoAyanamsa.value !== undefined && fields.guolaoAyanamsa.value !== null && `${fields.guolaoAyanamsa.value}` !== ''){
-		return `${fields.guolaoAyanamsa.value}`;
-	}
-	return getStoredGuolaoAyanamsa();
-}
-
-function makeDefaultMoiraTransitTime(fields){
-	const tm = new DateTime();
-	if(fields && fields.zone && fields.zone.value){
-		tm.setZone(fields.zone.value);
-	}
-	return tm;
-}
-
-function paramsWithMoiraTransit(fields, transitTime){
-	const params = fieldsToParams(fields);
-	const tm = transitTime || makeDefaultMoiraTransitTime(fields);
-	if(tm){
-		params.date = tm.format('YYYY/MM/DD');
-		params.time = tm.format('HH:mm:ss');
-		params.ad = tm.ad;
-		params.zone = tm.zone || params.zone;
-		params.predictive = 1;
-	}
-	return params;
+// 快照槽的出生签名(对话挂载按它认命主):惰性存与刷新应答同一份。
+function guolaoSnapshotMeta(p){
+	const q = p || {};
+	return { date: q.date, time: q.time, zone: q.zone, lon: q.lon, lat: q.lat };
 }
 
 // ── horosa_guolao_scu_slice_v1(PERF-R9 Ship 6)────────────────────────────────
@@ -2578,12 +222,25 @@ const GuoLaoChartStage = memo(function GuoLaoChartStage(props){
 	);
 });
 
+// 换命主时整组复位的派生盘(与构造时初值同形)
+const GUOLAO_COMPOSITE_EMPTY = Object.freeze({
+	chartObj: null,
+	moiraTransitChartObj: null,
+	moiraRules: null,
+	moiraPanelChartObj: null,
+	moiraPanelTransitChartObj: null,
+	moiraPanelTransitParams: null,
+	electionData: null,
+});
 
 class GuoLaoChartMain extends Component{
 	constructor(props) {
 		super(props);
-		const storedChartStyle = getStoredGuolaoChartStyle();
-		const storedEngineMode = storedChartStyle === GUOLAO_CHART_STYLE_QIZHENG ? 'kinastro' : getStoredGuolaoEngineMode();
+		// 择日内嵌:引擎锁定星阙七政引擎(zeriPageCalibre.QIZHENG_ZERI_LOCKED)—— 本机记忆是「坚七政」也从 Moira 圆盘起
+		const engineLocked = this.engineLockedByZeri();
+		const rawChartStyle = getStoredGuolaoChartStyle();
+		const storedChartStyle = engineLocked && rawChartStyle === GUOLAO_CHART_STYLE_QIZHENG ? GUOLAO_CHART_STYLE_MOIRA : rawChartStyle;
+		const storedEngineMode = engineLocked ? 'horosa' : (storedChartStyle === GUOLAO_CHART_STYLE_QIZHENG ? 'kinastro' : getStoredGuolaoEngineMode());
 		this.state = {
 			chartObj: null,
 			moiraTransitTime: makeDefaultMoiraTransitTime(props.fields),
@@ -2623,7 +280,6 @@ class GuoLaoChartMain extends Component{
 		this.moiraTransitReqSeq = 0;
 		this.qizhengKinReqSeq = 0;
 		this.electionReqSeq = 0;
-		this.guolaoDefaultsEnsured = false;
 
 		this.onFieldsChange = this.onFieldsChange.bind(this);
 		this.requestChart = this.requestChart.bind(this);
@@ -2659,6 +315,8 @@ class GuoLaoChartMain extends Component{
 				}
 				this.requestChartObj(fields, chartObj);
 			};
+			// 所见那张盘实际所用的 fields(请求过了代次校验、确定上屏的那一次):择日宿主存案取它 —— 内嵌页自己重排、宿主改了工作台没重排、覆盖层里没确定的草稿,都不会让存案的时间地点与所见不一致(两路都按发请求那一拍的 props.fields 起盘)
+			this.props.hook.getPlottedFields = ()=>this._plottedFields || null;
 			// 时间变化即预热流年盘(与主 /chart 并行;正式流程到流年段时在途/缓存秒中)。
 			// 主 /chart 由模型层照发不重复;失败静默,正式请求自兜底。latency: 主盘+流年串行 → max(主盘,流年)。
 			this.props.hook.prewarmRequests = (flds)=>{
@@ -2731,9 +389,22 @@ class GuoLaoChartMain extends Component{
 		}
 	}
 
+	// 星盘样式 / 引擎 / 坚七政选项 / 流年神煞显隐 / 显示偏好只归七政主页记忆:择日内嵌实例的改动只作用本页(与起盘口径同一判据)
+	persistsGuolaoPrefs(){
+		return (this.props.techniqueScope || 'guolao') === 'guolao';
+	}
+
+	// 择日内嵌页锁定排盘引擎(另一套引擎的盘与扫描不是同一口径)
+	engineLockedByZeri(){
+		const e = this.props && this.props.zeriLocked && this.props.zeriLocked.engineMode;
+		return !!(e && e.value === 'horosa');
+	}
+
 	onChartStyleChange(val){
-		const chartStyle = setStoredGuolaoChartStyle(val);
-		const engineMode = setStoredGuolaoEngineMode(chartStyle === GUOLAO_CHART_STYLE_QIZHENG ? 'kinastro' : 'horosa');
+		if(this.engineLockedByZeri() && val === GUOLAO_CHART_STYLE_QIZHENG){ return; }
+		const persist = this.persistsGuolaoPrefs();
+		const chartStyle = setStoredGuolaoChartStyle(val, { persist });
+		const engineMode = setStoredGuolaoEngineMode(chartStyle === GUOLAO_CHART_STYLE_QIZHENG ? 'kinastro' : 'horosa', { persist });
 		const prevEngine = this.state.engineMode;
 		this.setState({
 			chartStyle,
@@ -2784,12 +455,12 @@ class GuoLaoChartMain extends Component{
 
 	onMoiraTransitGodsVisibleChange(visible){
 		this.setState({
-			showMoiraTransitGods: setStoredMoiraTransitGodsVisible(visible),
+			showMoiraTransitGods: setStoredMoiraTransitGodsVisible(visible, { persist: this.persistsGuolaoPrefs() }),
 		});
 	}
 
 	onGuolaoDisplayChange(patch){
-		const next = setStoredGuolaoDisplay({...this.state.guolaoDisplay, ...(patch || {})});
+		const next = setStoredGuolaoDisplay({...this.state.guolaoDisplay, ...(patch || {})}, { persist: this.persistsGuolaoPrefs() });
 		this.setState({ guolaoDisplay: next });
 	}
 
@@ -2816,11 +487,14 @@ class GuoLaoChartMain extends Component{
 	}
 
 	onEngineModeChange(value){
-		const engineMode = setStoredGuolaoEngineMode(value);
-		const storedChartStyle = getStoredGuolaoChartStyle();
+		if(this.engineLockedByZeri() && value === 'kinastro'){ return; }
+		const persist = this.persistsGuolaoPrefs();
+		const engineMode = setStoredGuolaoEngineMode(value, { persist });
+		// 内嵌实例按本页现值判(本机记忆可能是主页另一套)
+		const storedChartStyle = persist ? getStoredGuolaoChartStyle() : this.state.chartStyle;
 		const chartStyle = engineMode === 'kinastro'
-			? setStoredGuolaoChartStyle(GUOLAO_CHART_STYLE_QIZHENG)
-			: (storedChartStyle === GUOLAO_CHART_STYLE_QIZHENG ? setStoredGuolaoChartStyle(GUOLAO_CHART_STYLE_MOIRA) : storedChartStyle);
+			? setStoredGuolaoChartStyle(GUOLAO_CHART_STYLE_QIZHENG, { persist })
+			: (storedChartStyle === GUOLAO_CHART_STYLE_QIZHENG ? setStoredGuolaoChartStyle(GUOLAO_CHART_STYLE_MOIRA, { persist }) : storedChartStyle);
 		this.setState({
 			engineMode,
 			chartStyle,
@@ -2835,10 +509,11 @@ class GuoLaoChartMain extends Component{
 	}
 
 	onKinastroOptionChange(key, value){
+		const persist = this.persistsGuolaoPrefs();
 		const next = setStoredKinastroQizhengOptions({
 			...this.state.kinastroOptions,
 			[key]: value,
-		});
+		}, { persist, base: this.state.kinastroOptions });
 		this.setState({
 			kinastroOptions: next,
 		}, ()=>{
@@ -2862,6 +537,7 @@ class GuoLaoChartMain extends Component{
 		if(!params){
 			return null;
 		}
+		const plotFields = this.props.fields;   // genParams 读的这一份
 		const options = this.state.kinastroOptions || {};
 		const seq = ++this.qizhengKinReqSeq;
 		this.setState({
@@ -2871,7 +547,7 @@ class GuoLaoChartMain extends Component{
 		try{
 		const pan = await fetchKinastroQizheng({
 				...params,
-				// [Q-198/T-124] fieldsToParams 不含 gender,后端 data.get("gender") 缺省男 → 女命大运与断语恒按男排;此处补透传(1/0 → 后端 gender_cn)。
+				// fieldsToParams 不含 gender,后端 data.get("gender") 缺省男 → 女命大运与断语恒按男排;此处补透传(1/0 → 后端 gender_cn)。
 				gender: (this.props.fields && this.props.fields.gender && this.props.fields.gender.value !== undefined && this.props.fields.gender.value !== null) ? this.props.fields.gender.value : undefined,
 				qizhengKinCurrentYear: options.currentYear,
 				qizhengKinTransitMode: options.transitMode || 'none',
@@ -2884,8 +560,10 @@ class GuoLaoChartMain extends Component{
 			if(this.unmounted || seq !== this.qizhengKinReqSeq){
 				return pan;
 			}
+			this._plottedFields = plotFields;
 			this.setState({
 				qizhengKinPan: pan,
+				qizhengKinPanSig: natalSourceKey(params),
 				qizhengKinLoading: false,
 				qizhengKinError: '',
 			}, ()=>{
@@ -2918,14 +596,13 @@ class GuoLaoChartMain extends Component{
 		}
 	}
 
+	// 每张新开 / 未存的盘都按本机仓补空(与「新盘种子」同义):不再只在本实例首开时补一次 —— 页面常驻,
+	// 本次运行里后来新开的命盘若不补,就按出厂值起盘,要重开软件才跟本机仓。补空本身幂等(只补仍是 schema 初值、
+	// 且与本机仓不同的键;左栏改值时同时写本机仓),载入了记录(cid)、择日内嵌一律不补,见 computeGuolaoSeedPatch。
 	ensureGuolaoDefaults(){
-		if(this.guolaoDefaultsEnsured){
-			return false;
-		}
 		if(!this.props.fields || !this.props.dispatch){
 			return false;
 		}
-		this.guolaoDefaultsEnsured = true;
 		const patch = computeGuolaoSeedPatch(this.props.fields, { embedded: (this.props.techniqueScope || 'guolao') !== 'guolao' });
 		if(!Object.keys(patch).length){
 			return false;
@@ -2960,17 +637,17 @@ class GuoLaoChartMain extends Component{
 		this.setState({
 			...(pendingChartObj ? { chartObj: pendingChartObj } : {}),
 			// 流年盘与主盘/rules 同批放行(彻底合批:盘面一次成型,不显示半成品)。
-			...(transitChartObj ? { moiraTransitChartObj: transitChartObj } : {}),
+			...(transitChartObj ? { moiraTransitChartObj: transitChartObj, moiraTransitChartObjSig: natalSourceKey(params) } : {}),
 			moiraRules: rules,
 			moiraPanelChartObj: clonePlain(chartObj),
-			moiraPanelTransitChartObj: clonePlain(transitChartObj || this.state.moiraTransitChartObj),
+			moiraPanelTransitChartObj: clonePlain(transitChartObj || this.shownMoiraTransitChartObj()),
 			moiraPanelTransitParams: clonePlain(nextTransitParams),
 			moiraLoading: false,
 		}, ()=>{
 			// horosa_panel_ready_v1:旧多段路径的**唯一**终点(applyChartObj→requestMoiraTransitChart
 			// →requestMoiraRules 全部汇入此处),中栏盘面 + 右栏 rules 在这一次 setState 里一起落定。
 			markPanelReady('guolao');
-			// [issue#74 同类] 规则落地即补拍快照:阶段一在 moiraRules 未归时已产首版(lazy 200-800ms
+			// 规则落地即补拍快照:阶段一在 moiraRules 未归时已产首版(lazy 200-800ms
 			// 即物化冻结,导出直吃缓存),不补拍则 AI 侧恒丢 [虚实]/[本命化曜]/[流年流曜] 三段、
 			// [神煞] 降级历法源——页面/refresh/无头三路都等规则,唯存盘路裸拍(不同构)。
 			this.saveGuolaoAISnapshot(params, pendingChartObj || chartObj || this.state.chartObj);
@@ -2992,7 +669,7 @@ class GuoLaoChartMain extends Component{
 				params: params,
 				chartObj: chartObj,
 				transitParams: transitParams || paramsWithMoiraTransit(this.props.fields, this.state.moiraTransitTime),
-				transitChartObj: transitChartObj || this.state.moiraTransitChartObj || null,
+				transitChartObj: transitChartObj || this.shownMoiraTransitChartObj() || null,
 			}, {
 				silent: true,
 				timeoutMs: 12000,
@@ -3058,6 +735,7 @@ class GuoLaoChartMain extends Component{
 				this.setState({
 					...(this._pendingMoiraChartObj ? { chartObj: this._pendingMoiraChartObj } : {}),
 					moiraTransitChartObj: displayResult,
+					moiraTransitChartObjSig: natalSourceKey(rootParams || this.genParams()),
 					moiraTransitLoading: false,
 					moiraLoading: false,
 				}, ()=>{
@@ -3126,20 +804,16 @@ class GuoLaoChartMain extends Component{
 		}
 		const planetDisplay = this.props.planetDisplay;
 		const fields = this.props.fields;
+		// 命主取法 / 行运法 / 童限 / 年界按本页显示偏好写(与右栏、大限环同源)
+		const displayPrefs = this.state ? this.state.guolaoDisplay : null;
 		saveModuleAISnapshotLazy(this.props.techniqueScope || 'guolao', ()=>{
-			const base = buildGuolaoSnapshotTextV2(p, r, planetDisplay, fields, this.state ? this.state.moiraRules : null) || '';
-			// [Z7] 择日宿主经 composeAiSnapshot 拼接择时三段(scope 化,主七政页零影响)
+			const base = buildGuolaoSnapshotTextV2(p, r, planetDisplay, fields, this.state ? this.state.moiraRules : null, displayPrefs) || '';
+			// 择日宿主经 composeAiSnapshot 拼接择时三段(scope 化,主七政页零影响)
 			if(typeof this.props.composeAiSnapshot === 'function'){
 				try{ return `${this.props.composeAiSnapshot(base) || base}`; }catch(e){ return base; }
 			}
 			return base;
-		}, {
-			date: p.date,
-			time: p.time,
-			zone: p.zone,
-			lon: p.lon,
-			lat: p.lat,
-		});
+		}, guolaoSnapshotMeta(p));
 	}
 
 	// AI 导出/挂载实时取数:导出侧派发 refresh 事件,这里用当前盘即时构建快照并回填,
@@ -3149,18 +823,21 @@ class GuoLaoChartMain extends Component{
 	handleSnapshotRefreshRequest(evt){
 		const moduleName = evt && evt.detail ? evt.detail.module : '';
 		let text = '';
+		let meta;
 		try{
 			if(moduleName === (this.props.techniqueScope || 'guolao')){
 				const p = this.genParams();
 				const r = this.state ? this.state.chartObj : null;
+				// 带本盘出生签名写槽(与 saveGuolaoAISnapshot 同一份 meta):不带则刷新一次后槽失去签名,对话挂载认不出是这位命主
+				meta = guolaoSnapshotMeta(p);
 				if(p && r){
-					text = `${buildGuolaoSnapshotTextV2(p, r, this.props.planetDisplay, this.props.fields, this.state ? this.state.moiraRules : null) || ''}`.trim();
+					text = `${buildGuolaoSnapshotTextV2(p, r, this.props.planetDisplay, this.props.fields, this.state ? this.state.moiraRules : null, this.state ? this.state.guolaoDisplay : null) || ''}`.trim();
 				}
 			}else if(moduleName === 'guolao-qizhengkin' && (this.props.techniqueScope || 'guolao') === 'guolao'){
 				// 🔴 全站共用槽只归主页实例应答:择日内嵌实例(techniqueScope='qizhengzeri')在
 				// kinastro 档下也持 qizhengKinPan,双实例都答=后注册者用**择日候选时刻**内容
 				// 覆写 detail.snapshotText,主页「七政(七政)」导出被污染(审查实抓)。
-				const pan = this.state ? this.state.qizhengKinPan : null;
+				const pan = this.shownQizhengKinPan();
 				text = `${(pan && pan.snapshot) || ''}`.trim();
 			}else{
 				return;
@@ -3172,7 +849,7 @@ class GuoLaoChartMain extends Component{
 			try{ text = `${this.props.composeAiSnapshot(text) || text}`; }catch(e){ /* 拼接失败用基底 */ }
 		}
 		if(text){
-			saveModuleAISnapshot(moduleName, text);
+			saveModuleAISnapshot(moduleName, text, meta);
 			if(evt && evt.detail && typeof evt.detail === 'object'){
 				evt.detail.snapshotText = text;
 			}
@@ -3194,6 +871,7 @@ class GuoLaoChartMain extends Component{
 		if(!params){
 			return;
 		}
+		const plotFields = this.props.fields;   // genParams 读的这一份
 		const style = this.state.chartStyle;
 		// 流年盘:Moira/天星择日 在转盘上画;Horosa原盘 不画转盘但右栏「流年星曜/流年七政动态/流年落入」仍需流年盘数据,
 		// 故所有样式都取流年盘(否则 classic 下右栏流年段空白显示「无数据」)。坚七政自有流年路径,不在此分支。
@@ -3208,7 +886,13 @@ class GuoLaoChartMain extends Component{
 			return;
 		}
 		const seq = ++this.bundleSeq;
-		this.setState({ bundleLoading: true });
+		// 换了命主:本命 / 流年 / 规则整组复位成首次加载(骨架),在途期间不再拿上一位命主的整组盘顶着画;
+		// 同一位命主只改设置 → 旧盘留存 + 遮罩「更新中」(isChartObjSameNatal)。
+		if(this.state.chartObj && !isChartObjSameNatal(this.state.chartObj, params)){
+			this.setState({ ...GUOLAO_COMPOSITE_EMPTY, bundleLoading: true });
+		}else{
+			this.setState({ bundleLoading: true });
+		}
 		const transitParams = paramsWithMoiraTransit(this.props.fields, this.state.moiraTransitTime);
 		const reuse = srcChart && isChartObjMatchParams(srcChart, params) && hasGuolaoRiseSetFields(srcChart);
 		// 阶段一(冷加载性能):只取本命盘并立即上屏——命盘轮完整、绝不画半成品。
@@ -3216,17 +900,20 @@ class GuoLaoChartMain extends Component{
 		// 流年环/流曜/格局走既有 transitLoading/moiraLoading 过渡态稍后毫秒级补入,默认显示口径不变,缓存键(byte-perfect)不动。
 		let natalRaw = null;
 		let natalFailed = false;   // 本命盘未取到(抛错或空回)→ 画的是回落旧盘,须报失败让同参可重试
+		// 回落旧盘只许是同一位命主的(只改了设置);换了人 → 不画(不能拿上一位命主的盘顶着)
+		const fallbackChart = ()=>(isChartObjSameNatal(this.state.chartObj, params) ? this.state.chartObj : null);
 		try{
 			natalRaw = reuse ? srcChart : await fetchGuolaoChartCached(params, {silent: true});
 			if(!reuse && !natalRaw){ natalFailed = true; }
 		}catch(e){
 			natalFailed = !reuse;
-			natalRaw = reuse ? srcChart : (this.state.chartObj || null);
+			natalRaw = reuse ? srcChart : null;
 		}
 		if(seq !== this.bundleSeq || this.unmounted){
 			return;
 		}
-		const chartObj = natalRaw ? applyGuolaoNodeMode(natalRaw, this.props.fields) : (this.state.chartObj || null);
+		if(natalRaw && !natalFailed){ this._plottedFields = plotFields; }   // 取不到本命盘时画的是回落旧盘,不算按这份起的
+		const chartObj = natalRaw ? applyGuolaoNodeMode(natalRaw, this.props.fields) : fallbackChart();
 		this.setState({
 			chartObj,
 			moiraPanelChartObj: chartObj,
@@ -3267,11 +954,14 @@ class GuoLaoChartMain extends Component{
 		// ⇒ 下面的规则取回是 Promise.resolve 级,跳过「先画流年环」的中间 setState,终态一次落齐
 		// (终态字节一致,少一整轮重渲)。窥探为假(冷/在途)⇒ 保留中间帧 = 流年环照旧先行上屏,
 		// 绝不让流年环等规则往返。窥探真而取时被 LRU 逐出的极角:流年环与规则同帧上屏,终态不变。
+		// 流年盘与其来源键 moiraTransitChartObjSig 必须同帧写(shownMoiraTransitChartObj 按键比对;
+		// 只写盘不写键 = 合并路径下流年环整个不显示),中间帧与终态帧都带。
 		const rulesPeekHit = guolaoMergedPaintEnabled()
 			&& peekCachedPost('qizheng/moira', stableMoiraKey({ params, transitParams }));
 		if(!rulesPeekHit){
 			this.setState({
 				moiraTransitChartObj: transitObj,
+				moiraTransitChartObjSig: natalSourceKey(params),
 				moiraTransitLoading: false,
 			});
 		}
@@ -3301,8 +991,9 @@ class GuoLaoChartMain extends Component{
 		this.setState({
 			moiraRules: rules,
 			// G5:流年盘字段并入终态帧(慢路径下与中间帧同引用 = 幂等无额外工作;
-			// 合并路径下这里是它唯一的落点)。
+			// 合并路径下这里是它唯一的落点)。来源键同帧写(见上 G5 注)。
 			moiraTransitChartObj: transitObj,
+			moiraTransitChartObjSig: natalSourceKey(params),
 			moiraPanelChartObj: chartObj,
 			moiraPanelTransitChartObj: transitObj,
 			moiraPanelTransitParams: transitParams,
@@ -3312,9 +1003,29 @@ class GuoLaoChartMain extends Component{
 			// horosa_panel_ready_v1:主路径(单闸门 requestGuolaoBundle)终点 —— 中栏命盘轮 + 流年环
 			// + 右栏 Moira 面板(rules/流曜/格局)全部落定的那一次 setState。
 			markPanelReady('guolao');
-			// [issue#74 同类] 同 commitMoiraPanel:阶段二规则取齐即补拍,快照终版带全 Moira 段。
+			// 同 commitMoiraPanel:阶段二规则取齐即补拍,快照终版带全 Moira 段。
 			this.saveGuolaoAISnapshot(params, chartObj);
 		});
+	}
+
+	// 当前命主来源键(按 fields 身份记一次)
+	curNatalSig(){
+		if(this._natalSigFields !== this.props.fields){
+			this._natalSigFields = this.props.fields;
+			let p = null;
+			try{ p = this.genParams(); }catch(e){ p = null; }
+			this._natalSig = natalSourceKey(p);
+		}
+		return this._natalSig;
+	}
+
+	// 流年盘 / 七政四余盘只用出自当前命主的那份:换命主后新盘在途 / 取失败时不拿上一位命主的
+	shownMoiraTransitChartObj(){
+		return pickKeyedDerived(this.state.moiraTransitChartObj, this.state.moiraTransitChartObjSig, this.curNatalSig());
+	}
+
+	shownQizhengKinPan(){
+		return pickKeyedDerived(this.state.qizhengKinPan, this.state.qizhengKinPanSig, this.curNatalSig());
 	}
 
 	genParams(){
@@ -3333,23 +1044,33 @@ class GuoLaoChartMain extends Component{
 			if(hasConfirmedFlag){
 				delete patch.__confirmed;
 			}
+			// 择日内嵌实例:宿度制 / 命度 / 罗计只改宿主自己的盘 —— 只归一取值,不写七政页的保存值、不记新盘种子
+			const mainPage = (this.props.techniqueScope || 'guolao') === 'guolao';
 			if(patch.doubingSu28 && Object.prototype.hasOwnProperty.call(patch.doubingSu28, 'value')){
 				patch.doubingSu28 = {
 					...patch.doubingSu28,
-					value: setStoredGuolaoSu28Mode(patch.doubingSu28.value),
+					value: mainPage ? setStoredGuolaoSu28Mode(patch.doubingSu28.value) : normalizeGuolaoSu28Mode(patch.doubingSu28.value),
 				};
+				// 宿度制与宿盘共写同一键:主页亲手改 = 新命盘缺省(与宿盘同一个「新盘种子」,两页最后一次亲手选的生效)
+				if(mainPage){
+					recordNewChartSeeds({ doubingSu28: patch.doubingSu28.value });
+				}
 			}
 			if(patch.guolaoLifeMode && Object.prototype.hasOwnProperty.call(patch.guolaoLifeMode, 'value')){
 				patch.guolaoLifeMode = {
 					...patch.guolaoLifeMode,
-					value: setStoredGuolaoLifeMode(patch.guolaoLifeMode.value),
+					value: mainPage ? setStoredGuolaoLifeMode(patch.guolaoLifeMode.value) : normalizeGuolaoLifeMode(patch.guolaoLifeMode.value),
 				};
 			}
 			if(patch.guolaoNodeMode && Object.prototype.hasOwnProperty.call(patch.guolaoNodeMode, 'value')){
 				patch.guolaoNodeMode = {
 					...patch.guolaoNodeMode,
-					value: setStoredGuolaoNodeMode(patch.guolaoNodeMode.value),
+					value: mainPage ? setStoredGuolaoNodeMode(patch.guolaoNodeMode.value) : normalizeGuolaoNodeMode(patch.guolaoNodeMode.value),
 				};
+			}
+			// 择日宿主内嵌:改动交给宿主的覆盖层(宿主用新 fields 拉底盘重排),不写主盘
+			if(sendScopedFields(this.props, patch, { recompute: confirmed })){
+				return;
 			}
 			let flds = {
 				fields: {
@@ -3460,13 +1181,15 @@ class GuoLaoChartMain extends Component{
 			}
 			return;
 		}
-		if(prevProps.fields !== this.props.fields && this.ensureGuolaoDefaults()){
+		// 坚七政样式(kinastro 引擎)不起本页的盘、也不补空;切到别的样式那一刻补一次(fields 没变也要补)
+		const leftKinastro = !!(prevState && prevState.engineMode === 'kinastro');
+		if((prevProps.fields !== this.props.fields || leftKinastro) && this.ensureGuolaoDefaults()){
 			return;
 		}
 		if(prevProps.planetDisplay !== this.props.planetDisplay){
 			this.saveGuolaoAISnapshot(null, this.state.chartObj);
 		}
-		// [Q-435] 命主取法 / 行运法 / 定童限 / 年界 等显示偏好改动后重存页面快照:此前只在盘数据到达时存,
+		// 命主取法 / 行运法 / 定童限 / 年界 等显示偏好改动后重存页面快照:此前只在盘数据到达时存,
 		// 切「行运法」后 [起盘信息] 标签行、[大限] 与 [限法实算] 段仍是旧值(右栏已变)。
 		if(prevState && prevState.guolaoDisplay !== this.state.guolaoDisplay && this.state.chartObj){
 			this.saveGuolaoAISnapshot(null, this.state.chartObj);
@@ -3492,7 +1215,7 @@ class GuoLaoChartMain extends Component{
 		this.unmounted = true;
 		// R4-B3:反注册步进预取器(防卸载后闭包吃到死组件态)。
 		if(this._guolaoStepPrefetcher){
-			try{ unregisterStepPrefetcher('guolao', this._guolaoStepPrefetcher); }catch(e){ /* ignore */ }
+			unregisterStepPrefetcher('guolao', this._guolaoStepPrefetcher);
 			this._guolaoStepPrefetcher = null;
 		}
 		this.moiraReqSeq++;
@@ -3674,7 +1397,7 @@ class GuoLaoChartMain extends Component{
 								<span>最高</span>
 							</label>
 							<div className="horosa-guolao-quick-card-text">
-								当前 {meta.level} 档，Moira 阈值 level ≥ {meta.displayLevel}；显示 {patterns.length}/{allPatterns.length} 条命中格局。
+								当前 {meta.level} 档，显示格局档位 ≥ {meta.displayLevel}；显示 {patterns.length}/{allPatterns.length} 条命中格局。
 							</div>
 						</div>
 					))}
@@ -3857,7 +1580,7 @@ class GuoLaoChartMain extends Component{
 	}
 
 	renderQuickTransitStars(){
-		const rows = buildQuickPlanetRows(this.state.moiraTransitChartObj, []);
+		const rows = buildQuickPlanetRows(this.shownMoiraTransitChartObj(), []);
 		const transitParams = paramsWithMoiraTransit(this.props.fields, this.state.moiraTransitTime);
 		const transitYear = yearFromParams(transitParams);
 		const rules = this.state.moiraRules || {};
@@ -3943,7 +1666,7 @@ class GuoLaoChartMain extends Component{
 	renderQuickGods(){
 		const rules = this.state.moiraRules || {};
 		const birthRows = normalizeGodRows(safeList(rules.godHits).length ? rules.godHits : buildGodRowsFromChart(this.state.chartObj, this.props.fields), MOIRA_BIRTH_GOD_ORDER);
-		const transitRows = normalizeGodRows(safeList(rules.transitGodHits).length ? rules.transitGodHits : buildGodRowsFromChart(this.state.moiraTransitChartObj, this.props.fields), MOIRA_TRANSIT_GOD_ORDER);
+		const transitRows = normalizeGodRows(safeList(rules.transitGodHits).length ? rules.transitGodHits : buildGodRowsFromChart(this.shownMoiraTransitChartObj(), this.props.fields), MOIRA_TRANSIT_GOD_ORDER);
 		return (
 			<div className="horosa-guolao-quick-dialog">
 				{this.renderMoiraSection('本命神煞', this.renderQuickGodRows(birthRows))}
@@ -4001,7 +1724,7 @@ class GuoLaoChartMain extends Component{
 		const seq = ++this.electionReqSeq;
 		this.setState({ electionLoading: true });
 		// 紫炁黄经透传自流年 chartObj(与全站四余口径同源,防双引擎漂移)
-		const transitChart = this.state.moiraTransitChartObj && this.state.moiraTransitChartObj.chart;
+		const transitChart = this.shownMoiraTransitChartObj() && this.shownMoiraTransitChartObj().chart;
 		const extraBodies = [];
 		if(transitChart && Array.isArray(transitChart.objects)){
 			const ziqi = transitChart.objects.find((o)=>o && o.id === AstroConst.PURPLE_CLOUDS);
@@ -4033,8 +1756,10 @@ class GuoLaoChartMain extends Component{
 			gpsLat: tp.gpsLat,
 			gpsLon: tp.gpsLon,
 			eleLifeMode: this.state.eleLifeMode,
-			nodeType: getStoredGuolaoNodeType(),
-			lilithType: getStoredGuolaoLilithType(),
+			// 罗计 / 月孛取法跟盘:与同页主盘、流年盘同一来源(tp = fieldsToParams:盘上的值,盘上缺这一项才回落本机值;
+			// 择日里内嵌的盘 = 工作台口径)。此前七政页这里直读本机值,载入「盘上 ≠ 本机」的命盘时择时盘与主盘两套取法
+			nodeType: tp.guolaoNodeType === 'true' ? 'true' : 'mean',
+			lilithType: tp.guolaoLilithType === 'true' ? 'true' : 'mean',
 			ayanamsaDeg: 0,
 			extraBodies,
 		};
@@ -4097,8 +1822,8 @@ class GuoLaoChartMain extends Component{
 		if(tp.gpsLat === undefined || tp.gpsLon === undefined || !tp.date){
 			return 0;
 		}
-		const parts = `${tp.date}`.replace(/-/g, '/').split('/');
-		const year = Number(parts[0]) + (Math.max(1, Number(parts[1]) || 1) - 1) / 12;
+		const dp = parseDateParts(tp.date);   // 民用日期串单源解析(公元前前导负号不丢)
+		const year = (dp ? dp.year : NaN) + (Math.max(1, (dp && dp.month) || 1) - 1) / 12;
 		const res = getMagneticDeclination(year, Number(tp.gpsLon), Number(tp.gpsLat));
 		if(res.outOfRange !== this.state.electionDeclOutOfRange && !this._declFlagScheduled){
 			this._declFlagScheduled = true;
@@ -4112,8 +1837,9 @@ class GuoLaoChartMain extends Component{
 		return res.declination;
 	}
 
+	// 分宫制 / 天星择日各项 / 立命时刻与其它显示偏好同律:只有七政主页写记忆,择日内嵌实例只改本页
 	onGuolaoElectionChange(patch){
-		const safe = setStoredGuolaoElection({ ...(this.state.electionOptions || {}), ...(patch || {}) });
+		const safe = setStoredGuolaoElection({ ...(this.state.electionOptions || {}), ...(patch || {}) }, { persist: this.persistsGuolaoPrefs(), base: this.state.electionOptions });
 		this.setState({ electionOptions: safe });
 	}
 
@@ -4127,12 +1853,12 @@ class GuoLaoChartMain extends Component{
 		if(!next || !next.parse){
 			return;
 		}
-		next.parse(`${`${row.date}`.replace(/-/g, '/')} ${row.time || '12:00:00'}`, 'YYYY-MM-DD HH:mm:ss');
+		next.parse(`${toSlashDate(`${row.date}`)} ${row.time || '12:00:00'}`, 'YYYY-MM-DD HH:mm:ss');
 		this.onMoiraTransitTimeChange({ value: next });
 	}
 
 	onEleLifeModeChange(val){
-		const mode = setStoredGuolaoEleLifeMode(val);
+		const mode = setStoredGuolaoEleLifeMode(val, { persist: this.persistsGuolaoPrefs() });
 		this.setState({ eleLifeMode: mode });
 	}
 
@@ -4151,7 +1877,7 @@ class GuoLaoChartMain extends Component{
 		const sig = [
 			this.state.chartStyle,
 			this.state.electionData,
-			this.state.moiraTransitChartObj,
+			this.shownMoiraTransitChartObj(),   // 键 = 实际渲染的流年盘(按来源键比对后的那份,与 GuoLaoElectionTable 入参同源)
 			this.state.moiraRules,
 			this.state.electionOptions,
 			this.props.fields,
@@ -4168,7 +1894,7 @@ class GuoLaoChartMain extends Component{
 			{ key: 'election', label: '择日', children: ()=>wrap(
 				<GuoLaoElectionTable
 					electionData={this.state.electionData}
-					transitChartObj={this.state.moiraTransitChartObj}
+					transitChartObj={this.shownMoiraTransitChartObj()}
 					moiraRules={this.state.moiraRules}
 					election={this.state.electionOptions}
 					declination={this.resolveElectionDeclination()}
@@ -4299,7 +2025,7 @@ class GuoLaoChartMain extends Component{
 	}
 
 	renderQizhengKinBoard(){
-		const pan = this.state.qizhengKinPan;
+		const pan = this.shownQizhengKinPan();
 		if(this.state.qizhengKinLoading && !pan){
 			return <div className="horosa-qizheng-kin-status">七政四余排盘中...</div>;
 		}
@@ -4313,7 +2039,7 @@ class GuoLaoChartMain extends Component{
 	}
 
 	renderQizhengKinInfoPanel(){
-		const pan = this.state.qizhengKinPan;
+		const pan = this.shownQizhengKinPan();
 		const qz = pan && pan.qizheng ? pan.qizheng : {};
 		const sections = safeList(pan && pan.sections);
 		const sectionByTitle = new Map(sections.map((item)=>[item.title, item]));
@@ -4395,7 +2121,7 @@ class GuoLaoChartMain extends Component{
 				<QuickDockBar
 					page="guolao"
 					className="horosa-guolao-quick-dock horosa-qizheng-kin-quick-dock"
-					hasResult={!!this.state.qizhengKinPan}
+					hasResult={!!this.shownQizhengKinPan()}
 					dispatch={this.props.dispatch}
 				/>
 			);
@@ -4420,12 +2146,12 @@ class GuoLaoChartMain extends Component{
 	// 实际会画的字远多于固定序表——固定序只作排序前缀,新字追加,保证「选择全面+全联动」)。
 	// horosa_guolao_render_memo_v1:神煞全字集收集(遍历 godHits/transitGodHits ~107 字 + 排序)
 	// 原先**每帧**跑一次并返回新对象(左栏 GuoLaoInput 的 godNamePools prop 因此帧帧变新)。
-	// 键=(moiraRules, chartObj, moiraTransitChartObj) 引用 —— 三者正是收集函数读取的全部输入,
+	// 键=(moiraRules, chartObj, shownMoiraTransitChartObj()) 引用 —— 三者正是收集函数读取的全部输入,
 	// 任一变化即重算,勾选↔盘面联动口径不变。
 	collectGodNamePools(){
 		const rules = this.state.moiraRules;
 		const co = this.state.chartObj;
-		const tco = this.state.moiraTransitChartObj;
+		const tco = this.shownMoiraTransitChartObj();   // 与 computeGodNamePools 实读的同一份(按来源键比对后)
 		if(this._godPools && this._godPoolsRules === rules && this._godPoolsChart === co && this._godPoolsTransit === tco){
 			return this._godPools;
 		}
@@ -4471,7 +2197,7 @@ class GuoLaoChartMain extends Component{
 		const transitHits = pickHits(rules.transitGodHits);
 		return {
 			birth: orderBy(birthHits.length ? birthHits : pick(this.state.chartObj), MOIRA_BIRTH_GOD_ORDER),
-			transit: orderBy(transitHits.length ? transitHits : pick(this.state.moiraTransitChartObj || this.state.chartObj), MOIRA_TRANSIT_GOD_ORDER),
+			transit: orderBy(transitHits.length ? transitHits : pick(this.shownMoiraTransitChartObj() || this.state.chartObj), MOIRA_TRANSIT_GOD_ORDER),
 		};
 	}
 
@@ -4509,7 +2235,7 @@ class GuoLaoChartMain extends Component{
 		const usePickWheel = this.state.chartStyle === GUOLAO_CHART_STYLE_PICK;
 		const useMoiraLikeWheel = useMoiraWheel || usePickWheel;
 		const moiraPanelChartObj = this.state.moiraPanelChartObj || chartObj;
-		const moiraPanelTransitChartObj = this.state.moiraPanelTransitChartObj || this.state.moiraTransitChartObj;
+		const moiraPanelTransitChartObj = this.state.moiraPanelTransitChartObj || this.shownMoiraTransitChartObj();
 		const moiraPanelTransitParams = this.state.moiraPanelTransitParams || this.memoTransitParams();
 		const useKinastroQizheng = this.state.engineMode === 'kinastro';
 		const stageTransitParams = this.memoTransitParams();
@@ -4525,12 +2251,14 @@ class GuoLaoChartMain extends Component{
 							<GuoLaoInput
 								fields={this.props.fields}
 								onFieldsChange={this.onFieldsChange}
+								persistPrefs={(this.props.techniqueScope || 'guolao') === 'guolao'}
 								engineMode={this.state.engineMode}
 								onEngineModeChange={this.onEngineModeChange}
 								kinastroOptions={this.state.kinastroOptions}
 								onKinastroOptionChange={this.onKinastroOptionChange}
 								chartStyle={this.state.chartStyle}
 								onChartStyleChange={this.onChartStyleChange}
+								zeriLocked={this.props.zeriLocked}
 								moiraTransitTime={this.state.moiraTransitTime}
 								onMoiraTransitTimeChange={this.onMoiraTransitTimeChange}
 								showMoiraTransitGods={this.state.showMoiraTransitGods}
@@ -4553,7 +2281,7 @@ class GuoLaoChartMain extends Component{
 									variant={(this.state.bundleLoading && !chartObj) ? 'skeleton' : usePickWheel ? 'pick' : useMoiraWheel ? 'moira' : 'classic'}
 									rootValue={chartObj}
 									value={chart}
-									transitValue={this.state.moiraTransitChartObj}
+									transitValue={this.shownMoiraTransitChartObj()}
 									transitParams={stageTransitParams}
 									transitLoading={this.state.moiraTransitLoading}
 									moiraRules={this.state.moiraRules}

@@ -1,4 +1,4 @@
-// [E1·显示] 后天宫位宫首计算 · 正确性金标(对后端 fixture 逐点核 + 分宫机制 + 对宫不变量)。
+// 后天宫位宫首计算 · 正确性金标(对后端 fixture 逐点核 + 分宫机制 + 对宫不变量)。
 import fs from 'fs';
 import path from 'path';
 import { houseCusps, mcLon, ascLon } from '../pdHouseCusps';
@@ -11,7 +11,7 @@ const ASC_REF = FX.points.N_Asc_0.lon;
 const MC_REF = FX.points.N_MC_0.lon;
 const d180 = (a, b)=>Math.abs(((a - b + 540) % 360) - 180);
 
-describe('[E1] 后天宫位宫首 · 与后端逐点核 + 分宫机制', ()=>{
+describe('后天宫位宫首 · 与后端逐点核 + 分宫机制', ()=>{
 	test('🔴 ASC/MC 闭式对后端 N_Asc_0/N_MC_0 逐点吻合(<0.05°)', ()=>{
 		expect(d180(mcLon(RAMC, EPS), MC_REF)).toBeLessThan(0.05);
 		expect(d180(ascLon(RAMC, PHI, EPS), ASC_REF)).toBeLessThan(0.05);
@@ -76,7 +76,7 @@ describe('[E1] 后天宫位宫首 · 与后端逐点核 + 分宫机制', ()=>{
 	});
 });
 
-// [Q-531/T-493] Equal(时圈)档:天球闭式宫首=赤经等分(Meridian 定义);后端 _PD_FRAME_HSYS 同档已映 swisseph Meridian → 2D 盘与天球同口径。
+// Equal(时圈)档:天球闭式宫首=赤经等分(Meridian 定义);后端 _PD_FRAME_HSYS 同档已映 swisseph Meridian → 2D 盘与天球同口径。
 describe('equal_hour_circle == meridian(与后端 Meridian 映射同口径)', () => {
 	const { cuspSystemOfFrame } = require('../pdHouseCusps');
 	it('cuspSystemOfFrame 两档同系、houseCusps 逐宫相等', () => {

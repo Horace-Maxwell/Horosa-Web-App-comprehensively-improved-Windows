@@ -1,4 +1,4 @@
-// [Q-495/T-457 → #73] 天象日期的历法归属:库内约定单一 —— `modern_date` 就是史料所载的儒略历日期(1582-10-15 前),
+// 天象日期的历法归属:库内约定单一 —— `modern_date` 就是史料所载的儒略历日期(1582-10-15 前),
 // `julian_date` 列已整列置空;改历之前标「儒略历」、之后两历同值标「公历」。带 julian_date 的用例只锁旧载荷兼容分支
 // (库内不再命中)。本套件锁「按历法如实标注」这条判据(改前一律「公历」= 红)。
 import { celestialCalendarKind, celestialCalendarLabel, celestialDateWithCalendar, resolveChartDate, chartDateExactLabel } from '../xuanshiDate';
@@ -35,7 +35,7 @@ describe('天象日期历法归属', () => {
 	});
 });
 
-// [Q-487/T-449] 「排此日」须看 modern_precision:库内 modern_date 一律是完整串,月级/年级/年段只是合成日。
+// 「排此日」须看 modern_precision:库内 modern_date 一律是完整串,月级/年级/年段只是合成日。
 
 describe('库内单一约定(#73):modern_date = 史料儒略历日期,julian_date 恒空', () => {
 	it('改历前 exact_day 行:按 modern_date 原样起盘(引擎按儒略历解释),标「儒略历」', () => {

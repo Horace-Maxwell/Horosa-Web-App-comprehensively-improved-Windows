@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import XQIcon from './xq-icons';
 import { preloadNavByKey } from '../utils/navPreload';
+import { matchesUserQuery } from '../utils/scriptMode';
 
 const Pages = [{
 	path: ['astrochart'],
@@ -14,32 +15,27 @@ const Pages = [{
 	path: ['ziwei'],
 	label: '紫微',
 	key: 'ziwei',
-},{
-	path: ['astroreader'],
-	label: '书籍阅读',
-	key: 'astroreader',
 }];
 
 // 导航搜索匹配：模块标题 + 分组 + 模块内术法关键词（rec.keywords，见 pages/index.js navigationPages）。
-// 空 query → 全部命中（默认行为不变）。导出供单测。
+// 空 query → 全部命中（默认行为不变）。导出供单测。比对经 matchesUserQuery(界面繁体时照屏幕输入繁体也能命中)。
 export function pageMatchesQuery(rec, query){
-	const q = `${query || ''}`.trim().toLowerCase();
+	const q = `${query || ''}`.trim();
 	if(!q){
 		return true;
 	}
-	const hay = `${rec.label || ''} ${rec.group || ''} ${rec.keywords || ''}`.toLowerCase();
-	return hay.indexOf(q) >= 0;
+	return matchesUserQuery(`${rec.label || ''} ${rec.group || ''} ${rec.keywords || ''}`, q);
 }
 
 // 命中是靠 keywords（卡片标题不含 query）时，返回命中的那个术法词，供卡片标注「含 卜卦盘」让用户知道为何出现；
 // 标题直接命中或无 query → 返回 ''（不标注）。
 export function matchedKeyword(rec, query){
-	const q = `${query || ''}`.trim().toLowerCase();
-	if(!q || `${rec.label || ''}`.toLowerCase().indexOf(q) >= 0){
+	const q = `${query || ''}`.trim();
+	if(!q || matchesUserQuery(`${rec.label || ''}`, q)){
 		return '';
 	}
 	const words = `${rec.keywords || ''}`.split(/\s+/).filter(Boolean);
-	return words.find((w)=>w.toLowerCase().indexOf(q) >= 0) || '';
+	return words.find((w)=>matchesUserQuery(w, q)) || '';
 }
 
 
@@ -149,20 +145,18 @@ class HomePageSetup extends Component{
 			groups[groupName].push(rec);
 			return groups;
 		}, {});
-		const groupOrder = ['命', '卜', '工具', '内容与管理', '其他'].filter((name)=>allGroupedPages[name]);
+		const groupOrder = ['命', '卜', '工具', '其他'].filter((name)=>allGroupedPages[name]);
 		const contentGroupOrder = searchValue ? groupOrder.filter((name)=>groupedPages[name]) : groupOrder;
 		const railLabels = {
 			'命': '命盘与推运',
 			'卜': '易与三式',
 			'工具': '工具工作台',
-			'内容与管理': '内容与管理',
 			'其他': '其他模块',
 		};
 		const railMarks = {
 			'命': '命',
 			'卜': '卜',
 			'工具': '工',
-			'内容与管理': '管',
 			'其他': '其',
 		};
 		const recentKeys = [currentKey, 'aianalysis', 'sanshiunited'];

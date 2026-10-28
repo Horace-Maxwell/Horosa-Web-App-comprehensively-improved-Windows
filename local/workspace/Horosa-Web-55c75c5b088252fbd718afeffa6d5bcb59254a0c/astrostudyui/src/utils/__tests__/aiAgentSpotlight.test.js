@@ -1,4 +1,4 @@
-// [批五]「AI 正在操作」高亮:总开关关=零 DOM 改动(缺省现状);开=注入一次样式、目标加类到点自摘、提示走注入的 toast;目标缺席只提示不报错。
+// 「AI 正在操作」高亮:总开关关=零 DOM 改动(缺省现状);开=注入一次样式、目标加类到点自摘、提示走注入的 toast;目标缺席只提示不报错。
 import { spotlight, SPOTLIGHT_CLASS, SPOTLIGHT_STYLE_ID, __setSpotlightToastForTests } from '../aiAgent/agentSpotlight';
 import { setAgentEnabled } from '../aiAgent/prefs';
 

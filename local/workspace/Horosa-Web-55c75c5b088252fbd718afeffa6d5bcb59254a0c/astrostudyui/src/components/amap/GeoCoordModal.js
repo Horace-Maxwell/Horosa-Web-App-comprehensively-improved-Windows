@@ -94,10 +94,10 @@ class GeoCoordModal extends Component{
 		let lon = this.state.record ? this.state.record.lng : null;
 		let gpslat = this.state.record ? this.state.record.gpsLat : null;
 		let gpslng = this.state.record ? this.state.record.gpsLng : null;
-		lat = lat === NaN ? null : lat;
-		lon = lon === NaN ? null : lon;
-		gpslat = gpslat === NaN ? null : gpslat;
-		gpslng = gpslng === NaN ? null : gpslng;
+		lat = Number.isNaN(lat) ? null : lat;
+		lon = Number.isNaN(lon) ? null : lon;
+		gpslat = Number.isNaN(gpslat) ? null : gpslat;
+		gpslng = Number.isNaN(gpslng) ? null : gpslng;
 
 		return (
 			<span>

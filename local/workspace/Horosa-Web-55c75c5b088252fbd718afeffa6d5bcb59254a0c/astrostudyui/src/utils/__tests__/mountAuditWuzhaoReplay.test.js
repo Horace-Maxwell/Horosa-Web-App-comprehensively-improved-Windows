@@ -1,4 +1,4 @@
-// [挂载自检 F-29] 五兆随机揲筮存档的忠实复现:存档 pan 带六位兆数/逐掷阳面 → 无头按模式选配方复现(后端三日期×五模式实测位位同盘),
+// 五兆随机揲筮存档的忠实复现:存档 pan 带六位兆数/逐掷阳面 → 无头按模式选配方复现(后端三日期×五模式实测位位同盘),
 // 判读齿轮按当前挂载设置重算;此前一律回落干支起例 = 拨任一判读齿轮兆就变(张冠李戴)。
 // 判别向量:去掉 storedPan 透传或复现配方 → 第 1/2/3 例请求体 mode 变回 'ganzhi' 即红。
 var mockCaptured = [];
@@ -20,6 +20,7 @@ jest.mock('../../utils/perfFlags', () => ({ stepPrefetchEnabled: () => false, ke
 const captured = mockCaptured;
 import DateTime from '../../components/comp/DateTime';
 import { buildWuZhaoSnapshotForFields, wuzhaoReplayOptionsFromPan } from '../../components/wuzhao/WuZhaoMain';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 function fields(){
 	const dt = new DateTime();
@@ -64,21 +65,21 @@ describe('buildWuZhaoSnapshotForFields 无头复现', () => {
 		await buildWuZhaoSnapshotForFields(fields(), { mode: 'qian', qianAuto: true, storedPan: pan('qian', { shifaDetail: { kind: 'qian', rows: [3, 2, 2, 3, 2, 4].map((y) => ({ yang: y })) } }) });
 		expect(captured[1]).toMatchObject({ mode: 'qian', qianAuto: false, qianThrows: [3, 2, 2, 3, 2, 4] });
 	});
-	it('无存档兆数 / 存档模式≠当前模式 → 仍回落干支起例,[Q-020/M-27] 快照明写回落原因(此前静默);确定性模式不受影响', async () => {
+	it('无存档兆数 / 存档模式≠当前模式 → 仍回落干支起例,快照明写回落原因(此前静默);确定性模式不受影响', async () => {
 		const t1 = await buildWuZhaoSnapshotForFields(fields(), { mode: 'tang' });
 		expect(captured[0].mode).toBe('ganzhi');
 		expect(t1).toContain('复现说明：挂载无法复现随机起兆');
-		expect(t1).toContain('已按干支起例');
+		expect(t1).toContain('已按干支起盘');
 		const t2 = await buildWuZhaoSnapshotForFields(fields(), { mode: 'hour', storedPan: pan('tang') });
 		expect(captured[1].mode).toBe('ganzhi');
-		expect(t2).toContain('已按干支起例');
+		expect(t2).toContain('已按干支起盘');
 		const text = await buildWuZhaoSnapshotForFields(fields(), { mode: 'zhushu', zhaoNums: [5, 5, 5, 5, 5, 5], storedPan: pan('tang') });
 		expect(captured[2]).toMatchObject({ mode: 'zhushu', zhaoNums: [5, 5, 5, 5, 5, 5] });
 		expect(text).not.toContain('复现说明');
 	});
 	it('源码锚:ctx 五兆分支把 payload.pan 作 storedPan 透传', () => {
 		const fs = require('fs'); const path = require('path');
-		const src = fs.readFileSync(path.join(__dirname, '..', 'aiAnalysisContext.js'), 'utf8');
+		const src = readSource(path.join(__dirname, '..', 'aiAnalysisContext.js'));
 		const i = src.indexOf("case 'wuzhao': {");
 		expect(src.slice(i, i + 1200)).toContain("if(p.pan && typeof p.pan === 'object'){ opts.storedPan = p.pan; }");
 	});

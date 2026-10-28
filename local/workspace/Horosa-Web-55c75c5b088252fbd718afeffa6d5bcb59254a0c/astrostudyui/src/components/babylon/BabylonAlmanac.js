@@ -3,7 +3,7 @@
 import { Component } from 'react';
 import { GOAL_YEAR, LUNAR_SIX, NOTES, SAROS } from '../../divination/data/babylonianData';
 
-const PLANET_COLOR = { jupiter: '#7d5bA6', venus: '#c25c8a', mercury: '#3d8f74', saturn: '#5b5347', mars: '#bf3c36', moon: '#4f6f9c' };
+const PLANET_COLOR = { jupiter: 'var(--horosa-planet-jupiter)', venus: 'var(--horosa-planet-venus)', mercury: 'var(--horosa-planet-mercury)', saturn: 'var(--horosa-planet-saturn)', mars: 'var(--horosa-planet-mars)', moon: 'var(--horosa-planet-moon)' };   // 七曜语义色(明暗成对)
 
 class BabylonAlmanac extends Component{
 	renderDiagram(){

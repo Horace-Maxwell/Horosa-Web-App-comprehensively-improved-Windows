@@ -89,6 +89,9 @@ elif [ -n "$MAC" ] && [ -f "$MAC/../docs/AI_AGENT_RUNTIME.md" ]; then
 elif [ -n "$MAC" ] && [ -f "$MAC/docs/AI_AGENT_RUNTIME.md" ]; then
   cp "$MAC/docs/AI_AGENT_RUNTIME.md" "$DOCS_DST/AI_AGENT_RUNTIME.md"; ok "copied AI_AGENT_RUNTIME.md from $MAC/docs"
 else warn "Mac clone not given/found — copy docs/AI_AGENT_RUNTIME.md from the Mac repo root into $DOCS_DST/ manually"; fi
+# v3.12.0:aiAgentRuntimeDoc.contract 另读 docs/HEADLESS.md(无头模式手册,与 AI_AGENT_RUNTIME.md 同布局、同处置)
+if blob_copy "docs/HEADLESS.md" "$DOCS_DST/HEADLESS.md"; then :
+else warn "Mac clone not given/found — copy docs/HEADLESS.md from the Mac repo root into $DOCS_DST/ manually"; fi
 
 echo "== 5. source patches (isDesktopShellWindow + ensureField) — applied only if the marker is missing =="
 apply_patch(){ # $1=guard-marker $2=target-rel $3=patchfile
@@ -147,12 +150,11 @@ apply_patch isDesktopShellWindow astrostudyui/src/utils/windowSizePersistence.js
 # (gotcha #48):markInteractionStart —— 它是 PERF-R9 才引入的,旧状态一律 grep 不到,不会误跳过。
 apply_patch horosa_zeri_render_slice_v1 astrostudyui/src/pages/index.js            src__pages__index.js.patch
 
-echo "== 6. backend patch (boundless #14: loopback NEVER via the system proxy) — REQUIRES a jar rebuild =="
-apply_patch isLoopbackTarget     astrostudysrv/boundless/src/main/java/boundless/net/http/HttpUriRequestHystrixCommand.java boundless__HttpUriRequestHystrixCommand.java.patch
-echo "   ^^ boundless is BACKEND Java. After this patch you MUST rebuild astrostudyboot.jar (SKILL gotcha #5):"
-echo "      boundless install -> astrostudy install -> astrostudycn install -> astrostudyboot clean package,"
-echo "      then copy target/astrostudyboot.jar to local/workspace/runtime/windows/bundle/. apply.sh does NOT rebuild it,"
-echo "      and prepare:runtime's auto-build pulls boundless from .m2 (stale) — so the manual rebuild is mandatory."
+echo "== 6. (退役归档) backend #14 loopback-never-via-proxy —— v3.12.0 上游化 =="
+# 原 patches/boundless__HttpUriRequestHystrixCommand.java.patch(isLoopbackTarget)自 v3.2.x 起已是守卫命中的 no-op;
+# v3.12.0 上游删掉 isLoopbackTarget,改为 HttpClientUtility.getHttpHostFor(uri)(HTTP 代理层,全部 Hystrix 命令)
+# + 全局 LoopbackDirectProxySelector(AstroStudyProgram.main 首句,SOCKS / 裸 Socket 层,修 issue #89)。补丁删除;
+# selfcheck 哨兵迁钉上游形态(getHttpHostFor( / LoopbackDirectProxySelector.install(),见 release_selfcheck.py 同文件条目)。
 
 echo "== 7. performance overlays (天文馆渲染门控 + echarts 模块化;纯前端、只动时机/打包、可一键回退) =="
 # net-new:玄学史 echarts 模块化注册(整包 -> 按需 use())。
@@ -162,6 +164,8 @@ cp "$OV/files/astrostudyui/src/components/xuanshi/echartsCore.js" "$WS/astrostud
 # firstLoadParallel + T-6 speculativePrecompute),守卫 marker 用最新的 speculativePrecomputeEnabled。
 apply_patch guolaoMergedPaintEnabled       astrostudyui/src/utils/perfFlags.js                          src__utils__perfFlags.speculativePrecompute.js.patch
 apply_patch "perf:planetariumRenderGating" astrostudyui/src/components/planetarium/PlanetariumBabylon.js src__components__planetarium__PlanetariumBabylon.js.patch
+# v3.12.0:上游把天文馆渲染器类拆进 babylon/PlanetariumRenderer.js —— 渲染门控的渲染器侧(按需渲染循环 / 相机落定 / 指标节流)随类迁到新文件
+apply_patch "perf:planetariumRenderGating" astrostudyui/src/components/planetarium/babylon/PlanetariumRenderer.js src__components__planetarium__babylon__PlanetariumRenderer.js.patch
 apply_patch "./echartsCore"                astrostudyui/src/components/xuanshi/XuanShiCelestial.js       src__components__xuanshi__XuanShiCelestial.js.patch
 apply_patch "./echartsCore"                astrostudyui/src/components/xuanshi/XuanShiMap.js             src__components__xuanshi__XuanShiMap.js.patch
 
@@ -376,6 +380,23 @@ apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/components/astro/__tes
 # `toBe('engine/arcana.js')` 期望值都是 POSIX 写法,Windows 反斜杠 ⇒ 六个合法豁免全被报成
 # 「字面量判据残留」+ 判据本体定义位置判不等(macOS 恒绿)。同法 relPosix() 归一。
 apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/components/tarot/__tests__/tarotTrumpJudgeLock.test.js src__components__tarot____tests____tarotTrumpJudgeLock.winPathsep.test.js.patch
+# [#113,v3.12.0] 同族第 7-11 例(上游新测试,纯上游 LF 树在 Windows 上同样红):择日扫描面 / 字色淡化守卫 / 写死字色对比度守卫
+# 用 `path.relative` 的反斜杠结果去比 POSIX 写法的登记表;导入图与具名导入两个测试助手的 resolveSpec 用 path.resolve 拼内存判别
+# 向量的 POSIX 键(补盘符 + 改反斜杠 ⇒ 判别向量整组失明)。归一到 POSIX / 按键自己的写法拼接;macOS 上原式不变,真实源码树解析逐对相同。
+apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js src__divination__zeri____tests____zeriTechniqueParity.winPathsepSliceForm.test.js.patch
+apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/utils/__tests__/caseRestoreExplicitLoadOnly.test.js src__utils____tests____caseRestoreExplicitLoadOnly.winPathsep.test.js.patch
+# [#113,v3.12.0] 择日内嵌页两条源码扫描咬我方渲染切片 / 冻结页签(row 39/40 同法,判据零放宽):① zeriTechniqueParity(与上一行同一补丁)/
+#   zeriLockRestoreMarks:六壬 / 三式合一左栏是切片子组件,存案标记经 props 进入 —— 上游原形与切片形皆认、同一文件只许一形、切片形另钉宿主下传;
+#   ② zeriEmbeddedInputsRegistry:紫微右栏页签受控(horosa_freeze_subtabs_v1)多出 state.rightTab,登记为 'ui'(随该 overlay 同生同退)。
+apply_patch horosa_win_slice_form_v1     astrostudyui/src/divination/zeri/__tests__/zeriLockRestoreMarks.test.js src__divination__zeri____tests____zeriLockRestoreMarks.winSliceForm.test.js.patch
+apply_patch horosa_freeze_subtabs_v1     astrostudyui/src/divination/zeri/__tests__/zeriEmbeddedInputsRegistry.test.js src__divination__zeri____tests____zeriEmbeddedInputsRegistry.freezeSubtabs.test.js.patch
+apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/utils/__tests__/inkDimmingGuard.test.js src__utils____tests____inkDimmingGuard.winPathsep.test.js.patch
+apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/utils/__tests__/fixedInkContrastGuard.test.js src__utils____tests____fixedInkContrastGuard.winPathsep.test.js.patch
+apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/utils/__tests__/helpers/importGraph.js src__utils____tests____helpers__importGraph.winPathsep.js.patch
+apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/utils/__tests__/helpers/namedImports.js src__utils____tests____helpers__namedImports.winPathsep.js.patch
+# [#113,v3.12.0] Windows 缺省计时器粒度 ≈15.6ms(Node setTimeout(0) 中位 15.5ms,macOS ≈1ms):上游 aiChatCommandArgs 的 flush 固定等 15ms,
+# 带 @ 的技能命令在 handleSend 前走两拍 setTimeout(0) ≈31ms ⇒ 全量随机红一条。保留 15ms 再追加 3 拍宏任务(先进先出,与粒度无关);判据零放宽。
+apply_patch horosa_win_timer_granularity_v1 astrostudyui/src/utils/__tests__/aiChatCommandArgs.test.js src__utils____tests____aiChatCommandArgs.winTimerGranularity.test.js.patch
 # Mac v3.9.5 新增的两个 CSS-zoom 浮层守卫:同族第 6 例,但**机制是新的 —— shell 引号,不是路径分隔符**。
 # 它们 execSync 外壳调 POSIX 工具:①静态哨兵 `grep -rnaE … JSON.stringify(pattern)` —— Windows 的
 # execSync 走 cmd.exe,双引号内的反斜杠不按 POSIX 规则处理 ⇒ 正则被吃成括号不配对,grep 报
@@ -531,8 +552,7 @@ apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/cntr
 # [#109 退役,v3.11.2] src__components__cntradition__MainDirectionSimple.perfR9.js.patch —— FE-1
 apply_patch horosa_bazi_deadwork_v1             astrostudyui/src/components/cntradition/PaiBaZi.js             src__components__cntradition__PaiBaZi.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/cntradition/SmallDirection.js      src__components__cntradition__SmallDirection.perfR9.js.patch
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/cntradition/Zhu.js                 src__components__cntradition__Zhu.perfR9.js.patch
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/cntradition/ZhuMing12.js           src__components__cntradition__ZhuMing12.perfR9.js.patch
+# (退役 v3.12.0:cntradition/Zhu.js / ZhuMing12.js 上游删除,两条稳定 key 补丁随之撤销)
 # [#109 退役,v3.11.2] src__components__cntradition__ZiHeCong.perfR9.js.patch —— FE-1
 apply_patch horosa_no_state_mutation_v1         astrostudyui/src/components/commtools/BaziPattern.js           src__components__commtools__BaziPattern.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/commtools/BaziPithy.js             src__components__commtools__BaziPithy.perfR9.js.patch
@@ -567,17 +587,16 @@ apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/rule
 #   (太玄用 random 但由 _with_seed 按 payload.seed 确定性播种且起筮会换 seed,安全。)
 # 全部门在 techniqueResultCacheEnabled() 上,关闭即逐字节回到改动前。
 apply_patch horosa_panel_scu_v1                 astrostudyui/src/components/calendar/HuangLiMain.js            src__components__calendar__HuangLiMain.perfR9.js.patch
-apply_patch horosa_kentang_result_cache_v1      astrostudyui/src/components/dunjia/DunJiaCalc.js               src__components__dunjia__DunJiaCalc.perfR9.js.patch
+# (退役 v3.12.0:DunJiaCalc / JinKouCalc / TaiYiCalc 的 fetch*Raw 拆分残件 —— 上游统一走 services/kentangPost.js 的 postKentang,
+#  其内即 cachedKentangFetch 缓存线;三条补丁撤,哨兵钉 postKentang + kentangPost.js 的 cachedKentangFetch。)
 # (v3.5.1:地占页上游全面改版并自带 FreezeSubTab/渲染守卫 —— 我方 GeomancyMain freeze 补丁退役;
 #  上游机制由 selfcheck 哨兵钉[FreezeSubTab + markPanelReady],上游若删除会在哨兵门现形。)
 apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/jingjue/JingJueMain.js             src__components__jingjue__JingJueMain.perfR9.js.patch
-apply_patch horosa_kentang_result_cache_v1      astrostudyui/src/components/jinkou/JinKouCalc.js               src__components__jinkou__JinKouCalc.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/jinkou/JinKouMain.js               src__components__jinkou__JinKouMain.perfR9.js.patch
 apply_patch horosa_lazy_healing_wrap_v1        astrostudyui/src/components/kinastro/KinAstroMain.js           src__components__kinastro__KinAstroMain.perfR9.js.patch
 apply_patch horosa_liureng_render_slice_v1     astrostudyui/src/components/lrzhan/LiuRengMain.js              src__components__lrzhan__LiuRengMain.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/shenyishu/ShenYiShuMain.js         src__components__shenyishu__ShenYiShuMain.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/taixuan/TaiXuanMain.js             src__components__taixuan__TaiXuanMain.perfR9.js.patch
-apply_patch horosa_kentang_result_cache_v1      astrostudyui/src/components/taiyi/TaiYiCalc.js                 src__components__taiyi__TaiYiCalc.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/wuzhao/WuZhaoMain.js               src__components__wuzhao__WuZhaoMain.perfR9.js.patch
 apply_patch horosa_xuanshi_longtext_ondemand_v1 astrostudyui/src/services/xuanshi.js                           src__services__xuanshi.perfR9.js.patch
 
@@ -647,6 +666,43 @@ apply_patch horosa_subprocess_utf8_v1       astropy/tests/test_xuanshi_persons_g
 # (首启原生库预检顺序表,Windows 无对应动作,树里没有该目录)→ open() FileNotFoundError 红。加模块级 skipif(文件不存在即跳过),
 # macOS 树上文件在 ⇒ 两条测试原样跑;不改判据不改产品码(#109 row 90 同族:上游测试的单平台资产假设)。
 apply_patch horosa_mac_only_test_guard_v1   astropy/tests/test_native_prewarm_priority.py         astropy__tests__test_native_prewarm_priority.macOnlyGuard.py.patch
+# [#113,v3.12.0] 上游新测试 test_test_collection_completeness:按 Mac 仓布局把产品目录名写死成 Horosa-Web/ —— Windows 仓里产品源在
+#   local/workspace/Horosa-Web-<sha>/,git ls-files 回的路径前缀不同 ⇒ 每份测试都被判「不在任何门里」(假红)。改为按实际目录名取。
+apply_patch horosa_win_layout_webdir_v1     astropy/tests/test_test_collection_completeness.py     astropy__tests__test_test_collection_completeness.webdir.py.patch
+# [#113,v3.12.0] 上游新 Java 测试 LoopbackDirectProxySelectorTest 的「故障复现」前提要求报错文字含 socks;Windows 上假代理回完 400
+#   即关连接,JDK 读回包先收到 WSAECONNABORTED(文字不含 socks)⇒ 修复段根本跑不到。前提改为「或这次连接确实进了假代理」,
+#   并补「装上直连选择器后不再进假代理」的反向断言(修复本身在 Windows 上实测通过,issue #89)。
+apply_patch horosa_win_socks_abort_v1       astrostudysrv/boundless/src/test/java/boundless/net/http/LoopbackDirectProxySelectorTest.java boundless__LoopbackDirectProxySelectorTest.winSocksAbort.java.patch
+# [#113,v3.12.0] 上游「需 :8899 在线」测试的单一判据 srv_gate.py 把地址写死 127.0.0.1:8899;Windows 开发机上 :8899 常被已安装的星阙
+#   常驻占着(版本比工作区旧 ⇒ 测到旧服务)。加 HOROSA_TEST_SRV_BASE 覆盖(缺省原样),发版基线用它指向另起的工作区服务。
+apply_patch horosa_win_srv_base_env_v1      astropy/tests/srv_gate.py                              astropy__tests__srv_gate.srvBaseEnv.py.patch
+# [#113,v3.12.0] 上游新门 test_vendor_suites_gate(vendor / flatlib 自带测试逐套起子进程跑):子进程打印中文,Windows 管道按 locale
+#   码页(cp1252 / GBK)编解码 ⇒ 父进程读线程解码失败、月柱交节回归自己的引擎子进程同样解码失败而红(#109 row 90 同族)。子进程按
+#   UTF-8 模式跑(与发货运行时 -X utf8 同口径,孙进程继承)、父进程按 UTF-8 解码。另:pytest 跑法的 PYTHONPATH 要含 vendor(上游基线同口径)。
+apply_patch horosa_subprocess_utf8_v1       astropy/tests/test_vendor_suites_gate.py               astropy__tests__test_vendor_suites_gate.subprocessUtf8.py.patch
+# [#113,v3.12.0] 上游新测 test_india_variant_mount_contract 的「夹具 = 现行引擎输出」逐字节比:夹具在 macOS 上生成,Windows libm / 星历浮点
+#   尾数差 1e-12 级(916 处:浮点相对差 ≤1.6e-12、ISO 时刻 ≤21µs,结构 / 键 / 字符串零差;纯上游在本机同红,alcabitius 字节钉同族)。
+#   macOS 照旧逐字节比;其它平台逐叶比 —— 结构 / 键 / 字符串 / 整数 / 布尔全等,只放过浮点 1e-9 相对、时刻 1ms 以内的平台尾差。
+apply_patch horosa_win_float_tail_v1        astropy/tests/test_india_variant_mount_contract.py     astropy__tests__test_india_variant_mount_contract.floatTail.py.patch
+# [#113,v3.12.0] 外部连接面板 / AI 帮助的终端说法:Windows 桌面版用 curl.exe(PS 5.1 里 curl 是 Invoke-WebRequest 别名)、终端命令写的是
+#   当前用户 PATH + resources\bin\horosa.cmd(不是 ~/.local/bin)。面板按 UA(Windows NT)切换,macOS / jsdom 逐字节同上游;帮助页只出 Windows 说法。
+apply_patch horosa_win_shell_copy_v1        astrostudyui/src/components/aianalysis/ExternalAgentPanel.js src__components__aianalysis__ExternalAgentPanel.winShellCopy.js.patch
+apply_patch horosa_win_shell_copy_v1        astrostudyui/src/components/help/AIAnalysisHelpDoc.js  src__components__help__AIAnalysisHelpDoc.winShellCopy.js.patch
+mkdir -p "$WS/astrostudyui/src/components/aianalysis/__tests__"
+cp "$OV/files/astrostudyui/src/components/aianalysis/__tests__/externalAgentPanelWinCopy.test.js" "$WS/astrostudyui/src/components/aianalysis/__tests__/externalAgentPanelWinCopy.test.js" && ok "externalAgentPanelWinCopy.test.js"
+# [#113,v3.12.0] 上游新前端测试按 Mac 仓布局读桌面壳源(src-tauri / web / scripts/preflight / scripts/mac)与 Horosa-Web/ 目录名:
+#   ① 有 Electron 同义物的改核它,判据零放宽 —— 壳层文案表读 electron/shell-strings.json;无头接口 ① ② 逐句换取值处,
+#      直接 require electron/{mcp-core,rest-api,horosa-cli}.js 对拍(上游再加读 Rust 的断言会在 Windows 直接红);
+#   ② 只有 Mac 才有的物(Tauri 自带三页 / Rust 命令签名 / macOS 最低系统版本 / Homebrew 一键部署 / 发布预检脚本)缺席时只跳过那一条;
+#   ③ Python 登记表按本 UI 根的同级 astropy 定位(工作区目录名带哈希后缀)。
+apply_patch horosa_win_shell_const_v1       astrostudyui/src/utils/__tests__/shellStrings.test.js  src__utils____tests____shellStrings.winShellConst.test.js.patch
+apply_patch horosa_win_shell_const_v1       astrostudyui/src/utils/__tests__/headlessApi.test.js   src__utils____tests____headlessApi.winShellConst.test.js.patch
+apply_patch horosa_win_shell_layout_v1      astrostudyui/src/utils/__tests__/shellPageScript.test.js src__utils____tests____shellPageScript.winShellLayout.test.js.patch
+apply_patch horosa_win_shell_layout_v1      astrostudyui/src/utils/__tests__/scriptModeNativeText.test.js src__utils____tests____scriptModeNativeText.winShellLayout.test.js.patch
+apply_patch horosa_win_shell_layout_v1      astrostudyui/src/utils/__tests__/legacyEngineFloor.test.js src__utils____tests____legacyEngineFloor.winShellLayout.test.js.patch
+apply_patch horosa_win_shell_layout_v1      astrostudyui/src/utils/__tests__/bootstrapNodeFormula.test.js src__utils____tests____bootstrapNodeFormula.winShellLayout.test.js.patch
+apply_patch horosa_win_shell_layout_v1      astrostudyui/src/utils/__tests__/singleSourceHelpers.test.js src__utils____tests____singleSourceHelpers.winShellLayout.test.js.patch
+apply_patch horosa_ws_dirname_agnostic_v1   astrostudyui/src/utils/__tests__/sourceSetManifest.test.js src__utils____tests____sourceSetManifest.wsDirnameAgnostic.test.js.patch
 # 步进预取金标:任务序(近端优先 + 技法端点先于同向 chart)、技法登记方收到【已步进】的 fields
 # (旧版传基准 fields = 预取当前那张盘 = 白打)、每个任务必须自带 path 声明。
 apply_patch stepPrefetchFastFirst "astrostudyui/src/utils/__tests__/stepPrefetch.test.js"  src__utils____tests____stepPrefetch.prefetchRegistry.test.js.patch
@@ -659,16 +715,17 @@ apply_patch stepPrefetchFastFirst "astrostudyui/src/utils/__tests__/stepPrefetch
 #   只声明不登记 = chartFreeContract 契约测试红(它 grep 源文件核「零 props.value/chartObj 消费」)。
 apply_patch horosa_chart_free_declared_v1 astrostudyui/src/utils/techniqueChartFree.js                src__utils__techniqueChartFree.chartFree.js.patch
 apply_patch horosa_chart_free_declared_v1 astrostudyui/src/components/fengshui/FengShuiMain.js        src__components__fengshui__FengShuiMain.chartFree.js.patch
-# horosa_liqi_unavailable_guard_v1 + horosa_luopan_dial_viewport_cap_v1(v3.11.1 覆盖补丁,issue #84 风水模块加载出错):
-#   理气工作区顶层 render 加 { available:false } 守卫(命理派命主年未填等 11 处不可用态不再解引用 result.fangwei/palaces/items);
-#   综合罗经盘径按可视高度封顶(中栏格高由左栏参数列表撑到 ~1550px,盘径吃满即超屏、缩放时忽大忽小)。
-apply_patch horosa_liqi_unavailable_guard_v1 astrostudyui/src/components/fengshui/LiqiWorkspace.js      src__components__fengshui__LiqiWorkspace.unavailableGuard.js.patch
-# horosa_segmented_wrap_hysteresis_v1(同轮):XQSegmented 折行判据按未折行态 padding 算 + 滞回 —— 修「三合水法左栏砂水栏每帧闪现、无法选中」
-#   (判据读当前态 padding,.is-wrapped 自己改 padding ⇒ 折/不折每帧反转;真机 3 秒 class 翻 176 次)。
-apply_patch horosa_segmented_wrap_hysteresis_v1 astrostudyui/src/components/xq-ui/index.js               src__components__xq-ui__index.segmentedWrap.js.patch
-# 两条回归守卫(纯新增测试文件,随 overlay 落地):判据函数单测 + 源码负锚 / 理气工作区逐派缺省挂载冒烟(命理派缺省必出提示卡)
-mkdir -p "$WS/astrostudyui/src/components/xq-ui/__tests__" "$WS/astrostudyui/src/components/fengshui/__tests__"
-cp "$OV/files/astrostudyui/src/components/xq-ui/__tests__/xqSegmentedWrapDecision.test.js" "$WS/astrostudyui/src/components/xq-ui/__tests__/xqSegmentedWrapDecision.test.js" && ok "xqSegmentedWrapDecision.test.js"
+# horosa_luopan_dial_viewport_cap_v1(v3.11.1 覆盖补丁,issue #84):综合罗经盘径按可视高度封顶(中栏格高由左栏参数列表撑到 ~1550px,
+#   盘径吃满即超屏、缩放时忽大忽小;上游仍只按 min(宽,高))。
+# (退役 v3.12.0)horosa_liqi_unavailable_guard_v1:上游自带同判据的不可用态守卫(`const unavailable = result.available === false;`
+#   + LIQI_UNAVAILABLE_HINT 提示卡 + 右栏不渲染),覆盖我方守卫的全部 11 处 { available:false } 与持久化流派重开路径 —— 补丁瘦身为
+#   只剩罗经盘径一处(改名 …luopanViewportCap…),哨兵迁钉上游形态,冒烟测试改钉上游提示文案并加页内切派用例。
+apply_patch horosa_luopan_dial_viewport_cap_v1 astrostudyui/src/components/fengshui/LiqiWorkspace.js    src__components__fengshui__LiqiWorkspace.luopanViewportCap.js.patch
+# (退役 v3.12.0)horosa_segmented_wrap_hysteresis_v1:上游重写 useSegmentedWrap —— segmentedTrialLevel 同帧摘掉折行类实测再复原
+#   (判据不再读自己的输出,每帧翻转的自反馈从根上消失)+ unwrappedPadRef 记未折行态内衬(jsdom 兜底),并自带 xqSegmentedWrap.test.js;
+#   补丁与判据单测 xqSegmentedWrapDecision.test.js 一并撤,哨兵迁钉上游形态(release_selfcheck.py xq-ui 条目),旧判据负锚保留。
+# 回归守卫(纯新增测试文件,随 overlay 落地):理气工作区逐派缺省挂载冒烟(命理派缺省必出提示卡)
+mkdir -p "$WS/astrostudyui/src/components/fengshui/__tests__"
 cp "$OV/files/astrostudyui/src/components/fengshui/__tests__/liqiSchoolsMountSmoke.test.js" "$WS/astrostudyui/src/components/fengshui/__tests__/liqiSchoolsMountSmoke.test.js" && ok "liqiSchoolsMountSmoke.test.js"
 apply_patch horosa_chart_free_declared_v1 astrostudyui/src/components/calendar/CalendarMain.js        src__components__calendar__CalendarMain.chartFree.js.patch
 apply_patch horosa_chart_free_declared_v1 astrostudyui/src/components/cntradition/CnTraditionMain.js  src__components__cntradition__CnTraditionMain.chartFree.js.patch

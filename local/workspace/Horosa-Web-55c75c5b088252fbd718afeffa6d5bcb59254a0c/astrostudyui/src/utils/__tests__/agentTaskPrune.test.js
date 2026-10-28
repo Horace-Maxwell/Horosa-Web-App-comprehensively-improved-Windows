@@ -1,4 +1,4 @@
-// [压测二轮·D7·K3/K4] 任务表与通知表的规模面:
+// 任务表与通知表的规模面:
 //  K3 agent_tasks 只增不减(建一条留一条),几千条终态任务后任务中心首屏与备份包一起变重 —— 需要 pruneTasks 只裁终态、活跃全留。
 //  K4 listNotices 每次都整表 getAll + 全量 normalize + 全量排序;两千条通知时铃铛一响就是一次全表反序列化 —— 需要走 createdAt 索引游标。
 // 🔴 jsdom 不实现 indexedDB:本文件用 fake-indexeddb + jest.isolateModules 取新模块实例(与 aiAnalysisStoreIndexes.test.js 同一套装卸法)。

@@ -1,17 +1,18 @@
-// [P1-S1] 规模面调用点接线的判别向量:光有 store 层的索引删除/清空/上限能力不够——
+// 规模面调用点接线的判别向量:光有 store 层的索引删除/清空/上限能力不够——
 // 页面(AIAnalysisMain)与统一备份必须真的用上,否则「改了没生效」。
 // 一半行为断言(备份采集/恢复真跳过派生缓存),一半源码结构锁(主页组件 AIAnalysisMain 无法在 jsdom 里渲染)。
 import fs from 'fs';
 import path from 'path';
 import { AI_ANALYSIS_STORES, AI_BACKUP_EXCLUDED_STORES, putStoreRecord, listStoreRecords, clearStore } from '../aiAnalysisStore';
 import { collectAiWorkspaceDump } from '../unifiedBackup';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '..', '..');
-const readSrc = (rel)=>fs.readFileSync(path.join(SRC, rel), 'utf8');
+const readSrc = (rel)=>readSource(path.join(SRC, rel));
 // 哨兵一律先剥单行注释:注释里复写同一字面量会让否定式假红、肯定式假绿。
 const stripComments = (text)=>text.split('\n').map((line)=>line.replace(/\/\/.*$/, '')).join('\n');
 
-describe('[P1-S1] 备份排除派生缓存(行为)', ()=>{
+describe('备份排除派生缓存(行为)', ()=>{
 	beforeEach(async ()=>{
 		await clearStore(AI_ANALYSIS_STORES.contextCache);
 		await clearStore(AI_ANALYSIS_STORES.conversations);
@@ -34,7 +35,7 @@ describe('[P1-S1] 备份排除派生缓存(行为)', ()=>{
 	});
 });
 
-describe('[P1-S1] 页面与统一备份的接线(源码结构锁)', ()=>{
+describe('页面与统一备份的接线(源码结构锁)', ()=>{
 	const main = stripComments(readSrc('components/aianalysis/AIAnalysisMain.js'));
 	const backup = stripComments(readSrc('utils/unifiedBackup.js'));
 
@@ -47,7 +48,7 @@ describe('[P1-S1] 页面与统一备份的接线(源码结构锁)', ()=>{
 		expect(main).not.toContain('deleteWhere(AI_ANALYSIS_STORES.templateVersions, (item)=>item.templateId === templateId);');
 	});
 
-	test('🔴 全清走 clearStore;不再「全表读出逐条删」;[D54] 恢复走 aiWorkspaceRestore(只动包内存在的店)', ()=>{
+	test('🔴 全清走 clearStore;不再「全表读出逐条删」;恢复走 aiWorkspaceRestore(只动包内存在的店)', ()=>{
 		const restore = fs.readFileSync(path.resolve(__dirname, '..', 'aiWorkspaceRestore.js'), 'utf8');
 		expect(restore).toContain('await d.clearStore(name);');
 		expect(main).toContain('restoreWorkspaceStores(plan, { clearStore, bulkPutStoreRecords, listStoreRecords, putStoreRecord');

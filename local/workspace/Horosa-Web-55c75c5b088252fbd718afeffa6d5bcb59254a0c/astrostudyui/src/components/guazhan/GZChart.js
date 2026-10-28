@@ -1,4 +1,5 @@
 import * as d3 from 'd3';
+import { leapPrefix } from '../../utils/lunarText';
 import * as AstroConst from '../../constants/AstroConst';
 import {randomStr, formatDate} from '../../utils/helper';
 import { drawTextH, } from '../graph/GraphHelper';
@@ -6,10 +7,24 @@ import Gua from '../gua/Gua';
 import TextTable from '../graph/TextTable';
 import { randYao, setupYao, ZiList, HourZi, getXunEmpty} from '../gua/GuaConst';
 import { LIUYAO_PRESETS } from '../gua/liuyaoSchools';
+import { fitSvgDesignBox, fitSvgTextWidth } from '../../utils/svgDesignBox';
+
+// 主盘绘制坐标的设计下限:盘比它小(放大档 / 窄中栏)时按 viewBox 整体等比缩小,而不是在三百来 px 里硬排四宫格(列宽成负数 → 爻线不画、字互叠)
+export const GZ_DESIGN_MIN_W = 720;
+export const GZ_DESIGN_MIN_H = 660;
 
 // 缺省爻:color 按访问时读当前调色板(切明暗重画即新色),显式赋值仍优先(实例字段烘焙根治)
 function defaultYao(){
 	return { value: -1, change: false, get color(){ return this._colorOverride !== undefined ? this._colorOverride : AstroConst.AstroColor.Stroke; }, set color(v){ this._colorOverride = v; }, god: null, name: null, nameColor: null };
+}
+
+// 六爻取农历时用的时间算法 → 盘头称呼(与农历换算同口径:2 春分定卯时按直接时间)
+export function gzTimeLabel(fields){
+	const raw = fields && fields.timeAlg ? fields.timeAlg.value : 0;
+	const n = Number(raw);
+	if(n === 1 || n === 2){ return '直接时间'; }
+	if(n === 3){ return '平太阳时'; }
+	return '真太阳时';
 }
 
 class GZChart {
@@ -65,11 +80,10 @@ class GZChart {
 		if(svgdom === undefined || svgdom === null){
 			return null;
 		}
-		let width = svgdom.clientWidth;
-		let height = svgdom.clientHeight;
-		if(width === 0 || height === 0){
+		if(svgdom.clientWidth === 0 || svgdom.clientHeight === 0){
 			return null;
 		}
+		const { width, height } = fitSvgDesignBox(svgdom, GZ_DESIGN_MIN_W, GZ_DESIGN_MIN_H);
 
 		let realW = width - this.margin * 2;
 		let realH = height - this.margin * 2;
@@ -401,10 +415,11 @@ class GZChart {
 		let bztxt = null;
 		let nltxt = null;
 		if(this.nongli){
-			let leap = this.nongli.leap ? '闰' : '';
+			let leap = leapPrefix(this.nongli);
 			nltxt = '农历：' + this.nongli.year + '年 ' + this.nongli.monthGanZi + '月 ' 
 				+ this.nongli.dayGanZi + '日 '+ this.nongli.time + '时';
-			txt = '真太阳时:' + this.nongli.birth+ '（' + leap + this.nongli.month + this.nongli.day + '）';
+			// 起卦时刻的称呼随所用时间算法(取农历时按它换算;春分定卯时按直接时间);此前写死「真太阳时」
+			txt = gzTimeLabel(this.fields) + ':' + this.nongli.birth+ '（' + leap + this.nongli.month + this.nongli.day + '）';
 
 			let bz = this.nongli.bazi;
 
@@ -425,17 +440,26 @@ class GZChart {
 			fontsz = cord.w / (txt.length-9);
 		}
 		let h = fontsz + marg*2;
-		// [G11] 盘顶信息区对齐档:center 居中(默认=现状)/right 靠右缘
+		// 盘顶信息区对齐档:center 居中(默认=现状)/right 靠右缘
 		const alignRight = this.analysis && this.analysis.settings && this.analysis.settings.titleAlign === 'right';
 		let x = alignRight ? (cord.x + cord.w - len) : (cord.x + cord.w/2 - len/2);
 		let y = cord.y + cord.h/4;
 		let data = [txt];
+		// 盘头三行是单行长串:实测长度超出盘宽时缩字号(放得下时不动)—— 居中 / 靠右的长串此前在窄盘里两端被 svg 裁掉
+		const fitLast = ()=>{
+			const top = this.svgTopgroup && this.svgTopgroup.node ? this.svgTopgroup.node() : null;
+			const g = top ? top.lastChild : null;
+			const t = g && g.querySelector ? g.querySelector('text') : null;
+			fitSvgTextWidth(t, cord.w - 8, 8);
+		};
 		drawTextH(this.svgTopgroup, data, x, y, len, h, marg, this.color);
+		fitLast();
 
 		if(bztxt){
 			y = y + h + marg;
 			data = [bztxt];
 			drawTextH(this.svgTopgroup, data, x, y, len, h, marg, this.color);
+			fitLast();
 		}
 
 		// 流派 / 卦序 / 用神 / 卦身(盘内一行,随设置变)
@@ -457,6 +481,7 @@ class GZChart {
 				let str = parts.join('  ');
 				let slen = cord.w;
 				drawTextH(this.svgTopgroup, [str], cord.x + cord.w/2 - slen/2, y, slen, h, marg, this.color);
+				fitLast();
 			}
 			// slen=cord.w 满宽行,右对齐与居中同席位——对齐档只作用于上两行短文本(满宽行天然两档同观)。
 		}

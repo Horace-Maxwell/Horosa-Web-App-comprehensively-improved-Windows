@@ -1,5 +1,5 @@
 // AI 助手·工具执行超时原语(零数据层 import;运行时与外部桥共用)。
-// 超时只让等待方继续,不取消底层 promise;[D72] 调用方可给 options.onTimeout(到点先回调再拒绝),用它 abort 传给工具的信号,
+// 超时只让等待方继续,不取消底层 promise;调用方可给 options.onTimeout(到点先回调再拒绝),用它 abort 传给工具的信号,
 // 否则工具本体若无内超时仍会在后台跑完(外部桥超时后写入照常落地 = 客户端重试即重复建档)。
 export function withTimeout(promise, ms, options){
 	const code = options && options.code ? options.code : 'E_TOOL_TIMEOUT';

@@ -44,7 +44,7 @@ public class OfficeUtility {
             	Cell cell = row.getCell(j);
             	Object value = null;
             	if(cell != null){
-            		CellType type = cell.getCellTypeEnum();
+            		CellType type = cell.getCellType();
             		if(type == CellType.FORMULA) {
             			value = cell.getNumericCellValue();
             		}else {

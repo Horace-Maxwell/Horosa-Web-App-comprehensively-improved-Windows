@@ -157,7 +157,7 @@ export const OPTION_SPEC = [
 		show: '左栏该控件下的注记行文案随 A/B/C 变',
 	},
 	{
-		key: 'artStyle', label: '牌面样式', layer: 'read', values: ['symbol', 'image'],
+		key: 'artStyle', label: '牌面样式', layer: 'read', values: ['image', 'symbol'],
 		ctx: { deckId: 'rws', spreadType: 'three' }, tab: 'overview',
 		calc: '不改计算;image 时几何布局按真实牌面比例重算容器高',
 		show: '中栏卡片出 <img> 或符号;仅有 PD 真实牌面的牌组才出此控件',

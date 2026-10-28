@@ -1,4 +1,4 @@
-// [2026-09-11] 斜杠命令完备性回归锁:设计承诺的命令 ⊆ 注册表;菜单条数 = 内置数 + 技能触发词数(静默漏项即红);
+// 斜杠命令完备性回归锁:设计承诺的命令 ⊆ 注册表;菜单条数 = 内置数 + 技能触发词数(静默漏项即红);
 // 手册「输入区」的命令清单从注册表插值(每条内置命令名与分组名都出现在手册源码或注册表插值路径);/择日 别名表 ≡ 择日子页签集。
 const fs = require('fs');
 const path = require('path');
@@ -9,7 +9,7 @@ import { BUILTIN_SKILLS } from '../aiChat/skills';
 const HELP = path.resolve(__dirname, '..', '..', 'components', 'help', 'AIAnalysisHelpDoc.js');
 const chart = { id: 'local-1', sourceType: 'chart', title: '张三' };
 
-// 设计承诺的命令清单(/报告 只在含该命令的构建里存在,不在此表;存在时由分组/别名唯一性两条断言一并覆盖)
+// 设计承诺的命令清单(表外的命令由分组 / 别名唯一性两条断言一并覆盖)
 const PROMISED = ['流年', '合盘', '简报', '择日', '多模型', '审阅', '编排', 'compact', 'side', 'fork', 'goal', 'init', 'status', 'plan', 'resume', 'profile', 'doctor', '命主', '任务'];
 
 it('🔴 设计承诺的命令全部在注册表;名字/别名全局唯一;每条都有 help 与 group', ()=>{

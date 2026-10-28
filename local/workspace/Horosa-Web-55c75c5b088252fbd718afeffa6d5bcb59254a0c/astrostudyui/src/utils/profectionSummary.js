@@ -1,4 +1,4 @@
-// [Q-105 裁决 2026-09-18]「按能算即能挂」:小限页 G9「年/月/日小限 + 多起点」纯前端派生此前只住
+// 「按能算即能挂」:小限页 G9「年/月/日小限 + 多起点」纯前端派生此前只住
 // AstroProfection.js 组件内 —— 页面能算、AI 挂载/导出快照挂不上。抽成纯工具单源:
 //   页面摘要区 / 页面模块快照 / 无头挂载快照(aiAnalysisContext.buildPredictivePeriodSnapshot)
 // 三处共用 deriveProfection + buildProfectionSummaryLines;齿轮 profGrain/profStart 与页面控件同值域。

@@ -12,21 +12,24 @@ import XQIcon from '../xq-icons';
 import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection, SIDE_COLLAPSE_STORE_KEY } from '../xq-ui';
 import { safeJsonParseFromStorage, safeJsonStringifyToStorage } from '../../utils/safeStorage';
 import { definePageSettings } from '../../utils/pageSettingsStore';
-import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshotLazy, saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { castSourceKey, castFailureKeeps } from '../../utils/derivedChartSource';
 import { ServerRoot, ResultKey } from '../../utils/constants';
 import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
 import { stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags';
 import { cachedKentangFetch } from '../../utils/kentangCache';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { formatHumanValue } from '../../utils/humanReadableFields';
-import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
-import { parseDateParts } from '../../utils/dateStrSafe';
 // 我方结果缓存(techniqueResultCacheEnabled/cachedKentangCall)已按 #78 收敛 SOP 退役 ——
 // 上游自带的 kentangCacheEnabled + cachedKentangFetch 是其超集,上面已 import,勿重复引入。
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import WuZhaoBoard from './WuZhaoBoard';
 
+import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
+import { parseFieldsDateTimeWithDayBoundary } from '../../utils/fieldsDateTime';
+import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
+import { wuzhaoShow, wuzhaoDisplayPan } from './wuzhaoDisplay';
 const { Option } = Select;
 const { TabPane } = Tabs;
 
@@ -99,7 +102,7 @@ const DEFAULT_ZHAO_NUMS = [3, 3, 3, 3, 3, 3];
 const OPTION_KEYS = {
 	calc: ['mode', 'number', 'manual', 'manualSplits', 'shifaVariant',
 		'qianThrows', 'qianAuto', 'zhaoNums', 'xingshenMonth', 'mingZhi', 'gender'],
-	// [Q-210/T-141/T-143] castSeed=随机诸式(敦煌揲筮/以钱代筮自动掷)的客户端种子:只入存案(view 类不进 calc 键集),
+	// castSeed=随机诸式(敦煌揲筮/以钱代筮自动掷)的客户端种子:只入存案(view 类不进 calc 键集),
 	// 请求体由 buildPanPayload 按随机模式显式带上 → 同种子同兆(存案可复现、改判读档不换兆、缓存按体命中即正确)。
 	view: ['beastView', 'centerView', 'leizhanTab', 'rightPanelTab', 'panelWide', 'castSeed'],
 };
@@ -133,12 +136,15 @@ const DEFAULT_OPTIONS = {
 // 排盘设置跨会话保留(用户实报:排盘设置改了之后每次重开软件都要重设)。只收口径与显示偏好:
 // 起盘方式 / 筮法口径 / 行神月制 / 六神显示 / 中栏视图。报数、揲筮手动分数、掷钱、兆数、年命支、性别、类占门类是每一卦的输入,不进。
 // 事盘回灌走 setState,不经下面这几个 handler,不会改写这里。
+// 「直输五兆数」不进候选:兆数是逐卦输入、不保留,只留法 = 重开后挂载即按缺省兆数自动起出同一兆(还进 AI 快照)。
+// 选了照常用,只是不记。以钱代筮每次自动掷新钱,可以留。
+const WUZHAO_MODES_NEEDING_INPUT = ['zhushu'];
 export const WUZHAO_PAGE_SETTINGS = definePageSettings('horosa.wuzhao.settings.v1', {
-	mode: { def: DEFAULT_OPTIONS.mode, oneOf: MODE_OPTIONS.map((o)=>o.value) },
+	mode: { def: DEFAULT_OPTIONS.mode, oneOf: MODE_OPTIONS.map((o)=>o.value).filter((v)=>WUZHAO_MODES_NEEDING_INPUT.indexOf(v) < 0) },
 	shifaVariant: { def: DEFAULT_OPTIONS.shifaVariant, oneOf: SHIFA_VARIANT_OPTIONS.map((o)=>o.value) },
 	xingshenMonth: { def: DEFAULT_OPTIONS.xingshenMonth, oneOf: XINGSHEN_MONTH_OPTIONS.map((o)=>o.value) },
-	beastView: { def: DEFAULT_OPTIONS.beastView, oneOf: BEAST_VIEW_OPTIONS.map((o)=>o.value) },
-	centerView: { def: DEFAULT_OPTIONS.centerView, oneOf: ['board', 'card'] },
+	beastView: { label: '六神显示', def: DEFAULT_OPTIONS.beastView, oneOf: BEAST_VIEW_OPTIONS.map((o)=>o.value) },
+	centerView: { label: '中栏视图(兆图 / 卡片)', def: DEFAULT_OPTIONS.centerView, oneOf: ['board', 'card'] },
 });
 
 // 左栏展宽态在本机持久:复用侧栏折叠态那一张 map(绝不逐项另开 localStorage key
@@ -146,22 +152,18 @@ export const WUZHAO_PAGE_SETTINGS = definePageSettings('horosa.wuzhao.settings.v
 const PANEL_WIDE_STORE_KEY = 'wuzhao.panelWide';
 
 function readPanelWide(){
-	try{
-		const map = safeJsonParseFromStorage(SIDE_COLLAPSE_STORE_KEY);
-		if(map && typeof map === 'object' && typeof map[PANEL_WIDE_STORE_KEY] === 'boolean'){
-			return map[PANEL_WIDE_STORE_KEY];
-		}
-	}catch(e){}
+	const map = safeJsonParseFromStorage(SIDE_COLLAPSE_STORE_KEY);
+	if(map && typeof map === 'object' && typeof map[PANEL_WIDE_STORE_KEY] === 'boolean'){
+		return map[PANEL_WIDE_STORE_KEY];
+	}
 	return false;
 }
 
 function writePanelWide(value){
-	try{
-		const map = safeJsonParseFromStorage(SIDE_COLLAPSE_STORE_KEY);
-		const next = (map && typeof map === 'object' && !Array.isArray(map)) ? map : {};
-		next[PANEL_WIDE_STORE_KEY] = !!value;
-		safeJsonStringifyToStorage(SIDE_COLLAPSE_STORE_KEY, next);
-	}catch(e){}
+	const map = safeJsonParseFromStorage(SIDE_COLLAPSE_STORE_KEY);
+	const next = (map && typeof map === 'object' && !Array.isArray(map)) ? map : {};
+	next[PANEL_WIDE_STORE_KEY] = !!value;
+	safeJsonStringifyToStorage(SIDE_COLLAPSE_STORE_KEY, next);
 }
 
 function pickOptions(source, keys){
@@ -181,35 +183,18 @@ function appendUnique(list, value){
 	}
 }
 
-function parseFieldsDateTime(fields){
-	if(!fields || !fields.date || !fields.time || !fields.date.value || !fields.time.value){
-		return null;
-	}
-	const dateStr = fields.date.value.format('YYYY-MM-DD');
-	const timeStr = fields.time.value.format('HH:mm:ss');
-	// BC 安全解析:'-7040-07-19' 裸 split('-') 会撕成 [NaN,7040,7,19](年 NaN 静默传播)
-	const _dp = parseDateParts(dateStr);
-	const d = _dp ? [_dp.year, _dp.month, _dp.day] : [];
-	const t = timeStr.split(':').map((item)=>parseInt(item, 10));
-	if(d.length < 3 || t.length < 2){
-		return null;
-	}
-	return {
-		year: d[0],
-		month: d[1],
-		day: d[2],
-		hour: t[0],
-		minute: t[1],
-		second: t[2] || 0,
-		date: dateStr,
-		time: timeStr,
-		zone: fields.zone && fields.zone.value ? fields.zone.value : '',
-		after23NewDay: defaultAfter23NewDay(),
-		lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
-	};
-}
-
-async function postWuZhaoRaw(path, payload){
+// horosa_kentang_result_cache_v1 —— 五兆 /wuzhao/pan 直连缓存,**带确定性判据**。
+// 🔴 五兆并非整体确定性:后端 webwuzhaosrv._calculate 里
+//    day/hour/minute/tang 四种起盘在【未给手动折竹数】时走 kinwuzhao.WuzhaoCalculator.random_split
+//    (random.randint,每次不同)——对这条路缓存会把随机揲筮结果钉死 = 功能降级,严禁。
+//    只有 ① mode==='ganzhi'(干支数值法 gangzhi_paipan,纯计算)
+//        ② manual===true(手动折竹:manualSplits 全量入 payload,后端不再摇随机)
+//    这两种才是「同 payload 必同盘」。不满足即直连(与今日逐字一致)。
+// v3.5.1 收敛:结果级缓存退役 —— 下方 postWuZhao 内部已走上游 utils/kentangCache;上述「自动揲筮
+// 不可缓存」的守卫下沉到 kentangCache.payloadCacheable(horosa_wuzhao_random_guard_v1,
+// Windows-ahead:上游矩阵把 wuzhao 误标 deterministic,fetch 级缓存会把无 seed 的
+// random.randint 揲筮钉死 —— 在唯一缓存层拦,比在每个调用点拦更不可能漏)。
+async function postWuZhao(path, payload){
 	const roots = [];
 	const endpoints = [];
 	if(typeof window !== 'undefined'){
@@ -220,16 +205,16 @@ async function postWuZhaoRaw(path, payload){
 			});
 		}catch(e){}
 	}
-	appendUnique(roots, ServerRoot);
+	// 不把 ServerRoot(Java 后端)当候选:它没有 /wuzhao 路由,打过去只会多一跳 404 并把真实报错顶掉
 	if(/:9999(?:\/)?$/i.test(ServerRoot)){
 		appendUnique(roots, ServerRoot.replace(/:9999(?:\/)?$/i, ':8892'));
 	}
 	appendUnique(roots, 'http://127.0.0.1:8892');
 	appendUnique(endpoints, buildKentangEndpoint('wuzhao', path));
 	roots.forEach((root)=>appendUnique(endpoints, `${root}/wuzhao/${path}`));
-	appendUnique(endpoints, `${ServerRoot}/wuzhao/${path}`);
 
-	let lastError = null;
+	// 都失败时抛第一跳(本机计算服务)的错误原文:它才是用户该看到的原因(后面几跳是旧端口兜底,多半是连不上)
+	let firstError = null;
 	for(let i=0; i<endpoints.length; i++){
 		try{
 			const rawResponse = await cachedKentangFetch(endpoints[i], {
@@ -242,46 +227,14 @@ async function postWuZhaoRaw(path, payload){
 			const rawText = await rawResponse.text();
 			const rsp = rawText ? JSON.parse(rawText) : null;
 			if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-				throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'wuzhao.local.fetch.failed');
+				throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'wuzhao.fetch.failed');
 			}
 			return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
 		}catch(e){
-			lastError = e;
+			if(!firstError){ firstError = e; }
 		}
 	}
-	try{
-		const rawResponse = await cachedKentangFetch(`${ServerRoot}/wuzhao/${path}`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json; charset=UTF-8',
-			},
-			body: JSON.stringify(payload),
-		}, { retries: 0 });
-		const rawText = await rawResponse.text();
-		const rsp = rawText ? JSON.parse(rawText) : null;
-		if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'wuzhao.fetch.failed');
-		}
-		return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
-	}catch(e){
-		lastError = e || lastError;
-	}
-	throw lastError || new Error('wuzhao.fetch.failed');
-}
-
-// horosa_kentang_result_cache_v1 —— 五兆 /wuzhao/pan 直连缓存,**带确定性判据**。
-// 🔴 五兆并非整体确定性:后端 webwuzhaosrv._calculate 里
-//    day/hour/minute/tang 四种起盘在【未给手动折竹数】时走 kinwuzhao.WuzhaoCalculator.random_split
-//    (random.randint,每次不同)——对这条路缓存会把随机揲筮结果钉死 = 功能降级,严禁。
-//    只有 ① mode==='ganzhi'(干支数值法 gangzhi_paipan,纯计算)
-//        ② manual===true(手动折竹:manualSplits 全量入 payload,后端不再摇随机)
-//    这两种才是「同 payload 必同盘」。故下方 wuzhaoCacheable 为准入闸,不满足即直连(与今日逐字一致)。
-// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache;上述「自动揲筮
-// 不可缓存」的守卫下沉到 kentangCache.payloadCacheable(horosa_wuzhao_random_guard_v1,
-// Windows-ahead:上游矩阵把 wuzhao 误标 deterministic,fetch 级缓存会把无 seed 的
-// random.randint 揲筮钉死 —— 在唯一缓存层拦,比在每个调用点拦更不可能漏)。
-function postWuZhao(path, payload){
-	return postWuZhaoRaw(path, payload);
+	throw firstError || new Error('wuzhao.fetch.failed');
 }
 
 function fmtValue(value){
@@ -345,7 +298,7 @@ function normalizeCalcOptions(source){
 // AI 起课时间挂载入口:默认 mode='ganzhi'(干支起例,纯时间确定)+ 不报数;
 // opts 允许用户在挂载设置里覆盖起兆法与古法层参数。随机类起兆法(揲筮/自动掷钱)
 // 在挂载场景回落干支起例——挂载按时间点重算,随机盘每次不同即不可复现。
-// [挂载自检 F-29] 随机揲筮存档的忠实复现配方(后端逐模式实测,三日期 × 五模式位位同盘):
+// 随机揲筮存档的忠实复现配方(后端逐模式实测,三日期 × 五模式位位同盘):
 //   day/hour/minute/tang → manual+manualSplits=存档六位兆数(positions[].number)——除「揲筮」段显示为手动复现外全盘同字;
 //   dunhuang → mode=zhushu+zhaoNums=六位兆数(manualSplits 在敦煌法下是策数,不是兆数,复现必错)——除「起盘」段起盘方式行外全盘同字;
 //   qian(自动掷)→ qianAuto=false+qianThrows=存档逐掷阳面数(shifaDetail.rows[].yang)——逐字同盘。
@@ -386,7 +339,7 @@ function appendReplayNote(text, sectionTitle, note){
 }
 
 export async function buildWuZhaoSnapshotForFields(fields, opts){
-	const dt = parseFieldsDateTime(fields);
+	const dt = parseFieldsDateTimeWithDayBoundary(fields);
 	if(!dt){ return ''; }
 	try{
 		const calc = normalizeCalcOptions(opts);
@@ -395,7 +348,7 @@ export async function buildWuZhaoSnapshotForFields(fields, opts){
 			const manualReproducible = (calc.mode === 'qian' && !calc.qianAuto)
 				|| (modeUsesManualSplits(calc.mode) && calc.manual);
 			if(!manualReproducible){
-				// [F-29] 存档 pan(payload.pan)带兆数 → 忠实复现,判读齿轮照当前设置重算(此前一律回落干支起例=兆变、张冠李戴)
+				// 存档 pan(payload.pan)带兆数 → 忠实复现,判读齿轮照当前设置重算(此前一律回落干支起例=兆变、张冠李戴)
 				const storedPan = opts && opts.storedPan && typeof opts.storedPan === 'object' ? opts.storedPan : null;
 				const replay = storedPan && storedPan.mode === calc.mode ? wuzhaoReplayOptionsFromPan(storedPan, calc.mode) : null;
 				if(replay){
@@ -403,8 +356,8 @@ export async function buildWuZhaoSnapshotForFields(fields, opts){
 					Object.keys(replay).forEach((k)=>{ if(k !== 'replayNote'){ calc[k] = replay[k]; } });
 					replayNote = `兆数取自存档原盘(${wuzhaoModeLabel(storedMode)}),${replay.replayNote};判读按当前挂载设置重算`;
 				}else{
-					// [Q-020/M-27] 此前静默回落:快照无任何提示,选「日干起盘」等档的用户看到的仍是干支起例而不知为何。
-					replayNote = `挂载无法复现随机起兆(所选「${wuzhaoModeLabel(calc.mode)}」需${calc.mode === 'qian' ? '关闭「每次起盘重掷」并填定六掷' : (calc.mode === 'dunhuang' ? '页面实掷,无手动复现途径' : '开启「手动分爻复现」并填分爻数')};存档亦无兆数)→ 已按干支起例`;
+					// 此前静默回落:快照无任何提示,选「日干起盘」等档的用户看到的仍是干支起例而不知为何。
+					replayNote = `挂载无法复现随机起兆(所选「${wuzhaoModeLabel(calc.mode)}」需${calc.mode === 'qian' ? '关闭「每次起盘重掷」并填定六掷' : (calc.mode === 'dunhuang' ? '页面实掷,无手动复现途径' : '把「揲筮模式」设为手动复现并填分爻数')};存档亦无兆数)→ 已按干支起盘`;
 					calc.mode = 'ganzhi';
 				}
 			}
@@ -416,7 +369,7 @@ export async function buildWuZhaoSnapshotForFields(fields, opts){
 }
 
 class WuZhaoMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -428,9 +381,10 @@ class WuZhaoMain extends Component{
 	constructor(props){
 		super(props);
 		this.state = {
-			castSeed: newCastSeed(),   // [Q-210] 随机诸式客户端种子(起盘/换时地取新;改判读档沿用)
+			castSeed: newCastSeed(),   // 随机诸式客户端种子(起盘/换时地取新;改判读档沿用)
 			loading: false,
 			pan: null,
+			panSig: '',	// 屏上这张盘的起课签名(时刻 + 地点),取失败时据此判留存 / 清掉
 			...DEFAULT_OPTIONS,
 			...WUZHAO_PAGE_SETTINGS.load(),   // 上次亲手设的口径 / 显示偏好(没保存过 = 缺省,零回归)
 			panelWide: readPanelWide(),
@@ -467,7 +421,6 @@ class WuZhaoMain extends Component{
 		}
 	}
 
-
 	componentDidMount(){
 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		this.unmounted = false;
@@ -480,6 +433,7 @@ class WuZhaoMain extends Component{
 	}
 
 	componentDidUpdate(prevProps, prevState){
+		clearPendingTimeOnFieldsChange(this, prevProps);
 		if(prevProps.fields !== this.props.fields && this.props.fields){
 			if(!this.restoreFromCurrentCase()){
 				this.fetchPan(this.props.fields);
@@ -490,7 +444,7 @@ class WuZhaoMain extends Component{
 			return;
 		}
 		// 计算类档位变化才重取;显示类(六神视图/中栏视图/类占门类/右栏页签)只 setState。
-		// [X1·P1-9] 报数只在干支起盘参算;掷钱明细只在非自动掷钱时参算——
+		// 报数只在干支起盘参算;掷钱明细只在非自动掷钱时参算——
 		// 其余情形改之不得触发重取(随机起兆无 seed,重取=重掷,是「假生效」)。
 		const calcChanged = OPTION_KEYS.calc.some((key)=>{
 			if(prevState[key] === this.state[key]){ return false; }
@@ -503,7 +457,7 @@ class WuZhaoMain extends Component{
 			return true;
 		});
 		if(calcChanged){
-			this.fetchPan(this.props.fields, { reseed: false });   // [Q-210/T-143] 改判读/古法档不换兆(随机诸式沿用种子)
+			this.fetchPan(this.props.fields, { reseed: false });   // 改判读/古法档不换兆(随机诸式沿用种子)
 		}
 	}
 
@@ -547,7 +501,7 @@ class WuZhaoMain extends Component{
 			return false;
 		}
 		if(!force && this.lastRestoredCaseId === saved.caseVersion){
-			// 🔴 [X1] 去重命中曾返 false → componentDidUpdate 落 else 分支 fetchPan,
+			// 🔴 去重命中曾返 false → componentDidUpdate 落 else 分支 fetchPan,
 			// 把已还原的冻结盘网络重取覆盖:manual=false 的自动揲筮无 seed,重取=重掷,还原盘≠保存盘。
 			// 已持有冻结盘 → 返 true 拦下重取;盘确实丢了才放行向下重还原。
 			if(this.state.pan){ return true; }
@@ -569,6 +523,7 @@ class WuZhaoMain extends Component{
 		this.setState({
 			loading: false,
 			pan: payload.pan || null,
+			panSig: '',	// 存档盘按存档的时刻,不与此刻的起课参数比:之后起盘取失败时不拿它顶
 			...WUZHAO_PAGE_SETTINGS.fillMissing(restored),   // 事盘里没有的口径键回出厂值,不沿用本机保存的偏好(见 pageSettingsStore.fillMissing 注)
 		}, ()=>{
 			const pan = this.state.pan;
@@ -595,19 +550,20 @@ class WuZhaoMain extends Component{
 		this.onFieldsChange(geoPatchFromRec(rec, this.props.fields));
 	}
 	onTimeChanged(value){
+		notePendingTime(this, value && (value.time || value.value));
 		const dt = value.time;
 		this.onFieldsChange({
 			date: { value: dt.clone() },
 			time: { value: dt.clone() },
 			ad: { value: dt.ad },
 			zone: { value: dt.zone },
-			// [R3-A2] 步进方向提示:驱动 astro model settle 后 /chart ±步预取(消费后即剥离)
+			// 步进方向提示:驱动 astro model settle 后 /chart ±步预取(消费后即剥离)
 			...(value.step ? { __stepHint: value.step } : {}),
 		});
 		this.prefetchDraftPan();
 	}
 
-	// [R3-A4] 草稿时间一变即预取该时刻 pan:字段源与 clickPlot 完全同源
+	// 草稿时间一变即预取该时刻 pan:字段源与 clickPlot 完全同源
 	// (getTimeFieldsFromSelector),payload 走 buildPanPayload 单源 → 键逐字节等;
 	// 用户点「起盘」即缓存命中 ≈ 瞬间。失败静默;开关关=零行为。
 	prefetchDraftPan(){
@@ -628,6 +584,8 @@ class WuZhaoMain extends Component{
 	}
 
 	getTimeFieldsFromSelector(baseFields){
+		const _pend = pendingTimePatch(this);   // 改了时间还没等到全局盘回来:以最新改动为准(见 utils/pendingTimeDraft)
+		if(_pend){ return { ...(baseFields || {}), ..._pend }; }
 		if(!this.timeHook || !this.timeHook.getValue){
 			return null;
 		}
@@ -666,16 +624,16 @@ class WuZhaoMain extends Component{
 		this.fetchPan(nextFields);
 	}
 
-	// [R3-A4] pan 请求体单源:fetchPan 与草稿预取共用同一构造 → 缓存键逐字节等(预取生效前提)。
+	// pan 请求体单源:fetchPan 与草稿预取共用同一构造 → 缓存键逐字节等(预取生效前提)。
 	// 计算类键集驱动:新增档位自动进 payload,缓存键维度天然完备。
 	buildPanPayload(fields, castSeedOverride){
-		const dt = parseFieldsDateTime(fields);
+		const dt = parseFieldsDateTimeWithDayBoundary(fields);
 		if(!dt){ return null; }
 		const payload = {
 			...dt,
 			...pickOptions(this.state, OPTION_KEYS.calc),
 		};
-		// [Q-210] 随机诸式才带种子(确定性模式请求体逐字节不变)
+		// 随机诸式才带种子(确定性模式请求体逐字节不变)
 		if(isRandomCast(this.state)){
 			const seed = Number.isFinite(Number(castSeedOverride)) ? Number(castSeedOverride) : this.state.castSeed;
 			if(Number.isFinite(Number(seed))){ payload.castSeed = Number(seed); }
@@ -699,6 +657,7 @@ class WuZhaoMain extends Component{
 		if(!payload){
 			return;
 		}
+		const castSig = `${castSourceKey(fields)}#${seed}`;
 		const reqSeq = ++this.requestSeq;
 		this.setState({ loading: true });
 		try{
@@ -706,7 +665,7 @@ class WuZhaoMain extends Component{
 			if(this.unmounted || reqSeq !== this.requestSeq){
 				return;
 			}
-			this.setState({ pan, loading: false }, ()=>{
+			this.setState({ pan, panSig: castSig, loading: false }, ()=>{
 				// horosa_panel_ready_v1:pan 落定 = 中栏与右栏(皆由 pan 派生)画完的那一次 setState。
 				markPanelReady('cnyibu');
 				saveModuleAISnapshotLazy('wuzhao', ()=>buildSnapshotText(pan));
@@ -715,7 +674,10 @@ class WuZhaoMain extends Component{
 			settleTrigger(this, 'fetchPan', panTrig, false);
 			console.warn('kinwuzhao backend failed', e);
 			if(!this.unmounted && reqSeq === this.requestSeq){
-				this.setState({ loading: false });
+				// 取失败:与屏上那张盘同一起课时刻地点(只改了设置)→ 留存;换了时刻 / 地点 → 屏上那张是上一课,清掉(连同 AI 快照槽)
+				const keep = castFailureKeeps(this.state.panSig, castSig);
+				this.setState(keep ? { loading: false } : { loading: false, pan: null, panSig: '' });
+				if(!keep){ clearModuleAISnapshot('wuzhao'); }
 			}
 		}
 	}
@@ -790,6 +752,11 @@ class WuZhaoMain extends Component{
 		this.setState({ qianThrows: next, qianAuto: false });
 	}
 
+	// 界面显示用的回包副本(繁体写法字换成简体写法;快照 / 挂载仍用 this.state.pan 原值)
+	displayPan(){
+		return wuzhaoDisplayPan(this.state.pan);
+	}
+
 	renderInputPanel(){
 		const fields = this.props.fields || {};
 		const datetm = buildDateTimeFromFields(fields);
@@ -829,7 +796,7 @@ class WuZhaoMain extends Component{
 						</label>
 						<label className="horosa-huangji-select-field">
 							<span>报数</span>
-							{/* [X1·P1-9] 报数仅「干支起盘」参算(其余起兆法不吃 num);其余模式禁用免「改了触发随机重掷」假生效。
+							{/* 报数仅「干支起盘」参算(其余起兆法不吃 num);其余模式禁用免「改了触发随机重掷」假生效。
 							    max 收 9:后端 >9 即 mod9,曾致左栏显 45 而概览/AI 显 0 同屏矛盾。
 							    ⚠️ 干支法对干支序数总和取五为模 → 相差 5 的报数必得同一盘(实测 0-9 恰 5 个相异盘),
 							    非死开关而是等价类,故照实标注(说明文另起整行,不挤在窄格里逐字换行)。 */}
@@ -868,7 +835,7 @@ class WuZhaoMain extends Component{
 						<div className="horosa-wuzhao-split-grid is-qian">
 							{POSITION_ORDER.map((item, idx)=>(
 								<label className="horosa-huangji-select-field is-wide" key={item}>
-									<span>{item.replace('鄉', '乡')}</span>
+									<span>{wuzhaoShow(item)}</span>
 									<Select value={this.state.qianThrows[idx]} onChange={(v)=>this.changeQianThrow(idx, v)}>
 										{QIAN_OPTIONS.map((opt)=><Option key={opt.value} value={opt.value}>{opt.label}</Option>)}
 									</Select>
@@ -889,7 +856,7 @@ class WuZhaoMain extends Component{
 						<div className="horosa-wuzhao-split-grid">
 							{POSITION_ORDER.map((item, idx)=>(
 								<label className="horosa-huangji-select-field" key={item}>
-									<span>{item.replace('鄉', '乡')}</span>
+									<span>{wuzhaoShow(item)}</span>
 									<Select value={this.state.zhaoNums[idx]} onChange={(v)=>this.changeZhaoNum(idx, v)}>
 										{ZHAO_NUM_OPTIONS.map((opt)=><Option key={opt.value} value={opt.value}>{opt.label}</Option>)}
 									</Select>
@@ -904,7 +871,7 @@ class WuZhaoMain extends Component{
 						<div className="horosa-wuzhao-split-grid">
 							{POSITION_ORDER.map((item, idx)=>(
 								<label className="horosa-huangji-select-field" key={item}>
-									<span>{item.replace('鄉', '乡')}</span>
+									<span>{wuzhaoShow(item)}</span>
 									<InputNumber
 										value={this.state.manualSplits[idx]}
 										min={1}
@@ -994,7 +961,7 @@ class WuZhaoMain extends Component{
 	}
 
 	renderCenter(){
-		const pan = this.state.pan;
+		const pan = this.displayPan();
 		if(!pan){
 			return <div className="horosa-huangji-empty">暂无五兆数据</div>;
 		}
@@ -1010,7 +977,7 @@ class WuZhaoMain extends Component{
 		const classic = pan.classic || null;
 		const isBoard = this.state.centerView !== 'card';
 		return (
-			<div className="horosa-wuzhao-board">
+			<div className="horosa-wuzhao-board" ref={ownedBoxSizeRef(this, 'board', narrowBoardVars)}>
 				<div className="horosa-huangji-board-header">
 					<div>
 						<h2 className="horosa-wuzhao-title">五兆</h2>
@@ -1072,7 +1039,7 @@ class WuZhaoMain extends Component{
 	// 🔴 按 section.key 取段,不用下标切片:后端只增不改地追加新段时,下标切片会把新段
 	// 静默吞掉(或错位显示),而键取法天然免疫。旧盘无 key 时按既有次第兜底。
 	sectionsByKey(keys){
-		const pan = this.state.pan;
+		const pan = this.displayPan();
 		const list = pan && pan.sections ? pan.sections : [];
 		const legacy = ['qipan', 'shishi', 'zhao', 'muxiang', 'huoxiang', 'tuxiang', 'jinxiang', 'shuixiang', 'flags'];
 		return list.filter((section, idx)=>{
@@ -1082,7 +1049,7 @@ class WuZhaoMain extends Component{
 	}
 
 	renderLeizhan(){
-		const pan = this.state.pan;
+		const pan = this.displayPan();
 		const classic = pan && pan.classic ? pan.classic : null;
 		const leizhan = classic && classic.leizhan ? classic.leizhan : null;
 		if(!leizhan){
@@ -1124,7 +1091,7 @@ class WuZhaoMain extends Component{
 	}
 
 	renderDuanci(){
-		const pan = this.state.pan;
+		const pan = this.displayPan();
 		const classic = pan && pan.classic ? pan.classic : null;
 		if(!classic){
 			return <div className="horosa-huangji-empty">暂无断辞数据</div>;
@@ -1215,7 +1182,7 @@ class WuZhaoMain extends Component{
 	}
 
 	renderJunzi(){
-		const pan = this.state.pan;
+		const pan = this.displayPan();
 		const classic = pan && pan.classic ? pan.classic : null;
 		if(!classic){
 			return <div className="horosa-huangji-empty">暂无数据</div>;
@@ -1268,7 +1235,7 @@ class WuZhaoMain extends Component{
 	}
 
 	renderWeijie(){
-		const pan = this.state.pan;
+		const pan = this.displayPan();
 		const classic = pan && pan.classic ? pan.classic : null;
 		const list = (classic && classic.weijie) || [];
 		if(!list.length){ return null; }
@@ -1286,7 +1253,7 @@ class WuZhaoMain extends Component{
 	}
 
 	renderRightPanel(){
-		const pan = this.state.pan;
+		const pan = this.displayPan();
 		const classic = pan && pan.classic ? pan.classic : null;
 		const flagRows = [];
 		(pan && pan.positions ? pan.positions : []).forEach((item)=>{
@@ -1351,7 +1318,7 @@ class WuZhaoMain extends Component{
 	}
 
 	renderShifaDetail(){
-		const pan = this.state.pan;
+		const pan = this.displayPan();
 		const detail = pan && pan.shifaDetail ? pan.shifaDetail : null;
 		if(!detail || !detail.rows || !detail.rows.length){ return null; }
 		const title = detail.kind === 'qian' ? '掷钱明细'
@@ -1361,7 +1328,7 @@ class WuZhaoMain extends Component{
 				<div className="horosa-huangji-info-heading">{title}{detail.variantLabel ? `（${detail.variantLabel}）` : ''}</div>
 				{detail.rows.map((row)=>(
 					<div className="horosa-huangji-info-row" key={row.index}>
-						<span>{`${row.position}`.replace('鄉', '乡')}</span>
+						<span>{wuzhaoShow(`${row.position}`)}</span>
 						<strong>
 							{detail.kind === 'qian' ? `${row.yinyang}　撒币${row.coinElement} → ${row.element}（${row.num}）` : null}
 							{detail.kind === 'dunhuang' ? `剩${row.remain}策 → ${row.element}（${row.num}）` : null}

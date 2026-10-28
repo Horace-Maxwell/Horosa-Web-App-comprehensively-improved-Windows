@@ -1,4 +1,4 @@
-// [Q-188/T-125] 七政大限年界:立春 / 冬至两档此前要 chart.nongli.jieqi 的 lichun/dongzhi 字段(后端恒 null)→ 静默回退元旦(死档)。
+// 七政大限年界:立春 / 冬至两档此前要 chart.nongli.jieqi 的 lichun/dongzhi 字段(后端恒 null)→ 静默回退元旦(死档)。
 // 现由本地节气表精算年界时刻,并给出岁次年号偏移;大限表 birthFrac 与岁数带同口径。缺省元旦档逐字零回归。
 import { moiraBirthYearFraction, moiraBirthYearBasis, moiraBuildLimitTable } from '../GuoLaoMoiraWheel';
 
@@ -75,5 +75,66 @@ describe('大限表 birthFrac 同口径', ()=>{
 		expect(rows1[1].fromAge).toBe(12);
 		expect(rows1[1].fromYear).toBe(2006 + 12 - 1);
 		expect(rows1.length).toBe(12);
+	});
+});
+
+// 出生时刻的四个来源(盘参数的日期串 / 盘里的儒略日 / 出生字段 DateTime / moment 字段)落在同一条民用历轴上:
+// 1582-10-15 以前按儒略历、年份按历史纪年。此前儒略日一路走 JS Date(外推格里历),岁末出生被读成次年年初,
+// 元旦年界的岁份从 ≈0.98 掉到 ≈0.003、百六大限整体差一岁。
+describe('年界基准:四个出生来源在民用历上逐字相同', ()=>{
+	// eslint-disable-next-line global-require
+	const DateTime = require('../../comp/DateTime').default;
+	// eslint-disable-next-line global-require
+	const moment = require('moment');
+	// eslint-disable-next-line global-require
+	const { civilJuldayDisplay, civilWallMs, revjul } = require('../../../utils/civilCalendar');
+	const MS_YEAR = 365.25 * 24 * 60 * 60 * 1000;
+	const ZONE = 8;
+	const pad = (v)=>`${v}`.padStart(2, '0');
+
+	function sources(y, m, d, h, mi){
+		const time = `${pad(h)}:${pad(mi)}:00`;
+		const params = { params: { date: `${y}/${pad(m)}/${pad(d)}`, time, zone: '+08:00' } };
+		const jdUt = civilJuldayDisplay(y, m, d, h + mi / 60 - ZONE);
+		const jd = { date: { jd: jdUt, utcoffset: { value: ZONE } } };
+		const dt = new DateTime();
+		dt.ad = y < 0 ? -1 : 1; dt.year = Math.abs(y); dt.month = m; dt.date = d; dt.hour = h; dt.minute = mi; dt.second = 0; dt.zone = '+08:00';
+		const fieldsDt = { date: { value: dt }, time: { value: dt }, zone: { value: '+08:00' }, ad: { value: dt.ad } };
+		const [gy, gm, gd] = revjul(jdUt + ZONE / 24, true);
+		const mm = moment.utc({ year: gy, month: gm - 1, date: gd, hour: h, minute: mi, second: 0 });
+		const fieldsMoment = { date: { value: mm }, time: { value: mm } };
+		return [[params, undefined], [jd, undefined], [{}, fieldsDt], [{}, fieldsMoment]];
+	}
+
+	test.each([
+		[1200, 12, 26, 12, 0],
+		[1500, 12, 25, 12, 0],
+		[-300, 12, 28, 12, 0],
+		[1200, 1, 3, 6, 30],
+		[1990, 12, 25, 12, 0],
+	])('%p-%p-%p %p:%p 元旦年界', (y, m, d, h, mi)=>{
+		const raw = (civilWallMs(y, m, d, h, mi, 0) - civilWallMs(y, 1, 1, 0, 0, 0)) / MS_YEAR;
+		const want = ((raw % 1) + 1) % 1;   // 与实现同一归一式
+		expect(raw).toBeGreaterThan(0);
+		if(m === 12){ expect(raw).toBeGreaterThan(0.95); }
+		sources(y, m, d, h, mi).forEach(([chart, fields])=>{
+			const b = moiraBirthYearBasis(chart, fields, 'gregorian');
+			expect(b).toEqual({ frac: want, yearShift: 0 });
+		});
+	});
+
+	test('1582 以后与原先按 Date.UTC 算的逐位相同', ()=>{
+		const b = moiraBirthYearBasis(chartOf('1990/12/25', '12:00:00'), undefined, 'gregorian');
+		expect(b.frac).toBe((Date.UTC(1990, 11, 25, 12, 0, 0) - Date.UTC(1990, 0, 1, 0, 0, 0)) / MS_YEAR);
+	});
+
+	test.each([
+		[1200, 1, 25, 12, 0, 'lichun', -1],
+		[1500, 12, 8, 12, 0, 'dongzhi', 0],
+		[1500, 12, 25, 12, 0, 'dongzhi', 1],
+	])('%p-%p-%p 节气年界(%p)四路相同', (y, m, d, h, mi, mode, shift)=>{
+		const all = sources(y, m, d, h, mi).map(([chart, fields])=>moiraBirthYearBasis(chart, fields, mode));
+		all.forEach((b)=>{ expect(b).toEqual(all[0]); });
+		expect(all[0].yearShift).toBe(shift);
 	});
 });

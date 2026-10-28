@@ -17,7 +17,7 @@ const TERMS_OPTIONS = [
 	{ value: 1, label: '托勒密界·校勘本' },
 	{ value: 2, label: '托勒密界·经典传本' },
 	{ value: 3, label: '迦勒底界' },
-	{ value: 4, label: '自定义' },   // [WP-7] 编辑器存表后生效;无合法表下发时自动降级埃及
+	{ value: 4, label: '自定义' },   // 编辑器存表后生效;无合法表下发时自动降级埃及
 ];
 
 // 双子界序：仅托勒密界·经典传本（termsVariant==2）生效——1647 印本双子末两界与后世校勘本相反,两皆有据。
@@ -40,13 +40,13 @@ const WEST_NODE_OPTIONS = [
 ];
 
 // G13 区分判定:几何地平(geo，默认)/ Ptolemy 5°缓冲(ptolemy5，太阳在上升下 5°内拂晓仍判昼)。改变 → sect 翻转连锁重算全盘。默认 geo 零回归。
-// [WP-2] 第三档 apparent=视地平(真日出没·含大气折射;极昼夜后端回落几何)。
+// 第三档 apparent=视地平(真日出没·含大气折射;极昼夜后端回落几何)。
 const SECT_BUFFER_OPTIONS = [
 	{ value: 'geo', label: '几何地平' },
 	{ value: 'ptolemy5', label: 'Ptolemy 5°' },
 	{ value: 'apparent', label: '视地平（含折射）' },
 ];
-// [WP-2] 天文口径批选项(默认=后端现状零回归)。
+// 天文口径批选项(默认=后端现状零回归)。
 const WEST_LILITH_OPTIONS = [
 	{ value: 'mean', label: '平均远地点' },
 	{ value: 'true', label: '真实远地点' },
@@ -55,14 +55,14 @@ const STATION_MODE_OPTIONS = [
 	{ value: 'off', label: '关（仅逆行 R 标）' },
 	{ value: 'exactWindow', label: '距留点 ≤1 日' },
 	{ value: 'distance', label: '距留点黄经 ≤2′' },
-	{ value: 'absSpeed', label: '日速 <1′（绝对阈；三王星恒近留）' },   // [Q-299/T-288 ⑤]
+	{ value: 'absSpeed', label: '日速 <1′（绝对阈；三王星恒近留）' },
 	{ value: 'relSpeed', label: '日速 <3% 均速（相对阈）' },
 ];
 const ECLIPSE_TIME_OPTIONS = [
 	{ value: 'max', label: '食甚时刻' },
 	{ value: 'syzygy', label: '精确朔望' },
 ];
-// [WP-3] 希腊点变体批。
+// 希腊点变体批。
 const EROS_CONSTRUCTION_OPTIONS = [
 	{ value: 'paulus', label: 'Paulus 式（金星·水星系）' },
 	{ value: 'valens', label: 'Valens 式（福点·精神系）' },
@@ -75,7 +75,7 @@ const LOT_PROJECTION_OPTIONS = [
 	{ value: 'portion', label: '度数投射' },
 	{ value: 'sign', label: '整星座' },
 ];
-// [WP-4] 尊贵与判定批。
+// 尊贵与判定批。
 const PEREGRINE_SCORE_OPTIONS = [
 	{ value: -5, label: '−5（1647）' },
 	{ value: 0, label: '不减分' },
@@ -99,7 +99,7 @@ const PLANETARY_HOUR_OPTIONS = [
 	{ value: 'unequal', label: '昼夜不等时（传统）' },
 	{ value: 'equal24', label: '廿四时等分' },
 ];
-// [WP-5a] 容许度体系批。
+// 容许度体系批。
 const ORB_SYSTEM_OPTIONS = [
 	{ value: 'perObject', label: '星体轨 · 任一覆盖（现行）' },
 	{ value: 'byAspect', label: '按相位名（合冲刑拱 8° · 六合 4°）' },
@@ -114,7 +114,7 @@ const SEPARATING_CAP_OPTIONS = [
 	{ value: 2, label: '2°' },
 	{ value: 3, label: '3°' },
 ];
-// [WP-8] 灵学扩展。
+// 灵学扩展。
 const VULCAN_OPTIONS = [
 	{ value: 'off', label: '关' },
 	{ value: 'weston', label: '轨道根数法' },
@@ -123,9 +123,9 @@ const VULCAN_OPTIONS = [
 const RAY_OPTIONS = [
 	{ value: 'off', label: '关' },
 	{ value: 'equal', label: '等权' },
-	{ value: 'weighted', label: '加权（光体×3·水金火×2）' },   // [Q-299/T-288 ③] 与实现同文
+	{ value: 'weighted', label: '加权（光体×3·水金火×2）' },   // 与实现同文
 ];
-// [WP-6] 返照专项。
+// 返照专项。
 const SOLAR_RETURN_VARIANT_OPTIONS = [
 	{ value: 'precise', label: '精确回归（现代）' },
 	{ value: 'hellenistic', label: '希腊式（月定上升）' },
@@ -200,7 +200,7 @@ function buildDisplayGroups(C){
 		{ title: '相位', cols: 2, opts: [C.CHART_ASP_LINES, C.CHART_THREEPLANETASP] },
 		{ title: '度数与刻度', cols: 2, opts: [C.CHART_HOUSEDEGREE, C.CHART_TXTPLANET, C.CHART_OUTERDEG, C.CHART_INNERDEG, C.CHART_ANGLELINE] },
 		{ title: '显示样式', cols: 2, opts: [C.CHART_PLANETCOLORWITHSIGN, C.CHART_TXTPLANETFORWARD] },
-		// [WP-9] 盘面增强:角宫三元组徽/盘心行星时·日主星/盘心 RAMC/符号盘(隐度数)。
+		// 盘面增强:角宫三元组徽/盘心行星时·日主星/盘心 RAMC/符号盘(隐度数)。
 		{ title: '盘面增强', cols: 2, opts: [C.CHART_ANGULAR_TRIAD, C.CHART_CENTER_HOURS, C.CHART_CENTER_RAMC, C.CHART_GLYPH_ONLY] },
 	];
 	return raw.map((s)=>({ ...s, opts: s.opts.filter((o)=>o !== undefined && o !== null) }));
@@ -210,7 +210,7 @@ class ChartDisplaySelector extends Component{
 
 	constructor(props) {
 		super(props);
-		// [WP-7] 两个自定义 Modal 的开合态。
+		// 两个自定义 Modal 的开合态。
 		this.state = { termsEditorOpen: false, ayanMgrOpen: false };
 		this.changeChartOption = this.changeChartOption.bind(this);
 		this.changeVoidClassical = this.changeVoidClassical.bind(this);
@@ -231,19 +231,19 @@ class ChartDisplaySelector extends Component{
 	// ── /chart 级古典参数统一写链：全局仓(持久化+广播,辅盘/合盘/分至盘热同步) + app UI 记忆
 	// (termsVariant 等既有键保持双写兼容) + astro fields(主盘) + fetchByFields 重排。
 	// 默认值零回归(fieldsToParams 条件透传,默认不下发)。──
-	// extraFields(可选):随本键一并写入 fields 的伴生键({k: value});[Q-254/T-236] 自定义界表保存后表体写回 fields。
+	// extraFields(可选):随本键一并写入 fields 的伴生键({k: value});自定义界表保存后表体写回 fields。
 	applyClassicalField(key, val, appMirror, extraFields){
 		setClassicalChartGlobal(key, val);
 		if(!this.props.dispatch){ this.forceUpdate(); return; }
 		if(appMirror){
 			this.props.dispatch({ type: 'app/save', payload: { [key]: val } });
 		}
-		// [Q-254/T-230] 三分制单源=fields.triplicity(排盘真值);app.tripSystem 退为镜像 —— 抽屉改档同步镜像,
+		// 三分制单源=fields.triplicity(排盘真值);app.tripSystem 退为镜像 —— 抽屉改档同步镜像,
 		// 否则流派预设反查与「三分主星」页初值仍按旧 app.tripSystem 走,与排盘尊贵表分叉。
 		if(key === 'triplicity' && val){
 			this.props.dispatch({ type: 'app/save', payload: { tripSystem: val } });
 		}
-		// [Q-252/T-218] 合盘四子盘 / 分至盘 / 13 宫等嵌入宿主给的是子盘 fields(date/time.value 缺、经纬换成合盘点或节气日),
+		// 合盘四子盘 / 分至盘 / 13 宫等嵌入宿主给的是子盘 fields(date/time.value 缺、经纬换成合盘点或节气日),
 		// 以它为底 astro/save 会整包替换本命 fields → fieldsToParams 抛错、此后本命页改设置全抛。嵌入态只写全局仓
 		// (持久化 + 广播,本命 / 辅盘 / 合盘 / 分至盘按既有热同步各自重排),不回写本命 fields。
 		if(this.props.classicalWriteBack === false){ this.forceUpdate(); return; }
@@ -254,9 +254,9 @@ class ChartDisplaySelector extends Component{
 			flds[k] = { value: extraFields[k], name: [k] };
 			delta[k] = { value: extraFields[k], name: [k] };
 		});
-		this.props.dispatch({ type: 'astro/save', payload: { fields: flds } });
+		this.props.dispatch({ type: 'astro/saveUserFields', payload: { fields: flds } });
 		// 触发重算（fieldsToParams 条件透传→/chart）;缺核心字段（未起盘）时 fetchByFields 自身有护栏。
-		// [R4-B5b] 经选项通道调度(leading 立发+250ms trailing 并帧):连改 5 档古典参数
+		// 经选项通道调度(leading 立发+250ms trailing 并帧):连改 5 档古典参数
 		// /chart 实发 ≤2;save 恒立即(UI 即时反映),只有重算派发进调度器。delta=本键增量,
 		// base 派发时点从 this.props.fields 重取(时间键恒最新,不覆盖时间轴在途变更)。
 		if(flds.date && flds.time && flds.lat && flds.lon){
@@ -296,7 +296,7 @@ class ChartDisplaySelector extends Component{
 	}
 
 	// fields 优先、全局仓兜底（fields 无该键时显示全局偏好——重启后未起盘也能正确回显）。
-	// [Q-254/T-236] 当前生效的自定义界表:fields 随盘表体优先(请求体取表同序),缺=null(编辑器回落本机仓)。
+	// 当前生效的自定义界表:fields 随盘表体优先(请求体取表同序),缺=null(编辑器回落本机仓)。
 	effectiveCustomTerms(){
 		const f = this.props.fields || {};
 		const day = f.customTermsDay && f.customTermsDay.value;
@@ -305,7 +305,7 @@ class ChartDisplaySelector extends Component{
 		return { day, night: Array.isArray(night) && night.length === 12 ? night : null };
 	}
 
-	// [Q-254/T-236] fields 是否随盘带历元两参(有则本盘不随槽位变,管理器据此提示)。
+	// fields 是否随盘带历元两参(有则本盘不随槽位变,管理器据此提示)。
 	fieldsHaveUserAyan(){
 		const f = this.props.fields || {};
 		const t0 = Number(f.userAyanT0 && f.userAyanT0.value);
@@ -313,7 +313,7 @@ class ChartDisplaySelector extends Component{
 		return Number.isFinite(t0) && t0 > 0 && Number.isFinite(deg);
 	}
 
-	// [Q-254/T-236] 历元槽改动(编辑/换当前槽):当前黄道为「恒星 · 自定义」时按新槽历元重排(此前只 forceUpdate 抽屉,
+	// 历元槽改动(编辑/换当前槽):当前黄道为「恒星 · 自定义」时按新槽历元重排(此前只 forceUpdate 抽屉,
 	// 界表保存会重排而历元不会);fields 随盘带历元 → 写回新当前槽两参(否则 fields 两参恒压槽位、改槽永不生效)。
 	onAyanSlotsChanged(store){
 		const f = this.props.fields || {};
@@ -339,24 +339,24 @@ class ChartDisplaySelector extends Component{
 		// 本抽屉无任何需要行星 / 星座符号的纯 glyph 标签，故全部用正常文本。
 		const currentDisplay = Array.isArray(this.props.value) ? this.props.value : [];
 		const tvRaw = this.fieldOr('termsVariant');
-		const termsVariant = ([1, 2, 3, 4].indexOf(tvRaw) >= 0) ? tvRaw : 0;   // [R2-6] 放行自定义(4),否则选完回显跳回埃及
+		const termsVariant = ([1, 2, 3, 4].indexOf(tvRaw) >= 0) ? tvRaw : 0;   // 放行自定义(4),否则选完回显跳回埃及
 		const geminiEmended = (this.fieldOr('geminiBoundEmended') === 1 || this.fieldOr('geminiBoundEmended') === '1') ? 1 : 0;
 		const triplicity = this.fieldOr('triplicity') || 'Dorothean';
 		const westNodeType = this.fieldOr('westNodeType') === 'true' ? 'true' : 'mean';
 		const sectBuffer = (['ptolemy5', 'apparent'].indexOf(this.fieldOr('sectBuffer')) >= 0) ? this.fieldOr('sectBuffer') : 'geo';
-		// [WP-2] 天文口径批读值。
+		// 天文口径批读值。
 		const ownChariotOn = (this.fieldOr('combustOwnChariotExempt') === 1 || this.fieldOr('combustOwnChariotExempt') === '1');
 		const westLilithType = this.fieldOr('westLilithType') === 'true' ? 'true' : 'mean';
 		const topoMoonOn = (this.fieldOr('topocentricMoon') === 1 || this.fieldOr('topocentricMoon') === '1');
 		const stationMarking = (this.fieldOr('stationMarking') || 'off') + '';
 		const eclipseTimeMode = classicalGlobalValue('eclipseTimeMode') || 'max';   // 纯全局键(不进 fields)
-		// [WP-3] 希腊点变体批读值。
+		// 希腊点变体批读值。
 		const hermeticLotsReversalOn = !(this.fieldOr('hermeticLotsReversal') === 0 || this.fieldOr('hermeticLotsReversal') === '0');
 		const erosConstruction = (this.fieldOr('erosConstruction') || 'paulus') + '';
 		const lotFortuneVariant = (this.fieldOr('lotFortuneVariant') || 'standard') + '';
 		const lotFatherCombustAltOn = (this.fieldOr('lotFatherCombustAlt') === 1 || this.fieldOr('lotFatherCombustAlt') === '1');
 		const lotProjection = (this.fieldOr('lotProjection') || 'portion') + '';
-		// [WP-4] 尊贵与判定批读值(peregrine/domicileMaster/dynamical/busyPlaces 纯全局键)。
+		// 尊贵与判定批读值(peregrine/domicileMaster/dynamical/busyPlaces 纯全局键)。
 		const dignityDebilitiesOn = !(this.fieldOr('dignityDebilities') === 0 || this.fieldOr('dignityDebilities') === '0');
 		const peregrineScore = Number(classicalGlobalValue('peregrineScore'));
 		const almutenTripMode = (this.fieldOr('almutenTripMode') || 'all') + '';
@@ -364,20 +364,20 @@ class ChartDisplaySelector extends Component{
 		const dynamicalDivisionsOn = (classicalGlobalValue('dynamicalDivisions') === 1);
 		const busyPlaces = (classicalGlobalValue('busyPlaces') || '1,4,5,7,10,11') + '';
 		const planetaryHourMethod = (this.fieldOr('planetaryHourMethod') || 'sunrise') + '';
-		// [WP-5a] 容许度体系批读值(transitOrb/onlyApplying/separatingCap 纯全局键)。
+		// 容许度体系批读值(transitOrb/onlyApplying/separatingCap 纯全局键)。
 		const orbSystem = (this.fieldOr('orbSystem') || 'perObject') + '';
 		const luminaryOrbBonus = (() => { const n = parseInt(this.fieldOr('luminaryOrbBonus') + '', 10); return [0, 10, 20, 30].indexOf(n) >= 0 ? n : 0; })();
 		const transitOrb = Number(classicalGlobalValue('transitOrb')) || 1;
 		const aspectShowOnlyApplyingOn = (classicalGlobalValue('aspectShowOnlyApplying') === 1);
 		const separatingOrbCap = Number(classicalGlobalValue('separatingOrbCap')) || 0;
-		// [WP-5b] 相位对象扩展三开关读值。
+		// 相位对象扩展三开关读值。
 		const aspectIncludeCuspsOn = (this.fieldOr('aspectIncludeCusps') === 1 || this.fieldOr('aspectIncludeCusps') === '1');
 		const aspectIncludeLotsOn = (this.fieldOr('aspectIncludeLots') === 1 || this.fieldOr('aspectIncludeLots') === '1');
 		const aspectIncludeMidpointsOn = (this.fieldOr('aspectIncludeMidpoints') === 1 || this.fieldOr('aspectIncludeMidpoints') === '1');
-		// [WP-6] 返照专项读值。
+		// 返照专项读值。
 		const solarReturnVariant = (this.fieldOr('solarReturnVariant') || 'precise') + '';
 		const returnLatitudeMode = (this.fieldOr('returnLatitudeMode') || 'ecliptic') + '';
-		// [WP-8] 灵学扩展读值(rayWeighting 纯全局键)。
+		// 灵学扩展读值(rayWeighting 纯全局键)。
 		const vulcanCalc = (this.fieldOr('vulcanCalc') || 'off') + '';
 		const rayWeighting = (classicalGlobalValue('rayWeighting') || 'off') + '';
 		const leoBoundFirst = (this.fieldOr('leoBoundFirst') === 1 || this.fieldOr('leoBoundFirst') === '1');
@@ -396,7 +396,7 @@ class ChartDisplaySelector extends Component{
 		const antisciaOrb = numOr('antisciaOrb', 1);
 		const viaCombustaVariant = (this.fieldOr('viaCombustaVariant') || 'standard') + '';
 		const partileDef = (this.fieldOr('partileDef') || 'same_degree') + '';
-		// [对标战役 0c] 三死配置上 UI:此前后端+Java+存档链全通但全站无开关,用户无法开启。
+		// 三死配置上 UI:此前后端+Java+存档链全通但全站无开关,用户无法开启。
 		const lotsDocReverseOn = (this.fieldOr('lotsDocReverse') === 1 || this.fieldOr('lotsDocReverse') === '1');
 		const nodeExaltationOn = (this.fieldOr('nodeExaltation') === 1 || this.fieldOr('nodeExaltation') === '1');
 		const jg = getDivinationJudgeGlobals();
@@ -404,10 +404,10 @@ class ChartDisplaySelector extends Component{
 
 		const renderOpt = (opt)=>{
 			const checked = currentDisplay.includes(opt);
-			const hint = AstroText.ChartOptionHint ? AstroText.ChartOptionHint[opt + ''] : null;   // [Q-255/AS-23] 父条件注明
+			const hint = AstroText.ChartOptionHint ? AstroText.ChartOptionHint[opt + ''] : null;   // 父条件注明
 			return (
 				<XQCheckItem key={opt} checked={checked} onClick={()=>this.changeChartOption(opt, !checked)}>
-					<span className="horosa-selector-label" title={hint || undefined}>{AstroText.ChartOptionText[opt + '']}{hint ? <span style={{ opacity: 0.55, fontSize: 11, marginLeft: 4 }}>※</span> : null}</span>
+					<span className="horosa-selector-label" title={hint || undefined}>{AstroText.ChartOptionText[opt + '']}{hint ? <span style={{ color: 'var(--horosa-text-secondary)', fontSize: 11, marginLeft: 4 }}>※</span> : null}</span>
 				</XQCheckItem>
 			);
 		};
@@ -497,7 +497,7 @@ class ChartDisplaySelector extends Component{
 				</div>
 
 				{/* ③ 古典计算（全盘生效 · /chart 级）：写全局仓+主盘 fields,辅盘/合盘/分至盘同步透传。
-				    [WP-1] 平铺改 8 子组(spec group 同名;照①「盘面显示」subtitle 先例)——对标战役
+				    平铺改 8 子组(spec group 同名;照①「盘面显示」subtitle 先例)——对标战役
 				    新键按组归位,后续包只在对应组内追加 cell/boolItem。 */}
 				<div className="horosa-selector-section">
 					<XQSectionTitle>古典计算 · 全盘生效</XQSectionTitle>
@@ -575,7 +575,7 @@ class ChartDisplaySelector extends Component{
 					<div className="horosa-selector-subgroup">
 						<div className="horosa-selector-subtitle">月亮与空亡</div>
 						<div className="horosa-terms-grid">
-							{cell('空亡口径（月亮 isVOC 全盘随动）',
+							{cell('空亡口径（全盘月亮空亡判定随之改）',
 								<XQSelect size="small" style={{ width: 232 }} value={vocMode} dropdownMatchSelectWidth={false}
 									onChange={(val)=>this.applyClassicalField('vocMode', val)}>
 									{VOC_MODE_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
@@ -596,7 +596,7 @@ class ChartDisplaySelector extends Component{
 								'空亡计三王星',
 								vocIncludeOuterOn,
 								(on)=>this.applyClassicalField('vocIncludeOuter', on ? 1 : 0),
-								// [Q-254/T-226 ③] 「四座豁免」档走 1647 基判,三王星开关同样无效 → 一并置灰(并不下发)。
+								// 「四座豁免」档走 1647 基判,三王星开关同样无效 → 一并置灰(并不下发)。
 								(vocMode === 'classic' || vocMode === 'exempt4') ? { disabled: true, hint: vocMode === 'exempt4' ? '四座豁免档按 1647 基判,不计三王星' : '仅非 1647 口径生效' } : null
 							)}
 						</XQCheckList>
@@ -697,7 +697,7 @@ class ChartDisplaySelector extends Component{
 				</div>
 
 				{/* ⑤ 解释与计算 */}
-				{/* ⑥ 灵学扩展([WP-8];近代推算体系,默认全关) */}
+				{/* ⑥ 灵学扩展(近代推算体系,默认全关) */}
 				<div className="horosa-selector-section">
 					<XQSectionTitle>灵学扩展</XQSectionTitle>
 					<div className="horosa-selector-scope-note">以下为近代灵学体系推算项，非古典文献口径；默认关闭。祝融星为推算行星（无天文实体）。</div>
@@ -709,7 +709,7 @@ class ChartDisplaySelector extends Component{
 					</div>
 				</div>
 
-				{/* [WP-7] 两个自定义 Modal(常挂条件渲染;保存后 forceUpdate 刷新回显)。 */}
+				{/* 两个自定义 Modal(常挂条件渲染;保存后 forceUpdate 刷新回显)。 */}
 				{this.state.termsEditorOpen ? (
 					<TermsEditor open onClose={()=>this.setState({ termsEditorOpen: false })}
 						effective={this.effectiveCustomTerms()}

@@ -16,7 +16,7 @@ describe('演法 AI 快照', () => {
 		setYanqinSchool('fenghuang');
 		const b = buildYanqinYanfaSnapshot({ year: 2008, month: 1, day: 1, hour: 12 });
 		setYanqinSchool('chibenli'); // 复位
-		// [挂载自检 F-40] 段头独占一行(否则 AI 导出段头正则不认、五段并入前段):取段头之后那一行(正文)比对。
+		// 段头独占一行(否则 AI 导出段头正则不认、五段并入前段):取段头之后那一行(正文)比对。
 		const bodyAfter = (txt, head)=>{ const ls = txt.split('\n'); const i = ls.findIndex((l)=>l === head); return i >= 0 ? ls[i + 1] : undefined; };
 		const lineA = bodyAfter(a, '[演法·占卜]');
 		const lineB = bodyAfter(b, '[演法·占卜]');
@@ -50,7 +50,7 @@ describe('演法 AI 快照', () => {
 	});
 });
 
-// [挂载自检 F-40③] 演法·占卜「我彼胜负」按当前流派的禽星五行口径判(汪绂派 qinWuxing='wangfu'),
+// 演法·占卜「我彼胜负」按当前流派的禽星五行口径判(汪绂派 qinWuxing='wangfu'),
 // 与页面 YanQinBranchPanel 同传;此前无头恒按七政 → 判别向量:引擎入参第二参必须是 'wangfu'(修前 undefined)。
 jest.mock('../yanqinEngine', () => {
 	const actual = jest.requireActual('../yanqinEngine');

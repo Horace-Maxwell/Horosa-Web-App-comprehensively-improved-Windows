@@ -1,4 +1,4 @@
-// [Q-314 裁决 A 2026-09-18] 八字左栏口径分域:纯工具 + astro model reducer + 源码哨兵。
+// 八字左栏口径分域:纯工具 + astro model reducer + 源码哨兵。
 import { splitBaziCalibrePatch, applyBaziCalibreOverride, normalizeBaziCalibreOverride, recordPinsDayBoundary, BAZI_CALIBRE_KEYS } from '../baziCalibreScope';
 import astroModel from '../../models/astro';
 
@@ -58,7 +58,7 @@ describe('astro model:覆盖层 reducer 与全局同步钉住', ()=>{
 		const index = fs.readFileSync(path.join(__dirname, '../../pages/index.js'), 'utf8');
 		expect(index).toMatch(/baziCalibreOverride=\{baziCalibreOverride\}/);
 		const model = fs.readFileSync(path.join(__dirname, '../../models/astro.js'), 'utf8');
-		expect(model).toMatch(/_dayBoundaryRecordPinned: recordPinsDayBoundary\(values\)/);
+		expect(model).toMatch(/_dayBoundaryRecordPinned: (?:values\.bootDayBoundaryUserOverride \? false : )?recordPinsDayBoundary\(values\)/);   // 温启带回「左栏亲手改过」的不钉住
 		expect((model.match(/baziCalibreOverride: \{\},/g) || []).length).toBeGreaterThanOrEqual(3);
 	});
 });

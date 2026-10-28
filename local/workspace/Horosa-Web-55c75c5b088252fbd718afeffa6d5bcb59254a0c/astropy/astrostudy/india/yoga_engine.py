@@ -2,36 +2,11 @@ import math
 
 from flatlib import const
 
+from astrostudy.india.primitives import MOOLATRIKONA, PLANET_CN, SIGN_CN, SIGN_LORDS  # noqa: F401  同名转出
+
 
 YOGA_ENGINE_VERSION = '0.1.0'
 YOGA_CATALOG_VERSION = 'core_yoga_catalog_v1'
-
-SIGN_CN = {
-    const.ARIES: '白羊',
-    const.TAURUS: '金牛',
-    const.GEMINI: '双子',
-    const.CANCER: '巨蟹',
-    const.LEO: '狮子',
-    const.VIRGO: '处女',
-    const.LIBRA: '天秤',
-    const.SCORPIO: '天蝎',
-    const.SAGITTARIUS: '射手',
-    const.CAPRICORN: '摩羯',
-    const.AQUARIUS: '水瓶',
-    const.PISCES: '双鱼',
-}
-
-PLANET_CN = {
-    const.SUN: '太阳',
-    const.MOON: '月亮',
-    const.MARS: '火星',
-    const.MERCURY: '水星',
-    const.JUPITER: '木星',
-    const.VENUS: '金星',
-    const.SATURN: '土星',
-    const.NORTH_NODE: '罗睺',
-    const.SOUTH_NODE: '计都',
-}
 
 CLASSICAL_PLANETS = [
     const.SUN, const.MOON, const.MARS, const.MERCURY, const.JUPITER,
@@ -58,21 +33,6 @@ OWN_SIGNS = {
     const.SATURN: [const.CAPRICORN, const.AQUARIUS],
 }
 
-SIGN_LORDS = {
-    const.ARIES: const.MARS,
-    const.TAURUS: const.VENUS,
-    const.GEMINI: const.MERCURY,
-    const.CANCER: const.MOON,
-    const.LEO: const.SUN,
-    const.VIRGO: const.MERCURY,
-    const.LIBRA: const.VENUS,
-    const.SCORPIO: const.MARS,
-    const.SAGITTARIUS: const.JUPITER,
-    const.CAPRICORN: const.SATURN,
-    const.AQUARIUS: const.SATURN,
-    const.PISCES: const.JUPITER,
-}
-
 EXALTATION = {
     const.SUN: (const.ARIES, 10),
     const.MOON: (const.TAURUS, 3),
@@ -81,16 +41,6 @@ EXALTATION = {
     const.JUPITER: (const.CANCER, 5),
     const.VENUS: (const.PISCES, 27),
     const.SATURN: (const.LIBRA, 20),
-}
-
-MOOLATRIKONA = {
-    const.SUN: (const.LEO, 0, 20),
-    const.MOON: (const.TAURUS, 4, 30),
-    const.MARS: (const.ARIES, 0, 12),
-    const.MERCURY: (const.VIRGO, 16, 20),
-    const.JUPITER: (const.SAGITTARIUS, 0, 10),
-    const.VENUS: (const.LIBRA, 0, 15),
-    const.SATURN: (const.AQUARIUS, 0, 20),
 }
 
 MAHAPURUSHA = [
@@ -275,22 +225,9 @@ class YogaEngine:
         obj = self.objects.get(planet)
         if not obj:
             return 'missing'
-        sign = obj.sign
-        signlon = getattr(obj, 'signlon', 0)
-        if planet in EXALTATION:
-            exalt_sign, exalt_deg = EXALTATION[planet]
-            deb_sign = const.LIST_SIGNS[(const.LIST_SIGNS.index(exalt_sign) + 6) % 12]
-            if sign == exalt_sign:
-                return 'deep_exaltation' if abs(signlon - exalt_deg) < 1 else 'exaltation'
-            if sign == deb_sign:
-                return 'debilitation'
-        if planet in MOOLATRIKONA:
-            mt_sign, mt_start, mt_end = MOOLATRIKONA[planet]
-            if sign == mt_sign and mt_start <= signlon <= mt_end:
-                return 'moolatrikona'
-        if sign in OWN_SIGNS.get(planet, []):
-            return 'own_sign'
-        return 'neutral'
+        # 单一实现(primitives.classify_dignity);瑜伽引擎口径节点不判旺落。
+        from astrostudy.india.primitives import classify_dignity
+        return classify_dignity(planet, obj.sign, getattr(obj, 'signlon', 0), include_nodes=False)
 
     def dignity_score(self, planet):
         return {
@@ -321,9 +258,6 @@ class YogaEngine:
         if planet not in self.signs or base not in self.signs:
             return None
         return rel_house(self.signs[base], self.signs[planet])
-
-    def sign_has_planet(self, sign_idx, planets):
-        return [planet for planet in planets if self.signs.get(planet) == sign_idx]
 
     def has_aspect(self, giver, receiver):
         if giver not in self.signs or receiver not in self.signs:
@@ -1300,3 +1234,23 @@ class YogaEngine:
 
 def build_yogas(perchart):
     return YogaEngine(perchart).compute()
+
+
+def present_yogas_brief(result, limit=12):
+    """build_yogas 结果 → 成立瑜伽简表 [{key, name, nameEn}](按 id 去重,至多 limit 条)。
+    形状单源:成立判据 = status == 'present';条目主键 = id;中文名 = zhName(缺则英文名)。
+    问事等消费方只经此函数取,不各自猜键(曾读 'yogas' / 'present' / 'key' 三个不存在的键 → 恒空)。"""
+    items = (result or {}).get('items') if isinstance(result, dict) else None
+    out = []
+    seen = set()
+    for x in items or []:
+        if not isinstance(x, dict) or x.get('status') != 'present':
+            continue
+        key = x.get('id')
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({'key': key, 'name': x.get('zhName') or x.get('name'), 'nameEn': x.get('name')})
+        if len(out) >= limit:
+            break
+    return out

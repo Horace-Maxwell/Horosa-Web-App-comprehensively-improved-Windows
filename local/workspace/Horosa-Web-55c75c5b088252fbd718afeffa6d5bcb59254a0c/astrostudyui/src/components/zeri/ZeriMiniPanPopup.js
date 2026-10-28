@@ -10,7 +10,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import GuoLaoMoiraWheel from '../guolao/GuoLaoMoiraWheel';
 import IndiaSouthChart from '../astro/IndiaSouthChart';
-// [概览=中栏渲染 2026-08-30 用户三令]:本地技法不再手绘缩微卡,直接嵌**中栏真组件**,
+// 本地技法不再手绘缩微卡,直接嵌**中栏真组件**,
 // 数据走主页面同源本地引擎(八字 buildLocalBaziResult / 紫微 calcZiwei 全量),
 // 与七政/印度 RemoteChartCard(真组件+fetchChart)同一形制。
 import PaiBaZi from '../cntradition/PaiBaZi';
@@ -21,6 +21,7 @@ import { ziweirulesCached } from '../../services/rules';
 import LiuRengChart from '../lrzhan/LiuRengChart';
 import request from '../../utils/request';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+import { resolveAfter23NewDay, resolveLateZiHourUseNextDay } from '../../utils/dayBoundaryResolve';
 import { GanZiWuXing } from '../liureng/LRConst';
 import { buildLiuRengCastOverride } from '../lrzhan/LiuRengMain';
 import * as Constants from '../../utils/constants';
@@ -28,6 +29,9 @@ import * as AstroConst from '../../constants/AstroConst';
 import { fetchChart } from '../../services/astro';
 import TaiyiBoardSvg from '../taiyi/TaiyiBoardSvg';
 import { computeTaiyiScanPan } from '../../divination/zeri/taiyiZeriScanEngine';
+import { ziweiScanCalcArgs, ziweiScanChartOf } from '../../divination/zeri/ziweiZeriScanEngine';
+import { baziScanParams } from '../../divination/zeri/baziZeriScanEngine';
+import { LIURENG_PAGE_SCAN_KEYS, LIURENG_ZERI_LOCKED, liurengWorkbenchToPage, lockedValuesOf, pickKeys } from '../../divination/zeri/zeriPageCalibre';
 import { splitSanshiOptions } from '../../divination/zeri/sanshiOptionSplit';
 import SanshiUnitedBoard from '../sanshi/SanshiUnitedBoard';
 import {
@@ -40,6 +44,11 @@ import { getLayoutViewportHeight } from '../../utils/shellZoom';
 
 
 import { clientToFixed } from '../../utils/zoomDomain';
+import { geoDepKey } from './zeriHostUtils';
+import { toSlashDate, leadingYearOf } from '../../utils/dateStrSafe';
+
+// 地点依赖键 geoDepKey(各卡取数 / 排盘的 effect / memo 都按它重算;单一来源在 zeriHostUtils,奇门浮窗同用)。
+export { geoDepKey };
 // ── 远端真盘(七政 Moira 轮/印度南印盘):该时刻 fetchChart,与 pick 主盘同源 ──
 function RemoteChartCard({ tech, row, geo, techOptions }){
 	const [chartObj, setChartObj] = useState(null);
@@ -54,7 +63,7 @@ function RemoteChartCard({ tech, row, geo, techOptions }){
 		const m = /^(-?\d{1,5}-\d{2}-\d{2})[ ](\d{2}:\d{2})/.exec(t);
 		if(!m){ setErr('时刻无效'); return undefined; }
 		const g = geo || {};
-		// [Q-268/T-259] 浮窗吃工作台口径:七政=宿界模式/罗计/月孛(与扫描 su28Mode/nodeType/lilithType 同键);
+		// 浮窗吃工作台口径:七政=宿界模式/罗计/月孛(与扫描 su28Mode/nodeType/lilithType 同键);
 		// 印度=恒星黄道 + 岁差制 + 交点(此前浮窗按回归黄道画南印盘,与扫描判定不同形)。
 		const techParams = tech === 'qizheng' ? {
 			...(o.su28Mode !== undefined && o.su28Mode !== null && `${o.su28Mode}` !== '' ? { doubingSu28: Number(o.su28Mode) } : {}),
@@ -66,7 +75,7 @@ function RemoteChartCard({ tech, row, geo, techOptions }){
 			...(o.nodeType === 'true' ? { westNodeType: 'true' } : {}),
 		} : {});
 		fetchChart({
-			date: m[1].replace(/-/g, '/'), time: `${m[2]}:00`, ad: 1,
+			date: toSlashDate(m[1]), time: `${m[2]}:00`, ad: 1,
 			zone: g.zone !== undefined ? g.zone : '+08:00',
 			lon: g.lon, lat: g.lat, gpsLon: g.gpsLon, gpsLat: g.gpsLat,
 			pos: g.pos || '', gender: 1, name: '概览', cid: null,
@@ -76,9 +85,9 @@ function RemoteChartCard({ tech, row, geo, techOptions }){
 			if(!dead){ setChartObj(chart); }
 		}).catch((e)=>{ if(!dead){ setErr((e && e.message) || '排盘失败'); } });
 		return ()=>{ dead = true; };
-	}, [t, optKey]);
-	if(err){ return <div style={{ color: '#e5484d', fontSize: 12, padding: 16 }}>{err}</div>; }
-	if(!chartObj){ return <div style={{ opacity: 0.6, fontSize: 12, padding: 16 }}>排盘中…</div>; }
+	}, [t, optKey, geoDepKey(geo)]);
+	if(err){ return <div style={{ color: 'var(--horosa-danger)', fontSize: 12, padding: 16 }}>{err}</div>; }
+	if(!chartObj){ return <div style={{ color: 'var(--horosa-text-secondary)', fontSize: 12, padding: 16 }}>排盘中…</div>; }
 	if(tech === 'qizheng'){
 		return (
 			<div style={{ position: 'absolute', inset: 0 }}>
@@ -101,25 +110,22 @@ function timePartsOfRow(row){
 }
 function BaziRealCard({ row, geo, techOptions }){
 	const tp = timePartsOfRow(row);
-	// [Q-268/T-259] 浮窗吃工作台口径(时间算法/换日/晚子时干/性别…),此前写死 timeAlg 0 → 扫描时柱乙未、浮窗甲午。
+	// 浮窗吃工作台口径(时间算法/换日/晚子时干/性别…),此前写死 timeAlg 0 → 扫描时柱乙未、浮窗甲午。
 	const o = techOptions || {};
 	const optKey = JSON.stringify(o);
 	const rec = useMemo(()=>{
 		if(!tp){ return null; }
 		try{
+			// 起盘参数与扫描同一构参函数(baziScanParams);工作台其余键(长生 / 神煞取法等显示口径)垫在下面
 			const r = buildLocalBaziResult({
 				...(geo || {}),
 				...o,
-				date: tp.date, time: tp.time,
-				gender: o.gender !== undefined ? o.gender : 1,
-				timeAlg: o.timeAlg !== undefined ? o.timeAlg : 0,
-				after23NewDay: o.after23NewDay !== undefined ? o.after23NewDay : 1,
-				lateZiHourUseNextDay: o.lateZiHourUseNextDay !== undefined ? o.lateZiHourUseNextDay : 1,
+				...baziScanParams(geo || {}, o, tp.date, tp.time),
 			});
 			return r && r.bazi ? r.bazi : null;
 		}catch(e){ return null; }
-	}, [tp && tp.date, tp && tp.time, optKey]);
-	if(!rec){ return <div style={{ opacity: 0.6, fontSize: 12, padding: 16 }}>排盘失败</div>; }
+	}, [tp && tp.date, tp && tp.time, optKey, geoDepKey(geo)]);
+	if(!rec){ return <div style={{ color: 'var(--horosa-text-secondary)', fontSize: 12, padding: 16 }}>排盘失败</div>; }
 	return (
 		<div style={{ position: 'absolute', inset: 0, overflow: 'auto' }}>
 			<PaiBaZi value={rec} fields={{}} height="auto" showStyleSwitch={false} />
@@ -130,23 +136,17 @@ function BaziRealCard({ row, geo, techOptions }){
 // ── 真组件卡:紫微(中栏 ZiWeiChart;数据=主页本地引擎 calcZiwei 全量,与本地双路同源) ──
 function ZiweiRealCard({ row, geo, techOptions }){
 	const tp = timePartsOfRow(row);
-	// [Q-268/T-259] 浮窗吃工作台口径(timeAlg / 年界 / 晚子时 / 性别等 15 键与 ziweiZeriEngine 同形),此前写死 timeAlg 1 + zi_chu。
+	// 起盘参数与扫描同一构参函数(ziweiScanCalcArgs:Java 兼容三键 / 时间算法 / 晚子时跟随全局 …);
+	// 扫描用 lite 核判定,这里用全量核画盘,两者安星同一组函数。此前浮窗自拼参数、晚子时写死「子初换日」。
 	const o = techOptions || {};
 	const optKey = JSON.stringify(o);
 	const chart = useMemo(()=>{
 		if(!tp){ return null; }
 		try{
-			const { gender, ...engineOpts } = o;
-			return calcZiwei({
-				date: tp.date, time: tp.time,
-				zone: (geo && geo.zone) || '+08:00',
-				lon: geo && (geo.lon !== undefined ? geo.lon : geo.gpsLon),
-				lat: geo && (geo.lat !== undefined ? geo.lat : geo.gpsLat),
-				gpsLon: geo && geo.gpsLon, gpsLat: geo && geo.gpsLat,
-				ad: 1, gender: gender !== undefined ? gender : 1,
-			}, { timeAlg: 1, lateZi: 'zi_chu', ...engineOpts });
+			const { birth, opts } = ziweiScanCalcArgs(geo || {}, o, tp.date, tp.time);
+			return ziweiScanChartOf(calcZiwei(birth, opts), opts);
 		}catch(e){ return null; }
-	}, [tp && tp.date, tp && tp.time, optKey]);
+	}, [tp && tp.date, tp && tp.time, optKey, geoDepKey(geo)]);
 	// rules(格局判语库)= ZWHouse 硬依赖(缺 → drawSihuaTitle 读 RuleHouses 直接崩,真机红屏实抓);
 	// 与主页同源:ziweirulesCached 会话缓存,启动已 prime,通常零 RTT。
 	const [rules, setRules] = useState(null);
@@ -157,8 +157,8 @@ function ZiweiRealCard({ row, geo, techOptions }){
 		}).catch(()=>{ if(!dead){ setRules(null); } });
 		return ()=>{ dead = true; };
 	}, []);
-	if(!chart){ return <div style={{ opacity: 0.6, fontSize: 12, padding: 16 }}>排盘失败</div>; }
-	if(!rules){ return <div style={{ opacity: 0.6, fontSize: 12, padding: 16 }}>排盘中…</div>; }
+	if(!chart){ return <div style={{ color: 'var(--horosa-text-secondary)', fontSize: 12, padding: 16 }}>排盘失败</div>; }
+	if(!rules){ return <div style={{ color: 'var(--horosa-text-secondary)', fontSize: 12, padding: 16 }}>排盘中…</div>; }
 	return (
 		<div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
 			<ZiWeiChart value={chart} height="100%" fields={{}} rules={rules} />
@@ -176,8 +176,8 @@ function TaiyiRealCard({ row, geo, techOptions }){
 		}catch(e){
 			return null;
 		}
-	}, [tp && tp.date, tp && tp.time, geo, techOptions]);
-	if(!pan){ return <div style={{ color: '#e5484d', fontSize: 12, padding: 16 }}>排盘失败</div>; }
+	}, [tp && tp.date, tp && tp.time, geoDepKey(geo), techOptions]);
+	if(!pan){ return <div style={{ color: 'var(--horosa-danger)', fontSize: 12, padding: 16 }}>排盘失败</div>; }
 	return (
 		<div style={{ position: 'absolute', inset: 0, overflow: 'auto' }}>
 			<TaiyiBoardSvg pan={pan} showBoardMark selectedPalace={null} onSelectPalace={null} />
@@ -196,7 +196,7 @@ function useLiurengRealData(tp, geo, opt){
 		if(!tp){ setErr('时刻无效'); return undefined; }
 		const g = geo || {};
 		const base = {
-			date: tp.date.replace(/-/g, '/'), time: tp.time, ad: 1,
+			date: toSlashDate(tp.date), time: tp.time, ad: 1,
 			zone: g.zone !== undefined ? g.zone : '+08:00',
 			lon: g.lon, lat: g.lat, gpsLon: g.gpsLon, gpsLat: g.gpsLat,
 			pos: g.pos || '', gender: 1, name: '概览', cid: null,
@@ -229,20 +229,22 @@ function useLiurengRealData(tp, geo, opt){
 			setData({ chart, gods });
 		}).catch((e)=>{ if(!dead){ setErr((e && e.message) || '排盘失败'); } });
 		return ()=>{ dead = true; };
-	}, [tp && tp.date, tp && tp.time, opt.after23NewDay, opt.lateZiHourUseNextDay]);
+	}, [tp && tp.date, tp && tp.time, opt.after23NewDay, opt.lateZiHourUseNextDay, geoDepKey(geo)]);
 	return { data, err };
 }
 
 // 主页同源 props 组装:贵人体系/长生五行(日干实算)/月将换法+阴阳系(castOverride)——缺 guireng 曾致
 // GuiRengs[undefined].day 中途炸、盘只剩标题行(真机实抓)
+// 起课口径 = 点结果行时回写内嵌六壬页的同一份(工作台三键 + 页面四键 + 锁定的正时正将,zeriPageCalibre 单源)
+export function liurengPopupCastOptions(opt){
+	return { yueJiangMethod: 'zhongqi', yinyangSystem: 'danmu', ...liurengWorkbenchToPage(opt), ...pickKeys(opt, LIURENG_PAGE_SCAN_KEYS), ...lockedValuesOf(LIURENG_ZERI_LOCKED) };
+}
 function liurengChartProps(data, opt){
-	const guirengType = opt.guirengType !== undefined ? Number(opt.guirengType) : 0;
+	const castOpts = liurengPopupCastOptions(opt || {});
+	const guirengType = castOpts.guireng !== undefined ? Number(castOpts.guireng) : 0;
 	const dayGan = data.gods && data.gods.nongli && data.gods.nongli.dayGanZi ? `${data.gods.nongli.dayGanZi}`.charAt(0) : '';
 	const wuxing = GanZiWuXing[dayGan] || '土';
-	const castOverride = buildLiuRengCastOverride(data.chart, {
-		yueJiangMethod: opt.yueMode || 'zhongqi',
-		yinyangSystem: opt.yinyangSystem || 'danmu',
-	});
+	const castOverride = buildLiuRengCastOverride(data.chart, castOpts);
 	return { guireng: guirengType, zhangshengElem: wuxing, castOverride };
 }
 
@@ -250,8 +252,8 @@ function LiurengRealCard({ row, geo, techOptions }){
 	const tp = timePartsOfRow(row);
 	const opt = techOptions || {};
 	const { data, err } = useLiurengRealData(tp, geo, opt);
-	if(err){ return <div style={{ color: '#e5484d', fontSize: 12, padding: 16 }}>{err}</div>; }
-	if(!data){ return <div style={{ opacity: 0.6, fontSize: 12, padding: 16 }}>排盘中…</div>; }
+	if(err){ return <div style={{ color: 'var(--horosa-danger)', fontSize: 12, padding: 16 }}>{err}</div>; }
+	if(!data){ return <div style={{ color: 'var(--horosa-text-secondary)', fontSize: 12, padding: 16 }}>排盘中…</div>; }
 	const lp = liurengChartProps(data, opt);
 	return (
 		<div style={{ position: 'absolute', inset: 0, overflow: 'auto' }}>
@@ -276,13 +278,15 @@ function SanshiRealCard({ row, geo, techOptions }){
 		if(!tp){ setErr('时刻无效'); return undefined; }
 		const g = geo || {};
 		const zone = g.zone !== undefined ? g.zone : '+08:00';
+		const boundaryA23 = resolveAfter23NewDay(split.qimen.after23NewDay);
+		const boundaryLz = resolveLateZiHourUseNextDay(split.qimen.lateZiHourUseNextDay);
 		fetchChart({
-			date: tp.date.replace(/-/g, '/'), time: tp.time, ad: 1, zone,
+			date: toSlashDate(tp.date), time: tp.time, ad: 1, zone,
 			lon: g.lon, lat: g.lat, gpsLon: g.gpsLon, gpsLat: g.gpsLat,
 			pos: g.pos || '', gender: 1, name: '概览', cid: null,
-			after23NewDay: split.qimen.after23NewDay !== undefined ? split.qimen.after23NewDay : 1,
-			lateZiHourUseNextDay: split.qimen.lateZiHourUseNextDay !== undefined ? split.qimen.lateZiHourUseNextDay : 1,
-			// [Q-419/T-383] 工作台「时间(奇门)」=直接时间/平太阳时时,Java /chart 农历四柱按同一算法(新键 nongliTimeAlg,缺省 0 真太阳时零回归),
+			after23NewDay: boundaryA23,
+			lateZiHourUseNextDay: boundaryLz,
+			// 工作台「时间(奇门)」=直接时间/平太阳时时,Java /chart 农历四柱按同一算法(新键 nongliTimeAlg,缺省 0 真太阳时零回归),
 			// 否则浮窗时柱恒真太阳时柱、与扫描判定(本地农历吃 timeAlg)不同形。
 			...(split.qimen.timeAlg !== undefined && split.qimen.timeAlg !== null && Number(split.qimen.timeAlg) !== 0 ? { nongliTimeAlg: Number(split.qimen.timeAlg) } : {}),
 		}, { cache: true }).then(async (crsp)=>{
@@ -292,10 +296,11 @@ function SanshiRealCard({ row, geo, techOptions }){
 			const nongli = astroChart.nongli || null;
 			// fields shim:fetchQimenPan/parseDateTime 只吃 format()/zone(taiyiZeriScanEngine 同款)
 			const fields = {
-				date: { value: { format: (f)=>(f === 'YYYY' ? tp.date.slice(0, tp.date.indexOf('-')) : tp.date), zone } },
+				date: { value: { format: (f)=>(f === 'YYYY' ? `${leadingYearOf(tp.date)}` : tp.date), zone } },
 				time: { value: { format: ()=>tp.time } },
 			};
-			const qimenOptions = { ...SANSHI_QIMEN_OPTIONS, ...split.qimen, sex: '男' };
+			// 日界两键随同一浮窗 /chart 的取值(SANSHI_QIMEN_OPTIONS 不含这两键;缺键时奇门盘与农历四柱须同一日界)
+			const qimenOptions = { ...SANSHI_QIMEN_OPTIONS, ...split.qimen, after23NewDay: boundaryA23, lateZiHourUseNextDay: boundaryLz, sex: '男' };
 			const year = parseInt(tp.date, 10);
 			const isDiurnal = extractIsDiurnalFromChartWrap(chartWrap);
 			// 与主页 getKinqimenDunJia 同一路由判据(单源 isQimenLocalRoute):本地家/飞盘/混合/报数/本地口径非缺省=本地 calcDunJia;其余=后端+normalize
@@ -333,9 +338,9 @@ function SanshiRealCard({ row, geo, techOptions }){
 			if(!dead){ setData({ chartWrap, dunjia, lrLayout, keData, sanChuan, nongli, liureng, fields }); }
 		}).catch((e)=>{ if(!dead){ setErr((e && e.message) || '排盘失败'); } });
 		return ()=>{ dead = true; };
-	}, [tp && tp.date, tp && tp.time, split]);   // [Q-271/ZC-22] 参数(经 splitSanshiOptions 的冻结 previewOptions)变了同样重取三段盘
-	if(err){ return <div style={{ color: '#e5484d', fontSize: 12, padding: 16 }}>{err}</div>; }
-	if(!data){ return <div style={{ opacity: 0.6, fontSize: 12, padding: 16 }}>排盘中…</div>; }
+	}, [tp && tp.date, tp && tp.time, split, geoDepKey(geo)]);   // 参数(经 splitSanshiOptions 的冻结 previewOptions)或地点变了同样重取三段盘
+	if(err){ return <div style={{ color: 'var(--horosa-danger)', fontSize: 12, padding: 16 }}>{err}</div>; }
+	if(!data){ return <div style={{ color: 'var(--horosa-text-secondary)', fontSize: 12, padding: 16 }}>排盘中…</div>; }
 	return (
 		<div style={{ position: 'absolute', inset: 0, overflow: 'auto', padding: 8 }}>
 			<SanshiUnitedBoard
@@ -418,16 +423,16 @@ export default function ZeriMiniPanPopup({ tech, row, computePan, geo, onClose, 
 		}}>
 			<div onMouseDown={(e)=>dragFrom(e, 'drag')}
 				style={{ cursor: 'move', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid rgba(148,163,184,.25)', userSelect: 'none' }}>
-				<span style={{ fontWeight: 600, fontSize: 13 }}>概览 · {row ? (row.pick || row.start) : ''}{row && row.pick && row.pick !== row.start ? <span style={{ opacity: 0.6, fontWeight: 400 }}>(时段 {row.start} 起)</span> : null}</span>
-				<span style={{ fontSize: 11, opacity: 0.55 }}>{subtitle || (isRemote ? '该时刻盘(与主盘同源)' : '速览(与扫描同源)')}</span>
+				<span style={{ fontWeight: 600, fontSize: 13 }}>概览 · {row ? (row.pick || row.start) : ''}{row && row.pick && row.pick !== row.start ? <span style={{ color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>(时段 {row.start} 起)</span> : null}</span>
+				<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>{subtitle || (isRemote ? '该时刻盘(与主盘同源)' : '速览(与扫描同源)')}</span>
 				<span style={{ flex: 1 }} />
 				<span onMouseDown={(e)=>e.stopPropagation()} onClick={onClose}
-					style={{ cursor: 'pointer', fontSize: 16, lineHeight: 1, opacity: 0.65, padding: '0 4px' }}>×</span>
+					style={{ cursor: 'pointer', fontSize: 16, lineHeight: 1, color: 'var(--horosa-text-secondary)', padding: '0 4px' }}>×</span>
 			</div>
 			<div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: (isRemote || RealCard) ? 0 : 12, position: 'relative' }}>
 				{isRemote ? <RemoteChartCard tech={tech} row={row} geo={geo} techOptions={techOptions} />
 					: (RealCard ? <RealCard row={row} geo={geo} techOptions={techOptions} pan={pan} />
-						: <div style={{ opacity: 0.6, fontSize: 12 }}>—</div>)}
+						: <div style={{ color: 'var(--horosa-text-secondary)', fontSize: 12 }}>—</div>)}
 			</div>
 			<div onMouseDown={(e)=>dragFrom(e, 'resize')}
 				style={{ position: 'absolute', right: 0, bottom: 0, width: 18, height: 18, cursor: 'nwse-resize',

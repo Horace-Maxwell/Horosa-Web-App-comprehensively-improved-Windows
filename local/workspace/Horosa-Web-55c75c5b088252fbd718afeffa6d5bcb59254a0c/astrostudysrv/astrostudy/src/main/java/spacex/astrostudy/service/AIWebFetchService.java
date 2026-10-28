@@ -18,6 +18,7 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
 import boundless.exception.ErrorCodeException;
+import boundless.net.http.LoopbackDirectProxySelector;
 
 /**
  * AI 助手·网页读取(web_fetch;出站③,默认关)。
@@ -46,9 +47,14 @@ public class AIWebFetchService {
 	private final HttpClient client;
 
 	public AIWebFetchService() {
+		// 路由与 AI 流式请求同一口径:外部地址按系统代理走,本机地址直连(全局 LoopbackDirectProxySelector 单源;
+		// JDK HttpClient 不给 .proxy() 时取构造那一刻的默认选择器并定死 —— 构造早于入口安装就会让本机地址进代理,
+		// 所以显式取已装好的那一个,与构造顺序无关)。代理只是路由:出站守卫在每一跳发请求之前按
+		// 「目标地址」本身判(字面 + 本机解析结果),走不走代理都先过同一道判定,经代理不会绕过拒内网 / 回环 / 元数据的限制。
 		this(HttpClient.newBuilder()
 			.connectTimeout(Duration.ofMillis(CONNECT_TIMEOUT_MS))
 			.followRedirects(HttpClient.Redirect.NEVER)
+			.proxy(LoopbackDirectProxySelector.install())
 			.build());
 	}
 

@@ -3,13 +3,14 @@
 // 日返=太阳精确还本命黄经(~365.25 日);月返=月还本命度(27.3 恒星月,勿与 29.5 朔望混)。
 // 主限命中=只读复用既有主限引擎:按本命参数带 predictive+主限法补拉一张命盘,
 // 取 Result 顶层 predictives.primaryDirection 过滤择日日期前后命中;绝不触碰引擎与默认路径。
-import moment from 'moment';
+import { momentOfCivilDateTimeStr, civilDateOfMoment } from '../../utils/civilMoment';
 import { chartAtMoment } from '../mundane/momentPipeline';
 import { buildFacts } from '../engine/chartFacts';
 import { fetchChart } from '../../services/astro';
 import { PLANETS } from '../data/planets';
 import { SIGNS } from '../data/signs';
 import { SOLAR_RETURN_DAYS, LUNAR_RETURN_DAYS } from '../engine/timeLords';
+import { datePartOf } from '../../utils/dateStrSafe';
 
 const cn = (k) => (PLANETS[k] || {}).cn || k;
 const RATE = { sun: 360 / SOLAR_RETURN_DAYS, moon: 360 / LUNAR_RETURN_DAYS };   // °/日(平均)
@@ -17,13 +18,14 @@ const RATE = { sun: 360 / SOLAR_RETURN_DAYS, moon: 360 / LUNAR_RETURN_DAYS };   
 function shortDelta(target, cur){
 	return ((target - cur + 540) % 360) - 180;   // ∈(−180,180]
 }
-function fmt(m){ return m.format('YYYY-MM-DD HH:mm:ss'); }
+// moment → 民用历时刻串(日期段经 civilDateOfMoment:1582 以前儒略历、公元前历史纪年;现代逐字不变)
+function fmt(m){ return `${civilDateOfMoment(m)} ${m.format('HH:mm:ss')}`; }
 
 // 牛顿迭代求「电盘时刻之前最近一次」回归精确时刻。返回 {momentStr, facts} 或 null。
 export async function solveReturnBefore(kind, natalLon, electionMomentStr, fieldsLike){
 	if(natalLon === null || natalLon === undefined) return null;
 	const rate = RATE[kind];
-	const elec = moment(electionMomentStr, 'YYYY-MM-DD HH:mm:ss');
+	const elec = momentOfCivilDateTimeStr(`${electionMomentStr || ''}`);
 	if(!elec.isValid()) return null;
 	// 种子:按电盘时刻该体黄经与本命黄经的「已行过」角距回推
 	const R0 = await chartAtMoment(electionMomentStr, fieldsLike);
@@ -102,7 +104,7 @@ export async function fetchPdHitsNearElection(natalParams, electionDateStr, opts
 		predictive: 1, includePrimaryDirection: true,
 		pdtype: 0, showPdBounds: 0,
 		pdMethod: o.pdMethod || 'core_alchabitius',
-		// [Q-295/T-279] 旧存档值兼容:'Cardan'→'Cardano','Placidus'(非钥匙名)→'Ptolemy'(与其此前实际回落一致,不悄悄换成别的钥匙)。
+		// 旧存档值兼容:'Cardan'→'Cardano','Placidus'(非钥匙名)→'Ptolemy'(与其此前实际回落一致,不悄悄换成别的钥匙)。
 		pdTimeKey: ({ Cardan: 'Cardano', Placidus: 'Ptolemy' })[o.pdTimeKey] || o.pdTimeKey || 'Ptolemy',
 		pdDirect: 1, pdConverse: 0, pdAntiscia: 0, pdTerms: 0,
 		pdaspects: [0, 60, 90, 120, 180],
@@ -111,17 +113,17 @@ export async function fetchPdHitsNearElection(natalParams, electionDateStr, opts
 		const rsp = await fetchChart(params, { cache: true });
 		const R = rsp && rsp.Result;
 		const rows = (R && R.predictives && R.predictives.primaryDirection) || [];
-		const elec = moment(electionDateStr, 'YYYY-MM-DD');
+		const elec = momentOfCivilDateTimeStr(datePartOf(`${electionDateStr || ''}`));
 		if(!elec.isValid()) return [];
 		const win = o.windowDays || 240;
 		const out = [];
 		rows.forEach((row) => {
 			if(!Array.isArray(row) || !row[4]) return;
-			const d = moment(String(row[4]).slice(0, 10), 'YYYY-MM-DD');
+			const d = momentOfCivilDateTimeStr(datePartOf(String(row[4])));
 			if(!d.isValid()) return;
 			const delta = d.diff(elec, 'days');
 			if(Math.abs(delta) > win) return;
-			out.push({ promissor: row[1], significator: row[2], method: row[3], date: String(row[4]).slice(0, 10), deltaDays: delta });
+			out.push({ promissor: row[1], significator: row[2], method: row[3], date: datePartOf(String(row[4])), deltaDays: delta });
 		});
 		return out.sort((a, b) => Math.abs(a.deltaDays) - Math.abs(b.deltaDays)).slice(0, o.limit || 8);
 	}catch(e){ return []; }

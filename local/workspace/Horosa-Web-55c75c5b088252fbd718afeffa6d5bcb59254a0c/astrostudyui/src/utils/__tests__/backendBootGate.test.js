@@ -1,4 +1,4 @@
-// [B1] boot-gate 金标:非 early 恒 no-op(零行为变化的根据)/early 探活排队/壳确认短路/
+// boot-gate 金标:非 early 恒 no-op(零行为变化的根据)/early 探活排队/壳确认短路/
 // 兜底放行/同根单飞共享。探活 fetch 全程 mock,不打真网络。
 import {
 	waitForBackendBoot,
@@ -15,7 +15,7 @@ function setSearch(search){
 	window.history.replaceState(null, '', `${window.location.pathname}${search}`);
 }
 
-describe('[B1] backendBootGate', ()=>{
+describe('backendBootGate', ()=>{
 	let fetchMock;
 	beforeEach(()=>{
 		__resetBackendBootGateForTest({ retryMs: 5, giveUpMs: 200 });
@@ -110,8 +110,8 @@ describe('[B1] backendBootGate', ()=>{
 		}
 	});
 
-	// [R5 S2] 壳确认事件一到即放行:重试间隔故意放到 1s,探活恒拒连;20ms 后置旗标并派事件 → 远早于下一次重试就返回。
-	test('[R5 S2] 壳 horosa:backend-confirmed 事件到达即放行,不等下一次重试', async ()=>{
+	// 壳确认事件一到即放行:重试间隔故意放到 1s,探活恒拒连;20ms 后置旗标并派事件 → 远早于下一次重试就返回。
+	test('壳 horosa:backend-confirmed 事件到达即放行,不等下一次重试', async ()=>{
 		__resetBackendBootGateForTest({ retryMs: 1000, giveUpMs: 5000 });
 		setSearch('?early=1');
 		fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
@@ -124,8 +124,8 @@ describe('[B1] backendBootGate', ()=>{
 		expect(Date.now() - t0).toBeLessThan(600);
 	});
 
-	// [R5 S2] 重试间隔:缺省 50ms;perfFlag bootGateFastRetry=0 回旧 350ms;测试注入优先。
-	test('[R5 S2] 探活重试间隔按 perfFlag:缺省 50,关=350,注入优先', ()=>{
+	// 重试间隔:缺省 50ms;perfFlag bootGateFastRetry=0 回旧 350ms;测试注入优先。
+	test('探活重试间隔按 perfFlag:缺省 50,关=350,注入优先', ()=>{
 		__resetBackendBootGateForTest();
 		expect(__bootGateRetryMsForTest()).toBe(50);
 		window.localStorage.setItem('horosa.perf.bootGateFastRetry', '0');
@@ -136,7 +136,7 @@ describe('[B1] backendBootGate', ()=>{
 	});
 });
 
-describe('[R5 S8] 启动上下文与更新后首启的兜底放行上限', ()=>{
+describe('启动上下文与更新后首启的兜底放行上限', ()=>{
 	test('URL 无参:非 early、非首启、无 boot;兜底 90 s', ()=>{
 		__resetBackendBootGateForTest();
 		setSearch('');

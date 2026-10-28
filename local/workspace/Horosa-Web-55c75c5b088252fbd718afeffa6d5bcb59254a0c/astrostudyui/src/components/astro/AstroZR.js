@@ -1,3 +1,4 @@
+import { civilWallMsOfStr, civilDateStrOfMs } from '../../utils/dateStrSafe';
 import { Component } from 'react';
 import { singleTriggerPredictiveEnabled } from '../../utils/perfFlags';
 import { Row, Col, Radio, Divider, } from 'antd';
@@ -18,7 +19,11 @@ import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
 import { natalClassicalParams } from './AstroExtraCommon';
 import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
+import { ownedBoxSizeRef } from '../../utils/boxSizeVars';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { markPanelReady } from '../../utils/perfMark';
+
+const zrBaseNarrowVars = (w)=>({ attrs: { 'data-zr-narrow': w < 160 } });
 
 const RadioGroup = Radio.Group;
 const Option = Select.Option;
@@ -74,10 +79,13 @@ function nodeLine(item){
 	}
 	const sign = signName(item.sign);
 	const date = item.date || '无';
-	// [Q-362/T-343] 后端 truncated 标=末段子期按父期截断,快照与下拉同标「截」
+	// 后端 truncated 标=末段子期按父期截断,快照与下拉同标「截」
 	const base = item.isLB ? `${sign}-${date}-LB` : `${sign}-${date}`;
 	return item.truncated ? `${base}-截` : base;
 }
+
+// 期表不出自当前命主时给的空表(同一个引用:渲染不因回退值换引用而白重渲)
+const NO_ZR_LIST = Object.freeze([]);
 
 function markZRSpecialFlags(list, parentSignIdx){
 	if(!Array.isArray(list) || list.length === 0){
@@ -179,13 +187,14 @@ function appendBirthAndChart(lines, chartObj, params){
 	}
 }
 
-// [YB v42] 补厚 helper 容错:个别测试套件整模块 mock astroAiSnapshot 且只保留部分导出,
+// 补厚 helper 容错:个别测试套件整模块 mock astroAiSnapshot 且只保留部分导出,
 // 缺失导出经 import 拿到 undefined → 直接调用会炸掉整个 builder;生产环境恒为函数,此守卫零行为差。
 const safeHelperLines = (fn, ...args)=>(typeof fn === 'function' ? fn(...args) : []);
 
-// [YB v42] ZR 期起讫定位:期起=date('YYYY-MM-DD'),期讫=下一期起(末期回退 date+days 天);解析失败即跳过。
+// ZR 期起讫定位:期起=date('YYYY-MM-DD'),期讫=下一期起(末期回退 date+days 天);解析失败即跳过。
 function zrPeriodStartMs(item){
-	const t = Date.parse(`${(item && item.date) || ''}`.trim().replace(/\//g, '-'));
+	// 民用历墙钟轴(与末期讫日的标签同轴、时区无关;严格 ISO 纯日期与原 UTC 0 点口径逐值相同)
+	const t = civilWallMsOfStr(`${(item && item.date) || ''}`.trim());
 	return Number.isNaN(t) ? null : t;
 }
 function zrLocateCurrent(items, nowMs){
@@ -209,9 +218,7 @@ function zrLocateCurrent(items, nowMs){
 	return null;
 }
 function zrFmtDayUTC(ms){
-	const d = new Date(ms);
-	const p2 = (n)=>(n < 10 ? `0${n}` : `${n}`);
-	return `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`;
+	return civilDateStrOfMs(ms);   // 墙钟轴 → 民用历日期标签(1582 以前儒略历)
 }
 // 「当前所处：L1 X期（…至…）/ L2 Y期（…至…）」——用 timeline 数据找含今日的期;找不到返 ''(该行省略)。
 function zrCurrentPeriodLine(list){
@@ -226,7 +233,7 @@ function zrCurrentPeriodLine(list){
 	return text;
 }
 
-// [YB v42] 外壳:内核正文(多路 return,逐字不动)+ 尾部 [当前时点]/[方法说明](共享 helper;段头已登 preset)。
+// 外壳:内核正文(多路 return,逐字不动)+ 尾部 [当前时点]/[方法说明](共享 helper;段头已登 preset)。
 function buildZRAISnapshot(chartObj, params, basePoint, list, aiState){
 	const body = buildZRAISnapshotBody(chartObj, params, basePoint, list, aiState);
 	const cur = zrCurrentPeriodLine(list);
@@ -321,7 +328,7 @@ const ZR_DEFAULT_OPTS = {
 	aiL3Idx: 0,
 };
 // 11 个推运基点（与 genConditionDom 一致）——挂载 schema 复用，杜绝手写错值。
-// [Q-174/T-114] 页面基点是「福点/行星/四轴 11 项 + 十二星座」两列共 23 项,挂载 schema 此前只收前 11 项 →
+// 页面基点是「福点/行星/四轴 11 项 + 十二星座」两列共 23 项,挂载 schema 此前只收前 11 项 →
 // 页面选了某个星座起,挂载表达不了、无头复算恒回落福点。星座档并入本表(挂载与页面同值域)。
 export const ZR_BASE_POINTS = [
 	AstroConst.PARS_FORTUNA, AstroConst.PARS_SPIRIT, AstroConst.PARS_MERCURY,
@@ -354,7 +361,7 @@ function zrNatalParamsStandalone(chartObj, startSign){
 		tradition: qp.tradition,
 		birth: qp.birth,
 		zodiacal: qp.zodiacal, siderealAyanamsa: qp.siderealAyanamsa,
-		// [SURF-R5zr] 无头 builder 补古典单源(页面 :562 同源):此前零古典键,lotReversal 非默认时
+		// 无头 builder 补古典单源(页面 :562 同源):此前零古典键,lotReversal 非默认时
 		// AI 期表按默认档福点起算=可整体错座;'user' 岁差同回落。qp=响应回显,键面全。
 		...natalClassicalParams(qp),
 		startSign: startSign !== undefined ? startSign : null,
@@ -373,7 +380,7 @@ export async function buildZodialReleaseSnapshotText(chartObj, opts){
 		const basePoint = ZR_BASE_POINTS.indexOf(o.basePoint) >= 0 ? o.basePoint : AstroConst.PARS_FORTUNA;
 		const aiMode = AI_MODE_ITEMS.some((m)=>m.value === o.aiMode) ? o.aiMode : AI_MODE_L1_ALL;
 		// 基点 → startSign（取该点所在星座）；福点等同现状传 null（后端按福点起）。
-		// [Q-174/T-114] 基点本身就是星座时直接用它(页面右列十二星座同义),不必再去盘上找同名天体。
+		// 基点本身就是星座时直接用它(页面右列十二星座同义),不必再去盘上找同名天体。
 		let startSign = null;
 		if(basePoint !== AstroConst.PARS_FORTUNA){
 			if(AstroConst.LIST_SIGNS.indexOf(basePoint) >= 0){
@@ -446,6 +453,7 @@ class AstroZR extends Component{
 			list: [],
 			selectedSign: null,   // 点运高亮:当前点选的 ZR 期所在星座(传 AstroChart 高亮本座+4/7/10座)
 			wsChartObj: null,     // 整宫制专盘:黄道星释默认用整宫制(hsys=0),只喂本视图盘,其它盘零影响
+			wsChartObjSig: null,  // 整宫制专盘出自哪组起盘参数(与当前盘的签名一致才画它,见 wholeSignChartSig)
 			aiMode: AI_MODE_L1_ALL,
 			aiL1Idx: 0,
 			aiL2Idx: 0,
@@ -458,7 +466,7 @@ class AstroZR extends Component{
 					return;
 				}
 				let param = this.genNatalParams(chartObj);
-				// [SURF-T1] 增量 merge 粘滞剔除:非默认改回默认后 param 不带键,旧值不得残留(见 classicalChartGlobals)。
+				// 增量 merge 粘滞剔除:非默认改回默认后 param 不带键,旧值不得残留(见 classicalChartGlobals)。
 				let params = pruneStaleClassicalParams({
 					...this.state.params,
 					...param,
@@ -533,11 +541,39 @@ class AstroZR extends Component{
 	// #2 整宫制:黄道星释是依星座(整宫)释放的希腊化时主技法,盘面理应用整宫制(每座=一宫,宫线落座界)。
 	// 但绝不改本命盘/其它任何盘——这里照本命起盘参数原样另起一张 hsys=0 的专盘(仅覆盖宫制,ad/southchart 等全保留),
 	// 只喂给本视图的 AstroChart;fetchChart 按 params 缓存(hsys=0 与本命 hsys 不同键,互不污染)。失败则回退本命盘(graceful)。
+	// 整宫制专盘的起盘参数:照本命原样、只把宫制换成整宫(hsys=0)。在副本上整理出生日期时刻,不改传入的盘对象。
+	wholeSignParamsOf(chartObj){
+		if(!chartObj || !chartObj.params){ return null; }
+		const raw = { ...chartObj.params };
+		const natal = this.genNatalParams({ ...chartObj, params: raw });   // 由 birth 规整出 date/time,保证齐全
+		return { ...raw, ...natal, hsys: 0 };
+	}
+
+	// 当前盘对应的整宫制专盘签名(按盘对象记一次,渲染时不重复序列化)
+	wholeSignChartSig(chartObj){
+		if(!chartObj || !chartObj.params){ return ''; }
+		const memo = this._wsSigMemo;
+		if(memo && memo.ref === chartObj && memo.params === chartObj.params){ return memo.sig; }
+		const wsParams = this.wholeSignParamsOf(chartObj);
+		const sig = wsParams ? JSON.stringify(wsParams) : '';
+		this._wsSigMemo = { ref: chartObj, params: chartObj.params, sig };
+		return sig;
+	}
+
+	// 右栏 ZR 期表(与 AI 快照)只用出自当前命主的那份:换盘后新期表在途 / 取失败时不显示上一位命主的期表(同一命主只改设置仍旧表留存)
+	shownList(){
+		return pickKeyedDerived(this.state.list, this.state.listSig, natalSourceKey(this.props.value), NO_ZR_LIST);
+	}
+
+	// 中栏要画的盘:整宫制专盘只在它出自当前盘(签名一致)时用;换盘在途、取盘失败 → 本命盘
+	wholeSignChartForDisplay(){
+		const cur = this.props.value;
+		return pickKeyedDerived(this.state.wsChartObj, this.state.wsChartObjSig, this.wholeSignChartSig(cur), cur);
+	}
+
 	loadWholeSignChart(chartObj){
 		if(!chartObj || !chartObj.params){ return; }
-		const raw = chartObj.params || {};
-		const natal = this.genNatalParams(chartObj);   // 由 birth 规整出 date/time,保证齐全
-		const wsParams = { ...raw, ...natal, hsys: 0 };
+		const wsParams = this.wholeSignParamsOf(chartObj);
 		// WP-G 双触发收敛:hook.fun 与 componentDidUpdate(value 引用变恒真)两路各调一次本函数,
 		// 同参第二次白跑(网络层被 chartMem 兜成 0,但解包+setState 重渲照付)。同签名直接跳过;
 		// 参数真变(换生辰/宫制)→ 签名变照常重取。关 singleTriggerPredictive 开关=旧双跑。
@@ -546,13 +582,23 @@ class AstroZR extends Component{
 			return;
 		}
 		this._wsSig = sig;
+		// 只认最后一次:快速换生辰 / 宫制时先发的晚回不许盖掉后发的(同签名跳过只挡重复,挡不住先发后回)。
+		const wsSeq = (this._wsReqSeq || 0) + 1;
+		this._wsReqSeq = wsSeq;
+		// 取盘失败:清掉「已取过」的签名,同一张盘下次触发照常重取(否则同签名跳过 = 永不重试)
+		const settleFailed = ()=>{
+			if(this.unmounted || wsSeq !== this._wsReqSeq){ return; }
+			if(this._wsSig === sig){ this._wsSig = null; }
+		};
 		// fetchChart 回的是信封 {ResultCode, Result, headers};真正盘对象在 Result(本命盘 this.props.value 亦是已解包的 Result)。
 		// 必须解包 rsp[ResultKey] 再取 .chart——直接读 rsp.chart 恒 undefined 会静默回退本命盘(本命非整宫 → 宫线不落座界)。
 		fetchChart(wsParams).then((rsp)=>{
+			if(this.unmounted || wsSeq !== this._wsReqSeq){ return; }
 			const result = rsp && rsp[Constants.ResultKey];
-			if(this.unmounted || !result || !result.chart || result.err){ return; }
-			this.setState({ wsChartObj: result });
-		}).catch(()=>{ /* 回退本命盘 */ });
+			if(!result || !result.chart || result.err){ settleFailed(); return; }
+			// 连同签名一起存:渲染时与当前盘签名比,不一致(换盘在途 / 这张盘取失败)就回退本命盘
+			this.setState({ wsChartObj: result, wsChartObjSig: sig });
+		}).catch(()=>{ settleFailed(); /* 回退本命盘:渲染按签名比对自然落到 this.props.value */ });
 	}
 
 	genNatalParams(chartObj){
@@ -577,17 +623,18 @@ class AstroZR extends Component{
 			tradition: qryparam.tradition,
 			birth: qryparam.birth,
 			zodiacal: qryparam.zodiacal, siderealAyanamsa: qryparam.siderealAyanamsa,
-			// [0d] 古典口径段(单源):此前只带 4-6 基础键,改界系/三分/宫头5°律后与主盘口径静默分叉。
+			// 古典口径段(单源):此前只带 4-6 基础键,改界系/三分/宫头5°律后与主盘口径静默分叉。
 			...natalClassicalParams(qryparam),
 		};
 		return params;
 	}
 
 	async requestDirection(params, isQuick){
-		// [SURF-R5z] 深取乱序防:快取(浅,快)+深取(4 层,秒级)双在途,切基点(changePoint)后旧
+		// 深取乱序防:快取(浅,快)+深取(4 层,秒级)双在途,切基点(changePoint)后旧
 		// 深取后回 → list=旧基点全深表+params.startSign 回滚而 basePoint 已是新值=持久错配
 		// (isQuick=false 不再补取)。代际失配即弃(新请求自然使旧在途失效)。
 		const seq = ++this._zrSeq || (this._zrSeq = 1);
+		const listSig = natalSourceKey(params);   // 本次期表出自哪位命主(读时与当前盘比,见 shownList)
 		// WP-C 极速化:silent=不触发全局满屏 Spin 压暗(keep-stale:旧期表留存+「更新中…」角标,
 		// 新数据到达单次 setState 整体替换 —— 印占同款范式)。关 silentTechniquePanels 开关=旧全屏。
 		this.setState({ updating: true });
@@ -599,7 +646,7 @@ class AstroZR extends Component{
 			});
 		}catch(e){
 			// 请求失败防御:静默保持现有期表,不产生 Unhandled Rejection。
-			if(!this.unmounted){ this.setState({ updating: false }); }
+			if(!this.unmounted && seq === this._zrSeq){ this.setState({ updating: false }); }
 			return;
 		}
 		if(this.unmounted || seq !== this._zrSeq){ return; }
@@ -608,6 +655,7 @@ class AstroZR extends Component{
 
 		this.setState({
 			list: Array.isArray(result.zr) ? result.zr : [],
+			listSig,
 			updating: false,
 			// state.params 恒保 stopLevelIdx=3(全深目标);仅快取那次临时下发 0。保 3 供 AI 快照/再切基点取全深一致。
 			params: { ...params, stopLevelIdx: 3 },
@@ -624,17 +672,22 @@ class AstroZR extends Component{
 			this.props.value,
 			this.state.params,
 			this.state.basePoint,
-			this.state.list,
+			this.shownList(),
 			this.state
 		);
-		saveModuleAISnapshot('zodialrelease', content, {
+		saveModuleAISnapshot('zodialrelease', content, this.snapshotMeta());
+	}
+
+	// 写槽 meta 单一来源:平时写槽与刷新应答共用(刷新一次后槽的 meta 不变)
+	snapshotMeta(){
+		return {
 			tab: 'zodialrelease',
 			mode: this.state.aiMode,
 			basePoint: this.state.basePoint,
 			l1: this.state.aiL1Idx,
 			l2: this.state.aiL2Idx,
 			l3: this.state.aiL3Idx,
-		});
+		};
 	}
 
 	// AI 导出/挂载实时取数:导出侧派发 refresh 事件,这里用当前显示的盘即时重建快照并回填,
@@ -645,7 +698,7 @@ class AstroZR extends Component{
 		if(moduleName !== 'zodialrelease'){
 			return;
 		}
-		if(!this.props.value || !Array.isArray(this.state.list) || this.state.list.length === 0){
+		if(!this.props.value || !Array.isArray(this.shownList()) || this.shownList().length === 0){
 			return;
 		}
 		let text = '';
@@ -654,14 +707,14 @@ class AstroZR extends Component{
 				this.props.value,
 				this.state.params,
 				this.state.basePoint,
-				this.state.list,
+				this.shownList(),
 				this.state
 			) || ''}`.trim();
 		}catch(e){
 			text = '';
 		}
 		if(text){
-			saveModuleAISnapshot('zodialrelease', text);
+			saveModuleAISnapshot('zodialrelease', text, this.snapshotMeta());
 			if(evt && evt.detail && typeof evt.detail === 'object'){
 				evt.detail.snapshotText = text;
 			}
@@ -733,7 +786,7 @@ class AstroZR extends Component{
 			lineHeight: '28px',
 			whiteSpace: 'nowrap',
 		};
-		const colHead = { fontSize: 11, opacity: 0.55, marginBottom: 2, letterSpacing: '0.04em' };
+		const colHead = { fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 2, letterSpacing: '0.04em' };
 
 		let pnts = [
 			AstroConst.PARS_FORTUNA, AstroConst.PARS_SPIRIT, AstroConst.PARS_MERCURY,
@@ -743,7 +796,7 @@ class AstroZR extends Component{
 		];
 
 		const mkRadio = (item)=>(
-			<Radio style={radioStyle} value={item} key={`zrbp_${item}`}>
+			<Radio style={radioStyle} className="horosa-zr-base-radio" value={item} key={`zrbp_${item}`}>
 				<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[item]}&nbsp;</span>
 				<span style={{fontFamily: AstroConst.NormalFont}}>{AstroText.AstroTxtMsg[item]}</span>
 			</Radio>
@@ -751,7 +804,9 @@ class AstroZR extends Component{
 
 		// 第二列:十二星座基点(glyph + 两字座名,如「白羊」),用户可从任意星座释放;不占额外纵向空间。
 		return (
-			<RadioGroup onChange={this.changePoint} value={this.state.basePoint} style={{ width: '100%' }}>
+			// 两列基点单选:组宽量出来(布局域)不足 160px 时挂 data-zr-narrow,符号与名称折成两行(放大档右栏两列各只剩六十来 px,
+			// 单行会被栏的滚动盒横向裁掉);常规宽度不挂,一字不变
+			<RadioGroup onChange={this.changePoint} value={this.state.basePoint} style={{ width: '100%' }} ref={ownedBoxSizeRef(this, 'zrBase', zrBaseNarrowVars)}>
 				<Row gutter={6}>
 					<Col span={12}>
 						<div style={colHead}>福点 / 行星 / 四轴</div>
@@ -767,7 +822,7 @@ class AstroZR extends Component{
 	}
 
 	genAIOutputDom(){
-		const annotated = markZRSpecialFlags(this.state.list, -1);
+		const annotated = markZRSpecialFlags(this.shownList(), -1);
 		const selected = resolveSelectedNodes(annotated, this.state);
 
 		return (
@@ -837,8 +892,8 @@ class AstroZR extends Component{
 					<Col span={14}>
 						{/* keep-stale 角标:重取期间旧期表留存,主盘右上角提示「更新中…」;首次加载(无旧期表)不显示 */}
 						<div style={{ position: 'relative' }}>
-							{this.state.updating && this.state.list && this.state.list.length > 0 ? <UpdatingBadge /> : null}
-							<AstroChart value={this.state.wsChartObj || this.props.value}
+							{this.state.updating && this.shownList() && this.shownList().length > 0 ? <UpdatingBadge /> : null}
+							<AstroChart value={this.wholeSignChartForDisplay()}
 								chartDisplay={this.props.chartDisplay}
 								planetDisplay={this.props.planetDisplay}
 								lotsDisplay={this.props.lotsDisplay}
@@ -854,7 +909,7 @@ class AstroZR extends Component{
 						<Divider>基于{AstroText.AstroTxtMsg[this.state.basePoint]}推运</Divider>
 						<ZodiacalRelease
 							height={height}
-							value={this.state.list}
+							value={this.shownList()}
 							onSignClick={(sign)=>this.setState({ selectedSign: sign })}
 							selectedSign={this.state.selectedSign}
 						/>

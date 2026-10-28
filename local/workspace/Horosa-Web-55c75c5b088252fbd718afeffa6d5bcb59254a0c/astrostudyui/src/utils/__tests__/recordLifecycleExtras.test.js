@@ -1,4 +1,4 @@
-// [V5-D 小批] 记录生命周期扩展闸:归档三态/星标/使用足迹/删除日志找回/导入去重第四闸。
+// 记录生命周期扩展闸:归档三态/星标/使用足迹/删除日志找回/导入去重第四闸。
 import {
 	upsertLocalChart, listLocalCharts, flagLocalChart, touchLocalChart,
 	removeLocalChart, purgeLocalChartTrashItem, importLocalChartsBackup, exportLocalChartsBackup,
@@ -9,7 +9,7 @@ function seed(cid, name, birth){
 	upsertLocalChart({ cid, name, birth, zone: '+08:00', updateTime: '2026-08-01 10:00:00', preserveUpdateTime: true });
 }
 
-describe('[V5-D1/D2] 归档与星标', ()=>{
+describe('归档与星标', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});
@@ -52,7 +52,7 @@ describe('[V5-D1/D2] 归档与星标', ()=>{
 	});
 });
 
-describe('[V5-D5] 删除日志(永久删除最后防线)', ()=>{
+describe('删除日志(永久删除最后防线)', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});
@@ -76,7 +76,7 @@ describe('[V5-D5] 删除日志(永久删除最后防线)', ()=>{
 	});
 });
 
-describe('[V5-D6] 导入去重第四闸', ()=>{
+describe('导入去重第四闸', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});

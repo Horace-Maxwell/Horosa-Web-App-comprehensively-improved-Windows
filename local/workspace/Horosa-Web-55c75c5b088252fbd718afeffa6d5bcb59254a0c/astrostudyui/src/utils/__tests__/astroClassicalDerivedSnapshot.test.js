@@ -1,4 +1,4 @@
-// [W1·衍化四段] 古典 tab 衍化组件快照镜像的三层锁:
+// 古典 tab 衍化组件快照镜像的三层锁:
 // ① opt-in 正锚:classicalDerived=true 时四段头齐产,内容与单源计算函数一致;
 // ② 默认零字节:缺省 options 下四段头零出现(germany/mundane/indiachart/jieqi/relative 等嵌套消费方零波及);
 // ③ per-key 负向源扫(MU-2 教训:union 级前瞻守卫放过 per-key 失配):五个嵌套消费方的
@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { buildAstroSnapshotContent } from '../astroAiSnapshot';
 import { computeEminence, buildThemaMundiSnapshotLines } from '../astroClassicalDerived';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SIGNS12 = ['aries', 'taurus', 'gemini', 'cancer', 'leo', 'virgo', 'libra', 'scorpio', 'sagittarius', 'capricorn', 'aquarius', 'pisces'];
 const DERIVED_HEADS = ['[古典·派生宫转宫]', '[古典·气候带]', '[古典·显赫计分]', '[古典·世界范式盘]'];
@@ -29,7 +30,7 @@ function makeChartObj(){
 	};
 }
 
-describe('[W1] astro 古典衍化四段 opt-in', ()=>{
+describe('astro 古典衍化四段 opt-in', ()=>{
 	it('🔴 classicalDerived=true:四段头齐产,显赫总分与 computeEminence 单源一致', ()=>{
 		const chartObj = makeChartObj();
 		const txt = buildAstroSnapshotContent(chartObj, null, { classicalDerived: true });
@@ -67,7 +68,7 @@ describe('[W1] astro 古典衍化四段 opt-in', ()=>{
 			'../../components/astro/AstroRelative.js',
 		];
 		consumers.forEach((rel)=>{
-			const src = fs.readFileSync(path.join(__dirname, rel), 'utf8');
+			const src = readSource(path.join(__dirname, rel));
 			const callLines = src.split('\n').filter((l)=>l.includes('buildAstroSnapshotContent('));
 			expect(callLines.length).toBeGreaterThan(0);
 			callLines.forEach((l)=>{
@@ -80,7 +81,7 @@ describe('[W1] astro 古典衍化四段 opt-in', ()=>{
 	// [Windows #79] 泛化到所有 v-window union 块(v56/v57/…):①∩DEFAULT_OFF=∅(默认关段禁入 union,防口径倒挂);
 	// ②union 每段 ∈ 该键 preset(「产出了但没登记 preset 的段会被静默删」——union 进来的段名必须真存在于 preset)。
 	it('全部 AI_EXPORT_V*_SECTION_UNION 块:∩ DEFAULT_OFF = ∅ 且 每段 ∈ 该键 preset(v56/v57 必在)', ()=>{
-		const src = fs.readFileSync(path.join(__dirname, '../aiExport.js'), 'utf8');
+		const src = readSource(path.join(__dirname, '../aiExport.js'));
 		const { AI_EXPORT_PRESET_SECTIONS } = require('../aiExport');
 		const offSeg = src.slice(src.indexOf('AI_EXPORT_DEFAULT_OFF_SECTIONS = {'), src.indexOf('};', src.indexOf('AI_EXPORT_DEFAULT_OFF_SECTIONS = {')));
 		const grab = (seg)=>[...seg.matchAll(/'([^']+)'/g)].map((m)=>m[1]);

@@ -3,7 +3,7 @@ package boundless.types.cache;
 import boundless.types.ICache;
 
 /**
- * [R3-B1] 惰性缓存工厂代理:持有 (factoryClass, confPath),首次真实使用才构造真工厂。
+ * 惰性缓存工厂代理:持有 (factoryClass, confPath),首次真实使用才构造真工厂。
  *
  * 背景:桌面档 caches.json 声明 20 个工厂(18 Mongo + 2 Redis),饿构造把驱动初始化
  * 全塞进 Spring context.refresh(实测 cacheFactory bean ≈490ms),而桌面场景多数工厂

@@ -1,4 +1,4 @@
-// [D72/D73] 外部桥超时必带取消:到点 abort 传给工具的信号(工具不再在后台跑完 = 写入不会在客户端收到超时后落地);
+// 外部桥超时必带取消:到点 abort 传给工具的信号(工具不再在后台跑完 = 写入不会在客户端收到超时后落地);
 //   执行预算 = 客户端剩余预算 与 工具声明 timeoutMs 取小(run_analysis 声明 180 s 此前在桥路径不可达,缺省 117 s 永远封顶);
 //   读面五方法带 17 s 超时(壳侧固定 20 s,页面提前收口让串行队列继续)。
 import { handleAgentToolRequest, READ_FACE_TIMEOUT_MS, __resetMcpBridgeForTests } from '../aiAgent/mcpBridge';

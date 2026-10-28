@@ -1,4 +1,4 @@
-// [批二②] 按工具名放行/禁用 + interactive 类别消分叉。
+// 按工具名放行/禁用 + interactive 类别消分叉。
 // 合同:deny > read-only > allow > 信任 > ask;deny 对只读工具同样生效且不进工具目录;类别单源 = 目录 TOOL_CATEGORIES(含 interactive)。
 import { normalizeToolPolicy, getToolPolicy, setToolPolicy, AGENT_APPROVAL_CATEGORIES, AGENT_TOOL_POLICY_KEY, setAgentEnabled, setAgentApprovalMode } from '../aiAgent/prefs';
 import { resolveApprovalDecision } from '../aiAgent/approvalPolicy';

@@ -1,4 +1,4 @@
-// [P0-S1] AI 分析工作区库:消息按 conversationId 索引读 / deleteWhere 索引化 / IndexedDB v6 幂等补索引。
+// AI 分析工作区库:消息按 conversationId 索引读 / deleteWhere 索引化 / IndexedDB 升版时幂等补索引。
 // 真径用 fake-indexeddb(纯内存 IndexedDB 实现,与浏览器同一套事务/游标/索引语义);
 // 内存回退径直接跑模块自带的 MEMORY_DB。
 // 🔴 jsdom 不实现 indexedDB:各用例按需装/卸 window.indexedDB,并用 jest.isolateModules 取新模块实例
@@ -19,6 +19,11 @@ const ALL_STORE_NAMES = [
 	'templates', 'template_versions', 'bundles', 'conversations', 'messages', 'context_cache', 'workspace_meta',
 	'report_templates', 'report_instances',	'agent_tasks', 'agent_notices', 'automation_rules', 'integration_profiles',
 ];
+// 本库升版史上的两个节点(各步说明见 aiAnalysisStore.js 的 DB_VERSION 注释):
+//   EXPECTED_DB_VERSION —— 当前库版本;最后一步(上一版 → 当前)新建任务中心四店
+//   INDEX_UPGRADE_FROM —— 补二级索引那一步的旧版本(此前的库只有基础三索引)
+let EXPECTED_DB_VERSION = 7;
+let INDEX_UPGRADE_FROM = 5;
 
 function loadStore(){
 	let mod = null;
@@ -88,16 +93,16 @@ afterEach(()=>{
 });
 
 describe('① 版本与索引声明(结构锁)', ()=>{
-	test('AI_ANALYSIS_DB_VERSION === 7;messages.conversationId 索引在 EXTRA_INDEXES 声明并经 createIndex 建立', ()=>{
+	test(`AI_ANALYSIS_DB_VERSION === ${EXPECTED_DB_VERSION};messages.conversationId 索引在 EXTRA_INDEXES 声明并经 createIndex 建立`, ()=>{
 		const mod = loadStore();
-		expect(mod.AI_ANALYSIS_DB_VERSION).toBe(7);
-		expect(STORE_SRC.includes('const DB_VERSION = 7;')).toBe(true);
+		expect(mod.AI_ANALYSIS_DB_VERSION).toBe(EXPECTED_DB_VERSION);
+		expect(STORE_SRC.includes(`const DB_VERSION = ${EXPECTED_DB_VERSION};`)).toBe(true);
 		expect(STORE_SRC.includes("['conversationId', 'conversationId']")).toBe(true);
 		expect(STORE_SRC.includes('store.createIndex(name, keyPath, { unique: false })')).toBe(true);
 		expect(mod.EXTRA_INDEXES.messages.map((x)=>x[0])).toEqual(['conversationId', 'conversationCreated']);
 		expect(mod.EXTRA_INDEXES.material_chunks).toEqual([['materialId', 'materialId']]);
 		expect(mod.EXTRA_INDEXES.material_embeddings).toEqual([['materialId', 'materialId']]);
-		// [P1] 任务/通知/规则/集成档案 二级索引
+		// 任务/通知/规则/集成档案 二级索引
 		expect(mod.EXTRA_INDEXES.agent_tasks.map((x)=>x[0])).toEqual(['status', 'kind', 'nextRunAt']);
 		expect(mod.EXTRA_INDEXES.agent_notices).toEqual([['createdAt', 'createdAt']]);
 		expect(mod.EXTRA_INDEXES.automation_rules).toEqual([['event', 'event']]);
@@ -307,6 +312,82 @@ describe('⑤ IndexedDB 真径(fake-indexeddb)', ()=>{
 	});
 });
 
+describe(`⑧ v${EXPECTED_DB_VERSION - 1} → v${EXPECTED_DB_VERSION} 升版(最后一步:新建任务中心四店)`, ()=>{
+	test('上一版旧库(无 agent_tasks/agent_notices/automation_rules/integration_profiles,含旧会话与档案)以当前版本打开 → 四新店建好、旧记录原样存活、二级索引仍在', async ()=>{
+		await withFreshIdb(async (mod, factory)=>{
+			const { AI_ANALYSIS_STORES, listStoreRecords, countStoreRecords, listConversationMessages, __resetInFlightMessagesForTests } = mod;
+			__resetInFlightMessagesForTests();
+			const NEW_STORES = ['agent_tasks', 'agent_notices', 'automation_rules', 'integration_profiles'];
+			const OLD_STORES = ALL_STORE_NAMES.filter((n)=>NEW_STORES.indexOf(n) < 0);
+			const dbPrev = await rawOpen(factory, EXPECTED_DB_VERSION - 1, (db)=>{
+				OLD_STORES.forEach((n)=>{
+					const st = db.createObjectStore(n, { keyPath: 'id' });
+					st.createIndex('updatedAt', 'updatedAt', { unique: false });
+					st.createIndex('createdAt', 'createdAt', { unique: false });
+					st.createIndex('schemaVersion', 'schemaVersion', { unique: false });
+					if(n === 'messages'){ st.createIndex('conversationId', 'conversationId', { unique: false }); st.createIndex('conversationCreated', ['conversationId', 'createdAt'], { unique: false }); }
+				});
+			});
+			expect(dbPrev.version).toBe(EXPECTED_DB_VERSION - 1);
+			expect(Array.from(dbPrev.objectStoreNames)).not.toContain('agent_tasks');
+			await rawPutAll(dbPrev, 'messages', [
+				{ id: 'prev-m1', conversationId: 'conv-prev', role: 'user', content: '旧库消息', createdAt: '2026-08-01T00:00:01.000Z', updatedAt: '2026-08-01T00:00:01.000Z', schemaVersion: 4 },
+			]);
+			await rawPutAll(dbPrev, 'provider_profiles', [{ id: 'prof-prev', name: '旧档案', providerType: 'openai', apiKey: '', createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z', schemaVersion: 5 }]);
+			await rawPutAll(dbPrev, 'conversations', [{ id: 'conv-prev', title: '旧会话', createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z', schemaVersion: 2 }]);
+			dbPrev.close();
+
+			// 走应用层打开 = 触发 onupgradeneeded(上一版 → 当前版)
+			const msgs = await listConversationMessages('conv-prev');
+			expect(msgs.map((m)=>m.id)).toEqual(['prev-m1']);
+			expect(msgs[0].content).toBe('旧库消息');
+			expect((await listStoreRecords(AI_ANALYSIS_STORES.providerProfiles)).map((r)=>r.id)).toEqual(['prof-prev']);
+			expect((await listStoreRecords(AI_ANALYSIS_STORES.conversations)).map((r)=>r.title)).toEqual(['旧会话']);
+			for(const n of NEW_STORES){ expect(await countStoreRecords(n)).toBe(0); }   // 四新店在位且可读(不存在会抛 NotFoundError)
+
+			const dbCur = await rawOpen(factory, mod.AI_ANALYSIS_DB_VERSION, ()=>{ throw new Error('不该再升版'); });
+			expect(dbCur.version).toBe(EXPECTED_DB_VERSION);
+			const names = Array.from(dbCur.objectStoreNames);
+			NEW_STORES.forEach((n)=>expect(names).toContain(n));
+			OLD_STORES.forEach((n)=>expect(names).toContain(n));
+			const msgIdx = Array.from(dbCur.transaction('messages', 'readonly').objectStore('messages').indexNames);
+			['updatedAt', 'createdAt', 'schemaVersion', 'conversationId', 'conversationCreated'].forEach((n)=>expect(msgIdx).toContain(n));
+			NEW_STORES.forEach((n)=>{
+				const idx = Array.from(dbCur.transaction(n, 'readonly').objectStore(n).indexNames);
+				['updatedAt', 'createdAt', 'schemaVersion'].forEach((k)=>expect(idx).toContain(k));
+			});
+			dbCur.close();
+		});
+	});
+});
+
+describe('⑨ 库健康态(打不开 IndexedDB 不再静默)', ()=>{
+	test('同名库已被更高版本升过 → 应用层 open 触发 VersionError → 落内存回退 + 健康态 degraded/version + DOM 事件;读写照常可用', async ()=>{
+		await withFreshIdb(async (mod, factory)=>{
+			const { AI_ANALYSIS_STORES, putStoreRecord, listStoreRecords, getAiStoreHealth, AI_STORE_DEGRADED_EVENT, __resetStoreHealthForTests } = mod;
+			__resetStoreHealthForTests();
+			// 先用「更新版本」把同名库升到 v99(模拟装过更新版再回退到旧版)
+			const dbNew = await rawOpen(factory, 99, (db)=>{ ALL_STORE_NAMES.forEach((n)=>db.createObjectStore(n, { keyPath: 'id' })); });
+			expect(dbNew.version).toBe(99);
+			dbNew.close();
+			const events = [];
+			const onDeg = (e)=>events.push(e.detail);
+			window.addEventListener(AI_STORE_DEGRADED_EVENT, onDeg);
+			expect(getAiStoreHealth().degraded).toBe(false);
+			// 应用层第一次访问:open(当前版本) 撞 v99 → VersionError → 内存回退
+			await putStoreRecord(AI_ANALYSIS_STORES.conversations, { id: 'mem-1', title: '内存态' }, 'conv');
+			const rows = await listStoreRecords(AI_ANALYSIS_STORES.conversations);
+			expect(rows.map((r)=>r.id)).toEqual(['mem-1']);
+			const h = getAiStoreHealth();
+			expect(h.degraded).toBe(true);
+			expect(h.reason).toBe('version');
+			expect(events.length).toBe(1);
+			expect(events[0].reason).toBe('version');
+			window.removeEventListener(AI_STORE_DEGRADED_EVENT, onDeg);
+		});
+	});
+});
+
 describe('⑦ 调试计数钩子', ()=>{
 	test("localStorage['horosa.debug.idbStats']='1' 时模块初始化挂 window.__horosaIdbStats(实时对象);getIdbStatsForDebug 返回副本", async ()=>{
 		delete window.__horosaIdbStats;
@@ -332,12 +413,12 @@ describe('⑦ 调试计数钩子', ()=>{
 	});
 });
 
-describe('⑥ v5 → v6 升版', ()=>{
-	test('v5 旧库(仅基础三索引,含旧记录)以 v6 打开 → onupgradeneeded 补二级索引,旧记录可按索引查到', async ()=>{
+describe(`⑥ v${INDEX_UPGRADE_FROM} → v${INDEX_UPGRADE_FROM + 1} 升版`, ()=>{
+	test(`v${INDEX_UPGRADE_FROM} 旧库(仅基础三索引,含旧记录)以 v${INDEX_UPGRADE_FROM + 1} 打开 → onupgradeneeded 补二级索引,旧记录可按索引查到`, async ()=>{
 		await withFreshIdb(async (mod, factory)=>{
 			const { AI_ANALYSIS_STORES, listConversationMessages, readByIndex, getIdbStatsForDebug, __resetIdbStatsForTests, __resetInFlightMessagesForTests } = mod;
 			__resetInFlightMessagesForTests();
-			const db9 = await rawOpen(factory, 5, (db)=>{
+			const db9 = await rawOpen(factory, INDEX_UPGRADE_FROM, (db)=>{
 				ALL_STORE_NAMES.forEach((n)=>{
 					const s = db.createObjectStore(n, { keyPath: 'id' });
 					s.createIndex('updatedAt', 'updatedAt', { unique: false });
@@ -345,7 +426,7 @@ describe('⑥ v5 → v6 升版', ()=>{
 					s.createIndex('schemaVersion', 'schemaVersion', { unique: false });
 				});
 			});
-			expect(db9.version).toBe(5);
+			expect(db9.version).toBe(INDEX_UPGRADE_FROM);
 			await rawPutAll(db9, 'messages', [
 				{ id: 'old-2', conversationId: 'legacy-A', role: 'assistant', content: '二', createdAt: '2025-12-01T00:00:02.000Z', updatedAt: '2025-12-01T00:00:02.000Z', schemaVersion: 4 },
 				{ id: 'old-1', conversationId: 'legacy-A', role: 'user', content: '一', createdAt: '2025-12-01T00:00:01.000Z', updatedAt: '2025-12-01T00:00:01.000Z', schemaVersion: 4 },
@@ -368,7 +449,7 @@ describe('⑥ v5 → v6 升版', ()=>{
 
 			// 索引确实在位:另开一条同版本连接直接看 indexNames(不触发升版)
 			const db10 = await rawOpen(factory, mod.AI_ANALYSIS_DB_VERSION, ()=>{ throw new Error('不该再升版'); });
-			expect(db10.version).toBe(7);
+			expect(db10.version).toBe(EXPECTED_DB_VERSION);
 			const msgIdx = Array.from(db10.transaction('messages', 'readonly').objectStore('messages').indexNames);
 			['updatedAt', 'createdAt', 'schemaVersion', 'conversationId', 'conversationCreated'].forEach((n)=>expect(msgIdx).toContain(n));
 			expect(Array.from(db10.transaction('material_chunks', 'readonly').objectStore('material_chunks').indexNames)).toContain('materialId');

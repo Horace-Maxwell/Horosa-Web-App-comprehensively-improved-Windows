@@ -1,12 +1,5 @@
 
-import * as forge from 'node-forge';
-import { message } from 'antd';
-import { history } from 'umi';
-import { Msg } from '../msg/msg';
-import * as Constants from '../utils/constants';
-import { getErrMsg } from '../msg/errmsg';
 import {GPS} from './gps';
-import printJS from 'print-js';
 import {innerHandleError} from './request';
 import { clientToFixed } from './zoomDomain';
 
@@ -39,16 +32,6 @@ export function twoTextOneLine(ary, howmanyLines){
 	return res;
 }
 
-export function toBase64(str){
-	let raw = forge.util.createBuffer(str, "utf8").bytes();
-	return forge.util.encode64(raw);
-}
-
-export function fromBase64(str){
-	let txt = forge.util.decode64(str);
-	return forge.util.decodeUtf8(txt);
-}
-
 export function uuid(len, radix){
 	let chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('');
 	let uuid = [], i;
@@ -78,167 +61,6 @@ export function uuid(len, radix){
 	return uuid.join('');
 }
 
-export function getRegionName(regionMap, code){
-	let txt = code;
-	if(code === undefined || code === null){
-		txt = '';
-	}
-	if(regionMap === undefined || regionMap === null){
-		return txt;
-	}
-	let name = regionMap.get(code);
-	if(name === undefined || name === null || name === ''){
-		return txt;
-	}
-	return name.region;
-}
-
-export function getCountryName(countryMap, code){
-	if(countryMap === undefined || countryMap === null){
-		return code;
-	}
-	let name = countryMap.get(code);
-	if(name === undefined || name === null || name === ''){
-		return code;
-	}
-	return name.countryName;
-}
-
-export function fillBreadcrumbs(dispatch, app){
-	let breadcrumbs = null;
-	if(app.breadCrumbItems && Array.isArray(app.breadCrumbItems)){
-		breadcrumbs = app.breadCrumbItems.slice(0);
-	}
-	if(breadcrumbs){
-		let last = breadcrumbs[breadcrumbs.length - 1];
-		if(last === undefined || last === null || last.isMenu === undefined || last.isMenu === null){
-			return;
-		}
-		if(last.isMenu === false){
-			breadcrumbs = breadcrumbs.slice(0, breadcrumbs.length-1);
-			dispatch({
-				type: 'app/save',
-				payload:{
-					breadCrumbItems: breadcrumbs,
-				}
-			});
-		}
-	}
-}
-
-export function fillEditBreadcrumbs(dispatch, app, currentRecord, nameField, seqField, itemPrefix){
-	if(currentRecord === undefined || currentRecord === null){
-		return;
-	}
-	let breadcrumbs = null;
-	if(app.breadCrumbItems && Array.isArray(app.breadCrumbItems)){
-		breadcrumbs = app.breadCrumbItems.slice(0);
-	}
-	if(breadcrumbs && currentRecord){
-		let last = breadcrumbs[breadcrumbs.length - 1];
-		if(last === undefined){
-			return;
-		}
-		let bname = '';
-		if(nameField instanceof Array){
-			for(let i=0; i<nameField.length; i++){
-				let key = nameField[i];
-				let tmp = currentRecord[key];
-				if(i === 0){
-					bname = tmp ? tmp : '';
-				}else{
-					bname = bname + '（' + tmp + '）';
-				}
-			}
-		}else{
-			bname = currentRecord[nameField];
-		}
-
-		let bseq = '';
-		if(seqField instanceof Array){
-			for(let i=0; i<seqField.length; i++){
-				let key = seqField[i];
-				let tmp = currentRecord[key];
-				if(i === 0){
-					bseq = tmp;
-				}else{
-					bseq = bseq + '_' + tmp;
-				}
-			}
-		}else{
-			bseq = currentRecord[seqField];
-		}
-
-		if(last.isMenu !== undefined && last.isMenu === false){
-			if(last.name !== bname){
-				breadcrumbs = breadcrumbs.slice(0, breadcrumbs.length-1);
-				last = breadcrumbs[breadcrumbs.length - 1];
-			}
-		}
-
-		if(last.name !== bname){
-			breadcrumbs.push({
-				name: bname,
-				key: bseq + '_' + bname,
-				id: itemPrefix + bseq,
-				transcode: '',
-				isMenu: false,
-			});
-			dispatch({
-				type: 'app/save',
-				payload:{
-					breadCrumbItems: breadcrumbs,
-				}
-			});
-		}
-	}
-
-}
-
-export function fillAddBreadcrumbs(dispatch, app, itemName){
-	let breadcrumbs = null;
-	if(app.breadCrumbItems && Array.isArray(app.breadCrumbItems)){
-		breadcrumbs = app.breadCrumbItems.slice(0);
-	}
-	if(breadcrumbs){
-		let last = breadcrumbs[breadcrumbs.length - 1];
-		if(last === undefined){
-			return;
-		}
-		if(last.isMenu !== undefined && last.isMenu === false){
-			if(last.name !== Msg.newItem){
-				breadcrumbs = breadcrumbs.slice(0, breadcrumbs.length-1);
-				last = breadcrumbs[breadcrumbs.length - 1];
-			}
-		}
-
-		if(last.name !== Msg.newItem){
-			breadcrumbs.push({
-				name: Msg.newItem,
-				key: 'new' + itemName,
-				id: 'new' + itemName,
-				transcode: '',
-				isMenu: false,
-			});
-			dispatch({
-				type: 'app/save',
-				payload:{
-					breadCrumbItems: breadcrumbs,
-				}
-			});
-		}
-	}
-
-}
-
-export function cloneMap(map){
-	const recs = new Map();
-	for(let item of map){
-		recs.set(item[0], item[1]);
-	}
-	return recs;
-}
-
 export function preventEnterPress(e){
 	if(e.target.tagName === 'TEXTAREA'){
 		return;
@@ -253,66 +75,6 @@ export function preventEnterPress(e){
 
 export function handleError(err) {
 	innerHandleError(err);
-}
-
-export function strCompare(str1, str2){
-	if((str1 === undefined || str1 === null)){
-		if((str2 === undefined || str2 === null)){
-			return 0;
-		}
-		return -1;
-	}
-	if((str2 === undefined || str2 === null)){
-		return 1;
-	}
-	if(str1 === str2){
-		return 0;
-	}
-
-	let ary = [str1, str2].sort();
-	if(ary[0] === str1){
-		return -1
-	}else{
-		return 1;
-	}
-}
-
-export function formatDuration(ms){
-	if(ms === undefined || ms === null){
-		return '';
-	}
-	if(ms < 1000){
-		return ms + ' 毫秒';
-	}
-	if(ms >= 1000 && ms < 60000 ){
-		return Math.floor(ms / 1000) + ' 秒';
-	}
-	if(ms >= 60000 && ms < 3600000){
-		let min = Math.floor(ms / 60000);
-		let s = ms % 60000;
-		s = Math.floor(s / 1000);
-		return min + '分' + s + '秒';
-	}
-	const dayms = 3600000*24;
-	if(ms >= 3600000 && ms < dayms){
-		let hour = Math.floor(ms / 3600000);
-		let rest = ms % 3600000;
-		let min = Math.floor(rest / 60000);
-		let srest = rest % 60000;
-		let sec = Math.floor(srest / 1000);
-		return hour + '小时' + min + '分' + sec + '秒';
-	}
-	if(ms >= dayms){
-		let day = Math.floor(ms / dayms);
-		let dayrest = ms % dayms;
-		let hour = Math.floor(dayrest / 3600000);
-		let rest = dayrest % 3600000;
-		let min = Math.floor(rest / 60000);
-		let srest = rest % 60000;
-		let sec = Math.floor(srest / 1000);
-		return day + '天' + hour + '小时' + min + '分' + sec + '秒';
-	}
-	return '';
 }
 
 export function randomStr(len){
@@ -458,7 +220,7 @@ export function exitFullScreen() {
 	}	
 }
 
-// [Issue#68] 全屏「状态」判据:旧版混进了两个**能力位**——`document.fullscreenEnabled` 与
+// 全屏「状态」判据:旧版混进了两个**能力位**——`document.fullscreenEnabled` 与
 // `msFullscreenEnabled` 表示「本文档允许全屏」,在支持全屏的浏览器里恒 true,于是本函数恒返回
 // true:3D 星盘/阅读器一进页面就自认已全屏,尺寸按全屏估算 → 「全屏后显示不完整」。
 // 正解只认状态位:fullscreenElement(标准)/webkitFullscreenElement(旧 WebKit,Tauri WKWebView 走这支)
@@ -538,58 +300,6 @@ export function isObject(obj){
 		return true;
 	}
 	return false;
-}
-
-export function selectText(elemId) {
-	var text = document.getElementById(elemId);
-	if (document.body.createTextRange) {
-		var range = document.body.createTextRange();
-		range.moveToElementText(text);
-		range.select();
-	} else if (window.getSelection) {
-		var selection = window.getSelection();
-		var range = document.createRange();
-		range.selectNodeContents(text);
-		selection.removeAllRanges();
-		selection.addRange(range);
-		/*if(selection.setBaseAndExtent){
-			selection.setBaseAndExtent(text, 0, text, 1);
-		}*/
-	}
-}
-
-export function startWith(str, prefix){
-	if(str && prefix){
-		return str.slice(0, prefix.length) === prefix;
-	}
-	return false;
-}
-
-export function endWith(str, suffix){
-	if(str && suffix){
-		return str.indexOf(suffix, str.length-suffix.length) !== -1;
-	}
-	return false;
-}
-
-export function buildScriptTag(src) {
-	let script = document.createElement('script');
-	script.type = 'text/javascript';
-	script.async = true;
-	script.defer = true;
-	script.src = src;
-	return script;
-}
-
-export function getScriptPromise(url) {
-	let script = buildScriptTag(url);
-	var p = new Promise(function (resolve) {
-		script.onload = function () {
-			resolve();
-		};
-	});
-	document.body.appendChild(script);
-	return p;
 }
 
 function escapeTooltipHtml(text){
@@ -943,16 +653,4 @@ export function creatTooltip(divTooltip, titleSvg, tipobj, onTipClick, needpaddi
 		.on(leaveEvent, hideTooltip)
 		.on('mousemove', moveTooltip)
 		.on('click', clickTooltip);
-}
-
-export function printArea(id){
-	if(id === undefined || id === null){
-		return;
-	}
-	// 打印不再注入远端样式表(历史远端已下线;打印内容为内联样式的图表节点,裸打即可)。
-	printJS({
-		printable: id,
-		type: 'html',
-		maxWidth: 3000,
-	});	
 }

@@ -106,8 +106,8 @@ describe('T2b 容器实测值不套版面地板(缩放档裁底根因)', () => {
 		expect(resolveWorkspaceHeight({ containerHeight: 120, layoutViewportHeight: 1125, physicalClientHeight: 900, reserved: RESERVED, min: MIN })).toBe(1053);
 		expect(resolveWorkspaceHeight({ containerHeight: 120, layoutViewportHeight: 500, physicalClientHeight: 500, reserved: RESERVED, min: MIN })).toBe(MIN);
 	});
-	it('containerMin 可调且缺省 200', () => {
-		expect(resolveWorkspaceHeight({ containerHeight: 250, layoutViewportHeight: 1125, physicalClientHeight: 900, reserved: RESERVED, min: MIN })).toBe(250);
+	it('containerMin 可调且缺省 200(过了合理性下限的容器值再按工作区布局下限 488 取大)', () => {
+		expect(resolveWorkspaceHeight({ containerHeight: 250, layoutViewportHeight: 1125, physicalClientHeight: 900, reserved: RESERVED, min: MIN })).toBe(488);
 		expect(resolveWorkspaceHeight({ containerHeight: 250, containerMin: 300, layoutViewportHeight: 1125, physicalClientHeight: 900, reserved: RESERVED, min: MIN })).toBe(1053);
 	});
 });
@@ -139,5 +139,21 @@ describe('T3 兜底与边界', () => {
 		expect(resolveWorkspaceHeight({
 			containerHeight: 100, reserved: RESERVED, min: MIN,
 		})).toBe(MIN);
+	});
+});
+
+describe('T2c 工作区布局高下限 488(放大档矮窗:按下限排、外层纵向滚,三层同值另由 workspaceLayoutFloor 锁)', () => {
+	// eslint-disable-next-line global-require
+	const { WORKSPACE_MIN_LAYOUT_H } = require('../zoomDomain');
+	it('1.8 档 760 高窗:容器 350 → 488;1.5 档 760:435 → 488;包络边界 489 原样;常规 938 原样', () => {
+		expect(WORKSPACE_MIN_LAYOUT_H).toBe(488);
+		[[350, 488], [435, 488], [488, 488], [489, 489], [595, 595], [938, 938]].forEach(([c, want])=>{
+			expect(`${c}→${resolveWorkspaceHeight({ containerHeight: c, layoutViewportHeight: c + RESERVED, physicalClientHeight: 760, reserved: RESERVED, min: MIN })}`).toBe(`${c}→${want}`);
+		});
+	});
+	it('盘面最小字视觉下限的加高量叠加在容器分支上(工作区内层同一份加高);缺省 0 不改值', () => {
+		expect(resolveWorkspaceHeight({ containerHeight: 600, chartFloorExtra: 120, reserved: RESERVED, min: MIN })).toBe(720);
+		expect(resolveWorkspaceHeight({ containerHeight: 350, chartFloorExtra: 40, reserved: RESERVED, min: MIN })).toBe(528);
+		expect(resolveWorkspaceHeight({ containerHeight: 600, chartFloorExtra: 0, reserved: RESERVED, min: MIN })).toBe(600);
 	});
 });

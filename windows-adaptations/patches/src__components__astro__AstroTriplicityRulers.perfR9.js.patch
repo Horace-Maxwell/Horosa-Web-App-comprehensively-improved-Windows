@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroTriplicityRulers.js b/astrostudyui/src/components/astro/AstroTriplicityRulers.js
-index 9054f204..384aa0f3 100644
+index 5813d949..8f8c4cfb 100644
 --- a/astrostudyui/src/components/astro/AstroTriplicityRulers.js
 +++ b/astrostudyui/src/components/astro/AstroTriplicityRulers.js
 @@ -7,6 +7,7 @@ import { symbolWithMeaning } from './AstroExtraCommon';

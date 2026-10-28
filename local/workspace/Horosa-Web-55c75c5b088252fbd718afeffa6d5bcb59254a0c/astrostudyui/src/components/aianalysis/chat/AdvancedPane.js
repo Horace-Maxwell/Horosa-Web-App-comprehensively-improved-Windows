@@ -1,7 +1,7 @@
 // 「进阶」页:AI 助手高级能力总控。
 // 只做编排与总览:把 AIAnalysisMain 传进来的设置卡(chatAssist.settingsPanels,按 key 识别)与行动能力面板(无 key 的那一个)
 // 摆进固定版位;顶部 hero 汇总各能力的实时状态(策略预设 / 模型路由 / 个人口径 / 记忆条数 / 行动能力),胶囊可点=跳到该分区。
-// [批四] 版式:hero → [左侧分区导轨 | 卡片网格];导轨只在宽档显示;宽度档由 ResizeObserver 量根节点写到 data-adv-w(narrow/medium/wide,
+// 版式:hero → [左侧分区导轨 | 卡片网格];导轨只在宽档显示;宽度档由 ResizeObserver 量根节点写到 data-adv-w(narrow/medium/wide,
 //        8px 滞回;没量到=空串交 @media 兜底)。纪律:打开本页不写任何键——所有读数只订阅,不改动;导轨/折叠状态也不持久化。
 import React from 'react';
 import XQIcon from '../../xq-icons';
@@ -64,10 +64,10 @@ function Pill({ on, target, onJump, pillKey, children }){
 	);
 }
 
-// [Q-294/M-109·AR-19] personaInjecting:由 useChatAssist 按当前挂载源合成四层后给出(全局空、分层有字也算注入中);未传时回落只看全局文本
+// personaInjecting:由 useChatAssist 按当前挂载源合成四层后给出(全局空、分层有字也算注入中);未传时回落只看全局文本
 export default function AdvancedPane({ children, personaInjecting }){
 	const [preset, setPreset] = React.useState(()=>contextPolicyPresetName(readContextPolicy()));
-	// [D4] 与卡内芯片同口径:模型路由 / 槽参数 / 具名方案 三者任一设置即「已设置」(此前只看模型键,设了槽参数仍显示「跟随当前」)
+	// 与卡内芯片同口径:模型路由 / 槽参数 / 具名方案 三者任一设置即「已设置」(此前只看模型键,设了槽参数仍显示「跟随当前」)
 	const routedNow = ()=>hasAnyRoute(readModelRoutes()) || hasAnyRouteOption(readRouteOptions()) || !!(readRouteProfiles() || {}).active;
 	const [routed, setRouted] = React.useState(routedNow);
 	const [persona, setPersona] = React.useState(()=>readPersona());
@@ -107,7 +107,7 @@ export default function AdvancedPane({ children, personaInjecting }){
 		else{ agent.push(el); }
 	});
 	const ordered = SLOTS.map((k)=>byKey[k]).filter(Boolean).concat(extras);
-	// [2026-09-11] 技能包胶囊:真值取技能包卡自己收到的 bundles(与卡内计数同源);此前六分区只有五枚胶囊,窄窗(无导轨)技能包卡零快速入口
+	// 技能包胶囊:真值取技能包卡自己收到的 bundles(与卡内计数同源);此前六分区只有五枚胶囊,窄窗(无导轨)技能包卡零快速入口
 	const skillCount = (()=>{ try{ const el = byKey['skill-packs']; return el && el.props ? skillsOf(el.props.bundles).length : 0; }catch(e){ return 0; } })();
 
 	return (

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/dice/DiceMain.js b/astrostudyui/src/components/dice/DiceMain.js
-index 1fb1a19b..d2cc44d1 100644
+index 0296ecb4..f29fb3e4 100644
 --- a/astrostudyui/src/components/dice/DiceMain.js
 +++ b/astrostudyui/src/components/dice/DiceMain.js
 @@ -25,6 +25,8 @@ import styles from '../../css/styles.less';
@@ -11,7 +11,7 @@ index 1fb1a19b..d2cc44d1 100644
  
  const TabPane = Tabs.TabPane;
  const Option = Select.Option;
-@@ -225,6 +227,10 @@ class DiceMain extends Component{
+@@ -232,6 +234,10 @@ class DiceMain extends Component{
  			planet: null,
  			sign: null,
  			house: null,
@@ -22,7 +22,7 @@ index 1fb1a19b..d2cc44d1 100644
  		}
  
  		if(this.props.hook){
-@@ -320,7 +326,9 @@ class DiceMain extends Component{
+@@ -327,7 +333,9 @@ class DiceMain extends Component{
  			sign: result.sign,
  		};
  
@@ -32,8 +32,8 @@ index 1fb1a19b..d2cc44d1 100644
 +		this.setState(st, ()=>{ markPanelReady('auxchart'); });
  		const diceTxt = this.state.txt;
  		this._lastDiceSnapshotInput = { params, result, text: diceTxt };
- 		saveModuleAISnapshotLazy('otherbu', ()=>buildDiceSnapshotText(params, result, diceTxt), {
-@@ -604,6 +612,7 @@ class DiceMain extends Component{
+ 		saveModuleAISnapshotLazy('otherbu', ()=>buildDiceSnapshotText(params, result, diceTxt), diceSnapshotMeta(params));
+@@ -605,6 +613,7 @@ class DiceMain extends Component{
  		}
  	}
  
@@ -41,7 +41,7 @@ index 1fb1a19b..d2cc44d1 100644
  	componentDidMount(){
  		this.unmounted = false;
  		if(typeof window !== 'undefined'){
-@@ -643,30 +652,39 @@ class DiceMain extends Component{
+@@ -644,30 +653,39 @@ class DiceMain extends Component{
  			<div className='horosa-dice-page'>
  				<Row gutter={14} className='horosa-dice-layout'>
  					<Col span={17} className='horosa-dice-chart-panel'>

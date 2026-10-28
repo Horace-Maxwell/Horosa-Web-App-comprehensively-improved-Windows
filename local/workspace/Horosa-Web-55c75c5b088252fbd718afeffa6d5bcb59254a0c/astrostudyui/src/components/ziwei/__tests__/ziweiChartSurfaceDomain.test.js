@@ -5,7 +5,7 @@ jest.mock('../ZWChart', ()=>jest.fn().mockImplementation(()=>({
 
 import ZiWeiChart from '../ZiWeiChart';
 
-// [Tahoe 域混根修] ensureChartSurfaceSize 行为合同:量容器必须走布局域(offsetWidth),
+// ensureChartSurfaceSize 行为合同:量容器必须走布局域(offsetWidth),
 // 写回 style 才与消费端(svgdom.clientWidth)同域。判别向量=同时布假 rect(×0.9,模拟壳
 // 缩放 0.9 档下 rect 域读数):若有人改回 getBoundingClientRect 读法,断言值 986→886 必红。
 describe('ZiWeiChart 盘面尺寸域合同', ()=>{

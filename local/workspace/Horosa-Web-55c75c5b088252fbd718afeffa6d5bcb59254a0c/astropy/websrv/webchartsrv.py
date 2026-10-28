@@ -30,10 +30,10 @@ except ImportError:
     jsonpickle = _JsonpickleCompat()
     _JSONPICKLE_REAL = False
 
-# [R5 T2] 响应 JSON 快径:单源见 websrv/fastjson.py(允许名单式扁平化;名单外回退真 jsonpickle;HOROSA_FAST_JSON_ENCODE=0 关)
+# 响应 JSON 快径:单源见 websrv/fastjson.py(允许名单式扁平化;名单外回退真 jsonpickle;HOROSA_FAST_JSON_ENCODE=0 关)
 if _JSONPICKLE_REAL:
     from websrv.fastjson import install as _install_fast_json, install_global as _install_fast_json_global
-    # [R5 P0-3] 进程级:所有挂载服务共用真 jsonpickle 模块,先把它的 encode 换成快径版(HOROSA_FAST_JSON_GLOBAL=0 关)
+    # 进程级:所有挂载服务共用真 jsonpickle 模块,先把它的 encode 换成快径版(HOROSA_FAST_JSON_GLOBAL=0 关)
     _install_fast_json_global(jsonpickle)
     jsonpickle = _install_fast_json(jsonpickle)
 
@@ -54,12 +54,12 @@ from astrostudy.thirteenthchart import ThirteenthChart, HarmonicChart, Dodecatem
 from astrostudy.helper import getPredictivesObj
 from websrv.helper import enable_crossdomain
 from websrv._guards import validate_geo
-# [B5] 14 个非 kentang 服务改惰性挂载(复用 kentang _LazyMountedService 通用代理):
+# 14 个非 kentang 服务改惰性挂载(复用 kentang _LazyMountedService 通用代理):
 # 此前顶层同步 import 是 py.interp_start→imports_done 的主墙(每个服务各拖自家引擎链),
 # 现挂载零导入、监听提前;warmup 线程在开门前逐个预装(prewarm)——任何业务 POST 的最早
 # 可服务时刻不晚于旧方案(单一 STARTUP_GATE 语义不变,sid_mode 并发安全同旧)。
 # kill-switch:HOROSA_CORE_LAZY=0 回退旧饿加载(eager import + 直挂)。
-from websrv.kentang.registry import mount_kentang_services, _LazyMountedService, _load_service, KENTANG_SERVICE_SPECS
+from websrv.kentang.registry import mount_kentang_services, _LazyMountedService, _load_service, _prewarm_specs, KENTANG_SERVICE_SPECS
 
 CORE_SERVICE_SPECS = [
     {"key": "predict", "mount": "/predict", "module": "websrv.webpredictsrv", "class_name": "PredictSrv"},
@@ -78,9 +78,9 @@ CORE_SERVICE_SPECS = [
     {"key": "planetarium", "mount": "/planetarium", "module": "websrv.webplanetariumsrv", "class_name": "PlanetariumSrv"},
     # 天星择日·征象搜索(Calculate 侧;动盘侧=qizhengelection)。
     {"key": "electionscan", "mount": "/electionscan", "module": "websrv.webelectionscansrv", "class_name": "ElectionScanSrv"},
-    # [Z7] 七政择日·征象扫描(qizheng_election_scan;与天星 electionscan 同形薄壳)。
+    # 七政择日·征象扫描(qizheng_election_scan;与天星 electionscan 同形薄壳)。
     {"key": "qizhengelectionscan", "mount": "/qizhengelectionscan", "module": "websrv.webqizhengelectionscansrv", "class_name": "QizhengElectionScanSrv"},
-    # [Z8] 印度择日·征象扫描(india_election_scan;同形薄壳)。
+    # 印度择日·征象扫描(india_election_scan;同形薄壳)。
     {"key": "indiaelectionscan", "mount": "/indiaelectionscan", "module": "websrv.webindiaelectionscansrv", "class_name": "IndiaElectionScanSrv"},
 ]
 
@@ -123,52 +123,29 @@ def mount_core_services():
             cherrypy.tree.mount(_load_service(spec), spec["mount"])
 
 
-def prewarm_core_services(only_keys=None, exclude_keys=None):
-    loaded = 0
-    failed = 0
+def prewarm_core_services():
+    return _prewarm_specs(CORE_SERVICE_SPECS, "core")
+
+
+def _prewarm_core_subset(only_keys=None, exclude_keys=None):
+    # 门前预装实际走这里(上游 prewarm_core_services 原样保留:卫生锁要求它只有一句 _prewarm_specs 调用)。
     # horosa_electionscan_postgate_prewarm_v1:POST_GATE 集合内的键不在门前装
-    # (由门后段的 prewarm_postgate_core_services 承接;开关关闭时集合为空=原样)。
-    # horosa_py_early_gate_v1:only_keys / exclude_keys 把同一预装拆成「首屏面」与「其余」两次调用
-    # (两者都为 None 时行为逐字节同旧)。
+    # (由门后段的 prewarm_postgate_core_services 承接;开关关闭时集合为空=全量,与 prewarm_core_services 同)。
+    # horosa_py_early_gate_v1:only_keys / exclude_keys 把同一预装拆成「首屏面」与「其余」两次调用。
     skip = _postgate_core_keys()
-    for spec in CORE_SERVICE_SPECS:
-        if spec.get("key") in skip:
-            continue
-        if only_keys is not None and spec.get("key") not in only_keys:
-            continue
-        if exclude_keys is not None and spec.get("key") in exclude_keys:
-            continue
-        try:
-            app = cherrypy.tree.apps.get(spec["mount"])
-            root = getattr(app, "root", None)
-            if isinstance(root, _LazyMountedService):
-                root._horosa_load()
-                loaded += 1
-        except Exception:
-            failed += 1
-            print("[core] prewarm failed %s" % spec.get("key"), flush=True)
-            traceback.print_exc()
-    return loaded, failed
+    specs = [
+        spec for spec in CORE_SERVICE_SPECS
+        if spec.get("key") not in skip
+        and (only_keys is None or spec.get("key") in only_keys)
+        and (exclude_keys is None or spec.get("key") not in exclude_keys)
+    ]
+    return _prewarm_specs(specs, "core")
 
 
 def prewarm_postgate_core_services():
     # 门后装载 POST_GATE 集合(与门前同构;饿加载态 root 非 _LazyMountedService ⇒ 天然 no-op)。
-    loaded = 0
-    failed = 0
-    for spec in CORE_SERVICE_SPECS:
-        if spec.get("key") not in _postgate_core_keys():
-            continue
-        try:
-            app = cherrypy.tree.apps.get(spec["mount"])
-            root = getattr(app, "root", None)
-            if isinstance(root, _LazyMountedService):
-                root._horosa_load()
-                loaded += 1
-        except Exception:
-            failed += 1
-            print("[core] postgate prewarm failed %s" % spec.get("key"), flush=True)
-            traceback.print_exc()
-    return loaded, failed
+    keys = _postgate_core_keys()
+    return _prewarm_specs([spec for spec in CORE_SERVICE_SPECS if spec.get("key") in keys], "core postgate")
 
 ledger_mark('py.imports_done', t0=_PY_T0)
 
@@ -181,7 +158,7 @@ _PY_CHART_TIMING = os.environ.get('HOROSA_PY_CHART_TIMING', '0').lower() in ('1'
 
 
 
-# [F2] 古典口径回显全清单(条件回显:请求带了才回显 → 默认响应字节零变)。
+# 古典口径回显全清单(条件回显:请求带了才回显 → 默认响应字节零变)。
 # 三端点(/chart /chart13 /chart12)与 helper.getChartObj 同清单;缺谁谁在派生链静默回默认。
 _CLASSICAL_ECHO_KEYS = (
     'termsVariant', 'leoBoundFirst', 'geminiBoundEmended',
@@ -243,7 +220,7 @@ class WebChartSrv:
         # 身份握手端点:前端在采用任何本地服务地址(query/存储/端口推导)之前,先 GET 本端点核验
         # app 标记(+壳注入的每次启动 nonce)——防端口被其它进程占用时把「陌生 200 响应」误当后端
         # (症状:排盘失败但 statusCode:200)。明文、免签名,与 Java 侧 /horosaIdentity 同构。
-        # [V-5] deep=1:附带一次微型真算(flatlib 儒略日,零 I/O)——看门狗借此看见
+        # deep=1:附带一次微型真算(flatlib 儒略日,零 I/O)——看门狗借此看见
         # 「身份线程活着但算力已死」的灰区;proto 升 2 表示支持 deep 维度。
         enable_crossdomain()
         _nonce = os.environ.get('HOROSA_LAUNCH_NONCE', '') or ''
@@ -268,7 +245,7 @@ class WebChartSrv:
             }, unpicklable=False)
         # 界系(termsVariant)请求级临界区:push 取锁+换 essential.TERMS,整盘计算(尊贵/界主/互容接纳/
         # 围攻日木互容/predictives)都用所选界,finally 必还原+释放锁(防并发串界)。默认埃及=零回归。
-        _cls_tokens = None  # [0d] 五族古典临界区复合令牌;守卫早退时 finally 引用,预初始化纪律(漏初始化=UnboundLocalError→500)
+        _cls_tokens = None  # 五族古典临界区复合令牌;守卫早退时 finally 引用,预初始化纪律(漏初始化=UnboundLocalError→500)
         try:
             data = cherrypy.request.json
 
@@ -281,7 +258,7 @@ class WebChartSrv:
             _geoerr = validate_geo(data)
             if _geoerr:
                 return jsonpickle.encode(_geoerr, unpicklable=False)
-            # [R5 T2] 此处原有 print(data):每次请求把整份参数(出生日期 / 时间 / 经纬度 / 地名)同步写 stdout,
+            # 此处原有 print(data):每次请求把整份参数(出生日期 / 时间 / 经纬度 / 地名)同步写 stdout,
             # 打包件里 stdout 经管道回壳并落日志文件(本机已 31 MB)—— 请求路径上的同步 I/O + 隐私,故删(Windows PY-14 同款)。
 
             _cls_tokens = push_classical_request(data)
@@ -345,11 +322,11 @@ class WebChartSrv:
             for _vk in _CLASSICAL_ECHO_KEYS:
                 if data.get(_vk) is not None:
                     obj['params'][_vk] = data.get(_vk)
-            # [WP-5b] 相位参与对象扩展(默认全关返回 None → 不产字段,响应字节零变)。
+            # 相位参与对象扩展(默认全关返回 None → 不产字段,响应字节零变)。
             _extra_asp = perchart.getExtraAspects()
             if _extra_asp:
                 obj['extraAspects'] = _extra_asp
-            # [WP-8] 祝融星(推算行星;默认 off 返回 None → 零字段)。
+            # 祝融星(推算行星;默认 off 返回 None → 零字段)。
             _vulcan = perchart.getVulcan()
             if _vulcan:
                 obj['vulcan'] = _vulcan
@@ -386,7 +363,7 @@ class WebChartSrv:
     @cherrypy.tools.json_in()
     def chart13(self):
         enable_crossdomain()
-        _cls_tokens = None  # [0d] 五族古典临界区复合令牌;守卫早退时 finally 引用,预初始化纪律(漏初始化=UnboundLocalError→500)
+        _cls_tokens = None  # 五族古典临界区复合令牌;守卫早退时 finally 引用,预初始化纪律(漏初始化=UnboundLocalError→500)
         try:
             data = cherrypy.request.json
 
@@ -442,7 +419,7 @@ class WebChartSrv:
             }
 
             # 界内变体键条件回显(同 index 路由:请求带了才回显,默认响应字节零变)。
-            # [F2] 与主 /chart 同全清单回显(此前只回显 2 键,13宫/12分盘派生链丢口径)。
+            # 与主 /chart 同全清单回显(此前只回显 2 键,13宫/12分盘派生链丢口径)。
             for _vk in _CLASSICAL_ECHO_KEYS:
                 if data.get(_vk) is not None:
                     obj['params'][_vk] = data.get(_vk)
@@ -469,7 +446,7 @@ class WebChartSrv:
         # 十二分盘(dodecatemoria / 印占 D12):自本座起算 —— newlon = ((sign + floor(d/2.5)) mod 12)×30 + (12d mod 30),
         # 与十三分盘同结构。T-50:此前用 HarmonicChart(12)= 自白羊起算的 12 次谐波,11/12 星座落座全错、与调波盘 H12 恒等。
         enable_crossdomain()
-        _cls_tokens = None  # [0d] 五族古典临界区复合令牌;守卫早退时 finally 引用,预初始化纪律(漏初始化=UnboundLocalError→500)
+        _cls_tokens = None  # 五族古典临界区复合令牌;守卫早退时 finally 引用,预初始化纪律(漏初始化=UnboundLocalError→500)
         try:
             data = cherrypy.request.json
 
@@ -524,7 +501,7 @@ class WebChartSrv:
             }
 
             # 界内变体键条件回显(同 index 路由:请求带了才回显,默认响应字节零变)。
-            # [F2] 与主 /chart 同全清单回显(此前只回显 2 键,13宫/12分盘派生链丢口径)。
+            # 与主 /chart 同全清单回显(此前只回显 2 键,13宫/12分盘派生链丢口径)。
             for _vk in _CLASSICAL_ECHO_KEYS:
                 if data.get(_vk) is not None:
                     obj['params'][_vk] = data.get(_vk)
@@ -556,19 +533,6 @@ def _identity_deep_ok():
         return abs(float(jd) - 2451545.0) < 1e-6
     except Exception:
         return False
-
-
-def CORS():
-    if cherrypy.request.method == 'OPTIONS':
-        # preflign request
-        # see http://www.w3.org/TR/cors/#cross-origin-request-with-preflight-0
-        cherrypy.response.headers['Access-Control-Allow-Methods'] = 'GET, POST, HEAD, PUT, DELETE, OPTIONS'
-        cherrypy.response.headers['Access-Control-Allow-Headers'] = 'Accept, Accept-Encoding, Accept-Language, Host, Origin, X-Requested-With, Content-Type, User-Agent, Content-Length, Last-Modified, Access-Control-Request-Headers, HTTP_X_REAL_IP, HTTP_X_FORWARDED_FOR, x-forwarded-for, Token, x-remote-IP, x-originating-IP, x-remote-addr, x-remote-ip, x-client-ip, x-client-IP, X-Real-ip, ImgTokenListName, SmsTokenListName, _IMGTOKENLIST, _SMSTOKENLIST, Signature, LocalIp, ClientChannel, ClientApp, ClientVer'
-        cherrypy.response.headers['Access-Control-Allow-Origin'] = '*'
-        # tell CherryPy no avoid normal handler
-        return True
-    else:
-        cherrypy.response.headers['Access-Control-Allow-Origin'] = '*'
 
 
 def _chart_port_free(host, port):
@@ -744,19 +708,16 @@ _PRIORITY_LANE_ON = os.environ.get('HOROSA_PRIORITY_LANE', '1').lower() not in (
 
 
 def _priority_lane_tool():
-    # [R5 T5] 每个请求都设一次(线程池线程复用,不设会沿用上一个请求的值);缺头 / 其它值 = 前台 = 旧行为
-    try:
-        from astrostudy import perchart as _pc
-        _pc.set_priority_lane_enabled(_PRIORITY_LANE_ON)
-        kind = None
-        if _PRIORITY_LANE_ON:
-            kind = (cherrypy.request.headers.get('X-Horosa-Priority') or '').strip().lower()
-        _pc.set_request_priority(kind)
-    except Exception:
-        pass
+    # 每个请求都设一次(线程池线程复用,不设会沿用上一个请求的值);缺头 / 其它值 = 前台 = 旧行为
+    from astrostudy import perchart as _pc
+    _pc.set_priority_lane_enabled(_PRIORITY_LANE_ON)
+    kind = None
+    if _PRIORITY_LANE_ON:
+        kind = (cherrypy.request.headers.get('X-Horosa-Priority') or '').strip().lower()
+    _pc.set_request_priority(kind)
 
 
-# [R5 P0-3] 请求内黄经 memo(astroextra.swe_lon)只对下列服务前缀开启:同请求里同 (天体, jd, 中心, 站心坐标)
+# 请求内黄经 memo(astroextra.swe_lon)只对下列服务前缀开启:同请求里同 (天体, jd, 中心, 站心坐标)
 # 只算一次,请求结束清空;其它请求一律无 memo。开关 HOROSA_SWE_LON_MEMO=0 见 astroextra。
 _SWE_LON_MEMO_PREFIXES = (
     '/astroextra/',
@@ -790,7 +751,7 @@ def _startup_gate_tool():
     # horosa_py_early_gate_v1:首屏门已开且非卜类挂载点 ⇒ 直接放行(不经上游核心门的宽限等待)。
     if _early_gate_enabled() and not _is_kentang and EARLY_GATE.is_set():
         return
-    # [R4-P0 观察位] 门真实咬到业务 POST 时记一次(等待时长+路径)——P3-b 分级门的裁决数据
+    # 门真实咬到业务 POST 时记一次(等待时长+路径)——P3-b 分级门的裁决数据
     # (装机首启 early-nav 下首个 /chart 是否撞门、撞多久;<300ms 则分级门判不做)。纯旁路。
     _wait_t0 = time.perf_counter()
     _via = 'full'
@@ -812,12 +773,9 @@ def _startup_gate_tool():
         STARTUP_GATE.wait(timeout=60)
     if not _GATE_FIRST_WAIT_LOGGED[0]:
         _GATE_FIRST_WAIT_LOGGED[0] = True
-        try:
-            _wait_ms = (time.perf_counter() - _wait_t0) * 1000.0
-            ledger_mark('py.gate_first_wait', t0=_PY_T0, ms=_wait_ms,
-                        extra={'path': getattr(req, 'path_info', '') or '', 'via': _via})
-        except Exception:
-            pass
+        _wait_ms = (time.perf_counter() - _wait_t0) * 1000.0
+        ledger_mark('py.gate_first_wait', t0=_PY_T0, ms=_wait_ms,
+                    extra={'path': getattr(req, 'path_info', '') or '', 'via': _via})
 
 
 def _warm_real_astropy():
@@ -850,15 +808,12 @@ def _warmup_stage_pd():
 
 
 def _warmup_stage_core(only_keys=None, exclude_keys=None, label='core services', seg='py.warmup_core'):
-    # [B5] 核心 14 服务预装(开门前):挂载阶段零导入的债在此偿清 —— 门保证业务 POST
+    # 核心 14 服务预装(开门前):挂载阶段零导入的债在此偿清 —— 门保证业务 POST
     # 必在预装后,任何请求最早可服务时刻不晚于旧方案;失败留给首个真实请求响亮 500。
     # horosa_py_early_gate_v1:可按键集拆两次(首屏面 / 其余),缺省参数 = 旧行为。
     try:
         t_core = time.perf_counter()
-        if only_keys is None and exclude_keys is None:
-            _c_loaded, _c_failed = prewarm_core_services()   # 缺省调用形保留(上游 test_core_lazy_mount 以此字面做源序断言)
-        else:
-            _c_loaded, _c_failed = prewarm_core_services(only_keys=only_keys, exclude_keys=exclude_keys)
+        _c_loaded, _c_failed = _prewarm_core_subset(only_keys=only_keys, exclude_keys=exclude_keys)
         _core_ms = (time.perf_counter() - t_core) * 1000.0
         print('{3} prewarm ready in {0:.3f}s (loaded={1}, failed={2})'.format(
             _core_ms / 1000.0, _c_loaded, _c_failed, label), flush=True)
@@ -871,7 +826,7 @@ def _warmup_stage_india():
     # 印度盘预热:把 india 各子算法冷路径载入,消除首次进入印度占星的 ~3s 冷启动;
     # 与业务请求的并发由启动门隔离(门开前无业务 POST 进入)。失败静默不影响服务。
     try:
-        from websrv.webindiasrv import warmup_india   # [B5] 下沉:india 链离开 import 墙
+        from websrv.webindiasrv import warmup_india   # 下沉:india 链离开 import 墙
         t1 = time.perf_counter()
         warmup_india()
         _in_ms = (time.perf_counter() - t1) * 1000.0
@@ -899,12 +854,12 @@ def _warmup_stage_kentang():
 
 def _run_warmups():
     _warm_real_astropy()
-    # [R4-P3a] PD 段并入并行组(下方),不再恒串行前置 —— 串行档(trusted)保持旧序逐字节不变。
+    # PD 段并入并行组(下方),不再恒串行前置 —— 串行档(trusted)保持旧序逐字节不变。
     # 并行安全性依据:①flatlib 线程本地 sidereal context + 裸调用点 set→use 相邻直线
     # (tests/test_swe_concurrency.py 钉死);②生产稳态 CherryPy thread_pool=30 本就并发计算,
     # warmup 期并发不超出生产语义信封;③astropy 先序钉不动(_warm_real_astropy 恒第一,
     # kentang 桩免疫不破)。kill-switch:HOROSA_PY_PD_PARALLEL=0 恒回 PD 串行前置旧序。
-    # [R3-B5] core/india/kentang 三段并行(原五段全串行):三段互不依赖(各装各的模块;
+    # core/india/kentang 三段并行(原五段全串行):三段互不依赖(各装各的模块;
     # 共享底层 import 由解释器 import 锁天然互斥,数据面零竞争),磁盘 IO/SQLite 段真并行
     # → STARTUP_GATE 开门时刻从 sum(三段) 提前到 max(三段)。
     # 🔴 档位=auto(2026-07-21 ladder 实测定档):
@@ -926,7 +881,7 @@ def _run_warmups():
         # 按 truthy 家族解析,两种启动器语义一致;缺省 '0' 行为不变。
         _trusted_env = os.environ.get('HOROSA_TRUSTED_RUNTIME', '0').strip().lower()
         _parallel = _trusted_env not in ('1', 'true', 'yes', 'on')
-    # [R4-P3a] PD 入并行组开关。🔴 缺省【关】(2026-08-03 同会话 ladder 实测定档):script 档
+    # PD 入并行组开关。🔴 缺省【关】(2026-08-03 同会话 ladder 实测定档):script 档
     # (untrusted 并行)PD 入组=并行窗四线程,与同窗 JVM 引导抢核【双输】——py 门开 1440→1857ms、
     # java_http_ready 2528→3551ms(R3「温启并行双输回串行」同族形态,冷启档同样成立)。
     # 代码路径保留:显式 HOROSA_PY_PD_PARALLEL=1 才开(装机首启档 Java 未必同窗,可另测再议)。
@@ -970,7 +925,7 @@ def _run_warmups():
                 _open_core_gate()   # 串行档:卜类段之前的各段已装完
             _fn()
     _open_core_gate()   # 兜底:段表里没有卜类段时也要开
-    # [R4-P0 观察位] 门开绝对时刻显式化(改前基线里门开时刻要靠 warmup 末段推算)。
+    # 门开绝对时刻显式化(改前基线里门开时刻要靠 warmup 末段推算)。
     ledger_mark('py.gate_open', t0=_PY_T0)
     STARTUP_GATE.set()
     # horosa_py_early_gate_v1:全门(= 旧单门时刻)开后首屏门必开 —— 缺省态两门同刻,请求时序即上游分级门。
@@ -1008,7 +963,7 @@ def _run_warmups():
     # (上面的 kentang prewarm 已盖),而在 global_summary() 首算(全表 load_events()
     # SELECT + 译名 join + celestial 装载,冷 ~2.3s)。放在门开之后:绝不延长业务请求
     # 的等待窗;global_summary 纯只读 + 模块级 memo,预热与首点返回同一 dict,逐字节
-    # 一致,只是把成本从可见点击路径挪进空闲。失败静默=首点回到冷即付的现状。
+    # 一致,只是把成本从可见点击路径挪进空闲。失败只打日志=首点回到冷即付的现状。
     # kill-switch:HOROSA_XUANSHI_WARMUP=0。
     if os.environ.get('HOROSA_XUANSHI_WARMUP', '1').lower() not in ('0', 'false', 'no', 'off'):
         try:
@@ -1019,13 +974,13 @@ def _run_warmups():
             print('xuanshi summary warmup ready in {0:.3f}s'.format(_xs_ms / 1000.0), flush=True)
             ledger_mark('py.warmup_xuanshi_summary', t0=_PY_T0, ms=_xs_ms)
         except Exception:
-            pass
+            traceback.print_exc()
         # horosa_xuanshi_longtext_ondemand_v1:上面那发只暖到 summary 端点(20KB/59ms,且客户端已去重),
         # 天象微年表页首屏真正付的是 microchronology 无筛选那一发(全表扫 + 全量序列化)。它不走
         # load_events memo,故 summary 预热盖不到 —— 这里按「前端进页时的同一组参数」
         # (无筛选 + limit=MICRO_LIST_LIMIT)预热 celestial 模块自己的 micro memo:预热与首点命中
         # 同一 memo 键、返回同一 dict,逐字节一致,只是把成本从可见点击路径挪进空闲。
-        # 失败静默 = 首点回到冷即付的现状;kill-switch 同上 HOROSA_XUANSHI_WARMUP=0。
+        # 失败只打日志 = 首点回到冷即付的现状;kill-switch 同上 HOROSA_XUANSHI_WARMUP=0。
         try:
             t4 = time.perf_counter()
             from astrostudy.xuanshi import celestial as _xs_ce
@@ -1034,7 +989,7 @@ def _run_warmups():
             print('xuanshi microchronology warmup ready in {0:.3f}s'.format(_mc_ms / 1000.0), flush=True)
             ledger_mark('py.warmup_xuanshi_micro', t0=_PY_T0, ms=_mc_ms)
         except Exception:
-            pass
+            traceback.print_exc()
 
 
 if __name__ == '__main__':
@@ -1049,10 +1004,10 @@ if __name__ == '__main__':
                             'engine.autoreload.on': False,
                             })
 
-    cherrypy.tools.cors = cherrypy._cptools.HandlerTool(CORS)
+    cherrypy.tools.cors = cherrypy._cptools.HandlerTool(enable_crossdomain)
     cherrypy.tools.startup_gate = cherrypy.Tool('before_handler', _startup_gate_tool, priority=10)
     cherrypy.config.update({'tools.startup_gate.on': True})
-    # [R5 T5] 请求优先级车道:X-Horosa-Priority: prefetch 的请求在 perchart 古典临界区前让前台请求先拿锁
+    # 请求优先级车道:X-Horosa-Priority: prefetch 的请求在 perchart 古典临界区前让前台请求先拿锁
     cherrypy.tools.priority_lane = cherrypy.Tool('before_handler', _priority_lane_tool, priority=11)
     cherrypy.config.update({'tools.priority_lane.on': True})
     cherrypy.tools.swe_lon_memo = cherrypy.Tool('before_handler', _swe_lon_memo_tool, priority=12)

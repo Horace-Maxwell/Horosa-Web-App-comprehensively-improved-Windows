@@ -1,4 +1,4 @@
-// [进阶审计 D2] 外部客户端策略控件合同:键 horosa.ai.agent.external.policy.v1 此前被 mcpBridge 消费、手册有写,界面上没有任何控件可改。
+// 外部客户端策略控件合同:键 horosa.ai.agent.external.policy.v1 此前被 mcpBridge 消费、手册有写,界面上没有任何控件可改。
 // 判别向量:打开不写键 → 点只读/改上限才写键 → 恢复缺省删键;效果面:同一把键让 tools/call 的写入被拒(E_APPROVAL_DENIED)/ 超限被拒(E_LIMIT)。
 import React from 'react';
 import ReactDOM from 'react-dom';

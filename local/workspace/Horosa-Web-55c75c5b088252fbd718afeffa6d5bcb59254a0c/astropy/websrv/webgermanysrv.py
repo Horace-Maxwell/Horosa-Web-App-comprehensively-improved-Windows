@@ -79,7 +79,7 @@ class GermanyAstroSrv:
             # 严格汉堡因子集(D2):true 时剔黑月/紫气(中点对+相位目标双面);缺省 False = 现状字节零回归。
             strict_factors = bool(data.get('strictFactors', False))
 
-            # [SURF-R2g] 古典复合临界区:此前本端点不 push → 中点/TNP/戴维森腿古典键零消费,
+            # 古典复合临界区:此前本端点不 push → 中点/TNP/戴维森腿古典键零消费,
             # 与同页 /chart 腿口径分叉。davison 的 PerChart(dav_data) 同区内(伙伴盘同口径)。
             _cls_tokens = push_classical_request(data)
             perchart = PerChart(data)

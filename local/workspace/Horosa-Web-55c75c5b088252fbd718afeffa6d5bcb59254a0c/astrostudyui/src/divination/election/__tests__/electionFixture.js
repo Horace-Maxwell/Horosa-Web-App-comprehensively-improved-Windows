@@ -57,7 +57,7 @@ export function buildMockResult(){
 
 	return {
 		chart: {
-			// [H1 形状迁移] 后端真形状:antiscias 在 chart 下且分 antiscia/cantiscia 双桶(旧顶层扁平=死链共犯形状)
+			// 后端真形状:antiscias 在 chart 下且分 antiscia/cantiscia 双桶(旧顶层扁平=死链共犯形状)
 			antiscias: { antiscia: [['Venus', 'Jupiter', 0.8]], cantiscia: [] },
 			objects,
 			isDiurnal: true,

@@ -418,7 +418,7 @@ def check_rel(data, label):
     wS = abs(_n180(rs['second']['planets'][const.SUN]['lines']['mc']['lon']
                    - rB['planets'][const.SUN]['lines']['mc']['lon']))
     # 事件:下一次日食时刻 日月黄经差≈0(独立物理校验)
-    jd0 = swisseph.julday(2026, 7, 1, 0.0)
+    jd0 = swisseph.julday(2026, 7, 1, 0.0, swisseph.GREG_CAL)
     jde = findMundaneEvent('solar_eclipse', jd0, 'next')
     s = swisseph.calc_ut(jde, swisseph.SUN, swisseph.FLG_SWIEPH)[0][0]
     m = swisseph.calc_ut(jde, swisseph.MOON, swisseph.FLG_SWIEPH)[0][0]

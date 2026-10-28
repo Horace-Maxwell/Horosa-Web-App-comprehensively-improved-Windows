@@ -1,4 +1,4 @@
-// [A2] RSA 会话密钥复用金标。js-rsa 在 jsdom 下无法真跑(库内依赖浏览器 sloppy 全局),
+// RSA 会话密钥复用金标。js-rsa 在 jsdom 下无法真跑(库内依赖浏览器 sloppy 全局),
 // 故 mock 之——契约以【modexp 调用次数】钉死:开=每会话 1 次,关=每请求 1 次;
 // 复用束的 RSA 段逐字节同、载荷仍随明文变、三段形状不变。
 const mockRsaState = { encCalls: 0 };
@@ -20,7 +20,7 @@ import { encryptRSA, __resetRsaSessionKeyForTest } from '../rsahelper';
 const rsaPart = (blob)=>blob.split(',')[1];
 const payloadPart = (blob)=>blob.split(',')[0];
 
-describe('[A2] RSA 会话密钥复用', ()=>{
+describe('RSA 会话密钥复用', ()=>{
 	beforeEach(()=>{
 		__resetRsaSessionKeyForTest();
 		mockRsaState.encCalls = 0;

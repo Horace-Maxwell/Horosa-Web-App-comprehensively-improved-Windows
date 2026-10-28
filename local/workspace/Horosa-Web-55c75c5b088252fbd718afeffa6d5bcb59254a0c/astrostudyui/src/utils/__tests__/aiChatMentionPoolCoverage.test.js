@@ -1,4 +1,4 @@
-// [2026-09-11] @ 引用技法池覆盖率棘轮:池(全技法并集)⊇ 命盘类 ∪ 事盘类 全键;标签表里不在池内的键恰等于成文白名单
+// @ 引用技法池覆盖率棘轮:池(全技法并集)⊇ 命盘类 ∪ 事盘类 全键;标签表里不在池内的键恰等于成文白名单
 // (节气盘系/骰子/风水/辅助=源码成文豁免;huangli/tongshu 只在起课时间源可挂;9 个择日子技法是工作台页非可挂单盘)——新增技法漏进 @ 即红。
 import { ANALYSIS_TECHNIQUE_LABELS, ANALYSIS_CHART_TECHNIQUES, ANALYSIS_CASE_TECHNIQUES, listAllAnalysisTechniqueOptions, listAnalysisTechniqueOptions } from '../aiAnalysisContext';
 import { buildMentionCandidates } from '../aiChat/mentions';

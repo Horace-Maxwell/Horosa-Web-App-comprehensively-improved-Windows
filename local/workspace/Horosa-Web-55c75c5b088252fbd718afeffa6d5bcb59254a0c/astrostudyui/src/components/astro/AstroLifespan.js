@@ -55,14 +55,14 @@ const kv = { display: 'flex', flexWrap: 'wrap', gap: '4px 16px', fontSize: 12, l
 class AstroLifespan extends Component {
 	constructor(props){
 		super(props);
-		// [D4] method 持久化:快照(astroAiSnapshot 无头构建)读同键——否则组件换法后 AI 快照恒 Ptolemy(名实不符)。
+		// method 持久化:快照(astroAiSnapshot 无头构建)读同键——否则组件换法后 AI 快照恒 Ptolemy(名实不符)。
 		let _m = 'ptolemy';
 		try{ const v = localStorage.getItem('horosa.lifespan.method'); if(v){ _m = v; } }catch(_){ }
 		this.state = { method: _m, timelineOpen: false };
 	}
 
 	componentDidMount(){
-		// [SURF-3] never 键(domicileMasterMethod 经 lifespanEngine.rulersOfLife 消费)改档即时重渲;
+		// never 键(domicileMasterMethod 经 lifespanEngine.rulersOfLife 消费)改档即时重渲;
 		// 太阳三态阈值 opts 也读全局仓,同一监听覆盖。
 		this._onClassicalGlobals = () => this.forceUpdate();
 		if(typeof window !== 'undefined'){ window.addEventListener(CLASSICAL_GLOBALS_EVENT, this._onClassicalGlobals); }
@@ -72,7 +72,7 @@ class AstroLifespan extends Component {
 		if(typeof window !== 'undefined' && this._onClassicalGlobals){ window.removeEventListener(CLASSICAL_GLOBALS_EVENT, this._onClassicalGlobals); }
 	}
 
-	// [SURF-3] 太阳三态阈值:优先本盘回显(params 只在非默认时带键=载档口径保真),兜全局仓现值。
+	// 太阳三态阈值:优先本盘回显(params 只在非默认时带键=载档口径保真),兜全局仓现值。
 	// 此前 buildFacts 不传 opts → chartFacts 硬编码 17′/8.5°/17°,行星状态盘「日下」列对
 	// 三档改动恒盲(与同屏「偕日相」卡吃后端 phase 相互矛盾)。
 	solarOrbOpts(chartObj){
@@ -91,7 +91,7 @@ class AstroLifespan extends Component {
 			const facts = buildFacts(ensureMaps(chartObj), this.solarOrbOpts(chartObj));
 			res = facts ? runLifespan(facts, { method: this.state.method }) : null;
 		}catch(e){
-			return <div style={{ padding: 12, fontSize: 12, color: '#c0392b' }}>寿命格局计算出错：{String(e && e.message || e)}</div>;
+			return <div style={{ padding: 12, fontSize: 12, color: 'var(--horosa-jx-xiong)' }}>寿命格局计算出错：{String(e && e.message || e)}</div>;
 		}
 		if(!res){ return <div style={{ padding: 12, fontSize: 12, opacity: 0.7 }}>无法解析本命盘</div>; }
 
@@ -109,7 +109,7 @@ class AstroLifespan extends Component {
 				{show('method') ? (
 				<div style={cardStyle}>
 					<div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-						<span style={{ fontWeight: 600, fontSize: 13 }}>寿命格局 <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>Length of Life</span></span>
+						<span style={{ fontWeight: 600, fontSize: 13 }}>寿命格局 <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--horosa-text-secondary)' }}>Length of Life</span></span>
 						<span style={{ fontSize: 12, opacity: 0.7 }}>取主法：</span>
 						{METHODS.map((m) => (
 							<span
@@ -129,14 +129,14 @@ class AstroLifespan extends Component {
 						</span>
 					</div>
 					{/* 取主法说明随选择切换(让"点了有反应") */}
-					<div style={{ fontSize: 11, opacity: 0.65, marginTop: 7 }}>{activeMethod.label} {activeMethod.en}：{activeMethod.desc}</div>
+					<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 7 }}>{activeMethod.label} {activeMethod.en}：{activeMethod.desc}</div>
 				</div>
 				) : null}
 
 				{/* 生命主候选 */}
 				{show('life') ? (
 				<div style={cardStyle}>
-					<div style={sectionTitle}>生命主（Hyleg<span style={{ fontWeight: 400, opacity: 0.65, fontSize: 12 }}> · {activeMethod.label}法</span>）{hy ? <span>　→　{sym(hy.key)} {posText(hy.sign, hy.signlon)}（{houseText(hy.house)}）</span> : '　→　未定'}</div>
+					<div style={sectionTitle}>生命主（Hyleg<span style={{ fontWeight: 400, color: 'var(--horosa-text-secondary)', fontSize: 12 }}> · {activeMethod.label}法</span>）{hy ? <span>　→　{sym(hy.key)} {posText(hy.sign, hy.signlon)}（{houseText(hy.house)}）</span> : '　→　未定'}</div>
 					<SmallTable
 						rowKey={(r) => r.key}
 						rows={res.candidates}
@@ -164,7 +164,7 @@ class AstroLifespan extends Component {
 							<span>宫位：{houseText(alc.house)}（{alc.angularity === 'angular' ? '角宫' : alc.angularity === 'succedent' ? '续宫' : '果宫'}）</span>
 							<span>寿数档：{BAND_CN[alc.band] || alc.band}（基础 {alc.baseYears} 年）</span>
 							{(alc.modifiers || []).map((m, i) => (
-								<span key={i} style={{ color: m.kind === 'malefic' ? '#c0392b' : (m.kind === 'benefic' ? '#27ae60' : 'inherit') }}>
+								<span key={i} style={{ color: m.kind === 'malefic' ? 'var(--horosa-jx-xiong)' : (m.kind === 'benefic' ? 'var(--horosa-jx-ji)' : 'inherit') }}>
 									{sym(m.planet)}{m.aspect}{m.delta > 0 ? '+' : ''}{m.delta}
 								</span>
 							))}
@@ -180,13 +180,13 @@ class AstroLifespan extends Component {
 				{/* 盘主体系 */}
 				{show('life') ? (
 				<div style={cardStyle}>
-					<div style={sectionTitle}>盘主体系 <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>Rulership System</span>（占控 / 家主 / 盘主）</div>
+					<div style={sectionTitle}>盘主体系 <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--horosa-text-secondary)' }}>Rulership System</span>（占控 / 家主 / 盘主）</div>
 					{res.rulers ? (
 						<div style={kv}>
 							<span>占控星 Epikratetor：{sym(res.rulers.epikratetor)}</span>
 							<span>家主星 Oikodespotes（船主）：{res.rulers.oikodespotes ? sym(res.rulers.oikodespotes) : '-'}</span>
 							<span>盘主星 Kurios（舵手）：{res.rulers.kurios ? sym(res.rulers.kurios) : '-'}</span>
-							{res.rulers.concordant ? <span style={{ color: '#27ae60' }}>家主=盘主，格局相合</span> : null}
+							{res.rulers.concordant ? <span style={{ color: 'var(--horosa-jx-ji)' }}>家主=盘主，格局相合</span> : null}
 						</div>
 					) : <span style={{ fontSize: 12, opacity: 0.7 }}>-</span>}
 				</div>
@@ -196,7 +196,7 @@ class AstroLifespan extends Component {
 				{/* 行星状态盘 */}
 				{show('status') ? (
 				<div style={cardStyle}>
-					<div style={sectionTitle}>行星状态盘 <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>Planetary Conditions</span></div>
+					<div style={sectionTitle}>行星状态盘 <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--horosa-text-secondary)' }}>Planetary Conditions</span></div>
 					<SmallTable
 						rowKey={(r) => r.planet}
 						rows={res.states.rows}
@@ -217,16 +217,16 @@ class AstroLifespan extends Component {
 				{/* 医疗危机 */}
 				{show('medical') ? (
 				<div style={cardStyle}>
-					<div style={sectionTitle}>医疗危机 <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>Medical Crisis</span>（Zoller 法 v1）</div>
+					<div style={sectionTitle}>医疗危机 <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--horosa-text-secondary)' }}>Medical Crisis</span>（Zoller 法 v1）</div>
 					<div style={kv}>
 						<span>第六宫：{res.medical.sixthSign ? sn(res.medical.sixthSign) : '-'}</span>
 						<span>六宫主：{res.medical.sixthRuler ? sym(res.medical.sixthRuler) : '-'}</span>
 						<span>生命主受克：{(res.medical.hylegAfflictions && res.medical.hylegAfflictions.length)
-							? res.medical.hylegAfflictions.map((a, i) => <span key={i} style={{ color: '#c0392b', marginRight: 6 }}>{sym(a.planet)}{a.aspect}</span>)
+							? res.medical.hylegAfflictions.map((a, i) => <span key={i} style={{ color: 'var(--horosa-jx-xiong)', marginRight: 6 }}>{sym(a.planet)}{a.aspect}</span>)
 							: '无'}</span>
 						{res.medical.bodyHyleg ? <span>生命主部位：{res.medical.bodyHyleg.join('、')}</span> : null}
 					</div>
-					<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>{res.medical.note}</div>
+					<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6 }}>{res.medical.note}</div>
 				</div>
 				) : null}
 
@@ -242,8 +242,8 @@ class AstroLifespan extends Component {
 		const head = (
 			<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
 				onClick={() => this.setState({ timelineOpen: !open })}>
-				<span style={{ fontWeight: 700 }}>向运至杀星 · 寿命时间轴 <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>Direction to Anareta</span></span>
-				<span style={{ fontSize: 12, opacity: 0.6 }}>{open ? '收起 ▲' : '展开 ▼'}</span>
+				<span style={{ fontWeight: 700 }}>向运至杀星 · 寿命时间轴 <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--horosa-text-secondary)' }}>Direction to Anareta</span></span>
+				<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', flex: '0 0 auto', whiteSpace: 'nowrap' }}>{open ? '收起 ▲' : '展开 ▼'}</span>
 			</div>
 		);
 		if(!open){ return <div style={{ ...cardStyle, marginTop: 8 }}>{head}</div>; }
@@ -297,12 +297,12 @@ class AstroLifespan extends Component {
 							rowStyle={(r) => (predicted != null && r.age <= predicted ? { background: 'rgba(207,19,32,.08)' } : undefined)}
 							columns={[
 								{ key: 'planet', title: '杀星', render: (v) => sym(v) },
-								{ key: 'aspect', title: '相位', render: (v, r) => <span style={{ opacity: 0.9 }}>{RAY_CN[v] || `${v}°`}{r.aspectKind && RAYKIND_CN[r.aspectKind] && v !== 0 ? <span style={{ fontSize: 10, opacity: 0.55, marginLeft: 3 }}>{RAYKIND_CN[r.aspectKind]}</span> : null}</span> },
+								{ key: 'aspect', title: '相位', render: (v, r) => <span style={{ opacity: 0.9 }}>{RAY_CN[v] || `${v}°`}{r.aspectKind && RAYKIND_CN[r.aspectKind] && v !== 0 ? <span style={{ fontSize: 10, color: 'var(--horosa-text-secondary)', marginLeft: 3 }}>{RAYKIND_CN[r.aspectKind]}</span> : null}</span> },
 								{ key: 'dangerSign', title: '危险度', render: (v, r) => `${sn(v)} ${fmtNum(r.dangerLon % 30, 1)}°` },
 								{ key: 'arc', title: '向运弧', render: (v) => `${fmtNum(v, 1)}°` },
 								{ key: 'age', title: '对应岁数', render: (v, r) => (
 									<span style={{ fontWeight: 700, color: (predicted != null && v <= predicted) ? '#cf1322' : 'inherit' }}>
-										{fmtNum(v, 1)} 岁{r.aspect === 0 ? <span style={{ fontSize: 10, opacity: 0.6, marginLeft: 3 }}>合</span> : null}
+										{fmtNum(v, 1)} 岁{r.aspect === 0 ? <span style={{ fontSize: 10, color: 'var(--horosa-text-secondary)', marginLeft: 3 }}>合</span> : null}
 									</span>
 								) },
 							]}
@@ -310,7 +310,7 @@ class AstroLifespan extends Component {
 					) : (
 						<div style={{ fontSize: 12, opacity: 0.7 }}>数据不足，无法定杀星位置（缺土星/火星黄经）。</div>
 					)}
-					<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
+					<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6 }}>
 						{tl.note}
 						{predicted != null && timelineRows.length ? <span>　淡红行 = 落在预测寿数（约 {predicted} 岁）之内的危险窗口。</span> : null}
 					</div>

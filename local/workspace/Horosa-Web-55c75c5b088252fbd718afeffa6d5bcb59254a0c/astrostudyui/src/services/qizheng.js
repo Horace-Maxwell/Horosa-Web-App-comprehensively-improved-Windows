@@ -1,8 +1,8 @@
-import request from '../utils/request';
-import { ServerRoot, ResultKey } from '../utils/constants';
-import { buildKentangEndpoint } from '../integrations/kentang/serviceRoot';
-import { cachedKentangFetch } from '../utils/kentangCache';
+import { ServerRoot } from '../utils/constants';
+import { responseCacheable } from '../utils/resultEnvelope';
+import { postKentang } from './kentangPost';
 import { cachedPost } from './_requestCache';
+import { registerProcessCache } from '../utils/processCacheRegistry';
 
 // 七政四余是确定性纯计算(同 params 必产同结果);对其加「同参复用 + 在途合并」让重开/来回切瞬时,
 // 命中返回的是同一结果的深拷贝(与直连逐值等价、只更快)。不同 params → 不同 key → 重新请求。
@@ -52,33 +52,7 @@ function kinClone(obj){
 	}
 }
 
-async function fetchKinastroQizhengRaw(values){
-	let rsp = null;
-	try{
-		const response = await cachedKentangFetch(buildKentangEndpoint('qizhengkin', 'pan'), {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-			body: JSON.stringify(values || {}),
-		});
-		const text = await response.text();
-		rsp = text ? JSON.parse(text) : null;
-		if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'qizhengkin.local.fetch.failed');
-		}
-	}catch(e){
-		const response = await cachedKentangFetch(`${ServerRoot}/qizhengkin/pan`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-			body: JSON.stringify(values || {}),
-		});
-		const text = await response.text();
-		rsp = text ? JSON.parse(text) : null;
-	}
-	if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-		throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'qizhengkin.fetch.failed');
-	}
-	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
-}
+function fetchKinastroQizhengRaw(values){ return postKentang('qizhengkin', 'pan', values || {}, { cacheConfig: undefined }); }
 
 export async function fetchKinastroQizheng(values){
 	const key = kinKey(values);
@@ -94,7 +68,7 @@ export async function fetchKinastroQizheng(values){
 	}
 	try{
 		const res = await p;
-		if(key && res){
+		if(key && responseCacheable(res)){   // 只缓存真成功的回包(业务错误 Result.err / 顶层 err 不进缓存,判据单一出处 resultEnvelope)
 			if(kinMem.has(key)){
 				kinMem.delete(key);
 			}
@@ -117,6 +91,7 @@ export async function fetchKinastroQizheng(values){
 // ── 天星择日双轮数据(/qizhengelection/pan):kentang 直连惯例 + LRU/在途去重 ──
 const eleMem = new Map();
 const eleInflight = new Map();
+registerProcessCache('services.qizheng', ()=>{ kinMem.clear(); kinInflight.clear(); eleMem.clear(); eleInflight.clear(); });   // 同参复用上次结果:登记清空函数(只供审计仪器取样前清空)
 const ELE_CACHE_MAX = 32;
 
 function eleKey(values){
@@ -127,33 +102,7 @@ function eleKey(values){
 	}
 }
 
-async function fetchQizhengElectionRaw(values, path = 'pan'){
-	let rsp = null;
-	try{
-		const response = await cachedKentangFetch(buildKentangEndpoint('qizhengelection', path), {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-			body: JSON.stringify(values || {}),
-		});
-		const text = await response.text();
-		rsp = text ? JSON.parse(text) : null;
-		if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'qizhengelection.local.fetch.failed');
-		}
-	}catch(e){
-		const response = await cachedKentangFetch(`${ServerRoot}/qizhengelection/${path}`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-			body: JSON.stringify(values || {}),
-		});
-		const text = await response.text();
-		rsp = text ? JSON.parse(text) : null;
-	}
-	if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-		throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'qizhengelection.fetch.failed');
-	}
-	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
-}
+function fetchQizhengElectionRaw(values, path = 'pan'){ return postKentang('qizhengelection', path, values || {}, { cacheConfig: undefined }); }
 
 export async function fetchQizhengElection(values){
 	const key = `pan|${eleKey(values)}`;
@@ -167,7 +116,7 @@ export async function fetchQizhengElection(values){
 	eleInflight.set(key, p);
 	try{
 		const res = await p;
-		if(res){
+		if(responseCacheable(res)){
 			if(eleMem.has(key)){
 				eleMem.delete(key);
 			}

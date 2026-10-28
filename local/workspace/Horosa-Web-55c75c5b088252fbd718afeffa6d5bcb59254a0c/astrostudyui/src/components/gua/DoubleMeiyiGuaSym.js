@@ -7,6 +7,7 @@ import request from '../../utils/request';
 import { XQSelect as Select } from '../xq-ui';
 
 import { getLayoutViewportHeight } from '../../utils/shellZoom';   // 版面尺寸一律读布局域(壳缩放下 documentElement.client* 恒为物理域)
+import ExternalLink from '../common/ExternalLink';
 const { Option } = Select;
 
 export default class DoubleMeiyiGuaSym extends Component{
@@ -51,6 +52,9 @@ export default class DoubleMeiyiGuaSym extends Component{
     }
 
 	async requestGuaDesc(){
+		// 请求代次:只认最后一次取卦辞(连改上下卦时,上一卦的卦辞晚回不得盖掉当前卦);两个 await 之后都判
+		const seq = (this._descReqSeq = (this._descReqSeq || 0) + 1);
+		const stale = ()=>seq !== this._descReqSeq || this.unmounted;
 		let up = this.state.upChanged;
 		let down = this.state.downChanged;
 
@@ -111,6 +115,7 @@ export default class DoubleMeiyiGuaSym extends Component{
             body: JSON.stringify(params),
         });
 
+        if(stale()){ return; }
         const descresult = descdata && descdata[Constants.ResultKey];
         if(!descresult){ return; } // request 软失败返 undefined → 不 setState 半成品,避免 Unhandled Rejection
 
@@ -139,6 +144,7 @@ export default class DoubleMeiyiGuaSym extends Component{
         const meiyidata = await request(`${Constants.ServerRoot}/gua/meiyi`, {
             body: JSON.stringify(meiyiparam),
         });
+        if(stale()){ return; }
         const meiyires = meiyidata && meiyidata[Constants.ResultKey];
         if(!meiyires){ return; } // 同上:互卦取象软失败时不渲染半盘
 
@@ -278,7 +284,7 @@ export default class DoubleMeiyiGuaSym extends Component{
         }
         if(gua64){
             gua64descDom = (
-                <a href={gua64.url} target='_blank'>{gua64.desc}</a>
+                <ExternalLink href={gua64.url}>{gua64.desc}</ExternalLink>
             );
         }
 
@@ -315,6 +321,10 @@ export default class DoubleMeiyiGuaSym extends Component{
         );
 
         return dom;
+    }
+
+    componentWillUnmount(){
+        this.unmounted = true;
     }
 
     componentDidMount(){

@@ -2,27 +2,27 @@
 export const AstroColor = {
     Backgroud: '#F5FCF3',
     ChartBackgroud: '#F5FCF3',
-    Stroke: '#A4CED1',
-    TextStroke: '#A4CED1',
+    Stroke: '#336164',
+    TextStroke: '#4d9499',
 	Fill: '#FFFFFF',
     NoColor: 'transparent',
     Relation1: '#000033',
     Relation2: '#000033',
     Relation3: '#000033',
 };
-AstroColor['Mercury'] = '#C3DBF6';
-AstroColor['Venus'] = '#FFEEAD';
+AstroColor['Mercury'] = '#3e8be2';
+AstroColor['Venus'] = '#a88500';
 AstroColor['Mars'] = '#D9534F';
-AstroColor['Jupiter'] = '#98D3A8';
+AstroColor['Jupiter'] = '#429a5a';
 AstroColor['Saturn'] = '#A47C64';
-AstroColor['Sun'] = '#EEC97A';
+AstroColor['Sun'] = '#b38117';
 AstroColor['Moon'] = '#7F6F9D';
 AstroColor['Dark Moon'] = '#000000';
 AstroColor['Purple Clouds'] = '#660066';
 AstroColor['North Node'] = '#0000FF';
 AstroColor['South Node'] = '#0000FF';
-AstroColor['Uranus'] = '#72A2B6';
-AstroColor['Neptune'] = '#E2E0EF';
+AstroColor['Uranus'] = '#5991a9';
+AstroColor['Neptune'] = '#8a82be';
 AstroColor['Chiron'] = '#0000FF';
 AstroColor['Syzygy'] = '#0000FF';
 AstroColor['Pluto'] = '#816288';
@@ -31,24 +31,31 @@ AstroColor['Desc'] = '#666600';
 AstroColor['MC'] = '#666600';
 AstroColor['IC'] = '#666600';
 
+// 行星环的留(S)/ 顺(D)/ 逆(R)标、度数的分、王星标(盘面字;按本套盘面底挑,画的那一刻经 AstroConst.AstroColor 读)
+AstroColor['StationS'] = '#a97e2e';
+AstroColor['StationD'] = '#3a8f58';
+AstroColor['Retrograde'] = '#8f2d2d';
+AstroColor['MinuteText'] = '#80786e';
+AstroColor['RoyalStar'] = '#9f8122';
+
 AstroColor['Aries'] = '#D9534F';
-AstroColor['Taurus'] = '#FFEEAD';
-AstroColor['Gemini'] = '#C3DBF6';
+AstroColor['Taurus'] = '#a88500';
+AstroColor['Gemini'] = '#3e8be2';
 AstroColor['Cancer'] = '#7F6F9D';
-AstroColor['Leo'] = '#EEC97A';
-AstroColor['Virgo'] = '#C3DBF6';
-AstroColor['Libra'] = '#FFEEAD';
+AstroColor['Leo'] = '#b38117';
+AstroColor['Virgo'] = '#3e8be2';
+AstroColor['Libra'] = '#a88500';
 AstroColor['Scorpio'] = '#D9534F';
-AstroColor['Sagittarius'] = '#98D3A8';
+AstroColor['Sagittarius'] = '#429a5a';
 AstroColor['Capricorn'] = '#A47C64';
 AstroColor['Aquarius'] = '#A47C64';
-AstroColor['Pisces'] = '#98D3A8';
+AstroColor['Pisces'] = '#429a5a';
 
 
 AstroColor['Asp0'] = '#0000FF';
-AstroColor['Asp60'] = '#33CC33';
+AstroColor['Asp60'] = '#289f28';
 AstroColor['Asp90'] = '#FF0000';
-AstroColor['Asp120'] = '#33CC00';
+AstroColor['Asp120'] = '#289e00';
 AstroColor['Asp180'] = '#000000';
 
 AstroColor['命'] = '#cccc00';

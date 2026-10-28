@@ -5,6 +5,7 @@ import jsonpickle
 import swisseph as swe
 
 from websrv.helper import enable_crossdomain
+from astrostudy.civil_calendar import astro_year, display_year
 from websrv.kentang.kinastro_common import (
     build_snapshot,
     clean_text,
@@ -23,7 +24,7 @@ from websrv.kentang.kinastro_common import (
 ensure_kinastro_path()
 
 # 策天引擎已摘出至自有树(astrostudy);此处复用其公历→农历换算工具。
-# [Q-266/T-239] 改用 _solar_to_lunar_accurate(sxtwl 精确换算,正确处理闰月;不可用时内部回退旧朔望月法):
+# 改用 _solar_to_lunar_accurate(sxtwl 精确换算,正确处理闰月;不可用时内部回退旧朔望月法):
 #   旧 _solar_to_lunar 自闰正月起线性数朔望月、不辨闰月 → 闰月年份自闰月起至次年春节前农历月 +1(胎/命/身宫、三星、格局全按错月起),
 #   同页左栏与演法页用 lunar-javascript 算出正确月并排出现。
 from astrostudy.cetian_ziwei import _solar_to_lunar_accurate  # noqa: E402
@@ -59,8 +60,10 @@ CALENDAR_MODES = {
 
 
 def _lunar_from_solar(dt, timezone):
-    # 农历按当地民用日(dt 为输入的当地日期时刻);jd 仅供 sxtwl 不可用时的旧法回退。
-    jd = swe.julday(dt.year, dt.month, dt.day, dt.hour + dt.minute / 60.0 - timezone)
+    # 农历按当地民用日(dt 为输入的当地日期时刻,年份历史纪年);jd 仅供 sxtwl 不可用时的旧法回退。
+    # 返回的农历年是天文年(引擎按 (年-4) 取干支、(年-3) 取三元,都是连续纪年)。
+    from astrostudy.civil_calendar import civil_julday_display
+    jd = civil_julday_display(dt.year, dt.month, dt.day, dt.hour + dt.minute / 60.0 - timezone)
     lunar_year, lunar_month, lunar_day, is_leap = _solar_to_lunar_accurate(dt.year, dt.month, dt.day, jd)
     return lunar_year, lunar_month, lunar_day, is_leap
 
@@ -142,7 +145,7 @@ def _build_sections(pan):
             "rows": [
                 row("起盘时间", f"{pan.get('dateStr', '')} {pan.get('timeStr', '')}".strip()),
                 row("入式历法", pan.get("calendarModeLabel")),
-                row("农历年", basic.get("year")),
+                row("农历年", (pan.get("lunar") or {}).get("year", basic.get("year"))),   # 历史纪年(引擎回显的是天文年)
                 row("农历月", basic.get("month")),
                 row("农历日", basic.get("day")),
                 row("小时", basic.get("hour")),
@@ -295,15 +298,17 @@ class XianQinSrv:
             timezone = timezone_to_float(data.get("zone") or data.get("timezone"), 8.0)
             is_leap = False
             if mode == "manualLunar":
-                # [Q-265/T-250·SO-24] 手动档三键留空(挂载侧)曾回落公历数字(=solarAsLunar);标签「空=自出」→ 空值按精确换算的农历自出
+                # 手动档三键留空(挂载侧)曾回落公历数字(=solarAsLunar);标签「空=自出」→ 空值按精确换算的农历自出
                 _auto_y, _auto_m, _auto_d, _auto_leap = _lunar_from_solar(dt, timezone)
                 lunar_year = to_int(data.get("lunarYear"), _auto_y)
+                if to_int(data.get("lunarYear"), 0):
+                    lunar_year = astro_year(lunar_year)   # 手填农历年按历史纪年读(与日期框同域),交给引擎前换天文年
                 lunar_month = max(1, min(12, to_int(data.get("lunarMonth"), _auto_m)))
                 lunar_day = max(1, min(30, to_int(data.get("lunarDay"), _auto_d)))
                 if data.get("lunarYear") in (None, "") and data.get("lunarMonth") in (None, "") and data.get("lunarDay") in (None, ""):
                     is_leap = bool(_auto_leap)
             elif mode == "solarAsLunar":
-                lunar_year, lunar_month, lunar_day = dt.year, dt.month, min(30, dt.day)
+                lunar_year, lunar_month, lunar_day = astro_year(dt.year), dt.month, min(30, dt.day)
             else:
                 lunar_year, lunar_month, lunar_day, is_leap = _lunar_from_solar(dt, timezone)
 
@@ -330,7 +335,7 @@ class XianQinSrv:
                 "calendarModeLabel": CALENDAR_MODES[mode],
                 "timezone": timezone,
                 "lunar": {
-                    "year": lunar_year,
+                    "year": display_year(lunar_year),   # 对外历史纪年(公元前为负、无 0 年)
                     "month": lunar_month,
                     "day": lunar_day,
                     "isLeap": is_leap,

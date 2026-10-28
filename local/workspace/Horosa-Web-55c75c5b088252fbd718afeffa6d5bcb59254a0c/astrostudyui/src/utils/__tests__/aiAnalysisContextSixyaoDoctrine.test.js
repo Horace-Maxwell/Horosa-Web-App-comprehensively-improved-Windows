@@ -1,4 +1,4 @@
-// [Q-391/T-373] 无头六爻快照路径先把《断易天机》断语库载入缓存:此前只有六爻页 mount / 占类视图预热,AI 挂载 / 导出的无头路径
+// 无头六爻快照路径先把《断易天机》断语库载入缓存:此前只有六爻页 mount / 占类视图预热,AI 挂载 / 导出的无头路径
 // 从不调用 loader → 本会话没开过六爻页(或页面 chunk 未加载)时断语行静默缺失。本例锁「无头重算必先 await 共享 loader」。
 jest.mock('../../components/gua/data/liuyaoDoctrineCache', () => {
 	const actual = jest.requireActual('../../components/gua/data/liuyaoDoctrineCache');
@@ -7,7 +7,7 @@ jest.mock('../../components/gua/data/liuyaoDoctrineCache', () => {
 import { regenerateCaseTechniqueSnapshot } from '../aiAnalysisContext';
 import { loadDoctrine } from '../../components/gua/data/liuyaoDoctrineCache';
 
-describe('[Q-391] 无头六爻快照预载断语库', () => {
+describe('无头六爻快照预载断语库', () => {
 	beforeEach(() => { loadDoctrine.mockClear(); });
 
 	test('已存卦(payload.gua)重算:进正文前先 await loadDoctrine', async () => {

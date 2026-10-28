@@ -17,7 +17,7 @@ function mkFields(dateStr, timeStr){
 function buildFixtureText(){
 	const fields = mkFields('2026-05-15', '00:12:00');
 	const nongli = { yearJieqi: '丙午', year: '丙午', monthGanZi: '癸巳', dayGanZi: '己丑', time: '甲子', jieqi: '立夏', jiedelta: '立夏后第10天', birth: '2026-05-15 00:12:00', month: '三月', day: '廿九', leap: false };
-	const pan = calcDunJia(fields, nongli, { paiPanType: 3, qijuMethod: 'chaibu', zhiShiType: 0, yueJiaQiJuType: 1, kongMode: 'day', yimaMode: 'day', shiftPalace: 0, fengJu: false, timeAlg: 1, school: '转盘' }, {});
+	const pan = calcDunJia(fields, nongli, { paiPanType: 3, qijuMethod: 'chaibu', zhiShiType: 0, yueJiaQiJuType: 1, kongMode: 'day', yimaMode: 'day', shiftPalace: 0, fengJu: false, timeAlg: 1, school: '转盘', after23NewDay: 0 }, {});   // 冻结基线按 24 点换日拍下(引擎缺键现取全局现值)
 	pan.options.chartCategory = 'shi';
 	return buildDunJiaSnapshotText(pan);
 }

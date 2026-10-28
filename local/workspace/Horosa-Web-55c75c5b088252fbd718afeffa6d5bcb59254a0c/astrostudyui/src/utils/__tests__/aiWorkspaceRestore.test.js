@@ -1,4 +1,4 @@
-// [D54] 恢复备份只替换包内存在的数据集;中途出错回滚;未来版拒;超限不解压。此前循环对每个店 clear+bulkPut(缺则 [])= 单店包清空全库。
+// 恢复备份只替换包内存在的数据集;中途出错回滚;未来版拒;超限不解压。此前循环对每个店 clear+bulkPut(缺则 [])= 单店包清空全库。
 import { planWorkspaceRestore, restoreWorkspaceStores, AI_BACKUP_MAX_ZIP_BYTES, RESTORE_HANDLE_ID, AI_BACKUP_SNAPSHOT_VERSION_MAX } from '../aiWorkspaceRestore';
 import { AI_ANALYSIS_SCHEMA_VERSION } from '../aiAnalysisStore';
 import { parseWorkspaceBackupBlob } from '../aiAnalysisExport';
@@ -32,20 +32,20 @@ test('🔴 计划:只含 messages 的包 ⇒ present=[messages],其余三店 abs
 	expect(planWorkspaceRestore({ stores: { unknown_store: [] } }, KEYS)).toEqual(expect.objectContaining({ ok: false, error: 'backup.stores.empty' }));
 	expect(planWorkspaceRestore({ snapshotVersion: 99, stores: { messages: [] } }, KEYS)).toEqual(expect.objectContaining({ ok: false, error: 'backup.version.future' }));
 	expect(planWorkspaceRestore({ snapshotVersion: 1, stores: { messages: [] } }, KEYS).ok).toBe(true);
-	// [Q-412/M-162] 全量备份包:aiWorkspace 段自动取用(unified=true);无 AI 段的全量包 → 专用错误码供界面指路
+	// 全量备份包:aiWorkspace 段自动取用(unified=true);无 AI 段的全量包 → 专用错误码供界面指路
 	const u = planWorkspaceRestore({ format: 'horosa-unified-backup', charts: [], aiWorkspace: { stores: { messages: [{ id: 'm9' }] } } }, KEYS);
 	expect(u.ok).toBe(true);
 	expect(u.unified).toBe(true);
 	expect(u.present).toEqual(['messages']);
 	expect(planWorkspaceRestore({ format: 'horosa-unified-backup', charts: [], aiWorkspace: null }, KEYS)).toEqual(expect.objectContaining({ ok: false, error: 'backup.unified.no.ai' }));
-	// [Q-051/M-62] 真实导出 → 恢复必成(上限 = 本版 schema 版本);「当前值 + 1」必拒(负孪生);历史值 3/4 可恢复
+	// 真实导出 → 恢复必成(上限 = 本版 schema 版本);「当前值 + 1」必拒(负孪生);历史值 3/4 可恢复
 	expect(AI_BACKUP_SNAPSHOT_VERSION_MAX).toBe(AI_ANALYSIS_SCHEMA_VERSION);
 	expect(planWorkspaceRestore({ snapshotVersion: AI_ANALYSIS_SCHEMA_VERSION, stores: { messages: [] } }, KEYS).ok).toBe(true);
 	expect(planWorkspaceRestore({ snapshotVersion: 4, stores: { messages: [] } }, KEYS).ok).toBe(true);
 	expect(planWorkspaceRestore({ snapshotVersion: AI_ANALYSIS_SCHEMA_VERSION + 1, stores: { messages: [] } }, KEYS)).toEqual(expect.objectContaining({ ok: false, error: 'backup.version.future' }));
 });
 
-test('[Q-058/M-78] 带密钥的店恢复时按 id 保留本机 Key(剥密包不清空本机 Key)', async ()=>{
+test('带密钥的店恢复时按 id 保留本机 Key(剥密包不清空本机 Key)', async ()=>{
 	const deps = memDeps({ provider_profiles: [{ id: 'p1', name: '本机', apiKey: 'local-key' }, { id: 'p2', apiKey: 'k2' }], messages: [] });
 	const plan = planWorkspaceRestore({ stores: { provider_profiles: [{ id: 'p1', name: '包内', apiKey: '', apiKeyRedacted: true }, { id: 'p3', apiKey: '', apiKeyRedacted: true }] } }, KEYS);
 	await restoreWorkspaceStores(plan, deps);
@@ -93,4 +93,19 @@ test('未来版拒:执行前就抛,零 clear;超限 blob 不进解压', async ()
 	expect(deps.calls.clear).toEqual([]);
 	const big = { size: AI_BACKUP_MAX_ZIP_BYTES + 1 };
 	await expect(parseWorkspaceBackupBlob(big, { maxBytes: AI_BACKUP_MAX_ZIP_BYTES })).rejects.toThrow('backup.too.large');
+});
+
+test('🔴 单独恢复 AI 工作区:紫微自定义表的本机镜像保本机(不换成备份里的旧表、也不被删掉),其余元数据照换', async ()=>{
+	const localSihua = { id: 'ziwei_custom_sihua_table', json: '{"new":1}' };
+	const deps = memDeps({ workspace_meta: [localSihua, { id: 'other_meta', v: 'local' }] });
+	const plan = planWorkspaceRestore({ stores: { workspace_meta: [
+		{ id: 'ziwei_custom_sihua_table', json: '{"old":1}' },
+		{ id: 'ziwei_custom_brightness_table', json: '{"oldB":1}' },
+		{ id: 'other_meta', v: 'backup' },
+	] } }, ['workspace_meta']);
+	await restoreWorkspaceStores(plan, deps);
+	const byId = Object.fromEntries(deps.db.workspace_meta.map((r)=>[r.id, r]));
+	expect(byId.ziwei_custom_sihua_table.json).toBe('{"new":1}');
+	expect(byId.ziwei_custom_brightness_table).toBeUndefined();   // 本机没有镜像:不凭空带进旧表
+	expect(byId.other_meta.v).toBe('backup');
 });

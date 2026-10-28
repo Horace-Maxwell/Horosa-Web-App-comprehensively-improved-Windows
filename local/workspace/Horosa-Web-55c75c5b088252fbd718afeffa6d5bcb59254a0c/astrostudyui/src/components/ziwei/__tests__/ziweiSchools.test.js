@@ -42,7 +42,7 @@ describe('闰月取月(分歧点2)', () => {
 		expect(resolveLeapMonth(5, 20, true, 'split15')).toEqual({ palaceMonth: 6, starMonth: 6 });
 		expect(resolveLeapMonth(5, 16, true, 'split_days', 30)).toEqual({ palaceMonth: 6, starMonth: 6 });
 		expect(resolveLeapMonth(5, 15, true, 'split_days', 30)).toEqual({ palaceMonth: 5, starMonth: 5 });
-		// 🔴 [B4] split_days 修真金标:小月(29)半点=14 —— 十五日归**下月**,与 split15(归本月)分道。
+		// 🔴 split_days 修真金标:小月(29)半点=14 —— 十五日归**下月**,与 split15(归本月)分道。
 		// 旧 floor((d+1)/2) 对 29/30 都得 15=split15 克隆(假选项);修真依据=选项文案「按实际天数取中点」。
 		expect(resolveLeapMonth(5, 15, true, 'split_days', 29)).toEqual({ palaceMonth: 6, starMonth: 6 });
 		expect(resolveLeapMonth(5, 14, true, 'split_days', 29)).toEqual({ palaceMonth: 5, starMonth: 5 });

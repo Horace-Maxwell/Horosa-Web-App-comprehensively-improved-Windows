@@ -5,15 +5,8 @@ import { randomStr } from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { projectToDial, cursorReadout, spreadDialAngles, antiscion } from '../../utils/uranianDial';
-import { factorLabel } from '../../data/uranianMeanings';
 import { TNP_GLYPH_PATHS, appendTnpGlyphD3 } from './UranianGlyphs';
-
-// 字形 hover 名(增强):原名 · 因子义(factorLabel 缺则只剩原名)。
-const glyphTip = (id) => { const n = AstroText.AstroMsgCN[id] || id; const lab = factorLabel(id); return lab && lab !== n ? n + ' · ' + lab : n; };
-const TAU = Math.PI * 2;
-const norm360 = (x) => ((x % 360) + 360) % 360;
-// 逆时针(0°在正上、度数向左增)，与全站星盘一致(AstroHelper.signsBand 用负角=逆时针)。
-const polar = (cx, cy, R, deg) => { const a = deg / 360 * TAU; return [cx - R * Math.sin(a), cy - R * Math.cos(a)]; };
+import { TAU, norm360, polar, glyphTip } from './uranianDialShared';
 
 // 90°盘三 modality 扇区（各 30 黄道度 = 120 视觉度），柔色 + 代表星座字形。
 // rep 用星座「名」字符串，配合 AstroChartFont(ywastrochart) 渲染成正版星座符号（与全站星盘一致），
@@ -28,7 +21,7 @@ const SECTORS = [
 // 行运/太阳弧改用语义令牌(凶红/玉绿),暗黑/明亮自适应,且与右栏读数 tag(UranianDialMain.ringTone)同色一致。
 const RING_TONE = { natal: 'currentColor', transit: 'var(--horosa-jx-xiong, #c0392b)', solararc: 'var(--horosa-jade, #1f7a5a)',
 	// WP-9 合盘叠盘人(最多 4):取应用既有强调色族,四人以蓝/紫/青/琥珀区分(与本命 currentColor/行运红/太阳弧绿 不撞)。
-	syn0: 'var(--horosa-accent, #2f7df1)', syn1: '#8e6fd0', syn2: '#1f8a8a', syn3: '#c08a2f',
+	syn0: 'var(--horosa-accent, #2f7df1)', syn1: 'var(--horosa-hue-purple)', syn2: 'var(--horosa-hue-teal)', syn3: 'var(--horosa-warn)',   // 明暗成对(旧写死琥珀 #c08a2f 在亮盘底 2.7:1)
 	// B5:组合盘=暗金 / 戴维森=朱橘(与行运凶红、合盘四色均不撞;图例经既有 RING_TONE 机制自动带出)。
 	composite: 'var(--horosa-gold, #b8860b)', davison: 'var(--horosa-cinnabar, #e2603f)' };
 const POINTER_COLOR = '#e23b3b';

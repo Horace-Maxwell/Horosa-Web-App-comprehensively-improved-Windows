@@ -28,14 +28,14 @@ import { getStore } from './storageutil';
 import { isEarlyBootMode } from './backendBootGate';
 
 // 随机起卦(guazhan=六爻)、取现时(planetarium)、流式(aianalysis)、浏览/查询型
-// (astrodata/xuanshi/astroreader/liveplayer/admintools)—— 时间步进不是这些页的交互模型。
+// (astrodata/xuanshi)—— 时间步进不是这些页的交互模型。
 // ⚠️ Mac 差异化:较 Windows 版多一个 zeri —— 择日页(天星征象搜索+奇门找局工作台)的
 //    fields 全程自持(DivinationChartShell/QimenZeriWorkbench),全局武装读 store.astro.fields
 //    构 /chart 对它是错轴白打;其步进预取由 DivinationChartShell 本地预取器负责,
 //    奇门找局是纯本地扫描引擎(零 HTTP)更无从武装。
 const NO_ARM_TABS = new Set([
 	'guazhan', 'planetarium', 'aianalysis', 'astrodata', 'xuanshi',
-	'astroreader', 'liveplayer', 'admintools', 'zeri',
+	'zeri',
 ]);
 
 let planBuilder = null;
@@ -181,32 +181,9 @@ export function armStepPrefetch(reason, opt){
 	return tasks.length;
 }
 
-/** 函数型 onStepSelect 宿主可直调:选步长即武装(owner 主诉求的那一下)。 */
-export function notifyStepUnitSelected(unit, selectorDatetime){
-	if(!unit){
-		return 0;
-	}
-	return armStepPrefetch('unit-select', { unit, selectorDatetime });
-}
-
 /** 诊断/验收句柄:真机验收断言「选步长后确实武装过」靠它。 */
 export function armStats(){
 	return { ...stats, refusals: prefetchRefusalCount() };
-}
-
-/** 测试用:清内部态。 */
-export function __resetStepPrefetchArm(){
-	planBuilder = null;
-	lastUnitByTab.clear();
-	lastUnitGlobal = null;
-	stats.arms = 0;
-	stats.skipped = 0;
-	stats.lastReason = null;
-	stats.lastTab = null;
-	stats.lastUnit = null;
-	stats.lastDepth = 0;
-	stats.lastTasks = 0;
-	stats.lastAt = 0;
 }
 
 try{

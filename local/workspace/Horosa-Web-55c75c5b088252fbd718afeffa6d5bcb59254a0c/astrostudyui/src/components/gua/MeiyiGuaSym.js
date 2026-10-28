@@ -50,7 +50,10 @@ export default class MeiyiGuaSym extends Component{
 	}
 
 	async requestGuaDesc(){
+		// 请求代次:只认最后一次取卦辞(连换卦时,上一卦的卦辞晚回不得盖掉当前卦)
+		const seq = (this._descReqSeq = (this._descReqSeq || 0) + 1);
 		let desc = await this.requestGuaDescReturn();
+		if(seq !== this._descReqSeq || this.unmounted){ return; }
 		this.setState({
 			guaMap: desc,
 		}, ()=>{
@@ -88,6 +91,10 @@ export default class MeiyiGuaSym extends Component{
             </Select>
         );
         return dom;
+    }
+
+    componentWillUnmount(){
+        this.unmounted = true;
     }
 
     componentDidMount(){

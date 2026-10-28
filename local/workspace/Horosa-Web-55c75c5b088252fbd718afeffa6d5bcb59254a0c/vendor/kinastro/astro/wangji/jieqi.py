@@ -167,6 +167,18 @@ def repeat_list(n: int, thelist: List[str]) -> List[str]:
 # ---------------------------------------------------------------------------
 
 
+def _civil_moment(year: int, month: int, day: int, hour: int = 0, minute: int = 0) -> Any:
+    """民用历时刻(sxtwl 收发的是民用历标签:1582 以前儒略历)。stdlib datetime 是外推格里历,1500-02-29 抛错。
+    恒为同一类型(可互相比较、相减);1582-10-15 以后与 datetime 逐位同算术。"""
+    from kin_year_domain import civil_moment
+    return civil_moment(year, month, day, hour, minute)
+
+
+def _is_moment(value: Any) -> bool:
+    from kin_year_domain import is_moment
+    return is_moment(value)
+
+
 def _build_jieqi_dict(t: Any, jq_index: int) -> Dict[str, Any]:
     """Build a standard jieqi result dictionary from an sxtwl time struct.
 
@@ -184,7 +196,7 @@ def _build_jieqi_dict(t: Any, jq_index: int) -> Dict[str, Any]:
         "時": int(t.h),
         "分": round(t.m),
         "節氣": jqmc[jq_index - 1],
-        "時間": datetime.datetime(t.Y, t.M, t.D, int(t.h), round(t.m)),
+        "時間": _civil_moment(t.Y, t.M, t.D, int(t.h), round(t.m)),
     }
 
 
@@ -487,7 +499,7 @@ def jq(year: int, month: int, day: int, hour: int, minute: int) -> str:
     """
     _validate_datetime_args(year, month, day, hour, minute)
     try:
-        current_datetime = datetime.datetime(year, month, day, hour, minute)
+        current_datetime = _civil_moment(year, month, day, hour, minute)
         jq_start_dict = get_jieqi_start_date(year, month, day, hour, minute)
         next_jq_start_dict = get_next_jieqi_start_date(year, month, day, hour, minute)
 
@@ -502,8 +514,7 @@ def jq(year: int, month: int, day: int, hour: int, minute: int) -> str:
         next_jq_start_datetime: datetime.datetime = next_jq_start_dict["時間"]
         jq_name: str = jq_start_dict["節氣"]
 
-        if not (isinstance(jq_start_datetime, datetime.datetime)
-                and isinstance(next_jq_start_datetime, datetime.datetime)):
+        if not (_is_moment(jq_start_datetime) and _is_moment(next_jq_start_datetime)):
             raise ValueError(
                 f"Jieqi times are not datetime objects: {jq_start_datetime}, "
                 f"{next_jq_start_datetime}"

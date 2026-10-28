@@ -1,17 +1,19 @@
 // components/astro/AstroDistributions.js
 // 界推运（Distributions）：上升点经主限运动穿越黄道各界 → 分配星(界主)+参与星。后端 /predict/dist。
-// [Q-176/T-116a] 界表随「设置→星盘设置」的全局界系(后端 TermDirection 收 terms_variant),不是写死埃及界。
+// 界表随「设置→星盘设置」的全局界系(后端 TermDirection 收 terms_variant),不是写死埃及界。
+import { civilInstantMsOfStr } from '../../utils/dateStrSafe';
 import { Component } from 'react';
 import { Spin } from 'antd';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
-import { unwrapResult, astroSymbol, chartParams, chartRequestKey, cardStyle, SmallTable } from './AstroExtraCommon';
+import { unwrapResult, astroSymbol, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
 import * as AstroText from '../../constants/AstroText';
 // [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明)。namespace import + typeof 守卫:
 // 测试环境可能部分 mock astroAiSnapshot(只留 buildAstroSnapshotContent 等),缺函数时回 [] 保底。
 import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
 import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { markPanelReady } from '../../utils/perfMark';
 
 const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
@@ -59,8 +61,8 @@ export async function buildDistributionsSnapshotText(chartObj){
 	const extraLines = [];
 	const nowMs = Date.now();
 	const curRow = rows.find((row)=>{
-		const s = Date.parse(`${row.startDate || ''}`.replace(/\//g, '-'));
-		const e = Date.parse(`${row.endDate || ''}`.replace(/\//g, '-'));
+		const s = civilInstantMsOfStr(`${row.startDate || ''}`.replace(/\//g, '-'));   // 民用历真实时刻
+		const e = civilInstantMsOfStr(`${row.endDate || ''}`.replace(/\//g, '-'));
 		return Number.isFinite(s) && Number.isFinite(e) && nowMs >= s && nowMs <= e;
 	});
 	if(curRow){
@@ -101,15 +103,17 @@ class AstroDistributions extends Component {
 
 	componentDidUpdate(){
 		const k = chartRequestKey(this.props.value, 'dist');
-		if(k && k !== this.state.requestKey && !this.state.loading){ this.load(); }
+		if(k && k !== this.state.requestKey && !this.state.loading && !loadParked(this, k)){ this.load(); }
 	}
 
 	ensureLoaded(){
 		const k = chartRequestKey(this.props.value, 'dist');
-		if(k && k !== this.state.requestKey && !this.state.loading){ setTimeout(this.load, 0); }
+		if(k && k !== this.state.requestKey && !this.state.loading && !loadParked(this, k)){ setTimeout(this.load, 0); }
 	}
 
 	async load(){
+		const seq = ++this._loadSeq || (this._loadSeq = 1);   // 只认最后一次:换盘 / 改参连发时先发的晚回不覆盖
+		const resultSig = natalSourceKey(this.props.value);   // 本次结果出自哪位命主(读时与当前盘比)
 		if(!this.props.value){ return; }
 		const k = chartRequestKey(this.props.value, 'dist');
 		// WP-C 极速化:silent=不触发全局满屏 Spin 压暗(keep-stale:旧表留存+「更新中…」角标,
@@ -121,32 +125,40 @@ class AstroDistributions extends Component {
 				timeoutMs: 60000,
 				silent: silentTechniquePanelsEnabled(),
 			});
-			if(!this._mounted) return;
+			if(!this._mounted || seq !== this._loadSeq) return;
 			// 空载荷守卫:request() 吞错 resolve undefined(网络层失败)——此前 `|| {}` 会把旧表冲成空表,
 			// keep-stale 要求保留旧结果,此次不更新、重试即恢复。
 			if(!data){
-				this.setState({ loading: false, requestKey: k });
+				parkLoadFailure(this, k);   // 失败不记成已完成:窗口期后同一张盘自动重试
+				this.setState({ loading: false });
 				return;
 			}
+			clearLoadFailure(this);
 			// horosa_panel_ready_v1:界推运表(本技法唯一可见内容)落定的那一次 setState。
-			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: k }, ()=>{ markPanelReady('direction'); });
+			this.setState({ result: unwrapResult(data) || {}, resultSig, loading: false, requestKey: k }, ()=>{ markPanelReady('direction'); });
 		}catch(e){
-			if(!this._mounted) return;
-			this.setState({ loading: false, requestKey: k });
+			if(!this._mounted || seq !== this._loadSeq) return;
+			parkLoadFailure(this, k);
+			this.setState({ loading: false });
 		}
+	}
+
+	// 出自当前命主的结果才用:换盘后新结果在途 / 取失败时 state 里是上一位命主的 → 当没有(同一命主只改设置仍旧表留存)
+	shownResult(){
+		return pickKeyedDerived(this.state.result, this.state.resultSig, natalSourceKey(this.props.value));
 	}
 
 	render(){
 		this.ensureLoaded();
-		const r = this.state.result || {};
+		const r = this.shownResult() || {};
 		const rows = r.dist || [];
 		const height = this.props.height ? this.props.height - 20 : 700;
 		const sym = (id) => astroSymbol(id);
 		return (
 			// keep-stale:局部 Spin 只留给首次加载(无旧表可显);重取期间旧表原样可读,右上角「更新中…」角标提示。
-			<Spin spinning={this.state.loading && !this.state.result}>
+			<Spin spinning={this.state.loading && !this.shownResult()}>
 				<div style={{ position: 'relative' }}>
-				{this.state.loading && this.state.result ? <UpdatingBadge /> : null}
+				{this.state.loading && this.shownResult() ? <UpdatingBadge /> : null}
 				<div style={{ height, overflow: 'auto', paddingRight: 8 }}>
 					<div style={cardStyle}>
 						<div className="horosa-info-card-title">界推运（分配法 / Distributions）</div>
@@ -161,7 +173,7 @@ class AstroDistributions extends Component {
 								{ key: 'endDate', title: '止', render: (v) => v || '-' },
 							]}
 						/>
-						<div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>上升点经主限运动穿越黄道各界（界表用当前全局界系设置）；分配星=界主星，参与星=该期间内上升点触及的行星。</div>
+						<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6 }}>上升点经主限运动穿越黄道各界（界表用当前全局界系设置）；分配星=界主星，参与星=该期间内上升点触及的行星。</div>
 					</div>
 				</div>
 				</div>

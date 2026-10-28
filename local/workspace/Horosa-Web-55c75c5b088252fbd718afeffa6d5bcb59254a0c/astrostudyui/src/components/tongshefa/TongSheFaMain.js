@@ -3,9 +3,10 @@ import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { Row, Col, Divider, Tag, message } from 'antd';
 import { littleEndian } from '../../utils/helper';
 import { Gua8, Gua64, getGua64 } from '../gua/GuaConst';
-import { saveModuleAISnapshot, saveModuleAISnapshotLazy, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshot, saveModuleAISnapshotLazy } from '../../utils/moduleAiSnapshot';
+import { loadFreshModuleAISnapshot } from '../../utils/moduleSnapshotRefresh';
 import { getStore } from '../../utils/storageutil';
-import { caseApplySeqSuffix, openKentangCaseDrawer } from '../../utils/kentangCaseSave';
+import { caseRestoreKey, openKentangCaseDrawer } from '../../utils/kentangCaseSave';
 import {
 	XQButton as Button,
 	XQCard as Card,
@@ -17,6 +18,7 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec } from '../../utils/divinationTimeDraft';
 import styles from '../../css/styles.less';
+import { withLabelCell } from '../../utils/labelCell';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -774,7 +776,7 @@ function buildSixYaoMainSection(title, leftLines, rightLines, mainElem){
 	return lines;
 }
 
-// [Q-449/T-412] 「爻位」页签的逐爻取纳判语与「取舍总览」两块此前完全不进快照:页面逐爻写
+// 「爻位」页签的逐爻取纳判语与「取舍总览」两块此前完全不进快照:页面逐爻写
 // 「N爻(角色)为阳/阴(纳/拒)。我看重/蔑视【对象】」(左卦思想、右卦实践),末附取舍两栏。
 // 与 UI 严格同源(同 LEFT/RIGHT_YAO_META + linePolarity/lineAdmit/lineVerb),并按裁决作**默认关候选段**
 // (段名已登记 AI_EXPORT_PRESET_SECTIONS.tongshefa 与 DEFAULT_OFF;未自定义用户缺省不纳入=字节零回归)。
@@ -832,7 +834,7 @@ function buildTongSheFaSnapshot(model){
 	parts.push(...buildHexSnapshotSection('潜藏', model.mutualLeft, model.mutualRight));
 	parts.push('');
 	parts.push(...buildHexSnapshotSection('亲和', model.oppositeLeft, model.oppositeRight));
-	// [YA v42] A 类硬缺(全场最薄):纳甲筮法 tab 的整个计算分析层(世应/左右五行/五友/大局升降爻变)
+	// A 类硬缺(全场最薄):纳甲筮法 tab 的整个计算分析层(世应/左右五行/五友/大局升降爻变)
 	// UI 已显示(renderNaJiaTab 系列卡片)却此前不入快照。段名已登记 AI_EXPORT_PRESET_SECTIONS.tongshefa;
 	// 取数与 UI 严格同源(同 model 派生、同 relationByElem/groupFiveFriendItems/fmtRise 等函数);空数据不产段。
 	[
@@ -929,7 +931,7 @@ function patternExplanation(context, type){
 	return '';
 }
 
-// [X1·P1-1] 三十二观(右栏默认首 tab 的核心观文层)入快照 —— 与 renderObserveTab 严格同源
+// 三十二观(右栏默认首 tab 的核心观文层)入快照 —— 与 renderObserveTab 严格同源
 // (同 POSITION_KEYS/META、同 OBSERVE_32 取文);此前 AI 只见卦名不见本法核心解读。
 function buildObserve32Section(model){
 	const out = [];
@@ -1086,7 +1088,7 @@ function buildBigPatternChangeSection(model){
 }
 
 class TongSheFaMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -1129,7 +1131,6 @@ class TongSheFaMain extends Component{
 			};
 		}
 	}
-
 
 	componentDidMount(){
 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
@@ -1215,11 +1216,12 @@ class TongSheFaMain extends Component{
 		if(!currentCase || !currentCase.cid || !currentCase.cid.value){
 			return;
 		}
-		const cid = `${currentCase.cid.value}`;
-		const updateTime = currentCase.updateTime && currentCase.updateTime.value ? `${currentCase.updateTime.value}` : '';
-		// 载入代次后缀走共用件(kentangCaseSave.caseApplySeqSuffix):不带它则同一条记录第二次载入
-		// 会被下面那道去重守卫拦掉,屏幕上仍是用户后来新起的卦。禁另抄一份。
-		const caseVersion = `${cid}|${updateTime}${caseApplySeqSuffix(userState)}`;
+		// 读档去重键走共用件(kentangCaseSave.caseRestoreKey,只认显式载入):同一条记录再载入一次必换键;
+		// 编辑 / 存为事盘 / 保存编辑换掉的当前事盘不是载入 → null,不还原。禁另拼一份。
+		const caseVersion = caseRestoreKey('tongshefa', userState);
+		if(!caseVersion){
+			return;
+		}
 		if(!force && this.lastRestoredCaseId === caseVersion){
 			return;
 		}
@@ -1306,7 +1308,7 @@ class TongSheFaMain extends Component{
 			message.warning('缺少时间参数，暂无法保存');
 			return;
 		}
-		const snapshot = loadModuleAISnapshot('tongshefa');
+		const snapshot = loadFreshModuleAISnapshot('tongshefa');   // 存案 = 页面此刻所见(先请本页按当前盘重存再读槽,与挂载 / 导出同源)
 		const payload = {
 			selection: this.state.selected,
 			snapshot: snapshot,
@@ -1443,8 +1445,8 @@ class TongSheFaMain extends Component{
 					<tbody>
 						<tr>
 							<td style={sideTd}></td>
-							<td style={{ ...colTd, ...smallTitle }}>太阴</td>
-							<td style={{ ...colTd, ...smallTitle }}>太阳</td>
+							<td style={withLabelCell({ ...colTd, ...smallTitle }, '太阴')}>太阴</td>
+							<td style={withLabelCell({ ...colTd, ...smallTitle }, '太阳')}>太阳</td>
 							<td style={sideTd}></td>
 						</tr>
 						<tr>
@@ -1455,14 +1457,14 @@ class TongSheFaMain extends Component{
 						</tr>
 						<tr>
 							<td style={sideTd}></td>
-							<td style={colTd}>本体</td>
-							<td style={colTd}>方法</td>
+							<td style={withLabelCell(colTd, '本体')}>本体</td>
+							<td style={withLabelCell(colTd, '方法')}>方法</td>
 							<td style={sideTd}></td>
 						</tr>
 						<tr>
 							<td style={sideTd}></td>
-							<td style={{ ...colTd, ...smallTitle }}>少阳</td>
-							<td style={{ ...colTd, ...smallTitle }}>少阴</td>
+							<td style={withLabelCell({ ...colTd, ...smallTitle }, '少阳')}>少阳</td>
+							<td style={withLabelCell({ ...colTd, ...smallTitle }, '少阴')}>少阴</td>
 							<td style={sideTd}></td>
 						</tr>
 						<tr>
@@ -1473,8 +1475,8 @@ class TongSheFaMain extends Component{
 						</tr>
 						<tr>
 							<td style={sideTd}></td>
-							<td style={colTd}>认识</td>
-							<td style={colTd}>宇宙</td>
+							<td style={withLabelCell(colTd, '认识')}>认识</td>
+							<td style={withLabelCell(colTd, '宇宙')}>宇宙</td>
 							<td style={sideTd}></td>
 						</tr>
 					</tbody>
@@ -1649,16 +1651,17 @@ class TongSheFaMain extends Component{
 		const thStyle = { border: '1px solid var(--horosa-border, #e8e8e8)', padding: '4px 6px', backgroundColor: 'var(--horosa-panel-soft, #fafafa)', textAlign: 'center' };
 		const tdStyle = { border: '1px solid var(--horosa-border, #e8e8e8)', padding: '4px 6px', textAlign: 'center' };
 		return (
-			<table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}>
+			<div style={{ overflowX: 'auto', maxWidth: '100%', marginBottom: 8 }}>   {/* 窄栏放不下七列时横滚,不被卡片裁掉右侧几列 */}
+			<table style={{ width: '100%', borderCollapse: 'collapse' }}>
 				<thead>
 					<tr>
-						<th style={thStyle}>左卦</th>
-						<th style={thStyle}>五行关系</th>
-						{includeShiYing && <th style={thStyle}>世/应</th>}
-						<th style={thStyle}>爻位</th>
-						<th style={thStyle}>右卦</th>
-						<th style={thStyle}>五行关系</th>
-						{includeShiYing && <th style={thStyle}>世/应</th>}
+						<th style={withLabelCell(thStyle, '左卦')}>左卦</th>
+						<th style={withLabelCell(thStyle, '五行关系')}>五行关系</th>
+						{includeShiYing && <th style={withLabelCell(thStyle, '世/应')}>世/应</th>}
+						<th style={withLabelCell(thStyle, '爻位')}>爻位</th>
+						<th style={withLabelCell(thStyle, '右卦')}>右卦</th>
+						<th style={withLabelCell(thStyle, '五行关系')}>五行关系</th>
+						{includeShiYing && <th style={withLabelCell(thStyle, '世/应')}>世/应</th>}
 					</tr>
 				</thead>
 				<tbody>
@@ -1677,6 +1680,7 @@ class TongSheFaMain extends Component{
 					})}
 				</tbody>
 			</table>
+			</div>
 		);
 	}
 

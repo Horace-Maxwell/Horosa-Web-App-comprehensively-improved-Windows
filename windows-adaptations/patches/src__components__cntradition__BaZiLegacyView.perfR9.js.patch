@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZiLegacyView.js b/astrostudyui/src/components/cntradition/BaZiLegacyView.js
-index b91d4c7f..35df1692 100644
+index abbb40c2..f821d7a1 100644
 --- a/astrostudyui/src/components/cntradition/BaZiLegacyView.js
 +++ b/astrostudyui/src/components/cntradition/BaZiLegacyView.js
-@@ -11,6 +11,7 @@ import GanHeCong from './GanHeCong';
- import ZiHeCong from './ZiHeCong';
+@@ -13,6 +13,7 @@ import ZiHeCong from './ZiHeCong';
  import { baziAgeText } from './baziAgeText';
  import { addDisplayYears } from '../../utils/dateStrSafe';
+ import ExternalLink from '../common/ExternalLink';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const TabPane = Tabs.TabPane;
  
-@@ -515,39 +516,76 @@ export class BaZiLegacyMain extends Component{
+@@ -517,39 +518,76 @@ export class BaZiLegacyMain extends Component{
  }
  
  export class BaZiLegacyInfoPanel extends Component{

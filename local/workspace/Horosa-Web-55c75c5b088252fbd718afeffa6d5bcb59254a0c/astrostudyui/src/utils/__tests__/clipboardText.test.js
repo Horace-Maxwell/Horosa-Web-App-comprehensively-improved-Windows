@@ -1,5 +1,5 @@
 // clipboardText.copyTextSmart 三级降级契约测试。
-// tier① 的 invoke 命令名是「前后端契约锚」:壳侧 main.rs 注册同名 copy_text_to_clipboard_command,
+// tier① 的 invoke 命令名是「前后端契约锚」:壳侧(src-tauri/src/desktop_io.rs)注册同名 copy_text_to_clipboard_command,
 // 参数形如 { text } —— 字面断言防前后端漂移;新壳+老前端 / 老壳+新前端互兼容全靠这条契约不动。
 import { copyTextSmart } from '../clipboardText';
 

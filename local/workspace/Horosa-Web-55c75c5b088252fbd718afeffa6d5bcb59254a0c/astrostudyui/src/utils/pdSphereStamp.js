@@ -1,4 +1,4 @@
-// [挂载自检 F-11·P0] 主限天球「当前动画所指」盖章的单一读写口:
+// 主限天球「当前动画所指」盖章的单一读写口:
 // 此前 AstroPDSphere 只存 {txt, ts},AstroDirectMain.buildPrimaryDirectSnapshotText 对任意盘 24h 内都附
 // `[主限天球·当前动画所指]` 段 → 在 A 盘天球选过行,挂载/导出 B 盘时把 A 盘的向运行喂给 AI。
 // 现在盖章带盘签名(/chart 回显 params 的 date/time/lon/lat,两侧同源),读取比对不同即视为无盖章。

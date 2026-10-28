@@ -85,7 +85,7 @@ describe('taskStore', ()=>{
 	});
 });
 
-// [D8/T2·T3] 账本撤销支 cancel-task 的两处失真(先红)。合同/判别向量:
+// 账本撤销支 cancel-task 的两处失真(先红)。合同/判别向量:
 //   T2 撤销处理器(tasks/index.js:16)只看 taskStore 的同步镜像 peekTaskSync —— 冷启动/刷新后镜像是空的,
 //      于是「库里明明有、状态也允许撤」的任务被一律报成 E_TASK_NOT_FOUND(计划批一 #8:启动 warmTaskCache)。
 //   T3 处理器对 undoCreateTask 是 fire-and-forget(`undoCreateTask(taskId).catch(()=>{})` 后直接回 ok:true)

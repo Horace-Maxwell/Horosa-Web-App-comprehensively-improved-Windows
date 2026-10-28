@@ -1,54 +1,25 @@
 diff --git a/astrostudyui/src/components/shenyishu/ShenYiShuMain.js b/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
-index 38bfa175..f873c37c 100644
+index eb051a24..6a8d1141 100644
 --- a/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
 +++ b/astrostudyui/src/components/shenyishu/ShenYiShuMain.js
-@@ -17,6 +17,8 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
+@@ -15,6 +15,8 @@ import { postKentang } from '../../services/kentangPost';   // 本机优先、
+ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
  import { formatHumanValue } from '../../utils/humanReadableFields';
- import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
- import { parseDateParts } from '../../utils/dateStrSafe';
+ import { parseFieldsDateTimeWithDayBoundary } from '../../utils/fieldsDateTime';   // 起盘参数(含时区与全局日界 / 晚子时)与五兆 / 皇极同源
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
- const { TabPane } = Tabs;
- const { Option } = Select;
-@@ -49,7 +51,7 @@ function parseFieldsDateTime(fields){
- 	};
- }
- 
--async function postShenYiShu(path, payload){
-+async function postShenYiShuRaw(path, payload){
- 	let rsp = null;
- 	try{
- 		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('shenyishu', path), {
-@@ -81,6 +83,11 @@ async function postShenYiShu(path, payload){
- 	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
- }
- 
-+// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache(三层+在途去重)。
-+function postShenYiShu(path, payload){
-+	return postShenYiShuRaw(path, payload);
-+}
-+
- function fmtValue(value){
- 	return formatHumanValue(value);
- }
-@@ -164,6 +171,7 @@ class ShenYiShuMain extends Component{
- 		}
- 	}
- 
-+
- 	componentDidMount(){
- 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
- 		this.unmounted = false;
-@@ -370,6 +378,29 @@ class ShenYiShuMain extends Component{
+ import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
+ import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
+@@ -318,6 +320,29 @@ class ShenYiShuMain extends Component{
  		};
  	}
  
 +	// horosa_prefetch_registry_v1(PERF-R10 P6):供 CnYiBuMain 'cnyibu' 预取器按活跃子页转发。
-+	// 确定性论证同 postShenYiShu 头注(后端无 random/now);构参与 fetchPan 同源。
++	// 确定性论证:后端无 random/now(结果级缓存已随 v3.5.1 退役,请求走上游 postKentang→kentangCache);构参与 fetchPan 同源。
 +	getStepPrefetchTasks(steppedFields){
 +		try{
-+			const dt = parseFieldsDateTime(steppedFields);
++			const dt = parseFieldsDateTimeWithDayBoundary(steppedFields);
 +			if(!dt){ return []; }
 +			const payload = {
 +				...dt,
@@ -70,16 +41,16 @@ index 38bfa175..f873c37c 100644
  	async fetchPan(fields){
  		const payload = this.buildPanPayload(fields);
  		if(!payload){
-@@ -388,6 +419,8 @@ class ShenYiShuMain extends Component{
+@@ -337,6 +362,8 @@ class ShenYiShuMain extends Component{
  				return;
  			}
- 			this.setState({ pan, loading: false }, ()=>{
+ 			this.setState({ pan, panSig: castSig, loading: false }, ()=>{
 +				// horosa_panel_ready_v1:pan 落定 = 中栏与右栏(皆由 pan 派生)画完的那一次 setState。
 +				markPanelReady('cnyibu');
  				saveModuleAISnapshotLazy('shenyishu', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -654,25 +687,38 @@ class ShenYiShuMain extends Component{
+@@ -606,25 +633,38 @@ class ShenYiShuMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

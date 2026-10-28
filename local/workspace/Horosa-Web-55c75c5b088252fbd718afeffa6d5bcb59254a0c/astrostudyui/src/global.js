@@ -1,8 +1,11 @@
 // 兼容层必须最先执行(第三方产物可能裸调新 API)——一切其他 import 都排它后面。
 import './utils/legacyWebkitCompat'
-// [R5 P0-1] 前端启动账本首段:umi 主包开始执行(无桥 no-op;见 utils/startupLedger)
+// 表格内观察器通知挪到下一帧(antd 表格量列宽在同帧改尺寸 → 「ResizeObserver loop」;详见 utils/deferredResizeObserver)。
+// 副作用模块排在最前:必须早于任何第三方组件模块求值时抓走原生 ResizeObserver。
+import './utils/tableResizeObserverBoot'
+// 前端启动账本首段:umi 主包开始执行(无桥 no-op;见 utils/startupLedger)
 import { markWebLedger as __hwlMark } from './utils/startupLedger'
-try{ __hwlMark('web.umi_exec'); }catch(__hwlErr){ /* 纯观测 */ }
+__hwlMark('web.umi_exec');   // 纯观测,自身不抛
 // 🔴 壳级缩放自恢复(启动档位单源 = utils/shellZoom.readBootstrapShellZoom:壳导航以 URL query 为准——确定性送达
 // 正确 origin/document;页面自刷新以 localStorage 键为准——URL 还是启动那一刻的旧 query,而壳每次 ⌘± 换档都写键。
 // 浏览器/dev 两源皆无=恒 1 零影响)。含 body 的 fixed 包含块补偿;壳的 __HOROSA_APPLY_SHELL_ZOOM(init script)后到幂等覆盖。
@@ -15,7 +18,7 @@ try{
     if(__hsz && Math.abs(__hsz - 1) < 0.001){ __hsz = 1; }
     if(__hsz && __hsz > 0 && __hsz !== 1){
         document.documentElement.style.zoom = String(__hsz);
-        // [Tahoe 根修·加固] 补偿=实测探针决策(与壳 __HOROSA_APPLY_SHELL_ZOOM 同构,jest
+        // 补偿=实测探针决策(与壳 __HOROSA_APPLY_SHELL_ZOOM 同构,jest
         // shellZoomProbeGuard 对偶锁看守):标准化 zoom 引擎(Tahoe)布局空间已自动=物理/z,
         // 再写 calc(100%/z)=过度补偿(内容恒缩 1/z^2);旧语义引擎才需要。判据=清掉补偿后
         // body 是否已铺满 fixed 探针的布局空间,未铺满才补——不认引擎只认实测。
@@ -69,17 +72,22 @@ try{
 import { installAlignHooks as __installAlignHooks } from './utils/zoomDomain';
 __installAlignHooks();
 
-// 🔴 [Tahoe 复报·2026-09-17] 全站 vh/vw 替身:把实测布局视口发布成 --horosa-lvw / --horosa-lvh,
+// 🔴 全站 vh/vw 替身:把实测布局视口发布成 --horosa-lvw / --horosa-lvh,
 // 样式一律 calc(N * var(--horosa-lvh, 1vh))。标准化 zoom 引擎下 vh/vw 按物理视口解析再被缩放
 // (z<1 留白 / z>1 溢出),旧引擎反而对;变量由 fixed 探针实测得来,任何引擎 by construction 成立。
 // 必须在首帧样式生效前发布;壳换档派发 resize 后自动重量。详见 utils/layoutViewportVars.js。
 import { installLayoutViewportVars as __installLayoutViewportVars } from './utils/layoutViewportVars';
 __installLayoutViewportVars();
-// [WebKit(Tahoe)缩放 >1 实测 2026-09-17] 内联盒按内容宽×z 的引擎缺陷探针:命中挂 html.horosa-zoom-textbug(app.less 把省略退回 clip)。
+// 内联盒按内容宽×z 的引擎缺陷探针:命中挂 html.horosa-zoom-textbug(app.less 把省略退回 clip)。
 import { installZoomTextBugProbe as __installZoomTextBugProbe } from './utils/zoomInlineScaleBug';
 __installZoomTextBugProbe();
 
-// [V5-A2] 持久存储保险:persisted origin 免受 WebKit 磁盘压力 LRU 驱逐(非 persisted 的
+// 界面简繁开机回放的首帧前半段:存的是繁体就先遮住页面、提前加载转换器(React 首帧不会先以简体露出来);
+// layouts/app.js 的 bootScriptMode 接手转换与显示(最多遮 2.5 秒,加载失败照常显示简体)。
+import { prebootScriptMode as __prebootScript } from './utils/scriptMode';
+try{ __prebootScript(); }catch(e){ /* 非浏览器环境零影响 */ }
+
+// 持久存储保险:persisted origin 免受 WebKit 磁盘压力 LRU 驱逐(非 persisted 的
 // origin 在系统磁盘紧张时可能被整体清掉 —— 本地记录库的隐性丢失面之一)。授予与否由
 // 引擎启发式决定,失败无害;granted 状态落 device-local 键供存储健康页显示。
 try{
@@ -90,5 +98,3 @@ try{
 	}
 }catch(e){ /* 非浏览器环境零影响 */ }
 
-
-let _globalObj = {}

@@ -1,4 +1,4 @@
-// [P1·2026-09-08] 会话内放行集:纯内存、零 import;空名拒;列表可读;测试重置。
+// 会话内放行集:纯内存、零 import;空名拒;列表可读;测试重置。
 import { allowToolForSession, isToolSessionAllowed, listSessionAllowed, setSessionAllowScope, __getSessionAllowScopeForTests, __resetSessionAllowForTests } from '../aiAgent/sessionAllow';
 
 beforeEach(()=>__resetSessionAllowForTests());
@@ -25,7 +25,7 @@ it('🔴 静态守卫:模块零 import(会话放行集不能反向拖进任何�
 	expect(src.split('\n').filter((l)=>/^import /.test(l)).length).toBe(0);
 });
 
-it('🔴 [AR-31] 放行集按对话作用域分集合:A 对话放行的工具在 B 对话不免问;切回 A 仍免问;无作用域(空串)自成一集', ()=>{
+it('🔴 放行集按对话作用域分集合:A 对话放行的工具在 B 对话不免问;切回 A 仍免问;无作用域(空串)自成一集', ()=>{
 	setSessionAllowScope('conv-A');
 	expect(__getSessionAllowScopeForTests()).toBe('conv-A');
 	expect(allowToolForSession('create_chart_record')).toBe(true);

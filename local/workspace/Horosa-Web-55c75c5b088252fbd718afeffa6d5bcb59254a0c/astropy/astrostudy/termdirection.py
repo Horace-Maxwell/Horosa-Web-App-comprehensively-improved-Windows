@@ -47,7 +47,7 @@ class TermDirection:
         # 界系变体:0 埃及(默认零回归)/1 托勒密/2 莉莉(flatlib 公有表)
         tv = int(getattr(self, 'terms_variant', 0) or 0)
         if tv in (3, 4):
-            # [Q-519/T-481] 迦勒底界/自定义界表:取请求级生效表(push_request_terms + setupPlanets 夜表),此前回落埃及
+            # 迦勒底界/自定义界表:取请求级生效表(push_request_terms + setupPlanets 夜表),此前回落埃及
             from flatlib.dignities import essential as _essential
             terms = _essential.TERMS
         else:

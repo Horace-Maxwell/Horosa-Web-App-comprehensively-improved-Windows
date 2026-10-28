@@ -13,6 +13,10 @@ import cherrypy
 import jsonpickle
 
 from websrv.helper import enable_crossdomain
+from websrv.horosa_engine_common import (
+    clean_text as _clean,
+    to_int as _to_int,
+)
 
 from astrostudy.geomancy import chart as geo_chart
 from astrostudy.geomancy import ephem as geo_ephem
@@ -44,15 +48,6 @@ _QTYPES = [
     ("career", "事业/名誉"), ("children", "子女/恋爱"), ("journey", "远行"), ("religion", "宗教/学问"),
     ("enemy", "对手/暗敌"), ("death", "死亡/遗产"), ("custom", "自定/综合"),
 ]
-
-
-def _to_int(value, default=0):
-    try:
-        if value is None or value == "":
-            return default
-        return int(value)
-    except Exception:
-        return default
 
 
 def _to_float(value, default=None):
@@ -146,13 +141,6 @@ def _parse_time_place(data):
     if jd is None:
         return None, None, None
     return jd, lon, lat
-
-
-def _clean(value, default=""):
-    if value is None:
-        return default
-    text = str(value).strip()
-    return text if text else default
 
 
 def _sanitize_question(value):

@@ -1,14 +1,15 @@
 import React from 'react';
-import { celestialDateWithCalendar } from './xuanshiDate';   // [Q-495/T-457] 天象副标题按来源标历法
+import { celestialDateWithCalendar } from './xuanshiDate';   // 天象副标题按来源标历法
 import { Spin, Empty, Input } from 'antd';
 import { fetchEvents, fetchSearch, fetchCelestial, fetchFigures, fetchStories, fetchTechniques, fetchDynasties, fetchCelestialTerms } from '../../services/xuanshi';
+import { matchesUserQuery } from '../../utils/scriptMode';
 
 // 统一搜索 / 多维检索结果 —— 承接首页「检索」faceted 面板(ui.search 带 传统/朝代/术数/史书/证据 + q)。
 // 玄学事件走 faceted fetchEvents(后端 filter_events 多维),其余来源(天象/人物/故事/术数·朝代·天象词条)按关键词补齐。
 // 顶部展示「已选」可移除 facet 标签 + 关键词框,保证库里任何内容都搜得到、且与首页勾选一致。
 const arr = (r) => (Array.isArray(r) ? r : ((r && r.items) || []));
 const EMPTY_SEL = () => ({ dynasty: [], technique: [], history: [], evidence: '' });
-// [Q-493/T-455] 组的「命中数」与「本页显示数」:命中数优先用后端 total(天象/人物/事件都回了),
+// 组的「命中数」与「本页显示数」:命中数优先用后端 total(天象/人物/事件都回了),
 // 没有 total 的前端过滤组(故事/词条三类)才回落到条目数;显示数=卡片实际画出的条数。
 const GROUP_SHOW_MAX = (key) => (key === 'events' ? 24 : 12);
 const groupHit = (g) => (Number.isFinite(Number(g && g.total)) ? Number(g.total) : ((g && g.items) || []).length);
@@ -78,12 +79,12 @@ export default class XuanShiSearch extends React.Component {
 				ql ? fetchFigures({ status: 'all', q: ql, limit: 24 }).catch(() => ({})) : Promise.resolve({}),
 			]);
 			const refs = this.state.refs || { techniques: [], dynasties: [], terms: [], stories: [] };
-			const qll = ql.toLowerCase();
-			const filt = (a) => (!qll ? [] : (a || []).filter((x) => `${x.name || ''}${x.one_liner || ''}${x.alt_names || ''}${x.title || ''}`.toLowerCase().includes(qll)));
+			// 本地补齐的几组(故事 / 词条)与后端同口径:界面繁体时照屏幕输入繁体也能命中(两边都归一)
+			const filt = (a) => (!ql ? [] : (a || []).filter((x) => matchesUserQuery(`${x.name || ''}${x.one_liner || ''}${x.alt_names || ''}${x.title || ''}`, ql)));
 			const evItems = arr(evRes);
 			const groups = [
 				{ key: 'events', label: '玄学事件', total: (evRes && evRes.total) || evItems.length, items: evItems.map((x) => ({ id: x.event_id, title: x.title, sub: `${x.tradition || ''}${x.dynasty ? ' · ' + x.dynasty : ''}${x.history ? ' · 《' + x.history + '》' : ''}`, snip: x.modern_text || x.original_text, chips: [x.techniques ? `${x.techniques}`.split(/[;,、，]/)[0] : '', x.evidence === '高' ? '高证据' : ''].filter(Boolean) })) },
-				// [Q-493/T-455] 天象只取 20 条、人物只取 24 条:组标题与汇总行此前写的是「取回条数」,
+				// 天象只取 20 条、人物只取 24 条:组标题与汇总行此前写的是「取回条数」,
 				// 被读成命中数(q=流星 实际命中 12071,标题却写 20)。两端本就回了 total,这里接上。
 				{ key: 'celestial', label: '天象', total: (cel && Number.isFinite(Number(cel.total))) ? Number(cel.total) : undefined, items: ((cel && cel.events) || []).map((x) => ({ title: `${x.omen || '天象'} · ${x.dynasty || ''}`, sub: celestialDateWithCalendar(x) || '', snip: x.original })) },
 				{ key: 'figures', label: '人物列传', total: (fig && Number.isFinite(Number(fig.total))) ? Number(fig.total) : undefined, items: ((fig && fig.items) || []).map((x) => ({ title: x.name, sub: x.dynasty || '', snip: x.one_liner })) },
@@ -162,7 +163,7 @@ export default class XuanShiSearch extends React.Component {
 						</div>
 						{groups.map((g) => (
 							<div key={g.key} style={{ marginBottom: 24 }}>
-								{/* [Q-493/T-455] 标题=命中数;取回/显示不足时补「列前 N」,不再拿取回条数冒充命中数 */}
+								{/* 标题=命中数;取回/显示不足时补「列前 N」,不再拿取回条数冒充命中数 */}
 								<div className="xuanshi-stat-label" style={{ textAlign: 'left', marginBottom: 8 }}>{g.label}（{groupHit(g).toLocaleString()}{groupHit(g) > groupShown(g) ? `,列前 ${groupShown(g)}` : ''}）</div>
 								<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
 									{g.items.slice(0, GROUP_SHOW_MAX(g.key)).map((it, i) => (

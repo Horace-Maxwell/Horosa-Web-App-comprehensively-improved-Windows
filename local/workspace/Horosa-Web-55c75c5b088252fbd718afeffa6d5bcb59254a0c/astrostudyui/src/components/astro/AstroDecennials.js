@@ -153,11 +153,11 @@ function appendBirthAndChart(lines, chartObj, params){
 	}
 }
 
-// [YB v42] 补厚 helper 容错:个别测试套件整模块 mock astroAiSnapshot 且只保留部分导出,
+// 补厚 helper 容错:个别测试套件整模块 mock astroAiSnapshot 且只保留部分导出,
 // 缺失导出经 import 拿到 undefined → 直接调用会炸掉整个 builder;生产环境恒为函数,此守卫零行为差。
 const safeHelperLines = (fn, ...args)=>(typeof fn === 'function' ? fn(...args) : []);
 
-// [YB v42] 「当前所处：L1 X期（…至…）/ L2 Y期（…至…）」——buildDecennialTimeline 已算好 active 旗标,
+// 「当前所处：L1 X期（…至…）/ L2 Y期（…至…）」——buildDecennialTimeline 已算好 active 旗标,
 // 直接取当前 L1/L2(startText/endText 为期起讫);定位不到(如 timeline 未含今日)返 ''(该行省略)。
 function decennialCurrentPeriodLine(list){
 	const l1 = (Array.isArray(list) ? list : []).find((item)=>item && item.active);
@@ -170,7 +170,7 @@ function decennialCurrentPeriodLine(list){
 	return text;
 }
 
-// [YB v42] 外壳:内核正文(多路 return,逐字不动)+ 尾部 [当前时点]/[方法说明](共享 helper;段头已登 preset)。
+// 外壳:内核正文(多路 return,逐字不动)+ 尾部 [当前时点]/[方法说明](共享 helper;段头已登 preset)。
 function buildDecennialAISnapshot(chartObj, params, settings, timelineMeta, list, aiState){
 	const body = buildDecennialAISnapshotBody(chartObj, params, settings, timelineMeta, list, aiState);
 	const cur = decennialCurrentPeriodLine(list);
@@ -447,7 +447,7 @@ class AstroDecennials extends Component{
 			tradition: qryparam.tradition,
 			birth: qryparam.birth,
 			zodiacal: qryparam.zodiacal, siderealAyanamsa: qryparam.siderealAyanamsa,
-			// [0d] 古典口径段(单源):此前只带 4-6 基础键,改界系/三分/宫头5°律后与主盘口径静默分叉。
+			// 古典口径段(单源):此前只带 4-6 基础键,改界系/三分/宫头5°律后与主盘口径静默分叉。
 			...natalClassicalParams(qryparam),
 		};
 	}
@@ -477,7 +477,12 @@ class AstroDecennials extends Component{
 			this.state.list,
 			this.state
 		);
-		saveModuleAISnapshot('decennials', content, {
+		saveModuleAISnapshot('decennials', content, this.snapshotMeta());
+	}
+
+	// 写槽 meta 单一来源:平时写槽与刷新应答共用(刷新一次后槽的 meta 不变)
+	snapshotMeta(){
+		return {
 			tab: 'decennials',
 			startMode: this.state.settings.startMode,
 			orderType: this.state.settings.orderType,
@@ -487,7 +492,7 @@ class AstroDecennials extends Component{
 			l2: this.state.aiL2Idx,
 			l3: this.state.aiL3Idx,
 			mode: this.state.aiMode,
-		});
+		};
 	}
 
 	// AI 导出/挂载实时取数:导出侧派发 refresh 事件,这里用当前显示盘(this.props.value + 当前
@@ -515,7 +520,7 @@ class AstroDecennials extends Component{
 			text = '';
 		}
 		if(text){
-			saveModuleAISnapshot('decennials', text);
+			saveModuleAISnapshot('decennials', text, this.snapshotMeta());
 			if(evt && evt.detail && typeof evt.detail === 'object'){
 				evt.detail.snapshotText = text;
 			}
@@ -753,8 +758,8 @@ class AstroDecennials extends Component{
 				<div style={{ marginBottom: 8 }}>
 					<div style={{ marginBottom: 4 }}>时间口径</div>
 					<Select size='small' value={this.state.settings.calendarType} style={{ width: '100%' }} onChange={this.changeCalendarType}>
-						<Option value={DECENNIAL_CALENDAR_TRADITIONAL}>360天/年（按30天/月换算）</Option>
-						<Option value={DECENNIAL_CALENDAR_ACTUAL}>365.25天/年（按回归年换算）</Option>
+						{/* 档名与快照 / 挂载齿轮同一份(getDecennialCalendarLabel):365.25 天是儒略年,不是回归年 */}
+						{DECENNIALS_CALENDAR_TYPES.map((o)=><Option key={o.value} value={o.value}>{o.label}</Option>)}
 					</Select>
 					<div style={{ marginTop: 4, color: 'var(--horosa-muted, #666)', fontSize: 12 }}>
 						{this.state.settings.calendarType === DECENNIAL_CALENDAR_TRADITIONAL
@@ -768,7 +773,7 @@ class AstroDecennials extends Component{
 
 	render(){
 		let height = this.props.height ? this.props.height : 760;
-		// [双滚动条根治 2026-09-18] 树列原写死「工作区高−20」,再加上方分割线 ~37px 就比面板高 → 外层面板长出第二条滚动条。
+		// 树列原写死「工作区高−20」,再加上方分割线 ~37px 就比面板高 → 外层面板长出第二条滚动条。
 		// 改成:根/行/列定高链(100%),树滚动区 flex 吃余高,零常数。
 		const style = {
 			flex: '1 1 auto',
@@ -805,7 +810,7 @@ class AstroDecennials extends Component{
 						</div>
 					</Col>
 					<Col span={4} style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-						{/* [极档巡检 2026-09-18] 设置列同样走 flex 列:滚动区吃余高,内容再长也只在列内滚,不把外层面板撑出第二条滚动条(1.8 档实抓 82px) */}
+						{/* 设置列同样走 flex 列:滚动区吃余高,内容再长也只在列内滚,不把外层面板撑出第二条滚动条(1.8 档实抓 82px) */}
 						<div className={styles.scrollbar} style={style}>
 							<Row>
 								<Col span={24}>

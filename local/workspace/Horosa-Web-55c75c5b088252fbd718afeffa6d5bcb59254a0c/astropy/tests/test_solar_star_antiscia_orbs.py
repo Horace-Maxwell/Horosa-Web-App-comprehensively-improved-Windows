@@ -52,7 +52,7 @@ def test_defaults_are_byte_identical_to_legacy():
     assert _phase_map(pa) == _phase_map(pb)
     assert _star_count(pa) == _star_count(pb)
     assert _anti_count(pa) == _anti_count(pb)
-    # ② 属性口径:[Q-254/T-224 ①] 缺省两套统一 17'/8.5(此前 phase 链各保 16'/8,与太阳关系行分叉)。
+    # ② 属性口径:缺省两套统一 17'/8.5(此前 phase 链各保 16'/8,与太阳关系行分叉)。
     assert pa._sunPosCazimi == 17.0 / 60.0 and pa._phaseCazimi == 17.0 / 60.0
     assert pa._sunPosCombust == 8.5 and pa._phaseCombust == 8.5
     assert pa._sunPosBeams == 17.0

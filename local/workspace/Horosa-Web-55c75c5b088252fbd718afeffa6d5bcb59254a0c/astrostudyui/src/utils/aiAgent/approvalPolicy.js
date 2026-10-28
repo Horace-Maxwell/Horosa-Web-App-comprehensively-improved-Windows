@@ -26,7 +26,7 @@ export function isTrustedRecordCall(args, trustedRecords){
 	return !!cid && Array.isArray(trustedRecords) && trustedRecords.indexOf(cid) >= 0;
 }
 
-// [批二②] 按工具名策略(toolPolicy={allow,deny}):优先级 deny > read-only(总档/类别档)> allow > 信任档案 > ask。
+// 按工具名策略(toolPolicy={allow,deny}):优先级 deny > read-only(总档/类别档)> allow > 信任档案 > ask。
 //   deny 对任何级别生效(只读工具也拒);allow 只把写入类从「询问」变「自动」,永远越不过只读档。
 export function isToolDenied(name, toolPolicy){
 	return !!(toolPolicy && Array.isArray(toolPolicy.deny) && toolPolicy.deny.indexOf(`${name || ''}`) >= 0);
@@ -34,7 +34,7 @@ export function isToolDenied(name, toolPolicy){
 export function isToolAllowed(name, toolPolicy){
 	return !!(toolPolicy && Array.isArray(toolPolicy.allow) && toolPolicy.allow.indexOf(`${name || ''}`) >= 0);
 }
-// [进阶复查 D12·2026-09-08] 读级工具的类别档语义(此前 `level!=='additive'` 直接 auto,面板上 query/external/interactive/ui 四个下拉无消费方):
+// 读级工具的类别档语义(此前 `level!=='additive'` 直接 auto,面板上 query/external/interactive/ui 四个下拉无消费方):
 //   · 总档(never/on-request/read-only)对读级工具永不作用 —— inherit 与总档任何值下读工具全 auto = 此前字节等价;
 //   · 只有四个纯读类别的**显式**类别档起作用:on-request ⇒ 每次调用先问(allow 名单 / 会话放行 / 信任 cid 仍免问);
 //     read-only ⇒ external(不出网)/ interactive(不反问不报进度)/ ui(不动界面)直拒,query 纯查询无可收之处仍 auto;
@@ -46,7 +46,7 @@ export function explicitCategoryMode(categories, category){
 	const c = categories && typeof categories === 'object' ? categories[category] : undefined;
 	return MODE_RANK[c] !== undefined ? c : 'inherit';
 }
-// sessionAllow:[P1] 会话内放行判定函数(name → bool),只在「询问」分支生效,永远越不过 deny / 只读档
+// sessionAllow:会话内放行判定函数(name → bool),只在「询问」分支生效,永远越不过 deny / 只读档
 export function resolveApprovalDecision({ level, def, args, mode, categories, trustedRecords, toolPolicy, sessionAllow }){
 	const name = def && def.name ? `${def.name}` : '';
 	if(name && isToolDenied(name, toolPolicy)){ return 'deny'; }
@@ -69,7 +69,7 @@ export function resolveApprovalDecision({ level, def, args, mode, categories, tr
 	return 'ask';
 }
 
-// [D24/D27] 读级「询问」在非对话来源(无头 mcp / 目标 / 定时 / 自动规则 / 编排子任务)一律自动放行:这些来源没有人在
+// 读级「询问」在非对话来源(无头 mcp / 目标 / 定时 / 自动规则 / 编排子任务)一律自动放行:这些来源没有人在
 // 键盘前(通道缺席或恒 false),此前显式「查询=每次确认」会让无头运行全部读工具 E_APPROVAL_DENIED 而回空心答案、后台任务
 // 挂 waiting 直到超时自拒;显式「只读」的 deny(外部不出网/界面不动/反问不弹)对这些来源仍保留。写入类不变。
 export function autoAllowReadLevel(origin, level){

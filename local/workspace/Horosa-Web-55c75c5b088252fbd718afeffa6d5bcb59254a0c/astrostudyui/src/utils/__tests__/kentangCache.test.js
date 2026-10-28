@@ -1,4 +1,4 @@
-// [R3-A3] kentang 缓存壳金标:命中链/键等性/坑49 守卫/HTTP 透传/开关直通/
+// kentang 缓存壳金标:命中链/键等性/坑49 守卫/HTTP 透传/开关直通/
 // qizhengkin 年键守卫/预取纪律(seedInBody 绝不预取)/在途去重/L3 rev 闸。
 import {
 	cachedKentangFetch, prefetchKentang, buildKentangCacheKey,
@@ -43,7 +43,7 @@ beforeEach(()=>{
 	try{ localStorage.removeItem('horosa.perf.kentangCache'); }catch(e){ /* ignore */ }
 });
 
-describe('[R3-A3] kentangCache', ()=>{
+describe('kentangCache', ()=>{
 	test('命中链:首发走网络入缓存,二发 L1 命中零网络;结果逐字节同', async ()=>{
 		fetchChartWithRetry.mockResolvedValueOnce(okResp(OK_TEXT));
 		const url = 'http://127.0.0.1:8899/qimen/pan';
@@ -76,6 +76,20 @@ describe('[R3-A3] kentangCache', ()=>{
 			expect(r2.__horosaKtSource).toBe('net');
 		}
 		expect(fetchChartWithRetry).toHaveBeenCalledTimes(6);
+	});
+
+	test('业务错误(顶层 err / 信封里 Result.err)同样不入缓存', async ()=>{
+		const url = 'http://127.0.0.1:8899/taiyi/pan';
+		for(const bad of [JSON.stringify({ err: 'x' }), JSON.stringify({ ResultCode: 0, Result: { err: 'y' } })]){
+			fetchChartWithRetry.mockResolvedValueOnce(okResp(bad));
+			fetchChartWithRetry.mockResolvedValueOnce(okResp(bad));
+			// eslint-disable-next-line no-await-in-loop
+			await cachedKentangFetch(url, post({ e: bad }));
+			// eslint-disable-next-line no-await-in-loop
+			const r2 = await cachedKentangFetch(url, post({ e: bad }));
+			expect(r2.__horosaKtSource).toBe('net');
+		}
+		expect(fetchChartWithRetry).toHaveBeenCalledTimes(4);
 	});
 
 	test('HTTP !ok:原响应对象原样透传、body 不消费、不入缓存', async ()=>{

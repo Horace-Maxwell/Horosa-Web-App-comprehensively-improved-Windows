@@ -253,7 +253,7 @@ export function parseBirthInput(rawText, { calendar = 'solar', timeUnknown = fal
 			const lunar = Lunar.fromYmdHms(year, leap ? -month : month, day, hour, minute, second);
 			const solar = lunar.getSolar();
 			outY = solar.getYear(); outM = solar.getMonth(); outD = solar.getDay();
-			echo = `农历${lunar.getYearInGanZhi()}年${leap ? '闰' : ''}${lunar.getMonthInChinese()}月${lunar.getDayInChinese()} ${pad2(hour)}:${pad2(minute)} → 公历 ${padYear(outY)}-${pad2(outM)}-${pad2(outD)} ${pad2(hour)}:${pad2(minute)}`;
+			echo = `农历${lunar.getYearInGanZhi()}年${lunar.getMonthInChinese()}月${lunar.getDayInChinese()} ${pad2(hour)}:${pad2(minute)} → 公历 ${padYear(outY)}-${pad2(outM)}-${pad2(outD)} ${pad2(hour)}:${pad2(minute)}`;
 			assumptions.push(`农历已换算为公历 ${padYear(outY)}-${pad2(outM)}-${pad2(outD)},请向用户复述确认`);
 		}catch(e){
 			return { ok: false, code: 'E_BIRTH_UNPARSEABLE', assumptions };

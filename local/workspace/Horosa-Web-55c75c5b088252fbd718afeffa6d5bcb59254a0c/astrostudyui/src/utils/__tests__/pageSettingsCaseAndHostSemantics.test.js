@@ -10,9 +10,10 @@ import fs from 'fs';
 import path from 'path';
 import { definePageSettings } from '../pageSettingsStore';
 import { seedShellFromSaved, shellFieldSchema } from '../divinationShellSettings';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '..', '..');
-const read = (rel)=>fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel)=>readSource(path.join(SRC, rel));
 const stripComments = (code)=>code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 
 describe('① 载入旧案:记录里没有的设置键回出厂值', ()=>{
@@ -60,7 +61,7 @@ describe('① 载入旧案:记录里没有的设置键回出厂值', ()=>{
 		expect((dj.match(/\.\.\.DUNJIA_PAGE_SETTINGS\.defaults\(\)/g) || []).length).toBe(2);   // 事盘 + 带奇门设置的命盘,两条还原链
 		expect((dj.match(/let changed = this\.persistedKeysChanged\(nextOptions\)/g) || []).length).toBe(2);
 		expect(stripComments(read('components/sanshi/SanShiUnitedMain.js'))).toMatch(/\.\.\.\(this\.state\.options \|\| \{\}\),\s*\.\.\.factoryOptionKeys,/);
-		expect(stripComments(read('components/huangji/HuangJiMain.js'))).toMatch(/method: HUANGJI_PAGE_SETTINGS\.defaults\(\)\.xinyiMethod/);
+		expect(stripComments(read('components/huangji/HuangJiMain.js'))).toMatch(/method: XINYI_DEFAULT_METHOD \}/);
 		const geo = stripComments(read('components/geomancy/GeomancyMain.js'));
 		['options', 'entry'].forEach((src)=>{   // 事盘还原 + 历史条目回放,两条链
 			['tradition', 'readingScope', 'zodiacSystem', 'planetaryChartZodiac'].forEach((k)=>{
@@ -164,6 +165,27 @@ describe('⑤ 离不开逐课输入的起法不保留', ()=>{
 		expect(LIURENG_PAGE_SETTINGS.save({ castMethod: 'yanshu' })).toEqual([]);
 		expect(LIURENG_PAGE_SETTINGS.load().castMethod).toBe('bake2');
 	});
+	it('皇极心易起卦法不保留(只剩缺省「年月日時」一档);五兆不留「直输五兆数」(以钱代筮每次新掷可留);灵棋不记「手动」种子来源', ()=>{
+		const HuangJi = require('../../components/huangji/HuangJiMain');
+		expect(HuangJi.HUANGJI_PAGE_SETTINGS).toBeUndefined();
+		const hj = { state: { xinyiOptions: { method: 'datetime' } }, setState(){ /* 只看落盘 */ } };
+		window.localStorage.clear();
+		HuangJi.default.prototype.changeXinyiOption.call(hj, 'method', 'character');
+		expect(window.localStorage.getItem('horosa.huangji.settings.v1')).toBe(null);
+		const { WUZHAO_PAGE_SETTINGS } = require('../../components/wuzhao/WuZhaoMain');
+		const wz = WUZHAO_PAGE_SETTINGS.schema.mode.oneOf;
+		expect(wz).not.toContain('zhushu');
+		['ganzhi', 'day', 'hour', 'minute', 'tang', 'dunhuang', 'qian'].forEach((k)=>expect(wz).toContain(k));
+		window.localStorage.clear();
+		WUZHAO_PAGE_SETTINGS.save({ mode: 'qian' });
+		expect(WUZHAO_PAGE_SETTINGS.save({ mode: 'zhushu' })).toEqual([]);
+		expect(WUZHAO_PAGE_SETTINGS.load().mode).toBe('qian');
+		// 灵棋不用 definePageSettings,自管落盘:选「手动」不进库(lingqiSeedModePersist.test 逐路径锁)
+		const LingQiMain = require('../../components/lingqi/LingQiMain').default;
+		const { STORE_KEY } = require('../../components/lingqi/LingQiMain');
+		LingQiMain.prototype.persist.call({ state: { seedMode: 'manual', display: 'simp', category: 'general', zhuVisible: {} } }, { seedMode: 'manual' });
+		expect(JSON.parse(window.localStorage.getItem(STORE_KEY)).seedMode).toBe('random');
+	});
 });
 
 describe('七政首开补空:载入了记录不播 / 自定身宫不播 / 择日内嵌实例不播', ()=>{
@@ -192,7 +214,7 @@ describe('七政首开补空:载入了记录不播 / 自定身宫不播 / 择日
 		expect(computeGuolaoSeedPatch(mk()).guolaoBodyMode).toEqual({ value: 'youjin' });
 	});
 
-	it('既有三键(宿度制 / 命度 / 罗计)同律:择日内嵌实例整个不播、载入了记录不播(此前内嵌仍会播 → 拿择日时刻改主应用的盘、内嵌盘不出)', ()=>{
+	it('既有键(命度 / 罗计)同律:择日内嵌实例整个不播、载入了记录不播(此前内嵌仍会播 → 拿择日时刻改主应用的盘、内嵌盘不出);宿度制不归首开播(新盘种子单源)', ()=>{
 		require('../../models/astro');
 		const { computeGuolaoSeedPatch } = require('../../components/guolao/GuoLaoChartMain');
 		const { setStoredGuolaoSu28Mode, setStoredGuolaoNodeMode, GUOLAO_NODE_MODE_NORTH_RAHU } = require('../../components/guolao/GuoLaoChartStyle');
@@ -201,11 +223,11 @@ describe('七政首开补空:载入了记录不播 / 自定身宫不播 / 择日
 		const mk = (over)=>({ ...base, ...(over || {}) });
 		setStoredGuolaoSu28Mode(6);
 		setStoredGuolaoNodeMode(GUOLAO_NODE_MODE_NORTH_RAHU);
-		// 独立页新盘:照播(Q-190 只补空)
+		// 独立页新盘:照播(Q-190 只补空);宿度制不在这里播(宿盘 / 七政亲手改都记新盘种子,新命盘直接按种子起)
 		const seeded = computeGuolaoSeedPatch(mk());
-		expect(seeded.doubingSu28).toEqual({ value: 6 });
+		expect(seeded.doubingSu28).toBeUndefined();
 		expect(seeded.guolaoNodeMode).toEqual({ value: GUOLAO_NODE_MODE_NORTH_RAHU });
-		// 择日宿主里内嵌:一个键都不播(无头复现:去掉 embedded 早退就会播出 doubingSu28=6)
+		// 择日宿主里内嵌:一个键都不播(无头复现:去掉 embedded 早退就会播出罗计取法)
 		expect(computeGuolaoSeedPatch(mk(), { embedded: true })).toEqual({});
 		// 载入了记录:既有三键也不播
 		const loaded = computeGuolaoSeedPatch(mk({ cid: { value: 'rec-1', name: ['cid'] } }));

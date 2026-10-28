@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/xuanshi/XuanShiMain.js b/astrostudyui/src/components/xuanshi/XuanShiMain.js
-index bf93b92c..e8b55e86 100644
+index c6d509b8..69eeef11 100644
 --- a/astrostudyui/src/components/xuanshi/XuanShiMain.js
 +++ b/astrostudyui/src/components/xuanshi/XuanShiMain.js
 @@ -6,6 +6,8 @@ import {
@@ -11,7 +11,7 @@ index bf93b92c..e8b55e86 100644
  import XuanShiEvents from './XuanShiEvents';
  // 🔴 天象/地图两个子页必须懒加载,绝不可改回静态 import(与星运页同族病灶,2026-08-01 一并治理):
  //   两者各自 `import * as echarts from 'echarts'`,静态引它们就把 echarts(vendors-viz 1291KB,
-@@ -197,16 +199,26 @@ export default class XuanShiMain extends React.Component {
+@@ -203,16 +205,27 @@ export default class XuanShiMain extends React.Component {
  	async loadSummary() {
  		if (this.state.summary || this.state.summaryLoading) { return; }
  		this.setState({ summaryLoading: true, summaryErr: '' });
@@ -20,10 +20,11 @@ index bf93b92c..e8b55e86 100644
 +		// 总览仍门控主体渲染、其余 3 个到达即填充。关开关(horosa.perf.firstLoadParallel=0)回到原串行。
 +		const parallel = firstLoadParallelEnabled();
 +		const fireTasters = () => {
-+			// 失败静默,不挡总览主体
-+			fetchDaily().then((d) => { if (d && !d.err && (d.title || d.blurb)) { this.setState({ daily: d }); } }).catch(() => {});
-+			fetchEvents({ page: 1, page_size: 6 }).then((r) => { this.setState({ featured: (r && r.items) || [] }); }).catch(() => {});
-+			fetchFigures({ status: 'all', limit: 6 }).then((r) => { this.setState({ figuresTop: (r && (r.items || r.figures)) || [] }); }).catch(() => {});
++			// 失败静默,不挡总览主体;序号守卫:重试再发一轮时,上一轮迟到的回包不覆盖
++			const __seq = (this._tasterSeq = (this._tasterSeq || 0) + 1);
++			fetchDaily().then((d) => { if (__seq === this._tasterSeq && d && !d.err && (d.title || d.blurb)) { this.setState({ daily: d }); } }).catch(() => {});
++			fetchEvents({ page: 1, page_size: 6 }).then((r) => { if (__seq !== this._tasterSeq) { return; } this.setState({ featured: (r && r.items) || [] }); }).catch(() => {});
++			fetchFigures({ status: 'all', limit: 6 }).then((r) => { if (__seq !== this._tasterSeq) { return; } this.setState({ figuresTop: (r && (r.items || r.figures)) || [] }); }).catch(() => {});
 +		};
 +		if (parallel) { fireTasters(); }
  		try {

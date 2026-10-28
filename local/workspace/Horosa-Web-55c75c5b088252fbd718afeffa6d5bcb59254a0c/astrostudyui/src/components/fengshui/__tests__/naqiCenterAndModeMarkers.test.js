@@ -1,4 +1,4 @@
-// [Q-221/T-181·FT-13/FT-14] 纳气:①与盘心重合的标记判「中宫/不计」(不进合冲/评分);②快照与 vm 统计只看纳气标记(八卦标记不混入);
+// 纳气:①与盘心重合的标记判「中宫/不计」(不进合冲/评分);②快照与 vm 统计只看纳气标记(八卦标记不混入);
 // ③吸附不吸到中心交点。轻量桩:Object.create(原型),无需 canvas。
 import FengShuiEngine from '../fengshuiEngine';
 
@@ -19,7 +19,7 @@ function mk(extra) {
 }
 
 describe('纳气 · 盘心重合标记与双法标记隔离', () => {
-	test('[FT-14] 与盘心重合(≤2px)的标记:sector=null、center=true、ok=true;偏出容差即正常落宫', () => {
+	test('与盘心重合(≤2px)的标记:sector=null、center=true、ok=true;偏出容差即正常落宫', () => {
 		const eng = mk();
 		const atCenter = { id: 'd1', type: 'entryDoor', label: '入户门', category: 'wind', x: 300, y: 300 };
 		const nearCenter = { id: 'd2', type: 'bed', label: '床', category: 'wind', x: 301.5, y: 300 };
@@ -30,7 +30,7 @@ describe('纳气 · 盘心重合标记与双法标记隔离', () => {
 		expect(ev.center).toBeUndefined();
 		expect(ev.sector).toBeTruthy();
 	});
-	test('[FT-14] 盘心=入户门时入户门自身不进合冲/破局/评分(此前按 atan2(0,0) 钉在某扇区)', () => {
+	test('盘心=入户门时入户门自身不进合冲/破局/评分(此前按 atan2(0,0) 钉在某扇区)', () => {
 		const door = { id: 'door', type: 'entryDoor', label: '入户门', category: 'wind', x: 300, y: 500 };
 		const bed = { id: 'bed', type: 'bed', label: '床', category: 'wind', x: 300, y: 100 };
 		const house = mk({ markers: [door, bed] });
@@ -45,7 +45,7 @@ describe('纳气 · 盘心重合标记与双法标记隔离', () => {
 		// 盘心换到入户门后,门自身既不算「气位正确」也不算破局:windOk 只可能来自床
 		expect(a1.markers.find((m) => m.id === 'door').sector).toBeTruthy();
 	});
-	test('[FT-13] 快照 [标记判定]/[冲突清单] 与 vm 统计只看纳气标记,八卦标记(父/母)不混入', () => {
+	test('快照 [标记判定]/[冲突清单] 与 vm 统计只看纳气标记,八卦标记(父/母)不混入', () => {
 		const bed = { id: 'bed', type: 'bed', label: '床', category: 'wind', x: 300, y: 100, mode: 'naqi' };
 		const father = { id: 'f', kind: 'member', label: '父', x: 300, y: 500, mode: 'bagua' };
 		const mother = { id: 'm', kind: 'member', label: '母', x: 100, y: 300, mode: 'bagua' };
@@ -58,7 +58,7 @@ describe('纳气 · 盘心重合标记与双法标记隔离', () => {
 		expect(t).not.toMatch(/父：|母：/);
 		expect(eng.naqiMarkers().map((m) => m.id)).toEqual(['bed']);
 	});
-	test('[FT-14] 吸附:两轴都落在中线容差内时只吸一轴,不落到盘心', () => {
+	test('吸附:两轴都落在中线容差内时只吸一轴,不落到盘心', () => {
 		const eng = mk();
 		const p = eng.snapPointToRect({ x: 303, y: 301 });   // 两轴都在容差内
 		expect(!(p.x === 300 && p.y === 300)).toBe(true);

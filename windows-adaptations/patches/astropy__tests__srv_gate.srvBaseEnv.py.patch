@@ -1,0 +1,15 @@
+diff --git a/astropy/tests/srv_gate.py b/astropy/tests/srv_gate.py
+index 2bd1ac36..07e5cf29 100644
+--- a/astropy/tests/srv_gate.py
++++ b/astropy/tests/srv_gate.py
+@@ -17,7 +17,9 @@ import os
+ import sys
+ import urllib.request
+ 
+-BASE = "http://127.0.0.1:8899"
++# horosa_win_srv_base_env_v1:Windows 开发机上 :8899 常被已安装、常驻运行的星阙占着(版本可能比工作区旧,测到的是旧服务)——
++# 允许 HOROSA_TEST_SRV_BASE 指向另起在别的端口的工作区排盘服务;不设 = 原样 :8899。
++BASE = (os.environ.get("HOROSA_TEST_SRV_BASE") or "").strip().rstrip("/") or "http://127.0.0.1:8899"
+ HEALTH_TIMEOUT = 3
+ REQUIRE_ENV = "HOROSA_REQUIRE_SRV"
+ 

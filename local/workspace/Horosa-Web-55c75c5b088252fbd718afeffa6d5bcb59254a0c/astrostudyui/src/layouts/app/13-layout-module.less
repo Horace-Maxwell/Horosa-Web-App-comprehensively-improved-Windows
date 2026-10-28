@@ -1,0 +1,44 @@
+// 全站样式 · app.js 用的模块类(不在 :global 里,随 CSS Modules 哈希)。
+// 由 layouts/app.less 按原顺序 @import(顺序即层叠次序);新规则要包在本文件的 :global { } 里。
+
+.horosaAppShell {
+    position: relative;
+    height: 100%;
+}
+
+// 工作区布局下限 = 支持包络的布局视口 960 × 560 CSS px(1728×1010 × 1.8 档)扣掉页头 72:宽 960、高 488。
+// 窗口更窄 × 放大档(1440×900 / 1280×800 @1.8,布局宽 800 / 711)时,三栏工作台物理放不下:此前各栏被挤到二三十 px,
+// 标题 / 标签逐字竖排、按钮字被裁(全站数十处同族);窗口更矮 × 放大档(1728×760 @1.8 工作区只剩 350)时,
+// 日历盘格 / 赤纬阶梯图 / 3D 右栏页签区够不着、被裁、被挤成一条缝。
+// 现在工作区按下限排版、整体横向 / 纵向滚动(内容可达、不裁);布局尺寸 ≥ 下限时没有溢出、不出滚动条,与此前逐像素相同。
+// 高下限三层同值(缺一层就有页面不跟):这里的 min-height、utils/zoomDomain 的 WORKSPACE_MIN_LAYOUT_H(按 props.height 排版的页)、
+// 下面的页面排版视口变量地板(按 --horosa-lvh / --horosa-lvw 排版的样式);jest workspaceLayoutFloor 锁三处同值。
+.workspaceOuter {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    overflow-x: auto;
+    overflow-y: auto;
+}
+
+.workspaceInner {
+    position: relative;
+    height: 100%;
+    // 宽下限 960;盘面最小字视觉下限要求中栏更宽时再加上 utils/chartTextFloor 发布的加宽量(缺省 0,放得下时一字不变)
+    min-width: ~"calc(max(960px, 100%) + var(--horosa-chart-floor-extra, 0px))";
+    // 高下限 488;等比缩小的盘在高度上也不够时再加上 utils/chartTextFloor 发布的加高量(工作区高度派发同步加,见 zoomDomain.resolveWorkspaceHeight)
+    min-height: ~"calc(max(488px, 100%) + var(--horosa-chart-floor-extra-h, 0px))";
+    overflow: hidden;
+    // 页面排版用的布局视口(1% 的 px 值):工作区之内地板到包络 960 × 560 —— 与工作区的宽 / 高下限同一包络。
+    // 根上发布的 --horosa-lvw / --horosa-lvh 仍是真视口(挂在 body 上的浮层 / 弹窗按它定尺寸,不能超出窗口);
+    // 工作区里的页面按它排版的 calc(N * var(--horosa-lvh)) 此前仍按矮视口排,与已经地板的工作区脱节。
+    --horosa-lvw: ~"max(9.6px, var(--horosa-lvw-raw, 1vw))";
+    --horosa-lvh: ~"max(5.6px, var(--horosa-lvh-raw, 1vh))";
+}
+
+@media (max-width: 760px) {
+    .workspaceOuter {
+        padding: 0;
+    }
+}

@@ -1,7 +1,7 @@
-import { history } from 'umi';
 import { safeLocalStorageSet } from '../utils/safeStorage';
-// 主限法 方法 / 时间钥匙 同时住在 app 状态(globalSetup 持久化,启动时 applyPredictiveSetupToFields 写回 fields)与 fields;
-// 二者由同一个入口(applyPrimaryDirectionConfig)一起写,初值与回退都取「新盘种子」,两条链才不会各说各话。
+import { pickGlobalSetupPatch, mergeGlobalSetupWrite, subscribeGlobalSetupStorage, GLOBAL_SETUP_FIELDS } from '../utils/globalSetupStore';
+// 主限法 方法 / 时间钥匙:新盘种子是唯一来源;app 状态里的两项只跟随种子(启动按种子回填,不再反写 fields)。
+// 亲手改的入口(推运页 applyPrimaryDirectionConfig、主限盘栏「计算」)都记种子。
 import { newChartSeedValue } from '../utils/newChartSeeds';
 import { Modal,  } from 'antd';
 import {getStore, } from '../utils/storageutil';
@@ -11,13 +11,16 @@ import { restoredSubTab } from '../constants/SubTabRegistry';
 import * as appService from '../services/app';
 import {setDispatch} from '../utils/request';
 import {detectPlatform} from '../utils/helper';
-import { loadBootChartSnapshot } from '../utils/bootChartRestore';   // [R5 S7] 温启直接显示上次的盘
+import { loadBootChartSnapshot } from '../utils/bootChartRestore';   // 温启直接显示上次的盘
 import * as AstroConst from '../constants/AstroConst';
 import { setTmDelta } from '../utils/request';
 import { normalizeAppearanceMode } from '../utils/appearance';
 import { CONTAINER_HEIGHT_SANITY_MIN } from '../utils/zoomDomain';
-import { normalizeDayBoundary, DAY_BOUNDARY_AFTER23, normalizeLateZiHourMode, LATE_ZI_HOUR_NEXT_DAY } from '../utils/dayBoundary';
+import { normalizeDayBoundary, DAY_BOUNDARY_AFTER23, normalizeLateZiHourMode, LATE_ZI_HOUR_NEXT_DAY, announceGlobalSetupChanges } from '../utils/dayBoundary';
 import { normalizeZeriSnapshotMaxRows, normalizeZeriSnapshotExplainRows, ZERI_SNAPSHOT_MAX_ROWS_DEFAULT, ZERI_SNAPSHOT_EXPLAIN_ROWS_DEFAULT } from '../utils/zeriSnapshotPrefs';
+
+// 已下架的主页签(书籍阅读 / 直播 / 管理工具):旧版温启快照里可能还记着,原样恢复会落到空白页 → 留在缺省页签。
+export const RETIRED_MAIN_TABS = ['astroreader', 'liveplayer', 'admintools'];
 
 const MinWorkspaceHeight = 660;
 // 页头预留量。**仅供兜底路径**(容器量不到时才按整窗视口减页头)——主路径已改为直接量
@@ -107,16 +110,39 @@ function normalizeGlobalSetup(setup){
         }
         normalized.planetDisplayDefaultsVersion = PlanetDisplayDefaultsVersion;
     }
+    // 主限法两项跟随新盘种子(唯一来源;全局设置里的旧值已一次性并入种子,见 newChartSeeds mergeLegacyOnce)
+    normalized.pdMethod = newChartSeedValue('pdMethod');
+    normalized.pdTimeKey = newChartSeedValue('pdTimeKey');
     normalized.chartStyle = AstroConst.normalizeChartStyle(normalized.chartStyle);
     normalized.wheelArt = AstroConst.normalizeWheelArt(normalized.wheelArt);
     if(normalized.planetListStyle !== 'degreeOnly' && normalized.planetListStyle !== 'glyphOnly'){ normalized.planetListStyle = 'full'; }
     normalized.indiaChartStyle = AstroConst.normalizeIndiaChartStyle(normalized.indiaChartStyle);
     normalized.dayBoundary = normalizeDayBoundary(normalized.dayBoundary);
     normalized.lateZiHourMode = normalizeLateZiHourMode(normalized.lateZiHourMode);
-    // [Q-452/Q-453] 择日 AI 快照命中清单上限 / 附判读树行数(缺省 60 / 3)
+    // 择日 AI 快照命中清单上限 / 附判读树行数(缺省 60 / 3)
     normalized.zeriSnapshotMaxRows = normalizeZeriSnapshotMaxRows(normalized.zeriSnapshotMaxRows);
     normalized.zeriSnapshotExplainRows = normalizeZeriSnapshotExplainRows(normalized.zeriSnapshotExplainRows);
+    if(normalized.voidClassical !== undefined){
+        normalized.voidClassical = (normalized.voidClassical === 1 || normalized.voidClassical === '1' || normalized.voidClassical === true) ? 1 : 0;
+    }
     return normalized;
+}
+
+// 别的窗口改了全局设置:按存储里那份(归一后)挑出与本窗口不同的设置字段,只应用、不回写(save 认 __globalSetupFromStorage)。
+// 缺省值版本章与主限两项(跟随新盘种子)不在跟随之列。没有不同 → null
+const STORAGE_SYNC_SKIP = ['chartDisplayDefaultsVersion', 'planetDisplayDefaultsVersion', 'pdMethod', 'pdTimeKey'];
+export function globalSetupStorageSyncPayload(state, stored){
+    if(!stored || typeof stored !== 'object'){ return null; }
+    let norm = null;
+    try{ norm = normalizeGlobalSetup(stored); }catch(e){ norm = null; }
+    if(!norm){ return null; }
+    const out = {};
+    GLOBAL_SETUP_FIELDS.forEach((f)=>{
+        if(STORAGE_SYNC_SKIP.indexOf(f) >= 0 || norm[f] === undefined){ return; }
+        const cur = state ? state[f] : undefined;
+        if(JSON.stringify(cur) !== JSON.stringify(norm[f])){ out[f] = norm[f]; }
+    });
+    return Object.keys(out).length ? out : null;
 }
 
 function shouldMigrateHouseSystemDefault(hsys){
@@ -166,7 +192,7 @@ function userInfoToFields(flds, userInfo){
     }
 }
 
-// [R5 S7] 启动首盘二选一:setup 里已按快照重放上次的盘(pending / done)→ 只落 fields(预测设置 / 用户档),不再起
+// 启动首盘二选一:setup 里已按快照重放上次的盘(pending / done)→ 只落 fields(预测设置 / 用户档),不再起
 // 「此刻」盘;无快照 / 恢复失败(failed)/ 用户已先动手(dropped)→ 今日路径「此刻」。
 const BOOT_RESTORE_PENDING_TIMEOUT_MS = 30000;
 // 兜底计时从「后端可达」起算:桌面壳提前导航(early)时后端可能要几十秒才起(更新后首启常见),若从页面挂载起算,
@@ -187,26 +213,22 @@ export function* bootChartOrNow(fld, select, put, call){
             const later = yield select((s)=>s.astro);
             if(later && later.bootChartRestore === 'pending' && !later.chartObj){
                 yield put({ type: 'astro/save', payload: { bootChartRestore: 'failed' } });
-                yield put({ type: 'astro/nowChart', payload: { fields: later.fields || fld } });
+                yield put({ type: 'astro/nowChart', payload: { fields: later.fields || fld, asNewChart: true } });   // 启动的「此刻」盘 = 新盘
             }
         }
         return;
     }
-    yield put({ type: 'astro/nowChart', payload: { fields: fld } });
+    yield put({ type: 'astro/nowChart', payload: { fields: fld, asNewChart: true } });   // 启动的「此刻」盘 = 新盘(紫微用回你自己的设置)
 }
 
+// 主限法方法 / 时间钥匙不在这里写:盘上的值本就来自新盘种子(新盘)或记录(载入的盘),
+// 此前启动 / 登录时拿全局设置里的旧值盖上去 → 与「新命盘」用的种子各说各话,还会盖掉刚恢复的那张盘的口径
 function applyPredictiveSetupToFields(flds, appst){
     if(!flds || !appst){
         return;
     }
     if(flds.showPdBounds){
         flds.showPdBounds.value = appst.showPdBounds === 0 ? 0 : 1;
-    }
-    if(flds.pdMethod){
-        flds.pdMethod.value = appst.pdMethod || newChartSeedValue('pdMethod');
-    }
-    if(flds.pdTimeKey){
-        flds.pdTimeKey.value = appst.pdTimeKey || newChartSeedValue('pdTimeKey');
     }
 }
 
@@ -228,7 +250,7 @@ export default {
         chartDisplay: AstroConst.CHART_DEFAULTOPTS,
         chartStyle: AstroConst.CHART_STYLE_CURRENT,
         wheelArt: AstroConst.WHEEL_ART_CLASSIC,
-        planetListStyle: 'full',   // [WP-9] 行星列表密度:full/degreeOnly/glyphOnly
+        planetListStyle: 'full',   // 行星列表密度:full/degreeOnly/glyphOnly
         indiaChartStyle: AstroConst.INDIA_CHART_STYLE_SOUTH,
         planetDisplay: AstroConst.DEFAULT_OBJECTS,
         lotsDisplay: AstroConst.DEFAULT_LOTS,
@@ -245,8 +267,8 @@ export default {
         tripSystem: 'Dorothean',           // 三分体系(默认多罗特 = 三分主星页现状默认)
         dayBoundary: DAY_BOUNDARY_AFTER23,
         lateZiHourMode: LATE_ZI_HOUR_NEXT_DAY,
-        zeriSnapshotMaxRows: ZERI_SNAPSHOT_MAX_ROWS_DEFAULT,          // [Q-452] 择日快照命中清单上限(缺省 60=现状)
-        zeriSnapshotExplainRows: ZERI_SNAPSHOT_EXPLAIN_ROWS_DEFAULT,  // [Q-453] 前 N 行附判读树(缺省 3;0=不附)
+        zeriSnapshotMaxRows: ZERI_SNAPSHOT_MAX_ROWS_DEFAULT,          // 择日快照命中清单上限(缺省 60=现状)
+        zeriSnapshotExplainRows: ZERI_SNAPSHOT_EXPLAIN_ROWS_DEFAULT,  // 前 N 行附判读树(缺省 3;0=不附)
         chartDisplayDefaultsVersion: ChartDisplayDefaultsVersion,
         planetDisplayDefaultsVersion: PlanetDisplayDefaultsVersion,
 
@@ -280,6 +302,9 @@ export default {
     reducers: {
         save(state, {payload: values}) {
             const payload = { ...(values || {}) };
+            // 跟随别的窗口(只应用、不回写)
+            const fromStorage = !!payload.__globalSetupFromStorage;
+            delete payload.__globalSetupFromStorage;
             if(Object.prototype.hasOwnProperty.call(payload, 'planetDisplay')){
                 payload.planetDisplay = normalizeDisplayList(
                     payload.planetDisplay,
@@ -312,33 +337,16 @@ export default {
 
             let st = { ...state, ...payload };
             st.appearanceMode = normalizeAppearanceMode(st.appearanceMode);
-            let globalSetup = {
-                chartDisplay: st.chartDisplay,
-                chartStyle: st.chartStyle,
-                wheelArt: st.wheelArt,
-                planetListStyle: st.planetListStyle,
-                indiaChartStyle: st.indiaChartStyle,
-                planetDisplay: st.planetDisplay,
-                lotsDisplay: st.lotsDisplay,
-                colorTheme: st.colorTheme,
-                appearanceMode: st.appearanceMode,
-                showPdBounds: st.showPdBounds,
-                pdMethod: st.pdMethod,
-                pdTimeKey: st.pdTimeKey,
-                showPlanetHouseInfo: st.showPlanetHouseInfo,
-                showAstroMeaning: st.showAstroMeaning,
-                showOnlyRulExaltReception: st.showOnlyRulExaltReception,
-                schoolPreset: st.schoolPreset,
-                tripSystem: st.tripSystem,
-                dayBoundary: st.dayBoundary,
-                lateZiHourMode: st.lateZiHourMode,
-                zeriSnapshotMaxRows: st.zeriSnapshotMaxRows,
-                zeriSnapshotExplainRows: st.zeriSnapshotExplainRows,
-                chartDisplayDefaultsVersion: ChartDisplayDefaultsVersion,
-                planetDisplayDefaultsVersion: PlanetDisplayDefaultsVersion,
-            };
-            let json = JSON.stringify(globalSetup);
-            safeLocalStorageSet(Constants.GlobalSetupKey, json);
+            // 落盘只经单源 helper:只写 payload 里真带了的设置字段,以存储现值为底合并(不按内存态整份写回 ——
+            // 否则恢复备份后、刷新前的任何一次 app/save 会把恢复写进去的全局设置盖回旧值,两个窗口也会互相覆盖)
+            const patch = pickGlobalSetupPatch(payload, {
+                ...st,
+                voidClassical: st.voidClassical ? 1 : 0,   // 与同抽屉兄弟项一样随重启保留
+            });
+            // 两张显示清单带上「缺省值版本」:没有版本号的清单下次启动会被当旧版再迁移一遍(把你亲手开的项又关掉)
+            if(Object.prototype.hasOwnProperty.call(patch, 'chartDisplay')){ patch.chartDisplayDefaultsVersion = ChartDisplayDefaultsVersion; }
+            if(Object.prototype.hasOwnProperty.call(patch, 'planetDisplay')){ patch.planetDisplayDefaultsVersion = PlanetDisplayDefaultsVersion; }
+            if(!fromStorage){ mergeGlobalSetupWrite(patch); }
 
             return st;
         },
@@ -346,6 +354,17 @@ export default {
     },
 
     effects: {
+        // 别的窗口改了全局设置:只把不同的设置字段应用到本窗口(不回写存储)
+        *syncGlobalSetupFromStorage({ payload }, { put, select }){
+            const st = yield select((s)=>s.app);
+            const diff = globalSetupStorageSyncPayload(st, payload && payload.stored);
+            if(diff){
+                yield put({ type: 'save', payload: { ...diff, __globalSetupFromStorage: true } });
+                // 有副作用通道的字段(日界 / 晚子时)与本窗口改设置走同一通道:共享口径同步、当前盘与各技法页按新口径重算
+                // (随盘口径 / 本页覆盖的锁照旧由接收方判)。只派发本窗口事件,不写存储
+                announceGlobalSetupChanges(diff);
+            }
+        },
         *fetchImgToken({payload: values}, {call, put}){
             const {Result} = yield call(appService.getImgToken);
 
@@ -519,7 +538,7 @@ export default {
                         admin: false,
                     },
                 });
-                yield* bootChartOrNow(fld, select, put, call);   // [R5 S7]
+                yield* bootChartOrNow(fld, select, put, call);
                 return;
             }
             const Result = rsp.Result;
@@ -532,7 +551,7 @@ export default {
                     ...astrost.fields,
                 };
                 applyPredictiveSetupToFields(fld, appst);
-                yield* bootChartOrNow(fld, select, put, call);   // [R5 S7]
+                yield* bootChartOrNow(fld, select, put, call);
                 return;
             }
             
@@ -563,7 +582,7 @@ export default {
                 },
             });
 
-            yield* bootChartOrNow(fld, select, put, call);   // [R5 S7]
+            yield* bootChartOrNow(fld, select, put, call);
 
         },
 
@@ -721,6 +740,13 @@ export default {
     },
 
     subscriptions: {
+        // 别的窗口改了全局设置 / 清空了存储:本窗口界面跟着换(只应用、不回写;全量恢复冻结期间不跟)。
+        // 单独一条订阅(不夹在 setup 里),跨窗口跟随的模型级用例直接挂它
+        followGlobalSetupStorage({ dispatch }) {
+            return subscribeGlobalSetupStorage((g)=>{
+                try{ dispatch({ type: 'syncGlobalSetupFromStorage', payload: { stored: g } }); }catch(e){ /* 跟随失败不影响本窗口 */ }
+            });
+        },
         setup({ dispatch, history }) {
             let docw = document.documentElement.clientWidth;
             let doch = document.documentElement.clientHeight;
@@ -804,8 +830,14 @@ export default {
                     const { measureLayoutViewport, resolveWorkspaceHeight } = require('../utils/zoomDomain');
                     const el = document.getElementById('mainContent');
                     const vp = measureLayoutViewport();
+                    let floorExtra = 0;
+                    try{
+                        // eslint-disable-next-line global-require
+                        floorExtra = require('../utils/chartTextFloor').getChartFloorExtra().height || 0;
+                    }catch(e2){ floorExtra = 0; }
                     return dispatchWorkspaceHeight(resolveWorkspaceHeight({
                         containerHeight: el ? el.clientHeight : null,
+                        chartFloorExtra: floorExtra,
                         layoutViewportHeight: vp ? vp.height : null,
                         physicalClientHeight: document.documentElement.clientHeight,
                         reserved: WorkspaceReservedHeight,
@@ -829,6 +861,8 @@ export default {
                 }, 80);
             };
             window.addEventListener('resize', handleResize);
+            // 盘面最小字视觉下限要求工作区加高时,当拍重派工作区高(按 props.height 排版的页一起长高)
+            window.addEventListener('horosa:chart-floor', ()=>{ syncWorkspaceHeight(); });
 
             // [Tahoe 三保险] WKWebView 有 window resize 缺席前科(macOS 26 实报拖窗不重排);
             // visualViewport 是独立事件源,复用同一 80ms 去抖入口——健康引擎上只是同一次
@@ -850,10 +884,44 @@ export default {
                 const el = document.getElementById('mainContent');
                 if(!el){ return; }
                 try{
-                    workspaceRO = new ResizeObserver(handleResize);
+                    // 容器尺寸变了(换缩放档 / 页头变高 / 拖窗)就**当帧**同步工作区高,不走 80ms 去抖:
+                    // 去抖期间各页仍按旧档的像素高排版,换档瞬间底栏先停在半屏 / 冲出视口一两帧(整页闪一下)。
+                    // 观察的是最外层版面容器,它的尺寸由外壳决定、不随页内内容变 → 回调里同步改页内高度不构成 RO 回环。
+                    // 窗口 resize / visualViewport 事件仍走去抖(拖窗时事件成串,容器真变了 RO 会当帧补上)。
+                    workspaceRO = new ResizeObserver(()=>{
+                        if(resizeTimer){ clearTimeout(resizeTimer); resizeTimer = null; }
+                        syncWorkspaceHeight();
+                        // 换档帧:工作区高已同步落定,随即把全部延帧观察器按现量同步跑一遍(utils/deferredResizeObserver 登记表)——
+                        // 换档后第一帧各盘即按终值排(此前紫微 / 策天晚 2 帧、三式 / 合盘 / 风水 / 3D 晚 1 帧)。
+                        // 这些观察器看的都是本容器的后代,回调里改后代尺寸不回到本容器,不构成回环;非换档帧它们照旧延帧。
+                        try{
+                            // eslint-disable-next-line global-require
+                            const zs = require('../utils/zoomSyncRemeasure');
+                            if(zs.inZoomChangeFrame()){
+                                // eslint-disable-next-line global-require
+                                const dr = require('../utils/deferredResizeObserver');
+                                // eslint-disable-next-line global-require
+                                const floor = require('../utils/chartTextFloor');
+                                dr.runZoomFrameResizeObservers();
+                                // 第一遍回调可能又改了版面(盘面最小字下限按新档位加宽 / 加高、滚动条冒出收回):同帧里按现量补跑受影响的,直到不再变(上限 4 遍)
+                                for(let i = 0; i < 4; i += 1){
+                                    const floorChanged = floor.runChartTextFloorNow();
+                                    const n = dr.runZoomFrameResizeObservers({ changedOnly: true });
+                                    if(!floorChanged && !n){ break; }
+                                }
+                            }
+                        }catch(e){ /* 登记表异常时退回延帧,不影响工作区高 */ }
+                    });
                     workspaceRO.observe(el);
                 }catch(e){ workspaceRO = null; }
             };
+            // 换档帧判定的 resize 监听开机即挂(第一次换档前必须已在);盘面最小字视觉下限(被缩小的盘按最小字号反推最小渲染宽,中栏不够时工作区横向加宽)
+            try{
+                // eslint-disable-next-line global-require
+                require('../utils/zoomSyncRemeasure').installZoomChangeWatch();
+                // eslint-disable-next-line global-require
+                require('../utils/chartTextFloor').installChartTextFloor();
+            }catch(e){ /* ignore */ }
             // 容器由 React 稍后挂载,首帧未必在;短暂重试到挂上为止(上限内,失败也只是退回 resize 兜底)
             attachWorkspaceObserver();
             let roTries = 0;
@@ -884,7 +952,7 @@ export default {
                 payload:{},
             });                           
 
-            // [R5 S7] 温启直接显示上次的盘:快照按 fetchByChartData 的 record 口径重放(与手动载入命盘同管线)。
+            // 温启直接显示上次的盘:快照按 fetchByChartData 的 record 口径重放(与手动载入命盘同管线)。
             // 请求层 L1/L3 命中不经就绪门 ⇒ 后端未起也能先画;miss 时排队等后端,与手动出盘无异。
             // 桌面壳 / 开关 / 7 天窗 / 坏档 全在 loadBootChartSnapshot 内裁决;checkUser 看到 pending/done 就不再起
             // 「此刻」盘;恢复失败回落「此刻」;用户先动手则丢弃恢复(latest-wins)。
@@ -896,10 +964,10 @@ export default {
                         type: 'astro/save',
                         payload: {
                             bootChartRestore: 'pending',
-                            ...(bootSnap.currentTab ? { currentTab: bootSnap.currentTab, currentSubTab: restoredSubTab(bootSnap.currentTab, bootSnap.currentSubTab) } : {}),
+                            ...(bootSnap.currentTab && RETIRED_MAIN_TABS.indexOf(bootSnap.currentTab) < 0 ? { currentTab: bootSnap.currentTab, currentSubTab: restoredSubTab(bootSnap.currentTab, bootSnap.currentSubTab) } : {}),
                         },
                     });
-                    dispatch({ type: 'astro/fetchByChartData', payload: { ...bootSnap.record, bootRestore: true } });
+                    dispatch({ type: 'astro/fetchByChartData', payload: { ...bootSnap.record, bootRestore: true, ...(bootSnap.fromLibrary ? { bootFromLibrary: true } : {}), ...(!bootSnap.fromLibrary && bootSnap.dayBoundaryUserOverride ? { bootDayBoundaryUserOverride: bootSnap.dayBoundaryUserOverride } : {}), ...(bootSnap.unpinnedTimeAlg !== undefined && bootSnap.unpinnedTimeAlg !== null ? { bootUnpinnedTimeAlg: bootSnap.unpinnedTimeAlg } : {}) } });
                 }
             }catch(e){ /* 恢复是优化不是功能,失败静默回今日路径 */ }
 

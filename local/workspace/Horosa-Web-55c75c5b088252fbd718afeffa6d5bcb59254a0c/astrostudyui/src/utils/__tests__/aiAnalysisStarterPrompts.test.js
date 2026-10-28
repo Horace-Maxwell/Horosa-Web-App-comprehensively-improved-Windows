@@ -3,7 +3,7 @@ import { HELP_DOCS, buildSoftwareHelpContext } from '../aiAnalysisHelpDocs';
 
 describe('classifyQuestion', ()=>{
 	test('软件用法类: 导出 → software/export', ()=>{
-		expect(classifyQuestion('怎么导出 PDF / docx 报告？')).toEqual({ category: 'software', helpKey: 'export' });
+		expect(classifyQuestion('怎么导出 PDF / docx？')).toEqual({ category: 'software', helpKey: 'export' });
 	});
 
 	test('软件用法类: 大限/流年怎么看 → software/concepts.daxian', ()=>{
@@ -53,7 +53,7 @@ describe('classifyQuestion', ()=>{
 	});
 
 	test('buildSoftwareHelpContext: 已知 key 返回对应文档, 未知 key 回退 usage', ()=>{
-		expect(buildSoftwareHelpContext('export')).toContain('导出报告');
+		expect(buildSoftwareHelpContext('export')).toContain(HELP_DOCS.export.slice(0, 8));
 		expect(buildSoftwareHelpContext('不存在的key')).toContain(HELP_DOCS.usage.slice(0, 10));
 	});
 });

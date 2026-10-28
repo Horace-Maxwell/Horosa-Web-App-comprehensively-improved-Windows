@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/zeri/TianxingElectionMain.js b/astrostudyui/src/components/zeri/TianxingElectionMain.js
-index 20615742..a4842293 100644
+index 56e5d31f..31b1f84f 100644
 --- a/astrostudyui/src/components/zeri/TianxingElectionMain.js
 +++ b/astrostudyui/src/components/zeri/TianxingElectionMain.js
 @@ -21,6 +21,8 @@ import AstroKlimata from '../astro/AstroKlimata';
@@ -11,7 +11,7 @@ index 20615742..a4842293 100644
  import { newLeaf, newGroup, compileTree } from '../../divination/zeri/conditionTypes';
  import { runScan } from '../../divination/zeri/scanOrchestrator';
  import { pushHistory } from '../../divination/zeri/schemeStore';
-@@ -88,10 +90,40 @@ export default class TianxingElectionMain extends Component{
+@@ -91,10 +93,40 @@ export default class TianxingElectionMain extends Component{
  			results: null,
  			truncated: false,
  			scanErr: '',
@@ -52,7 +52,7 @@ index 20615742..a4842293 100644
  	}
  
  	componentWillUnmount(){
-@@ -272,15 +304,29 @@ export default class TianxingElectionMain extends Component{
+@@ -297,15 +329,29 @@ export default class TianxingElectionMain extends Component{
  	renderRight({ chart, fields, patchFields }){
  		this._patchFields = patchFields;
  		const chartObj = chart;
@@ -67,7 +67,7 @@ index 20615742..a4842293 100644
  		// 主页的 −100 与辅盘的 −56 折扣都是各自 chrome 的遗产,照抄会在页签底部留等高空白带——用户圈报)。
  		const tabHeight = (this.props.height || 760) - 15;
  		if(!chartObj){
- 			return <div style={{ padding: 16, opacity: 0.6 }}>排盘中…</div>;
+ 			return <div style={{ padding: 16, color: 'var(--horosa-text-secondary)' }}>排盘中…</div>;
  		}
 +		// horosa_zeri_render_slice_v1(W3b-Z2):页签受控化 + FreezeSubTab thunk(照 3D 页
 +		// :498 式样)—— 未激活过的签零构造,激活过的在非激活期跳过 re-render,切回拿本轮
@@ -83,7 +83,7 @@ index 20615742..a4842293 100644
  					<AstroInfo mode="summary" height={tabHeight}
  						value={chartObj} fields={fields}
  						planetDisplay={this.props.planetDisplay}
-@@ -288,8 +334,10 @@ export default class TianxingElectionMain extends Component{
+@@ -313,8 +359,10 @@ export default class TianxingElectionMain extends Component{
  						showAstroMeaning={this.props.showAstroMeaning}
  						showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
  					/>
@@ -94,7 +94,7 @@ index 20615742..a4842293 100644
  					<AstroAspect
  						value={chartObj} height={tabHeight}
  						lotsDisplay={this.props.lotsDisplay}
-@@ -297,8 +345,10 @@ export default class TianxingElectionMain extends Component{
+@@ -322,8 +370,10 @@ export default class TianxingElectionMain extends Component{
  						showPlanetHouseInfo={this.props.showPlanetHouseInfo}
  						showAstroMeaning={this.props.showAstroMeaning}
  					/>
@@ -105,7 +105,7 @@ index 20615742..a4842293 100644
  					<div className="horosa-planet-with-lots" style={{ height: tabHeight }}>
  						<AstroPlanet
  							value={chartObj}
-@@ -311,8 +361,10 @@ export default class TianxingElectionMain extends Component{
+@@ -336,8 +386,10 @@ export default class TianxingElectionMain extends Component{
  							<AstroLots value={chartObj} fill={true} showAstroMeaning={this.props.showAstroMeaning}/>
  						</div>
  					</div>
@@ -116,7 +116,7 @@ index 20615742..a4842293 100644
  					<div style={{ height: tabHeight, overflowY: 'auto', overflowX: 'auto' }}>
  						<AstroInfo mode="classical" height={tabHeight}
  							value={chartObj} fields={fields}
-@@ -332,23 +384,30 @@ export default class TianxingElectionMain extends Component{
+@@ -357,23 +409,30 @@ export default class TianxingElectionMain extends Component{
  							<AstroKlimata value={chartObj} fields={fields} />
  						</div>
  					</div>
@@ -147,10 +147,10 @@ index 20615742..a4842293 100644
  				</TabPane>
  			</XQTabs>
  		);
-@@ -444,13 +503,7 @@ export default class TianxingElectionMain extends Component{
+@@ -468,13 +527,7 @@ export default class TianxingElectionMain extends Component{
+ 					scanEpoch={this._scanEpoch || 0}
  					frozenTree={this._scanUiTree}
- 					resultsStale={!!(this.state.results && this._scanUiJson
- 						&& JSON.stringify({ cfg: this.state.cfg, tree: this.state.tree }) !== this._scanUiJson)}
+ 					resultsStale={!!(this.state.results && this._scanUiJson && this.currentUiJson() !== this._scanUiJson)}
 -					previewDisplay={{
 -						chartDisplay: this.props.chartDisplay,
 -						planetDisplay: this.props.planetDisplay,

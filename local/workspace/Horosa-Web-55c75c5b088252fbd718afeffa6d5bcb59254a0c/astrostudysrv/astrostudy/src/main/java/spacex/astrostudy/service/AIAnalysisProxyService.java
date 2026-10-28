@@ -6,9 +6,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.ProxySelector;
 import java.net.Socket;
+import java.net.IDN;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -30,6 +31,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -37,8 +40,10 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import boundless.exception.ErrorCodeException;
 import boundless.log.AppLoggers;
 import boundless.log.QueueLog;
+import boundless.net.http.LoopbackDirectProxySelector;
 import boundless.spring.help.interceptor.SseHelper;
 import boundless.utility.JsonUtility;
+import boundless.utility.SecretRedactor;
 import boundless.utility.StringUtility;
 
 @Service
@@ -58,11 +63,12 @@ public class AIAnalysisProxyService {
 	private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(120);
 
 	// #9:流式 AI 请求经系统代理(配合启动器 -Djava.net.useSystemProxies=true)。
-	// JDK HttpClient 不调用 .proxy() 时默认完全不走代理;此处显式取 ProxySelector.getDefault(),
-	// 无系统代理时返回 DIRECT、localhost 自动 bypass,行为不变。
+	// JDK HttpClient 不调用 .proxy() 时取「构造那一刻」的默认选择器并定死;构造若早于入口安装,本机地址就会按系统代理走。
+	// 此处显式给「已装好本机直连」的选择器(install 幂等):外部供应商照旧走系统代理,本机模型服务(Ollama 等 127.0.0.1)
+	// 一律直连;无系统代理时 = 直连。
 	private final HttpClient streamHttpClient = HttpClient.newBuilder()
 		.connectTimeout(Duration.ofSeconds(15))
-		.proxy(ProxySelector.getDefault())
+		.proxy(LoopbackDirectProxySelector.install())
 		.followRedirects(HttpClient.Redirect.NORMAL)
 		.build();
 
@@ -84,7 +90,7 @@ public class AIAnalysisProxyService {
 			2, 8, 60L, java.util.concurrent.TimeUnit.SECONDS,
 			new java.util.concurrent.LinkedBlockingQueue<>(16),
 			r -> { Thread t = new Thread(r, "ai-analysis-stream-worker"); t.setDaemon(true); return t; },
-			// [D60] 饱和即拒(AbortPolicy):此前 CallerRunsPolicy 让第 25 路流在 Tomcat 线程上跑最长 30 min,占死请求线程;
+			// 饱和即拒(AbortPolicy):此前 CallerRunsPolicy 让第 25 路流在 Tomcat 线程上跑最长 30 min,占死请求线程;
 			//   controller 捕获 RejectedExecutionException 回 503(580050),客户端按可重试处理
 			new java.util.concurrent.ThreadPoolExecutor.AbortPolicy());
 
@@ -117,7 +123,7 @@ public class AIAnalysisProxyService {
 	 * (assertClientAlive;含 Anthropic ping / signature_delta / 不外显思考、OpenAI 推理段等「无可转发事件」),
 	 * 已关即抛本异常终止读流,try-with-resources 随之关闭上游 InputStream → 上游 LLM 连接断开、生成即停。
 	 * 旧行为一:sendEvent 忽略 send() 的 false 返回值,通道关闭后读流仍把上游整段吸完;
-	 * 旧行为二([Q-325/M-126]):只在下一次 sendEvent 返回 false 时才抛 → 首个正文 / 用量 / 工具增量到达之前
+	 * 旧行为二:只在下一次 sendEvent 返回 false 时才抛 → 首个正文 / 用量 / 工具增量到达之前
 	 * (推理模型思考阶段可长达数十秒)上游继续生成计费。
 	 */
 	static final class ClientGoneException extends RuntimeException {
@@ -126,7 +132,7 @@ public class AIAnalysisProxyService {
 		}
 	}
 
-	/** [Q-325/M-126] 每个上游事件开头调用:通道已关(心跳写失败 / 停止 / 完成)→ 立即抛 ClientGoneException 掐断上游。 */
+	/** 每个上游事件开头调用:通道已关(心跳写失败 / 停止 / 完成)→ 立即抛 ClientGoneException 掐断上游。 */
 	static void assertClientAlive(SseChannel channel){
 		if(channel != null && channel.isClosed()) {
 			throw new ClientGoneException();
@@ -203,7 +209,7 @@ public class AIAnalysisProxyService {
 				return;
 			}
 			try {
-				// [并发根修] 这里绝不能做「mark 当前线程」(SseHelper 的旧调用):心跳线程无 Request 绑定,
+				// 这里绝不能做「mark 当前线程」(SseHelper 的旧调用):心跳线程无 Request 绑定,
 				// 旧实现首个 tick 即 NPE 被吞 → stopped=true → keep-alive 自池化改造以来一直是死的。
 				// __sse__ 标志由 servlet 线程在 SseHelper.push() 时对真正的请求对象设置,与心跳无关。
 				// 修复 #10(A):经 SseChannel 串行化写;已关闭则返回 false。心跳不再自行 complete,
@@ -237,9 +243,9 @@ public class AIAnalysisProxyService {
 			Map<String, String> headers = buildAuthHeaders(providerType, stringVal(params, "apiKey"), params);
 			responseText = sendUpstreamForText("GET", url, headers, null, params);
 		}else if("gemini".equals(providerType)) {
-			String apiKey = stringVal(params, "apiKey");
-			String url = joinUrl(resolveBaseUrl(providerType, stringVal(params, "baseUrl")), "/models") + "?key=" + urlEncode(apiKey);
-			responseText = sendUpstreamForText("GET", url, null, null, params);
+			// 密钥走请求头 x-goog-api-key(buildAuthHeaders),绝不拼进网址:网址会随异常文字进错误事件与日志
+			String url = joinUrl(resolveBaseUrl(providerType, stringVal(params, "baseUrl")), "/models");
+			responseText = sendUpstreamForText("GET", url, buildAuthHeaders(providerType, stringVal(params, "apiKey"), params), null, params);
 		}else {
 			throw new ErrorCodeException(580002, "暂不支持该 providerType");
 		}
@@ -272,8 +278,7 @@ public class AIAnalysisProxyService {
 			Map<String, Object> body = buildAnthropicBody(model, params, messages, false);
 			responseText = sendUpstreamForText("POST", url, headers, JsonUtility.encode(body), params);
 		}else if("gemini".equals(providerType)) {
-			String apiKey = stringVal(params, "apiKey");
-			String url = joinUrl(resolveBaseUrl(providerType, stringVal(params, "baseUrl")), String.format("/models/%s:generateContent?key=%s", urlEncode(model), urlEncode(apiKey)));
+			String url = joinUrl(resolveBaseUrl(providerType, stringVal(params, "baseUrl")), String.format("/models/%s:generateContent", urlEncode(model)));
 			Map<String, Object> body = buildGeminiBody(params, messages);
 			responseText = sendUpstreamForText("POST", url, headers, JsonUtility.encode(body), params);
 		}else {
@@ -344,7 +349,7 @@ public class AIAnalysisProxyService {
 			sendEvent(channel, "done", donePayload);
 			channel.complete();   // 幂等:SseChannel 保证只 complete 一次,客户端已断也不抛
 		}catch(ClientGoneException e){
-			// [A1 止损] 客户端主动断开(停止按钮/关页):读流已被本异常提前打断,上游 InputStream
+			// 客户端主动断开(停止按钮/关页):读流已被本异常提前打断,上游 InputStream
 			// 随 try-with-resources 关闭 → 上游生成即停、计费即止。这不是错误——不发 error 事件
 			// (对端已不在)、不 completeWithError,info 级记账后幂等收尾。
 			try {
@@ -359,19 +364,15 @@ public class AIAnalysisProxyService {
 			// Issue #8 Fix 1: catch 第一件事必须是把"一级"异常写日志。
 			// 之前这一步缺失，导致 ClientAbort 二级异常掩盖了 Ollama 上游真实失败，
 			// 调试时只能看到 sendEvent 抛 RuntimeException 的镜像 stack，根因黑盒。
-			try {
-				QueueLog.error(AppLoggers.ErrorLogger, e, String.format(
-					"AIAnalysisProxyService.chatStream failed: providerType=%s, model=%s",
-					providerType, model));
-			}catch(Throwable logEx){
-				// 日志层异常永远不能让 catch 自己炸。
-			}
+			logUpstreamFailure(e, String.format(
+				"AIAnalysisProxyService.chatStream failed: providerType=%s, model=%s",
+				providerType, model), params);
 			// sendEvent 给前端发"error"事件——若客户端已断,SseChannel.send 返回 false 不抛;根因已记。
 			try {
 				sendEvent(channel, "error", buildMap(
 					"providerType", providerType,
 					"model", model,
-					"message", safeErrorMessage(e)
+					"message", safeErrorMessage(e, params)
 				));
 			}catch(Exception sendEx){
 				// 客户端已断；放弃前端通知。
@@ -393,7 +394,7 @@ public class AIAnalysisProxyService {
 		result.put("errorDetail", "");
 		result.put("recommendation", "");
 		try{
-			URI uri = URI.create(baseUrl);
+			URI uri = toUpstreamUri(baseUrl);
 			String host = uri.getHost();
 			int port = uri.getPort();
 			if(port <= 0){
@@ -418,10 +419,10 @@ public class AIAnalysisProxyService {
 			String failureReason = classifyFailure(e);
 			result.put("http", buildMap(
 				"ok", false,
-				"message", safeErrorMessage(e)
+				"message", safeErrorMessage(e, params)
 			));
 			result.put("failureReason", failureReason);
-			result.put("errorDetail", safeErrorMessage(e));
+			result.put("errorDetail", safeErrorMessage(e, params));
 			result.put("recommendation", buildFailureRecommendation(providerType, failureReason));
 		}
 		return result;
@@ -458,7 +459,7 @@ public class AIAnalysisProxyService {
 			String baseUrl = resolveBaseUrl(providerType, stringVal(params, "baseUrl"));
 			String apiKey = stringVal(params, "apiKey");
 			for(String input : inputs) {
-				String url = joinUrl(baseUrl, String.format("/models/%s:embedContent?key=%s", urlEncode(model), urlEncode(apiKey)));
+				String url = joinUrl(baseUrl, String.format("/models/%s:embedContent", urlEncode(model)));
 				Map<String, Object> body = new LinkedHashMap<String, Object>();
 				body.put("content", buildMap("parts", Arrays.asList(buildTextPart(input))));
 				String rsp = sendUpstreamForText("POST", url, buildAuthHeaders(providerType, apiKey, params), JsonUtility.encode(body), params);
@@ -471,7 +472,7 @@ public class AIAnalysisProxyService {
 		throw new ErrorCodeException(580032, "当前 provider 暂不支持 embedding");
 	}
 
-	// [D67b] 流中错误帧(200 之后上游在正文帧之间/之后发 {"error":…} / Anthropic event:error / Ollama {"error":"…"}):
+	// 流中错误帧(200 之后上游在正文帧之间/之后发 {"error":…} / Anthropic event:error / Ollama {"error":"…"}):
 	//   此前四条中继只抽 delta/usage/tool,错误帧被当成「没内容的帧」静默吞掉 → 前端把半截正文当完整回答(混沌用例 C01/C02 实抓)。
 	//   现统一打成 "error" SSE 事件(midStream:true)下发;已流出的正文不撤回,由前端记 errorInfo + partial。
 	boolean emitMidStreamUpstreamError(SseChannel channel, String eventName, Map<String, Object> payload){
@@ -494,9 +495,10 @@ public class AIAnalysisProxyService {
 	private void streamOpenAICompatible(Map<String, Object> params, String model, List<Map<String, Object>> messages, SseChannel channel, AIToolCallSupport.StreamOutcome outcome) throws Exception{
 		withHeartbeat(channel, () -> {
 			Map<String, Object> body = buildOpenAIChatBody(model, params, messages, true);
-			final AIToolCallSupport.ToolCallAccumulator toolAcc = new AIToolCallSupport.ToolCallAccumulator(normalizedProviderType(params));
-			String url = joinUrl(resolveBaseUrl(normalizedProviderType(params), stringVal(params, "baseUrl")), "/chat/completions");
-			HttpResponse<InputStream> response = sendStreamWithHeal(url, buildAuthHeaders(normalizedProviderType(params), stringVal(params, "apiKey"), params), JsonUtility.encode(body), params);
+			final String providerType = normalizedProviderType(params);
+			final AIToolCallSupport.ToolCallAccumulator toolAcc = new AIToolCallSupport.ToolCallAccumulator(providerType);
+			String url = joinUrl(resolveBaseUrl(providerType, stringVal(params, "baseUrl")), "/chat/completions");
+			HttpResponse<InputStream> response = sendStreamWithHeal(url, buildAuthHeaders(providerType, stringVal(params, "apiKey"), params), JsonUtility.encode(body), params);
 			readSseStream(response.body(), (eventName, dataText)->{
 				if(StringUtility.isNullOrEmpty(dataText)){
 					return;
@@ -504,7 +506,7 @@ public class AIAnalysisProxyService {
 				if("[DONE]".equalsIgnoreCase(dataText.trim())) {
 					return;
 				}
-				assertClientAlive(channel);   // [Q-325] 无可转发事件(ping / 签名 / 不外显思考)期间也要停
+				assertClientAlive(channel);   // 无可转发事件(ping / 签名 / 不外显思考)期间也要停
 				Map<String, Object> payload = JsonUtility.toDictionary(dataText);
 				if(emitMidStreamUpstreamError(channel, eventName, payload)) { return; }
 				String reasoning = extractOpenAIStreamReasoning(payload);
@@ -536,7 +538,7 @@ public class AIAnalysisProxyService {
 			HttpResponse<InputStream> response = sendStreamWithHeal(url, buildAuthHeaders("ollama", stringVal(params, "apiKey"), params), JsonUtility.encode(body), params);
 			readNdjsonStream(response.body(), (dataText) -> {
 				if(StringUtility.isNullOrEmpty(dataText)) { return; }
-				assertClientAlive(channel);   // [Q-325] 无可转发事件(ping / 签名 / 不外显思考)期间也要停
+				assertClientAlive(channel);   // 无可转发事件(ping / 签名 / 不外显思考)期间也要停
 				Map<String, Object> payload = JsonUtility.toDictionary(dataText);
 				if(emitMidStreamUpstreamError(channel, null, payload)) { return; }
 				Object msg = payload.get("message");
@@ -563,7 +565,7 @@ public class AIAnalysisProxyService {
 	}
 
 	// Ollama 原生 body：messages 同 OpenAI({role,content})；num_ctx/num_predict/top_k/top_p/repeat_penalty/temperature
-	// 一律嵌入 options:{}（原生口才读 options）；[Q-062/AW-35] keep_alive 等官方顶层键留顶层（OLLAMA_TOP_LEVEL_KEYS）。
+	// 一律嵌入 options:{}（原生口才读 options）；keep_alive 等官方顶层键留顶层（OLLAMA_TOP_LEVEL_KEYS）。
 	Map<String, Object> buildOllamaNativeBody(String model, Map<String, Object> params, List<Map<String, Object>> messages, boolean stream){
 		messages = stripCacheMarkersInMessages(messages); // 本地推理无前缀缓存概念，剥标记防污染正文
 		Map<String, Object> body = new LinkedHashMap<String, Object>();
@@ -601,14 +603,14 @@ public class AIAnalysisProxyService {
 		List<String> stops = anthropicStopList(stopVal);
 		if(!stops.isEmpty()) { opts.put("stop", stops); }
 		// Ollama 不支持 response_format / 惩罚 / 思考档 → 丢弃以避免 400。
-		// [C3] 例外:json_schema 翻成 Ollama 原生 format=schema 对象(json_object 仍按旧行为丢弃,零回归)。
+		// 例外:json_schema 翻成 Ollama 原生 format=schema 对象(json_object 仍按旧行为丢弃,零回归)。
 		applyOllamaResponseFormat(body, prov.remove("response_format"));
 		prov.remove("frequency_penalty");
 		prov.remove("presence_penalty");
 		prov.remove("thinking");
 		prov.remove("thinkingConfig");
 		for(Map.Entry<String, Object> e : prov.entrySet()) {
-			// [Q-062/AW-35] Ollama 原生 /api/chat 的**顶层**键(think / format / keep_alive / raw / suffix / template / system)
+			// Ollama 原生 /api/chat 的**顶层**键(think / format / keep_alive / raw / suffix / template / system)
 			// 必须放顶层:此前除 keep_alive 外一律塞进 options ⇒ 用户在「额外请求体」里写的 think:true、format 等厂家私有
 			// 顶层参数一概失效(Ollama 对 options 里的未知键是静默忽略,连报错都没有)。采样类仍进 options。
 			// 已被前面的结构化输出翻译等逻辑写过的顶层键不覆盖(例如 response_format → format),只补没有的
@@ -617,14 +619,14 @@ public class AIAnalysisProxyService {
 		}
 		body.put("options", opts);
 		List<Map<String, Object>> ollamaTools = AIToolCallSupport.toolsForOpenAI(params.get("tools"));
-		// [D75] Ollama 原生口没有 tool_choice:收口轮 toolChoice=none 时干脆不带 tools(此前 tools 照带、none 被静默丢弃,
+		// Ollama 原生口没有 tool_choice:收口轮 toolChoice=none 时干脆不带 tools(此前 tools 照带、none 被静默丢弃,
 		//   模型仍可发调用 ⇒ 页面「调用轮数已达上限」噪音 + 白耗一轮);无 tools / 非 none 的请求体逐字节同今日。
 		boolean ollamaClosing = "none".equals(AIToolCallSupport.toolChoiceNorm(params.get("toolChoice")));
 		if(!ollamaTools.isEmpty() && !ollamaClosing) { body.put("tools", ollamaTools); }
 		return body;
 	}
 
-	// [Q-062/AW-35] Ollama 原生 /api/chat 的顶层键(其余一律进 options)。官方 body 字段,只增不删。
+	// Ollama 原生 /api/chat 的顶层键(其余一律进 options)。官方 body 字段,只增不删。
 	private static final Set<String> OLLAMA_TOP_LEVEL_KEYS = new LinkedHashSet<String>(Arrays.asList(
 		"keep_alive", "think", "format", "raw", "suffix", "template", "system"));
 
@@ -694,7 +696,7 @@ public class AIAnalysisProxyService {
 				if(StringUtility.isNullOrEmpty(dataText)){
 					return;
 				}
-				assertClientAlive(channel);   // [Q-325] 无可转发事件(ping / 签名 / 不外显思考)期间也要停
+				assertClientAlive(channel);   // 无可转发事件(ping / 签名 / 不外显思考)期间也要停
 				Map<String, Object> payload = JsonUtility.toDictionary(dataText);
 				if(emitMidStreamUpstreamError(channel, eventName, payload)) { return; }
 				// #54-G：先抽思考增量(thinking_delta)走 reasoning 通道，再抽正文 delta；二者互斥(同一 delta 只命中其一)。
@@ -721,14 +723,14 @@ public class AIAnalysisProxyService {
 		withHeartbeat(channel, () -> {
 			final AIToolCallSupport.ToolCallAccumulator toolAcc = new AIToolCallSupport.ToolCallAccumulator("gemini");
 			String apiKey = stringVal(params, "apiKey");
-			String url = joinUrl(resolveBaseUrl("gemini", stringVal(params, "baseUrl")), String.format("/models/%s:streamGenerateContent?alt=sse&key=%s", urlEncode(model), urlEncode(apiKey)));
+			String url = joinUrl(resolveBaseUrl("gemini", stringVal(params, "baseUrl")), String.format("/models/%s:streamGenerateContent?alt=sse", urlEncode(model)));
 			Map<String, Object> body = buildGeminiBody(params, messages);
 			HttpResponse<InputStream> response = sendStreamWithHeal(url, buildAuthHeaders("gemini", apiKey, params), JsonUtility.encode(body), params);
 			readSseStream(response.body(), (eventName, dataText)->{
 				if(StringUtility.isNullOrEmpty(dataText)){
 					return;
 				}
-				assertClientAlive(channel);   // [Q-325] 无可转发事件(ping / 签名 / 不外显思考)期间也要停
+				assertClientAlive(channel);   // 无可转发事件(ping / 签名 / 不外显思考)期间也要停
 				Map<String, Object> payload = JsonUtility.toDictionary(dataText);
 				if(emitMidStreamUpstreamError(channel, eventName, payload)) { return; }
 				// #54-G：先抽思考增量(part.thought==true)走 reasoning 通道，再抽正文 delta(已剔除思考 part)。
@@ -770,9 +772,15 @@ public class AIAnalysisProxyService {
 		return "openai-compatible".equals(family) || "ollama".equals(family);
 	}
 
+	// 接口地址先清掉看不见的字符(零宽 / 方向控制字符、首尾 Unicode 空白):单源 UpstreamUrlText.clean,联网检索地址同口径
+	static String cleanBaseUrl(String raw){
+		return UpstreamUrlText.clean(raw);
+	}
+
 	static String resolveBaseUrl(String providerType, String baseUrl){
-		if(!StringUtility.isNullOrEmpty(baseUrl)) {
-			return trimTrailingSlash(baseUrl.trim());
+		String cleaned = cleanBaseUrl(baseUrl);
+		if(!StringUtility.isNullOrEmpty(cleaned)) {
+			return trimTrailingSlash(cleaned);
 		}
 		if("deepseek".equals(providerType)) {
 			return DEFAULT_DEEPSEEK_BASE;
@@ -835,19 +843,20 @@ public class AIAnalysisProxyService {
 		Map<String, String> headers = new HashMap<String, String>();
 		headers.put("Content-Type", "application/json; charset=UTF-8");
 		String key = apiKey == null ? "" : apiKey.trim();
+		Map<String, Object> options = providerOptionsMap(params);
 		if("anthropic".equals(providerType)) {
 			headers.put("x-api-key", key);
-			String apiVersion = stringFromAny(providerOptionsMap(params).get("apiVersion"));
+			String apiVersion = stringFromAny(options.get("apiVersion"));
 			headers.put("anthropic-version", StringUtility.isNullOrEmpty(apiVersion) ? "2023-06-01" : apiVersion);
 		}else if(!StringUtility.isNullOrEmpty(key) && !"ollama".equals(providerType) && !"gemini".equals(providerType)) {
-			// Gemini 走 URL ?key=,不能再加 Authorization,否则原生接口报 ACCESS_TOKEN_TYPE_UNSUPPORTED。
+			// Gemini 的密钥走 x-goog-api-key(见下),不能再加 Authorization,否则原生接口报 ACCESS_TOKEN_TYPE_UNSUPPORTED。
 			// 其它默认 Authorization: Bearer;允许 custom 用 providerOptions.authHeaderName/authPrefix 覆盖,
 			// 以兼容要求非 Bearer 方案的官方原生 key(authPrefix 设为 "" 即发原始 key)。
-			String authHeaderName = stringFromAny(providerOptionsMap(params).get("authHeaderName"));
+			String authHeaderName = stringFromAny(options.get("authHeaderName"));
 			if(StringUtility.isNullOrEmpty(authHeaderName)) {
 				authHeaderName = "Authorization";
 			}
-			Object prefixObj = providerOptionsMap(params).get("authPrefix");
+			Object prefixObj = options.get("authPrefix");
 			String authPrefix;
 			if(prefixObj == null) {
 				authPrefix = "Authorization".equalsIgnoreCase(authHeaderName) ? "Bearer " : "";
@@ -856,11 +865,15 @@ public class AIAnalysisProxyService {
 			}
 			headers.put(authHeaderName, authPrefix + key);
 		}
+		if("gemini".equals(providerType) && !StringUtility.isNullOrEmpty(key)) {
+			// 官方支持的请求头写法(不是 Authorization);此前拼在网址 ?key= 里,网址不合法时随 URI 异常文字进对话与日志
+			headers.put("x-goog-api-key", key);
+		}
 		if("openrouter".equals(providerType)) {
 			headers.put("HTTP-Referer", "https://www.horosa.com");
 			headers.put("X-Title", "Horosa AI Analysis");
 		}
-		Map<String, Object> extraHeaders = mapVal(providerOptionsMap(params).get("extraHeaders"));
+		Map<String, Object> extraHeaders = mapVal(options.get("extraHeaders"));
 		for(Map.Entry<String, Object> entry : extraHeaders.entrySet()) {
 			String headerName = entry.getKey();
 			String headerValue = stringFromAny(entry.getValue());
@@ -1093,7 +1106,7 @@ public class AIAnalysisProxyService {
 		}
 		String text = joinTextParts((List)contentObj);
 		if(!text.isEmpty()) { return text; }
-		// [C3] 非流式结构化输出走「强制 schema 工具」:正文为空而有 tool_use 块 → 其 input 即 JSON 结果
+		// 非流式结构化输出走「强制 schema 工具」:正文为空而有 tool_use 块 → 其 input 即 JSON 结果
 		for(Object part : (List)contentObj) {
 			if(part instanceof Map && "tool_use".equals(stringFromAny(((Map)part).get("type"))) && ((Map)part).get("input") instanceof Map) {
 				return JsonUtility.encode(((Map)part).get("input"));
@@ -1327,11 +1340,37 @@ public class AIAnalysisProxyService {
 		if(slash >= 0) {
 			m = m.substring(slash + 1);
 		}
-		return m.startsWith("gpt-5") || m.startsWith("gpt5")
-			|| m.startsWith("gpt-6") || m.startsWith("gpt6")
-			|| m.startsWith("gpt-7") || m.startsWith("gpt7")
-			|| m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4")
-			|| m.startsWith("o5") || m.startsWith("o6") || m.startsWith("o7");
+		// 按代际数字比较(gpt 主版本 ≥5、o 系主版本 ≥1),新一代(gpt-8 / o9 …)上线不必改名单;
+		// 此前写死 gpt-5/6/7、o1/3–7 的前缀名单,新一代即漏判、照发 temperature / max_tokens。与前端 isOpenAIReasoningModel 共用一份对拍用例表。
+		java.util.regex.Matcher gpt = OPENAI_GPT_GEN_PATTERN.matcher(m);
+		if(gpt.find()) {
+			return gptMajorOf(gpt.group(1)) >= 5;
+		}
+		java.util.regex.Matcher o = OPENAI_O_GEN_PATTERN.matcher(m);
+		return o.find() && parseMajor(o.group(1)) >= 1;
+	}
+	private static final java.util.regex.Pattern OPENAI_GPT_GEN_PATTERN = java.util.regex.Pattern.compile("^gpt-?(\\d+)");
+	private static final java.util.regex.Pattern OPENAI_O_GEN_PATTERN = java.util.regex.Pattern.compile("^o(\\d+)");
+	// gpt 主版本(与前端 aiAnalysisProviders.gptMajorOf 同一条规则,共用对拍用例表):一位数 = 主版本;1 开头的两位数 = 两位代际(gpt-10);
+	// 别的两位数 = Azure 去点写法(gpt-35-turbo = gpt-3.5 → 3);三位及以上不认(-1)。此前 gpt-35 被读成 35 代 → 判成推理模型
+	static long gptMajorOf(String digits){
+		if(digits == null || digits.isEmpty()) {
+			return -1;
+		}
+		if(digits.length() == 1) {
+			return digits.charAt(0) - '0';
+		}
+		if(digits.length() == 2) {
+			return digits.charAt(0) == '1' ? parseMajor(digits) : (digits.charAt(0) - '0');
+		}
+		return -1;
+	}
+	private static long parseMajor(String digits){
+		try {
+			return Long.parseLong(digits.length() > 9 ? digits.substring(0, 9) : digits);
+		} catch(NumberFormatException e) {
+			return -1;
+		}
 	}
 
 	// 广义「推理模型」:除 OpenAI o/gpt-5 系外,还含 DeepSeek reasoner / *-r1 / 通用 reasoning|thinking 命名,
@@ -1500,7 +1539,7 @@ public class AIAnalysisProxyService {
 			long cached = numLong(((Map)ptd).get("cached_tokens"));
 			if(cached > 0) { out.put("cache_read_input_tokens", cached); }
 		}
-		// [A1b] DeepSeek 兼容口把缓存命中放在顶层 prompt_cache_hit_tokens(无 prompt_tokens_details);
+		// DeepSeek 兼容口把缓存命中放在顶层 prompt_cache_hit_tokens(无 prompt_tokens_details);
 		// 只在标准字段缺席时补映射,前端缓存命中率/计价才有数(否则 A/B 恒 INCONCLUSIVE)。
 		if(!out.containsKey("cache_read_input_tokens")) {
 			long hit = numLong(mu.get("prompt_cache_hit_tokens"));
@@ -1585,8 +1624,9 @@ public class AIAnalysisProxyService {
 		body.put("stream", stream);
 		List<Map<String, Object>> normalized = new ArrayList<Map<String, Object>>();
 		List<String> systemParts = new ArrayList<String>();
+		Map<String, Object> aprov = buildProviderBodyOptions(params);
 		// AI 助手:思考档开启时,带 tool_use 的 assistant 消息必须回放签名 thinking 块(上游硬约束),提前探一次开关
-		final boolean anthropicThinkingPeek = AIToolCallSupport.anthropicThinkingEnabled(buildProviderBodyOptions(params), model);
+		final boolean anthropicThinkingPeek = AIToolCallSupport.anthropicThinkingEnabled(aprov, model);
 		for(Map<String, Object> one : messages) {
 			String role = stringVal(one, "role");
 			String content = stringVal(one, "content");
@@ -1675,7 +1715,6 @@ public class AIAnalysisProxyService {
 				}
 			}
 		}
-		Map<String, Object> aprov = buildProviderBodyOptions(params);
 		// 2B/2G/2H：Anthropic 显式映射停止序列、思考档。
 		Object stopVal = aprov.remove("stop");
 		List<String> stopList = anthropicStopList(stopVal);
@@ -1687,7 +1726,7 @@ public class AIAnalysisProxyService {
 		//    ② 不兼容 top_p / top_k 修改；③ max_tokens 必须 > thinking.budget_tokens。
 		//    历史 bug：buildAnthropicBody 无条件发 temperature(默认 0.7) 并透传 top_k → 用户一旦开「思考档」,
 		//    聊天/测试连接必 400（"temperature ... only ... when thinking is enabled"）。本修复让思考档真正可用、零报错。
-		// [Q-024/Q-049/Q-050/Q-063] 按官方每型号表分两族(anthropicThinkingMode):
+		// 按官方每型号表分两族(anthropicThinkingMode):
 		//    adaptive 族(Opus 4.7 起 / Sonnet 5 / Fable / Mythos):思考形态 thinking:{type:adaptive} + output_config.effort,
 		//      budget_tokens 已弃用(旧档案的 enabled+budget 在此转 adaptive,预算按档映射 effort);**不接受采样参数**(与思考开关无关);
 		//      Fable/Mythos 思考恒开:disabled 不发(否则 400),改 effort=low 表达「最省」。
@@ -1756,7 +1795,7 @@ public class AIAnalysisProxyService {
 			}
 			if(thinkingObj != null) { body.put("thinking", thinkingObj); }
 		}
-		// [Q-047/M-58] 自适应族(Sonnet 5 / Opus 5 / Opus 4.7+ / Fable / Mythos)的 display 缺省 omitted:思考块只回空正文 + 签名,
+		// 自适应族(Sonnet 5 / Opus 5 / Opus 4.7+ / Fable / Mythos)的 display 缺省 omitted:思考块只回空正文 + 签名,
 		//   页面「思考过程」恒空而思考 token 照计费。思考开启(adaptive / enabled)且档案未显式指定时发 display:"summarized"
 		//   (官方:display 两种模式皆可用;与 disabled 同发无效,故关闭档不加)。预算族缺省本就 summarized,不动。
 		if(adaptiveFamily && thinkingEnabled && body.get("thinking") instanceof Map) {
@@ -1786,7 +1825,7 @@ public class AIAnalysisProxyService {
 		// 频率/存在惩罚、response_format 都不是 Anthropic 字段，直接丢弃避免 400。
 		aprov.remove("frequency_penalty");
 		aprov.remove("presence_penalty");
-		// [C3] response_format:非流式 json_schema → 翻成「强制调用一个 schema 工具」(tool_use.input 即 JSON,extractAnthropicContent 取回);
+		// response_format:非流式 json_schema → 翻成「强制调用一个 schema 工具」(tool_use.input 即 JSON,extractAnthropicContent 取回);
 		//      流式 / 已带真实工具 / json_object → 与旧行为同(丢弃)。
 		Map<String, Object> forcedSchemaTool = anthropicForcedSchemaTool(aprov.remove("response_format"), stream, params.get("tools"));
 		body.putAll(aprov);
@@ -1801,7 +1840,7 @@ public class AIAnalysisProxyService {
 		} else if(forcedSchemaTool != null) {
 			body.put("tools", java.util.Collections.singletonList(forcedSchemaTool));
 			Map<String, Object> forcedChoice = new LinkedHashMap<String, Object>();
-			// [Q-293/M-108 裁决 2026-09-18] 思考开启(显式 enabled / adaptive,或型号缺省开且未显式 disabled)时 Anthropic 不接受强制
+			// 思考开启(显式 enabled / adaptive,或型号缺省开且未显式 disabled)时 Anthropic 不接受强制
 			// tool_choice(tool / any)→ 此前恒强制 = 400 = 结构化短调用恒回落。改 auto:模型仍可调用该 schema 工具(tool_use.input 即 JSON,
 			// extractAnthropicContent 取回);不调用则回落文本 JSON 由前端解析。思考关闭时照旧强制。
 			if(anthropicThinkingActive(body, model)) {
@@ -1816,7 +1855,7 @@ public class AIAnalysisProxyService {
 		return body;
 	}
 
-	// [Q-024] Anthropic 思考形态族(与前端 aiAnalysisProviders.anthropicThinkingMode 同一张表,改一处必改另一处):
+	// Anthropic 思考形态族(与前端 aiAnalysisProviders.anthropicThinkingMode 同一张表,改一处必改另一处):
 	//   "adaptive" = Opus 4.7 起(4.7/4.8/5)、Sonnet 5、Fable、Mythos;"budget" = Haiku(含 4.5/5)、Sonnet 4.x、Opus ≤4.6、3.x、未知命名。
 	static String anthropicThinkingMode(String model){
 		String m = anthropicModelKey(model);
@@ -1832,7 +1871,7 @@ public class AIAnalysisProxyService {
 		return "budget";
 	}
 	/** Fable / Mythos:思考恒开、不可 disabled。 */
-	/** [Q-293/M-108] 本次请求思考是否生效:body 已带 thinking 则看其 type(disabled=关),未带则按型号缺省(anthropicThinkingDefaultOn)。 */
+	/** 本次请求思考是否生效:body 已带 thinking 则看其 type(disabled=关),未带则按型号缺省(anthropicThinkingDefaultOn)。 */
 	static boolean anthropicThinkingActive(Map<String, Object> body, String model){
 		Object th = body == null ? null : body.get("thinking");
 		if(th instanceof Map) {
@@ -1842,7 +1881,7 @@ public class AIAnalysisProxyService {
 		return anthropicThinkingDefaultOn(model);
 	}
 
-	/** [Q-047/M-58] 不带 thinking 字段时思考是否缺省开启(官方每型号表):Fable / Mythos 恒开;Sonnet 5 / Opus 5 缺省开;
+	/** 不带 thinking 字段时思考是否缺省开启(官方每型号表):Fable / Mythos 恒开;Sonnet 5 / Opus 5 缺省开;
 	 *  Opus 4.6–4.8、Sonnet 4.6 与预算族(Haiku / 4.5 及更早)不带即关。 */
 	static boolean anthropicThinkingDefaultOn(String model){
 		if(anthropicAlwaysThinking(model)) { return true; }
@@ -1862,7 +1901,8 @@ public class AIAnalysisProxyService {
 	static boolean anthropicSamplingExclusive(String model){
 		return anthropicModelKey(model).startsWith("claude-haiku-4-5");
 	}
-	private static final java.util.regex.Pattern ANTHROPIC_FAMILY_RE = java.util.regex.Pattern.compile("^claude-(opus|sonnet|haiku)-(\\d+)(?:[-.](\\d+))?");
+	// 小版本号只认 1–2 位且后面不跟数字:8 位日期段(claude-opus-4-20250514)是日期后缀,不是小版本(与前端 ANTHROPIC_FAMILY_RE 同一条正则)
+	private static final java.util.regex.Pattern ANTHROPIC_FAMILY_RE = java.util.regex.Pattern.compile("^claude-(opus|sonnet|haiku)-(\\d+)(?:[-.](\\d{1,2})(?!\\d))?");
 	private static String anthropicModelKey(String model){
 		String m = model == null ? "" : model.trim().toLowerCase();
 		int slash = m.lastIndexOf('/');
@@ -1936,8 +1976,8 @@ public class AIAnalysisProxyService {
 		Map<String, Object> gprov = buildProviderBodyOptions(params);
 		Map<String, Object> genCfgIn = gprov.get("generationConfig") instanceof Map ? (Map<String, Object>) gprov.remove("generationConfig") : null;
 		Map<String, Object> generationConfig = new LinkedHashMap<String, Object>();
-		// 温度参数:[Q-025] providerOptions.temperature 优先于顶层 params.temperature(与 OpenAI 路径 putAll 覆盖序一致;
-		// 此前 gprov.temperature 在末尾被 remove 静默丢弃 → 档案温度对 Gemini 永不生效);[Q-031] 同时认 Gemini 原生 camelCase
+		// 温度参数:providerOptions.temperature 优先于顶层 params.temperature(与 OpenAI 路径 putAll 覆盖序一致;
+		// 此前 gprov.temperature 在末尾被 remove 静默丢弃 → 档案温度对 Gemini 永不生效);同时认 Gemini 原生 camelCase
 		// topP/topK/maxOutputTokens(此前 camelCase 落到请求顶层 400 / maxOutputTokens 直接丢弃)。
 		Object tProv = gprov.remove("temperature");
 		Object t = tProv != null ? (Object) numVal(tProv, 0.7) : (Object) numVal(params.get("temperature"), 0.7);
@@ -1961,7 +2001,7 @@ public class AIAnalysisProxyService {
 		List<String> existingStops = anthropicStopList(gprov.remove("stopSequences"));
 		if(!existingStops.isEmpty()) { stops.addAll(existingStops); }
 		if(!stops.isEmpty()) { generationConfig.put("stopSequences", stops); }
-		// response_format → responseMimeType;[C3] json_schema → 再加 responseSchema(经 sanitizeGeminiSchema 去 additionalProperties/$defs 等 Gemini 不认的键)
+		// response_format → responseMimeType;json_schema → 再加 responseSchema(经 sanitizeGeminiSchema 去 additionalProperties/$defs 等 Gemini 不认的键)
 		Map<String, Object> rfSpec = responseFormatSpec(gprov.remove("response_format"));
 		if(rfSpec != null) {
 			String typ = String.valueOf(rfSpec.get("type"));
@@ -2043,7 +2083,7 @@ public class AIAnalysisProxyService {
 		return part;
 	}
 
-	/** [Q-411/M-157 2026-09-18] 超时单源钳位(与前端 services/aianalysis.js resolveRequestTimeout 同口径):
+	/** 超时单源钳位(与前端 services/aianalysis.js resolveRequestTimeout 同口径):
 	 *  未设(≤0)→ 0(流式不封顶 / 非流式取各自缺省);<1000 视为误填秒数 → 120000;>600000 封顶 600000。
 	 *  此前 Java 直接用原值:填 500 时 Java 0.5 秒超时、前端按 120 秒等,两端解释不一。 */
 	static int clampRequestTimeoutMs(int raw){
@@ -2056,7 +2096,7 @@ public class AIAnalysisProxyService {
 	private HttpRequest buildJsonRequest(String url, Map<String, String> headers, String json, Map<String, Object> params){
 		int timeoutMs = clampRequestTimeoutMs(intVal(providerOptionsMap(params).get("requestTimeoutMs"), 0));
 		HttpRequest.Builder builder = HttpRequest.newBuilder()
-			.uri(URI.create(url))
+			.uri(toUpstreamUri(url))
 			.POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8));
 		// streaming exchanges: only cap when the user set an explicit timeout; otherwise let slow local LLMs run (connectTimeout still guards connect)
 		// [Windows #77 语义注] JDK HttpRequest.timeout 对 ofInputStream 流式响应只管到「响应头到达」
@@ -2082,7 +2122,7 @@ public class AIAnalysisProxyService {
 				return sendUpstreamForTextOnce(method, url, headers, body, params);
 			} catch(UpstreamHttpException e) {
 				String healed = (heal < MAX_PARAM_HEALS && "POST".equalsIgnoreCase(method))
-					? healUpstreamRequestBody(e.getUpstreamStatus(), e.getUpstreamBody(), body, stringVal(params, "providerType")) : null;   // [Q-396] 改键只对 OpenAI 兼容家族
+					? healUpstreamRequestBody(e.getUpstreamStatus(), e.getUpstreamBody(), body, stringVal(params, "providerType")) : null;   // 改键只对 OpenAI 兼容家族
 				if(healed == null) {
 					throw e;
 				}
@@ -2093,9 +2133,9 @@ public class AIAnalysisProxyService {
 	}
 
 	private String sendUpstreamForTextOnce(String method, String url, Map<String, String> headers, String json, Map<String, Object> params) {
-		int timeoutMs = clampRequestTimeoutMs(intVal(providerOptionsMap(params).get("requestTimeoutMs"), 0));   // [Q-411/M-157]
+		int timeoutMs = clampRequestTimeoutMs(intVal(providerOptionsMap(params).get("requestTimeoutMs"), 0));
 		HttpRequest.Builder builder = HttpRequest.newBuilder()
-			.uri(URI.create(url))
+			.uri(toUpstreamUri(url))
 			.timeout(Duration.ofMillis(timeoutMs > 0 ? timeoutMs : 60000));
 		boolean isPost = "POST".equalsIgnoreCase(method);
 		if(isPost) {
@@ -2112,7 +2152,7 @@ public class AIAnalysisProxyService {
 			}
 		}
 		HttpRequest request = builder.build();
-		// [C8d] 非流式与流式同享「首字节前」瞬态退避重试(429/5xx/连接层):整块响应在拿到 2xx 之前重试不会重复吐 token;尊重 Retry-After。
+		// 非流式与流式同享「首字节前」瞬态退避重试(429/5xx/连接层):整块响应在拿到 2xx 之前重试不会重复吐 token;尊重 Retry-After。
 		// 此前只有流式路径有重试,判官/标题/示例提问/嵌入等非流式调用遇 429 直接失败(限流用例实抓)。
 		int extra = intVal(providerOptionsMap(params).get("maxRetries"), DEFAULT_STREAM_RETRIES);
 		if(extra < 0) { extra = 0; }
@@ -2142,9 +2182,9 @@ public class AIAnalysisProxyService {
 					sleepQuietly(wait);
 					continue;
 				}
-				throw new ErrorCodeException(580022, "上游 provider 请求异常：" + safeErrorMessage(e));
+				throw new ErrorCodeException(580022, "上游 provider 请求异常：" + safeErrorMessage(e, params));
 			}catch(Exception e){
-				throw new ErrorCodeException(580022, "上游 provider 请求异常：" + safeErrorMessage(e));
+				throw new ErrorCodeException(580022, "上游 provider 请求异常：" + safeErrorMessage(e, params));
 			}
 		}
 	}
@@ -2165,7 +2205,8 @@ public class AIAnalysisProxyService {
 		if(!StringUtility.isNullOrEmpty(raw) && !raw.equals(friendly)) {
 			sb.append("（原始响应：").append(raw).append("）");
 		}
-		return sb.toString();
+		// 上游错误体有时回显请求(含查询串 / 头):按密钥形态兜底脱敏后才进回包与日志
+		return redactSecrets(sb.toString());
 	}
 
 	// ── 上游参数自愈层(Windows #47 制度化) ─────────────────────────────────────
@@ -2198,7 +2239,7 @@ public class AIAnalysisProxyService {
 	// 覆盖三种容器:顶层(OpenAI 兼容/Anthropic)、options(Ollama 原生)、generationConfig(Gemini);
 	// 另支持一条改名规则:错误文点名 max_completion_tokens 时把 max_tokens 原值改键重发(OpenAI 新推理系)。
 	@SuppressWarnings("unchecked")
-	// ── [C3] 结构化输出四家翻译:前端只产 OpenAI 形 response_format{type:"json_schema",json_schema:{name,schema,strict}} ──
+	// ── 结构化输出四家翻译:前端只产 OpenAI 形 response_format{type:"json_schema",json_schema:{name,schema,strict}} ──
 	//   OpenAI 家族:透传(网关不认 → 自愈两级降级);Anthropic:非流式强制 schema 工具;Gemini:responseSchema;Ollama:format=schema。
 	static final String STRUCTURED_TOOL_NAME_FALLBACK = "horosa_output";
 
@@ -2305,7 +2346,7 @@ public class AIAnalysisProxyService {
 	}
 
 	/**
-	 * [Q-396] 改键自愈只对 OpenAI 兼容家族。Anthropic 的 max_tokens 是**必填**键,把它改成 max_completion_tokens
+	 * 改键自愈只对 OpenAI 兼容家族。Anthropic 的 max_tokens 是**必填**键,把它改成 max_completion_tokens
 	 * 必然再 400(Field required),且第二条错误会把第一条的真因(通常是「超出该型号输出上限」)整个盖掉。
 	 * Gemini(maxOutputTokens)/ Ollama(num_predict)同理不该被改键。providerType 缺省(空)= 按 OpenAI 兼容处理,
 	 * 与自愈层引入时的历史行为一致。
@@ -2315,7 +2356,7 @@ public class AIAnalysisProxyService {
 		return !("anthropic".equals(p) || "gemini".equals(p) || "ollama".equals(p));
 	}
 
-	// [Q-396] 「值越界」类报错(max_tokens 太大 / 超出模型上限 / 必须小于 N)是值的问题,不是键的问题 —— 一律不改键。
+	// 「值越界」类报错(max_tokens 太大 / 超出模型上限 / 必须小于 N)是值的问题,不是键的问题 —— 一律不改键。
 	private static final java.util.regex.Pattern MAX_TOKENS_RANGE_RE = java.util.regex.Pattern.compile(
 		"max_tokens[\\s\\S]{0,160}?(too large|too small|too big|too many|exceed|maximum allowed|minimum|greater than|less than|out of range|must be|上限|超过|至多)");
 
@@ -2344,7 +2385,7 @@ public class AIAnalysisProxyService {
 		// 改键自愈：上游点名替代键固然最好；但有的网关只回「'max_tokens' 不支持」而不点名替代者
 		// ——那也照改（该键在 OpenAI 兼容面上的唯一替代就是 max_completion_tokens）。
 		boolean namesModernKey = msg.contains("max_completion_tokens");
-		// [Q-396] 刻意不再认裸 "invalid":Anthropic 的错误体 type 恒为 invalid_request_error,任何 max_tokens 越界
+		// 刻意不再认裸 "invalid":Anthropic 的错误体 type 恒为 invalid_request_error,任何 max_tokens 越界
 		// 报错都会命中这条 → 改键后因缺必填 max_tokens 再 400,原始真因被第二条错误盖掉。只认「这个键不支持」类措辞。
 		boolean rejectsLegacyKey = msg.contains("max_tokens")
 			&& (msg.contains("unsupported") || msg.contains("not supported") || msg.contains("unknown"));
@@ -2357,7 +2398,7 @@ public class AIAnalysisProxyService {
 			}
 			changed = true;
 		}
-		// [C3] 结构化输出两级降级:上游点名 response_format / json_schema / schema → json_schema 先降 json_object,再被点名 → 删键;
+		// 结构化输出两级降级:上游点名 response_format / json_schema / schema → json_schema 先降 json_object,再被点名 → 删键;
 		//      Gemini responseSchema 被点名 → 去 responseSchema 留 mime;Ollama format 对象被点名 → 退 "json"。每级各占一轮自愈(MAX_PARAM_HEALS=2)。
 		if(degradeResponseFormat(body, msg)) { changed = true; }
 		for(String param : HEALABLE_SAMPLING_PARAMS) {
@@ -2443,8 +2484,8 @@ public class AIAnalysisProxyService {
 				|| "requestTimeoutMs".equals(key)
 				|| "streamStallMs".equals(key)      // [Windows #77] 前端流式空闲看门狗参数——绝不下发上游
 				|| "streamMaxStreamMs".equals(key)  // [Windows #77] 前端流式总时长上限参数——绝不下发上游
-				|| "maxRetries".equals(key)         // [D68] 代理自身的重试次数(本类 1902/2240 行从 providerOptionsMap 读)——此前原样进上游请求体,Anthropic 对未知顶层字段 400(靠自愈外环剥参重发才活)
-				|| "thinking_budget_cap".equals(key) // [Q-063] 档案「思考预算上限」是本地策略键(buildAnthropicBody 从 providerOptionsMap 读),绝不下发上游
+				|| "maxRetries".equals(key)         // 代理自身的重试次数(本类 1902/2240 行从 providerOptionsMap 读)——此前原样进上游请求体,Anthropic 对未知顶层字段 400(靠自愈外环剥参重发才活)
+				|| "thinking_budget_cap".equals(key) // 档案「思考预算上限」是本地策略键(buildAnthropicBody 从 providerOptionsMap 读),绝不下发上游
 				|| "embeddingModel".equals(key)
 				|| "authHeaderName".equals(key)
 				|| "authPrefix".equals(key)) {
@@ -2463,7 +2504,7 @@ public class AIAnalysisProxyService {
 			try {
 				return sendStreamWithRetry(buildJsonRequest(url, headers, body, params), params);
 			} catch(UpstreamHttpException e) {
-				String healed = heal < MAX_PARAM_HEALS ? healUpstreamRequestBody(e.getUpstreamStatus(), e.getUpstreamBody(), body, stringVal(params, "providerType")) : null;   // [Q-396]
+				String healed = heal < MAX_PARAM_HEALS ? healUpstreamRequestBody(e.getUpstreamStatus(), e.getUpstreamBody(), body, stringVal(params, "providerType")) : null;
 				if(healed == null) {
 					throw e;
 				}
@@ -2481,7 +2522,6 @@ public class AIAnalysisProxyService {
 		if(extra < 0) { extra = 0; }
 		if(extra > 5) { extra = 5; }
 		int maxAttempts = 1 + extra;
-		Exception lastError = null;
 		for(int attempt = 1; attempt <= maxAttempts; attempt++) {
 			try {
 				HttpResponse<InputStream> response = streamHttpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
@@ -2499,7 +2539,7 @@ public class AIAnalysisProxyService {
 				ensureSuccess(response); // 非可重试 / 次数耗尽 → 抛出含上游真因的错误
 				return response;
 			} catch(IOException e) {
-				lastError = e; // 连接/传输层失败发生在首字节前 → 可重试
+				// 连接/传输层失败发生在首字节前 → 可重试;末次原样抛出
 				if(attempt < maxAttempts) {
 					long wait = backoffMs(attempt);
 					AppLoggers.ErrorLogger.warn("ai.stream.retry io=" + e.getClass().getSimpleName() + " attempt=" + attempt + " waitMs=" + wait);
@@ -2509,7 +2549,6 @@ public class AIAnalysisProxyService {
 				throw e;
 			}
 		}
-		if(lastError != null) { throw lastError; }
 		throw new ErrorCodeException(580021, "上游 provider 请求失败");
 	}
 
@@ -2528,7 +2567,7 @@ public class AIAnalysisProxyService {
 		return backoffMs(attempt);
 	}
 
-	// [D60] Retry-After 两形态:整数秒(≤60 s 采纳)/ RFC 1123 HTTP-date(换算成距 now 的毫秒,≤60 s 采纳);非法或超上限 → 0(=走退避)
+	// Retry-After 两形态:整数秒(≤60 s 采纳)/ RFC 1123 HTTP-date(换算成距 now 的毫秒,≤60 s 采纳);非法或超上限 → 0(=走退避)
 	static long retryAfterMs(String header, long nowMillis){
 		String v = header == null ? "" : header.trim();
 		if(v.isEmpty()) { return 0L; }
@@ -2623,14 +2662,14 @@ public class AIAnalysisProxyService {
 
 	void sendEvent(SseChannel channel, String eventName, Map<String, Object> payload){
 		try{
-			// [并发根修] 每 token 在池化 worker 线程写请求属性(旧「mark 当前线程」调用)是并发空响应/NPE 主凶:
+			// 每 token 在池化 worker 线程写请求属性(旧「mark 当前线程」调用)是并发空响应/NPE 主凶:
 			// 客户端中断后 Tomcat 回收该 Request 分配给下一个请求,worker 仍在向"别人的请求"写 __sse__,
 			// 穿插的 JSON 请求被误判为 event-stream → 一字节正文不写;撞上 recycle() 清属性则 NPE。
 			// __sse__ 已由 servlet 线程在 SseHelper.push() 设置;afterCompletion 另有 SseEmitter 返回类型兜底。
 			boolean delivered = channel.send(SseEmitter.event()
 				.name(eventName)
 				.data(JsonUtility.encode(payload)));
-			// [A1 止损] 通道已关(心跳先撞死连接置 closed / 已幂等收尾)= 客户端不在了:
+			// 通道已关(心跳先撞死连接置 closed / 已幂等收尾)= 客户端不在了:
 			// 抛专用异常打断读流环,别再把上游流吸完白烧计费。
 			if(!delivered) {
 				throw new ClientGoneException();
@@ -2793,11 +2832,75 @@ public class AIAnalysisProxyService {
 	}
 
 	private static String safeErrorMessage(Exception e){
+		return safeErrorMessage(e, null);
+	}
+
+	/** 回给页面 / 写进日志的错误文字一律过脱敏:本次请求的密钥原文 + 常见密钥形态(网址查询串里的 key / token、Bearer、sk-、AIza…)。 */
+	static String safeErrorMessage(Exception e, Map<String, Object> params){
 		if(e == null){
 			return "未知错误";
 		}
 		String text = e.getMessage();
-		return StringUtility.isNullOrEmpty(text) ? e.getClass().getSimpleName() : text;
+		return redactSecrets(StringUtility.isNullOrEmpty(text) ? e.getClass().getSimpleName() : text, params == null ? null : stringVal(params, "apiKey"));
+	}
+
+	/** 密钥脱敏:本次请求的密钥原文(≥4 字,连同网址编码形)整串换掉,再按常见形态兜底 —— 规则单源在 boundless SecretRedactor。 */
+	static String redactSecrets(String text, String... secrets){
+		return SecretRedactor.redactText(text, secrets);
+	}
+
+	/** 写错误日志前同样脱敏:异常链每一层换成「同类名 + 脱敏后的消息 + 原调用栈」的副本再交给日志层 */
+	static Throwable redactedThrowable(Throwable e, String secret){
+		if(e == null) { return null; }
+		Throwable cause = e.getCause() != null && e.getCause() != e ? redactedThrowable(e.getCause(), secret) : null;
+		String msg = e.getMessage() == null ? null : redactSecrets(e.getMessage(), secret);
+		RuntimeException copy = new RuntimeException(e.getClass().getName() + (msg == null ? "" : ": " + msg), cause);
+		copy.setStackTrace(e.getStackTrace());
+		return copy;
+	}
+
+	private void logUpstreamFailure(Throwable e, String context, Map<String, Object> params){
+		try {
+			String secret = params == null ? null : stringVal(params, "apiKey");
+			writeErrorLog(redactedThrowable(e, secret), redactSecrets(context, secret));
+		}catch(Throwable logEx){
+			// 日志层异常永远不能让 catch 自己炸。
+		}
+	}
+
+	/** 日志出口(测试缝:单测覆写它截获真正写出去的内容) */
+	void writeErrorLog(Throwable redacted, String context){
+		QueueLog.error(AppLoggers.ErrorLogger, redacted, context);
+	}
+
+	/** 上游网址 → URI(单源;所有外呼经它):不合法时报「接口地址不合法(第 N 个字符)」,异常文字里不带网址(网址可能带凭据);
+	 *  中文等国际化域名先转成 ASCII 形式(IDN)。只收 http / https。 */
+	static URI toUpstreamUri(String url){
+		String u = url == null ? "" : url;
+		Matcher m = Pattern.compile("^(https?://)([^/:?#@]+)(.*)$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL).matcher(u);
+		if(m.matches() && !m.group(2).chars().allMatch(c -> c < 0x80)) {
+			try {
+				u = m.group(1) + IDN.toASCII(m.group(2), IDN.ALLOW_UNASSIGNED) + m.group(3);
+			}catch(IllegalArgumentException idnEx) {
+				throw new ErrorCodeException(580023, "接口地址不合法:域名无法识别,请检查 Base URL");
+			}
+		}
+		URI uri;
+		try {
+			uri = new URI(u);
+		}catch(URISyntaxException e) {
+			// JDK 对主机段的错报在主机段开头;先自己找第一个确实不许出现的字符(空白 / 控制 / 非 ASCII / 引号尖括号等)
+			int at = UpstreamUrlText.firstIllegalChar(u);
+			if(at < 0) { at = e.getIndex(); }
+			throw new ErrorCodeException(580023, at >= 0
+				? String.format("接口地址不合法(第 %d 个字符处:%s),请检查 Base URL 里有没有空格、全角符号或多余字符", at + 1, UpstreamUrlText.describeChar(u, at))
+				: "接口地址不合法,请检查 Base URL");
+		}
+		String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+		if(!("http".equals(scheme) || "https".equals(scheme)) || StringUtility.isNullOrEmpty(uri.getHost())) {
+			throw new ErrorCodeException(580023, "接口地址不合法:需要 http:// 或 https:// 开头、带主机名的地址,请检查 Base URL");
+		}
+		return uri;
 	}
 
 	private static Map<String, Object> buildMap(Object... args){

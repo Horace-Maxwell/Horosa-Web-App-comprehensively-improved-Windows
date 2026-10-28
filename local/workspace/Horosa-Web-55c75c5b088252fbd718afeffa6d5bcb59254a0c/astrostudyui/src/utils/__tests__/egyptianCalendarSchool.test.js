@@ -577,14 +577,27 @@ describe('埃及流派随盘保真(record 七键)', ()=>{
 		expect(v).toEqual({ egypt_decanRuler: 'triplicity', egypt_petosirisMod: 30 });
 	});
 
-	it('存盘:全局默认档 → 七键全 undefined;全局非默认 → 对应键入 record', ()=>{
-		const base = { birth: '1991-08-06 12:00:00', name: 'T' };
+	it('存盘(按当前设置新建):全局默认档 → 七键全 undefined;全局非默认 → 对应键入 record', ()=>{
+		const base = { birth: '1991-08-06 12:00:00', name: 'T', captureCurrentGlobals: true };
 		const r0 = buildLocalChartRecord(base);
 		EGYPT_RECORD_KEYS.forEach((k)=>expect(r0[k]).toBeUndefined());
 		writeEgyptSchool(EGYPT_SCHOOL_STORE, { calendarAnchor: 'philip' });
 		const r1 = buildLocalChartRecord(base);
 		expect(r1.egypt_calendarAnchor).toBe('philip');
 		expect(r1.egypt_decanRuler).toBeUndefined();
+	});
+	it('写已有记录(编辑 / 存批注 / 加标签 / 恢复 / 导入)不捕获全局现值;标志本身不落库', ()=>{
+		const { upsertLocalChart, getLocalChart } = require('../localcharts');
+		window.localStorage.clear();
+		upsertLocalChart({ cid: 'eg-1', birth: '1991-08-06 12:00:00', name: 'T' });
+		writeEgyptSchool(EGYPT_SCHOOL_STORE, { calendarAnchor: 'philip' });
+		upsertLocalChart({ cid: 'eg-1', memoAstro: '批注' });
+		const r = getLocalChart('eg-1');
+		expect(r.egypt_calendarAnchor).toBeUndefined();
+		expect(r.memoAstro).toBe('批注');
+		upsertLocalChart({ cid: 'eg-2', birth: '1991-08-06 12:00:00', name: 'N', captureCurrentGlobals: true });
+		expect(getLocalChart('eg-2').egypt_calendarAnchor).toBe('philip');
+		expect(Object.prototype.hasOwnProperty.call(getLocalChart('eg-2'), 'captureCurrentGlobals')).toBe(false);
 	});
 
 	it('values 显式提供(挂载 merge 场景)优先于全局', ()=>{
@@ -618,7 +631,7 @@ describe('埃及流派随盘保真(record 七键)', ()=>{
 	});
 });
 
-// [Q-540/T-502] 「各行星落旬」主显名标签随旬名传统档:默认「埃及名」;科普特/赫尔墨斯档标「科普特-希腊名」/「赫尔墨斯名」(此前恒标埃及名)。
+// 「各行星落旬」主显名标签随旬名传统档:默认「埃及名」;科普特/赫尔墨斯档标「科普特-希腊名」/「赫尔墨斯名」(此前恒标埃及名)。
 describe('AI 段「各行星落旬」主显名标签随旬名传统(Q-540)', ()=>{
 	const { buildEgyptSectionLines } = require('../../components/astro/AstroEgypt');
 	const CHART = { chart: { objects: [{ id: 'Sun', lon: 122.3 }, { id: 'Moon', lon: 15.2 }], angles: [{ id: 'Asc', lon: 100.5 }] }, params: { birth: '1990/07/25 10:00:00' } };

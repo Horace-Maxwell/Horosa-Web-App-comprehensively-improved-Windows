@@ -11,6 +11,7 @@ import jsonpickle
 import swisseph
 
 from flatlib.datetime import Datetime
+from astrostudy.civil_calendar import civil_revjul, format_civil_date
 from websrv.helper import enable_crossdomain
 
 # 政余十一曜(swisseph id;罗计随 nodeType 平/真,月孛=远地点 mean/oscu,紫炁由前端透传)
@@ -176,12 +177,14 @@ class QiZhengElectionSrv:
             push("Ketu", "计", _norm(node["lon"] + 180.0), 0.0, node["speed"])
             apog = _calc_body(jd_ut, apog_id)
             push("Lilith", "孛", apog["lon"], apog["lat"], apog["speed"])
-            for extra in extra_bodies:
+            skipped_extras = []
+            for idx, extra in enumerate(extra_bodies):
                 try:
                     push(str(extra.get("id") or "Extra"), str(extra.get("label") or "炁"),
                          float(extra.get("lon")), float(extra.get("lat") or 0.0), float(extra.get("speed") or 0.0))
                 except Exception:
-                    continue
+                    # 值形坏的附加星体:略过并落账(回包 skippedExtraBodies),不静默消失
+                    skipped_extras.append(idx)
 
             # 11 套分宫 cusps(黄道动盘分宫制,一次全给 → 前端切换零往返)
             houses_by_system = {}
@@ -307,6 +310,8 @@ class QiZhengElectionSrv:
                 "trueSolarTime": true_solar,
                 "equationOfTimeMin": eot_min,
             }
+            if skipped_extras:
+                result["skippedExtraBodies"] = skipped_extras
             return jsonpickle.encode({"ResultCode": 0, "Result": result}, unpicklable=False)
         except Exception:
             traceback.print_exc()
@@ -337,10 +342,10 @@ class QiZhengElectionSrv:
                     break
                 peak = tret[0]
                 local = peak + zone_hours / 24.0
-                y, m, d, ut = swisseph.revjul(local)
+                y, m, d, ut = civil_revjul(local)
                 out.append({
                     "jd": peak,
-                    "date": "{:04d}-{:02d}-{:02d}".format(y, m, d),
+                    "date": format_civil_date(y, m, d),
                     "time": _fmt_local_hms(peak, zone_hours),
                     "kindFlag": res,
                 })
@@ -405,10 +410,10 @@ class QiZhengElectionSrv:
                             lo, dlo = mid, dm
                     hit = (lo + hi) / 2.0
                     local = hit + zone_hours / 24.0
-                    y, m, d, _ut = swisseph.revjul(local)
+                    y, m, d, _ut = civil_revjul(local)
                     hits.append({
                         "jd": hit,
-                        "date": "{:04d}-{:02d}-{:02d}".format(y, m, d),
+                        "date": format_civil_date(y, m, d),
                         "time": _fmt_local_hms(hit, zone_hours),
                         "azimuth": az_at(hit),
                     })

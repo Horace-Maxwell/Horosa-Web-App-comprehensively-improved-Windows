@@ -20,19 +20,8 @@ from flatlib import const
 
 from astrostudy.india.varga import varga_position
 from astrostudy.india.yoga_engine import SIGN_LORDS, NATURAL_BENEFICS, NATURAL_MALEFICS
-
-# 中文座名(与 jyotish_engine.SIGN_CN 同值;本模块零依赖引擎,自持一份防循环导入)
-_SIGN_CN = {
-    const.ARIES: '白羊', const.TAURUS: '金牛', const.GEMINI: '双子', const.CANCER: '巨蟹',
-    const.LEO: '狮子', const.VIRGO: '处女', const.LIBRA: '天秤', const.SCORPIO: '天蝎',
-    const.SAGITTARIUS: '射手', const.CAPRICORN: '摩羯', const.AQUARIUS: '水瓶', const.PISCES: '双鱼',
-}
-
-_PLANET_CN = {
-    const.SUN: '太阳', const.MOON: '月亮', const.MARS: '火星', const.MERCURY: '水星',
-    const.JUPITER: '木星', const.VENUS: '金星', const.SATURN: '土星',
-    const.NORTH_NODE: '罗睺', const.SOUTH_NODE: '计都',
-}
+from astrostudy.india.primitives import PLANET_CN as _PLANET_CN, SIGN_CN as _SIGN_CN
+from astrostudy.india.primitives import segment_index
 
 
 def _sign_of(lon):
@@ -148,7 +137,7 @@ def _drekkana_index(lon):
 
 
 def _navamsa_index(lon):
-    return int((float(lon) % 360.0) / (10.0 / 3.0)) % 108  # 108 个 Navamsa,各 3°20′
+    return segment_index(float(lon) % 360.0, 10.0 / 3.0, 108)  # 108 个 Navamsa,各 3°20′(精确段界归后一段)
 
 
 def _nth_drekkana(lon, n):

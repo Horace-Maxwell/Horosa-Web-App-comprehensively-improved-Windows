@@ -17,7 +17,7 @@ export const AGENT_SYSTEM_RULES = [
 	'9) 界面动作(navigate_to_technique / compare_records)只在用户说「打开/切到/去看/合盘」时做,放在本轮最后一步(先读后动),同一页不重复切;切页后用一句话说明并提示可从动作条回到上一页。',
 ].join('\n');
 
-// [Q-290/M-105·PP-22] 守则按当次工具目录生成:第 9 条点名的两件界面工具只对 in-app / mcp 开放,目标 / 定时 / 自动 / 编排轮目录里没有,
+// 守则按当次工具目录生成:第 9 条点名的两件界面工具只对 in-app / mcp 开放,目标 / 定时 / 自动 / 编排轮目录里没有,
 //   静态守则仍点名 → 模型硬调得「未知工具」。目录里一件都没有时整条去掉;只有一件时只点名那一件。
 export function agentSystemRulesFor(toolNames){
 	const names = new Set((Array.isArray(toolNames) ? toolNames : []).map((n)=>`${n || ''}`));

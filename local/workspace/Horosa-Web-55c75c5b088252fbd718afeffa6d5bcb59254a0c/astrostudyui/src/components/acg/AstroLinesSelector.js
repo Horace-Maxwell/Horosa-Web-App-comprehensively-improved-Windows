@@ -82,7 +82,7 @@ class AstroLinesSelector extends Component{
 				<XQCheckList columns={2}>
 					{this.lines.map((itm)=> this.renderItem(itm, activeLines, false))}
 				</XQCheckList>
-				<div style={{ fontSize: 12, opacity: 0.6, fontWeight: 600, letterSpacing: '0.03em', margin: '14px 0 6px', paddingTop: 10, borderTop: '1px solid rgba(215,173,105,0.18)' }}>小行星（勾选即启用）</div>
+				<div style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', fontWeight: 600, letterSpacing: '0.03em', margin: '14px 0 6px', paddingTop: 10, borderTop: '1px solid rgba(215,173,105,0.18)' }}>小行星（勾选即启用）</div>
 				<XQCheckList columns={2}>
 					{this.asteroidLines.map((itm)=> this.renderItem(itm, activeLines, true))}
 				</XQCheckList>

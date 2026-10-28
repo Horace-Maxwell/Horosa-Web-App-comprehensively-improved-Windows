@@ -6,7 +6,7 @@
 // 本类只借四样公共件:sphMath 摆点公式 / morphMath 缓动 / labelSprite 名牌 /
 // Astro3D 的按需渲染状态机形态(wake/needsFrames/animate 同构,idle 停 rAF)。
 //
-// 场景图([G3] 方向语义重构后):
+// 场景图(方向语义重构后):
 //   root
 //   ├─ skyGroup    赤道网格+黄道+本命点/虚点 —— 本命参照系,rotation 恒 0(应星与其余
 //   │              星点原地不动=主限 directio 的「应星固定」正统语义)
@@ -34,10 +34,10 @@ import {
 	moverOfRow, sigEqOf,
 	elapsedDaysForArc, properSpeedOfPoint, eclToEqTrue, trueMotionDeltaLon, formatElapsedHM,
 } from './pdSphereMath';
-import { houseCusps, eclLonToEq, cuspSystemOfFrame } from './pdHouseCusps';   // [E1] 后天宫位宫首显示
+import { houseCusps, eclLonToEq, cuspSystemOfFrame } from './pdHouseCusps';   // 后天宫位宫首显示
 
 // 主题色(黑底天球,与 Astro3D ChartBackgroud 同底色系)
-// [WP-E] export=纯加法:语义色键契约由 smoke 测试看守(ecliptic 键缺失曾致刻度线静默白色)。
+// export=纯加法:语义色键契约由 smoke 测试看守(ecliptic 键缺失曾致刻度线静默白色)。
 export const PD_COLOR = {
 	background: 0x000000,
 	grid: 0x24405e,            // 赤经时圈/赤纬圈细线
@@ -50,10 +50,10 @@ export const PD_COLOR = {
 	direct: 0xffd700,          // 顺向 direct = 金色
 	converse: 0x00e0e0,        // 逆向 converse = 青色
 	ecliptic: 0xd8ab52,        // 黄道带 12 星座刻度线(与星座符号 #d8ab52 同族金;补前为 undefined→刻度线渲染白色+material 警告)
-	truePos: 0xdbe7f5,         // [C1] 复合运动真位标识色(银白):真位层 glyph+环形晕圈统一此色,与方向金/青及行星本色都拉开
+	truePos: 0xdbe7f5,         // 复合运动真位标识色(银白):真位层 glyph+环形晕圈统一此色,与方向金/青及行星本色都拉开
 };
 
-// [WP-D] 四级明度体系常量表(集中可调;层级:辅助网格→主结构圈→标准点位→选中链最亮):
+// 四级明度体系常量表(集中可调;层级:辅助网格→主结构圈→标准点位→选中链最亮):
 // 赤道网格退为极淡辅助线,地平三圈/黄道为主结构,本命点标准亮度,选中链(selectRow 高亮)最亮。
 export const PD_LEVELS = {
 	grid: 0.16,          // 赤道网格(时圈/纬圈):极淡辅助(原 0.55 与主结构圈抢层级)
@@ -148,10 +148,10 @@ class PDSphereEngine{
 		this._opt = opt; // 注入点引用(createRenderer/createControls,测试专用)
 		this.radius = Math.max(60, Math.min(this.width, this.height) / 2 - 42);
 
-		// [WP-3] 虚点三类独立 toggle(默认相位点开、映点/界关;localStorage 记忆)+聚焦/全显模式
+		// 虚点三类独立 toggle(默认相位点开、映点/界关;localStorage 记忆)+聚焦/全显模式
 		this.virtualToggles = { aspect: true, antiscia: false, term: false };
 		this.focusMode = true; // true=选中退避(柔和 0.55);false=全显不退避
-		// [WP-A] 视角档:globe=天球仪外视(既有默认,零观感回归)/ observer=观测者视(按 frame 派生:
+		// 视角档:globe=天球仪外视(既有默认,零观感回归)/ observer=观测者视(按 frame 派生:
 		// 面南、东左西右、天顶朝上,周日运动读作肉眼东升西落)。默认 globe——新档效果截图交用户定夺后再议默认。
 		this.viewMode = 'globe';
 		try{
@@ -159,9 +159,9 @@ class PDSphereEngine{
 			if(vt && typeof vt === 'object'){ this.virtualToggles = { aspect: !!vt.aspect, antiscia: !!vt.antiscia, term: !!vt.term }; }
 			this.focusMode = localStorage.getItem('horosa.pdsphere.focusMode') !== 'all';
 			const vm = localStorage.getItem('horosa.pdsphere.viewMode');
-			if(vm === 'observer' || vm === 'globe' || vm === 'center'){ this.viewMode = vm; } // [P2] 三档
+			if(vm === 'observer' || vm === 'globe' || vm === 'center'){ this.viewMode = vm; } // 三档
 		}catch(_){ }
-		// [L1] 框架圈分层显隐(用户定案「别的圈也要能选择」):六圈独立开关+标注总开关。
+		// 框架圈分层显隐(用户定案「别的圈也要能选择」):六圈独立开关+标注总开关。
 		// 承载=嵌套组:圈开关→grp.visible / labels→labelSub.visible,「圈开∧标注开」由 THREE 嵌套可见性天然实现。
 		this.frameLayers = {
 			ecliptic: true, equator: true, grid: true,
@@ -196,8 +196,8 @@ class PDSphereEngine{
 		this.scene = new THREE.Scene();
 		this.root = new THREE.Group();
 		this.skyGroup = new THREE.Group();
-		this.dirGroup = new THREE.Group();   // [G3] 迫星运动组:唯一随播转动的载体(skyGroup 恒 0)
-		// [C1] 复合运动·真位层:与 dirGroup 同步随周日旋转,组内诸曜再按各自黄道自行逐帧挪移 ——
+		this.dirGroup = new THREE.Group();   // 迫星运动组:唯一随播转动的载体(skyGroup 恒 0)
+		// 复合运动·真位层:与 dirGroup 同步随周日旋转,组内诸曜再按各自黄道自行逐帧挪移 ——
 		// 「自转(整组 rotation) × 公转(组内 λ(t) 位移)」复合;冻结迫星(dirGroup)仍精确命中,零碰弧法。
 		this.trueGroup = new THREE.Group();
 		this.frameGroup = new THREE.Group();
@@ -207,19 +207,19 @@ class PDSphereEngine{
 		this.root.add(this.trueGroup);
 		this.root.add(this.frameGroup);
 		this.root.add(this.selGroup);
-		this._trueEntries = [];        // [C1] {mesh,lon0,latUse,mu,isProm,line?} 真位层活动记账
-		this._bodySpeeds = {};         // [C1] baseId → 瞬时黄经速(°/日;AstroPDSphere 从 /chart objects 喂入)
-		this.onTrueMotionInfo = null;  // [C1] 播放落定回调({elapsedText, drifts})→ 宿主 DOM 信息行
-		this.trueMotionOn = true;      // [C1] 复合运动开关(默认开;localStorage 记忆)
+		this._trueEntries = [];        // {mesh,lon0,latUse,mu,isProm,line?} 真位层活动记账
+		this._bodySpeeds = {};         // baseId → 瞬时黄经速(°/日;AstroPDSphere 从 /chart objects 喂入)
+		this.onTrueMotionInfo = null;  // 播放落定回调({elapsedText, drifts})→ 宿主 DOM 信息行
+		this.trueMotionOn = true;      // 复合运动开关(默认开;localStorage 记忆)
 		try{ this.trueMotionOn = (typeof localStorage !== 'undefined' ? localStorage.getItem('horosa.pdsphere.trueMotion') : null) !== '0'; }catch(_){ }
 		this.scene.add(this.root);
 
-		this.camera = new THREE.PerspectiveCamera(45, this.width / this.height, Math.max(0.5, this.radius * 0.02), this.radius * 6); // [WP-3] near/far 收窄(0.1→R*0.02 / R*12→R*6:深度精度翻倍,远近裁剪仍余量充足)
+		this.camera = new THREE.PerspectiveCamera(45, this.width / this.height, Math.max(0.5, this.radius * 0.02), this.radius * 6); // near/far 收窄(0.1→R*0.02 / R*12→R*6:深度精度翻倍,远近裁剪仍余量充足)
 		const camPos = sph(-58, 24, this.radius * 2.75);
 		this.camera.position.set(camPos.x, camPos.y, camPos.z);
 		this.camera.lookAt(this.scene.position);
 
-		// [WP-4] 可注入渲染器/控制器(opt.createRenderer/createControls):jsdom 无 WebGL,
+		// 可注入渲染器/控制器(opt.createRenderer/createControls):jsdom 无 WebGL,
 		// smoke 测试注入 stub 跑真建场链;生产不传=原路径零变。
 		this.renderer = this._opt && this._opt.createRenderer
 			? this._opt.createRenderer()
@@ -265,13 +265,13 @@ class PDSphereEngine{
 		// 不再黑屏干等(用户实测:报错卡下曾全黑);setData 到达即全量重建。
 		this._buildEquatorialGrid();
 		this._buildEcliptic(null);
-		this._buildStarfield();   // [WP-D] 程序化星空氛围层(flag 可关)
-		this._initPicking();      // [WP-D] 3D 拾取:hover 提亮 / click 选最近应期行
+		this._buildStarfield();   // 程序化星空氛围层(flag 可关)
+		this._initPicking();      // 3D 拾取:hover 提亮 / click 选最近应期行
 
 		this.animate();
 	}
 
-	// —— [WP-D] 星空背景:程序化远景星点(makeStarSprite,静止装饰层挂 root 外圈,
+	// —— 星空背景:程序化远景星点(makeStarSprite,静止装饰层挂 root 外圈,
 	//     半径 3.6R 在 far(6R) 内;数量/亮度按星等分布,AdditiveBlending 微光不与数据层抢焦点)。
 	//     flag:localStorage horosa.pdsphere.starfield='off' 关(默认开)。
 	_buildStarfield(){
@@ -305,7 +305,7 @@ class PDSphereEngine{
 		this.root.add(group);
 	}
 
-	// —— [WP-D] 3D 拾取:pointermove hover 实体点提亮(cursor pointer),click 通知 UI 选最近应期行。
+	// —— 3D 拾取:pointermove hover 实体点提亮(cursor pointer),click 通知 UI 选最近应期行。
 	//     按需渲染:hover 命中变化才 wake;拾取仅对实体点(虚点小且多,误触噪音)。
 	_initPicking(){
 		if(!this.renderer || !this.renderer.domElement || typeof this.renderer.domElement.addEventListener !== 'function'){ return; }
@@ -344,7 +344,7 @@ class PDSphereEngine{
 			let pid = null;
 			try{ pid = pick(ev); }catch(_){ pid = null; }
 			if(pid === this._hoverPid){ return; }
-			// [G1] 还原/施加均走 _scaleDot(sprite 纵横比安全);selK=选中态基档,悬停在其上再乘 1.35
+			// 还原/施加均走 _scaleDot(sprite 纵横比安全);selK=选中态基档,悬停在其上再乘 1.35
 			const prev = this._hoverPid && this.pointMeshMap.get(this._hoverPid);
 			if(prev && prev.dot){ this._scaleDot(prev, prev.selK || 1); }
 			this._hoverPid = pid;
@@ -354,7 +354,7 @@ class PDSphereEngine{
 			this.wake(1);
 		};
 		this._onPickClick = (ev)=>{
-			// [P2] 球心档拖拽松手抑制一次(环视≠点星选行)
+			// 球心档拖拽松手抑制一次(环视≠点星选行)
 			if(this._suppressPickClick){ this._suppressPickClick = false; return; }
 			let pid = null;
 			try{ pid = pick(ev); }catch(_){ pid = null; }
@@ -381,7 +381,7 @@ class PDSphereEngine{
 		if(this.disposed || !res || !res.frame){
 			return;
 		}
-		// [A6] 同签零重建:res 内容与上次逐字节相同(时间轴/选项来回拨、请求层缓存命中重投递)
+		// 同签零重建:res 内容与上次逐字节相同(时间轴/选项来回拨、请求层缓存命中重投递)
 		// 则整场保留 —— 免整套 THREE 组清建,且不打断用户当前选中/相机/播放状态(严格更优)。
 		// 序列化失败(异常大对象等)= 不短路,永远重建;开关 horosa.perf.chartDrawGuard 同图面守卫。
 		if(chartDrawGuardEnabled()){
@@ -398,7 +398,7 @@ class PDSphereEngine{
 		this.clearSelection();
 		this._clearGroup(this.skyGroup);
 		this._clearGroup(this.frameGroup);
-		this._frameLayerGroups = {};   // [L1] 圈层登记表随组清空重置(init 空骨架的旧登记项已成孤儿)
+		this._frameLayerGroups = {};   // 圈层登记表随组清空重置(init 空骨架的旧登记项已成孤儿)
 		this.skyGroup.rotation.y = 0;
 
 		// 交付自检:东点(ra=armc+90, decl=0)必在地平圈上(容差 1e-6)—— 公式失守
@@ -414,15 +414,15 @@ class PDSphereEngine{
 		step('地平框架', ()=>this._buildHorizonFrame(res.frame));
 		step('黄道', ()=>this._buildEcliptic(res.frame));
 		step('星点', ()=>this._buildPoints(res.points || {}));
-		// [E1] 后天宫位宫首:_houseGroup 随 skyGroup 清空重置(setData 已 _clearGroup(skyGroup));
+		// 后天宫位宫首:_houseGroup 随 skyGroup 清空重置(setData 已 _clearGroup(skyGroup));
 		//   若开关开着,按新 frame + 当前宫制重建(宫制随请求切换 → frame.pdMethod 变即新 cusps)。
 		this._houseGroup = null;
 		step('宫首', ()=>this._rebuildHouseCusps());
-		// [WP-A] observer/center 档相机位按 frame 派生:新数据到达即重定位(globe 档不动=零回归)
+		// observer/center 档相机位按 frame 派生:新数据到达即重定位(globe 档不动=零回归)
 		if(this.viewMode === 'observer' || this.viewMode === 'center'){
 			step('视角', ()=>this.applyViewMode(this.viewMode, false));
 		}
-		// [P2] 球心档下重建的全场 sprite 补视距缩放
+		// 球心档下重建的全场 sprite 补视距缩放
 		if((this._spriteViewK || 1) !== 1){ this._setSpriteViewScale(this._spriteViewK); }
 		this.wake(3);
 		if(stepErrs.length && typeof this.onError === 'function'){
@@ -430,7 +430,7 @@ class PDSphereEngine{
 		}
 	}
 
-	// [WP-3] 外部开关:虚点三类/聚焦模式(Pane UI 调用;写 localStorage+就地生效)
+	// 外部开关:虚点三类/聚焦模式(Pane UI 调用;写 localStorage+就地生效)
 	setVirtualToggles(vt){
 		this.virtualToggles = { aspect: !!vt.aspect, antiscia: !!vt.antiscia, term: !!vt.term };
 		safeLocalStorageSet('horosa.pdsphere.virtualToggles', JSON.stringify(this.virtualToggles));
@@ -447,7 +447,7 @@ class PDSphereEngine{
 		this.wake(2);
 	}
 
-	// —— [WP-A] 双视角档:globe=天球仪外视(既有) / observer=观测者视(面南,东左西右,天顶朝上) ——
+	// —— 双视角档:globe=天球仪外视(既有) / observer=观测者视(面南,东左西右,天顶朝上) ——
 	/** 目标相机位与 up(observer 依赖 frame;无数据回落 globe 位) */
 	_viewCamTarget(mode){
 		const D = this.radius * 2.75;
@@ -473,7 +473,7 @@ class PDSphereEngine{
 		return { pos: p, up: { x: 0, y: 1, z: 0 } };
 	}
 
-	// —— [P2] 球心观察档(planetarium 式):相机置球心,拖拽环视(yaw 绕天顶/pitch 绕视右轴),
+	// —— 球心观察档(planetarium 式):相机置球心,拖拽环视(yaw 绕天顶/pitch 绕视右轴),
 	//     滚轮调 FOV(40–100);文字 sprite 恒 billboard 面向相机=从内看也正读,零额外适配。 ——
 	_enterCenterView(){
 		const cam = this.camera;
@@ -498,7 +498,7 @@ class PDSphereEngine{
 		}
 		cam.lookAt(look.x * this.radius, look.y * this.radius, look.z * this.radius);
 		this._ensureCenterHandlers();
-		// [P5] 球心档字形「超级放大」(用户定案):相机已正居球心(update 清洗根修后),标签距离≈R,
+		// 球心档字形「超级放大」(用户定案):相机已正居球心(update 清洗根修后),标签距离≈R,
 		// 1.35× 净观感≈外视 3.7 倍——旧 0.32 缩是 update 顶出病灶时代的错误补偿方向,修正后全看不清。
 		this._setSpriteViewScale(1.35);
 		this.wake(3);
@@ -557,7 +557,7 @@ class PDSphereEngine{
 	}
 
 	/** 切换/回正视角;animate=600ms 相机飞行(位置插值+归一化到目标距离,up 同步渐变)。
-	 *  [P2] 'center'=球心档:瞬切(向球心插值会穿模,不飞行),独立拖拽/FOV 手感。 */
+	 *  'center'=球心档:瞬切(向球心插值会穿模,不飞行),独立拖拽/FOV 手感。 */
 	applyViewMode(mode, animate){
 		const m = mode === 'center' ? 'center' : (mode === 'observer' ? 'observer' : 'globe');
 		const prev = this.viewMode;
@@ -629,7 +629,7 @@ class PDSphereEngine{
 		const line = new THREE.Line(geom, new THREE.LineBasicMaterial({
 			color: 0xd9a94e, transparent: true, opacity: 0.9,
 		}));
-		// [L1] 黄道圈层组:线+30° 刻度=圈体;春分点/圈名/星座 glyph=标注子组
+		// 黄道圈层组:线+30° 刻度=圈体;春分点/圈名/星座 glyph=标注子组
 		const gEcl = this._frameLayerGroup('ecliptic', this.skyGroup);
 		gEcl.grp.add(line);
 		// 春分点(λ=0)小标 + 圈名标注(λ=100° 处,避开春分标)
@@ -648,8 +648,8 @@ class PDSphereEngine{
 		const nlp = eclPoint(100, R * 1.05);
 		nameLabel.position.set(nlp.x, nlp.y, nlp.z);
 		gEcl.labelSub.add(nameLabel);
-		// [WP-3] 12 星座符号刻度环+30° 刻度短线:黄道带任何视角一眼可辨(体检「黄道易误认」)。
-		// [G2] emoji → ywastrochart 字形('a'-'l',与 2D 盘同源;emoji 走系统彩色字体=丑+跨端漂移)。
+		// 12 星座符号刻度环+30° 刻度短线:黄道带任何视角一眼可辨(体检「黄道易误认」)。
+		// emoji → ywastrochart 字形('a'-'l',与 2D 盘同源;emoji 走系统彩色字体=丑+跨端漂移)。
 		const SIGN_GLYPHS = [
 			AstroConst.ARIES, AstroConst.TAURUS, AstroConst.GEMINI, AstroConst.CANCER,
 			AstroConst.LEO, AstroConst.VIRGO, AstroConst.LIBRA, AstroConst.SCORPIO,
@@ -675,7 +675,7 @@ class PDSphereEngine{
 	}
 
 	// —— 赤道坐标框架:24 时圈(=12 条过天极大圆)细线 + 赤纬 0/±30/±60 圈 ——
-	/** [L1] 圈层组:每个框架圈一个 Group(圈体)+内嵌 labelSub(文字/方位点)。
+	/** 圈层组:每个框架圈一个 Group(圈体)+内嵌 labelSub(文字/方位点)。
 	 *  圈开关控 grp.visible,标注总开关控 labelSub.visible —— 嵌套可见性天然实现「圈开∧标注开」。 */
 	_frameLayerGroup(key, parent){
 		const grp = new THREE.Group();
@@ -688,7 +688,7 @@ class PDSphereEngine{
 		return { grp, labelSub };
 	}
 
-	/** [L1] 外部开关:圈层显隐(Pane 顶栏 checkbox 调用;写 localStorage + 就地生效) */
+	/** 外部开关:圈层显隐(Pane 顶栏 checkbox 调用;写 localStorage + 就地生效) */
 	setFrameLayers(patch){
 		this.frameLayers = { ...this.frameLayers, ...(patch || {}) };
 		safeLocalStorageSet('horosa.pdsphere.frameLayers', JSON.stringify(this.frameLayers)); // FL-4 配额纪律:与本文件其余持久键同走 safeStorage
@@ -701,7 +701,7 @@ class PDSphereEngine{
 		this.wake(2);
 	}
 
-	/** [E1] 后天宫位宫首显示开关。宫制随「定局分宫」pdFrame(见 setPdFrame);
+	/** 后天宫位宫首显示开关。宫制随「定局分宫」pdFrame(见 setPdFrame);
 	 *  宫首=固定征象点(挂 skyGroup 恒 0 → 播放中不动,与真值一致)。 */
 	setHouseDisplay(on){
 		this._showHouses = !!on;
@@ -716,7 +716,7 @@ class PDSphereEngine{
 		this._rebuildHouseCusps();
 	}
 
-	/** [E1] 重建 12 宫首:黄道面内径向短刻度 + 宫号 1-12(客户端 pdHouseCusps 由 frame armc/phi/eps 算)。
+	/** 重建 12 宫首:黄道面内径向短刻度 + 宫号 1-12(客户端 pdHouseCusps 由 frame armc/phi/eps 算)。
 	 *  campanus 等分宫涉卯酉圈的系统只出四轴(cusps 中间宫为 null,跳过)。setData 与 toggle 均调。 */
 	_rebuildHouseCusps(){
 		if(!this._houseGroup){ this._houseGroup = new THREE.Group(); this.skyGroup.add(this._houseGroup); }
@@ -786,9 +786,9 @@ class PDSphereEngine{
 		const geom = new THREE.BufferGeometry();
 		geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
 		const grid = new THREE.LineSegments(geom, new THREE.LineBasicMaterial({
-			color: PD_COLOR.grid, transparent: true, opacity: PD_LEVELS.grid, // [WP-D] 四级明度:网格退为极淡辅助
+			color: PD_COLOR.grid, transparent: true, opacity: PD_LEVELS.grid, // 四级明度:网格退为极淡辅助
 		}));
-		// [L1] 网格与天赤道分属两个圈层组(用户要求逐圈可选;网格无文字标注)
+		// 网格与天赤道分属两个圈层组(用户要求逐圈可选;网格无文字标注)
 		const gGrid = this._frameLayerGroup('grid', this.skyGroup);
 		gGrid.grp.add(grid);
 
@@ -839,7 +839,7 @@ class PDSphereEngine{
 	/** 大圆高亮 Tube(应星位置圈;MeshStandardMaterial 零灯光下仅 emissive 可见 → 脉冲有真 emissive 通道) */
 	_buildGreatCircleTube(u, w, color){
 		const curve = new GreatCircleCurve(u, w, this.radius);
-		// [L1] 管径减细(用户实测 0.0052 档「遮挡太多信息」)
+		// 管径减细(用户实测 0.0052 档「遮挡太多信息」)
 		const tubeR = Math.max(0.42, this.radius * 0.0028);
 		const geom = new THREE.TubeGeometry(curve, 220, tubeR, 8, true);
 		const material = new THREE.MeshStandardMaterial({
@@ -862,7 +862,7 @@ class PDSphereEngine{
 		const northVec = northPointOf(frame);   // 天顶×东点(φ=0 时=天北极,亦正确)
 		const basis = { horizon: null, meridian: null, primeVertical: null };
 
-		// [L1] 三圈各自圈层组(无条件建组:φ=±90 退化缺线时方位点标注仍有归宿)
+		// 三圈各自圈层组(无条件建组:φ=±90 退化缺线时方位点标注仍有归宿)
 		const gHor = this._frameLayerGroup('horizon', this.frameGroup);
 		const gMer = this._frameLayerGroup('meridian', this.frameGroup);
 		const gPV = this._frameLayerGroup('primeVertical', this.frameGroup);
@@ -887,7 +887,7 @@ class PDSphereEngine{
 		}
 		this._frameBasis = basis;
 
-		// 天顶/东点/北点标注(小点 + 名牌;[L1] 按语义归圈:天顶→子午/东点→卯酉/北点→地平)
+		// 天顶/东点/北点标注(小点 + 名牌;按语义归圈:天顶→子午/东点→卯酉/北点→地平)
 		const mark = (vec, text, labelSub)=>{
 			if(!vec){
 				return;
@@ -920,7 +920,7 @@ class PDSphereEngine{
 		circleName(mid(zenithVec, northVec), '子午圈', '#c39ae0', gMer.labelSub);
 		circleName(mid(zenithVec, eastVec), '卯酉圈', '#7fc9c2', gPV.labelSub);
 
-		// [WP-A] 周日方向浮标:地平圈东/西点外侧「东·升/西·落」——常驻淡显(0.45),播放中提亮(1.0),
+		// 周日方向浮标:地平圈东/西点外侧「东·升/西·落」——常驻淡显(0.45),播放中提亮(1.0),
 		// 把「周日旋转的物理方向」钉在画面上(观测者一眼读出星从东升、向西落)。
 		this._dirBeacons = [];
 		const beacon = (vec, text)=>{
@@ -928,14 +928,14 @@ class PDSphereEngine{
 			const s2 = makeTextSprite(text, { worldSize: Math.max(6.5, R * 0.048), color: PD_COLOR.direct, glow: true });
 			s2.position.set(vec.x * R * 1.14, vec.y * R * 1.14 + R * 0.03, vec.z * R * 1.14);
 			if(s2.material){ s2.material.transparent = true; s2.material.opacity = 0.45; }
-			gHor.labelSub.add(s2);   // [L1] 周日浮标钉在地平圈东西点 → 随地平圈层显隐
+			gHor.labelSub.add(s2);   // 周日浮标钉在地平圈东西点 → 随地平圈层显隐
 			this._dirBeacons.push(s2);
 		};
 		beacon(eastVec, '东 · 升 ↑');
 		beacon({ x: -eastVec.x, y: -eastVec.y, z: -eastVec.z }, '↓ 西 · 落');
 	}
 
-	/** [WP-A] 播放期方向浮标提亮/还原(playRow 起播提亮,播完与复位还原淡显) */
+	/** 播放期方向浮标提亮/还原(playRow 起播提亮,播完与复位还原淡显) */
 	_setBeaconEmphasis(on){
 		(this._dirBeacons || []).forEach((s2)=>{
 			if(s2.material){ s2.material.opacity = on ? 1.0 : 0.45; }
@@ -963,7 +963,7 @@ class PDSphereEngine{
 			let label = null;
 			let tint = null;
 			if(isVirtual && pt.kind === 'aspect'){
-				// [E1] 相位点=「本体 glyph + 相位 glyph」(用户定案:一堆白点没意义,须按标准标注)。
+				// 相位点=「本体 glyph + 相位 glyph」(用户定案:一堆白点没意义,须按标准标注)。
 				// id 形如 D_Saturn_60/S_Sun_90/N_Moon_180;末段数=相位度,合(0)只出本体 glyph。
 				const glyph = pointGlyphOf(baseId);
 				const aspM = /^[DSN]_.+_(\d+)$/.exec(`${pid}`);
@@ -976,7 +976,7 @@ class PDSphereEngine{
 					...(glyph.astroFont ? { fontFamily: 'ywastrochart' } : {}),
 				});
 				if(dot.material && dot.material.color && dot.material.color.setHex){ dot.material.color.setHex(PD_COLOR.virtualPoint); }
-				if(dot.userData){ dot.userData.__pmEntry = true; }   // [P2] 视距补偿由 _scaleDot 管
+				if(dot.userData){ dot.userData.__pmEntry = true; }   // 视距补偿由 _scaleDot 管
 				dot.visible = !!this.virtualToggles[pt.kind];         // 随「相位点」toggle 显隐
 				dot.position.set(pos.x, pos.y, pos.z);
 				this.skyGroup.add(dot);
@@ -990,7 +990,7 @@ class PDSphereEngine{
 				dot.position.set(pos.x, pos.y, pos.z);
 				this.skyGroup.add(dot);
 			}else{
-				// [G1] 实体点=glyph 即本体(去光球,用户定案):不再画色球+悬空名牌两件套,
+				// 实体点=glyph 即本体(去光球,用户定案):不再画色球+悬空名牌两件套,
 				// 发光 glyph 精灵直接落在 (ra,decl) 位置本身。底稿恒白字烘焙,行星色经
 				// liftLuma 抬亮后由 material 乘性染色 —— 选中/悬停重染方向色时得纯正色
 				// (彩字×金=浑浊;白字×任意色=该色,连同光晕同色随染)。
@@ -1008,7 +1008,7 @@ class PDSphereEngine{
 				if(dot.material && dot.material.color && dot.material.color.setHex){
 					dot.material.color.setHex(tint);
 				}
-				if(dot.userData){ dot.userData.__pmEntry = true; } // [P2] 视距补偿绕开(由 _scaleDot 管)
+				if(dot.userData){ dot.userData.__pmEntry = true; } // 视距补偿绕开(由 _scaleDot 管)
 				dot.position.set(pos.x, pos.y, pos.z);
 				this.skyGroup.add(dot);
 			}
@@ -1016,8 +1016,8 @@ class PDSphereEngine{
 				dot,
 				label,
 				isVirtual,
-				kind: pt.kind || '', // [WP-3] 三类虚点 toggle 用
-				isSprite: !isVirtual || pt.kind === 'aspect', // [G1/E1] 实体点+相位点 glyph 均 sprite(纵横比安全)
+				kind: pt.kind || '', // 三类虚点 toggle 用
+				isSprite: !isVirtual || pt.kind === 'aspect', // 实体点+相位点 glyph 均 sprite(纵横比安全)
 				baseColor: tint !== null ? tint : ((dot.material.color && dot.material.color.getHex && dot.material.color.getHex()) || 0xffffff),
 				baseScale: dot.scale.x,
 				baseScaleY: dot.scale.y,
@@ -1026,8 +1026,8 @@ class PDSphereEngine{
 		});
 	}
 
-	/** [G1] 点位缩放:sprite 纵横比安全(x=画布比例×k, y=世界高×k);球体沿用 setScalar。
-	 *  [P2] 乘视距补偿 _spriteViewK:球心档相机距天球面 ≈R(外视 2.75R),等 worldSize 视觉
+	/** 点位缩放:sprite 纵横比安全(x=画布比例×k, y=世界高×k);球体沿用 setScalar。
+	 *  乘视距补偿 _spriteViewK:球心档相机距天球面 ≈R(外视 2.75R),等 worldSize 视觉
 	 *  放大 2.75× 糊脸 —— 内视统一 0.4× 补偿,退出还原。 */
 	_scaleDot(entry, k){
 		if(!entry || !entry.dot || !entry.dot.scale){
@@ -1041,7 +1041,7 @@ class PDSphereEngine{
 		}
 	}
 
-	/** [P2] 全场 sprite 视距补偿(球心档 0.4 / 其余 1):非点位 sprite 首见记 __vsBase 初始尺寸
+	/** 全场 sprite 视距补偿(球心档 0.4 / 其余 1):非点位 sprite 首见记 __vsBase 初始尺寸
 	 *  后按档重算;点位条目走 _scaleDot(保留 selK/hover 语义)。selectRow/setData 重建资产后
 	 *  须重调以覆盖新建 sprite。 */
 	_setSpriteViewScale(k){
@@ -1061,7 +1061,7 @@ class PDSphereEngine{
 	}
 
 	// —— 行选择:迫星等赤纬周日圈 + 应星位置圈高亮 + 迫星活动标(播放载体) ——
-	// ═══ [C1] 复合运动·真位层 ═══
+	// ═══ 复合运动·真位层 ═══
 	/** 外部喂入 /chart objects 的瞬时黄经速表(baseId→°/日;含逆行负值);选中态热更新 */
 	setBodySpeeds(map){
 		this._bodySpeeds = map && typeof map === 'object' ? map : {};
@@ -1250,7 +1250,7 @@ class PDSphereEngine{
 		this._clearTrail();
 		this._removeLabelCard();
 		this._clearGroup(this.selGroup);
-		// [G3] 运动组整组清空+归零(其内全部为选中行资产,随选随建)
+		// 运动组整组清空+归零(其内全部为选中行资产,随选随建)
 		this._clearGroup(this.dirGroup);
 		if(this.dirGroup && this.dirGroup.rotation){
 			this._applyDirRotation(0);
@@ -1258,7 +1258,7 @@ class PDSphereEngine{
 		this._clearTrueMotion();
 	}
 
-	/** [C1] 旋转中枢:dirGroup 与真位层同角同步 + 逐帧真位更新(全部旋转赋值必经此处) */
+	/** 旋转中枢:dirGroup 与真位层同角同步 + 逐帧真位更新(全部旋转赋值必经此处) */
 	_applyDirRotation(y){
 		if(this.dirGroup && this.dirGroup.rotation){
 			this.dirGroup.rotation.y = y;
@@ -1272,7 +1272,7 @@ class PDSphereEngine{
 	/**
 	 * 选中主限表某行(idx = res.rows 下标):
 	 *  - 迫星:等赤纬周日圈(cat='Z' 用 declZ 投影口径,'M' 用真赤纬)+ 活动标(随天球转)
-	 *  - 应星:circles[sig] 按 kind → CIRCLE_KIND_RENDER 渲染(高亮大圈/大圆/折线/细弧)
+	 *  - 应星:circles[sig] 按 kind → CIRCLE_KIND_RENDER 渲染(高亮大圈/大圆/多段线/细弧)
 	 *  - 天球回到 0 位(播放恒从 0 起步)
 	 * @returns {null|{row, conv}} 无效行返 null
 	 */
@@ -1287,7 +1287,7 @@ class PDSphereEngine{
 		this._playToken += 1;   // 作废在途播放
 		this._tweenActive = false;
 		this.clearSelection();
-		// [G3] skyGroup 恒 0(本命参照系,不再随播转动——历史姿态防御性归零);运动组同归零
+		// skyGroup 恒 0(本命参照系,不再随播转动——历史姿态防御性归零);运动组同归零
 		this.skyGroup.rotation.y = 0;
 		this._applyDirRotation(0);
 
@@ -1299,7 +1299,7 @@ class PDSphereEngine{
 		const restore = [];
 		const pulseTargets = [];
 
-		// —— [D1] 行级动/静分派(号序法律条文见 pdSphereMath 头注;fixture 670/670 实证) ——
+		// —— 行级动/静分派(号序法律条文见 pdSphereMath 头注;fixture 670/670 实证) ——
 		// mover='sig':Z 类·行星族应星动,靶=迫星相位点赤经圈(arc = RA(sig,真纬) − RA(promZ));
 		// mover='prom':轴类应星/M/T 类迫星动,靶=轴圈/位置圈(旧几何本就正确的那族)。
 		// 坐标口径:迫星恒 zero-lat 投影(effectiveEq);应星恒真黄纬(sigEqOf——旧误对应星取 raZ)。
@@ -1307,10 +1307,10 @@ class PDSphereEngine{
 		const promEff = effectiveEq(promPt, row.cat);
 		const sigPt = points[row.sig];
 		const sigEqT = sigEqOf(sigPt);
-		const mover = moverOfRow(row);   // [D2] 恒 'prom'(应星固定、迫星动);sig 分支已成惰性死支,保留不害
+		const mover = moverOfRow(row);   // 恒 'prom'(应星固定、迫星动);sig 分支已成惰性死支,保留不害
 		const moverPt = mover === 'sig' ? sigPt : promPt;
 		const moverEq = mover === 'sig' ? sigEqT : promEff;
-		const targetDeg = promRotationRad(row) * 180 / Math.PI;   // [D2] 迫星旋转:planet 族 +arc 落应星赤经圈,轴/M/T 族 −arc
+		const targetDeg = promRotationRad(row) * 180 / Math.PI;   // 迫星旋转:planet 族 +arc 落应星赤经圈,轴/M/T 族 −arc
 
 		// —— 动方「预定路径弧」:观测者固定系中,自动方本命位沿其赤纬圈延伸恰 arc 度的虚线弧
 		// +末端箭头=「将要走的路」;播放时进度实线 setDrawRange 渐现=「已走过的路」。
@@ -1350,7 +1350,7 @@ class PDSphereEngine{
 			this.selGroup.add(progressLine);
 		}
 
-		// [D1] 动方活动标(挂 dirGroup,唯一随播转者):
+		// 动方活动标(挂 dirGroup,唯一随播转者):
 		//  mover='prom':相位行=「本体glyph+相位glyph」组合字;映点/界=中文短标;本体行=glyph;
 		//  mover='sig':应星本体 glyph(真黄纬位)——被引导滑向迫星相位点赤经圈(内核半弧比例号序)。
 		//  白字烘焙+material 染方向色。🔴 moverPt 守卫:缺点则无标(effectiveEq 回落 (0,0) 幽灵防)。
@@ -1416,10 +1416,10 @@ class PDSphereEngine{
 			}
 		}
 
-		// [D1] 靶线分派:
+		// 靶线分派:
 		//  mover='sig' → 迫星相位点·赤经圈(过天极与 promZ 的大圆,前端自构粗管——后端 circles
 		//    是旧「应星圈」假设产物,行星族不再消费);
-		//  mover='prom' → 后端 circles[sig] kind 分派(轴圈/位置圈/折线/细圈,该族旧几何本就正确)。
+		//  mover='prom' → 后端 circles[sig] kind 分派(轴圈/位置圈/多段线/细圈,该族旧几何本就正确)。
 		const circle = circles[row.sig];
 		const kind = circle && circle.type;
 		const render = CIRCLE_KIND_RENDER[kind];
@@ -1461,9 +1461,9 @@ class PDSphereEngine{
 				pulseTargets.push({ material: tube.material, mode: 'emissive' });
 			}
 		}else if(render === 'polyline' && circle){
-			// Placidus/Topocentric/legacy:采样折线,断段自然断开(极圈不可解区间零连线)
-			// [P1] polyline 圈选中期粗管化:细线在满盘同色系里不显眼(用户实读「没碰到」),
-			// 段折线走 CatmullRom(tension 0 过点)Tube;段仍自然断开(极圈不可解区间零管)。
+			// Placidus/Topocentric/legacy:采样多段线,断段自然断开(极圈不可解区间零连线)
+			// polyline 圈选中期粗管化:细线在满盘同色系里不显眼(用户实读「没碰到」),
+			// 段多段线走 CatmullRom(tension 0 过点)Tube;段仍自然断开(极圈不可解区间零管)。
 			(circle.points || []).forEach((seg)=>{
 				if(!Array.isArray(seg) || seg.length < 2){
 					return;
@@ -1475,7 +1475,7 @@ class PDSphereEngine{
 				try{
 					const curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0);
 					const tube = new THREE.Mesh(
-						new THREE.TubeGeometry(curve, Math.max(32, pts.length * 2), Math.max(0.42, R * 0.0028), 8, false), // [L1] 同步减细
+						new THREE.TubeGeometry(curve, Math.max(32, pts.length * 2), Math.max(0.42, R * 0.0028), 8, false), // 同步减细
 						new THREE.MeshStandardMaterial({
 							color: 0x000000, emissive: new THREE.Color(dirColor), emissiveIntensity: 1.0,
 							transparent: true, opacity: 0.92,
@@ -1495,7 +1495,7 @@ class PDSphereEngine{
 			});
 		}else if(render === 'thin-arc' && sigPt){
 			// hour-circle:过天极的应星时圈;ecliptic-meridian:过黄道极的应星黄道经圈(应星恒真纬)
-			// [P1] 选中期一律粗管(旧 0.72 细线被淹没=「成相位线」看不见的直接元凶)
+			// 选中期一律粗管(旧 0.72 细线被淹没=「成相位线」看不见的直接元凶)
 			const pole = kind === 'ecliptic-meridian'
 				? (()=>{
 					const ep = eclipticPoleOf((this.res.frame && this.res.frame.epsMean) || 23.44);
@@ -1509,16 +1509,16 @@ class PDSphereEngine{
 				pulseTargets.push({ material: tube.material, mode: 'emissive' });
 			}
 		}
-		} // [D1] mover==='prom' 靶线分派 else 收口
+		} // mover==='prom' 靶线分派 else 收口
 
-		// —— [D1] 迫星侧身份标注:父组按动方分派 ——
+		// —— 迫星侧身份标注:父组按动方分派 ——
 		//  mover='prom':迫星资产挂 dirGroup 随组转(旧正确族);
 		//  mover='sig':迫星相位点是「固定靶」——本体 glyph/相位点标/直线连线/坐标卡全部静止挂
 		//    selGroup;此时活动标(dirGroup)=应星 glyph,应星卡随动。
 		const promSideGrp = mover === 'prom' ? this.dirGroup : this.selGroup;
-		const extraSky = []; // [G3] 运动资产改由组整组清理,此数组仅保字段兼容(恒空)
+		const extraSky = []; // 运动资产改由组整组清理,此数组仅保字段兼容(恒空)
 		if(promPt){
-			// [P4] 圈选环撤销(用户定案「参与相位的星体不用圈起来了」):glyph 本体+方向色染+标注卡已足辨识
+			// 圈选环撤销(用户定案「参与相位的星体不用圈起来了」):glyph 本体+方向色染+标注卡已足辨识
 			const aspTxt = aspectDegOf(row.prom);
 			const promCard = makeTextSprite(`迫星·${cnNameOf(promBaseId)}${aspTxt ? `·${aspTxt}` : ''}`, {
 				worldSize: Math.max(7, R * 0.05), color: dirColor, glow: true,
@@ -1526,7 +1526,7 @@ class PDSphereEngine{
 			const pcp = sph(promEff.ra, Math.min(84, promEff.decl + 10), R * 1.1);
 			promCard.position.set(pcp.x, pcp.y, pcp.z);
 			promSideGrp.add(promCard);
-			// [D1] mover='sig' 时相位点本身要有静止标(动方标已让位给应星):组合 glyph 钉在相位点位
+			// mover='sig' 时相位点本身要有静止标(动方标已让位给应星):组合 glyph 钉在相位点位
 			if(mover === 'sig'){
 				const bodyGlyphS = pointGlyphOf(promBaseId);
 				const aspPtMark = (promPt.kind === 'aspect' && bodyGlyphS.astroFont && aspGlyphChar && aspRawDeg !== '0')
@@ -1541,7 +1541,7 @@ class PDSphereEngine{
 				aspPtMark.position.set(app.x, app.y, app.z);
 				this.selGroup.add(aspPtMark);
 			}
-			// [WP-2 双坐标] 完整语义坐标行:λ(黄道)+α/δ(赤道)——标注卡从不显数值(体检第4项)。
+			// 完整语义坐标行:λ(黄道)+α/δ(赤道)——标注卡从不显数值(体检第4项)。
 			const _fmtDeg = (v)=>{
 				let d = Math.floor(Math.abs(v)); let m = Math.round((Math.abs(v) - d) * 60);
 				if(m >= 60){ m = 0; d += 1; } // 分四舍五入至 60 → 进位入度,免出现 …°60′
@@ -1554,7 +1554,7 @@ class PDSphereEngine{
 			const ccp = sph(promEff.ra, Math.min(80, promEff.decl + 16), R * 1.1);
 			coordCard.position.set(ccp.x, ccp.y, ccp.z);
 			promSideGrp.add(coordCard);
-			// [WP-2 双坐标] Z 类:黄道投影点 (raZ,declZ) 常驻金菱形,细虚线连真体
+			// Z 类:黄道投影点 (raZ,declZ) 常驻金菱形,细虚线连真体
 			// (月亮 β≈5° 真体明显离黄道圈 —— 弧几何用投影点,物理位置是真体,两者都画才不糊)。
 			const isMundoCard = `${row.cat || ''}` === 'M';
 			if(!isMundoCard && Number.isFinite(Number(promPt.raZ))){
@@ -1577,7 +1577,7 @@ class PDSphereEngine{
 					promSideGrp.add(tie);
 				}
 			}
-			// [G3] 虚点迫星:本体星 glyph 副本+本体↔被引导点连线(中点相位 glyph,用户定案)——
+			// 虚点迫星:本体星 glyph 副本+本体↔被引导点连线(中点相位 glyph,用户定案)——
 			// skyGroup 原件将被显隐策略藏起,运动组内的副本才是「随周日转动的迫星本体」。
 			if(VIRTUAL_POINT_KINDS.has(promPt.kind)){
 				let bodyPt = null;
@@ -1600,7 +1600,7 @@ class PDSphereEngine{
 					const bpPos = sph(bodyEq.ra, bodyEq.decl, R);
 					bodySprite.position.set(bpPos.x, bpPos.y, bpPos.z);
 					promSideGrp.add(bodySprite);
-					// [P1] 用户定案「相位线直接用直线连结 promissor 和相位点」:大圆弧→弦直线
+					// 用户定案「相位线直接用直线连结 promissor 和相位点」:大圆弧→弦直线
 					//(线穿球内,线框天球下清晰可见;直线无 slerp 除零问题,180° 对分照画=直径线)。
 					const p1 = sph(bodyEq.ra, bodyEq.decl, R);
 					const p2 = sph(promEff.ra, promEff.decl, R);
@@ -1612,7 +1612,7 @@ class PDSphereEngine{
 							new THREE.LineBasicMaterial({ color: dirColor, transparent: true, opacity: 0.55 })
 						);
 						promSideGrp.add(link);
-						// [P4] 本体圈选环撤销(用户定案);直线+glyph 已表达来源
+						// 本体圈选环撤销(用户定案);直线+glyph 已表达来源
 						// 弦中点相位 glyph(用户定案「中间用相位glyph标识出来」;billboard 任意位置可读)
 						if(aspGlyphChar && aspRawDeg !== '0'){
 							const mv = tvA.clone().add(tvB).multiplyScalar(0.5);
@@ -1627,14 +1627,14 @@ class PDSphereEngine{
 			}
 		}
 		if(sigPt){
-			// [D1] 应星卡:mover='sig' 随动挂 dirGroup(跟着应星滑),否则静止 selGroup;坐标恒真纬。
+			// 应星卡:mover='sig' 随动挂 dirGroup(跟着应星滑),否则静止 selGroup;坐标恒真纬。
 			const sigCard = makeTextSprite(`应星·${cnNameOf(sigBaseId)}`, {
 				worldSize: Math.max(7, R * 0.05), color: dirColor, glow: true,
 			});
 			const scp = sph(sigEqT.ra, Math.max(-84, sigEqT.decl - 10), R * 1.1);
 			sigCard.position.set(scp.x, scp.y, scp.z);
 			(mover === 'sig' ? this.dirGroup : this.selGroup).add(sigCard);
-			// —— [D1] 相遇几何按动方分派 ——
+			// —— 相遇几何按动方分派 ——
 			//  mover='sig':命中点=迫星相位点赤经圈 ∩ 应星赤纬圈(解析直取:同 RA、应星赤纬);
 			//    静止端=相位点本身,连线沿赤经圈纵向,播放至 t=1 应星滑入命中点。
 			//  mover='prom':旧正统几何(动方赤纬圈 ∩ 应星位置圈真交点;kind 分派;解不出回落 RA 平移)。
@@ -1690,7 +1690,7 @@ class PDSphereEngine{
 										: render === 'polyline' ? '半弧位置圈' : '位置圈';
 				}
 				const ev = new THREE.Vector3(endP.x, endP.y, endP.z);
-				// [D1] 名实分层文案(用户实爆「赤道线标黄道相位」):相位取黄道(定义)·抵达走赤道机器(圈)
+				// 名实分层文案(用户实爆「赤道线标黄道相位」):相位取黄道(定义)·抵达走赤道机器(圈)
 				const aspTxt2 = isMundo
 					? `世俗相位 ${rawAsp || '合'}(半弧比例)`
 					: `${rawAsp ? `黄道取相位 ${rawAsp} · ` : ''}${circleName}相遇`;
@@ -1715,7 +1715,7 @@ class PDSphereEngine{
 				const aspLabel = makeTextSprite(aspTxt2, { worldSize: Math.max(6.5, R * 0.048), color: dirColor, glow: true });
 				aspLabel.position.set(midV.x, midV.y, midV.z);
 				this.selGroup.add(aspLabel);
-				// [P1→P6] 命中点标(选中即现,固定系):被引导点将抵达的位置圈命中点。
+				// 命中点标(选中即现,固定系):被引导点将抵达的位置圈命中点。
 				// 双环靶已撤(用户定案「怎么还有这么大的圆环」——球心视角下尤为突兀):只留小芯点,
 				// t=1 随圈脉冲即足以钉住「成相位落点」。
 				const targetCore = new THREE.Mesh(
@@ -1728,7 +1728,7 @@ class PDSphereEngine{
 			}
 		}
 
-		// [G3] 显隐策略(用户定案「盘上始终只留这两个星体以及 promissor 的对应相位点」):
+		// 显隐策略(用户定案「盘上始终只留这两个星体以及 promissor 的对应相位点」):
 		//  应星:skyGroup 原位高亮(染方向色+放大;skyGroup 恒 0 → 纹丝不动=固定征象本体);
 		//  迫星本体/被引导虚点的 skyGroup 原件:隐藏(dirGroup 运动组接管其呈现,防「原地残影+运动副本」双影);
 		//  其余一切点:聚焦档=整体隐去;全显档=淡显 0.55 供对照;
@@ -1759,7 +1759,7 @@ class PDSphereEngine{
 				}
 			};
 			if(pid === sigPid){
-				// [D1] 应星动(行星族):skyGroup 原件隐藏——dirGroup 运动副本接管其呈现(防双影)
+				// 应星动(行星族):skyGroup 原件隐藏——dirGroup 运动副本接管其呈现(防双影)
 				if(mover === 'sig'){
 					hideEntry();
 					return;
@@ -1805,17 +1805,17 @@ class PDSphereEngine{
 		});
 
 		this._selection = { idx, row, conv, mover, marker, pulseTargets, restore, extraSky, progressLine, pathSegs: PATH_SEGS,
-			rotTarget: promRotationRad(row) };   // [C1] 真位层进度分母(rotation.y/rotTarget = 播放进度 f)
+			rotTarget: promRotationRad(row) };   // 真位层进度分母(rotation.y/rotTarget = 播放进度 f)
 		this._buildTrueMotionLayer(row, conv);
-		// [P2] 球心档下选中行新建的 sprite 资产补视距缩放(traverse 只补新面孔,已补的走 __vsBase 幂等)
+		// 球心档下选中行新建的 sprite 资产补视距缩放(traverse 只补新面孔,已补的走 __vsBase 幂等)
 		if((this._spriteViewK || 1) !== 1){ this._setSpriteViewScale(this._spriteViewK); }
 		this.wake(3);
 		return { row, conv };
 	}
 
-	// —— 播放([G3]):dirGroup.rotation.y 0 → −arc·π/180(easeInOutCubic;converse 负弧自然反向)——
+	// —— 播放:dirGroup.rotation.y 0 → −arc·π/180(easeInOutCubic;converse 负弧自然反向)——
 	// 运动组独转:应星/黄道/其余点全部静止,唯迫星组被周日运动引导(directio 正统)。
-	// [WP-B] 连播衔接:非本命姿态起播时先 300ms 缓动回 0 再进入正式播放——
+	// 连播衔接:非本命姿态起播时先 300ms 缓动回 0 再进入正式播放——
 	// selectRow 起手会硬置 rotation=0(路径弧/marker 按 rotation=0 烘焙,不可从中途姿态直转),
 	// 旧行为=瞬间跳回本命再播(跳变);现=柔和回 0 → _playRowCore。
 	playRow(idx, cardText, onDone){
@@ -1851,13 +1851,13 @@ class PDSphereEngine{
 			return;
 		}
 		const row = sel.row;
-		const target = promRotationRad(row);   // [D2] 迫星旋转角(族定号序;应星固定)
+		const target = promRotationRad(row);   // 迫星旋转角(族定号序;应星固定)
 		const dur = playDurationMs(row.arc);
 		this._playToken += 1;
 		const token = this._playToken;
 		this._showLabelCard(cardText, sel.conv);
-		this._trailInit(sel.conv); // [WP-4] 接回渐隐尾迹(死代码复活:头注早已宣称,基建全在,只差三处接线)
-		this._setBeaconEmphasis(true); // [WP-A] 播放期周日方向浮标提亮
+		this._trailInit(sel.conv); // 接回渐隐尾迹(死代码复活:头注早已宣称,基建全在,只差三处接线)
+		this._setBeaconEmphasis(true); // 播放期周日方向浮标提亮
 
 		const t0 = performance.now();
 		this._tweenActive = true;
@@ -1877,19 +1877,19 @@ class PDSphereEngine{
 			if(selNow && selNow.progressLine){
 				selNow.progressLine.geometry.setDrawRange(0, Math.max(0, Math.floor(eased * selNow.pathSegs) + 1));
 			}
-			this._trailAppend(); // [WP-4] 迫星活动标残影逐帧记点
+			this._trailAppend(); // 迫星活动标残影逐帧记点
 			if(t < 1){
 				window.requestAnimationFrame(step);
 			}else{
 				this._tweenActive = false;
 				this._pulseSelection(token);   // t=1:应星位置圈 emissive 脉冲 2 次
-				this._emitTrueMotionInfo();    // [C1] 播放落定:历时+诸曜真位漂移报宿主信息行
-				this._trailFade(token);        // [WP-4] 尾迹渐隐收场
-				this._setBeaconEmphasis(false); // [WP-A] 播完浮标回淡显
+				this._emitTrueMotionInfo();    // 播放落定:历时+诸曜真位漂移报宿主信息行
+				this._trailFade(token);        // 尾迹渐隐收场
+				this._setBeaconEmphasis(false); // 播完浮标回淡显
 				if(onDone){
 					onDone();
 				}
-				// [WP-B] 播放停在命中姿态(默认)——与时间轴拖拽路径行为统一,天球停驻在「事件发生时的天空」。
+				// 播放停在命中姿态(默认)——与时间轴拖拽路径行为统一,天球停驻在「事件发生时的天空」。
 				// 显式开启「播完自动复位」(设置 checkbox → localStorage horosa.pdsphere.autoResetAfterPlay='1')
 				// 才走 900ms 缓动回 0(旧 WP-3 行为);连播不再依赖此块——playRow 起手自带 300ms 回 0 衔接。
 				let autoReset = false;
@@ -1922,7 +1922,7 @@ class PDSphereEngine{
 		if(!sel){
 			return;
 		}
-		const target = promRotationRad(sel.row);   // [D2] 迫星旋转角(族定号序;应星固定)
+		const target = promRotationRad(sel.row);   // 迫星旋转角(族定号序;应星固定)
 		this._playToken += 1;
 		const token = this._playToken;
 		const from = this.dirGroup.rotation.y;
@@ -1948,7 +1948,7 @@ class PDSphereEngine{
 				window.requestAnimationFrame(step);
 			}else{
 				this._tweenActive = false;
-				this._emitTrueMotionInfo();   // [C1] 拖拽落定同报信息行
+				this._emitTrueMotionInfo();   // 拖拽落定同报信息行
 			}
 		};
 		this.wake(2);
@@ -1956,7 +1956,7 @@ class PDSphereEngine{
 	}
 
 	/** 复位:天球转回 0 位(选择保留) */
-	// [WP-5.4] 导出附图用:render 后同步读帧(WebGL preserveDrawingBuffer=false 下唯一可靠路)。
+	// 导出附图用:render 后同步读帧(WebGL preserveDrawingBuffer=false 下唯一可靠路)。
 	// stub renderer(jsdom smoke)无真 toDataURL → 守卫返 null,由截图链降级,绝不抛。
 	captureFrame(){
 		try{
@@ -1978,13 +1978,13 @@ class PDSphereEngine{
 	resetRotation(){
 		this._playToken += 1;
 		const token = this._playToken;
-		// [WP-B] 复位=回本命姿态:同时清「走过的路」轨迹线(原漏清——复位后轨迹残留在 0 姿态上错位)。
+		// 复位=回本命姿态:同时清「走过的路」轨迹线(原漏清——复位后轨迹残留在 0 姿态上错位)。
 		const selNow = this._selection;
 		if(selNow && selNow.progressLine){
 			selNow.progressLine.geometry.setDrawRange(0, 0);
 		}
-		this._setBeaconEmphasis(false); // [WP-A] 复位浮标回淡显
-		// [WP-A] 复位同时回正视角到当前档默认位(带缓动;视角=观感的一部分,复位应一并归位)
+		this._setBeaconEmphasis(false); // 复位浮标回淡显
+		// 复位同时回正视角到当前档默认位(带缓动;视角=观感的一部分,复位应一并归位)
 		this.applyViewMode(this.viewMode, true);
 		const from = this.dirGroup ? this.dirGroup.rotation.y : 0;
 		if(!this.dirGroup || Math.abs(from) < 1e-9){
@@ -2037,7 +2037,7 @@ class PDSphereEngine{
 		if(pts.length < 2){
 			return;
 		}
-		// 逐帧重建折线(≤420 顶点,播放期专属开销;LineBasicMaterial 顶点色:黑底上
+		// 逐帧重建多段线(≤420 顶点,播放期专属开销;LineBasicMaterial 顶点色:黑底上
 		// 头亮尾黑 + additive = 透明度衰减观感,免自定义 shader)
 		if(this._trail.line){
 			this.selGroup.remove(this._trail.line);
@@ -2109,7 +2109,7 @@ class PDSphereEngine{
 	}
 
 	// —— t=1 应星位置圈脉冲:sin²(2πt) 包络恰 2 个峰;Tube 走真 emissiveIntensity,
-	//    Line(采样折线/细弧,LineBasicMaterial 无 emissive 通道)等效走颜色提白 ——
+	//    Line(采样多段线/细弧,LineBasicMaterial 无 emissive 通道)等效走颜色提白 ——
 	_pulseSelection(token){
 		if(!this._selection || !this._selection.pulseTargets.length){
 			return;
@@ -2232,11 +2232,11 @@ class PDSphereEngine{
 		this.disposed = true;
 		this._playToken += 1;
 		this._tweenActive = false;
-		// [WP-D] 拾取监听清理(同 OrbitControls 教训:不摘会闭包吊住引擎)+星空层卸载
+		// 拾取监听清理(同 OrbitControls 教训:不摘会闭包吊住引擎)+星空层卸载
 		if(this.renderer && this.renderer.domElement && typeof this.renderer.domElement.removeEventListener === 'function'){
 			if(this._onPickMove){ this.renderer.domElement.removeEventListener('pointermove', this._onPickMove); }
 			if(this._onPickClick){ this.renderer.domElement.removeEventListener('click', this._onPickClick); }
-			// [P2] 球心档环视监听同拆
+			// 球心档环视监听同拆
 			const el = this.renderer.domElement;
 			if(this._onCenterDown){ el.removeEventListener('pointerdown', this._onCenterDown); }
 			if(this._onCenterMove){ el.removeEventListener('pointermove', this._onCenterMove); }
@@ -2327,7 +2327,7 @@ class PDSphereEngine{
 		if(!this.renderer){
 			return;
 		}
-		// 🔴 [P2 实爆根因] 球心档必须跳过 OrbitControls.update():其每帧「半径钳回 minDistance(1.15R)
+		// 🔴 球心档必须跳过 OrbitControls.update():其每帧「半径钳回 minDistance(1.15R)
 		// + lookAt(球心)」会把居于球心的相机顶出到天顶方向 1.15R 俯视原点(真机=「天顶」大白点居中、
 		// 几何全错),并逐帧清洗自定义环视旋转(=拖不动)。enabled=false 只拦输入不拦 update()。
 		if(this.orbits && this.viewMode !== 'center'){

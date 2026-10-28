@@ -88,7 +88,7 @@ describe('六爻断卦结构快照(WP-M)', () => {
 	});
 });
 
-describe('[Q-201/T-144] 断卦结构:变爻范围=盲派 → 快照追加「盲派作用」行(缺省 traditional 字节不变)', () => {
+describe('断卦结构:变爻范围=盲派 → 快照追加「盲派作用」行(缺省 traditional 字节不变)', () => {
 	const nongli = { dayGanZi: '癸巳', monthGanZi: '乙未', yearGanZi: '丙午', timeGanZi: '壬子', time: '子' };
 	test('blind 出行、traditional 不出', () => {
 		const blind = liuyaoStructLines(mkSt('火水未济', 2, nongli, { bianyaoScope: 'blind' })).join('\n');

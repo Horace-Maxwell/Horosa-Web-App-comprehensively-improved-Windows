@@ -1,4 +1,4 @@
-// [D3] 运限联动层金标:
+// 运限联动层金标:
 //   ① 小限叠宫层:luckLabelLayers 默认参恒关(零回归)/开+选小限=插「限」层;金框语义不动
 //   ② 流年神煞上盘:resolveSmallStarsForDisplay 纯函数(关同引用/形状守卫/开=博士留+将岁前换流年版对 golden)
 //   ③ 快照:流年层追神煞行仅开时;管道 flowZhi 源码守卫 ④ 面板版式豁免 bump(注释在案)
@@ -13,7 +13,7 @@ afterEach(()=>{
 	try{ localStorage.removeItem('ziweiShowXiaoxianLayer'); }catch(e){ /* noop */ }
 });
 
-describe('[D3] 小限叠宫层', ()=>{
+describe('小限叠宫层', ()=>{
 	const sel = { daxian: { mingIndex: 3 }, liunian: { mingIndex: 5 }, xiaoxian: { mingIndex: 7 }, liuyue: null, liuri: null, liushi: null };
 	test('🔴 默认参(不传)=恒不含 xiaoxian 层(快照/挂载/既有调用零回归)', ()=>{
 		const keys = ZiWeiHelper.luckLabelLayers(sel).map((l)=>l.key);
@@ -37,7 +37,7 @@ describe('[D3] 小限叠宫层', ()=>{
 	});
 });
 
-describe('[D3] resolveSmallStarsForDisplay(BUG-H 绘制期替换)', ()=>{
+describe('resolveSmallStarsForDisplay(BUG-H 绘制期替换)', ()=>{
 	const natal = [{ name: '将军' }, { name: '灾煞' }, { name: '吊客' }];
 	test('🔴 关(默认)=原引用;开但缺流年支=原引用;形状≠3条=原引用(诚实降级)', ()=>{
 		expect(ZiWeiHelper.resolveSmallStarsForDisplay(natal, '子', '午')).toBe(natal);
@@ -74,7 +74,7 @@ describe('[D3] resolveSmallStarsForDisplay(BUG-H 绘制期替换)', ()=>{
 	});
 });
 
-describe('[D3] 快照与面板', ()=>{
+describe('快照与面板', ()=>{
 	test('🔴 快照:流年层神煞行仅开时追加(默认关=基线字节稳);tbNotes 注记(源码守卫)', ()=>{
 		const src = fs.readFileSync(path.join(__dirname, '..', 'ZiWeiMain.js'), 'utf8');
 		expect(/flowShenshaOnChart && layer\.zhi && levelLabel === ZW_PERIOD_LEVEL_LABEL\.liunian/.test(src)).toBe(true);

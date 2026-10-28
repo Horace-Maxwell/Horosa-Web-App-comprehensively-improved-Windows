@@ -37,7 +37,7 @@ function cloneTable(src){
 	return t;
 }
 
-// [B14] 自定义亮度表编辑器:32 星 × 12 支网格,分四组页签。档值域 9 值+空(空=回落基表)。
+// 自定义亮度表编辑器:32 星 × 12 支网格,分四组页签。档值域 9 值+空(空=回落基表)。
 class ZWBrightnessCustomModal extends Component {
 	constructor(props){
 		super(props);
@@ -136,7 +136,7 @@ class ZWBrightnessCustomModal extends Component {
 				</Tabs>
 				<div className="horosa-ziwei-brightness-editor-tip" style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 6 }}>
 					<button type="button" className="horosa-ziwei-school-edit-btn" onClick={()=>this.resetGroup()}>本组重置为当前亮度源</button>
-					<span style={{ fontSize: 11, opacity: 0.65 }}>留空=该格不标注(按基础表);仅改动的格生效,保存后立即随盘显示。</span>
+					<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>留空=该格不标注(按基础表);仅改动的格生效,保存后立即随盘显示。</span>
 				</div>
 			</Modal>
 		);

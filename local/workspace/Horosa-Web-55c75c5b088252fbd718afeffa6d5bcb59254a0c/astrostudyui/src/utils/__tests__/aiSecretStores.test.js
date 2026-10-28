@@ -1,4 +1,4 @@
-// [G7] 备份剥密穷举:带密钥的店/字段单源;任何记录形状里出现密钥字段的店必须在 AI_SECRET_STORES;备份产物零明文。
+// 备份剥密穷举:带密钥的店/字段单源;任何记录形状里出现密钥字段的店必须在 AI_SECRET_STORES;备份产物零明文。
 import fs from 'fs';
 import path from 'path';
 import { AI_SECRET_STORES, AI_SECRET_FIELDS, isSecretStore, redactSecretRecord } from '../aiSecretStores';
@@ -7,7 +7,7 @@ import { collectAiWorkspaceDump } from '../unifiedBackup';
 
 const SRC = path.resolve(__dirname, '..', '..');
 
-describe('[G7] 密钥店单源', ()=>{
+describe('密钥店单源', ()=>{
 	it('店名都在 AI_ANALYSIS_STORES 里;profile 类店必登记;剥密函数逐字段清空并打标记', ()=>{
 		const all = Object.values(AI_ANALYSIS_STORES);
 		AI_SECRET_STORES.forEach((s)=>expect(all.indexOf(s)).toBeGreaterThanOrEqual(0));

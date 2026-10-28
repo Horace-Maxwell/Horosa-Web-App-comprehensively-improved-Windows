@@ -58,7 +58,7 @@ describe('推运快照 · 两支同源', ()=>{
 		expect(a).toEqual(b);
 		expect(a.targetDate).toBe('2020-06-01');
 		expect(a.targetTime).toBe('09:30:00');
-		expect(a.minorVariant).toBe('synodic');   // [Q-180] 缺省 = 标准朔望月(与页面/挂载/后端同)
+		expect(a.minorVariant).toBe('synodic');   // 缺省 = 标准朔望月(与页面/挂载/后端同)
 		expect(a.orb).toBe(1.5);
 	});
 

@@ -286,13 +286,13 @@ final class AIToolCallSupport {
 		return anthropicThinkingEnabled(providerOptions, null);
 	}
 
-	/** [Q-024/Q-049] adaptive(Opus 4.7 起 / Sonnet 5 / Fable 系的官方形态)与 enabled 同为「开启」;Fable/Mythos 思考恒开、
+	/** adaptive(Opus 4.7 起 / Sonnet 5 / Fable 系的官方形态)与 enabled 同为「开启」;Fable/Mythos 思考恒开、
 	 *  与档案里写不写 thinking 无关 —— 三者的带 tool_use 回合都必须回放签名 thinking 块(上游硬约束)。 */
 	@SuppressWarnings("rawtypes")
 	static boolean anthropicThinkingEnabled(Map<String, Object> providerOptions, String model){
 		if(AIAnalysisProxyService.anthropicAlwaysThinking(model)) { return true; }
 		Object th = providerOptions == null ? null : providerOptions.get("thinking");
-		// [Q-047/M-58] 不带 thinking 字段 ≠ 关闭:Sonnet 5 / Opus 5 官方缺省即开思考(工具回合会回签名块),此前按「未开启」不回放 →
+		// 不带 thinking 字段 ≠ 关闭:Sonnet 5 / Opus 5 官方缺省即开思考(工具回合会回签名块),此前按「未开启」不回放 →
 		//   多轮工具回合丢块。按型号缺省判(Opus 4.6–4.8 / Sonnet 4.6 缺省关;预算族不带即关);显式 disabled 才是关。
 		if(!(th instanceof Map)) { return AIAnalysisProxyService.anthropicThinkingDefaultOn(model); }
 		String type = str(((Map) th).get("type"));
@@ -396,7 +396,7 @@ final class AIToolCallSupport {
 		return sanitizeGeminiSchema(schema, 0);
 	}
 
-	// [D69] JSON Schema 类型名 → Gemini Type 枚举名(未知值原样保留,让上游按自己的规则报错而不是被我们吞掉)
+	// JSON Schema 类型名 → Gemini Type 枚举名(未知值原样保留,让上游按自己的规则报错而不是被我们吞掉)
 	static String geminiTypeName(String t){
 		String u = t == null ? "" : t.trim().toUpperCase(Locale.ROOT);
 		if(u.equals("STRING") || u.equals("NUMBER") || u.equals("INTEGER") || u.equals("BOOLEAN") || u.equals("ARRAY") || u.equals("OBJECT")) { return u; }
@@ -436,7 +436,7 @@ final class AIToolCallSupport {
 				if(nullable) { out.put("nullable", Boolean.TRUE); }
 				continue;
 			}
-			// [D69] Gemini Schema.type 是枚举 TYPE_UNSPECIFIED/STRING/NUMBER/INTEGER/BOOLEAN/ARRAY/OBJECT(discovery v1beta 只列大写);
+			// Gemini Schema.type 是枚举 TYPE_UNSPECIFIED/STRING/NUMBER/INTEGER/BOOLEAN/ARRAY/OBJECT(discovery v1beta 只列大写);
 			//   工具目录是 JSON Schema 小写 → 一律按官方枚举名下发(官方 schema 校验实抓小写不合枚举)
 			if("type".equals(key) && v instanceof String) {
 				if("null".equals(v)) { out.put("nullable", Boolean.TRUE); continue; }
@@ -457,7 +457,7 @@ final class AIToolCallSupport {
 		}
 		if(constVal != null && !out.containsKey("enum")) {
 			out.put("enum", Arrays.asList(constVal));
-			// [D76] 推断出的类型同样走 Gemini 枚举名(D69 大写归一漏了这条支路:const 无 type ⇒ 小写 "number"/"boolean"/"string" 不合枚举)
+			// 推断出的类型同样走 Gemini 枚举名(D69 大写归一漏了这条支路:const 无 type ⇒ 小写 "number"/"boolean"/"string" 不合枚举)
 			if(!out.containsKey("type")) { out.put("type", geminiTypeName(constVal instanceof Number ? "number" : (constVal instanceof Boolean ? "boolean" : "string"))); }
 		}
 		return out;

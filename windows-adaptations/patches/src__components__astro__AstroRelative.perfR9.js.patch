@@ -1,31 +1,32 @@
 diff --git a/astrostudyui/src/components/astro/AstroRelative.js b/astrostudyui/src/components/astro/AstroRelative.js
-index 1f4af761..80925a89 100644
+index 77a0d617..72901696 100644
 --- a/astrostudyui/src/components/astro/AstroRelative.js
 +++ b/astrostudyui/src/components/astro/AstroRelative.js
-@@ -22,6 +22,8 @@ import { buildAstroSnapshotContent, } from '../../utils/astroAiSnapshot';
- import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
- import UpdatingBadge from '../common/UpdatingBadge';
+@@ -25,6 +25,8 @@ import UpdatingBadge from '../common/UpdatingBadge';
  import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+ import { recordSeedsForFieldWrite } from '../../utils/newChartSeeds';
+ import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
  
  const TabPane = Tabs.TabPane;
  
-@@ -592,6 +594,10 @@ class AstroRelative extends Component{
- 
- 		if(!this._mounted) return;
- 		this.setState(st, ()=>{
+@@ -622,6 +624,11 @@ class AstroRelative extends Component{
+ 			if(sentTab !== this.state.currentTab){
+ 				return;
+ 			}
 +			// horosa_panel_ready_v1:合盘结果落定(当前子页签的盘 + 其右栏皆由 hook[tab].result 派生)的提交点。
 +			// ★ 顶层页签 key 是 'relativechart'(pages/index.js:829),不是 'direction' —— 必须与
 +			// markInteractionStart(currentTab) 同名,否则合盘的样本会被记到星运名下(观测串族)。
++			// (置于 sentTab 守卫之后:结果落在别的子页签时不算本次交互画完。)
 +			markPanelReady('relativechart');
- 			let hook = this.state.hook[this.state.currentTab];
+ 			let hook = this.state.hook[sentTab];
  			if(hook && hook.fun){
  				hook.fun(res);
-@@ -710,6 +716,10 @@ class AstroRelative extends Component{
- 				<Row className="horosa-relative-chart-row" gutter={12} style={{marginTop: 10, position: 'relative'}} ref={this.chartRowRef}>
- 					<Col span={24}>
- 						{this.state.updating && hook[this.state.currentTab] && hook[this.state.currentTab].result ? <UpdatingBadge /> : null}
+@@ -766,6 +773,10 @@ class AstroRelative extends Component{
+ 						{(!this.state.chartA || !this.state.chartB) ? (
+ 							<div className="horosa-empty-line horosa-relative-empty-hint" role="note">先在上方选择星盘 A 与星盘 B,再点「排盘」</div>
+ 						) : null}
 +						{/* horosa_freeze_subtabs_v1:六个合盘子页签此前全部常驻重渲(每次排盘/改选项都画 6 套)。
 +						    state.currentTab 本就由 changeTab 与 antd 同步,直接拿来做 active;
 +						    Tabs 仍保持原非受控写法(defaultActiveKey),行为逐字不变。
@@ -33,7 +34,7 @@ index 1f4af761..80925a89 100644
  						<Tabs 
  							defaultActiveKey={this.state.currentTab} tabPosition='right'
  							onChange={this.changeTab}
-@@ -717,6 +727,7 @@ class AstroRelative extends Component{
+@@ -773,6 +784,7 @@ class AstroRelative extends Component{
  							style={{ height: height }}
  						>
  							<TabPane tab="比较盘" key="Comp">
@@ -41,7 +42,7 @@ index 1f4af761..80925a89 100644
  									<AstroCompare
  										value={hook.Comp.result}
  									height={height}
-@@ -737,8 +748,10 @@ class AstroRelative extends Component{
+@@ -793,8 +805,10 @@ class AstroRelative extends Component{
  										aspects={this.props.aspects}
  										hook={hook.Comp}	
  									/>
@@ -50,9 +51,9 @@ index 1f4af761..80925a89 100644
  							<TabPane tab="组合盘" key="Composite">
 +								<FreezeSubTab active={this.state.currentTab === 'Composite'}>
  									<AstroComposite 
+ 										relativeContext={this.relativeContextFor('Composite')}
  										wheelArt={this.props.wheelArt}
- 										value={hook.Composite.result}
-@@ -760,8 +773,10 @@ class AstroRelative extends Component{
+@@ -817,8 +831,10 @@ class AstroRelative extends Component{
  										aspects={this.props.aspects}
  										hook={hook.Composite}	
  									/>
@@ -61,9 +62,9 @@ index 1f4af761..80925a89 100644
  							<TabPane tab="影响盘" key="Synastry">
 +								<FreezeSubTab active={this.state.currentTab === 'Synastry'}>
  									<AstroSynastry 
+ 										relativeContext={this.relativeContextFor('Synastry')}
  										wheelArt={this.props.wheelArt}
- 										value={hook.Synastry.result}
-@@ -783,8 +798,10 @@ class AstroRelative extends Component{
+@@ -841,8 +857,10 @@ class AstroRelative extends Component{
  										aspects={this.props.aspects}
  										hook={hook.Synastry}	
  									/>
@@ -72,9 +73,9 @@ index 1f4af761..80925a89 100644
  							<TabPane tab="时空中点盘" key="TimeSpace">
 +								<FreezeSubTab active={this.state.currentTab === 'TimeSpace'}>
  									<AstroTimeSpace 
+ 										relativeContext={this.relativeContextFor('TimeSpace')}
  										wheelArt={this.props.wheelArt}
- 										value={hook.TimeSpace.result}
-@@ -806,8 +823,10 @@ class AstroRelative extends Component{
+@@ -865,8 +883,10 @@ class AstroRelative extends Component{
  										aspects={this.props.aspects}
  										hook={hook.TimeSpace}	
  									/>
@@ -83,9 +84,9 @@ index 1f4af761..80925a89 100644
  								<TabPane tab="马克斯盘" key="Marks">
 +									<FreezeSubTab active={this.state.currentTab === 'Marks'}>
  										<AstroMarks 
+ 										relativeContext={this.relativeContextFor('Marks')}
  											wheelArt={this.props.wheelArt}
- 											value={hook.Marks.result}
-@@ -829,13 +848,16 @@ class AstroRelative extends Component{
+@@ -889,13 +909,16 @@ class AstroRelative extends Component{
  										aspects={this.props.aspects}
  										hook={hook.Marks}	
  										/>

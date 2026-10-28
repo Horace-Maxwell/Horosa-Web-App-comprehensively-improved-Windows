@@ -1,6 +1,5 @@
 package spacex.astrostudycn.model;
 
-import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -126,30 +125,16 @@ public class ZiWeiChart {
 		return String.format("%de00", lon);
 	}
 	
-	private static NongLi resolveNongli(int ad, String birth, String zone, String lon, boolean after23NewDay, boolean directTime) {
-		return resolveNongli(ad, birth, zone, lon, after23NewDay, directTime, true);
-	}
-
 	private static NongLi resolveNongli(int ad, String birth, String zone, String lon, boolean after23NewDay, boolean directTime, boolean lateZiHourUseNextDay) {
 		if(!directTime) {
 			return NongliHelper.getNongLi(ad, birth, zone, lon, after23NewDay, false, lateZiHourUseNextDay);
 		}
 		try {
-			Method method = NongliHelper.class.getMethod(
-				"getNongLi",
-				int.class,
-				String.class,
-				String.class,
-				String.class,
-				boolean.class,
-				boolean.class,
-				boolean.class
-			);
-			Object res = method.invoke(null, ad, birth, zone, lon, after23NewDay, true, lateZiHourUseNextDay);
-			if(res instanceof NongLi) {
-				return (NongLi)res;
+			NongLi res = NongliHelper.getNongLi(ad, birth, zone, lon, after23NewDay, true, lateZiHourUseNextDay);
+			if(res != null) {
+				return res;
 			}
-		}catch(Exception e) {
+		}catch(Throwable e) {
 		}
 		String fallbackLon = getBaseLonByZone(zone);
 		return NongliHelper.getNongLi(ad, birth, zone, fallbackLon, after23NewDay, false, lateZiHourUseNextDay);

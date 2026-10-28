@@ -36,8 +36,8 @@ const EXEMPT = {
 		anchor: "key === 'after23NewDay' || key === 'lateZiHourUseNextDay'",
 	},
 	timeAlg: {
-		why: '真太阳时算法:onTimeAlgChange 包装 —— 清 panCache/taiyiCache/lastRecalcSignature/lastKey 后走 onFieldsChange 字段通道重取重算',
-		anchor: 'onTimeAlgChange(val){',
+		why: '真太阳时算法:onTimeAlgChange 包装 —— 清 panCache/taiyiCache/lastRecalcSignature/lastKey,只写本页 localFields,已起盘时在 setState 回调里 refreshAll(force) 重算',
+		anchor: 'this.refreshAll(localFields, true);',
 	},
 	sex: {
 		why: '性别:onGenderChange 包装 —— 同步 gender field 走字段通道重算(遁甲阴盘/太乙性别相关口径由字段链触发)',

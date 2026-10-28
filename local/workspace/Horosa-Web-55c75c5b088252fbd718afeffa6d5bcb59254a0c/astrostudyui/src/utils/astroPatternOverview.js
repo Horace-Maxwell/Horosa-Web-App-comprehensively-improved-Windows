@@ -90,7 +90,7 @@ export function buildPatternOverview(perchart, chart, opts){
 		return judgeRealmPurity([{ rules: ruleHousesOf(a), fall: houseOf(a) }, { rules: ruleHousesOf(b), fall: houseOf(b) }]); };
 
 	// ── 两星是否高层联结(互容/接纳/合相/映点)：供龙截 2:5 与先验权力判定 ──
-	// [Q-558/T-520] 帮助口径「联结只有四种:接纳、互容、合相(0°)、映点」;此前龙截只查前三种(无映点),先验权力只查互容/接纳/主宰环
+	// 帮助口径「联结只有四种:接纳、互容、合相(0°)、映点」;此前龙截只查前三种(无映点),先验权力只查互容/接纳/主宰环
 	// (无合相无映点)。现四种取材统一:合相看 normalAsp 0°(任一方向),映点/反映点看 chart.antiscias(元组 [a, b, orb])。
 	const conjLinked = (idA, idB)=>{
 		const na = chart && chart.aspects && chart.aspects.normalAsp;
@@ -224,7 +224,7 @@ export function buildPatternOverview(perchart, chart, opts){
 	[...(m.normal || []), ...(m.abnormal || [])].forEach((it)=> checkApriori(it.planetA && it.planetA.id, it.planetB && it.planetB.id, '互容'));
 	[...(r.normal || []), ...(r.abnormal || [])].forEach((it)=> checkApriori(it.beneficiary, it.supplier, '接纳'));
 	(dispositor.loops || []).forEach((lp)=>{ for(let x = 0; x < lp.ids.length; x++){ for(let y = x + 1; y < lp.ids.length; y++){ checkApriori(lp.ids[x], lp.ids[y], '主宰环'); } } });
-	// [Q-558/T-520] 先验权力联结取材补合相(0°)与映点/反映点(七真星两两;与帮助「四种联结」一致)。
+	// 先验权力联结取材补合相(0°)与映点/反映点(七真星两两;与帮助「四种联结」一致)。
 	for(let x = 0; x < seven.length; x++){ for(let y = x + 1; y < seven.length; y++){
 		const ia = seven[x].id, ib = seven[y].id;
 		if(conjLinked(ia, ib)){ checkApriori(ia, ib, '合相'); }

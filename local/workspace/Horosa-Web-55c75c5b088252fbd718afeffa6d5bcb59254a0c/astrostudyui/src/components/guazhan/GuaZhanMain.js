@@ -1,6 +1,7 @@
+import { lockDayBoundary, dayBoundaryLockHeld } from '../../utils/dayBoundaryLock';
 import { Component } from 'react';
 import { watchChartAppearance } from '../../utils/chartDrawGuard';
-import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
+import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { createSignatureMemo } from '../../utils/memoBySignature';
 import { Checkbox, message, Modal } from 'antd';
 import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select, XQTabs as Tabs, XQSideSection, XQModal  } from '../xq-ui';
@@ -13,12 +14,12 @@ import GuaZhanInput from './GuaZhanInput';
 import GuaZhanChart from './GuaZhanChart';
 import GuaDesc from './GuaDesc';
 import { getGua64, Gua64, Gua8, randYao, ZiList, HourZi, SixGods, getXunEmpty, LiuQi } from '../gua/GuaConst';
-import { pureGuaOf } from '../gua/LiuYaoEngine';   // [Q-448/T-411] 伏神卦(本宫首卦)——快照补完整装卦用
+import { pureGuaOf } from '../gua/LiuYaoEngine';   // 伏神卦(本宫首卦)——快照补完整装卦用
 import { yarrowYao } from '../gua/LiuYaoConst';
 import { analyzeLiuyao } from '../gua/liuyaoFacade';
-import { normalizeLiuyaoSettings, applyPreset, setOption, LIUYAO_SCHOOL_OPTIONS, LIUYAO_PRESETS, loadPersistedLiuyaoSettings, persistLiuyaoSettings } from '../gua/liuyaoSchools';
-import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorage';
+import { normalizeLiuyaoSettings, applyPreset, factoryLiuyaoSettings, setOption, selectionDelta, applySelectionDelta, LIUYAO_SCHOOL_OPTIONS, LIUYAO_PRESETS, loadPersistedLiuyaoSettings, persistLiuyaoSettings } from '../gua/liuyaoSchools';
 import { definePageSettings } from '../../utils/pageSettingsStore';
+import { readGuaDescCache, writeGuaDescCache } from '../../utils/guaDescCache';
 import { SHENSHA_EX, yueLingNames } from '../gua/liuyaoShenShaEx';
 import LiuYaoDuanJueView from './LiuYaoDuanJueView';
 import LiuYaoZhanLeiView from './LiuYaoZhanLeiView';
@@ -31,14 +32,15 @@ import { LiuYaoZhuangTable, LiuYaoYongShenView, LiuYaoDongBianView, LiuYaoRelate
 import DateTime from '../comp/DateTime';
 import { saveModuleAISnapshot, saveModuleAISnapshotLazy, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { getStore } from '../../utils/storageutil';
-import { caseApplySeqSuffix, caseFieldSnapshot } from '../../utils/kentangCaseSave';
+import { caseRestoreKey, caseFieldSnapshot, currentCaseFieldsPatch } from '../../utils/kentangCaseSave';
 import { fetchPreciseNongli } from '../../utils/preciseCalcBridge';
 import { setNongliLocalCache } from '../../utils/localCalcCache';
 import XQIcon from '../xq-icons';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+// 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
 import { visualFloorPx } from '../../utils/zoomDomain';
+import { matchesUserQuery } from '../../utils/scriptMode';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 
@@ -99,6 +101,19 @@ export function buildTimeGua(nongli){
 	return { yao, currentGua: guaidx, nongli };
 }
 
+// 按爻起卦(用户亲手摇出 / 报出的六爻)——纯函数,与 buildTimeGua 同形产物;装配与 onManualCast 逐步相同
+// (emptyYao → 填爻值与动爻 → getCurrentGua → setupYao),仅爻源不同。lines = 0 阴 / 1 阳 ×6(初爻在前);moving = 动爻位 1-6。
+export function buildLinesGua(lines, moving, nongli){
+	if(!Array.isArray(lines) || lines.length !== 6 || lines.some((v) => v !== 0 && v !== 1)){ return null; }
+	const mv = Array.isArray(moving) ? moving : [];
+	const yao = lines.map((v, i) => ({ value: v, change: mv.indexOf(i + 1) >= 0, color: AstroConst.AstroColor.Stroke, name: null }));
+	const gua = getGua64(littleEndian(lines));
+	const guaidx = gua ? gua.index : null;
+	if(guaidx === null || guaidx === undefined || !Gua64[guaidx]){ return null; }
+	for(let i = 0; i < yao.length; i++){ yao[i].name = Gua64[guaidx].yaoname[i]; }
+	return { yao, currentGua: guaidx, nongli: nongli || null };
+}
+
 // GFM 表化同构数据行(空 cell → —),供 AI 导出/挂载可读化;数据层零变化——表行可逆变换逐字复原旧格式行。
 const MD_DASH = '—';
 function pushMdRows(lines, header, rows){
@@ -109,7 +124,7 @@ function pushMdRows(lines, header, rows){
 	});
 }
 
-// [Q-208/T-162] 年干支取法单一化:此前只有 [断卦结构] 段按「定年界线」取(lunar 档取农历年支),
+// 年干支取法单一化:此前只有 [断卦结构] 段按「定年界线」取(lunar 档取农历年支),
 // 而 [起盘信息] 首段与左栏概览恒取立春系 → 立春↔正月初一窗口内同一快照/同一页出现两个年干支。
 // 缺省(lichun)档与既有取法逐字相同,只有 lunar 档且落在该窗口内的盘首段文字才变。
 function yearGzByBoundary(nongli, settings){
@@ -127,7 +142,7 @@ export function liuyaoStructLines(st){
 		if(!nowGua || !(yao && yao.length === 6 && yao.every((y)=>y && (y.value === 0 || y.value === 1)))){ return []; }
 		const nongli = (st && st.nongli) || {};
 		const settings = normalizeLiuyaoSettings(st && st.liuyaoSettings);
-		// [X1] 与 liuyaoSnapshotEx.buildSnapshotAnalysis 同口径(三处同口径铁律):
+		// 与 liuyaoSnapshotEx.buildSnapshotAnalysis 同口径(三处同口径铁律):
 		// 年界线吃 settings.yearBoundary(正月初一派取 yearGZByLunar);ctx 补 hourZhi/jieqiName
 		// (缺则时辰类神煞/节气派生在本段空转,与断诀段结论可不一致)。
 		const yearGz = lineText((settings.yearBoundary === 'lunar'
@@ -160,7 +175,7 @@ export function liuyaoStructLines(st){
 			const ys = a.yongShen;
 			const loc = (l)=>{ if(!l || !l.candidates || !l.candidates.length){ return '不上卦'; } return l.candidates.map((c)=>`${c.pos}爻`).join('/'); };
 			lines.push(`占测：${ys.label}　用神：${ys.yong}(${loc(ys.located.yong)})`);
-			// [Q-448/T-411] 次用神与取用说明:页面用神卡两行俱有(LiuYaoBoard「次用神」「取用说明」),
+			// 次用神与取用说明:页面用神卡两行俱有(LiuYaoBoard「次用神」「取用说明」),
 			// 快照此前只给 用/原/忌/仇 —— AI 看不到取用之由,遇「兄弟兼看」一类双用神更直接漏一半。
 			if(ys.secondary && ys.located && ys.located.secondary){ lines.push(`次用神：${ys.secondary}(${loc(ys.located.secondary)})`); }
 			if(ys.roles){ lines.push(`原神：${ys.roles.yuan}(${loc(ys.located.yuan)})　忌神：${ys.roles.ji}(${loc(ys.located.ji)})　仇神：${ys.roles.chou}(${loc(ys.located.chou)})`); }
@@ -173,7 +188,7 @@ export function liuyaoStructLines(st){
 			const fu = (a.fushenAll && a.fushenAll[i]) || y.fushen;
 			const fuTxt = fu && fu.liuqin ? `伏${fu.liuqin}${fu.zhi}${fu.wuxing}` : '';
 			const sha = a.shenSha && a.shenSha.perYao && a.shenSha.perYao[i] ? (a.shenSha.perYao[i].shensha || []).join(',') : '';
-			// [Q-448/T-411] 岁破/日破逐爻标:页面装卦表状态列早有(LiuYaoBoard 取 y.sanCeng 的这两项),
+			// 岁破/日破逐爻标:页面装卦表状态列早有(LiuYaoBoard 取 y.sanCeng 的这两项),
 			// 快照状态列此前只到 月破/旬空/入墓/长生帝旺绝 —— [断诀命中] 首行虽给出岁破日破之支,但要 AI 自行
 			// 逐爻比对才知道落在哪根爻上。与页面同源取 sanCeng,只取这两项(其余三层另有段)。
 			const sanCengPo = (y.sanCeng || []).filter((t)=>t === '岁破' || t === '日破');
@@ -189,7 +204,7 @@ export function liuyaoStructLines(st){
 				return [`第${m.pos}爻`, `${m.ben.liuqin}${m.ben.zhi}${m.ben.wuxing}`, `${m.bian.liuqin}${m.bian.zhi}${m.bian.wuxing}`, tags];
 			});
 			pushMdRows(lines, ['爻', '本卦', '变卦', '标记'], moveRows);
-			// [Q-201/T-144] 变爻范围=盲派(作用他爻)时页面有「盲派·变爻作用他爻」卡而快照无 → 齿轮对挂载零字节;仅 blind 且非空时出行(缺省 traditional 字节不变)。
+			// 变爻范围=盲派(作用他爻)时页面有「盲派·变爻作用他爻」卡而快照无 → 齿轮对挂载零字节;仅 blind 且非空时出行(缺省 traditional 字节不变)。
 			if(Array.isArray(a.dongBian.blindEffects) && a.dongBian.blindEffects.length){
 				lines.push(`盲派作用：${a.dongBian.blindEffects.map((e)=>`第${e.from}爻→第${e.to}爻(${e.toLiuqin || ''})${e.rel}`).join('、')}`);
 			}
@@ -206,7 +221,7 @@ export function buildGuaSnapshotText(fields, st){
 	const yao = st && st.yao ? st.yao : [];
 	const nongli = st && st.nongli ? st.nongli : {};
 	const guaDesc = st && st.guaDesc ? st.guaDesc : {};
-	// [Q-205/T-150] 六神关 → 快照不得再逐爻带六神:state.yao 的 god 由 fillYaoGods 就地写入(存档也带),
+	// 六神关 → 快照不得再逐爻带六神:state.yao 的 god 由 fillYaoGods 就地写入(存档也带),
 	// 与设置无关;闸口与中间栏同一处口径(见 renderChart 的 _liuSet.sixGods 清 god),否则「关掉的块不进快照」失信。
 	const _liuSettings = normalizeLiuyaoSettings(st && st.liuyaoSettings);
 	const showSixGods = !!_liuSettings.sixGods;
@@ -320,9 +335,9 @@ export function buildGuaSnapshotText(fields, st){
 				lines.push(`第${idx + 1}爻：${yinYang ? `${yinYang}，` : ''}爻名:${nm}${godAt(idx)}`);
 			});
 		};
-		// [Q-448/T-411] 关联卦完整装卦:页面「关联卦」区给 之/互/伏神/综/错 五卦各自完整装卦,
+		// 关联卦完整装卦:页面「关联卦」区给 之/互/伏神/综/错 五卦各自完整装卦,
 		// 快照此前逐爻只给之卦与互卦,错/综只写卦名、伏神卦一字不提 —— 页面看得见、AI 看不见。
-		// [Q-208/T-161 同律] 受左栏「关联卦显示」勾选控制:页面隐藏的卡不进快照(null=全显=缺省)。
+		// 受左栏「关联卦显示」勾选控制:页面隐藏的卡不进快照(null=全显=缺省)。
 		const _relSel = Array.isArray(_liuSettings.relatedCards) ? _liuSettings.relatedCards : null;
 		const relOn = (k)=>(!_relSel || _relSel.indexOf(k) >= 0);
 		if(hasMoving && bianGua && relOn('bian')){ pushGuaYao('之卦(变卦)', bianGua); }
@@ -396,8 +411,8 @@ export function buildGuaSnapshotText(fields, st){
 // 与**直接点某一爻**(0–5,是这一卦的输入)混在一起 —— 只保留取法:候选只列负值,点了具体某一爻时落盘自动被拒、
 // 库里仍是上一次选的取法。(铜钱字面 / 缺省爻态等另由六爻设置 liuyaoSettings 保留。)
 export const GUAZHAN_PAGE_SETTINGS = definePageSettings('horosa.guazhan.settings.v1', {
-	custGuaDongYao: { def: -1, oneOf: [-3, -2, -1] },
-	numGuaDongYao: { def: -1, oneOf: [-3, -2, -1] },
+	custGuaDongYao: { label: '自定义起卦·动爻取法', def: -1, oneOf: [-3, -2, -1] },
+	numGuaDongYao: { label: '数字起卦·动爻取法', def: -1, oneOf: [-3, -2, -1] },
 });
 
 class GuaZhanMain extends Component{
@@ -454,6 +469,8 @@ class GuaZhanMain extends Component{
 		this.getLiuyaoAnalysis = this.getLiuyaoAnalysis.bind(this);
 		this.changeLiuyaoPreset = this.changeLiuyaoPreset.bind(this);
 		this.changeLiuyaoOption = this.changeLiuyaoOption.bind(this);
+		this.changeLiuyaoSelection = this.changeLiuyaoSelection.bind(this);
+		this.changeLiuyaoRelatedCard = this.changeLiuyaoRelatedCard.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 
 		this.state = {
@@ -521,11 +538,12 @@ class GuaZhanMain extends Component{
 		if(!currentCase || !currentCase.cid || !currentCase.cid.value){
 			return;
 		}
-		const cid = `${currentCase.cid.value}`;
-		const updateTime = currentCase.updateTime && currentCase.updateTime.value ? `${currentCase.updateTime.value}` : '';
-		// 载入代次后缀走共用件(kentangCaseSave.caseApplySeqSuffix):不带它则同一条记录第二次载入
-		// 会被下面那道去重守卫拦掉,屏幕上仍是用户后来新起的卦。禁另抄一份。
-		const caseVersion = `${cid}|${updateTime}${caseApplySeqSuffix(userState)}`;
+		// 读档去重键走共用件(kentangCaseSave.caseRestoreKey,只认显式载入):同一条记录再载入一次必换键;
+		// 编辑 / 存为事盘 / 保存编辑换掉的当前事盘不是载入 → null,不还原。禁另拼一份。
+		const caseVersion = caseRestoreKey('guazhan', userState);
+		if(!caseVersion){
+			return;
+		}
 		if(!force && this.lastRestoredCaseId === caseVersion){
 			return;
 		}
@@ -573,9 +591,18 @@ class GuaZhanMain extends Component{
 			liuyaoSettings: normalizeLiuyaoSettings(rawState.liuyaoSettings),
 		};
 		this.lastRestoredCaseId = caseVersion;
+		this._liuyaoSettingsFromCase = true;   // 盘面的断卦设置来自事盘:之后亲手改只把改动叠在本机记住的那一套上(见 setLiuyaoSettingsByUser)
+		this.stopFlipping();   // 翻动中载入事盘:不停则下一帧把存档卦冲掉
+		this.supersedePendingCast({ dropNongli: true });   // 在途的起卦收尾与干支晚到都不盖掉存档卦与存档干支
 		this.setState(nextState, ()=>{
 			if(!this.state.guaDesc && this.state.currentGua !== null){
 				this.requestGuaDesc();
+			}
+			// 旧档没存干支:按事盘自己的时间地点补取一次(在途的旧请求已作废,不补则日辰月建全空)。
+			// 不能用 genFields():载入时左栏要到最后一步才换成事盘时刻,此刻 props.fields / 时间控件还是载入前的
+			if(!this.state.nongli){
+				const casePatch = currentCaseFieldsPatch({ timeAlg: true });
+				this.requestNongli(casePatch ? { ...(this.props.fields || {}), ...casePatch } : this.genFields(), ()=>{}, { refreshOnly: true });
 			}
 		});
 	}
@@ -595,7 +622,7 @@ class GuaZhanMain extends Component{
 		if(!ok){ return null; }
 		const nongli = st.nongli || {};
 		const settings = normalizeLiuyaoSettings(st.liuyaoSettings);
-		// [六爻补齐 A4] 定年界线口径:立春换岁(yearJieqi/节气系)/正月初一(yearGZByLunar/农历系);
+		// 定年界线口径:立春换岁(yearJieqi/节气系)/正月初一(yearGZByLunar/农历系);
 		// 缺该口径字段时回落另一系(旧数据兼容),再回落 year。
 		const yearGz = `${(settings.yearBoundary === 'lunar'
 			? (nongli.yearGZByLunar || nongli.yearGanZi || nongli.yearJieqi)
@@ -624,13 +651,48 @@ class GuaZhanMain extends Component{
 		return analysis;
 	}
 
+	// 断卦设置只在亲手改(切流派 / 改单项 / 恢复默认)时落盘;载入事盘回灌的那一套只用于本次盘面,不写本机记忆
+	// (否则载入一条盲派事盘,重开本页就成了盲派;载入没存设置的旧事盘,全部设置连同体验项被清回出厂)。
+	// 盘面是载入事盘回灌的那一套时,亲手改的这一下(改一项 / 套流派 / 恢复默认)作用在本机记住的那一套上落盘,
+	// 盘面照旧作用在当前那一套上:记住的 = 原先记住的 + 这次改动,载入带来的流派与其余各项不记。没载入过事盘时两者是同一套
+	setLiuyaoSettingsByUser(updater){
+		this.setState((prev)=>({ liuyaoSettings: updater(prev.liuyaoSettings) }), ()=>{
+			if(this.unmounted){ return; }
+			persistLiuyaoSettings(this._liuyaoSettingsFromCase
+				? updater(loadPersistedLiuyaoSettings() || factoryLiuyaoSettings())
+				: this.state.liuyaoSettings);
+		});
+	}
+
 	changeLiuyaoPreset(presetKey){
-		// [Q-204/T-147] 切派保留输入键(占测事项/用神/本命)与显示、起卦体验键的当前值。
-		this.setState((prev)=>({ liuyaoSettings: applyPreset(presetKey, prev.liuyaoSettings) }));
+		// 切派保留输入键(占测事项/用神/本命)与显示、起卦体验键的当前值。
+		this.setLiuyaoSettingsByUser((cur)=>applyPreset(presetKey, cur));
 	}
 
 	changeLiuyaoOption(optKey, value){
-		this.setState((prev)=>({ liuyaoSettings: setOption(prev.liuyaoSettings, optKey, value) }));
+		this.setLiuyaoSettingsByUser((cur)=>setOption(cur, optKey, value));
+	}
+
+	// 多选改一项(神煞勾选):按增量叠加 —— 盘面 = 点击时看到的一组 ± 这一项,本机记忆 = 记住的一组 ± 这一项。
+	// 不能把「以盘面为底算好的整组」交进来:盘面那组来自载入的事盘时,会被整组写进本机记忆(流派也随之翻成「自定义」)。
+	// shownArr = 点击时盘面那一组;universe = 选项表(定顺序;扩展神煞记忆为 null = 全选时按它展开)。
+	changeLiuyaoSelection(optKey, shownArr, nextArr, universe){
+		const delta = selectionDelta(shownArr, nextArr);
+		this.setLiuyaoSettingsByUser((cur)=>{
+			const sub = (cur && cur[optKey]) || {};
+			const base = Array.isArray(sub.set) ? sub.set : (Array.isArray(universe) ? universe : []);
+			return setOption(cur, optKey, { set: applySelectionDelta(base, delta, universe) });
+		});
+	}
+
+	// 关联卦显示勾一项:同上按增量(null = 全显示;叠完全选回 null,与默认态同形)。
+	changeLiuyaoRelatedCard(cardKey, on){
+		const all = ['bian', 'hu', 'fu', 'zong', 'cuo'];
+		this.setLiuyaoSettingsByUser((cur)=>{
+			const base = Array.isArray(cur && cur.relatedCards) ? cur.relatedCards : all.slice();
+			const next = applySelectionDelta(base, on ? { add: [cardKey] } : { remove: [cardKey] }, all);
+			return setOption(cur, 'relatedCards', next.length === all.length ? null : next);
+		});
 	}
 
 	navigateFeature(tabKey, subTab){
@@ -653,6 +715,7 @@ class GuaZhanMain extends Component{
 		if(!flds){
 			return;
 		}
+		this.stopFlipping();
 		if(!fields){
 			const patch = this.getTimeFieldsFromSelector();
 			if(patch){
@@ -675,7 +738,7 @@ class GuaZhanMain extends Component{
 			gender: flds.gender.value,
 			after23NewDay: defaultAfter23NewDay(),
 			lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
-			// [Q-390/T-372 2026-09-18 用户裁决 A] 占时时间算法:左栏(页面 fields)> 全局 > 缺省真太阳时(0)。
+			// 占时时间算法:左栏(页面 fields)> 全局 > 缺省真太阳时(0)。
 			// 此前不带 timeAlg → 桥归一为 0 恒真太阳时,全局改「直接时间」后与小六壬 / 飞宫同刻占时不同支。
 			timeAlg: (flds.timeAlg && flds.timeAlg.value !== undefined && flds.timeAlg.value !== null) ? flds.timeAlg.value : 0,
 		}
@@ -705,7 +768,9 @@ class GuaZhanMain extends Component{
 		const flds = {
 			...(baseFields || this.props.fields || {}),
 		};
-		const patch = this.getTimeFieldsFromSelector();
+		// 调用方给了明确时间(左栏刚改的时刻经 onTimeGeoChanged 传进来)→ 以它为准,不被时间控件里的旧值覆盖
+		// (此前一律用控件值盖:改了时间,时间卦却按旧时刻起)。没给才读控件(连点步进时父级还没追上)。
+		const patch = baseFields ? null : this.getTimeFieldsFromSelector();
 		if(patch){
 			return {
 				...flds,
@@ -764,13 +829,10 @@ class GuaZhanMain extends Component{
 				body: JSON.stringify(params),
 			});
 	
-			// [六爻补齐 E] 卦辞离线兜底:成功即缓存;网络层失败读同 key 缓存(离线/后端未起仍有卦辞)。
-			const _descCacheKey = 'horosa.guadesc.cache.' + params.name.join('|');
+			// [六爻补齐 E] 卦辞离线兜底:成功即缓存;网络层失败读缓存(离线/后端未起仍有卦辞)。按单卦存、有界(utils/guaDescCache)
 			if(!descdata){
-				try{
-					const cached = safeLocalStorageGet(_descCacheKey);
-					if(cached){ return JSON.parse(cached); }
-				}catch(e){ /* 缓存不可用即维持旧行为 */ }
+				const cached = readGuaDescCache(guaids);
+				if(cached){ return cached; }
 				return;   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 			}
 			const descresult = descdata[Constants.ResultKey];
@@ -780,14 +842,21 @@ class GuaZhanMain extends Component{
 				guaRes: descresult[guaids.guaRes],
 				guaMiddle: descresult[guaids.guaMiddle],
 			};
-			safeLocalStorageSet(_descCacheKey, JSON.stringify(desc)); // 配额满由 safeStorage 自愈
+			writeGuaDescCache(guaids, desc);
 		}
 
 		return desc;
 	}
 
 	async requestGuaDesc(){
+		// 卦辞只落到请求时的那一卦:回来时卦已换(翻动 / 改起卦)就丢弃,不出现「卦辞是上一卦的」
+		const ids = this.getGuasId();
+		const key = ids ? `${ids.guaOrg}|${ids.guaRes}|${ids.guaMiddle}` : '';
 		let desc = await this.requestGuaDescReturn();
+		if(this.unmounted){ return; }
+		const now = this.getGuasId();
+		const nowKey = now ? `${now.guaOrg}|${now.guaRes}|${now.guaMiddle}` : '';
+		if(nowKey !== key){ return; }
 		this.setState({
 			guaDesc: desc,
 		}, ()=>{
@@ -804,20 +873,94 @@ class GuaZhanMain extends Component{
 	// 只能刷新干支(日辰月建随之变,旺衰·旬空·神煞由渲染层按新 nongli 现算),卦象与动爻原样保留。
 	// 从前这里无条件 clickTimeGua,用户摇完卦一改时间就被时间卦静默顶掉 —— 与「起出即冻结」直接冲突。
 	onTimeGeoChanged(fields){
-		if((this.state.guaOrigin || 'time') === 'time'){
+		if((this.state.guaOrigin || 'time') === 'time' && !this.castInFlight()){
 			this.clickTimeGua(fields);
 		}else{
-			this.requestNongli(fields, ()=>{ this.requestGuaDesc(); });
+			this.requestNongli(fields, ()=>{ this.requestGuaDesc(); }, { refreshOnly: true });
 		}
 	}
 
-	async requestNongli(fields, completeHandle){
+	// 是否正在随机翻动(整卦或单爻)
+	isFlipping(){
+		return this.guaPeriodTask !== null || this.periodTask !== null;
+	}
+
+	// 直选 / 载入事盘等不经农历请求就换上新卦:在途的起卦收尾一律作废(晚到也不能把新卦盖回去)。
+	// dropNongli:连在途的干支也不落(载入事盘:存档自带那一刻的干支,晚到的旧时刻干支不能盖掉它)
+	supersedePendingCast(opts){
+		this._nongliCastSeq = (this._nongliCastSeq || 0) + 1;
+		this._timeGuaOwed = undefined;
+		this._castInFlight = undefined;
+		if(opts && opts.dropNongli){
+			this._nongliSeq = (this._nongliSeq || 0) + 1;
+			this._nongliLandedSeq = this._nongliSeq;
+			this._nongliLatestFailed = false;
+		}
+	}
+
+	// 有起卦收尾在途(卦象等农历落定才上盘):这时改时间只刷新干支,不按时间卦重起(否则用户刚起的卦被时间卦顶掉)
+	castInFlight(){
+		return this._castInFlight !== undefined && this._castInFlight === this._nongliCastSeq;
+	}
+
+	// opts.refreshOnly:只刷新干支、不落卦(改时间 / 日界变动时的一次性成卦、直选卦补取干支、已当场落定的停止翻动)
+	async requestNongli(fields, completeHandle, opts){
 		if(fields === undefined || fields === null){
 			return;
 		}
+		// 农历只认最新一次请求:农历要走网络时先发的慢回调会晚到,不能把后起时刻的干支盖回去。
+		// 起卦类请求(落卦象 / 时间卦)另记一个序号,只被更晚的起卦作废;只刷新干支的请求不作废它 ——
+		// 否则起卦收尾在农历在途时被改时间 / 日界变动顶掉
+		const refreshOnly = !!(opts && opts.refreshOnly);
+		const seq = (this._nongliSeq = (this._nongliSeq || 0) + 1);
+		const castSeq = refreshOnly ? (this._nongliCastSeq || 0) : (this._nongliCastSeq = (this._nongliCastSeq || 0) + 1);
+		if(!refreshOnly && completeHandle){ this._castInFlight = castSeq; }
 		const params = this.genParams(fields);
 		const result = await fetchPreciseNongli(params);
+		if(this.unmounted){
+			return;
+		}
+		if(this._castInFlight === castSeq && !refreshOnly){ this._castInFlight = undefined; }
+		if(seq !== this._nongliSeq){
+			// 已有更晚的农历请求:这次的干支不落;起卦收尾没被更晚的起卦作废就照样落卦
+			if(refreshOnly || castSeq !== this._nongliCastSeq){
+				return;
+			}
+			if(completeHandle){
+				completeHandle();
+			}else if(this._nongliLandedSeq === this._nongliSeq){
+				// 时间卦:最新那次干支已落定,按它起;最新那次没算出来 → 与另一次序同样如实说、不拿旧干支起
+				if(this._nongliLatestFailed){
+					message.warning('这一时刻的农历没能算出来,时间卦没有更新');
+					this.requestGuaDesc();
+				}else{
+					this.genTimeGua();
+				}
+			}else{
+				this._timeGuaOwed = castSeq;   // 时间卦:等最新那次干支落定再起
+			}
+			return;
+		}
+		// 这次是最新的:若有欠着的时间卦(更早的时间卦请求被只刷新干支的请求顶掉),落定干支后补起;
+		// 起卦收尾在途时已换上别的卦(直选 / 载入事盘 / 开始翻动):干支照落,收尾不落
+		const owedTimeGua = refreshOnly && this._timeGuaOwed !== undefined && this._timeGuaOwed === this._nongliCastSeq;
+		const castSuperseded = !refreshOnly && castSeq !== this._nongliCastSeq;
+		this._timeGuaOwed = undefined;
 		if(!result){
+			this._nongliLandedSeq = seq;
+			this._nongliLatestFailed = true;
+			if(castSuperseded){
+				return;
+			}
+			// 这一时刻的农历没算出来(本地与远端都给不出):已经起出的卦照样落定(干支沿用上一次),不停在半途;
+			// 时间卦要靠农历起,起不了就如实说,卦辞对齐当前盘面
+			if(completeHandle && !owedTimeGua){
+				message.warning('这一时刻的农历没能算出来,日辰月建沿用上一次的');
+				completeHandle();
+			}else{
+				message.warning('这一时刻的农历没能算出来,时间卦没有更新');
+				this.requestGuaDesc();
+			}
 			return;
 		}
 		setNongliLocalCache(params, result);
@@ -827,7 +970,14 @@ class GuaZhanMain extends Component{
 		};
 
 		this.setState(st, ()=>{
-			if(completeHandle){
+			this._nongliLandedSeq = seq;
+			this._nongliLatestFailed = false;
+			if(castSuperseded){
+				return;
+			}
+			if(owedTimeGua){
+				this.genTimeGua();
+			}else if(completeHandle){
 				completeHandle()
 			}else{
 				this.genTimeGua();
@@ -881,6 +1031,7 @@ class GuaZhanMain extends Component{
 			|| this.state.number === '' || this.state.number < 0){
 			return;
 		}
+		this.stopFlipping();
 
 		let nstr = this.state.number + '';
 		let pos = Math.floor(nstr.length / 2);
@@ -918,7 +1069,7 @@ class GuaZhanMain extends Component{
 		idx = idx < 0 ? 5 : idx;
 		let dyOpt = this.state.numGuaDongYao;
 		if(dyOpt === -1){
-			// [X1·P2-41] 附加时辰动爻按【左栏所选起卦时间】之时辰,非系统此刻——
+			// 附加时辰动爻按【左栏所选起卦时间】之时辰,非系统此刻——
 			// 复现历史卦(改过左栏时间)时,盘面干支随所选时间而动爻曾随此刻漂移,同卦不同断。
 			const tv = this.props.fields && this.props.fields.time && this.props.fields.time.value;
 			let h = tv && tv.format ? parseInt(tv.format('HH'), 10) : new Date().getHours();
@@ -952,9 +1103,10 @@ class GuaZhanMain extends Component{
 		});
 	}
 
-	// [六爻补齐 A5] 手动/尾包起卦入口(LiuYaoCastPad 归一产物):lines=[0/1]×6(初爻在前),
+	// 手动/尾包起卦入口(LiuYaoCastPad 归一产物):lines=[0/1]×6(初爻在前),
 	// moving=动爻位(1-6);装配流程与 clickYarrowGua 逐行同(仅爻源不同)。
 	onManualCast = ({ lines, moving })=>{
+		this.stopFlipping();
 		let yao = this.emptyYao();
 		for(let i = 0; i < 6; i++){
 			yao[i].value = lines[i];
@@ -970,6 +1122,7 @@ class GuaZhanMain extends Component{
 
 	// 大衍蓍草起卦(WP-I):每爻按蓍草概率(老阳3/少阳5/少阴7/老阴1)生成,老阳老阴为动爻;余流程同自定义起卦。
 	clickYarrowGua(){
+		this.stopFlipping();
 		let yao = this.emptyYao();
 		for(let i = 0; i < 6; i++){
 			const yy = yarrowYao();
@@ -989,6 +1142,7 @@ class GuaZhanMain extends Component{
 			this.state.downGuaIdx === undefined || this.state.downGuaIdx === null || this.state.downGuaIdx === ''){
 			return;
 		}
+		this.stopFlipping();
 
 		let up = Gua8[this.state.upGuaIdx];
 		let down = Gua8[this.state.downGuaIdx];
@@ -1004,7 +1158,7 @@ class GuaZhanMain extends Component{
 		idx = idx < 0 ? 5 : idx;
 		let dyOpt = this.state.custGuaDongYao;
 		if(dyOpt === -1){
-			// [X1·P2-41] 附加时辰动爻按【左栏所选起卦时间】之时辰,非系统此刻——
+			// 附加时辰动爻按【左栏所选起卦时间】之时辰,非系统此刻——
 			// 复现历史卦(改过左栏时间)时,盘面干支随所选时间而动爻曾随此刻漂移,同卦不同断。
 			const tv = this.props.fields && this.props.fields.time && this.props.fields.time.value;
 			let h = tv && tv.format ? parseInt(tv.format('HH'), 10) : new Date().getHours();
@@ -1068,13 +1222,15 @@ class GuaZhanMain extends Component{
 	filterGua(value, option){
 		const item = option.props.rec;
 		let txt = item.name+'-'+item.house.name+'宫'+item.house.elem;
-		if(txt.indexOf(value) >= 0){
+		if(matchesUserQuery(txt, value, { ci: false })){
 			return true;
 		}
 		return false;
 	}
 
 	changeGua(value, option){
+		this.stopFlipping();   // 直选 / 清空都是「换上新卦」(清空 = 空卦),翻动不停则下一帧被冲掉
+		this.supersedePendingCast();
 		let gua = Gua64[value];
 		if(gua === undefined || gua === null){
 			this.setState({
@@ -1106,7 +1262,7 @@ class GuaZhanMain extends Component{
 			// 直选卦时若本次还没取过干支,补取一次 —— 否则日辰月建全空,
 			// 旺衰/六神/旬空/神煞会静默缺失(界面上看不出缺,只是全部算不出)。
 			if(!this.state.nongli){
-				this.requestNongli(this.genFields(), ()=>{});
+				this.requestNongli(this.genFields(), ()=>{}, { refreshOnly: true });
 			}
 		});
 	}
@@ -1125,7 +1281,7 @@ class GuaZhanMain extends Component{
 		return null;
 	}
 
-	// [G2] 随机起卦概率源分派:coins=三钱(randYao,老阳老阴各1/8) / yarrow=大衍蓍草(3/16·1/16)。
+	// 随机起卦概率源分派:coins=三钱(randYao,老阳老阴各1/8) / yarrow=大衍蓍草(3/16·1/16)。
 	// 整卦随机/逐爻随机共用;「蓍草起卦」独立按钮恒蓍草不受此档影响。
 	rollYao(){
 		const s = normalizeLiuyaoSettings(this.state.liuyaoSettings);
@@ -1176,18 +1332,20 @@ class GuaZhanMain extends Component{
 			let guaidx = this.getCurrentGua(yao);
 			this.setupYao(yao, guaidx);
 
-			let flds = this.genFields();
-			this.requestNongli(flds, ()=>{
-				this.setState({
-					yao: yao,
-					currentGua: guaidx,
-					guaOrigin: 'cast',
-				}, ()=>{
-					this.requestGuaDesc();
-				});							
+			// 停下即当场落卦(爻与卦名同一次更新):此前等农历回来才落 currentGua,其间爻已改写、卦名仍是上一帧,
+			// 这时保存 / 取快照会存进对不上的卦。干支随后按当前时间刷新,卦辞随之对齐
+			this.supersedePendingCast();
+			this.setState({
+				yao: yao.slice(),
+				currentGua: guaidx,
+				guaOrigin: 'cast',
+			}, ()=>{
+				this.requestGuaDesc();
+				this.requestNongli(this.genFields(), ()=>{}, { refreshOnly: true });
 			});
 		}else{
 			if(this.guaPeriodTask === null){
+				this.supersedePendingCast();   // 开始翻动:之前在途的起卦收尾晚到也不落
 				this.guaPeriodTask = setInterval(()=>{
 					let yao = this.state.yao;
 					for(let i=0; i<yao.length; i++){
@@ -1226,6 +1384,7 @@ class GuaZhanMain extends Component{
 			yao[idx].color = this.getYaoColor();
 			let guaidx = this.getCurrentGua(yao);
 			this.setupYao(yao, guaidx);
+			this.supersedePendingCast();   // 这一爻直接落定:之前在途的起卦收尾晚到也不盖回去
 			this.setState({
 				yao: yao,
 				currentGua: guaidx,
@@ -1240,19 +1399,12 @@ class GuaZhanMain extends Component{
 				}
 			}			
 			if(completGua){
-				let flds = this.genFields();
-				this.requestNongli(flds, ()=>{
-					this.setState({
-						yao: yao,
-						currentGua: guaidx,
-						guaOrigin: 'cast',
-					}, ()=>{
-						this.requestGuaDesc();
-					});							
-				});	
+				// 六爻齐了:卦已在上面当场落定,这里只刷新干支、对齐卦辞
+				this.requestNongli(this.genFields(), ()=>{ this.requestGuaDesc(); }, { refreshOnly: true });
 			}			
 		}else{
 			if(this.periodTask === null){
+				this.supersedePendingCast();
 				this.periodTask = setInterval(() => {
 					let yao = this.state.yao;
 					let ryao = this.rollYao();
@@ -1273,7 +1425,28 @@ class GuaZhanMain extends Component{
 		}
 	}
 
-	// [G3] 随机前确认:开启且当前卦为手动来源(摇卦/自定义/直选)时,启动随机先弹确认防误覆盖;
+	// 翻动中(整卦 / 单爻随机)改用别的方式定卦:先停掉翻动并把按钮复位,否则定时器接着改爻,把刚定好的卦冲掉。
+	// 只在「确实要换上新卦」那一步调(参数不全早退的不调 —— 否则翻动停了、卦却不收尾,停在半途且卦辞仍是上一卦)。
+	// which:'all'(缺省)/ 'gua' 只停整卦 / 'yao' 只停单爻(开始整卦翻动时停单爻,反之亦然,两个定时器不并跑)。
+	stopFlipping(which){
+		const w = which || 'all';
+		const st = {};
+		if(w !== 'yao'){
+			if(this.guaPeriodTask !== null){ clearInterval(this.guaPeriodTask); this.guaPeriodTask = null; }
+			if(`${this.state.btnGenGua || ''}`.indexOf('停止') === 0){ st.btnGenGua = '整卦随机'; }
+		}
+		if(w !== 'gua'){
+			if(this.periodTask !== null){ clearInterval(this.periodTask); this.periodTask = null; }
+			const names = this.state.btnName || [];
+			if(names.some((n)=>`${n}`.indexOf('停止') === 0)){
+				st.btnName = names.map((n)=>(`${n}`.indexOf('停止') === 0 ? `随机${`${n}`.substr(2)}` : n));
+				st.btnDisabled = (this.state.btnDisabled || []).map(()=>false);
+			}
+		}
+		if(Object.keys(st).length && !this.unmounted){ this.setState(st); }
+	}
+
+	// 随机前确认:开启且当前卦为手动来源(摇卦/自定义/直选)时,启动随机先弹确认防误覆盖;
 	// 时间卦/空盘直滚(时间卦本就随时可重起,无「心血覆盖」问题);「停止」动作永不拦。
 	confirmRandomThen(run){
 		const s = normalizeLiuyaoSettings(this.state.liuyaoSettings);
@@ -1299,6 +1472,7 @@ class GuaZhanMain extends Component{
 		}
 		if(!stopAct){
 			this.confirmRandomThen(()=>{
+				this.stopFlipping('yao');
 				this.setState({ btnGenGua: btnName }, ()=>{ this.randomGua(false); });
 			});
 			return;
@@ -1325,8 +1499,8 @@ class GuaZhanMain extends Component{
 			}
 		}
 		if(!stopAct){
-			// [G3] 与整卦随机同守卫(启动侧才拦;停止恒放行)
-			this.confirmRandomThen(()=>{ this.genYaoRun(idx); });
+			// 与整卦随机同守卫(启动侧才拦;停止恒放行)
+			this.confirmRandomThen(()=>{ this.stopFlipping('gua'); this.genYaoRun(idx); });
 			return;
 		}
 		this.genYaoRun(idx);
@@ -1371,12 +1545,12 @@ class GuaZhanMain extends Component{
 		if(this.props.dispatch && this.props.fields){
 			// 用户拍板: 左栏改过 after23NewDay 后,全局事件不再覆盖。
 			if(field && Object.prototype.hasOwnProperty.call(field, 'after23NewDay')){
-				this._after23BoundaryUserOverrode = true;
+				lockDayBoundary(this, 'after23');
 				this.props.dispatch({ type: 'astro/setAfter23BoundaryUserOverrode', payload: { value: true } });
 			}
 			// v2.2.1: 时柱开关同款局部覆盖 — 同时设本地 flag 和 dva 中央 flag
 			if(field && Object.prototype.hasOwnProperty.call(field, 'lateZiHourUseNextDay')){
-				this._lateZiHourUserOverrode = true;
+				lockDayBoundary(this, 'lateZi');
 				this.props.dispatch({ type: 'astro/setLateZiHourUserOverrode', payload: { value: true } });
 			}
 			let flds = {
@@ -1391,7 +1565,7 @@ class GuaZhanMain extends Component{
 				payload: flds.fields
 			});
 
-			// [R3-A2] __stepHint 只供 fetchByFields 消费;时间卦派生走净化副本(防瞬态键入卦链)
+			// __stepHint 只供 fetchByFields 消费;时间卦派生走净化副本(防瞬态键入卦链)
 			let nextFields = flds.fields;
 			if(Object.prototype.hasOwnProperty.call(nextFields, '__stepHint')){
 				const { __stepHint, ...cleanFields } = nextFields;
@@ -1462,6 +1636,7 @@ class GuaZhanMain extends Component{
 	}
 
 	dongyaoChanged(checkedValues){
+		if(this.isFlipping()){ return; }   // 翻动中改动爻:下一帧就被冲掉,还会替半途卦请求一次卦辞
 		let completGua = true;
 		let yao = this.state.yao;
 		for(let i=0; i<yao.length; i++){
@@ -1502,7 +1677,7 @@ class GuaZhanMain extends Component{
 	}
 
 
-	// [A7·性能] 重 wrapper sCU(照 BaZi/ZiWeiMain 既有范式):全 props 机械浅比(函数型视为恒等,
+	// 重 wrapper sCU(照 BaZi/ZiWeiMain 既有范式):全 props 机械浅比(函数型视为恒等,
 	// 详 wrapperPropsEqual;开关 horosa.perf.chartSCU 关=恒重渲旧行为),state 引用变照常重渲
 	// (setState 恒换引用)。收益:激活态下宿主无关 dispatch 不再整树白跑本重组件。
 	shouldComponentUpdate(nextProps, nextState){
@@ -1511,11 +1686,12 @@ class GuaZhanMain extends Component{
 		}
 		return !wrapperPropsEqual(this.props, nextProps);
 	}
-	// [G10] 改爻快捷键:数字 1-6 翻对应爻动/静(走既有 dongyaoChanged 链)。
+	// 改爻快捷键:数字 1-6 翻对应爻动/静(走既有 dongyaoChanged 链)。
 	// 守卫:开关开+无修饰键+焦点不在输入类控件(input/textarea/select/富文本)。
 	handleYaoHotkey = (e) => {
 		const s = normalizeLiuyaoSettings(this.state.liuyaoSettings);
 		if(!s.yaoHotkeys){ return; }
+		if(this.isFlipping()){ return; }
 		if(e.ctrlKey || e.metaKey || e.altKey){ return; }
 		const t = e.target;
 		const tag = t && t.tagName ? t.tagName.toLowerCase() : '';
@@ -1537,7 +1713,7 @@ class GuaZhanMain extends Component{
 		this.restoreFromCurrentCase(true);
 		if(typeof window !== 'undefined'){
 			this._dayBoundaryListener = (ev) => {
-				if(this._after23BoundaryUserOverrode) return;
+				if(dayBoundaryLockHeld(this, 'after23')) return;
 				const v = ev && ev.detail ? ev.detail.after23NewDay : null;
 				if((v === 0 || v === 1) && this.props.fields){
 					this.onTimeGeoChanged(this.props.fields);
@@ -1545,7 +1721,7 @@ class GuaZhanMain extends Component{
 			};
 			window.addEventListener('horosa:day-boundary-changed', this._dayBoundaryListener);
 			this._lateZiHourListener = (ev) => {
-				if(this._lateZiHourUserOverrode) return;
+				if(dayBoundaryLockHeld(this, 'lateZi')) return;
 				const v = ev && ev.detail ? ev.detail.lateZiHourUseNextDay : null;
 				if((v === 0 || v === 1) && this.props.fields){
 					this.onTimeGeoChanged(this.props.fields);
@@ -1572,6 +1748,7 @@ class GuaZhanMain extends Component{
 		if(moduleName !== 'guazhan'){
 			return;
 		}
+		if(this.isFlipping()){ return; }   // 翻动中卦未定:不把半途卦交给 AI
 		let text = '';
 		try{
 			text = `${buildGuaSnapshotText(this.props.fields, this.state) || ''}`.trim();
@@ -1594,18 +1771,12 @@ class GuaZhanMain extends Component{
 			|| prevState.nongli !== this.state.nongli
 			|| prevState.guaDesc !== this.state.guaDesc
 			|| prevState.liuyaoSettings !== this.state.liuyaoSettings){
+			// 翻动中每帧都变:卦未定不写快照(停下收尾后再写)。断卦设置的落盘不在这里(只在亲手改时,见 setLiuyaoSettingsByUser)
+			if(!this.isFlipping()){
 			const fields = this.props.fields;
 		const state = this.state;
 		saveModuleAISnapshotLazy('guazhan', ()=>buildGuaSnapshotText(fields, state));
-		// [D1-sidecar] 结构化真值随载示例:analyzeLiuyao 产物即引擎真值(断诀/应期/环境三层),
-		// 供 GT builder/事实核对优先消费(缺则回落文本解析,零回归)。
-		try{
-			const _sgt = buildSnapshotAnalysis(state);
-			// [D1-sidecar] 结构化真值侧车:读端=loadModuleStructuredGT('guazhan-gt')(GT/事实核对渐进增强预留,
-			// 契约见 moduleAiSnapshot.js;键在技法别名域外,绝不会被当正文挂载)。
-			if(_sgt){ saveModuleAISnapshot('guazhan-gt', JSON.stringify({ ok: 1 }), { structuredGT: { keyFactors: { env: _sgt.env || null, shiShen: _sgt.shiShen || null } } }); }
-		}catch(_){ /* sidecar 失败不影响主快照 */ }
-		if(prevState.liuyaoSettings !== this.state.liuyaoSettings){ persistLiuyaoSettings(this.state.liuyaoSettings); }
+			}
 		}
 	}
 
@@ -1635,6 +1806,10 @@ class GuaZhanMain extends Component{
 	}
 
 	async clickSaveCase(){
+		if(this.isFlipping()){
+			message.warning('正在随机翻动,请先停止翻动再保存');
+			return;
+		}
 		if(this.state.currentGua === null){
 			message.warning('请先完成起卦后再保存');
 			return;
@@ -1686,7 +1861,7 @@ class GuaZhanMain extends Component{
 						gpsLat: flds.gpsLat.value,
 						gpsLon: flds.gpsLon.value,
 						pos: flds.pos ? flds.pos.value : '',
-						// [X1] 性别影响取用神(占婚男取妻财/女取官鬼),快照头已随之 —— record 不存则载入回落全局值致用神错位。
+						// 性别影响取用神(占婚男取妻财/女取官鬼),快照头已随之 —— record 不存则载入回落全局值致用神错位。
 						gender: flds.gender && (flds.gender.value === 0 || flds.gender.value === 1) ? flds.gender.value : null,
 						// 🔴 口径快照必带:载档时 applyCase 从 payload.fieldSnapshot 回灌日界点/晚子时/
 						// 卦日界/时间算法;不带则沿用全局当前值 → 载回来的盘可能与存档不同。
@@ -1728,7 +1903,7 @@ class GuaZhanMain extends Component{
 					>
 						{opts}
 					</Select>
-					<Checkbox.Group className="horosa-guazhan-yao-checks" onChange={this.dongyaoChanged} value={dyvalues}>
+					<Checkbox.Group className="horosa-guazhan-yao-checks" onChange={this.dongyaoChanged} value={dyvalues} disabled={this.isFlipping()}>
 						<Checkbox value={0}>初爻动</Checkbox>
 						<Checkbox value={1}>二爻动</Checkbox>
 						<Checkbox value={2}>三爻动</Checkbox>
@@ -1811,6 +1986,10 @@ class GuaZhanMain extends Component{
 		const schoolVal = s.school;
 		const schoolOpts = LIUYAO_SCHOOL_OPTIONS.slice();
 		if(schoolVal === 'custom'){ schoolOpts.push({ value: 'custom', label: '自定义' }); }
+		// 不单列的流派(如旧事盘的「卜筮正宗」,与通用逐项相同)被选中时补一项显示名,下拉不露内部键名。
+		if(schoolVal && schoolVal !== 'custom' && !schoolOpts.some((o)=>o.value === schoolVal) && LIUYAO_PRESETS[schoolVal]){
+			schoolOpts.push({ value: schoolVal, label: LIUYAO_PRESETS[schoolVal].label });
+		}
 		const sel = (label, key, opts, extra) => (
 			<label className="horosa-guazhan-select-field" key={key} title={extra && extra.title ? extra.title : undefined}>
 				<span>{label}</span>
@@ -1819,7 +1998,7 @@ class GuaZhanMain extends Component{
 				</Select>
 			</label>
 		);
-		// [Q-208/T-161] 条件依赖无载体即置灰(照本页「进退神土路」既有先例:disabled + title 说明):
+		// 条件依赖无载体即置灰(照本页「进退神土路」既有先例:disabled + title 说明):
 		// ·长生用法 / 生旺墓阴阳 —— 土长生选「不标长生」时 changshengOf 对一切五行恒返空,长生列与开局卡生旺墓整体不出;
 		// ·之卦简显 / 关联卦「之卦」 —— 之卦卡在「无动爻」或「变卦装法=仅装变爻」时本就不渲染。
 		const _csOff = s.tuChangsheng === 'off';
@@ -1862,7 +2041,7 @@ class GuaZhanMain extends Component{
 						{sel('月破', 'yuepoMode', [{ v: 'inMonth', l: '当月有效' }, { v: 'always', l: '不论出月' }])}
 						{sel('世身', 'shishen', [{ v: 'off', l: '不用' }, { v: 'standard', l: '子午持世身居初' }, { v: 'lichunfeng', l: '亥子持世身居初' }])}
 						{sel('贵人歌诀', 'guirenFa', [{ v: 'standard', l: '甲戊庚牛羊(庚丑未)' }, { v: 'geng_ma_hu', l: '庚辛逢马虎(庚寅午)' }])}
-						{/* [审计 2026-08-08] 结构性空载置灰:64 卦×全部动爻组合(含多爻齐动)枚举,纳甲动变不存在
+						{/* 结构性空载置灰:64 卦×全部动爻组合(含多爻齐动)枚举,纳甲动变不存在
 						    戌↔丑 本变对 → 两口径输出恒同(金标 liuyaoOptionMatrixAudit 锁事实;若未来体系引入该
 						    载荷,金标红了再解除置灰)。照 PlanetSelector/八字流派标记「置灰+说明」先例。 */}
 						{sel('进退神土路', 'jinTuiTu', [{ v: 'chain', l: '丑辰未戌连环' }, { v: 'break', l: '戌丑断开' }],
@@ -1905,13 +2084,8 @@ class GuaZhanMain extends Component{
 							const selArr = Array.isArray(s.relatedCards) ? s.relatedCards : null;
 							const on = !selArr || selArr.indexOf(k) >= 0;
 							return (
-								<Checkbox key={k} checked={on} disabled={k === 'bian' && _bianCardOff} title={(k === 'bian' && _bianCardOff) ? _bianCardHint : undefined} onChange={(e)=>{
-									const all = ['bian', 'hu', 'fu', 'zong', 'cuo'];
-									const cur = selArr || all.slice();
-									const next = e.target.checked ? Array.from(new Set(cur.concat([k]))) : cur.filter((x)=>x !== k);
-									// 全选=回 null(默认态,preset 比对不受扰)
-									this.changeLiuyaoOption('relatedCards', next.length === all.length ? null : next);
-								}}>{l}</Checkbox>
+								<Checkbox key={k} checked={on} disabled={k === 'bian' && _bianCardOff} title={(k === 'bian' && _bianCardOff) ? _bianCardHint : undefined}
+									onChange={(e)=>this.changeLiuyaoRelatedCard(k, e.target.checked)}>{l}</Checkbox>
 							);
 						})}
 					</div>
@@ -1930,14 +2104,14 @@ class GuaZhanMain extends Component{
 				{LIUYAO_PRESETS[schoolVal] && LIUYAO_PRESETS[schoolVal].note ? (
 					<div className="horosa-guazhan-set-note">{LIUYAO_PRESETS[schoolVal].note}</div>
 				) : null}
-				{/* [G9] 一键恢复出厂断卦设置(含全部新旧键;本命年支一并清空);确认后套「通用」预设并持久化 */}
+				{/* 一键恢复出厂断卦设置:全部键回出厂默认(不经切派的「保留输入 / 体验键」规则),流派回「通用」并持久化 */}
 				<div style={{ marginTop: 8 }}>
 					<Button size="small" onClick={()=>{
 						Modal.confirm({
 							title: '恢复默认断卦设置?',
-							content: '全部断卦设置(流派/取法/显示/神煞)将重置为出厂默认。',
+							content: '全部断卦设置将重置为出厂默认:流派、取法、神煞、显示与起卦习惯,连同占测事项、用神手选、本命年支一并清回。当前卦象不变。',
 							okText: '恢复默认', cancelText: '取消',
-							onOk: ()=>{ this.changeLiuyaoPreset('default'); },
+							onOk: ()=>{ this.setLiuyaoSettingsByUser(()=>factoryLiuyaoSettings()); },
 						});
 					}}>恢复默认设置</Button>
 				</div>
@@ -1955,6 +2129,7 @@ class GuaZhanMain extends Component{
 		const baseAll = SHENSHA_META.map((m)=>m.name);
 		const baseOn = !!(s.shensha && s.shensha.on);
 		const exOn = !!(s.shenshaEx && s.shenshaEx.on);
+		// 全选 / 清空 / 恢复默认是绝对值(不随盘面那一组),照旧整组设置;逐项勾选走增量(changeLiuyaoSelection)
 		const setBase = (set)=>this.changeLiuyaoOption('shensha', { set });
 		const setEx = (set)=>this.changeLiuyaoOption('shenshaEx', { set });
 		const tool = (fn, label, disabled)=>(
@@ -1976,7 +2151,7 @@ class GuaZhanMain extends Component{
 					</div>
 					<Checkbox.Group value={s.shensha.set} disabled={!baseOn}
 						options={SHENSHA_META.map((m)=>({ label: m.name, value: m.name }))}
-						onChange={setBase} className="horosa-guazhan-yao-checks" />
+						onChange={(set)=>this.changeLiuyaoSelection('shensha', s.shensha.set, set, baseAll)} className="horosa-guazhan-yao-checks" />
 					<label className="horosa-guazhan-select-field horosa-guazhan-shensha-base">
 						<span>神煞起例</span>
 						<Select dropdownMatchSelectWidth={false} disabled={!baseOn} value={s.shensha.base} onChange={(v)=>this.changeLiuyaoOption('shensha', { base: v })}>
@@ -1997,7 +2172,7 @@ class GuaZhanMain extends Component{
 					<div className="horosa-guazhan-shensha-hint">默认全选;取消勾选即剔除。</div>
 					<Checkbox.Group value={s.shenshaEx.set || exAll} disabled={!exOn}
 						options={exAll.map((n)=>({ label: n, value: n }))}
-						onChange={setEx} className="horosa-guazhan-yao-checks" />
+						onChange={(set)=>this.changeLiuyaoSelection('shenshaEx', s.shenshaEx.set || exAll, set, exAll)} className="horosa-guazhan-yao-checks" />
 				</div>
 			</XQModal>
 		);
@@ -2065,7 +2240,7 @@ class GuaZhanMain extends Component{
 								<div style={{ marginTop: 12 }}><LiuYaoManualCards analysis={analysis} /></div>
 								<div style={{ fontSize: 12, fontWeight: 600, color: 'var(--horosa-astro-label, #d6c7b0)', margin: '12px 0 6px' }}>动变</div>
 								<LiuYaoDongBianView analysis={analysis} />
-								{/* [F1] 日辰月建引动/扩展神煞/月建六神 概览与断诀同源(受各自开关 gating) */}
+								{/* 日辰月建引动/扩展神煞/月建六神 概览与断诀同源(受各自开关 gating) */}
 								<div style={{ marginTop: 12 }}>
 									<LiuYaoRiYueView analysis={analysis} />
 									<LiuYaoShenShaExView analysis={analysis} />
@@ -2134,7 +2309,7 @@ class GuaZhanMain extends Component{
 				hasResult={this.isGuaComplete()}
 				primary={[
 					{ key: 'timeGua', label: '时间卦', onClick: ()=>this.clickTimeGua() },
-					{ key: 'redoGua', label: '再摇一卦', icon: 'quickFirdaria', onClick: this.genGua },
+					{ key: 'redoGua', label: `${this.state.btnGenGua || ''}`.indexOf('停止') === 0 ? '停止随机' : '再摇一卦', icon: 'quickFirdaria', onClick: this.genGua },
 					{ key: 'numGua', label: '数字卦', icon: 'quickProfection', onClick: this.clickNumGua },
 					{ key: 'custGua', label: '自定义', icon: 'quickReturn', onClick: this.clickCustGua },
 				]}

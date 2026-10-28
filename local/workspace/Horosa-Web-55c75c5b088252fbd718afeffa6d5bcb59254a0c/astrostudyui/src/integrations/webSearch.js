@@ -9,7 +9,7 @@ export const WEB_SEARCH_ENGINES = [
 	{ value: 'brave', label: 'Brave Search', needsKey: true, needsBaseUrl: false },
 	{ value: 'exa', label: 'Exa', needsKey: true, needsBaseUrl: false },
 	{ value: 'searxng', label: 'SearXNG(自建,无需 Key)', needsKey: false, needsBaseUrl: true },
-	// [Q-294/M-109·AR-25] optionalKey:后端对自定义端点「有 Key 则以 Bearer 带上」,面板要给可选密钥框(此前 needsKey:false → 不渲染,无处可填)
+	// optionalKey:后端对自定义端点「有 Key 则以 Bearer 带上」,面板要给可选密钥框(此前 needsKey:false → 不渲染,无处可填)
 	{ value: 'custom', label: '自定义端点', needsKey: false, optionalKey: true, needsBaseUrl: true },
 ];
 export const WEB_SEARCH_MAX_RESULTS = 10;

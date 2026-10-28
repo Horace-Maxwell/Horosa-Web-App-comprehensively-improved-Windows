@@ -1,4 +1,4 @@
-// [Q-163/T-82…T-85] 三式四条确证子项(SS-14/15/16/17)金标:
+// 三式四条确证子项(SS-14/15/16/17)金标:
 //   ① 六壬事盘 gender 单源=卜卦人性别(与盘面/行年/快照同源;未填才回落起课区全局值)
 //   ② 奇门标签型 sex 初值/外部 fields.gender 变化随全局(0/1;未知不动)
 //   ③ 太乙「时间基准」真太阳时档在历法未回时如实标注(计算路径不变)
@@ -10,11 +10,12 @@ import { syncedSexFromFields } from '../../components/dunjia/DunJiaMain';
 import { normalizeBackendPan } from '../../components/taiyi/TaiYiCalc';
 import { TECHNIQUE_SETTINGS_SCHEMA } from '../techniqueMountSettings';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../dayBoundary';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const TAIYI_CALC_SRC = fs.readFileSync(path.resolve(__dirname, '../../components/taiyi/TaiYiCalc.js'), 'utf8');
-const CTX_SRC = fs.readFileSync(path.resolve(__dirname, '../aiAnalysisContext.js'), 'utf8');
+const CTX_SRC = readSource(path.resolve(__dirname, '../aiAnalysisContext.js'));
 
-describe('[Q-163] 三式性别/日界/时间基准 确证子项', ()=>{
+describe('三式性别/日界/时间基准 确证子项', ()=>{
 	test('① 六壬 record.gender 取卜卦人性别;卜卦人未知(-1)时才回落起课区全局值', ()=>{
 		const flds = { gender: { value: 1 } };
 		expect(liurengCaseGender({ gender: { value: 0 } }, flds)).toBe(0);

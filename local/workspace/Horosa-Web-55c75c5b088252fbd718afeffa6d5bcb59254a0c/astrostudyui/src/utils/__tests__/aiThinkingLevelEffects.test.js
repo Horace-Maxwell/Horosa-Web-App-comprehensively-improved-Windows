@@ -1,4 +1,4 @@
-// [Q-044] 思考档「哪些档对当前模型真有差别」由 applyThinkingLevel 自证:
+// 思考档「哪些档对当前模型真有差别」由 applyThinkingLevel 自证:
 // 逐档取思考相关键做指纹,与更低档相同即 sameAs(浮层据此置灰 + title)。
 import { thinkingLevelEffects, THINKING_LEVELS, applyChatParams } from '../aiAnalysisProviders';
 
@@ -28,7 +28,7 @@ it('🔴 判别向量:Anthropic 自适应族与 Gemini 六档各不相同(不得
 	THINKING_LEVELS.forEach((t)=>expect(gem[t.value]).toBe(''));
 });
 
-// [Q-045] 浮层五类参数单源:三条旁路与主发送共用
+// 浮层五类参数单源:三条旁路与主发送共用
 it('🔴 applyChatParams:温度按家族夹逼 / 推理型号不发采样 / 停止序列按家族选键 / withJsonMode 可关', ()=>{
 	const openai = { id: 'p', providerType: 'openai' };
 	const anthropic = { id: 'p2', providerType: 'anthropic' };

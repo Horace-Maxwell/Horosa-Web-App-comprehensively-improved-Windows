@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/__tests__/chartSCU.test.js b/astrostudyui/src/components/astro/__tests__/chartSCU.test.js
-index b579fed..b9cabef 100644
+index b579fed9..b9cabefe 100644
 --- a/astrostudyui/src/components/astro/__tests__/chartSCU.test.js
 +++ b/astrostudyui/src/components/astro/__tests__/chartSCU.test.js
 @@ -184,27 +184,43 @@ describe('盘面 sCU:量化中点盘 MidpointMain', ()=>{

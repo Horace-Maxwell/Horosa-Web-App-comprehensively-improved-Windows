@@ -1,4 +1,4 @@
-// [批五] 四断链之②:自动化规则「设为当前分析源」此前恒抛(deps 读 bridge.ui,而生产从未登记)——以前的回归锁只是源码 grep(假锁)。
+// 四断链之②:自动化规则「设为当前分析源」此前恒抛(deps 读 bridge.ui,而生产从未登记)——以前的回归锁只是源码 grep(假锁)。
 // 行为锁:未登记 → reject 且信息告诉用户先打开 AI 分析页;登记后 → 先刷源再选源;引擎级:record.saved 规则真选源、零「不可用」通知。
 import { buildDefaultAutomationDeps } from '../aiAgent/automation/deps';
 import { registerWorkspaceUi, __resetWorkspaceBridgeForTests } from '../aiTools/workspaceBridge';

@@ -1,4 +1,4 @@
-// [Z0] 择日完备性闸哨兵(用户定案 12「能算出来的都可搜索」的机械化):
+// 择日完备性闸哨兵(用户定案 12「能算出来的都可搜索」的机械化):
 // 每个择日技法的 AI 快照段表逐段必须在 ZERI_COVERAGE_MAP 表态(types/allTypes/exempt 三选一)。
 // 判据:①登记段集 ≡ AI_EXPORT_PRESET_SECTIONS[技法] 双向差空 —— **主技法新增快照段时
 // 择日侧被强制表态,否则此处机械红**(「原技法演进→择日强制跟上」完备性层);
@@ -15,6 +15,7 @@ import { LIURENG_CONDITION_TYPES } from '../liurengZeriConditionTypes';
 import { SANSHI_CONDITION_TYPES } from '../sanshiZeriConditionTypes';
 import { QIZHENG_CONDITION_TYPES } from '../qizhengZeriConditionTypes';
 import { INDIA_CONDITION_TYPES } from '../indiaZeriConditionTypes';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const REGISTRIES = {
 	conditionTypes: CONDITION_TYPES,
@@ -29,7 +30,7 @@ const REGISTRIES = {
 	indiaZeriConditionTypes: INDIA_CONDITION_TYPES,
 };
 
-describe('[Z0] 择日完备性闸(段表↔条件类映射)', ()=>{
+describe('择日完备性闸(段表↔条件类映射)', ()=>{
 	const techKeys = Object.keys(ZERI_COVERAGE_MAP);
 
 	it('登记技法非空且各自 preset 段表在位', ()=>{
@@ -81,7 +82,7 @@ describe('[Z0] 择日完备性闸(段表↔条件类映射)', ()=>{
 	});
 });
 
-// [2026-08-29 审查实抓防回潮] 工作台 draftType 初值必须是本注册表键:四个工作台曾抄
+// 工作台 draftType 初值必须是本注册表键:四个工作台曾抄
 // 上一技法的键(紫微 ming_zhu_xing 进六壬/三式,太乙 geju_kind 进七政/印度)——首开
 // 「条件类型」显示裸键名、参数表单空白、添加后 compile 抛「未知条件类型」拒扫。
 describe('[防回潮] 工作台 draftType 初值∈本注册表', ()=>{
@@ -104,7 +105,7 @@ describe('[防回潮] 工作台 draftType 初值∈本注册表', ()=>{
 			const m = /const \[draftType, setDraftType\] = useState\('([a-z_0-9]+)'\)/.exec(src);
 			expect(m ? 'found' : `${file}: 未找到 draftType 初值`).toBe('found');
 			expect(registry[m[1]] ? 'ok' : `${file}: 初值 ${m[1]} 不在本注册表`).toBe('ok');
-			// [复审 F3] draftParams 初值叶必须与 draftType 同键:曾修了 type 漏了 params
+			// draftParams 初值叶必须与 draftType 同键:曾修了 type 漏了 params
 			// (newXxxLeaf(外来键).params={} → 首开 validate 红错+添加禁用,四台同病)
 			const mp = /useState\(\(\) => new\w+Leaf\('([a-z_0-9]+)'\)\.params\)/.exec(src);
 			if(mp){
@@ -114,7 +115,7 @@ describe('[防回潮] 工作台 draftType 初值∈本注册表', ()=>{
 	});
 });
 
-// [2026-08-29 用户实报双修防回潮] ①工作台 Modal X 在暗色下隐形(antd 默认近黑,用户
+// ①工作台 Modal X 在暗色下隐形(antd 默认近黑,用户
 // 「无法返回」)——九台必须带 wrapClassName(app.less 作用域覆写 close 颜色);
 // ②择日内嵌 IndiaChartMain 缺 planetDisplay props 曾回退「不过滤=全画」,盘面被
 // 33 个西占 Pars 淹没——透传层必须兜 DEFAULT_OBJECTS。
@@ -130,7 +131,7 @@ describe('[防回潮] 工作台 X 可见性+印度盘对象兜底', ()=>{
 				bad.push(`${f}: 缺 wrapClassName(暗色下关闭钮回黑=用户困死回潮)`);
 			}
 		});
-		const less = fs.readFileSync(path.join(__dirname, '../../../layouts/app.less'), 'utf8');
+		const less = readSource(path.join(__dirname, '../../../layouts/app.less'));
 		if(!less.includes('.horosa-zeri-workbench-modal .ant-modal-close')){
 			bad.push('app.less: 作用域 close 颜色规则被删');
 		}
@@ -143,13 +144,13 @@ describe('[防回潮] 工作台 X 可见性+印度盘对象兜底', ()=>{
 	});
 
 	it('IndiaChartMain 盘面 planetDisplay 透传兜 DEFAULT_OBJECTS(缺 props≠全画)', ()=>{
-		const src = fs.readFileSync(path.join(__dirname, '../../../components/astro/IndiaChartMain.js'), 'utf8');
+		const src = readSource(path.join(__dirname, '../../../components/astro/IndiaChartMain.js'));
 		const n = (src.match(/planetDisplay=\{this\.props\.planetDisplay \|\| AstroConst\.DEFAULT_OBJECTS\}/g) || []).length;
 		expect(n >= 2 ? 'ok' : `兜底透传只剩 ${n} 处(应 2:分盘集+主盘)`).toBe('ok');
 	});
 });
 
-// [2026-08-29 用户实报] 天星概览浮窗崩溃(函数组件里写类式 props 访问)+新八技法无预览。
+// 天星概览浮窗崩溃(函数组件里写类式 props 访问)+新八技法无预览。
 // ①全仓函数组件体内禁 this.props/this.state(块分割静态扫描,与修复同日全仓已清零);
 // ②七工作台 ZeriMiniPanPopup 接线完备(概览按钮+浮窗+宿主 previewCtx)。
 describe('[防回潮] 函数组件 this.props 全仓零命中+八技法概览接线', ()=>{
@@ -233,7 +234,7 @@ describe('[防回潮] 函数组件 this.props 全仓零命中+八技法概览接
 		});
 		expect(bad.length ? bad.join('\n') : 'ok').toBe('ok');
 	});
-	it('🔴 [W9] 帮助文档类数=注册表实数(十家;终结「纯自律」漂移——判别向量:注错数字必红)', ()=>{
+	it('🔴 帮助文档类数=注册表实数(十家;终结「纯自律」漂移——判别向量:注错数字必红)', ()=>{
 		const help = fs.readFileSync(path.join(__dirname, '../../../components/help/ZeriHelpDoc.js'), 'utf8');
 		const count = (file, re2)=>{
 			const src = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
@@ -265,7 +266,7 @@ describe('[防回潮] 函数组件 this.props 全仓零命中+八技法概览接
 
 });
 
-describe('[十一轮] keyDeps 声明完备闸(掩码家全类必显式声明;值域越界=红)', ()=>{
+describe('keyDeps 声明完备闸(掩码家全类必显式声明;值域越界=红)', ()=>{
 	const LR_BITS = ['diurnal', 'yearZhi', 'monthZhi', 'candY'];
 	const QM_BITS = ['yearGz', 'monthGz', 'dayGz', 'timeGz', 'diurnal'];
 	it('六壬 27 类:keyDeps 必为数组且 ⊆ 四可掩位', ()=>{
@@ -275,7 +276,7 @@ describe('[十一轮] keyDeps 声明完备闸(掩码家全类必显式声明;值
 			d.forEach((b)=>{ expect({ k, b, ok: LR_BITS.indexOf(b) >= 0 }).toEqual({ k, b, ok: true }); });
 		});
 	});
-	it('[十四轮] 八字 26 类:keyDeps 数组或函数,产物 ⊆ 四柱位', ()=>{
+	it('八字 26 类:keyDeps 数组或函数,产物 ⊆ 四柱位', ()=>{
 		const BITS = ['yearGz', 'monthGz', 'dayGz', 'timeGz'];
 		const { BAZI_CONDITION_TYPES } = require('../baziZeriConditionTypes');
 		Object.keys(BAZI_CONDITION_TYPES).forEach((k)=>{
@@ -287,15 +288,15 @@ describe('[十一轮] keyDeps 声明完备闸(掩码家全类必显式声明;值
 			arr.forEach((b)=>{ expect({ k, b, ok: BITS.indexOf(b) >= 0 }).toEqual({ k, b, ok: true }); });
 		});
 	});
-	// [Q-420/T-384] keyDeps 不得过宽:单选柱类只依赖所选柱位(此前 nayin_wuxing 读不存在的 p.pillars 回落四柱全位 → 含时柱 → 每换时辰切一行)。
-	it('[Q-420] 八字 nayin_wuxing keyDeps 只含所选柱位(day → dayGz;year → yearGz)', ()=>{
+	// keyDeps 不得过宽:单选柱类只依赖所选柱位(此前 nayin_wuxing 读不存在的 p.pillars 回落四柱全位 → 含时柱 → 每换时辰切一行)。
+	it('八字 nayin_wuxing keyDeps 只含所选柱位(day → dayGz;year → yearGz)', ()=>{
 		const { BAZI_CONDITION_TYPES } = require('../baziZeriConditionTypes');
 		const spec = BAZI_CONDITION_TYPES.nayin_wuxing;
 		expect(spec.keyDeps({ pillar: 'day', values: ['金'] })).toEqual(['dayGz']);
 		expect(spec.keyDeps({ pillar: 'year', values: ['金'] })).toEqual(['yearGz']);
 		expect(spec.keyDeps({})).toEqual(['dayGz']);   // 缺省日柱,不再回落四柱全位
 	});
-	it('[十四轮] 紫微 28 类:keyDeps 必为数组 ⊆ 安星六位', ()=>{
+	it('紫微 28 类:keyDeps 必为数组 ⊆ 安星六位', ()=>{
 		const BITS = ['yearGan', 'yearZi', 'anchorM', 'anchorLeap', 'anchorD', 'timeZi'];
 		const { ZIWEI_CONDITION_TYPES } = require('../ziweiZeriConditionTypes');
 		Object.keys(ZIWEI_CONDITION_TYPES).forEach((k)=>{

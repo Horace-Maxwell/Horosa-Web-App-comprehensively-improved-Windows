@@ -41,7 +41,7 @@ describe('星座庙主表数据级等价(单源 SignsProp)', ()=>{
 		expect(toks.length).toBe(12);
 		expect(toks).toEqual(EXPECT);
 	});
-	it('小限年主不自带星座表:庙主取 signs.js domicile(上一例已锁),本地表只做行星 id→glyph 映射 —— [Q-105 2026-09-18] 表随派生算法抽到 utils/profectionSummary.js 单源,页面不再自带', ()=>{
+	it('小限年主不自带星座表:庙主取 signs.js domicile(上一例已锁),本地表只做行星 id→glyph 映射 —— 表随派生算法抽到 utils/profectionSummary.js 单源,页面不再自带', ()=>{
 		const text = SRC('utils/profectionSummary.js');
 		expect(text).toMatch(/PROFECTION_SIGN_RULER_ID\s*=\s*\{/);
 		expect(text).toMatch(/\.domicile/);

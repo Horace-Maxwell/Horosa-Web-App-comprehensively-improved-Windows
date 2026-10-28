@@ -1,12 +1,13 @@
-// [D67] 对话流:上游在正文之后发 error 帧 ⇒ 不得把半截当完整。源码级锁(AIAnalysisMain 在 jsdom 渲染不了):
+// 对话流:上游在正文之后发 error 帧 ⇒ 不得把半截当完整。源码级锁(AIAnalysisMain 在 jsdom 渲染不了):
 //   errorInfo 只要有 streamError 就记;正文非空时 partial:true;旧形态「只在正文为空时记 errorInfo」不得回潮。
 const fs = require('fs');
 const path = require('path');
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 const MAIN = path.resolve(__dirname, '..', '..', 'components', 'aianalysis', 'AIAnalysisMain.js');
 const strip = (s)=>s.replace(/^\s*\/\/.*$/mg, '');
 
 it('🔴 streamError ⇒ errorInfo 恒记;正文非空 ⇒ partial:true;旧形态归零', ()=>{
-	const src = strip(fs.readFileSync(MAIN, 'utf8'));
+	const src = strip(readSource(MAIN));
 	expect(src).toContain('const errorInfo = streamError ? classifyStreamError(streamError) : null;');
 	expect(src).toContain('const partialAfterError = !!(finalContent && streamError);');
 	expect(src).toContain('partial: partialAfterError || undefined,');

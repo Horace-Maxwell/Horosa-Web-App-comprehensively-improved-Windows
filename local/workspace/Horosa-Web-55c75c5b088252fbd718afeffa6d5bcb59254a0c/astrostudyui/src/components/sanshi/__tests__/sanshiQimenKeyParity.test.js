@@ -1,4 +1,4 @@
-// [H-H] 三式合一奇门键位同步清单哨兵(L3):独立页 DEFAULT_OPTIONS 键集 ⊆ 三式 QIMEN_OPTIONS 键集 ∪ 豁免。
+// 三式合一奇门键位同步清单哨兵(L3):独立页 DEFAULT_OPTIONS 键集 ⊆ 三式 QIMEN_OPTIONS 键集 ∪ 豁免。
 //   语义:独立页每加一个引擎/口径键,三式必须同步透传(三式合一同步铁律);豁免键必须理由成文。
 //   机械提取两文件字面量(剥不掉就红),不手抄清单——新键漏同步当场判红。
 import fs from 'fs';
@@ -25,7 +25,7 @@ const EXEMPT = {
 	fullNameTips: '独立页专属显示档(词条标题全名只作用于独立页悬停词条,三式不产此 UI)',
 };
 
-describe('[H-H] 三式奇门键位同步清单哨兵(L3)', ()=>{
+describe('三式奇门键位同步清单哨兵(L3)', ()=>{
 	const dm = read('../../dunjia/DunJiaMain.js');
 	const sm = read('../SanShiUnitedMain.js');
 	const dmKeys = extractObjKeys(dm, 'const DEFAULT_OPTIONS');
@@ -63,9 +63,9 @@ describe('[H-H] 三式奇门键位同步清单哨兵(L3)', ()=>{
 	});
 });
 
-// [QA1] 🔴 三式事盘载入键完整性守卫:载入段必须有「QIMEN_OPTIONS 键集驱动灌注」循环
+// 🔴 三式事盘载入键完整性守卫:载入段必须有「QIMEN_OPTIONS 键集驱动灌注」循环
 // (病史:手写白名单缺 23 个新键=存档带新档设置重开全部丢回默认,存了白存)。
-describe('[QA1] 三式事盘载入键集驱动守卫', ()=>{
+describe('三式事盘载入键集驱动守卫', ()=>{
 	const sm = read('../SanShiUnitedMain.js');
 	test('键集驱动循环在位(Object.keys(QIMEN_OPTIONS) 遍历灌 payload.options)', ()=>{
 		const i = sm.indexOf('Object.keys(QIMEN_OPTIONS).forEach((qk)=>{');

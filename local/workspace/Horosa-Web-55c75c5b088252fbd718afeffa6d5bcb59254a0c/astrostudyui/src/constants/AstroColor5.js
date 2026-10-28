@@ -2,7 +2,7 @@
 export const AstroColor = {
     Backgroud: '#FFFEFA',
     ChartBackgroud: '#FFFEFA',
-	Stroke: '#D9A22B',
+	Stroke: '#b48420',
 	TextStroke: '#000000',
 	Fill: '#FFFFFF',
     NoColor: 'transparent',
@@ -31,6 +31,13 @@ AstroColor['Desc'] = '#3B3B3B';
 AstroColor['MC'] = '#3B3B3B';
 AstroColor['IC'] = '#3B3B3B';
 
+// 行星环的留(S)/ 顺(D)/ 逆(R)标、度数的分、王星标(盘面字;按本套盘面底挑,画的那一刻经 AstroConst.AstroColor 读)
+AstroColor['StationS'] = '#a97e2e';
+AstroColor['StationD'] = '#3a8f58';
+AstroColor['Retrograde'] = '#8f2d2d';
+AstroColor['MinuteText'] = '#80786e';
+AstroColor['RoyalStar'] = '#9f8122';
+
 AstroColor['Aries'] = '#3B3B3B';
 AstroColor['Taurus'] = '#3B3B3B';
 AstroColor['Gemini'] = '#3B3B3B';
@@ -46,22 +53,22 @@ AstroColor['Pisces'] = '#3B3B3B';
 
 
 AstroColor['Asp0'] = '#0000FF';
-AstroColor['Asp60'] = '#33CCC3';
-AstroColor['Asp90'] = '#FE8090';
+AstroColor['Asp60'] = '#279b94';
+AstroColor['Asp90'] = '#fe465d';
 AstroColor['Asp120'] = '#1B8C09';
 AstroColor['Asp180'] = '#000000';
 
-AstroColor['命'] = '#cccc00';
-AstroColor['业'] = '#cccc00';
-AstroColor['胎'] = '#cccc00';
+AstroColor['命'] = '#fbf7e0';
+AstroColor['业'] = '#fbf7e0';
+AstroColor['胎'] = '#fbf7e0';
 
-AstroColor['意'] = '#cccc00';
-AstroColor['事'] = '#cccc00';
-AstroColor['克'] = '#cccc00';
-AstroColor['聚'] = '#cccc00';
-AstroColor['同'] = '#cccc00';
+AstroColor['意'] = '#fbf7e0';
+AstroColor['事'] = '#fbf7e0';
+AstroColor['克'] = '#fbf7e0';
+AstroColor['聚'] = '#fbf7e0';
+AstroColor['同'] = '#fbf7e0';
 
-AstroColor['SixHouses'] = '#66CC33';
+AstroColor['SixHouses'] = '#eef8e6';
 
 
 AstroColor['House1'] = AstroColor.Stroke;

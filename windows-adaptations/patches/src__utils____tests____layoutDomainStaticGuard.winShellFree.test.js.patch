@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/__tests__/layoutDomainStaticGuard.test.js b/astrostudyui/src/utils/__tests__/layoutDomainStaticGuard.test.js
-index 0eac343a..9c9efc6d 100644
+index 9d6e8585..68003069 100644
 --- a/astrostudyui/src/utils/__tests__/layoutDomainStaticGuard.test.js
 +++ b/astrostudyui/src/utils/__tests__/layoutDomainStaticGuard.test.js
 @@ -10,7 +10,6 @@
@@ -7,10 +7,10 @@ index 0eac343a..9c9efc6d 100644
  const fs = require('fs');
  const path = require('path');
 -const { execSync } = require('child_process');
+ const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
  
  const SRC = path.resolve(__dirname, '..', '..');
- // 壳内三页(启动/诊断/偏好)。这次事故里它们的密度探测犯了同样的错,却因为不在任何
-@@ -20,21 +19,41 @@ const SHELL_WEB = path.resolve(SRC, '..', '..', '..', 'Horosa_Desktop_Installer'
+@@ -21,21 +20,41 @@ const SHELL_WEB = path.resolve(SRC, '..', '..', '..', 'Horosa_Desktop_Installer'
  const EXEMPT = [];
  
  // 「视口读数 ÷ 标识符/调用」。除以数字字面量(如 /2 居中)是正常算术,不在此列。
@@ -64,7 +64,7 @@ index 0eac343a..9c9efc6d 100644
  }
  
  // 注释行不算违规(踩过两次:哨兵是纯文本 grep,不分代码与注释)
-@@ -197,15 +216,32 @@ const PHYS_EXEMPT = {
+@@ -195,15 +214,32 @@ const PHYS_EXEMPT = {
  };
  const PHYS_PATTERN = 'document\\.documentElement\\.client(Height|Width)';
  

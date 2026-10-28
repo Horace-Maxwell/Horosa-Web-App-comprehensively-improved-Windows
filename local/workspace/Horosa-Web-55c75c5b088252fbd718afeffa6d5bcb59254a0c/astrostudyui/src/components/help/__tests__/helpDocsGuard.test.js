@@ -148,6 +148,25 @@ describe('帮助文档护栏', ()=>{
 		expect(getTechniqueHelpDoc('nope-not-a-tab')).toBe(null);
 	});
 
+	// 「命·其他」一页三技法:按页内当前技法切手册(演禽 → 演禽手册;策天 / 一掌经 → 本页手册)
+	it('命·其他:当前技法为演禽时取演禽手册,其余技法取本页手册;当前技法取自页内技法条写入的运行时口径', ()=>{
+		const { currentHostTechnique } = require('../techniqueHelpRegistry');
+		expect(getTechniqueHelpDoc('mingother', undefined, 'xianqin')).toBe(TECHNIQUE_HELP_DOCS.yanqin);
+		expect(TECHNIQUE_HELP_DOCS.yanqin).not.toBe(TECHNIQUE_HELP_DOCS.mingother);
+		expect(getTechniqueHelpDoc('mingother', undefined, 'yizhangjing')).toBe(TECHNIQUE_HELP_DOCS.mingother);
+		expect(getTechniqueHelpDoc('mingother', undefined, 'cetian')).toBe(TECHNIQUE_HELP_DOCS.mingother);
+		expect(getTechniqueHelpDoc('mingother')).toBe(TECHNIQUE_HELP_DOCS.mingother);
+		// 别的页不受宿主技法影响
+		expect(getTechniqueHelpDoc('shusuan', undefined, 'xianqin')).toBe(TECHNIQUE_HELP_DOCS.shusuan);
+		window.__horosaKinAstroCurrent = { mingother: 'xianqin', technique: 'xianqin' };
+		expect(currentHostTechnique('mingother')).toBe('xianqin');
+		expect(currentHostTechnique('shusuan')).toBe('');
+		delete window.__horosaKinAstroCurrent;
+		expect(currentHostTechnique('mingother')).toBe('');
+		const header = fs.readFileSync(path.resolve(__dirname, '../../homepage/PageHeader.js'), 'utf8');
+		expect(header).toContain('getTechniqueHelpDoc(props.currentTab, props.currentSubTab, currentHostTechnique(props.currentTab))');
+	});
+
 	// 「停在某子技法上切走再切回来被打回首档」的根因是导航层与各技法 Main 各写一份合法集。
 	// 归一到 SubTabRegistry 后,这里锁住「导航层用的就是真值源」且真值源覆盖真实子页签。
 	it('子页签合法集是单一真值源且不缺项', ()=>{

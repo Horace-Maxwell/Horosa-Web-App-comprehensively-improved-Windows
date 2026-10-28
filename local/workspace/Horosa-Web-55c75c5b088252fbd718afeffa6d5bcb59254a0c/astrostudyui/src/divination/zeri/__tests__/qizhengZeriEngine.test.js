@@ -1,4 +1,4 @@
-// [Z7·七政择日] 前端注册表金标(远端判定形——判定逻辑在 astropy qizheng_election_scan,
+// 前端注册表金标(远端判定形——判定逻辑在 astropy qizheng_election_scan,
 // pytest 金标 8 例看守;此处守前后端契约面):
 // ①类型键集与后端 CONDITION_TYPES 逐键成对(直读 py 文件正则抽——后端加叶前端未接=红)
 // ②判定表 py↔js 逐值 diff(guolao_const↔guolaoData 关键四表——[184] 升级形,两侧任一改=红)
@@ -11,7 +11,7 @@ import { SU28, SU28_DISTANCE, SU28_JIAO_START_MODERN, SU28_JIAO_START_ANCIENT, D
 const PY_ROOT = path.join(__dirname, '..', '..', '..', '..', '..', 'astropy', 'astrostudy');
 const readPy = (f)=>fs.readFileSync(path.join(PY_ROOT, f), 'utf8');
 
-describe('[Z7] 🔴 前后端契约对拍', ()=>{
+describe('🔴 前后端契约对拍', ()=>{
 	it('🔴 类型键集 ≡ 后端 CONDITION_TYPES(py 文件直读;后端加叶前端未接=红)', ()=>{
 		const py = readPy('qizheng_election_scan.py');
 		const m = py.match(/CONDITION_TYPES = \{([\s\S]*?)\n\}/);
@@ -56,7 +56,7 @@ describe('[Z7] 🔴 前后端契约对拍', ()=>{
 	});
 });
 
-describe('[Z7] 注册表契约+编译', ()=>{
+describe('注册表契约+编译', ()=>{
 	it('每类 spec 契约齐(≥10 类;远端形 evaluate 缺省合法)', ()=>{
 		const keys = Object.keys(QIZHENG_CONDITION_TYPES);
 		expect(keys.length).toBeGreaterThanOrEqual(10);
@@ -78,7 +78,7 @@ describe('[Z7] 注册表契约+编译', ()=>{
 		expect(()=>compileQizhengTree({ kind: 'group', joiner: 'all', children: [{ kind: 'leaf', type: 'body_in_gong', joiner: 'all', params: { body: '月', values: [] } }] })).toThrow();
 		expect(qizhengLeafSummary(newQizhengLeaf('combust'))).toContain('伏焦');
 	});
-	it('🔴 [W7] 七态表 py↔js 逐曜恰等 + 迟速谱五星恰等(镜像表 diff 锚——单边改必红)', ()=>{
+	it('🔴 七态表 py↔js 逐曜恰等 + 迟速谱五星恰等(镜像表 diff 锚——单边改必红)', ()=>{
 		const fs2 = require('fs');
 		const path2 = require('path');
 		const py = fs2.readFileSync(path2.join(__dirname, '../../../../../astropy/astrostudy/guolao_const.py'), 'utf8');

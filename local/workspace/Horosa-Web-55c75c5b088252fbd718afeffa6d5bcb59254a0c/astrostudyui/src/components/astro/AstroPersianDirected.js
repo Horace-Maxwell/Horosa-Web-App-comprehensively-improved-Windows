@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import { Row, Col, Divider } from 'antd';
 import moment from 'moment';
+import { momentOfCivilDateTimeStr, civilDateAfterDays } from '../../utils/civilMoment';
 import AstroDoubleChart from './AstroDoubleChart';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
@@ -15,6 +16,7 @@ const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHead
 const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
 const methodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
 import { SmallTable, symbolWithMeaning, natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
 import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
@@ -50,7 +52,7 @@ function natalParams(chartObj){
 		zone: params.zone, dirZone: params.zone, lon: params.lon, lat: params.lat,
 		gpsLat: params.gpsLat, gpsLon: params.gpsLon, hsys: params.hsys,
 		zodiacal: params.zodiacal, siderealAyanamsa: params.siderealAyanamsa, tradition: params.tradition,
-		// [0d] 古典口径段(单源):此前只带基础键,推运链丢古典口径。
+		// 古典口径段(单源):此前只带基础键,推运链丢古典口径。
 		...natalClassicalParams(params),
 	};
 }
@@ -70,7 +72,7 @@ export function buildPersianHits(chartObj, rateKey, maxAge, direction){
 		const l = lonOf(h); if(l !== null){ targets.push({ id: `${i + 1}宫头`, lon: l }); }
 	});
 	const birth = (chartObj && chartObj.params && chartObj.params.birth)
-		? moment(`${chartObj.params.birth}`.replace(/\//g, '-'), ['YYYY-MM-DD HH:mm:ss', 'YYYY-MM-DD HH:mm', 'YYYY-MM-DD'])
+		? momentOfCivilDateTimeStr(`${chartObj.params.birth}`)   // 民用历单源(公元前 / 公元 1–99 年 / 五位年不误读)
 		: null;
 	const hits = [];
 	MOVERS.forEach((p) => {
@@ -83,12 +85,12 @@ export function buildPersianHits(chartObj, rateKey, maxAge, direction){
 					if((a === 0 || a === 180) && s === -1){ return; }
 					const target = norm360(t.lon + s * a);
 					const arc = converse ? norm360(pl - target) : norm360(target - pl);
-					// [Q-168/T-102] 速率 >1°/年(Prophected 30°/年)时一生可绕黄道多周:按 arc+360k 逐周取应期至 cap(此前 norm360 恒 <360° → 只列 0–12 岁)
+					// 速率 >1°/年(Prophected 30°/年)时一生可绕黄道多周:按 arc+360k 逐周取应期至 cap(此前 norm360 恒 <360° → 只列 0–12 岁)
 					for(let k = 0; k < 400; k++){
 						const age = (arc + 360 * k) / rate;
 						if(age > cap){ break; }
 						if(age > 0){
-							const date = (birth && birth.isValid()) ? birth.clone().add(age * 365.2421904, 'days').format('YYYY-MM-DD') : '';
+							const date = (birth && birth.isValid()) ? civilDateAfterDays(birth, age * 365.2421904) : '';   // 民用历日期标签
 							hits.push({ age: Math.round(age * 100) / 100, promittor: p, aspect: a, significator: t.id, date });
 						}
 						if(rate <= 1.0){ break; }
@@ -117,7 +119,7 @@ export function buildPersianDirectedSnapshotText(chartObj, opts){
 	// [YB] 头部盘主生辰([起盘信息];无数据 helper 自返 [],不产空段头)。
 	lines.push(...birthHeaderLines(chartObj));
 	lines.push('[波斯向运（Persian Directed）]');
-	// [Q-168/T-102] 速率/方向按所选写(此前写死 1°/年、每年 +1°)
+	// 速率/方向按所选写(此前写死 1°/年、每年 +1°)
 	lines.push(`黄经象征向运(${RATE_LABEL[rateKey] || rateKey})：所有行星/点按此速率${direction === 'converse' ? '逆向(Converse)' : '顺向'}推进,本命宫头不动；下表为向运星触及本命的应期。`);
 	lines.push('');
 	lines.push('| 年龄 | 日期 | 向运星 | 相位 | 本命对象 |');
@@ -166,9 +168,9 @@ export function buildPersianDirectedSnapshotText(chartObj, opts){
 // birthStr/datetimeStr 任一无效返回 null（守「无生时不强标年龄」）。
 export function directedAgeYears(birthStr, datetimeStr){
 	if(!birthStr || !datetimeStr){ return null; }
-	const fmts = ['YYYY-MM-DD HH:mm:ss', 'YYYY-MM-DD HH:mm', 'YYYY-MM-DD'];
-	const b = moment(`${birthStr}`.replace(/\//g, '-'), fmts);
-	const d = moment(`${datetimeStr}`.replace(/\//g, '-'), fmts);
+	// 两个时刻都经民用历单源(1582 以前儒略历、公元前历史纪年;现代与 moment(串, 格式) 逐值相同)
+	const b = momentOfCivilDateTimeStr(`${birthStr}`);
+	const d = momentOfCivilDateTimeStr(`${datetimeStr}`);
 	if(!b.isValid() || !d.isValid()){ return null; }
 	return d.diff(b, 'days', true) / 365.2421904;
 }
@@ -191,7 +193,7 @@ class AstroPersianDirected extends Component{
 	constructor(props){
 		super(props);
 		const np = natalParams(props.value);
-		const dt = new DateTime();
+		const dt = DateTime.nowForChart(np.zone);   // 「此刻」按本盘时区
 		dt.addDate(1);
 		this.state = { params: { ...np, datetime: dt, asporb: transitOrbDefault(), nodeRetrograde: false, rateKey: DIRECTION_PAGE_SETTINGS.load().persianRateKey, direction: DIRECTION_PAGE_SETTINGS.load().persianDirection, maxYears: DIRECTION_PAGE_SETTINGS.load().persianMaxYears }, dirChart: null };
 		// 终生应期长表的滚动定位：fullListRef=滚动盒、anchorRowNode=当前向运年龄锚点行、lastScrolledAge=去抖。
@@ -286,15 +288,19 @@ class AstroPersianDirected extends Component{
 		// 否则组件构造时绑定的旧盘会把内圈本命冻结成错误日期：换盘后 componentDidUpdate
 		// 只重新请求、不重算 natalParams，内圈本命会被后端按旧 date 起盘(实测对不上选择的盘)。
 		const np = natalParams(this.props.value);
-		// [SURF-T1] 增量 merge 粘滞剔除:非默认改回默认后 np 不带古典键,旧值不得残留。
+		// 增量 merge 粘滞剔除:非默认改回默认后 np 不带古典键,旧值不得残留。
 		const params = pruneStaleClassicalParams({ ...this.state.params, ...np }, np);
 		params.datetime = params.datetime.format ? params.datetime.format('YYYY-MM-DD HH:mm') : params.datetime;
 		if(this.props.value){ this.requestDirection(params); }
 	}
 
 	async requestDirection(params){
+		// 只认最后一次:换速率 / 改时刻 / 换盘连发时,先发的晚回不许盖掉后发的
+		const seq = ++this._reqSeq || (this._reqSeq = 1);
+		const dirChartSig = natalSourceKey(params);   // 本次结果出自哪位命主(读时与当前盘比,见 shownDirChart)
 		try{
 			const data = await request(`${Constants.ServerRoot}/predict/persianchart`, { body: JSON.stringify(params) });
+			if(!this._mounted || seq !== this._reqSeq){ return; }
 			if(!data){ return; }   // 空载荷守卫:request() 吞错 resolve undefined(网络层失败),此次不更新、重试即恢复
 			const result = data[Constants.ResultKey];
 			const tm = new DateTime();
@@ -302,7 +308,7 @@ class AstroPersianDirected extends Component{
 			if(params.dirZone){ dt.setZone(params.dirZone); }
 			if(!this._mounted) return;
 			// horosa_panel_ready_v1:波斯向运盘(中栏盘 + 右栏表同源于 dirChart)落定的那一次 setState。
-			this.setState({ dirChart: result, params: { ...params, datetime: dt } }, ()=>{ markPanelReady('direction'); });
+			this.setState({ dirChart: result, dirChartSig, params: { ...params, datetime: dt } }, ()=>{ markPanelReady('direction'); });
 		}catch(e){ /* ignore */ }
 	}
 
@@ -345,8 +351,13 @@ class AstroPersianDirected extends Component{
 		});
 	}
 
+	// 派生盘只与它出自的那张命盘配对:换盘后新盘在途、或新盘取盘失败时,state 里仍是上一位命主的结果 → 当没有
+	shownDirChart(){
+		return pickKeyedDerived(this.state.dirChart, this.state.dirChartSig, natalSourceKey(this.props.value));
+	}
+
 	render(){
-		const chartObj = { natualChart: this.props.value, dirChart: this.state.dirChart };
+		const chartObj = { natualChart: this.props.value, dirChart: this.shownDirChart() };
 		const rateKey = this.state.params.rateKey;
 		const direction = this.state.params.direction || 'direct';
 		const maxYears = (Number(this.state.params.maxYears) > 0 ? Number(this.state.params.maxYears) : 90);
@@ -389,8 +400,8 @@ class AstroPersianDirected extends Component{
 		// 当前向运年龄 ±1 年内的应期行加中性高亮（非术数语义色，明暗双主题安全）。
 		const fullRowStyle = (row) => ((currentAge != null && Math.abs(row.age - currentAge) <= 1) ? { background: 'rgba(251,191,36,.16)' } : undefined);
 		const height = this.props.height ? this.props.height : 760;
-		// [嵌套滚动普查 2026-09-18] 右栏改 flex 列:终生应期表吃余高(不再写死 maxHeight 320)→ 放得下时只有表自己一条滚动条;放不下(小窗/放大档)才由列滚动。
-		const style = { height: (height - 20) + 'px', overflowY: 'auto', overflowX: 'hidden', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' };   // [巡检实抓 2026-09-17] 内距计入高度,不再比面板高 5px
+		// 右栏改 flex 列:终生应期表吃余高(不再写死 maxHeight 320)→ 放得下时只有表自己一条滚动条;放不下(小窗/放大档)才由列滚动。
+		const style = { height: (height - 20) + 'px', overflowY: 'auto', overflowX: 'hidden', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' };   // 内距计入高度,不再比面板高 5px
 		return (
 			<div>
 				<Row gutter={6}>
@@ -411,8 +422,8 @@ class AstroPersianDirected extends Component{
 								<Col span={12}>
 									<div style={{ marginBottom: 4 }}>向运方向</div>
 									<Select value={direction} onChange={this.changeDirection} style={{ width: '100%' }}>
-										<Option value="direct">Direct（逆时针）</Option>
-										<Option value="converse">Converse（顺时针）</Option>
+										<Option value="direct">Direct（逆时针，黄经 +°/年）</Option>
+										<Option value="converse">Converse（顺时针，黄经 −°/年）</Option>
 									</Select>
 								</Col>
 							</Row>
@@ -430,7 +441,7 @@ class AstroPersianDirected extends Component{
 									value={curDt}
 									startTime={birthDt || undefined}
 									needZone={false}
-									showZone={false}      /* [Q-583/T-545] 请求只到分、时区随本命:时区/秒两列此前是死下拉(拨了零后果且回弹),不再渲染 */
+									showZone={false}      /* 请求只到分、时区随本命:时区/秒两列此前是死下拉(拨了零后果且回弹),不再渲染 */
 									showSeconds={false}
 									showAdjust={true}
 									onAfterChanged={this.handleTimeChanged}
@@ -445,7 +456,7 @@ class AstroPersianDirected extends Component{
 							</div>
 							<Divider orientation="left">邻近应期（距此刻最近）</Divider>
 							{nearbyHits.length ? (
-								/* [嵌套滚动普查 2026-09-18] 邻近应期表不封顶(13 行 ≈400px)会把终生应期表挤到最小、整列再滚 → 两表按 1:2 分摊余高,各自滚动、列不滚(单层) */
+								/* 邻近应期表不封顶(13 行 ≈400px)会把终生应期表挤到最小、整列再滚 → 两表按 1:2 分摊余高,各自滚动、列不滚(单层) */
 								<div style={{ flex: '1 1 0', minHeight: 120, overflowY: 'auto', overflowX: 'hidden' }}>
 									<SmallTable rowKey={(r, i) => `n${i}`} rows={nearbyHits} columns={nearbyColumns} />
 								</div>

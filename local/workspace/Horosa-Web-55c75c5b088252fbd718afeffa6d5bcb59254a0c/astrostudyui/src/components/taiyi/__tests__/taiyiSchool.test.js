@@ -83,7 +83,7 @@ describe('太乙 流派覆盖层(§33/§44)', () => {
 	});
 });
 
-describe('太乙 流派覆盖层 · [Q-157] 积年常数随古法公式(tn)', () => {
+describe('太乙 流派覆盖层 · 积年常数随古法公式(tn)', () => {
 	test('tn=2(淘金歌)=10154193:三基起宫按淘金歌常数;此前缺表回落统宗 10153917(差 276 年)→ 君基/臣基错位', () => {
 		const r0 = applyTaiyiSchool({ ...basePan(), tn: 0 }, { sanji: '淘金歌' });
 		const r2 = applyTaiyiSchool({ ...basePan(), tn: 2 }, { sanji: '淘金歌' });
@@ -108,7 +108,7 @@ describe('太乙 流派覆盖层 · [Q-157] 积年常数随古法公式(tn)', ()
 	});
 });
 
-describe('[Q-298/T-284 裁决 2026-09-18] 计神覆盖沿用底盘计式基准只改方向', () => {
+describe('计神覆盖沿用底盘计式基准只改方向', () => {
 	const { jishenBaseZhi } = require('../core/taiyiSchool');
 	test('基准支按计式:時計取时支 / 年計取年支 / 月計 / 日計;缺柱回落年支', () => {
 		const gz = { year: '丙午', month: '甲辰', day: '戊申', time: '甲子' };

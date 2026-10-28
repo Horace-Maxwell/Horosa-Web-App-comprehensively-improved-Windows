@@ -1,4 +1,5 @@
 import * as d3 from 'd3';
+import { leapPrefix } from '../../utils/lunarText';
 import * as AstroConst from '../../constants/AstroConst';
 import {randomStr, formatDate, positionFloatingTooltip} from '../../utils/helper';
 import { drawTextH, } from '../graph/GraphHelper';
@@ -9,12 +10,16 @@ import KeChart from '../liureng/KeChart';
 import ChuangChart from '../liureng/ChuangChart';
 import GodChart from '../liureng/GodChart';
 import * as LRConst from '../liureng/LRConst';
-import { getSignZi, LRChart_Circle, LRChart_Square, TaiSui} from '../liureng/LRConst';
+import { getSignZi, LRChart_Circle, LRChart_Square, TaiSui, shortTianJiang, tianJiangShortAttrs} from '../liureng/LRConst';
 import { ZSList, ZhangSheng, } from '../liureng/LRZhangSheng';
 import { resolveLiuRengTwelvePanStyle } from '../liureng/LRPanStyle';
 import { HourZi, } from '../gua/GuaConst';
-import { getEffectiveScale, visualFloorPx } from '../../utils/zoomDomain';
-import { getLayoutViewportHeight } from '../../utils/shellZoom';
+import { visualFloorPx } from '../../utils/zoomDomain';
+import { viewportRemainHeight } from '../../utils/viewportCap';   // 「盘按窗口底封顶」单源(整页可滚时不封顶)
+import { fitSvgTextWidth } from '../../utils/svgDesignBox';
+
+// 六壬盘绘制宽度的设计下限(CSS px)
+export const RENG_DESIGN_MIN_W = 380;
 
 function extractBranch(value){
 	if(value === undefined || value === null){
@@ -86,6 +91,7 @@ class RengChart {
 		this.onMetaInfoClick = options.onMetaInfoClick;
 		this.chartType = options.chartType !== undefined && options.chartType !== null ? options.chartType : LRChart_Square;
 		this.compactPreview = !!options.compactPreview;
+		this.timeAlg = options.timeAlg;   // 1 = 直接时间(nongli.birth 即钟表时);其余 = 真太阳时
 
 		this.margin = 20;
 		this.svgTopgroup = null;
@@ -146,11 +152,11 @@ class RengChart {
 		// 仅方盘+非紧凑生效,圆盘(底部神煞大表依赖滚动看全)与紧凑预览路径零波及。
 		if(!this.compactPreview && !this.isCircleChart() && typeof window !== 'undefined'
 			&& hostEl && typeof hostEl.getBoundingClientRect === 'function'){
-			// [Tahoe 域混根修·2026-09-17 用户 APP 实报「放大后盘面不随之缩小、被下端遮挡」] 量容器只用布局域读数(clientWidth/clientHeight);rect 域在标准化 zoom 引擎下已×z,当布局 px 用=盘面大 z 倍被裁(旧引擎 rect=布局值故不显)。
+			// 量容器只用布局域读数(clientWidth/clientHeight);rect 域在标准化 zoom 引擎下已×z,当布局 px 用=盘面大 z 倍被裁(旧引擎 rect=布局值故不显)。
 			// 视口余高在布局域算:布局视口实测 − rect.top/z(rect.top 属视觉域)。
-			const zScale = getEffectiveScale() || 1;
-			const hostTop = hostEl.getBoundingClientRect().top / zScale;
-			const viewportAvail = (getLayoutViewportHeight() || height) - hostTop - 8;
+			// 窗口底余高走单源(utils/viewportCap,与宿盘同口径):整页可滚(放大档矮窗,工作区布局下限让整页长高)时不封顶 ——
+			// 此前照样按窗口底钳,方盘比所在栏矮一截(1.8 档 1728×760 实测盘 334 / 栏 404,下面 70px 死带);常规窗口一字不变
+			const viewportAvail = viewportRemainHeight(hostEl, 8);
 			if(viewportAvail > 0 && viewportAvail < height){
 				height = viewportAvail;
 				realH = height;
@@ -171,6 +177,15 @@ class RengChart {
 		this.svg.attr('stroke', this.color).attr("stroke-width", 1).attr('width', realW).attr('height', realH);
 		// 强制 svg 渲染高度=realH(flex 容器/百分比 min-height 会把它压到可用高度而裁切内容);用 inline !important 压过样式表。
 		this.svg.node().style.setProperty('height', realH + 'px', 'important');
+		// 盘宽低于设计下限(放大档 / 择日窄栏)时按下限绘制、viewBox 整体等比缩回(课传四列、盘头长串不再越出盘边);放得下时不写 viewBox
+		const designK = this.compactPreview ? 1 : Math.max(1, RENG_DESIGN_MIN_W / realW);
+		if(designK > 1){
+			realW = Math.round(realW * designK * 100) / 100;
+			realH = Math.round(realH * designK * 100) / 100;
+			this.svg.attr('viewBox', `0 0 ${realW} ${realH}`).attr('preserveAspectRatio', 'xMidYMid meet');
+		}else{
+			this.svg.attr('viewBox', null).attr('preserveAspectRatio', null);
+		}
 	
 		this.svgTopgroup = this.svg.append('g');
 		this.svgTopgroup.append('rect')
@@ -463,14 +478,27 @@ class RengChart {
 		});
 	}
 
+	// 起课时刻的称呼与取值都跟随时间算法:后端 nongli.birth 恒写真太阳时(六壬不传农历时间算法),
+	// 选「直接时间」时改取钟表时 nongli.clockTime(缺省回落 birth),标「直接时间」;其余标「真太阳时」。
+	birthTimeLabel(){
+		return Number(this.timeAlg) === 1 && this.nongli && this.nongli.clockTime ? '直接时间' : '真太阳时';
+	}
+
+	birthTimeRaw(){
+		if(!this.nongli){ return ''; }
+		if(Number(this.timeAlg) === 1 && this.nongli.clockTime){ return this.nongli.clockTime; }
+		return this.nongli.birth || '';
+	}
+
 	formatTrueSolarTime(){
-		// 真太阳时 = 后端按经度校正后的起课时刻(this.nongli.birth);六壬默认按真太阳时定时辰/三传。
-		if(this.nongli && this.nongli.birth){
-			const m = `${this.nongli.birth}`.match(/(-?\d{1,5})-(\d{1,2})-(\d{1,2}).*?(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+		// 盘头起课时刻:默认真太阳时(后端按经度校正);选「直接时间」时为钟表时(见 birthTimeRaw)。
+		const raw = this.birthTimeRaw();
+		if(raw){
+			const m = `${raw}`.match(/(-?\d{1,5})-(\d{1,2})-(\d{1,2}).*?(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
 			if(m){
 				return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')} ${m[4].padStart(2, '0')}:${m[5].padStart(2, '0')}:${m[6] ? m[6].padStart(2, '0') : '00'}`;
 			}
-			return `${this.nongli.birth}`.substr(0, 19);
+			return `${raw}`.substr(0, 19);
 		}
 		return '';
 	}
@@ -492,16 +520,18 @@ class RengChart {
 			.join(' ');
 		// 六壬默认真太阳时:有真太阳时则以它为准显示(决定时辰/三传),否则回退公历钟表时。
 		const summaryText = trueSolar
-			? `真太阳时：${trueSolar}；八字：${pillarText}`
+			? `${this.birthTimeLabel()}：${trueSolar}；八字：${pillarText}`
 			: `公历：${solarTime || '—'}；八字：${pillarText}`;
 
-		this.drawInfoText(group, summaryText, cord.x + cord.w / 2, topY, {
+		const summaryNode = this.drawInfoText(group, summaryText, cord.x + cord.w / 2, topY, {
 			fill: 'var(--horosa-liureng-square-main, #f0eee7)',
 			size: summarySize,
 			weight: 760,
 			anchor: 'middle',
 			family: '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
 		});
+		// 字号下限 16 是按常规盘宽定的;盘窄(放大档 / 窄中栏)时这一行居中长串两端会被 svg 裁掉 → 按实测长度缩到行宽(放得下时不动)
+		fitSvgTextWidth(summaryNode && summaryNode.node ? summaryNode.node() : null, cord.w - 8, 9);
 
 		group.append('line')
 			.attr('x1', cord.x + padX)
@@ -513,21 +543,7 @@ class RengChart {
 	}
 
 	getShortJiang(name){
-		const map = {
-			'贵人': '贵',
-			'螣蛇': '蛇',
-			'朱雀': '雀',
-			'六合': '合',
-			'勾陈': '勾',
-			'青龙': '龙',
-			'天空': '空',
-			'白虎': '虎',
-			'太常': '常',
-			'玄武': '玄',
-			'太阴': '阴',
-			'天后': '后',
-		};
-		return map[name] || `${name || ''}`.substr(0, 1);
+		return shortTianJiang(name);
 	}
 
 	getXunGanMap(){
@@ -554,6 +570,8 @@ class RengChart {
 			.attr('font-weight', options.weight || 520)
 			.attr('font-family', options.family || '"Songti SC", "STSong", "Noto Serif CJK SC", serif')
 			.text(text || '');
+		// 缩写字带全称与位次(界面简繁按整词定字,见 utils/scriptMode.js)
+		Object.keys(options.scriptAttrs || {}).forEach((k)=>{ node.attr(k, options.scriptAttrs[k]); });
 		if(anchor === 'middle' && options.visualAlign !== false){
 			this.alignTextVisualCenter(node, x);
 		}
@@ -663,6 +681,7 @@ class RengChart {
 			up,
 			gan: map[up] || '◎',
 			jiang: this.getShortJiang(chart.houseTianJiang[idx] || ''),
+			jiangAttrs: tianJiangShortAttrs(chart.houseTianJiang[idx] || ''),
 		};
 	}
 
@@ -682,7 +701,7 @@ class RengChart {
 		const T = (text, x, y, fill, tip)=> this.drawSimpleText(panGroup, text || '', x, y, { fill: fill, size: F, weight: (fill === muted ? 560 : 760), ...(tip || {}) });
 		// 顶边:jiang(行0)/gan(行1)/up(行2),列 j=0..3
 		['巳', '午', '未', '申'].forEach((b, j)=>{ const d = house[b] || {}; const x = cx + (j - 1.5) * ring;
-			T(d.jiang, x, rowY(0), gold, { houseIndex: d.idx });
+			T(d.jiang, x, rowY(0), gold, { houseIndex: d.idx, scriptAttrs: d.jiangAttrs });
 			T(d.gan, x, rowY(1), muted, {});
 			T(d.up, x, rowY(2), main, { branch: d.up });
 		});
@@ -690,11 +709,11 @@ class RengChart {
 		['寅', '丑', '子', '亥'].forEach((b, j)=>{ const d = house[b] || {}; const x = cx + (j - 1.5) * ring;
 			T(d.up, x, rowY(5), main, { branch: d.up });
 			T(d.gan, x, rowY(6), muted, {});
-			T(d.jiang, x, rowY(7), gold, { houseIndex: d.idx });
+			T(d.jiang, x, rowY(7), gold, { houseIndex: d.idx, scriptAttrs: d.jiangAttrs });
 		});
 		// 左边 辰(行3)卯(行4):jiang(cx-3.5ring)/gan(cx-2.5ring)/up(cx-1.5ring)
 		[['辰', 3], ['卯', 4]].forEach((it)=>{ const d = house[it[0]] || {}; const y = rowY(it[1]);
-			T(d.jiang, cx - 3.5 * ring, y, gold, { houseIndex: d.idx });
+			T(d.jiang, cx - 3.5 * ring, y, gold, { houseIndex: d.idx, scriptAttrs: d.jiangAttrs });
 			T(d.gan, cx - 2.5 * ring, y, muted, {});
 			T(d.up, cx - 1.5 * ring, y, main, { branch: d.up });
 		});
@@ -702,7 +721,7 @@ class RengChart {
 		[['酉', 3], ['戌', 4]].forEach((it)=>{ const d = house[it[0]] || {}; const y = rowY(it[1]);
 			T(d.up, cx + 1.5 * ring, y, main, { branch: d.up });
 			T(d.gan, cx + 2.5 * ring, y, muted, {});
-			T(d.jiang, cx + 3.5 * ring, y, gold, { houseIndex: d.idx });
+			T(d.jiang, cx + 3.5 * ring, y, gold, { houseIndex: d.idx, scriptAttrs: d.jiangAttrs });
 		});
 	}
 
@@ -751,7 +770,7 @@ class RengChart {
 		// 四课:行0 天将 / 行1 上神 / 行2 下神
 		[0, 1, 2].forEach((rowIdx)=>{ const y = rowY(rowIdx);
 			keOrder.forEach((keIdx, tokenIdx)=>{ const ke = keList[keIdx] || []; const x = keX + tokenIdx * tokenGap;
-				if(rowIdx === 0){ T(this.getShortJiang(ke[0]), x, y, gold, 760, { houseIndex: this.getHouseIndexByUpBranch(ke[1]) }); }
+				if(rowIdx === 0){ T(this.getShortJiang(ke[0]), x, y, gold, 760, { houseIndex: this.getHouseIndexByUpBranch(ke[1]), scriptAttrs: tianJiangShortAttrs(ke[0]) }); }
 				else if(rowIdx === 1){ const t = ke[1] || ''; T(t, x, y, main, 700, { branch: extractBranch(t) }); }
 				else { const t = ke[2] || ''; const b = extractBranch(t); T(t, x, y, muted, 620, (b && isBranch(b)) ? { branch: b } : {}); }
 			});
@@ -768,7 +787,7 @@ class RengChart {
 			T(lq, keX + 0 * tokenGap, y, muted, 620, {});
 			T(pc.gan, keX + 1 * tokenGap, y, muted, 620, {});
 			T(pc.branch, keX + 2 * tokenGap, y, main, 760, { branch: pc.branch });
-			T(this.getShortJiang(tianJiang[i] ? tianJiang[i] : ''), keX + 3 * tokenGap, y, gold, 760, { houseIndex: this.getHouseIndexByUpBranch(ct) });
+			T(this.getShortJiang(tianJiang[i] ? tianJiang[i] : ''), keX + 3 * tokenGap, y, gold, 760, { houseIndex: this.getHouseIndexByUpBranch(ct), scriptAttrs: tianJiangShortAttrs(tianJiang[i]) });
 		}
 	}
 
@@ -1193,20 +1212,20 @@ class RengChart {
 		let txt = '';
 		if(this.liureng){
 			if(this.nongli){
-				txt = '真太阳时:' + this.nongli.birth;
+				txt = this.birthTimeLabel() + ':' + this.birthTimeRaw();
 			}
 			let fourcol = this.liureng.fourColumns;
 			txt = txt + '； 八字:' 
 				+ fourcol.year.ganzi + '年 ' + fourcol.month.ganzi + '月 ' 
 				+ fourcol.day.ganzi + '日 '+ fourcol.time.ganzi + '时';
 			if(this.nongli){
-				let leap = this.nongli.leap ? '闰' : '';
+				let leap = leapPrefix(this.nongli);
 				txt = txt + '（' + leap + this.nongli.month + this.nongli.day + '）';
 			}
 
 		}else if(this.nongli){
-			let leap = this.nongli.leap ? '闰' : '';
-			txt = '真太阳时:' + this.nongli.birth + '； 农历:' 
+			let leap = leapPrefix(this.nongli);
+			txt = this.birthTimeLabel() + ':' + this.birthTimeRaw() + '； 农历:' 
 				+ this.nongli.year + '年 ' + this.nongli.monthGanZi + '月 ' 
 				+ this.nongli.dayGanZi + '日 '+ this.nongli.time + '时'
 				+ '（' + leap + this.nongli.month + this.nongli.day + '）';
@@ -1229,7 +1248,8 @@ class RengChart {
 		let x = cord.x + cord.w/2 - len/2;
 		let y = cord.y + cord.h/2;
 		let data = [txt];
-		drawTextH(this.svgTopgroup, data, x, y, len, h, marg, this.color);
+		// 标题是字:用盘面字色,不用格线色 this.color(半透明线色压在盘底上看不见)
+		drawTextH(this.svgTopgroup, data, x, y, len, h, marg, AstroConst.AstroColor.TextStroke);
 	}
 
 }

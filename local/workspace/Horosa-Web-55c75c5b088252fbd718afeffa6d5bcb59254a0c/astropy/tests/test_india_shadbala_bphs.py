@@ -535,36 +535,36 @@ def test_trikona_sodhana_idempotent():
     assert once[2] == 2 and once[6] == 0 and once[10] == 4
 
 
-def test_ekadhipatya_sodhana_idempotent():
-    once = sb.ekadhipatya_sodhana(_SAMPLE_BAV)
-    twice = sb.ekadhipatya_sodhana(once)
-    assert once == twice, '同主双宫缩减必须幂等'
-
-
-def test_full_sodhana_idempotent():
-    once = sb.sodhana(_SAMPLE_BAV)
-    twice = sb.sodhana(once)
-    assert once == twice, '全缩减(Trikona+Ekadhipatya)必须幂等'
-    assert len(once) == 12
+def test_full_sodhana_trikona_first():
+    out = sb.sodhana(_SAMPLE_BAV)
+    assert len(out) == 12
+    # Trikona 先行:Ekadhipatya 只在 Trikona 结果上做(0 宫不再化减)。
+    tri = sb.trikona_sodhana(_SAMPLE_BAV)
+    assert sb.ekadhipatya_sodhana(tri) == out
 
 
 def test_ekadhipatya_occupied_rules():
-    # 简化 BAV：Ar/Sc 对(火 own)= (a,b)=(idx0,idx7)。
-    bav = [0] * 12
-    bav[0] = 5      # Ar
-    bav[7] = 3      # Sc
-    # 仅 Ar 有行星 → Sc 归 0、Ar 不变。
-    out = sb.ekadhipatya_sodhana(bav, occupied_signs={0})
-    assert out[0] == 5 and out[7] == 0
-    # 仅 Sc 有行星 → Ar 归 0。
-    out2 = sb.ekadhipatya_sodhana(bav, occupied_signs={7})
-    assert out2[0] == 0 and out2[7] == 3
-    # 两宫皆占 → 不变。
-    out3 = sb.ekadhipatya_sodhana(bav, occupied_signs={0, 7})
-    assert out3[0] == 5 and out3[7] == 3
-    # 皆空 → 取较小(min(5,3)=3)。
-    out4 = sb.ekadhipatya_sodhana(bav, occupied_signs=set())
-    assert out4[0] == 3 and out4[7] == 3
+    """BPHS / Raman 通行口径五类情形锁值(火 Ar/Sc 对:idx0 / idx7)。"""
+    def run(p, q, occ):
+        bav = [0] * 12
+        bav[0], bav[7] = p, q
+        out = sb.ekadhipatya_sodhana(bav, occupied_signs=occ)
+        return out[0], out[7]
+    # ① 两宫皆占 → 不变
+    assert run(5, 3, {0, 7}) == (5, 3)
+    # ② 一宫有星、空宫点数更少 → 空宫归 0
+    assert run(5, 3, {0}) == (5, 0)
+    # ③ 一宫有星、空宫点数更多 → 空宫降到与有星宫相等
+    assert run(5, 3, {7}) == (3, 3)
+    # ③' 一宫有星、两宫相等 → 空宫归 0
+    assert run(4, 4, {0}) == (4, 0)
+    # ④ 两宫皆空且相等 → 皆归 0
+    assert run(4, 4, set()) == (0, 0)
+    # ⑤ 两宫皆空不等 → 大者降为小者
+    assert run(5, 3, set()) == (3, 3)
+    # ⑥ 任一宫为 0 → 不化减
+    assert run(5, 0, set()) == (5, 0)
+    assert run(0, 4, {0}) == (0, 4)
 
 
 def test_sodhya_pinda_framework():

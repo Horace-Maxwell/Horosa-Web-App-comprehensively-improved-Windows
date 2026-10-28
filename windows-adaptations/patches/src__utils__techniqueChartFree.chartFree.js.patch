@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/techniqueChartFree.js b/astrostudyui/src/utils/techniqueChartFree.js
-index fda373e..0d53324 100644
+index fda373ee..0d53324f 100644
 --- a/astrostudyui/src/utils/techniqueChartFree.js
 +++ b/astrostudyui/src/utils/techniqueChartFree.js
 @@ -18,11 +18,16 @@ export const CHART_FREE_DECLARED = {

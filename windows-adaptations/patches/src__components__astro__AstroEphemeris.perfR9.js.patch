@@ -1,11 +1,11 @@
 diff --git a/astrostudyui/src/components/astro/AstroEphemeris.js b/astrostudyui/src/components/astro/AstroEphemeris.js
-index 8cc9fdb4..17dce1da 100644
+index 6dca0339..1919dca1 100644
 --- a/astrostudyui/src/components/astro/AstroEphemeris.js
 +++ b/astrostudyui/src/components/astro/AstroEphemeris.js
-@@ -8,6 +8,8 @@ import { classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/class
- import * as AstroText from '../../constants/AstroText';
+@@ -10,6 +10,8 @@ import * as AstroText from '../../constants/AstroText';
  import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
  import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
+ import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
  
@@ -23,7 +23,7 @@ index 8cc9fdb4..17dce1da 100644
 +		this.changeViewTab = this.changeViewTab.bind(this);
  	}
  
- 	// [Q-106/T-10] AI 导出:星历 tab 导出时响应刷新事件,按页面当前区间/勾选构建快照写回 detail.snapshotText。
+ 	// AI 导出:星历 tab 导出时响应刷新事件,按页面当前区间/勾选构建快照写回 detail.snapshotText。
 @@ -186,6 +191,10 @@ class AstroEphemeris extends Component{
  		}
  	}
@@ -35,19 +35,19 @@ index 8cc9fdb4..17dce1da 100644
  	change(key, value){
  		if(key === 'includeTransits'){ DIRECTION_PAGE_SETTINGS.save({ ephemerisTransits: !!value }); }   // 起止日期是输入,不落
  		this.setState({[key]: value});
-@@ -212,7 +221,8 @@ class AstroEphemeris extends Component{
- 				timeoutMs: 90000,
+@@ -215,7 +224,8 @@ class AstroEphemeris extends Component{
  			});
- 			if(!this._mounted) return;
--			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key});
+ 			if(!this._mounted || seq !== this._loadSeq) return;
+ 			clearLoadFailure(this);
+-			this.setState({result: unwrapResult(data) || {}, resultSig, loading: false, requestKey: key});
 +			// horosa_panel_ready_v1:星历结果(四个子页签的内容全部同源于 result)落定的那一次 setState。
-+			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key}, ()=>{ markPanelReady('direction'); });
++			this.setState({result: unwrapResult(data) || {}, resultSig, loading: false, requestKey: key}, ()=>{ markPanelReady('direction'); });
  		}catch(e){
- 			if(!this._mounted) return;
- 			this.setState({loading: false, requestKey: key});
-@@ -275,13 +285,21 @@ class AstroEphemeris extends Component{
+ 			if(!this._mounted || seq !== this._loadSeq) return;
+ 			parkLoadFailure(this, key);   // 失败不记成已完成:窗口期后同一张盘自动重试
+@@ -284,13 +294,21 @@ class AstroEphemeris extends Component{
  		this.ensureLoaded();
- 		const result = this.state.result || {};
+ 		const result = this.shownResult() || {};
  		const height = this.props.height ? this.props.height - 20 : 720;
 +		const viewTab = this.state.viewTab || 'events';
  		return (
@@ -68,8 +68,8 @@ index 8cc9fdb4..17dce1da 100644
  							<div style={cardStyle}>
  								<div className="horosa-info-card-title">入座</div>
  								{this.renderEvents(result.ingresses, [
-@@ -318,8 +336,10 @@ class AstroEphemeris extends Component{
- 									{key: 'digit', title: '食分', render: (v, row)=> (v == null ? '—' : <span>{fmtNum(v)}<span style={{opacity: 0.6, fontSize: 11, marginLeft: 4}}>{row.band || ''}</span></span>)},
+@@ -327,8 +345,10 @@ class AstroEphemeris extends Component{
+ 									{key: 'digit', title: '食分', render: (v, row)=> (v == null ? '—' : <span>{fmtNum(v)}<span style={{color: 'var(--horosa-text-secondary)', fontSize: 11, marginLeft: 4}}>{row.band || ''}</span></span>)},
  								])}
  							</div>
 +							</>)}</FreezeSubTab>
@@ -79,7 +79,7 @@ index 8cc9fdb4..17dce1da 100644
  							<div style={cardStyle}>
  								{this.renderEvents(result.transitAspects, [
  									{key: 'datetime', title: '时间'},
-@@ -329,11 +349,15 @@ class AstroEphemeris extends Component{
+@@ -338,11 +358,15 @@ class AstroEphemeris extends Component{
  									{key: 'orb', title: '误差', render: (v)=>fmtNum(v, 3)},
  								])}
  							</div>
@@ -95,7 +95,7 @@ index 8cc9fdb4..17dce1da 100644
  							<div style={cardStyle}>
  								<div className="horosa-info-card-title">升落与中天</div>
  								{this.renderEvents(result.riseSet, [
-@@ -362,6 +386,7 @@ class AstroEphemeris extends Component{
+@@ -371,6 +395,7 @@ class AstroEphemeris extends Component{
  									{key: 'setting', title: '偕日落', render: (v)=>v && v.datetime ? v.datetime : '-'},
  								])}
  							</div>

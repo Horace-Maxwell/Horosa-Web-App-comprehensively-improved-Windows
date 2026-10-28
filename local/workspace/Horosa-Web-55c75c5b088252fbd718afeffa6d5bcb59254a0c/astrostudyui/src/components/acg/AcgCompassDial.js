@@ -13,13 +13,6 @@ const PLANET_CN = {
 	[AstroConst.CERES]: '谷神星', [AstroConst.PALLAS]: '智神星', [AstroConst.JUNO]: '婚神星', [AstroConst.VESTA]: '灶神星', [AstroConst.ERIS]: '阋神星',
 };
 function glyph(k) { return (AstroText.AstroMsg && AstroText.AstroMsg[k]) || ''; }
-// 按标记底色亮度选字色(深底白字/浅底深字),保证 glyph 高对比且无需描边。
-function textOn(hex) {
-	const c = String(hex || '').replace('#', '');
-	if (c.length < 6) return '#fff';
-	const r = parseInt(c.slice(0, 2), 16), g = parseInt(c.slice(2, 4), 16), b = parseInt(c.slice(4, 6), 16);
-	return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 ? '#1a1206' : '#fff';
-}
 const DIRS = [['N', 0], ['NE', 45], ['E', 90], ['SE', 135], ['S', 180], ['SW', 225], ['W', 270], ['NW', 315]];
 
 class AcgCompassDial extends Component {

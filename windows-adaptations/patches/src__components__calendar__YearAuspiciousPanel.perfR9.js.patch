@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/calendar/YearAuspiciousPanel.js b/astrostudyui/src/components/calendar/YearAuspiciousPanel.js
-index 0d6819a..6443d9e 100644
+index 0d6819af..6443d9ea 100644
 --- a/astrostudyui/src/components/calendar/YearAuspiciousPanel.js
 +++ b/astrostudyui/src/components/calendar/YearAuspiciousPanel.js
 @@ -21,7 +21,11 @@ export default function YearAuspiciousPanel({ year, visible, onPick, onClose })

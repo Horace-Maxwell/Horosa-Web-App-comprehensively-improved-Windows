@@ -1,5 +1,7 @@
 package spacex.astrostudycn.service;
 
+import spacex.astrostudycn.helper.CivilDateParts;
+
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -729,17 +731,9 @@ class MoiraPropRuleEngine {
 	}
 
 	private int yearFromParams(Map<String, Object> params) {
-		String date = stringValue(params == null ? null : params.get("date")).replace('/', '-');
-		// 年段=首个 '-' 分隔段(公元前带前导负号、五位年均正确;旧 substring(0,4) 会把 -7040 截成 -704)
-		boolean neg = date.startsWith("-");
-		String body = neg ? date.substring(1) : date;
-		int cut = body.indexOf('-');
-		String yearText = cut > 0 ? body.substring(0, cut) : body;
-		if(yearText.length() > 0) {
-			int y = intValue(yearText, 2000);
-			return neg ? -y : y;
-		}
-		return 2000;
+		// 年段经 CivilDateParts 取(公元前带前导负号、五位年均正确;旧 substring(0,4) 会把 -7040 截成 -704);缺日期沿用 2000
+		CivilDateParts p = CivilDateParts.parse(stringValue(params == null ? null : params.get("date")));
+		return p == null ? 2000 : p.year;
 	}
 
 	private String stemBranchForYear(int year) {

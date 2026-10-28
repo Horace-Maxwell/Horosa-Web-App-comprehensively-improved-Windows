@@ -22,6 +22,61 @@ SIGNS = [
 ]
 SIGN_INDEX = {sign: i for i, sign in enumerate(SIGNS)}  # 0-based
 
+# 星座主(传统单主,节点不持单主)。各子模块以 `import … as 原名` 取用,勿再各持一份。
+SIGN_LORDS = {
+    const.ARIES: const.MARS,
+    const.TAURUS: const.VENUS,
+    const.GEMINI: const.MERCURY,
+    const.CANCER: const.MOON,
+    const.LEO: const.SUN,
+    const.VIRGO: const.MERCURY,
+    const.LIBRA: const.VENUS,
+    const.SCORPIO: const.MARS,
+    const.SAGITTARIUS: const.JUPITER,
+    const.CAPRICORN: const.SATURN,
+    const.AQUARIUS: const.SATURN,
+    const.PISCES: const.JUPITER,
+}
+
+# 中文座名 / 九曜中文名。
+SIGN_CN = {
+    const.ARIES: '白羊',
+    const.TAURUS: '金牛',
+    const.GEMINI: '双子',
+    const.CANCER: '巨蟹',
+    const.LEO: '狮子',
+    const.VIRGO: '处女',
+    const.LIBRA: '天秤',
+    const.SCORPIO: '天蝎',
+    const.SAGITTARIUS: '射手',
+    const.CAPRICORN: '摩羯',
+    const.AQUARIUS: '水瓶',
+    const.PISCES: '双鱼',
+}
+
+PLANET_CN = {
+    const.SUN: '太阳',
+    const.MOON: '月亮',
+    const.MARS: '火星',
+    const.MERCURY: '水星',
+    const.JUPITER: '木星',
+    const.VENUS: '金星',
+    const.SATURN: '土星',
+    const.NORTH_NODE: '罗睺',
+    const.SOUTH_NODE: '计都',
+}
+
+# 根本三方(Moolatrikona):曜 → (星座, 起度, 止度)。
+MOOLATRIKONA = {
+    const.SUN: (const.LEO, 0, 20),
+    const.MOON: (const.TAURUS, 4, 30),
+    const.MARS: (const.ARIES, 0, 12),
+    const.MERCURY: (const.VIRGO, 16, 20),
+    const.JUPITER: (const.SAGITTARIUS, 0, 10),
+    const.VENUS: (const.LIBRA, 0, 15),
+    const.SATURN: (const.AQUARIUS, 0, 20),
+}
+
 MOVABLE = {const.ARIES, const.CANCER, const.LIBRA, const.CAPRICORN}          # 动 (chara)
 FIXED = {const.TAURUS, const.LEO, const.SCORPIO, const.AQUARIUS}             # 定 (sthira)
 DUAL = {const.GEMINI, const.VIRGO, const.SAGITTARIUS, const.PISCES}          # 双 (dvisvabhava)
@@ -171,7 +226,7 @@ def friend_signs(planet, planet_signs):
 # ── P-b Rasi Drishti（Ch10.3）────────────────────────────────────────────
 def rasi_drishti(sign):
     """该 rasi 照见的 rasi 列表：动→所有定(除相邻定)、定→所有动(除相邻动)、双→所有其它双。"""
-    # [Q-232/T-196] 受照座此前按 set 迭代:字符串哈希按进程随机 → 同一盘重启后端后行序不同,
+    # 受照座此前按 set 迭代:字符串哈希按进程随机 → 同一盘重启后端后行序不同,
     # AI 快照/导出 [节点主照] 行序随每次启动漂移。改按黄道序(SIGNS)输出,内容集合不变。
     q = quality(sign)
     if q == 'movable':
@@ -316,13 +371,13 @@ def trishoola(rudra_sign):
 
 
 # ── P-g Abhijit（28 宿口径）───────────────────────────────────────────────
-# Abhijit(织女 Vega)= sidereal 276°40′–280°53′20″，由 Uttara Ashadha 末 pada(3°20′)
+# Abhijit(宿曜 28 宿名「牛」;主星织女 Vega)= sidereal 276°40′–280°53′20″，由 Uttara Ashadha 末 pada(3°20′)
 # + Shravana 前 1/15(0°53′20″) 组成，跨度 4°13′20″。插入后仅这两宿缩短，28 宿和仍 360°。
 # Vimshottari / 月宿 / navamsa 恒用 27 宿、不含 Abhijit；28 宿主要用于择吉/显示口径。
 ABHIJIT_START = 276.0 + 40.0 / 60.0                  # 276°40′ = 276.66667°
 ABHIJIT_END = 280.0 + 53.0 / 60.0 + 20.0 / 3600.0    # 280°53′20″ = 280.88889°
 ABHIJIT_NAME = 'Abhijit'
-ABHIJIT_LABEL = '织女'                                # Vega/Abhijit(28 宿，唯一阳性宿)
+ABHIJIT_LABEL = '牛'                                  # 宿名(与表中斗 / 女 / 虚 … 同为宿名);主星 Vega(织女)是星名不是宿名
 ABHIJIT_NAK_NUMBER_28 = 22                            # 28 宿体系中 Abhijit 为第 22 宿
 
 
@@ -368,3 +423,134 @@ def baladi_avastha(sign, signlon):
     if sign in EVEN_SIGNS:
         band = 4 - band
     return {'key': _BALADI[band], 'label': _BALADI_CN[band], 'index': band + 1}
+
+
+# ── 边界安全取段(宿 / 步 / 分盘段 / KP 段共用)─────────────────────────────
+# 精确落在段界的浮点值(如 93.333…=7×13°20′、20°=6×3°20′)做 value/span 会得 6.9999999999999
+# → int() 判到前一段。统一加 1e-9 段宽容差再取整,并钳到 [0, count-1]。
+_SEG_EPS = 1e-9
+
+
+def segment_index(value, span, count):
+    """value 落在第几段(0 起;每段宽 span,共 count 段)。精确段界归后一段。"""
+    import math as _m
+    idx = int(_m.floor(float(value) / float(span) + _SEG_EPS))   # segment-ok: 单源定义本身
+    return max(0, min(int(count) - 1, idx))
+
+
+# ── 尊贵档(单一实现;盘面因子 / 瑜伽引擎共用)────────────────────────────
+# 旺宫与本三角同座的两曜(月:金牛;水:处女)按度段分:旺度段 = [0, 本三角起度),
+# 本三角 = 本三角度段,其后 = 自宫(水星处女 20-30°;月亮金牛非自宫 → 旺座内余度归旺)。
+# 其余五曜旺座整座为旺。判定序:旺度段 → 落陷 → 本三角 → 自宫 → 中性。
+EXALTATION_POINTS = {
+    const.SUN: (const.ARIES, 10),
+    const.MOON: (const.TAURUS, 3),
+    const.MARS: (const.CAPRICORN, 28),
+    const.MERCURY: (const.VIRGO, 15),
+    const.JUPITER: (const.CANCER, 5),
+    const.VENUS: (const.PISCES, 27),
+    const.SATURN: (const.LIBRA, 20),
+    const.NORTH_NODE: (const.TAURUS, 20),
+    const.SOUTH_NODE: (const.SCORPIO, 20),
+}
+OWN_SIGN_TABLE = {
+    const.SUN: (const.LEO,),
+    const.MOON: (const.CANCER,),
+    const.MARS: (const.ARIES, const.SCORPIO),
+    const.MERCURY: (const.GEMINI, const.VIRGO),
+    const.JUPITER: (const.SAGITTARIUS, const.PISCES),
+    const.VENUS: (const.TAURUS, const.LIBRA),
+    const.SATURN: (const.CAPRICORN, const.AQUARIUS),
+}
+
+
+def classify_dignity(planet, sign, signlon, include_nodes=True):
+    """尊贵档:deep_exaltation / exaltation / debilitation / moolatrikona / own_sign / neutral。
+
+    include_nodes=False 时罗计不判旺落(瑜伽引擎口径:节点无旺落)。"""
+    deg = float(signlon)
+    ex = EXALTATION_POINTS.get(planet)
+    if ex is not None and (include_nodes or planet not in (const.NORTH_NODE, const.SOUTH_NODE)):
+        exalt_sign, exalt_deg = ex
+        deb_sign = SIGNS[(SIGN_INDEX[exalt_sign] + 6) % 12]
+        if sign == exalt_sign:
+            mt = MOOLATRIKONA.get(planet)
+            band_end = mt[1] if (mt is not None and mt[0] == exalt_sign) else 30.0
+            if deg < band_end:
+                return 'deep_exaltation' if abs(deg - exalt_deg) < 1 else 'exaltation'
+        elif sign == deb_sign:
+            return 'debilitation'
+    mt = MOOLATRIKONA.get(planet)
+    if mt is not None and sign == mt[0] and mt[1] <= deg <= mt[2]:
+        return 'moolatrikona'
+    if sign in OWN_SIGN_TABLE.get(planet, ()):
+        return 'own_sign'
+    return 'neutral'
+
+
+def relation_to_sign_lord(planet, sign, planet_signs):
+    """本曜对所在座主的复合友敌(adhimitra/mitra/sama/satru/adhisatru);
+    座主即本曜 → 'self';节点或无座主 → None。临时友敌按 planet_signs(D1)判。"""
+    lord = SIGN_LORDS.get(sign)
+    if lord is None or planet not in _NATURAL_FRIENDS:
+        return None
+    if lord == planet:
+        return 'self'
+    return compound_relation(planet, lord, planet_signs)
+
+
+# ── 吠陀日(日界 = 日出)星期:本命 / 问事 / 校时 / 六力 / KP RP 单一来源 ───────
+def local_weekday(jd, utcoffset):
+    """jd(UT)在当地(utcoffset:时区串 '+05:30' 或小时数)的民用日星期,0=周日。"""
+    from flatlib.datetime import Datetime
+    return Datetime.fromJD(float(jd), utcoffset).date.dayofweek()
+
+
+def vedic_weekday(jd, lat, lon, utcoffset):
+    """吠陀日星期(0=周日):出生 / 起卦时刻之前最近一次日出所在的当地日期 → 星期。
+
+    返回 (weekday, sunrise_jd)。日出求不出(极昼 / 极夜)→ (民用日星期, None)。"""
+    try:
+        from flatlib.ephem import eph
+        sr = eph.lastSunrise(float(jd), lat, lon)
+        if sr is None or not (float(jd) - 1.5 < float(sr) <= float(jd) + 1e-9):
+            raise ValueError('no sunrise')
+        return local_weekday(sr, utcoffset), float(sr)
+    except Exception:
+        return local_weekday(jd, utcoffset), None
+
+
+# ── Abhijit 须臾(第 8 昼须臾)吉否:唯吠陀日周三不取(本命面板 / 出生须臾 / 择日两种取法单一来源)──
+ABHIJIT_EXCLUDED_WEEKDAY_SUN0 = 3      # 0=周日 → 3=周三
+
+
+def abhijit_auspicious(vedic_weekday_sun0):
+    """吠陀日(日界 = 日出;0=周日)当天的 Abhijit 须臾是否取吉。唯周三不取。"""
+    return int(vedic_weekday_sun0) % 7 != ABHIJIT_EXCLUDED_WEEKDAY_SUN0
+
+
+def muhurta_effective_nature(row, vedic_weekday_sun0):
+    """须臾表行 → 当天实际吉凶档:Abhijit 在周三不取吉 → 记 'mixed'(不取吉、亦不另判凶);
+    其余行按表。row 为 muhurta_day 表行(含 isAbhijit / nature)。"""
+    nature = str((row or {}).get('nature', '')).lower()
+    if (row or {}).get('isAbhijit') and vedic_weekday_sun0 is not None \
+            and not abhijit_auspicious(vedic_weekday_sun0):
+        return 'mixed'
+    return nature
+
+
+def weekday_mon0(weekday_sun0):
+    """星期序换域:0=周日(flatlib / 本模块)→ 0=周一(kp_system.WEEKDAY_LORDS)。"""
+    return (int(weekday_sun0) - 1) % 7
+
+
+# ── Panchaka 五忌(Muhūrta 古法)单一公式:页面 / 择日条件共用 ──────────────
+# (Tithi 1..30 + Vāra 周日=1..周六=7 + Nakṣatra 1..27 + Lagna 白羊=1..双鱼=12) mod 9:
+# 余 1 死 / 2 火 / 4 王 / 6 盗 / 8 病 为忌,余 0 / 3 / 5 / 7 无忌。
+PANCHAKA_TYPES = {1: ('Mrityu', '死忌'), 2: ('Agni', '火忌'), 4: ('Raja', '王忌'),
+                  6: ('Chora', '盗忌'), 8: ('Roga', '病忌')}
+
+
+def panchaka_remainder(tithi, vara_sun0, nakshatra, lagna_sign_no):
+    """vara_sun0 为 0=周日 的星期序(内部 +1 成 周日=1)。"""
+    return (int(tithi) + (int(vara_sun0) + 1) + int(nakshatra) + int(lagna_sign_no)) % 9

@@ -15,7 +15,7 @@ export function reportBackgroundFailure(tag, err){
 	const last = lastWarnAt.get(key) || 0;
 	if(at - last >= BG_SINK_WARN_THROTTLE_MS){
 		lastWarnAt.set(key, at);
-		try{ if(typeof console !== 'undefined' && console.warn){ console.warn(`[horosa-ai:bg] ${key}: ${entry.message}`); } }catch(e){ /* noop */ }
+		console.warn(`[horosa-ai:bg] ${key}: ${entry.message}`);
 	}
 	return entry;
 }

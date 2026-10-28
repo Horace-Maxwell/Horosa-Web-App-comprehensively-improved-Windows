@@ -11,6 +11,7 @@ import { lotDerivedHouses } from '../../divination/election/lotsEngine';
 import { essentialMatrix, accidentalTable, receptionReport, facePositions } from '../../divination/election/dignityReport';
 import { agrippaFaceImage } from '../../divination/data/decanImages';
 import { PLANETS } from '../../divination/data/planets';
+import { labelCellStyle, withLabelCell } from '../../utils/labelCell';
 
 const TabPane = XQTabs.TabPane;
 let _lastElectionSnap = '';
@@ -25,13 +26,14 @@ const SEV = {
 	low: { cn: '轻微', cls: 'sev-low' },
 	info: { cn: '注记', cls: 'sev-info' },
 };
-const VERD = { good: { cn: '吉', color: '#2f9e6f' }, neutral: { cn: '平', color: '#3b82f6' }, caution: { cn: '留意', color: '#d2a01f' }, bad: { cn: '凶', color: '#cf5b45' } };
+// 评级 / 吉凶色走主题语义色(亮 / 暗各一份,layouts/app/01-base.less);分数字与药丸底同色,药丸上的字 = on-solid。
+const VERD = { good: { cn: '吉', color: 'var(--horosa-grade-excellent, #2f9e6f)' }, neutral: { cn: '平', color: 'var(--horosa-grade-fair, #3b82f6)' }, caution: { cn: '留意', color: 'var(--horosa-sev-medium, #d2a01f)' }, bad: { cn: '凶', color: 'var(--horosa-grade-bad, #cf5b45)' } };
 const GRADE = {
-	excellent: { cn: '极佳', color: '#2f9e6f', desc: '窗口内难得的好时刻。' },
-	good: { cn: '不错', color: '#1aa3b8', desc: '吉多于凶，可用。' },
-	fair: { cn: '中等', color: '#3b82f6', desc: '吉凶参半，可再优化。' },
-	poor: { cn: '欠佳', color: '#e07a3b', desc: '凶多于吉，建议换时刻。' },
-	disqualified: { cn: '不宜（含红线）', color: '#cf3b3b', desc: '命中硬伤，强烈建议另择时刻。' },
+	excellent: { cn: '极佳', color: 'var(--horosa-grade-excellent, #2f9e6f)', desc: '窗口内难得的好时刻。' },
+	good: { cn: '不错', color: 'var(--horosa-grade-good, #1aa3b8)', desc: '吉多于凶，可用。' },
+	fair: { cn: '中等', color: 'var(--horosa-grade-fair, #3b82f6)', desc: '吉凶参半，可再优化。' },
+	poor: { cn: '欠佳', color: 'var(--horosa-grade-poor, #e07a3b)', desc: '凶多于吉，建议换时刻。' },
+	disqualified: { cn: '不宜（含红线）', color: 'var(--horosa-grade-bad, #cf3b3b)', desc: '命中硬伤，强烈建议另择时刻。' },
 };
 function lineCls(pol){ return 'horosa-divi-testi' + (pol === 'positive' ? ' is-pos' : (pol === 'negative' ? ' is-neg' : '')); }
 function barColor(verdict){ return (VERD[verdict] || VERD.neutral).color; }
@@ -44,7 +46,7 @@ class ElectionJudgment extends Component{
 	}
 	componentDidMount(){
 		this.saveSnap();
-		// [SURF-T3] 判读在 render 现取双 store 全局键(peregrineScore/almuten 口径/judge 键),
+		// 判读在 render 现取双 store 全局键(peregrineScore/almuten 口径/judge 键),
 		// 但改档不触发本组件任何 React 更新 → 双事件监听补重渲(与 AstroAspect 同范式)。
 		this._onGlobals = () => this.forceUpdate();
 		if(typeof window !== 'undefined'){
@@ -74,26 +76,26 @@ class ElectionJudgment extends Component{
 		return (
 			<div className="horosa-divi-judge">
 				<div className="horosa-divi-card">
-					<div className="horosa-divi-card-head">五重本质尊贵矩阵 <span style={{ opacity: 0.55, fontWeight: 400 }}>界/三分随流派口径；庙5 旺4 三分3 界2 面1／陷−5 弱−4 外来−5</span></div>
+					<div className="horosa-divi-card-head">五重本质尊贵矩阵 <span style={{ color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>界/三分随流派口径；庙5 旺4 三分3 界2 面1／陷−5 弱−4 外来−5</span></div>
 					<div style={{ overflowX: 'auto' }}>
 						<table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', textAlign: 'center' }}>
-							<thead><tr style={{ opacity: 0.65 }}>
-								<th style={{ padding: '3px 4px', textAlign: 'left' }}>星</th><th>落座</th><th>庙</th><th>旺</th><th>三分</th><th>界</th><th>面</th><th>陷</th><th>弱</th><th>外来</th><th>小计</th>
+							<thead><tr style={{ color: 'var(--horosa-text-secondary)' }}>
+								<th style={withLabelCell({ padding: '3px 4px', textAlign: 'left' }, '星')}>星</th><th style={labelCellStyle('落座')}>落座</th><th style={labelCellStyle('庙')}>庙</th><th style={labelCellStyle('旺')}>旺</th><th style={labelCellStyle('三分')}>三分</th><th style={labelCellStyle('界')}>界</th><th style={labelCellStyle('面')}>面</th><th style={labelCellStyle('陷')}>陷</th><th style={labelCellStyle('弱')}>弱</th><th style={labelCellStyle('外来')}>外来</th><th style={labelCellStyle('小计')}>小计</th>
 							</tr></thead>
 							<tbody>
 								{ess.map((r) => (
 									<tr key={r.key} style={{ borderTop: '1px dashed rgba(148,163,184,.18)' }}>
-										<td style={{ padding: '3px 4px', textAlign: 'left', fontWeight: 600 }}>{r.cn}</td>
+										<td style={withLabelCell({ padding: '3px 4px', textAlign: 'left', fontWeight: 600 }, r.cn)}>{r.cn}</td>
 										<td>{r.signCn} {r.signlon !== undefined ? Math.floor(r.signlon) + '°' : ''}</td>
-										<td style={{ color: '#2f9e6f' }}>{dot(r.domicile)}</td>
-										<td style={{ color: '#2f9e6f' }}>{dot(r.exaltation)}</td>
-										<td style={{ color: '#2f9e6f' }}>{r.triplicity ? '●' : (r.triplicityPart ? '共' : '')}</td>
-										<td style={{ color: '#2f9e6f' }}>{dot(r.term)}</td>
-										<td style={{ color: '#2f9e6f' }}>{dot(r.face)}</td>
-										<td style={{ color: '#cf5b45' }}>{dot(r.detriment)}</td>
-										<td style={{ color: '#cf5b45' }}>{dot(r.fall)}</td>
-										<td style={{ color: '#cf5b45' }}>{dot(r.peregrine)}</td>
-										<td style={{ fontWeight: 600, color: r.score > 0 ? '#2f9e6f' : (r.score < 0 ? '#cf5b45' : 'inherit') }}>{r.score > 0 ? '+' : ''}{r.score}</td>
+										<td style={{ color: 'var(--horosa-jx-ji)' }}>{dot(r.domicile)}</td>
+										<td style={{ color: 'var(--horosa-jx-ji)' }}>{dot(r.exaltation)}</td>
+										<td style={{ color: 'var(--horosa-jx-ji)' }}>{r.triplicity ? '●' : (r.triplicityPart ? '共' : '')}</td>
+										<td style={{ color: 'var(--horosa-jx-ji)' }}>{dot(r.term)}</td>
+										<td style={{ color: 'var(--horosa-jx-ji)' }}>{dot(r.face)}</td>
+										<td style={{ color: 'var(--horosa-jx-xiong)' }}>{dot(r.detriment)}</td>
+										<td style={{ color: 'var(--horosa-jx-xiong)' }}>{dot(r.fall)}</td>
+										<td style={{ color: 'var(--horosa-jx-xiong)' }}>{dot(r.peregrine)}</td>
+										<td style={{ fontWeight: 600, color: r.score > 0 ? 'var(--horosa-jx-ji)' : (r.score < 0 ? 'var(--horosa-jx-xiong)' : 'inherit') }}>{r.score > 0 ? '+' : ''}{r.score}</td>
 									</tr>
 								))}
 							</tbody>
@@ -101,16 +103,16 @@ class ElectionJudgment extends Component{
 					</div>
 				</div>
 				<div className="horosa-divi-card">
-					<div className="horosa-divi-card-head">偶然尊贵满分表 <span style={{ opacity: 0.55, fontWeight: 400 }}>±38 域·1647 印本全表（宫位/顺逆/迟疾/东出西入/三态/紧密相位/王凶星/围攻）</span></div>
+					<div className="horosa-divi-card-head">偶然尊贵满分表 <span style={{ color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>±38 域·1647 印本全表（宫位/顺逆/迟疾/东出西入/三态/紧密相位/王凶星/围攻）</span></div>
 					{acc.map((r) => (
 						<details key={r.key} style={{ margin: '2px 0' }}>
 							<summary style={{ cursor: 'pointer', fontSize: 12.5, listStyle: 'none' }}>
 								<span style={{ fontWeight: 600 }}>{r.cn}</span>
-								<span style={{ float: 'right', fontWeight: 700, color: r.total > 0 ? '#2f9e6f' : (r.total < 0 ? '#cf5b45' : 'inherit') }}>{r.total > 0 ? '+' : ''}{r.total}</span>
+								<span style={{ float: 'right', fontWeight: 700, color: r.total > 0 ? 'var(--horosa-jx-ji)' : (r.total < 0 ? 'var(--horosa-jx-xiong)' : 'inherit') }}>{r.total > 0 ? '+' : ''}{r.total}</span>
 							</summary>
 							<div style={{ padding: '2px 0 4px 12px' }}>
 								{r.items.map((it, i) => (
-									<div key={i} className="horosa-divi-line" style={{ fontSize: 11.5, color: it.score > 0 ? '#2f9e6f' : '#cf5b45' }}>{it.text_zh}</div>
+									<div key={i} className="horosa-divi-line" style={{ fontSize: 11.5, color: it.score > 0 ? 'var(--horosa-jx-ji)' : 'var(--horosa-jx-xiong)' }}>{it.text_zh}</div>
 								))}
 							</div>
 						</details>
@@ -121,25 +123,25 @@ class ElectionJudgment extends Component{
 						<div className="horosa-divi-card-head">Almuten Figuris（{af.points.length === 5 ? '五' : '四'}命点逐点计分）</div>
 						<div style={{ overflowX: 'auto' }}>
 							<table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', textAlign: 'center' }}>
-								<thead><tr style={{ opacity: 0.65 }}>
-									<th style={{ padding: '3px 4px', textAlign: 'left' }}>命点</th>
-									{AF_SEVEN.map((k) => <th key={k}>{cn(k)}</th>)}
+								<thead><tr style={{ color: 'var(--horosa-text-secondary)' }}>
+									<th style={withLabelCell({ padding: '3px 4px', textAlign: 'left' }, '命点')}>命点</th>
+									{AF_SEVEN.map((k) => <th key={k} style={labelCellStyle(cn(k))}>{cn(k)}</th>)}
 								</tr></thead>
 								<tbody>
 									{af.points.map((pt) => (
 										<tr key={pt.label} style={{ borderTop: '1px dashed rgba(148,163,184,.18)' }}>
-											<td style={{ padding: '3px 4px', textAlign: 'left' }}>{pt.label}</td>
+											<td style={withLabelCell({ padding: '3px 4px', textAlign: 'left' }, pt.label)}>{pt.label}</td>
 											{AF_SEVEN.map((k) => <td key={k} style={{ opacity: pt.scores[k] ? 1 : 0.3 }}>{pt.scores[k] || ''}</td>)}
 										</tr>
 									))}
 									<tr style={{ borderTop: '1px solid rgba(148,163,184,.35)', fontWeight: 700 }}>
-										<td style={{ padding: '3px 4px', textAlign: 'left' }}>合计</td>
-										{AF_SEVEN.map((k) => <td key={k} style={{ color: af.winners.indexOf(k) >= 0 ? '#b8860b' : 'inherit' }}>{af.totals[k] || ''}</td>)}
+										<td style={withLabelCell({ padding: '3px 4px', textAlign: 'left' }, '合计')}>合计</td>
+										{AF_SEVEN.map((k) => <td key={k} style={{ color: af.winners.indexOf(k) >= 0 ? 'var(--horosa-accent-strong)' : 'inherit' }}>{af.totals[k] || ''}</td>)}
 									</tr>
 								</tbody>
 							</table>
 						</div>
-						<div className="horosa-divi-kv" style={{ marginTop: 4 }}>胜利星：<b style={{ color: '#b8860b' }}>{af.winners.map(cn).join('、')}</b>（{af.best} 分）{af.winners.length > 1 ? '——并列时以得派/近角/近区分光决胜' : ''}</div>
+						<div className="horosa-divi-kv" style={{ marginTop: 4 }}>胜利星：<b style={{ color: 'var(--horosa-accent-strong)' }}>{af.winners.map(cn).join('、')}</b>（{af.best} 分）{af.winners.length > 1 ? '——并列时以得派/近角/近区分光决胜' : ''}</div>
 						{(af.caveats || []).map((c, i) => <div key={i} className="horosa-divi-note">{c}</div>)}
 					</div>
 				) : null}
@@ -176,7 +178,7 @@ class ElectionJudgment extends Component{
 	renderConsiderationsTab(j){
 		const c = j.considerations;
 		if(!c) return <div className="horosa-divi-judge"><div className="horosa-divi-note">无考量数据。</div></div>;
-		const vColor = c.verdict === 'good' ? '#2f9e6f' : (c.verdict === 'caution' ? '#d2a01f' : '#cf5b45');
+		const vColor = c.verdict === 'good' ? 'var(--horosa-jx-ji)' : (c.verdict === 'caution' ? 'var(--horosa-sev-medium)' : 'var(--horosa-jx-xiong)');   // 实底 × on-solid 字(主题合同成对算过)
 		const row = (it, i) => {
 			const info = it.severity === 'info';
 			const miss = !it.hit;
@@ -185,7 +187,7 @@ class ElectionJudgment extends Component{
 				<details key={it.key + i} style={{ margin: '1px 0' }}>
 					<summary style={{ cursor: 'pointer', listStyle: 'none' }} className={'horosa-divi-testi' + cls}>
 						<span className="dot">{info ? '·' : (it.hit ? '✗' : '✓')}</span>
-						<span>{it.title}{it.detail ? <span style={{ opacity: 0.6 }}>　{it.detail}</span> : null}</span>
+						<span>{it.title}{it.detail ? <span style={{ color: 'var(--horosa-text-secondary)' }}>　{it.detail}</span> : null}</span>
 					</summary>
 					<div className="horosa-divi-note" style={{ paddingLeft: 22 }}>{it.meaning}{miss && !info ? '（本盘未命中）' : ''}</div>
 				</details>
@@ -197,10 +199,10 @@ class ElectionJudgment extends Component{
 					<div className="horosa-divi-banner">
 						<span style={{ fontWeight: 700 }}>本盘可判性</span>
 						<span className="horosa-divi-sev" style={{ background: vColor, minWidth: 64, fontSize: 12, padding: '2px 10px' }}>{c.verdictCn}</span>
-						<span style={{ opacity: 0.6, fontSize: 12 }}>命中 {c.hitCount} 条</span>
+						<span style={{ color: 'var(--horosa-text-secondary)', fontSize: 12 }}>命中 {c.hitCount} 条</span>
 					</div>
 					{c.astrologer7th.length ? (
-						<div className="horosa-divi-kv" style={{ marginTop: 4, color: '#cf5b45' }}>
+						<div className="horosa-divi-kv" style={{ marginTop: 4, color: 'var(--horosa-jx-xiong)' }}>
 							⚠ 第 7 宫＝占星师：{c.astrologer7th.map((x) => x.title).join('；')}——判读可靠性受扰（提示,不计入择吉分）。
 						</div>
 					) : null}
@@ -245,25 +247,25 @@ class ElectionJudgment extends Component{
 						onChange={(e) => this.setState({ lotDerive: (e && e.target) ? e.target.value : e })} />
 				</div>
 				<div className="horosa-divi-card">
-					<div className="horosa-divi-card-head">阿拉伯点位置表{topicIds.length ? <span style={{ opacity: 0.55, fontWeight: 400 }}>　本用事关联：{topicIds.map((id) => (lots.byId[id] ? lots.byId[id].cn : id)).join('、')}</span> : null}</div>
+					<div className="horosa-divi-card-head">阿拉伯点位置表{topicIds.length ? <span style={{ color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>　本用事关联：{topicIds.map((id) => (lots.byId[id] ? lots.byId[id].cn : id)).join('、')}</span> : null}</div>
 					<div style={{ overflowX: 'auto' }}>
 						<table className="horosa-divi-table" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
 							<thead>
-								<tr style={{ opacity: 0.65, textAlign: 'left' }}>
-									<th style={{ padding: '4px 6px' }}>点</th>
-									<th style={{ padding: '4px 6px' }}>位置</th>
-									<th style={{ padding: '4px 6px' }}>落宫</th>
-									<th style={{ padding: '4px 6px' }}>定位星</th>
-									<th style={{ padding: '4px 6px' }}>司掌</th>
+								<tr style={{ color: 'var(--horosa-text-secondary)', textAlign: 'left' }}>
+									<th style={withLabelCell({ padding: '4px 6px' }, '点')}>点</th>
+									<th style={withLabelCell({ padding: '4px 6px' }, '位置')}>位置</th>
+									<th style={withLabelCell({ padding: '4px 6px' }, '落宫')}>落宫</th>
+									<th style={withLabelCell({ padding: '4px 6px' }, '定位星')}>定位星</th>
+									<th style={withLabelCell({ padding: '4px 6px' }, '司掌')}>司掌</th>
 								</tr>
 							</thead>
 							<tbody>
 								{rows.map((r) => (
 									<tr key={r.id} style={{ borderTop: '1px dashed rgba(148,163,184,.18)', background: topicIds.indexOf(r.id) >= 0 ? 'var(--horosa-accent-soft, rgba(184,134,11,0.08))' : 'transparent' }}>
-										<td style={{ padding: '4px 6px', fontWeight: topicIds.indexOf(r.id) >= 0 ? 600 : 400 }}>{r.cn}{r.note ? <span style={{ opacity: 0.6 }}>（{r.note}）</span> : ''}</td>
+										<td style={{ padding: '4px 6px', fontWeight: topicIds.indexOf(r.id) >= 0 ? 600 : 400 }}>{r.cn}{r.note ? <span style={{ color: 'var(--horosa-text-secondary)' }}>（{r.note}）</span> : ''}</td>
 										<td style={{ padding: '4px 6px' }}>{r.signCn} {r.signlon}°</td>
-										<td style={{ padding: '4px 6px' }}>{r.house ? `${r.house} 宫` : '—'}</td>
-										<td style={{ padding: '4px 6px' }}>{r.dispositorCn}</td>
+										<td style={{ padding: '4px 6px', whiteSpace: 'nowrap' }}>{r.house ? `${r.house} 宫` : '—'}</td>
+										<td style={withLabelCell({ padding: '4px 6px' }, r.dispositorCn)}>{r.dispositorCn}</td>
 										<td style={{ padding: '4px 6px', opacity: 0.75 }}>{r.use}</td>
 									</tr>
 								))}
@@ -285,7 +287,7 @@ class ElectionJudgment extends Component{
 	}
 	saveSnap(){
 		if(!this._j) return;
-		// [Q-445] 回归盘/主限命中为页面按需拉取物 → 随 extra 进快照(与右栏合参卡三同源)。
+		// 回归盘/主限命中为页面按需拉取物 → 随 extra 进快照(与右栏合参卡三同源)。
 		try{ const t = buildElectionSnapshot(this._j, { returnSet: this.props.returnSet, pdHits: this.props.pdHits }); if(t && t !== _lastElectionSnap){ _lastElectionSnap = t; saveModuleAISnapshot('election', t, {}); } }catch(e){ /* noop */ }
 	}
 	render(){
@@ -339,7 +341,7 @@ class ElectionJudgment extends Component{
 				<TabPane tab="红线" key="flags">
 					<div className="horosa-divi-judge">
 						<div className="horosa-divi-legend">
-							「红线」＝ 对本用事的硬伤。<b style={{ color: '#cf3b3b' }}>严重</b>＝几乎应避开或换时辰；<b style={{ color: '#e07a3b' }}>较重</b>＝明显代价；<b style={{ color: '#d2a01f' }}>中等</b>/<b style={{ color: '#93a1b0' }}>轻微</b>＝小瑕疵。命中越多越重，分数越低。
+							「红线」＝ 对本用事的硬伤。<b style={{ color: 'var(--horosa-grade-bad, #cf3b3b)' }}>严重</b>＝几乎应避开或换时辰；<b style={{ color: 'var(--horosa-grade-poor, #e07a3b)' }}>较重</b>＝明显代价；<b style={{ color: 'var(--horosa-sev-medium, #d2a01f)' }}>中等</b>/<b style={{ color: 'var(--horosa-sev-low, #93a1b0)' }}>轻微</b>＝小瑕疵。命中越多越重，分数越低。
 						</div>
 						<div className="horosa-divi-card">
 							{j.hard_flags.length === 0
@@ -364,7 +366,7 @@ class ElectionJudgment extends Component{
 							const verd = VERD[s.verdict] || VERD.neutral;
 							return (
 								<div key={s.key} className="horosa-divi-card">
-									<div className="horosa-divi-card-head">{s.title} <span className="horosa-divi-sev" style={{ background: verd.color, minWidth: 34 }}>{verd.cn}</span> <span style={{ opacity: 0.55, fontWeight: 400 }}>{s.score}/100</span></div>
+									<div className="horosa-divi-card-head">{s.title} <span className="horosa-divi-sev" style={{ background: verd.color, minWidth: 34 }}>{verd.cn}</span> <span style={{ color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>{s.score}/100</span></div>
 									{s.findings.length ? s.findings.map((f, i) => <div key={i} className={lineCls(f.polarity)}><span className="dot">{f.polarity === 'positive' ? '▲' : (f.polarity === 'negative' ? '▼' : '·')}</span><span>{f.text_zh || f.message}</span></div>) : <div className="horosa-divi-line">无特别证词，状态平平。</div>}
 									{s.detail_md ? <div className="horosa-divi-muted">{s.detail_md}</div> : null}
 								</div>
@@ -372,7 +374,7 @@ class ElectionJudgment extends Component{
 						})}
 						{tp ? (
 							<div className="horosa-divi-card">
-								<div className="horosa-divi-card-head">用事专属条件（{j.topic.cn}） <span style={{ opacity: 0.55, fontWeight: 400 }}>满足 {tp.passed}/{tp.total}</span></div>
+								<div className="horosa-divi-card-head">用事专属条件（{j.topic.cn}） <span style={{ color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>满足 {tp.passed}/{tp.total}</span></div>
 								{tp.items.length ? tp.items.map((it, i) => (
 									<div key={'tp' + i} className={'horosa-divi-testi ' + (it.pass ? 'is-pos' : 'is-neg')}>
 										<span className="dot">{it.pass ? '✓' : '✗'}</span>

@@ -58,7 +58,7 @@ describe('ACG 快照 Parans 表化 · 数值不变证明', () => {
 	});
 });
 
-// [Q-440/T-403] 本地空间线 / 地理等价线:两图层开启时才进快照(数据+口径行),关着逐字同旧。
+// 本地空间线 / 地理等价线:两图层开启时才进快照(数据+口径行),关着逐字同旧。
 describe('占星地图快照 · 本地空间线 / 地理等价线(Q-440)', () => {
 	const data = {
 		meta: { mode: 'mundo', coord: 'geo', lsMode: 'rhumb', geodetic: 'johndro', geodeticVar: 'ra' },

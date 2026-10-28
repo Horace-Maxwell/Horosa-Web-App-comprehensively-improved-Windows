@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/ziwei/ZWPatternPanel.js b/astrostudyui/src/components/ziwei/ZWPatternPanel.js
-index d9c25f0..2c4bba8 100644
+index d9c25f0e..2c4bba84 100644
 --- a/astrostudyui/src/components/ziwei/ZWPatternPanel.js
 +++ b/astrostudyui/src/components/ziwei/ZWPatternPanel.js
 @@ -1,4 +1,5 @@

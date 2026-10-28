@@ -32,7 +32,7 @@ beforeEach(async ()=>{
 	setAgentEnabled(true); setGoalEnabled(true); recordToolCapability('p1', 'm', true);
 });
 
-describe('[Q-402① 裁决 2026-09-18] 判官调用计入预算', ()=>{
+describe('判官调用计入预算', ()=>{
 	it('判官短调用 → spent.calls +1 / wallMs 累加 / usage 可计价则费用累加(与执行轮分开计)', async ()=>{
 		const t = await createGoalTask({ goal: 'G', budget: { maxTurns: 5 } }, { sourceCid: null, techniques: [] });
 		const stream = fakeStream([{ text: 'A' }, { text: 'B' }]);
@@ -65,7 +65,7 @@ describe('goalRunner', ()=>{
 		expect(o.systemPrompt.indexOf(CACHE_BP)).toBe(-1);
 		expect(o.systemPrompt).toContain('自定义规则');
 	});
-	it('🔴 [Q-285/M-100] 无头系统提示注入口径 / 会话口径 / 压缩摘要层(与对话页同开关);口径关 → 一层不注;丢层留痕句与对话页同文', async ()=>{
+	it('🔴 无头系统提示注入口径 / 会话口径 / 压缩摘要层(与对话页同开关);口径关 → 一层不注;丢层留痕句与对话页同文', async ()=>{
 		window.localStorage.setItem(PERSONA_KEY, JSON.stringify({ text: '全局口径甲', enabled: true }));
 		const conv = { persona: '会话口径乙', compact: { summary: '之前聊过丙', coveredCount: 3 } };
 		const on = await buildHeadlessSystemPrompt({ source: null, techniqueKeys: [], systemPrompt: '', profile: { providerType: 'ollama' }, model: 'm', conversation: conv });
@@ -86,7 +86,7 @@ describe('goalRunner', ()=>{
 		expect(droppedLayersNote([{ title: '使用技法：八字' }, { key: 'memory' }])).toBe('[挂载预算不足：以下 2 层整层未纳入 —— 八字、memory。未列出的内容不代表不存在，请勿臆补；如需完整资料，请提示用户在「进阶 → 对话上下文策略 → 挂载字数预算」里调大，或减少挂载技法。]');
 		expect(droppedLayersNote([])).toBe('');
 	});
-	it('🔴 [Q-285/M-96] 建目标任务时快照会话覆盖:只留本任务技法的对象值;空 → undefined;spec 落库可读回', async ()=>{
+	it('🔴 建目标任务时快照会话覆盖:只留本任务技法的对象值;空 → undefined;spec 落库可读回', async ()=>{
 		expect(snapshotTechniqueOptionOverrides({ bazi: { luckMode: 'x' }, other: { b: 2 }, ziwei: 'bad', qimen: {} }, ['bazi', 'ziwei', 'qimen'])).toEqual({ bazi: { luckMode: 'x' } });
 		expect(snapshotTechniqueOptionOverrides({ other: { b: 2 } }, ['bazi'])).toBeUndefined();
 		expect(snapshotTechniqueOptionOverrides(null, ['bazi'])).toBeUndefined();
@@ -178,7 +178,7 @@ describe('goalRunner', ()=>{
 		expect(out2.status).toBe('failed');
 		expect(s2).not.toHaveBeenCalled();
 	});
-	it('🔴 [D3] judge 槽设了 → 判官用槽里的档案与模型(+槽参数),流仍用任务自身模型;槽空孪生 → 判官=任务模型且无 max_tokens', async ()=>{
+	it('🔴 judge 槽设了 → 判官用槽里的档案与模型(+槽参数),流仍用任务自身模型;槽空孪生 → 判官=任务模型且无 max_tokens', async ()=>{
 		const { writeModelRoutes, writeRouteOptions } = require('../aiModelRouting');
 		const { putStoreRecord } = require('../aiAnalysisStore');
 		await putStoreRecord(AI_ANALYSIS_STORES.providerProfiles, { id: 'p2', name: 'J', providerType: 'openai', protocolFamily: 'openai', baseUrl: 'http://j', apiKey: 'k2', providerOptions: {}, enabled: true, chatModelIds: ['judge-m'] });
@@ -205,7 +205,7 @@ describe('goalRunner', ()=>{
 	});
 });
 
-describe('[复查 D27] 后台任务审批文案按级别', ()=>{
+describe('后台任务审批文案按级别', ()=>{
 	const { approvalVerb } = require('../aiAgent/goalRunner');
 	it('读级「请求执行」、写入「请求写入」(此前硬写「请求写入」)', ()=>{
 		expect(approvalVerb({ name: 'web_search', level: 'read' })).toBe('请求执行');

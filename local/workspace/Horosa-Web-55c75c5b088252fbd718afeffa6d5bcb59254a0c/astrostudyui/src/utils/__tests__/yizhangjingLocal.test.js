@@ -204,6 +204,9 @@ describe('一掌经引擎 · WP-B 判识扩展', () => {
 		expect(gradeOf('天驛')).toBe('中品');
 		expect(daoLabel('鬼道', 'edao')).toBe('饿鬼道');
 		expect(daoLabel('鬼道')).toBe('鬼道');
-		expect(starLabel('天貴', 'A')).toBe('天貴');
+		expect(starLabel('天貴', 'A')).toBe('天贵');   // 显示名用别名表的简体写法(繁体档由显示层转回)
+		expect(starLabel('天藝')).toBe('天艺');
+		expect(daoLabel('修羅道')).toBe('修罗道');
+		expect(daoLabel('修羅道', 'edao')).toBe('阿修罗道');
 	});
 });

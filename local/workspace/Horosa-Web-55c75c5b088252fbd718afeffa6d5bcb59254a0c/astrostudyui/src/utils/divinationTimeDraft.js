@@ -11,10 +11,12 @@
 //
 // 农历引擎=baziLunarLocal(八字主盘同源引擎,memory 已定谳「解读必本地」),吃真太阳时/
 // 晚子时开关,与顶层盘同口径;纯前端零后端往返,离线可用。
-import buildLocalBaziResult from './baziLunarLocal';
+import buildLocalBaziResult, { parseGeoDegrees, equationOfTimeAtJd } from './baziLunarLocal';
+import { parseZoneHours } from './beijingTimeShift';
 import { convertLatToStr, convertLonToStr } from '../components/astro/AstroHelper';
 import { resolveGeoZone } from './timezone';
 import { geoNameFieldPatch } from './geoName';
+import { castChartFor } from './derivedChartSource';
 
 const nongliMemo = new Map();
 
@@ -132,12 +134,6 @@ export function geoPatchFromRec(rec, baseFields){
 	return patch;
 }
 
-/** 草稿 fields → 合成 fields 形状对象喂 openKentangCaseDrawer(存事盘时用草稿时间地理,非主命盘)。
- *  kentangCaseSave 只经 getFieldValue 读 fields[key].value,合成对象天然兼容;缺项回退主 fields。 */
-export function draftOrBaseFields(localFields, baseFields){
-	return localFields || baseFields || {};
-}
-
 /** AI 快照 meta 的时间地理键(照 aiAnalysisContext.buildSnapshotMetaFromRecord:date/time/zone/lon/lat)。
  *  补齐后命盘缓存路径 isCacheSnapshotConfidentMatch 才能确凿匹配;事盘路径亦利于一致。 */
 export function snapshotMetaFromFields(fields, extra){
@@ -167,6 +163,7 @@ import { parseDateParts, parseYearFromDateStr } from './dateStrSafe';
 import { buildKentangEndpoint } from '../integrations/kentang/serviceRoot';
 import { cachedKentangFetch } from './kentangCache';
 import { isLunarJsYearReliable } from './lunarDomainGuard';
+import { registerProcessCache } from './processCacheRegistry';
 
 const GAN_LIST = '甲乙丙丁戊己庚辛壬癸'.split('');
 const ZHI_LIST = '子丑寅卯辰巳午未申酉戌亥'.split('');
@@ -235,6 +232,57 @@ function jdnOfDateStr(ds, adFlag){
 	return getOnlyDateNum(y, parseInt(parts[1], 10), parseInt(parts[2], 10));
 }
 
+// 儒略日序 → 日期(天文年;1582-10-15 起格里历,之前儒略历,与 getOnlyDateNum 互逆)
+export function dateOfJdn(jdn){
+	const a = jdn + 32044;
+	let b;
+	let c;
+	let cycles = 0;   // 远古日序为负时先挪若干个儒略四年周期(1461 日)到正域再算,年份再挪回
+	if(jdn >= 2299161){
+		b = Math.floor((4 * a + 3) / 146097);
+		c = a - Math.floor(146097 * b / 4);
+	}else{
+		b = 0;
+		c = jdn + 32082;
+		if(c < 0){
+			cycles = Math.ceil(-c / 1461) + 1;
+			c += cycles * 1461;
+		}
+	}
+	const d = Math.floor((4 * c + 3) / 1461);
+	const e = c - Math.floor(1461 * d / 4);
+	const m = Math.floor((5 * e + 2) / 153);
+	return {
+		day: e - Math.floor((153 * m + 2) / 5) + 1,
+		month: m + 3 - 12 * Math.floor(m / 10),
+		year: 100 * b + d - 4800 + Math.floor(m / 10) - 4 * cycles,
+	};
+}
+
+// 远端路径的起课时刻按时间算法换算 —— 与本地引擎同一公式:真太阳时(0)= 经度时差 + 均时差;平太阳时(3)= 只经度时差;
+// 其余(直接时间 / 春分定卯时 / 没给)不换。跨日按儒略 / 格里历进位。此前远端路径恒按钟表时,
+// 同一页面同一档时间算法,域内与域外占时口径不同。
+export function shiftClockForTimeAlg(t, { timeAlg, lon, gpsLon, zone } = {}){
+	const alg = Number(timeAlg);
+	if(alg !== 0 && alg !== 3){ return { ...t }; }
+	let lonDeg = parseGeoDegrees(lon, 180);
+	if(!Number.isFinite(lonDeg)){ lonDeg = parseGeoDegrees(gpsLon, 180); }
+	if(!Number.isFinite(lonDeg)){ return { ...t }; }
+	const zoneHours = parseZoneHours(zone);
+	const jdn = getOnlyDateNum(t.ay, t.month, t.day);
+	let secs = (t.hour || 0) * 3600 + (t.minute || 0) * 60 + (t.second || 0);
+	let shift = (lonDeg - zoneHours * 15) * 240;
+	if(alg === 0){
+		const jd = jdn - 0.5 + (secs - zoneHours * 3600) / 86400;
+		shift += equationOfTimeAtJd(jd) * 60;
+	}
+	secs += Math.round(shift);
+	const dayShift = Math.floor(secs / 86400);
+	secs -= dayShift * 86400;
+	const d = dateOfJdn(jdn + dayShift);
+	return { ay: d.year, month: d.month, day: d.day, hour: Math.floor(secs / 3600), minute: Math.floor((secs % 3600) / 60), second: secs % 60 };
+}
+
 /** 纯拼装(可单测):目标{ay,month,day,hour} + 朔表 months + jieqi/birth 的 jieqi 列表 + birthJDN
  *  → 与 deriveLocalNongli 同形结构。找不到所属朔区间返回 null。 */
 export function assembleNongliFromTables(target, months, jieqiList, birthJDN){
@@ -266,9 +314,20 @@ export function assembleNongliFromTables(target, months, jieqiList, birthJDN){
 	if(lichunJdn !== null && birthJDN < lichunJdn){ baziAy = target.ay - 1; }
 	const baziYearGZ = yearGanzhiByAstroYear(baziAy);
 	const monthGZ = jieZhi ? monthPillarFrom(baziYearGZ.charAt(0), JIE_TO_MONTHZHI[jieZhi.jieqi]) : '';
-	const dayGZ = getDayGanZhi(target.ay, target.month, target.day);
+	// 晚子时(23 点)与本地引擎同口径:日柱只在「23 点算第二天」(after23NewDay === 1)时进位次日;
+	// 时干缺省用次日日干起子时,lateZiHourUseNextDay === 0 才用今日日干
+	let dayGZ = getDayGanZhi(target.ay, target.month, target.day);
+	let hourDayGan = dayGZ.charAt(0);
+	if(target.hour === 23){
+		const nd = dateOfJdn(tJdn + 1);
+		const nextGZ = getDayGanZhi(nd.year, nd.month, nd.day);
+		const a23 = target.after23NewDay;
+		const lz = target.lateZiHourUseNextDay;
+		if(a23 === 1 || a23 === '1' || a23 === true){ dayGZ = nextGZ; }
+		hourDayGan = (lz === 0 || lz === '0' || lz === false) ? getDayGanZhi(target.ay, target.month, target.day).charAt(0) : nextGZ.charAt(0);
+	}
 	const hourZhiIdx = Math.floor(((target.hour + 1) % 24) / 2);
-	const hourGZ = hourPillarFrom(dayGZ.charAt(0), hourZhiIdx);
+	const hourGZ = hourPillarFrom(hourDayGan, hourZhiIdx);
 	return {
 		monthInt, dayInt: cur.dayInt,
 		monthNum: monthInt, dayNum: cur.dayInt,
@@ -314,13 +373,21 @@ export async function deriveNongliRemote(fields){
 		const jieqiYear = ad < 0 ? -Math.abs(dp.year) : Math.abs(dp.year);
 		const zone = typeof params.zone === 'string' ? params.zone : '+08:00';
 		const base = { zone, lat: params.lat || '0n00', lon: params.lon || '0e00' };
+		// 起课时刻按时间算法换算(真太阳时 / 平太阳时),换算后才拆日期与时辰(跨日即换日)
+		const [hh, mm, ss] = `${params.time || '00:00:00'}`.split(':').map((x)=>parseInt(x, 10) || 0);
+		const st = shiftClockForTimeAlg({ ay, month: dp.month, day: dp.day, hour: hh, minute: mm, second: ss }, { timeAlg: params.timeAlg, lon: params.lon, gpsLon: params.gpsLon, zone });
+		const civilYear = st.ay <= 0 ? 1 - st.ay : st.ay;
+		const civilAd = st.ay <= 0 ? -1 : 1;
+		const pad = (n, w)=>String(n).padStart(w, '0');
+		const shiftedTime = `${pad(st.hour, 2)}:${pad(st.minute, 2)}:${pad(st.second, 2)}`;
+		// 换算跨了年(12-31 → 01-01)时月表也取换算后的那一年(无 0 年显示年,口径见上)
+		const shiftedJieqiYear = civilAd < 0 ? -civilYear : civilYear;
 		const [nl, birth] = await Promise.all([
-			postJieqi('nongli', { year: jieqiYear, ...base }),
-			postJieqi('birth', { date: `${String(Math.abs(dp.year)).padStart(4, '0')}/${String(dp.month).padStart(2, '0')}/${String(dp.day).padStart(2, '0')}`, time: params.time, ad, ...base }),
+			postJieqi('nongli', { year: st.ay === ay ? jieqiYear : shiftedJieqiYear, ...base }),
+			postJieqi('birth', { date: `${pad(civilYear, 4)}/${pad(st.month, 2)}/${pad(st.day, 2)}`, time: shiftedTime, ad: civilAd, ...base }),
 		]);
-		const hour = parseInt((params.time || '0').split(':')[0], 10) || 0;
 		const out = assembleNongliFromTables(
-			{ ay, month: dp.month, day: dp.day, hour },
+			{ ay: st.ay, month: st.month, day: st.day, hour: st.hour, after23NewDay: params.after23NewDay, lateZiHourUseNextDay: params.lateZiHourUseNextDay },
 			nl.months, birth.jieqi, birth.birthJDN
 		);
 		if(out){ out.date = params.date; }
@@ -348,6 +415,8 @@ export async function deriveLocalNongliAsync(fields){
 const remoteNongliMemo = new Map();
 const remoteNongliPending = new Set();
 const remoteNongliSubs = new Set();
+// 远端换算结果是「同参复用上次结果」缓存:登记清空函数(审计仪器每次取样前清空,见 processCacheRegistry)
+registerProcessCache('divinationTimeDraft.remoteNongli', ()=>{ remoteNongliMemo.clear(); remoteNongliPending.clear(); });
 
 export function subscribeRemoteNongli(listener){
 	remoteNongliSubs.add(listener);
@@ -356,12 +425,29 @@ export function subscribeRemoteNongli(listener){
 
 /** 域内=本地同步;域外=同步查远端缓存,未命中触发后台实算(到货通知订阅者)。
  *  返回 null 时消费方沿既有空态路径(「历法计算中/超域」提示由各页负责)。 */
+// 卜类子页「起卦之时」的农历单源(小六壬 / 飞宫 / 皇极轨策 / 灵棋同用):动过左栏 → 按左栏本地派生;
+// 没动过 → 主盘农历;但全局时间算法 ≠ 真太阳时(直接 / 平太阳时)时改按全局 fields 本地派生 ——
+// 主盘 /chart 的农历恒按真太阳时,否则同一时刻的占时会随「是否动过左栏」翻转(Q-390 口径)。
+// 主盘只在与 fields 同一起课时刻 / 地点时才拿来用(castChartFor):主盘还在途或取失败时它是上一刻的盘,
+// 这时按 fields 本地派生,不拿上一刻的农历顶这一刻的占时。
+export function resolveDivinationNongli(localFields, fields, chartWrap){
+	if(localFields){ return deriveNongliUniversalSync(localFields) || {}; }
+	const gf = fields || {};
+	const galg = gf.timeAlg && gf.timeAlg.value !== undefined && gf.timeAlg.value !== null ? Number(gf.timeAlg.value) : 0;
+	const sameCast = castChartFor(chartWrap, gf);
+	const chart = (sameCast && sameCast.chart) || {};
+	if(galg !== 0 && gf.date && gf.time){ return deriveNongliUniversalSync(gf) || chart.nongli || {}; }
+	if(chart.nongli){ return chart.nongli; }
+	return (!sameCast && gf.date && gf.time) ? (deriveNongliUniversalSync(gf) || {}) : {};
+}
+
 export function deriveNongliUniversalSync(fields){
 	const local = deriveLocalNongli(fields);
 	if(local){ return local; }
 	const params = paramsFromFields(fields);
 	if(!params){ return null; }
-	const key = JSON.stringify([params.date, params.time, params.ad, params.zone]);
+	// 缓存键 = 远端换算真正用到的全部输入(经度 / 时间算法 / 日界 / 晚子时;此前只有日期时刻与时区)
+	const key = JSON.stringify([params.date, params.time, params.ad, params.zone, params.lon || '', params.timeAlg, params.after23NewDay, params.lateZiHourUseNextDay]);
 	if(remoteNongliMemo.has(key)){ return remoteNongliMemo.get(key); }
 	if(!remoteNongliPending.has(key)){
 		remoteNongliPending.add(key);

@@ -38,7 +38,7 @@ describe('存储配额防线(quota 注错)', () => {
 			return original.call(this, k, v);
 		});
 		let ok;
-		// [V5-C3] 探针键必须用注册表已登记键(horosa.test.third.v1=safeStorage 自检探针,device-local):
+		// 探针键必须用注册表已登记键(horosa.test.third.v1=safeStorage 自检探针,device-local):
 		// 未登记键在 jest 环境被写入前置闸直接 throw —— 那正是 C3 闸的职责,不是本例要测的路径。
 		expect(() => { ok = safeLocalStorageSet('horosa.test.third.v1', 'value'); }).not.toThrow();
 		expect(ok).toBe(true);
@@ -90,7 +90,7 @@ describe('localCalcCache 存储分层(不再写 localStorage)', () => {
 	});
 });
 
-describe('[S2/S3] quota 判定单源并集 + 两档清理面', ()=>{
+describe('quota 判定单源并集 + 两档清理面', ()=>{
 	const fs = require('fs');
 	const path = require('path');
 	const { isQuotaError: iqe, purgeQuotaEmergency } = require('../safeStorage');
@@ -134,12 +134,16 @@ describe('[S2/S3] quota 判定单源并集 + 两档清理面', ()=>{
 		expect(window.localStorage.getItem('horosa.ai.snapshot.module.v1.bazi')).toBe('s2');
 	});
 
-	test('🔴 前缀字面一致哨兵:safeStorage 二档串 ≡ 快照模块常量(叶子 util 不可反向 import,钉源码)', ()=>{
+	test('🔴 两档清理面由注册表推导:AI 快照前缀(astro 单例 + 模块族)在告急档,快照模块常量与注册表前缀一致', ()=>{
+		const { classifyStorageKey } = require('../storageKeyRegistry');
+		const { quotaClearTier, QUOTA_TIER_EMERGENCY } = require('../safeStorage');
 		expect(ASTRO_AI_SNAPSHOT_KEY).toBe('horosa.ai.snapshot.astro.v1');
-		const safeSrc = fs.readFileSync(path.join(__dirname, '../safeStorage.js'), 'utf8');
 		const modSrc = fs.readFileSync(path.join(__dirname, '../moduleAiSnapshot.js'), 'utf8');
-		expect(safeSrc).toContain("'horosa.ai.snapshot.astro.v1',");
-		expect(safeSrc).toContain("'horosa.ai.snapshot.module.v1.',");
 		expect(modSrc).toContain("MODULE_SNAPSHOT_PREFIX = 'horosa.ai.snapshot.module.v1.'");
+		expect(quotaClearTier(classifyStorageKey(ASTRO_AI_SNAPSHOT_KEY))).toBe(QUOTA_TIER_EMERGENCY);
+		expect(quotaClearTier(classifyStorageKey('horosa.ai.snapshot.module.v1.bazi'))).toBe(QUOTA_TIER_EMERGENCY);
+		// safeStorage 不再手抄清单(手抄的清单漏了卦辞缓存)
+		const safeSrc = fs.readFileSync(path.join(__dirname, '../safeStorage.js'), 'utf8');
+		expect(safeSrc).not.toMatch(/NON_CRITICAL_KEYS|RECOVERABLE_CACHE_PREFIXES|QUOTA_EMERGENCY_PREFIXES/);
 	});
 });

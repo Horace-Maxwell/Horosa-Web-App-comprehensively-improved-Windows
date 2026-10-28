@@ -79,7 +79,7 @@ class AstroThemaMundi extends Component{
 						<span className="horosa-classical-zh">世界范式盘</span>
 						<span className="horosa-classical-en">Thema Mundi</span>
 					</span>
-					<span style={{ color: MUTED, fontSize: 12, flex: '0 0 auto' }}>{open ? '收起 ▲' : '展开 ▼'}</span>
+					<span style={{ color: MUTED, fontSize: 12, flex: '0 0 auto', whiteSpace: 'nowrap' }}>{open ? '收起 ▲' : '展开 ▼'}</span>
 				</div>
 				{open ? (
 					<div style={{ marginTop: 8 }}>

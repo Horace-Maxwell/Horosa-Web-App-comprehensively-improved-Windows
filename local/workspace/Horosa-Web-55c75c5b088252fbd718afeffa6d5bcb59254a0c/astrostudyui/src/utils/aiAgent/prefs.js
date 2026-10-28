@@ -13,9 +13,10 @@ export const AGENT_GOAL_ENABLED_KEY = 'horosa.ai.tasks.goal.enabled';   // 目�
 export const AGENT_ORCH_ENABLED_KEY = 'horosa.ai.orchestrate.enabled';   // 多技法编排(C7)子开关:'1' 才开;缺省关=/编排 只提示不发请求
 export const AGENT_EXTERNAL_TOOLS_KEY = 'horosa.ai.tools.external.enabled';   // 外部 MCP 服务器工具总开关(P6):'1' 才开;关=一个 ext_ 工具都不注册
 export const AGENT_WEB_SEARCH_KEY = 'horosa.ai.tools.webSearch.enabled';   // 联网检索(P7)总开关:'1' 才开;关=web_search 不进目录、零出站
-export const AGENT_WEB_FETCH_KEY = 'horosa.ai.tools.webFetch.enabled';   // [批三①] 网页读取(出站③)总开关:'1' 才开;关=web_fetch 不进目录、零出站
-export const AGENT_HEADLESS_KEY = 'horosa.ai.tools.headless.enabled';   // [批三③] 无头分析出口(run_analysis,只经本机 MCP):'1' 才开;关=不进任何目录
-export const AGENT_GOAL_PARALLEL_KEY = 'horosa.ai.tasks.goal.parallel';   // [批三⑤] 目标任务并行上限:0=现状(不排队不限),1..3=同时最多几条,其余排队
+export const AGENT_WEB_FETCH_KEY = 'horosa.ai.tools.webFetch.enabled';   // 网页读取(出站③)总开关:'1' 才开;关=web_fetch 不进目录、零出站
+export const AGENT_PRIVATE_READ_KEY = 'horosa.ai.tools.privateRead.enabled';   // 私人内容可读(对话记录 / 备注 / 断事日志,只经本机 MCP):'1' 才开;关=三件不进任何目录
+export const AGENT_HEADLESS_KEY = 'horosa.ai.tools.headless.enabled';   // 无头分析出口(run_analysis,只经本机 MCP):'1' 才开;关=不进任何目录
+export const AGENT_GOAL_PARALLEL_KEY = 'horosa.ai.tasks.goal.parallel';   // 目标任务并行上限:0=现状(不排队不限),1..3=同时最多几条,其余排队
 export const AGENT_GOAL_PARALLEL_MAX = 3;
 export const AGENT_AUTOMATION_KEY = 'horosa.ai.automation.enabled';   // 自动化规则(P4)总开关:'1' 才开;关=事件照发但引擎零动作
 export const AGENT_SCHEDULER_ENABLED_KEY = 'horosa.ai.tasks.scheduler.enabled';   // 定时任务(P3)子开关:'1' 才开;缺省关=零定时器零执行
@@ -23,7 +24,7 @@ export const AGENT_APPROVAL_MODES = ['never', 'on-request', 'read-only'];   // n
 export const AGENT_APPROVAL_CATEGORY_MODES = ['inherit', 'never', 'on-request', 'read-only'];
 // 类别单源 = 工具目录 TOOL_CATEGORIES(此前这里少了 interactive:反问类工具在类别档上无处收紧)
 export const AGENT_APPROVAL_CATEGORIES = TOOL_CATEGORIES.slice();
-// [批二②] 按工具名放行/禁用:{ allow:[name], deny:[name] };deny 任何级别都拒且不进工具目录,allow 只对写入类免逐次确认(只读档仍拒)
+// 按工具名放行/禁用:{ allow:[name], deny:[name] };deny 任何级别都拒且不进工具目录,allow 只对写入类免逐次确认(只读档仍拒)
 export const AGENT_TOOL_POLICY_KEY = 'horosa.ai.agent.toolPolicy.v1';
 export const AGENT_TOOL_POLICY_MAX = 64;
 export const AGENT_EXTERNAL_APPROVALS = ['auto', 'on-request', 'read-only'];
@@ -74,7 +75,7 @@ export function getAgentApprovalCategories(){
 export function setAgentApprovalCategory(category, mode){
 	if(AGENT_APPROVAL_CATEGORIES.indexOf(category) < 0 || AGENT_APPROVAL_CATEGORY_MODES.indexOf(mode) < 0){ return false; }
 	const next = { ...getAgentApprovalCategories(), [category]: mode };
-	try{ safeJsonStringifyToStorage(AGENT_APPROVAL_CATEGORIES_KEY, next); }catch(e){ return false; }
+	safeJsonStringifyToStorage(AGENT_APPROVAL_CATEGORIES_KEY, next);
 	emit();
 	return true;
 }
@@ -88,13 +89,14 @@ export function getTrustedRecords(){
 
 export function setTrustedRecords(list){
 	const next = Array.from(new Set((Array.isArray(list) ? list : []).filter((x)=>typeof x === 'string' && x))).slice(0, AGENT_TRUSTED_RECORDS_MAX);
-	try{ safeJsonStringifyToStorage(AGENT_TRUSTED_RECORDS_KEY, next); }catch(e){ return getTrustedRecords(); }
+	safeJsonStringifyToStorage(AGENT_TRUSTED_RECORDS_KEY, next);
 	emit();
 	return next;
 }
 
 // 外部客户端(本机 MCP 服务的调用方)档:缺省 auto=现状(令牌持有者=受信本机进程,不过审批档、不限额)。
-export const DEFAULT_EXTERNAL_POLICY = Object.freeze({ approval: 'auto', maxCallsPerMinute: 60, maxAdditivePerHour: 100 });
+// uiConfirm:「界面类也要确认」—— 外部客户端的界面类动作(切页 / 合盘配对 / 设对话挂载)也先弹本机审批台;缺省关 = 现状
+export const DEFAULT_EXTERNAL_POLICY = Object.freeze({ approval: 'auto', maxCallsPerMinute: 60, maxAdditivePerHour: 100, uiConfirm: false });
 function clampInt(v, min, max, d){
 	const n = Number(v);
 	if(!Number.isFinite(n)){ return d; }
@@ -107,6 +109,7 @@ export function getExternalPolicy(){
 		approval: AGENT_EXTERNAL_APPROVALS.indexOf(r.approval) >= 0 ? r.approval : DEFAULT_EXTERNAL_POLICY.approval,
 		maxCallsPerMinute: clampInt(r.maxCallsPerMinute, 1, 600, DEFAULT_EXTERNAL_POLICY.maxCallsPerMinute),
 		maxAdditivePerHour: clampInt(r.maxAdditivePerHour, 0, 10000, DEFAULT_EXTERNAL_POLICY.maxAdditivePerHour),
+		uiConfirm: r.uiConfirm === true,
 	};
 }
 
@@ -116,13 +119,14 @@ export function setExternalPolicy(partial){
 		approval: AGENT_EXTERNAL_APPROVALS.indexOf(next.approval) >= 0 ? next.approval : DEFAULT_EXTERNAL_POLICY.approval,
 		maxCallsPerMinute: clampInt(next.maxCallsPerMinute, 1, 600, DEFAULT_EXTERNAL_POLICY.maxCallsPerMinute),
 		maxAdditivePerHour: clampInt(next.maxAdditivePerHour, 0, 10000, DEFAULT_EXTERNAL_POLICY.maxAdditivePerHour),
+		uiConfirm: next.uiConfirm === true,
 	};
-	try{ safeJsonStringifyToStorage(AGENT_EXTERNAL_POLICY_KEY, norm); }catch(e){ return getExternalPolicy(); }
+	safeJsonStringifyToStorage(AGENT_EXTERNAL_POLICY_KEY, norm);
 	emit();
 	return norm;
 }
 
-// [进阶审计 D2] 恢复缺省 = 删键(与「从未设置」同形;缺省路径不留键)。
+// 恢复缺省 = 删键(与「从未设置」同形;缺省路径不留键)。
 export function clearExternalPolicy(){
 	safeLocalStorageRemove(AGENT_EXTERNAL_POLICY_KEY);
 	emit();
@@ -171,7 +175,7 @@ export function setWebSearchEnabled(on){
 	return isWebSearchEnabled();
 }
 
-// [批三①] 网页读取(出站③)总开关:'1' 才开;关 = web_fetch 工具 enabled() 为假(不进 manifest、调用即 E_TOOL_DISABLED),零出站
+// 网页读取(出站③)总开关:'1' 才开;关 = web_fetch 工具 enabled() 为假(不进 manifest、调用即 E_TOOL_DISABLED),零出站
 export function isWebFetchEnabled(){
 	return safeLocalStorageGet(AGENT_WEB_FETCH_KEY) === '1';
 }
@@ -182,7 +186,7 @@ export function setWebFetchEnabled(on){
 	return isWebFetchEnabled();
 }
 
-// [批三③] 无头分析出口总开关:'1' 才开;关 = run_analysis 不进任何目录(含 MCP)
+// 无头分析出口总开关:'1' 才开;关 = run_analysis 不进任何目录(含 MCP)
 export function isHeadlessEnabled(){
 	return safeLocalStorageGet(AGENT_HEADLESS_KEY) === '1';
 }
@@ -193,7 +197,18 @@ export function setHeadlessEnabled(on){
 	return isHeadlessEnabled();
 }
 
-// [批三⑤] 目标任务并行上限:0=现状(起跑即跑,不限不排队);1..3=同时最多几条,超出的保持 queued,前一条结束自动起下一条
+// 私人内容可读:外部客户端可读你与星阙 AI 的对话记录、档案备注与断事日志、档案关系(list_conversations / get_conversation /
+//   get_record_detail,只经本机 MCP);缺省关 = 三件不进任何目录、直呼其名 E_TOOL_DISABLED。
+export function isPrivateReadEnabled(){
+	return safeLocalStorageGet(AGENT_PRIVATE_READ_KEY) === '1';
+}
+export function setPrivateReadEnabled(on){
+	safeLocalStorageSet(AGENT_PRIVATE_READ_KEY, on ? '1' : '0');
+	emit();
+	return isPrivateReadEnabled();
+}
+
+// 目标任务并行上限:0=现状(起跑即跑,不限不排队);1..3=同时最多几条,超出的保持 queued,前一条结束自动起下一条
 export function getGoalParallel(){
 	const n = Number(safeLocalStorageGet(AGENT_GOAL_PARALLEL_KEY));
 	return Number.isFinite(n) && n >= 1 ? Math.min(AGENT_GOAL_PARALLEL_MAX, Math.round(n)) : 0;
@@ -235,7 +250,7 @@ export function getToolPolicy(){
 export function setToolPolicy(partial){
 	const cur = getToolPolicy();
 	const next = normalizeToolPolicy({ ...cur, ...(partial && typeof partial === 'object' ? partial : {}) });
-	try{ safeJsonStringifyToStorage(AGENT_TOOL_POLICY_KEY, next); }catch(e){ return cur; }
+	safeJsonStringifyToStorage(AGENT_TOOL_POLICY_KEY, next);
 	emit();
 	return next;
 }
@@ -246,7 +261,7 @@ export function bindCrossWindowPrefs(){
 	if(typeof window === 'undefined' || typeof window.addEventListener !== 'function' || crossWindowBound){ return ()=>{}; }
 	crossWindowBound = true;
 	// 只认本模块管的键(不写前缀字面:注册表穷举哨兵会把半截键当未登记键);key 为空 = 整个 storage 被清也重发
-	const mine = [AGENT_ENABLED_KEY, AGENT_APPROVAL_KEY, AGENT_APPROVAL_CATEGORIES_KEY, AGENT_TRUSTED_RECORDS_KEY, AGENT_EXTERNAL_POLICY_KEY, AGENT_GOAL_ENABLED_KEY, AGENT_ORCH_ENABLED_KEY, AGENT_EXTERNAL_TOOLS_KEY, AGENT_WEB_SEARCH_KEY, AGENT_WEB_FETCH_KEY, AGENT_HEADLESS_KEY, AGENT_GOAL_PARALLEL_KEY, AGENT_AUTOMATION_KEY, AGENT_SCHEDULER_ENABLED_KEY, AGENT_TOOL_POLICY_KEY];
+	const mine = [AGENT_ENABLED_KEY, AGENT_APPROVAL_KEY, AGENT_APPROVAL_CATEGORIES_KEY, AGENT_TRUSTED_RECORDS_KEY, AGENT_EXTERNAL_POLICY_KEY, AGENT_GOAL_ENABLED_KEY, AGENT_ORCH_ENABLED_KEY, AGENT_EXTERNAL_TOOLS_KEY, AGENT_WEB_SEARCH_KEY, AGENT_WEB_FETCH_KEY, AGENT_HEADLESS_KEY, AGENT_PRIVATE_READ_KEY, AGENT_GOAL_PARALLEL_KEY, AGENT_AUTOMATION_KEY, AGENT_SCHEDULER_ENABLED_KEY, AGENT_TOOL_POLICY_KEY];
 	const h = (e)=>{ const k = e && e.key != null ? `${e.key}` : ''; if(!k || mine.indexOf(k) >= 0){ emit(); } };
 	window.addEventListener('storage', h);
 	return ()=>{ window.removeEventListener('storage', h); crossWindowBound = false; };

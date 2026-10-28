@@ -1,4 +1,4 @@
-// AI 对话·回答审阅(C6;借鉴 Codex / Claude Code /review):优先用**另一家**模型,对照当前挂载的排盘数据检查一条回答,列出批注(错误/夸大/漏项/无据),
+// AI 对话·回答审阅(C6):优先用**另一家**模型,对照当前挂载的排盘数据检查一条回答,列出批注(错误/夸大/漏项/无据),
 // 「按批注重写」生成新回答(原回答保留并标「重写自」)。本文件纯函数:审阅 schema(strict)/ 提示词 / 审阅模型挑选(跨家族优先)/ 解析 / 重写指令。
 // 🔴 不得 import 任何生成管线/事实核对模块——确定性问题由调用方注入(deterministicIssues),本模块只负责把它们交给判官与解析结果。
 import { getProviderProtocolFamily, parseModelSelection } from './aiAnalysisProviders';
@@ -19,7 +19,7 @@ export const REVIEW_SCHEMA = {
 };
 
 // 审阅 system:挂载数据(复用页面同一 resolved system,**放最前**与对话请求同前缀吃缓存)+ 审阅标记 + 规则 + 程序核对已发现的问题(调用方注入;缺省空)
-// [Q-290/M-105·PP-19] 此前规则与「本条回答的确定性问题」在前、挂载数据在后 → 与对话请求不共享前缀,断点前的块每审一条不同回答写一次缓存几乎读不回。
+// 此前规则与「本条回答的确定性问题」在前、挂载数据在后 → 与对话请求不共享前缀,断点前的块每审一条不同回答写一次缓存几乎读不回。
 export function buildReviewSystemPrompt({ snapshotSystem, deterministicIssues, hasData }){
 	const sys = `${snapshotSystem || ''}`.trim();
 	const lines = [];

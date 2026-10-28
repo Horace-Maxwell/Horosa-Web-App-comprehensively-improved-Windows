@@ -14,6 +14,7 @@ import { XQButton, XQInput, XQSelect, XQTextArea } from '../xq-ui';
 import RecordRevisionsModal from '../common/RecordRevisionsModal';
 import { RecordJournalModal } from '../common/RecordToolsModals';
 import { listLocalCharts, upsertLocalChart } from '../../utils/localcharts';
+import { toRecordCopy } from '../../utils/localRecordStore';
 
 const Option = XQSelect.Option;
 
@@ -28,7 +29,7 @@ export default class ChartData extends Component{
 		}
 
 		this.submitted = false;
-		// [V6-UI] 历史版本/断事日志 Modal 开关(仅编辑已存盘时可用)。
+		// 历史版本/断事日志 Modal 开关(仅编辑已存盘时可用)。
 		this.zoneManual = false;
 
 		this.setValue = this.setValue.bind(this);
@@ -113,7 +114,7 @@ export default class ChartData extends Component{
 		this.setValue('memo', e.target.value);
 	}
 
-	// [V5-UI尾款] 研究三字段(memo 同款防御补槽;Select allowClear 清除=null 不落库)。
+	// 研究三字段(memo 同款防御补槽;Select allowClear 清除=null 不落库)。
 	changeRodden(val){
 		const flds = this.state.fields;
 		if(!flds.rodden){
@@ -229,7 +230,7 @@ export default class ChartData extends Component{
 		});
 	}
 
-	// [V6-UI] 取当前编辑盘的完整记录(历史/日志 Modal 用):按 cid 从库读最新态。
+	// 取当前编辑盘的完整记录(历史/日志 Modal 用):按 cid 从库读最新态。
 	currentRecord(){
 		try{
 			const cid = this.state.fields && this.state.fields.cid ? this.state.fields.cid.value : null;
@@ -375,7 +376,7 @@ export default class ChartData extends Component{
 						</Row>
 					</Col>
 				</Row>
-				{/* [V5-UI尾款] 研究三字段(全部可留空;present 才落库,旧档零变):
+				{/* 研究三字段(全部可留空;present 才落库,旧档零变):
 				    可信度=生辰数据可靠等级(录入界面惯例 AA 出生记录/A 本人口述/B 传记/C 无来源/DD 相互矛盾/X 无时间);
 				    资料出处=这条生辰从哪来;关系=固定筛选面(区别于自由标签)。 */}
 				<Row gutter={12} style={{marginTop: margintop}}>
@@ -418,7 +419,7 @@ export default class ChartData extends Component{
 					</Col>
 				</Row>
 
-				{/* [R4] 「是否公开」控件已隐藏:纯本地桌面版无发布语义(isPub 槽与数据字段保留,旧档兼容)。 */}
+				{/* 「是否公开」控件已隐藏:纯本地桌面版无发布语义(isPub 槽与数据字段保留,旧档兼容)。 */}
 				<Row gutter={12} style={{marginTop: margintop}}>
 					<Col span={24}>
 						<Row>
@@ -439,7 +440,7 @@ export default class ChartData extends Component{
 					</Col>
 					<Col span={12}>
 						<XQButton onClick={this.clickReturn}>{returnTitle}</XQButton>
-						{/* [V6-UI] 历史版本/断事日志入口移入编辑页(用户定谳:批量条太挤,盘级动作跟盘走)。
+						{/* 历史版本/断事日志入口移入编辑页(用户定谳:批量条太挤,盘级动作跟盘走)。
 						    仅编辑已存盘(有 cid)时显示;新建盘尚无历史/日志。 */}
 						{flds.cid && flds.cid.value ? (
 							<span style={{ marginLeft: 8 }}>
@@ -457,11 +458,7 @@ export default class ChartData extends Component{
 							record={this.currentRecord()}
 							onClose={()=>this.setState({ revisionsOpen: false })}
 							onRestoreAsCopy={(snap)=>{
-								const dup = { ...snap };
-								delete dup.cid;
-								delete dup.schemaVersion;
-								dup.name = `${dup.name || ''}(历史版)`;
-								upsertLocalChart(dup);
+								upsertLocalChart(toRecordCopy(snap, { titleKey: 'name', suffix: '(历史版)' }));
 							}}
 						/>
 						<RecordJournalModal

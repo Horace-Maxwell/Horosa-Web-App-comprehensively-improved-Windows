@@ -1,8 +1,7 @@
 import { Component } from 'react';
 import { SU28_MODE_LABEL } from '../guolao/guolaoData';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
-import { safeLocalStorageSet } from '../../utils/safeStorage';
+import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { message } from 'antd';
 import DateTime from '../comp/DateTime';
 import QuickDockBar from '../common/QuickDockBar';
@@ -13,98 +12,19 @@ import * as AstroText from '../../constants/AstroText';
 import * as AstroConst from '../../constants/AstroConst';
 import * as SZConst from './SZConst';
 import * as Su28Helper from '../su28/Su28Helper';
+import { signDegMin, astroMsgPlainText as msg } from '../astro/AstroHelper';
 import SuZhanInput from './SuZhanInput';
 import SuZhanChart from './SuZhanChart';
 import { saveModuleAISnapshot, saveModuleAISnapshotLazy, } from '../../utils/moduleAiSnapshot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { XQTabs as Tabs, XQSideSection  } from '../xq-ui';
 import XQIcon from '../xq-icons';
-// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+// 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
 import { visualFloorPx } from '../../utils/zoomDomain';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
 const { TabPane } = Tabs;
-
-const SIMPLE_TOKEN_MAP = {
-	A: '日',
-	B: '月',
-	C: '水',
-	D: '金',
-	E: '火',
-	F: '木',
-	G: '土',
-	H: '天王',
-	I: '海王',
-	J: '冥王',
-	K: '北交',
-	L: '南交',
-	p: '福点',
-	v: '暗月',
-	w: '紫气',
-	y: '凯龙',
-	z: '月亮朔望点',
-	Y: '月亮平均远地点',
-	$: '月亮平均近地点',
-	a: '白羊',
-	b: '金牛',
-	c: '双子',
-	d: '巨蟹',
-	e: '狮子',
-	f: '处女',
-	g: '天秤',
-	h: '天蝎',
-	i: '射手',
-	j: '摩羯',
-	k: '水瓶',
-	l: '双鱼',
-	0: '上升',
-	1: '天顶',
-	2: '天底',
-	3: '下降',
-	4: '谷神星',
-	5: '智神星',
-	6: '婚神星',
-	7: '灶神星',
-	8: '人龙星',
-};
-
-function splitDegree(degree){
-	let d = Number(degree);
-	if(Number.isNaN(d)){
-		return [0, 0];
-	}
-	if(d < 0){
-		d += 360;
-	}
-	const deg = Math.floor(d % 30);
-	const min = Math.floor(((d % 30) - deg) * 60);
-	return [deg, min];
-}
-
-function isEncodedToken(text){
-	return /^[A-Za-z0-9${}]$/.test((text || '').trim());
-}
-
-function msg(id){
-	if(id === undefined || id === null){
-		return '';
-	}
-	if(AstroText.AstroTxtMsg[id]){
-		return AstroText.AstroTxtMsg[id];
-	}
-	if(AstroText.AstroMsg[id]){
-		const val = AstroText.AstroMsg[id];
-		if(!isEncodedToken(val)){
-			return `${val}`;
-		}
-	}
-	const one = `${id}`.trim();
-	if(one.length === 1 && SIMPLE_TOKEN_MAP[one]){
-		return SIMPLE_TOKEN_MAP[one];
-	}
-	return `${id}`;
-}
 
 function chartTypeName(type){
 	const map = {};
@@ -209,7 +129,7 @@ export function buildHouseObjectLines(chart){
 			return;
 		}
 		inHouse.forEach((obj, k)=>{
-			const sd = splitDegree(obj.signlon);
+			const sd = signDegMin(obj.signlon);
 			lines.push(`| ${k === 0 ? msg(house.id) : '—'} | ${msg(obj.id)} | ${sd[0]} | ${msg(obj.sign)} | ${sd[1]} | ${obj.su28 || '—'} |`);
 		});
 	});
@@ -265,7 +185,7 @@ function buildSu28ObjectLines(chart, planetDisplay){
 			if(radeg < 0){
 				radeg += 360;
 			}
-			const sd = splitDegree(radeg);
+			const sd = signDegMin(radeg);
 			lines.push(`星体：${msg(obj.id)} ${sd[0]}˚${obj.su28}${sd[1]}分`);
 		});
 		lines.push('');
@@ -296,7 +216,7 @@ function buildHouseSuLines(rootObj, chart, planetDisplay, fields){
 			return AstroConst.isTraditionPlanet(obj.id);
 		});
 		inHouse = inHouse.sort((a, b)=>{
-			// [X1·P2-12] 环形序须对称全序:跨 0°RA 的宫,300°+ 侧在前、30°- 侧在后,两向都要判;
+			// 环形序须对称全序:跨 0°RA 的宫,300°+ 侧在前、30°- 侧在后,两向都要判;
 			// 旧版只判一侧(非对称比较器,Array.sort 行为未定义 → 宫内列序随实现漂移)。
 			if(a.ra > 300 && b.ra < 30){ return -1; }
 			if(b.ra > 300 && a.ra < 30){ return 1; }
@@ -351,7 +271,7 @@ function buildHouseSuLines(rootObj, chart, planetDisplay, fields){
 				}else{
 					radeg = Number(obj.signlon);
 				}
-				const sd = splitDegree(radeg);
+				const sd = signDegMin(radeg);
 				lines.push(`星曜：${msg(obj.id)} ${sd[0]}˚${su}${sd[1]}分`);
 			});
 		});
@@ -361,7 +281,7 @@ function buildHouseSuLines(rootObj, chart, planetDisplay, fields){
 	return lines;
 }
 
-// [v2 排版] 宫宿三行组(宫位：/二十八宿：/星曜：×12 宫)折叠成 GFM 表行(经归一器直通、docx/PDF 渲染真表)。
+// 宫宿三行组(宫位：/二十八宿：/星曜：×12 宫)折叠成 GFM 表行(经归一器直通、docx/PDF 渲染真表)。
 // 单一真值仍是 buildHouseSuLines(UI「宫宿」tab 与本表同源共用,故不动原函数,只做排版折叠):
 // 单元格值=原行全角冒号后文本逐字搬运(一宫多宿/多曜以「、」并列;空宫沿用原「无」),数值零变更。
 function foldHouseSuLinesToTable(suLines){
@@ -416,7 +336,7 @@ export function buildSuzhanSnapshotText(chartObj, fields, planetDisplay){
 		lines.push(`盘型：${chartShapeName(fields.szshape.value)}`);
 	}
 	if(fields && fields.doubingSu28){
-		lines.push(`宿法：${SU28_MODE_LABEL[fields.doubingSu28.value] || (fields.doubingSu28.value === 1 ? '斗柄定房法' : '荀爽距星(19年测)')}`);   // [Q-203] 九档同源取名
+		lines.push(`宿法：${SU28_MODE_LABEL[fields.doubingSu28.value] || (fields.doubingSu28.value === 1 ? '斗柄定房法' : '荀爽距星(19年测)')}`);   // 九档同源取名
 	}
 	if(fields && fields.houseStartMode){
 		lines.push(`人事十二宫起盘：${houseStartModeName(fields.houseStartMode.value)}`);
@@ -447,12 +367,21 @@ function buildSuZhanCaseOptions(fields){
 		szshape: fieldValue(fields, 'szshape', SZConst.SZChart.shape),
 		doubingSu28: fieldValue(fields, 'doubingSu28', 0),
 		houseStartMode: fieldValue(fields, 'houseStartMode', SZConst.SZChart.houseStartMode),
+		// 黄道 / 宫制 / 岁差(含自定义历元两键)随案存:此前只存上面四键,载入 / 挂载重算按当下全局起盘,与存案时所见不同。
+		// 只写盘上真有的值(缺 = 不写,旧事盘不带这几键 → 维持现状)
+		...SUZHAN_CASE_CHART_KEYS.reduce((acc, k)=>{
+			const v = fields && fields[k] ? fields[k].value : undefined;
+			if(v !== undefined && v !== null && v !== ''){ acc[k] = v; }
+			return acc;
+		}, {}),
 	};
 }
+// 宿占存案随案存的盘面口径键(载入与挂载都从 payload.options 读;与 techniqueMountSettings suzhan.recordPayloadKeys 同一张)
+export const SUZHAN_CASE_CHART_KEYS = ['zodiacal', 'hsys', 'siderealAyanamsa'];   // 自定义历元(user 档)的参数存在全局设置里,不随盘
 
 
 class SuZhanMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -514,25 +443,17 @@ class SuZhanMain extends Component{
 		const payload = saved.payload;
 		const options = payload.options && typeof payload.options === 'object' ? payload.options : {};
 		const patch = {};
-		['szchart', 'szshape', 'doubingSu28', 'houseStartMode'].forEach((key)=>{
+		['szchart', 'szshape', 'doubingSu28', 'houseStartMode', ...SUZHAN_CASE_CHART_KEYS].forEach((key)=>{
 			if(options[key] !== undefined && options[key] !== null){
 				patch[key] = { value: options[key] };
 			}
 		});
-		if(patch.szchart){
-			SZConst.SZChart.chart = parseInt(patch.szchart.value, 10);
-			safeLocalStorageSet('suzhanChartType', patch.szchart.value);
-		}
-		if(patch.szshape){
-			SZConst.SZChart.shape = parseInt(patch.szshape.value, 10);
-			safeLocalStorageSet('suzhanChartShape', patch.szshape.value);
-		}
+		// 载入事盘只改本次盘面用的值(经字段带进这张盘),不写你的偏好(盘式 / 盘形 / 人事十二宫起宫),也不改全站单例:
+		// 画盘与左栏都是字段优先,单例只是字段缺省时的回落 —— 改了单例,之后点「新命盘」(新字段没有外盘 / 盘形)
+		// 宿占页仍按这条事盘画,七政宿盘的盘形也跟着变
 		if(patch.houseStartMode){
-			const houseStartMode = parseInt(patch.houseStartMode.value, 10) === SZConst.SZHouseStart_ASC
+			patch.houseStartMode.value = parseInt(patch.houseStartMode.value, 10) === SZConst.SZHouseStart_ASC
 				? SZConst.SZHouseStart_ASC : SZConst.SZHouseStart_Bazi;
-			patch.houseStartMode.value = houseStartMode;
-			SZConst.SZChart.houseStartMode = houseStartMode;
-			safeLocalStorageSet('suzhanHouseStartMode', houseStartMode);
 		}
 		this.lastRestoredCaseId = saved.caseVersion;
 		if(Object.keys(patch).length > 0 && this.props.dispatch){
@@ -569,7 +490,7 @@ class SuZhanMain extends Component{
 		});
 	}
 
-	// [Q-218/T-173] 分至等宿主内嵌的宿盘页签是「只读嵌入」:不回灌宿占事盘(残缺 fields 派发全局重排 → saga 抛错,
+	// 分至等宿主内嵌的宿盘页签是「只读嵌入」:不回灌宿占事盘(残缺 fields 派发全局重排 → saga 抛错,
 	// 且把存档外盘/盘型写进共享常量)、不写 'suzhan' 快照槽、不响应顶栏刷新(否则宿占页导出拿到分至宿盘)。
 	isEmbeddedReadOnly(){
 		return !!this.props.embeddedReadOnly;
@@ -673,6 +594,7 @@ class SuZhanMain extends Component{
 						<SuZhanInput
 							fields={this.props.fields}
 							onFieldsChange={this.onFieldsChange}
+							embeddedReadOnly={this.isEmbeddedReadOnly()}
 						/>
 					</div>
 				</XQSideSection>
@@ -693,7 +615,7 @@ class SuZhanMain extends Component{
 			['地点', geo],
 			['外盘', fields.szchart ? chartTypeName(fields.szchart.value) : chartTypeName(SZConst.SZChart.chart)],
 			['盘型', fields.szshape ? chartShapeName(fields.szshape.value) : chartShapeName(SZConst.SZChart.shape)],
-			['宿法', fields.doubingSu28 && fields.doubingSu28.value === 1 ? '斗柄定房法' : '现实距星法'],
+			['宿法', fields.doubingSu28 ? (SU28_MODE_LABEL[Number(fields.doubingSu28.value)] || SU28_MODE_LABEL[0]) : SU28_MODE_LABEL[0]],   // 九档同源取名(与快照「宿法：」行一致)
 			['人事十二宫', fields.houseStartMode ? houseStartModeName(fields.houseStartMode.value) : houseStartModeName(SZConst.SZChart.houseStartMode)],
 			['宫位数', chart.houses ? chart.houses.length : '—'],
 			['星曜数', chart.objects ? chart.objects.length : '—'],

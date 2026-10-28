@@ -1,4 +1,4 @@
-# [WP-7] 自定义界表 + 自定义恒星黄道双向量锚。
+# 自定义界表 + 自定义恒星黄道双向量锚。
 from astrostudy.perchart import PerChart, push_classical_request, pop_classical_request, _buildCustomTermsTable
 from flatlib.dignities import essential
 from flatlib import const

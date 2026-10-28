@@ -14,7 +14,7 @@ Invariants asserted:
      (only intermediate cusps 2/3/5/6/8/9/11/12 may differ).
   4. Methods with no confident mapping (in_zodiaco_lon, in_zodiaco_abs, unknown)
      fall back to the resolved natal house system. equal_hour_circle now maps to
-     Meridian ([Q-531] equal equatorial division projected along hour circles ==
+     Meridian (equal equatorial division projected along hour circles ==
      the Meridian system; matches the 3D sphere's closed-form cusps).
 
 Run with:
@@ -45,7 +45,7 @@ CONFIDENT = {
     'porphyry': 'Porphyrius',
     'equal_ecliptic': 'Equal',
     'morinus': 'Morinus',
-    'equal_hour_circle': 'Meridian',   # [Q-531/T-493] 与 3D 天球赤经等分同口径
+    'equal_hour_circle': 'Meridian',   # 与 3D 天球赤经等分同口径
 }
 # Registered methods with no confident house-system mapping: they intentionally
 # fall back to the resolved natal house system at the dial layer.

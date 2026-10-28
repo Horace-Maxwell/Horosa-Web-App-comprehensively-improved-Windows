@@ -1,4 +1,4 @@
-// [D8/Q1] 非流式短调用必须带中止信号(先红)。合同/判别向量:
+// 非流式短调用必须带中止信号(先红)。合同/判别向量:
 //   用户按「停止」/关页面后,流式那一路早就靠 AbortController 收住了;非流式短调用却各走各的——
 //   判官(goalRunner.judgeGoal)、编排的 shortJson(规划/综合)、联网检索(integrations/webSearch)
 //   三处都不带 signal → 停了之后请求还在飞:继续烧 token,回来还可能改任务状态(计划批一 #11)。
@@ -88,7 +88,7 @@ describe('Q1 · 源码结构层(剥注释)', ()=>{
 		// 当前红:useChatOrchestrate.js:46 的 requestAIAnalysisChat({…}) 里没有 signal;
 		// 同文件 :113 明明已经有 abortRef/AbortController(流式那路在用),短调用却没接上。
 		const src = readStripped('orchestrate');
-		// [D11] 结构化短调用经 requestStructuredWithFallback(requestAIAnalysisChat, {…}) 包装(空正文第三级降级):包装形态的参数原文同样必须带 signal
+		// 结构化短调用经 requestStructuredWithFallback(requestAIAnalysisChat, {…}) 包装(空正文第三级降级):包装形态的参数原文同样必须带 signal
 		const calls = allCallArgs(src, 'requestAIAnalysisChat')
 			.concat(allCallArgs(src, 'requestStructuredWithFallback').filter((a)=>/^\s*requestAIAnalysisChat\s*,/.test(a)));
 		expect(calls.length).toBeGreaterThan(0);

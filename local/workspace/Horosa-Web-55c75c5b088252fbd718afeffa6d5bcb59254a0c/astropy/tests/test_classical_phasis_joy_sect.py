@@ -29,7 +29,7 @@ def test_phase_boundaries():
         return p.phase
 
     # 金星可见弧 5°(<焦伤阈 8.5°)→ 焦伤吃满到 8.5°:4°焦伤、8.5°自由光、近核心。
-    # [Q-254/T-224 ①] 缺省焦伤阈由 8° 统一为 8.5°(与「太阳关系」行同 1647 口径),8.0° 现落焦伤带内。
+    # 缺省焦伤阈由 8° 统一为 8.5°(与「太阳关系」行同 1647 口径),8.0° 现落焦伤带内。
     assert phase('Venus', 4.0) == 'combust'
     assert phase('Venus', 8.0) == 'combust'
     assert phase('Venus', 8.5) == 'free'

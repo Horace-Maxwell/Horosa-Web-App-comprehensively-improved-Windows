@@ -3,7 +3,7 @@
 // 逆位域义由逆位模式引擎在正位域义上派生,不另存逆位域表(与 reversalModes 单一真值协同)。
 // 健康域显示端恒挂「传统占验视角,非医疗建议」免责(护栏在消费端统一加,不入数据)。
 // 已录:大牌 22(以健康与主干域为主) · 数字牌 40 全 · 宫廷 16(人物与事件向);accessor 对缺条返回 null。
-import { isTrumpArcana } from '../engine/arcana.js'; // [QA-9] 王牌判据单一真值源
+import { isTrumpArcana } from '../engine/arcana.js'; // 王牌判据单一真值源
 export const DOMAIN_KEYS = ['love', 'career', 'study', 'health', 'travel', 'money', 'legal'];
 export const DOMAIN_CN = { love: '感情', career: '事业', study: '学业', health: '健康', travel: '出行', money: '财务', legal: '文书讼务' };
 

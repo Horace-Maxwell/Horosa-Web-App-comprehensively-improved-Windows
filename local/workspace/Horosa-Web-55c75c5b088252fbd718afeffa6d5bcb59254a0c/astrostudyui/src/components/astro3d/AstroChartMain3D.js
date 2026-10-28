@@ -24,10 +24,10 @@ import {
 	XQToolbar,
 	XQSideSection,
 } from '../xq-ui';
-import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P2]
+import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import * as AstroConst from '../../constants/AstroConst';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
-// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+// 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
 import { visualFloorPx } from '../../utils/zoomDomain';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
@@ -69,13 +69,14 @@ class AstroChartMain3D extends Component{
 		// 右栏 tabs 实测高:写死扣高(height-252)与各卡实际高度脱节 → 底部大空白;RO 量真值。
 		this.attachSideTabsRO = (node)=>{
 			if(!node || node === this._sideTabsNode || typeof ResizeObserver === 'undefined'){ return; }
-			if(this._sideRO){ try{ this._sideRO.disconnect(); }catch(e){} }
+			if(this._sideRO){ this._sideRO.disconnect(); }
 			this._sideTabsNode = node;
 			this._sideRO = new ResizeObserver(()=>{ clearTimeout(this._sideROT); this._sideROT = setTimeout(()=>{
 				try{
 					const nav = node.querySelector('.ant-tabs-nav');
 					const h = Math.floor(node.clientHeight - (nav ? nav.offsetHeight : 46) - 2);
-					if(h > 160 && Math.abs(h - (this.state.tabH || 0)) > 6){ this.setState({ tabH: h }); }
+					// 量到就用(页签区下限由样式给出:.horosa-3d-tabs-fill min-height 320)—— 此前只认 > 160,矮了就停在旧值,内联高回落「height − 252」的写死扣高
+					if(h > 0 && Math.abs(h - (this.state.tabH || 0)) > 6){ this.setState({ tabH: h }); }
 				}catch(e){}
 			}, 80); });
 			try{ this._sideRO.observe(node); }catch(e){}
@@ -277,7 +278,7 @@ class AstroChartMain3D extends Component{
 		}
 	}
 
-	// [A7·性能] 重 wrapper sCU(照 BaZi/ZiWeiMain 既有范式):全 props 机械浅比(函数型视为恒等,
+	// 重 wrapper sCU(照 BaZi/ZiWeiMain 既有范式):全 props 机械浅比(函数型视为恒等,
 	// 开关 horosa.perf.chartSCU 关=恒重渲旧行为),state 引用变照常重渲(setState 恒换引用)。
 	// 收益:激活态下宿主无关 dispatch 不再整树白跑本重组件。
 	shouldComponentUpdate(nextProps, nextState){
@@ -309,7 +310,7 @@ class AstroChartMain3D extends Component{
 
 	componentWillUnmount(){
 		clearTimeout(this._sideROT);
-		if(this._sideRO){ try{ this._sideRO.disconnect(); }catch(e){} }
+		if(this._sideRO){ this._sideRO.disconnect(); }
 		if(this._stepPrefetcher){
 			unregisterStepPrefetcher('astrochart3D', this._stepPrefetcher);
 			this._stepPrefetcher = null;
@@ -395,7 +396,7 @@ class AstroChartMain3D extends Component{
 						<div className="horosa-3d-hint">双击画布进入或退出全屏</div>
 					</div>
 					<div className="horosa-3d-canvas-wrap">
-						{/* [主限天球入口下线·2026-08-01 清理] 原 boardMode==='pdsphere' 分支已删:
+						{/* 原 boardMode==='pdsphere' 分支已删:
 						    boardMode 在 constructor 里硬编码 'chart' 且全文件无任何 setState 改它,
 						    该条件恒 false —— 是死路径。但它那行静态 import AstroPDSphere 会把
 						    PDSphereEngine + three 白白拖进本 3D chunk。主限天球只从星运页进入。 */}
@@ -412,7 +413,7 @@ class AstroChartMain3D extends Component{
 					</div>
 				</XQPanel>
 				<XQPanel className="horosa-3d-side">
-					{/* [观象P2] 3D 页右栏三段式:时间(不折叠)/盘面参数/地点;XQSectionTitle 升级可折叠段 */}
+					{/* 3D 页右栏三段式:时间(不折叠)/盘面参数/地点;XQSectionTitle 升级可折叠段 */}
 					{showdateselector ? (
 						<XQSideSection iconName={sideSectionIcon('time')} title="时间" collapsible={false}>
 						<div className="horosa-3d-time">
@@ -442,11 +443,11 @@ class AstroChartMain3D extends Component{
 								value={this.props.fields.hsys.value}
 								size='small'
 							>
-								{ getHousesOption() }
+								{ getHousesOption(true) }
 							</XQSelect>
 						) : null}
 						{showhsys ? (
-							// [TL-16] 星座口径只对南纬盘生效(changeSouthChart 北纬直接 return):北纬置灰并写明,此前受控值不变、无任何提示
+							// 星座口径只对南纬盘生效(changeSouthChart 北纬直接 return):北纬置灰并写明,此前受控值不变、无任何提示
 							<XQSelect
 								onChange={this.changeSouthChart}
 								value={this.props.fields.southchart.value}
@@ -495,8 +496,8 @@ class AstroChartMain3D extends Component{
 						</XQToolbar>
 					) : null}
 					<div className="horosa-3d-tabs-fill" ref={this.attachSideTabsRO}>
-					{/* [Q-376/T-356 裁决 2026-09-18] 非地心时右栏四页签仍是地心盘(/chart3d/state 只重算球体与轨道)→ 明说,不再让帮助的「整盘重算」误导 */}
-					{this.state.centerMode && this.state.centerMode !== 'geo' ? <div className="horosa-3d-geo-note" style={{ fontSize: 12, opacity: 0.75, padding: '2px 8px' }}>以下信息 / 相位 / 行星 / 希腊点为地心盘（换心只作用于 3D 球体与轨道；悬浮提示按黄道设置取座）</div> : null}
+					{/* 非地心时右栏四页签仍是地心盘(/chart3d/state 只重算球体与轨道)→ 明说,不再让帮助的「整盘重算」误导 */}
+					{this.state.centerMode && this.state.centerMode !== 'geo' ? <div className="horosa-3d-geo-note" style={{ fontSize: 12, opacity: 0.75, padding: '2px 8px' }}>以下信息 / 相位 / 行星 / 希腊点为地心盘（换心只作用于 3D 球体与轨道；单击提示按黄道设置取座）</div> : null}
 					{/* horosa_freeze_subtabs_v1：右栏 5 个面板此前全内联 —— 首次激活后永久挂载，
 					    此后每次改时间/改宫制/切中心体都把看不见的相位表、行星表、希腊点表一并重渲，
 					    直接吃掉「右栏画完」的预算。函数式 children：从未激活过的面板连元素都不建；

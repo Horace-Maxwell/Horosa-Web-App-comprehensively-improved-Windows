@@ -3,6 +3,7 @@
 // 故关掉几层时余层自动加宽、不留空环。文字沿半径排布（内→外逐字），即传统罗盘读法。
 // 亮/暗双主题(--fs-* 令牌带兜底色，无 JS 主题分支)。
 import React, { useMemo, useRef, useCallback, useState } from 'react';
+import { polar, CHAR_PITCH, RadialText } from './chartGeom';
 import { LUOPAN_LAYERS, NEEDLE_OFFSET } from '../fengshuiData';
 
 const JX_FILL = {
@@ -14,10 +15,6 @@ const JX_FILL = {
 const JX_TEXT = { good: 'var(--fs-good,#2e9c5a)', bad: 'var(--fs-bad,#c0392b)', mild: 'var(--fs-gold,#b8862f)' };
 
 const norm = (d)=>((Number(d) % 360) + 360) % 360;
-function polar(cx, cy, r, deg) {
-	const a = (deg - 90) * Math.PI / 180;   // 0°=正上(北)，顺时针
-	return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
-}
 // 环形扇区路径（deg0→deg1 顺时针，rIn/rOut）。
 function sectorPath(cx, cy, rIn, rOut, deg0, deg1) {
 	let sweep = norm(deg1 - deg0);
@@ -29,30 +26,7 @@ function sectorPath(cx, cy, rIn, rOut, deg0, deg1) {
 	const [dx, dy] = polar(cx, cy, rIn, deg0);
 	return `M ${ax} ${ay} A ${rOut} ${rOut} 0 ${large} 1 ${bx} ${by} L ${cx2} ${cy2} A ${rIn} ${rIn} 0 ${large} 0 ${dx} ${dy} Z`;
 }
-// 🔴 字距常数 = CJK 排版盒高与字号之比的上界 + 余量。
-//    实机 getBBox 实测：盒高/字号 ∈ [1.147, 1.183]（盒宽/字号 = 1.00，全角）。
-//    径向字距与「按字数分配字号」都必须 ≥ 该上界，否则相邻字的盒必相压：
-//    step 被 usable/n 夹住时，box = fs×1.183 而 step = usable/n = fs×PITCH → PITCH < 1.183 即重叠。
-//    此前 1.04 → 严重重叠（用户实测反馈）；1.18 → 仍余 20% 边缘重叠；取 1.20 方彻底净空。
-const CHAR_PITCH = 1.20;
-// 沿半径逐字排布（首字在内、末字在外），即罗盘自内向外读。
-function RadialText({ cx, cy, rIn, rOut, deg, text, fs, fill, weight }) {
-	const s = `${text || ''}`;
-	if (!s) { return null; }
-	const n = s.length;
-	const span = rOut - rIn;
-	const step = Math.min(fs * CHAR_PITCH, span / Math.max(1, n));
-	const mid = (rIn + rOut) / 2;
-	const first = mid - (n - 1) * step / 2;
-	return (
-		<g transform={`rotate(${deg} ${cx} ${cy})`}>
-			{s.split('').map((ch, i)=>(
-				<text key={i} x={cx} y={cy - (first + i * step)} fontSize={fs} textAnchor="middle"
-					dominantBaseline="central" fill={fill} fontWeight={weight}>{ch}</text>
-			))}
-		</g>
-	);
-}
+// 字距常数 CHAR_PITCH 与沿半径逐字排布 RadialText 用共用件(chartGeom;每个字带整词属性,繁体按整词定字)。
 
 // 天池：磁针（红头指北）+ 海底十字子午线 + 两点。
 function TianChi({ cx, cy, r }) {
@@ -228,7 +202,7 @@ export default function LuopanDial({ deg = 0, zuoShan = null, xiangShan = null, 
 			<circle cx={gx} cy={gy} r={3.2} fill="var(--fs-bad,#c0392b)" />
 			<g transform={`translate(${bx},${by})`}>
 				<rect x={-24} y={-11} width={48} height={22} rx={11} fill="var(--fs-bad,#c0392b)" opacity={0.92} />
-				<text x={0} y={0} fontSize={12} textAnchor="middle" dominantBaseline="central" fill="#fff" fontWeight={700}>{d.toFixed(1)}°</text>
+				<text x={0} y={0} fontSize={12} textAnchor="middle" dominantBaseline="central" fill="var(--horosa-on-solid)" fontWeight={700}>{d.toFixed(1)}°</text>
 			</g>
 			{/* hover 读数气泡：悬停哪一环就报该环在该角度的读数（盘心下方固定位，不跟指针跑、不遮环） */}
 			{hover ? (()=>{

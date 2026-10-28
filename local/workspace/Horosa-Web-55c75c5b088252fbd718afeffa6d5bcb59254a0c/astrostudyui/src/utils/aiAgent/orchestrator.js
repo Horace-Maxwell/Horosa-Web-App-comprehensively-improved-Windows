@@ -1,4 +1,4 @@
-// AI 助手·多技法编排子代理(C7;借鉴 Roo Code 编排模式 / Claude Code 子代理):复杂问题 → 规划(拆成 ≤4 个「技法 × 子问题」)→ 每个子任务一个**只读**子 Turn
+// AI 助手·多技法编排子代理(C7):复杂问题 → 规划(拆成 ≤4 个「技法 × 子问题」)→ 每个子任务一个**只读**子 Turn
 // (只挂该技法层、≤3 轮、零写入)→ 综合成一份回答并确定性渲染「分歧标注」。本文件纯控制流:限额 / strict schema / 提示词 / 解析 / 只读注册表视图 /
 // runOrchestration(IO 全注入,零副作用);零新工具零新错误码(只读视图拒写复用 E_APPROVAL_DENIED);子开关 horosa.ai.orchestrate.enabled 由页面判。
 import * as defaultRegistry from '../aiTools/registry';
@@ -133,7 +133,7 @@ export function composeContent(synth, labelOf){
 	return dis ? `${body}\n\n${dis}` : body;
 }
 
-// 只读注册表视图([D79] 单源在 aiAgent/readOnlyRegistry.js;这里保留同名导出以免既有引用断链):manifest 只露 read 级;取/跑 additive 一律拒(复用 E_APPROVAL_DENIED)
+// 只读注册表视图(单源在 aiAgent/readOnlyRegistry.js;这里保留同名导出以免既有引用断链):manifest 只露 read 级;取/跑 additive 一律拒(复用 E_APPROVAL_DENIED)
 export function readOnlyRegistryView(registry){
 	return sharedReadOnlyRegistryView(registry, { denyMessage: (name)=>`子任务只读:拒绝执行 ${name}` });
 }
@@ -186,7 +186,7 @@ export async function runOrchestration({ question, techniques, io, limits, signa
 	if(ok.length === 1){ synthesis = { answer: ok[0].text.trim(), disagreements: [], confidence: 'medium', fallback: false, single: true }; }
 	else{
 		try{ requests.synthesis += 1; const txt = await io.synthesize(buildSynthesisPrompt({ question, results: ok })); synthesis = parseSynthesis(txt); }catch(e){ synthesis = null; }
-		if(aborted()){ return { plan, subTurns, synthesis: null, content: '', status: 'aborted', requests }; }   // [Q-294/AR-05②] 综合阶段点停止不落 done
+		if(aborted()){ return { plan, subTurns, synthesis: null, content: '', status: 'aborted', requests }; }   // 综合阶段点停止不落 done
 		if(!synthesis){ synthesis = fallbackSynthesis(ok); }
 	}
 	progress({ stage: 'synthesized', synthesis });

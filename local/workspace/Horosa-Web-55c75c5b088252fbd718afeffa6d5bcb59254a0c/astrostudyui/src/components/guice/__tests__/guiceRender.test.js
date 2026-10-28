@@ -14,7 +14,7 @@ import { DEFAULT_GUICE_SETTINGS } from '../guiceSchools';
 const zhu = (ganzi) => ({
   ganzi, stem: { cell: ganzi[0] }, branch: { cell: ganzi[1] },
 });
-const VALUE = { chart: { nongli: {
+const VALUE = { params: { birth: '2000-06-26 12:00:00', zone: 8 }, chart: { nongli: {   // params:与 FIELDS 同一起课时刻(主盘回包带起盘参数)
   date: '2000-06-26', year: '庚辰', monthInt: 5, dayInt: 25, leap: false,
   bazi: { year: zhu('庚辰'), month: zhu('壬午'), day: zhu('丙申'), time: zhu('甲午') },
 } } };
@@ -162,7 +162,8 @@ describe('轨策 · 真起卦端到端(ctx 取数须真通,非注入既成之卦
   test('🔴 换盘(value 变)→ 同法所起之卦随之变(ctx 真入演算,非摆设)', () => {
     const a = newInst({ qiguaFa: 'time' }); a.doQiGua();
     const b = newInst({ qiguaFa: 'time' });
-    b.props = { fields: FIELDS, value: { chart: { nongli: {
+    // 换盘 = 时刻与主盘一起换(主盘只在与 fields 同一起课时刻时才拿来用)
+    b.props = { fields: { ...FIELDS, date: '1990-03-03' }, value: { params: { birth: '1990-03-03 12:00:00', zone: 8 }, chart: { nongli: {
       date: '1990-03-03', year: '庚午', monthInt: 2, dayInt: 7, leap: false,
       bazi: { year: zhu('庚午'), month: zhu('己卯'), day: zhu('丁丑'), time: zhu('壬寅') },
     } } } };

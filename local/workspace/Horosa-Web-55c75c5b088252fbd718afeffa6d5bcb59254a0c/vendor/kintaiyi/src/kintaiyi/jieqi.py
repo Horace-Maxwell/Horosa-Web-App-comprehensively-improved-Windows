@@ -50,6 +50,17 @@ def new_list(olist, o):
     res1 = olist[a:] + olist[:a]
     return res1
 #%% 節氣計算
+def _civil_moment(year, month, day, hour=0, minute=0):
+    """民用历时刻(sxtwl 收发的是民用历标签:1582 以前儒略历)。stdlib datetime 是外推格里历,1500-02-29 抛错。"""
+    from kin_year_domain import civil_moment
+    return civil_moment(year, month, day, hour, minute)
+
+
+def _is_moment(value):
+    from kin_year_domain import is_moment
+    return is_moment(value)
+
+
 def get_jieqi_start_date(year, month, day, hour, minute):
     day = sxtwl.fromSolar(year, month, day)
     if day.hasJieQi():
@@ -63,7 +74,7 @@ def get_jieqi_start_date(year, month, day, hour, minute):
             "時": int(t.h),
             "分": round(t.m),
             "節氣": jqmc[jq_index-1],
-            "時間":datetime.datetime(t.Y, t.M, t.D, int(t.h), round(t.m))
+            "時間":_civil_moment(t.Y, t.M, t.D, int(t.h), round(t.m))
         }
     else:
         current_day = day
@@ -80,7 +91,7 @@ def get_jieqi_start_date(year, month, day, hour, minute):
                     "時": int(t.h),
                     "分": round(t.m),
                     "節氣": jqmc[jq_index-1],
-                    "時間":datetime.datetime(t.Y, t.M, t.D, int(t.h), round(t.m))
+                    "時間":_civil_moment(t.Y, t.M, t.D, int(t.h), round(t.m))
                 }
             
 def get_before_jieqi_start_date(year, month, day, hour, minute):
@@ -98,7 +109,7 @@ def get_before_jieqi_start_date(year, month, day, hour, minute):
                 "時": int(t.h),
                 "分": round(t.m),
                 "節氣": jqmc[jq_index-1],
-                "時間":datetime.datetime(t.Y, t.M, t.D, int(t.h), round(t.m))
+                "時間":_civil_moment(t.Y, t.M, t.D, int(t.h), round(t.m))
             }
         current_day = current_day.before(1)
 
@@ -117,7 +128,7 @@ def get_next_jieqi_start_date(year, month, day, hour, minute):
                 "時": int(t.h),
                 "分": round(t.m),
                 "節氣": jqmc[jq_index-1],
-                "時間":datetime.datetime(t.Y, t.M, t.D, int(t.h), round(t.m))
+                "時間":_civil_moment(t.Y, t.M, t.D, int(t.h), round(t.m))
             }
         current_day = current_day.after(1)
 
@@ -128,7 +139,7 @@ def jq(year, month, day, hour, minute):
         from kin_year_domain import solar_term_name
         return solar_term_name(year, month, day, hour, minute)
     try:
-        current_datetime = datetime.datetime(year, month, day, hour, minute)
+        current_datetime = _civil_moment(year, month, day, hour, minute)
         jq_start_dict = get_jieqi_start_date(year, month, day, hour, minute)
         next_jq_start_dict = get_next_jieqi_start_date(year, month, day, hour, minute)
         if not (isinstance(jq_start_dict, dict) and isinstance(next_jq_start_dict, dict) and 
@@ -140,7 +151,7 @@ def jq(year, month, day, hour, minute):
         next_jq_start_datetime = next_jq_start_dict["時間"]
         jq_name = jq_start_dict["節氣"]
         
-        if not (isinstance(jq_start_datetime, datetime.datetime) and isinstance(next_jq_start_datetime, datetime.datetime)):
+        if not (_is_moment(jq_start_datetime) and _is_moment(next_jq_start_datetime)):
             raise ValueError(f"Jieqi times are not datetime objects: {jq_start_datetime}, {next_jq_start_datetime}")
         
         # Check if current_datetime is within the current jieqi period
@@ -279,7 +290,7 @@ def _hour_stem_override_taiyi(year, month, day, hour, cdate_day):
             dd_next = list(d_next.tuple())
             day_tg_idx = fromSolar(dd_next[0], dd_next[1], dd_next[2]).getDayGZ().tg
     else:
-        # [Q-312 口径 B] lateZi=0: 钟面当天日干起子时(与日柱开关独立;after23 进位时 cdate_day 已是次日,须退回今日)
+        # lateZi=0: 钟面当天日干起子时(与日柱开关独立;after23 进位时 cdate_day 已是次日,须退回今日)
         day_tg_idx = fromSolar(year, month, day).getDayGZ().tg
     hour_tg_idx = (day_tg_idx % 5 * 2 + 0) % 10
     return tian_gan[hour_tg_idx] + di_zhi[0]

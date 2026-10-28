@@ -791,7 +791,7 @@ public class RequestHeaderInterceptor implements AsyncHandlerInterceptor {
 		}
 
 		response.setHeader(KeyConstants.ResultCode, KeyConstants.SuccessCode + "");
-		response.setHeader(KeyConstants.ResultMessage, "");
+		ResultHeader.setMessage(response, "");
 
 		if(handler == null) {
 			complete(request, response);

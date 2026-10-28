@@ -1,74 +1,33 @@
-// [Z4·紫微择日] 择时工作台(Modal 1180×620 三视图,八字版派生)。左列:①时间范围·地点
-// +**参数区 16 键全参数可调**(定案15;逐键判别力由 ziweiZeriEngine 金标证,零死开关)
+// 择时工作台(Modal 1180×620 三视图,八字版派生)。左列:①时间范围·地点
+// +参数区:性别 / 时间算法可调;其余排盘口径取自盘面左栏的紫微设置(扫描与点开的盘同一口径),只读显示
 // +用事人本命区(定案13:紫微版=生辰解析本命命宫支)。
 // ②构造条件 ③连接门·取反 ④动作排+「择时」。右列:已选条件链+方案排(紫微专属方案库)。
 // 结果表「命宫·局」列;无概览浮窗(pick 起盘即看全盘)。
-// 🔴 口径注:扫描默认=Java 兼容三键(主页默认态所见);主页拨引擎键走本地 lichun 界后,
-// 此处 yearBoundary 同枚举可调对齐(帮助分册明示)。
+// 🔴 口径注:紫微设置全缺省时 = Java 兼容三键(主页默认态所见);紫微页拨了引擎键(立春界 / 全星集 / 人盘 …),扫描随之。
 import { useState, useEffect, useRef } from 'react';
-import { saveBlobSmart } from '../../utils/aiAnalysisExport';
 import { Modal, Dropdown, Menu, message } from 'antd';
 import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
 import ConditionParamsForm from './ConditionParamsForm';
 import ZeriMiniPanPopup from './ZeriMiniPanPopup';
 import ZeriRowBadge from './ZeriRowBadge';
 import GeoCoordModal from '../amap/GeoCoordModal';
+import { ZIWEI_ZERI_WORKBENCH_FIELDS, ziweiZeriCalibreItems } from '../ziwei/ziweiOptions';
 import { formatGpsDms } from '../../divination/zeri/tianxingSnapshot';
 import { JOINER_CN, auditTreeAgainstRegistry } from '../../divination/zeri/conditionTypes';
 import {
 	ZIWEI_CONDITION_TYPES, newZiweiLeaf, newZiweiGroup, ziweiLeafSummary,
 } from '../../divination/zeri/ziweiZeriConditionTypes';
 import { ziweiZeriSchemeStore } from '../../divination/zeri/schemeStore';
-
-// [Q-410] 单源保存(桌面壳保存桥选目录;浏览器 <a download>);取消 / 失败静默不报成功(本处本就无成功提示)。
-function downloadJson(text, filename){
-	try{
-		return saveBlobSmart(filename, new Blob([text], { type: 'application/json;charset=utf-8' }));
-	}catch(e){ return null; /* 受限 webview 环境静默 */ }
-}
+import { downloadJson, JOINER_OPTIONS, getAt, mapAt, removeAt, collectUiLeaves, GATE_CN2, dateStrOf } from './zeriTreeOps';
+import { withFullDefaults } from './zeriOptionDefaults';
+import { normalizeSavedNatal, restoredNatalInput } from './zeriNatal';
 
 const Option = XQSelect.Option;
 const OptGroup = XQSelect.OptGroup;
 
-const JOINER_OPTIONS = [
-	{ value: 'all', label: '且 AND' },
-	{ value: 'any', label: '或 OR' },
-	{ value: 'xor', label: '异或 XOR' },
-];
-
-// ── 树路径纯工具(与天星/奇门工作台同构) ──
-function getAt(tree, path){
-	let node = tree;
-	for(const i of path){
-		if(!node || !node.children){ return null; }
-		node = node.children[i];
-	}
-	return node || null;
-}
-function mapAt(tree, path, fn){
-	if(!path.length){ return fn(tree); }
-	const [head, ...rest] = path;
-	return { ...tree, children: tree.children.map((c, i) => (i === head ? mapAt(c, rest, fn) : c)) };
-}
-function removeAt(tree, path){
-	if(!path.length){ return tree; }
-	const parent = path.slice(0, -1);
-	const idx = path[path.length - 1];
-	return mapAt(tree, parent, (g) => ({ ...g, children: g.children.filter((_, i) => i !== idx) }));
-}
-
-function collectUiLeaves(node, out){
-	if(!node){ return out; }
-	if(node.kind === 'leaf'){ out.push(node); return out; }
-	(node.children || []).forEach((c) => collectUiLeaves(c, out));
-	return out;
-}
-
-const GATE_CN2 = { all: '且(全部满足)', any: '或(任一满足)', xor: '异或(奇数满足)', not: '非(取反)' };
-
 function renderExplainNode(node, uiLeaves, counter, depth){
 	const passTag = (ok) => (
-		<span style={{ fontWeight: 700, color: ok ? '#2f9e63' : '#e5484d' }}>{ok ? '✓' : '✗'}</span>
+		<span style={{ fontWeight: 700, color: ok ? 'var(--horosa-jx-ji)' : 'var(--horosa-danger)' }}>{ok ? '✓' : '✗'}</span>
 	);
 	if(node.kind === 'group'){
 		return (
@@ -83,20 +42,17 @@ function renderExplainNode(node, uiLeaves, counter, depth){
 	return (
 		<div key={`l${counter.i}`} style={{ padding: '5px 0 5px 0', marginLeft: depth ? 14 : 0, borderBottom: '1px dashed rgba(148,163,184,.16)' }}>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 12 }}>
-				<span style={{ opacity: 0.55 }}>设定</span>
+				<span style={{ color: 'var(--horosa-text-secondary)' }}>设定</span>
 				<span>{ui ? ziweiLeafSummary(ui) : ((ZIWEI_CONDITION_TYPES[node.type] || {}).label || node.type)}</span>
 			</div>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, marginTop: 2 }}>
-				<span style={{ opacity: 0.55 }}>实际</span>
+				<span style={{ color: 'var(--horosa-text-secondary)' }}>实际</span>
 				<span style={{ opacity: 0.9 }}>{node.actual}</span>
 				{passTag(node.pass)}
 			</div>
 		</div>
 	);
 }
-
-function pad2(n){ return n < 10 ? `0${n}` : `${n}`; }
-function dateStrOf(d){ return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
 
 // 类别序:显式优先序保持既有分组次序;注册表出现的新类别自动追加——
 // 新增条件类携新类别绝不静默消失(W0 基建;曾为硬编码常量=下拉静默吞类唯一落点)。
@@ -110,9 +66,9 @@ const CATEGORY_ORDER = (()=>{
 })();
 
 export default function ZiweiZeriWorkbench({
-	open, onClose, cfg, onCfgChange, geo, onGeoChange, options, onOptionsChange,
+	open, onClose, cfg, onCfgChange, geo, onGeoChange, options, onOptionsChange, optionDefaults, pageOptions,
 	natal, natalInput, onNatalInputChange, onResolveNatal, onClearNatal, onRestoreNatal,
-	tree, frozenTree, onPreviewPan, onPreviewExplain, previewGeo, previewOptions, onTreeChange, onRun, onCancelScan, onPickInterval, onExplain, scanEpoch, resultsStale,
+	tree, frozenTree, onPreviewPan, onPreviewExplain, previewGeo, previewOptions, onTreeChange, onRun, onCancelScan, onPickInterval, onExplain, scanEpoch, resultsStale, staleCalibreNote,
 	scanning, progress, results, truncated, scanErr,
 }){
 	const [draftType, setDraftType] = useState('ming_zhu_xing');
@@ -175,7 +131,7 @@ export default function ZiweiZeriWorkbench({
 	};
 
 	const applyScheme = (rec) => {
-	// [F7 根修] 载入前审计值域:方案里的条件类/选项值可能已随版本演进被删——
+	// 载入前审计值域:方案里的条件类/选项值可能已随版本演进被删——
 	// 那类行会静默恒不命中(needValues 只拦空、compile 不查值域、evaluate includes 恒 false)。
 	// 审计只提示不拦载入:用户看得见哪些行失效,自行改设;静默才是事故。
 	const __schemeIssues = (rec && rec.tree) ? auditTreeAgainstRegistry(rec.tree, ZIWEI_CONDITION_TYPES) : [];
@@ -186,10 +142,12 @@ export default function ZiweiZeriWorkbench({
 		if(rec && rec.config){
 			if(rec.config.cfg){ onCfgChange({ ...cfg, ...rec.config.cfg }); }
 			if(rec.config.geo && typeof onGeoChange === 'function'){ onGeoChange({ ...(geo || {}), ...rec.config.geo }); }
-			if(rec.config.options && typeof onOptionsChange === 'function'){ onOptionsChange({ ...(options || {}), ...rec.config.options }); }
-			// [Q-271/ZC-21] 保存/历史都写了 natal(+natalInput),载入此前只回灌 cfg/geo/options → 含本命组条件的方案载入后恒判假。
-			if(rec.config.natalInput && typeof onNatalInputChange === 'function'){ onNatalInputChange({ ...(natalInput || {}), ...rec.config.natalInput }); }
-			if(Object.prototype.hasOwnProperty.call(rec.config, 'natal') && typeof onRestoreNatal === 'function'){ onRestoreNatal(rec.config.natal || null); }
+			// 方案 / 历史里没写的参数回出厂值(宿主完整缺省打底),不取本会话现值:否则会话里改过、方案没写的键混进来,再扫得到的不是当时的结果
+			if(rec.config.options && typeof onOptionsChange === 'function'){ onOptionsChange(withFullDefaults(optionDefaults, rec.config.options), { source: 'scheme' }); }
+			// 保存/历史都写了 natal(+natalInput),载入此前只回灌 cfg/geo/options → 含本命组条件的方案载入后恒判假。
+			// 本命与输入框同一校验(zeriNatal):方案里的本命坏形 = 没有;输入框叠在构造缺省上(不留会话里上一位的)
+			if((rec.config.natalInput || Object.prototype.hasOwnProperty.call(rec.config, 'natal')) && typeof onNatalInputChange === 'function'){ onNatalInputChange(restoredNatalInput(rec.config.natalInput)); }
+			if(Object.prototype.hasOwnProperty.call(rec.config, 'natal') && typeof onRestoreNatal === 'function'){ onRestoreNatal(normalizeSavedNatal(rec.config.natal)); }
 		}
 		setSelectedPath(null);
 	};
@@ -202,7 +160,7 @@ export default function ZiweiZeriWorkbench({
 				<Menu.Item key={s.id}>
 					<span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
 						<a onClick={(e) => { e.preventDefault(); applyScheme(s); }}>{s.name}</a>
-						<a style={{ color: '#e5484d', fontSize: 11 }}
+						<a style={{ color: 'var(--horosa-danger)', fontSize: 11 }}
 							onClick={(e) => { e.preventDefault(); e.stopPropagation(); ziweiZeriSchemeStore.deleteScheme(s.id); setSchemeTick(schemeTick + 1); }}>删</a>
 					</span>
 				</Menu.Item>
@@ -223,7 +181,7 @@ export default function ZiweiZeriWorkbench({
 	const selIndex = selectedPath && selectedPath.length ? selectedPath[selectedPath.length - 1] : -1;
 	const joinerToolbar = (
 		<div style={{ padding: '8px 10px', borderTop: '1px solid rgba(148,163,184,.2)' }}>
-			<div style={{ fontSize: 11, opacity: 0.65, marginBottom: 6 }}>
+			<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 6 }}>
 				连接门·取反{!selectedNode ? '(先点选右侧一行)' : (selIndex === 0 ? '(首行无连接门,可取反)' : '')}
 			</div>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -268,7 +226,7 @@ export default function ZiweiZeriWorkbench({
 							flexShrink: 0,
 						}}>{JOINER_CN[node.joiner || 'all']}</span>
 					) : null}
-					{node.negate ? <span style={{ color: '#e5484d', fontWeight: 700, flexShrink: 0 }}>非</span> : null}
+					{node.negate ? <span style={{ color: 'var(--horosa-danger)', fontWeight: 700, flexShrink: 0 }}>非</span> : null}
 					{isGroup ? (
 						<span style={{ fontSize: 12, fontWeight: 600 }}>分组({(node.children || []).length} 条)</span>
 					) : (
@@ -281,7 +239,7 @@ export default function ZiweiZeriWorkbench({
 					<div style={{ marginTop: 6, paddingLeft: 10, borderLeft: '2px solid rgba(212,175,55,.35)' }}>
 						{(node.children || []).map((c, i) => renderRow(c, [...path, i], i, depth + 1))}
 						{!(node.children || []).length ? (
-							<div style={{ padding: '6px 2px', fontSize: 12, opacity: 0.5 }}>空分组:选中本组后左侧「添加到列表」即入组,或删除本组。</div>
+							<div style={{ padding: '6px 2px', fontSize: 12, color: 'var(--horosa-text-secondary)' }}>空分组:选中本组后左侧「添加到列表」即入组,或删除本组。</div>
 						) : null}
 					</div>
 				) : null}
@@ -293,7 +251,7 @@ export default function ZiweiZeriWorkbench({
 		<div>
 			{(rootNode.children || []).map((c, i) => renderRow(c, [i], i, 1))}
 			{!(rootNode.children || []).length ? (
-				<div style={{ padding: '10px 4px', fontSize: 12, opacity: 0.55 }}>尚无条件——左侧构造后点「添加到列表」。</div>
+				<div style={{ padding: '10px 4px', fontSize: 12, color: 'var(--horosa-text-secondary)' }}>尚无条件——左侧构造后点「添加到列表」。</div>
 			) : null}
 		</div>
 	);
@@ -317,7 +275,7 @@ export default function ZiweiZeriWorkbench({
 							onChange={(e) => onCfgChange({ ...cfg, startDate: e.target.value })} />
 						<input type="time" className="horosa-native-date" style={{ width: 86 }} value={cfg.startTime}
 							onChange={(e) => onCfgChange({ ...cfg, startTime: e.target.value })} />
-						<span style={{ opacity: 0.6 }}>→</span>
+						<span style={{ color: 'var(--horosa-text-secondary)' }}>→</span>
 						<input type="date" className="horosa-native-date" style={{ width: 118 }} value={cfg.endDate}
 							onChange={(e) => onCfgChange({ ...cfg, endDate: e.target.value })} />
 						<input type="time" className="horosa-native-date" style={{ width: 86 }} value={cfg.endTime}
@@ -333,33 +291,20 @@ export default function ZiweiZeriWorkbench({
 						<GeoCoordModal lat={geo && geo.gpsLat} lng={geo && geo.gpsLon} onOk={(rec) => onGeoChange(rec)}>
 							<XQButton size="small">{geo && geo.pos ? `📍 ${geo.pos}` : (geo && geo.gpsLat !== undefined ? `📍 ${formatGpsDms(geo.gpsLon, geo.gpsLat)}` : '选择地点…')}</XQButton>
 						</GeoCoordModal>
-						<span style={{ fontSize: 11, opacity: 0.6 }}>时区 {geo && geo.zone !== undefined ? geo.zone : '—'}</span>
-						{/* 16 参数(与主紫微页同枚举;默认=Java兼容口径=主页默认态所见——定案15;
-						    逐键判别力金标证;安星农历=日历日时晚子时档不影响安星,金标钉此语义) */}
-						{[
-							{ key: 'gender', label: '用事人', dv: 1, options: [{ value: 1, label: '男' }, { value: 0, label: '女' }] },
-							{ key: 'timeAlg', label: '时间', dv: 1, options: [{ value: 1, label: '钟表时' }, { value: 0, label: '真太阳时' }] },
-							{ key: 'yearBoundary', label: '年界', dv: 'lunar_1_1', options: [{ value: 'lunar_1_1', label: '正月初一' }, { value: 'lichun', label: '立春' }] },
-							{ key: 'ziweiLunarBasis', label: '安星农历', dv: 'calendar', options: [{ value: 'calendar', label: '日历日' }, { value: 'ziwei', label: '随日柱进位' }] },
-							{ key: 'lateZi', label: '晚子时', dv: 'zi_chu', options: [{ value: 'zi_chu', label: '子初换日' }, { value: 'midnight_split', label: '夜子折中' }, { value: 'zi_zheng', label: '子正换日' }] },
-							{ key: 'leapMonth', label: '闰月', dv: 'mid_split', options: [{ value: 'mid_split', label: '十五分界' }, { value: 'next', label: '整月归下月' }, { value: 'prev', label: '整月归上月' }, { value: 'split_days', label: '按天数折半' }, { value: 'solar_term', label: '按节气' }] },
-							{ key: 'tianmaBasis', label: '天马', dv: 'month', options: [{ value: 'month', label: '月支起' }, { value: 'year', label: '年支起' }] },
-							{ key: 'huoling', label: '火铃', dv: 'sanhe', options: [{ value: 'sanhe', label: '三合起时' }, { value: 'nanpai', label: '南派固定' }] },
-							{ key: 'kuiYue', label: '魁钺', dv: 'jia_wu_geng', options: [{ value: 'jia_wu_geng', label: '通行歌诀' }, { value: 'geng_ma_hu', label: '庚辛逢马虎' }] },
-							{ key: 'kongwangStyle', label: '空亡', dv: 'double', options: [{ value: 'double', label: '正副双星' }, { value: 'single', label: '单星法' }] },
-							{ key: 'changshengStart', label: '长生起', dv: 'shui_tu', options: [{ value: 'shui_tu', label: '水土同宫' }, { value: 'huo_tu', label: '火土同宫' }] },
-							{ key: 'changshengDirection', label: '长生序', dv: 'yinyang', options: [{ value: 'yinyang', label: '阳顺阴逆' }, { value: 'always_forward', label: '全顺行' }] },
-							{ key: 'shangShi', label: '天伤使', dv: 'fixed', options: [{ value: 'fixed', label: '定宫' }, { value: 'yinyang', label: '中州阴阳换' }] },
-							{ key: 'kongNaming', label: '空劫名', dv: 'modern', options: [{ value: 'modern', label: '地空' }, { value: 'book', label: '全书天空' }] },
-							{ key: 'starSet', label: '星集', dv: 'full', options: [{ value: 'full', label: '全星' }, { value: 'north18', label: '精简18星' }] },
-							{ key: 'lifeMasterBy', label: '命主取法', dv: 'year_branch', options: [{ value: 'year_branch', label: '生年支' }, { value: 'ming_branch', label: '命宫支' }] },
-						].map((f) => (
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>时区 {geo && geo.zone !== undefined ? geo.zone : '—'}</span>
+						{/* 工作台只调性别 / 时间算法;其余排盘口径取自盘面左栏的紫微设置(扫描与点开的盘同一口径),这里只读显示 */}
+						{ZIWEI_ZERI_WORKBENCH_FIELDS.map((f) => (
 							<span key={f.key} style={{ display: 'inline-flex', gap: 4, alignItems: 'center', fontSize: 11 }}>
-								<span style={{ opacity: 0.6 }}>{f.label}</span>
+								<span style={{ color: 'var(--horosa-text-secondary)' }}>{f.label}</span>
 								<XQSelect size="small" value={(options || {})[f.key] !== undefined ? (options || {})[f.key] : f.dv} dropdownMatchSelectWidth={false}
 									getPopupContainer={(t) => t.closest('.ant-modal-body') || t.parentElement}
 									onChange={(v) => onOptionsChange({ ...(options || {}), [f.key]: v })}>
 									{f.options.map((o) => (<Option key={`${o.value}`} value={o.value}>{o.label}</Option>))}
+						<span className="horosa-zeri-ziwei-page-calibre" style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 11, color: 'var(--horosa-text-secondary)' }}>
+							<span>排盘口径(取自紫微设置)</span>
+							{ziweiZeriCalibreItems(pageOptions).map((x) => (<span key={x.key} style={{ padding: '0 6px', borderRadius: 8, border: '1px solid rgba(148,163,184,.4)' }}>{x.label}:{x.value}</span>))}
+							{ziweiZeriCalibreItems(pageOptions).length ? null : <span>缺省</span>}
+						</span>
 								</XQSelect>
 							</span>
 						))}
@@ -387,14 +332,14 @@ export default function ZiweiZeriWorkbench({
 								<a style={{ marginLeft: 6, fontSize: 11 }} onClick={onClearNatal}>清除</a>
 							</span>
 						) : (
-							<span style={{ fontSize: 11, opacity: 0.5 }}>未设(「本命」组条件不生效)</span>
+							<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>未设(「本命」组条件不生效)</span>
 						)}
 					</div>
 				</div>
 				<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)' }}>构造条件</div>
 				<div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
 					<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
-						<span style={{ fontSize: 11, opacity: 0.65 }}>条件类型</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>条件类型</span>
 						<XQSelect size="small" style={{ minWidth: 150 }} value={draftType}
 							onChange={(v) => resetDraft(v)} dropdownMatchSelectWidth={false}
 							getPopupContainer={(t) => t.closest('.ant-modal-body') || t.parentElement}>
@@ -419,7 +364,7 @@ export default function ZiweiZeriWorkbench({
 					}}>
 						{ziweiLeafSummary(draftLeaf)}
 					</div>
-					{draftError ? <div style={{ color: '#e5484d', fontSize: 12, marginTop: 6 }}>{draftError}</div> : null}
+					{draftError ? <div style={{ color: 'var(--horosa-danger)', fontSize: 12, marginTop: 6 }}>{draftError}</div> : null}
 				</div>
 				{joinerToolbar}
 				<div style={{ padding: 10, borderTop: '1px solid rgba(148,163,184,.2)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -442,7 +387,7 @@ export default function ZiweiZeriWorkbench({
 					<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)', display: 'flex', alignItems: 'center', gap: 8 }}
 						title="点击行选中后,用左下「连接门·取反」四钮直接改该行;行首徽标=本行与上方结果的连接门">
 						已选条件
-						<span style={{ fontSize: 11, opacity: 0.55, fontWeight: 400 }}>点行选中·左下改门/取反</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>点行选中·左下改门/取反</span>
 					</div>
 					<div style={{ flex: 1, overflowY: 'auto', padding: 10 }} onClick={() => setSelectedPath(null)}>
 						{renderNode(tree)}
@@ -451,14 +396,14 @@ export default function ZiweiZeriWorkbench({
 						<input placeholder="方案名…" value={schemeName} style={{ width: 128 }}
 							onChange={(e) => setSchemeName(e.target.value)} />
 						<XQButton size="small" disabled={!schemeName.trim()} onClick={() => {
-							const r = ziweiZeriSchemeStore.saveScheme(schemeName, { cfg, geo, options, natal, natalInput }, tree);   // [Q-271/ZC-21] 本命随方案存取
+							const r = ziweiZeriSchemeStore.saveScheme(schemeName, { cfg, geo, options, natal, natalInput }, tree);   // 本命随方案存取
 							if(r.ok){ setSchemeName(''); setSchemeTick(schemeTick + 1); }
 						}}>保存方案</XQButton>
 						<Dropdown overlay={schemeMenu} trigger={['click']}>
 							<XQButton size="small">载入方案▾</XQButton>
 						</Dropdown>
 						<XQButton size="small" onClick={() => setView('schemes')}>方案管理…</XQButton>
-						{scanErr ? <span style={{ color: '#e5484d', fontSize: 12, marginLeft: 8 }}>{scanErr}</span> : null}
+						{scanErr ? <span style={{ color: 'var(--horosa-danger)', fontSize: 12, marginLeft: 8 }}>{scanErr}</span> : null}
 					</div>
 				</div>
 			</div>
@@ -481,14 +426,15 @@ export default function ZiweiZeriWorkbench({
 					</span>
 				) : null}
 			</div>
-			{!scanning && scanErr ? <div style={{ color: '#e5484d', fontSize: 12, marginBottom: 8 }}>{scanErr}</div> : null}
+			{!scanning && scanErr ? <div style={{ color: 'var(--horosa-danger)', fontSize: 12, marginBottom: 8 }}>{scanErr}</div> : null}
 			{resultsStale ? (
-				<div style={{ color: '#8a6d1a', background: 'rgba(212,175,55,.12)', border: '1px solid rgba(212,175,55,.4)', borderRadius: 6, fontSize: 12, padding: '5px 10px', marginBottom: 8 }}>
+				<div style={{ color: 'var(--horosa-sev-medium)', background: 'rgba(212,175,55,.12)', border: '1px solid rgba(212,175,55,.4)', borderRadius: 6, fontSize: 12, padding: '5px 10px', marginBottom: 8 }}>
 					⚠ 条件/时间范围已被修改:下方结果对应「上一次择时」——请重新点「择时」。
+					{staleCalibreNote ? <div className="horosa-zeri-stale-calibre" style={{ marginTop: 2 }}>{staleCalibreNote}</div> : null}
 				</div>
 			) : null}
 			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, opacity: 0.6, padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
 					<span style={{ width: 36 }}>#</span>
 					<span style={{ flex: 1 }}>开始(点击=起始时刻起盘)</span>
 					<span style={{ flex: 1 }}>结束(点击=结束时刻起盘)</span>
@@ -498,12 +444,12 @@ export default function ZiweiZeriWorkbench({
 					<span style={{ width: 44 }}>盘</span>{/* 行内多「盘」列,表头必须等宽占位——缺列致两 flex 列压窄整行左移(用户实报错位) */}
 				</div>
 				{(!results || !results.length) && !scanning ? (
-					<div style={{ padding: 24, opacity: 0.6 }}>{results ? '时间范围内无满足条件的时辰。' : '尚未择时。'}</div>
+					<div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>{results ? '时间范围内无满足条件的时辰。' : '尚未择时。'}</div>
 				) : null}
 				{(results || []).map((row, i) => (
 					<div key={i} style={{ borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
 						<div style={{ display: 'flex', gap: 10, padding: '9px 12px', alignItems: 'center' }}>
-							<span style={{ width: 36, textAlign: 'right', opacity: 0.5, fontSize: 12 }}>{i + 1}</span>
+							<span style={{ width: 36, textAlign: 'right', color: 'var(--horosa-text-secondary)', fontSize: 12 }}>{i + 1}</span>
 							<span style={{ flex: 1, fontSize: 13, cursor: 'pointer' }} title="以时段起始时刻起盘"
 								onClick={() => onPickInterval(row, 'start')}>{row.start}</span>
 							<span style={{ flex: 1, fontSize: 13, cursor: 'pointer' }} title="以时段结束时刻起盘"
@@ -535,11 +481,11 @@ export default function ZiweiZeriWorkbench({
 							</div>
 						{expandKey === `${scanEpoch || 0}:${i}` ? (
 							<div style={{ padding: '4px 12px 10px 58px', background: 'rgba(212,175,55,.04)' }}>
-								<div style={{ fontSize: 11, opacity: 0.55, marginBottom: 4 }}>
+								<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 4 }}>
 									以时段起始时刻逐条判读(设定 vs 实际;判定与扫描引擎同源)
 								</div>
-								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).loading ? <div style={{ fontSize: 12, opacity: 0.6 }}>判读中…</div> : null}
-								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).err ? <div style={{ fontSize: 12, color: '#e5484d' }}>{explainMap[`${scanEpoch || 0}:${i}`].err}</div> : null}
+								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).loading ? <div style={{ fontSize: 12, color: 'var(--horosa-text-secondary)' }}>判读中…</div> : null}
+								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).err ? <div style={{ fontSize: 12, color: 'var(--horosa-danger)' }}>{explainMap[`${scanEpoch || 0}:${i}`].err}</div> : null}
 								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).tree
 									? renderExplainNode(explainMap[`${scanEpoch || 0}:${i}`].tree, collectUiLeaves(frozenTree || tree, []), { i: 0 }, 0)
 									: null}
@@ -581,13 +527,13 @@ export default function ZiweiZeriWorkbench({
 			</div>
 			{schemeMsg ? <div style={{ fontSize: 12, marginBottom: 8, opacity: 0.8 }}>{schemeMsg}</div> : null}
 			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, opacity: 0.6, padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
 					<span style={{ flex: 1 }}>方案名</span>
 					<span style={{ width: 150 }}>保存时间</span>
 					<span style={{ width: 70, textAlign: 'right' }}>条件数</span>
 					<span style={{ width: 250, textAlign: 'right' }}>操作</span>
 				</div>
-				{!schemes.length ? <div style={{ padding: 24, opacity: 0.6 }}>暂无已存方案——条件页底部「保存方案」。</div> : null}
+				{!schemes.length ? <div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>暂无已存方案——条件页底部「保存方案」。</div> : null}
 				{schemes.map((s) => (
 					<div key={s.id} style={{ display: 'flex', gap: 10, padding: '8px 12px', alignItems: 'center', borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
 						{renameId === s.id ? (
@@ -615,7 +561,7 @@ export default function ZiweiZeriWorkbench({
 					</div>
 				))}
 			</div>
-			<div style={{ fontSize: 11, opacity: 0.5, marginTop: 8 }}>
+			<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 8 }}>
 				导出为 JSON 可跨设备/跨用户分享;导入同名方案以文件内容覆盖本地。
 			</div>
 		</div>
@@ -626,7 +572,7 @@ export default function ZiweiZeriWorkbench({
 			title={(
 				<div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingRight: 34 }}>
 					<span style={{ flexShrink: 0 }}>紫微择日·择时工作台</span>
-					<span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 400, color: '#8a6d1a', lineHeight: 1.35, whiteSpace: 'normal' }}>
+					<span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 400, color: 'var(--horosa-sev-medium)', lineHeight: 1.35, whiteSpace: 'normal' }}>
 						⚠ 结果为紫微盘面的机械筛选,仅供术数研习参考;不构成任何现实决策依据,勿迷信滥用——据此行事,后果自负。
 					</span>
 				</div>
@@ -648,7 +594,7 @@ export default function ZiweiZeriWorkbench({
 				<ZeriMiniPanPopup
 					geo={previewGeo || geo}	/* 冻结地点优先:概览口径=扫描口径(活 geo 曾致扫后改地点概览错盘) */
 					tech="ziwei"
-					techOptions={previewOptions || options}	/* [Q-271/ZC-22] 冻结参数优先:概览口径=扫描口径(活 options 曾致扫后改参数概览错盘) */
+					techOptions={previewOptions || options}	/* 冻结参数优先:概览口径=扫描口径(活 options 曾致扫后改参数概览错盘) */
 					row={previewRow}
 					computePan={typeof onPreviewPan === 'function' ? onPreviewPan : null}
 					onExplain={typeof onPreviewExplain === 'function' ? onPreviewExplain : null}

@@ -1,4 +1,4 @@
-// [D57·J5] 资料/检索正文进提示词必须带数据围栏:头句 + 首尾哨兵;正文里的围栏动作块被中和 —— 任何位置都解析不出动作;
+// 资料/检索正文进提示词必须带数据围栏:头句 + 首尾哨兵;正文里的围栏动作块被中和 —— 任何位置都解析不出动作;
 //   无资料输出逐字不变(零回归);守则第 2 条写明哨兵语义。
 import { wrapUntrustedData, neutralizeActionFences, buildRetrievedContextText, UNTRUSTED_DATA_BEGIN, UNTRUSTED_DATA_END } from '../aiAnalysisRag';
 import { parseActionBlock } from '../aiAgent/textProtocol';
@@ -42,8 +42,8 @@ it('守则第 2 条写明哨兵语义', ()=>{
 	expect(rules).toContain(UNTRUSTED_DATA_END);
 });
 
-// [Q-290/M-105·PP-15] 中和表补齐:资料名/标签过中和;断点与信封标记中和;≥4 连反引号中和到无三连;哨兵变体。
-describe('[Q-290/PP-15] 中和补齐', ()=>{
+// 中和表补齐:资料名/标签过中和;断点与信封标记中和;≥4 连反引号中和到无三连;哨兵变体。
+describe('中和补齐', ()=>{
 	const { neutralizeActionFences, neutralizeLabel, wrapUntrustedData, buildRetrievedContextText, UNTRUSTED_DATA_END } = require('../aiAnalysisRag');
 	test('4/6 连反引号中和后不再含三连(幂等到无)', ()=>{
 		['````', '``````', 'a```b````c'].forEach((t)=>{ expect(neutralizeActionFences(t)).not.toContain('```'); });

@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/suzhan/SuZhanMain.js b/astrostudyui/src/components/suzhan/SuZhanMain.js
-index 52ef1b19..b932e72c 100644
+index 3f8e322b..46dc5c6a 100644
 --- a/astrostudyui/src/components/suzhan/SuZhanMain.js
 +++ b/astrostudyui/src/components/suzhan/SuZhanMain.js
 @@ -21,6 +21,8 @@ import { XQTabs as Tabs, XQSideSection  } from '../xq-ui';
  import XQIcon from '../xq-icons';
- // [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+ // 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
  import { visualFloorPx } from '../../utils/zoomDomain';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const { TabPane } = Tabs;
  
-@@ -573,6 +575,7 @@ class SuZhanMain extends Component{
+@@ -494,6 +496,7 @@ class SuZhanMain extends Component{
  		return !!this.props.embeddedReadOnly;
  	}
  
@@ -19,7 +19,7 @@ index 52ef1b19..b932e72c 100644
  	componentDidMount(){
  		this.unmounted = false;
  		if(this.isEmbeddedReadOnly()){
-@@ -599,6 +602,13 @@ class SuZhanMain extends Component{
+@@ -520,6 +523,13 @@ class SuZhanMain extends Component{
  		if(this.isEmbeddedReadOnly()){
  			return;
  		}
@@ -33,7 +33,7 @@ index 52ef1b19..b932e72c 100644
  		if(this.restoreFromCurrentCase(false)){
  			return;
  		}
-@@ -718,21 +728,31 @@ class SuZhanMain extends Component{
+@@ -640,21 +650,31 @@ class SuZhanMain extends Component{
  	}
  
  	renderRightPanel(){

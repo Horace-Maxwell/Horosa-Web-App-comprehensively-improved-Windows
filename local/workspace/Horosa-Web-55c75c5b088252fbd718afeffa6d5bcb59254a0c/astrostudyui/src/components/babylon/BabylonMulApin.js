@@ -107,7 +107,7 @@ class BabylonMulApin extends Component{
 								{MULAPIN.heliacal.map((h, i) => (
 									<tr key={i}>
 										<td>{(MONTHS[h.month - 1] || {}).akk}({(MONTHS[h.month - 1] || {}).cn}){h.day} 日</td>
-										<td>{h.stars}{h.water ? <span style={{ opacity: 0.65 }}>(水钟 {h.water})</span> : null}</td>
+										<td>{h.stars}{h.water ? <span style={{ color: 'var(--horosa-text-secondary)' }}>(水钟 {h.water})</span> : null}</td>
 									</tr>
 								))}
 							</tbody>

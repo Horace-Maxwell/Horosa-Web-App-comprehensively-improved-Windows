@@ -1,4 +1,4 @@
-// [进阶复查 D13·2026-09-08] 策略双路径同源:对话路径(createAgentTurn)与本机 MCP 桥(handleAgentToolRequest)对「按工具名禁用」同拒同不列;
+// 策略双路径同源:对话路径(createAgentTurn)与本机 MCP 桥(handleAgentToolRequest)对「按工具名禁用」同拒同不列;
 // 桥审批超时零残留(与目标/定时路径的 approvals 超时同款);目录外名字桥侧拒于 runTool 之前。
 import { createAgentTurn } from '../aiAgent/runtime';
 import { handleAgentToolRequest, __resetMcpBridgeForTests } from '../aiAgent/mcpBridge';

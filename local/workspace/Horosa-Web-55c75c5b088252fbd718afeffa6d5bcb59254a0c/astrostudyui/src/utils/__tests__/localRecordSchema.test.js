@@ -1,11 +1,11 @@
-// [S7] 记录级 schemaVersion 行为锁:盖章/宽容读/纯读不回写/lazy 升版/未来版重盖/迁移链恒等。
+// 记录级 schemaVersion 行为锁:盖章/宽容读/纯读不回写/lazy 升版/未来版重盖/迁移链恒等。
 import { LOCAL_RECORD_SCHEMA_VERSION, applyRecordMigrations } from '../localRecordStore';
 import { upsertLocalChart, listLocalCharts } from '../localcharts';
 import { upsertLocalCase, listLocalCases } from '../localcases';
 
 const CHARTS_KEY = 'horosa.localCharts.v1';
 
-describe('[S7] 记录 schemaVersion', ()=>{
+describe('记录 schemaVersion', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});
@@ -32,7 +32,7 @@ describe('[S7] 记录 schemaVersion', ()=>{
 		expect(after.birth).toBe('1980-01-01 08:00:00');
 	});
 
-	it('未来版本记录:读端原样保留不丢弃;被 upsert 重写则重盖当前版(已按当前版语义重写)', ()=>{
+	it('未来版本记录:读端原样保留不丢弃;被 upsert 重写版本号只升不降(保留原版号,回到更新的应用不再迁移一遍)', ()=>{
 		const future = [{ cid: 'local-fut-1', name: '未来档', birth: '1990-01-01 08:00:00', zone: '+08:00', updateTime: '2026-01-01 00:00:00', schemaVersion: 99, futureField: 'keep' }];
 		window.localStorage.setItem(CHARTS_KEY, JSON.stringify(future));
 		const rec = listLocalCharts()[0];
@@ -40,7 +40,7 @@ describe('[S7] 记录 schemaVersion', ()=>{
 		expect(rec.futureField).toBe('keep');
 		upsertLocalChart({ cid: 'local-fut-1', name: '未来档改' });
 		const after = listLocalCharts()[0];
-		expect(after.schemaVersion).toBe(LOCAL_RECORD_SCHEMA_VERSION);
+		expect(after.schemaVersion).toBe(99);
 		// upsert 合并位保留未知字段({...旧,...next}——next 不含 futureField 则旧值存续)
 		expect(after.futureField).toBe('keep');
 	});

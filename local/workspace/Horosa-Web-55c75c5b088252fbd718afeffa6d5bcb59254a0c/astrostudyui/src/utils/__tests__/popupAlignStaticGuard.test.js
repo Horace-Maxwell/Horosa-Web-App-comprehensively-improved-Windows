@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '..', '..');
 
@@ -122,14 +123,14 @@ describe('T5 手写浮层缩放域静态哨兵', () => {
 		expect(bad.join('\n')).toBe('');
 	});
 
-	// 🔴 发行形态自适应:精简发行版不含本表若干模块,对应文件天然不存在。
+	// 🔴 本表列出的文件不在则跳过。
 	// 缺席=跳过而非判红;但**存在的那些必须仍真有写回点**(否则豁免已过期该删),
 	// 且整表不得全部失效(全失效=表已腐烂到没有任何看守意义)。
 	it('豁免清单不腐烂:在场的豁免文件仍真有写回点,且整表未全失效', () => {
 		let live = 0;
 		EXEMPT.forEach((e) => {
 			expect(e.reason.length).toBeGreaterThan(20);       // 必须写理由,不许空豁免
-			if(!fs.existsSync(path.join(SRC, e.file))){ return; }   // 本仓无此文件(精简版)
+			if(!fs.existsSync(path.join(SRC, e.file))){ return; }   // 对应文件不在则跳过
 			live += 1;
 			expect(`${e.file} 有写回点=${hits.some((h) => h.file === e.file)}`)
 				.toBe(`${e.file} 有写回点=true`);              // 无写回点=豁免已过期,应删
@@ -142,7 +143,7 @@ describe('T5 手写浮层缩放域静态哨兵', () => {
 			['utils/helper.js', 2],                                     // left + top
 			['pages/index.js', 2],                                       // top + right(left='auto' 属 benign)
 		];
-		// 形态自适应:缺席文件跳过(精简版不含该模块),在场的必须逐一对数。
+		// 对应文件不在则跳过,在场的必须逐一对数。
 		const seen = [];
 		EXPECT.forEach(([file, n]) => {
 			if(!fs.existsSync(path.join(SRC, file))){ return; }
@@ -153,7 +154,7 @@ describe('T5 手写浮层缩放域静态哨兵', () => {
 			});
 			expect(`${file}=${got}`).toBe(`${file}=${n}`);
 		});
-		// 这两处是任何发行形态都必然包含的核心面,缺席即代表修复没铺到位,不能算作"精简"。
+		// 这两处是核心面,缺席即代表修复没铺到位,不能跳过。
 		['utils/helper.js', 'pages/index.js'].forEach((f) => {
 			expect(`${f} 已覆盖=${seen.indexOf(f) >= 0}`).toBe(`${f} 已覆盖=true`);
 		});
@@ -171,7 +172,7 @@ describe('T5 手写浮层缩放域静态哨兵', () => {
 // 判据改成盯**读数端**:组件里出现鼠标坐标(clientX/clientY)或物理视口读数(window.innerWidth/innerHeight)的文件,
 // 必须同时用到 zoomDomain / shellZoom 的换域件之一;否则进下方豁免表并写明「为什么两端同域 / 只取比值」。
 const POINTER_PATTERN = "\\b(clientX|clientY)\\b|window\\.inner(Width|Height)";
-const DOMAIN_HELPERS = /\b(clientToFixed|clientToLayout|clientToLayoutPoint|fixedPopupFrame|pointerToLocal|pointerLocalRatio|getEffectiveScale|getFixedScale|getLayoutViewportWidth|getLayoutViewportHeight|positionFloatingTooltip)\b/;
+const DOMAIN_HELPERS = /\b(clientToFixed|clientToLayout|clientToLayoutPoint|fixedPopupFrame|pointerToLocal|pointerLocalRatio|getEffectiveScale|getFixedScale|getLayoutViewportWidth|getLayoutViewportHeight|getPageLayoutWidth|getPageLayoutHeight|positionFloatingTooltip)\b/;
 const POINTER_EXEMPT = {
 	'components/astro3d/Astro3D.js': '触点 → 画布像素走 sx/sy = 画布宽 ÷ rect 宽 的比值换算(注释自证),不落 CSS 坐标',
 	'components/astro3d/PDSphereEngine.js': '拾取:指针与投影点同用 rect.width/height 折到同一屏幕域比较;拖拽位移只驱动相机转角(灵敏度量纲)',
@@ -221,7 +222,7 @@ describe('T6 指针 / 物理视口读数必须过换域件', () => {
 
 	it('豁免表不腐烂:在场的豁免文件仍真有读数点;已改用换域件的必须从表里摘除', () => {
 		Object.keys(POINTER_EXEMPT).forEach((f) => {
-			if(!fs.existsSync(path.join(SRC, f))){ return; }   // 精简发行形态不含该模块
+			if(!fs.existsSync(path.join(SRC, f))){ return; }   // 文件不在则跳过
 			expect(`${f} 有读数点=${!!files[f]}`).toBe(`${f} 有读数点=true`);
 			const src = fs.readFileSync(path.join(SRC, f), 'utf8');
 			// 已改用换域件的文件不该再留在豁免表里(留着 = 以后有人删掉换域调用也不会红)
@@ -251,7 +252,7 @@ describe('T6 指针 / 物理视口读数必须过换域件', () => {
 		EXPECT.forEach(([f, token]) => {
 			if(!fs.existsSync(path.join(SRC, f))){ return; }
 			seen += 1;
-			const src = fs.readFileSync(path.join(SRC, f), 'utf8');
+			const src = readSource(path.join(SRC, f));
 			// 必须是**调用**而不只是 import(import 了不用 = 半修)
 			const calls = (src.match(new RegExp('\\b' + token + '\\(', 'g')) || []).length;
 			expect(`${f} 调用 ${token}=${calls > 0}`).toBe(`${f} 调用 ${token}=true`);

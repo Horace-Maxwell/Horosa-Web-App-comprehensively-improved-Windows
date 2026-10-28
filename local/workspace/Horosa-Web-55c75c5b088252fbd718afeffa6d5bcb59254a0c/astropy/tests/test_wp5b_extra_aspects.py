@@ -1,4 +1,4 @@
-# [WP-5b] 相位参与对象扩展双向量锚。
+# 相位参与对象扩展双向量锚。
 from astrostudy.perchart import PerChart
 
 BASE = {'date': '1991/08/21', 'time': '14:30:00', 'zone': '+08:00', 'lat': '31n14', 'lon': '121e28'}

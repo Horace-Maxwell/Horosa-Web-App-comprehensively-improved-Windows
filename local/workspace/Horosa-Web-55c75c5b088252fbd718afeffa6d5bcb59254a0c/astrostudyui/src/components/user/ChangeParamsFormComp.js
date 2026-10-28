@@ -17,7 +17,7 @@ export default class ChangeParamsFormComp extends Component{
 				}
 			}
 			this.props.dispatch({
-				type: 'astro/save',
+				type: 'astro/saveUserFields',
 				payload: vals,
 			});
 

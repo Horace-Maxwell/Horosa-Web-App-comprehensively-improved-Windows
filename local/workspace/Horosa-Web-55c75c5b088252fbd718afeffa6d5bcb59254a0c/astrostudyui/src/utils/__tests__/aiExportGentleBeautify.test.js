@@ -1,4 +1,4 @@
-// [v2] 温和归一器测试:去 bulletize 膨胀 / GFM 表整块直通 / 保留去噪+段内去重。
+// 温和归一器测试:去 bulletize 膨胀 / GFM 表整块直通 / 保留去噪+段内去重。
 // v1 beautifyForAI 行为由既有链路测试守(经典格式回退阀,本套不碰)。
 import {
 	__aiExportTesting__, getAIExportFormatPreference, isAIExportScreenshotEnabled, loadAIExportSettings,
@@ -55,8 +55,8 @@ describe('beautifyForAIGentle 温和归一', ()=>{
 
 describe('导出偏好 normalize 与读取(默认=v2,用户拍板;v1=显式回退阀)', ()=>{
 	test('normalizeAIExportPrefs:未知值回默认 v2;显式 v1/关截图 保留', ()=>{
-		expect(normalizeAIExportPrefs(null)).toEqual({ format: 'v2', attachScreenshot: true, legend: false });
-		expect(normalizeAIExportPrefs({ format: 'v1', attachScreenshot: false })).toEqual({ format: 'v1', attachScreenshot: false, legend: false });
+		expect(normalizeAIExportPrefs(null)).toEqual({ format: 'v2', attachScreenshot: true, legend: false, subjectFacts: false });
+		expect(normalizeAIExportPrefs({ format: 'v1', attachScreenshot: false })).toEqual({ format: 'v1', attachScreenshot: false, legend: false, subjectFacts: false });
 		expect(normalizeAIExportPrefs({ format: '奇怪值' }).format).toBe('v2');
 	});
 	test('getter 对脏 settings 兜底(缺省=v2;显式 v1 尊重)', ()=>{

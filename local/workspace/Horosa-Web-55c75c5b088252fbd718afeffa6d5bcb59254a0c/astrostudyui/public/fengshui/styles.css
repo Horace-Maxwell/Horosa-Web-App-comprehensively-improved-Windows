@@ -154,6 +154,7 @@ p {
   font-size: 14px;
   box-shadow: var(--shadow);
   border: 1px solid var(--border);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 
@@ -244,6 +245,7 @@ p {
   border-radius: 18px;
   padding: 18px;
   box-shadow: var(--shadow), var(--glow);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   animation: riseIn 0.6s ease both;
   animation-delay: calc(var(--i, 1) * 0.05s);
@@ -978,6 +980,7 @@ body.horosa-embed .card {
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: var(--shadow), var(--glow);
+  -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
 

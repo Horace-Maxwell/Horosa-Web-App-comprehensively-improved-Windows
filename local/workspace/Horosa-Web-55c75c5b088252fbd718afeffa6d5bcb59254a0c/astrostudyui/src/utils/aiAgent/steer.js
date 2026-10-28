@@ -1,4 +1,4 @@
-// AI 助手·插话队列(借鉴 Claude Code 流式期间继续打字 = 下一轮生效):按「正在生成的助手消息 id」排队,
+// AI 助手·插话队列:按「正在生成的助手消息 id」排队,
 // 运行时每轮开始 takeSteer 一次(取即清);未被消费的插话随 Turn 结束一起丢(不进历史、不进账本)。零 import,纯内存。
 export const STEER_PREFIX = '[用户插话]';
 export const STEER_MAX_PER_TURN = 3;

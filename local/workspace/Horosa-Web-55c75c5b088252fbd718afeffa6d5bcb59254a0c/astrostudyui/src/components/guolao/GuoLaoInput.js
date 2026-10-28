@@ -9,16 +9,31 @@ import SpaceTimePanel from '../comp/SpaceTimePanel';
 import * as SZConst from '../suzhan/SZConst';
 import * as AstroConst from '../../constants/AstroConst';
 import { Checkbox, InputNumber, Radio } from 'antd';
+import { zeriLockProps } from '../../divination/zeri/zeriPageCalibre';
 import { XQSelect as Select, XQToggle, XQModal, XQSideSection } from '../xq-ui';
-import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
+import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { MOIRA_PLANET_DEFS, MOIRA_ASPECT_DEFS, MOIRA_BIRTH_GOD_ORDER, MOIRA_TRANSIT_GOD_ORDER } from './GuoLaoMoiraWheel';
 import { parseMagneticDms, formatMagneticDms } from './electionGeomag';
 import GuoLaoStarSectDoc from './GuoLaoStarSectDoc';
+import { guolaoPlanetaryHourMethod } from './main/params';
+
+// 恒星岁差下拉:盘上空档、按本机记住的那档起盘时,如实显示「随本机（档名）」(此前直接显示那档的名字,看不出是空档跟本机)
+export const GUOLAO_AYAN_FOLLOW_LOCAL = '__follow_local__';
+export function guolaoAyanamsaSelectValue(fields){
+	const f = fields && fields.guolaoAyanamsa;
+	const own = f && f.value !== undefined && f.value !== null && `${f.value}` !== '';
+	if(own){ return `${f.value}`; }
+	return resolveGuolaoAyanamsa(fields) ? GUOLAO_AYAN_FOLLOW_LOCAL : '';
+}
+function guolaoAyanamsaLabel(v){
+	const o = (AstroConst.INDIA_AYANAMSA_OPTIONS || []).find((x)=>`${x.value}` === `${v}`);
+	return o ? o.label : `${v}`;
+}
 import XQIcon from '../xq-icons';
-import { GUOLAO_ALL_ASPECTS, GUOLAO_CHART_STYLE_CLASSIC, GUOLAO_CHART_STYLE_MOIRA, GUOLAO_CHART_STYLE_PICK, GUOLAO_CHART_STYLE_QIZHENG, GUOLAO_LIFE_MODE_ASC, GUOLAO_LIFE_MODE_COTRANS, GUOLAO_LIFE_MODE_YUMAO, GUOLAO_NODE_MODE_NORTH_KETU, GUOLAO_NODE_MODE_NORTH_RAHU, getStoredGuolaoLifeMode, getStoredGuolaoNodeMode, setStoredGuolaoAyanamsa, getStoredGuolaoTrueSolarTime, setStoredGuolaoTrueSolarTime, getStoredGuolaoNodeType, setStoredGuolaoNodeType, getStoredGuolaoLilithType, setStoredGuolaoLilithType, getStoredGuolaoBodyMode, setStoredGuolaoBodyMode, getStoredGuolaoTuibianMethod, setStoredGuolaoTuibianMethod, getStoredGuolaoGufaPrecess, setStoredGuolaoGufaPrecess, getStoredGuolaoEqTropicalAnchor, setStoredGuolaoEqTropicalAnchor, setStoredGuolaoLifeMode, setStoredGuolaoSu28Mode, GUOLAO_SCHOOL_PRESETS, matchSchoolPreset, normalizeGuolaoLifeMode, normalizeGuolaoNodeMode, } from './GuoLaoChartStyle';
+import { GUOLAO_ALL_ASPECTS, GUOLAO_CHART_STYLE_CLASSIC, GUOLAO_CHART_STYLE_MOIRA, GUOLAO_CHART_STYLE_PICK, GUOLAO_CHART_STYLE_QIZHENG, GUOLAO_LIFE_MODE_ASC, GUOLAO_LIFE_MODE_COTRANS, GUOLAO_LIFE_MODE_YUMAO, GUOLAO_NODE_MODE_NORTH_KETU, GUOLAO_NODE_MODE_NORTH_RAHU, getStoredGuolaoLifeMode, getStoredGuolaoNodeMode, setStoredGuolaoAyanamsa, resolveGuolaoAyanamsa, getStoredGuolaoTrueSolarTime, setStoredGuolaoTrueSolarTime, getStoredGuolaoNodeType, setStoredGuolaoNodeType, getStoredGuolaoLilithType, setStoredGuolaoLilithType, getStoredGuolaoBodyMode, setStoredGuolaoBodyMode, getStoredGuolaoTuibianMethod, setStoredGuolaoTuibianMethod, getStoredGuolaoGufaPrecess, setStoredGuolaoGufaPrecess, getStoredGuolaoEqTropicalAnchor, setStoredGuolaoEqTropicalAnchor, setStoredGuolaoLifeMode, setStoredGuolaoSu28Mode, GUOLAO_DEFAULT_SU28_MODE, GUOLAO_SCHOOL_PRESETS, matchSchoolPreset, normalizeGuolaoLifeMode, normalizeGuolaoNodeMode, } from './GuoLaoChartStyle';
 import { SU28_MODE_GROUPS, TUIBIAN_METHOD_OPTIONS, GUFA_PRECESS_OPTIONS, EQ_TROPICAL_ANCHOR_OPTIONS, TRUE_SOLAR_TIME_OPTIONS, NODE_TYPE_OPTIONS, LILITH_TYPE_OPTIONS, BODY_MODE_OPTIONS, LIFE_MODE_OPTIONS, LIFE_MASTER_MODE_OPTIONS, MINOR_LIMIT_TYPE_OPTIONS, TONGXIAN_BASE_OPTIONS, SCHOOL_PRESET_OPTIONS, LIFE_CUSTOM_ZHI_OPTIONS, BODY_CUSTOM_ZHI_OPTIONS, HSYS_OPTIONS } from './guolaoData';
 
-// [Q-192/T-140] 古宿岁差(用制 6)显示取值单源:字段值存在(含 0 / '0')即为权威,只有缺省才回落全局仓。
+// 古宿岁差(用制 6)显示取值单源:字段值存在(含 0 / '0')即为权威,只有缺省才回落全局仓。
 export function gufaPrecessDisplayValue(fields){
 	const f = fields && fields.guolaoGufaPrecess;
 	const v = f && f.value !== undefined ? f.value : undefined;
@@ -144,9 +159,17 @@ class GuoLaoInput extends Component{
 		}
 	}
 
+	// 写本机保存值(七政仓 / 宿盘盘形)只归七政主页:择日内嵌实例(宿主传 persistPrefs={false})的改动只进宿主覆盖层,
+	// 否则择日里的工作口径会变成七政页 / 宿占页的偏好(新盘播种、空岁差字段读仓都会带上)。缺省 = 写(主页零回归)。
+	persistsPrefs(){
+		return this.props.persistPrefs !== false;
+	}
+
 	onChartShapeChange(val){
-		SZConst.SZChart.shape = val;
-		safeLocalStorageSet('suzhanChartShape', val);
+		if(this.persistsPrefs()){
+			SZConst.SZChart.shape = val;
+			safeLocalStorageSet('suzhanChartShape', val);
+		}
 		if(this.props.onFieldsChange){
 			let dt = this.tmHook.getValue().value;
 			this.props.onFieldsChange({
@@ -224,9 +247,10 @@ class GuoLaoInput extends Component{
 	}
 
 	onAyanamsaChange(val){
+		if(val === GUOLAO_AYAN_FOLLOW_LOCAL){ return; }   // 「随本机」是空档的如实标签,不是一档
 		if(this.props.onFieldsChange){
 			let dt = this.tmHook.getValue().value;
-			setStoredGuolaoAyanamsa(val);
+			if(this.persistsPrefs()){ setStoredGuolaoAyanamsa(val); }
 			this.props.onFieldsChange({
 				guolaoAyanamsa: { value: val || '' },
 				date: { value: dt.clone() },
@@ -241,7 +265,7 @@ class GuoLaoInput extends Component{
 	onGuolaoParamChange(fieldKey, val, setter){
 		if(this.props.onFieldsChange){
 			const dt = this.tmHook.getValue().value;
-			if(setter){ setter(val); }
+			if(setter && this.persistsPrefs()){ setter(val); }
 			const patch = { date: { value: dt.clone() }, time: { value: dt.clone() }, ad: { value: dt.ad }, zone: { value: dt.zone } };
 			patch[fieldKey] = { value: val };
 			this.props.onFieldsChange(patch);
@@ -295,7 +319,9 @@ class GuoLaoInput extends Component{
 			guolaoTrueSolarTime: setStoredGuolaoTrueSolarTime, guolaoNodeType: setStoredGuolaoNodeType,
 			doubingSu28: setStoredGuolaoSu28Mode,
 		};
-		Object.keys(f).forEach((k)=>{ if(setters[k]){ setters[k](f[k]); } });
+		if(this.persistsPrefs()){
+			Object.keys(f).forEach((k)=>{ if(setters[k]){ setters[k](f[k]); } });
+		}
 		const dt = this.tmHook.getValue().value;
 		const patch = { date: { value: dt.clone() }, time: { value: dt.clone() }, ad: { value: dt.ad }, zone: { value: dt.zone } };
 		Object.keys(f).forEach((k)=>{ patch[k] = { value: f[k] }; });
@@ -317,7 +343,7 @@ class GuoLaoInput extends Component{
 			guolaoBodyMode: fv('guolaoBodyMode', getStoredGuolaoBodyMode()),
 			guolaoTrueSolarTime: fv('guolaoTrueSolarTime', getStoredGuolaoTrueSolarTime()),
 			guolaoNodeType: fv('guolaoNodeType', getStoredGuolaoNodeType()),
-			doubingSu28: fv('doubingSu28', 2),
+			doubingSu28: fv('doubingSu28', GUOLAO_DEFAULT_SU28_MODE),
 		}, this.props.guolaoDisplay || {});
 	}
 
@@ -578,7 +604,8 @@ class GuoLaoInput extends Component{
 					<Option value={GUOLAO_CHART_STYLE_CLASSIC}>Horosa原盘</Option>
 					<Option value={GUOLAO_CHART_STYLE_MOIRA}>Moira圆盘</Option>
 					<Option value={GUOLAO_CHART_STYLE_PICK}>天星择日</Option>
-					<Option value={GUOLAO_CHART_STYLE_QIZHENG}>坚七政</Option>
+					{/* 存案标记恒 null:七政择日的引擎在构造 / 切换 / 载入时都钉在锁定值,没有「由存案复原」的非锁定引擎 */}
+					<Option value={GUOLAO_CHART_STYLE_QIZHENG} disabled={!!zeriLockProps(this.props.zeriLocked, 'engineMode', engineMode, null).disabled} title={zeriLockProps(this.props.zeriLocked, 'engineMode', engineMode, null).title}>坚七政</Option>
 				</Select>
 			</label>
 		);
@@ -615,12 +642,13 @@ class GuoLaoInput extends Component{
 				<XQSideSection iconName={sideSectionIcon('switches')} title="选项" storageKey="guolao.s0" className="horosa-guolao-input-section">
 					{engineMode === 'kinastro' ? (
 					<div className="horosa-guolao-select-grid horosa-guolao-kinastro-options">
-						{/* [Q-193/T-138] 本页零消费(设计如此):title 说清楚,免得以为拨了会改大限。 */}
+						{/* 本页零消费(设计如此):title 说清楚,免得以为拨了会改大限。 */}
 						<label className="horosa-guolao-select-field" title="果老法不分男女:本项不参与本页任何计算(落宫/大限/限度),只登记进命例资料供存档与别的技法调用">
 							<span>性别</span>
 							<Select value={fields.gender.value} onChange={this.onGenderChange} size='small' dropdownMatchSelectWidth={false}>
 								<Option value={0}>女</Option>
 								<Option value={1}>男</Option>
+								<Option value={-1}>未知</Option>
 							</Select>
 						</label>
 						{chartStyleField}
@@ -723,7 +751,7 @@ class GuoLaoInput extends Component{
 					</div>
 					) : (
 					<div className="horosa-guolao-select-grid">
-						{/* [Q-193/T-138] 同上:七政不分男女,本项只作登记。 */}
+						{/* 同上:七政不分男女,本项只作登记。 */}
 						<label className="horosa-guolao-select-field" title="果老法不分男女:本项不参与本页任何计算(落宫/大限/限度),只登记进命例资料供存档与别的技法调用">
 							<span>性别</span>
 							<Select value={fields.gender.value} onChange={this.onGenderChange} size='small' dropdownMatchSelectWidth={false}>
@@ -769,7 +797,11 @@ class GuoLaoInput extends Component{
 						{Number(fields.doubingSu28.value) === 4 ? (
 							<label className="horosa-guolao-select-field">
 								<span>恒星岁差</span>
-								<Select value={(fields.guolaoAyanamsa && fields.guolaoAyanamsa.value) || ''} onChange={this.onAyanamsaChange} size='small' dropdownMatchSelectWidth={false}>
+								{/* 显示与起盘同一判据(resolveGuolaoAyanamsa):七政页盘上没选时按本机记住的那档算,如实标「随本机（档名）」;择日内嵌的盘空档即郑式 */}
+								<Select value={guolaoAyanamsaSelectValue(fields)} onChange={this.onAyanamsaChange} size='small' dropdownMatchSelectWidth={false}>
+									{guolaoAyanamsaSelectValue(fields) === GUOLAO_AYAN_FOLLOW_LOCAL ? (
+										<Option value={GUOLAO_AYAN_FOLLOW_LOCAL}>{`随本机（${guolaoAyanamsaLabel(resolveGuolaoAyanamsa(fields))}）`}</Option>
+									) : null}
 									<Option value="">郑式(默认)</Option>
 									{(AstroConst.INDIA_AYANAMSA_OPTIONS || []).map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
 								</Select>
@@ -786,7 +818,7 @@ class GuoLaoInput extends Component{
 						{Number(fields.doubingSu28.value) === 6 ? (
 							<label className="horosa-guolao-select-field">
 								<span>古宿岁差</span>
-								{/* [Q-192/T-140] `||` 把字段值 0(钉死元时)当假值回落全局 → 存了 0 的盘在全局为 1 时显示「随岁差」,
+								{/* `||` 把字段值 0(钉死元时)当假值回落全局 → 存了 0 的盘在全局为 1 时显示「随岁差」,
 								    与 Q-109 修好的计算口径正相反。判据改「字段有值就用字段值」(空/未定义才回落全局)。 */}
 								<Select value={Number(gufaPrecessDisplayValue(fields))} onChange={this.onGufaPrecessChange} size='small' dropdownMatchSelectWidth={false}>
 									{GUFA_PRECESS_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
@@ -801,9 +833,11 @@ class GuoLaoInput extends Component{
 								</Select>
 							</label>
 						) : null}
-						<label className="horosa-guolao-select-field" title="[Q-199] 太阳时校正只对「行星时制式=等长 24 时制」有别;日出法 / 昼夜不等时下出生与日出同加偏移,三档结果恒同">
+						<label className="horosa-guolao-select-field" title={guolaoPlanetaryHourMethod(fields) === 'sunrise'
+							? '行星时制式是「日出起算 · 等长时」:出生与日出同加太阳时偏移、差值不变,真太阳时 / 平太阳时 / 钟表时三档结果相同,故置灰;到星盘设置把「行星时制式」改成昼夜不等时或廿四时等分后,这一项才生效'
+							: '按星盘设置里的「行星时制式」取行星时;太阳时校正改变出生所落的时,三档结果会不同'}>
 							<span>报时星</span>
-							<Select value={(fields.guolaoTrueSolarTime && fields.guolaoTrueSolarTime.value) || getStoredGuolaoTrueSolarTime()} onChange={this.onTrueSolarTimeChange} size='small' dropdownMatchSelectWidth={false}>
+							<Select value={(fields.guolaoTrueSolarTime && fields.guolaoTrueSolarTime.value) || getStoredGuolaoTrueSolarTime()} onChange={this.onTrueSolarTimeChange} size='small' dropdownMatchSelectWidth={false} disabled={guolaoPlanetaryHourMethod(fields) === 'sunrise'}>
 								{TRUE_SOLAR_TIME_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
 							</Select>
 						</label>
@@ -864,7 +898,7 @@ class GuoLaoInput extends Component{
 						</label>
 						<label className="horosa-guolao-select-field">
 							<span>流派预设</span>
-							{/* [Q-193/T-137]「自定」不是一个可套用的档,而是「当前开关组合不等于任何预设」的状态显示:
+							{/* 「自定」不是一个可套用的档,而是「当前开关组合不等于任何预设」的状态显示:
 							    此前它照常出现在列表里、点了却什么都不发生(onChange 直接忽略)。改为置灰只读 + title 说明,
 							    并给整个下拉一个「怎么回到自定」的提示(逐项微调即回落)。 */}
 							<Select value={this.schoolPresetValue()} onChange={(v)=>{ if(v !== 'custom'){ this.onSchoolPresetChange(v); } }} size='small' dropdownMatchSelectWidth={false}

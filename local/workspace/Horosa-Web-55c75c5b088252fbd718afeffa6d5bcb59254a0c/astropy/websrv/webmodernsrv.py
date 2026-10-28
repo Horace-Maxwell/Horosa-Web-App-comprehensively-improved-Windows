@@ -50,10 +50,10 @@ class ModernAstroSrv:
             #  ① westNodeType/sectBuffer/lotReversal —— perchart 从每盘 data dict 读 → 灌 inner/outer;
             #  ② termsVariant/leoBoundFirst/geminiBoundEmended/triplicity —— 请求级线程态,
             #     push/pop 包住 compute(与 webchartsrv 各路由同款,finally 必还原防污染后续请求)。
-            for _ck in ('westNodeType', 'sectBuffer', 'lotReversal', 'houseCuspAdvance', 'triplicity',   # [R4-P2] setupPlanets 水象夜表分支读每盘 data.get('triplicity'),缺=夜换挡死
+            for _ck in ('westNodeType', 'sectBuffer', 'lotReversal', 'houseCuspAdvance', 'triplicity',   # setupPlanets 水象夜表分支读每盘 data.get('triplicity'),缺=夜换挡死
                         'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter',
                         'starOrb', 'starOrbMode', 'antisciaOrb', 'viaCombustaVariant',
-                        # [F3] WP-2~8 per-chart 实例键(perchart 从每盘 data dict 读;缺省不塞=零变)
+                        # WP-2~8 per-chart 实例键(perchart 从每盘 data dict 读;缺省不塞=零变)
                         'combustOwnChariotExempt', 'westLilithType', 'topocentricMoon',
                         'stationMarking', 'planetaryHourMethod', 'vulcanCalc',
                         'hermeticLotsReversal', 'erosConstruction', 'lotFortuneVariant',
@@ -82,7 +82,7 @@ class ModernAstroSrv:
             else:
                 reschart = ChartComp(inner, outer)
 
-            # [F3] 收编复合临界区(七族全:terms 含自定义表体/trip/house_offset/lots 族/exalt/
+            # 收编复合临界区(七族全:terms 含自定义表体/trip/house_offset/lots 族/exalt/
             # scores/orb_policy——旧散 push 只五族且不带 custom 表体,合盘 orbSystem/dignityDebilities 恒默认)。
             _cls_tokens = push_classical_request(data)
             try:

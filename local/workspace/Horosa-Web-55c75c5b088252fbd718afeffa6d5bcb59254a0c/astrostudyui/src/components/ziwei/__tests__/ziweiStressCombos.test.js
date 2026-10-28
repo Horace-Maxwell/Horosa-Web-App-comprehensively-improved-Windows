@@ -1,4 +1,4 @@
-// [Q3a] 组合压测矩阵:全值域×随机组合×定向冲突组合×边界。
+// 组合压测矩阵:全值域×随机组合×定向冲突组合×边界。
 // 生辰=1990-07-15 23:30(庚午阳干年+闰五月+23时段):同时敏感于 晚子时/闰月/魁钺庚年/截空副名。
 // 随机段用固定种子(可复现);断言=结构不变式(不抛/12宫/命身域/长生环完整/主星唯一入宫)。
 import { calcZiwei, deriveSanPan } from '../ZiweiCalc';
@@ -56,7 +56,7 @@ function invariants(chart, opts, label){
 	expect(`${label}:phases:${phases.size}`).toBe(`${label}:phases:12`);  // 长生 12 神环完整
 }
 
-describe('[Q3a] 随机 300 组合结构不变式(种子固定可复现)', ()=>{
+describe('随机 300 组合结构不变式(种子固定可复现)', ()=>{
 	test('🔴 全键随机取值 300 组 × 男女两盘:不抛+不变式全持', ()=>{
 		const rnd = mulberry32(20260807);
 		for(let i = 0; i < 300; i++){
@@ -69,7 +69,7 @@ describe('[Q3a] 随机 300 组合结构不变式(种子固定可复现)', ()=>{
 	});
 });
 
-describe('[Q3a] 定向冲突组合', ()=>{
+describe('定向冲突组合', ()=>{
 	test('north18 × 魁钺四档:魁钺不在 18 星集,四档全等(切档零差)', ()=>{
 		const base = { starSet: 'north18', after23NewDay: 1, lateZiHourUseNextDay: 1 };
 		const sig = (kui)=>JSON.stringify(calcZiwei(BIRTH, { ...base, kuiYue: kui }).houses.map((h)=>(h.starsAssist || []).map((s)=>s.name)));
@@ -117,7 +117,7 @@ describe('[Q3a] 定向冲突组合', ()=>{
 	});
 });
 
-describe('[Q3a] 显示纯函数 8 组合 × 绘制期替换', ()=>{
+describe('显示纯函数 8 组合 × 绘制期替换', ()=>{
 	afterEach(()=>{
 		['ziweiShowShaHuagai', 'ziweiShowShaSande', 'ziweiShowShaTaizuo', 'ziweiSixEvilBlack'].forEach((k)=>{ try{ localStorage.removeItem(k); }catch(e){} });
 		ZWEngineOptions.flowShenshaOnChart = false;
@@ -155,7 +155,7 @@ describe('[Q3a] 显示纯函数 8 组合 × 绘制期替换', ()=>{
 	});
 });
 
-describe('[Q3a] 双随盘表并注 + 边界', ()=>{
+describe('双随盘表并注 + 边界', ()=>{
 	afterEach(()=>{
 		ZWConst.ZWSihuaCustom.override = null;
 		ZWBrightnessCustom.override = null;

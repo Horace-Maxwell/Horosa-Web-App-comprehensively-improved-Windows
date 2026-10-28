@@ -1,8 +1,9 @@
-// [挂载自检] 只能源码级锁的接线项(每条对应 findings 编号;字面锚为「判据面」而非注释——见各行说明)。
+// 只能源码级锁的接线项(每条对应 findings 编号;字面锚为「判据面」而非注释——见各行说明)。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 const UI = path.join(__dirname, '..', '..');
-const read = (rel)=>fs.readFileSync(path.join(UI, rel), 'utf8');
+const read = (rel)=>readSource(path.join(UI, rel));
 
 it('F-19 数算三页构参带 zone(此前缺 → 真太阳时按 +08:00 校正)', ()=>{
 	['components/shusuan/HeLuoMain.js', 'components/shusuan/CanPingMain.js', 'components/shusuan/ZhengChuanMain.js'].forEach((f)=>{
@@ -28,7 +29,8 @@ it('F-20 正传心易性别按记录归一(0/1/女/Female 皆认)', ()=>{
 it('F-14 七政无头先换位再出快照;F-08 宿度制缺席回退全局', ()=>{
 	const gl = read('components/guolao/GuoLaoChartMain.js');
 	const i = gl.indexOf('const display = applyGuolaoNodeMode(result, fields) || result;');
-	const j = gl.indexOf('return buildGuolaoSnapshotTextV2(params, display, null, fields, rules);');
+	// 快照正文在覆盖作用域的同步段内出(AI 挂载覆盖重算时 await 之后重入作用域)
+	const j = gl.indexOf('return runInGuolaoStoredOverrides(ovScope, ()=>buildGuolaoSnapshotTextV2(params, display, null, fields, rules));');
 	expect(i).toBeGreaterThan(0);
 	expect(j).toBeGreaterThan(i);
 	const ctx = read('utils/aiAnalysisContext.js');

@@ -1,4 +1,4 @@
-// [批二⑤] 插话合同:队列按助手消息 id 排队、取即清、每轮上限 3;运行时每轮开始取一次并把「[用户插话] …」附在本轮请求末尾,
+// 插话合同:队列按助手消息 id 排队、取即清、每轮上限 3;运行时每轮开始取一次并把「[用户插话] …」附在本轮请求末尾,
 // 进 trace.steers;未消费的插话不进历史;无插话 = 请求体逐字不变(零回归锚)。
 import { pushSteer, takeSteer, peekSteer, steerLine, STEER_PREFIX, STEER_MAX_PER_TURN, __resetSteerForTests } from '../aiAgent/steer';
 import { createAgentTurn } from '../aiAgent/runtime';

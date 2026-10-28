@@ -37,7 +37,7 @@ const kit = makeZeriStressKit({
 afterAll(kit.printSummary);
 
 describe('S1 全类型全取值穷举(每选项一行恒等)', ()=>{
-	const cases = kit.enumerateTypeValueCases(BAZI_CONDITION_TYPES, newBaziLeaf, newBaziGroup, 4)	// [W 全谱轮] 类数大增后 S1 限前4值(三式先例;全值域由 schemeAudit 恒盖);
+	const cases = kit.enumerateTypeValueCases(BAZI_CONDITION_TYPES, newBaziLeaf, newBaziGroup, 4)	// 类数大增后 S1 限前4值(三式先例;全值域由 schemeAudit 恒盖);
 	cases.forEach((c)=>{
 		it(`S1·${c.id}`, async ()=>{
 			await kit.scanAndSweep(`S1·${c.id}`, c.root);
@@ -72,7 +72,7 @@ describe('S3 随机树 fuzz(组合门×负向×两层嵌套恒等)', ()=>{
 	const randomLeaf = ()=>{
 		const t = types[Math.floor(rnd() * types.length)];
 		const leaf = newBaziLeaf(t);
-		// [复审 F11] 叶参数随机化:恒默认参数=跨字段非默认组合零覆盖——随机改一个 select
+		// 叶参数随机化:恒默认参数=跨字段非默认组合零覆盖——随机改一个 select
 		// 字段值(multiselect 单值形;validate 撞墙由 compile 预检兜)
 		const spec = BAZI_CONDITION_TYPES[t];
 		const sf = ((spec && spec.fields) || []).filter((x)=>(x.kind === 'select' || x.kind === 'multiselect') && Array.isArray(x.options) && x.options.length);

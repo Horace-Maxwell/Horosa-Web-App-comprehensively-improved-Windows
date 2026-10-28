@@ -63,4 +63,42 @@ describe('create_goal_task', ()=>{
 		expect(u2.code).toBe('E_UNDO_TASK_STARTED');
 		expect((await getTask(r2.data.taskId)).status).toBe('running');
 	});
+	it('🔴 外部客户端建的目标任务:缺省(autoStart 不给 / 给 true)也只排队不开跑,回包说明要用户点「开始」;接力起跑跳过它;开始前可撤销', async ()=>{
+		setGoalEnabled(true);
+		bindTaskCenter();
+		registerBuiltinTools();
+		const r = await runTool('create_goal_task', { goal: '外部建的长活', autoStart: true }, { origin: 'mcp', requestId: 'mcp-1', clientName: 'codex' });
+		expect(r.ok).toBe(true);
+		expect(r.data.autoStart).toBe(false);
+		expect(r.data.awaitingUserStart).toBe(true);
+		expect(r.data.status).toBe('queued');
+		expect(r.message).toContain('开始');
+		expect(r.assumptions.join('')).toContain('不自动开跑');
+		await new Promise((res)=>setTimeout(res, 20));
+		const t = await getTask(r.data.taskId);
+		expect(t.status).toBe('queued');   // 没被自动起跑
+		expect(t.awaitingUserStart).toBe(true);
+		const { startNextQueuedGoal, startGoalTask } = require('../aiAgent/goalRunner');
+		expect(await startNextQueuedGoal()).toBe(false);   // 接力起跑不碰等用户放行的
+		expect((await getTask(r.data.taskId)).status).toBe('queued');
+		// 撤销:还没开始 → 可撤
+		const act = listActions().find((a)=>a.tool === 'create_goal_task' && a.undo.payload.taskId === r.data.taskId);
+		expect(undoAction(act.id).ok).toBe(true);
+		await new Promise((res)=>setTimeout(res, 10));
+		expect((await getTask(r.data.taskId)).status).toBe('cancelled');
+		// 用户在任务中心点「开始」= 放行(标记清掉;本测试环境没配模型 → 落 failed 而不是继续排队)
+		const r2 = await runTool('create_goal_task', { goal: '外部建的第二件' }, { origin: 'mcp', requestId: 'mcp-2', clientName: 'codex' });
+		const started = await startGoalTask(r2.data.taskId);
+		expect(started.awaitingUserStart).toBe(false);
+		expect(started.status).not.toBe('queued');
+	});
+	it('页面内建的目标任务照旧按 autoStart 参数走,不带等待放行标记', async ()=>{
+		setGoalEnabled(true);
+		bindTaskCenter();
+		registerBuiltinTools();
+		const r = await runTool('create_goal_task', { goal: '页面内', autoStart: false }, { origin: 'in-app' });
+		expect(r.data.autoStart).toBe(false);
+		expect(r.data.awaitingUserStart).toBeUndefined();
+		expect((await getTask(r.data.taskId)).awaitingUserStart).toBeUndefined();
+	});
 });

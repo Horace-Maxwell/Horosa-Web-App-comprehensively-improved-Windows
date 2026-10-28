@@ -1,4 +1,4 @@
-// [批二⑧] 压缩提醒阈值:存 uiPrefs(horosa.ai.analysis.ui.v3)嵌套 chatAssist.compactAutoTokens;缺省 null=不提醒。只提醒、绝不自动压缩(压缩要花一次短调用的钱)。
+// 压缩提醒阈值:存 uiPrefs(horosa.ai.analysis.ui.v3)嵌套 chatAssist.compactAutoTokens;缺省 null=不提醒。只提醒、绝不自动压缩(压缩要花一次短调用的钱)。
 // 策略卡写 → 派发 UI_PREFS_CHANGED_EVENT → 对话页状态栏重读(两棵 React 树之间没有共同父级,靠窗口事件同步)。
 import { loadUiPrefs, saveUiPrefs } from '../aiAnalysisStore';
 

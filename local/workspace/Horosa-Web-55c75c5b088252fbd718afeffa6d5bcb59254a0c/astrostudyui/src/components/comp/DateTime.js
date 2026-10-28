@@ -3,9 +3,16 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 
 class DateTime {
-	// [TL-11] 「此刻」:按给定时区取此刻的钟面(此前 new DateTime() 取系统本地钟面却缺省 +08:00 时区 → 非东八区系统错 N 小时);
+	// 「此刻」:按给定时区取此刻的钟面(此前 new DateTime() 取系统本地钟面却缺省 +08:00 时区 → 非东八区系统错 N 小时);
 	// zone 缺省 +08:00 与构造器一致;不合法时区按系统本地偏移。
 	static nowInZone(zone){
+		// 带秒的时区(地方平时 ±HH:MM:SS,名人库 / 命盘记录同写法):按秒精确换算,时区串原样留着
+		const zs = typeof zone === 'string' ? /^([+-])(\d{2}):(\d{2}):(\d{2})$/.exec(zone) : null;
+		if(zs){
+			const off = (zs[1] === '-' ? -1 : 1) * (Number(zs[2]) * 3600 + Number(zs[3]) * 60 + Number(zs[4]));
+			const t = new Date(Date.now() + off * 1000);
+			return new DateTime({ ad: 1, zone, year: t.getUTCFullYear(), month: t.getUTCMonth() + 1, date: t.getUTCDate(), hour: t.getUTCHours(), minute: t.getUTCMinutes(), second: t.getUTCSeconds() });
+		}
 		let z = typeof zone === 'string' && /^[+-]\d{2}:\d{2}$/.test(zone) ? zone : null;
 		const m = z ? moment().utcOffset(z) : moment();
 		if(!z){
@@ -17,10 +24,45 @@ class DateTime {
 		return new DateTime({ ad: 1, zone: z, year: m.year(), month: m.month() + 1, date: m.date(), hour: m.hour(), minute: m.minute(), second: m.second() });
 	}
 
+	// 「此刻」按这张盘所用的时区(推运 / 返照 / 行运类缺省目标时刻、本命盘页各子页、无头与 AI 挂载同一个入口):
+	// 盘的时区写法合法(±HH:MM 或带秒)→ 真实此刻换算到该时区(钟面与时区串配套,发给后端的「时刻 + 盘时区」是同一瞬时);
+	// 没有 / 不合法 → 与 new DateTime() 相同(缺省 +08:00)。此前一律 new DateTime()(东八区钟面)再配本命时区下发 →
+	// 不在东八区的盘「此刻」错开时差那么多小时。东八区的盘逐位不变
+	static nowForChart(zone){
+		return typeof zone === 'string' && /^[+-]\d{2}:\d{2}(:\d{2})?$/.test(zone) ? DateTime.nowInZone(zone) : new DateTime();
+	}
+
+	// 同上,给按 JS Date 的本地字段取年月日时分的旧代码用(今日 / 今年 / 此刻的钟面):盘时区合法 → 一个本地字段等于该时区钟面的 Date;
+	// 没有盘时区 → new Date()(本机钟面,原样)
+	static wallClockForChart(zone){
+		if(!(typeof zone === 'string' && /^[+-]\d{2}:\d{2}(:\d{2})?$/.test(zone))){ return new Date(); }
+		// 按时差平移毫秒(不经「年月日」构造 Date):本地字段 = 盘时区钟面
+		const sign = zone[0] === '-' ? -1 : 1;
+		const parts = zone.slice(1).split(':').map(Number);
+		const zoneSec = sign * (parts[0] * 3600 + parts[1] * 60 + (parts[2] || 0));
+		const wallMs = DateTime.zoneWallShiftMs(Date.now(), zoneSec);
+		return new Date(wallMs);
+	}
+
+	// 平移出一个瞬时(毫秒),它在本机的本地字段 = 盘时区(偏 zoneSec 秒)此刻的钟面。offsetAt(ms) = 本机在该瞬时的
+	// getTimezoneOffset(分钟;缺省取本机,测试注入)。平移跨过本机夏令时切换时补一次偏移差;目标钟面恰落在本机拨快
+	// 跳过的那一小时(本机不存在这个钟面)时,补了会退到前一小时 —— 零点切换的时区(圣地亚哥 / 哈瓦那 / 贝鲁特)
+	// 退成前一天 —— 这时留不补的(日期对、钟点晚一小时)
+	static zoneWallShiftMs(nowMs, zoneSec, offsetAt){
+		const off = offsetAt || ((ms)=>new Date(ms).getTimezoneOffset());
+		const wantMs = nowMs + zoneSec * 1000;   // 它的 UTC 字段 = 盘时区钟面
+		const off0 = off(nowMs);
+		const d0 = wantMs + off0 * 60000;
+		const drift = off(d0) - off0;
+		if(!drift){ return d0; }
+		const c = d0 + drift * 60000;
+		return c - off(c) * 60000 === wantMs ? c : d0;
+	}
+
 	constructor(opt){
 		this.ad = opt ? opt.ad : 1;
 		this.zone = opt && opt.zone ? opt.zone : "+08:00";
-		// [Q-141 裁决 2026-09-18] 缺省钟面 = 真实此刻换算到本对象时区(此前取系统本地钟面却标 +08:00 → 非东八区本机
+		// 缺省钟面 = 真实此刻换算到本对象时区(此前取系统本地钟面却标 +08:00 → 非东八区本机
 		//   「此刻」/ 新盘 / 各技法缺省时间错 N 小时;154 处 `new DateTime()` 统一在此单点修)。东八区本机与传入完整 opt 的
 		//   调用逐字不变;时区不合法时仍按系统本地钟面(与 nowInZone 同口径)。
 		const z0 = typeof this.zone === 'string' && /^[+-]\d{2}:\d{2}$/.test(this.zone) ? this.zone : null;
@@ -128,34 +170,20 @@ class DateTime {
 		this.second = parseInt(tmparts[2]);
 	}
 
+	// 儒略日(可带小数,可为负)→ [整日, 时, 分, 秒]。先把日内小数四舍五入到整秒、再整数拆分:
+	// 满 86400 秒进位到下一日(不出现 HH:mm:60 / 24:00:00);负儒略日按 floor 取整日、小数恒落在 [0, 1)。
+	// 与 Python 侧 civil_calendar.split_hms 同算法。
 	getTimePartsFromJdnTime(jdn){
-		let day = Math.floor(Math.abs(jdn));
-		let sym = 1;
-		if(jdn < 0){
-			sym = -1;
+		let day = Math.floor(jdn);
+		let secs = Math.round((jdn - day) * 86400);
+		if(secs >= 86400){
+			day += 1;
+			secs -= 86400;
 		}
-
-		let jdntm = Math.abs(jdn) - day;
-		let n = jdntm * 24;
-		let h = Math.floor(n);
-		n = n - h;
-		
-		n = n * 60;
-		let m = Math.floor(n);
-		n = n - m;
-		
-		n = n * 60;
-		let s = Math.floor(n);
-		n = n - s;
-		if(n >= 0.5) {
-			s +=1;
-		}
-
-		let hour = parseInt(h + '');
-		let minute = parseInt(m + '');
-		let second = parseInt(s + '');
-
-		return [day*sym, hour, minute, second];
+		const hour = Math.floor(secs / 3600);
+		const minute = Math.floor((secs - hour * 3600) / 60);
+		const second = secs - hour * 3600 - minute * 60;
+		return [day, hour, minute, second];
 	}
 
 	calDateFromJdn(jdn){
@@ -188,32 +216,11 @@ class DateTime {
 	}
 
 	calcDateTime(){
-		// 全本地同步计算(calDateFromJdn 已兼容儒略历)→ 古代日期连续播放可逐帧更新,不依赖异步 /jdn/date
-		let jdn = this.jdn;
-		let zonejdn = this.getZoneJdn();
-		let locjdn = this.jdn + zonejdn + 0.5;
-		let tm = Math.abs(locjdn) - Math.floor(Math.abs(locjdn));
-		
-		let dt = this.calDateFromJdn(locjdn);
-		let tmparts = this.getTimePartsFromJdnTime(tm);
-					    
-		let dtm = new DateTime({
-			ad: dt[0] < 0 ? -1 : 1,
-			year: Math.abs(dt[0]),
-			month: dt[1],
-			date: dt[2],
-			hour: tmparts[1],
-			minute: tmparts[2],
-			second: tmparts[3],
-			zone: this.zone,
-		});
-		let n = dtm.calcJdn();
-		let delta = jdn - n;
-		
-		if(Math.abs(delta) > 0.00000001) {
-			let newjd = locjdn + delta;
-			dt = this.calDateFromJdn(newjd);
-		}
+		// 全本地同步计算(calDateFromJdn 已兼容儒略历)→ 古代日期连续播放可逐帧更新,不依赖异步 /jdn/date。
+		// 当地民用日 = floor(jdn + 时区 + 0.5);日内时刻由同一个数取整到秒(进位到次日时日期一并进位)。
+		const locjdn = this.jdn + this.getZoneJdn() + 0.5;
+		const tmparts = this.getTimePartsFromJdnTime(locjdn);
+		const dt = this.calDateFromJdn(tmparts[0]);
 		this.ad = dt[0] < 0 ? -1 : 1;
 		this.year = Math.abs(dt[0]);
 		this.month = dt[1];
@@ -221,7 +228,7 @@ class DateTime {
 		this.hour = tmparts[1];
 		this.minute = tmparts[2];
 		this.second = tmparts[3];
-		this.calcJdn();		
+		this.calcJdn();
 	}
 
 	setYear(y){
@@ -449,19 +456,12 @@ class DateTime {
 		return this;
 	}
 
+	// year 为带符号显示年(公元前为负、无 0 年)。公元前按纯儒略历:|年| % 4 === 1 为闰(公元前 1 / 5 / 9 …年;
+	// 天文年 0 / -4 / -8 …),无其他例外。旧写法对负数取 y % 4 === 1 恒不成立(JS 负数取余为负)→ 公元前闰年 2 月 29 日被拒。
 	isLeap(year){
 		let y  = year;
 		if(y < 0){
-			if(y > 172800 && y % 172800 === 0) {
-				return true;
-			}
-			if(y > 3200 && y % 3200 === 1) {
-				return false;
-			}
-			if(y % 4 === 1) {
-				return true;
-			}
-			return false;
+			return Math.abs(y) % 4 === 1;
 		}
 
 		if(y <= 1582){
@@ -498,78 +498,6 @@ class DateTime {
 		return 30;
 	}
 
-	adaptMinute(num){
-		if(num === 0){
-			return 0;
-		}
-		let cnt = 0;
-		this.minute = this.minute + num;
-		while(this.minute < 0){
-			this.minute = this.minute + 60;
-			cnt = cnt - 1;
-		}
-		while(this.minute >= 60){
-			this.minute = this.minute - 60;
-			cnt = cnt + 1;
-		}
-		return cnt;
-	}
-
-	adaptHour(num){
-		if(num === 0){
-			return 0;
-		}
-		let cnt = 0;
-		this.hour = this.hour + num;
-		while(this.hour < 0){
-			this.hour = this.hour + 24;
-			cnt = cnt - 1;
-		}
-		while(this.hour >= 24){
-			this.hour = this.hour - 24;
-			cnt = cnt + 1;
-		}
-		return cnt;
-	}
-
-	adaptDate(num){
-		if(num === 0){
-			return 0;
-		}
-		let cnt = 0;
-		let y = this.year;
-		let m = this.month;
-		let days = this.getMonthDays(y, m);
-		this.date = this.date + num;
-		while(this.date > days){
-			this.date = this.date - days;
-			cnt = cnt + 1;
-			m = m + 1;
-			if(m > 12){
-				m = 1;
-				y = y + 1;
-				if(y === 0){
-					y = 1;
-				}
-			}
-			days = this.getMonthDays(y, m);
-		}
-		while(this.date < 1){
-			m = m -1;
-			if(m === 0){
-				m = 12;
-				y = y - 1;
-				if(y === 0){
-					y = -1;
-				}
-			}
-			days = this.getMonthDays(y, m);
-			this.date = this.date + days;
-			cnt = cnt - 1;
-		}
-		return cnt;
-	}
-
 	adaptMonth(num){
 		if(num === 0){
 			return 0;
@@ -589,7 +517,7 @@ class DateTime {
 
 	adaptYear(num){
 		if(num === 0){
-			let days = this.getMonthDays(this.year, this.month);
+			let days = this.getMonthDays(this.ad * this.year, this.month);
 			if(this.date > days){
 				this.month = this.month + 1;
 				this.date = 1;
@@ -624,7 +552,7 @@ class DateTime {
 			return;
 		}
 
-		let days = this.getMonthDays(y, this.month);
+		let days = this.getMonthDays(this.ad * this.year, this.month);
 		if(this.date > days){
 			this.month = this.month + 1;
 			this.date = 1;
@@ -646,38 +574,23 @@ class DateTime {
 	}
 
 	addSecond(num){
-		this.jdn = this.jdn + num/3600.0/24.0;
+		// 以年月日时分秒为真值重算起点(对象可能经 clone / 直接改字段而 jdn 未同步;缺省构造的 jdn 为 0)。
+		this.jdn = this.calcJdn() + num/3600.0/24.0;
 		this.calcDateTime();
 	}
 
+	// 分 / 时 / 日的加减一律在儒略日轴上做(与 addSecond 同一条路):跨月跨年、1582-10-04 → 10-15、
+	// 公元前闰年 2 月、公元前 1 年 → 公元 1 年都由 calDateFromJdn 一处处理(逐字段进位在公元前按无符号年取月长会错)。
 	addMinute(num){
-		let cnt = this.adaptMinute(num);
-		cnt = this.adaptHour(cnt);
-		cnt = this.adaptDate(cnt);
-		cnt = this.adaptMonth(cnt);
-		this.adaptYear(cnt);
-		let sym = num < 0 ? -1 : 1;
-		this.adapt15821004(sym);
-		this.calcJdn();
+		this.addSecond(num * 60);
 	}
 
 	addHour(num){
-		let cnt = this.adaptHour(num);
-		cnt = this.adaptDate(cnt);
-		cnt = this.adaptMonth(cnt);
-		this.adaptYear(cnt);
-		let sym = num < 0 ? -1 : 1;
-		this.adapt15821004(sym);
-		this.calcJdn();
+		this.addSecond(num * 3600);
 	}
 
 	addDate(num){
-		let cnt = this.adaptDate(num);
-		cnt = this.adaptMonth(cnt);
-		this.adaptYear(cnt);
-		let sym = num < 0 ? -1 : 1;
-		this.adapt15821004(sym);
-		this.calcJdn();
+		this.addSecond(num * 86400);
 	}
 
 	addMonth(num){

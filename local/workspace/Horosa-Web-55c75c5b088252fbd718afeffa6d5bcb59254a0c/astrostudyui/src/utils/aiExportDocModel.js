@@ -21,9 +21,9 @@ const SUBHEAD_RE = /^◆\s+(.+)$/;
 const NOTE_RE = /^(?:注：|说明：|（说明：.*）$|\(说明：.*\)$)/;
 const KV_RE = /^([^\s：:，,、。;；]{1,24})：(.*)$/;
 
-// [E11] 行内 markdown 唯一 tokenizer —— 全链单一真值。
-// 消费方四条:①docxCommon.mdInlineToRuns(docx TextRun) ②reportExport.inlineMd(导出 HTML/打印/
-// 栅格 PDF) ③aiExportPdfVector(矢量 PDF 分段绘制) ④金标 parity(与 marked 的加粗集合对拍)。
+// 行内 markdown 唯一 tokenizer —— 全链单一真值。
+// 消费方:①docxCommon.mdInlineToRuns(docx TextRun) ②导出 HTML / 打印 / 栅格 PDF
+// ③aiExportPdfVector(矢量 PDF 分段绘制) ④金标 parity(与 marked 的加粗集合对拍)。
 // 此前 ①②③ 各自养一份 `\*\*(.+?)\*\*` 正则,能力互不相同(转义不认、嵌套不认、删除线不认)
 // ⇒ 应用内所见 ≠ docx/PDF/HTML 所得。现统一到本函数。
 //
@@ -113,7 +113,7 @@ function parseBlocks(lines){
 			pushPara(blocks, paraBuf);
 			continue;
 		}
-		// [B2] fenced code:```lang … ```(闭栏缺失=吃到文末,langHint 供渲染端着色/等宽)
+		// fenced code:```lang … ```(闭栏缺失=吃到文末,langHint 供渲染端着色/等宽)
 		const fence = trimmed.match(/^```([A-Za-z0-9_-]*)\s*$/);
 		if(fence){
 			pushPara(blocks, paraBuf);
@@ -127,7 +127,7 @@ function parseBlocks(lines){
 			i = j;   // 指向闭栏(或文末),循环 ++ 跳过
 			continue;
 		}
-		// [B2] blockquote:连续 `> ` 行合一块(内层 > 保留为文本,不递归——报告引用块单层为主)
+		// blockquote:连续 `> ` 行合一块(内层 > 保留为文本,不递归——报告引用块单层为主)
 		if(/^>\s?/.test(trimmed)){
 			pushPara(blocks, paraBuf);
 			const quoteLines = [trimmed.replace(/^>\s?/, '')];
@@ -142,20 +142,20 @@ function parseBlocks(lines){
 			i = j - 1;
 			continue;
 		}
-		// [B2] 独行图片:![alt](url)(dataURL 命盘截图内嵌正文的载体;行内混排图不提级)
+		// 独行图片:![alt](url)(dataURL 命盘截图内嵌正文的载体;行内混排图不提级)
 		const img = trimmed.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/);
 		if(img){
 			pushPara(blocks, paraBuf);
 			blocks.push({ type: 'image', alt: img[1] || '', src: img[2] });
 			continue;
 		}
-		// [B2] 分隔线
+		// 分隔线
 		if(/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)){
 			pushPara(blocks, paraBuf);
 			blocks.push({ type: 'hr' });
 			continue;
 		}
-		// [B2] 有序/无序列表(含嵌套):连续列表行合一块,depth 按前导空格 /2(tab=2)。
+		// 有序/无序列表(含嵌套):连续列表行合一块,depth 按前导空格 /2(tab=2)。
 		if(/^(\s*)([-*+]|\d{1,3}[.)])\s+/.test(line.replace(/\t/g, '  '))){
 			pushPara(blocks, paraBuf);
 			const items = [];
@@ -192,7 +192,7 @@ function parseBlocks(lines){
 			blocks.push({ type: 'subhead', text: sub[1].trim() });
 			continue;
 		}
-		// [B2] markdown 标题行(### 等)→ subhead(报告正文口径;级别信息渲染端暂齐平 Heading3)
+		// markdown 标题行(### 等)→ subhead(报告正文口径;级别信息渲染端暂齐平 Heading3)
 		const mdHead = trimmed.match(/^(#{1,6})\s+(.+)$/);
 		if(mdHead){
 			pushPara(blocks, paraBuf);
@@ -216,7 +216,7 @@ function parseBlocks(lines){
 	return blocks;
 }
 
-// [B1] 报告矢量链公共面:一段 markdown/导出文本 → IR 块数组(与 parseAiExportDocument 的
+// 报告矢量链公共面:一段 markdown/导出文本 → IR 块数组(与 parseAiExportDocument 的
 // 节内解析同一实现;报告导出按「模板节结构」自组文档,不必再从整份文本反推段头)。
 export function parseMarkdownSectionBlocks(text){
 	const src = `${text == null ? '' : text}`.replace(/\r\n/g, '\n');
@@ -284,7 +284,7 @@ export function packBlocksIntoChunks(blockHeights, chunkHeight, maxBlockHeight){
 	for(let i = 0; i < heights.length; i++){
 		const h = Math.max(0, Number(heights[i]) || 0);
 		if(h > hardMax){
-			// [B2] 超高单块(整表/整图高于 canvas 安全高):不再 null 整份降级——该块独占一段,
+			// 超高单块(整表/整图高于 canvas 安全高):不再 null 整份降级——该块独占一段,
 			// 并标 split 让调用方对这一段内部再按 hardMax 虚切截取(段边界仍在块间,文字零裁)。
 			if(acc > 0){ chunks.push({ start, end: i }); }
 			chunks.push({ start: i, end: i + 1, split: Math.ceil(h / hardMax) });
@@ -303,7 +303,7 @@ export function packBlocksIntoChunks(blockHeights, chunkHeight, maxBlockHeight){
 	return chunks;
 }
 
-// [B4] 栅格分段截取计划(纯函数可测):把整页高按「块底边界」切成 ≤maxSegPx 的段,
+// 栅格分段截取计划(纯函数可测):把整页高按「块底边界」切成 ≤maxSegPx 的段,
 // 供分段 html2canvas(单张全高截图超浏览器 canvas 单维上限 ~32767px 必空白/裁剪)。
 // blockBottoms=各块底 y(升序,CSS px);无可用边界的超长盲区按 maxSegPx 硬切(保完整性优先)。
 export function planCaptureSegments(blockBottoms, totalHeight, maxSegPx){

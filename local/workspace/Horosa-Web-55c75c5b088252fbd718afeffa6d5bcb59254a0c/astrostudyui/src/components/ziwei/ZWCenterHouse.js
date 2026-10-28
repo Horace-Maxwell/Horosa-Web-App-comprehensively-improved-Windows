@@ -1,4 +1,5 @@
 import * as d3 from 'd3';
+import { leapPrefix } from '../../utils/lunarText';
 import {randomStr,} from '../../utils/helper';
 import * as ZWCont from '../../constants/ZWConst';
 import * as ZWText from '../../constants/ZWText';
@@ -65,7 +66,7 @@ class ZWCenterHouse extends ZWCommHouse {
 				.attr('width', this.width).attr('height', this.height);
 		this.svg = container;
 
-		// [D4] 中宫内容先画(底层),飞化/三合线后画叠上层;clean 档=零绘制(现状)。
+		// 中宫内容先画(底层),飞化/三合线后画叠上层;clean 档=零绘制(现状)。
 		this.drawCenterContent();
 		this.drawShiTongZiHua();
 		this.drawSanFanSiZeng();
@@ -75,7 +76,7 @@ class ZWCenterHouse extends ZWCommHouse {
 		this.drawInfoButton();
 	}
 
-	// [D4] 中宫内容分派器:clean=现状空;bazi=四柱要素;full=全量信息。
+	// 中宫内容分派器:clean=现状空;bazi=四柱要素;full=全量信息。
 	// 自适应版式:内容撑满中宫可用宽,字号/行距/列距全部按中宫尺寸推导,窗口缩放即联动;
 	// 整块垂直居中(底部让位信息按钮)。取数 best-effort:缺块跳过不阻断盘面。
 	// 中宫档位真值:借用中宫的技法(策天/演禽)各有各的档位,由 chartObj.centerContentMode 带进来;
@@ -164,7 +165,7 @@ class ZWCenterHouse extends ZWCommHouse {
 		if(mode === 'full'){
 			const timeAlg = chart.timeAlg !== undefined && chart.timeAlg !== null ? chart.timeAlg : 0;
 			if(nongli.birth){ metaLines.push((timeAlg === 1 ? '直接时间：' : '真太阳时：') + nongli.birth); }
-			if(nongli.year){ metaLines.push('农历：' + nongli.year + '年 ' + (nongli.leap ? '闰' : '') + (nongli.month || '') + (nongli.day || '') + ' ' + (nongli.time ? nongli.time.charAt(1) + '时' : '')); }
+			if(nongli.year){ metaLines.push('农历：' + nongli.year + '年 ' + leapPrefix(nongli) + (nongli.month || '') + (nongli.day || '') + ' ' + (nongli.time ? nongli.time.charAt(1) + '时' : '')); }
 			// 经纬度按专业记法(116°24′27″E),不铺十进制长串 —— 借用中宫的技法把后端 double 原样
 			// 塞进 chart.lon/lat,直接拼出来就是 119.31666666666666 这种(用户实报「不要变成一长串」)。
 			// 非数值(已格式化过的串/缺值)原样保留,不二次加工。
@@ -293,7 +294,7 @@ class ZWCenterHouse extends ZWCommHouse {
 		let bw = Math.min(132, this.width * 0.42);
 		let bh = ZWCenterHouse.INFO_BTN_H;
 		let x = this.x + this.width / 2 - bw / 2;
-		// [D4] 中宫有内容(bazi/full)时按钮让位到底部;clean=居中(现状)。
+		// 中宫有内容(bazi/full)时按钮让位到底部;clean=居中(现状)。
 		// 判据必须与 drawCenterContent 同源(resolveCenterMode),否则借用中宫的技法会出现
 		// 「内容画了、按钮还停在正中间」= 按钮压在内容上。
 		let y = this.resolveCenterMode() === 'clean'
@@ -327,7 +328,7 @@ class ZWCenterHouse extends ZWCommHouse {
 		});
 	}
 
-	// [D4美化] 旧版固定字号的中宫四方法(drawName/drawDate/drawBaZi/drawDouJun)已删——
+	// 旧版固定字号的中宫四方法(drawName/drawDate/drawBaZi/drawDouJun)已删——
 	// 自适应版式由 drawCenterInfoPanel 全量承接(信息集覆盖旧四方法),避免「写好零调用」死代码回潮。
 
 
@@ -357,11 +358,11 @@ class ZWCenterHouse extends ZWCommHouse {
 	}
 
 	drawSanFanSiZeng(){
-		// [D0] 守卫修正:ZWChart 是 {chart} 对象,旧写法「对象!==数字」恒真=方法恒空跑。
+		// 守卫修正:ZWChart 是 {chart} 对象,旧写法「对象!==数字」恒真=方法恒空跑。
 		if(ZWCont.ZWChart.chart !== ZWCont.ZWChart_SangHe){
 			return;
 		}
-		// [D4] 对宫指示线:点宫(flyHouse)后画「被点宫↔对宫」中心虚线(三合盘;开关默认开;
+		// 对宫指示线:点宫(flyHouse)后画「被点宫↔对宫」中心虚线(三合盘;开关默认开;
 		// 静态盘 flyHouse 空=零绘制)。中心点法仿 drawYiLiuGongZong。
 		if(!ZiWeiHelper.zwShowSfszLine() || !this.zwchart || !this.zwchart.flyHouse){
 			return;

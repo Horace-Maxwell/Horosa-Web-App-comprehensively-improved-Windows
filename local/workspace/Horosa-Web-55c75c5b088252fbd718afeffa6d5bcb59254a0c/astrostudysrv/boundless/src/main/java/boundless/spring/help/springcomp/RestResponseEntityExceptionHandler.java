@@ -1,12 +1,8 @@
 package boundless.spring.help.springcomp;
 
 import java.net.URLEncoder;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -34,6 +30,7 @@ import boundless.spring.help.PropertyPlaceholder;
 import boundless.spring.help.interceptor.KeyConstants;
 import boundless.spring.help.interceptor.TransData;
 import boundless.utility.JsonUtility;
+import boundless.utility.SecretRedactor;
 import boundless.utility.StringUtility;
 import boundless.web.help.AppServerPathHelper;
 import boundless.spring.help.interceptor.ResultConvertor;
@@ -42,84 +39,29 @@ import boundless.spring.help.interceptor.ResultConvertor;
 public class RestResponseEntityExceptionHandler extends ResponseEntityExceptionHandler {	
 	private static String excludeLogErrorCodesStr = PropertyPlaceholder.getProperty("excludelog.errorcodes", "");
 	private static Set<String> excludeLogErrorCodes = new HashSet<String>();
-	private static final String RedactedValue = "[REDACTED]";
-	private static final Set<String> sensitiveLogFields = new HashSet<String>();
 	static{
 		String[] codes = StringUtility.splitString(excludeLogErrorCodesStr, ',');
 		for(String code : codes){
 			excludeLogErrorCodes.add(code.trim());
 		}
-		String[] sensitiveFields = new String[] {
-			"apikey", "authorization", "token", "accesstoken", "refreshtoken",
-			"secret", "clientsecret", "password", "signature"
-		};
-		for(String field : sensitiveFields) {
-			sensitiveLogFields.add(field);
-		}
 	}
 
+	/** 错误日志里的请求数据脱敏(单源 SecretRedactor):能解析成 JSON 就逐字段走,解析不了按文字形态兜底。 */
 	static String sanitizeRequestDataForLog(String data) {
 		if(StringUtility.isNullOrEmpty(data)) {
 			return data;
 		}
 		try {
 			Object decoded = JsonUtility.decode(data, Object.class);
-			Object sanitized = sanitizeLogValue(null, decoded);
-			return JsonUtility.encodePretty(sanitized);
+			return JsonUtility.encodePretty(SecretRedactor.redactValue(decoded));
 		}catch(Exception e) {
-			return data
-				.replaceAll("(?i)(\"apiKey\"\\s*:\\s*\")[^\"]+(\")", "$1" + RedactedValue + "$2")
-				.replaceAll("(?i)(\"authorization\"\\s*:\\s*\")[^\"]+(\")", "$1" + RedactedValue + "$2")
-				.replaceAll("(?i)(\"token\"\\s*:\\s*\")[^\"]+(\")", "$1" + RedactedValue + "$2");
+			return SecretRedactor.redactText(data);
 		}
 	}
 
+	/** 错误日志里的查询串脱敏(?apiKey= / &token= 等,单源 SecretRedactor)。 */
 	static String sanitizeQueryStringForLog(String queryString) {
-		if(StringUtility.isNullOrEmpty(queryString)) {
-			return queryString;
-		}
-		return queryString
-			.replaceAll("(?i)((?:api[_-]?key|authorization|access[_-]?token|refresh[_-]?token|token|secret|password)=)[^&]+", "$1" + RedactedValue);
-	}
-
-	private static Object sanitizeLogValue(String fieldName, Object value) {
-		if(value == null) {
-			return null;
-		}
-		if(isSensitiveField(fieldName)) {
-			return RedactedValue;
-		}
-		if(value instanceof Map) {
-			Map<?, ?> rawMap = (Map<?, ?>) value;
-			Map<String, Object> sanitized = new LinkedHashMap<String, Object>();
-			for(Map.Entry<?, ?> entry : rawMap.entrySet()) {
-				String key = entry.getKey() == null ? null : entry.getKey().toString();
-				sanitized.put(key, sanitizeLogValue(key, entry.getValue()));
-			}
-			return sanitized;
-		}
-		if(value instanceof Collection) {
-			List<Object> sanitized = new ArrayList<Object>();
-			for(Object item : (Collection<?>) value) {
-				sanitized.add(sanitizeLogValue(null, item));
-			}
-			return sanitized;
-		}
-		return value;
-	}
-
-	private static boolean isSensitiveField(String fieldName) {
-		if(StringUtility.isNullOrEmpty(fieldName)) {
-			return false;
-		}
-		String normalized = fieldName.replaceAll("[^A-Za-z0-9]", "").toLowerCase();
-		if(StringUtility.isNullOrEmpty(normalized)) {
-			return false;
-		}
-		return sensitiveLogFields.contains(normalized)
-			|| normalized.endsWith("token")
-			|| normalized.endsWith("secret")
-			|| normalized.endsWith("password");
+		return SecretRedactor.redactText(queryString);
 	}
 
 	private String getExMsg(Exception ex) {

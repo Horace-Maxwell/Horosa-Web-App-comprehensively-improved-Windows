@@ -1,4 +1,4 @@
-// [D79] 只读注册表视图单源:orchestrator.js 与 aiTools/tools/runAnalysis.js 此前各有一份同名不同实现(前者不限来源,后者硬编 mcp 并排除自身);
+// 只读注册表视图单源:orchestrator.js 与 aiTools/tools/runAnalysis.js 此前各有一份同名不同实现(前者不限来源,后者硬编 mcp 并排除自身);
 //   现在都委托 aiAgent/readOnlyRegistry.js,文案与来源语义按各自选项保持。
 import fs from 'fs';
 import path from 'path';
@@ -58,7 +58,7 @@ it('源码锁:两处只做委托,不再各自实现过滤', ()=>{
 	expect((head.match(/d\.level === 'read' && d\.name !== 'run_analysis'/g) || []).length).toBe(0);
 });
 
-describe('[Q-294/AR-29 裁决 2026-09-18] 只读视图默认排除 ui 类工具', ()=>{
+describe('只读视图默认排除 ui 类工具', ()=>{
 	it('category ui 的 read 级工具在只读视图里不可见 / 不可跑;allowUi:true 才保留', async ()=>{
 		const defs = { list_records: { name: 'list_records', level: 'read' }, navigate_to_technique: { name: 'navigate_to_technique', level: 'read', category: 'ui' } };
 		const reg = { getTool: (n)=>defs[n] || null, exportToolManifest: ()=>Object.values(defs).map((d)=>({ name: d.name })), runTool: async (n)=>({ ok: true, name: n }) };

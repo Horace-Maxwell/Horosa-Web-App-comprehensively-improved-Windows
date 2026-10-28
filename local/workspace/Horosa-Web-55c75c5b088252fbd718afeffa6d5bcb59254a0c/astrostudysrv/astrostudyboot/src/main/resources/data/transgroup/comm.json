@@ -15,20 +15,7 @@
 			"/user/check",
 			"/user/changepwd",
 			"/user/changeparams",
-			"/user/charts/export",
-			"/user/charts/import",
-			"/deeplearn/fateevents",
-			"/deeplearn/train",		
-			"/astroreader/upload",				
-			"/astroreader/listbooks",				
-			"/astroreader/updatebook",				
-			"/astroreader/updatechapter",				
-			"/astroreader/getchapter",				
-			"/astroreader/deletebook",				
-			"/astroreader/readprogress",				
-			"/astroreader/tts",
-			"/astroreader/exportbook",
-			"/astroreader/livepublishpath"			
+			"/user/charts/export"
 		]
 	}]
 }

@@ -5,6 +5,7 @@ import GuaSym from './GuaSym';
 import GuaChartDiv from './GuaChartDiv';
 import { safeLocalStorageGet, safeLocalStorageSet, safeLocalStorageRemove } from '../../utils/safeStorage';
 import { getLayoutViewportWidth, getLayoutViewportHeight } from '../../utils/shellZoom';
+import ExternalLink from '../common/ExternalLink';
 
 const guaDataKey = 'guaData';
 
@@ -116,7 +117,7 @@ export default class GuaSymDesc extends Component{
         }
 
         let dom = (
-            <a href={data.url} target='_blank'>{data.desc}</a>
+            <ExternalLink href={data.url}>{data.desc}</ExternalLink>
         );
 
         return dom;
@@ -129,7 +130,7 @@ export default class GuaSymDesc extends Component{
         }
 
         let dom = (
-            <a href={data.url} target='_blank'>{data.desc}</a>
+            <ExternalLink href={data.url}>{data.desc}</ExternalLink>
         );
 
         return dom;
@@ -197,6 +198,10 @@ export default class GuaSymDesc extends Component{
 
         return (
             <div style={fill ? { height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' } : undefined}>
+                {/* 空态:首启本机还没存过卦时两个下拉与右侧都是空的 → 一句提示该做什么 */}
+                {!this.state.allData ? (
+                    <div className="horosa-empty-line horosa-guasym-empty-hint" role="note" style={fill ? { flex: 'none' } : undefined}>在下方两个下拉里分别选上卦与下卦,这里会显示六十四卦、互卦与各卦类象</div>
+                ) : null}
                 <Row gutter={16} style={fill ? { flex: '1 1 0', minHeight: 0 } : undefined}>
                     <Col span={span*2} style={fill ? { height: '100%', minHeight: 0 } : undefined}>
                         <DoubleMeiyiGuaSym height={meiyiheight} fill={fill}

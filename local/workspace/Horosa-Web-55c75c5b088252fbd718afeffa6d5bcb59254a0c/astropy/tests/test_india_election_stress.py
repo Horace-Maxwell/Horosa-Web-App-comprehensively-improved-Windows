@@ -88,7 +88,7 @@ for v in range(0, 7):
     S1_CASES.append(('vara·%d' % v, _leaf('vara', {'values': [v]})))
 for v in (1, 4, 9, 14, 20, 27):
     S1_CASES.append(('nakshatra·Moon·%d' % v, _leaf('nakshatra', {'body': 'Moon', 'values': [v]})))
-# [W8 全谱轮] 七新类入 S1(恒等扫描机械盖)
+# 七新类入 S1(恒等扫描机械盖)
 S1_CASES.append(('muhurta_seg·abhijit', _leaf('muhurta_seg', {'pick': 'abhijit'})))
 S1_CASES.append(('muhurta_seg·ausp', _leaf('muhurta_seg', {'pick': 'grade', 'grades': ['auspicious']})))
 S1_CASES.append(('choghadia·good', _leaf('choghadia', {'natures': ['good']})))

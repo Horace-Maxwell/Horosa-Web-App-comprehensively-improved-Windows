@@ -6,7 +6,7 @@
 //   lotReversal     福点昼夜反转 1 反转(默认) / 0 恒昼式
 //   sectBuffer      昼夜判定缓冲 'geo' 几何地平(默认) / 'ptolemy5' 上升前 5°
 //   aspectModel     相位模型 'whole' 整座相位(默认口径) / 'degree' 度数相位(套古典 moiety 容许度)
-//   lotsDocReverse  四点文档序公式(婚·子·友·疾)1 开 / 0 关(默认) —— [Q-343] 与 lotReversal 联动写入,反查亦计此维
+//   lotsDocReverse  四点文档序公式(婚·子·友·疾)1 开 / 0 关(默认) —— 与 lotReversal 联动写入,反查亦计此维
 // 预设是「快捷」：选档一次性写多个 fields；单项被单独改 → presetOf 反查不再命中任何档 → 显示「自定」。
 //
 // 🔴 零回归铁律：'brennan' 档的全部维度必须 = 应用当前默认值，使默认/首选 Brennan 与改动前盘字节级一致。
@@ -29,7 +29,7 @@ export const SCHOOL_PRESETS = {
 		lotReversal: 1,                // 反转(现状默认) → 零回归锚
 		sectBuffer: 'geo',             // 几何地平(现状默认)
 		aspectModel: 'whole',          // 整座相位(现状口径:不下发 orbs/simpleAsp)
-		lotsDocReverse: 0,                // [Q-343] 四点文档序公式(婚·子·友·疾):不反转档采文档式,其余 0(与 changeSchoolPreset 写入同律)
+		lotsDocReverse: 0,                // 四点文档序公式(婚·子·友·疾):不反转档采文档式,其余 0(与 changeSchoolPreset 写入同律)
 	},
 	valens: {
 		label: 'Valens',
@@ -61,7 +61,8 @@ export const SCHOOL_PRESETS = {
 		tripSystem: 'Dorothean',
 		lotReversal: 1,
 		sectBuffer: 'geo',
-		aspectModel: 'whole',
+		aspectModel: 'degree',         // 波斯 / 中世纪一路:相位按星体半容许度(moiety)论 —— 与 Valens(整座相位)的分界
+		// (此前与 Valens 八项全同 → 反查恒先命中 Valens,选 Dykes 下拉也显示 Valens)
 		lotsDocReverse: 0,
 	},
 	houlding: {
@@ -113,14 +114,14 @@ export function normalizeSchoolPreset(preset){
 export function presetOf({ zodiac, hsys, termsVariant, tripSystem, lotReversal, sectBuffer, aspectModel, lotsDocReverse }){
 	const z = zodiac == null ? 'tropical' : `${zodiac}`;
 	const h = Number(hsys);
-	// [Q-254/T-232] 界系 3(迦勒底)/4(自定义)不属任何档 → 保留原值使反查落「自定」(此前折叠成 0 → 误显埃及界档)。
+	// 界系 3(迦勒底)/4(自定义)不属任何档 → 保留原值使反查落「自定」(此前折叠成 0 → 误显埃及界档)。
 	const tRaw = (termsVariant === undefined || termsVariant === null || termsVariant === '') ? 0 : Number(termsVariant);
 	const t = Number.isFinite(tRaw) ? tRaw : 0;
 	const tr = tripSystem || 'Dorothean';
 	const lr = (lotReversal === 0 || lotReversal === '0') ? 0 : 1;
 	const sb = sectBuffer || 'geo';
 	const am = aspectModel || 'whole';
-	// [Q-343/T-324] 第八维 lotsDocReverse:缺省(老调用方不传)按各档自身值视为命中(零回归);显式传值才参与反查。
+	// 第八维 lotsDocReverse:缺省(老调用方不传)按各档自身值视为命中(零回归);显式传值才参与反查。
 	const ldr = (lotsDocReverse === undefined || lotsDocReverse === null) ? null : ((lotsDocReverse === 1 || lotsDocReverse === '1' || lotsDocReverse === true) ? 1 : 0);
 	const hit = Object.keys(SCHOOL_PRESETS).find((k)=>{
 		const p = SCHOOL_PRESETS[k];

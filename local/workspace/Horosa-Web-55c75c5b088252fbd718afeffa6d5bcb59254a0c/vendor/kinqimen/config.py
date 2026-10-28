@@ -8,7 +8,7 @@ Created on Wed May 17 11:55:49 2023
 import re
 import datetime
 from itertools import cycle
-from jieqi import get_jieqi_start_date, get_current_jieqi_start_date, jq, gangzhi, jiazi, lunar_date_d, repeat_list, zhirun_jieqi, zhirun_jieqi_noleap
+from jieqi import _civil_moment, get_jieqi_start_date, get_current_jieqi_start_date, jq, gangzhi, jiazi, lunar_date_d, repeat_list, zhirun_jieqi, zhirun_jieqi_noleap
 
 cnum = list("一二三四五六七八九十")
 #干支
@@ -212,7 +212,7 @@ def qimen_ju_name_zhirun_raw(year, month, day, hour, minute):
                    tuple(["甲辰","甲戌","己丑","己未"]):"下元"}
     three_yuen = multi_key_dict_get(ju_day_dict, fd)
     Jieqi_disance = get_jieqi_start_date(year, month, day, hour, minute)["時間"]
-    current = datetime.datetime(year, month, day, hour, minute)
+    current = _civil_moment(year, month, day, hour, minute)
     #current_ts = datetime.datetime.strptime(current, "%Y/%m/%d %H:%M:%S")
     #jq_distance_ts = datetime.datetime.strptime(Jieqi_disance,"%Y/%m/%d %H:%M:%S")
     difference = (current-Jieqi_disance).days
@@ -281,7 +281,7 @@ def qimen_ju_name_maoshan(year, month, day, hour, minute):
     find_yingyang = multi_key_dict_get(yydun, jieqi)
     jieqi_code = jieqicode_jq(jieqi)
     jq_time = _cur["時間"]
-    now = datetime.datetime(year, month, day, hour, minute)
+    now = _civil_moment(year, month, day, hour, minute)
     shichen = int((now - jq_time).total_seconds() // 7200)   # 每2小時一時辰
     if shichen < 0:
         shichen = 0

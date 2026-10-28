@@ -1,7 +1,7 @@
 // 运行中任务的控制器登记(纯内存;刷新即清,持久态由 taskStore/reconcile 负责)。
 const running = new Map();   // taskId → { cancel, pause, resume, startedAt }
 
-// [压测二轮·S46] 窗口身份:同一标签页刷新后保持(sessionStorage),新开的标签页各一枚——
+// 窗口身份:同一标签页刷新后保持(sessionStorage),新开的标签页各一枚——
 // 任务记录里的 runner.owner 就是它:启动对账据此分辨「本页刷新前留下的死循环」与「另一窗口正在跑的活任务」。
 export const WINDOW_ID_KEY = 'horosa.ai.window.id';
 function makeWindowId(){ return `win-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`; }

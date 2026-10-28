@@ -1,4 +1,4 @@
-// [批五] 四断链之③:外部客户端连投多条建档时的「批尾统一选中」此前是死路(桥 workspaceUi() 读 bridge.ui 恒 null)。
+// 四断链之③:外部客户端连投多条建档时的「批尾统一选中」此前是死路(桥 workspaceUi() 读 bridge.ui 恒 null)。
 // 行为锁:走真挂钩(bindMcpBridge → 惰性载入真目录)连投两条 tools/call 建档 → 排空后 selectSource 恰 1 次且是第二条 cid,refreshSources 在前;不登记 → 0 次。
 import { bindMcpBridge, __resetMcpBridgeForTests } from '../aiAgent/mcpBridge';
 import { setAgentEnabled, AGENT_ENABLED_KEY } from '../aiAgent/prefs';

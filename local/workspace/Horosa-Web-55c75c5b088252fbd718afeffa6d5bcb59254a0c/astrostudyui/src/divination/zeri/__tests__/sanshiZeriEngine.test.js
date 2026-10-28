@@ -1,4 +1,4 @@
-// [Z6·三式择日] 引擎+程序化注册表金标。锚=2026-01-01 12:30 +08:00 北京(六壬重审课/
+// 引擎+程序化注册表金标。锚=2026-01-01 12:30 +08:00 北京(六壬重审课/
 // 太乙阳遁六十七局——与 Z3/Z5 各家金标同锚同真值;三家判定全数继承,此处只测合并层)。
 // 程序化文件无「一键一行」可抓——preflight[227] 改由本套件的**合并键集恒等哨兵**接防:
 // 键集 ≡ 三源注册表键加前缀映射(任一源加/删类,此处自动跟或红)。
@@ -17,7 +17,7 @@ const GEO = { zone: '+08:00', gpsLon: 116.46, gpsLat: 39.9, lon: '116e28', lat: 
 const seeds = ()=>buildQimenScanSeeds(2026, 2026, '+08:00');
 const anchorPan = (opts)=>computeSanshiScanPan({ seeds: seeds(), natal: (opts || {})._natal || null }, GEO, opts || {}, '2026-01-01', '12:30:00');
 
-describe('[Z6] 🔴 程序化合并层(键集恒等+freeze+分派+失败注记)', ()=>{
+describe('🔴 程序化合并层(键集恒等+freeze+分派+失败注记)', ()=>{
 	it('🔴 合并键集恒等哨兵:键集 ≡ 三源加前缀(源注册表演进此处自动跟;preflight[227] 依赖本例)', ()=>{
 		const expect_keys = [
 			...Object.keys(LIURENG_CONDITION_TYPES).map((k)=>`lr_${k}`),
@@ -70,7 +70,7 @@ describe('[Z6] 🔴 程序化合并层(键集恒等+freeze+分派+失败注记)'
 		expect(SANSHI_SHARED_TIME_KEYS).toEqual(['timeAlg', 'after23NewDay', 'lateZiHourUseNextDay']);
 	});
 
-	it('🔴 [Q-271/ZC-14] 奇门家播种键(暗干等)经 splitter 透传:anGanMode 开 → 三式盘奇门宫格有暗干;关 → 空', ()=>{
+	it('🔴 奇门家播种键(暗干等)经 splitter 透传:anGanMode 开 → 三式盘奇门宫格有暗干;关 → 空', ()=>{
 		const { QM_SEED_KEYS } = require('../sanshiOptionSplit');
 		expect(QM_SEED_KEYS).toEqual(expect.arrayContaining(['anGanMode', 'showAnZhi', 'godsPreset', 'jiGongMode', 'shiftZhiFuMode']));
 		expect(splitSanshiOptions({ anGanMode: 'dipan', showAnZhi: true }).qimen).toEqual({ anGanMode: 'dipan', showAnZhi: true });
@@ -107,7 +107,7 @@ describe('[Z6] 🔴 程序化合并层(键集恒等+freeze+分派+失败注记)'
 	});
 });
 
-describe('[Z6] 扫描引擎(外壳第七实例:跨家复合恒等+行内同盘探针)', ()=>{
+describe('扫描引擎(外壳第七实例:跨家复合恒等+行内同盘探针)', ()=>{
 	jest.setTimeout(180000);
 	const OPTS = {};
 	// 跨家复合树:太乙阳遁(1月恒真) AND 六壬昼占(昼夜各半)——复合判定有真有假
@@ -140,7 +140,7 @@ describe('[Z6] 扫描引擎(外壳第七实例:跨家复合恒等+行内同盘�
 			const p = computeSanshiScanPan({ seeds: sd, natal: null }, GEO, OPTS, ds, ts);
 			const lr = p.liureng && p.liureng.sanChuan ? p.liureng.sanChuan.name : '—';
 			const ty = p.taiyi && p.taiyi.kook ? p.taiyi.kook.text : '—';
-			// [十四轮] 徽章面=树涉及家(TREE=ty+lr 两叶,qm 未涉不上徽章;家级掩码效果活证)
+			// 徽章面=树涉及家(TREE=ty+lr 两叶,qm 未涉不上徽章;家级掩码效果活证)
 			expect(r.sanshiText).toBe(`${lr}·${ty}`);
 		});
 	});
@@ -163,7 +163,7 @@ describe('[Z6] 扫描引擎(外壳第七实例:跨家复合恒等+行内同盘�
 	});
 });
 
-describe('[十一轮] 三式子掩码:按叶前缀分家取位(lr/qm 各走本家 keyMaskOf 单源)', ()=>{
+describe('三式子掩码:按叶前缀分家取位(lr/qm 各走本家 keyMaskOf 单源)', ()=>{
 	it('lr 叶不涉贵人+qm 叶不涉柱面 → 两家掩位全 false;涉则对应位开', ()=>{
 		const t1 = compileSanshiTree({ kind: 'group', joiner: 'all', children: [
 			{ kind: 'leaf', type: 'lr_ke_name', joiner: 'all', params: { values: ['元首课'] } },
@@ -183,7 +183,7 @@ describe('[十一轮] 三式子掩码:按叶前缀分家取位(lr/qm 各走本�
 	});
 });
 
-describe('[十四轮] 家级掩码双向判别:树不涉之家不劈行(用户实报 1.8h+15分=太乙钟表换局劈六壬树)', ()=>{
+describe('家级掩码双向判别:树不涉之家不劈行(用户实报 1.8h+15分=太乙钟表换局劈六壬树)', ()=>{
 	jest.setTimeout(180000);
 	const GEO2 = { zone: '+08:00', lon: '116e28', lat: '39n54', gpsLon: 116.46, gpsLat: 39.9, ad: 1 };
 	// 太乙钟表换局界=19:00 整;六壬真太阳酉→戌界≈19:15。窗 17:00-21:00 覆盖两界。

@@ -2,8 +2,8 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 3.11.3
-date-released: 2026-09-30
+version: 3.12.0
+date-released: 2026-10-28
 authors:
   - given-names: Horace
     family-names: Maxwell
@@ -12,8 +12,17 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v3.11.3 beta is a local-first metaphysics workstation. This release is a major
-  upgrade of the AI assistant, from single-turn Q&A to an agent that can act, remember and connect:
+  Horosa for Windows v3.12.0 beta is a local-first metaphysics workstation. This release adds a
+  one-click Simplified / Traditional Chinese interface (context-aware character selection; the shell
+  menus, dialogs, startup and update windows follow, while exports and AI input stay Simplified), lets
+  AI conversations mount two people's charts at once with Western synastry data, BaZi compatibility
+  and Zi Wei pair comparisons, opens the local MCP server to more reading and to proposal-based,
+  confirmable and undoable writes with progress, cancellation and idempotency keys, and adds a local
+  REST interface and a horosa terminal command (all off by default). Charts before the 1582 Gregorian
+  reform and BC dates are corrected across every technique, calls between the local services never go
+  through the system proxy, text contrast and zoomed layouts are tightened, and backup, restore and
+  storage recovery are hardened. It builds on the v3.11 releases, which were a major upgrade of the
+  AI assistant, from single-turn Q&A to an agent that can act, remember and connect:
   an action layer (off by default) lets the model create charts and cases, cast headlessly, change
   chart conventions and display preferences, switch technique pages and load workspaces — read-only
   or append-only, never deleting or overwriting — behind a three-level approval policy with per-category

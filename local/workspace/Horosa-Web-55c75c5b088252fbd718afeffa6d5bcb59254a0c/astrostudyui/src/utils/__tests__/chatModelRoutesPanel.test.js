@@ -13,7 +13,8 @@ class FakeResizeObserver {
 	constructor(cb){ this.cb = cb; FakeResizeObserver.instances.push(this); }
 	observe(el){ this.el = el; }
 	disconnect(){ this.disconnected = true; }
-	fire(width){ this.cb([{ target: this.el, contentRect: { width } }]); }
+	// 回调经统一入口(utils/deferredResizeObserver)延到下一帧执行;这里把那一帧当拍放行
+	fire(width){ const raf = global.requestAnimationFrame; global.requestAnimationFrame = (fn)=>{ fn(); return 0; }; try{ this.cb([{ target: this.el, contentRect: { width } }]); }finally{ global.requestAnimationFrame = raf; } }
 }
 FakeResizeObserver.instances = [];
 const profiles = [{ id: 'p1', name: '甲', enabled: true, chatModelIds: ['m1', 'm2'] }];

@@ -1,5 +1,3 @@
-import jsonpickle
-import datetime
 from flatlib import const
 
 from astrostudy.guostarsect.guostarsect import GuoStarSect
@@ -31,13 +29,13 @@ def getPredictivesObj(data, perchart):
 
 
 def getChartDate(date):
-    parts = date.split('/')
-    if len(parts) == 1:
-        parts = date.split('-')
-    year = parts[0]
-    month = parts[1]
-    day = parts[2]
-    return '{0}/{1}/{2}'.format(year, month, day)
+    """推运各「按日期」入口的目标日 → 起盘用 'YYYY/MM/DD'(历史纪年;公元前前导负号)。
+    经 civil_calendar 单源解析:'-0001-06-01' / '-1/06/01' / '0050-06-01' / '12000-01-01' 都对
+    (旧写法先按 '/' 拆、只有一段再按 '-' 拆,公元前的「-Y-MM-DD」拆出空年份 → 解析失败)。
+    公元后日期与旧输出起盘逐位相同(只多补年份前导零,flatlib 按整数读)。"""
+    from astrostudy.civil_calendar import parse_civil_date, format_civil_date
+    ay, month, day = parse_civil_date(date)
+    return format_civil_date(ay, month, day, '/')
 
 def getMiddleDate(date1, time1, date2, time2, zone1=None, zone2=None):
     """时间中点(儒略日算术)。
@@ -47,8 +45,10 @@ def getMiddleDate(date1, time1, date2, time2, zone1=None, zone2=None):
     现实现:两端各按自身 zone 归 UT → 取 JD 中点(分钟级取整,旧格式只有 HH:MM)→ 按
     zone1 口径回落当地。负年沿用「前导负号=负年」编码,swe.julday/revjul 原生支持,
     输入输出同一历法域(proleptic Gregorian,与旧 datetime 域一致)往返闭合。
-    zone 缺省(旧调用方兼容)= 两端同区假定,行为等于旧版钟面平均(仅去掉 Date 病根)。"""
-    import swisseph as swe
+    zone 缺省(旧调用方兼容)= 两端同区假定,行为等于旧版钟面平均(仅去掉 Date 病根)。
+    历法:两端与结果都按民用历(历史纪年,前导负号 = 公元前;1582-10-15 以前儒略历),与起盘引擎读串同口径——
+    跨 1582 或跨公元元年的配对也不差天;1582-10-15 以后与格里历换算逐位相同。"""
+    from astrostudy.civil_calendar import astro_year, civil_julday, civil_revjul, format_civil_date
 
     def _zh(z):
         try:
@@ -64,25 +64,26 @@ def getMiddleDate(date1, time1, date2, time2, zone1=None, zone2=None):
         neg = ds.startswith('-')
         p = ds.lstrip('-').replace('/', '-').split('-')
         tp = (str(t).split(':') + ['0', '0'])[:3]
-        return (int(p[0]) * (-1 if neg else 1), int(p[1]), int(p[2]),
+        return (astro_year(int(p[0]) * (-1 if neg else 1)), int(p[1]), int(p[2]),
                 int(tp[0]), int(tp[1]))
 
     y1, m1, d1, hh1, mi1 = _parts(date1, time1)
     y2, m2, d2, hh2, mi2 = _parts(date2, time2)
     z1, z2 = _zh(zone1), _zh(zone2)
-    jd1 = swe.julday(y1, m1, d1, hh1 + mi1 / 60.0 - z1)
-    jd2 = swe.julday(y2, m2, d2, hh2 + mi2 / 60.0 - z2)
+    # 两端各按自己的日期选历法(钟面小时减时区可越出 0–24,julday 自行折算,历法按当地日期判)
+    jd1 = civil_julday(y1, m1, d1, hh1 + mi1 / 60.0 - z1)
+    jd2 = civil_julday(y2, m2, d2, hh2 + mi2 / 60.0 - z2)
     jdm = (jd1 + jd2) / 2.0 + z1 / 24.0           # 回落 zone1 当地钟面
     jdm = round(jdm * 1440.0) / 1440.0            # 分钟级取整
-    yy, mm, dd, ut = swe.revjul(jdm)
+    yy, mm, dd, ut = civil_revjul(jdm)
     hh = int(ut + 1e-6)
     mi = int(round((ut - hh) * 60.0))
     if mi == 60:
-        yy, mm, dd, ut = swe.revjul(jdm + 30.0 / 86400.0)
+        yy, mm, dd, ut = civil_revjul(jdm + 30.0 / 86400.0)
         hh = int(ut + 1e-6)
         mi = 0
     return {
-        'date': '%04d/%02d/%02d' % (yy, mm, dd),   # 年补零 4 位与 strftime('%Y') 同宽(AD 1-999 中点盘日期串曾缩成 1-3 位)
+        'date': format_civil_date(yy, mm, dd, '/'),   # 年补零 4 位(AD 1-999 中点盘日期串曾缩成 1-3 位);负年 = 公元前(历史纪年)
         'time': '%02d:%02d' % (hh, mi),
         'zone': zone1,
     }
@@ -266,11 +267,6 @@ def getChartObj(data, perchart):
 
     return obj
 
-def getChartJson(data, perchart):
-    obj = getChartObj(data, perchart)
-    res = jsonpickle.encode(obj, unpicklable=False)
-    return res
-
 def distance(ang1, ang2):
     # 有符号最短弧 ang1-ang2,范围 (-180, 180]。
     # 原实现只在 270°/90° 两个窗口做回绕,中段大分离(如 100,300)返回 -200 而非 +160,
@@ -282,60 +278,6 @@ def absDistance(ang1, ang2):
     # `360-ang2-ang1` 把 +ang1 误写成 -ang1(如 (10,350) 得 0 而非 340),
     # 致月返寻根在该窗口种子步长归零、把种子时间当返照返回。本式对原正确分支逐值相等。
     return (ang2 - ang1) % 360
-
-def isLeap(year):
-    if year == 4:
-        return False
-    if year <= 1582:
-        if year % 4 == 0:
-            return True
-        else:
-            return False
-    else:
-        if year % 4 == 0:
-            if year % 400 == 0:
-                return True
-            if year % 100 == 0:
-                return False
-            return True
-        else:
-            return False
-
-def calRealDate(isBC, startDate, endDate):
-    res = {
-        'isBC': isBC,
-        'date': datetime.datetime(endDate.year, endDate.month, endDate.day, endDate.hour, endDate.minute, endDate.second)
-    }
-    if isBC == False:
-        return res
-
-    isNowBC = isBC
-    y = startDate.year
-    ydelta = endDate.year - y
-    m = endDate.month
-    d = endDate.day
-    date = res['date']
-    if ydelta == 0:
-        isNowBC = True
-    elif ydelta < y:
-        ny = endDate.year - y
-        if isLeap(ny) == False and m == 2 and d == 29:
-            m = 3
-            d = 1
-        date = datetime.datetime(ny, m, d, endDate.hour, endDate.minute, endDate.second)
-        isNowBC = True
-    else:
-        offdelta = 1 if y == 1 else y + 1
-        ny = endDate.year - offdelta
-        if isLeap(ny) == False and m == 2 and d == 29:
-            m = 3
-            d = 1
-        date = datetime.datetime(ny, m, d, endDate.hour, endDate.minute, endDate.second)
-        isNowBC = False
-
-    res['isBC'] = isNowBC
-    res['date'] = date
-    return res
 
 
 def getSignLon(sign):

@@ -10,18 +10,18 @@ export const AstroColor = {
     Relation2: '#000033',
     Relation3: '#000033',
 };
-AstroColor['Mercury'] = '#6E7D66';
-AstroColor['Venus'] = '#C49E60';
+AstroColor['Mercury'] = '#606e59';
+AstroColor['Venus'] = '#856531';
 AstroColor['Mars'] = '#98534E';
 AstroColor['Jupiter'] = '#98534E';
-AstroColor['Saturn'] = '#C49E60';
+AstroColor['Saturn'] = '#856531';
 AstroColor['Sun'] = '#98534E';
 AstroColor['Moon'] = '#3A4670';
 AstroColor['Dark Moon'] = '#000000';
 AstroColor['Purple Clouds'] = '#660066';
 AstroColor['North Node'] = '#0000FF';
 AstroColor['South Node'] = '#0000FF';
-AstroColor['Uranus'] = '#6E7D66';
+AstroColor['Uranus'] = '#606e59';
 AstroColor['Neptune'] = '#3A4670';
 AstroColor['Chiron'] = '#0000FF';
 AstroColor['Syzygy'] = '#0000FF';
@@ -31,24 +31,31 @@ AstroColor['Desc'] = '#666600';
 AstroColor['MC'] = '#666600';
 AstroColor['IC'] = '#666600';
 
+// 行星环的留(S)/ 顺(D)/ 逆(R)标、度数的分、王星标(盘面字;按本套盘面底挑,画的那一刻经 AstroConst.AstroColor 读)
+AstroColor['StationS'] = '#856324';
+AstroColor['StationD'] = '#307749';
+AstroColor['Retrograde'] = '#8f2d2d';
+AstroColor['MinuteText'] = '#706960';
+AstroColor['RoyalStar'] = '#7f671b';
+
 AstroColor['Aries'] = '#98534E';
-AstroColor['Taurus'] = '#C49E60';
-AstroColor['Gemini'] = '#6E7D66';
+AstroColor['Taurus'] = '#856531';
+AstroColor['Gemini'] = '#606e59';
 AstroColor['Cancer'] = '#3A4670';
 AstroColor['Leo'] = '#98534E';
-AstroColor['Virgo'] = '#C49E60';
-AstroColor['Libra'] = '#6E7D66';
+AstroColor['Virgo'] = '#856531';
+AstroColor['Libra'] = '#606e59';
 AstroColor['Scorpio'] = '#3A4670';
 AstroColor['Sagittarius'] = '#98534E';
-AstroColor['Capricorn'] = '#C49E60';
-AstroColor['Aquarius'] = '#6E7D66';
+AstroColor['Capricorn'] = '#856531';
+AstroColor['Aquarius'] = '#606e59';
 AstroColor['Pisces'] = '#3A4670';
 
 
-AstroColor['Asp0'] = '#A2ABB4';
+AstroColor['Asp0'] = '#606b77';
 AstroColor['Asp60'] = '#6C596F';
 AstroColor['Asp90'] = '#894C4B';
-AstroColor['Asp120'] = '#8DAA8E';
+AstroColor['Asp120'] = '#547055';
 AstroColor['Asp180'] = '#1C2F5A';
 
 AstroColor['命'] = '#cccc00';

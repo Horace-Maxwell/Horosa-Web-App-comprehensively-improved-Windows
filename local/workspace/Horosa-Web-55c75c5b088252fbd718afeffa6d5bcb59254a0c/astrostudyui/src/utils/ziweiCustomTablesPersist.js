@@ -7,10 +7,12 @@
 // ⚠ 绝不新建对象仓、绝不升库版本号(旧包升级会炸整个 AI 模块)——只住既有 workspace_meta。
 import { getStoreRecord, putStoreRecord, AI_ANALYSIS_STORES } from './aiAnalysisStore';
 import { safeLocalStorageSet, safeLocalStorageGet } from './safeStorage';
+import { ZIWEI_CUSTOM_TABLE_MIRROR_IDS } from './aiWorkspaceRestore';
 
+// 镜像记录 id 与「单独恢复 AI 工作区保本机镜像」同一份清单(aiWorkspaceRestore.ZIWEI_CUSTOM_TABLE_MIRROR_IDS)
 const MIRROR_IDS = {
-	brightness: 'ziwei_custom_brightness_table',
-	sihua: 'ziwei_custom_sihua_table',
+	brightness: ZIWEI_CUSTOM_TABLE_MIRROR_IDS[1],
+	sihua: ZIWEI_CUSTOM_TABLE_MIRROR_IDS[0],
 };
 const LS_KEYS = {
 	brightness: 'ziweiBrightnessCustom',

@@ -1,4 +1,4 @@
-// [批二⑩] 按槽思考档合同:键读写(缺省不存在;非法档/非法槽剔除;全空删键;订阅)· providerOptionsForRoute 槽档优先:同目标无槽档=原对象、有槽档=剥旧键再施加、'off'=剥净;异目标按槽档施加 · 路由卡每行有思考下拉且打开不写键。
+// 按槽思考档合同:键读写(缺省不存在;非法档/非法槽剔除;全空删键;订阅)· providerOptionsForRoute 槽档优先:同目标无槽档=原对象、有槽档=剥旧键再施加、'off'=剥净;异目标按槽档施加 · 路由卡每行有思考下拉且打开不写键。
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { act } from 'react-dom/test-utils';

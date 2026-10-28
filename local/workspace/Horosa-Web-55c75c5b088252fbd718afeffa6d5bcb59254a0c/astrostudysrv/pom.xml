@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<!--
+		后端聚合构建 + 库模块的公共父 pom。
+
+		一条命令按依赖序从源码构建全部模块并打出 astrostudyboot/target/astrostudyboot.jar:
+		    mvn -f Horosa-Web/astrostudysrv/pom.xml clean install -DskipTests
+
+		- 兄弟模块在同一次构建里直接互相引用,不再依赖本机 ~/.m2 里先前装过的旧件。
+		- 库模块(boundless / basecomm / image / astrostudy / astrostudycn)以本 pom 为父,
+		  公共的编码、编译参数、源码包插件、测试依赖与模块间版本只在这里写一次。
+		- astrostudyboot 以 spring-boot-starter-parent 为父(fat jar 的依赖版本由它决定),
+		  只在这里被聚合,不继承本 pom。
+		- 依赖版本与 fat jar 同源:导入同一版 spring-boot-dependencies,Spring Boot 管理的依赖
+		  模块里不写版本;其余在两个以上模块出现、或与 fat jar 实际版本不同的,统一在下方写一次。
+		  这样各模块编译和单测用的就是发版 jar 里的那一版。
+		- 各模块自身的 groupId / artifactId / version 不变。
+	-->
+	<groupId>spacex</groupId>
+	<artifactId>astrostudysrv</artifactId>
+	<version>1.0.0</version>
+	<packaging>pom</packaging>
+	<name>astrostudysrv</name>
+
+	<!-- 按依赖序排列(Maven 也会按依赖关系自行排序) -->
+	<modules>
+		<module>boundless</module>
+		<module>basecomm</module>
+		<module>image</module>
+		<module>astrostudy</module>
+		<module>astrostudycn</module>
+		<module>astrostudyboot</module>
+	</modules>
+
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<java.release.version>17</java.release.version>
+		<!-- 必须与 astrostudyboot/pom.xml 的 spring-boot-starter-parent 版本一致 -->
+		<spring-boot.version>2.7.6</spring-boot.version>
+		<junit.version>4.13.2</junit.version>
+		<poi.version>5.2.5</poi.version>
+		<pdfbox.version>2.0.31</pdfbox.version>
+		<!-- 库模块 jar 逐字节可复现(固定 jar 内条目时间):源码不变,jar 字节就不变。
+		     打包按字节判断依赖部件是否变化,image 模块的 jar 归在第三方依赖部件里,不能每次构建都变。 -->
+		<project.build.outputTimestamp>2026-01-01T00:00:00Z</project.build.outputTimestamp>
+	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<!-- 模块间依赖 -->
+			<dependency>
+				<groupId>boundless</groupId>
+				<artifactId>boundless</artifactId>
+				<version>1.2.1.2</version>
+			</dependency>
+			<dependency>
+				<groupId>spacex</groupId>
+				<artifactId>basecomm</artifactId>
+				<version>1.1.1</version>
+			</dependency>
+			<dependency>
+				<groupId>spacex</groupId>
+				<artifactId>image</artifactId>
+				<version>1.0.0</version>
+			</dependency>
+			<dependency>
+				<groupId>spacex</groupId>
+				<artifactId>astrostudy</artifactId>
+				<version>1.0.0</version>
+			</dependency>
+
+			<!-- 各模块共用的第三方依赖 -->
+			<dependency>
+				<groupId>junit</groupId>
+				<artifactId>junit</artifactId>
+				<version>${junit.version}</version>
+				<scope>test</scope>
+			</dependency>
+			<!-- 只编译用(运行时由内嵌 Tomcat 提供) -->
+			<dependency>
+				<groupId>javax.servlet</groupId>
+				<artifactId>javax.servlet-api</artifactId>
+				<version>4.0.0</version>
+				<scope>provided</scope>
+			</dependency>
+
+			<!-- 表格 / 文档解析:boundless 与 astrostudy 同一版 -->
+			<dependency>
+				<groupId>org.apache.poi</groupId>
+				<artifactId>poi</artifactId>
+				<version>${poi.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.poi</groupId>
+				<artifactId>poi-ooxml</artifactId>
+				<version>${poi.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.poi</groupId>
+				<artifactId>poi-ooxml-full</artifactId>
+				<version>${poi.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.poi</groupId>
+				<artifactId>poi-scratchpad</artifactId>
+				<version>${poi.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.pdfbox</groupId>
+				<artifactId>pdfbox</artifactId>
+				<version>${pdfbox.version}</version>
+			</dependency>
+			<!-- fat jar 里是表格库带来的这两版(高于 boundless 早先写死的版本) -->
+			<dependency>
+				<groupId>commons-io</groupId>
+				<artifactId>commons-io</artifactId>
+				<version>2.15.0</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.commons</groupId>
+				<artifactId>commons-compress</artifactId>
+				<version>1.25.0</version>
+			</dependency>
+
+			<!-- 其余依赖版本与 fat jar 同源(放最后:上面显式写的优先) -->
+			<dependency>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-dependencies</artifactId>
+				<version>${spring-boot.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.1</version>
+				<configuration>
+					<source>${java.release.version}</source>
+					<target>${java.release.version}</target>
+					<encoding>${project.build.sourceEncoding}</encoding>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-source-plugin</artifactId>
+				<version>2.3</version>
+				<executions>
+					<execution>
+						<id>attach-sources</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>jar-no-fork</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

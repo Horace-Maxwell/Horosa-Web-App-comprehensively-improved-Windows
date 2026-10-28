@@ -15,15 +15,17 @@ import {
 } from './core/lingqiCast';
 import {
 	buildLingqiSnapshotText, LINGQI_CATEGORY_OPTIONS, LINGQI_CATEGORY_KEYWORDS,
-	LINGQI_ZHU_META, DEFAULT_LINGQI_ZHU_VISIBLE, lingqiCountsText,
+	LINGQI_ZHU_META, DEFAULT_LINGQI_ZHU_VISIBLE, lingqiCountsText, lingqiZhuChipLabel, lingqiZhuChipTitle,
 } from './lingqiSnapshot';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { scriptWordAttrs } from '../../utils/scriptMode';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../utils/safeStorage';
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
+import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
 import {
-	deriveNongliUniversalSync, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec,
+	deriveNongliUniversalSync, resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec,
 	snapshotMetaFromFields, buildQiKeTimeLines,
 } from '../../utils/divinationTimeDraft';
 
@@ -50,6 +52,9 @@ class LingQiMain extends Component {
 	constructor(p) {
 		super(p);
 		const stored = safeJsonParseFromStorage(STORE_KEY) || {};
+		// 「手动」种子来源不记(种子本身是逐卦输入、不保留;记了「手动」= 重开后每次都起种子 0 那一卦,与塔罗同口径);
+		// 旧版存过 'manual' 的回落缺省。
+		if (stored.seedMode === 'manual') { delete stored.seedMode; }
 		this.state = {
 			...DEFAULT_PERSIST,
 			...stored,
@@ -67,7 +72,7 @@ class LingQiMain extends Component {
 		this.doCast = this.doCast.bind(this);
 	}
 	componentDidMount() {
-		// [issue#74 同类] 农历桥契约履约:域外年首访 deriveNongliUniversalSync 返 null,首版快照
+		// 农历桥契约履约:域外年首访 deriveNongliUniversalSync 返 null,首版快照
 		// 缺「农历/四柱」行;桥契约写明「远程回包后由订阅方重存快照补全」——旧实现只 forceUpdate
 		// (render 自愈)不重存 → 缓存快照/事盘存档恒缺行,页面对、AI 挂载错。回包补拍即自愈。
 		this._unsubNongli = subscribeRemoteNongli(() => {
@@ -107,6 +112,11 @@ class LingQiMain extends Component {
 			category: this.state.category, zhuVisible: this.state.zhuVisible,
 			...patch,
 		};
+		if (next.seedMode === 'manual') {
+			// 手动只留法不留数 → 不记;库里仍是上一次的「随机 / 时间」
+			const prev = safeJsonParseFromStorage(STORE_KEY) || {};
+			next.seedMode = prev.seedMode && prev.seedMode !== 'manual' ? prev.seedMode : DEFAULT_PERSIST.seedMode;
+		}
 		safeJsonStringifyToStorage(STORE_KEY, next);
 	}
 	setPersisted(key, val, thenSnap) {
@@ -116,10 +126,9 @@ class LingQiMain extends Component {
 
 	// ── 时地(仅占时记录;恒不重掷) ──
 	activeFields() { return this.state.localFields || this.props.fields || {}; }
+	// 占时农历:与小六壬 / 飞宫 / 皇极轨策同一单源(没动左栏时也随全局时间算法)
 	nongli() {
-		if (this.state.localFields) { return deriveNongliUniversalSync(this.state.localFields) || {}; }
-		const chart = (this.props.value && this.props.value.chart) || {};
-		return chart.nongli || {};
+		return resolveDivinationNongli(this.state.localFields, this.props.fields, this.props.value);
 	}
 	onTimeChanged(value) {
 		const dt = value && value.time;
@@ -159,7 +168,7 @@ class LingQiMain extends Component {
 		const base = this.state.faces || facesFromCounts(this.state.counts || [0, 0, 0]);
 		const faces = base.map((row, i) => (i === layer ? row.map((v, k) => (k === idx ? !v : v)) : row.slice()));
 		const counts = faces.map((row) => row.filter(Boolean).length);
-		this.setState({ counts, faces, guaOrigin: 'manual', lastSeed: '' }, () => this.saveSnap());   // [Q-209/T-168] 手摆
+		this.setState({ counts, faces, guaOrigin: 'manual', lastSeed: '' }, () => this.saveSnap());   // 手摆
 	}
 	setCountDirect(layer, val) {
 		if (!this.state.manualMode) { return; }
@@ -169,7 +178,7 @@ class LingQiMain extends Component {
 		if (n > 4) { n = 4; }
 		const counts = (this.state.counts || [0, 0, 0]).slice();
 		counts[layer] = n;
-		this.setState({ counts, faces: facesFromCounts(counts), guaOrigin: 'manual', lastSeed: '' }, () => this.saveSnap());   // [Q-209/T-168] 手摆
+		this.setState({ counts, faces: facesFromCounts(counts), guaOrigin: 'manual', lastSeed: '' }, () => this.saveSnap());   // 手摆
 	}
 	clickReproduce() {
 		if (!this.state.lastSeed) { return; }
@@ -219,10 +228,11 @@ class LingQiMain extends Component {
 			faces: facesFromCounts(p.counts),
 			guaOrigin: o.handPlaced ? 'manual' : 'case', casting: false, manualMode: false,
 			lastSeed: o.seed !== undefined && o.seed !== null ? `${o.seed}` : '',
-			// [Q-209/T-168] 载档只回填显示(棋数冻结);种子来源按存档里用户的原档(旧档硬写 'manual' 者照旧),
+			// 载档只回填显示(棋数冻结);种子来源按存档里用户的原档(旧档硬写 'manual' 者照旧),
 			// 只有用户档确为手动种子时才把存档种子灌进「手动种子」框 —— 「再掷」不再恒同卦。
-			seedMode: o.seedMode || this.state.seedMode,
-			manualSeed: (o.seedMode === 'manual' && o.seed !== undefined && o.seed !== null) ? `${o.seed}` : this.state.manualSeed,
+			// 存档说「手动」却没带种子(空串 / 缺)→ 不切到手动:空种子再掷恒得同一卦(种子 0)
+			seedMode: (o.seedMode === 'manual' && !(o.seed !== undefined && o.seed !== null && `${o.seed}` !== '')) ? this.state.seedMode : (o.seedMode || this.state.seedMode),
+			manualSeed: (o.seedMode === 'manual' && o.seed !== undefined && o.seed !== null && `${o.seed}` !== '') ? `${o.seed}` : this.state.manualSeed,
 			question: o.question || '',
 			category: o.category || this.state.category,
 			display: o.display || this.state.display,
@@ -240,7 +250,7 @@ class LingQiMain extends Component {
 			label: '灵棋经',
 			payload: {
 				options: {
-					// [Q-209/T-168 2026-09-18] 存档只冻结棋数(counts),种子来源按用户档原样存;此前硬写 'manual' → 载档后左栏被切成手动种子,
+					// 存档只冻结棋数(counts),种子来源按用户档原样存;此前硬写 'manual' → 载档后左栏被切成手动种子,
 					// 「再掷」恒同卦;手摆(无种子)存档另标 handPlaced,载档显示「手摆」而不是固定卦。
 					seedMode: this.state.seedMode,
 					seed: this.state.lastSeed,
@@ -274,8 +284,17 @@ class LingQiMain extends Component {
 		if (!kws.length) { return body; }
 		const re = new RegExp(`(${kws.join('|')})`, 'g');
 		const parts = body.split(re);
-		return parts.map((p, i) => (kws.indexOf(p) >= 0
-			? <mark key={`${keyPrefix || 'hl'}-${i}`} className="horosa-lingqi-mark">{p}</mark> : p));
+		// 高亮把一段正文拆成多个文字节点:每段都挂「整段 + 起始位次」,界面繁体按整段转再取这一截
+		// (否则「囚系」被拆成「囚」「系」后各转,系 不成 繫;与不高亮时整段一个节点的转换逐字相同)
+		let at = 0;
+		return parts.map((p, i) => {
+			const ctx = scriptWordAttrs(body, at);
+			at += Array.from(p).length;
+			if (!p) { return null; }
+			return kws.indexOf(p) >= 0
+				? <mark key={`${keyPrefix || 'hl'}-${i}`} className="horosa-lingqi-mark" {...ctx}>{p}</mark>
+				: <span key={`${keyPrefix || 'hl'}-t${i}`} {...ctx}>{p}</span>;
+		});
 	}
 
 	/** 左栏 */
@@ -310,9 +329,10 @@ class LingQiMain extends Component {
 							onChange={(e) => this.setPersisted('seedMode', e.target.value)}
 							options={[{ value: 'random', label: '随机' }, { value: 'time_seed', label: '时间' }, { value: 'manual', label: '手动' }]} />
 					), s.seedMode === 'time_seed' ? '同一分钟同种子,可复现' : null)}
+					{/* 手动种子用文本框:「锁定复现」锁进来的是 rnd-… / t-… 字符串,数字框装不下,一碰就改(与塔罗同) */}
 					{s.seedMode === 'manual' && !s.manualMode ? this.field('手动种子',
-						<InputNumber size="small" style={{ width: '100%' }} value={s.manualSeed}
-							onChange={(v) => this.setState({ manualSeed: v })} />) : null}
+						<Input size="small" style={{ width: '100%' }} value={s.manualSeed === undefined || s.manualSeed === null ? '' : `${s.manualSeed}`}
+							onChange={(e) => this.setState({ manualSeed: e.target.value })} placeholder="任意数字或文字" />) : null}
 					<div className="horosa-lingqi-actions">
 						<Button type="primary" size="small" className="horosa-lingqi-cast-btn" block
 							disabled={s.manualMode || s.casting} onClick={this.doCast}>掷 棋 起 卦</Button>
@@ -346,9 +366,9 @@ class LingQiMain extends Component {
 						<div className="horosa-guazhan-set-subhead">注家显示</div>
 						<div className="horosa-lingqi-zhu-grid">
 							{LINGQI_ZHU_META.map((zm) => (
-								<Checkbox key={zm.key} checked={s.zhuVisible[zm.key] !== false} title={`${zm.era} · ${zm.source}`}
+								<Checkbox key={zm.key} checked={s.zhuVisible[zm.key] !== false} title={lingqiZhuChipTitle(zm)}
 									onChange={(e) => this.setPersisted('zhuVisible', { ...s.zhuVisible, [zm.key]: e.target.checked }, true)}>
-									{zm.source.slice(0, 1)}{zm.source.slice(-1)}
+									{lingqiZhuChipLabel(zm)}
 								</Checkbox>
 							))}
 							<Checkbox checked={s.zhuVisible.ke !== false}
@@ -409,7 +429,7 @@ class LingQiMain extends Component {
 		const gua = this.currentGua();
 		const wu = isWuDay(this.nongli());
 		return (
-			<div className="horosa-lingqi-board">
+			<div className="horosa-lingqi-board" ref={ownedBoxSizeRef(this, 'board', narrowBoardVars)}>
 				<div className="horosa-cnx-board-header">
 					<div>
 						<div className="horosa-cnx-board-title">灵棋盘 · 十二棋</div>

@@ -1,6 +1,6 @@
 import { extractMaterialContent } from '../services/aianalysis';
 
-// [Q-002/M-02] txt/md 编码识别:此前 FileReader.readAsText 无编码参数恒 UTF-8 → GBK/GB18030 文稿入库即乱码
+// txt/md 编码识别:此前 FileReader.readAsText 无编码参数恒 UTF-8 → GBK/GB18030 文稿入库即乱码
 // (textHash/searchText/RAG 切块全量继承)。现:BOM 优先 → UTF-8 严格解码 → 失败回落 GB18030(浏览器 TextDecoder
 // 支持;环境不支持时再退 UTF-8 宽松)。合法 UTF-8 文件字节不变(零回归)。
 export function decodeTextSmart(arrayBuffer){
@@ -34,13 +34,13 @@ function lowerName(file){
 	return `${file && file.name ? file.name : ''}`.toLowerCase();
 }
 
-// [Q-060/AW-18] 可导入扩展名白名单 —— 与桌面壳层 `AI_ANALYSIS_IMPORT_EXTENSIONS` 逐字同集。
+// 可导入扩展名白名单 —— 与桌面壳层 `AI_ANALYSIS_IMPORT_EXTENSIONS` 逐字同集。
 // 此前前端没有白名单:guessKind 对一切未知后缀一律当 txt、readAsText 直接读二进制入库
 // (拖一张 PNG 进来就得到一份类型 txt、摘要乱码的资料);桌面「导入目录」在壳层过滤 →
 // 同一个目录两条路径入库结果不同。现在两条路径同一张表。
 export const MATERIAL_IMPORT_EXTENSIONS = ['txt', 'md', 'markdown', 'doc', 'docx', 'pdf'];
 export const MATERIAL_ACCEPT_ATTR = MATERIAL_IMPORT_EXTENSIONS.map((e)=>`.${e}`).join(',');
-// [Q-060/AW-23] 走后端抽取的类型(pdf/doc/docx)与后端的 30 MB 硬上限逐字对齐
+// 走后端抽取的类型(pdf/doc/docx)与后端的 30 MB 硬上限逐字对齐
 // (Java AIAnalysisMaterialService.MAX_DECODED_BYTES = 30 MB,超限直接 580103 拒收)。
 // 此前前端只有一个 50 MB「仍要上传」软提示:35 MB 的 PDF 一路送到后端才被拒,用户看到的是一句无解释的失败。
 export const MATERIAL_BACKEND_EXTRACT_KINDS = ['pdf', 'doc', 'docx'];
@@ -119,7 +119,7 @@ export async function parseMaterialFile(file){
 	const fileHash = await sha256Hex(arrayBuffer);
 	let extracted = null;
 	if(kind === 'txt' || kind === 'md'){
-		const decoded = decodeTextSmart(arrayBuffer);   // [Q-002/M-02] 复用已读字节,按编码识别解码
+		const decoded = decodeTextSmart(arrayBuffer);   // 复用已读字节,按编码识别解码
 		const text = decoded.text.replace(/^\uFEFF/, '');
 		extracted = {
 			fileName: file.name || '未命名资料',

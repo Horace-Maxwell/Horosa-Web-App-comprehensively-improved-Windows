@@ -11,7 +11,7 @@ import { bindCrossWindowPrefs } from '../utils/aiAgent/prefs';
 import { emitAutomationEvent } from '../utils/aiAgent/automation/events';
 import TaskCenterBell from '../components/aianalysis/TaskCenterBell';
 import { reportDesktopBridgeDiag, reportPageTelemetry } from '../utils/desktopBridgeDiag';
-import { markWebLedger } from '../utils/startupLedger';   // [R5 P0-1] 前端启动账本
+import { markWebLedger } from '../utils/startupLedger';   // 前端启动账本
 import { subscribeServiceStatus } from '../utils/serviceStatus';
 import { snapshot as requestTelemetrySnapshot } from '../utils/requestTelemetry';
 import { remindersEnabled, upcomingBirthdays } from '../utils/upcomingReminders';
@@ -24,14 +24,19 @@ import LocalStoreHealthBanner from '../components/common/LocalStoreHealthBanner'
 import MultiInstanceNotice from '../components/common/MultiInstanceNotice';
 import StartupGate from '../components/common/StartupGate';
 import BackendStatusDot from '../components/common/BackendStatusDot';
+import { RECORDS_CHANGED_EVENT } from '../utils/recordStoreNotice';
+import { bindRecordStoreCrossWindowSync } from '../utils/recordStoreCrossWindow';
 import {
     APPEARANCE_DARK,
     applyAppearanceToDocument,
     applyLightFlavorToDocument,
+    bindLightFlavorStorageSync,
     getStoredLightFlavor,
     resolveAppearance,
     syncChartPalette,
 } from '../utils/appearance';
+import { bootScriptMode } from '../utils/scriptMode';
+import { installShellScriptSync } from '../utils/shellScriptSync';
 import styles from './app.less';
 
 const App = ({children, dispatch, app, user, astro, })=>{
@@ -49,31 +54,31 @@ const App = ({children, dispatch, app, user, astro, })=>{
     });
     const resolvedAppearance = resolveAppearance(appearanceMode, prefersDark);
 
-    // [V5-A3] 影子副本启动对账:主存(localStorage)键缺失而壳层镜像在 → 写回并提示;
+    // 影子副本启动对账:主存(localStorage)键缺失而壳层镜像在 → 写回并提示;
     // 存在的主存永远优先(绝不覆盖)。非桌面环境 no-op。挂布局层与健康横幅同位。
     React.useEffect(()=>{
-        // [R5 P0-1] 首帧已提交(布局层 effect = 首次 commit 之后;不靠 rAF)
+        // 首帧已提交(布局层 effect = 首次 commit 之后;不靠 rAF)
         markWebLedger('web.first_render');
         reconcileShadowOnBoot().then((r)=>{
             if(r && r.restored && r.restored.length){
                 message.info(`已从本机影子副本恢复 ${r.restored.length} 项本地档案数据`);
             }
         }).catch(()=>{});
-        // [V5-B1] 自动备份心跳接线:壳侧每 30 分钟 emit,前端组 zip 回送写盘(内容没变自动跳过)。
+        // 自动备份心跳接线:壳侧每 30 分钟 emit,前端组 zip 回送写盘(内容没变自动跳过)。
         bindAutoBackupTicks();
         // AI 助手·外部智能体桥:总开关(默认关)开且在桌面壳内才挂钩;关=零挂钩零监听。
         bindMcpBridge();
-        // [P1] 任务中心接线:启动对账(上次仍在跑的任务 → 中断);铃铛只在有任务/通知或行动能力开启时渲染=首启零变化
+        // 任务中心接线:启动对账(上次仍在跑的任务 → 中断);铃铛只在有任务/通知或行动能力开启时渲染=首启零变化
         bindTaskCenter();
-        // [A4] 自动化引擎必须喂真依赖:selectSource / runBrief / archiveIdleConversations 三件公共动作(此前裸调=三件恒不可用)
+        // 自动化引擎必须喂真依赖:selectSource / runBrief / archiveIdleConversations 三件动作(此前裸调=三件恒不可用)
         const automationDeps = buildDefaultAutomationDeps();
         bindAutomationEngine(automationDeps);
         // 多窗口:另一窗口改了 AI 助手偏好 → 本窗口重发偏好事件(订阅方重读)
         bindCrossWindowPrefs();
         emitAutomationEvent('app.start', {});
-        // [P3] 定时任务接线:壳侧每 60 秒 __horosaSchedulerTick(偏好 scheduler_enabled 缺省关=壳零动作);页面按子开关决定跑不跑,缺省关=零定时器零执行
+        // 定时任务接线:壳侧每 60 秒 __horosaSchedulerTick(偏好 scheduler_enabled 缺省关=壳零动作);页面按子开关决定跑不跑,缺省关=零定时器零执行
         bindSchedulerTicks();
-        // [挂载自检] 真栈审计钩:仅 localStorage['horosa.debug.mountAudit']==='1' 时惰性装载(缺省键缺席=零路径零 chunk);
+        // 真栈审计钩:仅 localStorage['horosa.debug.mountAudit']==='1' 时惰性装载(缺省键缺席=零路径零 chunk);
         // 壳按窗口宽度封顶缩放档:⌘+ 超限时壳 eval 本钩子说明原因(布局视口宽必须 ≥ 1000 CSS px)。
         if(typeof window !== 'undefined'){
             window.__HOROSA_SHELL_ZOOM_CAPPED = (cap, width)=>{
@@ -108,7 +113,7 @@ const App = ({children, dispatch, app, user, astro, })=>{
                 }
             }catch(_e){ /* 上报失败绝不影响页面 */ }
         }, 10 * 60 * 1000) : null;
-        // [V5-D15] 生日提醒(默认关;设置开启才扫):未来 7 天生日名单一次性卡片。
+        // 生日提醒(默认关;设置开启才扫):未来 7 天生日名单一次性卡片。
         try{
             if(remindersEnabled()){
                 const ups = upcomingBirthdays(listLocalCharts({ includeArchived: false }), new Date(), 7);
@@ -126,7 +131,7 @@ const App = ({children, dispatch, app, user, astro, })=>{
             if(telemetryTimer !== null){
                 window.clearInterval(telemetryTimer);
             }
-            // [D81] 非桌面 60 秒兜底定时器此前没有解绑出口
+            // 非桌面 60 秒兜底定时器此前没有解绑出口
             try{ unbindSchedulerTicks(); }catch(_e){ /* noop: 卸载期拆定时器失败无害 */ }
         };
     }, []);
@@ -154,17 +159,36 @@ const App = ({children, dispatch, app, user, astro, })=>{
         };
     }, []);
 
+    // 别的窗口改了浅色风味 / 清空了存储:本窗口跟着换(只应用、不回写)
+    React.useEffect(()=>bindLightFlavorStorageSync(), []);
+    // 别的窗口删了 / 改了本窗口当前那条命盘 / 事盘:当前那条跟着走(否则回来一保存就在库里重新建出回收站里那条)
+    React.useEffect(()=>bindRecordStoreCrossWindowSync(dispatch), [dispatch]);
+    // 亮色配色档(宣纸 / 经典白)开机回放:只在挂载时一次。不放进下面随明暗切换重跑的 effect ——
+    // 存储写不进(配额满)时页头已提示「这次照常生效,重启后回到原来那档」,切一次明暗若再按存储回放,会把当次生效的档悄悄换回旧档。
+    React.useEffect(()=>{ applyLightFlavorToDocument(getStoredLightFlavor()); }, []);
+
+    // 界面之外改了档案(任务中心采纳 / 撤销 AI 提案、单库导入、影子并回):刷新列表并按库重设当前那条
+    React.useEffect(()=>{
+        if(typeof window === 'undefined'){
+            return undefined;
+        }
+        const onChanged = (e)=>{
+            try{ dispatch({ type: 'user/syncRecordFromStore', payload: (e && e.detail) || {} }); }catch(err){ /* noop */ }
+        };
+        window.addEventListener(RECORDS_CHANGED_EVENT, onChanged);
+        return ()=>window.removeEventListener(RECORDS_CHANGED_EVENT, onChanged);
+    }, [dispatch]);
+
     React.useEffect(()=>{
         applyAppearanceToDocument(appearanceMode, resolvedAppearance);
-        applyLightFlavorToDocument(getStoredLightFlavor()); // 亮色配色档(宣纸/经典白)开机回放
-        if(dispatch){
-            dispatch({
-                type: 'app/save',
-                payload: {
-                    resolvedAppearance: resolvedAppearance,
-                },
-            });
-        }
+        bootScriptMode(); // 界面简繁开机回放(只第一次生效;之后由设置菜单切换)
+        installShellScriptSync(); // 桌面壳的原生菜单 / 对话框跟着界面简繁(开机报一次,之后每次切换都报)
+        dispatch({
+            type: 'app/save',
+            payload: {
+                resolvedAppearance: resolvedAppearance,
+            },
+        });
     }, [appearanceMode, resolvedAppearance]);
 
     function menuClick({item, key, keyPath}){
@@ -242,7 +266,7 @@ const App = ({children, dispatch, app, user, astro, })=>{
             <Content id='mainContent' style={contentStyle}>
                 <div className={styles.workspaceOuter}>
                     <BackTop visibilityHeight={50}/>
-                    <div className={styles.workspaceInner}>
+                    <div className={styles.workspaceInner} data-horosa-workspace-inner="1">
                         {children}
                     </div>
                 </div>

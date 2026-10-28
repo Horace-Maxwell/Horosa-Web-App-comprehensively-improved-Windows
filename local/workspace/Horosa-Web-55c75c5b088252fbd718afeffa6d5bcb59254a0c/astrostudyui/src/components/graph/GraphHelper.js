@@ -1,8 +1,46 @@
 import * as d3 from 'd3';
 import {randomStr,} from '../../utils/helper';
+import { SCRIPT_WORD_ATTR, SCRIPT_IDX_ATTR, perCharTextProps } from '../../utils/scriptMode';
 
-export function drawTextH(svgowner, data, x, y, w, h, margin, color, weight, bgcolor, borderColor, roundBorderValue, fontfamily){
+// 文字色 = 填色:只写了 stroke、没写 fill 的 svg 文字,缺省填色是黑 —— 暗盘上就是黑字压暗底(宿盘中宫、金口诀圆盘等)。
+// d3 文字链尾 .call(fillTextFromStroke):没有 fill 属性的字把 stroke 色补成 fill(样式表另给了 fill 的,样式表仍优先)。
+export function fillTextFromStroke(sel){
+	sel.each(function(){
+		const s = this.getAttribute('stroke');
+		if(s && s !== 'none' && !this.getAttribute('fill')){ this.setAttribute('fill', s); }
+	});
+}
+
+// 逐字出图(一个字一个 <text>):整串由一个个单字组成时返回整词,否则 null。
+// 每个字节点带上整词与位次,界面简繁按整词定字(「天后」逐字画仍是「天后」,不成「天後」;见 utils/scriptMode.js)。
+export function perCharScriptWord(data){
+	const arr = typeof data === 'string' ? data.split('') : data;
+	if(!Array.isArray(arr) || arr.length < 2){ return null; }
+	for(let i = 0; i < arr.length; i += 1){
+		const c = arr[i];
+		if(typeof c !== 'string' || c.length !== 1){ return null; }
+	}
+	return arr.join('');
+}
+
+// 逐字出图的唯一入口:sel 下按字各建一个 <text>,并给与整词逐位相符的节点挂整词定字属性
+// (界面简繁按整词转换再取该位:天将环「天后」逐字画仍是「天后」,不成「天後」)。
+//   chars:要画的字(数组,或字符串按字拆);word:整词,缺省 = 这些字拼成的词(chars 只是整词的前几位、
+//   或后面另拼了别的节点时显式传完整原词)。返回 d3 enter 后的 text 选择集,调用方照常往后接 .attr(...)。
+// 静态守卫 perCharTextHelper.test.js:凡把 split('') 出来的字直接交给 .data(...) 画字的,必须改走本函数。
+export function appendPerCharText(sel, chars, word){
+	const arr = Array.isArray(chars) ? chars : Array.from(`${chars === undefined || chars === null ? '' : chars}`);
+	const whole = (word !== undefined && word !== null) ? `${word}` : perCharScriptWord(arr);
+	const at = (d, idx)=>perCharTextProps(whole, idx, d);
+	return sel.selectAll('text').data(arr).enter().append('text')
+		.attr(SCRIPT_WORD_ATTR, function(d, idx){ const p = at(d, idx); return p[SCRIPT_WORD_ATTR] === undefined ? null : p[SCRIPT_WORD_ATTR]; })
+		.attr(SCRIPT_IDX_ATTR, function(d, idx){ const p = at(d, idx); return p[SCRIPT_IDX_ATTR] === undefined ? null : p[SCRIPT_IDX_ATTR]; });
+}
+
+// word:整词(只画整词的前几位时显式传,缺省 = 这些字拼成的词)
+export function drawTextH(svgowner, data, x, y, w, h, margin, color, weight, bgcolor, borderColor, roundBorderValue, fontfamily, word){
 	let svg = svgowner.append('g');
+	const scriptWord = word !== undefined && word !== null ? `${word}` : perCharScriptWord(data);
 	let fsz = w / data.length - margin;
 	fsz = fsz > (h - 2*margin) ? h - 2*margin : fsz;
 	let firstmargin = (w - fsz * data.length - margin*(data.length - 1)) / 2 + fsz/2;
@@ -54,7 +92,7 @@ export function drawTextH(svgowner, data, x, y, w, h, margin, color, weight, bgc
 	}
 
 	if(fontfamily && fontfamily.length){
-		svg.selectAll('text').data(data).enter().append('text')
+		appendPerCharText(svg, data, scriptWord)
 		.attr("dominant-baseline","middle")
 		.attr("text-anchor", "middle")
 		.attr('rx', rv).attr('ry', rv)
@@ -76,7 +114,7 @@ export function drawTextH(svgowner, data, x, y, w, h, margin, color, weight, bgc
 		.text(function(d){return d});
 
 	}else{
-		svg.selectAll('text').data(data).enter().append('text')
+		appendPerCharText(svg, data, scriptWord)
 		.attr("dominant-baseline","middle")
 		.attr("text-anchor", "middle")
 		.attr('rx', rv).attr('ry', rv)
@@ -98,8 +136,10 @@ export function drawTextH(svgowner, data, x, y, w, h, margin, color, weight, bgc
 	return svg;
 }
 
-export function drawTextV(svgowner, data, x, y, w, h, margin, color, weight, bgcolor, borderColor, roundBorderValue, fontfamily){
+// word:同 drawTextH
+export function drawTextV(svgowner, data, x, y, w, h, margin, color, weight, bgcolor, borderColor, roundBorderValue, fontfamily, word){
 	let svg = svgowner.append('g');
+	const scriptWord = word !== undefined && word !== null ? `${word}` : perCharScriptWord(data);
 	let realH = h-margin*2;
 	let fsz = realH / data.length - margin;
 	fsz = fsz > (w - 2*margin) ? w - 2*margin : fsz;
@@ -152,7 +192,7 @@ export function drawTextV(svgowner, data, x, y, w, h, margin, color, weight, bgc
 	}
 
 	if(fontfamily && fontfamily.length){
-		svg.selectAll('text').data(data).enter().append('text')
+		appendPerCharText(svg, data, scriptWord)
 		.attr("dominant-baseline","middle")
 		.attr("text-anchor", "middle")
 		.attr('rx', rv).attr('ry', rv)
@@ -174,7 +214,7 @@ export function drawTextV(svgowner, data, x, y, w, h, margin, color, weight, bgc
 		.text(function(d){return d});
 
 	}else{
-		svg.selectAll('text').data(data).enter().append('text')
+		appendPerCharText(svg, data, scriptWord)
 		.attr("dominant-baseline","middle")
 		.attr("text-anchor", "middle")
 		.attr('rx', rv).attr('ry', rv)

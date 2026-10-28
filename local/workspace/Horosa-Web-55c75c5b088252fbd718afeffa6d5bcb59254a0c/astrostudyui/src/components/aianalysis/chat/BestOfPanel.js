@@ -5,10 +5,12 @@ import { loadUiPrefs, saveUiPrefs } from '../../../utils/aiAnalysisStore';
 import { buildRouteOptions } from './ChatModelRoutesPanel';
 import { ROLE_ANGLES, MAX_CANDIDATES, MIN_CANDIDATES } from '../../../utils/aiBestOfN';
 import { AdvCard, AdvStatus, ADV_SECTION_IDS, advStyles as styles } from './AdvCard';
+import { scriptFilterBy } from '../../../utils/scriptMode';
 
 export function readBestOfPrefs(){
-	try{ const ui = loadUiPrefs(); const b = ui && ui.chatAssist && ui.chatAssist.bestOf ? ui.chatAssist.bestOf : {}; return { mode: b.mode === 'angles' ? 'angles' : 'models', selections: Array.isArray(b.selections) ? b.selections.slice(0, MAX_CANDIDATES) : [], angles: Array.isArray(b.angles) ? b.angles.slice(0, MAX_CANDIDATES) : [] }; }
-	catch(e){ return { mode: 'models', selections: [], angles: [] }; }
+	const ui = loadUiPrefs();
+	const b = ui && ui.chatAssist && ui.chatAssist.bestOf ? ui.chatAssist.bestOf : {};
+	return { mode: b.mode === 'angles' ? 'angles' : 'models', selections: Array.isArray(b.selections) ? b.selections.slice(0, MAX_CANDIDATES) : [], angles: Array.isArray(b.angles) ? b.angles.slice(0, MAX_CANDIDATES) : [] };
 }
 export function writeBestOfPrefs(patch){
 	const ui = loadUiPrefs() || {};
@@ -33,10 +35,10 @@ export default function BestOfPanel({ providerProfiles }){
 				<Radio.Button value="angles">同一模型多视角</Radio.Button>
 			</Radio.Group>
 			{prefs.mode === 'models' ? (
-				<Select size="small" mode="multiple" placeholder={`选 ${MIN_CANDIDATES}-${MAX_CANDIDATES} 个模型`} value={prefs.selections} options={options} maxTagCount={4} showSearch optionFilterProp="label" data-bestof-models="1"
+				<Select filterOption={scriptFilterBy('label')} size="small" mode="multiple" placeholder={`选 ${MIN_CANDIDATES}-${MAX_CANDIDATES} 个模型`} value={prefs.selections} options={options} maxTagCount={4} showSearch optionFilterProp="label" data-bestof-models="1"
 					onChange={(v)=>setPrefs(writeBestOfPrefs({ selections: (v || []).slice(0, MAX_CANDIDATES) }))} />
 			) : (
-				<Select size="small" mode="multiple" placeholder="选 2-4 个视角(留空=经典+审慎)" value={prefs.angles} options={ROLE_ANGLES.map((a)=>({ value: a.key, label: a.label }))} data-bestof-angles="1"
+				<Select filterOption={scriptFilterBy()} size="small" mode="multiple" placeholder="选 2-4 个视角(留空=经典+审慎)" value={prefs.angles} options={ROLE_ANGLES.map((a)=>({ value: a.key, label: a.label }))} data-bestof-angles="1"
 					onChange={(v)=>setPrefs(writeBestOfPrefs({ angles: (v || []).slice(0, MAX_CANDIDATES) }))} />
 			)}
 		</AdvCard>

@@ -1,4 +1,4 @@
-// [挂载自检 P2] 口径标注不撒谎:八字 timeAlg=3(平太阳时)有标签;流派 tongguan 有标签。
+// 口径标注不撒谎:八字 timeAlg=3(平太阳时)有标签;流派 tongguan 有标签。
 import fs from 'fs';
 import path from 'path';
 import { timeBasisLabel } from '../timeBasisLine';

@@ -8,18 +8,14 @@ from flatlib import const
 from flatlib import utils
 from flatlib import angle
 from astrostudy.helper import distance
+from astrostudy.civil_calendar import civil_parts_from_jd, format_civil_date
 from astrostudy.helper import convertLonToStr
 from astrostudy.helper import convertLatToStr
 
-# Reuse the India module's 47-ayanamsa registry (single source of truth) for the
-# sidereal readout, incl. its alias table so keys like 'kp' resolve. Guarded import
-# so ACG never hard-fails if that module moves.
-try:
-    from astrostudy.india.india_chart_kernel import INDIA_AYANAMSA_MODES as _AYAN_MODES
-    from astrostudy.india.india_chart_kernel import INDIA_AYANAMSA_ALIASES as _AYAN_ALIASES
-except Exception:
-    _AYAN_MODES = {}
-    _AYAN_ALIASES = {}
+# Sidereal readout reuses the India module's 47-ayanamsa registry (single source of
+# truth), incl. its alias table so keys like 'kp' resolve.
+from astrostudy.india.india_chart_kernel import INDIA_AYANAMSA_MODES as _AYAN_MODES
+from astrostudy.india.india_chart_kernel import INDIA_AYANAMSA_ALIASES as _AYAN_ALIASES
 
 ACG_LIST_OBJECTS = [
     const.SUN, const.MOON, const.MERCURY, const.VENUS, const.MARS, const.JUPITER, const.SATURN,
@@ -363,23 +359,15 @@ class ACGraph:
                 dtB = Datetime(self.relData['date'], self.relData['time'], self.relData['zone'])
                 posB = GeoPos(self.relData['lat'], self.relData['lon'])
                 jd_mid = (self.dateTime.jd + dtB.jd) / 2.0
-                y, m, d, h = swisseph.revjul(jd_mid)
-                hh = int(h)
-                mi = int((h - hh) * 60.0)
-                ss = int(round(((h - hh) * 60.0 - mi) * 60.0))
-                if ss >= 60:
-                    ss -= 60
-                    mi += 1
-                if mi >= 60:
-                    mi -= 60
-                    hh += 1
+                # 中点时刻按民用历拆成日期串(历史纪年;1582-10-15 以前儒略历)——起盘引擎读串同口径。
+                mid = civil_parts_from_jd(jd_mid)
+                mid_date = format_civil_date(mid['astroYear'], mid['month'], mid['day'], '/')
                 latD = (self.pos.lat + posB.lat) / 2.0
                 lonD = norm180(self.pos.lon + norm180(posB.lon - self.pos.lon) / 2.0)
-                self.dateTime = Datetime('{0}/{1:02d}/{2:02d}'.format(y, m, d),
-                                         '{0:02d}:{1:02d}:{2:02d}'.format(hh, mi, ss), '+00:00')
+                self.dateTime = Datetime(mid_date, mid['time'], '+00:00')
                 self.pos = GeoPos(latD, lonD)
-                self.davison = {'date': '{0}/{1:02d}/{2:02d}'.format(y, m, d),
-                                'time': '{0:02d}:{1:02d}:{2:02d}'.format(hh, mi, ss),
+                self.davison = {'date': mid_date,
+                                'time': mid['time'],
                                 'lat': round(latD, 4), 'lon': round(lonD, 4)}
             except Exception:
                 self.relMode = ''

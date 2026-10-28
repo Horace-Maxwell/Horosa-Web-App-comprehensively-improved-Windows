@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/comp/EditableTags.js b/astrostudyui/src/components/comp/EditableTags.js
-index f555442..7a96ddd 100644
+index f555442d..7a96ddd0 100644
 --- a/astrostudyui/src/components/comp/EditableTags.js
 +++ b/astrostudyui/src/components/comp/EditableTags.js
 @@ -1,8 +1,10 @@

@@ -1,31 +1,6 @@
 import { Component } from 'react';
 import AstroChartMain from '../astro/AstroChartMain';
-
-function paramsToFields(param, flds){
-	let fields = {
-		...flds,
-		date:{
-			value: param.date
-		},
-		time:{
-			value: param.time
-		},
-		ad:{
-			value: param.ad ? param.ad : flds.ad.value,
-		},
-		zone:{
-			value: param.zone
-		},
-		lat:{
-			value: param.lat
-		},
-		lon:{
-			value: param.lon
-		},
-		// hsys/zodiacal/siderealAyanamsa 保留全局 flds(左栏当前选择),不被 record 老快照覆盖。
-	}
-	return fields;
-}
+import { paramsToFields } from './relativeFields';
 
 class AstroComposite extends Component{
 	constructor(props) {
@@ -67,14 +42,18 @@ class AstroComposite extends Component{
 			fields = paramsToFields(resobj.params, this.props.fields);
 		}
 
+		const houseNote = resobj && resobj.compositeHouseNote ? resobj.compositeHouseNote : '';
 		return (
 			<div style={{height: height}}>
-					<AstroChartMain embeddedSubChart
+					{houseNote ? (
+						<div className="horosa-composite-house-note" style={{ fontSize: 12, lineHeight: '18px', height: 22, boxSizing: 'border-box', overflow: 'hidden', color: 'var(--horosa-text-soft)', padding: '2px 8px' }}>宫制说明:{houseNote}</div>
+					) : null}
+					<AstroChartMain embeddedSubChart relativeContext={this.props.relativeContext}
 						value={resobj} 
 					fields={fields} 
 					hidedateselector={1}
 					hidelots={1}
-					height={height} 
+					height={houseNote ? height - 22 : height} 
 					chartDisplay={this.props.chartDisplay}
 						planetDisplay={this.props.planetDisplay}
 						lotsDisplay={this.props.lotsDisplay}
@@ -84,7 +63,7 @@ class AstroComposite extends Component{
 						onChange={this.props.onChange}
 						showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 						showAstroMeaning={this.props.showAstroMeaning}
-						showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* [Q-253/T-223] 四键补传:弹层显示值与主页同源 */
+						showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* 四键补传:弹层显示值与主页同源 */
 						voidClassical={this.props.voidClassical}
 						planetListStyle={this.props.planetListStyle}
 						aspects={this.props.aspects}

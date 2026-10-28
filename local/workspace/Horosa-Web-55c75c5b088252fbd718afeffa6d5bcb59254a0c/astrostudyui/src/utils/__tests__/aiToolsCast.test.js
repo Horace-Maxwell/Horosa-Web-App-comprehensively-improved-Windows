@@ -1,7 +1,7 @@
 // AI 助手·无头起盘 cast_technique:源合成同形、准入闸、纯本地技法真出快照、后端不在线诚实报错、不落库。
 jest.mock('../request', ()=>({ __esModule: true, default: jest.fn(async ()=>{ throw new Error('offline'); }) }));
 jest.mock('../../services/astro', ()=>({ fetchChart: jest.fn(async ()=>{ throw new Error('offline'); }) }));
-// [D8/T1] 起盘串行化(castChain)的解锁判据需要「快照构造器永不 settle」这一外部条件:
+// 起盘串行化(castChain)的解锁判据需要「快照构造器永不 settle」这一外部条件:
 // 只把 getAnalysisTechniqueContexts 换成可控替身(缺省仍转发真实现),其余导出原样透传,
 // 既有用例的行为逐字不变。
 jest.mock('../aiAnalysisContext', ()=>{
@@ -47,6 +47,18 @@ describe('源合成(与 AI 分析页临时源同形)', ()=>{
 		expect(tNow.assumptions.some((a)=>/起课时间取当前/.test(a))).toBe(true);
 		expect(tNow.assumptions.some((a)=>/默认坐标/.test(a))).toBe(true);
 	});
+	it('🔴 natal 给经纬度时:时区可带秒(地方平时)原样进记录;pos 只作地名显示(不查地名、不改坐标)—— 与名人库建档同一形', async ()=>{
+		const n = await buildSourceFromArgs({ kind: 'natal', birth: '1855-07-18 07:45', zone: '+00:48:56', gpsLat: 51.833333, gpsLon: 12.233333, pos: 'Dessau, Germany', gender: 'male' });
+		expect(n.error).toBeUndefined();
+		expect(n.source.record).toEqual(expect.objectContaining({ zone: '+00:48:56', lat: '51n50', lon: '12e14', gpsLat: 51.833333, gpsLon: 12.233333, pos: 'Dessau, Germany' }));
+		expect(n.assumptions.some((a)=>/时区/.test(a))).toBe(false);
+		// 给了 place(要查地名)时 pos 不顶替查到的地名
+		const p = await buildSourceFromArgs({ kind: 'natal', birth: '1990-01-01 08:00', place: '北京', pos: '别处', gender: 'female' });
+		expect(p.source.record.pos).toBe('北京');
+		// 不给 pos:与此前逐字段相同(空串)
+		const z = await buildSourceFromArgs({ kind: 'natal', birth: '1990-01-01 08:00', gpsLat: 39.9, gpsLon: 116.4, zone: '+08:00', gender: 'female' });
+		expect(z.source.record.pos).toBe('');
+	});
 	it('record 源:未找到 → E_RECORD_NOT_FOUND;已存命盘 → 走 listAnalysisSources', async ()=>{
 		const miss = await buildSourceFromArgs({ kind: 'record', cid: 'local-none' });
 		expect(miss.error.code).toBe('E_RECORD_NOT_FOUND');
@@ -76,7 +88,7 @@ describe('cast_technique', ()=>{
 		expect(r.data.content).toMatch(/\[truncated: 剩余 \d+ 字符\]$/);
 		expect(r.data.totalChars).toBeGreaterThan(500);
 	});
-	// [P1-1] 段对齐截断 + 按段取:让模型能只要「行星」那一段,而不是把整份快照拦腰砍在半张表中间。
+	// 段对齐截断 + 按段取:让模型能只要「行星」那一段,而不是把整份快照拦腰砍在半张表中间。
 	it('🔴 截断按段对齐:回报略去的段名,且正文不在段中间被砍', async ()=>{
 		const r = await runTool('cast_technique', { technique: 'bazi', source: { kind: 'natal', birth: '1990-01-01 08:00', place: '北京' }, maxChars: 500 }, ctx());
 		expect(r.ok).toBe(true);
@@ -140,7 +152,7 @@ describe('cast_technique', ()=>{
 	});
 });
 
-// [Q-330] 工具面必须先取「同类默认」(与对话页挂载卡同一解析),显式 options 覆盖其上。
+// 工具面必须先取「同类默认」(与对话页挂载卡同一解析),显式 options 覆盖其上。
 // 此前 cast_technique 只认显式 options:用户在挂载卡设过同类默认,AI 起出来的快照与页面口径不同。
 describe('Q-330 · 同类默认并入工具面', ()=>{
 	it('🔴 同类默认进 techniqueOptions;显式 options 覆盖同名键;都没有时不传 techniqueOptions', async ()=>{
@@ -165,7 +177,7 @@ describe('Q-330 · 同类默认并入工具面', ()=>{
 	});
 });
 
-// [D8/T1] 起盘串行化的解锁(先红)。合同/判别向量:
+// 起盘串行化的解锁(先红)。合同/判别向量:
 //   castTechnique.js:96-103 把每次起盘挂在模块级 castChain 上串行(七政那类「改全局→重算→还原」不能并发)。
 //   但链条只 .then 不 withTimeout、也不看 ctx.signal:只要有一次起盘卡在构造器里不返回,
 //   整个应用之后**再也起不了盘**(第二次调用永远在排队)。判据:首次挂死 + 用户中止后,

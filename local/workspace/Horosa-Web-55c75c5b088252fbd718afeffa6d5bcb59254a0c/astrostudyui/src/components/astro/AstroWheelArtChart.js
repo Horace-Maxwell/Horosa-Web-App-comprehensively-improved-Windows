@@ -12,8 +12,11 @@ import {
 	getObjectsBySign,
 	getSignSymbol,
 	normalizeDegree,
+	buildChartHeightStyle,
 } from './IndiaSouthChart';
 import '../../css/styles.less';
+// 方盘格子变小时的紧凑版式开关与字号基准(直接量盘,布局域;见 utils/boxSizeVars)
+import { boxSizeVarsRef, indiaSquareSizeVars } from '../../utils/boxSizeVars';
 
 // 盘面美术(wheel art)方形覆盘:西占数据的希腊盘/中世纪盘/北印度盘/南印度盘画法。
 // 布局几何复用印度三盘坐标系(viewBox 0..100 线层 + HTML 百分比定位层);中世纪盘为独立排版。
@@ -200,13 +203,6 @@ const WHEELART_SCU_COMPARATORS = {
 	planetDisplay: sameDisplayList,
 	lotsDisplay: sameDisplayList,
 };
-
-function buildChartHeightStyle(height){
-	const value = height || 720;
-	return {
-		'--india-chart-height': typeof value === 'number' ? `${value}px` : value,
-	};
-}
 
 function signNumberForHouse(houseNumber, ascSignNumber){
 	return ((ascSignNumber + houseNumber - 2) % 12) + 1;
@@ -480,7 +476,7 @@ class AstroWheelArtChart extends Component{
 			});
 		});
 		return (
-			<div className="horosa-india-square-board horosa-wheelart-south-board xq-india-board">
+			<div className="horosa-india-square-board horosa-wheelart-south-board xq-india-board" ref={this._isqSizeRef || (this._isqSizeRef = boxSizeVarsRef(indiaSquareSizeVars))}>
 				{cells}
 				<div className="horosa-india-square-center">
 					<div className="horosa-india-square-center-label">{this.props.label || '命盘'}</div>

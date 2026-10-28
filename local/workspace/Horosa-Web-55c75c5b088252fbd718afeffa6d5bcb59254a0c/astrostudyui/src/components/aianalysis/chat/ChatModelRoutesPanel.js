@@ -1,6 +1,6 @@
 // 设置卡「按任务用模型」(C4):六槽 × (模型 / 思考档 / 推理档 / 温度 / 输出上限)表格,留空=跟随当前模型 / 全局档。
 // 纪律:打开进阶页不写键;只在用户改动时经 writeModelRoutes / writeRouteOptions 写;「全部清空」即删键(与从未设置同形)。
-// [批四] 整宽表格:表头行 + display:contents 行,卡身 <880px(ResizeObserver 量)退化为逐槽堆叠;已显式设置的格带金线(跟随 ≠ 覆盖);
+// 整宽表格:表头行 + display:contents 行,卡身 <880px(ResizeObserver 量)退化为逐槽堆叠;已显式设置的格带金线(跟随 ≠ 覆盖);
 //        行末「恢复跟随」一键清这一槽五项;具名方案(另存 / 切换 / 删除)迁到头部工具条。
 import React from 'react';
 import { Select, Button, InputNumber, Input, message } from 'antd';
@@ -9,6 +9,7 @@ import { ROUTE_SLOTS, ROUTE_SLOT_META, readModelRoutes, writeModelRoutes, clearM
 import { encodeModelSelection, THINKING_LEVELS } from '../../../utils/aiAnalysisProviders';
 import { AdvCard, AdvStatus, ADV_SECTION_IDS, advStyles as styles } from './AdvCard';
 import useElementWidth from './useElementWidth';
+import { scriptFilterBy } from '../../../utils/scriptMode';
 
 // 表格最小宽 868(=120+220+128+112+88+120+32 + 6×8):再窄就逐槽堆叠
 export const ROUTE_GRID_STACK_BELOW = 880;
@@ -36,11 +37,11 @@ export function buildRouteOptions(providerProfiles){
 export default function ChatModelRoutesPanel({ providerProfiles }){
 	const [routes, setRoutes] = React.useState(()=>readModelRoutes());
 	React.useEffect(()=>subscribeModelRoutes((r)=>setRoutes(r)), []);
-	const [routeOptions, setRouteOptions] = React.useState(()=>readRouteOptions());   // [批二⑩] 按槽思考档
+	const [routeOptions, setRouteOptions] = React.useState(()=>readRouteOptions());   // 按槽思考档
 	React.useEffect(()=>subscribeRouteOptions(setRouteOptions), []);
 	const options = React.useMemo(()=>buildRouteOptions(providerProfiles), [providerProfiles]);
 	const thinkingOptions = React.useMemo(()=>THINKING_LEVELS.map((t)=>({ value: t.value, label: `思考·${t.label}` })), []);
-	// [批三②] 具名方案:另存为 / 切换 / 删除;active 空=现状
+	// 具名方案:另存为 / 切换 / 删除;active 空=现状
 	const [profiles, setProfiles] = React.useState(()=>readRouteProfiles());
 	React.useEffect(()=>subscribeRouteProfiles(setProfiles), []);
 	const [newName, setNewName] = React.useState('');
@@ -84,7 +85,7 @@ export default function ChatModelRoutesPanel({ providerProfiles }){
 								<div className={styles.routeLabelHelp}>{ROUTE_SLOT_META[slot].help}</div>
 							</div>
 							<div className={styles.routeCell} data-route-cell={has(routes[slot]) ? 'set' : 'inherit'} data-route-col="model">
-								<Select size="small" allowClear showSearch optionFilterProp="label" placeholder="跟随当前模型" value={routes[slot] || undefined} options={options} data-model-route={slot}
+								<Select filterOption={scriptFilterBy('label')} size="small" allowClear showSearch optionFilterProp="label" placeholder="跟随当前模型" value={routes[slot] || undefined} options={options} data-model-route={slot}
 									onChange={(v)=>writeModelRoutes({ [slot]: v || '' })} />
 							</div>
 							<div className={styles.routeCell} data-route-cell={has(ro.thinking) ? 'set' : 'inherit'} data-route-col="thinking">

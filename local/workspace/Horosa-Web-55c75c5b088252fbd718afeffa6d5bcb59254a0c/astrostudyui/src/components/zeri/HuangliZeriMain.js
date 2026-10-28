@@ -1,30 +1,25 @@
-// [Z1·黄历择日] 择日页子技法宿主:内嵌完整 <HuangLiMain>(techniqueScope='huanglizeri' 独立快照槽,
+// 择日页子技法宿主:内嵌完整 <HuangLiMain>(techniqueScope='huanglizeri' 独立快照槽,
 // 与 calendar 聚合实例 keep-alive 并存互不竞写——奇门 scope 化同律),控制条经 renderExtraControls
 // 插「黄历择日…」入口,弹出择吉工作台(HuangliZeriWorkbench);扫描走纯本地 huangliZeriScanEngine
 // (日粒度),结果行 pick 经 ref.pickAuspiciousDay 跳该日(年度吉日榜同一回填链)。
 // 快照冻结纪律(天星/奇门同款):择吉瞬间冻结 _scanCfg/_scanTree,结果行判读/日卡恒用冻结值;
 // _scanUiJson 指纹驱动 resultsStale 黄条。
 import { Component } from 'react';
-import { restoreZeriWorkbenchFromCase, buildZeriCasePayload } from './zeriCaseRestore';
+import { zeriCaseSnapshotText, restoreZeriWorkbenchFromCase, buildZeriCasePayload, beginScanRun, scanRunIsCurrent, canonicalJson } from './zeriCaseRestore';
 const ZERI_SCOPE = 'huanglizeri';   // 与 saveCase 的 payload.module / openKentangCaseDrawer module 同名
 import HuangLiMain from '../calendar/HuangLiMain';
 import HuangliZeriWorkbench from './HuangliZeriWorkbench';
 import { XQButton } from '../xq-ui';
 import DateTime from '../comp/DateTime';
 import { openKentangCaseDrawer } from '../../utils/kentangCaseSave';
-import { loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { getStore } from '../../utils/storageutil';
 import { newHuangliLeaf, newHuangliGroup, compileHuangliTree } from '../../divination/zeri/huangliZeriConditionTypes';
 import { scanHuangli, explainHuangliAt } from '../../divination/zeri/huangliZeriScanEngine';
 import { buildHuangliZeriSnapshotExtra } from '../../divination/zeri/huangliZeriSnapshot';
 import { huangliZeriSchemeStore } from '../../divination/zeri/schemeStore';
+import { todayStr } from './zeriHostUtils';
+import { datePartOf } from '../../utils/dateStrSafe';
 
-function pad2(n){
-	return n < 10 ? `0${n}` : `${n}`;
-}
-function todayStr(){
-	const d = new Date();
-	return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
 function initialTree(){
 	return { ...newHuangliGroup('all'), children: [newHuangliLeaf('tianshen_dao')] };
 }
@@ -76,8 +71,20 @@ export default class HuangliZeriMain extends Component{
 		this.setState({ searchOpen: true });
 	}
 
+	// 载入存案时还原扫描冻结口径用(zeriCaseRestore):与 runSearch 同一编译器
+	compileScanTree(tree){
+		return compileHuangliTree(tree);
+	}
+
+	// 过期判据的指纹(纯函数):给定一份工作台口径算指纹(规范化序列化,键序不同不误报)。扫描时 / 现在按 currentUiJson,
+	// 载入存案按冻结的那一份(zeriCaseRestore.frozenUiJsonOf;绝不按此刻页面现算)
+	uiJsonOf(parts){
+		const q = parts || {};
+		return canonicalJson({ cfg: q.cfg, tree: q.tree });
+	}
+
 	currentUiJson(){
-		return JSON.stringify({ cfg: this.state.cfg, tree: this.state.tree });
+		return this.uiJsonOf(this.state);
 	}
 
 	async runSearch(){
@@ -103,6 +110,8 @@ export default class HuangliZeriMain extends Component{
 		}catch(e){
 			// 历史落盘失败不阻断择吉
 		}
+		// 运行代次:扫描途中载入存案会作废这一次(取消 + 推进代次),之后的进度 / 结果 / 收尾都不再写(见 zeriCaseRestore)
+		const run = beginScanRun(this);
 		this._abort = typeof AbortController !== 'undefined' ? new AbortController() : { signal: { aborted: false }, abort(){ this.signal.aborted = true; } };
 		this.setState({
 			scanning: true,
@@ -118,13 +127,13 @@ export default class HuangliZeriMain extends Component{
 				tree: compiled,
 				signal: this._abort.signal,
 				onProgress: (p)=>{
-					if(this.unmounted){
+					if(this.unmounted || !scanRunIsCurrent(this, run)){
 						return;
 					}
 					this.setState({ progress: p, results: p.partial && p.partial.length ? p.partial : this.state.results });
 				},
 			});
-			if(this.unmounted){
+			if(this.unmounted || !scanRunIsCurrent(this, run)){
 				return;
 			}
 			this.setState({ scanning: false, progress: null, results: res.intervals, truncated: res.truncated });
@@ -137,7 +146,7 @@ export default class HuangliZeriMain extends Component{
 				}
 			}
 		}catch(e){
-			if(this.unmounted){
+			if(this.unmounted || !scanRunIsCurrent(this, run)){
 				return;
 			}
 			if(e && e.name === 'AbortError'){
@@ -164,7 +173,7 @@ export default class HuangliZeriMain extends Component{
 		this.setState({ searchOpen: false });
 	}
 
-	// [Q-453] 同步引擎直算(快照前 N 行判读树与工作台「详情▼」同源);explainRow 保持 Promise 形给工作台。
+	// 同步引擎直算(快照前 N 行判读树与工作台「详情▼」同源);explainRow 保持 Promise 形给工作台。
 	explainRowSync(row){
 		return explainHuangliAt({
 			tree: this._scanTree,
@@ -184,7 +193,7 @@ export default class HuangliZeriMain extends Component{
 				tree: this._scanUiTree || this.state.tree,	// 冻结树:与命中行同源(活树曾致条件描述≠结果,复审 F5)
 				results: this.state.results,
 				truncated: this.state.truncated,
-				explainAt: (row)=>this.explainRowSync(row),   // [Q-453] 前 N 行判读树(全局可配)
+				explainAt: (row)=>this.explainRowSync(row),   // 前 N 行判读树(全局可配)
 			});
 			return extra ? `${baseText ? `${baseText}\n\n` : ''}${extra}` : baseText;
 		}catch(e){
@@ -192,14 +201,29 @@ export default class HuangliZeriMain extends Component{
 		}
 	}
 
-	// [挂载自检 F-36] 存为事盘:黄历页无存档钮 → 「黄历择日」事盘类型恒无实例。事发时刻=黄历页当前选中日(午时代表),
+	// 存为事盘:黄历页无存档钮 → 「黄历择日」事盘类型恒无实例。事发时刻=黄历页当前选中日(午时代表),
 	// 快照取本宿主槽(选中日日课+择吉三段);事盘源层按 payload.module=huanglizeri 认领 payload.snapshot。
 	componentDidMount(){
-		restoreZeriWorkbenchFromCase(this, ZERI_SCOPE);   // [Q-270/T-264] 载入存案还原工作台态(此前五宿主写而不读)
+		restoreZeriWorkbenchFromCase(this, ZERI_SCOPE);   // 载入存案还原工作台态(此前五宿主写而不读)
 	}
 
 	componentDidUpdate(){
 		restoreZeriWorkbenchFromCase(this, ZERI_SCOPE);
+	}
+
+	// 载入存案还原工作台后跳回存案那一天:存案时事发时刻写的就是所选日(正午),旧存案同样带着 —— 此前只还原工作台,
+	// 中间的黄历仍停在当前所看的那一天
+	replotAfterRestore(){
+		if(!this.huangliRef || typeof this.huangliRef.pickAuspiciousDay !== 'function'){ return; }
+		let ymd = '';
+		try{
+			const store = getStore();
+			const c = store && store.user ? store.user.currentCase : null;
+			const dv = c && c.divTime ? c.divTime.value : null;
+			if(dv && typeof dv.format === 'function'){ ymd = dv.format('YYYY-MM-DD'); }
+			else if(typeof dv === 'string'){ ymd = datePartOf(dv); }
+		}catch(e){ ymd = ''; }
+		if(/^-?\d{1,4}-\d{2}-\d{2}$/.test(ymd)){ this.huangliRef.pickAuspiciousDay(ymd); }
 	}
 
 	saveCase(){
@@ -211,17 +235,16 @@ export default class HuangliZeriMain extends Component{
 		const ymd = sel && sel.y ? `${sel.y}-${`${sel.m}`.padStart(2, '0')}-${`${sel.d}`.padStart(2, '0')}` : base.format('YYYY-MM-DD');
 		const dt = new DateTime();
 		const t = dt.parse ? dt.parse(`${ymd} 12:00:00`, 'YYYY-MM-DD HH:mm:ss') : dt;
+		// 黄历没有地点(日课只按日期与时区排;黄历页内部那个经度是排月历用的固定值,没有纬度):存案不记地点 ——
+		// 此前记了「经度 + 空纬度」半组,载入到主盘把左栏纬度清空。没有地点的事盘载入时地点整组沿用左栏(kentangCaseSave.casePlaceGroup)
 		const fields = {
 			date: { value: t },
 			time: { value: t.clone ? t.clone() : t },
 			zone: { value: base.zone !== undefined && base.zone !== null ? base.zone : '+08:00' },
-			lon: { value: st.lon || '' },
-			lat: { value: '' },
 			gender: { value: 1 },
 		};
-		let snapshot = '';
-		try{ const m = loadModuleAISnapshot('huanglizeri'); snapshot = m && m.content ? `${m.content}` : ''; }catch(e){ snapshot = ''; }
-		if(!snapshot){ try{ snapshot = this.composeAiSnapshot('') || ''; }catch(e){ snapshot = ''; } }
+		// 快照 = 页面此刻所见(先请内嵌页按当前盘 + 当前择时结果重存再读;见 zeriCaseSnapshotText)
+		const snapshot = zeriCaseSnapshotText(this, 'huanglizeri');
 		openKentangCaseDrawer({
 			dispatch: this.props.dispatch,
 			fields,
@@ -229,7 +252,7 @@ export default class HuangliZeriMain extends Component{
 			label: '黄历择日',
 			payload: {
 				module: 'huanglizeri',
-				zeri: buildZeriCasePayload(this)   /* [Q-270/T-264] 补 geo/options/natal/pickText,载入存案可还原工作台与点选时刻 */,
+				zeri: buildZeriCasePayload(this)   /* 补 geo/options/natal/pickText,载入存案可还原工作台与点选时刻 */,
 				snapshot,
 			},
 		});

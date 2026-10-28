@@ -12,8 +12,9 @@ import fs from 'fs';
 import path from 'path';
 import { AI_EXPORT_PRESET_SECTIONS } from '../aiExport';
 import { CNYIBU_SUBTABS } from '../../constants/SubTabRegistry';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
-const EXPORT_SRC = fs.readFileSync(path.join(__dirname, '..', 'aiExport.js'), 'utf8');
+const EXPORT_SRC = readSource(path.join(__dirname, '..', 'aiExport.js'));
 const HOST_SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'components', 'cnyibu', 'CnYiBuMain.js'), 'utf8');
 
 /** 宿主认的子tab —— 真值源。

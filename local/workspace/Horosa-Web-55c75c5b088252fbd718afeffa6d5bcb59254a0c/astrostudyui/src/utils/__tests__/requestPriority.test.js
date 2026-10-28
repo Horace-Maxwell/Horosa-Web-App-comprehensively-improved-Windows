@@ -1,7 +1,7 @@
-// [R5 T5] 前端优先级头金标:三种后台判定各自打头;前台不打;开关关不打;显式 priority 字段不外泄。
+// 前端优先级头金标:三种后台判定各自打头;前台不打;开关关不打;显式 priority 字段不外泄。
 import { tagRequestPriority, runInBackgroundScope, isInBackgroundScope, PRIORITY_HEADER, __resetRequestPriorityForTest } from '../requestPriority';
 
-describe('[R5 T5] requestPriority', ()=>{
+describe('requestPriority', ()=>{
 	beforeEach(()=>{ __resetRequestPriorityForTest(); window.localStorage.removeItem('horosa.perf.requestPriorityLane'); });
 
 	test('前台请求:原样返回(同一对象,零改动)', ()=>{

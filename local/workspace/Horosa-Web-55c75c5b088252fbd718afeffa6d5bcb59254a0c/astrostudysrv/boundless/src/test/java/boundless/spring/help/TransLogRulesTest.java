@@ -8,9 +8,7 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 import org.junit.Test;
@@ -56,25 +54,5 @@ public class TransLogRulesTest {
 			assertTrue(code, TransLogRules.transCodeIn(set, code.toUpperCase()));
 			assertTrue(code, TransLogRules.transCodeIn(set, code));
 		}
-	}
-
-	@Test
-	public void removeParamsIgnoresCase() {
-		Map<String, Object> map = new HashMap<String, Object>();
-		map.put("Token", "t");
-		map.put("ACCESSTOKEN", "a");
-		map.put("passWord", "p");
-		map.put("Passwd", "q");
-		map.put("keep", "k");
-		map.put(null, "n");
-		int removed = TransLogRules.removeParamsIgnoreCase(map, new String[] {"token", "accesstoken", "Password", "PASSWD", null});
-		assertEquals(4, removed);
-		assertEquals(2, map.size());
-		assertEquals("k", map.get("keep"));
-		assertTrue(map.containsKey(null));
-		assertEquals(0, TransLogRules.removeParamsIgnoreCase(map, new String[0]));
-		assertEquals(0, TransLogRules.removeParamsIgnoreCase(null, new String[] {"keep"}));
-		assertEquals(0, TransLogRules.removeParamsIgnoreCase(map, null));
-		assertEquals("keep 不在删除名单,原样保留", "k", map.get("keep"));
 	}
 }

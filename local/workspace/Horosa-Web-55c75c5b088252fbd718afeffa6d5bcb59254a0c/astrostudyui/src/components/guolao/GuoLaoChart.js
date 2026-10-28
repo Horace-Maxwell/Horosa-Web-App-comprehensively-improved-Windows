@@ -2,10 +2,11 @@ import * as d3 from 'd3';
 import { Component } from 'react';
 import {randomStr,} from '../../utils/helper';
 import * as AstroConst from '../../constants/AstroConst';
-import GLChart from './GLChart';
+import GLChart, { glChartShape } from './GLChart';
 import { chartDrawGuardEnabled } from '../../utils/perfFlags';
 import { buildChartDrawSig, sameChartDrawSig, watchChartSvgResize, watchChartAppearance } from '../../utils/chartDrawGuard';
-import { getEffectiveScale, visualFloorPx } from '../../utils/zoomDomain';
+import { visualFloorPx } from '../../utils/zoomDomain';
+import { viewportRemainHeight } from '../../utils/viewportCap';   // 「盘按窗口底封顶」单源(整页可滚时不封顶)
 import * as SZConst from '../suzhan/SZConst';
 
 const SQUARE_SIDE_MIN = 620;
@@ -41,15 +42,7 @@ class GuoLaoChart extends Component{
 	}
 
 	getChartShape(){
-		const fields = this.props.fields || {};
-		if(fields.szshape !== undefined && fields.szshape !== null &&
-			fields.szshape.value !== undefined && fields.szshape.value !== null){
-			const parsed = parseInt(fields.szshape.value, 10);
-			if(Number.isFinite(parsed)){
-				return parsed;
-			}
-		}
-		return SZConst.SZChart.shape;
+		return glChartShape(this.props.fields);
 	}
 
 	updateSquareSide(){
@@ -94,23 +87,9 @@ class GuoLaoChart extends Component{
 			parentW = parent ? parent.clientWidth : svgdom.clientWidth;
 			parentH = parent ? parent.clientHeight : svgdom.clientHeight;
 
-			const viewportH = window.innerHeight || document.documentElement.clientHeight || 0;
-			if(viewportH > 0){
-				const rect = svgdom.getBoundingClientRect();
-				let bottomLimit = viewportH;
-				const footer = document.getElementById('globalFooter');
-				if(footer){
-					const footerRect = footer.getBoundingClientRect();
-					if(footerRect.top > rect.top && footerRect.top < bottomLimit){
-						bottomLimit = footerRect.top;
-					}
-				}
-				// [Tahoe 域混根修] rect.top 与 innerHeight 同属 rect/物理域,差值合法;但 side 是
-				// 布局域 px(svg 边长),写入前必须经 getEffectiveScale()(实测探针)除回布局域,
-				// 否则壳缩放≠1 时方盘边长跨域算错(z>1 超宽遮裁/z<1 偏小)。
-				const zScale = getEffectiveScale() || 1;
-				viewportRemainH = (bottomLimit - rect.top) / zScale - VIEWPORT_BOTTOM_GAP;
-			}
+			// 窗口底余高走单源(utils/viewportCap,与宿盘同口径):整页可滚(放大档矮窗,工作区布局下限让整页长高)时不封顶 ——
+			// 此前照样按窗口底封顶,方盘被钉在首屏可见高度上(1.8 档 1728×760 实测 232 × 232 塞在 361 × 417 的栏里,下面一截死带);常规窗口一字不变
+			viewportRemainH = viewportRemainHeight(svgdom, VIEWPORT_BOTTOM_GAP, { footer: true });
 		}
 
 		const availableWidth = pickFirstPositive([parentW, propW]);
@@ -234,7 +213,7 @@ class GuoLaoChart extends Component{
 		this.updateSquareSide();
 		this.drawChart();
 		this.scheduleDrawRetry();
-		// [R4-B7/C17] 隐藏容器(tab 未选中,svg 0×0)期间数据更新 → 绘制停旧画面,切回 tab 无 React
+		// 隐藏容器(tab 未选中,svg 0×0)期间数据更新 → 绘制停旧画面,切回 tab 无 React
 		// 更新可触发重画 = 表新盘旧;svg 尺寸变化(含 0→非0)时补一次 drawChart(同型收口,
 		// 签名守卫 :169 防重画风暴)。样板=JinKouChart。
 		this._detachSvgResize = watchChartSvgResize(this.state.chartid, this.drawChart);

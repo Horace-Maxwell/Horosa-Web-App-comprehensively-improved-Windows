@@ -1,4 +1,4 @@
-// [WP-7] 自定义恒星黄道槽位管理(Modal;入口=星盘设置③「恒星与天象」按钮)。
+// 自定义恒星黄道槽位管理(Modal;入口=星盘设置③「恒星与天象」按钮)。
 // 10 槽:名称+参考历元(JD)+该历元 ayanamsa 度值;「设为当前」后左栏黄道下拉的
 // 「恒星黄道·自定义」档即用该槽(fields 下发 siderealAyanamsa='user'+userAyanT0/userAyanDeg,
 // 后端 SIDM_USER 三参;参数缺失后端回落 Lahiri 不炸盘)。换算器按 50.29″/年 近似仅供参考。
@@ -29,10 +29,10 @@ export default class CustomAyanamsaManager extends React.Component {
 	}
 
 	setSlot(idx, field, value){
-		// [R2-17] InputNumber 清空回调 null:Number(null)=0 会把历元静默归零(JD 0=公元前 4713 年)——
+		// InputNumber 清空回调 null:Number(null)=0 会把历元静默归零(JD 0=公元前 4713 年)——
 		// 空值存 null,消费端(currentAyanSlot/userAyanParamsFrom)按 isFinite 拦截。
 		const numVal = (value === null || value === undefined || `${value}` === '') ? null : Number(value);
-		// [R4-P3] 清空「当前槽」的历元参=排盘将静默回落 Lahiri(N6 闸只拦「设为当前」,编辑路径绕过)——即时警告。
+		// 清空「当前槽」的历元参=排盘将静默回落 Lahiri(N6 闸只拦「设为当前」,编辑路径绕过)——即时警告。
 		if(numVal === null && field !== 'name' && this.state.current === idx){
 			message.warning('当前槽历元被清空:该参缺失时排盘将回落 Lahiri,请补全或另设当前槽');
 		}
@@ -72,7 +72,7 @@ export default class CustomAyanamsaManager extends React.Component {
 							<span style={{ flex: 1 }} />
 							<XQButton size="small" type={current === i ? 'primary' : 'default'}
 								onClick={() => {
-									// [N6] 未填历元两参的槽设为当前=后端静默回落 Lahiri 且 UI 零提示——先校验。
+									// 未填历元两参的槽设为当前=后端静默回落 Lahiri 且 UI 零提示——先校验。
 									if(current !== i && !(Number.isFinite(s.t0) && s.t0 > 0 && Number.isFinite(s.deg))){
 										message.warning('请先填写历元 JD(>0)与 ayanamsa 度值,再设为当前');
 										return;

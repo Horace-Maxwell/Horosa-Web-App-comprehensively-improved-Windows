@@ -60,7 +60,7 @@ describe('神数正传·六亲 · 算例一（乾造 乙未甲申己酉己巳）
 		expect(d.pGua).toBe('兌');
 		expect(d.dunGan).toBe('丁');
 		expect(d.hitGz).toBe('丁亥');
-		expect(d.shengxiao).toBe('豬');
+		expect(d.shengxiao).toBe('猪');
 	});
 	test('父母宫旬遁逐步：庚入地盘震3 → 数至庚辰落离9 → 乙 → 乙亥 → 猪（古籍：数至庚辰落于离宫乙，天盘甲戌数至乙为乙亥，属猪）', () => {
 		const d = r.items.parent.dun;
@@ -69,7 +69,7 @@ describe('神数正传·六亲 · 算例一（乾造 乙未甲申己酉己巳）
 		expect(d.pGua).toBe('離');
 		expect(d.dunGan).toBe('乙');
 		expect(d.hitGz).toBe('乙亥');
-		expect(d.shengxiao).toBe('豬');
+		expect(d.shengxiao).toBe('猪');
 	});
 });
 

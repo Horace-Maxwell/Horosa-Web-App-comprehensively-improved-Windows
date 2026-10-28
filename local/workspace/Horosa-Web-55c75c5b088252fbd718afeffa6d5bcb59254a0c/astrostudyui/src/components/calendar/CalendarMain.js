@@ -12,7 +12,7 @@ import RiziMain from './RiziMain';
 const TabPane = Tabs.TabPane;
 
 class CalendarMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -79,7 +79,7 @@ class CalendarMain extends Component{
 		markInteractionStart('calendar');
 		const wasVisited = !!this._visitedTabs[key];
 		this._visitedTabs[key] = true;
-		// [E-2] 子 tab 运行时注册(__horosaCnyibuCurrentTab 同范式):AI 导出按当前子 tab 分流
+		// 子 tab 运行时注册(__horosaCnyibuCurrentTab 同范式):AI 导出按当前子 tab 分流
 		// huangli/tongshu 独立键(此前恒 calendar 聚合,两键设置面可勾恒无效)。
 		try{ window.__horosaCalendarCurrentTab = key; }catch(e){ /* SSR/jest 无 window 静默 */ }
 		this.setState({

@@ -2,13 +2,10 @@
 // 向首度数落卦落爻高亮；合十两卦以弦连线示意。与并列双卦图 SixtyFourGuaRing 互补：
 // 圆图管「落在哪」，并列图管「看清爻象」。亮/暗双主题(--fs-* 令牌)。
 import React from 'react';
-import { GUA64_CIRCLE, GUA64_CIRCLE_META, GUA8_BIN, GUA8_XIANTIAN_NUM } from '../fengshuiData';
+import { polar, CHAR_PITCH, RadialText, hexYao } from './chartGeom';
+import { GUA64_CIRCLE, GUA64_CIRCLE_META, GUA8_XIANTIAN_NUM } from '../fengshuiData';
 
 const norm = (d)=>((Number(d) % 360) + 360) % 360;
-function polar(cx, cy, r, deg) {
-	const a = (deg - 90) * Math.PI / 180;
-	return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
-}
 function sectorPath(cx, cy, rIn, rOut, deg0, deg1) {
 	let sweep = norm(deg1 - deg0);
 	if (sweep === 0) { sweep = 360; }
@@ -17,12 +14,6 @@ function sectorPath(cx, cy, rIn, rOut, deg0, deg1) {
 	const [c2x, c2y] = polar(cx, cy, rIn, deg0 + sweep);
 	const [dx, dy] = polar(cx, cy, rIn, deg0);
 	return `M ${ax} ${ay} A ${rOut} ${rOut} 0 0 1 ${bx} ${by} L ${c2x} ${c2y} A ${rIn} ${rIn} 0 0 0 ${dx} ${dy} Z`;
-}
-// 六爻（自下而上）：下卦三爻 + 上卦三爻。
-function hexYao(lower, upper) {
-	const lo = GUA8_BIN[lower] || [0, 0, 0];
-	const up = GUA8_BIN[upper] || [0, 0, 0];
-	return [lo[0], lo[1], lo[2], up[0], up[1], up[2]];
 }
 // 扇区内的微卦象：沿半径方向自内(初爻)向外(上爻)排六条横画，画本身垂直于半径。
 function MiniHex({ cx, cy, rIn, rOut, deg, yao, color, w, hot }) {
@@ -42,20 +33,6 @@ function MiniHex({ cx, cy, rIn, rOut, deg, yao, color, w, hot }) {
 					</g>
 				);
 			})}
-		</g>
-	);
-}
-const CHAR_PITCH = 1.20;   // 同罗经：实测盒高/字号上界 1.183，取 1.20 留余量
-function RadialText({ cx, cy, rIn, rOut, deg, text, fs, fill, weight }) {
-	const s = `${text || ''}`;
-	if (!s) { return null; }
-	const step = Math.min(fs * CHAR_PITCH, (rOut - rIn) / s.length);
-	const first = (rIn + rOut) / 2 - (s.length - 1) * step / 2;
-	return (
-		<g transform={`rotate(${deg} ${cx} ${cy})`}>
-			{s.split('').map((ch, i)=>(
-				<text key={i} x={cx} y={cy - (first + i * step)} fontSize={fs} textAnchor="middle" dominantBaseline="central" fill={fill} fontWeight={weight}>{ch}</text>
-			))}
 		</g>
 	);
 }

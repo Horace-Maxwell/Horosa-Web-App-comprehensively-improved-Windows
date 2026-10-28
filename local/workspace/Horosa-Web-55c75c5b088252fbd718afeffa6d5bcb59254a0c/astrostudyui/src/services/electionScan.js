@@ -8,7 +8,7 @@ import { cachedKentangFetch } from '../utils/kentangCache';
 // 缓存:cachedKentangFetch 三层(同参确定性;ResultCode≠0 不入缓存);取消:透传 AbortSignal。
 
 
-// [C3 压检实抓 2026-08-30] 远端扫描的结构化错误码 → 用户话。此前 span_too_large 的英文
+// 远端扫描的结构化错误码 → 用户话。此前 span_too_large 的英文
 // 工程串("span 123.0d exceeds 93.0d; split the request")直接顶在结果区,违反全站中文标准。
 // 只译**结构化已知码**;未知码保留原文(排障要看得到真错误,宁生勿瞒)。
 function humanizeScanError(payload, fallback){
@@ -42,18 +42,6 @@ export async function fetchElectionScan(values, options){
 	return rsp[ResultKey];
 }
 
-export async function fetchElectionConditionTypes(){
-	const response = await cachedKentangFetch(buildKentangEndpoint('electionscan', 'conditiontypes'), {
-		method: 'GET',
-	});
-	const text = await response.text();
-	const rsp = text ? JSON.parse(text) : null;
-	if(!rsp || rsp.ResultCode !== 0){
-		throw new Error('electionscan.conditiontypes.failed');
-	}
-	return rsp[ResultKey];
-}
-
 // R4 单时刻逐叶判读(详情面板):pass 复用扫描求值器(引擎侧同源),actual=实测文本。
 export async function fetchElectionExplain(values, options){
 	const opts = options || {};
@@ -75,7 +63,7 @@ export async function fetchElectionExplain(values, options){
 }
 
 
-// [Z7] 七政择日·征象扫描(端点 /qizhengelectionscan;算法 astropy qizheng_election_scan,
+// 七政择日·征象扫描(端点 /qizhengelectionscan;算法 astropy qizheng_election_scan,
 // 判定表与前端 guolaoData 同源[guolao_const 成对],与天星 electionscan 同形薄壳)。
 export async function fetchQizhengElectionScan(values, options){
 	const opts = options || {};
@@ -113,7 +101,7 @@ export async function fetchQizhengElectionExplain(values, options){
 }
 
 
-// [Z8] 印度择日·征象扫描(端点 /indiaelectionscan;算法 astropy india_election_scan)。
+// 印度择日·征象扫描(端点 /indiaelectionscan;算法 astropy india_election_scan)。
 export async function fetchIndiaElectionScan(values, options){
 	const opts = options || {};
 	const response = await cachedKentangFetch(buildKentangEndpoint('indiaelectionscan', 'scan'), {

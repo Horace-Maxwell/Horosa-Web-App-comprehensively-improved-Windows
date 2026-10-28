@@ -51,7 +51,7 @@ describe('planRewind / applyCheckpoint', ()=>{
 		expect(done).toEqual(['sourceId', 'referenceIds', 'techniqueKeys', 'sessionSystemPrompt', 'modelSelection']);
 		expect(applyCheckpoint(null, setters).length).toBe(0);
 	});
-	it('🔴 [Q-032/M-47] 温度 / top_p 也恢复(此前 CHECKPOINT_FIELDS 声明了却只写不读);null=默认档要能恢复回去', ()=>{
+	it('🔴 温度 / top_p 也恢复(此前 CHECKPOINT_FIELDS 声明了却只写不读);null=默认档要能恢复回去', ()=>{
 		const setters = { setChatTemperature: jest.fn(), setChatTopP: jest.fn() };
 		const done = applyCheckpoint({ ...cp, chatTemperature: 0.3, chatTopP: 0.8 }, setters);
 		expect(setters.setChatTemperature).toHaveBeenCalledWith(0.3);
@@ -69,7 +69,7 @@ describe('planRewind / applyCheckpoint', ()=>{
 	});
 });
 
-// ---- [压测二轮·D6·X1] 建档 → 压缩 → 撤销 三方一致 ----
+// ---- 建档 → 压缩 → 撤销 三方一致 ----
 // 压缩只改「主线视图」,不该改「这一 Turn 做过哪些可撤销动作」:回退计划、账本、真实记录三边必须对得上。
 describe('X1 压缩 × 检查点 × 账本', ()=>{
 	const { registerBuiltinTools } = require('../aiTools');

@@ -18,6 +18,7 @@ const ErrMsg = {
     'pwd.error': '密码错误',
     'signature.error': '签名错误',
     'loginid.is.null': '登陆名为空',
+    'local.engine.unreachable': '本地排盘引擎连接失败(可能被系统代理或安全软件拦截),请重启应用后重试',
 };
 
 export function getErrMsg(key){

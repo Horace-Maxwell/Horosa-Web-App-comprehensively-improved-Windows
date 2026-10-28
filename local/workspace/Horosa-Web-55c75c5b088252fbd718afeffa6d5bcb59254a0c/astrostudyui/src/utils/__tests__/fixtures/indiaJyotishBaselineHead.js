@@ -1,4 +1,4 @@
-// [印占 v2 表化 · 证明基线] buildJyotishSnapshotLines 的「改前」版本(git show HEAD:src/components/astro/IndiaChart.js)。
+// buildJyotishSnapshotLines 的「改前」版本(git show HEAD:src/components/astro/IndiaChart.js)。
 // 逐字提取自表化改动前的实现,仅:(1) 去纯注释行,(2) 函数名加 Baseline 后缀避免与现行同名。
 // 用途:astroIndiaV2FactEquivalence.test.js 以此为「值零丢失」基准,与现行表化输出做 fact 等价比对。切勿手改。
 export function buildJyotishSnapshotLinesBaseline(chartObj){
@@ -60,7 +60,7 @@ export function buildJyotishSnapshotLinesBaseline(chartObj){
 
 	const vd = j.strengths && j.strengths.vargaDignity;
 	if(Array.isArray(vd) && vd.length){
-		out['分盘吉位 Vimśopaka'] = vd.map((row)=>{
+		out['分盘吉位 Vaiśeṣikāṁśa'] = vd.map((row)=>{
 			const a = row.amsa || {};
 			const parts = [];
 			const grp = (label, g)=>{ const x = a[g]; if(x && x.count){ parts.push(`${label}${x.count}${x.amsa ? '·' + x.amsa : ''}`); } };

@@ -1,0 +1,99 @@
+diff --git a/astrostudyui/src/utils/__tests__/headlessApi.test.js b/astrostudyui/src/utils/__tests__/headlessApi.test.js
+index cee827de..9d59f3ba 100644
+--- a/astrostudyui/src/utils/__tests__/headlessApi.test.js
++++ b/astrostudyui/src/utils/__tests__/headlessApi.test.js
+@@ -16,33 +16,45 @@ const protocol = require(path.join(HEADLESS, 'protocol'));
+ const rest = require(path.join(HEADLESS, 'rest'));
+ const cli = require(path.join(HEADLESS, 'cli'));
+ 
++// horosa_win_shell_const_v1(Windows 侧移植适配):Windows 壳是 Electron,MCP / REST / 终端命令的同名常量住在
++// desktop_installer_bundle/electron/{mcp-core,rest-api,horosa-cli}.js(纯 JS,直接 require 取值)。Tauri 源缺席时 ① / ② 与它们逐项对拍,
++// 判据零放宽(同一组常量、同一份用例表、同一份 OpenAPI 请求头、同一种投页预算)。逐句换取值处而不另起一组:
++// 上游再加读 Rust 源的断言,在 Windows 上会直接红(找不到文件),不会静默少测。
++const ELECTRON_SRC = path.resolve(__dirname, '../../../../../../../desktop_installer_bundle/electron');
++const EL = fs.existsSync(TAURI_SRC) ? null : {
++	core: require(path.join(ELECTRON_SRC, 'mcp-core.js')),
++	rest: require(path.join(ELECTRON_SRC, 'rest-api.js')),
++	cli: require(path.join(ELECTRON_SRC, 'horosa-cli.js')),
++	src: (f)=>fs.readFileSync(path.join(ELECTRON_SRC, f), 'utf8'),
++};
++
+ const read = (f)=>fs.readFileSync(path.join(TAURI_SRC, f), 'utf8');
+ const strings = (s)=>Array.from(s.matchAll(/"([^"]*)"/g)).map((m)=>m[1]);
+ 
+ describe('① 与桌面壳逐项对拍', ()=>{
+-	const mcp = read('mcp_server.rs');
+-	const restRs = read('rest_api.rs');
+-	const cliRs = read('horosa_cli.rs');
++	const mcp = EL ? EL.src('mcp-core.js') : read('mcp_server.rs');
++	const restRs = EL ? EL.src('rest-api.js') : read('rest_api.rs');
++	const cliRs = EL ? EL.src('horosa-cli.js') : read('horosa_cli.rs');
+ 	it('🔴 协议版本 / 最新版 / 握手说明 / 工具名禁词 / 错误码', ()=>{
+-		expect(strings(/pub const MCP_PROTOCOL_VERSIONS: \[&str; \d+\] =\s*\[([^\]]*)\]/.exec(mcp)[1])).toEqual(protocol.PROTOCOL_VERSIONS);
+-		expect(/pub const MCP_LATEST_PROTOCOL: &str = "([^"]+)"/.exec(mcp)[1]).toBe(protocol.LATEST_PROTOCOL);
+-		expect(/fn instructions\(\) -> &'static str \{\s*"([^"]+)"/.exec(mcp)[1]).toBe(protocol.INSTRUCTIONS);
+-		expect(strings(/const DENIED: \[&str; \d+\] = \[([^\]]*)\]/.exec(mcp)[1])).toEqual(protocol.DENIED_NAME_WORDS);
+-		const code = (n)=>Number(new RegExp(`pub const ERR_${n}: i64 = (-?\\d+);`).exec(mcp)[1]);
++		expect(EL ? EL.core.MCP_PROTOCOL_VERSIONS : strings(/pub const MCP_PROTOCOL_VERSIONS: \[&str; \d+\] =\s*\[([^\]]*)\]/.exec(mcp)[1])).toEqual(protocol.PROTOCOL_VERSIONS);
++		expect(EL ? EL.core.MCP_LATEST_PROTOCOL : /pub const MCP_LATEST_PROTOCOL: &str = "([^"]+)"/.exec(mcp)[1]).toBe(protocol.LATEST_PROTOCOL);
++		expect(EL ? EL.core.INSTRUCTIONS : /fn instructions\(\) -> &'static str \{\s*"([^"]+)"/.exec(mcp)[1]).toBe(protocol.INSTRUCTIONS);
++		expect(EL ? strings(/const DENIED_TOOL_WORDS = \[([^\]]*)\]/.exec(mcp)[1].replace(/'/g, '"')) : strings(/const DENIED: \[&str; \d+\] = \[([^\]]*)\]/.exec(mcp)[1])).toEqual(protocol.DENIED_NAME_WORDS);
++		const code = (n)=>(EL ? EL.core[`ERR_${n}`] : Number(new RegExp(`pub const ERR_${n}: i64 = (-?\\d+);`).exec(mcp)[1]));
+ 		expect({ PARSE: code('PARSE'), INVALID_REQUEST: code('INVALID_REQUEST'), METHOD_NOT_FOUND: code('METHOD_NOT_FOUND'), INVALID_PARAMS: code('INVALID_PARAMS'), INTERNAL: code('INTERNAL'), NOT_READY: code('NOT_READY'), TIMEOUT: code('TIMEOUT'), RELOADED: code('RELOADED'), RATE_LIMITED: code('RATE_LIMITED'), CANCELLED: code('CANCELLED') }).toEqual({ ...protocol.ERR });
+ 	});
+ 	it('🔴 REST 前缀 / 调用方名 / GET 简写;终端命令简写', ()=>{
+-		expect(/pub const REST_PREFIX: &str = "([^"]+)"/.exec(restRs)[1]).toBe(rest.REST_PREFIX);
+-		expect(/pub const REST_CLIENT_NAME: &str = "([^"]+)"/.exec(restRs)[1]).toBe(rest.REST_CLIENT_NAME);
+-		const aliases = /pub const GET_ALIASES: \[\(&str, &str\); \d+\] = \[([\s\S]*?)\];/.exec(restRs)[1];
+-		const pairs = Array.from(aliases.matchAll(/\("([^"]+)",\s*"([^"]+)"\)/g)).map((m)=>[m[1], m[2]]);
++		expect(EL ? EL.rest.REST_PREFIX : /pub const REST_PREFIX: &str = "([^"]+)"/.exec(restRs)[1]).toBe(rest.REST_PREFIX);
++		expect(EL ? EL.rest.REST_CLIENT_NAME : /pub const REST_CLIENT_NAME: &str = "([^"]+)"/.exec(restRs)[1]).toBe(rest.REST_CLIENT_NAME);
++		const aliases = EL ? '' : /pub const GET_ALIASES: \[\(&str, &str\); \d+\] = \[([\s\S]*?)\];/.exec(restRs)[1];
++		const pairs = EL ? EL.rest.GET_ALIASES : Array.from(aliases.matchAll(/\("([^"]+)",\s*"([^"]+)"\)/g)).map((m)=>[m[1], m[2]]);
+ 		expect(pairs).toEqual(rest.GET_ALIASES);
+-		const sc = /pub const SHORTCUTS: \[\(&str, &str, Option<&str>\); \d+\] = \[([\s\S]*?)\];/.exec(cliRs)[1];
+-		const rows = Array.from(sc.matchAll(/\("([^"]+)",\s*"([^"]+)",\s*(None|Some\("([^"]+)"\))\)/g)).map((m)=>[m[1], m[2], m[4] || null]);
++		const sc = EL ? '' : /pub const SHORTCUTS: \[\(&str, &str, Option<&str>\); \d+\] = \[([\s\S]*?)\];/.exec(cliRs)[1];
++		const rows = EL ? EL.cli.SHORTCUTS : Array.from(sc.matchAll(/\("([^"]+)",\s*"([^"]+)",\s*(None|Some\("([^"]+)"\))\)/g)).map((m)=>[m[1], m[2], m[4] || null]);
+ 		expect(rows).toEqual(cli.SHORTCUTS);
+ 	});
+ 	it('🔴 终端命令带值选项的 --选项=值 写法:桌面壳认的无头必认(此前无头漏了 --idempotency-key=K)', ()=>{
+-		const desk = Array.from(cliRs.matchAll(/strip_prefix\("--([a-z-]+)="\)/g)).map((m)=>m[1]);
++		const desk = Array.from(cliRs.matchAll(EL ? /startsWith\('--([a-z-]+)='\)/g : /strip_prefix\("--([a-z-]+)="\)/g)).map((m)=>m[1]);
+ 		expect(desk.length).toBeGreaterThanOrEqual(4);
+ 		desk.forEach((o)=>{ expect([o, cli.EQ_VALUE_OPTIONS.indexOf(o) >= 0]).toEqual([o, true]); });
+ 		const { opts } = cli.parseArgs(['call', 'x', '--idempotency-key=k2']);
+@@ -60,7 +72,7 @@ describe('① 与桌面壳逐项对拍', ()=>{
+ 		});
+ 		expect(protocol.idempotencyKeyCheck({ _meta: { idempotencyKey: 7 } }).error).toBe('not-string');
+ 		// 桌面壳的用例读同一个文件
+-		expect(mcpSrc()).toMatch(/include_str!\(\s*"[^"]*fixtures\/idempotencyKeyCases\.tsv"\s*\)/);
++		expect(EL ? EL.src('mcp.test.js') : mcpSrc()).toMatch(EL ? /path\.join\(fx, 'idempotencyKeyCases\.tsv'\)/ : /include_str!\(\s*"[^"]*fixtures\/idempotencyKeyCases\.tsv"\s*\)/);
+ 	});
+ 	it('🔴 客户端身份两边同一份用例表(_meta.clientName → clientInfo.name → 会话名 → 传输层缺省);桌面壳的用例读同一文件', ()=>{
+ 		const rows = fs.readFileSync(path.join(__dirname, 'fixtures/clientIdentityCases.tsv'), 'utf8').split('\n').filter((l)=>l && !l.startsWith('#')).map((l)=>l.split('\t'));
+@@ -68,13 +80,13 @@ describe('① 与桌面壳逐项对拍', ()=>{
+ 		rows.forEach(([metaJson, sessJson, transJson, expJson, note])=>{
+ 			expect([note, protocol.clientIdentityOf({ _meta: JSON.parse(metaJson) }, JSON.parse(sessJson), JSON.parse(transJson))]).toEqual([note, JSON.parse(expJson)]);
+ 		});
+-		expect(mcpSrc()).toMatch(/include_str!\(\s*"[^"]*fixtures\/clientIdentityCases\.tsv"\s*\)/);
++		expect(EL ? EL.src('mcp.test.js') : mcpSrc()).toMatch(EL ? /path\.join\(fx, 'clientIdentityCases\.tsv'\)/ : /include_str!\(\s*"[^"]*fixtures\/clientIdentityCases\.tsv"\s*\)/);
+ 	});
+ 	it('🔴 两份 OpenAPI 的 POST /tools/{name} 都写出 Idempotency-Key 请求头', ()=>{
+ 		const doc = rest.openApiDoc([{ name: 'create_chart_record', inputSchema: { type: 'object' } }], '9.9.9');
+ 		const h = doc.paths['/tools/create_chart_record'].post.parameters.find((x)=>x.name === 'Idempotency-Key');
+ 		expect(h).toMatchObject({ in: 'header', required: false, schema: { type: 'string', maxLength: 200 } });
+-		expect(restRs).toMatch(/"name": "Idempotency-Key", "in": "header"/);
++		if(EL){ expect(EL.rest.openapiDoc([{ name: 'create_chart_record', inputSchema: { type: 'object' } }], '9.9.9').paths['/tools/create_chart_record'].post.parameters.find((x)=>x.name === 'Idempotency-Key')).toMatchObject({ in: 'header', required: false, schema: { type: 'string', maxLength: 200 } }); }else{ expect(restRs).toMatch(/"name": "Idempotency-Key", "in": "header"/); }
+ 	});
+ });
+ const mcpSrc = ()=>fs.readFileSync(path.join(TAURI_SRC, 'mcp_server.rs'), 'utf8');
+@@ -155,7 +167,7 @@ describe('② 协议层', ()=>{
+ 		const headlessMeta = rt.calls[0].params._meta;
+ 		expect(headlessMeta.timeoutMs).toBe(10000);
+ 		// 桌面壳投的也是原值(`"timeoutMs": timeout.as_millis()`):同一客户端预算下两边页面实得预算相同
+-		expect(read('mcp_server.rs')).toMatch(/"_meta": \{ "timeoutMs": timeout\.as_millis\(\) as u64 \}/);
++		expect(EL ? EL.src('mcp-core.js') : read('mcp_server.rs')).toMatch(EL ? /_meta: \{ timeoutMs: timeout, / : /"_meta": \{ "timeoutMs": timeout\.as_millis\(\) as u64 \}/);
+ 		const { bridgeTimeoutMs } = require('../aiAgent/withTimeout');
+ 		expect(bridgeTimeoutMs(headlessMeta)).toBe(bridgeTimeoutMs({ timeoutMs: 10000 }));
+ 		expect(bridgeTimeoutMs(headlessMeta)).toBe(7000);

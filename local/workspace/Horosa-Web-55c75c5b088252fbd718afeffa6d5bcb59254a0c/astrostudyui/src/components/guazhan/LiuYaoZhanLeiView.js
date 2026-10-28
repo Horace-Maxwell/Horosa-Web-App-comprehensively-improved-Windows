@@ -1,12 +1,13 @@
 // 右栏「占类」页:鬼谷辨爻法+占类专用对照卡(即时可用,数据来自 tianjiZhanleiCore)+
-// 歌赋断语库(tianjiDoctrine 由抽取管线生成后动态注入;未生成时显示提示)。
+// 歌赋断语库(tianjiDoctrine 古籍抽取件,经 liuyaoDoctrineCache 按需异步载入;载入前显示「载入中」)。
 import React, { useState, useEffect } from 'react';
 import { BIANYAO_FA, QUE_LIUQIN, SIGUA_ILLNESS, BING_WEI, GUI_ZHENG, YAO_FANG, JI_RANG, LIUSHEN_SONG, LIUSHEN_SUI,
 	ZEI_SHOUFA, CANG_WU_FANG, XUN_ZEI_ZONG, YING_ZEI_WO, TAO_CANG, ZOU_FANG_BAGUA, YINXIN_BAGUA, XINGGE_ZHI,
 	JIULIU_ZISUN, NIUMA_GUA, TIANHE_GUI, CAN_GUI_YAO, LIUCHU_BENMING } from '../gua/data/tianjiZhanleiCore';
 import { guaLoreOf } from '../gua/data/tianjiGuaLore';
 import { LiuYaoXunWu } from './LiuYaoCastPad';
-import { loadDoctrine, setDoctrine, ASK_TO_DOCTRINE } from '../gua/data/liuyaoDoctrineCache'; // 共享单一真值源(UI+AI 快照)
+import { Card } from './LiuYaoDuanJueView';
+import { loadDoctrine, ASK_TO_DOCTRINE } from '../gua/data/liuyaoDoctrineCache'; // 共享单一真值源(UI+AI 快照)
 
 const C = { text: 'var(--horosa-astro-text, #efe4d2)', muted: 'var(--horosa-astro-muted, #928b82)', label: 'var(--horosa-astro-label, #d6c7b0)', line: 'var(--horosa-astro-line, rgba(215,173,105,0.18))', accent: 'var(--horosa-accent, #e7bd75)', accentSoft: 'var(--horosa-accent-soft, rgba(231,189,117,0.14))', danger: 'var(--horosa-danger, #ff756c)' };
 // askType → 占类门(辨爻法键 + 专用卡集)
@@ -51,31 +52,24 @@ function DoctrineMen({ men, rows, defaultOpen }){
 		</div>
 	);
 }
-function Card({ title, children }){
-	return (
-		<div style={{ marginBottom: 12 }}>
-			<div style={{ fontSize: 12, fontWeight: 600, color: C.accent, margin: '4px 0 6px' }}>{title}</div>
-			<div style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, color: C.text }}>{children}</div>
-		</div>
-	);
-}
 const KV = ({ obj }) => (
 	<div style={{ fontSize: 12, lineHeight: 1.7, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '2px 12px' }}>
-		{Object.keys(obj).filter((k) => k !== 'note').map((k) => <div key={k} style={{ overflowWrap: 'anywhere' }}><b style={{ color: C.label }}>{k}</b>:{Array.isArray(obj[k]) ? obj[k].join('、') : obj[k]}</div>)}
+		{Object.keys(obj).filter((k) => k !== 'note').map((k) => <div key={k} className="horosa-legacy-wrap-anywhere" style={{ overflowWrap: 'anywhere' }}><b style={{ color: C.label }}>{k}</b>:{Array.isArray(obj[k]) ? obj[k].join('、') : obj[k]}</div>)}
 		{obj.note ? <div style={{ color: C.muted, gridColumn: '1 / -1' }}>注:{obj.note}</div> : null}
 	</div>
 );
 
-let doctrineData = null; // 抽取生成的 tianjiDoctrine.js 动态注入
-export function setZhanleiDoctrine(d){ doctrineData = d; setDoctrine(d); }
-try{ // 走共享 loadDoctrine 单一 loader(同时填充 AI 快照缓存,防显示/导出口径分叉);不存在=首版未抽取,静默
-	loadDoctrine().then((d) => { doctrineData = d; }).catch(() => {});
-}catch(e){ /* ignore */ }
+let doctrineData = null; // 模块级缓存:断语库首次载入后留存,后开的面板直接用
+// 模块载入即预热:走共享 loadDoctrine 单一 loader(同时填充 AI 快照缓存,防显示 / 导出口径分叉)。
+// loadDoctrine 自带失败兜底(载入失败回 null、永不 reject)。
+loadDoctrine().then((d) => { doctrineData = d; });
 
 export default function LiuYaoZhanLeiView({ analysis, currentGuaName, castLines }){
 	const [doc, setDoc] = useState(doctrineData);
 	useEffect(() => {
-		if(!doc){ loadDoctrine().then((d) => { doctrineData = d; setDoc(d); }).catch(() => {}); }
+		let dead = false;   // 卸载后不再写(Hook 清理置位)
+		if(!doc){ loadDoctrine().then((d) => { doctrineData = d; if(!dead){ setDoc(d); } }); }
+		return ()=>{ dead = true; };
 	}, []);
 	const s = (analysis && analysis.settings) || {};
 	const mens = ASK_TO_MEN[s.askType] || ['求事'];

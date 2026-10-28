@@ -1,4 +1,4 @@
-// [R3-A3] C 型(kentang :8899 直连)统一缓存壳 —— 此前 20 个卜类/kinastro 模块的 /pan
+// C 型(kentang :8899 直连)统一缓存壳 —— 此前 20 个卜类/kinastro 模块的 /pan
 // 走裸 fetch:无 L1/L2/L3、无在途去重,每次时间/选项变更=全程 Python 重算(热态 ~80-300ms)。
 // 本壳把 B 型(requestDedupe)同款三层缓存补给 C 型,同 body 恒同果(服务端已审计:
 // 唯一 server-now 兜底=qizhengkin 缺年键,见 QIZHENGKIN_YEAR_KEYS 定点守卫;
@@ -16,8 +16,11 @@
 import { fetchChartWithRetry } from './chartFetch';
 import { idbGet, idbScheduleWrite } from './idbCacheStore';
 import { kentangCacheEnabled } from './perfFlags';
+import { makeL3Rev } from './requestDedupe';
 import { perfBegin } from './perfMark';
+import { registerProcessCache } from './processCacheRegistry';
 import { getPerfCoverageKentang } from './perfCoverageManifest';
+import { responseHasBusinessError } from './resultEnvelope';
 
 const L1_TTL_MS = 30 * 1000;
 const L1_MAX = 80;
@@ -34,19 +37,7 @@ const l2 = new Map();        // key -> { at, text }(访问提升 LRU)
 // 该形态的响应依赖服务器日期,缓存会把「今年」冻住 → 缺键即不入缓存(全 20 模块唯一例外)。
 const QIZHENGKIN_YEAR_KEYS = ['qizhengKinCurrentYear', 'currentYear'];
 
-let l3RevCache = null;
-function l3Rev(){
-	if(l3RevCache !== null){ return l3RevCache; }
-	let rev = L3_REV_BASE;
-	try{
-		if(typeof window !== 'undefined' && window.location){
-			const rv = new URLSearchParams(window.location.search || '').get('rv');
-			if(rv){ rev = `${L3_REV_BASE}|${rv}`; }
-		}
-	}catch(e){ /* 无 window/坏参=基础 rev */ }
-	l3RevCache = rev;
-	return rev;
-}
+const l3Rev = makeL3Rev(L3_REV_BASE);   // 基础 rev + 壳带的 runtime 版本(与请求层 L3 同一份实现)
 
 function pathOf(url){
 	try{
@@ -104,15 +95,16 @@ function payloadCacheable(moduleKey, bodyStr){
 	return true;
 }
 
-// 响应文本合法才可入缓存:非空 + 可解析 + ResultCode(若有)为 0 + 无 err 字段
-// (xuanshi/jieqi 系 jsonpickle 原始 dict 用 {err:...} 表错,无 ResultCode 包裹)。
+// 响应文本合法才可入缓存:非空 + 可解析 + ResultCode(若有)为 0 + 不是业务错误
+// (xuanshi/jieqi 系 jsonpickle 原始 dict 用 {err:...} 表错,无 ResultCode 包裹;Java 信封里是 Result.err ——
+// 两种都经业务错误单源 resultEnvelope.responseHasBusinessError 判)。
 function textCacheable(text){
 	if(typeof text !== 'string' || !text){ return false; }
 	try{
 		const obj = JSON.parse(text);
 		if(!obj || typeof obj !== 'object'){ return false; }
 		if(obj.ResultCode !== undefined && obj.ResultCode !== 0){ return false; }
-		if(obj.err){ return false; }
+		if(responseHasBusinessError(obj)){ return false; }
 		return true;
 	}catch(e){ return false; }
 }
@@ -247,7 +239,7 @@ export async function cachedKentangFetch(url, fetchOpts, cfg){
 }
 
 /**
- * [A4 预取入口] 静默预取一条 /pan:仅 deterministic 模块放行(含种子/浏览型在此
+ * 静默预取一条 /pan:仅 deterministic 模块放行(含种子/浏览型在此
  * 代码层直接拒绝 —— 矩阵哨兵之外的纵深防御);失败静默,结果只进缓存不返回。
  */
 export async function prefetchKentang(url, payloadObj){
@@ -276,5 +268,6 @@ export function __ktCacheStateForTest(){
 	return { l1, l2, inflight };
 }
 export function __ktCacheResetForTest(){
-	l1.clear(); l2.clear(); inflight.clear(); l3RevCache = null;
+	l1.clear(); l2.clear(); inflight.clear(); l3Rev.reset();
 }
+registerProcessCache('kentang', __ktCacheResetForTest);

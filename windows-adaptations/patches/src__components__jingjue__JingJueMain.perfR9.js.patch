@@ -1,44 +1,36 @@
 diff --git a/astrostudyui/src/components/jingjue/JingJueMain.js b/astrostudyui/src/components/jingjue/JingJueMain.js
-index 95ff18c4..9a8093e5 100644
+index 47e7920a..e34f0c2b 100644
 --- a/astrostudyui/src/components/jingjue/JingJueMain.js
 +++ b/astrostudyui/src/components/jingjue/JingJueMain.js
-@@ -15,6 +15,8 @@ import { cachedKentangFetch } from '../../utils/kentangCache';
+@@ -14,6 +14,8 @@ import { postKentang } from '../../services/kentangPost';   // 本机优先、
  import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
  import { formatHumanValue } from '../../utils/humanReadableFields';
  import { parseDateParts } from '../../utils/dateStrSafe';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
- const { TabPane } = Tabs;
- 
-@@ -48,6 +50,9 @@ function defaultSeed(){
+ import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
+ import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
+@@ -49,6 +51,9 @@ function defaultSeed(){
  	return Math.floor((Date.now() + Math.random() * 1000000) % 1000000000);
  }
  
 +// 🔴 故意【不加】horosa_kentang_result_cache_v1 结果缓存:荆诀是蓍草随机分揲
 +// (webjingjuesrv.py 的 seed 默认 random.randint,每次现摇),同 payload 不必同卦;
 +// 缓存会把某一次分揲结果钉死 = 功能降级(与 _requestCache.js 头部禁令一致)。
- async function postJingJue(path, payload){
- 	let rsp = null;
- 	try{
-@@ -164,6 +169,7 @@ class JingJueMain extends Component{
- 		}
- 	}
+ function postJingJue(path, payload){ return postKentang('jingjue', path, payload); }
  
-+
- 	componentDidMount(){
- 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
- 		this.unmounted = false;
-@@ -342,6 +348,8 @@ class JingJueMain extends Component{
+ function fmtValue(value){
+@@ -320,6 +325,8 @@ class JingJueMain extends Component{
  				return;
  			}
- 			this.setState({ pan, loading: false }, ()=>{
+ 			this.setState({ pan, panSig: castSig, loading: false }, ()=>{
 +				// horosa_panel_ready_v1:pan 落定 = 中栏与右栏(皆由 pan 派生)画完的那一次 setState。
 +				markPanelReady('cnyibu');
  				saveModuleAISnapshotLazy('jingjue', ()=>buildSnapshotText(pan));
  			});
  		}catch(e){
-@@ -533,17 +541,26 @@ class JingJueMain extends Component{
+@@ -514,17 +521,26 @@ class JingJueMain extends Component{
  		return (
  			<Tabs activeKey={activeKey} onChange={this.setRightPanelTab} defaultActiveKey="overview" tabPosition="top" className="horosa-huangji-tabs">
  				<TabPane tab="概览" key="overview">

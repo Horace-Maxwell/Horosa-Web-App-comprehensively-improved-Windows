@@ -1,4 +1,4 @@
-// [V5-D13/D14/D18] 断事日志/关系边/查重合并 闸。
+// 断事日志/关系边/查重合并 闸。
 import {
 	appendRecordJournal, linkRecords, unlinkRecords, findDuplicateGroups, mergeRecords,
 } from '../recordRelations';
@@ -8,7 +8,7 @@ function seed(cid, name, birth){
 	upsertLocalChart({ cid, name, birth, zone: '+08:00', updateTime: '2026-08-01 10:00:00', preserveUpdateTime: true });
 }
 
-describe('[V5-D14] 断事日志', ()=>{
+describe('断事日志', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});
@@ -31,7 +31,7 @@ describe('[V5-D14] 断事日志', ()=>{
 	});
 });
 
-describe('[V5-D18] 关系边', ()=>{
+describe('关系边', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});
@@ -62,7 +62,7 @@ describe('[V5-D18] 关系边', ()=>{
 	});
 });
 
-describe('[V5-D13] 查重与合并', ()=>{
+describe('查重与合并', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});
@@ -89,5 +89,45 @@ describe('[V5-D13] 查重与合并', ()=>{
 		expect(rec.pos).toBe('上海');                       // 主缺副补
 		expect(rec.future_merge_key).toBe('kept');          // 未知键随并
 		expect(listLocalCharts().find((r)=>r.cid === 'local-m-s')).toBeUndefined();   // 副已移出主库
+	});
+});
+
+describe('合并后的关系边', ()=>{
+	beforeEach(()=>{ window.localStorage.clear(); });
+	const rel = (cid)=>(listLocalCharts({ includeArchived: true }).find((r)=>r.cid === cid) || {}).relations || [];
+
+	it('🔴 第三方指向副记录的边改指主记录;全库没有边指向副记录,主 ↔ 第三方双向成对', ()=>{
+		seed('local-r-a', '甲', '2000-01-01 00:00:00');
+		seed('local-r-b', '甲', '2000-01-01 00:00:00');
+		seed('local-r-c', '乙', '1990-01-01 00:00:00');
+		linkRecords('chart', 'local-r-c', 'local-r-b', 'parent');   // B 为 C 的父母
+		mergeRecords('chart', 'local-r-a', 'local-r-b');
+		const all = listLocalCharts({ includeArchived: true });
+		all.forEach((r)=>(r.relations || []).forEach((e)=>expect(e.cid).not.toBe('local-r-b')));
+		expect(rel('local-r-a')).toEqual([{ cid: 'local-r-c', type: 'child' }]);
+		expect(rel('local-r-c')).toEqual([{ cid: 'local-r-a', type: 'parent' }]);
+	});
+
+	it('第三方已有指向主记录的边:保留那条、不重复;主记录与副记录之间的边不留成自指', ()=>{
+		seed('local-s-a', '丙', '2000-01-01 00:00:00');
+		seed('local-s-b', '丙', '2000-01-01 00:00:00');
+		seed('local-s-c', '丁', '1990-01-01 00:00:00');
+		linkRecords('chart', 'local-s-c', 'local-s-a', 'friend');
+		linkRecords('chart', 'local-s-c', 'local-s-b', 'client');
+		linkRecords('chart', 'local-s-a', 'local-s-b', 'sibling');
+		mergeRecords('chart', 'local-s-a', 'local-s-b');
+		expect(rel('local-s-c')).toEqual([{ cid: 'local-s-a', type: 'friend' }]);
+		expect(rel('local-s-a')).toEqual([{ cid: 'local-s-c', type: 'friend' }]);
+	});
+
+	it('「关联两条记录」框里的当前关系读作「右为左的…」,父母 / 子女不说反', ()=>{
+		const { describeExistingRelation } = require('../../components/common/RecordToolsModals');
+		const a = { cid: 'x', name: '小明' };
+		const b = { cid: 'y', name: '老王' };
+		// linkRecords(a, b, 'parent') 存 a.relations = [{cid: b, type: 'parent'}] = 「b 是 a 的父母」
+		const text = describeExistingRelation(a, b, 'parent');
+		expect(text).toContain('右为左的「父母」');
+		expect(text).toContain('老王 是 小明 的父母');
+		expect(text).not.toContain('左为右');
 	});
 });

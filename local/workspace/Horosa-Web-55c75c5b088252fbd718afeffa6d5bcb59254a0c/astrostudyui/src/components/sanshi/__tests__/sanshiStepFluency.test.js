@@ -57,7 +57,8 @@ describe('sanshiStepFluency(连续进退四资产)', () => {
 	});
 
 	it('⑤ 全屏蒙层已撤:Spin 包装不在,中栏小徽标在', () => {
-		expect(SRC).not.toMatch(/<Spin spinning=\{this\.state\.loading\}>/);
+		const { jsxNodesInFile } = require('../../../utils/__tests__/helpers/jsxProps');
+		expect(jsxNodesInFile(path.join(__dirname, '..', 'SanShiUnitedMain.js'), 'Spin').filter((e) => e.attrs.spinning === 'this.state.loading')).toEqual([]);
 		expect(SRC).toContain('horosa-workspace-updating horosa-sanshi-updating');
 	});
 });

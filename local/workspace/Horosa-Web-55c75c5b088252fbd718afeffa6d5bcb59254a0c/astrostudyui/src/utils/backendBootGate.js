@@ -1,4 +1,4 @@
-// [B1] 前后端启动重叠 boot-gate。
+// 前后端启动重叠 boot-gate。
 //
 // 桌面壳温启快路径现在「静态服务器一起来就导航前端」(URL 带 early=1),Java/Python 仍在
 // 引导——umi 下载/解析/启动与后端引导并行,首屏提前数秒。代价:umi 启动期的自动请求
@@ -12,13 +12,13 @@
 import { bootGateEnabled, bootGateFastRetryEnabled } from './perfFlags';
 import { markWebLedger } from './startupLedger';
 
-// [R5 S2] 就绪门事件化:壳收尾 ready 置 __horosaBackendConfirmed 的同时派本事件,等待中的请求立即放行
+// 就绪门事件化:壳收尾 ready 置 __horosaBackendConfirmed 的同时派本事件,等待中的请求立即放行
 // (此前只在循环顶部查旗标,后端就绪后首盘平均多等半个重试间隔);探活重试 350→50ms(perfFlag 可回旧)。
 export const BACKEND_CONFIRMED_EVENT = 'horosa:backend-confirmed';
 const RETRY_MS_DEFAULT = 350;
 const RETRY_FAST_MS = 50;
 const GIVE_UP_MS_DEFAULT = 90000;
-// [R5 S8] 更新后首次启动(壳 URL 带 firstLaunch=1):后端要走一次运行时恢复/预热,门的兜底放行同步拉长,
+// 更新后首次启动(壳 URL 带 firstLaunch=1):后端要走一次运行时恢复/预热,门的兜底放行同步拉长,
 // 否则 90 s 一到请求直发全数报错(与壳的旧序「splash 全程可见」等价的等待窗)。
 // 取值对齐启动脚本的就绪总上限(start_horosa_local.sh READY_TOTAL_CAP_SECS=900:预算 300 s 用完仍有进展会续命到 900 s),
 // 不能早于它放行 —— 否则慢机上脚本还在续命、页面已把排队请求打到未起的端口。
@@ -30,7 +30,7 @@ let giveUpMs = null;  // null=按启动上下文取 90 s / 更新后首启 900 s
 let bootContextCache = null;
 
 /**
- * [R5 S8] 壳经 URL 送来的启动上下文(只读一次):early=1 提前导航;firstLaunch=1 更新后首启;boot=壳启动 epoch 毫秒
+ * 壳经 URL 送来的启动上下文(只读一次):early=1 提前导航;firstLaunch=1 更新后首启;boot=壳启动 epoch 毫秒
  * (与启动账本 run 标签同源,让页面里的「已用时」从壳启动起算而不是从页面挂载起算)。非桌面 / 无参一律 false / null。
  */
 export function bootContext(){
@@ -121,10 +121,6 @@ export function isEarlyBootMode(){
 	return earlyModeCache;
 }
 
-function sleep(ms){
-	return new Promise((resolve)=>setTimeout(resolve, ms));
-}
-
 // 探活一次:no-cors GET 根路径。resolve(true)=对端有响应(在听);resolve(false)=拒连/超时。
 // no-cors 的意义:探活只关心「端口是否有人应答」,不关心 CORS 头——普通 fetch 在 CORS 失败与
 // 拒连时抛同形 TypeError 无法区分,opaque 模式则「有应答必 fulfilled」。
@@ -210,7 +206,7 @@ export async function waitForBackendBoot(url){
 			}
 			readyRoots.add(root);
 			waiters.delete(root);
-			// [R5 P0-1] 首个根放行即「就绪门放行」段(startupLedger 自去重,只记第一次)
+			// 首个根放行即「就绪门放行」段(startupLedger 自去重,只记第一次)
 			markWebLedger('web.boot_gate_open', { via, waitedMs: Date.now() - t0 });
 		})();
 		waiters.set(root, waiter);

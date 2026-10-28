@@ -1,4 +1,4 @@
-# [WP-6] 返照专项双向量锚(希腊式返照/返照落宫计入黄纬)。
+# 返照专项双向量锚(希腊式返照/返照落宫计入黄纬)。
 from astrostudy.perchart import PerChart
 from flatlib import const
 

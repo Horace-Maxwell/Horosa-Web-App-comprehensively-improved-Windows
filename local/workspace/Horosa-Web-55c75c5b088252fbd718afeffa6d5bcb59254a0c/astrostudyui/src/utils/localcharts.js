@@ -1,10 +1,11 @@
 import { currentEgyptSchool, egyptSchoolToRecordValues } from '../divination/data/egyptianSchools';
 import { emitAutomationEvent } from './aiAgent/automation/events';
-import { createLocalRecordStore, nowStr, normalizeGroup, normalizePayload } from './localRecordStore';
+import { createLocalRecordStore, nowStr, normalizeGroup, normalizePayload, TRASH_CAP } from './localRecordStore';
+import { resolveAfter23NewDay } from './dayBoundaryResolve';
 
 const LocalChartsKey = 'horosa.localCharts.v1';
 
-// [S1 内核收编] 存储机械层(storage 句柄/quota 自救/读写/排序/分页/标签聚合/信封导入导出)
+// 存储机械层(storage 句柄/quota 自救/读写/排序/分页/标签聚合/信封导入导出)
 // 收编进 localRecordStore 单一内核 —— 本文件此前与 localcases.js 是逐函数镜像的孪生复制,
 // 任何加固都要改两遍且已实际漂移。本文件只保留域层:buildLocalChartRecord
 // (recordFieldsRestore 哨兵按源码切片锁定 export function…return record;,必须原文驻留)。
@@ -57,7 +58,10 @@ export function buildLocalChartRecord(values){
 	// 埃及流派七轴随盘保真:values 显式提供(挂载 merge 场景)优先;否则捕获「当前全局非默认」的轴
 	// (全默认不落键 = 旧记录语义与体积不变,零回归)。回放经 recordFieldsRestore 七键进 fields,
 	// 快照链 egyptSchoolFromFields 优先消费 —— 同一命例重开【埃及历】段不随全局漂移。
-	const egyptGlobal = egyptSchoolToRecordValues(currentEgyptSchool());
+	// 只在「按当前设置新建」(values.captureCurrentGlobals,由「存为命盘」等入口传入)时才捕获全局现值;
+	// 编辑 / 存批注 / 加标签 / 恢复 / 导入等写已有记录的路径不捕获 —— 此前任何一次写入都会把当时的全局流派写进
+	// 没有埃及键的旧记录,载入结果随之改变。
+	const egyptGlobal = values && values.captureCurrentGlobals === true ? egyptSchoolToRecordValues(currentEgyptSchool()) : {};
 	const egyptVal = (k) => (values[k] !== undefined && values[k] !== null && values[k] !== '' ? values[k] : egyptGlobal[k]);
 	const record = {
 		cid: cid,
@@ -97,7 +101,7 @@ export function buildLocalChartRecord(values){
 		// 非地点/坐标参数: 必须随命盘存档,否则下次打开会被全局默认覆盖,导致日柱/时柱计算与保存时不一致。
 		after23NewDay: values.after23NewDay !== undefined && values.after23NewDay !== null
 			? parseInt(values.after23NewDay + '', 10)
-			: (values.after23NewDay === undefined ? undefined : 1),
+			: (values.after23NewDay === undefined ? undefined : resolveAfter23NewDay(null)),
 		orbs: (values.orbs && typeof values.orbs === 'object' && Object.keys(values.orbs).length) ? values.orbs : undefined,
 		orbScale: (values.orbScale !== undefined && values.orbScale !== null && values.orbScale !== 1) ? values.orbScale : undefined,
 		lateZiHourUseNextDay: values.lateZiHourUseNextDay !== undefined && values.lateZiHourUseNextDay !== null
@@ -136,10 +140,10 @@ export function buildLocalChartRecord(values){
 		// 读回 → fieldsToParams 条件透传,但此前 buildLocalChartRecord 未枚举 → 存盘即丢、重开/挂载回退默认(界系尊贵/福点
 		// 与保存时盘面不一致)。仅在 values 提供时落库(present 才落,对齐 hsys/pd* 写法),否则 buildFieldObject 回退现状默认。
 		termsVariant: values.termsVariant !== undefined && values.termsVariant !== null ? parseInt(values.termsVariant + '', 10) : undefined,
-		// [F14] termsVariant=4 的随盘界表表体(对象值原样;present 才落库,换机/清仓后旧盘不再静默变埃及)
+		// termsVariant=4 的随盘界表表体(对象值原样;present 才落库,换机/清仓后旧盘不再静默变埃及)
 		customTermsDay: Array.isArray(values.customTermsDay) ? values.customTermsDay : undefined,
 		customTermsNight: Array.isArray(values.customTermsNight) ? values.customTermsNight : undefined,
-		// [R2-9] 自定义恒星黄道历元两参(user 档随盘)
+		// 自定义恒星黄道历元两参(user 档随盘)
 		userAyanT0: (values.userAyanT0 !== undefined && values.userAyanT0 !== null && Number.isFinite(Number(values.userAyanT0))) ? Number(values.userAyanT0) : undefined,
 		userAyanDeg: (values.userAyanDeg !== undefined && values.userAyanDeg !== null && Number.isFinite(Number(values.userAyanDeg))) ? Number(values.userAyanDeg) : undefined,
 		geminiBoundEmended: values.geminiBoundEmended !== undefined && values.geminiBoundEmended !== null ? parseInt(values.geminiBoundEmended + '', 10) : undefined,
@@ -155,7 +159,7 @@ export function buildLocalChartRecord(values){
 		antisciaOrb: values.antisciaOrb !== undefined && values.antisciaOrb !== null ? Number(values.antisciaOrb) : undefined,
 		// 2026-07 四批:燃烧之路边界档(排盘键,present 才落库;partileDef 纯前端显示键有意不随盘存)。
 		viaCombustaVariant: values.viaCombustaVariant !== undefined && values.viaCombustaVariant !== null ? (values.viaCombustaVariant + '') : undefined,
-		// [WP-2] 天文口径批(present 才落库,与 manifest parse 一一对应)
+		// 天文口径批(present 才落库,与 manifest parse 一一对应)
 		combustOwnChariotExempt: values.combustOwnChariotExempt !== undefined && values.combustOwnChariotExempt !== null ? parseInt(values.combustOwnChariotExempt + '', 10) : undefined,
 		westLilithType: values.westLilithType !== undefined && values.westLilithType !== null ? (values.westLilithType + '') : undefined,
 		topocentricMoon: values.topocentricMoon !== undefined && values.topocentricMoon !== null ? parseInt(values.topocentricMoon + '', 10) : undefined,
@@ -232,7 +236,7 @@ export function buildLocalChartRecord(values){
 		indiaVargaVariant: values.indiaVargaVariant !== undefined && values.indiaVargaVariant !== null ? values.indiaVargaVariant : undefined,
 		indiaDashaVariants: values.indiaDashaVariants !== undefined && values.indiaDashaVariants !== null ? values.indiaDashaVariants : undefined,
 		indiaVarshaLat: values.indiaVarshaLat !== undefined && values.indiaVarshaLat !== null ? values.indiaVarshaLat : undefined,
-		// [挂载自检 F-45] 三旗盘 opt-in 与问事 Praśna 六键(页面 castPrashna/toggleTripataki 写进 fields):此前不落库 →
+		// 三旗盘 opt-in 与问事 Praśna 六键(页面 castPrashna/toggleTripataki 写进 fields):此前不落库 →
 		// 存盘即丢,重开/AI 挂载读不到(preset「Tripataki 宿距三旗」「问事 Praśna」对挂载恒死)。仅在 values 提供时落库。
 		indiaTripataki: values.indiaTripataki !== undefined && values.indiaTripataki !== null && values.indiaTripataki !== '' ? values.indiaTripataki : undefined,
 		indiaPrashnaTime: values.indiaPrashnaTime !== undefined && values.indiaPrashnaTime !== null && values.indiaPrashnaTime !== '' ? `${values.indiaPrashnaTime}` : undefined,
@@ -292,7 +296,7 @@ export function buildLocalChartRecord(values){
 
 export function upsertLocalChart(values){
 	const __saved = store.upsert(values);
-	// [P4] 自动化事件:存档后广播(引擎默认关;emit 永不抛错、不阻塞保存)
+	// 自动化事件:存档后广播(引擎默认关;emit 永不抛错、不阻塞保存)
 	try{ emitAutomationEvent('record.saved', { kind: 'chart', cid: __saved && __saved.cid ? __saved.cid : (values && values.cid) }); }catch(e){ /* noop */ }
 	return __saved;
 }
@@ -305,22 +309,25 @@ export function exportLocalChartsBackup(){
 	return store.exportBackup();
 }
 
-export function importLocalChartsBackup(payload){
-	return store.importBackup(payload);
+// opts.sameCid:同一 ID 的口径(缺省 'newer' = 更新时间较新的那一版整条胜出、本机较新或一样新保留本机,替换时管理字段留本机的;
+// 'backup' = 一律用备份里的那一版;'merge' = 按字段合并);opts.mergeCids = 只有这些按字段合并;
+// opts.respectLocalDeletions = 本机之后删掉的(还在回收站 / 删除日志里)不带回
+export function importLocalChartsBackup(payload, opts){
+	return store.importBackup(payload, opts);
 }
 
-// [S4] 存储健康态(横幅/诊断用):mode 'persistent'|'memory' + 最近写失败原因。
+// 存储健康态(横幅/诊断用):mode 'persistent'|'memory' + 最近写失败原因。
 export function getLocalChartsStoreHealth(){
 	return store.getHealth();
 }
 
-// [S8] 导入三闸的纯函数面(校验/预览),UI 在确认后才调 importLocalChartsBackup 真写。
+// 导入三闸的纯函数面(校验/预览),UI 在确认后才调 importLocalChartsBackup 真写。
 export function validateLocalChartsBackup(payload){
 	return store.validateBackupEnvelope(payload);
 }
 
-export function previewLocalChartsBackup(payload){
-	return store.previewImportBackup(payload);
+export function previewLocalChartsBackup(payload, opts){
+	return store.previewImportBackup(payload, opts);
 }
 
 // [V] 置顶/置底:tier 1=顶 | -1=底 | 0=取消(三层分区排序,层内共享现行排序;不刷新 updateTime)。
@@ -329,12 +336,12 @@ export function pinLocalChart(cid, tier){
 }
 
 // [V] 上移/下移:同层相邻交换有效排序键(dir -1 上 | 1 下;默认序语义,详见内核 moveRecord)。
-// [V5-D1/D2/D3] 归档/星标/使用足迹(内核管理字段;全链保真由未知键保全承载)。
+// 归档/星标/使用足迹(内核管理字段;全链保真由未知键保全承载)。
 export function flagLocalChart(cid, field, on){
 	return store.setFlag(cid, field, on);
 }
 
-// [批五] 整体改写标签列表(AI 加标签工具与其撤销;不刷新 updateTime)
+// 整体改写标签列表(AI 加标签工具与其撤销;不刷新 updateTime)
 export function setLocalChartTags(cid, tags){
 	return store.setTags(cid, tags);
 }
@@ -347,13 +354,38 @@ export function moveLocalChart(cid, dir){
 	return store.moveRecord(cid, dir);
 }
 
-// [R3] 回收站:删除先进回收站(30 天/上限 FIFO 惰性清理),可恢复/彻底删除/清空。
+// 回收站:删除先进回收站(30 天/上限 FIFO 惰性清理),可恢复/彻底删除/清空。
 export function listLocalChartsTrash(){
 	return store.listTrash();
 }
 
+// 回收站现有(没过期的)条数与上限:批量删除确认框写明超出上限的几条转入删除日志
+export const LOCAL_CHARTS_TRASH_CAP = TRASH_CAP;
+export function countLocalChartsLiveTrash(){
+	return store.countLiveTrash();
+}
+
 export function restoreLocalChartFromTrash(cid){
 	return store.restoreFromTrash(cid);
+}
+
+// 删除日志找回:库里已有同 cid 时按副本恢复,不覆盖现档(与回收站恢复同一规则)
+export function restoreLocalChartRecord(record){
+	return store.restoreRecord(record);
+}
+
+// 删除日志找回并把这条从日志里摘掉(再点不会再多一条副本)
+export function restoreLocalChartFromDeletedLog(entry){
+	return store.restoreFromDeletedLog(entry);
+}
+
+// 一次性补字段(迁移用,不动更新时间):库里与回收站里缺 key 的命盘补上 value
+export function backfillLocalChartsMissingField(key, value){
+	return store.backfillMissingField(key, value);
+}
+
+export function countLocalChartsMissingField(key){
+	return store.countMissingField(key);
 }
 
 export function purgeLocalChartTrashItem(cid){

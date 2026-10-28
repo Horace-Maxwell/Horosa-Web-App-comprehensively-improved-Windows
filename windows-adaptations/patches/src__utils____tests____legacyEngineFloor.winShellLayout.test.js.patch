@@ -1,0 +1,15 @@
+diff --git a/astrostudyui/src/utils/__tests__/legacyEngineFloor.test.js b/astrostudyui/src/utils/__tests__/legacyEngineFloor.test.js
+index b823baf4..765233a7 100644
+--- a/astrostudyui/src/utils/__tests__/legacyEngineFloor.test.js
++++ b/astrostudyui/src/utils/__tests__/legacyEngineFloor.test.js
+@@ -42,7 +42,9 @@ async function compiledAll(){
+ }
+ 
+ describe('下限表', ()=>{
+-	test('跟桌面壳最低系统版本一致', ()=>{
++	// horosa_win_shell_layout_v1(Windows 侧移植适配):这条把下限表钉在 macOS 包的最低系统版本(原装 WebKit = Safari 15)上;
++	// Windows 包的渲染内核是 Electron 自带的 Chromium,不随系统走。只在 Tauri 配置缺席时跳过这一条,其余判据照跑(产物仍过同一套下限)。
++	(fs.existsSync(path.join(UI_ROOT, '..', '..', floor.FLOOR.configFile)) ? test : test.skip)('跟桌面壳最低系统版本一致', ()=>{
+ 		const conf = JSON.parse(fs.readFileSync(path.join(UI_ROOT, '..', '..', floor.FLOOR.configFile), 'utf8'));
+ 		const min = conf.bundle && conf.bundle.macOS && conf.bundle.macOS.minimumSystemVersion;
+ 		expect(min).toBe(floor.FLOOR.macos);

@@ -1,4 +1,4 @@
-// [挂载自检 F-28·P1] 合盘快照带两盘身份;挂载核对当前命主 ∈ {A,B},否则 missing(不喂无关合盘)。判别向量:去掉 relMatch 判断即第 2 例红。
+// 合盘快照带两盘身份;挂载核对当前命主 ∈ {A,B},否则 missing(不喂无关合盘)。判别向量:去掉 relMatch 判断即第 2 例红。
 jest.mock('../request', () => ({ __esModule: true, default: jest.fn(async () => ({ Result: {} })) }));
 jest.mock('../localcharts', () => ({ listLocalCharts: jest.fn(() => []), __esModule: true }));
 jest.mock('../localcases', () => ({ listLocalCases: jest.fn(() => []), getCaseTypeLabel: jest.fn((t) => t), getCaseTypeMeta: jest.fn(() => ({ module: '', value: '' })), CASE_TYPE_OPTIONS: [], __esModule: true }));

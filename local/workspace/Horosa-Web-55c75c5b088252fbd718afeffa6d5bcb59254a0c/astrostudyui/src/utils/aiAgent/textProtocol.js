@@ -4,7 +4,7 @@ export const ACTION_FENCE = 'horosa-action';
 export const ACTION_SCHEMA = 1;
 export const TOOL_RESULTS_MARK = '[[__HOROSA_TOOL_RESULTS__]]';
 
-// [Q-288] 语言标签后允许跟别的字(模型常写 ```horosa-action json 或 ```json action):此前标签行必须**恰好**是
+// 语言标签后允许跟别的字(模型常写 ```horosa-action json 或 ```json action):此前标签行必须**恰好**是
 // 两个词之一,多一个字整块就不匹配 → 调用被静默丢掉、模型也收不到任何反馈,只能干等。
 const FENCE_RE = /```[ \t]*(horosa-action|json)\b[^\n]*\r?\n([\s\S]*?)```/g;
 // 「看起来就是动作块」的判据(不依赖 JSON 是否合法):用来把**坏块**与「压根不是本协议的块」分开 ——
@@ -40,7 +40,7 @@ export function parseActionBlock(text){
 	return parseActionBlockDetailed(text).hit;
 }
 
-// [Q-288] 带诊断的解析:回 { hit, error }。
+// 带诊断的解析:回 { hit, error }。
 //   error = { code, message } —— 调用方(运行时)据此**回喂结构化错误**,而不是像从前那样静默丢掉整轮调用:
 //     · E_ACTION_BLOCK_BAD_JSON  块里有判别戳但 JSON 解析不过(最常见的两种成因:参数里带三连反引号把块提前截断、
 //       或模型在 JSON 里写了注释/尾逗号)——消息带上解析器原话与块在正文里的字符偏移,模型能自己定位;
@@ -95,7 +95,7 @@ export function stripActionBlockForDisplay(text){
 	return (s.slice(0, hit.blockStart) + s.slice(hit.blockEnd)).replace(/\s+$/, '');
 }
 
-// [Q-288] 围栏模式下把「协议错」变成一条可执行流程能消费的伪调用:运行时据此回喂结构化错误
+// 围栏模式下把「协议错」变成一条可执行流程能消费的伪调用:运行时据此回喂结构化错误
 // (execOne / executeCalls 见 call.protocolError 即不执行、直接落失败结果)。
 export function protocolErrorCall(error){
 	if(!error){ return null; }

@@ -144,11 +144,6 @@ export function getInterp(planet, angleConst) {
 	return `在此地的${ANGLE_NAME[angleConst] || ''}上,${a};主题关乎${p}。`;
 }
 
-export function planetAngle(planet, angleConst) { return (PLANET_ANGLE[planet] && PLANET_ANGLE[planet][angleConst]) || ''; }
-export function lsDirection(planet) { return LS_DIRECTION[planet] || ''; }
-export function paranStage(angle) { return PARAN_STAGE[angle] || ''; }
-export function starMeaning(name) { return STAR_MEANING[name] || ''; }
 export function sensitiveMeaning(key) { return SENSITIVE_MEANING[key] || ''; }
-export function zoneMeaning(key) { return ZONE_MEANING[key] || ''; }
 
 export { PLANET_THEME, ANGLE_THEME, ANGLE_NAME, PLANET_ANGLE, LS_DIRECTION, PARAN_STAGE, STAR_MEANING, ANGLE_EXTRA, SENSITIVE_MEANING, SPECIAL_MEANING, ZONE_MEANING };

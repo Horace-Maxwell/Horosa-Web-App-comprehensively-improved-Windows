@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroFormComp.js b/astrostudyui/src/components/astro/AstroFormComp.js
-index 7f06917..6111996 100644
+index b8b2857e..81de551c 100644
 --- a/astrostudyui/src/components/astro/AstroFormComp.js
 +++ b/astrostudyui/src/components/astro/AstroFormComp.js
 @@ -6,6 +6,19 @@ export default class AstroFormComp extends Component{

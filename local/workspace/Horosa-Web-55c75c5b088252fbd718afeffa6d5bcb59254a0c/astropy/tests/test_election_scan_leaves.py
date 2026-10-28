@@ -544,7 +544,7 @@ def test_sun_horizon_polar_day_and_night():
 
 
 def test_considerations_early_deg_zero_is_not_default():
-    """[Q-271/ZC-27] 初度阈填 0 = 合法值(只看末度),此前 `or 3.0` 把 0 当缺省 → 「月在座初」仍含 0–3°。
+    """初度阈填 0 = 合法值(只看末度),此前 `or 3.0` 把 0 当缺省 → 「月在座初」仍含 0–3°。
     早度段:earlyDeg=0 → 无区间;earlyDeg=3 → 有区间;两者可分辨。"""
     base = {'startDate': '2024/04/07', 'endDate': '2024/04/14'}
     zero = _scan(base, {'type': 'considerations', 'params': {'item': 'moon_early_sign', 'earlyDeg': 0}})

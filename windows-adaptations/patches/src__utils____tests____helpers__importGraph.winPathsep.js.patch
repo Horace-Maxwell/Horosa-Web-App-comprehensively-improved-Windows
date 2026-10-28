@@ -1,0 +1,28 @@
+diff --git a/astrostudyui/src/utils/__tests__/helpers/importGraph.js b/astrostudyui/src/utils/__tests__/helpers/importGraph.js
+index d5f88151..0469f90e 100644
+--- a/astrostudyui/src/utils/__tests__/helpers/importGraph.js
++++ b/astrostudyui/src/utils/__tests__/helpers/importGraph.js
+@@ -28,12 +28,20 @@ const PARSE_OPTS = {
+ const CODE_EXT = /\.jsx?$/;
+ const NON_CODE = /\.(less|css|json|png|jpe?g|gif|svg|md|txt|wasm|woff2?|ttf)$/i;
+ 
++// horosa_win_pathsep_posix_v1(Windows 侧移植适配;建议上游化):说明符按「文件表键自己的写法」拼接。
++// Windows 上 path.resolve 会给无盘符的根路径补当前盘符(内存判别向量的键 '\virt\a.js' 旁的 './b' → 'C:\virt\b'),
++// POSIX 写法的键('/v/src/m.js')还会被拼成反斜杠 ⇒ 判别向量的键一个都查不中、整组静默失明(macOS 恒绿)。
++// Windows:不含反斜杠的键按 path.posix、其余按平台 path,一律 join(键已是绝对路径,无须 resolve 补 cwd;
++// 真实源码树的键 'C:\…' 结果与 resolve 逐字节相同)。macOS / Linux:path.sep === '/' ⇒ 原式 path.resolve / path.join 不变。
++const pathOf = (p)=>((path.sep !== '/' && `${p}`.indexOf('\\') < 0) ? path.posix : path);
++const joinRel = (dir, spec)=>(path.sep === '/' ? path.resolve(dir, spec) : pathOf(dir).join(dir, spec));
++
+ function resolveSpec(fromFile, spec, exists, srcRoot){
+ 	let base = null;
+-	if(spec.startsWith('./') || spec.startsWith('../')){ base = path.resolve(path.dirname(fromFile), spec); }
+-	else if(spec.startsWith('@/') && srcRoot){ base = path.join(srcRoot, spec.slice(2)); }
++	if(spec.startsWith('./') || spec.startsWith('../')){ base = joinRel(path.dirname(fromFile), spec); }
++	else if(spec.startsWith('@/') && srcRoot){ base = pathOf(srcRoot).join(srcRoot, spec.slice(2)); }
+ 	if(!base || NON_CODE.test(spec)){ return null; }
+-	for(const c of [base, `${base}.js`, `${base}.jsx`, path.join(base, 'index.js'), path.join(base, 'index.jsx')]){
++	for(const c of [base, `${base}.js`, `${base}.jsx`, pathOf(base).join(base, 'index.js'), pathOf(base).join(base, 'index.jsx')]){
+ 		if(CODE_EXT.test(c) && exists(c)){ return c; }
+ 	}
+ 	return null;

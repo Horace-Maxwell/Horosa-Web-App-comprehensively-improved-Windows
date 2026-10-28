@@ -27,6 +27,7 @@ from astrostudy.perchart import (
     _moira_ayanamsha,
 )
 from websrv.helper import enable_crossdomain
+from astrostudy.civil_calendar import civil_revjul, format_civil_date
 
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
@@ -102,7 +103,7 @@ def _visibility_info(item, sun_altitude=None):
     is_above = alt > 0
     twilight = None
     if sun_altitude is not None:
-        # [Q-372/T-351] sun_altitude 是**视高度**(altitudeAppa,已含折射);再拿 -0.833°(几何高度用的
+        # sun_altitude 是**视高度**(altitudeAppa,已含折射);再拿 -0.833°(几何高度用的
         # 折射+半径阈值)比等于折射算两次 → 视高度落在 (-0.833°, 0°] 的数分钟里后端记 day、前端与帮助
         # 按视高度 > 0° 已入民用晨昏,两端不同口径。统一为视高度 0°(与前端 skyModeFromSunAlt / 帮助同)。
         if sun_altitude > 0:
@@ -426,7 +427,7 @@ def _force_pure_astronomy(data):
 def _fix_moira_su28_equatorial(su28_items, su28mode, jd):
     """回归今制/回归开禧/恒星制郑式:su28 距星按黄道置宿(getMoiraFixedStarSu28 给 ra=lon、decl=0、lat=0),
     是黄道经度标记而非真实赤道坐标。天文馆是真实天球,须据黄经重算赤道 ra/decl——否则二十八宿全落赤道线
-    (默认即回归今制,访问七政后全局 doubingSu28=2 带入天文馆即触发该 bug)。恒星制郑式黄经为恒星黄经,补岁差转回归黄经。
+    (七政页曾以回归今制为默认,访问七政后全局 doubingSu28=2 带入天文馆即触发该 bug)。恒星制郑式黄经为恒星黄经,补岁差转回归黄经。
     原地修改 su28_items。荀爽/赤道恒星制(已是真实赤道距星)不在此列,不动。"""
     if su28mode not in (SU28_MODE_MOIRA_CURRENT, SU28_MODE_MOIRA_KAIXI, SU28_MODE_ZHENG_SIDEREAL):
         return su28_items
@@ -439,7 +440,7 @@ def _fix_moira_su28_equatorial(su28_items, su28mode, jd):
     return su28_items
 
 
-# [Q-371/T-350] 天文馆「二十八宿距星星点」:胃宿 / 鬼宿在 REAL 口径下取的是 41 Ari / η Cnc 再加经验赤经修正(赤纬不改),
+# 天文馆「二十八宿距星星点」:胃宿 / 鬼宿在 REAL 口径下取的是 41 Ari / η Cnc 再加经验赤经修正(赤纬不改),
 # 星点 (ra, decl) 不对应任何真实星位。传统距星是 35 Ari(HR 801)/ θ Cnc(HR 3357):给这两项附 trueStar(J2000 → 当日历元
 # + 地平坐标),前端星点按它画;宿界(item.ra)不动——鬼宿赤经修正方向是否笔误另裁。
 _TRUE_DISTANCE_STARS = {
@@ -506,22 +507,6 @@ def _safe_perchart_list(perchart, method_name):
     except Exception:
         traceback.print_exc()
         return []
-
-
-def _build_line_from_equatorial(perchart, points, key, label):
-    res = []
-    for item in points:
-        row = {
-            "ra": _norm_degree(item["ra"]),
-            "decl": _num(item["decl"]),
-        }
-        row.update(_altaz_from_equatorial(perchart.dateTime.jd, perchart.pos, row["ra"], row["decl"]))
-        res.append(row)
-    return {
-        "key": key,
-        "label": label,
-        "points": res,
-    }
 
 
 def _build_line_from_ecliptic(perchart, start, end, step, key, label):
@@ -627,20 +612,21 @@ def _local_time_from_jd_ut(jd_ut, utc_offset_jd):
     if jd_ut is None:
         return None
     local_jd = jd_ut + utc_offset_jd
-    y, mo, d, frac_h = swisseph.revjul(local_jd)
+    # 本地日历日按民用历拆(历史纪年;1582-10-15 以前儒略历),与盘面日期同口径。
+    y, mo, d, frac_h = civil_revjul(local_jd)
     total_sec = int(round(frac_h * 3600.0))
-    # 进位防 60:00 / 跨日(revjul 已给出本地日历日,这里只规整秒）
+    # 进位防 60:00 / 跨日:满 24 时日期进到次日(跨月跨年也由同一函数拆,不在日号上直接加)
     hh = total_sec // 3600
     mm = (total_sec % 3600) // 60
     ss = total_sec % 60
-    carry_day = 0
     if hh >= 24:
         carry_day = hh // 24
         hh = hh % 24
+        y, mo, d, _h = civil_revjul(math.floor(local_jd + 0.5) + float(carry_day))
     return {
         "jd": jd_ut,
         "hour": frac_h,
-        "iso": "%04d-%02d-%02d %02d:%02d:%02d" % (y, mo, d + carry_day, hh, mm, ss),
+        "iso": "%s %02d:%02d:%02d" % (format_civil_date(y, mo, d), hh, mm, ss),
         "time": "%02d:%02d:%02d" % (hh, mm, ss),
     }
 
@@ -819,7 +805,7 @@ class PlanetariumSrv:
             moon_phase = _moon_phase_info(bodies)
             sky_mode = "night"
             if sun_altitude is not None:
-                # [Q-372/T-351] 视高度阈值 0°(见 _visibility_info 注)。
+                # 视高度阈值 0°(见 _visibility_info 注)。
                 if sun_altitude > 0:
                     sky_mode = "day"
                 elif sun_altitude > -6:

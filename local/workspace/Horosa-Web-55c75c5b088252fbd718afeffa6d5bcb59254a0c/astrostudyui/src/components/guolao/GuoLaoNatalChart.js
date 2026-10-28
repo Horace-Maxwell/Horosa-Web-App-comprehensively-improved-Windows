@@ -5,6 +5,8 @@ import {randomStr,} from '../../utils/helper';
 import Su28ChartCircle from '../su28/Su28ChartCircle';
 import { SuiTuTong, } from '../../msg/bazimsg';
 import * as AstroText from '../../constants/AstroText';
+import { lifeMasterSignOf } from './guolaoData';
+import { fillTextFromStroke, appendPerCharText } from '../graph/GraphHelper';
 
 class GuoLaoNatalChart extends Su28ChartCircle{
 	constructor(option){
@@ -19,17 +21,7 @@ class GuoLaoNatalChart extends Su28ChartCircle{
 	}
 
 	getLifeMasterSign(){
-		try{
-			const mode = this.fields && this.fields.guolaoLifeMode && this.fields.guolaoLifeMode.value;
-			if(!mode || mode === 'asc'){ return null; }   // 占星上升用上升点
-			const objs = (this.chartObj && this.chartObj.objects) || [];
-			let life = null;
-			for(let i = 0; i < objs.length; i++){ if(objs[i] && objs[i].id === AstroConst.LIFEMASTERDEG74){ life = objs[i]; break; } }
-			if(!life){ return null; }
-			const lon = Number(life.lon);
-			if(!Number.isFinite(lon)){ return null; }
-			return AstroConst.LIST_SIGNS[Math.floor((((lon % 360) + 360) % 360) / 30) % 12] || null;
-		}catch(e){ return null; }
+		return lifeMasterSignOf(this.fields, this.chartObj);
 	}
 
 	draw(){
@@ -133,7 +125,7 @@ class GuoLaoNatalChart extends Su28ChartCircle{
 					let trans = 'translate(' + posx + ', ' + posy + ') rotate(' + rotang + ')';
 					return trans;	
 				})
-				.text(function(d){return d});
+				.text(function(d){return d}).call(fillTextFromStroke);
 		}
 
 	}
@@ -193,7 +185,7 @@ class GuoLaoNatalChart extends Su28ChartCircle{
 			let startxt = [orgstartxt[0], orgstartxt[1]];
 			let fontfamily = AstroConst.NormalFont;
 			let rotAngle = this.rotateAng;
-			lblgroup.selectAll('text').data(startxt).enter().append('text')
+			appendPerCharText(lblgroup, startxt, god)   // 逐字画字经单一入口:只画前两字,整词仍按全名定字
 				.attr("dominant-baseline","middle")
 				.attr("text-anchor", "middle")
 				.attr('font-size', function(d, idx){
@@ -217,7 +209,7 @@ class GuoLaoNatalChart extends Su28ChartCircle{
 					let trans = 'translate(' + x + ', ' + y + ') rotate(' + angle + ')';
 					return trans;
 				})
-				.text(function(d){return d});			
+				.text(function(d){return d}).call(fillTextFromStroke);			
 	
 		}
 

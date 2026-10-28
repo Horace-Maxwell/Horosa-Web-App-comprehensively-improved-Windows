@@ -13,6 +13,7 @@ jest.mock('../../../utils/planetHouseInfo', ()=>({ appendPlanetHouseInfoById: (t
 
 import AstroPrimaryDirection from '../AstroPrimaryDirection';
 import { getTechniqueSettingsSchema } from '../../../utils/techniqueMountSettings';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 describe('pdYears 3000 上限全链一致', ()=>{
 	test('normalizePdYears 接受 3000、夹断 5000、保底 1/100', ()=>{
@@ -43,7 +44,7 @@ describe('pdYears 3000 clamp 全前端路径一致(防回落)', ()=>{
 			'../../../utils/aiAnalysisContext.js',
 		].map((rel)=>path.resolve(__dirname, rel));
 		files.forEach((f)=>{
-			const src = fs.readFileSync(f, 'utf-8');
+			const src = readSource(f);
 			expect(src).toMatch(/Math\.min\(3000,\s*n\)/);
 			expect(src).not.toMatch(/Math\.min\(360,\s*n\)/);
 		});

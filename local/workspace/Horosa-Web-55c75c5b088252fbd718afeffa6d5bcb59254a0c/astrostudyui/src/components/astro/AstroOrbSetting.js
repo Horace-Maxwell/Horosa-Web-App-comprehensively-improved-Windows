@@ -103,7 +103,7 @@ class AstroOrbSetting extends Component {
 		};
 		return (
 			<div style={{ fontSize: 13 }}>
-				<div style={{ opacity: 0.65, lineHeight: '20px', marginBottom: 12 }}>
+				<div style={{ color: 'var(--horosa-text-secondary)', lineHeight: '20px', marginBottom: 12 }}>
 					调整相位容许度（度）。整体缩放按比例放大/缩小所有默认值；逐星输入可单独覆盖某星。改动后将重新排盘。
 				</div>
 
@@ -126,7 +126,7 @@ class AstroOrbSetting extends Component {
 				<Divider style={{ margin: '14px 0 10px' }}>逐星容许度（度）</Divider>
 
 				<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
-					<span style={{ opacity: 0.65, fontSize: 12, lineHeight: '18px' }}>
+					<span style={{ color: 'var(--horosa-text-secondary)', fontSize: 12, lineHeight: '18px' }}>
 						古典「半径」表：金星 8°→7°，其余同默认；采用度数相位的流派档一并套用。成相判据仍按「容许度判据体系」（现行＝两星任一容许度覆盖，不取半和）。
 					</span>
 					<button type="button" style={{ ...btn, flex: 'none', padding: '0 12px', whiteSpace: 'nowrap' }} onClick={this.applyMoiety}>套用 moiety 表</button>
@@ -149,7 +149,7 @@ class AstroOrbSetting extends Component {
 				</div>
 
 				<div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-					<button type="button" style={{ ...btn, background: 'var(--horosa-primary, #b8860b)', color: '#fff', border: 'none' }} onClick={this.apply}>应用并排盘</button>
+					<button type="button" style={{ ...btn, background: 'var(--horosa-accent, #b8860b)', color: 'var(--horosa-on-accent, #fff)', border: 'none' }} onClick={this.apply}>应用并排盘</button>
 					<button type="button" style={btn} onClick={this.reset}>恢复默认</button>
 				</div>
 			</div>

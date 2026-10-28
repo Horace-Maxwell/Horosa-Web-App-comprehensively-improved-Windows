@@ -1,13 +1,17 @@
-// 任务中心抽屉(P1):三段——进行中/历史(目标·定时·报告作业,可取消/继续)· 待办(等你批准的写入 + AI 的提问 + 外部客户端请求)· 通知(可标已读);
+// 任务中心抽屉(P1):三段——进行中/历史(目标·定时等后台任务,可取消/继续)· 待办(等你批准的写入 + AI 的提问 + 外部客户端请求)· 通知(可标已读);
 // 底部附动作账本(撤销=用户的权利)与桌面通知开关。所有数据经 tasks/* 与 approvals/elicitations 等待台,本组件零业务逻辑。
 // data-* 定位面(测试与端到端驱动器按它点,不按按钮文案):行 data-task-row/-kind;目标任务 data-task-start/-goal-pause/-goal-resume/-steer;
 //   定时任务 data-task-run-now/-pause/-resume/-schedule;通用 data-task-cancel。每个属性在本文件恰一处(taskCenterPanel.test.js 锁)。
 import React from 'react';
 import { Drawer, Button, Tag, Switch, Input, InputNumber, message } from 'antd';
 import { listTasks, subscribeTasks, cancelTask, patchTask, listNotices, subscribeNotices, markRead, isDesktopNotifyEnabled, DESKTOP_NOTIFY_KEY, controllerOf, pushNotice, runScheduledTaskNow, pauseScheduledTask, resumeScheduledTask, describeSchedule } from '../../utils/aiAgent/tasks';
+import { formatTaskTime as fmt } from '../../utils/aiAgent/tasks/scheduler';
 import { listPendingApprovals, resolveApproval, subscribeApprovals } from '../../utils/aiAgent/approvals';
+import AgentDiffPreview from './AgentDiffPreview';
 import { listPendingElicitations, resolveElicitation, declineElicitation, subscribeElicitations } from '../../utils/aiAgent/elicitations';
+import { listProposals, subscribeProposals, acceptProposal, rejectProposal, revertProposal, PROPOSAL_FIELD_LABELS } from '../../utils/aiAgent/proposals';
 import { safeLocalStorageSet, safeLocalStorageRemove } from '../../utils/safeStorage';
+import { toastRecordWrite } from '../../utils/recordStoreNotice';
 import ActionLedgerPanel from './ActionLedgerPanel';
 import GoalTaskModal from './GoalTaskModal';
 import ScheduledTaskModal from './ScheduledTaskModal';
@@ -15,15 +19,8 @@ import { startGoalTask, steerGoalTask, isGoalLoopRunning, startAllQueuedGoals, a
 import { getGoalParallel, setGoalParallel, AGENT_GOAL_PARALLEL_MAX } from '../../utils/aiAgent/prefs';
 
 export const TASK_STATUS_LABELS = { queued: '排队', scheduled: '已排期', running: '运行中', paused: '已暂停', waiting: '等待你', done: '完成', failed: '失败', cancelled: '已取消', interrupted: '中断' };
-export const TASK_KIND_LABELS = { goal: '目标', scheduled: '定时', report: '报告', scan: '扫描' };
+export const TASK_KIND_LABELS = { goal: '目标', scheduled: '定时', scan: '扫描' };
 const soft = { fontSize: 12, color: 'var(--horosa-text-soft, #8a8f99)' };
-
-function fmt(at){
-	const d = at ? new Date(at) : null;
-	if(!d || Number.isNaN(d.getTime())){ return ''; }
-	const p = (n)=>(n < 10 ? '0' : '') + n;
-	return `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
 
 function TaskRow({ t, onChanged }){
 	const ctl = controllerOf(t.id);
@@ -59,17 +56,21 @@ function TaskRow({ t, onChanged }){
 	);
 }
 
-function TodoRows({ approvals, elicits }){
+function TodoRows({ approvals, elicits, hasOther }){
 	const [answers, setAnswers] = React.useState({});
-	if(!approvals.length && !elicits.length){ return <div style={soft}>暂无待办</div>; }
+	if(!approvals.length && !elicits.length){ return hasOther ? null : <div style={soft}>暂无待办</div>; }
 	return (
 		<div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
 			{approvals.map((a)=>(
-				<div key={a.callId} data-todo="approval" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-					<Tag style={{ margin: 0 }}>{a.messageKey && a.messageKey.indexOf('mcp:') === 0 ? `外部·${a.messageKey.slice(4)}` : (a.messageKey && a.messageKey.indexOf('task:') === 0 ? '任务' : '对话')}</Tag>
-					<span style={{ flex: '1 1 auto' }}>{a.name} {approvalVerb(a)},等待你允许</span>
-					<Button size="small" type="primary" onClick={()=>resolveApproval(a.callId, true, a.messageKey)}>允许</Button>
-					<Button size="small" onClick={()=>resolveApproval(a.callId, false, a.messageKey)}>跳过</Button>
+				<div key={a.callId} data-todo="approval" style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+					<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+						<Tag style={{ margin: 0 }}>{a.messageKey && a.messageKey.indexOf('mcp:') === 0 ? `外部·${a.messageKey.slice(4)}` : (a.messageKey && a.messageKey.indexOf('task:') === 0 ? '任务' : '对话')}</Tag>
+						<span style={{ flex: '1 1 auto' }}>{a.name} {approvalVerb(a)},等待你允许</span>
+						<Button size="small" type="primary" onClick={()=>resolveApproval(a.callId, true, a.messageKey)}>允许</Button>
+						<Button size="small" onClick={()=>resolveApproval(a.callId, false, a.messageKey)}>跳过</Button>
+					</div>
+					{/* 写前预览:外部客户端的写入同样先看「会写成什么样」再允许 */}
+					{a.preview ? <div data-todo-preview="1"><AgentDiffPreview preview={a.preview} /></div> : null}
 				</div>
 			))}
 			{elicits.map((e)=>(
@@ -93,13 +94,52 @@ function TodoRows({ approvals, elicits }){
 	);
 }
 
+// 档案提案:待采纳逐字段「原值 → 新值」+ 采纳 / 拒绝;最近处理的列状态,已采纳的可撤销采纳(落库与冲突判断都在 proposals.js)
+export const PROPOSAL_STATUS_LABELS = { pending: '待采纳', accepted: '已采纳', rejected: '已拒绝', conflict: '冲突未采纳', reverted: '已撤销采纳' };
+function fmtProposalVal(v){ return v === undefined || v === null || v === '' ? '(空)' : `${v}`; }
+function ProposalRows({ pending, recent }){
+	if(!pending.length && !recent.length){ return null; }
+	// 写档案的两个动作(采纳 / 撤销采纳)按是否真落盘提示;拒绝只改提案状态,照常提示
+	const act = (fn, okText, store)=>{
+		const r = fn();
+		if(r && r.ok){
+			if(store){ toastRecordWrite(message, store, okText); }else{ message.success(okText); }
+		}else{
+			message.warning((r && r.message) || '未完成');
+		}
+	};
+	return (
+		<div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+			{pending.map((p)=>(
+				<div key={p.id} data-todo="proposal" style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
+					<div><Tag style={{ margin: 0 }}>{p.client ? `外部·${p.client}` : 'AI 提案'}</Tag> {p.kind === 'record-archive' ? `归档「${p.title}」` : `修改「${p.title}」`}</div>
+					{p.kind === 'record-edit' ? Object.keys(p.changes || {}).map((k)=>(<div key={k} style={{ paddingLeft: 8 }}>{PROPOSAL_FIELD_LABELS[k] || k}:{fmtProposalVal((p.before || {})[k])} → <b>{fmtProposalVal(p.changes[k])}</b></div>)) : null}
+					{p.reason ? <div style={{ ...soft, paddingLeft: 8 }}>理由:{p.reason}</div> : null}
+					<div style={{ display: 'flex', gap: 6 }}>
+						<Button size="small" type="primary" data-proposal-accept="1" onClick={()=>act(()=>acceptProposal(p.id), '已采纳(可在下方撤销采纳)', p.store === 'case' ? 'case' : 'chart')}>采纳</Button>
+						<Button size="small" data-proposal-reject="1" onClick={()=>act(()=>rejectProposal(p.id), '已拒绝')}>拒绝</Button>
+					</div>
+				</div>
+			))}
+			{recent.length ? <div style={{ ...soft, marginTop: 2 }}>最近处理的提案</div> : null}
+			{recent.map((p)=>(
+				<div key={p.id} data-proposal-row={p.status} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+					<Tag style={{ margin: 0 }}>{PROPOSAL_STATUS_LABELS[p.status] || p.status}</Tag>
+					<span style={{ flex: '1 1 auto' }}>{p.kind === 'record-archive' ? '归档' : '修改'}「{p.title}」{Array.isArray(p.conflictFields) && p.conflictFields.length ? `(档案已被改过:${p.conflictFields.map((k)=>PROPOSAL_FIELD_LABELS[k] || k).join('、')})` : ''}</span>
+					{p.status === 'accepted' ? <Button size="small" type="link" data-proposal-revert="1" onClick={()=>act(()=>revertProposal(p.id), '已撤销采纳', p.store === 'case' ? 'case' : 'chart')}>撤销采纳</Button> : null}
+				</div>
+			))}
+		</div>
+	);
+}
+
 export default function TaskCenterPanel({ open, onClose }){
 	const [tasks, setTasks] = React.useState([]);
 	const [notices, setNotices] = React.useState([]);
 	const [tick, setTick] = React.useState(0);
 	const [desktop, setDesktop] = React.useState(()=>isDesktopNotifyEnabled());
 	const [goalOpen, setGoalOpen] = React.useState(false);
-	const [goalParallel, setGoalParallelState] = React.useState(()=>getGoalParallel());   // [批三⑤] 并行上限(0=现状)
+	const [goalParallel, setGoalParallelState] = React.useState(()=>getGoalParallel());   // 并行上限(0=现状)
 	const [schedOpen, setSchedOpen] = React.useState(false);
 	const refresh = React.useCallback(()=>{ listTasks({ limit: 100 }).then(setTasks).catch(()=>{}); listNotices({ limit: 100 }).then(setNotices).catch(()=>{}); setTick((n)=>n + 1); }, []);
 	React.useEffect(()=>{ if(open){ refresh(); } }, [open, refresh]);
@@ -107,8 +147,12 @@ export default function TaskCenterPanel({ open, onClose }){
 	React.useEffect(()=>subscribeNotices(refresh), [refresh]);
 	React.useEffect(()=>subscribeApprovals(refresh), [refresh]);
 	React.useEffect(()=>subscribeElicitations(refresh), [refresh]);
+	React.useEffect(()=>subscribeProposals(refresh), [refresh]);
 	const approvals = listPendingApprovals();
 	const elicits = listPendingElicitations();
+	const proposals = listProposals();
+	const pendingProposals = proposals.filter((p)=>p.status === 'pending');
+	const recentProposals = proposals.filter((p)=>p.status !== 'pending').slice(0, 8);
 	const active = tasks.filter((t)=>['queued', 'scheduled', 'running', 'paused', 'waiting', 'interrupted'].indexOf(t.status) >= 0);
 	const history = tasks.filter((t)=>active.indexOf(t) < 0).slice(0, 30);
 	return (
@@ -131,8 +175,9 @@ export default function TaskCenterPanel({ open, onClose }){
 					<ScheduledTaskModal open={schedOpen} onClose={()=>setSchedOpen(false)} onCreated={refresh} />
 				</section>
 				<section>
-					<div style={{ fontWeight: 600 }}>待办 {(approvals.length + elicits.length) ? `(${approvals.length + elicits.length})` : ''}</div>
-					<TodoRows approvals={approvals} elicits={elicits} />
+					<div style={{ fontWeight: 600 }}>待办 {(approvals.length + elicits.length + pendingProposals.length) ? `(${approvals.length + elicits.length + pendingProposals.length})` : ''}</div>
+					<TodoRows approvals={approvals} elicits={elicits} hasOther={pendingProposals.length + recentProposals.length > 0} />
+					<ProposalRows pending={pendingProposals} recent={recentProposals} />
 				</section>
 				<section>
 					<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

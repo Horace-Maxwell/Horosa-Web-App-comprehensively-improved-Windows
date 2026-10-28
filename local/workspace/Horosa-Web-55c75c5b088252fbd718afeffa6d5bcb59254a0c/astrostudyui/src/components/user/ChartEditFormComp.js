@@ -21,9 +21,10 @@ export default class ChartEditFormComp extends Component{
 				payload: vals,
 			});
 
+			// 只提交有值的键:没读进表单的随盘键不以空值提交(内核也不让 undefined 盖旧值,两道保险)
 			let params = {};
 			for(let key in flds){
-				params[key] = flds[key].value;
+				if(flds[key] && flds[key].value !== undefined){ params[key] = flds[key].value; }
 			}
 
 			this.props.dispatch({

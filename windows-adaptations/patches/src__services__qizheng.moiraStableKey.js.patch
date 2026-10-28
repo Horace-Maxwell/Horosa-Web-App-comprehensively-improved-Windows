@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/services/qizheng.js b/astrostudyui/src/services/qizheng.js
-index bd4128c..70111a1 100644
+index 3f727659..5401e633 100644
 --- a/astrostudyui/src/services/qizheng.js
 +++ b/astrostudyui/src/services/qizheng.js
-@@ -7,8 +7,25 @@ import { cachedPost } from './_requestCache';
+@@ -7,8 +7,25 @@ import { registerProcessCache } from '../utils/processCacheRegistry';
  // 七政四余是确定性纯计算(同 params 必产同结果);对其加「同参复用 + 在途合并」让重开/来回切瞬时,
  // 命中返回的是同一结果的深拷贝(与直连逐值等价、只更快)。不同 params → 不同 key → 重新请求。
  

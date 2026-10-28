@@ -2,7 +2,7 @@
   margin-top: 8px;
   border: 1px solid var(--horosa-border, #e5e7eb);
   border-radius: 8px;
-  background: var(--horosa-surface-soft, rgba(127, 127, 127, 0.06));
+  background: var(--horosa-surface-sunken, rgba(127, 127, 127, 0.06));
   font-size: 12px;
   overflow: hidden;
 }
@@ -47,6 +47,6 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
 }
-.undone { text-decoration: line-through; opacity: 0.6; }
+.undone { text-decoration: line-through; color: var(--horosa-text-secondary); }
 .failed { color: var(--horosa-danger, #d4380d); }
-.running { color: var(--horosa-primary, #1677ff); }
+.running { color: var(--horosa-link, #1677ff); }

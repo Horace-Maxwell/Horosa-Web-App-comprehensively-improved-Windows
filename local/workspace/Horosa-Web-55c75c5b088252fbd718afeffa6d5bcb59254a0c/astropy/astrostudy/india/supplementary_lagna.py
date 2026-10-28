@@ -18,26 +18,12 @@ from flatlib import const
 
 # 复用 arudha 已定义的星座主星表(单一来源，避免重复维护)。
 from astrostudy.india.arudha import SIGN_LORDS
+from astrostudy.india.primitives import SIGN_CN
 
 
 # rasi 序：Ar=0..Pi=11(与 const.LIST_SIGNS 一致)。
 SIGN_ORDER = list(const.LIST_SIGNS)
 _SIGN_INDEX = {sign: i for i, sign in enumerate(SIGN_ORDER)}
-
-SIGN_CN = {
-    const.ARIES: '白羊',
-    const.TAURUS: '金牛',
-    const.GEMINI: '双子',
-    const.CANCER: '巨蟹',
-    const.LEO: '狮子',
-    const.VIRGO: '处女',
-    const.LIBRA: '天秤',
-    const.SCORPIO: '天蝎',
-    const.SAGITTARIUS: '射手',
-    const.CAPRICORN: '摩羯',
-    const.AQUARIUS: '水瓶',
-    const.PISCES: '双鱼',
-}
 
 # ── Graha Lagnas 权威对照表 ───────────────────────────────────────────────
 # 各行星为「其所司宫位」的自然参照点(逐字转录权威对照表，宫位 1-based)：

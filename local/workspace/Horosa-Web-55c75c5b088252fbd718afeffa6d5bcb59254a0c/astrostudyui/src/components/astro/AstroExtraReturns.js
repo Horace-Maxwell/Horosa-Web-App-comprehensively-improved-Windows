@@ -14,6 +14,7 @@ const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentL
 const methodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
 import * as AstroConst from '../../constants/AstroConst';
 import styles from '../../css/styles.less';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { markPanelReady } from '../../utils/perfMark';
 
 const Option = Select.Option;
@@ -47,7 +48,7 @@ export async function buildExtraReturnsSnapshotText(chartObj){
 		if(!rows.length){ continue; }
 		// bug 修:导出此前缺各回 time 与本命黄经 natalLon(UI 逐行/页脚均有)→ 补进每行;
 		// 既有「第N回 日期」字段顺序不变,新字段(时刻表+本命黄经,口径同 UI toFixed(1))追加在行尾。
-		// [Q-366/T-345] 逆行三过:同一回列出全部过程(顺→逆→顺),单过仍是一个日期
+		// 逆行三过:同一回列出全部过程(顺→逆→顺),单过仍是一个日期
 		const datesTxt = rows.map((x) => {
 			const ps = Array.isArray(x.passes) && x.passes.length > 1 ? x.passes : null;
 			return ps ? `第${x.which}回 ${ps.map((pp) => `${pp.date}${pp.retrograde ? '(逆)' : ''}`).join('/')}` : `第${x.which}回 ${x.date}`;
@@ -110,26 +111,33 @@ class AstroExtraReturns extends Component{
 	}
 
 	async load(){
+		const seq = ++this._loadSeq || (this._loadSeq = 1);   // 只认最后一次:换盘 / 改参连发时先发的晚回不覆盖
+		const resultSig = natalSourceKey(this.props.value);   // 本次结果出自哪位命主(读时与当前盘比)
 		if(!this.props.value){ return; }
 		const key = chartRequestKey(this.props.value, `returns|${this.state.body}|${this.state.count}`);
-		if(key === this.state.requestKey && this.state.data){ return; }
+		if(key === this.state.requestKey && this.shownData()){ return; }
 		this.setState({ loading: true });
 		const r = await fetchReturns(this.props.value, this.state.body, this.state.count);
-		if(!this._mounted) return;
+		if(!this._mounted || seq !== this._loadSeq) return;
 		// horosa_panel_ready_v1:多重回归表(本技法唯一可见内容)落定的那一次 setState。
-		this.setState({ data: r, loading: false, requestKey: key }, ()=>{ markPanelReady('direction'); });
+		this.setState({ data: r, dataSig: resultSig, loading: false, requestKey: key }, ()=>{ markPanelReady('direction'); });
 	}
 
 	changeBody(v){ this.setState({ body: v, requestKey: '' }, this.load); }
 
+	// 出自当前命主的结果才用:换盘后新结果在途 / 取失败时 state 里是上一位命主的 → 当没有(同一命主只改设置仍旧表留存)
+	shownData(){
+		return pickKeyedDerived(this.state.data, this.state.dataSig, natalSourceKey(this.props.value));
+	}
+
 	render(){
 		const height = this.props.height ? this.props.height : 760;
 		const meta = bodyMeta(this.state.body);
-		const rows = (this.state.data && this.state.data.returns) || [];
+		const rows = (this.shownData() && this.shownData().returns) || [];
 		return (
 			<div className={styles.scrollbar} style={{ height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', padding: '4px 8px 12px' }}>
-				<div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>多重回归<span style={{ fontSize: 12, opacity: 0.55, marginLeft: 8, fontWeight: 400 }}>土星 / 木星 / 月交 返照 · 人生周期标记</span></div>
-				<div style={{ fontSize: 11.5, opacity: 0.6, lineHeight: '17px', marginBottom: 10 }}>行星返照到本命黄经的时刻 = 重要人生周期节点：土返≈29.5 年（成熟/责任/结构转折）、木返≈12 年（扩展/机遇）、月交返≈18.6 年（关系/方向循环）。</div>
+				<div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>多重回归<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', marginLeft: 8, fontWeight: 400 }}>土星 / 木星 / 月交 返照 · 人生周期标记</span></div>
+				<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: '17px', marginBottom: 10 }}>行星返照到本命黄经的时刻 = 重要人生周期节点：土返≈29.5 年（成熟/责任/结构转折）、木返≈12 年（扩展/机遇）、月交返≈18.6 年（关系/方向循环）。</div>
 				<div style={{ marginBottom: 12, maxWidth: 240 }}>
 					<Select value={this.state.body} onChange={this.changeBody} style={{ width: '100%' }}>
 						{BODIES.map((b) => <Option key={b.key} value={b.key}>{b.cn}（{b.period}）</Option>)}
@@ -139,30 +147,30 @@ class AstroExtraReturns extends Component{
 					{rows.length ? (
 						<div style={{ border: '1px solid rgba(128,128,128,0.12)', borderRadius: 8, overflow: 'hidden' }}>
 							{rows.map((x, i) => {
-								// [Q-366/T-345] 同一回内逆行三过:passes(顺→逆→顺)全列;单过时与旧版一行相同
+								// 同一回内逆行三过:passes(顺→逆→顺)全列;单过时与旧版一行相同
 								const passes = Array.isArray(x.passes) && x.passes.length > 1 ? x.passes : null;
 								return (
 								<div key={i} style={{ borderTop: i ? '1px solid rgba(128,128,128,0.06)' : 'none' }}>
 									<div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', fontSize: 12.5 }}>
 										<span style={{ fontSize: 16 }}>{astroSymbol(meta.glyph)}</span>
-										<span style={{ width: 48, opacity: 0.6 }}>第 {x.which} 回</span>
-										<span style={{ flex: 1, fontWeight: 600 }}>{x.date}{passes ? <span style={{ fontWeight: 400, opacity: 0.55, marginLeft: 6 }}>（逆行三过 · 首过）</span> : null}</span>
-										<span style={{ opacity: 0.55 }}>{x.time || ''}</span>
+										<span style={{ width: 48, color: 'var(--horosa-text-secondary)' }}>第 {x.which} 回</span>
+										<span style={{ flex: 1, fontWeight: 600 }}>{x.date}{passes ? <span style={{ fontWeight: 400, color: 'var(--horosa-text-secondary)', marginLeft: 6 }}>（逆行三过 · 首过）</span> : null}</span>
+										<span style={{ color: 'var(--horosa-text-secondary)' }}>{x.time || ''}</span>
 									</div>
 									{passes ? passes.map((pp, j) => (
 										<div key={j} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '2px 12px 6px 70px', fontSize: 12, opacity: 0.8 }}>
 											<span style={{ width: 52 }}>第 {pp.pass} 过{pp.retrograde ? '（逆）' : ''}</span>
 											<span style={{ flex: 1 }}>{pp.date}</span>
-											<span style={{ opacity: 0.6 }}>{pp.time || ''}</span>
+											<span style={{ color: 'var(--horosa-text-secondary)' }}>{pp.time || ''}</span>
 										</div>
 									)) : null}
 								</div>
 								);
 							})}
-							<div style={{ fontSize: 10.5, opacity: 0.45, padding: '6px 12px' }}>返照本命黄经 {(this.state.data && this.state.data.natalLon != null) ? this.state.data.natalLon.toFixed(1) + '°' : ''}（swisseph 精算）。</div>
+							<div style={{ fontSize: 10.5, color: 'var(--horosa-text-secondary)', padding: '6px 12px' }}>返照本命黄经 {(this.shownData() && this.shownData().natalLon != null) ? this.shownData().natalLon.toFixed(1) + '°' : ''}（swisseph 精算）。</div>
 						</div>
 					) : (
-						<div style={{ fontSize: 12.5, opacity: 0.55, padding: '12px 0' }}>{this.state.loading ? '' : '暂无返照数据（请确认本地服务运行且本命盘已排出）。'}</div>
+						<div style={{ fontSize: 12.5, color: 'var(--horosa-text-secondary)', padding: '12px 0' }}>{this.state.loading ? '' : '暂无返照数据（请确认本地服务运行且本命盘已排出）。'}</div>
 					)}
 				</Spin>
 			</div>

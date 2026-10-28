@@ -41,7 +41,7 @@
 		height: 100%;
 		min-height: 0;
 		box-sizing: border-box;
-		padding: 18px;
+		padding: ~"min(18px, 3%)";   /* 盘区窄时内衬按宽收(常规档 3% > 18px,不变) */
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -98,9 +98,10 @@
 
 	.horosa-india-square-board {
 		/* [缩小时盘面随视口放大] 上限 900px 改 max(900px, 86·lvh):zoom=1(lvh≈10.5)≈903 不变;0.7 档 ~1290;放大档仍由列宽/列高封顶 */
-		width: ~"min(max(900px, calc(86 * var(--horosa-lvh, 1vh))), calc(100% - 44px), calc(var(--india-chart-height, 720px) - 44px))";
-		max-width: ~"calc(100% - 44px)";
-		max-height: ~"calc(100% - 44px)";
+		/* 四周留白 44px 只在盘大时留:盘小(放大档中栏三百来 px)时按盘区 7% 收,盘随中栏可用空间放大;常规档 7% > 44px,一字不变 */
+		width: ~"min(max(900px, calc(86 * var(--horosa-lvh, 1vh))), calc(100% - min(44px, 7%)), calc(var(--india-chart-height, 720px) - min(44px, 7%)))";
+		max-width: ~"calc(100% - min(44px, 7%))";
+		max-height: ~"calc(100% - min(44px, 7%))";
 		aspect-ratio: 1 / 1;
 		position: relative;
 		display: grid;
@@ -305,6 +306,69 @@
 			var(--horosa-surface-solid, #ffffff);
 	}
 
+	/* 北印 / 东印紧凑版式:盘边 < 600 时盘组件直接量盘挂 data-idg-compact + --idg-u(盘边 1%,布局域;见 utils/boxSizeVars)。
+	   宫号 / 座符 / 行星块改用盘组件给的本格锚区(--idg-cl / --idg-ct / --idg-cw / --idg-ch,三者互不相交且都在本格多边形内),
+	   字号按 --idg-u 取、行星块按锚区实测等比缩(--idg-fit);中宫只留分盘徽标(说明行放不下)。常规尺寸不挂,一字不变。 */
+	.horosa-india-diagram-board[data-idg-compact] {
+		.horosa-india-diagram-house,
+		.horosa-india-diagram-sign {
+			left: var(--idg-cl) !important;
+			top: var(--idg-ct) !important;
+			min-width: 0;
+		}
+		.horosa-india-diagram-house {
+			line-height: 1.05;
+		}
+		.horosa-india-diagram-house .horosa-india-square-roman {
+			font-size: ~"max(9px, calc(var(--idg-u) * 3.2))";
+			line-height: 1.05;
+		}
+		.horosa-india-diagram-house .horosa-india-square-cusp {
+			font-size: ~"max(7px, calc(var(--idg-u) * 2.3))";
+			line-height: 1.05;
+		}
+		.horosa-india-diagram-sign {
+			width: auto;
+			height: auto;
+			line-height: 1;
+		}
+		.horosa-india-diagram-sign-corner .horosa-india-square-sign-symbol {
+			font-size: ~"max(9px, calc(var(--idg-u) * 3.6))";
+		}
+		.horosa-india-diagram-object-anchor {
+			left: var(--idg-cl) !important;
+			top: var(--idg-ct) !important;
+			width: var(--idg-cw) !important;
+			height: var(--idg-ch) !important;
+			min-height: 0;
+		}
+		.horosa-india-diagram-objects {
+			gap: 0 ~"calc(var(--idg-u) * 1.2)";
+			transform: scale(var(--idg-fit, 1));
+		}
+		.horosa-india-square-object {
+			line-height: 1.12;
+			white-space: nowrap;
+		}
+		.horosa-india-square-object-name {
+			font-size: ~"max(8px, calc(var(--idg-u) * 3.3))";
+		}
+		.horosa-india-square-object-degree,
+		.horosa-india-square-retro,
+		.horosa-india-flag-badge {
+			font-size: ~"max(7px, calc(var(--idg-u) * 2.5))";
+		}
+		.horosa-india-diagram-center .horosa-india-square-center-d {
+			min-width: ~"calc(var(--idg-u) * 7.5)";
+			height: ~"calc(var(--idg-u) * 7.5)";
+			font-size: ~"max(9px, calc(var(--idg-u) * 3.6))";
+			border-radius: ~"calc(var(--idg-u) * 1.2)";
+		}
+		.horosa-india-diagram-center .horosa-india-square-center-note {
+			display: none;
+		}
+	}
+
 	.horosa-india-square-cell,
 	.horosa-india-square-center {
 		position: relative;
@@ -437,7 +501,7 @@
 		justify-content: center;
 		border-radius: 8px;
 		background: var(--horosa-accent, #2f7df1);
-		color: #ffffff;
+		color: var(--horosa-on-accent, #ffffff);   /* 暗色 accent = 浅金,白字仅 1.8:1 */
 		font-size: 24px;
 		line-height: 1;
 		font-weight: 800;
@@ -459,13 +523,11 @@
 
 	/* 盘很小时(放大档 × 小窗,盘边长 ≤ 360)中宫放不下「分盘徽标 + 名称 + 说明」三件:按盘自身宽度收紧徽标与字号、隐去说明行,
 	   不再让说明文字顶出中宫被盘边裁掉。常规尺寸(盘 ≥ 361)不进查询,一字不变;不支持容器查询的旧引擎维持原样。 */
-	.horosa-india-square-board { container-type: inline-size; }
-	@container (max-width: 360px) {
-		.horosa-india-square-center { gap: 2px; }
-		.horosa-india-square-center-d { min-width: 40px; height: 40px; font-size: 16px; }
-		.horosa-india-square-center-label { font-size: 12px; line-height: 15px; }
-		.horosa-india-square-center-note { display: none; }
-	}
+	/* 盘边是否 ≤ 360 由盘组件直接量(布局域,utils/boxSizeVars 挂 data-isq-tiny);不用容器查询 —— 内核在文档缩放下它不按 CSS px 评估(真内核实测)。 */
+	.horosa-india-square-board[data-isq-tiny] .horosa-india-square-center { gap: 2px; }
+	.horosa-india-square-board[data-isq-tiny] .horosa-india-square-center-d { min-width: 40px; height: 40px; font-size: 16px; }
+	.horosa-india-square-board[data-isq-tiny] .horosa-india-square-center-label { font-size: 12px; line-height: 15px; }
+	.horosa-india-square-board[data-isq-tiny] .horosa-india-square-center-note { display: none; }
 
 	:root[data-horosa-appearance='dark'] .horosa-india-square-board {
 		background: var(--horosa-surface-solid, #0a1621);

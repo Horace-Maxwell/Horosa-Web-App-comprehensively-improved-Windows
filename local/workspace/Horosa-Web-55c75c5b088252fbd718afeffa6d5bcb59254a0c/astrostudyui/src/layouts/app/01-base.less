@@ -1,0 +1,708 @@
+// 全站样式 · 设计令牌(亮 / 暗两个 :root)、外观切换、Markdown 正文、html / body 基础。
+// 由 layouts/app.less 在它的 `:global { … }` 里按原顺序 @import:本文件的规则全在 :global 作用域内(不要再包一层 :global)。
+    /* ═══════════════════════════════════════════════════════════════════════
+       星阙金 · 设计语言规范(token 唯一真值源,亮/暗两个 :root 块)
+       ─ 高亮色语义:交互高亮(accent 家族/tab/焦点/光环)= 星阙金,亮暗同一血统
+         (亮=青铜金 #9a6a25 / 深金 #7a541c,白字对比度 4.7:1 / 6.7:1;暗=浅金 #e7bd75 系)。
+       ─ 边界铁律:业务/数据语义色一律不随主题金化 —— 五行 --horosa-bazi-*、
+         吉凶 --horosa-jx-*、方位等级 --horosa-direction-level-*、紫微星曜/宫位色、
+         风水坐向标识(--fs-zuo)、盘面绘图 JS 内的颜色。
+         判定规则:交互高亮语义→换金;数据/业务语义→保留原值。
+       ─ --horosa-tab-* = 子 Tab 三角色(①下划线 XQTabs/②竖栏 rail/③分段 XQSegmented)
+         专属 token:皮肤只吃这些变量,换色=只改此处;亮暗两态必须齐全。
+       ─ 动效:--horosa-tab-motion/--horosa-tab-ease 统一时长与缓动;
+         微光 --horosa-tab-glow 只落指示条/滑块/选中项等小元素,禁大面积 shadow;
+         @media (prefers-reduced-motion: reduce) 下 transition 归零。
+       ═══════════════════════════════════════════════════════════════════════ */
+    :root {
+        --horosa-bg: #f6f2e9;
+        --horosa-surface: rgba(253, 251, 246, 0.92);
+        --horosa-surface-solid: #fdfbf6;
+        --horosa-surface-raised: rgba(254, 252, 248, 0.97);
+        --horosa-header-bg: rgba(250, 246, 238, 0.92);
+        --horosa-nav-bg: rgba(243, 238, 228, 0.92);
+        --horosa-panel-bg: rgba(253, 251, 246, 0.88);
+        --horosa-panel-soft: rgba(245, 240, 231, 0.80);
+        --horosa-text: #2b2620;
+        --horosa-text-soft: #5f584c;
+        --horosa-muted: #6f695f;
+        --horosa-border: rgba(107, 92, 66, 0.20);
+        --horosa-border-strong: rgba(154, 106, 37, 0.34);
+        --horosa-accent: #9a6a25;
+        --horosa-accent-rgb: 154, 106, 37;
+        --horosa-accent-soft: rgba(154, 106, 37, 0.12);
+        --horosa-accent-strong: #7a541c;
+        /* accent 实底上的文字色(亮色 accent=青铜金→白字,对比度 4.7:1;暗色 accent=浅金→深墨,复用门户主按钮 ink) */
+        --horosa-on-accent: #ffffff;
+        --horosa-gold: #9a6a25;
+        --horosa-gold-rgb: 154, 106, 37;
+        --horosa-gold-soft: rgba(154, 106, 37, 0.16);
+        /* markdown 正文强调色(strong/b):默认随金;亮暗两个外观块各定义一份,勿只定义单侧 */
+        --horosa-md-strong: var(--horosa-gold);
+        /* 光环/焦点用亮金(暗色块早已映射为金 #d8ad63,此处亮色跟进,青色退役) */
+        --horosa-cyan: #b8893f;
+        --horosa-cyan-soft: rgba(184, 137, 63, 0.12);
+        --horosa-cinnabar: #bf3c36;
+        --horosa-danger: #cf1322;
+        --horosa-danger-rgb: 207, 19, 34;
+        /* 信息字语义色:在宣纸底 / 面板底上 ≥ 4.5:1(合同 utils/__tests__/themeContrastContract.test.js 按 WCAG 公式逐条算;
+           旧值 jade/jx-he #3d8f74 = 3.4、jx-ji #1f8a4c = 3.9、jx-other #c98a2f = 2.6 只在暗底挑过) */
+        --horosa-jade: #2b7560;
+        --horosa-jade-rgb: 43, 117, 96;
+        --horosa-jx-ji: #18773f;
+        --horosa-jx-ji-rgb: 24, 119, 63;
+        --horosa-jx-xiong: #c0392b;
+        --horosa-jx-xiong-rgb: 192, 57, 43;
+        --horosa-jx-he: #2b7560;
+        --horosa-jx-other: #935f14;
+        --horosa-jx-muted: var(--horosa-text-soft);
+        --horosa-jx-sheng: var(--horosa-jx-ji);
+        --horosa-jx-ke: var(--horosa-jx-xiong);
+        --horosa-jx-chong: var(--horosa-jx-xiong);
+        --horosa-ziwei-star-main: #9b6a2d;
+        --horosa-ziwei-star-assist: #327f8d;
+        --horosa-ziwei-star-evil: #a9473f;
+        --horosa-ziwei-star-others-good: #327f8d;
+        --horosa-ziwei-star-others-bad: #a9473f;
+        --horosa-ziwei-star-sixevil: #2b2b2b;
+        --horosa-ziwei-period-xiaoxian: #906bfa;   /* 盘面字:旧 #9775fa 在宣纸底 2.97:1 */
+        /* 运限层色(流年 / 流月 / 流日 / 流时;ZWConst.ZWPeriodColor):注释早写了「明暗双值走变量」却从未定义,恒取兜底。亮色 = 原兜底 */
+        --horosa-ziwei-period-year: #7048e8;
+        --horosa-ziwei-period-month: #2f9e44;
+        --horosa-ziwei-period-day: #e64980;
+        --horosa-ziwei-period-hour: #e8590c;
+        --horosa-ziwei-duigong-line: rgba(90, 120, 190, 0.55);
+        --horosa-ziwei-house-name: #9b6a2d;
+        --horosa-ziwei-house-branch: #9a6a25;
+        --horosa-ziwei-house-meta: #6d7b8c;
+        --horosa-ziwei-house-muted: #68758a;
+        --horosa-ziwei-house-age: #6f7d8d;
+        --horosa-ziwei-house-line: rgba(76, 98, 134, 0.36);
+        --horosa-ziwei-chart-bg: #f6f1e7;
+        --horosa-ziwei-kinastro-liunian: #4a6cae;
+        --horosa-ziwei-sanhe-bg: #fcebc4;
+        --horosa-ziwei-duigong-bg: #dbe8fb;
+        --horosa-ziwei-selected-bg: #cdeaf3;
+        --horosa-table-row-alt: rgba(154, 106, 37, 0.06);
+        --horosa-suzhan-fill: #fffdf1;
+        --horosa-bazi-direct-bg: #fff9e6;
+        --horosa-bazi-year-bg: #c8f7f5;
+        --horosa-bazi-wood: #237a45;
+        --horosa-bazi-fire: #c72d22;
+        --horosa-bazi-earth: #805526;
+        --horosa-bazi-metal: #866a00;   /* 旧 #e0892a 在宣纸底仅 2.4:1;换深金(色相仍与土 #805526 分得开) */
+        --horosa-bazi-water: #275fc7;
+        --horosa-bazi-interaction: #b3b8bf;
+        --horosa-direction-level-1: #275fc7;
+        --horosa-direction-level-2: #c72d22;
+        --horosa-direction-level-3: #237a45;
+        --horosa-direction-level-4: #805526;
+        --horosa-direction-node-highlight: rgba(154, 106, 37, 0.14);
+        --horosa-calendar-heading-bg: #fff9e6;
+        --horosa-sanshi-board-outer: rgb(246, 245, 241);
+        --horosa-sanshi-board-qimen: rgb(238, 234, 232);
+        --horosa-sanshi-board-liureng: rgb(218, 217, 213);
+        --horosa-sanshi-board-center: rgb(197, 195, 194);
+        --horosa-liureng-square-main: #1c1c1c;
+        --horosa-liureng-square-muted: #858585;   /* 盘面字:旧 #8e8e8e 在宣纸底 2.9:1 */
+        --horosa-liureng-square-jiang: #b07926;   /* 盘面字(天将):旧 #d9a24f 在宣纸底 2.0:1 */
+        --horosa-liureng-square-accent: #9a6a25;
+        --horosa-liureng-square-line: rgba(154, 106, 37, 0.16);
+        --horosa-liureng-square-center-bg: rgba(154, 106, 37, 0.045);
+        --horosa-liureng-square-active-bg: rgba(154, 106, 37, 0.08);
+        /* ── 文字对比度语义色(明 / 暗两块各一份,缺一侧 = 合同红)──
+           ant-*:antd 的 @text-color / @heading-color / @input-placeholder-color 在 .umirc.js 的 theme 里改接这三个变量
+           (亮色取 antd 原值 = 观感零变;暗色接主题字色 —— antd 标题 / 提示条 / 正文缺省黑字在暗底不再隐身)。
+           on-solid:一切「语义实底」(accent / gold / jx-* / danger / 评级药丸…)上的字;亮色白字,暗色深墨(暗色实底都是浅亮色)。 */
+        --horosa-ant-text: rgba(0, 0, 0, 0.85);
+        --horosa-ant-heading: rgba(0, 0, 0, 0.85);
+        --horosa-placeholder: #766b59;
+        --horosa-on-solid: #ffffff;
+        /* 奇门六害 / 门迫 / 空亡(文字与图例同色) */
+        --horosa-qimen-jixing: #cf1322;
+        --horosa-qimen-jixing-rgb: 207, 19, 34;
+        --horosa-qimen-rumu: #8b5e3c;
+        --horosa-qimen-rumu-rgb: 139, 94, 60;
+        --horosa-qimen-both: #722ed1;
+        --horosa-qimen-both-rgb: 114, 46, 209;
+        --horosa-qimen-menpo: #9a4f00;
+        --horosa-qimen-menpo-rgb: 154, 79, 0;
+        --horosa-qimen-kongwang: #2f54eb;
+        --horosa-qimen-kongwang-rgb: 47, 84, 235;
+        --horosa-qimen-geng: #b0400e;
+        --horosa-qimen-geng-rgb: 176, 64, 14;
+        --horosa-qimen-baihu: #a8071a;
+        --horosa-qimen-baihu-rgb: 168, 7, 26;
+        /* 七政星曜(六壬 / 三式「七政」页签的星名) */
+        --horosa-planet-sun: #8f6400;
+        --horosa-planet-moon: #5d6b7a;
+        --horosa-planet-mercury: #0e7383;
+        --horosa-planet-venus: #a8436f;
+        --horosa-planet-mars: #b23a30;
+        --horosa-planet-jupiter: #3f7a38;
+        --horosa-planet-saturn: #80602a;
+        /* 多序列曲线分类色板(同一张图里多颗星 / 多个周期的曲线与标签共用;星 → 序号映射单源在 constants/seriesPalette.js)。
+           取色:亮暗各一套,每色在本主题全部盘面底上 ≥ 3.4:1,同套两两色差 CIEDE2000 ≥ 16(曲线交叉处靠色辨星);色相沿用各星的传统色族。 */
+        --horosa-series-1: #a17709;   /* 日 */
+        --horosa-series-2: #216098;   /* 月 */
+        --horosa-series-3: #b1560b;   /* 水 */
+        --horosa-series-4: #1f7a44;   /* 金 */
+        --horosa-series-5: #b3392f;   /* 火 */
+        --horosa-series-6: #6f4993;   /* 木 */
+        --horosa-series-7: #735c38;   /* 土 */
+        --horosa-series-8: #145b51;   /* 天王 */
+        --horosa-series-9: #6c66e7;   /* 海王 */
+        --horosa-series-10: #a8436f;   /* 冥王 */
+        --horosa-series-11: #70761b;   /* 交点 */
+        --horosa-series-12: #4f867d;   /* 四轴 */
+        /* 六壬五行(七政页签地支 + 六壬盘面;暗色取值 = 此前各处行内兜底色,观感不变) */
+        --horosa-liureng-stem-wood: #3f7a38;
+        --horosa-liureng-stem-fire: #b23a30;
+        --horosa-liureng-stem-earth: #80602a;
+        --horosa-liureng-stem-metal: #6b6457;
+        --horosa-liureng-stem-water: #3d5f80;
+        /* 赤纬出界(赤纬图星符与图例) */
+        --horosa-decl-oob: #c2255c;
+        /* 择日评级 / 严重度(分数字与药丸底;药丸上的字 = on-solid) */
+        --horosa-grade-excellent: #1f7a52;
+        --horosa-grade-good: #0e7383;
+        --horosa-grade-fair: #2b63c9;
+        --horosa-grade-poor: #a14a1c;
+        --horosa-grade-bad: #c0392b;
+        --horosa-sev-medium: #8f6400;
+        --horosa-sev-low: #5d6b7a;
+        --horosa-sev-info: #5f6c80;
+        /* 次级字色:淡化信息字一律用它,不用 opacity(透明度把字连底一起压淡,宣纸底上 ×.5 只剩 2.2–3:1)。
+           根上 = muted;占星作用域(05-astro 的 .horosa-astro-redesign)里改指 astro-muted,随作用域换色相。
+           --horosa-text-muted / -text-tertiary 曾在源码里被引用却从未定义(恒取兜底 #888 / #999 一类单主题色),已统一改名为本变量。 */
+        --horosa-text-secondary: var(--horosa-muted);
+        /* 链接色:.umirc.js 把 antd @link-color / @link-hover-color / @link-active-color 接到这三个(antd 原值 #1890ff 在宣纸底 2.9:1) */
+        --horosa-link: #0958d9;
+        --horosa-link-hover: #1677ff;
+        --horosa-link-active: #003eb3;
+        /* 提示 / 警示(界面提示条、状态字;旧代码里 --horosa-info / --horosa-warn 从未定义,恒取单主题兜底) */
+        --horosa-info: #2f62a8;
+        --horosa-warn: #8a5b00;
+        /* 紫微四化「禄 权 科 忌」作为界面文字与界面药丸底(药丸字 = on-solid);盘面徽标仍用 ZWConst.ZWColor 原色(盘面不在本合同) */
+        --horosa-sihua-lu: #8a5a0e;
+        --horosa-sihua-quan: #2868d8;
+        --horosa-sihua-ke: #0e7180;
+        --horosa-sihua-ji: #b33a31;
+        /* 冷蓝强调字(太乙将神、流派提示、塔罗对应);原只在塔罗页作用域定义,作用域外恒取兜底 #7fa8d8(宣纸底 2.4:1)。根上给一份,取值与塔罗页一致 */
+        --horosa-astro-blue: #3a6ea5;
+        /* 通用色相字(青 / 橙 / 紫 / 褐):各页的分节标题、分类强调、牌组花色等「要个颜色区分、但不是吉凶语义」的字。
+           以前各处写死只为一种主题挑的十六进制(世俗盘分节色 #e67e22 宣纸底 2.5:1、#5e548e 暗底 2.9:1 …),统一用这四个 */
+        --horosa-hue-teal: #00695c;
+        --horosa-hue-orange: #a8520c;
+        --horosa-hue-purple: #6a4c93;
+        --horosa-hue-brown: #6d4c41;
+        /* 西占四元素(星座符号在界面表格里的字色;盘面星座色走用户选的盘面配色,不在这里) */
+        --horosa-element-fire: #b4441f;
+        --horosa-element-earth: #7d6414;
+        --horosa-element-air: #1b6f86;
+        --horosa-element-water: #4a4fb0;
+        /* 柔边线 / 下沉底 / 吉凶淡底:曾被大量引用却从未定义(恒取各处不一的单主题兜底),取值按兜底的主流观感 */
+        --horosa-border-soft: rgba(107, 92, 66, 0.13);
+        --horosa-surface-sunken: rgba(107, 92, 66, 0.07);
+        --horosa-danger-soft: rgba(191, 60, 54, 0.14);
+        --horosa-success-soft: rgba(24, 119, 63, 0.12);
+        --horosa-mono: 'SF Mono', Menlo, Consolas, monospace;
+        --horosa-shadow: 0 18px 46px rgba(39, 59, 91, 0.12);
+        --horosa-small-shadow: 0 8px 24px rgba(39, 59, 91, 0.08);
+        --horosa-radius: 8px;
+        --horosa-nav-width: 206px;
+        --horosa-toolbar-height: 72px;
+        --horosa-bottom-dock-height: 64px;
+        /* 滚动安全内衬(为底部快捷坞留的那截):缺省只留 12px 呼吸位 —— 只有**真挂了底坞**的页才吃坞高 + 18px(见本文件「底坞页滚动安全区」一节)。
+           此前缺省就是坞高 + 18 = 82px,没有坞的页(星运 / 八字 / 合盘组合盘 / 3D / 日历 / 择日 / 中华传统…)
+           都白吃一条 82px:会滚的盒滚到底多一截空,不会滚的(星运页根等)就是一条死白;此前按页逐个就地压平,漏一页就是一处死带。 */
+        --horosa-scroll-safe-bottom: 12px;
+        --horosa-scroll-safe-bottom-docked: calc(var(--horosa-bottom-dock-height) + 18px);
+        --horosa-control-height: 34px;
+        /* ── 子 Tab 专属 token(角色①下划线/②竖栏 rail/③分段滑块;两态齐全,皮肤只吃这些) ── */
+        --horosa-tab-ink: var(--horosa-accent);
+        --horosa-tab-active-text: var(--horosa-accent-strong);
+        --horosa-tab-inactive-text: var(--horosa-text-soft);
+        --horosa-tab-hover-text: var(--horosa-text);
+        --horosa-tab-hover-bg: var(--horosa-accent-soft);
+        --horosa-tab-rail-active-bg: var(--horosa-accent-soft);
+        --horosa-tab-seg-track: rgba(63, 53, 36, 0.08);
+        --horosa-tab-seg-thumb: var(--horosa-accent);
+        --horosa-tab-on-thumb: var(--horosa-on-accent);
+        /* 亮档:实底金块无描边、保留白色高光(=历史观感零变);暗档在下方换软底金字金边 */
+        --horosa-tab-seg-ring: transparent;
+        --horosa-tab-seg-gloss: rgba(255, 255, 255, 0.24);
+        --horosa-tab-glow: rgba(154, 106, 37, 0.28);
+        --horosa-tab-focus-ring: var(--horosa-cyan-soft);
+        --horosa-tab-motion: 200ms;
+        --horosa-tab-ease: cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    /* ── 亮色配色双档:古典宣纸(默认,上方 :root 即是)↔ 经典白色(本块覆盖) ──
+       经典白 = 宣纸换血(b2835485)之前的原亮色 13 token 原值逐字回填;顶栏「配色」按钮切换,
+       data-horosa-light-flavor='classic' 时生效。只覆盖配色变量,其余(布局/字体/间距)零动;
+       暗色块(:root[data-horosa-appearance='dark'])在源码序更后 → 暗色下本块自然失效。 */
+    :root[data-horosa-light-flavor='classic'] {
+        --horosa-bg: #f3f7fc;
+        --horosa-surface: rgba(255, 255, 255, 0.90);
+        --horosa-surface-solid: #ffffff;
+        --horosa-surface-raised: rgba(255, 255, 255, 0.97);
+        --horosa-header-bg: rgba(248, 251, 255, 0.90);
+        --horosa-nav-bg: rgba(238, 244, 252, 0.92);
+        --horosa-panel-bg: rgba(255, 255, 255, 0.88);
+        --horosa-panel-soft: rgba(242, 247, 254, 0.78);
+        --horosa-text: #162033;
+        --horosa-text-soft: #52627a;
+        --horosa-muted: #5f6c80;   /* 旧 #68758a 在经典白底 4.3:1,压到 ≥ 4.5 */
+        --horosa-border: rgba(76, 98, 134, 0.17);
+        --horosa-border-soft: rgba(76, 98, 134, 0.12);
+        --horosa-surface-sunken: rgba(76, 98, 134, 0.07);
+        --horosa-tab-seg-track: rgba(22, 32, 51, 0.07);
+    }
+
+    :root[data-horosa-appearance='dark'] {
+        --horosa-bg: #050607;
+        --horosa-surface: rgba(9, 11, 14, 0.88);
+        --horosa-surface-solid: #090b0e;
+        --horosa-surface-raised: rgba(9, 11, 14, 0.97);
+        --horosa-header-bg: rgba(5, 6, 7, 0.96);
+        --horosa-nav-bg: rgba(7, 8, 10, 0.96);
+        --horosa-panel-bg: rgba(9, 11, 14, 0.90);
+        --horosa-panel-soft: rgba(255, 255, 255, 0.025);
+        --horosa-text: #edf5f2;
+        --horosa-text-soft: #b9c7c9;
+        --horosa-muted: #80939b;
+        --horosa-border: rgba(202, 163, 93, 0.20);
+        --horosa-border-strong: rgba(231, 189, 117, 0.42);
+        --horosa-accent: #e7bd75;
+        --horosa-accent-rgb: 231, 189, 117;
+        --horosa-accent-soft: rgba(231, 189, 117, 0.14);
+        --horosa-accent-strong: #f2cf91;
+        --horosa-on-accent: #071015;
+        --horosa-gold: #d8ad63;
+        --horosa-gold-rgb: 216, 173, 99;
+        --horosa-gold-soft: rgba(216, 173, 99, 0.18);
+        --horosa-md-strong: var(--horosa-gold);
+        --horosa-cyan: #d8ad63;
+        --horosa-cyan-soft: rgba(216, 173, 99, 0.12);
+        --horosa-cinnabar: #ec644e;
+        --horosa-danger: #ff756c;
+        --horosa-danger-rgb: 255, 117, 108;
+        --horosa-jade: #73c59a;
+        --horosa-jade-rgb: 115, 197, 154;
+        --horosa-jx-ji: #66c486;
+        --horosa-jx-ji-rgb: 102, 196, 134;
+        --horosa-jx-xiong: #ff756c;
+        --horosa-jx-xiong-rgb: 255, 117, 108;
+        --horosa-jx-he: #5cc6a0;
+        --horosa-jx-other: #d8ad63;
+        --horosa-jx-muted: var(--horosa-astro-muted);
+        --horosa-jx-sheng: var(--horosa-jx-ji);
+        --horosa-jx-ke: var(--horosa-jx-xiong);
+        --horosa-jx-chong: var(--horosa-jx-xiong);
+        --horosa-ziwei-star-main: #f1c879;
+        --horosa-ziwei-star-assist: #82adb0;
+        --horosa-ziwei-star-evil: #d26a5f;
+        --horosa-ziwei-star-others-good: #82adb0;
+        --horosa-ziwei-star-others-bad: #d26a5f;
+        --horosa-ziwei-star-sixevil: #dfe3e6;
+        --horosa-ziwei-period-xiaoxian: #b197fc;
+        --horosa-ziwei-period-year: #9775fa;
+        --horosa-ziwei-period-month: #51cf66;
+        --horosa-ziwei-period-day: #f06595;
+        --horosa-ziwei-period-hour: #ff922b;
+        --horosa-ziwei-duigong-line: rgba(140, 165, 220, 0.6);
+        --horosa-ziwei-house-name: #f3d18b;
+        --horosa-ziwei-house-branch: #c19658;
+        --horosa-ziwei-house-meta: #8c9998;
+        --horosa-ziwei-house-muted: #7f8d8e;
+        --horosa-ziwei-house-age: #9aa6a6;
+        --horosa-ziwei-house-line: rgba(216, 173, 99, 0.42);
+        --horosa-ziwei-chart-bg: #0f141b;
+        --horosa-ziwei-kinastro-liunian: #8aa7dc;
+        --horosa-ziwei-sanhe-bg: #2c2616;
+        --horosa-ziwei-duigong-bg: #16202e;
+        --horosa-ziwei-selected-bg: #123a44;
+        --horosa-table-row-alt: rgba(216, 173, 99, 0.075);
+        --horosa-suzhan-fill: rgba(13, 15, 18, 0.94);
+        --horosa-bazi-direct-bg: rgba(231, 189, 117, 0.10);
+        --horosa-bazi-year-bg: rgba(216, 173, 99, 0.14);
+        --horosa-bazi-wood: #66c486;
+        --horosa-bazi-fire: #ff5f50;
+        --horosa-bazi-earth: #c08a4c;
+        --horosa-bazi-metal: #eda34a;
+        --horosa-bazi-water: #5f8fff;
+        --horosa-bazi-interaction: #545b64;
+        --horosa-direction-level-1: #5f8fff;
+        --horosa-direction-level-2: #ff6b5f;
+        --horosa-direction-level-3: #66c486;
+        --horosa-direction-level-4: #f0c979;
+        --horosa-direction-node-highlight: rgba(216, 173, 99, 0.16);
+        --horosa-calendar-heading-bg: rgba(231, 189, 117, 0.10);
+        --horosa-sanshi-board-outer: #0b0d10;
+        --horosa-sanshi-board-qimen: #11100d;
+        --horosa-sanshi-board-liureng: #13110d;
+        --horosa-sanshi-board-center: #18140e;
+        --horosa-liureng-square-main: #f0eee7;
+        --horosa-liureng-square-muted: #8f9694;
+        --horosa-liureng-square-jiang: #d8ad63;
+        --horosa-liureng-square-accent: #e7bd75;
+        --horosa-liureng-square-line: rgba(231, 189, 117, 0.18);
+        --horosa-liureng-square-center-bg: rgba(255, 255, 255, 0.018);
+        --horosa-liureng-square-active-bg: rgba(231, 189, 117, 0.10);
+        /* ── 文字对比度语义色(暗色;与亮色块逐名成对)── */
+        --horosa-ant-text: var(--horosa-text);
+        --horosa-ant-heading: var(--horosa-text);
+        --horosa-placeholder: #8a979c;
+        --horosa-on-solid: #071015;
+        --horosa-qimen-jixing: #ff7875;
+        --horosa-qimen-jixing-rgb: 255, 120, 117;
+        --horosa-qimen-rumu: #c8956a;
+        --horosa-qimen-rumu-rgb: 200, 149, 106;
+        --horosa-qimen-both: #b38cff;
+        --horosa-qimen-both-rgb: 179, 140, 255;
+        --horosa-qimen-menpo: #fa8c16;
+        --horosa-qimen-menpo-rgb: 250, 140, 22;
+        --horosa-qimen-kongwang: #85a5ff;
+        --horosa-qimen-kongwang-rgb: 133, 165, 255;
+        --horosa-qimen-geng: #ff9c6e;
+        --horosa-qimen-geng-rgb: 255, 156, 110;
+        --horosa-qimen-baihu: #ff7a7a;
+        --horosa-qimen-baihu-rgb: 255, 122, 122;
+        --horosa-planet-sun: #e0a93b;
+        --horosa-planet-moon: #cfd2d6;
+        --horosa-planet-mercury: #5fb3c9;
+        --horosa-planet-venus: #d98fb0;
+        --horosa-planet-mars: #e06459;
+        --horosa-planet-jupiter: #73b36b;
+        --horosa-planet-saturn: #c19a57;
+        /* 多序列曲线分类色板(暗):取色口径见亮色块 */
+        --horosa-series-1: #f3be3e;
+        --horosa-series-2: #8cb8fd;
+        --horosa-series-3: #f99a45;
+        --horosa-series-4: #55c07c;
+        --horosa-series-5: #e16358;
+        --horosa-series-6: #b39ddb;
+        --horosa-series-7: #af8742;
+        --horosa-series-8: #1cabaa;
+        --horosa-series-9: #2385e5;
+        --horosa-series-10: #da8fb0;
+        --horosa-series-11: #b5b26d;
+        --horosa-series-12: #9dbcad;
+        --horosa-liureng-stem-wood: #73b36b;
+        --horosa-liureng-stem-fire: #c9483e;
+        --horosa-liureng-stem-earth: #c19a57;
+        --horosa-liureng-stem-metal: #d8d2c7;
+        --horosa-liureng-stem-water: #8f9694;
+        --horosa-decl-oob: #f06595;
+        --horosa-grade-excellent: #4cc38a;
+        --horosa-grade-good: #3cc2d6;
+        --horosa-grade-fair: #6ea2ff;
+        --horosa-grade-poor: #f0955a;
+        --horosa-grade-bad: #ff756c;
+        --horosa-sev-medium: #e6b84a;
+        --horosa-sev-low: #a3b0bf;
+        --horosa-sev-info: #8f9aa8;
+        --horosa-text-secondary: var(--horosa-muted);
+        --horosa-link: #1890ff;
+        --horosa-link-hover: #40a9ff;
+        --horosa-link-active: #096dd9;
+        --horosa-info: #7aa7e0;
+        --horosa-warn: #e0a640;
+        --horosa-sihua-lu: #e2ad4f;
+        --horosa-sihua-quan: #5b93ef;
+        --horosa-sihua-ke: #3cbccc;
+        --horosa-sihua-ji: #ef7a70;
+        --horosa-astro-blue: #5b8cc4;
+        --horosa-hue-teal: #4db6ac;
+        --horosa-hue-orange: #f0a050;
+        --horosa-hue-purple: #b39ddb;
+        --horosa-hue-brown: #c4a68a;
+        --horosa-element-fire: #f08a5d;
+        --horosa-element-earth: #d4b45a;
+        --horosa-element-air: #6cc7de;
+        --horosa-element-water: #9aa6f5;
+        --horosa-border-soft: rgba(202, 163, 93, 0.13);
+        --horosa-surface-sunken: rgba(255, 255, 255, 0.045);
+        --horosa-danger-soft: rgba(255, 117, 108, 0.16);
+        --horosa-success-soft: rgba(102, 196, 134, 0.14);
+        --horosa-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
+        --horosa-small-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+        /* ── 子 Tab 专属 token(暗色态写全;var() 引用随本块暗色 accent 解析) ── */
+        --horosa-tab-ink: var(--horosa-accent);
+        --horosa-tab-active-text: var(--horosa-accent-strong);
+        --horosa-tab-inactive-text: var(--horosa-text-soft);
+        --horosa-tab-hover-text: var(--horosa-text);
+        --horosa-tab-hover-bg: var(--horosa-accent-soft);
+        --horosa-tab-rail-active-bg: var(--horosa-accent-soft);
+        --horosa-tab-seg-track: rgba(255, 255, 255, 0.06);
+        /* [选中态可读性大修] 暗黑 segmented 选中态:金实底(thumb)+金字(占星特调覆盖)曾叠成
+           「金底金字」几乎不可读 —— 统一为「金软底 + 金字 + 金描边」(与 antd primary 暗黑观感同族):
+           thumb 换软底、文字用 accent 金、描边走 seg-ring、白色高光渐变(gloss)在暗档关闭。亮档四值不动。 */
+        --horosa-tab-seg-thumb: rgba(231, 189, 117, 0.16);
+        --horosa-tab-on-thumb: var(--horosa-accent);
+        --horosa-tab-seg-ring: rgba(231, 189, 117, 0.60);
+        --horosa-tab-seg-gloss: rgba(255, 255, 255, 0);
+        --horosa-tab-glow: rgba(231, 189, 117, 0.12);
+        --horosa-tab-focus-ring: var(--horosa-cyan-soft);
+        --horosa-tab-motion: 200ms;
+        --horosa-tab-ease: cubic-bezier(0.2, 0, 0, 1);
+        color-scheme: dark;
+    }
+
+    html,
+    body,
+    #root {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--horosa-bg) !important;
+        color: var(--horosa-text);
+    }
+
+    :root[data-horosa-appearance='dark'],
+    :root[data-horosa-appearance='dark'] body,
+    :root[data-horosa-appearance='dark'] #root {
+        background: var(--horosa-bg) !important;
+        color: var(--horosa-text);
+        color-scheme: dark;
+    }
+
+    /* ── AI 长文排版系统(唯一消费方:SectionMarkdown) ──
+       原为暗黑可读性兜底(antd 全局 reset 硬编码浅色字,var(--horosa-text) 两态自适应),
+       现扩为完整排版:strong 金色强调(全站重点标注视觉)/标题阶梯/列表/引用块/表格斑马纹。
+       全部走主题变量,亮暗两态自适应,勿写死色值。 */
+    .xq-markdown {
+        color: var(--horosa-text);
+        line-height: 1.75;
+        h1, h2, h3, h4, h5, h6 { color: var(--horosa-text); }
+        h3 { font-size: 1.14em; margin: 18px 0 8px; padding-left: 8px; border-left: 3px solid var(--horosa-gold); }
+        h4 { font-size: 1.04em; margin: 14px 0 6px; font-weight: 600; }
+        strong, b { font-weight: 600; color: var(--horosa-md-strong, var(--horosa-gold)); }
+        code, kbd, pre, samp { color: var(--horosa-text); }
+        ul, ol { margin: 8px 0; padding-left: 1.6em; }
+        li { margin: 4px 0; }
+        li::marker { color: var(--horosa-gold); }
+        blockquote {
+            color: var(--horosa-text-soft);
+            margin: 8px 0;
+            padding: 4px 12px;
+            border-left: 3px solid var(--horosa-gold);
+            background: var(--horosa-panel-soft);
+            border-radius: 0 6px 6px 0;
+        }
+        table { border-collapse: collapse; margin: 10px 0; display: block; max-width: 100%; width: max-content; overflow: auto; }
+        table, th, td { color: var(--horosa-text); border-color: var(--horosa-border); }
+        th, td { padding: 5px 10px; border: 1px solid var(--horosa-border); }
+        th { background: var(--horosa-panel-soft); font-weight: 600; }
+        tbody tr:nth-child(even) { background: var(--horosa-panel-soft); }
+        a { color: var(--horosa-accent); }
+        hr { border: none; border-top: 1px solid var(--horosa-border); margin: 14px 0; }
+    }
+
+    /* ── 正文精排版式(xq-md-v2)──────────────────────────────────────────
+       只做**增量**:上面 .xq-markdown 的规则一条不动,新观感全部叠在 .xq-md-v2 之下。
+       不加这个类的容器 ⇒ 逐字节回到改版前。
+       改版前的三处硬伤(都在这里修掉):
+         · h5/h6 完全没样式 → 走浏览器默认 0.83em/0.67em,**比正文还小**,子段越深越看不见
+         · 行内 `code` 只给了颜色没有底色 → 与正文无法区分
+         · strong 只有 600 字重 —— CJK 字族里 600 与 400 差别很浅,改 700 + 金色双通道
+       两态自适应:全部走主题变量,亮/暗均不写死色值。 */
+    .xq-markdown.xq-md-v2 {
+        line-height: 1.8;
+        /* 中西混排:数字用等宽数位(逐年吉凶/度数对齐);避免段末孤字 */
+        font-variant-numeric: tabular-nums;
+        text-wrap: pretty;
+
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 700;
+            line-height: 1.4;
+            /* 标题层级差用「字重 + 饰记 + 微字号差」表达,**任何一级都不得小于正文** */
+            font-size: 1em;
+        }
+        h1 { font-size: 1.34em; margin: 22px 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--horosa-gold); }
+        h2 { font-size: 1.22em; margin: 20px 0 10px; padding-bottom: 4px; border-bottom: 1px solid var(--horosa-border); }
+        h3 { font-size: 1.12em; margin: 18px 0 8px; padding-left: 9px; border-left: 3px solid var(--horosa-gold); border-bottom: 0; }
+        h4 {
+            font-size: 1.04em; margin: 16px 0 7px; color: var(--horosa-md-strong, var(--horosa-gold));
+            display: flex; align-items: baseline; gap: 7px;
+        }
+        h4::before {
+            content: ''; flex: none; width: 5px; height: 5px; border-radius: 50%;
+            background: var(--horosa-gold); transform: translateY(-2px);
+        }
+        h5 { font-size: 1em; margin: 14px 0 6px; color: var(--horosa-text-soft); letter-spacing: 0.03em; }
+        h6 { font-size: 1em; margin: 12px 0 5px; color: var(--horosa-muted); font-weight: 600; }
+
+        /* 重点标注:字重 700 + 金色,两条通道各自独立可读(色弱/黑白打印下靠字重仍能分辨) */
+        strong, b { font-weight: 700; }
+        em, i { font-style: italic; color: var(--horosa-text-soft); }
+        del, s { color: var(--horosa-muted); text-decoration-color: var(--horosa-muted); }
+        mark { background: var(--horosa-gold-soft); color: inherit; padding: 0 3px; border-radius: 3px; }
+        sup, sub { font-size: 0.72em; line-height: 0; }
+
+        /* 行内码:此前只有颜色 = 看不出是代码 */
+        :not(pre) > code {
+            background: var(--horosa-panel-soft);
+            border: 1px solid var(--horosa-border);
+            border-radius: 4px;
+            padding: 1px 5px;
+            font-size: 0.9em;
+            font-family: 'SF Mono', Menlo, Consolas, monospace;
+        }
+        kbd {
+            background: var(--horosa-panel-soft); border: 1px solid var(--horosa-border);
+            border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; font-size: 0.86em;
+        }
+
+        /* 列表:记号随层级降级(•/◦/▪),有序号金色等宽 */
+        ul { list-style-type: disc; }
+        ul ul { list-style-type: circle; }
+        ul ul ul { list-style-type: square; }
+        ol { counter-reset: none; }
+        li { margin: 5px 0; }
+        li::marker { color: var(--horosa-gold); font-variant-numeric: tabular-nums; }
+        li > p { margin: 4px 0; }
+
+        /* 引用块 → callout:首字符是 ✅ / ⚠️ / ⊘ 时各自换色(导出与一致性审计已在用这三个前缀) */
+        blockquote {
+            padding: 8px 14px;
+            border-left-width: 4px;
+            background: var(--horosa-panel-soft);
+            border-radius: 0 8px 8px 0;
+        }
+        blockquote p { margin: 4px 0; }
+        blockquote.xq-md-note-ok { border-left-color: #3f9d68; }
+        blockquote.xq-md-note-warn { border-left-color: #d08a2c; }
+        blockquote.xq-md-note-stop { border-left-color: var(--horosa-muted); }
+
+        /* 表格:逐年吉凶/度数这类数字列要对齐 → tabular-nums;首列当行头加重 */
+        table {
+            border-radius: 8px;
+            box-shadow: 0 0 0 1px var(--horosa-border) inset;
+            font-variant-numeric: tabular-nums;
+        }
+        th, td { padding: 6px 12px; }
+        th { font-weight: 700; }
+        td:first-child { font-weight: 600; }
+
+        pre { border-radius: 8px; }
+        hr { border-top: 1px dashed var(--horosa-border); margin: 18px 0; }
+        img { max-width: 100%; border-radius: 8px; border: 1px solid var(--horosa-border); }
+        p { margin: 10px 0; }
+        p:first-child, h1:first-child, h2:first-child, h3:first-child, h4:first-child { margin-top: 0; }
+    }
+
+    :root[data-horosa-appearance='dark'] {
+        /* antd 信息提示条(Alert)默认深色文字,暗黑下不可见 → 强制主题色 */
+        .ant-alert-info .ant-alert-message,
+        .ant-alert-info .ant-alert-description,
+        .ant-alert-info .ant-alert-message strong { color: var(--horosa-text); }
+        /* 根因:antd 的 .ant-form / .ant-tabs / .ant-drawer-body / .ant-modal-body / .ant-card 等
+           容器各自硬编码 color:rgba(0,0,0,0.85);CSS 变量暗黑模式不翻转它们 → 容器内未显式着色的
+           纯文字(开关标签、设置项标签等)继承成黑字、暗底下看不见。
+           统一兜底成主题文字色(刻意着色的元素自带 color,不受影响)。 */
+        .ant-form,
+        .ant-tabs,
+        .ant-drawer-body,
+        .ant-modal-body,
+        .ant-modal-confirm-content,
+        .ant-card,
+        .ant-card-body,
+        .ant-collapse,
+        .ant-collapse-content,
+        .ant-list,
+        .ant-list-item,
+        .ant-typography,
+        .ant-popover-inner-content,
+        .ant-progress-text,
+        .ant-statistic-content,
+        .ant-steps-item-title,
+        .ant-empty-description,
+        .ant-descriptions-item-content,
+        .ant-descriptions-item-label { color: var(--horosa-text); }
+    }
+
+    /* 分页跳页省略号:antd 缺省 @disabled-color(rgba(0,0,0,.25)),宣纸底 1.8:1、暗底不可见 → 两态都走次级文字色。
+       antd 那条是 .ant-pagination-jump-* .ant-pagination-item-container .ant-pagination-item-ellipsis(3 个类);
+       此处 :root + 3 个类 = 严格高一级(打平 = 随分包序抛硬币)。 */
+    :root .ant-pagination .ant-pagination-item-container .ant-pagination-item-ellipsis { color: var(--horosa-muted); }
+    /* antd 开关:亮色下关态轨道是 rgba(0,0,0,.25) 叠在纸底上(≈ #bebcb8),白字「关」1.9:1;开态 #1890ff 白字 3.2:1。
+       亮色两态轨道换成能托白字的实底(≥ 5:1);暗色 antd 原样(关态近黑、白字够)。禁用态不动。 */
+    :root:not([data-horosa-appearance='dark']) .ant-switch:not(.ant-switch-checked):not(.ant-switch-disabled) { background-color: var(--horosa-text-secondary); }
+    :root:not([data-horosa-appearance='dark']) .ant-switch.ant-switch-checked:not(.ant-switch-disabled) { background-color: var(--horosa-link); }
+
+    /* 图表内行星/度数文字:浅色模式单色调色板(如 #3b3b3b)在暗底不可见 → 暗黑下回落主题文字色、去浅色描边 */
+    :root[data-horosa-appearance='dark'] {
+        .horosa-india-square-object,
+        .horosa-india-square-object-name,
+        .horosa-india-square-object-degree,
+        .horosa-india-square-retro {
+            color: var(--horosa-text);
+            text-shadow: none;
+        }
+    }
+
+    /* ── 全站悬浮层不透明基座(制度铁律:任何 tooltip/popover/悬浮卡一律不透明底)──
+       背景变量只取 :root 级 --horosa-surface-solid(纯色不透明,亮 #ffffff/暗 #090b0e),
+       fallback 也是不透明十六进制 → 无论浮层挂在容器内还是 portal 到 body,
+       变量都解析得到、解析不到也有不透明兜底,结构上不可能透明。
+       新建浮层一律挂本类(或复制本组声明);禁止用容器作用域变量当浮层背景
+       (portal 后断链=透明,GuoLaoMoiraWheel tooltip 曾中招)。 */
+    .horosa-floating-surface {
+        background: var(--horosa-surface-solid, #ffffff);
+        color: var(--horosa-text, #262626);
+        border: 1px solid var(--horosa-border-strong, #d9d9d9);
+        box-shadow: var(--horosa-small-shadow, 0 8px 24px rgba(0, 0, 0, 0.16));
+    }
+
+    :root[data-horosa-appearance='dark'] .horosa-floating-surface {
+        background: var(--horosa-surface-solid, #090b0e);
+        color: var(--horosa-text, #edf5f2);
+        border-color: var(--horosa-border-strong, rgba(231, 189, 117, 0.42));
+    }
+
+    body {
+        letter-spacing: 0;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: geometricPrecision;
+    }
+
+    .ant-layout {
+        /* 🔴 勿用 100vh:壳级 CSS zoom 补偿域里 vh 不缩放,会把布局链钉回物理视口
+           (缩放≠1 时底部空带/内层溢出)。100% 沿 body 补偿链传导,1:1 时与 100vh 等值。 */
+        min-height: 100%;
+    }
+
+    /* 底坞页滚动安全区:底部快捷坞(QuickDockBar 渲染的 .horosa-bottom-quick-dock)所在的那一层把变量换成坞高 + 18px,
+       坞的兄弟面板(左栏 / 右栏 / 页签内容区)据此留出滚动安全内衬;没有坞的页一律吃缺省 12px。
+       作用域按「坞的父层」认,不按页名登记 —— 新页挂上 / 去掉底坞自动跟,不再逐页补覆盖。
+       系统内核不认 :has 时由 utils/legacyWebkitCompat 给坞的父层打 .horosa-bottom-quick-dock-parent,走下一条同义规则;
+       两条不得合并进同一选择器列表(旧引擎遇 :has 会整条丢弃)。 */
+    .horosa-workspace-shell :is(div, section, main):has(> .horosa-bottom-quick-dock) {
+        --horosa-scroll-safe-bottom: var(--horosa-scroll-safe-bottom-docked);
+    }
+
+    .horosa-workspace-shell .horosa-bottom-quick-dock-parent {
+        --horosa-scroll-safe-bottom: var(--horosa-scroll-safe-bottom-docked);
+    }
+
+    .horosa-workspace-shell {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    .horosa-workspace-shell::before {
+        pointer-events: none;
+        content: "";
+        position: fixed;
+        inset: 0;
+        background:
+            radial-gradient(circle at 22% 8%, rgba(154, 106, 37, 0.10), transparent 28%),
+            radial-gradient(circle at 88% 12%, rgba(184, 137, 63, 0.09), transparent 30%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.66), transparent 42%);
+        opacity: 1;
+    }
+
+    :root[data-horosa-appearance='dark'] .horosa-workspace-shell::before {
+        background: transparent;
+    }

@@ -1,7 +1,7 @@
 // 缩放域单一真值源(2026-08-24 macOS Tahoe 全站浮层错位根治)。
 //
 // ── 病理 ────────────────────────────────────────────────────────────────
-// 桌面壳的缩放走 `documentElement.style.zoom`(main.rs 注入 + global.js 镜像;原生
+// 桌面壳的缩放走 `documentElement.style.zoom`(壳 init script 注入 + global.js 镜像;原生
 // pageZoom 被强制 1.0)。CSS zoom 下页面里同时存在两个坐标域:
 //   · rect 域 —— getBoundingClientRect() 返回值,**已被 zoom 缩放**
 //   · CSS 域 —— style.left/top 写入值,**未被缩放**
@@ -153,16 +153,6 @@ export function measureLayoutViewport(){
 	return out;
 }
 
-// 布局域尺寸的推荐读法:优先直接量目标容器(最准,且自动含掉页头等固定占位),
-// 容器缺席时回落整窗布局视口。两条路径都不需要知道缩放值。
-export function measureLayoutHeightOf(el){
-	try{
-		if(el && el.clientHeight > 0){ return el.clientHeight; }
-	}catch(e){ /* ignore */ }
-	const vp = measureLayoutViewport();
-	return vp ? vp.height : null;
-}
-
 // 纯函数:工作区高度决策。抽出来是为了让「三引擎矩阵」能当真值表直接单测——
 // 原先这段埋在 dva 订阅里,任何单测都碰不到,所以那类缺陷在 CI 里天然不可见。
 //
@@ -176,50 +166,36 @@ export function measureLayoutHeightOf(el){
 // 套 660 地板会把页根顶得比容器高 65,底部被 overflow:hidden 裁掉(真 WebKit 与 Chromium 逐位相同)。
 export const CONTAINER_HEIGHT_SANITY_MIN = 200;
 
+// 工作区布局下限(支持包络 1728×1010 × 1.8 档 = 布局视口 960 × 560,工作区再扣页头 72)。三层同值:
+// layouts/app/13-layout-module.less 的 .workspaceInner { min-width / min-height / 排版视口变量地板 } 与这里;
+// jest workspaceLayoutFloor 锁同值。容器量到比下限矮时工作区按下限排版、外层纵向滚动(此前按实测排,1.8 档 760 高窗只有 350)。
+export const WORKSPACE_MIN_LAYOUT_W = 960;
+export const WORKSPACE_MIN_LAYOUT_H = 488;
+export const PAGE_MIN_LAYOUT_VIEWPORT_W = 960;
+export const PAGE_MIN_LAYOUT_VIEWPORT_H = 560;
+
 export function resolveWorkspaceHeight(opts){
 	const o = opts || {};
 	const min = (o.min > 0) ? o.min : 0;
 	const reserved = (o.reserved > 0) ? o.reserved : 0;
 	const sanity = (o.containerMin > 0) ? o.containerMin : CONTAINER_HEIGHT_SANITY_MIN;
+	// 盘面最小字视觉下限要求的加高量(utils/chartTextFloor;缺省 0):工作区内层同一份加高(13-layout-module.less 的 min-height)
+	const floorExtra = (o.chartFloorExtra > 0) ? Math.round(o.chartFloorExtra) : 0;
 	const pick = (raw, deduct)=>{
 		const v = Number(raw);
 		if(!isFinite(v) || v <= 0){ return null; }
 		return Math.round(v) - (deduct ? reserved : 0);
 	};
-	// ① 容器实测:天生布局域,页头已含;只要过合理性下限就原样采用,**不套 min 地板**
+	// ① 容器实测:天生布局域,页头已含;只要过合理性下限就采用,**不套 min(660)那种版面地板** ——
+	//    只按工作区布局下限 WORKSPACE_MIN_LAYOUT_H 取大:工作区外层可纵向滚(13-layout-module.less 同一提交),
+	//    容器比下限矮时页面按下限排、整页滚动可达(有地板而无滚动 = 底部被裁,见上面 595 的事故,两者必须同时成立)。
 	const c = pick(o.containerHeight, false);
-	if(c !== null && c >= sanity){ return c; }
+	if(c !== null && c >= sanity){ return Math.max(c, WORKSPACE_MIN_LAYOUT_H) + floorExtra; }
 	// ② ③ 视口推导的回退路径才套 min 地板(推导值偏小时宁可版面略紧)
 	const h = pick(o.layoutViewportHeight, true)
 		|| pick(o.physicalClientHeight, true);
 	if(h === null || h === undefined){ return min; }
 	return h < min ? min : h;
-}
-
-// 一次性诊断读数:闸门与「诊断中心」面板共用,真机取证一屏即可,不必再靠照片反推。
-export function getZoomDiagnostics(){
-	const vp = measureLayoutViewport();
-	let cw = null; let ch = null; let iw = null; let ih = null;
-	try{ cw = document.documentElement.clientWidth; ch = document.documentElement.clientHeight; }catch(e){ /* ignore */ }
-	try{ iw = window.innerWidth; ih = window.innerHeight; }catch(e){ /* ignore */ }
-	const declared = getDeclaredZoom();
-	const rect = getEffectiveScale();
-	// 语义自证:布局视口 ÷ 物理视口 应当 ≈ 1/declared。两者背离即说明该引擎的
-	// zoom 语义与补偿式假设不符,调用方应退回不缩放而不是硬算。
-	let layoutRatio = null;
-	if(vp && ih){ layoutRatio = vp.height / ih; }
-	const coherent = (declared === 1)
-		|| (layoutRatio !== null && Math.abs(layoutRatio - 1 / declared) < 0.08);
-	return {
-		declared: declared,
-		rectScale: rect,
-		rectReflectsZoom: Math.abs(rect - declared) < 0.03,
-		layoutViewport: vp,
-		layoutRatio: layoutRatio,
-		coherent: coherent,
-		clientWidth: cw, clientHeight: ch, innerWidth: iw, innerHeight: ih,
-		killed: killed(),
-	};
 }
 
 // 纯函数:视口读数属哪个域。抽出来便于单测直断真值表。
@@ -398,12 +374,8 @@ export function pointerToLocal(evt, el, rect){
 }
 
 // 纯函数:client(rect)域长度 → 布局(CSS)域长度。供手写浮层写 style.left/top 时用。
-export function clientToLayoutPx(px, scale){
-	const z = (scale && scale > 0 && isFinite(scale)) ? scale : 1;
-	if(z === 1){ return px; }
-	const v = Number(px);
-	return isFinite(v) ? v / z : px;
-}
+// 与 clientToFixedPx 是同一换算(除以缩放比;z=1 或非数原样返回),共用一份实现。
+export const clientToLayoutPx = clientToFixedPx;
 
 export function clientToLayout(px){
 	return clientToLayoutPx(px, getEffectiveScale());

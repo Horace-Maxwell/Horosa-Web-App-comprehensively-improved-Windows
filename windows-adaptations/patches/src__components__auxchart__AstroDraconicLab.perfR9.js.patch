@@ -1,25 +1,25 @@
 diff --git a/astrostudyui/src/components/auxchart/AstroDraconicLab.js b/astrostudyui/src/components/auxchart/AstroDraconicLab.js
-index f5cc3d9f..2b3a3619 100644
+index 714a8ed9..a7a1288f 100644
 --- a/astrostudyui/src/components/auxchart/AstroDraconicLab.js
 +++ b/astrostudyui/src/components/auxchart/AstroDraconicLab.js
-@@ -13,6 +13,7 @@ import AstroChart from '../astro/AstroChart';
- import request from '../../utils/request';
+@@ -14,6 +14,7 @@ import request from '../../utils/request';
  import * as Constants from '../../utils/constants';
  import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from '../astro/AstroExtraCommon';
+ import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 +import { markPanelReady } from '../../utils/perfMark';
  
  class AstroDraconicLab extends Component {
  	constructor(props){
-@@ -47,7 +48,11 @@ class AstroDraconicLab extends Component {
- 			if(!this._mounted) return;
+@@ -50,7 +51,11 @@ class AstroDraconicLab extends Component {
+ 			if(!this._mounted || seq !== this._loadSeq) return;
  			clearLoadFailure(this);
  			const res = unwrapResult(data) || {};
--			this.setState({ result: res, loading: false, requestKey: key, loadError: '' });
+-			this.setState({ result: res, resultSig, loading: false, requestKey: key, loadError: '' });
 +			// horosa_panel_ready_v1:龙盘中栏(整盘)+右栏(位置/合相表)全由 result 派生,
 +			// 这一次 setState 即「面板数据落定」→ 在其回调里盖章(双 rAF 后记,近似本帧已绘)。
-+			this.setState({ result: res, loading: false, requestKey: key, loadError: '' }, ()=>{
++			this.setState({ result: res, resultSig, loading: false, requestKey: key, loadError: '' }, ()=>{
 +				markPanelReady('auxchart');
 +			});
- 			// [审计修·派生盘快照重定源] 出盘即存:整张龙盘 + [龙盘] 专属段(龙首归零基准/位置/同频)。
+ 			// 出盘即存:整张龙盘 + [龙盘] 专属段(龙首归零基准/位置/同频)。
  			saveDerivedAstroSnapshot('draconic', res.chart, this.props.fields, ()=>{
  				const out = ['[龙盘]'];

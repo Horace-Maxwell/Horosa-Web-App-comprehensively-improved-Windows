@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { InputNumber, message } from 'antd';
 import { XQSelect as Select, XQButton as Button } from '../xq-ui';
 import { MOIRA_PLANET_DEFS } from './GuoLaoMoiraWheel';
@@ -11,9 +11,10 @@ const { Option } = Select;
 // 静盘列=黄道宫内度(取流年 chartObj 同源);动盘列=山分度+高度号;殿旺喜庙取 moiraRules。
 const SIGN_CN = ['戌', '酉', '申', '未', '午', '巳', '辰', '卯', '寅', '丑', '子', '亥'];
 
-// 星曜→五行→色(与盘面同源五行观念;择日表用于星曜字符着色,双主题皆可读的中饱和度)。
+// 星曜→五行→色(与盘面同源五行观念;择日表用于星曜字符着色)。取明暗成对的主题色:
+// 旧的单套写死色只为暗底挑(日 #e0a340 在宣纸底 2.0:1、金 2.0:1、月 2.4:1)。
 const PLANET_ELEMENT = { 日: '日', 月: '月', 金: '金', 木: '木', 水: '水', 火: '火', 土: '土', 罗: '火', 计: '土', 炁: '木', 孛: '水' };
-const ELEMENT_COLOR = { 日: '#e0a340', 月: '#8aa0b8', 木: '#4a9d68', 火: '#db6b52', 土: '#bb8a3e', 金: '#cba94a', 水: '#5385bd' };
+const ELEMENT_COLOR = { 日: 'var(--horosa-planet-sun)', 月: 'var(--horosa-planet-moon)', 木: 'var(--horosa-bazi-wood)', 火: 'var(--horosa-bazi-fire)', 土: 'var(--horosa-bazi-earth)', 金: 'var(--horosa-bazi-metal)', 水: 'var(--horosa-bazi-water)' };
 function glyphColor(label){ return ELEMENT_COLOR[PLANET_ELEMENT[label]] || 'var(--horosa-astro-gold, #e7bd75)'; }
 // 庙旺殿喜=good(得地) / 失垣落陷=weak(失力) / 平·顺=plain(平和)。先判失力再判得力(「失垣」含「垣」防误命中)。
 function dignityTone(text){
@@ -91,8 +92,11 @@ export function GuoLaoElectionSearch({ fields, transitParams, onPickMoment }){
 	const [rows, setRows] = useState([]);
 	const [title, setTitle] = useState('');
 	const tp = transitParams || {};
+	// 方位搜索与日月食搜索共用一张结果表:只认最后点的那一次,先点的晚回不许盖掉后点的
+	const runSeq = useRef(0);
 	const runAzimuth = async ()=>{
 		if(!tp.date){ message.info('请先起盘'); return; }
+		const seq = ++runSeq.current;
 		setBusy(true);
 		try{
 			const res = await fetchQizhengAzimuthSearch({
@@ -100,25 +104,28 @@ export function GuoLaoElectionSearch({ fields, transitParams, onPickMoment }){
 				gpsLat: tp.gpsLat, gpsLon: tp.gpsLon,
 				body, targetAz: Number(targetAz) || 0, days: Number(days) || 3,
 			});
+			if(seq !== runSeq.current){ return; }
 			setRows(Array.isArray(res) ? res : []);
 			setTitle(`${body} 到达 ${Number(targetAz).toFixed(1)}°(未来 ${days} 天)`);
 		}catch(e){
-			message.warning('方位搜索失败(需本地计算服务)');
+			if(seq === runSeq.current){ message.warning('方位搜索失败(需本地计算服务)'); }
 		}finally{
-			setBusy(false);
+			if(seq === runSeq.current){ setBusy(false); }
 		}
 	};
 	const runEclipse = async (kind)=>{
 		if(!tp.date){ message.info('请先起盘'); return; }
+		const seq = ++runSeq.current;
 		setBusy(true);
 		try{
 			const res = await fetchQizhengEclipses({ date: tp.date, zone: tp.zone || '8:00', kind, count: 8 });
+			if(seq !== runSeq.current){ return; }
 			setRows(Array.isArray(res) ? res : []);
 			setTitle(kind === 'solar' ? '未来日食' : '未来月食');
 		}catch(e){
-			message.warning('日月食搜索失败(需本地计算服务)');
+			if(seq === runSeq.current){ message.warning('日月食搜索失败(需本地计算服务)'); }
 		}finally{
-			setBusy(false);
+			if(seq === runSeq.current){ setBusy(false); }
 		}
 	};
 	const isEclipse = rows.length > 0 && rows[0] && rows[0].azimuth === undefined;

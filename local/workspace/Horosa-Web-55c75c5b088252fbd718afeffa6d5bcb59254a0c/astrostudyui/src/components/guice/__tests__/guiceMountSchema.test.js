@@ -1,7 +1,7 @@
 // 皇极轨策 · 挂载 schema 覆盖率 —— 守「面板里调不着」这一类。
 //
-// 🔴 病例(本轮实抓)：九开关只登记了五个 —— 缺 数系/时方/神煞(恰是刚补活的三个)。
-//    schema 会渲染成挂载设置面板里的【真设置项】，漏登 = 用户在挂载设置里
+// 🔴 病例：九开关只登记了五个 —— 缺 数系/时方/神煞(恰是刚补活的三个)。
+//    schema 会渲染成挂载设置里的【真设置项】，漏登 = 用户在挂载设置里
 //    根本见不到此项、调不着。而无人机械核过，故一直没发觉。
 import { getTechniqueSettingsSchema } from '../../../utils/techniqueMountSettings';
 import { GUICE_OPTION_KEYS } from '../guiceSchools';
@@ -29,9 +29,12 @@ describe('轨策 · 挂载 schema 覆盖全开关（漏登=面板里调不着）
 		INTENTIONALLY_OUT.forEach((k) => expect(names).not.toContain(k));
 	});
 
-	test('🔴 schema 不得登记开关表里没有的键（凭空多出即漂）', () => {
-		const extra = names.filter((n) => GUICE_OPTION_KEYS.indexOf(n) < 0);
+	test('🔴 schema 不得登记开关表里没有的键（凭空多出即漂；流派预设是开关表之外的那一项,与页面「流派预设」同表）', () => {
+		const extra = names.filter((n) => n !== 'school' && GUICE_OPTION_KEYS.indexOf(n) < 0);
 		expect(extra).toEqual([]);
+		const { GUICE_SCHOOL_OPTIONS } = require('../guiceSchools');
+		const school = (schema.fields || []).find((f) => f.name === 'school');
+		expect(school.options.map((o) => o.value)).toEqual([...GUICE_SCHOOL_OPTIONS.map((o) => o.value), 'custom']);
 	});
 
 	test('🔴 每项之 default 须与引擎之默认逐字相同（两处各写一份必漂）', () => {

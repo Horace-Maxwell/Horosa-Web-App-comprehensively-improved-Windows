@@ -1,4 +1,5 @@
 import moment from 'moment';
+import { birthMomentOfChart, civilDateOfMoment } from './civilMoment';
 import * as AstroConst from '../constants/AstroConst';
 import * as AstroText from '../constants/AstroText';
 // [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明;astroAiSnapshot 不回引本文件,无环)。
@@ -18,8 +19,6 @@ const methodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 
 //  ⑤ 始终用 Hellenistic 年（默认 360 日 / 30 日月），可切 solar(365.2422 日)。
 //  距离口径 d 有 nearest（最近角距）/ forward（自擢升度顺黄道到本命星）两解 → 做成参数。
 //  独立引擎，不碰 decennials.js / yearsystem129.js。
-
-export const BALBILLUS_TOTAL = 129;
 
 // 七星 Balbillus 小年（年）。Σ = 129。
 export const BALBILLUS_YEARS = {
@@ -72,12 +71,9 @@ export const BALBILLUS_DEFAULT_OPTS = {
 
 function norm360(v){ let n = Number(v) % 360; if(n < 0){ n += 360; } return n; }
 
+// 出生时刻单源(全年份域:公元前 / 公元 1–99 年 / 五位年不误读;见 utils/civilMoment)
 function parseBirthMoment(chartObj){
-	const p = (chartObj && chartObj.params) ? chartObj.params : {};
-	const birth = `${p.birth || ''}`.trim();
-	if(!birth){ return null; }
-	const m = moment(birth.replace(/\//g, '-'), ['YYYY-MM-DD HH:mm:ss', 'YYYY-MM-DD HH:mm', 'YYYY-MM-DD']);
-	return m.isValid() ? m : null;
+	return birthMomentOfChart(chartObj);
 }
 
 function natalLon(chartObj, id){
@@ -153,7 +149,7 @@ export function buildBalbillusContext(chartObj, opts){
 
 function dateOf(ctx, days){
 	if(ctx.birthMs === null || ctx.birthMs === undefined){ return ''; }
-	return moment(ctx.birthMs).add(days, 'days').format('YYYY-MM-DD');
+	return civilDateOfMoment(moment(ctx.birthMs).add(days, 'days'));   // 民用历日期标签(1582 以前儒略历)
 }
 
 function makeNode(ctx, planet, level, startDays, durDays){

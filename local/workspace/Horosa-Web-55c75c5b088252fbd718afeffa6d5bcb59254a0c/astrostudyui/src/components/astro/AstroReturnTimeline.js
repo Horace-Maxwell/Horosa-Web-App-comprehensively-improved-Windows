@@ -2,22 +2,20 @@ import { Component } from 'react';
 import { Spin } from 'antd';
 import { XQButton as Button } from '../xq-ui';
 import request from '../../utils/request';
+import DateTime from '../comp/DateTime';
 import * as Constants from '../../utils/constants';
-import { unwrapResult, fmtDegree, chartParams, chartRequestKey, cardStyle, SmallTable } from './AstroExtraCommon';
+import { unwrapResult, fmtDegree, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
 import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 
-// [Q-106/T-10] 回归轴页上线为 AI 技法键 returntimeline:无头快照 builder(与页面同一 /astroextra/returns 请求)。
+// 回归轴页上线为 AI 技法键 returntimeline:无头快照 builder(与页面同一 /astroextra/returns 请求)。
 const rtBirthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
 const rtCurrentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
 const rtMethodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
-function rtDeg(v){
-	if(!v){ return '-'; }
-	try{ return fmtDegree(v); }catch(e){ return '-'; }
-}
 // opts:{ startYear, count }(缺=页面缺省:今年起 12 年)。无行返回 ''。
 export async function buildReturnTimelineSnapshotText(chartObj, opts){
 	if(!chartObj){ return ''; }
-	const o = { startYear: new Date().getFullYear(), count: 12, ...(opts || {}) };
+	const o = { startYear: DateTime.wallClockForChart(chartObj.params ? chartObj.params.zone : '').getFullYear(), count: 12, ...(opts || {}) };   // 「今年」按本盘时区
 	let rows = [];
 	try{
 		const data = await request(`${Constants.ServerRoot}/astroextra/returns`, {
@@ -37,7 +35,7 @@ export async function buildReturnTimelineSnapshotText(chartObj, opts){
 	rows.forEach((row)=>{
 		const sr = row.solarReturn && row.solarReturn.datetime ? row.solarReturn.datetime : '-';
 		const lr = row.lunarReturn && row.lunarReturn.datetime ? row.lunarReturn.datetime : '-';
-		lines.push(`| ${row.year} | ${sr} | ${lr} | ${rtDeg(row.solarAsc)} | ${rtDeg(row.lunarAsc)} |`);
+		lines.push(`| ${row.year} | ${sr} | ${lr} | ${fmtDegree(row.solarAsc)} | ${fmtDegree(row.lunarAsc)} |`);
 	});
 	const tail = [...rtCurrentMomentLines(chartObj, []), ...rtMethodNoteLines('returntimeline')];
 	if(tail.length){ lines.push(''); lines.push(...tail); }
@@ -48,7 +46,7 @@ import { markPanelReady } from '../../utils/perfMark';
 class AstroReturnTimeline extends Component{
 	constructor(props){
 		super(props);
-		const now = new Date();
+		const now = DateTime.wallClockForChart(props.value && props.value.params ? props.value.params.zone : '');   // 「今年」按本盘时区
 		this.state = {
 			startYear: now.getFullYear(),
 			count: 12,
@@ -59,7 +57,7 @@ class AstroReturnTimeline extends Component{
 		this.load = this.load.bind(this);
 	}
 
-	// [Q-106/T-10] AI 导出:回归轴 tab 导出时按页面当前起始年/年数构建快照写回 detail.snapshotText。
+	// AI 导出:回归轴 tab 导出时按页面当前起始年/年数构建快照写回 detail.snapshotText。
 	handleSnapshotRefreshRequest(evt){
 		if(!evt || !evt.detail || evt.detail.module !== 'returntimeline' || !this.props.value){ return; }
 		buildReturnTimelineSnapshotText(this.props.value, { startYear: Number(this.state.startYear) || new Date().getFullYear(), count: Number(this.state.count) || 12 })
@@ -80,19 +78,21 @@ class AstroReturnTimeline extends Component{
 
 	componentDidUpdate(prevProps){
 		const key = chartRequestKey(this.props.value, `returns|${this.state.startYear}|${this.state.count}`);
-		if(key && key !== this.state.requestKey && !this.state.loading){
+		if(key && key !== this.state.requestKey && !this.state.loading && !loadParked(this, key)){
 			this.load();
 		}
 	}
 
 	ensureLoaded(){
 		const key = chartRequestKey(this.props.value, `returns|${this.state.startYear}|${this.state.count}`);
-		if(key && key !== this.state.requestKey && !this.state.loading){
+		if(key && key !== this.state.requestKey && !this.state.loading && !loadParked(this, key)){
 			setTimeout(this.load, 0);
 		}
 	}
 
 	async load(){
+		const seq = ++this._loadSeq || (this._loadSeq = 1);   // 只认最后一次:换盘 / 改参连发时先发的晚回不覆盖
+		const resultSig = natalSourceKey(this.props.value);   // 本次结果出自哪位命主(读时与当前盘比)
 		if(!this.props.value){
 			return;
 		}
@@ -107,18 +107,25 @@ class AstroReturnTimeline extends Component{
 				}),
 				timeoutMs: 45000,
 			});
-			if(!this._mounted) return;
+			if(!this._mounted || seq !== this._loadSeq) return;
+			clearLoadFailure(this);
 			// horosa_panel_ready_v1:回归轴表(本技法唯一可见内容)落定的那一次 setState。
-			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key}, ()=>{ markPanelReady('direction'); });
+			this.setState({result: unwrapResult(data) || {}, resultSig, loading: false, requestKey: key}, ()=>{ markPanelReady('direction'); });
 		}catch(e){
-			if(!this._mounted) return;
-			this.setState({loading: false, requestKey: key});
+			if(!this._mounted || seq !== this._loadSeq) return;
+			parkLoadFailure(this, key);   // 失败不记成已完成:窗口期后同一张盘自动重试
+			this.setState({loading: false});
 		}
+	}
+
+	// 出自当前命主的结果才用:换盘后新结果在途 / 取失败时 state 里是上一位命主的 → 当没有(同一命主只改设置仍旧表留存)
+	shownResult(){
+		return pickKeyedDerived(this.state.result, this.state.resultSig, natalSourceKey(this.props.value));
 	}
 
 	render(){
 		this.ensureLoaded();
-		const rows = this.state.result && this.state.result.rows ? this.state.result.rows : [];
+		const rows = this.shownResult() && this.shownResult().rows ? this.shownResult().rows : [];
 		return (
 			<Spin spinning={this.state.loading}>
 				<div style={{height: this.props.height || 700, overflow: 'auto', paddingRight: 8}}>
@@ -135,8 +142,8 @@ class AstroReturnTimeline extends Component{
 								{key: 'year', title: '年份'},
 								{key: 'solarReturn', title: '太阳返照', render: (v)=>v && v.datetime ? v.datetime : '-'},
 								{key: 'lunarReturn', title: '首个月亮返照', render: (v)=>v && v.datetime ? v.datetime : '-'},
-								{key: 'solarAsc', title: '太阳返照上升', render: (v)=>v ? fmtDegree(v) : '-'},
-								{key: 'lunarAsc', title: '月亮返照上升', render: (v)=>v ? fmtDegree(v) : '-'},
+								{key: 'solarAsc', title: '太阳返照上升', render: (v)=>fmtDegree(v)},
+								{key: 'lunarAsc', title: '月亮返照上升', render: (v)=>fmtDegree(v)},
 							]}
 						/>
 					</div>

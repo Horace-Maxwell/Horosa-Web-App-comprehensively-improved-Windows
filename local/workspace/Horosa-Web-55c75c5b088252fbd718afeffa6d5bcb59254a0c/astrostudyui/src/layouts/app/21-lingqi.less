@@ -1,0 +1,537 @@
+// 全站样式 · 灵棋经。
+// 由 layouts/app.less 按原顺序 @import(顺序即层叠次序);新规则要包在本文件的 :global { } 里。
+
+// ═══════════════ 灵棋经(lingqi)· 十二棋盘面与卦辞判读 ═══════════════
+// 三栏骨架复用 huangji-redesign 族(零新栅格);此段=中栏棋盘美术 + 左右栏精修。
+// 字体走全站系统栈(不引楷体);亮暗双主题;棋子=单面条件渲染(React 按 up/覆 渲染对应面)。
+:global {
+.horosa-lingqi-page { min-width: 0; }
+
+// ── 中栏棋枰 ──
+.horosa-lingqi-board {
+	display: flex;
+	flex-direction: column;
+	gap: 18px;
+	height: 100%;
+	min-height: 0;
+	padding: 18px 22px;
+	border-radius: 12px;
+	border: 1px solid rgba(216, 173, 99, 0.28);
+	background:
+		radial-gradient(120% 90% at 50% 0%, rgba(216, 173, 99, 0.07), transparent 55%),
+		linear-gradient(180deg, rgba(19, 34, 48, 0.92), rgba(9, 18, 28, 0.96));
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 0 42px rgba(0, 0, 0, 0.35), 0 6px 18px rgba(0, 0, 0, 0.25);
+	overflow-y: auto;
+}
+/* 未起卦:次级字色 + 虚线框表达「待起」;不再整颗 .6 透明(金字乘透明后 2.1:1)。
+   选择器比通用徽标(.horosa-workspace-shell .horosa-huangji-redesign .horosa-cnx-board-badge,3 个类)严格高一级。 */
+.horosa-workspace-shell .horosa-lingqi-board .horosa-cnx-board-badge.is-idle { color: var(--horosa-huangji-muted, var(--horosa-muted)); border-style: dashed; }
+
+.horosa-lingqi-layers {
+	display: flex;
+	flex-direction: column;
+	gap: 18px;
+	justify-content: center;
+	/* 放得下时吃满余高、三层纵向居中(一字不变);放不下时按内容长高、由棋枰(overflow-y:auto)滚 ——
+	   此前 flex:1 + min-height:0 把三层压在余高里,居中把溢出推到上下两头,与盘头说明、底部提示叠在一起 */
+	flex: 1 0 auto;
+	max-width: 640px;
+	width: 100%;
+	margin: 0 auto;
+}
+.horosa-lingqi-layer {
+	display: flex;
+	align-items: center;
+	gap: 20px;
+	padding: 16px 22px;
+	border-radius: 12px;
+	border: 1px solid rgba(216, 173, 99, 0.14);
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 70%);
+}
+.horosa-lingqi-layer-label {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 3px;
+	min-width: 66px;
+	b {
+		font-size: 24px;
+		font-weight: 700;
+		line-height: 1.15;
+		letter-spacing: 2px;
+		color: var(--horosa-gold, #d8ad63);
+	}
+	em {
+		font-style: normal;
+		font-size: 11px;
+		letter-spacing: 1.5px;
+		color: var(--horosa-huangji-muted, var(--horosa-text-secondary));
+	}
+	span {
+		font-size: 11px;
+		color: rgba(239, 228, 210, 0.75);
+		border: 1px solid rgba(216, 173, 99, 0.22);
+		border-radius: 8px;
+		padding: 0 8px;
+		line-height: 17px;
+	}
+}
+.horosa-lingqi-chips {
+	display: flex;
+	gap: 20px;
+	flex: 1;
+	justify-content: center;
+	min-width: 0;   // flex item 默认 min-width:auto 拒绝收缩 → 窄栏下棋子行溢出裁切(1080 实测)
+}
+.horosa-lingqi-layer-label { flex: none; }
+
+// ── 棋子(基准 72px;flex 弹性收缩保圆 + 窄档降级,窄中栏绝不溢出裁切)──
+.horosa-lingqi-chip {
+	flex: 0 1 72px;
+	width: 72px;
+	min-width: 44px;
+	height: auto;
+	aspect-ratio: 1 / 1;
+	padding: 0;
+	border: none;
+	background: none;
+	cursor: default;
+	&.is-clickable { cursor: pointer; }
+	&:disabled { cursor: default; }
+}
+.horosa-lingqi-chip-inner {
+	position: relative;
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+.horosa-lingqi-chip-face {
+	position: absolute;
+	inset: 0;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.horosa-lingqi-chip-face.is-front {
+	font-size: 29px;
+	font-weight: 700;
+	color: #f2cf91;
+	text-shadow: 0 1px 1px rgba(0, 0, 0, 0.55), 0 0 8px rgba(216, 173, 99, 0.35);
+	background:
+		radial-gradient(circle at 34% 30%, rgba(255, 244, 214, 0.28), transparent 42%),
+		radial-gradient(circle at 50% 55%, #3a4a52, #1d2b34 68%, #12202a);
+	border: 2px solid rgba(230, 196, 128, 0.6);
+	box-shadow: inset 0 3px 6px rgba(255, 255, 255, 0.12), inset 0 -4px 9px rgba(0, 0, 0, 0.45), 0 4px 9px rgba(0, 0, 0, 0.4);
+}
+.horosa-lingqi-chip-face.is-back {
+	background:
+		repeating-conic-gradient(rgba(255, 255, 255, 0.015) 0 6deg, transparent 6deg 12deg),
+		radial-gradient(circle at 42% 36%, rgba(255, 255, 255, 0.05), transparent 46%),
+		radial-gradient(circle at 50% 55%, #232e34, #141d23 70%, #0d151b);
+	border: 2px solid rgba(120, 132, 140, 0.45);
+	box-shadow: inset 0 3px 5px rgba(255, 255, 255, 0.05), inset 0 -4px 8px rgba(0, 0, 0, 0.5), 0 4px 9px rgba(0, 0, 0, 0.4);
+}
+.horosa-lingqi-chip.is-clickable:hover .horosa-lingqi-chip-face.is-front { box-shadow: inset 0 3px 6px rgba(255, 255, 255, 0.12), inset 0 -4px 9px rgba(0, 0, 0, 0.45), 0 0 0 2px rgba(216, 173, 99, 0.45), 0 4px 11px rgba(0, 0, 0, 0.45); }
+.horosa-lingqi-chip.is-clickable:hover .horosa-lingqi-chip-face.is-back { box-shadow: inset 0 3px 5px rgba(255, 255, 255, 0.05), inset 0 -4px 8px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(216, 173, 99, 0.35), 0 4px 11px rgba(0, 0, 0, 0.45); }
+// 空态幽灵棋(未起卦;与纯阴镘的实体覆面严格区分):虚线空环 + 极淡底
+.horosa-lingqi-chip.is-ghost .horosa-lingqi-chip-inner { opacity: 0.65; }
+.horosa-lingqi-chip.is-ghost .horosa-lingqi-chip-face.is-front {
+	color: rgba(216, 173, 99, 0.28);
+	text-shadow: none;
+	background: radial-gradient(circle at 50% 50%, rgba(216, 173, 99, 0.06), transparent 70%);
+	border: 2px dashed rgba(216, 173, 99, 0.55);
+	box-shadow: none;
+}
+// 掷棋动画:抛起翻滚落定;reduced-motion 直落
+@keyframes horosa-lingqi-toss {
+	0% { transform: translateY(0) rotateX(0deg) scale(1); }
+	32% { transform: translateY(-34px) rotateX(380deg) scale(1.06); }
+	62% { transform: translateY(6px) rotateX(648deg) scale(1); }
+	82% { transform: translateY(-5px) rotateX(700deg) scale(1); }
+	100% { transform: translateY(0) rotateX(720deg) scale(1); }
+}
+.horosa-lingqi-chip.is-tossing .horosa-lingqi-chip-inner { animation: horosa-lingqi-toss 1.05s cubic-bezier(0.34, 0.55, 0.3, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+	.horosa-lingqi-chip.is-tossing .horosa-lingqi-chip-inner { animation: none; }
+}
+
+// ── 卦名带 ──
+.horosa-lingqi-result-band {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 7px;
+	padding: 16px 16px 13px;
+	border-radius: 12px;
+	border: 1px solid rgba(216, 173, 99, 0.3);
+	background: linear-gradient(180deg, rgba(216, 173, 99, 0.09), rgba(216, 173, 99, 0.02));
+}
+.horosa-lingqi-result-main {
+	display: flex;
+	align-items: baseline;
+	gap: 12px;
+}
+.horosa-lingqi-result-ordinal { font-size: 13px; color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); letter-spacing: 2px; }
+.horosa-lingqi-result-name {
+	font-size: 28px;
+	font-weight: 700;
+	color: var(--horosa-gold, #d8ad63);
+	text-shadow: 0 0 14px rgba(216, 173, 99, 0.25);
+	letter-spacing: 4px;
+}
+.horosa-lingqi-result-xiang { font-size: 15px; color: rgba(239, 228, 210, 0.85); letter-spacing: 1px; }
+.horosa-lingqi-result-sub {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	justify-content: center;
+	font-size: 12.5px;
+	color: var(--horosa-huangji-muted, var(--horosa-text-secondary));
+	letter-spacing: 1px;
+}
+.horosa-lingqi-origin-tag { margin: 0; font-size: 11px; line-height: 16px; color: #8fc48f; background: rgba(127, 176, 127, 0.1); border-color: rgba(127, 176, 127, 0.4); }
+.horosa-lingqi-wu-tag { margin: 0; font-size: 11px; line-height: 16px; color: #ecb2a0; background: rgba(236, 100, 78, 0.1); border-color: rgba(236, 100, 78, 0.4); }
+.horosa-lingqi-empty-hint {
+	text-align: center;
+	font-size: 13px;
+	line-height: 1.8;
+	color: var(--horosa-huangji-muted, var(--horosa-text-secondary));
+	padding: 4px 0 0; /* 底衬 10px 在 1.8 档让空态板多出 5px 发丝滚动条(板 overflow-y:auto);空态提示不需要底衬 */
+}
+.horosa-lingqi-wu-inline { margin-top: 4px; font-size: 11.5px; color: #ecb2a0; }
+
+// ── 左栏 ──
+// 时地节:去节头裸卡(标签已逐项自带),补上节卡内边距
+.horosa-lingqi-timegeo { padding: 10px 12px 7px; }
+.horosa-lingqi-actions { display: flex; flex-direction: column; gap: 7px; margin: 6px 0 4px; }
+.horosa-lingqi-page .horosa-lingqi-cast-btn.ant-btn {
+	height: 38px;
+	font-size: 14px;
+	font-weight: 600;
+	letter-spacing: 4px;
+	border-radius: 9px;
+	border: none;
+	background: linear-gradient(180deg, var(--horosa-accent, #e7bd75), var(--horosa-accent-strong, #f2cf91));
+	color: var(--horosa-on-accent, #071015);
+	box-shadow: 0 2px 10px rgba(216, 173, 99, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+	&:hover:not(:disabled) { filter: brightness(1.06); box-shadow: 0 3px 14px rgba(216, 173, 99, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+	&:disabled { opacity: 0.45; filter: saturate(0.4); }
+}
+.horosa-lingqi-actions-row { display: flex; gap: 7px; }
+.horosa-lingqi-actions-row .ant-btn { flex: 1; border-radius: 8px; }
+.horosa-lingqi-seed-hint {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	padding: 5px 9px;
+	margin-bottom: 4px;
+	border-radius: 8px;
+	border: 1px dashed rgba(216, 173, 99, 0.3);
+	background: rgba(216, 173, 99, 0.05);
+	i {
+		font-style: normal;
+		font-size: 10.5px;
+		letter-spacing: 1px;
+		color: var(--horosa-huangji-muted, var(--horosa-text-secondary));
+		flex: none;
+	}
+	code {
+		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-size: 11px;
+		color: var(--horosa-gold, #d8ad63);
+		word-break: break-all;
+		line-height: 1.5;
+	}
+}
+// 注家显示:3 列 chip 式勾选
+.horosa-lingqi-zhu-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 6px;
+	.ant-checkbox-wrapper {
+		margin: 0;
+		padding: 4px 8px;
+		border: 1px solid var(--horosa-border, rgba(216, 173, 99, 0.2));
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.02);
+		font-size: 12px;
+		white-space: nowrap;
+		transition: border-color 0.18s, background 0.18s;
+		&:hover { border-color: rgba(216, 173, 99, 0.45); }
+	}
+	.ant-checkbox-wrapper-checked {
+		border-color: rgba(216, 173, 99, 0.55);
+		background: rgba(216, 173, 99, 0.1);
+	}
+	.ant-checkbox + span { padding-left: 5px; padding-right: 0; }
+}
+
+// ── 右栏卦辞卡 ──
+.horosa-lingqi-aux .horosa-lingqi-vcard .horosa-cnx-body p { margin: 0 0 6px; line-height: 1.85; }
+// 本卦卡
+.horosa-lingqi-ov-head {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin-bottom: 8px;
+}
+.horosa-lingqi-ov-ord {
+	font-size: 11px;
+	letter-spacing: 1px;
+	color: var(--horosa-huangji-muted, var(--horosa-text-secondary));
+	border: 1px solid rgba(216, 173, 99, 0.3);
+	border-radius: 8px;
+	padding: 0 7px;
+	line-height: 17px;
+	align-self: center;
+}
+.horosa-lingqi-ov-name {
+	font-size: 21px;
+	font-weight: 700;
+	letter-spacing: 2px;
+	color: var(--horosa-gold, #d8ad63);
+}
+.horosa-lingqi-ov-xiang {
+	font-size: 11.5px;
+	color: rgba(239, 228, 210, 0.85);
+	background: rgba(216, 173, 99, 0.12);
+	border: 1px solid rgba(216, 173, 99, 0.28);
+	border-radius: 9px;
+	padding: 0 8px;
+	line-height: 18px;
+	align-self: center;
+}
+.horosa-lingqi-ov-line {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	font-size: 12.5px;
+	line-height: 1.9;
+	color: rgba(239, 228, 210, 0.85);
+	em {
+		font-style: normal;
+		font-size: 10.5px;
+		letter-spacing: 1px;
+		color: var(--horosa-huangji-muted, var(--horosa-text-secondary));
+		flex: none;
+	}
+}
+.horosa-lingqi-ov-note { margin-top: 6px; font-size: 11.5px; color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
+// 三才结构
+.horosa-lingqi-sancai-row {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	padding: 6px 0;
+	border-bottom: 1px dashed rgba(216, 173, 99, 0.14);
+	.horosa-lingqi-sancai-role { font-size: 11px; color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); width: 46px; }
+	.horosa-lingqi-sancai-val { font-size: 12.5px; color: rgba(239, 228, 210, 0.88); flex: 1; }
+}
+.horosa-lingqi-sancai-pos {
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 13.5px;
+	font-weight: 700;
+	color: var(--horosa-gold, #d8ad63);
+	border: 1px solid rgba(216, 173, 99, 0.35);
+	border-radius: 6px;
+	background: rgba(216, 173, 99, 0.08);
+	flex: none;
+}
+.horosa-lingqi-sancai-xing {
+	font-size: 11px;
+	padding: 0 9px;
+	line-height: 18px;
+	border-radius: 9px;
+	border: 1px solid rgba(216, 173, 99, 0.25);
+	color: rgba(239, 228, 210, 0.8);
+	&.is-x1, &.is-x3 { color: #f2cf91; border-color: rgba(242, 207, 145, 0.5); background: rgba(216, 173, 99, 0.12); }
+	&.is-x2, &.is-x4 { color: #9fbfd8; border-color: rgba(129, 168, 199, 0.45); background: rgba(91, 140, 196, 0.1); }
+	&.is-x0 { color: var(--horosa-text-secondary); }
+}
+.horosa-lingqi-rel {
+	margin-top: 7px;
+	font-size: 12px;
+	line-height: 1.7;
+	padding: 4px 9px;
+	border-radius: 7px;
+	&.is-ou { color: #8fc48f; background: rgba(127, 176, 127, 0.08); border: 1px solid rgba(127, 176, 127, 0.2); }
+	&.is-di { color: #ecb2a0; background: rgba(236, 100, 78, 0.08); border: 1px solid rgba(236, 100, 78, 0.2); }
+	b { margin: 0 2px; }
+}
+.horosa-lingqi-yy {
+	margin-top: 8px;
+	font-size: 12px;
+	color: rgba(239, 228, 210, 0.7);
+	em { font-style: normal; margin-left: 8px; color: var(--horosa-gold, #d8ad63); }
+}
+.horosa-lingqi-timelines { font-size: 12px; line-height: 1.95; color: rgba(239, 228, 210, 0.8); }
+// 繇辞与诗
+.horosa-lingqi-yao-text {
+	font-size: 14.5px;
+	line-height: 2.05;
+	color: rgba(239, 228, 210, 0.95);
+	letter-spacing: 0.8px;
+	padding-left: 11px;
+	border-left: 3px solid rgba(216, 173, 99, 0.45);
+}
+.horosa-lingqi-verse {
+	font-size: 13.5px;
+	line-height: 2.1;
+	text-align: center;
+	color: rgba(239, 228, 210, 0.92);
+	letter-spacing: 1.5px;
+	padding: 4px 0 2px;
+}
+.horosa-lingqi-missing { color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); font-style: normal; }
+.horosa-lingqi-mark {
+	background: rgba(216, 173, 99, 0.22);
+	color: #f2cf91;
+	padding: 0 1px;
+	border-radius: 2px;
+}
+// 注家卡头:单字圆徽 + 朝代
+.horosa-lingqi-zhu-avatar {
+	width: 26px;
+	height: 26px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 13px;
+	font-weight: 700;
+	color: #071015;
+	border-radius: 50%;
+	background: linear-gradient(180deg, var(--horosa-accent, #e7bd75), var(--horosa-accent-strong, #f2cf91));
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 1px 4px rgba(0, 0, 0, 0.25);
+	flex: none;
+}
+.horosa-lingqi-zhu-era {
+	margin-left: auto;
+	font-size: 11px;
+	color: var(--horosa-huangji-muted, var(--horosa-text-secondary));
+	letter-spacing: 0.5px;
+}
+// 仪轨
+.horosa-lingqi-rite-item { margin-bottom: 9px; padding-left: 10px; border-left: 2px solid rgba(216, 173, 99, 0.3); }
+.horosa-lingqi-rite-item b { display: block; font-size: 12.5px; color: var(--horosa-gold, #d8ad63); margin-bottom: 2px; letter-spacing: 1px; }
+.horosa-lingqi-rite-item p { margin: 0; font-size: 12.5px; line-height: 1.9; }
+.horosa-lingqi-rite-item em { font-style: normal; margin-left: 4px; color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
+.horosa-lingqi-rite-zhu { margin-top: 6px; font-size: 12px; line-height: 1.85; color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
+
+// ── 窄窗降档(三栏 clamp 压缩时中栏 ~440-560px;棋子/字号/间距成组降,不裁切)──
+@media (max-width: 1500px) {
+	.horosa-lingqi-chips { gap: 14px; }
+	.horosa-lingqi-chip-face.is-front { font-size: 25px; }
+	.horosa-lingqi-layers { gap: 14px; }
+}
+@media (max-width: 1300px) {
+	.horosa-lingqi-layer { gap: 12px; padding: 12px 14px; }
+	.horosa-lingqi-chips { gap: 10px; }
+	.horosa-lingqi-chip-face.is-front { font-size: 21px; }
+	.horosa-lingqi-layer-label { min-width: 52px; }
+	.horosa-lingqi-layer-label b { font-size: 20px; }
+	.horosa-lingqi-result-name { font-size: 24px; letter-spacing: 3px; }
+	.horosa-lingqi-board { padding: 14px 16px; }
+	.horosa-lingqi-page .horosa-lingqi-cast-btn.ant-btn { letter-spacing: 2px; }
+}
+
+// ── 窄盘(盘组件直接量盘宽 < 480px 挂 data-board-narrow;放大档的中栏走这里 —— 上面两条媒体查询按物理窗口宽,缩放档里不触发)──
+.horosa-lingqi-board[data-board-narrow] {
+	padding: 12px 10px;
+	.horosa-lingqi-layers { gap: 10px; }
+	.horosa-lingqi-layer { gap: 8px; padding: 10px 10px; }
+	.horosa-lingqi-chips { gap: 6px; }
+	.horosa-lingqi-chip { min-width: 34px; }
+	.horosa-lingqi-chip-face.is-front { font-size: 19px; }
+	.horosa-lingqi-layer-label { min-width: 40px; }
+	.horosa-lingqi-layer-label b { font-size: 19px; }
+	.horosa-lingqi-result-name { font-size: 22px; letter-spacing: 2px; }
+}
+
+// ── 亮色主题 ──
+:root[data-horosa-appearance='light'] {
+	.horosa-lingqi-board {
+		border-color: rgba(154, 106, 37, 0.3);
+		background:
+			radial-gradient(120% 90% at 50% 0%, rgba(154, 106, 37, 0.05), transparent 55%),
+			linear-gradient(180deg, #f7f2e7, #efe7d6);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 0 34px rgba(154, 106, 37, 0.07), 0 4px 14px rgba(20, 30, 50, 0.08);
+	}
+	.horosa-lingqi-layer { border-color: rgba(154, 106, 37, 0.16); background: rgba(255, 255, 255, 0.35); }
+	.horosa-lingqi-layer-label {
+		b { color: var(--horosa-gold, #9a6a25); }
+		em { color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
+		span { color: rgba(74, 63, 48, 0.8); border-color: rgba(154, 106, 37, 0.28); }
+	}
+	.horosa-lingqi-chip-face.is-front {
+		color: #7a541c;
+		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+		background:
+			radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.85), transparent 46%),
+			radial-gradient(circle at 50% 55%, #f6efdd, #e8dab9 70%, #d5c197);
+		border-color: rgba(154, 106, 37, 0.55);
+		box-shadow: inset 0 3px 5px rgba(255, 255, 255, 0.8), inset 0 -4px 8px rgba(154, 106, 37, 0.22), 0 4px 9px rgba(20, 30, 50, 0.14);
+	}
+	.horosa-lingqi-chip-face.is-back {
+		background:
+			repeating-conic-gradient(rgba(0, 0, 0, 0.012) 0 6deg, transparent 6deg 12deg),
+			radial-gradient(circle at 42% 36%, rgba(255, 255, 255, 0.5), transparent 46%),
+			radial-gradient(circle at 50% 55%, #cbc4b4, #b3ab98 70%, #9c937e);
+		border-color: rgba(110, 100, 82, 0.5);
+		box-shadow: inset 0 3px 5px rgba(255, 255, 255, 0.5), inset 0 -4px 8px rgba(74, 63, 48, 0.25), 0 4px 9px rgba(20, 30, 50, 0.14);
+	}
+	.horosa-lingqi-chip.is-ghost .horosa-lingqi-chip-face.is-front { border-color: rgba(154, 106, 37, 0.55); background: radial-gradient(circle at 50% 50%, rgba(154, 106, 37, 0.06), transparent 70%); box-shadow: none; color: rgba(154, 106, 37, 0.3); }
+	.horosa-lingqi-result-band { border-color: rgba(154, 106, 37, 0.3); background: linear-gradient(180deg, rgba(154, 106, 37, 0.07), rgba(154, 106, 37, 0.015)); }
+	.horosa-lingqi-result-ordinal { color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
+	.horosa-lingqi-result-xiang { color: rgba(42, 47, 58, 0.85); }
+	.horosa-lingqi-result-sub { color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
+	.horosa-lingqi-empty-hint { color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
+	.horosa-lingqi-wu-inline { color: #b5493a; }
+	.horosa-lingqi-wu-tag { color: #b5493a; background: rgba(191, 60, 54, 0.07); border-color: rgba(191, 60, 54, 0.35); }
+	.horosa-lingqi-origin-tag { color: #4a7d4a; background: rgba(61, 143, 116, 0.08); border-color: rgba(61, 143, 116, 0.35); }
+	.horosa-lingqi-page .horosa-lingqi-cast-btn.ant-btn {
+		background: linear-gradient(180deg, #b98432, #9a6a25);
+		color: #fff;
+		box-shadow: 0 2px 10px rgba(154, 106, 37, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+	}
+	.horosa-lingqi-seed-hint {
+		border-color: rgba(154, 106, 37, 0.3);
+		background: rgba(154, 106, 37, 0.05);
+		i { color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
+		code { color: #7a541c; }
+	}
+	.horosa-lingqi-zhu-grid {
+		.ant-checkbox-wrapper { background: rgba(255, 255, 255, 0.5); }
+		.ant-checkbox-wrapper-checked { background: rgba(154, 106, 37, 0.09); }
+	}
+	.horosa-lingqi-ov-ord { color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); border-color: rgba(154, 106, 37, 0.32); }
+	.horosa-lingqi-ov-xiang { color: rgba(74, 63, 48, 0.9); background: rgba(154, 106, 37, 0.09); border-color: rgba(154, 106, 37, 0.3); }
+	.horosa-lingqi-ov-line { color: rgba(42, 47, 58, 0.88); }
+	.horosa-lingqi-ov-line em { color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
+	.horosa-lingqi-ov-note { color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
+	.horosa-lingqi-sancai-row .horosa-lingqi-sancai-role { color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
+	.horosa-lingqi-sancai-row .horosa-lingqi-sancai-val { color: rgba(42, 47, 58, 0.88); }
+	.horosa-lingqi-sancai-xing { color: rgba(74, 63, 48, 0.8); }
+	.horosa-lingqi-sancai-xing.is-x1, .horosa-lingqi-sancai-xing.is-x3 { color: #7a541c; }
+	.horosa-lingqi-sancai-xing.is-x2, .horosa-lingqi-sancai-xing.is-x4 { color: #3a6ea5; }
+	.horosa-lingqi-rel.is-ou { color: #4a7d4a; }
+	.horosa-lingqi-rel.is-di { color: #b5493a; }
+	.horosa-lingqi-yy { color: rgba(74, 63, 48, 0.75); }
+	.horosa-lingqi-timelines { color: rgba(42, 47, 58, 0.82); }
+	.horosa-lingqi-yao-text { color: rgba(42, 47, 58, 0.95); border-left-color: rgba(154, 106, 37, 0.5); }
+	.horosa-lingqi-verse { color: rgba(42, 47, 58, 0.92); }
+	.horosa-lingqi-missing { color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
+	.horosa-lingqi-mark { background: rgba(154, 106, 37, 0.16); color: #7a541c; }
+	.horosa-lingqi-zhu-avatar { background: linear-gradient(180deg, #b98432, #9a6a25); color: #fff; }
+	.horosa-lingqi-zhu-era { color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
+	.horosa-lingqi-rite-item { border-left-color: rgba(154, 106, 37, 0.35); }
+	.horosa-lingqi-rite-item em { color: var(--horosa-huangji-muted, var(--horosa-text-secondary)); }
+	.horosa-lingqi-rite-zhu { color: rgba(74, 63, 48, 0.7); }
+}
+}

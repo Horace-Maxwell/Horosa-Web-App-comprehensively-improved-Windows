@@ -53,8 +53,10 @@ function scanSourceCodes(){
 	}));
 	return set;
 }
+// 手册按渲染后所见来读:去掉 HTML 注释(注释里的文字渲染时不显示,不算手册内容)
+const renderedDoc = ()=>fs.readFileSync(DOC_PATH, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
 function docSection8Codes(){
-	const md = fs.readFileSync(DOC_PATH, 'utf8');
+	const md = renderedDoc();
 	const start = md.search(/^## 8\./m);
 	expect(start).toBeGreaterThanOrEqual(0);
 	const rest = md.slice(start + 1);

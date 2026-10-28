@@ -1,0 +1,456 @@
+// 全站样式 · 各页定高链与版面修正(八字 / 合盘 / 占星 / 策天 / 三式 / 紫微 / 印占)。
+// 由 layouts/app.less 按原顺序 @import(顺序即层叠次序);新规则要包在本文件的 :global { } 里。
+
+:global {
+    /* 🔴 高度勿用 calc(100vh - 72px):App 壳缩放持久化下 WKWebView 的 vh 与真实视口错位,
+       写死 vh 比可用高 → 整页可滚、贴底件被滚出视口(真机实告)。100% 沿 .horosa-main-spin
+       链传导,顶端锚 = 页面根 JS 实测数值(zoom 稳健)。 */
+    .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active,
+    .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active > .ant-tabs-content-holder,
+    .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+        width: 100%;
+        max-width: 100%;
+        height: 100% !important;
+        max-height: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        overflow: hidden !important;
+        box-sizing: border-box;
+    }
+
+    .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane-active {
+        padding: 0 4px !important;
+    }
+
+    .horosa-workspace-shell :is(
+        .horosa-astro-page,
+        .horosa-bazi-page,
+        .horosa-ziwei-page,
+        .horosa-guolao-page,
+        .horosa-india-chart-main,
+        .horosa-direction-page,
+        .horosa-auxchart-page,
+        .horosa-cnyibu-page,
+        .horosa-cntradition-page,
+        .horosa-calendar-page,
+        .horosa-dice-page,
+        .horosa-sanshi-page,
+        .horosa-liureng-page,
+        .horosa-dunjia-page,
+        .horosa-guazhan-page,
+        .horosa-taiyi-page,
+        .horosa-fengshui-page,
+        .horosa-jieqi-page,
+        .horosa-aux-module-page,
+        .horosa-aianalysis-page,
+        .horosa-3d-page,
+        .horosa-suzhan-page,
+        .horosa-jinkou-page,
+        .horosa-huangji-page
+    ) {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100% !important;
+        max-height: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        overflow: hidden;
+        box-sizing: border-box;
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign {
+        min-width: 0 !important;
+    }
+
+    .horosa-workspace-shell .horosa-relative-page {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-relative-page > .ant-row {
+        flex: 0 0 auto;
+        margin-right: 0 !important;
+        margin-left: 0 !important;
+    }
+
+    .horosa-workspace-shell .horosa-relative-chart-row {
+        flex: 1 1 auto !important;
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-relative-chart-row > .ant-col {
+        height: 100%;
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-relative-tabs,
+    .horosa-workspace-shell .horosa-relative-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-relative-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .horosa-relative-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+        height: 100% !important;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-relative-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane-active {
+        display: flex;
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-relative-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane-active > * {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    /* 命盘设置左栏 / 宫位制与黄道 popover 的 Select 触发框:固定宽度内长名(如 Lahiri ICRC(官定2022))走 ellipsis 而非硬切。
+       配合 inline style maxWidth:160 + dropdownMatchSelectWidth=false → 触发框不变宽,下拉面板自动展全名。 */
+    .horosa-workspace-shell .horosa-field-block .ant-select-selection-item,
+    .horosa-workspace-shell .horosa-settings-form-grid .ant-select-selection-item {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
+    }
+
+    /* [选择框定宽截断·全域] 原仅合盘(.horosa-relative-page)生效 → 推广到所有命盘设置字段块的 Select 触发框:
+       min-width:0 + overflow:hidden 使长名(Lahiri.../Krusinski-Pisa-Goelzer)在固定列宽内走 ellipsis,
+       不再撑破边框、文字溢出。列宽由 .horosa-field-grid 的 minmax(0,1fr) 恒定 50/50。 */
+    .horosa-workspace-shell .horosa-field-block .ant-select,
+    .horosa-workspace-shell .horosa-field-block .ant-select .ant-select-selector {
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    /* 影响盘/马克斯盘内层 chartA/chartB Tabs:让 TabPane 撑满 chart-row 实测高度,
+       根治外层 Tabs 已 1073px 但内层 TabPane 仍只占自身 content 高度的「下半空白」回归。
+       同时让 TabPane 直接子级以 flex 撑满,与外层 horosa-relative-tabs 规则呼应。 */
+    .horosa-workspace-shell .horosa-relative-tabs .ant-tabs .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-relative-tabs .ant-tabs .ant-tabs-content,
+    .horosa-workspace-shell .horosa-relative-tabs .ant-tabs .ant-tabs-tabpane-active {
+        height: 100% !important;
+        min-height: 0;
+    }
+    .horosa-workspace-shell .horosa-relative-tabs .ant-tabs .ant-tabs-tabpane-active {
+        display: flex;
+        flex-direction: column;
+    }
+    .horosa-workspace-shell .horosa-relative-tabs .ant-tabs .ant-tabs-tabpane-active > * {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    /* 合盘 / 分至 右侧子盘 tab：选中态/ink/hover/focus 改主题金色（原为 ant 默认蓝，与全站不统一） */
+    .horosa-workspace-shell .horosa-relative-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn,
+    .horosa-workspace-shell .horosa-jieqi-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn,
+    .horosa-workspace-shell .horosa-relative-tabs .ant-tabs-tab .ant-tabs-tab-btn:focus,
+    .horosa-workspace-shell .horosa-jieqi-tabs .ant-tabs-tab .ant-tabs-tab-btn:focus {
+        color: var(--horosa-gold, #c0883a) !important;
+    }
+    .horosa-workspace-shell .horosa-relative-tabs .ant-tabs-tab:hover .ant-tabs-tab-btn,
+    .horosa-workspace-shell .horosa-jieqi-tabs .ant-tabs-tab:hover .ant-tabs-tab-btn {
+        color: var(--horosa-gold, #c0883a) !important;
+    }
+    .horosa-workspace-shell .horosa-relative-tabs .ant-tabs-ink-bar,
+    .horosa-workspace-shell .horosa-jieqi-tabs .ant-tabs-ink-bar {
+        background: var(--horosa-tab-ink) !important;
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign-layout,
+    .horosa-workspace-shell .horosa-astro-redesign-grid,
+    .horosa-workspace-shell .horosa-ziwei-redesign .horosa-ziwei-redesign-layout,
+    .horosa-workspace-shell .horosa-ziwei-redesign .horosa-ziwei-redesign-grid {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0 !important;
+        min-height: 0;
+        box-sizing: border-box;
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign-grid,
+    .horosa-workspace-shell .horosa-ziwei-redesign .horosa-ziwei-redesign-grid {
+        grid-template-columns: clamp(~"min(260px, 29%)", calc(19 * var(--horosa-lvw, 1vw)), 320px) minmax(0, 1fr) clamp(~"min(320px, 35%)", calc(25 * var(--horosa-lvw, 1vw)), 400px) !important; /* 侧栏下限 min(定值, 栅格自身宽 29% / 35%):整页栅格(放大档栅格宽 ≈ 930,29% / 35% ≥ 定值)一字不变;嵌在别的宿主里(卜 · 其他、辅盘)时栅格比视口窄得多,定值下限会把中栏挤到 200 出头 */
+    }
+
+    .horosa-workspace-shell .horosa-ziwei-redesign .horosa-ziwei-chart-viewport {
+        width: ~"min(calc(74 * var(--horosa-lvh, 1vh)), 100%)";
+        height: ~"min(calc(74 * var(--horosa-lvh, 1vh)), 100%)";
+        max-width: 100%;
+        max-height: 100%;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-tabs,
+    .horosa-workspace-shell .horosa-ziwei-tabs,
+    .horosa-workspace-shell .horosa-guolao-tabs,
+    .horosa-workspace-shell .horosa-india-tabs,
+    .horosa-workspace-shell .horosa-liureng-tabs,
+    .horosa-workspace-shell .horosa-dunjia-tabs,
+    .horosa-workspace-shell .horosa-taiyi-tabs,
+    .horosa-workspace-shell .horosa-suzhan-tabs,
+    .horosa-workspace-shell .horosa-jinkou-tabs,
+    .horosa-workspace-shell .horosa-guazhan-tabs,
+    .horosa-workspace-shell .horosa-sanshi-right-tabs {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-tabs > .ant-tabs-nav,
+    .horosa-workspace-shell .horosa-ziwei-tabs > .ant-tabs-nav,
+    .horosa-workspace-shell .horosa-guolao-tabs > .ant-tabs-nav,
+    .horosa-workspace-shell .horosa-india-tabs > .ant-tabs-nav,
+    .horosa-workspace-shell .horosa-liureng-tabs > .ant-tabs-nav,
+    .horosa-workspace-shell .horosa-dunjia-tabs > .ant-tabs-nav,
+    .horosa-workspace-shell .horosa-taiyi-tabs > .ant-tabs-nav,
+    .horosa-workspace-shell .horosa-suzhan-tabs > .ant-tabs-nav,
+    .horosa-workspace-shell .horosa-jinkou-tabs > .ant-tabs-nav,
+    .horosa-workspace-shell .horosa-guazhan-tabs > .ant-tabs-nav,
+    .horosa-workspace-shell .horosa-sanshi-right-tabs > .ant-tabs-nav {
+        flex: 0 0 auto;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-ziwei-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-guolao-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-india-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-liureng-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-dunjia-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-taiyi-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-suzhan-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-jinkou-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-guazhan-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-sanshi-right-tabs > .ant-tabs-content-holder {
+        flex: 1 1 auto;
+        height: auto !important;
+        min-height: 0;
+        overflow: auto !important;
+        box-sizing: border-box;
+        padding-bottom: var(--horosa-scroll-safe-bottom);
+        scroll-padding-bottom: var(--horosa-scroll-safe-bottom);
+    }
+
+    .horosa-workspace-shell :is(
+        .horosa-astro-context-panel,
+        .horosa-astro-input-panel,
+        .horosa-bazi-input-panel,
+        .horosa-ziwei-input-panel,
+        .horosa-india-input-panel,
+        .horosa-inspector-panel,
+        .horosa-bazi-inspector-panel,
+        .horosa-ziwei-inspector-panel,
+        .horosa-india-info-panel
+    ) {
+        scroll-padding-bottom: var(--horosa-scroll-safe-bottom);
+    }
+
+    .horosa-workspace-shell :is(
+        .horosa-astro-context-panel,
+        .horosa-astro-input-panel,
+        .horosa-bazi-input-panel,
+        .horosa-ziwei-input-panel,
+        .horosa-india-input-panel
+    ) {
+        box-sizing: border-box;
+        overflow: auto;
+        padding-bottom: var(--horosa-scroll-safe-bottom) !important;
+    }
+
+    .horosa-workspace-shell :is(
+        .horosa-bazi-inspector-panel,
+        .horosa-ziwei-inspector-panel,
+        .horosa-guolao-page > .ant-row > .ant-col:last-child,
+        .horosa-liureng-page > .ant-row > .ant-col:last-child,
+        .horosa-guazhan-page > .ant-row > .ant-col:last-child,
+        .horosa-sanshi-page .ant-spin-container > .ant-row > .ant-col:last-child,
+        .horosa-dunjia-page .ant-spin-container > .ant-row > .ant-col:last-child,
+        .horosa-taiyi-page .ant-spin-container > .ant-row > .ant-col:last-child,
+        .horosa-3d-side
+    ) {
+        box-sizing: border-box;
+        padding-bottom: var(--horosa-scroll-safe-bottom) !important;
+        scroll-padding-bottom: var(--horosa-scroll-safe-bottom);
+    }
+
+    .horosa-workspace-shell :is(
+        .horosa-direction-page,
+        .horosa-auxchart-page,
+        .horosa-cnyibu-page,
+        .horosa-cntradition-page,
+        .horosa-calendar-page,
+        .horosa-fengshui-page,
+        .horosa-aianalysis-page,
+        .horosa-aux-module-page
+    ) :is(
+        .ant-tabs-content-holder,
+        [style*="overflow-y: auto"],
+        [style*="overflow: auto"],
+        [class*="scrollbar"]
+    ) {
+        box-sizing: border-box;
+        scroll-padding-bottom: var(--horosa-scroll-safe-bottom);
+    }
+
+    .horosa-workspace-shell :is(
+        .horosa-direction-page,
+        .horosa-auxchart-page,
+        .horosa-cnyibu-page,
+        .horosa-cntradition-page,
+        .horosa-calendar-page,
+        .horosa-fengshui-page,
+        .horosa-aianalysis-page,
+        .horosa-aux-module-page
+    ) :is(
+        [style*="overflow-y: auto"],
+        [style*="overflow: auto"],
+        [class*="scrollbar"]
+    ) {
+        padding-bottom: var(--horosa-scroll-safe-bottom) !important;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .horosa-ziwei-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .horosa-guolao-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .horosa-india-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .horosa-liureng-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .horosa-dunjia-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .horosa-taiyi-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .horosa-suzhan-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .horosa-jinkou-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .horosa-guazhan-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .horosa-sanshi-right-tabs > .ant-tabs-content-holder > .ant-tabs-content {
+        min-height: 100%;
+        overflow: visible !important;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane,
+    .horosa-workspace-shell .horosa-ziwei-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane,
+    .horosa-workspace-shell .horosa-guolao-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane,
+    .horosa-workspace-shell .horosa-india-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane,
+    .horosa-workspace-shell .horosa-liureng-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane,
+    .horosa-workspace-shell .horosa-dunjia-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane,
+    .horosa-workspace-shell .horosa-taiyi-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane,
+    .horosa-workspace-shell .horosa-suzhan-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane,
+    .horosa-workspace-shell .horosa-jinkou-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane,
+    .horosa-workspace-shell .horosa-guazhan-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane,
+    .horosa-workspace-shell .horosa-sanshi-right-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+        overflow: visible !important;
+    }
+
+    /* 印占右栏:tab 内容容器(tabpane)底色 #050607 比四周右栏 #090b0e 暗一档 → 每个 tab 内容区与四周边界跳色。
+       统一为透明(露出右栏 #090b0e),消除边界不一致。仅改背景,不动内容。 */
+    .horosa-workspace-shell .horosa-india-info-panel .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-india-info-panel .ant-tabs-tabpane {
+        background: transparent !important;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card,
+    .horosa-workspace-shell .horosa-ziwei-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card,
+    .horosa-workspace-shell .horosa-guolao-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card,
+    .horosa-workspace-shell .horosa-india-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card,
+    .horosa-workspace-shell .horosa-liureng-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card,
+    .horosa-workspace-shell .horosa-dunjia-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card,
+    .horosa-workspace-shell .horosa-taiyi-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card,
+    .horosa-workspace-shell .horosa-suzhan-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card,
+    .horosa-workspace-shell .horosa-jinkou-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card,
+    .horosa-workspace-shell .horosa-guazhan-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card,
+    .horosa-workspace-shell .horosa-sanshi-right-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card,
+    .horosa-workspace-shell .horosa-bazi-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card > .ant-card-body,
+    .horosa-workspace-shell .horosa-ziwei-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card > .ant-card-body,
+    .horosa-workspace-shell .horosa-guolao-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card > .ant-card-body,
+    .horosa-workspace-shell .horosa-india-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card > .ant-card-body,
+    .horosa-workspace-shell .horosa-liureng-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card > .ant-card-body,
+    .horosa-workspace-shell .horosa-dunjia-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card > .ant-card-body,
+    .horosa-workspace-shell .horosa-taiyi-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card > .ant-card-body,
+    .horosa-workspace-shell .horosa-suzhan-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card > .ant-card-body,
+    .horosa-workspace-shell .horosa-jinkou-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card > .ant-card-body,
+    .horosa-workspace-shell .horosa-guazhan-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card > .ant-card-body,
+    .horosa-workspace-shell .horosa-sanshi-right-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card > .ant-card-body {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    .horosa-workspace-shell .horosa-sanshi-liureng-tabs,
+    .horosa-workspace-shell .horosa-jinkou-nested-tabs {
+        height: auto !important;
+        min-height: 0;
+        overflow: visible !important;
+    }
+
+    .horosa-workspace-shell .horosa-sanshi-liureng-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-jinkou-nested-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-sanshi-liureng-tabs [style*="overflow-y: auto"],
+    .horosa-workspace-shell .horosa-jinkou-nested-tabs [style*="overflow-y: auto"] {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-grid.has-technique-rail {
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)), 29%)", calc(18 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)), 32%)", calc(23 * var(--horosa-lvw, 1vw)), 410px) clamp(86px, calc(6 * var(--horosa-lvw, 1vw)), 110px) !important; /* 中列零底、侧栏下限 min(定值, N·视口宽, 栅格自身宽 29% / 32%):布局宽不够时按比例收窄而不是从右侧裁掉;栅格嵌在别的宿主里(卜 · 其他、辅盘)时视口宽会高估可用宽,由栅格自身宽那一项兜住 */
+    }
+
+    .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-tabs {
+        display: flex;
+        min-height: 0;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-tabs > .ant-tabs-nav {
+        flex: 0 0 auto;
+    }
+
+    .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-tabs > .ant-tabs-nav .ant-tabs-tab {
+        margin: 0 0 0 10px;
+        padding-right: 0;
+        padding-left: 0;
+        font-size: 13px;
+        white-space: nowrap;
+    }
+
+    .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-tabs > .ant-tabs-nav .ant-tabs-tab:first-child {
+        margin-left: 0;
+    }
+
+    .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-tabs > .ant-tabs-nav .ant-tabs-nav-wrap {
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-kinastro-redesign .horosa-kinastro-tabs > .ant-tabs-content-holder {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto !important;
+        padding-bottom: 8px;
+        scroll-padding-bottom: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-bazi-tabs [style*="overflow-y: auto"],
+    .horosa-workspace-shell .horosa-ziwei-tabs [style*="overflow-y: auto"],
+    .horosa-workspace-shell .horosa-guolao-tabs [style*="overflow-y: auto"],
+    .horosa-workspace-shell .horosa-india-tabs [style*="overflow-y: auto"],
+    .horosa-workspace-shell .horosa-liureng-tabs [style*="overflow-y: auto"],
+    .horosa-workspace-shell .horosa-dunjia-tabs [style*="overflow-y: auto"],
+    .horosa-workspace-shell .horosa-taiyi-tabs [style*="overflow-y: auto"],
+    .horosa-workspace-shell .horosa-suzhan-tabs [style*="overflow-y: auto"],
+    .horosa-workspace-shell .horosa-jinkou-tabs [style*="overflow-y: auto"],
+    .horosa-workspace-shell .horosa-guazhan-tabs [style*="overflow-y: auto"],
+    .horosa-workspace-shell .horosa-sanshi-right-tabs [style*="overflow-y: auto"],
+    .horosa-workspace-shell .horosa-bazi-tabs [style*="overflow: auto"],
+    .horosa-workspace-shell .horosa-ziwei-tabs [style*="overflow: auto"],
+    .horosa-workspace-shell .horosa-guolao-tabs [style*="overflow: auto"],
+    .horosa-workspace-shell .horosa-india-tabs [style*="overflow: auto"],
+    .horosa-workspace-shell .horosa-liureng-tabs [style*="overflow: auto"],
+    .horosa-workspace-shell .horosa-dunjia-tabs [style*="overflow: auto"],
+    .horosa-workspace-shell .horosa-taiyi-tabs [style*="overflow: auto"],
+    .horosa-workspace-shell .horosa-suzhan-tabs [style*="overflow: auto"],
+    .horosa-workspace-shell .horosa-jinkou-tabs [style*="overflow: auto"],
+    .horosa-workspace-shell .horosa-guazhan-tabs [style*="overflow: auto"],
+    .horosa-workspace-shell .horosa-sanshi-right-tabs [style*="overflow: auto"] {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+}

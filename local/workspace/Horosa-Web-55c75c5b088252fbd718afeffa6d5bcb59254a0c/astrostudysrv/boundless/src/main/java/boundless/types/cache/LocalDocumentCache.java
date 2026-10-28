@@ -23,6 +23,7 @@ import boundless.types.cache.FilterCond.CondOperator;
 import boundless.types.cache.SortCond.SortType;
 import boundless.utility.ConvertUtility;
 import boundless.utility.JsonUtility;
+import boundless.utility.SecretRedactor;
 import boundless.utility.StringUtility;
 
 public class LocalDocumentCache implements ICache {
@@ -33,13 +34,24 @@ public class LocalDocumentCache implements ICache {
 	private final Path storeFile;
 	private final Map<String, Map<String, Object>> documents = new ConcurrentHashMap<String, Map<String, Object>>();
 	private final Object lock = new Object();
+	/** 落盘前脱敏(装请求记录的缓存开:交易日志等)。只作用于写进文件的副本,内存里的文档与读取路径不变。 */
+	private final boolean redactOnPersist;
 
 	public LocalDocumentCache(String cacheName, String keyField, String valueField, Path storeFile) {
+		this(cacheName, keyField, valueField, storeFile, false);
+	}
+
+	public LocalDocumentCache(String cacheName, String keyField, String valueField, Path storeFile, boolean redactOnPersist) {
 		this.cacheName = StringUtility.isNullOrEmpty(cacheName) ? "localcache" : cacheName;
 		this.keyField = StringUtility.isNullOrEmpty(keyField) ? "_id" : keyField;
 		this.valueField = StringUtility.isNullOrEmpty(valueField) ? "v" : valueField;
 		this.storeFile = storeFile;
+		this.redactOnPersist = redactOnPersist;
 		load();
+	}
+
+	public boolean isRedactOnPersist() {
+		return this.redactOnPersist;
 	}
 
 	@Override
@@ -607,6 +619,7 @@ public class LocalDocumentCache implements ICache {
 				if(!(docsObj instanceof List<?>)) {
 					return;
 				}
+				boolean plaintextOnDisk = false;
 				for(Object item : (List<?>) docsObj) {
 					if(!(item instanceof Map<?, ?>)) {
 						continue;
@@ -615,12 +628,28 @@ public class LocalDocumentCache implements ICache {
 					Object key = doc.get(this.keyField);
 					if(key != null) {
 						documents.put(normalizeKey(key), doc);
+						if(this.redactOnPersist && !plaintextOnDisk && SecretRedactor.redactRecord(doc, null, this.keyField) != doc) {
+							plaintextOnDisk = true;
+						}
 					}
+				}
+				// 旧版本写下的明文密钥:读入时就回写一次脱敏版(不等下一次写盘 —— 桌面版交易日志不写盘,等不到)
+				if(plaintextOnDisk) {
+					saveLocked();
 				}
 			}catch(Exception e) {
 				QueueLog.error(AppLoggers.ErrorLogger, e);
 			}
 		}
+	}
+
+	/** 要写进文件的文档列表:开了落盘脱敏就逐条过 SecretRedactor(单源;主键字段不按名字掩,写时复制)。旧版本写下的记录也在下一次写盘时一并脱敏。 */
+	private List<Map<String, Object>> persistDocsLocked() {
+		List<Map<String, Object>> docs = new ArrayList<Map<String, Object>>(documents.size());
+		for(Map<String, Object> doc : documents.values()) {
+			docs.add(this.redactOnPersist ? SecretRedactor.redactRecord(doc, null, this.keyField) : doc);
+		}
+		return docs;
 	}
 
 	private void saveLocked() {
@@ -633,7 +662,7 @@ public class LocalDocumentCache implements ICache {
 			root.put("cacheName", this.cacheName);
 			root.put("keyField", this.keyField);
 			root.put("valueField", this.valueField);
-			root.put("docs", new ArrayList<Map<String, Object>>(documents.values()));
+			root.put("docs", persistDocsLocked());
 			String json = JsonUtility.encode(root);
 			Path tmp = storeFile.resolveSibling(storeFile.getFileName().toString() + ".tmp");
 			Files.writeString(tmp, json, StandardCharsets.UTF_8);
@@ -642,7 +671,8 @@ public class LocalDocumentCache implements ICache {
 			}catch(AtomicMoveNotSupportedException ex) {
 				Files.move(tmp, storeFile, StandardCopyOption.REPLACE_EXISTING);
 			}
-		}catch(IOException e) {
+		}catch(IOException | RuntimeException | StackOverflowError e) {
+			// 写不进 / 某条记录序列化或脱敏出错:记日志,这一次不落盘;不让异常冒到调用方的业务请求里
 			QueueLog.error(AppLoggers.ErrorLogger, e);
 		}
 	}

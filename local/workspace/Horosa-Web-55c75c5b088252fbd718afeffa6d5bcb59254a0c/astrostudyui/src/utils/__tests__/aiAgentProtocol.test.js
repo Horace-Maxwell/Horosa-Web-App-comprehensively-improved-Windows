@@ -376,8 +376,8 @@ describe('trace 回放分级 + 确定性折叠', ()=>{
 	});
 });
 
-// [Q-290/M-105·PP-22] 守则第 9 条按当次目录生成
-describe('[Q-290/PP-22] agentSystemRulesFor', ()=>{
+// 守则第 9 条按当次目录生成
+describe('agentSystemRulesFor', ()=>{
 	const { agentSystemRulesFor } = require('../aiAgent/protocol');
 	it('两件界面工具都在目录 → 原文;都不在 → 整条去掉;只有一件 → 只点名那一件', ()=>{
 		expect(agentSystemRulesFor(['navigate_to_technique', 'compare_records', 'x'])).toBe(AGENT_SYSTEM_RULES);

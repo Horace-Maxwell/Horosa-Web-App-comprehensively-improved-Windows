@@ -41,7 +41,7 @@ class LiuRengInput extends Component{
 
 			this.props.onFieldsChange({
 				__confirmed: !!value.confirmed,
-				// [R3-A2] 步进方向提示透传(六壬/金口共用输入面):宿主 dispatch 进
+				// 步进方向提示透传(六壬/金口共用输入面):宿主 dispatch 进
 				// astro/fetchByFields 后驱动 settle ±步预取,消费即剥离绝不落 state
 				...(value.step ? { __stepHint: value.step } : {}),
 				date: {
@@ -108,7 +108,7 @@ class LiuRengInput extends Component{
 		if(this.props.onChartTypeChange){
 			this.props.onChartTypeChange(val);
 		}
-		// [Q-164/T-91·SS-23] 不再把 lrchart 写进全局 fields:全仓零读取(fieldsToParams 不带它),
+		// 不再把 lrchart 写进全局 fields:全仓零读取(fieldsToParams 不带它),
 		//   此前每切一次方盘/圆盘就触发一次 /chart 重取。盘式已由 state + localStorage 持久化。
 	}
 

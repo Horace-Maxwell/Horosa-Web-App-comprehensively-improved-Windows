@@ -1,4 +1,4 @@
-// AI 对话·事实记忆(A6;借鉴 ChatGPT / Claude 记忆):候选 → 用户确认 → 入库;按主体分组(你本人 / 某命主·事盘 / 全局);只在本机(workspace_meta,id 前缀 aimem:,随 AI 工作区备份;导出会话不带)。
+// AI 对话·事实记忆(A6):候选 → 用户确认 → 入库;按主体分组(你本人 / 某命主·事盘 / 全局);只在本机(workspace_meta,id 前缀 aimem:,随 AI 工作区备份;导出会话不带)。
 // 三个开关全部缺省关:自动沉淀候选(零 LLM 正则启发式)/ 记忆注入(≤1500 字稳定层 priority 101)/「从本会话提炼」(点一次调一次模型)。
 // 纪律:零 aiTools import;写库只经 aiAnalysisStore;记忆与排盘数据冲突时以排盘为准(指令里明写)。
 import { AI_ANALYSIS_STORES, putStoreRecord, listStoreRecords, deleteStoreRecord } from '../aiAnalysisStore';

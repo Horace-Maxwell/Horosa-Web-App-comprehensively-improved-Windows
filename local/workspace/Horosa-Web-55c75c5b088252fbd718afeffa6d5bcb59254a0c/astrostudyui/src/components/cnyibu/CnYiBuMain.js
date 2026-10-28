@@ -4,7 +4,7 @@ import { Spin } from 'antd';
 import { XQTabs as Tabs } from '../xq-ui';
 import { randomStr } from '../../utils/helper';
 import { makeHealingFactory } from '../../utils/lazyBoundary';
-// [C2·性能] 十子技法组件级 lazy(照下方 guice 四件既有范式):进「卜·其他」只拉壳+当前子页,
+// 十子技法组件级 lazy(照下方 guice 四件既有范式):进「卜·其他」只拉壳+当前子页,
 // 其余子页首次点击才拉(idle 预取与悬停预取照旧);ref 经 React.lazy 透传,dock 判空自动降级。
 // [horosa_lazy_healing_wrap_v1 / PERF-R12 W2.5] 工厂一律过 makeHealingFactory:裸 React.lazy 会把
 // 「更新中途换包 resolve 出的空模块」永久钉进缓存(v3.6.0 辅盘干净安装必炸的同类根),自愈工厂
@@ -61,7 +61,7 @@ function setRuntimeCnYiBuTab(tab){
 }
 
 class CnYiBuMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){

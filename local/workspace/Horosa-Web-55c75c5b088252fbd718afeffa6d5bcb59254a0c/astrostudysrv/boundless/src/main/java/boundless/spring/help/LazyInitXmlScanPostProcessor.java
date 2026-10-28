@@ -72,15 +72,7 @@ public class LazyInitXmlScanPostProcessor implements BeanFactoryPostProcessor, O
 
 	/** 开关:系统属性 horosa.lazyinit.xmlscan(缺省 true)优先,其次环境变量 HOROSA_JAVA_XML_SCAN_LAZY(0/false 关)。 */
 	public static boolean switchOn() {
-		String prop = System.getProperty("horosa.lazyinit.xmlscan");
-		if (prop != null && !prop.trim().isEmpty()) {
-			return !("false".equalsIgnoreCase(prop.trim()) || "0".equals(prop.trim()));
-		}
-		String env = System.getenv("HOROSA_JAVA_XML_SCAN_LAZY");
-		if (env != null && !env.trim().isEmpty()) {
-			return !("false".equalsIgnoreCase(env.trim()) || "0".equals(env.trim()));
-		}
-		return true;
+		return SysInitHelper.propThenEnvOn("horosa.lazyinit.xmlscan", "HOROSA_JAVA_XML_SCAN_LAZY");
 	}
 
 	@Override

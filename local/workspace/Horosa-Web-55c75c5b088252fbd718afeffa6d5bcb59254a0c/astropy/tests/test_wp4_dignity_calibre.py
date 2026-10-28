@@ -1,4 +1,4 @@
-# [WP-4] 尊贵与判定批双向量锚(计分表 push/almuten 三分口径/行星时三制式)。
+# 尊贵与判定批双向量锚(计分表 push/almuten 三分口径/行星时三制式)。
 from astrostudy.perchart import PerChart, push_classical_request, pop_classical_request
 from astrostudy.astroextra import almuten_table
 from flatlib.dignities import essential

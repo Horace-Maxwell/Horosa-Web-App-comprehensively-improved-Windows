@@ -2,10 +2,12 @@
 import { resolveGeoZone, ianaTimezoneAt, dstAwareZoneAt } from '../../timezone';
 
 export const ZONE_PATTERN = /^[+-]\d{2}:\d{2}$/;
+// 用户明说的时区可带秒(地方平时 ±HH:MM:SS,与命盘记录同一写法);按经纬度推出来的仍只认 ±HH:MM(推算结果的口径不变)
+export const USER_ZONE_PATTERN = /^[+-]\d{2}:\d{2}(:\d{2})?$/;
 export const FALLBACK_ZONE = '+08:00';
 
 export function resolveZone({ userZone, gpsLat, gpsLon, dateStr }){
-	if(userZone && ZONE_PATTERN.test(`${userZone}`)){
+	if(userZone && USER_ZONE_PATTERN.test(`${userZone}`)){
 		return { zone: `${userZone}`, source: 'user', iana: null };
 	}
 	let zone = null;

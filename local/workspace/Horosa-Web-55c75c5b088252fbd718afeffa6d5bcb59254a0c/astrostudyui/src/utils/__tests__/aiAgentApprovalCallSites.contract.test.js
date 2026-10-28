@@ -1,4 +1,4 @@
-// [D70] 源码合同:组件层每一次落定审批台 / 反问台的调用都必须带消息键(第三参 = 本气泡 messageId 或条目自带的 *.messageKey);
+// 源码合同:组件层每一次落定审批台 / 反问台的调用都必须带消息键(第三参 = 本气泡 messageId 或条目自带的 *.messageKey);
 //   trace 条目(x)没有 messageKey 字段,`x.messageKey` 在动作条里必须为 0 次(此前哨兵锚住这个不存在的字段名而假绿)。
 //   同时锁 listPendingApprovals 条目带 level(任务中心「请求执行 / 请求写入」文案的依据)。
 import fs from 'fs';

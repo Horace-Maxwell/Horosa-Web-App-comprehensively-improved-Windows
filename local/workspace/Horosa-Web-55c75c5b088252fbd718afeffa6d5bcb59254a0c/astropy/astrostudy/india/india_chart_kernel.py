@@ -433,13 +433,8 @@ class IndiaChartKernel:
         for index in range(12):
             sign = const.LIST_SIGNS[(asc_sign_index + index) % 12]
             house = self.chart.getHouse(const.LIST_HOUSES[index])
-            try:
-                ruler = tables.ESSENTIAL_DIGNITIES[sign]['ruler']
-                exalt = tables.ESSENTIAL_DIGNITIES[sign]['exalt'][0]
-                house.ruler = ruler
-                house.exalt = exalt
-            except Exception:
-                pass
+            house.ruler = tables.ESSENTIAL_DIGNITIES[sign]['ruler']
+            house.exalt = tables.ESSENTIAL_DIGNITIES[sign]['exalt'][0]
 
         for obj in list(self.chart.angles) + list(self.chart.objects) + list(self.chart.pars):
             self._assign_house(obj)
@@ -613,8 +608,3 @@ class IndiaChartKernel:
         if jyotish is not None:
             obj['jyotish'] = jyotish
         return obj
-
-
-def build_india_chart(data, chartnum=1):
-    kernel = IndiaChartKernel(data)
-    return kernel

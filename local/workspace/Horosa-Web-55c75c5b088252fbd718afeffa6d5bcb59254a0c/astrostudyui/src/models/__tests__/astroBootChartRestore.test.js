@@ -1,4 +1,4 @@
-// [R5 S7] 温启直接显示上次的盘 —— 模型层指令序金标(手摇 generator,与 dva 运行时无涉;形变自检见 astroFetchByFields.test)。
+// 温启直接显示上次的盘 —— 模型层指令序金标(手摇 generator,与 dva 运行时无涉;形变自检见 astroFetchByFields.test)。
 //   ① fetchByChartData(bootRestore):用户未动手 + 响应合法 → save 原子含 bootChartRestore:'done';
 //   ② 用户已先动手(chartObj 换代)→ 只标 dropped,不落盘、不弹错;
 //   ③ 服务异常 → 标 failed;checkUser 已落过 fields 时由恢复方回落 nowChart,否则不重复(checkUser 自己走「此刻」);
@@ -148,6 +148,36 @@ describe('checkUser · bootChartOrNow', () => {
 	});
 	test.each([[null], ['failed'], ['dropped']])('⑥ %s → 今日路径 nowChart', (flag) => {
 		const puts = crank(bootChartOrNow(fld, select, put, call), { states: [{ bootChartRestore: flag }] });
-		expect(puts).toEqual([{ type: 'astro/nowChart', payload: { fields: fld } }]);
+		expect(puts).toEqual([{ type: 'astro/nowChart', payload: { fields: fld, asNewChart: true } }]);   // 启动「此刻」盘按新盘处理(紫微用回你的设置)
+	});
+});
+
+// 没钉住口径的盘(此刻 / 新命盘)快照不带时间算法;它是新盘种子键,载入缺键会被复位成内建默认 →
+// 快照另记 unpinnedTimeAlg,温启分支回填(此前全局设「直接时间」的此刻盘,重开后按真太阳时排)
+describe('fetchByChartData · bootRestore 没钉住的盘回填时间算法', () => {
+	const { buildBootChartRecord } = require('../../utils/bootChartRestore');
+	const { recordPinsDayBoundary } = require('../../utils/baziCalibreScope');
+	test('快照:record 不带时间算法(不钉住),另记 unpinnedTimeAlg;钉住的盘不另记', () => {
+		const f = { ...mkFields(), timeAlg: { value: 1 }, after23NewDay: { value: 0 } };
+		const loose = buildBootChartRecord(f, 'astrochart');
+		expect(loose.record).not.toHaveProperty('timeAlg');
+		expect(recordPinsDayBoundary(loose.record)).toBe(false);
+		expect(loose.unpinnedTimeAlg).toBe(1);
+		const pinned = buildBootChartRecord(f, 'astrochart', null, { dayBoundaryPinned: true });
+		expect(pinned.record.timeAlg).toBe(1);
+		expect(pinned).not.toHaveProperty('unpinnedTimeAlg');
+	});
+	test('温启:record 缺时间算法 → 按快照另记的值落 fields;非温启载入不受影响', () => {
+		const st = mkState();
+		const puts = crank(fetchByChartData({ payload: { ...RECORD, bootRestore: true, bootUnpinnedTimeAlg: 1 } }, { call, put, select }), { states: [st], rsp: RSP });
+		const save = puts.find((p) => p.type === 'save');
+		expect(save.payload.fields.timeAlg.value).toBe(1);
+		const plain = crank(fetchByChartData({ payload: { ...RECORD, bootUnpinnedTimeAlg: 1 } }, { call, put, select }), { states: [st], rsp: RSP });
+		const save2 = plain.find((p) => p.type === 'save');
+		expect(save2.payload.fields.timeAlg && save2.payload.fields.timeAlg.value).not.toBe(1);
+	});
+	test('app 温启派发把快照另记的时间算法带上', () => {
+		const src = require('fs').readFileSync(require('path').join(__dirname, '../app.js'), 'utf8');
+		expect(src).toContain('bootUnpinnedTimeAlg: bootSnap.unpinnedTimeAlg');
 	});
 });

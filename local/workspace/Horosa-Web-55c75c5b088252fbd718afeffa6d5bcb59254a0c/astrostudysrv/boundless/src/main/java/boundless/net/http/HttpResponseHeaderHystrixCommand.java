@@ -52,7 +52,7 @@ public class HttpResponseHeaderHystrixCommand extends HystrixCommand<String> {
 	
 	public static String doCmd(String user, String password, String url, String responseHeaderKey, int timeoutMS){
 		try{
-			RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(HttpClientUtility.getHttpHost()).build();
+			RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(HttpClientUtility.getHttpHostFor(url)).build();
 			HttpClientBuilder builder = null;
 			if(BraveHelper.existZipkin()){
 				builder = BraveHelper.getHttpClientBuilder(url);
@@ -86,7 +86,7 @@ public class HttpResponseHeaderHystrixCommand extends HystrixCommand<String> {
 					return "";
 				}
 			}catch(Exception e){
-				QueueLog.error(AppLoggers.ErrorLogger, "请求{}失败, cause:{}", get.getURI().toString(), e.getMessage());
+				QueueLog.error(AppLoggers.ErrorLogger, "请求{}失败, cause:{}", boundless.utility.SecretRedactor.redactText(get.getURI().toString()), boundless.utility.SecretRedactor.redactText(e.getMessage()));
 				throw e;
 			}finally{
 				try{

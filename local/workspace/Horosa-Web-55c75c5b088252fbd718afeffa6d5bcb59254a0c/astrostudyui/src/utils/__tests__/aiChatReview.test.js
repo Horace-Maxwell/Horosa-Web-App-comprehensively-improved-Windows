@@ -45,7 +45,7 @@ it('🔴 /审阅:跨家族审阅模型 strict JSON 零工具;确定性问题与�
 	expect(req.providerOptions.response_format.type).toBe('json_schema');
 	expect(req.tools).toBeUndefined();
 	const sys = req.messages[0].content;
-	expect(sys.indexOf('【回答审阅】')).toBeGreaterThan(0);   // [Q-290/PP-19] 挂载 system 在最前,审阅标记在其后
+	expect(sys.indexOf('【回答审阅】')).toBeGreaterThan(0);   // 挂载 system 在最前,审阅标记在其后
 	expect(sys).toContain('1. [错误·bazi] 日主应为甲木');
 	expect(sys).toContain('【案例】张三 日主甲木');
 	expect(req.messages[1].content).toContain('你的日主乙木');
@@ -100,8 +100,8 @@ it('无对应提问 → 不请求;无其它家族档案且未挂数据 → 同�
 	expect(streamCalls.length).toBe(0);
 });
 
-// ---- [进阶审计 D1] 审阅槽参数:此前审阅请求硬编码 applyThinkingLevel(...,'off'),审阅行的温度/上限写了键从不生效 ----
-it('🔴 [D1] 审阅槽 maxTokens 444 / temperature 0.2 进审阅请求(跨家族目标不变);槽空孪生两键皆无', async ()=>{
+// ---- 审阅槽参数:此前审阅请求硬编码 applyThinkingLevel(...,'off'),审阅行的温度/上限写了键从不生效 ----
+it('🔴 审阅槽 maxTokens 444 / temperature 0.2 进审阅请求(跨家族目标不变);槽空孪生两键皆无', async ()=>{
 	const { writeRouteOptions } = require('../aiModelRouting');
 	writeRouteOptions({ review: { maxTokens: 444, temperature: 0.2 } });
 	const mk = ()=>mkDeps({ messages: baseMsgs(), activeSource: { id: 'local-1', title: '张三' }, buildResolvedPrompt: jest.fn(async ()=>({ systemPrompt: 'S' })) });

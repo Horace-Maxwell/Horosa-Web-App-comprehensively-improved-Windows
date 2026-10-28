@@ -6,6 +6,7 @@ import { buildMeaningTipByCategory, } from '../astro/AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover';
 import { composeShort } from '../../data/uranianMeanings';
 import { tnpGlyph } from './UranianGlyphs';
+import { signElementInk } from '../../utils/signElementInk';
 import styles from '../../css/styles.less';
 
 // 中点列表(「行星中点」Tab 右栏):按星座分组的卡片行——
@@ -52,12 +53,12 @@ class Midpoint extends Component{
 	rowDom(obj, key, alt){
 		const degs = AstroHelper.splitDegree(obj.signlon);
 		const term = AstroHelper.whichTerm(obj.sign, obj.signlon);
-		const sigColor = (AstroConst.AstroColor && AstroConst.AstroColor[obj.sign]) || 'inherit';
+		const sigColor = signElementInk(obj.sign);   // 界面表格:四元素主题字色(盘面配色是为盘面底挑的,不当界面字色)
 		return (
 			<div key={key} title={composeShort(obj.idA, obj.idB)}
 				style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
 					padding: '3px 10px', borderRadius: 6, lineHeight: 1.8,
-					background: alt ? 'var(--horosa-row-alt, rgba(120,120,120,0.06))' : 'transparent' }}>
+					background: alt ? 'var(--horosa-table-row-alt, rgba(120,120,120,0.06))' : 'transparent' }}>
 				<span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
 					{this.glyph(obj.idA)}
 					<span style={{ ...SOFT, fontSize: 12 }}>/</span>
@@ -97,7 +98,7 @@ class Midpoint extends Component{
 	render(){
 		const height = this.props.height ? this.props.height : '100%';
 		const style = {
-			// [双滚动条根治 2026-09-18] 宿主传 100% 时走定高链(不再「工作区高−180」;1.8 档常数失真把右栏撑出第二条滚动条);传数值时保持旧算法。
+			// 宿主传 100% 时走定高链(不再「工作区高−180」;1.8 档常数失真把右栏撑出第二条滚动条);传数值时保持旧算法。
 			height: (typeof height === 'number') ? (height - 180) + 'px' : '100%',
 			overflowY: 'auto',
 			overflowX: 'hidden',
@@ -112,7 +113,7 @@ class Midpoint extends Component{
 					<div key={`g-${g.sign}-${gi}`} style={{ marginBottom: 10 }}>
 						<div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '2px 0 4px', paddingBottom: 3,
 							borderBottom: '1px solid var(--horosa-border-soft, rgba(120,120,120,0.22))' }}>
-							<span style={{ fontFamily: AstroConst.AstroFont, color: (AstroConst.AstroColor && AstroConst.AstroColor[g.sign]) || 'inherit' }}>{AstroText.AstroMsg[g.sign]}</span>
+							<span style={{ fontFamily: AstroConst.AstroFont, color: signElementInk(g.sign) }}>{AstroText.AstroMsg[g.sign]}</span>
 							<span style={{ fontSize: 12, fontWeight: 600 }}>{AstroText.AstroMsgCN[g.sign] || g.sign}</span>
 							<span className="horosa-panel-count">{g.rows.length}</span>
 						</div>

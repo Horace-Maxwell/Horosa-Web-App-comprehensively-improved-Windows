@@ -32,7 +32,7 @@ function TermsTable({ table }){
 	return (
 		<div style={{ overflowX: 'auto' }}>
 			<table style={tableStyle}>
-				<thead><tr style={{ opacity: 0.65 }}><th style={cellB}>座</th>{[1, 2, 3, 4, 5].map((i) => <th key={i} style={cellB}>界{i}</th>)}</tr></thead>
+				<thead><tr style={{ color: 'var(--horosa-text-secondary)' }}><th style={cellB}>座</th>{[1, 2, 3, 4, 5].map((i) => <th key={i} style={cellB}>界{i}</th>)}</tr></thead>
 				<tbody>
 					{SIGN_ORDER.map((sg) => (
 						<tr key={sg}>
@@ -52,7 +52,7 @@ function ChaldeanTable({ table }){
 	return (
 		<div style={{ overflowX: 'auto' }}>
 			<table style={tableStyle}>
-				<thead><tr style={{ opacity: 0.65 }}><th style={cellB}>座</th><th style={cellB}>0–8</th><th style={cellB}>8–15</th><th style={cellB}>15–21</th><th style={cellB}>21–26</th><th style={cellB}>26–30</th></tr></thead>
+				<thead><tr style={{ color: 'var(--horosa-text-secondary)' }}><th style={cellB}>座</th><th style={cellB}>0–8</th><th style={cellB}>8–15</th><th style={cellB}>15–21</th><th style={cellB}>21–26</th><th style={cellB}>26–30</th></tr></thead>
 				<tbody>
 					{SIGN_ORDER.map((sg, i) => {
 						const segs = table[SIGN_EN[i]] || [];
@@ -84,7 +84,7 @@ class ElectionReference extends Component{
 						<TabPane tab="世界盘" key="thema">
 							<div className="horosa-divi-note" style={{ marginBottom: 6 }}>Thema Mundi 为教学构造盘（非生辰）：巨蟹上升、七曜各居己庙 15°——体系「何以如此」的原型。</div>
 							<table style={tableStyle}>
-								<thead><tr style={{ opacity: 0.65 }}><th style={cellB}>位</th><th style={cellB}>座</th><th style={cellB}>星</th><th style={cellB}>说明</th></tr></thead>
+								<thead><tr style={{ color: 'var(--horosa-text-secondary)' }}><th style={cellB}>位</th><th style={cellB}>座</th><th style={cellB}>星</th><th style={cellB}>说明</th></tr></thead>
 								<tbody>{THEMA_MUNDI.map((r) => (
 									<tr key={r.pos}><td style={cellB}>{r.pos}</td><td style={cellB}>{r.signCn} 15°</td><td style={{ ...cellB, fontWeight: 600 }}>{r.cn}</td><td style={cellB}>{r.note}</td></tr>
 								))}</tbody>
@@ -109,7 +109,7 @@ class ElectionReference extends Component{
 						</TabPane>
 						<TabPane tab="36 面" key="faces">
 							<table style={tableStyle}>
-								<thead><tr style={{ opacity: 0.65 }}><th style={cellB}>座</th><th style={cellB}>0–10°</th><th style={cellB}>10–20°</th><th style={cellB}>20–30°</th></tr></thead>
+								<thead><tr style={{ color: 'var(--horosa-text-secondary)' }}><th style={cellB}>座</th><th style={cellB}>0–10°</th><th style={cellB}>10–20°</th><th style={cellB}>20–30°</th></tr></thead>
 								<tbody>{SIGN_ORDER.map((sg) => (
 									<tr key={sg}><td style={{ ...cellB, fontWeight: 600 }}>{SIGNS[sg].cn}</td>{FACES[sg].map((p, i) => <td key={i} style={cellB}>{cn(p)}</td>)}</tr>
 								))}</tbody>
@@ -119,7 +119,7 @@ class ElectionReference extends Component{
 						<TabPane tab="行星时 7×24" key="hours">
 							<div style={{ overflowX: 'auto' }}>
 								<table style={tableStyle}>
-									<thead><tr style={{ opacity: 0.65 }}><th style={cellB}>时</th>{['周日', '周一', '周二', '周三', '周四', '周五', '周六'].map((d) => <th key={d} style={cellB}>{d}</th>)}</tr></thead>
+									<thead><tr style={{ color: 'var(--horosa-text-secondary)' }}><th style={cellB}>时</th>{['周日', '周一', '周二', '周三', '周四', '周五', '周六'].map((d) => <th key={d} style={cellB}>{d}</th>)}</tr></thead>
 									<tbody>
 										{Array.from({ length: 24 }, (_, h) => h + 1).map((h) => (
 											<tr key={h} style={h === 1 || h === 13 ? { fontWeight: 700 } : null}>
@@ -135,7 +135,7 @@ class ElectionReference extends Component{
 						<TabPane tab="28 宿" key="mansions">
 							<div style={{ overflowX: 'auto' }}>
 								<table style={{ ...tableStyle, textAlign: 'left' }}>
-									<thead><tr style={{ opacity: 0.65 }}><th style={cellB}>#</th><th style={cellB}>名</th><th style={cellB}>性质</th><th style={cellB}>用途</th></tr></thead>
+									<thead><tr style={{ color: 'var(--horosa-text-secondary)' }}><th style={cellB}>#</th><th style={cellB}>名</th><th style={cellB}>性质</th><th style={cellB}>用途</th></tr></thead>
 									<tbody>{LUNAR_MANSIONS.map((m) => (
 										<tr key={m.n} style={m.good === false ? { opacity: 0.75 } : null}>
 											<td style={cellB}>{m.n}</td><td style={cellB}>{m.name}（{m.alt}）</td><td style={cellB}>{m.nature}</td><td style={cellB}>{m.use}</td>
@@ -147,7 +147,7 @@ class ElectionReference extends Component{
 						<TabPane tab="Behenian 15" key="behenian">
 							<div style={{ overflowX: 'auto' }}>
 								<table style={{ ...tableStyle, textAlign: 'left' }}>
-									<thead><tr style={{ opacity: 0.65 }}><th style={cellB}>星</th><th style={cellB}>宝石</th><th style={cellB}>草药</th><th style={cellB}>护符用途</th></tr></thead>
+									<thead><tr style={{ color: 'var(--horosa-text-secondary)' }}><th style={cellB}>星</th><th style={cellB}>宝石</th><th style={cellB}>草药</th><th style={cellB}>护符用途</th></tr></thead>
 									<tbody>{FIXED_STARS.filter((s) => s.behenian).map((s) => (
 										<tr key={s.name_en}>
 											<td style={{ ...cellB, fontWeight: 600 }}>{s.name_cn}{s.royal ? `（四王者·${s.royal.watcher}）` : ''}</td>
@@ -163,7 +163,7 @@ class ElectionReference extends Component{
 						<TabPane tab="埃及凶日" key="egyptian">
 							<div style={{ overflowX: 'auto' }}>
 								<table style={tableStyle}>
-									<thead><tr style={{ opacity: 0.65 }}><th style={cellB}>月</th><th style={cellB}>凶日</th></tr></thead>
+									<thead><tr style={{ color: 'var(--horosa-text-secondary)' }}><th style={cellB}>月</th><th style={cellB}>凶日</th></tr></thead>
 									<tbody>{Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
 										<tr key={m}><td style={cellB}>{m} 月</td><td style={cellB}>{(EGYPTIAN_DAYS[m] || []).join('、') || '—'}</td></tr>
 									))}</tbody>

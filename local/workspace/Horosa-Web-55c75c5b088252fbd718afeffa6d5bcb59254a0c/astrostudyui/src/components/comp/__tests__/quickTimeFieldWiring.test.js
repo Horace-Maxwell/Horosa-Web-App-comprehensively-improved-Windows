@@ -1,7 +1,10 @@
 // 接线哨兵:五个站点走共享触发件、三张表单有快捷输入行且位于选择器行与时区栏之间、起课标签改名、无 maxLength、帮助文档写了双击
 const fs = require('fs');
 const path = require('path');
-const src = (rel)=>fs.readFileSync(path.join(__dirname, '../../..', rel), 'utf8');
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
+const src = (rel)=>readSource(path.join(__dirname, '../../..', rel));
+const { jsxNodesInFile } = require('../../../utils/__tests__/helpers/jsxProps');
+const { importBindings } = require('../../../utils/__tests__/helpers/importSpecs');
 
 describe('快捷数字时间录入·接线', ()=>{
 	it('三主站点 + 两次级站点用 TimeFieldTrigger,手抄 Popover 时间块清零', ()=>{
@@ -31,15 +34,16 @@ describe('快捷数字时间录入·接线', ()=>{
 		const walk = (dir)=>fs.readdirSync(dir).flatMap((n)=>{ const p = path.join(dir, n); return fs.statSync(p).isDirectory() ? walk(p) : (/\.js$/.test(n) ? [p] : []); });
 		const root = path.join(__dirname, '../../..', 'components');
 		const bad = walk(root).filter((p)=>!/xq-ui[\/\\]index\.js$/.test(p) && !/__tests__/.test(p)).filter((p)=>{
-			const code = fs.readFileSync(p, 'utf8').split('\n').map((l)=>l.replace(/\/\/.*$/, '')).join('\n');
-			return /import\s*\{[^}]*\b(DatePicker|TimePicker)\b[^}]*\}\s*from\s*'antd'/.test(code);
+			let binds;
+			try{ binds = importBindings(fs.readFileSync(p, 'utf8')); }catch(e){ return true; }   // 解析不了也列出来(不许静默放过)
+			return binds.some((b)=>b.source === 'antd' && /^(DatePicker|TimePicker)$/.test(b.imported));
 		}).map((p)=>path.relative(root, p));
 		expect(bad).toEqual([]);
 		const xq = src('components/xq-ui/index.js');
 		['export function XQDatePicker', 'export function XQTimePicker', 'export function QuickDigitsHost', 'XQDatePicker.RangePicker = function XQRangePicker'].forEach((k)=>{
 			expect(xq.indexOf(k) >= 0 ? 'ok' : `xq-ui 缺 ${k}`).toBe('ok');
 		});
-		expect((xq.match(/<QuickDigitsHost/g) || []).length).toBe(3);
+		expect(jsxNodesInFile(path.join(__dirname, '../../..', 'components/xq-ui/index.js'), 'QuickDigitsHost').length).toBe(3);
 	});
 	it('共享件不设 maxLength(粘贴带分隔符会先被截断)', ()=>{
 		expect(src('components/comp/QuickTimeField.js').indexOf('maxLength')).toBe(-1);

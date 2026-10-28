@@ -6,10 +6,14 @@
 // ⚠ 与 SanShiUnitedMain 互为 import(它 import 本组件,本文件 import 它的工具函数)——
 // 全部是 function/const 声明的迟绑定引用,渲染时才取值,ESM/CJS 循环均安全;勿改成会在
 // 模块求值期就执行的引用形态。
-import React, { Fragment, useMemo } from 'react';
+import React, { Fragment, useMemo, useLayoutEffect, useRef, useState } from 'react';
+import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
+import { leapPrefix } from '../../utils/lunarText';
 import styles from './SanShiUnitedMain.less';
 import { buildLiuRengHouseTipObj, buildLiuRengShenTipObj } from '../liureng/LRShenJiangDoc';
+import { tianJiangShortAttrs } from '../liureng/LRConst';
 import { buildQimenXiangTipObj } from '../dunjia/QimenXiangDoc';
+import { qimenGlyphScriptAttrs } from '../dunjia/DunJiaCalc';
 import { isMeaningEnabled, wrapWithMeaning } from '../astro/AstroMeaningPopover';
 import {
 	safe, fmtDirect, fmtSolar, getChartYue, getOuterChartKey, buildOuterData,
@@ -20,14 +24,49 @@ import {
 	LIURENG_RING_LAYOUT, OUTER_RING_LAYOUT, QIMEN_CORNER_PALACES, QIMEN_RING_POSITIONS, WEAK_SOLID_POS,
 } from './SanShiUnitedMain';
 
+// 上下信息盒的设计宽(与样式 .topBox / .bottomBox 的 min-width 同值):栏宽放不下时整体等比缩到栏宽,不再撑出横向滚动条。
+export const SANSHI_INFO_DESIGN_W = 560;
+// 盘面绘制的设计下限:盘边长小于它时按它排版,再整体等比缩小(格内字与格线同比,不会叠成一团)。
+export const SANSHI_BOARD_DESIGN_MIN = 360;
+
+// 把子块按设计宽排版、再等比缩到 width:放得下(width ≥ 设计宽或未给 width)时原样返回子块 —— 常规档逐像素不变。
+// 缩放用 transform(不改布局域,浮层定位读 rect 照常成立);外框高度 = 子块布局高 × 比例(量自己的子块,子块高不依赖外框 → 无回环)。
+function ScaleToWidth({ width, designWidth, children }){
+	const innerRef = useRef(null);
+	const [innerH, setInnerH] = useState(0);
+	const k = width > 0 && width < designWidth ? width / designWidth : 1;
+	useLayoutEffect(()=>{
+		if(k >= 1){ return undefined; }
+		const el = innerRef.current;
+		if(!el){ return undefined; }
+		const read = ()=>{ const h = el.offsetHeight; setInnerH((prev)=>(Math.abs(prev - h) >= 1 ? h : prev)); };
+		read();
+		const ro = createDeferredResizeObserver(read);
+		if(ro){ ro.observe(el); }
+		return ()=>{ if(ro){ ro.disconnect(); } };
+	}, [k]);
+	if(k >= 1){
+		return children;
+	}
+	return (
+		<div className={styles.scaleBox} style={{ width, height: innerH ? innerH * k : undefined }}>
+			<div ref={innerRef} style={{ width: designWidth, transform: `scale(${k})`, transformOrigin: '0 0' }}>
+				{children}
+			</div>
+		</div>
+	);
+}
+
 // props: { chartWrap, dunjia, lrLayout, keData, sanChuan, nongli, liureng, fields, displaySolarTime,
-//          outerCoord?, showWeakSolid?, showAstroMeaning?, boardSize? }
+//          outerCoord?, showWeakSolid?, showAstroMeaning?, boardSize?, fitWidth? }
 export default function SanshiUnitedBoard(props){
 	const { chartWrap, dunjia, lrLayout, keData, sanChuan, nongli, liureng, fields, displaySolarTime,
 		showAstroMeaning } = props;
 	const outerCoord = props.outerCoord || 'ecliptic';
 	const showWeakSolid = props.showWeakSolid !== undefined ? props.showWeakSolid : true;
 	const boardSize = props.boardSize || 720;
+	// 主页传中栏可用宽(择日概览浮窗不传 = 不缩)
+	const fitWidth = Number(props.fitWidth) || 0;
 	const astroChartTop = chartWrap && chartWrap.chart ? chartWrap.chart : null;
 	const outerChartKey = getOuterChartKey(chartWrap);
 	// 单槽缓存同语义:chartKey/coord 变才重算
@@ -61,7 +100,8 @@ export default function SanshiUnitedBoard(props){
 		const dateText = direct.date || solar.date || '---- -- --';
 		const directHm = direct.hm || '--:--';
 		const solarHm = solar.hm || '--:--';
-		const lunarText = (safe(nongli && nongli.month) + safe(nongli && nongli.day)) || fmtLunar(nongli) || '农历--';
+		// 闰月:历法服务回的月名不带「闰」(另给 leap),本地历算回的已带 —— 单源 leapPrefix 只在缺时补
+		const lunarText = (nongli && (nongli.month || nongli.day) ? `${leapPrefix(nongli)}${safe(nongli.month)}${safe(nongli.day)}` : '') || fmtLunar(nongli) || '农历--';
 		return (
 			<div className={styles.topBox} style={{ width: boardSize, maxWidth: '100%' }}>
 				<div className={styles.topLeft}>
@@ -288,6 +328,7 @@ export default function SanshiUnitedBoard(props){
 			const up = layout.upZi[idx] || '';
 			const jiang = layout.houseTianJiang[idx] || '';
 			const god = shortTianJiang(layout.houseTianJiang[idx] || '');
+			const godAttrs = tianJiangShortAttrs(layout.houseTianJiang[idx] || '');
 			const shenTip = buildLiuRengShenTipObj(up);
 			const jiangTip = buildLiuRengHouseTipObj(jiang, up, branch);
 			const isCardinal = pos.kind === 'cardinal';
@@ -345,6 +386,7 @@ export default function SanshiUnitedBoard(props){
 									lineHeight: `${font}px`,
 									transform: 'translate(-50%, -50%)',
 								}}
+								{...godAttrs}
 							>
 								{god}
 							</div>,
@@ -409,6 +451,7 @@ export default function SanshiUnitedBoard(props){
 								lineHeight: `${font}px`,
 								transform: godTransform,
 							}}
+							{...godAttrs}
 						>
 							{god}
 						</div>,
@@ -465,7 +508,7 @@ export default function SanshiUnitedBoard(props){
 					diGanTip
 				)}
 				{wrapWithMeaning(
-					<div className={styles.qmStar} data-meaning-placement="top" style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px`, ...(cell.isJinhan && cell.jinhanStarJi ? { color: cell.jinhanStarJi === '吉' ? '#c41e28' : (cell.jinhanStarJi === '凶' ? 'var(--horosa-text, #1f1f1f)' : 'var(--horosa-muted, #8c8c8c)') } : {}) }}>{safe(cell.tianXing, ' ')}</div>,
+					<div className={styles.qmStar} data-meaning-placement="top" {...qimenGlyphScriptAttrs('star', cell.tianXing)} style={{ fontSize: qimenFont, lineHeight: `${qimenFont}px`, ...(cell.isJinhan && cell.jinhanStarJi ? { color: cell.jinhanStarJi === '吉' ? '#c41e28' : (cell.jinhanStarJi === '凶' ? 'var(--horosa-text, #1f1f1f)' : 'var(--horosa-muted, #8c8c8c)') } : {}) }}>{safe(cell.tianXing, ' ')}</div>,
 					showMeaning,
 					starTip
 				)}
@@ -475,7 +518,7 @@ export default function SanshiUnitedBoard(props){
 						data-meaning-placement="top"
 						style={{ width: doorSize, height: doorSize, borderWidth: doorBorder }}
 					>
-						<div className={styles.qmDoor} style={{ fontSize: doorFont, lineHeight: `${doorFont}px` }}>{safe(cell.door, ' ')}</div>
+						<div className={styles.qmDoor} {...qimenGlyphScriptAttrs('door', cell.door)} style={{ fontSize: doorFont, lineHeight: `${doorFont}px` }}>{safe(cell.door, ' ')}</div>
 					</div>,
 					showMeaning,
 					doorTip
@@ -491,9 +534,9 @@ export default function SanshiUnitedBoard(props){
 
 	function renderCenterBlock(midFont, boardSize){
 		const keRaw = keData && Array.isArray(keData.raw) ? keData.raw : [];
-		const lrLayout = lrLayout || {};
-		const upZi = Array.isArray(lrLayout.upZi) ? lrLayout.upZi : [];
-		const downZi = Array.isArray(lrLayout.downZi) ? lrLayout.downZi : [];
+		const layout = lrLayout || {};
+		const upZi = Array.isArray(layout.upZi) ? layout.upZi : [];
+		const downZi = Array.isArray(layout.downZi) ? layout.downZi : [];
 		const getDiByUp = (up)=>{
 			const idx = upZi.indexOf(`${up || ''}`);
 			if(idx < 0){
@@ -519,6 +562,7 @@ export default function SanshiUnitedBoard(props){
 				main1: zhi,
 				main2: safe(item[2], '—'),
 				god: shortTianJiang(godRaw),
+				godAttrs: tianJiangShortAttrs(godRaw),
 				shenTip: buildLiuRengShenTipObj(zhi),
 				jiangTip: buildLiuRengHouseTipObj(godRaw, zhi, di || zhi),
 			};
@@ -535,6 +579,7 @@ export default function SanshiUnitedBoard(props){
 				gan: parsed.gan,
 				zhi: parsed.zhi,
 				god: shortTianJiang(godRaw),
+				godAttrs: tianJiangShortAttrs(godRaw),
 				shenTip: buildLiuRengShenTipObj(parsed.zhi),
 				jiangTip: buildLiuRengHouseTipObj(godRaw, parsed.zhi, di || parsed.zhi),
 			};
@@ -563,7 +608,7 @@ export default function SanshiUnitedBoard(props){
 					{keCols.map((col, idx)=>(
 						<div key={`ke_col_${idx}`} className={styles.centerKeCol} style={{ height: sectionH }}>
 							{wrapWithMeaning(
-								<div className={styles.centerKeGray} data-meaning-placement="top">{col.god}</div>,
+								<div className={styles.centerKeGray} data-meaning-placement="top" {...col.godAttrs}>{col.god}</div>,
 								showMeaning,
 								col.jiangTip
 							)}
@@ -594,7 +639,7 @@ export default function SanshiUnitedBoard(props){
 								row.shenTip
 							)}
 							{wrapWithMeaning(
-								<span className={styles.centerChuanGray} data-meaning-placement="top">{row.god}</span>,
+								<span className={styles.centerChuanGray} data-meaning-placement="top" {...row.godAttrs}>{row.god}</span>,
 								showMeaning,
 								row.jiangTip
 							)}
@@ -653,7 +698,10 @@ export default function SanshiUnitedBoard(props){
 		);
 	}
 
-	function renderMiddle(boardSize){
+	function renderMiddle(shownSize){
+		// 盘边长 < 设计下限时按下限排版、整体等比缩回 shownSize;否则原样(常规档零变化)
+		const boardSize = Math.max(shownSize, SANSHI_BOARD_DESIGN_MIN);
+		const shrink = shownSize < boardSize ? shownSize / boardSize : 1;
 		const chartWrapLocal = chartWrap;
 		const astroChart = chartWrapLocal && chartWrapLocal.chart ? chartWrap.chart : null;
 		const outerChartKey = getOuterChartKey(chartWrap);
@@ -667,8 +715,8 @@ export default function SanshiUnitedBoard(props){
 		}
 		const qmBlocks = [1, 2, 3, 4, 6, 7, 8, 9].map((num)=>renderQimenBlock(num, qimenMap, midFont, boardSize));
 		return (
-			<div className={styles.middleWrap} style={{ width: boardSize, maxWidth: '100%' }}>
-				<div className={styles.middleBoard} style={{ width: boardSize, height: boardSize }}>
+			<div className={styles.middleWrap} style={shrink < 1 ? { width: shownSize, height: shownSize, maxWidth: '100%', overflow: 'hidden' } : { width: boardSize, maxWidth: '100%' }}>
+				<div className={styles.middleBoard} style={shrink < 1 ? { width: boardSize, height: boardSize, transform: `scale(${shrink})`, transformOrigin: '0 0' } : { width: boardSize, height: boardSize }}>
 					{renderBoardSvg()}
 					<div className={styles.boardLayer}>
 						{renderOuterMarks(outerData, midFont, boardSize)}
@@ -695,7 +743,7 @@ export default function SanshiUnitedBoard(props){
 					<div className={styles.bottomCell}><span>旬仪</span><b>{futo}</b></div>
 					<div className={styles.bottomCell}><span>旬空</span><b>{kong}</b></div>
 					<div className={styles.bottomCell}><span>时空</span><b>{shikong}</b></div>
-					{/* [Q-160/T-78] 四柱空亡(左栏「四柱空亡」开)与封局印记(左栏「封局」)此前页面零消费 */}
+					{/* 四柱空亡(左栏「四柱空亡」开)与封局印记(左栏「封局」)此前页面零消费 */}
 					{pan && pan.allKong ? (
 						<div className={styles.bottomCell}><span>四柱空</span><b>{`${safe(pan.allKong.年空, '—')}·${safe(pan.allKong.月空, '—')}·${safe(pan.allKong.日空, '—')}·${safe(pan.allKong.时空, '—')}`}</b></div>
 					) : null}
@@ -712,9 +760,9 @@ export default function SanshiUnitedBoard(props){
 		// fitContent(概览浮窗用):boardStack 的 height:100%+overflow:hidden 是主页定高栏语境;
 		// 自然流容器里会压缩内容并裁掉底条(真机实抓 stack 853/内容 885)——内联覆盖,主页不传=零回归。
 		<div className={styles.boardStack} style={props.fitContent ? { height: 'auto', overflow: 'visible' } : undefined}>
-			{renderTop(boardSize)}
+			<ScaleToWidth width={fitWidth} designWidth={SANSHI_INFO_DESIGN_W}>{renderTop(boardSize)}</ScaleToWidth>
 			{renderMiddle(boardSize)}
-			{renderBottom(boardSize)}
+			<ScaleToWidth width={fitWidth} designWidth={SANSHI_INFO_DESIGN_W}>{renderBottom(boardSize)}</ScaleToWidth>
 		</div>
 	);
 }

@@ -1,4 +1,4 @@
-// [Q-445/T-408] 西洋择日快照:尊贵五重矩阵逐项 / Almuten 逐点计分 / 择前考量未命中项(✓) / [回归与主限] 段(页面按需拉取物)。
+// 西洋择日快照:尊贵五重矩阵逐项 / Almuten 逐点计分 / 择前考量未命中项(✓) / [回归与主限] 段(页面按需拉取物)。
 import { buildMockResult } from './electionFixture';
 import { runElection } from '../electionEngine';
 import { buildElectionSnapshot } from '../electionSnapshot';

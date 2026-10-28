@@ -54,7 +54,7 @@
     radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.28), transparent 28%),
     conic-gradient(from 22deg, var(--horosa-gold), var(--horosa-cyan, var(--horosa-accent)), var(--horosa-gold)),
     var(--horosa-panel-soft);
-  color: #fff;
+  color: var(--horosa-on-accent);   /* 金 / 青实底上的字随主题成对(暗色金变浅,白字 1.5:1) */
   font-size: 22px;
   box-shadow: inset 0 0 0 5px var(--horosa-panel-soft);
   transition: all 0.18s ease;
@@ -270,7 +270,7 @@
   align-items: center;
   justify-content: center;
   font-size: 26px;
-  color: #fff;
+  color: var(--horosa-on-accent);
   overflow: hidden;
   background: linear-gradient(150deg, var(--horosa-accent), var(--horosa-accent-strong, #7a541c));
   box-shadow: 0 8px 20px rgba(154, 106, 37, 0.3);

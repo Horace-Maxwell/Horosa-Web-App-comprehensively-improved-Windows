@@ -108,7 +108,7 @@ class MapV2 extends Component {
 						style={{
 							padding: '5px 18px', borderRadius: 6, cursor: 'pointer',
 							border: '1px solid var(--horosa-accent, #1677ff)',
-							background: 'var(--horosa-accent, #1677ff)', color: '#fff', fontSize: 12,
+							background: 'var(--horosa-accent, #1677ff)', color: 'var(--horosa-on-accent)', fontSize: 12,
 						}}
 					>
 						同意并加载地图

@@ -149,7 +149,7 @@ export default class ZWCommHouse {
 				this.drawCornerTag(['太', '岁'], 'var(--horosa-ziwei-period-hour, #e8590c)', 1);
 			}
 		}
-		// [D4] 活盘太极点角标:huoPan 开且本宫为当前太极点时显「太极」(slot 2,与气数/太岁错列)。
+		// 活盘太极点角标:huoPan 开且本宫为当前太极点时显「太极」(slot 2,与气数/太岁错列)。
 		if(ZWEngineOptions.huoPan && this.zwchart && this.zwchart.taijiIdx != null && this.zwchart.taijiIdx === this.houseIndex){
 			this.drawCornerTag(['太', '极'], 'var(--horosa-ziwei-period-xiaoxian, #9775fa)', 2);
 		}
@@ -300,7 +300,7 @@ export default class ZWCommHouse {
 		};
 		const layers = this.luckSihuaLayers || [];
 		layers.forEach((layer, slotIdx)=>{
-			let hua = ZiWeiHelper.getSiHua(star.name, layer.sihuaGan || layer.gan);   // [B10] 流年取干档随层
+			let hua = ZiWeiHelper.getSiHua(star.name, layer.sihuaGan || layer.gan);   // 流年取干档随层
 			if(hua === '祿'){
 				hua = '禄';
 			}
@@ -334,7 +334,7 @@ export default class ZWCommHouse {
 		return baseOffset + totalSlots * slotH;
 	}
 
-	// [D2] 干系四化徽(命宫干/日干,双字横排「命禄」「日权」hua 色底):追加在运限四化槽之后的
+	// 干系四化徽(命宫干/日干,双字横排「命禄」「日权」hua 色底):追加在运限四化槽之后的
 	// 固定槽位(不进滑窗不用角标);maxBottom 越界跳过;kinastro 借宫星柱不画。默认双关=零绘制。
 	drawStemSihuaChips(star, x, y, w, baseOffset, slotH, mgn, maxBottom){
 		if(!star || !star.name || this.kinastroBorrowed){
@@ -367,7 +367,7 @@ export default class ZWCommHouse {
 				return;   // 越界保护:与运限徽同律,不挤破上半矩形
 			}
 			const hua = label.charAt(1);
-			const co = ZWCont.ZWColor[hua] || { bg: '#888888', color: '#ffffff' };
+			const co = ZWCont.ZWColor[hua] || { bg: '#6b6b6b', color: '#ffffff' };   // 兜底徽标:白字 ≥ 4.5:1
 			const g2 = this.svg.append('g');
 			g2.append('rect')
 				.attr('x', x + m).attr('y', cy2)
@@ -384,7 +384,7 @@ export default class ZWCommHouse {
 		});
 	}
 
-	// [D2] 宫底岁数条(流年岁列/小限岁列,靠左小字;两开关默认关=零绘制):
+	// 宫底岁数条(流年岁列/小限岁列,靠左小字;两开关默认关=零绘制):
 	// 画在「宫名标题带上方」(by 由各盘传入),两行开则向上堆叠;选中大限区间内的流年岁金色高亮。
 	drawAgeStrips(bx, by, bw, rowH){
 		const showYear = ZiWeiHelper.zwShowYearAges();
@@ -400,7 +400,7 @@ export default class ZWCommHouse {
 			if(ages.length){ rows.push({ prefix: '', ages }); }
 		}
 		if(showXx && this.houseObj && this.houseObj.ganzi){
-			// [B15b] 小限岁列渲染期现算(单源=ZiWeiHelper.xiaoxianAgesOf,随「小限顺逆」档即时跟随;
+			// 小限岁列渲染期现算(单源=ZiWeiHelper.xiaoxianAgesOf,随「小限顺逆」档即时跟随;
 			// 广播 rev 触发整绘即得新值)。排盘期 smallDirection 恒默认口径,仅作现算条件不足时的回退。
 			const xxAges = ZiWeiHelper.xiaoxianAgesOf(chart, this.houseObj.ganzi.charAt(1));
 			const xxList = xxAges || (Array.isArray(this.houseObj.smallDirection) ? this.houseObj.smallDirection : []);

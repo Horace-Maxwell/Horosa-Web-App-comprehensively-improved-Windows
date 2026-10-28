@@ -184,9 +184,11 @@ export function getKentangRootOverride(){
 	return kentangRootOverride;
 }
 
-export function resolveKentangServiceRoot(moduleKey){
-	const config = KENTANG_SERVICE_CONFIG[moduleKey] || {};
-	const explicit = queryValue([...(config.queryKeys || []), ...COMMON_QUERY_KEYS]);
+// 本机排盘服务(:8899,卜类 / 数算 / 其它直连明文 JSON 的接口共挂一处)的根:单一来源。
+// 优先级:启动 URL 的显式参数(extraQueryKeys 在前,再通用键)> 服务地址自愈写入的覆盖根 > ServerRoot 的 :9999→:8899 > ServerRoot。
+// 每次调用现算(不要在模块加载时冻结):覆盖根是运行中才协商出来的,冻结了就跟不上。
+export function resolveChartServiceRoot(extraQueryKeys){
+	const explicit = queryValue([...(extraQueryKeys || []), ...COMMON_QUERY_KEYS]);
 	if(explicit){
 		return explicit;
 	}
@@ -197,6 +199,11 @@ export function resolveKentangServiceRoot(moduleKey){
 		return replacePort(ServerRoot, LOCAL_KENTANG_CHART_PORT);
 	}
 	return ServerRoot;
+}
+
+export function resolveKentangServiceRoot(moduleKey){
+	const config = KENTANG_SERVICE_CONFIG[moduleKey] || {};
+	return resolveChartServiceRoot(config.queryKeys || []);
 }
 
 export function buildKentangEndpoint(moduleKey, action){

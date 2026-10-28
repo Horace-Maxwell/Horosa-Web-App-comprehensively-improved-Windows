@@ -1,0 +1,2502 @@
+// 全站样式 · 占星:三维盘、辅盘、量化盘与中点、时间条、相位、古典参数、底部停靠条。
+// 由 layouts/app.less 在它的 `:global { … }` 里按原顺序 @import:本文件的规则全在 :global 作用域内(不要再包一层 :global)。
+
+    .horosa-workspace-shell .horosa-3d-page {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 360px; /* 中列零底、侧栏下限 min(定值, N·视口宽, 栅格自身宽 29% / 32%):布局宽不够时按比例收窄而不是从右侧裁掉;栅格嵌在别的宿主里(卜 · 其他、辅盘)时视口宽会高估可用宽,由栅格自身宽那一项兜住 */
+        gap: 10px;
+        height: 100%;
+        min-width: 980px;
+        min-height: 0;
+        padding: 8px;
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-3d-stage,
+    .horosa-workspace-shell .horosa-3d-side {
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        /* [右栏满高] 列布局:上方各卡 auto,tabs 区吃掉全部剩余高(配合 JS 实测内容高,消底部死白) */
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* 右栏整列承担滚动:页签区下限 320(导航 38 + 可用内容 ≥ 280)。上方时间卡 / 盘面参数 / 地心条是定高卡,
+       窗口矮 × 放大档时此前页签区被 flex 缩到 0 高(1728×1010 @1.8 只剩 32px 一条缝,设置面板够不着)——
+       现在页签区不低于下限,放不下时右栏整列纵向滚(明暗两套一致);常规窗口页签区 > 320,逐像素不变。 */
+    .horosa-workspace-shell .horosa-3d-side > .horosa-3d-tabs-fill {
+        flex: 1 1 auto;
+        min-height: 320px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .horosa-workspace-shell .horosa-3d-side {
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    .horosa-workspace-shell .horosa-3d-side .horosa-3d-tabs {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    /* 右栏底衬 12px。3D 盘也嵌在挂了底坞的页里(节气四个 3D 盘):那一层的滚动安全内衬是坞高 + 18(见 01-base「底坞页滚动安全区」),
+       而 3D 右栏是页签内部自滚、底坞是单独的网格行,不压右栏 —— 右栏这一层就地用 12px(变量作用域覆盖,不与 :is 组打特异度战)。 */
+    .horosa-workspace-shell .xq-panel.horosa-3d-side {
+        --horosa-scroll-safe-bottom: 12px;
+        padding-bottom: 12px;
+    }
+
+    /* tabs 内容链满高:content-holder/tabpane 全撑满,残余内边距归零(消底部死白尾巴) */
+    .horosa-workspace-shell .horosa-3d-side .horosa-3d-tabs .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-3d-side .horosa-3d-tabs .ant-tabs-content,
+    .horosa-workspace-shell .horosa-3d-side .horosa-3d-tabs .ant-tabs-tabpane-active {
+        height: 100%;
+        min-height: 0;
+    }
+
+    /* [3D 显示设置美化] 分节卡 + 两列开关 + 滑杆读数 + 色板网格(全站设计系统语汇) */
+    .horosa-workspace-shell .horosa-astro3d-settings {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 8px 10px 14px;
+        overflow-y: auto;
+        height: 100%;
+    }
+    .horosa-workspace-shell .horosa-a3ds-sec {
+        border: 1px solid var(--horosa-astro-line, var(--horosa-border));
+        border-radius: 12px;
+        background: var(--horosa-panel-soft);
+        padding: 10px 12px 12px;
+    }
+    .horosa-workspace-shell .horosa-a3ds-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--horosa-accent-strong);
+        margin-bottom: 8px;
+        letter-spacing: 0.04em;
+    }
+    .horosa-workspace-shell .horosa-a3ds-presets {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+    }
+    .horosa-workspace-shell .horosa-a3ds-switchgrid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px 14px;
+    }
+    .horosa-workspace-shell .horosa-a3ds-switchrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        min-width: 0;
+        cursor: pointer;
+    }
+    /* 开关标签放不下时折行(放大档两列开关每列只剩一百来 px,「隐藏地球附近星体」被裁掉尾字);放得下时单行,一字不变 */
+    .horosa-workspace-shell .horosa-a3ds-label {
+        min-width: 0;
+        font-size: 12px;
+        color: var(--horosa-astro-text, var(--horosa-text));
+        white-space: normal;
+        overflow-wrap: break-word; overflow-wrap: anywhere;
+    }
+    .horosa-workspace-shell .horosa-a3ds-sliderrow { margin: 2px 0 0; }
+    .horosa-workspace-shell .horosa-a3ds-sliderrow .ant-slider { margin: 4px 2px 8px; }
+    .horosa-workspace-shell .horosa-a3ds-sliderhead {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+    }
+    .horosa-workspace-shell .horosa-a3ds-val {
+        font-style: normal;
+        font-size: 11.5px;
+        font-weight: 700;
+        color: var(--horosa-gold, var(--horosa-accent-strong));
+        font-variant-numeric: tabular-nums;
+    }
+    .horosa-workspace-shell .horosa-a3ds-colorgrid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 14px;
+    }
+    .horosa-workspace-shell .horosa-a3ds-colorrow {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+    }
+    .horosa-workspace-shell .horosa-a3ds-swatch {
+        width: 26px;
+        height: 20px;
+        padding: 0;
+        border: 1px solid var(--horosa-astro-line, var(--horosa-border));
+        border-radius: 6px;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .horosa-workspace-shell .horosa-3d-stage {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        padding: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-3d-stage-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 0 2px 10px;
+    }
+
+    .horosa-workspace-shell .horosa-3d-eyebrow {
+        color: var(--horosa-accent-strong);
+        font-size: 12px;
+        font-weight: 720;
+        line-height: 1.2;
+    }
+
+    .horosa-workspace-shell .horosa-3d-title {
+        color: var(--horosa-text);
+        font-size: 18px;
+        font-weight: 760;
+        line-height: 1.3;
+    }
+
+    .horosa-workspace-shell .horosa-3d-hint {
+        color: var(--horosa-muted);
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: nowrap;
+    }
+
+    .horosa-workspace-shell .horosa-3d-canvas-wrap {
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        border: 1px solid var(--horosa-border);
+        border-radius: var(--horosa-radius);
+        background:
+            radial-gradient(circle at 50% 44%, rgba(154, 106, 37, 0.10), transparent 35%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.26), transparent 58%),
+            var(--horosa-surface-solid);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.40);
+    }
+
+    :root[data-horosa-appearance='dark'] .horosa-workspace-shell .horosa-3d-canvas-wrap {
+        background:
+            radial-gradient(circle at 50% 44%, rgba(216, 173, 99, 0.08), transparent 36%),
+            linear-gradient(180deg, rgba(216, 173, 99, 0.035), transparent 58%),
+            var(--horosa-surface-solid);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    .horosa-workspace-shell .horosa-3d-canvas-wrap > div {
+        border-radius: inherit;
+        /* 画布宿主的高度由 JS 按「工作区高−50」写成
+           内联 px,与真正装它的这格(grid minmax(0,1fr),已是定高)对不上:0.7 档实测 1351 vs 格 1333 → 底部 18px 被裁,
+           别的档位则留白。宿主直接铺满本格(100%),px 估算作废;three 渲染尺寸随宿主 client 尺寸走(ResizeObserver)。 */
+        height: 100% !important;
+    }
+
+    .horosa-workspace-shell .horosa-3d-side {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-3d-time {
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--horosa-border);
+    }
+
+    .horosa-workspace-shell .horosa-3d-time .ant-select,
+    .horosa-workspace-shell .horosa-3d-time .ant-input,
+    .horosa-workspace-shell .horosa-3d-time .ant-picker,
+    .horosa-workspace-shell .horosa-3d-time button {
+        border-radius: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-3d-control-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+    }
+
+    .horosa-workspace-shell .horosa-3d-control-grid .xq-select {
+        width: 100%;
+    }
+
+    .horosa-workspace-shell .horosa-3d-geo {
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px;
+        border: 1px solid var(--horosa-border);
+        border-radius: 8px;
+        background: var(--horosa-panel-soft);
+    }
+
+    .horosa-workspace-shell .horosa-3d-geo span:last-child {
+        min-width: 0;
+        overflow: hidden;
+        color: var(--horosa-text-soft);
+        font-size: 12px;
+        text-align: right;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .horosa-workspace-shell .horosa-3d-tabs {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-3d-tabs > .ant-tabs-nav {
+        margin-bottom: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-3d-tabs .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-3d-tabs .ant-tabs-content,
+    .horosa-workspace-shell .horosa-3d-tabs .ant-tabs-tabpane {
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-3d-tabs .ant-tabs-content-holder {
+        overflow: hidden;
+        border: 1px solid var(--horosa-border);
+        border-radius: 8px;
+        background: var(--horosa-panel-soft);
+    }
+
+    .horosa-workspace-shell .horosa-3d-tabs .ant-tabs-content,
+    .horosa-workspace-shell .horosa-3d-tabs .ant-tabs-tabpane {
+        height: 100%;
+    }
+
+    /* 各 tab 顶层滚动区(信息/相位/行星/希腊点)自带旧像素估算的内联 height,
+       与容器真实高度失配时内外出双滚动条:以容器实高接管,滚动只留这一层。 */
+    .horosa-workspace-shell .horosa-3d-tabs .ant-tabs-tabpane > div {
+        height: 100% !important;
+        max-height: 100%;
+    }
+
+    .horosa-workspace-shell .horosa-liureng-page,
+    .horosa-workspace-shell .horosa-taiyi-page,
+    .horosa-workspace-shell .horosa-auxchart-page,
+    .horosa-workspace-shell .horosa-india-chart-main,
+    .horosa-workspace-shell .horosa-guazhan-page,
+    .horosa-workspace-shell .horosa-jinkou-page,
+    .horosa-workspace-shell .horosa-direction-page,
+    .horosa-workspace-shell .horosa-fengshui-page,
+    .horosa-workspace-shell .horosa-aux-module-page {
+        height: 100%;
+        min-height: 0;
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-aux-module-page {
+        overflow: hidden;
+        border: 1px solid var(--horosa-border);
+        border-radius: var(--horosa-radius);
+        background: var(--horosa-panel-bg);
+        box-shadow: var(--horosa-small-shadow);
+    }
+
+    .horosa-workspace-shell .horosa-aux-module-page > .xq-tabs {
+        height: 100%;
+    }
+
+    .horosa-workspace-shell .horosa-aux-module-page .ant-tabs-content-holder {
+        min-height: 0;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.10), transparent 62%),
+            var(--horosa-surface-solid);
+    }
+
+    .horosa-workspace-shell .horosa-auxchart-page {
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-auxchart-layout {
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) 64px;
+        gap: 4px;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-auxchart-page > .ant-tabs,
+    .horosa-workspace-shell .horosa-auxchart-page > .ant-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-auxchart-page > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .horosa-auxchart-page > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane,
+    .horosa-workspace-shell .horosa-auxchart-tabs,
+    .horosa-workspace-shell .horosa-auxchart-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-auxchart-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .horosa-auxchart-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+        height: 100%;
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-auxchart-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+        overflow: hidden;
+        /* antd tabPosition=right 给内容区默认留 24px 右 padding(与竖排 rail 分隔)—— 太宽,
+           形成「正文与 rail 之间的死竖条」(子盘内容比 pane 窄 24px、读数面板白白挤着滚)。
+           收到 6px(仍与 rail 留呼吸)= 全 auxchart 子盘正文右扩吃掉死带,读数/盘面都更宽。 */
+        padding-right: 6px !important;
+    }
+
+    .horosa-workspace-shell .horosa-auxchart-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane:not(.ant-tabs-tabpane-hidden) {
+        display: flex;
+    }
+
+    .horosa-workspace-shell .horosa-auxchart-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane:not(.ant-tabs-tabpane-hidden) > .horosa-aux-module-page {
+        flex: 1 1 auto;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-auxchart-tabs .horosa-dice-page,
+    .horosa-workspace-shell .horosa-auxchart-tabs .horosa-dice-layout,
+    .horosa-workspace-shell .horosa-auxchart-tabs .horosa-dice-chart-panel,
+    .horosa-workspace-shell .horosa-auxchart-tabs .horosa-dice-inspector-panel {
+        height: 100%;
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-auxchart-tabs .horosa-dice-chart-panel > .ant-tabs,
+    .horosa-workspace-shell .horosa-auxchart-tabs .horosa-dice-inspector-panel > div {
+        height: 100% !important;
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-auxchart-page > .ant-tabs,
+    .horosa-workspace-shell .horosa-auxchart-tabs {
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-auxchart-page > .ant-tabs > .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-auxchart-tabs > .ant-tabs-content-holder {
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-auxchart-page > .ant-tabs > .ant-tabs-nav,
+    .horosa-workspace-shell .horosa-auxchart-tabs > .ant-tabs-nav {
+        /* 🔴 96px 是「十三分盘」这类四字技法名的安全宽度(含左右留白),曾试收窄到 84px
+           → 文字贴死边框(真机实告)。右栏加宽改走 grid clamp,不从这里抠。 */
+        flex: 0 0 96px;
+    }
+
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-host,
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-workbench,
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-layout {
+        height: 100% !important;
+        max-height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-layout {
+        align-items: stretch;
+        margin: 0 !important;
+    }
+
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-layout > .ant-col {
+        height: 100% !important;
+        max-height: 100%;
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-chart-col {
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-side-col {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 0;
+        overflow: hidden;
+        padding: 6px 10px 8px !important;
+    }
+
+    /* 龙盘/调波 等 aux 模块盘复用 midpoint 布局:限高 host/workbench,使其落在 aux-module-page(height:100%+overflow:hidden)内。 */
+    .horosa-workspace-shell .horosa-aux-module-page .horosa-midpoint-host,
+    .horosa-workspace-shell .horosa-aux-module-page .horosa-midpoint-workbench {
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+    .horosa-workspace-shell .horosa-aux-module-page .horosa-midpoint-workbench > .ant-row {
+        height: 100%;
+        min-height: 0;
+        flex-wrap: nowrap;
+    }
+    .horosa-workspace-shell .horosa-aux-module-page .horosa-midpoint-workbench > .ant-row > .ant-col {
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
+    }
+    /* 🔒 右栏数据列(龙盘/调波/量化盘/中点 共用):内容超出窗口底部时纵向可滚动、横向隐藏(原 germany 是 overflow:hidden 直接裁断,aux 则溢出被 page 裁)。 */
+    .horosa-workspace-shell .horosa-midpoint-side-col {
+        max-height: 100%;
+        overflow-y: auto !important;
+        /* hidden 会把宽表/nowrap 长行直接裁字(赤纬接触行实测);改 auto 让它自己出横滚条。 */
+        overflow-x: auto;
+    }
+
+    /* 90°中点盘 右栏:可收放数据卡片(指针读数 / 中点树 / 行星图 / 中点列表 / 映点)美化 */
+    .horosa-uranian-panels.ant-collapse {
+        width: 100%;
+        background: transparent;
+        border: none;
+    }
+    .horosa-uranian-panels.ant-collapse > .ant-collapse-item {
+        margin-bottom: 9px;
+        border: 1px solid var(--horosa-border);
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--horosa-panel-soft);
+        box-shadow: var(--horosa-small-shadow);
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .horosa-uranian-panels.ant-collapse > .ant-collapse-item:last-child {
+        margin-bottom: 0;
+    }
+    .horosa-uranian-panels.ant-collapse > .ant-collapse-item:hover {
+        border-color: var(--horosa-border-strong);
+    }
+    .horosa-uranian-panels.ant-collapse > .ant-collapse-item > .ant-collapse-header {
+        align-items: center;
+        padding: 9px 13px;
+        color: inherit;
+        transition: background 0.15s ease;
+    }
+    .horosa-uranian-panels.ant-collapse > .ant-collapse-item > .ant-collapse-header:hover {
+        background: var(--horosa-accent-soft);
+    }
+    .horosa-uranian-panels.ant-collapse > .ant-collapse-item.ant-collapse-item-active > .ant-collapse-header {
+        background: var(--horosa-panel-bg);
+        border-bottom: 1px solid var(--horosa-border);
+    }
+    .horosa-uranian-panels .ant-collapse-content {
+        border-top: none;
+        background: transparent;
+        color: inherit;
+    }
+    .horosa-uranian-panels .ant-collapse-content-box {
+        padding: 7px 11px 9px !important;
+        font-variant-numeric: tabular-nums; /* 度数等宽对齐,读起来整齐 */
+    }
+    /* 数量徽标 pill */
+    .horosa-uranian-panels .horosa-panel-count {
+        display: inline-block;
+        min-width: 20px;
+        padding: 0 8px;
+        line-height: 18px;
+        text-align: center;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--horosa-accent-strong);
+        background: var(--horosa-accent-soft);
+        border-radius: 9px;
+    }
+
+    /* 90°中点盘 左栏四节(流派 / 盘式与盘基 / 叠盘层 / 显示与读数):观象 P2 收编为 XQSideSection,
+       此类只管节间距与节内行文字色;视觉骨架(标题行/折叠/图标)由 xq-side-section 观象语言统一。 */
+    .horosa-uranian-section {
+        margin-bottom: 10px;
+        font-variant-numeric: tabular-nums;
+    }
+    /* 节内开关行文字跟随主文字色(避免暗黑下偏灰不清;等效原 Card body 规则)。 */
+    .horosa-uranian-section .xq-side-section-body-inner > div > span:first-child {
+        color: var(--horosa-text);
+    }
+    /* 盘式三态 XQSegmented 撑满一行三等分(等效原 Radio.Group 34/33/33 宽)。 */
+    .horosa-uranian-dialstyle {
+        margin-bottom: 10px;
+    }
+    .horosa-uranian-dialstyle .xq-segmented {
+        display: flex;
+        width: 100%;
+    }
+    .horosa-uranian-dialstyle .xq-segmented .ant-radio-button-wrapper {
+        flex: 1;
+        text-align: center;
+    }
+    /* 中点盘右栏控制区(观象 P2 收编):节与下方中点/相位 Tab 之间留距。 */
+    .horosa-midpoint-controls {
+        margin-bottom: 6px;
+    }
+
+    /* 90°中点盘 右栏分组 Tab(读数 / 中点 / 太阳弧 / 接触 / 校时):把原一长列 Collapse 归组,更省力。 */
+    .horosa-uranian-right-tabs.ant-tabs {
+        width: 100%;
+        color: inherit;
+    }
+    .horosa-uranian-right-tabs.ant-tabs > .ant-tabs-nav {
+        margin-bottom: 9px;
+    }
+    /* Tab 较多(5 个)时允许换行不挤压,nav 列表两端对齐铺满右栏。 */
+    .horosa-uranian-right-tabs.ant-tabs > .ant-tabs-nav .ant-tabs-nav-list {
+        flex-wrap: wrap;
+        row-gap: 2px;
+    }
+    .horosa-uranian-right-tabs.ant-tabs > .ant-tabs-nav::before {
+        border-bottom: 1px solid var(--horosa-border);
+    }
+    .horosa-uranian-right-tabs.ant-tabs .ant-tabs-tab {
+        padding: 6px 10px;
+        font-size: 13px;
+        color: var(--horosa-text-soft);
+    }
+    .horosa-uranian-right-tabs.ant-tabs .ant-tabs-tab:hover {
+        color: var(--horosa-text);
+    }
+    .horosa-uranian-right-tabs.ant-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+        color: var(--horosa-accent-strong);
+        font-weight: 600;
+    }
+    .horosa-uranian-right-tabs.ant-tabs .ant-tabs-ink-bar {
+        background: var(--horosa-tab-ink);
+    }
+    /* Tab 内沿用 horosa-uranian-panels 卡片样式;去掉 TabPane 自带额外内边距,贴合右栏。 */
+    .horosa-uranian-right-tabs.ant-tabs .ant-tabs-content-holder {
+        overflow: visible;
+    }
+
+    /* 合盘叠加下拉:分组标题(当前盘/命盘库)用柔和主题色,与库内盘名区分。 */
+    .xq-select-popup .horosa-uranian-syn-select .ant-select-item-group,
+    .ant-select-dropdown .rc-virtual-list .ant-select-item-group {
+        color: var(--horosa-text-soft);
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    /* 图形星历 行运曲线 hover:可见线加粗 + 提亮(配合透明命中条;任务 F)。 */
+    .horosa-uranian-gephem .horosa-gephem-line:hover .horosa-gephem-line-vis {
+        stroke-width: 3;
+        opacity: 1;
+    }
+
+    // WP-3 差值表(太阳弧到期):紧凑表格 + 主题色;命中目标年龄的行用强调底色高亮。
+    .horosa-uranian-difftable .ant-table {
+        background: transparent;
+        font-size: 12px;
+    }
+    .horosa-uranian-difftable .ant-table-thead > tr > th {
+        background: var(--horosa-surface-sunken, rgba(127, 127, 127, 0.08));
+        color: var(--horosa-text-soft);
+        font-weight: 600;
+        padding: 4px 6px;
+        border-bottom-color: var(--horosa-border-soft, rgba(127, 127, 127, 0.18));
+    }
+    .horosa-uranian-difftable .ant-table-tbody > tr > td {
+        padding: 3px 6px;
+        border-bottom-color: var(--horosa-border-soft, rgba(127, 127, 127, 0.1));
+        color: inherit;
+    }
+    .horosa-uranian-difftable .ant-table-tbody > tr.horosa-uranian-diff-due > td {
+        background: var(--horosa-accent-soft);
+    }
+    .horosa-uranian-difftable .ant-table-tbody > tr:hover > td {
+        background: var(--horosa-surface-sunken, rgba(127, 127, 127, 0.06));
+    }
+    .horosa-uranian-difftable .ant-table-tbody > tr.horosa-uranian-diff-due:hover > td {
+        background: var(--horosa-accent-soft);
+    }
+
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-control-grid {
+        width: 100%;
+        max-width: 430px;
+        margin: 0 auto 8px !important;
+        row-gap: 0;
+    }
+
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-control-grid > .ant-col {
+        padding-right: 2px !important;
+        padding-left: 2px !important;
+    }
+
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-control-grid :is(.ant-select-selection-item, .ant-input, .ant-btn) {
+        text-align: center;
+    }
+
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-control-grid .ant-select-selector {
+        justify-content: center;
+    }
+
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-side-tabs {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        width: 100%;
+        max-width: 430px;
+        min-height: 0;
+        margin: 0 auto;
+    }
+
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-side-tabs > .ant-tabs-nav {
+        align-self: center;
+        width: auto;
+        margin-bottom: 8px;
+    }
+
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-side-tabs > .ant-tabs-nav .ant-tabs-nav-wrap,
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-side-tabs > .ant-tabs-nav .ant-tabs-nav-list {
+        justify-content: center;
+    }
+
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-side-tabs > .ant-tabs-nav .ant-tabs-tab {
+        justify-content: center;
+        min-width: 54px;
+        text-align: center;
+    }
+
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-side-tabs > .ant-tabs-content-holder {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-side-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+    .horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-side-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+        height: 100%;
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-liureng-page > .ant-row,
+    .horosa-workspace-shell .horosa-taiyi-page > .ant-spin-nested-loading,
+    .horosa-workspace-shell .horosa-taiyi-page > .ant-spin-nested-loading > .ant-spin-container,
+    .horosa-workspace-shell .horosa-taiyi-page .ant-row {
+        height: 100%;
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-liureng-page > .ant-row > .ant-col,
+    .horosa-workspace-shell .horosa-taiyi-page > .ant-spin-nested-loading > .ant-spin-container > .ant-row > .ant-col {
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .horosa-liureng-page > .ant-row > .ant-col:first-child,
+    .horosa-workspace-shell .horosa-taiyi-page > .ant-spin-nested-loading > .ant-spin-container > .ant-row > .ant-col:first-child {
+        overflow: hidden;
+        border: 1px solid var(--horosa-border);
+        border-radius: var(--horosa-radius);
+        background: var(--horosa-panel-bg);
+        box-shadow: var(--horosa-small-shadow);
+    }
+
+    .horosa-workspace-shell .horosa-liureng-page > .ant-row > .ant-col:last-child,
+    .horosa-workspace-shell .horosa-taiyi-page > .ant-spin-nested-loading > .ant-spin-container > .ant-row > .ant-col:last-child {
+        overflow: auto;
+        border: 1px solid var(--horosa-border);
+        border-radius: var(--horosa-radius);
+        background: var(--horosa-panel-bg);
+        box-shadow: var(--horosa-small-shadow);
+        padding: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-cntradition-page .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-cnyibu-page .ant-tabs-content-holder {
+        border: 1px solid var(--horosa-border);
+        border-radius: var(--horosa-radius);
+        background: var(--horosa-panel-bg);
+        box-shadow: var(--horosa-small-shadow);
+    }
+
+    .horosa-workspace-shell .horosa-cntradition-page .ant-tabs-tabpane,
+    .horosa-workspace-shell .horosa-cnyibu-page .ant-tabs-tabpane {
+        padding: 10px 12px;
+    }
+
+    .horosa-workspace-shell .ant-empty-description,
+    .horosa-workspace-shell .ant-list-item-meta-description,
+    .horosa-workspace-shell .ant-descriptions-item-label,
+    .horosa-workspace-shell .ant-descriptions-item-content {
+        color: var(--horosa-text-soft);
+    }
+
+    .horosa-workspace-shell .ant-card-small > .ant-card-head,
+    .horosa-workspace-shell .ant-card-small > .ant-card-body {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    .horosa-workspace-shell .ant-card-small > .ant-card-body {
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+
+    .horosa-workspace-shell .ant-tag-blue,
+    .horosa-workspace-shell .ant-tag-cyan,
+    .horosa-workspace-shell .ant-tag-purple,
+    .horosa-workspace-shell .ant-tag-magenta,
+    .horosa-workspace-shell .ant-tag-gold {
+        border-color: var(--horosa-border-strong);
+        background: var(--horosa-accent-soft);
+        color: var(--horosa-accent-strong);
+    }
+
+    .horosa-workspace-shell .ant-card,
+    .horosa-workspace-shell .ant-list,
+    .horosa-workspace-shell .ant-collapse,
+    .horosa-workspace-shell .ant-descriptions,
+    .horosa-workspace-shell .ant-alert {
+        border-color: var(--horosa-border);
+        border-radius: var(--horosa-radius);
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 60%),
+            var(--horosa-panel-bg);
+        color: var(--horosa-text);
+    }
+
+    /* 🔴 上一条只给【容器】.ant-collapse 设了 color —— 而 antd 给 .ant-collapse-header 与
+       .ant-collapse-content 各【自带】一份 color: rgba(0,0,0,.85)，直接盖过继承。
+       故暗色下折叠头是【黑底黑字】(实测对比度 1.1:1，几乎全不可见)。
+       此坑只在真的往 workspace-shell 里放 Collapse 时才现形 —— 各页从前都各修各的
+       (紫微流派折叠即是)，遂无人补这一条通用的。今补之:此后任谁在此用 Collapse 皆自免此疫。 */
+    .horosa-workspace-shell .ant-collapse > .ant-collapse-item > .ant-collapse-header {
+        color: var(--horosa-text);
+    }
+    .horosa-workspace-shell .ant-collapse > .ant-collapse-item > .ant-collapse-header .ant-collapse-arrow {
+        color: var(--horosa-text-soft);
+    }
+    .horosa-workspace-shell .ant-collapse .ant-collapse-content {
+        color: var(--horosa-text);
+        background: transparent;
+        border-top-color: var(--horosa-border);
+    }
+    .horosa-workspace-shell .ant-collapse .ant-collapse-content-box {
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .ant-tag {
+        border-color: var(--horosa-border);
+        border-radius: 6px;
+        background: var(--horosa-panel-soft);
+        color: var(--horosa-text-soft);
+    }
+
+    .horosa-workspace-shell .ant-radio-button-wrapper {
+        border-color: var(--horosa-border);
+        background: var(--horosa-panel-soft);
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .ant-radio-button-wrapper:not(:first-child)::before {
+        background-color: var(--horosa-border);
+    }
+
+    .horosa-workspace-shell .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled) {
+        border-color: var(--horosa-accent);
+        background: var(--horosa-accent);
+        color: var(--horosa-on-accent, #fff);
+        box-shadow: none;
+    }
+
+    .horosa-workspace-shell .ant-checkbox-inner,
+    .horosa-workspace-shell .ant-radio-inner {
+        border-color: var(--horosa-border-strong);
+        background: var(--horosa-panel-soft);
+    }
+
+    .horosa-workspace-shell .ant-checkbox-checked .ant-checkbox-inner,
+    .horosa-workspace-shell .ant-radio-checked .ant-radio-inner {
+        border-color: var(--horosa-accent);
+        background: var(--horosa-accent);
+    }
+
+    .horosa-workspace-shell .scrollbar::-webkit-scrollbar,
+    .horosa-workspace-shell ::-webkit-scrollbar {
+        width: 7px;
+        height: 7px;
+    }
+
+    .horosa-workspace-shell .scrollbar::-webkit-scrollbar-track,
+    .horosa-workspace-shell ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .horosa-workspace-shell .scrollbar::-webkit-scrollbar-thumb,
+    .horosa-workspace-shell ::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: var(--horosa-border-strong);
+    }
+
+    .horosa-astro-header {
+        box-shadow: 0 1px 0 rgba(218, 177, 111, 0.16) !important;
+    }
+
+    /* 🔴 全高档高度锚:勿用 calc(100vh - 72px)——App 壳有页面缩放持久化,WKWebView zoom 下
+       vh 与真实视口错位,写死 vh 会比实际可用高 → 整页可上下滚,底部时间轴等贴底件被滚出视口
+       (用户真机实告;preview 无缩放故复现不出)。改 100% 沿 .horosa-main-spin 链传导,
+       顶端锚 = 页面根的 JS 实测数值高(zoom 稳健)。 */
+    .horosa-workspace-shell .horosa-main-spin,
+    .horosa-workspace-shell .horosa-main-spin > .ant-spin-container {
+        height: 100%;
+        min-height: 0;
+    }
+
+    .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active {
+        height: 100% !important;
+        max-height: 100% !important;
+        border-color: rgba(218, 177, 111, 0.16);
+        border-radius: 0;
+        background: #050607;
+        box-shadow: none;
+    }
+
+    .horosa-workspace-shell .mainRootTabs.horosa-bazi-shell-active {
+        height: 100% !important;
+        max-height: 100% !important;
+    }
+
+    .horosa-workspace-shell .mainRootTabs.horosa-bazi-shell-active > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+        padding: 0 !important;
+    }
+
+    .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active > .ant-tabs-content-holder {
+        background: #050607;
+    }
+
+    .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+        padding: 4px;
+        background: #050607;
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign {
+        height: 100%;
+        min-width: 1080px;
+        background: #050607;
+        color: #eee2cf;
+        --horosa-astro-black: #050607;
+        --horosa-astro-panel: #090b0e;
+        --horosa-astro-panel-2: #0d1014;
+        --horosa-astro-line: rgba(215, 173, 105, 0.18);
+        --horosa-astro-line-strong: rgba(231, 190, 119, 0.42);
+        --horosa-astro-gold: #e7bd75;
+        --horosa-astro-gold-rgb: 231, 189, 117;
+        --horosa-astro-gold-soft: rgba(231, 189, 117, 0.16);
+        --horosa-astro-label: #d6c7b0;
+        --horosa-astro-text: #efe4d2;
+        --horosa-astro-muted: #928b82;
+        --horosa-astro-cyan: #79c9be;
+        /* 次级字色在占星作用域里随 astro-muted(暖灰;亮色覆盖块把 astro-muted 改指 text-soft,本行随之解析) */
+        --horosa-text-secondary: var(--horosa-astro-muted);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active {
+        border-color: var(--horosa-border);
+        background: var(--horosa-bg);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active > .ant-tabs-content-holder,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .mainRootTabs.horosa-astro-shell-active > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+        background: var(--horosa-bg);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign {
+        background: var(--horosa-bg);
+        color: var(--horosa-text);
+        --horosa-astro-black: var(--horosa-bg);
+        --horosa-astro-panel: var(--horosa-surface-raised);
+        --horosa-astro-panel-2: var(--horosa-panel-soft);
+        --horosa-astro-line: var(--horosa-border);
+        --horosa-astro-line-strong: var(--horosa-border-strong);
+        --horosa-astro-gold: var(--horosa-gold);
+        --horosa-astro-gold-rgb: var(--horosa-gold-rgb);
+        --horosa-astro-gold-soft: var(--horosa-gold-soft);
+        --horosa-astro-label: #805526;
+        --horosa-astro-text: var(--horosa-text);
+        --horosa-astro-muted: var(--horosa-text-soft);
+        --horosa-astro-cyan: var(--horosa-accent-strong);
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) 64px;
+        gap: 4px;
+        height: 100%;
+        min-height: 0;
+        background: #050607;
+    }
+
+    .horosa-workspace-shell .horosa-astro-no-bottom-dock .horosa-astro-redesign-layout {
+        grid-template-rows: minmax(0, 1fr);
+    }
+
+    .horosa-workspace-shell .horosa-astro-no-bottom-dock .horosa-astro-redesign-grid {
+        grid-template-columns: clamp(~"min(245px, calc(26 * var(--horosa-lvw, 1vw)), 29%)", calc(16 * var(--horosa-lvw, 1vw)), 285px) minmax(0, 1fr) clamp(~"min(300px, calc(30 * var(--horosa-lvw, 1vw)), 32%)", calc(20 * var(--horosa-lvw, 1vw)), 350px) !important; /* 中列零底、侧栏下限 min(定值, N·视口宽, 栅格自身宽 29% / 32%):布局宽不够时按比例收窄而不是从右侧裁掉;栅格嵌在别的宿主里(卜 · 其他、辅盘)时视口宽会高估可用宽,由栅格自身宽那一项兜住 */
+    }
+
+    /* 🔴 辅盘子盘(十三分/十二分/重置…)右栏加宽到与占星主页签同量级。
+       特异度 (0,4,0) 压过上面那条 no-bottom-dock 通则,且 .horosa-auxchart-layout 前缀
+       把作用域**精确锁在辅盘内**——同走 no-bottom-dock 的合盘/印占/分至不受影响。
+       中列硬下限必须同步松开 620→520(回到基线值):grid 自带 overflow:hidden,
+       1280px 窄屏下 245+620+400 会溢出,加出来的宽度反而从右侧被裁掉(越改越糟)。 */
+    .horosa-workspace-shell .horosa-auxchart-layout .horosa-astro-no-bottom-dock .horosa-astro-redesign-grid {
+        grid-template-columns: clamp(~"min(245px, calc(26 * var(--horosa-lvw, 1vw)), 29%)", calc(16 * var(--horosa-lvw, 1vw)), 285px) minmax(0, 1fr) clamp(~"min(320px, calc(30 * var(--horosa-lvw, 1vw)), 32%)", calc(24 * var(--horosa-lvw, 1vw)), 400px) !important; /* 中列零底、侧栏下限 min(定值, N·视口宽, 栅格自身宽 29% / 32%):布局宽不够时按比例收窄而不是从右侧裁掉;栅格嵌在别的宿主里(卜 · 其他、辅盘)时视口宽会高估可用宽,由栅格自身宽那一项兜住 */
+    }
+
+    /* 择日·天星择日:布局逐字复用辅盘三类(-page/-layout/-tabs),差异条全锁 .horosa-zeri-host。
+       ① 右栏宽度:判据=七判读页签(信息…埃及)不省略全显(实测 nav 自然宽 430px,压页签间距后 ~330px),
+          余量全让给中间轮盘(用户二轮圈报:先嫌窄缝浪费、后嫌 27vw 过宽);
+          中列硬下限同辅盘松到 520 防 1280 窄屏溢出(同款坑:溢出宽度会从右侧被裁,越改越糟)。
+       ② 择日无底部 QuickDock → 去掉辅盘 layout 的 64px dock 行,高度全给内容(用户圈报底部空带)。
+       ③ 右栏判读页签紧凑化:antd 默认 tab 间距 32px 是七页签放不下的元凶,压到 12px。 */
+    .horosa-workspace-shell .horosa-zeri-host .horosa-astro-no-bottom-dock .horosa-astro-redesign-grid {
+        grid-template-columns: clamp(~"min(245px, calc(26 * var(--horosa-lvw, 1vw)), 29%)", calc(16 * var(--horosa-lvw, 1vw)), 285px) minmax(0, 1fr) clamp(~"min(350px, calc(30 * var(--horosa-lvw, 1vw)), 32%)", calc(22 * var(--horosa-lvw, 1vw)), 385px) !important; /* 中列零底、侧栏下限 min(定值, N·视口宽, 栅格自身宽 29% / 32%):布局宽不够时按比例收窄而不是从右侧裁掉;栅格嵌在别的宿主里(卜 · 其他、辅盘)时视口宽会高估可用宽,由栅格自身宽那一项兜住 */
+    }
+
+    /* 择日工作台整页没有底坞,但里面嵌的技法盘页会渲染自己的底坞结构:按「坞的父层」认的安全区在这里会误吃坞高 + 18
+       (古典页「向运至杀星」与「衍化」之间 111px 空隙的大头)—— 择日宿主整层用 12px。
+       三条分写:旧引擎遇 :has 会整条丢弃,宿主本身与回退类那两条不能跟它挤在同一选择器列表里。 */
+    .horosa-workspace-shell .horosa-zeri-host {
+        --horosa-scroll-safe-bottom: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-zeri-host :is(div, section, main):has(> .horosa-bottom-quick-dock) {
+        --horosa-scroll-safe-bottom: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-zeri-host .horosa-bottom-quick-dock-parent {
+        --horosa-scroll-safe-bottom: 12px;
+    }
+
+    /* xq-tabs 皮肤自带 margin-right:22px,叠上 margin-left 就回到 32px 级间距(实测抓出)——margin 一把归零。
+       间距 14px=两全点:本体 225+6×14=309 < 内容宽 ~322(窄屏下界 350−padding28),全显且不挤(10px 用户嫌挤)。 */
+    .horosa-workspace-shell .horosa-zeri-host .horosa-astro-redesign-grid > :last-child .ant-tabs-nav .ant-tabs-tab {
+        margin: 0 0 0 14px !important;
+    }
+
+    .horosa-workspace-shell .horosa-zeri-host .horosa-astro-redesign-grid > :last-child .ant-tabs-nav .ant-tabs-tab:first-child {
+        margin: 0 !important;
+    }
+
+    .horosa-workspace-shell .horosa-zeri-host .horosa-auxchart-layout {
+        grid-template-rows: minmax(0, 1fr);
+    }
+
+    /* 奇门择日:内嵌 DunJiaMain 以 showQuickDock=false 去底部快捷栏,其 layout 的 64px dock 行
+       (基线 12218)同步去掉,高度全给盘面——与本页「择日无底部 QuickDock」契约一致。 */
+    .horosa-workspace-shell .horosa-zeri-host .horosa-dunjia-redesign .horosa-dunjia-redesign-layout {
+        grid-template-rows: minmax(0, 1fr);
+    }
+
+    .horosa-workspace-shell .horosa-astro-no-bottom-dock .horosa-chart-stage-redesign > svg {
+        transform: scale(1.015);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign-layout {
+        background: var(--horosa-bg);
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign-grid {
+        display: grid;
+        grid-template-columns: clamp(~"min(285px, calc(26 * var(--horosa-lvw, 1vw)), 29%)", calc(20 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(335px, calc(30 * var(--horosa-lvw, 1vw)), 32%)", calc(25 * var(--horosa-lvw, 1vw)), 400px); /* 中列零底、侧栏下限 min(定值, N·视口宽, 栅格自身宽 29% / 32%):布局宽不够时按比例收窄而不是从右侧裁掉;栅格嵌在别的宿主里(卜 · 其他、辅盘)时视口宽会高估可用宽,由栅格自身宽那一项兜住 */
+        gap: 4px;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign .horosa-astro-context-panel,
+    .horosa-workspace-shell .horosa-astro-redesign .horosa-chart-stage,
+    .horosa-workspace-shell .horosa-astro-redesign .horosa-inspector-panel,
+    .horosa-workspace-shell .horosa-bottom-quick-dock {
+        border: 1px solid var(--horosa-astro-line);
+        border-radius: 6px;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 46%),
+            var(--horosa-astro-panel) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign .horosa-chart-stage {
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 46%),
+            var(--horosa-astro-panel) !important;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign .horosa-astro-context-panel,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign .horosa-chart-stage,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign .horosa-inspector-panel,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bottom-quick-dock {
+        border-color: var(--horosa-border);
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 64%),
+            var(--horosa-surface-raised) !important;
+        box-shadow: var(--horosa-small-shadow);
+    }
+
+    .horosa-workspace-shell .horosa-astro-input-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+        min-width: 0;
+        min-height: 0;
+        padding: 14px 12px;
+        overflow: auto;
+    }
+
+    .horosa-workspace-shell .horosa-panel-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .horosa-workspace-shell .horosa-panel-kicker {
+        color: var(--horosa-astro-text);
+        font-size: 16px;
+        font-weight: 760;
+        line-height: 1.2;
+    }
+
+    .horosa-workspace-shell .horosa-panel-title {
+        display: none;
+    }
+
+    // 左栏统一间距(用户:小标题「地点/时间」与上下控件太近、无安全距离):块内 label→控件留 7px,
+    // 时间/地点两块之间留 14px 安全距(七政基准),「当地时间」hint 与上方按钮再隔 6px。全左栏同源受益、观感统一。
+    // 🔴🔴 时间/地点 14px 只能走【纵向容器】,绝不用无差别的全局相邻兄弟边距 —— 后者会把【2 列选项网格
+    //    .horosa-field-grid】的第二列(性别|时间算法、长生|神煞查法…)向下推 14px、与第一列高低错位。
+    //    纵向容器有两种:spacetime-panel(命/多数卜,走 gap)与直挂 body-inner 的块(辅盘/择日,走【直接子】相邻边距);
+    //    field-grid 里字段块是 body-inner 的孙节点,> 直接子选择器不波及 → 两列恒对齐。
+    .horosa-workspace-shell .horosa-spacetime-panel {
+        display: grid;
+        gap: 14px !important;
+        min-width: 0;
+    }
+    .horosa-workspace-shell .xq-side-section-body-inner > .horosa-field-block + .horosa-field-block {
+        margin-top: 14px;
+    }
+    // 双保险:2 列网格内字段块一律零纵向补距,即便别处漏了全局相邻边距也不会把第二列推错位。
+    .horosa-workspace-shell .horosa-field-grid > .horosa-field-block + .horosa-field-block {
+        margin-top: 0 !important;
+    }
+
+    .horosa-workspace-shell .horosa-field-block {
+        display: grid;
+        gap: 7px;
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-field-label,
+    .horosa-workspace-shell .horosa-side-section-title {
+        margin: 0;
+        color: var(--horosa-astro-label, #d6c7b0);
+        font-size: 14px;
+        font-weight: 680;
+        line-height: 1.2;
+    }
+
+    /* [亮色字段标题不发淡] --horosa-astro-label 的亮色值(#805526)原仅在 .horosa-astro-redesign 下定义,
+       塔罗/地占等未挂该类的技法回退到暗色 #d6c7b0(米白)→ 白底上太淡看不清。亮色下把回退钉成可读棕金。 */
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-field-label,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-side-section-title,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-tarot-field > label {
+        color: var(--horosa-astro-label, #805526);
+    }
+
+    .horosa-workspace-shell .horosa-field-hint {
+        margin-top: 6px;
+        color: var(--horosa-astro-muted);
+        font-size: 12px;
+        line-height: 1.3;
+    }
+
+    /* 模型选择器头行:标题与「仅视觉模型」开关同行两端对齐(缺此定义时裸 div 堆叠换行=风水左栏实发) */
+    .horosa-workspace-shell .horosa-modelselector-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        white-space: nowrap;
+        min-width: 0;
+    }
+    .horosa-workspace-shell .horosa-modelselector-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        font-weight: 400;
+        color: var(--horosa-text-soft);
+        cursor: pointer;
+        white-space: nowrap;
+        flex: 0 0 auto;
+    }
+
+    /* AI 分析·风水图像工作台面板贴边:antd 默认给右栏 tabpane 24px 右距、页内 .pane 再叠 12px,
+       右侧共 36px 空带(用户两轮反馈「空白没利用」)。负 margin 会被 .pane overflow:hidden 裁掉
+       右栏内容(真机实锤)→ 按面板 id 结构覆盖(编号漂移免疫);锚 .ant-tabs-right 防误伤主导航理气页。 */
+    .horosa-workspace-shell .ant-tabs-right > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane[id$="-panel-fengshui"] {
+        padding-right: 8px;
+    }
+    .horosa-workspace-shell .ant-tabs-right .ant-tabs-tabpane[id$="-panel-fengshui"] > div {
+        padding-right: 0;
+    }
+
+    .horosa-workspace-shell .horosa-chart-mode-switch {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        border-bottom: 1px solid rgba(215, 173, 105, 0.12);
+    }
+
+    .horosa-workspace-shell .horosa-chart-mode-switch button {
+        position: relative;
+        height: 36px;
+        border: 0;
+        background: transparent;
+        color: var(--horosa-astro-muted);
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .horosa-workspace-shell .horosa-chart-mode-switch button.is-active {
+        color: var(--horosa-astro-gold);
+    }
+
+    .horosa-workspace-shell .horosa-chart-mode-switch button.is-active::after {
+        content: "";
+        position: absolute;
+        right: 12px;
+        bottom: -1px;
+        left: 12px;
+        height: 2px;
+        border-radius: 999px;
+        background: var(--horosa-astro-gold);
+    }
+
+    .horosa-workspace-shell .horosa-unified-field {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        min-height: 38px;
+        padding: 0 10px;
+        border: 1px solid rgba(215, 173, 105, 0.18);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.018);
+        color: var(--horosa-astro-text);
+        text-align: left;
+        cursor: pointer;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-unified-field {
+        border-color: var(--horosa-border);
+        background: var(--horosa-surface-solid);
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-unified-field:hover {
+        border-color: var(--horosa-astro-line-strong);
+        color: var(--horosa-astro-gold);
+    }
+
+    .horosa-workspace-shell .horosa-unified-field .xq-icon {
+        color: #c9b089;
+        font-size: 17px;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-unified-field .xq-icon {
+        color: var(--horosa-gold);
+    }
+
+    .horosa-workspace-shell .horosa-time-adjust-inline {
+        min-width: 0;
+        padding-top: 2px;
+    }
+
+    // 固定 5 轨 grid 在 ≤200px 栏宽会把「步长下拉」榨到 20px 级(只剩箭头)。改弹性换行:
+    // 宽时一行五件;窄时「此刻/确定」落第二行,步长下拉保底 78px 恒可读(吃满栏宽、不截断)。
+    .horosa-workspace-shell .horosa-time-adjust-inline .xq-datetime-adjust-only > .ant-col > .ant-row {
+        display: flex !important;
+        flex-wrap: wrap;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-time-adjust-inline .xq-datetime-adjust-only > .ant-col > .ant-row > .ant-col {
+        flex: 0 0 auto !important;
+        max-width: none !important;
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    .horosa-workspace-shell .horosa-time-adjust-inline .xq-datetime-adjust-only > .ant-col > .ant-row > .ant-col:nth-child(1),
+    .horosa-workspace-shell .horosa-time-adjust-inline .xq-datetime-adjust-only > .ant-col > .ant-row > .ant-col:nth-child(3) {
+        flex: 0 0 30px !important;
+    }
+
+    .horosa-workspace-shell .horosa-time-adjust-inline .xq-datetime-adjust-only > .ant-col > .ant-row > .ant-col:nth-child(2) {
+        flex: 1 1 78px !important;
+        min-width: 78px !important;
+    }
+
+    .horosa-workspace-shell .horosa-time-adjust-inline .xq-datetime-adjust-only > .ant-col > .ant-row > .ant-col:nth-child(4),
+    .horosa-workspace-shell .horosa-time-adjust-inline .xq-datetime-adjust-only > .ant-col > .ant-row > .ant-col:nth-child(5) {
+        flex: 1 1 46px !important;
+        min-width: 46px !important;
+    }
+
+    .horosa-workspace-shell .horosa-time-adjust-inline .xq-datetime-adjust-only .ant-select,
+    .horosa-workspace-shell .horosa-time-adjust-inline .xq-datetime-adjust-only .ant-btn {
+        min-width: 0 !important;
+    }
+
+    // 全局统一:time-adjust 行内【步长下拉 + −/+/此刻/确定 全部按钮】恒 32px 等高,消除下拉凸出/按钮参差。
+    // 🔴 各页有 `:is(命卜各页-redesign) …selector{min-height:36px !important}`(0,4,0)与按钮 28px 覆盖;
+    //    此处双写 .horosa-time-adjust-inline 顶到 0,5,0 反压,不依赖 .xq-datetime-adjust-only(六爻等行无此内层)。
+    .horosa-workspace-shell .horosa-time-adjust-inline.horosa-time-adjust-inline .ant-btn {
+        height: 32px !important;
+        min-height: 32px !important;
+    }
+    // 🔴 时间微调行统一压紧对齐七政基准:某些技法(八字 bazi-time-control 等)的 antd 竖向 gutter 会给
+    //    每层 ant-col 残留 margin-bottom:6px,3 层嵌套叠成 +18px → 时间块虚高、地点被下推(用户:间距太高、
+    //    与七政对不上)。单行微调行不需要竖 gutter,一律清零,全技法 adjust-inline 收敛到 34px 与七政齐平。
+    .horosa-workspace-shell .horosa-time-adjust-inline .ant-col {
+        margin-bottom: 0 !important;
+    }
+    // Select selector 的 :is(各页) 覆盖也是 0,5,0,与双写 time-adjust 打平后靠源码序取胜→再双写 .ant-select 顶到 0,6,0 反压。
+    .horosa-workspace-shell .horosa-time-adjust-inline.horosa-time-adjust-inline .ant-select.ant-select .ant-select-selector {
+        height: 32px !important;
+        min-height: 32px !important;
+        padding: 0 7px !important;
+        display: flex;
+        align-items: center;
+    }
+    .horosa-workspace-shell .horosa-time-adjust-inline.horosa-time-adjust-inline .ant-select.ant-select .ant-select-selection-item,
+    .horosa-workspace-shell .horosa-time-adjust-inline.horosa-time-adjust-inline .ant-select.ant-select .ant-select-selection-search-input {
+        height: 30px !important;
+        line-height: 30px !important;
+    }
+    // 兜底:直接命中 DateTimeSelector 内层 Row(.xq-datetime-adjust-only)——任何技法(不论外层包裹类,含命·紫微/八字)
+    // 的时间步长下拉+按钮统一 32px 等高。三写 ant-select 顶到 0,6,0 压过各页 :is(...) 覆盖。
+    .horosa-workspace-shell .xq-datetime-adjust-only .ant-select.ant-select.ant-select .ant-select-selector {
+        height: 32px !important;
+        min-height: 32px !important;
+        padding: 0 7px !important;
+        display: flex;
+        align-items: center;
+    }
+    .horosa-workspace-shell .xq-datetime-adjust-only .ant-select.ant-select.ant-select .ant-select-selection-item,
+    .horosa-workspace-shell .xq-datetime-adjust-only .ant-select.ant-select.ant-select .ant-select-selection-search-input {
+        height: 30px !important;
+        line-height: 30px !important;
+    }
+    .horosa-workspace-shell .xq-datetime-adjust-only .ant-btn.ant-btn {
+        height: 32px !important;
+        min-height: 32px !important;
+    }
+
+    .horosa-workspace-shell .horosa-time-adjust-inline .ant-btn,
+    .horosa-workspace-shell .horosa-time-adjust-inline .xq-button.ant-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-width: 0;
+        height: 32px;
+        padding: 0;
+        border-color: rgba(215, 173, 105, 0.20);
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.02);
+        color: var(--horosa-astro-text);
+        font-size: 12px;
+        font-weight: 650;
+        line-height: 1;
+    }
+
+    :root[data-horosa-appearance='dark'] .horosa-workspace-shell .horosa-time-adjust-inline .ant-btn,
+    :root[data-horosa-appearance='dark'] .horosa-workspace-shell .horosa-time-adjust-inline .xq-button.ant-btn {
+        background: var(--horosa-astro-panel) !important;
+        color: var(--horosa-astro-text) !important;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-time-adjust-inline .ant-btn,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-time-adjust-inline .xq-button.ant-btn {
+        border-color: var(--horosa-border);
+        background: var(--horosa-surface-solid);
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-time-adjust-inline .xq-icon {
+        font-size: 15px;
+    }
+
+    .horosa-workspace-shell .horosa-time-adjust-inline .ant-btn-two-chinese-chars > span {
+        margin-right: -0.16em;
+        letter-spacing: -0.16em;
+    }
+
+    .horosa-workspace-shell .horosa-time-adjust-inline .ant-select:not(.ant-select-customize-input) .ant-select-selector {
+        display: flex;
+        align-items: center;
+        height: 32px !important;
+        min-height: 32px;
+        border-color: rgba(215, 173, 105, 0.20) !important;
+        border-radius: 7px !important;
+        background: rgba(255, 255, 255, 0.02) !important;
+        color: var(--horosa-astro-text) !important;
+    }
+
+    :root[data-horosa-appearance='dark'] .horosa-workspace-shell .horosa-time-adjust-inline .ant-select:not(.ant-select-customize-input) .ant-select-selector {
+        background: var(--horosa-astro-panel) !important;
+        color: var(--horosa-astro-text) !important;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-time-adjust-inline .ant-select:not(.ant-select-customize-input) .ant-select-selector {
+        border-color: var(--horosa-border) !important;
+        background: var(--horosa-surface-solid) !important;
+        color: var(--horosa-text) !important;
+    }
+
+    .horosa-workspace-shell .horosa-time-adjust-inline .ant-select-selection-item {
+        display: flex;
+        align-items: center;
+        line-height: 1 !important;
+        font-size: 12px;
+        font-weight: 650;
+    }
+
+    .horosa-workspace-shell .horosa-time-adjust-inline .ant-select-arrow {
+        color: #c9b089;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-time-adjust-inline .ant-select-arrow {
+        color: var(--horosa-muted);
+    }
+
+    .horosa-workspace-shell .horosa-time-adjust-inline .ant-btn:hover,
+    .horosa-workspace-shell .horosa-time-adjust-inline .ant-btn:focus,
+    .horosa-workspace-shell .horosa-time-adjust-inline .ant-select-focused .ant-select-selector,
+    .horosa-workspace-shell .horosa-time-adjust-inline .ant-select:hover .ant-select-selector {
+        border-color: var(--horosa-astro-line-strong) !important;
+        background: rgba(231, 189, 117, 0.08) !important;
+        color: var(--horosa-astro-gold) !important;
+        box-shadow: none !important;
+    }
+
+    :root[data-horosa-appearance='dark'] .horosa-workspace-shell .horosa-time-adjust-inline .ant-btn:hover,
+    :root[data-horosa-appearance='dark'] .horosa-workspace-shell .horosa-time-adjust-inline .ant-btn:focus,
+    :root[data-horosa-appearance='dark'] .horosa-workspace-shell .horosa-time-adjust-inline .ant-select-focused .ant-select-selector,
+    :root[data-horosa-appearance='dark'] .horosa-workspace-shell .horosa-time-adjust-inline .ant-select:hover .ant-select-selector {
+        background: #0d0f12 !important;
+    }
+
+    .horosa-workspace-shell .horosa-place-field {
+        min-height: 52px;
+    }
+
+    .horosa-workspace-shell .horosa-place-field span {
+        display: grid;
+        min-width: 0;
+        gap: 2px;
+    }
+
+    .horosa-workspace-shell .horosa-place-field strong {
+        overflow: hidden;
+        font-weight: 650;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .horosa-workspace-shell .horosa-place-field small {
+        color: var(--horosa-astro-muted);
+        font-size: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+    }
+
+    // G20 流派预设行:位于黄道/宫制 grid 上方,整宽一列。
+    .horosa-workspace-shell .horosa-school-preset-block {
+        margin-bottom: 8px;
+    }
+
+    // 合盘左栏 黄道 / 宫制 触发框:维持 50/50 (与占星页面一致),不论选哪个 ayanāṃśa 都按列宽截 + '...'。
+    // 触发框定宽靠 minmax(0,1fr) 强制 0 下限 + Select/Selector/Item 全链 overflow:hidden min-width:0
+    // → flex 子元素无法把父级撑大,长名必走 ellipsis。仅作用 .horosa-relative-page 后代,占星等 0 影响。
+    .horosa-workspace-shell .horosa-relative-page .horosa-field-block .ant-select,
+    .horosa-workspace-shell .horosa-relative-page .horosa-field-block .ant-select-selector {
+        overflow: hidden;
+        min-width: 0;
+        width: 100%;
+    }
+    .horosa-workspace-shell .horosa-relative-page .horosa-field-block .ant-select-selection-item {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign .xq-select:not(.ant-select-customize-input) .ant-select-selector,
+    .horosa-workspace-shell .horosa-astro-redesign .ant-select:not(.ant-select-customize-input) .ant-select-selector {
+        display: flex;
+        align-items: center;
+        min-height: 36px;
+        border-color: rgba(215, 173, 105, 0.18) !important;
+        border-radius: 6px !important;
+        background: rgba(255, 255, 255, 0.018) !important;
+        color: var(--horosa-astro-text) !important;
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign .ant-select-single .ant-select-selector .ant-select-selection-item,
+    .horosa-workspace-shell .horosa-astro-redesign .ant-select-single .ant-select-selector .ant-select-selection-placeholder,
+    .horosa-settings-popover .ant-select-single .ant-select-selector .ant-select-selection-item,
+    .horosa-settings-popover .ant-select-single .ant-select-selector .ant-select-selection-placeholder,
+    .ant-popover .horosa-time-popover .ant-select-single .ant-select-selector .ant-select-selection-item {
+        display: flex;
+        align-items: center;
+        height: 100%;
+        line-height: 1 !important;
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign .ant-select-single .ant-select-selector .ant-select-selection-search-input,
+    .horosa-settings-popover .ant-select-single .ant-select-selector .ant-select-selection-search-input,
+    .ant-popover .horosa-time-popover .ant-select-single .ant-select-selector .ant-select-selection-search-input {
+        height: 100% !important;
+    }
+
+    :root[data-horosa-appearance='dark'] .horosa-workspace-shell .horosa-astro-redesign .xq-select:not(.ant-select-customize-input) .ant-select-selector,
+    :root[data-horosa-appearance='dark'] .horosa-workspace-shell .horosa-astro-redesign .ant-select:not(.ant-select-customize-input) .ant-select-selector {
+        background: var(--horosa-astro-panel) !important;
+        color: var(--horosa-astro-text) !important;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign .xq-select:not(.ant-select-customize-input) .ant-select-selector,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign .ant-select:not(.ant-select-customize-input) .ant-select-selector {
+        border-color: var(--horosa-border) !important;
+        background: var(--horosa-surface-solid) !important;
+        color: var(--horosa-text) !important;
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign .xq-button.ant-btn,
+    .horosa-workspace-shell .horosa-astro-redesign .xq-icon-button.ant-btn {
+        align-items: center;
+        justify-content: center;
+        border-color: rgba(215, 173, 105, 0.18);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.018);
+        color: var(--horosa-astro-text);
+        box-shadow: none;
+        line-height: 1;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign .xq-button.ant-btn,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign .xq-icon-button.ant-btn {
+        border-color: var(--horosa-border);
+        background: var(--horosa-surface-solid);
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign .xq-button.ant-btn:hover,
+    .horosa-workspace-shell .horosa-astro-redesign .xq-icon-button.ant-btn:hover {
+        border-color: var(--horosa-astro-line-strong);
+        color: var(--horosa-astro-gold);
+        box-shadow: 0 0 0 2px rgba(231, 189, 117, 0.08);
+    }
+
+    // 分段控件切换动画:antd 默认只过渡 color(底/边瞬切=「割裂」)。全域补上底色/边色协同过渡。
+    .horosa-workspace-shell .xq-segmented .ant-radio-button-wrapper {
+        transition: background-color 0.2s cubic-bezier(0.2, 0, 0, 1),
+            border-color 0.2s cubic-bezier(0.2, 0, 0, 1),
+            color 0.2s cubic-bezier(0.2, 0, 0, 1) !important;
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign .xq-segmented .ant-radio-button-wrapper {
+        border-color: rgba(215, 173, 105, 0.18) !important;
+        background: rgba(255, 255, 255, 0.018);
+        color: var(--horosa-astro-muted);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign .xq-segmented .ant-radio-button-wrapper {
+        border-color: var(--horosa-border) !important;
+        background: var(--horosa-surface-solid);
+        color: var(--horosa-text-soft);
+    }
+
+    // 选中态统一为「实心金底 + on-accent 字」——与非 astro 域(塔罗/小年)的通用好样式(6275)同款:
+    // 亮色 on-accent=#fff 纯白、暗色 on-accent=#071015 近黑,两主题皆高对比。
+    // 旧样式(14% 半透金底 + 暗金字/亮色 #805526)在浅底上对比极低,用户实测「看不清」。
+    .horosa-workspace-shell .horosa-astro-redesign .xq-segmented .ant-radio-button-wrapper-checked {
+        border-color: var(--horosa-accent) !important;
+        background: var(--horosa-accent) !important;
+        color: var(--horosa-on-accent, #fff) !important;
+        box-shadow: none !important;
+    }
+
+    /* 占星地图「图层与设置」抽屉 portal 出 workspace-shell 作用域 → 上面金色 segmented CSS 不到位
+       → 落回 antd 默认蓝。此处在抽屉内补：①选中态统一金色(与全站一致);②所有 Segmented 外框
+       等宽(固定 220px + flex 分段)——内部分段数不同但外框对齐,视觉更统一。 */
+    .horosa-acg-drawer .xq-segmented.ant-radio-group {
+        width: 220px;
+        max-width: 100%;
+        display: flex;
+    }
+    .horosa-acg-drawer .xq-segmented .ant-radio-button-wrapper {
+        flex: 1 1 0;
+        min-width: 0;
+        text-align: center;
+        padding-left: 4px;
+        padding-right: 4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .horosa-acg-drawer .xq-segmented .ant-radio-button-wrapper-checked {
+        border-color: var(--horosa-astro-gold, #d7ad69) !important;
+        background: var(--horosa-astro-gold, #d7ad69) !important;
+        color: #1b1206 !important;
+        box-shadow: none !important;
+    }
+    .horosa-acg-drawer .xq-segmented .xq-segmented-thumb {
+        background: var(--horosa-astro-gold, #d7ad69) !important;
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign .horosa-chart-style-block {
+        gap: 5px;
+        padding-top: 0;
+        border-top: 0;
+    }
+
+    .horosa-workspace-shell .horosa-input-nav-stack {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+        padding: 2px 0;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-input-nav-stack {
+        border-color: var(--horosa-border);
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign .horosa-input-nav-stack .xq-button.ant-btn,
+    .horosa-workspace-shell .horosa-input-nav-stack .ant-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        /* gap/padding 各让 1/2px 给文字:辅盘左栏(220px 的 2 列 stack)下按钮内文字位只有 62px,
+           而「宫位与黄道」「显示与样式」五字 @13px 需 64px —— 差 2px 就被 ellipsis 截成「宫位与黄…」。
+           按钮内容本就居中,收 padding 不改变观感(留白由居中决定),只抬高可用宽上限。 */
+        gap: 6px;
+        width: 100%;
+        min-width: 0;
+        height: 44px;
+        padding: 0 6px;
+        border: 1px solid rgba(215, 173, 105, 0.18) !important;
+        border-radius: 7px;
+        background: #090b0e !important;
+        color: var(--horosa-astro-text) !important;
+        font-size: 13px;
+        font-weight: 650;
+        line-height: 1;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+        transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    }
+
+    .horosa-workspace-shell .horosa-input-nav-stack .ant-btn > span:not(.anticon) {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        min-width: 0;
+        height: 100%;
+        line-height: 1;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .horosa-workspace-shell .horosa-input-nav-stack .xq-icon {
+        flex: 0 0 auto;
+        color: var(--horosa-astro-gold);
+        font-size: 19px;
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign .horosa-input-nav-stack .xq-button.ant-btn:hover,
+    .horosa-workspace-shell .horosa-astro-redesign .horosa-input-nav-stack .xq-button.ant-btn:focus,
+    .horosa-workspace-shell .horosa-input-nav-stack .ant-btn:hover,
+    .horosa-workspace-shell .horosa-input-nav-stack .ant-btn:focus {
+        border-color: var(--horosa-astro-line-strong) !important;
+        background: #0d0f12 !important;
+        color: var(--horosa-astro-gold) !important;
+        box-shadow: 0 0 0 2px rgba(231, 189, 117, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.035);
+        transform: translateY(-1px);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign .horosa-input-nav-stack .xq-button.ant-btn,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-input-nav-stack .ant-btn {
+        border-color: var(--horosa-border) !important;
+        background: var(--horosa-surface-solid) !important;
+        color: var(--horosa-text) !important;
+        box-shadow: 0 6px 16px rgba(39, 59, 91, 0.05);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-input-nav-stack .xq-icon {
+        color: var(--horosa-gold);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign .horosa-input-nav-stack .xq-button.ant-btn:hover,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign .horosa-input-nav-stack .xq-button.ant-btn:focus,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-input-nav-stack .ant-btn:hover,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-input-nav-stack .ant-btn:focus {
+        border-color: var(--horosa-border-strong) !important;
+        background: rgba(184, 137, 63, 0.08) !important;
+        color: var(--horosa-gold) !important;
+    }
+
+    .horosa-workspace-shell .horosa-inline-toggle-row {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 4px;
+    }
+
+    .horosa-workspace-shell .horosa-inline-toggle-row .ant-btn {
+        min-width: 0;
+        padding: 0 4px;
+        font-size: 12px;
+    }
+
+    .horosa-workspace-shell .horosa-inline-toggle-row .xq-toggle-active {
+        border-color: var(--horosa-astro-gold);
+        background: rgba(231, 189, 117, 0.12);
+        color: var(--horosa-astro-gold);
+    }
+
+    .horosa-workspace-shell .horosa-recalculate-button.ant-btn {
+        height: 36px;
+        margin-top: auto;
+        border-color: rgba(231, 189, 117, 0.42);
+        background: rgba(231, 189, 117, 0.10);
+        color: var(--horosa-astro-gold);
+        font-weight: 730;
+    }
+
+    .horosa-workspace-shell .horosa-chart-stage-redesign {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        padding: 6px;
+    }
+
+    .horosa-workspace-shell .horosa-chart-stage-redesign > svg {
+        max-width: 100%;
+        max-height: 100%;
+        background: var(--horosa-astro-panel) !important;
+        background-color: var(--horosa-astro-panel) !important;
+        transform: scale(1.055);
+        transform-origin: center;
+    }
+
+    .horosa-workspace-shell .horosa-astro-redesign .horosa-chart-stage-redesign > svg.xq-chart-renderer,
+    :root[data-horosa-appearance='dark'] .horosa-workspace-shell .horosa-astro-redesign .horosa-chart-stage-redesign > svg.xq-chart-renderer {
+        background: var(--horosa-astro-panel) !important;
+        background-color: var(--horosa-astro-panel) !important;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign .horosa-chart-stage-redesign > svg,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-astro-redesign .horosa-chart-stage-redesign > svg.xq-chart-renderer {
+        background: var(--horosa-surface-raised) !important;
+        background-color: var(--horosa-surface-raised) !important;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#050607"],
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#0b1a28"],
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#0B1A28"],
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#0d1e2d"],
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#0D1E2D"],
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#11253a"],
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#11253A"],
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#141b25"],
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#141B25"],
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#182532"] {
+        fill: var(--horosa-surface-raised) !important;
+    }
+
+    .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#050607"],
+    .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#0b1a28"],
+    .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#0B1A28"],
+    .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#0d1e2d"],
+    .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#0D1E2D"],
+    .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#11253a"],
+    .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#11253A"],
+    .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#141b25"],
+    .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#141B25"],
+    .horosa-workspace-shell .horosa-chart-stage-redesign > svg [fill="#182532"] {
+        fill: var(--horosa-astro-panel) !important;
+    }
+
+    .horosa-workspace-shell .horosa-chart-floating-tools {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        z-index: 4;
+        display: inline-flex;
+        gap: 6px;
+    }
+
+    .horosa-workspace-shell .horosa-astro-content-panel {
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-content-tabs {
+        height: 100%;
+        padding: 0 14px 12px;
+    }
+
+    .horosa-workspace-shell .horosa-content-tabs.ant-tabs-top > .ant-tabs-nav {
+        margin: 0 0 8px;
+    }
+
+    .horosa-workspace-shell .horosa-content-tabs.xq-tabs.ant-tabs .ant-tabs-tab {
+        margin-right: 22px;
+        padding: 13px 0 8px;
+        color: var(--horosa-astro-muted);
+        font-size: 15px;
+        font-weight: 650;
+    }
+
+    .horosa-workspace-shell .horosa-content-tabs.xq-tabs.ant-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+        color: var(--horosa-astro-gold);
+    }
+
+    // 七政 Moira 右栏 tab 密度对齐六壬基准(8px 0):上面 content-tabs 的 22px 右距+15px 字号
+    // 在 10 个 tab 下过松;同特异度(0,5,0)后置覆盖。间距样式单源于此,勿在组件 less 再写。
+    .horosa-workspace-shell .horosa-guolao-moira-tabs.xq-tabs.ant-tabs .ant-tabs-tab {
+        margin-right: 12px;
+        padding: 8px 0;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .horosa-workspace-shell .horosa-guolao-moira-tabs.xq-tabs.ant-tabs .ant-tabs-tab + .ant-tabs-tab {
+        margin-left: 0;
+    }
+
+    .horosa-workspace-shell .horosa-content-tabs .ant-tabs-ink-bar {
+        height: 2px;
+        border-radius: 999px;
+        background: var(--horosa-tab-ink);
+    }
+
+    .horosa-workspace-shell .horosa-content-tabs .ant-tabs-content-holder,
+    .horosa-workspace-shell .horosa-content-tabs .ant-tabs-content,
+    .horosa-workspace-shell .horosa-content-tabs .ant-tabs-tabpane {
+        min-height: 0;
+        height: 100%;
+        overflow: hidden;
+    }
+
+    /* 修复:占星右栏每个 tab 的内容容器原由组件按固定 px(AstroChartMain 的 tabHeight=height-100,
+       再被组件内部多减 ~78px)定高,比实际 pane 矮约 110px——内容下方留出一块空白,且内容较多时
+       被压在更小区域内滚动(后续内容被挡住)。这里让 tab 的内容容器填满 pane 高度:空白消失,
+       内容用满可视高度、超高仍由自身 overflow 滚动。pane 本身随视口高度自适应,故各屏幕尺寸通用。 */
+    .horosa-workspace-shell .horosa-content-tabs .ant-tabs-tabpane > * {
+        height: 100% !important;
+        max-height: 100% !important;
+    }
+
+    /* 上一条只管到 pane 的**直接**子层。若那一层是 antd Spin(nested-loading),它里面的 container 是 auto 高块,
+       100% 链在此掐断:内层按 px 写死的滚动盒(组件拿 tabHeight=height−100 估的)比 pane 高,超出部分被 pane 的 overflow:hidden 裁掉,
+       盒内滚到底也看不见最后一截 —— 占星「格局」页签 838px 盒 / 802px pane,**默认 100% 档**即少 36px。接上 Spin 两层;
+       内容盒只在它是 container 的唯一子元素时才拉满(多子元素的面板不受影响)。 */
+    .horosa-workspace-shell .horosa-content-tabs .ant-tabs-tabpane > .ant-spin-nested-loading > .ant-spin-container,
+    .horosa-workspace-shell .horosa-content-tabs .ant-tabs-tabpane > .ant-spin-nested-loading > .ant-spin-container > :only-child {
+        height: 100% !important;
+        max-height: 100% !important;
+        box-sizing: border-box;
+    }
+
+    /* === 相位面板美化（AstroAspect：标准/立即/星座相位 + 映点/反映点）。纯结构色，相位语义色不改。 === */
+    .horosa-aspect-panel {
+        padding: 4px 2px 12px;
+    }
+    .horosa-aspect-panel .horosa-aspect-section {
+        margin-bottom: 12px;
+        padding: 8px 10px 10px;
+        border: 1px solid var(--horosa-border, #e3e6ea);
+        border-radius: 10px;
+        background: var(--horosa-astro-panel, rgba(127, 127, 127, 0.03));
+    }
+    .horosa-aspect-panel .horosa-aspect-section:last-child {
+        margin-bottom: 4px;
+    }
+    .horosa-aspect-panel .horosa-aspect-section-title {
+        font-size: 13px;
+        font-weight: 650;
+        color: var(--horosa-astro-gold, #b8860b);
+        letter-spacing: 0.5px;
+        padding-bottom: 6px;
+        margin-bottom: 8px;
+        border-bottom: 1px solid var(--horosa-border, #e3e6ea);
+    }
+    .horosa-aspect-panel .horosa-aspect-group {
+        margin-bottom: 8px;
+    }
+    .horosa-aspect-panel .horosa-aspect-group--sign {
+        margin-bottom: 0;
+    }
+    .horosa-aspect-panel .horosa-aspect-group-title {
+        display: inline-block;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 1px 8px;
+        margin-bottom: 5px;
+        border-radius: 6px;
+        background: var(--horosa-accent-soft, rgba(184, 134, 11, 0.1));
+    }
+    .horosa-aspect-panel .horosa-aspect-group-title--plain {
+        background: transparent;
+        padding-left: 0;
+        color: var(--horosa-astro-muted, #8a8f98);
+    }
+    .horosa-aspect-panel .horosa-aspect-rows {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .horosa-aspect-panel .horosa-aspect-row {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 9px;
+        border-radius: 999px;
+        background: var(--horosa-surface-solid, rgba(127, 127, 127, 0.06));
+        border: 1px solid var(--horosa-border, #e3e6ea);
+        font-size: 13px;
+        line-height: 1.5;
+    }
+    .horosa-aspect-panel .horosa-aspect-orb {
+        font-size: 11px;
+        color: var(--horosa-astro-muted, #8a8f98);
+    }
+    .horosa-aspect-panel .horosa-aspect-phase {
+        font-size: 11px;
+        padding: 0 5px;
+        border-radius: 4px;
+        line-height: 1.7;
+    }
+    .horosa-aspect-panel .horosa-aspect-phase--applying {
+        color: var(--horosa-jx-ji, #2f9e44);
+        background: var(--horosa-success-soft, rgba(47, 158, 68, 0.12));
+    }
+    .horosa-aspect-panel .horosa-aspect-phase--separating {
+        color: var(--horosa-astro-muted, #8a8f98);
+        background: var(--horosa-surface-solid, rgba(127, 127, 127, 0.12));
+    }
+    // 正合(精确之刻,既非入相也非离相)单独一档:金色,与映点同族但不加粗
+    .horosa-aspect-panel .horosa-aspect-phase--exact {
+        color: var(--horosa-astro-gold, #b8860b);
+        background: var(--horosa-accent-soft, rgba(184, 134, 11, 0.12));
+    }
+    .horosa-aspect-panel .horosa-aspect-phase--anti,
+    .horosa-aspect-panel .horosa-aspect-phase--canti {
+        color: var(--horosa-astro-gold, #b8860b);
+        background: var(--horosa-accent-soft, rgba(184, 134, 11, 0.12));
+    }
+    .horosa-aspect-panel .horosa-aspect-empty {
+        font-size: 12px;
+        color: var(--horosa-astro-muted, #8a8f98);
+        padding: 2px 0;
+    }
+
+    /* === 行星/希腊点/可能性 等数据卡片：暗黑适配（原内联固定背景不随主题）。 === */
+    .horosa-astro-data-card.ant-card,
+    .horosa-astro-data-card.ant-card .ant-card {
+        background: transparent;
+        border-color: var(--horosa-border, rgba(127, 127, 127, 0.18));
+    }
+    .horosa-astro-data-card .ant-card-head {
+        background: transparent;
+        border-bottom-color: var(--horosa-border, rgba(127, 127, 127, 0.18));
+        color: inherit;
+        min-height: 38px;
+    }
+    .horosa-astro-data-card .ant-card-head-title {
+        padding: 8px 0;
+    }
+    .horosa-astro-data-card .ant-card-body {
+        color: inherit;
+        padding: 10px 14px;
+    }
+
+    /* === 新推运技法面板美化（行星年龄 band / 原生日期时间输入主题化） === */
+    .horosa-content-tabs input[type="date"],
+    .horosa-content-tabs input[type="time"] {
+        background: var(--horosa-astro-panel, transparent);
+        color: inherit;
+        border: 1px solid var(--horosa-border, rgba(127, 127, 127, 0.25));
+        border-radius: 6px;
+        padding: 2px 6px;
+        font-size: 12px;
+    }
+    .horosa-content-tabs input[type="date"]::-webkit-calendar-picker-indicator,
+    .horosa-content-tabs input[type="time"]::-webkit-calendar-picker-indicator {
+        opacity: 0.7;
+    }
+    .horosa-age-band {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 10px;
+        margin-bottom: 6px;
+        border-radius: 8px;
+        border: 1px solid var(--horosa-border, rgba(127, 127, 127, 0.16));
+        background: var(--horosa-astro-panel, transparent);
+        line-height: 1.5;
+    }
+    .horosa-age-band--active {
+        border-color: var(--horosa-astro-gold, #b8860b);
+        background: var(--horosa-accent-soft, rgba(184, 134, 11, 0.12));
+        font-weight: 600;
+    }
+    .horosa-age-band .horosa-age-range {
+        min-width: 66px;
+        font-size: 13px;
+    }
+    .horosa-age-band .horosa-age-glyph {
+        font-size: 16px;
+    }
+    .horosa-age-band .horosa-age-pos {
+        color: var(--horosa-astro-muted, #888);
+        font-size: 12px;
+        margin-left: auto;
+    }
+
+    .horosa-workspace-shell .horosa-astro-content-scroll {
+        display: grid;
+        gap: 8px;
+        padding: 2px 0 8px;
+    }
+
+    // 信息 tab 速览：卡片各自贴合内容高度（基本信息/主星紧凑、格局速览随技法行数长高），
+    // 不被 grid 默认 align-content:stretch 撑出下半空位；总高超面板时由容器滚动，卡片不裁剪。
+    .horosa-workspace-shell .horosa-astro-info-scroll.horosa-astro-content-scroll {
+        align-content: start;
+    }
+
+    .horosa-workspace-shell .horosa-info-card {
+        padding: 12px;
+        border: 1px solid rgba(215, 173, 105, 0.16);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.018);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-info-card,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-lots-under-planets {
+        border-color: var(--horosa-border);
+        background: var(--horosa-surface-solid);
+    }
+
+    /* 卡标题里放不下的长拉丁词(「Supplementary」)越界时断行(break-word:不改内容最小宽,宽卡一字不变)—— 放大档窄卡里标题不再越出卡框 117px */
+    .horosa-workspace-shell .horosa-info-card-title {
+        margin-bottom: 10px;
+        color: #d8c5a7;
+        font-size: 14px;
+        font-weight: 720;
+        overflow-wrap: break-word;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-info-card-title {
+        color: var(--horosa-text);
+    }
+
+    /* 重置盘:左栏控件面板(复用 horosa-astro-input-panel 的视觉),控件多时纵向滚动 */
+    .horosa-workspace-shell .horosa-reloc-input-panel {
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+    .horosa-workspace-shell .horosa-reloc-note {
+        margin: 4px 0 12px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--horosa-border-soft, rgba(148, 163, 184, .22));
+        background: var(--horosa-surface-sunken, rgba(148, 163, 184, .08));
+        color: var(--horosa-astro-muted, #8fa0b9);
+        font-size: 11px;
+        line-height: 1.6;
+    }
+
+    .horosa-workspace-shell .horosa-info-row {
+        display: grid;
+        // 标签列固定窄宽(原 0.76fr 会涨到约 43% 卡宽,标签与值间留大空位);标签最长「命主星 1R」约 57px,
+        // 给 84px 足够且对齐一致,值列(1fr)随之变宽,长接纳串更不易溢出卡片。
+        grid-template-columns: 84px minmax(0, 1fr);
+        gap: 7px;
+        min-height: 28px;
+        align-items: start;
+        color: var(--horosa-astro-muted);
+        font-size: 13px;
+    }
+
+    // 标签列(span)防叠保底:超 84px 的长标签(拉丁术语)在列内折行,绝不溢出叠到值列。
+    .horosa-workspace-shell .horosa-info-row > span:first-child {
+        min-width: 0;
+        white-space: normal;
+        overflow-wrap: break-word;
+        word-break: break-word;
+    }
+
+    .horosa-workspace-shell .horosa-info-row strong {
+        overflow: visible;
+        color: rgba(239, 228, 210, 0.82);
+        font-weight: 560;
+        line-height: 1.45;
+        overflow-wrap: break-word; overflow-wrap: anywhere;
+        text-overflow: clip;
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-info-row strong,
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-classical-card {
+        color: var(--horosa-text);
+    }
+
+    .horosa-workspace-shell .horosa-classical-card {
+        color: rgba(239, 228, 210, 0.84);
+        font-size: 13px;
+        line-height: 1.7;
+    }
+
+    .horosa-workspace-shell .horosa-classical-card .ant-row {
+        color: inherit;
+    }
+
+    .horosa-workspace-shell .horosa-classical-card .ant-divider {
+        display: none;
+    }
+
+    /* 古典 tab:无 subtab,卡片依次排列;双语标题(中文+英文小字)+ 轻量分节头。 */
+    .horosa-workspace-shell .horosa-classical-scroll {
+        padding: 2px 8px 8px 0;
+    }
+    .horosa-workspace-shell .horosa-classical-scroll .horosa-classical-card {
+        margin-bottom: 10px;
+        padding: 11px 13px 12px;
+        border-radius: 8px;
+        transition: border-color 0.16s ease, background 0.16s ease;
+    }
+    .horosa-workspace-shell .horosa-classical-scroll .horosa-classical-card:hover {
+        border-color: rgba(215, 173, 105, 0.34);
+    }
+    .horosa-workspace-shell .horosa-classical-card-title {
+        display: flex;
+        align-items: baseline;
+        gap: 7px;
+        margin-bottom: 8px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid rgba(215, 173, 105, 0.14);
+    }
+    .horosa-workspace-shell .horosa-classical-zh {
+        color: #d8c5a7;
+        font-size: 14px;
+        font-weight: 720;
+        letter-spacing: 0.4px;
+        /* 中文标题恒不换行;英文标题占余宽自然换行(长英文不再把中文挤断) */
+        white-space: nowrap;
+        flex: 0 0 auto;
+    }
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-classical-zh {
+        color: var(--horosa-text);
+    }
+    .horosa-workspace-shell .horosa-classical-en {
+        color: var(--horosa-astro-muted);
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.3px;
+        opacity: 0.85;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .horosa-workspace-shell .horosa-classical-line {
+        line-height: 1.95;
+        overflow-wrap: break-word; overflow-wrap: anywhere;
+    }
+    /* 分节头:金色细竖条 + 中英 + 右侧渐隐细线 */
+    .horosa-workspace-shell .horosa-classical-section {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 16px 2px 9px;
+        padding-left: 9px;
+        border-left: 3px solid var(--horosa-astro-gold, #c9a86a);
+    }
+    .horosa-workspace-shell .horosa-classical-section:first-child {
+        margin-top: 2px;
+    }
+    .horosa-workspace-shell .horosa-classical-section::after {
+        content: '';
+        flex: 1 1 auto;
+        height: 1px;
+        margin-left: 2px;
+        background: linear-gradient(90deg, rgba(201, 168, 106, 0.26), transparent);
+    }
+    .horosa-workspace-shell .horosa-classical-section-zh {
+        color: var(--horosa-astro-gold, #c9a86a);
+        font-size: 13px;
+        font-weight: 760;
+        letter-spacing: 1.5px;
+    }
+    .horosa-workspace-shell .horosa-classical-section-en {
+        color: var(--horosa-astro-muted);
+        font-size: 10px;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        opacity: 0.7;
+    }
+    .horosa-workspace-shell .horosa-classical-card .horosa-empty-line {
+        font-style: italic;
+        opacity: 0.72;
+    }
+
+    .horosa-workspace-shell .horosa-empty-line {
+        color: var(--horosa-astro-muted);
+        font-size: 13px;
+    }
+
+    /* 两个滚动盒各有高度下限(行星 ≥ 160、希腊点 ≥ 170):右栏矮(放大档矮窗)时此前希腊点卡被按 30% 压成五十来 px 一条缝,
+       现在两盒都不低于下限、放不下时本容器整体纵向滚;常规高度两盒都高于下限,逐像素不变。 */
+    .horosa-workspace-shell .horosa-planet-with-lots {
+        height: 100%;
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding-right: 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        /* 「行星」与「希腊点」两个滚动盒都在右栏定高容器里、位于底部快捷栏之上,不需要页级的滚动安全内衬(缺省 82px)。
+           那条内衬配 border-box 会让滚动盒最小高 = 82:放大档「希腊点」卡片只有一百来像素高时,盒子顶出卡片、底部被本容器裁掉且滚不到;
+           100% 档也白占列表末尾 82px。局部压平(先例:3D 右栏 / 占星 info-scroll / 辅助页)。 */
+        --horosa-scroll-safe-bottom: 8px;
+    }
+
+    // 主星(七政)块=第一个直接子(AstroPlanet 的 scrollbar div):占满剩余高度、可滚、大。
+    .horosa-workspace-shell .horosa-planet-with-lots > div:first-child {
+        flex: 1 1 0;
+        min-height: 160px;
+    }
+
+    .horosa-workspace-shell .horosa-lots-under-planets {
+        flex: 0 0 30%;
+        min-height: 170px;
+        display: flex;
+        flex-direction: column;
+        padding: 11px;
+        border: 1px solid rgba(215, 173, 105, 0.16);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.018);
+    }
+
+    .horosa-workspace-shell .horosa-lots-under-planets > .horosa-info-card-title {
+        flex: 0 0 auto;
+        margin-bottom: 6px;
+    }
+
+    // ===== Balbillus 树（v2.5.0 高标准美化）=====
+    .horosa-workspace-shell .horosa-balbillus-shell {
+        padding: 2px 12px 14px;
+    }
+    .horosa-workspace-shell .horosa-balbillus-head {
+        padding: 13px 15px;
+        margin-bottom: 10px;
+        border: 1px solid var(--horosa-border);
+        border-radius: 10px;
+        background: var(--horosa-panel-soft);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+    .horosa-workspace-shell .horosa-balbillus-title {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        font-weight: 600;
+        font-size: 15px;
+        color: var(--horosa-text);
+    }
+    .horosa-workspace-shell .horosa-balbillus-sub {
+        font-size: 12px;
+        font-weight: 400;
+        color: var(--horosa-muted, #888);
+    }
+    .horosa-workspace-shell .horosa-balbillus-desc {
+        margin: 7px 0 13px;
+        font-size: 12px;
+        line-height: 1.65;
+        color: var(--horosa-muted, #888);
+    }
+    .horosa-workspace-shell .horosa-balbillus-label {
+        margin-bottom: 5px;
+        font-size: 12px;
+        color: var(--horosa-muted, #888);
+    }
+    .horosa-workspace-shell .horosa-balbillus-colhead {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        padding: 0 12px 7px 34px;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        color: var(--horosa-muted, #888);
+        opacity: 0.85;
+    }
+    .horosa-workspace-shell .horosa-balbillus-tree {
+        padding: 7px 8px 8px;
+        border: 1px solid var(--horosa-border);
+        border-radius: 10px;
+        background: var(--horosa-panel-bg);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    .horosa-workspace-shell .horosa-balbillus-tree .ant-tree-node-content-wrapper {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 4px 8px;
+        border-radius: 7px;
+        min-height: 30px;
+        display: flex;
+        align-items: center;
+        transition: background 0.15s ease;
+    }
+    .horosa-workspace-shell .horosa-balbillus-tree .ant-tree-node-content-wrapper > .ant-tree-title {
+        flex: 1 1 auto;
+        min-width: 0;
+        width: 100%;
+    }
+    .horosa-workspace-shell .horosa-balbillus-tree .ant-tree-list-holder-inner {
+        width: 100% !important;
+        align-items: stretch !important;
+    }
+    .horosa-workspace-shell .horosa-balbillus-tree .ant-tree-treenode {
+        padding-bottom: 3px;
+        width: 100%;
+        align-items: center;
+    }
+    .horosa-workspace-shell .horosa-balbillus-node {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        width: 100%;
+    }
+    .horosa-workspace-shell .horosa-balbillus-node .bb-planet,
+    .horosa-workspace-shell .horosa-balbillus-colhead .bb-planet {
+        flex: 0 0 110px;
+        display: inline-flex;
+        align-items: baseline;
+        gap: 5px;
+        white-space: nowrap;
+    }
+    .horosa-workspace-shell .horosa-balbillus-node .bb-name {
+        font-size: 13px;
+    }
+    .horosa-workspace-shell .horosa-balbillus-node .bb-date,
+    .horosa-workspace-shell .horosa-balbillus-colhead .bb-date {
+        flex: 0 0 102px;
+        color: var(--horosa-muted, #888);
+        font-variant-numeric: tabular-nums;
+        font-size: 12.5px;
+    }
+    .horosa-workspace-shell .horosa-balbillus-node .bb-dur,
+    .horosa-workspace-shell .horosa-balbillus-colhead .bb-dur {
+        flex: 1 1 auto;
+        text-align: right;
+        color: var(--horosa-muted, #888);
+        font-variant-numeric: tabular-nums;
+        font-size: 12.5px;
+        padding-right: 6px;
+    }
+    .horosa-workspace-shell .horosa-balbillus-node--l1 .bb-name {
+        font-weight: 600;
+    }
+
+    .horosa-workspace-shell .horosa-bottom-quick-dock {
+        display: grid;
+        grid-template-columns: 126px minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
+        gap: 10px;
+        align-items: stretch;
+        box-sizing: border-box;
+        height: var(--horosa-bottom-dock-height);
+        min-height: var(--horosa-bottom-dock-height);
+        max-height: var(--horosa-bottom-dock-height);
+        overflow: hidden;
+        padding: 2px 10px;
+    }
+
+    .horosa-workspace-shell .horosa-bottom-quick-title {
+        display: flex;
+        align-self: stretch;
+        align-items: center;
+        gap: 6px;
+        height: 100%;
+        min-height: 0;
+        color: var(--horosa-astro-gold);
+        font-size: 15px;
+        font-weight: 760;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .horosa-workspace-shell .horosa-bottom-quick-title .xq-icon {
+        flex: 0 0 auto;
+        font-size: 16px;
+    }
+
+    .horosa-workspace-shell .horosa-bottom-quick-actions {
+        display: grid;
+        /* 原写死 repeat(8)——但多数技法(太乙6~9动态/六壬5/镜诀6/金口…)都用这条基础规则,
+           动作数≠8 时右侧留空列或第9个被裁。改为按实际动作数自适应填满整行:
+           8 个时与原 repeat(8) 等价(占星/占卦不变),少于 8 个时按钮变宽填满、无空列,
+           且兼容太乙等条件式动态动作数。aux(5)/guolao(7) 各自有固定列覆盖,不受影响。 */
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(78px, 1fr);
+        gap: 6px;
+        align-self: stretch;
+        align-items: center;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-bottom-quick-button {
+        display: grid;
+        grid-template-rows: 1fr auto;
+        align-self: center;
+        justify-items: center;
+        align-items: center;
+        gap: 1px;
+        min-width: 0;
+        height: 52px;
+        padding: 3px 5px 4px;
+        border: 1px solid rgba(215, 173, 105, 0.16);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.018);
+        color: rgba(239, 228, 210, 0.82);
+        cursor: pointer;
+        transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bottom-quick-button {
+        border-color: var(--horosa-border);
+        background: var(--horosa-surface-solid);
+        color: var(--horosa-text-soft);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bottom-quick-icon {
+        color: var(--horosa-gold);
+    }
+
+    .horosa-workspace-shell .horosa-bottom-quick-button:hover {
+        border-color: var(--horosa-astro-line-strong);
+        background: rgba(231, 189, 117, 0.08);
+        color: var(--horosa-astro-gold);
+    }
+
+    .horosa-workspace-shell .horosa-bottom-quick-button.is-active {
+        border-color: var(--horosa-astro-line-strong);
+        background: rgba(231, 189, 117, 0.12);
+        color: var(--horosa-astro-gold);
+    }
+
+    .horosa-workspace-shell .horosa-bottom-quick-button.is-active .horosa-bottom-quick-icon {
+        color: var(--horosa-astro-gold);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-bottom-quick-button.is-active {
+        border-color: var(--horosa-gold);
+        background: rgba(198, 143, 64, 0.14);
+        color: var(--horosa-gold);
+    }
+
+    .horosa-workspace-shell .horosa-bottom-quick-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #e5bd77;
+        font-size: 27px;
+    }
+
+    .horosa-workspace-shell .horosa-bottom-quick-button span:last-child {
+        overflow: hidden;
+        width: 100%;
+        font-size: 12px;
+        text-align: center;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .horosa-workspace-shell .horosa-aux-quick-dock {
+        height: 64px;
+        max-height: 64px;
+        overflow: hidden;
+        border: 1px solid rgba(215, 173, 105, 0.18);
+        border-radius: 6px;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 46%),
+            #090b0e;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-workspace-shell .horosa-aux-quick-dock {
+        border-color: var(--horosa-border);
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 64%),
+            var(--horosa-surface-raised);
+        box-shadow: var(--horosa-small-shadow);
+    }
+
+    .horosa-workspace-shell .horosa-aux-quick-actions {
+        grid-template-columns: repeat(5, minmax(82px, 1fr));
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(82px, 1fr);
+        overflow: hidden;
+    }
+
+    .horosa-workspace-shell .horosa-aux-quick-button.is-active {
+        border-color: rgba(231, 189, 117, 0.52);
+        background: rgba(231, 189, 117, 0.14);
+        color: var(--horosa-astro-gold);
+    }
+
+    .horosa-workspace-shell .horosa-aux-quick-button.is-active .horosa-bottom-quick-icon {
+        color: var(--horosa-astro-gold);
+    }
+
+    /* 六宫框:宿主 → 加载包装 → 三列,高度一路 100% 传下去(单一高度来源 = 宿主 height),两侧滚动盒按格高自滚 */
+    .horosa-workspace-shell .horosa-frames-spin {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+    .horosa-workspace-shell .horosa-frames-spin > .ant-spin-container {
+        height: 100%;
+    }
+    /* 六宫框落宫表在窄列里不折行(星名 / 表头逐字竖排的来源):单元格整段一行,列放不下时表格在侧栏滚动盒里横向滚;放得下时与此前同宽 */
+    .horosa-workspace-shell .horosa-frames-table-wrap .ant-table-thead > tr > th,
+    .horosa-workspace-shell .horosa-frames-table-wrap .ant-table-tbody > tr > td {
+        white-space: nowrap;
+    }

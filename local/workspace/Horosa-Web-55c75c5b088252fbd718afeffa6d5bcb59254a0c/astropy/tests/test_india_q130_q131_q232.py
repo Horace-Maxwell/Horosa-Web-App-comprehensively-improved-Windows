@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""[Q-130/T-38][Q-131/T-39][Q-232/T-196] 印占三处:
+"""印占三处:
   · 敌座豁免开关此前只进判读卡,基础视图两处 haraṇa 恒按缺省 → 引擎两处调用须透传(源码哨兵);
   · 「AK 优先」× 「7 卡拉卡」:AK 须剔罗睺 → _atmakaraka_of(seven=True);
   · rasi_drishti 受照座按黄道序输出(此前 set 迭代随进程哈希漂移)。"""
@@ -13,6 +13,7 @@ if _ASTRO not in sys.path:
 from flatlib import const  # noqa: E402
 from astrostudy.india.primitives import rasi_drishti, SIGNS  # noqa: E402
 from astrostudy.india.rasi_dasha import _atmakaraka_of, planet_strength_compare  # noqa: E402
+from source_sets import read_source  # noqa: E402  拆成子模块的大文件按「门面 + 子模块」全集读
 
 
 def test_rasi_drishti_is_zodiac_ordered_and_content_unchanged():
@@ -51,7 +52,7 @@ def test_ak_first_7_order_is_accepted_by_strength_compare():
 
 
 def test_engine_passes_satruksetra_to_both_base_haranas():
-    src = open(os.path.join(_ASTRO, 'astrostudy', 'india', 'jyotish_engine.py'), encoding='utf-8').read()
+    src = read_source('astrostudy/india/jyotish_engine.py')   # 门面 + 子模块全集
     i = src.find("'harana': self._ayurdaya_harana(")
     j = src.find("'haranaNisarga': self._ayurdaya_harana(", i)
     assert i > 0 and j > 0

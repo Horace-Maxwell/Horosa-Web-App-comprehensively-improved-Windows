@@ -4,6 +4,7 @@
 import { neijuDetect } from '../neijuGeometry';
 import { NEIJU_XINGXING_10 } from '../fengshuiZhaiduanData';
 import { SECTORS } from '../fengshuiEngine';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const RECT = { w: 300, h: 300 };
 const M = (type, x, y, gong)=>({ type, x, y, gong });
@@ -333,7 +334,7 @@ describe('右栏渲染与「采纳此条」', ()=>{
 	});
 	it('🔴 采纳按钮所用类名必须真有 CSS 定义（自造裸类名是踩过的坑）', ()=>{
 		const fs = require('fs'); const path = require('path');
-		const less = fs.readFileSync(path.join(__dirname, '../../../layouts/app.less'), 'utf8');
+		const less = readSource(path.join(__dirname, '../../../layouts/app.less'));
 		expect(less).toMatch(/\.horosa-fengshui-liqi-adopt\s*\{/);
 		const src = fs.readFileSync(path.join(__dirname, '../liqi/zhaiduanSchool.js'), 'utf8');
 		expect(src).toMatch(/horosa-fengshui-liqi-adopt/);

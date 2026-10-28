@@ -6,6 +6,7 @@ import { calcDunJia, buildDunJiaSnapshotText } from '../../components/dunjia/Dun
 import { buildLocalBaziResult } from '../baziLunarLocal';
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 function getGanzi(p){ return (p && (p.ganzhi || p.ganZhi)) || ''; }
 function localNongli(date, time){
@@ -25,7 +26,7 @@ function extractSections(txt){
 	return [...new Set(out)];
 }
 function readPreset(){
-	const src = fs.readFileSync(path.join(__dirname, '../aiExport.js'), 'utf8');
+	const src = readSource(path.join(__dirname, '../aiExport.js'));
 	const i = src.indexOf('AI_EXPORT_PRESET_SECTIONS');
 	const j = src.indexOf('qimen:', i);
 	const seg = src.slice(j, src.indexOf('],', j));

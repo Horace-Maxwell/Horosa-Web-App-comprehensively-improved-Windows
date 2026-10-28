@@ -71,6 +71,40 @@ function build(kind, flags, status, code){
 
 const UNREACHABLE = { retryable: true, offline: true };
 
+// 后端在、但它连不上本地排盘引擎(连接被拒 / 被系统代理拦截 / 连接超时)。业务码与稳定键由后端 AstroHelper
+// 统一给出(EngineLinkErrorCode / EngineLinkErrorKey),两边改动必须同步。这类失败意味着所有排盘都会空白,
+// 调用方即便用 silent 发请求也要让用户看得见(见 request.js surfaceEngineLinkFailure)。
+export const ENGINE_LINK_ERROR_CODE = 200009;
+export const ENGINE_LINK_ERROR_KEY = 'local.engine.unreachable';
+
+export function isEngineLinkFailure(err){
+	try{
+		if(!err){
+			return false;
+		}
+		const hd = err.headers;
+		// 头既可能是 getResponseHeaders 解出的普通对象,也可能是原生 Headers(取 body 失败时原样挂上)
+		const fromHeaders = (k)=>{
+			if(!hd || typeof hd !== 'object'){
+				return '';
+			}
+			const v = typeof hd.get === 'function' ? hd.get(k) : hd[k];
+			return v === undefined || v === null ? '' : `${v}`;
+		};
+		const code = codeOf(err);
+		if(code !== undefined && Number(code) === ENGINE_LINK_ERROR_CODE){
+			return true;
+		}
+		if(Number(fromHeaders(Constants.ResultCodeKey)) === ENGINE_LINK_ERROR_CODE){
+			return true;
+		}
+		const headerMsg = fromHeaders(Constants.ResultMessageKey);
+		return messageOf(err).indexOf(ENGINE_LINK_ERROR_KEY) >= 0 || headerMsg.indexOf(ENGINE_LINK_ERROR_KEY) >= 0;
+	}catch(e){
+		return false;
+	}
+}
+
 export function classifyRequestFailure(err){
 	try{
 		if(!err){

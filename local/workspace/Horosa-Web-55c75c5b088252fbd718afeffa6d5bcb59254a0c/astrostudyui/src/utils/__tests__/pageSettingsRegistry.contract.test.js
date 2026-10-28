@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { PAGE_SETTINGS_REGISTRY } from '../pageSettingsRegistry';
 import { classifyStorageKey } from '../storageKeyRegistry';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '..', '..');
 
@@ -19,7 +20,7 @@ const SRC = path.resolve(__dirname, '..', '..');
 })();
 
 function read(rel){
-	return fs.readFileSync(path.join(SRC, rel), 'utf8');
+	return readSource(path.join(SRC, rel));
 }
 
 // 取 definePageSettings('<key>', { … }) 的 schema 顶层键(按花括号配平切块,再取块内第一层的「标识符:」)

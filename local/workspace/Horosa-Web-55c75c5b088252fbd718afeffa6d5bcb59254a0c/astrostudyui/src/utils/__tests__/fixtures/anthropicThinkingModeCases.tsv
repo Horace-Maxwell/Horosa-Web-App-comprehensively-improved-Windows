@@ -1,0 +1,22 @@
+# Anthropic 思考形态族对拍用例(前端 aiAnalysisProviders.anthropicThinkingMode 与后端 AIAnalysisProxyService.anthropicThinkingMode 共用)
+# 列:模型名<TAB>期望(adaptive / budget)<TAB>说明。8 位日期段永远是日期后缀,不是小版本号。
+claude-opus-4-20250514	budget	Opus 4 正式日期型号:8 位日期段不是小版本
+anthropic/claude-opus-4-20250514	budget	网关前缀形
+claude-sonnet-4-20250514	budget	Sonnet 4 日期型号
+claude-opus-4-1-20250805	budget	Opus 4.1 + 日期
+claude-opus-4-0	budget	Opus 4.0 别名
+claude-opus-4-6	budget	Opus 4.6
+claude-opus-4-7	adaptive	Opus 4.7 起 adaptive
+claude-opus-4-8	adaptive	Opus 4.8
+claude-opus-4-7-20260101	adaptive	Opus 4.7 + 日期
+claude-sonnet-5-20260301	adaptive	Sonnet 5 + 日期
+claude-sonnet-5	adaptive	Sonnet 5
+claude-opus-5	adaptive	Opus 5
+claude-haiku-4-5-20251001	budget	Haiku 4.5 + 日期
+claude-haiku-5	budget	Haiku 恒预算族
+claude-sonnet-4-6	budget	Sonnet 4.6
+claude-3-5-sonnet-20241022	budget	3.x 旧命名
+openrouter/anthropic/claude-opus-4-7	adaptive	多段网关前缀
+claude-fable-5	adaptive	Fable
+claude-mythos-5-1	adaptive	Mythos
+	budget	空串

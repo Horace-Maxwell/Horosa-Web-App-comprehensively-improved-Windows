@@ -223,7 +223,7 @@ describe('压测 · 五新派:辅星/净阴净阳/大卦/形势/择日', () => {
 				}
 			});
 		});
-		// [Q-226 裁决 2026-09-18] 命主年缺省不再预填 1990:undefined 与 空串/null/非数/非正 一律不可用,不得静默算出「0 年」或「1990 年」命卦
+		// 命主年缺省不再预填 1990:undefined 与 空串/null/非数/非正 一律不可用,不得静默算出「0 年」或「1990 年」命卦
 		expect(mingli({ mingYear: undefined }).available).toBe(false);
 		expect(mingli({}).available).toBe(false);
 		expect(mingli({ mingYear: 1990 }).ming.year).toBe(1990);

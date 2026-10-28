@@ -12,6 +12,7 @@ from collections import Counter, defaultdict
 from typing import Any, Optional
 
 from . import db
+from . import textquery
 from .period import all_macros, classify_period
 
 # ============================================================
@@ -179,14 +180,17 @@ def filter_events(
     histories: Optional[list[str]] = None,
     evidence: Optional[str] = None,
 ) -> list[dict[str, Any]]:
-    """按 facet 过滤事件。OR within facet, AND across facets。"""
+    """按 facet 过滤事件。OR within facet, AND across facets。
+
+    q 可以是一个关键词,也可以是同一关键词的几种写法(元组,见 textquery:任一写法命中即算)。
+    """
     events = load_events()
     if tradition:
         events = [e for e in events if (e.get("tradition") or TRADITION_ZHENGSHI) == tradition]
     dyn_set = set(dynasties or [])
     tech_set = set(techniques or [])
     hist_set = set(histories or [])
-    q_norm = (q or "").strip().lower()
+    q_alts = textquery.lowered(q)
 
     out: list[dict[str, Any]] = []
     for e in events:
@@ -200,13 +204,13 @@ def filter_events(
             ev_techs = {t.strip() for t in (e.get("techniques") or "").split(";") if t.strip()}
             if not (ev_techs & tech_set):
                 continue
-        if q_norm:
+        if q_alts:
             hay = " ".join([
                 e.get("title") or "", e.get("original_text") or "", e.get("modern_text") or "",
                 e.get("reading") or "", e.get("operators") or "", e.get("targets") or "",
                 e.get("techniques") or "", e.get("history") or "",
             ]).lower()
-            if q_norm not in hay:
+            if not textquery.hits(hay, q_alts):
                 continue
         out.append(e)
     return out
@@ -479,7 +483,7 @@ def events_page_meta(tradition: Optional[str] = None) -> dict[str, Any]:
 # 地图 — map_point
 # ============================================================
 
-# [Q-482/T-444] 地图钉点库 by_period_json 的键是粗桶(先秦两汉/东汉/三国/两晋/南北朝/隋/唐/五代/宋/辽金/元/明 + 四类语料),
+# 地图钉点库 by_period_json 的键是粗桶(先秦两汉/东汉/三国/两晋/南北朝/隋/唐/五代/宋/辽金/元/明 + 四类语料),
 # 前端朝代 chip 是 23 个细朝代 → 16 个 chip 恒空。细朝代 → 粗桶映射(同名者原样);查询同时接受桶键与细朝代。
 _MAP_PERIOD_BUCKET = {
     '西周': '先秦两汉', '春秋': '先秦两汉', '战国': '先秦两汉', '秦': '先秦两汉', '西汉': '先秦两汉', '新莽': '先秦两汉',
@@ -509,7 +513,7 @@ def map_points(period: Optional[str] = None) -> dict[str, Any]:
         by_period = json.loads(r["by_period_json"] or "{}")
         if want and not any(by_period.get(k) for k in want):
             continue
-        # [Q-483/T-445] 选了朝代后 count 此前恒取全时期总数(period 只做存在性过滤)→ 城市榜排序、钉点半径、
+        # 选了朝代后 count 此前恒取全时期总数(period 只做存在性过滤)→ 城市榜排序、钉点半径、
         # 悬停「N 个事件」与页头「N 个事件钉点」全是全时期数(唐:页头 1,497、by_period 唐合计 63;西安 610 vs 唐 19)。
         # 现:有朝代筛选时 count = 该期(细朝代含其粗桶,取所有命中键的最大值——桶与细名是同一批事件的两种计数,
         # 相加会重复);count_all 另带全时期总数供对照。
@@ -667,8 +671,11 @@ def timeline_drilldown(macro: Optional[str], limit: int = 80) -> list[dict[str, 
 # 搜索 — public_data(事件) LIKE
 # ============================================================
 
-def search_events(query: str, limit: int = 30, tradition: Optional[str] = None) -> list[dict[str, Any]]:
-    q = (query or "").strip()
+def search_events(query: textquery.QueryLike, limit: int = 30, tradition: Optional[str] = None) -> list[dict[str, Any]]:
+    if isinstance(query, (list, tuple)):
+        q = query if textquery.lowered(query) else None
+    else:
+        q = (query or "").strip()
     if not q:
         return []
     hits = filter_events(q=q, tradition=tradition)

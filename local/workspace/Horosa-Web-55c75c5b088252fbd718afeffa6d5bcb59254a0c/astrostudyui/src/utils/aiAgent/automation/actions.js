@@ -1,11 +1,11 @@
 // 自动化动作注册表(P4):动作只做「用户自己点也能做」的事,且全部可撤销或无副作用。
-// 三件公共动作:把新档设为当前分析源 / 生成一份简报(走无头轮,origin='automation')/ 归档 N 天没动的对话。
+// 三件动作:把新档设为当前分析源 / 生成一份简报(走无头轮,origin='automation')/ 归档 N 天没动的对话。
 import { reportBackgroundFailure } from '../bgSink';
 import { pushNotice } from '../tasks/noticeStore';
 import { AUTOMATION_EVENTS } from './events';
 
 export const AUTOMATION_ACTION_TYPES = ['select-source', 'start-brief', 'archive-idle-conversations', 'deny', 'notify-script'];
-// [Q-294/M-109·AR-21] 动作 × 事件 可达表(面板下拉按事件过滤;ruleStore 保存时拒绝不可达组合并说明):
+// 动作 × 事件 可达表(面板下拉按事件过滤;ruleStore 保存时拒绝不可达组合并说明):
 //   tool.before 只走同步否决通道、异步引擎收不到 → 只有「拒绝执行」可达;「设为当前分析源 / 生成简报」要载荷里的记录 id → 只有「存了命盘或事盘」;
 //   其余动作在全部异步事件上可达。未登记的动作类型(外部扩展)不设限。
 const ASYNC_EVENTS = AUTOMATION_EVENTS.filter((e)=>e !== 'tool.before');
@@ -16,13 +16,13 @@ export const ACTION_EVENT_SUPPORT = {
 	'deny': ['tool.before'],
 	'notify-script': ASYNC_EVENTS,
 };
-// 面板口径:带自有 cid / instanceId 的动作(只能由代码写入,面板存的是裸 { type })在任何异步事件上都可达
+// 面板口径:带自有 cid 的动作(只能由代码写入,面板存的是裸 { type })在任何异步事件上都可达
 export function actionSupportsEvent(type, event, action){
 	const t = `${type || ''}`; const e = `${event || ''}`;
 	const list = ACTION_EVENT_SUPPORT[t];
 	if(!Array.isArray(list)){ return true; }
 	if(list.indexOf(e) >= 0){ return true; }
-	if(e !== 'tool.before' && action && ((t === 'select-source' || t === 'start-brief') && action.cid || t === 'export-docx' && action.instanceId)){ return true; }
+	if(e !== 'tool.before' && action && (t === 'select-source' || t === 'start-brief') && action.cid){ return true; }
 	return false;
 }
 export function actionTypesForEvent(event){
@@ -55,12 +55,12 @@ export function buildActionRunners(deps){
 			const out = await d.runBrief({ cid, techniques: Array.isArray(action && action.techniques) ? action.techniques : [], origin: 'automation' });
 			return { ok: true, summary: `已生成简报${out && out.conversationId ? `(会话 ${out.conversationId})` : ''}` };
 		},
-		// [批二④] 拒绝执行:只对 tool.before 生效(引擎同步通道判定);其它事件上配了它 = 配错,明确说
+		// 拒绝执行:只对 tool.before 生效(引擎同步通道判定);其它事件上配了它 = 配错,明确说
 		'deny': async ()=>({ ok: false, reason: '「拒绝执行」只对「工具执行前」事件生效' }),
-		// [批三⑥] 运行用户自己的通知脚本(仅桌面壳;壳侧六道门校验路径、零 shell、10s kill、限流);非桌面 = 不可用
+		// 运行用户自己的通知脚本(仅桌面壳;壳侧六道门校验路径、零 shell、10s kill、限流);非桌面 = 不可用
 		'notify-script': async (action, detail)=>{
 			if(typeof d.notifyScript !== 'function'){ return { ok: false, reason: '通知脚本钩仅桌面版可用' }; }
-			// [Q-294/M-109·AR-07①] 事件对象字段名是 event(events.js),此前取 detail.name → 脚本收到的 JSON 恒 "event":""
+			// 事件对象字段名是 event(events.js),此前取 detail.name → 脚本收到的 JSON 恒 "event":""
 			const payload = { event: `${(detail && (detail.event || detail.name)) || ''}`, title: `${(action && action.title) || (detail && detail.payload && detail.payload.title) || '星阙自动化'}`, at: new Date().toISOString(), payload: detail && detail.payload && typeof detail.payload === 'object' ? detail.payload : {} };
 			const r = await d.notifyScript(payload);
 			return r && r.ran ? { ok: true, summary: `已运行通知脚本(exit ${r.exit == null ? '?' : r.exit}${r.timedOut ? ',超时被停' : ''})` } : { ok: false, reason: (r && r.reason) || '通知脚本未运行' };

@@ -1,4 +1,4 @@
-// [G1] provider API key 静态加密金标:封装格式 / dev 无桥直通 / 桥+WebCrypto 全链
+// provider API key 静态加密金标:封装格式 / dev 无桥直通 / 桥+WebCrypto 全链
 // 加解密 roundtrip / 篡改判 null / 存储层收口(落库密文·内存态明文·解密失败置空标记)。
 import { webcrypto } from 'crypto';
 
@@ -35,7 +35,7 @@ function freshModule(){
 
 afterEach(()=>{ unmockBridge(); });
 
-describe('[G1] secureKeyStore', ()=>{
+describe('secureKeyStore', ()=>{
 	test('isEncryptedSecret 只认封装前缀', ()=>{
 		const { isEncryptedSecret } = freshModule();
 		expect(isEncryptedSecret('aesgcm.v1:aa:bb')).toBe(true);
@@ -64,9 +64,55 @@ describe('[G1] secureKeyStore', ()=>{
 		const tampered = cipher.slice(0, -4) + (cipher.endsWith('AAAA') ? 'BBBB' : 'AAAA');
 		expect(await decryptSecretText(tampered)).toBe(null);
 	});
+
+	describe('无头主密钥钩子(只在没有桌面桥时生效)', ()=>{
+		afterEach(()=>{ delete globalThis.__HOROSA_HEADLESS_MASTER_KEY__; });
+		test('无桥 + 钩子:封装格式 + roundtrip;主密钥换了 → 解不开', async ()=>{
+			globalThis.__HOROSA_HEADLESS_MASTER_KEY__ = jest.fn(async ()=>MASTER_B64);
+			const a = freshModule();
+			const cipher = await a.encryptSecretText('sk-无头-123');
+			expect(cipher.startsWith('aesgcm.v1:')).toBe(true);
+			expect(cipher).not.toContain('sk-无头');
+			expect(await a.decryptSecretText(cipher)).toBe('sk-无头-123');
+			expect(await a.canEncryptSecrets()).toBe(true);
+			globalThis.__HOROSA_HEADLESS_MASTER_KEY__ = jest.fn(async ()=>Buffer.alloc(32, 3).toString('base64'));
+			const b = freshModule();
+			expect(await b.decryptSecretText(cipher)).toBe(null);
+		});
+		test('桥在 → 钩子不被调用(桌面永远走钥匙串桥)', async ()=>{
+			mockBridge();
+			const hook = jest.fn(async ()=>Buffer.alloc(32, 5).toString('base64'));
+			globalThis.__HOROSA_HEADLESS_MASTER_KEY__ = hook;
+			const { encryptSecretText } = freshModule();
+			expect((await encryptSecretText('sk-x')).startsWith('aesgcm.v1:')).toBe(true);
+			expect(hook).not.toHaveBeenCalled();
+		});
+		test('🔴 钩子报错 / 给的不是 32 字节 → fail-closed:加密抛错(绝不返回明文让它落盘),预检同样抛', async ()=>{
+			globalThis.__HOROSA_HEADLESS_MASTER_KEY__ = async ()=>{ throw new Error('读不到'); };
+			const a = freshModule();
+			await expect(a.encryptSecretText('sk-y')).rejects.toThrow('绝不明文落盘');
+			await expect(a.requireSecretEncryption()).rejects.toThrow('读不到');
+			globalThis.__HOROSA_HEADLESS_MASTER_KEY__ = async ()=>Buffer.alloc(16, 1).toString('base64');
+			await expect(freshModule().encryptSecretText('sk-z')).rejects.toThrow('绝不明文落盘');
+		});
+		test('🔴 预检与真加密同一份缓存;无头取主密钥失败不缓存 —— 预检通过之后加密不会退回明文,失败之后恢复了即可用', async ()=>{
+			let fail = true;
+			globalThis.__HOROSA_HEADLESS_MASTER_KEY__ = jest.fn(async ()=>{ if(fail){ throw new Error('暂时读不到'); } return MASTER_B64; });
+			const m = freshModule();
+			await expect(m.encryptSecretText('sk-q')).rejects.toThrow();
+			fail = false;
+			await expect(m.requireSecretEncryption()).resolves.toBe(true);
+			const c = await m.encryptSecretText('sk-q');
+			expect(c.startsWith('aesgcm.v1:')).toBe(true);
+			expect(globalThis.__HOROSA_HEADLESS_MASTER_KEY__).toHaveBeenCalledTimes(2);   // 成功后缓存,不再重取
+		});
+		test('dev 无桥无钩子 / 桌面桥:旧行为不变(dev 明文直通)', async ()=>{
+			expect(await freshModule().encryptSecretText('sk-dev')).toBe('sk-dev');
+		});
+	});
 });
 
-describe('[G1] 存储层收口(providerProfiles)', ()=>{
+describe('存储层收口(providerProfiles)', ()=>{
 	test('桥可用:落库密文 / 返回与读出为明文;换机器解不开 → 置空+标记', async ()=>{
 		mockBridge();
 		let store;

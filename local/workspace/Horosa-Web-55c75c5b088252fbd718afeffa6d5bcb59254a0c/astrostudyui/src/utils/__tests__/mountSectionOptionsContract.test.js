@@ -1,4 +1,4 @@
-// [挂载自检 阶段3(b)] 「能挂即能选」机械网:每个技法 preset 段 ⊆ 抽屉「纳入内容」候选(getOptionsForTechniqueKey),
+// 「能挂即能选」机械网:每个技法 preset 段 ⊆ 抽屉「纳入内容」候选(getOptionsForTechniqueKey),
 // 且缺省有效段(无自定义)⊆ 候选;缺省关段不在缺省有效段里。新增 preset 段而候选取不到 → 用户想关关不掉,当场红。
 import { AI_EXPORT_PRESET_SECTIONS, getOptionsForTechniqueKey, getAIExportEffectiveSectionsForTechnique, getAIExportDefaultOffSet, normalizeSectionTitle } from '../aiExport';
 

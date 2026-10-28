@@ -126,8 +126,8 @@ it('开但无挂载源 → 命令前置门拦下零请求;无技法选择 → �
 	expect(planReq.messages[0].content).toContain('bazi(');
 });
 
-// ---- [进阶审计 D1] 规划/子任务/综合三槽参数:此前三处硬编码 applyThinkingLevel(...,'off'),写了键从不生效 ----
-it('🔴 [D1] 规划槽温度进规划请求、综合走终稿槽温度、子任务槽 max_tokens 进每个子 Turn 流;槽空孪生皆无', async ()=>{
+// ---- 规划/子任务/综合三槽参数:此前三处硬编码 applyThinkingLevel(...,'off'),写了键从不生效 ----
+it('🔴 规划槽温度进规划请求、综合走终稿槽温度、子任务槽 max_tokens 进每个子 Turn 流;槽空孪生皆无', async ()=>{
 	const { writeRouteOptions } = require('../aiModelRouting');
 	const arm = ()=>{ setOrchestrateEnabled(true); setAgentEnabled(true); recordToolCapability('p1', 'gpt-x', true); };
 	arm();

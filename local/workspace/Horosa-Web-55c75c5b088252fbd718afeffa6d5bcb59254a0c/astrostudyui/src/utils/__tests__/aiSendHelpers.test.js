@@ -1,4 +1,4 @@
-// [Q-039 / Q-040 / Q-055① / Q-053② 裁决 2026-09-18] 发送层三纯函数 + JSON 文本框规则。
+// 发送层三纯函数 + JSON 文本框规则。
 import { renderTemplatesForSend, isImageRejectionError, JSON_MODE_INSTRUCTION } from '../aiChat/sendHelpers';
 import { jsonTextProblem, JSON_TEXT_RULE } from '../../components/aianalysis/MonacoField';
 
@@ -49,7 +49,7 @@ describe('MonacoField JSON 规则(Q-053②)', ()=>{
 	});
 });
 
-describe('[Q-048④ 裁决 2026-09-18] 占位文字不进历史', ()=>{
+describe('占位文字不进历史', ()=>{
 	it('两句占位逐字命中;正文 / 空串不命中', ()=>{
 		const { isPlaceholderAssistantContent, ASSISTANT_PLACEHOLDERS } = require('../../components/aianalysis/chat/useChatAssist');
 		expect(ASSISTANT_PLACEHOLDERS).toEqual(['已停止生成。', '模型未返回可用内容']);

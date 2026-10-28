@@ -269,7 +269,7 @@ describe('压力矩阵 · 随机组合遍历(确定性伪随机,复跑同结果)
 });
 
 describe('压力矩阵 · 显示层全牌穷举(本轮判据改动的误伤面)', () => {
-	// [QA-5/6 复核] 王牌判据与「塔罗结构」判据一改,受影响的是所有牌组的所有牌的显示函数。
+	// 王牌判据与「塔罗结构」判据一改,受影响的是所有牌组的所有牌的显示函数。
 	// 此处不抽样:14 牌组 × 全部牌 × 5 个显示函数 × 变体/宫廷视角组合,逐格检查输出无脏值、非空。
 	const VIEWS = [
 		{ variant: 'A', modern: false, court: { elementSystem: 'gd', zodiacSystem: 'gd_span' } },
@@ -336,7 +336,7 @@ describe('压力矩阵 · 显示层全牌穷举(本轮判据改动的误伤面)'
 			expect(`${deckId} 未走王牌分支的王牌:${misrouted.map((c) => `${c.sid}→${displayName(c, deck)}`).join(',')}`).toBe(`${deckId} 未走王牌分支的王牌:`);
 		});
 	});
-	test('[QA-8] 变体口径一致性:大陆派(C)下占象行与对应后缀都不得出现 GD 路径,A/B 档则必须有', () => {
+	test('变体口径一致性:大陆派(C)下占象行与对应后缀都不得出现 GD 路径,A/B 档则必须有', () => {
 		const bad = [];
 		listDeckIds().forEach((deckId) => {
 			const deck = getDeck(deckId);
@@ -354,7 +354,7 @@ describe('压力矩阵 · 显示层全牌穷举(本轮判据改动的误伤面)'
 		expect(correspondenceSuffix(fool, 'A')).toContain('路径连');
 		expect(correspondenceSuffix(fool, 'B')).toContain('路径连');
 	});
-	test('[QA-9] 历史体系牌组(米兰凯特/维斯康蒂)的王牌在各下游功能里都被当作王牌 —— 五处漏判的守门锚', () => {
+	test('历史体系牌组(米兰凯特/维斯康蒂)的王牌在各下游功能里都被当作王牌 —— 五处漏判的守门锚', () => {
 		// 这五处曾各自写死 arcana==='major',于是这两副的王牌在下游被当成数字牌:
 		// 计时两法报「余牌中无大牌可取(异常牌组)」/ 对读大牌部分恒空 / 日课大牌占比恒 0 / 详情面板走小牌分支。
 		// 判据取「功能真的出结果」,不是「代码里写了 isTrumpArcana」。
@@ -395,7 +395,7 @@ describe('压力矩阵 · 显示层全牌穷举(本轮判据改动的误伤面)'
 		});
 		expect(`下游漏判 ${bad.length} 处: ${bad.join(' ;; ')}`).toBe('下游漏判 0 处: ');
 	});
-	test('[QA-9] 日课统计的大牌占比认 *_trump(否则该两副恒 0)', () => {
+	test('日课统计的大牌占比认 *_trump(否则该两副恒 0)', () => {
 		const rows = getDeckCards('visconti').filter((c) => isTrumpArcana(c.arcana)).slice(0, 5).map((c) => ({ sid: c.sid, rev: false }));
 		const st = dailyStats(rows.map((x) => ({ ...x, deckId: 'visconti' })));
 		// dailyStats 以 CORE78 索引 sid;维斯康蒂王牌 sid 与之同源,故应全部计入大牌
@@ -426,7 +426,7 @@ describe('压力矩阵 · 显示层全牌穷举(本轮判据改动的误伤面)'
 		}else{ bad.push('手动指示牌未生效'); }
 		expect(`规格与实现不符 ${bad.length} 处: ${bad.slice(0, 3).join(' ;; ')}`).toBe('规格与实现不符 0 处: ');
 	});
-	test('[QA-9] 马赛换号对历史牌组同样生效:力量=XI · 正义=VIII(底层 marseilleNumber 漏判即咬)', () => {
+	test('马赛换号对历史牌组同样生效:力量=XI · 正义=VIII(底层 marseilleNumber 漏判即咬)', () => {
 		['rws', 'tdm', 'visconti', 'minchiate'].forEach((deckId) => {
 			const cards = getDeckCards(deckId);
 			const strength = cards.find((c) => c.sid === 'strength');

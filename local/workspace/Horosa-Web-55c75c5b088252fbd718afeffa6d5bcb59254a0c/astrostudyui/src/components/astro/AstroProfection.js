@@ -19,6 +19,7 @@ import {
 	deriveProfection, profectionDateTimesFromParams,
 } from '../../utils/profectionSummary';
 import UpdatingBadge from '../common/UpdatingBadge';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
 import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
 import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
@@ -29,7 +30,7 @@ import { markPanelReady } from '../../utils/perfMark';
 // 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 // ===== G9 月/日小限 + 多起点(纯前端派生) =====
-// [Q-105 裁决 2026-09-18] 派生算法 + 选项/中文表已抽到 utils/profectionSummary.js 单源
+// 派生算法 + 选项/中文表已抽到 utils/profectionSummary.js 单源
 // (页面摘要区 / 页面模块快照 / 无头挂载快照三处同源,「能算即能挂」);此处只留页面渲染。
 
 class AstroProfection extends Component{
@@ -47,7 +48,7 @@ class AstroProfection extends Component{
 			qryparam.time = parts[1];
 		}
 
-		let now = new DateTime();
+		let now = DateTime.nowForChart(qryparam.zone);   // 「此刻」按本盘时区(与 dirZone 配套下发);东八区盘逐位不变
 		this.state = {
 			params: {
 				date: qryparam.date,
@@ -101,7 +102,7 @@ class AstroProfection extends Component{
 					return;
 				}
 				let param = this.genNatalParams(chartObj);
-				// [SURF-T1] 增量 merge 粘滞剔除:非默认改回默认后 param 不带键,旧值不得残留(见 classicalChartGlobals)。
+				// 增量 merge 粘滞剔除:非默认改回默认后 param 不带键,旧值不得残留(见 classicalChartGlobals)。
 				let params = pruneStaleClassicalParams({
 					...this.state.params,
 					...param,
@@ -158,7 +159,7 @@ class AstroProfection extends Component{
 			hsys: qryparam.hsys,
 			tradition: qryparam.tradition,
 			zodiacal: qryparam.zodiacal, siderealAyanamsa: qryparam.siderealAyanamsa,
-			// [0d] 古典口径段(单源):此前只带 4-6 基础键,改界系/三分/宫头5°律后与主盘口径静默分叉。
+			// 古典口径段(单源):此前只带 4-6 基础键,改界系/三分/宫头5°律后与主盘口径静默分叉。
 			...natalClassicalParams(qryparam),
 		};
 		return params;
@@ -175,9 +176,10 @@ class AstroProfection extends Component{
 	}
 
 	async requestDirection(params){
-		// [SURF-R5p] 乱序/混代防(B 断面):双在途旧响应后回=盘面与快照回滚;快照 chartValue
+		// 乱序/混代防(B 断面):双在途旧响应后回=盘面与快照回滚;快照 chartValue
 		// 此前取回调时刻 props=与响应混代——请求时捕获,与 params/result 同代(响应内产范式)。
 		const seq = ++this._reqSeq || (this._reqSeq = 1);
+		const dirChartSig = natalSourceKey(params);   // 本次结果出自哪位命主(读时与当前盘比,见 shownDirChart)
 		const chartValueAtRequest = this.props.value;
 		// 空回包/请求失败防御:后端未就绪、无效生辰等场景 request 可能抛错或返回空——
 		// 静默保持现盘,不产生 Unhandled Rejection(此前 data 为 undefined 时读 Result 直接炸红屏)。
@@ -208,6 +210,7 @@ class AstroProfection extends Component{
 		}
 		const st = {
 			dirChart: result,
+			dirChartSig,
 			updating: false,
 			params: {
 				...params,
@@ -219,9 +222,7 @@ class AstroProfection extends Component{
 			// horosa_panel_ready_v1:推运盘数据落定(中栏盘 + 右栏相位同源于 st.dirChart)的唯一提交点。
 			markPanelReady('direction');
 			const chartValue = chartValueAtRequest;
-			saveModuleAISnapshotLazy('profection', ()=>buildPredictiveSnapshotText(chartValue, this.snapshotParams(st.params), result, 'profection'), {
-				module: 'profection',
-			});
+			saveModuleAISnapshotLazy('profection', ()=>buildPredictiveSnapshotText(chartValue, this.snapshotParams(st.params), result, 'profection'), this.snapshotMeta());
 		});
 	}
 
@@ -273,21 +274,24 @@ class AstroProfection extends Component{
 	}
 
 	// horosa_aspect_dom_memo_v1(PERF-R9 Ship 6):右栏相位清单的输出**只**由三样东西决定 ——
-	// state.dirChart(推运结果对象,每次请求整体替换)、props.value(本命盘)、props.showPlanetHouseInfo
+	// shownDirChart()(推运结果对象,每次请求整体替换;v3.12.0 起按命主来源键配对)、props.value(本命盘)、props.showPlanetHouseInfo
 	// (renderPlanetLabel 唯一读到的 prop)。三者引用全同 ⇒ 输出逐字节相同,直接复用上次的元素树:
 	// 「更新中」角标开合、其它右栏控件(如小限粒度/起点)改动等与相位无关的重渲不再重建数百个 React 元素。
 	// 任一引用变化(含内容整体替换)立即重建 —— 不存在陈旧,亦不依赖任何深比较。
 	genAspectDom(){
+		// v3.12.0 起派生盘按来源键配对(shownDirChart:换盘在途 / 新盘取盘失败时视为无盘),
+		// 缓存键随之取「实际渲染的那张」而非 state.dirChart —— 否则换盘瞬间会把上一位命主的相位树当缓存命中。
+		const dir = this.shownDirChart();
 		const cache = this._aspectDomCache;
 		if(cache
-			&& cache.dir === this.state.dirChart
+			&& cache.dir === dir
 			&& cache.natal === this.props.value
 			&& cache.phi === this.props.showPlanetHouseInfo){
 			return cache.dom;
 		}
 		const dom = this.buildAspectDom();
 		this._aspectDomCache = {
-			dir: this.state.dirChart,
+			dir: dir,
 			natal: this.props.value,
 			phi: this.props.showPlanetHouseInfo,
 			dom: dom,
@@ -296,11 +300,11 @@ class AstroProfection extends Component{
 	}
 
 	buildAspectDom(){
-		if(this.state.dirChart === undefined || this.state.dirChart === null){
+		if(this.shownDirChart() === undefined || this.shownDirChart() === null){
 			return null;
 		}
 
-		let aspects = this.state.dirChart.chart.aspects;
+		let aspects = this.shownDirChart().chart.aspects;
 		let divs = [];
 		for(let i=0; i<aspects.length; i++){
 			let obj = aspects[i];
@@ -327,7 +331,7 @@ class AstroProfection extends Component{
 				<Col key={i} span={12}>
 					<div>
 						<span style={{fontFamily: AstroConst.NormalFont}}>行运&nbsp;</span>
-						<span>{this.renderPlanetLabel(this.state.dirChart, obj.directId)}</span>
+						<span>{this.renderPlanetLabel(this.shownDirChart(), obj.directId)}</span>
 					</div>
 					{coldivs}
 				</Col>
@@ -383,6 +387,11 @@ class AstroProfection extends Component{
 		}
 	}
 
+	// 写槽 meta 单一来源:平时写槽与刷新应答共用(刷新一次后槽的 meta 不变)
+	snapshotMeta(){
+		return { module: 'profection' };
+	}
+
 	// AI 导出/挂载实时取数:导出侧派发 refresh 事件,这里用当前显示的推运盘即时构建快照并回填,
 	// 保证「显示什么就导出什么」——不依赖懒存缓存是否已物化(reload/rehydrate 缓存可能为空,
 	// 此前缺此监听 → 显示有盘却报「当前页面没有可导出文本」)。
@@ -392,34 +401,32 @@ class AstroProfection extends Component{
 			return;
 		}
 		// 空值守卫:推运盘(dirChart)未算出时不构建,避免把占位/空盘存进去。
-		if(!this.props.value || !this.state.dirChart){
+		if(!this.props.value || !this.shownDirChart()){
 			return;
 		}
 		let text = '';
 		try{
-			text = `${buildPredictiveSnapshotText(this.props.value, this.snapshotParams(this.state.params), this.state.dirChart, 'profection') || ''}`.trim();
+			text = `${buildPredictiveSnapshotText(this.props.value, this.snapshotParams(this.state.params), this.shownDirChart(), 'profection') || ''}`.trim();
 		}catch(e){
 			text = '';
 		}
 		if(text){
-			saveModuleAISnapshot('profection', text);
+			saveModuleAISnapshot('profection', text, this.snapshotMeta());   // 刷新应答与平时写槽同一份 meta
 			if(evt && evt.detail && typeof evt.detail === 'object'){
 				evt.detail.snapshotText = text;
 			}
 		}
 	}
 
-	// [Q-105] 模块快照带上页面当前小限粒度/起点(快照 = 页面所见;齿轮 profGrain/profStart 与之同名同值域)。
+	// 模块快照带上页面当前小限粒度/起点(快照 = 页面所见;齿轮 profGrain/profStart 与之同名同值域)。
 	snapshotParams(params){
 		return { ...(params || {}), profGrain: this.state.profGrain || 'y', profStart: this.state.profStart || 'asc' };
 	}
 
-	// [Q-105] 切粒度/起点 → 页面摘要即时变,模块快照同步重存(否则挂载/导出仍是切换前的小限摘要)。
+	// 切粒度/起点 → 页面摘要即时变,模块快照同步重存(否则挂载/导出仍是切换前的小限摘要)。
 	resaveSnapshotForProfectionToggle(){
-		if(!this.props.value || !this.state.dirChart){ return; }
-		saveModuleAISnapshotLazy('profection', ()=>buildPredictiveSnapshotText(this.props.value, this.snapshotParams(this.state.params), this.state.dirChart, 'profection'), {
-			module: 'profection',
-		});
+		if(!this.props.value || !this.shownDirChart()){ return; }
+		saveModuleAISnapshotLazy('profection', ()=>buildPredictiveSnapshotText(this.props.value, this.snapshotParams(this.state.params), this.shownDirChart(), 'profection'), this.snapshotMeta());
 	}
 
 	changeProfGrain(e){
@@ -437,7 +444,7 @@ class AstroProfection extends Component{
 	renderProfectionSummary(){
 		const grain = this.state.profGrain || 'y';
 		const startKey = this.state.profStart || 'asc';
-		// [Q-105] 时刻规整走单源(与无头快照同一代码路径,两侧同数)。
+		// 时刻规整走单源(与无头快照同一代码路径,两侧同数)。
 		const { birthDt, targetDt } = profectionDateTimesFromParams(this.state.params);
 		const info = deriveProfection(birthDt, targetDt, grain, startKey, this.props.value);
 		const glyphFont = { fontFamily: AstroConst.AstroFont };
@@ -452,7 +459,7 @@ class AstroProfection extends Component{
 		};
 		const planet = (id)=> id ? (
 			<span><span style={glyphFont}>{AstroText.AstroMsg[id]}</span><span style={normFont}>{AstroText.AstroTxtMsg[id] ? `（${AstroText.AstroTxtMsg[id]}）` : ''}</span></span>
-		) : <span style={{opacity: 0.6}}>—</span>;
+		) : <span style={{color: 'var(--horosa-text-secondary)'}}>—</span>;
 		return (
 			<div style={{marginBottom: 10}}>
 				<div style={{display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 8}}>
@@ -462,20 +469,20 @@ class AstroProfection extends Component{
 					</XQSelect>
 				</div>
 				{!info ? (
-					<div style={{opacity: 0.65, fontSize: 12}}>排盘后显示小限摘要。</div>
+					<div style={{color: 'var(--horosa-text-secondary)', fontSize: 12}}>排盘后显示小限摘要。</div>
 				) : (
 					<div style={{fontSize: 12.5, lineHeight: 2}}>
 						<div>
 							<span style={normFont}>{PROFECTION_GRAIN_CN[grain]}小限（自{PROFECTION_START_CN[startKey]}）：</span>
 							{signGlyph(info.signIdx)} <span style={normFont}>{signCn(info.signIdx)}</span>
-							{/* [Q-176/T-116f] 这个「第 N 宫」是**自所选起点星座起数**的序号(起点≠上升时与本命宫位编号不是一回事),
+							{/* 这个「第 N 宫」是**自所选起点星座起数**的序号(起点≠上升时与本命宫位编号不是一回事),
 							    标签此前不说明 → 用户容易按本命宫位读。加 title 点明,数值不动。 */}
 							<span style={normFont} title={`自${PROFECTION_START_CN[startKey]}所在星座起数的第几宫;起点非上升时与本命宫位编号不同`}>　第 {info.house} 宫(自{PROFECTION_START_CN[startKey]}起数)</span>
 						</div>
 						<div><span style={normFont}>主星：</span>{planet(info.rulerId)}</div>
 						<div style={{opacity: 0.75}}><span style={normFont}>满 {info.ageYears} 岁</span>{grain !== 'y' ? <span style={normFont}>　当年 {info.monthsIntoYear + 1} 月</span> : null}</div>
 						{grain !== 'y' ? (
-							<div style={{opacity: 0.65}}><span style={normFont}>年级参照：</span>{signGlyph(info.yearSignIdx)} <span style={normFont} title={`同上:自${PROFECTION_START_CN[startKey]}所在星座起数`}>{signCn(info.yearSignIdx)} · 第 {info.yearHouse} 宫(自{PROFECTION_START_CN[startKey]}起数)</span></div>
+							<div style={{color: 'var(--horosa-text-secondary)'}}><span style={normFont}>年级参照：</span>{signGlyph(info.yearSignIdx)} <span style={normFont} title={`同上:自${PROFECTION_START_CN[startKey]}所在星座起数`}>{signCn(info.yearSignIdx)} · 第 {info.yearHouse} 宫(自{PROFECTION_START_CN[startKey]}起数)</span></div>
 						) : null}
 					</div>
 				)}
@@ -483,10 +490,15 @@ class AstroProfection extends Component{
 		);
 	}
 
+	// 派生盘只与它出自的那张命盘配对:换盘后新盘在途、或新盘取盘失败时,state 里仍是上一位命主的结果 → 当没有
+	shownDirChart(){
+		return pickKeyedDerived(this.state.dirChart, this.state.dirChartSig, natalSourceKey(this.props.value));
+	}
+
 	render(){
 		let chartObj = {
 			natualChart: this.props.value,
-			dirChart: this.state.dirChart,
+			dirChart: this.shownDirChart(),
 		};
 
 		let param = this.state.params;
@@ -540,7 +552,7 @@ class AstroProfection extends Component{
 		let height = this.props.height ? this.props.height : 760;
 		let style = {
 			height: (height-20) + 'px',
-			boxSizing: 'border-box',   // [巡检实抓 2026-09-17] 内距计入高度,不再比面板高 5px
+			boxSizing: 'border-box',   // 内距计入高度,不再比面板高 5px
 			overflowY:'auto', 
 			overflowX:'hidden',
 		};
@@ -551,7 +563,7 @@ class AstroProfection extends Component{
 				<Row gutter={6}>
 					<Col span={17}>
 						<div style={{ position: 'relative' }}>
-							{this.state.updating && this.state.dirChart ? <UpdatingBadge /> : null}
+							{this.state.updating && this.shownDirChart() ? <UpdatingBadge /> : null}
 							<AstroDoubleChart value={chartObj} 
 								height={height}
 								planetDisplay={this.props.planetDisplay}

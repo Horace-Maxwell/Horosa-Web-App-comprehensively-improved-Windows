@@ -1,4 +1,4 @@
-// [Q-340/T-321] /astroextra/analysis 三处请求(格局页/AI 挂载/导出)的恒星轨参数:随盘优先(starOrb/starOrbMode),缺则全局仓;档位下发。
+// /astroextra/analysis 三处请求(格局页/AI 挂载/导出)的恒星轨参数:随盘优先(starOrb/starOrbMode),缺则全局仓;档位下发。
 import { fixedStarOrbParamsFor, classicalGlobalValue } from '../classicalChartGlobals';
 
 describe('fixedStarOrbParamsFor(Q-340)', () => {

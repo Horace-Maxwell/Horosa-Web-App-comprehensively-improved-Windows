@@ -1,4 +1,4 @@
-// [P0-1 计量底座] 稳定层指纹:同一 fixture 两次 buildContextLayers(Date.now 打桩不同时刻、对话历史与检索片段不同)
+// 稳定层指纹:同一 fixture 两次 buildContextLayers(Date.now 打桩不同时刻、对话历史与检索片段不同)
 // → 非挥发层 join 逐字节相等且 hashPromptText 相等(=上游前缀缓存可命中的单元),挥发层不同;
 // hashPromptText 为纯函数(FNV-1a 32 位,8 位 hex,已知向量钉死);发送路径的稳定/挥发划分字面哨兵锁死。
 import fs from 'fs';
@@ -9,6 +9,7 @@ import {
 	clipContextLayersDetailed,
 	hashPromptText,
 } from '../aiAnalysisContext';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 // 与 AIAnalysisMain.buildResolvedPrompt 同一划分与同一 join 式
 const VOLATILE_KEYS = { 'retrieved-context': 1, 'recent-history': 1 };
@@ -40,7 +41,7 @@ function buildOnce({ now, history, chunks }){
 	}
 }
 
-describe('[P0-1] 稳定层指纹', ()=>{
+describe('稳定层指纹', ()=>{
 	test('同 fixture 两次构层(不同时刻/历史/检索):稳定层逐字节相等且指纹相等;挥发层不同', ()=>{
 		const a = buildOnce({
 			now: 1_700_000_000_000,
@@ -92,7 +93,7 @@ describe('[P0-1] 稳定层指纹', ()=>{
 		expect(hashPromptText('ab')).not.toBe(hashPromptText('ba'));
 	});
 
-	// [Q-061] 组合系统提示此前三通道注入(一键应用写会话规则 + resolveReferenceItems 拼进系统提示层 + 独立层)
+	// 组合系统提示此前三通道注入(一键应用写会话规则 + resolveReferenceItems 拼进系统提示层 + 独立层)
 	// ⇒ 一键应用后同一段话在提示词里出现 3 次、只「加入参考」也 2 次。现在只留独立层一条,且与会话规则去重。
 	test('🔴 组合系统提示只注入一次:已在会话规则里就不再出独立层', ()=>{
 		const BP = '你是子平派命理师,先看格局再看用神。';

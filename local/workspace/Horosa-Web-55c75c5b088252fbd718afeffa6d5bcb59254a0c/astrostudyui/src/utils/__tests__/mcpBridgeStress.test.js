@@ -2,7 +2,7 @@
 import { bindMcpBridge, handleAgentToolRequest, __resetMcpBridgeForTests, MCP_TEXT_HARD_LIMIT } from '../aiAgent/mcpBridge';
 import { AGENT_ENABLED_KEY, setAgentEnabled } from '../aiAgent/prefs';
 import * as desktop from '../aiAnalysisDesktop';
-const ANY_MAN = [{ name: 'fine', level: 'read' }, { name: 'hang', level: 'read' }, { name: 'x', level: 'read' }];   // [D13] 桥不再执行目录外名字
+const ANY_MAN = [{ name: 'fine', level: 'read' }, { name: 'hang', level: 'read' }, { name: 'x', level: 'read' }];   // 桥不再执行目录外名字
 
 
 const flush = async (n = 8)=>{ for(let i = 0; i < n; i++){ await new Promise((r)=>setTimeout(r, 0)); } };
@@ -10,7 +10,7 @@ const flush = async (n = 8)=>{ for(let i = 0; i < n; i++){ await new Promise((r)
 beforeEach(()=>{ window.localStorage.clear(); __resetMcpBridgeForTests(); jest.restoreAllMocks(); });
 
 describe('队列压测', ()=>{
-	it('🔴 300 条请求每条恰回一次且按投递序;关开关期间新请求进队列,再开后补读', async ()=>{
+	it('🔴 300 条请求每条恰回一次、同名工具保持到达序;关开关期间新请求进队列,再开后补读', async ()=>{
 		jest.spyOn(desktop, 'isDesktopBridgeAvailable').mockReturnValue(true);
 		const replies = [];
 		jest.spyOn(desktop, 'invokeDesktopCommand').mockImplementation(async (cmd, args)=>{ if(cmd === 'agent_tool_result_command'){ replies.push(args); } return {}; });
@@ -29,10 +29,13 @@ describe('队列压测', ()=>{
 		expect(replies.length).toBe(300);
 		const ids = replies.map((r)=>r.id);
 		expect(new Set(ids).size).toBe(300);
-		// 关开关前投递的 200 条严格按序;在途队列的 100 条被丢弃(壳已判失败);再开后的 100 条按序
-		expect(ids.slice(0, 200)).toEqual(Array.from({ length: 200 }, (_, k)=>k));
-		expect(ids.slice(200)).toEqual(Array.from({ length: 100 }, (_, k)=>300 + k));
+		// 只读面与只读工具并发(≤3)⇒ 不再全局按投递序;合同是:每条恰回一次、在途队列的 100 条被丢弃(壳已判失败)、
+		//   同名工具一个一个来(这里的 tools/call 全是 get_settings ⇒ 回包序 = 投递序)
+		expect(ids.filter((id)=>id < 200).sort((a, b)=>a - b)).toEqual(Array.from({ length: 200 }, (_, k)=>k));
+		expect(ids.filter((id)=>id >= 300).sort((a, b)=>a - b)).toEqual(Array.from({ length: 100 }, (_, k)=>300 + k));
 		expect(ids.some((id)=>id >= 200 && id < 300)).toBe(false);
+		const sameName = ids.filter((id)=>id < 200 && id % 4 === 2);
+		expect(sameName).toEqual(sameName.slice().sort((a, b)=>a - b));
 		replies.forEach((r)=>{ if(r.ok){ expect(r.result).toBeTruthy(); }else{ expect(typeof r.error.code).toBe('number'); } });
 		const errs = replies.filter((r)=>!r.ok).map((r)=>r.error.code);
 		expect(errs.every((c)=>c === -32601)).toBe(true);

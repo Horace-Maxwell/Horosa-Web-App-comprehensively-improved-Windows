@@ -34,7 +34,7 @@ def obj(co, oid):
 
 def test_voc_modes_disagree_at_scanned_moment():
     # 2026-08-20 14:00 北京:月亮天蝎 28.75°,最近主相位点在前方 12.44°(跨座)。
-    # classic=False;by_sign_perfect=True(本座余 1.25° 内无相位可完成);[Q-254/T-226 ②] kenodromia 改为 30° 窗 → 12.44° 在窗内=非空(False;
+    # classic=False;by_sign_perfect=True(本座余 1.25° 内无相位可完成);kenodromia 改为 30° 窗 → 12.44° 在窗内=非空(False;
     # 此前与「本座内入容许度」同支判 True)。三档仍两两分叉(扫描实找)。
     va = bool(gv(obj(chartobj('2026/08/20', '14:00:00'), 'Moon'), 'isVOC'))
     vb = bool(gv(obj(chartobj('2026/08/20', '14:00:00', vocMode='kenodromia'), 'Moon'), 'isVOC'))

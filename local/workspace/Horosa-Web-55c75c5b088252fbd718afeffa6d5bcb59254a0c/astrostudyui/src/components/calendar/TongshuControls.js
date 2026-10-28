@@ -6,7 +6,7 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import DateTimeSelector from '../comp/DateTimeSelector';
 import { TONGSHU_SCHOOLS, TONGSHU_SCHOOL_MAP, schoolNeeds, LIEXIU_USE_OPTIONS } from './tongshuSchools';
 import { TONGSHU_TERMS, TONGSHU_TERM_CATEGORIES } from './tongshuData';
-import { GANZHI_60 } from '../fengshui/fengshuiData';   // [Q-271/ZC-28] 坐山向死分支已删(无流派声明 needs.zuoShan)
+import { GANZHI_60 } from '../fengshui/fengshuiData';   // 坐山向死分支已删(无流派声明 needs.zuoShan)
 
 const SCHOOL_OPTIONS = TONGSHU_SCHOOLS.map((s)=> ({ value: s.key, label: s.label }));
 const MING_OPTIONS = GANZHI_60.map((g)=> ({ value: g, label: g }));

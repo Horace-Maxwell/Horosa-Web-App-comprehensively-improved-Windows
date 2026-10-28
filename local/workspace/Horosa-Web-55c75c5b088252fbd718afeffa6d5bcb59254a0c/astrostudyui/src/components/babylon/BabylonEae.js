@@ -63,7 +63,7 @@ class BabylonEae extends Component{
 							<thead><tr><th>段</th><th>泥板</th><th>内容</th></tr></thead>
 							<tbody>
 								{EAE.segments.map((s, i) => (
-									<tr key={i}><td>{s.god}</td><td className="num">{s.tablets}</td><td>{s.content}{s.caveat ? <span style={{ opacity: 0.6 }}>(⚠ {s.caveat})</span> : null}</td></tr>
+									<tr key={i}><td>{s.god}</td><td className="num">{s.tablets}</td><td>{s.content}{s.caveat ? <span style={{ color: 'var(--horosa-text-secondary)' }}>(⚠ {s.caveat})</span> : null}</td></tr>
 								))}
 							</tbody>
 						</table></div>

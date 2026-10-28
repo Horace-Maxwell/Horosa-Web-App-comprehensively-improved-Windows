@@ -1,4 +1,4 @@
-# [B5] 核心 14 服务惰性挂载契约钉。
+# 核心 14 服务惰性挂载契约钉。
 # 背景:webchartsrv 顶层同步 import 14 个非 kentang 服务曾是 py.interp_start→imports_done
 # 的主墙;B5 改 CORE_SERVICE_SPECS + _LazyMountedService(复用 kentang 在产代理),
 # warmup 线程在 STARTUP_GATE 开门前逐个预装 —— 任何业务 POST 的最早可服务时刻不晚于旧方案。

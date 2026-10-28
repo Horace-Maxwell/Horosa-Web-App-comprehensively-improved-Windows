@@ -1,4 +1,4 @@
-// [B14] 自定义亮度表金标:
+// 自定义亮度表金标:
 //   ① normalize 三态 ② starLightOf custom 档层级(注入>LS>基表;缺格回落) ③ 编辑器快照/重置纯函数
 //   ④ builder set/finally 源码守卫 ⑤ 默认档零渗漏(custom 不进 needsLocalEngine)
 import {
@@ -13,7 +13,7 @@ afterEach(()=>{
 	resetBrightnessCustomCache();
 });
 
-describe('[B14] normalizeBrightnessCustomTable', ()=>{
+describe('normalizeBrightnessCustomTable', ()=>{
 	test('合法对象/JSON 归一;非法支/非法档逐格丢弃;空表返 null', ()=>{
 		const t = normalizeBrightnessCustomTable({ 紫微: { 子: '庙', 丑: '坏档', 猫: '旺' }, 天机: 'not-obj' });
 		expect(t).toEqual({ 紫微: { 子: '庙' } });
@@ -27,7 +27,7 @@ describe('[B14] normalizeBrightnessCustomTable', ()=>{
 	});
 });
 
-describe('[B14] starLightOf custom 档', ()=>{
+describe('starLightOf custom 档', ()=>{
 	test('🔴 层级:注入单例 > LS > 基表;命中格用其值,缺格回落基表', ()=>{
 		// 无表:custom 档 === 基表(全格)
 		expect(starLightOf('紫微', '子', 'custom')).toBe(STAR_LIGHT['紫微']['子']);
@@ -59,7 +59,7 @@ describe('[B14] starLightOf custom 档', ()=>{
 	});
 });
 
-describe('[B14] 编辑器纯函数', ()=>{
+describe('编辑器纯函数', ()=>{
 	test('星组 32 星四组无重无漏(与亮度表全集一致)', ()=>{
 		const all = STAR_GROUPS.flatMap((g)=>g.stars);
 		expect(all.length).toBe(32);
@@ -76,15 +76,24 @@ describe('[B14] 编辑器纯函数', ()=>{
 	});
 });
 
-describe('[B14] builder/needsLocalEngine 守卫', ()=>{
+describe('builder/needsLocalEngine 守卫', ()=>{
 	const fs = require('fs'); const path = require('path');
-	test('🔴 ZiWeiMain 注入必配对 finally 清 null;透传键发后端前删除;绝不写 LS', ()=>{
+	test('🔴 按盘临时覆盖:随盘亮度表注入、还原清掉;透传键发后端前删除;全程不写本机偏好', ()=>{
+		const { applyZiweiRecordOverride } = require('../ZiWeiMain');
+		const { ZWBrightnessCustom, normalizeBrightnessCustomTable } = require('../data/ziweiTables');
+		const table = { 紫微: { 子: '庙' } };
+		const writes = jest.spyOn(Storage.prototype, 'setItem');
+		try{
+			const restore = applyZiweiRecordOverride({ brightnessCustomTable: JSON.stringify(table) });
+			const norm = normalizeBrightnessCustomTable(JSON.stringify(table));
+			expect(norm).toBeTruthy();
+			expect(ZWBrightnessCustom.override).toEqual(norm);
+			restore();
+			expect(ZWBrightnessCustom.override === null || ZWBrightnessCustom.override === undefined).toBe(true);
+			expect(writes.mock.calls.filter((c)=>/ziwei/i.test(`${c[0]}`))).toEqual([]);
+		}finally{ writes.mockRestore(); ZWBrightnessCustom.override = null; }
 		const src = fs.readFileSync(path.resolve(__dirname, '..', 'ZiWeiMain.js'), 'utf8');
-		expect(src.includes('normalizeBrightnessCustomTable(params.brightnessCustomTable)')).toBe(true);
-		expect(src.includes('ZWBrightnessCustom.override = customBrightness')).toBe(true);
-		expect(src.includes('ZWBrightnessCustom.override = null')).toBe(true);
 		expect(src.includes('delete p.brightnessCustomTable')).toBe(true);
-		expect(src.includes("safeLocalStorageSet('ziweiBrightnessCustom'")).toBe(false);
 	});
 	test('🔴 custom 亮度绝不进 needsLocalEngine(纯显示层;开着不该逼本地引擎重排)', ()=>{
 		const src = fs.readFileSync(path.resolve(__dirname, '..', 'ziweiOptions.js'), 'utf8');

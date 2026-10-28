@@ -1,4 +1,4 @@
-// 🔴 [V5-C1] 技法接入合同总闸 —— 「新增技法必须同步全部数据管理链」的机械强制。
+// 🔴 技法接入合同总闸 —— 「新增技法必须同步全部数据管理链」的机械强制。
 //
 // 分母 = navigationPages(fs 解析 src/pages/index.js,技法宇宙单源:进导航即进分母)。
 // 判据:①导航键集 ≡ 合同表键集(新技法没交合同=红;僵尸合同=红)
@@ -7,7 +7,7 @@
 //        ∈ TECHNIQUE_SETTINGS_SCHEMA;archive='case:...'→每类型 ∈ CASE_TYPE_OPTIONS;
 //        storageKeys 声明键必须 classifyStorageKey 可分类(防拼错)
 //      ③豁免格式闸:'exempt:' 后必须非空理由
-//      ④[C12] playbook 机器可读合同表五 id 与本测试合同字段 双向一致(docs-as-tests)
+//      ④playbook 机器可读合同表五 id 与本测试合同字段 双向一致(docs-as-tests)
 // 判据源全部 fs 正则解析(不 import 页面组件/registry 组件树,防 jest 拉炸)。
 import fs from 'fs';
 import path from 'path';
@@ -52,7 +52,7 @@ function isExempt(v){
 	return typeof v === 'string' && v.indexOf('exempt:') === 0;
 }
 
-describe('[V5-C1] 技法接入合同总闸', ()=>{
+describe('技法接入合同总闸', ()=>{
 	const navKeys = parseNavigationKeys();
 	const contractKeys = Object.keys(TECHNIQUE_ONBOARDING_CONTRACT);
 

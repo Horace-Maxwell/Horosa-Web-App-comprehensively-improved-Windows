@@ -1,7 +1,7 @@
-// [批五] 界面动作:把两张已存命盘送进合盘页配对(比较盘/组合盘/影响盘/时空中点盘/马克斯盘/评分)。read 级 + ui 类别:
+// 界面动作:把两张已存命盘送进合盘页配对(比较盘/组合盘/影响盘/时空中点盘/马克斯盘/评分)。read 级 + ui 类别:
 // 不落盘;经导航桥切到合盘页 → 等合盘页登记自己的 ui.relative 面(首次挂载有加载时间,最多等 3s)→ 配对。轨迹可回到上一对。
 import { getLocalChart } from '../../localcharts';
-import { ctxUi, GUIDE } from './_shared';
+import { ctxUi, GUIDE, RECORD_ID_PATTERN } from './_shared';
 import { waitForWorkspaceUi } from '../workspaceBridge';
 import { pushUiTrail, undoUiTrail } from '../../aiAgent/uiTrail';
 import { spotlight } from '../../aiAgent/agentSpotlight';
@@ -19,8 +19,8 @@ export default {
 	inputSchema: {
 		type: 'object', additionalProperties: false, required: ['recordA', 'recordB'],
 		properties: {
-			recordA: { type: 'string', pattern: '^local-', description: '命盘 A 的记录 id' },
-			recordB: { type: 'string', pattern: '^local-', description: '命盘 B 的记录 id' },
+			recordA: { type: 'string', pattern: RECORD_ID_PATTERN, description: '命盘 A 的记录 id' },
+			recordB: { type: 'string', pattern: RECORD_ID_PATTERN, description: '命盘 B 的记录 id' },
 			mode: { type: 'string', enum: RELATIVE_MODES, description: '合盘子页:Comp 比较盘 / Composite 组合盘 / Synastry 影响盘 / TimeSpace 时空中点盘 / Marks 马克斯盘 / Score 评分;缺省不改' },
 		},
 	},

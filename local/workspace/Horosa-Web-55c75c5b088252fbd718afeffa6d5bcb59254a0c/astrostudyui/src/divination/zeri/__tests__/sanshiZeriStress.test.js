@@ -95,7 +95,7 @@ describe('S3 跨家随机树 fuzz(三前缀混排)', ()=>{
 	const leafFrom = (pool)=>{
 		const t = pool[Math.floor(rnd() * pool.length)];
 		const leaf = newSanshiLeaf(t);
-		// [复审 F11] 叶参数随机化(跨字段非默认组合覆盖)
+		// 叶参数随机化(跨字段非默认组合覆盖)
 		const spec = SANSHI_CONDITION_TYPES[t];
 		const sf = ((spec && spec.fields) || []).filter((x)=>(x.kind === 'select' || x.kind === 'multiselect') && Array.isArray(x.options) && x.options.length);
 		if(sf.length && rnd() < 0.7){

@@ -127,7 +127,7 @@ def compute_fendjing_chart(
 ) -> dict:
     """計算鬼谷分定經排盤。
 
-    [Q-264/T-247] hour_gan_use_next_day(全局「晚子时」lateZiHourUseNextDay):hour==23 時時柱起干——1=次日日干(舊硬編碼,默認零回歸)、
+    hour_gan_use_next_day(全局「晚子时」lateZiHourUseNextDay):hour==23 時時柱起干——1=次日日干(舊硬編碼,默認零回歸)、
     0=跟日柱所在日的日干(after23=0 時即今日干);與邵子 calculate_ganzhi_from_datetime 同義。
 
     Parameters
@@ -165,7 +165,7 @@ def compute_fendjing_chart(
     day_gz = TIANGAN[gz_day.tg] + DIZHI[gz_day.dz]
 
     # 時干支：hour==23 時，子時跨日按 hour_gan_use_next_day:1=次日日干起(舊硬編碼,與 lunar.js Exact 一致)、
-    # 0=跟日柱所在日(_cy/_cm/_cd)的日干([Q-264/T-247] 讀全局「晚子时」)。
+    # 0=跟日柱所在日(_cy/_cm/_cd)的日干(讀全局「晚子时」)。
     _ty, _tm, _td = year, month, day
     if hour == 23:
         if hour_gan_use_next_day:

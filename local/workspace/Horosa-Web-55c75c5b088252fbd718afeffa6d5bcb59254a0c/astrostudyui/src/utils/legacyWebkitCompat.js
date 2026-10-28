@@ -1,14 +1,17 @@
-import { safeLocalStorageSet } from './safeStorage';
 // legacyWebkitCompat.js —— macOS 12.0-12.2(WKWebView = Safari 15.0-15.3)兼容层。
 //
 // 两部分,均「缺特性才激活」,现代引擎零行为差异、零开销:
 // 1) ES2022 微填充:Array/String.prototype.at、Array.prototype.findLast/findLastIndex、
 //    Object.hasOwn、window.requestIdleCallback/cancelIdleCallback、window.structuredClone。
 //    第三方压缩产物可能裸调这些 API(不带 typeof 守卫),统一兜底。
-// 2) CSS :has() 类回退:app.less 中的 :has 规则(主导航隐藏 tab)配了同义 class 选择器
-//    (.horosa-main-tab-hidden-parent);本文件在不支持 :has 的引擎上用 rAF 批处理的
+// 2) CSS :has() 类回退:app.less 中的 :has 规则(主导航隐藏 tab / 底坞所在层)配了同义 class 选择器
+//    (.horosa-main-tab-hidden-parent / .horosa-bottom-quick-dock-parent);本文件在不支持 :has 的引擎上用 rAF 批处理的
 //    MutationObserver 维护该 class。app.less 侧带「legacyWebkitCompat」注记的规则与
 //    此处成对——改任一侧须同步另一侧。
+//
+// 目标内核认不认什么的单一出处是 scripts/legacy-engine-floor.js(下限表 + 产物判据):
+//   :has 回退类登记在它的 HAS_FALLBACKS(jest legacyEngineFloor 在认 :has 的 DOM 上逐条规则对拍本文件维护的类);
+//   本文件补的脚本 API 登记在它的 JS_POLYFILLED(jest 逐个删掉原生再核补得回来)。新增其一,两边一起改。
 //
 // kill-switch(与 perfFlags 同约定,默认开;控制台执行后刷新):
 //   safeLocalStorageSet('horosa.compat.hasFallback', '0')  // 关闭 :has 类回退
@@ -101,6 +104,17 @@ export function supportsHasSelector(){
 }
 
 var TAB_SEL = '.horosa-workspace-shell .mainRootTabs.ant-tabs-left > .ant-tabs-nav .ant-tabs-tab';
+var DOCK_CLS = 'horosa-bottom-quick-dock';
+var DOCK_PARENT_CLS = 'horosa-bottom-quick-dock-parent';
+var DOCK_PARENT_TAGS = { DIV: 1, SECTION: 1, MAIN: 1 };
+
+function hasDirectDock(el){
+    var kids = el.children || [];
+    for(var k = 0; k < kids.length; k += 1){
+        if(kids[k].classList && kids[k].classList.contains(DOCK_CLS)) return true;
+    }
+    return false;
+}
 
 // 一轮全量对账:回退 class 的加与撤都在这里,幂等(状态没变就不动 DOM,不触发观察风暴)
 export function applyHasFallbackNow(){
@@ -111,6 +125,18 @@ export function applyHasFallbackNow(){
         var hidden = !!tabs[i].querySelector('.horosa-main-tab-hidden');
         if(tabs[i].classList.contains('horosa-main-tab-hidden-parent') !== hidden){
             tabs[i].classList.toggle('horosa-main-tab-hidden-parent', hidden);
+        }
+    }
+    // 底坞所在层(:is(div, section, main):has(> .horosa-bottom-quick-dock) 的同义回退)
+    var marked = document.querySelectorAll('.' + DOCK_PARENT_CLS);
+    for(i = 0; i < marked.length; i += 1){
+        if(!hasDirectDock(marked[i])) marked[i].classList.remove(DOCK_PARENT_CLS);
+    }
+    var docks = document.querySelectorAll('.horosa-workspace-shell .' + DOCK_CLS);
+    for(i = 0; i < docks.length; i += 1){
+        var p = docks[i].parentElement;
+        if(p && DOCK_PARENT_TAGS[p.tagName] && !p.classList.contains(DOCK_PARENT_CLS)){
+            p.classList.add(DOCK_PARENT_CLS);
         }
     }
 }
@@ -146,5 +172,34 @@ export function installLegacyHasFallback(){
     return true;
 }
 
+/* ── 3) 不认的选择器 → 文档根标记类 ──────────────────────────────────
+   样式里判不了「内核认不认某个选择器」(@supports selector(…) 会让构建链的前缀插件编译失败),
+   改由这里在不认的内核上给 <html> 打标记类,样式在标记类底下补同义规则(例:antd 把 :focus-visible 与 :hover 写在同一列表里,
+   不认 :focus-visible 的内核整条丢弃,layouts/app/22-tail-fixes.less 在 html.horosa-legacy-no-focus-visible 底下补 :hover)。
+   登记与 scripts/legacy-engine-floor.js 的 SELECTOR_ROOT_FLAGS 逐条相同(jest 核)。 */
+export const LEGACY_SELECTOR_ROOT_FLAGS = [
+    { token: ':focus-visible', rootClass: 'horosa-legacy-no-focus-visible' },
+];
+
+export function supportsSelector(sel){
+    try{
+        return typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports(`selector(${sel})`);
+    }catch(e){
+        return false;
+    }
+}
+
+export function applyLegacySelectorRootFlags(){
+    if(typeof document === 'undefined' || !document.documentElement) return [];
+    var added = [];
+    LEGACY_SELECTOR_ROOT_FLAGS.forEach(function(f){
+        var missing = !supportsSelector(f.token);
+        document.documentElement.classList.toggle(f.rootClass, missing);
+        if(missing) added.push(f.rootClass);
+    });
+    return added;
+}
+
 installPolyfills();
 installLegacyHasFallback();
+applyLegacySelectorRootFlags();

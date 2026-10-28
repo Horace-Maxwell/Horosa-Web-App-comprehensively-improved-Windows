@@ -1,4 +1,4 @@
-// [首开反卡 2026-08-09] AI 分析页首开「绝不全页转圈」结构金标。
+// AI 分析页首开「绝不全页转圈」结构金标。
 // 病灶(用户 3.7.3 APP 实报):workspaceLoading 的 Spin 包住整个工作区,而 loadWorkspace 串行
 // 迁移+8 库全量 getAll —— WKWebView(Mac APP)对大 value store 的 getAll 反序列化极慢且冻主线程,
 // 数据逐年累积 → 「打开全页转圈很久」;Chromium(preview)无感 → 典型「preview 好 APP 坏」。
@@ -7,8 +7,9 @@
 import { listStoreRecordsBatched, listStoreRecords, putStoreRecord, AI_ANALYSIS_STORES } from '../aiAnalysisStore';
 const fs = require('fs');
 const path = require('path');
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
-const MAIN = fs.readFileSync(path.resolve(__dirname, '..', '..', 'components', 'aianalysis', 'AIAnalysisMain.js'), 'utf8');
+const MAIN = readSource(path.resolve(__dirname, '..', '..', 'components', 'aianalysis', 'AIAnalysisMain.js'));
 const strip = (s)=>s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 const M = strip(MAIN);
 

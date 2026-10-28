@@ -1,4 +1,4 @@
-// [D4] 中宫内容/对宫线/太极角标/显示预设金标:
+// 中宫内容/对宫线/太极角标/显示预设金标:
 //   ① zwCenterContent 三档+坏值兜 clean ② 分派器结构(clean 零绘制;full 链式四方法;初一年柱 best-effort)
 //   ③ 对宫线(开关+flyHouse 双守卫;点宫后才有=静态盘零变化) ④ 太极角标 slot2
 //   ⑤ 显示预设:表结构/displayPresetOf 三态/apply 写入集合相等+恰一次 bump
@@ -11,7 +11,7 @@ afterEach(()=>{
 	try{ localStorage.removeItem('ziweiCenterContent'); }catch(e){ /* noop */ }
 });
 
-describe('[D4] zwCenterContent', ()=>{
+describe('zwCenterContent', ()=>{
 	test('默认 clean;bazi/full 生效;坏值兜 clean', ()=>{
 		expect(ZiWeiHelper.zwCenterContent()).toBe('clean');
 		localStorage.setItem('ziweiCenterContent', 'bazi');
@@ -23,7 +23,7 @@ describe('[D4] zwCenterContent', ()=>{
 	});
 });
 
-describe('[D4] 中宫分派器/对宫线/太极角标(源码守卫)', ()=>{
+describe('中宫分派器/对宫线/太极角标(源码守卫)', ()=>{
 	const center = fs.readFileSync(path.join(__dirname, '..', 'ZWCenterHouse.js'), 'utf8');
 	test('🔴 分派器:clean 早退(零绘制=现状);自适应面板承接(字号随宽推导/四柱四列均分/大限十列/初一年柱 best-effort);旧四方法零回潮', ()=>{
 		const fn = center.slice(center.indexOf('\tdrawCenterContent(){'));
@@ -83,7 +83,7 @@ describe('[D4] 中宫分派器/对宫线/太极角标(源码守卫)', ()=>{
 	});
 });
 
-describe('[D4] 显示预设', ()=>{
+describe('显示预设', ()=>{
 	test('🔴 三档表:键集全等于 PRESET_KEYS(漏键=预设拨不全当场红);标准档=默认态', ()=>{
 		Object.keys(ZW_DISPLAY_PRESETS).forEach((n)=>{
 			expect(`${n}:${Object.keys(ZW_DISPLAY_PRESETS[n].flags).sort().join(',')}`)

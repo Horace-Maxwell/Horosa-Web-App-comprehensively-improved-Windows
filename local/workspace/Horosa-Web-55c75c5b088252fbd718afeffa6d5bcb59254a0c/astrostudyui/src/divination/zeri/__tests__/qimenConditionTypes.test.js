@@ -1,4 +1,4 @@
-// [奇门择日 T1] 条件注册表哨兵:
+// 条件注册表哨兵:
 // ① 注册表完备性(13 类结构齐 + 默认值必过 compileQimenTree);
 // ② 格局清单机械同源 —— fs 直读 DunJiaBaGongRules 源码,提取 calcJi/XiongPatterns 函数体内
 //    addPattern 字面量集,断言 == QIMEN_JI/XIONG_PATTERN_NAMES 导出(任一侧加格局/改名即红);
@@ -229,7 +229,7 @@ describe('T1④ 基线盘断言 + canon + matchMode', ()=>{
 		expect(evalLeaf(pan, 'pillar_ganzhi', { pillar: 'time', gans: [], zhis: ['子'] }).pass).toBe(true);
 		expect(evalLeaf(pan, 'pillar_ganzhi', { pillar: 'time', gans: ['乙'], zhis: [] }).pass).toBe(false);
 	});
-	test('🔴 [W3 全谱轮] 6 新类正反双判(锚盘 2026-01-01 12:30 dump 实跑:反吟局·月令水·巽宫死门囚·日禄卯·旬首甲戌·日空申酉)', ()=>{
+	test('🔴 6 新类正反双判(锚盘 2026-01-01 12:30 dump 实跑:反吟局·月令水·巽宫死门囚·日禄卯·旬首甲戌·日空申酉)', ()=>{
 		const p = panAt('2026-01-01', '12:30:00');
 		const ctx = makeQimenEvalCtx(p);
 		const ev = (type, params)=>QIMEN_CONDITION_TYPES[type].evaluate(p, params, ctx);
@@ -252,7 +252,7 @@ describe('T1④ 基线盘断言 + canon + matchMode', ()=>{
 		// 旬首/符头:甲戌
 		expect(ev('xun_shou', { dim: 'xunShou', values: ['甲戌'] }).pass).toBe(true);
 		expect(ev('xun_shou', { dim: 'xunShou', values: ['甲子'] }).pass).toBe(false);
-		// [Q-271/ZC-26] 六仪档按旬首遁仪:甲戌遁己 → 「己」真、「戊」假(此前六仪五档恒假)
+		// 六仪档按旬首遁仪:甲戌遁己 → 「己」真、「戊」假(此前六仪五档恒假)
 		expect(ev('xun_shou', { dim: 'xunShou', values: ['己'] }).pass).toBe(true);
 		expect(ev('xun_shou', { dim: 'xunShou', values: ['戊'] }).pass).toBe(false);
 		// 暗干:anGanMode 默认关=各宫空,恒不命中(开关档语义;开启路径由主页盘测试盖)
@@ -261,7 +261,7 @@ describe('T1④ 基线盘断言 + canon + matchMode', ()=>{
 
 });
 
-describe('[Q-274/T-256] 旺衰·限定宫位:数字选项值与字符串比对统一(此前限定宫位恒假)', ()=>{
+describe('旺衰·限定宫位:数字选项值与字符串比对统一(此前限定宫位恒假)', ()=>{
 	it('palaces=[8](数字)与 ["8"](字符串)同判;全五态限定单宫必命中;限定宫外无命中态为假', ()=>{
 		const pan = panAt('2026-05-24', '15:30:00');
 		const ctx = makeQimenEvalCtx(pan);

@@ -3,10 +3,11 @@
 // [奇门择日] 工厂化:同一套方案库逻辑按 storageKey/exportFormat 实例化——天星与奇门择日
 // 各持独立键与导出格式头,绝不混存(两技法 tree 结构不同,互导必污染,mismatchMsg 把门)。
 // 既有天星导出函数绑定原键 horosa.zeri.schemes.v1/horosa-zeri-schemes,行为字节不变。
+// 「同一条方案」= 同名(去首尾空白):口径单源 schemeIdentity.js,全量恢复的并集规格(storageKeyRegistry)引用同一份。
 import { safeJsonParseFromStorage, safeJsonStringifyToStorage } from '../../utils/safeStorage';
+import { SCHEME_MAX, SCHEME_HISTORY_MAX as HISTORY_MAX, schemeIdentityName, sameSchemeIdentity } from './schemeIdentity';
 
-const HISTORY_MAX = 20;
-const SCHEME_MAX = 60;
+export { SCHEME_IDENTITY_FIELDS, SCHEME_RESTORE_MERGE, sameSchemeIdentity } from './schemeIdentity';
 
 export function makeSchemeStore({ storageKey, exportFormat, mismatchMsg }){
 	function load(){
@@ -27,7 +28,7 @@ export function makeSchemeStore({ storageKey, exportFormat, mismatchMsg }){
 
 	function saveScheme(name, config, tree){
 		const data = load();
-		const trimmed = String(name || '').trim();
+		const trimmed = schemeIdentityName(name);
 		if(!trimmed){
 			return { ok: false, msg: '方案名不能为空' };
 		}
@@ -39,7 +40,7 @@ export function makeSchemeStore({ storageKey, exportFormat, mismatchMsg }){
 			tree: JSON.parse(JSON.stringify(tree || null)),
 		};
 		// 同名覆盖(用户心智:保存到同一个名字=更新)
-		data.schemes = data.schemes.filter((s) => s.name !== trimmed);
+		data.schemes = data.schemes.filter((s) => !sameSchemeIdentity(s, rec));
 		data.schemes.unshift(rec);
 		if(data.schemes.length > SCHEME_MAX){
 			data.schemes.length = SCHEME_MAX;
@@ -55,7 +56,7 @@ export function makeSchemeStore({ storageKey, exportFormat, mismatchMsg }){
 	}
 
 	function renameScheme(id, name){
-		const trimmed = String(name || '').trim();
+		const trimmed = schemeIdentityName(name);
 		if(!trimmed){
 			return { ok: false, msg: '方案名不能为空' };
 		}
@@ -65,7 +66,7 @@ export function makeSchemeStore({ storageKey, exportFormat, mismatchMsg }){
 			return { ok: false, msg: '方案不存在' };
 		}
 		// 同名覆盖语义与 saveScheme 一致:重命名撞既有名 → 顶掉旧同名方案
-		data.schemes = data.schemes.filter((s) => s.id === id || s.name !== trimmed);
+		data.schemes = data.schemes.filter((s) => s.id === id || !sameSchemeIdentity(s, { name: trimmed }));
 		hit.name = trimmed;
 		save(data);
 		return { ok: true };
@@ -94,11 +95,13 @@ export function makeSchemeStore({ storageKey, exportFormat, mismatchMsg }){
 		const data = load();
 		let added = 0;
 		parsed.schemes.forEach((s) => {
-			if(!s || !s.name || !s.tree){ return; }
-			data.schemes = data.schemes.filter((x) => x.name !== s.name);
+			const nm = s ? schemeIdentityName(s.name) : '';
+			if(!s || !nm || !s.tree){ return; }
+			// 名字按同一口径归一(去首尾空白)再比:此前导入不 trim,「婚期 」与本机「婚期」成了两份
+			data.schemes = data.schemes.filter((x) => !sameSchemeIdentity(x, { name: nm }));
 			data.schemes.unshift({
 				id: s.id || `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
-				name: `${s.name}`,
+				name: nm,
 				savedAt: s.savedAt || new Date().toISOString(),
 				config: s.config || {},
 				tree: s.tree,
@@ -154,21 +157,21 @@ export const qimenZeriSchemeStore = makeSchemeStore({
 	mismatchMsg: '不是奇门择日方案导出文件',
 });
 
-// ── [Z1] 黄历择日专属实例(独立键+独立导出格式头,跨技法互导必拒同律) ──
+// ── 黄历择日专属实例(独立键+独立导出格式头,跨技法互导必拒同律) ──
 export const huangliZeriSchemeStore = makeSchemeStore({
 	storageKey: 'horosa.zeri.huangli.schemes.v1',
 	exportFormat: 'horosa-huangli-zeri-schemes',
 	mismatchMsg: '不是黄历择日方案文件',
 });
 
-// ── [Z2] 八字择日专属实例 ──
+// ── 八字择日专属实例 ──
 export const baziZeriSchemeStore = makeSchemeStore({
 	storageKey: 'horosa.zeri.bazi.schemes.v1',
 	exportFormat: 'horosa-bazi-zeri-schemes',
 	mismatchMsg: '不是八字择日方案文件',
 });
 
-// ── [Z3] 太乙择日专属实例 ──
+// ── 太乙择日专属实例 ──
 export const taiyiZeriSchemeStore = makeSchemeStore({
 	storageKey: 'horosa.zeri.taiyi.schemes.v1',
 	exportFormat: 'horosa-taiyi-zeri-schemes',

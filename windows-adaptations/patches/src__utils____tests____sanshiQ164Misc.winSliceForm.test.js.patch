@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/utils/__tests__/sanshiQ164Misc.test.js b/astrostudyui/src/utils/__tests__/sanshiQ164Misc.test.js
-index bf255f26..26f91274 100644
+index 798cc23d..b88683b3 100644
 --- a/astrostudyui/src/utils/__tests__/sanshiQ164Misc.test.js
 +++ b/astrostudyui/src/utils/__tests__/sanshiQ164Misc.test.js
-@@ -12,7 +12,10 @@ describe('[Q-164] 三式杂项', ()=>{
+@@ -13,7 +13,10 @@ describe('三式杂项', ()=>{
  		expect(dm).not.toContain("topic: this.state.faAskTopic || 'shexin'");
  	});
  	test('SS-19 昼夜阳阴 只在六壬法贵人时可改:六壬页与合一页都置灰', ()=>{

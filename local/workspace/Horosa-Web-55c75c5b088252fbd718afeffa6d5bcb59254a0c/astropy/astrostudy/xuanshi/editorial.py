@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from . import db
+from . import textquery
 
 
 def _rows(sql: str, params: tuple = ()) -> list[dict[str, Any]]:
@@ -83,9 +84,9 @@ def list_figures(status="published", limit: int = 100, dynasty: Optional[str] = 
         where.append("dynasty=?")
         params.append(dynasty)
     if q:
-        like = f"%{q}%"
-        where.append("(name LIKE ? OR alt_names LIKE ? OR pinyin LIKE ?)")
-        params.extend([like, like, like])
+        clause, likes = textquery.like_any(["name", "alt_names", "pinyin"], q)
+        where.append(clause)
+        params.extend(likes)
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     return _rows(
         f"SELECT * FROM figure {where_sql} "
@@ -107,9 +108,9 @@ def count_figures(status="published", dynasty: Optional[str] = None, q: Optional
         where.append("dynasty=?")
         params.append(dynasty)
     if q:
-        like = f"%{q}%"
-        where.append("(name LIKE ? OR alt_names LIKE ? OR pinyin LIKE ?)")
-        params.extend([like, like, like])
+        clause, likes = textquery.like_any(["name", "alt_names", "pinyin"], q)
+        where.append(clause)
+        params.extend(likes)
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     r = _row(f"SELECT COUNT(*) AS n FROM figure {where_sql}", tuple(params))
     return r["n"] if r else 0
@@ -232,9 +233,9 @@ def list_stories(channel_slug: Optional[str] = None, dynasty: Optional[str] = No
         where.append("s.primary_technique_slug=?")
         params.append(technique_slug)
     if search_text:
-        like = f"%{search_text}%"
-        where.append("(s.title LIKE ? OR s.subtitle LIKE ? OR s.summary LIKE ? OR s.body_md LIKE ?)")
-        params.extend([like, like, like, like])
+        clause, likes = textquery.like_any(["s.title", "s.subtitle", "s.summary", "s.body_md"], search_text)
+        where.append(clause)
+        params.extend(likes)
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     return _rows(
         f"""

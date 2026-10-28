@@ -495,7 +495,7 @@ class NanJiShenShu:
             d_branch = DIZHI[dgz.dz]
 
             # 時柱跨日：hour==23 且 after23=0 時按 hour_gan_use_next_day:1=次日日干起子時(舊硬編碼,與 lunar.js Exact 一致)、
-            # 0=跟日柱(今日干)起子時([Q-264/T-247] 讀全局「晚子时」;after23=1 時日柱已進位,兩檔同值)。
+            # 0=跟日柱(今日干)起子時(讀全局「晚子时」;after23=1 時日柱已進位,兩檔同值)。
             if hour == 23 and not after23_new_day and hour_gan_use_next_day:
                 # after23=0 日柱守今但時柱用次日干起子時
                 _td = date(year, month, day) + timedelta(days=1)

@@ -8,85 +8,22 @@ import SpaceTimePanel, { buildDateTimeFromFields, formatSpaceTime } from '../com
 import { subscribeRemoteNongli, geoPatchFromRec } from '../../utils/divinationTimeDraft';
 import XQIcon from '../xq-icons';
 import { XQButton as Button, XQSelect as Select, XQTabs as Tabs, XQSideSection } from '../xq-ui';
-import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
-import { ServerRoot, ResultKey } from '../../utils/constants';
-import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
+import { saveModuleAISnapshotLazy, saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { castSourceKey, castFailureKeeps } from '../../utils/derivedChartSource';
 import { stepPrefetchEnabled, kentangCacheEnabled } from '../../utils/perfFlags';
-import { cachedKentangFetch } from '../../utils/kentangCache';
+import { postKentang } from '../../services/kentangPost';   // 本机优先、失败回落远端(多页共用)
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { formatHumanValue } from '../../utils/humanReadableFields';
-import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
-import { parseDateParts } from '../../utils/dateStrSafe';
+import { parseFieldsDateTimeWithDayBoundary } from '../../utils/fieldsDateTime';   // 起盘参数(含时区与全局日界 / 晚子时)与五兆 / 皇极同源
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
+import { notePendingTime, pendingTimePatch, clearPendingTimeOnFieldsChange } from '../../utils/pendingTimeDraft';
+import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
 const { TabPane } = Tabs;
 const { Option } = Select;
 
-function parseFieldsDateTime(fields){
-	if(!fields || !fields.date || !fields.time || !fields.date.value || !fields.time.value){
-		return null;
-	}
-	const dateStr = fields.date.value.format('YYYY-MM-DD');
-	const timeStr = fields.time.value.format('HH:mm:ss');
-	// BC 安全解析:'-7040-07-19' 裸 split('-') 会撕成 [NaN,7040,7,19](年 NaN 静默传播)
-	const _dp = parseDateParts(dateStr);
-	const d = _dp ? [_dp.year, _dp.month, _dp.day] : [];
-	const t = timeStr.split(':').map((item)=>parseInt(item, 10));
-	if(d.length < 3 || t.length < 2){
-		return null;
-	}
-	return {
-		year: d[0],
-		month: d[1],
-		day: d[2],
-		hour: t[0],
-		minute: t[1],
-		second: t[2] || 0,
-		date: dateStr,
-		time: timeStr,
-		zone: fields.zone && fields.zone.value ? fields.zone.value : '',
-		after23NewDay: defaultAfter23NewDay(),
-		lateZiHourUseNextDay: defaultLateZiHourUseNextDay(),
-	};
-}
-
-async function postShenYiShuRaw(path, payload){
-	let rsp = null;
-	try{
-		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('shenyishu', path), {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json; charset=UTF-8',
-			},
-			body: JSON.stringify(payload),
-		}, { retries: 0 });
-		const rawText = await rawResponse.text();
-		rsp = rawText ? JSON.parse(rawText) : null;
-		if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'shenyishu.local.fetch.failed');
-		}
-	}catch(e){
-		const rawResponse = await cachedKentangFetch(`${ServerRoot}/shenyishu/${path}`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json; charset=UTF-8',
-			},
-			body: JSON.stringify(payload),
-		}, { retries: 0 });
-		const rawText = await rawResponse.text();
-		rsp = rawText ? JSON.parse(rawText) : null;
-	}
-	if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-		throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'shenyishu.fetch.failed');
-	}
-	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
-}
-
-// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache(三层+在途去重)。
-function postShenYiShu(path, payload){
-	return postShenYiShuRaw(path, payload);
-}
+function postShenYiShu(path, payload){ return postKentang('shenyishu', path, payload); }
 
 function fmtValue(value){
 	return formatHumanValue(value);
@@ -112,7 +49,7 @@ function buildSnapshotText(pan){
 
 // AI 起课时间挂载入口:hourSource/seasonSource 默认 'auto';opts 允许挂载设置里覆盖。
 export async function buildShenYiShuSnapshotForFields(fields, opts){
-	const dt = parseFieldsDateTime(fields);
+	const dt = parseFieldsDateTimeWithDayBoundary(fields);
 	if(!dt){ return ''; }
 	try{
 		const o = opts || {};
@@ -126,7 +63,7 @@ export async function buildShenYiShuSnapshotForFields(fields, opts){
 }
 
 class ShenYiShuMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -140,6 +77,7 @@ class ShenYiShuMain extends Component{
 		this.state = {
 			loading: false,
 			pan: null,
+			panSig: '',	// 屏上这张盘的起课签名(时刻 + 地点),取失败时据此判留存 / 清掉
 			rightPanelTab: 'overview',
 			hourSource: 'auto',
 			manualHour: 0,
@@ -171,7 +109,6 @@ class ShenYiShuMain extends Component{
 		}
 	}
 
-
 	componentDidMount(){
 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		this.unmounted = false;
@@ -179,15 +116,16 @@ class ShenYiShuMain extends Component{
 		if(this.restoreFromCurrentCase(true)){
 			return;
 		}
-		const dt = parseFieldsDateTime(this.props.fields);
+		const dt = parseFieldsDateTimeWithDayBoundary(this.props.fields);
 		this.setState({ manualHour: dt ? dt.hour : 0 }, ()=>{
 			this.fetchPan(this.props.fields);
 		});
 	}
 
 	componentDidUpdate(prevProps, prevState){
+		clearPendingTimeOnFieldsChange(this, prevProps);
 		if(prevProps.fields !== this.props.fields && this.props.fields){
-			const dt = parseFieldsDateTime(this.props.fields);
+			const dt = parseFieldsDateTimeWithDayBoundary(this.props.fields);
 			const nextState = {};
 			if(dt && this.state.hourSource === 'auto' && this.state.manualHour !== dt.hour){
 				nextState.manualHour = dt.hour;
@@ -265,6 +203,7 @@ class ShenYiShuMain extends Component{
 		this.setState({
 			loading: false,
 			pan: payload.pan || null,
+			panSig: '',	// 存档盘按存档的时刻,不与此刻的起课参数比:之后起盘取失败时不拿它顶
 			hourSource: options.hourSource || this.state.hourSource,
 			manualHour: options.manualHour !== undefined ? options.manualHour : this.state.manualHour,
 			seasonSource: options.seasonSource || this.state.seasonSource,
@@ -294,19 +233,20 @@ class ShenYiShuMain extends Component{
 		this.onFieldsChange(geoPatchFromRec(rec, this.props.fields));
 	}
 	onTimeChanged(value){
+		notePendingTime(this, value && (value.time || value.value));
 		const dt = value.time;
 		this.onFieldsChange({
 			date: { value: dt.clone() },
 			time: { value: dt.clone() },
 			ad: { value: dt.ad },
 			zone: { value: dt.zone },
-			// [R3-A2] 步进方向提示:驱动 astro model settle 后 /chart ±步预取(消费后即剥离)
+			// 步进方向提示:驱动 astro model settle 后 /chart ±步预取(消费后即剥离)
 			...(value.step ? { __stepHint: value.step } : {}),
 		});
 		this.prefetchDraftPan();
 	}
 
-	// [R3-A4] 草稿时间一变即预取该时刻 pan:字段源与 clickPlot 完全同源
+	// 草稿时间一变即预取该时刻 pan:字段源与 clickPlot 完全同源
 	// (getTimeFieldsFromSelector),payload 走 buildPanPayload 单源 → 键逐字节等;
 	// 用户点「起盘」即缓存命中 ≈ 瞬间。失败静默;开关关=零行为。
 	prefetchDraftPan(){
@@ -327,6 +267,8 @@ class ShenYiShuMain extends Component{
 	}
 
 	getTimeFieldsFromSelector(baseFields){
+		const _pend = pendingTimePatch(this);   // 改了时间还没等到全局盘回来:以最新改动为准(见 utils/pendingTimeDraft)
+		if(_pend){ return { ...(baseFields || {}), ..._pend }; }
 		if(!this.timeHook || !this.timeHook.getValue){
 			return null;
 		}
@@ -365,9 +307,9 @@ class ShenYiShuMain extends Component{
 		this.fetchPan(nextFields);
 	}
 
-	// [R3-A4] pan 请求体单源:fetchPan 与草稿预取共用同一构造 → 缓存键逐字节等(预取生效前提)。
+	// pan 请求体单源:fetchPan 与草稿预取共用同一构造 → 缓存键逐字节等(预取生效前提)。
 	buildPanPayload(fields){
-		const dt = parseFieldsDateTime(fields);
+		const dt = parseFieldsDateTimeWithDayBoundary(fields);
 		if(!dt){ return null; }
 		return {
 			...dt,
@@ -379,10 +321,10 @@ class ShenYiShuMain extends Component{
 	}
 
 	// horosa_prefetch_registry_v1(PERF-R10 P6):供 CnYiBuMain 'cnyibu' 预取器按活跃子页转发。
-	// 确定性论证同 postShenYiShu 头注(后端无 random/now);构参与 fetchPan 同源。
+	// 确定性论证:后端无 random/now(结果级缓存已随 v3.5.1 退役,请求走上游 postKentang→kentangCache);构参与 fetchPan 同源。
 	getStepPrefetchTasks(steppedFields){
 		try{
-			const dt = parseFieldsDateTime(steppedFields);
+			const dt = parseFieldsDateTimeWithDayBoundary(steppedFields);
 			if(!dt){ return []; }
 			const payload = {
 				...dt,
@@ -411,6 +353,7 @@ class ShenYiShuMain extends Component{
 		if(!panTrig){
 			return;
 		}
+		const castSig = castSourceKey(fields);
 		const reqSeq = ++this.requestSeq;
 		this.setState({ loading: true });
 		try{
@@ -418,7 +361,7 @@ class ShenYiShuMain extends Component{
 			if(this.unmounted || reqSeq !== this.requestSeq){
 				return;
 			}
-			this.setState({ pan, loading: false }, ()=>{
+			this.setState({ pan, panSig: castSig, loading: false }, ()=>{
 				// horosa_panel_ready_v1:pan 落定 = 中栏与右栏(皆由 pan 派生)画完的那一次 setState。
 				markPanelReady('cnyibu');
 				saveModuleAISnapshotLazy('shenyishu', ()=>buildSnapshotText(pan));
@@ -427,7 +370,10 @@ class ShenYiShuMain extends Component{
 			settleTrigger(this, 'fetchPan', panTrig, false);
 			console.warn('shenyishu backend failed', e);
 			if(!this.unmounted && reqSeq === this.requestSeq){
-				this.setState({ loading: false });
+				// 取失败:与屏上那张盘同一起课时刻地点(只改了设置)→ 留存;换了时刻 / 地点 → 屏上那张是上一课,清掉(连同 AI 快照槽)
+				const keep = castFailureKeeps(this.state.panSig, castSig);
+				this.setState(keep ? { loading: false } : { loading: false, pan: null, panSig: '' });
+				if(!keep){ clearModuleAISnapshot('shenyishu'); }
 			}
 		}
 	}
@@ -549,7 +495,7 @@ class ShenYiShuMain extends Component{
 		const jixiong = ss.jixiong || {};
 		const zhuke = ss.zhuke || {};
 		return (
-			<div className="horosa-taixuan-board horosa-shenyishu-board">
+			<div className="horosa-taixuan-board horosa-shenyishu-board" ref={ownedBoxSizeRef(this, 'board', narrowBoardVars)}>
 				<div className="horosa-huangji-board-header">
 					<div>
 						<h2 className="horosa-taixuan-title">神易数</h2>

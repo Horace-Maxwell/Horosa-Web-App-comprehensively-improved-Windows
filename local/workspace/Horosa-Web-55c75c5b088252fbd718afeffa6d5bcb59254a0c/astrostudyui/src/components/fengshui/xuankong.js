@@ -1,5 +1,5 @@
 // 玄空飞星派（沈氏）· 下卦/替卦全盘 + 结构断（合十/反吟/伏吟/入囚/三般卦/零正/城门/七星打劫/流年月）。
-import { flyChart, flyChartTi, jianXiangByDeg } from './liqiCore';
+import { flyChart, flyChartTi, jianXiangByDeg, zibaiYearCenter as yearCenter } from './liqiCore';   // 流年入中星与紫白同一算法(单源)
 import { GONG_NAME, GONG_GUA, OPP_GONG, NINE_STAR_MEANING, YUN_YEARS, ROB_GROUPS, FANGWEI_RING,
 	XUANKONG_SCHOOLS, WUHUANG_LIANGYUAN } from './fengshuiData';
 import { monthCenter } from './zibai';
@@ -97,12 +97,6 @@ function flyStar(center) {
 	const pan = {}; const idxF = (n)=>(n - 5 + 9) % 9;
 	for (let g = 1; g <= 9; g++) { pan[g] = (center - 1 + idxF(g)) % 9 + 1; }
 	return pan;
-}
-function yearCenter(year) {
-	let s = String(Math.abs(Math.trunc(Number(year) || 0))).split('').reduce((a, d)=>a + (+d), 0);
-	while (s > 9) { s = String(s).split('').reduce((a, d)=>a + (+d), 0); }
-	let c = 11 - s; if (c > 9) { c -= 9; } if (c <= 0) { c += 9; }
-	return c;
 }
 // 流年/月会断（4.20）：流年星入宫与宅山向星相会引动。
 function huiOf(shanPan, xiangPan, flyPan, label) {

@@ -179,6 +179,10 @@ function main(){
 	fs.writeFileSync(OUT, json);
 	const mapJson = JSON.stringify(tradSimpMap);
 	fs.writeFileSync(OUT_MAP, mapJson);
+	// 折叠表补全:界面繁体时屏幕上显示的写法也要折回简体名;库里本来就用作简体的字不折(见 build-city-fold-map.js)
+	const small = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'src', 'data', 'cities.json'), 'utf8'));
+	require('./build-city-fold-map').writeCompletedMap(tradSimpMap, [small, res.merged])
+		.catch((e)=>{ console.error('[build-cities] 折叠表补全失败(须单独跑 node scripts/build-city-fold-map.js):', e); process.exitCode = 1; });
 	const sizeMB = (Buffer.byteLength(json, 'utf8') / 1024 / 1024).toFixed(2);
 	console.log('[build-cities] 完成');
 	console.log(`  世界城市(pop>=${popThreshold}):${res.worldCount} 条`);

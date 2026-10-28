@@ -1,0 +1,1212 @@
+// 全站样式 · 印占大运子面板、策天、塔罗、地占。
+// 由 layouts/app.less 按原顺序 @import(顺序即层叠次序);新规则要包在本文件的 :global { } 里。
+
+:global {
+    .horosa-india-dasha-subpanel {
+        width: 380px;
+        max-width: calc(100 * var(--horosa-lvw, 1vw) - 56px);
+        padding: 10px;
+        border: 1px solid rgba(215, 173, 105, 0.20);
+        border-radius: 8px;
+        background: var(--horosa-astro-panel, #141922);
+        box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+        color: var(--horosa-astro-text, #e8edf7);
+    }
+
+    .horosa-india-dasha-subpanel.is-floating {
+        position: fixed;
+        z-index: 5000;
+        display: block;
+        max-width: calc(100 * var(--horosa-lvw, 1vw) - 24px);
+        transform: translateY(-50%);
+        pointer-events: none;
+    }
+
+    .horosa-india-dasha-subtitle {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 2px 2px 9px;
+        border-bottom: 1px solid rgba(215, 173, 105, 0.14);
+    }
+
+    .horosa-india-dasha-subtitle strong {
+        color: var(--horosa-astro-gold, #d7ad69);
+        font-size: 15px;
+        line-height: 1.2;
+    }
+
+    .horosa-india-dasha-subtitle span {
+        color: var(--horosa-astro-muted, #8fa0b9);
+        font-size: 12px;
+        line-height: 1.2;
+    }
+
+    .horosa-india-dasha-sublist {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding-top: 8px;
+    }
+
+    .horosa-india-dasha-subitem {
+        display: grid;
+        grid-template-columns: 82px minmax(0, 1fr);
+        gap: 10px;
+        align-items: center;
+        padding: 7px 8px;
+        border: 1px solid rgba(215, 173, 105, 0.12);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    /* 大运体系选择器:卡片化标签条 + label 一体,与右栏其他卡片同呼吸 */
+    .horosa-india-transit-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 6px;
+    }
+    .horosa-india-transit-label {
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        font-weight: 600;
+        color: var(--horosa-gold, #b88a2e);
+        white-space: nowrap;
+    }
+    .horosa-india-transit-datepicker {
+        min-width: 158px;
+    }
+    .horosa-india-transit-reset {
+        appearance: none;
+        border: 1px solid var(--horosa-border, rgba(76, 98, 134, 0.17));
+        background: transparent;
+        color: var(--horosa-accent, #9a6a25);
+        border-radius: 8px;
+        padding: 3px 11px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .horosa-india-transit-reset:hover {
+        background: var(--horosa-surface-sunken, rgba(127, 127, 127, 0.08));
+        border-color: var(--horosa-accent, #9a6a25);
+    }
+    .horosa-india-transit-hint {
+        font-size: 11px;
+        color: var(--horosa-astro-muted, #8fa0b9);
+        font-style: normal;
+    }
+    .horosa-india-dasha-syssel {
+        padding: 8px 12px;
+        margin-bottom: 12px;
+        border: 1px solid var(--horosa-border, rgba(215, 173, 105, 0.18));
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.018);
+    }
+    :root[data-horosa-appearance='light'] .horosa-india-dasha-syssel {
+        background: var(--horosa-surface-solid);
+    }
+    .horosa-india-dasha-syssel-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+    .horosa-india-dasha-syssel-field {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        flex: 1 1 200px;
+        min-width: 0;
+    }
+    .horosa-india-dasha-syssel-field .horosa-india-dasha-syssel-select {
+        flex: 1;
+        min-width: 0;
+    }
+    .horosa-india-dasha-syssel-label {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        color: var(--horosa-astro-muted, #8fa0b9);
+        white-space: nowrap;
+    }
+    .horosa-india-dasha-syssel-tabs {
+        display: flex;
+        flex: 1;
+        gap: 2px;
+        padding: 2px;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.18);
+    }
+    .horosa-india-dasha-syssel-tab {
+        flex: 1;
+        padding: 5px 8px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--horosa-astro-muted, #8fa0b9);
+        background: transparent;
+        border: 0;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.18s ease;
+        text-align: center;
+    }
+    .horosa-india-dasha-syssel-tab:hover {
+        color: var(--horosa-astro-gold, #d7ad69);
+    }
+    .horosa-india-dasha-syssel-tab.is-active {
+        color: #1a1410;
+        background: var(--horosa-astro-gold, #d7ad69);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+    :root[data-horosa-appearance='light'] .horosa-india-dasha-syssel-tabs {
+        background: rgba(0, 0, 0, 0.06);
+    }
+    :root[data-horosa-appearance='light'] .horosa-india-dasha-syssel-tab.is-active {
+        color: #fff;
+    }
+
+    /* 主运 inline 展开:整行可点,▸ 箭头旋转,展开下方淡入小运表 + 三级下钻 */
+    .horosa-india-dasha-row {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 4px;
+        border-radius: 8px;
+        transition: background 0.18s ease;
+    }
+    .horosa-india-dasha-row.is-expanded {
+        background: rgba(215, 173, 105, 0.06);
+    }
+    /* 主运行:三列网格(▸ | 固定曜名列 | 日期列),列宽固定 → 所有行严格对齐;数字 tabular 等宽 */
+    .horosa-india-dasha-row .horosa-india-dasha-item {
+        display: grid;
+        grid-template-columns: 14px 58px minmax(0, 1fr);
+        column-gap: 10px;
+        align-items: center;
+        padding: 9px 12px;
+        text-align: left;
+        background: transparent;
+        border: 0;
+        border-radius: 8px;
+        cursor: pointer;
+        width: 100%;
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+    }
+    .horosa-india-dasha-row .horosa-india-dasha-item:hover {
+        background: rgba(215, 173, 105, 0.08);
+    }
+    .horosa-india-dasha-row.is-active {
+        background: rgba(215, 173, 105, 0.07);
+        box-shadow: inset 2px 0 0 var(--horosa-astro-gold, #d7ad69);
+    }
+    .horosa-india-dasha-row.is-active.is-expanded {
+        background: rgba(215, 173, 105, 0.10);
+    }
+    /* 曜名列:中文(金) + 英文(灰),固定宽 → 与各行日期列对齐 */
+    .horosa-india-dasha-row .horosa-india-dasha-item-main {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        min-width: 0;
+    }
+    .horosa-india-dasha-row .horosa-india-dasha-item-main strong {
+        color: var(--horosa-astro-gold, #d7ad69);
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.15;
+        letter-spacing: 0.02em;
+    }
+    .horosa-india-dasha-row .horosa-india-dasha-item-main span {
+        color: var(--horosa-astro-muted, #8fa0b9);
+        font-size: 10px;
+        font-weight: 500;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    /* 日期列:日期段(上,主文字色)+ 年龄·时长(下,灰),左对齐统一起点 */
+    .horosa-india-dasha-row .horosa-india-dasha-item-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+        text-align: left;
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+    }
+    .horosa-india-dasha-row .horosa-india-dasha-item-meta span {
+        color: var(--horosa-astro-text, #e8ecf3);
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .horosa-india-dasha-row .horosa-india-dasha-item-meta em {
+        color: var(--horosa-astro-muted, #8fa0b9);
+        font-size: 10.5px;
+        font-style: normal;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+    .horosa-india-dasha-chev {
+        display: inline-block;
+        width: 12px;
+        font-size: 10px;
+        line-height: 1;
+        color: var(--horosa-astro-muted, #8fa0b9);
+        transition: transform 0.18s ease, color 0.18s ease;
+        flex: 0 0 12px;
+    }
+    .horosa-india-dasha-chev.is-open {
+        transform: rotate(90deg);
+        color: var(--horosa-astro-gold, #d7ad69);
+    }
+    .horosa-india-dasha-chev-sm {
+        font-size: 8px;
+        width: 10px;
+        flex: 0 0 10px;
+    }
+    .horosa-india-dasha-chev.is-hidden { visibility: hidden; }
+
+    .horosa-india-dasha-inline-sub {
+        padding: 8px 10px 10px 30px;
+        border-top: 1px dashed rgba(215, 173, 105, 0.16);
+        margin: 0 6px;
+        animation: horosaDashaFadeIn 0.18s ease;
+    }
+    .horosa-india-dasha-inline-sub-title {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 6px;
+        font-size: 11px;
+        color: var(--horosa-astro-muted, #8fa0b9);
+    }
+    .horosa-india-dasha-inline-sub-title strong {
+        font-size: 12px;
+        color: var(--horosa-astro-gold, #d7ad69);
+    }
+    .horosa-india-dasha-inline-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .horosa-india-dasha-inline-sub-row {
+        border-radius: 6px;
+    }
+    .horosa-india-dasha-inline-sub-row.is-expanded {
+        background: rgba(215, 173, 105, 0.04);
+    }
+    .horosa-india-dasha-inline-sub-btn {
+        display: grid;
+        grid-template-columns: 10px 80px minmax(0, 1fr);
+        gap: 8px;
+        align-items: center;
+        padding: 5px 8px;
+        width: 100%;
+        background: transparent;
+        border: 0;
+        border-radius: 6px;
+        cursor: pointer;
+        text-align: left;
+        font-size: 11px;
+    }
+    .horosa-india-dasha-inline-sub-btn:hover:not([disabled]) {
+        background: rgba(215, 173, 105, 0.06);
+    }
+    .horosa-india-dasha-inline-sub-btn[disabled] { cursor: default; }
+    .horosa-india-dasha-inline-sub-name {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        line-height: 1.2;
+    }
+    .horosa-india-dasha-inline-sub-name strong {
+        font-size: 12px;
+        color: var(--horosa-astro-gold, #d7ad69);
+    }
+    .horosa-india-dasha-inline-sub-name em {
+        font-size: 10px;
+        font-style: normal;
+        color: var(--horosa-astro-muted, #8fa0b9);
+    }
+    .horosa-india-dasha-inline-sub-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        line-height: 1.2;
+        gap: 0;
+        font-size: 10px;
+        color: var(--horosa-astro-muted, #8fa0b9);
+    }
+    .horosa-india-dasha-inline-sub-meta em {
+        font-style: normal;
+        color: var(--horosa-astro-gold, #d7ad69);
+        font-weight: 500;
+    }
+
+    .horosa-india-dasha-inline-prat {
+        padding: 5px 10px 6px 28px;
+        margin: 2px 0 4px;
+        border-left: 2px solid rgba(215, 173, 105, 0.22);
+        background: rgba(0, 0, 0, 0.08);
+        border-radius: 0 4px 4px 0;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 2px 12px;
+        animation: horosaDashaFadeIn 0.18s ease;
+    }
+    .horosa-india-dasha-inline-prat-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 6px;
+        font-size: 10px;
+        line-height: 1.3;
+    }
+    .horosa-india-dasha-inline-prat-row span {
+        color: var(--horosa-astro-gold, #d7ad69);
+    }
+    .horosa-india-dasha-inline-prat-row em {
+        color: var(--horosa-astro-muted, #8fa0b9);
+        font-style: normal;
+    }
+
+    @keyframes horosaDashaFadeIn {
+        from { opacity: 0; transform: translateY(-4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* 分盘集开关(印占设置面板) */
+    .horosa-india-vargaset-block {
+        margin-top: 10px;
+    }
+    .horosa-india-vargaset-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+    }
+    .horosa-india-vargaset-toggle {
+        padding: 2px 14px;
+        font-size: 11px;
+        line-height: 1.6;
+        border-radius: 12px;
+        border: 1px solid var(--horosa-border, rgba(215, 173, 105, 0.32));
+        background: transparent;
+        color: var(--horosa-astro-muted, #8fa0b9);
+        cursor: pointer;
+        transition: all 0.18s ease;
+    }
+    .horosa-india-vargaset-toggle:hover {
+        color: var(--horosa-astro-gold, #d7ad69);
+        border-color: var(--horosa-astro-gold, #d7ad69);
+    }
+    .horosa-india-vargaset-toggle.is-active {
+        background: var(--horosa-astro-gold, #d7ad69);
+        color: #1a1410;
+        border-color: var(--horosa-astro-gold, #d7ad69);
+    }
+
+    /* 分盘集:中间栏 2×2 多盘并列网格 */
+    .horosa-india-varga-grid-stage {
+        padding: 4px;
+        overflow: auto;
+    }
+    .horosa-india-varga-grid {
+        display: grid;
+        gap: 6px;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+    }
+    .horosa-india-varga-cell {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        border: 1px solid var(--horosa-border, rgba(215, 173, 105, 0.18));
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--horosa-surface, rgba(127, 127, 127, 0.04));
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+    }
+    .horosa-india-varga-cell-title {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        padding: 4px 10px;
+        border-bottom: 1px solid var(--horosa-border, rgba(215, 173, 105, 0.14));
+        background: var(--horosa-surface-sunken, rgba(215, 173, 105, 0.06));
+        flex: 0 0 auto;
+    }
+    .horosa-india-varga-cell-title strong {
+        font-size: 13px;
+        color: var(--horosa-astro-gold, #d7ad69);
+        letter-spacing: 0.04em;
+    }
+    .horosa-india-varga-cell-title span {
+        font-size: 11px;
+        color: var(--horosa-astro-muted, #8fa0b9);
+    }
+    .horosa-india-varga-cell-chart {
+        flex: 1 1 auto;
+        min-height: 0;
+        position: relative;
+        display: flex;
+    }
+    .horosa-india-varga-cell-chart > * {
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+    }
+
+    /* 分盘集多列(2+盘):每格约半宽 → 缩小盘内全部字号 + 紧凑内距,保证任意盘式/星数完整不裁切。
+       三盘式(南/北/东)共用 .horosa-india-square-* 类,故一处覆盖即可;选择器更具体,胜过基样与北/东覆盖。 */
+    .horosa-india-varga-grid-multi .horosa-india-varga-cell-chart .horosa-india-square-roman {
+        font-size: 10px;
+        line-height: 11px;
+    }
+    .horosa-india-varga-grid-multi .horosa-india-varga-cell-chart .horosa-india-square-cusp {
+        font-size: 7px;
+        line-height: 8px;
+        margin-top: 1px;
+    }
+    .horosa-india-varga-grid-multi .horosa-india-varga-cell-chart .horosa-india-square-object {
+        font-size: 11px;
+        line-height: 12px;
+        gap: 2px;
+    }
+    .horosa-india-varga-grid-multi .horosa-india-varga-cell-chart .horosa-india-square-object-name {
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .horosa-india-varga-grid-multi .horosa-india-varga-cell-chart .horosa-india-square-object-degree,
+    .horosa-india-varga-grid-multi .horosa-india-varga-cell-chart .horosa-india-square-retro {
+        font-size: 8px;
+    }
+    .horosa-india-varga-grid-multi .horosa-india-varga-cell-chart .horosa-india-square-sign-symbol {
+        font-size: 13px;
+    }
+    .horosa-india-varga-grid-multi .horosa-india-varga-cell-chart .horosa-india-square-sign {
+        right: 3px;
+        bottom: 2px;
+        width: 16px;
+        height: 16px;
+        line-height: 16px;
+    }
+    .horosa-india-varga-grid-multi .horosa-india-varga-cell-chart .horosa-india-square-house {
+        top: 3px;
+        left: 4px;
+    }
+    /* 行星区:上内距让出宫号(roman+cusp≈20px)避免压字,其余收紧给小字最大空间,overflow 不裁切 */
+    .horosa-india-varga-grid-multi .horosa-india-varga-cell-chart .horosa-india-square-objects {
+        inset: 22px 3px 12px;
+        gap: 1px 3px;
+    }
+    /* 填满方格:去掉单盘用的 18px 外壳内距 + 棋盘 44px 留白,让方盘吃满整格(显示面积最大化、不浪费空间) */
+    .horosa-india-varga-grid-multi .horosa-india-varga-cell-chart .horosa-india-square-shell {
+        padding: 2px;
+        gap: 0;
+    }
+    .horosa-india-varga-grid-multi .horosa-india-varga-cell-chart .horosa-india-square-board {
+        width: 100%;
+        max-width: 100%;
+        max-height: 100%;
+    }
+
+    /* 方盘(南印 / 分盘集 / 印度择日 / 盘面美术南印)格子变小时的紧凑版式。
+       常规版式靠固定内距让出宫号与星座符号(上 38 / 下 30 px;分盘集 22 / 12),放大档格子只剩 65 px(分盘集 39 px)时
+       行星容器高 ≤ 0 → 行星、度数、福点被 overflow:hidden 整个裁掉。盘组件直接量盘(布局域,utils/boxSizeVars):
+       格边长 < 150 px(分盘集 < 80 px)时在盘上挂 data-isq-compact、并给出格边长 --isq-cell;
+       紧凑版式里宫号与星座符号并到格子顶边同一行,行星区占满余下高度,字号按格边长取(上限 = 原字号,分盘集由下方变量收成它自己的上限),放不下时格内可滚。
+       不用容器查询 / cq 单位:内核在文档缩放下 cq 按视觉像素算(1.8 档 10cqi = 18px)、尺寸条件换档后不按 CSS px 重算(真内核实测)。常规尺寸不挂属性,一字不变。
+       权重 0,4,0,压过分盘集固定字号(0,3,0)。 */
+    .horosa-india-varga-grid-multi .horosa-india-varga-cell-chart .horosa-india-square-board {
+        --isq-roman-max: 10px;
+        --isq-cusp-max: 7px;
+        --isq-object-max: 11px;
+        --isq-name-max: 12px;
+        --isq-degree-max: 8px;
+        --isq-sign-max: 13px;
+        --isq-min: 6px;            /* 分盘集格子最小只有 39 px:三颗星要排三行,字号底线再降一档 */
+    }
+    .horosa-india-square-board[data-isq-compact] .horosa-india-square-cell .horosa-india-square-house {
+        top: 3px;
+        left: 4px;
+        display: flex;
+        align-items: baseline;
+        gap: 3px;
+    }
+    .horosa-india-square-board[data-isq-compact] .horosa-india-square-cell .horosa-india-square-roman {
+        font-size: clamp(var(--isq-min, 7px), calc(var(--isq-cell, 200px) * 0.11), var(--isq-roman-max, 18px));
+        line-height: 1.15;
+    }
+    .horosa-india-square-board[data-isq-compact] .horosa-india-square-cell .horosa-india-square-cusp {
+        margin-top: 0;
+        font-size: clamp(6px, calc(var(--isq-cell, 200px) * 0.08), var(--isq-cusp-max, 12px));
+        line-height: 1.15;
+    }
+    .horosa-india-square-board[data-isq-compact] .horosa-india-square-cell .horosa-india-square-sign {
+        top: 2px;
+        right: 3px;
+        bottom: auto;
+        width: auto;
+        height: auto;
+        line-height: 1;
+    }
+    .horosa-india-square-board[data-isq-compact] .horosa-india-square-cell .horosa-india-square-sign-symbol {
+        font-size: clamp(8px, calc(var(--isq-cell, 200px) * 0.12), var(--isq-sign-max, 20px));
+    }
+    .horosa-india-square-board[data-isq-compact] .horosa-india-square-cell .horosa-india-square-objects {
+        inset: clamp(12px, calc(5px + var(--isq-cell, 200px) * 0.1265), 26px) 3px 2px;   /* 让出顶行:3px + 宫号行高(1.15 × 宫号字号 0.11 × 格边)+ 2px */
+        gap: 1px 4px;
+        align-content: flex-start;
+        align-content: safe center;
+        overflow: auto;
+        scrollbar-width: none;
+    }
+    .horosa-india-square-board[data-isq-compact] .horosa-india-square-cell .horosa-india-square-object {
+        font-size: clamp(var(--isq-min, 7px), calc(var(--isq-cell, 200px) * 0.10), var(--isq-object-max, 16px));
+        line-height: 1.15;
+        gap: 1px;
+    }
+    .horosa-india-square-board[data-isq-compact] .horosa-india-square-cell .horosa-india-square-object-name {
+        font-size: clamp(var(--isq-min, 7px), calc(var(--isq-cell, 200px) * 0.125), var(--isq-name-max, 19px));
+    }
+    .horosa-india-square-board[data-isq-compact] .horosa-india-square-cell .horosa-india-square-object-degree,
+    .horosa-india-square-board[data-isq-compact] .horosa-india-square-cell .horosa-india-square-retro {
+        font-size: clamp(5.5px, calc(var(--isq-cell, 200px) * 0.08), var(--isq-degree-max, 12px));
+    }
+
+    /* ───────── 天文地占(F7)· 暗金统一设计语言 ───────── */
+    .horosa-geomancy-input-stack .horosa-huangji-field-title { margin-bottom: 6px; }
+    .horosa-geomancy-seed-row {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        padding: 7px 11px; margin-top: 4px; border-radius: 9px;
+        border: 1px solid var(--horosa-border, rgba(215, 173, 105, 0.2));
+        background: var(--horosa-surface-sunken, rgba(215, 173, 105, 0.06));
+        font-size: 12px; color: var(--horosa-astro-muted, #8fa0b9);
+    }
+    .horosa-geomancy-seed-row strong { color: var(--horosa-astro-gold, #d7ad69); font-variant-numeric: tabular-nums; }
+
+    /* 中间栏:盘填满、大而清晰 */
+    .horosa-geomancy-redesign .horosa-huangji-chart-panel { display: flex; min-height: 0; }
+    .horosa-geomancy-redesign .horosa-huangji-board-host { width: 100%; height: 100%; min-height: 0; display: flex; }
+    /* 高度写 min-height:100% 而不是 height:100%:放得下时照旧铺满中栏;放大档放不下时整链按内容长高,交给宿主(overflow:auto)滚,
+       不再把 4×4 护盾压成比格内文字还矮的格子。下面 stage / shield / grid 同理(flex-shrink 0 + 行高 min-content 底线)。 */
+    .horosa-geomancy-board { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; height: auto; min-height: 100%; padding: 10px 8px; }
+    /* 盘式切换五钮:放得下一行(常规档一字不变);中栏窄时整钮折到下一行,不再把每钮压成 22px 宽逐字竖排 */
+    .horosa-geomancy-board-switch { display: inline-flex; flex-wrap: wrap; justify-content: center; max-width: 100%; gap: 2px; padding: 3px; border-radius: 10px; background: rgba(0, 0, 0, 0.16); flex: 0 0 auto; }
+    .horosa-geomancy-board-switch > .horosa-geomancy-switch-btn { flex: 0 0 auto; white-space: nowrap; }
+    :root[data-horosa-appearance='light'] .horosa-geomancy-board-switch { background: rgba(0, 0, 0, 0.05); }
+    .horosa-geomancy-switch-btn { padding: 5px 18px; font-size: 12.5px; font-weight: 500; border: 0; border-radius: 7px; background: transparent; color: var(--horosa-astro-muted, #8fa0b9); cursor: pointer; transition: all 0.18s ease; }
+    .horosa-geomancy-switch-btn:hover { color: var(--horosa-astro-gold, #d7ad69); }
+    .horosa-geomancy-switch-btn.is-active { background: var(--horosa-astro-gold, #d7ad69); color: #1a1410; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22); }
+    .horosa-geomancy-board-stage { flex: 1 0 auto; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; }
+    .horosa-geomancy-empty { display: flex; align-items: center; justify-content: center; height: 100%; min-height: 220px; color: var(--horosa-astro-muted, #8fa0b9); font-size: 14px; }
+
+    /* [G+H] 地占右栏子tab 改用 horosa-cnx-aux(与皇极/小六壬/飞宫同源:size small + 极简 padding),
+       替原 horosa-content-tabs(15px 大字 / 22px 宽距 / 14px 容器留白 → 与邻页不一致且挤压显示区)。
+       此处补:info-panel 与 cnx-aux flex 填满,子tab 内容区吃满右栏、超高自身滚动。 */
+    .horosa-geomancy-redesign .horosa-huangji-info-panel { display: flex; flex-direction: column; min-height: 0; }
+    .horosa-geomancy-redesign .horosa-cnx-aux { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    .horosa-geomancy-redesign .horosa-cnx-aux .ant-tabs-content-holder { flex: 1; min-height: 0; overflow-y: auto; }
+
+    /* 护盾方盘:4×4 填满中栏、大字、暗金 */
+    .horosa-geomancy-shield { display: flex; flex-direction: column; gap: 10px; width: 100%; height: auto; min-height: 100%; align-self: stretch; max-width: ~"min(100%, 720px)"; }
+    .horosa-geomancy-shield-title { flex: 0 0 auto; text-align: center; font-size: 14px; letter-spacing: 0.1em; color: var(--horosa-astro-gold, #d7ad69); font-weight: 600; }
+    .horosa-geomancy-shield-grid { flex: 1 0 auto; display: grid; grid-template-rows: repeat(4, minmax(min-content, 1fr)); gap: 8px; min-height: 0; }
+    .horosa-geomancy-shield-rowgroup { display: flex; align-items: stretch; gap: 6px; min-height: 0; }
+    .horosa-geomancy-shield-grouplab { flex: 0 0 18px; writing-mode: vertical-rl; text-orientation: upright; display: flex; align-items: center; justify-content: center; font-size: 11px; letter-spacing: 2px; color: var(--horosa-text-secondary); border-right: 1px dashed rgba(148, 163, 184, 0.35); padding-right: 2px; }
+    .horosa-geomancy-shield-rowcells { flex: 1 1 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; min-width: 0; }
+    .horosa-geomancy-shield-cell {
+        display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+        min-width: 0; min-height: 0; padding: 8px 6px 7px; border-radius: 12px;
+        border: 1px solid var(--horosa-border, rgba(215, 173, 105, 0.22));
+        background: var(--horosa-surface, rgba(127, 127, 127, 0.05));
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1); position: relative; overflow: hidden;
+    }
+    .horosa-geomancy-shield-cell.is-good { border-color: rgba(89, 168, 105, 0.5); }
+    .horosa-geomancy-shield-cell.is-bad { border-color: rgba(191, 60, 54, 0.5); }
+    .horosa-geomancy-shield-cell.is-good::before,
+    .horosa-geomancy-shield-cell.is-bad::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+    .horosa-geomancy-shield-cell.is-good::before { background: #59a869; }
+    .horosa-geomancy-shield-cell.is-bad::before { background: #bf3c36; }
+    .horosa-geomancy-shield-slot { flex: 0 0 auto; font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); letter-spacing: 0.06em; }
+    .horosa-geomancy-fig-dots { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 4px 0; }
+    .horosa-geomancy-fig-dotrow { display: flex; gap: 9px; justify-content: center; align-items: center; min-height: 9px; }
+    .horosa-geomancy-fig-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--horosa-astro-gold, #d7ad69); box-shadow: 0 0 4px rgba(215, 173, 105, 0.4); }
+    .horosa-geomancy-shield-name { flex: 0 0 auto; text-align: center; line-height: 1.25; }
+    .horosa-geomancy-shield-name strong { display: block; font-size: 13px; color: var(--horosa-astro-text, #e8ecf3); }
+    .horosa-geomancy-shield-name em { display: block; font-size: 10px; font-style: normal; color: var(--horosa-astro-muted, #8fa0b9); letter-spacing: 0.02em; }
+
+    /* 十二宫盘:原生 SVG,我方 ywastro 星座符 + 暗金 */
+    .horosa-geomancy-wheel { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    .horosa-geomancy-wheel-svg { width: auto; height: 100%; max-width: 100%; max-height: 100%; display: block; }
+    .horosa-geomancy-wheel-ring { fill: none; stroke: var(--horosa-border, rgba(110, 135, 168, 0.4)); stroke-width: 1; }
+    .horosa-geomancy-wheel-ring.is-gold { stroke: var(--horosa-astro-gold, #d7ad69); stroke-width: 2; }
+    .horosa-geomancy-wheel-spoke { stroke: var(--horosa-border, rgba(110, 135, 168, 0.28)); stroke-width: 0.8; }
+    .horosa-geomancy-wheel-sign { font-size: 27px; fill: var(--horosa-astro-gold, #d7ad69); }
+    .horosa-geomancy-wheel-num { font-size: 13px; fill: var(--horosa-astro-muted, #8fa0b9); font-weight: 600; }
+    .horosa-geomancy-wheel-planet { font-size: 19px; fill: var(--horosa-astro-text, #e8ecf3); }
+    .horosa-geomancy-wheel-center-title { font-size: 15px; fill: var(--horosa-astro-gold, #d7ad69); letter-spacing: 0.12em; }
+    .horosa-geomancy-wheel-center-sub { font-size: 12px; fill: var(--horosa-astro-muted, #8fa0b9); }
+
+    /* 右栏:可滚动 + 美化 */
+    .horosa-geomancy-redesign .horosa-inspector-panel { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .horosa-geomancy-redesign .horosa-inspector-panel .horosa-content-tabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    .horosa-geomancy-redesign .horosa-inspector-panel .ant-tabs-content-holder { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+    .horosa-geomancy-redesign .horosa-inspector-panel .ant-tabs-content { height: auto; }
+    .horosa-geomancy-reading { padding: 4px 8px 16px; }
+    .horosa-geomancy-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin-bottom: 14px; }
+    .horosa-geomancy-summary-row { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 9px; background: var(--horosa-surface-sunken, rgba(215, 173, 105, 0.05)); }
+    .horosa-geomancy-summary-row span { font-size: 10px; color: var(--horosa-astro-muted, #8fa0b9); letter-spacing: 0.04em; }
+    .horosa-geomancy-summary-row strong { font-size: 13px; color: var(--horosa-astro-text, #e8ecf3); }
+    .horosa-geomancy-figure-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; margin-bottom: 14px; }
+    .horosa-geomancy-figure-card { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--horosa-border, rgba(215, 173, 105, 0.2)); border-radius: 11px; background: var(--horosa-surface, rgba(127, 127, 127, 0.05)); }
+    .horosa-geomancy-figure-dots { display: flex; flex-direction: column; gap: 3px; flex: 0 0 auto; padding: 2px 4px; }
+    .horosa-geomancy-dot-row { display: flex; gap: 4px; justify-content: center; min-height: 6px; }
+    .horosa-geomancy-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--horosa-astro-gold, #d7ad69); }
+    .horosa-geomancy-figure-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .horosa-geomancy-figure-role { font-size: 10px; color: var(--horosa-astro-muted, #8fa0b9); letter-spacing: 0.08em; }
+    .horosa-geomancy-figure-meta strong { font-size: 14px; color: var(--horosa-astro-gold, #d7ad69); line-height: 1.2; }
+    .horosa-geomancy-figure-meta em { font-size: 11px; font-style: normal; color: var(--horosa-astro-text, #e8ecf3); }
+    .horosa-geomancy-figure-meta small { font-size: 10px; color: var(--horosa-astro-muted, #8fa0b9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .horosa-geomancy-house-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; }
+    .horosa-geomancy-house-row { display: grid; grid-template-columns: 24px 70px minmax(0, 1fr); gap: 8px; align-items: center; padding: 5px 9px; border-radius: 7px; font-size: 12px; }
+    .horosa-geomancy-house-row:nth-child(odd) { background: rgba(215, 173, 105, 0.05); }
+    .horosa-geomancy-house-num { text-align: center; font-weight: 700; color: var(--horosa-astro-gold, #d7ad69); font-variant-numeric: tabular-nums; }
+    .horosa-geomancy-house-sign { color: var(--horosa-astro-text, #e8ecf3); display: inline-flex; align-items: center; gap: 5px; }
+    .horosa-geomancy-sign-glyph { color: var(--horosa-astro-gold, #d7ad69); font-size: 15px; line-height: 1; }
+    .horosa-geomancy-house-topic { color: var(--horosa-astro-muted, #8fa0b9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .horosa-geomancy-prompt { border-top: 1px dashed var(--horosa-border, rgba(215, 173, 105, 0.2)); padding-top: 12px; }
+    .horosa-geomancy-prompt-title { font-size: 12px; color: var(--horosa-astro-gold, #d7ad69); margin-bottom: 6px; }
+    .horosa-geomancy-prompt pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 11.5px; line-height: 1.65; color: var(--horosa-astro-text, #e8ecf3); font-family: inherit; }
+    .horosa-geomancy-catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; padding: 4px 8px 16px; }
+    .horosa-geomancy-catalog-card { display: flex; flex-direction: column; gap: 3px; padding: 9px 11px; border: 1px solid var(--horosa-border, rgba(215, 173, 105, 0.18)); border-radius: 11px; background: var(--horosa-surface, rgba(127, 127, 127, 0.05)); }
+    .horosa-geomancy-catalog-card strong { font-size: 13px; color: var(--horosa-astro-gold, #d7ad69); }
+    .horosa-geomancy-catalog-card em { font-size: 10px; font-style: normal; color: var(--horosa-astro-muted, #8fa0b9); }
+    .horosa-geomancy-catalog-card small { font-size: 11px; color: var(--horosa-astro-text, #e8ecf3); line-height: 1.4; }
+    .horosa-geomancy-catalog-astro { color: var(--horosa-astro-muted, #8fa0b9) !important; }
+    .horosa-geomancy-history-list { display: flex; flex-direction: column; gap: 5px; padding: 4px 8px 16px; }
+    .horosa-geomancy-history-row { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; text-align: left; padding: 9px 11px; border: 1px solid var(--horosa-border, rgba(215, 173, 105, 0.18)); border-radius: 9px; background: transparent; cursor: pointer; transition: all 0.18s ease; }
+    .horosa-geomancy-history-row:hover { border-color: var(--horosa-astro-gold, #d7ad69); background: rgba(215, 173, 105, 0.06); }
+    .horosa-geomancy-history-q { font-size: 13px; color: var(--horosa-astro-text, #e8ecf3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .horosa-geomancy-history-meta { font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); }
+
+    /* 解读 tab 卡片化:每段一张卡 */
+    .horosa-geomancy-card { padding: 12px 14px; margin-bottom: 12px; border: 1px solid var(--horosa-border, rgba(215, 173, 105, 0.18)); border-radius: 12px; background: var(--horosa-surface, rgba(127, 127, 127, 0.04)); }
+    .horosa-geomancy-card-title { font-size: 12px; letter-spacing: 0.1em; color: var(--horosa-astro-gold, #d7ad69); font-weight: 600; margin-bottom: 10px; padding-bottom: 7px; border-bottom: 1px solid var(--horosa-border, rgba(215, 173, 105, 0.16)); }
+    .horosa-geomancy-card .horosa-geomancy-summary,
+    .horosa-geomancy-card .horosa-geomancy-figure-grid,
+    .horosa-geomancy-card .horosa-geomancy-house-list { margin-bottom: 0; }
+    .horosa-geomancy-card .horosa-geomancy-summary-row { background: transparent; padding: 4px 0; }
+    .horosa-geomancy-card .horosa-geomancy-figure-card { background: var(--horosa-surface-sunken, rgba(215, 173, 105, 0.06)); }
+    /* 宫位行星(我方 glyph) —— 断语整行换行全显,不裁切(成熟方案:文字永不被遮挡消失) */
+    .horosa-geomancy-house-topic { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 8px; min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; }
+    .horosa-geomancy-house-row { align-items: start; }
+    .horosa-geomancy-house-name { color: var(--horosa-astro-muted, #8fa0b9); white-space: nowrap; }
+    .horosa-geomancy-house-figure { white-space: nowrap; }
+    .horosa-geomancy-house-reading { flex-basis: 100%; width: 100%; white-space: normal; word-break: break-word; line-height: 1.45; color: var(--horosa-astro-muted, #8fa0b9); font-size: 11px; opacity: 0.92; }
+    .horosa-geomancy-house-planet { display: inline-flex; align-items: center; gap: 3px; }
+    .horosa-geomancy-house-planet-glyph { color: var(--horosa-astro-gold, #d7ad69); font-size: 15px; line-height: 1; }
+    .horosa-geomancy-house-planet em { font-style: normal; color: var(--horosa-astro-text, #e8ecf3); font-size: 11px; }
+    /* 宫盘行星中文回退(无 glyph 时) */
+    .horosa-geomancy-wheel-planet-cjk { font-size: 13px; fill: var(--horosa-astro-text, #e8ecf3); }
+
+    /* 塔罗(F9):卜·其他 三栏布局 + 文字花色牌面(零图片),暗金主题、令牌自适应明暗 */
+    /* 页根纵向 flex:三栏(.horosa-tarot-layout)吃剩余空间,自渲的底部快捷栏按自身高贴底。
+       此前三栏 height:100% 占满整页,快捷栏被挤到页根之外、整条落在视口下方(各缩放档都看不见)。 */
+    .horosa-tarot-page { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
+    .horosa-tarot-page > .horosa-tarot-layout { flex: 1 1 0; height: auto; }
+    .horosa-tarot-page > .horosa-bottom-quick-dock { flex: 0 0 auto; }
+    /* 塔罗页:astro 令牌原仅在 astro-redesign(占星模块)内定义,塔罗页缺失→回退暗色硬值(#e8ecf3 浅字),亮色模式浅字浅底看不清。此处按主题补齐,亮暗双清晰。 */
+    .horosa-tarot-page {
+        --horosa-astro-text: var(--horosa-text);
+        --horosa-astro-muted: var(--horosa-text-soft);
+        --horosa-astro-gold: var(--horosa-gold);
+        --horosa-astro-gold-rgb: var(--horosa-gold-rgb);
+        --horosa-astro-blue: #5b8cc4;
+    }
+    :root[data-horosa-appearance='light'] .horosa-tarot-page { --horosa-astro-blue: #3a6ea5; }
+    :root[data-horosa-appearance='light'] .horosa-tarot-card {
+        background: linear-gradient(160deg, #ffffff, var(--horosa-surface-raised, #f3efe6));
+        border-color: var(--horosa-border, rgba(20, 30, 50, 0.12));
+        box-shadow: 0 2px 10px rgba(20, 30, 50, 0.08);
+    }
+    :root[data-horosa-appearance='light'] .horosa-tarot-card:hover { box-shadow: 0 6px 18px rgba(20, 30, 50, 0.14); }
+    :root[data-horosa-appearance='light'] .horosa-tarot-sig-card { background: var(--horosa-surface-raised, rgba(20, 30, 50, 0.04)); }
+    // 左右栏加宽到与其他卜·其他技术同款(clamp 列宽);左右栏套大边框卡片(border+底纹+阴影),内容圈起。
+    .horosa-tarot-layout { display: grid; grid-template-columns: clamp(~"min(280px, 31%)", calc(20 * var(--horosa-lvw, 1vw)), 330px) minmax(0, 1fr) clamp(~"min(320px, 35%)", calc(24 * var(--horosa-lvw, 1vw)), 392px); gap: 8px; height: 100%; min-height: 0; }
+    .horosa-tarot-col-left, .horosa-tarot-col-center { min-height: 0; overflow-y: auto; overflow-x: hidden; }
+    .horosa-tarot-col-center { display: flex; }
+    .horosa-tarot-col-left, .horosa-tarot-col-right {
+        border: 1px solid var(--horosa-border);
+        border-radius: var(--horosa-radius);
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 62%),
+            var(--horosa-panel-bg);
+        box-shadow: var(--horosa-small-shadow);
+    }
+    // 深色下与其他页的侧栏同款(边框 / 圆角 / 底 / 内阴影同一套),不再用偏蓝渐变
+    :root[data-horosa-appearance='dark'] .horosa-tarot-col-left,
+    :root[data-horosa-appearance='dark'] .horosa-tarot-col-right {
+        border-color: var(--horosa-astro-line, rgba(215, 173, 105, 0.18));
+        border-radius: 6px;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 46%),
+            var(--horosa-astro-panel, #090b0e);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+    }
+    // 左栏下拉框的已选文字居中(含占位符与搜索输入):在箭头左侧那段可用宽度里居中。
+    // 不在左侧补箭头位同宽的内衬 —— 窄框(约 97px)补了就放不下「预存逆位义」、长牌组名也会被截(真 WebKit 实测)
+    .horosa-workspace-shell .horosa-tarot-col-left .ant-select-single .ant-select-selection-item,
+    .horosa-workspace-shell .horosa-tarot-col-left .ant-select-single .ant-select-selection-placeholder {
+        text-align: center;
+    }
+    .horosa-workspace-shell .horosa-tarot-col-left .ant-select-single .ant-select-selection-search-input {
+        text-align: center;
+    }
+    /* 右栏:tab nav 固定、内容区独立纵向滚动(成熟分层滚动,长牌阵 GT 36 行可下滑、文字不裁切) */
+    .horosa-tarot-col-right { min-height: 0; overflow: hidden; display: flex; padding: 8px 8px 6px; }
+    .horosa-tarot-col-right .horosa-tarot-tabs { height: 100%; width: 100%; display: flex; flex-direction: column; min-height: 0; }
+    .horosa-tarot-col-right .horosa-tarot-tabs > .ant-tabs-nav { flex: 0 0 auto; margin-bottom: 6px; }
+    .horosa-tarot-col-right .horosa-tarot-tabs > .ant-tabs-content-holder { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+    .horosa-tarot-col-right .horosa-tarot-tabs .ant-tabs-content,
+    .horosa-tarot-col-right .horosa-tarot-tabs .ant-tabs-tabpane { height: auto; min-height: 0; }
+    .horosa-tarot-input-stack { display: flex; flex-direction: column; gap: 12px; padding: 10px 10px 18px; }
+    .horosa-tarot-field { display: flex; flex-direction: column; gap: 6px; }
+    /* 判读口径项「一行两个」:六个下拉原本各占一行(横排分段控件更是一项两行),整节吃掉左栏近半高度。
+       🔴 min-width:0 不可省 —— grid 子项默认 min-width:auto,长标签会把列撑破而不是收缩(仓内已踩过)。
+       🔴 LESS 会把 `1 / -1` 当除法算成 -1,跨列写法必须 ~ 转义(仓内第三次踩)。 */
+    .horosa-tarot-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; align-items: start; }
+    .horosa-tarot-field-grid > .horosa-tarot-field { min-width: 0; }
+    .horosa-tarot-field-grid > .horosa-tarot-field-full { grid-column: ~"1 / -1"; }
+    /* 窗口偏窄时退回单列,免两列各自被压到放不下标签 */
+    @media (max-width: 1400px) {
+        .horosa-tarot-field-grid { grid-template-columns: minmax(0, 1fr); }
+    }
+    /* 左栏顶部标题条(原「⤢ 展开为全宽」开关已按用户定案移除,连同 is-side-expanded 整套样式;
+       判读口径改一行两个下拉后左栏本就不挤,窄窗兜底交给上面那条媒体查询) */
+    .horosa-tarot-side-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .horosa-tarot-side-toolbar-title { font-size: 11px; letter-spacing: 0.14em; color: var(--horosa-astro-gold, #d7ad69); font-weight: 600; }
+    /* 窄栏防挤压:分段控件在放不下时换行成多行(antd 默认 inline-block 不换行 → 末档被裁),
+       芯片网格与长下拉同理留最小宽度;此修在常态三栏下也生效,不依赖展开。 */
+    .horosa-tarot-input-stack .xq-segmented { display: flex; flex-wrap: wrap; width: 100%; }
+    .horosa-tarot-input-stack .xq-segmented .ant-radio-button-wrapper { flex: 1 1 auto; text-align: center; min-width: 0; }
+    .horosa-tarot-input-stack .xq-segmented .ant-radio-button-wrapper:not(:first-child)::before { display: none; }
+    // 字体美化:11px 灰弱标签 → 12.5px 描金标签色 + 600 字重,与其他子技术左栏观感一致、更清晰。
+    .horosa-tarot-field > label { font-size: 12.5px; letter-spacing: 0.02em; color: var(--horosa-astro-label, #d6c7b0); font-weight: 600; }
+    /* 节标题:分区分隔(成熟设计:清晰层级、不拥挤) */
+    .horosa-tarot-input-stack .xq-section-title { margin-top: 6px; padding-top: 11px; border-top: 1px solid var(--horosa-border, rgba(215, 173, 105, 0.16)); font-size: 11px; letter-spacing: 0.14em; color: var(--horosa-astro-gold, #d7ad69); font-weight: 600; text-transform: none; }
+    .horosa-tarot-input-stack .xq-section-title:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+    .horosa-tarot-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .horosa-tarot-seed-hint { font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); word-break: break-all; opacity: 0.85; }
+
+    .horosa-tarot-stage { flex: 1 1 auto; display: flex; flex-direction: column; gap: 12px; padding: 8px; width: 100%; min-height: 0; }
+    .horosa-tarot-stage-title { text-align: center; font-size: 15px; letter-spacing: 0.12em; color: var(--horosa-astro-gold, #d7ad69); font-weight: 640; }
+    .horosa-tarot-grid { display: grid; gap: 10px; align-content: start; }
+    .horosa-tarot-attr { margin-top: auto; text-align: center; font-size: 10px; color: var(--horosa-astro-muted, #8fa0b9); opacity: 0.7; }
+
+    .horosa-tarot-card { border: 1px solid var(--horosa-border, rgba(215, 173, 105, 0.3)); border-radius: 12px; padding: 11px 7px; display: flex; flex-direction: column; align-items: center; gap: 5px; background: linear-gradient(160deg, rgba(255,255,255,0.045), rgba(0,0,0,0.18)); min-height: 152px; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.22); transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease; }
+    .horosa-tarot-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.3); border-color: var(--horosa-astro-gold, #d7ad69); }
+    .horosa-tarot-card-pos { font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); text-align: center; }
+    .horosa-tarot-card-face { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .horosa-tarot-card-symbol { font-size: 30px; line-height: 1; }
+    .horosa-tarot-card-visual { display: flex; align-items: center; justify-content: center; width: 100%; }
+    .horosa-tarot-card-img { width: 100%; max-width: 96px; border-radius: 6px; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
+    .horosa-tarot-geo-slot .horosa-tarot-card-img { max-width: 100%; }
+    .horosa-tarot-card-name { font-size: 15px; font-weight: 640; color: var(--horosa-astro-text, #e8ecf3); }
+    .horosa-tarot-card-en { font-size: 10px; color: var(--horosa-astro-muted, #8fa0b9); text-align: center; line-height: 1.2; }
+    .horosa-tarot-card-orient { font-size: 11px; padding: 1px 8px; border-radius: 9px; border: 1px solid var(--horosa-astro-muted, #8fa0b9); color: var(--horosa-astro-muted, #8fa0b9); }
+    .horosa-tarot-card-orient.is-reversed { color: var(--horosa-warn); border-color: var(--horosa-warn); }   /* 明暗成对(旧定色 #e0795f 宣纸底 2.9:1) */
+    .horosa-tarot-card-kw { font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); text-align: center; line-height: 1.4; }
+    .horosa-tarot-corr { font-size: 10px; color: var(--horosa-astro-blue, #7fa8d8); text-align: center; line-height: 1.35; }
+    .horosa-tarot-dignity { font-size: 10px; padding: 0 6px; border-radius: 8px; border: 1px solid; line-height: 1.5; }
+    .horosa-tarot-dignity.is-strong { color: var(--horosa-astro-gold, #d7ad69); border-color: var(--horosa-astro-gold, #d7ad69); }
+    .horosa-tarot-dignity.is-weak { color: var(--horosa-warn); border-color: var(--horosa-warn); }
+    .horosa-tarot-dignity.is-neutral { color: var(--horosa-astro-muted, #8fa0b9); border-color: var(--horosa-astro-muted, #8fa0b9); }
+    .horosa-tarot-toggle { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--horosa-astro-text, #e8ecf3); padding: 1px 0; }
+    .horosa-tarot-td-corr { font-size: 11px; color: var(--horosa-astro-blue, #7fa8d8); }
+    .horosa-tarot-birth-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .horosa-tarot-sig-card { align-self: center; border: 1.4px dashed var(--horosa-astro-gold, #d7ad69); border-radius: 10px; padding: 6px 14px; margin-bottom: 8px; position: relative; background: rgba(0, 0, 0, 0.12); }
+    .horosa-tarot-sig-ribbon { font-size: 10px; color: var(--horosa-astro-gold, #d7ad69); text-align: center; letter-spacing: 1px; margin-bottom: 2px; }
+    /* 真实牌阵几何布局(凯尔特十字/生命树/十二宫等用 position.x/y 绝对定位;容器宽高+卡宽由 JS computeGeoLayout 内联,保证不重叠) */
+    .horosa-tarot-geo { position: relative; align-self: center; }
+    .horosa-tarot-geo-slot { position: absolute; }
+    .horosa-tarot-geo-slot .horosa-tarot-card { min-height: 0; padding: 6px 4px; gap: 2px; }
+    .horosa-tarot-geo-slot .horosa-tarot-card-symbol { font-size: 22px; }
+    .horosa-tarot-geo-slot .horosa-tarot-card-name { font-size: 12px; }
+    .horosa-tarot-geo-slot .horosa-tarot-card-en, .horosa-tarot-geo-slot .horosa-tarot-corr,
+    .horosa-tarot-geo-slot .horosa-tarot-card-kw, .horosa-tarot-geo-slot .horosa-tarot-dignity { display: none; }
+
+    .horosa-tarot-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--horosa-astro-muted, #8fa0b9); font-size: 13px; }
+    .horosa-tarot-reading { display: flex; flex-direction: column; gap: 10px; padding: 4px; }
+    .horosa-tarot-line { font-size: 13px; line-height: 1.7; color: var(--horosa-astro-text, #e8ecf3); }
+    .horosa-tarot-line b { color: var(--horosa-astro-gold, #d7ad69); }
+    .horosa-tarot-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .horosa-tarot-table th { text-align: left; border-bottom: 1px solid rgba(148, 163, 184, 0.35); padding: 6px 4px; color: var(--horosa-astro-muted, #8fa0b9); font-weight: 600; }
+    .horosa-tarot-table td { border-bottom: 1px solid rgba(148, 163, 184, 0.16); padding: 6px 4px; vertical-align: top; color: var(--horosa-astro-text, #e8ecf3); }
+    .horosa-tarot-table td.is-reversed { color: var(--horosa-warn); }
+    /* 表格斑马纹 + hover（润色，与全 app 表格观感一致） */
+    .horosa-tarot-table tbody tr:nth-child(even) td { background: rgba(148, 163, 184, 0.05); }
+    .horosa-tarot-table tbody tr:hover td { background: rgba(215, 173, 105, 0.09); }
+
+    /* G4 流派简介面板 + 花色对照（沿用 --horosa-astro-* 令牌，与右栏信息卡观感统一） */
+    .horosa-tarot-deckinfo { display: flex; flex-direction: column; gap: 7px; font-size: 12px; line-height: 1.6; color: var(--horosa-astro-text, #e8ecf3); }
+    .horosa-tarot-deckinfo-row { color: var(--horosa-astro-muted, #8fa0b9); }
+    .horosa-tarot-deckinfo-row b { color: var(--horosa-astro-gold, #d7ad69); font-weight: 600; margin-right: 5px; }
+    .horosa-tarot-deckinfo-suits { margin-top: 4px; padding-top: 7px; border-top: 1px dashed rgba(148, 163, 184, 0.25); }
+    .horosa-tarot-deckinfo-suits-title { font-size: 11px; color: var(--horosa-astro-gold, #d7ad69); margin-bottom: 4px; }
+    .horosa-tarot-deckinfo-suit { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); padding: 1px 0; }
+    .horosa-tarot-deckinfo-suit .horosa-tarot-suit-name { color: var(--horosa-astro-text, #e8ecf3); font-weight: 600; }
+
+    /* deck 下拉分组标题（此前无样式）：金色小标题 */
+    .horosa-tarot-deck-dropdown .ant-select-item-group { color: var(--horosa-astro-gold, #d7ad69); font-size: 11px; font-weight: 600; opacity: 0.9; }
+
+    /* G6 发牌/揭牌动画：卡自中心淡入上浮，按 --deal-i stagger；逆位翻转过渡。尊重 prefers-reduced-motion。 */
+    @keyframes horosa-tarot-deal { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .horosa-tarot-geo-slot { animation: horosa-tarot-deal 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: calc(var(--deal-i, 0) * 55ms); }
+    .horosa-tarot-card-face { transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
+    @media (prefers-reduced-motion: reduce) {
+        .horosa-tarot-geo-slot { animation: none; }
+        .horosa-tarot-card-face { transition: none; }
+    }
+
+    /* G6 四色阶徽章（大牌路径色，四界并排小点） */
+    .horosa-tarot-scales { display: inline-flex; align-items: center; gap: 2px; }
+    .horosa-tarot-scale-dot { line-height: 1; }
+    .horosa-tarot-scale-lbl { margin-left: 3px; font-size: 9px; opacity: 0.7; }
+
+    /* G6 牌阵连线 SVG（置于牌下，淡金引导线；卡片在其上） */
+    .horosa-tarot-lines { display: block; }
+    .horosa-tarot-geo-slot { z-index: 1; }
+
+    /* G6 响应式：窄屏三栏堆叠（信息栏可滚，牌面不越界） */
+    @media (max-width: 900px) {
+        /* TP0.5:此前注释写「三栏堆叠」但从未覆盖 .horosa-tarot-layout(名实不符)——窄屏真堆叠:左/中/右纵排,整页纵向滚。 */
+        .horosa-tarot-page { height: auto !important; }
+        .horosa-tarot-layout { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; height: auto; overflow-y: auto; }
+        .horosa-tarot-col-left, .horosa-tarot-col-center, .horosa-tarot-col-right { min-height: 0; max-height: none; overflow: visible; }
+        .horosa-tarot-geo { max-width: 100%; overflow-x: auto; }
+        .horosa-tarot-deckinfo { font-size: 11px; }
+        .horosa-tarot-ook-chain { flex-wrap: wrap; }
+    }
+
+    /* G7 开钥·中栏专属分堆视图(5 操作分区 + 指示牌落堆 + 计数链 mini 牌面) */
+    .horosa-tarot-ook-stage { align-items: stretch; }
+    .horosa-tarot-ook-sig { text-align: center; font-size: 12px; color: var(--horosa-astro-text, #e8ecf3); margin: 2px 0 6px; }
+    .horosa-tarot-ook-sig b { color: var(--horosa-astro-gold, #d7ad69); }
+    .horosa-tarot-ook-zones { display: flex; flex-direction: column; gap: 9px; overflow-y: auto; padding: 2px; flex: 1 1 auto; }
+    .horosa-tarot-ook-zone { border: 1px solid rgba(215, 173, 105, 0.22); border-radius: 8px; padding: 8px 10px; background: rgba(215, 173, 105, 0.04); animation: horosa-tarot-deal 0.3s ease both; }
+    .horosa-tarot-ook-zone.is-op5 { border-color: rgba(215, 173, 105, 0.4); background: rgba(215, 173, 105, 0.08); }
+    .horosa-tarot-ook-zone-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 12.5px; color: var(--horosa-astro-text, #e8ecf3); margin-bottom: 7px; }
+    .horosa-tarot-ook-badge { display: inline-block; font-size: 11px; font-weight: 640; color: #1b1206; background: var(--horosa-astro-gold, #d7ad69); border-radius: 4px; padding: 1px 7px; }
+    .horosa-tarot-ook-opname { font-weight: 600; }
+    .horosa-tarot-ook-pile { font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); }
+    .horosa-tarot-ook-chain { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+    .horosa-tarot-ook-arrow { color: var(--horosa-astro-muted, #8fa0b9); font-size: 13px; }
+    .horosa-tarot-ook-mini { display: inline-flex; flex-direction: column; align-items: center; min-width: 44px; max-width: 62px; border: 1px solid; border-radius: 6px; padding: 4px 3px; background: rgba(0, 0, 0, 0.16); }
+    .horosa-tarot-ook-mini.is-sig { box-shadow: 0 0 0 2px var(--horosa-astro-gold, #d7ad69); }
+    .horosa-tarot-ook-mini-sym { font-size: 18px; line-height: 1.1; }
+    .horosa-tarot-ook-mini-name { font-size: 9.5px; color: var(--horosa-astro-text, #e8ecf3); text-align: center; line-height: 1.15; margin-top: 1px; }
+    .horosa-tarot-ook-line { font-size: 11.5px; color: var(--horosa-astro-muted, #8fa0b9); line-height: 1.7; }
+    :root[data-horosa-appearance='light'] .horosa-tarot-ook-mini { background: rgba(0, 0, 0, 0.04); }
+    :root[data-horosa-appearance='light'] .horosa-tarot-ook-zone { background: rgba(215, 173, 105, 0.06); }
+
+    /* 策天飞星·设置 tab(F6:5 显示开关) */
+    .horosa-cetian-settings-panel { padding: 12px; display: flex; flex-direction: column; gap: 14px; }
+    .horosa-cetian-toggle-list { display: flex; flex-direction: column; gap: 11px; }
+    .horosa-cetian-toggle { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--horosa-astro-text, #e8ecf3); cursor: pointer; }
+    .horosa-cetian-settings-hint { font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); line-height: 1.6; }
+
+    /* 策天飞星·典籍页(移语本全文库,惰性加载分篇折叠) */
+    .horosa-cetian-texts-block { padding: 12px 4px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .horosa-cetian-texts-collapse { background: transparent; }
+    .horosa-cetian-texts-collapse .ant-collapse-header { font-size: 13px; font-weight: 650; color: var(--horosa-astro-text, #e8ecf3); }
+    .horosa-cetian-text-section { margin-bottom: 10px; }
+    .horosa-cetian-text-subtitle { font-size: 12.5px; font-weight: 700; color: var(--horosa-gold, #cda24d); margin-bottom: 4px; }
+    .horosa-cetian-text-body { font-size: 12.5px; line-height: 1.9; color: var(--horosa-astro-text, #d9dfe9); white-space: pre-wrap; word-break: break-word; font-family: inherit; margin: 0; background: transparent; border: none; padding: 0; }
+    .horosa-cetian-texts-load { align-self: flex-start; }
+    :root[data-horosa-appearance='light'] .horosa-cetian-texts-collapse .ant-collapse-header { color: var(--horosa-astro-text, #2c3646); }
+    :root[data-horosa-appearance='light'] .horosa-cetian-text-body { color: var(--horosa-astro-text, #37414f); }
+
+    /* ── 策天飞星·右栏美化（移语本段专属版式）── */
+    .horosa-cetian-rich { display: flex; flex-direction: column; gap: 12px; padding: 10px 8px 16px; }
+    .horosa-cetian-sec {
+        border: 1px solid rgba(205, 162, 77, 0.22);
+        border-radius: 10px;
+        background: rgba(205, 162, 77, 0.045);
+        overflow: hidden;
+    }
+    .horosa-cetian-sec-head {
+        display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+        padding: 8px 12px 7px;
+        border-bottom: 1px solid rgba(205, 162, 77, 0.16);
+        background: linear-gradient(180deg, rgba(205, 162, 77, 0.10), rgba(205, 162, 77, 0.03));
+    }
+    .horosa-cetian-sec-title { font-size: 13.5px; font-weight: 750; letter-spacing: 1px; color: var(--horosa-gold, #cda24d); }
+    .horosa-cetian-sec-extra { font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); }
+    .horosa-cetian-sec-body { padding: 10px 12px 11px; display: flex; flex-direction: column; gap: 8px; }
+    .horosa-cetian-note { font-size: 11px; line-height: 1.7; color: var(--horosa-astro-muted, #8fa0b9); }
+    .horosa-cetian-note-inline { font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); }
+    .horosa-cetian-sub-title { font-size: 11.5px; font-weight: 700; color: var(--horosa-gold, #cda24d); opacity: 0.85; margin-top: 2px; }
+
+    .horosa-cetian-branch-chip {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-width: 20px; height: 20px; padding: 0 5px;
+        border-radius: 5px; font-size: 12px; font-weight: 700;
+        color: var(--horosa-gold, #cda24d);
+        background: rgba(205, 162, 77, 0.13);
+        border: 1px solid rgba(205, 162, 77, 0.30);
+    }
+    .horosa-cetian-star-pair { display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; }
+    .horosa-cetian-star-name { font-size: 12.5px; font-weight: 650; color: var(--horosa-astro-text, #dfe5ee); white-space: nowrap; }
+    .horosa-cetian-pair-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 3px 10px; }
+    .horosa-cetian-chip-flow { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    /* 运限时间带 */
+    .horosa-cetian-xian-list { display: flex; flex-direction: column; gap: 3px; }
+    .horosa-cetian-xian-row {
+        display: flex; align-items: center; gap: 8px;
+        padding: 4px 8px; border-radius: 7px;
+        border: 1px solid transparent;
+    }
+    .horosa-cetian-xian-row:nth-child(odd) { background: rgba(205, 162, 77, 0.05); }
+    .horosa-cetian-xian-row.is-current { border-color: rgba(205, 162, 77, 0.55); background: rgba(205, 162, 77, 0.13); }
+    .horosa-cetian-xian-range { min-width: 58px; font-size: 12.5px; font-weight: 750; color: var(--horosa-gold, #cda24d); font-variant-numeric: tabular-nums; }
+    .horosa-cetian-xian-branch { min-width: 16px; font-size: 12px; color: var(--horosa-astro-muted, #8fa0b9); }
+    .horosa-cetian-xian-palace { min-width: 52px; font-size: 12px; color: var(--horosa-astro-text, #dfe5ee); }
+    .horosa-cetian-xian-name { font-size: 12.5px; font-weight: 750; color: var(--horosa-gold, #cda24d); }
+    .horosa-cetian-xian-buwei { font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); }
+    .horosa-cetian-xian-jibadge { font-size: 10.5px; font-weight: 700; color: var(--horosa-jx-xiong); border: 1px solid rgba(224, 133, 133, 0.5); border-radius: 4px; padding: 0 4px; }
+    .horosa-cetian-xian-now { margin-left: auto; font-size: 10.5px; font-weight: 800; color: var(--horosa-on-accent); background: var(--horosa-gold, #cda24d); border-radius: 4px; padding: 1px 5px; }
+
+    /* 童限链 */
+    .horosa-cetian-tong-chip {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: 11.5px; color: var(--horosa-astro-text, #dfe5ee);
+        padding: 2px 7px; border-radius: 6px;
+        background: rgba(205, 162, 77, 0.08); border: 1px solid rgba(205, 162, 77, 0.18);
+    }
+    .horosa-cetian-tong-chip i { font-style: normal; font-weight: 800; font-size: 11px; color: var(--horosa-gold, #cda24d); }
+
+    /* 凶限警卡 */
+    .horosa-cetian-xiong-card { border-radius: 8px; padding: 7px 10px; border: 1px solid rgba(224, 133, 133, 0.35); background: rgba(224, 133, 133, 0.07); }
+    .horosa-cetian-xiong-card.is-zhao { border-color: rgba(230, 178, 106, 0.4); background: rgba(230, 178, 106, 0.07); }
+    .horosa-cetian-xiong-card.is-ref { border-color: rgba(140, 150, 165, 0.3); background: rgba(140, 150, 165, 0.06); opacity: 0.85; }
+    /* 星名不与「岁数 / 坐命」争宽:整组星名按内容宽(最宽到整行),放不下时兄弟换到下一行 —— 此前星名可收缩,1.8 档「天杖」被挤成两字竖排 */
+    .horosa-cetian-xiong-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-bottom: 3px; }
+    .horosa-cetian-xiong-stars { flex: 0 0 auto; max-width: 100%; font-size: 12.5px; font-weight: 750; color: var(--horosa-astro-text, #eceff5); }
+    .horosa-cetian-xiong-ages { font-size: 11.5px; font-weight: 700; color: var(--horosa-jx-xiong); white-space: nowrap; }
+    .horosa-cetian-xiong-hit { margin-left: auto; font-size: 10.5px; color: var(--horosa-astro-muted, #8fa0b9); }
+    .horosa-cetian-xiong-text { font-size: 12px; line-height: 1.75; color: var(--horosa-astro-text, #d9dfe9); }
+    .horosa-cetian-jixian-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; color: var(--horosa-astro-text, #dfe5ee); }
+
+    /* 会照 */
+    .horosa-cetian-hz-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12.5px; color: var(--horosa-astro-text, #dfe5ee); }
+    .horosa-cetian-hz-row > span:first-child { min-width: 56px; color: var(--horosa-astro-muted, #8fa0b9); font-size: 12px; }
+    .horosa-cetian-hz-row em { font-style: normal; font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); }
+    .horosa-cetian-hz-row.is-sub { padding-top: 2px; border-top: 1px dashed rgba(205, 162, 77, 0.18); gap: 10px; }
+
+    /* 十七飞星 / 神煞行 */
+    .horosa-cetian-shiqi-list { display: flex; flex-direction: column; gap: 2px; }
+    .horosa-cetian-shiqi-row, .horosa-cetian-shensha-row { display: flex; align-items: baseline; gap: 10px; padding: 3px 6px; border-radius: 6px; }
+    .horosa-cetian-shiqi-row:nth-child(odd), .horosa-cetian-shensha-row:nth-child(odd) { background: rgba(205, 162, 77, 0.05); }
+    .horosa-cetian-shiqi-row .horosa-cetian-star-pair, .horosa-cetian-shensha-row .horosa-cetian-star-pair { min-width: 92px; flex: none; }
+    .horosa-cetian-shiqi-text, .horosa-cetian-shensha-text { font-size: 12px; line-height: 1.7; color: var(--horosa-astro-text, #d3dae5); }
+
+    /* 三日宫 */
+    .horosa-cetian-sanri-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .horosa-cetian-sanri-col { border: 1px solid rgba(205, 162, 77, 0.2); border-radius: 8px; padding: 8px 10px; background: rgba(205, 162, 77, 0.05); }
+    .horosa-cetian-sanri-label { font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); margin-bottom: 5px; }
+    .horosa-cetian-sanri-value { display: flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 700; color: var(--horosa-astro-text, #eceff5); }
+
+    /* 廿八宿分野表 */
+    .horosa-cetian-fenye-table { display: flex; flex-direction: column; gap: 1px; }
+    /* 宿名列最小 8em:窄栏里不再被压到 25px 逐字竖排(三列放不下时表横向滚,见下面的表容器);宽栏 1fr 吃余量,一字不变 */
+    .horosa-cetian-fenye-table { overflow-x: auto; }
+    .horosa-cetian-fenye-row { display: grid; grid-template-columns: 44px 96px minmax(8em, 1fr); gap: 8px; padding: 4px 7px; border-radius: 6px; align-items: baseline; }
+    .horosa-cetian-fenye-row:nth-child(odd) { background: rgba(205, 162, 77, 0.05); }
+    .horosa-cetian-fenye-branch { font-size: 12.5px; font-weight: 750; color: var(--horosa-gold, #cda24d); }
+    .horosa-cetian-fenye-sign { font-size: 12px; color: var(--horosa-astro-text, #dfe5ee); }
+    .horosa-cetian-fenye-xiu { font-size: 11.5px; color: var(--horosa-astro-text, #c9d2df); }
+    .horosa-cetian-fenye-region { display: none; }
+    .horosa-cetian-fenye-mark b { color: var(--horosa-gold, #cda24d); font-size: 12px; margin-right: 4px; }
+    .horosa-cetian-fenye-mark { font-size: 12px; color: var(--horosa-astro-text, #dfe5ee); }
+
+    /* 十干变曜 chips */
+    .horosa-cetian-bianyao-chip {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 2px 8px; border-radius: 6px; font-size: 12px;
+        background: rgba(205, 162, 77, 0.08); border: 1px solid rgba(205, 162, 77, 0.2);
+        color: var(--horosa-astro-text, #dfe5ee);
+    }
+    .horosa-cetian-bianyao-chip i { font-style: normal; font-weight: 750; color: var(--horosa-gold, #cda24d); }
+    .horosa-cetian-bianyao-chip small { font-size: 10px; color: var(--horosa-astro-muted, #8fa0b9); }
+    .horosa-cetian-bianyao-chip b { font-weight: 750; }
+    .horosa-cetian-bianyao-chip.is-xiong { border-color: rgba(224, 133, 133, 0.45); }
+    .horosa-cetian-bianyao-chip.is-xiong b { color: var(--horosa-jx-xiong); }
+
+    /* 断诀分组卡 */
+    .horosa-cetian-dj-group { border-left: 3px solid var(--cetian-dj-color, #cda24d); padding-left: 9px; margin-bottom: 6px; }
+    .horosa-cetian-dj-group[data-group='太元賦'] { --cetian-dj-color: #cda24d; }
+    .horosa-cetian-dj-group[data-group='所臨星論'] { --cetian-dj-color: #7f9cd0; }
+    .horosa-cetian-dj-group[data-group='宮坐星斷'] { --cetian-dj-color: #5fb3a1; }
+    .horosa-cetian-dj-group[data-group='金鏡圖'] { --cetian-dj-color: #b08fd8; }
+    .horosa-cetian-dj-group[data-group='諸星格'] { --cetian-dj-color: #86b06a; }
+    .horosa-cetian-dj-group[data-group='諸星格·會合'] { --cetian-dj-color: #86b06a; }
+    .horosa-cetian-dj-group[data-group='關煞'] { --cetian-dj-color: #e08585; }
+    .horosa-cetian-dj-group[data-group='身宮吉凶論'] { --cetian-dj-color: #d8a75f; }
+    .horosa-cetian-dj-group-head { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; font-weight: 750; color: var(--cetian-dj-color, #cda24d); margin-bottom: 4px; }
+    .horosa-cetian-dj-group-head em { font-style: normal; font-size: 10.5px; opacity: 0.75; }
+    .horosa-cetian-dj-card { border-radius: 7px; padding: 6px 9px; margin-bottom: 5px; background: rgba(127, 139, 160, 0.07); }
+    .horosa-cetian-dj-title { font-size: 12px; font-weight: 700; color: var(--horosa-astro-text, #eceff5); margin-bottom: 2px; }
+    .horosa-cetian-dj-text { font-size: 12px; line-height: 1.8; color: var(--horosa-astro-text, #d3dae5); }
+    .horosa-cetian-dj-source { font-size: 10.5px; color: var(--horosa-astro-muted, #8fa0b9); margin-top: 3px; text-align: right; }
+
+    /* 星曜别名卡 */
+    .horosa-cetian-lore-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 7px; }
+    .horosa-cetian-lore-card { border: 1px solid rgba(205, 162, 77, 0.18); border-radius: 8px; padding: 7px 9px; background: rgba(205, 162, 77, 0.045); }
+    .horosa-cetian-lore-head { display: flex; align-items: baseline; gap: 7px; margin-bottom: 3px; }
+    .horosa-cetian-lore-head b { font-size: 13px; color: var(--horosa-gold, #cda24d); }
+    .horosa-cetian-lore-yy { font-size: 10.5px; padding: 0 5px; border-radius: 4px; border: 1px solid rgba(230, 178, 106, 0.5); color: #e6b26a; }
+    .horosa-cetian-lore-yy.is-yin { border-color: rgba(127, 156, 208, 0.55); color: #7f9cd0; }
+    .horosa-cetian-lore-body { font-size: 11.5px; line-height: 1.7; color: var(--horosa-astro-text, #cdd5e1); }
+
+    /* light 主题微调 */
+    :root[data-horosa-appearance='light'] .horosa-cetian-star-name,
+    :root[data-horosa-appearance='light'] .horosa-cetian-xian-palace,
+    :root[data-horosa-appearance='light'] .horosa-cetian-hz-row,
+    :root[data-horosa-appearance='light'] .horosa-cetian-shiqi-text,
+    :root[data-horosa-appearance='light'] .horosa-cetian-shensha-text,
+    :root[data-horosa-appearance='light'] .horosa-cetian-dj-text,
+    :root[data-horosa-appearance='light'] .horosa-cetian-dj-title,
+    :root[data-horosa-appearance='light'] .horosa-cetian-xiong-stars,
+    :root[data-horosa-appearance='light'] .horosa-cetian-xiong-text,
+    :root[data-horosa-appearance='light'] .horosa-cetian-tong-chip,
+    :root[data-horosa-appearance='light'] .horosa-cetian-fenye-sign,
+    :root[data-horosa-appearance='light'] .horosa-cetian-fenye-xiu,
+    :root[data-horosa-appearance='light'] .horosa-cetian-bianyao-chip,
+    :root[data-horosa-appearance='light'] .horosa-cetian-lore-body,
+    :root[data-horosa-appearance='light'] .horosa-cetian-sanri-value,
+    :root[data-horosa-appearance='light'] .horosa-cetian-jixian-row { color: var(--horosa-astro-text, #37414f); }
+    :root[data-horosa-appearance='light'] .horosa-cetian-dj-card { background: rgba(120, 132, 155, 0.08); }
+    /* 断诀分组色 / 变曜凶字 / 别名阴阳标:上面那套浅色是暗底挑的(太元賦金 #cda24d 在亮底 2.2:1,组头计数再乘 .75 → 1.8),
+       亮色各给一份同色相的深色(≥ 4.5:1);组头计数不再叠透明度。 */
+    :root[data-horosa-appearance='light'] .horosa-cetian-dj-group { --cetian-dj-color: #8a6420; }
+    :root[data-horosa-appearance='light'] .horosa-cetian-dj-group[data-group='太元賦'] { --cetian-dj-color: #8a6420; }
+    :root[data-horosa-appearance='light'] .horosa-cetian-dj-group[data-group='所臨星論'] { --cetian-dj-color: #3a5f9e; }
+    :root[data-horosa-appearance='light'] .horosa-cetian-dj-group[data-group='宮坐星斷'] { --cetian-dj-color: #23735f; }
+    :root[data-horosa-appearance='light'] .horosa-cetian-dj-group[data-group='金鏡圖'] { --cetian-dj-color: #6a44a8; }
+    :root[data-horosa-appearance='light'] .horosa-cetian-dj-group[data-group='諸星格'] { --cetian-dj-color: #4a7330; }
+    :root[data-horosa-appearance='light'] .horosa-cetian-dj-group[data-group='諸星格·會合'] { --cetian-dj-color: #4a7330; }
+    :root[data-horosa-appearance='light'] .horosa-cetian-dj-group[data-group='關煞'] { --cetian-dj-color: #b03a3a; }
+    :root[data-horosa-appearance='light'] .horosa-cetian-dj-group[data-group='身宮吉凶論'] { --cetian-dj-color: #8a5a14; }
+    :root[data-horosa-appearance='light'] .horosa-cetian-dj-group-head em { opacity: 1; }
+    :root[data-horosa-appearance='light'] .horosa-cetian-bianyao-chip.is-xiong b { color: #b03a3a; }
+    :root[data-horosa-appearance='light'] .horosa-cetian-lore-yy { color: #8a5a14; }
+    :root[data-horosa-appearance='light'] .horosa-cetian-lore-yy.is-yin { color: #3a5f9e; }
+    :root[data-horosa-appearance='light'] .horosa-cetian-xian-now { color: #fff; }
+
+    /* 印度·分盘集 多选暗黑适配:默认 antd tag 浅底在暗底刺眼 → 暗金 chip */
+    :root[data-horosa-appearance='dark'] .horosa-india-vargaset-block .ant-select-selection-item {
+        background: rgba(215, 173, 105, 0.14);
+        border-color: rgba(215, 173, 105, 0.32);
+        color: var(--horosa-astro-text, #e8ecf3);
+    }
+    :root[data-horosa-appearance='dark'] .horosa-india-vargaset-block .ant-select-selection-item-remove { color: var(--horosa-astro-muted, #8fa0b9); }
+    :root[data-horosa-appearance='dark'] .horosa-india-vargaset-block .ant-select-selector {
+        background: rgba(0, 0, 0, 0.22) !important;
+        border-color: rgba(215, 173, 105, 0.28) !important;
+    }
+    :root[data-horosa-appearance='dark'] .horosa-india-vargaset-block .ant-select-selection-placeholder { color: var(--horosa-astro-muted, #8fa0b9); }
+
+    /* 三级大运(pratyantardasha):仅当前主运 antardasha 之下,跨满整行,小字网格。 */
+    .horosa-india-dasha-pratyantar {
+        grid-column: ~"1 / -1"; /* LESS 会把 1 / -1 当除法算成 -1 → 转义保原义(跨满整行) */
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px dashed rgba(215, 173, 105, 0.18);
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 3px 10px;
+    }
+
+    .horosa-india-dasha-pratyantar-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 6px;
+        font-size: 10px;
+        line-height: 1.3;
+    }
+
+    .horosa-india-dasha-pratyantar-row span {
+        color: var(--horosa-astro-gold, #d7ad69);
+    }
+
+    .horosa-india-dasha-pratyantar-row em {
+        color: var(--horosa-astro-muted, #8fa0b9);
+        font-style: normal;
+    }
+
+    .horosa-india-dasha-subname {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .horosa-india-dasha-subname strong {
+        color: var(--horosa-astro-gold, #d7ad69);
+        font-size: 13px;
+        line-height: 1.15;
+    }
+
+    .horosa-india-dasha-subname span,
+    .horosa-india-dasha-submeta em {
+        color: var(--horosa-astro-muted, #8fa0b9);
+        font-size: 11px;
+        font-style: normal;
+        line-height: 1.2;
+    }
+
+    .horosa-india-dasha-submeta {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+        text-align: right;
+    }
+
+    .horosa-india-dasha-submeta span {
+        overflow: hidden;
+        color: var(--horosa-astro-text, #e8edf7);
+        font-size: 12px;
+        font-weight: 650;
+        line-height: 1.25;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-india-dasha-subpanel {
+        border-color: var(--horosa-border, #d8dee9);
+        background: var(--horosa-surface-solid, #ffffff);
+        color: var(--horosa-text, #172033);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-india-dasha-subitem {
+        border-color: var(--horosa-border, #d8dee9);
+        background: var(--horosa-surface-solid, #ffffff);
+    }
+
+    :root[data-horosa-appearance='light'] .horosa-india-dasha-submeta span {
+        color: var(--horosa-text, #172033);
+    }
+}

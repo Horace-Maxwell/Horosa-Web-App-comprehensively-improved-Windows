@@ -3,9 +3,12 @@ import { Spin, Empty, Pagination, Select, Input, InputNumber } from 'antd';
 import echarts from './echartsCore';
 import { fetchCelestial, fetchMicrochronology, fetchDecadeOmens, fetchCelestialEvent } from '../../services/xuanshi';
 import { marked } from 'marked';
-import { resolveChartDate, collapseSoftBreaks, celestialCalendarLabel, celestialDateWithCalendar, chartDateExactLabel } from './xuanshiDate';   // [Q-495/T-457] 日期按来源标历法
+import { resolveChartDate, collapseSoftBreaks, celestialCalendarLabel, celestialDateWithCalendar, chartDateExactLabel, nearSame } from './xuanshiDate';   // 日期按来源标历法
 import XuanShiStar from './XuanShiStar';
 import { fixedPopupFrame } from '../../utils/zoomDomain';
+import { matchesUserQuery } from '../../utils/scriptMode';
+import { watchChartScript } from '../../utils/chartDrawGuard';
+import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
 
 // 天象事件收藏项(kind=celestial,案头可回跳星象大典)
 function celBookmarkItem(e) {
@@ -15,9 +18,6 @@ function celBookmarkItem(e) {
 		subtitle: [e.omen, e.dynasty].filter(Boolean).join(' · '),
 	};
 }
-
-// 白话与原文字符集重合 >0.85 视为近乎相同(硬古文白话≈原文)→ 隐藏白话免冗余
-function nearSame(a, b) { if (!a || !b) { return false; } const sa = new Set(a), sb = new Set(b); let inter = 0; sa.forEach((c) => { if (sb.has(c)) { inter++; } }); return inter / Math.max(sa.size, sb.size, 1) > 0.85; }
 
 // 星象大典(核心)—— 照搬 参考星象大典页:朝代×天象热图(rotate-30 表头+合计+alpha 强度)
 // + 十年密度 + 过滤 + 列表 + 详情。点矩阵格 = 按该朝代+天象下钻。
@@ -61,6 +61,8 @@ export default class XuanShiCelestial extends React.Component {
 		fetchDecadeOmens().then((d) => { this._decadeData = d; requestAnimationFrame(() => this.initDecadeChart()); }).catch(() => {});
 		// 案头·私藏点开天象事件 → 自动按 event_id 拉取并打开该条详情
 		if (this.props.openCelestialEvent) { this.openByEventId(this.props.openCelestialEvent); }
+		// 界面简繁切换:echarts 的字画在 canvas 上,重建一遍
+		this._detachScript = watchChartScript(() => this.initDecadeChart());
 	}
 
 	async openByEventId(eventId) {
@@ -73,6 +75,7 @@ export default class XuanShiCelestial extends React.Component {
 	}
 
 	componentWillUnmount() {
+		if (this._detachScript) { this._detachScript(); this._detachScript = null; }
 		clearTimeout(this._yearTimer);
 		if (this._decadeChart) { this._decadeChart.dispose(); this._decadeChart = null; }
 		if (this._hostRO) { try { this._hostRO.disconnect(); } catch (e) { /* noop */ } this._hostRO = null; }
@@ -113,7 +116,7 @@ export default class XuanShiCelestial extends React.Component {
 		// [Tahoe 订阅补齐] 容器 RO 与 window resize 双通道(事件断链引擎下 RO 兜底)。
 		try {
 			if (typeof ResizeObserver !== 'undefined' && !this._hostRO) {
-				this._hostRO = new ResizeObserver(this._onResize);
+				this._hostRO = createDeferredResizeObserver(this._onResize);
 				this._hostRO.observe(el);
 			}
 		} catch (e) { this._hostRO = null; }
@@ -126,7 +129,8 @@ export default class XuanShiCelestial extends React.Component {
 					<h2 className="xuanshi-display is-h2" style={{ fontSize: 17, margin: 0 }}>公历十年期 × 天象类 时序</h2>
 					<span className="xuanshi-stat-sub" style={{ fontSize: 11 }}>面积 = 该十年期事件数</span>
 				</div>
-				<div ref={this._decadeRef} style={{ width: '100%', height: 360 }} />
+				{/* 文中插图(随文档滚动的统计图,不是盘):版面判据的「主盘不滚即见」不针对它 */}
+				<div ref={this._decadeRef} data-clip-inline-figure="1" style={{ width: '100%', height: 360 }} />
 			</div>
 		);
 	}
@@ -138,7 +142,7 @@ export default class XuanShiCelestial extends React.Component {
 	}
 
 	async load() {
-		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // 序号守卫:旧响应不覆盖新条件
 		this.setState({ loading: true, err: '' });
 		try {
 			const r = await fetchCelestial({
@@ -162,7 +166,7 @@ export default class XuanShiCelestial extends React.Component {
 		this.persist();
 	}
 
-	// [Q-496/T-458] 起年 / 终年每敲一位就发一次请求 → 年份键防抖 450ms(其它筛选照旧即时);配合 load 序号守卫
+	// 起年 / 终年每敲一位就发一次请求 → 年份键防抖 450ms(其它筛选照旧即时);配合 load 序号守卫
 	setFilter(patch) {
 		const yearKey = !!(patch && (Object.prototype.hasOwnProperty.call(patch, 'yearFrom') || Object.prototype.hasOwnProperty.call(patch, 'yearTo')));
 		this.setState({ ...patch, page: 1 }, () => {
@@ -226,7 +230,7 @@ export default class XuanShiCelestial extends React.Component {
 											style={{
 												textAlign: 'center', width: 48, height: 28, borderRadius: 3,
 												background: `rgba(166,61,42,${alpha.toFixed(3)})`,
-												color: alpha > 0.5 ? '#fff8ee' : 'var(--ink)',
+												color: alpha > 0.6 ? 'var(--on-heat, #fff8ee)' : 'var(--ink)',   // 0.6 = 亮色纸底上浅字 / 深墨的对比度交叉点(两侧都 ≥ 3:1)
 												cursor: c.n ? 'pointer' : 'default', fontVariantNumeric: 'tabular-nums',
 											}}>{c.n > 0 ? c.n : ''}</td>
 									);
@@ -291,7 +295,7 @@ export default class XuanShiCelestial extends React.Component {
 		);
 	}
 
-	// 源 CSV / 史书 两列(对齐标准版底部双列;点击即筛选)
+	// 原始条目 / 史书 两列(对齐标准版底部双列;点击即筛选)
 	renderSourceCols() {
 		const sm = this.state.summary || {};
 		const sources = sm.by_source || [];
@@ -317,7 +321,7 @@ export default class XuanShiCelestial extends React.Component {
 		);
 		return (
 			<div className="xuanshi-celcols">
-				{col('源 CSV', sources, 'source', false)}
+				{col('原始条目', sources, 'source', false)}
 				{col('史书', histories, 'history', true)}
 			</div>
 		);
@@ -370,7 +374,7 @@ export default class XuanShiCelestial extends React.Component {
 							if (!rd) { return null; }
 							return (
 								<div style={{ marginTop: 14 }}>
-									{/* [Q-487/T-449] 近似日期(月级/年级/年段)标「约」并说明起盘取法,不再冒充精确日。 */}
+									{/* 近似日期(月级/年级/年段)标「约」并说明起盘取法,不再冒充精确日。 */}
 									<div className="xuanshi-hint" style={{ marginBottom: 8 }}>{rd.exact ? chartDateExactLabel(rd) : `${rd.disp}（${rd.note || '按年份最早'}${rd.calendar === 'julian' ? '·儒略历' : ''}）`} —— 排此历史日之盘(按朝代都城近似经纬·都城地方平时)</div>
 									<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
 										<span className="xuanshi-btn is-primary" onClick={() => this.props.onChartLink(d, 'astrochart')}>排此日 · 占星盘</span>
@@ -410,7 +414,7 @@ export default class XuanShiCelestial extends React.Component {
 			{ label: '全库事件', n: sm.total, color: 'var(--vermilion)' },
 			{ label: '当前筛选', n: total, color: 'var(--jade)' },
 			{ label: '已交叉社会事件', n: sm.has_crosswalk, color: 'var(--gold)' },
-			{ label: '精选章稿样本', n: sm.in_chapter, color: 'var(--ink-soft)' },
+			{ label: '已入编纂稿', n: sm.in_chapter, color: 'var(--ink-soft)' },
 		];
 		return (
 			<div>
@@ -422,7 +426,7 @@ export default class XuanShiCelestial extends React.Component {
 				<h1 className="xuanshi-display is-hero" style={{ fontSize: 'clamp(26px,calc(3.4 * var(--horosa-lvw, 1vw)),38px)' }}>星象大典</h1>
 				<div className="xuanshi-section-sub" style={{ maxWidth: 920, margin: '8px 0 0' }}>
 					汇集正史天文、灾异、微年表、流星形态与社会交叉记录，统一归一到 <b style={{ color: 'var(--ink)' }}>朝代 × 天象类 × 史书 × 公历时间</b> 视图。
-					全库 <b style={{ color: 'var(--vermilion)' }}>{(sm.total || 0).toLocaleString()}</b> 事件 · <b>{(sm.with_year || 0).toLocaleString()}</b> 可推公历年 · <b>{(sm.has_crosswalk || 0).toLocaleString()}</b> 已做同日近日交叉 · <b>{(sm.in_chapter || 0).toLocaleString()}</b> 已入正式章稿
+					全库 <b style={{ color: 'var(--vermilion)' }}>{(sm.total || 0).toLocaleString()}</b> 事件 · <b>{(sm.with_year || 0).toLocaleString()}</b> 可推公历年 · <b>{(sm.has_crosswalk || 0).toLocaleString()}</b> 已做同日近日交叉 · <b>{(sm.in_chapter || 0).toLocaleString()}</b> 已入正式编纂稿
 				</div>
 
 				{/* KPI 卡 */}
@@ -439,18 +443,18 @@ export default class XuanShiCelestial extends React.Component {
 				<div className="xuanshi-celfilter">
 					<Input.Search placeholder='关键词（原文 / 解读 / 干支 …）' allowClear size="small" style={{ minWidth: 200, flex: '2 1 200px' }} defaultValue={this.state.q} key={`cq-${isFiltered}`} onSearch={(v) => this.setFilter({ q: v })} />
 					<Select allowClear showSearch size="small" placeholder="朝代:全部" style={{ flex: '1 1 130px' }} value={this.state.dynasty || undefined}
-						options={opt(sm.by_dynasty)} onChange={(v) => this.setFilter({ dynasty: v || '' })} filterOption={(i, o) => (o.label || '').indexOf(i) >= 0} />
+						options={opt(sm.by_dynasty)} onChange={(v) => this.setFilter({ dynasty: v || '' })} filterOption={(i, o) => matchesUserQuery(o.label || '', i, { ci: false })} />
 					<Select allowClear showSearch size="small" placeholder="天象类:全部" style={{ flex: '1 1 130px' }} value={this.state.omen || undefined}
-						options={opt(sm.by_omen)} onChange={(v) => this.setFilter({ omen: v || '' })} filterOption={(i, o) => (o.label || '').indexOf(i) >= 0} />
+						options={opt(sm.by_omen)} onChange={(v) => this.setFilter({ omen: v || '' })} filterOption={(i, o) => matchesUserQuery(o.label || '', i, { ci: false })} />
 					<Select allowClear showSearch size="small" placeholder="史书:全部" style={{ flex: '1 1 130px' }} value={this.state.history || undefined}
-						options={histOpt} onChange={(v) => this.setFilter({ history: v || '' })} filterOption={(i, o) => (o.label || '').indexOf(i) >= 0} />
-					<Select allowClear showSearch size="small" placeholder="源 CSV:全部" style={{ flex: '1 1 150px' }} value={this.state.source || undefined}
-						options={opt(sm.by_source)} onChange={(v) => this.setFilter({ source: v || '' })} filterOption={(i, o) => (o.label || '').indexOf(i) >= 0} />
+						options={histOpt} onChange={(v) => this.setFilter({ history: v || '' })} filterOption={(i, o) => matchesUserQuery(o.label || '', i, { ci: false })} />
+					<Select allowClear showSearch size="small" placeholder="原始条目:全部" style={{ flex: '1 1 150px' }} value={this.state.source || undefined}
+						options={opt(sm.by_source)} onChange={(v) => this.setFilter({ source: v || '' })} filterOption={(i, o) => matchesUserQuery(o.label || '', i, { ci: false })} />
 					<InputNumber size="small" placeholder="起年" style={{ flex: '0 1 92px' }} value={this.state.yearFrom !== '' ? this.state.yearFrom : null} onChange={(v) => this.setFilter({ yearFrom: v == null ? '' : v })} />
 					<InputNumber size="small" placeholder="终年" style={{ flex: '0 1 92px' }} value={this.state.yearTo !== '' ? this.state.yearTo : null} onChange={(v) => this.setFilter({ yearTo: v == null ? '' : v })} />
 					<Select size="small" placeholder="同日近日:不限" style={{ flex: '1 1 130px' }} value={this.state.crosswalk || undefined} allowClear
 						options={[{ value: '1', label: '仅 ✓ 有交叉' }, { value: '0', label: '仅 ✗ 无交叉' }]} onChange={(v) => this.setFilter({ crosswalk: v || '' })} />
-					<Select size="small" placeholder="章稿:不限" style={{ flex: '1 1 120px' }} value={this.state.inChapter || undefined} allowClear
+					<Select size="small" placeholder="编纂稿:不限" style={{ flex: '1 1 120px' }} value={this.state.inChapter || undefined} allowClear
 						options={[{ value: '1', label: '仅 ✓ 已收' }, { value: '0', label: '仅 ✗ 未收' }]} onChange={(v) => this.setFilter({ inChapter: v || '' })} />
 					{isFiltered ? <span className="xuanshi-link" style={{ fontSize: 12, alignSelf: 'center' }} onClick={() => this.setState({ dynasty: '', omen: '', history: '', source: '', yearFrom: '', yearTo: '', crosswalk: '', inChapter: '', q: '', page: 1 }, () => this.load())}>清空</span> : null}
 				</div>

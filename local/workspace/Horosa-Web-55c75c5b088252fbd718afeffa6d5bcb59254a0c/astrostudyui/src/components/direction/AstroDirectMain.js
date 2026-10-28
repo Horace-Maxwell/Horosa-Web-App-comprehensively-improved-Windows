@@ -1,3 +1,4 @@
+import { civilInstantMsOfStr } from '../../utils/dateStrSafe';
 import { Component } from 'react';
 // PERF-R9 Ship 7(Windows-ahead):技法步进预取登记 —— 与上游的懒加载改造无关,勿一并删。
 // ★ 2026-08-02 教训:上游 v3.6.2 把天球改懒加载时重写了 import 区,我方补丁的 import hunk
@@ -61,7 +62,7 @@ import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { buildCurrentMomentLines, buildMethodNoteLines, } from '../../utils/astroAiSnapshot';
 import { appendPlanetHouseInfoById, } from '../../utils/planetHouseInfo';
 
-// [YB v42] 补厚 helper 容错:个别测试套件整模块 mock astroAiSnapshot 且只保留部分导出(如 aiAnalysisContext.test),
+// 补厚 helper 容错:个别测试套件整模块 mock astroAiSnapshot 且只保留部分导出(如 aiAnalysisContext.test),
 // 缺失导出经 import 拿到 undefined → 直接调用会炸掉整个 builder;生产环境恒为函数,此守卫零行为差。
 const safeHelperLines = (fn, ...args)=>(typeof fn === 'function' ? fn(...args) : []);
 import {
@@ -377,9 +378,9 @@ function buildPrimaryDirectSnapshotText(chartObj){
 	if(pdParams.pdRaptParallel){
 		lines.push('急动平行迫星：是');
 	}
-	if(pdParams.termsVariant >= 1 && pdParams.termsVariant <= 4){   // [F4] 放行自定义(4)
-		// [0h] 标签正名(旧「莉莉界」)+迦勒底(3)放行:主限法链此前三元限死 1/2,全局选迦勒底被静默降 0。
-		lines.push(`界系：${({ 1: '托勒密界·校勘本', 2: '托勒密界·经典传本', 3: '迦勒底界', 4: '自定义界表' })[pdParams.termsVariant]}`);   // [R2-4] 补 4,否则快照出「界系：undefined」
+	if(pdParams.termsVariant >= 1 && pdParams.termsVariant <= 4){   // 放行自定义(4)
+		// 标签正名(旧「莉莉界」)+迦勒底(3)放行:主限法链此前三元限死 1/2,全局选迦勒底被静默降 0。
+		lines.push(`界系：${({ 1: '托勒密界·校勘本', 2: '托勒密界·经典传本', 3: '迦勒底界', 4: '自定义界表' })[pdParams.termsVariant]}`);   // 补 4,否则快照出「界系：undefined」
 	}
 	if(pdParams.pdTimeKey === 'User' && pdParams.pdTimeKeyCustom){
 		lines.push(`自定义钥匙率：${pdParams.pdTimeKeyCustom}°/年`);
@@ -394,7 +395,7 @@ function buildPrimaryDirectSnapshotText(chartObj){
 
 	lines.push('');
 	lines.push('[主限法表格]');
-	lines.push(`| ${degreeLabel} | 迫星 | 应星 | 日期(UTC) |`);   // [Q-176/T-116e] 引擎给的是 UTC 墙钟,快照表头一并标明(AI 据此换算本地)
+	lines.push(`| ${degreeLabel} | 迫星 | 应星 | 日期(UTC) |`);   // 引擎给的是 UTC 墙钟,快照表头一并标明(AI 据此换算本地)
 	lines.push('| --- | --- | --- | --- |');
 	if(pds.length === 0){
 		lines.push('| 无 | 无 | 无 | 无 |');
@@ -407,14 +408,14 @@ function buildPrimaryDirectSnapshotText(chartObj){
 			lines.push(`| ${degree || '无'} | ${promittor || '无'} | ${significator || '无'} | ${date || '无'} |`);
 		});
 	}
-	// [YB v42] 尾部补 [当前时点]/[方法说明](共享 helper;段头已登 preset;只动 primarydirect 这一支 builder)。
+	// 尾部补 [当前时点]/[方法说明](共享 helper;段头已登 preset;只动 primarydirect 这一支 builder)。
 	// extraLines 提示行:表中日期距今最近的 arc 行(帮 AI 从长表中锚定当下应期;解析不出日期则省略)。
 	let nearestLine = '';
 	if(pds.length){
 		const nowMs = Date.now();
 		let best = null;
 		pds.forEach((pd)=>{
-			const t = Date.parse(`${(pd && pd[4]) || ''}`.trim().replace(/\//g, '-'));
+			const t = civilInstantMsOfStr(`${(pd && pd[4]) || ''}`.trim().replace(/\//g, '-'));   // 民用历真实时刻
 			if(Number.isNaN(t)){ return; }
 			const dist = Math.abs(t - nowMs);
 			if(!best || dist < best.dist){ best = { pd, dist }; }
@@ -424,9 +425,9 @@ function buildPrimaryDirectSnapshotText(chartObj){
 			nearestLine = `表中距今最近行：${degreeText(bpd && bpd[0], pdMethod) || '无'}（${directionObjText(bpd && bpd[1], obj) || '无'} → ${directionObjText(bpd && bpd[2], obj) || '无'}，${bpd && bpd[4] ? `${bpd[4]}` : '无'}）`;
 		}
 	}
-	// [WP-5.5] 主限天球可选行:用户最近在 3D 球上选中/播放的向运(≤24h 有效,防跨日陈旧)。
+	// 主限天球可选行:用户最近在 3D 球上选中/播放的向运(≤24h 有效,防跨日陈旧)。
 	// 文本由 AstroPDSphere 从选中 row 既有字段拼好盖章,此处只读不再推导。
-	// [挂载自检 F-11·P0] 只认同一张盘(签名=obj.params 的 date/time/lon/lat)的盖章:此前无签名,A 盘选过行 → B 盘快照也带 A 行。
+	// 只认同一张盘(签名=obj.params 的 date/time/lon/lat)的盖章:此前无签名,A 盘选过行 → B 盘快照也带 A 行。
 	const sphereStamp = readPdSphereStamp(obj.params || {});
 	if(sphereStamp){
 		lines.push('');
@@ -596,7 +597,7 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
 		...(fields.predictive || { name: ['predictive'] }),
 		value: 1,
 	};
-	// [Q-341/T-322] Java /chart 的参数白名单不收 showPdBounds,回显 params.showPdBounds 恒为 1 ——
+	// Java /chart 的参数白名单不收 showPdBounds,回显 params.showPdBounds 恒为 1 ——
 	// 旧写法拿回显盖 fields,用户选的「否」每次重排都被静默冲回「是」(表格按 fields 正确隐藏、
 	// 快照却照列界限法行并写「显示界限法:是」)。fields 是本项的真值源:有值即保留,只有缺键才回落。
 	fields.showPdBounds = {
@@ -625,10 +626,10 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
 		...(fields.pdTerms || { name: ['pdTerms'] }),
 		value: pdTermsVal,
 	};
-	// [Q-169/T-104] 工具条的八个解耦维此前只写 app 仓(全仓无读者)与本次请求,不回写 fields ——
+	// 工具条的八个解耦维此前只写 app 仓(全仓无读者)与本次请求,不回写 fields ——
 	// fields 才是「重排 / 换盘 / 存命盘」都认的那份:于是改生辰或切盘重排后静默回落缺省,存盘也捕获不到。
 	// 这里按 opt 回写七维(缺省值照写,与既有 pdtype/pdDirect 等同律;fieldsToParams 仍只对非默认下发 → 零回归)。
-	// [Q-169 裁决 2026-09-18] 界系 termsVariant:用户拍板「界是全局设定 → 工具条选择覆写全局」——
+	// 界系 termsVariant:用户拍板「界是全局设定 → 工具条选择覆写全局」——
 	// 本次「计算」带界系时同样回写 fields.termsVariant(排盘真值,重排/换盘/存盘同认);全局仓写入+广播+主盘重算
 	// 由 computePrimaryDirections 在值真变时做(与 ChartDisplaySelector.applyClassicalField 同律)。
 	if(opt.projection){
@@ -654,7 +655,7 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
 	if(Array.isArray(opt.promissorTypes)){
 		fields.pdPromissorTypes = { ...(fields.pdPromissorTypes || { name: ['pdPromissorTypes'] }), value: opt.promissorTypes };
 	}
-	if(opt.termsVariant !== undefined){   // [Q-169] 界系回写排盘字段(与 app 仓/请求体同一归一化:1..4 有效,其余 0=埃及)
+	if(opt.termsVariant !== undefined){   // 界系回写排盘字段(与 app 仓/请求体同一归一化:1..4 有效,其余 0=埃及)
 		const tv = (opt.termsVariant >= 1 && opt.termsVariant <= 4) ? Number(opt.termsVariant) : 0;
 		fields.termsVariant = { ...(fields.termsVariant || { name: ['termsVariant'] }), value: tv };
 	}
@@ -688,10 +689,8 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
 		...(fields.southchart || { name: ['southchart'] }),
 		value: params.southchart !== undefined && params.southchart !== null ? params.southchart : (fields.southchart ? fields.southchart.value : 0),
 	};
-	fields.cid = {
-		...(fields.cid || { name: ['cid'] }),
-		value: null,
-	};
+	// 命盘身份(cid)原样保留:请求体自带 cid:null(buildPrimaryDirectionRequest),这份 fields 会整份写回全局,
+	// 在这里清 cid = 载入的命盘与命盘库断开(保存另生副本、温启不钉住、七政首开按本机偏好播种)。
 	return fields;
 }
 
@@ -743,7 +742,7 @@ function getDesiredPdConfigPure(chartObj, fields, override = {}){
 		pdTimeKeyCustom: (()=>{ const v = pick('pdTimeKeyCustom'); const n = Number(v); return (v !== undefined && Number.isFinite(n) && n > 0) ? n : null; })(),
 		pdSignificators: Array.isArray(pick('pdSignificators')) && pick('pdSignificators').length ? pick('pdSignificators') : null,
 		pdPromissorTypes: Array.isArray(pick('pdPromissorTypes')) && pick('pdPromissorTypes').length ? pick('pdPromissorTypes') : null,
-		termsVariant: (()=>{ const v = Number(pick('termsVariant')); return (v >= 1 && v <= 4) ? v : 0; })(),   // [F4]
+		termsVariant: (()=>{ const v = Number(pick('termsVariant')); return (v >= 1 && v <= 4) ? v : 0; })(),
 	};
 }
 
@@ -814,9 +813,9 @@ function buildPrimaryDirectionRequestPure(chartObj, fields, override = {}){
 		...(desired.pdSignificators ? { pdSignificators: desired.pdSignificators } : {}),
 		...(desired.pdPromissorTypes ? { pdPromissorTypes: desired.pdPromissorTypes } : {}),
 		termsVariant: desired.termsVariant,
-		// [SURF-5] 古典设置单源接入(此前仅 termsVariant 手拼=其余古典档对主限族空转;
+		// 古典设置单源接入(此前仅 termsVariant 手拼=其余古典档对主限族空转;
 		// /predict/pd 装饰器统一 push,条件发送保默认态字节不变=golden 540 天然守护)。
-		// [SURF-R1] 页面显式界系必须胜出:desired.termsVariant 的真值序=override(本次对话框
+		// 页面显式界系必须胜出:desired.termsVariant 的真值序=override(本次对话框
 		// 选择)>params(已落库)>fields,而 spread 在其后会用 fields 值静默覆盖——全局仓非默认
 		// 时主限页任何异档选择「永不可达」。剔除 spread 里的 termsVariant(delete 法保键序=
 		// 不翻缓存键);非自定义界(≠4)时连剔表体伴生键,防已废 12 座表随请求。
@@ -826,7 +825,7 @@ function buildPrimaryDirectionRequestPure(chartObj, fields, override = {}){
 			if(desired.termsVariant !== 4){
 				delete cls.customTermsDay; delete cls.customTermsNight;
 			}else if(!cls.customTermsDay){
-				// [SURF-R5a] 页面显式选自定义界(4)而 fields≠4:spread 无从附表(WP-7 触发条件=
+				// 页面显式选自定义界(4)而 fields≠4:spread 无从附表(WP-7 触发条件=
 				// fields 值为 4)——裸发 4 后端静默回落埃及,而 UI/params/快照全标「自定义界表」
 				// 且 needsPrimaryDirectionLoad 判 4===4 永久停错档。随盘 fields 表体优先,
 				// 回落本机编辑器仓;仍无表=照 chartRequest.js WP-7 口径降级不发 4。
@@ -868,7 +867,6 @@ export async function warmPrimaryDirection(chartObj, fields){
 		if(!req){ return null; }
 		return await request(`${Constants.ServerRoot}/predict/pd`, {
 			body: JSON.stringify(req),
-			cache: 'no-store',
 			silent: true,
 			// PERF-R9 Ship 7:预热/预取一律零重试(显式声明,不吃任何调用链上的重试默认值)——
 			// 后端重启窗口里 N 个深度预取绝不能变成 N×10 次退避重试风暴。
@@ -896,7 +894,7 @@ function isPrimaryDirectionTabKey(key){
 }
 
 class AstroDirectMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -1124,7 +1122,7 @@ class AstroDirectMain extends Component{
 		if((params.pdFramework || 'aspect') !== desired.pdFramework){ return true; }
 		if(((params.pdParallel ? 1 : 0)) !== desired.pdParallel){ return true; }
 		if(((params.pdRaptParallel ? 1 : 0)) !== desired.pdRaptParallel){ return true; }
-		if(((params.termsVariant >= 1 && params.termsVariant <= 4) ? params.termsVariant : 0) !== desired.termsVariant){ return true; }   // [F4]
+		if(((params.termsVariant >= 1 && params.termsVariant <= 4) ? params.termsVariant : 0) !== desired.termsVariant){ return true; }
 		// pdtype/pdDirect/pdConverse/pdAntiscia/pdTerms 现为真实选项,已随 chart.params 持久化;
 		// desired(无 override)即取自 params,故自动加载不因开关而误触发(显式重算走表格「计算」按钮)。
 		return pds.length === 0;
@@ -1216,7 +1214,7 @@ class AstroDirectMain extends Component{
 			pdTimeKeyCustom: req.pdTimeKeyCustom, pdSignificators: req.pdSignificators,
 			pdPromissorTypes: req.pdPromissorTypes, termsVariant: req.termsVariant,
 			pdaspects: req.pdaspects,
-			// [SURF-R3c] spread 古典键(cazimiOrb/sectBuffer 等)不逐键枚举,整包兜底进 key——
+			// spread 古典键(cazimiOrb/sectBuffer 等)不逐键枚举,整包兜底进 key——
 			// 否则「同 pd 键、异古典档」两请求在在途窗内被误去重(完成后自愈,但窗内丢档)。
 			cls: classicalBackendOverridesFromFields(this.props.fields || {}),
 		});
@@ -1229,7 +1227,6 @@ class AstroDirectMain extends Component{
 		try{
 			const data = await request(`${Constants.ServerRoot}/predict/pd`, {
 				body: JSON.stringify(req),
-				cache: 'no-store',
 			});
 			result = unwrapPredictiveResponse(data);
 		}catch(e){
@@ -1264,7 +1261,7 @@ class AstroDirectMain extends Component{
 		const chartObj = this.props.chartObj || {};
 		const chartParams = chartObj.params || {};
 		const fields = this.props.fields || {};
-		// [Q-341/T-322] 同上:回显恒 1,取值序必须 fields 优先(与表格 convertToDataSource 同源),
+		// 同上:回显恒 1,取值序必须 fields 优先(与表格 convertToDataSource 同源),
 		// 否则选「否」的用户表格没有界限法行、快照里却有,还写着「显示界限法:是」。
 		const showPdBounds = (fields.showPdBounds && fields.showPdBounds.value !== undefined && fields.showPdBounds.value !== null)
 			? fields.showPdBounds.value
@@ -1301,7 +1298,7 @@ class AstroDirectMain extends Component{
 			pdtype: chartParams.pdtype === 1 ? 1 : 0,
 			pdParallel: chartParams.pdParallel ? 1 : 0,
 			pdRaptParallel: chartParams.pdRaptParallel ? 1 : 0,
-			termsVariant: (chartParams.termsVariant >= 1 && chartParams.termsVariant <= 4) ? chartParams.termsVariant : 0,   // [F4]
+			termsVariant: (chartParams.termsVariant >= 1 && chartParams.termsVariant <= 4) ? chartParams.termsVariant : 0,
 			...(chartParams.pdTimeKeyCustom ? { pdTimeKeyCustom: chartParams.pdTimeKeyCustom } : {}),
 			...(Array.isArray(chartParams.pdSignificators) && chartParams.pdSignificators.length
 				? { pdSignificators: chartParams.pdSignificators } : {}),
@@ -1429,7 +1426,7 @@ class AstroDirectMain extends Component{
 		let h = this.rootEl.clientHeight;
 		const parent = this.rootEl.parentElement;
 		if(parent && parent.clientHeight > 120){ h = Math.min(h, parent.clientHeight); }
-		// 🔴 [用户 APP 实报 2026-09-17:星运各子页右侧多一条外层滚动条 / 主区与右栏之间空一节]
+		// 🔴
 		// 子页拿到的 height 若按根容器算(826),而真正装子页的页签面板只有 824(Tabs 自身边框等吃掉 2px),
 		// 子页根 div 就比面板高 2px → 面板 overflow-y:auto 立刻长出整条滚动条(含滚动槽=那条空带)。
 		// 直接量 Tabs 内容区(页签面板的父,与面板同高)= 子页真正可用高,任何 Tabs 皮肤/边框下都对。
@@ -1545,7 +1542,7 @@ class AstroDirectMain extends Component{
 				...(opt.timeKeyCustom ? { pdTimeKeyCustom: opt.timeKeyCustom } : {}),
 				...(Array.isArray(opt.significators) ? { pdSignificators: opt.significators } : {}),
 				...(Array.isArray(opt.promissorTypes) ? { pdPromissorTypes: opt.promissorTypes } : {}),
-				...(opt.termsVariant !== undefined ? { termsVariant: (opt.termsVariant >= 1 && opt.termsVariant <= 4) ? opt.termsVariant : 0 } : {}),   // [F4]
+				...(opt.termsVariant !== undefined ? { termsVariant: (opt.termsVariant >= 1 && opt.termsVariant <= 4) ? opt.termsVariant : 0 } : {}),
 			},
 		});
 		const nextFields = buildPrimaryDirectionFetchFields(
@@ -1557,12 +1554,12 @@ class AstroDirectMain extends Component{
 			opt
 		);
 		this.props.dispatch({
-			type: 'astro/save',
+			type: 'astro/saveUserFields',
 			payload: {
 				fields: nextFields,
 			},
 		});
-		// [Q-169 裁决 2026-09-18] 界系覆写全局:工具条所选界系 ≠ 全局现值 → 写全局仓(localStorage+广播,全站派生盘
+		// 界系覆写全局:工具条所选界系 ≠ 全局现值 → 写全局仓(localStorage+广播,全站派生盘
 		// 下次构参即读到)并按 ChartDisplaySelector.applyClassicalField 同律调度主盘重算(fields 已在上面回写)。
 		// 同值(缺省路径:工具条本就从全局播种)零动作 → 请求体/缓存键/主盘字节不变。
 		if(opt.termsVariant !== undefined){
@@ -1597,7 +1594,7 @@ class AstroDirectMain extends Component{
 			...(opt.timeKeyCustom ? { pdTimeKeyCustom: opt.timeKeyCustom } : {}),
 			...(Array.isArray(opt.significators) ? { pdSignificators: opt.significators } : {}),
 			...(Array.isArray(opt.promissorTypes) ? { pdPromissorTypes: opt.promissorTypes } : {}),
-			...(opt.termsVariant !== undefined ? { termsVariant: (opt.termsVariant >= 1 && opt.termsVariant <= 4) ? opt.termsVariant : 0 } : {}),   // [F4]
+			...(opt.termsVariant !== undefined ? { termsVariant: (opt.termsVariant >= 1 && opt.termsVariant <= 4) ? opt.termsVariant : 0 } : {}),
 			runHook: true,
 		});
 	}
@@ -1619,7 +1616,7 @@ class AstroDirectMain extends Component{
 			: (this.props.fields && this.props.fields.pdYears ? this.props.fields.pdYears.value : 100));
 		// In Zodiaco(0,黄道) / In Mundo(1,世俗) + 向运方向(converse) + 映点 / 界 开关——
 		// 均从已落库 chart.params 读取(applyPrimaryDirectionConfig 写入),缺省回退黄道/顺向/关。
-		// [WP-C.2] pdtype 全链(前端选项/后端引擎/2D 表)只有 0/1 两值——「界」不是 pdtype=2/3,
+		// pdtype 全链(前端选项/后端引擎/2D 表)只有 0/1 两值——「界」不是 pdtype=2/3,
 		// 而是 pdTerms 开关产出的行级 cat='T';天球徽章按二态 + pdTerms 尾缀「+界」呈现,与实算一致。
 		const appliedPdType = chartParams.pdtype === 1 ? 1 : 0;
 		// 顺向 direct 默认开:仅当已落库显式为 0 才关(缺省/未定义都按开)。

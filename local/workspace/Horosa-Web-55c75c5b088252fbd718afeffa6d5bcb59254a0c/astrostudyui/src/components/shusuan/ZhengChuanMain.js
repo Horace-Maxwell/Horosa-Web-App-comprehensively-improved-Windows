@@ -7,12 +7,13 @@
 import React, { Component } from 'react';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { createSignatureMemo } from '../../utils/memoBySignature';
+import { fieldVal, devFreeze } from './shusuanShared';   // 数算族共用小工具(单源)
 import { sharedNativeModelEnabled } from '../../utils/perfFlags';
 import { Empty, Spin, Tabs } from 'antd';
 import { buildLocalBaziResult } from '../../utils/baziLunarLocal';
 import { deriveDadingYearPillars } from '../../utils/zhengchuanDadingLocal';
 import { deriveNongliUniversalSync, subscribeRemoteNongli } from '../../utils/divinationTimeDraft';
-import { defaultAfter23NewDay, defaultLateZiHourUseNextDay, lunarByDayBoundary } from '../../utils/dayBoundary';
+import { lunarByDayBoundary } from '../../utils/dayBoundary';
 import { calcTieban, loadTiebanVerses } from '../../utils/zhengchuanTiebanLocal';
 import { calcShaozi, loadShaoziVerses } from '../../utils/zhengchuanShaoziLocal';
 import { dadingDeathYear, dadingDeathMonth } from '../../utils/zhengchuanDadingLocal';
@@ -21,13 +22,13 @@ import { calcXinyi, bakeTable, xiangTable, xingqingTable, XINYI_GONG } from '../
 import { buildZhengChuanSnapshotText } from '../../utils/zhengchuanSnapshot';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { SCHOOL_LABEL } from './zhengchuanSchools';
+import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
+import { chartDayBoundary } from '../../utils/dayBoundaryResolve';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
 const { TabPane } = Tabs;
 
-const fieldVal = (f, k, d = '') => (f && f[k] && f[k].value !== undefined && f[k].value !== null ? f[k].value : d);
-
-// [挂载自检 F-47] deriveDadingYearPillars 迁 utils/zhengchuanDadingLocal(纯函数,页面与 AI 无头同源);此处保留同名再导出。
+// deriveDadingYearPillars 迁 utils/zhengchuanDadingLocal(纯函数,页面与 AI 无头同源);此处保留同名再导出。
 export { deriveDadingYearPillars } from '../../utils/zhengchuanDadingLocal';
 
 
@@ -36,23 +37,10 @@ export { deriveDadingYearPillars } from '../../utils/zhengchuanDadingLocal';
 // center 先算、aux 同签名直接命中(4 槽足够:两实例只差 slot,签名同源)。
 // 共享引用只读契约:各消费方 render 不就地改写 model(dev 下深冻结保险丝);关开关=各算各的旧行为。
 const sharedModelMemo = createSignatureMemo(4);
-const devFreeze = (v) => {
-	if(process.env.NODE_ENV !== 'production' && v && typeof v === 'object'){
-		try{ deepFreeze(v); }catch(e){ /* 冻结失败不碍事 */ }
-	}
-	return v;
-};
-function deepFreeze(o){
-	Object.freeze(o);
-	Object.keys(o).forEach((k) => {
-		const c = o[k];
-		if(c && typeof c === 'object' && !Object.isFrozen(c)){ deepFreeze(c); }
-	});
-}
 
 class ZhengChuanMain extends Component {
 	// horosa_shusuan_native_scu_v1(PERF-R9;v3.5.1 起与上游 [R3-A6] 守卫合一 —— 语义同 wrapperPropsEqual,单一实现防双 sCU)
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -68,10 +56,10 @@ class ZhengChuanMain extends Component {
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 	}
 
-
 	componentDidMount() {
 		this.loadVerses();
 		this.saveSnap();
+		this.reportOwnHourZhi();
 		if (typeof window !== 'undefined') {
 			this._dayBoundaryListener = () => { if (!this._unmounted) this.forceUpdate(); };
 			window.addEventListener('horosa:day-boundary-changed', this._dayBoundaryListener);
@@ -88,6 +76,21 @@ class ZhengChuanMain extends Component {
 	componentDidUpdate(prev) {
 		if (prev.opts !== this.props.opts) this.loadVerses();
 		this.saveSnap();
+		this.reportOwnHourZhi();
+	}
+
+	// 本人时支回报宿主(提交之后、只在变化时):宿主的「演算时天象」下拉在演算时辰留空时据此只列那一套档,
+	// 显示的就是引擎实际所用的天象(此前两套都列,夜生人选「晴」下拉显示晴、引擎按「明」算)
+	reportOwnHourZhi() {
+		if (typeof this.props.onOwnHourZhi !== 'function') return;
+		let m = null;
+		try { m = this.getModel(); } catch (e) { m = null; }
+		const p = m && m._pillars;
+		const z = p && p[3] && p[3].length >= 2 ? p[3][1] : '';
+		if (z && z !== this._reportedHourZhi) {
+			this._reportedHourZhi = z;
+			this.props.onOwnHourZhi(z);
+		}
 	}
 
 	componentWillUnmount() {
@@ -116,8 +119,10 @@ class ZhengChuanMain extends Component {
 		if (this._versesInFlight === s) { return; }
 		this._versesInFlight = s;
 		loader().then((v) => {
+			const currentKey = this.school();   // 回包时的现状派
+			const stillCurrent = currentKey === s;
 			if (this._versesInFlight === s) { this._versesInFlight = null; }
-			if (this._unmounted || this.school() !== s) { return; }
+			if (this._unmounted || !stillCurrent) { return; }
 			this.setState({ verses: v, versesFor: s });
 		}).catch(() => {
 			if (this._versesInFlight === s) { this._versesInFlight = null; }
@@ -168,14 +173,14 @@ class ZhengChuanMain extends Component {
 		const params = {
 			date: dm.format('YYYY-MM-DD'), time: tm.format('HH:mm:ss'),
 			lon: fieldVal(f, 'lon', ''),
-			// [挂载自检 F-19·P0] 时区:此前不传 → baziLunarLocal 按 +08:00 校正真太阳时,非东八区命例四柱错、与 AI 挂载分叉。
+			// 时区:此前不传 → baziLunarLocal 按 +08:00 校正真太阳时,非东八区命例四柱错、与 AI 挂载分叉。
 			zone: fieldVal(f, 'zone', '') || (f && f.date && f.date.value && f.date.value.zone) || '',
 			// 性别以左栏下拉(props.gender)为准,缺省回退 fields(与河洛/参评同口径;此前只读
 			// fields → 左栏改性别不生效)。
 			gender: this.props.gender !== undefined ? Number(this.props.gender) : fieldVal(f, 'gender', 1),
 			timeAlg: fieldVal(f, 'timeAlg', 1),
-			// [Q-358/T-339] 日界 / 晚子时改读盘面 fields(与八字页、AI 挂载同源),缺席才回退全局;缺省逐字不变
-			after23NewDay: fieldVal(f, 'after23NewDay', defaultAfter23NewDay()), lateZiHourUseNextDay: fieldVal(f, 'lateZiHourUseNextDay', defaultLateZiHourUseNextDay()),
+			// 日界 / 晚子时改读盘面 fields(与八字页、AI 挂载同源),缺席才回退全局;缺省逐字不变
+			...chartDayBoundary(f),
 		};
 		const sig = JSON.stringify({ ...params, ...opts });
 		if (this._modelKey === sig && Object.prototype.hasOwnProperty.call(this, '_modelCache')) return this._modelCache;
@@ -213,7 +218,7 @@ class ZhengChuanMain extends Component {
 		if (pillars.some((x) => x.length < 2)) return cache(null);
 		const gender = Number(params.gender) === 0 ? '女' : '男';
 		const nl = bazi.lunar || bazi.nongli || {};
-		// [Q-358·续] 农历月 / 日 / 闰按日界口径(23 点档「子初换日」随日柱进位次日,与八字日柱、紫微同源;其余逐字不变)
+		// 农历月 / 日 / 闰按日界口径(23 点档「子初换日」随日柱进位次日,与八字日柱、紫微同源;其余逐字不变)
 		const lb = lunarByDayBoundary(nl);
 		const lunarMonth = lb.monthNum || 1;
 		const lunarDay = lb.dayNum || 1;
@@ -474,7 +479,7 @@ class ZhengChuanMain extends Component {
 					['小运', src(d.xiaoyun, this.props.opts && this.props.opts.xiaoyun)],
 					['岁君', `${src(d.suijun, this.props.opts && this.props.opts.suijun)}${d.suijun && !(this.props.opts && this.props.opts.suijun) ? '　当年太岁' : ''}`],
 				]) : this.card('所推之年', [
-					['未择', '左栏择一年，则虚岁·大运·小运·岁君自出；今且取本命四柱代之（虚岁暂按 40 岁计）']   /* [Q-265/SO-23] 暗取 40 明说 */,
+					['未择', '左栏择一年，则虚岁·大运·小运·岁君自出；今且取本命四柱代之（虚岁暂按 40 岁计）']   /* 暗取 40 明说 */,
 				])}
 				{this.stepsCard('起推人生死数', m.year.steps)}
 				{this.card('结论', [
@@ -635,7 +640,7 @@ class ZhengChuanMain extends Component {
 		//    盘遂溢出(标题被裁、年柱出界、底部现横向滚动条)。board 直接作 host 之子即好。
 		return (
 			<>
-				<div className="horosa-taixuan-board horosa-kinastro-board horosa-zhengchuan-board">
+				<div className="horosa-taixuan-board horosa-kinastro-board horosa-zhengchuan-board" ref={ownedBoxSizeRef(this, 'board', narrowBoardVars)}>
 					<div className="horosa-huangji-board-header">
 						<div><h2 className="horosa-taixuan-title">{SCHOOL_LABEL[m.school] || '神数正传'}</h2></div>
 						<div className="horosa-huangji-board-time">{m._gender === '女' ? '坤造' : '乾造'}</div>

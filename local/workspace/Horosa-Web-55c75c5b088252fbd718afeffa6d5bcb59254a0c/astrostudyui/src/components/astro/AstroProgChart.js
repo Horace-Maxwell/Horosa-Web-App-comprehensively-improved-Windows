@@ -4,6 +4,7 @@ import { unwrapResult, symbolWithMeaning, fmtDegree, fmtNum, chartParams, chartR
 import { fetchChart } from '../../services/astro';
 import AstroDoubleChart from './AstroDoubleChart';
 import AstroDeclinationLadder from './AstroDeclinationLadder';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 
 // 推运「单层方法面板」：直接嵌入已有 赤纬/恒星/推运 三个 tab 的「二次/三次/小推运」子 tab。
 // 选了某子 tab → 左固定盘 + 右可滚动表格（用户要求：左盘固定、只右表滚动）。
@@ -15,7 +16,7 @@ import AstroDeclinationLadder from './AstroDeclinationLadder';
 const EVENT_POINTS = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Asc', 'MC'];
 
 // 「小推运（minor）月长算法」可选项（放进三个推运 tab 顶栏；只影响 小推运 子 tab）。
-// [Q-180/T-95] 缺省 synodic=权威标准「一个朔望月对应一年」;sidereal 为月亮恒星回归;engine 为引擎历史取值
+// 缺省 synodic=权威标准「一个朔望月对应一年」;sidereal 为月亮恒星回归;engine 为引擎历史取值
 // (漏乘一次 /365.2425 → 推运天数仅应有值的 1/365,≈无推进),仅作可选档保留、不再缺省。三处组件初值、挂载缺省、
 // 无头快照缺省与后端 progression_date 缺省同为 synodic(techniqueMountSettings 内联镜像本表,test 断言防漂移)。
 export const MINOR_VARIANT_OPTIONS = [
@@ -69,6 +70,9 @@ class ProgMethodPanel extends Component{
 		if(this.props.mode === 'declination'){ if(this._mounted){ this.setState({ dirChart: null, natalChart: null, key }); } return; }
 		const dt = m && m.progressedDate ? splitDateTime(m.progressedDate.datetime) : null;
 		if(!this.props.value || !dt){ if(this._mounted){ this.setState({ dirChart: null, natalChart: null, key }); } return; }
+		// 只认最后一次 + 记下本次结果出自哪位命主(读时与当前盘比,见 renderChart)
+		const seq = ++this._loadSeq || (this._loadSeq = 1);
+		const dirChartSig = natalSourceKey(this.props.value);
 		this.setState({ loading: true });
 		try{
 			const sidereal = this.props.mode === 'sidereal';
@@ -80,10 +84,11 @@ class ProgMethodPanel extends Component{
 				fetchChart(dirBody),
 				sidereal ? fetchChart(natalBody) : Promise.resolve(null),
 			]);
-			if(!this._mounted){ return; }
+			if(!this._mounted || seq !== this._loadSeq){ return; }
 			clearLoadFailure(this);
 			this.setState({
 				dirChart: unwrapResult(dirRsp) || null,
+				dirChartSig,
 				natalChart: sidereal ? (unwrapResult(natalRsp) || null) : null,
 				loading: false,
 				key,
@@ -92,7 +97,7 @@ class ProgMethodPanel extends Component{
 			// 失败绝不把 key 记成已完成(否则右表已换新目标、左盘停旧数据且永不重试);
 			// 泊车该 key,窗口期后下一次更新自动重试,新 key 立即放行。
 			parkLoadFailure(this, key);
-			if(this._mounted){ this.setState({ loading: false }); }
+			if(this._mounted && seq === this._loadSeq){ this.setState({ loading: false }); }
 		}
 	}
 
@@ -110,11 +115,14 @@ class ProgMethodPanel extends Component{
 				/>
 			);
 		}
-		const natal = this.props.mode === 'sidereal' ? this.state.natalChart : this.props.value;
-		if(!natal || !this.state.dirChart){
+		// 推运圈(与恒星模式重取的本命圈)只与它出自的那张命盘配对:换盘在途 / 取盘失败时不画上一位命主的
+		const curSig = natalSourceKey(this.props.value);
+		const dirChart = pickKeyedDerived(this.state.dirChart, this.state.dirChartSig, curSig);
+		const natal = this.props.mode === 'sidereal' ? pickKeyedDerived(this.state.natalChart, this.state.dirChartSig, curSig) : this.props.value;
+		if(!natal || !dirChart){
 			return <div style={{ ...cardStyle, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--horosa-text-soft)' }}>起盘后显示推运双盘</div>;
 		}
-		const wrap = { natualChart: natal, dirChart: { ...this.state.dirChart, natalChart: natal }, inverse: false };
+		const wrap = { natualChart: natal, dirChart: { ...dirChart, natalChart: natal }, inverse: false };
 		return (
 			<AstroDoubleChart
 				value={wrap}

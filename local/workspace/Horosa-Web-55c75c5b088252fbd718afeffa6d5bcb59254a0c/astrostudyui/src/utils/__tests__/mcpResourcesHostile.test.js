@@ -1,4 +1,4 @@
-// [压测二轮·D3] MCP 资源面敌意 URI:原型链 kind / 路径穿越 / 超长 id / 坏百分号编码。
+// MCP 资源面敌意 URI:原型链 kind / 路径穿越 / 超长 id / 坏百分号编码。
 // 合同:parseResourceUri 只认自有键的三类(chart/case/material),其余一律 null;readResource 永不抛、永不把 Object.prototype 上的函数当读取器;
 // 经桥 resources/read 时坏 URI 一律回 -32602(而不是让整条请求 reject 成 -32603)。
 import { parseResourceUri, readResource, resourceUri, RESOURCE_KINDS, RESOURCE_SCHEME } from '../aiTools/resources';
@@ -28,7 +28,7 @@ describe('R1 原型链 kind', ()=>{
 		// KIND_READERS['constructor'] = Object 构造器(函数,非 undefined)→ 判为合法类别;
 		// resources.js:74-77 再 `typeof reader === 'function'` 通过 → 真的把 Object('x') 当正文读出来。
 		// 正解:Object.prototype.hasOwnProperty.call(KIND_READERS, kind)。
-		expect(RESOURCE_KINDS).toEqual(['chart', 'case', 'material']);
+		expect(RESOURCE_KINDS).toEqual(['chart', 'case', 'material', 'task', 'help']);
 		PROTO_KINDS.forEach((kind)=>{
 			expect(parseResourceUri(`${RESOURCE_SCHEME}${kind}/x`)).toBe(null);
 		});

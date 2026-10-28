@@ -24,14 +24,16 @@
 import math
 
 import swisseph as swe
+
+from astrostudy.civil_calendar import astro_year, civil_julday, display_year, sxtwl_from_civil
 from dataclasses import dataclass, field
 
 # streamlit 是上游模块自带 UI 框架的依赖:本仓桌面运行链只用本文件的排盘计算
-# (compute_cetian_ziwei_chart 与常量表),render_* 渲染函数不被调用,亦不打包
+# (compute_cetian_ziwei_chart 与常量表;上游的 streamlit 渲染层本仓不收),亦不打包
 # streamlit(及其 pyarrow/pandas/plotly 依赖树,≈330MB)。此处提供兼容桩:
 #   - cache_data 退化为透传装饰器(桌面侧上层已有参数缓存,无需此层;并避免
 #     lru_cache 返回共享引用被调用方改写的语义差异);
-#   - 其余属性为 no-op(仅当误调渲染函数时静默,不影响计算)。
+#   - 其余属性为 no-op(本文件只用到 cache_data,其余属性不影响计算)。
 # 上游开发环境装有 streamlit 时 try 分支原样生效,行为不变。
 # 配套哨兵:tests/test_runtime_deps_slim.py(新增顶层重依赖会变红)。
 try:
@@ -596,19 +598,19 @@ def _get_cny_jd(year: int) -> float:
     """取得農曆新年的 Julian Day。"""
     if year in _CHINESE_NEW_YEAR:
         m, d = _CHINESE_NEW_YEAR[year]
-        return swe.julday(year, m, d, 12.0)
+        return swe.julday(year, m, d, 12.0, swe.GREG_CAL)
     if year < 1900:
         m, d = _CHINESE_NEW_YEAR[1900]
-        base_jd = swe.julday(1900, m, d, 12.0)
+        base_jd = swe.julday(1900, m, d, 12.0, swe.GREG_CAL)
         return base_jd - (1900 - year) * 365.2425
     m, d = _CHINESE_NEW_YEAR[2050]
-    base_jd = swe.julday(2050, m, d, 12.0)
+    base_jd = swe.julday(2050, m, d, 12.0, swe.GREG_CAL)
     return base_jd + (year - 2050) * 365.2425
 
 
 def _solar_to_lunar(jd: float) -> tuple[int, int, int, bool]:
     """將 Julian Day 轉換為農曆日期。"""
-    gd = swe.revjul(jd)
+    gd = swe.revjul(jd, swe.GREG_CAL)   # 新年表按格里历月日登记(内部演算口径)
     gy = int(gd[0])
     cny_this = _get_cny_jd(gy)
     if jd < cny_this:
@@ -650,13 +652,13 @@ def _solar_to_lunar(jd: float) -> tuple[int, int, int, bool]:
 
 def _solar_to_lunar_accurate(year: int, month: int, day: int, jd_fallback: float) -> tuple[int, int, int, bool]:
     """公曆→農曆:用 sxtwl(壽星天文曆)精確換算,正確處理閏月;sxtwl 不可用時回退舊朔望月法。
+    year 為歷史紀年(公元前為負、無 0 年);返回的農曆年為天文年(與 _get_year_stem 的連續紀年同域)。
 
     舊 _solar_to_lunar 自閏正月起線性數朔望月、不辨閏月,凡該年有閏月者其後各月皆 +1 偏移
     (例:2006 閏七月,公曆 2006-10-04 實為農曆八月十三,舊法誤判九月)。
     """
     try:
-        import sxtwl
-        d = sxtwl.fromSolar(year, month, day)
+        d = sxtwl_from_civil(year, month, day)
         return int(d.getLunarYear()), int(d.getLunarMonth()), int(d.getLunarDay()), bool(d.isLunarLeap())
     except Exception:
         return _solar_to_lunar(jd_fallback)
@@ -868,12 +870,6 @@ def _detect_patterns(
     return active
 
 
-def _compute_cetian_feixing(palace_stem: int) -> dict[str, str]:
-    """計算飛星四化（由宮位天干決定，使用策天四化表）。"""
-    lu, quan, ke, ji = CETIAN_SIHUA_TABLE[palace_stem]
-    return {lu: "祿", quan: "權", ke: "科", ji: "忌"}
-
-
 def _build_cetian_palaces(
     method: str,
     ming_gong_branch: int,
@@ -1013,7 +1009,9 @@ def compute_cetian_ziwei_chart(
     eff_brightness = brightness_school if brightness_school == "quanji" else "yiyu"
 
     decimal_hour = hour + minute / 60.0 - timezone
-    jd = swe.julday(year, month, day, decimal_hour)
+    # 出生日期按民用历(1582-10-15 以前儒略历)取儒略日,与 sxtwl 农历换算同一口径——节气名按太阳真黄经取。
+    # year 是历史纪年(公元前为负):儒略日 / sxtwl 一律先换天文年(公元前 300 年 = 天文年 -299)。
+    jd = civil_julday(astro_year(year), month, day, decimal_hour)
 
     # 農曆:sxtwl(正確閏月,默認/書法固定) 或 原朔望月法(漏閏月致月份偏移,僅原法可選)
     if eff_lunar == "classic":
@@ -1086,7 +1084,8 @@ def compute_cetian_ziwei_chart(
         timezone=timezone, latitude=latitude, longitude=longitude,
         location_name=location_name, julian_day=jd,
         gender=gender,
-        lunar_year=lunar_year, lunar_month=lunar_month, lunar_day=lunar_day,
+        # 農曆年對外按歷史紀年(與 year 同域);干支已按天文年算好。
+        lunar_year=display_year(lunar_year), lunar_month=lunar_month, lunar_day=lunar_day,
         is_leap_month=is_leap,
         lunar_year_stem=year_stem, lunar_year_branch=year_branch,
         hour_branch=hour_branch,
@@ -1104,588 +1103,3 @@ def compute_cetian_ziwei_chart(
         daxian_mode=(eff_daxian_mode if is_book else "yiyu"),
         brightness_school=(eff_brightness if is_book else "yiyu"),
     )
-
-
-# ============================================================
-# 渲染函數 (Rendering)
-# ============================================================
-
-def render_cetian_ziwei_chart(chart: CetianChart, after_chart_hook=None) -> None:
-    """渲染完整的策天十八飛星命盤。"""
-    st.subheader("🌠 策天十八飛星紫微斗數命盤")
-    _render_sihua_legend()
-    _render_palace_grid(chart)
-    if after_chart_hook:
-        after_chart_hook()
-    st.divider()
-    _render_info(chart)
-    st.divider()
-    _render_star_table(chart)
-    st.divider()
-    _render_flying_star_table(chart)
-    st.divider()
-    _render_feixing_table(chart)
-    st.divider()
-    _render_patterns(chart)
-    st.divider()
-    _render_palace_details(chart)
-
-
-def _render_info(chart: CetianChart) -> None:
-    """渲染基本排盤資訊卡片。"""
-    leap_str = "閏" if chart.is_leap_month else ""
-    lunar_date = (
-        f"{chart.lunar_year}年"
-        f"（{HEAVENLY_STEMS[chart.lunar_year_stem]}{EARTHLY_BRANCHES[chart.lunar_year_branch]}年）"
-        f" {leap_str}{LUNAR_MONTH_NAMES[chart.lunar_month - 1]}"
-        f"{_day_to_chinese(chart.lunar_day)}"
-    )
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.write(f"**公曆:** {chart.year}/{chart.month}/{chart.day}")
-        st.write(f"**時間:** {chart.hour:02d}:{chart.minute:02d}")
-        st.write(f"**時區:** UTC{chart.timezone:+.1f}")
-        st.write(f"**性別:** {chart.gender}命 ({chart.yin_yang})")
-    with col2:
-        st.write(f"**農曆:** {lunar_date}")
-        st.write(f"**時辰:** {HOUR_BRANCH_NAMES[chart.hour_branch]}")
-        st.write(f"**地點:** {chart.location_name}")
-    with col3:
-        wu_ju_name = WU_XING_JU_NAMES[chart.wu_xing_ju]
-        st.write(f"**命宮:** {EARTHLY_BRANCHES[chart.ming_gong_branch]}宮")
-        st.write(f"**身宮:** {EARTHLY_BRANCHES[chart.shen_gong_branch]}宮")
-        st.write(f"**五行局:** {wu_ju_name}")
-
-    # 四化資訊
-    sihua_str = "　".join(
-        f"{star}化{hua}" for star, hua in chart.sihua.items()
-    )
-    st.info(f"**四化:** {sihua_str}")
-
-    # 節氣影響
-    if chart.solar_term_influence:
-        st.success(f"**節氣:** {chart.solar_term_influence}")
-
-
-def _day_to_chinese(day: int) -> str:
-    """農曆日數字轉中文(完整:初一..初十/十一..十九/二十/廿一..廿九/三十,自帶「初」)。"""
-    units = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
-    if day <= 10:
-        return f"初{units[day]}"
-    if day < 20:
-        return f"十{units[day - 10]}"
-    if day == 20:
-        return "二十"
-    if day < 30:
-        return f"廿{units[day - 20]}"
-    return "三十"
-
-
-def _palace_cell_html(
-    palace: CetianPalace, is_ming: bool, is_shen: bool
-) -> str:
-    """產生單一宮位的 HTML 卡片（用於 CSS Grid 命盤方格）。"""
-    bg = "#1a1a2e"
-    border_style = "border:1px solid #444;"
-    if is_ming and is_shen:
-        border_style = "border:3px solid #FFD700;"
-        bg = "#2d1b00"
-    elif is_ming:
-        border_style = "border:3px solid #FF6B6B;"
-        bg = "#2d0000"
-    elif is_shen:
-        border_style = "border:3px solid #4ECDC4;"
-        bg = "#001a1a"
-
-    label = ""
-    if is_ming:
-        label += '<span style="color:#FF6B6B;font-weight:bold;font-size:11px">【命】</span>'
-    if is_shen:
-        label += '<span style="color:#4ECDC4;font-weight:bold;font-size:11px">【身】</span>'
-
-    SIHUA_COLORS = {"祿": "#00E676", "權": "#FF5252", "科": "#42A5F5", "忌": "#FF9800"}
-
-    # 正曜 HTML
-    stars_html = ""
-    for star in palace.stars:
-        attr = CETIAN_STAR_ATTRIBUTES.get(star, ("", "", "#aaa"))
-        color = attr[2]
-        bright = palace.brightness.get(star, "")
-        bright_html = f'<span style="color:#aaa;font-size:9px">{bright}</span>' if bright else ""
-        hua = palace.sihua.get(star, "")
-        hua_html = ""
-        if hua:
-            hc = SIHUA_COLORS.get(hua, "#fff")
-            hua_html = f'<span style="color:{hc};font-size:10px;font-weight:bold">化{hua}</span>'
-        # 飛星箭頭
-        fly_html = ""
-        if star in palace.flying_stars:
-            fly_html = f'<span style="color:#FFD700;font-size:9px">→{palace.flying_stars[star]}</span>'
-        stars_html += (
-            f'<div style="display:flex;align-items:center;gap:2px">'
-            f'<span style="color:{color};font-size:13px;font-weight:bold">{star}</span>'
-            f'{bright_html}{hua_html}{fly_html}</div>'
-        )
-
-    # 副曜 HTML
-    aux_html = ""
-    for star in palace.aux_stars:
-        bright = palace.brightness.get(star, "")
-        bright_str = f"({bright})" if bright else ""
-        hua = palace.sihua.get(star, "")
-        hua_str = ""
-        if hua:
-            hc = SIHUA_COLORS.get(hua, "#fff")
-            hua_str = f'<span style="color:{hc};font-size:9px"> 化{hua}</span>'
-        fly_html = ""
-        if star in palace.flying_stars:
-            fly_html = f'<span style="color:#FFD700;font-size:9px">→{palace.flying_stars[star]}</span>'
-        aux_html += (
-            f'<span style="color:#888;font-size:10px">{star}{bright_str}</span>{hua_str}{fly_html} '
-        )
-
-    if not stars_html and not aux_html:
-        stars_html = '<div style="color:#666;font-size:11px">─</div>'
-
-    # 格局標記
-    pattern_html = ""
-    if palace.patterns:
-        for p in palace.patterns:
-            pattern_html += f'<span style="color:#FFD700;font-size:8px;background:#333;padding:1px 3px;border-radius:3px;margin:1px">{p}</span>'
-
-    return (
-        f'<div style="background:{bg};padding:6px 5px;border-radius:6px;'
-        f'min-height:130px;{border_style}">'
-        f'<div style="display:flex;justify-content:space-between;align-items:center">'
-        f'<span style="color:#c8a96e;font-size:10px">'
-        f'{palace.stem_name}{palace.branch_name}</span>'
-        f'{label}'
-        f'<span style="color:#8B8000;font-size:9px">{palace.da_xian}</span>'
-        f'</div>'
-        f'<div style="color:#e0e0e0;font-size:11px;font-weight:bold;'
-        f'border-bottom:1px solid #555;margin-bottom:3px;padding-bottom:1px">'
-        f'{palace.name}</div>'
-        f'{stars_html}'
-        f'<div style="margin-top:3px;line-height:1.4">{aux_html}</div>'
-        f'{pattern_html}'
-        f'</div>'
-    )
-
-
-def _center_info_html(chart: CetianChart) -> str:
-    """產生中宮資訊 HTML。"""
-    wu_ju = WU_XING_JU_NAMES[chart.wu_xing_ju]
-    leap = "閏" if chart.is_leap_month else ""
-    lm = f"{leap}{LUNAR_MONTH_NAMES[chart.lunar_month - 1]}"
-    ld = _day_to_chinese(chart.lunar_day)
-    ys = HEAVENLY_STEMS[chart.lunar_year_stem]
-    yb = EARTHLY_BRANCHES[chart.lunar_year_branch]
-
-    sihua_html = ""
-    SIHUA_COLORS = {"祿": "#00E676", "權": "#FF5252", "科": "#42A5F5", "忌": "#FF9800"}
-    for star, hua in chart.sihua.items():
-        hc = SIHUA_COLORS.get(hua, "#fff")
-        sihua_html += f'<span style="color:{hc};font-size:11px;margin:0 3px">{star}化{hua}</span>'
-
-    solar_html = ""
-    if chart.solar_term_influence:
-        solar_html = (
-            f'<div style="font-size:10px;color:#81C784;margin-top:3px">'
-            f'🌿 {chart.solar_term_influence}</div>'
-        )
-
-    return (
-        f'<div style="background:#0d0d1a;border:2px solid #c8a96e;border-radius:10px;'
-        f'padding:12px;text-align:center;height:100%;color:#e0d5b0;'
-        f'display:flex;flex-direction:column;justify-content:center;">'
-        f'<div style="font-size:18px;font-weight:bold;color:#c8a96e;margin-bottom:4px">'
-        f'策天十八飛星</div>'
-        f'<div style="font-size:11px;color:#aaa;margin-bottom:4px">古法紫微斗數</div>'
-        f'<div style="font-size:12px;margin:2px 0">'
-        f'{chart.gender}命 / {chart.yin_yang}{chart.gender} / {wu_ju}</div>'
-        f'<div style="font-size:12px;margin:2px 0">'
-        f'{chart.lunar_year}年 {ys}{yb}年</div>'
-        f'<div style="font-size:12px;margin:2px 0">'
-        f'{lm} {ld} {HOUR_BRANCH_NAMES[chart.hour_branch]}</div>'
-        f'<div style="font-size:11px;margin:4px 0;color:#FF6B6B">'
-        f'命宮: {EARTHLY_BRANCHES[chart.ming_gong_branch]}宮 '
-        f'<span style="color:#4ECDC4">身宮: {EARTHLY_BRANCHES[chart.shen_gong_branch]}宮</span>'
-        f'</div>'
-        f'<div style="margin-top:4px">{sihua_html}</div>'
-        f'{solar_html}'
-        f'<div style="font-size:10px;color:#888;margin-top:4px">'
-        f'四化: <span style="color:#00E676">→祿</span>'
-        f'<span style="color:#FF5252">→權</span>'
-        f'<span style="color:#42A5F5">→科</span>'
-        f'<span style="color:#FF9800">→忌</span></div>'
-        f'</div>'
-    )
-
-
-def _render_palace_grid(chart: CetianChart) -> None:
-    """渲染南式命盤方格（CSS Grid）。"""
-    st.markdown("#### 🀄 策天十八飛星命盤方格")
-
-    branch_to_palace: dict[int, CetianPalace] = {p.branch: p for p in chart.palaces}
-
-    def cell(branch: int) -> str:
-        p = branch_to_palace[branch]
-        return _palace_cell_html(
-            p,
-            is_ming=(p.branch == chart.ming_gong_branch),
-            is_shen=(p.branch == chart.shen_gong_branch),
-        )
-
-    grid_layout = [
-        (1, 1, 5), (1, 2, 6), (1, 3, 7), (1, 4, 8),
-        (2, 1, 4), (2, 4, 9),
-        (3, 1, 3), (3, 4, 10),
-        (4, 1, 2), (4, 2, 1), (4, 3, 0), (4, 4, 11),
-    ]
-
-    cells_html = ""
-    for row, col, branch in grid_layout:
-        cells_html += (
-            f'<div style="grid-row:{row};grid-column:{col}">'
-            f'{cell(branch)}</div>'
-        )
-
-    center_html = (
-        f'<div style="grid-row:2/4;grid-column:2/4">'
-        f'{_center_info_html(chart)}</div>'
-    )
-
-    full_html = (
-        f'<div style="display:grid;grid-template-columns:repeat(4,1fr);'
-        f'grid-template-rows:repeat(4,auto);gap:4px;'
-        f'background:#111;padding:6px;border-radius:10px;'
-        f'border:2px solid #c8a96e;">'
-        f'{cells_html}'
-        f'{center_html}'
-        f'</div>'
-    )
-
-    st.markdown(full_html, unsafe_allow_html=True)
-
-
-def _render_star_table(chart: CetianChart) -> None:
-    """渲染十八飛星位置匯總表格。"""
-    st.markdown("#### ⭐ 十八飛星分佈表")
-
-    header = "| 星曜 | 五行 | 別稱 | 所在宮位 | 地支 | 亮度 | 四化 | 飛入 |"
-    sep = "|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|"
-    rows = [header, sep]
-
-    all_star_names = CETIAN_MAIN_STAR_NAMES + CETIAN_AUX_STAR_NAMES
-    for star in all_star_names:
-        attr = CETIAN_STAR_ATTRIBUTES.get(star, ("", "", "#aaa"))
-        wuxing, alias, color = attr
-        palace = next(
-            (p for p in chart.palaces if star in p.stars or star in p.aux_stars), None
-        )
-        if palace is None:
-            continue
-        is_ming = "【命】" if palace.branch == chart.ming_gong_branch else ""
-        is_shen = "【身】" if palace.branch == chart.shen_gong_branch else ""
-        marker = f"{is_ming}{is_shen}"
-        name_html = f'<span style="color:{color};font-weight:bold">{star}</span>'
-        bright = palace.brightness.get(star, "")
-        hua = chart.sihua.get(star, "")
-        hua_str = f"化{hua}" if hua else ""
-        # 飛入宮位
-        flight = chart.star_flight.get(star, {})
-        fly_str = ""
-        if flight:
-            fly_str = f"→{EARTHLY_BRANCHES[flight['to_branch']]}"
-        rows.append(
-            f"| {name_html} | {wuxing} | {alias} "
-            f"| {palace.name}{marker} "
-            f"| {palace.branch_name} "
-            f"| {bright} "
-            f"| {hua_str} "
-            f"| {fly_str} |"
-        )
-
-    st.markdown("\n".join(rows), unsafe_allow_html=True)
-
-
-def _render_sihua_legend() -> None:
-    """渲染四化圖例說明。"""
-    st.markdown(
-        '<div style="text-align:center;padding:4px;font-size:12px">'
-        '策天四化圖示: '
-        '<span style="color:#00E676;font-weight:bold">●祿</span> '
-        '<span style="color:#FF5252;font-weight:bold">●權</span> '
-        '<span style="color:#42A5F5;font-weight:bold">●科</span> '
-        '<span style="color:#FF9800;font-weight:bold">●忌</span>'
-        '　<span style="color:#FFD700">→飛星箭頭</span>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
-
-
-def _render_flying_star_table(chart: CetianChart) -> None:
-    """渲染飛星路線表。"""
-    st.markdown("#### 🏹 飛星路線表")
-    st.markdown("*各星曜由本宮飛入他宮的影響*")
-
-    header = "| 星曜 | 本宮 | 飛入 | 飛化性質 |"
-    sep = "|:---:|:---:|:---:|:---|"
-    rows = [header, sep]
-
-    for star_name, flight_info in chart.star_flight.items():
-        from_b = EARTHLY_BRANCHES[flight_info["from_branch"]]
-        to_b = EARTHLY_BRANCHES[flight_info["to_branch"]]
-        nature = flight_info["nature"]
-        attr = CETIAN_STAR_ATTRIBUTES.get(star_name, ("", "", "#aaa"))
-        color = attr[2]
-        name_html = f'<span style="color:{color};font-weight:bold">{star_name}</span>'
-        rows.append(f"| {name_html} | {from_b}宮 | {to_b}宮 | {nature} |")
-
-    st.markdown("\n".join(rows), unsafe_allow_html=True)
-
-
-def _render_feixing_table(chart: CetianChart) -> None:
-    """渲染飛星四化表（各宮位天干的四化）。"""
-    st.markdown("#### 🌠 宮干飛星四化表")
-    st.markdown("*各宮位天干所引發的策天四化*")
-
-    header = "| 宮位 | 天干 | 化祿 | 化權 | 化科 | 化忌 |"
-    sep = "|:---:|:---:|:---:|:---:|:---:|:---:|"
-    rows = [header, sep]
-
-    SIHUA_COLORS = {"祿": "#00E676", "權": "#FF5252", "科": "#42A5F5", "忌": "#FF9800"}
-
-    for palace in chart.palaces:
-        lu_star = CETIAN_SIHUA_TABLE[palace.stem][0]
-        quan_star = CETIAN_SIHUA_TABLE[palace.stem][1]
-        ke_star = CETIAN_SIHUA_TABLE[palace.stem][2]
-        ji_star = CETIAN_SIHUA_TABLE[palace.stem][3]
-        rows.append(
-            f"| {palace.name}({palace.branch_name}) | {palace.stem_name} "
-            f'| <span style="color:{SIHUA_COLORS["祿"]}">{lu_star}</span> '
-            f'| <span style="color:{SIHUA_COLORS["權"]}">{quan_star}</span> '
-            f'| <span style="color:{SIHUA_COLORS["科"]}">{ke_star}</span> '
-            f'| <span style="color:{SIHUA_COLORS["忌"]}">{ji_star}</span> |'
-        )
-
-    st.markdown("\n".join(rows), unsafe_allow_html=True)
-
-
-def _render_patterns(chart: CetianChart) -> None:
-    """渲染古法格局檢測結果。"""
-    st.markdown("#### 📜 古法格局")
-
-    if not chart.active_patterns:
-        st.info("此命盤未檢測到特殊古法格局。")
-        return
-
-    for pattern in chart.active_patterns:
-        stars_str = "、".join(pattern["stars"])
-        branch_name = EARTHLY_BRANCHES[pattern["palace_branch"]]
-        st.markdown(
-            f"**🔶 {pattern['name']}** — {stars_str} "
-            f"（{branch_name}宮）\n\n"
-            f"*{pattern['meaning']}*"
-        )
-
-
-def _render_palace_details(chart: CetianChart) -> None:
-    """渲染十二宮位詳細說明。"""
-    st.markdown("#### 📋 十二宮位詳情")
-
-    _PALACE_DESC = {
-        "命宮":  "代表人的個性、才能、命運走向",
-        "兄弟宮": "兄弟姐妹、朋友關係",
-        "夫妻宮": "婚姻、伴侶、感情",
-        "子女宮": "子女、創造、學生",
-        "財帛宮": "金錢、財富、財運",
-        "疾厄宮": "健康、疾病、意外",
-        "遷移宮": "旅行、遷徙、外出緣份",
-        "交友宮": "朋友、同事、下屬",
-        "官祿宮": "事業、工作、官運",
-        "田宅宮": "房產、家庭、祖業",
-        "福德宮": "福份、精神、享樂",
-        "父母宮": "父母、長輩、文書",
-    }
-
-    # 三合組
-    st.markdown("##### 🔺 三合")
-    sanhe_names = {
-        (0, 4, 8): "水局 (子辰申)",
-        (1, 5, 9): "金局 (丑巳酉)",
-        (2, 6, 10): "火局 (寅午戌)",
-        (3, 7, 11): "木局 (卯未亥)",
-    }
-    branch_to_palace = {p.branch: p for p in chart.palaces}
-    for group in chart.sanhe_groups:
-        group_name = sanhe_names.get(group, "")
-        palace_names = [
-            branch_to_palace[b].name if b in branch_to_palace else EARTHLY_BRANCHES[b]
-            for b in group
-        ]
-        st.write(f"**{group_name}:** {' ↔ '.join(palace_names)}")
-
-    st.markdown("---")
-
-    cols = st.columns(3)
-    for i, palace in enumerate(chart.palaces):
-        with cols[i % 3]:
-            stars_str = "、".join(palace.stars) if palace.stars else "（空宮）"
-            aux_str = "、".join(palace.aux_stars) if palace.aux_stars else ""
-            markers = []
-            if palace.branch == chart.ming_gong_branch:
-                markers.append("🔴命")
-            if palace.branch == chart.shen_gong_branch:
-                markers.append("🔵身")
-            marker_str = " ".join(markers)
-            desc = _PALACE_DESC.get(palace.name, "")
-
-            # 四化
-            sihua_str = ""
-            for star, hua in palace.sihua.items():
-                sihua_str += f" {star}化{hua}"
-
-            # 飛星
-            fly_str = ""
-            for star, target in palace.flying_stars.items():
-                fly_str += f" {star}→{target}"
-
-            # 格局
-            pattern_str = ""
-            if palace.patterns:
-                pattern_str = "、".join(palace.patterns)
-
-            st.markdown(
-                f"**{palace.stem_name}{palace.branch_name} {palace.name}** "
-                f"{marker_str} 大限:{palace.da_xian}\n\n"
-                f"⭐ 正曜: {stars_str}\n\n"
-                f"🔹 副曜: {aux_str}\n\n"
-                + (f"🔸 四化: {sihua_str}\n\n" if sihua_str else "")
-                + (f"🏹 飛星: {fly_str}\n\n" if fly_str else "")
-                + (f"📜 格局: {pattern_str}\n\n" if pattern_str else "")
-                + f"*{desc}*"
-            )
-
-
-# ============================================================
-# SVG 飛星輪盤 (Flying Star Wheel SVG)
-# ============================================================
-
-def build_cetian_flyingstar_svg(chart: CetianChart, size: int = 700) -> str:
-    """
-    產生策天十八飛星輪盤 SVG（古籍手抄本風格 + 飛化箭頭）。
-
-    Parameters:
-        chart: 策天命盤資料
-        size:  SVG 畫布大小（像素）
-
-    Returns:
-        完整 SVG 字串
-    """
-    cx, cy = size // 2, size // 2
-    r_outer = size // 2 - 30
-    r_inner = r_outer - 100
-    r_text = r_inner + 50
-    r_center = r_inner - 20
-
-    # 基本 SVG 頭部
-    svg = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" '
-        f'width="{size}" height="{size}" viewBox="0 0 {size} {size}">'
-        f'<rect width="{size}" height="{size}" fill="#0d0d1a"/>'
-    )
-
-    # 外圈
-    svg += (
-        f'<circle cx="{cx}" cy="{cy}" r="{r_outer}" '
-        f'fill="none" stroke="#c8a96e" stroke-width="2"/>'
-    )
-    svg += (
-        f'<circle cx="{cx}" cy="{cy}" r="{r_inner}" '
-        f'fill="none" stroke="#c8a96e" stroke-width="1"/>'
-    )
-
-    # 十二宮分割線
-    branch_to_palace = {p.branch: p for p in chart.palaces}
-    for i in range(12):
-        angle = math.radians(i * 30 - 90)
-        x1 = cx + r_inner * math.cos(angle)
-        y1 = cy + r_inner * math.sin(angle)
-        x2 = cx + r_outer * math.cos(angle)
-        y2 = cy + r_outer * math.sin(angle)
-        svg += (
-            f'<line x1="{x1:.1f}" y1="{y1:.1f}" '
-            f'x2="{x2:.1f}" y2="{y2:.1f}" '
-            f'stroke="#c8a96e" stroke-width="1"/>'
-        )
-
-    # 宮位標籤與星曜
-    SIHUA_COLORS = {"祿": "#00E676", "權": "#FF5252", "科": "#42A5F5", "忌": "#FF9800"}
-    for i in range(12):
-        mid_angle = math.radians(i * 30 + 15 - 90)
-        tx = cx + r_text * math.cos(mid_angle)
-        ty = cy + r_text * math.sin(mid_angle)
-
-        palace = branch_to_palace.get(i)
-        if palace:
-            # 宮位名稱
-            svg += (
-                f'<text x="{tx:.1f}" y="{ty:.1f}" text-anchor="middle" '
-                f'fill="#c8a96e" font-size="10" font-weight="bold">'
-                f'{palace.name}</text>'
-            )
-            # 地支
-            svg += (
-                f'<text x="{tx:.1f}" y="{ty + 12:.1f}" text-anchor="middle" '
-                f'fill="#888" font-size="9">{palace.branch_name}</text>'
-            )
-            # 星曜
-            all_stars = palace.stars + palace.aux_stars
-            for j, star in enumerate(all_stars[:3]):
-                attr = CETIAN_STAR_ATTRIBUTES.get(star, ("", "", "#aaa"))
-                color = attr[2]
-                hua = palace.sihua.get(star, "")
-                display_color = SIHUA_COLORS.get(hua, color) if hua else color
-                sy = ty + 24 + j * 11
-                svg += (
-                    f'<text x="{tx:.1f}" y="{sy:.1f}" text-anchor="middle" '
-                    f'fill="{display_color}" font-size="9">{star}</text>'
-                )
-
-    # 飛星箭頭
-    for star_name, flight_info in chart.star_flight.items():
-        from_b = flight_info["from_branch"]
-        to_b = flight_info["to_branch"]
-        if from_b == to_b:
-            continue
-        from_angle = math.radians(from_b * 30 + 15 - 90)
-        to_angle = math.radians(to_b * 30 + 15 - 90)
-        r_arrow = r_center
-        fx = cx + r_arrow * math.cos(from_angle)
-        fy = cy + r_arrow * math.sin(from_angle)
-        tx_a = cx + r_arrow * math.cos(to_angle)
-        ty_a = cy + r_arrow * math.sin(to_angle)
-
-        attr = CETIAN_STAR_ATTRIBUTES.get(star_name, ("", "", "#aaa"))
-        arrow_color = attr[2]
-
-        svg += (
-            f'<line x1="{fx:.1f}" y1="{fy:.1f}" '
-            f'x2="{tx_a:.1f}" y2="{ty_a:.1f}" '
-            f'stroke="{arrow_color}" stroke-width="0.8" '
-            f'opacity="0.4" stroke-dasharray="3,2"/>'
-        )
-
-    # 中心標題
-    svg += (
-        f'<text x="{cx}" y="{cy - 10}" text-anchor="middle" '
-        f'fill="#c8a96e" font-size="14" font-weight="bold">策天十八飛星</text>'
-    )
-    svg += (
-        f'<text x="{cx}" y="{cy + 10}" text-anchor="middle" '
-        f'fill="#aaa" font-size="11">古法紫微斗數</text>'
-    )
-
-    svg += '</svg>'
-    return svg

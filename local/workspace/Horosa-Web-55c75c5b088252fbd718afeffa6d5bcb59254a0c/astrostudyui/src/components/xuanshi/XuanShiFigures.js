@@ -3,7 +3,7 @@ import { Spin, Empty, Input, Pagination } from 'antd';
 import { fetchFigures, fetchFigure } from '../../services/xuanshi';
 import XuanShiStar from './XuanShiStar';
 import { dynClass } from './xuanshiDynClass';
-import { gregYearShort } from './xuanshiDate';   // [Q-491] 公元前年份写法单源
+import { gregYearShort, splitList } from './xuanshiDate';   // 公元前年份写法单源
 
 const PAGE_SIZE = 60; // 列传全列 3469,分页防 DOM 过重(保 <1s)
 
@@ -18,14 +18,9 @@ const QUICKLINKS = [
 
 // 人物列传 —— 忠实源 参考人物页:列传网格(印章+生卒+一句话)+ 详情(biography_html 走 prose markdown 渲染 + 关联事件/故事)。
 function lifeSpan(b, d) {
-	const a = gregYearShort(b), z = gregYearShort(d);   // [Q-491] 与时间轴、详情共用同一个短标函数
+	const a = gregYearShort(b), z = gregYearShort(d);   // 与时间轴、详情共用同一个短标函数
 	if (!a && !z) { return ''; }
 	return `${a || '?'}—${z || '?'}`;
-}
-
-function splitList(s) {
-	if (!s) { return []; }
-	return `${s}`.split(/[;,、，]\s*/).map((x) => x.trim()).filter(Boolean);
 }
 
 // 从相关事件聚合 词→计数 降序(B5 同案合作人物/主要术数,客户端聚合,无需后端 deep)
@@ -60,7 +55,7 @@ export default class XuanShiFigures extends React.Component {
 	persist() { if (this.props.onPersist) { this.props.onPersist('figures', { dynasty: this.state.dynasty, q: this.state.q, page: this.state.page }); } }
 
 	async load() {
-		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // 序号守卫:旧响应不覆盖新条件
 		this.setState({ loading: true, err: '' });
 		try {
 			const r = await fetchFigures({ status: 'all', dynasty: this.state.dynasty || undefined, q: this.state.q || undefined, limit: PAGE_SIZE, offset: (this.state.page - 1) * PAGE_SIZE }); if(__seq !== this._loadSeq){ return; }
@@ -241,7 +236,7 @@ export default class XuanShiFigures extends React.Component {
 				{/* 朝代 chips */}
 				{dynList.length ? (
 					<div className="xuanshi-facet-chips" style={{ margin: '14px 0 18px' }}>
-						{/* [Q-490] 「全部」的计数要与同行其余 chip 同口径(全库分布),不能用带 朝代+搜索词 条件的 total ——
+						{/* 「全部」的计数要与同行其余 chip 同口径(全库分布),不能用带 朝代+搜索词 条件的 total ——
 						    选「唐」后这里会变成 420、搜「李」后又变一个数,看起来像「全库只剩这些人」。当前结果数在上面
 						    「共 N 位人物」那行,两处各司其职。 */}
 						<span className={`chip${!this.state.dynasty ? ' chip-vermilion' : ''}`} style={{ cursor: 'pointer' }} onClick={() => this.setFilter({ dynasty: '' })}>全部 · {dynList.reduce((n, d) => n + (Number(d.count) || 0), 0).toLocaleString()}</span>
@@ -258,7 +253,7 @@ export default class XuanShiFigures extends React.Component {
 						{items.map((m) => {
 							const nm = m.name || '·';
 							const sealFont = nm.length >= 4 ? 13 : (nm.length === 3 ? 16 : 20);
-							// [Q-491] 卡片此前直拼原值,公元前年份带负号(老子「-571—-471」),与详情页的「前571—前471」两套写法
+							// 卡片此前直拼原值,公元前年份带负号(老子「-571—-471」),与详情页的「前571—前471」两套写法
 							const sheng = lifeSpan(m.birth_year, m.death_year);
 							return (
 								<div className="xuanshi-card is-link" key={m.slug || m.id} onClick={() => this.openDetail(m.slug)}>

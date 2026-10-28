@@ -1,10 +1,11 @@
-// [D1] 开关族A金标(键清单驱动):
+// 开关族A金标(键清单驱动):
 //   ① 7 开关默认值=现状零回归 ② colorForEvilStar 纯函数 ③ filterShenshaForDisplay 三组过滤
 //   ④ UI wiring(每键:Checkbox 挂 handler×LS 键×消费文件读口) ⑤ 显示开关不渗漏快照(源码守卫)
 import fs from 'fs';
 import path from 'path';
 import * as ZiWeiHelper from '../ZiWeiHelper';
 import * as ZWConst from '../../../constants/ZWConst';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 // 键清单:新增开关必登记此表,五路断言自动覆盖。
 const FLAGS = [
@@ -21,7 +22,7 @@ afterEach(()=>{
 	FLAGS.forEach((f)=>{ try{ localStorage.removeItem(f.ls); }catch(e){ /* noop */ } });
 });
 
-describe('[D1] 开关默认值=现状零回归', ()=>{
+describe('开关默认值=现状零回归', ()=>{
 	test('🔴 七键无 LS 时默认值逐键正确;写 0/1 后翻转', ()=>{
 		FLAGS.forEach((f)=>{
 			expect(`${f.ls}:${ZiWeiHelper[f.fn]()}`).toBe(`${f.ls}:${f.dflt}`);
@@ -33,7 +34,7 @@ describe('[D1] 开关默认值=现状零回归', ()=>{
 	});
 });
 
-describe('[D1] colorForEvilStar 纯函数', ()=>{
+describe('colorForEvilStar 纯函数', ()=>{
 	test('🔴 关(默认)=全煞曜同煞红;开=仅六煞(含book档天空)转黑 token,天刑天姚咸池保持煞红', ()=>{
 		['擎羊', '陀罗', '火星', '铃星', '地空', '地劫', '天刑', '天姚', '咸池'].forEach((n)=>{
 			expect(ZiWeiHelper.colorForEvilStar(n)).toBe(ZWConst.ZWColor.StarEvilStroke);
@@ -48,14 +49,14 @@ describe('[D1] colorForEvilStar 纯函数', ()=>{
 	});
 	test('两盘煞曜组已换函数色;drawGroup 支持函数分派', ()=>{
 		['ZWHouse.js', 'ZWHouseSangHe.js'].forEach((f)=>{
-			const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+			const src = readSource(path.join(__dirname, '..', f));
 			expect(`${f}:${src.includes('ZiWeiHelper.colorForEvilStar')}`).toBe(`${f}:true`);
 			expect(`${f}:${src.includes("typeof color === 'function'")}`).toBe(`${f}:true`);
 		});
 	});
 });
 
-describe('[D1] filterShenshaForDisplay', ()=>{
+describe('filterShenshaForDisplay', ()=>{
 	const mk = (names)=>names.map((n)=>({ name: n }));
 	test('🔴 默认全开=返回原引用(零开销零变化)', ()=>{
 		const arr = mk(['华盖', '天德', '三台', '天刑']);
@@ -72,7 +73,7 @@ describe('[D1] filterShenshaForDisplay', ()=>{
 	});
 	test('两盘五星组+双盘 smalls 全部过滤(列宽计算前);数据层 houseObj 不被改动', ()=>{
 		['ZWHouse.js', 'ZWHouseSangHe.js'].forEach((f)=>{
-			const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+			const src = readSource(path.join(__dirname, '..', f));
 			const n = (src.match(/filterShenshaForDisplay\(/g) || []).length;
 			expect(`${f}:${n >= 4}`).toBe(`${f}:true`);   // evil+othersGood+othersBad+smalls
 		});
@@ -83,7 +84,7 @@ describe('[D1] filterShenshaForDisplay', ()=>{
 	});
 });
 
-describe('[D1] UI wiring(键清单驱动)+快照不渗漏', ()=>{
+describe('UI wiring(键清单驱动)+快照不渗漏', ()=>{
 	const inputSrc = fs.readFileSync(path.join(__dirname, '..', 'ZiWeiInput.js'), 'utf8');
 	test('🔴 每键:Checkbox 挂 onDisplayFlagToggle(lsKey);handler 写 LS+广播', ()=>{
 		FLAGS.forEach((f)=>{
@@ -100,14 +101,14 @@ describe('[D1] UI wiring(键清单驱动)+快照不渗漏', ()=>{
 	test('声明的消费文件确实读取该开关', ()=>{
 		FLAGS.forEach((f)=>{
 			f.consumers.forEach((c)=>{
-				const src = fs.readFileSync(path.join(__dirname, '..', c), 'utf8');
+				const src = readSource(path.join(__dirname, '..', c));
 				expect(`${c}→${f.fn}:${src.includes(`${f.fn}()`)}`).toBe(`${c}→${f.fn}:true`);
 			});
 		});
 	});
 	test('🔴 纯显示开关不渗漏快照:挂载/导出链 aiAnalysisContext 与快照 builder 不读七键', ()=>{
 		['../../../utils/aiAnalysisContext.js', '../ZWLuckPanel.js'].forEach((rel)=>{
-			const src = fs.readFileSync(path.join(__dirname, rel), 'utf8');
+			const src = readSource(path.join(__dirname, rel));
 			FLAGS.forEach((f)=>{
 				expect(`${rel}:${f.ls}:${src.includes(f.ls)}`).toBe(`${rel}:${f.ls}:false`);
 			});

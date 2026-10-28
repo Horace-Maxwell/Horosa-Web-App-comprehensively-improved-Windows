@@ -1,4 +1,4 @@
-// [八字死开关审计 L1 金标 · 2026-08-08] 起盘键逐档定向锚(探索轮 120 固定种子样本已全谱定谳,
+// 起盘键逐档定向锚(探索轮 120 固定种子样本已全谱定谳,
 // 此处收敛为每档已证差异样本的轻量锚——探索轮结论:gender/timeAlg/godKeyPos/minggong/fenye/cang/
 // dayunPrecision 全档 ~120/120;phaseType=1 23/120(土日主面);晚子时定向 23:30 40/40;
 // phaseType=0↔2 修前 0/120=死档对(修后 63/120),细粒度锚在 baziSelfZuo.test.js)。
@@ -14,7 +14,7 @@ const BASE = {
 const S = (o)=>JSON.stringify(o);
 const build = (over)=>S(buildLocalBaziResult({ ...BASE, ...over }));
 
-describe('[L1] 八字起盘键逐档定向锚', ()=>{
+describe('八字起盘键逐档定向锚', ()=>{
 	const base = build({});
 	test('🔴 性别/时间算法/神煞查法/命宫/分野/藏干/起运精度:逐档必变', ()=>{
 		expect(build({ gender: 0 })).not.toBe(base);

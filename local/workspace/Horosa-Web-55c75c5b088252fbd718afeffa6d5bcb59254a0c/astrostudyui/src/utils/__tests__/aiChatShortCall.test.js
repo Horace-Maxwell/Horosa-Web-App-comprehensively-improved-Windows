@@ -29,6 +29,25 @@ describe('aiChat/shortCall', ()=>{
 		expect(body.providerOptions.requestTimeoutMs).toBe(30000);
 	});
 
+	test('「辅助」槽:槽空 = 用传入的档案 / 模型、选项逐字节同不给槽;填了槽 = 改走该槽的档案与模型,并回报实际所用模型', async ()=>{
+		const { writeModelRoutes, clearModelRoutes, ROUTE_SLOTS } = require('../aiModelRouting');
+		expect(ROUTE_SLOTS).toContain('utility');
+		window.localStorage.clear();
+		mockChat.mockResolvedValue({ Result: { content: '摘要' } });
+		const A = { ...PROFILE, id: 'pa', providerOptions: { temperature: 0.3 } };
+		const B = { providerType: 'anthropic', id: 'pb', apiKey: 'kb', baseUrl: 'https://b.invalid', providerOptions: {} };
+		const plain = await requestShortCompletion({ profile: A, model: 'big', kind: 'compact', system: 's', user: 'u' });
+		const slotted = await requestShortCompletion({ profile: A, model: 'big', kind: 'compact', system: 's', user: 'u', slot: 'utility', providerProfiles: [A, B] });
+		expect(mockChat.mock.calls[1][0]).toEqual(mockChat.mock.calls[0][0]);
+		expect(plain.model).toBe('big'); expect(slotted.model).toBe('big');
+		writeModelRoutes({ utility: 'pb::small' });
+		const routed = await requestShortCompletion({ profile: A, model: 'big', kind: 'compact', system: 's', user: 'u', slot: 'utility', providerProfiles: [A, B] });
+		const body = mockChat.mock.calls[2][0];
+		expect(body.model).toBe('small'); expect(body.providerType).toBe('anthropic'); expect(body.baseUrl).toBe('https://b.invalid');
+		expect(routed.model).toBe('small');
+		clearModelRoutes();
+	});
+
 	test('上游抛错/空回复 → ok:false 不抛', async ()=>{
 		mockChat.mockRejectedValue(new Error('boom'));
 		const r = await requestShortCompletion({ profile: PROFILE, model: 'gpt-4o', kind: 'compact', system: 's', user: 'u' });

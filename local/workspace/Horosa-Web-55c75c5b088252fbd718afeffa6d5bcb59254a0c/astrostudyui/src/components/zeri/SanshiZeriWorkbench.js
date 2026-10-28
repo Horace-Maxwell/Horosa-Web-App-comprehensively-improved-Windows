@@ -1,11 +1,10 @@
-// [Z6·三式择日] 择时工作台(六壬版派生)。左列:①时间范围·地点+**三段参数区**(六壬 3 键/
+// 择时工作台(六壬版派生)。左列:①时间范围·地点+**三段参数区**(六壬 3 键/
 // 奇门 10 键[QimenZeriWorkbench PARAM_FIELDS 同子集,「综合」等后端专属模式不入]/太乙 1 键
 // +共享日界 2 键+时基,merged 平铺经 splitSanshiOptions 单源拆三家)+用事人本命区(六壬家用)。
 // ②构造条件:51 类跨式混排(lr_/qm_/ty_ 前缀,OptGroup 按「家名·类别」分组)。
 // 结果表「三家」列(课名·奇门局·太乙局)。
 import { useState, useEffect, useRef } from 'react';
-import { saveBlobSmart } from '../../utils/aiAnalysisExport';
-import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // [Q-478] 空数字框统一校验
+import { emptyNumberFieldError } from '../../divination/zeri/conditionFieldCheck';   // 空数字框统一校验
 import { Modal, Dropdown, Menu, message } from 'antd';
 import { XQButton, XQSelect, XQCheckItem } from '../xq-ui';
 import ConditionParamsForm from './ConditionParamsForm';
@@ -13,67 +12,66 @@ import ZeriMiniPanPopup from './ZeriMiniPanPopup';
 import ZeriRowBadge from './ZeriRowBadge';
 import GeoCoordModal from '../amap/GeoCoordModal';
 import {
-	PAIPAN_OPTIONS, QIJU_METHOD_OPTIONS, SCHOOL_OPTIONS, ZHISHI_OPTIONS,
+	PAIPAN_OPTIONS, SCHOOL_OPTIONS, ZHISHI_OPTIONS,
 	KONG_MODE_OPTIONS, MA_MODE_OPTIONS, TIME_ALG_OPTIONS, DAY_SWITCH_OPTIONS,
+	qijuMethodOptionsFor, qijuMethodSelectValue,
 } from '../dunjia/DunJiaCalc';
+import { QIMEN_ZHIRUN_LEAP_FIELD, QIMEN_YUEJIA_QIJU_FIELD, QIMEN_SHIFT_PALACE_FIELD } from './qimenWorkbenchFields';
+
+// 排盘体例缺省 = 时家;起局法档位 / 回显随它(与奇门页、三式合一页同一判据)
+const paiPanOf = (o)=>(o.paiPanType === undefined || o.paiPanType === null || o.paiPanType === '' ? 3 : o.paiPanType);
+
 import { formatGpsDms } from '../../divination/zeri/tianxingSnapshot';
 import { JOINER_CN, auditTreeAgainstRegistry } from '../../divination/zeri/conditionTypes';
 import {
 	SANSHI_CONDITION_TYPES, newSanshiLeaf, newSanshiGroup, sanshiLeafSummary,
 } from '../../divination/zeri/sanshiZeriConditionTypes';
 import { sanshiZeriSchemeStore } from '../../divination/zeri/schemeStore';
-import { defaultAfter23NewDay } from '../../utils/dayBoundary';
+import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import { TAIYI_ACCUM_OPTIONS } from '../taiyi/core/TaiYiCore';
+import { downloadJson, JOINER_OPTIONS, getAt, mapAt, removeAt, collectUiLeaves, GATE_CN2, dateStrOf } from './zeriTreeOps';
+import { withFullDefaults } from './zeriOptionDefaults';
+import { normalizeSavedNatal, restoredNatalInput } from './zeriNatal';
+import { schemeOptionsOf } from '../../divination/zeri/zeriPageCalibre';
 
-// [Q-410] 单源保存(桌面壳保存桥选目录;浏览器 <a download>);取消 / 失败静默不报成功(本处本就无成功提示)。
-function downloadJson(text, filename){
-	try{
-		return saveBlobSmart(filename, new Blob([text], { type: 'application/json;charset=utf-8' }));
-	}catch(e){ return null; /* 受限 webview 环境静默 */ }
+// 三段参数区的描述表(merged 平铺,splitSanshiOptions 单源拆三家;各键判别力由各家金标证)。渲染时现取(日界缺省 = 全局现值)。
+// 奇门家的定局子参数 / 移星与奇门择日工作台同一份描述(qimenWorkbenchFields);扫描消费而宿主不从内嵌页播种的奇门键都必须在这里(合同测试)
+export function sanshiWorkbenchParamFields(){
+	return [
+		{ key: 'yueMode', label: '六壬·换将', dv: 'zhongqi', options: [{ value: 'zhongqi', label: '中气过宫' }, { value: 'jieqi', label: '节气换将' }] },   // 档名与六壬页同(「太阳过宫·日躔」是页面另一档,扫描不支持)
+		{ key: 'guirengType', label: '六壬·贵人体系', dv: 2, options: [{ value: 0, label: '六壬法贵人' }, { value: 1, label: '遁甲法贵人' }, { value: 2, label: '星占法贵人' }, { value: 3, label: '甲戊兼牛羊' }, { value: 4, label: '干合阳阴贵' }] },
+		// 昼夜阳阴归属只在六壬法贵人下起作用(与六壬页 / 三式合一页同条件置灰)
+		{ key: 'yinyangSystem', label: '六壬·昼夜阳阴归属', dv: 'danmu', options: [{ value: 'danmu', label: '旦暮系(默认)' }, { value: 'yinyang', label: '星历阳阴系' }], disabled: (o) => Number(o.guirengType !== undefined ? o.guirengType : 2) !== 0 },
+		// dv = 引擎缺省(计算面 calcDunJia:paiPanType 3 时家 / qijuMethod zhirun 置闰 / kongMode·yimaMode 'day'),
+		// 此前显示年家·拆补·0 ≠ 实际扫描口径,且 0 不在空亡/驿马值域内显示为空
+		{ key: 'paiPanType', label: '奇门·排盘', dv: 3, options: PAIPAN_OPTIONS },
+		{ key: 'qijuMethod', label: '奇门·起局', dv: 'zhirun', optionsFor: (o) => qijuMethodOptionsFor(paiPanOf(o)), valueOf: (o) => qijuMethodSelectValue(paiPanOf(o), o.qijuMethod !== undefined ? o.qijuMethod : 'zhirun') },
+		// 置闰天数(置闰起局 × 时家 / 刻家才显示):与奇门择日工作台同一份描述
+		{ ...QIMEN_ZHIRUN_LEAP_FIELD, label: `奇门·${QIMEN_ZHIRUN_LEAP_FIELD.label}` },
+		// 阴盘起局靠报数定局(引擎已收报数;此前没有输入框,选了阴盘实际扫的是缺省局)
+		{ key: 'shuziReportNumber', label: '奇门·报数', kind: 'input', when: (o) => o.qijuMethod === 'shuzi' },
+		{ key: 'school', label: '奇门·盘式', dv: '转盘', options: SCHOOL_OPTIONS },
+		// 值使取法只在转盘起作用(飞盘 / 混合置灰,与奇门页同)
+		{ key: 'zhiShiType', label: '奇门·值使', dv: 0, options: ZHISHI_OPTIONS, disabled: (o) => (o.school || '转盘') !== '转盘' },
+		// 月家起局(月家排盘才可选):与奇门择日工作台同一份描述
+		{ ...QIMEN_YUEJIA_QIJU_FIELD, label: `奇门·${QIMEN_YUEJIA_QIJU_FIELD.label}` },
+		{ key: 'kongMode', label: '奇门·空亡', dv: 'day', options: KONG_MODE_OPTIONS },
+		{ key: 'yimaMode', label: '奇门·驿马', dv: 'day', options: MA_MODE_OPTIONS },
+		{ ...QIMEN_SHIFT_PALACE_FIELD, label: `奇门·${QIMEN_SHIFT_PALACE_FIELD.label}` },
+		{ key: 'taiyiAccum', label: '太乙·古法公式', dv: 0, options: TAIYI_ACCUM_OPTIONS.map((o)=>({ value: o.value, label: o.label })) },   // 档名复用主太乙页
+		// 奇门家的时间算法(与三式合一页同:六壬家用奇门的时柱,扫描里六壬家随之同取);太乙家恒按钟表时(扫描引擎钉死口径),标签写明,免得当成三家共用
+		{ key: 'timeAlg', label: '时间算法(奇门)', dv: 0, options: TIME_ALG_OPTIONS },
+		{ key: 'after23NewDay', label: '日界', dv: defaultAfter23NewDay(), options: DAY_SWITCH_OPTIONS },	// dv=全局现值(复审 F8 同族)
+		{ key: 'lateZiHourUseNextDay', label: '晚子时干', dv: defaultLateZiHourUseNextDay(), options: [{ value: 1, label: '次日干' }, { value: 0, label: '当日干' }] },
+	];
 }
 
 const Option = XQSelect.Option;
 const OptGroup = XQSelect.OptGroup;
 
-const JOINER_OPTIONS = [
-	{ value: 'all', label: '且 AND' },
-	{ value: 'any', label: '或 OR' },
-	{ value: 'xor', label: '异或 XOR' },
-];
-
-// ── 树路径纯工具(与天星/奇门工作台同构) ──
-function getAt(tree, path){
-	let node = tree;
-	for(const i of path){
-		if(!node || !node.children){ return null; }
-		node = node.children[i];
-	}
-	return node || null;
-}
-function mapAt(tree, path, fn){
-	if(!path.length){ return fn(tree); }
-	const [head, ...rest] = path;
-	return { ...tree, children: tree.children.map((c, i) => (i === head ? mapAt(c, rest, fn) : c)) };
-}
-function removeAt(tree, path){
-	if(!path.length){ return tree; }
-	const parent = path.slice(0, -1);
-	const idx = path[path.length - 1];
-	return mapAt(tree, parent, (g) => ({ ...g, children: g.children.filter((_, i) => i !== idx) }));
-}
-
-function collectUiLeaves(node, out){
-	if(!node){ return out; }
-	if(node.kind === 'leaf'){ out.push(node); return out; }
-	(node.children || []).forEach((c) => collectUiLeaves(c, out));
-	return out;
-}
-
-const GATE_CN2 = { all: '且(全部满足)', any: '或(任一满足)', xor: '异或(奇数满足)', not: '非(取反)' };
-
 function renderExplainNode(node, uiLeaves, counter, depth){
 	const passTag = (ok) => (
-		<span style={{ fontWeight: 700, color: ok ? '#2f9e63' : '#e5484d' }}>{ok ? '✓' : '✗'}</span>
+		<span style={{ fontWeight: 700, color: ok ? 'var(--horosa-jx-ji)' : 'var(--horosa-danger)' }}>{ok ? '✓' : '✗'}</span>
 	);
 	if(node.kind === 'group'){
 		return (
@@ -88,20 +86,17 @@ function renderExplainNode(node, uiLeaves, counter, depth){
 	return (
 		<div key={`l${counter.i}`} style={{ padding: '5px 0 5px 0', marginLeft: depth ? 14 : 0, borderBottom: '1px dashed rgba(148,163,184,.16)' }}>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 12 }}>
-				<span style={{ opacity: 0.55 }}>设定</span>
+				<span style={{ color: 'var(--horosa-text-secondary)' }}>设定</span>
 				<span>{ui ? sanshiLeafSummary(ui) : ((SANSHI_CONDITION_TYPES[node.type] || {}).label || node.type)}</span>
 			</div>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, marginTop: 2 }}>
-				<span style={{ opacity: 0.55 }}>实际</span>
+				<span style={{ color: 'var(--horosa-text-secondary)' }}>实际</span>
 				<span style={{ opacity: 0.9 }}>{node.actual}</span>
 				{passTag(node.pass)}
 			</div>
 		</div>
 	);
 }
-
-function pad2(n){ return n < 10 ? `0${n}` : `${n}`; }
-function dateStrOf(d){ return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
 
 // 类别序动态收集(程序化合并:「六壬·课体」「奇门·格局」「太乙·局式」…按家序+首现序)。
 const CATEGORY_ORDER = (()=>{
@@ -114,7 +109,7 @@ const CATEGORY_ORDER = (()=>{
 })();
 
 export default function SanshiZeriWorkbench({
-	open, onClose, cfg, onCfgChange, geo, onGeoChange, options, onOptionsChange,
+	open, onClose, cfg, onCfgChange, geo, onGeoChange, options, onOptionsChange, optionDefaults, getSchemeOptions,
 	natal, natalInput, onNatalInputChange, onResolveNatal, onClearNatal, onRestoreNatal,
 	tree, frozenTree, onPreviewPan, onPreviewExplain, previewGeo, previewOptions, onTreeChange, onRun, onCancelScan, onPickInterval, onExplain, scanEpoch, resultsStale,
 	scanning, progress, results, truncated, scanErr,
@@ -159,7 +154,7 @@ export default function SanshiZeriWorkbench({
 
 	const draftLeaf = { kind: 'leaf', type: draftType, negate: draftNegate, params: draftParams };
 	const draftSpec = SANSHI_CONDITION_TYPES[draftType] || {};
-	// [Q-478/T-440] 空数字框先判(与表单红框同一判据),再走各类型自校验。
+	// 空数字框先判(与表单红框同一判据),再走各类型自校验。
 	const draftError = emptyNumberFieldError(draftSpec, draftParams) || (draftSpec.validate ? draftSpec.validate(draftParams) : '');
 
 	const appendTargetPath = selectedIsGroup ? selectedPath : [];
@@ -180,7 +175,7 @@ export default function SanshiZeriWorkbench({
 	};
 
 	const applyScheme = (rec) => {
-	// [F7 根修] 载入前审计值域:方案里的条件类/选项值可能已随版本演进被删——
+	// 载入前审计值域:方案里的条件类/选项值可能已随版本演进被删——
 	// 那类行会静默恒不命中(needValues 只拦空、compile 不查值域、evaluate includes 恒 false)。
 	// 审计只提示不拦载入:用户看得见哪些行失效,自行改设;静默才是事故。
 	const __schemeIssues = (rec && rec.tree) ? auditTreeAgainstRegistry(rec.tree, SANSHI_CONDITION_TYPES) : [];
@@ -191,10 +186,12 @@ export default function SanshiZeriWorkbench({
 		if(rec && rec.config){
 			if(rec.config.cfg){ onCfgChange({ ...cfg, ...rec.config.cfg }); }
 			if(rec.config.geo && typeof onGeoChange === 'function'){ onGeoChange({ ...(geo || {}), ...rec.config.geo }); }
-			if(rec.config.options && typeof onOptionsChange === 'function'){ onOptionsChange({ ...(options || {}), ...rec.config.options }); }
-			// [Q-271/ZC-21] 保存/历史都写了 natal(+natalInput),载入此前只回灌 cfg/geo/options → 含本命组条件的方案载入后恒判假。
-			if(rec.config.natalInput && typeof onNatalInputChange === 'function'){ onNatalInputChange({ ...(natalInput || {}), ...rec.config.natalInput }); }
-			if(Object.prototype.hasOwnProperty.call(rec.config, 'natal') && typeof onRestoreNatal === 'function'){ onRestoreNatal(rec.config.natal || null); }
+			// 方案 / 历史里没写的参数回出厂值(宿主完整缺省打底),不取本会话现值:否则会话里改过、方案没写的键混进来,再扫得到的不是当时的结果
+			if(rec.config.options && typeof onOptionsChange === 'function'){ onOptionsChange(withFullDefaults(optionDefaults, rec.config.options), { source: 'scheme' }); }
+			// 保存/历史都写了 natal(+natalInput),载入此前只回灌 cfg/geo/options → 含本命组条件的方案载入后恒判假。
+			// 本命与输入框同一校验(zeriNatal):方案里的本命坏形 = 没有;输入框叠在构造缺省上(不留会话里上一位的)
+			if((rec.config.natalInput || Object.prototype.hasOwnProperty.call(rec.config, 'natal')) && typeof onNatalInputChange === 'function'){ onNatalInputChange(restoredNatalInput(rec.config.natalInput)); }
+			if(Object.prototype.hasOwnProperty.call(rec.config, 'natal') && typeof onRestoreNatal === 'function'){ onRestoreNatal(normalizeSavedNatal(rec.config.natal)); }
 		}
 		setSelectedPath(null);
 	};
@@ -207,7 +204,7 @@ export default function SanshiZeriWorkbench({
 				<Menu.Item key={s.id}>
 					<span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
 						<a onClick={(e) => { e.preventDefault(); applyScheme(s); }}>{s.name}</a>
-						<a style={{ color: '#e5484d', fontSize: 11 }}
+						<a style={{ color: 'var(--horosa-danger)', fontSize: 11 }}
 							onClick={(e) => { e.preventDefault(); e.stopPropagation(); sanshiZeriSchemeStore.deleteScheme(s.id); setSchemeTick(schemeTick + 1); }}>删</a>
 					</span>
 				</Menu.Item>
@@ -228,7 +225,7 @@ export default function SanshiZeriWorkbench({
 	const selIndex = selectedPath && selectedPath.length ? selectedPath[selectedPath.length - 1] : -1;
 	const joinerToolbar = (
 		<div style={{ padding: '8px 10px', borderTop: '1px solid rgba(148,163,184,.2)' }}>
-			<div style={{ fontSize: 11, opacity: 0.65, marginBottom: 6 }}>
+			<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 6 }}>
 				连接门·取反{!selectedNode ? '(先点选右侧一行)' : (selIndex === 0 ? '(首行无连接门,可取反)' : '')}
 			</div>
 			<div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -273,7 +270,7 @@ export default function SanshiZeriWorkbench({
 							flexShrink: 0,
 						}}>{JOINER_CN[node.joiner || 'all']}</span>
 					) : null}
-					{node.negate ? <span style={{ color: '#e5484d', fontWeight: 700, flexShrink: 0 }}>非</span> : null}
+					{node.negate ? <span style={{ color: 'var(--horosa-danger)', fontWeight: 700, flexShrink: 0 }}>非</span> : null}
 					{isGroup ? (
 						<span style={{ fontSize: 12, fontWeight: 600 }}>分组({(node.children || []).length} 条)</span>
 					) : (
@@ -286,7 +283,7 @@ export default function SanshiZeriWorkbench({
 					<div style={{ marginTop: 6, paddingLeft: 10, borderLeft: '2px solid rgba(212,175,55,.35)' }}>
 						{(node.children || []).map((c, i) => renderRow(c, [...path, i], i, depth + 1))}
 						{!(node.children || []).length ? (
-							<div style={{ padding: '6px 2px', fontSize: 12, opacity: 0.5 }}>空分组:选中本组后左侧「添加到列表」即入组,或删除本组。</div>
+							<div style={{ padding: '6px 2px', fontSize: 12, color: 'var(--horosa-text-secondary)' }}>空分组:选中本组后左侧「添加到列表」即入组,或删除本组。</div>
 						) : null}
 					</div>
 				) : null}
@@ -298,7 +295,7 @@ export default function SanshiZeriWorkbench({
 		<div>
 			{(rootNode.children || []).map((c, i) => renderRow(c, [i], i, 1))}
 			{!(rootNode.children || []).length ? (
-				<div style={{ padding: '10px 4px', fontSize: 12, opacity: 0.55 }}>尚无条件——左侧构造后点「添加到列表」。</div>
+				<div style={{ padding: '10px 4px', fontSize: 12, color: 'var(--horosa-text-secondary)' }}>尚无条件——左侧构造后点「添加到列表」。</div>
 			) : null}
 		</div>
 	);
@@ -322,7 +319,7 @@ export default function SanshiZeriWorkbench({
 							onChange={(e) => onCfgChange({ ...cfg, startDate: e.target.value })} />
 						<input type="time" className="horosa-native-date" style={{ width: 86 }} value={cfg.startTime}
 							onChange={(e) => onCfgChange({ ...cfg, startTime: e.target.value })} />
-						<span style={{ opacity: 0.6 }}>→</span>
+						<span style={{ color: 'var(--horosa-text-secondary)' }}>→</span>
 						<input type="date" className="horosa-native-date" style={{ width: 118 }} value={cfg.endDate}
 							onChange={(e) => onCfgChange({ ...cfg, endDate: e.target.value })} />
 						<input type="time" className="horosa-native-date" style={{ width: 86 }} value={cfg.endTime}
@@ -338,32 +335,23 @@ export default function SanshiZeriWorkbench({
 						<GeoCoordModal lat={geo && geo.gpsLat} lng={geo && geo.gpsLon} onOk={(rec) => onGeoChange(rec)}>
 							<XQButton size="small">{geo && geo.pos ? `📍 ${geo.pos}` : (geo && geo.gpsLat !== undefined ? `📍 ${formatGpsDms(geo.gpsLon, geo.gpsLat)}` : '选择地点…')}</XQButton>
 						</GeoCoordModal>
-						<span style={{ fontSize: 11, opacity: 0.6 }}>时区 {geo && geo.zone !== undefined ? geo.zone : '—'}</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>时区 {geo && geo.zone !== undefined ? geo.zone : '—'}</span>
 						{/* 三段参数(merged 平铺,splitSanshiOptions 单源拆三家;各键判别力由各家金标证) */}
-						{[
-							{ key: 'yueMode', label: '六壬·月将', dv: 'zhongqi', options: [{ value: 'zhongqi', label: '中气(太阳过宫)' }, { value: 'jieqi', label: '按节换将' }] },
-							{ key: 'guirengType', label: '六壬·贵人', dv: 2, options: [{ value: 0, label: '六壬法' }, { value: 1, label: '遁甲法' }, { value: 2, label: '星占法' }, { value: 3, label: '甲戊兼牛羊' }, { value: 4, label: '干合阳阴贵' }] },
-							{ key: 'yinyangSystem', label: '六壬·阴阳系', dv: 'danmu', options: [{ value: 'danmu', label: '旦暮系' }, { value: 'yinyang', label: '阴阳系' }] },
-							// [Q-268/T-262] dv = 引擎缺省(计算面 calcDunJia:paiPanType 3 时家 / qijuMethod zhirun 置闰 / kongMode·yimaMode 'day'),
-							// 此前显示年家·拆补·0 ≠ 实际扫描口径,且 0 不在空亡/驿马值域内显示为空
-							{ key: 'paiPanType', label: '奇门·类型', dv: 3, options: PAIPAN_OPTIONS },
-							{ key: 'qijuMethod', label: '奇门·取局', dv: 'zhirun', options: QIJU_METHOD_OPTIONS },
-							{ key: 'school', label: '奇门·盘式', dv: '转盘', options: SCHOOL_OPTIONS },
-							{ key: 'zhiShiType', label: '奇门·值使', dv: 0, options: ZHISHI_OPTIONS },
-							{ key: 'kongMode', label: '奇门·空亡', dv: 'day', options: KONG_MODE_OPTIONS },
-							{ key: 'yimaMode', label: '奇门·驿马', dv: 'day', options: MA_MODE_OPTIONS },
-							{ key: 'taiyiAccum', label: '太乙·积年算法', dv: 0, options: TAIYI_ACCUM_OPTIONS.map((o)=>({ value: o.value, label: o.label })) },   // [Q-271/ZC-23] 档名复用主太乙页
-							{ key: 'timeAlg', label: '时间(奇门)', dv: 0, options: TIME_ALG_OPTIONS },
-							{ key: 'after23NewDay', label: '换日', dv: defaultAfter23NewDay(), options: DAY_SWITCH_OPTIONS },	// dv=全局现值(复审 F8 同族)
-							{ key: 'lateZiHourUseNextDay', label: '晚子时干', dv: 1, options: [{ value: 1, label: '次日干' }, { value: 0, label: '当日干' }] },
-						].map((f) => (
+						{sanshiWorkbenchParamFields().filter((f) => !f.when || f.when(options || {})).map((f) => (
 							<span key={f.key} style={{ display: 'inline-flex', gap: 4, alignItems: 'center', fontSize: 11 }}>
-								<span style={{ opacity: 0.6 }}>{f.label}</span>
-								<XQSelect size="small" value={(options || {})[f.key] !== undefined ? (options || {})[f.key] : f.dv} dropdownMatchSelectWidth={false}
-									getPopupContainer={(t) => t.closest('.ant-modal-body') || t.parentElement}
-									onChange={(v) => onOptionsChange({ ...(options || {}), [f.key]: v })}>
-									{f.options.map((o) => (<Option key={`${o.value}`} value={o.value}>{o.label}</Option>))}
-								</XQSelect>
+								<span style={{ color: 'var(--horosa-text-secondary)' }}>{f.label}</span>
+								{f.kind === 'input' ? (
+									<input value={(options || {})[f.key] === undefined || (options || {})[f.key] === null ? '' : (options || {})[f.key]}
+										placeholder="如 168" style={{ width: 72 }}
+										onChange={(e) => onOptionsChange({ ...(options || {}), [f.key]: e.target.value })} />
+								) : (
+									<XQSelect size="small" value={f.valueOf ? f.valueOf(options || {}) : ((options || {})[f.key] !== undefined ? (options || {})[f.key] : f.dv)} dropdownMatchSelectWidth={false}
+										disabled={f.disabled ? f.disabled(options || {}) : false}
+										getPopupContainer={(t) => t.closest('.ant-modal-body') || t.parentElement}
+										onChange={(v) => onOptionsChange({ ...(options || {}), [f.key]: v })}>
+										{(f.optionsFor ? f.optionsFor(options || {}) : f.options).map((o) => (<Option key={`${o.value}`} value={o.value}>{o.label}</Option>))}
+									</XQSelect>
+								)}
 							</span>
 						))}
 					</div>
@@ -390,14 +378,16 @@ export default function SanshiZeriWorkbench({
 								<a style={{ marginLeft: 6, fontSize: 11 }} onClick={onClearNatal}>清除</a>
 							</span>
 						) : (
-							<span style={{ fontSize: 11, opacity: 0.5 }}>未设(「本命」组条件不生效)</span>
+							<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>未设(「本命」组条件不生效)</span>
 						)}
+						{/* 三式盘没有卜卦人出生:点开的盘上六壬家「年命」按起盘年支显示,与这里的本命不是同一项(只注明,不改盘) */}
+						{natal ? (<span className="horosa-zeri-natal-calibre-note" style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>本命组条件按此本命判;点开的三式盘上「年命」是起盘年支</span>) : null}
 					</div>
 				</div>
 				<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)' }}>构造条件</div>
 				<div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
 					<div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
-						<span style={{ fontSize: 11, opacity: 0.65 }}>条件类型</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>条件类型</span>
 						<XQSelect size="small" style={{ minWidth: 150 }} value={draftType}
 							onChange={(v) => resetDraft(v)} dropdownMatchSelectWidth={false}
 							getPopupContainer={(t) => t.closest('.ant-modal-body') || t.parentElement}>
@@ -422,7 +412,7 @@ export default function SanshiZeriWorkbench({
 					}}>
 						{sanshiLeafSummary(draftLeaf)}
 					</div>
-					{draftError ? <div style={{ color: '#e5484d', fontSize: 12, marginTop: 6 }}>{draftError}</div> : null}
+					{draftError ? <div style={{ color: 'var(--horosa-danger)', fontSize: 12, marginTop: 6 }}>{draftError}</div> : null}
 				</div>
 				{joinerToolbar}
 				<div style={{ padding: 10, borderTop: '1px solid rgba(148,163,184,.2)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -445,7 +435,7 @@ export default function SanshiZeriWorkbench({
 					<div style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid rgba(148,163,184,.2)', display: 'flex', alignItems: 'center', gap: 8 }}
 						title="点击行选中后,用左下「连接门·取反」四钮直接改该行;行首徽标=本行与上方结果的连接门">
 						已选条件
-						<span style={{ fontSize: 11, opacity: 0.55, fontWeight: 400 }}>点行选中·左下改门/取反</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', fontWeight: 400 }}>点行选中·左下改门/取反</span>
 					</div>
 					<div style={{ flex: 1, overflowY: 'auto', padding: 10 }} onClick={() => setSelectedPath(null)}>
 						{renderNode(tree)}
@@ -454,14 +444,14 @@ export default function SanshiZeriWorkbench({
 						<input placeholder="方案名…" value={schemeName} style={{ width: 128 }}
 							onChange={(e) => setSchemeName(e.target.value)} />
 						<XQButton size="small" disabled={!schemeName.trim()} onClick={() => {
-							const r = sanshiZeriSchemeStore.saveScheme(schemeName, { cfg, geo, options, natal, natalInput }, tree);   // [Q-271/ZC-21] 本命随方案存取
+							const r = sanshiZeriSchemeStore.saveScheme(schemeName, { cfg, geo, options: schemeOptionsOf(getSchemeOptions, options), natal, natalInput }, tree);   // 内嵌页的页面口径键随方案存(宿主给出);本命随方案存取
 							if(r.ok){ setSchemeName(''); setSchemeTick(schemeTick + 1); }
 						}}>保存方案</XQButton>
 						<Dropdown overlay={schemeMenu} trigger={['click']}>
 							<XQButton size="small">载入方案▾</XQButton>
 						</Dropdown>
 						<XQButton size="small" onClick={() => setView('schemes')}>方案管理…</XQButton>
-						{scanErr ? <span style={{ color: '#e5484d', fontSize: 12, marginLeft: 8 }}>{scanErr}</span> : null}
+						{scanErr ? <span style={{ color: 'var(--horosa-danger)', fontSize: 12, marginLeft: 8 }}>{scanErr}</span> : null}
 					</div>
 				</div>
 			</div>
@@ -484,14 +474,14 @@ export default function SanshiZeriWorkbench({
 					</span>
 				) : null}
 			</div>
-			{!scanning && scanErr ? <div style={{ color: '#e5484d', fontSize: 12, marginBottom: 8 }}>{scanErr}</div> : null}
+			{!scanning && scanErr ? <div style={{ color: 'var(--horosa-danger)', fontSize: 12, marginBottom: 8 }}>{scanErr}</div> : null}
 			{resultsStale ? (
-				<div style={{ color: '#8a6d1a', background: 'rgba(212,175,55,.12)', border: '1px solid rgba(212,175,55,.4)', borderRadius: 6, fontSize: 12, padding: '5px 10px', marginBottom: 8 }}>
+				<div style={{ color: 'var(--horosa-sev-medium)', background: 'rgba(212,175,55,.12)', border: '1px solid rgba(212,175,55,.4)', borderRadius: 6, fontSize: 12, padding: '5px 10px', marginBottom: 8 }}>
 					⚠ 条件/时间范围已被修改:下方结果对应「上一次择时」——请重新点「择时」。
 				</div>
 			) : null}
 			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, opacity: 0.6, padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)', position: 'sticky', top: 0, background: 'var(--horosa-astro-panel, #fff)', zIndex: 1 }}>
 					<span style={{ width: 36 }}>#</span>
 					<span style={{ flex: 1 }}>开始(点击=起始时刻起盘)</span>
 					<span style={{ flex: 1 }}>结束(点击=结束时刻起盘)</span>
@@ -501,12 +491,12 @@ export default function SanshiZeriWorkbench({
 					<span style={{ width: 44 }}>盘</span>{/* 行内多「盘」列,表头必须等宽占位——缺列致两 flex 列压窄整行左移(用户实报错位) */}
 				</div>
 				{(!results || !results.length) && !scanning ? (
-					<div style={{ padding: 24, opacity: 0.6 }}>{results ? '时间范围内无满足条件的时辰。' : '尚未择时。'}</div>
+					<div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>{results ? '时间范围内无满足条件的时辰。' : '尚未择时。'}</div>
 				) : null}
 				{(results || []).map((row, i) => (
 					<div key={i} style={{ borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
 						<div style={{ display: 'flex', gap: 10, padding: '9px 12px', alignItems: 'center' }}>
-							<span style={{ width: 36, textAlign: 'right', opacity: 0.5, fontSize: 12 }}>{i + 1}</span>
+							<span style={{ width: 36, textAlign: 'right', color: 'var(--horosa-text-secondary)', fontSize: 12 }}>{i + 1}</span>
 							<span style={{ flex: 1, fontSize: 13, cursor: 'pointer' }} title="以时段起始时刻起盘"
 								onClick={() => onPickInterval(row, 'start')}>{row.start}</span>
 							<span style={{ flex: 1, fontSize: 13, cursor: 'pointer' }} title="以时段结束时刻起盘"
@@ -538,11 +528,11 @@ export default function SanshiZeriWorkbench({
 							</div>
 						{expandKey === `${scanEpoch || 0}:${i}` ? (
 							<div style={{ padding: '4px 12px 10px 58px', background: 'rgba(212,175,55,.04)' }}>
-								<div style={{ fontSize: 11, opacity: 0.55, marginBottom: 4 }}>
+								<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 4 }}>
 									以时段起始时刻逐条判读(设定 vs 实际;判定与扫描引擎同源)
 								</div>
-								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).loading ? <div style={{ fontSize: 12, opacity: 0.6 }}>判读中…</div> : null}
-								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).err ? <div style={{ fontSize: 12, color: '#e5484d' }}>{explainMap[`${scanEpoch || 0}:${i}`].err}</div> : null}
+								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).loading ? <div style={{ fontSize: 12, color: 'var(--horosa-text-secondary)' }}>判读中…</div> : null}
+								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).err ? <div style={{ fontSize: 12, color: 'var(--horosa-danger)' }}>{explainMap[`${scanEpoch || 0}:${i}`].err}</div> : null}
 								{(explainMap[`${scanEpoch || 0}:${i}`] || {}).tree
 									? renderExplainNode(explainMap[`${scanEpoch || 0}:${i}`].tree, collectUiLeaves(frozenTree || tree, []), { i: 0 }, 0)
 									: null}
@@ -584,13 +574,13 @@ export default function SanshiZeriWorkbench({
 			</div>
 			{schemeMsg ? <div style={{ fontSize: 12, marginBottom: 8, opacity: 0.8 }}>{schemeMsg}</div> : null}
 			<div style={{ flex: 1, minHeight: 0, overflowY: 'auto', border: '1px solid rgba(148,163,184,.25)', borderRadius: 8 }}>
-				<div style={{ display: 'flex', fontSize: 12, opacity: 0.6, padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
+				<div style={{ display: 'flex', fontSize: 12, color: 'var(--horosa-text-secondary)', padding: '8px 12px', gap: 10, borderBottom: '1px solid rgba(148,163,184,.2)' }}>
 					<span style={{ flex: 1 }}>方案名</span>
 					<span style={{ width: 150 }}>保存时间</span>
 					<span style={{ width: 70, textAlign: 'right' }}>条件数</span>
 					<span style={{ width: 250, textAlign: 'right' }}>操作</span>
 				</div>
-				{!schemes.length ? <div style={{ padding: 24, opacity: 0.6 }}>暂无已存方案——条件页底部「保存方案」。</div> : null}
+				{!schemes.length ? <div style={{ padding: 24, color: 'var(--horosa-text-secondary)' }}>暂无已存方案——条件页底部「保存方案」。</div> : null}
 				{schemes.map((s) => (
 					<div key={s.id} style={{ display: 'flex', gap: 10, padding: '8px 12px', alignItems: 'center', borderBottom: '1px dashed rgba(148,163,184,.18)' }}>
 						{renameId === s.id ? (
@@ -618,7 +608,7 @@ export default function SanshiZeriWorkbench({
 					</div>
 				))}
 			</div>
-			<div style={{ fontSize: 11, opacity: 0.5, marginTop: 8 }}>
+			<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 8 }}>
 				导出为 JSON 可跨设备/跨用户分享;导入同名方案以文件内容覆盖本地。
 			</div>
 		</div>
@@ -629,7 +619,7 @@ export default function SanshiZeriWorkbench({
 			title={(
 				<div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingRight: 34 }}>
 					<span style={{ flexShrink: 0 }}>三式择日·择时工作台</span>
-					<span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 400, color: '#8a6d1a', lineHeight: 1.35, whiteSpace: 'normal' }}>
+					<span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 400, color: 'var(--horosa-sev-medium)', lineHeight: 1.35, whiteSpace: 'normal' }}>
 						⚠ 结果为三式盘面的机械筛选,仅供术数研习参考;不构成任何现实决策依据,勿迷信滥用——据此行事,后果自负。
 					</span>
 				</div>
@@ -650,7 +640,7 @@ export default function SanshiZeriWorkbench({
 			{previewRow ? (
 				<ZeriMiniPanPopup
 					geo={previewGeo || geo}	/* 冻结地点优先:概览口径=扫描口径(活 geo 曾致扫后改地点概览错盘) */
-					techOptions={previewOptions || options}	/* [Q-271/ZC-22] 冻结参数优先:概览口径=扫描口径(活 options 曾致扫后改参数概览错盘) */
+					techOptions={previewOptions || options}	/* 冻结参数优先:概览口径=扫描口径(活 options 曾致扫后改参数概览错盘) */
 					tech="sanshi"
 					row={previewRow}
 					computePan={typeof onPreviewPan === 'function' ? onPreviewPan : null}

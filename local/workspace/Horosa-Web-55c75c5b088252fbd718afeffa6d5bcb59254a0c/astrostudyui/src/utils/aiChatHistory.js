@@ -44,7 +44,7 @@ function clampInt(v, min, max, fallback){
 }
 
 // 图片保留数:null/undefined/Infinity/'Infinity'/空串 = 不限;非法值也回不限(缺省即现状)。
-// [Q-290/M-105·PP-21①] 归一与面板同值域(历史 token 预算 500–200000;保留图片数 0–50;此前归一 400000 / 无上限,999 原样保存)
+// 归一与面板同值域(历史 token 预算 500–200000;保留图片数 0–50;此前归一 400000 / 无上限,999 原样保存)
 export const HISTORY_TOKEN_BUDGET_MAX = 200000;
 export const HISTORY_IMAGE_KEEP_MAX = 50;
 function clampImageKeep(v){
@@ -94,7 +94,7 @@ export function readContextPolicy(){
 export const CONTEXT_POLICY_PRESETS = Object.freeze({
 	legacy: Object.freeze({ ...DEFAULT_CONTEXT_POLICY, historyMode: 'legacy' }),
 	window: Object.freeze({ ...DEFAULT_CONTEXT_POLICY, historyMode: 'window' }),
-	// [D39·2026-09-08] 经济档此前 = 窗口 + traceTurnsFull 2 + 折叠 4 ⇒ 比窗口档(2 整 + 0 折叠)**多**保留四轮折叠结果,真模型 A/B
+	// 经济档此前 = 窗口 + traceTurnsFull 2 + 折叠 4 ⇒ 比窗口档(2 整 + 0 折叠)**多**保留四轮折叠结果,真模型 A/B
 	// 两次实测 cost_proxy 高于窗口档 26%、缓存命中更低,与文案「更省」相反。改为 1 整轮 + 2 折叠轮(折叠上限 800/400 字)+ 去重:
 	// 保留内容严格 ≤ 窗口档;A/B 判据加「economy ≤ window×1.05」臂间比较(ab_context_policy.py)。
 	economy: Object.freeze({ ...DEFAULT_CONTEXT_POLICY, historyMode: 'window', traceTurnsFull: 1, traceTurnsFolded: 2, foldedResultMaxChars: Object.freeze({ read: 800, additive: 400 }), dedupSameCall: true }),
@@ -133,7 +133,7 @@ export function writeContextPolicy(partial){
 }
 
 // 清策略=回缺省(删键而非写缺省对象:缺键才是「从未自定义」的现状态)。
-// [进阶审计 D8] 设置面「恢复现状」的判据:键存在才有东西可恢复(与预设名无关 —— 缺省翻成 window 后,
+// 设置面「恢复现状」的判据:键存在才有东西可恢复(与预设名无关 —— 缺省翻成 window 后,
 //   按 preset==='legacy' 禁用是反的:不裁档反而点不了、缺省档点了也没变化)。
 export function hasStoredContextPolicy(){
 	return safeLocalStorageGet(CHAT_CONTEXT_POLICY_KEY) != null;
@@ -150,7 +150,7 @@ export function subscribeContextPolicy(fn){
 	if(typeof window === 'undefined' || typeof fn !== 'function'){ return ()=>{}; }
 	const h = (e)=>fn(e && e.detail && e.detail.policy ? e.detail.policy : readContextPolicy());
 	window.addEventListener(CHAT_CONTEXT_POLICY_EVENT, h);
-	// [进阶审计 D6·2026-09-07] 跨窗口:另一个窗口写了本键(或整个 storage 被清),本窗口的订阅者也要重读 —— storage 事件只在别的窗口触发,本窗口写入仍走上面的 CustomEvent
+	// 跨窗口:另一个窗口写了本键(或整个 storage 被清),本窗口的订阅者也要重读 —— storage 事件只在别的窗口触发,本窗口写入仍走上面的 CustomEvent
 	const sh = (e)=>{ const k = e && e.key != null ? `${e.key}` : ''; if(!k || k === CHAT_CONTEXT_POLICY_KEY){ fn(readContextPolicy()); } };
 	window.addEventListener('storage', sh);
 	return ()=>{ window.removeEventListener(CHAT_CONTEXT_POLICY_EVENT, h); window.removeEventListener('storage', sh); };
@@ -204,7 +204,7 @@ function sumTokens(list){
 // kept ≥ minKeep 才允许因预算停止;≤ maxKeep;停止后向后对齐到 user 开头(不切断问答对)。
 // 返回 { messages, meta:{ mode, keptMsgs, droppedMsgs, keptTokens, replayChars, budget, stoppedBy } }。
 // opts.replayTrace(可选,默认 true=旧行为):是否把带 agentTrace 回答的工具轮回放量计入 token。
-// [Q-287/PP-12] 行动能力总开关关时运行时是 NULL_AGENT、messagesForRound 只发正文 → 调用方传 false,不再按不会发送的回放量裁历史。
+// 行动能力总开关关时运行时是 NULL_AGENT、messagesForRound 只发正文 → 调用方传 false,不再按不会发送的回放量裁历史。
 export function windowChatMessages(messages, opts){
 	const o = opts || {};
 	const replayTrace = o.replayTrace !== undefined ? !!o.replayTrace : true;

@@ -1,4 +1,4 @@
-// AI 助手·动作条(借鉴 Codex 的 Item 列表):一个 assistant 气泡下方,按轮列出模型发起的工具动作——
+// AI 助手·动作条:一个 assistant 气泡下方,按轮列出模型发起的工具动作——
 // 状态图标 · 中文标签 · 摘要 · 「撤销」(仅写入类且已完成;撤销只能用户点按钮,AI 无任何软删路径) ·
 // 审批档下的「允许/跳过」· 反问(ask_user)的作答行 · 展开参数/结果。总开关关时只读折叠(历史留痕仍可撤销)。
 import React from 'react';
@@ -13,6 +13,7 @@ import { listPendingElicitations, resolveElicitation, declineElicitation, subscr
 import styles from './AgentActionBar.less';
 import { AGENT_TOOL_LABELS, toolLabel } from '../../utils/aiTools/labels';
 import AgentDiffPreview from './AgentDiffPreview';
+import { SCRIPT_KEEP_CLASS } from '../../utils/scriptMode';   // 工具参数 / 结果原样显示(界面繁体时不转换)
 
 // 标签单源在 utils/aiTools/labels.js(面板「按工具名放行·禁用」同用);这里保留同名导出以免既有引用断链
 export { AGENT_TOOL_LABELS };
@@ -73,14 +74,14 @@ export default function AgentActionBar({ trace, messageId, streaming, onTraceCha
 	React.useEffect(()=>subscribeAgentPrefs((d)=>setEnabled(!!(d && d.enabled))), []);
 	React.useEffect(()=>subscribeApprovals(()=>setPendingTick((n)=>n + 1)), []);
 	React.useEffect(()=>subscribeElicitations(()=>setPendingTick((n)=>n + 1)), []);
-	// [批五] 界面操作轨迹(导航/合盘配对,不进账本):只列本 Turn 的,每条可「回到上一页 / 上一对」
+	// 界面操作轨迹(导航/合盘配对,不进账本):只列本 Turn 的,每条可「回到上一页 / 上一对」
 	const [trailTick, setTrailTick] = React.useState(0);
 	React.useEffect(()=>subscribeUiTrail(()=>setTrailTick((n)=>n + 1)), []);
 	const uiTrail = trace && trace.turnId ? listUiTrail({ turnId: trace.turnId }) : [];
 	const rounds = trace && Array.isArray(trace.rounds) ? trace.rounds : [];
 	const results = [];
 	rounds.forEach((r, ri)=>{ (r.results || []).forEach((x)=>results.push({ ...x, roundIndex: ri, roundText: r.text, roundModel: r.model || '' })); });
-	// [C4] 按任务用模型:各轮模型不止一种时,轮头带模型徽章(全同=不显示,零变化)
+	// 按任务用模型:各轮模型不止一种时,轮头带模型徽章(全同=不显示,零变化)
 	const roundModels = Array.from(new Set(rounds.map((r)=>r.model || '').filter(Boolean)));
 	const showRoundModel = roundModels.length > 1;
 	if(!results.length){ return null; }
@@ -148,8 +149,8 @@ export default function AgentActionBar({ trace, messageId, streaming, onTraceCha
 										{awaiting ? (
 											<>
 												<Button size="small" type="primary" data-approval-scope="once" onClick={()=>resolveApproval(x.callId, true, messageId)}>允许</Button>
-												{/* [D70·2026-09-09] 四钮一律以本气泡的 messageId 落定:trace 条目(x)没有 messageKey 字段,此前从 trace 条目上取不存在的 messageKey 字段(恒 undefined)走「按 id/按名落定全部同名」旧路径,后台任务与外部客户端的同名待审被对话页一键静默批准(D23 回潮);待审列表本就按 messageId 取,故 messageId 即本键 */}
-													{/* [P1·2026-09-08] 对标「Yes, and don't ask again」:会话档=内存放行集(刷新即清);永久档=写进「按工具名放行」名单(进阶页可见可撤)+ 同时进会话放行集(本 Turn 的策略快照在创建时已读死,不进会话集则同轮后续同名写入仍会各问一次 —— 端到端用例 S164 实抓) */}
+												{/* 四钮一律以本气泡的 messageId 落定:trace 条目(x)没有 messageKey 字段,此前从 trace 条目上取不存在的 messageKey 字段(恒 undefined)走「按 id/按名落定全部同名」旧路径,后台任务与外部客户端的同名待审被对话页一键静默批准(D23 回潮);待审列表本就按 messageId 取,故 messageId 即本键 */}
+													{/* 对标「Yes, and don't ask again」:会话档=内存放行集(刷新即清);永久档=写进「按工具名放行」名单(进阶页可见可撤)+ 同时进会话放行集(本 Turn 的策略快照在创建时已读死,不进会话集则同轮后续同名写入仍会各问一次 —— 端到端用例 S164 实抓) */}
 												<Button size="small" data-approval-scope="session" title="允许,且本对话内该工具不再逐次确认(只对当前对话生效;刷新即清)" onClick={()=>{ allowToolForSession(x.name); resolveApprovalsByName(x.name, true, messageId); }}>本会话不再问</Button>
 												<Button size="small" data-approval-scope="always" title="允许,并把该工具加入「进阶 → 行动能力 → 按工具名放行」名单(可随时移除)" onClick={()=>{ const cur = getToolPolicy(); if(cur.allow.indexOf(x.name) < 0){ setToolPolicy({ allow: cur.allow.concat([x.name]) }); } allowToolForSession(x.name); resolveApprovalsByName(x.name, true, messageId); }}>永久放行</Button>
 												<Button size="small" data-approval-scope="skip" onClick={()=>resolveApproval(x.callId, false, messageId)}>跳过</Button>
@@ -162,7 +163,7 @@ export default function AgentActionBar({ trace, messageId, streaming, onTraceCha
 								{awaiting && pendingById[x.callId] && pendingById[x.callId].preview ? <AgentDiffPreview preview={pendingById[x.callId].preview} /> : null}
 								{elicit ? <ElicitationRow elicit={elicit} /> : null}
 								{expanded[key] ? (
-									<div className={styles.detail}>{`参数: ${safeJson(x.args)}\n结果: ${safeJson(x.content)}`}</div>
+									<div className={`${styles.detail} ${SCRIPT_KEEP_CLASS}`}>{`参数: ${safeJson(x.args)}\n结果: ${safeJson(x.content)}`}</div>
 								) : null}
 							</React.Fragment>
 						);

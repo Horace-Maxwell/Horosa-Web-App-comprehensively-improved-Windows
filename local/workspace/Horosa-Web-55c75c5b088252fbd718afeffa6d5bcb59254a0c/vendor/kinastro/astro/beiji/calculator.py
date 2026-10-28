@@ -114,7 +114,7 @@ def get_year_ganzhi(year: int, month: int = None, day: int = None) -> tuple[str,
     """
     try:
         from sxtwl import fromSolar
-        # [Q-267/T-249 裁决 2026-09-18] 帶月日時按立春(節氣年)界取年干支(同頁其餘門皆按立春界;此前取 6 月 1 日之農曆年 → 公曆 1–2 月生者錯一年);
+        # 帶月日時按立春(節氣年)界取年干支(同頁其餘門皆按立春界;此前取 6 月 1 日之農曆年 → 公曆 1–2 月生者錯一年);
         # 只給年份(舊調用)仍取 6 月 1 日之農曆年(與此前字節相同)。
         if month and day:
             d = fromSolar(int(year), int(month), int(day))

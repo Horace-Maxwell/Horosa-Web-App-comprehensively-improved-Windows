@@ -6,6 +6,13 @@ import ZWIndicator from './ZWIndicator';
 import * as ZWConst from '../../constants/ZWConst';
 import * as ZiWeiHelper from './ZiWeiHelper';
 import { parseDateParts } from '../../utils/dateStrSafe';
+import { fitSvgDesignBox } from '../../utils/svgDesignBox';
+
+// 紫微盘绘制坐标的设计下限(CSS px)。宫内星列按宫宽切、四化徽 / 小星字号随列宽变(实测最小字:520 → 2.3 px、640 → 5.7、
+// 734 → 7.9、774 → 10.4):设计尺寸要让「按设计尺寸画、不缩」时最小字已 ≥ 9 px —— 否则放大档盘一放得下就按像素画、字仍不到 9 px,
+// 盘面最小字视觉下限(utils/chartTextFloor)够不着它。780 时最小字 ≈ 10.4;1.8 档反推最小渲染宽 ≈ 0.48 × 780,中栏不够时工作区加宽。
+// 盘 ≥ 780 时不写 viewBox、按像素画(1 档常规窗口盘宽 ~976,一字不变)。
+export const ZW_DESIGN_MIN = 780;
 import { ZWEngineOptions } from './ziweiOptions';   // 手册补齐:活盘太极点
 
 class ZWChart {
@@ -41,7 +48,8 @@ class ZWChart {
 		const _bp = parseDateParts(this.chartObj.birth) || {};
 		let birthY = _bp.year;
 		let birthM = _bp.month;
-		let nongliM = this.chartObj.nongli.month;
+		// 本地历算的闰月月名自带「闰」(闰冬月 / 闰腊月),比较前去掉;历法服务给的是「冬月」+ leap 标志
+		let nongliM = `${this.chartObj.nongli.month || ''}`.replace(/^闰/, '');
 		if(birthM <= 2 && (nongliM === '腊月' || nongliM === '冬月')){
 			birthY = birthY - 1;
 		}
@@ -75,7 +83,7 @@ class ZWChart {
 
 	clickHouse(house){
 		// 活盘(WP-3):huoPan 模式下点宫=设该宫为太极点(新命宫),再点原太极点则复位;星曜地支不动、仅宫名重排。
-		// [A7] 单击双义:翻完太极点不提前 return,落穿飞化 toggle——落太极点即续飞化(宫底色三态/
+		// 单击双义:翻完太极点不提前 return,落穿飞化 toggle——落太极点即续飞化(宫底色三态/
 		// 飞化染色/三合虚线/斗君文案不再被连坐);同宫再点=太极点与飞化宫双清,对称。末尾单次 draw。
 		if(ZWEngineOptions.huoPan){
 			const idx = house && house.houseChart ? house.houseChart.houseIndex : null;
@@ -113,11 +121,11 @@ class ZWChart {
 		if(svgdom === undefined || svgdom === null){
 			return null;
 		}
-		let width = svgdom.clientWidth;
-		let height = svgdom.clientHeight;
-		if(width === 0 || height === 0){
+		if(svgdom.clientWidth === 0 || svgdom.clientHeight === 0){
 			return null;
 		}
+		// 盘小于设计下限(放大档 / 择日窄栏)时按下限绘制、viewBox 整体等比缩回 —— 宫内星列按像素切,窄盘里四化徽宽度会算成负数
+		const { width, height } = fitSvgDesignBox(svgdom, ZW_DESIGN_MIN, ZW_DESIGN_MIN);
 
 		let realW = width - this.margin * 2;
 		let realH = height - this.margin * 2;

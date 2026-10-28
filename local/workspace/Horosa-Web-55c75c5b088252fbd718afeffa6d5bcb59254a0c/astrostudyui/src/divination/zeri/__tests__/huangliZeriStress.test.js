@@ -96,7 +96,7 @@ describe('S3 随机树 fuzz', ()=>{
 	const randomLeaf = ()=>{
 		const t = types[Math.floor(rnd() * types.length)];
 		const leaf = newHuangliLeaf(t);
-		// [复审 F11] 叶参数随机化:恒默认参数=跨字段非默认组合零覆盖——随机改一个 select
+		// 叶参数随机化:恒默认参数=跨字段非默认组合零覆盖——随机改一个 select
 		// 字段值(multiselect 单值形;validate 撞墙由 compile 预检兜)
 		const spec = HUANGLI_CONDITION_TYPES[t];
 		const sf = ((spec && spec.fields) || []).filter((x)=>(x.kind === 'select' || x.kind === 'multiselect') && Array.isArray(x.options) && x.options.length);

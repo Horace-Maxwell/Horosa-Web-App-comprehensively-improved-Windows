@@ -9,9 +9,10 @@
 // dispatch、或消费面不再读这个键),这里会红 —— 而界面上你是看不出来的,那正是死开关的定义。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '../../..');
-const read = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel) => readSource(path.join(SRC, rel));
 // 判据必须剥注释:注释里出现键名不等于代码里消费了它(本仓踩过三次「grep 被自写注释骗」)。
 const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
@@ -85,5 +86,29 @@ describe('显示与样式面板:消费端在位', () => {
 	test('app model 里有 voidClassical 的默认值锚(缺省=按本座义,零回归)', () => {
 		const app = stripComments(read('models/app.js'));
 		expect(/voidClassical\s*:\s*0/.test(app)).toBe(true);
+	});
+
+	test('空亡古典义与同抽屉兄弟项一样随重启保留:存进 globalSetup,启动读回(值归一为 0 / 1)', () => {
+		window.localStorage.clear();
+		const appModel = require('../../../models/app').default;
+		const Constants = require('../../../utils/constants');
+		const st = appModel.reducers.save({ ...appModel.state }, { payload: { voidClassical: true } });
+		expect(st.voidClassical).toBe(true);
+		const saved = JSON.parse(window.localStorage.getItem(Constants.GlobalSetupKey));
+		expect(saved.voidClassical).toBe(1);
+		// 只写这一次改了的设置字段(以存储现值为底合并);同抽屉兄弟项改了照样落同一份
+		expect(saved.showOnlyRulExaltReception).toBeUndefined();
+		appModel.reducers.save({ ...st }, { payload: { showOnlyRulExaltReception: 0 } });
+		expect(JSON.parse(window.localStorage.getItem(Constants.GlobalSetupKey))).toMatchObject({ voidClassical: 1, showOnlyRulExaltReception: 0 });
+		// 启动:checkUser 第一步把 globalSetup 读回 app 状态
+		const gen = appModel.effects.checkUser.call(appModel, { payload: {} }, { call: () => ({}), put: (a) => ({ __PUT__: a }), select: () => ({}) });
+		const first = gen.next().value;
+		expect(first.__PUT__.type).toBe('save');
+		expect(first.__PUT__.payload.voidClassical).toBe(1);
+		window.localStorage.setItem(Constants.GlobalSetupKey, JSON.stringify({ ...saved, voidClassical: '1' }));
+		const gen2 = appModel.effects.checkUser.call(appModel, { payload: {} }, { call: () => ({}), put: (a) => ({ __PUT__: a }), select: () => ({}) });
+		expect(gen2.next().value.__PUT__.payload.voidClassical).toBe(1);
+		const appPref = require('../../../utils/aiTools/settingsFacets').appPrefSpec().find((x) => x.key === 'voidClassical');
+		expect(appPref && appPref.type).toBe('switch');
 	});
 });

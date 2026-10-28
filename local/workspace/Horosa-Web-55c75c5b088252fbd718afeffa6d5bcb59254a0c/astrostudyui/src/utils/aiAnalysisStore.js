@@ -1,3 +1,4 @@
+import { parseDateTimeMs } from './dateTimeParse';
 import { safeLocalStorageSet } from './safeStorage';
 import {
 	getProviderDefaultChatModels,
@@ -8,7 +9,7 @@ import {
 import { contextCachePruneEnabled } from './perfFlags';
 import { encryptSecretText, decryptSecretText, isEncryptedSecret, canEncryptSecrets } from './secureKeyStore';
 
-// [P1-S1] 备份排除集:context_cache 是「按源+模式」的派生缓存(挂载快照原文,单库可达数十 MB),
+// 备份排除集:context_cache 是「按源+模式」的派生缓存(挂载快照原文,单库可达数十 MB),
 // 命中判据是 sourceUpdatedAt,换机/恢复后按需重建即可——入包只会让备份体积暴涨且恢复后立刻失效。
 // 消费方:AI 工作区导出/恢复(AIAnalysisMain)、统一备份(unifiedBackup);两处共用本集合。
 export const AI_ANALYSIS_SCHEMA_VERSION = 5;
@@ -27,7 +28,7 @@ export const AI_ANALYSIS_STORES = {
 	messages: 'messages',
 	contextCache: 'context_cache',
 	workspaceMeta: 'workspace_meta',
-	// [P1 任务中心] 任务实体/通知/自动规则/集成档案(联网检索等第三方 key;apiKey 与 provider_profiles 同一加密钩)
+	// 任务实体/通知/自动规则/集成档案(联网检索等第三方 key;apiKey 与 provider_profiles 同一加密钩)
 	agentTasks: 'agent_tasks',
 	agentNotices: 'agent_notices',
 	automationRules: 'automation_rules',
@@ -88,7 +89,7 @@ try{
 		// 而不是自己直写 IndexedDB —— 直写绕过应用写路径,量到的东西跟线上行为无关。
 		window.__horosaAiStoreDebug = {
 			prune: pruneContextCache, count: countStoreRecords, clear: clearStore, stats: getIdbStatsForDebug,
-			// [M7] 任务表裁剪走真函数(惰性载入任务层,避免存储层反向吃进任务模块)
+			// 任务表裁剪走真函数(惰性载入任务层,避免存储层反向吃进任务模块)
 			pruneTasks: (o)=>import('./aiAgent/tasks/taskStore').then((m)=>m.pruneTasks(o)),
 		};
 	}
@@ -96,8 +97,26 @@ try{
 	// 调试钩子缺席无害
 }
 
+// [无头] 没有 IndexedDB 时的内存回退可接一个落盘钩子 globalThis.__HOROSA_HEADLESS_STORE__ = { load(name) → [[id, 记录]…] | null, save(name, entries) }:
+// 只有无头运行时(Node 里跑工具层,要跨进程留住对话 / 资料 / 任务 / 接口档案)会装它;浏览器与桌面永远走 IndexedDB,不经过这里。
+function makeMemoryMap(storeName){
+	const hook = typeof globalThis !== 'undefined' ? globalThis.__HOROSA_HEADLESS_STORE__ : null;
+	if(!hook || typeof hook.load !== 'function' || typeof hook.save !== 'function'){ return new Map(); }
+	let initial = null;
+	try{ initial = hook.load(storeName); }catch(e){ initial = null; }
+	const m = new Map(Array.isArray(initial) ? initial : []);
+	const flush = ()=>{ try{ hook.save(storeName, Array.from(m.entries())); }catch(e){ /* 落盘失败不反噬内存态 */ } };
+	const set = m.set.bind(m);
+	const del = m.delete.bind(m);
+	const clr = m.clear.bind(m);
+	m.set = (k, v)=>{ set(k, v); flush(); return m; };
+	m.delete = (k)=>{ const r = del(k); flush(); return r; };
+	m.clear = ()=>{ clr(); flush(); };
+	return m;
+}
+
 Object.keys(AI_ANALYSIS_STORES).forEach((key)=>{
-	MEMORY_DB.set(AI_ANALYSIS_STORES[key], new Map());
+	MEMORY_DB.set(AI_ANALYSIS_STORES[key], makeMemoryMap(AI_ANALYSIS_STORES[key]));
 });
 
 let openDbPromise = null;
@@ -269,7 +288,7 @@ export function migrateRecord(storeName, record){
 			: normalizeArray(next.availableModels || next.manualModels).length
 				? normalizeArray(next.availableModels || next.manualModels)
 				: getProviderDefaultChatModels(next.providerType);
-		// [Q-060/AW-16] 只在**字段缺席**时补预设。此前「长度为 0 就回填」让「清空 Embedding 模型列表」永远存不下去
+		// 只在**字段缺席**时补预设。此前「长度为 0 就回填」让「清空 Embedding 模型列表」永远存不下去
 		// (预设非空的三家),用户关不掉向量检索。旧档没有这个字段时仍照补 = 迁移语义不变。
 		next.embeddingModelIds = next.embeddingModelIds === undefined || next.embeddingModelIds === null
 			? getProviderDefaultEmbeddingModels(next.providerType)
@@ -396,12 +415,100 @@ export function __applySchemaUpgradeForTests(db, tx){
 	return applySchemaUpgrade(db, tx);
 }
 
+// 打开失败(非版本问题)后的退避状态:这次及退避期内的访问走内存回退,过了退避期的下一次访问重新打开;
+// 失败次数越多退避越长(0.5s 起翻倍,封顶 30s)。重新打开成功 → 先把内存回退期间新建的条目并回库里,再交出句柄。
+const OPEN_DB_BACKOFF = { failures: 0, until: 0 };
+const OPEN_DB_RETRY_BASE_MS = 500;
+const OPEN_DB_RETRY_MAX_MS = 30000;
+
+// 内存回退期间经 mergeStoreRecord 写下的单例文档:记下合并函数,库重开并回时对库里现存那份重放(见 mergeStoreRecord)。
+// storeName -> Map(id -> [merger…]);只在「有 IndexedDB、只是这次没打开」时记(没有 IndexedDB 的环境内存就是唯一存储)
+const PENDING_MERGES = new Map();
+const PENDING_MERGES_PER_ID_MAX = 32;
+function rememberPendingMerge(storeName, id, merger){
+	if(!PENDING_MERGES.has(storeName)){ PENDING_MERGES.set(storeName, new Map()); }
+	const byId = PENDING_MERGES.get(storeName);
+	const list = byId.get(id) || [];
+	list.push(merger);
+	while(list.length > PENDING_MERGES_PER_ID_MAX){ list.shift(); }
+	byId.set(id, list);
+}
+function pendingMergesOf(storeName, id){
+	const byId = PENDING_MERGES.get(storeName);
+	return byId ? (byId.get(id) || null) : null;
+}
+function dropPendingMerges(storeName, id){
+	const byId = PENDING_MERGES.get(storeName);
+	if(!byId){ return; }
+	if(id === undefined){ PENDING_MERGES.delete(storeName); return; }
+	byId.delete(id);
+}
+// 把一串合并函数依次作用在 cur 上(cur 为 null = 库里没有),回最终版本;某个回 null = 这一步不写
+function applyMergers(storeName, id, cur, mergers){
+	let out = cur;
+	mergers.forEach((merger)=>{
+		const next = merger(out ? clonePlain(out) : null);
+		if(next && typeof next === 'object'){
+			out = migrateRecord(storeName, { ...next, id, updatedAt: next.updatedAt || nowIso() });
+		}
+	});
+	return out;
+}
+
+// 内存回退期间写下的条目并回刚打开的库:普通写入只补库里没有的 id(库里那份是之前真落盘的;回退期看不到库里的内容,
+// 同 id 的多半是读不到库时重建的缺省值,不拿它盖真数据);经 mergeStoreRecord 写的单例文档按记下的合并函数
+// 对库里现存那份重放(回退期改的那几项进库、库里回退期没读到的照样留着)。并回成功的店清掉内存那份;并不进的留在内存、不报错
+function settleMemoryFallbackInto(db){
+	const names = Array.from(MEMORY_DB.keys()).filter((n)=>{
+		const m = MEMORY_DB.get(n);
+		return m && m.size && db.objectStoreNames.contains(n);
+	});
+	return Promise.all(names.map((storeName)=>new Promise((resolve)=>{
+		const mem = MEMORY_DB.get(storeName);
+		const items = Array.from(mem.values());
+		let tx = null;
+		try{ tx = db.transaction(storeName, 'readwrite'); }catch(e){ resolve(); return; }
+		const store = tx.objectStore(storeName);
+		const swallow = (evt)=>{ if(evt && typeof evt.preventDefault === 'function'){ evt.preventDefault(); } if(evt && typeof evt.stopPropagation === 'function'){ evt.stopPropagation(); } };
+		items.forEach((item)=>{
+			try{
+				const mergers = item && item.id !== undefined ? pendingMergesOf(storeName, item.id) : null;
+				if(mergers && mergers.length){
+					const getReq = store.get(item.id);
+					getReq.onsuccess = ()=>{
+						let rec = null;
+						try{ rec = applyMergers(storeName, item.id, getReq.result ? migrateRecord(storeName, getReq.result) : null, mergers); }catch(e){ rec = null; }
+						if(rec){
+							try{ const putReq = store.put(rec); putReq.onerror = swallow; }catch(e){ /* 形状不对:跳过 */ }
+						}
+					};
+					getReq.onerror = swallow;
+					return;
+				}
+				const req = store.add(item);
+				req.onerror = swallow;
+			}catch(e){ /* 这一条形状不对:跳过 */ }
+		});
+		tx.oncomplete = ()=>{
+			mem.clear();
+			dropPendingMerges(storeName);
+			try{ notifyStoreChanged(storeName, null, 'bulk', { ids: items.map((x)=>x && x.id), count: items.length }); }catch(e){ /* noop */ }
+			resolve();
+		};
+		tx.onerror = ()=>resolve();
+		tx.onabort = ()=>resolve();
+	})));
+}
+
 function openDb(){
 	if(!canUseIndexedDb()){
 		return Promise.resolve(null);
 	}
 	if(openDbPromise){
 		return openDbPromise;
+	}
+	if(Date.now() < OPEN_DB_BACKOFF.until){
+		return Promise.resolve(null);   // 刚打开失败、还在退避期:本次走内存回退
 	}
 	openDbPromise = new Promise((resolve, reject)=>{
 		const req = window.indexedDB.open(DB_NAME, DB_VERSION);
@@ -428,31 +535,93 @@ function openDb(){
 			reject(req.error);
 		};
 	});
-	return openDbPromise.catch((err)=>{
-		// [D61] 打不开 IndexedDB(典型:同名库被更新版本升过 → VersionError)此前静默落内存回退,工作区显示为空无解释;
-		//   现记健康态 + 派 DOM 事件,主页顶部横幅告知「内存模式 / 由更新版本创建」
+	openDbPromise = openDbPromise.then(async (db)=>{
+		if(OPEN_DB_BACKOFF.failures > 0){
+			// 之前打开失败、这次打开成功:内存回退期间新建的先并回库里,再解除健康态
+			try{ await settleMemoryFallbackInto(db); }catch(e){ /* 并不回:留在内存 */ }
+			OPEN_DB_BACKOFF.failures = 0;
+			OPEN_DB_BACKOFF.until = 0;
+			markStoreRecovered();
+		}
+		return db;
+	}, (err)=>{
+		// 打不开 IndexedDB:记健康态 + 派 DOM 事件,主页顶部横幅告知。
+		// 库被更新版本升过(VersionError)→ 重试无益,本次运行钉死在内存模式;
+		// 其它失败(进程偶发 UnknownError / 磁盘瞬时满 / 开机抢锁)→ 不钉死:本次走内存回退,退避后下一次访问重新打开
+		// (此前一次失败就整次会话锁成内存模式,新建的对话 / 报告退出即丢)。
 		markStoreDegraded(err);
-		openDbPromise = Promise.resolve(null);
-		return openDbPromise;
+		if(err && err.name === 'VersionError'){
+			openDbPromise = Promise.resolve(null);
+			return null;
+		}
+		OPEN_DB_BACKOFF.failures += 1;
+		OPEN_DB_BACKOFF.until = Date.now() + Math.min(OPEN_DB_RETRY_MAX_MS, OPEN_DB_RETRY_BASE_MS * (2 ** (OPEN_DB_BACKOFF.failures - 1)));
+		openDbPromise = null;
+		return null;
 	});
+	return openDbPromise;
 }
 
 export const AI_STORE_DEGRADED_EVENT = 'horosa:ai-store-degraded';
-const STORE_HEALTH = { degraded: false, reason: '', message: '', at: '' };
-function markStoreDegraded(err){
-	const name = err && err.name ? `${err.name}` : '';
-	STORE_HEALTH.degraded = true;
-	STORE_HEALTH.reason = name === 'VersionError' ? 'version' : 'open-failed';
-	STORE_HEALTH.message = err && err.message ? `${err.message}` : name || 'IndexedDB open failed';
-	STORE_HEALTH.at = nowIso();
+// retrying = 打开失败但还会重试(不是版本问题);恢复后 degraded 回 false 并同样派事件(横幅据此收起)
+const STORE_HEALTH = { degraded: false, reason: '', message: '', at: '', retrying: false };
+function fireStoreHealth(){
 	try{
 		if(typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function'){
 			window.dispatchEvent(new CustomEvent(AI_STORE_DEGRADED_EVENT, { detail: { ...STORE_HEALTH } }));
 		}
 	}catch(_e){ /* noop */ }
 }
+function markStoreDegraded(err){
+	const name = err && err.name ? `${err.name}` : '';
+	const wasDegraded = STORE_HEALTH.degraded;
+	const prevReason = STORE_HEALTH.reason;
+	STORE_HEALTH.degraded = true;
+	STORE_HEALTH.reason = name === 'VersionError' ? 'version' : 'open-failed';
+	STORE_HEALTH.retrying = STORE_HEALTH.reason !== 'version';
+	STORE_HEALTH.message = err && err.message ? `${err.message}` : name || 'IndexedDB open failed';
+	STORE_HEALTH.at = nowIso();
+	if(!wasDegraded || prevReason !== STORE_HEALTH.reason){ fireStoreHealth(); }   // 退避重试一再失败不刷屏
+}
+// 库在内存回退之后重新打开(内存期的条目已并回):页面在回退期读到的列表 / 单例是空的、不是库里的真值,
+// 收到这个事件要重读一遍(并把内存态按各自的合并规则并进去),不能拿回退期读到的那份当底版整份写回
+export const AI_STORE_RECOVERED_EVENT = 'horosa:ai-store-recovered';
+function markStoreRecovered(){
+	STORE_HEALTH.degraded = false;
+	STORE_HEALTH.reason = '';
+	STORE_HEALTH.message = '';
+	STORE_HEALTH.retrying = false;
+	STORE_HEALTH.at = nowIso();
+	fireStoreHealth();
+	try{
+		if(typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function'){
+			window.dispatchEvent(new CustomEvent(AI_STORE_RECOVERED_EVENT, { detail: { at: STORE_HEALTH.at } }));
+		}
+	}catch(_e){ /* noop */ }
+}
+// 有破坏性语义的整体操作(恢复工作区 / 整店清空)在库读不开时不许落到内存里冒充成功:
+// 内存里清空、写入只在这次运行有效,库里的旧数据原样留着,重开后以为恢复了、其实没有。
+export const AI_STORE_UNAVAILABLE_ERROR = 'ai-store.unavailable';
+export const AI_STORE_UNAVAILABLE_MESSAGE = 'AI 数据库暂时打不开,稍后再试 —— 现有数据未改动';
+function storeUnavailableError(){
+	const e = new Error(AI_STORE_UNAVAILABLE_ERROR);
+	e.code = AI_STORE_UNAVAILABLE_ERROR;
+	return e;
+}
+// 先试开一次库(过了退避期会真去开);仍是内存回退(健康态 degraded)→ 抛 ai-store.unavailable
+export async function assertAiStoreDurable(){
+	if(!canUseIndexedDb()){ return true; }   // 没有 IndexedDB 的环境:内存就是唯一存储,不算降级
+	const h = await probeAiStoreHealth();
+	if(h && h.degraded){ throw storeUnavailableError(); }
+	return true;
+}
 export function getAiStoreHealth(){ return { ...STORE_HEALTH }; }
-export function __resetStoreHealthForTests(){ STORE_HEALTH.degraded = false; STORE_HEALTH.reason = ''; STORE_HEALTH.message = ''; STORE_HEALTH.at = ''; }
+// 先试开一次库再报健康态(备份 / 恢复写入前用:健康态只在第一次真访问库时才定下来,没访问过时读到的总是「健康」)
+export async function probeAiStoreHealth(){
+	try{ await openDb(); }catch(_e){ /* openDb 失败已记健康态 */ }
+	return getAiStoreHealth();
+}
+export function __resetStoreHealthForTests(){ PENDING_MERGES.clear(); STORE_HEALTH.degraded = false; STORE_HEALTH.reason = ''; STORE_HEALTH.message = ''; STORE_HEALTH.at = ''; STORE_HEALTH.retrying = false; OPEN_DB_BACKOFF.failures = 0; OPEN_DB_BACKOFF.until = 0; }
 
 async function withStore(storeName, mode, handler){
 	const db = await openDb();
@@ -468,8 +637,20 @@ async function withStore(storeName, mode, handler){
 		const tx = db.transaction(storeName, mode);
 		const store = tx.objectStore(storeName);
 		let settled = false;
+		// 写事务:请求成功只说明进了事务,提交阶段仍可能中止(磁盘满 / 提交时 I/O 失败)—— 等事务提交完成才报成功,
+		// 中止照实报错。此前请求成功就报成功,之后的中止被吞,对话 / 资料报保存成功、实际没落盘。读事务照旧请求成功即返回。
+		const deferToCommit = mode === 'readwrite';
+		let ready = false;
+		let readyValue = null;
 		const finish = (value, isError = false)=>{
 			if(settled){
+				return;
+			}
+			if(!isError && deferToCommit){
+				if(!ready){
+					ready = true;
+					readyValue = value;
+				}
 				return;
 			}
 			settled = true;
@@ -481,7 +662,8 @@ async function withStore(storeName, mode, handler){
 		};
 		tx.oncomplete = ()=>{
 			if(!settled){
-				resolve(null);
+				settled = true;
+				resolve(ready ? readyValue : null);
 			}
 		};
 		tx.onerror = ()=>{
@@ -500,12 +682,12 @@ async function withStore(storeName, mode, handler){
 
 function memoryStore(storeName){
 	if(!MEMORY_DB.has(storeName)){
-		MEMORY_DB.set(storeName, new Map());
+		MEMORY_DB.set(storeName, makeMemoryMap(storeName));
 	}
 	return MEMORY_DB.get(storeName);
 }
 
-// [G1] providerProfiles.apiKey 静态加密收口:所有读写都过本层——
+// providerProfiles.apiKey 静态加密收口:所有读写都过本层——
 //  · 写入:桥可用即密文落库(格式 aesgcm.v1:..),dev 无桥原样明文=零回归;
 //  · 读出:密文解回明文只驻内存;解不开(换机器/钥匙串被清)→ 置空 + apiKeyDecryptFailed
 //    标记(UI 提示重填),绝不让密文串流进请求头;
@@ -515,7 +697,7 @@ const SECRET_STORES = Object.freeze([AI_ANALYSIS_STORES.providerProfiles, AI_ANA
 function isSecretStore(storeName){ return SECRET_STORES.indexOf(storeName) >= 0; }
 function secretPrefixOf(storeName){ return storeName === AI_ANALYSIS_STORES.integrationProfiles ? 'integration' : 'provider'; }
 
-// [Q-059/M-79] 「鉴权定制(额外请求头)」的值(自建网关的 Authorization / x-api-key 等令牌)与 apiKey 同走静态加密:
+// 「鉴权定制(额外请求头)」的值(自建网关的 Authorization / x-api-key 等令牌)与 apiKey 同走静态加密:
 //   落库密文、读出解回明文只驻内存;解不开 → 置空 + extraHeadersDecryptFailed 标记(UI 提示重填)。
 //   仅 provider_profiles 有 providerOptions.extraHeaders;值非字符串/空串原样。
 function extraHeadersOf(rec){
@@ -566,7 +748,7 @@ async function decryptProfileRecord(rec, storeName = AI_ANALYSIS_STORES.provider
 	const ehRes = await decryptExtraHeaders(rec);
 	let out = ehRes.rec;
 	if(ehRes.failed){
-		// [Q-059/M-82] 解不开的密文留在内存态(不落库、不进备份),写路径未重填时原样保留
+		// 解不开的密文留在内存态(不落库、不进备份),写路径未重填时原样保留
 		out = { ...out, extraHeadersDecryptFailed: true, extraHeadersCipherKept: ehRes.kept };
 	}
 	if(!isEncryptedSecret(stored)){
@@ -578,14 +760,14 @@ async function decryptProfileRecord(rec, storeName = AI_ANALYSIS_STORES.provider
 	}
 	const plain = await decryptSecretText(stored);
 	if(plain === null){
-		// [Q-059/M-82] 此前只置空 + 标记:该会话里任何写(连通性诊断写 lastDiagnostics / 打开编辑直接确定)都把
+		// 此前只置空 + 标记:该会话里任何写(连通性诊断写 lastDiagnostics / 打开编辑直接确定)都把
 		//   空串「加密」后覆盖库里本可在下次会话解开的密文。现把原密文留在内存态 apiKeyCipherKept,写路径未重填时原样保留。
 		return { ...out, apiKey: '', apiKeyDecryptFailed: true, apiKeyCipherKept: stored };
 	}
 	return { ...out, apiKey: plain };
 }
 
-// [首开反卡 2026-08-09] 分批游标全量读:WKWebView(Mac APP 的 WebKit)对大 value store 的一次性
+// 分批游标全量读:WKWebView(Mac APP 的 WebKit)对大 value store 的一次性
 // getAll 反序列化极慢且长期占住主线程(Chromium 无感 → 「preview 秒开 / APP 全页转圈很久」的引擎面根因)。
 // 每批 batch 条一个独立只读事务,批间 setTimeout(0) 让出主线程 —— 总量不变,首帧与交互不再被冻。
 // 返回值与 listStoreRecords 逐条同构(migrateRecord + provider_profiles 自动解密),消费方零改动。
@@ -685,9 +867,9 @@ export async function getStoreRecord(storeName, id){
 	return record;
 }
 
-// [2026-09-08] 库写入后的 DOM 事件(零 import 消费:本机 MCP 桥据 templates 变更推 prompts/list_changed);派发永不抛、无 DOM 环境静默
+// 库写入后的 DOM 事件(零 import 消费:本机 MCP 桥据 templates 变更推 prompts/list_changed);派发永不抛、无 DOM 环境静默
 export const AI_STORE_CHANGED_EVENT = 'horosa:ai-store-changed';
-// [D31] 批量写(bulkPut)/整店清空(clear)/批量删(deleteMany)/条件删(deleteWhere)各派**一次**带 ids/count 的事件:
+// 批量写(bulkPut)/整店清空(clear)/批量删(deleteMany)/条件删(deleteWhere)各派**一次**带 ids/count 的事件:
 // 此前 bulkPut 与 clear 不派(工作区恢复 = clear+bulkPut ⇒ 外部客户端 prompts 列表陈旧)、deleteMany 逐 id 派 N 次。
 function notifyStoreChanged(store, id, op, extra){
 	try{
@@ -707,12 +889,12 @@ export async function putStoreRecord(storeName, record, prefix = storeName){
 	if(isSecretStore(storeName)){
 		// 内存态标记/留存密文不落库
 		const { apiKeyDecryptFailed, apiKeyCipherKept, extraHeadersDecryptFailed, extraHeadersCipherKept, ...restRec } = next;
-		// [Q-059/M-82] 解密失败态且未重填(仍为空串)→ 保留原密文,不用空串覆盖;重填了新 Key → 正常加密
+		// 解密失败态且未重填(仍为空串)→ 保留原密文,不用空串覆盖;重填了新 Key → 正常加密
 		const cipher = (apiKeyDecryptFailed && apiKeyCipherKept && !`${next.apiKey || ''}`)
 			? apiKeyCipherKept
 			: await encryptSecretText(`${next.apiKey || ''}`);
 		let persistRec = { ...restRec, apiKey: cipher };
-		// [Q-059/M-79] 额外请求头值加密;[M-82] 解不开且未重填的头值保留原密文
+		// 额外请求头值加密;解不开且未重填的头值保留原密文
 		if(extraHeadersDecryptFailed && extraHeadersCipherKept && typeof extraHeadersCipherKept === 'object'){
 			const eh = extraHeadersOf(persistRec);
 			if(eh){
@@ -789,6 +971,7 @@ export async function deleteStoreRecord(storeName, id){
 	const r = await withStore(storeName, 'readwrite', (store, finish)=>{
 		if(!store){
 			memoryStore(storeName).delete(id);
+			dropPendingMerges(storeName, id);
 			finish(true);
 			return;
 		}
@@ -890,7 +1073,7 @@ export async function readByIndex(storeName, indexName, value){
 	return list;
 }
 
-// [压测二轮·K4] 沿二级索引游标读:按索引序(direction 'next'|'prev')逐条取、predicate 过滤、limit 到手即停——
+// 沿二级索引游标读:按索引序(direction 'next'|'prev')逐条取、predicate 过滤、limit 到手即停——
 // 「取最新 20 条通知」不再整表 getAll + 全量反序列化。索引缺席 → 退回 getAll + 按 keyPath 排序(计 fallback);
 // 内存回退径按 keyPath 排序同径。返回值与 listStoreRecords 逐条同构(migrateRecord + 密钥 store 自动解密)。
 export async function listStoreRecordsByIndexCursor(storeName, indexName, options = {}){
@@ -943,7 +1126,7 @@ export async function listStoreRecordsByIndexCursor(storeName, indexName, option
 	return list;
 }
 
-// [压测二轮·S5] 单事务「比较并交换」:同一 readwrite 事务内 get → predicate → put。IndexedDB 同 store 的 readwrite 事务
+// 单事务「比较并交换」:同一 readwrite 事务内 get → predicate → put。IndexedDB 同 store 的 readwrite 事务
 // 串行执行(内存回退径同步执行),因此并发写同一条只有一个赢家。predicate(cur) 为假 → { ok:false, reason:'predicate', record:cur } 不写;
 // 记录不存在 → reason:'not-found'。updater(cur) 回完整下一版(id 由本层钉死)。密钥 store 不支持(它们走加密写路径)。
 export async function updateStoreRecordIf(storeName, id, predicate, updater){
@@ -979,7 +1162,47 @@ export async function updateStoreRecordIf(storeName, id, predicate, updater){
 	});
 }
 
-// [压测二轮·K3] 一次事务批量删(裁掉几千条终态任务不再每条一个事务);回实际提交的 id 数。内存回退同径。
+// 单例文档「库内读改写」单一入口:同一 readwrite 事务里读出库里现存那份 → merger(cur | null) → put。
+// 页面手里那份可能是库读不开时(内存回退)读到的空表、或读失败当成的空表,整份 put 会把库里没读到的内容盖掉;
+// merger 拿到的永远是库里现存那份,只把这次的改动并进去。merger 必须只依赖 cur 与调用方这次传进来的改动(可重放):
+// 内存回退期间调用时对内存那份合并、并记下 merger,库重开并回时对库里现存那份再重放一遍。回 null / undefined = 不写。
+// 密钥 store 不支持(它们走加密写路径)。
+export async function mergeStoreRecord(storeName, id, merger){
+	if(isSecretStore(storeName)){ throw new Error(`mergeStoreRecord 不支持密钥 store: ${storeName}`); }
+	if(id === undefined || id === null || id === ''){ throw new Error('mergeStoreRecord 需要固定 id'); }
+	if(typeof merger !== 'function'){ throw new Error('mergeStoreRecord 需要合并函数'); }
+	const r = await withStore(storeName, 'readwrite', (store, finish)=>{
+		if(!store){
+			const mem = memoryStore(storeName);
+			const raw = mem.get(id);
+			const cur = raw ? migrateRecord(storeName, clonePlain(raw)) : null;
+			let rec = null;
+			try{ rec = applyMergers(storeName, id, cur, [merger]); }catch(e){ finish(e, true); return; }
+			if(rec && rec !== cur){
+				mem.set(id, clonePlain(rec));
+				if(canUseIndexedDb()){ rememberPendingMerge(storeName, id, merger); }
+			}
+			finish(rec || null);
+			return;
+		}
+		const getReq = store.get(id);
+		getReq.onsuccess = ()=>{
+			const cur = getReq.result ? migrateRecord(storeName, getReq.result) : null;
+			let rec = null;
+			try{ rec = applyMergers(storeName, id, cur, [merger]); }catch(e){ finish(e, true); return; }
+			if(!rec || rec === cur){ finish(cur); return; }
+			IDB_STATS.put += 1;
+			const putReq = store.put(rec);
+			putReq.onsuccess = ()=>{ finish(rec); };
+			putReq.onerror = ()=>{ finish(putReq.error, true); };
+		};
+		getReq.onerror = ()=>{ finish(getReq.error, true); };
+	});
+	notifyStoreChanged(storeName, id, 'put');
+	return r;
+}
+
+// 一次事务批量删(裁掉几千条终态任务不再每条一个事务);回实际提交的 id 数。内存回退同径。
 export async function deleteStoreRecords(storeName, ids){
 	const list = normalizeArray(ids).filter((x)=>x !== undefined && x !== null);
 	if(!list.length){ return 0; }
@@ -1004,6 +1227,8 @@ export async function deleteStoreRecords(storeName, ids){
 }
 
 export async function clearStore(storeName){
+	// 派生缓存清了无害;其余店库读不开时拒绝(清的只是内存,库里原样,见 assertAiStoreDurable)
+	if(storeName !== AI_ANALYSIS_STORES.contextCache){ await assertAiStoreDurable(); }
 	const out = await clearStoreRaw(storeName);
 	notifyStoreChanged(storeName, null, 'clear');
 	return out;
@@ -1012,6 +1237,7 @@ function clearStoreRaw(storeName){
 	return withStore(storeName, 'readwrite', (store, finish)=>{
 		if(!store){
 			memoryStore(storeName).clear();
+			dropPendingMerges(storeName);
 			finish(true);
 			return;
 		}
@@ -1077,8 +1303,8 @@ export async function listConversationMessages(conversationId){
 		try{ await putStoreRecord(AI_ANALYSIS_STORES.messages, repaired[i], 'msg'); }catch(e){ /* 只影响下次载入 */ }
 	}
 	return out.sort((a, b)=>{
-		const ta = Date.parse(a.createdAt || '') || 0;
-		const tb = Date.parse(b.createdAt || '') || 0;
+		const ta = parseDateTimeMs(a.createdAt || '') || 0;
+		const tb = parseDateTimeMs(b.createdAt || '') || 0;
 		return ta - tb;
 	});
 }
@@ -1133,7 +1359,7 @@ export function pruneContextCache(options = {}){
 	}
 	const max = Math.max(0, Number(options.max) || CONTEXT_CACHE_MAX_ENTRIES);
 	const storeName = AI_ANALYSIS_STORES.contextCache;
-	const updatedAtMs = (rec)=>Date.parse((rec && rec.updatedAt) || '') || 0;
+	const updatedAtMs = (rec)=>parseDateTimeMs((rec && rec.updatedAt) || '') || 0;
 	pruneContextCachePromise = withStore(storeName, 'readwrite', (store, finish)=>{
 		if(!store){
 			const mem = memoryStore(storeName);
@@ -1304,7 +1530,7 @@ export function saveUiPrefs(next){
 }
 
 export function buildTimestampLabel(iso){
-	const time = new Date(iso || Date.now());
+	const time = new Date(parseDateTimeMs(iso || Date.now()));
 	if(Number.isNaN(time.getTime())){
 		return '';
 	}

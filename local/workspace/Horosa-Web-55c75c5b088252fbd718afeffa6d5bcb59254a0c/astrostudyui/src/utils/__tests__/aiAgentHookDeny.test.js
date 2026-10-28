@@ -1,4 +1,4 @@
-// [批二④] hooks 否决合同(借鉴 Claude Code PreToolUse):tool.before 规则可在工具执行前同步否决 → E_HOOK_DENIED 零写入;
+// hooks 否决合同:tool.before 规则可在工具执行前同步否决 → E_HOOK_DENIED 零写入;
 // 自动化总开关关 / 规则停用 / 工具名不匹配 / 事件不是 tool.before → 一律不否决(缺省=现状)。
 import { registerBuiltinTools } from '../aiTools';
 import { runTool, __resetToolsForTests } from '../aiTools/registry';
@@ -61,7 +61,7 @@ it('判别力:自动化关 / 规则停用 / 事件不是 tool.before / 删除规
 	await saveRule({ id: 'r-deny', name: '禁建档', event: 'tool.before', enabled: false, match: { toolName: 'create_chart_record' }, actions: [{ type: 'deny' }], cooldownMs: 0 });
 	await refreshRulesCache();
 	expect(vetoDecision({ event: 'tool.before', payload: { toolName: 'create_chart_record' } })).toBe(null);
-	// [Q-294/M-109·AR-21] deny × 非 tool.before 是永不执行的硬组合 → 保存即拒(此前存得进去、否决器也不认)
+	// deny × 非 tool.before 是永不执行的硬组合 → 保存即拒(此前存得进去、否决器也不认)
 	await expect(saveRule({ id: 'r-after', name: '事后', event: 'tool.after', enabled: true, match: { toolName: 'create_chart_record' }, actions: [{ type: 'deny' }], cooldownMs: 0 })).rejects.toThrow(/拒绝执行/);
 	await expect(saveRule({ id: 'r-before-sel', name: '前置选源', event: 'tool.before', enabled: true, match: {}, actions: [{ type: 'select-source' }], cooldownMs: 0 })).rejects.toThrow(/工具执行前/);
 	await refreshRulesCache();

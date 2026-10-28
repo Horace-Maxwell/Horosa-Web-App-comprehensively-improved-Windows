@@ -31,15 +31,25 @@ export function currentAppearance(){
     return document.documentElement.getAttribute('data-horosa-appearance') === APPEARANCE_DARK ? APPEARANCE_DARK : APPEARANCE_LIGHT;
 }
 
+// 盘面主题指纹:暗色 = 'dark';亮色带浅色配色档('light' = 古典宣纸 / 'light:classic' = 经典白)。
+// 暗色下配色档被暗色变量块整块覆盖、看不出差别,不进指纹。读 CSS 变量烘焙颜色的盘(cssVar(...) 读成字面量画上去)
+// 在配色档变化时也要重画 —— 订阅(subscribeAppearance)与绘制签名(chartDrawGuard.buildChartDrawSig)都按它比
+export function currentChartThemeKey(){
+    const a = currentAppearance();
+    if(a === APPEARANCE_DARK){ return APPEARANCE_DARK; }
+    return currentLightFlavor() === LIGHT_FLAVOR_CLASSIC ? `${APPEARANCE_LIGHT}:${LIGHT_FLAVOR_CLASSIC}` : APPEARANCE_LIGHT;
+}
+
 // 订阅「外观已应用」:先听广播(应用路径,调色板已就位),再兜底观察根属性(测试 / 别的窗口 / 直改属性);
-// 同一帧内多信号合并成一次回调,且只在实际外观值变化时回调。回 detach。
+// 明暗与浅色配色档(宣纸 / 经典白)两者任一变化都算 —— 同一帧内多信号合并成一次回调,且只在主题指纹
+// (currentChartThemeKey)实际变化时回调,回调参数仍是明暗(light / dark)。回 detach。
 export function subscribeAppearance(fn){
     if(typeof fn !== 'function' || typeof window === 'undefined' || typeof document === 'undefined'){
         return ()=>{};
     }
     let detached = false;
     let pending = false;
-    let last = currentAppearance();
+    let last = currentChartThemeKey();
     const schedule = (typeof requestAnimationFrame === 'function') ? requestAnimationFrame : (cb)=>setTimeout(cb, 16);
     const kick = ()=>{
         if(detached || pending){ return; }
@@ -47,23 +57,25 @@ export function subscribeAppearance(fn){
         schedule(()=>{
             pending = false;
             if(detached){ return; }
-            const now = currentAppearance();
+            const now = currentChartThemeKey();
             if(now === last){ return; }
             last = now;
-            try{ fn(now); }catch(e){ /* 订阅方重画失败不上抛:下一次真实更新仍会画 */ }
+            try{ fn(currentAppearance()); }catch(e){ /* 订阅方重画失败不上抛:下一次真实更新仍会画 */ }
         });
     };
     window.addEventListener(APPEARANCE_APPLIED_EVENT, kick);
+    window.addEventListener(LIGHT_FLAVOR_APPLIED_EVENT, kick);
     let observer = null;
     if(typeof MutationObserver !== 'undefined' && document.documentElement){
         try{
             observer = new MutationObserver(kick);
-            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-horosa-appearance'] });
+            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-horosa-appearance', 'data-horosa-light-flavor'] });
         }catch(e){ observer = null; }
     }
     return ()=>{
         detached = true;
         window.removeEventListener(APPEARANCE_APPLIED_EVENT, kick);
+        window.removeEventListener(LIGHT_FLAVOR_APPLIED_EVENT, kick);
         if(observer){ try{ observer.disconnect(); }catch(e){ /* noop */ } observer = null; }
     };
 }
@@ -152,7 +164,11 @@ export function getStoredLightFlavor(){
     }catch(_){ return LIGHT_FLAVOR_PAPER; }
 }
 
-export function applyLightFlavorToDocument(flavor){
+// 浅色风味应用到页面之后广播(页头按钮的提示文字据此跟上;别的窗口改了也走这里)
+export const LIGHT_FLAVOR_APPLIED_EVENT = 'horosa:light-flavor-applied';
+
+// 只改页面属性、不写存储(别的窗口改了设置时跟随用 —— 回写会与那个窗口互相触发)
+export function applyLightFlavorAttribute(flavor){
     if(typeof document === 'undefined'){ return; }
     const f = normalizeLightFlavor(flavor);
     const root = document.documentElement;
@@ -161,8 +177,43 @@ export function applyLightFlavorToDocument(flavor){
     }else{
         root.removeAttribute('data-horosa-light-flavor'); // paper=默认块,无属性即宣纸
     }
+    try{
+        if(typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function'){
+            window.dispatchEvent(new CustomEvent(LIGHT_FLAVOR_APPLIED_EVENT, { detail: { flavor: f } }));
+        }
+    }catch(e){ /* noop */ }
+}
+
+// 页面上现在实际是哪一档(以页面属性为准:存储写失败 / 全量恢复写进去还没刷新时,存储里的与眼前的不是同一档)
+export function currentLightFlavor(){
+    if(typeof document === 'undefined' || !document.documentElement){ return getStoredLightFlavor(); }
+    return document.documentElement.getAttribute('data-horosa-light-flavor') === LIGHT_FLAVOR_CLASSIC ? LIGHT_FLAVOR_CLASSIC : LIGHT_FLAVOR_PAPER;
+}
+
+// 应用并记住。返回是否写进了存储(false = 存储写不进:本次照常生效,重启后回到原来那档 —— 调用方据此提示)
+export function applyLightFlavorToDocument(flavor){
+    if(typeof document === 'undefined'){ return false; }
+    const f = normalizeLightFlavor(flavor);
+    applyLightFlavorAttribute(f);
     // FL-4 配额纪律:写 localStorage 一律走 safeStorage(配额写满降级不炸)
-    safeLocalStorageSet(LIGHT_FLAVOR_LS_KEY, f);
+    return safeLocalStorageSet(LIGHT_FLAVOR_LS_KEY, f) === true;
+}
+
+// 别的窗口(同一本机存储)改了浅色风味 / 清空了存储:本窗口跟着换,只应用、不回写。回 detach
+export function bindLightFlavorStorageSync(){
+    if(typeof window === 'undefined' || typeof window.addEventListener !== 'function'){ return ()=>{}; }
+    const onStorage = (e)=>{
+        if(!e){ return; }
+        try{
+            if(e.storageArea && typeof window.localStorage !== 'undefined' && e.storageArea !== window.localStorage){ return; }
+        }catch(err){ return; }
+        // key === null = 别的窗口 localStorage.clear():回到缺省那档
+        if(e.key === LIGHT_FLAVOR_LS_KEY || e.key === null){
+            applyLightFlavorAttribute(getStoredLightFlavor());
+        }
+    };
+    window.addEventListener('storage', onStorage);
+    return ()=>window.removeEventListener('storage', onStorage);
 }
 
 export function getLightFlavorLabel(flavor){

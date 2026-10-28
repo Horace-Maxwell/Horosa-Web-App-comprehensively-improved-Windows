@@ -11,6 +11,7 @@ import DateTime from '../comp/DateTime';
 import { XQButton as Button, XQInput as Input, XQSelect as Select } from '../xq-ui';
 import XQIcon from '../xq-icons';
 import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
+import { directionAsporbOptions } from '../../constants/directionAspOrb';
 
 export default function AstroDirectionForm(props){
 	let [form] = Form.useForm();
@@ -162,17 +163,10 @@ export default function AstroDirectionForm(props){
 							wrapperCol={{ span: 24 }}					
 						>
 							<Select>
-								{/* [Q-172/T-105] 「双星容许度相加除以2」(-1)只在返照 / 小限那条 getAspects 路径上成立;
+								{/* 「双星容许度相加除以2」(-1)只在返照 / 小限那条 getAspects 路径上成立;
 								    太阳弧 / 行星弧走 solararc.compute,<0 直接按 1° 处理 —— 该档与「1度」逐字同结果。
 								    弧类页面传 hideMeanOrb 隐掉它,不留「选了没差别」的档(实现不动,只藏档)。 */}
-								{props.hideMeanOrb ? null : <Option value={-1}>双星容许度相加除以2</Option>}
-								<Option value={0.5}>0.5度</Option>
-								<Option value={1}>1度</Option>
-								<Option value={1.5}>1.5度</Option>
-								<Option value={2}>2度</Option>
-								<Option value={2.5}>2.5度</Option>
-								<Option value={3}>3度</Option>
-								<Option value={4}>4度</Option>
+								{directionAsporbOptions(!!props.hideMeanOrb).map((o)=><Option key={`${o.value}`} value={o.value}>{o.label}</Option>)}
 							</Select>
 						</FormItem>
 

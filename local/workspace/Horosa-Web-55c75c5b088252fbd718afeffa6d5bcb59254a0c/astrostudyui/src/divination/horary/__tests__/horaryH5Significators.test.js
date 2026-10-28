@@ -1,4 +1,4 @@
-// [卜卦改进 H5] 徵象星语义包——行为级锁。
+// 徵象星语义包——行为级锁。
 // ①personScope 转宫(问他人之事:用事宫经 turnedHouseOf 换算+标签+turned 透传;self=零回归)
 // ②querentGender 婚恋自然征象分流(男→对象金/月;女→对象日/火;''=恒金星现状)
 // ③naturalSignifEnhanced:父类昼夜分流+用事宫主三重受克 → 自然征象升 co-quesited

@@ -20,7 +20,7 @@ function safeParseJson(text, defVal = null){
 	}
 }
 
-// [Q-411/M-157] 请求超时单源钳位:用户填的 providerOptions.requestTimeoutMs 钳到 [1s, 10min],前端等待
+// 请求超时单源钳位:用户填的 providerOptions.requestTimeoutMs 钳到 [1s, 10min],前端等待
 //   与下发给后端的数**同一个**(此前前端 <1000 改用 120000、>600000 封顶,而 Java 原值直用 → 填 500 时 Java 0.5 秒超时、
 //   前端等 120 秒;填 900000 时两层各一套)。留空仍各走缺省(前端 120s / ollama 180s;后端非流式 60s、流式不封顶)。
 export const REQUEST_TIMEOUT_MIN_MS = 1000;
@@ -54,6 +54,15 @@ function resolveRequestTimeout(values){
 	const pt = values && values.providerType;
 	if(pt === 'ollama') return 180000;
 	return 120000;
+}
+
+// 后端失败回体里的说明是表单式 URL 编码(空格 → +,中文 → %XX;Java 异常处理器统一这么写)。在源头解一次,
+// 所有出口(连通测试 / 拉模型 / 网页读取 / 联网检索 / 短调用 / 无头与外部客户端)拿到的都是人能读的原文;
+// 不像编码串的原样返回(没有 %XX 就不动,免得把正文里真的 + 号改成空格)。
+export function decodeServiceErrorText(text){
+	const s = `${text === undefined || text === null ? '' : text}`;
+	if(!/%[0-9A-Fa-f]{2}/.test(s)){ return s; }
+	try{ return decodeURIComponent(s.replace(/\+/g, ' ')); }catch(e){ return s; }
 }
 
 function unwrapServicePayload(payload){
@@ -144,7 +153,7 @@ function getTokenSafe(){
 	return '';
 }
 
-// [G2] 请求体 RSA 会话束封套(与排盘 API 同机制):AES 密文 + 会话钥 RSA 块。
+// 请求体 RSA 会话束封套(与排盘 API 同机制):AES 密文 + 会话钥 RSA 块。
 // Signature 仍按明文计算(后端解封后核签,校验链不变);SSE/JSON 响应不加密。
 // NeedEncrypt=false 或回退阀关 → 明文(后端明文直通宽容,双向兼容)。
 function encryptAIAnalysisBody(bodyText){
@@ -200,7 +209,7 @@ function withTimeout(promiseFactory, timeoutMs, externalSignal){
 }
 
 async function requestJson(url, rawValues, options = {}){
-	const values = withClampedRequestTimeout(rawValues);   // [Q-411/M-157] 后端拿到的超时数与前端等待同源
+	const values = withClampedRequestTimeout(rawValues);   // 后端拿到的超时数与前端等待同源
 	return withTimeout(async (signal)=>{
 		const bodyText = JSON.stringify(values || {});
 		const response = await fetch(url, {
@@ -214,7 +223,7 @@ async function requestJson(url, rawValues, options = {}){
 		const payload = safeParseJson(text, null);
 		if(!response.ok){
 			const errorText = payload && (payload.ResultMessage || payload.Result || payload.message)
-				? (payload.ResultMessage || payload.Result || payload.message)
+				? decodeServiceErrorText(payload.ResultMessage || payload.Result || payload.message)
 				: `${response.status} ${response.statusText || ''}`.trim();
 			throw new Error(errorText || 'request.failed');
 		}
@@ -249,7 +258,7 @@ export function requestEmbeddingVectors(values){
 	});
 }
 
-// [Q1] options.signal:非流式短调用(判官/编排规划与综合/联网检索)同样能被用户的「停止」中止——
+// options.signal:非流式短调用(判官/编排规划与综合/联网检索)同样能被用户的「停止」中止——
 // requestJson 的 withTimeout(…, options.signal) 才是真正的中止入口,只传 timeoutMs 则前面「传了 signal」也中止不了任何请求
 export function requestAIAnalysisChat(values, options){
 	const signal = options && options.signal ? options.signal : undefined;
@@ -259,20 +268,20 @@ export function requestAIAnalysisChat(values, options){
 	});
 }
 
-// [P7 出站②] 联网检索:引擎与 Key 逐次带上(后端不落库不写日志);默认关,开关未开时页面根本不调
+// 联网检索:引擎与 Key 逐次带上(后端不落库不写日志);默认关,开关未开时页面根本不调
 export function requestWebSearch(values, options){
 	const signal = options && options.signal ? options.signal : undefined;
 	return requestJson(`${ServerRoot}/aianalysis/websearch`, values, { timeoutMs: 25000, signal });
 }
 
-// [批三① 出站③] 网页读取:同联网检索一样只经 Java 端点(前端零直连;守卫/有界/转文本都在后端);30s + signal
+// 网页读取:同联网检索一样只经 Java 端点(前端零直连;守卫/有界/转文本都在后端);30s + signal
 export function requestWebFetch(values, options){
 	const signal = options && options.signal ? options.signal : undefined;
 	return requestJson(`${ServerRoot}/aianalysis/webfetch`, values, { timeoutMs: 30000, signal });
 }
 
 export async function requestAIAnalysisChatStream(rawValues, handlers = {}){
-	const values = withClampedRequestTimeout(rawValues);   // [Q-411/M-157]
+	const values = withClampedRequestTimeout(rawValues);
 	const response = await withTimeout(async (signal)=>{
 		const bodyText = JSON.stringify(values || {});
 		const rsp = await fetch(`${ServerRoot}/aianalysis/chat/stream`, {
@@ -286,7 +295,7 @@ export async function requestAIAnalysisChatStream(rawValues, handlers = {}){
 			const text = await rsp.text();
 			const payload = safeParseJson(text, null);
 			const errorText = payload && (payload.ResultMessage || payload.Result || payload.message)
-				? (payload.ResultMessage || payload.Result || payload.message)
+				? decodeServiceErrorText(payload.ResultMessage || payload.Result || payload.message)
 				: `${rsp.status} ${rsp.statusText || ''}`.trim();
 			throw new Error(errorText || 'chat.stream.failed');
 		}
@@ -314,7 +323,7 @@ export async function requestAIAnalysisChatStream(rawValues, handlers = {}){
 	//      推理模型「只思考不出 token」时该节永远转圈、且 concurrency=1 下卡死整份报告。
 	//   修①:看门狗只在「真有内容 token(delta 事件)」时重置 —— 心跳不再续命,故「只心跳不出 token」超过 STALL_MS 即 fail-fast。
 	//   修②:另设不可重置的 MAX_STREAM_MS 绝对上限,兜「token 龟速但永不收尾」。两者皆 → 抛错 → 上层标 failed → 队列推进,绝不永久挂起。
-	// [Windows #77 根修] 三层超时语义(Windows 仓 issue「GLM/qwen 回答卡在一半提示超时/思考过久提示重试」):
+	// [Windows #77] 三层超时语义(Windows 仓 issue「GLM/qwen 回答卡在一半提示超时/思考过久提示重试」):
 	//   连接+首响应头 = withTimeout(requestTimeoutMs,默认 120s;流体阶段 timer 已清不受管)
 	//   空闲看门狗 STALL = 距上个真产出 token(delta/reasoning)的上限——默认 90s→180s(深思模型
 	//     经部分中转网关思考期不流式转发,90s 真空即误杀;心跳仍不续命,fail-fast 语义不变)
@@ -329,7 +338,7 @@ export async function requestAIAnalysisChatStream(rawValues, handlers = {}){
 		if(Number.isFinite(v) && v >= 1000){ return Math.min(v, 7200000); }
 		return defVal;
 	};
-	const STALL_MS = pickMs(handlers.stallMs, po.streamStallMs, DEFAULT_STREAM_STALL_MS);   // [D42] 缺省单源 aiStreamLimits(手册文案同源插值)
+	const STALL_MS = pickMs(handlers.stallMs, po.streamStallMs, DEFAULT_STREAM_STALL_MS);   // 缺省单源 aiStreamLimits(手册文案同源插值)
 	const MAX_STREAM_MS = pickMs(handlers.maxStreamMs, po.streamMaxStreamMs, DEFAULT_STREAM_MAX_MS);
 	let stalled = false;
 	let hardTimedOut = false;
@@ -347,7 +356,7 @@ export async function requestAIAnalysisChatStream(rawValues, handlers = {}){
 		//    若只认 delta,长思考期看门狗会在 STALL_MS 误杀流(报「长时间无新内容」),正是思考档要支持的场景。
 		// 工具调用帧(tool_call_start/tool_call)同样是真产出:模型先出长参数再出正文时不得被空闲看门狗误杀。
 		if(event && (event.type === 'delta' || event.type === 'reasoning' || event.type === 'tool_call' || event.type === 'tool_call_start' || event.type === 'tool_call_delta')){ armWatchdog(); }
-		// [I1] usage 事件的唯一入口:各家缓存计量别名在这里折成 cache_read_input_tokens 一次,
+		// usage 事件的唯一入口:各家缓存计量别名在这里折成 cache_read_input_tokens 一次,
 		// 下游(protocol.mergeUsage / 状态栏 deriveUsage / 目标任务 / A/B 分析器)一律吃归一后的值,不各自认别名。
 		if(event && event.type === 'usage'){ event.json = normalizeUsage(event.json); }
 		if(handlers.onEvent){
@@ -396,5 +405,5 @@ export async function requestAIAnalysisChatStream(rawValues, handlers = {}){
 	}
 }
 
-// [B-A7] 测试钩:SSE 解析器纯函数(不触网)。
+// 测试钩:SSE 解析器纯函数(不触网)。
 export const __testing__ = { createSseParser };

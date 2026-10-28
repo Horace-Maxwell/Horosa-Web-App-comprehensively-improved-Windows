@@ -36,7 +36,7 @@ describe('reconcileTasksOnBoot', ()=>{
 	});
 });
 
-describe('[Q-294/AR-13 裁决 2026-09-18] 周期定时任务中断后自动回排期', ()=>{
+describe('周期定时任务中断后自动回排期', ()=>{
 	it('kind=scheduled 且带 schedule 的 stale 任务 → status scheduled + nextRunAt 重排 + 一条通知;goal 类照旧 interrupted', async ()=>{
 		const { listNotices } = require('../aiAgent/tasks/noticeStore');
 		const sch = await createTask({ kind: 'scheduled', title: '每天简报', spec: { schedule: { kind: 'daily', at: '08:00' } } }); await patchTask(sch.id, { status: 'running' });

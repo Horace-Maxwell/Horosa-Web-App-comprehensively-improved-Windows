@@ -1,6 +1,6 @@
 // components/auxchart/AstroDraconicLab.js
 // 龙盘（Draconic）：以月亮北交点归零为白羊 0°，各点黄经减北交点黄经。后端 /astroextra/draconic 出整盘，复用 AstroChart 绘制。
-// [Q-351/T-332] 真 / 平交点随全局 westNodeType('true'=真交点;缺省 mean=平交点),页面与快照都注明。
+// 真 / 平交点随全局 westNodeType('true'=真交点;缺省 mean=平交点),页面与快照都注明。
 function nodeTypeLabel(chartObj){
 	const v = chartObj && chartObj.params ? chartObj.params.westNodeType : undefined;
 	return v === 'true' || v === true ? '真交点' : '平交点';
@@ -13,6 +13,7 @@ import AstroChart from '../astro/AstroChart';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from '../astro/AstroExtraCommon';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { markPanelReady } from '../../utils/perfMark';
 
 class AstroDraconicLab extends Component {
@@ -37,6 +38,8 @@ class AstroDraconicLab extends Component {
 	}
 
 	async load(){
+		const seq = ++this._loadSeq || (this._loadSeq = 1);   // 只认最后一次:换盘 / 改参连发时先发的晚回不覆盖
+		const resultSig = natalSourceKey(this.props.value);   // 本次结果出自哪位命主(读时与当前盘比)
 		if(!this.props.value){ return; }
 		const key = chartRequestKey(this.props.value, 'draconic');
 		this.setState({ loading: true });
@@ -45,18 +48,18 @@ class AstroDraconicLab extends Component {
 				body: JSON.stringify({ ...chartParams(this.props.value), orb: 2 }),
 				timeoutMs: 30000,
 			});
-			if(!this._mounted) return;
+			if(!this._mounted || seq !== this._loadSeq) return;
 			clearLoadFailure(this);
 			const res = unwrapResult(data) || {};
 			// horosa_panel_ready_v1:龙盘中栏(整盘)+右栏(位置/合相表)全由 result 派生,
 			// 这一次 setState 即「面板数据落定」→ 在其回调里盖章(双 rAF 后记,近似本帧已绘)。
-			this.setState({ result: res, loading: false, requestKey: key, loadError: '' }, ()=>{
+			this.setState({ result: res, resultSig, loading: false, requestKey: key, loadError: '' }, ()=>{
 				markPanelReady('auxchart');
 			});
-			// [审计修·派生盘快照重定源] 出盘即存:整张龙盘 + [龙盘] 专属段(龙首归零基准/位置/同频)。
+			// 出盘即存:整张龙盘 + [龙盘] 专属段(龙首归零基准/位置/同频)。
 			saveDerivedAstroSnapshot('draconic', res.chart, this.props.fields, ()=>{
 				const out = ['[龙盘]'];
-				if(res.nodeLon != null){ out.push(`北交点 ${Number(res.nodeLon).toFixed(2)}°（${nodeTypeLabel(this.props.value)}） → 归零白羊 0°（龙盘基准）`); }   // [Q-351/T-332] 注明真 / 平交点
+				if(res.nodeLon != null){ out.push(`北交点 ${Number(res.nodeLon).toFixed(2)}°（${nodeTypeLabel(this.props.value)}） → 归零白羊 0°（龙盘基准）`); }   // 注明真 / 平交点
 				(res.positions || []).forEach((row)=>{
 					if(row && row.id){ out.push(`${row.id}：本命黄经 ${row.natalLon != null ? Number(row.natalLon).toFixed(2) : '—'}° → 龙盘 ${row.sign || ''}${row.signlon != null ? Number(row.signlon).toFixed(2) + '°' : ''}`); }
 				});
@@ -66,16 +69,21 @@ class AstroDraconicLab extends Component {
 				return out.length > 1 ? out : [];
 			});
 		}catch(e){
-			// [Q-151/AX-20] 失败不记成已完成;泊车 key 窗口期后自动重试,并给「重试」钮(此前龙盘无任何重试入口)。
+			// 失败不记成已完成;泊车 key 窗口期后自动重试,并给「重试」钮(此前龙盘无任何重试入口)。
 			parkLoadFailure(this, key);
-			if(!this._mounted) return;
+			if(!this._mounted || seq !== this._loadSeq) return;
 			this.setState({ loading: false, loadError: (e && e.message) || '龙盘计算失败' });
 		}
 	}
 
+	// 出自当前命主的结果才用:换盘后新结果在途 / 取失败时 state 里是上一位命主的 → 当没有(同一命主只改设置仍旧表留存)
+	shownResult(){
+		return pickKeyedDerived(this.state.result, this.state.resultSig, natalSourceKey(this.props.value));
+	}
+
 	render(){
 		this.ensureLoaded();
-		const result = this.state.result || {};
+		const result = this.shownResult() || {};
 		const chartObj = result.chart || null;
 		const height = this.props.height ? this.props.height : 760;
 		return (

@@ -12,9 +12,10 @@
  */
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const NL = fs.readFileSync(path.join(__dirname, '..', 'NongLi.js'), 'utf8');
-const LESS = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'layouts', 'app.less'), 'utf8');
+const LESS = readSource(path.join(__dirname, '..', '..', '..', 'layouts', 'app.less'));
 
 describe('calendarCellFit(月历自适应·渐进收行定版)', () => {
 	it('① NongLi:宽向等比+高向渐进等级(自然高现场实测,选能放下的最浅级)', () => {

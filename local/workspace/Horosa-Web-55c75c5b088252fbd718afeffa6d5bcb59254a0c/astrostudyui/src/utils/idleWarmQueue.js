@@ -19,7 +19,7 @@ import { orderByUsage } from './techUsage';
 
 // 引擎层注册表:动态 import 高频技法的本地纯计算模块(与导航概率序同基准)。
 // 只列「用户首点该技法必然要初始化」的模块;新技法引擎按同格式追加。
-// [R5 N2] 每项带 navKey(所属导航页),出队前按本机使用频次稳定排序(techUsage.orderByUsage;无记录 = 原序)。
+// 每项带 navKey(所属导航页),出队前按本机使用频次稳定排序(techUsage.orderByUsage;无记录 = 原序)。
 const ENGINE_WARM_IMPORTS = [
 	{ navKey: 'bazi', load: () => import('./baziLunarLocal') },          // 八字本地历法引擎(主盘走本地)
 	{ navKey: 'bazi', load: () => import('./baziShenShaLocal') },        // 八字神煞
@@ -70,7 +70,7 @@ export function registerDataWarmTask(taskKey, fn){
 	}
 }
 
-/** 按登记序把注册表铺成 scheduleDataWarmGroup 吃的任务数组;[R5 N2] 再按本机使用频次稳定排序(taskKey 冒号前 = 导航键)。 */
+/** 按登记序把注册表铺成 scheduleDataWarmGroup 吃的任务数组;再按本机使用频次稳定排序(taskKey 冒号前 = 导航键)。 */
 export function buildRegisteredDataWarmTasks(fields, chartObj){
 	const tasks = [];
 	DATA_WARM_REGISTRY.forEach((fn, name)=>{
@@ -81,11 +81,6 @@ export function buildRegisteredDataWarmTasks(fields, chartObj){
 /** 测试/诊断:引擎预热表的导航键序(出队序)。 */
 export function __engineWarmOrder(usage){
 	return orderByUsage(ENGINE_WARM_IMPORTS, (e)=>e.navKey, usage).map((e)=>e.navKey);
-}
-
-/** 测试/诊断:当前登记的任务名(即执行序)。 */
-export function __dataWarmRegistryKeys(){
-	return Array.from(DATA_WARM_REGISTRY.keys());
 }
 
 let started = false;
@@ -145,7 +140,7 @@ export function scheduleDataWarmGroup(generationKey, tasks){
 			return;
 		}
 		Promise.resolve()
-			.then(()=>runInBackgroundScope(entry.task))   // [R5 T5] 任务同步起调的请求带后台优先级头
+			.then(()=>runInBackgroundScope(entry.task))   // 任务同步起调的请求带后台优先级头
 			.catch(()=>{ /* 预热失败静默:首点回到冷即付的现状 */ })
 			.finally(()=>{ scheduleIdle(pump); });
 	};
@@ -208,7 +203,7 @@ export function startIdleWarmQueue(options = {}){
 			return;
 		}
 		Promise.resolve()
-			.then(()=>runInBackgroundScope(entry.task))   // [R5 T5] 任务同步起调的请求带后台优先级头
+			.then(()=>runInBackgroundScope(entry.task))   // 任务同步起调的请求带后台优先级头
 			.catch(()=>{ /* 预热失败静默:首点回到冷即付的现状 */ })
 			.finally(()=>{ scheduleIdle(next); });
 	};

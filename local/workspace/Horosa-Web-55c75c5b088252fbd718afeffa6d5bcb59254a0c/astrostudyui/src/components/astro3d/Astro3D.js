@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { safeLocalStorageSet } from '../../utils/safeStorage';
+import { safeLocalStorageSet, safeStorageSetOn } from '../../utils/safeStorage';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 // DRACOLoader 走本仓 patched 副本:r0.185 原件顶部用 import.meta.url(webpack4 不支持,
@@ -137,14 +137,8 @@ function getStorageValue(storage, key){
 }
 
 function setStorageValue(storage, key, value){
-	if(!storage){
-		return;
-	}
-	try{
-		storage.setItem(key, value);
-	}catch(err){
-		// ignore storage exceptions
-	}
+	// 经存储单源(sessionStorage 只做 try/catch;本机 localStorage 走配额阶梯)
+	return safeStorageSetOn(storage, key, value);
 }
 
 function removeStorageValue(storage, key){
@@ -196,7 +190,7 @@ function shouldSkipModelLoad(){
 	return (Date.now() - unavailableAt) < ModelUnavailableCooldown;
 }
   
-// [TL-15] 光照两档的可见效果接在太阳晕透明度(太阳光强度)与星点透明度(环境光强度)上:缺省值 = 完全不透明(封顶),
+// 光照两档的可见效果接在太阳晕透明度(太阳光强度)与星点透明度(环境光强度)上:缺省值 = 完全不透明(封顶),
 // 映射锚必须等于缺省,滑杆上限也只到缺省(再往上无变化);建盘时同样按这两档应用(此前只运行时改才生效,刷新后回原样)。
 const SUN_INTENSITY_DEFAULT = 6.5;
 const AMBIENT_INTENSITY_DEFAULT = 0.3;
@@ -279,7 +273,7 @@ class Astro3D {
 			'摄像机旋转': false,
 			'摄像机天球经度': 0,
 			'摄像机天球纬度': 45,
-			// [用户 APP 实报 2026-09-17:3D 盘缩放后球体忽大忽小] 此值改为「半径倍数」(缺省 3.5),不再是绝对像素:
+			// 此值改为「半径倍数」(缺省 3.5),不再是绝对像素:
 			// 天球半径 = 画布 CSS 高/2,随缩放档、窗口大小而变;旧版把首次建盘时的绝对距离(半径×3.5,如 1155)存进
 			// localStorage,之后任何一档缩放下半径变了、距离没变 → 缩小档球体撑爆画面、放大档缩成一小团。
 			// 倍数语义与画布尺寸无关,任何缩放档取景一致;旧存量(绝对像素)在 normalizeCamDistance 一次性折算。
@@ -731,7 +725,7 @@ class Astro3D {
 		const prevRotY = this.group.rotation.y;
 		this.group.rotation.y = (270 - asc) * DEG;
 		this.group.userData._vAscLon = norm360(asc);
-		this.rotateCameraWithGroup((this.group.rotation.y - prevRotY) * 180 / Math.PI);   // [Q-246/T-205] 相机随盘面同框架
+		this.rotateCameraWithGroup((this.group.rotation.y - prevRotY) * 180 / Math.PI);   // 相机随盘面同框架
 		if(plan.sun && this.sunDirectLight){
 			const lon = norm360(plan.sun.fromLon + plan.sun.dLon * e);
 			const lat = plan.sun.fromLat + (plan.sun.toLat - plan.sun.fromLat) * e;
@@ -970,7 +964,7 @@ class Astro3D {
 			+ `<div class="${styles.astro3dtapDeg}">${degLine}</div>`
 			+ `<ul>${rows}</ul>`;
 
-		// ⚠️ [缩放域判定·2026-08-24] 此处**不需要** zoomDomain 换算,勿"顺手补齐"。
+		// ⚠️ 此处**不需要** zoomDomain 换算,勿"顺手补齐"。
 		// xy 来自 transPosition = THREE 投影到 canvas 内部像素(基于 this.width/height =
 		// option.width/height,布局域);planetHintDiv 是 .astro3dtap{position:absolute},挂在
 		// 同一 canvas 容器内 ⇒ 取值与写回同属 CSS 域,零跨域。加换算反而制造新错位。
@@ -1431,7 +1425,7 @@ class Astro3D {
 					if(item.name === 'AmbientLight'){ item.intensity = val; }
 				});
 				{
-					const op = Math.max(0, Math.min(1, val / AMBIENT_INTENSITY_DEFAULT));   // [TL-15] 锚=缺省(此前锚 0.7、缺省 0.3:首次碰滑杆星点骤暗到 43%)
+					const op = Math.max(0, Math.min(1, val / AMBIENT_INTENSITY_DEFAULT));   // 锚=缺省(此前锚 0.7、缺省 0.3:首次碰滑杆星点骤暗到 43%)
 					[this.starGroup, this.beidouGroup, this.beijiGroup, this.su28Group, this.su28VirGroup].forEach((g)=>{
 						if(!g){ return; }
 						g.traverse((o)=>{ if(o.isSprite && o.material){ o.material.opacity = op; o.material.transparent = true; } });
@@ -1565,7 +1559,7 @@ class Astro3D {
 			}
 			this.sunDirectLight.color.setHex(value);
 		});
-		let sunIns = colorFolder.add(this.chartOpt, '太阳光强度', 0, SUN_INTENSITY_DEFAULT);   // [TL-15] 范围收窄到有效段(缺省 = 封顶,再往上无变化)
+		let sunIns = colorFolder.add(this.chartOpt, '太阳光强度', 0, SUN_INTENSITY_DEFAULT);   // 范围收窄到有效段(缺省 = 封顶,再往上无变化)
 		sunIns.onChange((val)=>{
 			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.sunDirectLight.intensity = val;
@@ -1584,7 +1578,7 @@ class Astro3D {
 				}
 			});
 		});
-		let ambIns = colorFolder.add(this.chartOpt, '环境光强度', 0, AMBIENT_INTENSITY_DEFAULT);   // [TL-15] 范围收窄到有效段(缺省 = 封顶)
+		let ambIns = colorFolder.add(this.chartOpt, '环境光强度', 0, AMBIENT_INTENSITY_DEFAULT);   // 范围收窄到有效段(缺省 = 封顶)
 		ambIns.onChange((val)=>{
 			safeLocalStorageSet(ChartOptKey, JSON.stringify(this.chartOpt))
 			this.lightGroup.children.map((item, idx)=>{
@@ -1665,14 +1659,14 @@ class Astro3D {
 		}else{
 			this.group.add(this.su28Group);
 		}
-		// [TL-14] 运行时切换只走这里(建盘时是 selectSu28 → hideStars 两步):挂回所选一组后再按「隐藏28宿距星」应用一次,
+		// 运行时切换只走这里(建盘时是 selectSu28 → hideStars 两步):挂回所选一组后再按「隐藏28宿距星」应用一次,
 		// 此前隐藏开着时切换,距星组被无条件挂回 → 开关显示「隐藏」画面却有距星
 		if(this.chartOpt['隐藏28宿距星']){
 			this.hideStars(true, val ? this.su28VirGroup : this.su28Group);
 		}
 	}
 
-	// [TL-15] 环境光两档对星点精灵的可见效果(强度→透明度,锚=缺省;颜色→tint):建盘与运行时改共用一处
+	// 环境光两档对星点精灵的可见效果(强度→透明度,锚=缺省;颜色→tint):建盘与运行时改共用一处
 	applyAmbientToSprite(sprite){
 		if(!sprite || !sprite.material){ return; }
 		const ins = Number(this.chartOpt['环境光强度']);
@@ -1859,7 +1853,7 @@ class Astro3D {
 		this.scene.add(this.group);
 	}
 
-	// [Q-246/T-205] 盘面整组绕黄极转 (270 − 上升点)(initMesh / 补间 applyMorphFrame),相机却按未旋转世界系定位
+	// 盘面整组绕黄极转 (270 − 上升点)(initMesh / 补间 applyMorphFrame),相机却按未旋转世界系定位
 	// → 「春分点」等预设与「摄像机天球经度」滑杆只在上升点 = 270° 时对准。统一口径:预设/滑杆值 = 黄道经度,
 	// 换算成世界系时加上组旋转角;读回相机经度时减去。
 	groupRotationDeg(){
@@ -1930,7 +1924,7 @@ class Astro3D {
 		const cur = this.camera.position;
 		const curR = cur.length();
 		const curLat = Math.asin(cur.y / (curR || 1)) * 180 / Math.PI;
-		const rot = this.groupRotationDeg();   // [Q-246/T-205] 黄道经度 ↔ 世界经度 换算
+		const rot = this.groupRotationDeg();   // 黄道经度 ↔ 世界经度 换算
 		const curLon = ((Math.atan2(-cur.z, cur.x) * 180 / Math.PI) - rot + 720) % 360;
 		const dstR = this.camDistance();
 		let dLon = shortestArcDelta(curLon, preset.lon);   // 最短弧(与滑移补间同源公式)
@@ -2450,7 +2444,7 @@ class Astro3D {
 				// [接线转正] 太阳晕透明度受「太阳光强度」驱动(0-10,默认 6.5 = 现观感 1.0 封顶不回归)
 				const _si = Number(this.chartOpt['太阳光强度']);
 				if(halo.material && Number.isFinite(_si)){ halo.material.opacity = Math.max(0, Math.min(1, _si / SUN_INTENSITY_DEFAULT)); }
-				// [TL-15] 建盘同时应用「太阳光颜色」色调(此前只运行时改才生效)
+				// 建盘同时应用「太阳光颜色」色调(此前只运行时改才生效)
 				{ const _sc = this.chartOpt['太阳光颜色']; if(halo.material && _sc !== undefined && _sc !== null){ try{ halo.material.color.setHex(colorToHex(_sc)); }catch(e){ /* 非法色值忽略 */ } } }
 				grp.add(halo);
 				grp.add(glyph);
@@ -2861,7 +2855,7 @@ class Astro3D {
 			if(useStarSprite){
 				const style = STAR_STYLES[modelId] || STAR_STYLES.Star;
 				mesh = makeStarSprite(style.color, style.size * Math.max(0.5, starR), style.core);
-				this.applyAmbientToSprite(mesh);   // [TL-15] 建盘即按环境光强度/颜色应用
+				this.applyAmbientToSprite(mesh);   // 建盘即按环境光强度/颜色应用
 				// 名字不做常显标签(满天名字=视觉噪音;Sprite 子对象还继承父 scale 会爆尺寸)——
 				// hover 提示卡照旧给全名,重要星靠色彩/尺寸分级(北极金、北斗白、28宿青金)辨识。
 			}else{
@@ -3008,7 +3002,7 @@ class Astro3D {
 
 		let asc = AstroHelper.getObject(this.chartObj, AstroConst.ASC);
 		this.group.rotateY((270-asc.lon) * Math.PI / 180);
-		if(this.camera){ this.setupCameraPos(); }   // [Q-246/T-205] 组旋转后按黄道经纬重定相机(初建时相机先于组旋转定位)
+		if(this.camera){ this.setupCameraPos(); }   // 组旋转后按黄道经纬重定相机(初建时相机先于组旋转定位)
 
 		if(this.chartOpt['隐藏地球附近星体']){
 			this.hideEarthPlanets()

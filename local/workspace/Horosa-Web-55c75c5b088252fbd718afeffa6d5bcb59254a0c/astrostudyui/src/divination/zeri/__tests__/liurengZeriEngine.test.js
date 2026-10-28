@@ -1,4 +1,4 @@
-// [Z5·六壬择日] 引擎+注册表金标。锚=2026-01-01 12:30 +08:00 北京(乙亥日壬午时·月将丑·
+// 引擎+注册表金标。锚=2026-01-01 12:30 +08:00 北京(乙亥日壬午时·月将丑·
 // 昼·三传壬午→丁丑→空申·重审课——2026-08-28 本地链 dump 定谳)。判定单源:排盘=主六壬页
 // 同一函数族(涉害 byte-perfect 核),此处红=主排盘变,择日强制显影。
 // 判别纪律(定案19):贵人流派/阴阳系/月将两档/昼夜界/换日五档逐键「换档必变盘」;
@@ -10,6 +10,7 @@ import { LIURENG_CONDITION_TYPES, makeLiurengZeriEvalCtx, compileLiurengTree, ne
 import { computeLiurengScanPan, evaluateLiurengTree, scanLiureng, explainLiurengAt } from '../liurengZeriScanEngine';
 import { LR_GODS_RULES, LR_TAISUI_GODS } from '../liurengGodsData';
 import { isDiurnalLocal } from '../liurengLocal';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const GEO = { zone: '+08:00', gpsLon: 116.46, gpsLat: 39.9 };
 const anchorPan = ()=>computeLiurengScanPan(GEO, {}, '2026-01-01', '12:30:00');
@@ -20,7 +21,7 @@ const ev = (type, params, pan, natal)=>{
 };
 const ZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 
-describe('[Z5] 🔴 gods 表机械同源(直读 Java 资源逐键逐值 diff;Java 表改此处红=制度层1)', ()=>{
+describe('🔴 gods 表机械同源(直读 Java 资源逐键逐值 diff;Java 表改此处红=制度层1)', ()=>{
 	const SRV = path.join(__dirname, '..', '..', '..', '..', '..', 'astrostudysrv', 'astrostudy', 'src', 'main', 'java', 'spacex', 'astrostudy', 'helper');
 
 	it('gods.json 16 神 rule 逐键逐值恰等', ()=>{
@@ -44,7 +45,7 @@ describe('[Z5] 🔴 gods 表机械同源(直读 Java 资源逐键逐值 diff;Jav
 	});
 
 	it('排盘函数单源:LiuRengMain 导出即主页同函数(grep 计数哨兵——第三份重复=红)', ()=>{
-		const read = (p)=>fs.readFileSync(path.join(__dirname, '..', '..', '..', p), 'utf8');
+		const read = (p)=>readSource(path.join(__dirname, '..', '..', '..', p));
 		const eng = read('divination/zeri/liurengZeriScanEngine.js');
 		expect(eng).toContain("from '../../components/lrzhan/LiuRengMain'");
 		// 全仓 buildLiuRengLayout 定义处 ≤2(LiuRengMain+SanShiUnitedMain 既有;择日零新增)
@@ -55,7 +56,7 @@ describe('[Z5] 🔴 gods 表机械同源(直读 Java 资源逐键逐值 diff;Jav
 	});
 });
 
-describe('[Z5] 注册表契约+锚盘正反双判', ()=>{
+describe('注册表契约+锚盘正反双判', ()=>{
 	it('🔴 每类 spec 契约齐且 ≥22 类', ()=>{
 		const keys = Object.keys(LIURENG_CONDITION_TYPES);
 		expect(keys.length).toBeGreaterThanOrEqual(22);
@@ -157,7 +158,7 @@ describe('[Z5] 注册表契约+锚盘正反双判', ()=>{
 	});
 });
 
-describe('[Z5] 🔴 扫描参数逐键判别(换档必变盘;定案19)', ()=>{
+describe('🔴 扫描参数逐键判别(换档必变盘;定案19)', ()=>{
 	const pan = (opts, d, t)=>computeLiurengScanPan(GEO, opts || {}, d || '2026-01-01', t || '12:30:00');
 	const guiAt = (p)=>ZHI[p.layout.houseTianJiang.indexOf('贵人')];
 
@@ -199,7 +200,7 @@ describe('[Z5] 🔴 扫描参数逐键判别(换档必变盘;定案19)', ()=>{
 	});
 });
 
-describe('[Z5] 扫描引擎(外壳第六实例:恒等+行内同盘探针)', ()=>{
+describe('扫描引擎(外壳第六实例:恒等+行内同盘探针)', ()=>{
 	jest.setTimeout(120000);
 	const OPTS = {};
 	const TREE = compileLiurengTree({ kind: 'group', joiner: 'all', children: [newLiurengLeaf('zhou_ye')] });	// 昼占(默认 day;昼夜各半)
@@ -247,7 +248,7 @@ describe('[Z5] 扫描引擎(外壳第六实例:恒等+行内同盘探针)', ()=>
 		expect(ex.keText).toBe('重审课');
 		expect(ex.chuanText).toBe('壬午→丁丑→空申');
 	});
-	it('🔴 [W2 全谱轮] 6 新类/扩档正反双判(正锚真值 dump 实跑:三传壬午/丁丑/空申·重审·小局13·日乙亥)', ()=>{
+	it('🔴 6 新类/扩档正反双判(正锚真值 dump 实跑:三传壬午/丁丑/空申·重审·小局13·日乙亥)', ()=>{
 		// 遁干:初遁壬/中遁丁/末空亡无遁干
 		expect(ev('chuan_dungan', { pos: '0', values: ['壬'] }).pass).toBe(true);
 		expect(ev('chuan_dungan', { pos: 'any', values: ['丁'] }).pass).toBe(true);
@@ -256,7 +257,7 @@ describe('[Z5] 扫描引擎(外壳第六实例:恒等+行内同盘探针)', ()=>
 		// 小局:sanqi 在/yinv 不在
 		expect(ev('xiaoju_hit', { mode: 'with', values: ['sanqi'] }).pass).toBe(true);
 		expect(ev('xiaoju_hit', { mode: 'with', values: ['yinv'] }).pass).toBe(false);
-		// [Q-469/T-431] 主页「参考常驻」七局(刑德/物气/新故/迍福/始终/旺孕/德孕)只在无真实局式依据时被追加,择日不作命中:
+		// 主页「参考常驻」七局(刑德/物气/新故/迍福/始终/旺孕/德孕)只在无真实局式依据时被追加,择日不作命中:
 		// 本锚 迍福 有真实依据(照常命中),其余六局仅「参考常驻」→ 此前「命中任一」恒真、「全不命中」恒假,现按真依据判。
 		const onlyRef = ['xingde', 'wuqi', 'xingu', 'shizhong', 'wangyun', 'deyun'];
 		const withRef = ev('xiaoju_hit', { mode: 'with', values: onlyRef });
@@ -282,7 +283,7 @@ describe('[Z5] 扫描引擎(外壳第六实例:恒等+行内同盘探针)', ()=>
 
 });
 
-describe('[十一轮] keyDeps 判别网:声明「不吃昼夜」的类在仅昼夜异的两盘上结果必同', ()=>{
+describe('keyDeps 判别网:声明「不吃昼夜」的类在仅昼夜异的两盘上结果必同', ()=>{
 	// 盘对构造:同一时刻盘,取其 chartLite/yue 用主页同三函数重起「昼夜翻转」版——
 	// lrGods/xun/fourColumns/_candY 全不变,唯 layout/ke/sanChuan/diurnal 按翻转昼夜重排
 	// = 「仅昼夜面异」的判别对(castOverride.isDiurnal 既有注入口,零生产改动)。
@@ -370,7 +371,7 @@ describe('[十一轮] keyDeps 判别网:声明「不吃昼夜」的类在仅昼�
 	});
 });
 
-describe('[Q-273/T-253] 贼克位置·一课:日干取本五行判克贼(寄宫只作位置)', ()=>{
+describe('贼克位置·一课:日干取本五行判克贼(寄宫只作位置)', ()=>{
 	const GAN_WX = { 甲: '木', 乙: '木', 丙: '火', 丁: '火', 戊: '土', 己: '土', 庚: '金', 辛: '金', 壬: '水', 癸: '水' };
 	const ZHI_WX = { 子: '水', 亥: '水', 寅: '木', 卯: '木', 巳: '火', 午: '火', 申: '金', 酉: '金', 辰: '土', 戌: '土', 丑: '土', 未: '土' };
 	const WX_KE = { 木: '土', 土: '水', 水: '火', 火: '金', 金: '木' };

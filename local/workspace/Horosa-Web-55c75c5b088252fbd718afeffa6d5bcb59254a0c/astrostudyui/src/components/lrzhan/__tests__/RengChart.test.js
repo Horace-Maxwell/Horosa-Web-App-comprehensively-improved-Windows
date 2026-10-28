@@ -1,7 +1,6 @@
 jest.mock('../../../utils/helper', ()=>({
 	randomStr: ()=> 'reng-chart-test',
 	formatDate: jest.fn(),
-	printArea: jest.fn(),
 }));
 
 import RengChart from '../RengChart';

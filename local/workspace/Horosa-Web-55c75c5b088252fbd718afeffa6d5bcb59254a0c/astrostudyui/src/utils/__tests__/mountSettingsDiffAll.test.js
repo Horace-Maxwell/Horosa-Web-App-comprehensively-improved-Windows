@@ -1,4 +1,4 @@
-// [挂载自检 阶段3(a)] 🔴 全技法「设置 → 请求体/入参/全局键 → 快照内容」表驱动差分闸(把逐技法手写的 mountRequestDiff/
+// 🔴 全技法「设置 → 请求体/入参/全局键 → 快照内容」表驱动差分闸(把逐技法手写的 mountRequestDiff/
 // mountPayloadDiff 泛化到 TECHNIQUE_SETTINGS_SCHEMA 全部有字段技法;新增齿轮忘接消费点当场红)。
 // 判据(每个齿轮至少一例):
 //   ① 覆盖必须被判:pruneOptionsToNonDefault(与 getAnalysisTechniqueContextWithOptions 同一判据)对
@@ -18,7 +18,10 @@
 jest.setTimeout(3600000);
 // jest.mock 工厂只许引用 mock* 前缀的惰性变量:捕获器用 var + 函数声明(提升),请求发生时才真访问
 var mockCap = { bodies: [], storage: [], args: [] };
+// 基础设施请求(后端身份握手:请求失败后的服务地址自愈 / 排盘失败弹窗前的探活)不是计算请求,不进请求面
+// (它随偶发失败出现,进了就会被当成请求差分或判成缓存吸收)
 function mockPushBody(url, raw){
+	if(/\/horosaIdentity(\?|$)/.test(`${url}`)){ return; }
 	let body = raw;
 	if(typeof raw === 'string'){ try{ body = JSON.parse(raw); }catch(_e){ body = raw; } }
 	mockCap.bodies.push({ url: `${url}`.replace(/^https?:\/\/[^/]+/, ''), body: body === undefined ? null : body });
@@ -30,9 +33,12 @@ jest.mock('../request', () => {
 	const wrapped = async (url, opts) => { try{ mockPushBody(url, opts && (opts.body !== undefined ? opts.body : opts.data)); }catch(_e){} return actual.default(url, opts); };
 	return { __esModule: true, ...actual, default: wrapped };
 });
-// 请求面与进程内结果缓存:/chart 的内存缓存、共享 POST 缓存、术数端点缓存都在上面这个捕获点之上 —— 同体二次请求被缓存吸收、
-// 不经捕获点,请求面就随「这个请求体本进程里是否出现过」漂移(两遍缺省一遍捕获一遍命中 → 整条请求被记成噪声,
-// 请求证据静默失效;测试顺序一变,同一齿轮的判定与指纹就跟着翻)。差分闸里 /chart 一律直通,其余缓存每次取样前清空(结果逐值等价)。
+// 请求面与进程内结果缓存:/chart 的内存缓存、共享 POST 缓存、术数端点缓存、挂载重算结果缓存(同记录同口径复用整份正文)、
+// 印占盘 / 历法桥 / 典籍正文等模块缓存都在上面这个捕获点之上 —— 同体二次请求被缓存吸收、不经捕获点,
+// 请求面就随「这个请求体本进程里是否出现过」漂移(两遍缺省一遍捕获一遍命中 → 整条请求被记成噪声,请求证据静默失效;
+// 前一个齿轮的扫描点把缺省正文留在缓存里 → 后一个齿轮同一扫描点两遍缺省都零请求、覆盖一遍有请求 → 凭空造出请求证据;
+// 测试顺序一变,同一齿轮的判定就跟着翻)。差分闸里 /chart 一律直通,其余缓存每次取样前经登记处一次清空(utils/processCacheRegistry,
+// 结果逐值等价);缓存若没登记,缺省两遍的请求数对不上,仪器自检(baselineLeak)当场判红并点名端点。
 jest.mock('../../services/astro', () => {
 	const actual = jest.requireActual('../../services/astro');
 	return { __esModule: true, ...actual, fetchChart: (values, requestOptions) => actual.fetchChart(values, { ...(requestOptions || {}), cache: false }) };
@@ -81,7 +87,7 @@ jest.mock('../../components/gua/liuyaoFacade', () => {
 });
 jest.mock('../localcharts', () => ({ listLocalCharts: jest.fn(() => []), __esModule: true }));
 jest.mock('../localcases', () => ({ listLocalCases: jest.fn(() => []), getCaseTypeLabel: jest.fn((t) => t), getCaseTypeMeta: jest.fn(() => ({ module: '', value: '' })), CASE_TYPE_OPTIONS: [], __esModule: true }));
-jest.mock('../moduleAiSnapshot', () => ({ loadModuleAISnapshot: jest.fn(() => null), saveModuleAISnapshot: jest.fn(), saveModuleAISnapshotLazy: jest.fn(), clearModuleAISnapshot: jest.fn(), loadModuleStructuredGT: jest.fn(() => null) }));
+jest.mock('../moduleAiSnapshot', () => ({ loadModuleAISnapshot: jest.fn(() => null), saveModuleAISnapshot: jest.fn(), saveModuleAISnapshotLazy: jest.fn(), clearModuleAISnapshot: jest.fn() }));
 jest.mock('../aiAnalysisStore', () => ({ AI_ANALYSIS_STORES: { contextCache: 'contextCache' }, getStoreRecord: jest.fn(async () => null), putStoreRecord: jest.fn(async (s, r) => r) }));
 
 import fs from 'fs';
@@ -89,13 +95,21 @@ import { getAnalysisTechniqueContextWithOptions, regenerateCaseTechniqueSnapshot
 import { TECHNIQUE_SETTINGS_SCHEMA, effectiveMountBaseline, pruneOptionsToNonDefault } from '../techniqueMountSettings';
 import { installFixedNow } from './fixtures/fixedNow';
 import { classifyContentDelta, evidenceIsStrong } from './fixtures/diffEvidence';
-import { clearRequestCache } from '../../services/_requestCache';
-import { __ktCacheResetForTest } from '../kentangCache';
-import { __clearDedupe } from '../requestDedupe';
+import { clearRegisteredProcessCaches } from '../processCacheRegistry';
 function resetRequestCaches(){
-	try{ clearRequestCache(); }catch(_e){ /* noop */ }
-	try{ __ktCacheResetForTest(); }catch(_e){ /* noop */ }
-	try{ __clearDedupe(); }catch(_e){ /* noop */ }
+	clearRegisteredProcessCaches();
+}
+// 仪器自检:同一取样点缺省两遍,请求 / 入参的端点多重集必须一致 —— 不一致 = 有进程内缓存在捕获点之上吸收了某一遍,
+// 这一组基线定不了噪声,其上的请求面判定不作数(捕获点在真发请求之前,子请求失败也照样记一次,不会造成不一致)。
+// 返回差异描述(一致返回 '')。
+function callCounts(list){ const m = {}; list.forEach((u)=>{ m[u] = (m[u] || 0) + 1; }); return m; }
+function baselineLeak(b1, b2){
+	const out = [];
+	[['req', b1.urls, b2.urls], ['args', b1.argUrls, b2.argUrls]].forEach(([kind, a, b])=>{
+		const ca = callCounts(a || []); const cb = callCounts(b || []);
+		new Set([...Object.keys(ca), ...Object.keys(cb)]).forEach((u)=>{ if((ca[u] || 0) !== (cb[u] || 0)){ out.push(`${kind} ${u} ${ca[u] || 0}→${cb[u] || 0}`); } });
+	});
+	return out.join(', ');
 }
 // [Windows #80] 缺省钉住此刻(HOROSA_FIXED_NOW 设了以它为准):推运类缺省目标时刻 = 此刻,基线两遍连跑定噪声、候选却可能跨过分钟 →
 // 「推运时间」等此刻行的漂移被当成强证据(profection.profGrain / profStart 实为死齿轮,此前的 OK 全是这种假报)。
@@ -292,7 +306,7 @@ async function runCtx(src, key, options){
 	CAP.bodies = []; CAP.storage = []; CAP.args = [];
 	let ctx = null; let err = null;
 	try{ ctx = await getAnalysisTechniqueContextWithOptions(src, key, options); }catch(e){ err = e; }
-	return { content: `${(ctx && ctx.content) || ''}`.trim(), status: ctx ? ctx.status : 'throw', err, req: entriesOf(CAP.bodies), reqN: CAP.bodies.length, args: entriesOf(CAP.args), argsN: CAP.args.length, storage: CAP.storage.slice() };
+	return { content: `${(ctx && ctx.content) || ''}`.trim(), status: ctx ? ctx.status : 'throw', err, req: entriesOf(CAP.bodies), reqN: CAP.bodies.length, urls: CAP.bodies.map((r)=>r.url), args: entriesOf(CAP.args), argsN: CAP.args.length, argUrls: CAP.args.map((r)=>r.url), storage: CAP.storage.slice() };
 }
 // 事盘源无存档快照时缺省路径=missing(设计语义:不臆造);基线改用「缺省重算」(同一 regen 入口、未改 payload),与覆盖路径只差 options
 async function runBase(src, key, ctxOv){
@@ -303,7 +317,7 @@ async function runBase(src, key, ctxOv){
 	CAP.bodies = []; CAP.storage = []; CAP.args = [];
 	let txt = ''; let err = null;
 	try{ const payload = JSON.parse(src.record.payload || '{}'); txt = await regenerateCaseTechniqueSnapshot(src.record, key, payload); }catch(e){ err = e; }
-	return { content: `${txt || ''}`.trim(), status: txt ? 'regen-base' : 'missing', err, req: entriesOf(CAP.bodies), reqN: CAP.bodies.length, args: entriesOf(CAP.args), argsN: CAP.args.length, storage: CAP.storage.slice() };
+	return { content: `${txt || ''}`.trim(), status: txt ? 'regen-base' : 'missing', err, req: entriesOf(CAP.bodies), reqN: CAP.bodies.length, urls: CAP.bodies.map((r)=>r.url), args: entriesOf(CAP.args), argsN: CAP.args.length, argUrls: CAP.args.map((r)=>r.url), storage: CAP.storage.slice() };
 }
 
 const KEYS = Object.keys(TECHNIQUE_SETTINGS_SCHEMA).filter((k)=>{ const s = TECHNIQUE_SETTINGS_SCHEMA[k]; return s && s.kind !== 'sectionsOnly' && Array.isArray(s.fields) && s.fields.length; });
@@ -321,11 +335,15 @@ describe('🔴 全技法齿轮差分闸(表驱动;后端在线时正文/请求/�
 		const variants = chartLike ? CHART_VARIANTS.map((v)=>chartSrc(v)) : CASE_VARIANTS.map((v, i)=>caseSrc(key, v, i)).concat(isDual ? CHART_VARIANTS.map((v)=>chartSrc(v)) : []);
 		it(`${key}(${schema.kind},${schema.fields.length} 齿轮)`, async ()=>{
 			const baseCache = {};
+			const leaks = [];
 			const baseFor = async (vi, ctxOv)=>{
 				const ck = `${vi}|${JSON.stringify(ctxOv)}`;
 				if(!baseCache[ck]){
 					const b1 = await runBase(variants[vi], key, ctxOv);
 					const b2 = await runBase(variants[vi], key, ctxOv);
+					// 不重取:未登记的缓存在重取时会两遍都命中、零请求而「一致」,重取只会把吸收洗成假一致(实测)
+					const leak = baselineLeak(b1, b2);
+					if(leak){ leaks.push(`INSTRUMENT-LEAK ${key} v${vi} ${JSON.stringify(ctxOv)}: ${leak}`); }
 					const noiseLines = new Set(symDiff(lines(b1.content), lines(b2.content)));
 					const seqOf = (txt)=>lines(txt).filter((l)=>!noiseLines.has(l)).join('\n');
 					baseCache[ck] = {
@@ -445,6 +463,8 @@ describe('🔴 全技法齿轮差分闸(表驱动;后端在线时正文/请求/�
 						const b1 = await runBase(srcS, key, ctxOv);
 						// 扫描点也取两遍缺省定噪声(走后端的技法会随扫描点带进此刻 / 生成时刻类行,不定噪声会把它们当正文差分)
 						const b2 = await runBase(srcS, key, ctxOv);
+						const sweepLeak = baselineLeak(b1, b2);
+						if(sweepLeak){ leaks.push(`INSTRUMENT-LEAK ${key}.${name} sweep${si}: ${sweepLeak}`); }
 						const ov = await runCtx(srcS, key, { ...ctxOv, [name]: cands0[0] });
 						rec.tries += 1;
 						const sweepNoise = { b1, noiseLines: new Set(symDiff(lines(b1.content), lines(b2.content))), noisePaths: new Set(symDiff(b1.req, b2.req).map(pathOf)), noiseArgs: new Set(symDiff(b1.args, b2.args).map(pathOf)) };
@@ -475,7 +495,7 @@ describe('🔴 全技法齿轮差分闸(表驱动;后端在线时正文/请求/�
 				}
 			}
 			const bad = RESULTS.filter((r)=>r.key === key && (r.verdict === 'FAIL-OVERRIDE' || r.verdict === 'FAIL-DEAD'));
-			expect(bad.map((r)=>`${r.verdict} ${key}.${r.name}=${JSON.stringify(r.value)}`)).toEqual([]);
+			expect([...bad.map((r)=>`${r.verdict} ${key}.${r.name}=${JSON.stringify(r.value)}`), ...leaks]).toEqual([]);
 		});
 	});
 

@@ -1,20 +1,30 @@
-// AI 助手·@引用(A4;借鉴 Codex /mention、Cursor @):输入框打 @ 弹补全(命盘/事盘/资料/组合/模板/技法/技法段),选中插入 @[类型:名字] 标记,
-// 发送时解析标记 → 挂载动作(切命盘/追加参考/改技法/技法段过滤),标记在正文里换回名字。纯函数零副作用零 import。
+// AI 助手·@引用(A4):输入框打 @ 弹补全(命盘/事盘/资料/组合/模板/技法/技法段),选中插入 @[类型:名字] 标记,
+// 发送时解析标记 → 挂载动作(切命盘/追加参考/改技法/技法段过滤),标记在正文里换回名字。纯函数零副作用;只 import 界面简繁的比对单源
+// (候选过滤与排序经 matchesUserQuery / scriptTextEquals 比:界面繁体时照屏幕输入繁体也能命中;简体模式下逐字节等价)。
 // 规则:@ 必须在行首或跟在空白/标点之后(邮箱 a@b 与全角 ＠ 都不是);同名歧义用 #尾号(cid 后四位)区分;第二个 @命盘 不挂载,提示改用 /合盘。
-// [2026-09-11 补完] 技法候选=全技法并集(命盘类 ∪ 事盘类),不在当前案例可挂集的标 available:false + why(灰显,发送时提示未挂载而非「没找到」);
+// 技法候选=全技法并集(命盘类 ∪ 事盘类),不在当前案例可挂集的标 available:false + why(灰显,发送时提示未挂载而非「没找到」);
 // 此前全局截 12 条:命盘/资料排前,技法只剩 ≈9 个坑位 → 用户以为「技法缺了非常多」;技法英文键子串命中 + 可选拼音文本命中。
-// [2026-09-12] 技法**一条不截**:空关键字时全部技法按术数域分组列出(与「选择技法」下拉同一分组),灰项就地灰显;只有命盘/资料等
+// 技法**一条不截**:空关键字时全部技法按术数域分组列出(与「选择技法」下拉同一分组),灰项就地灰显;只有命盘/资料等
 // 「可能几百条」的组才按配额取头几条,脚注写明「输入名字筛选」。技法段:已勾选技法的段 + 正在键入的技法(`@八字/`)的段都列。
-// [2026-09-12 复查] `@紫微/` `@zw/` `@ziwei/`:段候选按「技法头 / 段尾」拆开匹配(头对标签前缀 / 键前缀 / 拼音,尾对段名子串),此前只认完整标签;
+// `@紫微/` `@zw/` `@ziwei/`:段候选按「技法头 / 段尾」拆开匹配(头对标签前缀 / 键前缀 / 拼音,尾对段名子串),此前只认完整标签;
 // 段标记解析按「标签 + /」最长前缀切分(「十三分盘 / 占星地图/起盘信息」不再切成「十三分盘」);段候选继承技法的灰显;
 // 带关键字时 bestIndex 指向最佳命中(组序供 ↑↓ 用,Enter 默认落在最佳命中而不是第一组的包含命中)。
+import { parseDateTimeMs } from '../dateTimeParse';
+import { matchesUserQuery, scriptTextEquals } from '../scriptMode';
+
+// 候选比对:两边先小写,再经单源比(界面繁体时看到的字 / 原文 / 混写都认;q 是已小写的检索词)
+const mk = (s)=>`${s == null ? '' : s}`.toLowerCase();
+const has = (text, q)=>matchesUserQuery(mk(text), q);
+const starts = (text, q)=>matchesUserQuery(mk(text), q, { prefix: true });
+const same = (text, q)=>scriptTextEquals(mk(text), q);
+
 export const MENTION_KINDS = ['source', 'material', 'bundle', 'template', 'technique', 'section'];
 // 空关键字时每组最多显示条数;不在此表的组(技法 · 各术数域 / 技法段)不设上限。有关键字时统一上限 MENTION_QUERY_LIMIT。
 export const MENTION_GROUP_QUOTA = { 命盘: 6, 事盘: 6, 资料: 4, 组合: 3, 模板: 3 };
 export const MENTION_QUERY_LIMIT = 200;
 export const MENTION_TECHNIQUE_GROUP_PREFIX = '技法 · ';
 export const MENTION_TYPE_LABELS = { chart: '命盘', case: '事盘', material: '资料', bundle: '组合', template: '模板', technique: '技法', section: '技法段' };
-// [Q-326] 标记体三处修:
+// 标记体三处修:
 //  ① 名字里的 `]` `#` `\` 在插入时转义(escapeMentionName),解析时还原 —— 此前含 `]` 的名字把标记提前截断、
 //     名字自带 `#尾号`(如「案例#2024」)被当成同名消歧尾号切掉;
 //  ② 长度上限 80 → 200:超限时整条标记匹配不上,原样当正文发给模型(用户看到的是「@引用没生效」);
@@ -60,20 +70,20 @@ function suffixOf(id){ const t = `${id || ''}`; return t.slice(-4); }
 
 // 技法「头」匹配(`@八字/`、`@bz/`、`@ziwei/` 的 `/` 前那截):0 = 标签/键全等 · 1 = 标签/键/拼音词前缀 · 2 = 标签/键子串 · -1 = 不中;空头 = 全中(0)
 export function techniqueHeadMatch(head, { label, key, extra } = {}){
-	const h = `${head == null ? '' : head}`.trim().toLowerCase();
+	const h = mk(`${head == null ? '' : head}`.trim());
 	if(!h){ return 0; }
-	const l = `${label || ''}`.toLowerCase(); const k = `${key || ''}`.toLowerCase();
-	if(l === h || k === h){ return 0; }
-	if((l && l.indexOf(h) === 0) || (k && k.indexOf(h) === 0)){ return 1; }
-	const ex = `${extra || ''}`.toLowerCase();
-	if(ex && ex.split(/\s+/).some((w)=>w && w.indexOf(h) === 0)){ return 1; }
-	if((l && l.indexOf(h) >= 0) || (k && k.indexOf(h) >= 0)){ return 2; }
+	const l = mk(label || ''); const k = mk(key || '');
+	if(same(l, h) || same(k, h)){ return 0; }
+	if((l && starts(l, h)) || (k && starts(k, h))){ return 1; }
+	const ex = mk(extra || '');
+	if(ex && ex.split(/\s+/).some((w)=>w && starts(w, h))){ return 1; }
+	if((l && has(l, h)) || (k && has(k, h))){ return 2; }
 	return -1;
 }
 
 export function candidateToken(item){
 	const label = MENTION_TYPE_LABELS[item.type] || item.type;
-	// [Q-326] 名字先转义再拼:含 `]` 的名字此前把标记截断、名字自带 `#xxxx` 被误当消歧尾号
+	// 名字先转义再拼:含 `]` 的名字此前把标记截断、名字自带 `#xxxx` 被误当消歧尾号
 	return `@[${label}:${escapeMentionName(item.name)}${item.suffix ? `#${item.suffix}` : ''}]`;
 }
 
@@ -130,11 +140,11 @@ export function buildMentionCandidates({ sources, materials, bundles, templates,
 //   extraText(item) 可返回额外匹配文本(如拼音全拼/首字母,由调用方惰性提供)。
 // 命中:名字/标签子串 · 技法英文键子串(@qimen / @liureng)· extraText 子串;排序:名字前缀 0 < 键前缀/拼音首字母前缀 1 < 其余包含 2,同分保持池内顺序。
 export function filterMentionCandidatesDetailed(items, query, limits){
-	const q = `${query || ''}`.trim().toLowerCase();
+	const q = mk(`${query || ''}`.trim());
 	const opt = (limits && typeof limits === 'object') ? limits : {};
 	const legacyCap = Number.isFinite(limits) && limits > 0 ? limits : null;
 	const extra = typeof opt.extraText === 'function' ? opt.extraText : null;
-	const textOf = (it)=>{ try{ const t = extra ? extra(it) : ''; return `${t || ''}`.toLowerCase(); }catch(e){ return ''; } };
+	const textOf = (it)=>{ try{ const t = extra ? extra(it) : ''; return mk(t || ''); }catch(e){ return ''; } };
 	// 段候选专用:关键字含 `/` 时拆「技法头 / 段尾」——头对技法标签 / 键 / 拼音(techniqueHeadMatch),尾对段名子串;返回 null = 不适用(走通用命中)
 	const slashAt = q.indexOf('/');
 	const qHead = slashAt >= 0 ? q.slice(0, slashAt).trim() : null;
@@ -144,25 +154,25 @@ export function filterMentionCandidatesDetailed(items, query, limits){
 		const tl = it.techniqueLabel != null ? `${it.techniqueLabel}` : `${it.name}`.slice(0, Math.max(0, `${it.name}`.length - `${it.section || ''}`.length - 1));
 		const h = techniqueHeadMatch(qHead, { label: tl, key: it.key, extra: textOf(it) });
 		if(h < 0){ return -1; }
-		return (!qTail || `${it.section || ''}`.toLowerCase().indexOf(qTail) >= 0) ? h : -1;
+		return (!qTail || has(it.section || '', qTail)) ? h : -1;
 	};
 	const hit = (it)=>{
 		if(!q){ return true; }
 		const sh = sectionHead(it);
 		if(sh !== null){ return sh >= 0; }
-		if(`${it.name}`.toLowerCase().indexOf(q) >= 0 || `${it.label}`.toLowerCase().indexOf(q) >= 0){ return true; }
-		if(it.key && `${it.key}`.toLowerCase().indexOf(q) >= 0){ return true; }
+		if(has(it.name, q) || has(it.label, q)){ return true; }
+		if(it.key && has(it.key, q)){ return true; }
 		const ex = textOf(it);
-		return !!(ex && ex.split(/\s+/).some((w)=>w && w.indexOf(q) >= 0));
+		return !!(ex && ex.split(/\s+/).some((w)=>w && has(w, q)));
 	};
 	const score = (it)=>{
 		if(!q){ return 0; }
 		const sh = sectionHead(it);
 		if(sh !== null){ return sh < 0 ? 2 : Math.min(2, sh); }
-		if(`${it.name}`.toLowerCase().indexOf(q) === 0){ return 0; }
-		if(it.key && `${it.key}`.toLowerCase().indexOf(q) === 0){ return 1; }
+		if(starts(it.name, q)){ return 0; }
+		if(it.key && starts(it.key, q)){ return 1; }
 		const ex = textOf(it);
-		if(ex && ex.split(/\s+/).some((w)=>w && w.indexOf(q) === 0)){ return 1; }
+		if(ex && ex.split(/\s+/).some((w)=>w && starts(w, q))){ return 1; }
 		return 2;
 	};
 	const all = (items || []).filter(hit);
@@ -202,7 +212,7 @@ export function parseMentions(text){
 	const s = `${text == null ? '' : text}`;
 	const mentions = [];
 	const cleaned = s.replace(MENTION_TOKEN_RE, (raw, typeLabel, body)=>{
-		const { name, suffix } = splitMentionBody(body);   // [Q-326] 转义感知的切分 + 还原
+		const { name, suffix } = splitMentionBody(body);   // 转义感知的切分 + 还原
 		const type = Object.keys(MENTION_TYPE_LABELS).find((k)=>MENTION_TYPE_LABELS[k] === typeLabel) || 'chart';
 		mentions.push({ type, name, suffix, raw });
 		return name;
@@ -212,26 +222,36 @@ export function parseMentions(text){
 
 function newest(list){
 	return list.slice().sort((a, b)=>{
-		const ta = Date.parse((a.record && (a.record.updatedAt || a.record.createdAt)) || 0) || 0;
-		const tb = Date.parse((b.record && (b.record.updatedAt || b.record.createdAt)) || 0) || 0;
+		const ta = parseDateTimeMs((a.record && (a.record.updatedAt || a.record.createdAt)) || 0) || 0;
+		const tb = parseDateTimeMs((b.record && (b.record.updatedAt || b.record.createdAt)) || 0) || 0;
 		return tb - ta;
 	})[0];
 }
 
+// 找人(纯):精确同名优先 → 包含 → #尾号 → 同名多张取最近保存。exact = 命中来自精确同名;pool = 候选(歧义时供提示)
 function pickByName(list, name, suffix, nameOf, idOf){
 	const exact = list.filter((x)=>nameOf(x) === name);
 	const pool = exact.length ? exact : list.filter((x)=>nameOf(x).indexOf(name) >= 0);
-	if(!pool.length){ return { hit: null, ambiguous: false }; }
-	if(suffix){ const bySuffix = pool.filter((x)=>`${idOf(x)}`.endsWith(suffix)); if(bySuffix.length === 1){ return { hit: bySuffix[0], ambiguous: false }; } }
-	if(pool.length === 1){ return { hit: pool[0], ambiguous: false }; }
-	return { hit: newest(pool), ambiguous: true };
+	if(!pool.length){ return { hit: null, ambiguous: false, exact: false, pool }; }
+	if(suffix){ const bySuffix = pool.filter((x)=>`${idOf(x)}`.endsWith(suffix)); if(bySuffix.length === 1){ return { hit: bySuffix[0], ambiguous: false, exact: !!exact.length, pool }; } }
+	if(pool.length === 1){ return { hit: pool[0], ambiguous: false, exact: !!exact.length, pool }; }
+	return { hit: newest(pool), ambiguous: true, exact: !!exact.length, pool };
+}
+
+// 命盘 / 事盘按名字找(纯):@ 引用与 /合盘 共用同一套规则(此前 /合盘 只做包含匹配,「李四」与「李四四」并存时
+// `@李四` 能挂、`/合盘 李四` 却报歧义)。返回 { hit, ambiguous, exact, pool }:精确同名多张 = 取最近保存(ambiguous 且 exact);
+// 只有包含命中且多张 = ambiguous 且 !exact(打字查询由调用方列候选让用户选)
+export function resolveSourceByName(sources, name, suffix){
+	return pickByName(Array.isArray(sources) ? sources.filter(Boolean) : [], `${name || ''}`.trim(), `${suffix || ''}`.trim(), (s)=>`${s.title || ''}`, (s)=>s.id);
 }
 
 // 解析 → 挂载计划(纯):selectSource(第一个命盘/事盘)· hints(第二张命盘请用 /合盘;歧义取最近;技法不适用当前案例)· referenceIds(资料/组合)· techniqueKeys · sectionFilter{key:[段]} · unresolved
 // pools.techniqueOptions=可被 @ 到的全技法;pools.allowedTechniqueKeys(可选)=当前案例可挂集:技法在全集但不在可挂集 → 进 hints 不进 techniqueKeys(此前会被页面静默剔除)
-export function resolveMentions(mentions, pools){
+// opts.twoCharts(两盘命令 /合盘 的参数):只有一张命盘时它就是对方(不切当前案例);两张时照旧「第一张本人、第二张对方」
+export function resolveMentions(mentions, pools, opts){
 	const p = pools || {};
-	const plan = { selectSource: null, referenceIds: [], techniqueKeys: [], sectionFilter: {}, unresolved: [], hints: [] };
+	const plan = { selectSource: null, partnerSource: null, referenceIds: [], techniqueKeys: [], sectionFilter: {}, unresolved: [], hints: [] };
+	const partnerOnly = !!(opts && opts.twoCharts) && (mentions || []).filter((m)=>m && m.type === 'chart').length === 1;
 	const allowed = Array.isArray(p.allowedTechniqueKeys) ? new Set(p.allowedTechniqueKeys) : null;
 	const techOk = (key, label)=>{
 		if(!allowed || allowed.has(key)){ return true; }
@@ -244,12 +264,24 @@ export function resolveMentions(mentions, pools){
 			const list = (p.sources || []).filter((s)=>s && (m.type === 'case' ? s.sourceType === 'case' : s.sourceType !== 'case'));
 			const r = pickByName(list, m.name, m.suffix, (s)=>`${s.title || ''}`, (s)=>s.id);
 			if(!r.hit){ plan.unresolved.push(m.raw); return; }
+			// 两盘命令的参数里只有一张命盘 = 它是对方(当前案例不动;对方是不是当前这张由调用方按生效的本人再判)
+			if(partnerOnly && m.type === 'chart'){
+				plan.partnerSource = r.hit;
+				plan.hints.push(`「${m.name}」已挂为合盘对方,两张盘的技法内容分开标注${r.ambiguous ? '(有多张同名,已取最近保存的一张,可用 #尾号 指定)' : ''}`);
+				return;
+			}
 			charts += 1;
 			if(charts === 1){ plan.selectSource = r.hit; if(r.ambiguous){ plan.hints.push(`有多张「${m.name}」,已取最近保存的一张(可用 #尾号 指定)`); } }
-			else{ plan.hints.push(`第二张命盘「${m.name}」未挂载:两盘合看请用 /合盘 ${m.name}`); }
+			// [双盘挂载] 第二张命盘挂为合盘对方(两张都得是命盘,且不是同一张);事盘、第三张起不挂并说明
+			else if(charts === 2 && plan.selectSource && plan.selectSource.sourceType === 'chart' && r.hit.sourceType === 'chart' && r.hit.id !== plan.selectSource.id){
+				plan.partnerSource = r.hit;
+				plan.hints.push(`「${m.name}」已挂为合盘对方,两张盘的技法内容分开标注${r.ambiguous ? '(有多张同名,已取最近保存的一张,可用 #尾号 指定)' : ''}`);
+			}
+			else if(charts === 2){ plan.hints.push(`「${m.name}」未挂载:合盘对方只能是另一张命盘`); }
+			else{ plan.hints.push(`「${m.name}」未挂载:最多同时挂两张命盘(本人 + 合盘对方)`); }
 			return;
 		}
-		// [Q-326] 资料 / 组合 / 模板同名多条时也给歧义提示:此前只有命盘/事盘提示,这三类静默取「最近保存」的一条,
+		// 资料 / 组合 / 模板同名多条时也给歧义提示:此前只有命盘/事盘提示,这三类静默取「最近保存」的一条,
 		// 用户看到挂的不是自己想的那份却无从察觉
 		if(m.type === 'material'){
 			const r = pickByName(p.materials || [], m.name, m.suffix, (x)=>`${x.name || x.fileName || ''}`, (x)=>x.id);

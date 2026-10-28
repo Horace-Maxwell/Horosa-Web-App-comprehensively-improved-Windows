@@ -1,5 +1,5 @@
 /**
- * 纳音长生 golden（旧版柱细览 Zhu/FourZhu 显示「纳音·长生」用；非细盘「星运」）：
+ * 纳音长生 golden（八字各视图显示「纳音·长生」用；非细盘「星运」）：
  * 纳音五行在本柱地支的十二长生，与后端 wuxingphase.json「纳音{五行}_{支}」逐项一致（土从水土同长生）。
  */
 import { buildLocalBaziResult } from '../baziLunarLocal';

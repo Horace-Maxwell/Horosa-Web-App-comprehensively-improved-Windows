@@ -1,4 +1,4 @@
-// [A1] L3 持久结果缓存金标:跨会话命中(模拟重启)/键去端口化/版本闸/空载不存/开关回退。
+// L3 持久结果缓存金标:跨会话命中(模拟重启)/键去端口化/版本闸/空载不存/开关回退。
 // jsdom 无 IndexedDB → 以 jest.mock 换内存假店(契约与 idbCacheStore 相同:值=字符串)。
 const mockStore = new Map();
 jest.mock('../idbCacheStore', ()=>({
@@ -27,7 +27,7 @@ beforeEach(()=>{
 	try{ localStorage.removeItem('horosa.perf.netResultCache'); }catch(e){ /* ignore */ }
 });
 
-describe('[A1] requestDedupe L3 持久层', ()=>{
+describe('requestDedupe L3 持久层', ()=>{
 	test('键去端口化:不同端口同 path+body → 同一 L3 键', ()=>{
 		expect(__l3KeyForTest(URL_A, BODY)).toBe(__l3KeyForTest(URL_B, BODY));
 		expect(__l3KeyForTest(URL_A, BODY)).toBe(`net./chart ${BODY}`);
@@ -65,7 +65,7 @@ describe('[A1] requestDedupe L3 持久层', ()=>{
 		expect(runner).toHaveBeenCalledTimes(1);
 	});
 
-	test('[T1] rv 版本闸:URL 带 rv 时信封 rev 掺版本,runtime 更新(rv 变)→ 旧档 miss', async ()=>{
+	test('rv 版本闸:URL 带 rv 时信封 rev 掺版本,runtime 更新(rv 变)→ 旧档 miss', async ()=>{
 		setSearch('?rv=3.4.0-runtime1');
 		__resetL3RevForTest();
 		const runner1 = jest.fn(()=>Promise.resolve({ pan: 'v340' }));
@@ -87,7 +87,7 @@ describe('[A1] requestDedupe L3 持久层', ()=>{
 		expect(runner3).toHaveBeenCalledTimes(1);
 	});
 
-	test('[T1] 无 rv 参(dev 直跑):rev 保持 net-v1 旧行为', async ()=>{
+	test('无 rv 参(dev 直跑):rev 保持 net-v1 旧行为', async ()=>{
 		await dedupedRequest(URL_A, { body: BODY }, ()=>Promise.resolve({ pan: 'dev' }));
 		expect(JSON.parse(mockStore.get(__l3KeyForTest(URL_A, BODY))).rev).toBe('net-v1');
 	});

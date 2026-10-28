@@ -25,18 +25,18 @@ describe('§5.5.3 八卦滚法 golden(古籍完整算例·逐卦锁定)', () => 
 		expect(roll.bianYao9).toMatchObject({ remainder: 7, pos: 1, ying: 4 }); // 初爻与四爻同变
 		expect(roll.bianYao6).toMatchObject({ remainder: 4, pos: 4 });          // 第四爻变
 		expect(roll.seq.map((g) => g.name)).toEqual([
-			'風山漸', '天火同人', '雷澤歸妹', '地水師', '山天大畜', '火風鼎', '澤地萃', '水雷屯',
+			'风山渐', '天火同人', '雷泽归妹', '地水师', '山天大畜', '火风鼎', '泽地萃', '水雷屯',
 		]);
 		expect(roll.verseCount).toBe(48); // 每卦 6 条 × 8 卦
 	});
 
 	test('互体/错卦/对调 分步与古籍一致', () => {
 		const pi = linesOfGua('乾', '坤');
-		expect(huTiGua(pi).name).toBe('風山漸');            // 互体(否)
+		expect(huTiGua(pi).name).toBe('风山渐');            // 互体(否)
 		const jian = linesOfGua('巽', '艮');
-		expect(cuoGua(jian).name).toBe('雷澤歸妹');          // 错卦(渐)
+		expect(cuoGua(jian).name).toBe('雷泽归妹');          // 错卦(渐)
 		const tongren = linesOfGua('乾', '離');
-		expect(cuoGua(tongren).name).toBe('地水師');         // 错卦(同人)
+		expect(cuoGua(tongren).name).toBe('地水师');         // 错卦(同人)
 		// 渐 第四爻变+上下对调 → 山天大畜
 		expect(guaOfLines(swapTrigrams(bianYao(jian, [4]))).name).toBe('山天大畜');
 	});

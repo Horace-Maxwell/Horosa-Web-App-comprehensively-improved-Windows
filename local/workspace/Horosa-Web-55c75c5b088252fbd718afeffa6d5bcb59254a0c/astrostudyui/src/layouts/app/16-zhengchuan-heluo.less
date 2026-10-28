@@ -1,0 +1,215 @@
+// 全站样式 · 数算:邵子参评数 / 神数正传、河洛理数。
+// 由 layouts/app.less 按原顺序 @import(顺序即层叠次序);新规则要包在本文件的 :global { } 里。
+
+/* ── 数算：邵子参评数(原生) ── */
+:global {
+// ── 神数正传（数算子tab）：推算流程卡逐步可见 ──
+.horosa-zhengchuan-page { padding: 2px 0; }
+.horosa-zhengchuan-loading {
+	display: flex; align-items: center; gap: 6px;
+	padding: 6px 10px; margin-bottom: 8px;
+	font-size: 12px; color: var(--xq-text-dim, #8a8a8a);
+	background: var(--xq-panel-2, rgba(255, 255, 255, 0.03));
+	border-radius: 6px;
+}
+.horosa-zhengchuan-steps { display: flex; flex-direction: column; gap: 2px; padding: 4px 0; }
+.horosa-zhengchuan-step {
+	display: grid;
+	grid-template-columns: 18px minmax(72px, auto) 1fr minmax(84px, auto) minmax(56px, auto);
+	align-items: baseline; gap: 8px;
+	padding: 4px 6px; border-radius: 4px; font-size: 12px; line-height: 1.5;
+	&:nth-child(odd) { background: color-mix(in srgb, var(--horosa-huangji-accent) 4%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-huangji-accent-rgb), 0.04); } }
+}
+.horosa-zhengchuan-step-no {
+	display: inline-flex; align-items: center; justify-content: center;
+	width: 16px; height: 16px; border-radius: 50%;
+	font-size: 10px; font-weight: 700;
+	color: var(--horosa-huangji-accent-strong);
+	background: color-mix(in srgb, var(--horosa-huangji-accent) 14%, transparent); @supports not (color: color-mix(in srgb, red, red)) { background: rgba(var(--horosa-huangji-accent-rgb), 0.14); }
+}
+/* 🔴 色一概走本页之族(--horosa-huangji-*) —— 此前用的是 --xq-* 一族，其缺省值是暗色系，
+   落在本页的盘里遂灰暗不搭(浅色主题下尤显)。盘既已同兄弟，字色亦须同族。 */
+.horosa-zhengchuan-step-label { color: var(--horosa-huangji-text); font-weight: 600; white-space: nowrap; }
+.horosa-zhengchuan-step-in { color: var(--horosa-huangji-muted); overflow-wrap: break-word; overflow-wrap: anywhere; }
+.horosa-zhengchuan-step-tbl {
+	color: var(--horosa-huangji-muted); font-size: 11px; text-align: right; white-space: nowrap; opacity: .82;
+}
+.horosa-zhengchuan-step-out {
+	color: var(--horosa-huangji-accent-strong); font-weight: 700; text-align: right; white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+/* 窄盘(量盘宽挂 data-board-narrow,与窄屏同一版式):依据与表名另起一行 —— 放大档中栏两百来 px 时视口宽仍 > 900、媒体查询不中,
+   依据列被五列模板挤到十来 px、逐字竖排,得数越出卡框 */
+.horosa-zhengchuan-board[data-board-narrow] .horosa-zhengchuan-step {
+	grid-template-columns: 16px minmax(0, 1fr) auto;
+	.horosa-zhengchuan-step-in, .horosa-zhengchuan-step-tbl { grid-column-start: 2; grid-column-end: -1; text-align: left; }   /* 起止分写:`2 / -1` 会被 LESS 算成 -2 */
+	.horosa-zhengchuan-step-tbl { opacity: .7; }
+}
+/* 窄屏：依据与表名各自折行；得数不再与之抢位(其 nowrap，挤则截字 —— 实测如此) */
+@media (max-width: 900px) {
+	.horosa-zhengchuan-step {
+		grid-template-columns: 16px minmax(0, 1fr) auto;
+		.horosa-zhengchuan-step-in, .horosa-zhengchuan-step-tbl { grid-column-start: 2; grid-column-end: -1; text-align: left; }   /* 起止分写:`2 / -1` 会被 LESS 算成 -2 */
+		.horosa-zhengchuan-step-tbl { opacity: .7; }
+	}
+}
+
+/* 神数正传 · 盘内之卡（与本页诸兄弟同一副面孔） */
+.horosa-zhengchuan-board .horosa-huangji-info-card {
+	padding: 12px 14px;
+	border: 1px solid var(--horosa-huangji-line);
+	border-radius: 10px;
+	background: var(--horosa-huangji-card-bg);
+}
+.horosa-zhengchuan-board .horosa-huangji-info-card + .horosa-huangji-info-card { margin-top: 10px; }
+.horosa-zhengchuan-board .horosa-huangji-info-heading {
+	padding-bottom: 7px; margin-bottom: 4px;
+	border-bottom: 1px solid var(--horosa-huangji-line);
+	font-size: 12px; letter-spacing: .04em;
+	color: var(--horosa-huangji-accent);
+}
+.horosa-zhengchuan-board .horosa-huangji-info-value {
+	color: var(--horosa-huangji-text); font-weight: 600; overflow-wrap: break-word; overflow-wrap: anywhere;
+}
+.horosa-zhengchuan-loading { padding: 6px 2px; font-size: 12px; color: var(--horosa-huangji-muted); }
+
+.horosa-canping-center {
+    width: 100%;
+    align-self: flex-start;
+    padding: 4px 4px 16px;
+    color: var(--horosa-text, #1f1f1f);
+}
+.horosa-canping-aux { padding: 2px 0; }
+.horosa-canping-block {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--horosa-border-soft, rgba(148,163,184,.28));
+}
+.horosa-canping-block:first-of-type { margin-top: 8px; border-top: 0; padding-top: 0; }
+.horosa-canping-block-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--horosa-accent-strong, var(--horosa-accent, #c9a86a));
+    margin-bottom: 8px;
+}
+.horosa-canping-center .horosa-huangji-info-card { margin-bottom: 14px; }
+.horosa-canping-toolbar {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    padding: 6px 0 10px;
+}
+.horosa-canping-part { font-size: 16px; font-weight: 700; color: var(--horosa-accent-strong, var(--horosa-accent, #c9a86a)); }
+.horosa-canping-sub { font-size: 12px; color: var(--horosa-text-secondary, #888); }
+.horosa-canping-table { border-collapse: collapse; font-size: 13px; width: 100%; }
+.horosa-canping-table th, .horosa-canping-table td {
+    border: 1px solid var(--horosa-border-soft, rgba(148,163,184,.28));
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+}
+.horosa-canping-table thead th { color: var(--horosa-text-secondary, #888); font-weight: 500; white-space: nowrap; background: var(--horosa-surface, rgba(148,163,184,.08)); }
+.horosa-canping-dayun, .horosa-canping-liunian { width: 100%; }
+.horosa-canping-liunian td:first-child, .horosa-canping-liunian td:nth-child(2), .horosa-canping-liunian td:nth-child(3) { white-space: nowrap; }
+.horosa-canping-verse-num { font-size: 12px; color: var(--horosa-text-secondary, #888); margin-top: 10px; }
+.horosa-canping-verse-num:first-of-type { margin-top: 0; }
+.horosa-canping-verse-text { font-size: 16px; line-height: 1.8; color: var(--horosa-text, #1f1f1f); letter-spacing: 1px; }
+.horosa-canping-helper { font-size: 12px; color: var(--horosa-text-soft, #999); padding: 8px 0; }
+}
+
+/* ── 数算：河洛理数(原生) ── */
+:global {
+/* board-host 是 align-items:center 的 flex 行；内容超高时顶部会被居中挤出且无法上滑，故强制顶对齐 */
+.horosa-heluo-center { width: 100%; align-self: flex-start; padding: 4px 4px 16px; color: var(--horosa-text, #1f1f1f); }
+.horosa-heluo-aux { padding: 2px 0; }
+.horosa-heluo-toolbar {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; padding: 6px 0 10px;
+}
+.horosa-heluo-part { font-size: 16px; font-weight: 700; color: var(--horosa-accent-strong, var(--horosa-accent, #c9a86a)); }
+.horosa-heluo-sub { font-size: 12px; color: var(--horosa-text-secondary, #888); }
+.horosa-heluo-center .horosa-huangji-info-card { margin-bottom: 14px; }
+.horosa-heluo-block-subtitle { font-size: 12px; font-weight: 600; color: var(--horosa-text-secondary, #888); margin: 16px 0 6px; }
+/* 卦象 */
+.horosa-heluo-guahead { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 12px 20px; }
+.horosa-heluo-gua { display: inline-flex; flex-direction: column; gap: 3px; flex: none; }
+.horosa-heluo-yaorow { display: flex; align-items: center; gap: 8px; padding: 2px 5px; border-radius: 4px; }
+.horosa-heluo-yaorow.is-yuan { background: var(--horosa-accent-soft, rgba(201,168,106,.18)); outline: 1px solid var(--horosa-accent, #c9a86a); }
+.horosa-heluo-najia { width: 56px; font-size: 12px; color: var(--horosa-text-secondary, #888); text-align: right; white-space: nowrap; }
+.horosa-heluo-shiying { font-style: normal; color: var(--horosa-accent-strong, var(--horosa-accent, #b07d20)); font-weight: 700; }
+.horosa-heluo-bar-wrap { display: inline-flex; }
+.horosa-heluo-yaolabel { font-size: 11px; color: var(--horosa-text-soft, #aaa); white-space: nowrap; min-width: 56px; }
+.horosa-heluo-bar { display: inline-flex; gap: 8px; width: 60px; height: 8px; }
+.horosa-heluo-bar.yang { background: var(--horosa-text, #1f1f1f); border-radius: 2px; }
+.horosa-heluo-bar.yin i { flex: 1; background: var(--horosa-text, #1f1f1f); border-radius: 2px; }
+.horosa-heluo-guameta { min-width: 180px; flex: 1; }
+.horosa-heluo-guaname { font-size: 17px; font-weight: 700; }
+.horosa-heluo-verdict { margin-left: 8px; font-size: 12px; font-weight: 600; padding: 1px 7px; border-radius: 10px; background: var(--horosa-surface, rgba(148,163,184,.12)); color: var(--horosa-accent-strong, var(--horosa-accent, #c9a86a)); }
+.horosa-heluo-yuanyao { font-size: 13px; color: var(--horosa-text-secondary, #888); margin-top: 3px; }
+.horosa-heluo-gist { font-size: 13px; color: var(--horosa-text-soft, #999); margin-top: 4px; }
+.horosa-heluo-dui { font-size: 12px; color: var(--horosa-text-secondary, #888); margin-top: 5px; }
+.horosa-heluo-tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 5px; }
+/* 元气/化工 标签 */
+.horosa-heluo-tag { font-size: 11px; padding: 1px 7px; border-radius: 9px; background: var(--horosa-accent-soft, rgba(201,168,106,.20)); color: var(--horosa-accent-strong, var(--horosa-accent, #b07d20)); border: 1px solid var(--horosa-accent, rgba(201,168,106,.5)); }
+.horosa-heluo-tag.is-fan { background: transparent; color: var(--horosa-accent-strong, var(--horosa-accent, #b07d20)); border-style: dashed; opacity: .82; }
+/* 下钻箭头单元格 */
+.horosa-heluo-arrowcell { width: 26px; text-align: center; cursor: pointer; }
+.horosa-heluo-arrow { display: inline-block; color: var(--horosa-accent-strong, var(--horosa-accent, #b07d20)); transition: transform .15s; }
+.horosa-heluo-arrow.is-open { transform: rotate(180deg); }
+.horosa-heluo-arrowcell:hover .horosa-heluo-arrow { opacity: .7; }
+.horosa-heluo-tag-none { font-size: 12px; color: var(--horosa-text-soft, #aaa); }
+.horosa-heluo-tagcell { white-space: normal; }
+.horosa-heluo-tagcell .horosa-heluo-tag { display: inline-block; margin: 1px 2px; }
+/* 爻辞 */
+.horosa-heluo-yaoci { margin-top: 12px; }
+.horosa-heluo-yaoci-head { font-size: 14px; font-weight: 700; color: var(--horosa-accent-strong, var(--horosa-accent, #c9a86a)); margin-bottom: 8px; }
+.horosa-heluo-yaoci-rel { font-size: 12px; font-weight: 600; color: var(--horosa-accent-strong, var(--horosa-accent, #b07d20)); }
+/* 摘要/诗歌/爻辞推命 各成一段，标签作小徽标，正文清晰可读 */
+.horosa-heluo-yaoci-detail, .horosa-heluo-yaoci-shige, .horosa-heluo-yaoci-simple { font-size: 14px; line-height: 1.95; color: var(--horosa-text, #1f1f1f); margin-top: 10px; }
+.horosa-heluo-yaoci-shige { white-space: pre-line; }
+.horosa-heluo-yaoci-simple { color: var(--horosa-text-secondary, #777); }
+.horosa-heluo-yaoci-detail b, .horosa-heluo-yaoci-shige b, .horosa-heluo-yaoci-simple b {
+    display: inline-block; margin-right: 8px; padding: 0 8px; font-size: 12px; font-weight: 600; line-height: 1.7;
+    color: var(--horosa-accent-strong, var(--horosa-accent, #b07d20)); background: var(--horosa-accent-soft, rgba(201,168,106,.16));
+    border-radius: 4px; vertical-align: 1px;
+}
+.horosa-heluo-yaoci-expand { margin: 0; padding: 12px 14px; background: var(--horosa-surface, rgba(148,163,184,.07)); border-radius: 8px; border: 1px solid var(--horosa-border-soft, rgba(148,163,184,.22)); }
+.horosa-heluo-yaoci-expand .horosa-heluo-yaoci-detail:first-of-type { margin-top: 4px; }
+.horosa-heluo-tag.is-rel { background: var(--horosa-accent, rgba(201,168,106,.9)); color: var(--horosa-on-accent, #fff); border-color: transparent; font-weight: 600; }
+:root[data-horosa-appearance='dark'] .horosa-heluo-tag.is-rel { color: #1a1a1a; }
+/* 易经爻辞（原文）+ 经文（卦义/卦辞/总诀）+ 卦气旺衰 */
+.horosa-heluo-yaoci-yaoci { font-size: 14px; line-height: 1.95; color: var(--horosa-text, #1f1f1f); margin-top: 10px; padding: 8px 12px; background: var(--horosa-surface, rgba(148,163,184,.07)); border-left: 3px solid var(--horosa-accent-soft, rgba(201,168,106,.5)); border-radius: 6px; }
+.horosa-heluo-yaoci-yaoci b, .horosa-heluo-jing-item b {
+    display: inline-block; margin-right: 8px; padding: 0 8px; font-size: 12px; font-weight: 600; line-height: 1.7;
+    color: var(--horosa-accent-strong, var(--horosa-accent, #b07d20)); background: var(--horosa-accent-soft, rgba(201,168,106,.16));
+    border-radius: 4px; vertical-align: 1px;
+}
+.horosa-heluo-wangshuai { font-size: 12px; font-weight: 600; color: var(--horosa-accent-strong, var(--horosa-accent, #b07d20)); margin-top: 3px; }
+.horosa-heluo-jing-toggle { margin-top: 8px; padding: 3px 10px; font-size: 12px; font-weight: 600; color: var(--horosa-accent-strong, var(--horosa-accent, #b07d20)); background: transparent; border: 1px solid var(--horosa-border-soft, rgba(148,163,184,.35)); border-radius: 14px; cursor: pointer; transition: background .15s; }
+.horosa-heluo-jing-toggle:hover { background: var(--horosa-accent-soft, rgba(201,168,106,.14)); }
+.horosa-heluo-jing { margin-top: 10px; padding: 12px 14px; background: var(--horosa-surface, rgba(148,163,184,.07)); border-radius: 8px; border: 1px solid var(--horosa-border-soft, rgba(148,163,184,.22)); }
+.horosa-heluo-jing-item { font-size: 14px; line-height: 1.95; color: var(--horosa-text, #1f1f1f); margin-top: 8px; }
+.horosa-heluo-jing-item:first-child { margin-top: 0; }
+.horosa-heluo-wscell { white-space: nowrap; font-size: 12px; color: var(--horosa-text-secondary, #777); }
+/* 左栏分歧开关行：行向对齐(标签左、开关右) */
+.horosa-workspace-shell .horosa-huangji-select-field.horosa-heluo-switch-field { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; }
+.horosa-workspace-shell .horosa-huangji-select-grid .horosa-heluo-diverge-hint { grid-column: 1 / span 2; margin-top: 2px; }
+/* 表格 */
+.horosa-heluo-table { border-collapse: collapse; font-size: 13px; width: 100%; }
+.horosa-heluo-table th, .horosa-heluo-table td { border: 1px solid var(--horosa-border-soft, rgba(148,163,184,.28)); padding: 6px 10px; text-align: left; vertical-align: top; }
+/* 表格短格(卦名 / 干支 / 动爻)按词不拆字;表比卡宽时卡横向滚(放大档中栏窄时卦名不再逐字竖排);放得下时一字不变 */
+.horosa-heluo-table td:not([colspan]) { word-break: keep-all; }
+.horosa-heluo-center .horosa-huangji-info-card,
+.horosa-canping-center .horosa-huangji-info-card { overflow-x: auto; }
+.horosa-heluo-table thead th { background: var(--horosa-surface, rgba(148,163,184,.08)); color: var(--horosa-text-secondary, #888); font-weight: 500; white-space: nowrap; }
+.horosa-heluo-table tbody tr { cursor: pointer; }
+.horosa-heluo-table tbody tr:hover { background: var(--horosa-surface, rgba(148,163,184,.08)); }
+.horosa-heluo-table tbody tr.is-active { background: var(--horosa-accent-soft, rgba(201,168,106,.18)); }
+.horosa-heluo-table tbody tr.is-open { background: var(--horosa-accent-soft, rgba(201,168,106,.12)); }
+.horosa-heluo-detailrow td { padding: 12px 14px; cursor: default; background: var(--horosa-surface, rgba(201,168,106,.05)); }
+.horosa-heluo-detailrow:hover { background: transparent; }
+.horosa-heluo-detailrow .horosa-heluo-yaoci { margin-top: 0; }
+/* 流月/流日 下钻面板 */
+.horosa-heluo-drill { margin-top: 10px; padding-left: 10px; border-left: 2px solid var(--horosa-accent-soft, rgba(201,168,106,.4)); }
+.horosa-heluo-ellip { color: var(--horosa-text-secondary, #888); max-width: 220px; }
+}

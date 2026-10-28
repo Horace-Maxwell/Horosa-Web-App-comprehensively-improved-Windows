@@ -1,4 +1,4 @@
-"""[Q-254/T-224 ①, T-225] 太阳三态 sunPos 按黄经差直算(与偕日相 phase 链同阈值 17'/8.5°,同源);不再依赖相位表/容许度判据体系。"""
+"""太阳三态 sunPos 按黄经差直算(与偕日相 phase 链同阈值 17'/8.5°,同源);不再依赖相位表/容许度判据体系。"""
 from astrostudy.perchart import PerChart
 
 BASE = {'zone': '+08:00', 'lat': '31n14', 'lon': '121e28', 'hsys': 1, 'zodiacal': 0}

@@ -53,7 +53,7 @@ describe('世运盘 多流派规则集 ruleset.js', () => {
 	});
 });
 
-describe('[G1] hiddenBodiesFor 渲染白名单单源(中盘隐 glyph)', () => {
+describe('hiddenBodiesFor 渲染白名单单源(中盘隐 glyph)', () => {
 	const { hiddenBodiesFor, RULESET_BODY_LABEL } = require('../../divination/mundane/ruleset');
 	test('古典/中世纪 → 隐 ♅♆♇;modern/barbault/缺省 → null(默认档渲染零过滤=零回归锚)', () => {
 		expect(hiddenBodiesFor('ptolemaic')).toEqual(['Uranus', 'Neptune', 'Pluto']);

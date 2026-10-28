@@ -1,7 +1,9 @@
+import { lockDayBoundary, dayBoundaryLockHeld } from '../../utils/dayBoundaryLock';
 import { Component } from 'react';
+import { timeGeoFieldsChanged } from '../../utils/pendingTimeDraft';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { definePageSettings } from '../../utils/pageSettingsStore';
-import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
+import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { message, Modal } from 'antd';
 import * as Constants from '../../utils/constants';
 import request from '../../utils/request';
@@ -22,10 +24,13 @@ import {
 	JINKOU_SIXIANG_WUXING_NOTES,
 } from './JinKouDoc';
 import { JINKOU_FUWEN, JINKOU_FUWEN_NOTE } from './JinKouFuwen';
-import { resolveJinKouDiFen } from './JinKouState';
+import { resolveJinKouDiFen, normalizeZiFromText } from './JinKouState';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
-import { saveModuleAISnapshot, saveModuleAISnapshotLazy, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshot, saveModuleAISnapshotLazy, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { castSourceKey, castChartFor, castFailureKeeps } from '../../utils/derivedChartSource';
+import { castIsDiurnal } from '../../utils/castDiurnal';
+import { loadFreshModuleAISnapshot } from '../../utils/moduleSnapshotRefresh';
 import { getKentangSavedCasePayload, openKentangCaseDrawer } from '../../utils/kentangCaseSave';
 import {
 	XQButton as Button,
@@ -41,12 +46,9 @@ import {
 } from '../../utils/localCalcCache';
 import XQIcon from '../xq-icons';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+import { resolveAfter23NewDay } from '../../utils/dayBoundaryResolve';
 import { chartDrawGuardEnabled, stepPrefetchEnabled, kentangCacheEnabled, stepSelectPrefetchEnabled, techniqueResultCacheEnabled } from '../../utils/perfFlags';
-// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
-import { visualFloorPx } from '../../utils/zoomDomain';
-// [极档巡检 2026-09-18] 金口诀盘的内容最小高(CSS px,与缩放无关):外边距 20×2 + 标题 50 + 两行象限各 ≥306(表格段 72+150+44 + 两处间距 20 + 象限内边距 20)。
-// 1.8 档工作区只剩 ~400px 时盘内下段表格越出被裁(实抓 43px);盘高不低于此值、由中栏滚动看全(宁可滚、不能裁);正常窗口 ≥724px 不触发。
-const JINKOU_BOARD_MIN_H = 702;
+import { registerProcessCache } from '../../utils/processCacheRegistry';
 
 const { Option } = Select;
 const TabPane = Tabs.TabPane;
@@ -285,7 +287,7 @@ function buildFallbackRunYearByYearDiff(birth, guaFields){
 	};
 }
 
-// [issue#74] export 供金标直测(与六壬同律,见 LiuRengMain.resolveDisplayRunYear 注)。
+// export 供金标直测(与六壬同律,见 LiuRengMain.resolveDisplayRunYear 注)。
 export function resolveDisplayRunYear(runyear, birth, guaFields){
 	const fallback = buildFallbackRunYearByYearDiff(birth, guaFields);
 	if(!fallback){
@@ -331,7 +333,7 @@ export function resolveDisplayRunYear(runyear, birth, guaFields){
 export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wuxing, guirengType, gender){
 	const lines = [];
 	const nongli = liureng && liureng.nongli ? liureng.nongli : {};
-	// [Q-427/T-393] 性别「未知」(-1)时计算按男排(行年 / 旬法皆以 gender≠0 取男表),快照却写「女」——
+	// 性别「未知」(-1)时计算按男排(行年 / 旬法皆以 gender≠0 取男表),快照却写「女」——
 	//   同一份快照里「行年:男」与「性别:女」并存。与八字页口径统一:未知写「未知(按男排)」。
 	const xingbie = `${gender}` === '1' ? '男' : (`${gender}` === '0' ? '女' : '未知(按男排)');
 	const guirenType = jinkouData && jinkouData.source === 'kinjinkou' ? 'kinjinkou 贵人歌诀' : (guirengType === 0 ? '六壬法贵人' : (guirengType === 1 ? '遁甲法贵人' : '星占法贵人'));
@@ -409,7 +411,7 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 	lines.push('[金口诀速览]');
 	if(jinkouData && jinkouData.ready){
 		lines.push(`地分：${fmtValue(jinkouData.topInfo.diFen)}`);
-		// [X1·P2-14] 月将/占时与中栏顶行同源入快照(此前 AI 看不到这两个排盘参数)。
+		// 月将/占时与中栏顶行同源入快照(此前 AI 看不到这两个排盘参数)。
 		if(jinkouData.topInfo.yuejiang){ lines.push(`月将：${fmtValue(jinkouData.topInfo.yuejiang)}`); }
 		if(jinkouData.topInfo.zhanshi){ lines.push(`占时：${fmtValue(jinkouData.topInfo.zhanshi)}`); }
 		lines.push(`空亡：${fmtValue(jinkouData.topInfo.xunKong)}`);
@@ -429,7 +431,7 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 	lines.push('[金口诀四位]');
 	if(jinkouData && jinkouData.ready){
 		lines.push(`地分：${fmtValue(jinkouData.topInfo.diFen)}`);
-		// [X1·P2-14] 月将/占时与中栏顶行同源入快照(此前 AI 看不到这两个排盘参数)。
+		// 月将/占时与中栏顶行同源入快照(此前 AI 看不到这两个排盘参数)。
 		if(jinkouData.topInfo.yuejiang){ lines.push(`月将：${fmtValue(jinkouData.topInfo.yuejiang)}`); }
 		if(jinkouData.topInfo.zhanshi){ lines.push(`占时：${fmtValue(jinkouData.topInfo.zhanshi)}`); }
 		lines.push(`空亡：${fmtValue(jinkouData.topInfo.xunKong)}`);
@@ -442,7 +444,7 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 			row.label, fmtValue(row.gan), fmtValue(row.content), fmtValue(row.shenjiang), fmtValue(row.power), fmtValue(row.kong), row.nayin ? fmtValue(row.nayin) : '',
 		]);
 		pushMdRows(lines, ['位', '天干', '内容', '神将', '状态', '空亡', '纳音'], siWeiRows);
-		// [审计修] 四位类象参考行(右栏「四位」tab 渲染有快照无;固定类象表,与渲染同文)。
+		// 四位类象参考行(右栏「四位」tab 渲染有快照无;固定类象表,与渲染同文)。
 		lines.push('四位类象：四人元=尊、客、天、君、祖、外；三贵神=上、主、宰相、臣、父、官禄；二月将=中、己身、妻财、亲戚、内；一地分=下、田宅、子孙、奴仆、鞍马、六畜');
 	}else{
 		lines.push('无');
@@ -542,7 +544,7 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 	if(jinkouData && jinkouData.branchRelations && jinkouData.branchRelations.length){
 		for(let i=0; i<jinkouData.branchRelations.length; i++){
 			const b = jinkouData.branchRelations[i];
-			// [审计修] 补关系说明句 b.desc(右栏渲染有快照无)。
+			// 补关系说明句 b.desc(右栏渲染有快照无)。
 			lines.push(`${b.aLabel}${b.a} ${b.type} ${b.bLabel}${b.b}${b.desc ? `：${b.desc}` : ''}`);
 		}
 	}else{
@@ -742,7 +744,7 @@ export function buildJinKouSnapshotText(params, liureng, runyear, jinkouData, wu
 		lines.push('无');
 	}
 
-	// [YA v42] A 类硬缺:分析 tab「数理 · 太玄数」(renderTaixuan)显示了却不入快照。
+	// A 类硬缺:分析 tab「数理 · 太玄数」(renderTaixuan)显示了却不入快照。
 	// 取数与 UI 同源(jinkouData.taixuan,行文案同 renderTaixuan 的 value 拼法);无数据不产段。
 	const jkTaixuan = jinkouData && jinkouData.taixuan && jinkouData.taixuan.length ? jinkouData.taixuan : [];
 	if(jkTaixuan.length){
@@ -776,27 +778,6 @@ function mapObjToRows(obj){
 	return rows;
 }
 
-function normalizeZiFromText(text){
-	const txt = `${text || ''}`;
-	for(let i=0; i<txt.length; i++){
-		const one = txt.substr(i, 1);
-		if(LRConst.ZiList.indexOf(one) >= 0){
-			return one;
-		}
-	}
-	return '';
-}
-
-function resolveChartIsDiurnal(chartObj){
-	if(chartObj === undefined || chartObj === null){
-		return null;
-	}
-	const chart = chartObj.chart ? chartObj.chart : chartObj;
-	if(chart && typeof chart.isDiurnal === 'boolean'){
-		return chart.isDiurnal;
-	}
-	return null;
-}
 
 // 本命属相 / 行年虚岁：单一真值源 = 问测人出生时间（不再手填，免两处输入打架）。
 //   属相 = 生年干支之地支（runyear.birthGanZi 由 requestBirthYearGanZi 取回并留档）；
@@ -892,9 +873,29 @@ const JINKOU_GODS_MEM = new Map();
 const JINKOU_GODS_INFLIGHT = new Map();
 const JINKOU_RUNYEAR_MEM = new Map();
 const JINKOU_RUNYEAR_INFLIGHT = new Map();
+// 上面四表 + 出生年干支表是跨实例的进程内同参复用:登记清空函数(只供审计仪器取样前清空;产品运行期从不调用)。
+// 上游同名缓存是 per-instance(卸载即清),提到模块级后不登记,审计仪器「缺省两遍请求数」会对不上。
+registerProcessCache('jinkou.liurengShared', ()=>{
+	JINKOU_GODS_MEM.clear(); JINKOU_GODS_INFLIGHT.clear(); JINKOU_RUNYEAR_MEM.clear(); JINKOU_RUNYEAR_INFLIGHT.clear();
+	Object.keys(JINKOU_BIRTH_GANZI_MEM).forEach((k)=>{ delete JINKOU_BIRTH_GANZI_MEM[k]; });
+});
+
+// 写槽 meta 单一来源(起课时地 + 地分):平时写槽与刷新应答共用。参数里缺时区 / 经纬 → 取起课字段的值(与平时写槽同一回落)
+function jinkouSnapshotMeta(params, flds, jinkouData){
+	const p = params || {};
+	const fv = (k)=>(flds && flds[k] ? flds[k].value : '');
+	return {
+		date: p.date,
+		time: p.time,
+		zone: p.zone !== undefined ? p.zone : fv('zone'),
+		lon: p.lon !== undefined ? p.lon : fv('lon'),
+		lat: p.lat !== undefined ? p.lat : fv('lat'),
+		diFen: jinkouData && jinkouData.topInfo ? jinkouData.topInfo.diFen : '',
+	};
+}
 
 class JinKouMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -914,7 +915,7 @@ class JinKouMain extends Component{
 			liureng: null,
 			runyear: null,
 			wuxing: '土',
-			// [B6·P2] 贵神体系恒 0（六壬法）：左栏无此控件，参考典籍亦无「遁甲法/星占法贵人」之目。
+			// 贵神体系恒 0（六壬法）：左栏无此控件，参考典籍亦无「遁甲法/星占法贵人」之目。
 			// 流派差异走「贵人昼夜表」(schoolGuiTable)。此键只为兼容旧事盘档与 AI 挂载设置而留。
 			guireng: 0,
 			// 专题起式（定局法）：未选＝主课不受影响。
@@ -944,6 +945,7 @@ class JinKouMain extends Component{
 			jinkouError: '',
 			rightPanelTab: 'overview',
 			calcFields: null,
+			calcChart: null,	// 这一课的底盘(与 calcFields / liureng 同一次落定;对不上起课时刻的主盘不进来)
 			calcIsDiurnal: null,
 		};
 
@@ -989,7 +991,7 @@ class JinKouMain extends Component{
 				if(this.unmounted){
 					return;
 				}
-				this.requestGods(fields || this.props.fields, chartObj || this.props.value);
+				this.requestGods(fields || this.props.fields, chartObj);
 			};
 		}
 	}
@@ -1001,21 +1003,25 @@ class JinKouMain extends Component{
 		const hasConfirmedFlag = Object.prototype.hasOwnProperty.call(patch, '__confirmed');
 		const confirmed = hasConfirmedFlag ? !!patch.__confirmed : true;
 		if(hasConfirmedFlag && !confirmed){
+			// 时间弹层里改了还没点「确定」:记成草稿(与六壬同一输入面、同一口径),点「起课」按草稿起
+			delete patch.__confirmed;
+			this.pendingFields = { ...(this.props.fields || {}), ...patch };
 			return;
 		}
 		if(hasConfirmedFlag){
 			delete patch.__confirmed;
 		}
+		this.pendingFields = null;
 		// 用户拍板: 左栏改过 after23NewDay 后,全局事件不再覆盖。
 		if(field && Object.prototype.hasOwnProperty.call(field, 'after23NewDay')){
-			this._after23BoundaryUserOverrode = true;
+			lockDayBoundary(this, 'after23');
 			if(this.props.dispatch){
 				this.props.dispatch({ type: 'astro/setAfter23BoundaryUserOverrode', payload: { value: true } });
 			}
 		}
 		// v2.2.1: 时柱开关同款局部覆盖 — 同时设本地 flag 和 dva 中央 flag
 		if(field && Object.prototype.hasOwnProperty.call(field, 'lateZiHourUseNextDay')){
-			this._lateZiHourUserOverrode = true;
+			lockDayBoundary(this, 'lateZi');
 			if(this.props.dispatch){
 				this.props.dispatch({ type: 'astro/setLateZiHourUserOverrode', payload: { value: true } });
 			}
@@ -1035,14 +1041,14 @@ class JinKouMain extends Component{
 					nohook: !confirmed,
 				},
 			});
-			// [R3-A4] 步进时静默备下 T+1 的 gods+pan(链与 requestGods 完全同源)
+			// 步进时静默备下 T+1 的 gods+pan(链与 requestGods 完全同源)
 			if(confirmed && patch.__stepHint){
 				this.prefetchNextStepJinkou(flds, patch.__stepHint);
 			}
 		}
 	}
 
-	// [R3-A4] 顺向 +1 步预取:genGodsParams→/liureng/gods(requestDedupe 缓存)→
+	// 顺向 +1 步预取:genGodsParams→/liureng/gods(requestDedupe 缓存)→
 	// resolveJinKouDiFen(同款选项解析)→fetchJinKouPan(kentangCache)——与 requestGods
 	// 消费链逐环同源 → 键逐字节等。失败静默;开关关=零行为。
 	prefetchNextStepJinkou(baseFields, stepHint){
@@ -1104,7 +1110,7 @@ class JinKouMain extends Component{
 		}catch(e){ /* 预取失败无害 */ }
 	}
 
-	// [R3-A1 下放] 选步长即预取:金口诀 gods→pan 双段链是本页主耗时,全局 handler 只罩 /chart ——
+	// 选步长即预取:金口诀 gods→pan 双段链是本页主耗时,全局 handler 只罩 /chart ——
 	// 以当前时间 ±1 双向预热课盘,选完步长第一下步进即命中。同 unit 5s 去重。
 	prefetchStepSelect(unit){
 		try{
@@ -1138,13 +1144,13 @@ class JinKouMain extends Component{
 		if(this.state.calcBirth && nextGender !== undefined && nextGender !== prevGender){
 			next.calcBirth = { ...this.state.calcBirth, gender: { ...(this.state.calcBirth.gender || {}), value: nextGender } };
 		}
-		// [issue#74] 出生档变更即作废旧行年(与六壬同律):旧档 runyear(含 birthGanZi)滞留 state
+		// 出生档变更即作废旧行年(与六壬同律):旧档 runyear(含 birthGanZi)滞留 state
 		// 会被 resolveDisplayRunYear 的 ±1 岁容差放行、且 merged 展开保留旧 birthGanZi →
 		// 快照/旬法吃旧档。清空 → 年差法 fallback 即刻接管,requestRunYear 归来再精修。
 		next.runyear = null;
 		this.setState(next, ()=>{
 			// 行年男顺女逆随性别翻转 → 重取行年并重存挂载快照(与流派 setter 同律)。
-			// [issue#74] 条件放宽到「改生日也重取」:清空后年差法 fallback 只有 age/year,
+			// 条件放宽到「改生日也重取」:清空后年差法 fallback 只有 age/year,
 			// 旬法的 birthGanZi(生年干支)唯后端能给——只在性别变时重取则改生日后旬法段恒空。
 			if(this.state.liureng){
 				this.requestRunYear();
@@ -1155,7 +1161,7 @@ class JinKouMain extends Component{
 	onWuXingChange(val){
 		// wuxingAuto=false 起，requestGods 不再拿日干五行覆写用户的手选值
 		// （原先改一下地分/月将/占时/时间基准就把用户选的「木」静默打回日干的「金」）。
-		// [Q-211/T-155] 选「自动」即回到缺省档:置 wuxingAuto=true 并按当前课的日干立刻回算,
+		// 选「自动」即回到缺省档:置 wuxingAuto=true 并按当前课的日干立刻回算,
 		// 此前一旦手选过就再也回不去自动(下拉里根本没有这一项)。
 		if(val === 'auto'){
 			const dayGanZi = (this.state.liureng && this.state.liureng.nongli && this.state.liureng.nongli.dayGanZi) || '';
@@ -1175,11 +1181,11 @@ class JinKouMain extends Component{
 
 
 	onDiFenChange(val){
-		// [Q-211/T-155] 选「自动」即回缺省档:置 diFenAuto=true,由 resolveJinKouDiFen 按占时支重取。
+		// 选「自动」即回缺省档:置 diFenAuto=true,由 resolveJinKouDiFen 按占时支重取。
 		if(val === 'auto'){
 			this.setState({ diFenAuto: true }, ()=>{
 				if(this.state.liureng){
-					this.requestGods(this.state.calcFields || this.props.fields, this.props.value);
+					this.requestGods(this.state.calcFields || this.props.fields);
 				}else{
 					this.saveJinKouSnapshot(null, this.state.liureng, this.state.runyear, this.state.wuxing, this.state.guireng, this.state.diFen);
 				}
@@ -1191,7 +1197,7 @@ class JinKouMain extends Component{
 			diFenAuto: false,
 		}, ()=>{
 			if(this.state.liureng){
-				this.requestGods(this.state.calcFields || this.props.fields, this.props.value);
+				this.requestGods(this.state.calcFields || this.props.fields);
 			}else{
 				this.saveJinKouSnapshot(null, this.state.liureng, this.state.runyear, this.state.wuxing, this.state.guireng, val);
 			}
@@ -1203,7 +1209,7 @@ class JinKouMain extends Component{
 			yueJiang: val,
 		}, ()=>{
 			if(this.state.liureng){
-				this.requestGods(this.state.calcFields || this.props.fields, this.props.value);
+				this.requestGods(this.state.calcFields || this.props.fields);
 			}
 		});
 	}
@@ -1213,7 +1219,7 @@ class JinKouMain extends Component{
 			zhanShi: val,
 		}, ()=>{
 			if(this.state.liureng){
-				this.requestGods(this.state.calcFields || this.props.fields, this.props.value);
+				this.requestGods(this.state.calcFields || this.props.fields);
 			}
 		});
 	}
@@ -1222,7 +1228,7 @@ class JinKouMain extends Component{
 	onSchoolChange(key, val){
 		JINKOU_PAGE_SETTINGS.save({ [key]: val });   // 用户亲手改的流派 → 落盘
 		this.setState({ [key]: val }, ()=>{
-			// [X1·P1-6] 与五行/贵人/地分 setter 同律:流派改后重存挂载快照,否则 AI 挂载读旧流派盘文
+			// 与五行/贵人/地分 setter 同律:流派改后重存挂载快照,否则 AI 挂载读旧流派盘文
 			// (导出有 refresh 事件自愈,挂载路径读缓存无自愈)。
 			if(this.state.liureng){
 				this.saveJinKouSnapshot(null, this.state.liureng, this.state.runyear, this.state.wuxing, this.state.guireng, this.state.diFen, this.state.jinkouPan);
@@ -1234,7 +1240,7 @@ class JinKouMain extends Component{
 	assembleJinKouData(liureng, backendPan, runYearOverride){
 		// 签名 = 装配实际消费的全部输入(liureng/backendPan 引用 + 地分/贵神/昼夜/月将/占时/三流派/盘式)。
 		// 全等 → 复用上次结果(同输入必同输出,引用稳定);任一变 → 真重算。切右栏 tab 不动这些 → 跳过引擎重跑。
-		// [issue#74] runYearOverride:快照路径传收口后的行年(state.runyear 裸拍是挂载恒旧的病根,
+		// runYearOverride:快照路径传收口后的行年(state.runyear 裸拍是挂载恒旧的病根,
 		// 收口只堵文本参不堵此处=旬法/本命/虚岁三键绕道);缺省(render 路径)沿用 state。
 		const effRunYear = runYearOverride !== undefined ? runYearOverride : this.state.runyear;
 		const guardOn = chartDrawGuardEnabled();
@@ -1286,8 +1292,8 @@ class JinKouMain extends Component{
 				age: deriveXuSuiFromRunYear(effRunYear),
 			});
 			const isDefault = this.schoolsAllDefault();
-			// [BUG-1] 日柱两源分叉闸：/liureng/gods 不接 timeBasis(后端恒按真太阳时定日柱)，
-			// 而 /jinkou/pan 接 —— 跨日界(晚子时)且选「直接时间」时两者日柱会差一天。
+			// 日柱两源分叉闸：/liureng/gods 与 /jinkou/pan 各自定日柱(现都随「时间基准」取时间算法)；
+			// 跨日界(晚子时)时两者若判不齐，日柱会差一天。
 			// 此时若照用 pan，就成了「盘面按 pan 的日干起人元、右栏一切解读按 liureng 的日干」，
 			// 一张课两个日干。判不齐即退回本地引擎(全程只吃 liureng 日干，自洽)。
 			const panDay = backendPan && backendPan.ganzhi ? backendPan.ganzhi.day : '';
@@ -1295,9 +1301,9 @@ class JinKouMain extends Component{
 			const dayAligned = !panDay || !lrDay || `${panDay}` === `${lrDay}`;
 			result = (isDefault && dayAligned) ? normalizeKinjinkouData(backendPan, local) : local;
 			if(isDefault && !dayAligned){
-				result.daySourceNote = `课时跨日界：后端盘按「${panDay}」日、历法按「${lrDay}」日，已统一取「${lrDay}」日推算（改「时间基准」为真太阳时可使两者一致）。`;
+				result.daySourceNote = `课时恰在换日处：两种算法的日柱不同（「${panDay}」日 / 「${lrDay}」日），已统一取「${lrDay}」日推算。`;
 			}
-			// [G21] 三盘环已由本地引擎按当前流派现算（buildJinKouPlates），不再有「待续」占位。
+			// 三盘环已由本地引擎按当前流派现算（buildJinKouPlates），不再有「待续」占位。
 			// 仅当本地未能产出（月将/占时缺失）时才回落后端环，两者都没有才说明。
 			if(!isDefault && (!result.plates || !result.plates.length)){
 				if(backendPan && Array.isArray(backendPan.plates) && backendPan.plates.length){
@@ -1314,9 +1320,9 @@ class JinKouMain extends Component{
 		return result;
 	}
 
-	// [Q-207/T-154] 五项流派/盘法是否全缺省 —— 只有全缺省(且两源日柱对齐)时页面才采用后端 /jinkou/pan;
-	// 任一项非缺省即改走本地引擎 buildJinKouData,而本地引擎不消费 timeBasis(占时与日柱恒随 /liureng/gods
-	// 的真太阳时口径)→「时间基准」在那些组合下拨了也不变盘,故据此置灰并说明。
+	// 五项流派/盘法是否全缺省 —— 只有全缺省(且两源日柱对齐)时页面才采用后端 /jinkou/pan;
+	// 任一项非缺省即改走本地引擎 buildJinKouData。本地引擎吃 /liureng/gods 的农历,而那份农历随「时间基准」
+	// 取时间算法(genGodsParams),所以两条路径「时间基准」都生效,不置灰。
 	schoolsAllDefault(){
 		return (this.state.schoolYueJiang || 'zhongqi') === 'zhongqi'
 			&& (this.state.schoolGuiTable || 'shiwu') === 'shiwu'
@@ -1331,7 +1337,7 @@ class JinKouMain extends Component{
 			timeBasis: val,
 		}, ()=>{
 			if(this.state.liureng){
-				this.requestGods(this.state.calcFields || this.props.fields, this.props.value);
+				this.requestGods(this.state.calcFields || this.props.fields);
 			}
 		});
 	}
@@ -1355,9 +1361,8 @@ class JinKouMain extends Component{
 			: (calcFields && calcFields.date && calcFields.date.value ? calcFields.date.value.zone : '');
 		const guaLon = calcFields && calcFields.lon ? calcFields.lon.value : '';
 		const guaLat = calcFields && calcFields.lat ? calcFields.lat.value : '';
-		const guaAfter23 = calcFields && calcFields.after23NewDay && calcFields.after23NewDay.value !== undefined
-			? calcFields.after23NewDay.value
-			: 0;
+		// 缺键取全局现值(此前写死 0 = 24 点换日,与页面初值 / 全局缺省不同)
+		const guaAfter23 = resolveAfter23NewDay(calcFields && calcFields.after23NewDay && calcFields.after23NewDay.value);
 		const lateZiVal = flds.lateZiHourUseNextDay && flds.lateZiHourUseNextDay.value !== undefined
 			? flds.lateZiHourUseNextDay.value
 			: defaultLateZiHourUseNextDay();
@@ -1382,11 +1387,46 @@ class JinKouMain extends Component{
 		};
 	}
 
+	// 「起课」草稿优先(与六壬、三式合一同一口径):有未确认的时间草稿 → 先把它落成当前盘(全局取数回来经 hook 起课);
+	// 没有草稿按当前时刻起课。
+	clickStartCast(){
+		const draft = this.pendingFields;
+		this.pendingFields = null;
+		if(draft && draft.date && draft.time && this.props.dispatch && this.props.fields){
+			const cur = this.props.fields;
+			const fmt = (f)=>(f && f.value && typeof f.value.format === 'function' ? f.value.format('YYYY-MM-DD HH:mm:ss') : '');
+			if(fmt(draft.date) !== fmt(cur.date) || fmt(draft.time) !== fmt(cur.time)){
+				this.onFieldsChange({ date: draft.date, time: draft.time, ad: draft.ad, zone: draft.zone });
+				return;
+			}
+		}
+		this.requestGods(this.state.calcFields || this.props.fields);
+	}
+
+	// 时间基准 = 直接时间(缺省)时,盘的农历(占时 / 日柱)换成随时间算法的那份(/liureng/gods 带 timeAlg),
+	// 中栏六壬式盘与四位、右栏解读同一时刻;两份农历不是同一时刻时不合并;按引用记忆化。
+	jkChartFor(chart){
+		const direct = (this.state.timeBasis || 'direct') !== 'trueSolar';
+		const ln = this.state.liureng && this.state.liureng.nongli ? this.state.liureng.nongli : null;
+		if(!chart || !direct || !ln || !chart.nongli){ return chart; }
+		const a = chart.nongli.clockTime;
+		const b = ln.clockTime;
+		if(a && b && `${a}`.slice(0, 16) !== `${b}`.slice(0, 16)){ return chart; }
+		const m = this._jkChartMemo;
+		if(m && m.chart === chart && m.ln === ln){ return m.out; }
+		const out = { ...chart, nongli: { ...chart.nongli, ...ln } };
+		this._jkChartMemo = { chart, ln, out };
+		return out;
+	}
+
 	genGodsParams(fields){
 		let params = null;
 		const flds = fields ? fields : this.props.fields;
 		const after23 = flds.after23NewDay && flds.after23NewDay.value !== undefined ? flds.after23NewDay.value : defaultAfter23NewDay();
 		const lateZi = flds.lateZiHourUseNextDay && flds.lateZiHourUseNextDay.value !== undefined ? flds.lateZiHourUseNextDay.value : defaultLateZiHourUseNextDay();
+		// 取四柱 / 占时的时间算法随页面「时间基准」(缺省直接时间 = 按钟表时;手册同):此前不带 → 后端恒按真太阳时,
+		// 后端四位按钟表时、地分 / 旬空 / 神煞 / 应期按真太阳时,一张课两个时辰
+		const tAlg = (this.state.timeBasis || 'direct') === 'trueSolar' ? 0 : 1;
 		if(flds.params){
 			const dtparts = flds.params.birth.split(' ');
 			params = {
@@ -1395,6 +1435,7 @@ class JinKouMain extends Component{
 				time: dtparts[1],
 				after23NewDay: flds.params.after23NewDay !== undefined ? flds.params.after23NewDay : after23,
 				lateZiHourUseNextDay: flds.params.lateZiHourUseNextDay !== undefined ? flds.params.lateZiHourUseNextDay : lateZi,
+				timeAlg: tAlg,
 			};
 		}else{
 			params = {
@@ -1406,6 +1447,7 @@ class JinKouMain extends Component{
 				lat: flds.lat.value,
 				after23NewDay: after23,
 				lateZiHourUseNextDay: lateZi,
+				timeAlg: tAlg,
 			};
 		}
 		return params;
@@ -1481,13 +1523,13 @@ class JinKouMain extends Component{
 			lat: finalLat,
 		};
 		const appliedBirth = getAppliedBirth(this.state);
-		// [issue#74] 行年单点收口(与六壬 saveLiuRengAISnapshot 同律):四个调用点全传
+		// 行年单点收口(与六壬 saveLiuRengAISnapshot 同律):四个调用点全传
 		// this.state.runyear 裸拍,起课回调在 requestRunYear(异步)归来前即产快照 → 挂载行年
 		// 恒旧一拍;而 refresh-event 路径(handleSnapshotRefreshRequest)一直过 resolveDisplayRunYear
 		// → 两路径不同构。此处与其同构收口,懒存物化的快照第一版即正确。
 		// 收口值同时喂 assembleJinKouData(旬法/本命/虚岁三键的第二消费路径,只堵文本参会绕道)。
 		const appliedRunYear = resolveDisplayRunYear(runyear, appliedBirth, flds);
-		const jinkouData = this.assembleJinKouData(liureng, jinkouPan || this.state.jinkouPan, appliedRunYear);
+		const jinkouData = this.assembleJinKouData(liureng, jinkouPan === undefined ? this.state.jinkouPan : jinkouPan, appliedRunYear);   // 不传 = 屏上那一份;传了(哪怕取失败的 null)就用它,不拿屏上的顶
 		saveModuleAISnapshotLazy('jinkou', ()=>buildJinKouSnapshotText(
 			saveParams,
 			liureng,
@@ -1496,14 +1538,7 @@ class JinKouMain extends Component{
 			wuxing,
 			guirengType,
 			appliedBirth && appliedBirth.gender ? appliedBirth.gender.value : 1
-		), {
-			date: saveParams.date,
-			time: saveParams.time,
-			zone: saveParams.zone,
-			lon: saveParams.lon,
-			lat: saveParams.lat,
-			diFen: jinkouData && jinkouData.topInfo ? jinkouData.topInfo.diFen : '',
-		});
+		), jinkouSnapshotMeta(saveParams, flds, jinkouData));
 	}
 
 	// AI 导出/挂载实时取数:导出侧派发 refresh 事件,这里用当前显示的盘即时构建快照并回填,
@@ -1519,12 +1554,14 @@ class JinKouMain extends Component{
 			return;
 		}
 		let snapshotText = '';
+		let refreshMeta = {};
 		try{
 			const flds = this.state.calcFields ? this.state.calcFields : this.props.fields;
 			const params = flds ? this.genGodsParams(flds) : null;
 			const appliedBirth = getAppliedBirth(this.state);
 			const displayRunYear = resolveDisplayRunYear(this.state.runyear, appliedBirth, flds);
 			const jinkouData = this.assembleJinKouData(liureng, this.state.jinkouPan, displayRunYear);
+			refreshMeta = jinkouSnapshotMeta(params, flds, jinkouData);
 			snapshotText = `${buildJinKouSnapshotText(
 				params,
 				liureng,
@@ -1538,7 +1575,7 @@ class JinKouMain extends Component{
 			snapshotText = '';
 		}
 		if(snapshotText){
-			saveModuleAISnapshot('jinkou', snapshotText);
+			saveModuleAISnapshot('jinkou', snapshotText, refreshMeta);   // 刷新应答与平时写槽同一份起课时地 meta(含地分)
 			if(evt && evt.detail && typeof evt.detail === 'object'){
 				evt.detail.snapshotText = snapshotText;
 			}
@@ -1549,6 +1586,10 @@ class JinKouMain extends Component{
 		if(fields === undefined || fields === null){
 			return;
 		}
+		// 请求代次:只认最后一次起课 —— 在途的起课晚回不得盖掉之后再起的课 / 之后载入的存档课;
+		// 两个 await(起课神煞、金口诀排盘)之后都判;载入存案复原课时同样推进代次
+		const seq = (this._godsReqSeq = (this._godsReqSeq || 0) + 1);
+		const stale = ()=>seq !== this._godsReqSeq || this.unmounted;
 		const params = this.genGodsParams(fields);
 		const godsKey = buildCacheKey(params);
 		let result = null;
@@ -1575,7 +1616,18 @@ class JinKouMain extends Component{
 				pushCache(this.godsCache, godsKey, clonePlain(result), 72);
 			}
 		}
+		if(stale()){
+			return;
+		}
+		// 这一课的底盘只认与起课同一时刻地点的那张(主盘在途 / 取失败时它是上一刻的)
+		const calcChart = castChartFor(chartObj === undefined || chartObj === null ? this.props.value : chartObj, fields);
 		if(!result || !result.liureng){
+			// 取失败:与屏上那一课同一起课时刻地点(只改了设置)→ 留存;换了时刻 / 地点 → 屏上那一课是上一课,
+			// 清掉(连同本页 AI 快照槽),之后同一组参数照常重取
+			if(!castFailureKeeps(castSourceKey(this.state.calcFields), castSourceKey(fields))){
+				this.setState({ liureng: null, jinkouPan: null, jinkouError: '', runyear: null, calcFields: fields, calcChart, calcIsDiurnal: castIsDiurnal(calcChart, fields) });
+				clearModuleAISnapshot('jinkou');
+			}
 			return;
 		}
 
@@ -1589,7 +1641,7 @@ class JinKouMain extends Component{
 			timeZi,
 			!!this.state.liureng
 		);
-		const calcIsDiurnal = resolveChartIsDiurnal(chartObj === undefined ? this.props.value : chartObj);
+		const calcIsDiurnal = castIsDiurnal(calcChart, fields);   // 昼夜单源:同一时刻的底盘才用它的,否则按起课时刻地点本地算
 		const appliedBirth = buildBirthFields(this.state.birth, new DateTime());
 		let jinkouPan = null;
 		let jinkouError = '';
@@ -1604,6 +1656,9 @@ class JinKouMain extends Component{
 			jinkouError = e && e.message ? e.message : '金口诀本地排盘服务尚未就绪';
 			console.warn('kinjinkou backend failed, falling back to local JinKouCalc', e);
 		}
+		if(stale()){
+			return;
+		}
 		const st = {
 			liureng: result.liureng,
 			calcBirth: appliedBirth,
@@ -1611,6 +1666,7 @@ class JinKouMain extends Component{
 			jinkouPan: jinkouPan,
 			jinkouError: jinkouError,
 			calcFields: fields,
+			calcChart,
 			calcIsDiurnal: calcIsDiurnal,
 		};
 		// 自动档才跟随日干；用户手选过就保留其选择（见 onWuXingChange）。
@@ -1634,6 +1690,9 @@ class JinKouMain extends Component{
 		if(this.state.liureng === null){
 			return;
 		}
+		// 请求代次(与起课同法):只认最后一次取行年;每个 await 之后都判,载入存案复原行年时同样推进代次
+		const seq = (this._runYearReqSeq = (this._runYearReqSeq || 0) + 1);
+		const stale = ()=>seq !== this._runYearReqSeq || this.unmounted;
 		const fields = this.state.calcFields ? this.state.calcFields : this.props.fields;
 		if(!fields || !fields.date || !fields.date.value){
 			return;
@@ -1680,6 +1739,7 @@ class JinKouMain extends Component{
 				serverRes = clonePlain(this.runYearServerCache.get(runyearKey)) || {};
 			}else if(runyearKey && this.runYearServerInflight.has(runyearKey)){
 				serverRes = clonePlain(await this.runYearServerInflight.get(runyearKey)) || {};
+				if(stale()){ return; }
 			}else if(localRunyearHit){
 				serverRes = clonePlain(localRunyearHit) || {};
 				pushCache(this.runYearServerCache, runyearKey, clonePlain(serverRes), 96);
@@ -1702,6 +1762,7 @@ class JinKouMain extends Component{
 					pushCache(this.runYearServerCache, runyearKey, clonePlain(serverRes), 96);
 					setLiurengRunyearLocalCache(runyearKey, clonePlain(serverRes));
 				}
+				if(stale()){ return; }
 			}
 			result = {
 				...serverRes,
@@ -1709,6 +1770,7 @@ class JinKouMain extends Component{
 			};
 			const guaGanZi = extractGanZi(params.guaYearGanZi) || resolveGuaYearGanZi(this.state.liureng);
 			const birthGanZi = await this.requestBirthYearGanZi();
+			if(stale()){ return; }
 			// 生年干支留档：金口诀行年（旬法）要以生年所在旬起一岁，与干支流年并存两法。
 			result.birthGanZi = extractGanZi(birthGanZi) || '';
 			let localRunYear = calcRunYearLocal(
@@ -1757,6 +1819,7 @@ class JinKouMain extends Component{
 				result.ageCycle = fallbackRunYear.ageCycle;
 			}
 		}
+		if(stale()){ return; }
 		this.setState({
 			runyear: result,
 		}, ()=>{
@@ -1790,14 +1853,16 @@ class JinKouMain extends Component{
 		Object.assign(next, JINKOU_PAGE_SETTINGS.fillMissing(next));
 		if(p.liureng){
 			next.liureng = p.liureng;
+			this._godsReqSeq = (this._godsReqSeq || 0) + 1;   // 在途的起课作废:课由存档复原
 		}
 		if(p.jinkouPan){
 			next.jinkouPan = p.jinkouPan;
 		}
 		if(p.runyear !== undefined && p.runyear !== null){
 			next.runyear = p.runyear;
+			this._runYearReqSeq = (this._runYearReqSeq || 0) + 1;   // 在途的行年作废:行年由存档复原
 		}
-		// [X1·P1-7] 回放问测人出生(行年真源),免还原后一经重算行年被缺省 birth 打回默认。
+		// 回放问测人出生(行年真源),免还原后一经重算行年被缺省 birth 打回默认。
 		if(p.birthSaved && p.birthSaved.date){
 			try{
 				const bt = new DateTime();
@@ -1832,7 +1897,7 @@ class JinKouMain extends Component{
 			return;
 		}
 		const displayRunYear = resolveDisplayRunYear(this.state.runyear, getAppliedBirth(this.state), flds);
-		const snapshot = loadModuleAISnapshot('jinkou');
+		const snapshot = loadFreshModuleAISnapshot('jinkou');   // 存案 = 页面此刻所见(先请本页按当前盘重存再读槽,与挂载 / 导出同源)
 		const payload = {
 			module: 'jinkou',
 			snapshot: snapshot,
@@ -1862,7 +1927,7 @@ class JinKouMain extends Component{
 			timeScope: this.state.timeScope,
 			diFenSource: this.state.diFenSource,
 			diFenSourceInput: this.state.diFenSourceInput,
-			// [X1·P1-7] 问测人出生(行年真源)随档:此前只存 displayRunYear 值,还原后一经重算
+			// 问测人出生(行年真源)随档:此前只存 displayRunYear 值,还原后一经重算
 			// (换字段/改流派触发)行年即被缺省 birth 打回默认。DateTime 不可直接 JSON,降维成串。
 			birthSaved: this.state.birth && this.state.birth.date && this.state.birth.date.value && this.state.birth.date.value.format ? {
 				date: this.state.birth.date.value.format('YYYY-MM-DD'),
@@ -1888,7 +1953,7 @@ class JinKouMain extends Component{
 	}
 
 	genWuXingDoms(){
-		// [Q-211/T-155] 首项「自动」= 页面真实缺省(随日干五行);此前手选后无路可回自动档,
+		// 首项「自动」= 页面真实缺省(随日干五行);此前手选后无路可回自动档,
 		// 且挂载 schema 与无头兜底都写死「土」→ 日干非土时「起课时间」挂载与页面两张表。
 		return [
 			<Option key="wx_auto" value="auto">自动（随日干五行）</Option>,
@@ -1907,23 +1972,23 @@ class JinKouMain extends Component{
 			// fields.{after23NewDay,lateZiHourUseNextDay}.value 更新到 store + React 把新 props 透给本组件,再 fetch。
 			// 否则 this.props.fields 在 listener 同步触发时仍是旧 snapshot,fetch 用的还是旧值,全局开关切了不生效。
 			this._dayBoundaryListener = (ev) => {
-				if(this._after23BoundaryUserOverrode) return;
+				if(dayBoundaryLockHeld(this, 'after23')) return;
 				const v = ev && ev.detail ? ev.detail.after23NewDay : null;
 				if((v === 0 || v === 1) && this.props.fields){
 					setTimeout(() => {
 						if(this.unmounted) return;
-						this.requestGods(this.props.fields, this.props.value);
+						this.requestGods(this.props.fields);
 					}, 0);
 				}
 			};
 			window.addEventListener('horosa:day-boundary-changed', this._dayBoundaryListener);
 			this._lateZiHourListener = (ev) => {
-				if(this._lateZiHourUserOverrode) return;
+				if(dayBoundaryLockHeld(this, 'lateZi')) return;
 				const v = ev && ev.detail ? ev.detail.lateZiHourUseNextDay : null;
 				if((v === 0 || v === 1) && this.props.fields){
 					setTimeout(() => {
 						if(this.unmounted) return;
-						this.requestGods(this.props.fields, this.props.value);
+						this.requestGods(this.props.fields);
 					}, 0);
 				}
 			};
@@ -1934,11 +1999,15 @@ class JinKouMain extends Component{
 			return;
 		}
 		if(this.props.fields){
-			this.requestGods(this.props.fields, this.props.value);
+			this.requestGods(this.props.fields);
 		}
 	}
 
-	componentDidUpdate(){
+	componentDidUpdate(prevProps){
+		// 没点「确定」的时间草稿:fields 从外面换了(载入别的盘 / 此刻起课)就作废(与六壬同)
+		if(prevProps && timeGeoFieldsChanged(prevProps.fields, this.props.fields)){
+			this.pendingFields = null;
+		}
 		this.restoreFromCurrentCase();
 	}
 
@@ -2006,10 +2075,8 @@ class JinKouMain extends Component{
 	}
 
 	renderInputPanel(wxdoms){
-		// [Q-207/T-154] 「时间基准」只在后端盘路径生效(五项流派/盘法全缺省);任一项非缺省即走本地引擎,
-		// 本地引擎的占时与日柱恒随 /liureng/gods 的真太阳时口径,不读 timeBasis → 无载体,置灰并说明。
-		const timeBasisDead = !this.schoolsAllDefault();
-		const timeBasisHint = '「月将 / 贵人表 / 贵人盘 / 盘式 / 土长生」任一项改成非默认后,本页改由本地引擎出课,占时与日柱恒按真太阳时口径,时间基准无处生效,故置灰。要用它请先把这五项都调回默认。';
+		// 「时间基准」两条出课路径都生效:/liureng/gods 随它取时间算法,本地引擎吃的正是这份农历(此前不带 → 本地引擎恒真太阳时,
+		// 流派项非默认时只好置灰),故不再置灰。
 		return (
 			<div className="horosa-jinkou-input-stack">
 				<div>
@@ -2073,7 +2140,7 @@ class JinKouMain extends Component{
 					<div className="horosa-jinkou-field-grid2">
 						<label className="horosa-jinkou-select-field">
 							<span>地分</span>
-							{/* [Q-211/T-155] 首项「自动」= 页面真实缺省(随占时支);帮助此前写「默认子」并不实,
+							{/* 首项「自动」= 页面真实缺省(随占时支);帮助此前写「默认子」并不实,
 							    且手选后无路可回自动档。 */}
 							<Select value={this.state.diFenAuto === false ? this.state.diFen : 'auto'} onChange={this.onDiFenChange} dropdownMatchSelectWidth={false} dropdownClassName="horosa-jinkou-field-dropdown">
 								<Option value="auto">自动（按占时支）</Option>
@@ -2094,10 +2161,9 @@ class JinKouMain extends Component{
 								{LRConst.ZiList.map((zi)=>(<Option key={`zhanshi_${zi}`} value={zi}>{zi}</Option>))}
 							</Select>
 						</label>
-						{/* [Q-207/T-154] 非缺省流派组合走本地引擎,本项无载体 → 置灰 + 说明(照本站「条件依赖即置灰」先例)。 */}
-						<label className="horosa-jinkou-select-field" title={timeBasisDead ? timeBasisHint : undefined}>
+						<label className="horosa-jinkou-select-field">
 							<span>时间基准</span>
-							<Select value={this.state.timeBasis} onChange={this.onTimeBasisChange} disabled={timeBasisDead} dropdownMatchSelectWidth={false} dropdownClassName="horosa-jinkou-field-dropdown">
+							<Select value={this.state.timeBasis} onChange={this.onTimeBasisChange} dropdownMatchSelectWidth={false} dropdownClassName="horosa-jinkou-field-dropdown">
 								<Option value="direct">直接时间</Option>
 								<Option value="trueSolar">真太阳时</Option>
 							</Select>
@@ -2198,7 +2264,7 @@ class JinKouMain extends Component{
 				</XQSideSection>
 
 				<div className="horosa-jinkou-action-row">
-					<Button type="primary" onClick={()=>this.requestGods(this.props.fields, this.props.value)}>起课</Button>
+					<Button type="primary" onClick={()=>this.clickStartCast()}>起课</Button>
 					<Button onClick={this.clickSaveCase}>保存</Button>
 				</div>
 			</div>
@@ -2215,7 +2281,7 @@ class JinKouMain extends Component{
 		// jinkouError 此前只写不读：后端排盘服务挂了就静默退回本地引擎，用户看不出盘换了源。
 		// 这里如实说明——本地引擎算得出四位，但三盘环等后端专有面会缺，不该让人蒙在鼓里。
 		const top = jinkouData.topInfo || {};
-		// [BUG-2] 四柱/月将/占时此前只认后端 pan 的字段；流派偏离默认时走本地引擎、没有 backend，
+		// 四柱/月将/占时此前只认后端 pan 的字段；流派偏离默认时走本地引擎、没有 backend，
 		// 概览就整排显示「无 无 无 无」。本地路径回落 liureng 四柱与引擎自算的月将/占时（同源自洽）。
 		const lrCols = this.state.liureng && this.state.liureng.fourColumns ? this.state.liureng.fourColumns : {};
 		const colGz = (c)=>(c && c.ganzi ? c.ganzi : '');
@@ -2235,7 +2301,8 @@ class JinKouMain extends Component{
 			['用爻', jinkouData.yongYao ? `${jinkouData.yongYao.label || '—'}${jinkouData.yongYao.sign ? `(${jinkouData.yongYao.sign})` : ''}` : '—'],
 			// 跨日界两源不齐时明示所取日柱（否则用户看四柱是一天、看断法是另一天，无从察觉）。
 			...(jinkouData.daySourceNote ? [['日柱口径', jinkouData.daySourceNote]] : []),
-			...(this.state.jinkouError ? [['排盘来源', `后端排盘未就绪（${this.state.jinkouError}），已用本地引擎起课；四位与断法照常，三盘环等后端专有内容可能缺失。`]] : []),
+			// 报错原文(可能是英文网络报错)只进控制台,界面只说人话
+			...(this.state.jinkouError ? [['排盘来源', '排盘服务暂时不可用，已改用内置算法起课；四位与断法照常，三盘环等内容可能缺失。']] : []),
 			// 昼夜是贵神起例的分水岭,而两法(真实地平/时支粗判)在日出日落前后常打架 → 明写所依口径。
 			['昼夜', `${jinkouData.isDay ? '昼占' : '夜占'}（${fmtValue(jinkouData.dayBasisText)}）`],
 			['十二长生', `${this.state.wuxing}${this.state.wuxing === '土' ? `（${this.state.soilChangSheng === 'yin' ? '火土同宫·寅' : '水土同宫·申'}）` : ''}`],
@@ -2947,6 +3014,7 @@ class JinKouMain extends Component{
 	// 快捷栏契约:「此刻起课」:课时=当下,走全局 fields 受控回流(hook 链随新盘自动 requestGods)。
 	// 只补 date/time/ad——zone/经纬是用户所在地设置不动。
 	clickPlotNow(){
+		this.pendingFields = null;   // 此刻起课 = 放弃弹层里没确认的时间
 		if(!this.props.dispatch || !this.props.fields){
 			return;
 		}
@@ -2967,7 +3035,7 @@ class JinKouMain extends Component{
 	getQuickDockConfig(){
 		return {
 			hasResult: !!this.state.liureng,
-			primary: { key: 'plot', label: '起课', onClick: ()=>this.requestGods(this.state.calcFields || this.props.fields, this.props.value) },
+			primary: { key: 'plot', label: '起课', onClick: ()=>this.clickStartCast() },
 			extras: [
 				{ key: 'nowPlot', label: '此刻起课', icon: 'quickTransit', needsResult: false, onClick: ()=>this.clickPlotNow() },
 			],
@@ -2999,8 +3067,9 @@ class JinKouMain extends Component{
 			chartHeight = 760;
 		}
 
-		const chartObj = this.props.value;
-		const chart = chartObj ? chartObj.chart : {};
+		// 盘面画「这一课」的底盘(与课同一次落定);还没起过课时,主盘与当前时刻同一刻才拿来画
+		const chartObj = this.state.calcFields ? this.state.calcChart : castChartFor(this.props.value, this.props.fields);
+		const chart = chartObj ? this.jkChartFor(chartObj.chart) : {};
 		const chartFields = this.state.calcFields ? this.state.calcFields : this.props.fields;
 		const appliedBirth = getAppliedBirth(this.state);
 		const displayRunYear = resolveDisplayRunYear(this.state.runyear, appliedBirth, chartFields);
@@ -3051,8 +3120,8 @@ class JinKouMain extends Component{
 									zhangshengElem={this.state.wuxing}
 									guireng={this.state.guireng}
 									jinkouData={jinkouData}
-									height={Math.max(visualFloorPx(560), JINKOU_BOARD_MIN_H, chartHeight - 22)}
-									fields={this.props.fields}
+									height={chartHeight - 22}   /* 盘按宿主高画;比设计尺寸(JinKouPanChart 的 JK_DESIGN_MIN_*)小时整体等比缩小,不再撑高 + 中栏滚动 */
+									fields={chartFields}
 								/>
 							</div>
 						</div>

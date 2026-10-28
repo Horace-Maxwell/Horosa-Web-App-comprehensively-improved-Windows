@@ -16,11 +16,12 @@ import * as AstroText from '../../constants/AstroText';
 import * as AstroConst from '../../constants/AstroConst';
 import { getQuestionGuide } from '../../divination/horary/questionGuide';
 import { buildAntisciaTable } from '../../divination/horary/antisciaTable';
+import { withLabelCell } from '../../utils/labelCell';
 
 const XQOption = XQSelect.Option;
 // 迦勒底时序（行星时全表用）：由慢到快循环。
 const CHALDEAN_SEQ = ['saturn', 'jupiter', 'mars', 'sun', 'venus', 'mercury', 'moon'];
-// [H8] 映点表实现收编至 divination/horary/antisciaTable.js(快照/UI 单源,orb 同吃 opts.antisciaOrb)。
+// 映点表实现收编至 divination/horary/antisciaTable.js(快照/UI 单源,orb 同吃 opts.antisciaOrb)。
 
 const TabPane = XQTabs.TabPane;
 // 古典·接纳/互容（卜卦右栏「古典」tab）：直接读排盘引擎已算的后端 chart.receptions / chart.mutuals，
@@ -40,7 +41,7 @@ function classicalReception(chart){
 }
 let _lastHorarySnap = '';
 function cn(k){ return (PLANETS[k] || {}).cn || k || '—'; }
-// [H4a] 后端盘面 id(Sun/Moon/Mars…)→中文:与 horarySnapshot.clsPlanetCn 同源口径(AstroMsgCN 全名优先)。
+// 后端盘面 id(Sun/Moon/Mars…)→中文:与 horarySnapshot.clsPlanetCn 同源口径(AstroMsgCN 全名优先)。
 function clsPlanetCnUI(id){ return AstroText.AstroMsgCN[id] || AstroText.AstroTxtMsg[id] || id || '—'; }
 const ANG_CN = { angular: '角宫·有力', succedent: '续宫·中等', cadent: '果宫·偏弱' };
 const LEAN = {
@@ -168,7 +169,7 @@ class HoraryJudgment extends Component{
 	}
 	saveSnap(){
 		if(!this._j) return;
-		// [YA v42] 第二参传 chart:快照补 [古典接纳];[批6] 第三参传问句/阵营 → [定盘考量] 段。
+		// 第二参传 chart:快照补 [古典接纳];第三参传问句/阵营 → [定盘考量] 段。
 		try{
 			const t = buildHorarySnapshot(this._j, this.props.chart, { questionText: this.props.questionText, castingCamp: this.props.castingCamp });
 			if(t && t !== _lastHorarySnap){ _lastHorarySnap = t; saveModuleAISnapshot('horary', t, {}); }
@@ -349,7 +350,7 @@ class HoraryJudgment extends Component{
 									</div>
 								))}
 								{(() => {
-									// [H4a] 后端实测恒星附加行:仅征象星三键(全表 31 行太长);与上方前端精选表两口径对照。
+									// 后端实测恒星附加行:仅征象星三键(全表 31 行太长);与上方前端精选表两口径对照。
 									const bs = j.backendStars || {};
 									const rows = [];
 									[[sig.querentKey, '命主'], [sig.quesitedKey, '事项'], ['moon', '月亮']].forEach(([k, label]) => {
@@ -385,7 +386,7 @@ class HoraryJudgment extends Component{
 							const role = k === sig.querentKey ? '（问卜者）' : (k === sig.quesitedKey ? '（' + (sig.quesitedLabel || '事项') + '）' : (k === 'moon' ? '（共同征象）' : ''));
 							return (
 								<div key={k} className="horosa-divi-card">
-									<div className="horosa-divi-card-head">{cn(k)}<span style={{ fontWeight: 400, opacity: 0.7 }}>{role}</span> <span className="horosa-divi-sev" style={{ background: c.score > 0 ? '#2f9e6f' : (c.score < 0 ? '#cf5b45' : '#93a1b0'), minWidth: 52 }}>力量 {c.score > 0 ? '+' : ''}{c.score}</span></div>
+									<div className="horosa-divi-card-head">{cn(k)}<span style={{ fontWeight: 400, opacity: 0.7 }}>{role}</span> <span className="horosa-divi-sev" style={{ background: c.score > 0 ? 'var(--horosa-jx-ji)' : (c.score < 0 ? 'var(--horosa-jx-xiong)' : 'var(--horosa-sev-low)'), minWidth: 52 }}>力量 {c.score > 0 ? '+' : ''}{c.score}</span></div>
 									<div className="horosa-divi-kv" style={{ opacity: 0.85 }}>{plainState(facts, k)}</div>
 									{c.findings.map((f, i) => <div key={i} className={'horosa-divi-testi ' + (f.polarity === 'positive' ? 'is-pos' : (f.polarity === 'negative' ? 'is-neg' : ''))}><span className="dot">{f.polarity === 'positive' ? '▲' : (f.polarity === 'negative' ? '▼' : '·')}</span><span>{f.text_zh}</span></div>)}
 								</div>
@@ -434,11 +435,11 @@ class HoraryJudgment extends Component{
 								<div className="horosa-divi-legend">映点＝关于至点轴（巨蟹–摩羯 0°）的镜像 (180°−λ)，力量≈<b>合相</b>（隐藏联结）；对映点 (360°−λ)＝映点之冲，主分离对立。命中其它行星/四轴/宫头 ≤1° 者高亮并计入判读。</div>
 								<div style={{ overflowX: 'auto' }}>
 									<table className="horosa-divi-table" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-										<thead><tr style={{ opacity: 0.7, textAlign: 'left' }}><th style={{ padding: '2px 6px' }}>星</th><th style={{ padding: '2px 6px' }}>映点</th><th style={{ padding: '2px 6px' }}>命中</th><th style={{ padding: '2px 6px' }}>对映点</th><th style={{ padding: '2px 6px' }}>命中</th></tr></thead>
+										<thead><tr style={{ opacity: 0.7, textAlign: 'left' }}><th style={withLabelCell({ padding: '2px 6px' }, '星')}>星</th><th style={withLabelCell({ padding: '2px 6px' }, '映点')}>映点</th><th style={withLabelCell({ padding: '2px 6px' }, '命中')}>命中</th><th style={withLabelCell({ padding: '2px 6px' }, '对映点')}>对映点</th><th style={withLabelCell({ padding: '2px 6px' }, '命中')}>命中</th></tr></thead>
 										<tbody>
 											{buildAntisciaTable(facts, opts.antisciaOrb).map((r) => (
 												<tr key={r.key} style={{ borderTop: '1px dashed rgba(148,163,184,.2)' }}>
-													<td style={{ padding: '2px 6px' }}>{r.cn}</td>
+													<td style={withLabelCell({ padding: '2px 6px' }, r.cn)}>{r.cn}</td>
 													<td style={{ padding: '2px 6px' }}>{r.antiText}</td>
 													<td style={{ padding: '2px 6px', color: r.antiHits.length ? 'var(--horosa-accent, #b8860b)' : undefined, fontWeight: r.antiHits.length ? 600 : 400 }}>{r.antiHits.join('、') || '—'}</td>
 													<td style={{ padding: '2px 6px' }}>{r.contraText}</td>
@@ -499,16 +500,16 @@ class HoraryJudgment extends Component{
 								<div className="horosa-divi-card-head">逐星必然尊贵明细</div>
 								<div style={{ overflowX: 'auto' }}>
 									<table className="horosa-divi-table" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-										<thead><tr style={{ opacity: 0.7, textAlign: 'left' }}><th style={{ padding: '2px 6px' }}>星</th><th style={{ padding: '2px 6px' }}>落座</th><th style={{ padding: '2px 6px' }}>尊贵 token</th><th style={{ padding: '2px 6px' }}>计分</th></tr></thead>
+										<thead><tr style={{ opacity: 0.7, textAlign: 'left' }}><th style={withLabelCell({ padding: '2px 6px' }, '星')}>星</th><th style={withLabelCell({ padding: '2px 6px' }, '落座')}>落座</th><th style={withLabelCell({ padding: '2px 6px' }, '尊贵 token')}>尊贵 token</th><th style={withLabelCell({ padding: '2px 6px' }, '计分')}>计分</th></tr></thead>
 										<tbody>
 											{['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn'].filter((k) => facts.planets[k]).map((k) => {
 												const p = facts.planets[k];
 												return (
 													<tr key={k} style={{ borderTop: '1px dashed rgba(148,163,184,.2)' }}>
-														<td style={{ padding: '2px 6px' }}>{cn(k)}</td>
+														<td style={withLabelCell({ padding: '2px 6px' }, cn(k))}>{cn(k)}</td>
 														<td style={{ padding: '2px 6px' }}>{(SIGNS[p.sign] || {}).cn || p.sign} {p.signlon !== undefined ? p.signlon.toFixed(1) + '°' : ''}</td>
 														<td style={{ padding: '2px 6px' }}>{(p.selfDignity && p.selfDignity.length) ? dignCn(p.selfDignity) : (p.peregrine ? '游走（无尊贵）' : '—')}</td>
-														<td style={{ padding: '2px 6px', fontWeight: 600, color: p.dignityScore > 0 ? '#2f9e6f' : (p.dignityScore < 0 ? '#cf5b45' : undefined) }}>{p.dignityScore > 0 ? '+' : ''}{p.dignityScore}</td>
+														<td style={{ padding: '2px 6px', fontWeight: 600, color: p.dignityScore > 0 ? 'var(--horosa-jx-ji)' : (p.dignityScore < 0 ? 'var(--horosa-jx-xiong)' : undefined) }}>{p.dignityScore > 0 ? '+' : ''}{p.dignityScore}</td>
 													</tr>
 												);
 											})}
@@ -524,7 +525,7 @@ class HoraryJudgment extends Component{
 										const a = j.conditions[k].accidental;
 										return (
 											<div key={k} style={{ marginBottom: 6 }}>
-												<div className="horosa-divi-kv"><b>{cn(k)}</b> 合计 <b style={{ color: a.total > 0 ? '#2f9e6f' : (a.total < 0 ? '#cf5b45' : undefined) }}>{a.total > 0 ? '+' : ''}{a.total}</b></div>
+												<div className="horosa-divi-kv"><b>{cn(k)}</b> 合计 <b style={{ color: a.total > 0 ? 'var(--horosa-jx-ji)' : (a.total < 0 ? 'var(--horosa-jx-xiong)' : undefined) }}>{a.total > 0 ? '+' : ''}{a.total}</b></div>
 												<div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
 													{a.items.map((it, i) => (
 														<span key={i} style={{ fontSize: 11, padding: '1px 6px', borderRadius: 8, background: it.score > 0 ? 'rgba(47,158,111,.12)' : 'rgba(207,91,69,.12)', border: '1px solid ' + (it.score > 0 ? 'rgba(47,158,111,.3)' : 'rgba(207,91,69,.3)') }}>{it.text_zh}</span>
@@ -568,17 +569,17 @@ class HoraryJudgment extends Component{
 							{facts.meta.dayRuler ? (
 								<div style={{ overflowX: 'auto', marginTop: 4 }}>
 									<table className="horosa-divi-table" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-										<thead><tr style={{ opacity: 0.7, textAlign: 'left' }}><th style={{ padding: '2px 6px' }}>时序</th>{Array.from({ length: 12 }, (_, i) => <th key={i} style={{ padding: '2px 4px' }}>{i + 1}</th>)}</tr></thead>
+										<thead><tr style={{ opacity: 0.7, textAlign: 'left' }}><th style={withLabelCell({ padding: '2px 6px' }, '时序')}>时序</th>{Array.from({ length: 12 }, (_, i) => <th key={i} style={{ padding: '2px 4px' }}>{i + 1}</th>)}</tr></thead>
 										<tbody>
 											{[0, 12].map((base) => {
 												const d0 = CHALDEAN_SEQ.indexOf(facts.meta.dayRuler);
 												return (
 													<tr key={base} style={{ borderTop: '1px dashed rgba(148,163,184,.2)' }}>
-														<td style={{ padding: '2px 6px', opacity: 0.7 }}>{base === 0 ? '昼(日出起)' : '夜(日落起)'}</td>
+														<td style={withLabelCell({ padding: '2px 6px', opacity: 0.7 }, base === 0 ? '昼(日出起)' : '夜(日落起)')}>{base === 0 ? '昼(日出起)' : '夜(日落起)'}</td>
 														{Array.from({ length: 12 }, (_, i) => {
 															const ruler = CHALDEAN_SEQ[(d0 + base + i) % 7];
 															const isNow = ruler === j.hourRuler;
-															return <td key={i} style={{ padding: '2px 4px', fontWeight: isNow ? 700 : 400, color: isNow ? 'var(--horosa-accent, #b8860b)' : undefined }}>{cn(ruler).replace('星', '')}</td>;
+															return <td key={i} style={withLabelCell({ padding: '2px 4px', fontWeight: isNow ? 700 : 400, color: isNow ? 'var(--horosa-accent, #b8860b)' : undefined }, cn(ruler).replace('星', ''))}>{cn(ruler).replace('星', '')}</td>;
 														})}
 													</tr>
 												);
@@ -597,13 +598,13 @@ class HoraryJudgment extends Component{
 								{j.lots.extended ? (
 									<div style={{ overflowX: 'auto', marginTop: 4 }}>
 										<table className="horosa-divi-table" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-											<thead><tr style={{ opacity: 0.7, textAlign: 'left' }}><th style={{ padding: '2px 6px' }}>点</th><th style={{ padding: '2px 6px' }}>位置</th><th style={{ padding: '2px 6px' }}>定位星</th><th style={{ padding: '2px 6px' }}>用途</th></tr></thead>
+											<thead><tr style={{ opacity: 0.7, textAlign: 'left' }}><th style={withLabelCell({ padding: '2px 6px' }, '点')}>点</th><th style={withLabelCell({ padding: '2px 6px' }, '位置')}>位置</th><th style={withLabelCell({ padding: '2px 6px' }, '定位星')}>定位星</th><th style={withLabelCell({ padding: '2px 6px' }, '用途')}>用途</th></tr></thead>
 											<tbody>
 												{j.lots.extended.filter((l) => l.id !== 'fortune' && l.id !== 'spirit').map((l) => (
 													<tr key={l.id} style={{ borderTop: '1px dashed rgba(148,163,184,.2)' }}>
-														<td style={{ padding: '2px 6px' }}>{l.cn}</td>
+														<td style={withLabelCell({ padding: '2px 6px' }, l.cn)}>{l.cn}</td>
 														<td style={{ padding: '2px 6px' }}>{l.signCn}座 {l.signlon.toFixed(1)}°</td>
-														<td style={{ padding: '2px 6px' }}>{l.dispCn || '—'}</td>
+														<td style={withLabelCell({ padding: '2px 6px' }, l.dispCn || '—')}>{l.dispCn || '—'}</td>
 														<td style={{ padding: '2px 6px', opacity: 0.75 }}>{l.use}</td>
 													</tr>
 												))}

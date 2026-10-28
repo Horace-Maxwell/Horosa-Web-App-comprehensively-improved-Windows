@@ -4,14 +4,14 @@ import { CONTEXT_POLICY_PRESETS, DEFAULT_CONTEXT_POLICY, historyTokenBudgetForMo
 import { mountCharBudgetFor, contextWindowForModel } from '../aiAnalysisProviders';
 
 export const PRESET_OPTIONS = [
-	{ value: 'legacy', label: '不裁', help: '旧版行为:不裁历史(历史双发,最费 token);工具轮同样只全文回放最近 2 个带工具回合' },   // [Q-290/PP-21④]
+	{ value: 'legacy', label: '不裁', help: '旧版行为:不裁历史(历史双发,最费 token);工具轮同样只全文回放最近 2 个带工具回合' },
 	{ value: 'window', label: '窗口', help: '按模型窗口预算从最新往旧保留,问答对不切断' },
 	{ value: 'economy', label: '经济', help: '窗口 + 更早工具轮折叠 + 同参调用去重(省 token、吃缓存)' },
 ];
 
 // 细项字段(现为十一档;面板标题按 FIELD_SPECS.length 计数,勿在注释里写死档数):key 用点号路径;kind=select|int|intOrNull|intOrInfinity|bool
 export const FIELD_SPECS = [
-	{ key: 'historyMode', label: '历史裁剪', kind: 'select', options: [{ value: 'legacy', label: '不裁(旧版)' }, { value: 'window', label: '按预算裁' }], help: '「按预算裁」才用到 历史 token 预算 / 最少·最多保留条数 / 保留图片数;「挂载字数预算」与工具轮回放各档两种模式都生效' },   // [AR-33] 逐字段写明适用模式(此前一句「下面的」把挂载字数预算也说成只在窗口模式生效)
+	{ key: 'historyMode', label: '历史裁剪', kind: 'select', options: [{ value: 'legacy', label: '不裁(旧版)' }, { value: 'window', label: '按预算裁' }], help: '「按预算裁」才用到 历史 token 预算 / 最少·最多保留条数 / 保留图片数;「挂载字数预算」与工具轮回放各档两种模式都生效' },   // 逐字段写明适用模式(此前一句「下面的」把挂载字数预算也说成只在窗口模式生效)
 	{ key: 'historyTokenBudget', label: '历史 token 预算', kind: 'intOrNull', min: 500, max: 200000, help: '留空=按当前模型窗口自动(卡片上方显示估算)' },
 	// [Windows #80] 挂载(命盘/技法快照)字数预算。此前只按模型窗口实算、用户无处可调:模型不在窗口目录表里
 	//   (如 gpt-6 系)就回落保底,四技法均分后单家只剩四五千字,整张 Dasha 表/分盘被裁掉。
@@ -47,7 +47,7 @@ export function patchForField(policy, key, value){
 	return { [key]: value };
 }
 
-// [Q-290/M-105·PP-21②] 预设是整组写入,此前含 mountCharBudget:null → 用户为治挂载被裁填了挂载字数预算后点「经济」,挂载预算被清回自动
+// 预设是整组写入,此前含 mountCharBudget:null → 用户为治挂载被裁填了挂载字数预算后点「经济」,挂载预算被清回自动
 //   (卡片说明称挂载预算与历史预算是两套)。预设补丁不含 mountCharBudget。
 export function presetPatch(name){
 	const preset = CONTEXT_POLICY_PRESETS[name];

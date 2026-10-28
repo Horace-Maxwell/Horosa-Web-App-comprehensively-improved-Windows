@@ -1,4 +1,4 @@
-// [R5 P0-1] 前端启动账本上报金标:无桥 no-op / 段名合法性 / 每段只记一次 / 有桥时按约定形状 invoke。
+// 前端启动账本上报金标:无桥 no-op / 段名合法性 / 每段只记一次 / 有桥时按约定形状 invoke。
 jest.mock('../aiAnalysisDesktop', ()=>({
 	isDesktopBridgeAvailable: jest.fn(()=>false),
 	invokeDesktopCommand: jest.fn(async ()=>true),
@@ -6,7 +6,7 @@ jest.mock('../aiAnalysisDesktop', ()=>({
 import { isDesktopBridgeAvailable, invokeDesktopCommand } from '../aiAnalysisDesktop';
 import { markWebLedger, WEB_LEDGER_SEGS, __resetWebLedgerForTest, markStaticCacheStats } from '../startupLedger';
 
-describe('[R5 P0-1] startupLedger', ()=>{
+describe('startupLedger', ()=>{
 	beforeEach(()=>{ __resetWebLedgerForTest(); isDesktopBridgeAvailable.mockReturnValue(false); invokeDesktopCommand.mockClear(); });
 
 	test('无桥(浏览器 preview / 公网构建):同步 no-op,零 invoke', ()=>{
@@ -52,8 +52,8 @@ describe('[R5 P0-1] startupLedger', ()=>{
 	});
 });
 
-// [R5 N2] 静态缓存命中观测:同源 js/css 里「零传输、有解码」= 命中;跨源与非静态不计;无 Resource Timing → null
-describe('[R5 N2] markStaticCacheStats', ()=>{
+// 静态缓存命中观测:同源 js/css 里「零传输、有解码」= 命中;跨源与非静态不计;无 Resource Timing → null
+describe('markStaticCacheStats', ()=>{
 	const origGet = performance.getEntriesByType;
 	afterEach(()=>{ performance.getEntriesByType = origGet; __resetWebLedgerForTest(); });
 	test('统计口径', ()=>{

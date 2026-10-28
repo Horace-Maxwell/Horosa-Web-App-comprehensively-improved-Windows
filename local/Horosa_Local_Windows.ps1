@@ -2712,28 +2712,6 @@ function Invoke-Maven {
   }
 }
 
-function Install-MavenAliasArtifact {
-  param(
-    [string]$MvnExe,
-    [string]$WorkingDir,
-    [string]$JarPath,
-    [string]$GroupId,
-    [string]$ArtifactId,
-    [string]$Version
-  )
-  if (-not (Test-Path $JarPath)) { return $false }
-  $args = @(
-    'install:install-file',
-    "-Dfile=$JarPath",
-    "-DgroupId=$GroupId",
-    "-DartifactId=$ArtifactId",
-    "-Dversion=$Version",
-    '-Dpackaging=jar',
-    '-DgeneratePom=true'
-  )
-  return (Invoke-Maven -MvnExe $MvnExe -WorkingDir $WorkingDir -MavenArgs $args)
-}
-
 function Test-JarFileLooksValid {
   param([string]$Path)
 
@@ -2863,50 +2841,21 @@ function Try-BuildBackendJar {
     } else {
       Write-Host 'Backend jar missing, trying local Maven build...'
     }
-    $moduleOrder = @(
-      'boundless',
-      'basecomm',
-      'image',
-      'astroswisseph',
-      'astrodeeplearn',
-      'astroesp',
-      'astrostudy',
-      'astrostudycn',
-      'astroreader'
-    )
-
-    foreach ($module in $moduleOrder) {
-      $moduleDir = Join-Path $srvRoot $module
-      $pom = Join-Path $moduleDir 'pom.xml'
-      if (-not (Test-Path $pom)) { continue }
-      Write-Host ("[mvn] install {0}" -f $module)
-      $ok = Invoke-Maven -MvnExe $mvn -WorkingDir $moduleDir -MavenArgs @('-DskipTests', 'install')
-      if (-not $ok) { return $false }
-
-      if ($module -eq 'boundless') {
-        $builtJar = Join-Path $moduleDir 'target\boundless-1.2.1.2.jar'
-        if (Test-Path $builtJar) {
-          Write-Host '[mvn] install alias boundless:1.2.1 -> local jar'
-          $aliasOk = Install-MavenAliasArtifact -MvnExe $mvn -WorkingDir $moduleDir -JarPath $builtJar -GroupId 'boundless' -ArtifactId 'boundless' -Version '1.2.1'
-          if (-not $aliasOk) { return $false }
-        }
-      }
-
-      if ($module -eq 'basecomm') {
-        $builtJar = Join-Path $moduleDir 'target\basecomm-1.1.1.jar'
-        if (Test-Path $builtJar) {
-          Write-Host '[mvn] install alias spacex:basecomm:1.1.2.2 -> local jar'
-          $aliasOk = Install-MavenAliasArtifact -MvnExe $mvn -WorkingDir $moduleDir -JarPath $builtJar -GroupId 'spacex' -ArtifactId 'basecomm' -Version '1.1.2.2'
-          if (-not $aliasOk) { return $false }
-        }
-      }
+    # The backend is one multi-module Maven project: always build it through the aggregator pom
+    # (the module list lives only in astrostudysrv/pom.xml <modules>). Building module by module
+    # fails on a fresh machine (parent pom / sibling modules not in the local repository yet) and
+    # silently picks up stale artifacts on an old one.
+    $aggregatorPom = Join-Path $srvRoot 'pom.xml'
+    if (-not (Test-Path $aggregatorPom)) {
+      Write-Host ("[WARN] Backend aggregator pom missing: {0}" -f $aggregatorPom)
+      return $false
     }
-
-    $bootDir = Join-Path $srvRoot 'astrostudyboot'
-    if (-not (Test-Path (Join-Path $bootDir 'pom.xml'))) { return $false }
-    Write-Host '[mvn] package astrostudyboot'
-    $bootOk = Invoke-Maven -MvnExe $mvn -WorkingDir $bootDir -MavenArgs @('-DskipTests', 'package')
-    if (-not $bootOk) { return $false }
+    Write-Host ("[mvn] clean install (all modules via {0})" -f $aggregatorPom)
+    $ok = Invoke-Maven -MvnExe $mvn -WorkingDir $srvRoot -MavenArgs @('-f', $aggregatorPom, '-DskipTests', 'clean', 'install')
+    if (-not $ok) {
+      Write-Host '[WARN] Maven build failed (see output above).'
+      return $false
+    }
   } finally {
     $env:JAVA_HOME = $oldJavaHome
     $env:Path = $oldPath

@@ -93,7 +93,7 @@ MEAN_SPEED = {
 }
 STATION_THRESH = {"水": 0.20, "金": 0.20, "火": 0.10, "木": 0.05, "土": 0.035}
 
-# ── [W7 择日全谱轮] 殿垣庙旺乐喜怒七态表(镜像 js guolaoData.SIGN_STATUS_RAW,jest diff 锚双向) ──
+# ── 殿垣庙旺乐喜怒七态表(镜像 js guolaoData.SIGN_STATUS_RAW,jest diff 锚双向) ──
 QIZHENG_SIGN_STATUS_RAW = {
     "日": "午:垣,午:庙,巳:旺,戌:旺,午:乐,辰:乐,寅:喜",
     "月": "未:垣,戌:庙,酉:旺,未:乐,卯:喜,亥:喜",
@@ -120,7 +120,7 @@ def qizheng_sign_statuses(star, zhi):
     return out
 
 
-# ── [W7] 迟速判据(镜像 js STAR_SPEED_SPEC,Moira 金标口径;stat=留阈,slow/fast=迟速界) ──
+# ── 迟速判据(镜像 js STAR_SPEED_SPEC,Moira 金标口径;stat=留阈,slow/fast=迟速界) ──
 QIZHENG_SPEED_SPEC = {
     "金": {"stat": 0.15, "slow": 0.71, "fast": 1.245},
     "木": {"stat": 0.07, "slow": 0.05, "fast": 0.23},

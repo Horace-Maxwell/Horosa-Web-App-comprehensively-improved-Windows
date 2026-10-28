@@ -1,7 +1,7 @@
 // v2 呈现层 IR 解析器 + PDF 块装箱 纯函数测试。
 import { parseAiExportDocument, parseExportSectionTitle, packBlocksIntoChunks, mdInlineSegments } from '../aiExportDocModel';
 
-describe('[E5] mdInlineSegments 行内分段(渲染端消化记号的单源)', ()=>{
+describe('mdInlineSegments 行内分段(渲染端消化记号的单源)', ()=>{
 	test('粗/斜/码分段与纯文本回退', ()=>{
 		expect(mdInlineSegments('**甲**：乙*丙*`丁`戊')).toEqual([
 			{ text: '甲', bold: true }, { text: '：乙' }, { text: '丙', em: true }, { text: '丁', code: true }, { text: '戊' },
@@ -90,7 +90,7 @@ describe('packBlocksIntoChunks 装箱(整块最小单位)', ()=>{
 		const chunks = packBlocksIntoChunks([3000, 3000, 3000, 3000, 3000], 8000, 15000);
 		expect(chunks).toEqual([{ start: 0, end: 2 }, { start: 2, end: 4 }, { start: 4, end: 5 }]);
 	});
-	test('[B2] 单块超 hardMax → 独占一段带 split 标记(不再 null 整份降级)', ()=>{
+	test('单块超 hardMax → 独占一段带 split 标记(不再 null 整份降级)', ()=>{
 		const chunks = packBlocksIntoChunks([3000, 20000, 100], 8000, 15000);
 		expect(chunks).toEqual([
 			{ start: 0, end: 1 },

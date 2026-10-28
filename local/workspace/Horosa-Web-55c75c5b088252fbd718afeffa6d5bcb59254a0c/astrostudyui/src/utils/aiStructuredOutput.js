@@ -1,6 +1,6 @@
 // AI 结构化输出(C3):JSON Schema 严格模式的单一构造点。前端只产 OpenAI 形 response_format{type:'json_schema', json_schema:{name, schema, strict}};
 // 四家翻译在 Java 代理层(OpenAI 透传+400 两级降级 json_schema→json_object→删键 / Anthropic 工具化 tool_choice(仅非流式)/ Gemini responseSchema / Ollama format=schema)。
-// 消费方一律缺省关(报告侧判官/审计/统稿按各自旗标;聊天侧判官/审阅/编排后续批接入);未开=现状 json_object 或纯文本,请求字节不变。
+// 消费方一律缺省关(各消费方按各自旗标;聊天侧判官/审阅/编排后续批接入);未开=现状 json_object 或纯文本,请求字节不变。
 // 纪律:schema 只描述形状,不塞业务文案;strict 下 OpenAI 硬约束=每个 object 节点 additionalProperties:false 且 required 列全部属性(可选字段用 type:[…,'null'] 表达);
 // 嵌套 ≤5 层;strict 不支持的校验关键字(default/minLength/pattern/format/minimum…)一律剥掉——形状约束交给解析方二次校验。
 export const STRUCTURED_FORMAT_TYPE = 'json_schema';
@@ -108,7 +108,7 @@ export function schemaFingerprint(schema){
 	return `sch-${h.toString(16).padStart(8, '0')}`;
 }
 
-// [进阶审计·真模型 D11·2026-09-07] 第三级降级(空正文):DeepSeek V4 flash 在 json_object 模式下把整段输出写进 reasoning_content、
+// 第三级降级(空正文):DeepSeek V4 flash 在 json_object 模式下把整段输出写进 reasoning_content、
 // content 为空且 finish_reason=stop(磁带实抓:completion_tokens 1243 = reasoning_tokens 1243)。代理层的两级降级只认 HTTP 400,
 // 对这种「200 但空正文」无感 → /审阅 恒「审阅模型没有返回合法 JSON」。结构化短调用若拿到空正文且本次带了 response_format,
 // 去掉 response_format 原样重发一次(仍空才算失败)。只在空正文时触发:有正文的请求字节零变化。
@@ -120,7 +120,7 @@ export function withoutResponseFormat(providerOptions){
 export function structuredContentOf(rsp){
 	return rsp && rsp.Result && rsp.Result.content ? `${rsp.Result.content}` : '';
 }
-// [Q-294/M-109·AR-05] options(如 { signal })两次调用都透传:此前只有两个形参,调用方传的 signal 被静默丢弃 →
+// options(如 { signal })两次调用都透传:此前只有两个形参,调用方传的 signal 被静默丢弃 →
 //   规划 / 综合 / 判官 / 审阅短调用不受「停止」影响。
 export async function requestStructuredWithFallback(request, params, options){
 	const first = await request(params, options);

@@ -1,4 +1,4 @@
-// [卜卦改进 H4a] 后端金矿纯增接线——离线锁(真形 fixture)。
+// 后端金矿纯增接线——离线锁(真形 fixture)。
 // ①facts 六字段映射(stationState/decl/ruleHouses/degreeQuality/specialDegree/backendDignityScore)
 // ②moonStory.immediate(后端 immediateAsp 权威源,限七政×托勒密角)
 // ③moonFinal 月亮本座终局相位(真计算,Query VI 接线)

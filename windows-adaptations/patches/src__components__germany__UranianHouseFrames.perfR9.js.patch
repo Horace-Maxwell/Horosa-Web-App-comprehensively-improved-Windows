@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/germany/UranianHouseFrames.js b/astrostudyui/src/components/germany/UranianHouseFrames.js
-index 891ade35..3976bc15 100644
+index 43f6499b..cece8423 100644
 --- a/astrostudyui/src/components/germany/UranianHouseFrames.js
 +++ b/astrostudyui/src/components/germany/UranianHouseFrames.js
 @@ -1,4 +1,7 @@
@@ -10,7 +10,7 @@ index 891ade35..3976bc15 100644
  // 顶部 XQSelect 六框下拉(子午/上升/太阳/月亮/交点/地球)看一框盘 + XQTable 落宫表 + 「缩略全览」看六小轮。
  // 主框盘复用标准星盘设置 AstroChart(同主占星盘):用所选框的 12 宫 cusps 重写本命盘 houses,各点用本命盘原始
  //   objects(全保真:字形/逆行/落座度),画成与主盘一致的 12 宫盘。缩略全览仍用轻量 UranianFrameWheel(六小轮)。
-@@ -15,6 +18,30 @@ import * as AstroText from '../../constants/AstroText';
+@@ -16,6 +19,30 @@ import * as AstroText from '../../constants/AstroText';
  import { XQSelect, XQTable } from '../xq-ui';
  import AstroChart from '../astro/AstroChart';
  import UranianFrameWheel from './UranianFrameWheel';
@@ -41,7 +41,7 @@ index 891ade35..3976bc15 100644
  import { equalHouseFramework, planetHouse } from '../../utils/uranianDial';
  import { getStoredUranianDisplay, saveUranianDisplay } from './UranianDialStyle';
  import { schoolToBackendParams } from './UranianSchools';
-@@ -158,6 +185,12 @@ export default class UranianHouseFrames extends Component {
+@@ -160,6 +187,12 @@ export default class UranianHouseFrames extends Component {
  		this._measure = this._measure.bind(this);
  		if (this.props.hook) this.props.hook.fun = () => { if (!this.unmounted) { this.load(); this._measure(); } };
  	}
@@ -54,7 +54,7 @@ index 891ade35..3976bc15 100644
  	componentDidMount(){
  		this.unmounted = false;
  		this.load();
-@@ -202,11 +235,13 @@ export default class UranianHouseFrames extends Component {
+@@ -204,11 +237,13 @@ export default class UranianHouseFrames extends Component {
  			if (!chartObj || !m) { settleTrigger(this, 'load', framesTrig, false); }   // request 吞错 resolve 空 → 同参允许重试
  			const tnp = (m && m.tnp) || [];
  			const points = collectPoints(chartObj, tnp);

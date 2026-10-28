@@ -1,0 +1,20 @@
+diff --git a/astropy/tests/test_vendor_suites_gate.py b/astropy/tests/test_vendor_suites_gate.py
+index beedbfb6..ef07f5c3 100644
+--- a/astropy/tests/test_vendor_suites_gate.py
++++ b/astropy/tests/test_vendor_suites_gate.py
+@@ -35,10 +35,14 @@ def test_vendor_suite_passes(name, cwd, args):
+     # 相对路径的 PYTHONPATH 项按本进程工作目录转成绝对路径(子进程换了工作目录)
+     if env.get("PYTHONPATH"):
+         env["PYTHONPATH"] = os.pathsep.join(os.path.abspath(p) for p in env["PYTHONPATH"].split(os.pathsep) if p)
++    # horosa_subprocess_utf8_v1(Windows 侧移植适配;#109 row 90 同族):子进程打印中文(用例名、月柱 / 年柱),Windows 管道按
++    # locale 码页(cp1252 / GBK)编解码 ⇒ 父进程读线程 UnicodeDecodeError、输出变空;月柱交节回归自己再起引擎子进程同样解码失败而红。
++    # 子进程按 UTF-8 模式跑(与发货运行时的 -X utf8 同口径,孙进程随环境继承),父进程按 UTF-8 解码;macOS 上本就 UTF-8,行为不变。
++    env["PYTHONUTF8"] = "1"
+     cmd = [sys.executable, "-B"] + args
+     if args[:2] == ["-m", "pytest"]:
+         cmd += ["-q", "-p", "no:cacheprovider"]
+-    proc = subprocess.run(cmd, cwd=str(cwd), env=env, capture_output=True, text=True, timeout=600)
++    proc = subprocess.run(cmd, cwd=str(cwd), env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600)
+     out = (proc.stdout or "") + (proc.stderr or "")
+     assert proc.returncode == 0, f"{name} 失败:\n{out[-4000:]}"
+     assert "SKIP" not in out, f"{name} 有整套跳过:\n{out[-2000:]}"

@@ -15,9 +15,11 @@ import boundless.io.FileUtility;
 import boundless.log.AppLoggers;
 import boundless.log.QueueLog;
 import boundless.spring.help.PropertyPlaceholder;
+import boundless.spring.help.TransLogRules;
 import boundless.types.Tuple;
 import boundless.utility.IPUtility;
 import boundless.utility.JsonUtility;
+import boundless.utility.SecretRedactor;
 import boundless.web.help.AppServerPathHelper;
 
 public class DebugTransParamsLogInterceptor implements HandlerInterceptor {
@@ -32,7 +34,7 @@ public class DebugTransParamsLogInterceptor implements HandlerInterceptor {
 		try{
 			if(UseTransSet){
 				String json = FileUtility.getStringFromClassPath("conf/log/debuglogtrans.json");
-				transSet = JsonUtility.decodeSet(json, String.class);
+				transSet = TransLogRules.normalizeTransCodes(JsonUtility.decodeSet(json, String.class));
 			}
 			List<Tuple<String, Integer>> list = IPUtility.getServerIpPorts();
 			if(!list.isEmpty()){
@@ -48,7 +50,7 @@ public class DebugTransParamsLogInterceptor implements HandlerInterceptor {
 		
 		try{
 			String json = FileUtility.getStringFromClassPath("conf/log/excludelogtrans.json");
-			excludeTransSet = JsonUtility.decodeSet(json, String.class);
+			excludeTransSet = TransLogRules.normalizeTransCodes(JsonUtility.decodeSet(json, String.class));
 		}catch(Exception e){
 			QueueLog.error(AppLoggers.ErrorLogger, e);
 		}
@@ -64,14 +66,14 @@ public class DebugTransParamsLogInterceptor implements HandlerInterceptor {
 		int idx = path.lastIndexOf('/');
 		String ctx = request.getServletContext().getContextPath();
 		path = path.substring(ctx.length());
-		if(excludeTransSet.contains(path)){
+		if(TransLogRules.transCodeIn(excludeTransSet, path)){
 			return true;
 		}
 		
 		try{
 			Logger log = AppLoggers.DebugLogger;
 			if(UseTransSet){	
-				if(transSet.contains(path)){
+				if(TransLogRules.transCodeIn(transSet, path)){
 					String logfilename = path.replace('/', '_');
 					log = AppLoggers.getLog("debug", logfilename);					
 				}else{
@@ -80,8 +82,9 @@ public class DebugTransParamsLogInterceptor implements HandlerInterceptor {
 			}
 			String userip = AppServerPathHelper.getClientIp(request);
 			String data = TransData.getRequestJsonWithHead();
+			// 请求数据已在 getRequestTuple 脱敏;查询串同样过单源 SecretRedactor
 			QueueLog.debug(log, "userip:{} requestUrl:{}?{}\n request data:\n{} ", 
-					userip, request.getRequestURI(), request.getQueryString(), data);
+					userip, request.getRequestURI(), SecretRedactor.redactText(request.getQueryString()), data);
 			
 		}catch(Exception e){
 			QueueLog.error(AppLoggers.ErrorLogger, e);

@@ -95,7 +95,7 @@ describe('WP1.2 偶然尊贵满分表(±38)', () => {
 		expect(r.items.find((x) => x.key === 'conj_regulus').score).toBe(6);
 		const algol = FIXED_STARS.find((s) => s.name_en === 'Algol');
 		const facts2 = makeFacts({ venus: { lon: starLonAt(algol.lon_1995, 2000) } });
-		expect(scoreAccidental('venus', facts2, {}).items.find((x) => x.key === 'conj_algol').score).toBe(-5);   // [H1c] 1647 传统 −5 显式升级
+		expect(scoreAccidental('venus', facts2, {}).items.find((x) => x.key === 'conj_algol').score).toBe(-5);   // 1647 传统 −5 显式升级
 	});
 	test('围攻 besieged −5(真形状:attacks 按行星分桶,仅火土桶计凶围;1647 传统 −5)', () => {
 		const facts = makeFacts({ venus: { chartId: 'Venus' } }, { surround: { attacks: { Venus: { MarsSaturn: [
@@ -164,7 +164,7 @@ describe('WP1.4 恒星补齐与按星等轨', () => {
 		expect(FIXED_STARS.filter((s) => s.isRoyal).map((s) => s.name_en).sort())
 			.toEqual(['Aldebaran', 'Antares', 'Fomalhaut', 'Regulus']);
 	});
-	// [Q-297 裁决 2026-09-18] byMagnitude 表改与后端 FixedStar._ORBS / 帮助同表(<2:7.5 / <3:5.5 / <4:3.5 / <5:1.5 / 余 0.5),无王者封顶。
+	// byMagnitude 表改与后端 FixedStar._ORBS / 帮助同表(<2:7.5 / <3:5.5 / <4:3.5 / <5:1.5 / 余 0.5),无王者封顶。
 	test('school 平轨=既有行为(缺省1°/显式取值);byMagnitude 按后端同源星等表(<2:7.5/<3:5.5/<4:3.5/<5:1.5/余 0.5,无王者封顶)', () => {
 		const spica = FIXED_STARS.find((s) => s.name_en === 'Spica');       // 1.0 等
 		const scheat = FIXED_STARS.find((s) => s.name_en === 'Scheat');     // 2.4 等

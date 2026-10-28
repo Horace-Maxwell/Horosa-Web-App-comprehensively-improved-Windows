@@ -1,9 +1,11 @@
 import React from 'react';
 import * as AstroText from '../../constants/AstroText';
-import { classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
+import { classicalBackendOverridesFromPlain, classicalGlobalValue } from '../../utils/classicalChartGlobals';
 import * as AstroConst from '../../constants/AstroConst';
+import { SIGNS } from '../../divination/data/signs';
 import { buildMeaningTipByCategory } from './AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning } from './AstroMeaningPopover';
+import { labelCellStyle } from '../../utils/labelCell';
 
 export function unwrapResult(data){
 	return data && data.Result ? data.Result : data;
@@ -60,6 +62,11 @@ export function astroSymbolList(ids, separator = ' / '){
 	return parts;
 }
 
+// 星座 id → signs 表中文名(cn);表里没有就原样输出,空 → '-'。埃及 / 十二分部 / 衍生宫各页共用。
+export function signCnName(s){
+	return (SIGNS[s] && SIGNS[s].cn) || s || '-';
+}
+
 export function signName(id){
 	return (AstroText.AstroTxtMsg && AstroText.AstroTxtMsg[id]) || (AstroText.AstroMsg && AstroText.AstroMsg[id]) || id || '-';
 }
@@ -81,26 +88,23 @@ export function fmtDegree(item){
 	return `${sign} ${fmtNum(signlon, 2)}°`;
 }
 
-// [0d] 本命参数古典段(单源):7 个希腊化头键条件透传 + 二/四批 helper 段。
+// 本命参数古典段(单源):7 个希腊化头键条件透传 + 二/四批 helper 段。
 // 推运/返照族 9 组件(SolarReturn/LunarReturn/Profection/GivenYear/Decennials/SolarArc/ZR/
 // PersianDirected/PlanetaryArc)的 genNatalParams 此前手写 4-6 基础键,古典键全丢——改界系/
 // 三分/宫头5°律/三态阈后这些盘与主盘口径静默分叉(三层断链之前端层)。统一 spread 本段;
 // 条件形与主盘 fieldsToParams 同口径(默认不下发=请求体/缓存键零回归)。
 // 判非默认写成「≠默认值」形(而非「==已知非默认值」枚举):后续档位扩容(如 sect 第三档)自动透传。
-// [WP-5a] 行运相位容许度全局默认源:推运族 asporb 初值改读全局仓 transitOrb(默认 1=历史现状
+// 行运相位容许度全局默认源:推运族 asporb 初值改读全局仓 transitOrb(默认 1=历史现状
 // 零回归;用户在「星盘设置」改 2°/3°/5° 后,新开推运页初值随全局——请求仍发 asporb 键)。
 export function transitOrbDefault(){
-	try{
-		const { classicalGlobalValue } = require('../../utils/classicalChartGlobals');
-		const v = Number(classicalGlobalValue('transitOrb'));
-		return Number.isFinite(v) && v > 0 ? v : 1;
-	}catch(e){ return 1; }
+	const v = Number(classicalGlobalValue('transitOrb'));
+	return Number.isFinite(v) && v > 0 ? v : 1;
 }
 
 export function natalClassicalParams(params){
 	const p = params || {};
 	return {
-		// [SURF-R4u] user 自定义岁差随行历元(照 chartParams 同款三元):此前推运族构参缺此段,
+		// user 自定义岁差随行历元(照 chartParams 同款三元):此前推运族构参缺此段,
 		// 请求只带 siderealAyanamsa='user' 无 T0/Deg → 后端 user 档建立失败静默回落 Lahiri
 		// (perpredict._fill_user_ayan 内层回填也因外层未建档而空转=上一轮只修了半边)。
 		...((`${p.siderealAyanamsa}` === 'user')
@@ -113,7 +117,7 @@ export function natalClassicalParams(params){
 		...((p.leoBoundFirst === 1 || p.leoBoundFirst === '1') ? { leoBoundFirst: 1 } : {}),
 		...((p.triplicity && p.triplicity !== 'Dorothean') ? { triplicity: p.triplicity } : {}),
 		...((p.lotReversal === 0 || p.lotReversal === '0') ? { lotReversal: 0 } : {}),
-		// [Q-175/T-115] 原 [挂载自检 F-17] 在这里补发 doubingSu28 / guolaoLifeMode,想让推运九页的
+		// 原先在这里补发 doubingSu28 / guolaoLifeMode,想让推运九页的
 		// 「七政命度点」与主页/挂载同源 —— 但 Java 两端的参数白名单(PredictiveController /
 		// AstroExtraController)都不收这两键,请求到了后端即被剥掉:发了四个月,结果一字未变,
 		// 只是把两个键掺进了请求体与缓存键。按「不发无效键」删除(产物零变化)。
@@ -184,7 +188,7 @@ export function chartRequestKey(chartObj, extra = ''){
 		params.westNodeType === 'true' ? 'true' : '',
 		params.sectBuffer === 'ptolemy5' ? 'ptolemy5' : '',
 		(params.leoBoundFirst === 1 || params.leoBoundFirst === '1') ? '1' : '',
-		// [对标战役 0a] 缓存键此前只纳上面 6 键——连 geminiBoundEmended 都缺,二/四批 10 键+三开关全缺,
+		// 缓存键此前只纳上面 6 键——连 geminiBoundEmended 都缺,二/四批 10 键+三开关全缺,
 		// 改燃烧上界/空亡口径等后辅盘(调波/龙盘/世俗)可能命中旧缓存返旧盘。修法=追加共享 helper 的
 		// JSON 段(默认态恒 '{}',老键序不变;未来新键进 helper 即自动进缓存键,不再逐键手补)。
 		(params.geminiBoundEmended === 1 || params.geminiBoundEmended === '1') ? 'g1' : '',
@@ -228,13 +232,16 @@ export const gridStyle = {
 // 🔴 为什么必须两件一起做:原生 table 的 width:100% 在 auto layout 下压不到 min-content 以下,
 // 列一多就撑破容器,再撞上右栏的 overflow-x:hidden 就被直接裁字(埃及旬名录实测「Chenlacho…」
 // 被切、「旬位」列被压成逐字竖排)。缺省不传=旧行为逐字节不变(全站 41+ 处窄表靠 100% 撑满)。
+// 短标签(≤ 4 字的纯文本,如「10宫」「宫主」「触发点」)整段不折行、带括号的标签(「宫主落宫(整宫)」)只在括号处换行:
+// 表被压窄(放大档右栏)时此前逐字竖排;长文本照常折行。口径单源 utils/labelCell(全站表格同一条)
+const shortCellStyle = labelCellStyle;
 export function SmallTable({columns, rows, rowKey, rowStyle, rowRef, scrollX}){
 	const table = (
 		<table style={scrollX ? {borderCollapse: 'collapse', fontSize: 12, whiteSpace: 'nowrap'} : {width: '100%', borderCollapse: 'collapse', fontSize: 12}}>
 			<thead>
 				<tr>
 					{columns.map((col)=>(
-						<th key={col.key} style={{textAlign: 'left', borderBottom: '1px solid rgba(148,163,184,.35)', padding: '6px 4px'}}>
+						<th key={col.key} style={{textAlign: 'left', borderBottom: '1px solid rgba(148,163,184,.35)', padding: '6px 4px', ...shortCellStyle(col.title)}}>
 							{col.title}
 						</th>
 					))}
@@ -245,15 +252,20 @@ export function SmallTable({columns, rows, rowKey, rowStyle, rowRef, scrollX}){
 					<tr key={rowKey ? rowKey(row, idx) : idx}
 						ref={rowRef ? (node)=>rowRef(node, row, idx) : undefined}
 						style={rowStyle ? rowStyle(row, idx) : undefined}>
-						{columns.map((col)=>(
-							<td key={col.key} style={{borderBottom: '1px solid rgba(148,163,184,.16)', padding: '6px 4px', verticalAlign: 'top'}}>
-								{col.render ? col.render(row[col.key], row, idx) : row[col.key]}
-							</td>
-						))}
+						{columns.map((col)=>{
+							const content = col.render ? col.render(row[col.key], row, idx) : row[col.key];
+							return (
+								<td key={col.key} style={{borderBottom: '1px solid rgba(148,163,184,.16)', padding: '6px 4px', verticalAlign: 'top', ...shortCellStyle(content)}}>
+									{content}
+								</td>
+							);
+						})}
 					</tr>
 				))}
 			</tbody>
 		</table>
 	);
-	return scrollX ? <div style={{overflowX: 'auto', maxWidth: '100%'}}>{table}</div> : table;
+	// 两种写法都外包一层横向可滚:表被压得比列的最小内容还窄时(放大档右栏)横滚,不再被外层 overflow-x:hidden 裁掉右边几列;
+	// 放得下时 width:100% 的表与外包盒同宽,与不包逐像素相同
+	return <div className="horosa-small-table-scroll" style={{overflowX: 'auto', maxWidth: '100%'}}>{table}</div>;
 }

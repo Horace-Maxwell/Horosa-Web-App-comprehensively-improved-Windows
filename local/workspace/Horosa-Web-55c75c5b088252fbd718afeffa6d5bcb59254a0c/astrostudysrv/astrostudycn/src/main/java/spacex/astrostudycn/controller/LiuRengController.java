@@ -11,6 +11,7 @@ import boundless.exception.ErrorCodeException;
 import boundless.spring.help.interceptor.TransData;
 import boundless.utility.ConvertUtility;
 import boundless.utility.StringUtility;
+import spacex.astrostudycn.helper.CivilDateParts;
 import spacex.astrostudy.constants.PhaseType;
 import spacex.astrostudy.helper.ParamHashCacheHelper;
 import spacex.astrostudy.helper.NongliHelper;
@@ -90,7 +91,7 @@ public class LiuRengController {
 		map.put("lon", TransData.getValueAsString("lon"));
 
 		map.put("godKeyPos", GodRule.ZhuRiZhu);	
-		// [Q-386/T-367] 时间算法改为读参,缺省仍 RealSun(真太阳时)=现状字节不变。
+		// 时间算法改为读参,缺省仍 RealSun(真太阳时)=现状字节不变。
 		// 病灶:独立六壬页此前无此控件、后端写死真太阳时,而三式合一的六壬层时柱取自奇门(奇门吃 timeAlg)
 		// → 全局或合一选「直接时间」时,同一时刻两页六壬时柱可分属两个时辰,月将加时与天地盘整体不同。
 		// 注:本键恒入 params(缺省也 put),故 ParamHash 缓存键对所有请求一致变更、不会与旧键碰撞。
@@ -135,21 +136,9 @@ public class LiuRengController {
 		if(StringUtility.isNullOrEmpty(date)) {
 			return null;
 		}
-		String dt = date.trim();
-		boolean neg = false;
-		if(dt.startsWith("-")) {
-			neg = true;
-			dt = dt.substring(1);
-		}
-		String[] parts = dt.split("-");
-		if(parts.length == 0) {
-			return null;
-		}
-		int y = ConvertUtility.getValueAsInt(parts[0], Integer.MIN_VALUE);
-		if(y == Integer.MIN_VALUE) {
-			return null;
-		}
-		return neg ? -y : y;
+		// 日期串经 CivilDateParts 取段(公元前前导负号不撕裂;历史纪年)
+		CivilDateParts p = CivilDateParts.parse(date);
+		return p == null ? null : Integer.valueOf(p.year);
 	}
 	
 	@ResponseBody

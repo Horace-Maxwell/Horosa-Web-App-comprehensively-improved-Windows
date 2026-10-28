@@ -1,4 +1,4 @@
-// [WP-F] 挂载健康金标:模型上下文预算函数 / CJK token 估算 / 快照↔案例底盘核对 /
+// 挂载健康金标:模型上下文预算函数 / CJK token 估算 / 快照↔案例底盘核对 /
 // 近期对话 token 预算滚动裁剪。
 import { contextWindowForModel, contextCharBudgetForModel, MODEL_CONTEXT_WINDOWS } from '../aiAnalysisProviders';
 import {
@@ -8,10 +8,10 @@ import {
 	AI_CONTEXT_MAX_CHARS,
 } from '../aiAnalysisContext';
 
-describe('[F2] contextWindowForModel / contextCharBudgetForModel', ()=>{
+describe('contextWindowForModel / contextCharBudgetForModel', ()=>{
 	test('现役四家命中窗口;未知模型 null', ()=>{
 		expect(contextWindowForModel('claude-fable-5')).toBe(200000);
-		// [Q-043/M-54] Sonnet 5 官方 1M 窗口:细分档排在兜底 `claude-` 之前才命中(find 取第一条命中,不是最长匹配)
+		// Sonnet 5 官方 1M 窗口:细分档排在兜底 `claude-` 之前才命中(find 取第一条命中,不是最长匹配)
 		expect(contextWindowForModel('claude-sonnet-5')).toBe(1000000);
 		expect(contextWindowForModel('claude-opus-5')).toBe(200000);   // 判别向量:其余 claude 仍走兜底 200K
 		expect(contextWindowForModel('gpt-5.6')).toBe(400000);
@@ -52,7 +52,7 @@ describe('[F2] contextWindowForModel / contextCharBudgetForModel', ()=>{
 	});
 });
 
-describe('[F2] estimateTextTokens CJK 双桶', ()=>{
+describe('estimateTextTokens CJK 双桶', ()=>{
 	test('纯中文 ≈ 字数/1.6;纯 ASCII ≈ 字数/4', ()=>{
 		const cn = '天地玄黄宇宙洪荒日月盈昃辰宿列张寒来暑往秋收冬藏'; // 24 字
 		expect(estimateTextTokens(cn)).toBe(Math.ceil(24 / 1.6));
@@ -68,7 +68,7 @@ describe('[F2] estimateTextTokens CJK 双桶', ()=>{
 	});
 });
 
-describe('[F1] snapshotSourceMismatch 宁漏勿误伤', ()=>{
+describe('snapshotSourceMismatch 宁漏勿误伤', ()=>{
 	const rec = { birth: '2000-01-01 12:30:00', zone: 8, lon: 116.4, lat: 39.9 };
 
 	test('同盘(格式噪声容忍):date+time 拼合 / 秒截断 / 数字字符串', ()=>{
@@ -91,9 +91,25 @@ describe('[F1] snapshotSourceMismatch 宁漏勿误伤', ()=>{
 	test('坐标圆到 1 位小数再比(116.4053 vs 116.4 不误伤)', ()=>{
 		expect(snapshotSourceMismatch({ birth: '2000-01-01 12:30', lon: 116.4053, lat: 39.9042 }, rec)).toBe('match');
 	});
+
+	test('起盘签名的「1990/05/18」与记录的「1990-05-18」是同一天(重算路径的卡片不再误报)', ()=>{
+		const r = { birth: '1990-05-18 10:00:00', zone: '+08:00', lon: '121e28', lat: '31n14' };
+		expect(snapshotSourceMismatch({ date: '1990/05/18', time: '10:00', zone: '+08:00', lon: '121e28', lat: '31n14' }, r)).toBe('match');
+		expect(snapshotSourceMismatch({ date: '1990/5/18', time: '10:00' }, r)).toBe('match');
+		expect(snapshotSourceMismatch({ date: '1990/05/18', time: '10:01' }, r)).toBe('mismatch');
+		expect(snapshotSourceMismatch({ date: '1990/05/19', time: '10:00' }, r)).toBe('mismatch');
+		// 公元前年份:负号与补零两边同口径
+		expect(snapshotSourceMismatch({ date: '-0005/05/18', time: '10:05' }, { birth: '-0005-05-18 10:05:00' })).toBe('match');
+		expect(snapshotSourceMismatch({ date: '-0005/05/18', time: '10:06' }, { birth: '-0005-05-18 10:05:00' })).toBe('mismatch');
+	});
+
+	test('一边只有日期时只比日期(宁漏勿误伤)', ()=>{
+		expect(snapshotSourceMismatch({ date: '2000-01-01' }, rec)).toBe('match');
+		expect(snapshotSourceMismatch({ date: '2000-01-02' }, rec)).toBe('mismatch');
+	});
 });
 
-describe('[F4] 近期对话 token 预算滚动裁剪', ()=>{
+describe('近期对话 token 预算滚动裁剪', ()=>{
 	const mk = (n, len)=>Array.from({ length: n }, (_, i)=>({
 		role: i % 2 ? 'assistant' : 'user',
 		content: `${i}`.padEnd(len, '甲'),

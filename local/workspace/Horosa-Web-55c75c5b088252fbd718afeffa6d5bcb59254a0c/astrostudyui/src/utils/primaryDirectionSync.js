@@ -150,7 +150,7 @@ export function pdMethodOfPair(projection, frame){
 	return hit || null;
 }
 
-// [Q-165/T-98] (投影,分宫)与方法一致性单源(主限法盘页 + 无头 primarydirchart 共用):
+// (投影,分宫)与方法一致性单源(主限法盘页 + 无头 primarydirchart 共用):
 //   显式 pair 与方法反查一致 → 用显式;方法有单维等价且不一致 → 按方法推导;方法为自由组合(反查 null)→ 保留显式 pair。
 //   此前请求恒显式带 pdFrame,后端 frame 优先 → 改「方法」对外圈宫头零效果,快照标 Placidus 宫头仍 Alcabitius。
 export function pdPairParamsFor(method, explicitProjection, explicitFrame){
@@ -263,7 +263,7 @@ export function mergePrimaryDirectionChartObj(chartObj, options = {}){
 			pdFramework: pdFramework || DEFAULT_PD_FRAMEWORK,
 			pdParallel: pdParallel ? 1 : 0,
 			pdRaptParallel: pdRaptParallel ? 1 : 0,
-			termsVariant: (()=>{ const n = Number(termsVariant); return (Number.isFinite(n) && n >= 0 && n <= 4) ? n : 0; })(),   // [F4][R2-12] 放行 0-4;null/undefined/NaN 恒 0
+			termsVariant: (()=>{ const n = Number(termsVariant); return (Number.isFinite(n) && n >= 0 && n <= 4) ? n : 0; })(),   // 放行 0-4;null/undefined/NaN 恒 0
 			...(pdTimeKeyCustom !== undefined ? { pdTimeKeyCustom, } : {}),
 			// 🔴 空数组=显式全清:必须落库覆盖旧值(`&&length` 会让清空后旧勾选残留、
 			// 天球扩展 Popover 勾选回弹/清空失灵);仅 undefined(调用方未传)才保旧。

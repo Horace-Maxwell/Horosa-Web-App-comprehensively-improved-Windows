@@ -1,4 +1,4 @@
-// [Q-053② 裁决 2026-09-18] 九个 JSON 编辑框此前用 @monaco-editor/loader 从 CDN 拉 monaco:桌面壳 CSP 拦下 → 永远
+// 九个 JSON 编辑框此前用 @monaco-editor/loader 从 CDN 拉 monaco:桌面壳 CSP 拦下 → 永远
 // 「编辑器加载中...」遮罩、无法编辑(真壳实况)。改为零新依赖的等宽 TextArea + 即时 JSON 体检(下方一行提示,不拦输入),
 // 保存时由各 Form.Item 的 JSON_TEXT_RULE 校验(不是合法 JSON 不给存)。文件名 / 默认导出名保留(九处调用点零改动;
 // beforeMount / options 等 monaco 专属 props 忽略)。

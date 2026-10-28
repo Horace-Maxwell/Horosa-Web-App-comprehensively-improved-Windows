@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import { markInteractionStart } from '../../utils/perfMark';
-import { parseYearFromDateStr, addDisplayYears, displayYearDiff } from '../../utils/dateStrSafe';
+import { parseYearFromDateStr, addDisplayYears, displayYearDiff, parseDateParts } from '../../utils/dateStrSafe';
+import { civilLocalDate, civilYmdOfLocalDate } from '../../utils/civilCalendar';
 import { julianDayIndex } from '../../utils/julianDayIndex';
 import { Spin } from 'antd';
 import { Solar, SolarMonth } from 'lunar-javascript';
@@ -146,7 +147,8 @@ const DAY_REF_INDEX = SixtyJiaZi.indexOf('壬辰');
 const DAY_OFFSET = mod(DAY_REF_INDEX - julianDayIndex(2026, 5, 18), 60);
 
 function dayGanzi(date){
-	const days = julianDayIndex(date.getFullYear(), date.getMonth() + 1, date.getDate());
+	const p = civilPartsOfDate(date);
+	const days = julianDayIndex(p.year, p.month, p.day);
 	return SixtyJiaZi[mod(days + DAY_OFFSET, 60)];
 }
 
@@ -155,8 +157,20 @@ function yearGanzi(year){
 	return SixtyJiaZi[mod(displayYearDiff(1984, year), 60)];
 }
 
+// 面板里的 Date 一律表示「真实那一天」(本地 0 点;JS Date 外推格里历):民用日期(1582 以前儒略历、历史纪年)
+// 经 civilCalendar 换到同一天再建,读回标签也经它换回。逐日推进用 setDate(真实日轴),不会跳过儒略闰日或走进改历缺口;
+// 公元 1–99 年不被 new Date(年, …) 当成 19xx。1582-10-15 以后与 new Date(年, 月 − 1, 日) 逐值相同。
+function civilDateObj(year, month, day){
+	return civilLocalDate(year, month, day);
+}
+
+function civilPartsOfDate(date){
+	return civilYmdOfLocalDate(date);
+}
+
 function dateLabel(date){
-	return `${date.getMonth() + 1}/${date.getDate()}`;
+	const p = civilPartsOfDate(date);
+	return `${p.month}/${p.day}`;
 }
 
 function solarDateLabel(solar){
@@ -164,22 +178,16 @@ function solarDateLabel(solar){
 }
 
 function dateFromSolar(solar){
-	return new Date(solar.getYear(), solar.getMonth() - 1, solar.getDay());
+	return civilDateObj(solar.getYear(), solar.getMonth(), solar.getDay());
 }
 
 function parseJieqiDate(time){
 	const text = `${time || ''}`.trim();
-	const match = text.match(/^(\d{3,4})-(\d{1,2})-(\d{1,2})/);
-	if(!match){
+	const p = parseDateParts(text);   // 日期串单源拆(年带符号、1–5 位)
+	if(!p || p.year === 0){
 		return null;
 	}
-	const year = Number(match[1]);
-	const month = Number(match[2]);
-	const day = Number(match[3]);
-	if(!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)){
-		return null;
-	}
-	return new Date(year, month - 1, day);
+	return civilDateObj(p.year, p.month, p.day);
 }
 
 function extractJieqiMap(result){
@@ -199,7 +207,8 @@ function extractJieqiMap(result){
 }
 
 function addDays(date, count){
-	const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+	const next = new Date(date.getTime());
+	next.setHours(0, 0, 0, 0);
 	next.setDate(next.getDate() + count);
 	return next;
 }
@@ -354,11 +363,11 @@ function buildMonthItems(yearItem, dayStem, jieqiYears){
 	const yearStem = yearItem.pillar ? yearItem.pillar.stem : splitGanzi(yearGanzi(year)).stem;
 	const months = BaziMonthTime.month[yearStem] || [];
 	return SOLAR_MONTHS.map((cfg, idx)=>{
-		const startYear = cfg.nextYear ? year + 1 : year;
-		const startDate = exactTermDate(jieqiYears, startYear, cfg.name) || new Date(startYear, cfg.month - 1, cfg.day);
+		const startYear = cfg.nextYear ? addDisplayYears(year, 1) : year;
+		const startDate = exactTermDate(jieqiYears, startYear, cfg.name) || civilDateObj(startYear, cfg.month, cfg.day);
 		const nextCfg = SOLAR_MONTHS[(idx + 1) % SOLAR_MONTHS.length];
-		const nextYear = nextCfg.nextYear || idx === SOLAR_MONTHS.length - 1 ? year + 1 : year;
-		const endDate = exactTermDate(jieqiYears, nextYear, nextCfg.name) || new Date(nextYear, nextCfg.month - 1, nextCfg.day);
+		const nextYear = nextCfg.nextYear || idx === SOLAR_MONTHS.length - 1 ? addDisplayYears(year, 1) : year;
+		const endDate = exactTermDate(jieqiYears, nextYear, nextCfg.name) || civilDateObj(nextYear, nextCfg.month, nextCfg.day);
 		const pillar = normalizePillar(months[idx] || '', dayStem);
 		return {
 			id: `month-${year}-${idx}`,
@@ -385,7 +394,8 @@ function buildDayItems(monthItem, dayStem){
 		const cur = new Date(monthItem.startDate.getTime());
 		let guard = 0;
 		while(cur.getTime() < monthItem.endDate.getTime() && guard < 40){
-			const solar = Solar.fromYmd(cur.getFullYear(), cur.getMonth() + 1, cur.getDate());
+			const cp = civilPartsOfDate(cur);
+			const solar = Solar.fromYmd(cp.year, cp.month, cp.day);
 			const ganzi = solar.getLunar().getDayInGanZhi();
 			const pillar = normalizePillar(ganzi, dayStem);
 			out.push({
@@ -408,7 +418,7 @@ function buildDayItems(monthItem, dayStem){
 		const date = addDays(start, idx);
 		const pillar = normalizePillar(dayGanzi(date), dayStem);
 		return {
-			id: `day-${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`,
+			id: (()=>{ const q = civilPartsOfDate(date); return `day-${q.year}-${q.month - 1}-${q.day}`; })(),   // 民用历标签做键(现代与原写法逐字相同)
 			top: dateLabel(date),
 			sub: '',
 			date,
@@ -505,7 +515,7 @@ class BaZiLuckFlowPanel extends Component{
 			this.props.onLoad();
 			return;
 		}
-		// [Q-190/T-132] 重挂载时 fullValue 已在手(界面样式切旧再切回、keep-alive 复活等):
+		// 重挂载时 fullValue 已在手(界面样式切旧再切回、keep-alive 复活等):
 		// componentDidUpdate 的「fullValue 变了」分支不会触发 → 本组件 state 是空的,轴回落首项,
 		// 而宿主还攥着切走之前的 flowSelection,细盘大运/流年列仍高亮旧选中 —— 两边对不上。
 		// 挂载即按当前日期重新定位一次并回传宿主,两边恒同源。
@@ -678,7 +688,7 @@ class BaZiLuckFlowPanel extends Component{
 		return (
 			<div className={`horosa-bazi-flow-row ${className || ''}`}>
 				<div className="horosa-bazi-flow-label">
-					<strong>{label}</strong>
+					<strong data-vertical-label="">{label}</strong>   {/* 有意竖排的栏名(定宽 1.2em),版面巡检据此不判逐字竖排 */}
 					{badge ? <span>{badge}</span> : null}
 				</div>
 				<div className="horosa-bazi-flow-axis">

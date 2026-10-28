@@ -1,8 +1,9 @@
-// [挂载自检·卜族小修] 塔罗无头不回落页面当前事盘(T-1);奇门保存前刷槽;天星衍化四块入快照;风水阳宅判断伪段头。
+// 塔罗无头不回落页面当前事盘(T-1);奇门保存前刷槽;天星衍化四块入快照;风水阳宅判断伪段头。
 import fs from 'fs';
 import path from 'path';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 const UI = path.join(__dirname, '..', '..');
-const read = (rel)=>fs.readFileSync(path.join(UI, rel), 'utf8');
+const read = (rel)=>readSource(path.join(UI, rel));
 
 jest.mock('../kentangCaseSave', () => ({
 	getKentangSavedCasePayload: jest.fn(() => ({ payload: { options: { deckId: 'rws', spreadType: 'three', seed: '77', question: '别人的问题' } }, caseVersion: 'tarot|other|x' })),
@@ -39,7 +40,7 @@ it('风水阳宅判断无整行【…】伪段头(段头正则 ^【(.+)】$ 会�
 	expect(src).toContain('（几何检测未判 ${r.geoScan.skipped.length} 项');
 });
 
-// [挂载自检 F-48] 地占无头同病同修:缺问句 + noPageFallback → ''(不读页面当前事盘);不带旗仍可兜底(页面导出路径)。
+// 地占无头同病同修:缺问句 + noPageFallback → ''(不读页面当前事盘);不带旗仍可兜底(页面导出路径)。
 describe('地占无头不回落页面当前事盘', ()=>{
 	it('🔴 noPageFallback:缺 question → ""; 无旗 → 走 getKentangSavedCasePayload 兜底', async ()=>{
 		const { buildGeomancySnapshotForFields } = require('../../components/geomancy/GeomancyMain');

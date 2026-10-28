@@ -13,7 +13,7 @@ function loadFullLib(){
 	if(!fullLoading){
 		fullLoading = import('../../../data/citiesFull.json')
 			.then((m)=>{ fullLib = Array.isArray(m) ? m : (m && m.default) || []; return fullLib; })
-			.catch(()=>{ fullLib = []; return fullLib; });
+			.catch(()=>{ fullLoading = null; return []; });   // 失败不缓存成「空库」:本次退小库,下次再试大库
 	}
 	return fullLoading;
 }

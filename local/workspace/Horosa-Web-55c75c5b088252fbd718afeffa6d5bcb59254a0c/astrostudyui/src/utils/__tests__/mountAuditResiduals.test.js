@@ -1,4 +1,4 @@
-// [挂载自检 阶段3(a) 差分闸实抓·残余五修] 表驱动差分闸(mountSettingsDiffAll)跑出的「值到不了消费点」五处,逐条判别向量:
+// 表驱动差分闸(mountSettingsDiffAll)跑出的「值到不了消费点」五处,逐条判别向量:
 //   F-52 紫微「太岁关系人」经挂载覆盖(schema normalize 已归一为对象数组)→ 曾被串化剪空;
 //   F-53 正传·心易查询层缺省(父母/日/一刻/乾/子)须与 schema/页面同源,否则缺省挂载整段不产;
 //   F-54 八字 [大运] 段「起运：…」行(页面信息面板恒显)+ 起运精度档落地;
@@ -8,7 +8,7 @@
 var mockBodies = [];
 jest.mock('../localcharts', () => ({ listLocalCharts: jest.fn(() => []), __esModule: true }));
 jest.mock('../localcases', () => ({ listLocalCases: jest.fn(() => []), getCaseTypeLabel: jest.fn((t) => t), getCaseTypeMeta: jest.fn(() => ({ module: '', value: '' })), CASE_TYPE_OPTIONS: [], __esModule: true }));
-jest.mock('../moduleAiSnapshot', () => ({ loadModuleAISnapshot: jest.fn(() => null), saveModuleAISnapshot: jest.fn(), saveModuleAISnapshotLazy: jest.fn(), clearModuleAISnapshot: jest.fn(), loadModuleStructuredGT: jest.fn(() => null) }));
+jest.mock('../moduleAiSnapshot', () => ({ loadModuleAISnapshot: jest.fn(() => null), saveModuleAISnapshot: jest.fn(), saveModuleAISnapshotLazy: jest.fn(), clearModuleAISnapshot: jest.fn() }));
 jest.mock('../aiAnalysisStore', () => ({ AI_ANALYSIS_STORES: { contextCache: 'contextCache' }, getStoreRecord: jest.fn(async () => null), putStoreRecord: jest.fn(async (s, r) => r) }));
 import { getAnalysisTechniqueContextWithOptions, regenerateChartTechniqueSnapshot, regenerateCaseTechniqueSnapshot } from '../aiAnalysisContext';
 import { TECHNIQUE_SETTINGS_SCHEMA } from '../techniqueMountSettings';
@@ -94,5 +94,26 @@ describe('F-56 皇极心易·起卦法后端键', ()=>{
 		expect(xy).toBeTruthy();
 		expect(xy.body.method).toBe('character');
 		expect(xy.body.upperStrokes).toBe(6);
+	});
+});
+
+describe('皇极事盘·齿轮把「所推之年」清空', ()=>{
+	it('🔴 存档 2000 年、齿轮留空 = 按盘面年(1987);不拨齿轮仍按存档 2000(此前空串被当没拨)', async ()=>{
+		const { mergeOptionsIntoPayload } = require('../techniqueMountSettings');
+		// 用一个别的用例没起过的时刻(底盘请求有进程内缓存,同参第二次不再发请求)
+		const caseRec = { ...REC, birth: '1987-03-04 10:00:00', divTime: '1987-03-04 10:00:00', caseType: 'huangji' };
+		const saved = { options: { historyYear: 2000, classicKey: 'huangji_jingshi_shu', xinyiOptions: { method: 'datetime' } } };
+		const panYear = async (payload)=>{
+			mockBodies = [];
+			global.fetch = async (u, o)=>{ try{ mockBodies.push({ url: `${u}`, body: JSON.parse(o.body) }); }catch(_e){} return { ok: true, status: 200, json: async ()=>({}), text: async ()=>'{}' }; };
+			await regenerateCaseTechniqueSnapshot(caseRec, 'huangji', payload);
+			global.fetch = realFetch;
+			const pan = mockBodies.find((b)=>b.url.indexOf('xinyi') < 0 && b.body && b.body.historyYear !== undefined);
+			return pan ? pan.body.historyYear : undefined;
+		};
+		expect(await panYear(saved)).toBe(2000);
+		const cleared = mergeOptionsIntoPayload(saved, 'huangji', { historyYear: '' });
+		expect(cleared.historyYear).toBe('');
+		expect(await panYear(cleared)).toBe(1987);
 	});
 });

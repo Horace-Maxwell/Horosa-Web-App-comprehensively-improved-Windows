@@ -1,0 +1,16 @@
+diff --git a/astrostudyui/src/utils/__tests__/inkDimmingGuard.test.js b/astrostudyui/src/utils/__tests__/inkDimmingGuard.test.js
+index e6f5332d..90477ac7 100644
+--- a/astrostudyui/src/utils/__tests__/inkDimmingGuard.test.js
++++ b/astrostudyui/src/utils/__tests__/inkDimmingGuard.test.js
+@@ -249,7 +249,10 @@ const FILES = walk(SRC, []);
+ function allHits(){
+ 	const out = [];
+ 	FILES.forEach((f)=>{
+-		const rel = path.relative(SRC, f);
++		// horosa_win_pathsep_posix_v1(Windows 侧移植适配;建议上游化):`path.relative` 在 Windows 返回反斜杠分隔
++		// (`components\guolao\GuoLaoMoiraPanel.less`),而 ALLOW 登记表按 POSIX 写法前缀匹配 ⇒ 合法登记全查不中、
++		// 被报成违规,登记表反被判「过期」(macOS 恒绿)。命中串的文件名归一到 POSIX;判据零放宽。
++		const rel = path.relative(SRC, f).split(path.sep).join('/');
+ 		const src = fs.readFileSync(f, 'utf8');
+ 		if(rel.endsWith('.js')){
+ 			if(!/opacity|color/.test(src)){ return; }

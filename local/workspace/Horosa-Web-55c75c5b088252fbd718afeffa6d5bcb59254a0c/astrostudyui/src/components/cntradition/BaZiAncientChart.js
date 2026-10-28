@@ -1,4 +1,5 @@
-import { Component } from 'react';
+import React, { Component } from 'react';
+import { XQDesignScaleBox } from '../xq-ui';
 import { filterShenShaByGroups } from '../../utils/baziShenShaLocal';
 
 // 古法（禄命·纳音派，八字大全 §6.8）：以年柱为纲、重纳音五行生克 / 纳音长生 / 神煞，
@@ -27,6 +28,9 @@ function godsOf(p){
 	['shenSha', 'neutralGods', 'goodGods', 'badGods'].forEach((k)=>{ if(p && Array.isArray(p[k])){ s.push(...p[k]); } });
 	return Array.from(new Set(s.filter(Boolean)));
 }
+
+// 古法柱表设计宽(布局 px):标签列 66 + 五柱,真内核实测 360 起表头 / 主星不再逐字竖排
+export const BAZI_ANCIENT_TABLE_DESIGN_W = 360;
 
 class BaZiAncientChart extends Component{
 	render(){
@@ -86,6 +90,8 @@ class BaZiAncientChart extends Component{
 			<div className="horosa-bazi-ancient">
 				{schoolBar}
 				<div className="horosa-bazi-ancient-note">古法（禄命·纳音派）：以年柱为纲，重纳音五行生克 · 纳音长生 · 神煞，胎元列为第五柱，不以日干为我。</div>
+				{/* 柱表栏宽不足设计宽时按设计宽排版再整体等比缩(放得下时逐像素不变):表头与「日元」不再逐字竖排 */}
+				<XQDesignScaleBox designWidth={BAZI_ANCIENT_TABLE_DESIGN_W}>
 				<div className="horosa-bazi-anc-table">
 					<div className="horosa-bazi-anc-tr horosa-bazi-anc-headrow">
 						<div className="horosa-bazi-anc-th" />
@@ -107,6 +113,7 @@ class BaZiAncientChart extends Component{
 						return <span className="horosa-bazi-anc-gods">{g.length ? g.join('、') : '—'}</span>;
 					})}
 				</div>
+				</XQDesignScaleBox>
 				{chain.length ? (
 					<div className="horosa-bazi-ancient-chain">
 						<span className="horosa-bazi-ancient-chain-label">纳音五行生克</span>

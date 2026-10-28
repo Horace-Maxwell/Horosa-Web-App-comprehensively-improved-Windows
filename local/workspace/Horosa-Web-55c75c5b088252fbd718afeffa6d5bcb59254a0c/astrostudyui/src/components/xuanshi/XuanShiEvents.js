@@ -3,20 +3,12 @@ import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { Spin, Empty, Input } from 'antd';
 import { fetchEvents, fetchEvent, fetchEventsMeta } from '../../services/xuanshi';
 import { marked } from 'marked';
-import { resolveChartDate, collapseSoftBreaks, chartDateExactLabel } from './xuanshiDate';
+import { resolveChartDate, collapseSoftBreaks, chartDateExactLabel, splitList, nearSame } from './xuanshiDate';
 import { dynClass } from './xuanshiDynClass';
 import XuanShiStar from './XuanShiStar';
 
-// 白话与原文字符集重合度 >0.85 视为近乎相同(源库少数硬古文白话≈原文)→ 隐藏白话免冗余
-function nearSame(a, b) { if (!a || !b) { return false; } const sa = new Set(a), sb = new Set(b); let inter = 0; sa.forEach((c) => { if (sb.has(c)) { inter++; } }); return inter / Math.max(sa.size, sb.size, 1) > 0.85; }
-
 // 玄学万象 —— 正史 / 野载 玄学事件浏览。对齐标准版:传统切换 + 朝代游历(图标+计数)
 // + 史书细分 + 密/中/摘 密度 + list-rows 富行 + 富翻页 + 点击详情(original_text 原样含出处)。
-
-function splitList(s) {
-	if (!s) { return []; }
-	return `${s}`.split(/[;,、，]\s*/).map((x) => x.trim()).filter(Boolean);
-}
 
 export default class XuanShiEvents extends React.Component {
 	constructor(props) {
@@ -59,7 +51,7 @@ export default class XuanShiEvents extends React.Component {
 	}
 
 	async load() {
-		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫:旧响应不覆盖新条件
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // 序号守卫:旧响应不覆盖新条件
 		this.setState({ loading: true, err: '' });
 		try {
 			const r = await fetchEvents({
@@ -201,7 +193,7 @@ export default class XuanShiEvents extends React.Component {
 							</details>
 						) : null}
 						{/* 排盘联动(Horosa 独有)。
-						    [Q-488/T-450] 事件条目库没有 year / modern_date 字段(时间线索只在「时期」与原文文字里),
+						    事件条目库没有 year / modern_date 字段(时间线索只在「时期」与原文文字里),
 						    resolveChartDate 又已撤掉「按时期/帝王纪年推断」的分支(宁缺不猜)→ 本段当前恒为 null,
 						    帮助已按此改写。分支保留:条目一旦带上日期字段即自动生效,不必回头再接一次线。 */}
 						{(() => {

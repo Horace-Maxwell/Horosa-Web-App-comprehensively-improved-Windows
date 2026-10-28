@@ -5,7 +5,7 @@ import { conditionSummaryText } from './conditionGlyph';
 import { appendZeriHitRows } from './zeriExplainText';
 import { JOINER_CN } from './conditionTypes';
 import { HOUSE_SYSTEM_OPTIONS } from '../../constants/AstroConst';
-// [审计修] 选中时刻整张星盘的判读正文(右栏=占星主页同款七页签,快照曾只有搜索条件与命中区间——
+// 选中时刻整张星盘的判读正文(右栏=占星主页同款七页签,快照曾只有搜索条件与命中区间——
 // 被选时刻那张盘 AI 完全看不见)。headerless 收进单一父段,避免 13 个 astro 子段头泄入 tianxing 键。
 import { buildAstroSnapshotContent } from '../../utils/astroAiSnapshot';
 
@@ -88,7 +88,7 @@ export function buildTianxingSnapshot(chart, fields, extra, ctx){
 	lines.push('[命中区间]');
 	if(results && results.length){
 		lines.push(`共 ${results.length} 个区间${ctx && ctx.truncated ? '(已达上限截断)' : ''}：`);
-		// [Q-452 裁决 A / Q-453 裁决 2026-09-18] 上限全局可配(缺省 60)+ 前 N 行附判读树(服务端判读由宿主预取进 ctx.explainAt)。
+		// 上限全局可配(缺省 60)+ 前 N 行附判读树(服务端判读由宿主预取进 ctx.explainAt)。
 		appendZeriHitRows(lines, results, {
 			formatRow: (row, i)=>`${i + 1}. ${row.start} ~ ${row.end}（${row.durationMin >= 90 ? `${(row.durationMin / 60).toFixed(1)}小时` : `${Math.round(row.durationMin)}分`}）`,
 			tail: (total, cap)=>`……(其余 ${total - cap} 条略)`,
@@ -100,7 +100,7 @@ export function buildTianxingSnapshot(chart, fields, extra, ctx){
 	// [选中时刻星盘] 右栏七页签的判读底盘(整张盘 headerless 并入本段;无盘不产段,零回归)。
 	if(chart){
 		try{
-			// [挂载自检 择日 P1] 右栏「衍化」页签(世界范式盘/衍生宫/显赫/气候带)页面有、快照无 → 与本命盘同款 opt-in。
+			// 右栏「衍化」页签(世界范式盘/衍生宫/显赫/气候带)页面有、快照无 → 与本命盘同款 opt-in。
 			const body = `${buildAstroSnapshotContent(chart, fields, { headerless: true, classicalDerived: true }) || ''}`.trim();
 			if(body){
 				lines.push('');

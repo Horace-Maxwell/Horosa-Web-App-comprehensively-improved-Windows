@@ -23,7 +23,7 @@ Argala / Virodhargala：
 from flatlib import const
 
 from astrostudy.india.primitives import (
-    SIGNS, SIGN_INDEX, offset_sign, house_distance, index_of,
+    SIGNS, SIGN_INDEX, SIGN_LORDS, offset_sign, house_distance, index_of,
 )
 
 
@@ -33,21 +33,7 @@ from astrostudy.india.primitives import (
 # 节点字符串：Rahu=北交点、Ketu=南交点。
 RAHU = const.NORTH_NODE   # 罗睺
 KETU = const.SOUTH_NODE   # 计都
-
-SIGN_LORDS = {
-    const.ARIES: const.MARS,
-    const.TAURUS: const.VENUS,
-    const.GEMINI: const.MERCURY,
-    const.CANCER: const.MOON,
-    const.LEO: const.SUN,
-    const.VIRGO: const.MERCURY,
-    const.LIBRA: const.VENUS,
-    const.SCORPIO: const.MARS,
-    const.SAGITTARIUS: const.JUPITER,
-    const.CAPRICORN: const.SATURN,
-    const.AQUARIUS: const.SATURN,
-    const.PISCES: const.JUPITER,
-}
+# 单主表 SIGN_LORDS 取自 primitives(同名转出,supplementary_lagna 等由本模块导入)。
 
 # 双主宫的「副主星」(co-lord)：天蝎→计都、水瓶→罗睺。主+副两候选取强。
 SIGN_COLORDS = {

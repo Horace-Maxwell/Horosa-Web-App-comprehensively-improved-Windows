@@ -1,23 +1,24 @@
 <div align="center">
 
-简体中文 · [English](README_EN.md)
+[中文首页](README.md) · 简体中文详版 · [English](README_EN.md)
 
 <img src="assets/horosa_setup_badge.png" alt="星阙 Horosa" width="128" />
 
 # 星阙 Horosa
 
-**把占星与中国术数，收进一个原生 Windows 工作站**
+**把所有玄学放进一个原生 Windows 软件里**<br />
+*Every kind of metaphysics, in one native Windows app*
 
-命 · 卜 · 工具 三区 —— **26 门主技法 · 60+ 子技法流派**（完整清单见[功能总览](#功能总览)）
+命 · 卜 · 工具 三区 —— **26 门主技法 · 60+ 子技法流派**（完整清单见[全功能清单](#三全功能清单)）
 
-[![Version](https://img.shields.io/badge/version-3.11.3-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.11.3)
+[![Version](https://img.shields.io/badge/version-3.12.0-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.12.0)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.11.3)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.11.3)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.12.0)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.12.0)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-3.11.3.exe) ·
-[入口页](README.md) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.12.0/Horosa-Setup-3.12.0.exe) ·
+[中文首页](README.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
 
@@ -25,32 +26,34 @@
 
 ---
 
-## 星阙是什么
+## 目录
 
-星阙 Horosa 是一套桌面端的玄学工作站。西方占星的本命、推运、关系盘，连同八字、紫微、奇门、六壬、太乙这些中国传统术数，被放进同一个原生 Windows 应用里。它要解决的事其实很朴素：不必在十几个网页排盘器之间来回切，也不必自己拼装底层的 Python、Java 与历表运行时——你下载一个离线 NSIS 安装包，打开的就是一个成品。
+1. [星阙是什么](#一星阙是什么)
+2. [技术栈](#二技术栈)
+3. [全功能清单（命 / 卜 / 工具）](#三全功能清单)
+4. [下载与安装](#四下载与安装)
+5. [网页版一键启动（从源码）](#五网页版一键启动从源码)
+   - [终端 · MCP · REST(把星阙交给 AI)](#五之二终端--mcp--rest把星阙交给-ai)
+6. [常见问题](#六常见问题)
+7. [许可与第三方](#七许可与第三方)
+8. [致谢](#八致谢)
+9. [文档与入口](#九文档与入口)
 
-这个仓库承担的是 Windows 这一侧的交付：应用源码、共享运行时、Electron 桌面外壳，以及把这一切打成单个 NSIS 安装包（`Horosa-Setup-3.11.3.exe`）的发布链路。
+---
 
-## 下载
+## 一、星阙是什么
 
-普通用户直接下载离线安装包，像任何 Windows 软件一样安装、打开即可。
+星阙 Horosa 是一套桌面端玄学工作站，把几乎所有玄学术数放进同一个原生 Windows 应用里。从西方占星（本命、推运链、合盘）到中国术数（八字、紫微、奇门、六壬、太乙、六爻、风水、七政四余），再到印度吠陀、希腊化、汉堡量化、塔罗、地占等，外加内置多 LLM AI 分析。
 
-**[⬇︎ Horosa-Setup-3.11.3.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/latest/download/Horosa-Setup-3.11.3.exe)**
+目标是：**不再在十几个单一用途的网页排盘器之间来回切换，也不用手工拼装底层的 Python / Java / 星历运行时**。下载一个离线的安装包，打开就是成品。
 
-适合场景：
+本仓承担 Windows 这一侧的交付：应用源码、共享运行时、Windows 适配层，以及面向最终用户的 NSIS 离线安装包（`Horosa-Setup-3.12.0.exe`）发布。
 
-- Windows 10 / 11，`x64`
-- 弱网或完全离线的环境
-- 第一次安装，或者要把安装包转发给别人
-- 希望首次打开就能用，不再额外联网拉运行时
+- **当前版本**：3.12.0（运行时 `3.12.0-runtime1`）
+- **平台**：Windows 10 / 11（`x64`）
+- **许可**：AGPL-3.0-only
 
-无需自备 Python 或 Java，运行时已随包交付。更新只替换程序与共享运行时，不会动你已经保存的命例与事盘数据。
-
-- 法律与隐私：服务条款 / 隐私政策 / 安全说明 / 网络说明 / 开源声明，见 [docs/legal](docs/legal/)（中英双语）
-
-> 安装包当前未做 Authenticode 签名，首次运行时 Windows SmartScreen 可能提示“Windows 已保护你的电脑”，点击「更多信息 → 仍要运行」即可；可比对官方 `SHA256SUMS.txt` 校验安装包完整性。
-
-## 截图
+### 截图
 
 <table>
 <tr>
@@ -81,58 +84,185 @@
 
 <div align="center">
 <img src="assets/screenshots/horosa-navigation-overlay.png" alt="导航弹层" width="900" />
-<p><em>导航弹层 —— 命盘推运、易与三式、工具工作台分组，支持搜索与最近使用。</em></p>
+<p><em>导航弹层 — 命盘推运、易与三式、工具工作台分组，支持搜索与最近使用。</em></p>
 </div>
 
-## 功能总览
+---
 
-导航把所有模块归为三组：**命**（命盘与推运）、**卜**（易与三式）、**工具**。下面列的，是各组里真正能用的内容——名字与应用里的页签一一对应。
+## 二、技术栈
 
-> v3.0.0 起，命系与卜系多门技法的各派分歧均做成左栏可选项，默认值与既有结果一致，默认排盘路径字节级不变。
+| 层 | 技术 | 说明 |
+| --- | --- | --- |
+| 桌面壳 | **Electron** | 原生外壳：生命周期 / 窗口 / 运行时引导 / 应用内更新（增量下载 + Ed25519 验签）/ 缩放持久化；离线运行时随包交付 |
+| 前端 | **React 17 + UMI 3 + TypeScript / JS**，Ant Design | D3 绘盘、Babylon.js / Three.js 三维、Plotly 星体地图、Monaco 编辑 AI 导出模板 |
+| 后端（业务） | **Java 17 / Spring Boot 2.7**（多模块 Maven） | 承载占星与中国术数核心服务；监听 `:9999`（前端请求体 RSA 加密），重计算转发 Python |
+| 后端（计算） | **Python 3.11+**（桌面包内置 3.11） | 封装 Swiss Ephemeris（`pyswisseph`）+ flatlib（改写版）+ vendored 传统术数计算引擎；CherryPy REST `:8899` |
+
+**端口约定**：前端 ↔ Java `:9999`（RSA 加密信封）；Java ↔ Python `:8899`；前端静态端口动态分配（多实例不撞）。
+
+---
+
+## 三、全功能清单
+
+导航把所有模块归为三组：**命**（命盘与推运）、**卜**（易与三式）、**工具**。模块名与应用内页签一一对应。
 
 ### 命 · 命盘与推运
 
-这一层的强项是连贯：能读本命、把它沿时间推开、再带进第二个人，全程不离开同一个工作面。
+这一层的强项是连贯：读本命、沿时间推开、再带进第二个人，全程不离开同一个工作面。
 
-- **占星** —— 本命盘与三维盘（Babylon.js 实时 3D），多种宫位制、古典 / 现代行星集
-- **星运** —— 主限法、黄道星释、法达、小限、太阳弧、太阳 / 太阴返照、十年法、推运、星历
-- **合盘** —— 比较盘、组合盘、影响盘、时空中点盘、马克斯盘
-- **辅盘** —— 希腊星术（界限 / 阿拉伯点）、量化盘 / 中点树（汉堡学派）、星体地图（占星地理定位）、调波盘
-- **印占** —— 北 / 南 / 东印度盘，恒星黄道
-- **七政** —— 七政四余、七政 Moira
-- **八字 · 紫微** —— 四柱排盘；紫微斗数含四化盘
-- **数算 · 其他** —— 邵子神数、铁板神数、演禽等数术方法
+#### 占星（西方本命盘）
+- 回归 / 恒星黄道本命盘；左栏起盘参数、中栏 D3 圆盘、右栏多页签信息。
+- **流派一键预设**（含自定）：Brennan / Valens / Ptolemy / Dykes / Houlding / Zoller —— 每档联动黄道·宫制·界系·三分；默认 Brennan 档 = 零回归基线。
+- **黄道系统**：回归 + 多种恒星 ayanāṃśa（印度主流族 / 真星定标 / 西占恒星 / 银道银心 / 历史巴比伦 + 历元）。
+- **宫位制**：整宫 Whole Sign、Alcabitius、Koch、Porphyry、Equal、Meridian、Sunshine、Pullen SD/SR、APC、福点整宫 等多种。
+- **界系（Bounds）**：Egyptian（默认）/ Ptolemaic / Lilly。**三分（Triplicity）**：Dorothean（默认）/ Ptolemaic / Ptolemaic Water Variant。
+- **古典参数**（右栏「古典」页签）：日夜生盘（sect）、出界（out-of-bounds）、喜乐宫（joy）、宗派、野逸、月站、Thema Mundi、衍生宫、显赫度（eminence）、klimata。
+- **右栏页签**：信息 / 相位 / 行星（+希腊点 Lots）/ 古典 / 可能性 / 格局 / 埃及。
+- **3D 盘**（Babylon.js，与 2D 同数据源）、**星体地图 / 占星地理定位 ACG**（含地图选点）。
+- **AI / 储存**：底部快捷坞导航各推运法；多类快照；存为命盘、批注。
+
+#### 星运（推运总台）
+- **主限法（Primary Directions）**：
+  - **核心方位法**：Alcabitius（默认）/ Meridian / Porphyry / Equal Ecliptic / Equal Hour Circle。
+  - **方向类型**：In Zodiaco（黄道，默认）/ In Mundo（世俗）。
+  - **向运方向**：顺向 Direct / 逆向 Converse / 顺逆合展；**迫星**：映点迫星（antiscia）/ 界限迫星（terms）。
+  - **时间换算（time keys）**：Ptolemy（默认）、Naibod、Cardano、Umar、Wöllner、Plantiko、TrueSolarArc、SymbolicSolarArc、SynodicYear、Kepler、Brahe 等。
+- **其它推运法**（各独立子页 / 页签）：太阳弧、法达（Firdaria）、小限（Profections）、太阳返照、太阴返照、十年法、十年分段、黄道星释（Zodiacal Releasing）、行星年龄、印占推运、Jaynes 二次推运、行星弧、波斯向运、129 年体系、Balbillus、三分主星、关键点、月相推运、其它回归、产前朔望、二次推运总台、返照时间线、分布、年龄推进点、星历。
+
+#### 八字（四柱）
+- 四柱排盘走前端本地引擎；十神、五行力量旺衰、天干地支双层解读。
+- **断命流派选择器**：传统综合（默认）/ 扶抑 / 格局 / 调候 / 病药 / 盲派 / 纳音古法。
+- **解读层**：命宫数法、五行旺衰、格局（正格 / 变格 / 杂格）、用神三派（扶抑 / 格局 / 调候 + 病药 / 通关）、月律分野、神煞补全、虚岁 / 周岁、盲派结构、纳音古法盘。
+- **推运**：大运 / 流年 / 流月 / 流日 / 流时 / 小运（多运限笛卡尔组合）；神煞面板随所选运限刷新。
+
+#### 紫微（紫微斗数）
+- 十二宫本命盘（默认字节零回归；任一传本开关走前端本地引擎双路）。
+- **四化流派**：通行·飞星（默认基表）/ 全书系 / 中州派 / 北派·通用飞星 / 飞星派 / 透派。
+- **分歧点开关**：大限跨度、天马基准、星集、三盘、天伤天使（固定 / 阴阳互换）、闰月、晚子时、定年界线、火铃（三合 / 南派）、空劫命名。
+- 天地人三盘、格局本地化（含断语 / 来源 / 破条件）、长生标签层。
+- **推运（运限）**：大限 / 流年（含小限）/ 流月 / 流日 / 流时；四化滑窗最多 3 层（自化仅无运限时）。
+
+#### 七政（七政四余 / 果老星宗）
+- 28 宿度系 + 七政（日月水金火木土）+ 四余（罗睺 / 计都 / 紫炁 / 月孛）。
+- **双引擎**：Horosa 自研 / Kinastro（Qizheng）。**宿度制**：正恒星 / 古法立成 / 赤道回归。
+- 庙旺陷落、化曜、虚实强弱、罗计真平交点 / 月孛真平远地点、七政擢升度数、报时星真 / 平 / 关太阳时。
+- **大限**：洞微大限（共转法）/ 羽毛大限（古法渐进）。出生神煞 / 流年神煞。三盘面（环形大限盘 / 精选盘 / Qizheng 图）。
+
+#### 印占（印度吠陀占星）
+- 北 / 南 / 东印盘式 + 顺逆时针镜像；多种宫制 + 与西占同族 ayanāṃśa。
+- **分盘 Vargas**：D1 Rashi … D60（主流分盘 + 分盘集网格）。
+- **大运 Dasha**：Vimshottari（默认 120 年）+ Yogini（36）/ Ashtottari（108）/ KP（180）；主期 / Antardasha / 三级子期；Naisargika 自然大运。
+- Yoga 自动识别、27 Nakshatra、Shadbala、Ashtakavarga、Vimsopaka、KP（真 Placidus 体系 + 订正）、Tajika / Argala / Gochara、Muhurta / Choghadia 择时、八分点、六座运、多流派器。
+
+#### 辅盘
+- **量化盘 / 汉堡学派**：四派 = classic / pure / uranian 美国对称 / cosmo 宇宙生物学；90°（或 45°）拨盘、中点树、中点相位、六宫框、图形星历、超海王星虚星（TNP）、校时、宇宙图。
+- **希腊星术**：十三分盘（13 次谐波，界限 / 阿拉伯点）。
+- **十二分盘、占星地图 / 重置盘、谐波盘（N 次）、龙盘（Draconic）、卜卦盘（五流派）、择日盘、世俗盘**。
+
+#### 合盘
+- 关系盘：比较盘（双向相位 / 中点 / 映点）/ 组合盘（中点生成第三盘）/ 影响盘（Synastry，内外双层）/ 时空中点盘 / 马克斯盘 + 关系量化评分。
+
+#### 数算
+- 邵子神数 / 铁板神数（扣入法 + 大运）/ 鬼谷分定经（两头钳）/ 北极神数 / 南极神数 / 蠢子数 / 邵子参评数（金锁银匙）/ 河洛理数（先后天八卦 + 爻辞）。
+
+#### 其他（命）
+- 演禽 / 万化仙禽（三宫 / 星禽 / 吞啖）；策天飞星（18 星飞布，两派：书法 / 原法）。
 
 ### 卜 · 易与三式
 
-易与三式不止是几个独立页签，三式合一已经做成一个真正能工作的整合面。
+易与三式不止是几个独立页签，三式合一已做成一个真正能工作的整合面。
 
-- **三式（合一）** —— 奇门、太乙、六壬整合呈现：概览、太乙、神煞、六壬、大格、小局、参考、八宫
-- **遁甲 · 六壬 · 太乙** —— 三式各自的独立排盘入口
-- **六爻 · 分至 · 风水** —— 纳甲六爻、节气盘、风水（理气六派）工具
-- **塔罗 · 天文地占** —— 塔罗牌阵（RWS / 埃及 / 马赛 / 维尔特 四套图集）、天文地占（星象地占）
-- **其他** —— 宿盘、金口诀、统摄法、皇极经世、五兆、太玄、荆诀、神易数
+#### 三式（合一）
+- 奇门 + 太乙 + 六壬整合呈现于一面，与三式各独立页**同输入同结果 + 同富显示**。
+- 快捷页签：概览 / 太乙 / 六壬 / 遁甲（右栏富显示对齐独立页）；全选项流派对齐独立页（奇门各家本地局法、月家定局法、太乙 timeBasis）。
 
-### 工具 · 工具工作台
+#### 遁甲（奇门遁甲）
+- 起局法（置闰 / 拆补 / 茅山 / 无闰 / 阴盘报数）；盘式（转盘 / 飞盘 / 混合）；时家 / 日家 / 月家 / 年家；空亡驿马（日 / 时）；直使。
+- 用神取用（基本类 + 查用类 + 生克类）；八宫面板。
 
-- **AI 分析** —— 可接入 OpenAI / Anthropic / Gemini / Ollama / OpenRouter / 自定义端点；流式对话、历史记录、资料库（向量检索）、把任一技法的盘面挂载进上下文、按技法 / 页签结构化导出，并可生成八字 / 紫微分节命理报告
-- **玄学史** —— 以二十四史、太平广记等公有古籍为底，汇编历代玄学人物、故事、术数源流与天象记录；离线历史地图 + 人物关系力导图 + 编年时间轴，按朝代 / 技法 / 人物检索，并与排盘联动
-- **天文馆** —— 完整星官、升落 / 中天精确时刻、宿度网格与连续时间播放实时同步（基于 Babylon.js 的实时三维天象）
-- **黄历** —— 农历、节气与择日
-- **辅助** —— 八卦类象、十二宫、规则速查
-- **数据库** —— 内置高可信名人星盘目录（数万条名人出生数据），离线秒级检索、按星座 / 分类筛选；详情含黄道星盘轮，可一键加入命盘管理、在任意技法页直接排盘
+#### 六壬（大六壬）
+- 四课三传 + 64 课经（课体）。
+- 贵人五法、月将三派、分昼夜三派、涉害取舍（含边界口径）、大格、小局、毕法（64 课匹配库）、七政四余子页。
+- **AI / 储存**：流派挂载快照（含导出补登）。
 
-命盘与事盘都能本地保存：带标签、快照与后端原始结构化数据，可 JSON 导入导出，重开后恢复现场。
+#### 六爻（六爻纳甲）
+- 全层引擎；**流派预设 + 自定**：通用 / 增删卜易·野鹤 / 卜筮正宗 / 易隐 / 邵伟华新派 / 盲派 / custom。
+- 起卦法：摇卦 / 蓍草 / 时间（梅花）/ 报数 / 装卦；断卦设置（占类 / 月破 / 土长生 / 变爻范围 / 卦身 / 飞伏 / 变卦装法 / 神煞 / 六神 / 年界线）；本 / 互 / 之 / 错 / 综卦。
 
-## 技术构成
+#### 太乙（太乙神数）
+- 计神积年（多种古法常数）；盘式（時 / 年 / 月 / 日 / 分計 + 命法式样）；主客算几何（默认 / 加一宫 / 不加一宫）；格局胜负；分野；诸神之算（多类数理）。
+- **流派覆盖层**（多轴开关，纯前端派生覆盖）；命法特化；大小限运。盘面落宫高亮 + 格局连线 + 点击面板。
 
-- **前端** —— React 17 + Umi 3 + TypeScript，Ant Design；D3 绘盘，Babylon.js / Three.js 三维，Plotly 星体地图，Monaco 编辑 AI 导出模板
-- **后端** —— Java 17 / Spring Boot 承载占星与中国术数核心服务；Python 3.11 服务层封装 Swiss Ephemeris（`pyswisseph`）与 vendored 的 kentang 传统术数引擎
-- **桌面壳** —— Electron 原生外壳，启动时在后台拉起本地 Python / Java 服务并做健康检查，窗口 / 缩放 / 设置状态持久化
-- **运行时** —— 内置 Python 采用固定版本的 python-build-standalone（可复现、自包含），随包附带 VC++ 运行时、离线 wheels 与后端 jar；构建期有原生依赖闸门与发布前自检
-- **发布** —— 面向 Windows 10 / 11（`x64`）的离线 NSIS 安装包，支持选择安装目录与升级；附 `latest.yml` / `.blockmap` / `SHA256SUMS.txt`
+#### 分至（节气盘）
+- 24 节气盘 + 回归 / 恒星黄道行星位置 + 节气时刻。
 
-## 网页版一键启动(从源码)
+#### 风水
+- **两类八派**：户型图阳宅（纳气盘法 / 八卦阳宅法）；理气起盘罗盘（八宅·大游年 / 玄空飞星 / 三合·十二长生水法 / 金锁玉关 / 乾坤国宝 / 紫白飞星）。
+- 玄空进阶（替卦兼向 / 城门 / 七星打劫 / 流月）；元运 / 坐向 / 流年流月 / 水口 / 坐卦 / 命。
+
+#### 其他（卜）
+- **宿占**（28 / 27 宿月宿 + 宿主 + 纳音）、**统摄法**（四象映八卦）、**皇极经世 / 皇极轨策**（四起卦法 + 时空盘）、**五兆**（五起盘法 + 五分法）、**太玄**（太玄经 81 首揲筮 + 读卦深度）、**荆诀**、**神易数**。
+- **飞宫**（飞宫排盘）、**小成图**（大衍筮法，两分 / 三分变体）、**小六壬**（掌诀六神）。
+- **金口诀**（多流派）：贵人体系 / 月将换将 / 盘式；五动三动 / 格局 / 四位生克 / 用神 / 神煞 / 应期 / 地分 / 空亡 / 纳音。
+- **地占（天文地占）**：16 图盾牌（四母四女四甥 + 判官 + 调和者 + 两见证）/ 宫位图形入宫 / 占星定局 / 完美相位同伴。**多流派**（古典定局 / 行星共鸣 / 现代综合 / 阿拉伯沙占 / 印度骰占 / Sikidy / Hakata）；范围 L0–L4 / 黄道（古典 / 行星）/ 起卦（随机 / 时间 seed 可复现 / 手工 seed）；断语逐图含义。
+- **塔罗**：**多牌组**（核心四套 + BOTA / Wirth / Egyptian / Etteilla / Lenormand 36 / Grand Tableau / Kipper 36 / Sibilla 52 / 扑克 52 / Visconti / Minchiate 97）；**多牌阵**；定局法（是否 / 精华 / 生命牌 / 年牌 / 计数链 / 合成叙事）；变体 A/B/C / 尊位 / 同 seed 跨流派一致。
+
+### 工具 · 工作台
+
+#### AI 分析
+- **多 LLM 接入**：OpenAI / DeepSeek / Anthropic / Gemini / OpenRouter / Ollama（本地）/ Moonshot(Kimi) / 智谱 / 硅基流动 / Groq / xAI / 自定义 OpenAI 兼容端点。
+- **思考 / 推理档**（off / low / medium / high / xhigh / max）；按协议族映射（Anthropic thinking budget / OpenAI reasoning_effort / Gemini thinkingConfig）；视觉模型自动识别。
+- 流式对话（SSE，可停止）+ 历史记录 + 资料库（RAG：分块 / 向量嵌入 / 检索 / 关键词 + 向量重排）。
+- **技法挂载**：命盘类与事盘类各式法 + 起课时间可铸式法；一键挂载全部式法。
+- **结构化导出**：按技法 / 页签过滤段；md / html / json / csv / pdf / docx。
+
+#### 天文馆
+- Babylon.js 实时三维天象。**纯天文**：只借宫位，无岁差。
+- 日月行星 + 南北交点 + 行星轨迹；中国星官（28 宿四象 / 三垣 / 北斗 / 星官 / 银河，恒真实距星）；西方 88 星座 + IAU 边界 + 星名；四套坐标网格（地平 / 赤道 / 黄道 / 宿度）；刻度叠加；极点与岁差圈 / 日行迹；星等过滤（1.0~6.5，默认 4.0）；点击读坐标 / 角距测量 / 升落中天时刻（大气折射 Bennett）。
+
+#### 黄历
+- 农历日期 / 24 节气 / 择日 / 宜忌。
+
+#### 数据库
+- 内置高可信名人星盘目录（数万条 A/AA 级名人出生数据），全程离线、秒级检索：关键词 / 星座 / 性别 / 出生年 / 评级 / 分类多维筛选与排序。
+- 详情含黄道星盘轮（逆时针、经度递增）、生平事件与分类标签；**一键加入命盘管理**——任选名人导入本地命盘库，在占星 / 八字 / 紫微等任意技法页直接排盘。
+
+#### 玄学史（中国玄学史）
+- 以二十四史、太平广记等公有古籍为底，汇编历代玄学人物 · 故事 · 术数源流与天象记录（数千条玄学事件 + 上万条星象记录）。
+- 离线中国历史地图 + 人物关系力导图 + 编年时间轴，按朝代 / 技法 / 人物检索；选中历史时刻可一键带入排盘，古籍原文支持反查对照。
+
+#### 辅助（参考）
+- 八卦类象 / 十二串宫 / 八字规则速查；真太阳时计算器。
+
+### 跨技法能力
+
+- **本地储存**：命盘与事盘本地保存（标签、快照、后端原始结构化数据），JSON 导入导出，重开恢复现场。
+- **命盘批注**（memo）、起盘配置抽屉（相位选择 / 容许度 / 显示星体 / 星盘组件 / 星盘分布）、小工具抽屉。
+
+---
+
+## 四、下载与安装
+
+普通用户直接下载离线安装包，像任何 Windows 软件一样安装、打开即可。
+
+**[⬇︎ Horosa-Setup-3.12.0.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.12.0/Horosa-Setup-3.12.0.exe)**
+
+适合场景：
+
+- Windows 10 / 11，`x64`
+- 弱网或完全离线的环境
+- 第一次安装，或者要把安装包转发给别人
+- 希望首次打开就能用，不再额外联网拉运行时
+
+无需自备 Python 或 Java，运行时已随包交付。更新只替换程序与共享运行时，不会动你已经保存的命例与事盘数据。
+
+应用内更新为增量更新:未改变的部件直接复用,一次典型升级只下载真正变化的那几个部件。
+
+> 安装包当前未做 Authenticode 签名，首次运行时 Windows SmartScreen 可能提示“Windows 已保护你的电脑”，点击「更多信息 → 仍要运行」即可；可比对官方 `SHA256SUMS.txt` 校验安装包完整性。
+
+---
+
+## 五、网页版一键启动（从源码）
 
 不装 exe,直接从源码把星阙跑成本地网页版(适合开发者或想跑源码的用户):
 
@@ -141,28 +271,43 @@
 - **首次运行 SmartScreen**:未签名脚本可能触发 Windows 提示,选「更多信息 → 仍要运行」即可。
 - **Git Bash / WSL 用户**:也可用产品源里的 `start_horosa_local.sh` / `stop_horosa_local.sh`(同一套服务,跨平台)。
 
-## 常见问题
+---
+
+## 五之二、终端 · MCP · REST(把星阙交给 AI)
+
+星阙的全部 AI 工具(建档、起盘、合盘取数、各流派择日、名人库、玄学史……)都能交给外部 AI 客户端或本机脚本调用 —— Windows 上由桌面版提供,在「AI 分析 › 进阶 › 外部连接」里开启:
+
+- **交给 AI(MCP)**:打开「外部智能体连接」,面板里一键复制 Claude Desktop / Claude Code / Codex 等客户端的接入配置(令牌只在复制时取一次,不随状态外泄)。
+- **终端**:「终端命令 horosa」一键安装(加进当前用户的 PATH,随时可移除);之后在任意终端里 `horosa status` / `horosa tools` / `horosa call <工具> k=v …` / `horosa records 张` …(`--json` 机器可读)。
+- **REST**:打开「REST 接口」后,本机脚本可用 `http://127.0.0.1:<端口>/api/v1` 调同一套工具(OpenAPI 现生成;与 MCP 同端口、同令牌)。
+- 审批与上限同外部客户端策略:写入要确认、可撤销,删除永不开放;长调用有进度、能取消。
+- 不开 App 的无头一键部署(`./horosa setup` / `./horosa start`)与批量验证运行包面向 macOS / Linux;Windows 上请用以上桌面版接入方式,或在 WSL2(Ubuntu 24.04 / Debian 12)里运行批量验证运行包。
+
+## 六、常见问题
 
 **我只是普通用户，需要克隆仓库吗？**
-不需要。直接在最新 release 里下载 `Horosa-Setup-3.11.3.exe` 即可。
+不需要。直接在最新 release 里下载 `Horosa-Setup-3.12.0.exe` 即可。
 
 **安装完还要自己装 Python 或 Java 吗？**
 不需要。Windows 安装器已经把发布版所需的运行时纳入流程；首次启动会因本地解包和校验稍慢，后续复用缓存。
 
-**可以选择安装目录吗？**
-可以。v2.2.0 Beta 安装器支持标准安装向导，可选择安装目录，并在安装前做目录创建 / 写入检查、快捷方式修复；遇到 Windows 权限限制时可提权继续。
-
 **为什么 release 里还有别的文件？**
-`latest.yml`、`.blockmap` 与 `SHA256SUMS.txt` 用于更新和校验。对普通用户来说，真正要点的只有 `Horosa-Setup-3.11.3.exe`。
+`latest.yml`、`.blockmap`、`SHA256SUMS.txt` 与 `horosa-update.sig` 用于应用内更新和校验。对普通用户来说，真正要点的只有 `Horosa-Setup-3.12.0.exe`。
 
 **更新时会删掉我的数据吗？**
 不会。应用更新与运行时切换替换的是程序与共享运行时，不会清空你保存的命例与事盘。
+
+**可以选择安装目录吗？**
+可以。安装器支持标准安装向导，可选择安装目录，并在安装前做目录创建 / 写入检查、快捷方式修复；遇到 Windows 权限限制时可提权继续。
 
 **Windows 提示「已保护你的电脑」（SmartScreen），下载不安全吗？**
 安装包未做 Authenticode 代码签名，新下载的文件会触发 SmartScreen 的「未知发布者」提示。请在 release 页用 `SHA256SUMS.txt` 核对你下载文件的哈希，然后点击 **更多信息 → 仍要运行**。应用内更新另有 Ed25519 签名校验层，任何被篡改的更新包都会被拒绝安装。
 
 **杀毒软件把应用的组件隔离了 / 应用提示本地服务启动失败怎么办？**
 个别杀毒软件（Windows Defender、360 等）可能误报内置的 Python/Java 运行时。请把安装目录与 `%LOCALAPPDATA%\HorosaDesktop` 加入杀毒软件白名单，恢复被隔离的文件后重新启动；或直接重装一次。应用能识别时，错误界面会直接写明被拦的目录，照着加白即可。
+
+**开了系统代理（如 DevSidecar / Clash）后排盘失败怎么办？**
+本版起本机排盘服务之间的调用一律直连、不走系统代理（AI 外部服务与联网检索仍照常经代理），开着系统代理也能正常排盘；若仍失败，重启一次星阙即可。
 
 **需要多少磁盘空间？安装路径有讲究吗？**
 安装时请保证至少 6 GB 可用空间（程序约 2 GB + 首次启动解压的运行时约 1.4 GB + 缓存）。安装路径请控制在 100 个字符以内，不要装到盘根或系统目录——安装器会强制检查这两条，并建议使用类似 `C:\Horosa` 的专用目录。
@@ -179,21 +324,33 @@ Windows S 模式只允许运行微软商店应用，会阻止安装任何旁加�
 **我的 Windows 系统语言 / 区域设置会影响使用吗？**
 不会。安装与运行在设计上与区域设置无关：任意系统显示语言、土耳其/泰语/阿拉伯语等区域格式、GBK/Shift-JIS 传统代码页、「Beta: 全球 UTF-8」选项、非 ASCII 用户名都可以正常安装使用。安装器的阻断类报错均为中文并附简短英文。
 
-## 开发者入口
+---
 
-按你的目标选择入口：
+## 七、许可与第三方
 
-- 想理解产品首页与用户入口：[README.md](README.md)
-- 想看英文完整说明：[README_EN.md](README_EN.md)
-- 想确认第三方许可证：[THIRD_PARTY_NOTICES.md](local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/THIRD_PARTY_NOTICES.md)
-- 法律与隐私文档：[docs/legal](docs/legal/)
-- 产品源码：[`local/workspace/Horosa-Web-…/`](local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/) —— 前端 `astrostudyui`，后端 `astrostudysrv` / `astropy`，引擎 `vendor`，星历 `flatlib-ctrad2`
-- 运行时准备脚本（含随包 VC++ 运行时）：[`prepareruntime/`](prepareruntime/)
-- Windows 适配层（Windows 专属补丁与发布哨兵）：[`windows-adaptations/`](windows-adaptations/)
-- 历史版本与完整发布说明：[GitHub Releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
+- **本项目**：[AGPL-3.0-only](LICENSE)。
+- **法律与隐私**：服务条款 / 隐私政策 / 安全说明 / 网络说明 / 开源声明,见 [docs/legal](docs/legal/)(中英双语)。
+- **第三方**：完整清单与许可证文本见 [THIRD_PARTY_NOTICES.md](local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/THIRD_PARTY_NOTICES.md)。
+  - vendored 传统术数计算引擎：部分上游声明 MIT（许可证文本在对应 `vendor/*/LICENSE` 保留）；部分上游未声明许可，单独标注、不擅自假定为任何开源许可。
+  - 天球坐标参考数据 d3-celestial（BSD 3-Clause；星座线 / IAU 边界 / 中国三垣派生）。
+  - flatlib（改写版）。
+  - Swiss Ephemeris（`pyswisseph`）。
 
-## 致谢
+---
 
-星阙的源流不能忘。最早的星阙 Horosa 由**郑大哥**一手创建，**荀爽（Herakleios，爽哥）**参与辅助设计，并把相关 App 与 Web 公开出来，后来者才有得研究、学习与延展。这个 Windows 版本的继续整理与发布，正是建立在他们已经搭起的星阙体系、术数工作流与公开分享精神之上——补的是 Windows 交付、运行时打包、功能整合与体验改良。没有他们，就没有今天这一版。也感谢每一位持续测试、反馈、修复，推动星阙变得更完整的人。
+## 八、致谢
 
-特别感谢 [kentang2017](https://github.com/kentang2017) 长期公开的传统术数 Python 项目。星阙接入或适配了其中多项计算引擎——已声明为 MIT 的上游项目在对应 vendored 目录与 `THIRD_PARTY_NOTICES.md` 中保留许可证说明；未找到明确开源声明的项目则单独标注，避免在没有声明的地方擅自假定许可证。
+星阙的源流不能忘。最早的星阙 Horosa 由**郑大哥**一手创建，**荀爽-Herakleios** 参与辅助设计，并把相关 App 与 Web 公开出来，后来者才有得研究、学习与延展。本 Windows 版正是在他们搭好的星阙体系、术数工作流与公开分享精神之上，继续做 Windows 交付、运行时打包、功能整合与体验改良。
+
+特别感谢 [kentang2017](https://github.com/kentang2017) 长期公开的传统术数 Python 项目 —— 星阙接入或适配了其中多项计算引擎；已声明 MIT 的上游在 [`THIRD_PARTY_NOTICES.md`](local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/THIRD_PARTY_NOTICES.md) 与对应 vendored 目录保留许可证，未找到明确开源声明的项目则单独标注、避免混同。也感谢每一位持续测试、反馈、修复，推动星阙变得更完整的人。
+
+---
+
+## 九、文档与入口
+
+- 运行时准备脚本（含随包 VC++ 运行时）：[`prepareruntime/`](prepareruntime/)；Windows 适配层（Windows 专属补丁与发布哨兵）：[`windows-adaptations/`](windows-adaptations/)
+- 社区文档：[CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) · [SUPPORT.md](SUPPORT.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- 法律与隐私：[docs/legal](docs/legal/)(服务条款 · 隐私政策 · 安全 · 网络 · 开源声明)
+- 第三方许可：[THIRD_PARTY_NOTICES.md](local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/THIRD_PARTY_NOTICES.md)
+- 应用源码：[`local/workspace/Horosa-Web-…/`](local/workspace/Horosa-Web-55c75c5b088252fbd718afeffa6d5bcb59254a0c/) —— 前端 `astrostudyui`，后端 `astrostudysrv` / `astropy`，引擎 `vendor`，星历 `flatlib-ctrad2`
+- 语言版本：[README.md](README.md)（中文首页）· [README_EN.md](README_EN.md)（English Guide）

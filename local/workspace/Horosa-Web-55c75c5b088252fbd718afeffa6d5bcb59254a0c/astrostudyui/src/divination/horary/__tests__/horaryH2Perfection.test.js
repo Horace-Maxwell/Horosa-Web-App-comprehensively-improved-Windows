@@ -1,4 +1,4 @@
-// [卜卦改进 H2] 完成法与应期 correctness 批——行为级专项锁。
+// 完成法与应期 correctness 批——行为级专项锁。
 // 覆盖:①45° 半刑前置滤 ②接纳分层化解硬相位(receptionForHardAspects 三档)
 // ③互容独立成事(receptionPerfection 门控) ④传递/汇集应期腿(timingLeg)
 // ⑤传光候选集(perfectionCandidates:三王/七政;交点福点恒不入) ⑥落位法删 pB.house===qh 误判支

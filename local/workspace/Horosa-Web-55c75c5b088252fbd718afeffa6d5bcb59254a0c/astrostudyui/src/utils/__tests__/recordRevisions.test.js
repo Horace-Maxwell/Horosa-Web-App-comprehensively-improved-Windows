@@ -1,9 +1,9 @@
-// [V5-D11/D12] 版本历史 + 档案库体检 闸。
+// 版本历史 + 档案库体检 闸。
 import { upsertLocalChart, listLocalCharts } from '../localcharts';
 import { pushRecordRevision, listRecordRevisions, __resetRevisionsForTests } from '../recordRevisions';
 import { runArchiveHealthCheck } from '../archiveHealthCheck';
 
-describe('[V5-D11] 记录版本历史', ()=>{
+describe('记录版本历史', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 		__resetRevisionsForTests();
@@ -41,7 +41,7 @@ describe('[V5-D11] 记录版本历史', ()=>{
 	});
 });
 
-describe('[V5-D12] 档案库体检', ()=>{
+describe('档案库体检', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});

@@ -3,11 +3,11 @@
 
 // 十二宫·图形入宫 + 192 断语
 .horosa-geomancy-house-row {
-	&.is-significator { background: var(--horosa-astro-card-hover, rgba(215, 173, 105, 0.08)); border-radius: 4px; }
+	&.is-significator { background: var(--horosa-accent-soft, rgba(215, 173, 105, 0.08)); border-radius: 4px; }
 	.horosa-geomancy-house-figure {
 		margin-left: 8px; font-weight: 600; color: var(--horosa-astro-text, #e8ecf3);
-		&[data-tone='good'] { color: var(--horosa-good, #6bbf8a); }
-		&[data-tone='bad'] { color: var(--horosa-bad, #d77b7b); }
+		&[data-tone='good'] { color: var(--horosa-jx-ji, #6bbf8a); }
+		&[data-tone='bad'] { color: var(--horosa-jx-xiong, #d77b7b); }
 		&[data-tone='neutral'] { color: var(--horosa-astro-muted, #8fa0b9); }
 	}
 	.horosa-geomancy-house-reading {
@@ -24,12 +24,12 @@
 
 // 16 图目录:tone 角标 + 卡侧色 + 异名
 .horosa-geomancy-catalog-card {
-	&.is-tone-good { border-left: 2px solid var(--horosa-good, #6bbf8a); }
-	&.is-tone-bad { border-left: 2px solid var(--horosa-bad, #d77b7b); }
+	&.is-tone-good { border-left: 2px solid var(--horosa-jx-ji, #6bbf8a); }
+	&.is-tone-bad { border-left: 2px solid var(--horosa-jx-xiong, #d77b7b); }
 	&.is-tone-neutral { border-left: 2px solid var(--horosa-astro-muted, #8fa0b9); }
 	.horosa-geomancy-catalog-tone {
 		margin-left: 6px; padding: 0 5px; border-radius: 6px; font-size: 11px;
-		background: var(--horosa-astro-card, rgba(255, 255, 255, 0.06)); color: var(--horosa-astro-gold, #d7ad69);
+		background: var(--horosa-surface-sunken, rgba(255, 255, 255, 0.06)); color: var(--horosa-astro-gold, #d7ad69);
 	}
 	.horosa-geomancy-catalog-alt { color: var(--horosa-astro-muted, #8fa0b9); font-size: 11px; }
 	.horosa-geomancy-catalog-mean { color: var(--horosa-astro-text, #e8ecf3); font-size: 11px; line-height: 1.5; opacity: 0.85; }
@@ -39,12 +39,12 @@
 .horosa-geomancy-sikidy {
 	width: 100%; padding: 12px;
 	.horosa-geomancy-sikidy-status { margin-bottom: 10px; color: var(--horosa-astro-muted, #8fa0b9); font-size: 12px;
-		.is-ok { color: var(--horosa-good, #6bbf8a); } .is-bad { color: var(--horosa-bad, #d77b7b); }
-		.horosa-geomancy-sikidy-red { margin-left: 10px; color: var(--horosa-bad, #d77b7b); font-weight: 600; }
+		.is-ok { color: var(--horosa-jx-ji, #6bbf8a); } .is-bad { color: var(--horosa-jx-xiong, #d77b7b); }
+		.horosa-geomancy-sikidy-red { margin-left: 10px; color: var(--horosa-jx-xiong, #d77b7b); font-weight: 600; }
 	}
 	.horosa-geomancy-sikidy-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
 	.horosa-geomancy-sikidy-col {
-		border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.25)); border-radius: 6px; padding: 6px 2px; text-align: center;
+		border: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.25)); border-radius: 6px; padding: 6px 2px; text-align: center;
 		&.is-prince { background: rgba(107, 191, 138, 0.07); } &.is-slave { background: rgba(143, 160, 185, 0.06); }
 	}
 	.horosa-geomancy-sikidy-dots { display: flex; flex-direction: column; gap: 3px; align-items: center; min-height: 44px; justify-content: center; }
@@ -60,7 +60,7 @@
 	.horosa-geomancy-hakata-tablets { display: flex; gap: 14px; }
 	.horosa-geomancy-hakata-tablet {
 		width: 84px; padding: 14px 8px; border-radius: 10px; text-align: center;
-		border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.3));
+		border: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.3));
 		strong { display: block; font-size: 15px; color: var(--horosa-astro-text, #e8ecf3); }
 		.horosa-geomancy-hakata-state { font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); }
 		&.is-open { background: rgba(215, 173, 105, 0.12); border-color: var(--horosa-astro-gold, #d7ad69); }
@@ -68,7 +68,7 @@
 	}
 	.horosa-geomancy-hakata-result { text-align: center; display: flex; flex-direction: column; gap: 6px; align-items: center;
 		.horosa-geomancy-hakata-figure { font-size: 24px; font-weight: 700; color: var(--horosa-astro-gold, #d7ad69);
-			&[data-tone='good'] { color: var(--horosa-good, #6bbf8a); } &[data-tone='bad'] { color: var(--horosa-bad, #d77b7b); }
+			&[data-tone='good'] { color: var(--horosa-jx-ji, #6bbf8a); } &[data-tone='bad'] { color: var(--horosa-jx-xiong, #d77b7b); }
 		}
 		small { font-size: 12px; color: var(--horosa-astro-muted, #8fa0b9); max-width: 360px; }
 		.horosa-geomancy-hakata-orient { font-size: 11px; opacity: 0.8; }
@@ -94,7 +94,7 @@
 }
 .horosa-geomancy-fig-tablet {
 	display: inline-block; width: 16px; height: 9px; border-radius: 2px;
-	border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.35));
+	border: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.35));
 	background: transparent;
 	&.is-open { background: var(--horosa-astro-gold, #d7ad69); }
 }
@@ -105,22 +105,22 @@
 	.horosa-geomancy-pyr-svg { width: 100%; height: auto; max-width: ~"min(100%, 960px)"; display: block; margin: 0 auto; }
 	.horosa-geomancy-pyr-vp {
 		margin-left: 10px; font-size: 11px; padding: 1px 7px; border-radius: 8px;
-		border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.35));
+		border: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.35));
 		color: var(--horosa-astro-muted, #8fa0b9);
 		&.is-through { color: var(--horosa-astro-gold, #d7ad69); border-color: var(--horosa-astro-gold, #d7ad69); }
 	}
 	.horosa-geomancy-pyr-recon {
 		display: flex; align-items: center; justify-content: center; gap: 10px;
 		margin-top: 6px; padding: 8px; border-radius: 6px;
-		border: 1px dashed var(--horosa-astro-border, rgba(215, 173, 105, 0.35));
+		border: 1px dashed var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.35));
 		color: var(--horosa-astro-text, #e8ecf3);
 	}
 }
 .horosa-geomancy-pyr-box {
-	fill: transparent; stroke: var(--horosa-astro-border, rgba(215, 173, 105, 0.35)); stroke-width: 1;
+	fill: transparent; stroke: var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.35)); stroke-width: 1;
 }
 .horosa-geomancy-pyr-link {
-	fill: none; stroke: var(--horosa-astro-border, rgba(215, 173, 105, 0.35)); stroke-width: 1;
+	fill: none; stroke: var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.35)); stroke-width: 1;
 	&.is-onpath { stroke: var(--horosa-astro-gold, #d7ad69); stroke-width: 2; }
 }
 .horosa-geomancy-pyr-node {
@@ -130,8 +130,8 @@
 	.horosa-geomancy-pyr-name { font-size: 18px; font-weight: 600; fill: var(--horosa-astro-text, #e8ecf3); }
 	.horosa-geomancy-pyr-dots { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
 	&.is-onpath .horosa-geomancy-pyr-box { stroke: var(--horosa-astro-gold, #d7ad69); stroke-width: 2; }
-	&.is-good .horosa-geomancy-pyr-name { fill: var(--horosa-good, #6bbf8a); }
-	&.is-bad .horosa-geomancy-pyr-name { fill: var(--horosa-bad, #d77b7b); }
+	&.is-good .horosa-geomancy-pyr-name { fill: var(--horosa-jx-ji, #6bbf8a); }
+	&.is-bad .horosa-geomancy-pyr-name { fill: var(--horosa-jx-xiong, #d77b7b); }
 }
 
 // 十二宫盘落星层
@@ -144,7 +144,7 @@
 	.horosa-geomancy-ifa-notice {
 		margin: 0 0 10px; padding: 9px 12px; border-radius: 6px; font-size: 12px; line-height: 1.7;
 		border: 1px solid var(--horosa-astro-gold, #d7ad69);
-		background: var(--horosa-astro-card-hover, rgba(215, 173, 105, 0.08));
+		background: var(--horosa-accent-soft, rgba(215, 173, 105, 0.08));
 		color: var(--horosa-astro-text, #e8ecf3);
 	}
 	.horosa-geomancy-ifa-cols { display: flex; gap: 28px; justify-content: center; margin: 14px 0; }
@@ -160,7 +160,7 @@
 	}
 	.horosa-geomancy-ifa-refcell {
 		display: flex; align-items: baseline; gap: 6px; padding: 5px 8px; border-radius: 4px; font-size: 11px;
-		border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.35));
+		border: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.35));
 		strong { color: var(--horosa-astro-text, #e8ecf3); }
 		em { color: var(--horosa-astro-muted, #8fa0b9); font-style: normal; margin-left: auto; }
 	}
@@ -176,7 +176,7 @@
 // 转宫块 + 目录十域展开
 .horosa-geomancy-turn {
 	margin-top: 10px; padding-top: 10px;
-	border-top: 1px dashed var(--horosa-astro-border, rgba(215, 173, 105, 0.35));
+	border-top: 1px dashed var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.35));
 	.horosa-geomancy-turn-field {
 		display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px;
 		> span { font-size: 11px; color: var(--horosa-astro-muted, #8fa0b9); }
@@ -202,13 +202,13 @@
 // Sikidy 列比对 + 马语名录
 .horosa-geomancy-sikidy-compare {
 	margin-top: 12px; padding: 10px; border-radius: 6px;
-	border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.35));
+	border: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.35));
 	.horosa-geomancy-sikidy-compare-title { font-size: 12px; color: var(--horosa-astro-gold, #d7ad69); margin-bottom: 8px; }
 	.horosa-geomancy-sikidy-hits { display: flex; flex-wrap: wrap; gap: 8px; }
 	.horosa-geomancy-sikidy-hit {
 		display: flex; flex-direction: column; gap: 2px; padding: 6px 10px; border-radius: 4px;
 		border: 1px solid var(--horosa-astro-gold, #d7ad69);
-		background: var(--horosa-astro-card-hover, rgba(215, 173, 105, 0.08));
+		background: var(--horosa-accent-soft, rgba(215, 173, 105, 0.08));
 		> strong { font-size: 12px; color: var(--horosa-astro-text, #e8ecf3); }
 		> em { font-size: 11px; font-style: normal; color: var(--horosa-astro-muted, #8fa0b9); }
 	}
@@ -229,7 +229,7 @@
 	}
 	.horosa-geomancy-sikidy-malcell {
 		display: flex; flex-direction: column; gap: 1px; padding: 5px 8px; border-radius: 4px;
-		border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.35));
+		border: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.35));
 		> strong { font-size: 12px; color: var(--horosa-astro-text, #e8ecf3); }
 		> em { font-size: 11px; font-style: normal; color: var(--horosa-astro-muted, #8fa0b9); }
 	}
@@ -246,7 +246,7 @@
 	&.is-selected .horosa-geomancy-pyr-box { stroke: var(--horosa-astro-gold, #d7ad69); stroke-width: 2.5; }
 	&.is-source .horosa-geomancy-pyr-box {
 		stroke: var(--horosa-astro-gold, #d7ad69); stroke-width: 2;
-		fill: var(--horosa-astro-card-hover, rgba(215, 173, 105, 0.12));
+		fill: var(--horosa-accent-soft, rgba(215, 173, 105, 0.12));
 	}
 }
 .horosa-geomancy-pyr-tip {
@@ -317,7 +317,7 @@
 	align-content: center;
 	border: 1px solid transparent;
 	transition: border-color 0.16s ease, background 0.16s ease;
-	&:hover { border-color: var(--horosa-astro-border, rgba(215, 173, 105, 0.35)); }
+	&:hover { border-color: var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.35)); }
 	&.is-significator { border-color: var(--horosa-astro-gold, #d7ad69); }
 	.horosa-geomancy-house-num { font-size: 15px; font-weight: 700; color: var(--horosa-astro-gold, #d7ad69); }
 	.horosa-geomancy-house-sign { font-size: 13px; white-space: nowrap; }
@@ -337,7 +337,7 @@
 		line-height: 1.75;
 		opacity: 1;
 		padding-top: 2px;
-		border-top: 1px dashed var(--horosa-astro-border, rgba(215, 173, 105, 0.22));
+		border-top: 1px dashed var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.22));
 		margin-top: 2px;
 	}
 }
@@ -394,7 +394,7 @@
 	display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
 }
 
-// [C4] 十六图 ↔ 十六主形 线形对照(右栏静态查阅)
+// 十六图 ↔ 十六主形 线形对照(右栏静态查阅)
 .horosa-geomancy-odu-table {
 	margin: 4px 8px 12px;
 	> summary { cursor: pointer; font-size: 12.5px; color: var(--horosa-astro-gold, #d7ad69); list-style: none; padding: 6px 0; }
@@ -404,13 +404,13 @@
 	.horosa-geomancy-odu-notice {
 		margin: 4px 0 10px; padding: 8px 10px; border-radius: 6px; font-size: 11.5px; line-height: 1.7;
 		border: 1px solid var(--horosa-astro-gold, #d7ad69);
-		background: var(--horosa-astro-card-hover, rgba(215, 173, 105, 0.08));
+		background: var(--horosa-accent-soft, rgba(215, 173, 105, 0.08));
 		color: var(--horosa-astro-text, #e8ecf3);
 	}
 	.horosa-geomancy-odu-grid { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 	.horosa-geomancy-odu-cell {
 		display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 6px;
-		border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.3));
+		border: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.3));
 	}
 	.horosa-geomancy-odu-seniority {
 		flex: none; min-width: 18px; text-align: center; font-size: 11px;
@@ -446,11 +446,17 @@
 .horosa-geomancy-flow {
 	.horosa-geomancy-flow-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
 	.horosa-geomancy-flow-step {
-		display: grid; grid-template-columns: 20px 92px minmax(0, 1fr) 18px;
+		/* 原四列栅格(20 / 92 / 1fr / 18):放大档右栏只剩一百九十来 px 时值列被挤到二十几 px、逐字竖排。
+		   改为可折行的弹性行:各项宽度与栅格时相同(放得下时一字不变),值列不足 6 字宽时连同判记整体换到第二行。 */
+		display: flex; flex-wrap: wrap;
+		> .horosa-geomancy-flow-idx { flex: 0 0 20px; }
+		> .horosa-geomancy-flow-label { flex: 0 0 92px; }
+		> .horosa-geomancy-flow-val { flex: 1 1 0; min-width: 6em; }
+		> .horosa-geomancy-flow-mark { flex: 0 0 18px; }
 		gap: 7px; align-items: center; padding: 7px 9px; border-radius: 6px; font-size: 12.5px;
-		border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.22));
-		&.is-ok .horosa-geomancy-flow-mark { color: var(--horosa-good, #6bbf8a); }
-		&.is-no .horosa-geomancy-flow-mark { color: var(--horosa-bad, #d77b7b); }
+		border: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.22));
+		&.is-ok .horosa-geomancy-flow-mark { color: var(--horosa-jx-ji, #6bbf8a); }
+		&.is-no .horosa-geomancy-flow-mark { color: var(--horosa-jx-xiong, #d77b7b); }
 	}
 	.horosa-geomancy-flow-idx {
 		text-align: center; font-size: 11px; color: var(--horosa-astro-gold, #d7ad69);
@@ -473,11 +479,11 @@
 	.horosa-geomancy-sq-cell {
 		display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
 		padding: 9px 7px; border-radius: 9px;
-		border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.28));
+		border: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.28));
 		background: var(--horosa-surface, rgba(127, 127, 127, 0.04));
 		&.is-significator { border-color: var(--horosa-astro-gold, #d7ad69); border-width: 2px; }
-		&.is-good .horosa-geomancy-sq-fig > strong { color: var(--horosa-good, #6bbf8a); }
-		&.is-bad .horosa-geomancy-sq-fig > strong { color: var(--horosa-bad, #d77b7b); }
+		&.is-good .horosa-geomancy-sq-fig > strong { color: var(--horosa-jx-ji, #6bbf8a); }
+		&.is-bad .horosa-geomancy-sq-fig > strong { color: var(--horosa-jx-xiong, #d77b7b); }
 	}
 	.horosa-geomancy-sq-head { display: flex; align-items: center; gap: 5px; font-size: 11.5px; }
 	.horosa-geomancy-sq-num { color: var(--horosa-astro-gold, #d7ad69); font-weight: 700; font-size: 13px; }
@@ -523,7 +529,7 @@
 			fill: none; stroke: var(--horosa-astro-gold, #d7ad69);
 			stroke-width: 0.4; vector-effect: non-scaling-stroke;
 		}
-		.horosa-geomancy-poly-sig { fill: var(--horosa-astro-card-hover, rgba(215, 173, 105, 0.14)); stroke-width: 0.9; }
+		.horosa-geomancy-poly-sig { fill: var(--horosa-accent-soft, rgba(215, 173, 105, 0.14)); stroke-width: 0.9; }
 	}
 	.horosa-geomancy-poly-cell {
 		position: absolute; transform: translate(-50%, -50%);
@@ -532,8 +538,8 @@
 		.horosa-geomancy-poly-num { font-size: 10px; color: var(--horosa-astro-muted, #8fa0b9); line-height: 1; }
 		.horosa-geomancy-poly-name { font-size: 11.5px; color: var(--horosa-astro-text, #e8ecf3); line-height: 1.15; white-space: nowrap; }
 		&.is-significator .horosa-geomancy-poly-name { color: var(--horosa-astro-gold, #d7ad69); font-weight: 700; }
-		&.is-good .horosa-geomancy-poly-name { color: var(--horosa-good, #6bbf8a); }
-		&.is-bad .horosa-geomancy-poly-name { color: var(--horosa-bad, #d77b7b); }
+		&.is-good .horosa-geomancy-poly-name { color: var(--horosa-jx-ji, #6bbf8a); }
+		&.is-bad .horosa-geomancy-poly-name { color: var(--horosa-jx-xiong, #d77b7b); }
 		.horosa-geomancy-fig-dots { transform: scale(0.82); }
 	}
 	.horosa-geomancy-poly-center {
@@ -566,12 +572,12 @@
 	}
 	.horosa-geomancy-sq-cell {
 		border: 0; border-radius: 0;
-		border-right: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.45));
-		border-bottom: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.45));
+		border-right: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.45));
+		border-bottom: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.45));
 		background: transparent;
 		&.is-significator {
 			border: 2px solid var(--horosa-astro-gold, #d7ad69);
-			background: var(--horosa-astro-card-hover, rgba(215, 173, 105, 0.10));
+			background: var(--horosa-accent-soft, rgba(215, 173, 105, 0.10));
 		}
 	}
 	// 最后一列/末行不重复画边(外框已包)
@@ -579,9 +585,9 @@
 	.horosa-geomancy-sq-center {
 		grid-row: ~"2 / 4"; grid-column: ~"2 / 4";   // 🔴 必须转义:LESS 会把 2 / 4 当除法算成 .5
 		border: 0; border-radius: 0;
-		border-right: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.45));
-		border-bottom: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.45));
-		background: var(--horosa-astro-card-hover, rgba(215, 173, 105, 0.06));
+		border-right: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.45));
+		border-bottom: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.45));
+		background: var(--horosa-accent-soft, rgba(215, 173, 105, 0.06));
 		// 旧中心块遗留(> strong 26px / 点阵 scale(1.05))已随倒三角改版作废并移除:
 		// 前者已无匹配对象,后者会盖掉中心的统一缩放系数、把点阵放大回原尺寸而槽位不变 → 又被切。
 	}
@@ -594,7 +600,7 @@
 	.horosa-geomancy-sq-grid {
 		max-width: ~"min(100%, 900px)";
 		gap: 2px;
-		background: var(--horosa-astro-border, rgba(215, 173, 105, 0.5));
+		background: var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.5));
 		border: 2px solid var(--horosa-astro-gold, #d7ad69);
 		grid-template-rows: repeat(4, minmax(126px, auto));
 	}
@@ -603,7 +609,7 @@
 		background: var(--horosa-bg, #fff);
 		gap: 7px; padding: 12px 9px;
 		&.is-significator {
-			background: var(--horosa-astro-card-hover, rgba(215, 173, 105, 0.12));
+			background: var(--horosa-accent-soft, rgba(215, 173, 105, 0.12));
 			box-shadow: inset 0 0 0 2px var(--horosa-astro-gold, #d7ad69);
 		}
 	}
@@ -659,7 +665,8 @@
 }
 // 其余盘面(护盾/金字塔/异或/四片/结构对照)统一封高,留安全距离免溢出中栏
 .horosa-workspace-shell .horosa-geomancy-board-stage {
-	> * { max-height: ~"calc(100 * var(--horosa-lvh, 1vh) - 300px)"; overflow-y: auto; }
+	// 盘外包了按设计宽等比缩的外框(XQDesignScaleBox)时,放得下态外框 / 内框是 display:contents,盘仍是舞台的版面子项 —— 子选择器同时认它
+	> *, > [data-horosa-html-design-box="fit"] > * > * { max-height: ~"calc(100 * var(--horosa-lvh, 1vh) - 300px)"; overflow-y: auto; }
 }
 
 // ── 高度收口(用户实测仍出滚动条)──
@@ -667,12 +674,15 @@
 //    今改为**按可用高度定尺寸、由一比一反推宽度** —— 盘由父容器高度决定,结构上不可能溢出,
 //    不再靠视口减常数去猜。
 .horosa-workspace-shell .horosa-geomancy-board-stage {
-	> * { max-height: 100%; overflow: visible; }
+	> *, > [data-horosa-html-design-box="fit"] > * > * { max-height: 100%; overflow: visible; }
 }
 .horosa-workspace-shell .horosa-geomancy-polychart,
 .horosa-workspace-shell .horosa-geomancy-square {
 	height: 100%; min-height: 0; justify-content: flex-start;
 }
+// 按可用高定边长的盘:舞台高取可用高(弹性基准 0,不按内容)—— 打断「舞台按内容 / 盘按舞台百分比」的循环,结果与切换历史无关;
+// 顶端对齐:盘按设计宽等比缩小、放大档又被加宽托大时可能比舞台高,居中会向上越出、压到上方的盘式切换钮(向下越出由外层滚动接住)
+.horosa-workspace-shell .horosa-geomancy-board-stage.is-fit-height { flex: 1 1 0; min-height: 0; align-items: flex-start; }
 .horosa-workspace-shell .horosa-geomancy-polychart .horosa-geomancy-poly-board {
 	flex: 1 1 auto; min-height: 0;
 	height: 100%; width: auto;
@@ -691,7 +701,7 @@
 .horosa-workspace-shell .horosa-geomancy-square .horosa-geomancy-sq-center { overflow: hidden; }
 
 // ══════════════════════════════════════════════════════════════
-// [R1] 亲缘三元(父·父→子)上屏 —— 内核 shield_triads 早已出参却从未显示。
+// 亲缘三元(父·父→子)上屏 —— 内核 shield_triads 早已出参却从未显示。
 // 选中一组时:子节点(is-selected)、两父节点(is-source)、两条连线(is-triad)同时描金,
 // 「亲缘」这层关系才真正看得见 —— 只亮方块而线不亮时,恰恰漏掉的就是关系本身。
 .horosa-geomancy-pyr-link.is-triad {
@@ -701,7 +711,7 @@
 }
 .horosa-geomancy-triads {
 	margin-top: 12px; padding-top: 10px;
-	border-top: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.28));
+	border-top: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.28));
 }
 .horosa-geomancy-triads-title {
 	font-size: 12px; font-weight: 600; letter-spacing: 0.4px; margin-bottom: 6px;
@@ -712,7 +722,7 @@
 	padding: 3px 6px; border-radius: 5px; cursor: pointer;
 	font-size: 12px; line-height: 1.5;
 	transition: background 0.15s ease;
-	&:hover { background: var(--horosa-astro-card-hover, rgba(215, 173, 105, 0.12)); }
+	&:hover { background: var(--horosa-accent-soft, rgba(215, 173, 105, 0.12)); }
 	.horosa-geomancy-triad-label {
 		flex: 0 0 auto; min-width: 82px;
 		color: var(--horosa-astro-muted, #8fa0b9);
@@ -749,16 +759,16 @@
 	font-size: 11px; line-height: 1; font-style: normal;
 	opacity: 0.9; cursor: help;
 	&.is-full { color: var(--horosa-astro-gold, #d7ad69); }
-	&.is-assist { color: #7fc4a8; }
-	&.is-stall { color: #c9b073; }
-	&.is-weak { color: #b5788a; }
+	&.is-assist { color: var(--horosa-jx-he); }
+	&.is-stall { color: var(--horosa-jx-other); }
+	&.is-weak { color: #b5788a; opacity: 1; }   // 叠 0.9 后浅色底只有 2.93:1;不叠 ≈ 3.5:1(暗底 ≈ 5:1)
 }
 // [时间流] 右证过去 / 法官现在 / 左证未来
 .horosa-geomancy-shield-time {
 	margin-left: 4px; font-style: normal; font-size: 10px;
 	padding: 0 3px; border-radius: 3px;
 	color: var(--horosa-astro-gold, #d7ad69);
-	background: var(--horosa-astro-card-hover, rgba(215, 173, 105, 0.14));
+	background: var(--horosa-accent-soft, rgba(215, 173, 105, 0.14));
 }
 // [寻源四线] 金字塔盘标题行的四线小钮
 .horosa-geomancy-pyr-lines {
@@ -766,7 +776,7 @@
 	button {
 		padding: 1px 8px; font-size: 11px; line-height: 1.6;
 		border-radius: 4px; cursor: pointer;
-		border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.3));
+		border: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.3));
 		background: transparent; color: var(--horosa-astro-muted, #8fa0b9);
 		&:hover { color: var(--horosa-astro-text, #e8ecf3); }
 		&.is-active {
@@ -774,19 +784,19 @@
 			background: var(--horosa-astro-gold, #d7ad69);
 			border-color: var(--horosa-astro-gold, #d7ad69);
 		}
-		&.is-miss { opacity: 0.45; }
+		&.is-miss { color: var(--horosa-text-secondary); border-style: dashed; }   // 无命中:虚线框 + 次级字色(不再整片透明度)
 	}
 }
 // [法庭三角] 三卦倒序横排(过去→现在→未来)+ 合断
 .horosa-geomancy-court {
 	margin-top: 12px; padding-top: 10px;
-	border-top: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.28));
+	border-top: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.28));
 }
 .horosa-geomancy-court-row { display: flex; gap: 8px; }
 .horosa-geomancy-court-cell {
 	flex: 1 1 0; min-width: 0; text-align: center;
 	padding: 6px 4px; border-radius: 6px;
-	border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.28));
+	border: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.28));
 	&.is-tone-good { border-color: rgba(127, 196, 168, 0.55); }
 	&.is-tone-bad { border-color: rgba(181, 120, 138, 0.55); }
 	.horosa-geomancy-court-when {
@@ -806,12 +816,12 @@
 // [地占三角] 四组 + 两派含义切换
 .horosa-geomancy-triangles {
 	margin-top: 12px; padding-top: 10px;
-	border-top: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.28));
+	border-top: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.28));
 	.horosa-geomancy-tri-school {
 		float: right; display: inline-flex; gap: 4px;
 		button {
 			padding: 0 7px; font-size: 11px; border-radius: 4px; cursor: pointer;
-			border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.3));
+			border: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.3));
 			background: transparent; color: var(--horosa-astro-muted, #8fa0b9);
 			&.is-active {
 				color: #1b1206; background: var(--horosa-astro-gold, #d7ad69);
@@ -824,16 +834,18 @@
 	display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px;
 	padding: 3px 6px; font-size: 12px; line-height: 1.5;
 	.horosa-geomancy-triad-expr {
-		flex: 0 0 auto;
+		/* 可收缩、不超过行宽:拉丁长名(Caput Draconis 等)在词间换行,不再整段越出被裁(放得下时一行,一字不变) */
+		flex: 0 1 auto; min-width: 0; max-width: 100%;
+		overflow-wrap: break-word; overflow-wrap: anywhere;
 		em {
 			font-style: normal; margin-right: 4px;
 			color: var(--horosa-astro-muted, #8fa0b9);
-			&.is-tone-good { color: #7fc4a8; }
+			&.is-tone-good { color: var(--horosa-jx-he); }
 			&.is-tone-bad { color: #b5788a; }
 		}
 		strong {
 			color: var(--horosa-astro-gold, #d7ad69);
-			&.is-tone-good { color: #7fc4a8; }
+			&.is-tone-good { color: var(--horosa-jx-he); }
 			&.is-tone-bad { color: #b5788a; }
 		}
 	}
@@ -853,7 +865,7 @@
 .horosa-geomancy-shield16-row {
 	display: flex; flex-wrap: wrap; gap: 6px;
 	padding: 4px 6px; line-height: 1.55;
-	border-bottom: 1px dashed var(--horosa-astro-border, rgba(215, 173, 105, 0.18));
+	border-bottom: 1px dashed var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.18));
 	.horosa-geomancy-shield16-num {
 		flex: 0 0 62px; color: var(--horosa-astro-muted, #8fa0b9);
 	}
@@ -873,7 +885,7 @@
 .horosa-geomancy-perfdir,
 .horosa-geomancy-pchart-table {
 	margin-top: 12px; padding-top: 10px;
-	border-top: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.28));
+	border-top: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.28));
 }
 // [希腊点] 福/灵徽记
 .horosa-geomancy-greek-marks { display: inline-flex; gap: 2px; margin-left: 3px; }
@@ -914,7 +926,7 @@
 }
 
 // ══════════════════════════════════════════════════════════════
-// [B0] 落星层扩到全部十二宫盘 + 非宫位盘明示不呈现。
+// 落星层扩到全部十二宫盘 + 非宫位盘明示不呈现。
 // 此前落星只画在圆轮盘一处,用户停在其余八式时切落星法零反馈,看上去就是开关坏了。
 .horosa-geomancy-house-planets {
 	display: block; margin-top: 2px;
@@ -926,16 +938,16 @@
 	margin: 0 0 6px; padding: 5px 10px; border-radius: 6px;
 	font-size: 12px; line-height: 1.5;
 	color: var(--horosa-astro-muted, #8fa0b9);
-	background: var(--horosa-astro-card-hover, rgba(215, 173, 105, 0.1));
-	border: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.28));
+	background: var(--horosa-accent-soft, rgba(215, 173, 105, 0.1));
+	border: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.28));
 }
 
-// [B2] 调和者取法二式恒等之如实说明(数学事实,非开关失灵)。
+// 调和者取法二式恒等之如实说明(数学事实,非开关失灵)。
 .horosa-geomancy-coincide-note {
 	margin-top: 8px; padding: 6px 9px; border-radius: 6px;
 	font-size: 12px; line-height: 1.6;
 	color: var(--horosa-astro-muted, #8fa0b9);
-	background: var(--horosa-astro-card-hover, rgba(215, 173, 105, 0.1));
+	background: var(--horosa-accent-soft, rgba(215, 173, 105, 0.1));
 	border-left: 2px solid var(--horosa-astro-gold, #d7ad69);
 }
 
@@ -1023,11 +1035,11 @@
 }
 
 
-// [B6] 「随问类而定」分组:相位/黄道宫三方等只依赖问者宫↔所问宫,与本卦无关。
+// 「随问类而定」分组:相位/黄道宫三方等只依赖问者宫↔所问宫,与本卦无关。
 // 与随卦而变者并列而不加注,会让人误以为是本卦算得的 —— 故分列并显式说明。
 .horosa-geomancy-topic-group {
 	margin-top: 10px; padding-top: 8px;
-	border-top: 1px dashed var(--horosa-astro-border, rgba(215, 173, 105, 0.3));
+	border-top: 1px dashed var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.3));
 }
 .horosa-geomancy-topic-title {
 	font-size: 12px; font-weight: 600; margin-bottom: 4px;
@@ -1039,7 +1051,7 @@
 	}
 }
 
-// [B3] 技法行全项常驻:未命中弱化而非消失(此前整行消失,用户无从分辨「查过但未成立」与「没实现」)。
+// 技法行全项常驻:未命中弱化而非消失(此前整行消失,用户无从分辨「查过但未成立」与「没实现」)。
 .horosa-geomancy-tech-row {
 	align-items: flex-start;
 	> strong { display: block; font-weight: 600; line-height: 1.45; }
@@ -1053,7 +1065,7 @@
 	color: var(--horosa-astro-muted, #8fa0b9); opacity: 0.85;
 }
 
-// [B3] 技法行全项常驻:未命中弱化而非消失(此前整行消失,用户无从分辨「查过但未成立」与「没实现」)。
+// 技法行全项常驻:未命中弱化而非消失(此前整行消失,用户无从分辨「查过但未成立」与「没实现」)。
 .horosa-geomancy-tech-row {
 	align-items: flex-start;
 	> strong { display: block; font-weight: 600; line-height: 1.45; }
@@ -1076,7 +1088,7 @@
 }
 
 // ══════════════════════════════════════════════════════════════
-// [U1] 右栏拆 tab(解读 / 判断 / 十二宫 / 十六图形 / 历史)后的版式。
+// 右栏拆 tab(解读 / 判断 / 十二宫 / 十六图形 / 历史)后的版式。
 // 判断 tab 里每条判据**各占一整行** —— 此前两列并排,长值(点之路、移动、同伴)一挤就折成多行,
 // 与邻列高低错落,读起来乱。判据本就该一条一条看,不是拿来省地方的。
 .horosa-geomancy-card .horosa-geomancy-summary.horosa-geomancy-tech-list {
@@ -1090,9 +1102,9 @@
 	align-items: baseline;
 	padding: 7px 10px;
 	border-radius: 8px;
-	border-bottom: 1px solid var(--horosa-astro-border, rgba(215, 173, 105, 0.16));
+	border-bottom: 1px solid var(--horosa-astro-line-strong, rgba(215, 173, 105, 0.16));
 	&:last-child { border-bottom: 0; }
-	&:hover { background: var(--horosa-astro-card-hover, rgba(215, 173, 105, 0.07)); }
+	&:hover { background: var(--horosa-accent-soft, rgba(215, 173, 105, 0.07)); }
 	> span {
 		font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em;
 		color: var(--horosa-astro-gold, #d7ad69);
@@ -1139,7 +1151,8 @@
 	flex: 0 1 auto;
 	margin-left: 0; font-style: normal; font-size: 10.5px; line-height: 1.4;
 	color: var(--horosa-astro-muted, #8fa0b9);
-	white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+	// 副名放不下时按词折行(「Caput / Draconis」),不再省略号裁字;放得下时单行,与此前相同
+	white-space: normal; overflow-wrap: break-word; overflow-wrap: anywhere; max-width: 100%;
 }
 .horosa-geomancy-house-roles {
 	flex: 0 0 auto; white-space: nowrap;

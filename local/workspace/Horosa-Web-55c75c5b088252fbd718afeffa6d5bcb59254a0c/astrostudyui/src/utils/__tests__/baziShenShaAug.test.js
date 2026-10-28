@@ -100,7 +100,7 @@ describe('八字 神煞补全（§5 完整对照表项）', () => {
 		const gods = calcFlowShenSha(f, '甲', '酉'); // 流运柱 甲酉，日干丁见酉=天乙/太极/文昌
 		expect(gods).toContain('天乙贵人');
 		expect(gods).toContain('文昌贵人');
-		// [Q-196] 流运亦查日干系 DAY_STEMS:丁日学堂在酉 → 学堂;丁禄在午 → 酉无禄神(非漏查)
+		// 流运亦查日干系 DAY_STEMS:丁日学堂在酉 → 学堂;丁禄在午 → 酉无禄神(非漏查)
 		expect(gods).toContain('学堂');
 		expect(gods).not.toContain('禄神');
 		expect(calcFlowShenSha(f, '甲', '午')).toContain('禄神');
@@ -115,17 +115,17 @@ describe('八字 神煞补全（§5 完整对照表项）', () => {
 		expect(r.year.slice().sort()).toEqual(['月厌', '月德贵人', '禄神', '词馆', '德秀贵人'].sort());
 		expect(r.month.slice().sort()).toEqual(['太岁', '将星', '禄神', '词馆'].sort());
 		expect(r.day.slice().sort()).toEqual(['太极贵人', '桃花', '德秀贵人', '天喜'].sort());
-		// [Q-196] 时柱补查日干+时支 DAY_STEMS:丁日酉时 → 学堂(此前锁住漏项)。
+		// 时柱补查日干+时支 DAY_STEMS:丁日酉时 → 学堂(此前锁住漏项)。
 		expect(r.time.slice().sort()).toEqual(['天乙贵人', '太极贵人', '文昌贵人', '红鸾', '灾煞', '学堂'].sort());
 		// 关键：将星/太岁 在月柱而非年柱（原星阙统一查法会误标到年柱）
 		expect(r.year).not.toContain('将星');
 		expect(r.year).not.toContain('太岁');
 	});
 
-	// [Q-197 裁决 2026-09-18] 缺省 godKeyPos='年'(年主位):年/日两可的基组(DAY_YEAR_STEMS / YEAR_DAY_BRANCH 的日基半)被剔除、月令系恒含;
+	// 缺省 godKeyPos='年'(年主位):年/日两可的基组(DAY_YEAR_STEMS / YEAR_DAY_BRANCH 的日基半)被剔除、月令系恒含;
 	// 但日干恒查的神煞(BAZI_DAY_STEMS:羊刃 / 禄神 / 学堂 / 词馆 / 红艳 / 暗禄 / 八专 / 沐浴 / 流霞)与 Java GodsHelper 同口径恒按日干查,
 	// **不随主位档增减**(此前整表挂在日基组下 → 缺省盘四柱永不出羊刃 / 禄神,与 Java 同名档不同构;修前本例红)。
-	test('[Q-197] 缺省 godKeyPos=年:日干系神煞恒出、年/日两可的日基组仍剔除、月令系恒含(丙午/甲午/丁卯/己酉)', () => {
+	test('缺省 godKeyPos=年:日干系神煞恒出、年/日两可的日基组仍剔除、月令系恒含(丙午/甲午/丁卯/己酉)', () => {
 		const r = calcFourPillarShenSha(four('丙午', '甲午', '丁卯', '己酉')); // 默认 '年'
 		// 月令系恒含:月厌(月支午→午)、月德贵人 仍在年柱。
 		expect(r.year).toContain('月厌');
@@ -187,7 +187,7 @@ describe('BAZI_DAY_STEMS 十干完整性硬闸(辛壬癸曾整体缺行)', ()=>{
 	});
 });
 
-describe('[Q-196/T-122] 逐柱查法对称性:时柱日干系 / 年柱日干+年支 / 流运日干系', ()=>{
+describe('逐柱查法对称性:时柱日干系 / 年柱日干+年支 / 流运日干系', ()=>{
 	const { calcFourPillarShenSha, calcFlowShenSha } = require('../baziShenShaLocal');
 	test('丁卯/丙午/甲子/丙寅 按日柱查:时柱(寅)出 词馆/禄神(日禄归时);年柱(卯)出 羊刃(同表两柱对称)', ()=>{
 		const r = calcFourPillarShenSha(four('丁卯', '丙午', '甲子', '丙寅'), '日');

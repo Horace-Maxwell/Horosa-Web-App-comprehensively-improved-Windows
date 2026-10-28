@@ -11,9 +11,10 @@ import {
 import { fieldsSchemaBaseline, applyRecordToFields, captureNonDefaultTechniqueFields, markFieldsCaptured, RECORD_FIELDS_RESTORE_MANIFEST } from '../recordFieldsRestore';
 import { DEFAULT_PD_METHOD, DEFAULT_PD_TIME_KEY, DEFAULT_PD_TYPE, DEFAULT_PD_PROJECTION, DEFAULT_PD_FRAME, DEFAULT_PD_FRAMEWORK } from '../primaryDirectionSync';
 import '../../models/astro';   // 注册 schema 初值工厂(newEmptyFields)
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '..', '..');
-const read = (rel)=>fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel)=>readSource(path.join(SRC, rel));
 
 beforeEach(()=>{ window.localStorage.clear(); __resetNewChartSeedsForTest(); });
 
@@ -169,7 +170,10 @@ describe('⑤ 源码合同:各页只在亲手改动入口记种子;内嵌宿主�
 		expect(model).toContain('...newChartSeedExtraEntries(),');
 		const app = read('models/app.js');
 		expect(app).toContain("pdMethod: newChartSeedValue('pdMethod')");
-		expect(app).toContain("appst.pdTimeKey || newChartSeedValue('pdTimeKey')");
+		// 主限法两项:种子唯一来源 —— 读全局设置时跟随种子,启动 / 登录不再拿 app 值盖盘上的口径
+		expect(app).toContain("normalized.pdTimeKey = newChartSeedValue('pdTimeKey')");
+		expect(app).not.toContain('appst.pdTimeKey');
+		expect(app).not.toContain('appst.pdMethod');
 		const restore = read('utils/recordFieldsRestore.js');
 		expect(restore).toContain('fields = resetNewChartSeedKeysToInternalDefaults(fields);');
 		expect(restore).toContain("isNewChartSeedKey(key) ? newChartSeedInternalDefault(key)");

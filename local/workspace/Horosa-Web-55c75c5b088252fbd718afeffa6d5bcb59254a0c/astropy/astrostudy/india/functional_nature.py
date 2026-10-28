@@ -21,31 +21,14 @@
 
 from flatlib import const
 
+from astrostudy.india.primitives import PLANET_CN, SIGN_LORDS as SIGN_RULER, SIGNS as SIGN_ORDER
+
 # ════════════════════════════════════════════════════════════════════════
 # 0. 星座主星 / 中文标签
 # ════════════════════════════════════════════════════════════════════════
 
-# 星座→主星。与 jyotish_engine.OWN_SIGNS 反推一致(此处直列，避免循环依赖)。
-SIGN_RULER = {
-    const.ARIES: const.MARS,
-    const.TAURUS: const.VENUS,
-    const.GEMINI: const.MERCURY,
-    const.CANCER: const.MOON,
-    const.LEO: const.SUN,
-    const.VIRGO: const.MERCURY,
-    const.LIBRA: const.VENUS,
-    const.SCORPIO: const.MARS,
-    const.SAGITTARIUS: const.JUPITER,
-    const.CAPRICORN: const.SATURN,
-    const.AQUARIUS: const.SATURN,
-    const.PISCES: const.JUPITER,
-}
-
-SIGN_ORDER = [
-    const.ARIES, const.TAURUS, const.GEMINI, const.CANCER,
-    const.LEO, const.VIRGO, const.LIBRA, const.SCORPIO,
-    const.SAGITTARIUS, const.CAPRICORN, const.AQUARIUS, const.PISCES,
-]
+# 星座→主星(SIGN_RULER)、星座序(SIGN_ORDER)、九曜中文名(PLANET_CN)取自 primitives;
+# SIGN_RULER 与 jyotish_engine.OWN_SIGNS 反推一致(测试锁定)。
 
 # 9 曜固定顺序(与 jyotish_engine.JYOTISH_PLANETS 对齐)。
 GRAHAS = [
@@ -55,12 +38,6 @@ GRAHAS = [
 
 # 节点(罗睺/计都)不持星座单主。
 NODES = (const.NORTH_NODE, const.SOUTH_NODE)
-
-PLANET_CN = {
-    const.SUN: '太阳', const.MOON: '月亮', const.MARS: '火星',
-    const.MERCURY: '水星', const.JUPITER: '木星', const.VENUS: '金星',
-    const.SATURN: '土星', const.NORTH_NODE: '罗睺', const.SOUTH_NODE: '计都',
-}
 
 # 自然吉凶(默认；水星按吉、月亮按吉，详见 _natural_nature)。
 _NATURAL_BENEFIC = (const.JUPITER, const.VENUS, const.MERCURY, const.MOON)

@@ -1,5 +1,5 @@
 
-// —— [WP-2] 相遇端点几何:等赤纬圈 ∩ 位置圈 真交点 ——
+// —— 相遇端点几何:等赤纬圈 ∩ 位置圈 真交点 ——
 describe('declCircleGreatIntersect(等赤纬∩大圆解析交点)', ()=>{
 	const { declCircleGreatIntersect, declCirclePolylineHit } = require('../pdSphereMath');
 	const RAD = Math.PI / 180;
@@ -33,7 +33,7 @@ describe('declCircleGreatIntersect(等赤纬∩大圆解析交点)', ()=>{
 		expect(declCircleGreatIntersect(10, { u: { x: 1, y: 0, z: 0 }, w: { x: 0, y: 0, z: 1 } })).toBe(null);
 		expect(declCircleGreatIntersect(10, null)).toBe(null);
 	});
-	test('④折线命中:取 |decl−δ| 最近采样点;空安全', ()=>{
+	test('④多段线命中:取 |decl−δ| 最近采样点;空安全', ()=>{
 		const segs = [[{ ra: 10, decl: 5 }, { ra: 12, decl: 18 }], [{ ra: 40, decl: 21 }]];
 		expect(declCirclePolylineHit(20, segs)).toEqual({ ra: 40, decl: 21 });
 		expect(declCirclePolylineHit(20, [])).toBe(null);
@@ -41,10 +41,10 @@ describe('declCircleGreatIntersect(等赤纬∩大圆解析交点)', ()=>{
 	});
 });
 
-// —— [WP-E] 周日方向物理语义(推导级→测试级):armc=0 场景把「−arc=向西=东升中天」
+// —— 周日方向物理语义(推导级→测试级):armc=0 场景把「−arc=向西=东升中天」
 // 钉成世界坐标断言,而不只 playTargetAngleRad 的符号。坐标约定(pdSphereMath 头注):
 // x=cosδ·cosα, y=sinδ(Y=天北极), z=−cosδ·sinα;skyGroup 绕 Y 转 θ 后 x'=x·cosθ+z·sinθ。
-describe('[WP-E] 周日方向物理语义(armc=0:中天=+X,东点星 ra=90)', ()=>{
+describe('周日方向物理语义(armc=0:中天=+X,东点星 ra=90)', ()=>{
 	const { unitOf, playTargetAngleRad } = require('../pdSphereMath');
 	const rotY = (p, th)=>({ x: p.x * Math.cos(th) + p.z * Math.sin(th), y: p.y, z: -p.x * Math.sin(th) + p.z * Math.cos(th) });
 	test('①direct 小弧:东点星向中天(+X)移动=东升中天,西落方向为负', ()=>{
@@ -69,10 +69,10 @@ describe('[WP-E] 周日方向物理语义(armc=0:中天=+X,东点星 ra=90)', ()
 	});
 });
 
-// —— [D1] 方向语义四族号序(法律条文级契约;fixture=shipped 内核产物,670/670 全量) ——
+// —— 方向语义四族号序(法律条文级契约;fixture=shipped 内核产物,670/670 全量) ——
 // 三重互证:推演文档 MATH_FLOW 半弧比例节 / perpredict.getPrimaryDirectionByZCoreKernel docstring /
 // 本组数值断言。任何一族号序回潮(动方画反)即整组红。
-describe('🔴 [D1] 方向语义分派:四族号序 fixture 全量实证', ()=>{
+describe('🔴 方向语义分派:四族号序 fixture 全量实证', ()=>{
 	const fs = require('fs');
 	const path = require('path');
 	const { moverOfRow, promRotationRad, sigBaseIdOf, sigEqOf, effectiveEq } = require('../pdSphereMath');
@@ -85,7 +85,7 @@ describe('🔴 [D1] 方向语义分派:四族号序 fixture 全量实证', ()=>{
 		return Math.abs(t) <= 1 ? Math.asin(t) / D2R : (t > 0 ? 90 : -90);
 	};
 
-	test('[D2] moverOfRow 全族恒 prom(应星固定、迫星动);sigBaseIdOf 解析', ()=>{
+	test('moverOfRow 全族恒 prom(应星固定、迫星动);sigBaseIdOf 解析', ()=>{
 		// D2 正统:promissor directed to significator —— 无论应星是轴还是行星,均迫星动、应星固定。
 		expect(moverOfRow({ sig: 'N_MC_0', cat: 'Z' })).toBe('prom');
 		expect(moverOfRow({ sig: 'N_Venus_0', cat: 'Z' })).toBe('prom');   // 行星族亦迫星动(D1 曾误作 sig)
@@ -96,7 +96,7 @@ describe('🔴 [D1] 方向语义分派:四族号序 fixture 全量实证', ()=>{
 		expect(sigBaseIdOf('N_MC_0')).toBe('MC');
 	});
 
-	test('[D2] promRotationRad 族定号序:行星/北交/福点=+arc、轴/M/T=−arc', ()=>{
+	test('promRotationRad 族定号序:行星/北交/福点=+arc、轴/M/T=−arc', ()=>{
 		// 行星/北交/福点(arc=RA(sig)−RA(prom)):迫星 +arc 落到应星赤经圈
 		expect(promRotationRad({ sig: 'N_Venus_0', cat: 'Z', arc: 30 })).toBeCloseTo(30 * DEG_, 12);
 		expect(promRotationRad({ sig: 'N_North Node_0', cat: 'Z', arc: -12 })).toBeCloseTo(-12 * DEG_, 12);
@@ -109,11 +109,11 @@ describe('🔴 [D1] 方向语义分派:四族号序 fixture 全量实证', ()=>{
 		expect(promRotationRad({ sig: 'N_Venus_0', cat: 'Z', arc: 30 })).toBeCloseTo(30 * DEG_, 12);
 	});
 
-	test('🔴 670/670 全量:引擎弧公式号序不变(行星 RA(sig,真纬)−RA(promZ)/MC/Asc/Vertex)+ [D2] 迫星旋转落到应星成相位圈', ()=>{
+	test('🔴 670/670 全量:引擎弧公式号序不变(行星 RA(sig,真纬)−RA(promZ)/MC/Asc/Vertex)+ 迫星旋转落到应星成相位圈', ()=>{
 		const pts = FX.points;
 		const phi = FX.frame.phi * D2R;
 		const co = Math.PI / 2 - phi;
-		// [D2] 全族迫星动:族计数改名 planet(不再叫 sigMove);数值不变(506/52/56/56)。
+		// 全族迫星动:族计数改名 planet(不再叫 sigMove);数值不变(506/52/56/56)。
 		const counts = { planet: 0, mc: 0, asc: 0, vertex: 0 };
 		FX.rows.forEach((r)=>{
 			const P = pts[r.prom];
@@ -122,10 +122,10 @@ describe('🔴 [D1] 方向语义分派:四族号序 fixture 全量实证', ()=>{
 			const pz = effectiveEq(P, 'Z');           // 迫星恒零纬投影
 			const st = sigEqOf(S);                    // 应星恒真纬
 			const sz = effectiveEq(S, 'Z');           // 轴类公式两侧 zero-lat
-			// [D2] moverOfRow 恒 prom;族分类改用 base(引擎弧公式号序仍按应星类型分族,是不变的事实)。
+			// moverOfRow 恒 prom;族分类改用 base(引擎弧公式号序仍按应星类型分族,是不变的事实)。
 			expect(moverOfRow(r)).toBe('prom');
 			const base = sigBaseIdOf(r.sig);
-			const spin = promRotationRad(r) / D2R;    // [D2] 迫星旋转角(度):+arc(planet)/−arc(轴)
+			const spin = promRotationRad(r) / D2R;    // 迫星旋转角(度):+arc(planet)/−arc(轴)
 			let err;
 			if(/^MC$/i.test(base)){
 				err = Math.abs(n180((pz.ra - sz.ra) - r.arc));
@@ -144,7 +144,7 @@ describe('🔴 [D1] 方向语义分派:四族号序 fixture 全量实证', ()=>{
 				counts.vertex += 1;
 			}else{
 				// 行星/北交/福点:arc = RA(sig,真纬) − RA(promZ)(引擎号序不变);
-				// [D2] 迫星转 +arc → RA(promZ)+arc = RA(sig) → 迫星相位点落到应星赤经圈(命中)。
+				// 迫星转 +arc → RA(promZ)+arc = RA(sig) → 迫星相位点落到应星赤经圈(命中)。
 				err = Math.abs(n180((st.ra - pz.ra) - r.arc));
 				expect(spin).toBeCloseTo(r.arc, 9);
 				expect(err).toBeLessThan(0.02);

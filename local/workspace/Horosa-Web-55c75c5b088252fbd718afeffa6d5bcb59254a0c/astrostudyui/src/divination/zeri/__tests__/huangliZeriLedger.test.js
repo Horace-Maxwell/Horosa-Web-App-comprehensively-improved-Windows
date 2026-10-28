@@ -1,4 +1,4 @@
-// [Z1·黄历择日] 四本账登记+真值金标(照 qimenZeriFourLedger/LedgerTruth 纪律):
+// 四本账登记+真值金标(照 qimenZeriFourLedger/LedgerTruth 纪律):
 // ①导出账:label/preset(基底=huangli 段单源自动跟随+择吉三段)/navKey 清单/启发式次序
 // ②挂载账:mount 设置 kind + 名表 + scope 化快照槽(源码级)
 // ③方案账:scheme 键注册表登记+独立导出格式头互导必拒
@@ -12,11 +12,12 @@ import { CASE_TYPE_OPTIONS, getCaseTypeLabel } from '../../../utils/localcases';
 import { buildHuangliZeriSnapshotExtra } from '../huangliZeriSnapshot';
 import { huangliZeriSchemeStore, qimenZeriSchemeStore } from '../schemeStore';
 import { newHuangliLeaf } from '../huangliZeriConditionTypes';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.join(__dirname, '..', '..', '..');
-const read = (p)=>fs.readFileSync(path.join(SRC, p), 'utf8');
+const read = (p)=>readSource(path.join(SRC, p));
 
-describe('[Z1] 四本账登记', ()=>{
+describe('四本账登记', ()=>{
 	it('🔴 ①导出账:preset=huangli 段单源+择吉三段;label 表;启发式「黄历择日」先于裸「择日」', ()=>{
 		const hl = AI_EXPORT_PRESET_SECTIONS.huangli;
 		const hz = AI_EXPORT_PRESET_SECTIONS.huanglizeri;
@@ -61,7 +62,7 @@ describe('[Z1] 四本账登记', ()=>{
 	});
 });
 
-describe('[Z1] 快照段头真值(builder↔preset 逐字成对)', ()=>{
+describe('快照段头真值(builder↔preset 逐字成对)', ()=>{
 	it('🔴 builder 三段头与 preset 追加三段逐字相同(活体对拍)', ()=>{
 		const tree = { kind: 'group', joiner: 'all', children: [newHuangliLeaf('jianchu')] };
 		const txt = buildHuangliZeriSnapshotExtra({
@@ -84,7 +85,7 @@ describe('[Z1] 快照段头真值(builder↔preset 逐字成对)', ()=>{
 	});
 
 	it('技法清单/迁移键清单登记(内容勾选面板可达;源码级——AI_EXPORT_TECHNIQUES 未导出)', ()=>{
-		const ae = fs.readFileSync(path.join(SRC, 'utils/aiExport.js'), 'utf8');
+		const ae = readSource(path.join(SRC, 'utils/aiExport.js'));
 		const techList = ae.slice(ae.indexOf('const AI_EXPORT_TECHNIQUES'), ae.indexOf('export const AI_EXPORT_PRESET_SECTIONS'));
 		expect(techList).toContain("{ key: 'huanglizeri', label: '黄历择日' }");
 		const mig = ae.slice(ae.indexOf('AI_EXPORT_SECTION_MIGRATION_KEYS'), ae.indexOf('AI_EXPORT_PLANET_INFO_DEFAULT'));

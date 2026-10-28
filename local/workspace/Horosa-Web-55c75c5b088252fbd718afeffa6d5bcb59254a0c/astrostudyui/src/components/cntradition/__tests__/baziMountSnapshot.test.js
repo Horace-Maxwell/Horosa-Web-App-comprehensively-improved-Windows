@@ -128,8 +128,8 @@ describe('八字挂载 round-trip：断命流派', () => {
 	});
 });
 
-// ══ [W1·审计补缺] 串宫/干支合冲/小运 内容锚(本地引擎直算,夹具生辰固定→输出确定) ═══
-describe('[W1] 串宫与干支合冲内容锚', () => {
+// ══ 串宫/干支合冲/小运 内容锚(本地引擎直算,夹具生辰固定→输出确定) ═══
+describe('串宫与干支合冲内容锚', () => {
 	test('🔴 十二串宫行在(与四柱板「串宫」芯片同源=four.ming12.zhi,支必非空)', async () => {
 		const text = await buildBaziSnapshotForParams({ ...BASE_PARAMS });
 		const line = text.split('\n').find((l)=>l.startsWith('十二串宫：'));

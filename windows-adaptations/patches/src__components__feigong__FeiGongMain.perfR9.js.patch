@@ -1,25 +1,17 @@
 diff --git a/astrostudyui/src/components/feigong/FeiGongMain.js b/astrostudyui/src/components/feigong/FeiGongMain.js
-index b35948c5..e6926112 100644
+index 7a605108..2ad06d53 100644
 --- a/astrostudyui/src/components/feigong/FeiGongMain.js
 +++ b/astrostudyui/src/components/feigong/FeiGongMain.js
-@@ -17,6 +17,8 @@ import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../util
- import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
+@@ -18,6 +18,8 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
  import { sideSectionIcon } from '../../constants/sideSectionIcons';
- import { deriveLocalNongli, deriveNongliUniversalSync, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+ import { deriveLocalNongli, resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+ import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const TabPane = Tabs.TabPane;
  const STORE_KEY = 'horosa.feigong.settings.v1';
-@@ -153,6 +155,7 @@ class FeiGongMain extends Component {
- 		this.onTimeChanged = this.onTimeChanged.bind(this);
- 		this.changeGeo = this.changeGeo.bind(this);
- 	}
-+
- 	componentDidMount(){
- 		// [issue#74 同类] 农历桥回包履约(与灵棋同律):①已定局 → 补拍快照(首版缺农历/四柱行,
- 		// 只 forceUpdate 不重存则缓存/事盘恒缺);②曾因「排盘未出时支」定局失败(error 且无 ju)
-@@ -281,7 +284,8 @@ class FeiGongMain extends Component {
+@@ -273,7 +275,8 @@ class FeiGongMain extends Component {
  		const dayZhi = inputs.useDayGZ ? c.dayZhi : inputs.dayZhi;
  		const ju = buildJu({ zhi: qz, dayGan, dayZhi });
  		if(!ju){ return this.setState({ error: '起支非法,不可定局', ju: null }); }
@@ -29,9 +21,9 @@ index b35948c5..e6926112 100644
  	}
  	setSettings(patch){
  		const settings = { ...this.state.settings, ...patch };
-@@ -498,82 +502,97 @@ class FeiGongMain extends Component {
+@@ -490,82 +493,97 @@ class FeiGongMain extends Component {
  		);
- 		const wait = (t)=><div style={{ opacity: 0.6, fontSize: 12, padding: '6px 2px' }}>{t}</div>;
+ 		const wait = (t)=><div style={{ color: 'var(--horosa-text-secondary)', fontSize: 12, padding: '6px 2px' }}>{t}</div>;
  		return (
 -			<Tabs size="small" className="horosa-fg-aux horosa-cnx-aux">
 +			// horosa_freeze_subtabs_v1:右栏辅目冻结。原为非受控 Tabs → 改受控
@@ -79,7 +71,7 @@ index b35948c5..e6926112 100644
 -							{(mg.flags || []).map((f, i)=>row('注', f, i))}
 -						</>
 -					) : <div style={{ opacity: 0.75 }}>左栏录年龄性别即定命宫(十位减三加减法,五宫看干)。</div>}
--					{/* [3B] 流年:从日支起,男顺女逆,一支一岁 */}
+-					{/* 流年:从日支起,男顺女逆,一支一岁 */}
 -					{ju && ju.dayZhi ? (()=>{
 -						const ln = liuNian({ dayZhi: ju.dayZhi, gender: inputs.mingGender, maxAge: 12, ju });
 -						return (
@@ -88,7 +80,7 @@ index b35948c5..e6926112 100644
 -								<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px,1fr))', gap: 5, fontSize: 11.5 }}>
 -									{ln.map((y)=>(
 -										<div key={y.age} style={{ border: '1px solid var(--horosa-huangji-line, rgba(198,143,64,0.2))', borderRadius: 6, padding: '3px 6px', lineHeight: 1.4 }}>
--											<b style={{ color: 'var(--horosa-huangji-accent, #c68f40)' }}>{y.age}岁</b> {y.zhi}<span style={{ opacity: 0.6 }}>·{y.gong}宫</span><br/>
+-											<b style={{ color: 'var(--horosa-huangji-accent, #c68f40)' }}>{y.age}岁</b> {y.zhi}<span style={{ color: 'var(--horosa-text-secondary)' }}>·{y.gong}宫</span><br/>
 -											<span style={{ opacity: 0.85 }}>{y.shen}·{y.xing}·{y.men}门</span>
 -										</div>
 -									))}
@@ -99,7 +91,7 @@ index b35948c5..e6926112 100644
 +								{(mg.flags || []).map((f, i)=>row('注', f, i))}
 +							</>
 +						) : <div style={{ opacity: 0.75 }}>左栏录年龄性别即定命宫(十位减三加减法,五宫看干)。</div>}
-+						{/* [3B] 流年:从日支起,男顺女逆,一支一岁 */}
++						{/* 流年:从日支起,男顺女逆,一支一岁 */}
 +						{ju && ju.dayZhi ? (()=>{
 +							const ln = liuNian({ dayZhi: ju.dayZhi, gender: inputs.mingGender, maxAge: 12, ju });
 +							return (
@@ -108,7 +100,7 @@ index b35948c5..e6926112 100644
 +									<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px,1fr))', gap: 5, fontSize: 11.5 }}>
 +										{ln.map((y)=>(
 +											<div key={y.age} style={{ border: '1px solid var(--horosa-huangji-line, rgba(198,143,64,0.2))', borderRadius: 6, padding: '3px 6px', lineHeight: 1.4 }}>
-+												<b style={{ color: 'var(--horosa-huangji-accent, #c68f40)' }}>{y.age}岁</b> {y.zhi}<span style={{ opacity: 0.6 }}>·{y.gong}宫</span><br/>
++												<b style={{ color: 'var(--horosa-huangji-accent, #c68f40)' }}>{y.age}岁</b> {y.zhi}<span style={{ color: 'var(--horosa-text-secondary)' }}>·{y.gong}宫</span><br/>
 +												<span style={{ opacity: 0.85 }}>{y.shen}·{y.xing}·{y.men}门</span>
 +											</div>
 +										))}
@@ -117,13 +109,13 @@ index b35948c5..e6926112 100644
 -							</div>
 -						);
 -					})() : null}
--					{/* [3C] 流月:月建定月位,与命宫比较生克 */}
+-					{/* 流月:月建定月位,与命宫比较生克 */}
 -					{ju ? (()=>{
--						const MO = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
+-						const MO = LIU_YUE_MONTH_NAMES;
 -						const m = inputs.liuYueMonth || 1;
 -						const ly = liuYue({ ju, monthNum: m });
 -						const rel = (ly && mg && mg.gong != null) ? shengKeRel(wuXingOf(ly.zhi), wuXingOf(GONG_GUA[mg.gong])) : null;
--						// [X1·P2-25] 推断四损益接线:吉星生我大吉/克我小吉、凶星生我小凶/克我大凶(以流月原神吉凶档论)。
+-						// 推断四损益接线:吉星生我大吉/克我小吉、凶星生我小凶/克我大凶(以流月原神吉凶档论)。
 -						const sunyi = rel ? xingShenSunYi(YUAN_SHEN_JI_XIONG[ly.shen], rel) : null;
 -						return (
 -							<div style={{ marginTop: 10 }}>
@@ -133,13 +125,13 @@ index b35948c5..e6926112 100644
 -										options={MO.map((lab, i)=>({ value: i + 1, label: `${lab}月` }))}/>
 +							);
 +						})() : null}
-+						{/* [3C] 流月:月建定月位,与命宫比较生克 */}
++						{/* 流月:月建定月位,与命宫比较生克 */}
 +						{ju ? (()=>{
-+							const MO = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
++							const MO = LIU_YUE_MONTH_NAMES;
 +							const m = inputs.liuYueMonth || 1;
 +							const ly = liuYue({ ju, monthNum: m });
 +							const rel = (ly && mg && mg.gong != null) ? shengKeRel(wuXingOf(ly.zhi), wuXingOf(GONG_GUA[mg.gong])) : null;
-+							// [X1·P2-25] 推断四损益接线:吉星生我大吉/克我小吉、凶星生我小凶/克我大凶(以流月原神吉凶档论)。
++							// 推断四损益接线:吉星生我大吉/克我小吉、凶星生我小凶/克我大凶(以流月原神吉凶档论)。
 +							const sunyi = rel ? xingShenSunYi(YUAN_SHEN_JI_XIONG[ly.shen], rel) : null;
 +							return (
 +								<div style={{ marginTop: 10 }}>
@@ -160,27 +152,27 @@ index b35948c5..e6926112 100644
  				</TabPane>
  				<TabPane tab="断语·应期" key="duan">
 -					{!ju ? wait('定局后显示日支原神/天星、主客门、应期、事项。') : null}
--					{/* [3E] 事项路由:据问事高亮当看之原神/天星 */}
+-					{/* 事项路由:据问事高亮当看之原神/天星 */}
 -					{ju && inputs.askEvent ? (()=>{ const sx = shiXiangKey(inputs.askEvent, this.state.settings); return sx ? (
--						<div style={{ padding: '4px 9px', marginBottom: 6, borderRadius: 6, background: 'var(--horosa-huangji-accent-soft, rgba(198,143,64,0.12))', fontSize: 12 }}>事项：<b style={{ color: 'var(--horosa-huangji-accent, #c68f40)' }}>{sx.hint}</b>{sx.shen ? `（重点看原神 ${sx.shen}）` : ''}{sx.xing ? `（重点看天星 ${sx.xing}）` : ''}</div>
+-						<div style={{ padding: '4px 9px', marginBottom: 6, borderRadius: 6, background: 'var(--horosa-accent-soft, rgba(198,143,64,0.12))', fontSize: 12 }}>事项：<b style={{ color: 'var(--horosa-huangji-accent, #c68f40)' }}>{sx.hint}</b>{sx.shen ? `（重点看原神 ${sx.shen}）` : ''}{sx.xing ? `（重点看天星 ${sx.xing}）` : ''}</div>
 -					) : null; })() : null}
 -					{ju && ju.dayZhi ? row(`日支${ju.dayZhi}`, `${ju.yuanShen[ju.dayZhi]}(${YUAN_SHEN_JI_XIONG[ju.yuanShen[ju.dayZhi]] || ''}):${(shenDuan(ju.yuanShen[ju.dayZhi])||{}).text || ''}`) : null}
 -					{ju && ju.dayZhi ? (()=>{ const xd = xingDuan(ju.tianXing[ju.dayZhi], this.state.settings.heKuiKoujing) || {}; return row('天星', `${ju.tianXing[ju.dayZhi]}${xd.alias ? `·${xd.alias}` : ''}:${xd.text || ''}`); })() : null}
 -					{zk && zk.zhuGong != null ? (()=>{ const gd = gongDuan(ju, zk.zhuGong); return gd && gd.men ? row(`主宫${zk.zhuGong}门`, `${gd.men}(${BA_MEN_JI_XIONG[gd.men] || ''}):${(menDuan(gd.men)||{}).ti || ''}`) : null; })() : null}
 -					{zk && zk.keGong != null ? (()=>{ const gd = gongDuan(ju, zk.keGong); return gd && gd.men ? row(`客宫${zk.keGong}门`, `${gd.men}(${BA_MEN_JI_XIONG[gd.men] || ''}):${(menDuan(gd.men)||{}).ti || ''}`) : null; })() : null}
--					{/* [3D] 应期:中宫定时/驿马/冲 + 日支冲合 */}
+-					{/* 应期:中宫定时/驿马/冲 + 日支冲合 */}
 -					{ju ? (()=>{ const yq = yingQi(ju); return yq ? row('应期', `中宫${yq.zhongGong.join('')} → ${yq.shi}${yq.yiMa ? '(驿马·动)' : yq.dingShi ? '(定时·合)' : ''};${yq.note}`) : null; })() : null}
 +					<FreezeSubTab active={(this.state.auxTab || 'zhuke') === 'duan'}>{() => (<>
 +						{!ju ? wait('定局后显示日支原神/天星、主客门、应期、事项。') : null}
-+						{/* [3E] 事项路由:据问事高亮当看之原神/天星 */}
++						{/* 事项路由:据问事高亮当看之原神/天星 */}
 +						{ju && inputs.askEvent ? (()=>{ const sx = shiXiangKey(inputs.askEvent, this.state.settings); return sx ? (
-+							<div style={{ padding: '4px 9px', marginBottom: 6, borderRadius: 6, background: 'var(--horosa-huangji-accent-soft, rgba(198,143,64,0.12))', fontSize: 12 }}>事项：<b style={{ color: 'var(--horosa-huangji-accent, #c68f40)' }}>{sx.hint}</b>{sx.shen ? `（重点看原神 ${sx.shen}）` : ''}{sx.xing ? `（重点看天星 ${sx.xing}）` : ''}</div>
++							<div style={{ padding: '4px 9px', marginBottom: 6, borderRadius: 6, background: 'var(--horosa-accent-soft, rgba(198,143,64,0.12))', fontSize: 12 }}>事项：<b style={{ color: 'var(--horosa-huangji-accent, #c68f40)' }}>{sx.hint}</b>{sx.shen ? `（重点看原神 ${sx.shen}）` : ''}{sx.xing ? `（重点看天星 ${sx.xing}）` : ''}</div>
 +						) : null; })() : null}
 +						{ju && ju.dayZhi ? row(`日支${ju.dayZhi}`, `${ju.yuanShen[ju.dayZhi]}(${YUAN_SHEN_JI_XIONG[ju.yuanShen[ju.dayZhi]] || ''}):${(shenDuan(ju.yuanShen[ju.dayZhi])||{}).text || ''}`) : null}
 +						{ju && ju.dayZhi ? (()=>{ const xd = xingDuan(ju.tianXing[ju.dayZhi], this.state.settings.heKuiKoujing) || {}; return row('天星', `${ju.tianXing[ju.dayZhi]}${xd.alias ? `·${xd.alias}` : ''}:${xd.text || ''}`); })() : null}
 +						{zk && zk.zhuGong != null ? (()=>{ const gd = gongDuan(ju, zk.zhuGong); return gd && gd.men ? row(`主宫${zk.zhuGong}门`, `${gd.men}(${BA_MEN_JI_XIONG[gd.men] || ''}):${(menDuan(gd.men)||{}).ti || ''}`) : null; })() : null}
 +						{zk && zk.keGong != null ? (()=>{ const gd = gongDuan(ju, zk.keGong); return gd && gd.men ? row(`客宫${zk.keGong}门`, `${gd.men}(${BA_MEN_JI_XIONG[gd.men] || ''}):${(menDuan(gd.men)||{}).ti || ''}`) : null; })() : null}
-+						{/* [3D] 应期:中宫定时/驿马/冲 + 日支冲合 */}
++						{/* 应期:中宫定时/驿马/冲 + 日支冲合 */}
 +						{ju ? (()=>{ const yq = yingQi(ju); return yq ? row('应期', `中宫${yq.zhongGong.join('')} → ${yq.shi}${yq.yiMa ? '(驿马·动)' : yq.dingShi ? '(定时·合)' : ''};${yq.note}`) : null; })() : null}
 +					</>)}</FreezeSubTab>
  				</TabPane>

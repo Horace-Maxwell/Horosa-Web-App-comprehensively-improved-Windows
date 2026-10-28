@@ -22,7 +22,7 @@ import org.springframework.core.type.classreading.CachingMetadataReaderFactory;
 import org.springframework.stereotype.Controller;
 
 /**
- * [R5-S5] XML 扫描 bean 延迟初始化补全的机械钉:
+ * XML 扫描 bean 延迟初始化补全的机械钉:
  *  · 只翻「ScannedGenericBeanDefinition 且显式 lazyInit=false」的定义;显式 true / 未设置(null)/ 非扫描定义不动
  *  · 有启动 / 停机钩子(Aware / InitializingBean / @PostConstruct / @EventListener / 类上 @Lazy)的一律不动
  *  · lazy-initialization 未开 → 恒无操作

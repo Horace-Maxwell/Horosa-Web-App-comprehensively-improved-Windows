@@ -3,7 +3,8 @@
 import React from 'react';
 import { YAO_TO_WUXING, DIZHI, mansionByIdx } from './yanqinConst';
 
-const WUXING_COLOR = { 木: '#3a7d44', 火: '#c0392b', 土: '#b8860b', 金: '#9a8478', 水: '#2c6e9b' };
+// 五行字色:与右栏同一组明暗成对的主题色(旧写死色只为一种底挑:土 #b8860b 在亮底 2.9:1、火 / 水在暗底 3.4–3.7:1)
+const WUXING_COLOR = { 木: 'var(--horosa-bazi-wood)', 火: 'var(--horosa-bazi-fire)', 土: 'var(--horosa-bazi-earth)', 金: 'var(--horosa-bazi-metal)', 水: 'var(--horosa-bazi-water)' };
 const R_OUT = 150;
 const R_IN = 96;
 const R_LABEL = 122;
@@ -40,11 +41,11 @@ export default function YanQinChart({ cast, me, they }) {
 				const [x1i, y1i] = polar(R_IN, a1);
 				const [lx, ly] = polar(R_LABEL, branchAngle(c.i));
 				const [zx, zy] = polar(R_IN - 12, branchAngle(c.i));
-				const color = WUXING_COLOR[YAO_TO_WUXING[c.mansion.yao]] || '#888';
+				const color = WUXING_COLOR[YAO_TO_WUXING[c.mansion.yao]] || 'var(--horosa-text-secondary)';
 				const isHour = c.i === hourB;
 				const isMe = meName && c.mansion.name === meName;
 				const isThey = theyName && c.mansion.name === theyName;
-				const stroke = isMe ? '#2e7d32' : (isThey ? '#c0392b' : 'transparent');
+				const stroke = isMe ? 'var(--horosa-jx-ji)' : (isThey ? 'var(--horosa-jx-xiong)' : 'transparent');
 				return (
 					<g key={c.zhi}>
 						<path

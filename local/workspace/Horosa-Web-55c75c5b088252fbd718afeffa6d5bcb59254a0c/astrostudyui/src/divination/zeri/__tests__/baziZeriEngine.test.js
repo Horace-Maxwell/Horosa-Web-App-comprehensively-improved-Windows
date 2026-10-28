@@ -1,4 +1,4 @@
-// [Z2·八字择日] 引擎+注册表金标。冻结基线锚=1990-03-15 12:30 +08:00(四柱庚午/己卯/己卯/
+// 引擎+注册表金标。冻结基线锚=1990-03-15 12:30 +08:00(四柱庚午/己卯/己卯/
 // 庚午,buildLocalBaziResult 引擎真值,本仓评测三盘锚同源)。判别纪律(定案19):
 // 晚子时档(lateZiHourUseNextDay 0/1)在 23:30 时刻两档时柱不同=判别时刻;正反双判全类。
 // Stress:扫描区间覆盖≡独立逐时辰真值+行内同盘探针(Z0 新增机械盲区闸)。
@@ -11,7 +11,7 @@ const anchorPan = ()=>computeBaziScanPan(GEO, OPTS, '1990-03-15', '12:30:00');
 const leaf = (type, params)=>({ type, params });
 const ev = (type, params, pan, natal)=>BAZI_CONDITION_TYPES[type].evaluate(pan || anchorPan(), params, makeBaziZeriEvalCtx(pan || anchorPan(), natal || null));
 
-describe('[Z2] 注册表契约+锚盘正反双判', ()=>{
+describe('注册表契约+锚盘正反双判', ()=>{
 	it('🔴 每类 spec 五件齐且 ≥17 类', ()=>{
 		const keys = Object.keys(BAZI_CONDITION_TYPES);
 		expect(keys.length).toBeGreaterThanOrEqual(17);
@@ -103,7 +103,7 @@ describe('[Z2] 注册表契约+锚盘正反双判', ()=>{
 	});
 });
 
-describe('[Z2] 扫描引擎(外壳第二实例:恒等+行内同盘探针)', ()=>{
+describe('扫描引擎(外壳第二实例:恒等+行内同盘探针)', ()=>{
 	jest.setTimeout(120000);
 	const TREE = compileBaziTree({ kind: 'group', joiner: 'all', children: [newBaziLeaf('yinyang_day')] });	// 阳日(默认 yang)
 
@@ -130,10 +130,10 @@ describe('[Z2] 扫描引擎(外壳第二实例:恒等+行内同盘探针)', ()=>
 			const ts = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}:00`;
 			const pan = computeBaziScanPan(GEO, OPTS, ds, ts);
 			const g = (k)=>pan.four[k].ganzi || pan.four[k].ganZhi;
-			// [十四轮] yinyang_day keyDeps=['dayGz'] → 掩码徽章只含日柱(时柱行内会变,不上徽章)
+			// yinyang_day keyDeps=['dayGz'] → 掩码徽章只含日柱(时柱行内会变,不上徽章)
 			expect(r.pillarText).toBe(`${g('day')}日`);
 		});
-		// [十四轮效果活证] 阳日树只吃日柱 → 位级掩码后行=整日折叠(修前被时柱劈成逐时辰行):
+		// 阳日树只吃日柱 → 位级掩码后行=整日折叠(修前被时柱劈成逐时辰行):
 		// 三日窗阳日恰间隔出现,每命中日=一整行(≥23h;首尾窗裁允许)
 		expect(res.intervals.length).toBeLessThanOrEqual(3);
 		const winStart = res.intervals[0] ? Math.min(...res.intervals.map((r)=>r.startMs)) : 0;
@@ -164,14 +164,14 @@ describe('[Z2] 扫描引擎(外壳第二实例:恒等+行内同盘探针)', ()=>
 		expect(['group', 'leaf']).toContain(ex.tree.kind);	// 单叶树 compile 不包组(与天星同构)
 		expect(ex.pillarText).toBe('己卯日庚午时');
 	});
-	it('🔴 [W4 全谱轮] 新类/扩档正反双判(真锚 1990-03-15 dump 实跑:日己卯·时庚午伤枭·命宫甲申·惊蛰后10天)', ()=>{
+	it('🔴 新类/扩档正反双判(真锚 1990-03-15 dump 实跑:日己卯·时庚午伤枭·命宫甲申·惊蛰后10天)', ()=>{
 		// 十神:时干庚=伤官;日支卯本气=七杀(杀);时支午藏丁枭+己比
 		expect(ev('shishen_at', { layer: 'stem', gods: ['伤官'], pillars: ['time'], matchMode: 'any' }).pass).toBe(true);
 		expect(ev('shishen_at', { layer: 'stem', gods: ['正官'], pillars: ['time'], matchMode: 'any' }).pass).toBe(false);
 		expect(ev('shishen_at', { layer: 'branch', gods: ['七杀'], pillars: ['day'], matchMode: 'any' }).pass).toBe(true);
 		expect(ev('shishen_at', { layer: 'canggan', gods: ['偏印'], pillars: ['time'], matchMode: 'any' }).pass).toBe(true);
 		expect(ev('shishen_at', { layer: 'canggan', gods: ['正财'], pillars: ['time'], matchMode: 'any' }).pass).toBe(false);
-		// [Q-466/T-428] 「全部命中」=所选值每个都至少出现在一柱(共享字段语义),不再是「每柱都命中」:
+		// 「全部命中」=所选值每个都至少出现在一柱(共享字段语义),不再是「每柱都命中」:
 		// 不限柱时日干十神为「日元」,旧判据令「全部」恒假;伤官(时干)+七杀(日支)两值不限柱都出现 → 真。
 		expect(ev('shishen_at', { layer: 'stem', gods: ['伤官'], matchMode: 'all' }).pass).toBe(true);
 		expect(ev('shishen_at', { layer: 'stem', gods: ['伤官', '正官'], matchMode: 'all' }).pass).toBe(false);

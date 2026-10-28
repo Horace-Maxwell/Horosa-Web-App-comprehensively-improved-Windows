@@ -20,7 +20,7 @@ function findHouseOf(chart, starName){
 	return -1;
 }
 
-describe('[A1] 引擎键转发行为哨兵(全走 calcZiwei 入口,防「转了没用」)', () => {
+describe('引擎键转发行为哨兵(全走 calcZiwei 入口,防「转了没用」)', () => {
 	test('🔴 kuiYue:庚年两档天魁移位(丑→午)——经 calcZiwei 全链', () => {
 		const a = calcZiwei(BIRTH_GENG, { kuiYue: 'jia_wu_geng' });
 		const b = calcZiwei(BIRTH_GENG, { kuiYue: 'geng_ma_hu' });
@@ -81,7 +81,7 @@ describe('[A1] 引擎键转发行为哨兵(全走 calcZiwei 入口,防「转了�
 	});
 });
 
-describe('[A1] 转发清单哨兵(表与集合对账)', () => {
+describe('转发清单哨兵(表与集合对账)', () => {
 	test('FORWARD_KEYS ⊆ ZWEngineOptions 实有键', () => {
 		ZW_ENGINE_FORWARD_KEYS.forEach((k) => {
 			expect(Object.prototype.hasOwnProperty.call(ZWEngineOptions, k)).toBe(true);

@@ -73,9 +73,12 @@ _DEEPTADI = {
 }
 
 
+DEEPTADI_KHALA_RULES = ('malefic_sign', 'debilitation')
+
+
 def deeptadi_avastha(dignity, relation=None, *, combust=False,
                      conjunct_malefic=False, in_malefic_sign=False,
-                     compound=None):
+                     compound=None, khala_rule='malefic_sign'):
     """Deeptadi avastha(情绪态，9 核心)。
 
     判定序(附录 T12，按优先级从高到低；首条命中即返回)：
@@ -92,6 +95,11 @@ def deeptadi_avastha(dignity, relation=None, *, combust=False,
     注：燃烧(Kopita)/合恶(Vikala)/恶宫(Khala) 为情境态，需引擎传上下文布尔；
         不传则按 dignity/relation 退化到 1-4/8-9。MT 归 own(一档)。
 
+    khala_rule(两种通行口径,流派开关 deeptadiKhala):
+      'malefic_sign'(缺省,上表):落恶曜之座 → Khala,落陷 / 中性 → Deena(兜底)。
+      'debilitation'(BPHS 通行):落陷 → Khala(尊贵档,紧随 own 判),中性座 → Deena;
+                     「落恶曜之座」不另成态(按友敌落到其余各态)。
+
     参数：
       dignity          : dignity 字符串。
       relation         : 自然友敌(friend/neutral/enemy)，可选。
@@ -107,6 +115,9 @@ def deeptadi_avastha(dignity, relation=None, *, combust=False,
         return dict(_DEEPTADI['deepta'])
     if dignity in _OWN_LIKE:
         return dict(_DEEPTADI['swastha'])
+    bphs_khala = (khala_rule == 'debilitation')
+    if bphs_khala and dignity in _DEBIL:
+        return dict(_DEEPTADI['khala'])
     # 友(良友/普友) —— 优先复合关系，退化用自然关系。
     if compound == 'adhimitra':
         return dict(_DEEPTADI['mudita'])
@@ -117,7 +128,7 @@ def deeptadi_avastha(dignity, relation=None, *, combust=False,
         return dict(_DEEPTADI['kopita'])
     if conjunct_malefic:
         return dict(_DEEPTADI['vikala'])
-    if in_malefic_sign:
+    if in_malefic_sign and not bphs_khala:
         return dict(_DEEPTADI['khala'])
     # 敌。
     if compound in ('satru', 'adhisatru') or (compound is None and relation == 'enemy'):

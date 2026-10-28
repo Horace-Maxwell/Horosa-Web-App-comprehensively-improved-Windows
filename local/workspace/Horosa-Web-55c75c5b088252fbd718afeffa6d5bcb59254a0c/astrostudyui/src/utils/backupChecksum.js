@@ -1,4 +1,4 @@
-// [V5-B5] 备份校验和基元:纯 JS 同步 SHA-256(标准 FIPS 180-4 实现)。
+// 备份校验和基元:纯 JS 同步 SHA-256(标准 FIPS 180-4 实现)。
 // 用途=备份完整性/损坏检测(U盘/网盘搬运咬坏、云同步截断在恢复前就能指认具体坏段),
 // 非密码学签名。选择纯 JS 同步实现的原因:Web Crypto subtle 是 async 且 jsdom/老 WebView
 // 兼容参差;本实现零依赖、双端(mac/Win)/三环境(浏览器/jest/WebView)同一代码同一结果。
@@ -105,6 +105,8 @@ export function buildManifestChecksums(manifest){
 }
 
 // 校验:返回 {ok, badSections:[...]};manifest 无 checksums(v2 老包)=ok 宽容。
+// 有 checksums 的包:导出时每个在场的段、raw 里每一把键都记了校验和 —— 包里有、校验和里却没有的
+// (整段的校验和被删掉 / raw 里事后追加的键)同样算「校验和不符」:此前只核校验和里列了的,删掉一段的校验和再改内容就照常导入。
 export function verifyManifestChecksums(manifest){
 	if(!manifest || !manifest.checksums || typeof manifest.checksums !== 'object'){
 		return { ok: true, badSections: [], legacy: true };
@@ -113,16 +115,20 @@ export function verifyManifestChecksums(manifest){
 	const actual = buildManifestChecksums(manifest);
 	const bad = [];
 	['charts', 'cases', 'trash', 'aiWorkspace'].forEach((s)=>{
-		if(expect[s] !== undefined && expect[s] !== actual[s]){
+		if(expect[s] !== undefined ? expect[s] !== actual[s] : actual[s] !== undefined){
 			bad.push(s);
 		}
 	});
-	if(expect.raw && typeof expect.raw === 'object'){
-		Object.keys(expect.raw).forEach((k)=>{
-			if(!actual.raw || actual.raw[k] !== expect.raw[k]){
-				bad.push(`raw.${k}`);
-			}
-		});
-	}
+	const expectRaw = expect.raw && typeof expect.raw === 'object' ? expect.raw : {};
+	Object.keys(expectRaw).forEach((k)=>{
+		if(!actual.raw || actual.raw[k] !== expectRaw[k]){
+			bad.push(`raw.${k}`);
+		}
+	});
+	Object.keys(actual.raw || {}).forEach((k)=>{
+		if(!Object.prototype.hasOwnProperty.call(expectRaw, k)){
+			bad.push(`raw.${k}`);
+		}
+	});
 	return { ok: !bad.length, badSections: bad, legacy: false };
 }

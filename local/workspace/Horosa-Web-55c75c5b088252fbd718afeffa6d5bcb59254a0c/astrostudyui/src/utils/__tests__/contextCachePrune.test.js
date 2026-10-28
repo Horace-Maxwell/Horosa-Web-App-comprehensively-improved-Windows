@@ -1,4 +1,4 @@
-// [P0-S4] AI 源上下文缓存(context_cache)条数上限 300 + 命中触摸。
+// AI 源上下文缓存(context_cache)条数上限 300 + 命中触摸。
 // 内存径直接跑模块 MEMORY_DB;IDB 真径用 fake-indexeddb 的独立 IDBFactory + 新模块实例。
 jest.mock('../request', ()=>({ __esModule: true, default: jest.fn(async ()=>{ throw new Error('offline'); }) }));
 jest.mock('../../services/astro', ()=>({ fetchChart: jest.fn(async ()=>{ throw new Error('offline'); }) }));
@@ -6,8 +6,9 @@ jest.mock('../../services/astro', ()=>({ fetchChart: jest.fn(async ()=>{ throw n
 const fs = require('fs');
 const path = require('path');
 const FIDB = require('fake-indexeddb');   // 只取类,不装全局:本文件默认跑内存径
+const { readSource, fnBody } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
-const CTX_SRC = fs.readFileSync(path.resolve(__dirname, '..', 'aiAnalysisContext.js'), 'utf8');
+const CTX_SRC = readSource(path.resolve(__dirname, '..', 'aiAnalysisContext.js'));
 const strip = (s)=>s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 const flush = async ()=>{
@@ -110,10 +111,9 @@ describe('② IDB 真径裁剪(fake-indexeddb)', ()=>{
 describe('③ 结构锁(剥注释)', ()=>{
 	test('getAnalysisSourceContext:putStoreRecord(contextCache) 之后调 schedulePruneContextCache();命中分支触摸', ()=>{
 		const src = strip(CTX_SRC);
-		const start = src.indexOf('export async function getAnalysisSourceContext(');
-		expect(start).toBeGreaterThan(-1);
-		const end = src.indexOf('\nexport ', start + 10);
-		const body = src.slice(start, end > -1 ? end : undefined);
+		const fn = fnBody(CTX_SRC, 'export async function getAnalysisSourceContext(');   // 在原文上截(花括号配平,只含它自己),再剥注释
+		expect(fn).toBeTruthy();
+		const body = strip(fn);
 		const put = body.indexOf('putStoreRecord(AI_ANALYSIS_STORES.contextCache');
 		const sched = body.indexOf('schedulePruneContextCache()');
 		expect(put).toBeGreaterThan(-1);
@@ -122,7 +122,7 @@ describe('③ 结构锁(剥注释)', ()=>{
 		const hit = body.indexOf('touchContextCacheRecord(cached)');
 		expect(hit).toBeGreaterThan(-1);
 		expect(hit).toBeLessThan(put);
-		expect(src.includes("import { AI_ANALYSIS_STORES, getStoreRecord, putStoreRecord, schedulePruneContextCache } from './aiAnalysisStore'")).toBe(true);
+		expect(src.includes("import { AI_ANALYSIS_STORES, getStoreRecord, putStoreRecord, schedulePruneContextCache } from '../aiAnalysisStore'")).toBe(true);   // 子模块 utils/aiAnalysisContext/ 里,路径多一层
 	});
 });
 
@@ -134,7 +134,7 @@ describe('④ 命中触摸(真 store 内存径 + 真 getAnalysisSourceContext)',
 		await clearStore(AI_ANALYSIS_STORES.contextCache);
 		const threeDaysAgo = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString();
 		const oneHourAgo = new Date(Date.now() - 3600 * 1000).toISOString();
-		const stamp = sourceContextCacheStamp();   // [Q-020/M-25] 命中维度含格式版本+口径签名:种子记录带同戳才算命中
+		const stamp = sourceContextCacheStamp();   // 命中维度含格式版本+口径签名:种子记录带同戳才算命中
 		await putStoreRecord(AI_ANALYSIS_STORES.contextCache, { id: 'chart:old:full', sourceId: 'old', sourceType: 'chart', title: '旧', module: 'zz-test', content: '旧正文', meta: {}, sourceUpdatedAt: 'u-old', ...stamp, createdAt: threeDaysAgo, updatedAt: threeDaysAgo }, 'ctx');
 		await putStoreRecord(AI_ANALYSIS_STORES.contextCache, { id: 'chart:fresh:full', sourceId: 'fresh', sourceType: 'chart', title: '新', module: 'zz-test', content: '新正文', meta: {}, sourceUpdatedAt: 'u-fresh', ...stamp, createdAt: oneHourAgo, updatedAt: oneHourAgo }, 'ctx');
 		const before = Date.now();

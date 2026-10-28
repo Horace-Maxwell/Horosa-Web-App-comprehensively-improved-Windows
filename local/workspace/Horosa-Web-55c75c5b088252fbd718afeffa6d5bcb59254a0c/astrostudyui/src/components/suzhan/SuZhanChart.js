@@ -7,6 +7,8 @@ import SZChart from './SZChart';
 import { chartDrawGuardEnabled } from '../../utils/perfFlags';
 import { buildChartDrawSig, sameChartDrawSig, chartDrawnAtNonZeroSize, watchChartAppearance } from '../../utils/chartDrawGuard';
 import { getEffectiveScale, visualFloorPx } from '../../utils/zoomDomain';
+import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
+import { viewportRemainHeight } from '../../utils/viewportCap';   // 「盘按窗口底封顶」单源(整页可滚时不封顶)
 
 const SQUARE_SIDE_MIN = 480;
 const SQUARE_SIDE_MAX = 1280;
@@ -76,7 +78,7 @@ class SuZhanChart extends Component{
 		if(svgdom){
 			const parent = svgdom.parentElement;
 			const panel = svgdom.closest ? (svgdom.closest('.horosa-suzhan-chart-panel') || parent) : parent;
-			// [Tahoe 域混根修] 容器量宽高用布局域读数(clientWidth/clientHeight)优先;rect 域
+			// 容器量宽高用布局域读数(clientWidth/clientHeight)优先;rect 域
 			// (getBoundingClientRect)在壳缩放≠1 时已被 zoom 缩放,直接当布局 px 用=方盘边长
 			// 算错(z>1 超宽遮裁/z<1 偏小)。clientWidth 为 0 的罕见兜底才用 rect,且必须经
 			// getEffectiveScale()(实测探针,非声明值)换回布局域。
@@ -93,22 +95,9 @@ class SuZhanChart extends Component{
 			const panelH = layoutSize(panel, 'h');
 			const parentW = layoutSize(parent, 'w');
 			const parentH = layoutSize(parent, 'h');
-			let viewportRemainH = 0;
-			const viewportH = window.innerHeight || document.documentElement.clientHeight || 0;
-			if(viewportH > 0){
-				const rect = svgdom.getBoundingClientRect();
-				let bottomLimit = viewportH;
-				const footer = document.getElementById('globalFooter');
-				if(footer){
-					const footerRect = footer.getBoundingClientRect();
-					if(footerRect.top > rect.top && footerRect.top < bottomLimit){
-						bottomLimit = footerRect.top;
-					}
-				}
-				// rect.top 与 innerHeight 同属 rect/物理域,差值合法;但写进 candidates(布局域
-				// px,最终成为 svg 边长)前必须除回布局域,GAP 是布局语义常量放在除后减。
-				viewportRemainH = (bottomLimit - rect.top) / zScale - VIEWPORT_BOTTOM_GAP;
-			}
+			// 窗口底余高走单源(utils/viewportCap):整页可滚(工作区布局下限让整页长高)时不封顶,方盘由所在栏的宽高定;
+			// 下限加高时窗口底同量下移;常规窗口一字不变
+			const viewportRemainH = viewportRemainHeight(svgdom, VIEWPORT_BOTTOM_GAP, { footer: true });
 			const candidates = [];
 			const pushCandidate = (v)=>{
 				if(Number.isFinite(v) && v > 0){
@@ -122,7 +111,7 @@ class SuZhanChart extends Component{
 			if(viewportRemainH > 0){
 				candidates.push(viewportRemainH);
 			}
-			// [窄布局 2026-09-17] 360 是 CSS px 写死的「可用」门槛,1.8 档列宽 ~200 全被判不可用 → 取了高度候选 → 方盘比列宽还宽被裁;门槛走视觉底线。
+			// 360 是 CSS px 写死的「可用」门槛,1.8 档列宽 ~200 全被判不可用 → 取了高度候选 → 方盘比列宽还宽被裁;门槛走视觉底线。
 			const usableCandidates = candidates.filter(v=>v >= visualFloorPx(360));
 			if(usableCandidates.length > 0){
 				sideByContainer = Math.min(...usableCandidates);
@@ -145,12 +134,12 @@ class SuZhanChart extends Component{
 		}
 
 		side = clamp(Math.round(side), visualFloorPx(SQUARE_SIDE_MIN), SQUARE_SIDE_MAX);
-		// [窄布局 2026-09-17] 底线再大也不许超过所在列的实宽(1.8 档分至·宿盘 / 卜·宿盘实抓被裁):宁可小、不能裁。zoom=1 列宽 ≥520 不触发。
+		// 底线再大也不许超过所在列的实宽(1.8 档分至·宿盘 / 卜·宿盘实抓被裁):宁可小、不能裁。zoom=1 列宽 ≥520 不触发。
 		if(squareWidthCap > 0){
 			side = Math.max(Math.min(side, squareWidthCap), 120);
 		}
 		if(this.state.lockedSide === null || Math.abs(this.state.lockedSide - side) >= 4){
-			// [熔断 2026-09-17] 200ms 内连续 >8 次改边长 = 量测自反馈(容器尺寸随盘变、每拍互相追),停在当前值;正常收敛 1~2 拍。
+			// 200ms 内连续 >8 次改边长 = 量测自反馈(容器尺寸随盘变、每拍互相追),停在当前值;正常收敛 1~2 拍。
 			const now = Date.now();
 			if(now - (this._sideBurstAt || 0) > 200){ this._sideBurstAt = now; this._sideBurst = 0; }
 			this._sideBurst = (this._sideBurst || 0) + 1;
@@ -283,7 +272,7 @@ class SuZhanChart extends Component{
 			const svgdom = document.getElementById(this.state.chartid);
 			const target = svgdom ? ((svgdom.closest && svgdom.closest('.horosa-suzhan-chart-panel')) || svgdom.parentElement || svgdom) : null;
 			if(target){
-				this._ro = new ResizeObserver(()=>{ if(this.mounted){ this.handleResize(); this.drawChart(); } });
+				this._ro = createDeferredResizeObserver(()=>{ if(this.mounted){ this.handleResize(); this.drawChart(); } });
 				this._ro.observe(target);
 			}
 		}

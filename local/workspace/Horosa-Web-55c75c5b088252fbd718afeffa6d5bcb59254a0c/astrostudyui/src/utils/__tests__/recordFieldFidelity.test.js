@@ -1,7 +1,7 @@
-// 🔴 [V3 制度化] 记录字段保真总闸 —— 「记录上有的一切,导出/导入/管理全链一个不落」的永久锁。
+// 🔴 记录字段保真总闸 —— 「记录上有的一切,导出/导入/管理全链一个不落」的永久锁。
 //
 // 由来(用户明令):凡记录携带的字段(含内容/设置/自定义/内核管理字段/未来新字段),在
-// 新建/编辑/导出/导入/另存副本/回收站恢复 全链必须零丢失。历史漏斗=导入新增路径经
+// 新建/编辑/导出/导入/另存副本/回收站恢复 全链必须零丢失(另存副本按复制单源去掉存储身份与管理字段,见对应用例)。历史漏斗=导入新增路径经
 // buildRecord 白名单重建,「新增字段忘枚举→导入即丢」屡犯(pin 族曾靠显式透传才活)。
 // 根治=内核 upsert 未知键一律保全(buildRecord 是归一器不是过滤器)。
 //
@@ -17,6 +17,7 @@ import {
 import {
 	upsertLocalCase, listLocalCases, exportLocalCasesBackup, importLocalCasesBackup,
 } from '../localcases';
+import { toRecordCopy, RECORD_COPY_STRIP_KEYS } from '../localRecordStore';
 
 // 域层归一键(值形态允许被归一;仍必须「在」):键 → 归一后判据
 const CHART_NORMALIZED = {
@@ -55,7 +56,7 @@ function assertChartFidelity(rec, label){
 	});
 }
 
-describe('[V3] 记录字段保真总闸(含未来未知键)', ()=>{
+describe('记录字段保真总闸(含未来未知键)', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});
@@ -73,19 +74,21 @@ describe('[V3] 记录字段保真总闸(含未来未知键)', ()=>{
 		assertChartFidelity(listLocalCharts()[0], '导入');
 	});
 
-	it('另存副本(spread+新 cid):除 cid 外零丢失', ()=>{
+	it('另存副本(界面同一条路 toRecordCopy):内容 / 设置 / 未知键零丢失;存储身份与管理字段不带', ()=>{
 		upsertLocalChart({ ...FULL_CHART });
-		const dup = { ...listLocalCharts()[0] };
-		delete dup.cid;
-		delete dup.schemaVersion;
-		dup.name = '保真甲(副本)';
+		const dup = toRecordCopy(listLocalCharts()[0], { titleKey: 'name', suffix: '(副本)' });
 		upsertLocalChart(dup);
 		const rec = listLocalCharts().find((r)=>r.name === '保真甲(副本)');
+		expect(rec.cid).not.toBe(FULL_CHART.cid);
 		expect(rec.future_scalar).toBe(FULL_CHART.future_scalar);
 		expect(rec.future_obj).toEqual(FULL_CHART.future_obj);
 		expect(rec.memo).toBe(FULL_CHART.memo);
-		expect(rec.pinTier).toBe(1);
+		expect(rec.memoAstro).toBe(FULL_CHART.memoAstro);
 		expect(rec.hsys).toBe(3);
+		// 置顶 / 排序键是原件在列表里的位置,不跟到副本上
+		RECORD_COPY_STRIP_KEYS.filter((k)=>k !== 'cid' && k !== 'schemaVersion' && k !== 'updateTime').forEach((k)=>{
+			expect(`${k}:${rec[k] === undefined ? 'absent' : 'present'}`).toBe(`${k}:absent`);
+		});
 	});
 
 	it('回收站 删除→恢复:零丢失', ()=>{
@@ -112,9 +115,10 @@ describe('[V3] 记录字段保真总闸(含未来未知键)', ()=>{
 		expect(rec.pinTier).toBe(1);
 	});
 
-	it('preserveUpdateTime 是控制标志,绝不入库', ()=>{
-		upsertLocalChart({ ...FULL_CHART });
+	it('preserveUpdateTime / captureCurrentGlobals 是控制标志,绝不入库', ()=>{
+		upsertLocalChart({ ...FULL_CHART, captureCurrentGlobals: true });
 		expect('preserveUpdateTime' in listLocalCharts()[0]).toBe(false);
+		expect('captureCurrentGlobals' in listLocalCharts()[0]).toBe(false);
 	});
 
 	it('事盘同语义:未知键+memo+gender+pin 经 导出→导入 零丢失', ()=>{

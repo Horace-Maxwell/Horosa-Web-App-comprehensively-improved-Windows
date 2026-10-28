@@ -58,7 +58,11 @@ describe('AstrodataPage.onMsg 接线', () => {
 		inst.onMsg({ data: { type: 'astrodata:importChart', chart }, source: null });
 		expect(calls.length).toBe(1);
 		expect(calls[0].type).toBe('user/addLocalChartQuiet');
-		expect(calls[0].payload).toBe(chart);
+		// 经名人建档单源构造:原字段不动,补来源备注(评级没随消息来时取分组里的评级)、新盘缺省设置与代次标记
+		const { buildCelebrityChartValues } = require('../../../utils/astrodata/celebrityDedupe');
+		expect(calls[0].payload).toEqual(buildCelebrityChartValues(chart, { rodden: 'A' }));
+		expect(calls[0].payload).toEqual(expect.objectContaining({ cid: 'adb-1', name: 'X', memo: '来自名人库(Astro-Databank,Rodden A)', fieldsCaptureGen: 1, ziweiSettingsGen: 1 }));
+		expect(chart.memo).toBeUndefined();   // 不改调用方的对象
 	});
 
 	test('无关类型 / 空数据 → 不 dispatch', () => {
@@ -105,5 +109,73 @@ describe('数据库外链 · 系统浏览器打开(桌面 target=_blank 无反�
 		await new Promise((r) => setTimeout(r, 0));
 		expect(calls.length).toBe(0);
 		expect(opened).toEqual(['https://en.wikipedia.org/wiki/Einstein']);
+	});
+});
+
+describe('名人库页导入结果提示(宿主回报 → 页内如实提示)', () => {
+	const fs = require('fs');
+	const path = require('path');
+	const html = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'public', 'astrodata', 'index.html'), 'utf8');
+	test('宿主回报:写入失败 → failed;只进了本次运行的列表 → session;其余按调用方给的成功档', async () => {
+		const { importStatusOf } = require('../AstrodataPage');
+		expect(importStatusOf(false, 'imported')).toBe('failed');
+		expect(importStatusOf('session', 'imported')).toBe('session');
+		expect(importStatusOf(true, 'refreshed')).toBe('refreshed');
+		expect(importStatusOf(undefined, 'imported')).toBe('imported');
+		const posted = [];
+		const frameWin = { postMessage: (m)=>posted.push(m) };
+		const inst = new AstrodataPage({ dispatch: () => 'session' });
+		inst.iframeRef = { current: { contentWindow: frameWin } };
+		inst.onMsg({ data: { type: 'astrodata:importChart', chart: { cid: 'adb-session-1', name: 'Y', birth: '1991-01-01 12:00:00', group: ['Astrodatabank', 'A'] } }, source: frameWin });
+		await new Promise((r)=>setTimeout(r, 0));
+		expect(posted).toEqual([{ type: 'astrodata:importResult', status: 'session', name: 'Y' }]);
+	});
+	test('页内:「只在本次运行」有专门提示(中英两套);等回报期间再点不重复发送;不再写死宿度制', () => {
+		expect((html.match(/impSession:/g) || []).length).toBe(2);
+		expect(html).toContain("else if(d.status==='session'){toast(t.impSession);}");
+		expect(html).toContain('if(IMP.timer)return;');
+		const importFn = html.slice(html.indexOf('function importChart(r){'), html.indexOf('const IMP={timer:null'));
+		expect(importFn).not.toContain('doubingSu28');
+		expect(importFn).toContain("meta:{rodden:r.rodden||''");
+		// 单独打开时复制的 JSON 带名人库标志、不再写死代次标记(由软件导入时按新命盘设置补齐)
+		expect(importFn).toContain('chart.importAsNewChart=1;');
+		expect(importFn).not.toContain('fieldsCaptureGen');
+	});
+});
+
+describe('命盘列表导入名人库 JSON(名人库页单独打开时复制出来的)', () => {
+	const { prepareCelebrityChartsImport } = require('../../../utils/astrodata/celebrityDedupe');
+	const { importLocalChartsBackup, getLocalChart, upsertLocalChart: up } = require('../../../utils/localcharts');
+	beforeEach(()=>{ window.localStorage.clear(); });
+	test('已有这位只刷新出生时刻与地点,不给旧档补代次标记;新人按新命盘设置补齐并打标记;归档里的跳过;真备份条目原样', () => {
+		up({ cid: 'adb-9', name: '我改过的名', birth: '1950-01-01 10:00:00', zone: '+00:00', lat: '1n0', lon: '1e0', group: ['我的组'], memo: '我的备注', hsys: 0 });
+		up({ cid: 'adb-8', name: '归档的', birth: '1951-01-01 10:00:00', zone: '+00:00', archived: true });
+		const json = { format: 'horosa-local-charts', version: 1, total: 4, charts: [
+			{ cid: 'adb-9', celebrityId: 'adb-9', name: 'Orig', birth: '1950-01-01 11:30:00', zone: '+01:00', lat: '2n0', lon: '2e0', gpsLat: 2, gpsLon: 2, pos: 'P', group: ['Astrodatabank', 'A'], memo: '来自名人库', importAsNewChart: 1 },
+			{ cid: 'adb-8', celebrityId: 'adb-8', name: 'Arch', birth: '1951-01-01 10:00:00', zone: '+00:00', importAsNewChart: 1 },
+			{ cid: 'adb-7', celebrityId: 'adb-7', name: 'New', birth: '1960-01-01 10:00:00', zone: '+00:00', group: ['Astrodatabank', 'AA', ''], memo: '来自名人库', importAsNewChart: 1 },
+			{ cid: 'local-x', name: 'Backup', birth: '1970-01-01 10:00:00', zone: '+00:00' },
+		] };
+		const { payload, skipped } = prepareCelebrityChartsImport(json);
+		expect(skipped).toBe(1);
+		expect(payload.charts.map((c)=>c.cid)).toEqual(['adb-9', 'adb-7', 'local-x']);
+		expect(payload.charts[0]).toEqual({ cid: 'adb-9', celebrityId: 'adb-9', updateTime: expect.any(String), birth: '1950-01-01 11:30:00', zone: '+01:00', lat: '2n0', lon: '2e0', gpsLat: 2, gpsLon: 2, pos: 'P' });
+		expect(payload.charts[1].group).toEqual(['Astrodatabank', 'AA']);
+		expect(payload.charts[1]).toMatchObject({ fieldsCaptureGen: 1, ziweiSettingsGen: 1 });
+		expect(payload.charts[1].importAsNewChart).toBeUndefined();
+		expect(payload.charts[2]).toBe(json.charts[3]);
+		// 与命盘列表同一口径:名人库 JSON 按字段合并(刷新出生数据,保留你改过的名字与备注),不按「较新者整条胜出」
+		importLocalChartsBackup(payload, { sameCid: 'merge' });
+		const kept = getLocalChart('adb-9');
+		expect(kept).toMatchObject({ name: '我改过的名', memo: '我的备注', hsys: 0, birth: '1950-01-01 11:30:00', pos: 'P' });
+		expect(kept.fieldsCaptureGen).toBeUndefined();
+		expect(kept.ziweiSettingsGen).toBeUndefined();
+		expect(getLocalChart('adb-7')).toMatchObject({ name: 'New', fieldsCaptureGen: 1 });
+		// 命盘列表导入名人库 JSON 时确实按字段合并
+		const chartListSrc = require('fs').readFileSync(require('path').join(__dirname, '../../user/ChartList.js'), 'utf8');
+		expect(chartListSrc).toContain("const importOpts = toImport !== json ? { sameCid: 'merge' } : undefined;");
+		// 没有名人库标志的普通备份:原样
+		const plain = { format: 'horosa-local-charts', version: 1, charts: [{ cid: 'a' }] };
+		expect(prepareCelebrityChartsImport(plain)).toEqual({ payload: plain, skipped: 0 });
 	});
 });

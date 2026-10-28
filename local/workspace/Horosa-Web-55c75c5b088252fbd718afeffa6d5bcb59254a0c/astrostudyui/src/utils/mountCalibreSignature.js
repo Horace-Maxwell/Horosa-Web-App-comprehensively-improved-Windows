@@ -1,4 +1,4 @@
-// [Q-020/M-25] 挂载缓存「口径签名」单源:全局古典排盘参数(classicalChartGlobals 非默认键)+ 判读全局仓 + 日界/晚子时全局偏好
+// 挂载缓存「口径签名」单源:全局古典排盘参数(classicalChartGlobals 非默认键)+ 判读全局仓 + 日界/晚子时全局偏好
 // 的稳定序列化短哈希。两层缓存(源层 context_cache / 技法层模块快照)写入时打签,命中时比对:
 // 改过「星盘设置」全局口径或日界偏好后,旧签名的缓存不再直喂(此前只比 updatedAt / 出生签名,只能靠手动清缓存)。
 // 只读全局仓,不碰页面态;页面局部覆盖不进签名(签名只回答「全局口径自存档以来变没变」)。
@@ -31,7 +31,7 @@ function nonDefaultClassicalGlobals(){
 	Object.keys(g).forEach((k)=>{
 		const v = g[k];
 		if(v === undefined || v === null || v === ''){ return; }
-		if(CLASSICAL_GLOBAL_DEFAULTS && Object.prototype.hasOwnProperty.call(CLASSICAL_GLOBAL_DEFAULTS, k) && `${CLASSICAL_GLOBAL_DEFAULTS[k]}` === `${v}`){ return; }
+		if(Object.prototype.hasOwnProperty.call(CLASSICAL_GLOBAL_DEFAULTS, k) && `${CLASSICAL_GLOBAL_DEFAULTS[k]}` === `${v}`){ return; }
 		out[k] = v;
 	});
 	return out;

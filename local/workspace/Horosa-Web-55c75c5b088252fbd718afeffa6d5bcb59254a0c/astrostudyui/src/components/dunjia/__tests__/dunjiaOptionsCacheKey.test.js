@@ -1,4 +1,4 @@
-// [H-H] 🔴 奇门盘缓存键维度完备哨兵(L3):独立页与三式的 getQimenOptionsKey 必须覆盖
+// 🔴 奇门盘缓存键维度完备哨兵(L3):独立页与三式的 getQimenOptionsKey 必须覆盖
 // DEFAULT_OPTIONS 里全部影响 calcDunJia 输出的键。漏键=起盘后改档命中旧缓存=死开关
 // (真机实抓:anGanMode 切档盘面纹丝不动)。机械提取两侧,豁免键必须理由成文。
 import fs from 'fs';
@@ -31,7 +31,7 @@ const EXEMPT = {
 	after23NewDay: '经 getAfter23NewDayValue(options) 入键(独立页);三式直引',
 };
 
-describe('[H-H] 奇门盘缓存键维度完备哨兵(L3)', ()=>{
+describe('奇门盘缓存键维度完备哨兵(L3)', ()=>{
 	const dm = read('../DunJiaMain.js');
 	const sm = read('../../sanshi/SanShiUnitedMain.js');
 	const dmDefaults = extractDefaultOptionKeys(dm);

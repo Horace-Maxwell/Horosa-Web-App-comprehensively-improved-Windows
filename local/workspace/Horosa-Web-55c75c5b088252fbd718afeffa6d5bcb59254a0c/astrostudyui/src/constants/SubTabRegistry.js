@@ -30,9 +30,10 @@ export const ZERI_SUBTABS = ['tianxing', 'qimenzeri',
 
 // 命·传统(参考类)。
 export const CNTRADITION_SUBTABS = ['guasym', 'cuangong12', 'pithy'];
-// [Q-417/T-377] 合盘四子页签(AstroRelative.state.hook 键);导航切到合盘时按此表回落,免得沿用辅盘的 germanytech
+// 合盘六子页签(AstroRelative.state.hook 键,与页签同序);导航切到合盘时按此表回落,免得沿用辅盘的 germanytech
 // (帮助注册表对 germanytech 有子技法优先规则 → 页头「帮助」标题写合盘、正文却是量化盘手册)。
-export const RELATIVE_SUBTABS = ['Comp', 'Composite', 'Synastry', 'TimeSpace'];
+// 马克斯盘 / 关系量化此前漏登 → 停在这两页时切走再回来,记不住、落回比较盘。
+export const RELATIVE_SUBTABS = ['Comp', 'Composite', 'Synastry', 'TimeSpace', 'Marks', 'Score'];
 
 /** 取某组的首档(导航层回落用),空集时返回 ''。 */
 export function firstSubTab(list){

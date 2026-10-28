@@ -15,7 +15,7 @@ import { Spin } from 'antd';
 import TechniqueErrorBoundary from '../components/common/TechniqueErrorBoundary';
 
 /**
- * [P0 chunk 自愈] HMR 撕裂/更新中途换包时 import() 可能 resolve 出「无 default 的空模块」——
+ * HMR 撕裂/更新中途换包时 import() 可能 resolve 出「无 default 的空模块」——
  * React.lazy 会把这次坏结果永久缓存(React 17 settle 后状态钉死),边界重挂救不回。
  * 工厂层自愈:坏结果不进缓存(下次真正重试 import),并抛明确错误交边界卡走「刷新重载」路。
  *

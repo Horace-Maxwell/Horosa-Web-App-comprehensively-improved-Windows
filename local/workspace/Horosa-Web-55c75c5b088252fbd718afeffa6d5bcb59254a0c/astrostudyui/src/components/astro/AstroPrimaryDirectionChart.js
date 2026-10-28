@@ -32,6 +32,8 @@ import {
 } from '../../utils/primaryDirectionSync';
 import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select } from '../xq-ui';
 import { classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
+import { recordNewChartSeeds } from '../../utils/newChartSeeds';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { markPanelReady } from '../../utils/perfMark';
 
 const Option = Select.Option;
@@ -375,7 +377,13 @@ function buildSnapshotText(chartObj, currentDt, currentArc, dirChart){
 	return lines.join('\n');
 }
 
-function buildFieldsFromChartObj(baseFields, chartObj, pdMethod, pdTimeKey){
+// 回写主盘的 fields:只换主限法口径与排盘回显,不动命盘身份(cid)—— 请求体里另置 cid:null(不让后端按 cid 取档),
+// 但写回全局的 fields 若也清 cid,载入的命盘就和命盘库断开(保存另生副本、温启不钉住、七政首开按本机偏好播种)。
+// extra.pdtype:本次请求实际用的方向类型(In Zodiaco 0 / In Mundo 1),与盘上 params 同口径。
+// extra.pdProjection / pdFrame / pdFramework / pdParallel / pdRaptParallel:本次请求实际用的投影 / 分宫 / 框架 / 平行
+// (改了推运方法时由方法派生),一并写回 —— 否则当前盘的方法是新的、投影还是旧的:之后重排 / 存盘再载入,
+// 主盘按旧投影显式下发(后端显式投影优先),主限表与主限盘口径分叉。没改方法时就是透传现值。
+export function buildFieldsFromChartObj(baseFields, chartObj, pdMethod, pdTimeKey, extra){
 	const fields = {
 		...(baseFields || {}),
 	};
@@ -429,14 +437,20 @@ function buildFieldsFromChartObj(baseFields, chartObj, pdMethod, pdTimeKey){
 	assign('doubingSu28', params.doubingSu28, fields.doubingSu28 ? fields.doubingSu28.value : 0);
 	assign('predictive', 1, 1);
 	assign('showPdBounds', params.showPdBounds === 0 ? 0 : 1, 1);
-	assign('pdtype', 0, 0);
+	assign('pdtype', extra && extra.pdtype === 1 ? 1 : 0, 0);
 	assign('pdMethod', pdMethod, DEFAULT_PD_METHOD);
 	assign('pdTimeKey', pdTimeKey, DEFAULT_PD_TIME_KEY);
+	const ex = extra || {};
+	['pdProjection', 'pdFrame', 'pdFramework'].forEach((k)=>{
+		if(ex[k]){ assign(k, `${ex[k]}`, ''); }
+	});
+	['pdParallel', 'pdRaptParallel'].forEach((k)=>{
+		if(ex[k] !== undefined && ex[k] !== null){ assign(k, ex[k] ? 1 : 0, 0); }
+	});
 	assign('pdaspects', params.pdaspects, fields.pdaspects ? fields.pdaspects.value : [0, 60, 90, 120, 180]);
 	assign('name', params.name, fields.name ? fields.name.value : null);
 	assign('pos', params.pos, fields.pos ? fields.pos.value : null);
 	assign('southchart', params.southchart, fields.southchart ? fields.southchart.value : 0);
-	assign('cid', null, null);
 	return fields;
 }
 
@@ -450,7 +464,7 @@ function unwrapPredictiveResponse(data){
 	return data;
 }
 
-// [挂载自检 F-17] 主限法盘「时间选择」缺省时刻(页面/AI 无头同源):首条主限到达日期(按当前方位法与显示边界),
+// 主限法盘「时间选择」缺省时刻(页面/AI 无头同源):首条主限到达日期(按当前方位法与显示边界),
 // 无则出生次日;buildBirthDateTime 取不到生辰 → null(调用方自处理)。
 export function defaultPdChartDateTime(chartObj){
 	const birthDt = buildBirthDateTime(chartObj);
@@ -477,7 +491,8 @@ class AstroPrimaryDirectionChart extends Component{
 		super(props);
 		const initialDateTime = this.buildDefaultDateTime(props.value);
 		this.unmounted = false;
-		this.requestSeq = 0;
+		this.requestSeq = 0;      // 主限盘(/predict/pdchart)
+		this.pdTableSeq = 0;      // 主限表「计算」(/predict/pd)
 		this.state = {
 			datetime: initialDateTime,
 			birthKey: this.buildBirthKey(props.value),
@@ -614,7 +629,7 @@ class AstroPrimaryDirectionChart extends Component{
 	buildDefaultDateTime(chartObj){
 		const d = defaultPdChartDateTime(chartObj);
 		if(d){ return d; }
-		return new DateTime();
+		return DateTime.nowForChart(chartObj && chartObj.params ? chartObj.params.zone : '');   // 「此刻」按本盘时区
 	}
 
 	normalizePdMethod(value){
@@ -811,7 +826,7 @@ class AstroPrimaryDirectionChart extends Component{
 			doubingSu28: params.doubingSu28 !== undefined ? params.doubingSu28 : false,
 			southchart: params.southchart !== undefined ? params.southchart : false,
 			predictive: true,
-			// [SURF-5] 古典设置随盘回显透传(此前逐键手挑丢全部古典回显;FromPlain 条件发送)。
+			// 古典设置随盘回显透传(此前逐键手挑丢全部古典回显;FromPlain 条件发送)。
 			...classicalBackendOverridesFromPlain(params),
 			showPdBounds: params.showPdBounds === 0 ? 0 : 1,
 			// 盘的「计算」会重算表格,须保留表格侧的进阶设置(方向类型/顺逆/映点/界),否则会被 clobber 回默认。
@@ -842,7 +857,7 @@ class AstroPrimaryDirectionChart extends Component{
 			})()),
 			...(Array.isArray(params.pdSignificators) && params.pdSignificators.length ? { pdSignificators: params.pdSignificators } : {}),
 			...(Array.isArray(params.pdPromissorTypes) && params.pdPromissorTypes.length ? { pdPromissorTypes: params.pdPromissorTypes } : {}),
-			termsVariant: (()=>{ const n = Number(params.termsVariant); return (Number.isFinite(n) && n >= 0 && n <= 4) ? n : 0; })(),   // [F4][R2-12]
+			termsVariant: (()=>{ const n = Number(params.termsVariant); return (Number.isFinite(n) && n >= 0 && n <= 4) ? n : 0; })(),
 			pdMethod: this.getSelectedPdMethod(),
 			pdTimeKey: this.getTablePdTimeKey(),
 			pdaspects: params.pdaspects || [0, 60, 90, 120, 180],
@@ -860,16 +875,26 @@ class AstroPrimaryDirectionChart extends Component{
 		if(!req){
 			return;
 		}
-		// [SURF-R5b] 代际校验(照 :1024 pdchart 路径同款):主限全表秒级耗时,窗口内换盘后
+		// 代际校验(照 :1024 pdchart 路径同款):主限全表秒级耗时,窗口内换盘后
 		// 旧响应以 await 前捕获的旧盘为基座 merge 并 dispatch astro/save = 全站盘面回滚旧盘
 		// +旧快照落盘,无自愈。seq 失配即弃;基座在响应落地后重读 props.value(与代际同代)。
-		const seq = ++this.requestSeq;
+		// 用自己的代次:与主限盘请求(requestDirectedChart)共用 requestSeq 时,「计算」在途中拖时刻 / 换向触发主限盘请求,
+		// 主限表结果被判过期丢掉(点了计算没反应);反之主限盘在途时点计算,主限盘结果被丢、同签名在途标记永不复位,之后同参不再重取。
+		const seq = (this.pdTableSeq = (this.pdTableSeq || 0) + 1);
 		const chartObj = this.props.value || {};
 		const nextFields = buildFieldsFromChartObj(
 			this.props.fields,
 			chartObj,
 			this.getSelectedPdMethod(),
-			this.getTablePdTimeKey()
+			this.getTablePdTimeKey(),
+			{
+				pdtype: req.pdtype,
+				pdProjection: req.pdProjection,
+				pdFrame: req.pdFrame,
+				pdFramework: req.pdFramework,
+				pdParallel: req.pdParallel,
+				pdRaptParallel: req.pdRaptParallel,
+			}
 		);
 		if(!nextFields || !nextFields.date || !nextFields.time || !nextFields.zone || !nextFields.lat || !nextFields.lon){
 			return;
@@ -878,17 +903,16 @@ class AstroPrimaryDirectionChart extends Component{
 		try{
 			const data = await request(`${Constants.ServerRoot}/predict/pd`, {
 				body: JSON.stringify(req),
-				cache: 'no-store',
 			});
 			const result = unwrapPredictiveResponse(data);
 			pdRows = result && Array.isArray(result.pd) ? result.pd : null;
 		}catch(e){
 			pdRows = null;
 		}
-		if(this.unmounted || seq !== this.requestSeq || !Array.isArray(pdRows)){
+		if(this.unmounted || seq !== this.pdTableSeq || !Array.isArray(pdRows)){
 			return;
 		}
-		// [SURF-R5b] 基座同代:响应落地重读当前盘;换盘瞬间(seq 未变但引用已换)按新基座 merge
+		// 基座同代:响应落地重读当前盘;换盘瞬间(seq 未变但引用已换)按新基座 merge
 		// 也不成立——生辰键不一致即弃(等 hook.fun 触发的新请求)。
 		const liveChart = this.props.value || {};
 		if(liveChart !== chartObj){
@@ -924,6 +948,17 @@ class AstroPrimaryDirectionChart extends Component{
 			pos: req.pos,
 		});
 		saveAstroAISnapshot(nextChartObj, nextFields);
+		// 主限盘栏「计算」= 亲手改主限法口径:记作新命盘缺省(与推运页 applyPrimaryDirectionConfig 同维度)——
+		// 只记方法 / 时间钥匙而不记投影 / 分宫,新盘上方法是新的、投影仍是旧种子,主限表(显式投影优先)与主限盘就分叉。
+		recordNewChartSeeds({
+			pdMethod: this.getSelectedPdMethod(),
+			pdTimeKey: this.getTablePdTimeKey(),
+			pdtype: req.pdtype === 1 ? 1 : 0,
+			...(req.pdProjection ? { pdProjection: req.pdProjection } : {}),
+			...(req.pdFrame ? { pdFrame: req.pdFrame } : {}),
+			...(req.pdFramework ? { pdFramework: req.pdFramework } : {}),
+			pdParallel: req.pdParallel ? 1 : 0,
+		});
 		this.props.dispatch({
 			type: 'app/save',
 			payload: {
@@ -976,11 +1011,11 @@ class AstroPrimaryDirectionChart extends Component{
 			pdMethod: this.getSelectedPdMethod(),
 			// 解耦维:盘面宫始点由 pdFrame 决定(后端 _pdChartHouseSystem 按 resolved frame 解析),
 			// projection 一并带上保 resolve 完整;props 由 AstroDirectMain 统一下传。
-			// [Q-165/T-98] 请求恒显式带 pdFrame 时后端 frame 优先 → 本页改「方法」对外圈宫头零效果。改:props 的(投影,分宫)只在
+			// 请求恒显式带 pdFrame 时后端 frame 优先 → 本页改「方法」对外圈宫头零效果。改:props 的(投影,分宫)只在
 			// 与所选方法一致(pdMethodOfPair 反查等于该方法,或方法无单维等价)时沿用;否则按所选方法推导(PD_METHOD_TO_PAIR 单源)。
 			...pdPairParamsFor(this.getSelectedPdMethod(), this.props.pdProjection, this.props.pdFrame),
 			pdTimeKey: this.getSelectedPdTimeKey(),
-			// [Q-166/T-99] User 档自定义钥匙率随请求(此前不带 → 后端回落 1.0,数值框拨任何值外圈盘不动)
+			// User 档自定义钥匙率随请求(此前不带 → 后端回落 1.0,数值框拨任何值外圈盘不动)
 			...(this.getSelectedPdTimeKey() === 'User' && Number(this.getSelectedPdTimeKeyCustom()) > 0 ? { pdTimeKeyCustom: Number(this.getSelectedPdTimeKeyCustom()) } : {}),
 			showPdBounds: params.showPdBounds,
 			datetime: currentDt.format('YYYY-MM-DD HH:mm:ss'),
@@ -1018,7 +1053,6 @@ class AstroPrimaryDirectionChart extends Component{
 						path: '/predict/pdchart',
 						run: ()=> request(`${Constants.ServerRoot}/predict/pdchart`, {
 							body: JSON.stringify(params),
-							cache: 'no-store',
 							silent: true,
 							retry: { retries: 0 },
 						}),
@@ -1045,11 +1079,11 @@ class AstroPrimaryDirectionChart extends Component{
 		this._syncSig = syncSig;
 		this._syncSigInFlight = true;
 		const seq = ++this.requestSeq;
+		const dirChartSig = natalSourceKey(this.props.value);   // 本次主限盘出自哪位命主(读时与当前盘比,见 buildDerived)
 		let result = null;
 		try{
 			const data = await request(`${Constants.ServerRoot}/predict/pdchart`, {
 				body: JSON.stringify(params),
-				cache: 'no-store',
 			});
 			result = unwrapPredictiveResponse(data);
 		}catch(e){
@@ -1067,6 +1101,7 @@ class AstroPrimaryDirectionChart extends Component{
 		}
 		this.setState({
 			dirChart: result,
+			dirChartSig,
 		}, ()=>{
 			// horosa_panel_ready_v1:主限法盘(中栏盘 + 右栏表同源于 dirChart)落定的那一次 setState。
 			markPanelReady('direction');
@@ -1077,8 +1112,9 @@ class AstroPrimaryDirectionChart extends Component{
 		const chartObj = this.props.value || {};
 		const currentDt = this.state.datetime ? this.state.datetime.clone() : this.buildDefaultDateTime(chartObj);
 		const birthDt = buildBirthDateTime(chartObj);
-		const dirChart = this.state.dirChart ? {
-			...this.state.dirChart,
+		const shownDir = pickKeyedDerived(this.state.dirChart, this.state.dirChartSig, natalSourceKey(this.props.value));
+		const dirChart = shownDir ? {
+			...shownDir,
 			natalChart: chartObj,
 		} : null;
 		const currentArc = dirChart && Number.isFinite(Number(dirChart.arc))
@@ -1139,7 +1175,7 @@ class AstroPrimaryDirectionChart extends Component{
 			height: `${height-20}px`,
 			overflowY: 'auto',
 			overflowX: 'hidden',
-			boxSizing: 'border-box',   // [巡检实抓 2026-09-17] .scrollbar 带上下内距,content-box 下右栏 = height+4 → 面板多 5px 滚动条
+			boxSizing: 'border-box',   // .scrollbar 带上下内距,content-box 下右栏 = height+4 → 面板多 5px 滚动条
 		};
 		const chartWrap = {
 			natualChart: chartObj,
@@ -1246,9 +1282,9 @@ class AstroPrimaryDirectionChart extends Component{
 							<Divider orientation='left'>当前状态</Divider>
 							<div style={{lineHeight: 1.9}}>
 								<div>当前盘面方法：{pdMethodLabel}</div>
-								<div>当前盘面度数换算：{selectedPdTimeKey}</div>
+								<div>当前盘面度数换算：{PD_TIME_KEY_LABELS[selectedPdTimeKey] || selectedPdTimeKey}</div>
 								<div>当前向运方向：{this.state.pdDirectionValue === 'converse' ? '逆向 Converse' : '顺向 Direct'}</div>
-								{dirty ? <div>主限法表格已应用方法：{appliedMethodLabel} / {applied.pdTimeKey}</div> : null}
+								{dirty ? <div>主限法表格已应用方法：{appliedMethodLabel} / {PD_TIME_KEY_LABELS[applied.pdTimeKey] || applied.pdTimeKey}</div> : null}
 								<div>当前主限法年龄：{splitDegreeText(derived.currentArc)}</div>
 								<div>外圈时间：{derived.currentDt ? derived.currentDt.format('YYYY-MM-DD HH:mm:ss') : '无'}</div>
 								{ascTermHighlight ? (

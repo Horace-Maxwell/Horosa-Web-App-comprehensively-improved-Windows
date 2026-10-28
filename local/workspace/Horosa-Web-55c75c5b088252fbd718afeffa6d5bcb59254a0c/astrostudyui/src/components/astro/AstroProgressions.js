@@ -5,30 +5,22 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, fmtNum, chartParams, chartRequestKey, cardStyle, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
 import ProgMethodPanel, { MINOR_VARIANT_OPTIONS } from './AstroProgChart';
-import { buildTropicalProgSnapshotText } from './astroProgSnapshot';
+import { buildTropicalProgSnapshotText, today, chartZone, methodTab } from './astroProgSnapshot';
 import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 
 const TabPane = Tabs.TabPane;
 const { Option } = Select;
 
-function today(){
-	const dt = new Date();
-	return `${dt.getFullYear()}-${`${dt.getMonth() + 1}`.padStart(2, '0')}-${`${dt.getDate()}`.padStart(2, '0')}`;
-}
-
-function methodTab(method){
-	return method.method === 'secondary' ? '二次推运' : (method.method === 'tertiary' ? '三次推运' : '小推运');
-}
-
 // 推运（回归黄道）：二次/三次/小推运。每个子 tab → 左固定推运双盘 + 右可滚动行星位置/相位表（ProgMethodPanel）。
-// 小推运月长算法用顶栏「月长算法」选择器（minorVariant），缺省 synodic=标准朔望月([Q-180])。
+// 小推运月长算法用顶栏「月长算法」选择器（minorVariant），缺省 synodic=标准朔望月。
 class AstroProgressions extends Component{
 	constructor(props){
 		super(props);
 		this.state = {
-			targetDate: today(),
+			targetDate: today(chartZone(props.value)),   // 「今日」按本盘时区
 			targetTime: '12:00:00',
 			minorVariant: DIRECTION_PAGE_SETTINGS.load().minorVariant,   // 上次亲手设的月长算法(三个推运页共用;没存过 = synodic)
 			loading: false,
@@ -56,7 +48,7 @@ class AstroProgressions extends Component{
 		}
 	}
 
-	// [挂载自检 F-13] AI 导出刷新事件:此前本组件无监听 → 星运页导出「二次推运」经 extractSimpleModuleContent 读缓存槽
+	// AI 导出刷新事件:此前本组件无监听 → 星运页导出「二次推运」经 extractSimpleModuleContent 读缓存槽
 	// 'prog'(只由 AI 挂载无头重算写、任意盘)→ 导出到别人的推运;从未挂载则「无可导出文本」。按页面当前目标时刻/月长算法出。
 	handleSnapshotRefreshRequest(evt){
 		if(!evt || !evt.detail || evt.detail.module !== 'prog' || !this.props.value){ return; }
@@ -79,6 +71,8 @@ class AstroProgressions extends Component{
 	}
 
 	async load(){
+		const seq = ++this._loadSeq || (this._loadSeq = 1);   // 只认最后一次:换盘 / 改参连发时先发的晚回不覆盖
+		const resultSig = natalSourceKey(this.props.value);   // 本次结果出自哪位命主(读时与当前盘比)
 		if(!this.props.value){ return; }
 		const key = chartRequestKey(this.props.value, `progressions|${this.state.targetDate}|${this.state.targetTime}|${this.state.minorVariant}`);
 		this.setState({ loading: true });
@@ -93,23 +87,28 @@ class AstroProgressions extends Component{
 				}),
 				timeoutMs: 45000,
 			});
-			if(!this._mounted) return;
+			if(!this._mounted || seq !== this._loadSeq) return;
 			clearLoadFailure(this);
 			// horosa_panel_ready_v1:推运 结果(中栏盘 + 右栏表同源于 result)落定的那一次 setState。
-			this.setState({ result: unwrapResult(data) || {}, loading: false, requestKey: key }, ()=>{ markPanelReady('direction'); });
+			this.setState({ result: unwrapResult(data) || {}, resultSig, loading: false, requestKey: key }, ()=>{ markPanelReady('direction'); });
 		}catch(e){
 			// 失败不把 key 记成已完成(改日期失败=永远没反应);泊车该 key,窗口期后自动重试。
 			parkLoadFailure(this, key);
-			if(!this._mounted) return;
+			if(!this._mounted || seq !== this._loadSeq) return;
 			this.setState({ loading: false });
 		}
 	}
 
+	// 出自当前命主的结果才用:换盘后新结果在途 / 取失败时 state 里是上一位命主的 → 当没有(同一命主只改设置仍旧表留存)
+	shownResult(){
+		return pickKeyedDerived(this.state.result, this.state.resultSig, natalSourceKey(this.props.value));
+	}
+
 	render(){
 		this.ensureLoaded();
-		const result = this.state.result || {};
+		const result = this.shownResult() || {};
 		const height = this.props.height || 700;
-		// [双滚动条根治 2026-09-18] 面板高不再用「工作区高−常数」估算(常数与真实工具条/页签高不等 → 多出的十几像素把外层面板撑出第二条滚动条);
+		// 面板高不再用「工作区高−常数」估算(常数与真实工具条/页签高不等 → 多出的十几像素把外层面板撑出第二条滚动条);
 		// 内层 Tabs 走定高链(app.less .horosa-direction-page .ant-tabs-top …),面板 100% 跟随容器,任何缩放/字号/窗高零常数。
 		const panelH = '100%';
 		// 受控 activeKey:方法列表由后端结果决定,页签集合会随结果变化 —— 用户选过的键仍在就保持,

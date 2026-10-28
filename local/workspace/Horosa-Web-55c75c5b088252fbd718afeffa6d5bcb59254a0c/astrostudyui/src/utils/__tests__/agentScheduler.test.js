@@ -74,7 +74,7 @@ describe('schedule 纯函数', ()=>{
 		expect(buildScheduledPrompt({ kind: 'monthly-fortune' }, local(2026, 9, 5, 8, 0))).toContain('2026 年 9 月');
 		expect(buildScheduledPrompt({ kind: 'custom-prompt', prompt: '今天开会要注意什么' })).toBe('今天开会要注意什么');
 		expect(buildScheduledPrompt({ kind: 'custom-prompt', prompt: '  ' }, local(2026, 9, 5, 8, 0))).toContain('定时提示 2026-09-05');
-		// [Q-400/M-145] 到点无挂载源(未挂 / 档案已删)→ 无命盘文案,不再写「请基于挂载的命盘」;不传 opts = 旧文案零回归
+		// 到点无挂载源(未挂 / 档案已删)→ 无命盘文案,不再写「请基于挂载的命盘」;不传 opts = 旧文案零回归
 		const nb = buildScheduledPrompt({ kind: 'daily-brief' }, local(2026, 9, 5, 8, 0), { hasSource: false });
 		expect(nb).toContain('未挂载命盘');
 		expect(nb).not.toContain('请基于挂载的命盘');
@@ -185,7 +185,7 @@ describe('接线与用户按钮', ()=>{
 		window.__horosaSchedulerTick({ seq: 3 });
 		await flush();
 		expect(runner.mock.calls[1][0]).toEqual({ seq: 3 });
-		// 壳侧投递脚本同构模拟:无回调入队且只留最新 1 条(main.rs scheduler_tick_script 的 q.length>1)
+		// 壳侧投递脚本同构模拟:无回调入队且只留最新 1 条(壳 agent_bridge.rs scheduler_tick_script 的 q.length>1)
 		__resetSchedulerForTests();
 		const script = (p)=>`(function(){var t=${JSON.stringify(p)};if(typeof window.__horosaSchedulerTick==='function'){try{window.__horosaSchedulerTick(t);}catch(e){}}else{var q=window.__horosaPendingSchedulerTicks=window.__horosaPendingSchedulerTicks||[];q.push(t);if(q.length>1){q.splice(0,q.length-1);}}})();`;
 		for(let i = 0; i < 5; i++){ window.eval(script({ seq: 10 + i })); }
@@ -261,8 +261,8 @@ describe('taskKinds 执行体', ()=>{
 	});
 });
 
-// [D81] 非桌面 60 秒兜底定时器此前没有生产解绑出口(布局层卸载后仍跑)
-it('🔴 [D81] unbindSchedulerTicks:拆回调 + 清兜底定时器;再 bind 可重新挂上', ()=>{
+// 非桌面 60 秒兜底定时器此前没有生产解绑出口(布局层卸载后仍跑)
+it('🔴 unbindSchedulerTicks:拆回调 + 清兜底定时器;再 bind 可重新挂上', ()=>{
 	__resetSchedulerForTests();
 	const runner = jest.fn(async ()=>({ ran: 0 }));
 	expect(bindSchedulerTicks({ runner })).toBe(true);

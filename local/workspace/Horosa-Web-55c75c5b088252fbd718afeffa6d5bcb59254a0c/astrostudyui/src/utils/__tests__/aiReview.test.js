@@ -13,14 +13,14 @@ it('schema/提示词:strict 可用;带标记与四类;未挂数据提示;程序�
 	expect(opts.response_format.type).toBe('json_schema');
 	expect(opts.response_format.json_schema.schema.properties.issues.items.required).toEqual(['kind', 'quote', 'reason', 'severity']);
 	const sys = buildReviewSystemPrompt({ snapshotSystem: '【案例】张三 八字…', deterministicIssues: ['日主应为甲木,回答写成乙木', { text: '大运起运岁数不符' }], hasData: true });
-	// [Q-290/PP-19] 挂载数据放最前(与对话请求同前缀吃缓存),审阅标记与规则在其后
+	// 挂载数据放最前(与对话请求同前缀吃缓存),审阅标记与规则在其后
 	expect(sys.indexOf('【案例】张三 八字…')).toBe(0);
 	expect(sys.indexOf(REVIEW_MARKER)).toBeGreaterThan(0);
 	expect(buildReviewSystemPrompt({ snapshotSystem: '', hasData: false }).indexOf(REVIEW_MARKER)).toBe(0);
 	expect(sys).toContain('ungrounded');
 	expect(sys).toContain('1. 日主应为甲木');
 	expect(sys).toContain('2. 大运起运岁数不符');
-	expect(sys.indexOf('【以上为排盘数据与规则')).toBeLessThan(sys.indexOf('【程序核对'));   // [Q-290/PP-19] 挂载数据前置
+	expect(sys.indexOf('【以上为排盘数据与规则')).toBeLessThan(sys.indexOf('【程序核对'));   // 挂载数据前置
 	expect(buildReviewSystemPrompt({ snapshotSystem: '', hasData: false })).toContain('未挂载排盘数据');
 	expect(buildReviewUserPrompt({ question: 'Q', answer: 'A' })).toContain('【待审阅的回答】');
 });
@@ -50,12 +50,14 @@ it('parseReview:围栏/散文;kind 非法回落 ungrounded;severity 夹 1-3;无 
 	expect(reviewSummaryLine({ verdict: 'ok', issues: [], summary: '好' })).toBe('审阅通过:好');
 });
 
-it('共享模块零业务管线 import(事实核对/一致性由调用方注入)', ()=>{
+it('共享模块零业务管线 import(事实核对/一致性由调用方注入):只许引模型档案解析', ()=>{
 	const src = fs.readFileSync(path.resolve(__dirname, '..', 'aiReview.js'), 'utf8');
-	expect(/reportFactCheck|reportConsistency|reportPipeline|ReportPane/.test(src)).toBe(false);
+	const specs = [...src.matchAll(/(?:^|\n)\s*import\b[^'"]*['"]([^'"]+)['"]|\brequire\(\s*['"]([^'"]+)['"]\s*\)|\bimport\(\s*['"]([^'"]+)['"]\s*\)/g)]
+		.map((m)=>m[1] || m[2] || m[3]);
+	expect(specs).toEqual(['./aiAnalysisProviders']);
 });
 
-// ---- [压测二轮·D5·V1] 审阅判官返回「合法 JSON 但值全越界」:钳制 / 丢弃 / 上限,绝不把越界值原样交给重写指令 ----
+// ---- 审阅判官返回「合法 JSON 但值全越界」:钳制 / 丢弃 / 上限,绝不把越界值原样交给重写指令 ----
 it('V1 合法 JSON 越界:severity 9/-1 钳到 1..3、kind 未知回落 ungrounded、issues 50 条封 12、quote 5000 字截断、verdict "maybe" 按 issues 定', ()=>{
 	const wild = {
 		verdict: 'maybe',

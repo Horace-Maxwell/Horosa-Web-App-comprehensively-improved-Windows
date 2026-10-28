@@ -75,7 +75,7 @@ class BabylonEphemeris extends Component{
 			<svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxWidth: 640 }}>
 				<line x1={pad} y1={H - pad / 2} x2={W - pad} y2={H - pad / 2} stroke="rgba(122,94,48,0.35)" strokeWidth="0.8" />
 				{[0, 90, 180, 270, 360].map((d) => (
-					<text key={d} x={x(d)} y={H - 2} fontSize="8.5" fill="rgba(122,94,48,0.7)" textAnchor="middle">{d}°</text>
+					<text key={d} x={x(d)} y={H - 2} fontSize="8.5" fill="var(--horosa-text-secondary)" textAnchor="middle">{d}°</text>
 				))}
 				{segs}
 			</svg>
@@ -244,7 +244,7 @@ class BabylonEphemeris extends Component{
 							) : null}
 							<div className="horosa-babylon-card">
 								<div className="horosa-babylon-card-title">现象序列(自本盘位置推演 {this.state.rows} 步)</div>
-								{/* [Q-299/T-288 ④] 递推口径据实:现代实位档只把「首行锚点」取自现代实位,逐步递推仍按阶梯 A(与 A 档同表);锯齿 B 仅木星有表。 */}
+								{/* 递推口径据实:现代实位档只把「首行锚点」取自现代实位,逐步递推仍按阶梯 A(与 A 档同表);锯齿 B 仅木星有表。 */}
 								<div className="horosa-field-hint" style={{ marginBottom: 6 }}>
 									{src === 'systemB'
 										? (planet === 'jupiter' ? '递推:锯齿函数(System B · 木星表)' : '递推:阶梯函数(System A;锯齿 B 仅木星有表,本星按 A 递推)')

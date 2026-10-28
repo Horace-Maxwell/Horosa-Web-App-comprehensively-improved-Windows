@@ -1,4 +1,4 @@
-// [v44 硬缺修] 六壬 [七政] 段数据源 buildQiZhengItems(纯函数):七政临宫/五行/度/逆/月将,
+// 六壬 [七政] 段数据源 buildQiZhengItems(纯函数):七政临宫/五行/度/逆/月将,
 // 与七政 tab 网格同源。无星历(objects 缺) → 空数组=builder 不产段(零字节变化)。
 import { buildQiZhengItems } from '../LiuRengMain';
 import * as AstroConst from '../../../constants/AstroConst';

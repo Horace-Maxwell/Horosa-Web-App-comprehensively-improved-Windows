@@ -1,4 +1,4 @@
-// [Q-151/T-62…T-67] 辅盘族确证子项金标:AX-15①③④⑤⑥ / AX-16 / AX-17 / AX-19② / AX-20。
+// 辅盘族确证子项金标:AX-15①③④⑤⑥ / AX-16 / AX-17 / AX-19② / AX-20。
 import fs from 'fs';
 import path from 'path';
 import moment from 'moment';
@@ -9,7 +9,7 @@ import { HORARY_PARAM_SPEC } from '../../divination/horary/horarySchools';
 
 const R = (f)=>fs.readFileSync(path.resolve(__dirname, '../../', f), 'utf8');
 
-describe('[Q-151] 辅盘族确证子项', ()=>{
+describe('辅盘族确证子项', ()=>{
 	test('AX-15① B 盘时区:手填 +HH:MM 优先;否则按 B 盘经纬推断(纽约冬令 -05:00 / 夏令 -04:00);无经纬随 A 盘', ()=>{
 		expect(resolveRelZone('-03:00', '40n43 74w00', moment('1992-03-10'), '+08:00')).toBe('-03:00');
 		expect(resolveRelZone('', '40n43 74w00', moment('1992-01-10'), '+08:00')).toBe('-05:00');

@@ -1,4 +1,4 @@
-# [WP-2] 天文口径批双向量锚:每键 ①默认向量=不传键,特征字段与基线全等(零回归自证)
+# 天文口径批双向量锚:每键 ①默认向量=不传键,特征字段与基线全等(零回归自证)
 # ②非默认向量=特征字段随口径真变(死开关防线)。
 import pytest
 from astrostudy.perchart import PerChart
@@ -110,7 +110,7 @@ def test_station_marking_modes():
 
 
 def test_polar_mc_deleted_key_immunity():
-    # polarMcMode 已删档(2026-08-18 拍板:swap 分支实测不可达)。残键免疫:老请求体仍带
+    # polarMcMode 已删档(极区天顶口径改由引擎单源定死,见 test_polar_mc_house_systems.py)。残键免疫:老请求体仍带
     # polarMcMode(任意值)时引擎零读取零效果——极区盘与不带键逐项全等。
     base = PerChart({**POLAR, 'hsys': 3})
     residual = PerChart({**POLAR, 'hsys': 3, 'polarMcMode': 'aboveHorizon'})

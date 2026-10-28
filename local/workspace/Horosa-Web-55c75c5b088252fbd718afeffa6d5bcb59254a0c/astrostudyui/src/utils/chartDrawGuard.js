@@ -1,5 +1,7 @@
 import * as AstroConst from '../constants/AstroConst';
-import { subscribeAppearance } from './appearance';
+import { subscribeAppearance, currentChartThemeKey } from './appearance';
+import { subscribeScriptMode } from './scriptMode';
+import { registerZoomSyncRemeasure, inZoomChangeFrame } from './zoomSyncRemeasure';
 
 // 主题重画订阅(单源):盘面颜色是绘制时从 AstroConst.AstroColor 烘焙进 SVG / canvas 的,切明暗后不重画就停在旧色。
 // 每个「宿主组件」(挂着 svg/canvas、调 draw 的那个)在 componentDidMount 挂一次,componentWillUnmount 调返回的 detach;
@@ -11,6 +13,16 @@ export function watchChartAppearance(redraw){
 		return ()=>{};
 	}
 	return subscribeAppearance(()=>{ try{ redraw(); }catch(e){ /* 重画失败不上抛:下一次真实更新仍会画 */ } });
+}
+
+// 界面简繁切换后重画 canvas 上的字(单源;与主题重画同范式:合帧、去重、卸载后不回调 —— 由 subscribeScriptMode 保证)。
+// SVG / DOM 里的字由显示层自动转换,不必订阅;只有 canvas / WebGL 纹理上已画好的字要宿主重画
+// (风水罗盘 / 天文馆标签 / 3D 标签 / echarts)。合同:src/utils/__tests__/scriptModeCanvasHosts.test.js。
+export function watchChartScript(redraw){
+	if(typeof redraw !== 'function'){
+		return ()=>{};
+	}
+	return subscribeScriptMode(()=>{ try{ redraw(); }catch(e){ /* 重画失败不上抛:下一次真实更新仍会画 */ } });
 }
 
 // 图面重绘签名守卫(复用 AstroChart 的成熟方案,见 AstroChart.buildDrawSignature)。
@@ -27,6 +39,8 @@ export function buildChartDrawSig(chartid, inputs){
 		// 把主题指纹纳入签名 → 主题切换那次重画必不被误判相同而跳过(与 AstroChart 同口径)。
 		__appearance: (typeof document !== 'undefined' && document.documentElement) ? document.documentElement.getAttribute('data-horosa-appearance') : '',
 		__themeFill: (AstroConst.AstroColor && AstroConst.AstroColor.ChartBackgroud) || '',
+		// 浅色配色档(宣纸 / 经典白)只改 CSS 变量:读 CSS 变量烘焙颜色的盘切档后必重画
+		__themeKey: currentChartThemeKey(),
 		__w: svgdom ? svgdom.clientWidth : 0,
 		__h: svgdom ? svgdom.clientHeight : 0,
 	};
@@ -74,6 +88,13 @@ export function watchChartSvgResize(chartid, redraw){
 	let rafHandle = 0;
 	const schedule = (typeof requestAnimationFrame === 'function') ? requestAnimationFrame : (cb)=>setTimeout(cb, 16);
 	const ro = new ResizeObserver(()=>{
+		if(inZoomChangeFrame()){
+			// 换档当帧:就地重画(签名守卫 —— 尺寸没变跳过);重画只改 svg 内容,不改被观察的 svg 盒,不构成回环
+			if(pending && rafHandle && typeof cancelAnimationFrame === 'function'){ cancelAnimationFrame(rafHandle); }
+			pending = false;
+			try{ redraw(); }catch(e){ /* 下一次真实更新仍会画 */ }
+			return;
+		}
 		if(pending){ return; }
 		pending = true;
 		rafHandle = schedule(()=>{
@@ -82,37 +103,10 @@ export function watchChartSvgResize(chartid, redraw){
 		});
 	});
 	try{ ro.observe(svgdom); }catch(e){ return ()=>{}; }
+	// 换档当拍同步重画一次(redraw 自带签名守卫:尺寸没变 = 跳过),换档后第一帧盘面就按新尺寸排
+	const unreg = registerZoomSyncRemeasure(()=>{ if(document.getElementById(chartid) === svgdom){ redraw(); } });
 	return ()=>{
-		try{ ro.disconnect(); }catch(e){ /* noop */ }
-		if(pending && rafHandle && typeof cancelAnimationFrame === 'function'){ cancelAnimationFrame(rafHandle); }
-		pending = false;
-	};
-}
-
-// host(parentElement)版:适用于「draw 会改写 svg 自身尺寸」的盘——观察 svg 自身会自触发循环
-// (六壬 LiuRengChart 实证过的坑),观察宿主容器则尺寸信号只来自布局变化。其余语义同上。
-export function watchChartHostResize(chartid, redraw){
-	if(typeof ResizeObserver === 'undefined' || typeof document === 'undefined' || !chartid || typeof redraw !== 'function'){
-		return ()=>{};
-	}
-	const svgdom = document.getElementById(chartid);
-	const host = svgdom ? svgdom.parentElement : null;
-	if(!host){
-		return ()=>{};
-	}
-	let pending = false;
-	let rafHandle = 0;
-	const schedule = (typeof requestAnimationFrame === 'function') ? requestAnimationFrame : (cb)=>setTimeout(cb, 16);
-	const ro = new ResizeObserver(()=>{
-		if(pending){ return; }
-		pending = true;
-		rafHandle = schedule(()=>{
-			pending = false;
-			try{ redraw(); }catch(e){ /* 重画失败不上抛:下一次真实更新仍会画 */ }
-		});
-	});
-	try{ ro.observe(host); }catch(e){ return ()=>{}; }
-	return ()=>{
+		unreg();
 		try{ ro.disconnect(); }catch(e){ /* noop */ }
 		if(pending && rafHandle && typeof cancelAnimationFrame === 'function'){ cancelAnimationFrame(rafHandle); }
 		pending = false;

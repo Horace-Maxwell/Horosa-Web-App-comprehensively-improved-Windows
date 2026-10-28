@@ -115,7 +115,7 @@ describe('AstroDirectMain primary direction sync', ()=>{
 			},
 		});
 		expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
-			type: 'astro/save',
+			type: 'astro/saveUserFields',   // 用户改推运设置:经「用户已动手」写入口
 			payload: expect.objectContaining({
 				fields: expect.any(Object),
 			}),

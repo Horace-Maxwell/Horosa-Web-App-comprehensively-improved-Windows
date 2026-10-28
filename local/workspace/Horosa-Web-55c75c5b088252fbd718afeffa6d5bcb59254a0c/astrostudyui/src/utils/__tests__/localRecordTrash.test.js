@@ -1,4 +1,4 @@
-// [R3] 回收站行为锁:删除进栈/先恢复后出栈(quota 零丢失)/30 天惰性清理/上限 FIFO/
+// 回收站行为锁:删除进栈/先恢复后出栈(quota 零丢失)/30 天惰性清理/上限 FIFO/
 // trash 写失败不阻断删除主流程/主列表读端零波及。
 import {
 	upsertLocalChart, listLocalCharts, removeLocalChart,
@@ -13,7 +13,7 @@ function seedChart(cid, name, updateTime){
 	upsertLocalChart({ cid, name, birth: '1990-01-01 08:00:00', zone: '+08:00', updateTime, preserveUpdateTime: true });
 }
 
-describe('[R3] 回收站', ()=>{
+describe('回收站', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 		jest.restoreAllMocks();
@@ -83,7 +83,7 @@ describe('[R3] 回收站', ()=>{
 		expect(listLocalChartsTrash().map((r)=>r.cid)).toEqual(['local-fresh']);
 	});
 
-	it('trash 写失败绝不阻断删除主流程(注错打在 trash 键)', ()=>{
+	it('回收站写不进时删除照样生效,这条直接记进删除日志(删除永不抛;不再整次拒删)', ()=>{
 		seedChart('local-t-1', '回收甲', '2026-08-01 10:00:00');
 		const real = Storage.prototype.setItem;
 		jest.spyOn(Storage.prototype, 'setItem').mockImplementation(function(key, val){
@@ -92,8 +92,12 @@ describe('[R3] 回收站', ()=>{
 			}
 			return real.call(this, key, val);
 		});
-		expect(()=>removeLocalChart('local-t-1')).not.toThrow();
-		expect(listLocalCharts().length).toBe(0);   // 删除本体照常生效
+		let r = null;
+		expect(()=>{ r = removeLocalChart('local-t-1'); }).not.toThrow();
+		expect(r).toMatchObject({ persisted: true, trashFailure: 'storage-error', keptIn: 'log' });
+		expect(listLocalCharts().length).toBe(0);   // 主库已删
+		const log = JSON.parse(window.localStorage.getItem('horosa.deleted.log.v1') || '[]');
+		expect(log.map((e)=>e.record && e.record.cid)).toEqual(['local-t-1']);   // 仍可从删除日志找回
 	});
 
 	it('事盘侧同款接线(内核一份实现)', ()=>{

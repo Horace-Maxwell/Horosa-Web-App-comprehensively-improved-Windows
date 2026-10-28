@@ -41,6 +41,8 @@ import { hsysDisplayName } from './guolaoData';
 import { cornerTextBlock, riseSetLines } from './GuoLaoWheelCaptions';
 import './GuoLaoMoiraWheel.less';
 import { getEffectiveScale, visualFloorPx, fixedPopupFrame } from '../../utils/zoomDomain';
+import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
+import { perCharTextProps } from '../../utils/scriptMode';
 
 // 二十八宿环占 r(4)~r(6)（两个边界圆，宽 0.09R≈Moira 0.10R）：内带刻度+宿名+外带刻度三段由 renderStellarTicks/Ring
 // 用计算半径(20%/60%/20%)切分，故 r(5)=0.57 现仅作几何参考、不再单独绘环（照抄 Moira r4~r7 宿区结构）。
@@ -124,7 +126,8 @@ function inwardRingText(text, radius, theta, opt = {}){
 // 多字沿圆弧分开排布(各字正立):字距按半径换算成弧角;
 // 正立字的视觉左右随上下半圆翻转(下半圆 theta 大=左),保证顺读方向恒从左到右。
 function arcUprightText(text, radius, centerTheta, opt = {}){
-	const chars = String(text || '').split('');
+	const word = String(text || '');
+	const chars = Array.from(word);
 	const n = chars.length;
 	if(!n){ return null; }
 	const size = opt.size || 19;
@@ -134,7 +137,7 @@ function arcUprightText(text, radius, centerTheta, opt = {}){
 		const t = centerTheta + dir * (k - (n - 1) / 2) * stepDeg;
 		const p = point(radius, t);
 		return (
-			<text key={`auc-${k}`} x={p.x} y={p.y} fill={opt.color || BLACK} fontSize={size} fontWeight={opt.weight || 400} textAnchor="middle" dominantBaseline="central">{ch}</text>
+			<text key={`auc-${k}`} {...perCharTextProps(word, k, ch)} x={p.x} y={p.y} fill={opt.color || BLACK} fontSize={size} fontWeight={opt.weight || 400} textAnchor="middle" dominantBaseline="central">{ch}</text>
 		);
 	});
 }
@@ -219,7 +222,7 @@ class GuoLaoMoiraPickWheel extends Component{
 	componentDidMount(){
 		this.measureContainer();
 		if(typeof ResizeObserver !== 'undefined' && this.containerRef.current){
-			this.resizeObserver = new ResizeObserver(this.measureContainer);
+			this.resizeObserver = createDeferredResizeObserver(this.measureContainer);
 			this.resizeObserver.observe(this.containerRef.current);
 		}
 		if(typeof window !== 'undefined'){
@@ -248,7 +251,7 @@ class GuoLaoMoiraPickWheel extends Component{
 		if(!node){
 			return;
 		}
-		// [Tahoe 域混根修·2026-09-17 用户 APP 实报「放大后盘面不随之缩小、被下端遮挡」] 量容器只用布局域读数(clientWidth/clientHeight);rect 域在标准化 zoom 引擎下已×z,当布局 px 用=盘面大 z 倍被裁(旧引擎 rect=布局值故不显)。
+		// 量容器只用布局域读数(clientWidth/clientHeight);rect 域在标准化 zoom 引擎下已×z,当布局 px 用=盘面大 z 倍被裁(旧引擎 rect=布局值故不显)。
 		// clientWidth 为 0 的罕见兜底才用 rect,且经 getEffectiveScale()(实测探针)除回布局域。
 		const zScale = getEffectiveScale() || 1;
 		const rect = node.getBoundingClientRect();

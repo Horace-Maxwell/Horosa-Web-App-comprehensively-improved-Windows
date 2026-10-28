@@ -6,6 +6,7 @@
 // 老设备装新版第一次启动即自动痊愈。IndexedDB 不可用时自动降级纯内存,缓存 miss=多算一次。
 import { idbScheduleWrite, idbGetAllByPrefix } from './idbCacheStore';
 import { safeLocalStorageRemove } from './safeStorage';
+import { registerProcessCache } from './processCacheRegistry';
 const LOCAL_CALC_PREFIX = 'horosa.localcalc.';
 const NONG_LI_NS = 'horosa.localcalc.nongli.v1';
 const JIE_QI_NS = 'horosa.localcalc.jieqi.v2';
@@ -24,6 +25,9 @@ let jieqiYearMem = {};
 let birthGanzhiMem = {};
 let liurengRunyearMem = {};
 let loaded = false;
+registerProcessCache('localCalc.memory', ()=>{
+	[nongliMem, jieqiMem, jieqiYearMem, birthGanzhiMem, liurengRunyearMem].forEach((m)=>{ Object.keys(m).forEach((k)=>{ delete m[k]; }); });
+});
 
 function canUseLocalStorage(){
 	return typeof window !== 'undefined' && window.localStorage;

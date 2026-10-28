@@ -4,7 +4,7 @@
 // kentangCaseSave 同款；区别在于卜卦/择日的「时间·地点」本身就是核心征象，故 record 完整存
 // divTime/zone/经纬，payload 再存技法设置（黄道/宫制/守护）与问题类别(horary)/用事类型(election)。
 import { getStore } from './storageutil';
-import { caseFieldSnapshot, caseGenderValue, caseApplySeqSuffix } from './kentangCaseSave';
+import { caseFieldSnapshot, caseGenderValue, caseRestoreKey } from './kentangCaseSave';
 
 function fv(fields, key, fallback = ''){
 	if(!fields || !fields[key]){
@@ -27,7 +27,7 @@ function caseDateTime(fields){
 }
 
 // 存为事件盘。module: 'horary' | 'election'；extra 取自 Shell 的 state.extra（questionCategory / topicId）。
-// [SURF-R0] 事盘技法设置键·单源常量:保存(本文件)/页面还原(DivinationChartShell)/AI 挂载
+// 事盘技法设置键·单源常量:保存(本文件)/页面还原(DivinationChartShell)/AI 挂载
 // (aiAnalysisContext DIVINATION_SETTINGS_KEYS)三方必须逐键同集——此前靠注释「lockstep」维持,
 // 实际还原侧漏 27 键(SURF 22 键+siderealAyanamsa+表体 4 键)=事盘重开回本机全局值、与挂载
 // 文本口径矛盾;自定义界表事盘换机静默变埃及界。三方自此 import 同一数组,合同机械看守。
@@ -36,7 +36,7 @@ export const DIVINATION_CASE_SETTING_KEYS = [
 	'lotsDocReverse', 'nodeExaltation',
 	'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter', 'fixedStarOrb', 'fixedStarOrbMode', 'antisciaOrb',
 	'viaCombustaVariant',
-	// [WP-2] 天文口径批
+	// 天文口径批
 	'combustOwnChariotExempt', 'westLilithType', 'topocentricMoon', 'stationMarking',
 	'hermeticLotsReversal', 'erosConstruction', 'lotFortuneVariant', 'lotFatherCombustAlt', 'lotProjection',
 	'dignityDebilities', 'almutenTripMode', 'planetaryHourMethod',
@@ -44,7 +44,7 @@ export const DIVINATION_CASE_SETTING_KEYS = [
 	'aspectIncludeCusps', 'aspectIncludeLots', 'aspectIncludeMidpoints',
 	'solarReturnVariant', 'returnLatitudeMode',
 	'vulcanCalc',
-	// [F14] 自定义界表随案表体(termsVariant=4;present 才落档)
+	// 自定义界表随案表体(termsVariant=4;present 才落档)
 	'customTermsDay', 'customTermsNight', 'userAyanT0', 'userAyanDeg'];
 
 export function openDivinationCaseDrawer({ dispatch, fields, module, label, extra, aiSnapshot }){
@@ -136,14 +136,15 @@ export function getDivinationSavedCasePayload(module){
 	if(sourceModule !== module && caseType !== module && payloadModule !== module){
 		return null;
 	}
-	const cid = `${cc.cid.value}`;
-	const updateTime = getV('updateTime') ? `${getV('updateTime')}` : '';
-	// caseVersion 必带载入代次后缀(单一真值源 caseApplySeqSuffix,理由见其头注):
-	// DivinationChartShell 的 _appliedCaseVersion 只在构造函数初始化、从不重置,宿主 Tabs 常驻挂载;
-	// 不带代次时同一条事盘第二次载入必被守卫拦掉 —— 四技法(卜卦/择日/世俗/天星)曾因此漏网退化。
+	// 去重键单一真值源(caseRestoreKey,只认显式载入;理由见其头注):DivinationChartShell 的 _appliedCaseVersion
+	// 只在构造函数初始化、宿主 Tabs 常驻挂载 —— 同一条事盘再载入一次必须换键;编辑 / 存为事盘不算载入、不还原。
+	const caseVersion = caseRestoreKey(module, userState);
+	if(!caseVersion){
+		return null;
+	}
 	return {
 		payload,
-		caseVersion: `${module}|${cid}|${updateTime}${caseApplySeqSuffix(userState)}`,
+		caseVersion,
 		divTime: getV('divTime') || '',
 		zone: getV('zone') || '',
 		lat: getV('lat') || '',

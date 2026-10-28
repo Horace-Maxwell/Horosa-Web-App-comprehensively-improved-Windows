@@ -73,8 +73,8 @@ describe('六爻神煞·WP-F(表H)', () => {
 	});
 });
 
-// ══ [G1] 贵人歌诀两档(delta 变体,基表零动) ═══
-describe('[G1] guirenOf 贵人歌诀档', ()=>{
+// ══ 贵人歌诀两档(delta 变体,基表零动) ═══
+describe('guirenOf 贵人歌诀档', ()=>{
 	const { guirenOf, computeShenSha } = require('../../gua/liuyaoShenSha');
 	test('🔴 两档落支:庚 丑未↔寅午;辛两档同=寅午;其余八干恒同;未知档回落基表', ()=>{
 		expect(guirenOf('庚', 'standard')).toBe('丑未');

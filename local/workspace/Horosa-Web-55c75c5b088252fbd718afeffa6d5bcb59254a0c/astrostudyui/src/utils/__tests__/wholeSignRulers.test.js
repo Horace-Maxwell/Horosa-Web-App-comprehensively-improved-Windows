@@ -210,3 +210,25 @@ describe('边界:上升回退链 / 缺宫主对象 / 无上升空表 / 基础函
 		expect(JSON.stringify(co)).toBe(before);
 	});
 });
+
+describe('组合盘改按组合上升起整宫(houses[].hsysDerived = compositeWholeFromAsc)', ()=>{
+	const mkComposite = (marked)=>{
+		const co = JSON.parse(JSON.stringify(BASE));
+		co.params = { ...(co.params || {}), hsys: 0 };
+		co.chart.houses = (co.chart.houses || []).map((h)=>({ ...h, ...(marked ? { hsysDerived: 'compositeWholeFromAsc' } : {}) }));
+		return co;
+	};
+	test('🔴 标注写「整宫(组合上升)」,宫主表按整宫折叠 —— 左栏仍是福点整宫制 / Placidus 也一样;没标记照旧', ()=>{
+		const { derivedWholeSignLabelOf, COMPOSITE_WHOLE_SIGN_LABEL } = require('../wholeSignRulers');
+		const co = mkComposite(true);
+		[24, 3].forEach((hsys)=>{
+			const hs = resolveHouseSystem(co, { hsys: { value: hsys } });
+			expect(hs.label).toBe(COMPOSITE_WHOLE_SIGN_LABEL);
+			expect(hs.isAscWholeSign).toBe(true);
+		});
+		expect(derivedWholeSignLabelOf(co.chart)).toBe('整宫(组合上升)');
+		const plain = resolveHouseSystem(mkComposite(false), { hsys: { value: 3 } });
+		expect(plain.isAscWholeSign).toBe(false);
+		expect(plain.label).not.toBe(COMPOSITE_WHOLE_SIGN_LABEL);
+	});
+});

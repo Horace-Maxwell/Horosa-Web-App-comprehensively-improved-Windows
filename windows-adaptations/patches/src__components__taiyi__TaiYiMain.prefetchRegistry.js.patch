@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/taiyi/TaiYiMain.js b/astrostudyui/src/components/taiyi/TaiYiMain.js
-index b3a64ee1..00170b5a 100644
+index 681823b0..6cf9586d 100644
 --- a/astrostudyui/src/components/taiyi/TaiYiMain.js
 +++ b/astrostudyui/src/components/taiyi/TaiYiMain.js
-@@ -10,6 +10,8 @@ import DateTime from '../comp/DateTime';
+@@ -12,6 +12,8 @@ import DateTime from '../comp/DateTime';
  import QuickDockBar from '../common/QuickDockBar';
  import SpaceTimePanel from '../comp/SpaceTimePanel';
- import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
+ import { sideSectionIcon } from '../../constants/sideSectionIcons';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
  import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
  import { geoNameFieldPatch } from '../../utils/geoName';
  import { resolveGeoZone } from '../../utils/timezone';
-@@ -630,6 +632,9 @@ class TaiYiMain extends Component {
+@@ -661,6 +663,9 @@ class TaiYiMain extends Component {
  		const ov = pan ? applyTaiyiSchool(pan, nextOptions.school) : { pan, overrides: null };
  		const displayPan = ov.pan || pan;
  		this.setState({ pan: displayPan, schoolOverrides: ov.overrides, selectedPalace: null, loading: false }, () => {
@@ -19,9 +19,9 @@ index b3a64ee1..00170b5a 100644
 +			// 故本次 setState 落定 = 中栏+右栏画完。双 rAF 由 markPanelReady 内部完成。
 +			markPanelReady('taiyi');
  			if (displayPan) {
- 				// [Z3·太乙择日] 加性 scope 化(奇门/黄历/八字同律):择日页内嵌实例走独立快照槽+composer。
+ 				// 加性 scope 化(奇门/黄历/八字同律):择日页内嵌实例走独立快照槽+composer。
  				saveModuleAISnapshotLazy(this.props.techniqueScope || 'taiyi', ()=>{
-@@ -1260,42 +1265,57 @@ class TaiYiMain extends Component {
+@@ -1313,42 +1318,57 @@ class TaiYiMain extends Component {
  			tabKeys.push('life');
  		}
  		const activeKey = tabKeys.indexOf(this.state.rightPanelTab) >= 0 ? this.state.rightPanelTab : 'overview';

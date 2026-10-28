@@ -2,11 +2,13 @@ import React, { Component } from 'react';
 import { Row, Col } from 'antd';
 import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select } from '../xq-ui';
 
-// [窄布局 2026-09-17] 年月日四列各需 ≈67px("2026"+内衬+箭头),小于 270px 的行折成两列;zoom=1 的 276px 侧栏仍四列、零改动。
+// 年月日四列各需 ≈67px("2026"+内衬+箭头),小于 270px 的行折成两列;zoom=1 的 276px 侧栏仍四列、零改动。
 const NARROW_ROW_WIDTH = 270;
 
 import DateTime from './DateTime';
 import { fireStepSelectPrefetch } from '../../utils/stepPrefetch';
+import { matchesUserQuery } from '../../utils/scriptMode';
+import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
 
 const Option = Select.Option;
 
@@ -21,7 +23,7 @@ class DateTimeSelector extends Component{
 			tmType = 'M';
 		}
 
-		// [窄布局 2026-09-17] narrow:根行实宽 < NARROW_ROW_WIDTH 时年月日/时分秒各折成两列。antd 的 lg/xl 断点看的是物理视口,
+		// narrow:根行实宽 < NARROW_ROW_WIDTH 时年月日/时分秒各折成两列。antd 的 lg/xl 断点看的是物理视口,
 		// 壳放大后布局宽早已不够(1.8 档 245px 侧栏仍按 xl 四列排 → 每格 61px 放不下 "2026");按容器实宽判定,任何引擎同义。
 		this.rootRef = React.createRef();
 		this._narrowRO = null;
@@ -73,23 +75,41 @@ class DateTimeSelector extends Component{
 		this.normalizeValue = this.normalizeValue.bind(this);
 		this.isSameDateTime = this.isSameDateTime.bind(this);
 
+		// 本实例发出去、父级还没追上的时刻(连点步进时父级追赶中的中间值要认得,不当外部改动)
+		this.emitted = [];
 		if(this.props.hook){
-			this.props.hook.getValue = ()=>{
-				const res = this.getCurrentValue();
-				// Keep local edit value until parent props catches up.
-				this.changing = true;
-				return res;
-			};
+			// 取值无副作用:此前读一次就置 changing,之后外部值(弹层里改、双击键入、「此刻」、载入)再也同步不进来,
+			// 本控件永久停在旧时刻,「起盘」/ 预取读到旧值又把时间改回去。
+			this.props.hook.getValue = ()=>this.getCurrentValue();
 		}
 	}
 
-	componentDidUpdate(){
+	keyOf(dt){
+		return dt ? `${dt.ad}|${dt.year}|${dt.month}|${dt.date}|${dt.hour}|${dt.minute}|${dt.second}|${dt.zone}` : '';
+	}
+
+	noteEmitted(){
+		this.emitted.push(this.keyOf(this.datetime));
+		if(this.emitted.length > 32){ this.emitted.shift(); }
+	}
+
+	componentDidUpdate(prevProps){
 		if(!this.changing){
 			return;
 		}
 		const curVal = this.normalizeValue(this.props.value);
 		if(curVal && this.isSameDateTime(curVal, this.datetime)){
 			this.changing = false;
+			this.emitted = [];
+			return;
+		}
+		// 外部值按数值变了、且不是本实例刚发出去的某一步 → 外部改动,以外部为准重新同步
+		const prevVal = this.normalizeValue(prevProps && prevProps.value);
+		if(curVal && (!prevVal || !this.isSameDateTime(curVal, prevVal)) && this.emitted.indexOf(this.keyOf(curVal)) < 0){
+			this.changing = false;
+			this.emitted = [];
+			this.datetime = curVal;
+			this.setState({ tik: this.state.tik + 1 });
 		}
 	}
 
@@ -149,11 +169,12 @@ class DateTimeSelector extends Component{
 			...this.getCurrentValue(),
 			confirmed: true,
 		};
+		// Keep local edit value until parent props catches up.(先记再发:父级同步更新时 componentDidUpdate 已认得这一步)
+		this.changing = true;
+		this.noteEmitted();
 		if(this.props.onChange){
 			this.props.onChange(res);
 		}
-		// Keep local edit value until parent props catches up.
-		this.changing = true;
 	}
 
 	onDirectChanged(val){
@@ -178,6 +199,7 @@ class DateTimeSelector extends Component{
 					this.datetime = val.value;
 				}
 				this.changing = true;
+				this.noteEmitted();
 				// Keep parent fields synced with selector values to avoid stale time usage.
 				if(this.props.onChange){
 					this.props.onChange({
@@ -196,18 +218,27 @@ class DateTimeSelector extends Component{
 	}
 
 	clickNow(){
-		// [TL-11] 按当前面板时区取此刻(此前 new DateTime() = 系统本地钟面 + 写死 +08:00 → 非东八区系统上「此刻」错 N 小时);
+		// 按当前面板时区取此刻(此前 new DateTime() = 系统本地钟面 + 写死 +08:00 → 非东八区系统上「此刻」错 N 小时);
 		// 面板时区缺省 +08:00 时与旧行为逐字节相同
 		const zone = this.datetime && typeof this.datetime.zone === 'string' && this.datetime.zone ? this.datetime.zone : '+08:00';
 		let dt = DateTime.nowInZone(zone);
 		this.onChanged(dt, { unit: this.state.timeType, dir: 0 });
 	}
 
+	// 只显示日期时步长只在 年 / 月 / 天 里取(与步长下拉同口径);其余照旧
+	effectiveTimeType(){
+		const t = this.state.timeType;
+		if(this.props.showTime === false && !this.props.onlyYear && !this.props.yearMonth && ['y', 'M', 'd'].indexOf(t) < 0){
+			return 'd';
+		}
+		return t;
+	}
+
 	changeTimeType(val){
 		this.setState({
 			timeType: val
 		});
-		// [R3-A1] 选定步长那一刻即预取前后各 2 步(opt-in 宿主:主盘/步进面 PlusMinusTime/PD;
+		// 选定步长那一刻即预取前后各 2 步(opt-in 宿主:主盘/步进面 PlusMinusTime/PD;
 		// 日历/表单抽屉等无关上下文不挂此 prop=零行为)。第一下点 ± 也不冷。
 		// 函数形态=宿主【本地】预取器 —— 自持 fields 的盘面(卜卦/择日/世俗 DivinationChartShell 等)
 		// 必须用自己的构参+请求路径保键逐字节等,全局 handler(store fields+fieldsToParams)对它们是错键空烧;
@@ -220,7 +251,7 @@ class DateTimeSelector extends Component{
 	}
 
 	clickMinus(){
-		let ctype = this.state.timeType;
+		let ctype = this.effectiveTimeType();
 		let dt = this.datetime.clone();
 		if(ctype === 'y'){
 			dt.addYear(-1);
@@ -244,7 +275,7 @@ class DateTimeSelector extends Component{
 	}
 
 	clickPlus(){
-		let ctype = this.state.timeType;
+		let ctype = this.effectiveTimeType();
 		let dt = this.datetime.clone();
 		if(ctype === 'y'){
 			dt.addYear(1);
@@ -355,9 +386,7 @@ class DateTimeSelector extends Component{
 
 	filterOption(input, option){
 		if(option.props.children){
-			let val = option.props.children + '';
-			let idx = val.toLowerCase().indexOf(input.toLowerCase());
-			return idx >= 0;
+			return matchesUserQuery(option.props.children + '', input);
 		}
 		return false;
 	}
@@ -575,7 +604,7 @@ class DateTimeSelector extends Component{
 		const el = this.rootRef ? this.rootRef.current : null;
 		if(el && typeof ResizeObserver !== 'undefined'){
 			try{
-				this._narrowRO = new ResizeObserver(this.syncNarrow);
+				this._narrowRO = createDeferredResizeObserver(this.syncNarrow);
 				this._narrowRO.observe(el);
 			}catch(e){ this._narrowRO = null; }
 		}
@@ -648,7 +677,7 @@ class DateTimeSelector extends Component{
 		if(this.props.showTime === false || this.props.onlyYear || this.props.yearMonth){
 			return null;
 		}
-		// [Q-583/T-545] showZone / showSeconds(缺省 true=现状):宿主的请求只到分、时区随本命时(波斯向运「推运时间」行),
+		// showZone / showSeconds(缺省 true=现状):宿主的请求只到分、时区随本命时(波斯向运「推运时间」行),
 		// 这两列拨了零后果且显示值回弹 → 由宿主显式关掉;列宽按实际列数均分。
 		const showZone = this.props.showZone !== false;
 		const showSeconds = this.props.showSeconds !== false;
@@ -704,6 +733,19 @@ class DateTimeSelector extends Component{
 				<Option value='m'>四分钟</Option>
 			</Select>
 		);
+		if(this.props.showTime === false && !this.props.onlyYear && !this.props.yearMonth){
+			// 只显示日期(如通书择日):步进只给 年 / 月 / 天 —— 小时 / 四分钟改的是看不见的时刻,对日期无用
+			dom = (
+				<Select style={{width: '100%'}}
+					value={['y', 'M', 'd'].indexOf(this.state.timeType) >= 0 ? this.state.timeType : 'd'}
+					size='small'
+					onChange={this.changeTimeType}>
+					<Option value='y'>年</Option>
+					<Option value='M'>月</Option>
+					<Option value='d'>天</Option>
+				</Select>
+			);
+		}
 		if(this.props.onlyYear){
 			dom = (
 				<Select style={{width: '100%'}}
@@ -729,7 +771,7 @@ class DateTimeSelector extends Component{
 	}
 
 	genAdjustDom(){
-		// [窄布局 2026-09-17] 行宽 <270 时 ⊖/选择/⊕ 一行、此刻/确定 折第二行(span 总和 >24 antd 自动换行),选择框才放得下「四分钟」。
+		// 行宽 <270 时 ⊖/选择/⊕ 一行、此刻/确定 折第二行(span 总和 >24 antd 自动换行),选择框才放得下「四分钟」。
 		const narrow = !!(this.state && this.state.narrow);
 		let timetypedom = this.genTimeTypeDom();
 		let row = (

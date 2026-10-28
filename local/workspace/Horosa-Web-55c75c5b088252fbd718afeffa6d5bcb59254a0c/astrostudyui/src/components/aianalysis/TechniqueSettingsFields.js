@@ -6,23 +6,34 @@
 // props:
 //   schemaKey  — 技法 key(getTechniqueSettingsSchema 取 schema)
 //   draft      — 当前 options 草稿对象({字段名: 值})
+//   record     — (可选)挂载的这张盘(字段 disabledFor 据此判「对这张盘不生效」置灰)
+//   baseline   — (可选)该盘现状;留空 = 随存档的父档取空时,子项按存档里父档的实值判显隐(isMountFieldVisible 同参)
 //   onChange(name, value) — 字段更新回调(由父组件维护 draft)
 import { Switch, Select, Input, InputNumber } from 'antd';
 import moment from 'moment';
 import { XQDatePicker } from '../xq-ui';
-import { getTechniqueSettingsSchema, isMountFieldVisible } from '../../utils/techniqueMountSettings';
+import { getTechniqueSettingsSchema, isMountFieldVisible, mountFieldOptions, fieldCurrentDefault } from '../../utils/techniqueMountSettings';
 import styles from './TechniqueSettingsFields.less';
+import { scriptFilterBy } from '../../utils/scriptMode';
 
-function renderField(field, draft, onChange){
+// 字段可声明 disabledFor({ draft, record, baseline }):对这张盘不生效时置灰(如南半球读法遇北纬出生),标签与 disabledHint 照样显示
+function fieldDisabled(field, draft, ctx){
+	if(typeof field.disabledFor !== 'function'){ return false; }
+	try{ return !!field.disabledFor({ draft: draft || {}, record: ctx && ctx.record, baseline: ctx && ctx.baseline }); }catch(_e){ return false; }
+}
+
+function renderField(field, draft, onChange, ctx){
 	const value = Object.prototype.hasOwnProperty.call(draft || {}, field.name)
 		? draft[field.name]
-		: field.default;
+		: fieldCurrentDefault(field);   // 草稿缺键 = 当前实际生效的缺省(全局现值优先),不是 schema 出厂值
+	const disabled = fieldDisabled(field, draft, ctx);
 	if(field.type === 'switch'){
 		return (
-			<div className={styles.techSettingRow} key={field.name}>
-				<span className={styles.techSettingLabel}>{field.label}</span>
+			<div className={styles.techSettingRow} key={field.name} title={disabled && field.disabledHint ? field.disabledHint : undefined} data-mount-field-disabled={disabled ? '1' : undefined}>
+				<span className={styles.techSettingLabel} title={field.title || undefined}>{field.label}</span>
 				<Switch
 					size="small"
+					disabled={disabled}
 					checked={`${value}` === '1' || value === true}
 					onChange={(checked)=>onChange(field.name, checked ? 1 : 0)}
 				/>
@@ -30,21 +41,25 @@ function renderField(field, draft, onChange){
 		);
 	}
 	if(field.type === 'select'){
-		// [Q-022/M-29] 显示值经 schema normalize(存档布尔 false/true → 0/1 下拉才有匹配档);无 normalize 原样
+		// 显示值经 schema normalize(存档布尔 false/true → 0/1 下拉才有匹配档);无 normalize 原样
 		let shown = value;
 		if(typeof field.normalize === 'function' && value !== undefined && value !== null){
 			try{ shown = field.normalize(value); }catch(_e){ shown = value; }
 		}
+		// 回显值随另一项(如奇门起局法:非时家把节气四法显示为「本家默认」,与页面同)
+		if(typeof field.displayValue === 'function'){
+			try{ shown = field.displayValue(shown, draft || {}); }catch(_e){ /* 按原值 */ }
+		}
 		return (
 			<div className={styles.techSettingRow} key={field.name}>
-				<span className={styles.techSettingLabel}>{field.label}</span>
+				<span className={styles.techSettingLabel} title={field.title || undefined}>{field.label}</span>
 				<Select
 					size="small"
 					value={shown}
 					style={{ minWidth: 180 }}
 					onChange={(val)=>onChange(field.name, val)}
 				>
-					{(field.options || []).map((opt)=>(
+					{mountFieldOptions(field, draft || {}, value).map((opt)=>(
 						<Select.Option key={`${opt.value}`} value={opt.value}>{opt.label}</Select.Option>
 					))}
 				</Select>
@@ -59,8 +74,8 @@ function renderField(field, draft, onChange){
 		}
 		return (
 			<div className={styles.techSettingRow} key={field.name}>
-				<span className={styles.techSettingLabel}>{field.label}</span>
-				<Select
+				<span className={styles.techSettingLabel} title={field.title || undefined}>{field.label}</span>
+				<Select filterOption={scriptFilterBy()}
 					mode="multiple"
 					size="small"
 					value={arrVal}
@@ -100,18 +115,18 @@ function renderField(field, draft, onChange){
 		}
 		return (
 			<div className={styles.techSettingRow} key={field.name}>
-				<span className={styles.techSettingLabel}>{field.label}</span>
+				<span className={styles.techSettingLabel} title={field.title || undefined}>{field.label}</span>
 				<XQDatePicker {...pickerProps} />
 			</div>
 		);
 	}
-	// [Q-019/M-20] number:受控 Input + Number(text) 会吃掉小数点中间态(1.5→15、0.9856→9856)且 min/max/step 不守;
+	// number:受控 Input + Number(text) 会吃掉小数点中间态(1.5→15、0.9856→9856)且 min/max/step 不守;
 	// 改 InputNumber(字符串中间态由控件自持),按 schema min/max/step 夹取;清空=回 schema 默认。
 	if(field.type === 'number'){
 		const num = (value === undefined || value === null || value === '') ? null : Number(value);
 		return (
 			<div className={styles.techSettingRow} key={field.name}>
-				<span className={styles.techSettingLabel}>{field.label}</span>
+				<span className={styles.techSettingLabel} title={field.title || undefined}>{field.label}</span>
 				<InputNumber
 					size="small"
 					value={Number.isFinite(num) ? num : null}
@@ -127,7 +142,7 @@ function renderField(field, draft, onChange){
 	// 兜底:text
 	return (
 		<div className={styles.techSettingRow} key={field.name}>
-			<span className={styles.techSettingLabel}>{field.label}</span>
+			<span className={styles.techSettingLabel} title={field.title || undefined}>{field.label}</span>
 			<Input
 				size="small"
 				value={textFieldDisplayValue(value)}
@@ -138,7 +153,7 @@ function renderField(field, draft, onChange){
 	);
 }
 
-// [Q-020/M-26] text 字段的值可能是 normalize 产出的对象数组(紫微 taiSuiRelatives:[{branch,role,sex}],会话覆盖/同类默认都存归一后的值):
+// text 字段的值可能是 normalize 产出的对象数组(紫微 taiSuiRelatives:[{branch,role,sex}],会话覆盖/同类默认都存归一后的值):
 // 此前 `${value}` 渲染成 [object Object],再编辑就把「[object」「Object]」当成支切碎原关系人 → 按 branch:role:sex 反序列化显示。
 export function textFieldDisplayValue(value){
 	if(value === undefined || value === null){ return ''; }
@@ -151,7 +166,7 @@ export function textFieldDisplayValue(value){
 	return `${value}`;
 }
 
-export default function TechniqueSettingsFields({ schemaKey, draft, onChange }){
+export default function TechniqueSettingsFields({ schemaKey, draft, baseline, record, onChange }){
 	const schema = schemaKey ? getTechniqueSettingsSchema(schemaKey) : null;
 	if(!schema || !Array.isArray(schema.fields) || !schema.fields.length){
 		return null;
@@ -160,8 +175,8 @@ export default function TechniqueSettingsFields({ schemaKey, draft, onChange }){
 	const groups = [];
 	const groupMap = {};
 	schema.fields.forEach((field)=>{
-		// showWhen(函数)/对象式 when 单源 isMountFieldVisible([Q-022/M-30] 与 pruneOptionsToNonDefault 同判:隐藏字段不计数不下发)。
-		if(!isMountFieldVisible(field, draft || {}, schema)){ return; }
+		// showWhen(函数)/对象式 when 单源 isMountFieldVisible(与 pruneOptionsToNonDefault 同判:隐藏字段不计数不下发)。
+		if(!isMountFieldVisible(field, draft || {}, schema, baseline)){ return; }
 		const g = field.group || '设置';
 		if(!groupMap[g]){ groupMap[g] = []; groups.push(g); }
 		groupMap[g].push(field);
@@ -172,7 +187,7 @@ export default function TechniqueSettingsFields({ schemaKey, draft, onChange }){
 			{groups.map((g)=>(
 				<div className={styles.techSettingGroup} key={g}>
 					<div className={styles.techSettingGroupTitle}>{g}</div>
-					{groupMap[g].map((field)=>renderField(field, draft, onChange))}
+					{groupMap[g].map((field)=>renderField(field, draft, onChange, { record, baseline }))}
 				</div>
 			))}
 		</div>

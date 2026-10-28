@@ -31,6 +31,8 @@ export default class ChartAddFormComp extends Component{
 				if(this.props.fields.payload){ params.payload = this.props.fields.payload.value; }
 				if(this.props.fields.sourceModule){ params.sourceModule = this.props.fields.sourceModule.value; }
 				if(this.props.fields.chartType){ params.chartType = this.props.fields.chartType.value; }
+				// 「存为命盘」(按当前盘新建)记当前所见;其余新增按新命盘缺省(addChart 据此分)
+				if(this.props.fields.fromCurrent){ params.fromCurrent = !!this.props.fields.fromCurrent.value; }
 			}
 
 			this.props.dispatch({

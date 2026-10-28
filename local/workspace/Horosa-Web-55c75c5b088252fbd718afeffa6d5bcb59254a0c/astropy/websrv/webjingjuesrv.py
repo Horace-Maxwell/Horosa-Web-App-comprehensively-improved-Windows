@@ -3,12 +3,19 @@ import random
 import re
 import sys
 import traceback
-from numbers import Integral, Real
 
 import cherrypy
 import jsonpickle
 
+from astrostudy.civil_calendar import format_display_date
 from websrv.helper import enable_crossdomain
+from websrv.horosa_engine_common import (
+    build_snapshot as _build_snapshot,
+    plain_json_safe as _json_safe,
+    plain_row as _row,
+    to_int as _to_int,
+    with_seed as _with_seed,
+)
 
 
 _CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -70,58 +77,6 @@ GUA_KEYWORDS = {
 }
 
 
-def _to_int(value, default=0):
-    try:
-        if value is None or value == "":
-            return default
-        return int(value)
-    except Exception:
-        return default
-
-
-def _clean_text(value, default=""):
-    if value is None:
-        return default
-    text = str(value).strip()
-    return text if text else default
-
-
-def _json_safe(value):
-    if isinstance(value, dict):
-        return {_clean_text(key): _json_safe(val) for key, val in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_json_safe(item) for item in value]
-    if isinstance(value, Integral) and not isinstance(value, bool):
-        return int(value)
-    if isinstance(value, Real) and not isinstance(value, bool):
-        return float(value)
-    if hasattr(value, "item"):
-        try:
-            return _json_safe(value.item())
-        except Exception:
-            return _clean_text(value)
-    return value
-
-
-def _format_value(value):
-    if value is None or value == "":
-        return ""
-    if isinstance(value, dict):
-        parts = []
-        for key, val in value.items():
-            text = _format_value(val)
-            if text:
-                parts.append(f"{key}：{text}")
-        return "；".join(parts)
-    if isinstance(value, list):
-        return "、".join([_format_value(item) for item in value if _format_value(item)])
-    return _clean_text(value)
-
-
-def _row(label, value):
-    return {"label": label, "value": _format_value(value) or "—"}
-
-
 def _read_vendor_text(filename, fallback=""):
     path = os.path.join(_JINGJUE_SRC, filename)
     if not os.path.isfile(path):
@@ -131,17 +86,8 @@ def _read_vendor_text(filename, fallback=""):
     return content or fallback
 
 
-def _with_seed(seed, func):
-    state = random.getstate()
-    try:
-        random.seed(seed)
-        return func()
-    finally:
-        random.setstate(state)
-
-
 def _verdict(text):
-    # [X1] 末句显式定谳优先:古文正文常带语境性吉凶字(「凶事盡除」「前如凶,後乃吉光」),
+    # 末句显式定谳优先:古文正文常带语境性吉凶字(「凶事盡除」「前如凶,後乃吉光」),
     # 全文单字双扫会把明写「吉。」终判的卦误报「吉凶并见」;结尾 大/小吉凶 直接采信,无终判才回落旧扫描。
     t = (text or "").strip()
     m = re.search(r"([大小]?[吉凶])[。．\s]*$", t)
@@ -159,7 +105,7 @@ def _verdict(text):
 
 
 def _spirit_note(text):
-    # [X1·P2-31] 旧版自最后一个「祟」字起向后切片:「X為祟」句式丢主语出垃圾(如丢「泰父」只剩「祟,凶」)。
+    # 旧版自最后一个「祟」字起向后切片:「X為祟」句式丢主语出垃圾(如丢「泰父」只剩「祟,凶」)。
     # 改取【含祟之整句】(以。断句),保住「泰父為祟」类完整表述;无祟句回落 —。
     t = text or ""
     if "祟" not in t:
@@ -193,12 +139,12 @@ def _cast(seed):
         stalks_first = 30
         divider = sorted(random.sample(range(10, stalks_first), 1))[0]
         top_count = divider - 10
-        # [X1·P2-32] divider=10 时 top=0(同类物理不可能):仅无效时合法域重抽,有效种子字节不变。
+        # divider=10 时 top=0(同类物理不可能):仅无效时合法域重抽,有效种子字节不变。
         if top_count < 1:
             top_count = sorted(random.sample(range(1, 20), 1))[0]
         remainder_pool = stalks_first - top_count
         lower_cut = sorted(random.sample(range(1, 17), 1))[0]
-        # [X1·P2-32] top>13 时 pool<17,旧抽样可产负/零中分(30 算实分三堆物理不可能):
+        # top>13 时 pool<17,旧抽样可产负/零中分(30 算实分三堆物理不可能):
         # 仅首抽无效时在合法域重抽 —— 有效种子字节不变,4.7% 垃圾态转为合法分堆。
         if remainder_pool - lower_cut < 1:
             lower_cut = sorted(random.sample(range(1, max(2, remainder_pool)), 1))[0]
@@ -323,16 +269,6 @@ def _build_sections(payload):
     ]
 
 
-def _build_snapshot(payload):
-    lines = []
-    for section in payload.get("sections", []):
-        lines.append(f"[{section.get('title', '')}]")
-        for row in section.get("rows", []):
-            lines.append(f"{row.get('label')}：{row.get('value')}")
-        lines.append("")
-    return "\n".join(lines).strip()
-
-
 class JingJueSrv:
     exposed = True
 
@@ -356,7 +292,7 @@ class JingJueSrv:
             hour = _to_int(data.get("hour"), 0)
             minute = _to_int(data.get("minute"), 0)
             second = _to_int(data.get("second"), 0)
-            date_str = data.get("date") or (f"{year:04d}-{month:02d}-{day:02d}" if year and month and day else "")
+            date_str = data.get("date") or (format_display_date(year, month, day) if year and month and day else "")
             time_str = data.get("time") or f"{hour:02d}:{minute:02d}:{second:02d}"
             cast = _cast(seed)
             normalized = {

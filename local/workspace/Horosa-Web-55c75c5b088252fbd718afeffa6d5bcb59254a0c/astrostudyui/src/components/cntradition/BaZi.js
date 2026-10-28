@@ -1,6 +1,9 @@
 import { Component, memo } from 'react';
+import { responseCacheable } from '../../utils/resultEnvelope';
+import { leapPrefix } from '../../utils/lunarText';
 import { splitBaziCalibrePatch, applyBaziCalibreOverride } from '../../utils/baziCalibreScope';
 import { recordNewChartSeeds } from '../../utils/newChartSeeds';
+import { sendScopedFields } from '../../utils/scopedFieldsSink';
 import { buildTimeBasisLine } from '../../utils/timeBasisLine';
 import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
 import { markPanelReady } from '../../utils/perfMark';
@@ -21,11 +24,14 @@ import { BaZiLegacyMain, BaZiLegacyInfoPanel } from './BaZiLegacyView';
 import { baziAgeText, baziAgeValue } from './baziAgeText';
 import { saveModuleAISnapshotLazy, saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { Solar } from 'lunar-javascript';
-import { buildLocalBaziResult, buildFlowDays, buildFlowHours, buildFlowMonthsByYear, getSelfZuo, isSouthLatitude } from '../../utils/baziLunarLocal';
+import { buildLocalBaziResult, buildFlowDays, buildFlowHours, buildFlowMonthsByYear, getSelfZuo, isSouthLatitude, BAZI_ADJUST_JIEQI_SENT } from '../../utils/baziLunarLocal';
 import { filterShenShaByGroups } from '../../utils/baziShenShaLocal';
 import { parseDateParts, parseYearFromDateStr, addDisplayYears, displayYearDiff } from '../../utils/dateStrSafe';
-// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+// 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
 import { visualFloorPx } from '../../utils/zoomDomain';
+import { chartDayBoundary } from '../../utils/dayBoundaryResolve';
+import { BAZI_OPT_STORAGE_KEY } from '../../utils/baziStoredOpt';
+import { registerProcessCache } from '../../utils/processCacheRegistry';
 
 const TabPane = Tabs.TabPane;
 
@@ -40,7 +46,7 @@ const MemoBaZiLuckFlowPanel = memo(BaZiLuckFlowPanel);
 const EMPTY_BAZI = {};
 const EMPTY_PARAMS = {};
 
-const BaZiOptKey = 'baziopt';
+const BaZiOptKey = BAZI_OPT_STORAGE_KEY;   // 键名单源(挂载重算回落页面保存值读同一把键)
 // 本页「年龄」档(虚岁 nominal / 周岁 real),供其他模块换算岁数时同口径;读不到按虚岁(缺省)。
 export function loadBaziAgeStyle(){
 	try{
@@ -114,7 +120,7 @@ function gzCells(zhu, dayGan, phaseType){
 		cang: hidden.length ? hidden.join('、') : '—',
 		shishen: [stemRel, branchRel].filter(Boolean).join('·') || '—',
 		naying: (zhu && zhu.naying) || '—',
-		// [Q-431/T-394] 纳音长生(各柱纳音五行坐该支的十二长生位;古法盘「纳音长生」行 / 纳音古法信息卡同源字段 nayingPhase)
+		// 纳音长生(各柱纳音五行坐该支的十二长生位;古法盘「纳音长生」行 / 纳音古法信息卡同源字段 nayingPhase)
 		nayingPhase: (zhu && zhu.nayingPhase) || '—',
 		xingYun: getSelfZuo(dayGan, zhi, phaseType) || '—',
 		ziZuo: getSelfZuo(gan, zhi, phaseType) || '—',
@@ -326,7 +332,7 @@ function buildBaziSnapshotText(params, result){
 		if(!nongli){
 			return '';
 		}
-		const leap = nongli.leap ? '闰' : '';
+		const leap = leapPrefix(nongli);
 		return `${nongli.year || ''}年${leap}${nongli.month || ''}${nongli.day || ''}`;
 	};
 	const appendIf = (label, value)=>{
@@ -382,14 +388,19 @@ function buildBaziSnapshotText(params, result){
 	appendIf('性别', formatLabel('gender', params.gender));
 	appendIf('时间算法', formatLabel('timeAlg', params.timeAlg));
 	lines.push(buildTimeBasisLine({ timeAlg: params.timeAlg, lateZiHourUseNextDay: params.lateZiHourUseNextDay, after23NewDay: params.after23NewDay }));
-	appendIf('节气修正', formatLabel('adjustJieqi', params.adjustJieqi));
+	// 如实写实际口径:只有回退 Java 且确实带 1 起盘时节气才真被平移;本地引擎不实现该项,一律写「不调整」
+	// (参数里没有这一项的调用方照旧不写这一行)。
+	const adjustJieqiRaw = params.adjustJieqi;
+	const jieqiShifted = !!result && !result.local && Number(adjustJieqiRaw) === 1;
+	appendIf('节气修正', (adjustJieqiRaw === undefined || adjustJieqiRaw === null || adjustJieqiRaw === '')
+		? adjustJieqiRaw : formatLabel('adjustJieqi', jieqiShifted ? 1 : 0));
 	appendIf('命造', baziGender);
 	const nongli = bazi && bazi.nongli ? bazi.nongli : {};
 	const nltxt = getNongliLine(nongli);
 	const clockTm = nongli.clockTime || `${params.date} ${params.time}`;
 	const solarTm = nongli.solarTime || nongli.birth || `${params.date} ${params.time}`;
 	lines.push(`农历：${nltxt || '未知'}`);
-	// [Q-191/T-135] 生肖归属(立春 / 正月初一)此前只在页面卡片上出现,快照没有 —— AI 只能自己猜岁首,
+	// 生肖归属(立春 / 正月初一)此前只在页面卡片上出现,快照没有 —— AI 只能自己猜岁首,
 	// 而两档在正月初一与立春之间出生的人正好差一个生肖。缺档按页面缺省(立春)。
 	const zodiacByLunar = `${params.zodiacBoundary || ''}` === 'lunar';
 	const shengXiao = zodiacByLunar ? nongli.shengXiaoLunar : nongli.shengXiaoLichun;
@@ -408,7 +419,7 @@ function buildBaziSnapshotText(params, result){
 	lines.push('[四柱与三元]');
 	// 每柱行尾补明细括注（藏干/纳音/星运/自坐/空亡，中栏四柱板同源）；行首「干支+干支十神」前缀逐字不动（段内纯增）。
 	const dayGanCell = four.day && four.day.stem ? four.day.stem.cell : '';
-	// [Q-431/T-394] 加「纳音长生」列:按纳音古法论命时缺「纳音坐支长生」判据(此前只写纳音名)。
+	// 加「纳音长生」列:按纳音古法论命时缺「纳音坐支长生」判据(此前只写纳音名)。
 	lines.push('| 柱 | 干支 | 藏干 | 十神 | 纳音 | 纳音长生 | 星运 | 自坐 | 空亡 |');
 	lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- |');
 	[['年柱', four.year], ['月柱', four.month], ['日柱', four.day], ['时柱', four.time]].forEach(([label, zhu])=>{
@@ -420,7 +431,7 @@ function buildBaziSnapshotText(params, result){
 	if(isSouthLatitude(params)){
 		lines.push(`南半球月令：${params && params.southMonth === 'chong' ? '对冲(月支取对冲之支)' : '不对冲(月柱同北半球)'}`);
 	}
-	// [Q-367/T-348] 公元前等本地引擎不可用而回退 Java 的域:Java 只识 xingming,tongxing/shufa 都走子平数法表 → 按实际口径如实标注。
+	// 公元前等本地引擎不可用而回退 Java 的域:Java 只识 xingming,tongxing/shufa 都走子平数法表 → 按实际口径如实标注。
 	const _mgLabel = (params && params.minggongMethod === 'shufa') ? '子平数法' : ((result && result.local) ? '通行版' : '子平数法(本域回退)');
 	lines.push(`命宫：${gzText(four.ming)}（起法：${_mgLabel}）`);
 	lines.push(`身宫：${gzText(four.shen)}`);
@@ -565,10 +576,10 @@ function buildBaziSnapshotText(params, result){
 	if((bazi.mainDirection && bazi.mainDirection.length) || smallDirs.length){
 		lines.push('');
 		lines.push('[大运]');
-		// [挂载自检 F-54] 起运(页面信息面板恒显;精度随「起运精度」档):快照此前只有逐步起运年 → AI 不知几岁几月起运,且精度齿轮无处落地。
+		// 起运(页面信息面板恒显;精度随「起运精度」档):快照此前只有逐步起运年 → AI 不知几岁几月起运,且精度齿轮无处落地。
 		if(bazi.directInfo){ lines.push(`起运：${bazi.directInfo}`); }
 		if(bazi.mainDirection && bazi.mainDirection.length){
-			// [v2 排版批量·表化] 同构逐条行改 GFM 表（紫微宫位总览范式）：段头/值表达式零变更
+			// 同构逐条行改 GFM 表（紫微宫位总览范式）：段头/值表达式零变更
 			// （第N步/item.year/getGz 逐字复用），仅排版骨架换表头+分隔行+数据行；归一器/docx/PDF 表块直通。
 			lines.push('| 步序 | 起运年 | 干支 |');
 			lines.push('| --- | --- | --- |');
@@ -579,7 +590,7 @@ function buildBaziSnapshotText(params, result){
 			});
 		}
 		if(smallDirs.length){
-			// [Q-191/T-135] 表头此前恒写「周岁」,而 d.age 是虚岁(出生=1 岁,与页面小运表同源)——
+			// 表头此前恒写「周岁」,而 d.age 是虚岁(出生=1 岁,与页面小运表同源)——
 			// AI 按周岁读会整体差一岁。改为跟「年龄」档(虚岁默认 / 周岁 = 虚岁 −1),表头与数值同一口径。
 			const realAge = `${params.ageStyle || ''}` === 'real';
 			lines.push('小运（逐年，与流年并列）：');
@@ -600,7 +611,7 @@ function buildBaziSnapshotText(params, result){
 	if(bazi.direction && bazi.direction.length){
 		lines.push('');
 		lines.push('[流年行运概略]');
-		// [v2 排版批量·表化] 每板块「概略+流年」两行并为一表行：值表达式逐字复用
+		// 每板块「概略+流年」两行并为一表行：值表达式逐字复用
 		// （startYear/startAge/dayunGz/yearGzs 组装式不动），旧行标签词（起始年/起始年龄/大运/流年）上移表头。
 		lines.push('| 板块 | 起始年 | 起始年龄 | 大运 | 流年 |');
 		lines.push('| --- | --- | --- | --- | --- |');
@@ -656,6 +667,7 @@ const baziMem = new Map();
 const baziInflight = new Map();
 const baziDirectMem = new Map();
 const baziDirectInflight = new Map();
+registerProcessCache('bazi.chart', ()=>{ baziMem.clear(); baziInflight.clear(); baziDirectMem.clear(); baziDirectInflight.clear(); });   // 同参复用上次结果:登记清空函数(只供审计仪器取样前清空)
 
 function clonePlain(obj){
 	if(obj === undefined || obj === null){
@@ -764,6 +776,12 @@ export function alignJavaBaziAges(result){
 	return result;
 }
 
+// 快照槽的出生签名(对话挂载按它认命主):惰性存与刷新应答同一份。
+function baziSnapshotMeta(params){
+	const p = params || {};
+	return { date: p.date, time: p.time, zone: p.zone, lon: p.lon, lat: p.lat };
+}
+
 function buildBaziKey(params){
 	try{
 		return JSON.stringify(params || {});
@@ -797,7 +815,7 @@ async function fetchBaziCached(params, options){
 		silent: opt.silent !== false,
 	}).then((data)=>{
 		const result = data && data[Constants.ResultKey] ? alignJavaBaziAges(data[Constants.ResultKey]) : null;
-		if(key && result){
+		if(key && result && responseCacheable(data)){   // 只缓存真成功的回包(业务错误 Result.err / 顶层 err 不进缓存,判据单一出处 resultEnvelope)
 			pushCache(baziMem, key, clonePlain(result));
 		}
 		return result;
@@ -839,7 +857,7 @@ export async function fetchBaziDirectCached(params, options){
 		silent: opt.silent !== false,
 	}).then((data)=>{
 		const result = data && data[Constants.ResultKey] ? alignJavaBaziAges(data[Constants.ResultKey]) : null;
-		if(key && result){
+		if(key && result && responseCacheable(data)){   // 只缓存真成功的回包(业务错误 Result.err / 顶层 err 不进缓存,判据单一出处 resultEnvelope)
 			pushCache(baziDirectMem, key, clonePlain(result));
 		}
 		return result;
@@ -904,6 +922,17 @@ class BaZi extends Component{
 				}
 				this.requestBazi(fields);
 			};
+			// 所见那张盘实际所用的 fields(请求过了代次校验、确定上屏的那一次):择日宿主存案取它 —— 内嵌页自己重排、宿主改了工作台没重排、覆盖层里没确定的草稿,都不会让存案的时间地点与所见不一致
+			this.props.hook.getPlottedFields = ()=>this._plottedFields || null;
+			// 择日宿主:开始择时前取本页起盘口径(南半球月令 / 命宫起法等,zeriPageCalibre.BAZI_PAGE_SCAN_KEYS),
+			// 点结果行时按扫描冻结值回写(只改本盘;择日内嵌实例不写保存值)
+			this.props.hook.getBaziOptions = ()=>(this.unmounted ? null : { ...(this.state.baziOpt || {}) });
+			this.props.hook.applyBaziOptions = (partial)=>new Promise((resolve)=>{
+				if(this.unmounted || !partial || typeof partial !== 'object' || !Object.keys(partial).length){ resolve(); return; }
+				const cur = this.state.baziOpt || {};
+				if(Object.keys(partial).every((k)=>cur[k] === partial[k])){ resolve(); return; }
+				this.onBaziOptChange({ ...cur, ...partial }, resolve);
+			});
 			// 🔴 chartFree 契约(极速化快车道):本页中右栏【零】消费共享 chartObj(全部由 fields
 			// 驱动本组件自算/自取)。声明后 fetchByFields 对本页走快车道:fields 立即提交、
 			// 不等 /chart 网络 —— 本页从「等一次网络(~230ms)」变「点击即出(<100ms)」。
@@ -923,9 +952,9 @@ class BaZi extends Component{
 			if(hasConfirmedFlag){
 				delete patch.__confirmed;
 			}
-			// [Q-314 裁决 A 2026-09-18] 主八字页:日界 / 晚子时 / 时间算法 三键改写本页覆盖层(astro.baziCalibreOverride),
+			// 主八字页:日界 / 晚子时 / 时间算法 三键改写本页覆盖层(astro.baziCalibreOverride),
 			// 不再写共享 fields 也不再锁死全局同步 → 紫微 / 七政 / 六壬 / 金口诀 / 导出头不跟着八字左栏变;新命盘 / 载入命盘时复位。
-			// 宿主内嵌(techniqueScope:择日 / 截图挂载)照旧写宿主自管 fields(它们不共享主盘)。
+			// 择日宿主内嵌:改动交给宿主的覆盖层(宿主用新 fields 调 hook 重排),不写主盘(见 utils/scopedFieldsSink)。
 			let sharedPatch = patch;
 			if(!this.props.techniqueScope){
 				// 「新盘种子」:长生 / 神煞查法的亲手改动 = 新命盘缺省(时间算法是本页覆盖层,复位到全局缺省,不在此记)
@@ -938,6 +967,9 @@ class BaZi extends Component{
 					sharedPatch = split.rest;
 				}
 			}
+			if(sendScopedFields(this.props, sharedPatch, { recompute: confirmed })){
+				return;
+			}
 			let flds = {
 				fields: {
 					...this.props.fields,
@@ -945,7 +977,7 @@ class BaZi extends Component{
 				}
 			};
 			this.props.dispatch({
-				type: 'astro/save',
+				type: 'astro/saveUserFields',
 				payload: flds
 			});
 			if(!confirmed){
@@ -973,7 +1005,7 @@ class BaZi extends Component{
 		}
 	}
 	
-	onBaziOptChange(opt){
+	onBaziOptChange(opt, done){
 		const prev = this.state.baziOpt || {};
 		// 命宫起法影响后端命宫/身宫 → 改后需带参重取;藏干版本(分野加权)影响五行力量打分 → 也需重取;
 		// 其余(界面样式/刑冲破害/流派等纯显示)不重取——school 切换=纯重绘瞬时,绝不进 needRefetch。
@@ -997,10 +1029,18 @@ class BaZi extends Component{
 			}
 		}
 		this.setState(patch, ()=>{
-			safeLocalStorageSet(BaZiOptKey, JSON.stringify(opt));
+			// 择日内嵌实例:选项只改本盘,不写八字页的保存值(与印度 / 六壬 / 太乙 / 三式择日同律)
+			if(!this.props.techniqueScope){
+				safeLocalStorageSet(BaZiOptKey, JSON.stringify(opt));
+			}
 			if(needRefetch){
 				this.requestBazi(this.effFields());
 			}
+			// 起盘口径变了 → 告知择日宿主(扫描口径指纹含页面键,「结果已过期」随之亮)
+			const calibreChanged = (prev.southMonth || 'none') !== (opt.southMonth || 'none')
+				|| (prev.minggongMethod || 'tongxing') !== (opt.minggongMethod || 'tongxing');
+			if(calibreChanged && typeof this.props.onPageCalibreChange === 'function'){ this.props.onPageCalibreChange(); }
+			if(typeof done === 'function'){ done(); }
 		});
 	}
 
@@ -1044,9 +1084,10 @@ class BaZi extends Component{
 			timeAlg: flds.timeAlg.value,
 			phaseType: flds.phaseType.value,
 			godKeyPos: flds.godKeyPos.value,
-			after23NewDay: flds.after23NewDay.value,
-			lateZiHourUseNextDay: flds.lateZiHourUseNextDay && flds.lateZiHourUseNextDay.value !== undefined ? flds.lateZiHourUseNextDay.value : 1,
-			adjustJieqi: flds.adjustJieqi.value,
+			...chartDayBoundary(flds),   // 日界 / 晚子时单源(本盘优先、缺读全局;命类各页与无头同一函数)
+			// 节气按纬度调整:本地引擎不实现、控件已隐藏 → 恒发 0(不按 fields 里旧记录带来的 1 发)。
+			// 否则回退 Java 的域(公元前等)会真把节气平移 (|lat|−35)×2 天,同一条记录在两个年代域口径不一。
+			adjustJieqi: BAZI_ADJUST_JIEQI_SENT,
 			minggongMethod: (this.state.baziOpt && this.state.baziOpt.minggongMethod) || 'tongxing',
 			fenyeVersion: (this.state.baziOpt && this.state.baziOpt.fenyeVersion) || 'common',
 			// 南半球月令(不对冲 none 缺省 / 对冲 chong):只对南纬生效,改变月柱 → 进 params 让缓存键随之失效并重算。
@@ -1061,14 +1102,18 @@ class BaZi extends Component{
 	// horosa_bazi_param_memo_v1：render 期的 genParams 结果稳定化。
 	// genParams 的全部输入 = fields（引用）+ this.state.baziOpt（引用）；两者同引用 ⇒ 输出逐字段相同，
 	// 直接复用旧对象。旧码每次 render 新建对象 → 作为 jieqiParams 传下去会让行运面板的 memo 恒失效。
+	// genParams 的日界 / 晚子时经 chartDayBoundary 取(本盘缺键时读全局现值)→ 两键解析值一并进键,
+	// 全局改了而 fields 引用未变时不复用旧对象。
 	memoBaziParams(fields){
 		const opt = this.state.baziOpt;
+		const db = chartDayBoundary(fields);
 		const cache = this._paramsCache;
-		if(cache && cache.fields === fields && cache.opt === opt){
+		if(cache && cache.fields === fields && cache.opt === opt
+			&& cache.a23 === db.after23NewDay && cache.lz === db.lateZiHourUseNextDay){
 			return cache.out;
 		}
 		const out = this.genParams(fields);
-		this._paramsCache = { fields, opt, out };
+		this._paramsCache = { fields, opt, a23: db.after23NewDay, lz: db.lateZiHourUseNextDay, out };
 		return out;
 	}
 
@@ -1109,6 +1154,7 @@ class BaZi extends Component{
 		if(!result || this.unmounted || seq !== this.baziReqSeq){
 			return;
 		}
+		this._plottedFields = fields;
 
 		const st = {
 			result: result,
@@ -1128,25 +1174,29 @@ class BaZi extends Component{
 		this.setState(st, ()=>{
 			markPanelReady('bazi');
 		});
-		// 惰性构建:快照文本拼装挪出排盘关键路径(params/result 为局部量,闭包安全)。
-		// 须带 school（断命流派）→ 否则不触发 refresh 的场景 AI 快照恒标「传统综合」(与 handleSnapshotRefreshRequest 同口径)。
-		// [Q-191/T-135] 年龄档与生肖岁首进快照参数(两项此前只作用于页面,快照拿不到)。
-		const snapshotParams = { ...params, school: (this.state.baziOpt || {}).school, shenshaGroups: (this.state.baziOpt || {}).shenshaGroups, ageStyle: (this.state.baziOpt || {}).ageStyle, zodiacBoundary: (this.state.baziOpt || {}).zodiacBoundary };
-		// [Z2·八字择日] 加性 scope 化:择日页内嵌实例传 techniqueScope='bazizeri' 走独立快照槽
-		// (keep-alive 与主八字页并存互不竞写);composeAiSnapshot 由择日宿主拼「择时三段」。缺省=原槽零回归。
-		saveModuleAISnapshotLazy(this.props.techniqueScope || 'bazi', ()=>{
-			const base = buildBaziSnapshotText(snapshotParams, result);
-			if(typeof this.props.composeAiSnapshot === 'function'){
-				try{ return `${this.props.composeAiSnapshot(base) || base}`; }catch(e){ return base; }
-			}
-			return base;
-		}, {
-			date: params.date,
-			time: params.time,
-			zone: params.zone,
-			lon: params.lon,
-			lat: params.lat,
-		});
+		this.saveBaziSnapshot(params, result);
+	}
+
+	// 快照参数 = 起盘参数 + 只作用于显示的四项(断命流派 / 神煞分组 / 年龄口径 / 生肖归属)。
+	// 取数完成时的惰性存、显示项改动后的重存、刷新应答三处同一份参数(缺 school 曾致快照恒标「传统综合」)。
+	snapshotParamsOf(params){
+		const o = this.state.baziOpt || {};
+		return { ...params, school: o.school, shenshaGroups: o.shenshaGroups, ageStyle: o.ageStyle, zodiacBoundary: o.zodiacBoundary };
+	}
+
+	composeSnapshotText(base){
+		if(typeof this.props.composeAiSnapshot === 'function'){
+			try{ return `${this.props.composeAiSnapshot(base) || base}`; }catch(e){ return base; }
+		}
+		return base;
+	}
+
+	// 惰性构建:快照文本拼装挪出排盘关键路径(参数在登记时刻取定,闭包安全)。
+	// 加性 scope 化:择日页内嵌实例传 techniqueScope='bazizeri' 走独立快照槽
+	// (keep-alive 与主八字页并存互不竞写);composeAiSnapshot 由择日宿主拼「择时三段」。缺省=原槽零回归。
+	saveBaziSnapshot(params, result){
+		const snapshotParams = this.snapshotParamsOf(params);
+		saveModuleAISnapshotLazy(this.props.techniqueScope || 'bazi', ()=>this.composeSnapshotText(buildBaziSnapshotText(snapshotParams, result)), baziSnapshotMeta(params));
 	}
 
 	async requestBaziDirect(){
@@ -1207,19 +1257,19 @@ class BaZi extends Component{
 			return;
 		}
 		let text = '';
+		let params = null;
 		try{
 			if(this.props.fields && this.state.result){
-				const params = { ...this.genParams(this.effFields()), school: (this.state.baziOpt || {}).school, shenshaGroups: (this.state.baziOpt || {}).shenshaGroups, ageStyle: (this.state.baziOpt || {}).ageStyle, zodiacBoundary: (this.state.baziOpt || {}).zodiacBoundary };   // [Q-191/T-135] 同上
-				text = `${buildBaziSnapshotText(params, this.state.result) || ''}`.trim();
+				params = this.genParams(this.effFields());
+				text = `${buildBaziSnapshotText(this.snapshotParamsOf(params), this.state.result) || ''}`.trim();
 			}
 		}catch(e){
 			text = '';
 		}
 		if(text){
-			if(typeof this.props.composeAiSnapshot === 'function'){
-				try{ text = `${this.props.composeAiSnapshot(text) || text}`; }catch(e){ /* composer 异常不拖快照 */ }
-			}
-			saveModuleAISnapshot(this.props.techniqueScope || 'bazi', text);
+			text = this.composeSnapshotText(text);
+			// 带本盘出生签名写槽(与惰性存同一份 meta):不带则刷新一次后槽失去签名,对话挂载认不出是这位命主、改走无头重算
+			saveModuleAISnapshot(this.props.techniqueScope || 'bazi', text, baziSnapshotMeta(params));
 			if(evt && evt.detail && typeof evt.detail === 'object'){
 				evt.detail.snapshotText = text;
 			}
@@ -1230,7 +1280,7 @@ class BaZi extends Component{
 	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
 	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
 	// 收益:宿主因无关状态重渲时,本重组件整树不再白跑。关 chartSCU 开关 = 恒重渲旧行为。
-	// [Q-314 裁决 A] 本页所见 fields = 共享 fields + 本页口径覆盖层(记忆化:同 fields+同覆盖层 → 同一对象,不破 SCU / 子组件 prevProps 比对)。
+	// 本页所见 fields = 共享 fields + 本页口径覆盖层(记忆化:同 fields+同覆盖层 → 同一对象,不破 SCU / 子组件 prevProps 比对)。
 	effFields(){
 		const f = this.props.fields; const ov = this.props.baziCalibreOverride;
 		const m = this._effMemo;
@@ -1254,6 +1304,18 @@ class BaZi extends Component{
 			this.requestBazi(this.effFields(), {
 				silent: true,
 			});
+		}
+	}
+
+	componentDidUpdate(prevProps, prevState){
+		// 只重绘、不重取的选项(断命流派 / 神煞分组 / 年龄口径 / 生肖归属…)改了 → 按当前盘重存快照:
+		// 此前快照只在取数完成时存一次,改这几项后 AI 对话挂载读到的仍是旧口径(导出会刷新,两边不一)。
+		// 要重取的选项(命宫起法等)由取数完成时自存;此处只认「当前盘就是当前参数的盘」,取数在途时不拿旧盘拼新参数。
+		if(prevState && prevState.baziOpt !== this.state.baziOpt && this.state.result && this.props.fields){
+			const params = this.genParams(this.effFields());
+			if(buildBaziKey(params) === this.state.currentBaziKey){
+				this.saveBaziSnapshot(params, this.state.result);
+			}
 		}
 	}
 
@@ -1297,7 +1359,7 @@ class BaZi extends Component{
 							<MemoCnTraditionInput
 								fields={this.effFields()}
 								baziOpt={this.state.baziOpt}
-								chartStyle={this.state.chartStyle}   /* [Q-190/T-131] 左栏据此判「古法盘下这项不画」 */
+								chartStyle={this.state.chartStyle}   /* 左栏据此判「古法盘下这项不画」 */
 								onFieldsChange={this.onFieldsChange}
 								onBaziOptChange={this.onBaziOptChange}
 							/>

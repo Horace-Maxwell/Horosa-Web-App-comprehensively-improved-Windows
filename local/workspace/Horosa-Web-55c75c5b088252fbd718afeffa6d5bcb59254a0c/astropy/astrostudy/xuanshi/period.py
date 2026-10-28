@@ -198,7 +198,7 @@ ERA_BEGINNINGS: dict[str, int] = {
 _DATE_RE = re.compile(r"^([一-鿿]{2,8}?)\s*(?:([元一二三四五六七八九十百\d]+)\s*年)?")
 
 
-# [Q-486/T-448] 同名年号的全部起年(表里「上元二」是早年的占位 hack:唐高宗上元 674 / 唐肃宗上元 760)。
+# 同名年号的全部起年(表里「上元二」是早年的占位 hack:唐高宗上元 674 / 唐肃宗上元 760)。
 # 解析时按 modern_date 年份择近;无提示时取表内首个(维持旧行为)。
 _ERA_ALIASES: dict[str, list[int]] = {}
 for _era, _base in ERA_BEGINNINGS.items():
@@ -209,7 +209,7 @@ for _era, _base in ERA_BEGINNINGS.items():
         _ERA_ALIASES[_key].append(_base)
 # 年号前可带「某帝 / 某宗 / 某祖」(如「泰定帝泰定四年」):剥掉再套年号。
 _EMPEROR_PREFIX_RE = re.compile(r"^[一-鿿]{1,4}(帝|宗|祖|后|王)")
-# [Q-486/T-448] 库内 date_phrase 有 39%(10,598 条)用繁体书写年号(隆興/元豐/熙寧/慶曆/紹聖/寶元/開元/貞觀…),
+# 库内 date_phrase 有 39%(10,598 条)用繁体书写年号(隆興/元豐/熙寧/慶曆/紹聖/寶元/開元/貞觀…),
 # 而年号表是简体 → 整条解析不了、只能沿用库列;繁体「建中靖國」还会被简体「建中」截走成 780(27 条)。
 # 匹配前把年号常见繁体字归一到简体(只列年号里出现过的字,不做通用简繁转换)。
 _ERA_TRAD2SIMP = str.maketrans({
@@ -244,7 +244,7 @@ def _era_candidates(s: str):
 def date_phrase_to_year(phrase: Optional[str], hint_year: Optional[int] = None) -> Optional[int]:
     """把 '武德元年十月壬申' / '贞观九年' 转成公历公元年。
 
-    [Q-486/T-448] 三处根修:
+    三处根修:
       ① **最长前缀**匹配年号(此前按表序 `startswith` 命中即停 →「大中祥符」被先列的「大中」截走成 847、
         「建中靖国」被「建中」截走成 780,库内 427 条因此错一两百年);
       ② 年号前的「某帝/某宗」前缀先剥掉(「泰定帝泰定四年」此前取不到「四年」只返元年);

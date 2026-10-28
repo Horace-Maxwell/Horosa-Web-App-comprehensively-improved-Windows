@@ -100,7 +100,7 @@ describe('WP-D 流派预设', () => {
 		expect(ZIWEI_SCHOOL_PRESETS.zhongzhou.borrowPalace).toBe(true);
 		expect(ZIWEI_SCHOOL_PRESETS.qintian.daxianSpan).toBe('ju');
 		expect(ZIWEI_SCHOOL_PRESETS.quanshu.sihua).toBe('quanshu');
-		// [B3] 全书派四化+亮度同套(修「选全书派不切全书亮度」接线洞);中州派亮度=默认表(基表即中州口径)
+		// 全书派四化+亮度同套(修「选全书派不切全书亮度」接线洞);中州派亮度=默认表(基表即中州口径)
 		expect(ZIWEI_SCHOOL_PRESETS.quanshu.brightnessSource).toBe('quanshu');
 		expect(ZIWEI_SCHOOL_PRESETS.zhongzhou.brightnessSource).toBe('zi_jian');
 		expect(ZIWEI_SCHOOL_PRESETS.heluo.starSet).toBe('north18');

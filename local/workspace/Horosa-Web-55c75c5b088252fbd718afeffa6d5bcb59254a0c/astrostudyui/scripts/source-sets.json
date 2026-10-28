@@ -1,0 +1,51 @@
+{
+  "_说明": "按职责拆成子模块的大文件:原路径保留为门面(对外导入路径不变),实现拆在同名目录下。凡「读源码」的检查(jest 源码锁、发布前自检、检查器)一律读「门面 + 子模块」全集:按下面的顺序把文件内容首尾相接拼成一份(子模块按原文件里的先后次序在前,门面在最后;拼出来的是文本,要解析 AST 的检查逐个文件解析)。路径相对 astrostudyui/src。子模块目录里每个与门面同扩展名的文件(.js 门面收 .js、.less 门面收 .less)都必须登记在这里,登记的必须存在(jest sourceSet 合同测试与发布前自检两处核对)。读法:jest 用 src/utils/__tests__/helpers/sourceSet.js;发布前自检用 preflight/lib.sh 的 pf_src_set;其它脚本读本文件。 pySets = Python 计算引擎里拆成子模块的大文件(路径相对 Horosa-Web/astropy;子模块在同级的 *_parts 子包里,按门面的导入次序登记 = 依赖次序,大体即原文件里的先后次序;子包的 __init__.py 只有文档串,不登记);同样首尾相接成一份读,pytest 用 tests/source_sets.py,其余读法同上。",
+  "sets": {
+    "components/aianalysis/AIAnalysisMain.js": {
+      "dir": "components/aianalysis/main",
+      "files": ["providerForm.js", "chatHelpers.js", "templates.js", "sourceContext.js", "AssistantMarkdown.js"]
+    },
+    "utils/aiExport.js": {
+      "dir": "utils/aiExport",
+      "files": ["presets.js", "settingsModel.js", "sectionFilter.js", "contextResolve.js", "settingsGroups.js", "snapshotLookup.js", "extractors.js", "meaning.js", "output.js", "exportKeys.js", "pipeline.js", "testingSeam.js"]
+    },
+    "utils/aiAnalysisContext.js": {
+      "dir": "utils/aiAnalysisContext",
+      "files": ["catalog.js", "recordFields.js", "regenDivination.js", "pair.js", "regenCase.js", "chartParams.js", "regenHoraryElection.js", "primaryDirection.js", "regenPredictive.js", "regenChart.js", "sourceContext.js", "techniqueKey.js", "snapshotMatch.js", "techniqueContext.js", "contextLayers.js"]
+    },
+    "components/lrzhan/LiuRengMain.js": {
+      "dir": "components/lrzhan/main",
+      "files": ["birthRunYear.js", "referenceData.js", "referenceMatch.js", "ganzhiHelpers.js", "castLayout.js", "panData.js", "snapshot.js"]
+    },
+    "components/planetarium/PlanetariumBabylon.js": {
+      "dir": "components/planetarium/babylon",
+      "files": ["PlanetariumTimeEditor.js", "constants.js", "skyMath.js", "itemText.js", "textures.js", "sceneParams.js", "PlanetariumRenderer.js"]
+    },
+    "components/astro/IndiaChartMain.js": {
+      "dir": "components/astro/indiaMain",
+      "files": ["dasha.js", "optionState.js", "jyotishData.js"]
+    },
+    "components/guolao/GuoLaoChartMain.js": {
+      "dir": "components/guolao/main",
+      "files": ["prefs.js", "moiraConst.js", "chartCache.js", "format.js", "snapshot.js", "aspectsNodeMode.js", "fieldModes.js", "params.js"]
+    },
+    "layouts/app.less": {
+      "dir": "layouts/app",
+      "files": ["01-base.less", "02-shell.less", "03-bazi.less", "04-calendar.less", "05-astro.less", "06-guolao-modules.less", "07-qizheng-ziwei.less", "08-india-sanshi.less", "09-jinkou-suzhan.less", "10-huangji-wuzhao.less", "11-kinastro-guazhan.less", "12-india-tarot-geomancy.less", "13-layout-module.less", "14-page-fixes.less", "15-fengshui.less", "16-zhengchuan-heluo.less", "17-divination-cards.less", "18-ziwei.less", "19-cnx-divination.less", "20-india-prashna.less", "21-lingqi.less", "22-tail-fixes.less"]
+    }
+  },
+  "pySets": {
+    "astrostudy/perchart.py": {
+      "dir": "astrostudy/perchart_parts",
+      "files": ["chart_tables.py", "su28_moira.py", "classical_request.py", "su28.py", "houses.py", "planets.py", "lots.py", "aspects.py", "besiege.py", "timing.py"]
+    },
+    "astrostudy/india/jyotish_engine.py": {
+      "dir": "astrostudy/india/jyotish_parts",
+      "files": ["tables.py", "helpers.py", "ayurdaya.py", "nadi_varga.py", "factors.py", "dashas.py", "panchanga.py", "strengths.py", "jaimini_kp.py"]
+    },
+    "astrostudy/astroextra.py": {
+      "dir": "astrostudy/astroextra_parts",
+      "files": ["common.py", "calendars.py", "analysis.py", "ephemeris.py", "progressions.py", "cycles.py", "relative.py"]
+    }
+  }
+}

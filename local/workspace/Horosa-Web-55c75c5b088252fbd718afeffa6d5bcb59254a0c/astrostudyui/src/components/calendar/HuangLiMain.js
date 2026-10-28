@@ -64,7 +64,7 @@ class HuangLiMain extends Component {
 			selectedDay: null,   // buildHuangliDay 结果
 			focus: null,         // 高亮用 DateTime
 			yearPanelOpen: false,
-			yearPanelSeen: false,   // [Q-458/T-421] 开过年度吉日榜 → 快照才带该候选段(sticky)
+			yearPanelSeen: false,   // 开过年度吉日榜 → 快照才带该候选段(sticky)
 		};
 		this.huangliCache = {};
 		// horosa_kentang_result_cache_v1:命中模块级 LRU(切页回来 0 重算);关闸=每实例独立(旧行为)。
@@ -101,7 +101,7 @@ class HuangLiMain extends Component {
 
 	parseBirth(birth) {
 		const ymd = `${birth || ''}`.split(' ')[0];
-		// [Q-270/T-263] 公元前串 '-2026-09-01' 按 '-' 切分首段为空 → 年 NaN 抛错;带符号年单源正则。
+		// 公元前串 '-2026-09-01' 按 '-' 切分首段为空 → 年 NaN 抛错;带符号年单源正则。
 		const m = /^(-?\d+)-(\d{1,2})-(\d{1,2})/.exec(ymd);
 		const y = m ? parseInt(m[1], 10) : NaN;
 		const mo = m ? parseInt(m[2], 10) : NaN;
@@ -117,8 +117,12 @@ class HuangLiMain extends Component {
 	}
 
 	async requestMonth() {
+		// 请求代次:只认最后一次发出的那个月(挂载即发的「本月」与随后跳到另一月的请求并发时,先发的晚回会把网格拉回本月、
+		// 并按「选中日不在本月」改选今天 —— 择日载入存案跳回存案那天就被它盖掉)
+		const seq = (this._monthReqSeq = (this._monthReqSeq || 0) + 1);
 		const params = { date: this.state.date.format('YYYY-MM-DD'), zone: this.state.date.zone, lon: this.state.lon };
 		const data = await request(`${Constants.ServerRoot}/calendar/month`, { body: JSON.stringify(params) });
+		if (seq !== this._monthReqSeq || this._unmounted) { return; }
 		if (!data) { return; }
 		const result = data[Constants.ResultKey];
 		this.setState({ days: result.days, prevDays: result.prevDays }, ()=>{
@@ -215,11 +219,11 @@ class HuangLiMain extends Component {
 	}
 
 	saveAISnapshot() {
-		// [Z1·黄历择日] 加性 scope 化(奇门 DunJiaMain 同律):择日页内嵌实例传 techniqueScope=
+		// 加性 scope 化(奇门 DunJiaMain 同律):择日页内嵌实例传 techniqueScope=
 		// 'huanglizeri' 走独立快照槽,与 calendar 聚合实例(keep-alive 并存)互不竞写;缺省=原槽零回归。
 		// composeAiSnapshot:择日宿主拼「择日三段」(段头与 aiExport preset 逐字成对)。
 		const moduleKey = this.props.techniqueScope || MODULE;
-		// [Q-458/T-421] 年度吉日榜:只有用户真开过该面板才进快照(「显示什么就导出什么」),
+		// 年度吉日榜:只有用户真开过该面板才进快照(「显示什么就导出什么」),
 		// 同时避免每次存快照都白跑一趟全年扫描。yearPanelSeen 一旦置位,本次会话内保持。
 		const _yearTop = this.state.yearPanelSeen
 			? { year: parseInt(this.state.date.format('YYYY'), 10) }
@@ -248,6 +252,7 @@ class HuangLiMain extends Component {
 	}
 
 	componentWillUnmount() {
+		this._unmounted = true;
 		if (typeof window !== 'undefined') {
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
@@ -265,7 +270,7 @@ class HuangLiMain extends Component {
 		return (
 			<div className='horosa-calendar-workbench' style={{ height }}>
 				<section className='horosa-calendar-board-panel horosa-huangli-board'>
-					{/* [六周月份底部裁切根修 2026-08-30] 这里传 '100%' 而非上面的 height 数字:
+					{/* 这里传 '100%' 而非上面的 height 数字:
 					    面板自身有 padding14+border1(合 30px),日历拿外框数字会恰好高出面板
 					    内容盒 ⇒ 六周月(如 2026-08)末行底边被 overflow:hidden 裁掉、下方露空带
 					    (五周月余量大不显形)。100% 贴面板内容盒,按构造平账,不做算术。 */}
@@ -292,7 +297,7 @@ class HuangLiMain extends Component {
 						<div className='horosa-huangli-yearbtn'>
 							<XQButton variant='primary' onClick={()=> this.setState({ yearPanelOpen: true, yearPanelSeen: true }, this.saveAISnapshot)}>年度吉日榜</XQButton>
 						</div>
-						{/* [Z1] 加性插槽:黄历择日宿主注入入口按钮;缺省 undefined 零渲染零回归 */}
+						{/* 加性插槽:黄历择日宿主注入入口按钮;缺省 undefined 零渲染零回归 */}
 						{typeof this.props.renderExtraControls === 'function' ? this.props.renderExtraControls() : null}
 					</div>
 					<Divider />

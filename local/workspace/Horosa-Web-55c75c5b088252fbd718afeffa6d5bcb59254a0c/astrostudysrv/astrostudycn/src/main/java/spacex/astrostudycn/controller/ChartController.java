@@ -19,6 +19,7 @@ import boundless.log.QueueLog;
 import boundless.spring.help.interceptor.TransData;
 import boundless.utility.ConvertUtility;
 import boundless.utility.JsonUtility;
+import spacex.astrostudycn.helper.CivilDateParts;
 import spacex.astrostudy.helper.AstroHelper;
 import spacex.astrostudy.helper.NongliHelper;
 import spacex.astrostudy.helper.ParamHashCacheHelper;
@@ -93,7 +94,7 @@ public class ChartController {
 			String dtstr = String.format("%s %s", args.get("date"), args.get("time"));
 			boolean after23NewDay = ConvertUtility.getValueAsInt(args.get("after23NewDay"), 1) == 1;
 			boolean lateZiHourUseNextDay = ConvertUtility.getValueAsInt(args.get("lateZiHourUseNextDay"), 1) == 1;
-			// [Q-419/T-383] 农历四柱时间算法:此前写死真太阳时;三式择日概览浮窗在工作台选「直接时间」时时柱与扫描判定不同形。
+			// 农历四柱时间算法:此前写死真太阳时;三式择日概览浮窗在工作台选「直接时间」时时柱与扫描判定不同形。
 			// 新键 nongliTimeAlg(0 真太阳时 / 1 直接时间 / 3 平太阳时),缺省 0 = 既有调用逐字节零回归。
 			spacex.astrostudycn.constants.TimeZiAlg nongliTimeAlg = spacex.astrostudycn.constants.TimeZiAlg.fromCode(ConvertUtility.getValueAsInt(args.get("nongliTimeAlg"), 0));
 			OnlyFourColumns bz = new OnlyFourColumns(ad, dtstr, zone, lon, lat, after23NewDay, spacex.astrostudycn.constants.BaZiGender.Male, nongliTimeAlg, false, lateZiHourUseNextDay);
@@ -270,23 +271,22 @@ public class ChartController {
 	}
 
 	private double decimalYear(Map<String, Object> args) {
-		String date = ConvertUtility.getValueAsString(args.get("date"));
-		int ad = ConvertUtility.getValueAsInt(args.get("ad"), 1);
-		date = date == null ? "" : date.trim().replace('/', '-');
-		boolean negative = date.startsWith("-");
-		if(negative) {
-			date = date.substring(1);
+		return zhengDecimalYear(ConvertUtility.getValueAsString(args.get("date")), ConvertUtility.getValueAsInt(args.get("ad"), 1));
+	}
+
+	/**
+	 * 郑氏岁差用的十进制年(天文年:公元前 300 年 = -299,有 0 年;公元年原样)。日期串经 CivilDateParts 取段(历史纪年),
+	 * ad<0 且串不带负号 = 公元前该年。缺日期 / 认不出直接报错(此前静默按 2000 年算岁差)。
+	 */
+	static double zhengDecimalYear(String date, int ad) {
+		CivilDateParts p = CivilDateParts.parse(date);
+		if(p == null) {
+			throw new IllegalArgumentException("zheng ayanamsha needs a valid date");
 		}
-		String[] parts = date.split("-");
-		int year = parts.length > 0 ? ConvertUtility.getValueAsInt(parts[0], 2000) : 2000;
-		int month = parts.length > 1 ? ConvertUtility.getValueAsInt(parts[1], 1) : 1;
-		int day = parts.length > 2 ? ConvertUtility.getValueAsInt(parts[2], 1) : 1;
-		if(negative || ad < 0) {
-			year = -Math.abs(year);
-		}
-		month = Math.max(1, Math.min(12, month));
-		day = Math.max(1, Math.min(31, day));
-		return year + ((month - 1) * 30.4375 + (day - 1)) / 365.25;
+		int year = (p.negative || ad < 0) ? -Math.abs(p.year) : p.year;
+		int month = p.month == null ? 1 : Math.max(1, Math.min(12, p.month.intValue()));
+		int day = p.day == null ? 1 : Math.max(1, Math.min(31, p.day.intValue()));
+		return CivilDateParts.astronomicalYear(year) + ((month - 1) * 30.4375 + (day - 1)) / 365.25;
 	}
 
 	private double normalizeDegree(double val) {
@@ -591,22 +591,22 @@ public class ChartController {
 				// 两个 0/1 流派开关(点公式文档序反转/交点入旺):Python push_request_* 已就绪,
 				// 曾因此处白名单缺键而真链路静默丢参(pytest 直连 :8899 绿 ≠ RSA 链路安全)。
 				"lotsDocReverse", "nodeExaltation",
-				// [WP-2] 天文口径批(sect 视地平/own chariot/黑月西占键/站心月/留驻判定):
+				// 天文口径批(sect 视地平/own chariot/黑月西占键/站心月/留驻判定):
 				// PerChart 实例级直读 data,本白名单为唯一 Java 闸。
 				"combustOwnChariotExempt", "westLilithType", "topocentricMoon", "stationMarking",
-				// [WP-3] 希腊点变体批(perchart._applyLotVariants 消费)。
+				// 希腊点变体批(perchart._applyLotVariants 消费)。
 				"hermeticLotsReversal", "erosConstruction", "lotFortuneVariant", "lotFatherCombustAlt", "lotProjection",
-				// [WP-4] 尊贵与判定批(计分表 push/almuten 口径/行星时制式)。
+				// 尊贵与判定批(计分表 push/almuten 口径/行星时制式)。
 				"dignityDebilities", "almutenTripMode", "planetaryHourMethod",
-				// [WP-5a] 容许度体系批。
+				// 容许度体系批。
 				"orbSystem", "luminaryOrbBonus",
-				// [WP-5b] 相位参与对象扩展。
+				// 相位参与对象扩展。
 				"aspectIncludeCusps", "aspectIncludeLots", "aspectIncludeMidpoints",
-				// [WP-6] 返照专项(主盘透传仅为随盘续传;消费在推运链)。
+				// 返照专项(主盘透传仅为随盘续传;消费在推运链)。
 				"solarReturnVariant", "returnLatitudeMode",
-				// [WP-7] 自定义界表表体+自定义恒星黄道历元参数。
+				// 自定义界表表体+自定义恒星黄道历元参数。
 				"customTermsDay", "customTermsNight", "userAyanT0", "userAyanDeg",
-				// [WP-8] 灵学扩展(祝融星推算)。
+				// 灵学扩展(祝融星推算)。
 				"vulcanCalc" };
 		for(String key : classicalBatch2Keys) {
 			if(TransData.containsParam(key)) {
@@ -625,7 +625,7 @@ public class ChartController {
 		if(TransData.containsParam("lateZiHourUseNextDay")) {
 			params.put("lateZiHourUseNextDay", TransData.get("lateZiHourUseNextDay"));
 		}
-		// [Q-419/T-383] 农历四柱时间算法(概览浮窗与扫描同口径):白名单显式放行,缺省不带=真太阳时零回归。
+		// 农历四柱时间算法(概览浮窗与扫描同口径):白名单显式放行,缺省不带=真太阳时零回归。
 		if(TransData.containsParam("nongliTimeAlg")) {
 			params.put("nongliTimeAlg", TransData.get("nongliTimeAlg"));
 		}

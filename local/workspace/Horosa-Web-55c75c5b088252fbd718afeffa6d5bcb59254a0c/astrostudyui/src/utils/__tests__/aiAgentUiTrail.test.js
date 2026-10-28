@@ -1,4 +1,4 @@
-// [批五] 界面操作轨迹(内存环,不进账本、零 localStorage):push/list/按 turnId 筛/撤销一次/环上限/订阅广播。
+// 界面操作轨迹(内存环,不进账本、零 localStorage):push/list/按 turnId 筛/撤销一次/环上限/订阅广播。
 import { pushUiTrail, listUiTrail, undoUiTrail, subscribeUiTrail, UI_TRAIL_MAX, __resetUiTrailForTests } from '../aiAgent/uiTrail';
 
 beforeEach(()=>{ window.localStorage.clear(); __resetUiTrailForTests(); });

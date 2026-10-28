@@ -1,17 +1,17 @@
 diff --git a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
-index 0cfced36..b9b6fac0 100644
+index 85ea9b51..42fae27a 100644
 --- a/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
 +++ b/astrostudyui/src/components/aianalysis/AIAnalysisMain.js
-@@ -184,6 +184,8 @@ import {
- 	effectiveMaxTokensForModel,
- 	maxTokensKeyForModel,
- } from '../../utils/aiAnalysisProviders';
+@@ -216,6 +216,8 @@ import { AssistantMarkdown } from './main/AssistantMarkdown';
+ import { matchesUserQuery } from '../../utils/scriptMode';
+ import { datePartOf } from '../../utils/dateStrSafe';
+ import { SETTING_NOT_SAVED_EVENT } from '../../utils/safeStorage';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
  
- // [Q-410] 保存结果统一提示(取消 info / 失败 error / 成功 success 带路径)
+ // 保存结果统一提示(取消 info / 失败 error / 成功 success 带路径)
  function notifySaveResult(r, okText){ const d = describeSaveResult(r, okText); (message[d.type] || message.info)(d.text); }
-@@ -1573,7 +1575,15 @@ function AIAnalysisMain(props){
+@@ -1016,7 +1018,15 @@ function AIAnalysisMain(props){
  	React.useEffect(()=>{
  		if(props.hook){
  			props.hook.fun = ()=>{
@@ -28,8 +28,8 @@ index 0cfced36..b9b6fac0 100644
  			};
  		}
  	}, [props.hook, loadWorkspace]);
-@@ -5954,6 +5964,12 @@ function AIAnalysisMain(props){
- 			{/* [首开反卡 2026-08-09] 全页 Spin 已摘:曾以 workspaceLoading 包住整个工作区 ——
+@@ -5556,6 +5566,12 @@ function AIAnalysisMain(props){
+ 			{/* 全页 Spin 已摘:曾以 workspaceLoading 包住整个工作区 ——
  			    APP(WKWebView)里大库首读把它顶成「全页转圈很久」。现在首帧直接渲染,
  			    wave2 未到位时资料/历史 pane 顶部各自细提示(deepLoading)。绝不回包全页。 */}
 +			{/* horosa_freeze_subtabs_v1:五个 renderXxxPane() 此前在**每次** render 都被无条件调用 ——
@@ -41,7 +41,7 @@ index 0cfced36..b9b6fac0 100644
  			<Tabs
  					className={styles.workspaceTabs}
  					tabPosition="right"
-@@ -5962,25 +5978,35 @@ function AIAnalysisMain(props){
+@@ -5564,25 +5580,35 @@ function AIAnalysisMain(props){
  					style={{ height: '100%', minHeight: 0 }}
  				>
  					<TabPane tab={<span>{SECONDARY_TABS[0].icon}分析</span>} key="analysis">
@@ -52,7 +52,7 @@ index 0cfced36..b9b6fac0 100644
  					<TabPane tab={<span>{SECONDARY_TABS[1].icon}历史</span>} key="history">
 +						<FreezeSubTab active={innerTab === 'history'}>{()=>(
  						<div className={styles.pane}>
- 							{deepLoading ? <div style={{ padding: '4px 12px', color: 'var(--horosa-text-tertiary, #999)', fontSize: 12 }}>会话记录载入中…</div> : null}
+ 							{deepLoading ? <div style={{ padding: '4px 12px', color: 'var(--horosa-text-secondary, #999)', fontSize: 12 }}>会话记录载入中…</div> : null}
  							{renderHistoryPane()}
  						</div>
 +					)}</FreezeSubTab>
@@ -60,7 +60,7 @@ index 0cfced36..b9b6fac0 100644
  					<TabPane tab={<span>{SECONDARY_TABS[2].icon}资料</span>} key="materials">
 +						<FreezeSubTab active={innerTab === 'materials'}>{()=>(
  						<div className={styles.pane}>
- 							{deepLoading ? <div style={{ padding: '4px 12px', color: 'var(--horosa-text-tertiary, #999)', fontSize: 12 }}>资料库载入中…</div> : null}
+ 							{deepLoading ? <div style={{ padding: '4px 12px', color: 'var(--horosa-text-secondary, #999)', fontSize: 12 }}>资料库载入中…</div> : null}
  							{renderMaterialsPane()}
  						</div>
 +					)}</FreezeSubTab>

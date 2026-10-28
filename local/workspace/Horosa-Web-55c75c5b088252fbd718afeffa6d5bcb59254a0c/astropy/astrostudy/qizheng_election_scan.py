@@ -33,7 +33,7 @@ from astrostudy.election_scan import (
     _jd_from, _norm360, norm_intervals, iv_and, iv_or, iv_not, iv_xor,
     true_intervals, date_time_from_jd,
 )
-from astrostudy.election_scan_kernel import GROUP_TYPES, make_validate, make_tree_evaluator
+from astrostudy.election_scan_kernel import GROUP_TYPES, make_validate, make_tree_evaluator, zone_days as _zone_days
 # 宿界同源(制度层1):mode2 活体距星/mode3 开禧+ayanamsha 与主页 getMoiraFixedStarSu28
 # 共用同一函数与常量表——perchart 侧修距星表/岁差,扫描自动跟。
 from astrostudy.perchart import (
@@ -43,15 +43,6 @@ from astrostudy.perchart import (
 MAX_SPAN_DAYS = 93.0
 MAX_INTERVALS = 1000
 
-
-def _zone_days(zone):
-    """固定偏移 zone('+08:00'/'-05:30')→天数(墙钟分钟栅格对齐用)。"""
-    txt = str(zone or '+08:00')
-    neg = txt.startswith('-')
-    txt = txt.replace('+', '').replace('-', '')
-    parts = txt.split(':')
-    v = float(parts[0]) + (float(parts[1]) / 60.0 if len(parts) > 1 else 0.0)
-    return (-v if neg else v) / 24.0
 
 # 11 曜(七政+四余;键=中文,前端条件参数同名)。
 QIZHENG_BODIES = ['日', '月', '金', '木', '水', '火', '土', '罗睺', '计都', '月孛', '紫炁']
@@ -124,7 +115,7 @@ class QizhengScanContext(object):
         return name
 
 
-# [Q-269/T-255] 四余别名:js 条件表(dignity_seven 等)与 guolao_const 七态表用单字键,内核按全名取位。
+# 四余别名:js 条件表(dignity_seven 等)与 guolao_const 七态表用单字键,内核按全名取位。
 _BODY_ALIAS = {'计': '计都', '罗': '罗睺', '炁': '紫炁', '孛': '月孛', '計': '计都', '羅': '罗睺', '氣': '紫炁'}
 
 
@@ -162,7 +153,7 @@ class QizhengMoment(object):
         raise ValueError('unknown body: {0!r}'.format(body))
 
     def lon(self, body):
-        body = _BODY_ALIAS.get(body, body)   # [Q-269/T-255] 条件表用单字「计/罗/炁/孛」,内核用全名 → 别名归一(此前 unknown body 整次搜索报错)
+        body = _BODY_ALIAS.get(body, body)   # 条件表用单字「计/罗/炁/孛」,内核用全名 → 别名归一(此前 unknown body 整次搜索报错)
         v = self._lon.get(body)
         if v is None:
             v, sp = self._calc(body)
@@ -246,7 +237,7 @@ def _eval_dignity(params, ctx, domain):
 
 
 def _eval_dignity_seven(params, ctx, domain):
-    # [W7] 殿垣庙旺乐喜怒七态(js starDignityStatuses 基表镜像;升殿峰值档不入扫描——
+    # 殿垣庙旺乐喜怒七态(js starDignityStatuses 基表镜像;升殿峰值档不入扫描——
     # 需旺度距峰判定,显示层专属)。任一所选状态命中即真。
     body = params['body']
     wants = set(params.get('values') or [])
@@ -284,12 +275,12 @@ def _eval_speed_state(params, ctx, domain):
         if state == 'direct':
             return sp > 0.0
         if state == 'stationary':
-            # [Q-271/ZC-20] 五星「留」与主七政页同阈(guolao_const.QIZHENG_SPEED_SPEC 逐曜 stat:金 .15/木 .07/水 .10/火 .20/土 .05;
+            # 五星「留」与主七政页同阈(guolao_const.QIZHENG_SPEED_SPEC 逐曜 stat:金 .15/木 .07/水 .10/火 .20/土 .05;
             # 此前恒 0.02 → 扫描留窗远窄于盘面标「留」的时段);月孛/紫炁无谱仍用 threshold(缺省 0.02)。显式传 threshold 仍优先。
             if thr:
                 return abs(sp) <= thr
             return abs(sp) <= (spec['stat'] if spec else 0.02)
-        # [W7] 迟/速两档(js starMotionState 同判据:非留态下 |v|<slow=迟、|v|>fast=速;仅五星有谱)
+        # 迟/速两档(js starMotionState 同判据:非留态下 |v|<slow=迟、|v|>fast=速;仅五星有谱)
         if state in ('slow', 'fast'):
             if not spec:
                 return False
@@ -375,7 +366,7 @@ def _lichun_jd(year):
     if year in _LICHUN_CACHE:
         return _LICHUN_CACHE[year]
     try:
-        jd = swisseph.julday(year, 2, 4, 0.0)
+        jd = swisseph.julday(year, 2, 4, 0.0, swisseph.GREG_CAL)
         for _ in range(12):
             lon, speed = swisseph.calc_ut(jd, swisseph.SUN, swisseph.FLG_SWIEPH | swisseph.FLG_SPEED)[0][0:4:3]
             delta = ((315.0 - lon + 180.0) % 360.0) - 180.0
@@ -383,7 +374,7 @@ def _lichun_jd(year):
                 break
             jd += delta / (speed if speed else 0.9856)
     except Exception:
-        jd = swisseph.julday(year, 2, 4, 0.0)
+        jd = swisseph.julday(year, 2, 4, 0.0, swisseph.GREG_CAL)
     _LICHUN_CACHE[year] = jd
     return jd
 
@@ -394,13 +385,11 @@ def _eval_hua_lu(params, ctx, domain):
     where = params.get('where') or 'gong'
 
     def pred(jd):
-        # [Q-422/T-386] 年干按真立春(太阳黄经 315°)时刻定界:此前按公历 2/4 0 时粗界,2/4 0 时~真立春(2/3 晚–2/5 早)窗口内
+        # 年干按真立春(太阳黄经 315°)时刻定界:此前按公历 2/4 0 时粗界,2/4 0 时~真立春(2/3 晚–2/5 早)窗口内
         # 判定错一年,与主七政页(盘面八字年柱)分叉。立春时刻按年缓存(牛顿迭代,一年一次)。
-        rec = date_time_from_jd(jd, ctx.zone)
-        # 负年(天文纪年 '-1044-02-01')安全解析:rsplit 保号位,勿用 [:4] 截断
-        d_part = rec['datetime'].split(' ')[0]
-        seg = d_part.rsplit('-', 2)
-        y = int(seg[0])
+        # 年号取当地时刻的天文年(连续纪年,公元 4 年 = 甲子)、按格里历(季节对齐,立春恒在 2 月初附近),
+        # 直接由儒略日拆,不经显示串(显示串是历史纪年 + 1582 以前儒略历,不能拿来做干支 / 节气算术)。
+        y = int(swisseph.revjul(jd + _zone_days(ctx.zone), swisseph.GREG_CAL)[0])
         if jd < _lichun_jd(y):
             y -= 1
         gan = '甲乙丙丁戊己庚辛壬癸'[(y - 4) % 10]
@@ -563,7 +552,7 @@ def explain_at(data):
         if body:
             actual = u'{0}:{1}宫·{2}宿·速{3:+.3f}'.format(
                 body, m.gong(body), m.xiu(body), m.speed(body))
-            # [W7] 七态类 actual 追加当支状态串(详情面「实际」列可读)
+            # 七态类 actual 追加当支状态串(详情面「实际」列可读)
             if ttype == 'dignity_seven':
                 sts = gc.qizheng_sign_statuses(body, m.gong(body))
                 actual = u'{0}·态:{1}'.format(actual, u'/'.join(sts) if sts else u'无')

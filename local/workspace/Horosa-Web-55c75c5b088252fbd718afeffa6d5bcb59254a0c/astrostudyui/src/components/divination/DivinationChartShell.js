@@ -8,9 +8,10 @@ import GeoCoordModal from '../amap/GeoCoordModal';
 import { convertLatToStr, convertLonToStr } from '../astro/AstroHelper';
 import { resolveGeoZone } from '../../utils/timezone';
 import { geoNameRawPatch } from '../../utils/geoName';
+import { casePlaceGroup, caseDivTimeUsable, parseCaseDivTimeInto } from '../../utils/kentangCaseSave';
 import { getHousesOption } from '../comp/CompHelper';
 import { XQButton, XQSegmented, XQSelect, XQTabs, XQSideSection } from '../xq-ui';
-import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
+import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import XQIcon from '../xq-icons';
 import * as AstroConst from '../../constants/AstroConst';
 import { fetchChart } from '../../services/astro';
@@ -21,61 +22,37 @@ import DateTime from '../comp/DateTime';
 import { GLOSSARY } from '../../divination/data/glossary';
 import { openDivinationCaseDrawer, getDivinationSavedCasePayload } from '../../utils/divinationCaseSave';
 import { getClassicalChartGlobals, CLASSICAL_GLOBALS_EVENT, CLASSICAL_GLOBAL_DEFAULTS } from '../../utils/classicalChartGlobals';
-import * as Constants from '../../utils/constants';
-import { safeLocalStorageSet } from '../../utils/safeStorage';
+import { mergeGlobalSetupWrite, readGlobalSetupField } from '../../utils/globalSetupStore';
 import { DIVINATION_CASE_SETTING_KEYS } from '../../utils/divinationCaseSave';
 
-// 盘面美术跨会话:本壳非 connect 组件,直接读写 globalSetup 的 wheelArt 键(与 app model 同一存储,口径一致)。
-function readStoredWheelArt(){
+// 盘面美术 / 外环样式跨会话:本壳非 connect 组件,直接读写 globalSetup 里的对应键(与 app model 同一存储,口径一致)。
+// 存储不可用时读回 undefined(由各自的归一化给缺省)、写入静默:本会话内 state 仍生效。
+function readGlobalSetupKey(key){
 	try{
-		const json = localStorage.getItem(Constants.GlobalSetupKey);
-		const cfg = json ? JSON.parse(json) : null;
-		return AstroConst.normalizeWheelArt(cfg && cfg.wheelArt);
-	}catch(e){
-		return AstroConst.normalizeWheelArt(undefined);
-	}
-}
-
-function writeStoredWheelArt(wheelArt){
-	try{
-		const json = localStorage.getItem(Constants.GlobalSetupKey);
-		const cfg = json ? JSON.parse(json) : {};
-		cfg.wheelArt = AstroConst.normalizeWheelArt(wheelArt);
-		safeLocalStorageSet(Constants.GlobalSetupKey, JSON.stringify(cfg));
-	}catch(e){
-		// 存储不可用时静默:本会话内 state 仍生效。
-	}
-}
-
-// 外环样式跨会话:与上面盘面美术同一条路(同一 globalSetup 存储、同一归一化)。
-function readStoredChartStyle(){
-	try{
-		const json = localStorage.getItem(Constants.GlobalSetupKey);
-		const cfg = json ? JSON.parse(json) : null;
-		return cfg ? cfg.chartStyle : undefined;
+		return readGlobalSetupField(key);   // 全局设置单源的内存镜像(与写入同一单源)
 	}catch(e){
 		return undefined;
 	}
 }
 
-function writeStoredChartStyle(chartStyle){
-	try{
-		const json = localStorage.getItem(Constants.GlobalSetupKey);
-		const cfg = json ? JSON.parse(json) : {};
-		cfg.chartStyle = AstroConst.normalizeChartStyle ? AstroConst.normalizeChartStyle(chartStyle) : chartStyle;
-		safeLocalStorageSet(Constants.GlobalSetupKey, JSON.stringify(cfg));
-	}catch(e){
-		// 存储不可用时静默:本会话内 state 仍生效。
-	}
+// 写入走全局设置落盘单源(以存储现值为底只改这一键;全量恢复期间冻结;存储不可用时静默)
+function writeGlobalSetupKey(key, value){
+	mergeGlobalSetupWrite({ [key]: value });
 }
+
+function readStoredWheelArt(){ return AstroConst.normalizeWheelArt(readGlobalSetupKey('wheelArt')); }
+function writeStoredWheelArt(wheelArt){ writeGlobalSetupKey('wheelArt', AstroConst.normalizeWheelArt(wheelArt)); }
+// 外环样式读回原值(调用方归一化),写入前归一化。
+function readStoredChartStyle(){ return readGlobalSetupKey('chartStyle'); }
+function writeStoredChartStyle(chartStyle){ writeGlobalSetupKey('chartStyle', AstroConst.normalizeChartStyle(chartStyle)); }
 
 // 「设置→星盘设置」全局古典参数 → 本盘热同步键集(缺省=全量;卜卦页收窄——
 // 流派学理绑定的键(界系/双子界序/福点反转/宫制/星群)恒以流派为准,不被全局改动冲掉)。
 const DEFAULT_GLOBAL_SYNC_KEYS = ['termsVariant', 'geminiBoundEmended', 'westNodeType', 'sectBuffer', 'leoBoundFirst', 'triplicity', 'lotReversal',
 	'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter', 'fixedStarOrb', 'fixedStarOrbMode', 'antisciaOrb',
-	// [对标战役 0b/0c] 二批第十键与三流派开关此前漏在热同步集外(非流派绑定键,应随全局)。
+	// 二批第十键与三流派开关此前漏在热同步集外(非流派绑定键,应随全局)。
 	'viaCombustaVariant', 'lotsDocReverse', 'nodeExaltation',
-	// [WP-2] 天文口径批(同为非流派绑定键)
+	// 天文口径批(同为非流派绑定键)
 	'combustOwnChariotExempt', 'westLilithType', 'topocentricMoon', 'stationMarking',
 	'hermeticLotsReversal', 'erosConstruction', 'lotFortuneVariant', 'lotFatherCombustAlt', 'lotProjection',
 	'dignityDebilities', 'almutenTripMode', 'planetaryHourMethod',
@@ -104,7 +81,7 @@ function stepDt(dt, unit, dir){
 // 卜卦盘 / 择日盘 共用的自包含三栏页（左设置+调时 / 中圆盘 / 右判断）。
 // 时间/地点/设置全部用本地 state，独立于「占星」主盘，不回灌父级 astro model。
 class DivinationChartShell extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -151,14 +128,12 @@ class DivinationChartShell extends Component{
 			chart: null,
 			busy: false,
 			err: null,
-			// [Q-150/T-61] 外环样式初值此前恒 normalizeChartStyle(undefined),不读全局 → 占星页设的样式在三页失效;
+			// 外环样式初值此前恒 normalizeChartStyle(undefined),不读全局 → 占星页设的样式在三页失效;
 			// 宿主(辅盘)补传后以全局值开盘,之后由 componentDidUpdate 跟随全局变更。
 			// 宿主没传(如天星择日)时自己读全局 —— 与下面盘面美术的兜底同律;否则这类宿主页改了外环样式、写进了全局,重开却读不回。
-			chartStyle: AstroConst.normalizeChartStyle
-				? AstroConst.normalizeChartStyle(props.chartStyle !== undefined && props.chartStyle !== null ? props.chartStyle : readStoredChartStyle())
-				: 'current',
+			chartStyle: AstroConst.normalizeChartStyle(props.chartStyle !== undefined && props.chartStyle !== null ? props.chartStyle : readStoredChartStyle()),
 			// 盘面美术:非 connect 组件,挂载时从 globalSetup 读跨会话值;变更走 changeWheelArt(有 dispatch 则同步 app model)。
-			// [Q-150/T-61] 宿主传了就以宿主(= app model 全局)为准,两处同源。
+			// 宿主传了就以宿主(= app model 全局)为准,两处同源。
 			wheelArt: props.wheelArt !== undefined && props.wheelArt !== null
 				? AstroConst.normalizeWheelArt(props.wheelArt)
 				: readStoredWheelArt(),
@@ -244,7 +219,7 @@ class DivinationChartShell extends Component{
 		keys.forEach((k)=>{
 			if(g[k] === undefined){ return; }
 			const cur = this.state.fields[k] && this.state.fields[k].value !== undefined ? this.state.fields[k].value : undefined;
-			// [F13] fields 缺键(cur=undefined)语义=「随全局」:全局值仍为默认时不物化进 fields——
+			// fields 缺键(cur=undefined)语义=「随全局」:全局值仍为默认时不物化进 fields——
 			// 否则任一次全局改动会把 26 个 conditional 键的默认值 wrapper 写进 fields,
 			// 存案时被「present 才落档」钉死成当日默认,「缺键=随全局」被静默转「钉死」。
 			if(cur === undefined && k in CLASSICAL_GLOBAL_DEFAULTS && g[k] === CLASSICAL_GLOBAL_DEFAULTS[k]){ return; }
@@ -261,7 +236,7 @@ class DivinationChartShell extends Component{
 		}
 	}
 
-	// [Q-150/T-61] 壳此前只在构造时读一次全局美术:停在卜卦/择日/世俗页时改「设置→星盘设置」的
+	// 壳此前只在构造时读一次全局美术:停在卜卦/择日/世俗页时改「设置→星盘设置」的
 	// 盘面美术 / 外环样式,app model 变了而本页不动(左栏下拉也仍显旧值),要重挂载才跟上。
 	// 改为订阅宿主透传的全局值——只在全局值本身发生变化(prev→next)时同步,页内手动改的档位不被回冲。
 	componentDidUpdate(prevProps){
@@ -273,7 +248,7 @@ class DivinationChartShell extends Component{
 			if(nextArt !== this.state.wheelArt){ this.setState({ wheelArt: nextArt }); }
 		}
 		if(prevProps && prevProps.chartStyle !== this.props.chartStyle && this.props.chartStyle !== undefined && this.props.chartStyle !== null){
-			const nextStyle = AstroConst.normalizeChartStyle ? AstroConst.normalizeChartStyle(this.props.chartStyle) : this.props.chartStyle;
+			const nextStyle = AstroConst.normalizeChartStyle(this.props.chartStyle);
 			if(nextStyle !== this.state.chartStyle){ this.setState({ chartStyle: nextStyle }); }
 		}
 		this.applyRestoreIfAny();
@@ -293,12 +268,13 @@ class DivinationChartShell extends Component{
 		}
 		this._appliedCaseVersion = c.caseVersion;
 		const patch = {};
-		// 时间：保存为 'YYYY-MM-DD HH:mm:ss' 字符串，按 user/applyCase 同法解析回 DateTime。
-		if(c.divTime){
+		// 时间：保存为 'YYYY-MM-DD HH:mm:ss' 字符串，按 user/applyCase 同法(kentangCaseSave.parseCaseDivTimeInto)解析回 DateTime;没有起课时间(空 / 认不出)= 此刻,与主盘载入同口径
+		// (此前跳过,壳里留着上一张盘的时刻,与左栏的「此刻」对不上)。
+		{
 			const dt = new DateTime();
 			const zone = c.zone || (this.state.fields.zone && this.state.fields.zone.value);
 			if(zone){ dt.setZone(zone); }
-			const parsed = dt.parse ? dt.parse(c.divTime, 'YYYY-MM-DD HH:mm:ss') : null;
+			const parsed = caseDivTimeUsable(c) ? parseCaseDivTimeInto(dt, c.divTime) : dt;
 			if(parsed){
 				patch.date = parsed;
 				patch.time = parsed.clone ? parsed.clone() : parsed;
@@ -306,11 +282,10 @@ class DivinationChartShell extends Component{
 				if(zone){ patch.zone = zone; }
 			}
 		}
-		if(c.lon !== undefined && c.lon !== null && c.lon !== ''){ patch.lon = c.lon; }
-		if(c.lat !== undefined && c.lat !== null && c.lat !== ''){ patch.lat = c.lat; }
-		if(c.gpsLon !== undefined && c.gpsLon !== null){ patch.gpsLon = c.gpsLon; }
-		if(c.gpsLat !== undefined && c.gpsLat !== null){ patch.gpsLat = c.gpsLat; }
-		if(c.pos){ patch.pos = c.pos; }
+		// 地点当一组(kentangCaseSave.casePlaceGroup,与择日宿主同判据):经纬串缺或空 → 整组沿用壳里现有的地点;
+		// 否则经纬 / 数值经纬(缺则由串换算)/ 地名一起写,地名空串也写 —— 此前逐键跳空:北京坐标配上一条的伦敦地名、伦敦经度配北京纬度
+		const place = casePlaceGroup(c);
+		if(place){ Object.keys(place).forEach((k)=>{ patch[k] = place[k]; }); }
 		// 技法设置（黄道/宫制/守护 + 古典占星参数）随案还原（present 才还原,老案例缺键零行为）。
 		const settings = (c.payload && c.payload.settings) || null;
 		if(settings){
@@ -318,7 +293,7 @@ class DivinationChartShell extends Component{
 			if(settings.siderealAyanamsa !== undefined){ patch.siderealAyanamsa = settings.siderealAyanamsa; }
 			if(settings.hsys !== undefined){ patch.hsys = settings.hsys; }
 			if(settings.tradition !== undefined){ patch.tradition = settings.tradition; }
-			// [SURF-R0] 还原白名单与保存侧同源(此前手抄 17 键=27 键「存而不还原」:事盘重开
+			// 还原白名单与保存侧同源(此前手抄 17 键=27 键「存而不还原」:事盘重开
 			// 回本机全局值、与 AI 挂载文本口径矛盾;自定义界表/user 岁差事盘换机静默降级)。
 			DIVINATION_CASE_SETTING_KEYS.forEach((k)=>{
 				if(settings[k] !== undefined && settings[k] !== null){ patch[k] = settings[k]; }
@@ -393,7 +368,7 @@ class DivinationChartShell extends Component{
 				if(!nd){ return; }
 				const nextFields = { ...this.state.fields };
 				nextFields.date = { value: nd, name: ['date'] };
-				nextFields.time = { value: nd.clone ? nd.clone() : nd, name: ['time'] };
+				nextFields.time = { value: nd.clone(), name: ['time'] };   // nd 恒为 stepDt 返回的 DateTime
 				fetchChart(buildChartParams(nextFields), { cache: true, silent: true }).catch(()=>{ /* 预取静默 */ });
 			}catch(e){ /* 预取失败无害 */ }
 		}
@@ -411,7 +386,7 @@ class DivinationChartShell extends Component{
 			if(!nd){ continue; }
 			const f2 = { ...this.state.fields };
 			f2.date = { value: nd, name: ['date'] };
-			f2.time = { value: nd.clone ? nd.clone() : nd, name: ['time'] };
+			f2.time = { value: nd.clone(), name: ['time'] };   // nd 恒为 stepDt 返回的 DateTime
 			let params;
 			try{ params = buildChartParams(f2); }catch(e){ continue; }   // 非法日期静默跳过
 			tasks.push({
@@ -424,7 +399,7 @@ class DivinationChartShell extends Component{
 		return tasks;
 	}
 
-	// [R3-A1 下放] 选步长即预取(卜卦/择日/世俗三盘):本盘 fields 自持(与全局 store 无关),
+	// 选步长即预取(卜卦/择日/世俗三盘):本盘 fields 自持(与全局 store 无关),
 	// 全局 handler(store fields+fieldsToParams)对本盘是【错键空烧】——必须走本地构参。
 	// 经共享调度器(idle+latest-wins+预算4+150ms 间隔)排队;同 unit 5s 去重防抖;开关同主链。
 	handleStepSelect(unit){
@@ -578,7 +553,7 @@ class DivinationChartShell extends Component{
 				</XQSideSection>
 
 				{typeof this.props.renderLeftExtra === 'function'
-					// [Q-345] wheelArt 透传:非经典美术(方形盘)走 AstroWheelArtChart,不读 horaryOverlay / keyPlanets / hideBodies,
+					// wheelArt 透传:非经典美术(方形盘)走 AstroWheelArtChart,不读 horaryOverlay / keyPlanets / hideBodies,
 					// 子页据此把只影响圆盘的勾选置灰(与本壳「外环样式」同一手法)。
 					? this.props.renderLeftExtra({ extra: this.state.extra, setExtra: this.setExtra, fields, chart: this.state.chart, setTime: this.setTimeDt, patchFields: this.patchFields, wheelArt: this.state.wheelArt })
 					: null}
@@ -608,7 +583,7 @@ class DivinationChartShell extends Component{
 					</div>
 				</div>
 
-				{/* [用户实报 2026-09-17·APP] 辅盘左栏「盘面参数」里的「星盘样式」小标题多余(与上方黄道/宫制同属一卡,
+				{/* 辅盘左栏「盘面参数」里的「星盘样式」小标题多余(与上方黄道/宫制同属一卡,
 				    标题只挤占一行还压着「外环样式」),按用户要求去掉;两个字段紧接黄道/宫制网格之下(仅此辅盘壳,
 				    占星主页左栏那张独立的「星盘样式」卡不动)。 */}
 				<div className="horosa-chart-style-block" style={{ marginTop: 7 }}>
@@ -675,10 +650,10 @@ class DivinationChartShell extends Component{
 									planetDisplay={this.props.planetDisplay}
 									lotsDisplay={this.props.lotsDisplay}
 									showAstroMeaning={this.props.showAstroMeaning}
-									// [批5] 键星聚焦叠层(卜卦征象宫高亮):函数型按当前盘/extra 求值;
+									// 键星聚焦叠层(卜卦征象宫高亮):函数型按当前盘/extra 求值;
 									// 不传=undefined → AstroChart 渲染路径与既有逐字节一致(零回归)。
 									keyPlanets={typeof this.props.keyPlanets === 'function' ? this.props.keyPlanets(chartObj, this.state.extra) : this.props.keyPlanets}
-									// [二期] 判读叠层(完成法连线/映点/界环着色/恒星):同款函数型求值;
+									// 判读叠层(完成法连线/映点/界环着色/恒星):同款函数型求值;
 									// 不传=undefined → 零回归(仅卜卦页提供)。
 									horaryOverlay={typeof this.props.horaryOverlay === 'function' ? this.props.horaryOverlay(chartObj, this.state.extra) : this.props.horaryOverlay}
 									// 世俗盘流派渲染白名单(古典派中盘隐外行星 glyph+相位线):同款函数型;
@@ -687,7 +662,7 @@ class DivinationChartShell extends Component{
 									height="100%"
 								/>
 							) : (
-								<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 320, opacity: 0.65, fontSize: 13, padding: 16, textAlign: 'center' }}>
+								<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 320, color: 'var(--horosa-text-secondary)', fontSize: 13, padding: 16, textAlign: 'center' }}>
 									{this.state.busy ? '排盘中…' : (this.state.err ? '排盘失败：请确认本地服务运行后点「重算星盘」。' : '排盘中…')}
 								</div>
 							)}

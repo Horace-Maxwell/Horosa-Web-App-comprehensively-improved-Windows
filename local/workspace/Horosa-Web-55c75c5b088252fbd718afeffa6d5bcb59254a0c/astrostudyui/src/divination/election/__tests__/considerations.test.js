@@ -54,7 +54,7 @@ describe('判定随口径/盘面变化', () => {
 		expect(fall.find((x) => x.key === 'm5_via').hit).toBe(true);   // 215 在火道 195–225
 		expect(fall.find((x) => x.key === 'm9_bad_house').hit).toBe(true);
 	});
-	// [Q-146/T-53] classic 不再读后端 isVOC 旗(按全局口径算),改为按同一张相位表自算;
+	// classic 不再读后端 isVOC 旗(按全局口径算),改为按同一张相位表自算;
 	// 两档的真差别落在目标星集:classic 看表内全部星,kenodromia 只看七政(±三王)。
 	it('空亡条随 vocMode 口径:月只对非七政点入相 → kenodromia 命中、classic 不命中', () => {
 		const facts = mkFacts((r) => {

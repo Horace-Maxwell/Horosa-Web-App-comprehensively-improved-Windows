@@ -1,4 +1,4 @@
-// [Z6·三式择日] 四本账登记+真值金标(照 baziZeriLedger 同律):
+// 四本账登记+真值金标(照 baziZeriLedger 同律):
 // ①导出账 ②挂载账(scope 化快照槽) ③方案账(格式互导必拒) ④事盘账 ⑤对偶锁+builder 段头活体对拍。
 import fs from 'fs';
 import path from 'path';
@@ -8,11 +8,12 @@ import { CASE_TYPE_OPTIONS, getCaseTypeLabel } from '../../../utils/localcases';
 import { buildSanshiZeriSnapshotExtra } from '../sanshiZeriSnapshot';
 import { sanshiZeriSchemeStore, qimenZeriSchemeStore } from '../schemeStore';
 import { newSanshiLeaf } from '../sanshiZeriConditionTypes';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.join(__dirname, '..', '..', '..');
-const read = (p)=>fs.readFileSync(path.join(SRC, p), 'utf8');
+const read = (p)=>readSource(path.join(SRC, p));
 
-describe('[Z6] 四本账登记', ()=>{
+describe('四本账登记', ()=>{
 	it('🔴 ①导出账:preset=sanshiunited 段单源+择时三段;label 表;启发式「三式择日」先于裸「择日」', ()=>{
 		const base = AI_EXPORT_PRESET_SECTIONS.sanshiunited;
 		const tz = AI_EXPORT_PRESET_SECTIONS.sanshizeri;
@@ -54,7 +55,7 @@ describe('[Z6] 四本账登记', ()=>{
 	});
 });
 
-describe('[Z6] 快照段头真值(builder↔preset 逐字成对)', ()=>{
+describe('快照段头真值(builder↔preset 逐字成对)', ()=>{
 	it('🔴 builder 三段头与 preset 追加三段逐字相同(活体对拍)', ()=>{
 		const tree = { kind: 'group', joiner: 'all', children: [newSanshiLeaf('lr_ke_name')] };
 		const txt = buildSanshiZeriSnapshotExtra({

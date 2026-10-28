@@ -144,7 +144,7 @@ def test_house_system_labels_match_backend_generic_table():
 def test_mount_hsys_options_reuse_generic_table():
     """挂载齿轮的宫制下拉就是 HOUSE_SYSTEM_OPTIONS 原表(否则上一条合同证不到挂载面)。"""
     src = _read(MOUNT_SETTINGS)
-    assert re.search(r'const HSYS_OPTIONS = \(AstroConst\.HOUSE_SYSTEM_OPTIONS \|\| \[\]\)\.map\(', src)
+    assert re.search(r'const HSYS_OPTIONS = (\(AstroConst\.HOUSE_SYSTEM_OPTIONS \|\| \[\]\)|AstroConst\.HOUSE_SYSTEM_OPTIONS)\.map\(', src)
 
 
 def test_house_system_labels_match_backend_india_table():
@@ -252,7 +252,7 @@ def test_mount_ayanamsa_selects_reuse_india_table():
     """西占 / 宿占 / 量化盘挂载「岁差制」与七政「恒星岁差」下拉 = 空档 + INDIA_AYANAMSA_OPTIONS 原表(+ 自定义)。"""
     src = _read(MOUNT_SETTINGS)
     assert re.search(r"name: 'siderealAyanamsa'.*options: \[\{ value: '', label: '默认（随盘 / Lahiri）' \}, \.\.\.AstroConst\.INDIA_AYANAMSA_OPTIONS, \{ value: 'user'", src)
-    assert re.search(r"options: \[\{ value: '', label: '郑式（默认）' \}, \.\.\.AstroConst\.INDIA_AYANAMSA_OPTIONS\]", src)
+    assert re.search(r"options: \[\{ value: '', label: '郑式\(默认\)' \}, \.\.\.AstroConst\.INDIA_AYANAMSA_OPTIONS\]", src)   # 与七政页同一写法(半角括号)
     assert re.search(r"name: 'indiaAyanamsa'.*options: AstroConst\.INDIA_AYANAMSA_OPTIONS", src)
 
 

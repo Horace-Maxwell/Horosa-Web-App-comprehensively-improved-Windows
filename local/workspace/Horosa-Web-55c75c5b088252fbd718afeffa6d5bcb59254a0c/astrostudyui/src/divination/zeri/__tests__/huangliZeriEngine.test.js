@@ -1,4 +1,4 @@
-// [Z1·黄历择日] 引擎+注册表金标。冻结基线锚=2026-01-01(乙亥/建除闭/朱雀黑道/井宿吉/大安/
+// 引擎+注册表金标。冻结基线锚=2026-01-01(乙亥/建除闭/朱雀黑道/井宿吉/大安/
 // 渐盈凸/九星三/冲蛇/农历十三/周四/山头火/吉时7)与 2026-02-04(立春 04:02:08/己酉/危)——
 // 真值经 buildHuangliDay 实跑采集后钉死(判定单源=老黄历卡同函数,主算法改此处红=制度层2)。
 // 判别纪律(用户定案19):锚日刻意选「各条件类在此判真/判假可区分」的日子,正反双锚。
@@ -10,7 +10,7 @@ const D1 = ()=>buildHuangliDay(2026, 1, 1);
 const leaf = (type, params)=>({ type, params });
 const ev = (type, params, day)=>HUANGLI_CONDITION_TYPES[type].evaluate(day || D1(), params, makeHuangliZeriEvalCtx(day || D1()));
 
-describe('[Z1] 注册表契约', ()=>{
+describe('注册表契约', ()=>{
 	it('🔴 每类 spec 五件齐(category/label/defaults/fields/evaluate)且 summary/validate 可调', ()=>{
 		const keys = Object.keys(HUANGLI_CONDITION_TYPES);
 		expect(keys.length).toBeGreaterThanOrEqual(17);
@@ -26,7 +26,7 @@ describe('[Z1] 注册表契约', ()=>{
 		});
 	});
 
-	it('🔴 [Q-271/ZC-19] 每类 defaults 的 multiselect 值必在该字段 options 值域内(缺省值出域=新加即恒假)', ()=>{
+	it('🔴 每类 defaults 的 multiselect 值必在该字段 options 值域内(缺省值出域=新加即恒假)', ()=>{
 		Object.keys(HUANGLI_CONDITION_TYPES).forEach((k)=>{
 			const s = HUANGLI_CONDITION_TYPES[k];
 			(s.fields || []).forEach((f)=>{
@@ -38,7 +38,7 @@ describe('[Z1] 注册表契约', ()=>{
 				vals.forEach((v)=>{ expect({ type: k, field: f.key, value: v, inDomain: domain.has(`${v}`) }).toEqual({ type: k, field: f.key, value: v, inDomain: true }); });
 			});
 		});
-		// [Q-271/ZC-18] 用事词同义展开:2026-01-01 宜「理发」/「移徙」类以异名出现 → 字面词命中(与通书用事裁决同表)
+		// 用事词同义展开:2026-01-01 宜「理发」/「移徙」类以异名出现 → 字面词命中(与通书用事裁决同表)
 		const d = D1();
 		const yiHas = (w)=>ev('yi_has', { values: [w], matchMode: 'any' }).pass;
 		const has = (w)=>(d.yi || []).includes(w);
@@ -46,7 +46,7 @@ describe('[Z1] 注册表契约', ()=>{
 		if(has('移徙')){ expect(yiHas('迁徙')).toBe(true); }
 		if(has('立券')){ expect(yiHas('立契')).toBe(true); }
 		expect(yiHas('剃头')).toBe(has('理发') || has('剃头'));
-		// [Q-271/ZC-25] 吉时数上限 7;三垣派留空=全判;非交节日不再显示限定节气
+		// 吉时数上限 7;三垣派留空=全判;非交节日不再显示限定节气
 		expect(HUANGLI_CONDITION_TYPES.good_hour.fields.find((f)=>f.key === 'minCount').max).toBe(7);
 		expect(HUANGLI_CONDITION_TYPES.tongshu_star.validate({ school: 'sanyuan', names: [] })).toBe('');
 		expect(HUANGLI_CONDITION_TYPES.tongshu_star.validate({ school: 'donggong', names: [] })).not.toBe('');
@@ -75,7 +75,7 @@ describe('[Z1] 注册表契约', ()=>{
 	});
 });
 
-describe('[Z1] 冻结基线锚 2026-01-01(正反双判,判别纪律)', ()=>{
+describe('冻结基线锚 2026-01-01(正反双判,判别纪律)', ()=>{
 	it('🔴 17 类逐一:真值判真+扰动值判假(零判别力假绿防御)', ()=>{
 		// 用事
 		expect(ev('yi_has', { values: ['入宅'], matchMode: 'any' }).pass).toBe(true);
@@ -127,7 +127,7 @@ describe('[Z1] 冻结基线锚 2026-01-01(正反双判,判别纪律)', ()=>{
 	});
 });
 
-describe('[Z1] 扫描引擎(区间覆盖≡逐日真值恒等,Stress 范式)', ()=>{
+describe('扫描引擎(区间覆盖≡逐日真值恒等,Stress 范式)', ()=>{
 	const TREE = { type: 'all', conditions: [leaf('tianshen_dao', { dao: '黄道', values: [] })] };
 
 	it('🔴 一月窗:扫描区间覆盖 ≡ 独立逐日真值(绕开合并/边界代码路径)', async ()=>{
@@ -186,7 +186,7 @@ describe('[Z1] 扫描引擎(区间覆盖≡逐日真值恒等,Stress 范式)', (
 		expect(D1().lunar.dayGZ).toBe('乙亥');
 		expect(buildHuangliDay(2026, 2, 4).lunar.jieqiTime).toBe('2026-02-04 04:02:08');
 	});
-	it('🔴 [W6 全谱轮] 9 新类正反双判(锚日 2026-01-01 dump 实跑:子时白虎宜祭祀·董公煞贡吉·乌兔金星吉·嫁娶=忌·月柱戊子·井宿南朱雀木值犴·煞西)', ()=>{
+	it('🔴 9 新类正反双判(锚日 2026-01-01 dump 实跑:子时白虎宜祭祀·董公煞贡吉·乌兔金星吉·嫁娶=忌·月柱戊子·井宿南朱雀木值犴·煞西)', ()=>{
 		const day = D1();
 		const ev = (type, params)=>HUANGLI_CONDITION_TYPES[type].evaluate(day, params, makeHuangliZeriEvalCtx(day));
 		// 时辰宜忌:子时宜祭祀;限定丑时则须实跑(不锚)——用子时正反

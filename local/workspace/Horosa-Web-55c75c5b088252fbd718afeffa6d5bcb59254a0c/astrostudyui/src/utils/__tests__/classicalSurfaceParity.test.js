@@ -1,4 +1,4 @@
-// [SURF 战役 2026-08-19] 星盘设置「右栏消费链+全站宿主构参」表面一致性合同。
+// 星盘设置「右栏消费链+全站宿主构参」表面一致性合同。
 // 背景:压测证活的是引擎端点,用户实测抓出「右栏表/盘面徽/全站断链宿主」三层表面断裂:
 //   ①Java AstroExtraController 白名单丢古典键(B 链全死) ②Python analyze_chart 未进临界区+
 //   行星时表双实现分裂 ③前端行星状态盘硬编码阈值+never 键消费组件无事件监听
@@ -7,11 +7,12 @@
 import fs from 'fs';
 import path from 'path';
 import { CLASSICAL_PARAM_SPEC } from '../classicalParamSpec';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const UI_ROOT = path.resolve(__dirname, '..', '..');
 const REPO_WEB = path.resolve(UI_ROOT, '..', '..');
-const read = (rel) => fs.readFileSync(path.resolve(UI_ROOT, rel), 'utf8');
-const readRepo = (rel) => fs.readFileSync(path.resolve(REPO_WEB, rel), 'utf8');
+const read = (rel) => readSource(path.resolve(UI_ROOT, rel));
+const readRepo = (rel) => readSource(path.resolve(REPO_WEB, rel));
 
 describe('① Java analysis 白名单 ⊇ spec send:nonDefault 全集(丢键=右栏 B 链全死)', ()=>{
 	it('AstroExtraController.OPTIONAL_KEYS 含每个 send:nonDefault 键的 backendKey', ()=>{
@@ -54,7 +55,7 @@ describe('③ 全站断链宿主构参接单源(默认态零新键=零回归;非
 		['components/germany/AstroMidpoint.js', 1],
 		['components/germany/UranianDialMain.js', 2],
 		['components/germany/UranianHouseFrames.js', 1],
-		// UranianGraphicEphemeris 已回滚出 spread 名单([SURF-R3g]:唯一去处 /astroextra/ephemeris
+		// UranianGraphicEphemeris 已回滚出 spread 名单(唯一去处 /astroextra/ephemeris
 		// 图形星历腿零消费=死 spread;豁免注记锚在⑥段看守,防再误接)。
 		// [巴比伦]
 		['utils/babylonAiSnapshot.js', 1],
@@ -66,7 +67,7 @@ describe('③ 全站断链宿主构参接单源(默认态零新键=零回归;非
 	];
 	SPREAD_SITES.forEach(([rel, minCount])=>{
 		it(`${rel} 含 ≥${minCount} 处 classicalBackendOverrides 单源 spread`, ()=>{
-			// 个别构参域文件不随所有发行形态存在——缺文件即跳过(存在则必须达标)。
+			// 缺文件即跳过(存在则必须达标)。
 			if(!fs.existsSync(path.resolve(UI_ROOT, rel))){ return; }
 			const src = read(rel);
 			const n = (src.match(/classicalBackendOverrides(FromFields|FromPlain)?\(/g) || []).length;
@@ -114,7 +115,7 @@ describe('④ 前端 C 链:行星状态盘阈值随设置+never 键消费组件�
 	});
 });
 
-describe('⑤ [SURF-T1] 推运组件古典键增量 merge 粘滞根除', ()=>{
+describe('⑤ 推运组件古典键增量 merge 粘滞根除', ()=>{
 	// 病理:hook/didUpdate 的 {...state.params, ...fresh} 增量 merge 下,send:nonDefault 键
 	// 改回默认后 fresh 不再携带,旧非默认值被 merge 永久保留 → 请求持续发已废档
 	// (返照法拨回「精确回归」后仍按希腊式取盘;真机 fiber 三证)。修法=pruneStaleClassicalParams。
@@ -138,13 +139,13 @@ describe('⑤ [SURF-T1] 推运组件古典键增量 merge 粘滞根除', ()=>{
 			expect(src.includes('pruneStaleClassicalParams(')).toBe(true);
 		});
 	});
-	// [SURF-T2] 星历页食时刻口径为纯全局键:改档不触发组件更新,须监听全局事件补重拉。
+	// 星历页食时刻口径为纯全局键:改档不触发组件更新,须监听全局事件补重拉。
 	it('AstroEphemeris 监听 CLASSICAL_GLOBALS_EVENT(食时刻改档即重拉)', ()=>{
 		const src = read('components/astro/AstroEphemeris.js');
 		expect(src.includes('addEventListener(CLASSICAL_GLOBALS_EVENT')).toBe(true);
 		expect(src.includes('removeEventListener(CLASSICAL_GLOBALS_EVENT')).toBe(true);
 	});
-	// [SURF-T3] 择日判读页 render 现取双 store 全局键(peregrineScore/judge 键)但改档零重渲。
+	// 择日判读页 render 现取双 store 全局键(peregrineScore/judge 键)但改档零重渲。
 	it('ElectionJudgment 双事件监听(classical+judge 仓改档即重渲)', ()=>{
 		const src = read('components/election/ElectionJudgment.js');
 		expect(src.includes('addEventListener(CLASSICAL_GLOBALS_EVENT')).toBe(true);
@@ -153,13 +154,13 @@ describe('⑤ [SURF-T1] 推运组件古典键增量 merge 粘滞根除', ()=>{
 	});
 });
 
-describe('⑥ [SURF-R] 全面审查修复的机械看守', ()=>{
+describe('⑥ 全面审查修复的机械看守', ()=>{
 	it('事盘设置键三方单源:保存/页面还原/AI 挂载共用 DIVINATION_CASE_SETTING_KEYS', ()=>{
 		const save = read('utils/divinationCaseSave.js');
 		expect(save.includes('export const DIVINATION_CASE_SETTING_KEYS')).toBe(true);
 		expect(save.includes('DIVINATION_CASE_SETTING_KEYS.forEach')).toBe(true);
 		const ctx = read('utils/aiAnalysisContext.js');
-		expect(ctx.includes("import { DIVINATION_CASE_SETTING_KEYS } from './divinationCaseSave'")).toBe(true);
+		expect(ctx.includes("import { DIVINATION_CASE_SETTING_KEYS } from '../divinationCaseSave'")).toBe(true);   // 子模块 utils/aiAnalysisContext/ 里,路径多一层
 		expect(ctx.match(/DIVINATION_SETTINGS_KEYS = \['zodiacal', 'siderealAyanamsa', 'hsys', 'tradition',\s*\n\s*\.\.\.DIVINATION_CASE_SETTING_KEYS\]/)).toBeTruthy();
 		const shell = read('components/divination/DivinationChartShell.js');
 		expect(shell.includes("import { DIVINATION_CASE_SETTING_KEYS } from '../../utils/divinationCaseSave'")).toBe(true);
@@ -204,7 +205,7 @@ describe('⑥ [SURF-R] 全面审查修复的机械看守', ()=>{
 	});
 	it('图形星历有意不带古典键(端点零消费豁免注记在位,防再误接)', ()=>{
 		const src = read('components/germany/UranianGraphicEphemeris.js');
-		expect(src.includes('[SURF-R3g]')).toBe(true);
+		expect(src.includes('有意不带古典键:唯一去处 /astroextra/ephemeris 的图形星历腿')).toBe(true);
 		expect(src.includes('...classicalBackendOverridesFromFields')).toBe(false);
 	});
 	it('行星时渲染按 diurnal 真值分组(index-12 假标签已废),快照同口径', ()=>{
@@ -229,10 +230,10 @@ describe('⑥ [SURF-R] 全面审查修复的机械看守', ()=>{
 	});
 });
 
-describe('⑦ [SURF-R5] 再审修复的机械看守(竞态代际/恢复自愈/user 岁差全链)', ()=>{
+describe('⑦ 再审修复的机械看守(竞态代际/恢复自愈/user 岁差全链)', ()=>{
 	it('user 岁差三元段:natalClassicalParams/AI 推运构参/ZR 无头 builder/germany 构参四处在位', ()=>{
 		expect(read('components/astro/AstroExtraCommon.js').match(/natalClassicalParams[\s\S]{0,700}userAyanParamsFrom/)).toBeTruthy();
-		expect(read('utils/aiAnalysisContext.js').includes('[SURF-R5ai]')).toBe(true);
+		expect(read('utils/aiAnalysisContext.js').includes('user 自定义岁差三元(照 natalClassicalParams R4u 同款)')).toBe(true);
 		const zr = read('components/astro/AstroZR.js');
 		expect(zr.match(/zodiacal: qp\.zodiacal[\s\S]{0,400}\.\.\.natalClassicalParams\(qp\)/)).toBeTruthy();
 		expect(read('components/germany/AstroMidpoint.js').includes('userAyanParamsFrom')).toBe(true);
@@ -241,8 +242,9 @@ describe('⑦ [SURF-R5] 再审修复的机械看守(竞态代际/恢复自愈/us
 	it('pd 表行响应代际+同代基座(乱序不再把旧盘 dispatch 回全局)', ()=>{
 		const src = read('components/astro/AstroPrimaryDirectionChart.js');
 		const seg = src.slice(src.indexOf('async requestChartRefresh'), src.indexOf('async requestChartRefresh') + 3000);
-		expect(seg.includes('const seq = ++this.requestSeq')).toBe(true);
-		expect(seg.includes('seq !== this.requestSeq')).toBe(true);
+		// 主限表「计算」用自己的代次(与主限盘请求不共用,见 requestSeqOwnershipContract)
+		expect(seg.includes('const seq = (this.pdTableSeq = (this.pdTableSeq || 0) + 1)')).toBe(true);
+		expect(seg.includes('seq !== this.pdTableSeq')).toBe(true);
 		expect(seg.includes('const liveChart = this.props.value')).toBe(true);
 	});
 	['AstroSolarReturn', 'AstroLunarReturn', 'AstroGivenYear', 'AstroSolarArc', 'AstroProfection'].forEach((f)=>{
@@ -263,11 +265,13 @@ describe('⑦ [SURF-R5] 再审修复的机械看守(竞态代际/恢复自愈/us
 			expect(src.includes('rawSelfHealCheck')).toBe(true);
 			expect(src.includes('cacheRawStr')).toBe(true);
 		});
-		expect(read('components/user/ChartList.js').includes('window.location.reload')).toBe(true);
+		// 全量恢复流程已抽到 unifiedRestoreFlow(命盘列表经它恢复):恢复后整页重载
+		expect(read('components/user/unifiedRestoreFlow.js').includes('window.location.reload')).toBe(true);
+		expect(read('components/user/ChartList.js').includes('unifiedRestoreFlow')).toBe(true);
 	});
 	it('主限页选自定义界(4)而 fields≠4:随盘/编辑器仓补表,无表降级不发 4', ()=>{
 		const src = read('components/direction/AstroDirectMain.js');
-		expect(src.includes('[SURF-R5a]')).toBe(true);
+		expect(src.includes('页面显式选自定义界(4)而 fields≠4')).toBe(true);
 		expect(src.match(/else if\(!cls\.customTermsDay\)\{/)).toBeTruthy();
 		expect(src.includes('cls.termsVariant = 0')).toBe(true);
 	});

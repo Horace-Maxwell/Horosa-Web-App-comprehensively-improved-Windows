@@ -18,7 +18,8 @@ import { safeJsonParseFromStorage, safeJsonStringifyToStorage } from '../../util
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
 import { XQSideSection } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
-import { deriveLocalNongli, deriveNongliUniversalSync, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+import { deriveLocalNongli, deriveNongliUniversalSync, resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+import { leadingYearOf } from '../../utils/dateStrSafe';
 import { markPanelReady } from '../../utils/perfMark';
 
 const STORE_KEY = 'horosa.guice.settings.v1';
@@ -38,7 +39,7 @@ class GuiceMain extends Component {
 			error: '',
 			// [自由起盘] 本地时间地理草稿(null=跟主命盘,字节现状;非空=用户左栏自选时间/经纬)。
 			localFields: null,
-			// [X1 审计补] 事盘还原的冻结历法上下文(payload.ctx);非空时 ctx() 用之,重起卦/改占时清空。
+			// 事盘还原的冻结历法上下文(payload.ctx);非空时 ctx() 用之,重起卦/改占时清空。
 			frozenCtx: null,
 		};
 		this.rootRef = createRef();
@@ -48,7 +49,7 @@ class GuiceMain extends Component {
 	}
 
 	componentDidMount() {
-		// [issue#74 同类] 农历桥回包履约(灵棋/飞宫/小六壬同律):快照 timeLines 域外年首拍缺
+		// 农历桥回包履约(灵棋/飞宫/小六壬同律):快照 timeLines 域外年首拍缺
 		// 农历/四柱行;本文件 import 了 subscribeRemoteNongli 却从未订阅——连 render 自愈都没有。
 		this._unsubNongli = subscribeRemoteNongli(() => {
 			this.forceUpdate();
@@ -61,7 +62,7 @@ class GuiceMain extends Component {
 			this.saveSnap();
 		}
 	}
-	// [X1 审计补] 事盘还原(对齐 wuzhao/tarot 等 13 技法既有范式):卦+历法 ctx+选项皆冻结值回放,
+	// 事盘还原(对齐 wuzhao/tarot 等 13 技法既有范式):卦+历法 ctx+选项皆冻结值回放,
 	// 绝不重起(重起=伪造一个用户没见过的卦);还原后 getPan 以 frozenCtx 复排,与存档快照同源。
 	restoreFromCurrentCase(force) {
 		const saved = getKentangSavedCasePayload('guice');
@@ -71,7 +72,7 @@ class GuiceMain extends Component {
 		this.lastRestoredCaseId = saved.caseVersion;
 		this.setState({
 			gua: p.gua, error: '',
-			localFields: null,   // [X1·P2-42] 载档清时地草稿(冻结 ctx 已随档,草稿留着只会误导时间面板)
+			localFields: null,   // 载档清时地草稿(冻结 ctx 已随档,草稿留着只会误导时间面板)
 			settings: p.options && typeof p.options === 'object' ? normalizeGuiceSettings({ ...this.state.settings, ...p.options }) : this.state.settings,
 			inputs: p.inputs && typeof p.inputs === 'object' ? { ...this.state.inputs, ...p.inputs } : this.state.inputs,
 			shiyingInputs: p.shiyingInputs && typeof p.shiyingInputs === 'object' ? p.shiyingInputs : this.state.shiyingInputs,
@@ -95,11 +96,11 @@ class GuiceMain extends Component {
 			|| nextState.shiyingInputs !== s.shiyingInputs || nextState.gua !== s.gua
 			|| nextState.auxTab !== s.auxTab || nextState.error !== s.error
 			|| nextState.localFields !== s.localFields   // [自由起盘] 草稿变→ctx 变→盘重算,须重渲
-			|| nextState.frozenCtx !== s.frozenCtx;      // [X1] 冻结上下文变(事盘还原/脱离)→盘重算,须重渲
+			|| nextState.frozenCtx !== s.frozenCtx;      // 冻结上下文变(事盘还原/脱离)→盘重算,须重渲
 	}
 
 	componentDidUpdate(prevProps, prevState) {
-		// [X1] 事盘载入(applyCase→fetchByFields)→fields 换引用 → 尝试还原冻结卦。
+		// 事盘载入(applyCase→fetchByFields)→fields 换引用 → 尝试还原冻结卦。
 		if (prevProps.fields !== this.props.fields && this.props.fields) {
 			this.restoreFromCurrentCase();
 		}
@@ -129,12 +130,17 @@ class GuiceMain extends Component {
 		}
 	}
 
+	// 写槽 meta 单一来源:平时写槽与刷新应答共用
+	snapshotMeta() {
+		return snapshotMetaFromFields(this.activeFields(), { source: 'react', savedAt: Date.now() });
+	}
+
 	// AI 导出/挂载实时取数：导出侧派发 refresh 事件 → 用当前之盘即时构快照并回填（显示什么就导出什么）
 	handleSnapshotRefreshRequest(evt) {
 		if (!evt || !evt.detail || evt.detail.module !== 'guice') return;
 		const t = this.snapText();
 		if (t) {
-			saveModuleAISnapshot('guice', t, { source: 'react', savedAt: Date.now() });
+			saveModuleAISnapshot('guice', t, this.snapshotMeta());   // 与平时写槽同一份起课时地 meta(此前刷新一次槽就丢了时地)
 			evt.detail.snapshotText = t;
 		}
 	}
@@ -186,7 +192,7 @@ class GuiceMain extends Component {
 		this.setState({ localFields: { ...base, ...geoPatchFromRec(rec, base) }, frozenCtx: null });
 	}
 	ctx() {
-		// [X1 审计补] 事盘还原后 ctx=冻结值(payload.ctx):元会运世/时方随存档占时,不随今日盘漂移;
+		// 事盘还原后 ctx=冻结值(payload.ctx):元会运世/时方随存档占时,不随今日盘漂移;
 		// 方位/占事仍吃当前 inputs(还原时已回放为存档值,其后用户可改问事措辞不动卦)。
 		const fz = this.state.frozenCtx;
 		if (fz) {
@@ -199,13 +205,8 @@ class GuiceMain extends Component {
 		return this.ctxLive();
 	}
 	ctxLive() {
-		let nl;
-		if (this.state.localFields) {
-			nl = deriveNongliUniversalSync(this.state.localFields) || {};
-		} else {
-			const chart = (this.props.value && this.props.value.chart) || {};
-			nl = chart.nongli || {};
-		}
+		// 起卦之时农历:与小六壬 / 飞宫同一单源(没动左栏时也随全局时间算法)
+		const nl = resolveDivinationNongli(this.state.localFields, this.props.fields, this.props.value);
 		const b = nl.bazi || {};
 		const cell = (zhu, which) => (b[zhu] && b[zhu][which] && b[zhu][which].cell) || undefined;
 		const gz = (zhu) => (b[zhu] && b[zhu].ganzi) || undefined;
@@ -216,7 +217,7 @@ class GuiceMain extends Component {
 			lunarMonth: nl.monthInt,
 			lunarDay: nl.dayInt,
 			hourZhi: cell('time', 'branch'),
-			year: parseInt(`${nl.date || ''}`.slice(0, 4), 10) || undefined,
+			year: leadingYearOf(nl.date || '') || undefined,
 			dayGan: cell('day', 'stem'),
 			pillars: pillars.length === 4 ? pillars : undefined,
 			fangKey: (this.state.inputs || {}).fangKey || undefined,   // 方应之所本：占者所坐立之方(手录)
@@ -233,7 +234,7 @@ class GuiceMain extends Component {
 	saveSnap() {
 		const t = this.snapText();
 		// meta 补时间地理键(用生效 fields=草稿或主盘):命盘缓存路径确凿匹配 + 事盘/导出口径一致。
-		if (t) saveModuleAISnapshot('guice', t, snapshotMetaFromFields(this.activeFields(), { source: 'react', savedAt: Date.now() }));
+		if (t) saveModuleAISnapshot('guice', t, this.snapshotMeta());
 	}
 
 	setSettings(settings) {
@@ -456,7 +457,7 @@ class GuiceMain extends Component {
 	renderAux(p) {
 		// 🔴 未起卦时 p=null 亦须渲染 Tabs 外壳（六目常驻，各目出占位；否则右栏塌成空白，很丑）。
 		//    单套 Tabs、逐目 !p 出占位——保六目 forceRender 常驻、保直断仍摄时方（源码哨兵守之）。
-		const wait = (t) => <div className="horosa-huangji-empty" style={{ opacity: 0.6, fontSize: 12, padding: '10px 2px', minHeight: 60 }}>{t}</div>;
+		const wait = (t) => <div className="horosa-huangji-empty" style={{ fontSize: 12, padding: '10px 2px', minHeight: 60 }}>{t}</div>;
 		const { duan, ying, yan, bian, lishi } = p || {};
 		return (
 			<Tabs activeKey={this.state.auxTab} onChange={(k) => this.setState({ auxTab: k })} size="small"
@@ -583,7 +584,7 @@ class GuiceMain extends Component {
 							<div className="horosa-side-panel-heading">
 								<div>
 									<div className="horosa-side-panel-title">轨策设置</div>
-									<div className="horosa-side-panel-subtitle">起卦法 · 流派 · 十应</div>
+									<div className="horosa-side-panel-subtitle">起卦法 · 流派</div>
 								</div>
 							</div>
 							{this.renderControls()}

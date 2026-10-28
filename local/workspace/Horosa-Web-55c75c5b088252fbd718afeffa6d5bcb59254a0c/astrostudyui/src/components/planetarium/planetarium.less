@@ -1,4 +1,4 @@
-/* [用户实报 2026-09-17·新机 Tahoe 缩放后天文馆底部大白边 / 预览左栏滚不到底] 骨架高度勿用 vh 单位:
+/* 骨架高度勿用 vh 单位:
  * 壳缩放走 html{zoom},vh 在缩放≠1 时不随布局域走(缩小 → 页面比容器矮=白边;放大 → 页面溢出被裁=左栏底部滚不到)。
  * 与 layouts/app.js contentStyle 同一口径:100% 基于根壳链(#mainContent → workspaceInner → tabs → tabpane 皆定高),恒同域。 */
 .horosa-planetarium-page {
@@ -237,6 +237,11 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 	grid-template-columns: 1fr 1fr;
 	gap: 8px;
 	margin-top: 10px;
+}
+/* 「经纬度选择」由选点弹窗组件包了两层 span:让按钮本身当网格格子,与同排「回命盘地点」等宽 */
+.planetarium-observer-actions > span,
+.planetarium-observer-actions > span > span {
+	display: contents;
 }
 
 .planetarium-section {
@@ -724,6 +729,11 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 	transition: border-color 0.18s, background 0.18s, transform 0.18s;
 }
 
+/* 沉浸模式:「退出沉浸」与右上性能读数条锚在同一角(按钮 top/right 18px、z-index 6 盖在读数上)→ 读数条让到按钮下方 */
+.horosa-planetarium-page.is-immersive .planetarium-scene-readout-tr {
+	top: 62px;
+}
+
 .planetarium-immersive-exit:hover {
 	border-color: rgba(117, 177, 255, 0.7);
 	background: rgba(31, 48, 82, 0.85);
@@ -755,7 +765,7 @@ body.planetarium-time-editing .xq-select-popup .ant-select-item-option-selected:
 	}
 }
 
-/* [TL-07] 提示行内的文字按钮(「开启恒星」):与提示同字号,只做下划线链接感 */
+/* 提示行内的文字按钮(「开启恒星」):与提示同字号,只做下划线链接感 */
 .planetarium-inline-link {
 	background: none;
 	border: 0;

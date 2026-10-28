@@ -1,8 +1,8 @@
-// [批二⑨] 分层口径(借鉴 Claude Code 的 CLAUDE.md 分层:全局 → 项目 → 目录 → 会话):
+// 分层口径:
 //   全局 = persona.v1 的文本;命主 = bySubject[cid];技法 = byTechnique[技法键](按本轮已选技法顺序);会话 = 会话记录的 persona 字段(随会话存,不进本键)。
 // 键 horosa.ai.persona.layers.v1 = { bySubject:{[cid]:文本}, byTechnique:{[技法键]:文本} };缺省不存在 = 只剩全局层(与批前逐字相同)。
 // 四层仍受「启用注入」总开关约束(persona.enabled=false → 一层都不注入 = 缺省零变化);合成后封顶 6000 字,前层优先保留、后层被截。
-import { safeJsonParseFromStorage, safeJsonStringifyToStorage, safeLocalStorageRemove } from '../safeStorage';
+import { safeJsonParseFromStorage, safeJsonStringifyToStorage, safeLocalStorageRemove, noteSettingNotSaved } from '../safeStorage';
 
 export const PERSONA_LAYERS_KEY = 'horosa.ai.persona.layers.v1';
 export const PERSONA_LAYERS_EVENT = 'horosa:ai-persona-layers-changed';
@@ -38,7 +38,13 @@ export function writePersonaLayer(scope, id, text){
 	const t = `${text || ''}`.trim().slice(0, PERSONA_LAYER_TEXT_MAX);
 	if(t){ map[`${id}`] = t; }else{ delete map[`${id}`]; }
 	if(!Object.keys(cur.bySubject).length && !Object.keys(cur.byTechnique).length){ safeLocalStorageRemove(PERSONA_LAYERS_KEY); }
-	else{ try{ safeJsonStringifyToStorage(PERSONA_LAYERS_KEY, cur); }catch(e){ /* 配额 */ } }
+	else if(safeJsonStringifyToStorage(PERSONA_LAYERS_KEY, cur) !== true){
+		// 没写进(存储满)→ 按存储里实际的值广播与返回,并提示没能保存
+		noteSettingNotSaved(PERSONA_LAYERS_KEY);
+		const truth = readPersonaLayers();
+		emit(truth);
+		return truth;
+	}
 	emit(cur);
 	return cur;
 }
@@ -47,7 +53,7 @@ export function subscribePersonaLayers(fn){
 	if(typeof window === 'undefined' || typeof fn !== 'function'){ return ()=>{}; }
 	const h = (e)=>fn(normalizePersonaLayers(e && e.detail ? e.detail : readPersonaLayers()));
 	window.addEventListener(PERSONA_LAYERS_EVENT, h);
-	// [进阶审计 D6·2026-09-07] 跨窗口:另一个窗口写了本键(或整个 storage 被清),本窗口的订阅者也要重读 —— storage 事件只在别的窗口触发,本窗口写入仍走上面的 CustomEvent
+	// 跨窗口:另一个窗口写了本键(或整个 storage 被清),本窗口的订阅者也要重读 —— storage 事件只在别的窗口触发,本窗口写入仍走上面的 CustomEvent
 	const sh = (e)=>{ const k = e && e.key != null ? `${e.key}` : ''; if(!k || k === PERSONA_LAYERS_KEY){ fn(normalizePersonaLayers(readPersonaLayers())); } };
 	window.addEventListener('storage', sh);
 	return ()=>{ window.removeEventListener(PERSONA_LAYERS_EVENT, h); window.removeEventListener('storage', sh); };

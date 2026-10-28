@@ -11,6 +11,7 @@ import { buildGuaSnapshotText } from '../../components/guazhan/GuaZhanMain';
 import { Gua64, getGua64 } from '../../components/gua/GuaConst';
 import { calcDunJia, buildDunJiaSnapshotText } from '../../components/dunjia/DunJiaCalc';
 import { buildLocalBaziResult } from '../baziLunarLocal';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 // ---- 与 aiExport 同口径的段头归一/抽取(单一真值源:preset 由 getAIExportEffectiveSectionsForTechnique 给) ----
 function normTitle(t){
@@ -98,7 +99,7 @@ describe('AI 导出 roundtrip 哨兵:builder 实跑段头 ⊆ AI_EXPORT_PRESET_S
 });
 
 // ---- 源扫:夹具偏重的 builder(世俗盘为实例方法 / 金口诀依赖后端四位数据),静态段头字面量 ⊆ preset ----
-function readSrc(rel){ return fs.readFileSync(path.resolve(__dirname, rel), 'utf8'); }
+function readSrc(rel){ return readSource(path.resolve(__dirname, rel)); }
 function sliceFrom(src, marker, span){
 	const i = src.indexOf(marker);
 	return i < 0 ? src : src.slice(i, i + (span || 14000));
@@ -131,7 +132,7 @@ describe('AI 导出 roundtrip 哨兵:源扫静态段头 ⊆ AI_EXPORT_PRESET_SEC
 
 	test('世俗盘 buildAiSnapshot:派生分析段头(定局/入境骨架/地理分野/地区盘推运/世俗宫义)全部登记进 mundane preset', ()=>{
 		const src = readSrc('../../components/mundane/MundaneMain.js');
-		// [Q-444] 派生段扩容后窗口 4000→14000;右栏卡折入段另在 buildMundaneCardSections 区块(第二窗)。
+		// 派生段扩容后窗口 4000→14000;右栏卡折入段另在 buildMundaneCardSections 区块(第二窗)。
 		const region = sliceFrom(src, 'const extraSecs = [];', 14000);
 		const headers = Array.from(sourceBracketHeaders(region));
 		const preset = presetSet('mundane');
@@ -249,7 +250,7 @@ describe('AI 导出 roundtrip 哨兵:源扫静态段头 ⊆ AI_EXPORT_PRESET_SEC
 		const placeholders = new Set();
 		const re = /push\(`\[([^`]*\$\{[^}]*\}[^`]*)\]`\)/g; // `[…${…}…]` 段头(${}在任意位置)
 		files.forEach((f)=>{
-			const src = fs.readFileSync(f, 'utf8');
+			const src = readSource(f);
 			let m;
 			while((m = re.exec(src))){
 				const ph = normTitle(m[1].replace(/\$\{[^}]*\}/g, 'X'));
@@ -260,7 +261,7 @@ describe('AI 导出 roundtrip 哨兵:源扫静态段头 ⊆ AI_EXPORT_PRESET_SEC
 		expect(Array.from(placeholders).filter((h)=>!allPreset.has(h))).toEqual([]);
 	});
 
-	// [同类自检 v42·全树版] 逐技法硬编码守卫的目录盲区根治:src/ 全树扫「静态字面量段头」
+	// 逐技法硬编码守卫的目录盲区根治:src/ 全树扫「静态字面量段头」
 	// push('[X]') / = '[X]',断言 ⊆ 全 preset 并集 ∪ 声明白名单。曾实弹抓获若干段漏登与
 	// guolao V1 / jieqi withHeaders 两处死码段头(已注释标记)。新增 builder 段头忘登 preset → 此处红。
 	test('src/ 全树前瞻守卫:静态字面量段头 ⊆ 全 preset 并集 ∪ 白名单(防任何技法再漏登)', ()=>{
@@ -268,7 +269,9 @@ describe('AI 导出 roundtrip 哨兵:源扫静态段头 ⊆ AI_EXPORT_PRESET_SEC
 		// 文件级豁免(每项必须带理由;同 WHITELIST 纪律):AI 助手侧的提示词标记件——
 		// 『【个人口径…】/【回答审阅】/【多模型判官】/【多技法规划】/【目标自检】』等是发给 LLM 的输入分隔符,
 		// 不产任何报告/导出段头;按段头形态扫描恒误捕。
-		const FILE_EXEMPT = new Set(['persona.js', 'memory.js', 'aiReview.js', 'aiBestOfN.js', 'orchestrator.js', 'goalRunner.js']);
+		//   pairChineseData.js — 双盘挂载的中式合盘对照(八字合婚 / 紫微合盘)只进 AI 对话的两人数据层(pair:*),
+		//   不是技法快照 / 导出段;『[年命] / [日柱 · 夫妻宫] …』仅供按段对齐裁剪,登进导出预设反成假可勾段。
+		const FILE_EXEMPT = new Set(['persona.js', 'memory.js', 'aiReview.js', 'aiBestOfN.js', 'orchestrator.js', 'goalRunner.js', 'pairChineseData.js']);
 		const files = [];
 		(function walk(dir){
 			fs.readdirSync(dir, { withFileTypes: true }).forEach((ent)=>{
@@ -311,7 +314,7 @@ describe('AI 导出 roundtrip 哨兵:源扫静态段头 ⊆ AI_EXPORT_PRESET_SEC
 			/(?:push\(|= ?)['`]【([^【】$'`]{2,30})】['`]/g,
 		];
 		files.forEach((f)=>{
-			const src = fs.readFileSync(f, 'utf8');
+			const src = readSource(f);
 			res.forEach((re)=>{
 				let m;
 				re.lastIndex = 0;
@@ -340,7 +343,7 @@ describe('AI 挂载 round-trip 哨兵:大六壬多流派入参透传(涉害/年�
 	const LIURENG_CAST_SCHOOL_KEYS = ['seHaiMethod', 'seHaiBoundary', 'shiRuKe', 'yearShenShaSort', 'yinyangSystem', 'tuWangShuai'];
 	test('regenerateLiurengSnapshot 的 castOpts 转发全部 6 键(o.<key>)', ()=>{
 		const src = readSrc('../aiAnalysisContext.js');
-		// [挂载自检] castOpts 已抽成单源 helper liurengHeadlessCastOpts(regenerateLiurengSnapshot 只调它):锚改指向 helper。
+		// castOpts 已抽成单源 helper liurengHeadlessCastOpts(regenerateLiurengSnapshot 只调它):锚改指向 helper。
 		const region = sliceFrom(src, 'export function liurengHeadlessCastOpts', 1400);
 		LIURENG_CAST_SCHOOL_KEYS.forEach((k)=>{
 			expect(region.indexOf(`${k}: o.${k}`)).toBeGreaterThanOrEqual(0);
@@ -361,11 +364,14 @@ describe('AI 挂载 round-trip 哨兵:大六壬多流派入参透传(涉害/年�
 describe('命盘储存 round-trip 哨兵:紫微传本/八字流派落库(缺省 undefined=零回归)', ()=>{
 	// 延迟 require,避免与上方 import 顺序耦合(localcharts 纯 util,无副作用)。
 	const { buildLocalChartRecord } = require('../localcharts');
-	const ZIWEI_TRADITION_KEYS = ['sihuaSchool', 'daxianSpan', 'tianmaBasis', 'starSet', 'sanPan', 'shangShi', 'leapMonth', 'lateZi', 'yearBoundary', 'huoling', 'kongNaming'];
-	test('提供值即落库(紫微 11 传本键 + 八字 school)', ()=>{
+	const ZIWEI_TRADITION_KEYS = ['sihuaSchool', 'daxianSpan', 'tianmaBasis', 'starSet', 'sanPan', 'shangShi', 'leapMonth', 'lateZi', 'yearBoundary', 'huoling', 'kongNaming',
+		// 星曜亮度 + 六叠层 + 太岁关系人:同批可调项,曾只有前 11 个落库。
+		'brightnessSource', 'childLimit', 'zhongxian', 'huoPan', 'qishuWei', 'borrowPalace', 'taiSuiRuGua', 'taiSuiRelatives'];
+	test('提供值即落库(紫微 19 传本/叠层键 + 八字 school)', ()=>{
 		const rec = buildLocalChartRecord({
 			sihuaSchool: 'zhongzhou', daxianSpan: 5, tianmaBasis: 'year', starSet: 'full', sanPan: 'tian',
 			shangShi: 'book', leapMonth: 'split', lateZi: 'next', yearBoundary: 'lichun', huoling: 'nanpai', kongNaming: 'book',
+			brightnessSource: 'quanshu', childLimit: 1, zhongxian: 1, huoPan: 1, qishuWei: 1, borrowPalace: 1, taiSuiRuGua: 1, taiSuiRelatives: '午 子',
 			school: 'mangpai',
 		});
 		ZIWEI_TRADITION_KEYS.forEach((k)=>{ expect(rec[k]).not.toBeUndefined(); });
@@ -408,8 +414,8 @@ describe('AI 导出 roundtrip 哨兵:段头卫生(段头字面量独占一行)',
 	});
 });
 
-// ══ [W2·E-4/E-10] 设置面分组 allowlist 锁 + 默认关段派生锁 ══
-describe('[W2] 分组收编与默认关段哨兵', ()=>{
+// ══ 设置面分组 allowlist 锁 + 默认关段派生锁 ══
+describe('分组收编与默认关段哨兵', ()=>{
 	it('🔴 GROUPS 全收编:任何键落「其他」组=红(新键必须有意识归组,不再静默降级)', ()=>{
 		const { listAIExportTechniqueSettingGroups } = require('../aiExport');
 		const groups = listAIExportTechniqueSettingGroups();
@@ -422,7 +428,7 @@ describe('[W2] 分组收编与默认关段哨兵', ()=>{
 		expect(!!q && !!z).toBe(true);
 		expect([...q].every((s)=>z.has(s))).toBe(true);
 	});
-	it('[E-6] calendar 子源标签单源锁:CALENDAR_SUB_SOURCE_LABELS 每名 ∈ preset.calendar(通书择日共用既有段名)', ()=>{
+	it('calendar 子源标签单源锁:CALENDAR_SUB_SOURCE_LABELS 每名 ∈ preset.calendar(通书择日共用既有段名)', ()=>{
 		const { CALENDAR_SUB_SOURCE_LABELS } = require('../aiExport');
 		const preset = new Set(AI_EXPORT_PRESET_SECTIONS.calendar);
 		CALENDAR_SUB_SOURCE_LABELS.forEach((label)=>expect(preset.has(label)).toBe(true));

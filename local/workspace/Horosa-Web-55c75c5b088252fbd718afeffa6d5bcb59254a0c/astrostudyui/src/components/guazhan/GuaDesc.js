@@ -2,6 +2,7 @@ import { Component } from 'react';
 import { Typography } from 'antd';
 import styles from '../../css/styles.less';
 import { XQTabs as Tabs } from '../xq-ui';
+import ExternalLink from '../common/ExternalLink';
 // horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
 // 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
 // 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
@@ -24,7 +25,7 @@ class GuaDesc extends Component{
 
 		let res = [];
 		let title = (
-			<Title level={3} key="title"><a href={gua.url} target='_blank'>第{gua.ord}卦，{gua.name}卦，{gua.desc}</a></Title>
+			<Title level={3} key="title"><ExternalLink href={gua.url}>第{gua.ord}卦，{gua.name}卦，{gua.desc}</ExternalLink></Title>
 		);
 		res.push(title);
 

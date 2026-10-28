@@ -1,21 +1,24 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZiFineChart.js b/astrostudyui/src/components/cntradition/BaZiFineChart.js
-index dec92ffb..d636b48f 100644
+index a4fe0eeb..06a6e85f 100644
 --- a/astrostudyui/src/components/cntradition/BaZiFineChart.js
 +++ b/astrostudyui/src/components/cntradition/BaZiFineChart.js
-@@ -1,4 +1,5 @@
+@@ -1,5 +1,6 @@
  import React, { Component } from 'react';
+ import { XQDesignScaleBox } from '../xq-ui';
 +import { chartSCUEnabled } from '../../utils/perfFlags';
  import { BaZiMsg } from '../../msg/bazimsg';
  import { getSelfZuo, hiddenStemsOf, xunKongOf } from '../../utils/baziLunarLocal';
  import { filterShenShaByGroups } from '../../utils/baziShenShaLocal';
-@@ -358,6 +359,25 @@ const ELEMENT_CN = {
- };
+@@ -369,6 +370,32 @@ export function baziFineDesignWidth(colCount, isSimple){
+ }
  
  class BaZiFineChart extends Component{
 +	// horosa_bazi_finechart_scu_v1（PERF-R9 Ship 6·八字族）：中栏四柱板无 state，输出**只**由下列
-+	// 六个 props 决定（本文件全文的 this.props.* 恰为这六个：value / mode / flowSelection /
-+	// showRelations / cangVersion / onlyZiGanShen —— 另有一个 fields 是传进来但从不读的）。
-+	// 六者引用/值全同 ⇒ 输出逐字节相同，跳过这次重渲；任一不同即返 true 照渲（宁可多渲不可漏渲）。
++	// 十一个 props 决定（本文件全文读到的 this.props.* 恰为这十一个：value / mode / flowSelection /
++	// showRelations / cangVersion / onlyZiGanShen / fields(星运·自坐取 phaseType) / school /
++	// showSchoolMarks / showShenSha / shenshaGroups —— 后五个是后来加进渲染的,sCU 须同步列入,
++	// 否则只改流派 / 神煞分组 / 神煞开关 / 流派标记开关时本板不重渲)。
++	// 全同 ⇒ 输出逐字节相同，跳过这次重渲；任一不同即返 true 照渲（宁可多渲不可漏渲）。
 +	// 收益：宿主 BaZi 因「只影响别处的 baziOpt/chartStyle/directLoading」重渲时，本板不再重跑
 +	// buildColumns + 干支刑冲合害配对 + 关系分道布局。
 +	// kill-switch 沿用既有 horosa.perf.chartSCU（置 '0' → 恒重渲的旧行为）。
@@ -28,7 +31,12 @@ index dec92ffb..d636b48f 100644
 +			|| nextProps.flowSelection !== this.props.flowSelection
 +			|| nextProps.showRelations !== this.props.showRelations
 +			|| nextProps.cangVersion !== this.props.cangVersion
-+			|| nextProps.onlyZiGanShen !== this.props.onlyZiGanShen;
++			|| nextProps.onlyZiGanShen !== this.props.onlyZiGanShen
++			|| nextProps.fields !== this.props.fields
++			|| nextProps.school !== this.props.school
++			|| nextProps.showSchoolMarks !== this.props.showSchoolMarks
++			|| nextProps.showShenSha !== this.props.showShenSha
++			|| nextProps.shenshaGroups !== this.props.shenshaGroups;
 +	}
 +
  	hasDirection(rec){

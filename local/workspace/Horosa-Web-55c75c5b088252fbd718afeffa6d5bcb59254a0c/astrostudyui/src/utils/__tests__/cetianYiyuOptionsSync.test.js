@@ -14,8 +14,9 @@ import path from 'path';
 import { getTechniqueSettingsSchema } from '../techniqueMountSettings';
 import { ANALYSIS_CHART_TECHNIQUES, ANALYSIS_CASE_TECHNIQUES } from '../aiAnalysisContext';
 import { AI_EXPORT_PRESET_SECTIONS } from '../aiExport';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
-const read = (rel) => fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
+const read = (rel) => readSource(path.join(__dirname, '..', '..', rel));
 
 // 移语本新增 13 键 + 既有 8 键 = 服务端 pan() 消费的全部 cetian 选项键。
 const YIYU_KEYS = [
@@ -74,6 +75,14 @@ describe('策天移语本选项三方同键', () => {
       expect(src).toContain(`this.state.${key}`);   // 控件读值
       // 每个控件变更必须挂 clickPlot 全量重排（写而不动作 = 死开关）
       // 用户亲手改控件的入口是 setUserOpt(落盘 + setState,回调原样透传);老写法 setState 也认
+      // 显示开关走左栏 / 右栏共用的一张表(cetianDisplayToggles):键在表里、表的渲染统一 setUserOpt + clickPlot
+      const inToggleTable = src.indexOf(`['${key}', `) > -1;
+      if(inToggleTable){
+        const render = src.indexOf('cetianDisplayToggles(this.state.cetianMethod).map(([key, label, title])=>(');
+        expect(render).toBeGreaterThan(-1);
+        expect(src.slice(render, render + 260)).toMatch(/this\.setUserOpt\(\{ \[key\]: e\.target\.checked \? 1 : 0 \}, this\.clickPlot\)/);
+        return;
+      }
       const idx = Math.max(src.indexOf(`this.setUserOpt({ ${key}`), src.indexOf(`this.setState({ ${key}`));
       expect(idx).toBeGreaterThan(-1);
       expect(src.slice(idx, idx + 120)).toContain('this.clickPlot');

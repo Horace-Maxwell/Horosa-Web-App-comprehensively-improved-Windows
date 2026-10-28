@@ -68,7 +68,7 @@ class LonInput extends Component{
 			let val = this.state.defValue;
 			let parts = this.takeParts();
 			if(parts.length > 0){
-				// [Q-426/T-392] 度数已到上限 180° 时分只能是 00。
+				// 度数已到上限 180° 时分只能是 00。
 				val = parts[1] + parts[0] + (Number(parts[1]) >= 180 ? '00' : value);
 			}
 			this.props.onChange(val)
@@ -80,7 +80,7 @@ class LonInput extends Component{
 			let val = this.state.defValue;
 			let parts = this.takeParts();
 			if(parts.length > 0){
-				// [Q-426/T-392] 清空度数框保留原度数(此前写回固定 119°);度数达上限 180° 时分钳为 00(否则可组合出 180°59′ 越界坐标)。
+				// 清空度数框保留原度数(此前写回固定 119°);度数达上限 180° 时分钳为 00(否则可组合出 180°59′ 越界坐标)。
 				if(value === undefined || value === null || value === '' || isNaN(value)){
 					val = parts[1] + parts[0] + parts[2];
 				}else{

@@ -125,16 +125,11 @@ class AstroAspect extends Component{
 			}
 
 			let rows = [];
-			// [WP-5a] 相位表显示过滤(纯前端,读全局仓;默认 关/不限=现状零回归):
+			// 相位表显示过滤(纯前端,读全局仓;默认 关/不限=现状零回归):
 			// aspectShowOnlyApplying=1 → 离相行整体隐藏;separatingOrbCap>0 → 离相误差超上限的行隐藏。
-			let onlyApplying = false;
-			let sepCap = 0;
-			try{
-				const { classicalGlobalValue } = require('../../utils/classicalChartGlobals');
-				onlyApplying = classicalGlobalValue('aspectShowOnlyApplying') === 1;
-				const c = Number(classicalGlobalValue('separatingOrbCap'));
-				sepCap = Number.isFinite(c) ? c : 0;
-			}catch(e){ /* 守默认全显 */ }
+			const onlyApplying = classicalGlobalValue('aspectShowOnlyApplying') === 1;
+			const sepCapRaw = Number(classicalGlobalValue('separatingOrbCap'));
+			const sepCap = Number.isFinite(sepCapRaw) ? sepCapRaw : 0;
 
 			for(let idx in obj.Applicative){
 				let asp = obj.Applicative[idx];
@@ -147,7 +142,7 @@ class AstroAspect extends Component{
 				rows.push(this.aspPill(key + 'a' + asp.id, key, asp, '入相', 'applying'));
 			}
 
-			// [Q-254/T-227] 正合(引擎 |orbDir|<0.3 → Exact,不分入离)单列「正合」,不再与离相拼作「离相」;
+			// 正合(引擎 |orbDir|<0.3 → Exact,不分入离)单列「正合」,不再与离相拼作「离相」;
 			// 「只显入相」不隐藏正合(它既非入相也非离相,处于精确之刻),离相误差上限亦不作用于它。
 			for(let idx=0; idx<obj.Exact.length; idx++){
 				let asp = obj.Exact[idx];
@@ -382,7 +377,7 @@ class AstroAspect extends Component{
 		let immediateAsp = this.genImmediateAspDom(aspects.immediateAsp);
 		let signAsp = this.genSignAspDom(aspects.signAsp);
 		let antiAsp = this.genAntisciasDom(chart.chart);
-		// [WP-5b] 相位参与对象扩展分组(默认全关=响应无字段=零渲染)。
+		// 相位参与对象扩展分组(默认全关=响应无字段=零渲染)。
 		const extraGroups = (() => {
 			const extra = chart.extraAspects;
 			if(!extra || typeof extra !== 'object'){ return null; }
@@ -402,7 +397,7 @@ class AstroAspect extends Component{
 									{cn(r.planet)}
 									<span style={{ margin: '0 3px', opacity: 0.85 }}>{ASP_CN[r.asp] || `${r.asp}°`}</span>
 									<span>{cn(r.target)}</span>
-									<span style={{ opacity: 0.65, marginLeft: 3 }}>{Math.round(r.orb * 100) / 100}°</span>
+									<span style={{ color: 'var(--horosa-text-secondary)', marginLeft: 3 }}>{Math.round(r.orb * 100) / 100}°</span>
 								</span>
 							))}
 						</div>

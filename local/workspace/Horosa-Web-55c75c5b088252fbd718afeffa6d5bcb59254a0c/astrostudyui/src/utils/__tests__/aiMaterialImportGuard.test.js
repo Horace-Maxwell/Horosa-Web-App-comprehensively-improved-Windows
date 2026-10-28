@@ -1,4 +1,4 @@
-// [Q-060/AW-18/AW-23] 资料导入白名单与抽取上限的机械合同:
+// 资料导入白名单与抽取上限的机械合同:
 //  ① 前端白名单与桌面壳 `AI_ANALYSIS_IMPORT_EXTENSIONS` **逐字同集**(两条导入路径此前入库结果不同:
 //     壳层按扩展名过滤,前端没有白名单 → 拖一张 PNG 进来就是一份类型 txt、摘要乱码的资料);
 //  ② 30MB 抽取上限与后端 `MAX_DECODED_BYTES` 同值,且只对走后端抽取的 pdf/doc/docx 生效;
@@ -19,12 +19,12 @@ const mk = (name, size)=>({ name, size: size || 1 });
 
 it('🔴 白名单与桌面壳、后端上限三方同源', ()=>{
 	// horosa_win_shell_const_v1(Windows 侧移植适配):Windows 壳是 Electron,同名白名单常量住在
-	// desktop_installer_bundle/electron/desktop-bridge.js(`AI_ANALYSIS_IMPORT_EXTENSIONS = ["txt", …]`,与 Tauri main.rs 同一正则形);
-	// Tauri main.rs 缺席时读它。判据零放宽:壳层白名单仍必须与前端白名单逐字同集。
-	const mainRsPath = path.resolve(__dirname, '../../../../../Horosa_Desktop_Installer/src-tauri/src/main.rs');
+	// desktop_installer_bundle/electron/desktop-bridge.js(`AI_ANALYSIS_IMPORT_EXTENSIONS = ["txt", …]`,与 Tauri 壳层常量表 src-tauri/src/config.rs 同一正则形);
+	// Tauri config.rs 缺席时读它。判据零放宽:壳层白名单仍必须与前端白名单逐字同集。
+	const shellConfigPath = path.resolve(__dirname, '../../../../../Horosa_Desktop_Installer/src-tauri/src/config.rs');
 	const electronBridgePath = path.resolve(__dirname, '../../../../../../../desktop_installer_bundle/electron/desktop-bridge.js');
-	const mainRs = fs.readFileSync(fs.existsSync(mainRsPath) ? mainRsPath : electronBridgePath, 'utf8');
-	const m = /AI_ANALYSIS_IMPORT_EXTENSIONS[^=]*=\s*\[([^\]]*)\]/.exec(mainRs);
+	const shellConfig = fs.readFileSync(fs.existsSync(shellConfigPath) ? shellConfigPath : electronBridgePath, 'utf8');
+	const m = /AI_ANALYSIS_IMPORT_EXTENSIONS[^=]*=\s*\[([^\]]*)\]/.exec(shellConfig);
 	expect(m).toBeTruthy();
 	const shell = m[1].split(',').map((s)=>s.trim().replace(/^"|"$/g, '')).filter(Boolean);
 	expect(MATERIAL_IMPORT_EXTENSIONS.slice().sort()).toEqual(shell.slice().sort());

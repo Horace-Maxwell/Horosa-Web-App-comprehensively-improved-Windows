@@ -1,11 +1,13 @@
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import cherrypy
 import jsonpickle
 
 from websrv.helper import enable_crossdomain
 from websrv.kentang.kinastro_common import (
+    annotate_day_boundary,
+    day_boundary_of,
     build_snapshot,
     clean_text,
     coord_to_float,
@@ -19,6 +21,10 @@ from websrv.kentang.kinastro_common import (
     row,
     to_int,
     timezone_to_float,
+    civil_ymd_valid,
+    vendor_civil_date,
+    vendor_civil_ymd,
+    vendor_greg_ymd,
 )
 
 
@@ -133,16 +139,24 @@ def _mansion_system_to_dict(chart, mansion_list, label):
     })
 
 
-def _parse_iso_date(value, fallback):
+def _parse_civil_ymd(value, fallback):
+    """'YYYY-MM-DD' / 'YYYY/MM/DD'(可带负号、不足 4 位或 5 位年;历史纪年)→ (年, 月, 日);
+    空 / 读不出 / 不存在的日期 → fallback(三元组)。"""
     text = clean_text(value, "")
     if not text:
         return fallback
-    for fmt in ("%Y-%m-%d", "%Y/%m/%d"):
-        try:
-            return datetime.strptime(text, fmt)
-        except Exception:
-            pass
-    return fallback
+    head = text.split(" ")[0].replace("/", "-")
+    neg = head.startswith("-")
+    parts = head.lstrip("-").split("-")
+    try:
+        y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+    except Exception:
+        return fallback
+    if neg:
+        y = -y
+    if y == 0 or not civil_ymd_valid(y, m, d):
+        return fallback
+    return y, m, d
 
 
 def _parse_iso_time(value, fallback):
@@ -254,10 +268,12 @@ def _zhangguo_to_dict(result):
 
 
 def _transit_to_dict(result):
+    # vendor 回写的是交进去的格里历年月日 → 换回民用历再显示
+    year, month, day = vendor_civil_ymd(result.year, result.month, result.day)
     return display_safe({
-        "year": result.year,
-        "month": result.month,
-        "day": result.day,
+        "year": year,
+        "month": month,
+        "day": day,
         "hour": result.hour,
         "minute": result.minute,
         "timezone": result.timezone,
@@ -271,7 +287,7 @@ def _electional_to_dict(result):
     dates = []
     for item in data.get("rated_dates", [])[:30]:
         dates.append(display_safe({
-            "date": item.get("date"),
+            "date": vendor_civil_date(item.get("date")),
             "weekday": item.get("weekday"),
             "stemBranch": item.get("stem_branch"),
             "score": item.get("score"),
@@ -283,11 +299,11 @@ def _electional_to_dict(result):
     criteria = data.get("criteria") or "general"
     activity = ACTIVITY_TYPES.get(criteria, ACTIVITY_TYPES["general"])
     return display_safe({
-        "startDate": data.get("start_date"),
-        "endDate": data.get("end_date"),
+        "startDate": vendor_civil_date(data.get("start_date")),
+        "endDate": vendor_civil_date(data.get("end_date")),
         "criteria": criteria,
         "criteriaName": activity.get("cn"),
-        "bestDate": data.get("best_date"),
+        "bestDate": vendor_civil_date(data.get("best_date")),
         "ratedDates": dates,
     })
 
@@ -477,191 +493,203 @@ class QiZhengKinSrv:
             if cherrypy.request.method == "OPTIONS":
                 return jsonpickle.encode({"ResultCode": 0, "Result": "ok"}, unpicklable=False)
             data = cherrypy.request.json or {}
-            dt = parse_datetime(data)
-            timezone_value = timezone_to_float(data.get("zone") or data.get("timezone"), 8.0)
-            lat = coord_to_float(data.get("gpsLat") or data.get("lat"), 0.0)
-            lon = coord_to_float(data.get("gpsLon") or data.get("lon"), 0.0)
-            location_name = clean_text(data.get("pos") or data.get("locationName") or data.get("location"), "星阙地点")
-            gender_value = _gender_vendor(data.get("gender"))
-            date_text, time_text = _fmt_time(data, dt)
-
-            chart = compute_chart(
-                dt.year,
-                dt.month,
-                dt.day,
-                dt.hour,
-                dt.minute,
-                timezone_value,
-                lat,
-                lon,
-                location_name=location_name,
-                gender=gender_value,
-            )
-            # 用戶語義（拍板,字面直覺版）:
-            #   after23NewDay=1「23点算第二天」=23時起日柱進位次日(jd+1)
-            #   after23NewDay=0「24点算第二天」=23時仍守今(jd 不變)
-            # v2.2.1 第二全局开关 lateZi(hour_gan_use_next_day):
-            #   lateZi=1(默认): 時柱跨日按"次日日干"起子時(=庚子,與 lunar.js Exact 一致)
-            #   lateZi=0: 時柱跟日柱一致(同一 cdate 的日干起子時)
-            # 仅 hour==23 时两开关生效,其它 23 小时一律 NO-OP。
-            after23 = to_int(data.get("after23NewDay"), 1)
-            late_zi = to_int(data.get("lateZiHourUseNextDay"), 1)
-            jd_for_day = chart.julian_day + (1.0 if dt.hour == 23 and after23 else 0.0)
-            if dt.hour == 23:
-                if late_zi:
-                    # lateZi=1: 时柱用次日日干起子时
-                    jd_for_hour = chart.julian_day + 1.0
-                else:
-                    # lateZi=0: 时柱跟日柱一致
-                    jd_for_hour = jd_for_day
-            else:
-                jd_for_hour = chart.julian_day
-            shensha = compute_shensha(
-                dt.year,
-                chart.solar_month,
-                jd_for_day,
-                chart.hour_branch,
-                timezone_value,
-                chart.ming_gong_branch,
-            )
-            # 八字四柱:日柱用 jd_for_day,時柱用 jd_for_hour(獨立計算)。
-            bazi_day_part = get_bazi_stems_branches(
-                dt.year,
-                chart.solar_month,
-                jd_for_day,
-                chart.hour_branch,
-                timezone_value,
-            )
-            bazi_hour_part = get_bazi_stems_branches(
-                dt.year,
-                chart.solar_month,
-                jd_for_hour,
-                chart.hour_branch,
-                timezone_value,
-            )
-            # 覆蓋時柱: 用 jd_for_hour 算出的 hour_stem/hour_pillar 替換。
-            bazi_day_part["hour_stem"] = bazi_hour_part["hour_stem"]
-            bazi_day_part["hour_pillar"] = bazi_hour_part["hour_pillar"]
-            bazi = display_safe(bazi_day_part)
-            current_year = max(1, to_int(data.get("qizhengKinCurrentYear") or data.get("currentYear"), datetime.now().year))
-            dasha = compute_dasha(dt.year, chart.ming_gong_branch, gender_value, chart.houses, current_year=current_year)
-            zhangguo = compute_zhangguo(chart.planets, chart.houses, gender=gender_value)
-            electional_days = max(1, min(60, to_int(data.get("qizhengKinElectionalDays") or data.get("electionalDays"), 30)))
-            electional_criteria = clean_text(data.get("qizhengKinElectionalCriteria") or data.get("electionalCriteria"), "general")
-            if electional_criteria not in ACTIVITY_TYPES:
-                electional_criteria = "general"
-            electional_start = _parse_iso_date(data.get("qizhengKinElectionalStartDate") or data.get("electionalStartDate"), dt)
-            electional_end = electional_start + timedelta(days=electional_days - 1)
-            electional = find_auspicious_dates(
-                electional_start.year,
-                electional_start.month,
-                electional_start.day,
-                electional_end.year,
-                electional_end.month,
-                electional_end.day,
-                timezone=timezone_value,
-                criteria=electional_criteria,
-            )
-
-            transit_mode = clean_text(data.get("qizhengKinTransitMode") or data.get("transitMode"), "none")
-            transit = None
-            if transit_mode == "now":
-                transit = compute_transit_now(timezone_value)
-            elif transit_mode == "same":
-                transit = compute_transit(dt.year, dt.month, dt.day, dt.hour, dt.minute, timezone_value)
-            elif transit_mode == "custom":
-                transit_date = _parse_iso_date(data.get("qizhengKinTransitDate") or data.get("transitDate"), dt)
-                transit_hour, transit_minute = _parse_iso_time(data.get("qizhengKinTransitTime") or data.get("transitTime"), dt)
-                transit = compute_transit(
-                    transit_date.year,
-                    transit_date.month,
-                    transit_date.day,
-                    transit_hour,
-                    transit_minute,
-                    timezone_value,
-                )
-
-            shensha_data = _shensha_to_dict(shensha)
-            planets = [_planet_to_dict(item) for item in chart.planets]
-            houses = [_house_to_dict(item, chart.planets, shensha.branch_map) for item in chart.houses]
-            ming_branch_name = EARTHLY_BRANCHES[chart.ming_gong_branch] if 0 <= chart.ming_gong_branch < len(EARTHLY_BRANCHES) else ""
-            ming_house = next((h for h in chart.houses if h.branch == chart.ming_gong_branch), None)
-            ming_planets = [p for p in chart.planets if ming_house and p.palace_index == ming_house.index]
-            ming_items = []
-            li_text = get_li_ming_text(ming_branch_name)
-            if li_text:
-                ming_items.append({"title": f"立命{ming_branch_name}", "text": display_text(li_text)})
-            for planet in ming_planets:
-                text = get_planet_in_ming_text(planet.name)
-                if text:
-                    ming_items.append({"title": f"{display_text(planet.name)}入命", "text": display_text(text)})
-
-            qizheng = {
-                "chart": display_safe({
-                    "julianDay": chart.julian_day,
-                    "ascendant": chart.ascendant,
-                    "ascendantText": _fmt_degree(chart.ascendant),
-                    "midheaven": chart.midheaven,
-                    "midheavenText": _fmt_degree(chart.midheaven),
-                    "liming": chart.liming_lon,
-                    "limingText": _fmt_degree(chart.liming_lon),
-                    "solarMonth": chart.solar_month,
-                    "hourBranch": chart.hour_branch,
-                    "hourBranchName": EARTHLY_BRANCHES[chart.hour_branch],
-                    "mingGongBranch": chart.ming_gong_branch,
-                    "mingGongBranchName": ming_branch_name,
-                }),
-                "bazi": bazi,
-                "planets": planets,
-                "houses": houses,
-                "shensha": shensha_data,
-                "dasha": _dasha_to_dict(dasha),
-                "transit": _transit_to_dict(transit) if transit else None,
-                "electional": _electional_to_dict(electional),
-                "zhangguo": _zhangguo_to_dict(zhangguo),
-                "mansions": _mansions_to_dict(chart),
-                "mingGong": {
-                    "branch": ming_branch_name,
-                    "house": display_text(ming_house.name) if ming_house else "",
-                    "planets": [display_text(item.name) for item in ming_planets],
-                    "items": ming_items,
-                },
-            }
-            pan = {
-                "source": "kinastro",
-                "engine": "kinastro-qizheng",
-                "technique": "qizheng",
-                "title": "七政四余",
-                "dateStr": date_text,
-                "timeStr": time_text,
-                "gender": gender_cn(data.get("gender"), "男"),
-                "timezone": timezone_value,
-                "timezoneText": f"UTC{timezone_value:+g}",
-                "latitude": lat,
-                "longitude": lon,
-                "latitudeText": _fmt_degree(lat, 4),
-                "longitudeText": _fmt_degree(lon, 4),
-                "location": display_text(location_name),
-                "qizheng": qizheng,
-                "classics": kinastro_source_sections("七政四余", "接入 kentang2017/kinastro 的七政四余天文计算、十二宫、神煞、张果星宗断语、年限大运与命宫解读。"),
-                "capabilities": {
-                    "inputs": ["date", "time", "timezone", "latitude", "longitude", "gender", "currentYear", "transitMode", "transitDate", "transitTime", "electionalStartDate", "electionalCriteria", "electionalDays"],
-                    "outputs": ["sevenGovernors", "fourRemainders", "houses", "fourPillars", "shensha", "dasha", "transit", "zhangguoReadings", "mingGongInterpretation", "electionalDates", "twentyEightMansions"],
-                    "transitModes": [
-                        {"value": "none", "label": "关闭"},
-                        {"value": "same", "label": "同刻"},
-                        {"value": "now", "label": "此刻"},
-                        {"value": "custom", "label": "自定"},
-                    ],
-                    "electionalCriteria": [
-                        {"value": key, "label": value.get("cn")}
-                        for key, value in ACTIVITY_TYPES.items()
-                    ],
-                },
-            }
-            pan["sections"] = _build_sections(pan)
-            pan["snapshot"] = build_snapshot(pan)
+            pan = compute_qizheng_kin_pan(data)
             return jsonpickle.encode({"ResultCode": 0, "Result": pan}, unpicklable=False)
         except Exception:
             traceback.print_exc()
             return jsonpickle.encode({"ResultCode": -1, "Result": "qizheng kinastro calculation failed"}, unpicklable=False)
+
+
+def compute_qizheng_kin_pan(data):
+    """请求体 → 七政四余(kinastro 引擎)整盘。HTTP 入口与测试共用。"""
+    dt = parse_datetime(data)
+    timezone_value = timezone_to_float(data.get("zone") or data.get("timezone"), 8.0)
+    lat = coord_to_float(data.get("gpsLat") or data.get("lat"), 0.0)
+    lon = coord_to_float(data.get("gpsLon") or data.get("lon"), 0.0)
+    location_name = clean_text(data.get("pos") or data.get("locationName") or data.get("location"), "星阙地点")
+    gender_value = _gender_vendor(data.get("gender"))
+    date_text, time_text = _fmt_time(data, dt)
+
+    # vendor 引擎按外推格里历读年月日:换成同一天的格里历再交(1582 以后恒等)
+    birth_gy, birth_gm, birth_gd = vendor_greg_ymd(dt.year, dt.month, dt.day)
+    chart = compute_chart(
+        birth_gy,
+        birth_gm,
+        birth_gd,
+        dt.hour,
+        dt.minute,
+        timezone_value,
+        lat,
+        lon,
+        location_name=location_name,
+        gender=gender_value,
+    )
+    # 用戶語義（拍板,字面直覺版）:
+    #   after23NewDay=1「23点算第二天」=23時起日柱進位次日(jd+1)
+    #   after23NewDay=0「24点算第二天」=23時仍守今(jd 不變)
+    # v2.2.1 第二全局开关 lateZi(hour_gan_use_next_day):
+    #   lateZi=1(默认): 時柱跨日按"次日日干"起子時(=庚子,與 lunar.js Exact 一致)
+    #   lateZi=0: 時柱跟日柱一致(同一 cdate 的日干起子時)
+    # 仅 hour==23 时两开关生效,其它 23 小时一律 NO-OP。
+    _db = day_boundary_of(data)
+    after23 = _db["after23NewDay"]
+    late_zi = _db["lateZiHourUseNextDay"]
+    jd_for_day = chart.julian_day + (1.0 if dt.hour == 23 and after23 else 0.0)
+    if dt.hour == 23:
+        if late_zi:
+            # lateZi=1: 时柱用次日日干起子时
+            jd_for_hour = chart.julian_day + 1.0
+        else:
+            # lateZi=0: 时柱跟日柱一致
+            jd_for_hour = jd_for_day
+    else:
+        jd_for_hour = chart.julian_day
+    shensha = compute_shensha(
+        dt.year,
+        chart.solar_month,
+        jd_for_day,
+        chart.hour_branch,
+        timezone_value,
+        chart.ming_gong_branch,
+    )
+    # 八字四柱:日柱用 jd_for_day,時柱用 jd_for_hour(獨立計算)。
+    bazi_day_part = get_bazi_stems_branches(
+        dt.year,
+        chart.solar_month,
+        jd_for_day,
+        chart.hour_branch,
+        timezone_value,
+    )
+    bazi_hour_part = get_bazi_stems_branches(
+        dt.year,
+        chart.solar_month,
+        jd_for_hour,
+        chart.hour_branch,
+        timezone_value,
+    )
+    # 覆蓋時柱: 用 jd_for_hour 算出的 hour_stem/hour_pillar 替換。
+    bazi_day_part["hour_stem"] = bazi_hour_part["hour_stem"]
+    bazi_day_part["hour_pillar"] = bazi_hour_part["hour_pillar"]
+    bazi = display_safe(bazi_day_part)
+    current_year = max(1, to_int(data.get("qizhengKinCurrentYear") or data.get("currentYear"), datetime.now().year))
+    dasha = compute_dasha(dt.year, chart.ming_gong_branch, gender_value, chart.houses, current_year=current_year)
+    zhangguo = compute_zhangguo(chart.planets, chart.houses, gender=gender_value)
+    electional_days = max(1, min(60, to_int(data.get("qizhengKinElectionalDays") or data.get("electionalDays"), 30)))
+    electional_criteria = clean_text(data.get("qizhengKinElectionalCriteria") or data.get("electionalCriteria"), "general")
+    if electional_criteria not in ACTIVITY_TYPES:
+        electional_criteria = "general"
+    es_y, es_m, es_d = _parse_civil_ymd(data.get("qizhengKinElectionalStartDate") or data.get("electionalStartDate"), (dt.year, dt.month, dt.day))
+    el_sy, el_sm, el_sd = vendor_greg_ymd(es_y, es_m, es_d)
+    el_ey, el_em, el_ed = vendor_greg_ymd(es_y, es_m, es_d, add_days=electional_days - 1)
+    electional = find_auspicious_dates(
+        el_sy,
+        el_sm,
+        el_sd,
+        el_ey,
+        el_em,
+        el_ed,
+        timezone=timezone_value,
+        criteria=electional_criteria,
+    )
+
+    transit_mode = clean_text(data.get("qizhengKinTransitMode") or data.get("transitMode"), "none")
+    transit = None
+    if transit_mode == "now":
+        transit = compute_transit_now(timezone_value)
+    elif transit_mode == "same":
+        transit = compute_transit(birth_gy, birth_gm, birth_gd, dt.hour, dt.minute, timezone_value)
+    elif transit_mode == "custom":
+        tr_y, tr_m, tr_d = _parse_civil_ymd(data.get("qizhengKinTransitDate") or data.get("transitDate"), (dt.year, dt.month, dt.day))
+        transit_hour, transit_minute = _parse_iso_time(data.get("qizhengKinTransitTime") or data.get("transitTime"), dt)
+        transit_gy, transit_gm, transit_gd = vendor_greg_ymd(tr_y, tr_m, tr_d)
+        transit = compute_transit(
+            transit_gy,
+            transit_gm,
+            transit_gd,
+            transit_hour,
+            transit_minute,
+            timezone_value,
+        )
+
+    shensha_data = _shensha_to_dict(shensha)
+    planets = [_planet_to_dict(item) for item in chart.planets]
+    houses = [_house_to_dict(item, chart.planets, shensha.branch_map) for item in chart.houses]
+    ming_branch_name = EARTHLY_BRANCHES[chart.ming_gong_branch] if 0 <= chart.ming_gong_branch < len(EARTHLY_BRANCHES) else ""
+    ming_house = next((h for h in chart.houses if h.branch == chart.ming_gong_branch), None)
+    ming_planets = [p for p in chart.planets if ming_house and p.palace_index == ming_house.index]
+    ming_items = []
+    li_text = get_li_ming_text(ming_branch_name)
+    if li_text:
+        ming_items.append({"title": f"立命{ming_branch_name}", "text": display_text(li_text)})
+    for planet in ming_planets:
+        text = get_planet_in_ming_text(planet.name)
+        if text:
+            ming_items.append({"title": f"{display_text(planet.name)}入命", "text": display_text(text)})
+
+    qizheng = {
+        "chart": display_safe({
+            "julianDay": chart.julian_day,
+            "ascendant": chart.ascendant,
+            "ascendantText": _fmt_degree(chart.ascendant),
+            "midheaven": chart.midheaven,
+            "midheavenText": _fmt_degree(chart.midheaven),
+            "liming": chart.liming_lon,
+            "limingText": _fmt_degree(chart.liming_lon),
+            "solarMonth": chart.solar_month,
+            "hourBranch": chart.hour_branch,
+            "hourBranchName": EARTHLY_BRANCHES[chart.hour_branch],
+            "mingGongBranch": chart.ming_gong_branch,
+            "mingGongBranchName": ming_branch_name,
+        }),
+        "bazi": bazi,
+        "planets": planets,
+        "houses": houses,
+        "shensha": shensha_data,
+        "dasha": _dasha_to_dict(dasha),
+        "transit": _transit_to_dict(transit) if transit else None,
+        "electional": _electional_to_dict(electional),
+        "zhangguo": _zhangguo_to_dict(zhangguo),
+        "mansions": _mansions_to_dict(chart),
+        "mingGong": {
+            "branch": ming_branch_name,
+            "house": display_text(ming_house.name) if ming_house else "",
+            "planets": [display_text(item.name) for item in ming_planets],
+            "items": ming_items,
+        },
+    }
+    pan = {
+        "source": "kinastro",
+        "engine": "kinastro-qizheng",
+        "technique": "qizheng",
+        "title": "七政四余",
+        "dateStr": date_text,
+        "timeStr": time_text,
+        "gender": gender_cn(data.get("gender"), "男"),
+        "timezone": timezone_value,
+        "timezoneText": f"UTC{timezone_value:+g}",
+        "latitude": lat,
+        "longitude": lon,
+        "latitudeText": _fmt_degree(lat, 4),
+        "longitudeText": _fmt_degree(lon, 4),
+        "location": display_text(location_name),
+        "qizheng": qizheng,
+        "classics": kinastro_source_sections("七政四余", "接入 kentang2017/kinastro 的七政四余天文计算、十二宫、神煞、张果星宗断语、年限大运与命宫解读。"),
+        "capabilities": {
+            "inputs": ["date", "time", "timezone", "latitude", "longitude", "gender", "currentYear", "transitMode", "transitDate", "transitTime", "electionalStartDate", "electionalCriteria", "electionalDays"],
+            "outputs": ["sevenGovernors", "fourRemainders", "houses", "fourPillars", "shensha", "dasha", "transit", "zhangguoReadings", "mingGongInterpretation", "electionalDates", "twentyEightMansions"],
+            "transitModes": [
+                {"value": "none", "label": "关闭"},
+                {"value": "same", "label": "同刻"},
+                {"value": "now", "label": "此刻"},
+                {"value": "custom", "label": "自定"},
+            ],
+            "electionalCriteria": [
+                {"value": key, "label": value.get("cn")}
+                for key, value in ACTIVITY_TYPES.items()
+            ],
+        },
+    }
+    pan["sections"] = _build_sections(pan)
+    annotate_day_boundary(pan, _db)
+    pan["snapshot"] = build_snapshot(pan)
+    return pan

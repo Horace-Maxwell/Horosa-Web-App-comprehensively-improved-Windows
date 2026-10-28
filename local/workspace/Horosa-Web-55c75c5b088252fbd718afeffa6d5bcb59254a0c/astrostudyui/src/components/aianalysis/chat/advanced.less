@@ -104,7 +104,12 @@
 	transition: border-color 0.18s ease, background-color 0.18s ease;
 }
 
-.pill:hover,
+/* :focus-visible 与 :hover 分写两条:不认 :focus-visible 的内核(Safari 15.4 以前)遇到同列表里的它会把整条连 :hover 一起丢掉。 */
+.pill:hover {
+	border-color: var(--horosa-border-strong);
+	color: var(--horosa-text);
+	outline: none;
+}
 .pill:focus-visible {
 	border-color: var(--horosa-border-strong);
 	color: var(--horosa-text);
@@ -188,7 +193,12 @@
 	white-space: nowrap;
 }
 
-.railItem:hover,
+/* :focus-visible 与 :hover 分写两条:不认 :focus-visible 的内核(Safari 15.4 以前)遇到同列表里的它会把整条连 :hover 一起丢掉。 */
+.railItem:hover {
+	background: var(--horosa-panel-soft);
+	color: var(--horosa-text);
+	outline: none;
+}
 .railItem:focus-visible {
 	background: var(--horosa-panel-soft);
 	color: var(--horosa-text);
@@ -1047,7 +1057,7 @@
 }
 
 .ledgerRowDone {
-	opacity: 0.55;
+	color: var(--horosa-text-secondary);
 }
 
 .memoryList {
@@ -1066,5 +1076,5 @@
 }
 
 .memoryItemOff {
-	opacity: 0.55;
+	color: var(--horosa-text-secondary);
 }

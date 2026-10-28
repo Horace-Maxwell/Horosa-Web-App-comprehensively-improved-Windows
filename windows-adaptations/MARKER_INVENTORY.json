@@ -11,7 +11,7 @@
   "horosa_aux_render_slice_v1": {
    "astrostudyui/src/components/germany/AstroGermany.js": 1,
    "astrostudyui/src/components/germany/UranianDialMain.js": 3,
-   "astrostudyui/src/components/germany/UranianDialStyle.js": 2,
+   "astrostudyui/src/components/germany/UranianDialStyle.js": 1,
    "astrostudyui/src/utils/localRecordStore.js": 1,
    "astrostudyui/src/utils/localcharts.js": 1
   },
@@ -141,6 +141,7 @@
    "astrostudyui/src/components/xiaochengtu/__tests__/xiaochengtuRender.test.js": 1,
    "astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js": 1,
    "astrostudyui/src/components/ziwei/ZiWeiMain.js": 3,
+   "astrostudyui/src/divination/zeri/__tests__/zeriEmbeddedInputsRegistry.test.js": 1,
    "astrostudyui/src/utils/perfFlags.js": 2
   },
   "horosa_fullscreen_state_v1": {
@@ -194,13 +195,9 @@
   "horosa_kentang_result_cache_v1": {
    "astrostudyui/src/components/calendar/HuangLiMain.js": 2,
    "astrostudyui/src/components/calendar/TongshuMain.js": 1,
-   "astrostudyui/src/components/dunjia/DunJiaCalc.js": 1,
    "astrostudyui/src/components/jingjue/JingJueMain.js": 1,
-   "astrostudyui/src/components/jinkou/JinKouCalc.js": 1,
    "astrostudyui/src/components/jinkou/JinKouMain.js": 2,
-   "astrostudyui/src/components/kinastro/KinAstroMain.js": 1,
    "astrostudyui/src/components/lrzhan/LiuRengMain.js": 2,
-   "astrostudyui/src/components/taiyi/TaiYiCalc.js": 1,
    "astrostudyui/src/components/wuzhao/WuZhaoMain.js": 1,
    "astrostudyui/src/services/xuanshi.js": 1
   },
@@ -221,12 +218,9 @@
   "horosa_liqi_schools_mount_smoke_v1": {
    "astrostudyui/src/components/fengshui/__tests__/liqiSchoolsMountSmoke.test.js": 1
   },
-  "horosa_liqi_unavailable_guard_v1": {
-   "astrostudyui/src/components/fengshui/LiqiWorkspace.js": 1,
-   "astrostudyui/src/components/fengshui/__tests__/liqiSchoolsMountSmoke.test.js": 1
-  },
   "horosa_liureng_render_slice_v1": {
-   "astrostudyui/src/components/lrzhan/LiuRengMain.js": 8
+   "astrostudyui/src/components/lrzhan/LiuRengMain.js": 8,
+   "astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js": 1
   },
   "horosa_live_time_propagation_v1": {
    "astrostudyui/src/components/dunjia/DunJiaMain.js": 1,
@@ -317,7 +311,7 @@
    "astrostudyui/src/components/auxchart/AstroRelocationLab.js": 1,
    "astrostudyui/src/components/calendar/CalendarMain.js": 3,
    "astrostudyui/src/components/calendar/HuangLiMain.js": 5,
-   "astrostudyui/src/components/calendar/NongLiMain.js": 9,
+   "astrostudyui/src/components/calendar/NongLiMain.js": 10,
    "astrostudyui/src/components/calendar/RiziMain.js": 8,
    "astrostudyui/src/components/calendar/TongshuMain.js": 6,
    "astrostudyui/src/components/cntradition/BaZi.js": 2,
@@ -434,7 +428,8 @@
    "astrostudyui/src/models/astro.js": 1
   },
   "horosa_sanshi_render_slice_v1": {
-   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 7
+   "astrostudyui/src/components/sanshi/SanShiUnitedMain.js": 7,
+   "astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js": 1
   },
   "horosa_sanshi_render_smoke_v1": {
    "astrostudyui/src/components/sanshi/__tests__/sanshiRenderSmoke.test.js": 1
@@ -450,10 +445,6 @@
   "horosa_scu_arraywise_v1": {
    "astrostudyui/src/components/jieqi/JieQiChartsMain.js": 1
   },
-  "horosa_segmented_wrap_hysteresis_v1": {
-   "astrostudyui/src/components/xq-ui/__tests__/xqSegmentedWrapDecision.test.js": 1,
-   "astrostudyui/src/components/xq-ui/index.js": 1
-  },
   "horosa_shadow_mirror_electron_v1": {
    "astrostudyui/src/utils/shadowMirror.js": 1
   },
@@ -468,7 +459,7 @@
    "astrostudyui/src/components/yizhangjing/YiZhangJingMain.js": 1
   },
   "horosa_snapshot_idle_v1": {
-   "astrostudyui/src/components/germany/AstroMidpoint.js": 1
+   "astrostudyui/src/components/germany/AstroMidpoint.js": 2
   },
   "horosa_stable_react_keys_v1": {
    "astrostudyui/src/components/astro/AstroFirdaria.js": 1,
@@ -484,8 +475,6 @@
    "astrostudyui/src/components/cntradition/MainDirection.js": 1,
    "astrostudyui/src/components/cntradition/PaiBaZi.js": 1,
    "astrostudyui/src/components/cntradition/SmallDirection.js": 1,
-   "astrostudyui/src/components/cntradition/Zhu.js": 1,
-   "astrostudyui/src/components/cntradition/ZhuMing12.js": 1,
    "astrostudyui/src/components/commtools/BaziPithy.js": 1,
    "astrostudyui/src/components/comp/EditableTags.js": 1,
    "astrostudyui/src/components/comp/TipsBoard.js": 1,
@@ -507,6 +496,7 @@
    "astrostudyui/src/utils/stepPrefetchArm.js": 1
   },
   "horosa_subprocess_utf8_v1": {
+   "astropy/tests/test_vendor_suites_gate.py": 1,
    "astropy/tests/test_xuanshi_persons_graph_order.py": 1
   },
   "horosa_technique_open_smoke_v1": {
@@ -528,28 +518,67 @@
   "horosa_web_python_utf8_v1": {
    "start_horosa_local.sh": 1
   },
+  "horosa_win_float_tail_v1": {
+   "astropy/tests/test_india_variant_mount_contract.py": 2
+  },
+  "horosa_win_layout_webdir_v1": {
+   "astropy/tests/test_test_collection_completeness.py": 1
+  },
   "horosa_win_pathsep_posix_v1": {
    "astrostudyui/src/components/astro/__tests__/wheelArtChart.test.js": 1,
    "astrostudyui/src/components/common/__tests__/quickDockContract.test.js": 2,
    "astrostudyui/src/components/tarot/__tests__/tarotTrumpJudgeLock.test.js": 1,
+   "astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js": 1,
+   "astrostudyui/src/utils/__tests__/caseRestoreExplicitLoadOnly.test.js": 1,
    "astrostudyui/src/utils/__tests__/chartFreeContract.test.js": 1,
+   "astrostudyui/src/utils/__tests__/fixedInkContrastGuard.test.js": 1,
    "astrostudyui/src/utils/__tests__/heavyEngineImportGraph.test.js": 1,
+   "astrostudyui/src/utils/__tests__/helpers/importGraph.js": 1,
+   "astrostudyui/src/utils/__tests__/helpers/namedImports.js": 1,
+   "astrostudyui/src/utils/__tests__/inkDimmingGuard.test.js": 1,
    "astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js": 1
   },
   "horosa_win_shell_const_v1": {
-   "astrostudyui/src/utils/__tests__/aiMaterialImportGuard.test.js": 1
+   "astrostudyui/src/utils/__tests__/aiMaterialImportGuard.test.js": 1,
+   "astrostudyui/src/utils/__tests__/headlessApi.test.js": 1,
+   "astrostudyui/src/utils/__tests__/shellStrings.test.js": 1
+  },
+  "horosa_win_shell_copy_v1": {
+   "astrostudyui/src/components/aianalysis/ExternalAgentPanel.js": 1,
+   "astrostudyui/src/components/aianalysis/__tests__/externalAgentPanelWinCopy.test.js": 1,
+   "astrostudyui/src/components/help/AIAnalysisHelpDoc.js": 1
   },
   "horosa_win_shell_free_scan_v1": {
    "astrostudyui/src/utils/__tests__/layoutDomainStaticGuard.test.js": 2,
    "astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js": 3,
    "astrostudyui/src/utils/__tests__/popupAlignZoomGuard.test.js": 1
   },
+  "horosa_win_shell_layout_v1": {
+   "astrostudyui/src/utils/__tests__/bootstrapNodeFormula.test.js": 1,
+   "astrostudyui/src/utils/__tests__/legacyEngineFloor.test.js": 1,
+   "astrostudyui/src/utils/__tests__/scriptModeNativeText.test.js": 1,
+   "astrostudyui/src/utils/__tests__/shellPageScript.test.js": 1,
+   "astrostudyui/src/utils/__tests__/singleSourceHelpers.test.js": 1,
+   "astrostudyui/src/utils/__tests__/sourceSetManifest.test.js": 1
+  },
   "horosa_win_slice_form_v1": {
    "astrostudyui/src/components/sanshi/__tests__/sanshiQijuAndVisibleControls.test.js": 3,
+   "astrostudyui/src/divination/zeri/__tests__/zeriLockRestoreMarks.test.js": 1,
+   "astrostudyui/src/divination/zeri/__tests__/zeriTechniqueParity.test.js": 1,
    "astrostudyui/src/utils/__tests__/sanshiQ164Misc.test.js": 1
   },
+  "horosa_win_socks_abort_v1": {
+   "astrostudysrv/boundless/src/test/java/boundless/net/http/LoopbackDirectProxySelectorTest.java": 2
+  },
+  "horosa_win_srv_base_env_v1": {
+   "astropy/tests/srv_gate.py": 1
+  },
+  "horosa_win_timer_granularity_v1": {
+   "astrostudyui/src/utils/__tests__/aiChatCommandArgs.test.js": 1
+  },
   "horosa_ws_dirname_agnostic_v1": {
-   "astrostudyui/src/utils/__tests__/classicalParamSpec.contract.test.js": 1
+   "astrostudyui/src/utils/__tests__/classicalParamSpec.contract.test.js": 1,
+   "astrostudyui/src/utils/__tests__/sourceSetManifest.test.js": 1
   },
   "horosa_wuzhao_random_guard_v1": {
    "astrostudyui/src/components/wuzhao/WuZhaoMain.js": 1,

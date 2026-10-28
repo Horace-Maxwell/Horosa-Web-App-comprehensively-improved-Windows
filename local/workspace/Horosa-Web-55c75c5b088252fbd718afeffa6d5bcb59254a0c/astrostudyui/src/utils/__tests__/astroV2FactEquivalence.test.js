@@ -281,7 +281,7 @@ describe('相位 表化等价(fact-tuple-set)', ()=>{
 
 	it('◆ 标准相位:(主体,相位,对象,相态,误差) 集合相等', ()=>{
 		const rows = rowsOf('◆ 标准相位', ['主体', '相位', '对象', '相态', '误差']);
-		// [Q-254/T-227] 有意改名:引擎 Exact 行相态由「离相」改写为「正合」(v1 基线仍是旧字);
+		// 有意改名:引擎 Exact 行相态由「离相」改写为「正合」(v1 基线仍是旧字);
 		// 本证明只管表化无损,故比对前把 v2 的「正合」归一回「离相」(其余相态原字)。
 		const v2 = rows.map(([s, a, o, ph, orb])=>[s, a, o, ph === EMPTY_CELL ? '' : (ph === '正合' ? '离相' : ph), orb]);
 		expect(tupleSet(v2)).toEqual(tupleSet(v1Std));

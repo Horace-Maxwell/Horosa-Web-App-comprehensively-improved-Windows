@@ -166,8 +166,8 @@ describe('capturePageScreenshot 失败恒 null 铁律', ()=>{
 	});
 });
 
-// [WP-5.4] WebGL 引擎自渲染帧通道:注册 provider 后,WebGL 页不再一刀降级——先取引擎帧。
-describe('[WP-5.4] registerWebglFrameProvider 引擎帧通道', ()=>{
+// WebGL 引擎自渲染帧通道:注册 provider 后,WebGL 页不再一刀降级——先取引擎帧。
+describe('registerWebglFrameProvider 引擎帧通道', ()=>{
 	const FRAME = { dataUrl: `data:image/png;base64,${'A'.repeat(2100)}`, width: 800, height: 600 };
 	const webglTarget = ()=>({
 		querySelectorAll: ()=>[{ getAttribute: ()=>'', width: 10, height: 10, getContext: (t)=>(t === '2d' ? null : {}) }],

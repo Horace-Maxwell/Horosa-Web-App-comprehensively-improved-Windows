@@ -1,10 +1,10 @@
-// [S8] 导入三闸纯函数金标:校验矩阵 + 预览↔真实导入恒等式。
+// 导入三闸纯函数金标:校验矩阵 + 预览↔真实导入恒等式。
 // 此前导入零校验零确认:任何含 charts 数组的 JSON 直接灌库、同 cid 静默覆盖不可撤销;
 // 交叉选错(事盘备份进命盘口)是静默 imported:0 —— 现在硬拒并给准确指路文案。
 import { validateLocalChartsBackup, previewLocalChartsBackup, importLocalChartsBackup, upsertLocalChart, listLocalCharts, exportLocalChartsBackup } from '../localcharts';
 import { validateLocalCasesBackup } from '../localcases';
 
-describe('[S8] 闸① 校验矩阵', ()=>{
+describe('闸① 校验矩阵', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});
@@ -26,7 +26,7 @@ describe('[S8] 闸① 校验矩阵', ()=>{
 	});
 });
 
-describe('[S8] 闸② 预览 ↔ 真实导入恒等式', ()=>{
+describe('闸② 预览 ↔ 真实导入恒等式', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});
@@ -63,10 +63,25 @@ describe('[S8] 闸② 预览 ↔ 真实导入恒等式', ()=>{
 		expect(names).toContain('导入乙');
 	});
 
-	it('往返闭环:export 信封直接过 validate+preview(零 adds 全 updates)', ()=>{
+	it('往返闭环:export 信封直接过 validate+preview(零 adds;同一 ID 一样新 → 保留本机)', ()=>{
 		upsertLocalChart({ cid: 'local-rt-1', name: '往返', birth: '1990-01-01 08:00:00', zone: '+08:00', updateTime: '2026-08-01 10:00:00', preserveUpdateTime: true });
 		const envelope = exportLocalChartsBackup();
 		expect(validateLocalChartsBackup(envelope).ok).toBe(true);
-		expect(previewLocalChartsBackup(envelope)).toMatchObject({ adds: 0, updates: 1, invalid: 0 });
+		expect(previewLocalChartsBackup(envelope)).toMatchObject({ adds: 0, updates: 0, keptLocal: 1, invalid: 0 });
+	});
+});
+
+describe('预览 ↔ 真实导入:混合批(带记录号 + 不带记录号的同名同生辰)', ()=>{
+	test('带记录号的一条先进库,不带记录号的同名同生辰那条按导入口径跳过;预览与实际逐项一致', ()=>{
+		window.localStorage.clear();
+		const env = { format: 'horosa-local-charts', version: 1, charts: [
+			{ cid: 'mix-1', name: '丁', birth: '1980-01-01 12:00:00', zone: '+08:00' },
+			{ name: '丁', birth: '1980-01-01 12:00:00', zone: '+08:00' },
+			{ name: '戊', birth: '1981-01-01 12:00:00', zone: '+08:00' },
+		] };
+		const preview = previewLocalChartsBackup(env);
+		const r = importLocalChartsBackup(env);
+		expect([preview.adds, preview.dupSkips]).toEqual([r.imported, r.dupSkipped]);
+		expect([r.imported, r.dupSkipped]).toEqual([2, 1]);
 	});
 });

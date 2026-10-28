@@ -127,6 +127,76 @@ public class HttpClientUtility {
     	return host;
 	}
 	
+	/**
+	 * 按目标取 Apache 层代理:本机地址(见 {@link LoopbackDirectProxySelector#isLoopbackHost})一律返回 null = 直连,
+	 * 其余目标同 {@link #getHttpHost()}。所有出站命令设代理都必须经这里,不能对任意目标裸用 getHttpHost()
+	 * (开系统代理时本地排盘服务会被送进代理)。
+	 */
+	public static HttpHost getHttpHostFor(URI target) {
+		if(LoopbackDirectProxySelector.isLoopbackTarget(target)) {
+			return null;
+		}
+		return getHttpHost();
+	}
+
+	public static HttpHost getHttpHostFor(String targetUrl) {
+		return getHttpHostFor(safeUri(targetUrl));
+	}
+
+	/** 同 {@link #getHttpHostFor(URI)},供 HttpURLConnection 路径:本机地址返回 null(调用方走 openConnection() 直连)。 */
+	public static Proxy getProxyFor(String targetUrl) {
+		if(LoopbackDirectProxySelector.isLoopbackTarget(safeUri(targetUrl))) {
+			return null;
+		}
+		return getProxy();
+	}
+
+	private static URI safeUri(String url) {
+		if(url == null) {
+			return null;
+		}
+		try {
+			return new URI(url.trim());
+		}catch(Exception e) {
+			return null;
+		}
+	}
+
+	/**
+	 * 异常链里是否有「连不上对端」类网络错误:连接被拒 / 连接超时 / 无路由 / 主机名解析失败 / 代理握手失败
+	 * (SOCKS 回包版本不对、代理拒绝等 SocketException)。读超时不算——那是对端在、只是慢。
+	 */
+	public static boolean isConnectFailure(Throwable err) {
+		Throwable t = err;
+		for(int depth = 0; t != null && depth < 12; depth++) {
+			if(t instanceof java.net.SocketTimeoutException) {
+				String m = String.valueOf(t.getMessage()).toLowerCase();
+				if(m.contains("connect")) {
+					return true;
+				}
+			}else if(t instanceof java.net.ConnectException
+					|| t instanceof java.net.NoRouteToHostException
+					|| t instanceof java.net.UnknownHostException
+					|| t instanceof java.net.PortUnreachableException
+					|| t instanceof org.apache.http.conn.ConnectTimeoutException
+					|| t instanceof org.apache.http.conn.HttpHostConnectException) {
+				return true;
+			}else if(t instanceof java.net.SocketException) {
+				String m = String.valueOf(t.getMessage()).toLowerCase();
+				if(m.contains("socks") || m.contains("proxy") || m.contains("connection refused")
+						|| m.contains("network is unreachable") || m.contains("can't connect")
+						|| m.contains("no route") || m.contains("host is down")) {
+					return true;
+				}
+			}
+			if(t.getCause() == t) {
+				break;
+			}
+			t = t.getCause();
+		}
+		return false;
+	}
+
 	public static Proxy getProxy() {
     	String http_proxy = System.getenv("http_proxy");
     	String https_proxy = System.getenv("https_proxy");
@@ -171,6 +241,8 @@ public class HttpClientUtility {
 	static SSLContext sslCtx;
 	static HostnameVerifier hostnameVerifier;
 	static{
+		// 本机地址直连的全局代理选择器(主程序入口已先装;这里兜住不经主入口的进程,如单测 / 工具类入口)。幂等。
+		LoopbackDirectProxySelector.install();
 		System.setProperty("https.protocols", "TLSv1,TLSv1.1,TLSv1.2");
 		try {
 			sslCtx = SSLContext.getInstance("TLSv1.2");
@@ -383,7 +455,7 @@ public class HttpClientUtility {
 		CalculatePool.queueUserWorkItem(()->{
 			getString(url, parameters);
 		}, (e)->{
-			log.error("fail, msg:{}, url:{}", e.getMessage(), url);
+			log.error("fail, msg:{}, url:{}", boundless.utility.SecretRedactor.redactText(e.getMessage()), boundless.utility.SecretRedactor.redactText(url));
 			e.printStackTrace();
 		});
 	}
@@ -395,7 +467,7 @@ public class HttpClientUtility {
 				consumer.accept(str);
 			}
 		}, (e)->{
-			log.error("fail, msg:{}, url:{}", e.getMessage(), url);
+			log.error("fail, msg:{}, url:{}", boundless.utility.SecretRedactor.redactText(e.getMessage()), boundless.utility.SecretRedactor.redactText(url));
 			e.printStackTrace();
 		});
 	}
@@ -404,7 +476,7 @@ public class HttpClientUtility {
 		CalculatePool.queueUserWorkItem(()->{
 			getString(url, parameters);
 		}, (e)->{
-			log.error("fail, msg:{}, url:{}", e.getMessage(), url);
+			log.error("fail, msg:{}, url:{}", boundless.utility.SecretRedactor.redactText(e.getMessage()), boundless.utility.SecretRedactor.redactText(url));
 			e.printStackTrace();
 		});
 	}
@@ -413,7 +485,7 @@ public class HttpClientUtility {
 		CalculatePool.queueUserWorkItem(()->{
 			getString(url);
 		}, (e)->{
-			log.error("fail, msg:{}, url:{}", e.getMessage(), url);
+			log.error("fail, msg:{}, url:{}", boundless.utility.SecretRedactor.redactText(e.getMessage()), boundless.utility.SecretRedactor.redactText(url));
 			e.printStackTrace();
 		});
 	}
@@ -425,7 +497,7 @@ public class HttpClientUtility {
 				consumer.accept(str);
 			}
 		}, (e)->{
-			log.error("fail, msg:{}, url:{}", e.getMessage(), url);
+			log.error("fail, msg:{}, url:{}", boundless.utility.SecretRedactor.redactText(e.getMessage()), boundless.utility.SecretRedactor.redactText(url));
 			e.printStackTrace();
 		});
 	}
@@ -437,7 +509,7 @@ public class HttpClientUtility {
 				consumer.accept(str);
 			}
 		}, (e)->{
-			log.error("fail, msg:{}, url:{}", e.getMessage(), url);
+			log.error("fail, msg:{}, url:{}", boundless.utility.SecretRedactor.redactText(e.getMessage()), boundless.utility.SecretRedactor.redactText(url));
 			e.printStackTrace();
 		});
 	}
@@ -714,7 +786,7 @@ public class HttpClientUtility {
 		CalculatePool.queueUserWorkItem(()->{
 			httpPost(url, parameters);
 		}, (e)->{
-			log.error("fail, msg:{}, url:{}", e.getMessage(), url);
+			log.error("fail, msg:{}, url:{}", boundless.utility.SecretRedactor.redactText(e.getMessage()), boundless.utility.SecretRedactor.redactText(url));
 			e.printStackTrace();
 		});
 	}
@@ -726,7 +798,7 @@ public class HttpClientUtility {
 				consumer.accept(resp);
 			}
 		}, (e)->{
-			log.error("fail, msg:{}, url:{}", e.getMessage(), url);
+			log.error("fail, msg:{}, url:{}", boundless.utility.SecretRedactor.redactText(e.getMessage()), boundless.utility.SecretRedactor.redactText(url));
 			e.printStackTrace();
 		});
 	}
@@ -785,7 +857,7 @@ public class HttpClientUtility {
 		CalculatePool.queueUserWorkItem(()->{
 			uploadString(url, contenttype, strData);
 		}, (e)->{
-			log.error("fail, msg:{}, url:{}", e.getMessage(), url);
+			log.error("fail, msg:{}, url:{}", boundless.utility.SecretRedactor.redactText(e.getMessage()), boundless.utility.SecretRedactor.redactText(url));
 			e.printStackTrace();
 		});
 	}
@@ -797,7 +869,7 @@ public class HttpClientUtility {
 				consumer.accept(str);
 			}
 		}, (e)->{
-			log.error("fail, msg:{}, url:{}", e.getMessage(), url);
+			log.error("fail, msg:{}, url:{}", boundless.utility.SecretRedactor.redactText(e.getMessage()), boundless.utility.SecretRedactor.redactText(url));
 			e.printStackTrace();
 		});
 	}
@@ -824,7 +896,7 @@ public class HttpClientUtility {
 		CalculatePool.queueUserWorkItem(()->{
 			uploadJson(url, jsonData);
 		}, (e)->{
-			log.error("fail, msg:{}, url:{}", e.getMessage(), url);
+			log.error("fail, msg:{}, url:{}", boundless.utility.SecretRedactor.redactText(e.getMessage()), boundless.utility.SecretRedactor.redactText(url));
 			e.printStackTrace();
 		});
 	}
@@ -836,7 +908,7 @@ public class HttpClientUtility {
 				consumer.accept(str);
 			}
 		}, (e)->{
-			log.error("fail, msg:{}, url:{}", e.getMessage(), url);
+			log.error("fail, msg:{}, url:{}", boundless.utility.SecretRedactor.redactText(e.getMessage()), boundless.utility.SecretRedactor.redactText(url));
 			e.printStackTrace();
 		});
 	}

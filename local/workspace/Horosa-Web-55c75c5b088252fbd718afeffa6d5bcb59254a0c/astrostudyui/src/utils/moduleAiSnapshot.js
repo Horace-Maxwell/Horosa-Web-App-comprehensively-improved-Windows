@@ -1,12 +1,11 @@
-import { scheduleStorageWrite } from './deferredStorage';
+import { scheduleStorageWrite, removeStorageNow } from './deferredStorage';
+import { pickFresherSnapshot } from './snapshotSlotRead';
 import { lazySnapshotBuildEnabled } from './perfFlags';
 import { mountCalibreSignature } from './mountCalibreSignature';
 
-// [Q-020/M-25] 模块快照写入时打全局口径签名(读侧 aiAnalysisContext.getTechniqueSnapshotFromCache 比对);签名计算失败不阻断保存。
-function calibreSigSafe(){
-	try{ return mountCalibreSignature(); }catch(_e){ return ''; }
-}
-const MODULE_SNAPSHOT_PREFIX = 'horosa.ai.snapshot.module.v1.';
+// 模块快照写入时打全局口径签名(读侧 aiAnalysisContext.getTechniqueSnapshotFromCache 比对);mountCalibreSignature 读存储失败也照样给出签名串、永不抛。
+// 模块快照存储键前缀(单一来源;读快照一律经 loadModuleAISnapshot,别处不直读这把键)
+export const MODULE_SNAPSHOT_PREFIX = 'horosa.ai.snapshot.module.v1.';
 const MODULE_SNAPSHOT_MEMORY = new Map();
 const MODULE_SNAPSHOT_GLOBAL_KEY = '__horosa_module_ai_snapshot_map';
 
@@ -20,13 +19,14 @@ function createPendingToken(moduleName, contentFactory, meta){
 	const token = {
 		// createdAt/meta 在登记时打点:与同步版「save 时刻」语义一致,物化不重算。
 		createdAt: new Date().toISOString(),
-		calibreSig: calibreSigSafe(),   // [Q-020/M-25] 登记时刻的全局口径签名
+		calibreSig: mountCalibreSignature(),   // 登记时刻的全局口径签名
 		meta: meta || {},
 		done: false,
+		cancelled: false,   // 清槽时置位:之后的物化(空闲刷盘 / 读取)不再构建、不写内存,清掉的旧快照不会复活
 		payload: null,
 		materialize(){
-			if(token.done){
-				return token.payload;
+			if(token.done || token.cancelled){
+				return token.cancelled ? null : token.payload;
 			}
 			token.done = true;
 			try{
@@ -121,19 +121,6 @@ function loadFromMemoryAndGlobal(moduleName){
 	return null;
 }
 
-// [D1-sidecar] 结构化真值随载契约:meta.structuredGT = 引擎真值对象(schema 四类:
-// elements/timeline/patterns/keyFactors 任意子集)。下游 GT 消费端
-// 与事实核对(reportFactCheck)优先吃 sidecar,缺则回落文本解析 —— 渐进增强,不注册恒零回归。
-export function loadModuleStructuredGT(moduleName){
-	try{
-		const snap = loadModuleAISnapshot(moduleName);
-		const gt = snap && snap.meta && snap.meta.structuredGT;
-		return (gt && typeof gt === 'object') ? gt : null;
-	}catch(_){
-		return null;
-	}
-}
-
 export function saveModuleAISnapshot(moduleName, content, meta){
 	try{
 		if(!moduleName){
@@ -148,7 +135,7 @@ export function saveModuleAISnapshot(moduleName, content, meta){
 		const payload = {
 			module: moduleName,
 			version: 1,
-			calibreSig: calibreSigSafe(),
+			calibreSig: mountCalibreSignature(),
 			createdAt: new Date().toISOString(),
 			meta: meta || {},
 			content: text,
@@ -168,7 +155,7 @@ export function saveModuleAISnapshot(moduleName, content, meta){
 					const payload = {
 						module: moduleName,
 						version: 1,
-						calibreSig: calibreSigSafe(),
+						calibreSig: mountCalibreSignature(),
 						createdAt: new Date().toISOString(),
 						meta: meta || {},
 						content: text,
@@ -184,18 +171,19 @@ export function saveModuleAISnapshot(moduleName, content, meta){
 	}
 }
 
-// [挂载自检 J-2·P0] 显式清槽:save 遇空文只 return null、不覆盖旧值(有意:防空快照冲掉好快照),
+// 显式清槽:save 遇空文只 return null、不覆盖旧值(有意:防空快照冲掉好快照),
 // 但「当前页签本就不产快照」这类语义上应为空的场合需要真清(节气盘 jieqi_current 在总览页签恒残留上次单盘)。
 export function clearModuleAISnapshot(moduleName){
 	if(!moduleName){ return false; }
 	try{
+		const pendingToken = PENDING_BUILDS.get(moduleName);
+		if(pendingToken){ pendingToken.cancelled = true; }
 		PENDING_BUILDS.delete(moduleName);
 		MODULE_SNAPSHOT_MEMORY.delete(moduleName);
 		const globalMap = getGlobalSnapshotMap();
 		if(globalMap && globalMap[moduleName]){ delete globalMap[moduleName]; }
-		if(typeof window !== 'undefined' && window.localStorage){
-			try{ window.localStorage.removeItem(snapshotKey(moduleName)); }catch(_e){ /* noop */ }
-		}
+		// 删键连同队列里还没落盘的那份一起丢:只删存储不丢待写,空闲刷盘会把清掉的旧快照写回去
+		removeStorageNow(snapshotKey(moduleName));
 		return true;
 	}catch(e){
 		return false;
@@ -217,31 +205,18 @@ export function loadModuleAISnapshot(moduleName){
 			}
 			// 物化为空(本次快照为空)→ 按同步版语义回落旧快照。
 		}
+		// 读序单一来源(snapshotSlotRead.pickFresherSnapshot):内存不比存储旧就用内存;存储更新(别的窗口刚写过)以存储为准。
+		// 写槽落盘是延迟的,先读存储会读回上一份(页面刚按此刻所见重存、紧接着读槽就读到旧的)。
+		const mem = loadFromMemoryAndGlobal(moduleName);
 		if(typeof window !== 'undefined' && window.localStorage){
 			const raw = window.localStorage.getItem(snapshotKey(moduleName));
-			if(raw){
-				try{
-					const data = JSON.parse(raw);
-					if(data && data.content){
-						saveToMemoryAndGlobal(moduleName, data);
-						return data;
-					}
-				}catch(parseErr){
-					// 兼容旧版本：localStorage 里可能直接保存纯文本而非 JSON。
-					const txt = `${raw}`.trim();
-					if(txt){
-						const legacy = {
-							module: moduleName,
-							version: 1,
-							createdAt: '',
-							meta: {},
-							content: txt,
-						};
-						saveToMemoryAndGlobal(moduleName, legacy);
-						return legacy;
-					}
-				}
+			const picked = pickFresherSnapshot(mem, raw, {
+				legacy: (txt)=>({ module: moduleName, version: 1, createdAt: '', meta: {}, content: txt }),
+			});
+			if(picked.source === 'disk' || picked.source === 'legacy'){
+				saveToMemoryAndGlobal(moduleName, picked.payload);
 			}
+			return picked.payload;
 		}
 		return loadFromMemoryAndGlobal(moduleName);
 	}catch(e){

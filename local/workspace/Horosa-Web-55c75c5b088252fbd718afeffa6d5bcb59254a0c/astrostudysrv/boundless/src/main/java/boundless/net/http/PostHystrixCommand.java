@@ -79,7 +79,7 @@ public class PostHystrixCommand extends HystrixCommand<String> {
 			Map<String, String> headers, Map<String, String> responseHeaders, 
 			String contenttype, int timeoutMS){
 		try{
-			RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(HttpClientUtility.getHttpHost()).build();
+			RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(HttpClientUtility.getHttpHostFor(url)).build();
 			HttpClientBuilder builder = null;
 			if(BraveHelper.existZipkin()){
 				builder = BraveHelper.getHttpClientBuilder(url);
@@ -150,7 +150,7 @@ public class PostHystrixCommand extends HystrixCommand<String> {
 						reqhdmap.put(reqh.getName(), reqh.getValue());
 					}
 					String errmsg = String.format("\nFailed : HTTP error code : %d\nreason : %s\nrequest header: %s\nresponse header: %s\n", 
-							statcode, reason, JsonUtility.encode(reqhdmap), JsonUtility.encode(responseHeaders));
+							statcode, reason, JsonUtility.encode(HttpUriRequestHystrixCommand.redactSensitiveHeaders(reqhdmap)), JsonUtility.encode(HttpUriRequestHystrixCommand.redactSensitiveHeaders(responseHeaders)));
 					throw new ErrorCodeException(statcode, errmsg);
 				}
 				
@@ -190,7 +190,7 @@ public class PostHystrixCommand extends HystrixCommand<String> {
 
 				return str;
 			}catch(Exception e){
-				HttpClientUtility.log.error("请求{}失败, cause:{}", post.getURI().toString(), e.getMessage());
+				HttpClientUtility.log.error("请求{}失败, cause:{}", boundless.utility.SecretRedactor.redactText(post.getURI().toString()), boundless.utility.SecretRedactor.redactText(e.getMessage()));
 				throw e;
 			}finally{
 				try{

@@ -1,4 +1,4 @@
-// [挂载自检 F-45] 印度占星 三旗盘/问事 Praśna:挂载齿轮(indiaTripataki/indiaPrashna*)→ buildFieldObject → fieldsToParams
+// 印度占星 三旗盘/问事 Praśna:挂载齿轮(indiaTripataki/indiaPrashna*)→ buildFieldObject → fieldsToParams
 // → 请求体必须带 tripataki=1 / prashnaTime…;此前无头不产这些键 → preset「Tripataki 宿距三旗」「问事 Praśna」对挂载恒死。
 var mockBodies = [];
 jest.mock('../request', () => ({ __esModule: true, default: jest.fn(async (url, opts) => { try{ mockBodies.push({ url: `${url}`, body: JSON.parse(opts.body) }); }catch(_e){ mockBodies.push({ url: `${url}`, body: opts && opts.body }); } return { Result: {} }; }) }));

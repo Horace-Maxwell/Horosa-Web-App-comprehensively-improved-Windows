@@ -1708,9 +1708,6 @@ video::-webkit-media-text-track-display {
 }
 
 
-html, body, :global(#root) {
-  height: 100%;
-}
 @keyframes xqNavPopupIn {
     from {
         opacity: 0;

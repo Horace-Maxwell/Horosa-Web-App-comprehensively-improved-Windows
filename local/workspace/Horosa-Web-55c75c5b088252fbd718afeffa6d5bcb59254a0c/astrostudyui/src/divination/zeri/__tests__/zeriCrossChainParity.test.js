@@ -1,4 +1,4 @@
-// [十三轮] 跨链一致性判别网 —— 用户实抓「搜索对不上盘」根治的永久资产。
+// 跨链一致性判别网 —— 用户实抓「搜索对不上盘」根治的永久资产。
 // 病史:前端 EoT 教科书简式(dayOfYear 粒度,±1-2 分钟误差)vs 后端 swiss 精确 EoT,
 // 2026-08-31 差 89 秒 → 六壬择日行 17:14 起而后端酉界 17:15:10,pick(60s 内缩)落
 // 上一时辰盘=徽章元首课/主页与概览掩目课两课并存。修=NOAA/Meeus 高精度 EoT+lon 回退
@@ -12,7 +12,7 @@ const timeZiOf = (geo, d, t)=>{
 	return ((pan && pan.fourColumns && pan.fourColumns.time) || {}).ganzi || '';
 };
 
-describe('[十三轮] EoT 高精度天文锚(NOAA/Meeus;简式回潮必红)', ()=>{
+describe('EoT 高精度天文锚(NOAA/Meeus;简式回潮必红)', ()=>{
 	const eotMin = (dateUtcMs)=>__testing__.equationOfTime(dateUtcMs);
 	const ms = (iso)=>Date.parse(iso);
 	it('🔴 病灶日锚:2026-08-31 EoT∈(−75,−5)s——年历≈−22s;旧简式 +29s(=89s 界差病灶)必红。\n\t    (后端 Δ=−910 反推 −60,与 NOAA −22 的 38s 残差=后端链附加项+双端秒截断,≤40s 由 pick 180s 内缩三重盖)', ()=>{
@@ -34,7 +34,7 @@ describe('[十三轮] EoT 高精度天文锚(NOAA/Meeus;简式回潮必红)', ()
 	});
 });
 
-describe('[十三轮] 跨链时辰界锚(判定链界=后端 swiss 界,分钟粒度)', ()=>{
+describe('跨链时辰界锚(判定链界=后端 swiss 界,分钟粒度)', ()=>{
 	it('🔴 2026-08-31 北京申→酉界=17:15(后端真太阳 16:59:50@17:15:00 实测;修前判定链界在 17:14=用户事故)', ()=>{
 		expect(timeZiOf(GEO_FULL, '2026-08-31', '17:14:00').charAt(1)).toBe('申');
 		expect(timeZiOf(GEO_FULL, '2026-08-31', '17:15:00').charAt(1)).toBe('酉');
@@ -44,7 +44,7 @@ describe('[十三轮] 跨链时辰界锚(判定链界=后端 swiss 界,分钟粒
 	});
 });
 
-describe('[十三轮] 经度回退判别(lon 缺失不再静默退化钟表口径)', ()=>{
+describe('经度回退判别(lon 缺失不再静默退化钟表口径)', ()=>{
 	it('🔴 仅 gpsLon:真太阳校正必须生效(17:05=申;回退被删则退化钟表口径判酉)', ()=>{
 		expect(timeZiOf({ zone: '+08:00', gpsLon: 116.46, gpsLat: 39.9 }, '2026-08-31', '17:05:00').charAt(1)).toBe('申');
 	});
@@ -53,7 +53,7 @@ describe('[十三轮] 经度回退判别(lon 缺失不再静默退化钟表口�
 	});
 });
 
-describe('[十三轮补] 紫微跨链安全边际:后端 RealSun 已改真算式,与前端 EoT 逐项同式', ()=>{
+describe('紫微跨链安全边际:后端 RealSun 已改真算式,与前端 EoT 逐项同式', ()=>{
 	// 紫微后端 = TimeZiAlg.RealSun(ZiWeiController 非 DirectTime 一律 RealSun)。
 	// 旧实现是 366 天查表(含两处实锤 typo,02-24 量级 / 04-10 符号,差 129-130s),本网当时只证 pick 180s 盖得住;
 	// 现改为与前端 `baziLunarLocal.equationOfTime` **逐项同式**的 NOAA/Meeus 低阶式 ⇒ 跨链差是浮点级,不再需要余量证明。

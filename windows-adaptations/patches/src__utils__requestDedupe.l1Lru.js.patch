@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/utils/requestDedupe.js b/astrostudyui/src/utils/requestDedupe.js
-index 1ad597f8..49f24d1a 100644
+index 54b2a6e1..e9b11a43 100644
 --- a/astrostudyui/src/utils/requestDedupe.js
 +++ b/astrostudyui/src/utils/requestDedupe.js
-@@ -33,6 +33,10 @@ const DEDUPE_PATH_PREFIXES = [
+@@ -35,6 +35,10 @@ const DEDUPE_PATH_PREFIXES = [
  	'/bazi/birth',
  	'/bazi/direct',
  	'/nongli/time',      // 真太阳时+四柱(确定性历法;bridge 外散点调用的落桶)

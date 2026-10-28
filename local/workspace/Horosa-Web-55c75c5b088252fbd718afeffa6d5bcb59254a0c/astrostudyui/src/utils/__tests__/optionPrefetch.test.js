@@ -3,15 +3,16 @@
 //   ② 预算 ≤4;走 scheduleDataWarmGroup(空闲通道,不进步进泵);
 //   ③ NO_ARM 技法 / 关闸 / builder 未注册 → 零任务;
 //   ④ 任务形状 = {name, task}(idleWarmQueue 消费 task 属性 —— 写错属性名=静默零执行)。
+// v3.12.0:上游删掉 __resetOptionPrefetchForTest(deadCodeRemoved.test 锁死其缺席)—— 每例 jest.resetModules() 后重新 require,
+//   拿到一份「builder 未注册」的新模块实例(与 idleWarmQueue 桩同一组实例)。
 jest.mock('../idleWarmQueue', () => ({
 	scheduleDataWarmGroup: jest.fn(),
 }));
 
-import { scheduleDataWarmGroup } from '../idleWarmQueue';
-import {
-	speculateChartOptions, registerOptionChartTaskBuilder, __resetOptionPrefetchForTest,
-	BINARY_CHART_AXES,
-} from '../optionPrefetch';
+let scheduleDataWarmGroup;
+let speculateChartOptions;
+let registerOptionChartTaskBuilder;
+let BINARY_CHART_AXES;
 
 const mkFields = () => ({
 	date: { value: { clone(){ return this; }, format(){ return 'x'; } } },
@@ -21,7 +22,9 @@ const mkFields = () => ({
 const ST = (tab) => ({ currentTab: tab || 'astrochart', chartObj: { chartId: 'cid12345' } });
 
 beforeEach(() => {
-	__resetOptionPrefetchForTest();
+	jest.resetModules();
+	({ scheduleDataWarmGroup } = require('../idleWarmQueue'));
+	({ speculateChartOptions, registerOptionChartTaskBuilder, BINARY_CHART_AXES } = require('../optionPrefetch'));
 	scheduleDataWarmGroup.mockClear();
 	window.localStorage.removeItem('horosa.perf.optionPrefetch');
 });

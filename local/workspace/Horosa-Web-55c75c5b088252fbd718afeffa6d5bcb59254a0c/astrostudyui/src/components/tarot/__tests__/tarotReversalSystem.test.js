@@ -36,7 +36,7 @@ describe('逆位模式 13 式', () => {
 		expect(revM(c, 'negation').startsWith('不是/没有')).toBe(true);
 		expect(revM(c, 'breakthrough')).toContain('挣脱');
 		expect(revM(c, 're_words')).toContain('回撤');
-		// [QA-1] opposite 曾直接返回预存逆位义 → 与 stored 逐字全等,是切了没反应的死开关。
+		// opposite 曾直接返回预存逆位义 → 与 stored 逐字全等,是切了没反应的死开关。
 		// 修后它明写「反于正位『…』」的取义框架:与 stored 必不相同,且预存逆位义仍照实并陈。
 		expect(revM(c, 'opposite')).not.toBe(storedRev);
 		expect(revM(c, 'opposite')).toContain('反于正位');
@@ -47,7 +47,7 @@ describe('逆位模式 13 式', () => {
 		expect(reversedText(u, storedRev, 'no_such_mode')).toBe(storedRev);
 	});
 
-	test('[QA-1] 十三式两两互异:任何一档都不得与另一档逐字全等(死开关的镜像判据)', () => {
+	test('十三式两两互异:任何一档都不得与另一档逐字全等(死开关的镜像判据)', () => {
 		const c = by.cups_08;
 		const outs = REVERSAL_MODES.map((m) => `${m}=${revM(c, m)}`);
 		const texts = REVERSAL_MODES.map((m) => revM(c, m));
@@ -117,7 +117,7 @@ describe('交叉牌第三态', () => {
 		const raw = shuffle(seed, { size: 78, usesReversals: true, pReversed: 0.5 });
 		expect(r.draws[1].crossed).toBeUndefined();
 		expect(r.draws[1].isReversed).toBe(raw.reversed[1]);
-		// [Q-223/FT-31] 快照设置行会如实写「交叉牌不横置」(非缺省注明),与「位 2 未被横置」不冲突;只断言牌位行没有横置标记
+		// 快照设置行会如实写「交叉牌不横置」(非缺省注明),与「位 2 未被横置」不冲突;只断言牌位行没有横置标记
 		expect(buildReadingText(r).replace(/交叉牌不横置/g, '')).not.toContain('横置');
 	});
 });

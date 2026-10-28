@@ -1,4 +1,4 @@
-// AI 助手·目标任务运行器(P2;借鉴 Codex /goal):一句话目标 → 自己一轮一轮做到「达成/卡住/预算用完」,
+// AI 助手·目标任务运行器(P2):一句话目标 → 自己一轮一轮做到「达成/卡住/预算用完」,
 // 每轮=一个无头 Turn(与页面 streamReply 同一骨架:createAgentTurn → do{ beginRound; 流请求 }while(settleRound) → 落 assistant 消息),
 // 轮末一次非流式 JSON 自检判官({status: done|continue|blocked});预算四维跨轮累计;暂停/继续/取消/纠偏经 taskRegistry 控制器。
 // 纪律:每轮仍守 AGENT_LIMITS;写入审批档 on-request 时任务停在 waiting 等用户;所有写入进账本可撤;总开关+目标子开关都开才可起跑。
@@ -11,7 +11,7 @@ import { requestAIAnalysisChat, requestAIAnalysisChatStream } from '../../servic
 import { AI_ANALYSIS_STORES, putStoreRecord, getStoreRecord, listStoreRecords, saveConversationMessage, listConversationMessages, loadUiPrefs, ORPHAN_STREAMING_CONTENT } from '../aiAnalysisStore';
 import { reportBackgroundFailure } from './bgSink';
 import { readContextPolicy, windowChatMessages } from '../aiChatHistory';
-import { getAnalysisSourceContext, getAnalysisTechniqueContexts, buildContextLayers, clipContextLayersDetailed, hashPromptText, AI_CONTEXT_MAX_CHARS, analysisTechniqueLabelMap } from '../aiAnalysisContext';
+import { getAnalysisSourceContext, getAnalysisTechniqueContexts, buildContextLayers, AI_CONTEXT_MAX_CHARS, analysisTechniqueLabelMap, getPairSynastryText, getPairChineseTexts } from '../aiAnalysisContext';
 import { findAnalysisSourceById } from '../aiAnalysisSources';
 import { parseModelSelection, applyThinkingLevel, getProviderProtocolFamily, mountCharBudgetFor, isOpenAiFamily } from '../aiAnalysisProviders';
 import { deriveUsage } from '../aiChat/status';
@@ -23,13 +23,12 @@ export const GOAL_STEER_PREFIX = '[用户纠偏]';
 export const GOAL_MAX_JUDGE_FAILS = 2;
 export const GOAL_APPROVAL_TIMEOUT_MS = 30 * 60 * 1000;
 // 与聊天同一缓存断点标记(Java 分家处理靠同一字面;各消费方 lockstep 由合同测试锁)
-export const CACHE_BP = '[[__CACHE_BP__]]';
 
 // ---- 档案/模型解析(无头:读 uiPrefs.modelSelection → provider_profiles;解密由 store 层完成) ----
-// [D27] 审批通知按级别措辞(读级在非对话来源已由运行时自动放行,此处只可能是写入;保留级别分支防回潮)
+// 审批通知按级别措辞(读级在非对话来源已由运行时自动放行,此处只可能是写入;保留级别分支防回潮)
 export function approvalVerb(call){ return call && call.level === 'read' ? '请求执行' : '请求写入'; }
 
-// [D38] 任务创建时快照 modelSelection(此前四条创建路径没有一条写它 ⇒ 后台任务永远用「当前」UI 选中的模型;
+// 任务创建时快照 modelSelection(此前四条创建路径没有一条写它 ⇒ 后台任务永远用「当前」UI 选中的模型;
 // 用户换模型后所有排期任务静默换模型)。旧任务无字段 ⇒ 仍读当前 UI(现状)。
 import { snapshotModelSelection } from './tasks/modelSnapshot';
 import { resolveEffectiveTechniqueOptions } from '../techniqueMountSettings';
@@ -37,6 +36,9 @@ import { readPersona, personaLayer } from '../aiChat/persona';
 import { readPersonaLayers } from '../aiChat/personaLayers';
 import { listMemories, memoryLayer } from '../aiChat/memory';
 import { compactLayer } from '../aiChat/compact';
+import { subjectFactsLayer } from '../subjectFacts';
+import { shouldAttachWesternSynastry } from '../aiChat/skills';
+import { assembleSystemPrompt } from '../aiPromptAssembly';
 export { snapshotModelSelection };
 export async function resolveHeadlessProfile(spec){
 	const pinned = !!(spec && spec.modelSelection);
@@ -52,7 +54,7 @@ export async function resolveHeadlessProfile(spec){
 	return model ? { profile, model } : null;
 }
 
-// [D3] 无头槽位解析:「按任务用模型」的 judge 槽此前只被多模型对比读,目标任务自检从不看它(说明书承诺落空)。
+// 无头槽位解析:「按任务用模型」的 judge 槽此前只被多模型对比读,目标任务自检从不看它(说明书承诺落空)。
 // 六槽全空 → 原样返回(零 IO,缺省路径不变);设了 → 与页面同一 resolveRoute 从 provider_profiles 解析(解密由 store 层完成)。
 export async function resolveHeadlessSlot(slot, resolved){
 	if(!resolved || !resolved.profile){ return resolved; }
@@ -63,8 +65,8 @@ export async function resolveHeadlessSlot(slot, resolved){
 	return r && r.profile && r.model ? { profile: r.profile, model: r.model } : resolved;
 }
 
-// [Q-285/M-100] 无头轮的稳定层附加项:口径 102 / 记忆 101 / 压缩摘要 88 —— 与对话页 useChatAssist.promptLayerExtras 同开关同形
-//   (persona.enabled / persona.memoryInject / 会话记录的 compact);此前无头入口一层都不注入,口径卡却称「每次对话」。
+// 无头轮的稳定层附加项:口径 102 / 记忆 101 / 命主实况 94.8 / 压缩摘要 88 —— 与对话页 useChatAssist.promptLayerExtras 同开关同形
+//   (persona.enabled / persona.memoryInject / 这张命盘的命主实况发送开关 / 会话记录的 compact);此前无头入口一层都不注入,口径卡却称「每次对话」。
 export async function headlessLayerExtras({ source, techniqueKeys, conversation }){
 	const out = [];
 	try{
@@ -75,25 +77,21 @@ export async function headlessLayerExtras({ source, techniqueKeys, conversation 
 			const ml = memoryLayer(await listMemories(), { subjectCid: source ? source.id : '' });
 			if(ml){ out.push(ml); }
 		}
+		const sf = subjectFactsLayer(source);
+		if(sf){ out.push(sf); }
 		const cl = conversation && conversation.compact ? compactLayer(conversation.compact) : null;
 		if(cl){ out.push(cl); }
 	}catch(e){ reportBackgroundFailure('headless.layerExtras', e); }
 	return out;
 }
 
-// [Windows #80] 整层被丢弃时给模型留痕(与对话页 AIAnalysisMain 同一句;此前无头轮丢层无声)。追加在缓存断点之后:被丢集合逐轮会变。
-export function droppedLayersNote(dropped){
-	const names = (Array.isArray(dropped) ? dropped : [])
-		.map((item)=>`${(item && (item.title || item.key)) || ''}`.replace(/^使用技法：/, ''))
-		.filter(Boolean);
-	if(!names.length){ return ''; }
-	return `[挂载预算不足：以下 ${names.length} 层整层未纳入 —— ${names.join('、')}。未列出的内容不代表不存在，请勿臆补；如需完整资料，请提示用户在「进阶 → 对话上下文策略 → 挂载字数预算」里调大，或减少挂载技法。]`;
-}
+// 丢层留痕 / 断点常量:单源在 utils/aiPromptAssembly.js(此处转出,老调用方与测试不动)
+export { droppedLayersNote, PROMPT_CACHE_BREAKPOINT as CACHE_BP } from '../aiPromptAssembly';
 
 // ---- 无头系统提示词:与页面同一套层/裁剪/缓存断点(不含资料检索与会话规则;目标任务只带挂载盘与技法) ----
-// [Q-285/M-96] techniqueOptionOverrides = 任务创建时的会话覆盖快照;生效挂载设置 = 覆盖 ?? 同类默认(resolveEffectiveTechniqueOptions,
+// techniqueOptionOverrides = 任务创建时的会话覆盖快照;生效挂载设置 = 覆盖 ?? 同类默认(resolveEffectiveTechniqueOptions,
 //   与对话页 effectiveTechniqueOptions 同一函数)。conversation = 本任务会话记录(取 persona / compact)。
-export async function buildHeadlessSystemPrompt({ source, techniqueKeys, systemPrompt, profile, model, techniqueOptionOverrides, conversation }){
+export async function buildHeadlessSystemPrompt({ source, techniqueKeys, systemPrompt, profile, model, techniqueOptionOverrides, conversation, partnerSource }){
 	const keys = Array.isArray(techniqueKeys) ? techniqueKeys.filter(Boolean) : [];
 	const ctx = source && source.record ? await getAnalysisSourceContext(source, { mode: keys.length ? 'meta' : 'full' }) : null;
 	const techniqueOptions = keys.length ? resolveEffectiveTechniqueOptions(keys, { record: source && source.record ? source.record : null, sessionOverrides: techniqueOptionOverrides }) : {};
@@ -101,27 +99,32 @@ export async function buildHeadlessSystemPrompt({ source, techniqueKeys, systemP
 		? await getAnalysisTechniqueContexts(source, keys, { sourceContext: ctx, techniqueOptions: Object.keys(techniqueOptions).length ? techniqueOptions : null })
 		: [];
 	const extraLayers = await headlessLayerExtras({ source, techniqueKeys: keys, conversation });
-	const layers = buildContextLayers({ sourceContext: ctx, techniqueContexts, materials: [], bundles: [], templates: [], retrievedChunks: [], conversationMessages: [], systemPrompt: systemPrompt || '', extraLayers });
+	// [双盘挂载] 合盘对方:与对话页同一拼法(同一组技法,会话覆盖按对方盘现状剪);缺省 = 单盘(逐字节同此前)
+	let partner = null;
+	if(partnerSource && partnerSource.record && source && source.sourceType === 'chart' && partnerSource.sourceType === 'chart' && partnerSource.id !== source.id){
+		const pctx = await getAnalysisSourceContext(partnerSource, { mode: keys.length ? 'meta' : 'full' });
+		const popts = keys.length ? resolveEffectiveTechniqueOptions(keys, { record: partnerSource.record, sessionOverrides: techniqueOptionOverrides }) : {};
+		const ptechs = keys.length
+			? await getAnalysisTechniqueContexts(partnerSource, keys, { sourceContext: pctx, techniqueOptions: Object.keys(popts).length ? popts : null })
+			: [];
+		partner = { title: partnerSource.title, sourceContext: pctx, techniqueContexts: ptechs };
+		// 两人之间的西洋合盘数据(与对话页同一取数与缓存):没勾技法或勾了西洋本命类才附
+		// 两人各按本次挂载设置(与各自的单盘段同一份)
+		if(shouldAttachWesternSynastry(keys)){ partner.synastry = await getPairSynastryText(source.record, partnerSource.record, { optionsA: techniqueOptions, optionsB: popts }); }
+		// 中式合盘对照(与对话页同一取数与缓存):两人都挂八字 / 紫微才附
+		const chinese = getPairChineseTexts(source.record, partnerSource.record, keys, { selfName: source.title, otherName: partnerSource.title }, { optionsA: techniqueOptions, optionsB: popts });
+		if(chinese.bazi || chinese.ziwei){ partner.chinese = chinese; }
+	}
+	const layers = buildContextLayers({ sourceContext: ctx, techniqueContexts, materials: [], bundles: [], templates: [], retrievedChunks: [], conversationMessages: [], systemPrompt: systemPrompt || '', extraLayers, partner });
 	const numCtx = profile && profile.providerType === 'ollama' ? Number((profile.providerOptions || {}).num_ctx) || undefined : undefined;
 	// [Windows #80] 无头轮同样吃用户设的挂载字数预算(策略键是全局的,后台任务不该比对话页看得少)
-	const clip = clipContextLayersDetailed(layers, { maxChars: mountCharBudgetFor(model, { numCtx, floorChars: AI_CONTEXT_MAX_CHARS, policy: readContextPolicy() }), fairShare: true });
-	const join = (arr)=>arr.map((item)=>`${item.title}\n${item.content}`).join('\n\n').trim();
-	const volatileKeys = { 'retrieved-context': 1, 'recent-history': 1 };
-	const stable = clip.kept.filter((item)=>!volatileKeys[item.key]);
-	const volatile = clip.kept.filter((item)=>volatileKeys[item.key]);
-	const fam = getProviderProtocolFamily(profile && profile.providerType);
-	const cacheFam = fam === 'anthropic' || fam === 'openai-compatible';
-	let joined;
-	if(cacheFam && stable.length && volatile.length){ joined = [join(stable), join(volatile)].filter(Boolean).join(`\n\n${CACHE_BP}\n\n`); }
-	else if(cacheFam && stable.length){ joined = `${join(stable)}\n\n${CACHE_BP}`; }
-	else{ joined = join(clip.kept); }
-	const note = droppedLayersNote(clip.dropped);
-	if(note){ joined = `${joined}\n\n${note}`; }
-	return { systemPrompt: joined, meta: { stableHash: hashPromptText(join(stable)), stableChars: join(stable).length, volatileChars: join(volatile).length, layerKeys: clip.kept.map((i)=>i.key), droppedKeys: (clip.dropped || []).map((i)=>i.key) } };
+	// 裁剪 / 分段 / 断点 / 丢层留痕 / 指纹:与对话页同一个拼装函数(utils/aiPromptAssembly.js);无头从不带挥发层 → 稳定层非空即插断点
+	const assembled = assembleSystemPrompt({ layers, maxChars: mountCharBudgetFor(model, { numCtx, floorChars: AI_CONTEXT_MAX_CHARS, policy: readContextPolicy() }), providerType: profile && profile.providerType, breakpointWhenNoVolatile: true });
+	return { systemPrompt: assembled.systemPrompt, meta: assembled.meta };
 }
 
 // ---- 一个无头 Turn:落 user → 组历史 → 窗口裁剪 → 运行时循环 → 落 assistant ----
-export async function runHeadlessTurn({ profile, model, conversationId, userText, source, techniqueKeys, systemPrompt, origin = 'goal', taskId, signal, registry, requestApproval: reqApproval, requestElicitation: reqElicit, onTrace, thinkingLevel = 'off', techniqueOptionOverrides, deps }){
+export async function runHeadlessTurn({ profile, model, conversationId, userText, source, techniqueKeys, systemPrompt, origin = 'goal', taskId, signal, registry, requestApproval: reqApproval, requestElicitation: reqElicit, onTrace, thinkingLevel = 'off', techniqueOptionOverrides, partnerSource, deps }){
 	const d = deps || {};
 	const stream = d.requestAIAnalysisChatStream || requestAIAnalysisChatStream;
 	const saveMsg = d.saveConversationMessage || saveConversationMessage;
@@ -130,13 +133,14 @@ export async function runHeadlessTurn({ profile, model, conversationId, userText
 	const now = ()=>new Date().toISOString();
 	await saveMsg({ conversationId, role: 'user', content: `${userText || ''}`, streamStatus: 'done', createdAt: now(), updatedAt: now(), taskId: taskId || undefined });
 	const assistant = await saveMsg({ conversationId, role: 'assistant', content: '', streamStatus: 'streaming', createdAt: now(), updatedAt: now(), taskId: taskId || undefined });
-	// [Q-285] 会话记录(口径 / 压缩摘要)与任务创建时的会话覆盖快照一并交给拼装;读失败 = 无层(与缺席同形)
+	// 会话记录(口径 / 压缩摘要)与任务创建时的会话覆盖快照一并交给拼装;读失败 = 无层(与缺席同形)
 	let conversation = null;
 	// 读不到会话记录 = 少注入口径 / 压缩摘要两层(不影响本轮能否跑),留痕后按无层继续。
 	try{ conversation = conversationId ? await (d.getStoreRecord || getStoreRecord)(AI_ANALYSIS_STORES.conversations, conversationId) : null; }
 	catch(e){ conversation = null; reportBackgroundFailure('headless.readConversation', e); }
-	const sys = await buildSys({ source, techniqueKeys, systemPrompt, profile, model, techniqueOptionOverrides, conversation });
-	// [G11] 历史过滤:本轮占位、仍在流的、以及刷新遗留的孤儿(载入时被修成 aborted + 固定正文)都不进请求体——模型不该读到「已停止生成」
+	// 合盘对方(无头分析出口可带):与对话页 / 编排子任务同一拼法;缺省 = 单盘(逐字节同此前)
+	const sys = await buildSys({ source, techniqueKeys, systemPrompt, profile, model, techniqueOptionOverrides, conversation, ...(partnerSource ? { partnerSource } : {}) });
+	// 历史过滤:本轮占位、仍在流的、以及刷新遗留的孤儿(载入时被修成 aborted + 固定正文)都不进请求体——模型不该读到「已停止生成」
 	const history = (await listMsgs(conversationId)).filter((m)=>m && m.id !== assistant.id && (m.role === 'user' || m.role === 'assistant') && m.streamStatus !== 'streaming' && `${m.content || ''}` !== ORPHAN_STREAMING_CONTENT)
 		.map((m)=>({ role: m.role, content: `${m.content || ''}`, ...(m.agentTrace ? { agentTrace: m.agentTrace } : {}) }));
 	const chatMessages = [{ role: 'system', content: sys.systemPrompt }].concat(history);
@@ -148,7 +152,7 @@ export async function runHeadlessTurn({ profile, model, conversationId, userText
 	let trace = null;
 	const agent = (d.createAgentTurn || createAgentTurn)({
 		profile, model, signal: ac.signal, lastUserMessage: `${userText || ''}`, origin, taskId,
-		...(registry ? { registry } : {}),   // [批三③] 无头出口传只读注册表视图;缺省=默认注册表(现状)
+		...(registry ? { registry } : {}),   // 无头出口传只读注册表视图;缺省=默认注册表(现状)
 		onTrace: (t)=>{ trace = t; if(typeof onTrace === 'function'){ onTrace(t); } },
 		requestApproval: reqApproval, requestElicitation: reqElicit,
 	});
@@ -203,12 +207,12 @@ export function parseJudge(text){
 	}catch(e){ return null; }
 }
 
-// [G10] signal:任务取消/暂停后判官这次短调用同样中止(不再停了之后请求还在飞)
-// [Q-402① 裁决 2026-09-18] onSpend({ wallMs, usage, calls:1 }):判官短调用的时长 / usage 回报给目标循环计入预算(此前判官不入账)。
+// signal:任务取消/暂停后判官这次短调用同样中止(不再停了之后请求还在飞)
+// onSpend({ wallMs, usage, calls:1 }):判官短调用的时长 / usage 回报给目标循环计入预算(此前判官不入账)。
 export async function judgeGoal({ profile, model, spec, lastReply, deps, signal, onSpend }){
 	const chat = (deps && deps.requestAIAnalysisChat) || requestAIAnalysisChat;
 	const t0 = Date.now();
-	// [D1] 判官槽的思考档/推理档/温度/输出上限经单源施加(槽空=今日字节)
+	// 判官槽的思考档/推理档/温度/输出上限经单源施加(槽空=今日字节)
 	const opts = providerOptionsForSlot('judge', profile, model, { applyThinkingLevel });
 	if(isOpenAiFamily(profile.protocolFamily || getProviderProtocolFamily(profile.providerType))){ opts.response_format = { type: 'json_object' }; }
 	const rsp = await chat({ providerType: profile.providerType, apiKey: profile.apiKey, baseUrl: profile.baseUrl, model, providerOptions: { ...opts, requestTimeoutMs: 60000 },
@@ -262,11 +266,13 @@ export async function startGoalTask(taskId, deps){
 	const d = deps || {};
 	let task = await getTask(taskId);
 	if(!task){ return null; }
-	// [G7] 幂等闸:循环已在跑(含等审批/等回答的 waiting)→ 不起第二个循环;waiting 只有循环已退出(判官两次失败停住)时才允许「继续」重新起跑
+	// 幂等闸:循环已在跑(含等审批/等回答的 waiting)→ 不起第二个循环;waiting 只有循环已退出(判官两次失败停住)时才允许「继续」重新起跑
 	if(runningLoops.has(taskId)){ return task; }
 	if(['queued', 'scheduled', 'paused', 'interrupted', 'waiting'].indexOf(task.status) < 0){ return task; }
 	if(!(d.skipGates) && !(isAgentEnabled() && isGoalEnabled())){ return patchTask(taskId, { status: 'failed', result: { reason: '行动能力或目标任务开关未开' } }); }
-	// [批三⑤] 并行上限:0=现状(不限);≥1 且已有同样多的循环在跑 → 保持现状态排队(不改状态、不起循环),前一条结束时自动起下一条
+	// 外部客户端建的任务等用户放行:走到这里只会是用户点了「开始 / 全部开始」(接力起跑已跳过它们)→ 放行标记清掉,之后照常排队接力
+	if(task.awaitingUserStart){ task = await patchTask(taskId, { awaitingUserStart: false }); }
+	// 并行上限:0=现状(不限);≥1 且已有同样多的循环在跑 → 保持现状态排队(不改状态、不起循环),前一条结束时自动起下一条
 	const parallelLimit = d.parallelLimit !== undefined ? Number(d.parallelLimit) || 0 : getGoalParallel();
 	if(parallelLimit > 0 && runningLoops.size >= parallelLimit){
 		if(!(task.log || []).some((l)=>l && `${l.text || ''}`.indexOf('排队:并行上限') === 0)){ await appendLog(taskId, `排队:并行上限 ${parallelLimit} 已满,等前面的结束`); }
@@ -281,13 +287,13 @@ export async function startGoalTask(taskId, deps){
 		if(!resolved){ runningLoops.delete(taskId); return patchTask(taskId, { status: 'failed', result: { reason: '没有可用的接口配置/模型' } }); }
 		conv = await ensureGoalConversation(task, resolved, d);
 	}catch(e){ runningLoops.delete(taskId); throw e; }
-	// [D3] 判官目标按 judge 槽解析一次(一任务一读;槽空=任务自身档案与模型)
+	// 判官目标按 judge 槽解析一次(一任务一读;槽空=任务自身档案与模型)
 	const judgeTarget = d.judgeTarget || await resolveHeadlessSlot('judge', resolved).catch((e)=>{ reportBackgroundFailure('goal.judge-slot', e); return resolved; });
 	const source = task.spec && task.spec.sourceCid ? findAnalysisSourceById(task.spec.sourceCid) : null;
 	registerRunning(taskId, { cancel: ()=>{ loop.state = 'cancel'; loop.ac.abort(); }, pause: ()=>{ loop.state = 'pause'; loop.ac.abort(); }, resume: ()=>startGoalTask(taskId, deps) });
 	task = await patchTask(taskId, { status: 'running', runner: runnerStamp() });
 	await appendLog(taskId, `开始(第 ${task.spent.turns + 1} 轮起)`);
-	// [S46] 循环心跳:另一窗口启动对账时据此分辨「活的」与「刷新前留下的死循环」
+	// 循环心跳:另一窗口启动对账时据此分辨「活的」与「刷新前留下的死循环」
 	const beat = setInterval(()=>{ heartbeatTask(taskId).catch((e)=>reportBackgroundFailure('goal.heartbeat', e)); }, RUNNER_HEARTBEAT_MS);
 	let judgeFails = 0; let consecutiveErrors = 0;
 	const t0 = Date.now();
@@ -295,7 +301,7 @@ export async function startGoalTask(taskId, deps){
 		await patchTask(taskId, { status: 'waiting' });
 		await pushNotice({ level: 'action', title: '目标任务等你批准', body: `${task.title}:${call.name} ${approvalVerb(call)}`, taskId }, { desktop: true });
 		let ok = false;
-		// [G8] 超时由等待台自己收口(到点撤台),不再 race 一个外部定时器把待审条目永远留在台上
+		// 超时由等待台自己收口(到点撤台),不再 race 一个外部定时器把待审条目永远留在台上
 		try{ ok = await requestApproval(`task:${taskId}`, call, { timeoutMs: GOAL_APPROVAL_TIMEOUT_MS }); }catch(e){ ok = false; reportBackgroundFailure('goal.approval', e); }
 		const cur = await getTask(taskId);
 		if(cur && cur.status === 'waiting'){ await patchTask(taskId, { status: 'running' }); }
@@ -323,7 +329,7 @@ export async function startGoalTask(taskId, deps){
 			// eslint-disable-next-line no-await-in-loop
 			const r = await runHeadlessTurn({ profile: resolved.profile, model: resolved.model, conversationId: conv.id, userText, source, techniqueKeys: task.spec.techniques, systemPrompt: '', origin: 'goal', taskId, signal: loop.ac.signal, requestApproval: approve, requestElicitation: elicit, techniqueOptionOverrides: task.spec.techniqueOptionOverrides, deps: d });
 			const calls = r.trace && Array.isArray(r.trace.rounds) ? r.trace.rounds.reduce((n, rd)=>n + ((rd.results || []).length), 0) : 0;
-			// [Q-294/M-109·AR-10] 计价表无此模型时 cost 为 null:记 costUnpriced(任务行标「费用预算不可用」),不再按 0 累计伪装成「$0.000/上限」
+			// 计价表无此模型时 cost 为 null:记 costUnpriced(任务行标「费用预算不可用」),不再按 0 累计伪装成「$0.000/上限」
 			const _du = r.usage ? deriveUsage(r.usage) : null;
 			const cost = _du && _du.cost != null ? _du.cost : 0;
 			const costUnpriced = !!(r.usage && (!_du || _du.cost == null));
@@ -344,7 +350,7 @@ export async function startGoalTask(taskId, deps){
 			// eslint-disable-next-line no-await-in-loop
 			let judgeSpend = null;
 			const verdict = await judgeGoal({ profile: judgeTarget.profile, model: judgeTarget.model, spec: task.spec, lastReply: r.content, deps: d, signal: loop.ac.signal, onSpend: (sp)=>{ judgeSpend = sp; } }).catch((e)=>{ reportBackgroundFailure('goal.judge', e); return null; });
-			// [Q-402① 裁决] 判官调用计入预算四维:调用数 +1、时长累加、usage 可计价时费用累加(计价表无此模型 → costUnpriced)
+			// 判官调用计入预算四维:调用数 +1、时长累加、usage 可计价时费用累加(计价表无此模型 → costUnpriced)
 			if(judgeSpend){
 				const _jd = judgeSpend.usage ? deriveUsage(judgeSpend.usage) : null;
 				const jCost = _jd && _jd.cost != null ? _jd.cost : 0;
@@ -364,16 +370,16 @@ export async function startGoalTask(taskId, deps){
 		clearInterval(beat);
 		runningLoops.delete(taskId);
 		unregisterRunning(taskId);
-		// [批三⑤] 并行上限开着:起下一条排队的目标(最早建的先);失败只留痕
+		// 并行上限开着:起下一条排队的目标(最早建的先);失败只留痕
 		const lim = d.parallelLimit !== undefined ? Number(d.parallelLimit) || 0 : getGoalParallel();
 		if(lim > 0){ startNextQueuedGoal(deps).catch((e)=>reportBackgroundFailure('goal.next', e)); }
 	}
 	return getTask(taskId);
 }
 
-// [批三⑤] 起下一条排队中的目标(queued 且循环未在跑,按创建时间最早);没有=false
+// 起下一条排队中的目标(queued 且循环未在跑,按创建时间最早);没有=false。等用户放行的(外部客户端建的)不接力
 export async function startNextQueuedGoal(deps){
-	const list = (await listTasks({ kind: 'goal', status: 'queued' })).filter((t)=>t && !runningLoops.has(t.id)).sort((a, b)=>`${a.createdAt || ''}`.localeCompare(`${b.createdAt || ''}`));
+	const list = (await listTasks({ kind: 'goal', status: 'queued' })).filter((t)=>t && !runningLoops.has(t.id) && !t.awaitingUserStart).sort((a, b)=>`${a.createdAt || ''}`.localeCompare(`${b.createdAt || ''}`));
 	if(!list.length){ return false; }
 	startGoalTask(list[0].id, deps).catch((e)=>reportBackgroundFailure('goal.next', e));
 	return true;
@@ -401,7 +407,7 @@ export function isGoalLoopRunning(taskId){ return runningLoops.has(taskId); }
 export function __resetGoalRunnerForTests(){ runningLoops.clear(); }
 
 // 建目标任务(UI/工具共用):返回任务;autoStart 用 setTimeout(0) 脱离当前调用栈(工具执行中不得再起 Turn)
-// [Q-285/M-96] 创建时快照会话覆盖(只留本任务技法、只留对象值、JSON ≤ 20k):后台轮按「快照 ?? 同类默认」拼挂载,与对话页同口径
+// 创建时快照会话覆盖(只留本任务技法、只留对象值、JSON ≤ 20k):后台轮按「快照 ?? 同类默认」拼挂载,与对话页同口径
 export function snapshotTechniqueOptionOverrides(overrides, techniques){
 	if(!overrides || typeof overrides !== 'object'){ return undefined; }
 	const keys = Array.isArray(techniques) ? techniques : [];
@@ -411,11 +417,13 @@ export function snapshotTechniqueOptionOverrides(overrides, techniques){
 	try{ return JSON.stringify(out).length <= 20000 ? JSON.parse(JSON.stringify(out)) : undefined; }catch(e){ return undefined; }
 }
 
-export async function createGoalTask({ goal, successCriteria, budget, sourceCid, techniques, autoStart, origin, aiOrigin, modelSelection, techniqueOptionOverrides }){
+// awaitingUserStart:只排队、等用户在任务中心点「开始」(外部客户端建的任务用;接力起跑跳过它,autoStart 随之不生效)
+export async function createGoalTask({ goal, successCriteria, budget, sourceCid, techniques, autoStart, origin, aiOrigin, modelSelection, techniqueOptionOverrides, awaitingUserStart }){
 	const techs = Array.isArray(techniques) ? techniques.slice(0, 6) : [];
+	const hold = awaitingUserStart === true;
 	const task = await createTask({ kind: 'goal', title: `${goal || ''}`.slice(0, 40) || '目标任务', origin: origin || 'in-app', aiOrigin: aiOrigin || null,
 		spec: { goal: `${goal || ''}`.slice(0, 2000), successCriteria: `${successCriteria || ''}`.slice(0, 1000), sourceCid: sourceCid || null, techniques: techs, modelSelection: snapshotModelSelection(modelSelection) || undefined, techniqueOptionOverrides: snapshotTechniqueOptionOverrides(techniqueOptionOverrides, techs) },
-		budget: budget && typeof budget === 'object' ? budget : undefined });
-	if(autoStart){ setTimeout(()=>{ startGoalTask(task.id).catch((e)=>reportBackgroundFailure('goal.autoStart', e)); }, 0); }
+		budget: budget && typeof budget === 'object' ? budget : undefined, ...(hold ? { awaitingUserStart: true } : {}) });
+	if(autoStart && !hold){ setTimeout(()=>{ startGoalTask(task.id).catch((e)=>reportBackgroundFailure('goal.autoStart', e)); }, 0); }
 	return task;
 }

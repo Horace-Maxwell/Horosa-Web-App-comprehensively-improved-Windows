@@ -188,7 +188,7 @@ function randomProbe(seed){
 	});
 	// 月空随机化:classic(默认档)此前读后端旗 m.isVOC,不随机化则 voc 恒 false、
 	// vocMitigateSigns(需 voc===true 且月落四豁免座)结构性不可达 —— 首轮诊断 dead 名单里它就是这个死法。
-	// [Q-146/T-53] 判读侧改口径后 classic 不再读那面旗,而是按同一张相位表自算(月对表内十星
+	// 判读侧改口径后 classic 不再读那面旗,而是按同一张相位表自算(月对表内十星
 	// 无入相/正合托勒密相位即空)→ 随机化必须落到**相位表**上,否则 fixture 里月恒有一条入相 120°,
 	// classic 档 voc 恒 false,那条探针又死回去。两处一起随机(旗仍留着:老快照/无相位表时是回落源)。
 	const moonObj = findObj(r, 'Moon');
@@ -235,7 +235,7 @@ function randomProbe(seed){
 function rebuildDerived(r, ascLon){
 	rebuildHouses(r, ascLon);
 	r.aspects = { normalAsp: synthAspects(r) };
-	// [H1 形状迁移] 真形状=chart.antiscias.{antiscia,cantiscia}(旧顶层扁平会使 antiscia 开关的可判别性审计静默失效)
+	// 真形状=chart.antiscias.{antiscia,cantiscia}(旧顶层扁平会使 antiscia 开关的可判别性审计静默失效)
 	r.chart.antiscias = { antiscia: synthAntiscia(r), cantiscia: [] };
 	r.receptions = synthReceptions(r);
 }
@@ -297,7 +297,7 @@ const GATED = {
 	partileDef: { accidentalMode: 'lilly' },
 	refranationIncludeSignChange: { refranationAsDestruction: true },
 	// vocIncludeOuter 仅作用于前端按目标星集解算的四模式(moon.js 档位注释成文);
-	// [Q-146/T-53] classic 档改为按整张相位表自算(不筛目标星集)后,它在该档依然不参与
+	// classic 档改为按整张相位表自算(不筛目标星集)后,它在该档依然不参与
 	// → 单独改它结构性无差异,仍须配 kenodromia 档才可达。
 	vocIncludeOuter: { vocMode: 'kenodromia' },
 };

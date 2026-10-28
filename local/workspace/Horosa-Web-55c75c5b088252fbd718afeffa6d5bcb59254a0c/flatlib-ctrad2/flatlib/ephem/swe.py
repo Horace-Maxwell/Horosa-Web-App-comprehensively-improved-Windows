@@ -81,7 +81,7 @@ def _candidateEphePath():
     return SEACTIVE_PATH
 
 
-# [R5 T1] 星历路径短路(与 Windows 版同名开关 HOROSA_EPHE_PATH_FASTPATH):记录「当前真正生效的星历路径」,
+# 星历路径短路(与 Windows 版同名开关 HOROSA_EPHE_PATH_FASTPATH):记录「当前真正生效的星历路径」,
 # 让 ensureEphePath 在无人改动时直接跳过。安全的根据:_guardedSetEphePath 自下方
 # `swisseph.set_ephe_path = ...` 起就是进程内唯一入口 —— 全部 vendor/kinastro 模块的 `swe.set_ephe_path("")`
 # 都经运行时属性查找路由到这里,所以追踪变量不可能落后于真实状态;一旦有人改了路径,比较立刻失配、照旧恢复,
@@ -371,6 +371,46 @@ def _sweHousesRaw(jd, lat, lon, swhsys, flag):
     return swisseph.houses_ex(jd, lat, lon, swhsys, swisseph.FLG_SIDEREAL)
 
 
+# ── 极圈内天顶口径(单一来源)──
+# 极圈内、子午线上中天交点(真天顶 MC)落在地平以下时,swisseph 对 Regiomontanus / Campanus / Polich-Page /
+# APC / Sunshine 把 ascmc 的 MC 换成 IC(取地平以上那一端),其余分宫制不换 —— 同一时刻 MC 随所选制差 180°,
+# MC 的相位、落宫、福点等全跟着变。全站口径:MC 一律取子午线上中天交点(Porphyry / Alcabitius 的值),
+# 宫头仍按所选制原样;这时盘面 / 快照带 polarMc 徽记说明。参照只在 |纬度| ≥ POLAR_MC_LAT 时多算,
+# 其余纬度逐位不变(极圈最低约 65.5°,取 65° 留余量)。
+POLAR_MC_LAT = 65.0
+POLAR_MC_UPPER = 'upperMeridian'   # 徽记值:本时刻极区天顶在地平下,MC 按上中天取(未换 IC)
+_REF_UPPER = b'O'                  # Porphyry:MC 恒为上中天交点,作参照
+_REF_SWAPPING = b'R'               # Regiomontanus:swisseph 极区换 IC 的那一族,用来判本时刻是否落地平下
+
+
+def _arcGap(a, b, half):
+    d = abs(a - b) % (2 * half)
+    return min(d, 2 * half - d)
+
+
+def upperMeridianAscmc(rawHouses, swhsys, ascmc, lat, half=180.0):
+    """把 ascmc 的 MC / IC 归到子午线上中天交点。
+
+    rawHouses(code) → (cusps, ascmc):与 ascmc 同一时刻 / 同一地点 / 同一 flag 的取宫函数
+    (jd 式或 armc 式都行);half = 半周(度 180,弧度 math.pi)。
+    返回 (ascmc 列表, polarMc):polarMc 为 POLAR_MC_UPPER 表示本时刻极区天顶在地平下(口径起作用),否则 None。
+    """
+    if abs(float(lat)) < POLAR_MC_LAT:
+        return ascmc, None
+    try:
+        ref = ascmc if swhsys == _REF_UPPER else rawHouses(_REF_UPPER)[1]
+        swp = ascmc if swhsys == _REF_SWAPPING else rawHouses(_REF_SWAPPING)[1]
+    except swisseph.Error:
+        return ascmc, None
+    below = _arcGap(swp[1], ref[1], half) > half / 2
+    if not below:
+        return ascmc, None
+    out = list(ascmc)
+    if _arcGap(out[1], ref[1], half) > half / 2:
+        out[1] = ref[1]
+    return out, POLAR_MC_UPPER
+
+
 def sweHouses(jd, lat, lon, hsys, flag=0):
     """ Returns lists of houses and angles. """
     applySiderealMode()
@@ -384,12 +424,16 @@ def sweHouses(jd, lat, lon, hsys, flag=0):
         # 极圈内象限分宫制(Placidus/Koch 等)数学上无解,swisseph 抛错。
         # 业界标准兜底:回退 Porphyry(保留 ASC/MC 四轴象限结构),盘可出而非整请求报错。
         # 返回结构仍标注请求的 hsys(上层按所选制做语义),仅宫顶数值为回退值。
-        # [0j] 回退不再静默:house dict 带 hsysFallback 标记(fromDict=__dict__.update 全保留,
+        # 回退不再静默:house dict 带 hsysFallback 标记(fromDict=__dict__.update 全保留,
         # jsonpickle 序列化直达前端;前端信息卡据 houses[0].hsysFallback 出「极区回退」徽记)。
         if swhsys == b'O':
             raise
         hlist, ascmc = _sweHousesRaw(jd, lat, lon, b'O', flag)
         _fallback = 'Porphyry'
+        swhsys = b'O'
+    _half = math.pi if flag == swisseph.FLG_RADIANS else 180.0
+    ascmc, _polarMc = upperMeridianAscmc(lambda code: _sweHousesRaw(jd, lat, lon, code, flag),
+                                         swhsys, ascmc, lat, _half)
     # Add first house to the end of 'hlist' so that we
     # can compute house sizes with an iterator
     hlist += (hlist[0],)
@@ -404,6 +448,10 @@ def sweHouses(jd, lat, lon, hsys, flag=0):
     if _fallback:
         for house in houses:
             house['hsysFallback'] = _fallback
+    if _polarMc:
+        # 与 hsysFallback 同法:逐宫带标记(House.__dict__ 直出前端),盘面信息卡 / AI 快照据 houses[0].polarMc 出徽记。
+        for house in houses:
+            house['polarMc'] = _polarMc
     for house in houses:
         eqcod = swisseph.cotrans([house['lon'], 0, 1], const.ECLI2EQ_OBLIQUITY)
         house['ra'] = eqcod[0]
@@ -431,7 +479,7 @@ def sweHousesLon(jd, lat, lon, hsys, flag=0):
     hlist = None
     ascmc = None
     hsys = SWE_HOUSESYS[hsys]
-    # [0j] 补同款 Porphyry 兜底:此前本函数在极圈内象限制直接抛 swisseph.Error 炸整请求
+    # 补同款 Porphyry 兜底:此前本函数在极圈内象限制直接抛 swisseph.Error 炸整请求
     # (sweHouses 有兜底它没有——同层双函数单边裸奔)。
     try:
         hlist, ascmc = _sweHousesRaw(jd, lat, lon, hsys, flag)
@@ -439,6 +487,9 @@ def sweHousesLon(jd, lat, lon, hsys, flag=0):
         if hsys == b'O':
             raise
         hlist, ascmc = _sweHousesRaw(jd, lat, lon, b'O', flag)
+        hsys = b'O'
+    ascmc, _ = upperMeridianAscmc(lambda code: _sweHousesRaw(jd, lat, lon, code, flag), hsys, ascmc, lat,
+                                  math.pi if flag == swisseph.FLG_RADIANS else 180.0)
 
     angles = [
         ascmc[0],

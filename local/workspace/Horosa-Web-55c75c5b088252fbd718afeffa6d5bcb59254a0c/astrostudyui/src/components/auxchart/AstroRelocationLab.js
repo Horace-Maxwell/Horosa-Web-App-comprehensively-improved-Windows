@@ -17,7 +17,8 @@ import {
 	convertLatToStr, convertLonToStr, convertLatStrToDegree, convertLonStrToDegree,
 	formatLatDms, formatLonDms,
 } from '../astro/AstroHelper';
-import { unwrapResult, astroSymbol, signName, fmtNum, fmtDegree, chartParams, chartRequestKey, cardStyle, SmallTable } from '../astro/AstroExtraCommon';
+import { unwrapResult, astroSymbol, signName, fmtNum, fmtDegree, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from '../astro/AstroExtraCommon';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -103,7 +104,7 @@ class AstroRelocationLab extends Component{
 
 	ensureLoaded(){
 		const key = this.relocKey();
-		if(key && key !== this.state.requestKey && !this.state.loading){
+		if(key && key !== this.state.requestKey && !this.state.loading && !loadParked(this, key)){
 			setTimeout(this.load, 0);
 		}
 	}
@@ -125,6 +126,8 @@ class AstroRelocationLab extends Component{
 	}
 
 	async load(){
+		const seq = ++this._loadSeq || (this._loadSeq = 1);   // 只认最后一次:换盘 / 改参连发时先发的晚回不覆盖
+		const resultSig = natalSourceKey(this.props.value);   // 本次结果出自哪位命主(读时与当前盘比)
 		if(!this.props.value){
 			return;
 		}
@@ -139,14 +142,15 @@ class AstroRelocationLab extends Component{
 				}),
 				timeoutMs: 30000,
 			});
-			if(!this._mounted) return;
+			if(!this._mounted || seq !== this._loadSeq) return;
 			const res = unwrapResult(data) || {};
+			clearLoadFailure(this);
 			// horosa_panel_ready_v1:重置盘中栏(异地整盘)+右栏(信息/相位/行星…六页签)全由 result 派生,
 			// 这一次 setState 即「面板数据落定」→ 在其回调里盖章(与其余 10 个辅盘子盘同一技法键)。
-			this.setState({result: res, loading: false, requestKey: key}, ()=>{
+			this.setState({result: res, resultSig, loading: false, requestKey: key}, ()=>{
 				markPanelReady('auxchart');
 			});
-			// [审计修·派生盘快照重定源] 出盘即存:整张重置盘 + [重置盘] 专属段(地点/四角对比)。
+			// 出盘即存:整张重置盘 + [重置盘] 专属段(地点/四角对比)。
 			saveDerivedAstroSnapshot('relocation', res.chart, this.props.fields, ()=>{
 				const out = ['[重置盘]'];
 				out.push(`重置地点：纬 ${this.state.relocLat} / 经 ${this.state.relocLon}`);
@@ -161,8 +165,9 @@ class AstroRelocationLab extends Component{
 				return out.length > 1 ? out : [];
 			});
 		}catch(e){
-			if(!this._mounted) return;
-			this.setState({loading: false, requestKey: key});
+			if(!this._mounted || seq !== this._loadSeq) return;
+			parkLoadFailure(this, key);   // 失败不记成已完成:窗口期后同一张盘自动重试
+			this.setState({loading: false});
 		}
 	}
 
@@ -275,7 +280,7 @@ class AstroRelocationLab extends Component{
 						<AstroAnalysisLab
 							value={chartObj}
 							height={tabHeight}
-							voidClassical={this.props.voidClassical}   /* [Q-149/T-56] 宿主链补传(格局页空亡古典义 / 仅本垣擢升互容) */
+							voidClassical={this.props.voidClassical}   /* 宿主链补传(格局页空亡古典义 / 仅本垣擢升互容) */
 						/>
 						)}</FreezeSubTab>
 					</TabPane>
@@ -330,9 +335,14 @@ class AstroRelocationLab extends Component{
 		);
 	}
 
+	// 出自当前命主的结果才用:换盘后新结果在途 / 取失败时 state 里是上一位命主的 → 当没有(同一命主只改设置仍旧表留存)
+	shownResult(){
+		return pickKeyedDerived(this.state.result, this.state.resultSig, natalSourceKey(this.props.value));
+	}
+
 	render(){
 		this.ensureLoaded();
-		const result = this.state.result || {};
+		const result = this.shownResult() || {};
 		const relocChart = result.chart || null;
 		const fields = this.props.fields;
 		const height = this.props.height ? this.props.height : 760;

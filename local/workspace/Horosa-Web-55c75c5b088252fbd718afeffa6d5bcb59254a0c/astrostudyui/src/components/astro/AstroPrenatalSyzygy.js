@@ -12,8 +12,10 @@ import {
 import * as AstroText from '../../constants/AstroText';
 import * as AstroConst from '../../constants/AstroConst';
 import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+import { toSlashDate } from '../../utils/dateStrSafe';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 
-// [Q-185/T-107] 黄经 → { sign, signlon }(摘要卡日月各按自身黄经取座;非法黄经返 null → fmtDegree 出 '-')
+// 黄经 → { sign, signlon }(摘要卡日月各按自身黄经取座;非法黄经返 null → fmtDegree 出 '-')
 export function signItemOfLon(lon){
 	const n = Number(lon);
 	if(!Number.isFinite(n)){ return null; }
@@ -24,7 +26,7 @@ export function signItemOfLon(lon){
 // ===== G11 产前朔望独立盘 =====
 // 自出生时刻回溯最近的朔(日月合)/望(日月冲),取更晚者为产前朔望;以该时刻为新「出生」时刻、
 // 出生地不变,调 /chart 排完整盘 → 中栏渲盘 + 右栏摘要卡。后端算法见 astroextra.compute_prenatal_syzygy。
-// [Q-106/T-10] 上线为 AI 技法键 prenatalsyzygy:无头 builder 见 buildPrenatalSyzygySnapshotText(主控 aiAnalysisContext 接入)。
+// 上线为 AI 技法键 prenatalsyzygy:无头 builder 见 buildPrenatalSyzygySnapshotText(主控 aiAnalysisContext 接入)。
 const SYZYGY_TYPE_CN = { new: '朔（日月合）', full: '望（日月冲）' };
 
 const psBirthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
@@ -83,7 +85,7 @@ function splitDateTime(s){
 	const str = `${s || ''}`.trim();
 	if(!str){ return null; }
 	const parts = str.replace('T', ' ').split(' ');
-	return { date: (parts[0] || '').replace(/-/g, '/'), time: parts[1] || '12:00:00' };
+	return { date: toSlashDate(parts[0] || ''), time: parts[1] || '12:00:00' };
 }
 
 class AstroPrenatalSyzygy extends Component{
@@ -93,7 +95,7 @@ class AstroPrenatalSyzygy extends Component{
 		this.load = this.load.bind(this);
 	}
 
-	// [Q-106/T-10] AI 导出:产前朔望 tab 导出时构建快照写回 detail.snapshotText。
+	// AI 导出:产前朔望 tab 导出时构建快照写回 detail.snapshotText。
 	handleSnapshotRefreshRequest(evt){
 		if(!evt || !evt.detail || evt.detail.module !== 'prenatalsyzygy' || !this.props.value){ return; }
 		buildPrenatalSyzygySnapshotText(this.props.value).then((txt)=>{ evt.detail.snapshotText = txt || ''; }).catch(()=>{});
@@ -113,6 +115,8 @@ class AstroPrenatalSyzygy extends Component{
 	}
 
 	async load(){
+		const seq = ++this._loadSeq || (this._loadSeq = 1);   // 只认最后一次:换盘 / 改参连发时先发的晚回不覆盖
+		const resultSig = natalSourceKey(this.props.value);   // 本次结果出自哪位命主(读时与当前盘比)
 		if(!this.props.value){ return; }
 		const key = chartRequestKey(this.props.value, 'prenatalsyzygy');
 		const base = chartParams(this.props.value);
@@ -126,7 +130,7 @@ class AstroPrenatalSyzygy extends Component{
 			});
 			syzygy = unwrapResult(data) || null;
 		}catch(e){ syzygy = null; }
-		if(!this._mounted){ return; }
+		if(!this._mounted || seq !== this._loadSeq){ return; }
 		// 以朔望时刻为新出生时刻 + 出生地不变,排完整盘。
 		let chart = null;
 		const dt = syzygy && syzygy.type ? splitDateTime(syzygy.datetime) : null;
@@ -137,20 +141,20 @@ class AstroPrenatalSyzygy extends Component{
 				chart = unwrapResult(rsp) || null;
 			}catch(e){ chart = null; }
 		}
-		if(!this._mounted){ return; }
+		if(!this._mounted || seq !== this._loadSeq){ return; }
 		// horosa_panel_ready_v1:朔望摘要 + 朔望盘两件都已就绪的那一次 setState(中栏盘与右栏同源)。
-		this.setState({ syzygy, chart, loading: false, key }, ()=>{ markPanelReady('direction'); });
-		// [Q-106/T-10] AI 快照已由主控接入(aiAnalysisContext 'prenatalsyzygy' → buildPrenatalSyzygySnapshotText)。
+		this.setState({ syzygy, syzygySig: resultSig, chart, chartSig: resultSig, loading: false, key }, ()=>{ markPanelReady('direction'); });
+		// AI 快照已由主控接入(aiAnalysisContext 'prenatalsyzygy' → buildPrenatalSyzygySnapshotText)。
 	}
 
 	renderSummary(){
-		const s = this.state.syzygy;
+		const s = this.shownSyzygy();
 		const sm = (id)=>symbolWithMeaning(id, this.props.showAstroMeaning);
 		if(!s || !s.type){
 			return (
 				<div style={cardStyle}>
 					<div className="horosa-info-card-title">产前朔望</div>
-					<div style={{opacity: 0.65}}>未能求得产前朔望（极区或星历不可用）。</div>
+					<div style={{color: 'var(--horosa-text-secondary)'}}>未能求得产前朔望（极区或星历不可用）。</div>
 				</div>
 			);
 		}
@@ -171,7 +175,7 @@ class AstroPrenatalSyzygy extends Component{
 					]}
 				/>
 				<div style={{marginTop: 8, fontSize: 12.5, lineHeight: 2}}>
-					{/* [Q-185/T-107] 日月各按自身黄经取座(此前太阳恒取取度发光体所在座、月亮非取度体时座为「-」:望且月在地平上的盘两行皆错) */}
+					{/* 日月各按自身黄经取座(此前太阳恒取取度发光体所在座、月亮非取度体时座为「-」:望且月在地平上的盘两行皆错) */}
 					<div>{sm('Sun')} <span style={{opacity: 0.8}}>太阳</span> {fmtDegree(signItemOfLon(s.sunLon))}</div>
 					<div>{sm('Moon')} <span style={{opacity: 0.8}}>月亮</span> {fmtDegree(signItemOfLon(s.moonLon))}</div>
 				</div>
@@ -180,7 +184,7 @@ class AstroPrenatalSyzygy extends Component{
 	}
 
 	renderHyleg(){
-		const s = this.state.syzygy;
+		const s = this.shownSyzygy();
 		if(!s || !s.type){ return null; }
 		const sm = (id)=>symbolWithMeaning(id, this.props.showAstroMeaning);
 		return (
@@ -189,7 +193,7 @@ class AstroPrenatalSyzygy extends Component{
 				<div style={{fontSize: 12.5, lineHeight: 2}}>
 					<div>
 						<span style={{opacity: 0.8}}>取度发光体：</span>{sm(s.hylegBody)}
-						<span style={{opacity: 0.65, fontSize: 11, marginLeft: 6}}>{s.type === 'new' ? '朔→合相度' : '望→地平之上发光体度'}</span>
+						<span style={{color: 'var(--horosa-text-secondary)', fontSize: 11, marginLeft: 6}}>{s.type === 'new' ? '朔→合相度' : '望→地平之上发光体度'}</span>
 					</div>
 					<div><span style={{opacity: 0.8}}>取度：</span>{fmtDegree({ sign: s.hylegSign, signlon: s.hylegSignlon })}</div>
 				</div>
@@ -198,7 +202,7 @@ class AstroPrenatalSyzygy extends Component{
 	}
 
 	renderChart(height){
-		const chart = this.state.chart;
+		const chart = this.shownChart();
 		if(!chart || !chart.chart){
 			return (
 				<div style={{ ...cardStyle, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--horosa-text-soft)' }}>
@@ -218,6 +222,16 @@ class AstroPrenatalSyzygy extends Component{
 				height={height}
 			/>
 		);
+	}
+
+	// 出自当前命主的结果才用:换盘后新结果在途 / 取失败时 state 里是上一位命主的 → 当没有(同一命主只改设置仍旧表留存)
+	shownSyzygy(){
+		return pickKeyedDerived(this.state.syzygy, this.state.syzygySig, natalSourceKey(this.props.value));
+	}
+
+	// 出自当前命主的结果才用:换盘后新结果在途 / 取失败时 state 里是上一位命主的 → 当没有(同一命主只改设置仍旧表留存)
+	shownChart(){
+		return pickKeyedDerived(this.state.chart, this.state.chartSig, natalSourceKey(this.props.value));
 	}
 
 	render(){

@@ -37,7 +37,7 @@ const mkInst = (state)=>{
 const snapOf = (opts)=>buildXiaoChengTuSnapshotText(PAN, QI, { yongGong: 1, ...(opts || {}) });
 
 // ── A. 选项活开关总锁(勾了必须真的变) ───────────────────
-describe('[QA-A] 选项活开关:每一档改变都必须改动产出', ()=>{
+describe('选项活开关:每一档改变都必须改动产出', ()=>{
 	test('A1 用宫 8 档两两互不相同(推导链/数占/应期全随之变)', ()=>{
 		const texts = GONGS.map((g)=>snapOf({ yongGong: g }));
 		const uniq = new Set(texts);
@@ -119,7 +119,7 @@ describe('[QA-A] 选项活开关:每一档改变都必须改动产出', ()=>{
 });
 
 // ── B. 事盘存↔载 round-trip ─────────────────────────────
-describe('[QA-B] 事盘 round-trip:存什么就载什么(存而不载=真 bug)', ()=>{
+describe('事盘 round-trip:存什么就载什么(存而不载=真 bug)', ()=>{
 	beforeEach(()=>{ mockSavedPayload = null; });
 
 	test('B1 五起卦法各存各载:settings 全键 + 起卦输入 + 卦 + 问事', ()=>{
@@ -205,7 +205,7 @@ describe('[QA-B] 事盘 round-trip:存什么就载什么(存而不载=真 bug)',
 });
 
 // ── C. AI 挂载齿轮覆盖链 ────────────────────────────────
-describe('[QA-C] 挂载齿轮:改档必透传到无头重算(死开关闸)', ()=>{
+describe('挂载齿轮:改档必透传到无头重算(死开关闸)', ()=>{
 	test('C1 齿轮字段与组件默认同源,且登记项均可覆盖', ()=>{
 		const spec = TECHNIQUE_SETTINGS_SCHEMA.xiaochengtu;
 		expect(spec.kind).toBe('payload');
@@ -239,7 +239,7 @@ describe('[QA-C] 挂载齿轮:改档必透传到无头重算(死开关闸)', ()=
 });
 
 // ── D. 组合穷举(边界·空值·冲突态) ───────────────────────
-describe('[QA-D] 组合穷举:五起卦法 × 八用宫 × 两口径 × 动爻集', ()=>{
+describe('组合穷举:五起卦法 × 八用宫 × 两口径 × 动爻集', ()=>{
 	test('D1 全组合快照非空且段头恒为七段之序', ()=>{
 		const quas = [
 			qiGuaManual({ up: '坤', lo: '坤', dongYaos: [] }),          // 无动爻(之卦=本卦)
@@ -317,7 +317,7 @@ describe('[QA-D] 组合穷举:五起卦法 × 八用宫 × 两口径 × 动爻�
 });
 
 // ── E. 三栏渲染在全档位下不塌 ───────────────────────────
-describe('[QA-E] 三栏渲染:全起卦法 × 全用宫不抛不空', ()=>{
+describe('三栏渲染:全起卦法 × 全用宫不抛不空', ()=>{
 	test('E1 中栏/右栏逐档渲染', ()=>{
 		const quas = {
 			manual: QI, dayan: qiGuaByDaYan({ seed: 5 }), yaoqian: qiGuaByYaoQian({ seed: 5 }),

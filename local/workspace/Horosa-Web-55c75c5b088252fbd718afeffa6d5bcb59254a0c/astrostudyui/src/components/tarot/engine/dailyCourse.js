@@ -1,7 +1,7 @@
 // 日课引擎(TP8,轻量拍板版):确定性今日牌 + 本地日志纯函数 + 统计。存储 IO 在组件层(localStorage 单键)。
 // 今日牌种子 = `daily|日期|生辰种子|牌组`——同日同人同牌组恒同一张,可复现;跨日自然轮转。
 import { CORE78 } from '../decks/core78.js';
-import { isTrumpArcana } from './arcana.js'; // [QA-9] 王牌判据单一真值源(零依赖叶子)
+import { isTrumpArcana } from './arcana.js'; // 王牌判据单一真值源(零依赖叶子)
 import { safeJsonParseFromStorage, safeJsonStringifyToStorage } from '../../../utils/safeStorage';
 
 export const DAILY_LOG_KEY = 'horosa.tarot.dailyLog';
@@ -31,7 +31,7 @@ export function dailyStats(list){
 	let rev = 0;
 	rows.forEach((x) => {
 		const c = bySid[x.sid];
-		if(isTrumpArcana(c.arcana)){ suitCount.major += 1; } // [QA-9] 认 *_trump:否则该两副的大牌占比恒 0
+		if(isTrumpArcana(c.arcana)){ suitCount.major += 1; } // 认 *_trump:否则该两副的大牌占比恒 0
 		else if(suitCount[c.suit] !== undefined){ suitCount[c.suit] += 1; }
 		freq[x.sid] = (freq[x.sid] || 0) + 1;
 		if(x.rev){ rev += 1; }

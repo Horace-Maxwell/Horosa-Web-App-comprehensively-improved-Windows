@@ -1,4 +1,4 @@
-// [I12] AI 助手压测二轮·jest 共用夹具(只被 __tests__ 引用,不进产品包)。
+// AI 助手压测二轮·jest 共用夹具(只被 __tests__ 引用,不进产品包)。
 // 三件:
 //   ① fakeStreamScript(script) —— 假流式上游。形态与 aiAgentGoalRunner.test.js 的 fakeStream /
 //      aiAgentRuntime.test.js 的 mkStream 同构(jest.fn(async (values, handlers)=>{…}),按调用次序取脚本,

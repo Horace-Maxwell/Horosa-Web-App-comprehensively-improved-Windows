@@ -1,0 +1,34 @@
+diff --git a/astropy/tests/test_test_collection_completeness.py b/astropy/tests/test_test_collection_completeness.py
+index 4bf49715..24e18a6c 100644
+--- a/astropy/tests/test_test_collection_completeness.py
++++ b/astropy/tests/test_test_collection_completeness.py
+@@ -12,7 +12,9 @@ import test_vendor_suites_gate as vendor_gate
+ _ASTROPY = Path(__file__).resolve().parent.parent
+ _WEB = _ASTROPY.parent
+ _REPO = _WEB.parent
+-_COLLECTED = "Horosa-Web/astropy/tests/"
++# horosa_win_layout_webdir_v1:产品目录名按实际检出取(Windows 仓里产品源在 local/workspace/Horosa-Web-<sha>/,不叫 Horosa-Web)
++_WEBDIR = _WEB.name
++_COLLECTED = f"{_WEBDIR}/astropy/tests/"
+ 
+ # 由别的门点名运行:路径 → 点名它的门(该文件里必须出现这份测试的文件名)
+ OTHER_GATES = {
+@@ -24,7 +26,7 @@ OTHER_GATES = {
+ 
+ # 不进门:路径或目录前缀(以 / 结尾)→ 理由
+ EXCLUDED = {
+-    "Horosa-Web/vendor/kinastro/tests/": "上游原样带来的整站测试;本仓只带入并改过其中部分模块(铁板已入门),这套与裁剪后的副本不配套:"
++    f"{_WEBDIR}/vendor/kinastro/tests/": "上游原样带来的整站测试;本仓只带入并改过其中部分模块(铁板已入门),这套与裁剪后的副本不配套:"
+                                          "依赖未带入的 streamlit 运行时与子模块、含上游自身的语法错,在本仓副本上 42 败 3 错,是上游状态而非本仓回归",
+ }
+ 
+@@ -80,6 +82,6 @@ def test_registries_have_no_stale_entries():
+ 
+ 
+ def test_detector_sees_an_orphan():
+-    assert not _gated_by_vendor_suites("Horosa-Web/vendor/kinastro/tests/test_x.py")
+-    assert _gated_by_vendor_suites("Horosa-Web/vendor/kinqimen/test_qimen_calendar.py")
+-    assert _gated_by_vendor_suites("Horosa-Web/vendor/kinwangji/tests/test_basic.py")
++    assert not _gated_by_vendor_suites(f"{_WEBDIR}/vendor/kinastro/tests/test_x.py")
++    assert _gated_by_vendor_suites(f"{_WEBDIR}/vendor/kinqimen/test_qimen_calendar.py")
++    assert _gated_by_vendor_suites(f"{_WEBDIR}/vendor/kinwangji/tests/test_basic.py")

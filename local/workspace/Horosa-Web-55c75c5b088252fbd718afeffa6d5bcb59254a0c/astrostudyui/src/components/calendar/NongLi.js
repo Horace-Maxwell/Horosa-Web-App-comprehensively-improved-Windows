@@ -33,7 +33,7 @@ class NongLi extends Component{
 	// window resize 兜底重测一次;applyCellFit 幂等(值不变零 setState),双通道无害。
 	fitOnWinResize(){
 		if(this._fitRoot){
-			try{ this.applyCellFit(this._fitRoot.clientWidth); }catch(e){ /* ignore */ }   // [Tahoe 域混根修·2026-09-17] 量尺寸只用布局域读数(client*/offset*);rect 在标准化 zoom 引擎下已×z,当布局 px 用会差 z 倍。
+			this.applyCellFit(this._fitRoot.clientWidth);   // 量尺寸只用布局域读数(client*/offset*);rect 在标准化 zoom 引擎下已×z,当布局 px 用会差 z 倍。
 		}
 	}
 
@@ -52,7 +52,7 @@ class NongLi extends Component{
 
 	captureRoot(el){
 		if(this._fitRO){
-			try{ this._fitRO.disconnect(); }catch(e){ /* ignore */ }
+			this._fitRO.disconnect();
 			this._fitRO = null;
 		}
 		this._fitRoot = el;
@@ -66,7 +66,7 @@ class NongLi extends Component{
 		});
 		this._fitRO.observe(el);
 		// 首帧立即测一次(RO 首回调有的实现延后一帧,先按当前宽出正确档)。
-		try{ this.applyCellFit(el.clientWidth); }catch(e){ /* ignore */ }   // 布局域(与 RO contentRect 同域)
+		this.applyCellFit(el.clientWidth);   // 布局域(与 RO contentRect 同域)
 	}
 
 	applyCellFit(width){
@@ -212,7 +212,7 @@ class NongLi extends Component{
 		}finally{
 			this._measuring = false;
 			if(shell && shell.parentNode){
-				try{ shell.parentNode.removeChild(shell); }catch(e2){ /* ignore */ }
+				shell.parentNode.removeChild(shell);
 			}
 		}
 	}
@@ -222,7 +222,7 @@ class NongLi extends Component{
 			window.removeEventListener('resize', this.fitOnWinResize);
 		}
 		if(this._fitRO){
-			try{ this._fitRO.disconnect(); }catch(e){ /* ignore */ }
+			this._fitRO.disconnect();
 			this._fitRO = null;
 		}
 	}

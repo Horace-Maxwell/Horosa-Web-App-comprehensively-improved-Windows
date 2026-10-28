@@ -1,5 +1,6 @@
 import * as d3 from 'd3';
 import {randomStr,} from '../../utils/helper';
+import { fillTextFromStroke, appendPerCharText } from './GraphHelper';
 
 class D3Circle {
 	constructor(option){
@@ -64,7 +65,8 @@ class D3Circle {
 
 			let txts = txt.split('');
 			let fz = this.fontSize;
-			g.selectAll('text').data(txts).enter().append('text')
+			// 逐字画字经单一入口:整词定字(繁体下「天后」不成「天後」)
+			appendPerCharText(g, txts, txt)
 				.attr("dominant-baseline","middle")
 				.attr('stroke', txtcolor)
 				.attr("text-anchor", "middle")
@@ -89,7 +91,7 @@ class D3Circle {
 					let trans = 'translate(' + posx + ', ' + posy + ')';
 					return trans;	
 				})
-				.text(function(d){return d});
+				.text(function(d){return d}).call(fillTextFromStroke);
 			if(this.onSegment){
 				this.onSegment(g, i, txt);
 			}

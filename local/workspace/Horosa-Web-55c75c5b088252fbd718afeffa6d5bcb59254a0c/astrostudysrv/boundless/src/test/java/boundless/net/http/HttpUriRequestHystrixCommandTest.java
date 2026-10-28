@@ -19,10 +19,10 @@ public class HttpUriRequestHystrixCommandTest {
 		headers.put("Content-Type", "application/json; charset=UTF-8");
 
 		Map<String, String> redacted = HttpUriRequestHystrixCommand.redactSensitiveHeaders(headers);
-		assertEquals("***redacted***", redacted.get("Authorization"));
-		assertEquals("***redacted***", redacted.get("x-api-key"));
-		assertEquals("***redacted***", redacted.get("X-Goog-Api-Key"));
-		assertEquals("***redacted***", redacted.get("LocalIp"));
+		assertEquals(boundless.utility.SecretRedactor.MASK, redacted.get("Authorization"));
+		assertEquals(boundless.utility.SecretRedactor.MASK, redacted.get("x-api-key"));
+		assertEquals(boundless.utility.SecretRedactor.MASK, redacted.get("X-Goog-Api-Key"));
+		assertEquals(boundless.utility.SecretRedactor.MASK, redacted.get("LocalIp"));
 		assertEquals("application/json; charset=UTF-8", redacted.get("Content-Type"));
 	}
 

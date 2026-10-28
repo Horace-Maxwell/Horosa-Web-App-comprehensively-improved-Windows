@@ -1,4 +1,4 @@
-// [批二⑦] plan 形态合同:规划 system 只带目录摘要(不带 schema)/解析剔越界工具/schema 硬界/渲染文本与已批准约束不含规划标记/命令表在位/短调用标记在位。
+// plan 形态合同:规划 system 只带目录摘要(不带 schema)/解析剔越界工具/schema 硬界/渲染文本与已批准约束不含规划标记/命令表在位/短调用标记在位。
 import { buildPlanSystem, buildPlanUser, parseActionPlan, renderPlanText, approvedPlanDirective, summarizeManifest, PLAN_MAX_STEPS, PLAN_APPROVED_HEAD, ACTION_PLAN_SCHEMA } from '../aiAgent/planMode';
 import { SHORT_CALL_MARKERS, shortCallSystem } from '../aiChat/shortCall';
 import { BUILTIN_COMMANDS, findCommand } from '../aiChat/commands';

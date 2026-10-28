@@ -1,0 +1,26 @@
+diff --git a/astrostudyui/src/utils/__tests__/bootstrapNodeFormula.test.js b/astrostudyui/src/utils/__tests__/bootstrapNodeFormula.test.js
+index 822ed6de..86696413 100644
+--- a/astrostudyui/src/utils/__tests__/bootstrapNodeFormula.test.js
++++ b/astrostudyui/src/utils/__tests__/bootstrapNodeFormula.test.js
+@@ -8,15 +8,19 @@ const SH = path.join(ROOT, 'scripts/mac/bootstrap_and_run.sh');
+ const body = ()=>fs.readFileSync(SH, 'utf8').split('\n').filter((l)=>!/^\s*#/.test(l)).join('\n');
+ const ensureNode = (s)=>{ const i = s.indexOf('ensure_node() {'); return i < 0 ? '' : s.slice(i, s.indexOf('\n}\n', i)); };
+ 
++// horosa_win_shell_layout_v1(Windows 侧移植适配):scripts/mac/bootstrap_and_run.sh 是 macOS 的 Homebrew 一键部署脚本,不随 Windows 仓发
++// (Windows 的源码一键起停是 local/Horosa_Local_Windows.bat/.ps1,由发布自检「local launchers」门核)。只在脚本缺席时跳过前两条;判别条照跑。
++const itMac = fs.existsSync(SH) ? it : it.skip;
++
+ describe('一键部署装 Node 的公式', ()=>{
+-	it('ensure_node 按 node@22 → node@20 → node 依次试,先查「已停用」再装', ()=>{
++	itMac('ensure_node 按 node@22 → node@20 → node 依次试,先查「已停用」再装', ()=>{
+ 		const fn = ensureNode(body());
+ 		expect(fn).not.toBe('');
+ 		expect(fn).toMatch(/for f in node@22 node@20 node; do/);
+ 		expect(fn).toMatch(/"disabled": \*true[^\n]*brew info --json=v2 --formula "\$\{f\}"|brew info --json=v2 --formula "\$\{f\}"[^\n]*"disabled": \*true/);	// 判据与 brew info 同一行(先后不限;判据写成 here-string,不接管道)
+ 		expect(fn.indexOf('"disabled"')).toBeLessThan(fn.indexOf('ensure_formula "${f}"'));
+ 	});
+-	it('代码行里不再点名已停用的 node@18(注释除外)', ()=>{
++	itMac('代码行里不再点名已停用的 node@18(注释除外)', ()=>{
+ 		expect(/node@18/.test(body())).toBe(false);
+ 	});
+ 	it('判别:旧写法(先试 node@18)必红', ()=>{

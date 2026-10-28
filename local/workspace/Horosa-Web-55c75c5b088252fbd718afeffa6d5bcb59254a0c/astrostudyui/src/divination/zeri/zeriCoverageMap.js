@@ -1,4 +1,4 @@
-// [Z0·择日八技法基建] 「能算出来的都可搜索」完备性登记表(用户定案 12)。
+// 「能算出来的都可搜索」完备性登记表(用户定案 12)。
 //
 // 制度语义:每个择日技法的 AI 快照段表(AI_EXPORT_PRESET_SECTIONS[技法键])里的**每一段**,
 // 必须在本表显式表态,二选一:
@@ -52,7 +52,7 @@ export const ZERI_COVERAGE_MAP = {
 			'命中时辰': { exempt: '择日自身产物段(扫描结果)' },
 		},
 	},
-	// ── [Z1] 黄历择日(17 类,huangliZeriConditionTypes.js;段基底=huangli 日课快照段) ──
+	// ── 黄历择日(17 类,huangliZeriConditionTypes.js;段基底=huangli 日课快照段) ──
 	huanglizeri: {
 		registry: 'huangliZeriConditionTypes',
 		sections: {
@@ -65,14 +65,14 @@ export const ZERI_COVERAGE_MAP = {
 			'时辰吉凶': { types: ['good_hour'] },
 			'物候·六曜·数九三伏': { types: ['liuyao', 'yuexiang'] },
 			'流年年神方位': { exempt: '年神为空间方位指向,非日子筛选量' },
-			'年度吉日榜': { exempt: '[Q-458] 默认关候选段:全年 Top 榜(择吉结果面),非当日征象量' },
+			'年度吉日榜': { exempt: '默认关候选段:全年 Top 榜(择吉结果面),非当日征象量' },
 			'方法说明': { exempt: '算法方法说明叙事段,非征象面' },
 			'择吉搜索配置': { exempt: '择日自身产物段(搜索配置回显)' },
 			'择吉条件': { exempt: '择日自身产物段(条件树回显)' },
 			'命中日段': { exempt: '择日自身产物段(扫描结果)' },
 		},
 	},
-	// ── [Z8] 印度择日(indiaZeriConditionTypes.js;段基底=india 段表) ──
+	// ── 印度择日(indiaZeriConditionTypes.js;段基底=india 段表) ──
 	indiazeri: {
 		registry: 'indiaZeriConditionTypes',
 		sections: {
@@ -89,8 +89,8 @@ export const ZERI_COVERAGE_MAP = {
 			'星曜庙旺与星点动态（殿垣庙旺乐喜怒 · 顺逆留伏迟速）': { types: ['dignity', 'speed_state', 'combust'] },
 			'神煞': { exempt: '真 gap:七政神煞(日粒度表)首版未建叶,补全轮待议' },
 			'大限': { exempt: '大限为本命推演量,不随候选时刻变化' },
-			'三主与化曜': { exempt: '[Q-231] 本命三主(命/身/度主)与化曜按生辰派生,不随候选时刻变化' },
-			'限法实算': { exempt: '[Q-434] 本命行运法(动限/童限/月限/小限)实算按生辰与行运年,非候选时刻征象' },
+			'三主与化曜': { exempt: '本命三主(命/身/度主)与化曜按生辰派生,不随候选时刻变化' },
+			'限法实算': { exempt: '本命行运法(动限/童限/月限/小限)实算按生辰与行运年,非候选时刻征象' },
 			'虚实': { exempt: '虚实为本命判读面(moiraRules),非候选时刻征象' },
 			'本命化曜': { exempt: '本命化曜按生辰;候选时刻化曜由 hua_lu 类覆盖' },
 			'流年流曜': { exempt: '流年流曜为本命推演量' },
@@ -115,7 +115,7 @@ export const ZERI_COVERAGE_MAP = {
 			'六壬小局': { exempt: '同大格:后端判定面,组合条件覆盖' },
 			'六壬参考': { exempt: '文献参考层,非征象' },
 			'六壬概览': { exempt: '六壬家汇总显示层(逐面已由各段覆盖)' },
-			// [Q-451/T-414] 六壬断卦层的七政段(日月五星临支/五行/度/逆行):显示层,择日征象不按七政临支判
+			// 六壬断卦层的七政段(日月五星临支/五行/度/逆行):显示层,择日征象不按七政临支判
 			'七政': { exempt: '六壬七政四余合参的显示层(择日条件面无对应征象类;与独立六壬页同段)' },
 			'八宫详解': { types: ['qm_door', 'qm_star', 'qm_god', 'qm_tian_gan', 'qm_di_gan', 'qm_palace_flag'] },
 			'正北坎宫': { types: ['qm_palace_flag'] },
@@ -141,7 +141,7 @@ export const ZERI_COVERAGE_MAP = {
 			'空亡真假': { types: ['lr_chuan_kong'] },
 			'旬空落点': { types: ['lr_xun_ding', 'lr_chuan_kong'] },
 			'陷空': { exempt: '真 gap(降级留档):analyzeKongLocations 展示层结构,判定表不全(W2 拍板)' },
-			'遁干特殊': { types: ['lr_chuan_dungan', 'lr_xun_ding'] },	// [W2 正账]三传遁干新类=该段主判面(xun_ding 只判旬丁/旬空)
+			'遁干特殊': { types: ['lr_chuan_dungan', 'lr_xun_ding'] },	// 三传遁干新类=该段主判面(xun_ding 只判旬丁/旬空)
 			'年命上神': { types: ['lr_bm_shang_jiang'] },
 			'毕法（已命中）': { exempt: '真 gap(降级留档):毕法判定表不全,非「能算」面(W2 拍板)' },
 			'占断向导': { exempt: '解读文案层,非征象' },
@@ -189,7 +189,7 @@ export const ZERI_COVERAGE_MAP = {
 			'空亡真假': { types: ['chuan_kong'] },
 			'旬空落点': { types: ['xun_ding', 'chuan_kong'] },
 			'陷空': { exempt: '真 gap(降级留档):analyzeKongLocations 展示层结构,判定表不全(W2 拍板)' },
-			'遁干特殊': { types: ['chuan_dungan', 'xun_ding'] },	// [W2 正账]
+			'遁干特殊': { types: ['chuan_dungan', 'xun_ding'] },
 			'年命上神': { types: ['bm_shang_jiang'] },
 			'占断向导': { exempt: '解读文案层,非征象' },
 			'毕法（已命中）': { exempt: '真 gap(降级留档):毕法判定表不全,非「能算」面(W2 拍板)' },
@@ -240,7 +240,7 @@ export const ZERI_COVERAGE_MAP = {
 			'命中时段': { exempt: '择日自身产物段(扫描结果)' },
 		},
 	},
-	// ── [Z2] 八字择日(baziZeriConditionTypes.js;段基底=bazi 段表) ──
+	// ── 八字择日(baziZeriConditionTypes.js;段基底=bazi 段表) ──
 	bazizeri: {
 		registry: 'baziZeriConditionTypes',
 		sections: {

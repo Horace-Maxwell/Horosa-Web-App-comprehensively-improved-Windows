@@ -2,6 +2,7 @@ import React from 'react';
 import { Button, Card, DatePicker, TimePicker, Drawer, Input, InputNumber, Modal, Pagination, Radio, Select, Switch, Table, Tabs, Tooltip, message } from 'antd';
 import moment from 'moment';
 import XQIcon from '../xq-icons';
+import { scriptFilterBy } from '../../utils/scriptMode';
 import { safeJsonParseFromStorage, safeJsonStringifyToStorage } from '../../utils/safeStorage';
 import { parseQuickDigitsForFormat, pickerDigitsLength, QUICK_DIGITS_ERROR_PREFIX } from '../../utils/quickDateTimeDigits';
 
@@ -85,58 +86,172 @@ export function useSlidingIndicator(containerRef, activeSelector, deps = []){
 	return box;
 }
 
-// [窄布局 2026-09-17] 分段控件放不下(各项文字总宽+内衬 > 容器)时挂 is-wrapped:两列多行、关闭滑块;文字宽用 Range 逐行累加,
-// 与容器同在视觉域比较,不依赖当前是否已折行(无振荡)。环境不支持时恒 false = 现状。
-// horosa_segmented_wrap_hysteresis_v1(issue #84 根治:风水·三合水法左栏「砂水栏内容不断闪现、无法选中」):
-// 折行判据里的 padding 读的是 getComputedStyle(当前态),而 .is-wrapped 自己就把 padding 从 10px 改成 6px ——
-// 判「折」后 need 变小 → 判「不折」→ padding 回 10 → need 变大 → 再判「折」… 每帧翻一次(真机 MutationObserver
-// 实抓:同一分段组 3 秒内 class 翻 176 次、滑块 span 增删 88 次),整个左栏跟着重渲,任何点击都落不下去。
-// 修两刀:① need 只按**未折行态**的 padding 算(首测必是未折行态,缓存在 ref;折行态用缓存)——判据与自身结果脱钩;
-// ② 决策带滞回:折→不折要留 4px 余量。两刀都不改「放得下时一字不变」的语义。判据函数导出供单测钉住(jsdom 量不到布局)。
-export function decideSegmentedWrap(need, avail, wrapped){
-	if(!(avail > 0)){ return false; }
-	return wrapped ? need > avail - 4 : need > avail;
+// 分段控件放不下时折行:各项是等宽列(grid-auto-columns: 1fr),所以按「最宽一项 × 项数」判(此前按各项之和判,
+// 总宽放得下、长的那项在它分到的等分里放不下 → 文字溢出按钮,如印占年盘口径两项)。返回 0 = 一行放得下 /
+// 2 = 两列多行 / 1 = 连半宽都放不下,一项一行。环境不支持时恒 0 = 现状。
+// 折行档位(纯函数,便于单测;全部是 CSS 布局 px):sum = 各项「文字宽 + 内衬 + 2」之和;maxTw = 最宽一项的文字宽;
+// padX = 每项左右内衬之和(未折行档);avail = 容器内宽。两条取或:① 各项之和超出;② 等宽列下最宽一项连同内衬放不进它分到的列宽
+// ——标签是 white-space: normal,字一进内衬就换行(三字标签「时区图」100% 档折成「时区 / 图」),所以内衬必须算进去。
+// 宽度随内容伸缩的分段列宽本就不小于最宽一项连内衬,不会被误折。
+// 折行后内衬是 0 6px(见 22-tail-fixes 的 is-wrapped 规则):两列各分到一半放得下就两列,否则一项一行。
+// 中间档「收内衬」(3 = SEGMENTED_LEVEL_COMPACT,挂 .is-compact):原样一行放不下、但内衬收到折行档的 0 6px 一行就放得下
+// (差不到一两像素的常见情形,如三项「甲乙 | 丙丁 | 时区图」100% 档差 0.67px)—— 只收内衬、不改排布、保留滑块,
+// 不必整组折成两列两行;仍放不下才折。原样一行放得下的逐像素不变。
+export const SEGMENTED_LEVEL_COMPACT = 3;
+export const SEGMENTED_COMPACT_PAD_X = 12;
+export function segmentedWrapLevel({ sum, maxTw, count, avail, padX = SEGMENTED_UNWRAPPED_PAD_X }){
+	if(!(avail > 0) || !(count > 0)){ return 0; }
+	if(!(sum > avail || (maxTw + padX + 2) * count > avail)){ return 0; }
+	if(padX > SEGMENTED_COMPACT_PAD_X){
+		const sumCompact = sum - count * (padX - SEGMENTED_COMPACT_PAD_X);
+		if(!(sumCompact > avail || (maxTw + SEGMENTED_COMPACT_PAD_X + 2) * count > avail)){ return SEGMENTED_LEVEL_COMPACT; }
+	}
+	return (maxTw + 12 + 2) * 2 <= avail ? 2 : 1;
+}
+// 判据的内衬一律按「未折行」那一档(样式表缺省 0 10px,左右合 20;页面覆盖了未折行内衬的,以未折行时实测为准),与当前折没折无关:
+// 折行后内衬变成 0 6px,若按当前态量,判据的输入就被它自己的输出改了 —— 未折行按 10px 量判「折」,折了按 6px 量又判「不折」,
+// 容器内宽落在 [Σ文字宽 + 14n, Σ文字宽 + 22n) 这一段里时每次 ResizeObserver 回调都翻一次,一行两行来回闪。
+export const SEGMENTED_UNWRAPPED_PAD_X = 20;
+// tws = 各项文字宽;padX = 每项左右内衬之和(未折行档)
+export function segmentedWrapLevelFor({ tws, padX = SEGMENTED_UNWRAPPED_PAD_X, avail }){
+	const list = Array.isArray(tws) ? tws : [];
+	const sum = list.reduce((acc, tw)=>acc + tw + padX + 2, 0);
+	const maxTw = list.reduce((m, tw)=>(tw > m ? tw : m), 0);
+	return segmentedWrapLevel({ sum, maxTw, count: list.length, avail, padX });
+}
+// 从实测量换到同一个域再判:文字宽(Range 客户矩形)与容器 getBoundingClientRect 是视觉域(随 CSS zoom 缩放),
+// 内衬(getComputedStyle)与判据里的常数是 CSS 布局 px —— 混着加减,缩放 ≠ 1 时判错(1.8 档该折不折、0.7 档放得下却折)。
+// z 取同一元素的「视觉宽 / 布局宽」(任何引擎下都成立;不缩放的旧引擎 z = 1、零改动),视觉量一律 ÷ z 换回布局域。
+// twRects = 各项文字的视觉宽;groupRectWidth / groupLayoutWidth = 容器的视觉宽 / 布局宽(offsetWidth)
+export function segmentedZoomOf(groupRectWidth, groupLayoutWidth){
+	const z = groupLayoutWidth > 0 && groupRectWidth > 0 ? groupRectWidth / groupLayoutWidth : 1;
+	return Math.abs(z - 1) > 0.005 ? z : 1;   // 布局宽是整数 px,差不到半个像素的当作没缩放(100% 档逐值与原先一致)
+}
+export function segmentedWrapLevelFromRects({ twRects, padX = SEGMENTED_UNWRAPPED_PAD_X, groupRectWidth, groupLayoutWidth }){
+	const z = segmentedZoomOf(groupRectWidth, groupLayoutWidth);
+	const tws = (Array.isArray(twRects) ? twRects : []).map((w)=>w / z);
+	return segmentedWrapLevelFor({ tws, padX, avail: groupRectWidth / z - 8 });
+}
+// ── 真实排版下试排(有排版引擎时的主判据)────────────────────────────────────────────
+// 算术判据(上面几个纯函数)要知道「可用宽」:拿控件自己的宽当可用宽,在「随内容定宽」的容器里(抽屉的行内控件、
+// inline-flex 包一层)就是自指 —— 未折行时自身宽恰等于所需宽,判据的估算余量一多就判「折」;一折,控件缩成两列 / 一列,
+// 父容器跟着缩,可用宽更小,永远回不来(星盘设置抽屉 27 个分段 26 个被锁成一项一行;换档后锁存)。
+// 所以有排版时不再估算:把折行类临时摘掉(同步、不出帧),让浏览器按真实约束把「一行」排出来,直接看有没有字放不下
+// (按钮里的字折成多行 / 按钮内容溢出 / 各项越出控件框);放不下再试两列;都在同一帧内复原类名。
+// 结论只取决于外部约束、与当前折没折无关(无自锁、无闪烁),也与缩放档无关(行数按矩形上下是否重叠数,溢出看同一元素自己的两个布局量)。
+function segmentedLabelOf(b){
+	return Array.prototype.find.call(b.children, (c)=>c.tagName === 'SPAN' && !c.classList.contains('ant-radio-button')) || b;
+}
+// 一段文字排成了几行:Range 的客户矩形按上沿归行 —— 同一行里中英文字体的上沿可以差一两像素(不算换行);
+// 分段按钮是 line-height: 1,相邻两行的字形矩形会上下重叠几像素,所以不能按「是否重叠」判,按上沿差是否超过字高的四成判。
+export function segmentedLineCount(rects){
+	const list = Array.prototype.filter.call(rects || [], (r)=>r && r.width > 0 && r.height > 0)
+		.sort((a, b)=>a.top - b.top);
+	let lines = 0;
+	let lineTop = -Infinity;
+	list.forEach((r)=>{
+		if(r.top - lineTop > Math.max(2, r.height * 0.4)){ lines += 1; lineTop = r.top; }
+	});
+	return lines;
+}
+// 当前排版下有没有字放不下
+export function segmentedOverflows(el){
+	const btns = el.querySelectorAll('.ant-radio-button-wrapper');
+	const box = el.getBoundingClientRect();
+	for(let i = 0; i < btns.length; i += 1){
+		const b = btns[i];
+		if(b.scrollWidth > b.clientWidth + 1){ return true; }
+		const br = b.getBoundingClientRect();
+		if(br.right > box.right + 0.5 || br.left < box.left - 0.5){ return true; }
+		try{
+			const range = document.createRange();
+			range.selectNodeContents(segmentedLabelOf(b));
+			if(segmentedLineCount(range.getClientRects()) > 1){ return true; }
+		}catch(e){ /* 量不到行数就只看溢出 */ }
+	}
+	return false;
+}
+// 试排出折行档位:0 原样一行放得下 / 3 收内衬后一行放得下 / 2 两列放得下 / 1 一项一行。调用前后类名一字不变。
+export function segmentedTrialLevel(el){
+	const cl = el.classList;
+	const had = cl.contains('is-wrapped');
+	const hadSingle = cl.contains('is-wrapped-single');
+	const hadCompact = cl.contains('is-compact');
+	try{
+		cl.remove('is-wrapped', 'is-wrapped-single', 'is-compact');
+		if(!segmentedOverflows(el)){ return 0; }
+		cl.add('is-compact');
+		if(!segmentedOverflows(el)){ return SEGMENTED_LEVEL_COMPACT; }
+		cl.remove('is-compact');
+		cl.add('is-wrapped');
+		return segmentedOverflows(el) ? 1 : 2;
+	}finally{
+		cl.toggle('is-wrapped', had);
+		cl.toggle('is-wrapped-single', hadSingle);
+		cl.toggle('is-compact', hadCompact);
+	}
+}
+// 档位 → 类名(组件与测试共用):收内衬档只挂 is-compact;折行两档挂 is-wrapped(一项一行再加 is-wrapped-single)
+export function segmentedLevelClass(level){
+	if(level === SEGMENTED_LEVEL_COMPACT){ return 'is-compact'; }
+	if(level === 1){ return 'is-wrapped is-wrapped-single'; }
+	if(level === 2){ return 'is-wrapped'; }
+	return '';
 }
 
 export function useSegmentedWrap(containerRef, deps = []){
-	const [wrapped, setWrapped] = React.useState(false);
-	const unwrappedPads = React.useRef(null);   // 未折行态下逐项 padding(L+R)缓存
+	const [wrapped, setWrapped] = React.useState(0);
+	const unwrappedPadRef = React.useRef(null);   // 最近一次未折行时实测的每项内衬(左右之和)
 	React.useEffect(()=>{
 		const el = containerRef.current;
 		if(!el || typeof ResizeObserver === 'undefined' || typeof document.createRange !== 'function'){ return undefined; }
 		const measure = ()=>{
 			const btns = el.querySelectorAll('.ant-radio-button-wrapper');
 			if(!btns.length){ return; }
-			const isWrappedNow = el.classList.contains('is-wrapped');
-			const pads = [];
-			const texts = [];
+			// 有排版引擎(控件真有布局宽):试排定档
+			if(el.clientWidth > 0){
+				const next = segmentedTrialLevel(el);
+				setWrapped((w)=>(w === next ? w : next));
+				return;
+			}
+			// 没有排版(jsdom 一类)时退回算术判据:各量换到同一个域再判(收内衬档的内衬也不是「未折行」档)
+			const isWrappedNow = el.classList.contains('is-wrapped') || el.classList.contains('is-compact');
+			const groupRectWidth = el.getBoundingClientRect().width;
+			const zoomNow = segmentedZoomOf(groupRectWidth, el.offsetWidth);
+			const tws = [];
+			let padTotal = 0;
 			btns.forEach((b)=>{
-				// [2026-09-18 假折行根修] 只量可见文字那个直接子 span:整个 label 的 Range 会把 antd 撑满按钮的隐藏
+				// 只量可见文字那个直接子 span:整个 label 的 Range 会把 antd 撑满按钮的隐藏
 				// radio input(width:100%)与文字 span 的元素盒一起算进去(实测每项 129+28+28),三项 597 > 258 恒判折行,
-				// 印占「盘式」/ 巴比伦六曜等一行放得下的分段全被摊成两列。Range 仍按行累加 = 单行自然宽,已折行也不振荡。
-				const label = Array.prototype.find.call(b.children, (c)=>c.tagName === 'SPAN' && !c.classList.contains('ant-radio-button')) || b;
+				// 印占「盘式」/ 巴比伦六曜等一行放得下的分段全被摊成两列。Range 按行累加 = 单行自然宽,与折没折无关。
+				const label = segmentedLabelOf(b);
 				let tw = 0;
 				try{
 					const range = document.createRange();
 					range.selectNodeContents(label);
 					const rects = range.getClientRects();
 					for(let i = 0; i < rects.length; i++){ tw += rects[i].width; }
-				}catch(e){ tw = label.scrollWidth; }
-				const cs = getComputedStyle(b);
-				texts.push(tw);
-				pads.push((parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0));
+				}catch(e){ tw = label.scrollWidth * zoomNow; }   // scrollWidth 是布局域,先乘回视觉域(下面统一 ÷ z)
+				tws.push(tw);
+				if(!isWrappedNow){
+					const bcs = getComputedStyle(b);
+					padTotal += (parseFloat(bcs.paddingLeft) || 0) + (parseFloat(bcs.paddingRight) || 0);
+				}
 			});
-			if(!isWrappedNow){ unwrappedPads.current = pads; }
-			const usePads = (isWrappedNow && unwrappedPads.current && unwrappedPads.current.length === pads.length) ? unwrappedPads.current : pads;
-			let need = 0;
-			for(let i = 0; i < texts.length; i++){ need += texts[i] + usePads[i] + 2; }
-			const avail = el.getBoundingClientRect().width - 8;
-			setWrapped((w)=>{ const next = decideSegmentedWrap(need, avail, w); return w === next ? w : next; });
+			if(!isWrappedNow){ unwrappedPadRef.current = padTotal / btns.length; }
+			const padX = unwrappedPadRef.current !== null ? unwrappedPadRef.current : SEGMENTED_UNWRAPPED_PAD_X;
+			const next = segmentedWrapLevelFromRects({ twRects: tws, padX, groupRectWidth, groupLayoutWidth: el.offsetWidth });
+			setWrapped((w)=>(w === next ? w : next));
 		};
 		measure();
 		const ro = new ResizeObserver(measure);
 		ro.observe(el);
-		return ()=>ro.disconnect();
+		// 随内容定宽的容器里,外面变宽时控件自己(已折行、按内容定宽)尺寸不变,只看自己就永远等不到「放得下了」:
+		// 连同往上三层祖先一起看;换缩放档时壳会派发 resize。
+		for(let a = el.parentElement, k = 0; a && k < 3 && a !== document.body; a = a.parentElement, k += 1){ ro.observe(a); }
+		const onResize = ()=>measure();
+		window.addEventListener('resize', onResize);
+		return ()=>{ ro.disconnect(); window.removeEventListener('resize', onResize); };
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [containerRef, ...deps]);
 	return wrapped;
@@ -147,9 +262,11 @@ export function XQSegmented({value, options, onChange, className = '', size = 's
 	// 仅组内新增绝对定位 thumb(aria-hidden);测量不可用时无 -sliding 类,CSS 落回选中项实底。
 	const groupRef = React.useRef(null);
 	const optionCount = (options || []).length;
-	const thumb = useSlidingIndicator(groupRef, '.ant-radio-button-wrapper-checked', [value, optionCount]);
 	const wrapped = useSegmentedWrap(groupRef, [optionCount, (options || []).map((o)=>String(o && o.label)).join('|')]);
-	const sliding = thumb.ready && !wrapped;
+	// 档位变了(收内衬会挪动各项)滑块重量一次
+	const thumb = useSlidingIndicator(groupRef, '.ant-radio-button-wrapper-checked', [value, optionCount, wrapped]);
+	const folded = wrapped === 1 || wrapped === 2;
+	const sliding = thumb.ready && !folded;
 	return (
 		<Radio.Group
 			ref={groupRef}
@@ -157,7 +274,7 @@ export function XQSegmented({value, options, onChange, className = '', size = 's
 			buttonStyle="solid"
 			value={value}
 			onChange={onChange}
-			className={`xq-segmented ${sliding ? 'xq-segmented-sliding' : ''} ${wrapped ? 'is-wrapped' : ''} ${className}`.trim()}
+			className={`xq-segmented ${sliding ? 'xq-segmented-sliding' : ''} ${segmentedLevelClass(wrapped)} ${className}`.trim().replace(/\s+/g, ' ')}
 		>
 			{sliding ? (
 				<span
@@ -262,6 +379,8 @@ export function XQSelect({className = '', popupClassName = '', dropdownClassName
 			// 🔴 下拉面板默认按内容宽(不与窄选框等宽)→ 长选项文字在展开时完整可见(用户:选框可截断,
 			//    但下拉栏展开必须显示完整)。放在 {...rest} 前=仍可被单点显式覆盖。
 			dropdownMatchSelectWidth={false}
+			// 搜索比对缺省走单源(界面繁体时照屏幕输入的繁体也能搜到;简体与组件缺省同口径)。显式传入的仍优先。
+			filterOption={scriptFilterBy(rest.optionFilterProp)}
 			{...rest}
 			className={`xq-select ${className}`.trim()}
 			popupClassName={`xq-select-popup ${popupClassName || dropdownClassName}`.trim()}
@@ -343,7 +462,8 @@ function pickerDigitsOnly(text){
 	return /^[\s0-9０-９]+$/.test(text || '') && /[0-9０-９]/.test(text || '');
 }
 
-function pickerInvalid(text){
+// 快捷数字键入无效时的统一提示(日期框快输与 QuickTimeField 共用)。
+export function pickerInvalid(text){
 	try{ message.error(text, 3); }catch(e){ /* 无 antd 上下文时静默 */ }
 }
 
@@ -541,7 +661,8 @@ export function XQSideSection({iconName, title, extra, collapsible = true, defau
 					aria-expanded={collapsible ? expanded : undefined}
 				>
 					{iconName ? <XQIcon name={iconName} className="xq-side-section-icon" /> : null}
-					<span className="xq-side-section-title">{title}</span>
+					{/* 窄栏 / 大缩放下标题会被截断(缩放档省略号判定有引擎缺陷时退成直接截断):纯文字标题挂悬停全文 */}
+					<span className="xq-side-section-title" title={typeof title === 'string' ? title : undefined}>{title}</span>
 				</button>
 				{extra ? (
 					<span className="xq-side-section-extra" onClick={(e)=>e.stopPropagation()}>{extra}</span>
@@ -565,21 +686,5 @@ export function XQPanelHeader({kicker, extra, className = '', ...rest}){
 	);
 }
 
-export function XQNavItem({item, active, onClick}){
-	return (
-		<button
-			type="button"
-			className={`xq-nav-item ${active ? 'xq-nav-item-active' : ''}`}
-			onClick={onClick}
-			title={item.label}
-		>
-			<span className="xq-nav-item-icon">
-				<XQIcon name={item.icon || 'astro'} />
-			</span>
-			<span className="xq-nav-item-copy">
-				{item.group ? <span className="xq-nav-item-group">{item.group}</span> : null}
-				<span className="xq-nav-item-label">{item.label}</span>
-			</span>
-		</button>
-	);
-}
+// 按设计宽排版、栏宽不够时整体等比缩的 HTML 盘外框(放得下时 display:contents,逐像素不变)
+export { XQDesignScaleBox, designScaleOf, contentWidthOf, HTML_DESIGN_BOX_ATTR } from './XQDesignScaleBox';

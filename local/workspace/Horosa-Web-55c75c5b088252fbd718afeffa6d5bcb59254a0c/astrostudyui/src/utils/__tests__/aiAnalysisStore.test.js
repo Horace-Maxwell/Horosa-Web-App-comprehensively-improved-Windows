@@ -37,7 +37,7 @@ describe('aiAnalysisStore ui prefs', ()=>{
 		});
 		expect(migrated.protocolFamily).toBe('openai-compatible');
 		expect(migrated.name).toBe('DeepSeek');
-		// [C3] 2026-07 现役目录(v4 置顶,别名暂留兼容),迁移取键与 preset 单源;2026-09-11 官方新名 deepseek-flash 置首。
+		// 2026-07 现役目录(v4 置顶,别名暂留兼容),迁移取键与 preset 单源;2026-09-11 官方新名 deepseek-flash 置首。
 		expect(migrated.chatModelIds).toEqual(['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner']);
 		expect(migrated.embeddingModelIds).toEqual([]);
 		expect(migrated.providerOptions.requestTimeoutMs).toBe(120000);

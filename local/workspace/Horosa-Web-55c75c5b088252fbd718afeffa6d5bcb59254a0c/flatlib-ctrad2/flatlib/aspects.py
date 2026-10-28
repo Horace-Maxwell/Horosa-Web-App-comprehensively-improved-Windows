@@ -37,7 +37,7 @@ from . import const
 MAX_MINOR_ASP_ORB = 3
 MAX_EXACT_ORB = 0.3
 
-# ── [WP-5a] 相位容许度判据体系(请求级;默认 perObject=历史现状零回归) ──
+# ── 相位容许度判据体系(请求级;默认 perObject=历史现状零回归) ──
 # 'perObject'  : 任一星体轨覆盖即成相(obj1.orb()<orb and obj2.orb()<orb 才丢弃——现状);
 # 'byAspect'   : 按相位名固定表封顶(合/冲/刑/拱 8°,六合 4°,次相 2°——现代口径);
 # 'wholeSign'  : 整星座位相(星座距匹配相位角即成相,度距不设限);
@@ -57,7 +57,7 @@ def push_request_orb_policy(orbSystem, luminaryOrbBonus):
         bonus = float(luminaryOrbBonus or 0) / 100.0
     except (TypeError, ValueError):
         bonus = 0.0
-    # [R4-P3] inf/nan 会骗过 float():inf 使发光体轨 ×∞(全相位命中)——非有限或出值域(0..1)归零。
+    # inf/nan 会骗过 float():inf 使发光体轨 ×∞(全相位命中)——非有限或出值域(0..1)归零。
     import math
     if not math.isfinite(bonus) or bonus < 0 or bonus > 1.0:
         bonus = 0.0
@@ -119,7 +119,7 @@ def _orbList(obj1, obj2, aspList):
         } for asp in aspList
     ]
 
-# [R5 T3] 相位请求级 memo:同一请求里 getAspects / getImmediateAspects / getSignAspects / 围攻 / 互容各自
+# 相位请求级 memo:同一请求里 getAspects / getImmediateAspects / getSignAspects / 围攻 / 互容各自
 # 对同一批星对反复算 _aspectDict(一张本命盘约 5000 次,占计算约 1/4)。在 perchart 的古典临界区
 # (push_classical_request → pop)内按 (两星对象身份, 两星黄经, 相位表, 轨策略令牌) 记忆结果;
 # 临界区外(作用域深度 0)零记忆 = 与旧行为逐字节相同。命中返回浅拷贝(调用方拿到独立 dict)。
@@ -207,7 +207,7 @@ def _aspectDictCompute(obj1, obj2, aspList):
         
         # Check if aspect is within orb
         if asp in const.MAJOR_ASPECTS:
-            # [WP-5a] 主相位按当前 orb 体系判(默认 perObject=历史现状)。
+            # 主相位按当前 orb 体系判(默认 perObject=历史现状)。
             mode = _orbPolicy['mode']
             if mode == 'byAspect':
                 if _BY_ASPECT_ORBS.get(asp, MAX_MINOR_ASP_ORB) < orb:
@@ -279,7 +279,7 @@ def _aspectProperties(obj1, obj2, aspDict, simpleAsp=False):
     if asp == const.NO_ASPECT:
         return prop
     
-    # Aspect within orb([WP-5a] 有效轨含发光体/四轴加成;默认 bonus=0 与原值恒等)
+    # Aspect within orb(有效轨含发光体/四轴加成;默认 bonus=0 与原值恒等)
     prop1['inOrb'] = orb <= _effOrb(obj1)
     prop2['inOrb'] = orb <= _effOrb(obj2)
     if simpleAsp:

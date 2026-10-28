@@ -31,7 +31,10 @@ def compute(chart, date, fixedObjects=False, nodeRetrograde=False):
     rotation = 30 * (date.jd - prevSr.jd) / span if span > 1e-9 else 0.0
     
     # Include 30º for each previous year
-    age = math.floor((date.jd - chart.date.jd) / 365.2421904)
+    # 已过整年数 = 本命到上一次太阳回归之间回归了几次(与年内行度同以 prevSr 为界)。
+    # 旧写法 floor(Δjd / 365.2421904) 与 prevSr 各按各的界:目标时刻落在「满平均年」与「真回归」之间
+    # 那一小段(周年日恰在回归前后数分钟,约 1% 的年表行)时多算或少算一年,整盘差 30°(小限座错一宫)。
+    age = int(round((prevSr.jd - chart.date.jd) / 365.2421904))
     rotation = 30 * age + rotation
     
     # Create a copy of the chart and rotate content

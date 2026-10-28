@@ -87,7 +87,7 @@ def all_muhurtas():
     return {'day': day_muhurtas(), 'night': night_muhurtas()}
 
 
-def birth_muhurta(birth_jd, sunrise_jd, sunset_jd, next_sunrise_jd):
+def birth_muhurta(birth_jd, sunrise_jd, sunset_jd, next_sunrise_jd, vedic_weekday=None):
     """出生落在第几须臾。
 
     入参均为儒略日(UT)：
@@ -99,6 +99,8 @@ def birth_muhurta(birth_jd, sunrise_jd, sunset_jd, next_sunrise_jd):
     昼生(sunrise ≤ jd < sunset)：取昼须臾 floor((jd-sunrise)/(昼长/15)) + 1。
     否则夜生：以 jd ≥ sunset 落入夜段((jd-sunset)/(夜长/15))。
 
+    vedic_weekday(可选,0=周日,日界 = 日出):给出时 nature 为「当天实际档」——Abhijit 周三不取吉
+    (primitives.muhurta_effective_nature 单源),并回 abhijitAuspicious;缺省按表(旧行为)。
     返回 {period, index(1-15), name, nameEn, lord, nature, isAbhijit, startJd, endJd}。
     日出/日没不定(极地等，传入 None 或区间非法)→ 返回 None(优雅降级)。
     """
@@ -123,7 +125,7 @@ def birth_muhurta(birth_jd, sunrise_jd, sunset_jd, next_sunrise_jd):
     if sunrise_jd <= birth_jd < sunset_jd:
         # ── 昼生 ──
         slot = day_len / 15.0
-        idx = int((birth_jd - sunrise_jd) / slot)      # 0..14
+        idx = int((birth_jd - sunrise_jd) / slot)      # 0..14  segment-ok: 时间片序(下方夹紧)
         if idx > 14:
             idx = 14                                   # 边界(jd→sunset)夹紧
         ref = day_muhurtas()[idx]
@@ -137,7 +139,7 @@ def birth_muhurta(birth_jd, sunrise_jd, sunset_jd, next_sunrise_jd):
             # 同一历日午夜后、次日出前——理论上属「前一夜」，此处按本日夜段不外推，
             # 仅当 jd ≥ sunset 时给确定段;jd < sunrise 视为不在本日昼夜窗内。
             return None
-        idx = int((birth_jd - sunset_jd) / slot)       # 0..14
+        idx = int((birth_jd - sunset_jd) / slot)       # 0..14  segment-ok: 时间片序(下方夹紧)
         if idx > 14:
             idx = 14                                   # 边界(jd→次日出)夹紧
         if idx < 0:
@@ -153,8 +155,19 @@ def birth_muhurta(birth_jd, sunrise_jd, sunset_jd, next_sunrise_jd):
         'name': ref['name'],
         'nameEn': ref['nameEn'],
         'lord': ref['lord'],
-        'nature': ref['nature'],
+        'nature': _effective_nature(ref, vedic_weekday),
         'isAbhijit': ref['isAbhijit'],
+        'abhijitAuspicious': (_abhijit_ok(vedic_weekday) if ref['isAbhijit'] else None),
         'startJd': start_jd,
         'endJd': end_jd,
     }
+
+
+def _effective_nature(ref, vedic_weekday):
+    from astrostudy.india.primitives import muhurta_effective_nature
+    return muhurta_effective_nature(ref, vedic_weekday) if vedic_weekday is not None else ref['nature']
+
+
+def _abhijit_ok(vedic_weekday):
+    from astrostudy.india.primitives import abhijit_auspicious
+    return None if vedic_weekday is None else abhijit_auspicious(vedic_weekday)

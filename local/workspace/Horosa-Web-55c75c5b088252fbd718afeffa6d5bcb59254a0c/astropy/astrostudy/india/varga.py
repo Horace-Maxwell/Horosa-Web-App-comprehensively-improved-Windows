@@ -47,21 +47,17 @@ def normalize_chartnum(chartnum):
     return value if value in VARGA_DEFINITIONS else 1
 
 
-def get_supported_vargas():
-    return [dict({'chartnum': chartnum}, **VARGA_DEFINITIONS[chartnum])
-            for chartnum in sorted(VARGA_DEFINITIONS.keys())]
-
-
 def _part(degree_in_sign, chartnum):
+    # 精确段界(30/N 整倍数的浮点值)归后一段:加 1e-9 段宽容差(与 primitives.segment_index 同式)。
     interval = 30.0 / chartnum
-    value = int(math.floor(degree_in_sign / interval))
+    value = int(math.floor(degree_in_sign / interval + 1e-9))   # segment-ok: 与 primitives.segment_index 同式(已带段宽容差)
     return min(max(value, 0), chartnum - 1)
 
 
 def _scaled_degree(degree_in_sign, chartnum):
     interval = 30.0 / chartnum
     part = _part(degree_in_sign, chartnum)
-    return ((degree_in_sign - part * interval) / interval) * 30.0
+    return min(29.999999999, max(0.0, ((degree_in_sign - part * interval) / interval) * 30.0))
 
 
 def _modality_start(sign_index, movable=0, fixed=4, dual=8):
@@ -164,9 +160,16 @@ def shashtiamsa_nature(longitude):
 VARGA_VARIANT_CHOICES = {
     2: ('parivritti', 'kashinatha'),
     3: ('parivritti', 'jagannatha', 'somanatha'),
+    5: ('parashara',),
+    11: ('cyclic',),
     24: ('correct',),
     30: ('equal',),
 }
+
+# D5 Pañcāṃśa「Parāśara 主星序」变体:奇座五段 = 火 土 木 水 金 之奇座(白羊 水瓶 射手 双子 天秤),
+# 偶座五段 = 金 水 木 土 火 之偶座(金牛 处女 双鱼 摩羯 天蝎)。缺省(standard)仍为 奇座自白羊、偶座自天秤顺数。
+_D5_PARASHARA_ODD = (0, 10, 8, 2, 6)
+_D5_PARASHARA_EVEN = (1, 5, 11, 9, 7)
 
 
 def normalize_varga_variants(raw):
@@ -209,6 +212,10 @@ def _varga_variant_sign(chartnum, variant, sign_index, part):
         if sign_index % 2 == 0:                   # 奇象(Jyotish parity):自白羊顺
             return (3 * (sign_index // 2) + part) % 12
         return (11 - 3 * ((sign_index - 1) // 2) - part) % 12   # 偶象:自双鱼逆
+    if chartnum == 5 and variant == 'parashara':
+        return (_D5_PARASHARA_ODD if sign_index in ODD_SIGNS else _D5_PARASHARA_EVEN)[part]
+    if chartnum == 11 and variant == 'cyclic':
+        return (sign_index * 11 + part) % 12     # 连续循环(Parivṛtti):第 s 座第 k 段落 (11s+k) mod 12
     if chartnum == 24 and variant == 'correct':
         is_odd = sign_index in ODD_SIGNS
         return ((4 + part) % 12) if is_odd else ((3 - part) % 12)   # 偶象座逆(Narasimha Rao)
@@ -246,7 +253,10 @@ def varga_position(longitude, chartnum, variant=None):
         target_sign = ((0 if is_odd else 6) + part) % 12
     elif chartnum == 7:
         target_sign = (sign_index + (0 if is_odd else 6) + part) % 12
-    elif chartnum in (8, 11, 16, 45):
+    elif chartnum == 8:
+        # D8 Aṣṭāṃśa:动座自白羊、定座自射手、双体座自狮子(= 连续循环 (8s+k) mod 12)。
+        target_sign = (_modality_start(sign_index, movable=0, fixed=8, dual=4) + part) % 12
+    elif chartnum in (11, 16, 45):
         target_sign = (_modality_start(sign_index) + part) % 12
     elif chartnum == 9:
         target_sign = (_element_start_for_d9(sign_index) + part) % 12
@@ -300,6 +310,11 @@ def apply_varga_chart(perchart, chartnum, variant=None):
         return perchart
 
     chart = perchart.chart
+    # 昼夜是出生时刻的属性:分盘重定位后 reinit 会按伪日 / 伪升重判,先记下 D1 值、重算后还原。
+    try:
+        d1_diurnal = chart.isDiurnal()
+    except Exception:
+        d1_diurnal = getattr(perchart, 'isDiurnal', None)
     asc = chart.getAngle(const.ASC)
     mc = chart.getAngle(const.MC)
     desc = chart.getAngle(const.DESC)
@@ -326,4 +341,6 @@ def apply_varga_chart(perchart, chartnum, variant=None):
         _relocate(obj, varga_position(obj.lon, chartnum, variant))
 
     perchart.reinit()
+    if d1_diurnal is not None:
+        perchart.isDiurnal = d1_diurnal
     return perchart

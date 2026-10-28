@@ -125,7 +125,7 @@ public class AIWebFetchServiceTest {
 		return m;
 	}
 
-	/** [D21] 测试里绝不发真 DNS:公网名字一律解析成一个公网地址;特定名字解析成内网/混合/失败,验证解析后判定。 */
+	/** 测试里绝不发真 DNS:公网名字一律解析成一个公网地址;特定名字解析成内网/混合/失败,验证解析后判定。 */
 	private static OutboundUrlGuard.Resolver stubResolver() {
 		return new OutboundUrlGuard.Resolver() {
 			@Override
@@ -161,7 +161,7 @@ public class AIWebFetchServiceTest {
 
 	@Test
 	public void strictGuardResolvesThenRejectsPrivateResults() {
-		// [进阶复查 D21·2026-09-08] 修前:validateStrict 纯字符串判定,公网域名解析到内网 A 记录 / DNS 重绑定 / ::ffff:127.0.0.1 映射字面量全部穿透
+		// 修前:validateStrict 纯字符串判定,公网域名解析到内网 A 记录 / DNS 重绑定 / ::ffff:127.0.0.1 映射字面量全部穿透
 		OutboundUrlGuard.setResolverForTests(stubResolver());
 		try {
 			assertEquals("https://example.com/a", OutboundUrlGuard.validateStrict("https://example.com/a", false));
@@ -174,7 +174,7 @@ public class AIWebFetchServiceTest {
 					assertFalse("文案不回显地址: " + e.getMessage(), e.getMessage().contains("example"));
 				}
 			}
-			// [D30] 放开本机档只放**回环字面量**:名字主机仍走解析判定(此前 allowLoopback 整体 return,连解析层都跳过,
+			// 放开本机档只放**回环字面量**:名字主机仍走解析判定(此前 allowLoopback 整体 return,连解析层都跳过,
 			// 带此变量起的后端从未执行过解析判定)。解析器抛错的名字 ⇒ 拒;127.0.0.1 字面量 ⇒ 不问解析器直接放行。
 			OutboundUrlGuard.setResolverForTests(new OutboundUrlGuard.Resolver() {
 				@Override
@@ -232,7 +232,7 @@ public class AIWebFetchServiceTest {
 
 	@Test
 	public void strictGuardDottedQuadOnlyTrimAndReservedRanges() {
-		// [D28 锁] 单前缀文案(此前误报「双前缀」;文件里全是 ASCII 冒号,锁住不回退)
+		// 单前缀文案(此前误报「双前缀」;文件里全是 ASCII 冒号,锁住不回退)
 		try {
 			OutboundUrlGuard.validateStrict("ftp://x/", false);
 			fail("ftp 必拒");
@@ -241,7 +241,7 @@ public class AIWebFetchServiceTest {
 		}
 		OutboundUrlGuard.setResolverForTests(stubResolver());
 		try {
-			// [D29] 前缀判定只对点分十进制字面量:10.gov / 172.today / 127.blog 是公网名字(桩解析到公网)⇒ 放行
+			// 前缀判定只对点分十进制字面量:10.gov / 172.today / 127.blog 是公网名字(桩解析到公网)⇒ 放行
 			for (String u : new String[] { "https://10.gov/a", "https://172.today/b", "https://127.blog/c", "https://0.example/d", "https://169.254.example/e" }) {
 				assertEquals(u, OutboundUrlGuard.validateStrict(u, false));
 			}
@@ -251,9 +251,9 @@ public class AIWebFetchServiceTest {
 			assertTrue(OutboundUrlGuard.isPrivateOrLocalHost("172.20.1.1"));
 			assertTrue(OutboundUrlGuard.isPrivateOrLocalHost("100.64.3.4"));
 			assertFalse(OutboundUrlGuard.isPrivateOrLocalHost("172.32.0.1"));
-			// [D34] 首尾空格:守卫回 trim 后的串(此前回原串 ⇒ HttpRequest 的 URI.create 抛裸 IllegalArgumentException)
+			// 首尾空格:守卫回 trim 后的串(此前回原串 ⇒ HttpRequest 的 URI.create 抛裸 IllegalArgumentException)
 			assertEquals("https://example.com/a", OutboundUrlGuard.validateStrict("  https://example.com/a  ", false));
-			// [D36] NAT64 / IPv6 文档段 / 6to4 中继段:解析结果与字面量都拒
+			// NAT64 / IPv6 文档段 / 6to4 中继段:解析结果与字面量都拒
 			for (String u : new String[] { "http://nat64.example/x", "http://docv6.example/x", "http://192.88.99.1/x", "http://[64:ff9b::1]/x", "http://[2001:db8::1]/x" }) {
 				try {
 					OutboundUrlGuard.validateStrict(u, false);

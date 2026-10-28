@@ -1,4 +1,4 @@
-// 🔴 [V6-W3] 挂载一致性三闸 —— 「所有 AI 挂载设置永久准确无误」的机械保证(wuzhaoChainParity
+// 🔴 挂载一致性三闸 —— 「所有 AI 挂载设置永久准确无误」的机械保证(wuzhaoChainParity
 // 双向判据泛化)。由来:B 路 76 键矩阵实锤 sixyao.guirenFa 手抄白名单漏抄恒死、既有测试与
 // 代码抄同一份漏抄清单;fieldParams 是 fieldsToParams 手抄副本已漂移(首跑即抓获七政六键缺失);
 // kind 与 isChartTechnique 双口径零一致性断言(登错一处=齿轮静默蒸发)。
@@ -16,9 +16,10 @@
 import fs from 'fs';
 import path from 'path';
 import { TECHNIQUE_SETTINGS_SCHEMA } from '../techniqueMountSettings';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const UI_ROOT = path.join(__dirname, '..', '..');
-const CTX_SRC = fs.readFileSync(path.join(UI_ROOT, 'utils', 'aiAnalysisContext.js'), 'utf8');
+const CTX_SRC = readSource(path.join(UI_ROOT, 'utils', 'aiAnalysisContext.js'));
 
 // 层②:组装文件内「前缀拼键」消费锚(字面键名不出现,靠 prefix+动态键拼装)。
 // 锚串必须与 aiAnalysisContext.js 源码逐字节一致 —— 改了消费结构就该来改这里(有意为之)。
@@ -71,12 +72,12 @@ reg('components/lingqi/lingqiSnapshot.js', ['category']);
 const remoteFileCache = {};
 function remoteSrc(file){
 	if(!remoteFileCache[file]){
-		remoteFileCache[file] = fs.readFileSync(path.join(UI_ROOT, file), 'utf8');
+		remoteFileCache[file] = readSource(path.join(UI_ROOT, file));
 	}
 	return remoteFileCache[file];
 }
 
-describe('[V6-W3 闸1] 全技法齿轮消费闸(新增齿轮忘接组装点即红)', ()=>{
+describe('全技法齿轮消费闸(新增齿轮忘接组装点即红)', ()=>{
 	it('🔴 每个齿轮名必须命中:组装文件字面/前缀拼键锚/登记的异地消费文件', ()=>{
 		const missing = [];
 		Object.keys(TECHNIQUE_SETTINGS_SCHEMA).forEach((key)=>{
@@ -122,18 +123,18 @@ describe('[V6-W3 闸1] 全技法齿轮消费闸(新增齿轮忘接组装点即�
 		expect(/const direct = \['school'/.test(fnBody)).toBe(false);
 	});
 
-	it('🔴 [Q-206/T-151] 六爻齿轮选流派必须真套预设(只写 school 字面 = 快照自称某派、细项仍通用)', ()=>{
+	it('🔴 六爻齿轮选流派必须真套预设(只写 school 字面 = 快照自称某派、细项仍通用)', ()=>{
 		const at = CTX_SRC.indexOf('function mergeLiuyaoGearSettings');
 		expect(at).toBeGreaterThan(0);
 		const fnBody = CTX_SRC.slice(at, at + 2400);
 		// 与页面 changeLiuyaoPreset 同律:school 变 → 以 applyPreset(该派) 为底,其余齿轮键再叠。
 		expect(fnBody).toContain('applyLiuyaoPreset(f.school, base)');
 		expect(fnBody).toContain('LIUYAO_PRESETS[f.school]');
-		expect(CTX_SRC).toContain("from '../components/gua/liuyaoSchools'");
+		expect(CTX_SRC).toContain("from '../../components/gua/liuyaoSchools'");   // 挂载上下文已拆子模块(utils/aiAnalysisContext/),路径多一层
 	});
 });
 
-describe('[V6-W3 闸3] fieldParams ≡ fieldsToParams 逐键对拍(手抄副本漂移即红)', ()=>{
+describe('fieldParams ≡ fieldsToParams 逐键对拍(手抄副本漂移即红)', ()=>{
 	// 有意差异豁免表(登记理由;新漂移必须进表或修齐)。
 	const AI_ONLY = new Set([
 		// AI 挂载主限恒开固定档(技法页由 direction 子 tab 交互态另行组装,不在 fieldsToParams 主体):
@@ -173,7 +174,7 @@ describe('[V6-W3 闸3] fieldParams ≡ fieldsToParams 逐键对拍(手抄副本�
 	});
 });
 
-describe('[V6-W3 闸4] kind ↔ 分派路径一致性(登错一处=齿轮静默蒸发)', ()=>{
+describe('kind ↔ 分派路径一致性(登错一处=齿轮静默蒸发)', ()=>{
 	// kind='payload' 但走 A 路(record):历史遗留双例(cetian/huangji),靠 regenerate case 手抄
 	// 回塞才活。例外单源=schema 上的 chartRoute 标记(复查轮把它落进 schema:基线锚也按此分叉,
 	// 手抄清单与 schema 双账必漂),此处只验「chartRoute 标记 ⟺ 实际走 A 路」互为充要。
@@ -232,7 +233,7 @@ describe('[闸6] A 类基线=全局单例现值(Issue#76)', ()=>{
 		const prev = ZWEngineOptions.taiSuiRelatives;
 		try{
 			ZWEngineOptions.taiSuiRelatives = [{ branch: '午', role: '母', sex: 'female' }];
-			// [Q-022/M-30] 关系人字段随「紫云太岁入卦」开关揭示:基线里把开关置开(与页面语义同:关系人只在入卦开时消费)
+			// 关系人字段随「紫云太岁入卦」开关揭示:基线里把开关置开(与页面语义同:关系人只在入卦开时消费)
 			const base = { ...effectiveMountBaseline('ziwei', {}), taiSuiRuGua: 1 };
 			// 同长不同支的关系人必须判「不同」→ override 透传
 			const opts = pruneOptionsToNonDefault('ziwei', { taiSuiRelatives: '子:兄' }, base);
@@ -337,7 +338,7 @@ describe('[闸7] regen case 块 record.* 引用覆盖 schema 齿轮字段', ()=>
 			const wholesale = /buildChart\w+Params\(record\)|ForRecord\(record\)[^,]|buildFieldObject\(record\)/.test(block);
 			if(wholesale){ return; }
 			const used = new Set();
-			// [复审 F17①] 剥注释行再抽引用:一行「// record.foo 已在别处」曾可保送
+			// 剥注释行再抽引用:一行「// record.foo 已在别处」曾可保送
 			const codeOnly = block.split('\n').filter((ln)=>!/^\s*\/\//.test(ln)).join('\n');
 			const useRe = /record\.([A-Za-z0-9_]+)/g;
 			let um;
@@ -345,7 +346,7 @@ describe('[闸7] regen case 块 record.* 引用覆盖 schema 齿轮字段', ()=>
 			schema.fields.forEach((f)=>{
 				if(TIME_FIELD_NAMES.has(f.name)){ return; }
 				if(EXEMPT[`${key}.${f.name}`]){
-					// [复审 F17④] 豁免反向自证:登记「builder 直读 record」的键必须真在
+					// 豁免反向自证:登记「builder 直读 record」的键必须真在
 					// aiAnalysisContext.js 出现 record.<field> 引用(防登记造假,REMOTE_CONSUMPTION 同律)
 					if(!new RegExp(`record\\.${f.name}\\b`).test(CTX_SRC)){
 						bad.push(`${key}.${f.name}: EXEMPT 登记为 builder 直读,但全文件无 record.${f.name} 引用(登记造假)`);
@@ -403,16 +404,20 @@ describe('[闸6b] 审计五病 globalCurrent 在位且联动', ()=>{
 		expect(typeof f.globalCurrent).toBe('function');
 		expect(typeof g.globalCurrent).toBe('function');
 	});
-	it('suzhan.houseStartMode globalCurrent 读 localStorage 同源', ()=>{
+	it('suzhan.houseStartMode globalCurrent 与页面载入缺键同源(旧偏好一次性并入时冻结,之后不随种子)', ()=>{
 		const f = get('suzhan', 'houseStartMode');
 		expect(typeof f.globalCurrent).toBe('function');
+		const seeds = require('../newChartSeeds');
 		try{
-			localStorage.setItem('suzhanHouseStartMode', '1');
+			seeds.__resetNewChartSeedsForTest();
+			localStorage.setItem('suzhanHouseStartMode', '1');   // 旧版偏好 → 首读并入种子,并冻结为旧记录缺键时的取值
 			expect(f.globalCurrent()).toBe(1);
-			localStorage.setItem('suzhanHouseStartMode', '0');
-			expect(f.globalCurrent()).toBe(0);
+			seeds.recordNewChartSeeds({ houseStartMode: 0 });     // 之后新盘以种子为准;缺键的旧记录仍按冻结值
+			expect(f.globalCurrent()).toBe(1);
+			expect(seeds.newChartSeedValue('houseStartMode')).toBe(0);
 		}finally{
 			localStorage.removeItem('suzhanHouseStartMode');
+			seeds.__resetNewChartSeedsForTest();
 		}
 	});
 	it('planetaryarc 无头 builder asporb 回退 transitOrbDefault(镜像型:builder 侧锚)', ()=>{

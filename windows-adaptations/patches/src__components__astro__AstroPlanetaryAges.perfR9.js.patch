@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroPlanetaryAges.js b/astrostudyui/src/components/astro/AstroPlanetaryAges.js
-index d19ddb74..e399402d 100644
+index cd5ae46e..34a1f668 100644
 --- a/astrostudyui/src/components/astro/AstroPlanetaryAges.js
 +++ b/astrostudyui/src/components/astro/AstroPlanetaryAges.js
 @@ -10,6 +10,7 @@ import { buildPlanetaryAges, buildPlanetaryAgesSnapshotText, } from '../../utils

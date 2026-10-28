@@ -45,7 +45,7 @@ const isSheng = (star, yun)=>(star === yun || star === ((yun % 9) + 1) || star =
 //   客星：year（出年神、飞太岁）。
 //   几何：geo={ rect, outline, markers, gongAt }（画布户型图，可选）——
 //     🔴 只出**建议**，绝不并入 neiXiong、绝不计入 neiBad、绝不动总断。
-//     理由同图像分析一贯口径：机器所见不能替人下判，须用户逐条过目认可（一键采纳后方计入）。
+//     理由同其它自动判读一贯口径：机器所见不能替人下判，须用户逐条过目认可（一键采纳后方计入）。
 //     不传 geo 时全链恒等于未加此功能之前（新增项一律走此闸）。
 export function zhaiduan({
 	xiangShan = '', yun = 9, palaces: palacesIn = null,

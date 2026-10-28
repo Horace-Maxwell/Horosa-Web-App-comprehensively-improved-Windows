@@ -1,19 +1,19 @@
 diff --git a/astrostudyui/src/components/zeri/QimenZeriMain.js b/astrostudyui/src/components/zeri/QimenZeriMain.js
-index a2f6885a..fde49d21 100644
+index 22a3a1b5..9669ce32 100644
 --- a/astrostudyui/src/components/zeri/QimenZeriMain.js
 +++ b/astrostudyui/src/components/zeri/QimenZeriMain.js
-@@ -17,6 +17,9 @@ import { newQimenLeaf, newQimenGroup, compileQimenTree } from '../../divination/
- import { scanQimen, explainQimenAt, buildQimenScanSeeds } from '../../divination/zeri/qimenScanEngine';
+@@ -19,6 +19,9 @@ import { scanQimen, explainQimenAt, buildQimenScanSeeds } from '../../divination
  import { buildQimenZeriSnapshotExtra } from '../../divination/zeri/qimenZeriSnapshot';
  import { qimenZeriSchemeStore } from '../../divination/zeri/schemeStore';
+ import { leadingYearOf } from '../../utils/dateStrSafe';
 +// [Windows-only] horosa_panel_ready_v1(P5):奇门分册找局的「画完」观测钉(键=顶层页签 'zeri',
 +// 与天星分册同键 —— 观测按页配对,分册切换不换键)。
 +import { markPanelReady } from '../../utils/perfMark';
  
  function initialTree(){
  	return { ...newQimenGroup('all'), children: [newQimenLeaf('pattern_ji')] };
-@@ -284,15 +287,17 @@ export default class QimenZeriMain extends Component{
- 			if(this.unmounted){
+@@ -435,15 +438,17 @@ export default class QimenZeriMain extends Component{
+ 			if(this.unmounted || !scanRunIsCurrent(this, run)){
  				return;
  			}
 -			this.setState({ scanning: false, progress: null, results: res.intervals, truncated: res.truncated });
@@ -21,7 +21,7 @@ index a2f6885a..fde49d21 100644
 +			// 「本次交互到此为止」,不记会让该次找局永远配不上对(与遁甲 pan=null 口径一致)。
 +			this.setState({ scanning: false, progress: null, results: res.intervals, truncated: res.truncated }, ()=>{ markPanelReady('zeri'); });
  		}catch(e){
- 			if(this.unmounted){
+ 			if(this.unmounted || !scanRunIsCurrent(this, run)){
  				return;
  			}
  			if(e && e.name === 'AbortError'){

@@ -1,6 +1,7 @@
 import { assembleNatalChart, calcZiwei, deriveSanPan } from '../ZiweiCalc';
 import { LIFE_MASTER } from '../data/ziweiTables';
 import { ZWEngineOptions, ziweiNeedsLocalEngine, BRIGHTNESS_SOURCE_OPTIONS } from '../ziweiOptions';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const ZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 const GAN = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
@@ -317,12 +318,12 @@ describe('ZiweiCalc · Phase5 命主口径一致性哨兵(切开关不误改命�
 	});
 });
 
-// ══ [B4] 闰月归月锁步金标:ZiweiCalc 命身月判定 ≡ 内核 resolveLeapMonth(oracle) ═══
+// ══ 闰月归月锁步金标:ZiweiCalc 命身月判定 ≡ 内核 resolveLeapMonth(oracle) ═══
 // ZiweiCalc 的 if-else 是内核的适配器(运行时不调内核=有意:内核 starMonth 语义与产品
 // 「月系星恒 monthInt」不同);本网格把两者钉成锁步 —— 任何一侧漂移当场红。
 // 反推口径:timeZi=子(timeIdx=0)→lifeIdx=(2+month-1-0)%12→month=(lifeIdx-1+12)%12+1…
 // 直接用 lifeHouseIndex 反解命身月。
-describe('[B4] 闰月六档锁步(Calc≡内核 palaceMonth)', ()=>{
+describe('闰月六档锁步(Calc≡内核 palaceMonth)', ()=>{
 	const { resolveLeapMonth } = require('../ziweiSchools');
 	const KEY_MAP = { mid_split: 'split15', prev: 'current', next: 'next', split_days: 'split_days', split_star_month: 'split_star_month', solar_term: 'solar_term' };
 	const monthFromChart = (c)=>{
@@ -361,8 +362,8 @@ describe('[B4] 闰月六档锁步(Calc≡内核 palaceMonth)', ()=>{
 	});
 });
 
-// ══ [P2a] 命主取法显式选项:默认零回归 + ming_branch 恒天盘命宫 + 硬传退役哨兵 ═══
-describe('[P2a] lifeMasterBy 命主取法', ()=>{
+// ══ 命主取法显式选项:默认零回归 + ming_branch 恒天盘命宫 + 硬传退役哨兵 ═══
+describe('lifeMasterBy 命主取法', ()=>{
 	const { LIFE_MASTER } = require('../data/ziweiTables');
 	const { deriveSanPan, applyLifeMasterOption } = require('../ZiweiCalc');
 	const MKC = (extra)=>assembleNatalChart({ yearGan: '甲', yearZi: '子', monthInt: 6, leap: false, dayInt: 10, timeZi: '卯', male: true, ...extra });
@@ -407,10 +408,10 @@ describe('[P2a] lifeMasterBy 命主取法', ()=>{
 	});
 });
 
-// ══ [B6] 新口径三选项行为金标(流鸾流喜 / 长生火土同宫 / 流月太岁档) ═══
-describe('[B6] 新口径选项', ()=>{
+// ══ 新口径三选项行为金标(流鸾流喜 / 长生火土同宫 / 流月太岁档) ═══
+describe('新口径选项', ()=>{
 	const { ZWEngineOptions: EO } = require('../ziweiOptions');
-	test('🔴 [P3d] 流鸾流喜:关(默认)不出;开则 12 支公式 golden(流鸾=(3−n)mod12,流喜对宫)', ()=>{
+	test('🔴 流鸾流喜:关(默认)不出;开则 12 支公式 golden(流鸾=(3−n)mod12,流喜对宫)', ()=>{
 		const ZiWeiHelper = require('../ZiWeiHelper');
 		const DIZI = '子丑寅卯辰巳午未申酉戌亥'.split('');
 		expect(ZiWeiHelper.getFlowStars('甲', '子').some((s)=>s.name === '流鸾')).toBe(false);   // 默认关
@@ -434,7 +435,7 @@ describe('[B6] 新口径选项', ()=>{
 			});
 		}finally{ EO.flowLuanXi = false; }
 	});
-	test('🔴 [P3b] 长生档:土五局两档长生环整移(申→寅);其余四局两档逐宫恒同;默认档=现状', ()=>{
+	test('🔴 长生档:土五局两档长生环整移(申→寅);其余四局两档逐宫恒同;默认档=现状', ()=>{
 		// 造土五局盘:扫月/时找 wuxingJu===5
 		let ctx5 = null;
 		outer:
@@ -464,7 +465,7 @@ describe('[B6] 新口径选项', ()=>{
 		const b2 = assembleNatalChart({ ...ctx2, changshengStart: 'huo_tu' });
 		for(let i = 0; i < 12; i++){ expect(b2.houses[i].phase).toBe(a2.houses[i].phase); }
 	});
-	test('🔴 [P3c] 流月档:斗君≠流年支的盘,两档正月锚宫不同;默认=斗君法', ()=>{
+	test('🔴 流月档:斗君≠流年支的盘,两档正月锚宫不同;默认=斗君法', ()=>{
 		jest.isolateModules(()=>{});   // 无需隔离,直接经单例切换
 		const { buildLuckLayers } = (()=>({ }))();   // ZWLuckPanel 的 buildLiuyueItems 未导出——经源码断言锁分支
 		const fs = require('fs'); const path = require('path');
@@ -474,8 +475,8 @@ describe('[B6] 新口径选项', ()=>{
 	});
 });
 
-// ══ [P3a] 魁钺歌诀两版金标(双源考据:差异恰仅庚干) ═══
-describe('[P3a] kuiYue 魁钺歌诀', ()=>{
+// ══ 魁钺歌诀两版金标(双源考据:差异恰仅庚干) ═══
+describe('kuiYue 魁钺歌诀', ()=>{
 	const mk = (yearGan, yearZi, extra)=>assembleNatalChart({ yearGan, yearZi, monthInt: 6, leap: false, dayInt: 10, timeZi: '卯', male: true, ...extra });
 	test('🔴 庚年两档移位:默认魁丑/钺未;geng_ma_hu 魁午/钺寅', ()=>{
 		const a = mk('庚', '午', {});
@@ -529,8 +530,8 @@ describe('[P3a] kuiYue 魁钺歌诀', ()=>{
 	});
 });
 
-// ══ [A2] 截空正副双星修真金标(与旬空同律:逐支各判「与年干同极性=正支」) ═══
-describe('[A2] 截空旬空正副极性(十干矩阵)', ()=>{
+// ══ 截空正副双星修真金标(与旬空同律:逐支各判「与年干同极性=正支」) ═══
+describe('截空旬空正副极性(十干矩阵)', ()=>{
 	const GAN10 = '甲乙丙丁戊己庚辛壬癸'.split('');
 	const findAll = (c, nm)=>{
 		const out = [];
@@ -562,8 +563,8 @@ describe('[A2] 截空旬空正副极性(十干矩阵)', ()=>{
 	});
 });
 
-// ══ [A5] 流曜位置表消副本金标(读表单源+随魁钺档;禁字面量回潮) ═══
-describe('[A5] 流曜表单源', ()=>{
+// ══ 流曜位置表消副本金标(读表单源+随魁钺档;禁字面量回潮) ═══
+describe('流曜表单源', ()=>{
 	const ZiWeiHelper = require('../ZiWeiHelper');
 	const { ZWEngineOptions: EO2 } = require('../ziweiOptions');
 	test('🔴 默认档全十干输出与旧硬编表逐字节等价(表等价证明)', ()=>{
@@ -603,8 +604,8 @@ describe('[A5] 流曜表单源', ()=>{
 	});
 });
 
-// ══ [B11+B12] 长生顺逆档 + 空亡单星法金标 ═══
-describe('[B11] changshengDirection 仅动 phase 铁律', ()=>{
+// ══ 长生顺逆档 + 空亡单星法金标 ═══
+describe('changshengDirection 仅动 phase 铁律', ()=>{
 	const yinMale = { yearGan: '乙', yearZi: '丑', monthInt: 6, leap: false, dayInt: 10, timeZi: '卯', male: true };  // 阴男=逆
 	test('🔴 阴男两档:phase 环反向;direction 逐宫字节等;博士序逐宫字节等', ()=>{
 		const a = assembleNatalChart({ ...yinMale });
@@ -621,7 +622,7 @@ describe('[B11] changshengDirection 仅动 phase 铁律', ()=>{
 		expect(b.houses.map((h)=>h.phase).join('')).toBe(a.houses.map((h)=>h.phase).join(''));
 	});
 });
-describe('[B12] kongwangStyle 单星法四态', ()=>{
+describe('kongwangStyle 单星法四态', ()=>{
 	const find2 = (c, nm)=>{ let n = 0; c.houses.forEach((h)=>['starsOthersBad'].forEach((g)=>(h[g] || []).forEach((s)=>{ if(s.name === nm){ n++; } }))); return n; };
 	test('🔴 single:截空/旬空各恰一颗正名、零副;double=默认恒一正一副', ()=>{
 		['庚', '乙'].forEach((g)=>{
@@ -634,8 +635,8 @@ describe('[B12] kongwangStyle 单星法四态', ()=>{
 	});
 });
 
-// ══ [B10+B13] 流年四化取干 + 流年火铃金标 ═══
-describe('[B10] liunianSihuaGan 两档', ()=>{
+// ══ 流年四化取干 + 流年火铃金标 ═══
+describe('liunianSihuaGan 两档', ()=>{
 	const { ZWEngineOptions: EO3 } = require('../ziweiOptions');
 	const ZiWeiHelper = require('../ZiWeiHelper');
 	test('🔴 buildLuckLayers 透传 sihuaGan;消费点 layer.sihuaGan||layer.gan(源码锁三处)', ()=>{
@@ -644,10 +645,10 @@ describe('[B10] liunianSihuaGan 两档', ()=>{
 		expect(ln.sihuaGan).toBe('戊');
 		expect(ln.gan).toBe('丙');
 		const fs4 = require('fs'); const path = require('path');
-		// [B10-fix] 面板/快照/盘面源头三处改走 effLayerSihuaGan(消费期现算);
+		// 面板/快照/盘面源头三处改走 effLayerSihuaGan(消费期现算);
 		// ZWCommHouse 徽保持读 layer.sihuaGan||layer.gan(由 buildLuckRender 源头现算喂值)。
 		['ZWLuckPanel.js', 'ZiWeiMain.js'].forEach((f)=>{
-			const src = fs4.readFileSync(path.resolve(__dirname, '..', f), 'utf8');
+			const src = readSource(path.resolve(__dirname, '..', f));
 			expect(`${f}:${src.includes('effLayerSihuaGan(chart, layer)') || src.includes('effLayerSihuaGan(chart, l)')}`).toBe(`${f}:true`);
 		});
 		const commSrc = fs4.readFileSync(path.resolve(__dirname, '..', 'ZWCommHouse.js'), 'utf8');
@@ -671,7 +672,7 @@ describe('[B10] liunianSihuaGan 两档', ()=>{
 		expect(src).toMatch(/liunianSihuaGan === 'ming_gong_gan'[\s\S]{0,120}item\.sihuaGan/);
 	});
 });
-describe('[B13] 流年火铃', ()=>{
+describe('流年火铃', ()=>{
 	const { ZWEngineOptions: EO4 } = require('../ziweiOptions');
 	const ZiWeiHelper = require('../ZiWeiHelper');
 	test('🔴 关(默认)不出;开=与本命火铃内核同式(流年支代年支+生时);缺时辰不出', ()=>{
@@ -702,10 +703,10 @@ describe('[B13] 流年火铃', ()=>{
 	});
 });
 
-// ══ [A3] 晚子时「跟随全局」默认档 ═══
-describe('[A3] lateZi global 档', ()=>{
+// ══ 晚子时「跟随全局」默认档 ═══
+describe('lateZi global 档', ()=>{
 	const birth23 = { date: '1990-05-18', time: '23:30:00', zone: 'Asia/Shanghai', lon: 116.4, lat: 39.9, gender: 'male' };
-	test('🔴 [Q-194/T-120] global=透传显式全局值但「柱进盘不进」;zi_chu 强制档=(1,1)且柱与安星皆进 → 两档必异盘', ()=>{
+	test('🔴 global=透传显式全局值但「柱进盘不进」;zi_chu 强制档=(1,1)且柱与安星皆进 → 两档必异盘', ()=>{
 		const viaGlobal11 = calcZiwei(birth23, { lateZi: 'global', after23NewDay: 1, lateZiHourUseNextDay: 1 });
 		const viaForced = calcZiwei(birth23, { lateZi: 'zi_chu', after23NewDay: 0, lateZiHourUseNextDay: 0 });
 		// 缺省档(global)按 Java 盘口径:日柱随全局日界进位,安命/安紫微仍取日历农历日 ⇒ 与「子初换日(强制)」不同盘。
@@ -736,12 +737,12 @@ describe('[A3] lateZi global 档', ()=>{
 	});
 });
 
-// ══ [B15] 小限顺逆迁入 ZWEngineOptions ═══
-describe('[B15] xiaoxianMode 单例迁入', ()=>{
+// ══ 小限顺逆迁入 ZWEngineOptions ═══
+describe('xiaoxianMode 单例迁入', ()=>{
 	const fs6 = require('fs'); const path6 = require('path');
 	test('🔴 消费点读单例非 localStorage;builder SWITCH_KEYS 含 xiaoxianMode;ctx 不再兜转 LS', ()=>{
 		const luck = fs6.readFileSync(path6.resolve(__dirname, '..', 'ZWLuckPanel.js'), 'utf8');
-		// [B15b] 链路重构:ZWLuckPanel 不再自读单例,统一走 ZiWeiHelper.xiaoxianClockwise(内核=ziweiCore
+		// 链路重构:ZWLuckPanel 不再自读单例,统一走 ZiWeiHelper.xiaoxianClockwise(内核=ziweiCore
 		// 纯函数,单例读取沉到 Helper 惰性 require)。三段各按真名锁(L2 铁律:键名途中换名,只 grep 一名必误判)。
 		expect(luck.includes('ZiWeiHelper.xiaoxianClockwise(chart)')).toBe(true);
 		const helper6 = fs6.readFileSync(path6.resolve(__dirname, '..', 'ZiWeiHelper.js'), 'utf8');
@@ -751,7 +752,7 @@ describe('[B15] xiaoxianMode 单例迁入', ()=>{
 		expect(luck.includes("localStorage.getItem('ziweiXiaoxianYinyang')")).toBe(false);
 		const main = fs6.readFileSync(path6.resolve(__dirname, '..', 'ZiWeiMain.js'), 'utf8');
 		expect(/ZW_ENGINE_SWITCH_KEYS = \[[\s\S]*?'xiaoxianMode'\]/.test(main)).toBe(true);
-		const ctx = fs6.readFileSync(path6.resolve(__dirname, '..', '..', '..', 'utils', 'aiAnalysisContext.js'), 'utf8');
+		const ctx = readSource(path6.resolve(__dirname, '..', '..', '..', 'utils', 'aiAnalysisContext.js'));
 		expect(ctx.includes("params.xiaoxianMode = `${record.ziweiXiaoxianYinyang}`")).toBe(true);
 		// LS 兜转已删:ctx 内不得再写 ziweiXiaoxianYinyang 键
 		expect(ctx.includes("safeLocalStorageSet('ziweiXiaoxianYinyang'")).toBe(false);

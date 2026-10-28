@@ -37,18 +37,18 @@ describe('小成图 · 渲染冒烟', ()=>{
 		expect(render('controls')).toMatch(/起\s*卦/);
 		expect(render('controls', QI, { qiguaFa: 'number' })).toContain('配数流派');
 		expect(render('controls', QI, { qiguaFa: 'stock' })).toContain('开盘价');
-		// [XCT-1] 摇钱三变:与大衍共用种子/手录六爻控件,hint 按法别
+		// 摇钱三变:与大衍共用种子/手录六爻控件,hint 按法别
 		const hy = render('controls', QI, { qiguaFa: 'yaoqian' });
 		expect(hy).toContain('起卦种子');
 		expect(hy).toContain('摇钱手录');
 		expect(render('controls', QI, { qiguaFa: 'dayan' })).toContain('蓍草手录');
 	});
-	test('[XCT-1] 左栏闢卦口径控件:两档皆渲染,hint 随档变', ()=>{
+	test('左栏闢卦口径控件:两档皆渲染,hint 随档变', ()=>{
 		expect(render('controls')).toContain('闢卦细判');
 		expect(render('controls', QI, { piKoujing: 'zheng' })).toContain('得配害');
 		expect(render('controls', QI, { piKoujing: 'yiwen' })).toContain('得配利');
 	});
-	test('[XCT-4] 右栏五页齐备(推导/四象/应期/宫义/起卦);SSR 惰性只出未激活页之头', ()=>{
+	test('右栏五页齐备(推导/四象/应期/宫义/起卦);SSR 惰性只出未激活页之头', ()=>{
 		const h = render('aux', QI, { yongGong: 3 });
 		['tuidao', 'sixiang', 'yingqi', 'gongyi', 'qigua'].forEach((k)=>{
 			expect(h).toContain(`data-node-key="${k}"`);
@@ -57,7 +57,7 @@ describe('小成图 · 渲染冒烟', ()=>{
 		expect(h).toContain('用宫所主');
 		expect(h).toContain('宫主动静迁移');
 	});
-	test('[XCT-2] 应期/宫义页内容直渲不抛(绕 Tabs 惰性,直取渲染函数产物)', ()=>{
+	test('应期/宫义页内容直渲不抛(绕 Tabs 惰性,直取渲染函数产物)', ()=>{
 		const inst = new XiaoChengTuMain({ fields: FIELDS, value: {} });
 		inst.props = { fields: FIELDS, value: {} };
 		inst.state = { ...inst.state, settings: { qiguaFa: 'manual', qiguaShu: 'tiandi', yongGong: 1, piKoujing: 'zheng' }, qi: QI };
@@ -119,7 +119,7 @@ describe('小成图 · AI 快照段头金标', ()=>{
 		const t = buildXiaoChengTuSnapshotForCase({ qi: QI, askEvent: 'x', options: { yongGong: 1 } }, { yongGong: 9 });
 		expect(t).toContain('用宫 9(离)');
 	});
-	test('④[XCT-1] 闢口径为活开关:同卦同宫,改口径快照断辞即变(挂载齿轮同源)', ()=>{
+	test('④闢口径为活开关:同卦同宫,改口径快照断辞即变(挂载齿轮同源)', ()=>{
 		const pan = buildPan(QI);
 		const zh = buildXiaoChengTuSnapshotText(pan, QI, { yongGong: 1, piKoujing: 'zheng' });
 		const yi = buildXiaoChengTuSnapshotText(pan, QI, { yongGong: 1, piKoujing: 'yiwen' });
@@ -134,7 +134,7 @@ describe('小成图 · AI 快照段头金标', ()=>{
 		// 无头重算亦随 options 走
 		expect(buildXiaoChengTuSnapshotForCase({ qi: QI, options: { yongGong: 1, piKoujing: 'yiwen' } }, {})).toContain('得配为情:利');
 	});
-	test('⑤[XCT-2] 应期段折入推演链(段头七段不新增)', ()=>{
+	test('⑤应期段折入推演链(段头七段不新增)', ()=>{
 		const t = buildXiaoChengTuSnapshotText(buildPan(QI), QI, { yongGong: 1 });
 		expect(t).toContain('应期推演(系载例归纳)');
 		expect(t).toContain('两分定半月(升降)');
@@ -142,7 +142,7 @@ describe('小成图 · AI 快照段头金标', ()=>{
 		const heads = (t.match(/^\[[^\]]+\]$/gm) || []);
 		expect(heads).toEqual(['[问事]', '[起卦]', '[佈局]', '[推导]', '[四象]', '[应期]']);
 	});
-	test('⑥[XCT-2] 应期链逐字对读载例(乾之兑问来人 → 农历十月初六)', ()=>{
+	test('⑥应期链逐字对读载例(乾之兑问来人 → 农历十月初六)', ()=>{
 		const qi = qiGuaManual({ up: '乾', lo: '乾', dongYaos: [3, 6] });
 		const t = buildXiaoChengTuSnapshotText(buildPan(qi), qi, { yongGong: 8, askEvent: '问来人' });
 		expect(t).toContain('应期推演(系载例归纳):农历十月初六');
@@ -151,7 +151,7 @@ describe('小成图 · AI 快照段头金标', ()=>{
 });
 
 describe('小成图 · 挂载齿轮与组件默认同源', ()=>{
-	test('[XCT-1] techniqueMountSettings 各 field 默认 === DEFAULT_SETTINGS 同键(防双声明漂移)', ()=>{
+	test('techniqueMountSettings 各 field 默认 === DEFAULT_SETTINGS 同键(防双声明漂移)', ()=>{
 		// eslint-disable-next-line global-require
 		const { TECHNIQUE_SETTINGS_SCHEMA, getTechniqueSettingsDefaults } = require('../../../utils/techniqueMountSettings');
 		// eslint-disable-next-line global-require

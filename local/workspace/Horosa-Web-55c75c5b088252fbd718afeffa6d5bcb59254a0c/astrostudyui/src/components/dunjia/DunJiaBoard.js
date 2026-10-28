@@ -3,9 +3,10 @@ import { Popover } from 'antd';
 import { BaZiColor, ZhiColor } from '../../msg/bazimsg';
 import sealedImage from '../../assets/sealed.png';
 import { buildQimenXiangTipObj, formatQimenDocLineToHtml } from './QimenXiangDoc';
-import { QIMEN_WU_HE } from './DunJiaCalc';
+import { QIMEN_WU_HE, qimenGlyphScriptAttrs } from './DunJiaCalc';
 import { chartSCUEnabled } from '../../utils/perfFlags';
 import { shallowPropsEqual } from '../../utils/chartUpdateGuard';
+import { QIMEN_HARM_COLOR, tint } from './qimenHarmColors';
 
 // 遁甲盘子组件(根因 E/fan-out):此前 DunJiaMain.renderBoard 把九宫×每宫约5个 Popover(共 ~45 个)+ 表头悬浮
 // 全部内联在父 render 里。父任意 setState(切盘类/开传本设置 Modal/右栏状态/起盘 loading…)→ 整个父重渲 →
@@ -22,11 +23,11 @@ import { shallowPropsEqual } from '../../utils/chartUpdateGuard';
 const DUNJIA_BOARD_BASE_HEIGHT = 870;
 
 const DUNJIA_LEGEND_ITEMS = [
-	{ key: 'jixing', label: '击刑', color: '#cf1322', bg: 'rgba(207, 19, 34, 0.10)' },
-	{ key: 'rumu', label: '入墓', color: '#8b5e3c', bg: 'rgba(139, 94, 60, 0.12)' },
-	{ key: 'both', label: '击刑+入墓', color: '#722ed1', bg: 'rgba(114, 46, 209, 0.10)' },
-	{ key: 'menpo', label: '门迫', color: '#fa8c16', bg: 'rgba(250, 140, 22, 0.12)' },
-	{ key: 'kongwang', label: '空亡', color: '#2f54eb', bg: 'rgba(47, 84, 235, 0.10)' },
+	{ key: 'jixing', label: '击刑', color: QIMEN_HARM_COLOR.击刑, bg: tint(QIMEN_HARM_COLOR.击刑, 10) },
+	{ key: 'rumu', label: '入墓', color: QIMEN_HARM_COLOR.入墓, bg: tint(QIMEN_HARM_COLOR.入墓, 12) },
+	{ key: 'both', label: '击刑+入墓', color: QIMEN_HARM_COLOR.击刑入墓, bg: tint(QIMEN_HARM_COLOR.击刑入墓, 10) },
+	{ key: 'menpo', label: '门迫', color: QIMEN_HARM_COLOR.门迫, bg: tint(QIMEN_HARM_COLOR.门迫, 12) },
+	{ key: 'kongwang', label: '空亡', color: QIMEN_HARM_COLOR.空亡, bg: tint(QIMEN_HARM_COLOR.空亡, 10) },
 	{ key: 'yima', label: '🐎 驿马', color: 'var(--horosa-text, #262626)', bg: 'rgba(140, 140, 140, 0.10)' },
 ];
 
@@ -76,7 +77,8 @@ function parseDisplayDateHm(rawText){
 	};
 }
 
-function getBoardTimeInfo(pan){
+// 盘头时间信息(真太阳时 / 直接时间两行);奇门主页也用它(单一来源)。
+export function getBoardTimeInfo(pan){
 	const solar = parseDisplayDateHm(pan && pan.realSunTime);
 	const direct = parseDisplayDateHm(`${safe(pan && pan.dateStr, '')} ${safe(pan && pan.timeStr, '')}`);
 	const clockDate = safe(direct && direct.date, '');
@@ -112,7 +114,7 @@ class DunJiaBoard extends Component{
 		return !shallowPropsEqual(this.props, nextProps, DUNJIA_BOARD_SCU_KEYS);
 	}
 
-	// [H-B] 词条标题按「全名档」补类别后缀(星/门/神);title 已含该字则不重复。
+	// 词条标题按「全名档」补类别后缀(星/门/神);title 已含该字则不重复。
 	tipTitleOf(tipObj){
 		if(!tipObj){ return ''; }
 		const full = !!(this.props.pan && this.props.pan.options && this.props.pan.options.fullNameTips);
@@ -168,7 +170,7 @@ class DunJiaBoard extends Component{
 		const raw = `${text || ''}`.trim();
 		const tipObj = buildQimenXiangTipObj(type, raw);
 		const node = (
-			<div key={key} style={{ ...style, cursor: tipObj ? 'help' : 'default' }}>
+			<div key={key} style={{ ...style, cursor: tipObj ? 'help' : 'default' }} {...qimenGlyphScriptAttrs(type, raw)}>
 				{text || ' '}
 			</div>
 		);
@@ -207,7 +209,7 @@ class DunJiaBoard extends Component{
 		);
 	}
 
-	// [H-G] 古籍金函系日家格:正方宫格,门(上)+星(下)大字竖排(书表行序),按书定吉凶着色(吉红/凶墨/平灰);
+	// 古籍金函系日家格:正方宫格,门(上)+星(下)大字竖排(书表行序),按书定吉凶着色(吉红/凶墨/平灰);
 	//   左上=方位·卦名,右下=卦名+洛书宫号,喜神/大吉徽章;中宫=本干支之星。
 	renderJinhanCell(cell){
 		const jiColor = (ji)=>ji === '吉' ? '#c41e28' : (ji === '凶' ? 'var(--horosa-text, #1f1f1f)' : 'var(--horosa-muted, #9c9c9c)');
@@ -216,7 +218,7 @@ class DunJiaBoard extends Component{
 			<div style={{ position: 'absolute', top, right: 8, fontSize: 12, lineHeight: '18px', padding: '0 7px', borderRadius: 9, color: '#c41e28', background: 'rgba(196, 30, 40, 0.08)', border: '1px solid rgba(196, 30, 40, 0.35)' }}>{text}</div>
 		);
 		return (
-			<div key={`cell_${cell.palaceNum}`} className="horosa-dunjia-cell" style={{ position: 'relative', width: '100%', height: '100%', border: '1px solid var(--horosa-border, #d9d9d9)', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, background: cell.isCenter ? 'var(--horosa-bg-soft, rgba(140, 140, 140, 0.05))' : 'transparent' }}>
+			<div key={`cell_${cell.palaceNum}`} className="horosa-dunjia-cell" style={{ position: 'relative', width: '100%', height: '100%', border: '1px solid var(--horosa-border, #d9d9d9)', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, background: cell.isCenter ? 'var(--horosa-surface-sunken, rgba(140, 140, 140, 0.05))' : 'transparent' }}>
 				<div style={{ position: 'absolute', top: 7, left: 9, fontSize: 13, lineHeight: '17px', color: 'var(--horosa-muted, #8c8c8c)' }}>
 					{cell.isCenter ? '中宫' : cell.jinhanDir}
 				</div>
@@ -225,7 +227,7 @@ class DunJiaBoard extends Component{
 				{cell.isCenter ? null : (
 					<div style={{ fontSize: 40, lineHeight: '46px', fontWeight: 700, letterSpacing: 2, color: jiColor(cell.jinhanDoorJi) }}>{cell.door}门</div>
 				)}
-				<div style={{ fontSize: 40, lineHeight: '46px', fontWeight: 700, letterSpacing: 2, color: jiColor(cell.jinhanStarJi) }}>{cell.tianXing}</div>
+				<div style={{ fontSize: 40, lineHeight: '46px', fontWeight: 700, letterSpacing: 2, color: jiColor(cell.jinhanStarJi) }} {...qimenGlyphScriptAttrs('star', cell.tianXing)}>{cell.tianXing}</div>
 				<div style={{ position: 'absolute', bottom: 7, right: 9, fontSize: 13, lineHeight: '17px', color: 'var(--horosa-muted, #8c8c8c)' }}>
 					{cell.isCenter ? '中五' : `${cell.palaceName}${LUOSHU_CN[cell.palaceName] || ''}`}
 				</div>
@@ -236,19 +238,19 @@ class DunJiaBoard extends Component{
 	renderCell(cell){
 		if(cell && cell.isJinhan){ return this.renderJinhanCell(cell); }
 		const titleColor = cell.hasKongWang
-			? '#2f54eb'
+			? QIMEN_HARM_COLOR.空亡
 			: (cell.isCenter ? 'var(--horosa-muted, #c7c7c7)' : 'var(--horosa-text-soft, #5f5f5f)');
 		let tianGanColor = 'var(--horosa-text, #262626)';
 		if(cell.hasJiXing && cell.hasRuMu){
-			tianGanColor = '#722ed1';
+			tianGanColor = QIMEN_HARM_COLOR.击刑入墓;
 		}else if(cell.hasJiXing){
-			tianGanColor = '#cf1322';
+			tianGanColor = QIMEN_HARM_COLOR.击刑;
 		}else if(cell.hasRuMu){
-			tianGanColor = '#8b5e3c';
+			tianGanColor = QIMEN_HARM_COLOR.入墓;
 		}
 		// 八神不跟随值符或天盘干状态染色，保持独立显示。
 		const godColor = 'var(--horosa-text, #262626)';
-		const line2Color = cell.hasMenPo ? '#fa8c16' : 'var(--horosa-text, #262626)';
+		const line2Color = cell.hasMenPo ? QIMEN_HARM_COLOR.门迫 : 'var(--horosa-text, #262626)';
 		// 飞盘九门含中门(数据层 FEI_GATE_HOME[5]='中' 已随飞填宫),直接取门;无门留空格。
 		const doorDisp = cell.door || ' ';
 		const line3Color = 'var(--horosa-text, #262626)';
@@ -480,7 +482,7 @@ class DunJiaBoard extends Component{
 				gan: (pan.ganzhi.time || '').substr(0, 1),
 				zhi: (pan.ganzhi.time || '').substr(1, 1),
 			},
-			// [H-F] 刻家:第五柱=刻柱(时柱锚法,首刻即时柱逐刻进一);非刻家盘 keGanZhi='' 自动不出
+			// 刻家:第五柱=刻柱(时柱锚法,首刻即时柱逐刻进一);非刻家盘 keGanZhi='' 自动不出
 			...(pan.keGanZhi ? [{
 				key: 'ke',
 				label: '刻',

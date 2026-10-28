@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/astro/AstroReturnTimeline.js b/astrostudyui/src/components/astro/AstroReturnTimeline.js
-index 719c0138..ae6fbf70 100644
+index 67f96dd2..1665576f 100644
 --- a/astrostudyui/src/components/astro/AstroReturnTimeline.js
 +++ b/astrostudyui/src/components/astro/AstroReturnTimeline.js
-@@ -43,6 +43,7 @@ export async function buildReturnTimelineSnapshotText(chartObj, opts){
+@@ -41,6 +41,7 @@ export async function buildReturnTimelineSnapshotText(chartObj, opts){
  	if(tail.length){ lines.push(''); lines.push(...tail); }
  	return lines.join('\n');
  }
@@ -10,13 +10,13 @@ index 719c0138..ae6fbf70 100644
  
  class AstroReturnTimeline extends Component{
  	constructor(props){
-@@ -107,7 +108,8 @@ class AstroReturnTimeline extends Component{
- 				timeoutMs: 45000,
+@@ -108,7 +109,8 @@ class AstroReturnTimeline extends Component{
  			});
- 			if(!this._mounted) return;
--			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key});
+ 			if(!this._mounted || seq !== this._loadSeq) return;
+ 			clearLoadFailure(this);
+-			this.setState({result: unwrapResult(data) || {}, resultSig, loading: false, requestKey: key});
 +			// horosa_panel_ready_v1:回归轴表(本技法唯一可见内容)落定的那一次 setState。
-+			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key}, ()=>{ markPanelReady('direction'); });
++			this.setState({result: unwrapResult(data) || {}, resultSig, loading: false, requestKey: key}, ()=>{ markPanelReady('direction'); });
  		}catch(e){
- 			if(!this._mounted) return;
- 			this.setState({loading: false, requestKey: key});
+ 			if(!this._mounted || seq !== this._loadSeq) return;
+ 			parkLoadFailure(this, key);   // 失败不记成已完成:窗口期后同一张盘自动重试

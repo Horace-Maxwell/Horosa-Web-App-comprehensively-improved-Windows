@@ -1,4 +1,4 @@
-// [批三③] 无头出口合同:origins 合同(注册校验/目录按来源/直呼其名拒)· 缺省关不进任何目录 · 开=只在 origin:'mcp' 目录 · 只读注册表视图拒写入工具 · 内存 deps 零落库 · 在途上限 1 · 桥 tools/list 带 origin。
+// 无头出口合同:origins 合同(注册校验/目录按来源/直呼其名拒)· 缺省关不进任何目录 · 开=只在 origin:'mcp' 目录 · 只读注册表视图拒写入工具 · 内存 deps 零落库 · 在途上限 1 · 桥 tools/list 带 origin。
 import { registerBuiltinTools } from '../aiTools';
 import { registerTool, runTool, exportToolManifest, __resetToolsForTests } from '../aiTools/registry';
 import { setAgentEnabled, setAgentApprovalMode, setHeadlessEnabled, AGENT_HEADLESS_KEY } from '../aiAgent/prefs';

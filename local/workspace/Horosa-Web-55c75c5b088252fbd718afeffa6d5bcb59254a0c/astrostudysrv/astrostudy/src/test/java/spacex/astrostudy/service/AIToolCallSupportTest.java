@@ -146,7 +146,7 @@ public class AIToolCallSupportTest {
 		assertNull(schema.get("additionalProperties"));
 		assertNull(schema.get("allOf"));
 		Map kind = (Map) ((Map) schema.get("properties")).get("kind");
-		assertEquals("STRING", kind.get("type"));   // [D69] 官方枚举名(此前锁的是小写 = 与 discovery 枚举不合)
+		assertEquals("STRING", kind.get("type"));   // 官方枚举名(此前锁的是小写 = 与 discovery 枚举不合)
 		assertEquals(Boolean.TRUE, kind.get("nullable"));
 		assertEquals(Arrays.asList("x"), kind.get("enum"));
 		assertNull(kind.get("const"));
@@ -316,7 +316,7 @@ public class AIToolCallSupportTest {
 		assertEquals("plain message", AIToolCallSupport.ToolCallAccumulator.cleanParseError("plain message"));
 	}
 
-	// [D69] Gemini Schema.type 必须是官方枚举名(大写);嵌套 properties/items/anyOf 同样;type 数组带 null → 挑首个非 null 大写 + nullable
+	// Gemini Schema.type 必须是官方枚举名(大写);嵌套 properties/items/anyOf 同样;type 数组带 null → 挑首个非 null 大写 + nullable
 	@Test
 	public void geminiSchemaTypesAreUppercasedRecursively() {
 		Map<String, Object> inner = new java.util.LinkedHashMap<String, Object>();
@@ -343,7 +343,7 @@ public class AIToolCallSupportTest {
 
 	// ───────────── 零测试分支补齐(D75 / D76 / D87) ─────────────
 
-	// [D75] Ollama 原生口没有 tool_choice:收口轮 toolChoice=none ⇒ 不带 tools(否则模型仍可发调用 ⇒ 多一轮 + 轮数上限噪音);非 none / 无 tools 逐字节同今日
+	// Ollama 原生口没有 tool_choice:收口轮 toolChoice=none ⇒ 不带 tools(否则模型仍可发调用 ⇒ 多一轮 + 轮数上限噪音);非 none / 无 tools 逐字节同今日
 	@Test
 	public void ollamaBodyOmitsToolsWhenToolChoiceNone() {
 		AIAnalysisProxyService svc = new AIAnalysisProxyService();
@@ -363,7 +363,7 @@ public class AIToolCallSupportTest {
 		assertEquals(JsonUtility.encode(plain), JsonUtility.encode(noneNoTools));
 	}
 
-	// [D76] const 无 type 的推断类型也走 Gemini 枚举名(D69 大写归一漏了这条支路:此前下发小写 "number"/"boolean"/"string")
+	// const 无 type 的推断类型也走 Gemini 枚举名(D69 大写归一漏了这条支路:此前下发小写 "number"/"boolean"/"string")
 	@Test
 	public void geminiConstEnumInfersUppercaseType() {
 		Map<String, Object> props = map("n", map("const", 5), "b", map("const", Boolean.TRUE), "s", map("const", "x"), "typed", map("type", "string", "const", "y"));
@@ -383,7 +383,7 @@ public class AIToolCallSupportTest {
 		}
 	}
 
-	// [D87] tool_choice 三家形态:anthropic {type:none|auto} / gemini functionCallingConfig.mode NONE|AUTO / 非法值 ⇒ 不带;收口轮 anthropic/gemini 仍带 tools(只有 Ollama 没有 tool_choice 才不带)
+	// tool_choice 三家形态:anthropic {type:none|auto} / gemini functionCallingConfig.mode NONE|AUTO / 非法值 ⇒ 不带;收口轮 anthropic/gemini 仍带 tools(只有 Ollama 没有 tool_choice 才不带)
 	@Test
 	public void anthropicAndGeminiToolChoiceNoneShapes() {
 		assertEquals("none", AIToolCallSupport.toolChoiceForAnthropic("none").get("type"));
@@ -404,7 +404,7 @@ public class AIToolCallSupportTest {
 		assertNull("未给 toolChoice 不带 toolConfig", gbAuto.get("toolConfig"));
 	}
 
-	// [D87] OpenAI 兼容口:tool_choice 只在带 tools 时出现;无 tools 即使 toolChoice=none 也不出现(否则上游 400);非法值不带
+	// OpenAI 兼容口:tool_choice 只在带 tools 时出现;无 tools 即使 toolChoice=none 也不出现(否则上游 400);非法值不带
 	@Test
 	public void openAIToolChoiceKeyPresentOnlyWhenTools() {
 		Map<String, Object> with = AIAnalysisProxyService.buildOpenAIChatBody("gpt-4.1", map("providerType", "openai", "tools", neutralTools(), "toolChoice", "none"), neutralHistory(), true);
@@ -418,7 +418,7 @@ public class AIToolCallSupportTest {
 		assertEquals(1, ((List) weird.get("tools")).size());
 	}
 
-	// [D87] 参数流式期间零正文帧:每片参数发 tool_call_delta 续命(只含 id/index/chars,不含半截 JSON);空片不发;拼装结果完整
+	// 参数流式期间零正文帧:每片参数发 tool_call_delta 续命(只含 id/index/chars,不含半截 JSON);空片不发;拼装结果完整
 	@Test
 	public void toolCallDeltaKeepAliveEmittedWhileArgumentsStream() {
 		AIToolCallSupport.ToolCallAccumulator acc = new AIToolCallSupport.ToolCallAccumulator("openai");
@@ -453,7 +453,7 @@ public class AIToolCallSupportTest {
 		assertTrue(none.isEmpty());
 	}
 
-	// [D87] Anthropic redacted_thinking 块(无明文、只有 data)收进 providerMeta.anthropicBlocks,与 thinking 块保持顺序;同模型回放原样进 assistant 内容块
+	// Anthropic redacted_thinking 块(无明文、只有 data)收进 providerMeta.anthropicBlocks,与 thinking 块保持顺序;同模型回放原样进 assistant 内容块
 	@Test
 	public void redactedThinkingBlocksCollected() {
 		AIToolCallSupport.ToolCallAccumulator acc = new AIToolCallSupport.ToolCallAccumulator("anthropic");
@@ -488,7 +488,7 @@ public class AIToolCallSupportTest {
 		assertEquals(1, AIToolCallSupport.anthropicAssistantBlocks(original, "正文", false, "claude-x").size());
 	}
 
-	// [D87] normalizeToolCalls:args 坏 JSON ⇒ {}(不抛、不丢项);缺 id 补 call_n;非 Map 项跳过;args 对象拷贝
+	// normalizeToolCalls:args 坏 JSON ⇒ {}(不抛、不丢项);缺 id 补 call_n;非 Map 项跳过;args 对象拷贝
 	@Test
 	public void normalizeToolCallsBadJsonBecomesEmptyObject() {
 		List<Object> raw = new ArrayList<Object>();
@@ -511,8 +511,8 @@ public class AIToolCallSupportTest {
 
 	@Test
 	public void anthropicThinkingEnabledTreatsAdaptiveAndAlwaysThinkingModels() {
-		// [Q-024/Q-049] adaptive 与 enabled 同为开启;Fable/Mythos 恒开(与档案无关);disabled 为关。
-		// [Q-047/M-58] 缺省(不带字段)按型号官方缺省:Sonnet 5 / Opus 5 缺省开(工具回合会回签名块,必须回放);Opus 4.6–4.8 / 预算族缺省关。
+		// adaptive 与 enabled 同为开启;Fable/Mythos 恒开(与档案无关);disabled 为关。
+		// 缺省(不带字段)按型号官方缺省:Sonnet 5 / Opus 5 缺省开(工具回合会回签名块,必须回放);Opus 4.6–4.8 / 预算族缺省关。
 		Map<String, Object> adaptive = new LinkedHashMap<String, Object>();
 		Map<String, Object> th = new LinkedHashMap<String, Object>();
 		th.put("type", "adaptive");

@@ -48,9 +48,8 @@ def _norm(lon):
 
 def _nak_start(lon):
     """目标点所在星宿的起始恒星经度(度)。"""
-    value = _norm(lon)
-    idx = min(26, int(value / NAK_SPAN))
-    return idx * NAK_SPAN
+    from astrostudy.india.primitives import segment_index
+    return segment_index(_norm(lon), NAK_SPAN, 27) * NAK_SPAN
 
 
 def _subdivide_one(offset, width, level_lord):
@@ -61,8 +60,8 @@ def _subdivide_one(offset, width, level_lord):
     for k in range(9):
         candidate = DASHA_ORDER[(start_idx + k) % 9]
         seg_width = width * DASHA_YEARS[candidate] / DASHA_TOTAL
-        # 用 < 上界判定，落到末段时数值边界归入最后一段(下面兜底)。
-        if offset < cursor + seg_width or k == 8:
+        # 用 < 上界判定(精确子段界加 1e-9 容差归后一段),落到末段时数值边界归入最后一段(下面兜底)。
+        if offset < cursor + seg_width - 1e-9 or k == 8:
             return candidate, cursor, seg_width
         cursor += seg_width
     # 理论不可达。
@@ -175,38 +174,30 @@ def cuspal_sublords(cusp_lons):
 
 
 def significators(planet_data, house_occupancy=None):
-    """四重意义者法(four-fold significators)。
+    """KP 四重意义者法(four-fold significators,KP 标准序)。
 
-    一颗行星「signifies」某宫的强度依次：
-      A(最强) 它所在星宿主(star-lord)所占 / 所主之宫；
-      B        行星本身所占之宫；
-      C        行星所主之宫(其拥有的星座对应的宫)；
-      D        受其影响者(占据/合于该行星星宿的行星，再取那些行星所占/所主之宫)。
-    星宿主优先于行星本身是 KP 精髓。
+    一颗行星 P「signifies」某宫的强度依次:
+      A(最强) P 的星宿主(star-lord)所**占**之宫;
+      B        P 自身所占之宫;
+      C        P 的星宿主所**主**之宫;
+      D        P 自身所主之宫。
+    (等价于宫视角:①占宫者星宿里的行星 ②占宫者 ③宫主星宿里的行星 ④宫主。)
+    星宿主优先于行星本身是 KP 精髓。另出 'influenced'(落在 P 星宿里的行星)供阅读,不进 ranked。
 
-    入参 planet_data: { planetKey: {
-        'sign': 1..12,            # 所在星座(用于推「所主之宫」)
-        'house': 1..12,          # 所占之宫(B)
-        'starLord': 'Mercury',   # 该行星所在星宿的宿主(用于 A)
-        'ownHouses': [..],       # 该行星所主之宫(C)；调用方按其拥有的星座 → 宫给出
-    } }
-    house_occupancy: { planetKey: house }，全盘行星→所占之宫，供 A/D 用其它行星反查。
-        若省略，则从 planet_data 内的 'house' 自动构造。
+    入参 planet_data: { kp_key: {
+        'sign': 1..12, 'house': 1..12(按宫头区间)、
+        'starLord': 'Mercury'(KP 键,罗计为 'Rahu'/'Ketu')、
+        'ownHouses': [..](按宫头落座定的所主之宫;罗计由节点代理给出)} }。
+    🔴 键与 starLord 必须同域(KP 键);由 prashna.assemble_kp_significators 统一组装,本命 / 问事共用。
+    house_occupancy: { planetKey: house },省略则由 planet_data 的 'house' 构造。
 
-    返回 { planetKey: {
-        'A': [...], 'B': [...], 'C': [...], 'D': [...],   # 各级宫号(去重、升序)
-        'ranked': [...],                                  # 合并按强度去重(A>B>C>D)
-    } }。
+    返回 { planetKey: {'A','B','C','D','ranked','influenced'} },各级宫号去重升序;ranked = A>B>C>D 合并去重。
     """
     if house_occupancy is None:
         house_occupancy = {p: d.get('house') for p, d in planet_data.items()
                            if d.get('house') is not None}
 
-    # planet → 它所主之宫(C)；用于 A(star-lord 所主)与 D 反查。
     own_houses_of = {p: list(d.get('ownHouses', []) or []) for p, d in planet_data.items()}
-    # planet → 它所占之宫。
-    house_of = {p: d.get('house') for p, d in planet_data.items()}
-    # star-lord → 哪些行星落在它主宰的星宿里(供 D：受影响者)。
     influenced_by = {}
     for p, d in planet_data.items():
         sl = d.get('starLord')
@@ -219,38 +210,18 @@ def significators(planet_data, house_occupancy=None):
     result = {}
     for p, d in planet_data.items():
         star_lord = d.get('starLord')
-
-        # A：star-lord 所占之宫 + star-lord 所主之宫(最强)。
-        a = []
-        if star_lord is not None:
-            if house_of.get(star_lord) is not None:
-                a.append(house_of[star_lord])
-            elif house_occupancy.get(star_lord) is not None:
-                a.append(house_occupancy[star_lord])
-            a.extend(own_houses_of.get(star_lord, []))
-
-        # B：行星本身所占之宫。
-        b = [d.get('house')] if d.get('house') is not None else []
-
-        # C：行星所主之宫。
-        c = list(d.get('ownHouses', []) or [])
-
-        # D：受其影响者(落在 p 主宰星宿里的行星)所占 / 所主之宫。
-        dd = []
-        for q in influenced_by.get(p, []):
-            if q == p:
-                continue
-            if house_of.get(q) is not None:
-                dd.append(house_of[q])
-            dd.extend(own_houses_of.get(q, []))
-
+        a = [house_occupancy.get(star_lord)] if star_lord is not None else []
+        b = [d.get('house')]
+        c = own_houses_of.get(star_lord, []) if star_lord is not None else []
+        dd = list(d.get('ownHouses', []) or [])
         a_s, b_s, c_s, d_s = _uniq_sorted(a), _uniq_sorted(b), _uniq_sorted(c), _uniq_sorted(dd)
         ranked = []
         for tier in (a_s, b_s, c_s, d_s):
             for h in tier:
                 if h not in ranked:
                     ranked.append(h)
-        result[p] = {'A': a_s, 'B': b_s, 'C': c_s, 'D': d_s, 'ranked': ranked}
+        infl = sorted(q for q in influenced_by.get(p, []) if q != p)
+        result[p] = {'A': a_s, 'B': b_s, 'C': c_s, 'D': d_s, 'influenced': infl, 'ranked': ranked}
     return result
 
 

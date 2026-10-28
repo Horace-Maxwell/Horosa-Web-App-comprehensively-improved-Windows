@@ -1,9 +1,9 @@
-// [批二⑫] /doctor 浮层:一屏诊断(纯展示;报告由 buildDoctorReport 产,已脱敏);「复制诊断」走 copyTextSmart(桌面/浏览器同一剪贴板路径)。
+// /doctor 浮层:一屏诊断(纯展示;报告由 buildDoctorReport 产,已脱敏);「复制诊断」走 copyTextSmart(桌面/浏览器同一剪贴板路径)。
 import React from 'react';
 import { Modal, Button, message } from 'antd';
 import { copyTextSmart } from '../../../utils/clipboardText';
 
-const TONE = { ok: 'var(--horosa-success, #2f9e44)', warn: 'var(--horosa-warning, #d9822b)', bad: 'var(--horosa-danger, #d64545)', info: 'var(--horosa-text-soft, #8a8f99)' };
+const TONE = { ok: 'var(--horosa-jx-ji, #2f9e44)', warn: 'var(--horosa-warn, #d9822b)', bad: 'var(--horosa-danger, #d64545)', info: 'var(--horosa-text-soft, #8a8f99)' };
 
 export default function DoctorPanel({ open, report, onClose }){
 	if(!open || !report){ return null; }

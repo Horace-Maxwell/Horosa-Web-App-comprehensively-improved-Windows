@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroSolarArc.js b/astrostudyui/src/components/astro/AstroSolarArc.js
-index 85a202ec..eb1f9c22 100644
+index 47f9a309..ee0b438e 100644
 --- a/astrostudyui/src/components/astro/AstroSolarArc.js
 +++ b/astrostudyui/src/components/astro/AstroSolarArc.js
 @@ -7,7 +7,7 @@ import * as AstroText from '../../constants/AstroText';
@@ -11,7 +11,7 @@ index 85a202ec..eb1f9c22 100644
  import styles from '../../css/styles.less';
  import DateTime from '../comp/DateTime';
  import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-@@ -18,6 +18,10 @@ import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+@@ -19,6 +19,10 @@ import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
  import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
  import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
  import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
@@ -22,7 +22,7 @@ index 85a202ec..eb1f9c22 100644
  
  class AstroSolarArc extends Component{
  
-@@ -26,7 +30,9 @@ class AstroSolarArc extends Component{
+@@ -27,7 +31,9 @@ class AstroSolarArc extends Component{
  
  		this.unmounted = false;
  
@@ -33,7 +33,7 @@ index 85a202ec..eb1f9c22 100644
  		if(qryparam.birth){
  			let parts = qryparam.birth.split(' ');
  			qryparam.date = parts[0];
-@@ -122,7 +128,13 @@ class AstroSolarArc extends Component{
+@@ -123,7 +129,13 @@ class AstroSolarArc extends Component{
  	}
  
  	genNatalParams(chartObj){
@@ -48,35 +48,38 @@ index 85a202ec..eb1f9c22 100644
  		if(qryparam.birth){
  			let parts = qryparam.birth.split(' ');
  			qryparam.date = parts[0];
-@@ -190,6 +202,8 @@ class AstroSolarArc extends Component{
+@@ -193,6 +205,8 @@ class AstroSolarArc extends Component{
  		};
  
  		this.setState(st, ()=>{
 +			// horosa_panel_ready_v1:推运盘数据落定(中栏盘 + 右栏相位同源于 st.dirChart)的唯一提交点。
 +			markPanelReady('direction');
  			const chartValue = chartValueAtRequest;
- 			saveModuleAISnapshotLazy('solararc', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'solararc'), {
- 				module: 'solararc',
-@@ -246,7 +260,30 @@ class AstroSolarArc extends Component{
+ 			saveModuleAISnapshotLazy('solararc', ()=>buildPredictiveSnapshotText(chartValue, st.params, result, 'solararc'), this.snapshotMeta());
+ 		});
+@@ -247,7 +261,33 @@ class AstroSolarArc extends Component{
  		});
  	}
  
 +	// horosa_aspect_dom_memo_v1(PERF-R9 Ship 6):右栏相位清单的输出**只**由三样东西决定 ——
-+	// state.dirChart(推运结果对象,每次请求整体替换)、props.value(本命盘)、props.showPlanetHouseInfo
++	// shownDirChart()(推运结果对象,每次请求整体替换;v3.12.0 起按命主来源键配对)、props.value(本命盘)、props.showPlanetHouseInfo
 +	// (renderPlanetLabel 唯一读到的 prop)。三者引用全同 ⇒ 输出逐字节相同,直接复用上次的元素树:
 +	// 「更新中」角标开合、其它右栏控件(如小限粒度/起点)改动等与相位无关的重渲不再重建数百个 React 元素。
 +	// 任一引用变化(含内容整体替换)立即重建 —— 不存在陈旧,亦不依赖任何深比较。
  	genAspectDom(){
++		// v3.12.0 起派生盘按来源键配对(shownDirChart:换盘在途 / 新盘取盘失败时视为无盘),
++		// 缓存键随之取「实际渲染的那张」而非 state.dirChart —— 否则换盘瞬间会把上一位命主的相位树当缓存命中。
++		const dir = this.shownDirChart();
 +		const cache = this._aspectDomCache;
 +		if(cache
-+			&& cache.dir === this.state.dirChart
++			&& cache.dir === dir
 +			&& cache.natal === this.props.value
 +			&& cache.phi === this.props.showPlanetHouseInfo){
 +			return cache.dom;
 +		}
 +		const dom = this.buildAspectDom();
 +		this._aspectDomCache = {
-+			dir: this.state.dirChart,
++			dir: dir,
 +			natal: this.props.value,
 +			phi: this.props.showPlanetHouseInfo,
 +			dom: dom,
@@ -85,10 +88,10 @@ index 85a202ec..eb1f9c22 100644
 +	}
 +
 +	buildAspectDom(){
- 		if(this.state.dirChart === undefined || this.state.dirChart === null){
+ 		if(this.shownDirChart() === undefined || this.shownDirChart() === null){
  			return null;
  		}
-@@ -306,7 +343,7 @@ class AstroSolarArc extends Component{
+@@ -307,7 +347,7 @@ class AstroSolarArc extends Component{
  			cols.push(divs[i]);
  		}
  		rows.push((

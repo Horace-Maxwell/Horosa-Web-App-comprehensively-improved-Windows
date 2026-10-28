@@ -1,4 +1,4 @@
-// [Q-311/T-292] 工具箱「日期计算」目标日期改 JDN 加减(与反向拨目标同源):跨 1582 改历段不少算、公元前闰年不判错、小数天数取整。
+// 工具箱「日期计算」目标日期改 JDN 加减(与反向拨目标同源):跨 1582 改历段不少算、公元前闰年不判错、小数天数取整。
 import { dateCalcTarget } from '../DateCalc';
 import DateTime from '../../comp/DateTime';
 

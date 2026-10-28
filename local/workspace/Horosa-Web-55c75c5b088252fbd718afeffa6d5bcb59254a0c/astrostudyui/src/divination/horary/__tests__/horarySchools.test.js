@@ -56,7 +56,7 @@ describe('horarySchools 注册表', () => {
 		const bf = horaryBackendFields('classical');
 		// lotReversal:0 = 经典档福点恒昼式 —— 盘面(后端福点)与判读(前端 pofReversal:false)口径对齐,
 		// 修复此前「默认档盘面夜盘反转/判读不反转」的潜在错位。
-		// [Q-296/T-280 ②] triplicity:'Ptolemaic' = 三分集随档下发(盘面尊贵/接纳与前端 almuten 同口径)。
+		// triplicity:'Ptolemaic' = 三分集随档下发(盘面尊贵/接纳与前端 almuten 同口径)。
 		expect(bf).toEqual({ hsys: 2, termsVariant: 2, tradition: 1, lotReversal: 0, triplicity: 'Ptolemaic' });
 		expect(bf.tripSystem).toBeUndefined();       // 判读键本身不进 /chart(映射为 triplicity)
 		expect(bf.westNodeType).toBeUndefined();     // null 不下发

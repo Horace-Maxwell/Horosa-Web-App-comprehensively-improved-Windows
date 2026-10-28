@@ -17,7 +17,8 @@ import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/k
 import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../utils/safeStorage';
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
-import { deriveLocalNongli, deriveNongliUniversalSync, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+import { deriveLocalNongli, resolveDivinationNongli, subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -37,7 +38,7 @@ export function buildXiaoLiuRenSnapshotText(ke, askEvent, snapOpts){
 	out.push('');
 	out.push('[起课]');
 	((snapOpts && snapOpts.timeLines) || []).forEach((l)=>out.push(l));
-	// [Q-208/T-167] 三数来源必须留痕:同一组三数既可由占时农历月日时得,也可全手录 —— 快照不标,
+	// 三数来源必须留痕:同一组三数既可由占时农历月日时得,也可全手录 —— 快照不标,
 	// AI 与载档后的人都无从分辨(存档也另带 numsFrom,载回不丢)。缺 numsFrom 的旧档不标,不臆断。
 	const numsFrom = snapOpts && snapOpts.numsFrom;
 	const fromTxt = numsFrom === 'time' ? ',取自占时' : (numsFrom === 'manual' ? ',手录' : '');
@@ -101,7 +102,7 @@ const DAO_AREAS = { 留连: '1 / 1', 速喜: '1 / 2', 病符: '1 / 3', 大安: '
 const TONE_OF = { 大安: 'ji', 速喜: 'ji', 小吉: 'ji', 天德: 'ji', 留连: 'ping', 桃花: 'ping', 赤口: 'xiong', 空亡: 'xiong', 病符: 'xiong' };
 
 class XiaoLiuRenMain extends Component {
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -117,7 +118,7 @@ class XiaoLiuRenMain extends Component {
 			settings: { ...DEFAULT_SETTINGS, ...(stored || {}) },
 			inputs: { useTime: true, m: null, d: null, h: null, askEvent: '' },
 			ke: null, error: '',
-			numsFrom: null,     // [Q-208/T-167] 三数来因:'time' 占时 / 'manual' 手录(载档从存档读回)
+			numsFrom: null,     // 三数来因:'time' 占时 / 'manual' 手录(载档从存档读回)
 			// [自由起盘] 本地时间地理草稿(null=跟主命盘,字节现状;非空=用户左栏自选时间/经纬起课)。
 			localFields: null,
 		};
@@ -125,9 +126,8 @@ class XiaoLiuRenMain extends Component {
 		this.onTimeChanged = this.onTimeChanged.bind(this);
 		this.changeGeo = this.changeGeo.bind(this);
 	}
-
 	componentDidMount(){
-		// [issue#74 同类] 农历桥回包履约(与灵棋/飞宫同律):域外年首拍快照缺农历/四柱行,
+		// 农历桥回包履约(与灵棋/飞宫同律):域外年首拍快照缺农历/四柱行,
 		// 只 forceUpdate 不重存则缓存/事盘恒缺——桥契约「远程回包后由订阅方重存快照补全」。
 		this._unsubNongli = subscribeRemoteNongli(() => {
 			this.forceUpdate();
@@ -136,7 +136,7 @@ class XiaoLiuRenMain extends Component {
 		if(typeof window !== 'undefined'){
 			this._onSnapRefresh = (evt)=>{
 				if(!evt || !evt.detail || evt.detail.module !== 'xiaoliuren' || !this.state.ke){ return; }
-				// [issue#74 同类] timeLines 必带(与 saveSnap/feigong/xiaochengtu 同构):此前第三参
+				// timeLines 必带(与 saveSnap/feigong/xiaochengtu 同构):此前第三参
 				// 裸 settings → refresh 版无起卦时间/农历/四柱,反把 saveSnap 的完整版覆盖掉。
 				const t = buildXiaoLiuRenSnapshotText(this.state.ke, this.state.inputs.askEvent, { ...this.state.settings, numsFrom: this.state.numsFrom, timeLines: buildQiKeTimeLines(this.activeFields()) });
 				if(t){ saveModuleAISnapshot('xiaoliuren', t); evt.detail.snapshotText = t; }
@@ -154,12 +154,12 @@ class XiaoLiuRenMain extends Component {
 	componentDidUpdate(prev, prevState){
 		if(prev.value !== this.props.value && this.state.ke){ this.saveSnap(); }
 		if(prev.fields !== this.props.fields && this.props.fields){ this.restoreFromCurrentCase(); }
-		// [X1] 起课后改问事等 inputs → 快照重存(否则挂载/导出读旧 [问事];流派/开关已各自 saveSnap)。
+		// 起课后改问事等 inputs → 快照重存(否则挂载/导出读旧 [问事];流派/开关已各自 saveSnap)。
 		if(this.state.ke && prevState && prevState.inputs !== this.state.inputs){ this.saveSnap(); }
-		// [X1] 课一变即告容器(dock 不在本组件树内,左栏起的课容器无从知晓 → 「保存」伪禁用;对齐 guice 范式)。
+		// 课一变即告容器(dock 不在本组件树内,左栏起的课容器无从知晓 → 「保存」伪禁用;对齐 guice 范式)。
 		if(prevState && prevState.ke !== this.state.ke && typeof this.props.onResultChange === 'function'){ this.props.onResultChange(); }
 	}
-	// [X1 审计补] 事盘还原(对齐 wuzhao/tarot 等 13 技法既有范式):课=冻结三数自 payload.nums 复排
+	// 事盘还原(对齐 wuzhao/tarot 等 13 技法既有范式):课=冻结三数自 payload.nums 复排
 	// (qiKe 确定性),绝不按当前时间重起;useTime 置 false 让左栏忠实显示冻结三数;options 回放流派等设置。
 	restoreFromCurrentCase(force){
 		const saved = getKentangSavedCasePayload('xiaoliuren');
@@ -174,8 +174,8 @@ class XiaoLiuRenMain extends Component {
 		this.lastRestoredCaseId = saved.caseVersion;
 		this.setState({
 			ke, error: '', settings,
-			numsFrom: savedNumsFrom || null,   // [Q-208/T-167] 载档保留「当初是占时还是手录」;旧档缺键即不标
-			localFields: null,   // [X1·P2-42] 载档清时地草稿
+			numsFrom: savedNumsFrom || null,   // 载档保留「当初是占时还是手录」;旧档缺键即不标
+			localFields: null,   // 载档清时地草稿
 			inputs: { ...this.state.inputs, useTime: false, m: p.nums[0], d: p.nums[1], h: p.nums[2], askEvent: p.askEvent || '' },
 		}, ()=>this.saveSnap());
 		return true;
@@ -187,17 +187,8 @@ class XiaoLiuRenMain extends Component {
 	// 起课之时:农历月/日与时支序。默认真源 props.value.chart.nongli(bazi.time 为时柱,
 	// nongli.monthInt/dayInt 为农历月日);用户左栏改过时间/经纬(localFields 非空)则本地派生。
 	ctx(){
-		let nl;
-		if(this.state.localFields){
-			nl = deriveNongliUniversalSync(this.state.localFields) || {};
-		}else{
-			// [Q-390/T-372 2026-09-18 用户裁决 A] 占时口径 左栏 > 全局 > 真太阳时:未动左栏时主盘 chart.nongli 是 Java /chart 钉真太阳时的,
-			// 全局时间算法为直接 / 平太阳时(≠0)时改按全局 fields 本地派生(与动过左栏的分支同源),同一时刻占时不再随「是否动过左栏」翻转。
-			const gf = this.props.fields || {};
-			const galg = gf.timeAlg && gf.timeAlg.value !== undefined && gf.timeAlg.value !== null ? Number(gf.timeAlg.value) : 0;
-			const chart = (this.props.value && this.props.value.chart) || {};
-			nl = (galg !== 0 && gf.date && gf.time) ? (deriveNongliUniversalSync(gf) || chart.nongli || {}) : (chart.nongli || {});
-		}
+		// 占时口径单源(左栏 > 全局 > 真太阳时;主盘只在与全局 fields 同一起课时刻时才用):与灵棋 / 皇极轨策同一函数
+		const nl = resolveDivinationNongli(this.state.localFields, this.props.fields, this.props.value);
 		const b = nl.bazi || {};
 		const hourZhi = (b.time && b.time.branch && b.time.branch.cell) || undefined;
 		return {
@@ -235,7 +226,7 @@ class XiaoLiuRenMain extends Component {
 		const ke = qiKe({ m, d, h, school: settings.school });
 		if(!ke){ return this.setState({ error: '三数非法,不可起课', ke: null }); }
 		// horosa_panel_ready_v1:ke 落定 = 六宫课盘(中栏)与三传断语(右栏)画完的那一次 setState。
-		// [Q-208/T-167] 起课当下记下三数来源(占时/手录),随快照与存档走;载档只重排、不改此来因。
+		// 起课当下记下三数来源(占时/手录),随快照与存档走;载档只重排、不改此来因。
 		this.setState({ ke, error: '', numsFrom: inputs.useTime ? 'time' : 'manual' }, ()=>{ markPanelReady('cnyibu'); this.saveSnap(); });
 	}
 	// 改流派:课(三数)冻结,按新环重排三传(重排≠重起——三数不变)。
@@ -270,7 +261,7 @@ class XiaoLiuRenMain extends Component {
 				options: { ...this.state.settings, numsFrom: this.state.numsFrom },
 				nums: this.state.ke ? this.state.ke.nums : null,   // 🔴 冻结三数(重算只重排,绝不重起)
 				askEvent: this.state.inputs.askEvent,
-				// [issue#74 同类] 存档快照同带 timeLines(与 saveSnap 同构,否则事盘恒缺起课时间段)。
+				// 存档快照同带 timeLines(与 saveSnap 同构,否则事盘恒缺起课时间段)。
 				snapshot: buildXiaoLiuRenSnapshotText(this.state.ke, this.state.inputs.askEvent, { ...this.state.settings, numsFrom: this.state.numsFrom, timeLines: buildQiKeTimeLines(this.activeFields()) }),
 			},
 		});
@@ -343,7 +334,7 @@ class XiaoLiuRenMain extends Component {
 		};
 		const cols = ke.school === 'dao' ? 3 : 3;
 		return (
-			<div className="horosa-xlr-board horosa-cnx-board">
+			<div className="horosa-xlr-board horosa-cnx-board" ref={ownedBoxSizeRef(this, 'board', narrowBoardVars)}>
 				<div className="horosa-cnx-board-header">
 					<div>
 						<div className="horosa-cnx-board-title">{ke.school === 'dao' ? '道门九宫' : '主流六宫'}</div>

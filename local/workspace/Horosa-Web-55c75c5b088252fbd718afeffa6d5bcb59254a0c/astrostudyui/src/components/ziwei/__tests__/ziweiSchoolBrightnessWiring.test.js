@@ -116,7 +116,7 @@ describe('[四化] 懒缓存不变量:切流派必须三件套齐全', ()=>{
 			const src = fs.readFileSync(path.resolve(__dirname, '..', f), 'utf8');
 			const lines = src.split('\n');
 			lines.forEach((ln, i)=>{
-				if(!/ZWSchool\.school\s*=/.test(ln) || /^\s*\/\//.test(ln)){ return; }
+				if(!/ZWSchool\.school\s*=(?!=)/.test(ln) || /^\s*\/\//.test(ln)){ return; }   // 只认赋值(=== 比较不算)
 				const win = lines.slice(i, i + 8).join('\n');            // 赋值后 8 行内必须两件都在
 				if(!/refreshActiveSiHua\(\)/.test(win)){ miss.push(`${f}:${i + 1} 缺 refreshActiveSiHua`); }
 				if(!/resetHuaMap\(\)/.test(win)){ miss.push(`${f}:${i + 1} 缺 resetHuaMap`); }
@@ -144,20 +144,28 @@ describe('[四化] 懒缓存不变量:切流派必须三件套齐全', ()=>{
 		expect(lines.filter((l)=>/this\.applySihuaSchool\(/.test(l)).length).toBe(5);   // 少一个=有路径绕过了统一入口
 	});
 
-	test('AI 挂载临时切流派必须在 finally 里还原(异常路径也不得污染全局)', ()=>{
+	test('AI 挂载临时切流派必须在 finally 里还原(异常路径也不得污染全局)', async ()=>{
+		const ZWConst = require('../../../constants/ZWConst');
+		const mainMod = require('../ZiWeiMain');
+		const req = require('../../../utils/request');
+		const prev = ZWConst.ZWSchool.school;
+		ZWConst.ZWSchool.school = 'beipai';
+		const spy = jest.spyOn(req, 'default').mockImplementation(async ()=>{ throw new Error('boom'); });
+		try{
+			await mainMod.buildZiweiSnapshotForParams({ date: '1990-05-18', time: '10:00:00', zone: '+08:00', lon: '121e28', lat: '31n14', gender: 1, sihuaSchool: 'zhongzhou' }).catch(()=>{});
+			expect(ZWConst.ZWSchool.school).toBe('beipai');   // 抛错路径也还原
+		}finally{ spy.mockRestore(); ZWConst.ZWSchool.school = prev; ZWConst.refreshActiveSiHua(); }
+		// 还原由共用的 applyZiweiRecordOverride 负责,且在 finally 里调
 		const src = fs.readFileSync(path.resolve(__dirname, '..', 'ZiWeiMain.js'), 'utf8');
-		const fin = src.slice(src.indexOf('}finally{'));
-		expect(fin).toContain('ZWSchool.school = prevSchool');
-		expect(fin).toContain('refreshActiveSiHua()');
-		expect(fin).toContain('resetHuaMap()');
+		expect(src).toContain('}finally{\n\t\trestoreOverride();');
 	});
 });
 
-// ══ [B1] 格局判据恒按基表(前后端一致)双护栏 ═════════════════════════════
+// ══ 格局判据恒按基表(前后端一致)双护栏 ═════════════════════════════
 // 决策定案:格局的 bright 判据(ziweige levels)按基表五档词汇书写;Java ZiWeiPattern 只知基表。
 // 前端若随亮度源,则「默认引擎盘走 Java 格局(基表语义)、本地盘走源语义」同开关两行为 —— 且七档
 // 词汇(得/利/不)不在 levels 里会静默漏判。故格局恒基表;切亮度只改标注,永不改格局。
-describe('[B1] 格局判据恒基表(亮度源不得渗入)', ()=>{
+describe('格局判据恒基表(亮度源不得渗入)', ()=>{
 	const patSrc = fs.readFileSync(path.resolve(__dirname, '..', 'ziweiPatterns.js'), 'utf8')
 		.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 	test('🔴 源扫描:ziweiPatterns 只 import STAR_LIGHT,不得引 starLightOf/ZWEngineOptions', ()=>{
@@ -182,9 +190,9 @@ describe('[B1] 格局判据恒基表(亮度源不得渗入)', ()=>{
 	});
 });
 
-// [Q-433/T-396] 深度报告 GT 边界预装饰:decorateZiweiChartBrightness 把整张 chart 各星组 starlight 按当前亮度源改写(与 starLightOf 同口径),
+// 取值边界预装饰:decorateZiweiChartBrightness 把整张 chart 各星组 starlight 按当前亮度源改写(与 starLightOf 同口径),
 // 缺省源 zi_jian 原对象原样返回(零回归);非缺省源下与快照 builder 同档。
-describe('[亮度] decorateZiweiChartBrightness(报告 GT 与快照同源)', ()=>{
+describe('[亮度] decorateZiweiChartBrightness(另取整盘真值与快照同源)', ()=>{
 	const { decorateZiweiChartBrightness } = require('../data/ziweiTables');
 	afterEach(()=>{ ZWEngineOptions.brightnessSource = 'zi_jian'; });
 	test('缺省源:同一引用原样返回;非缺省源:每格 === starLightOf,且原对象不被改写', ()=>{

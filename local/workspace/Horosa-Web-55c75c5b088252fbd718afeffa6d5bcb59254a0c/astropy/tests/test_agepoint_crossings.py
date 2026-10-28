@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""[Q-184/T-103] 年龄推进点「关键岁数(合本命)」连续解:每宫 6 年线性插值求精确穿越岁数,不再只在整岁 ±1° 判合。"""
+"""年龄推进点「关键岁数(合本命)」连续解:每宫 6 年线性插值求精确穿越岁数,不再只在整岁 ±1° 判合。"""
 import os
 import sys
 
@@ -35,7 +35,7 @@ def test_cycle_repeats_beyond_72_and_unequal_houses():
 
 
 def test_sidereal_chart_age_point_uses_chart_zodiac():
-    """[Q-361/T-342] 恒星黄道盘:年龄点起于盘上升点(恒星黄经),合本命岁数与回归盘一致(整体平移不改几何);
+    """恒星黄道盘:年龄点起于盘上升点(恒星黄经),合本命岁数与回归盘一致(整体平移不改几何);
     此前宫头恒回归黄经、本命星恒星黄经互比 → 0 岁 AP 仍 124.05、合本命集合全错。"""
     from astrostudy.perchart import PerChart
     from astrostudy import agepoint

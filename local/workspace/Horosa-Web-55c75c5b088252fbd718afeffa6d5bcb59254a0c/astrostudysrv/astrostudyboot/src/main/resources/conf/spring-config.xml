@@ -36,15 +36,7 @@
 	    <property name="config" value="classpath:conf/properties/cache/caches.json" />
 	</bean>	
 	
-<!-- 	
- 	<bean id="mqFactory" class="boundless.types.mq.MsgQueueFactory">
-	    <property name="config" value="classpath:conf/properties/queue/queues.json" />
-	</bean>	
-
- 	<bean id="cloudStorageFactory" class="boundless.types.storage.CloudStorageFactory">
-	    <property name="config" value="classpath:conf/properties/storage/storages.json" />
-	</bean>	
-
+<!-- 
  	<import resource="classpath*:/conf/spring-mybatis.xml" />
  -->
   	

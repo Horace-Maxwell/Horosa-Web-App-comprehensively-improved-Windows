@@ -7,6 +7,7 @@ import {randomStr,} from '../../utils/helper';
 import { SuiTuTong, } from '../../msg/bazimsg';
 import SZChartComm from '../suzhan/SZChartComm';
 import * as AstroText from '../../constants/AstroText';
+import { lifeMasterSignOf } from './guolaoData';
 
 
 class GLSZSignChart extends SZChartComm{
@@ -74,17 +75,7 @@ class GLSZSignChart extends SZChartComm{
 	}
 
 	getLifeMasterSign(){
-		try{
-			const mode = this.fields && this.fields.guolaoLifeMode && this.fields.guolaoLifeMode.value;
-			if(!mode || mode === 'asc'){ return null; }   // 占星上升用上升点
-			const objs = (this.chartObj && this.chartObj.objects) || [];
-			let life = null;
-			for(let i = 0; i < objs.length; i++){ if(objs[i] && objs[i].id === AstroConst.LIFEMASTERDEG74){ life = objs[i]; break; } }
-			if(!life){ return null; }
-			const lon = Number(life.lon);
-			if(!Number.isFinite(lon)){ return null; }
-			return AstroConst.LIST_SIGNS[Math.floor((((lon % 360) + 360) % 360) / 30) % 12] || null;
-		}catch(e){ return null; }
+		return lifeMasterSignOf(this.fields, this.chartObj);
 	}
 
 	drawHouses(){
@@ -145,7 +136,8 @@ class GLSZSignChart extends SZChartComm{
 			let god = gods[i];
 			let orgdata = god.split('');
 			let data = [orgdata[0], orgdata[1]];
-			drawTextV(this.svg, data, x1, y, wid, hei, this.margin, color);
+			// 只画前两字,整词照传:繁体按整词定字再取这两位
+			drawTextV(this.svg, data, x1, y, wid, hei, this.margin, color, undefined, undefined, undefined, undefined, undefined, god);
 			x1 += wid;
 		}
 	}
@@ -159,7 +151,7 @@ class GLSZSignChart extends SZChartComm{
 			let god = gods[i];
 			let orgdata = god.split('');
 			let data = [orgdata[0], orgdata[1]];
-			drawTextH(this.svg, data, x, y1, wid, hei, this.margin, color);
+			drawTextH(this.svg, data, x, y1, wid, hei, this.margin, color, undefined, undefined, undefined, undefined, undefined, god);
 			y1 += hei;
 		}
 	}

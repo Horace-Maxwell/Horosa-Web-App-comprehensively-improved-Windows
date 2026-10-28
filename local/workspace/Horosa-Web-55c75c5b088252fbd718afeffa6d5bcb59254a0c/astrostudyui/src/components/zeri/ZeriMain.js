@@ -84,7 +84,7 @@ export default class ZeriMain extends Component{
 	componentWillUnmount(){
 		this.unmounted = true;
 		if(this.zeriPrerenderIdle && typeof cancelIdleCallback === 'function'){
-			try{ cancelIdleCallback(this.zeriPrerenderIdle); }catch(e){ /* ignore */ }
+			cancelIdleCallback(this.zeriPrerenderIdle);
 			this.zeriPrerenderIdle = null;
 		}
 		if(this.zeriPrerenderTimer){

@@ -67,7 +67,7 @@ class AcgPointPanel extends Component {
 
 						<div style={{ fontWeight: 600, margin: '6px 0' }}>此地落在以下行星线内</div>
 						{hits.length === 0 ? (
-							<div style={{ opacity: 0.65, fontSize: 13, padding: '6px 0' }}>
+							<div style={{ color: 'var(--horosa-text-secondary)', fontSize: 13, padding: '6px 0' }}>
 								该 orb 范围内没有行星-轴线经过此地。
 							</div>
 						) : (
@@ -76,7 +76,7 @@ class AcgPointPanel extends Component {
 									<div style={{ marginBottom: 3 }}>
 										<span style={{ ...GLYPH, fontSize: 16, marginRight: 6 }}>{glyph(h.planet)}{glyph(h.angle)}</span>
 										<span style={{ fontWeight: 600 }}>{PLANET_CN[h.planet] || h.planet} {ANGLE_CN[h.angle] || h.angle}线</span>
-										<span style={{ float: 'right', opacity: 0.6, fontSize: 12 }}>偏差 {h.orb}°</span>
+										<span style={{ float: 'right', color: 'var(--horosa-text-secondary)', fontSize: 12 }}>偏差 {h.orb}°</span>
 									</div>
 									<div style={{ fontSize: 12.5, lineHeight: 1.6, opacity: 0.85 }}>{getInterp(h.planet, h.angle)}</div>
 								</div>
@@ -87,14 +87,14 @@ class AcgPointPanel extends Component {
 							<div style={{ marginTop: 16 }}>
 								<div style={{ fontWeight: 600, margin: '6px 0' }}>
 									迁移四轴（此地起盘）
-									{report.ayanVal !== undefined ? <span style={{ fontWeight: 400, opacity: 0.6, fontSize: 12, marginLeft: 6 }}>· 恒星岁差 {report.ayanVal}°</span> : null}
+									{report.ayanVal !== undefined ? <span style={{ fontWeight: 400, color: 'var(--horosa-text-secondary)', fontSize: 12, marginLeft: 6 }}>· 恒星岁差 {report.ayanVal}°</span> : null}
 								</div>
 								{ANGLE_ORDER.map((a) => (
 									<div key={a} style={{ fontSize: 13, padding: '3px 0', display: 'flex', justifyContent: 'space-between' }}>
 										<span><span style={{ ...GLYPH, marginRight: 6 }}>{glyph(a)}</span>{ANGLE_CN[a]}</span>
 										<span>
 											{ra[a] !== undefined ? signDeg(ra[a]) : '—'}
-											{sidA && sidA[a] !== undefined ? <span style={{ opacity: 0.55, marginLeft: 8 }}>恒 {signDeg(sidA[a])}</span> : null}
+											{sidA && sidA[a] !== undefined ? <span style={{ color: 'var(--horosa-text-secondary)', marginLeft: 8 }}>恒 {signDeg(sidA[a])}</span> : null}
 										</span>
 									</div>
 								))}
@@ -110,7 +110,7 @@ class AcgPointPanel extends Component {
 											<span style={{ opacity: 0.72 }}>{cn}</span>
 											<span>{signDeg(report.sensitive[k])}</span>
 										</div>
-										{mk && sensitiveMeaning(mk) ? <div style={{ fontSize: 11.5, lineHeight: 1.55, opacity: 0.62, marginTop: 1 }}>{sensitiveMeaning(mk)}</div> : null}
+										{mk && sensitiveMeaning(mk) ? <div style={{ fontSize: 11.5, lineHeight: 1.55, color: 'var(--horosa-text-secondary)', marginTop: 1 }}>{sensitiveMeaning(mk)}</div> : null}
 									</div>
 								)))}
 							</div>
@@ -124,8 +124,8 @@ class AcgPointPanel extends Component {
 								<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 18px' }}>
 									{report.cusps.map((c, i) => (
 										<div key={i} style={{ fontSize: 12.5, padding: '2px 0', display: 'flex', justifyContent: 'space-between' }}>
-											<span style={{ opacity: 0.65 }}>{i + 1}宫</span>
-											<span>{signDeg(c)}{sidC && sidC[i] !== undefined ? <span style={{ opacity: 0.55, marginLeft: 6 }}>恒 {signDeg(sidC[i])}</span> : null}</span>
+											<span style={{ color: 'var(--horosa-text-secondary)' }}>{i + 1}宫</span>
+											<span>{signDeg(c)}{sidC && sidC[i] !== undefined ? <span style={{ color: 'var(--horosa-text-secondary)', marginLeft: 6 }}>恒 {signDeg(sidC[i])}</span> : null}</span>
 										</div>
 									))}
 								</div>

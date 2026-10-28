@@ -23,24 +23,7 @@
 
 from flatlib import const
 
-from astrostudy.india.primitives import SIGN_INDEX, sign_at
-
-
-# 星座主(星座名 → 主曜 const id)。与 arudha.SIGN_LORDS 一致，此处独立持有避免跨模块耦合。
-SIGN_LORDS = {
-    const.ARIES: const.MARS,
-    const.TAURUS: const.VENUS,
-    const.GEMINI: const.MERCURY,
-    const.CANCER: const.MOON,
-    const.LEO: const.SUN,
-    const.VIRGO: const.MERCURY,
-    const.LIBRA: const.VENUS,
-    const.SCORPIO: const.MARS,
-    const.SAGITTARIUS: const.JUPITER,
-    const.CAPRICORN: const.SATURN,
-    const.AQUARIUS: const.SATURN,
-    const.PISCES: const.JUPITER,
-}
+from astrostudy.india.primitives import SIGN_INDEX, SIGN_LORDS, sign_at
 
 # 吉/凶曜阵营(自然吉凶)——与六力 Drik 同。
 NATURAL_BENEFIC = {const.MOON, const.MERCURY, const.JUPITER, const.VENUS}

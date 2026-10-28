@@ -1,0 +1,47 @@
+diff --git a/astropy/tests/test_india_variant_mount_contract.py b/astropy/tests/test_india_variant_mount_contract.py
+index a3ec6aef..a38b1bf9 100644
+--- a/astropy/tests/test_india_variant_mount_contract.py
++++ b/astropy/tests/test_india_variant_mount_contract.py
+@@ -241,10 +241,41 @@ def test_every_engine_variant_changes_the_response():
+         assert e['alt'], '%s=%s 回包零变化' % (e['key'], e['value'])
+ 
+ 
++def _platform_tail_mismatches(fresh, fixture, path=''):
++    """horosa_win_float_tail_v1(Windows 侧移植适配):夹具在 macOS 上生成,Windows 的 libm / 星历浮点运算尾数与之差 1e-12 级
++    (本机实测 916 处:浮点相对差最大 1.6e-12、ISO 时刻最大差 21µs,结构 / 键 / 字符串零差)。逐叶比:结构、键、字符串、整数、
++    布尔一律全等;只有浮点允许相对 1e-9 以内、ISO 时刻允许 1ms 以内的平台尾差。返回不满足的叶路径。"""
++    from datetime import datetime
++    if isinstance(fresh, dict) and isinstance(fixture, dict):
++        if set(fresh) != set(fixture):
++            return [path + '{keys}']
++        return [m for k in sorted(fresh) for m in _platform_tail_mismatches(fresh[k], fixture[k], '%s/%s' % (path, k))]
++    if isinstance(fresh, list) and isinstance(fixture, list):
++        if len(fresh) != len(fixture):
++            return [path + '[len]']
++        return [m for i, (u, v) in enumerate(zip(fresh, fixture)) for m in _platform_tail_mismatches(u, v, '%s[%d]' % (path, i))]
++    num = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)  # noqa: E731
++    if num(fresh) and num(fixture) and (isinstance(fresh, float) or isinstance(fixture, float)):
++        return [] if abs(fresh - fixture) <= 1e-9 * max(abs(fresh), abs(fixture), 1.0) else [path]
++    if isinstance(fresh, str) and isinstance(fixture, str) and fresh != fixture:
++        try:
++            if abs((datetime.fromisoformat(fresh) - datetime.fromisoformat(fixture)).total_seconds()) < 1e-3:
++                return []
++        except ValueError:
++            pass
++        return [path]
++    return [] if (type(fresh) is type(fixture) and fresh == fixture) else [path]
++
++
+ def test_fixture_is_the_service_output():
+     """夹具 = 现行引擎输出(按记录的样例盘重算逐位比)。引擎口径变了 → 重生成夹具,前端合同随之重判。"""
+     fresh = build_contract(search=False)
+-    assert _dump(fresh) == FIXTURE.read_text(encoding='utf-8')
++    # horosa_win_float_tail_v1:macOS(夹具生成平台)逐字节照比;其它平台逐叶比,只放过浮点 / 时刻的平台尾差(见上)。
++    if sys.platform == 'darwin':
++        assert _dump(fresh) == FIXTURE.read_text(encoding='utf-8')
++    else:
++        bad = _platform_tail_mismatches(json.loads(_dump(fresh)), json.loads(FIXTURE.read_text(encoding='utf-8')))
++        assert bad == [], '夹具与现行引擎输出不同(超出平台浮点尾差):%s' % bad[:20]
+ 
+ 
+ def test_frontend_only_keys_really_do_not_reach_the_engine():

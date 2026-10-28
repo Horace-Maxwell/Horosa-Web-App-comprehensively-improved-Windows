@@ -31,6 +31,13 @@ AstroColor['Desc'] = '#3b3b3b';
 AstroColor['MC'] = '#3b3b3b';
 AstroColor['IC'] = '#3b3b3b';
 
+// 行星环的留(S)/ 顺(D)/ 逆(R)标、度数的分、王星标(盘面字;按本套盘面底挑,画的那一刻经 AstroConst.AstroColor 读)
+AstroColor['StationS'] = '#a97e2e';
+AstroColor['StationD'] = '#3a8f58';
+AstroColor['Retrograde'] = '#8f2d2d';
+AstroColor['MinuteText'] = '#80786e';
+AstroColor['RoyalStar'] = '#9f8122';
+
 AstroColor['Aries'] = '#a01306';
 AstroColor['Taurus'] = '#948e33';
 AstroColor['Gemini'] = '#7b5cbc';
@@ -46,8 +53,8 @@ AstroColor['Pisces'] = '#0b0e66';
 
 
 AstroColor['Asp0'] = '#191970';
-AstroColor['Asp60'] = '#33CCC3';
-AstroColor['Asp90'] = '#FE8090';
+AstroColor['Asp60'] = '#25958e';   // 旧 #33CCC3 在亮盘底 1.8:1(相位符读不出),同色相压深
+AstroColor['Asp90'] = '#e0485e';   // 旧 #FE8090 在亮盘底 2.1:1,同色相压深
 AstroColor['Asp120'] = '#1B8C09';
 AstroColor['Asp180'] = '#470024';
 

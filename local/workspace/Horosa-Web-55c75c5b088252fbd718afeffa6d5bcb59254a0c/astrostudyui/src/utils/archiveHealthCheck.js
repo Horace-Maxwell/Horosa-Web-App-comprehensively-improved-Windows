@@ -1,11 +1,13 @@
-// [V5-D12] 档案库体检(Anki Check Database 范式):全库跑完整性检查出分项报告,
+// 档案库体检(Anki Check Database 范式):全库跑完整性检查出分项报告,
 // 坏档给恢复指引。检查逻辑与各哨兵测试同判据 —— 这里是「用户可见的一键入口」。
 // 全部检查只读,绝不修改数据;每项独立 try,单项炸不拖垮整个体检。
+import { parseDateTimeMs } from './dateTimeParse';
 import { listLocalCharts, listLocalChartsTrash } from './localcharts';
 import { listLocalCases, listLocalCasesTrash } from './localcases';
 import { collectBackupKeys } from './storageKeyRegistry';
 import { getShadowMirrorStatus } from './shadowMirror';
-import { getAutoBackupStatus } from './autoBackup';
+import { getAutoBackupStatus, describeAutoBackupFailure } from './autoBackup';
+import { listCorruptArchives } from './safeStorage';
 
 function safeCount(fn){
 	try{
@@ -91,10 +93,13 @@ export function runArchiveHealthCheck(){
 			rows.push({ name: '影子副本', ok: true, detail: '未启用（浏览器环境或独立实例窗口），跳过' });
 		}else{
 			const div = (s.lastReconcile && s.lastReconcile.diverged) || [];
+			const held = Array.isArray(s.held) ? s.held : [];
+			// 每次保存都同步镜像,正常运行下两边不该不一致:不一致多半是上次保存后立刻退出、本机存储没来得及落盘
 			rows.push({
 				name: '影子副本',
-				ok: !s.lastMirrorError,
-				detail: s.lastMirrorError ? `最近一次镜像失败：${s.lastMirrorError}` : (div.length ? `镜像与当前数据存在 ${div.length} 处差异（以当前数据为准，属正常滞后）` : '镜像正常'),
+				ok: !s.lastMirrorError && !held.length,
+				// 壳层原始报错(英文 / 系统错误码)不直出,进诊断包;这里只说人话
+				detail: s.lastMirrorError ? '最近一次镜像没写成（可能是磁盘满或没有写权限），原始错误见诊断包' : (div.length ? `启动时镜像与本机数据有 ${div.length} 处不一致（上次退出前的保存可能没写进本机存储）${held.length ? '；影子副本里较新的记录还留着，可在顶部提示或「数据管理 ▾」›「存储健康」里并回或以本机为准' : '；影子副本里没有比本机更新的记录，以本机为准'}` : '镜像正常'),
 			});
 		}
 	}catch(e){
@@ -112,13 +117,26 @@ export function runArchiveHealthCheck(){
 			rows.push({
 				name: '自动备份',
 				ok: okRow,
-				detail: okRow ? `最近备份成功（${new Date(ab.last.at).toLocaleString()}）` : '最近备份失败或最老备份抽验未通过，建议立即手动导出一份全量备份',
+				detail: okRow ? `最近备份成功（${new Date(parseDateTimeMs(ab.last.at)).toLocaleString()}）`
+					: (!ab.last.ok ? `最近一次备份${describeAutoBackupFailure(ab.last.reason)}；建议先手动导出一份全量备份` : '最老一份备份抽验没通过，建议立即手动导出一份全量备份'),
 			});
 		}
 	}catch(e){
 		rows.push({ name: '自动备份', ok: false, detail: '检查失败' });
 	}
-	// ⑤ 未登记键(运行时防呆的可见化:有=会被备份带走但应尽快登记分类)
+	// ⑤ 损坏内容留档:某项数据读不出来时原样另存的一份,占本机存储空间、随备份走;在「存储健康」里可导出或删除
+	try{
+		const arch = listCorruptArchives();
+		const size = arch.reduce((acc, a)=>acc + (a.size || 0), 0);
+		rows.push({
+			name: '损坏内容留档',
+			ok: !arch.length,
+			detail: arch.length ? `有 ${arch.length} 份（约 ${Math.max(1, Math.round(size / 1024))} KB），某项数据读不出来时原样另存的；可在「数据管理 ▾」›「存储健康」里导出为文件，确认不需要后删除` : '没有',
+		});
+	}catch(e){
+		rows.push({ name: '损坏内容留档', ok: false, detail: '检查失败' });
+	}
+	// ⑥ 未登记键(运行时防呆的可见化:有=会被备份带走但应尽快登记分类)
 	try{
 		const { unknownKeys } = collectBackupKeys();
 		rows.push({
@@ -129,7 +147,7 @@ export function runArchiveHealthCheck(){
 	}catch(e){
 		rows.push({ name: '存储键登记', ok: false, detail: '检查失败' });
 	}
-	// ⑥ 规模概览(纯信息行,恒 ok)
+	// ⑦ 规模概览(纯信息行,恒 ok)
 	rows.push({
 		name: '库规模',
 		ok: true,

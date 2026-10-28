@@ -1,4 +1,4 @@
-// [Q-444/T-407] 世俗盘右栏卡 → 快照段:与 render*Card 同源纯函数;按盘型产段;按需拉取物随 state 成段;段名全登记 preset。
+// 世俗盘右栏卡 → 快照段:与 render*Card 同源纯函数;按盘型产段;按需拉取物随 state 成段;段名全登记 preset。
 import { buildMundaneCardSections } from '../MundaneMain';
 import { buildMockResult } from '../../../divination/election/__tests__/electionFixture';
 import { buildFacts } from '../../../divination/engine/chartFacts';

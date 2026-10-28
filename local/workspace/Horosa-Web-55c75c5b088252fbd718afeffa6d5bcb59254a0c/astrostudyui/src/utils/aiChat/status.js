@@ -9,7 +9,7 @@ function num(v){
 	return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-// [I1] usage 缓存计量归一:各家把「命中的前缀缓存」放在不同键上,状态栏/A/B 分析器/费用闸只认
+// usage 缓存计量归一:各家把「命中的前缀缓存」放在不同键上,状态栏/A/B 分析器/费用闸只认
 // anthropic 的 cache_read_input_tokens。这里把两种别名折进该键(纯函数,不改原对象):
 //   · DeepSeek(openai 协议扩展):usage.prompt_cache_hit_tokens
 //   · OpenAI 家族:usage.prompt_tokens_details.cached_tokens

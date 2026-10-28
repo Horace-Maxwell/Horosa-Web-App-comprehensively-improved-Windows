@@ -95,7 +95,10 @@ describe('账本撤销', ()=>{
 		expect(listLocalCharts().some((r)=>r.cid === rec.cid)).toBe(false);
 		expect(listLocalChartsTrash().some((r)=>r.cid === rec.cid)).toBe(true);
 		expect(listActions()[1].undone).toBe(true);
-		expect(undoAction('act-1').code).toBe('E_ACTION_NOT_FOUND');
+		// 已撤销过的再撤:如实回「已撤销」(动作条按此码给提示),而不是「账本里找不到」
+		expect(undoAction('act-1').code).toBe('E_UNDO_ALREADY');
+		expect(undoAction('act-none').code).toBe('E_ACTION_NOT_FOUND');
+		expect(listLocalChartsTrash().some((r)=>r.cid === rec.cid)).toBe(true);
 	});
 	test('restore-settings 撤销经注入的 restoreSettings 回调;none 类不可撤', ()=>{
 		appendAction({ id: 'act-s', tool: 'set_settings', level: 'additive', args: {}, summary: 's', result: { ok: true }, undo: { kind: 'restore-settings', payload: { facet: 'app', snapshot: { chartStyle: 'classic' } } } });

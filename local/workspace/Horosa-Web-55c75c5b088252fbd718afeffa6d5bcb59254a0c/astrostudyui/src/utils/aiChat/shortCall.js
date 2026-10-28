@@ -4,12 +4,13 @@
 // 全部只由用户显式动作触发(按钮/命令),不在任何自动路径上花钱。
 import { requestAIAnalysisChat } from '../../services/aianalysis';
 import { applyThinkingLevel } from '../aiAnalysisProviders';
+import { readModelRoutes, resolveRoute, providerOptionsForSlot } from '../aiModelRouting';
 
 export const SHORT_CALL_MARKERS = Object.freeze({
 	compact: '【对话压缩】',
 	init: '【口径草稿】',
 	memory: '【记忆提炼】',
-	plan: '【行动计划】',   // [批二⑦] /plan 规划调用:只看工具目录摘要列步骤,不执行任何工具
+	plan: '【行动计划】',   // /plan 规划调用:只看工具目录摘要列步骤,不执行任何工具
 });
 export const SHORT_CALL_DEFAULT_TIMEOUT_MS = 30000;
 
@@ -20,18 +21,24 @@ export function shortCallSystem(kind, system){
 	return body ? `${marker}\n${body}` : marker;
 }
 
-// 返回 { ok, content, usage, raw, error };绝不抛(调用方按 ok 分支给 UI 文案)。
-export async function requestShortCompletion({ profile, model, kind, system, user, timeoutMs, signal }){
+// 返回 { ok, content, usage, raw, error, model };绝不抛(调用方按 ok 分支给 UI 文案)。
+// slot(可选,如 'utility' / 'planner'):按「按任务用模型」该槽改走另一个模型与槽参数;槽空 / 不给 = 用传入的 profile/model,
+// 选项逐字节同此前(applyThinkingLevel(…,'off'))。providerProfiles 供槽解析找档案。返回的 model = 实际所用(压缩记录写它)。
+export async function requestShortCompletion({ profile, model, kind, system, user, timeoutMs, signal, slot, providerProfiles }){
 	if(!profile || !model){ return { ok: false, content: '', usage: null, raw: null, error: 'no_provider' }; }
 	let sys;
 	try{ sys = shortCallSystem(kind, system); }catch(e){ return { ok: false, content: '', usage: null, raw: null, error: e && e.message ? e.message : 'bad_kind' }; }
+	let target = { profile, model };
+	try{ if(slot){ const r = resolveRoute(slot, { routes: readModelRoutes(), providerProfiles: providerProfiles || [profile], profile, model }); if(r && r.profile && r.model){ target = { profile: r.profile, model: r.model }; } } }catch(e){ target = { profile, model }; }
 	try{
-		const opts = applyThinkingLevel({ ...(profile.providerOptions || {}) }, 'off', profile.providerType, model);
+		const opts = slot
+			? providerOptionsForSlot(slot, target.profile, target.model, { applyThinkingLevel })
+			: applyThinkingLevel({ ...(profile.providerOptions || {}) }, 'off', profile.providerType, model);
 		const rsp = await requestAIAnalysisChat({
-			providerType: profile.providerType,
-			apiKey: profile.apiKey,
-			baseUrl: profile.baseUrl,
-			model,
+			providerType: target.profile.providerType,
+			apiKey: target.profile.apiKey,
+			baseUrl: target.profile.baseUrl,
+			model: target.model,
 			providerOptions: { ...(opts || {}), requestTimeoutMs: Number(timeoutMs) > 0 ? Number(timeoutMs) : SHORT_CALL_DEFAULT_TIMEOUT_MS },
 			messages: [
 				{ role: 'system', content: sys },
@@ -41,9 +48,9 @@ export async function requestShortCompletion({ profile, model, kind, system, use
 		});
 		const result = rsp && rsp.Result ? rsp.Result : null;
 		const content = result && result.content ? `${result.content}` : '';
-		return { ok: !!content, content, usage: result && result.usage ? result.usage : null, raw: rsp, error: content ? null : 'empty' };
+		return { ok: !!content, content, usage: result && result.usage ? result.usage : null, raw: rsp, error: content ? null : 'empty', model: target.model };
 	}catch(e){
-		return { ok: false, content: '', usage: null, raw: null, error: e && e.message ? e.message : `${e}` };
+		return { ok: false, content: '', usage: null, raw: null, error: e && e.message ? e.message : `${e}`, model: target.model };
 	}
 }
 

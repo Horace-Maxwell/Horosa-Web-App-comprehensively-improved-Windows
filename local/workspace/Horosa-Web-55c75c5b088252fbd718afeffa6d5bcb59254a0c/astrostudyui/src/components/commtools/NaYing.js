@@ -5,6 +5,7 @@ import { isNumber } from '../../utils/helper';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import {NaYin, SixtyJiaZi} from '../../constants/ZWConst';
+import { matchesUserQuery } from '../../utils/scriptMode';
 
 const { Option } = Select;
 
@@ -104,7 +105,7 @@ export default class NaYing extends Component{
                             placeholder='选干支高亮定位(全表 60 条常显)'
                             onChange={this.changeGanzi}
                             filterOption={(input, option) => {
-                                return option.value.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                                return matchesUserQuery(option.value, input)
                             }}
                         >
                             {opts}

@@ -2,7 +2,7 @@
 // 此前 unifiedBackup 硬写两个店名;新增第三个带密钥的店会按「宁多带不漏」原样进包。
 export const AI_SECRET_STORES = ['provider_profiles', 'integration_profiles'];
 export const AI_SECRET_FIELDS = ['apiKey', 'token', 'authorization', 'Authorization', 'secret', 'clientSecret', 'headers.Authorization'];
-// [Q-059/M-79] 「鉴权定制(额外请求头)」整表都是令牌位(Authorization / x-api-key / 自建网关任意头名),按表整体剥密。
+// 「鉴权定制(额外请求头)」整表都是令牌位(Authorization / x-api-key / 自建网关任意头名),按表整体剥密。
 export const AI_SECRET_MAP_FIELDS = ['providerOptions.extraHeaders'];
 
 export function isSecretStore(name){
@@ -21,7 +21,7 @@ export function redactSecretRecord(rec){
 		}
 		if(Object.prototype.hasOwnProperty.call(out, f) && out[f] !== '' && out[f] !== undefined && out[f] !== null){ out[f] = ''; out[`${f}Redacted`] = true; }
 	});
-	// [Q-059/M-79] 额外请求头:每个非空值置空并打 extraHeadersRedacted(恢复时按 id 取本机值)
+	// 额外请求头:每个非空值置空并打 extraHeadersRedacted(恢复时按 id 取本机值)
 	AI_SECRET_MAP_FIELDS.forEach((f)=>{
 		const [a, b] = f.split('.');
 		const parent = out[a];

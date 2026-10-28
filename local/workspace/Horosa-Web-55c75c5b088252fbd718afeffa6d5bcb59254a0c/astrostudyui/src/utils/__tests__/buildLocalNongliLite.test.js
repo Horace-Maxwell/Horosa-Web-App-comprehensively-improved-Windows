@@ -1,4 +1,4 @@
-// [奇门择日 P0] buildLocalNongliLite ≡ buildLocalBaziResult 消费面平价锚。
+// buildLocalNongliLite ≡ buildLocalBaziResult 消费面平价锚。
 // 奇门找局扫描用 lite 版供 nongli(跳过三推运等 ≈97% 成本的派生),本测试把两版在奇门引擎
 // 全部消费键上钉死:lite.bazi.nongli 的每个键 == 全量版同键(全量版多出的 clockTime/solarTime
 // 不在 lite 消费面,不比),fourColumns 四柱干支逐柱相等。

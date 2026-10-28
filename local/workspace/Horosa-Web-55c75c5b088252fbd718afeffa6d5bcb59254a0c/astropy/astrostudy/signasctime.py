@@ -1,9 +1,10 @@
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta, timezone
 
 from flatlib.datetime import Datetime
 from flatlib import const
 from astrostudy import helper
+from astrostudy.civil_calendar import LEAP_DAY_FEB28, solar_anniversary_jdn
 
 # table of ascensional arcs of zodiacal signs
 
@@ -148,35 +149,6 @@ def getAscSignTime(lat, fromLon, toLon):
     return cnt
 
 
-def getSignAscTimeFactor(lat, ascSign):
-    """ get signs ascendant time factor
-    :param lat:
-    :param ascSign:
-    :return:
-    """
-    parts = lat.split('n')
-    if len(parts) == 1:
-        parts = lat.split('N')
-
-    latInt = int(parts[0])
-    if latInt >= len(SignsAscTimeZ):
-        latInt = len(SignsAscTimeZ) - 1
-
-    factorIdx = SignsAscTimeIndex[ascSign]
-    ascTime = SignsAscTimeZ[latInt][factorIdx]
-    return ascTime / 30
-
-def getYearAndDateByAscTimeFactor(arc, lat, ascSign):
-    basearc = arc * getSignAscTimeFactor(lat, ascSign)
-    year = int(basearc)
-    dayInYear = int((basearc - year)*365.2421904)
-    return (year, dayInYear)
-
-def getDaysByAscTimeFactor(arc, lat, ascSign):
-    basearc = arc * getSignAscTimeFactor(lat, ascSign)
-    return basearc * 365.2421904
-
-
 class SignAscTime:
 
     def __init__(self, birthday, birthtime, ascSign, lat, zone):
@@ -184,7 +156,9 @@ class SignAscTime:
         self.ascSign = ascSign
         self.lat = lat
         self.zone = zone
-        self._birth_local = self._build_local_birth_datetime(birthday, birthtime, zone)
+        self._parse_offset_tz(zone)   # 时区串照旧校验(坏串报错)
+        # 出生当地民用日的儒略日数(flatlib Date:历史纪年、1582 以前儒略历,全年份域)
+        self._birth_jdn = int(self.birth.date.jdn)
 
     def _parse_offset_tz(self, zone):
         if isinstance(zone, (int, float)):
@@ -204,60 +178,26 @@ class SignAscTime:
         delta = timedelta(hours=hour, minutes=minute)
         return timezone(sign * delta)
 
-    def _build_local_birth_datetime(self, birthday, birthtime, zone):
-        parts = birthday.split('/')
-        if len(parts) == 1:
-            parts = birthday.split('-')
-        if len(parts) != 3:
-            return None
-
-        year = int(parts[0])
-        month = int(parts[1])
-        day = int(parts[2])
-        if year <= 0 or year > 9999:
-            return None
-
-        if isinstance(birthtime, (int, float)):
-            total_seconds = int(round(float(birthtime) * 3600.0))
-            hour = (total_seconds // 3600) % 24
-            minute = (total_seconds % 3600) // 60
-            second = total_seconds % 60
-        else:
-            tm = '{0}'.format(birthtime if birthtime is not None else '00:00:00').split('.')[0]
-            tparts = tm.split(':')
-            hour = int(tparts[0]) if len(tparts) > 0 and tparts[0] != '' else 0
-            minute = int(tparts[1]) if len(tparts) > 1 and tparts[1] != '' else 0
-            second = int(tparts[2]) if len(tparts) > 2 and tparts[2] != '' else 0
-        return datetime(year, month, day, hour, minute, second, tzinfo=self._parse_offset_tz(zone))
-
-    def _add_years_safe(self, dt, years):
-        try:
-            return dt.replace(year=dt.year + years)
-        except ValueError:
-            # Feb 29 fallback for non-leap years.
-            return dt.replace(month=2, day=28, year=dt.year + years)
-
     def getJDFromPDArc(self, arc):
         # Core is closer to symbolic-year interpolation than a tropical-year
         # constant: split the age by whole years, move to the local anniversary,
         # then interpolate across the next anniversary span.
+        # 周年日取在连续太阳年轴上(civil_calendar.solar_anniversary_jdn,外推格里历):按民用历取时
+        # 1582 年以前出生的周年日整体落后太阳年约 10 天、跨改历那一「年」只有 355 天。
+        # 1582-10-15 以后出生与按民用历取逐位相同(两种历法是同一天,整天差是同一个整数)。
+        # 全年份域同一口径(公元前 / 万年以后不再换成回归年常数);2 月 29 日生、平年取 2 月 28 日(Core)。
         magnitude = abs(float(arc))
-        if self._birth_local is None or not math.isfinite(magnitude):
+        if not math.isfinite(magnitude):
             return self.birth.jd + magnitude * 365.2421904
 
         years = int(math.floor(magnitude + 1e-12))
-        # stdlib datetime 域至 9999 年:周年插值会跨出(如 9999 年生人的百年主限表)时,
-        # 退回与 `_birth_local is None` 分支相同的回归年常数近似;域内不触发,golden 零变。
-        if self._birth_local.year + years + 1 > 9999:
-            return self.birth.jd + magnitude * 365.2421904
         fraction = magnitude - years
+        birth_jdn = self._birth_jdn
+        current_jdn = solar_anniversary_jdn(birth_jdn, years, LEAP_DAY_FEB28)
+        next_jdn = solar_anniversary_jdn(birth_jdn, years + 1, LEAP_DAY_FEB28)
 
-        birth_utc = self._birth_local.astimezone(timezone.utc)
-        current_local = self._add_years_safe(self._birth_local, years)
-        next_local = self._add_years_safe(self._birth_local, years + 1)
-
-        whole_days = (current_local.astimezone(timezone.utc) - birth_utc).total_seconds() / 86400.0
-        span_days = (next_local.astimezone(timezone.utc) - current_local.astimezone(timezone.utc)).total_seconds() / 86400.0
+        whole_days = float(current_jdn - birth_jdn)
+        span_days = float(next_jdn - current_jdn)
         return self.birth.jd + whole_days + fraction * span_days
 
     def getPDArcFromDate(self, date_or_jd):

@@ -14,13 +14,15 @@ function readJSON(key) {
 }
 
 // 供搜索页调用:把一次检索写入近探历史(去重 + 限 20 条;走 safeStorage,跨重启持久、配额满不丢)
-// [Q-494/T-456] 近探历史此前只存关键词,重放时又写死「正史」并清空四维 →
+// 近探历史此前只存关键词,重放时又写死「正史」并清空四维 →
 // 野载或带维度的那次检索回不去(切「野载」+「狐」再点近探,出来的是正史结果)。
 // 现连同那次检索的完整选择(传统 + 朝代/术数/史书/证据)一起存;旧条目没有 sel,重放时按老口径兜底。
 export function pushSearchHistory(q, sel) {
 	if (!q || !`${q}`.trim()) { return; }
-	const list = readJSON(HIST_KEY).filter((h) => h && h.q !== q);
-	const entry = { q: `${q}`.trim(), ts: Date.now() };
+	// 去重与写入同一口径(去首尾空白):此前写 trim 过的 q、按原 q 去重,「狐 」再搜一次多出一条同名历史
+	const qq = `${q}`.trim();
+	const list = readJSON(HIST_KEY).filter((h) => h && `${h.q || ''}`.trim() !== qq);
+	const entry = { q: qq, ts: Date.now() };
 	if (sel && typeof sel === 'object') {
 		entry.sel = {
 			tradition: sel.tradition || '',
@@ -129,8 +131,8 @@ export default class XuanShiDesk extends React.Component {
 							</>
 						) : (
 							<div className="xuanshi-card" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--ink-muted)' }}>
-								<div style={{ fontSize: 34, opacity: 0.4, marginBottom: 10 }}>☆</div>
-								<div>还没有任何收藏。逛 <span className="xuanshi-link" onClick={() => this.nav('figures')}>名家</span> 或 <span className="xuanshi-link" onClick={() => this.nav('stories')}>秘录</span>，遇到喜欢的点 ☆ 即可收下。</div>
+								<div style={{ fontSize: 34, color: 'var(--ink-muted)', marginBottom: 10 }}>☆</div>
+								<div>还没有任何收藏。逛 <span className="xuanshi-link" onClick={() => this.nav('figures')}>人物列传</span> 或 <span className="xuanshi-link" onClick={() => this.nav('stories')}>故事专题</span>，遇到喜欢的点 ☆ 即可收下。</div>
 							</div>
 						)}
 					</section>

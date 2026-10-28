@@ -1,4 +1,4 @@
-// [批五] 四断链之④:撤销建档后「刷新 AI 分析页源列表」此前不可达(读 bridge.ui 恒空;另有一条 b.refreshSources 死分支)。
+// 四断链之④:撤销建档后「刷新 AI 分析页源列表」此前不可达(读 bridge.ui 恒空;另有一条 b.refreshSources 死分支)。
 // 行为锁:登记 refreshSources 后撤销 → dispatch(fetchCharts) 与 refreshSources 各恰一次;不登记仍撤销成功不抛。
 import { registerBuiltinTools } from '../aiTools';
 import { runTool, __resetToolsForTests } from '../aiTools/registry';

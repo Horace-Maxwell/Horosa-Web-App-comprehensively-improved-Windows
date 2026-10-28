@@ -2,7 +2,7 @@
 export const AstroColor = {
 	Backgroud: '#FFFEFA',
     ChartBackgroud: '#FFFEFA',
-	Stroke: '#D9A22B',
+	Stroke: '#755615',
 	TextStroke: '#000000',
 	Fill: '#FFFEFA',
     NoColor: 'transparent',
@@ -31,25 +31,32 @@ AstroColor['Desc'] = '#333333';
 AstroColor['MC'] = '#333333';
 AstroColor['IC'] = '#333333';
 
-AstroColor['Aries'] = '#F496B4';
-AstroColor['Taurus'] = '#9CB4E8';
-AstroColor['Gemini'] = '#F4D896';
-AstroColor['Cancer'] = '#D0E6F9';
-AstroColor['Leo'] = '#F496B4';
-AstroColor['Virgo'] = '#9CB4E8';
-AstroColor['Libra'] = '#F4D896';
-AstroColor['Scorpio'] = '#D0E6F9';
-AstroColor['Sagittarius'] = '#F496B4';
-AstroColor['Capricorn'] = '#9CB4E8';
-AstroColor['Aquarius'] = '#F4D896';
-AstroColor['Pisces'] = '#D0E6F9';
+// 行星环的留(S)/ 顺(D)/ 逆(R)标、度数的分、王星标(盘面字;按本套盘面底挑,画的那一刻经 AstroConst.AstroColor 读)
+AstroColor['StationS'] = '#a97e2e';
+AstroColor['StationD'] = '#3a8f58';
+AstroColor['Retrograde'] = '#8f2d2d';
+AstroColor['MinuteText'] = '#80786e';
+AstroColor['RoyalStar'] = '#9f8122';
+
+AstroColor['Aries'] = '#ed5586';
+AstroColor['Taurus'] = '#668bdc';
+AstroColor['Gemini'] = '#b38313';
+AstroColor['Cancer'] = '#2f91e5';
+AstroColor['Leo'] = '#ed5586';
+AstroColor['Virgo'] = '#668bdc';
+AstroColor['Libra'] = '#b38313';
+AstroColor['Scorpio'] = '#2f91e5';
+AstroColor['Sagittarius'] = '#ed5586';
+AstroColor['Capricorn'] = '#668bdc';
+AstroColor['Aquarius'] = '#b38313';
+AstroColor['Pisces'] = '#2f91e5';
 
 
-AstroColor['Asp0'] = '#BD94E7';
-AstroColor['Asp60'] = '#D0E6F9';
-AstroColor['Asp90'] = '#F4D896';
-AstroColor['Asp120'] = '#9CB4E8';
-AstroColor['Asp180'] = '#F496B4';
+AstroColor['Asp0'] = '#a873e0';
+AstroColor['Asp60'] = '#2f91e5';
+AstroColor['Asp90'] = '#b38313';
+AstroColor['Asp120'] = '#668bdc';
+AstroColor['Asp180'] = '#ed5586';
 
 AstroColor['命'] = '#cccc00';
 AstroColor['业'] = '#cccc00';

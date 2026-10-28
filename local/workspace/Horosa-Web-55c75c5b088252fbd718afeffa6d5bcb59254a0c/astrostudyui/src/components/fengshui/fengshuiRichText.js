@@ -32,11 +32,6 @@ export function renderInlineBold(node, keyPrefix){
 	return out.length ? out : node;
 }
 
-// 纯文本口径(AI 快照/导出/纯文本对比用):把标记摘掉但保留字面内容。
-export function stripInlineBold(text){
-	return typeof text === 'string' ? text.replace(BOLD_RE, '$1') : text;
-}
-
 // 递归版:对整棵 children 子树里的字符串做行内加粗。
 // 🔴 为什么要递归而不是逐个出口改:右栏 `horosa-fengshui-liqi-note` 一类直出 div 数量众多,
 // 形态各异(模板串/表达式/JSX 混排),逐个接必漏、且新增一处就再漏一次;而它们统统落在

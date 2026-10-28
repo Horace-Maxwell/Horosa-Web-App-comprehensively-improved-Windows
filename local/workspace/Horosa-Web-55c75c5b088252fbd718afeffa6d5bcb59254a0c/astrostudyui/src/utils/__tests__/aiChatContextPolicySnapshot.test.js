@@ -1,4 +1,4 @@
-// [压测二轮·D6·P1/P2] 上下文策略快照冻结:一个 Turn 只在创建时读一次策略,流中途改设置绝不改写已发出请求的前缀形状;
+// 上下文策略快照冻结:一个 Turn 只在创建时读一次策略,流中途改设置绝不改写已发出请求的前缀形状;
 // 目标任务跨轮的稳定层指纹(usage.prompt.stableHash)不因中途改策略而变(否则上游前缀缓存整条作废)。
 import { createAgentTurn, readAgentContextPolicy, DEFAULT_AGENT_CONTEXT_POLICY } from '../aiAgent/runtime';
 import { runHeadlessTurn } from '../aiAgent/goalRunner';

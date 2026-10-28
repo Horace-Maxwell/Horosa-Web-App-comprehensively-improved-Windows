@@ -1,4 +1,4 @@
-// [D8/W1] 联网检索面板·换引擎不得沿用旧引擎的 Key(先红)。合同/判别向量:
+// 联网检索面板·换引擎不得沿用旧引擎的 Key(先红)。合同/判别向量:
 //   已配置 tavily(库里存着 tavily 的 Key)→ 用户在面板里把引擎改成 brave、密钥框留空 → 点「保存」。
 //   判据:落库的那条档案里,brave 绝不能带着 tavily 的 Key(也不能顶着 tavily 的档案 id)。
 //   现在红:WebSearchPanel.js:36-40 的 save() 用 `form.apiKey.trim() || profile.apiKey` 兜底、
@@ -80,3 +80,14 @@ describe('W1 · 联网检索面板换引擎', ()=>{
 		});
 	});
 });
+
+describe('自定义服务地址与 AI 接口地址同一清理口径', ()=>{
+	test('全角空格 / 零宽字符 / 不换行空格:存档前清掉', ()=>{
+		const { mergeSearchProfileForm: merge } = require('../../components/aianalysis/WebSearchPanel');
+		const r = merge(null, { engine: 'searxng', baseUrl: '\u200Bhttps://searx.example.com\u3000\u00A0', apiKey: '' });
+		expect(r.ok).toBe(true);
+		expect(r.profile.baseUrl).toBe('https://searx.example.com');
+		expect(merge(null, { engine: 'searxng', baseUrl: '\u3000\u200B', apiKey: '' })).toEqual({ ok: false, reason: 'need-baseUrl' });
+	});
+});
+

@@ -9,9 +9,11 @@ import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
+import { seriesColorOf, seriesDashOf } from '../../constants/seriesPalette';
 import { SA_RATE } from '../../utils/uranianDial';
-import { getLayoutViewportWidth, getLayoutViewportHeight } from '../../utils/shellZoom';
+import { getPageLayoutWidth, getPageLayoutHeight } from '../../utils/shellZoom';   // 页面排版视口(地板到工作区包络 960 × 560)
 import { pointerToLocal } from '../../utils/zoomDomain';
+import { yearMonthKey } from '../../utils/dateStrSafe';
 
 const RangePicker = XQDatePicker.RangePicker;
 
@@ -32,31 +34,16 @@ const NATAL_LINE_IDS = new Set([
 ]);
 
 // 图形星历专用「行星配色」:全站主题色板(AstroColor)在多数主题下行星为单色(#3b3b3b/#333),
-// 曲线全挤成一团难分辨。这里给每颗参与星一组中等饱和度、明暗两主题都清晰可辨的固定色——
-// 曲线 stroke 与右侧字形 fill 共用同一映射,确保「线↔字形」永远同色(任务 E)。纯视觉,不动计算。
-const GEPHEM_PLANET_TONE = {
-	[AstroConst.SUN]: '#e0a52e',        // 日 金黄
-	[AstroConst.MOON]: '#6f8fd0',       // 月 蓝银
-	[AstroConst.MERCURY]: '#e07b39',    // 水 橙
-	[AstroConst.VENUS]: '#3f9e6a',      // 金 绿
-	[AstroConst.MARS]: '#d24b46',       // 火 红
-	[AstroConst.JUPITER]: '#7b5cbc',    // 木 紫
-	[AstroConst.SATURN]: '#8a6d3b',     // 土 褐
-	[AstroConst.URANUS]: '#2f9e9e',     // 天 青
-	[AstroConst.NEPTUNE]: '#4a78c2',    // 海 靛
-	[AstroConst.PLUTO]: '#a85aa8',      // 冥 品红
-	[AstroConst.NORTH_NODE]: '#9a8f5a', // 北交 黄褐
-	[AstroConst.SOUTH_NODE]: '#9a8f5a', // 南交 黄褐
-	[AstroConst.ASC]: '#5f9e8a',        // 升 灰青
-	[AstroConst.MC]: '#5f9e8a',         // 中天 灰青
-};
+// 曲线全挤成一团难分辨。参与星取多序列分类色板(明暗成对、每色在本主题盘面底上 ≥ 3.4:1、同图两两色差 ≥ 16;
+// 星 → 序号映射单源,见 constants/seriesPalette)。
+// 曲线 stroke 与右侧字形 fill 共用同一映射,确保「线↔字形」永远同色。纯视觉,不动计算。
 // 星名(行运线 hover tooltip 用):TNP 缩写;白羊点取 Aries;其余取中文名 fallback 英文 id。
 function planetName(id){
 	if (AstroText.isUranian(id) && id !== AstroConst.ARIES_POINT) return AstroText.uranianGlyph(id);
 	return AstroText.AstroMsgCN[id] || id;
 }
 // 曲线/字形取色:优先专用色板,缺则回落全站主题色,再回落柔和文字色。
-function toneOf(id, fallback){ return GEPHEM_PLANET_TONE[id] || AstroConst.AstroColor[id] || fallback || '#888'; }
+function toneOf(id, fallback){ return seriesColorOf(id) || AstroConst.AstroColor[id] || fallback || '#888'; }
 
 const fold = (lon, base) => (((Number(lon) % base) + base) % base);
 const fv = (fields, key) => { const f = fields && fields[key]; return f ? f.value : undefined; };
@@ -69,8 +56,8 @@ function fieldsToBase(fields){
 		zone: fv(fields, 'zone') || '+08:00', lat: fv(fields, 'lat'), lon: fv(fields, 'lon'),
 		gpsLat: fv(fields, 'gpsLat'), gpsLon: fv(fields, 'gpsLon'),
 		hsys: fv(fields, 'hsys'), zodiacal: fv(fields, 'zodiacal'), siderealAyanamsa: fv(fields, 'siderealAyanamsa'),
-		// [SURF-5] 古典设置单源接入;条件发送=默认态字节不变。
-		// [SURF-R3g] 有意不带古典键:唯一去处 /astroextra/ephemeris 的图形星历腿(includeTransits:false)
+		// 古典设置单源接入;条件发送=默认态字节不变。
+		// 有意不带古典键:唯一去处 /astroextra/ephemeris 的图形星历腿(includeTransits:false)
 		// 端点纯 swe 按 jd 取位、无 push 临界区=零消费——带键只白翻缓存键(「接了后端不消费=造新死链」豁免)。
 	};
 }
@@ -98,6 +85,9 @@ function planetGlyph(id, color, size){
 	return <tspan>{AstroText.AstroMsgCN[id] || id}</tspan>;
 }
 
+// 外包自己承担纵向滚动(页签内容框不滚):放大档里控件行 + 图(高度有底线)+ 说明行比页签框高时,此前下半截被裁、滚不到;放得下时不出滚动条,一字不变
+const GEPHEM_WRAP = { padding: '4px 8px', height: '100%', overflowY: 'auto', boxSizing: 'border-box' };
+
 export default class UranianGraphicEphemeris extends Component {
 	constructor(props){
 		super(props);
@@ -115,8 +105,8 @@ export default class UranianGraphicEphemeris extends Component {
 			rows: null,
 			loading: false,
 			note: null,
-			vw: typeof window !== 'undefined' ? getLayoutViewportWidth() : 1200,   // 布局域实测(inner* 是物理域)
-			vh: typeof window !== 'undefined' ? getLayoutViewportHeight() : 900,
+			vw: typeof window !== 'undefined' ? getPageLayoutWidth() : 1200,   // 布局域实测(inner* 是物理域)
+			vh: typeof window !== 'undefined' ? getPageLayoutHeight() : 900,
 			cw: 0, // 实测容器内宽(像素空间渲染用)
 			tip: null, // 线 hover 弹窗(任务 B:像 ACG 地图,state 驱动 absolute div)
 		};
@@ -136,7 +126,7 @@ export default class UranianGraphicEphemeris extends Component {
 	componentDidMount(){ this.unmounted = false; this.requestData(); this._measure(); if (typeof window !== 'undefined') { window.addEventListener('resize', this._onResize); window.addEventListener('horosa-uranian-ephembase', this._onEphemBase); } }
 	componentWillUnmount(){ this.unmounted = true; if (typeof window !== 'undefined') { window.removeEventListener('resize', this._onResize); window.removeEventListener('horosa-uranian-ephembase', this._onEphemBase); } }
 	componentDidUpdate(prev){ if (prev.fields !== this.props.fields) this.requestData(); this._measure(); }
-	_onResize(){ if (!this.unmounted) { this.setState({ vw: getLayoutViewportWidth(), vh: getLayoutViewportHeight() }); this._measure(); } }
+	_onResize(){ if (!this.unmounted) { this.setState({ vw: getPageLayoutWidth(), vh: getPageLayoutHeight() }); this._measure(); } }
 	// 线 hover 弹窗(任务 B):鼠标移到行运曲线/本命参考线 → 显「色点 + 星名(本命/行运)」,像 ACG 地图;state 驱动 absolute div,host 须 position:relative。
 	showTip(e, id, kind){ if (this.unmounted || !this._tipHost) return; const p = pointerToLocal(e, this._tipHost); /* 鼠标位移(视觉域)折回宿主布局域,缩放档下提示才贴着鼠标 */ this.setState({ tip: { x: p.x + 14, y: p.y + 14, id, kind, color: toneOf(id, '#888') } }); }
 	hideTip(){ if (!this.unmounted && this.state.tip) this.setState({ tip: null }); }
@@ -198,7 +188,7 @@ export default class UranianGraphicEphemeris extends Component {
 			}
 			if (cur.length) segs.push(cur);
 			const d = segs.map((seg) => seg.map((pt, k) => `${k === 0 ? 'M' : 'L'}${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(' ')).join(' ');
-			return { pid: p.id, color, d, endY: yAt(fold(p.lon + MAX_AGE * rate, base)) };
+			return { pid: p.id, color, dash: seriesDashOf(p.id), d, endY: yAt(fold(p.lon + MAX_AGE * rate, base)) };
 		});
 
 		// 聚焦因子交点:F 推进线与每条本命水平线的相交岁数 = (fold(B−F) + k·base)/rate ≤ 90。
@@ -232,7 +222,7 @@ export default class UranianGraphicEphemeris extends Component {
 		const traX = mL + plotW + 32;
 
 		return (
-			<div ref={(el) => { this._wrap = el; }} className="horosa-uranian-gephem" style={{ padding: '4px 8px' }}>
+			<div ref={(el) => { this._wrap = el; }} className="horosa-uranian-gephem" style={GEPHEM_WRAP}>
 				{controls}
 				<div style={{ width: '100%', position: 'relative' }} ref={(el) => { this._tipHost = el; }}>
 					<svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: 'block', maxWidth: '100%', color: stroke }}
@@ -263,7 +253,7 @@ export default class UranianGraphicEphemeris extends Component {
 						{series.map((s, i) => (
 							<g key={`s${i}`} className="horosa-gephem-line">
 								{s.d ? <path d={s.d} fill="none" stroke="transparent" strokeWidth="9" strokeLinejoin="round" style={{ cursor: 'pointer' }} onMouseMove={(e) => this.showTip(e, s.pid, '太阳弧推进')} onMouseLeave={this.hideTip} /> : null}
-								<path className="horosa-gephem-line-vis" d={s.d} fill="none" stroke={s.color}
+								<path className="horosa-gephem-line-vis" d={s.d} fill="none" stroke={s.color} strokeDasharray={s.dash}
 									strokeWidth={s.pid === (focus && focus.id) ? 2.4 : 1.1}
 									opacity={s.pid === (focus && focus.id) ? 0.95 : 0.5} style={{ pointerEvents: 'none' }} />
 							</g>
@@ -342,14 +332,14 @@ export default class UranianGraphicEphemeris extends Component {
 			if (cur.length) segs.push(cur);
 			const d = segs.map((seg) => seg.map((p, k) => `${k === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')).join(' ');
 			const last = rows[n - 1] && rows[n - 1].positions && rows[n - 1].positions[pid];
-			return { pid, color, d, endY: last ? yAt(fold(last.lon, base)) : null };
+			return { pid, color, dash: seriesDashOf(pid), d, endY: last ? yAt(fold(last.lon, base)) : null };
 		});
 
 		// 月份竖网格 + 标签。
 		const monthMarks = [];
 		let lastMonth = null;
 		for (let i = 0; i < n; i++){
-			const ym = (rows[i].date || '').slice(0, 7); // 'YYYY-MM'
+			const ym = yearMonthKey(rows[i].date); // 'YYYY-MM'(公元前前导负号、五位年不切错位)
 			if (ym && ym !== lastMonth){ lastMonth = ym; monthMarks.push({ x: xAt(i), label: ym.replace('-', '/') }); }
 		}
 
@@ -414,7 +404,7 @@ export default class UranianGraphicEphemeris extends Component {
 
 		if (isLife){
 			if (!nat.length){
-				return <div ref={(el) => { this._wrap = el; }} className="horosa-uranian-gephem" style={{ padding: '4px 8px' }}>{controls}<Empty description="请先完善出生信息（本命盘就绪后即可查看生命图）" /></div>;
+				return <div ref={(el) => { this._wrap = el; }} className="horosa-uranian-gephem" style={GEPHEM_WRAP}>{controls}<Empty description="请先完善出生信息（本命盘就绪后即可查看生命图）" /></div>;
 			}
 			return this.renderLife(controls, W, H, mL, mR, mT, mB, stroke, soft);
 		}
@@ -423,11 +413,11 @@ export default class UranianGraphicEphemeris extends Component {
 		const traX = mL + plotW + 32;  // 行运字形外列(与内列拉开间距,放大后不互叠)
 
 		if (this.state.note){
-			return <div ref={(el) => { this._wrap = el; }} className="horosa-uranian-gephem" style={{ padding: '4px 8px' }}>{controls}<Empty description={this.state.note} /></div>;
+			return <div ref={(el) => { this._wrap = el; }} className="horosa-uranian-gephem" style={GEPHEM_WRAP}>{controls}<Empty description={this.state.note} /></div>;
 		}
 
 		return (
-			<div ref={(el) => { this._wrap = el; }} className="horosa-uranian-gephem" style={{ padding: '4px 8px' }}>
+			<div ref={(el) => { this._wrap = el; }} className="horosa-uranian-gephem" style={GEPHEM_WRAP}>
 				{controls}
 				<Spin spinning={this.state.loading}>
 					<div style={{ width: '100%', position: 'relative' }} ref={(el) => { this._tipHost = el; }}>
@@ -465,7 +455,7 @@ export default class UranianGraphicEphemeris extends Component {
 							{series.map((s, i) => (
 								<g key={`s${i}`} className="horosa-gephem-line">
 									{s.d ? <path d={s.d} fill="none" stroke="transparent" strokeWidth="9" strokeLinejoin="round" style={{ cursor: 'pointer' }} onMouseMove={(e) => this.showTip(e, s.pid, '行运')} onMouseLeave={this.hideTip} /> : null}
-									<path className="horosa-gephem-line-vis" d={s.d} fill="none" stroke={s.color} strokeWidth="1.6" opacity="0.92" style={{ pointerEvents: 'none' }} />
+									<path className="horosa-gephem-line-vis" d={s.d} fill="none" stroke={s.color} strokeDasharray={s.dash} strokeWidth="1.6" opacity="0.92" style={{ pointerEvents: 'none' }} />
 								</g>
 							))}
 							{/* 本命字形(内列,避让 + 连线回真位);字形放大 12→17,hover 显星名。 */}

@@ -1,4 +1,4 @@
-// [Windows #80] 印占「附加分盘」:主盘之外再挂 D9 婚姻 / D7 子女等,各出一份简表。
+// [Windows #80] 印占「附加分盘」:主盘之外再挂 D9 合作 / D7 子嗣等,各出一份简表。
 // 用户报障原话是「没有完整的婚姻/子女分盘」——此前 indiaChartnum 单选,一次只能挂一张。
 // 判据分三层:① 选盘归一(值域/去重/上限/剔主盘) ② 简表选段(只取落宫面,不重复大运/瑜伽)
 // ③ 齿轮契约(缺省 [] = 不发请求不加段 = 零回归;选项与 AstroConst 单一真值源同构)。
@@ -36,8 +36,8 @@ describe('印占附加分盘 · 选盘归一(纯函数)', ()=>{
 	});
 
 	it('分盘中文名与选项表单一真值源(D 序号只写一处)', ()=>{
-		expect(AstroConst.indiaMountVargaLabel(9)).toBe('D9 婚姻');
-		expect(AstroConst.indiaMountVargaLabel(7)).toBe('D7 子女');
+		expect(AstroConst.indiaMountVargaLabel(9)).toBe('D9 合作');   // 与印度页分盘页签同一套译名
+		expect(AstroConst.indiaMountVargaLabel(7)).toBe('D7 子嗣');   // 印度页分盘页签「D7 · 子嗣」
 		expect(AstroConst.indiaMountVargaLabel(1)).toBe('D1 命盘');
 		expect(AstroConst.indiaMountVargaLabel(5)).toBe('D5');       // 值域外仍给得出可读名
 		expect(AstroConst.indiaMountVargaLabel('x')).toBe('');
@@ -57,7 +57,7 @@ describe('印占附加分盘 · 简表选段(纯函数)', ()=>{
 
 	it('🔴 只取落宫面三段,大运/相位/瑜伽一概不带(否则 N 张分盘把预算吃穿)', ()=>{
 		const out = pickIndiaVargaBriefLines(SNAP, 9);
-		expect(out[0]).toBe('── D9 婚姻 ──');
+		expect(out[0]).toBe('── D9 合作 ──');
 		expect(out).toContain('一宫 白羊 12°');
 		expect(out).toContain('上升 白羊 12°');
 		expect(out).toContain('太阳 巨蟹 3°');

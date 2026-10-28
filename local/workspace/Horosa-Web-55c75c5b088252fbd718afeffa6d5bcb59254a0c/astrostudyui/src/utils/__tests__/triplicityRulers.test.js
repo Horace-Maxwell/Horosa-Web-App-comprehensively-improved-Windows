@@ -57,7 +57,7 @@ describe('triplicityRulers', ()=>{
 		});
 	});
 
-	it('[Q-187/T-111] 不传 system 时随本盘 params.triplicity(挂载 record.system 缺席=页面初值同序);非法值仍回多罗特', ()=>{
+	it('不传 system 时随本盘 params.triplicity(挂载 record.system 缺席=页面初值同序);非法值仍回多罗特', ()=>{
 		const c = chart({ diurnal: true, sunSign: 'Aries', moonSign: 'Cancer' });
 		c.params.triplicity = 'Ptolemaic';
 		const auto = buildTriplicityPeriods(c, { division: 'thirds' });

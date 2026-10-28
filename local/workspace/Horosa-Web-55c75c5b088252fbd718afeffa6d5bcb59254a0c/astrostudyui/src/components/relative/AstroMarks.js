@@ -1,35 +1,9 @@
 import { Component } from 'react';
 import { XQTabs as Tabs } from '../xq-ui';
 import AstroChartMain from '../astro/AstroChartMain';
+import { paramsToFields } from './relativeFields';
 
 const TabPane = Tabs.TabPane;
-
-function paramsToFields(param, flds){
-	// 本命 record 提供 date/time/zone/lat/lon,但 hsys/zodiacal/siderealAyanamsa 保留全局 flds(左栏当前选择)
-	// 否则左栏 Select 会被 record 老快照覆盖回原值,显示与刚改的不一致。
-	let fields = {
-		...flds,
-		date:{
-			value: param.date
-		},
-		time:{
-			value: param.time
-		},
-		ad: {
-			value: param.ad ? param.ad : flds.ad.value,
-		},
-		zone:{
-			value: param.zone
-		},
-		lat:{
-			value: param.lat
-		},
-		lon:{
-			value: param.lon
-		},
-	}
-	return fields;
-}
 
 class AstroMarks extends Component{
 	constructor(props) {
@@ -94,7 +68,7 @@ class AstroMarks extends Component{
 					<TabPane tab={chartATitle} key="chartA">
 						{
 							canRenderA ? (
-									<AstroChartMain embeddedSubChart 
+									<AstroChartMain embeddedSubChart relativeContext={this.props.relativeContext} 
 										value={chartAobj} 
 									fields={fieldsA} 
 									hidedateselector={1}
@@ -109,7 +83,7 @@ class AstroMarks extends Component{
 										onChange={this.props.onChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
-										showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* [Q-253/T-223] 四键补传:弹层显示值与主页同源 */
+										showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* 四键补传:弹层显示值与主页同源 */
 										voidClassical={this.props.voidClassical}
 										planetListStyle={this.props.planetListStyle}
 										aspects={this.props.aspects}
@@ -123,7 +97,7 @@ class AstroMarks extends Component{
 					<TabPane tab={chartBTitle} key="chartB">
 						{
 							canRenderB ? (
-									<AstroChartMain embeddedSubChart 
+									<AstroChartMain embeddedSubChart relativeContext={this.props.relativeContext} 
 										value={chartBobj} 
 									fields={fieldsB} 
 									hidedateselector={1}
@@ -138,7 +112,7 @@ class AstroMarks extends Component{
 										onChange={this.props.onChange}
 										showPlanetHouseInfo={this.props.showPlanetHouseInfo}
 										showAstroMeaning={this.props.showAstroMeaning}
-										showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* [Q-253/T-223] 四键补传:弹层显示值与主页同源 */
+										showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}   /* 四键补传:弹层显示值与主页同源 */
 										voidClassical={this.props.voidClassical}
 										planetListStyle={this.props.planetListStyle}
 										aspects={this.props.aspects}

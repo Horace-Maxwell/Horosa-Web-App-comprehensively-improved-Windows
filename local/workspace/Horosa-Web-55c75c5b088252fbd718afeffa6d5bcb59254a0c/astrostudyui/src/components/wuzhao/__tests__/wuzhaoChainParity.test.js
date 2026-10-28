@@ -9,9 +9,9 @@ import { WUZHAO_CALC_OPTION_KEYS } from '../WuZhaoMain';
 import { TECHNIQUE_SETTINGS_SCHEMA } from '../../../utils/techniqueMountSettings';
 import { AI_EXPORT_PRESET_SECTIONS, getOptionsForTechniqueKey } from '../../../utils/aiExport';
 import PAN from './fixtures/wuzhaoPan.json';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
-const SRC_CONTEXT = require('fs').readFileSync(
-	require('path').resolve(__dirname, '../../../utils/aiAnalysisContext.js'), 'utf8');
+const SRC_CONTEXT = readSource(require('path').resolve(__dirname, '../../../utils/aiAnalysisContext.js'));
 
 describe('五兆四链同源', () => {
 	test('①挂载 schema 的字段 ⊆ 计算类键集（能设的必是算得到的）', () => {

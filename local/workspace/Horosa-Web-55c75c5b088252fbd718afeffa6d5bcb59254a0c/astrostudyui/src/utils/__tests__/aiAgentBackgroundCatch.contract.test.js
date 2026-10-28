@@ -1,4 +1,4 @@
-// [D80] 后台链「吞错必留痕」机械网:目标任务 / 任务中心 / 调度器 / 自动化引擎这些没有人在键盘前的模块,每个 catch 必须
+// 后台链「吞错必留痕」机械网:目标任务 / 任务中心 / 调度器 / 自动化引擎这些没有人在键盘前的模块,每个 catch 必须
 //   ① 经 reportBackgroundFailure(tag, e) 进 bgSink,或 ② 把错误转成显式结果(体内含 `ok: false` / `throw` / `return` 结果对象),或 ③ 写明理由的 `/* noop: 理由 */`。
 //   裸 `catch(e){ /* noop */ }` 与 `.catch(()=>{})` 一律红(此前 goalRunner / tasks/index / reconcile / scheduler / engine 十余处静默吞掉)。
 import fs from 'fs';

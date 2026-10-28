@@ -1,4 +1,4 @@
-// AI 助手·plan 形态(借鉴 Claude Code 的 plan mode):/plan <目标> → 先让模型只看「工具目录摘要」列一份行动计划(不执行任何工具)
+// AI 助手·plan 形态:/plan <目标> → 先让模型只看「工具目录摘要」列一份行动计划(不执行任何工具)
 // → 浮层给用户批准/修改/取消 → 批准后才以「已批准计划」为约束发起真正的 Turn。规划调用是非流式短调用:零工具、零落库、只由用户显式命令触发。
 // 不动全局审批三档(never/on-request/read-only 字面锚不变):计划只是给这一轮加一条系统约束,工具照常走各自的审批与账本。
 import Ajv from 'ajv';
@@ -104,7 +104,7 @@ export function renderPlanText(plan, goal){
 	if(p.questions && p.questions.length){ lines.push(`执行前先确认:${p.questions.join(';')}`); }
 	return lines.join('\n');
 }
-// 随 Turn 附加的系统约束(经 extraSystemContext 进「本轮附加上下文」挥发层,缓存断点之后;不含「行动计划」四字,免得被当成规划调用)[Q-290/PP-17]
+// 随 Turn 附加的系统约束(经 extraSystemContext 进「本轮附加上下文」挥发层,缓存断点之后;不含「行动计划」四字,免得被当成规划调用)
 export function approvedPlanDirective(plan){
 	const n = plan && plan.steps ? plan.steps.length : 0;
 	const writes = plan && plan.steps ? plan.steps.filter((s)=>s.writes).length : 0;

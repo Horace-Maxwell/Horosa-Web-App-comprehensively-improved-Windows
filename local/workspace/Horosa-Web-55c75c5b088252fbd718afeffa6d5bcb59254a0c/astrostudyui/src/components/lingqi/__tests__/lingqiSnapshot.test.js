@@ -7,6 +7,7 @@ import {
 	DEFAULT_LINGQI_ZHU_VISIBLE,
 } from '../lingqiSnapshot';
 import { findLingqiGua } from '../data/lingqiJing';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SECTIONS = ['起盘信息', '棋势', '卦象', '繇辞', '诸家注', '课断', '断诗'];
 
@@ -24,7 +25,7 @@ describe('buildLingqiSnapshotText 七段', () => {
 	});
 
 	test('🔴 与 aiExport.js 源码中 AI_EXPORT_PRESET_SECTIONS.lingqi 逐字一致(双真值源互锁)', () => {
-		const src = fs.readFileSync(path.join(__dirname, '../../../utils/aiExport.js'), 'utf8');
+		const src = readSource(path.join(__dirname, '../../../utils/aiExport.js'));
 		const m = src.match(/lingqi: \[([^\]]+)\]/);
 		expect(m).toBeTruthy();
 		const preset = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);

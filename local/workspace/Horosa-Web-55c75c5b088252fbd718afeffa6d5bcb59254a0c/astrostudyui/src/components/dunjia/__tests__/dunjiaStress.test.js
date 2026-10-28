@@ -47,11 +47,11 @@ function structOk(pan){
 
 describe('奇门遁甲穷尽压测 · 本地引擎全选项笛卡尔', ()=>{
 	test('左栏选项枚举齐全(防回归:增删选项即露)', ()=>{
-		expect(PAIPAN_OPTIONS.map((o)=>o.value)).toEqual([0, 1, 2, 3, 4, 6]);   // [H-F] 刻家复活;[H-G] 古籍金函系日家
+		expect(PAIPAN_OPTIONS.map((o)=>o.value)).toEqual([0, 1, 2, 3, 4, 6]);   // 刻家复活;古籍金函系日家
 		expect(SCHOOL_OPTIONS.map((o)=>o.value)).toEqual(['转盘', '飞盘', '混合']);
 		expect(QIJU_METHOD_OPTIONS.map((o)=>o.value)).toEqual(['zhirun', 'chaibu', 'maoshan', 'wurun', 'shuzi']);
 		expect(ZHISHI_OPTIONS.map((o)=>o.value)).toEqual([0, 1, 2]);
-		expect(YUEJIA_QIJU_OPTIONS.map((o)=>o.value)).toEqual([0, 1, 2]);   // [H-I] 逐月换局档
+		expect(YUEJIA_QIJU_OPTIONS.map((o)=>o.value)).toEqual([0, 1, 2]);   // 逐月换局档
 		expect(KONG_MODE_OPTIONS.map((o)=>o.value)).toEqual(['day', 'time']);
 		expect(MA_MODE_OPTIONS.map((o)=>o.value)).toEqual(['day', 'time']);
 		expect(YIXING_OPTIONS.map((o)=>o.value)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
@@ -104,7 +104,7 @@ describe('奇门遁甲穷尽压测 · 本地引擎全选项笛卡尔', ()=>{
 				});
 			});
 		});
-		expect(n).toBe(SAMPLES.length * 8 * 3 * 2 * 2); // 384([H-E] 置闰第三档 10 入域)
+		expect(n).toBe(SAMPLES.length * 8 * 3 * 2 * 2); // 384(置闰第三档 10 入域)
 	});
 
 	// 月家奇门:年符头(0)/年支(1) × 值使 3 法 × 4 时刻:月家走本地全盘,结构必齐。
@@ -122,7 +122,7 @@ describe('奇门遁甲穷尽压测 · 本地引擎全选项笛卡尔', ()=>{
 				});
 			});
 		});
-		expect(n).toBe(SAMPLES.length * 3 * 3); // 36([H-I] 逐月档入域)
+		expect(n).toBe(SAMPLES.length * 3 * 3); // 36(逐月档入域)
 	});
 
 	test('单选确实改盘(中右栏据此变):排盘体例改 juText、盘式改神宫、数字起局产 shuziInfo', ()=>{
@@ -179,8 +179,8 @@ describe('奇门遁甲穷尽压测 · 本地引擎全选项笛卡尔', ()=>{
 	});
 });
 
-// ══ [H-B] 八神预设三档 + 暗干五法 + 暗支 ═══
-describe('[H-B] applyGodsPreset/panAnGan/anZhiOf', ()=>{
+// ══ 八神预设三档 + 暗干五法 + 暗支 ═══
+describe('applyGodsPreset/panAnGan/anZhiOf', ()=>{
 	const { applyGodsPreset, panAnGan, anZhiOf, calcDunJia } = require('../DunJiaCalc');
 	test('🔴 八神三档:默认恒虎玄(=现状)/system 保基串/勾雀档反向;飞盘不受辖由盘式分支保证', ()=>{
 		expect(applyGodsPreset('勾')).toBe('虎');
@@ -246,8 +246,8 @@ describe('[H-B] applyGodsPreset/panAnGan/anZhiOf', ()=>{
 	});
 });
 
-// ══ [H-C] 中宫寄宫五档:resolveJiGong 全档语义 + calcDunJia 差分不变式 ═══
-describe('[H-C] resolveJiGong/寄宫接线', ()=>{
+// ══ 中宫寄宫五档:resolveJiGong 全档语义 + calcDunJia 差分不变式 ═══
+describe('resolveJiGong/寄宫接线', ()=>{
 	const { resolveJiGong, panAnGan, JIGONG_MODE_OPTIONS } = require('../DunJiaCalc');
 
 	test('五档枚举钉死', ()=>{
@@ -346,8 +346,8 @@ describe('[H-C] resolveJiGong/寄宫接线', ()=>{
 	});
 });
 
-// ══ [H-D] 飞盘顺飞三档+中门二项+混合盘四层自由装配 ═══
-describe('[H-D] 飞盘细项/混合装配', ()=>{
+// ══ 飞盘顺飞三档+中门二项+混合盘四层自由装配 ═══
+describe('飞盘细项/混合装配', ()=>{
 	const layerStr = (pan, key)=>pan.cells.map((c)=>String(c[key] || '')).join('|');
 	const mk = (extra)=>({ paiPanType: 2, qijuMethod: 'zhirun', ...extra });
 
@@ -429,8 +429,8 @@ describe('[H-D] 飞盘细项/混合装配', ()=>{
 	});
 });
 
-// ══ [H-E] 空亡多标二项 + 移星值符两档 ═══
-describe('[H-E] kongMarkBoth/showAllKong/shiftZhiFuMode', ()=>{
+// ══ 空亡多标二项 + 移星值符两档 ═══
+describe('kongMarkBoth/showAllKong/shiftZhiFuMode', ()=>{
 	const mk = (extra)=>({ paiPanType: 2, school: '转盘', qijuMethod: 'zhirun', ...extra });
 
 	test('kongMarkBoth:并集标记 ⊇ 单模式;默认关=day 模式字节同;xunKong 恒暴露', ()=>{
@@ -509,8 +509,8 @@ describe('[H-E] kongMarkBoth/showAllKong/shiftZhiFuMode', ()=>{
 	});
 });
 
-// ══ [H-F] 日家定局三档 + 刻家十分局复活 ═══
-describe('[H-F] dayJiaJu/刻家十分局', ()=>{
+// ══ 日家定局三档 + 刻家十分局复活 ═══
+describe('dayJiaJu/刻家十分局', ()=>{
 	test('日家三档:缺省=yiyuan 字节同;shitian 逐旬换元;yitian 逐日推移连续律', ()=>{
 		const nongli = localNongli('2026-02-17', '10:00:00');
 		const fields = makeFields('2026-02-17', '10:00:00');
@@ -576,8 +576,8 @@ describe('[H-F] dayJiaJu/刻家十分局', ()=>{
 	});
 });
 
-// ══ [H-G] 日家·古籍金函系(书表直录独立体系) ═══
-describe('[H-G] 金函系日家占方盘', ()=>{
+// ══ 日家·古籍金函系(书表直录独立体系) ═══
+describe('金函系日家占方盘', ()=>{
 	const { JINHAN_TABLE, JINHAN_DIRS, JINHAN_STAR_JI, JINHAN_DOOR_JI } = require('../jinhanRiJia');
 	const STARS9 = ['天乙', '太乙', '太阴', '青龙', '轩辕', '招摇', '摄提', '咸池', '天符'];
 	const DOORS8 = '休生伤杜景死惊开'.split('');
@@ -671,8 +671,8 @@ describe('[H-G] 金函系日家占方盘', ()=>{
 	});
 });
 
-// ══ [H-I] 年家一年一局 + 月家一月一局(通行年/月游九星同构,公域锚可核验) ═══
-describe('[H-I] yearJiaJu/yueJia 逐月档', ()=>{
+// ══ 年家一年一局 + 月家一月一局(通行年/月游九星同构,公域锚可核验) ═══
+describe('yearJiaJu/yueJia 逐月档', ()=>{
 	const juNum = (pan)=>'一二三四五六七八九'.indexOf(String(pan.juShu || '').charAt(0)) + 1;
 	const mk = (d, t, extra)=>{
 		const nongli = localNongli(d, t);

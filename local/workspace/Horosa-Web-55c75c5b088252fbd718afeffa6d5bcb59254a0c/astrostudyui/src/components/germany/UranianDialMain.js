@@ -18,13 +18,18 @@ import { getStoredUranianDisplay, saveUranianDisplay, URANIAN_DIAL_BASES, dialBa
 import { safeLocalStorageSet } from '../../utils/safeStorage';
 import { XQSelect, XQTabs, XQSideSection, XQSwitch, XQSegmented, XQDatePicker, XQInputNumber } from '../xq-ui';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
-import { SCHOOL_OPTIONS, presetForSchool, personalSetForSchool, schoolToBackendParams, schoolComparisonRows } from './UranianSchools';
+import { SCHOOL_OPTIONS, presetForSchool, personalSetForSchool, schoolComparisonRows, germanyMidpointRequestParams } from './UranianSchools';
 import { tnpGlyph, TNP_GLYPH_PATHS } from './UranianGlyphs';
 import { listLocalCharts, localChartsVersion } from '../../utils/localcharts';
 import { classicalBackendOverridesFromFields, classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
-import { getLayoutViewportWidth, getLayoutViewportHeight } from '../../utils/shellZoom';
-// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+import { getPageLayoutWidth, getPageLayoutHeight } from '../../utils/shellZoom';   // 页面排版视口(地板到工作区包络 960 × 560)
+// 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
 import { visualFloorPx } from '../../utils/zoomDomain';
+import { matchesUserQuery } from '../../utils/scriptMode';
+import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
+import { datePartOf, toSlashDate, formatSignedDate } from '../../utils/dateStrSafe';
+import { parseDateTimeParts } from '../../utils/dateTimeParse';
+import DateTime from '../comp/DateTime';
 import { createSignatureMemo, memoEnabled } from '../../utils/memoBySignature';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
@@ -108,12 +113,6 @@ const URANIAN_SET = new Set(AstroConst.LIST_URANIAN);
 // 行星图常用「盘基」快捷:90°(4 次谐波,默认)/45°(8 次谐波,宇宙生物学)/22.5°(16 次谐波)。
 const QUICK_BASES = [90, 45, 22.5];
 
-function sunLon(chartRoot){
-	const inner = (chartRoot && chartRoot.chart) ? chartRoot.chart : (chartRoot || {});
-	const o = (inner.objects || []).find((x) => x.id === AstroConst.SUN);
-	return o && Number.isFinite(Number(o.lon)) ? Number(o.lon) : null;
-}
-
 function msg(id){ return AstroText.AstroMsgCN[id] || AstroText.AstroTxtMsg[id] || id; }
 const pad = (n) => (n < 10 ? '0' + n : '' + n);
 
@@ -168,13 +167,13 @@ function fieldsToParams(fields){
 		gpsLat: fv(fields, 'gpsLat'), gpsLon: fv(fields, 'gpsLon'),
 		hsys: fv(fields, 'hsys'), zodiacal: fv(fields, 'zodiacal'), siderealAyanamsa: fv(fields, 'siderealAyanamsa') || '', tradition: false, predictive: 0,
 		name: fv(fields, 'name') || '', pos: fv(fields, 'pos') || '',
-		// [SURF-5] 古典设置单源接入;条件发送=默认态字节不变。
+		// 古典设置单源接入;条件发送=默认态字节不变。
 		...classicalBackendOverridesFromFields(fields),
 	};
 }
 
 // WP-9 合盘叠盘人配色(与子盘 RING_TONE 的 syn0..3 一致;UI 左栏色点/右栏标签用)。
-const SYN_TONE = ['var(--horosa-accent, #2f7df1)', '#8e6fd0', '#1f8a8a', '#c08a2f'];
+const SYN_TONE = ['var(--horosa-accent, #2f7df1)', 'var(--horosa-hue-purple)', 'var(--horosa-hue-teal)', 'var(--horosa-jx-other)'];
 // 合盘叠盘最多 4 人(spec WP-9 上限)。
 const SYN_MAX = 4;
 
@@ -203,15 +202,17 @@ const LIB_PREFIX = 'lib:';
 function libraryChartParams(rec){
 	if (!rec) return null;
 	const birth = rec.birth ? `${rec.birth}` : '';
-	const m = birth ? moment(birth, 'YYYY-MM-DD HH:mm:ss') : null;
-	if (!m || !m.isValid()) return null;
+	// 库记录的出生串经日期串单源拆(公元前 / 公元 1–99 年 / 五位年不误读;不用 moment(串, 格式))
+	const bp = birth ? parseDateTimeParts(birth.trim()) : null;
+	if (!bp || bp.year === 0) return null;
+	const pad2 = (n) => String(n).padStart(2, '0');
 	return {
-		date: m.format('YYYY/MM/DD'), time: m.format('HH:mm:ss'),
+		date: toSlashDate(formatSignedDate(bp.year, bp.month, bp.day)), time: `${pad2(bp.hour)}:${pad2(bp.minute)}:${pad2(bp.second)}`,
 		zone: rec.zone, lat: rec.lat, lon: rec.lon,
 		gpsLat: rec.gpsLat, gpsLon: rec.gpsLon,
 		hsys: rec.hsys, zodiacal: rec.zodiacal, siderealAyanamsa: rec.siderealAyanamsa || '', tradition: false, predictive: 0,
 		name: rec.name || '', pos: rec.pos || '',
-		// [SURF-5] 库盘人随盘古典键保真(record 非默认捕获键平面存):FromPlain 条件发送。
+		// 库盘人随盘古典键保真(record 非默认捕获键平面存):FromPlain 条件发送。
 		...classicalBackendOverridesFromPlain(rec),
 	};
 }
@@ -243,28 +244,17 @@ function buildPersonList(fieldsAry){
 	lib.forEach((rec) => {
 		if (!rec || !rec.cid) return;
 		if (!libraryChartParams(rec)) return; // 缺出生信息 → 不可叠盘
-		const nm = rec.name ? `${rec.name}` : (rec.birth ? `${rec.birth}`.slice(0, 10) : '未命名');
+		const nm = rec.name ? `${rec.name}` : (rec.birth ? datePartOf(`${rec.birth}`) : '未命名');
 		out.push({ id: `${LIB_PREFIX}${rec.cid}`, label: nm, source: 'library', record: rec });
 	});
 	return out;
 }
 
-// 流派 + 容许度 → /germany/midpoint 出参增量(Java 白名单:school/orb/personalOrb/frames/declination/strictFactors)。
-// 后端按 school 推 include_tnp(cosmo→无虚星)、用 orb / personalOrb;默认 classic 即现状字节零回归。
+// 流派 + 容许度 → /germany/midpoint 出参增量:与中点页、AI 无头重算同一函数(germanyMidpointRequestParams;
+// 盘上 state 与显示偏好同键:school / orb / orbPersonal / showHouseFrames / showEastPoint / showDeclination / strictFactors)。
+// 戴维森合盘人由调用方按开关附加。
 function schoolRequestParams(state){
-	const sp = schoolToBackendParams(state.school);   // {school, frames(预设兜底)}
-	return {
-		...sp,
-		orb: state.orb,                 // 盘上容许度(用户可逐项覆盖,优先于预设 orbMidpoint)
-		personalOrb: state.orbPersonal, // 个人点放宽容许度(Basic Five)
-		// 六宫框(D1 live 化):随开关实时下发(原取流派预设→手动开而预设关时后端不算,开关半死)。
-		// 东点(B7)黄经由 houseFrames.eastPoint 携带 → 开东点时即便六宫框关也请求 frames。
-		frames: state.showHouseFrames !== false || !!state.showEastPoint,
-		// 赤纬接触(WP-11):仅请求该字段;false 时后端不算 declination(省算)。include_tnp 仍随 school。
-		declination: state.showDeclination !== false,
-		// 严格因子集(D2):true 时后端在 uranian 分支剔除黑月/紫气两非汉堡点;默认关不发=零回归不扰缓存。
-		...(state.strictFactors ? { strictFactors: true } : {}),
-	};
+	return germanyMidpointRequestParams(state, null);
 }
 
 // 从盘对象（本命/行运同形）取参与点：行星+三王+北交南交+Asc/MC。(导出:AI 快照链组装伙伴盘点复用)
@@ -318,14 +308,13 @@ export default class UranianDialMain extends Component {
 			dialStyle: disp.dialStyle === 'modulus' ? 'modulus' : 'folded', // 盘式：折叠盘 / 多环模数盘
 			saArcDirected: 0,      // 太阳弧环被拖动的定向弧(黄道度)
 			saAge: 0,              // 由定向弧按 saKey 反推的年龄
-			saKey: (disp.saKey === 'oneDeg' || disp.saKey === 'cardan') ? disp.saKey : 'naibod', // 太阳弧换算：Naibod / 1°每年 / Cardan([Q-147/T-54] 此前 cardan 重挂载被折成 naibod)
+			saKey: (disp.saKey === 'oneDeg' || disp.saKey === 'cardan') ? disp.saKey : 'naibod', // 太阳弧换算：Naibod / 1°每年 / Cardan(此前 cardan 重挂载被折成 naibod)
 			transitTime: null,     // 行运时刻(null=此刻)，可调
-			// 行运/SA 地点可调(null=同本命)。SA 一般地心黄经无需地点,但允许覆盖以方便 relocated 想法。
+			// 行运地点可调(null=同本命)。太阳弧是地心黄经,不需要地点。
 			transitLat: null, transitLon: null,
-			saLat: null, saLon: null,
 			// viewport 高度(用于动态算盘 size + 左右栏滚动 maxHeight;props.height 不含底部 Dock 安全距离,
 			// 须用 window.innerHeight 实测 + 减去顶栏/tab/Dock 估算)。
-			vh: typeof window !== 'undefined' ? getLayoutViewportHeight() : 900,   // 布局域实测(innerHeight 是物理域,壳缩放≠1 时差 z 倍)
+			vh: typeof window !== 'undefined' ? getPageLayoutHeight() : 900,   // 布局域实测(innerHeight 是物理域,壳缩放≠1 时差 z 倍)
 			// 中间盘列的实测可用宽/高(中点盘按 min(列宽, 列高) 最大化,永不超出列的方框)。
 			colW: 0,
 			colH: 0,
@@ -360,7 +349,7 @@ export default class UranianDialMain extends Component {
 		if (typeof window !== 'undefined') window.addEventListener('resize', this._onResize);
 		// 监听中间盘列尺寸变化(含 tab 由隐藏→显示时 0→真实尺寸),据此最大化盘 size。
 		if (typeof ResizeObserver !== 'undefined' && this._host){
-			this._ro = new ResizeObserver(() => this._measure());
+			this._ro = createDeferredResizeObserver(() => this._measure());
 			this._ro.observe(this._host);
 		}
 		this._measure();
@@ -368,9 +357,9 @@ export default class UranianDialMain extends Component {
 	componentWillUnmount(){
 		this.unmounted = true;
 		if (typeof window !== 'undefined') window.removeEventListener('resize', this._onResize);
-		if (this._ro){ try { this._ro.disconnect(); } catch (e) { /* noop */ } this._ro = null; }
+		if (this._ro){ this._ro.disconnect(); this._ro = null; }
 	}
-	_onResize(){ if (!this.unmounted) { this.setState({ vh: getLayoutViewportHeight() }); this._measure(); } }
+	_onResize(){ if (!this.unmounted) { this.setState({ vh: getPageLayoutHeight() }); this._measure(); } }
 	// 实测中间盘列的内容框宽/高(列为 grid 居中 + overflow:hidden,故按其 client 尺寸取 min 即「方框内最大」)。
 	_measure(){
 		if (this.unmounted || !this._host) return;
@@ -382,7 +371,7 @@ export default class UranianDialMain extends Component {
 	componentDidUpdate(prev, prevState){
 		if (prev.fields !== this.props.fields) {
 			// 改本命 → 拨回默认地点(null=同本命),否则用旧本命的覆盖坐标算新本命的行运,误导。
-			this.setState({ saArcDirected: 0, saAge: 0, transitLat: null, transitLon: null, saLat: null, saLon: null });
+			this.setState({ saArcDirected: 0, saAge: 0, transitLat: null, transitLon: null });
 			this.requestNatalTnp();
 			if (this.state.showTransit) this.requestTransit();
 		}
@@ -477,8 +466,10 @@ export default class UranianDialMain extends Component {
 		if (dialParamsError(base)) return; // 缺出生地经纬度等 → 不发 transit /chart，避免 param error 提示
 		// 行运时刻可调：state.transitTime(moment)优先，否则此刻。
 		const tt = this.state.transitTime;
-		const dstr = tt ? tt.format('YYYY/MM/DD') : (() => { const n = new Date(); return `${n.getFullYear()}/${pad(n.getMonth() + 1)}/${pad(n.getDate())}`; })();
-		const tstr = tt ? tt.format('HH:mm:ss') : (() => { const n = new Date(); return `${pad(n.getHours())}:${pad(n.getMinutes())}:00`; })();
+		// 「此刻」按本盘时区的钟面(DateTime.wallClockForChart;与随请求下发的本盘时区配套)
+		const n0 = tt ? null : DateTime.wallClockForChart(base.zone);
+		const dstr = tt ? tt.format('YYYY/MM/DD') : `${n0.getFullYear()}/${pad(n0.getMonth() + 1)}/${pad(n0.getDate())}`;
+		const tstr = tt ? tt.format('HH:mm:ss') : `${pad(n0.getHours())}:${pad(n0.getMinutes())}:00`;
 		// 行运地点可调：null=同本命；显式数字才覆盖（relocated transit）。
 		const overrideLat = this.state.transitLat, overrideLon = this.state.transitLon;
 		const loc = (overrideLat != null && overrideLon != null) ? { lat: overrideLat, lon: overrideLon, gpsLat: overrideLat, gpsLon: overrideLon } : {};
@@ -558,37 +549,6 @@ export default class UranianDialMain extends Component {
 		if (this.state.showEastPoint && Number.isFinite(Number(this.state.natalEastPoint))) pts.push({ id: AstroConst.EAST_POINT, lon: Number(this.state.natalEastPoint) });
 		if (this.state.showVertex && Number.isFinite(Number(this.state.natalVertex))) pts.push({ id: AstroConst.VERTEX, lon: Number(this.state.natalVertex) });
 		return filterByTnp(pts, this.state.showTnp);
-	}
-
-	// 真太阳弧：SA = λ_Sun(出生 + age 年) − λ_Sun(出生)，1 历日 = 1 年（推荐默认）。
-	async requestSolarArc(){
-		const base = fieldsToParams(this.props.fields);
-		const natalSun = sunLon(this.props.chart);
-		const birth = this.props.fields && this.props.fields.date ? this.props.fields.date.value : null;
-		const ms = birthEpochMs(birth);
-		if (dialParamsError(base) || natalSun == null || !Number.isFinite(ms)) return;
-		const ageYears = (Date.now() - ms) / (86400000 * 365.2422);
-		const d = new Date(ms + ageYears * 86400000); // 出生 + age 日（1日=1年二次推进）
-		const overrideLat = this.state.saLat, overrideLon = this.state.saLon;
-		const loc = (overrideLat != null && overrideLon != null) ? { lat: overrideLat, lon: overrideLon, gpsLat: overrideLat, gpsLon: overrideLon } : {};
-		const params = { ...base, ...loc, date: `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`, time: `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` };
-		try {
-			const chartData = await request(`${Constants.ServerRoot}/chart`, { body: JSON.stringify({ ...params, cid: null }), silent: true });
-			const co = chartData && chartData[Constants.ResultKey] ? chartData[Constants.ResultKey] : null;
-			const progSun = sunLon(co);
-			if (progSun != null && !this.unmounted) this.setState({ saArcDeg: (((progSun - natalSun) % 360) + 360) % 360 });
-		} catch (e) { /* 退回近似 */ }
-	}
-
-	solarArcDeg(){
-		if (this.state.saArcDeg != null) return this.state.saArcDeg; // 真太阳弧
-		try {
-			const birth = this.props.fields && this.props.fields.date ? this.props.fields.date.value : null;
-			const ms = birthEpochMs(birth);
-			if (!Number.isFinite(ms)) return 0;
-			const days = (Date.now() - ms) / 86400000;
-			return Math.max(0, days / 365.2422 * 0.9856473); // 退回 Naibod 近似
-		} catch (e) { return 0; }
 	}
 
 	// 叠盘人 id → 唯一显示名(供环标签/接触表/读数 ring tag/色点共用一致文案)。
@@ -701,7 +661,7 @@ export default class UranianDialMain extends Component {
 		const top = hubTop3 || new Set();
 		return Object.keys(tree).map((pid) => ({
 			// B6:枝数徽标(.horosa-panel-count);Top3 枢纽(占据中点最多)加重着色并标「枢纽」。
-			title: (<span><b>{glyphOf(pid)}</b> <span className="horosa-panel-count" title={top.has(pid) ? '整合枢纽 Top3:占据中点最多' : '占据的中点枝数'} style={top.has(pid) ? { background: 'var(--horosa-accent-strong, var(--horosa-accent, #c0392b))', color: '#fff', fontWeight: 700 } : {}}>{tree[pid].length}</span>{top.has(pid) ? <span style={{ color: 'var(--horosa-accent-strong, var(--horosa-accent, #c0392b))', fontSize: 11, marginLeft: 4 }}>枢纽</span> : null}</span>),
+			title: (<span><b>{glyphOf(pid)}</b> <span className="horosa-panel-count" title={top.has(pid) ? '整合枢纽 Top3:占据中点最多' : '占据的中点枝数'} style={top.has(pid) ? { background: 'var(--horosa-accent-strong, var(--horosa-accent, #c0392b))', color: 'var(--horosa-on-accent)', fontWeight: 700 } : {}}>{tree[pid].length}</span>{top.has(pid) ? <span style={{ color: 'var(--horosa-accent-strong, var(--horosa-accent, #c0392b))', fontSize: 11, marginLeft: 4 }}>枢纽</span> : null}</span>),
 			key: pid,
 			children: tree[pid].map((r, i) => ({
 				title: (<span>{glyphOf(r.a)} <span style={{ color: 'var(--horosa-text-soft)' }}>/</span> {glyphOf(r.b)} <span style={{ color: 'var(--horosa-text-soft)', fontSize: 11 }}>- {r.sep.toFixed(2)}°</span></span>),
@@ -716,12 +676,12 @@ export default class UranianDialMain extends Component {
 		const f = this.props.fields || {};
 		const fmtF = (k, p) => { const v = f[k] && f[k].value; return (v && v.format) ? v.format(p) : '—'; };
 		const birthText = `${fmtF('date', 'YYYY-MM-DD')} ${fmtF('time', 'HH:mm')}`.trim();
-		const now = new Date();
+		const now = DateTime.wallClockForChart(f.zone && f.zone.value ? `${f.zone.value}` : '');   // 与行运请求同一个「此刻」(本盘时区钟面)
 		const nowText = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 		const transitText = this.state.transitTime ? this.state.transitTime.format('YYYY-MM-DD HH:mm') : `此刻 ${nowText}`;
 		const saArc = this.state.saArcDirected || 0;
 		const saAge = this.state.saAge || 0;
-		const saKeyLabel = this.state.saKey === 'oneDeg' ? '1°/年' : (this.state.saKey === 'cardan' ? 'Cardan' : 'Naibod');
+		const saKeyLabel = this.state.saKey === 'oneDeg' ? '1°/年' : (this.state.saKey === 'cardan' ? '59′12″' : '均日弧');   // 与左栏「太阳弧换算」同名
 		// B5:组合/戴维森两层需已选 ≥1 合盘叠加对象(取第一位);未选时禁用并提示。
 		const firstSyn = (this.state.synastryPeople || [])[0] || null;
 		const synReady = !!(firstSyn && this.state.synastryPersonPoints[firstSyn]);
@@ -812,7 +772,7 @@ export default class UranianDialMain extends Component {
 		// 中间盘 size:按实测「中间列」的内容框最大化——取列宽、列高(减盘下 24 padding)较小者,填满方框且永不超出被裁。
 		// 列尺寸由 _measure(ResizeObserver)实测;未测得时用 viewport 估算兜底;vh-140 为防底部 Dock 的二级兜底。
 		const vh = this.state.vh || 900;
-		const fbColW = Math.round((typeof window !== 'undefined' ? (getLayoutViewportWidth() || 1280) : 1280) * 0.56);
+		const fbColW = Math.round((typeof window !== 'undefined' ? (getPageLayoutWidth() || 1280) : 1280) * 0.56);
 		const colW = this.state.colW || fbColW;
 		const colH = this.state.colH || (vh - 240);
 		const size = Math.max(visualFloorPx(420), Math.min(colW - 8, colH - 28, vh - 140));
@@ -899,10 +859,11 @@ export default class UranianDialMain extends Component {
 					<XQSelect value={this.state.dialBase} onChange={(v) => this.saveDisp({ dialBase: Number(v) })} style={{ width: '100%' }} size="small"
 						options={URANIAN_DIAL_BASES.map((b) => ({ value: b, label: `${dialBaseLabel(b)} 盘` }))} />
 					{/* 常用盘基快捷:90°(H4 默认)/45°(H8 宇宙生物学)/22.5°(H16)。 */}
-					<div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+					{/* 一行放得下时三钮等宽(flex 1 1 0);左栏窄(放大档)放不下时换行,不再把「H16 22°30′」挤出钮外被裁(min-width: max-content) */}
+					<div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
 						{QUICK_BASES.map((b) => (
 							<button key={b} type="button" onClick={() => this.saveDisp({ dialBase: b })}
-								style={{ flex: 1, fontSize: 11, padding: '2px 0', cursor: 'pointer', borderRadius: 4,
+								style={{ flex: '1 1 0', minWidth: 'max-content', whiteSpace: 'nowrap', fontSize: 11, padding: '2px 0', cursor: 'pointer', borderRadius: 4,
 									border: '1px solid var(--horosa-border-soft, rgba(0,0,0,0.12))',
 									background: this.state.dialBase === b ? 'var(--horosa-accent-soft, rgba(91,100,112,0.16))' : 'transparent',
 									color: 'inherit', fontWeight: this.state.dialBase === b ? 600 : 400 }}>
@@ -937,9 +898,8 @@ export default class UranianDialMain extends Component {
 							<div style={rowSty}>
 								<span style={{ fontSize: 11, color: 'var(--horosa-text-soft)' }}>太阳弧换算</span>
 								<XQSegmented size="small" value={this.state.saKey} onChange={(e) => { const k = e.target.value; this.saveDisp({ saKey: k }); const rate = SA_RATE[k] || SA_RATE.naibod; this.setState({ saAge: (this.state.saArcDirected || 0) / rate }); }}
-									options={[{ value: 'naibod', label: 'Naibod' }, { value: 'oneDeg', label: '1°/年' }, { value: 'cardan', label: 'Cardan' }]} />
+									options={[{ value: 'naibod', label: '均日弧' }, { value: 'cardan', label: '59′12″' }, { value: 'oneDeg', label: '1°/年' }]} />
 							</div>
-							{/* [Q-147/T-54] 太阳弧地点输入已删:唯一读取点 requestSolarArc 零调用(太阳弧为地心黄经,无需地点) */}
 						</div>
 					) : null}
 					{/* WP-9 合盘叠盘:选当前页盘或命盘库盘叠加,最多 4 人;每人各成一环,接触表见右栏。 */}
@@ -964,7 +924,7 @@ export default class UranianDialMain extends Component {
 				</XQSideSection>
 
 				<XQSideSection iconName={sideSectionIcon('display')} title="显示与读数" storageKey="germany.display" className="horosa-uranian-section horosa-side-input-section">
-					{/* [Q-151/AX-16] 宇宙生物学流派后端 include_tnp=false(mids.tnp=[]),此开关翻之无效 → 置灰并说明 */}
+					{/* 宇宙生物学流派后端 include_tnp=false(mids.tnp=[]),此开关翻之无效 → 置灰并说明 */}
 					<div style={{ ...rowSty, marginBottom: 8 }} title={this.state.school === 'cosmo' ? '宇宙生物学流派不用 TNP 虚星(后端不算),此开关在本派无效' : undefined}><span>TNP 虚星{this.state.school === 'cosmo' ? '（本派不用）' : ''}</span><XQSwitch size="small" disabled={this.state.school === 'cosmo'} checked={this.state.school === 'cosmo' ? false : this.state.showTnp} onChange={(v) => this.saveDisp({ showTnp: v })} /></div>
 					<div style={{ ...rowSty, marginBottom: 8 }}><span>中点树扫描</span><XQSwitch size="small" checked={this.state.showPicture} onChange={(v) => this.saveDisp({ showPicture: v })} /></div>
 					<div style={{ ...rowSty, marginBottom: 8 }}><span>仅含个人点</span><XQSwitch size="small" checked={this.state.onlyPersonal} onChange={(v) => this.saveDisp({ onlyPersonal: v })} /></div>
@@ -1204,7 +1164,7 @@ export default class UranianDialMain extends Component {
 		);
 		// ── B3 含义词典浏览:检索 + 五组词条(单一数据源 uranianMeanings;经典判语四层展开;医学附免责)。 ──
 		const lexQ = (this.state.lexQ || '').trim();
-		const lexHit = (txts) => !lexQ || txts.some((t) => t && `${t}`.indexOf(lexQ) >= 0);
+		const lexHit = (txts) => !lexQ || txts.some((t) => t && matchesUserQuery(`${t}`, lexQ, { ci: false }));   // 界面繁体时照屏幕输入繁体也能命中
 		const lexPairLabel = (key) => key.split('|').map((id) => factorLabel(id)).join('/');
 		const lexSections = [];
 		{

@@ -1,6 +1,8 @@
---- a/astrostudyui/src/utils/windowSizePersistence.js (Mac 1c463718)
-+++ b/astrostudyui/src/utils/windowSizePersistence.js (Windows-adapted)
-@@ -96,8 +96,17 @@
+diff --git a/astrostudyui/src/utils/windowSizePersistence.js b/astrostudyui/src/utils/windowSizePersistence.js
+index 7a5e91a2..33692a30 100644
+--- a/astrostudyui/src/utils/windowSizePersistence.js
++++ b/astrostudyui/src/utils/windowSizePersistence.js
+@@ -96,8 +96,17 @@ function isTauriWindow(win){
  	return Boolean(win && (win.__TAURI__ || win.__TAURI_INTERNALS__));
  }
  
@@ -19,7 +21,7 @@
  		return false;
  	}
  	const saved = readSavedWindowSize(win);
-@@ -122,7 +131,9 @@
+@@ -122,7 +131,9 @@ export function restoreWindowSize(win = typeof window !== 'undefined' ? window :
  }
  
  export function installWindowSizePersistence(win = typeof window !== 'undefined' ? window : null){

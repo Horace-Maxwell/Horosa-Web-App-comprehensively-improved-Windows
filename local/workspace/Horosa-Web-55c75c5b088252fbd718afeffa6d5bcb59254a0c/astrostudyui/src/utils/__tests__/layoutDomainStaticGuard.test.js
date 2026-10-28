@@ -10,6 +10,7 @@
 // 严禁只为「让测试变绿」而加豁免 —— 理由必须能自证。
 const fs = require('fs');
 const path = require('path');
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '..', '..');
 // 壳内三页(启动/诊断/偏好)。这次事故里它们的密度探测犯了同样的错,却因为不在任何
@@ -93,7 +94,7 @@ describe('T2 主应用:零「视口读数 ÷ 缩放」', () => {
 });
 
 describe('T3 壳内三页:同一标准', () => {
-	// 形态自适应:该目录在精简发行形态下可能不存在,缺席跳过而非判红。
+	// 该目录不在则跳过,不判红。
 	const present = fs.existsSync(SHELL_WEB);
 
 	it('🔴 启动/诊断/偏好三页无此形状(注释除外)', () => {
@@ -125,15 +126,13 @@ const RECT_WRITE_EXEMPT = [
 	// (2026-09-19 摘除 fengshuiEngine.js:鼠标坐标换算改走 zoomDomain.pointerToLocal,文件已零 gBCR。
 	//  当初的豁免依据「getBoundingClientRect 本就是 CSS px」在缩放档下并不成立 —— rect 在视觉域,画布逻辑坐标在布局域。)
 	// (2026-09-17 摘除 NongLi.js:格宽/网格高/克隆自然高全部改为 clientWidth/clientHeight/offsetHeight 布局域直读,文件已零 gBCR)
-	// rect 用于阅读器翻页几何(与滚动坐标同域消费),尺寸写回源自 clientWidth。
-	'components/reader/BookReader.js',
 	// 3D 视图:rect 用于 pointer 拾取(物理域正当消费);画布尺寸走 clientWidth+dpr。
 	'components/astro3d/Astro3D.js',
 	'components/astro3d/AstroChart3D.js',
 	// 方盘边长已改 clientWidth 优先,残余 rect 仅作 0 兜底且经 getEffectiveScale 换域,
-	// 以及 rect.top 域内相减后显式 /zScale 换回布局域(见各自 [Tahoe 域混根修] 注释)。
+	// 以及 rect.top 域内相减后显式 /zScale 换回布局域(见各自注释)。
 	'components/suzhan/SuZhanChart.js',
-	'components/guolao/GuoLaoChart.js',
+	// (摘除 GuoLaoChart.js:窗口底余高改走 utils/viewportCap 单源,文件已零 gBCR)
 ];
 
 function fileHasRectStyleWrite(fullPath){
@@ -208,8 +207,7 @@ describe('T4 rect→style 写回族(第三族域混)', () => {
 const PHYS_EXEMPT = {
 	// 与鼠标 / rect 坐标**同域**比较(物理域对物理域),换成布局域反而错:
 	'components/ziwei/ZWCommHouse.js': '悬浮卡翻转判定:clientHeight − event.clientY,两端同为视觉(物理)域',
-	'components/suzhan/SuZhanChart.js': 'viewportH 与 rect.top 同域相减后再 ÷getEffectiveScale 换回布局域(2026-09-01 根修)',
-	'components/guolao/GuoLaoChart.js': '同 SuZhanChart',
+	// (摘除 SuZhanChart.js / GuoLaoChart.js:窗口底余高改走 utils/viewportCap 单源 —— 同域相减再 ÷ 实测缩放换回布局域,组件里已零物理域直读)
 	// 已是布局域优先、物理读数只作最末兜底(带 🔴 注释自证):
 	'components/dunjia/DunJiaMain.js': 'getViewportHeight():布局域 getLayoutViewportHeight 优先,clientHeight 仅无 window 时兜底',
 	'components/sanshi/SanShiUnitedMain.js': '同 DunJiaMain',
@@ -271,7 +269,7 @@ describe('T5 物理域视口直读族(读数 − 常数 / 读数 > 断点)', () 
 	it('🔴 辅助页三子 tab 走 fill(容器定高),内容链定高规则在位', () => {
 		const main = fs.readFileSync(path.join(SRC, 'components/cntradition/CnTraditionMain.js'), 'utf8');
 		['<GuaSymDesc fill />', '<CuanGong12 fill />', '<BaziPithy fill />'].forEach((t) => expect(main.includes(t)).toBe(true));
-		const less = fs.readFileSync(path.join(SRC, 'layouts/app.less'), 'utf8');
+		const less = readSource(path.join(SRC, 'layouts/app.less'));
 		expect(/\.horosa-cntradition-page\s*>\s*\.ant-tabs-right\s*>\s*\.ant-tabs-content-holder\s*>\s*\.ant-tabs-content\s*>\s*\.ant-tabs-tabpane\s*\{[^}]*height:\s*100%/.test(less)).toBe(true);
 		expect(/\.horosa-cntradition-page\s*>\s*\.ant-tabs-right\s*>\s*\.ant-tabs-content-holder\s*>\s*\.ant-tabs-content\s*>\s*\.ant-tabs-tabpane\s*\{[^}]*overflow-y:\s*auto/.test(less)).toBe(true);
 	});
@@ -283,7 +281,7 @@ describe('T5 物理域视口直读族(读数 − 常数 / 读数 > 断点)', () 
 // (占星「格局」页签:838px 盒 / 802px pane,默认 100% 档即少 36px)。
 describe('T5b 内容页签定高链含 Spin 两层', () => {
 	it('🔴 app.less:content-tabs 的 tabpane > Spin > container(> 唯一子元素)接上 100% 链', () => {
-		const less = fs.readFileSync(path.join(SRC, 'layouts/app.less'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+		const less = readSource(path.join(SRC, 'layouts/app.less')).replace(/\/\*[\s\S]*?\*\//g, '');
 		const re = /\.horosa-content-tabs \.ant-tabs-tabpane > \.ant-spin-nested-loading > \.ant-spin-container,\s*\n\s*\.horosa-workspace-shell \.horosa-content-tabs \.ant-tabs-tabpane > \.ant-spin-nested-loading > \.ant-spin-container > :only-child\s*\{[^}]*height:\s*100%\s*!important/;
 		expect(re.test(less)).toBe(true);
 	});
@@ -293,7 +291,7 @@ describe('T5b 内容页签定高链含 Spin 两层', () => {
 // 三式曾写裸 58px 行装 64px 的坞 → 坞下缘恒溢出 6px 被窗口底边切掉。带坞的页面栅格第二轨只许是坞高单源变量或与之相等的 64px。
 describe('T6 底部快捷栏:行高 ≡ 盒高', () => {
 	it('🔴 app.less:minmax(0,1fr) 后接 px 的行模板,px 只许 64(= --horosa-bottom-dock-height)或在豁免表', () => {
-		const less = fs.readFileSync(path.join(SRC, 'layouts/app.less'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+		const less = readSource(path.join(SRC, 'layouts/app.less')).replace(/\/\*[\s\S]*?\*\//g, '');
 		const dockH = /--horosa-bottom-dock-height:\s*(\d+)px/.exec(less);
 		expect(dockH && dockH[1]).toBe('64');
 		const ROW_EXEMPT = { '138': '占星工作台底部信息带(不是快捷栏)', '60': 'kinastro 系页自带 60px 的坞盒(行与盒同为 60,自洽)' };

@@ -1,0 +1,14 @@
+# 客户端身份用例表(无头协议层 protocol.clientIdentityOf / 桌面壳 mcp_server.rs client_identity_of 两边对拍):meta(JSON 对象,_meta)	session(本会话 initialize 报的名字,JSON 字符串或 null)	transport(传输层缺省,JSON 字符串或 null)	expected(JSON 字符串或 null)	说明
+{"clientName": "claude-code"}	null	"http"	"claude-code"	_meta.clientName 最优先
+{"clientName": "cli", "io.modelcontextprotocol/clientInfo": {"name": "cursor"}}	"codex"	"http"	"cli"	clientName 压过 clientInfo 与会话名
+{"io.modelcontextprotocol/clientInfo": {"name": "claude-desktop", "version": "1"}}	"codex"	"http"	"claude-desktop"	现代纪元逐条带的 clientInfo.name 压过会话名
+{}	"claude-code"	"http"	"claude-code"	只在 initialize 报过名:取会话名(代理接管前后同名)
+{}	null	"http"	"http"	什么都没报:传输层缺省
+{}	null	null	null	全无:由调用方取最终缺省
+{"clientName": "   "}	"codex"	"stdio"	"codex"	空白名 = 没报
+{"clientName": ""}	null	"stdio"	"stdio"	空串 = 没报
+{"clientName": 7}	"codex"	"stdio"	"codex"	非字符串 = 没报
+{"io.modelcontextprotocol/clientInfo": "claude"}	"codex"	"stdio"	"codex"	clientInfo 不是对象 = 没报
+{"clientName": "  claude-code  "}	null	"http"	"claude-code"	去首尾空白
+{"clientName": "名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名"}	null	"http"	"名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名"	按码点截 64
+{"clientName": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"}	null	"http"	"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"	增补平面字按码点计

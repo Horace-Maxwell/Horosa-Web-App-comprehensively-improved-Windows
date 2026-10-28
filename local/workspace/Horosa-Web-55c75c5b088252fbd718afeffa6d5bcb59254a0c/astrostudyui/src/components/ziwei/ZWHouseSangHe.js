@@ -73,7 +73,7 @@ class ZWHouseSangHe extends ZWCommHouse {
 		this.drawHouse();
 
 		this.drawLaiYing();
-		// [D2] 宫底岁数条(默认双关):画在下 1/4 标题带上沿之上,靠左。
+		// 宫底岁数条(默认双关):画在下 1/4 标题带上沿之上,靠左。
 		this.drawAgeStrips(this.x + 3, this.y + this.height * 3 / 4 - 3, this.width - 6, 10);
 		this.drawKinastroLiunianRow();   // 策天(移语本)流年星徽行:基类实现,与四化盘同源
 		this.drawOverlayMarks();   // 流派叠层角标/借宫/活盘:基类 ZWCommHouse 统一实现(与四化盘同源,三合盘同样生效)
@@ -94,17 +94,17 @@ class ZWHouseSangHe extends ZWCommHouse {
 		this.drawKinastroCornerMark(container, x, y, w, h);
 		let data = [];
 		// 「显示十二神」全局开关:与四化盘 ZWHouse.drawSihuaSmallStars 同口径——关则不绘长生/博士/将前/岁前十二神。
-		// [D3] 流年神煞上盘:绘制期替换(将前/岁前→流年版),再过显示过滤;chart 数据零触碰。
+		// 流年神煞上盘:绘制期替换(将前/岁前→流年版),再过显示过滤;chart 数据零触碰。
 		const smallsRaw = ZiWeiHelper.resolveSmallStarsForDisplay(this.houseObj.starsSmall || [], this.houseObj.ganzi ? this.houseObj.ganzi.charAt(1) : null, this.zwchart ? this.zwchart.flowZhi : null);
 		const smalls = ZiWeiHelper.zwShowSmall() ? ZiWeiHelper.filterShenshaForDisplay(smallsRaw) : [];
 		for(let i=0; i<smalls.length; i++){
 			let star = smalls[i];
 			let sy = y + i*h/3;
-			data = star.name.split('');   // [D3] 流年版名 3 字(「流」前缀),split 全展;本命 2 字行为同前
+			data = star.name.split('');   // 流年版名 3 字(「流」前缀),split 全展;本命 2 字行为同前
 			// BUG-H 修复:此前在点过任意宫位(flyHouse 非空)后,会把本命「将前十二神(i===1)/
 			// 岁前十二神(i===2)」改写成以被点宫地支为流年支重新起算的流年将星/流年太岁,
 			// 导致本命神煞随点击变化。本命神煞应恒定不变,故移除该改写;flyHouse 仍只驱动三方四正高亮。
-			// [D3] 正确语义的流年替换由「选中流年」驱动(resolveSmallStarsForDisplay,star.flow 标记),期紫显色。
+			// 正确语义的流年替换由「选中流年」驱动(resolveSmallStarsForDisplay,star.flow 标记),期紫显色。
 			const smColor = star.flow ? ZWCont.ZWPeriodColor.liunian : ZWCont.ZWColor.StarSmallStroke;
 			const smG = GraphHelper.drawTextH(container.append('g'), data, x, sy, w, h/3, 1.5, smColor, 400);
 			if(star.flow && star.natal && smG){
@@ -273,7 +273,7 @@ class ZWHouseSangHe extends ZWCommHouse {
 	drawStars(){
 		const main = this.houseObj.starsMain || [];
 		const assist = this.houseObj.starsAssist || [];
-		// [D1] 神煞三组显示过滤(纯显示层,列宽计算前;默认全开=原引用零变化)
+		// 神煞三组显示过滤(纯显示层,列宽计算前;默认全开=原引用零变化)
 		const evil = ZiWeiHelper.filterShenshaForDisplay(this.houseObj.starsEvil || []);
 		// 「显示杂曜」全局开关:与四化盘 ZWHouse.drawSihuaStars 同口径——关则不绘杂吉/杂凶(纯显示,不动排盘数据)。
 		const showOthers = ZiWeiHelper.zwShowOthers();
@@ -309,7 +309,7 @@ class ZWHouseSangHe extends ZWCommHouse {
 		let x = this.x;
 		const drawGroup = (arr, gw, color, scale, weight)=>{
 			for(let i=0; i<arr.length; i++){
-				// [D1] color 允许传函数(按星名定色;六煞黑字档用),字符串=整组同色(原行为)。
+				// color 允许传函数(按星名定色;六煞黑字档用),字符串=整组同色(原行为)。
 				const c = typeof color === 'function' ? color(arr[i] && arr[i].name) : color;
 				this.drawStar(arr[i], x, y, gw, h, c, scale, weight);
 				x += gw;
@@ -378,7 +378,7 @@ class ZWHouseSangHe extends ZWCommHouse {
 		if(lightTxt.length){
 			let lightW = Math.max(12, Math.min(w, lightFontSize + mgn * 2));
 			let lightX = x + (w - lightW) / 2;
-			GraphHelper.drawTextV(starGroup, lightTxt, lightX, y + nameH + lightGap, lightW, lightH, mgn, star.flyTo ? '#cda24d' : 'var(--horosa-muted, #8a8f95)');
+			GraphHelper.drawTextV(starGroup, lightTxt, lightX, y + nameH + lightGap, lightW, lightH, mgn, star.flyTo ? 'var(--horosa-gold)' : 'var(--horosa-muted, #8a8f95)');
 		}
 
 		let tip = this.ZWRules.RuleStars[star.name];
@@ -400,7 +400,7 @@ class ZWHouseSangHe extends ZWCommHouse {
 		// baseOffset=h(星名区底,各星统一→跨星对齐)、slotH=this.luckSlotH(统一槽高)；clamp 不越宫格上半矩形(需求4)。
 		const luckMaxBottom = this.y + this.height * 3 / 4 - 2;
 		dim.h = this.drawLuckSihuaForStar(star, x, y, w, h, this.luckSlotH || (w + this.margin), mgn, luckMaxBottom);
-		// [D2] 干系四化徽(命/日,默认关):运限槽之后的固定槽位,同越界保护。
+		// 干系四化徽(命/日,默认关):运限槽之后的固定槽位,同越界保护。
 		this.drawStemSihuaChips(star, x, y, w, h, this.luckSlotH || (w + this.margin), mgn, luckMaxBottom);
 		this.stars.set(star.name, dim);
 	}
@@ -449,9 +449,9 @@ class ZWHouseSangHe extends ZWCommHouse {
 			const badgeSize = Math.max(16, Math.min(21, w + 1));
 			const badgeX = x + (w - badgeSize) / 2;
 			let huasvg = GraphHelper.drawTextV(group, [hua], badgeX, cursorY, badgeSize, badgeSize, 1,
-				coloropt.color || '#ffffff', 850, coloropt.bg || ZWCont.ZWColor.StarMainStroke);
+				coloropt.color || 'var(--horosa-on-accent)', 850, coloropt.bg || ZWCont.ZWColor.StarMainStroke);   // 兜底徽标底是主星金(随主题换值),字配 on-accent
 			huasvg.selectAll('text')
-				.attr('fill', coloropt.color || '#ffffff')
+				.attr('fill', coloropt.color || 'var(--horosa-on-accent)')
 				.attr('stroke', 'rgba(0, 0, 0, 0.34)')
 				.attr('stroke-width', 0.55)
 				.attr('paint-order', 'stroke')
@@ -476,14 +476,14 @@ class ZWHouseSangHe extends ZWCommHouse {
 				.attr('height', flyH)
 				.attr('rx', 3)
 				.attr('ry', 3)
-				.attr('fill', 'rgba(205, 162, 77, 0.14)')
-				.attr('stroke', '#cda24d')
+				.attr('fill', 'var(--horosa-gold-soft)')
+				.attr('stroke', 'var(--horosa-gold)')
 				.attr('stroke-width', 1.25);
 			group.append('path')
 				.attr('class', 'horosa-ziwei-kinastro-fly-tip')
 				.attr('d', `M${flyMidX - tipH},${flyBottom - 1} L${flyMidX + tipH},${flyBottom - 1} L${flyMidX},${flyBottom + tipH} Z`)
-				.attr('fill', 'rgba(205, 162, 77, 0.14)')
-				.attr('stroke', '#cda24d')
+				.attr('fill', 'var(--horosa-gold-soft)')
+				.attr('stroke', 'var(--horosa-gold)')
 				.attr('stroke-width', 1.25)
 				.attr('stroke-linejoin', 'round');
 			const flyFont = Math.max(14, Math.min(17, Math.round(flyW * 0.72)));
@@ -493,8 +493,8 @@ class ZWHouseSangHe extends ZWCommHouse {
 				.attr('y', flyY + flyH / 2 + 0.5)
 				.attr('dominant-baseline', 'middle')
 				.attr('text-anchor', 'middle')
-				.attr('fill', '#f3d18b')
-				.attr('stroke', 'rgba(0, 0, 0, 0.32)')
+				.attr('fill', 'var(--horosa-ziwei-house-name)')   // 飞宫徽字:明暗成对(旧 #f3d18b 只为暗盘挑,亮盘底 1.3:1)
+				.attr('stroke', 'var(--horosa-ziwei-chart-bg)')
 				.attr('stroke-width', 0.45)
 				.attr('paint-order', 'stroke')
 				.attr('font-size', `${flyFont}px`)

@@ -44,7 +44,7 @@ def extreme_pillars(year, month, day, hour, minute, after23=1, hour_gan_next=1, 
     dTG = _TG[di % 10] + _DZ[di % 12]
     hz = ((hour + 1) // 2) % 12
     if hour == 23:
-        # [Q-312/T-293 2026-09-18 口径 B·用户拍板] hour_gan_next=0 = 时干用钟面当天(jdn,不进位)的日干起子时,与日柱开关完全独立;
+        # hour_gan_next=0 = 时干用钟面当天(jdn,不进位)的日干起子时,与日柱开关完全独立;
         # 此前取 di(已按 after23 进位的日柱干)→ (1,0) 得 壬寅日 庚子时,与 Java BaZiHelper / 本地引擎(壬寅日 戊子时)分叉。
         h_day_tg = (((jdn + 1 + 49) % 60 + 60) % 60) % 10 if hour_gan_next else (((jdn + 49) % 60 + 60) % 60) % 10
         hTG = _TG[(h_day_tg % 5 * 2) % 10] + _DZ[0]
@@ -68,3 +68,21 @@ def solar_term_name(year, month, day, hour=0, minute=0, zone_hours=8.0):
     slon = _swe.sweObject(_const.SUN, jd_ut, _swe.SEDEFAULT_FLAG)['lon']
     idx = int(((slon - 285.0) % 360.0) // 15.0)
     return _JQMC[idx]
+
+
+def civil_moment(year, month, day, hour=0, minute=0, second=0):
+    """kin 系引擎节气 / 干支层的民用历时刻承载(年份历史纪年;1582-10-15 以前儒略历)。
+
+    sxtwl.fromSolar / JD2DD 收发的都是民用历标签(1582 以前儒略历),stdlib datetime 却是外推格里历:
+    1500-02-29 这类儒略闰日直接抛错(太乙 / 奇门 / 皇极整盘起不了),跨 1582 的差值也按格里历算。
+    恒返回 astrostudy.civil_calendar.CivilDateTime(同一类型才能互相比较、相减;1582-10-15 以后与
+    stdlib datetime 逐位同算术),不存在的日期报错不改日。"""
+    from astrostudy.civil_calendar import CivilDateTime
+    return CivilDateTime(year, month, day, hour, minute, second)
+
+
+def is_moment(value):
+    """civil_moment 的产物或 stdlib datetime。"""
+    import datetime as _datetime
+    from astrostudy.civil_calendar import CivilDateTime
+    return isinstance(value, (CivilDateTime, _datetime.datetime))

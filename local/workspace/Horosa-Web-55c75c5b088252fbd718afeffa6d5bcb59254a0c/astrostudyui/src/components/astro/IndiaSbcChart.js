@@ -44,7 +44,7 @@ class IndiaSbcChart extends Component {
 		rows.forEach((x)=>{ NAK_LABEL[x.nak28] = x.labelCn; });
 		const size = Math.min(height, 720);
 		return (
-			<div className="horosa-india-sbc" style={{ width: size, height: size }}>
+			<div className="horosa-india-sbc" data-clip-strict-text="" style={{ width: size, height: size }}>
 				<svg viewBox="0 0 99 99" className="horosa-india-sbc-lines" aria-hidden="true">
 					{/* 外框(粗金)+ 四角 L 形饰线 */}
 					<rect x="0.3" y="0.3" width="98.4" height="98.4" className="horosa-india-sbc-frame" />
@@ -86,7 +86,7 @@ class IndiaSbcChart extends Component {
 						className={`horosa-india-sbc-cell${x.isAbhijit ? ' is-abhijit' : ''}${x.nak28 === focusNak ? ' is-focus' : ''}`}
 						style={{ left: `${(x.col * CELL / 99) * 100}%`, top: `${(x.row * CELL / 99) * 100}%`,
 							width: `${(CELL / 99) * 100}%`, height: `${(CELL / 99) * 100}%` }}
-						title={`${x.sanskrit} · 第${x.nak28}宿${x.isAbhijit ? '(织女 Abhijit)' : ''}`}
+						title={`${x.sanskrit} · 第${x.nak28}宿${x.isAbhijit ? '(牛宿 Abhijit)' : ''}`}
 					>
 						<strong>{x.labelCn}</strong>
 						<em>{x.nak28}</em>
@@ -117,7 +117,7 @@ class IndiaSbcChart extends Component {
 							</span>
 						) : null}
 						{placeholder ? (
-							<small>经典环锚待录入 · Vedha 判定按纪律禁用</small>
+							<small>宿位排列为示意,尚非经典格位;冲照(Vedha)暂不判断</small>
 						) : null}
 					</span>
 				</div>

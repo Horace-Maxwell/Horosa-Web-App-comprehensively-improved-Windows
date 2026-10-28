@@ -89,7 +89,7 @@ def test_nisargayu_purna_vs_technical():
 
 
 def test_q139_nisargayu_default_is_pindayu_like_engine_level():
-    # [Q-139 裁决 2026-09-18] Nisargāyu 缺省档 = 「同 Piṇḍāyu 施减」(pindayu_like):Jātaka Pārijāta 5.6 / 5.12–13 明说
+    # Nisargāyu 缺省档 = 「同 Piṇḍāyu 施减」(pindayu_like):Jātaka Pārijāta 5.6 / 5.12–13 明说
     # Nisargāyu 与 Piṇḍāyu 同法(按距庙旺弧折算 + 同一套 haraṇa);「全期不减」('none',常量 120 + Lagna Āyu,与行星位置无关)
     # 改为非缺省档。修前:缺省 = 'none' ⇒ 缺省 finals.nisargayu ≡ (120 + Lagna Āyu)×360/365(本例红)。
     import os

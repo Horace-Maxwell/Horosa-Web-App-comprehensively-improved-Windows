@@ -1,4 +1,4 @@
-// AI 对话·多技法编排(C7;借鉴 Roo Code 编排模式 / Claude Code 子代理)页面钩子:
+// AI 对话·多技法编排(C7)页面钩子:
 //   /编排 问题 → 子开关门 → 建/续会话、落用户消息(检查点)与 assistant 占位 → runOrchestration(纯控制流)注入 IO:
 //   plan  = planner 槽非流式 json_schema strict;runSubtask = 每子任务一个子 Turn(buildHeadlessSystemPrompt 只挂该技法层;createAgentTurn 限 3 轮 / 0 写入 / 只读注册表视图;subagent 槽流式);
 //   synthesize = final 槽非流式 strict → content=综合稿+分歧标注(确定性渲染);orchestration={plan,subTurns,synthesis,requests,models} 落消息;子 Turn trace 不进 agentTrace(历史不回放)。
@@ -40,11 +40,11 @@ export function useChatOrchestrate(depsRef, { mainline } = {}){
 	const shortJson = React.useCallback(async ({ slot, profile, model, system, user, schemaName, schema, signal })=>{
 		const d = depsRef.current;
 		const route = resolveRoute(slot, { routes: readModelRoutes(), providerProfiles: d.providerProfiles, profile, model });
-		// [D1] 规划/综合槽的思考档/推理档/温度/输出上限经单源施加(槽空=今日字节)
+		// 规划/综合槽的思考档/推理档/温度/输出上限经单源施加(槽空=今日字节)
 		let opts = providerOptionsForSlot(slot, route.profile, route.model, { applyThinkingLevel });
 		opts = applyResponseSchema(opts, { name: schemaName, schema });
 		opts.requestTimeoutMs = 90000;
-		// [Q1] 规划/综合的短调用带 signal:用户点停止 → 这两次非流式请求同样中止
+		// 规划/综合的短调用带 signal:用户点停止 → 这两次非流式请求同样中止
 		const rsp = await requestStructuredWithFallback(requestAIAnalysisChat, { providerType: route.profile.providerType, apiKey: route.profile.apiKey, baseUrl: route.profile.baseUrl, model: route.model, providerOptions: opts, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }, { signal: signal || (abortRef.current ? abortRef.current.signal : undefined) });
 		return { text: rsp && rsp.Result && rsp.Result.content ? `${rsp.Result.content}` : '', model: route.model };
 	}, [depsRef]);
@@ -55,7 +55,7 @@ export function useChatOrchestrate(depsRef, { mainline } = {}){
 		const sub = resolveRoute('subagent', { routes: readModelRoutes(), providerProfiles: d.providerProfiles, profile, model });
 		const t0 = Date.now();
 		const patchSub = (patch)=>patchOrch(assistantId, (o)=>({ ...o, subTurns: (o.subTurns || []).map((s, i)=>(i === index ? { ...s, ...patch } : s)) }));
-		const sys = await buildHeadlessSystemPrompt({ source: d.activeSource, techniqueKeys: [technique], systemPrompt: d.sessionSystemPrompt || '', profile: sub.profile, model: sub.model });
+		const sys = await buildHeadlessSystemPrompt({ source: d.activeSource, techniqueKeys: [technique], systemPrompt: d.sessionSystemPrompt || '', profile: sub.profile, model: sub.model, partnerSource: d.partnerSource });   // [双盘挂载] 子任务同样看两张盘
 		let text = ''; let usage = null; let streamError = null; let error = null;
 		const flusher = createStreamFlusher(()=>patchSub({ text, status: 'running' }));
 		const agent = createAgentTurn({
@@ -65,7 +65,7 @@ export function useChatOrchestrate(depsRef, { mainline } = {}){
 			onTrace: (t)=>patchSub({ trace: t }),
 			requestApproval: ()=>Promise.resolve(false),
 		});
-		// [D1] 子任务槽参数经单源施加(槽空=今日字节)
+		// 子任务槽参数经单源施加(槽空=今日字节)
 		const opts = providerOptionsForSlot('subagent', sub.profile, sub.model, { applyThinkingLevel });
 		const base = [{ role: 'system', content: `${sys.systemPrompt || ''}` }, { role: 'user', content: prompt }];
 		try{

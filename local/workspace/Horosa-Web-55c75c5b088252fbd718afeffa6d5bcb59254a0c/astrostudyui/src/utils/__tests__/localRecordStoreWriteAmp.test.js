@@ -1,9 +1,9 @@
-// [P0-S5] 记录库写放大根治:逐记录序列化缓存 / 装饰排序 / 缓存对象身份保持 —— 储存字节与旧路径恒等的机械证明。
+// 记录库写放大根治:逐记录序列化缓存 / 装饰排序 / 缓存对象身份保持 —— 储存字节与旧路径恒等的机械证明。
 //
 // 判据总纲:
 //   ① 序列化器与 JSON.stringify(list) 逐字节相等(随机记录属性测试,含元素级口径 undefined/函数/NaN/-0/1e21);
 //   ② 任意公开 API 写序列之后,localStorage 原串 === JSON.stringify(内核当前列表)(经 exportBackup 读到的缓存对象;
-//      缓存对象 ≡ 储存字节是 [S9] 契约,本套件把它推广到快路径),且开关开/关两态同序列逐步字节相同;
+//      缓存对象 ≡ 储存字节是契约,本套件把它推广到快路径),且开关开/关两态同序列逐步字节相同;
 //   ③ 未触碰记录跨写保持对象同一;④ 平局顺序与朴素比较器一致;⑤ 预算;⑥ 开关关路径同过。
 import { __serializeListForTests } from '../localRecordStore';
 import {
@@ -200,7 +200,7 @@ function assertUndefinedKeyParity(){
 	});
 }
 
-describe('[P0-S5] 记录库写放大根治', ()=>{
+describe('记录库写放大根治', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 	});

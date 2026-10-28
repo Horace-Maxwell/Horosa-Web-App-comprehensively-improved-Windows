@@ -10,7 +10,7 @@ const settled = (p)=>Promise.race([p.then((v)=>({ done: true, v })), flush().the
 
 beforeEach(()=>{ __resetApprovalsForTests(); __resetElicitationsForTests(); });
 
-describe('[D23] 按名落定只在本消息键内', ()=>{
+describe('按名落定只在本消息键内', ()=>{
 	it('对话键与 task:/mcp: 键各挂一条同名写入:会话钮按对话键落定 ⇒ 另两条仍 pending', async ()=>{
 		const p1 = requestApproval('msg-1', { callId: 'c1', name: 'create_chart_record', args: {} });
 		const p2 = requestApproval('task:t9', { callId: 'c1', name: 'create_chart_record', args: {} });
@@ -38,7 +38,7 @@ describe('[D23] 按名落定只在本消息键内', ()=>{
 	});
 });
 
-describe('[D26] 表键 messageKey::callId', ()=>{
+describe('表键 messageKey::callId', ()=>{
 	it('两个消息键同 callId c1:各自落定、互不顶掉', async ()=>{
 		const p1 = requestApproval('msg-1', { callId: 'c1', name: 'a', args: {} });
 		const p2 = requestApproval('task:t9', { callId: 'c1', name: 'b', args: {} });
@@ -72,7 +72,7 @@ describe('[D26] 表键 messageKey::callId', ()=>{
 	});
 });
 
-describe('[D32] 落定原因', ()=>{
+describe('落定原因', ()=>{
 	it('用户点允许/跳过 ⇒ user;到点 ⇒ timeout;abort ⇒ abort', async ()=>{
 		jest.useFakeTimers();
 		try{

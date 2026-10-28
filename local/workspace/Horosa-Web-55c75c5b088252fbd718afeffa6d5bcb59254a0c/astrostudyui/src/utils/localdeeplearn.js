@@ -1,10 +1,12 @@
 import ev10000 from '../data/deeplearn/10000.json';
-import { safeLocalStorageSet } from '../utils/safeStorage';
+import { safeLocalStorageSet, readUserDataJson } from '../utils/safeStorage';
 import ev20000 from '../data/deeplearn/20000.json';
 import ev30000 from '../data/deeplearn/30000.json';
 import ev40000 from '../data/deeplearn/40000.json';
 
 const LocalDeepLearnKey = 'HorosaLocalDeepLearn';
+// 命主实况(问卷)保存后广播:AI 分析页的挂载预览据此重读(subjectFacts 订阅)
+export const FATE_EVENTS_CHANGED_EVENT = 'horosa:subject-facts-changed';
 
 const DefaultEvents = {
     Evt10000: ev10000,
@@ -12,6 +14,14 @@ const DefaultEvents = {
     Evt30000: ev30000,
     Evt40000: ev40000,
 };
+
+// 问卷四组(与问卷抽屉的四个页签同序同名;题目与缺省值取各组 JSON)
+export const FATE_EVENT_GROUPS = [
+    { id: '10000', title: '六亲', events: ev10000 },
+    { id: '20000', title: '富贵程度', events: ev20000 },
+    { id: '30000', title: '职业', events: ev30000 },
+    { id: '40000', title: '死亡方式', events: ev40000 },
+];
 
 function cloneObj(obj){
     return JSON.parse(JSON.stringify(obj));
@@ -46,26 +56,17 @@ function mergeVals(evtMap, vals){
     return res;
 }
 
+// 读端单源 readUserDataJson:坏数据先留档(留不成就不让之后的写盖掉原串),再当空
 function readLocalStore(){
-    try{
-        const txt = localStorage.getItem(LocalDeepLearnKey);
-        if(!txt){
-            return {};
-        }
-        const json = JSON.parse(txt);
-        if(!json || typeof json !== 'object'){
-            return {};
-        }
-        return json;
-    }catch(e){
-        return {};
-    }
+    return { ...readUserDataJson(LocalDeepLearnKey, {}) };
 }
 
+// 写不进(存储满 / 坏原串封锁)回 false
 function writeLocalStore(data){
     try{
-        safeLocalStorageSet(LocalDeepLearnKey, JSON.stringify(data));
+        return safeLocalStorageSet(LocalDeepLearnKey, JSON.stringify(data));
     }catch(e){
+        return false;
     }
 }
 
@@ -102,9 +103,19 @@ export function loadLocalFateEvents(cid){
     };
 }
 
+// 某张命盘存下的原始答案({ Val10000, Val20000, Val30000, Val40000 });没填过 = null。只读,不补缺省、不克隆题目表
+export function readLocalFateValues(cid){
+    if(!cid){
+        return null;
+    }
+    const rec = readLocalStore()[cid];
+    return rec && typeof rec === 'object' && !Array.isArray(rec) ? rec : null;
+}
+
+// 回是否写进去了;写不进(存储满 / 坏原串封锁)不广播
 export function saveLocalFateEvents(data){
     if(!data || !data.Cid){
-        return;
+        return false;
     }
     const cid = data.Cid;
     const store = readLocalStore();
@@ -114,5 +125,13 @@ export function saveLocalFateEvents(data){
         Val30000: data.Val30000 || {},
         Val40000: data.Val40000 || {},
     };
-    writeLocalStore(store);
+    if(!writeLocalStore(store)){
+        return false;
+    }
+    try{
+        if(typeof window !== 'undefined' && typeof window.dispatchEvent === 'function'){
+            window.dispatchEvent(new CustomEvent(FATE_EVENTS_CHANGED_EVENT, { detail: { cid } }));
+        }
+    }catch(e){ /* 旧环境无 CustomEvent:不广播,挂载预览下次打开时照样重读 */ }
+    return true;
 }

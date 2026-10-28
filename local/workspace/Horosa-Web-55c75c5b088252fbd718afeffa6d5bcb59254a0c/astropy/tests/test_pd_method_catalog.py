@@ -16,12 +16,18 @@ from astrostudy.perpredict import STATIC_TIME_KEY_SCALES, _PD_METHOD_REGISTRY
 P0_METHODS = {
     'core_alchabitius': 'Alcabitius',
     'horosa_legacy': 'Horosa Legacy',
+    'placidus': 'Placidus',
 }
 
 P0_TIME_KEYS = {
     'Ptolemy': 'Ptolemy (1°/year)',
     'Naibod': 'Naibod (0.9856°/year)',
 }
+
+
+def test_p0_method_keys_registered():
+    for k in P0_METHODS.keys():
+        assert k in _PD_METHOD_REGISTRY, f'missing method registration for {k}'
 
 
 def test_p0_time_key_values_present_in_static_table():
@@ -60,3 +66,13 @@ def test_unknown_method_normalized_to_default():
         'unknown pdMethod must fall back to core_alchabitius (Iron Rule ①)'
     )
 
+
+def test_placidus_method_passes_whitelist():
+    from astrostudy import perchart
+
+    pc = perchart.PerChart({
+        'date': '2024/04/05', 'time': '05:06:00', 'zone': '-08:00',
+        'lat': '57S52', 'lon': '124W46', 'ad': 1, 'hsys': 'PLACIDUS',
+        'pdMethod': 'placidus',
+    })
+    assert pc.pdMethod == 'placidus'

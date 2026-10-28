@@ -9,13 +9,15 @@ import { XQSideSection } from '../xq-ui';
 import { Tabs, Empty, Input, InputNumber, Radio, Button, Select, Tag, Collapse } from 'antd';
 import { qiGuaManual, qiGuaByNumbers, qiGuaByStock, qiGuaByDaYan, qiGuaByYaoQian, trigramByName } from './core/xiaochengtuQiGua';
 import { buildPan, zhengTui, zhengTuiText, pangTui, tuiDao, shuZhan, siXiang, siXiangOfHex, fuDu, zhangDie, sanFen, liangFen, liangFenZhi, yingQiTui, suggestGong, klineYongGong } from './core/xiaochengtuPan';
-import { DI_PAN, GUA_GONG, ZHONG_GONG_NOTE, SI_XIANG_BASE, SI_XIANG_DEF_TEXT, PI_KOUJING_LABEL, STOCK_QI_GUA_TEXT, GONG_ZHU, GONG_INFO, YAN_PAN_RULES, SHENG_JIANG_TEXT, QU_BI_TEXT, HUI_LIN_TEXT, PANG_TUI_ZONG_TEXT, QI_GUA_TIANDI_TEXT, TIAN_DI_SHU_GAN, TIAN_DI_SHU_GUA, XIAN_TIAN_GUA } from './core/xiaochengtuConst';
+import { YONG_GONG_OPTIONS, DI_PAN, GUA_GONG, ZHONG_GONG_NOTE, SI_XIANG_BASE, SI_XIANG_DEF_TEXT, PI_KOUJING_LABEL, STOCK_QI_GUA_TEXT, GONG_ZHU, GONG_INFO, YAN_PAN_RULES, SHENG_JIANG_TEXT, QU_BI_TEXT, HUI_LIN_TEXT, PANG_TUI_ZONG_TEXT, QI_GUA_TIANDI_TEXT, TIAN_DI_SHU_GAN, TIAN_DI_SHU_GUA, XIAN_TIAN_GUA } from './core/xiaochengtuConst';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../utils/safeStorage';
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
 import { sideSectionIcon } from '../../constants/sideSectionIcons';
 import { subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec, snapshotMetaFromFields, buildQiKeTimeLines } from '../../utils/divinationTimeDraft';
+import { scriptFilterBy } from '../../utils/scriptMode';
+import { ownedBoxSizeRef, narrowBoardVars } from '../../utils/boxSizeVars';
 import { markPanelReady } from '../../utils/perfMark';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 
@@ -78,7 +80,7 @@ export function buildXiaoChengTuSnapshotText(pan, qi, opts){
 	out.push(ZHONG_GONG_NOTE);
 	out.push('');
 	out.push('[推导]');
-	// [X1·P2-27] 九宫八方各有所主:用宫宫主事项入快照(GONG_INFO 判读依据此前零消费)。
+	// 九宫八方各有所主:用宫宫主事项入快照(GONG_INFO 判读依据此前零消费)。
 	if(GONG_INFO[g0]){ out.push(`用宫所主:${g0}宫${GONG_INFO[g0].gua}(${GONG_INFO[g0].fangwei}·${GONG_INFO[g0].yue}),宫主${GONG_INFO[g0].zhu}`); }
 	const td = tuiDao(pan, g0);
 	if(td){
@@ -107,7 +109,7 @@ export function buildXiaoChengTuSnapshotText(pan, qi, opts){
 	const lf = ygGua ? liangFen(ygGua) : null;
 	if(sf){ out.push(`三分定旬:用宫得${ygGua}卦 → ${sf.xun}旬`); }
 	if(lf){ out.push(`两分定半月(升降):用宫得${ygGua}卦 → ${lf.ban}月(${lf.yy})`); }
-	// [XCT-2] 应期推演链(系古籍载例归纳:正推得日卦→三分定旬→旁推得月卦→两分定支→定月)。
+	// 应期推演链(系古籍载例归纳:正推得日卦→三分定旬→旁推得月卦→两分定支→定月)。
 	const yq = yingQiTui(pan, g0);
 	if(yq && yq.summary){
 		out.push(`应期推演(系载例归纳):${yq.summary}`);
@@ -116,7 +118,7 @@ export function buildXiaoChengTuSnapshotText(pan, qi, opts){
 	if(qi.mode === 'stock'){
 		out.push('');
 		out.push('[股市]');
-		// [X1·P2-28] 研判法则接线(YAN_PAN_RULES 此前零消费):开盘=用宫天盘卦、收盘=正推末卦,各以两分/三分断之。
+		// 研判法则接线(YAN_PAN_RULES 此前零消费):开盘=用宫天盘卦、收盘=正推末卦,各以两分/三分断之。
 		const openGua = pan.tianPan[g0];
 		const tdS = tuiDao(pan, g0);
 		const closeGua = tdS && !tdS.fuWei && tdS.steps && tdS.steps.length ? tdS.steps[tdS.steps.length - 1].tianGua : (tdS && tdS.pang ? tdS.pang.gua : openGua);
@@ -142,7 +144,7 @@ export function buildXiaoChengTuSnapshotForCase(payload, opts){
 		const pan = buildPan(p.qi);
 		if(!pan){ return ''; }
 		const text = buildXiaoChengTuSnapshotText(pan, p.qi, { ...(p.options || {}), ...(opts || {}), askEvent: p.askEvent || '' });
-		// [Q-212/T-156 ③] 起课时间挂载补算的卦:首行如实说明起法(年支序+农历月+日为上数、加时支序为下数的两数式;天地数纳甲、无动爻),
+		// 起课时间挂载补算的卦:首行如实说明起法(年支序+农历月+日为上数、加时支序为下数的两数式;天地数纳甲、无动爻),
 		// 页面五种起法无此法,亦非梅花时间卦;已存卦(payload.qi 来自页面)不加此行。
 		const head = p.qiSource === 'timepoint' ? '起法说明：本卦为挂载补算——按起课时间「年支序＋农历月＋日」为上数、加时支序为下数的两数式起卦（天地数纳甲、无动爻），不是页面起法，也不是梅花时间卦。\n' : '';
 		return text ? head + text : text;
@@ -150,7 +152,7 @@ export function buildXiaoChengTuSnapshotForCase(payload, opts){
 }
 
 class XiaoChengTuMain extends Component {
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -173,7 +175,6 @@ class XiaoChengTuMain extends Component {
 		this.onTimeChanged = this.onTimeChanged.bind(this);
 		this.changeGeo = this.changeGeo.bind(this);
 	}
-
 	componentDidMount(){
 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
 		if(typeof window !== 'undefined'){
@@ -196,12 +197,12 @@ class XiaoChengTuMain extends Component {
 		if(prevProps.fields !== this.props.fields && this.props.fields){
 			this.restoreFromCurrentCase();
 		}
-		// [X1] 起卦后改问事等 inputs → 快照重存(设置变更已在 setSettings 回调重存)。
+		// 起卦后改问事等 inputs → 快照重存(设置变更已在 setSettings 回调重存)。
 		if(this.state.qi && prevState && prevState.inputs !== this.state.inputs){ this.saveSnap(); }
-		// [X1] 卦一变即告容器(dock 不在本组件树内,左栏起的卦容器无从知晓 → 「保存」伪禁用;对齐 guice 范式)。
+		// 卦一变即告容器(dock 不在本组件树内,左栏起的卦容器无从知晓 → 「保存」伪禁用;对齐 guice 范式)。
 		if(prevState && prevState.qi !== this.state.qi && typeof this.props.onResultChange === 'function'){ this.props.onResultChange(); }
 	}
-	// [X1 审计补] 事盘还原(对齐 wuzhao/tarot 等 13 技法既有范式):卦=冻结值自 payload.qi 回放,
+	// 事盘还原(对齐 wuzhao/tarot 等 13 技法既有范式):卦=冻结值自 payload.qi 回放,
 	// 绝不重起(手动卦/大衍/两数/股价皆不可按时复现);options 回放到 settings(不写 localStorage 默认)。
 	restoreFromCurrentCase(force){
 		const saved = getKentangSavedCasePayload('xiaochengtu');
@@ -212,14 +213,14 @@ class XiaoChengTuMain extends Component {
 		this.lastRestoredCaseId = saved.caseVersion;
 		// kline 属输入非设置:拆出回放到 inputs,免随 settings 持久化污染默认。
 		const { kline, ...so } = o;
-		// [QA3] 起卦输入回放:卦是冻结值不重起,但左栏须与所载之卦一致 ——
+		// 起卦输入回放:卦是冻结值不重起,但左栏须与所载之卦一致 ——
 		// 此前只回放 askEvent,载入手动卦后左栏本卦仍显示默认「乾/兑」而中栏是另一卦(存而不载)。
 		// 老档无 inputs 字段 → 取空对象,行为与旧版一致(向后兼容)。
 		const pin = p.inputs && typeof p.inputs === 'object' ? p.inputs : {};
 		const pick = (k, dft)=>(pin[k] === undefined ? dft : pin[k]);
 		this.setState({
 			qi: p.qi, error: '',
-			localFields: null,   // [X1·P2-42] 载档清时地草稿
+			localFields: null,   // 载档清时地草稿
 			settings: { ...this.state.settings, ...so },
 			inputs: {
 				...this.state.inputs, askEvent: p.askEvent || '',
@@ -294,8 +295,8 @@ class XiaoChengTuMain extends Component {
 		this._panCache = buildPan(qi);
 		return this._panCache;
 	}
-	// [X1·P1-13] K线形态输入 → klineYongGong 参数(仅股市局;body 未选=不用)。
-	// [QA2] 判据取两者之【或】,两个方向都要覆盖:
+	// K线形态输入 → klineYongGong 参数(仅股市局;body 未选=不用)。
+	// 判据取两者之【或】,两个方向都要覆盖:
 	//   ① 所起之卦是股市局 → 生效(起卦后改起卦法而不重起时,股市页照出,K线行不可消失=同页自相矛盾);
 	//   ② 当前起卦法是股价 → 生效(正配置股价卦时的左栏预览;此时旧卦可能还是别的法所起)。
 	// 🔴 曾误写作三元(qi 存在即只看 qi.mode),把 ② 的「旧卦非股市局」一路压没 → 预览失灵。
@@ -321,7 +322,7 @@ class XiaoChengTuMain extends Component {
 			payload: {
 				options: { ...this.state.settings, kline: this.klineOpt() },
 				qi: this.state.qi,          // 🔴 冻结卦(重算只重排推演,绝不重起)
-				// [QA3] 起卦输入随档存(载入后左栏与所载之卦一致;不用于重算,卦仍只自 qi 取)。
+				// 起卦输入随档存(载入后左栏与所载之卦一致;不用于重算,卦仍只自 qi 取)。
 				inputs: (({ up, lo, dongYaosText, upNum, loNum, open, close, seed, countsText })=>(
 					{ up, lo, dongYaosText, upNum, loNum, open, close, seed, countsText }
 				))(this.state.inputs),
@@ -372,7 +373,7 @@ class XiaoChengTuMain extends Component {
 			<div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
 				{NAMES.map((nm, i)=>(
 					<div key={nm} style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-						<span style={{ fontSize: 11, opacity: 0.62 }}>{nm}</span>
+						<span style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>{nm}</span>
 						<Select size="small" allowClear placeholder="—" style={{ width: '100%' }}
 							value={valid(cs[i]) ? cs[i] : undefined}
 							onChange={(v)=>setYao(i, v)} options={OPTS}/>
@@ -410,7 +411,7 @@ class XiaoChengTuMain extends Component {
 				{settings.qiguaFa === 'manual' ? this.field('本卦', (
 					<div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
 						<Select size="small" style={{ flex: 1 }} value={inputs.up} onChange={(v)=>this.setState({ inputs: { ...inputs, up: v } })} options={guaOpts}/>
-						<span style={{ opacity: 0.6, flex: '0 0 auto' }}>上/下</span>
+						<span style={{ color: 'var(--horosa-text-secondary)', flex: '0 0 auto' }}>上/下</span>
 						<Select size="small" style={{ flex: 1 }} value={inputs.lo} onChange={(v)=>this.setState({ inputs: { ...inputs, lo: v } })} options={guaOpts}/>
 					</div>
 				)) : null}
@@ -434,7 +435,7 @@ class XiaoChengTuMain extends Component {
 								<Input size="small" style={{ flex: 1 }} placeholder="收盘价" value={inputs.close} onChange={(e)=>this.setState({ inputs: { ...inputs, close: e.target.value } })}/>
 							</div>
 						))}
-						{/* [X1·P1-13] K线定用宫链此前无生产端(快照消费 o.kline 而 UI 无输入):补 K线形态控件。 */}
+						{/* K线定用宫链此前无生产端(快照消费 o.kline 而 UI 无输入):补 K线形态控件。 */}
 						{this.field('K线形态', (
 							<div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
 								<Radio.Group size="small" optionType="button" value={inputs.klineBody || ''} onChange={(e)=>this.setState({ inputs: { ...inputs, klineBody: e.target.value || null } })}
@@ -457,23 +458,23 @@ class XiaoChengTuMain extends Component {
 					</>
 				) : null}
 				{(settings.qiguaFa === 'manual' || settings.qiguaFa === 'number') ? this.field('动爻', (
-					<Select size="small" mode="multiple" allowClear style={{ width: '100%' }} placeholder="选动爻(可空)"
+					<Select filterOption={scriptFilterBy()} size="small" mode="multiple" allowClear style={{ width: '100%' }} placeholder="选动爻(可空)"
 						value={`${inputs.dongYaosText || ''}`.split(/[,，\s]+/).map((x)=>parseInt(x, 10)).filter((x)=>x >= 1 && x <= 6)}
 						onChange={(arr)=>this.setState({ inputs: { ...inputs, dongYaosText: (arr || []).slice().sort((a, b)=>a - b).join(',') } })}
 						options={[{ value: 1, label: '初爻' }, { value: 2, label: '二爻' }, { value: 3, label: '三爻' }, { value: 4, label: '四爻' }, { value: 5, label: '五爻' }, { value: 6, label: '上爻' }]}/>
 				)) : null}
 				{this.field('用宫', (
 					<Select size="small" style={{ width: '100%' }} value={settings.yongGong} onChange={(v)=>this.setSettings({ yongGong: v })}
-						options={Object.keys(DI_PAN).map((g)=>({ value: Number(g), label: `${g} ${DI_PAN[g]}宫 · ${(GONG_INFO[g] || {}).zhu || ''}` }))}/>
+						options={YONG_GONG_OPTIONS}/>
 				), '推演起点(伏位自动旁推)')}
-				{/* [XCT-1] 闢(离心)一象之辞两传本相反,立双口径;三象(往/來/闔)两本一致不随之变。 */}
+				{/* 闢(离心)一象之辞两传本相反,立双口径;三象(往/來/闔)两本一致不随之变。 */}
 				{this.field('闢卦细判', (
 					<Radio.Group size="small" optionType="button" value={settings.piKoujing === 'yiwen' ? 'yiwen' : 'zheng'}
 						onChange={(e)=>this.setSettings({ piKoujing: e.target.value })}
 						options={[{ value: 'zheng', label: '正传' }, { value: 'yiwen', label: '异文' }]}/>
 				), PI_KOUJING_LABEL[settings.piKoujing === 'yiwen' ? 'yiwen' : 'zheng'])}
 				{this.field('问事', <Input size="small" placeholder="所占何事(入快照)" value={inputs.askEvent} onChange={(e)=>this.setState({ inputs: { ...inputs, askEvent: e.target.value } })}/>)}
-				{/* [XCT-3] 问事荐宫:仅建议(古法「问出行看震宫,问来人看艮宫」),用宫仍由用户定。 */}
+				{/* 问事荐宫:仅建议(古法「问出行看震宫,问来人看艮宫」),用宫仍由用户定。 */}
 				{(()=>{
 					const sg = suggestGong(inputs.askEvent);
 					if(!sg || sg.gong === Number(settings.yongGong)){ return null; }
@@ -500,7 +501,7 @@ class XiaoChengTuMain extends Component {
 		const stepOf = {};
 		if(td && !td.fuWei){ td.steps.forEach((st, i)=>{ stepOf[st.gong] = i + 1; }); }
 		return (
-			<div className="horosa-xct-board horosa-cnx-board">
+			<div className="horosa-xct-board horosa-cnx-board" ref={ownedBoxSizeRef(this, 'board', narrowBoardVars)}>
 				<div className="horosa-cnx-board-header">
 					<div>
 						<div className="horosa-cnx-board-title">
@@ -566,7 +567,7 @@ class XiaoChengTuMain extends Component {
 				<span className="horosa-cnx-item-k">{k}</span><span className="horosa-cnx-item-v">{v}</span>
 			</div>
 		);
-		const wait = (t)=><div style={{ opacity: 0.6, fontSize: 12, padding: '6px 2px' }}>{t}</div>;
+		const wait = (t)=><div style={{ color: 'var(--horosa-text-secondary)', fontSize: 12, padding: '6px 2px' }}>{t}</div>;
 		// 受控化的兜底:「股市」目只在 qi.mode==='stock' 时存在。非受控 antd 在当前目消失时会自行落回,
 		// 受控则不会 —— 故此处按【当前实际存在的目】校验一次,失效即落回首目,绝不出现空白右栏。
 		const auxKeys = ['tuidao', 'sixiang', 'yingqi', 'gongyi'].concat(qi && qi.mode === 'stock' ? ['stock'] : []).concat(['qigua']);
@@ -585,7 +586,7 @@ class XiaoChengTuMain extends Component {
 					{td ? row(`用宫 ${g0}${DI_PAN[g0]}`, td.fuWei ? '天地盘同卦,伏位不动' : zhengTuiText(td), 1) : row('推导', '—', 1)}
 					{td && td.pang ? row('旁推', zhengTuiText(td.pang) || '—', 2) : null}
 					{td && !td.fuWei ? td.steps.map((s, i)=>row(`第${i + 1}步`, `${s.diGua}宫见天盘${s.tianGua}(宫数${s.shu})`, i + 10)) : null}
-					<div style={{ marginTop: 8, fontSize: 11.5, opacity: 0.68, lineHeight: 1.6 }}>{PANG_TUI_ZONG_TEXT}</div>
+					<div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: 1.6 }}>{PANG_TUI_ZONG_TEXT}</div>
 					</>}
 					</>)}</FreezeSubTab>
 				</TabPane>
@@ -635,7 +636,7 @@ class XiaoChengTuMain extends Component {
 					{(()=>{ const yg = pan.tianPan[g0]; const sf = yg ? sanFen(yg) : null; return sf ? row('三分·旬', `用宫得 ${yg} 卦 → ${sf.xun}旬`, 1) : null; })()}
 					{(()=>{ const yg = pan.tianPan[g0]; const lf = yg ? liangFen(yg) : null; return lf ? row('两分·半月(升降)', `用宫得 ${yg} 卦 → ${lf.ban}月(${lf.yy})`, 2) : null; })()}
 					{(()=>{ const yg = pan.tianPan[g0]; const lz = yg ? liangFenZhi(yg) : null; return lz ? row('两分·阴阳(定支)', `用宫得 ${yg} 卦 → 属${lz.yy}支`, 3) : null; })()}
-					{/* [XCT-2] 应期推演链:逐跳依据(系古籍载例归纳,非另有明文总则)。 */}
+					{/* 应期推演链:逐跳依据(系古籍载例归纳,非另有明文总则)。 */}
 					{yq && yq.summary ? (
 						<div className="horosa-xct-yingqi" style={{ marginTop: 10 }}>
 							<div className="horosa-cnx-item">
@@ -647,7 +648,7 @@ class XiaoChengTuMain extends Component {
 							</ol>
 						</div>
 					) : null}
-					<div style={{ marginTop: 8, fontSize: 11.5, opacity: 0.68, lineHeight: 1.6 }}>
+					<div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: 1.6 }}>
 						三分法定上/中/下旬,两分法有二用:定前/后半月(升降)与定月建之支(阴阳);应期卦取用宫天盘卦(与股市幅度/涨跌分治)。
 						应期推演之链系古籍载例逐步归纳,非另有明文总则,仅供推寻参照。
 					</div>
@@ -656,7 +657,7 @@ class XiaoChengTuMain extends Component {
 				</TabPane>
 				<TabPane tab="宫义" key="gongyi">
 					<FreezeSubTab active={auxTab === 'gongyi'}>{() => (<>
-					{/* [XCT-4] 九宫八方各有所主(原文八条),此前只入快照一行、UI 零处可见。 */}
+					{/* 九宫八方各有所主(原文八条),此前只入快照一行、UI 零处可见。 */}
 					<div style={{ fontSize: 12, lineHeight: 1.85 }}>
 						{[9, 8, 7, 6, 4, 3, 2, 1].map((g)=>(
 							<div key={g} style={{ padding: '3px 6px', borderRadius: 6, background: g === g0 ? 'var(--horosa-accent-soft, rgba(127,127,127,0.14))' : 'transparent' }}>
@@ -664,7 +665,7 @@ class XiaoChengTuMain extends Component {
 							</div>
 						))}
 					</div>
-					<div style={{ marginTop: 8, fontSize: 11.5, opacity: 0.68, lineHeight: 1.6 }}>
+					<div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: 1.6 }}>
 						<div>{SHENG_JIANG_TEXT}</div>
 						<div style={{ marginTop: 4 }}>{ZHONG_GONG_NOTE}</div>
 					</div>
@@ -679,7 +680,7 @@ class XiaoChengTuMain extends Component {
 							const hit = klineYongGong(k); return hit ? row('K线定用宫', `${hit.key} → ${hit.gua}宫(${hit.gong})${hit.inferred ? '·推补' : ''}`) : null; })()}
 						{(()=>{ const og = pan.tianPan[g0]; return og ? row('研判·开盘', `用宫天盘${og} → ${zhangDie(og) || '—'}(幅度${(fuDu(og) || {}).fudu || '—'})`, 8) : null; })()}
 						{(()=>{ const tdS = tuiDao(pan, g0); const cg = tdS && !tdS.fuWei && tdS.steps && tdS.steps.length ? tdS.steps[tdS.steps.length - 1].tianGua : (tdS && tdS.pang ? tdS.pang.gua : pan.tianPan[g0]); return cg ? row('研判·收盘', `正推末卦${cg} → ${zhangDie(cg) || '—'}(幅度${(fuDu(cg) || {}).fudu || '—'})`, 9) : null; })()}
-						<div style={{ marginTop: 8, fontSize: 11.5, opacity: 0.68, lineHeight: 1.6 }}>{YAN_PAN_RULES.slice(0, 4).join(' ')}</div>
+						<div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: 1.6 }}>{YAN_PAN_RULES.slice(0, 4).join(' ')}</div>
 						<pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, opacity: 0.75, marginTop: 8 }}>{STOCK_QI_GUA_TEXT}</pre>
 						</>)}</FreezeSubTab>
 					</TabPane>

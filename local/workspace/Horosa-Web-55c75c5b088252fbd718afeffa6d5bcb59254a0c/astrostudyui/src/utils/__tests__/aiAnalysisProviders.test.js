@@ -13,9 +13,11 @@ import {
 	effectiveMaxTokensForModel,
 	THINKING_LEVELS,
 	estimateUsageCost,
+	cleanProviderBaseUrl,
 } from '../aiAnalysisProviders';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
-// [P0-1 计量底座] 缓存计价:无缓存计量/无价档与旧公式逐位相同;anthropic 三段加权;openai 家族 (in−read)。
+// 缓存计价:无缓存计量/无价档与旧公式逐位相同;anthropic 三段加权;openai 家族 (in−read)。
 describe('estimateUsageCost 缓存计价', ()=>{
 	test('无价档四参=三参(皆 null);有价档但无缓存计量:四参与三参 cost 逐位相同且 cacheSavings=0', ()=>{
 		expect(estimateUsageCost('my-secret-model', 1000, 100)).toBe(null);
@@ -23,7 +25,7 @@ describe('estimateUsageCost 缓存计价', ()=>{
 		const three = estimateUsageCost('claude-sonnet-5', 1234, 567);
 		const four = estimateUsageCost('claude-sonnet-5', 1234, 567, { family: 'anthropic' });
 		const fourZero = estimateUsageCost('claude-sonnet-5', 1234, 567, { cacheRead: 0, cacheWrite: 0, family: 'anthropic' });
-		// [Q-043] Sonnet 5 价目已按官方改为 $2/$10 per 1M(此前照抄 Sonnet 4 的 $3/$15)
+		// Sonnet 5 价目已按官方改为 $2/$10 per 1M(此前照抄 Sonnet 4 的 $3/$15)
 		expect(three.cost).toBe((1234 / 1000) * 0.002 + (567 / 1000) * 0.010);
 		expect(four.cost).toBe(three.cost);
 		expect(fourZero.cost).toBe(three.cost);
@@ -33,7 +35,7 @@ describe('estimateUsageCost 缓存计价', ()=>{
 	});
 
 	test('anthropic 家族:input 不含缓存 → in·p + read·cacheIn + write·cacheWrite;缺 cacheIn 价档按 0.1p/1.25p 兜底', ()=>{
-		// [Q-043] 同上:in=0.002 / cacheIn=0.0002(0.1×in)/ cacheWrite=0.0025(1.25×in)
+		// 同上:in=0.002 / cacheIn=0.0002(0.1×in)/ cacheWrite=0.0025(1.25×in)
 		const r = estimateUsageCost('claude-sonnet-5', 1000, 0, { cacheRead: 2000, cacheWrite: 500, family: 'anthropic' });
 		expect(r.cost).toBeCloseTo(1 * 0.002 + 2 * 0.0002 + 0.5 * 0.0025, 10);
 		// 节省 = 全价(3500 tok × p) − 实付
@@ -67,7 +69,7 @@ describe('aiAnalysisProviders', ()=>{
 		expect(preset.baseUrl).toBe('https://api.deepseek.com');
 		expect(getProviderDisplayName('deepseek')).toBe('DeepSeek');
 		expect(getProviderProtocolFamily('deepseek')).toBe('openai-compatible');
-		// [C3] 2026-07 现役目录:v4 直连置顶,chat/reasoner 别名暂留兼容(官方 2026-07-24 弃用);2026-09-11 官方 /models 改列 deepseek-flash(无 v4 字样)置首。
+		// 2026-07 现役目录:v4 直连置顶,chat/reasoner 别名暂留兼容(官方 2026-07-24 弃用);2026-09-11 官方 /models 改列 deepseek-flash(无 v4 字样)置首。
 		expect(getProviderDefaultChatModels('deepseek')).toEqual(['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner']);
 		expect(getProviderDefaultEmbeddingModels('deepseek')).toEqual([]);
 	});
@@ -93,7 +95,7 @@ describe('aiAnalysisProviders', ()=>{
 		const preset = getProviderPreset('gemini');
 		expect(preset.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta');
 		expect(getProviderProtocolFamily('gemini')).toBe('gemini');
-		// [C3] 3.x 现役置顶;2.5 官方 2026-10-16 退役前暂留。
+		// 3.x 现役置顶;2.5 官方 2026-10-16 退役前暂留。
 		expect(getProviderDefaultChatModels('gemini')).toEqual(['gemini-3.1-pro', 'gemini-3.5-flash', 'gemini-3-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro']);
 		// text-embedding-004 已于 2026-01-14 关停,官方迁移目标 gemini-embedding-001。
 		expect(getProviderDefaultEmbeddingModels('gemini')).toEqual(['gemini-embedding-001']);
@@ -166,11 +168,11 @@ describe('aiAnalysisProviders', ()=>{
 	});
 });
 
-// [E2] 思考预算自定义数值档
-describe('[E2] applyThinkingLevel custom 数值档', () => {
+// 思考预算自定义数值档
+describe('applyThinkingLevel custom 数值档', () => {
 	const { applyThinkingLevel } = require('../aiAnalysisProviders');
 	test("custom:<n> → anthropic 预算族 budget_tokens=clamp 值;maxTokens 保护仍生效;自适应族折 effort", () => {
-		// [Q-024] Sonnet 4.5 = 预算族(enabled+budget_tokens);Sonnet 5 = 自适应族(adaptive + effort,预算数值只折档)
+		// Sonnet 4.5 = 预算族(enabled+budget_tokens);Sonnet 5 = 自适应族(adaptive + effort,预算数值只折档)
 		const o = applyThinkingLevel({}, 'custom:12000', 'anthropic', 'claude-sonnet-4-5', 32000);
 		expect(o.thinking).toEqual({ type: 'enabled', budget_tokens: 12000 });
 		// clamp 上限
@@ -199,8 +201,8 @@ describe('[E2] applyThinkingLevel custom 数值档', () => {
 	});
 });
 
-// [Q-024/Q-049/Q-050/Q-063] Anthropic 按型号思考形态(与 Java AIAnalysisProxyService.anthropicThinkingMode 同一张表)
-describe('[Q-024] Anthropic 思考形态按型号', () => {
+// Anthropic 按型号思考形态(与 Java AIAnalysisProxyService.anthropicThinkingMode 同一张表)
+describe('Anthropic 思考形态按型号', () => {
 	const { applyThinkingLevel, anthropicThinkingMode, anthropicThinkingOffForm } = require('../aiAnalysisProviders');
 	test('型号表:自适应族 vs 预算族;网关前缀取尾段;未知命名归预算族', () => {
 		['claude-opus-4-7', 'claude-opus-4-8', 'claude-opus-5', 'claude-sonnet-5', 'claude-fable-5-1', 'anthropic/claude-mythos-5'].forEach((m)=>expect(anthropicThinkingMode(m)).toBe('adaptive'));
@@ -255,24 +257,19 @@ describe('maxTokensKeyForModel 代际单源', ()=>{
 		expect(maxTokensKeyForModel('ollama', 'gpt-5.5')).toBe('num_predict');
 	});
 
-	test('接线锁：聊天链（与报告链，若本仓有）都必须走本单源，不许再手写键名分支', ()=>{
+	test('接线锁：聊天链必须走本单源，不许再手写键名分支', ()=>{
 		const fs = require('fs');
 		const path = require('path');
 		const SRC = path.resolve(__dirname, '..', '..');
 		const strip = (s)=>s.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
-		// 报告链属可选模块，并非每个构建都包含——存在才验，缺失不算红。
-		const rpPath = path.join(SRC, 'utils/reportPipeline.js');
-		if(fs.existsSync(rpPath)){
-			expect(strip(fs.readFileSync(rpPath, 'utf8')).includes('maxTokensKeyForModel(protoFamily, model)')).toBe(true);
-		}
-		const am = strip(fs.readFileSync(path.join(SRC, 'components/aianalysis/AIAnalysisMain.js'), 'utf8'));
+		const am = strip(readSource(path.join(SRC, 'components/aianalysis/AIAnalysisMain.js')));
 		expect(am.includes('maxTokensKeyForModel(protoFamily, model)')).toBe(true);
 		// 手写键名分支必须绝迹（曾按协议家族四分支写死 → 新代 OpenAI 恒 400）
 		expect(/protoFamily === 'anthropic'\s*\)\s*\{\s*chatProviderOptions\.max_tokens/.test(am)).toBe(false);
 	});
 });
 
-describe('[Q-289 裁决 2026-09-18] 思考恒开型号的短调用余量', ()=>{
+describe('思考恒开型号的短调用余量', ()=>{
 	it('Fable / Mythos 短调用上限按思考余量放大;Sonnet 5 / Opus 5(可关思考)与 Haiku 不放大', ()=>{
 		const { effectiveMaxTokensForModel } = require('../aiAnalysisProviders');
 		expect(effectiveMaxTokensForModel('claude-fable-5-1', 900)).toBe(6900);
@@ -280,5 +277,22 @@ describe('[Q-289 裁决 2026-09-18] 思考恒开型号的短调用余量', ()=>{
 		expect(effectiveMaxTokensForModel('claude-sonnet-5', 900)).toBe(900);
 		expect(effectiveMaxTokensForModel('claude-opus-5', 900)).toBe(900);
 		expect(effectiveMaxTokensForModel('claude-haiku-4-5-20251001', 900)).toBe(900);
+	});
+});
+
+describe('接口地址清理(与后端 cleanBaseUrl 同口径)', ()=>{
+	it('🔴 去掉任意位置的零宽 / 方向控制字符与首尾 Unicode 空白(全角空格、不换行空格、BOM);正常地址原样', ()=>{
+		expect(cleanProviderBaseUrl('\uFEFF https://x/v1/\u3000\u00A0')).toBe('https://x/v1/');
+		expect(cleanProviderBaseUrl('https://x/v1\u200Dbeta\u200B')).toBe('https://x/v1beta');
+		expect(cleanProviderBaseUrl('https://api.openai.com/v1')).toBe('https://api.openai.com/v1');
+		expect(cleanProviderBaseUrl(null)).toBe('');
+	});
+	it('🔴 新建 / 编辑接口档案(桌面表单与无头终端命令)存地址都经它', ()=>{
+		const fs = require('fs');
+		const path = require('path');
+		const main = readSource(path.resolve(__dirname, '../../components/aianalysis/AIAnalysisMain.js'));
+		expect(main).toContain('baseUrl: cleanProviderBaseUrl(values.baseUrl) || preset.baseUrl');
+		const hl = fs.readFileSync(path.resolve(__dirname, '../../../headless/aiProfiles.js'), 'utf8');
+		expect(hl).toContain('const baseUrl = cleanProviderBaseUrl(s.baseUrl) || preset.baseUrl;');
 	});
 });

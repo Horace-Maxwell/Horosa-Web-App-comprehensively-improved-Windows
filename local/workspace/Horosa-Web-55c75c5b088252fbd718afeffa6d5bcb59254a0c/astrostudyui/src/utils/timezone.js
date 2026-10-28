@@ -2,7 +2,9 @@
 // 成熟方案:经纬度 → IANA 时区名(离线 tz-lookup) + 浏览器原生 Intl 求含夏令时的 UTC 偏移。
 // 全程离线、零网络依赖,适配桌面端断网场景。
 
+import { parseDateTimeMs } from './dateTimeParse';
 import tzLookup from 'tz-lookup';
+import { leadingYearOf, datePartOf, civilJdnOfDateStr } from './dateStrSafe';
 
 // 经纬度 → IANA 时区名(离线 tz-lookup)。无效/越界坐标返回 null。
 export function ianaTimezoneAt(lat, lng){
@@ -40,12 +42,13 @@ const TZ_RULE_OVERRIDES = {
 
 function overrideOffsetFor(zone, dateStr){
 	const rules = TZ_RULE_OVERRIDES[zone];
-	if(!rules || !/^\d{4}-\d{2}-\d{2}/.test(dateStr || '')){
+	// 按民用历日序数比先后(年带符号、1–5 位都对;不按字符串比:'12000-…' < '2026-…'、公元前串认不出)
+	const jdn = rules ? civilJdnOfDateStr(datePartOf(dateStr || '')) : NaN;
+	if(!rules || !Number.isFinite(jdn)){
 		return null;
 	}
-	const day = dateStr.slice(0, 10);
 	for(let i = 0; i < rules.length; i++){
-		if(day >= rules[i].since){
+		if(jdn >= civilJdnOfDateStr(rules[i].since)){
 			return rules[i].offset;
 		}
 	}
@@ -65,7 +68,7 @@ export function offsetForZoneAtDate(zone, dateStr){
 	}
 	try{
 		// 取当日正午 UTC 作判定锚点,避开 DST 切换瞬间(凌晨)的歧义
-		const d = new Date(`${dateStr}T12:00:00Z`);
+		const d = new Date(parseDateTimeMs(`${dateStr}T12:00:00Z`));
 		if(isNaN(d.getTime())){
 			return null;
 		}
@@ -107,7 +110,7 @@ export function isDstActiveAt(zone, dateStr){
 		if(!o){
 			return false;
 		}
-		const yr = (dateStr || '').slice(0, 4);
+		const yr = leadingYearOf(dateStr);
 		const oJan = offsetForZoneAtDate(zone, `${yr}-01-15`);
 		const oJul = offsetForZoneAtDate(zone, `${yr}-07-15`);
 		if(!oJan || !oJul || oJan === oJul){
@@ -143,8 +146,9 @@ export function unifyCnZone(zone, dateStr){
 	if(!zone || !CN_UNIFY[zone] || !cnUnifiedEnabled()){
 		return { zone: zone, advisory: null };
 	}
-	const day = `${dateStr || ''}`.slice(0, 10);
-	if(/^\d{4}-\d{2}-\d{2}$/.test(day) && day < CN_UNIFIED_ZONE_SINCE){
+	// 统一北京时间以前(含公元前 / 公元 1–999 年)保留当地时区:按民用历日序数比,不按四位年字符串比
+	const jdn = civilJdnOfDateStr(datePartOf(`${dateStr || ''}`));
+	if(Number.isFinite(jdn) && jdn < civilJdnOfDateStr(CN_UNIFIED_ZONE_SINCE)){
 		return { zone: zone, advisory: null };
 	}
 	return { zone: CN_UNIFY[zone], advisory: 'cn-unified' };
@@ -233,13 +237,4 @@ export function resolveGeoZone(rec, dateStr){
 	}catch(e){
 		return null;
 	}
-}
-
-// 友好显示名:取 IANA 末段、下划线换空格(如 "America/New_York" → "New York")。
-export function friendlyZoneName(zone){
-	if(!zone){
-		return '';
-	}
-	const seg = String(zone).split('/');
-	return seg[seg.length - 1].replace(/_/g, ' ');
 }

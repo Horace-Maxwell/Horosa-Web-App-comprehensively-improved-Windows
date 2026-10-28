@@ -55,9 +55,9 @@ describe('法达子期与夜序两制', () => {
 		expect(sum(FIRDARIA_NIGHT)).toBe(75);
 		expect(sum(FIRDARIA_NIGHT_NODES_END)).toBe(75);
 	});
-	// [Q-276④ 裁决 2026-09-18] 缺省夜序 = 二交点缀于七曜之末(原序);「交点承火星后」保留为拉丁传本变体;昼盘恒同一表。
+	// 缺省夜序 = 二交点缀于七曜之末(原序);「交点承火星后」保留为拉丁传本变体;昼盘恒同一表。
 	//   修前:未传夜序 ⇒ 承火星后(39.5 岁夜盘=北交期);且 firdariaAt(大运)恒承火星后、firdariaSubAt(子运)随开关 → 同盘两序(红)。
-	it('[Q-276④] 缺省(未传夜序)= 交点缀末:夜盘 39.5 岁大运=太阳;大运与子运同一序表;昼盘不受夜序影响;spec 缺省 nodes_end', () => {
+	it('缺省(未传夜序)= 交点缀末:夜盘 39.5 岁大运=太阳;大运与子运同一序表;昼盘不受夜序影响;spec 缺省 nodes_end', () => {
 		expect(firdariaSubAt(39.5, false).major.lord).toBe('sun');
 		expect(firdariaAt(39.5, false).lord).toBe('sun');
 		expect(firdariaAt(39.5, false, 'nodes_end').lord).toBe('sun');

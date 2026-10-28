@@ -1,4 +1,4 @@
-// [D64] RAG 切块/向量读走 materialId 索引:ensureMaterialChunks 与 ensureChunkEmbeddings 不再整店 listStoreRecords。
+// RAG 切块/向量读走 materialId 索引:ensureMaterialChunks 与 ensureChunkEmbeddings 不再整店 listStoreRecords。
 jest.mock('../aiAnalysisStore', ()=>{
 	const actual = jest.requireActual('../aiAnalysisStore');
 	return { ...actual, readByIndex: jest.fn(async ()=>[]), listStoreRecords: jest.fn(async ()=>[]), bulkPutStoreRecords: jest.fn(async (n, rows)=>rows) };

@@ -3,12 +3,49 @@ import { isDesktopBridgeAvailable, getDesktopInvokeApi } from '../../utils/aiAna
 import { ServerRoot } from '../../utils/constants';
 import { markServiceOnline } from '../../utils/serviceStatus';
 import { renegotiateLocalServerRoot } from '../../utils/backendIdentity';
-import { bootContext } from '../../utils/backendBootGate';   // [R5 S8] 壳送来的启动上下文(early / 更新后首启 / 壳启动时刻)
+import { bootContext } from '../../utils/backendBootGate';   // 壳送来的启动上下文(early / 更新后首启 / 壳启动时刻)
+import { invokeLightServiceRestart } from '../../utils/serviceRecovery';
 
 // 2026-07-04 事故复盘:探测地址必须每次从活绑定 ServerRoot 现算——旧版 useMemo 把 URL 冻结,
 // 服务地址自愈换根后本组件仍对旧(毒)端口无限轮询。
 function currentProbeUrl() {
   return ServerRoot ? `${String(ServerRoot).replace(/\/$/, '')}/heartbeat` : '';
+}
+
+// 「重启后端」结果 → 页面上的一句话(纯函数,可单测)。
+// 启动流程还在进行时壳侧会拒绝重启(两条引导互杀),这里如实告诉用户「还在启动,稍候」,不再点了没反应。
+function restartErrorText(err) {
+  if (!err) return '';
+  if (typeof err === 'string') return err;
+  if (err && typeof err.message === 'string') return err.message;
+  try { return String(err); } catch (_) { return ''; }
+}
+
+export function describeStartupRestartOutcome(mode, err) {
+  if (mode === 'light') return '已重启本地服务，正在重新连接…';
+  if (mode === 'full') return '已开始修复本地组件，完成后会自动进入主界面…';
+  const text = restartErrorText(err);
+  if (/正在进行|仍在启动|尚未建立/.test(text)) {
+    return '应用仍在启动中，暂时不能重启后端，请再稍候片刻；若长时间没有变化，可稍后点「诊断」查看日志。';
+  }
+  // 中文原因照写(壳层已译好的,如「磁盘已满」);英文 / 系统原文不进界面,留在控制台与诊断信息里
+  const readable = !!text && /[\u4e00-\u9fff]/.test(text) && !/[A-Za-z]{4,}/.test(text);
+  if (text && !readable && typeof console !== 'undefined' && console.warn) { console.warn('[StartupGate] restart failed:', text); }
+  return '重启没有成功' + (readable ? '：' + text : '') + '。可稍后再试，或打开「诊断」查看日志' + (text && !readable ? '（原始错误在诊断信息里）' : '') + '。';
+}
+
+// 「重启后端」:与横幅、状态灯、排盘失败弹窗走同一个入口(先轻量重启,只在老版本壳没有该命令时回退修复),
+// 结果经 onMessage 交给页面显示。恒不抛。
+export async function runStartupRestart(api, onMessage) {
+  const say = typeof onMessage === 'function' ? onMessage : () => {};
+  try {
+    const mode = await invokeLightServiceRestart(api);
+    say(describeStartupRestartOutcome(mode, null));
+    return mode;
+  } catch (err) {
+    say(describeStartupRestartOutcome(null, err));
+    return null;
+  }
 }
 
 // P0 启动稳健化:本地后端就绪前的全屏「正在连接本地服务」覆盖层,取代「白屏 / 进不去主界面」。
@@ -25,7 +62,7 @@ function currentProbeUrl() {
 //  · 长时间未就绪时显示后端地址,便于用户检查。
 export default function StartupGate() {
   const [ready, setReady] = React.useState(false);
-  // [R5 S8] 桌面壳提前导航时「已用时」从壳启动时刻起算(URL boot=epoch 毫秒),页面挂载前那段也算进去;
+  // 桌面壳提前导航时「已用时」从壳启动时刻起算(URL boot=epoch 毫秒),页面挂载前那段也算进去;
   // 更新后首启(firstLaunch=1)从 t=0 就给出「更新已完成,正在恢复启动」的明确文案,不再等 6 s 阈值。
   const bootCtxRef = React.useRef(bootContext());
   const startRef = React.useRef(bootCtxRef.current.bootStartedAtMs || Date.now());
@@ -86,12 +123,17 @@ export default function StartupGate() {
   };
 
   const hasTauri = isDesktopBridgeAvailable();   // 打包版无 window.__TAURI__,只探它=按钮永不出现
+  const [restartMsg, setRestartMsg] = React.useState('');
+  const [restarting, setRestarting] = React.useState(false);
+  const mountedRef = React.useRef(true);
+  React.useEffect(() => () => { mountedRef.current = false; }, []);
   const restartBackend = () => {
-    if (!hasTauri) return;
-    try {
-      const api = getDesktopInvokeApi();
-      if (api && api.invoke) api.invoke('trigger_runtime_repair_command');
-    } catch (_) { /* swallow */ }
+    if (!hasTauri || restarting) return;
+    const api = getDesktopInvokeApi();
+    setRestarting(true);
+    setRestartMsg('正在请求重启本地服务…');
+    runStartupRestart(api, (msg) => { if (mountedRef.current) setRestartMsg(msg); })
+      .then(() => { if (mountedRef.current) setRestarting(false); });
   };
   const openDiagnostics = () => {
     if (!hasTauri) return;
@@ -107,7 +149,7 @@ export default function StartupGate() {
   let mainMsg = '首次启动需准备本地排盘引擎,通常约 10 秒,请稍候。';
   let extraMsg = null;
   if (bootCtxRef.current.firstLaunch && elapsed < 15) {
-    // [R5 S8] 更新后首启:壳以前把这句写在启动页上;现在提前进界面,由本层顶着同一句。
+    // 更新后首启:壳以前把这句写在启动页上;现在提前进界面,由本层顶着同一句。
     mainMsg = '更新已完成,正在恢复启动,通常约 10 秒,请稍候。';
   }
   if (elapsed >= 30) {
@@ -160,7 +202,7 @@ export default function StartupGate() {
     fontSize: 12, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
     border: '1px solid rgba(255,255,255,0.16)',
     background: 'transparent',
-    color: 'rgba(255,255,255,0.62)',
+    color: '#a5a8a8',
     marginLeft: 8,
   };
 
@@ -172,16 +214,16 @@ export default function StartupGate() {
         <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: 6, marginBottom: 14, color: '#f3f7f5' }}>星阙</div>
         <div style={spinner} />
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6, color: '#eef4f2' }}>正在连接本地服务…</div>
-        <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
+        <div style={{ fontSize: 12.5, color: '#a0a3a3', lineHeight: 1.6 }}>
           {mainMsg}
         </div>
         {bootCtxRef.current.early ? (
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
+          <div style={{ fontSize: 12, color: '#949898', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
             已用时 {elapsed} 秒
           </div>
         ) : null}
         {extraMsg ? (
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.68)', lineHeight: 1.55, marginTop: 8, padding: '6px 10px', background: 'rgba(255,255,255,0.06)', borderRadius: 6 }}>
+          <div style={{ fontSize: 12, color: '#b3b6b5', lineHeight: 1.55, marginTop: 8, padding: '6px 10px', background: 'rgba(255,255,255,0.06)', borderRadius: 6 }}>
             {extraMsg}
           </div>
         ) : null}
@@ -189,15 +231,20 @@ export default function StartupGate() {
           <div style={{ marginTop: 14 }}>
             <button type="button" onClick={manualRetry} style={btnPrimary}>重试</button>
             {hasTauri && elapsed >= 15 ? (
-              <button type="button" onClick={restartBackend} style={btnSecondary}>🔧 重启后端</button>
+              <button type="button" onClick={restartBackend} disabled={restarting} style={btnSecondary}>🔧 重启后端</button>
             ) : null}
             {hasTauri && elapsed >= 30 ? (
               <button type="button" onClick={openDiagnostics} style={btnSecondary}>🔍 诊断</button>
             ) : null}
           </div>
         ) : null}
+        {restartMsg ? (
+          <div style={{ marginTop: 10, fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 1.55 }}>
+            {restartMsg}
+          </div>
+        ) : null}
         {elapsed >= 30 && currentProbeUrl() ? (
-          <div style={{ marginTop: 12, fontSize: 11, color: 'rgba(255,255,255,0.45)', wordBreak: 'break-all' }}>
+          <div style={{ marginTop: 12, fontSize: 11, color: '#848887', wordBreak: 'break-all' }}>
             后端地址: {currentProbeUrl()}
           </div>
         ) : null}

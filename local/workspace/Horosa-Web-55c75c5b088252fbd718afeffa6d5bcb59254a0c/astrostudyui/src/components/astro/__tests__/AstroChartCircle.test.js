@@ -1,7 +1,6 @@
 jest.mock('../../../utils/helper', ()=>({
 	randomStr: ()=> 'astro-chart-circle-test',
 	detectOS: ()=> 'Mac',
-	printArea: jest.fn(),
 	distanceInCircleAbs: jest.fn(),
 	creatTooltip: jest.fn(),
 	setupFloatingTooltip: jest.fn(),

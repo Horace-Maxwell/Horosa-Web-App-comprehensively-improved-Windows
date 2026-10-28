@@ -1,4 +1,4 @@
-// [批五] 四断链之①:get_current_context 的 analysisSource 此前恒 null——生产从未登记过工作区 ui 面。
+// 四断链之①:get_current_context 的 analysisSource 此前恒 null——生产从未登记过工作区 ui 面。
 // 本文件是行为锁(不是源码 grep):无登记 → null;登记 → 读到当前源与路由;本 Turn 传入的 ui 覆盖登记;注销只删自己的键;等待就绪。
 import { registerBuiltinTools } from '../aiTools';
 import { runTool, __resetToolsForTests } from '../aiTools/registry';

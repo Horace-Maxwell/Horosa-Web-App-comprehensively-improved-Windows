@@ -150,7 +150,7 @@ export function resolveCaptureTarget(){
 	return null;
 }
 
-// [WP-5.4] WebGL 引擎自渲染帧通道:html-to-image 永远拿不到 WebGL framebuffer(守卫②),
+// WebGL 引擎自渲染帧通道:html-to-image 永远拿不到 WebGL framebuffer(守卫②),
 // 但引擎自己「render 后同步 toDataURL」是可靠的。3D 组件挂载时注册 provider(返回
 // { dataUrl(PNG), width, height } 或 null),截图命中 WebGL 守卫时先问 provider,全空才降级放弃。
 // 栈式多实例:后挂载者优先(尾→头取第一个非空);反注册用返回的函数,unmount 必调防僵尸。
@@ -261,7 +261,7 @@ export async function capturePageScreenshot(options = {}){
 				return null;
 			}
 			if(containsWebglCanvas(target)){
-				// [WP-5.4] 先问引擎帧 provider(3D 组件在场即注册);拿到=真帧,拿不到才降级放弃。
+				// 先问引擎帧 provider(3D 组件在场即注册);拿到=真帧,拿不到才降级放弃。
 				const engineFrame = captureWebglEngineFrame();
 				if(engineFrame){
 					return { dataUrl: engineFrame.dataUrl, width: engineFrame.width || 0, height: engineFrame.height || 0, engineFrame: true };
@@ -304,7 +304,7 @@ export async function capturePageScreenshot(options = {}){
 			}
 			return { dataUrl, width: canvas.width, height: canvas.height };
 		}catch(e){
-			try{ console.warn('[pageScreenshot] 截图失败(导出继续,不附图):', e && e.message); }catch(_){ /* noop */ }
+			console.warn('[pageScreenshot] 截图失败(导出继续,不附图):', e && e.message);
 			return null;
 		}
 	});

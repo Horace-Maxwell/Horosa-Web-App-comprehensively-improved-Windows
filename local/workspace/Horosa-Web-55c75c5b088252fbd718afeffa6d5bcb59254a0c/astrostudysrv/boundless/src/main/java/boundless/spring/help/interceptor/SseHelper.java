@@ -8,35 +8,11 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import boundless.log.AppLoggers;
 import boundless.log.QueueLog;
-import boundless.types.ExecutionGroup;
-import reactor.core.publisher.Flux;
 
 public class SseHelper {
 	private static Logger log = AppLoggers.getLog("sse", "sse");
 	
 	private static Map<String, SseEmitter> emitters = new ConcurrentHashMap<String, SseEmitter>();
-	
-	public static SseEmitter push(String id, Flux<String> flux) {
-		if(emitters.containsKey(id)) {
-			return emitters.get(id);
-		}
-		
-		SseEmitter emitter = push(id);
-		flux.subscribe((txt)->{
-			try {
-				emitter.send(txt);		
-				QueueLog.debug(log, txt);
-				if(txt.equalsIgnoreCase("[DONE]")) {
-					emitter.complete();
-					emitters.remove(id);
-				}
-			}catch(Exception e) {
-				QueueLog.error(AppLoggers.ErrorLogger, e);
-			}
-		});
-		
-		return emitter;
-	}
 	
 	public static SseEmitter push(String id) {
 		if(emitters.containsKey(id)) {
@@ -68,16 +44,4 @@ public class SseHelper {
 		return emitter;
 	}
 
-	public static void markCurrentThread() {
-		TransData.setSSE(true);
-	}
-	
-	public static SseEmitter get(String id) {
-		return emitters.get(id);
-	}
-	
-	public static void remove(String id) {
-		emitters.remove(id);
-	}
-	
 }

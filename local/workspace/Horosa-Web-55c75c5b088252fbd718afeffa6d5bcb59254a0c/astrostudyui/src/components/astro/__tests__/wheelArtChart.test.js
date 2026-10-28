@@ -191,7 +191,8 @@ describe('全链接线锁(L2 静态)', ()=>{
 		const src = read('models/app.js');
 		expect(/wheelArt:\s*AstroConst\.WHEEL_ART_CLASSIC/.test(src)).toBe(true);
 		expect(/payload\.wheelArt\s*=\s*AstroConst\.normalizeWheelArt/.test(src)).toBe(true);
-		expect(/wheelArt:\s*st\.wheelArt/.test(src)).toBe(true);
+		// 落盘白名单在全局设置落盘单源(utils/globalSetupStore.js 的 GLOBAL_SETUP_FIELDS)
+		expect(require('../../../utils/globalSetupStore').GLOBAL_SETUP_FIELDS).toContain('wheelArt');
 		expect(/normalized\.wheelArt\s*=\s*AstroConst\.normalizeWheelArt/.test(src)).toBe(true);
 	});
 
@@ -391,7 +392,7 @@ describe('渲染冒烟(类实例直测)', ()=>{
 	});
 });
 
-// ── [WP-9] 盘式变体包静态锁:四掩码/密度三档/绘制挂点/prop 链(2026-08 显式新增) ──
+// ── 盘式变体包静态锁:四掩码/密度三档/绘制挂点/prop 链(2026-08 显式新增) ──
 describe('WP-9 盘式变体包接线锁', ()=>{
 	const fs = require('fs');
 	const path = require('path');
@@ -412,23 +413,23 @@ describe('WP-9 盘式变体包接线锁', ()=>{
 		expect(src.includes('this.drawCenterExtras(svg, chartObj, orgx, orgy, flags)')).toBe(true);
 		expect(src.includes('this.drawAngularTriads(topgroup, chartObj, radius, flags)')).toBe(true);
 		expect((src.match(/txtplanet = false/g) || []).length).toBe(3);
-		// [SURF-4] 三元组徽与宫头线同几何(黄经系 -R·sin/-R·cos);朝向=切向排布(长轴⊥半径,
+		// 三元组徽与宫头线同几何(黄经系 -R·sin/-R·cos);朝向=切向排布(长轴⊥半径,
 		// rotate 到 atan2+90;屏幕下半圈 +180 防倒置)——旧 backAngle 反旋正立已废(用户规格)。
 		expect(src.includes('const bx = -bR * Math.sin(lonrad)')).toBe(true);
 		expect(src.includes('Math.atan2(by, bx) * 180 / Math.PI + 90')).toBe(true);
 		expect(src.includes('backAngle')).toBe(false);
-		// [SURF-4] 角宫按 id 查表(HOUSE1/10/7/4),位置下标取角宫已废(后端 houses 按黄经排序,下标≠宫号)
+		// 角宫按 id 查表(HOUSE1/10/7/4),位置下标取角宫已废(后端 houses 按黄经排序,下标≠宫号)
 		expect(src.includes('[AstroConst.HOUSE1, AstroConst.HOUSE10, AstroConst.HOUSE7, AstroConst.HOUSE4]')).toBe(true);
-		// [SURF-4] 三元组内容=真三分主星组单源(吃三分制档),庙主/定位星硬编码表已废
+		// 三元组内容=真三分主星组单源(吃三分制档),庙主/定位星硬编码表已废
 		expect(src.includes("require('../../utils/triplicityRulers').resolveTripletForSign")).toBe(true);
-		// [SURF-4] RAMC 直读宫头赤经(House10.ra),字符串黄道判据(Number('Tropical')=NaN 恒假已修)
+		// RAMC 直读宫头赤经(House10.ra),字符串黄道判据(Number('Tropical')=NaN 恒假已修)
 		expect(src.includes('Number(h10.ra)')).toBe(true);
 	});
 
 	it('行星列表密度:app model 三处(初值/save 归一/globalSetup 白名单)+AstroPlanet prop 优先', ()=>{
 		const app = read('../../../models/app.js');
 		expect(app.includes("planetListStyle: 'full'")).toBe(true);
-		expect(app.includes('planetListStyle: st.planetListStyle')).toBe(true);
+		expect(require('../../../utils/globalSetupStore').GLOBAL_SETUP_FIELDS).toContain('planetListStyle');   // 落盘白名单单源
 		expect((app.match(/planetListStyle/g) || []).length >= 4).toBe(true);
 		const ap = read('../AstroPlanet.js');
 		expect(ap.includes("this.props.planetListStyle === 'degreeOnly' || this.props.planetListStyle === 'glyphOnly'")).toBe(true);

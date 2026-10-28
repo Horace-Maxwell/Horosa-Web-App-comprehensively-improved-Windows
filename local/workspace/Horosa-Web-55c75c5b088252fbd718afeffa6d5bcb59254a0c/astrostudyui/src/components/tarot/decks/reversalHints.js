@@ -1,6 +1,6 @@
 // 逆位速查数据(TP1):①逆位关键词七族(原创同义词库,供指词/联想) ②牌组×数字·位阶 正/逆通则表(原创转录)
 // ③静态等待牌清单 ④宫廷逆位通则。供牌义速查行/单卡详情/帮助手册消费。
-import { isTrumpArcana } from '../engine/arcana.js'; // [QA-9] 王牌判据单一真值源
+import { isTrumpArcana } from '../engine/arcana.js'; // 王牌判据单一真值源
 export const REVERSAL_WORD_FAMILIES = [
 	{ family: '受阻', words: ['卡住', '受挫', '被否定', '被抗拒', '被压下', '悬而未决', '路径变窄'] },
 	{ family: '内向', words: ['转入内在', '私下进行', '未曾示人', '潜藏', '深处酝酿', '只对自己发生'] },

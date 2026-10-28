@@ -1,5 +1,5 @@
 // @引用(A4)合同:@查询定位(行首/空白后才算;邮箱 a@b 与全角 ＠ 不算;查询到光标且无空白)· 候选池(命盘/事盘同名标尾号、资料、组合、模板、技法、已选技法的段)与前缀优先过滤 ·
-// 光标插入标记 · 解析标记并换回名字 · 挂载计划(首命盘切源,第二命盘只提示走 /合盘,同名歧义取最近并提示,资料/组合/模板进 referenceIds,技法/技法段进 techniqueKeys+sectionFilter,未找到进 unresolved)· 技法段过滤复用导出段切分。
+// 光标插入标记 · 解析标记并换回名字 · 挂载计划(首命盘切源,第二命盘挂为合盘对方,同名歧义取最近并提示,资料/组合/模板进 referenceIds,技法/技法段进 techniqueKeys+sectionFilter,未找到进 unresolved)· 技法段过滤复用导出段切分。
 import { findMentionQuery, buildMentionCandidates, filterMentionCandidatesDetailed, insertMentionAtCaret, parseMentions, resolveMentions, candidateToken, techniqueHeadMatch, MENTION_GROUP_QUOTA, escapeMentionName } from '../aiChat/mentions';
 // 数组视图(生产只用带明细的版本;测试里的短写)
 const filterMentionCandidates = (items, query, limits)=>filterMentionCandidatesDetailed(items, query, limits).items;
@@ -59,7 +59,7 @@ describe('候选/过滤/插入', ()=>{
 		expect(d.items.filter((x)=>x.group === '技法').length).toBe(4);
 		expect(d.hiddenCount).toBe(20 - MENTION_GROUP_QUOTA['命盘']);
 		expect(d.total).toBe(24);
-		// [2026-09-12] 技法一条不截:90 个技法空关键字全列(配额表只管命盘/资料等可能几百条的组)
+		// 技法一条不截:90 个技法空关键字全列(配额表只管命盘/资料等可能几百条的组)
 		const big = []; for(let i = 0; i < 90; i++){ big.push({ value: `t${i}`, label: `技法${i}` }); }
 		const bigPool = buildMentionCandidates({ sources: many, techniqueOptions: big, techniqueGroupOf: (k)=>(Number(k.slice(1)) % 2 ? '中式命理' : '西方占星') });
 		const bd = filterMentionCandidatesDetailed(bigPool, '');
@@ -77,13 +77,13 @@ describe('候选/过滤/插入', ()=>{
 		expect(filterMentionCandidates(pool, 'bz', { extraText: extra }).map((x)=>x.key)).toEqual(['bazi']);
 		expect(filterMentionCandidates(pool, '盘1', { limit: 3 }).length).toBe(3);
 	});
-	it('🔴 [2026-09-12] 技法段:已选技法 + sectionTechniqueKeys 点名技法的段都列(`@八字/` 不必先勾选);同键不重复', ()=>{
+	it('🔴 技法段:已选技法 + sectionTechniqueKeys 点名技法的段都列(`@八字/` 不必先勾选);同键不重复', ()=>{
 		const techs = [{ value: 'bazi', label: '八字' }, { value: 'ziwei', label: '紫微斗数' }];
 		const secs = (k)=>(k === 'bazi' ? ['四柱', '大运'] : (k === 'ziwei' ? ['命宫'] : []));
 		const pool = buildMentionCandidates({ techniqueOptions: techs, selectedTechniqueKeys: ['ziwei'], sectionTechniqueKeys: ['bazi', 'ziwei'], sectionsForTechnique: secs });
 		expect(pool.filter((x)=>x.kind === 'section').map((x)=>x.name)).toEqual(['紫微斗数/命宫', '八字/四柱', '八字/大运']);
 		expect(filterMentionCandidates(pool, '八字/').map((x)=>x.name)).toEqual(['八字/四柱', '八字/大运']);
-		// [2026-09-12 复查] 段候选按「技法头 / 段尾」拆开命中:头对标签前缀 / 英文键 / 拼音,尾对段名子串——此前 `@紫微/` 只认完整标签「紫微斗数」,列空
+		// 段候选按「技法头 / 段尾」拆开命中:头对标签前缀 / 英文键 / 拼音,尾对段名子串——此前 `@紫微/` 只认完整标签「紫微斗数」,列空
 		const py = (it)=>(it.key === 'ziwei' ? 'ziweidoushu zwds' : (it.key === 'bazi' ? 'bazi bz' : ''));
 		expect(filterMentionCandidates(pool, '紫微/', { extraText: py }).map((x)=>x.name)).toEqual(['紫微斗数/命宫']);
 		expect(filterMentionCandidates(pool, 'ziwei/', { extraText: py }).map((x)=>x.name)).toEqual(['紫微斗数/命宫']);
@@ -100,7 +100,7 @@ describe('候选/过滤/插入', ()=>{
 		const grey = buildMentionCandidates({ techniqueOptions: [{ value: 'sixyao', label: '六爻' }], sectionTechniqueKeys: ['sixyao'], sectionsForTechnique: ()=>['卦象'], techniqueAvailable: ()=>'需事盘案例' });
 		expect(grey.find((x)=>x.kind === 'section')).toEqual(expect.objectContaining({ available: false, why: '需事盘案例', techniqueLabel: '六爻' }));
 	});
-	it('🔴 [2026-09-12 复查] 带关键字时 bestIndex = 最佳命中(组序只管分组):有命盘「李八字」时 `@八字` 默认落在技法「八字」;纯字符串组名按首次出现顺序排组', ()=>{
+	it('🔴 带关键字时 bestIndex = 最佳命中(组序只管分组):有命盘「李八字」时 `@八字` 默认落在技法「八字」;纯字符串组名按首次出现顺序排组', ()=>{
 		const pool = buildMentionCandidates({ sources: [{ id: 'local-9', sourceType: 'chart', title: '李八字', record: {} }], techniqueOptions: [{ value: 'bazi', label: '八字' }] });
 		const d = filterMentionCandidatesDetailed(pool, '八字');
 		expect(d.items.map((x)=>x.id)).toEqual(['local-9', 'bazi']);   // 视觉序:命盘组在前
@@ -120,7 +120,7 @@ describe('候选/过滤/插入', ()=>{
 		const pool2 = buildMentionCandidates({ techniqueOptions: [{ value: 'astrochart', label: '星盘' }, { value: 'sixyao', label: '六爻' }, { value: 'bazi', label: '八字' }], techniqueAvailable: (k)=>(k === 'sixyao' ? true : '需命盘案例') });
 		expect(filterMentionCandidates(pool2, '').map((x)=>x.key)).toEqual(['sixyao', 'astrochart', 'bazi']);
 		expect(filterMentionCandidates(pool2, '盘').map((x)=>x.key)).toEqual(['astrochart']);
-		// [2026-09-12] 扁平序 = 视觉序:先按组(命盘 < 技法·域序 < 技法段),组内可用在前;技法段不会插在可用技法与灰技法之间
+		// 扁平序 = 视觉序:先按组(命盘 < 技法·域序 < 技法段),组内可用在前;技法段不会插在可用技法与灰技法之间
 		const pool3 = buildMentionCandidates({ sources: [{ id: 'local-1', sourceType: 'chart', title: '张三', record: {} }], techniqueOptions: [{ value: 'bazi', label: '八字' }, { value: 'sixyao', label: '六爻' }, { value: 'astrochart', label: '星盘' }], techniqueAvailable: (k)=>(k === 'sixyao' ? '需事盘案例' : true), techniqueGroupOf: (k)=>(k === 'astrochart' ? { title: '西方占星', order: 0 } : (k === 'bazi' ? { title: '中式命理', order: 2 } : { title: '占卜术数', order: 3 })), selectedTechniqueKeys: ['bazi'], sectionsForTechnique: (k)=>(k === 'bazi' ? ['四柱'] : []) });
 		expect(filterMentionCandidates(pool3, '').map((x)=>x.id)).toEqual(['local-1', 'astrochart', 'bazi', 'sixyao', 'bazi/四柱']);
 		expect(filterMentionCandidates(pool3, '').map((x)=>x.group)).toEqual(['命盘', '技法 · 西方占星', '技法 · 中式命理', '技法 · 占卜术数', '技法段']);
@@ -128,21 +128,22 @@ describe('候选/过滤/插入', ()=>{
 });
 
 describe('parseMentions / resolveMentions', ()=>{
-	it('标记换回名字;首命盘切源;第二命盘只提示走 /合盘;同名歧义取最近保存并提示;#尾号精确', ()=>{
+	it('标记换回名字;首命盘切源;第二命盘挂为合盘对方;同名歧义取最近保存并提示;#尾号精确', ()=>{
 		const { mentions, text } = parseMentions('@[命盘:张三] 和 @[命盘:李四] 今年运势');
 		expect(text).toBe('张三 和 李四 今年运势');
 		expect(mentions.map((m)=>m.name)).toEqual(['张三', '李四']);
 		const plan = resolveMentions(mentions, { sources, techniqueOptions });
 		expect(plan.selectSource.id).toBe('local-bbbb2222');
 		expect(plan.hints.some((h)=>h.indexOf('已取最近') >= 0)).toBe(true);
-		expect(plan.hints.some((h)=>h.indexOf('/合盘 李四') >= 0)).toBe(true);
+		expect(plan.partnerSource.id).toBe('local-cccc3333');
+		expect(plan.hints.some((h)=>h.indexOf('「李四」已挂为合盘对方') >= 0)).toBe(true);
 		const exact = resolveMentions(parseMentions('@[命盘:张三#1111] 看').mentions, { sources });
 		expect(exact.selectSource.id).toBe('local-aaaa1111');
 		expect(exact.hints).toEqual([]);
 		const kase = resolveMentions(parseMentions('@[事盘:搬家事盘] 吉凶').mentions, { sources });
 		expect(kase.selectSource.id).toBe('local-dddd4444');
 	});
-	// [Q-326] 名字自带 `#尾号` / 含 `]` / 超 80 字 —— 三类名字此前都会解析错或整条标记原样发给模型
+	// 名字自带 `#尾号` / 含 `]` / 超 80 字 —— 三类名字此前都会解析错或整条标记原样发给模型
 	it('🔴 名字转义:自带 #尾号不被切、含 ] 不截断、超 80 字仍解析;旧未转义标记照旧', ()=>{
 		const roundTrip = (type, name)=>parseMentions(`${candidateToken({ type, name })} 看`);
 		const a = roundTrip('chart', '案例#2024');
@@ -160,7 +161,7 @@ describe('parseMentions / resolveMentions', ()=>{
 		expect(candidateToken({ type: 'chart', name: '张三', suffix: '2222' })).toBe('@[命盘:张三#2222]');
 		expect(escapeMentionName('干净名字/带斜杠')).toBe('干净名字/带斜杠');
 	});
-	// [Q-326] 资料/组合/模板同名多条:此前静默取最近保存的一条
+	// 资料/组合/模板同名多条:此前静默取最近保存的一条
 	it('🔴 资料/组合/模板同名多条也给歧义提示', ()=>{
 		const dupMaterials = [{ id: 'm1', name: '子平真诠' }, { id: 'm9', name: '子平真诠' }];
 		const dupBundles = [{ id: 'b1', name: '事业组合' }, { id: 'b9', name: '事业组合' }];
@@ -196,7 +197,7 @@ describe('parseMentions / resolveMentions', ()=>{
 		expect(none.techniqueKeys).toEqual([]);
 		expect(none.hints[0]).toContain('尚未挂载案例');
 	});
-	it('🔴 [2026-09-12 复查] 技法段标记按「标签 + /」最长前缀切分:标签含 / (十三分盘 / 占星地图)与段名含 / (Ishta/Kashta)都不切错;英文键也可作头', ()=>{
+	it('🔴 技法段标记按「标签 + /」最长前缀切分:标签含 / (十三分盘 / 占星地图)与段名含 / (Ishta/Kashta)都不切错;英文键也可作头', ()=>{
 		const opts = [{ value: 'hellenastro', label: '十三分盘' }, { value: 'astrochart_like', label: '十三分盘 / 占星地图' }, { value: 'indiachart', label: '印度占星' }];
 		const plan = resolveMentions(parseMentions('@[技法段:十三分盘 / 占星地图/起盘信息] @[技法段:印度占星/Ishta/Kashta 吉凶果] @[技法段:hellenastro/宫位] @[技法段:没有斜杠] 看').mentions, { techniqueOptions: opts });
 		expect(plan.techniqueKeys).toEqual(['astrochart_like', 'indiachart', 'hellenastro']);

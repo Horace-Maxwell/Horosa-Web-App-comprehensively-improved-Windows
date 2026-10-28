@@ -128,33 +128,31 @@ def test_cuspal_sublords_house1_matches_golden():
 
 # ── 四重意义者 ───────────────────────────────────────────────────────────
 def test_significators_star_lord_priority():
-    # A 行星的 star-lord 是 B 行星；B 占 10 宫并主 7 宫 → A 的最强意义(A 级)含 {10,7}。
+    # KP 标准四级:A=星主所占、B=自身所占、C=星主所主、D=自身所主。
+    # A 的星主是 B;B 占 10 宫、主 7 宫;A 自占 3、自主 5。
     planet_data = {
         'A': {'sign': 1, 'house': 3, 'starLord': 'B', 'ownHouses': [5]},
         'B': {'sign': 5, 'house': 10, 'starLord': 'C', 'ownHouses': [7]},
         'C': {'sign': 9, 'house': 1, 'starLord': 'A', 'ownHouses': [11]},
     }
     sig = significators(planet_data)
-    # A 级(star-lord B 所占 10 + 所主 7)。
-    assert set(sig['A']['A']) == {7, 10}
-    # B 级(自占 3)。
-    assert sig['A']['B'] == [3]
-    # C 级(自主 5)。
-    assert sig['A']['C'] == [5]
-    # ranked 按 A>B>C>D 去重保序，A 的强宫先于自占宫。
-    assert sig['A']['ranked'][0] in (7, 10)
-    assert 3 in sig['A']['ranked']
+    assert sig['A']['A'] == [10]      # 星主 B 所占
+    assert sig['A']['B'] == [3]       # 自占
+    assert sig['A']['C'] == [7]       # 星主 B 所主
+    assert sig['A']['D'] == [5]       # 自主
+    assert sig['A']['ranked'] == [10, 3, 7, 5]
 
 
-def test_significators_influenced_D():
-    # D：受影响者。C 的星宿主是 A → A 影响 C；C 占 1 宫、主 11 宫 → A 的 D 级含 {1,11}。
+def test_significators_influenced_is_separate():
+    # 「落在本星宿里的行星」不属于 KP 四级:只进 influenced,不进 A-D / ranked。
     planet_data = {
         'A': {'sign': 1, 'house': 3, 'starLord': 'B', 'ownHouses': [5]},
         'B': {'sign': 5, 'house': 10, 'starLord': 'C', 'ownHouses': [7]},
         'C': {'sign': 9, 'house': 1, 'starLord': 'A', 'ownHouses': [11]},
     }
     sig = significators(planet_data)
-    assert set(sig['A']['D']) == {1, 11}
+    assert sig['A']['influenced'] == ['C']
+    assert 1 not in sig['A']['ranked'] and 11 not in sig['A']['ranked']
 
 
 def test_significators_keys_per_planet():
@@ -166,7 +164,7 @@ def test_significators_keys_per_planet():
     sig = significators(planet_data)
     assert set(sig.keys()) == {'Sun', 'Rahu', 'Mars'}
     for p in sig:
-        assert set(sig[p].keys()) == {'A', 'B', 'C', 'D', 'ranked'}
+        assert set(sig[p].keys()) == {'A', 'B', 'C', 'D', 'ranked', 'influenced'}
         # 各级升序、去重。
         for tier in ('A', 'B', 'C', 'D'):
             assert sig[p][tier] == sorted(set(sig[p][tier]))

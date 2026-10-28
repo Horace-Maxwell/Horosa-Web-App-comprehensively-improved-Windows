@@ -6,6 +6,7 @@ import { isNumber } from '../../utils/helper';
 import { safeLocalStorageGet, safeLocalStorageSet } from '../../utils/safeStorage';
 import {BaziMonthTime, SixtyJiaZi} from '../../constants/ZWConst';
 import RichEditor from '../RichEditor';
+import { matchesUserQuery } from '../../utils/scriptMode';
 
 const { Option } = Select;
 
@@ -196,7 +197,7 @@ export default class BaziPattern extends Component{
             attrs: attrs,
             readonly: false,
         };
-        let pat = (st.gender === 0) ? female : (male || (st.gender === -1 ? female : null));   // [Q-309/T-315 ④] 不区分:男档缺则读女档
+        let pat = (st.gender === 0) ? female : (male || (st.gender === -1 ? female : null));   // 不区分:男档缺则读女档
         if(pat){
             resst['格局'] = pat['格局'];
             resst['格局码'] = pat['格局码'];
@@ -287,7 +288,7 @@ export default class BaziPattern extends Component{
     }
 
     changeGender(val){
-        // [Q-309/T-315 ④] 「不区分」读档:男档为主、缺则女档(两份同存时内容相同);切到没存过档的性别 → 表单清空,不残留上一性别的值。
+        // 「不区分」读档:男档为主、缺则女档(两份同存时内容相同);切到没存过档的性别 → 表单清空,不残留上一性别的值。
         let pat = (val === 0) ? this.state.female : (this.state.male || (val === -1 ? this.state.female : null));
         let st = {
             gender: val,
@@ -494,7 +495,7 @@ export default class BaziPattern extends Component{
                             placeholder='年柱'
                             onChange={this.changeYear}
                             filterOption={(input, option) => {
-                                return option.value.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                                return matchesUserQuery(option.value, input)
                             }}
                         >
                             {yopts}
@@ -509,7 +510,7 @@ export default class BaziPattern extends Component{
                             placeholder='月柱'
                             onChange={this.changeMonth}
                             filterOption={(input, option) => {
-                                return option.value.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                                return matchesUserQuery(option.value, input)
                             }}
                         >
                             {mopts}
@@ -524,7 +525,7 @@ export default class BaziPattern extends Component{
                             placeholder='日柱'
                             onChange={this.changeDate}
                             filterOption={(input, option) => {
-                                return option.value.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                                return matchesUserQuery(option.value, input)
                             }}
                         >
                             {dopts}
@@ -539,7 +540,7 @@ export default class BaziPattern extends Component{
                             placeholder='时柱'
                             onChange={this.changeTime}
                             filterOption={(input, option) => {
-                                return option.value.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                                return matchesUserQuery(option.value, input)
                             }}
                         >
                             {topts}
@@ -561,7 +562,7 @@ export default class BaziPattern extends Component{
                         !this.state.readonly && (
                             <Col offset={10} span={4}>
                                 <Popconfirm title={`确定把这份八字格局说明保存到本机吗?`} onConfirm={this.updatePattern}>
-                                    <Button type='primary'>保存到本机</Button>{/* [Q-417/T-379] 本机存储,不再沿用服务端时代的「提交」 */}
+                                    <Button type='primary'>保存到本机</Button>{/* 本机存储,不再沿用服务端时代的「提交」 */}
                                 </Popconfirm>
                             </Col>    
                         )

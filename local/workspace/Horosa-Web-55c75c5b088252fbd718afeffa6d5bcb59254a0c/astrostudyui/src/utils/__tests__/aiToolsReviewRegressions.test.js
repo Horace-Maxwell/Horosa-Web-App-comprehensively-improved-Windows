@@ -5,7 +5,7 @@ import { runTool, __resetToolsForTests } from '../aiTools/registry';
 import { registerWorkspaceBridge, __resetWorkspaceBridgeForTests } from '../aiTools/workspaceBridge';
 import { undoAction, __resetLedgerForTests } from '../aiTools/ledger';
 import { snapshotFacet, validateFacetValues, restoreSettingsSnapshot, describeFacet } from '../aiTools/settingsFacets';
-import { setGlobalStore } from '../storageutil';
+import { setGlobalStore, getStore } from '../storageutil';
 import { listLocalCharts } from '../localcharts';
 
 function ok(text, opts){ const r = parseBirthInput(text, opts); expect(r.ok).toBe(true); return r; }
@@ -61,7 +61,9 @@ describe('设置撤销(评审实抓)', ()=>{
 	let dispatch; let changeCond;
 	beforeEach(()=>{
 		window.localStorage.clear(); __resetToolsForTests(); __resetLedgerForTests(); __resetWorkspaceBridgeForTests();
-		dispatch = jest.fn(); changeCond = jest.fn();
+		// 假桥与真页面同口径落值(撤销要核对「当前值 == 写后值」):app/save 并进全局仓,changeCond 写进盘面字段;读的是当时的全局仓
+		dispatch = jest.fn((a)=>{ const st = getStore(); if(a && a.type === 'app/save' && st){ st.app = { ...(st.app || {}), ...a.payload }; } });
+		changeCond = jest.fn((patch)=>{ const st = getStore(); if(!st){ return; } const f = { ...((st.astro && st.astro.fields) || {}) }; Object.keys(patch || {}).forEach((k)=>{ if(k !== 'confirmed'){ f[k] = { value: patch[k] }; } }); st.astro = { ...(st.astro || {}), fields: f }; });
 		registerWorkspaceBridge({ dispatch, changeCond });
 		setGlobalStore({ app: { appearanceMode: 'light', termsVariant: 2, dayBoundary: '23 点换日' }, astro: { fields: { hsys: { value: 1 }, name: { value: '甲' } } }, user: { currentChart: { cid: { value: 'local-A' } } } });
 		registerBuiltinTools();
@@ -106,9 +108,15 @@ describe('设置撤销(评审实抓)', ()=>{
 		const d = describeFacet('mount', 'bazi');
 		d.items.forEach((it)=>{ if(['multiselect', 'date', 'datetime', 'time'].indexOf(it.type) >= 0){ expect(it.settable).toBe(false); } });
 	});
-	it('restoreSettingsSnapshot 直接吃注册表兜底形状({facet,technique,snapshot})', ()=>{
-		expect(restoreSettingsSnapshot({ facet: 'app', snapshot: { appearanceMode: 'light' } }).ok).toBe(true);
+	it('restoreSettingsSnapshot:逐键载荷({facet,keys,snapshot,written})核对通过才回灌;没有写后值的旧整面快照不自动恢复', ()=>{
+		getStore().app.appearanceMode = 'dark';   // = 写后值
+		expect(restoreSettingsSnapshot({ facet: 'app', keys: ['appearanceMode'], snapshot: { appearanceMode: 'light' }, written: { appearanceMode: 'dark' } }).ok).toBe(true);
 		expect(dispatch).toHaveBeenCalledWith({ type: 'app/save', payload: { appearanceMode: 'light' } });
+		dispatch.mockClear();
+		const legacy = restoreSettingsSnapshot({ facet: 'app', snapshot: { appearanceMode: 'dark' } });
+		expect(legacy.ok).toBe(false); expect(legacy.code).toBe('E_UNDO_NOT_APPLICABLE');
+		expect(dispatch).not.toHaveBeenCalled();
+		expect(getStore().app.appearanceMode).toBe('light');
 	});
 });
 

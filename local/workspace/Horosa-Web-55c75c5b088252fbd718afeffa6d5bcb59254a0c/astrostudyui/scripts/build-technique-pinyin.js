@@ -9,6 +9,13 @@ const path = require('path');
 const { pinyin } = require('pinyin-pro');
 
 const SRC = path.join(__dirname, '..', 'src', 'utils', 'aiAnalysisContext.js');
+// aiAnalysisContext.js 已拆成子模块(原路径留作门面):按登记表 scripts/source-sets.json 把子模块与门面拼成一份再抽
+function readSourceSet(file){
+	const rel = path.relative(path.join(__dirname, '..', 'src'), file).split(path.sep).join('/');
+	const set = (JSON.parse(fs.readFileSync(path.join(__dirname, 'source-sets.json'), 'utf8')).sets || {})[rel];
+	const files = set ? [...set.files.map((f)=>path.join(__dirname, '..', 'src', set.dir, f)), file] : [file];
+	return files.map((f)=>fs.readFileSync(f, 'utf8')).join('');
+}
 const OUT = path.join(__dirname, '..', 'src', 'data', 'techniquePinyin.json');
 
 function extractLabels(src){
@@ -37,7 +44,7 @@ function pinyinOf(label){
 }
 
 function build(){
-	const labels = extractLabels(fs.readFileSync(SRC, 'utf8'));
+	const labels = extractLabels(readSourceSet(SRC));
 	const table = {};
 	Object.keys(labels).sort().forEach((k)=>{ table[k] = pinyinOf(labels[k]); });
 	return table;

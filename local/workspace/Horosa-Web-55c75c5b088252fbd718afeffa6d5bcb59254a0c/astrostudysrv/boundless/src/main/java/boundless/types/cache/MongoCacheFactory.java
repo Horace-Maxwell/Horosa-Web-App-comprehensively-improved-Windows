@@ -29,6 +29,7 @@ public class MongoCacheFactory implements ICacheFactory {
 	private static final String OptionalEnvKey = "HOROSA_DESKTOP_MONGO_OPTIONAL";
 	private static final String SkipPingEnvKey = "HOROSA_DESKTOP_MONGO_SKIP_PING";
 	private static final String FallbackDirEnvKey = "HOROSA_MONGO_FALLBACK_DIR";
+	static final String RedactOnPersistKey = "fallback.redactonpersist";
 
 	private MongoClient mongoClient;
 	private String dbName;
@@ -49,6 +50,8 @@ public class MongoCacheFactory implements ICacheFactory {
 	
 	private Boolean needMemCache = null;
 	private Boolean needCompress = null;
+	/** Mongo 缺席走本地回落缓存时,写盘前是否脱敏(配置项 fallback.redactonpersist;装请求记录的缓存必须开,见 mongotranslog.properties)。 */
+	private boolean redactOnPersist = false;
 	
 	public void build(){
 		String path = "classpath:/conf/properties/mongodb.properties";
@@ -94,6 +97,7 @@ public class MongoCacheFactory implements ICacheFactory {
 		if(nmcobj != null){
 			this.needMemCache = ConvertUtility.getValueAsBool(nmcobj, false);
 		}
+		this.redactOnPersist = ConvertUtility.getValueAsBool(p.get(RedactOnPersistKey), false);
 		Object ncompress = p.get("needcompress");
 		if(ncompress != null){
 			needCompress = ConvertUtility.getValueAsBool(ncompress, false);
@@ -106,7 +110,7 @@ public class MongoCacheFactory implements ICacheFactory {
 			valueField = "v";
 		}
 		if(this.optionalMode && this.skipPingOnBuild) {
-			this.fallbackCache = new LocalDocumentCache(resolveFallbackCacheName(), keyField, valueField, resolveFallbackPath());
+			this.fallbackCache = new LocalDocumentCache(resolveFallbackCacheName(), keyField, valueField, resolveFallbackPath(), this.redactOnPersist);
 			return;
 		}
 		
@@ -143,7 +147,7 @@ public class MongoCacheFactory implements ICacheFactory {
 					"mongo optional mode enabled for cache factory {}, collection {}, switching to local fallback cache.",
 					this.name, this.collectionName);
 			close();
-			this.fallbackCache = new LocalDocumentCache(resolveFallbackCacheName(), keyField, valueField, resolveFallbackPath());
+			this.fallbackCache = new LocalDocumentCache(resolveFallbackCacheName(), keyField, valueField, resolveFallbackPath(), this.redactOnPersist);
 		}
 	}
 
@@ -239,11 +243,12 @@ public class MongoCacheFactory implements ICacheFactory {
 		factory.servers = this.servers;
 		factory.needMemCache = this.needMemCache;
 		factory.needCompress = this.needCompress;
+		factory.redactOnPersist = this.redactOnPersist;
 		factory.hasCreatedIndex = false;
 		factory.optionalMode = this.optionalMode;
 		factory.skipPingOnBuild = this.skipPingOnBuild;
 		if(this.fallbackCache != null) {
-			factory.fallbackCache = new LocalDocumentCache(factory.resolveFallbackCacheName(), factory.keyField, factory.valueField, factory.resolveFallbackPath());
+			factory.fallbackCache = new LocalDocumentCache(factory.resolveFallbackCacheName(), factory.keyField, factory.valueField, factory.resolveFallbackPath(), factory.redactOnPersist);
 		}
 		
 		return factory;

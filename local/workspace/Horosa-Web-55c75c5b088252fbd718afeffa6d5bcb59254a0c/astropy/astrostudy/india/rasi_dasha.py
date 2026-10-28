@@ -32,7 +32,7 @@ from astrostudy.india.primitives import (
     SIGNS, SIGN_INDEX, MOVABLE, FIXED, DUAL,
     ODD_SIGNS, EVEN_SIGNS, ODD_FOOTED, EVEN_FOOTED,
     quality, offset_sign, house_distance, index_of, sign_at,
-    rasi_drishti, rudra_candidate_signs, trishoola,
+    rasi_drishti, rudra_candidate_signs, trishoola, SIGN_LORDS, segment_index,
 )
 # 旺/落/own 表在 jyotish_engine(primitives.friend_signs 亦如此 import，沿用既有约定)。
 from astrostudy.india.jyotish_engine import OWN_SIGNS, EXALTATION
@@ -43,21 +43,7 @@ from astrostudy.india.jyotish_engine import OWN_SIGNS, EXALTATION
 # ════════════════════════════════════════════════════════════════════════
 
 # 各 rasi 的主星(用于「数到主星宫」)。双主宫(Sc=火/计, Aq=土/罗)在 SIGN_LORDS_DUAL。
-# 这里取传统单主(节点不持单主)，双主在期长计算时按强弱择一(见 _stronger_lord)。
-SIGN_LORDS = {
-    const.ARIES: const.MARS,
-    const.TAURUS: const.VENUS,
-    const.GEMINI: const.MERCURY,
-    const.CANCER: const.MOON,
-    const.LEO: const.SUN,
-    const.VIRGO: const.MERCURY,
-    const.LIBRA: const.VENUS,
-    const.SCORPIO: const.MARS,
-    const.SAGITTARIUS: const.JUPITER,
-    const.CAPRICORN: const.SATURN,
-    const.AQUARIUS: const.SATURN,
-    const.PISCES: const.JUPITER,
-}
+# 这里取传统单主(节点不持单主，表在 primitives)，双主在期长计算时按强弱择一(见 _stronger_lord)。
 # 双主宫的第二主(Jaimini 取罗/计为 Sc/Aq 的协主)。
 SIGN_LORDS_DUAL = {
     const.SCORPIO: const.SOUTH_NODE,   # Ketu
@@ -151,7 +137,7 @@ def _cmp(a, b):
 def _atmakaraka_of(planet_signs, planet_lons, seven=False):
     """AK(Atmakaraka)= 宫内推进度最大者(8 曜方案:七政+罗睺;罗自宫末量起,与
     _degree_advance 同口径)。缺 lons → None(判据不决)。
-    [Q-131/T-39] seven=True(Chara Kāraka 7 卡拉卡古典方案)→ 剔除罗睺,只在七政里取 AK;
+    seven=True(Chara Kāraka 7 卡拉卡古典方案)→ 剔除罗睺,只在七政里取 AK;
     此前不接收方案,「AK 优先 × 7 卡拉卡」两开关同时非缺省时 AK 恒含罗睺。"""
     if not planet_lons:
         return None
@@ -1101,8 +1087,8 @@ def _within_pada_fraction(moon_lon):
     """
     nak_span = 360.0 / 27.0
     val = float(moon_lon) % 360.0
-    idx = min(26, int(val / nak_span))
-    nak_prog = (val - idx * nak_span) / nak_span     # 整宿进度 0-1
+    idx = segment_index(val, nak_span, 27)            # 精确宿界归后一宿
+    nak_prog = max(0.0, (val - idx * nak_span) / nak_span)     # 整宿进度 0-1
     return (nak_prog * 4.0) % 1.0                     # pada 内进度 0-1
 
 
@@ -1278,7 +1264,8 @@ def tara_lagna_dasha(lagna_sign, moon_lon):
     nak_span = 360.0 / 27.0           # 13°20′ = 13.3333°
     unit = nak_span / 12.0            # 1°6′40″ = 1.11111°
     arc = float(moon_lon) % nak_span
-    quotient = min(11, max(0, int(arc / unit)))      # 0..11
+    # 全周 324 小段取序再模 12:精确小段界(含宿界)归后一段,不经 arc 的取模误差
+    quotient = segment_index(float(moon_lon) % 360.0, unit, 27 * 12) % 12      # 0..11
     tl_sign = offset_sign(lagna_sign, quotient + 1)   # 自 Lagna 数第 (商+1) 宫
     tl_idx = SIGN_INDEX[tl_sign]
     direction = 1 if tl_sign in ODD_SIGNS else -1     # TL 奇象→顺、偶象→逆
@@ -1392,7 +1379,7 @@ def varnada_dasha(vl_sign, planet_signs, strength_proxy=None, planet_lons=None,
                   period_rule='count_to_lord', strength_order='standard'):
     """Varnada 大运:起 = Varnada Lagna 座;方向 = VL 奇象顺/偶象逆;
     期长两派真算:count_to_lord = 数到座主(Narayana 同核);equal_nine = 每座恒 9 年。
-    [Q-135/T-43 (a)] 旧注「等长变体…回落 count-to-lord」已过期(下方 rule == 'equal_nine' 分支即等长真算)。"""
+    旧注「等长变体…回落 count-to-lord」已过期(下方 rule == 'equal_nine' 分支即等长真算)。"""
     if vl_sign is None:
         return {'available': False, 'reason': 'missing_varnada_lagna', 'system': 'Varnada'}
     direction = 1 if vl_sign in ODD_SIGNS else -1
@@ -1489,7 +1476,7 @@ def build_rasi_dashas(inputs, strength_proxy=None):
 
     _dv = inputs.get('dashaVariants') or {}
     _order = _dv.get('jaiminiStrengthOrder', 'standard')
-    # [Q-131/T-39] 「AK 优先」× 「7 卡拉卡」:AK 须剔罗睺 → 派生内部序值 'ak_first_7'(只在两开关同时非缺省时启用,
+    # 「AK 优先」× 「7 卡拉卡」:AK 须剔罗睺 → 派生内部序值 'ak_first_7'(只在两开关同时非缺省时启用,
     # 其余组合字节不变)。用序值携带方案,免把新参数穿透十余个座运函数。
     if _order == 'ak_first' and str(inputs.get('karakaScheme') or '8') == '7':
         _order = 'ak_first_7'

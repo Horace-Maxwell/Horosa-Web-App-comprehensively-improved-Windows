@@ -1,4 +1,4 @@
-// [挂载自检 辅盘 P1·病形①] 卜卦/择日盘 B 类基线锚读存档层(payload.extra.* + 顶层类别键):
+// 卜卦/择日盘 B 类基线锚读存档层(payload.extra.* + 顶层类别键):
 // 存了非默认流派/类别的案例,抽屉显示现状、「拨回 schema 默认」是真覆盖(值可表达)。
 // 判别向量:去掉 schema 的 baselineSource 即两例「存非默认→拨回默认」红(prune 剪空)。
 import { flattenHoraryStored, flattenElectionStored, effectiveMountBaseline, pruneOptionsToNonDefault, mergeOptionsIntoPayload } from '../techniqueMountSettings';
@@ -40,7 +40,7 @@ it('无存档层 → 基线回落 schema 默认(旧档零回归)', ()=>{
 	expect(baseline.topicId).toBe('general');
 });
 
-// [挂载自检 F-22/F-23] 六爻神煞四键展平;kentang 四技法 payload.options 打底。
+// 六爻神煞四键展平;kentang 四技法 payload.options 打底。
 import { flattenLiuyaoStored, flattenOptionsStored } from '../techniqueMountSettings';
 
 it('🔴 六爻:存档 gua.liuyaoSettings.shensha{on:false,base:year,set}/shenshaEx{on:true} → 基线扁平四键;拨开神煞=真覆盖', ()=>{

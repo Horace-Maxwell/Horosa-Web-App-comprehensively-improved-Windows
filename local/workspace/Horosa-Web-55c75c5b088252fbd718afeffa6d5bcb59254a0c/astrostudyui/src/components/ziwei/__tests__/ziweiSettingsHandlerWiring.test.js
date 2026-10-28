@@ -1,4 +1,4 @@
-// [B15b] 流派·传本设置面板 全 handler 接线完备性哨兵(2026-08-08 小限顺逆不同步事故的制度化产物)。
+// 流派·传本设置面板 全 handler 接线完备性哨兵(2026-08-08 小限顺逆不同步事故的制度化产物)。
 // 事故形态:改档只写单例/LS,重绘·广播·重派生任一环漏接 → 部分消费点跟随、部分冻旧值,同屏自相矛盾。
 // 本文件把「写入必有动作」「键账本三表完备」锁成机械断言 —— 新增设置键漏接线时在此变红,不用等真机。
 import { ZWEngineOptions, ZW_ENGINE_FORWARD_KEYS } from '../ziweiOptions';
@@ -19,7 +19,7 @@ function handlerBodies(src){
 	});
 }
 
-describe('[B15b] 设置面板 handler 接线完备性(机械提取,非手抄清单)', ()=>{
+describe('设置面板 handler 接线完备性(机械提取,非手抄清单)', ()=>{
 	test('🔴 凡写单例/LS 的 handler 必有 重绘|广播|转发 动作;「写而不动作」豁免账本恰等两项', ()=>{
 		const WRITE_RE = /(ZWEngineOptions\.\w+\s*=|safeLocalStorageSet\(|ZWCont\.ZWSchool\.school\s*=)/;
 		const ACT_RE = /(this\.redrawChart\(\)|ZiWeiHelper\.bumpZwDisplayRev\(|this\.props\.onFieldsChange|this\.applySihuaSchool\(|this\.onTaiSuiRelativesChange\(|this\.applyDisplayPreset\(|this\.onDisplayFlagToggle\()/;

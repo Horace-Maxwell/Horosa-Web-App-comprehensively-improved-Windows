@@ -34,6 +34,7 @@ import XuanShiSearch from './XuanShiSearch';
 import XuanShiFacetSearch from './XuanShiFacetSearch';
 import XuanShiDesk, { pushSearchHistory } from './XuanShiDesk';
 import DateTime from '../comp/DateTime';
+import { fieldsSchemaBaseline } from '../../utils/recordFieldsRestore';
 
 // 玄学史(中国玄学史)主页 —— 忠实移植源 app 的「宣纸×墨×朱砂」古籍美学。
 // 设计系统类在 xuanshiTheme.less(经 app.less @import 全局加载);三栏:左 子页导航 / 中 主区。
@@ -65,7 +66,7 @@ function degToDM(d, posSym, negSym) {
 	return `${deg}${d >= 0 ? posSym : negSym}${mn < 10 ? '0' + mn : mn}`;
 }
 
-// [Q-251/T-213] 经度 → 地方平时时区串 '±HH:MM'(取整到分);非有限数返回 ''。
+// 经度 → 地方平时时区串 '±HH:MM'(取整到分);非有限数返回 ''。
 function lmtZoneOfLon(lonDeg) {
 	const v = Number(lonDeg);
 	if (!Number.isFinite(v)) { return ''; }
@@ -127,7 +128,7 @@ export default class XuanShiMain extends React.Component {
 		const ui = { ...this.state.ui, search: { ...sel }, subpage: 'search' };
 		this.setState({ ui, subpage: 'search', openEventId: null });
 		saveXuanShiState(ui);
-		if (sel && sel.q) { pushSearchHistory(sel.q, sel); } // [Q-494/T-456] 近探(案头)历史连同完整选择一起记
+		if (sel && sel.q) { pushSearchHistory(sel.q, sel); } // 近探(案头)历史连同完整选择一起记
 	};
 
 	// 检索结果点某事件 → 切到玄学万象子页并自动打开该事件详情
@@ -166,33 +167,38 @@ export default class XuanShiMain extends React.Component {
 		const y = parseInt(m[1], 10), mo = parseInt(m[2], 10), da = parseInt(m[3], 10);
 		if (!y || !mo || !da) { return; }
 		const cap = CAPITALS[ev.dynasty] || capitalForYear(y);
-		// [Q-251/T-213] 时区取都城地方平时(经度 ÷ 15,取整到分):史料时代无标准时区,沿用当前命盘时区会把「正午」错置数十分钟。
+		// 时区取都城地方平时(经度 ÷ 15,取整到分):史料时代无标准时区,沿用当前命盘时区会把「正午」错置数十分钟。
 		const baseZone = lmtZoneOfLon(cap[0]) || (fields.date && fields.date.value && fields.date.value.zone) || (fields.zone && fields.zone.value) || '+08:00';
 		// 自定义 DateTime 构造历史日:ad=±1 支持公元前全范围;缺具体时刻默认中午 12 点
 		const tm = new DateTime({ ad: y < 0 ? -1 : 1, year: Math.abs(y), month: mo, date: da, hour: 12, minute: 0, second: 0, zone: baseZone });
-		if (typeof tm.calcJdn === 'function') { tm.calcJdn(); } // 算 jdn(构造器未算;部分下游依赖)
+		tm.calcJdn(); // 算 jdn(构造器未算;部分下游依赖)
 		// 地点名并入 name(避免改 pos 类型破坏 fieldsToParams);经纬走 lat/lon
 		const nameStr = `玄学史·${ev.omen || ev.title || '事件'}·${cap[2] || ''}·${mdDisp || md}·都城地方平时`;
+		// 史事盘是一张新盘:以「新命盘」的字段为底(新盘种子 / 古典口径),不沿用当前载入那张盘的口径与 cid
+		const freshBase = (()=>{ try{ const b = fieldsSchemaBaseline(); return b && b.date ? b : null; }catch(e){ return null; } })();
+		const baseFields = freshBase || { ...fields, cid: fields.cid ? { ...fields.cid, value: null } : fields.cid };
 		const newFields = {
-			...fields,
-			date: { ...fields.date, value: tm },
-			time: { ...fields.time, value: tm },
-			lon: { ...fields.lon, value: degToDM(cap[0], 'e', 'w') },  // 字符串格式,勿传数字
-			lat: { ...fields.lat, value: degToDM(cap[1], 'n', 's') },
-			gpsLon: fields.gpsLon ? { ...fields.gpsLon, value: cap[0] } : fields.gpsLon,
-			gpsLat: fields.gpsLat ? { ...fields.gpsLat, value: cap[1] } : fields.gpsLat,
-			pos: fields.pos ? { ...fields.pos, value: cap[2] || nameStr } : fields.pos,
-			name: fields.name ? { ...fields.name, value: nameStr } : fields.name,
+			...baseFields,
+			date: { ...(baseFields.date || fields.date), value: tm },
+			time: { ...(baseFields.time || fields.time), value: tm },
+			zone: { ...(baseFields.zone || fields.zone || { name: ['zone'] }), value: tm.zone || baseZone },
+			lon: { ...(baseFields.lon || fields.lon), value: degToDM(cap[0], 'e', 'w') },  // 字符串格式,勿传数字
+			lat: { ...(baseFields.lat || fields.lat), value: degToDM(cap[1], 'n', 's') },
+			gpsLon: { ...(baseFields.gpsLon || fields.gpsLon || { name: ['gpsLon'] }), value: cap[0] },
+			gpsLat: { ...(baseFields.gpsLat || fields.gpsLat || { name: ['gpsLat'] }), value: cap[1] },
+			pos: { ...(baseFields.pos || fields.pos || { name: ['pos'] }), value: cap[2] || nameStr },
+			name: { ...(baseFields.name || fields.name || { name: ['name'] }), value: nameStr },
 		};
 		const t = tab || 'astrochart';
 		if (t === 'planetarium') {
 			// 天文馆:设 fields(日期/经纬)+切 tab + 触发其重算(纯天文,不走排盘)
-			dispatch({ type: 'astro/save', payload: { currentTab: t, fields: newFields } });
+			dispatch({ type: 'astro/saveUserFields', payload: { currentTab: t, fields: newFields } });
 			if (predictHook && predictHook.planetarium && predictHook.planetarium.fun) { predictHook.planetarium.fun(newFields); }
 		} else {
-			// 同步设 fields(名称/地点/日期立即反映,不用手动按确定)+切 tab;再算盘
-			dispatch({ type: 'astro/save', payload: { currentTab: t, fields: newFields } });
-			dispatch({ type: 'astro/nowChart', payload: { fields: newFields } });
+			// 先切 tab;字段由排盘成功后一并落(此前排盘前先存字段 → 排盘失败时左栏已换成史事盘、盘面却还是旧盘)。
+			// 按新盘收尾:紫微用回你自己的设置
+			dispatch({ type: 'astro/save', payload: { currentTab: t } });
+			dispatch({ type: 'astro/nowChart', payload: { fields: newFields, asNewChart: true } });
 		}
 	};
 
@@ -204,10 +210,11 @@ export default class XuanShiMain extends React.Component {
 		// 总览仍门控主体渲染、其余 3 个到达即填充。关开关(horosa.perf.firstLoadParallel=0)回到原串行。
 		const parallel = firstLoadParallelEnabled();
 		const fireTasters = () => {
-			// 失败静默,不挡总览主体
-			fetchDaily().then((d) => { if (d && !d.err && (d.title || d.blurb)) { this.setState({ daily: d }); } }).catch(() => {});
-			fetchEvents({ page: 1, page_size: 6 }).then((r) => { this.setState({ featured: (r && r.items) || [] }); }).catch(() => {});
-			fetchFigures({ status: 'all', limit: 6 }).then((r) => { this.setState({ figuresTop: (r && (r.items || r.figures)) || [] }); }).catch(() => {});
+			// 失败静默,不挡总览主体;序号守卫:重试再发一轮时,上一轮迟到的回包不覆盖
+			const __seq = (this._tasterSeq = (this._tasterSeq || 0) + 1);
+			fetchDaily().then((d) => { if (__seq === this._tasterSeq && d && !d.err && (d.title || d.blurb)) { this.setState({ daily: d }); } }).catch(() => {});
+			fetchEvents({ page: 1, page_size: 6 }).then((r) => { if (__seq !== this._tasterSeq) { return; } this.setState({ featured: (r && r.items) || [] }); }).catch(() => {});
+			fetchFigures({ status: 'all', limit: 6 }).then((r) => { if (__seq !== this._tasterSeq) { return; } this.setState({ figuresTop: (r && (r.items || r.figures)) || [] }); }).catch(() => {});
 		};
 		if (parallel) { fireTasters(); }
 		try {
@@ -370,7 +377,7 @@ export default class XuanShiMain extends React.Component {
 			return <XuanShiSearch ui={this.state.ui} onPersist={(k, p) => this.persist({ [k]: { ...(this.state.ui[k] || {}), ...p } })} onHome={() => this.setSubpage('overview')} onOpenEvent={this.goEvent} />;
 		}
 		if (subpage === 'desk') {
-			return <XuanShiDesk onHome={() => this.setSubpage('overview')} onNav={(k) => this.setSubpage(k)} onOpen={this.goBookmark} onSearchHistory={(h) => this.goFacetSearch((h && h.sel) ? { ...h.sel } : { tradition: '正史', q: (h && h.q) || `${h || ''}`, dynasty: [], technique: [], history: [], evidence: '' })}   /* [Q-494/T-456] 有完整选择就原样重放,旧条目按老口径兜底 */ />;
+			return <XuanShiDesk onHome={() => this.setSubpage('overview')} onNav={(k) => this.setSubpage(k)} onOpen={this.goBookmark} onSearchHistory={(h) => this.goFacetSearch((h && h.sel) ? { ...h.sel } : { tradition: '正史', q: (h && h.q) || `${h || ''}`, dynasty: [], technique: [], history: [], evidence: '' })}   /* 有完整选择就原样重放,旧条目按老口径兜底 */ />;
 		}
 		if (subpage === 'micro') {
 			return <XuanShiMicro ui={this.state.ui} onPersist={(k, p) => this.persist({ [k]: { ...(this.state.ui[k] || {}), ...p } })} onHome={() => this.setSubpage('overview')} />;

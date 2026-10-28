@@ -1,4 +1,4 @@
-// [Q-257/T-220] 「存为命盘」非默认捕获基准:古典口径键按 CLASSICAL_PARAM_SPEC.default,不经全局仓播种值——
+// 「存为命盘」非默认捕获基准:古典口径键按 CLASSICAL_PARAM_SPEC.default,不经全局仓播种值——
 // 全局仓与盘同为非默认(如 sectBuffer=ptolemy5)时仍须落库,否则改全局 / 换机后该盘漂移。
 import { captureNonDefaultTechniqueFields } from '../recordFieldsRestore';
 import { setClassicalChartGlobal, __resetClassicalGlobalsCacheForTest } from '../classicalChartGlobals';

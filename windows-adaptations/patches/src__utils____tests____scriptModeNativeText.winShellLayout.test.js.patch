@@ -1,0 +1,15 @@
+diff --git a/astrostudyui/src/utils/__tests__/scriptModeNativeText.test.js b/astrostudyui/src/utils/__tests__/scriptModeNativeText.test.js
+index dfa97423..d367a705 100644
+--- a/astrostudyui/src/utils/__tests__/scriptModeNativeText.test.js
++++ b/astrostudyui/src/utils/__tests__/scriptModeNativeText.test.js
+@@ -137,7 +137,9 @@ describe('画在网页之外的文字随界面简繁', ()=>{
+ 		}
+ 	});
+ 
+-	it('② 带文字型参数的壳命令都已登记(原生显示 / 不是显示),登记表不留死条目', ()=>{
++	// horosa_win_shell_layout_v1(Windows 侧移植适配):② 扫 Rust 壳源里 tauri 命令的参数名;Windows 壳(Electron)的命令表没有带类型的参数签名,
++	// 只在 Tauri 壳源缺席时跳过这一条(① ③ 照跑:前端交给壳的原生文字照样必须经 toDisplayScript;Electron 壳自己写的字走 shell-strings.json)。
++	(fs.existsSync(SHELL_SRC) ? it : it.skip)('② 带文字型参数的壳命令都已登记(原生显示 / 不是显示),登记表不留死条目', ()=>{
+ 		const cmds = shellTextCommands();
+ 		expect(Object.keys(cmds).length).toBeGreaterThanOrEqual(3);   // 防扫描静默失效
+ 		const unknown = Object.keys(cmds).filter((c)=>!NATIVE_TEXT_COMMANDS[c] && !NOT_DISPLAY_COMMANDS[c]).map((c)=>`${c}(${cmds[c].join(', ')})`);

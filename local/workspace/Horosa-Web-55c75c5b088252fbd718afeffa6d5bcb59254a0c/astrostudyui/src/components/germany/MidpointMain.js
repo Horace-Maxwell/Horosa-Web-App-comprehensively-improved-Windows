@@ -51,6 +51,9 @@ const MIDPOINTMAIN_SCU_COMPARATORS = {
 const Option = Select.Option;
 const OptGroup = Select.OptGroup;
 
+// 右栏下拉的小标题(与量化盘左栏「太阳弧换算」等同款字号 / 色)
+const MP_FIELD_LABEL = { fontSize: 11, color: 'var(--horosa-text-soft)', marginBottom: 2 };
+
 class MidpointMain extends Component{
 
 	constructor(props) {
@@ -162,7 +165,7 @@ class MidpointMain extends Component{
 			indiahsys = true;
 			showhsys = false;
 		}
-		// [Q-151/AX-16] 与 changeSouthChart 同判据:北纬(或无纬度)时天文/涵义星座不可改
+		// 与 changeSouthChart 同判据:北纬(或无纬度)时天文/涵义星座不可改
 		const gpsLatVal = this.props.fields && this.props.fields.gpsLat ? this.props.fields.gpsLat.value : undefined;
 		const northern = gpsLatVal === undefined || gpsLatVal === null || Number(gpsLatVal) >= 0;
 
@@ -196,6 +199,7 @@ class MidpointMain extends Component{
 							{
 								showzodical && (
 									<Col span={12}>
+										<div style={MP_FIELD_LABEL}>黄道</div>
 										<Select style={{width:'100%'}}
 											onChange={this.changeZodiacal}
 											value={AstroConst.zodiacSelectValue(this.props.fields.zodiacal.value, this.props.fields.siderealAyanamsa && this.props.fields.siderealAyanamsa.value)}
@@ -214,7 +218,8 @@ class MidpointMain extends Component{
 							{
 								showhsys && (
 									<Col span={12} title={northern ? '天文/涵义星座只对南半球出生者有意义(北纬 changeSouthChart 直接忽略);北半球改之无效' : undefined}>
-										{/* [Q-151/AX-16] 北纬改值被吞而界面无提示 → 置灰 + title */}
+										{/* 北纬改值被吞而界面无提示 → 置灰 + title */}
+										<div style={MP_FIELD_LABEL}>南天星座</div>
 										<Select style={{width: '100%'}}
 											onChange={this.changeSouthChart}
 											value={this.props.fields.southchart.value} 
@@ -229,11 +234,12 @@ class MidpointMain extends Component{
 							{
 								showhsys && (
 									<Col span={24} >
+										<div style={MP_FIELD_LABEL}>分宫制</div>
 										<Select style={{width:'100%'}}
 											onChange={this.changeHsys}
 											value={this.props.fields.hsys.value} 
 											size='small'>
-											{ getHousesOption() }
+											{ getHousesOption(true) /* 与星盘页、AI 挂载齿轮同一份全表(此前只列前 9 档) */ }
 										</Select>
 									</Col>	
 								)

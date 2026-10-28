@@ -5,7 +5,7 @@ import * as Su28Helper from './Su28Helper';
 import * as SZConst from '../suzhan/SZConst';
 import {splitDegree} from '../astro/AstroHelper';
 import {randomStr, detectOS, distanceInCircleAbs, creatTooltip, positionFloatingTooltip, setupFloatingTooltip} from '../../utils/helper';
-import {drawTextV, drawTextH} from '../graph/GraphHelper';
+import { fillTextFromStroke, drawTextV, drawTextH} from '../graph/GraphHelper';
 import {ZiSign,} from '../suzhan/SZConst';
 
 
@@ -518,7 +518,7 @@ class Su28ChartCircle {
 					let trans = 'translate(' + posx + ', ' + posy + ') rotate(' + rotang + ')';
 					return trans;	
 				})
-				.text(function(d){return d});
+				.text(function(d){return d}).call(fillTextFromStroke);
 		}
 		
 	}
@@ -660,7 +660,7 @@ class Su28ChartCircle {
 				let trans = 'translate(' + x + ', ' + y + ') rotate(' + angle + ')';
 				return trans;
 			})
-			.text(function(d){return d});			
+			.text(function(d){return d}).call(fillTextFromStroke);			
 	}
 
 	drawAspects(r){
@@ -730,7 +730,7 @@ class Su28ChartCircle {
 				.attr("dominant-baseline","middle")
 				.attr("text-anchor", "middle").attr('stroke', color)
 				.attr('font-size', 10).attr('font-family', AstroConst.AstroChartFont)
-				.text(txt).attr('transform', 'translate(' + (x1+x2)/2 + ',' + (y1+y2)/2 + ')');		
+				.text(txt).attr('transform', 'translate(' + (x1+x2)/2 + ',' + (y1+y2)/2 + ')').call(fillTextFromStroke);		
 			}
 		}
 	
@@ -780,7 +780,7 @@ class Su28ChartCircle {
 				let trans = 'translate(' + x + ', ' + y + ')';
 				return trans;
 			})
-			.text(function(d){return d});			
+			.text(function(d){return d}).call(fillTextFromStroke);			
 	
 			this.drawBaZi();
 		}
@@ -810,7 +810,7 @@ class Su28ChartCircle {
 				let trans = 'translate(' + x + ', ' + y + ')';
 				return trans;
 			})
-			.text(birthtxt);
+			.text(birthtxt).call(fillTextFromStroke);
 
 		let bz = this.chartObj.nongli.bazi;
 		let year = ' ' + bz.year.ganzi;

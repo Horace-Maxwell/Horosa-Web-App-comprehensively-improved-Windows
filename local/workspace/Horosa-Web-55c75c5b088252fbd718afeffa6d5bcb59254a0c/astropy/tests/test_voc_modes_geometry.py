@@ -1,4 +1,4 @@
-"""[Q-254/T-226] 空亡口径:by_sign_perfect 按黄经几何前推(不受容许度);kenodromia 用月亮前方 30° 窗;lilly/by_orb/by_sign_orb/exempt4 不变。"""
+"""空亡口径:by_sign_perfect 按黄经几何前推(不受容许度);kenodromia 用月亮前方 30° 窗;lilly/by_orb/by_sign_orb/exempt4 不变。"""
 from astrostudy.perchart import PerChart
 
 VEC = {'zone': '+08:00', 'lat': '31n14', 'lon': '121e28', 'hsys': 1, 'zodiacal': 0, 'date': '1990/01/22', 'time': '01:00:00'}

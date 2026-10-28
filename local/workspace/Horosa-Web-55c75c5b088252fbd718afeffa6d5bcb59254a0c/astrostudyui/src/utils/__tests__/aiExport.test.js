@@ -19,6 +19,7 @@ import {
 	ANALYSIS_TECHNIQUE_LABELS,
 } from '../aiAnalysisContext';
 import { CASE_TYPE_OPTIONS } from '../localcases';
+const { readSource, fnBody } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SETTINGS_KEY = 'horosa.ai.export.settings.v1';
 
@@ -369,7 +370,7 @@ describe('AI 挂载段过滤封装 applyAIExportSectionFilterToSnapshot（第五
 		expect(out).not.toContain('[希腊点]');
 	});
 
-	it('[YF v45] 空数组=显式全清 → 全不纳入(空);段名全不匹配 → 回退原文防误伤', ()=>{
+	it('空数组=显式全清 → 全不纳入(空);段名全不匹配 → 回退原文防误伤', ()=>{
 		const { text } = buildSyntheticSnapshot('bazi');
 		// 空数组 = 用户在设置里显式清空 → 该技法全不纳入(挂载卡与导出一并置空,所见即所得)。
 		// 旧语义(空数组回 preset 全量)正是「清空按钮点完复选框纹丝不动」的病根,勿回退。
@@ -394,7 +395,7 @@ describe('AI 挂载段过滤封装 applyAIExportSectionFilterToSnapshot（第五
 			{ key: 'indiachart', produced: '座运·摩羯', placeholder: '座运·X' },
 			{ key: 'zodialrelease', produced: '基于金星点推运', placeholder: '基于X点推运' },
 			{ key: 'decennials', produced: '基于土星起运', placeholder: '基于X起运' },
-			// [Q-271/ZC-17] 日子馆吉日榜动态计数段头 → 静态占位(此前 calendar 自定义勾选后整张榜单被丢)
+			// 日子馆吉日榜动态计数段头 → 静态占位(此前 calendar 自定义勾选后整张榜单被丢)
 			{ key: 'calendar', produced: '个性化吉日榜 Top 12／全年候选 87', placeholder: '个性化吉日榜' },
 		];
 		CASES.forEach(({ key, produced, placeholder })=>{
@@ -470,7 +471,7 @@ describe('AI导出 · 提取派发反向哨兵(防新增技法漏 extractContent
 	const fs = require('fs');
 	// eslint-disable-next-line global-require
 	const path = require('path');
-	const SRC = fs.readFileSync(path.join(__dirname, '../aiExport.js'), 'utf8');
+	const SRC = readSource(path.join(__dirname, '../aiExport.js'));
 
 	it('每个推运候选键(predictiveKeys)都被 extractContentByKey 显式派发,不落 generic', () => {
 		const pkMatch = SRC.match(/predictiveKeys\s*=\s*\[([^\]]*)\]/);
@@ -478,12 +479,9 @@ describe('AI导出 · 提取派发反向哨兵(防新增技法漏 extractContent
 		const predictiveKeys = [...pkMatch[1].matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]);
 		expect(predictiveKeys.length).toBeGreaterThan(10);
 
-		// 截取 extractContentByKey 函数体(到下一个顶层 async function 声明为止)。
-		const start = SRC.indexOf('async function extractContentByKey');
-		expect(start).toBeGreaterThan(0);
-		const rest = SRC.slice(start + 34);
-		const end = rest.indexOf('\nasync function ');
-		const body = end > 0 ? rest.slice(0, end) : rest;
+		// 截取 extractContentByKey 函数体(花括号配平,只含它自己)。
+		const body = fnBody(SRC, 'async function extractContentByKey(');
+		expect(body).toBeTruthy();
 
 		// 显式派发键 = 分支里所有 `exportKey === 'X'` ∪ 简单模块键组。
 		const handled = new Set([...body.matchAll(/exportKey\s*===\s*'([a-z0-9_]+)'/g)].map((m) => m[1]));

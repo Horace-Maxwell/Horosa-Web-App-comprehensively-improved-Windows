@@ -1,7 +1,7 @@
 // AI 助手·自动化事件总线(P4)。🔴 **本文件零 import**:调用点散在数据层(localcharts/localcases)、注册表、任务层、页面,
 // 任何一处 import 事件总线都不该反向拖进引擎/存储/运行时——否则数据层会被工具面污染(合同测试锁 `^import` 行数=0)。
 // 形态:内存订阅表 + window 事件(便于 devtools 观察);发事件永不抛错、永不阻塞调用点。
-export var AUTOMATION_EVENTS = ['app.start', 'record.saved', 'turn.end', 'tool.before', 'tool.after', 'task.done', 'report.done'];
+export var AUTOMATION_EVENTS = ['app.start', 'record.saved', 'turn.end', 'tool.before', 'tool.after', 'task.done'];
 export var AUTOMATION_DOM_EVENT = 'horosa:automation-event';
 
 var subs = [];
@@ -31,7 +31,7 @@ export function emitAutomationEvent(name, payload){
 	return true;
 }
 
-// [批二④] 同步通道(借鉴 Claude Code PreToolUse hooks):tool.before 在工具执行前**同步**问一遍订阅者,任一回 { veto:true } 即否决。
+// 同步通道:tool.before 在工具执行前**同步**问一遍订阅者,任一回 { veto:true } 即否决。
 // 与异步总线分列:异步订阅者永远拿不到否决权(事件发完调用点早已继续);同步订阅者绝不能做 IO。
 var vetoSubs = [];
 export function subscribeAutomationVeto(fn){

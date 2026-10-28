@@ -18,7 +18,7 @@ const ANGULARITY_CN = { angular: '角宫·旺', succedent: '续宫·中', cadent
 class AstroTriplicityRulers extends Component{
 	constructor(props){
 		super(props);
-		// [Q-254/T-230] 三分体系初值单源=本盘排盘实用值(chartObj.params.triplicity,即 fields.triplicity 回显);
+		// 三分体系初值单源=本盘排盘实用值(chartObj.params.triplicity,即 fields.triplicity 回显);
 		// 缺则取 app.tripSystem 镜像(流派预设);再缺用现状默认 Dorothean(零回归)。
 		const chartTrip = props.value && props.value.params ? props.value.params.triplicity : null;
 		const initSystem = (chartTrip && TRIPLICITY_SYSTEMS[chartTrip]) ? chartTrip
@@ -44,7 +44,7 @@ class AstroTriplicityRulers extends Component{
 			const opts = { ...this.state.opts, system: this.props.tripSystem };
 			this.setState({ opts }, () => { this.rebuild(); this.saveAISnapshot(); });
 		}
-		// [Q-254/T-230] 本盘排盘三分制(chartObj.params.triplicity)变了 → 同步(排盘真值优先于镜像)。
+		// 本盘排盘三分制(chartObj.params.triplicity)变了 → 同步(排盘真值优先于镜像)。
 		const prevTrip = prevProps.value && prevProps.value.params ? prevProps.value.params.triplicity : null;
 		const curTrip = this.props.value && this.props.value.params ? this.props.value.params.triplicity : null;
 		if(prevTrip !== curTrip && curTrip && TRIPLICITY_SYSTEMS[curTrip] && curTrip !== this.state.opts.system){
@@ -97,7 +97,7 @@ class AstroTriplicityRulers extends Component{
 					<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
 						<span style={{ fontFamily: AstroConst.AstroFont, fontSize: 18 }}>{symbolWithMeaning(p.ruler, this.props.showAstroMeaning)}</span>
 						<span style={{ fontSize: 14, fontWeight: 700, fontFamily: AstroConst.NormalFont }}>{p.rulerCn}</span>
-						<span style={{ fontSize: 11.5, opacity: 0.6 }}>{p.role}</span>
+						<span style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)' }}>{p.role}</span>
 					</div>
 					<span style={{ fontSize: 12.5, fontWeight: 600 }}>{p.fromAge.toFixed(0)}–{p.toAge.toFixed(0)} 岁</span>
 				</div>
@@ -106,7 +106,7 @@ class AstroTriplicityRulers extends Component{
 					{q.house ? <span style={{ color: col }}>第{q.house}宫 · {ANGULARITY_CN[q.angularity]}</span> : null}
 					{q.dignity ? <span>{q.dignity}</span> : null}
 					{q.retro ? <span style={{ color: 'var(--horosa-cinnabar, #b71c1c)' }}>逆行</span> : null}
-					<span style={{ opacity: 0.6 }}>行星期 {PLANETARY_PERIOD_YEARS[p.ruler]} 年</span>
+					<span style={{ color: 'var(--horosa-text-secondary)' }}>行星期 {PLANETARY_PERIOD_YEARS[p.ruler]} 年</span>
 				</div>
 			</div>
 		);
@@ -118,22 +118,22 @@ class AstroTriplicityRulers extends Component{
 		const d = this.state.data;
 		return (
 			<div className={`${styles.scrollbar}`} style={{ height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', padding: '4px 8px 12px' }}>
-				<div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>三分主星推运<span style={{ fontSize: 12, opacity: 0.55, marginLeft: 8, fontWeight: 400 }}>区间光体三分主星 · 人生阶段</span></div>
-				<div style={{ fontSize: 11.5, opacity: 0.6, lineHeight: '17px', marginBottom: 10 }}>昼生看太阳所在座、夜生看月亮所在座，取该座三颗三分主星按昼夜换序分掌人生各阶段；落角宫主鼎盛、果宫主衰减。</div>
+				<div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>三分主星推运<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', marginLeft: 8, fontWeight: 400 }}>区间光体三分主星 · 人生阶段</span></div>
+				<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: '17px', marginBottom: 10 }}>昼生看太阳所在座、夜生看月亮所在座，取该座三颗三分主星按昼夜换序分掌人生各阶段；落角宫主鼎盛、果宫主衰减。</div>
 				<div style={{ marginBottom: 12 }}>
-					<div style={{ fontSize: 11.5, opacity: 0.6, marginBottom: 4 }}>三分体系</div>
+					<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', marginBottom: 4 }}>三分体系</div>
 					<XQSegmented value={opts.system} options={TRIP_SYSTEM_OPTIONS} onChange={(e) => this.changeOpt('system', e && e.target ? e.target.value : e)} />
-					<div style={{ fontSize: 11, opacity: 0.55, lineHeight: '16px', marginTop: 6 }}>{TRIPLICITY_SYSTEM_HINTS[opts.system] || TRIPLICITY_SYSTEM_HINTS.Dorothean}</div>
+					<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', lineHeight: '16px', marginTop: 6 }}>{TRIPLICITY_SYSTEM_HINTS[opts.system] || TRIPLICITY_SYSTEM_HINTS.Dorothean}</div>
 				</div>
 				<Row gutter={12} style={{ marginBottom: 12 }}>
 					<Col span={14}>
-						<div style={{ fontSize: 11.5, opacity: 0.6, marginBottom: 4 }}>划分法</div>
+						<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', marginBottom: 4 }}>划分法</div>
 						<Select value={opts.division} onChange={(v) => this.changeOpt('division', v)} style={{ width: '100%' }}>
 							{Object.keys(TRIPLICITY_DIVISIONS).map((k) => <Option value={k} key={k}>{TRIPLICITY_DIVISIONS[k]}</Option>)}
 						</Select>
 					</Col>
 					<Col span={10}>
-						<div style={{ fontSize: 11.5, opacity: 0.6, marginBottom: 4 }}>寿命基准（岁）</div>
+						<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', marginBottom: 4 }}>寿命基准（岁）</div>
 						<InputNumber value={opts.lifespan} min={30} max={120} style={{ width: '100%' }} onChange={(v) => this.changeOpt('lifespan', v)} />
 					</Col>
 				</Row>
@@ -147,7 +147,7 @@ class AstroTriplicityRulers extends Component{
 								const s = TRIPLICITY_HOUSE_SIGS[h];
 								return (
 									<div key={h} style={{ display: 'flex', gap: 8, padding: '5px 10px', fontSize: 11, borderTop: i ? '1px solid rgba(128,128,128,0.06)' : 'none' }}>
-										<span style={{ width: 26, fontWeight: 700, opacity: 0.6 }}>{h}宫</span>
+										<span style={{ minWidth: 26, flex: '0 0 auto', whiteSpace: 'nowrap', fontWeight: 700, color: 'var(--horosa-text-secondary)' }}>{h}宫</span>
 										<span style={{ flex: 1, opacity: 0.85 }}>一主：{s.first}{s.second && s.second !== '—' ? `；二主：${s.second}` : ''}{s.third && s.third !== '—' ? `；三主：${s.third}` : ''}</span>
 									</div>
 								);
@@ -155,7 +155,7 @@ class AstroTriplicityRulers extends Component{
 						</div>
 					</div>
 				) : (
-					<div style={{ fontSize: 12.5, opacity: 0.55, padding: '12px 0' }}>缺区间光体星座数据，无法切分。请确认本命盘已排出。</div>
+					<div style={{ fontSize: 12.5, color: 'var(--horosa-text-secondary)', padding: '12px 0' }}>缺区间光体星座数据，无法切分。请确认本命盘已排出。</div>
 				)}
 			</div>
 		);

@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import { XQDesignScaleBox } from '../xq-ui';
 import { chartSCUEnabled } from '../../utils/perfFlags';
 import { BaZiMsg } from '../../msg/bazimsg';
 import { getSelfZuo, hiddenStemsOf, xunKongOf } from '../../utils/baziLunarLocal';
@@ -358,11 +359,23 @@ const ELEMENT_CN = {
 	Metal: '金', metal: '金', Water: '水', water: '水',
 };
 
+// 细盘设计宽(布局 px)= 标签列 62 + 每柱(字形最小宽 + 左右内距 12)+ 边框 2;
+// 与样式同值锁:.horosa-bazi-fine-row 的标签列 62px、.horosa-bazi-fine-glyph 的 min-width(细盘 46 / 简盘 36)、.horosa-bazi-fine-cell 的左右内距 6
+export const BAZI_FINE_LABEL_COL = 62;
+export const BAZI_FINE_GLYPH_MIN = { fine: 46, simple: 36 };
+export const BAZI_FINE_CELL_PAD_X = 6;
+export function baziFineDesignWidth(colCount, isSimple){
+	const g = isSimple ? BAZI_FINE_GLYPH_MIN.simple : BAZI_FINE_GLYPH_MIN.fine;
+	return BAZI_FINE_LABEL_COL + (Number(colCount) || 0) * (g + 2 * BAZI_FINE_CELL_PAD_X) + 2;
+}
+
 class BaZiFineChart extends Component{
 	// horosa_bazi_finechart_scu_v1（PERF-R9 Ship 6·八字族）：中栏四柱板无 state，输出**只**由下列
-	// 六个 props 决定（本文件全文的 this.props.* 恰为这六个：value / mode / flowSelection /
-	// showRelations / cangVersion / onlyZiGanShen —— 另有一个 fields 是传进来但从不读的）。
-	// 六者引用/值全同 ⇒ 输出逐字节相同，跳过这次重渲；任一不同即返 true 照渲（宁可多渲不可漏渲）。
+	// 十一个 props 决定（本文件全文读到的 this.props.* 恰为这十一个：value / mode / flowSelection /
+	// showRelations / cangVersion / onlyZiGanShen / fields(星运·自坐取 phaseType) / school /
+	// showSchoolMarks / showShenSha / shenshaGroups —— 后五个是后来加进渲染的,sCU 须同步列入,
+	// 否则只改流派 / 神煞分组 / 神煞开关 / 流派标记开关时本板不重渲)。
+	// 全同 ⇒ 输出逐字节相同，跳过这次重渲；任一不同即返 true 照渲（宁可多渲不可漏渲）。
 	// 收益：宿主 BaZi 因「只影响别处的 baziOpt/chartStyle/directLoading」重渲时，本板不再重跑
 	// buildColumns + 干支刑冲合害配对 + 关系分道布局。
 	// kill-switch 沿用既有 horosa.perf.chartSCU（置 '0' → 恒重渲的旧行为）。
@@ -375,7 +388,12 @@ class BaZiFineChart extends Component{
 			|| nextProps.flowSelection !== this.props.flowSelection
 			|| nextProps.showRelations !== this.props.showRelations
 			|| nextProps.cangVersion !== this.props.cangVersion
-			|| nextProps.onlyZiGanShen !== this.props.onlyZiGanShen;
+			|| nextProps.onlyZiGanShen !== this.props.onlyZiGanShen
+			|| nextProps.fields !== this.props.fields
+			|| nextProps.school !== this.props.school
+			|| nextProps.showSchoolMarks !== this.props.showSchoolMarks
+			|| nextProps.showShenSha !== this.props.showShenSha
+			|| nextProps.shenshaGroups !== this.props.shenshaGroups;
 	}
 
 	hasDirection(rec){
@@ -672,7 +690,10 @@ class BaZiFineChart extends Component{
 		const branchRelations = this.buildBranchRelations(cols);
 		const isSimple = this.props.mode === 'simple';
 		const schoolMark = this.buildSchoolMark();
+		// 栏宽不足设计宽(标签列 + 每柱「天干地支字形最小宽 + 内距」)时按设计宽排版再整体等比缩(放得下时逐像素不变):
+		// 字形不再互贴、连线不再穿字、表头不再两字竖排、右缘不再被裁
 		return (
+			<XQDesignScaleBox designWidth={baziFineDesignWidth(cols.length, isSimple)}>
 			<div className={`horosa-bazi-fine-chart ${cols.length === 4 ? 'horosa-bazi-fine-chart-core' : ''} ${isSimple ? 'horosa-bazi-fine-chart-simple' : ''}`}>
 				{schoolMark ? this.renderSchoolBar(schoolMark) : null}
 				{this.renderHeader(cols, schoolMark)}
@@ -703,6 +724,7 @@ class BaZiFineChart extends Component{
 				{!isSimple ? this.renderSimpleRow('自坐', cols, (item)=><strong>{getSelfZuo(item.stem, item.branch, this.props.fields && this.props.fields.phaseType ? this.props.fields.phaseType.value : undefined)}</strong>, 'horosa-bazi-fine-info-row') : null}
 				{!isSimple ? this.renderSimpleRow('空亡', cols, (item)=><strong>{item.xunEmpty}</strong>, 'horosa-bazi-fine-info-row') : null}
 			</div>
+			</XQDesignScaleBox>
 		);
 	}
 }

@@ -8,7 +8,8 @@ import { buildHuangliDay } from './huangliDay';
 import { personBazi, buildPersonalizedDates } from './riziEngine';
 import { buildRiziSnapshotText } from './riziSnapshot';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
-import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // [Q-318/T-306] 当事人八字须随全局日界/晚子时
+import { parseDateParts } from '../../utils/dateStrSafe';
+import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';   // 当事人八字须随全局日界/晚子时
 import { markInteractionStart, markPanelReady } from '../../utils/perfMark';
 import { calendarPanelShouldUpdate } from './NongLiMain';
 
@@ -51,7 +52,7 @@ const RiziRankingList = React.memo(function RiziRankingList({ list, selectedYmd,
 const RiziDetail = React.memo(function RiziDetail({ list, selectedYmd }) {
 	const d = list.find((x)=> x.ymd === selectedYmd);
 	if (!d) { return <div className='horosa-empty-hint'>选择吉日查看理由与完整日课</div>; }
-	const [y, m, dd] = d.ymd.split('-').map((n)=> parseInt(n, 10));
+	const { year: y, month: m, day: dd } = parseDateParts(d.ymd) || {};   // 日期串单源拆(年带符号)
 	return (
 		<div className='horosa-rizi-detail'>
 			<div className='horosa-tongshu-detail-head'>
@@ -132,9 +133,9 @@ class RiziMain extends Component {
 	baziOf(person) {
 		try {
 			const dt = person.date;
-			// [Q-272/T-252] time 只传 HH:mm:ss:此前整串「日期 时刻」被引擎按冒号切,首段转 NaN → 小时回落 0 → 时柱恒子时,
+			// time 只传 HH:mm:ss:此前整串「日期 时刻」被引擎按冒号切,首段转 NaN → 小时回落 0 → 时柱恒子时,
 			// 喜用/身强弱/吉日榜/快照全随之错。
-			// [Q-318/T-306] 日界点 / 晚子时须随全局(此前不传 → 本地引擎按「24 点换日」缺省):
+			// 日界点 / 晚子时须随全局(此前不传 → 本地引擎按「24 点换日」缺省):
 			// T-252 把时柱修对之后,23:00–23:59 出生的当事人日柱会与八字页差一天,冲煞与吉日榜随之不同。
 			// 时间算法不传:当事人只录了出生日期时刻、无经纬度,真太阳时档缺经度只会静默退化成钟表口径,
 			// 传了反而制造「设了却不生效」的假象(引擎自身也会 warn),故按「不放无效参数」不传。

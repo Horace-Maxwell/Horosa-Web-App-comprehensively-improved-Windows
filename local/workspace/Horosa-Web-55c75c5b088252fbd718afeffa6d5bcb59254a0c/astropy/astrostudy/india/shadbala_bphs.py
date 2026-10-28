@@ -21,11 +21,9 @@
 
 from flatlib import const
 
-# ── 基础常量(与 primitives 对齐，但本模块自带一份以保持独立可单测)──────────
-SIGNS = [
-    const.ARIES, const.TAURUS, const.GEMINI, const.CANCER, const.LEO, const.VIRGO,
-    const.LIBRA, const.SCORPIO, const.SAGITTARIUS, const.CAPRICORN, const.AQUARIUS, const.PISCES,
-]
+from astrostudy.india.primitives import SIGNS, segment_index
+
+# ── 基础常量(星座序 SIGNS 取自 primitives)──────────────────────────────
 SIGN_INDEX = {s: i for i, s in enumerate(SIGNS)}          # 0-based
 
 ODD_SIGNS = {const.ARIES, const.GEMINI, const.LEO, const.LIBRA, const.SAGITTARIUS, const.AQUARIUS}
@@ -42,11 +40,6 @@ VIRUPA_PER_RUPA = 60.0
 
 def _sign_index(sign):
     return SIGN_INDEX.get(sign, 0)
-
-
-def _house_distance(from_sign, to_sign):
-    """to_sign 在 from_sign 的第几宫(1-12，本宫=1)。"""
-    return ((_sign_index(to_sign) - _sign_index(from_sign)) % 12) + 1
 
 
 def _ang_sep(a, b):
@@ -214,7 +207,12 @@ def _classify_dignity(planet, sign, deg, planet_signs, allow_mt=True):
 
 
 # ── Vimsopaka Bala（分盘 20 分力）——四组权重表（各组和 = 20，已核验）─────────
-# 折算法：fraction = 18.1 同尊位 Virupa / 45（Moolatrikona 满），contribution = 权重 × fraction。
+# 尊位分值(BPHS Viṃśopaka,20 分制):自宫 / 本三角 20、至友 18、友 15、中 10、敌 7、至敌 5;
+# contribution = 该盘权重 × 分值 / 20。
+VIMSOPAKA_POINTS_BY_DIGNITY = {
+    'moolatrikona': 20.0, 'own_sign': 20.0, 'adhimitra': 18.0, 'friend': 15.0,
+    'neutral': 10.0, 'enemy': 7.0, 'adhisatru': 5.0,
+}
 VIMSOPAKA_WEIGHTS = {
     'shadvarga':    {1: 6, 2: 2, 3: 4, 9: 5, 12: 2, 30: 1},
     'saptavarga':   {1: 5, 2: 2, 3: 3, 7: 2.5, 9: 4.5, 12: 2, 30: 1},
@@ -226,7 +224,7 @@ VIMSOPAKA_WEIGHTS = {
 
 def vimsopaka_bala(planet, d1_lon, planet_signs, signlon=None, variants=None):
     """Vimsopaka 四组（Shad/Sapta/Dasa/Shodasa-varga）20 分力。某曜在每组各分盘按尊位
-    （§18.1 同尊位比例，folded：fraction = Virupa/45）× 该盘权重求和，每组满分 20。
+    分值(VIMSOPAKA_POINTS_BY_DIGNITY,20 分制)× 该盘权重 / 20 求和,每组满分 20。
     复用 _classify_dignity（D1 允许 moolatrikona 按度，余盘 own/友谊）。返回逐组 total + perChart。"""
     from astrostudy.india.varga import varga_position
     out = {}
@@ -242,11 +240,12 @@ def vimsopaka_bala(planet, d1_lon, planet_signs, signlon=None, variants=None):
                 vsign = _sign_of_lon(vlon)
                 deg = vlon % 30.0
             dignity = _classify_dignity(planet, vsign, deg, planet_signs, allow_mt=(chart == 1))
-            frac = SAPTAVARGAJA_VIRUPA_BY_DIGNITY.get(dignity, 0.0) / 45.0
-            contrib = w * frac
+            points = VIMSOPAKA_POINTS_BY_DIGNITY.get(dignity, 10.0)
+            contrib = w * points / 20.0
             total += contrib
-            per_chart[chart] = {'dignity': dignity, 'contribution': round(contrib, 4)}
-        out[group] = {'total': round(total, 4), 'max': 20, 'perChart': per_chart}
+            per_chart[chart] = {'dignity': dignity, 'points': points, 'contribution': round(contrib, 4)}
+        out[group] = {'total': round(total, 4), 'max': 20, 'perChart': per_chart,
+                      'scale': 'bphs_20_18_15_10_7_5'}
     return out
 
 
@@ -260,7 +259,7 @@ def _navamsa_sign(lon):
     """该黄经的 navamsa(D9)星座(纯算，自带最小实现以保持独立)。"""
     sign_i = int(float(lon) // 30.0) % 12
     deg_in = float(lon) % 30.0
-    nav_i = int(deg_in // (30.0 / 9.0))           # 0..8
+    nav_i = segment_index(deg_in, 30.0 / 9.0, 9)   # 0..8(精确段界归后一段)
     # 标准 D9：动 rasi 从本宫起、定从第9、双从第5(每 rasi 起点循环)。
     starts = {'movable': sign_i, 'fixed': (sign_i + 8) % 12, 'dual': (sign_i + 4) % 12}
     if sign_i in (0, 3, 6, 9):
@@ -356,8 +355,32 @@ DIG_STRONG_HOUSE = {
 }
 
 
+# 连续式(BPHS):Dig = 本曜与「弱点」的最短角距 ÷ 3(0..60)。弱点 = 强向角的对角:
+# 日火(强 10 宫 → 弱 IC)、木水(强 1 宫 → 弱 下降点)、月金(强 4 宫 → 弱 MC)、土(强 7 宫 → 弱 上升点)。
+# angles = {'asc': 上升经度, 'mc': 天顶经度};缺则回落按宫阶跃式(dig_bala)。
+def dig_weak_point(planet, angles):
+    if not angles or angles.get('asc') is None or angles.get('mc') is None:
+        return None
+    strong = DIG_STRONG_HOUSE.get(planet)
+    if strong is None:
+        return None
+    asc = float(angles['asc']) % 360.0
+    mc = float(angles['mc']) % 360.0
+    strong_point = {1: asc, 4: (mc + 180.0) % 360.0, 7: (asc + 180.0) % 360.0, 10: mc}[strong]
+    return (strong_point + 180.0) % 360.0
+
+
+def dig_bala_continuous(planet, lon, angles):
+    """连续 Dig 力 = |lon − 弱点| ÷ 3(0..60);弱点不可得 → None(调用方回落阶跃式)。"""
+    weak = dig_weak_point(planet, angles)
+    if weak is None or lon is None:
+        return None
+    return _ang_sep(lon, weak) / 3.0
+
+
 def dig_bala(planet, house_from_lagna):
-    """方向力：距「最弱宫(强向宫对宫)」的宫距(0-6)×10 → 0..60。"""
+    """方向力(宫阶跃近似):距「最弱宫(强向宫对宫)」的宫距(0-6)×10 → 0..60。
+    仅在角点经度不可得时由 compute_shadbala 回落使用。"""
     strong = DIG_STRONG_HOUSE.get(planet)
     if strong is None:
         return 0.0
@@ -373,7 +396,7 @@ def dig_bala(planet, house_from_lagna):
 # ════════════════════════════════════════════════════════════════════════════
 
 # ── 3a Nathonnatha Bala(昼夜力)——结构式，直接实现 ────────────────────────
-# 距午夜/正午的时间比例给 0..60。月火土(夜强)在午夜满、日水木(昼强)在正午满、水恒满。
+# 距午夜/正午的时间比例给 0..60。月火土(夜强)在午夜满、日木金(昼强)在正午满、水恒满。
 # fraction_from_midnight ∈ [0,1]：0=午夜,0.5=正午,1=次午夜。
 _NIGHT_STRONG = {const.MOON, const.MARS, const.SATURN}
 _DAY_STRONG = {const.SUN, const.JUPITER, const.VENUS}
@@ -761,7 +784,9 @@ def compute_shadbala(planet, ctx):
             planet, _d1lon, ctx['planetSigns'], signlon=_d1deg,
             variants=ctx.get('vargaVariants'))
     sthana = sthana_bala(planet, lon, signlon, house, per_varga)
-    dig = dig_bala(planet, house)
+    dig_c = dig_bala_continuous(planet, lon, ctx.get('angles'))
+    dig = dig_c if dig_c is not None else dig_bala(planet, house)
+    dig_method = 'continuous' if dig_c is not None else 'house_step'
     kala = kala_bala(
         planet, ctx.get('sunLon', 0.0), ctx.get('moonLon', 0.0),
         fraction_from_midnight=ctx.get('fractionFromMidnight', 0.5),
@@ -800,6 +825,7 @@ def compute_shadbala(planet, ctx):
         'planet': planet,
         'sthana': sthana,
         'dig': round(dig, 4),
+        'digMethod': dig_method,
         'kala': kala,
         'cheshta': cheshta,
         'naisargika': round(naisargika, 4),
@@ -830,8 +856,38 @@ def ishta_kashta_phala(uchcha_virupa, cheshta_virupa, cheshta_pending=False):
     }
 
 
-def compute_all(contexts):
-    """全七曜六力。contexts = {planet: ctx}。返回 {planet: result, 'anyPending': bool}。"""
+def _apply_yuddha(results, yuddha_pairs):
+    """Yuddha 力(星战,Raman 口径):交战两星各取 Sthana+Dig+Kala(不含 Yuddha)之和,
+    差值加给胜者、从败者扣除(不再除视圆面直径差)。只改 kala.yuddha 并重算总值 / Rupa / 达标比。"""
+    applied = []
+    for pair in (yuddha_pairs or []):
+        w, l = pair.get('winner'), pair.get('loser')
+        rw, rl = results.get(w), results.get(l)
+        if rw is None or rl is None:
+            continue
+
+        def _base(r):
+            return float(r['sthana']['virupa']) + float(r['dig']) + float(r['kala']['virupa']) - float(r['kala'].get('yuddha', 0.0))
+        diff = abs(_base(rw) - _base(rl))
+        for r, sign in ((rw, 1.0), (rl, -1.0)):
+            prev = float(r['kala'].get('yuddha', 0.0))
+            delta = sign * diff
+            r['kala']['yuddha'] = round(prev + delta, 4)
+            r['kala']['virupa'] = round(float(r['kala']['virupa']) + delta, 4)
+            total = round(float(r['totalVirupa']) + delta, 4)
+            r['totalVirupa'] = total
+            r['rupas'] = round(total / VIRUPA_PER_RUPA, 4)
+            req = r.get('requiredRupas')
+            ratio = (r['rupas'] / req) if req else None
+            r['strengthRatio'] = round(ratio, 4) if ratio is not None else None
+            r['sufficient'] = (ratio is not None and ratio >= 1.0)
+        applied.append({'winner': w, 'loser': l, 'virupa': round(diff, 4)})
+    return applied
+
+
+def compute_all(contexts, yuddha_pairs=None):
+    """全七曜六力。contexts = {planet: ctx};yuddha_pairs = [{'winner','loser'}](D1 星战,可缺)。
+    返回 {planet: result, 'anyPending': bool}。"""
     out = {}
     any_pending = False
     for planet in SHADBALA_PLANETS:
@@ -876,12 +932,22 @@ def compute_all(contexts):
             res['vimsopaka'] = None
         out[planet] = res
         any_pending = any_pending or res['anyPending']
+    yuddha_applied = _apply_yuddha(out, yuddha_pairs)
     out['anyPending'] = any_pending
     out['method'] = 'six_source'
-    out['note'] = ('六源六力(Sthana/Dig/Kala/Cheshta/Naisargika/Drik)，按标准计算口径全量实现:'
-                   'Saptavargaja 七盘尊贵档累加、Tribhaga 段主、Ayana 赤纬式、Cheshta 八态、'
-                   'Drik 分段虚拉。仅 Abda/Masa(年/月主曜需太阳入宫/入白羊时刻的 hora 主)在引擎'
-                   '未传该主曜时按 pending 计 0。')
+    out['yuddha'] = yuddha_applied
+    out['approximations'] = [
+        'Dig:连续式(与弱点角距÷3),弱点取上升 / 天顶 / 下降 / 天底经度;角点缺时回落按宫阶跃。',
+        'Nathonnatha:按出生距当地视午夜(日没与次日出中点)的实际时长,12 小时满 60;'
+        '极昼 / 极夜求不出日出日没时,视午夜改按视太阳时(经度 + 均时差)取。',
+        'Abda/Masa:平太阳速度回推入白羊 / 入当前星座之日,取该吠陀日星期主(非 Kali 积日法)。',
+        'Cheshta:八态查表(逆 / 反退 / 留 / 缓 / 更缓 / 平 / 速 / 超速),非 Cheshta Kendra 连续式;'
+        '反退 = 逆行且已退回逆行起点的前一座。',
+        'Yuddha:Raman 口径(交战两星 Sthana+Dig+Kala 之差加胜者、扣败者),不除视圆面直径差。',
+    ]
+    out['note'] = ('六源六力(Sthana/Dig/Kala/Cheshta/Naisargika/Drik):Saptavargaja 七盘尊贵档累加、'
+                   'Tribhaga 段主、Ayana 赤纬式、Drik 分段虚拉为标准式;Dig / Nathonnatha / Abda·Masa / '
+                   'Cheshta / Yuddha 的近似口径逐条列于 approximations。主曜缺时对应子项 pending 计 0。')
     return out
 
 
@@ -947,29 +1013,37 @@ _EKADHIPATYA_PAIRS = [
 
 
 def ekadhipatya_sodhana(bav, occupied_signs=None):
-    """同主双宫缩减(Parasara 口径)。occupied_signs = 含行星的 0-based 星座集合。
+    """同主双宫缩减(BPHS / Raman 通行口径)。occupied_signs = 含行星的 0-based 星座集合。
 
-    规则(Parasara)：对每对同主 own-rasi (P,Q)，记两宫 bindu p,q、是否有行星 op,oq：
-      - 两宫皆无行星：两宫均置二者中较小值 min(p,q)；若 min==0 则两宫皆 0。
-      - 恰一宫有行星：无行星之宫置 0；有行星之宫保留。
-      - 两宫皆有行星：两宫不变。
-    (拒「两 0 → 第三 0」变体——本实现不做该变体。)
+    对每对同主 own-rasi (P,Q)(巨蟹 / 狮子单主不配对),先 Trikona 后再做:
+      0. 任一宫已为 0 → 两宫不变(无可化减);
+      1. 两宫皆有行星 → 不变;
+      2. 恰一宫有行星:空宫点数 > 有星宫 → 空宫降到与有星宫相等;空宫点数 ≤ 有星宫 → 空宫归 0;
+         有星宫恒不变;
+      3. 两宫皆空:点数相等 → 两宫皆归 0;不等 → 较大者降到与较小者相等。
     """
     vals = _bav_to_list(bav)
     out = list(vals)
     occ = set() if occupied_signs is None else {int(s) % 12 for s in occupied_signs}
     for a, b in _EKADHIPATYA_PAIRS:
         p, q = out[a], out[b]
+        if p == 0 or q == 0:
+            continue                       # 规则 0:有一宫为 0 → 不化减
         oa, ob = (a in occ), (b in occ)
         if oa and ob:
-            continue                       # 两宫皆占 → 不变
-        if oa and not ob:
-            out[b] = 0                      # 仅 a 占 → b 归 0
-        elif ob and not oa:
-            out[a] = 0                      # 仅 b 占 → a 归 0
+            continue                       # 规则 1:两宫皆占 → 不变
+        if oa or ob:
+            occ_i, emp_i = (a, b) if oa else (b, a)
+            if out[emp_i] > out[occ_i]:
+                out[emp_i] = out[occ_i]    # 规则 2a:空宫多 → 降到与有星宫相等
+            else:
+                out[emp_i] = 0             # 规则 2b:空宫少或等 → 归 0
         else:
-            m = min(p, q)                   # 皆空 → 取较小
-            out[a] = out[b] = m
+            if p == q:
+                out[a] = out[b] = 0        # 规则 3a:皆空且相等 → 皆 0
+            else:
+                m = min(p, q)              # 规则 3b:皆空不等 → 大者降为小者
+                out[a] = out[b] = m
     return out
 
 
@@ -1003,7 +1077,7 @@ KAKSHYA_LORDS = [
 
 def kakshya_index(signlon):
     """rasi 内度(0-30)落第几档(0-7)。"""
-    return max(0, min(7, int(float(signlon) // KAKSHYA_SPAN)))
+    return segment_index(float(signlon), KAKSHYA_SPAN, 8)
 
 
 def kakshya_lord(signlon):

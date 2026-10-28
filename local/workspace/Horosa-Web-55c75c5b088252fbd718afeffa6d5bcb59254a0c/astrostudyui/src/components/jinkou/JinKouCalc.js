@@ -1,8 +1,5 @@
 import * as LRConst from '../liureng/LRConst';
-import request from '../../utils/request';
-import { ServerRoot, ResultKey } from '../../utils/constants';
-import { buildKentangEndpoint } from '../../integrations/kentang/serviceRoot';
-import { cachedKentangFetch } from '../../utils/kentangCache';
+import { postKentang } from '../../services/kentangPost';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
 import {
 
@@ -31,12 +28,12 @@ import {
 	JINKOU_XINGNIAN_GE,
 } from './JinKouDoc';
 
-import { parseDateParts } from '../../utils/dateStrSafe';
+import { parseFieldsDateTime, parseDateTimeText } from '../../utils/fieldsDateTime';
 // 五行配色统一对齐八字模块的品牌色板(--horosa-bazi-*)，全 app 一套色。
 // 金口诀主盘走 SVG presentation 属性(attr fill)，CSS 变量在此不解析，故落为对应 hex；
 // 主盘底色随暗黑模式翻深，浅色板的水/木/火会过暗不可读 → 按主题在 access 时取浅/深板(Proxy)，
 // 主盘重绘时即解析当前主题，明暗皆可读。
-const JINKOU_ELEMENT_COLOR_LIGHT = { '木': '#237a45', '火': '#c72d22', '土': '#805526', '金': '#e0892a', '水': '#275fc7' };
+const JINKOU_ELEMENT_COLOR_LIGHT = { '木': '#237a45', '火': '#c72d22', '土': '#805526', '金': '#866a00', '水': '#275fc7' };   // 金 = --horosa-bazi-metal 亮色值(旧 #e0892a 亮底 2.4:1)
 const JINKOU_ELEMENT_COLOR_DARK = { '木': '#66c486', '火': '#ff5f50', '土': '#c08a4c', '金': '#eda34a', '水': '#5f8fff' };
 function jinKouElementPalette(){
 	try {
@@ -442,9 +439,6 @@ function resolveIsDayInfo(timeZi, isDiurnal){
 		return { isDay: isDiurnal, basis: 'horizon', basisText: '真实地平·日出日落' };
 	}
 	return { isDay: containsVal(DayTimeZi, timeZi), basis: 'branch', basisText: '时支粗判·卯至申为昼' };
-}
-function resolveIsDay(timeZi, isDiurnal){
-	return resolveIsDayInfo(timeZi, isDiurnal).isDay;
 }
 
 function getGuiShenAtDiFen(dayGan, timeZi, diFen, guirengType, isDiurnal, schoolOpts){
@@ -931,34 +925,6 @@ function valueContainsAny(val, tokens){
 		}
 	}
 	return false;
-}
-
-function collectShenSha(liureng, tokens){
-	if(!liureng || !tokens || tokens.length === 0){
-		return [];
-	}
-	const maps = [
-		liureng.gods,
-		liureng.godsGan,
-		liureng.godsMonth,
-		liureng.godsZi,
-		liureng.godsYear && liureng.godsYear.taisui1 ? liureng.godsYear.taisui1 : null,
-	];
-	const res = [];
-	for(let i=0; i<maps.length; i++){
-		const one = maps[i];
-		if(!one){
-			continue;
-		}
-		const keys = Object.keys(one);
-		for(let j=0; j<keys.length; j++){
-			const key = keys[j];
-			if(valueContainsAny(one[key], tokens)){
-				res.push(key);
-			}
-		}
-	}
-	return uniq(res);
 }
 
 function rowStem(row){
@@ -2650,7 +2616,7 @@ export function buildJinKouData(liureng, options){
 			diFen: diFen,
 			xunKong: xunKongBranches.length ? xunKongBranches.join('') : '无',
 			siDaKong: siDaKong ? siDaKong : '无',
-			// [X1·P2-13] 月将/占时补齐:此前本地(非默认流派)路径中栏顶行画「—」、课情行显「无」。
+			// 月将/占时补齐:此前本地(非默认流派)路径中栏顶行画「—」、课情行显「无」。
 			yuejiang: jiangZi ? `${jiangZi}${jiang && jiang.name ? `·${jiang.name}` : ''}` : '',
 			zhanshi: timeZi || '',
 		},
@@ -2659,49 +2625,6 @@ export function buildJinKouData(liureng, options){
 
 function safeText(value){
 	return value === undefined || value === null ? '' : `${value}`;
-}
-
-function parseFieldsDateTime(fields){
-	if(!fields || !fields.date || !fields.time){
-		return null;
-	}
-	const dateStr = fields.date.value.format('YYYY-MM-DD');
-	const timeStr = fields.time.value.format('HH:mm:ss');
-	// BC 安全解析:'-7040-07-19' 裸 split('-') 会撕成 [NaN,7040,7,19](年 NaN 静默传播)
-	const _dp = parseDateParts(dateStr);
-	const d = _dp ? [_dp.year, _dp.month, _dp.day] : [];
-	const t = timeStr.split(':').map((item)=>parseInt(item, 10));
-	if(d.length < 3 || t.length < 2){
-		return null;
-	}
-	return {
-		year: d[0],
-		month: d[1],
-		day: d[2],
-		hour: t[0],
-		minute: t[1],
-		second: t[2] || 0,
-		date: dateStr,
-		time: timeStr,
-	};
-}
-
-function parseDateTimeText(text){
-	const raw = safeText(text).trim();
-	const match = raw.match(/^(-?\d{1,6})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
-	if(!match){
-		return null;
-	}
-	return {
-		year: parseInt(match[1], 10),
-		month: parseInt(match[2], 10),
-		day: parseInt(match[3], 10),
-		hour: parseInt(match[4], 10),
-		minute: parseInt(match[5], 10),
-		second: parseInt(match[6] || '0', 10),
-		date: `${match[1].padStart(4, '0')}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`,
-		time: `${match[4].padStart(2, '0')}:${match[5].padStart(2, '0')}:${(match[6] || '0').padStart(2, '0')}`,
-	};
 }
 
 function resolveCalculationDateTime(fields, nongli, options){
@@ -2805,37 +2728,6 @@ export function normalizeKinjinkouData(backendPan, fallbackData){
 	};
 }
 
-// horosa_kentang_result_cache_v1 —— 金口诀 /jinkou/pan 直连缓存(LRU 48)。
-// 确定性论证:payload 全由 resolveCalculationDateTime(格式化 'YYYY-MM-DD'/'HH:mm:ss' 与整数)
-// + 地分/月将/占时/时间口径/两个日界开关 + nongli 派生的真太阳时字串构成,无 Date 对象、无随机、
-// 无「现在时刻」依赖;后端 webjinkousrv.py 全文无 random/now(已 grep 核对)→ 同 payload 必同盘。
-// 关 horosa.perf.techniqueResultCache 即逐字回到下面的直连原函数。
-async function fetchJinKouPanRaw(payload){
-	let rsp = null;
-	try{
-		const rawResponse = await cachedKentangFetch(buildKentangEndpoint('jinkou', 'pan'), {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json; charset=UTF-8',
-			},
-			body: JSON.stringify(payload),
-		});
-		const rawText = await rawResponse.text();
-		rsp = rawText ? JSON.parse(rawText) : null;
-		if(!rsp || (rsp.ResultCode !== undefined && rsp.ResultCode !== 0)){
-			throw new Error(rsp && rsp[ResultKey] ? `${rsp[ResultKey]}` : 'jinkou.local.fetch.failed');
-		}
-	}catch(e){
-		rsp = await request(`${ServerRoot}/jinkou/pan`, {
-			body: JSON.stringify(payload),
-			silent: true,
-			timeoutMs: 45000,
-			retry: { retries: 2 },
-		});
-	}
-	return rsp && rsp[ResultKey] ? rsp[ResultKey] : rsp;
-}
-
 export async function fetchJinKouPan(fields, nongli, options){
 	const opt = options || {};
 	const dt = resolveCalculationDateTime(fields, nongli, opt);
@@ -2855,6 +2747,6 @@ export async function fetchJinKouPan(fields, nongli, options){
 		after23NewDay: (fields && fields.after23NewDay && fields.after23NewDay.value !== undefined) ? fields.after23NewDay.value : defaultAfter23NewDay(),
 		lateZiHourUseNextDay: (fields && fields.lateZiHourUseNextDay && fields.lateZiHourUseNextDay.value !== undefined) ? fields.lateZiHourUseNextDay.value : defaultLateZiHourUseNextDay(),
 	};
-	// v3.5.1 收敛:结果级缓存退役 —— Raw 内部已走上游 utils/kentangCache(三层+在途去重)。
-	return fetchJinKouPanRaw(payload);
+	// 只打本机计算服务(单一来源 postKentang;不再失败改走 Java 同名路径 —— Java 没有这条路由,还会吞掉真实报错)
+	return postKentang('jinkou', 'pan', payload, { cacheConfig: undefined });
 }

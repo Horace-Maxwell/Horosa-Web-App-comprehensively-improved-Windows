@@ -1,4 +1,4 @@
-// [卜卦改进 H3] 双实现归一+runHorary memo 单次化。
+// 双实现归一+runHorary memo 单次化。
 // ①memo:同 result 引用+同 opts(按值,非引用) → 返回同一对象;不同 opts/reset 后重算;
 //   深冻结产出后再次命中不炸(共享对象没人原地改写的自证)。
 // ②houseMap 良性锁:裸 result(自建 hmap) vs 盘面回写 houseMap(同法) → facts 产出全等

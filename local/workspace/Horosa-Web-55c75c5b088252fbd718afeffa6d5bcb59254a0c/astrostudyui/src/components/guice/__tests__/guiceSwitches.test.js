@@ -128,8 +128,8 @@ describe('轨策·开关 · 预设与自定义', () => {
 	test('四预设皆备', () => {
 		expect(Object.keys(GUICE_PRESETS)).toEqual(['default', 'meihua', 'zhouyishu', 'dading']);
 	});
-	// [Q-204/T-165①②·BG-25] 起卦法属逐问题输入,不计入流派比对;切派保留;快照流派出显示名
-	test('[Q-204] 改起卦法不转 custom;切派保留起卦法;guiceSchoolLabel 出显示名', () => {
+	// 起卦法属逐问题输入,不计入流派比对;切派保留;快照流派出显示名
+	test('改起卦法不转 custom;切派保留起卦法;guiceSchoolLabel 出显示名', () => {
 		const { guiceSchoolLabel } = require('../guiceSchools');
 		const { buildGuiceSnapshotText } = require('../guiceSnapshot');
 		const m = setOption(applyPreset('meihua'), 'qiguaFa', 'baoshu');

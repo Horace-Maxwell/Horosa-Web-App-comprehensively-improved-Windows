@@ -5,6 +5,11 @@ export default {
 	name: 'resolve_place',
 	level: 'read',
 	category: 'query',
+	// 输出结构(外部客户端据此校验 structuredContent)
+	outputSchema: {
+		type: 'object', required: ['resolved'],
+		properties: { resolved: { type: 'boolean' }, confidence: { type: 'string' }, place: { type: 'object' }, candidates: { type: 'array' } },
+	},
 	undoKind: 'none',
 	cacheable: true,
 	description: `把用户说的地名解析为经纬度与时区(离线,不联网)。${GUIDE}:仅在用户已明确给出地点、且你准备建档/起盘时调用;返回多个候选时不要自行挑选,把候选列给用户确认。`,

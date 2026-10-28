@@ -1,11 +1,14 @@
 import { Component } from 'react';
 import { Spin } from 'antd';
+import { withLabelCell } from '../../utils/labelCell';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
+import { readGlobalSetupField } from '../../utils/globalSetupStore';
 import { unwrapResult, astroSymbol, astroSymbolList, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, gridStyle, SmallTable } from './AstroExtraCommon';
 import { buildPatternOverview } from '../../utils/astroPatternOverview';
-import { classicalGlobalValue, fixedStarOrbParamsFor } from '../../utils/classicalChartGlobals';   // [审计修] 恒星轨随全局仓,与导出/挂载三方同口径
+import { classicalGlobalValue, fixedStarOrbParamsFor } from '../../utils/classicalChartGlobals';   // 恒星轨随全局仓,与导出/挂载三方同口径
 import { SIGNS } from '../../divination/data/signs';
+import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 
 // 阿拉伯点中文名(中性词;英文名同列小字便于对照)。
 const LOT_CN = {
@@ -49,10 +52,10 @@ class AstroAnalysisLab extends Component{
 		return chartRequestKey(this.props.value, `analysis|vc:${this.props.voidClassical ? 1 : 0}`);
 	}
 
-	// [SURF-R3e] 重载判据单一实现:didUpdate 与 render 兜底 ensureLoaded 此前各写一份
+	// 重载判据单一实现:didUpdate 与 render 兜底 ensureLoaded 此前各写一份
 	// (后者漏 failedExpired 放行)——同一状态双判据异形,改动必漂移。
 	shouldReload(key){
-		// [SURF-3] failedKey 泊车加 30s 过期:此前同 key 一次失败(如后端启动窗 500)即永不重试,
+		// failedKey 泊车加 30s 过期:此前同 key 一次失败(如后端启动窗 500)即永不重试,
 		// 用户观感=「改档右栏没反应」;过期后允许再试一次,仍失败继续泊车 30s。
 		const failedExpired = this.state.failedKey && (Date.now() - (this._failedAt || 0) > 30000);
 		return !!(key && key !== this.state.requestKey && (key !== this.state.failedKey || failedExpired) && !this.state.loading);
@@ -76,7 +79,9 @@ class AstroAnalysisLab extends Component{
 	}
 
 	async load(){
-		if(this._mounted === false){ return; }   // [SURF-R5g] ensureLoaded 的 setTimeout 在卸载后触发的微窗守卫
+		const seq = ++this._loadSeq || (this._loadSeq = 1);   // 只认最后一次:换盘 / 改参连发时先发的晚回不覆盖
+		const resultSig = natalSourceKey(this.props.value);   // 本次结果出自哪位命主(读时与当前盘比)
+		if(this._mounted === false){ return; }   // ensureLoaded 的 setTimeout 在卸载后触发的微窗守卫
 		if(!this.props.value){
 			return;
 		}
@@ -89,8 +94,8 @@ class AstroAnalysisLab extends Component{
 					// 否则升级后默认态 24h 内命中旧响应(无 hourMode/未过临界区)。
 					_v: 'cls1',
 					...chartParams(this.props.value),
-					// [审计修] 曾硬编 1°:用户改恒星轨后右栏格局 tab 与导出/挂载(皆读全局仓)命中集分叉。
-					// [Q-340/T-321] 随盘优先:载入带随盘轨值/档位的盘(chartObj.params 回显 starOrb/starOrbMode)时按盘取,
+					// 曾硬编 1°:用户改恒星轨后右栏格局 tab 与导出/挂载(皆读全局仓)命中集分叉。
+					// 随盘优先:载入带随盘轨值/档位的盘(chartObj.params 回显 starOrb/starOrbMode)时按盘取,
 					// 否则回落全局仓;档位一并下发(Python fixed_star_hits 已接 byMagnitude)。
 					...fixedStarOrbParamsFor(chartParams(this.props.value)),
 					voidClassical: !!this.props.voidClassical,
@@ -98,10 +103,10 @@ class AstroAnalysisLab extends Component{
 				silent: true,
 				timeoutMs: 30000,
 			});
-			if(!this._mounted) return;
-			this.setState({result: unwrapResult(data) || {}, loading: false, requestKey: key, failedKey: '', failedMsg: ''});
+			if(!this._mounted || seq !== this._loadSeq) return;
+			this.setState({result: unwrapResult(data) || {}, resultSig, loading: false, requestKey: key, failedKey: '', failedMsg: ''});
 		}catch(e){
-			if(!this._mounted) return;
+			if(!this._mounted || seq !== this._loadSeq) return;
 			this._failedAt = Date.now();
 			this.setState({loading: false, failedKey: key, failedMsg: (e && e.message) ? `${e.message}` : ''});
 		}
@@ -205,7 +210,7 @@ class AstroAnalysisLab extends Component{
 					rows={list.slice(0, 120)}
 					columns={[
 						{key: 'label', title: '点', render: (v)=> (
-							<span>{LOT_CN[v] || v}<span style={{opacity: 0.55, fontSize: 11, marginLeft: 6}}>{`${v}`.replace('Pars ', '')}</span></span>
+							<span>{LOT_CN[v] || v}<span style={{color: 'var(--horosa-text-secondary)', fontSize: 11, marginLeft: 6}}>{`${v}`.replace('Pars ', '')}</span></span>
 						)},
 						{key: 'category', title: '题', render: (v)=> v || '其它'},
 						{key: 'sign', title: '位置', render: (_v, row)=>fmtDegree(row)},
@@ -225,11 +230,12 @@ class AstroAnalysisLab extends Component{
 					rows={list.slice(0, 80)}
 					columns={[
 						{key: 'star', title: '恒星', render: (v, row)=> (
-							<span>{row.cn || v}<span style={{opacity: 0.5, fontSize: 11, marginLeft: 6}}>{v}</span></span>
+							<span>{row.cn || v}<span style={{color: 'var(--horosa-text-secondary)', fontSize: 11, marginLeft: 6}}>{v}</span></span>
 						)},
 						{key: 'attr', title: '属性', render: (_v, row)=>{
-							if(row.royal) return <span style={{color: 'var(--horosa-gold, #b8860b)'}}>{`王·${row.royal} ${row.nature}`}</span>;
-							if(row.behenian) return <span style={{color: 'var(--horosa-jade, #3a9a6a)'}}>{`比尼 ${row.nature}`}</span>;
+							// 属性标签走短标签折行单源(utils/labelCell):「王·南 金·水」只在间隔号 / 空格处换行,窄表列里不再逐字竖排
+							if(row.royal){ const t = `王·${row.royal} ${row.nature}`; return <span style={withLabelCell({color: 'var(--horosa-gold, #b8860b)'}, t)}>{t}</span>; }
+							if(row.behenian){ const t = `比尼 ${row.nature}`; return <span style={withLabelCell({color: 'var(--horosa-jade, #3a9a6a)'}, t)}>{t}</span>; }
 							return '—';
 						}},
 						{key: 'point', title: '触发点', render: (val)=>astroSymbol(val)},
@@ -329,7 +335,7 @@ class AstroAnalysisLab extends Component{
 				{items.map((d, i)=> <div key={`${title}-${i}`}>{fn(d)}</div>)}
 			</div>
 		) : null);
-		const muted = (txt) => (txt ? <span style={{opacity: 0.65, fontSize: 11, marginLeft: 4}}>{txt}</span> : null);
+		const muted = (txt) => (txt ? <span style={{color: 'var(--horosa-text-secondary)', fontSize: 11, marginLeft: 4}}>{txt}</span> : null);
 		return (
 			<div style={cardStyle}>
 				<div className="horosa-info-card-title">相位动态 Aspect Dynamics</div>
@@ -379,7 +385,7 @@ class AstroAnalysisLab extends Component{
 			);
 		}
 		const rows = ph.hours;
-		// [SURF-R1a] 昼夜分组按 h.diurnal 真值,不再按下标切 12+12:默认档已是 sunrise 等长制,
+		// 昼夜分组按 h.diurnal 真值,不再按下标切 12+12:默认档已是 sunrise 等长制,
 		// 短昼盘昼弧≠12 行,旧「index-12」在昼列尾出 -1/0 假标签。夜序=组内序号;
 		// 表头标注制式(equal24 无昼夜弧语义,单列 24 行)。
 		const hourModeLabel = ({ sunrise: '日出起等长', unequal: '昼夜不等时', equal24: '廿四时等分' })[ph.hourMode] || '';
@@ -388,7 +394,7 @@ class AstroAnalysisLab extends Component{
 		const single = ph.hourMode === 'equal24';
 		const col = (arc, title)=> (
 			<div>
-				<div style={{fontSize: 11, opacity: 0.6, marginBottom: 3}}>{title}</div>
+				<div style={{fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 3}}>{title}</div>
 				{arc.map((h, i)=> (
 					<div key={h.index} style={{
 						display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -396,7 +402,7 @@ class AstroAnalysisLab extends Component{
 						background: h.current ? 'rgba(184,134,11,.16)' : 'transparent',
 						fontWeight: h.current ? 600 : 400,
 					}}>
-						<span><span style={{opacity: 0.5, fontSize: 11, marginRight: 4}}>{single ? h.index - 1 : i + 1}</span>{astroSymbol(h.ruler)}</span>
+						<span><span style={{color: 'var(--horosa-text-secondary)', fontSize: 11, marginRight: 4}}>{single ? h.index - 1 : i + 1}</span>{astroSymbol(h.ruler)}</span>
 						<span style={{opacity: 0.7, fontSize: 11}}>{`${h.start.slice(0, 5)}`}</span>
 					</div>
 				))}
@@ -432,7 +438,7 @@ class AstroAnalysisLab extends Component{
 				<div className="horosa-info-card-title">参照星定位 Reference Stars</div>
 				<SmallTable rows={list} rowKey={(r)=>r.planet} columns={[
 					{ key: 'planet', title: '行星', render: (v)=>astroSymbol(v) },
-					{ key: 'cn', title: '参照星', render: (v, row)=> <span>{v || row.star}<span style={{opacity: 0.5, fontSize: 11, marginLeft: 4}}>{row.star}</span></span> },
+					{ key: 'cn', title: '参照星', render: (v, row)=> <span>{v || row.star}<span style={{color: 'var(--horosa-text-secondary)', fontSize: 11, marginLeft: 4}}>{row.star}</span></span> },
 					{ key: 'dist', title: '黄经距', render: (v, row)=> <span>{fmtNum(v)}°{row.conj ? <span style={{color: 'var(--horosa-gold, #b8860b)', marginLeft: 4}}>合</span> : null}</span> },
 					// 楔文读法(定名距星表升级新增;老数据无此键时列空,零回归)
 					{ key: 'cubits', title: '楔文读法', render: (v, row)=> (row.latDir === undefined ? null
@@ -450,8 +456,8 @@ class AstroAnalysisLab extends Component{
 			<div style={cardStyle}>
 				<div className="horosa-info-card-title">埃及历法 Egyptian Calendar</div>
 				<div style={{lineHeight: 1.95}}>
-					<div>天狼偕日升 <span style={{opacity: 0.6, fontSize: 11}}>埃及岁首</span>：{e.siriusRising || '—'}{e.siriusYear ? <span style={{opacity: 0.6, fontSize: 11, marginLeft: 4}}>（{e.siriusYear}）</span> : null}</div>
-					{e.decanIndex ? <div>上升十分宫：第 {e.decanIndex} 旬 · {astroSymbol(e.decanSign)} · 主 {astroSymbol(e.decanRuler)}<span style={{opacity: 0.6, fontSize: 11, marginLeft: 6}}>夜时主十分宫</span></div> : null}
+					<div>天狼偕日升 <span style={{color: 'var(--horosa-text-secondary)', fontSize: 11}}>埃及岁首</span>：{e.siriusRising || '—'}{e.siriusYear ? <span style={{color: 'var(--horosa-text-secondary)', fontSize: 11, marginLeft: 4}}>（{e.siriusYear}）</span> : null}</div>
+					{e.decanIndex ? <div>上升十分宫：第 {e.decanIndex} 旬 · {astroSymbol(e.decanSign)} · 主 {astroSymbol(e.decanRuler)}<span style={{color: 'var(--horosa-text-secondary)', fontSize: 11, marginLeft: 6}}>夜时主十分宫</span></div> : null}
 				</div>
 			</div>
 		);
@@ -464,7 +470,7 @@ class AstroAnalysisLab extends Component{
 		if(!chartObj || !chartObj.chart){ return null; }
 		// 「仅按本垣擢升计算互容接纳」与信息 tab 同步:先验权力等取自联结,口径须一致。
 		let onlyRulExalt = false;
-		try{ const s = JSON.parse((typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem(Constants.GlobalSetupKey)) || '{}'); onlyRulExalt = !!(s && (s.showOnlyRulExaltReception === 1 || s.showOnlyRulExaltReception === true)); }catch(e){ onlyRulExalt = false; }
+		try{ const v = readGlobalSetupField('showOnlyRulExaltReception'); onlyRulExalt = v === 1 || v === true; }catch(e){ onlyRulExalt = false; }
 		let data;
 		try{ data = buildPatternOverview(chartObj.chart, chartObj, { onlyRulExalt }); }catch(e){ return null; }
 		if(!data || data.empty){ return null; }
@@ -486,9 +492,9 @@ class AstroAnalysisLab extends Component{
 						d.kind === '龙拥' ? <span>龙拥{muted(d.note || '七星聚一侧')}</span>
 						: d.pair ? <span>龙截 {d.pair.map((x, i)=> <span key={i}>{g(x)}</span>)}{muted('两星联结')}</span>
 						: <span>龙截 {g(d.lone)}{muted(`${sc(d.loneSign)}${d.loneHouse ? `·${d.loneHouse}宫` : ''}${(d.loneRules && d.loneRules.length) ? `·主${d.loneRules.join('/')}宫` : ''}`)}</span>
-					) : <span style={{opacity: 0.6}}>无龙截/龙拥{d && d.reason ? muted(d.reason) : null}</span>}</div>
-					<div>孤月独明：{lm && lm.has ? <span>{g('Moon')}{muted('夜生·唯月在地平上')}</span> : <span style={{opacity: 0.6}}>否{lm && lm.reason ? muted(lm.reason) : (lm ? muted(`地平上${lm.aboveCount}星`) : null)}</span>}</div>
-					<div>先验权力：{ap.has ? <span>{ap.links.map((lk, i)=> <span key={i} style={{marginRight: 10}}>{g(lk.a)}<span style={{opacity: 0.7, margin: '0 2px'}}>{lk.kind}</span>{g(lk.b)}{muted(`${lk.which}联结`)}</span>)}{ap.eightKill ? <span style={{color: 'var(--horosa-gold, #b8860b)'}}>夜生·八杀朝天大贵</span> : muted('昼生·非八杀朝天')}</span> : <span style={{opacity: 0.6}}>无{muted('8·12 或 8·1 之联结')}</span>}</div>
+					) : <span style={{color: 'var(--horosa-text-secondary)'}}>无龙截/龙拥{d && d.reason ? muted(d.reason) : null}</span>}</div>
+					<div>孤月独明：{lm && lm.has ? <span>{g('Moon')}{muted('夜生·唯月在地平上')}</span> : <span style={{color: 'var(--horosa-text-secondary)'}}>否{lm && lm.reason ? muted(lm.reason) : (lm ? muted(`地平上${lm.aboveCount}星`) : null)}</span>}</div>
+					<div>先验权力：{ap.has ? <span>{ap.links.map((lk, i)=> <span key={i} style={{marginRight: 10}}>{g(lk.a)}<span style={{opacity: 0.7, margin: '0 2px'}}>{lk.kind}</span>{g(lk.b)}{muted(`${lk.which}联结`)}</span>)}{ap.eightKill ? <span style={{color: 'var(--horosa-gold, #b8860b)'}}>夜生·八杀朝天大贵</span> : muted('昼生·非八杀朝天')}</span> : <span style={{color: 'var(--horosa-text-secondary)'}}>无{muted('8·12 或 8·1 之联结')}</span>}</div>
 				</div>
 			</div>
 		);
@@ -498,8 +504,8 @@ class AstroAnalysisLab extends Component{
 		const compLine = (label, comp) => comp ? (
 			<div>
 				<span style={{opacity: 0.8}}>{label}</span>
-				<span style={{marginLeft: 6}}>东升 {comp.oriental.length ? comp.oriental.map((x, i)=> <span key={i}>{g(x)}</span>) : <span style={{opacity: 0.6}}>无</span>}</span>
-				<span style={{marginLeft: 10}}>西没 {comp.occidental.length ? comp.occidental.map((x, i)=> <span key={i} style={{fontWeight: x === comp.firstOccidental ? 700 : 400}}>{g(x)}</span>) : <span style={{opacity: 0.6}}>无</span>}</span>
+				<span style={{marginLeft: 6}}>东升 {comp.oriental.length ? comp.oriental.map((x, i)=> <span key={i}>{g(x)}</span>) : <span style={{color: 'var(--horosa-text-secondary)'}}>无</span>}</span>
+				<span style={{marginLeft: 10}}>西没 {comp.occidental.length ? comp.occidental.map((x, i)=> <span key={i} style={{fontWeight: x === comp.firstOccidental ? 700 : 400}}>{g(x)}</span>) : <span style={{color: 'var(--horosa-text-secondary)'}}>无</span>}</span>
 			</div>
 		) : null;
 		cards.push(
@@ -521,7 +527,7 @@ class AstroAnalysisLab extends Component{
 				{title('吉凶格局')}
 				<div style={body}>
 					{j && j.present ? <div>强吉木星：{g('Jupiter')}{muted(`${j.strong ? '强吉' : '非强吉'}·${sc(j.sign)}${j.dign ? `·${j.dign}` : ''}${(j.ruleHouses && j.ruleHouses.length) ? `·主${j.ruleHouses.join('/')}宫` : ''}`)} 照耀{j.litCount}星 {j.lit.map((x, i)=> <span key={i}>{g(x)}</span>)}</div> : null}
-					<div>后天凶星：{af.length ? af.map((x, i)=> <span key={i}>{g(x)}</span>) : <span style={{opacity: 0.6}}>无</span>}{muted('主6/8/12宫者')}</div>
+					<div>后天凶星：{af.length ? af.map((x, i)=> <span key={i}>{g(x)}</span>) : <span style={{color: 'var(--horosa-text-secondary)'}}>无</span>}{muted('主6/8/12宫者')}</div>
 					<div style={{opacity: 0.7}}>先验：凶 {g('Mars')}{g('Saturn')}　吉 {g('Venus')}{g('Jupiter')}</div>
 				</div>
 			</div>
@@ -545,9 +551,14 @@ class AstroAnalysisLab extends Component{
 		return cards;
 	}
 
+	// 出自当前命主的结果才用:换盘后新结果在途 / 取失败时 state 里是上一位命主的 → 当没有(同一命主只改设置仍旧表留存)
+	shownResult(){
+		return pickKeyedDerived(this.state.result, this.state.resultSig, natalSourceKey(this.props.value));
+	}
+
 	render(){
 		this.ensureLoaded();
-		const result = this.state.result || {};
+		const result = this.shownResult() || {};
 		return (
 			<Spin spinning={this.state.loading}>
 				<div style={{height: this.props.height || 560, overflow: 'auto', paddingRight: 8, paddingBottom: 28}}>

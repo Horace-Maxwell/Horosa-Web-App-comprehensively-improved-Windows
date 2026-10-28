@@ -1,4 +1,4 @@
-// AI 对话·回答审阅(C6;借鉴 Codex / Claude Code /review)页面钩子:
+// AI 对话·回答审阅(C6)页面钩子:
 //   run(item):找到这条回答对应的提问 → 复用 buildResolvedPrompt 得同一份挂载数据 system(前缀同构吃缓存)→ 页面注入的确定性问题(deterministicIssues;公版无=[])
 //     → 审阅模型 = 路由 review 槽 > 跨家族 > 当前(非流式,json_schema strict,零工具)→ 批注落在该 assistant 消息 .review。
 //   rewrite(item):buildRewriteDirective 进 extraSystemContext(只这一轮)→ 单路流不带工具 → 新气泡 rewriteOf=原 id;原气泡保留并标 supersededBy(主线历史只带重写稿)。
@@ -7,7 +7,7 @@ import { message } from 'antd';
 import { requestAIAnalysisChatStream, requestAIAnalysisChat } from '../../../services/aianalysis';
 import { saveConversationMessage } from '../../../utils/aiAnalysisStore';
 import { createStreamFlusher } from '../../../utils/aiStreamFlush';
-import { applyThinkingLevel, parseModelSelection, applyChatParams } from '../../../utils/aiAnalysisProviders';   // [Q-045] 浮层参数单源
+import { applyThinkingLevel, parseModelSelection, applyChatParams } from '../../../utils/aiAnalysisProviders';   // 浮层参数单源
 import { applyResponseSchema, requestStructuredWithFallback } from '../../../utils/aiStructuredOutput';
 import { readModelRoutes, providerOptionsForSlot } from '../../../utils/aiModelRouting';
 import { REVIEW_SCHEMA, buildReviewSystemPrompt, buildReviewUserPrompt, pickReviewModel, parseReview, buildRewriteDirective } from '../../../utils/aiReview';
@@ -49,7 +49,7 @@ export function useChatReview(depsRef, { mainline } = {}){
 		busyRef.current = item.id; setBusy(item.id);
 		patchMessage(item.id, (m)=>({ ...m, review: { ...(m.review || {}), status: 'running' } }));
 		try{
-			// [Q-324] 审阅是旁路:借同一份 system(前缀同构吃缓存)但不写页面态
+			// 审阅是旁路:借同一份 system(前缀同构吃缓存)但不写页面态
 			const _buildPrompt = typeof d.buildResolvedPromptQuiet === 'function' ? d.buildResolvedPromptQuiet : d.buildResolvedPrompt;
 			const promptResult = typeof _buildPrompt === 'function' ? await _buildPrompt(q.text, profile, undefined) : { systemPrompt: '' };
 			let det = [];
@@ -57,7 +57,7 @@ export function useChatReview(depsRef, { mainline } = {}){
 			const pick = pickReviewModel({ routes: readModelRoutes(), providerProfiles: d.providerProfiles, profile, model });
 			const hasData = !!d.activeSource;
 			const system = buildReviewSystemPrompt({ snapshotSystem: promptResult && promptResult.systemPrompt, deterministicIssues: det, hasData });
-			// [D1] 审阅槽的思考档/推理档/温度/输出上限经单源施加(槽空=今日字节)
+			// 审阅槽的思考档/推理档/温度/输出上限经单源施加(槽空=今日字节)
 			let opts = providerOptionsForSlot('review', pick.profile, pick.model, { applyThinkingLevel });
 			opts = applyResponseSchema(opts, { name: 'answer_review', schema: REVIEW_SCHEMA });
 			opts.requestTimeoutMs = 90000;
@@ -88,7 +88,7 @@ export function useChatReview(depsRef, { mainline } = {}){
 		if(cur.supersededBy){ message.info('这条回答已经按审阅重写过了'); return true; }
 		if(d.sending || rewritingRef.current){ message.warning('正在生成,稍后再试'); return true; }
 		const { profile, model } = currentModel();
-		const _buildPrompt2 = typeof d.buildResolvedPromptQuiet === 'function' ? d.buildResolvedPromptQuiet : d.buildResolvedPrompt;   // [Q-324]
+		const _buildPrompt2 = typeof d.buildResolvedPromptQuiet === 'function' ? d.buildResolvedPromptQuiet : d.buildResolvedPrompt;
 		if(!profile || !model || !d.activeConversation || typeof _buildPrompt2 !== 'function'){ message.warning('请先选择可用模型'); return true; }
 		const list = d.messages || [];
 		const idx = list.findIndex((m)=>m && m.id === cur.id);
@@ -103,10 +103,10 @@ export function useChatReview(depsRef, { mainline } = {}){
 			if(typeof d.setMessages === 'function'){ d.setMessages((prev)=>prev.concat(placeholder)); }
 			// 历史 = 原回答之前的主线(以这条提问收尾),不含被替代稿
 			const base = list.slice(0, idx);
-			// [Q-045] 同式带上历史图片(此前「按审阅重写」看不到原对话里的图)
+			// 同式带上历史图片(此前「按审阅重写」看不到原对话里的图)
 			const history = (typeof mainline === 'function' ? mainline(base) : base).filter((m)=>m && (m.role === 'user' || m.role === 'assistant') && m.streamStatus !== 'streaming' && `${historyContentOf(m) || ''}`.trim()).map((m)=>({ role: m.role, content: historyContentOf(m), ...(Array.isArray(m.images) && m.images.length ? { images: m.images } : {}) }));
 			if(!history.length || history[history.length - 1].role !== 'user'){ history.push({ role: 'user', content: q.text }); }
-			// [Q-287/PP-11] 按审阅重写(用当前主选模型发)的历史同样经窗口策略(此前全量直拼;legacy 档零裁剪)
+			// 按审阅重写(用当前主选模型发)的历史同样经窗口策略(此前全量直拼;legacy 档零裁剪)
 			let msgs = [{ role: 'system', content: `${promptResult.systemPrompt || ''}` }].concat(history);
 			try{
 				msgs = windowChatMessages(msgs, {
@@ -115,7 +115,7 @@ export function useChatReview(depsRef, { mainline } = {}){
 					policy: readContextPolicy(), replayTrace: false,
 				}).messages;
 			}catch(e){ /* 窗口失败保留全量 */ }
-			// [Q-045] 与主发送同一份 applyChatParams(此前停止序列 / 两惩罚在「按审阅重写」上是死的);
+			// 与主发送同一份 applyChatParams(此前停止序列 / 两惩罚在「按审阅重写」上是死的);
 			// 重写走单路流、不挂 response_format,故 withJsonMode:false。
 			let opts = applyChatParams(applyThinkingLevel({ ...(profile.providerOptions || {}) }, d.thinkingLevel || 'off', profile.providerType, model), {
 				profile, model,

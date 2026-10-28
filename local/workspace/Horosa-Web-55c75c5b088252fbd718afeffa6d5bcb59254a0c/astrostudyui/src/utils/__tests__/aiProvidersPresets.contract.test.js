@@ -1,4 +1,4 @@
-// [D63] 供应商预设表驱动合同:十二家预设形状(标签/协议家族/缺省聊天模型)、计价表命中(有价目的家族缺省模型必须能估价)、
+// 供应商预设表驱动合同:十二家预设形状(标签/协议家族/缺省聊天模型)、计价表命中(有价目的家族缺省模型必须能估价)、
 //   超时缺省为正;思考档映射对每家缺省模型不抛。此前 8 家 defaultChatModels / 11 家 embedding / 44 行价目零断言。
 import { PROVIDER_PRESETS, PROVIDER_OPTIONS, getProviderPreset, getProviderDefaultChatModels, getProviderDefaultEmbeddingModels, getProviderProtocolFamily, estimateUsageCost, applyThinkingLevel, THINKING_LEVELS, isDeepseekV4Model, anthropicThinkingOffForm } from '../aiAnalysisProviders';
 
@@ -54,7 +54,7 @@ it('思考档映射对每家缺省首模型不抛;off 档的按家形态(DeepSee
 		if(isDeepseekV4Model(model, k)){
 			expect(off.thinking).toEqual({ type: 'disabled' });
 		}else if(k === 'anthropic'){
-			// [Q-050/M-55] Anthropic 关闭档按官方每型号表:Sonnet 5 / Opus 5 发 disabled;Opus 4.7-4.8 与预算族不发字段;
+			// Anthropic 关闭档按官方每型号表:Sonnet 5 / Opus 5 发 disabled;Opus 4.7-4.8 与预算族不发字段;
 			//   Fable / Mythos 思考恒开不可关 → 不发 thinking、改 output_config.effort='low'。其余键原样。
 			expect(off.a).toBe(1);
 			const mode = anthropicThinkingOffForm(model);

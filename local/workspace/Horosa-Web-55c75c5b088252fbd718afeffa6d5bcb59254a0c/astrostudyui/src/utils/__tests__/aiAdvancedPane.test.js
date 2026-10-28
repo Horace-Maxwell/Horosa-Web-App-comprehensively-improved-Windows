@@ -11,26 +11,31 @@ import ChatModelRoutesPanel from '../../components/aianalysis/chat/ChatModelRout
 import BestOfPanel from '../../components/aianalysis/chat/BestOfPanel';
 import SkillPackPanel from '../../components/aianalysis/chat/SkillPackPanel';
 import ChatContextPolicyPanel from '../../components/aianalysis/chat/ChatContextPolicyPanel';
+const { readSource, fnBody: fnBodyOf } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const SRC = path.resolve(__dirname, '..', '..');
-const read = (rel)=>fs.readFileSync(path.join(SRC, rel), 'utf8');
+const read = (rel)=>readSource(path.join(SRC, rel));
+const { jsxNodesInFile } = require('./helpers/jsxProps');
 const strip = (t)=>t.split('\n').map((l)=>l.replace(/\/\/.*$/, '')).join('\n');
+// 只截这个函数自己(花括号配平);不拿「下一个 \n\tfunction 」当终点 —— 全集里后面接什么由拆分决定
 function fnBody(src, name){
-	const i = src.indexOf(`function ${name}(`);
-	expect(i).toBeGreaterThan(0);
-	const j = src.indexOf('\n\tfunction ', i + 10);
-	return src.slice(i, j > 0 ? j : undefined);
+	const body = fnBodyOf(src, `function ${name}(`);
+	expect(body).toBeTruthy();
+	return body;
 }
 
 describe('进阶页 · 插座迁移与页签(源码结构锁)', ()=>{
 	const main = strip(read('components/aianalysis/AIAnalysisMain.js'));
 	test('🔴 两处插座字面各恰一处,且都在 renderAdvancedPane 内;设置页不再含它们', ()=>{
 		expect((main.match(/\{chatAssist\.settingsPanels\}/g) || []).length).toBe(1);
-		expect((main.match(/<AgentAbilityPanel \/>/g) || []).length).toBe(1);
+		const mainFile = path.join(SRC, 'components/aianalysis/AIAnalysisMain.js');
+		const agentPanels = jsxNodesInFile(mainFile, 'AgentAbilityPanel');
+		expect(agentPanels.length).toBe(1);
+		expect(agentPanels[0].fns).toContain('renderAdvancedPane');
 		const adv = fnBody(main, 'renderAdvancedPane');
 		expect(adv).toContain('{chatAssist.settingsPanels}');
 		expect(adv).toContain('<AgentAbilityPanel />');
-		expect(adv).toMatch(/<AdvancedPane(\s[^>]*)?>/);   // [Q-294·AR-19] 外壳带 personaInjecting 属性
+		expect(jsxNodesInFile(mainFile, 'AdvancedPane').some((e)=>e.fns.includes('renderAdvancedPane'))).toBe(true);   // 外壳带 personaInjecting 属性
 		const settings = fnBody(main, 'renderSettingsPane');
 		expect(settings).not.toContain('chatAssist.settingsPanels');
 		expect(settings).not.toContain('<AgentAbilityPanel');
@@ -84,7 +89,7 @@ describe('进阶页 · 外壳与设置卡(jsdom 渲染)', ()=>{
 		expect(host.querySelector('[data-chat-context-policy-panel="1"][data-preset="window"]')).toBeTruthy();   // 缺省=窗口
 		expect(host.querySelector('[data-policy-budget]')).toBeTruthy();
 		expect(host.querySelector('[data-model-routes-panel="1"][data-active="0"]')).toBeTruthy();
-		expect(host.querySelectorAll('[data-model-route]').length).toBe(6);
+		expect(host.querySelectorAll('[data-model-route]').length).toBe(7);   // 七槽(第七槽 utility = 辅助短调用)
 		expect(host.querySelector('[data-bestof-panel="1"]')).toBeTruthy();
 		expect(host.querySelector('[data-bestof-mode="1"]')).toBeTruthy();
 		expect(host.querySelector('[data-skill-pack-panel="1"]')).toBeTruthy();
@@ -107,27 +112,27 @@ describe('进阶页 · 外壳与设置卡(jsdom 渲染)', ()=>{
 		expect(host.querySelectorAll('[data-advanced-pills="1"] > span').length).toBe(6);
 		expect(host.querySelector('[data-advanced-pills="1"]').textContent).toContain('上下文 · 窗口');
 		expect(host.querySelector('[data-advanced-pills="1"]').textContent).toContain('行动能力 · 关');
-		// [2026-09-11] 技能包胶囊:真值取技能包卡收到的 bundles;零自定义时显示「内置 N」
+		// 技能包胶囊:真值取技能包卡收到的 bundles;零自定义时显示「内置 N」
 		expect(host.querySelector('[data-adv-pill="skills"]').textContent).toContain('技能包 · 内置');
-		// [批四] 版式锚:导轨(六分区)/ 网格 / 未量宽时宽度档为空串(交 @media 兜底)
+		// 版式锚:导轨(六分区)/ 网格 / 未量宽时宽度档为空串(交 @media 兜底)
 		expect(host.querySelector('[data-advanced-nav="1"]')).toBeTruthy();
 		expect(host.querySelectorAll('[data-adv-nav]').length).toBe(6);
 		expect(host.querySelector('[data-advanced-grid="1"]')).toBeTruthy();
 		expect(host.querySelector('[data-advanced-pane="1"]').getAttribute('data-adv-w')).toBe('');
 	});
 
-	test('[批四] 路由表头 / 行动能力折叠区两枚版式锚在位(自动化与视觉脚本按它们定位)', ()=>{
+	test('路由表头 / 行动能力折叠区两枚版式锚在位(自动化与视觉脚本按它们定位)', ()=>{
 		const profiles = [{ id: 'p1', name: '甲', enabled: true, chatModelIds: ['m1'] }];
 		act(()=>{ ReactDOM.render(<ChatModelRoutesPanel providerProfiles={profiles} />, host); });
 		expect(host.querySelector('[data-route-grid="1"]')).toBeTruthy();
 		expect(host.querySelectorAll('[data-route-grid-head="1"] > span').length).toBe(7);
-		expect(host.querySelectorAll('[data-model-route]').length).toBe(6);
+		expect(host.querySelectorAll('[data-model-route]').length).toBe(7);   // 七槽(第七槽 utility = 辅助短调用)
 		expect(read('components/aianalysis/AgentAbilityPanel.js')).toContain('data-agent-collapse="1"');
 	});
 });
 
-// ---- [进阶审计 D4] hero 胶囊「模型路由」与卡内芯片同口径 ----
-describe('[D4] 胶囊·模型路由口径', ()=>{
+// ---- hero 胶囊「模型路由」与卡内芯片同口径 ----
+describe('胶囊·模型路由口径', ()=>{
 	let host;
 	beforeEach(()=>{ window.localStorage.clear(); host = document.createElement('div'); document.body.appendChild(host); });
 	afterEach(()=>{ act(()=>{ ReactDOM.unmountComponentAtNode(host); }); host.remove(); window.localStorage.clear(); });

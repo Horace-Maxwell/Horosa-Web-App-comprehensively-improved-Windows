@@ -198,14 +198,15 @@ def test_hua_lu_moon_short_window():
 
 
 def test_bc_era_minute_not_truncated():
-    """BC 5 位天文年('-1043-…')输出剁秒必须 rsplit(曾 [:16] 截掉分钟个位)。"""
+    """公元前输出剁秒必须 rsplit(曾 [:16] 截掉分钟个位);输出串与输入同一口径(历史纪年 + 儒略历):
+    ad=-1 的 1044-06-01 = 公元前 1044 年 6 月 1 日,输出 '-1044-06-01 …'(不是天文年 '-1043-…')。"""
     import re
     r = scan(dict(GEO, ad=-1, startDate='1044-06-01', endDate='1044-06-02',
                   conditions={'type': 'body_in_gong',
                               'params': {'body': '木', 'values': list('子丑寅卯辰巳午未申酉戌亥')}}))
     ivs = r.get('intervals') or []
     assert ivs
-    assert ivs[0]['start'].startswith('-1043-')
+    assert ivs[0]['start'].startswith('-1044-06-01 ')
     assert re.search(r'\d{2}:\d{2}$', ivs[0]['start'])
 
 def test_w7_dignity_seven_and_speed_gears():
@@ -230,7 +231,7 @@ def test_w7_dignity_seven_and_speed_gears():
 
 
 def test_dignity_seven_four_yu_short_names_do_not_raise():
-    # [Q-269/T-255] 条件表「曜」选 计/罗/炁/孛(单字)此前整次搜索 unknown body;别名归一后可扫且区间良构
+    # 条件表「曜」选 计/罗/炁/孛(单字)此前整次搜索 unknown body;别名归一后可扫且区间良构
     for body in ('计', '罗', '炁', '孛'):
         ivs = _EVALUATORS['dignity_seven']({'body': body, 'values': ['庙', '旺', '乐', '喜', '怒']}, _ctx(), (JD_ANCHOR, JD_ANCHOR + 2.0))
         for a, b in ivs:
@@ -243,7 +244,7 @@ def test_dignity_seven_four_yu_short_names_do_not_raise():
 
 
 def test_hua_lu_year_stem_by_true_lichun():
-    # [Q-422/T-386] 化曜条件年干按真立春(太阳视黄经 315°)定界,不再按公历 2/4 0 时粗界。
+    # 化曜条件年干按真立春(太阳视黄经 315°)定界,不再按公历 2/4 0 时粗界。
     import swisseph
     from astrostudy import qizheng_election_scan as q
     jd = q._lichun_jd(2024)
@@ -260,7 +261,7 @@ def test_hua_lu_year_stem_by_true_lichun():
 
 
 def test_zc20_stationary_uses_per_body_stat_threshold():
-    """[Q-271/ZC-20] 五星「留」阈=主七政页逐曜 stat(土 .05):2026 年土星留窗按 .05 判必宽于 .02 判;
+    """五星「留」阈=主七政页逐曜 stat(土 .05):2026 年土星留窗按 .05 判必宽于 .02 判;
     显式 threshold 仍优先(=.02 时与旧行为同);月孛/紫炁无谱仍 0.02。"""
     base = dict(GEO, startDate='2026-07-04', endDate='2026-09-30')   # 土星 2026-07 留逆窗(单请求 ≤93 天)
     wide = scan(dict(base, conditions={'type': 'speed_state', 'params': {'body': '土', 'state': 'stationary'}}))

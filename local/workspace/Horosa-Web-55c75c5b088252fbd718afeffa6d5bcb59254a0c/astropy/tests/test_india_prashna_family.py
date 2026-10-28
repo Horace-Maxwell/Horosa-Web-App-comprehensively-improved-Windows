@@ -89,7 +89,7 @@ def test_judge_matter_verdicts():
 
 
 def test_significators_row_key_contract():
-    """🔴 契约钉死:significators() 每曜出参键集 == {A,B,C,D,ranked},**没有 'houses'**。
+    """🔴 契约钉死:significators() 每曜出参键集 == {A,B,C,D,ranked,influenced},**没有 'houses'**。
     prashna 装配曾误取 .get('houses') → 恒 [] → CSL 裁决整条死掉(见下一条测试)。
     任何一方改键名都在此处红,不会再悄悄退化成死判据。"""
     from astrostudy.india.kp_system import significators
@@ -98,7 +98,7 @@ def test_significators_row_key_contract():
         'Mars': {'sign': 5, 'house': 5, 'starLord': 'Sun', 'ownHouses': [1, 8]},
     })
     for key, row in rows.items():
-        assert set(row.keys()) == {'A', 'B', 'C', 'D', 'ranked'}, (key, sorted(row.keys()))
+        assert set(row.keys()) == {'A', 'B', 'C', 'D', 'ranked', 'influenced'}, (key, sorted(row.keys()))
         assert 'houses' not in row, key
         # ranked 是 A>B>C>D 合并去重 → 恒为各级并集
         assert set(row['ranked']) == set(row['A']) | set(row['B']) | set(row['C']) | set(row['D']), key
@@ -215,7 +215,7 @@ def test_T16_zero_regression_gate():
     res = build_jyotish(kernel)
     FROZEN = {
         'engine', 'panchanga', 'nakshatras', 'yogas', 'dasha', 'rasiDasha',
-        'grahaDrishti', 'nodeRasiDrishti', 'ashtakavarga', 'shadbala', 'shadbalaBphs',
+        'grahaDrishti', 'nodeRasiDrishti', 'ashtakavarga', 'shadbalaBphs',
         'strengths', 'jaimini', 'arudha', 'kp', 'prasna', 'muhurta', 'transit',
         'upagraha', 'supplementaryLagnas', 'remedies', 'functionalNature', 'bhavaBala',
         'extendedDashas', 'grahaYuddha', 'kartari', 'sudarshana', 'grahaMaitri',

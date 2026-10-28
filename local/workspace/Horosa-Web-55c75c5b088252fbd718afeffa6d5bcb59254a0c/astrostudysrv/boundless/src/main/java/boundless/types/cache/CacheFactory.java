@@ -122,7 +122,7 @@ public class CacheFactory {
 	
 	
 	private static ICacheFactory build(String factoryclass, String conffilepath){
-		// [R3-B1] 惰性档(horosa.cache.lazyinit=true / env HOROSA_CACHE_LAZYINIT):
+		// 惰性档(horosa.cache.lazyinit=true / env HOROSA_CACHE_LAZYINIT):
 		// 返回代理,真工厂(驱动初始化)延到首用 —— 桌面启动 refresh 段 -~490ms;
 		// 缺省 false = 服务器部署饿构造行为逐字节不变。
 		if(lazyInitEnabled()){

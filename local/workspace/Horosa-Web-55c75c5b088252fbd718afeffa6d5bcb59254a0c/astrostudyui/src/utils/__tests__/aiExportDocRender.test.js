@@ -1,4 +1,4 @@
-// [A2] docx 正文行内样式契约:**粗**/*斜*/`码` 必须转真样式 run(w:b / w:i / Courier New),
+// docx 正文行内样式契约:**粗**/*斜*/`码` 必须转真样式 run(w:b / w:i / Courier New),
 // 星号/反引号字面绝不出现在 document.xml——此前正文段落裸 TextRun 原样输出记号,
 // 与同文件表格单元格(走 mdInlineToRuns)自相矛盾。解包真 docx(zip)断言,不测中间层。
 import JSZip from 'jszip';
@@ -21,7 +21,7 @@ async function docxXmlOf(text){
 	return zip.file('word/document.xml').async('string');
 }
 
-describe('[A2] aiExportDocRender 正文行内样式', ()=>{
+describe('aiExportDocRender 正文行内样式', ()=>{
 	test('正文段落:粗/斜/码 转真样式,记号字面不落 xml', async ()=>{
 		const xml = await docxXmlOf([
 			'==== 内容开始 ====',
@@ -52,9 +52,9 @@ describe('[A2] aiExportDocRender 正文行内样式', ()=>{
 		expect(xml).not.toContain('**');
 	});
 
-	// [E5] 此前 subhead/note/kv 三块型裸 TextRun:`◆ **重点**` 的星号字面落 xml;
+	// 此前 subhead/note/kv 三块型裸 TextRun:`◆ **重点**` 的星号字面落 xml;
 	// kv 的 `**引导词**：` 星号被 KV_RE 吃进 key 后原样输出(又星号又加粗,双重丑)。
-	test('[E5] subhead/note/kv 三块型:行内记号消化、真样式在位', async ()=>{
+	test('subhead/note/kv 三块型:行内记号消化、真样式在位', async ()=>{
 		const xml = await docxXmlOf([
 			'==== 内容开始 ====',
 			'【要点】',
@@ -71,7 +71,7 @@ describe('[A2] aiExportDocRender 正文行内样式', ()=>{
 	});
 });
 
-describe('[E5] 样式化/打印 PDF DOM 行内样式', ()=>{
+describe('样式化/打印 PDF DOM 行内样式', ()=>{
 	test('各块型 <b> 真样式,textContent 无字面记号', ()=>{
 		const nodes = renderExportDocToPdfNodes({ tech: '测试', text: [
 			'==== 内容开始 ====',

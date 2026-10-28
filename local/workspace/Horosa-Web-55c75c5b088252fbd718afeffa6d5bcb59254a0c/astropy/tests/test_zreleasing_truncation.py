@@ -1,4 +1,4 @@
-# [Q-362/T-343] 黄道释放:末段子期按父期截断(下级同截)并打 truncated 标;
+# 黄道释放:末段子期按父期截断(下级同截)并打 truncated 标;
 # 此前只让游标少走、子项 days 保留全长 → 每个 L1 的末 L2 讫日超出所属 L1 90–390 天。
 from flatlib import const
 from flatlib.datetime import Datetime

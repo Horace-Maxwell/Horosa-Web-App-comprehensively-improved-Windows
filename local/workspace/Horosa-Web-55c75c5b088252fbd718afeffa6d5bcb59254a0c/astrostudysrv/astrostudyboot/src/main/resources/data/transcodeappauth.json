@@ -12,8 +12,5 @@
 	],
 		
 	"transCodes": {
-		"/door/locktrigger": ["spacex_home"],
-		"/astroreader/flvurl": ["spacex_home"],
-		"/astroreader/restartlive": ["spacex_home"]
 	}
 }

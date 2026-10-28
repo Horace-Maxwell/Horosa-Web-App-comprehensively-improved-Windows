@@ -64,7 +64,7 @@ public class PostStreamHystrixCommand extends HystrixCommand<String> {
 			String url, InputStream ins, 
 			Map<String, String> headers, int timeoutMS){
 		try{
-			RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(HttpClientUtility.getHttpHost()).build();
+			RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(HttpClientUtility.getHttpHostFor(url)).build();
 			HttpClientBuilder builder = null;
 			if(BraveHelper.existZipkin()){
 				builder = BraveHelper.getHttpClientBuilder(url);
@@ -113,7 +113,7 @@ public class PostStreamHystrixCommand extends HystrixCommand<String> {
 
 				return str;
 			}catch(Exception e){
-				HttpClientUtility.log.error("请求{}失败, cause:{}", post.getURI().toString(), e.getMessage());
+				HttpClientUtility.log.error("请求{}失败, cause:{}", boundless.utility.SecretRedactor.redactText(post.getURI().toString()), boundless.utility.SecretRedactor.redactText(e.getMessage()));
 				throw e;
 			}finally{
 				try{

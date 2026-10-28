@@ -1,3 +1,4 @@
+import { safeStorageSetOn } from '../../utils/safeStorage';
 export const GUOLAO_CHART_STYLE_CLASSIC = 'classic';
 export const GUOLAO_CHART_STYLE_MOIRA = 'moira';
 export const GUOLAO_CHART_STYLE_PICK = 'pick';
@@ -7,12 +8,19 @@ export const GUOLAO_SU28_MODE_KEY = 'horosaGuolaoSu28Mode';
 export const GUOLAO_MOIRA_TRANSIT_GODS_KEY = 'horosaGuolaoMoiraTransitGods';
 export const GUOLAO_LIFE_MODE_KEY = 'horosaGuolaoLifeMode';
 export const GUOLAO_NODE_MODE_KEY = 'horosaGuolaoNodeMode';
-export const GUOLAO_DEFAULT_SU28_MODE = 2;
+// 七政起盘十键的出厂值(= 新命盘字段的初值;合同测试逐键锁两边相等)。带随盘代次标记的记录缺这些键 = 存盘时是出厂值:
+// 页面载入后就是这些值,AI 挂载 / 挂载齿轮基线同口径(此前回落本机七政仓,同一张盘页面与 AI 不一样)。
+// 岁差的出厂值是空串(页面按本机七政仓取),照旧。
+export const GUOLAO_RECORD_FACTORY_DEFAULTS = Object.freeze({
+	guolaoLifeMode: 'asc', guolaoNodeMode: 'northKetuSouthRahu', guolaoAyanamsa: '', guolaoTrueSolarTime: 'true',
+	guolaoNodeType: 'mean', guolaoLilithType: 'mean', guolaoBodyMode: 'taiyin', guolaoTuibianMethod: 'jiyuan',
+	guolaoGufaPrecess: 0, guolaoEqTropicalAnchor: 'dongzhi',
+});
+export const GUOLAO_DEFAULT_SU28_MODE = 0;   // 宿度制缺省 = 荀爽距星(19年测),与新盘种子 / 后端缺省同值(全站统一)
 export const GUOLAO_LIFE_MODE_ASC = 'asc';
 export const GUOLAO_LIFE_MODE_YUMAO = 'yumao';       // 日出安命(实际日出)
 export const GUOLAO_LIFE_MODE_COTRANS = 'cotrans';
 export const GUOLAO_LIFE_MODE_GUMAO = 'gumao';       // 遇卯安命(古法时加太阳顺数至卯)
-export const GUOLAO_LIFE_MODE_CUSTOM = 'custom';     // 自定命宫(手动子~亥)
 export const GUOLAO_DIZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 export const GUOLAO_NODE_MODE_NORTH_KETU = 'northKetuSouthRahu';
 export const GUOLAO_NODE_MODE_NORTH_RAHU = 'northRahuSouthKetu';
@@ -21,15 +29,39 @@ function getStorage(){
 	return typeof localStorage === 'undefined' ? null : localStorage;
 }
 
-// [Q-407/M-152] 进程内「临时覆盖作用域」:AI 挂载「每技法设置」覆盖重算此前把覆盖值临时写进这些全局 localStorage 键、
+// 进程内「临时覆盖作用域」:AI 挂载「每技法设置」覆盖重算此前把覆盖值临时写进这些全局 localStorage 键、
 //   await 秒级后端重算、finally 才还原 → 重算途中刷新 / 关窗则 finally 不跑,用户全局七政设置被永久改成覆盖值;
 //   同窗口并发读取也拿到临时值。现改为只在内存里压一层覆盖(readItem 先查),localStorage 全程不写,刷新即失、零残留。
 let _storedOverrides = null;
-export async function withGuolaoStoredOverrides(overrides, fn){
+// 串行:两次重算交叠时(本人 / 合盘对方同时挂七政等)一个接一个跑,各自只看见自己的覆盖。fn 内不可再嵌套调用本函数。
+// 覆盖层只在「同步段」可见:fn 的同步前段(到第一个 await 为止)看得见,await 之后即撤 —— 重算等后端的秒级窗口里,
+// 同窗口其它读者(七政页新盘播种、左栏缺省回显、页面重排)读到的始终是本机真值。重算在 await 之后还要读覆盖的,
+// 须在同步前段用 guolaoStoredOverridesScope() 取下作用域,之后每个同步段经 runInGuolaoStoredOverrides(scope, …) 重入。
+let _overrideChain = Promise.resolve();
+export function withGuolaoStoredOverrides(overrides, fn){
+	const run = _overrideChain.then(()=>{
+		const prev = _storedOverrides;
+		_storedOverrides = overrides && typeof overrides === 'object' ? { ...(prev || {}), ...overrides } : prev;
+		try{
+			return fn();
+		}finally{
+			_storedOverrides = prev;
+		}
+	});
+	_overrideChain = run.then(()=>undefined, ()=>undefined);
+	return run;
+}
+// 取当前作用域(在 withGuolaoStoredOverrides 的同步前段内调用;作用域外为 null)
+export function guolaoStoredOverridesScope(){ return _storedOverrides; }
+// 同步重入:scope 为空即原样执行;fn 必须是同步函数(返回 Promise 也只在其同步段内可见)
+export function runInGuolaoStoredOverrides(scope, fn){
+	if(!scope || typeof scope !== 'object'){
+		return fn();
+	}
 	const prev = _storedOverrides;
-	_storedOverrides = overrides && typeof overrides === 'object' ? { ...(prev || {}), ...overrides } : prev;
+	_storedOverrides = { ...(prev || {}), ...scope };
 	try{
-		return await fn();
+		return fn();
 	}finally{
 		_storedOverrides = prev;
 	}
@@ -46,10 +78,8 @@ function readItem(key){
 }
 
 function writeItem(key, val){
-	const storage = getStorage();
-	if(storage){
-		try{ storage.setItem(key, val); }catch(e){ /* 配额满等静默:设置丢失可重选,绝不炸渲染 */ }
-	}
+	// 经存储单源:配额满先清可再生缓存再重试(此前 try{ setItem }catch{} 静默写不进,重开设置就丢);仍写不进静默,绝不炸渲染
+	return safeStorageSetOn(getStorage(), key, val);
 }
 
 export function getStoredGuolaoChartStyle(){
@@ -66,13 +96,14 @@ export function getStoredGuolaoChartStyle(){
 	return GUOLAO_CHART_STYLE_MOIRA;
 }
 
-export function setStoredGuolaoChartStyle(val){
+// opts.persist === false:只归一不落盘(择日内嵌实例的改动只作用本页,不写七政页的记忆)
+export function setStoredGuolaoChartStyle(val, opts){
 	const next = val === GUOLAO_CHART_STYLE_PICK
 		? GUOLAO_CHART_STYLE_PICK
 		: (val === GUOLAO_CHART_STYLE_QIZHENG
 			? GUOLAO_CHART_STYLE_QIZHENG
 			: (val === GUOLAO_CHART_STYLE_MOIRA ? GUOLAO_CHART_STYLE_MOIRA : GUOLAO_CHART_STYLE_CLASSIC));
-	writeItem(GUOLAO_CHART_STYLE_KEY, next);
+	if(!(opts && opts.persist === false)){ writeItem(GUOLAO_CHART_STYLE_KEY, next); }
 	return next;
 }
 
@@ -85,9 +116,13 @@ export function getStoredGuolaoSu28Mode(){
 	return [0, 1, 2, 3, 4, 5, 6, 7, 8].indexOf(val) >= 0 ? val : GUOLAO_DEFAULT_SU28_MODE;
 }
 
-export function setStoredGuolaoSu28Mode(val){
+export function normalizeGuolaoSu28Mode(val){
 	const next = Number(val);
-	const mode = [0, 1, 2, 3, 4, 5, 6, 7, 8].indexOf(next) >= 0 ? next : GUOLAO_DEFAULT_SU28_MODE;
+	return [0, 1, 2, 3, 4, 5, 6, 7, 8].indexOf(next) >= 0 ? next : GUOLAO_DEFAULT_SU28_MODE;
+}
+
+export function setStoredGuolaoSu28Mode(val){
+	const mode = normalizeGuolaoSu28Mode(val);
 	writeItem(GUOLAO_SU28_MODE_KEY, `${mode}`);
 	return mode;
 }
@@ -152,6 +187,21 @@ export function setStoredGuolaoAyanamsa(val){
 	const v = val ? String(val) : '';
 	writeItem(GUOLAO_AYANAMSA_KEY, v);
 	return v;
+}
+// 盘上实际生效的恒星岁差(起盘构参与左栏下拉同一判据):盘上选了就按盘上的;没选(空档)时,
+// 七政页回落本机记住的岁差;fields 带 GUOLAO_AYANAMSA_PAGE_ONLY_KEY 为真(择日里内嵌的七政盘)则只认本页,空档即郑式,
+// 不回读七政页记住的岁差 —— 否则左栏显示「郑式(默认)」、盘却按七政页的岁差算,亲手选回郑式也改不回来。
+export const GUOLAO_AYANAMSA_PAGE_ONLY_KEY = 'guolaoAyanamsaPageOnly';
+export function resolveGuolaoAyanamsa(fields){
+	const f = fields && fields.guolaoAyanamsa;
+	if(f && f.value !== undefined && f.value !== null && `${f.value}` !== ''){
+		return `${f.value}`;
+	}
+	const pageOnly = fields && fields[GUOLAO_AYANAMSA_PAGE_ONLY_KEY];
+	if(pageOnly && (pageOnly.value === true || pageOnly.value === 1 || pageOnly.value === '1')){
+		return '';
+	}
+	return getStoredGuolaoAyanamsa();
 }
 
 // G6 报时星太阳时:true=真(默认零回归)/mean=平/off=钟表。
@@ -241,7 +291,7 @@ export const GUOLAO_SCHOOL_PRESETS = {
 // 与类B显示值 d(lifeMasterMode/minorLimitType)。当前配置恰好命中某预设定义的「全部键值」→ 回该预设键;
 // 否则 'custom'(帮助文档「选后即显所选流派,微调后回自定」的诚实语义)。各预设键值组合互斥,故至多命中一个。
 // 预设只定义部分键(如 tianguan 不设 guolaoNodeType 之外的显示键)——匹配只校验预设自身声明的键,其余键不参与(agnostic)。
-// [Q-193/T-137] motionState 已从预设与显示仓删除:右栏「留伏迟疾」列恒渲染,该显示键全仓无消费者,
+// motionState 已从预设与显示仓删除:右栏「留伏迟疾」列恒渲染,该显示键全仓无消费者,
 // 留着只会让「果老星宗/弧角天星」两档要求一个用户根本拨不到的值 → 选了也回不到该派。
 export function matchSchoolPreset(f, d){
 	const ff = f || {};
@@ -269,7 +319,7 @@ export function matchSchoolPreset(f, d){
 			if(want !== got){ hit = false; }
 		});
 		Object.keys(pd).forEach((k)=>{
-			if(`${pd[k]}` !== `${dcur[k]}`){ hit = false; }   // [Q-193/T-137] 显示键现全为字符串档,布尔特例随 motionState 一并删
+			if(`${pd[k]}` !== `${dcur[k]}`){ hit = false; }   // 显示键现全为字符串档,布尔特例随 motionState 一并删
 		});
 		if(hit){ return keys[i]; }
 	}
@@ -294,9 +344,9 @@ export function getStoredMoiraTransitGodsVisible(){
 	return true;
 }
 
-export function setStoredMoiraTransitGodsVisible(visible){
+export function setStoredMoiraTransitGodsVisible(visible, opts){
 	const next = visible !== false;
-	writeItem(GUOLAO_MOIRA_TRANSIT_GODS_KEY, next ? '1' : '0');
+	if(!(opts && opts.persist === false)){ writeItem(GUOLAO_MOIRA_TRANSIT_GODS_KEY, next ? '1' : '0'); }
 	return next;
 }
 
@@ -305,7 +355,7 @@ export const GUOLAO_DISPLAY_KEY = 'horosaGuolaoDisplay';
 export const GUOLAO_ALL_ASPECTS = ['會', '衝', '刑', '合', '半合', '半刑', '四合'];
 // lifeMasterMode 命主取法(gong宫主默认/du度主);minorLimitType 行运法(''古度默认/dongwei洞微/xiaoxian小限/yuexian月限/tongxian童限);
 // mingGan 五虎遁配干 / huayao 化曜圈 / dignityExtended 庙旺扩展多选 —— 均类B 纯前端显示偏好。
-// (motionState 留伏迟疾已删:该列恒显示,键无消费者 —— 见 matchSchoolPreset 旁注 [Q-193/T-137]。)
+// (motionState 留伏迟疾已删:该列恒显示,键无消费者 —— 见 matchSchoolPreset 旁注。)
 export const GUOLAO_LIFE_MASTER_MODES = ['gong', 'du', 'dudegrade'];
 export const GUOLAO_MINOR_LIMIT_TYPES = ['', 'minor', 'month', 'tong', 'dongwei'];
 export const GUOLAO_DIGNITY_EXT_KEYS = ['exalt', 'triplicity', 'term', 'face'];
@@ -313,7 +363,6 @@ export const GUOLAO_TONGXIAN_BASES = ['tong10', 'gu9', 'xu11'];   // 童限基�
 // 🔴 Moira 设置项(类B 纯前端重绘,均照 Moira TimeDialog):
 //  定童限 child_period —— 9 九年起(默认)/ 10 十年起(童限年数 base)。
 //  大限年界 —— gregorian 公历元旦(Moira 硬编码默认)/ lichun 立春 / dongzhi 冬至(birthFrac 基准;后二者=超 Moira 增强项)。
-export const GUOLAO_LIMIT_CHILD_BASES = [9, 10];
 export const GUOLAO_LIMIT_YEAR_BOUNDARIES = ['gregorian', 'lichun', 'dongzhi'];
 export const GUOLAO_DEFAULT_DISPLAY = {
 	aspects: ['會', '衝', '刑', '合', '半合'],
@@ -428,7 +477,7 @@ export function getStoredGuolaoDisplay(){
 	}
 }
 
-export function setStoredGuolaoDisplay(next){
+export function setStoredGuolaoDisplay(next, opts){
 	const safe = {
 		aspects: Array.isArray(next && next.aspects)
 			? next.aspects.filter((a)=>GUOLAO_ALL_ASPECTS.indexOf(a) >= 0)
@@ -453,7 +502,7 @@ export function setStoredGuolaoDisplay(next){
 		aspectOrbs: normAspectOrbs(next && next.aspectOrbs),
 		showAzimuth: !!(next && next.showAzimuth === true),
 	};
-	writeItem(GUOLAO_DISPLAY_KEY, JSON.stringify(safe));
+	if(!(opts && opts.persist === false)){ writeItem(GUOLAO_DISPLAY_KEY, JSON.stringify(safe)); }
 	return safe;
 }
 
@@ -501,8 +550,10 @@ export function getStoredGuolaoElection(){
 	}
 }
 
-export function setStoredGuolaoElection(next){
-	const cur = getStoredGuolaoElection();
+// opts.persist === false:只归一不落盘(择日内嵌实例的改动只作用本页,不写七政页的记忆);opts.base = 本页现值(合并底板,不读七政页记忆)
+export function setStoredGuolaoElection(next, opts){
+	const persist = !(opts && opts.persist === false);
+	const cur = persist ? getStoredGuolaoElection() : { ...GUOLAO_ELECTION_DEFAULT, ...((opts && opts.base) || {}) };
 	const merged = { ...cur, ...(next || {}) };
 	const safe = {
 		dynMode: merged.dynMode === 'quick' ? 'quick' : 'horizon',
@@ -517,7 +568,7 @@ export function setStoredGuolaoElection(next){
 		zuoShanDeg: Number.isFinite(Number(merged.zuoShanDeg)) ? ((Number(merged.zuoShanDeg) % 360) + 360) % 360 : 0,
 		showCompass: true,
 	};
-	writeItem(GUOLAO_ELECTION_KEY, JSON.stringify(safe));
+	if(persist){ writeItem(GUOLAO_ELECTION_KEY, JSON.stringify(safe)); }
 	return safe;
 }
 
@@ -527,8 +578,9 @@ export function getStoredGuolaoEleLifeMode(){
 	const v = readItem(GUOLAO_ELE_LIFE_MODE_KEY);
 	return ['sunrise', 'noon', 'sunset', 'custom'].indexOf(v) >= 0 ? v : 'sunrise';
 }
-export function setStoredGuolaoEleLifeMode(val){
+// opts.persist === false:只归一不落盘(同上)
+export function setStoredGuolaoEleLifeMode(val, opts){
 	const v = ['sunrise', 'noon', 'sunset', 'custom'].indexOf(val) >= 0 ? val : 'sunrise';
-	writeItem(GUOLAO_ELE_LIFE_MODE_KEY, v);
+	if(!(opts && opts.persist === false)){ writeItem(GUOLAO_ELE_LIFE_MODE_KEY, v); }
 	return v;
 }

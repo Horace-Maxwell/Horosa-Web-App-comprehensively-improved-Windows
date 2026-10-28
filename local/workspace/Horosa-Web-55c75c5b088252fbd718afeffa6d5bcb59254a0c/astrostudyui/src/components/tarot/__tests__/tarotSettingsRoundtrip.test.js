@@ -24,7 +24,7 @@ const FULL_STATE = {
 const DEFAULTS = {
 	useReversals: false, useDignities: false, variant: 'A', showCorrespondences: false,
 	sig: { mode: 'none' }, birth: { year: '', month: '', day: '', refYear: '' },
-	verdictMode: 'majority', artStyle: 'symbol',
+	verdictMode: 'majority', artStyle: 'image',
 	meaningSystem: 'manual', reversalMode: 'stored', suitElementSwap: false,
 	dummettOrder: 'C', ookTable: 'standard',
 	reversalGen: 'shuffle', crossingUpright: true,

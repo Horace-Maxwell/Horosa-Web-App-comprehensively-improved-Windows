@@ -6,8 +6,8 @@
 //   QuickTimeInput   —— 「添加星盘 / 添加起课 / 修改参数」表单里的「快捷输入」行:默认空白,输满/回车/失焦即回填上方时间。
 // 解析规则见 utils/quickDateTimeDigits.js;提交一律经宿主既有的时间处理器(onQuickCommit / onCommit),时区沿用当前值。
 import React, { Component } from 'react';
-import { Popover, Row, Col, message } from 'antd';
-import { XQInput } from '../xq-ui';
+import { Popover, Row, Col } from 'antd';
+import { XQInput, pickerInvalid as defaultInvalid } from '../xq-ui';   // 键入无效的统一提示(与日期框快输同一份)
 import XQIcon from '../xq-icons';
 import { applyQuickDigits, normalizeQuickDigits, formatQuickDigits, QUICK_DIGITS_LEN } from '../../utils/quickDateTimeDigits';
 import './QuickTimeField.less';
@@ -15,10 +15,6 @@ import './QuickTimeField.less';
 export const QUICK_TIME_PLACEHOLDER = '键入 14 位数字：年月日时分秒';
 export const QUICK_TIME_FORM_PLACEHOLDER = '连续键入数字：年 4 位 + 月日时分秒各 2 位，如 20061004095801（不足补 0，多余丢弃）';
 export const QUICK_TIME_TITLE = '单击打开时间编辑器；双击可直接键入 14 位数字（年月日时分秒），输满或回车即生效，Esc 取消';
-
-function defaultInvalid(text){
-	try{ message.error(text, 3); }catch(e){ /* 无 antd 上下文时静默 */ }
-}
 
 function isEnter(e){ return e && (e.key === 'Enter' || e.key === 'Return' || e.keyCode === 13 || e.which === 13); }
 function isEscape(e){ return e && (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27); }

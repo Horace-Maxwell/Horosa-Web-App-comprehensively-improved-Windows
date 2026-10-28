@@ -16,6 +16,10 @@ import { measureLayoutViewport, getDeclaredZoom } from './zoomDomain';
 
 export const LAYOUT_VW_VAR = '--horosa-lvw';
 export const LAYOUT_VH_VAR = '--horosa-lvh';
+// 同值的「原始」两份:工作区容器(layouts/app/13-layout-module.less 的 .workspaceInner)据此把页面排版用的那两个变量
+// 地板到包络 960 × 560(max(9.6px, 原始值)),根上的两个变量保持真视口给浮层 / 弹窗用。CSS 变量不能自引用,所以另发一份。
+export const LAYOUT_VW_RAW_VAR = '--horosa-lvw-raw';
+export const LAYOUT_VH_RAW_VAR = '--horosa-lvh-raw';
 
 let _installed = false;
 let _lastZoom = null;
@@ -29,18 +33,21 @@ function hasDom(){
 export function publishLayoutViewportVars(){
 	if(!hasDom()){ return null; }
 	const root = document.documentElement;
-	let vp = null;
-	try{ vp = measureLayoutViewport(); }catch(e){ vp = null; }
+	const vp = measureLayoutViewport();
 	try{
 		if(vp && vp.width > 0 && vp.height > 0){
 			root.style.setProperty(LAYOUT_VW_VAR, (vp.width / 100) + 'px');
 			root.style.setProperty(LAYOUT_VH_VAR, (vp.height / 100) + 'px');
+			root.style.setProperty(LAYOUT_VW_RAW_VAR, (vp.width / 100) + 'px');
+			root.style.setProperty(LAYOUT_VH_RAW_VAR, (vp.height / 100) + 'px');
 		}else{
 			root.style.removeProperty(LAYOUT_VW_VAR);
 			root.style.removeProperty(LAYOUT_VH_VAR);
+			root.style.removeProperty(LAYOUT_VW_RAW_VAR);
+			root.style.removeProperty(LAYOUT_VH_RAW_VAR);
 		}
 	}catch(e){ /* style 不可写(极旧引擎):保持回落 */ }
-	try{ _lastZoom = getDeclaredZoom(); }catch(e){ _lastZoom = null; }
+	_lastZoom = getDeclaredZoom();
 	return vp;
 }
 
@@ -72,8 +79,7 @@ export function installLayoutViewportVars(){
 		if(typeof MutationObserver === 'function'){
 			mo = new MutationObserver(() => {
 				// 我们自己 setProperty 也会触发本回调:只有声明缩放真变了才重量,防自激。
-				let z = null;
-				try{ z = getDeclaredZoom(); }catch(e){ z = null; }
+				const z = getDeclaredZoom();
 				if(z !== _lastZoom){ scheduleLayoutViewportVars(); }
 			});
 			mo.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });

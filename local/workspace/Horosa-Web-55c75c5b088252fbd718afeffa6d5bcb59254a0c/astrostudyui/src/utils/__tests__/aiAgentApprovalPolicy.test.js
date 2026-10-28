@@ -5,7 +5,7 @@ import { AGENT_APPROVAL_MODES, AGENT_APPROVAL_CATEGORIES, AGENT_APPROVAL_CATEGOR
 const RANK = { never: 0, 'on-request': 1, 'read-only': 2 };
 const TRUST_OK = ['workspace', 'query'];
 // 参考实现(独立于被测代码的第二写法):期望值由它算,不从被测函数抄
-// [D12] 读级工具:总档永不作用;只有 query/external/interactive/ui 四个纯读类别的显式类别档起作用(on-request 问;read-only 三类拒、query 照常)
+// 读级工具:总档永不作用;只有 query/external/interactive/ui 四个纯读类别的显式类别档起作用(on-request 问;read-only 三类拒、query 照常)
 const PURE_READ = ['query', 'external', 'interactive', 'ui'];
 const READ_DENY = ['external', 'interactive', 'ui'];
 function oracle({ level, category, mode, catMode, trustedHit }){
@@ -70,7 +70,7 @@ describe('审批判定表驱动(3 档 × 4 类别档 × 目录全部类别 × �
 	});
 });
 
-describe('[进阶复查 2026-09-08] D12 读级类别档语义 + P1 会话放行', ()=>{
+describe('D12 读级类别档语义 + P1 会话放行', ()=>{
 	const r = (level, category, mode, categories, extra)=>resolveApprovalDecision({ level, def: { name: 't', category }, args: {}, mode, categories, trustedRecords: [], ...(extra || {}) });
 	it('🔴 D12 显式 on-request ⇒ ask;显式 read-only ⇒ external/interactive/ui 拒、query 照常;inherit/总档任何值 ⇒ 读工具 auto(字节等价锚);混合类别读工具恒 auto', ()=>{
 		// 当前代码为何红(修前):approvalPolicy.js:40 `if(level !== 'additive') return 'auto'` 在读类别档之前短路 → 面板四个下拉零消费方
@@ -110,7 +110,7 @@ describe('[进阶复查 2026-09-08] D12 读级类别档语义 + P1 会话放行'
 	});
 });
 
-describe('[复查 D24/D27] 读级「询问」在非对话来源自动放行(deny 保留)', ()=>{
+describe('读级「询问」在非对话来源自动放行(deny 保留)', ()=>{
 	const { autoAllowReadLevel } = require('../aiAgent/approvalPolicy');
 	it('来源 × 级别全表:只有 read × 非 in-app 为真', ()=>{
 		const origins = ['in-app', 'mcp', 'goal', 'scheduled', 'automation', 'orchestrate', undefined, ''];

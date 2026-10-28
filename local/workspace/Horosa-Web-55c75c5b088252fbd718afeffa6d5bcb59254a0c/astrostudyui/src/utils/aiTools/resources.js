@@ -8,7 +8,8 @@ import { getAnalysisSourceContext } from '../aiAnalysisContext';
 import { AI_ANALYSIS_STORES, listStoreRecords, getStoreRecord } from '../aiAnalysisStore';
 
 export const RESOURCE_SCHEME = 'horosa://';
-export const RESOURCE_KINDS = ['chart', 'case', 'material'];
+export const RESOURCE_KINDS = ['chart', 'case', 'material', 'task', 'help'];   // task=后台任务详情 / help=技法操作手册
+export const RESOURCE_TASK_LIST_MAX = 50;
 export const RESOURCE_LIST_MAX = 200;
 export const RESOURCE_ID_MAX = 256;   // 再长的 id 不可能对应任何本机记录,只会拖着整条链去扫全表
 
@@ -22,12 +23,12 @@ export function parseResourceUri(uri){
 	const i = rest.indexOf('/');
 	if(i <= 0){ return null; }
 	const kind = rest.slice(0, i);
-	// [R1] 只认自有键:KIND_READERS 是普通对象,constructor/toString/__proto__ 走原型链都「非 undefined」
+	// 只认自有键:KIND_READERS 是普通对象,constructor/toString/__proto__ 走原型链都「非 undefined」
 	if(!Object.prototype.hasOwnProperty.call(KIND_READERS, kind)){ return null; }
 	const rawId = rest.slice(i + 1);
 	if(!rawId || rawId.length > RESOURCE_ID_MAX * 3){ return null; }   // 百分号编码后最长 3 倍
 	let id = '';
-	try{ id = decodeURIComponent(rawId); }catch(e){ return null; }   // [R2] 坏百分号编码不抛:整条 URI 判非法
+	try{ id = decodeURIComponent(rawId); }catch(e){ return null; }   // 坏百分号编码不抛:整条 URI 判非法
 	if(!id || id.length > RESOURCE_ID_MAX){ return null; }
 	return { kind, id };
 }
@@ -37,11 +38,29 @@ export function listResourceTemplates(){
 		{ uriTemplate: `${RESOURCE_SCHEME}chart/{cid}`, name: '命盘快照', description: '按 cid 读一张命盘的排盘快照(与应用内 AI 挂载同一份真值)', mimeType: 'text/plain' },
 		{ uriTemplate: `${RESOURCE_SCHEME}case/{cid}`, name: '事盘快照', description: '按 cid 读一个事盘(占卜/择日等)的起课快照', mimeType: 'text/plain' },
 		{ uriTemplate: `${RESOURCE_SCHEME}material/{id}`, name: '资料正文', description: '按 id 读资料库里的一份文档正文', mimeType: 'text/plain' },
+		{ uriTemplate: `${RESOURCE_SCHEME}task/{id}`, name: '后台任务', description: '按任务 id 读一个后台任务(目标任务 / 定时任务 / 扫描)的状态、日志与结果', mimeType: 'text/plain' },
+		{ uriTemplate: `${RESOURCE_SCHEME}help/{tab}`, name: '技法操作手册', description: '按页签键读一个技法页的操作手册全文(每个输入 / 设置项的取值与差别、右栏每块内容);页签键见 resources/list', mimeType: 'text/plain' },
 	];
 }
 
-export async function listResources(opts){
-	const limit = Math.max(1, Math.min(RESOURCE_LIST_MAX, Number(opts && opts.limit) || RESOURCE_LIST_MAX));
+// 游标分页:游标 = 'o' + 偏移量(36 进制),对壳与客户端不透明;坏游标抛 E_BAD_CURSOR(桥回 -32602)
+export const RESOURCE_PAGE_SIZE = 100;
+export function encodeListCursor(offset){ return `o${Math.max(0, Math.floor(offset)).toString(36)}`; }
+export function decodeListCursor(cursor){
+	if(cursor === undefined || cursor === null || cursor === ''){ return 0; }
+	const m = /^o([0-9a-z]{1,10})$/.exec(`${cursor}`);
+	const n = m ? parseInt(m[1], 36) : NaN;
+	if(!Number.isFinite(n) || n < 0){ throw Object.assign(new Error('invalid cursor'), { code: 'E_BAD_CURSOR' }); }
+	return n;
+}
+export function pageOf(all, cursor, size){
+	const offset = decodeListCursor(cursor);
+	const items = all.slice(offset, offset + size);
+	const next = offset + size < all.length ? encodeListCursor(offset + size) : null;
+	return { items, nextCursor: next };
+}
+
+async function allResources(){
 	const out = [];
 	try{
 		listLocalCharts({}).forEach((r)=>{ if(r && r.cid){ out.push({ uri: resourceUri('chart', r.cid), name: `命盘·${r.name || r.cid}`, description: `${r.birth || ''}${r.pos ? ` · ${r.pos}` : ''}`.trim(), mimeType: 'text/plain' }); } });
@@ -52,7 +71,26 @@ export async function listResources(opts){
 	try{
 		(await listStoreRecords(AI_ANALYSIS_STORES.materials)).forEach((m)=>{ if(m && m.id){ out.push({ uri: resourceUri('material', m.id), name: `资料·${m.name || m.id}`, description: `${((m.extractedText || m.content) || '').length} 字`, mimeType: 'text/plain' }); } });
 	}catch(e){ /* noop */ }
-	return out.slice(0, limit);
+	// 最近的后台任务(新的在前,≤50)与全部技法操作手册;任务库 / 帮助模块惰性载入,读失败不拖垮整表
+	try{
+		const { listTasks } = await import('../aiAgent/tasks/taskStore');
+		(await listTasks({ limit: RESOURCE_TASK_LIST_MAX })).forEach((t)=>{ if(t && t.id){ out.push({ uri: resourceUri('task', t.id), name: `任务·${t.title || t.id}`, description: `${t.kind} · ${t.status}${Number.isFinite(t.progress) ? ` · ${t.progress}%` : ''}`, mimeType: 'text/plain' }); } });
+	}catch(e){ /* noop */ }
+	try{
+		const help = await import('./helpText');
+		help.listHelpTabs().forEach((tab)=>{ out.push({ uri: resourceUri('help', tab), name: `手册·${help.helpTitleOf(tab)}`, description: `技法页「${tab}」的操作手册`, mimeType: 'text/plain' }); });
+	}catch(e){ /* noop */ }
+	return out;
+}
+
+export async function listResources(opts){
+	const limit = Math.max(1, Math.min(RESOURCE_LIST_MAX, Number(opts && opts.limit) || RESOURCE_LIST_MAX));
+	return (await allResources()).slice(0, limit);
+}
+
+// 分页版(MCP resources/list 用):此前一次最多 200 条、其余永远读不到
+export async function listResourcesPage(opts){
+	return pageOf(await allResources(), opts && opts.cursor, RESOURCE_PAGE_SIZE);
 }
 
 async function readChartOrCase(id){
@@ -68,9 +106,21 @@ const KIND_READERS = {
 	case: readChartOrCase,
 	material: async (id)=>{
 		const rec = await getStoreRecord(AI_ANALYSIS_STORES.materials, id);
-		// [Q-056/M-68] 资料正文字段是 extractedText(产品写入形状);此前读 content → 恒「0 字」/ 读取恒 -32602。
+		// 资料正文字段是 extractedText(产品写入形状);此前读 content → 恒「0 字」/ 读取恒 -32602。
 		const text = `${(rec && (rec.extractedText || rec.content)) || ''}`.trim();
 		return text ? `【资料】${(rec && rec.name) || id}\n\n${text}` : null;
+	},
+	// 后台任务详情(与 get_task 同一份明细:最后 50 行日志、结果正文 2 万字)
+	task: async (id)=>{
+		const [store, fmt] = await Promise.all([import('../aiAgent/tasks/taskStore'), import('./tools/listTasks')]);
+		const t = await store.getTask(id);
+		return t ? fmt.taskDetailText(fmt.detailOfTask(t, { logLines: 50, resultChars: 20000 })) : null;
+	},
+	// 技法操作手册全文(帮助弹窗同一份组件,抽成纯文本)
+	help: async (id)=>{
+		const help = await import('./helpText');
+		const text = help.helpTextOf(id);
+		return text || null;
 	},
 };
 

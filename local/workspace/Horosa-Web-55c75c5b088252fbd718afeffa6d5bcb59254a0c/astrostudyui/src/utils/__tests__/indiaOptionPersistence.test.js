@@ -9,6 +9,7 @@ import { buildLocalChartRecord } from '../localcharts';
 
 const fs = require('fs');
 const path = require('path');
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 describe('印占 · 选项持久化三段成对', ()=>{
 	const MAP_KEYS = INDIA_OPTION_FIELD_STATE_MAP.map((m)=>m.field);
@@ -155,7 +156,7 @@ describe('印占 · 载盘流派派生(Z 轮:adopt/seed 后 tabs/范式/主场�
 	});
 
 	it('组件源码:adopt 与构造期 seed 双路径都带 school 派生(防回退哨兵)', ()=>{
-		const src = fs.readFileSync(path.join(__dirname, '../../components/astro/IndiaChartMain.js'), 'utf8');
+		const src = readSource(path.join(__dirname, '../../components/astro/IndiaChartMain.js'));
 		const adoptBody = src.slice(src.indexOf('adoptIndiaOptionFields(prevProps){'));
 		expect(adoptBody.indexOf('diff.visibleTabKeys = def.tabs')).toBeGreaterThan(-1);
 		const ctorIdx = src.indexOf('seedIndiaOptionState(props.fields)');

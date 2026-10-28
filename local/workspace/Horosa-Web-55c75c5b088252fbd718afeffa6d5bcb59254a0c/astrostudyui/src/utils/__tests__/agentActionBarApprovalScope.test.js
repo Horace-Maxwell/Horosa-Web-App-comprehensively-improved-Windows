@@ -1,4 +1,4 @@
-// [D70·2026-09-09] 动作条按消息键落定必须到达组件层:trace 条目没有 messageKey 字段,此前四钮传 x.messageKey=undefined 走「按 id / 按名落定全部同名」旧路径,
+// 动作条按消息键落定必须到达组件层:trace 条目没有 messageKey 字段,此前四钮传 x.messageKey=undefined 走「按 id / 按名落定全部同名」旧路径,
 //   后台目标任务与外部客户端的同名待审被对话页一键静默批准(D23 回潮;哨兵锚住字面 x.messageKey 假绿、jest 只测 approvals 模块、端到端 单键在台撞不上)。
 //   判别向量:三个消息键(对话 m1 / 任务 task:t9 / 外部 mcp:codex)各挂同名同 callId 待审,动作条只落定 m1。
 import React from 'react';

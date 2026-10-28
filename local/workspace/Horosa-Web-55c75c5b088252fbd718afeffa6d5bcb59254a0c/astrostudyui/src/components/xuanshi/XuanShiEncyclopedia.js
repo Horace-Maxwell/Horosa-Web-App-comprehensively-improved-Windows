@@ -36,7 +36,7 @@ export default class XuanShiEncyclopedia extends React.Component {
 	persist() { if (this.props.onPersist) { this.props.onPersist('encyclopedia', { cat: this.state.cat }); } }
 
 	async load(cat, openSlug) {
-		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // [Q-496/T-458] 序号守卫
+		const __seq = (this._loadSeq = (this._loadSeq || 0) + 1);   // 序号守卫
 		let list = this.state.data[cat];
 		if (!list) {
 			this.setState({ loading: true, err: '' });

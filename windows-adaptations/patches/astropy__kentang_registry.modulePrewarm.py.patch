@@ -1,5 +1,5 @@
 diff --git a/astropy/websrv/kentang/registry.py b/astropy/websrv/kentang/registry.py
-index daeec3f..5b33935 100644
+index c52af6b1..5825d48c 100644
 --- a/astropy/websrv/kentang/registry.py
 +++ b/astropy/websrv/kentang/registry.py
 @@ -137,11 +137,19 @@ KENTANG_SERVICE_SPECS = [
@@ -22,12 +22,17 @@ index daeec3f..5b33935 100644
  
  class KentangServiceLoadError(RuntimeError):
      """A kentang service failed to import / resolve its class / instantiate.
-@@ -303,4 +311,35 @@ def prewarm_kentang_services():
+@@ -303,9 +311,40 @@ def _prewarm_specs(specs, tag):
              failed += 1
-             print("[kentang] prewarm failed %s" % spec.get("key"), flush=True)
+             print("[%s] prewarm failed %s" % (tag, spec.get("key")), flush=True)
              traceback.print_exc()
 +
      return loaded, failed
+ 
+ 
+ def prewarm_kentang_services():
+     """空闲预热(监听后后台 warmup 线程调):逐个完成卜类懒服务真加载。返回 (loaded, failed)。"""
+     return _prewarm_specs(KENTANG_SERVICE_SPECS, "kentang")
 +
 +
 +def prewarm_kentang_modules():

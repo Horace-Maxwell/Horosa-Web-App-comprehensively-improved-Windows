@@ -5,6 +5,7 @@
 // （fieldsSyncSrc），本套测试钉死其语义 + 源码哨兵防接线被删。
 import fs from 'fs';
 import path from 'path';
+const { importsName } = require('./helpers/importSpecs');   // 按 AST 读 import:同一条里多导几个名字 / 换行排版都照认
 import { normBinaryGender, parseFieldsDateTime, computeKinFieldsResync } from '../kinAstroFieldsSync';
 
 const KIN_SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'components', 'kinastro', 'KinAstroMain.js'), 'utf8');
@@ -21,36 +22,53 @@ function mkFields({ date = '1990-05-18', time = '10:00:00', gender = 1, zone = '
 }
 
 describe('computeKinFieldsResync 行为矩阵', ()=>{
-	it('首次（标记 null）→ 全量同步：性别 + 三组农历锚点 + 标记；[挂载自检 F-21] 农历锚点真算（2000-12-31=庚辰腊月初六），南极公历月日不钳', ()=>{
+	it('首次（标记 null）→ 全量同步：性别 + 三组农历锚点 + 标记；农历锚点真算（2000-12-31=庚辰腊月初六），南极公历月日不钳', ()=>{
 		const patch = computeKinFieldsResync(mkFields({ date: '2000-12-31', gender: 0 }), null);
 		expect(patch).toEqual({
-			fieldsSyncSrc: { gender: '0', year: 2000, month: 12, day: 31 },
+			fieldsSyncSrc: { gender: '0', year: 2000, month: 12, day: 31, hour: 10, minute: 0 },
 			gender: '0',
 			lunarYear: 2000, lunarMonth: 12, lunarDay: 6,       // 演禽 真农历(此前把公历日钳 30 当农历日)
-			// [Q-263/T-243] 南极 节月=节气月序(12/31 在大雪后小寒前=子月=11,非公历月 12)+ 时支按出生时辰(10:00=巳);公历日原样
+			// 南极 节月=节气月序(12/31 在大雪后小寒前=子月=11,非公历月 12)+ 时支按出生时辰(10:00=巳);公历日原样
 			nanjiLunarYear: 2000, nanjiSolarMonth: 11, nanjiDay: 31, nanjiHourZhi: '巳',
 			chunziLunarMonth: 12, chunziLunarDay: 6,            // 蠢子 真农历(与后端 auto 档 sxtwl 同口径)
 		});
 	});
 
 	it('仅性别变（载入异性别命例）→ 只回 gender+标记，不动锚点', ()=>{
-		const prev = { gender: '1', year: 1990, month: 5, day: 18 };
+		const prev = { gender: '1', year: 1990, month: 5, day: 18, hour: 10, minute: 0 };
 		const patch = computeKinFieldsResync(mkFields({ gender: 0 }), prev);
-		expect(patch).toEqual({ fieldsSyncSrc: { gender: '0', year: 1990, month: 5, day: 18 }, gender: '0' });
+		expect(patch).toEqual({ fieldsSyncSrc: { gender: '0', year: 1990, month: 5, day: 18, hour: 10, minute: 0 }, gender: '0' });
 	});
 
 	it('仅生辰日期变 → 只回 8 个锚点+标记，不动 gender（保住技法内手动切换）', ()=>{
-		const prev = { gender: '1', year: 1990, month: 5, day: 18 };
+		const prev = { gender: '1', year: 1990, month: 5, day: 18, hour: 10, minute: 0 };
 		const patch = computeKinFieldsResync(mkFields({ date: '1991-06-19' }), prev);
 		expect(patch.gender).toBeUndefined();
 		expect(patch.lunarYear).toBe(1991);
 		expect(patch.nanjiDay).toBe(19);
-		expect(patch.fieldsSyncSrc).toEqual({ gender: '1', year: 1991, month: 6, day: 19 });
+		expect(patch.fieldsSyncSrc).toEqual({ gender: '1', year: 1991, month: 6, day: 19, hour: 10, minute: 0 });
 	});
 
 	it('🔴 无变化 → null（手动覆盖保全证明：无关 fields 变化绝不冲掉技法内手动选择）', ()=>{
-		const prev = { gender: '1', year: 1990, month: 5, day: 18 };
+		const prev = { gender: '1', year: 1990, month: 5, day: 18, hour: 10, minute: 0 };
 		expect(computeKinFieldsResync(mkFields(), prev)).toBeNull();
+	});
+
+	it('🔴 同一天只改时刻 → 只重填南极「手动古法」的时支与节月(其余锚点与性别不动);跨节气时刻节月随之变', ()=>{
+		const prev = { gender: '1', year: 1990, month: 5, day: 18, hour: 10, minute: 0 };
+		const patch = computeKinFieldsResync(mkFields({ time: '15:20:00' }), prev);
+		expect(patch).toEqual({
+			fieldsSyncSrc: { gender: '1', year: 1990, month: 5, day: 18, hour: 15, minute: 20 },
+			nanjiSolarMonth: 4, nanjiHourZhi: '申',
+		});
+		// 2000-12-07 大雪交节当天:交节前为亥月(10)、交节后为子月(11)—— 只改时刻也要跟着换
+		const before = computeKinFieldsResync(mkFields({ date: '2000-12-07', time: '01:00:00' }), null);
+		const after = computeKinFieldsResync(mkFields({ date: '2000-12-07', time: '23:30:00' }), before.fieldsSyncSrc);
+		expect(before.nanjiSolarMonth).toBe(10);
+		expect(after.nanjiSolarMonth).toBe(11);
+		expect(after.nanjiHourZhi).toBe('子');
+		expect(after.lunarDay).toBeUndefined();
+		expect(after.gender).toBeUndefined();
 	});
 
 	it('性别归一口径：-1/女/Female → 与挂载首同步一致（未知作男、女系作女）', ()=>{
@@ -58,7 +76,7 @@ describe('computeKinFieldsResync 行为矩阵', ()=>{
 		expect(computeKinFieldsResync(mkFields({ gender: '女' }), null).gender).toBe('0');
 		expect(computeKinFieldsResync(mkFields({ gender: 'Female' }), null).gender).toBe('0');
 		// -1（未知）归一后与 1（男）同值 → 从男盘载入未知性别盘不触发多余同步
-		const prev = { gender: '1', year: 1990, month: 5, day: 18 };
+		const prev = { gender: '1', year: 1990, month: 5, day: 18, hour: 10, minute: 0 };
 		expect(computeKinFieldsResync(mkFields({ gender: -1 }), prev)).toBeNull();
 	});
 
@@ -81,7 +99,9 @@ describe('computeKinFieldsResync 行为矩阵', ()=>{
 
 describe('KinAstroMain 接线哨兵（源码自省：重同步接线不许被删）', ()=>{
 	it('从 utils/kinAstroFieldsSync 引入三函数', ()=>{
-		expect(KIN_SRC).toMatch(/import \{ normBinaryGender, parseFieldsDateTime, computeKinFieldsResync \} from '..\/..\/utils\/kinAstroFieldsSync'/);
+		['normBinaryGender', 'parseFieldsDateTime', 'computeKinFieldsResync'].forEach((name)=>{
+			expect(`${name}:${importsName(KIN_SRC, { name, from: '../../utils/kinAstroFieldsSync' })}`).toBe(`${name}:true`);
+		});
 	});
 
 	it('didMount 用 computeKinFieldsResync 做首次同步', ()=>{

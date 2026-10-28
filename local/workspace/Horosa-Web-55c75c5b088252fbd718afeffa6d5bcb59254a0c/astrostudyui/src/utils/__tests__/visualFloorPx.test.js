@@ -19,7 +19,7 @@ const SITES = [
 	['components/suzhan/SuZhanChart.js', 1],
 	['components/lrzhan/RengChart.js', 1],
 	['components/suzhan/SuZhanMain.js', 1],
-	['components/jinkou/JinKouMain.js', 1],
+	// 金口诀盘撤掉 560 / 702 撑高底线:盘改走设计盒(JinKouPanChart 的 JK_DESIGN_MIN_*),比设计尺寸小时整体等比缩小,不再需要高度底线
 	['components/guazhan/GuaZhanMain.js', 2],
 	['components/cntradition/BaZi.js', 1],   // 流年槽 220 底线;盘槽改由主栈网格行单源定高(滚动盒 100% 贴槽),不再需要 360 底线
 	['components/sanshi/SanShiUnitedMain.js', 3],   // 2026-09-18 +方盘 380 底线(calcBoardSize)

@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import boundless.log.QueueLog;
+import boundless.spring.help.SysInitHelper;
 import boundless.utility.ConvertUtility;
 import boundless.utility.StringUtility;
 import it.sauronsoftware.cron4j.Scheduler;
@@ -26,15 +27,7 @@ public class CronTask {
 	private static List<Scheduler> cronList = new LinkedList<Scheduler>();
 
 	private static boolean cronStartupEnabled() {
-		String value = System.getProperty("HOROSA_ENABLE_STARTUP_CRON");
-		if(StringUtility.isNullOrEmpty(value)) {
-			value = System.getenv("HOROSA_ENABLE_STARTUP_CRON");
-		}
-		if(StringUtility.isNullOrEmpty(value)) {
-			return true;
-		}
-		value = value.trim();
-		return !("0".equals(value) || "false".equalsIgnoreCase(value) || "off".equalsIgnoreCase(value));
+		return SysInitHelper.flagEnabled("HOROSA_ENABLE_STARTUP_CRON");
 	}
 	
 	public static void shutdown(){

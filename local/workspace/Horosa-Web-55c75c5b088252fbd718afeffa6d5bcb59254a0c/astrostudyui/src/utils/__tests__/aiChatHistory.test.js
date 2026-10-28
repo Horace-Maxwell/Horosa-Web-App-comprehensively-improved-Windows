@@ -1,4 +1,4 @@
-// [P0-2] 对话上下文策略与真消息窗口:缺省 legacy=原数组同引用(现状);window 模式的预算/保底/上限/对齐/图片/trace 估算;
+// 对话上下文策略与真消息窗口:缺省 legacy=原数组同引用(现状);window 模式的预算/保底/上限/对齐/图片/trace 估算;
 // 策略读取坏 JSON 回缺省;历史 token 预算三档。
 import {
 	CHAT_CONTEXT_POLICY_KEY,
@@ -186,7 +186,7 @@ describe('windowChatMessages', ()=>{
 		const tight = windowChatMessages(msgs, { model: 'x', policy: WIN({ historyTokenBudget: 200, historyMinKeep: 0 }) });
 		expect(tight.messages.slice(1).map((m)=>m.content)).toEqual(['q4']);
 		expect(tight.meta.stoppedBy).toBe('budget');
-		// [Q-287/PP-12] 行动能力关(replayTrace:false):NULL_AGENT 只发正文 → 不计回放量,同预算保住全部历史
+		// 行动能力关(replayTrace:false):NULL_AGENT 只发正文 → 不计回放量,同预算保住全部历史
 		const off = windowChatMessages(msgs, { model: 'x', replayTrace: false, policy: WIN({ historyTokenBudget: 200, historyMinKeep: 0 }) });
 		expect(off.meta.replayChars).toBe(0);
 		expect(off.messages.slice(1).map((m)=>m.content)).toEqual(['q1', 'a1', 'q2', 'a2', 'q3', 'a3', 'q4']);
@@ -202,8 +202,8 @@ describe('windowChatMessages', ()=>{
 	});
 });
 
-// [Q-290/M-105·PP-21①] 策略归一与面板同值域
-describe('[Q-290/PP-21] 策略值域', ()=>{
+// 策略归一与面板同值域
+describe('策略值域', ()=>{
 	const { normalizeContextPolicy, HISTORY_TOKEN_BUDGET_MAX, HISTORY_IMAGE_KEEP_MAX } = require('../aiChatHistory');
 	const { FIELD_SPECS } = require('../aiChat/policyPanel');
 	it('历史 token 预算钳到面板上限 200000;保留图片数钳到 50;面板 max 与归一常量同值', ()=>{

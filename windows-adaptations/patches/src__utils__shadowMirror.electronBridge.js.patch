@@ -1,10 +1,10 @@
 diff --git a/astrostudyui/src/utils/shadowMirror.js b/astrostudyui/src/utils/shadowMirror.js
-index d2e6bfc7..5ee12532 100644
+index 50fc5c42..8620b7bc 100644
 --- a/astrostudyui/src/utils/shadowMirror.js
 +++ b/astrostudyui/src/utils/shadowMirror.js
-@@ -12,11 +12,25 @@ import { isDesktopBridgeAvailable, invokeDesktopCommand } from './aiAnalysisDesk
- import { safeLocalStorageGet, safeLocalStorageSet } from './safeStorage';
- import { isSecondaryInstancePort } from '../components/common/MultiInstanceNotice';
+@@ -15,11 +15,25 @@ import { safeLocalStorageGet, safeLocalStorageSet, archiveCorruptStorageValue }
+ import { currentWindowIsIndependent } from '../components/common/MultiInstanceNotice';
+ import { pushRecordRevision } from './recordRevisions';
  
 +// horosa_shadow_mirror_electron_v1(Windows 对位;建议上游知悉):上游把「双保险副本」的
 +// 壳侧文件镜像走 Tauri invoke —— Electron 壳没有 __TAURI__,不对位则该特性在 Windows
@@ -29,7 +29,7 @@ index d2e6bfc7..5ee12532 100644
  		return false;
  	}
  	try{
-@@ -48,7 +62,8 @@ export function mirrorShadowWrite(key, text){
+@@ -66,7 +80,8 @@ export function mirrorShadowWrite(key, text){
  	if(typeof text !== 'string'){
  		return;
  	}
@@ -39,7 +39,7 @@ index d2e6bfc7..5ee12532 100644
  		.then(()=>{ lastMirrorError = null; })
  		.catch((e)=>{ lastMirrorError = `${(e && e.message) || e}`; });
  }
-@@ -63,7 +78,8 @@ export async function reconcileShadowOnBoot(){
+@@ -161,7 +176,8 @@ export async function reconcileShadowOnBoot(){
  	}
  	let mirror = null;
  	try{

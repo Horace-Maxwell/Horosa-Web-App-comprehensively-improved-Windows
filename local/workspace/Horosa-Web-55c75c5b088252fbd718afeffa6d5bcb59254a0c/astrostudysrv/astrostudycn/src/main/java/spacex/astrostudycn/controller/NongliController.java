@@ -65,6 +65,11 @@ public class NongliController {
 		
 	}
 	
+	/** 请求里的时间算法 → 农历换算实际口径(0 真太阳时 / 1 直接时间 / 3 平太阳时;2 春分定卯时 = 直接时间;未知 = 真太阳时)。 */
+	public static int nongliTimeAlgCode(int raw) {
+		return TimeZiAlg.fromCode(raw).calcBasis().getCode();
+	}
+
 	private Map<String, Object> checkParams(){
 		if(!TransData.containsParam("date")) {
 			throw new ErrorCodeException(700001, "miss.date");
@@ -89,11 +94,9 @@ public class NongliController {
 		map.put("after23NewDay", after23NewDay);
 		boolean lateZiHourUseNextDay = TransData.getValueAsInt("lateZiHourUseNextDay", 1) == 1;
 		map.put("lateZiHourUseNextDay", lateZiHourUseNextDay);
-		int timeAlg = TransData.getValueAsInt("timeAlg", 0);
-		if(timeAlg != 1) {
-			timeAlg = 0;
-		}
-		map.put("timeAlg", timeAlg);
+		// 四档按实际换算口径归一(0 真太阳时 / 1 直接时间 / 3 平太阳时;2 春分定卯时 = 直接时间):
+		// 此前只认 1,2 / 3 都被折成真太阳时,与八字 / 本地引擎同一档不同时刻
+		map.put("timeAlg", nongliTimeAlgCode(TransData.getValueAsInt("timeAlg", 0)));
 
 		if(TransData.containsParam("ad")) {
 			int ad = TransData.getValueAsInt("ad", 1);

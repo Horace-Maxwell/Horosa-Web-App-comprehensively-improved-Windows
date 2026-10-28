@@ -10,7 +10,7 @@ import { termsTableForVariant } from '../../divination/data/hellenisticData';
 import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
 import styles from '../../css/styles.less';
 import { XQCard as Card } from '../xq-ui';
-import * as Constants from '../../utils/constants';   // [WP-9] planetListStyle 读 globalSetup
+import { readGlobalSetupField } from '../../utils/globalSetupStore';
 
 // WI-02 偕日相中文口径(中性词)。
 const PLANET_PHASE_LABEL = { cazimi: '核心', combust: '焦伤', underBeams: '日光束下', free: '自由光' };
@@ -69,19 +69,21 @@ class AstroPlanet extends Component{
 
 	genPlanetsDom(chartObj){
 		let doms = [];
-		// [WP-9] 行星列表密度(planetListStyle,globalSetup 持久化;默认 full=现状零回归):
-		// degreeOnly=每星一行「符号 名 度数」;glyphOnly=符号 chips 横排。读法照 AstroInfo GlobalSetupKey 先例。
+		// 还没有盘(合盘两张盘没选齐时内嵌星盘拿到 null):空列表,由宿主显示空态提示;不许抛错替换掉整页
+		if(!chartObj){
+			return doms;
+		}
+		// 行星列表密度(planetListStyle,globalSetup 持久化;默认 full=现状零回归):
+		// degreeOnly=每星一行「符号 名 度数」;glyphOnly=符号 chips 横排。读全局设置单源的内存镜像(readGlobalSetupField)。
 		let listStyle = 'full';
 		if(this.props.planetListStyle === 'degreeOnly' || this.props.planetListStyle === 'glyphOnly'){
 			listStyle = this.props.planetListStyle;   // 首选 prop(app model 单源,变更即重渲染)
 		}else if(this.props.planetListStyle === undefined){
 			// 未接 prop 的宿主兜底读 globalSetup(功能可用但不即时);接 prop 的宿主恒走上支。
 			try{
-				if(typeof window !== 'undefined' && window.localStorage){
-					const setup = JSON.parse(window.localStorage.getItem(Constants.GlobalSetupKey) || '{}');
-					if(setup && (setup.planetListStyle === 'degreeOnly' || setup.planetListStyle === 'glyphOnly')){
-						listStyle = setup.planetListStyle;
-					}
+				const pls = readGlobalSetupField('planetListStyle');   // 全局设置单源的内存镜像
+				if(pls === 'degreeOnly' || pls === 'glyphOnly'){
+					listStyle = pls;
 				}
 			}catch(e){ listStyle = 'full'; }
 		}
@@ -136,7 +138,7 @@ class AstroPlanet extends Component{
 			}
 
 			let signdeg = AstroHelper.splitDegree(obj.signlon);
-			// [WP-9] degreeOnly 档:每星一行(符号+名+星座度数),跳过富卡余下全部行。
+			// degreeOnly 档:每星一行(符号+名+星座度数),跳过富卡余下全部行。
 			if(listStyle === 'degreeOnly'){
 				doms.push(
 					<div key={`pls_deg_${objid}`} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '4px 10px', borderBottom: '1px solid rgba(148,163,184,.14)' }}>

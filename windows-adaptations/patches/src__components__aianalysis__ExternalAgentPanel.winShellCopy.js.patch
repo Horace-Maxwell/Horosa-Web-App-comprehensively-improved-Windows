@@ -1,0 +1,35 @@
+diff --git a/astrostudyui/src/components/aianalysis/ExternalAgentPanel.js b/astrostudyui/src/components/aianalysis/ExternalAgentPanel.js
+index 95994483..57cbb83f 100644
+--- a/astrostudyui/src/components/aianalysis/ExternalAgentPanel.js
++++ b/astrostudyui/src/components/aianalysis/ExternalAgentPanel.js
+@@ -29,12 +29,18 @@ export function claudeDesktopConfig(st){
+ 	}
+ 	return JSON.stringify({ mcpServers: { horosa: { type: 'http', url: st.url, headers: { Authorization: `Bearer ${st.token}` } } } }, null, 2);
+ }
++// horosa_win_shell_copy_v1:Windows 桌面版的终端说法(curl.exe / PATH / horosa.cmd);按 UA 判宿主,macOS 与 jsdom 下逐字节不变
++function isWindowsHost(){
++	try{ return typeof navigator !== 'undefined' && /Windows NT/.test(navigator.userAgent || ''); }catch(e){ return false; }
++}
++// Windows PowerShell 5.1 里 curl 是 Invoke-WebRequest 的别名,只认系统自带的 curl.exe(cmd / PowerShell 两用)
++const curlCmd = ()=>(isWindowsHost() ? 'curl.exe' : 'curl');
+ // 本机 REST 接口:curl 示例(读当前上下文,零副作用)与 OpenAPI 地址;令牌按需取、只进剪贴板
+ export function restCurlExample(st){
+-	return `curl -s -H "Authorization: Bearer ${st.token}" ${st.restUrl}/context`;
++	return `${curlCmd()} -s -H "Authorization: Bearer ${st.token}" ${st.restUrl}/context`;
+ }
+ export function restOpenApiCurl(st){
+-	return `curl -s -H "Authorization: Bearer ${st.token}" ${st.restUrl}/openapi.json`;
++	return `${curlCmd()} -s -H "Authorization: Bearer ${st.token}" ${st.restUrl}/openapi.json`;
+ }
+ // 终端命令:装了垫片就用 horosa,没装就给二进制全路径(加引号,路径里可能有空格)
+ export function cliExampleCommand(st){
+@@ -43,6 +49,9 @@ export function cliExampleCommand(st){
+ 	return bin ? `"${bin.replace(/"/g, '\\"')}" --horosa-cli status` : '';
+ }
+ export function cliShimConfirmCopy(st){
++	if(isWindowsHost()){
++		return `将把 ${(st && st.path) || '星阙安装目录里的 horosa.cmd'} 所在目录加进当前用户的 PATH:这个小脚本随星阙一起安装,指向本应用的终端命令入口;只改星阙自己的这一条 PATH,随时可在这里移除(卸载时一并移除)。装好后新开一个终端窗口(cmd / PowerShell)即可用 horosa。`;
++	}
+ 	return `将写入 ${(st && st.path) || '~/.local/bin/horosa'}:一个两行的小脚本,指向本应用的终端命令入口;只会覆盖星阙自己写的同名文件,随时可在这里移除。终端里找不到 horosa 时,把 ~/.local/bin 加进 PATH。`;
+ }
+ 

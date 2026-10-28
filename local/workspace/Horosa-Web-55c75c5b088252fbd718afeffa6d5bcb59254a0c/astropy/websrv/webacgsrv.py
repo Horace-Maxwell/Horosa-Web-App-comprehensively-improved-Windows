@@ -3,6 +3,7 @@ import jsonpickle
 import cherrypy
 import swisseph
 from astrostudy.acg.ACGraph import ACGraph, findMundaneEvent
+from astrostudy.civil_calendar import civil_julday, civil_parts_from_jd, format_civil_date, parse_civil_date
 
 from websrv.helper import enable_crossdomain
 
@@ -62,29 +63,22 @@ class AcgSrv:
             data = cherrypy.request.json
             kind = str(data.get('kind', 'solar_eclipse'))
             direction = str(data.get('direction', 'next'))
-            fd = str(data.get('fromDate', '')).replace('-', '/').split('/')
-            if len(fd) == 3:
-                jd0 = swisseph.julday(int(fd[0]), int(fd[1]), int(fd[2]), 12.0)
-            else:
-                jd0 = swisseph.julday(2026, 1, 1, 0.0)
+            # 起查日按民用历读(历史纪年;1582-10-15 以前儒略历),与盘面日期同口径。
+            try:
+                fy, fm, fdd = parse_civil_date(data.get('fromDate', ''), data.get('ad', 1))
+                jd0 = civil_julday(fy, fm, fdd, 12.0)
+            except (ValueError, IndexError, TypeError):
+                jd0 = civil_julday(2026, 1, 1, 0.0)
             jd = findMundaneEvent(kind, jd0, direction)
             if jd is None:
                 return jsonpickle.encode({'err': 'not found'}, unpicklable=False)
             # T-49:回本命时区钟面(前端把 date/time 原样写进 CCG,后端 _ccgJd 再按本命 zone 解释);不带 zone 仍回 UT(旧调用零回归)
             zone_hours = _zone_to_hours(data.get('zone'))
-            y, m, d, h = swisseph.revjul(jd + zone_hours / 24.0)
-            hh = int(h)
-            mi = int((h - hh) * 60.0)
-            ss = int(round(((h - hh) * 60.0 - mi) * 60.0))
-            if ss >= 60:
-                ss -= 60
-                mi += 1
-            if mi >= 60:
-                mi -= 60
-                hh += 1
+            # 回写的日期 / 时刻要能原样再起盘:按民用历拆(历史纪年;1582-10-15 以前儒略历)。
+            local = civil_parts_from_jd(jd + zone_hours / 24.0)
             obj = {'kind': kind, 'jd': round(jd, 6),
-                   'date': '{0}/{1:02d}/{2:02d}'.format(y, m, d),
-                   'time': '{0:02d}:{1:02d}:{2:02d}'.format(hh, mi, ss),
+                   'date': format_civil_date(local['astroYear'], local['month'], local['day'], '/'),
+                   'time': local['time'],
                    'zone': data.get('zone') if zone_hours else '+00:00'}
             return jsonpickle.encode(obj, unpicklable=False)
         except:

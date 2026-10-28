@@ -1,4 +1,4 @@
-// [挂载自检 F-15·P1] 紫微页 /ziwei/birth 构参:日界/晚子时读记录 fields(与八字页/AI 挂载同口径),缺席回退全局。
+// 紫微页 /ziwei/birth 构参:日界/晚子时读记录 fields(与八字页/AI 挂载同口径),缺席回退全局。
 // 判别向量:构参改回恒读全局即第 1 例红。
 import { buildZiweiBirthParams } from '../../components/ziwei/ZiWeiMain';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../dayBoundary';

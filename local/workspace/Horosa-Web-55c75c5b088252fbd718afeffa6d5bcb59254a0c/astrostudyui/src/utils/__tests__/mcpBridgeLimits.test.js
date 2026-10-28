@@ -1,4 +1,4 @@
-// [压测二轮·D3] 外部桥限流面:资源/提示分支同样受限流;限流桶按壳注入的会话身份分,不按客户端自报名分,且桶表有界。
+// 外部桥限流面:资源/提示分支同样受限流;限流桶按壳注入的会话身份分,不按客户端自报名分,且桶表有界。
 // 打桩方式与 mcpBridge.test.js / mcpBridgeStress.test.js 同:handleAgentToolRequest 直接注入 deps(不走 loadTools 惰性 chunk)。
 import { handleAgentToolRequest, checkExternalLimits, __resetMcpBridgeForTests } from '../aiAgent/mcpBridge';
 import { setAgentEnabled, setExternalPolicy, getExternalPolicy, setToolPolicy } from '../aiAgent/prefs';
@@ -92,7 +92,7 @@ describe('R4 桶键与桶表', ()=>{
 	});
 });
 
-describe('[进阶复查 D13·2026-09-08] 拒绝不计额', ()=>{
+describe('拒绝不计额', ()=>{
 	it('🔴 目录外名字与禁用名字被拒后不消耗每分钟桶', async ()=>{
 		setExternalPolicy({ maxCallsPerMinute: 1 });
 		setToolPolicy({ deny: ['list_records'] });

@@ -1,6 +1,7 @@
-// 自动化引擎的缺省依赖(P4 补课·[A4]):三件公共动作的真实实现——此前布局层是裸调 bindAutomationEngine(),
+// 自动化引擎的缺省依赖:三件动作的真实实现——此前布局层是裸调 bindAutomationEngine(),
 // 三件动作 selectSource / runBrief / archiveIdleConversations 恒为 undefined,用户建的规则一条也跑不动。
 // 纪律:本文件挂在布局层(首屏 chunk),零静态 import 运行时/目标任务——runBrief 惰性载入 goalRunner。
+import { parseDateTimeMs } from '../../dateTimeParse';
 import { getWorkspaceUi } from '../../aiTools/workspaceBridge';
 import { AI_ANALYSIS_STORES, listStoreRecords, putStoreRecord } from '../../aiAnalysisStore';
 import { findAnalysisSourceById } from '../../aiAnalysisSources';
@@ -11,7 +12,7 @@ export const BRIEF_PROMPT = '请给挂载的命盘一页简报:命局特点(3 �
 
 export function buildDefaultAutomationDeps(extra){
 	return {
-		// [批三⑥] 通知脚本钩:经壳命令跑用户脚本(非桌面 → 不可用;壳内门与限流都在壳侧)
+		// 通知脚本钩:经壳命令跑用户脚本(非桌面 → 不可用;壳内门与限流都在壳侧)
 		notifyScript: async (payload)=>{
 			const r = await desktopNotifyHookRun(payload, false);
 			if(!r || !r.available){ throw new Error('通知脚本钩仅桌面版可用'); }
@@ -40,7 +41,7 @@ export function buildDefaultAutomationDeps(extra){
 				referenceIds: [], techniqueKeys: keys, systemPrompt: '',
 				meta: { kind: 'automation-brief', origin: origin || 'automation' }, lastMessageAt: now, updatedAt: now, createdAt: now, archived: false, favorite: false,
 			}, 'conv');
-			// [Q-294/AR-30 裁决 2026-09-18] 简报轮用只读注册表视图(与编排子任务同):缺省审批档「全自动」下写入不再直接放行,与「零写入」注释一致
+			// 简报轮用只读注册表视图(与编排子任务同):缺省审批档「全自动」下写入不再直接放行,与「零写入」注释一致
 			const readOnlyView = (await import('../readOnlyRegistry')).defaultReadOnlyRegistry();
 			const r = await m.runHeadlessTurn({ registry: readOnlyView, profile: resolved.profile, model: resolved.model, conversationId: conv.id, userText: BRIEF_PROMPT, source, techniqueKeys: keys, systemPrompt: '', origin: origin || 'automation', requestApproval: ()=>Promise.resolve(false) });
 			if(r && r.error){ throw new Error(r.error); }
@@ -54,7 +55,7 @@ export function buildDefaultAutomationDeps(extra){
 			for(let i = 0; i < all.length; i++){
 				const c = all[i];
 				if(!c || c.archived || c.favorite){ continue; }
-				const last = Date.parse(c.lastMessageAt || c.updatedAt || c.createdAt || '') || 0;
+				const last = parseDateTimeMs(c.lastMessageAt || c.updatedAt || c.createdAt || '') || 0;
 				if(!last || last > cutoff){ continue; }
 				// eslint-disable-next-line no-await-in-loop
 				await putStoreRecord(AI_ANALYSIS_STORES.conversations, { ...c, archived: true }, 'conv');

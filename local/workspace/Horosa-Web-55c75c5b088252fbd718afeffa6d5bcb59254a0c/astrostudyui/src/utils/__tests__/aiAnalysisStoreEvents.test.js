@@ -9,7 +9,7 @@ beforeEach(async ()=>{ events = []; window.addEventListener(AI_STORE_CHANGED_EVE
 afterEach(()=>{ window.removeEventListener(AI_STORE_CHANGED_EVENT, onEv); });
 const ofOp = (op)=>events.filter((d)=>d && d.store === STORE && d.op === op);
 
-describe('[D31] 库变更事件按调用一发', ()=>{
+describe('库变更事件按调用一发', ()=>{
 	it('bulkPut 100 条 ⇒ 恰一个 bulk 事件,ids 100', async ()=>{
 		const recs = Array.from({ length: 100 }, (_, i)=>({ id: `t${i}`, name: `模版 ${i}`, content: 'x' }));
 		await bulkPutStoreRecords(STORE, recs, 'tpl');

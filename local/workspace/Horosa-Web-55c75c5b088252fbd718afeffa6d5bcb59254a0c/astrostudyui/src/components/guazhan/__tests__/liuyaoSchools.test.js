@@ -1,6 +1,6 @@
 import {
 	DEFAULT_LIUYAO_SETTINGS, LIUYAO_PRESETS, LIUYAO_SCHOOL_OPTIONS,
-	applyPreset, setOption, normalizeLiuyaoSettings, getLiuyaoOptionsKey,
+	applyPreset, factoryLiuyaoSettings, setOption, normalizeLiuyaoSettings, getLiuyaoOptionsKey,
 } from '../../gua/liuyaoSchools';
 import { analyzeLiuyao } from '../../gua/liuyaoFacade';
 import { Gua64 } from '../../gua/GuaConst';
@@ -12,7 +12,7 @@ describe('六爻流派体系·WP-J 预设/开关', () => {
 	test('6 预设 + default 共 7;选项齐', () => {
 		// [六爻补齐] 新增 tianji 预设(古籍综合断诀档,中性键)
 		expect(Object.keys(LIUYAO_PRESETS)).toEqual(['default', 'zengshan', 'bushi', 'yiyin', 'xinpai', 'mangpai', 'tianji']);
-		// [Q-110 裁决 A 2026-09-18] bushi 档保留键(旧档可读)但选择器隐藏(并入「通用(卜筮正宗口径)」)→ 选项 6
+		// bushi 档保留键(旧档可读)但选择器隐藏(并入「通用(卜筮正宗口径)」)→ 选项 6
 		expect(LIUYAO_SCHOOL_OPTIONS).toHaveLength(6);
 		expect(LIUYAO_SCHOOL_OPTIONS.some((o)=>o.value === 'bushi')).toBe(false);
 	});
@@ -36,8 +36,8 @@ describe('六爻流派体系·WP-J 预设/开关', () => {
 		expect(next.guashen).toBe(false);
 		expect(next.school).toBe('custom');
 	});
-	// [Q-204/T-147·BG-07] 输入键与显示/起卦体验键不属流派口径
-	test('[Q-204] 选占测事项/用神/本命/显示与起卦体验项 → 流派不变;切派保留这些键', () => {
+	// 输入键与显示/起卦体验键不属流派口径
+	test('选占测事项/用神/本命/显示与起卦体验项 → 流派不变;切派保留这些键', () => {
 		let s = applyPreset('zengshan');
 		[['askType', 'wealth'], ['yongOverride', '妻财'], ['benming', '子'], ['showTips', false], ['writeDir', 'topDown'],
 			['titleAlign', 'right'], ['randomConfirm', true], ['yaoHotkeys', true], ['coinFace', 'alt'], ['randomAlgo', 'yarrow'],
@@ -60,6 +60,31 @@ describe('六爻流派体系·WP-J 预设/开关', () => {
 		// 无 current(无头/旧调用形)语义不变
 		expect(applyPreset('yiyin').askType).toBe('self');
 		expect(applyPreset('yiyin').writeDir).toBe('bottomUp');
+	});
+	test('预设点名写了的输入键以预设为准:邵伟华新派把占测事项归「自身」;没点名的照旧保留', () => {
+		let s = setOption(applyPreset('default'), 'askType', 'wealth');
+		s = setOption(s, 'writeDir', 'topDown');
+		const x = applyPreset('xinpai', s);
+		expect(x.askType).toBe('self');
+		expect(x.writeDir).toBe('topDown');
+		expect(applyPreset('zengshan', s).askType).toBe('wealth');
+	});
+	test('「恢复默认设置」= 全部出厂默认(含占测事项 / 用神手选 / 本命年支 / 显示与起卦习惯)', () => {
+		let s = applyPreset('tianji');
+		[['askType', 'wealth'], ['yongOverride', '妻财'], ['benming', '子'], ['writeDir', 'topDown'], ['randomAlgo', 'yarrow'],
+			['showTips', false], ['relatedCards', ['bian']], ['yuepoMode', 'always']].forEach(([k, v]) => { s = setOption(s, k, v); });
+		const f = factoryLiuyaoSettings();
+		expect(f).toEqual(normalizeLiuyaoSettings(null));
+		// 判别力:切到「通用」会保留这些输入 / 习惯键(与恢复默认不同)—— 恢复默认若退化成切派,下面就对不上
+		const viaPreset = applyPreset('default', s);
+		[['askType', 'wealth'], ['yongOverride', '妻财'], ['benming', '子'], ['writeDir', 'topDown'], ['randomAlgo', 'yarrow'], ['showTips', false]].forEach(([k, v]) => {
+			expect([k, viaPreset[k]]).toEqual([k, v]);
+			expect([k, f[k]]).toEqual([k, DEFAULT_LIUYAO_SETTINGS[k]]);
+			expect(f[k]).not.toEqual(v);
+		});
+		expect(f.school).toBe('default');
+		Object.keys(DEFAULT_LIUYAO_SETTINGS).forEach((k) => { expect([k, f[k]]).toEqual([k, DEFAULT_LIUYAO_SETTINGS[k]]); });
+		expect(f.shensha.set).not.toBe(DEFAULT_LIUYAO_SETTINGS.shensha.set);   // 不共享出厂表的引用
 	});
 	test('神煞子开关合并', () => {
 		const next = setOption(applyPreset('default'), 'shensha', { on: false });
@@ -114,8 +139,8 @@ describe('六爻门面·WP-J analyzeLiuyao 编排', () => {
 	});
 });
 
-// ══ [G-B] 起卦体验三键(随机概率源/随机前确认/录入默认爻) ═══
-describe('[G-B] 三新键默认值+源码接线守卫', ()=>{
+// ══ 起卦体验三键(随机概率源/随机前确认/录入默认爻) ═══
+describe('三新键默认值+源码接线守卫', ()=>{
 	const fs = require('fs'); const path = require('path');
 	const { DEFAULT_LIUYAO_SETTINGS } = require('../../gua/liuyaoSchools');
 	test('🔴 默认值=现状零回归(coins/false/shaoyang)', ()=>{
@@ -139,7 +164,7 @@ describe('[G-B] 三新键默认值+源码接线守卫', ()=>{
 	test('G4 默认爻态:CastPad 两录入面同步按档;切档经 key 重挂立即生效', ()=>{
 		const pad = fs.readFileSync(path.resolve(__dirname, '..', 'LiuYaoCastPad.js'), 'utf8');
 		expect(pad.includes("props.defaultYaoState === 'shaoyin'")).toBe(true);
-		expect(pad.includes('tosses: [0, 1, 2, 3, 4, 5].map(() => backsOf(yin))')).toBe(true);   // [Q-299/T-288 ⑦] 背面数按 coinFace 口径取
+		expect(pad.includes('tosses: [0, 1, 2, 3, 4, 5].map(() => backsOf(yin))')).toBe(true);   // 背面数按 coinFace 口径取
 		expect(pad.includes('yin ? [8, 8, 8, 8, 8, 8]')).toBe(true);
 		const src = fs.readFileSync(path.resolve(__dirname, '..', 'GuaZhanMain.js'), 'utf8');
 		expect(src.includes('defaultYaoState={normalizeLiuyaoSettings(this.state.liuyaoSettings).defaultYaoState}')).toBe(true);

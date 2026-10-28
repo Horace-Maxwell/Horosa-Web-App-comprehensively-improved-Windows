@@ -1,9 +1,10 @@
-// [Q-244 · TL-07/10/11/12] 天文馆杂项修复的回归锁(源码静态锚 + DateTime 纯逻辑;Babylon 场景 jsdom 不可实例化)。
+// 天文馆杂项修复的回归锁(源码静态锚 + DateTime 纯逻辑;Babylon 场景 jsdom 不可实例化)。
 import fs from 'fs';
 import path from 'path';
 import DateTime from '../../comp/DateTime';
+const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'PlanetariumBabylon.js'), 'utf8');
+const SRC = readSource(path.join(__dirname, '..', 'PlanetariumBabylon.js'));
 
 describe('TL-07 星等上限:恒星层关时置灰并给一键开恒星', ()=>{
 	test('滑块带 disabled={!this.state.layers.stars} 与提示行', ()=>{

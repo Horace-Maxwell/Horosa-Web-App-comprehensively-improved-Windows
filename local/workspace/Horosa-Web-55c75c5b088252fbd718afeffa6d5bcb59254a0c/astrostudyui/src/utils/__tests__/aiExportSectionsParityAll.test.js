@@ -12,11 +12,12 @@ import { AI_EXPORT_PRESET_SECTIONS, normalizeSectionTitle } from '../aiExport';
 import fs from 'fs';
 import path from 'path';
 import { installFixedNow } from './fixtures/fixedNow';
+const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 installFixedNow();   // [指纹包] HOROSA_FIXED_NOW 设了才钉住此刻(推运类缺省目标时刻=此刻);未设零副作用
 
 jest.setTimeout(120000);
 
-const read = (rel)=>fs.readFileSync(path.join(__dirname, rel), 'utf8');
+const read = (rel)=>readSource(path.join(__dirname, rel));
 // [指纹包] HOROSA_PARITY_DUMP_DIR:落每技法缺省快照正文(零回归对拍用;未设不产文件、断言不变)
 const dumpParity = (key, txt)=>{ if(process.env.HOROSA_PARITY_DUMP_DIR){ try{ fs.writeFileSync(path.join(process.env.HOROSA_PARITY_DUMP_DIR, `${key}.txt`), `${txt || ''}`); }catch(_e){ /* ignore */ } } };
 
@@ -33,7 +34,7 @@ function extractSections(txt){
 }
 
 function readPresetMap(){
-	// 🔴 [挂载自检 F-01] 运行时真值:此前用正则切 `AI_EXPORT_PRESET_SECTIONS = {…\n};` 字面块,只见 87 键——
+	// 🔴 运行时真值:此前用正则切 `AI_EXPORT_PRESET_SECTIONS = {…\n};` 字面块,只见 87 键——
 	// 8 个择日子技法(aiExport.js 933-949 动态追加)与 5 个节气分键(字面块内 `...JIEQI_SETTING_PRESETS` 展开)
 	// 逃出「全覆盖总锁」,新增此类键永不红。段名同样去空白归一(与 extractSections 同口径)。
 	const map = {};
@@ -114,7 +115,7 @@ const EXEMPT = {
 	heluo: '河洛理数走数算宿主', yizhangjing: '一掌经快照取自组件态', germany: '量化盘走后端 chart',
 	babylon: '巴比伦盘走后端', jieqi: '节气盘走后端 chart', otherbu: '卜其他聚合键(子技法各自覆盖)',
 	fengshui: '风水理气快照取自画布组件态', calendar: '黄历聚合键(huangli/tongshu 已覆盖)',
-	// [挂载自检 F-01] 择日子技法=母技法快照(母键各自在 LOCAL/SOFT)+ 三段固定附加段(各 *ZeriLedger 专测锁段头与序);
+	// 择日子技法=母技法快照(母键各自在 LOCAL/SOFT)+ 三段固定附加段(各 *ZeriLedger 专测锁段头与序);
 	// sectionsOnly 无统一重算入口(regenerateCaseTechniqueSnapshot default → '');qimenzeri 保留在 SOFT(母 qimen 本地可产)。
 	huanglizeri: '黄历择日=huangli 段+三附加段(huangliZeriLedger 锁)', bazizeri: '八字择日=bazi 段+三附加段(baziZeriLedger 锁)',
 	taiyizeri: '太乙择日=taiyi 段+三附加段(taiyiZeriLedger 锁)', ziweizeri: '紫微择日=ziwei 段+三附加段(ziweiZeriLedger 锁)',
@@ -161,7 +162,7 @@ describe('[制度化] 全技法段登记双向哨兵(总闸)', ()=>{
 
 	Object.keys(SOFT).forEach((key)=>{
 		test(`SOFT·${key}:有产出则快照段⊆preset(产空仅提示)`, async ()=>{
-			// 🔴 [挂载自检 F-07] 按运行时分派表选入口:命盘类(ANALYSIS_CHART_TECHNIQUES 有、CASE 无)走
+			// 🔴 按运行时分派表选入口:命盘类(ANALYSIS_CHART_TECHNIQUES 有、CASE 无)走
 			// regenerateChartTechniqueSnapshot —— 此前一律走事盘入口,命盘类在 default 分支恒得 '' → 「有产出才断言」
 			// 对紫微/印占/七政/推运全族从未触发过,后端在线也白跑。
 			const viaChart = ANALYSIS_CHART_TECHNIQUES.includes(key) && !ANALYSIS_CASE_TECHNIQUES.includes(key);

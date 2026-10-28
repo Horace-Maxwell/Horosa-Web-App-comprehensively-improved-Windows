@@ -1,6 +1,6 @@
 // 斜杠命令(A3)合同:只认首字符 / 且次字符非 /(// 与正文中间的 / 不是命令);命令名到首个空白,其余为参数原文;
 // 菜单项=内置+技能(技能触发词撞内置=内置优先);前提判定(无源/事盘/两盘);标灰带原因;别名查找;触发词冲突检测。
-// [2026-09-11] 分组(COMMAND_GROUPS)/开关门(gates)/菜单态 two-charts 旁路/新命令(命主·任务)/择日子技法别名表。
+// 分组(COMMAND_GROUPS)/开关门(gates)/菜单态 two-charts 旁路/新命令(命主·任务)/择日子技法别名表。
 import { parseSlashInput, listCommandItems, findCommand, requirementState, triggerConflicts, BUILTIN_COMMANDS, COMMAND_GROUPS, COMMAND_REQUIRES, COMMAND_GATES, groupCommandItems, gateState, resolveZeriSubTab, ZERI_SUBTAB_ALIASES } from '../aiChat/commands';
 import { ZERI_SUBTABS } from '../../constants/SubTabRegistry';
 
@@ -42,7 +42,7 @@ describe('listCommandItems / findCommand / requirementState', ()=>{
 		expect(all.find((c)=>c.name === 'compact').available).toBe(true);
 		expect(listCommandItems({ prefix: '流', ctx: { activeSource: chart } }).map((c)=>c.name)).toEqual(['流年']);
 		expect(listCommandItems({ prefix: 'liu', ctx: { activeSource: chart } }).map((c)=>c.name)).toEqual(['流年']);
-		// [2026-09-12] 有前缀时按命中质量排:名字前缀(resume)先于别名前缀(review/report),`/re` 回车不会执行别的
+		// 有前缀时按命中质量排:名字前缀(resume)先于别名前缀(review/report),`/re` 回车不会执行别的
 		const re = listCommandItems({ prefix: 're', ctx: { activeSource: chart } }).map((c)=>c.name);
 		expect(re[0]).toBe('resume');
 		expect(re).toContain('审阅');
@@ -57,7 +57,7 @@ describe('listCommandItems / findCommand / requirementState', ()=>{
 		expect(findCommand('nope')).toBe(null);
 		expect(BUILTIN_COMMANDS.filter((c)=>c.kind === 'builtin').map((c)=>c.name)).toEqual([
 			'流年', '合盘', '简报', '择日',
-			'compact', 'fork', 'side', 'resume', 'status', 'init', '命主', '任务',
+			'compact', 'fork', 'side', 'resume', 'status', 'init', '命主', 'help', '任务',
 			'多模型', '审阅', '编排', 'profile', 'plan', 'goal', 'doctor',
 		]);
 	});
@@ -129,7 +129,7 @@ describe('listCommandItems / findCommand / requirementState', ()=>{
 	});
 });
 
-it('🔴 [2026-09-12 复查二] requires=chart 的提示按当前源类型说话:起课时间源不说「当前是事盘」', ()=>{
+it('🔴 requires=chart 的提示按当前源类型说话:起课时间源不说「当前是事盘」', ()=>{
 	expect(requirementState('chart', { activeSource: { sourceType: 'timepoint' } }).why).toContain('起课时间');
 	expect(requirementState('chart', { activeSource: { sourceType: 'case' } }).why).toContain('事盘');
 	expect(requirementState('chart', {}).why).toContain('挂载一张命盘');

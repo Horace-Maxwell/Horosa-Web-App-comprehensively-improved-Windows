@@ -1,5 +1,6 @@
-// [批二⑫] /doctor 诊断(借鉴 Claude Code /doctor):把「后端根 / 桌面桥 / 行动能力门控 / 模型能力位 / 本机 MCP 服务 / 调度心跳 / IndexedDB 计数 / 后台失败(bgSink)」
+// /doctor 诊断:把「后端根 / 桌面桥 / 行动能力门控 / 模型能力位 / 本机 MCP 服务 / 调度心跳 / IndexedDB 计数 / 后台失败(bgSink)」
 // 拼成一屏可复制的诊断。纯函数:调用方喂 inputs,这里只归一 + 定级 + 脱敏(密钥/令牌形状一律 ***;baseUrl 只留 origin)。
+import { parseDateTimeMs } from '../dateTimeParse';
 export const DOCTOR_LEVELS = ['ok', 'warn', 'bad', 'info'];
 export const DOCTOR_HEARTBEAT_STALE_MS = 10 * 60 * 1000;
 const SECRET_RE = /(sk-[A-Za-z0-9_-]{6,}|Bearer\s+[A-Za-z0-9._-]{8,}|AIza[0-9A-Za-z_-]{20,}|[A-Za-z0-9_-]{32,})/g;
@@ -14,7 +15,7 @@ export function originOnly(url){
 	return m ? m[1] : redactSecrets(s.split(/[?#]/)[0]).slice(0, 80);
 }
 function fmtAge(iso, now){
-	const t = typeof iso === 'number' ? iso : Date.parse(iso || '');
+	const t = typeof iso === 'number' ? iso : parseDateTimeMs(iso || '');
 	if(!Number.isFinite(t) || !t){ return ''; }
 	const ms = Math.max(0, (now || Date.now()) - t);
 	if(ms < 60000){ return `${Math.round(ms / 1000)} 秒前`; }
@@ -49,7 +50,7 @@ export function buildDoctorReport(inputs){
 	push('subswitches', '子开关(开着的)', subs.length ? subs.join(' · ') : '全关(现状)', 'info');
 	const tp = ag.toolPolicy || {};
 	if((tp.deny && tp.deny.length) || (tp.allow && tp.allow.length)){ push('toolPolicy', '按工具名策略', `禁用 ${(tp.deny || []).length} · 放行 ${(tp.allow || []).length}`, 'info'); }
-	// [P1·2026-09-08] 会话内免问的工具(动作条「本会话不再问」;刷新即清):调用方喂 agent.sessionAllow(数组),这里只归一展示
+	// 会话内免问的工具(动作条「本会话不再问」;刷新即清):调用方喂 agent.sessionAllow(数组),这里只归一展示
 	const sa = Array.isArray(ag.sessionAllow) ? ag.sessionAllow.filter(Boolean) : [];
 	if(sa.length){ push('sessionAllow', '本会话免问的工具', sa.join(' · '), 'info'); }
 	// MCP
@@ -57,7 +58,7 @@ export function buildDoctorReport(inputs){
 	push('mcp', '本机 MCP 服务', !mcp.available ? '仅桌面版' : (mcp.running ? `运行中 · ${originOnly(mcp.url) || `端口 ${mcp.port || '?'}`}` : (mcp.enabled ? '已开启但未运行' : '未开启')), mcp.available && mcp.enabled && !mcp.running ? 'warn' : 'info');
 	// 心跳
 	const hb = i.heartbeat || {};
-	const hbT = Number(hb.lastTickAt) > 0 ? Number(hb.lastTickAt) : Date.parse(hb.lastTickAt || '') || 0;
+	const hbT = Number(hb.lastTickAt) > 0 ? Number(hb.lastTickAt) : parseDateTimeMs(hb.lastTickAt || '') || 0;
 	const stale = hb.schedulerEnabled && (!hbT || now - hbT > DOCTOR_HEARTBEAT_STALE_MS);
 	push('heartbeat', '调度心跳', hbT ? fmtAge(hbT, now) : '从未', stale ? 'warn' : 'info');
 	// IDB
@@ -78,6 +79,6 @@ export function buildDoctorReport(inputs){
 	const bg = Array.isArray(i.bgFailures) ? i.bgFailures : [];
 	push('bgFailures', '后台链失败', bg.length ? `${bg.length} 条;最近:${`${bg[0].tag || ''} ${bg[0].message || ''}`.trim().slice(0, 120)}` : '0 条', bg.length ? 'warn' : 'ok');
 	const worst = rows.some((r)=>r.level === 'bad') ? 'bad' : (rows.some((r)=>r.level === 'warn') ? 'warn' : 'ok');
-	const text = [`星阙 AI 助手诊断 · ${new Date(now).toISOString()}`].concat(rows.map((r)=>`[${r.level}] ${r.label}:${r.value}`)).join('\n');
+	const text = [`星阙 AI 助手诊断 · ${new Date(parseDateTimeMs(now)).toISOString()}`].concat(rows.map((r)=>`[${r.level}] ${r.label}:${r.value}`)).join('\n');
 	return { rows, worst, text };
 }

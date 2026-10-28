@@ -1,6 +1,7 @@
 // components/babylon/BabylonMain.js —— 巴比伦占星容器:文类子 Tab(轴1)+ 派系设置(轴2)。
 // 数据基座:一次 /chart(恒星黄道·毕宿锚)请求供各产品共用(LRU + inflight 去重 + 240ms prefetch)。
 import { Component } from 'react';
+import { responseCacheable } from '../../utils/resultEnvelope';
 import { claimTrigger, settleTrigger, identityOf } from '../../utils/singleTrigger';   // 双触发收敛
 import { XQTabs as Tabs, XQSelect } from '../xq-ui';
 import request from '../../utils/request';
@@ -10,7 +11,7 @@ import {
 	babylonChartParams, chartToLons, babylonBirthJdn, buildBabylonSnapshotText,
 	fetchBabylonEphemeris, digestBabylonEphemeris, computeNaKur, EPHEM_MIN_JDN,
 } from '../../utils/babylonAiSnapshot';
-import { PRODUCTS, SCHEME_ORDER, BABYLON_SCHEMES, schemeOf, judgeOpts, BABYLON_PARAM_SPEC, schemeAffectsTab, schemeVaryingKeysForTab, schemeVaryingKeysElsewhere, schemeKeyLabel } from '../../divination/babylon/babylonSchools';   // [Q-346] 派系是否作用于本页 / [Q-150] 作用范围逐条自证
+import { PRODUCTS, SCHEME_ORDER, BABYLON_SCHEMES, schemeOf, judgeOpts, BABYLON_PARAM_SPEC, schemeAffectsTab, schemeVaryingKeysForTab, schemeVaryingKeysElsewhere, schemeKeyLabel } from '../../divination/babylon/babylonSchools';   // 派系是否作用于本页 / 作用范围逐条自证
 import { buildHoroscope } from '../../divination/babylon/horoscope';
 import BabylonHoroscope from './BabylonHoroscope';
 import BabylonEphemeris from './BabylonEphemeris';
@@ -21,15 +22,17 @@ import BabylonEae from './BabylonEae';
 import BabylonAlmanac from './BabylonAlmanac';
 import BabylonHemerology from './BabylonHemerology';
 import './babylon.less';
-// [视觉底线·2026-09-17] 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
+// 最小尺寸是屏幕可读意图(物理 px),壳缩放 z 下按 1/z 折算成布局 px;z=1 恒等。
 import { visualFloorPx } from '../../utils/zoomDomain';
 import { definePageSettings } from '../../utils/pageSettingsStore';
+import { registerProcessCache } from '../../utils/processCacheRegistry';
 
 const TabPane = Tabs.TabPane;
 
 const CACHE_MAX = 32;
 const mem = new Map();
 const inflight = new Map();
+registerProcessCache('babylon.chart', ()=>{ mem.clear(); inflight.clear(); });   // 同参复用上次结果:登记清空函数(只供审计仪器取样前清空)
 function cacheKey(params){ try{ return JSON.stringify(params); }catch(e){ return ''; } }
 async function fetchSiderealChart(params){
 	const key = cacheKey(params);
@@ -38,7 +41,7 @@ async function fetchSiderealChart(params){
 	const req = request(`${Constants.ServerRoot}/chart`, { body: JSON.stringify(params), silent: true })
 		.then((data) => {
 			const result = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
-			if(key && result){
+			if(key && result && responseCacheable(data)){   // 只缓存真成功的回包(业务错误 Result.err / 顶层 err 不进缓存,判据单一出处 resultEnvelope)
 				if(mem.has(key)){ mem.delete(key); }
 				mem.set(key, result);
 				if(mem.size > CACHE_MAX){ const f = mem.keys().next().value; if(f){ mem.delete(f); } }
@@ -54,7 +57,7 @@ async function fetchSiderealChart(params){
 // (稀疏:只存显式改过的项,缺席 = 跟随派系;换派系时覆盖层清空,与界面同一条规矩)。当前页签是视图态,不保留。
 // 本页不回灌事盘、不接宿主下发口径,这两个 handler 是改派系 / 参数的唯一入口。
 export const BABYLON_PAGE_SETTINGS = definePageSettings('horosa.babylon.settings.v1', {
-	schemeId: { def: 'swissA10', oneOf: SCHEME_ORDER },
+	schemeId: { label: '派系', def: 'swissA10', oneOf: SCHEME_ORDER },
 	overrides: { type: 'map', sparse: true, keys: BABYLON_PARAM_SPEC.reduce((acc, p)=>{
 		const vals = (p.options || []).map((o)=>o.value);
 		acc[p.key] = { def: vals[0], oneOf: vals };
@@ -119,7 +122,7 @@ class BabylonMain extends Component{
 		let ephemDigest = digestBabylonEphemeris(ephem, jdn);
 		this.setState({ chartObj: result, ephemDigest });
 		// NA/KUR 观测量(满月日/残月晨的日月升落)二段轻请求;回填不阻塞首屏。
-		// [issue#74 同类] 回填落地后必须补拍快照:旧实现只 setState,而下方快照在本同步块
+		// 回填落地后必须补拍快照:旧实现只 setState,而下方快照在本同步块
 		// 已用「无 na/kur 的裸 digest」产出并冻结(本文件无 refresh-event 监听,导出直吃缓存)
 		// → 页面显示 NA/KUR 而 AI 挂载恒缺两子句。补拍与 render 同构,回包即自愈。
 		if(ephemDigest){
@@ -136,14 +139,14 @@ class BabylonMain extends Component{
 	// 页面侧存模块 AI 快照(AI 导出当前页/挂载候选;meta=生辰签名防串盘)。
 	// 抽成方法供两处调用:首拍(裸 digest,即时可用)+ NA/KUR 回填补拍(终值)。
 	saveBabylonSnapshot(result, params, jdn, ephemDigest){
-		// [Q-150/T-58] 留存末次入参:改派系 / 改参数后要能就地补拍(否则 AI 导出当前页恒是换盘那刻的旧派系)。
+		// 留存末次入参:改派系 / 改参数后要能就地补拍(否则 AI 导出当前页恒是换盘那刻的旧派系)。
 		this._lastSnapInputs = { result, params, jdn };
 		try{
 			const lons = chartToLons(result);
 			if(jdn && lons.sun !== undefined){
 				const bab = buildHoroscope(lons, jdn, this.effectiveOpts());
 				const sc = schemeOf(this.state.schemeId);
-				const text = buildBabylonSnapshotText(bab, { ...this.effectiveOpts(), schemeCn: sc.cn, ephemDigest, lons });   // [Q-443] lons 供数理星历段锚
+				const text = buildBabylonSnapshotText(bab, { ...this.effectiveOpts(), schemeCn: sc.cn, ephemDigest, lons });   // lons 供数理星历段锚
 				if(text){
 					saveModuleAISnapshot('babylon', text, {
 						date: params.date, time: params.time, zone: params.zone,
@@ -155,7 +158,7 @@ class BabylonMain extends Component{
 	}
 
 	changeTab(key){ this.setState({ currentTab: key }); }
-	// [Q-150/T-58] 改派系 / 改参数此前只 setState,模块快照仍停在 refresh() 那刻 →
+	// 改派系 / 改参数此前只 setState,模块快照仍停在 refresh() 那刻 →
 	// 页面显示新派系、「AI 导出当前页」却是旧派系,直到换盘才自愈。就地补拍(纯前端重算,不重排盘)。
 	resaveSnapshotAfterOpts(){
 		const last = this._lastSnapInputs;
@@ -186,11 +189,11 @@ class BabylonMain extends Component{
 	renderSchemePanel(tab){
 		const opts = this.effectiveOpts();
 		const specVisible = BABYLON_PARAM_SPEC.filter((p) => p.appliesTo.indexOf(tab) >= 0 && p.key !== 'ephemerisSource');
-		// [Q-346/T-327] 三档派系只在 位置源 / 分至规范 上有分歧(其余键三档全同),所以只有个人星盘与数理星历两页
+		// 三档派系只在 位置源 / 分至规范 上有分歧(其余键三档全同),所以只有个人星盘与数理星历两页
 		// 真受影响。其余六页此前照样渲染一个可切的派系下拉,切了什么都不变 —— 现在照直说明,不假装它有用。
 		const schemeLive = schemeAffectsTab(tab);
-		const schemeHere = schemeVaryingKeysForTab(tab);             // [Q-150] 本页真吃哪几条
-		const schemeElsewhere = schemeVaryingKeysElsewhere(tab);     // [Q-150] 其余几条各在哪页生效
+		const schemeHere = schemeVaryingKeysForTab(tab);             // 本页真吃哪几条
+		const schemeElsewhere = schemeVaryingKeysElsewhere(tab);     // 其余几条各在哪页生效
 		return (
 			<div className="horosa-babylon-card horosa-babylon-scheme-card">
 				<div className="horosa-babylon-card-title">派系</div>
@@ -202,14 +205,14 @@ class BabylonMain extends Component{
 					onChange={(v) => this.changeScheme(v)}
 				/>
 				{schemeLive ? null : (
-					<div className="horosa-babylon-scheme-note" style={{ fontSize: 11, opacity: 0.6, marginTop: 6, lineHeight: 1.5 }}>
+					<div className="horosa-babylon-scheme-note" style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6, lineHeight: 1.5 }}>
 						本页不受派系影响(三档只在「位置源 / 分至规范」上有差异,本页两项都不读);切派系是为别的页签准备的。
 					</div>
 				)}
-				{/* [Q-150/T-58] 派系只部分作用于本页时说清边界:个人星盘只吃「分至规范」,
+				{/* 派系只部分作用于本页时说清边界:个人星盘只吃「分至规范」,
 				    位置源只在「数理星历」页生效——本页七曜位置恒取现代实位,别让「派系:System A」被读成换了位置算法。 */}
 				{schemeLive && schemeElsewhere.length ? (
-					<div className="horosa-babylon-scheme-note" style={{ fontSize: 11, opacity: 0.6, marginTop: 6, lineHeight: 1.5 }}>
+					<div className="horosa-babylon-scheme-note" style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', marginTop: 6, lineHeight: 1.5 }}>
 						本页只受「{schemeHere.map(schemeKeyLabel).join(' / ')}」影响;
 						{schemeElsewhere.map((x)=>`「${x.label}」只在${x.tabs.map((t)=>`「${t}」`).join('、')}页生效`).join(';')}
 						——本页行星位置恒取现代实位。

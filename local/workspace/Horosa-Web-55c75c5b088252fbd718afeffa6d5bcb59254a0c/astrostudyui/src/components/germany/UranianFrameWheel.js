@@ -10,11 +10,7 @@ import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import { spreadDialAngles } from '../../utils/uranianDial';
 import { TNP_GLYPH_PATHS, appendTnpGlyphD3 } from './UranianGlyphs';
-
-const TAU = Math.PI * 2;
-const norm360 = (x) => ((x % 360) + 360) % 360;
-// 逆时针:0° 在正上、度数向左增(与全站星盘 / UranianDial 同口径)。
-const polar = (cx, cy, R, deg) => { const a = deg / 360 * TAU; return [cx - R * Math.sin(a), cy - R * Math.cos(a)]; };
+import { TAU, norm360, polar } from './uranianDialShared';
 
 // 字形:TNP=缩写、白羊点=Aries 字形、其余=AstroMsg+AstroChartFont(与 UranianDial.draw 同源)。
 function glyphChar(id){

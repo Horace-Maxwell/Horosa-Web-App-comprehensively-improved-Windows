@@ -1,11 +1,11 @@
 diff --git a/astrostudyui/src/components/calendar/NongLiMain.js b/astrostudyui/src/components/calendar/NongLiMain.js
-index 917f03a4..55839b00 100644
+index 64b4877b..01fcdd90 100644
 --- a/astrostudyui/src/components/calendar/NongLiMain.js
 +++ b/astrostudyui/src/components/calendar/NongLiMain.js
-@@ -13,6 +13,35 @@ import NongLi from './NongLi';
- import GuaChartDiv from '../gua/GuaChartDiv';
- import {Week} from '../../msg/types';
+@@ -16,6 +16,35 @@ import {Week} from '../../msg/types';
  import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+ import ExternalLink from '../common/ExternalLink';
+ import { yearMonthKey, monthDayLabel } from '../../utils/dateStrSafe';
 +import { markInteractionStart, markPanelReady } from '../../utils/perfMark';
 +
 +// horosa_panel_scu_v1:黄历族四个子页【零消费】共享 fields/chartObj(本页仅在 constructor
@@ -38,11 +38,11 @@ index 917f03a4..55839b00 100644
  
  // 日干支五行着色（与八字模块同色变量 --horosa-bazi-*）。农历网格 dayExtra 用。
  const GAN_WX = { 甲: 'wood', 乙: 'wood', 丙: 'fire', 丁: 'fire', 戊: 'earth', 己: 'earth', 庚: 'metal', 辛: 'metal', 壬: 'water', 癸: 'water' };
-@@ -118,15 +147,9 @@ export function utcZoneText(zone){
+@@ -120,15 +149,9 @@ export function utcZoneText(zone){
  }
  
  class NongLiMain extends Component{
--	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+-	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 -	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 -	shouldComponentUpdate(nextProps, nextState){
 -		if(nextState !== this.state){
@@ -57,7 +57,7 @@ index 917f03a4..55839b00 100644
  	constructor(props) {
  		super(props);
  		this.state = {
-@@ -200,22 +223,27 @@ class NongLiMain extends Component{
+@@ -205,13 +228,17 @@ class NongLiMain extends Component{
  			dateSelected: null,
  		};
  
@@ -69,25 +69,27 @@ index 917f03a4..55839b00 100644
  	}
  
  	async requestYearGua(){
+ 		// 请求代次:快速连选两天时只认最后一次(先发的晚回会把释文落成上一天的年卦)
+ 		const seq = (this._yearGuaReqSeq = (this._yearGuaReqSeq || 0) + 1);
  		if(this.state.dateSelected === undefined || this.state.dateSelected === null){
 +			markPanelReady('calendar');   // horosa_panel_ready_v1:无可查年卦,右栏已是终态
  			return null;
  		}
  		let date = this.state.dateSelected;
- 		let gua = date.qimengYearGua;
- 		if(gua === undefined || gua === null){
-+			markPanelReady('calendar');   // horosa_panel_ready_v1:同上,不留悬空计时
-+			return;
- 			// [issue#74 同类] 新选日无年卦时清旧值:不清则页面(render 只看 state.yearGua)仍画
+@@ -220,8 +247,11 @@ class NongLiMain extends Component{
+ 			// 新选日无年卦时清旧值:不清则页面(render 只看 state.yearGua)仍画
  			// 上一个日期的卦释,与所选日错配。快照侧有 qimengYearGua 守卫反而不受影响。
  			if(this.state.yearGua){
- 				this.setState({ yearGua: null }, this.saveAISnapshot);
+-				this.setState({ yearGua: null }, this.saveAISnapshot);
++				// horosa_panel_ready_v1:清掉旧年卦的这一次 setState 才是右栏终态,在其回调收尾。
++				this.setState({ yearGua: null }, ()=>{ this.saveAISnapshot(); markPanelReady('calendar'); });
++				return;
  			}
--			return;
++			markPanelReady('calendar');   // horosa_panel_ready_v1:同上,不留悬空计时
+ 			return;
  		}
  
- 		let params = {
-@@ -232,10 +260,14 @@ class NongLiMain extends Component{
+@@ -240,10 +270,14 @@ class NongLiMain extends Component{
  			yearGua: result[gua] ? { ...result[gua], guaName: gua } : null,
  		};
  
@@ -103,7 +105,7 @@ index 917f03a4..55839b00 100644
  		this.setState({
  			date: dt.value,
  		}, ()=>{
-@@ -244,6 +276,7 @@ class NongLiMain extends Component{
+@@ -252,6 +286,7 @@ class NongLiMain extends Component{
  	}
  
  	changeGeo(rec){
@@ -111,7 +113,7 @@ index 917f03a4..55839b00 100644
  		// 选新地点时按新坐标自动校正时区(未在 atlas 内手改时区时),genParams 读 this.state.date.zone。
  		// setZone 仅改时区标签、保留钟面时刻(见 DateTime.setZone),不移位时间。
  		const patch = {
-@@ -276,6 +309,7 @@ class NongLiMain extends Component{
+@@ -284,6 +319,7 @@ class NongLiMain extends Component{
  		let lastGua = lastdt ? lastdt.qimengYearGua : null;
  		let same = lastGua === date.qimengYearGua;
  
@@ -119,7 +121,7 @@ index 917f03a4..55839b00 100644
  		this.setState({
  			dateSelected: date,
  		}, ()=>{
-@@ -283,10 +317,16 @@ class NongLiMain extends Component{
+@@ -291,10 +327,16 @@ class NongLiMain extends Component{
  				this.requestYearGua();
  			}
  			this.saveAISnapshot();
@@ -136,7 +138,7 @@ index 917f03a4..55839b00 100644
  		this.requestYearGua();
  	}
  
-@@ -430,6 +470,11 @@ class NongLiMain extends Component{
+@@ -437,6 +479,11 @@ class NongLiMain extends Component{
  		}
  	}
  

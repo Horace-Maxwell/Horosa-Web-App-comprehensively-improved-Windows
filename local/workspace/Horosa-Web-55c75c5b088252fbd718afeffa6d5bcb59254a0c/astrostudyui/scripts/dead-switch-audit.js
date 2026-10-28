@@ -167,7 +167,7 @@
 	function key(el, k, code) { el.dispatchEvent(new KeyboardEvent('keydown', { key: k, keyCode: code, which: code, bubbles: true, cancelable: true })); el.dispatchEvent(new KeyboardEvent('keyup', { key: k, keyCode: code, which: code, bubbles: true, cancelable: true })); }
 	function mouse(el, type) { el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window })); }
 	async function settleAfter(ms) {
-		// [R5 P0-4] 计时台架钩:timeAct 期间把「固定等待 + 等 spinner」换成「指纹反应 → 稳定」采样(只在台架调用期间挂上,平时为 null)
+		// 计时台架钩:timeAct 期间把「固定等待 + 等 spinner」换成「指纹反应 → 稳定」采样(只在台架调用期间挂上,平时为 null)
 		if (HDS.__settleOverride) { await HDS.__settleOverride(ms); return; }
 		await sleep(ms);
 		var t0 = Date.now();
@@ -903,7 +903,7 @@
 		var cs = getComputedStyle(inner);
 		return cs.display !== 'none' && cs.visibility !== 'hidden' && parseFloat(cs.opacity || '1') > 0.1;
 	}
-	// ── [R5 P0-4] 性能矩阵台架:计时拨值 / 计时切页 ────────────────────────────────────────────
+	// ── 性能矩阵台架:计时拨值 / 计时切页 ────────────────────────────────────────────
 	// 与 run/probe 同一套 act(拨值 / 复原)与指纹(HDS.fp:主区 DOM,画布页不含画布),只把 settle 换成采样:
 	//   每 40ms 取一次指纹;首次与拨前不同 = tReact(手势 → 首次 DOM 反应);其后连续 gapMs 无变化且无 spinner = tStable。
 	//   capMs 内一直没反应 → tReact=null,tStable=过 noReactMs 且无 spinner 的时刻(纯本地、DOM 不变的控件)。

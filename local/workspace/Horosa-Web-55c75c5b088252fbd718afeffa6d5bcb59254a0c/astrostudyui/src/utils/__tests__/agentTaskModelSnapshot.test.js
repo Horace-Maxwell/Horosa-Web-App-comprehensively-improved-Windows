@@ -1,4 +1,4 @@
-// [D38] 后台任务用「创建时」的模型:此前 spec.modelSelection 没有任何创建路径写它,resolveHeadlessProfile 一律回落到当前 UI 选择
+// 后台任务用「创建时」的模型:此前 spec.modelSelection 没有任何创建路径写它,resolveHeadlessProfile 一律回落到当前 UI 选择
 // (用户换模型 ⇒ 所有排期任务静默换模型;profiles[0] 兜底还可能换到别家)。
 import { createGoalTask, resolveHeadlessProfile } from '../aiAgent/goalRunner';
 import { snapshotModelSelection } from '../aiAgent/tasks/modelSnapshot';
@@ -53,9 +53,9 @@ it('schedule_task 工具建的定时任务同样快照 modelSelection', async ()
 	expect((await getTask(r.data.taskId)).spec.modelSelection).toBe('p1::m1');
 });
 
-// [D77] 运行时把本 Turn 的档案::模型注入 ctx.modelSelection;两件建任务工具都用它做创建时快照(此前 schedule_task 读的 ctx 键从不注入 = 死参数,
+// 运行时把本 Turn 的档案::模型注入 ctx.modelSelection;两件建任务工具都用它做创建时快照(此前 schedule_task 读的 ctx 键从不注入 = 死参数,
 //   create_goal_task 根本不传 ⇒ 目标任务里再建任务会钉住 UI 当前模型而非任务自己的模型)
-it('🔴 [D77] 工具收到 ctx.modelSelection ⇒ 目标 / 定时任务都钉住它(而非 UI 当前选择)', async ()=>{
+it('🔴 工具收到 ctx.modelSelection ⇒ 目标 / 定时任务都钉住它(而非 UI 当前选择)', async ()=>{
 	registerBuiltinTools(); setSchedulerEnabled(true);
 	saveUiPrefs({ ...(loadUiPrefs() || {}), modelSelection: 'p1::m1' });
 	const g = await runTool('create_goal_task', { goal: '看事业', autoStart: false }, { origin: 'goal', requestId: 'r2', modelSelection: 'p2::m2' });
@@ -65,7 +65,7 @@ it('🔴 [D77] 工具收到 ctx.modelSelection ⇒ 目标 / 定时任务都钉�
 	expect(s.ok).toBe(true);
 	expect((await getTask(s.data.taskId)).spec.modelSelection).toBe('p2::m2');
 });
-it('[D77] 运行时源码锁:runTool ctx 带 modelSelection = profileId::model', ()=>{
+it('运行时源码锁:runTool ctx 带 modelSelection = profileId::model', ()=>{
 	const fs = require('fs'); const path = require('path');
 	const src = fs.readFileSync(path.resolve(__dirname, '..', 'aiAgent', 'runtime.js'), 'utf8').replace(/^\s*\/\/.*$/mg, '');
 	expect(src).toContain('modelSelection: profileId && model ? `${profileId}::${model}` : undefined,');

@@ -1,4 +1,4 @@
-// [批二⑦] 行动计划卡(/plan 的浮层):列出规划者给的步骤(带工具标签/写入标记/风险/待确认问题/被剔工具),批准后才发起真正的 Turn。
+// 行动计划卡(/plan 的浮层):列出规划者给的步骤(带工具标签/写入标记/风险/待确认问题/被剔工具),批准后才发起真正的 Turn。
 // data-plan-* 供机读:card/steps/writes/approve/edit/cancel。
 import React from 'react';
 import { Modal, Button, Tag } from 'antd';

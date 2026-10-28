@@ -20,12 +20,6 @@ import {
 import { loadModuleAISnapshot } from './moduleAiSnapshot';
 import { getDvaApp } from 'umi';
 
-export const MOUNT_AUDIT_FLAG_KEY = 'horosa.debug.mountAudit';
-
-export function isMountAuditEnabled(){
-	try{ return typeof localStorage !== 'undefined' && localStorage.getItem(MOUNT_AUDIT_FLAG_KEY) === '1'; }catch(e){ return false; }
-}
-
 function sectionsOf(text){
 	const out = [];
 	`${text || ''}`.split('\n').forEach((ln)=>{

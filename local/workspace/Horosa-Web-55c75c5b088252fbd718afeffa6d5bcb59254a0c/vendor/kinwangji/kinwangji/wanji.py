@@ -70,6 +70,7 @@ from ephem import Date
 from sxtwl import fromLunar, fromSolar
 
 from .jieqi import (
+    _civil_moment,
     di_zhi,
     find_lunar_hour,
     find_lunar_month,
@@ -362,12 +363,9 @@ def generate_month_lists(year: int) -> List[List[datetime.datetime]]:
     for i in range(1, 13, 2):
         start = sxtwl.fromLunar(year, i, 1, True)
         end = sxtwl.fromLunar(year, min(i + 1, 12), 31, True)
-        start_date = datetime.datetime(
-            start.getSolarYear(), start.getSolarMonth(), start.getSolarDay()
-        )
-        end_date = datetime.datetime(
-            end.getSolarYear(), end.getSolarMonth(), end.getSolarDay()
-        )
+        # sxtwl 的公历是民用历标签(1582 以前儒略历):经民用历承载,1500-02-29 不抛错、逐日推进不跳日
+        start_date = _civil_moment(start.getSolarYear(), start.getSolarMonth(), start.getSolarDay())
+        end_date = _civil_moment(end.getSolarYear(), end.getSolarMonth(), end.getSolarDay())
         date_list: List[datetime.datetime] = []
         current_date = start_date
         while current_date <= end_date:
@@ -375,6 +373,16 @@ def generate_month_lists(year: int) -> List[List[datetime.datetime]]:
             current_date += datetime.timedelta(days=1)
         month_lists.append(date_list)
     return month_lists
+
+
+def _civil_moment_of_text(text: str) -> Any:
+    """'YYYY/MM/DD HH:MM:SS'(民用历标签,年份可带负号)→ 民用历时刻。"""
+    date_part, time_part = text.strip().split(' ')
+    neg = date_part.startswith('-')
+    y, m, d = (int(v) for v in date_part.lstrip('-').split('/'))
+    hh, mi, ss = (int(v) for v in time_part.split(':'))
+    from kin_year_domain import civil_moment
+    return civil_moment(-y if neg else y, m, d, hh, mi, ss)
 
 
 def get_datelist(datelist: List[str]) -> List[List[datetime.datetime]]:
@@ -388,8 +396,8 @@ def get_datelist(datelist: List[str]) -> List[List[datetime.datetime]]:
     """
     result: List[List[datetime.datetime]] = []
     for i in range(len(datelist) - 1):
-        start_date = datetime.datetime.strptime(datelist[i], '%Y/%m/%d %H:%M:%S')
-        end_date = datetime.datetime.strptime(datelist[i + 1], '%Y/%m/%d %H:%M:%S')
+        start_date = _civil_moment_of_text(datelist[i])
+        end_date = _civil_moment_of_text(datelist[i + 1])
         dates_between: List[datetime.datetime] = []
         current_date = start_date
         while current_date < end_date:
@@ -492,7 +500,7 @@ def gangzhi(
                 cdate_for_hour = fromSolar(_tdd[0], _tdd[1], _tdd[2])
                 hTG = f"{tian_gan[cdate_for_hour.getHourGZ(0).tg]}{di_zhi[cdate_for_hour.getHourGZ(0).dz]}"
         else:
-            # [Q-312 口径 B] lateZi=0: 钟面当天日干起子时(与日柱开关独立)
+            # lateZi=0: 钟面当天日干起子时(与日柱开关独立)
             _day_tg = fromSolar(year, month, day).getDayGZ().tg
             hTG = tian_gan[(_day_tg % 5 * 2 + 0) % 10] + di_zhi[0]
     else:

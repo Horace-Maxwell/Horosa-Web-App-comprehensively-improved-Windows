@@ -1,0 +1,488 @@
+// 全站样式 · 底部页签条与各页零散修正。
+// 由 layouts/app.less 按原顺序 @import(顺序即层叠次序);新规则要包在本文件的 :global { } 里。
+
+/* 盘面底部页签条(太阳/月亮返照·流年「返照盘/原命盘/对比盘」、骰子)左缘紧贴窗口左极限:
+   给底部 Tabs 的标签条留安全距离(与页面其它内容左缘对齐)。全站仅 4 处 tabPosition=bottom,皆为盘面页,统一生效。 */
+:global {
+	.ant-tabs-bottom > .ant-tabs-nav {
+		padding-left: 14px;
+	}
+}
+
+/* 八字左栏「起盘选项」里连续两个字段网格(性别/时间算法 → 长生/神煞查法)之间没有行距,
+   第二个网格的首行小标题贴着上一行选择框;网格内行距是 7px,这里把「网格 与 网格/字段块」相邻也补成同一 7px,
+   任何页面连续排两个字段网格都不再挤在一起。 */
+:global {
+	.horosa-workspace-shell .horosa-field-grid + .horosa-field-grid,
+	.horosa-workspace-shell .horosa-field-block + .horosa-field-grid,
+	.horosa-workspace-shell .horosa-field-grid + .horosa-field-block {
+		margin-top: 7px;
+	}
+}
+
+/* 星运页 Tabs 链此前不定高
+   (Tabs 写子页量出的 px、holder/content/面板 max-height:100% 各自按内容撑),子页比面板恒高 2px(holder 上下边框)。
+   与辅盘页同款:整条链定高铺满页根,面板 = 子页可用高;面板保留纵向滚动(子页内容真比一屏高时仍可滚)。 */
+:global {
+	.horosa-workspace-shell .horosa-direction-page > .ant-tabs,
+	.horosa-workspace-shell .horosa-direction-page > .ant-tabs > .ant-tabs-content-holder,
+	.horosa-workspace-shell .horosa-direction-page > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+	.horosa-workspace-shell .horosa-direction-page > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+		height: 100%;
+		min-height: 0;
+	}
+	.horosa-workspace-shell .horosa-direction-page > .ant-tabs {
+		overflow: hidden;
+	}
+	.horosa-workspace-shell .horosa-direction-page > .ant-tabs > .ant-tabs-content-holder {
+		min-width: 0;
+	}
+}
+:global {
+	/* 子页根永远不高过面板(定高 100% 链的最后一环):子页按面板 clientHeight(整数)定高,而面板真高可能带小数
+	   (1.8 档实测面板 424.4 → 子页 424 → scrollHeight 425 > clientHeight 424,仍长出 1px 的滚动条)。
+	   max-height:100% 让子页贴着面板的真高(含小数)封顶,任何缩放档都不再多出那 1px。 */
+	.horosa-workspace-shell .horosa-direction-page > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > * {
+		/* 再让 1px:面板 clientHeight 是整数(向下取整),scrollHeight 向上取整,子页与面板同为 424.4 时仍会报 425 > 424
+		   而长出滚动条;子页封顶在面板真高减 1px,任何小数档都稳。 */
+		max-height: calc(100% - 1px);
+		box-sizing: border-box;
+	}
+}
+
+/* 星运·太阳/月亮返照·流年法:底部 Tabs 内的盘面 svg 按「子页高−50」写死,而底部标签条(46 + margin-top 16)
+   吃掉 ~66px → 盘面比内容区高 17~18px,底缘被裁(1.0 / 1.8 档皆然)。底部 Tabs 链定高,盘面 svg 封顶 100%(d3 按 client 尺寸重画,
+   自然缩到可用高;1:1 时不裁、不留白)。 */
+:global {
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-bottom > .ant-tabs-content-holder,
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-bottom > .ant-tabs-content-holder > .ant-tabs-content,
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-bottom > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+		height: 100%;
+		min-height: 0;
+	}
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-bottom > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > svg {
+		max-height: 100%;
+	}
+}
+:global {
+	/* 星运子页(主限法盘/波斯向运/行星弧/小限法/太阳弧/黄道星释/行星年龄/产前朔望)左栏盘面 svg 是 inline 元素,
+	   块级列里生成一行行盒,基线下留 ~6px 空隙 → 列比子页高 6px → 面板长出一条 6px 的外层滚动条。svg 改块级,行盒消失。 */
+	.horosa-workspace-shell .horosa-direction-page .ant-row > .ant-col > svg,
+	.horosa-workspace-shell .horosa-direction-page .ant-row > .ant-col > div > svg {
+		display: block;   /* 黄道星释等在列里多包一层 div,同一病同一药;只到两层,不碰按钮里的图标 svg */
+	}
+}
+
+/* 辅盘里按「工作区高−常数 / 560 底线」估算高度的 AstroChart(行星中点 / 调波盘 / 龙盘 / 骰子·骰子盘·天象盘):
+   1.8 档估算值比真实列高大 120~150px(1.0 档也多 18~46px)→ 盘面下缘被 overflow:hidden 的列裁掉。AstroChart 以 svg 的 client 尺寸绘图
+   并有 ResizeObserver 重画,所以只需把 svg 钉在所在列之内(max-height:100%):任何缩放档 / 引擎 / 窗高都自适应,1:1 时既不裁也不留白。
+   居中列是 grid,先把唯一行定成 minmax(0,1fr),百分比才有可解的包含块;骰子页盘面在底部 Tabs 里,内容链定高(与星运返照同一手法)。 */
+:global {
+	.horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-chart-col {
+		grid-template-rows: minmax(0, 1fr);
+	}
+	.horosa-workspace-shell .xq-chart-renderer-germany .horosa-midpoint-chart-col > svg {
+		max-height: 100%;
+		display: block;
+	}
+	.horosa-workspace-shell .horosa-dice-chart-panel > .ant-tabs > .ant-tabs-content-holder,
+	.horosa-workspace-shell .horosa-dice-chart-panel > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+	.horosa-workspace-shell .horosa-dice-chart-panel > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+		height: 100%;
+		min-height: 0;
+	}
+	.horosa-workspace-shell .horosa-dice-chart-panel > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane:not(.ant-tabs-tabpane-hidden) > svg {
+		max-height: 100%;
+		display: block;
+	}
+}
+
+/* 空的 textarea(只显示占位符)在 z>1 时占位符内盒按「内容宽×z」布局:
+   244px 宽的框报 scrollWidth 418 且真能横滚(scrollLeft 可到 176),长出一条横向滚动条并吃掉 ~9px 高度(autoSize 算好的行高被挤);
+   有文字时一切正常(换行宽度正确)。pre-wrap 的多行框永远不需要横滚 → 直接关横向溢出:错误引擎上滚动条消失、高度还原;
+   正确引擎(Chromium / 旧 WebKit)本就没有横向溢出,零变化。全站无 wrap="off" 的 textarea(已查)。 */
+:global {
+	textarea:not([wrap="off"]) {
+		overflow-x: hidden;
+	}
+}
+
+/* 六壬未起课时中间栏的空 svg 按 props.height(整页高)撑开,比宿主高 63px → 空面板却有一条竖向滚动条。
+   起课后 RengChart.draw 会用 inline !important 重设高度(圆盘可高于宿主、宿主滚动看全,那是有意的),只钉「空 svg」这一态贴合宿主。 */
+:global {
+	.horosa-workspace-shell .horosa-liureng-chart-host > svg:empty {
+		height: 100% !important;
+	}
+}
+
+
+/* 各技法页主栅格此前写死「中列 ≥480~720px、侧栏 ≥245~400px」,
+   壳放大到 1.8 时布局视口只有 960px,总和超宽 → grid overflow:hidden 从右侧裁掉右栏(数算/策天/择日/辅盘子盘/主限法盘… 真机实报同族)。
+   改法:中列 minmax(0,1fr)(有多少给多少),侧栏下限改 min(原定值, 26·lvw / 30·lvw)——布局宽 ≥1100 时 min 取原定值、一字不变;
+   窄时按视口比例收窄。lvw 是布局视口变量(layoutViewportVars 实测发布),任何引擎同义;变量缺席时回落到物理视口单位 = 不收窄 = 与旧行为等价。 */
+
+/* 策天/数算等 kinastro 中栏宿主 flex 居中:内容比宿主高时溢出的一半跑到滚动起点之前(顶部被裁且滚不到,
+   1.8 档数算实抓)。居中改由子元素 auto 外边距完成——放得下照旧居中、放不下外边距归零顶/左对齐、宿主可滚到全部;板宽下限也不再大于宿主。 */
+:global {
+	.horosa-workspace-shell .horosa-kinastro-board-host {
+		align-items: flex-start;
+		justify-content: flex-start;
+		overflow: auto;
+	}
+	.horosa-workspace-shell .horosa-kinastro-board-host > * {
+		margin: auto;
+	}
+	.horosa-workspace-shell .horosa-kinastro-board {
+		/* 板上限 1040 → max(1040px, 60·lvw):zoom=1 ≈1037 不变;0.7 档 ~1482 */
+		width: clamp(~"min(620px, 100%)", calc(74 * var(--horosa-lvw, 1vw)), ~"max(1040px, calc(60 * var(--horosa-lvw, 1vw)))");
+	}
+	.horosa-workspace-shell .horosa-huangji-board {
+		min-height: clamp(~"min(560px, 100%)", calc(72 * var(--horosa-lvh, 1vh)), 760px);
+	}
+}
+
+/* text-overflow:ellipsis 的省略判定拿「文字宽×z」比盒宽:
+   68px 的盒里 "2026"/"东8区" 被画成 "20…"/"东…",而 DOM 量得完全放得下;text-overflow:clip 则按真实宽度画、完整可见。
+   utils/zoomInlineScaleBug 用同族的 textarea 占位符信号实测命中后在 <html> 挂 .horosa-zoom-textbug,这里把省略退回 clip。
+   z=1 或正确引擎不挂 class,零改动;命中档位里真正超宽的文字改为裁切(无"…"),换来所有放得下的短标签不再被错误省略。 */
+:global {
+	/* 2026-09-18 扩到全元素:探针 1.8 档数算「四柱」卡把 "丙午" 画成 "丙.."——自定义卡片不在上面的 antd 白名单里;
+	   省略判定错的是引擎,与选择器无关,命中档位里一切 ellipsis 一律退 clip(clip 是缺省值,没写省略的元素零变化)。 */
+	html.horosa-zoom-textbug *,
+	html.horosa-zoom-textbug *::before,
+	html.horosa-zoom-textbug *::after {
+		text-overflow: clip !important;
+	}
+}
+
+/* 分段控件(XQSegmented)在 245px 侧栏里放四个四字选项时逐字折行(风水·纳气盘实抓):
+   组件实测「最宽一项 × 项数(等宽列)」放不下时挂 .is-wrapped → 两列多行排布、关闭滑块;连半宽都放不下再加 .is-wrapped-single 一项一行;放得下时一字不变。
+   作用域不限主壳:抽屉 / 弹窗挂在 body 下(不在 .horosa-workspace-shell 里),那里的分段控件判成折行也要真折(否则只关了滑块、长字照样溢出按钮)。
+   :is(.horosa-workspace-shell, body) 的特异性 = 一个类,与原先「主壳前缀」那一档相同(主壳内与各页覆盖的先后关系一字不变);
+   只认 XQSegmented 自己挂的 .xq-segmented.is-wrapped,别的 antd Radio 不受影响。 */
+:global {
+	:is(.horosa-workspace-shell, body) .xq-segmented.is-wrapped.ant-radio-group {
+		/* 折行档一律回到网格排布:各页为「一行时铺满」写的局部 display:flex(量化盘盘式 / 塔罗输入栏等)此前把折行档也压成 flex,
+		   网格列宽不生效 → 一项一行档里三钮仍横排、越出左栏被裁(1.8 档量化盘「模数盘」实抓)。局部覆盖只管未折行时的样子。 */
+		display: grid !important;
+		grid-auto-flow: row;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		row-gap: 2px;
+	}
+	:is(.horosa-workspace-shell, body) .xq-segmented.is-wrapped .ant-radio-button-wrapper {
+		white-space: nowrap;
+		padding: 0 6px;
+	}
+	// 连两列的半宽都放不下最长一项(如两项、其一很长):一项一行
+	:is(.horosa-workspace-shell, body) .xq-segmented.is-wrapped.is-wrapped-single.ant-radio-group {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	// 收内衬档:原样一行差一点放不下、内衬收到 0 6px 就放得下 → 只收内衬,排布 / 滑块 / 折行规则一字不动
+	:is(.horosa-workspace-shell, body) .xq-segmented.is-compact .ant-radio-button-wrapper {
+		padding: 0 6px;
+	}
+}
+
+/* 金口诀中栏:顶对齐 + 子元素 auto 外边距(放得下照旧居中;万一溢出,flex 居中会把上半截推到滚动起点之前、顶部被裁滚不到)。
+   盘比设计尺寸小时已整体等比缩小(JinKouPanChart 走设计盒),不再撑高溢出。 */
+:global {
+	.horosa-workspace-shell .horosa-jinkou-redesign .horosa-jinkou-chart-panel {
+		align-items: flex-start;
+		justify-content: flex-start;
+	}
+	.horosa-workspace-shell .horosa-jinkou-board-host {
+		margin: auto;
+	}
+}
+
+/* 三式合一中栏:合一盘最小 380px(可读底线,保留)+ 上下信息行在 1.8 档(中栏 ~447px)放不下,
+   原 flex 居中 + overflow:hidden 把上下各裁一截(实抓下溢 145px / 右溢 24px)。改为顶对齐 + 中栏可滚(宁可滚、不能裁);
+   放得下时子元素 auto 外边距照旧居中,1.0 档一字不变。 */
+:global {
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-chart-panel {
+		align-items: flex-start;
+		justify-content: flex-start;
+		overflow: auto;
+	}
+	.horosa-workspace-shell .horosa-sanshi-board-host {
+		align-items: flex-start;
+		justify-content: flex-start;
+		margin: auto;
+	}
+	.horosa-workspace-shell .horosa-sanshi-board-host > * {
+		margin: auto;
+	}
+}
+
+/* 根因同族:子页用「工作区高 − 常数」估算内层面板高,
+   常数(104 / 20)与真实工具条+页签高不等,多出的 12~37px 把外层面板(antd tabpane overflow:auto)撑出第二条滚动条。
+   根治:子页不再传像素高(100%),内层顶部 Tabs 走定高链——Tabs 本身 flex:1(min-height:0),holder/content/tabpane 100%,
+   面板 100% 跟随;任何缩放档 / 字号 / 窗高都零常数。仅作用于星运页(.horosa-direction-page)内的 ant-tabs-top。 */
+:global {
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-top {
+		min-height: 0;
+	}
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-top > .ant-tabs-content-holder {
+		min-height: 0;
+	}
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-top > .ant-tabs-content-holder > .ant-tabs-content,
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-top > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane,
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-top > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-spin-nested-loading,
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-top > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-spin-nested-loading > .ant-spin-container {
+		/* 面板里再包一层 antd Spin(nested-loading / container 皆为 auto 高块)会把 100% 链掐断 → 盘面退回 svg 缺省 150px;两层一并定高 */
+		height: 100%;
+		min-height: 0;
+	}
+	/* 子页顶部小标题(二次推运/三次推运/小推运、事件/行运触发…)贴着左边界:与返照页底部页签同一 14px 安全距离。
+	   只钉子页根级的 Tabs(tabpane > spin > container > div > tabs),不碰右栏信息页签。 */
+	.horosa-workspace-shell .horosa-direction-page .ant-tabs-tabpane > .ant-spin-nested-loading > .ant-spin-container > div > .ant-tabs-top > .ant-tabs-nav {
+		padding-left: 14px;
+	}
+}
+
+/* 塔罗牌面原是定尺(卡最小高 152 / 牌图 ≤96px / 符号 30px / 牌名 15px),
+   缩小档留一大片空白。各尺寸改 max(原值, N·lvw):zoom=1(lvw≈17.3)与原值持平,0.7 档按比例放大约 1.4 倍(图与字同比例,不变形),放大档不变。 */
+:global {
+	.horosa-workspace-shell .horosa-tarot-card { min-height: ~"max(152px, calc(8.8 * var(--horosa-lvw, 1vw)))"; }
+	.horosa-workspace-shell .horosa-tarot-card-img { max-width: ~"max(96px, calc(5.5 * var(--horosa-lvw, 1vw)))"; }
+	.horosa-workspace-shell .horosa-tarot-card-symbol { font-size: ~"max(30px, calc(1.75 * var(--horosa-lvw, 1vw)))"; }
+	.horosa-workspace-shell .horosa-tarot-card-name { font-size: ~"max(15px, calc(0.87 * var(--horosa-lvw, 1vw)))"; }
+}
+
+/* 行星中点右栏:列表高原写死「工作区高−180」,1.8 档失真 10px 把右栏(overflow-y:auto)撑出第二条滚动条。
+   右栏本是 flex 列:控制区定高、中点/相位 Tabs 吃余高并走定高链(holder/content/tabpane 100%),列表 100% 跟随,零常数。 */
+:global {
+	.horosa-workspace-shell .horosa-midpoint-side-col > .horosa-midpoint-side-tabs {
+		flex: 1 1 auto;
+		/* 1.8 档右栏只有 ~372px、控制区就占 316px:列表区至少留 200px(页签 44 + 列表 156),放不下时由右栏滚动(兜底),绝不把列表压成 0 高 */
+		min-height: 200px;
+		width: 100%;
+	}
+	.horosa-workspace-shell .horosa-midpoint-side-tabs > .ant-tabs-content-holder {
+		min-height: 0;
+	}
+	.horosa-workspace-shell .horosa-midpoint-side-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+	.horosa-workspace-shell .horosa-midpoint-side-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+		height: 100%;
+		min-height: 0;
+	}
+}
+
+/* 下拉选项放不下时折行显示全文(antd 缺省单行省略:黄道「Galactic Center …」两条截成一模一样、宫制 / 纳气盘法 / 牌组同病)。
+   只改换行:下拉宽仍跟触发框(保住长列表的虚拟滚动与贴边对齐);放得下的选项一字不变;
+   CJK 仍按 02-shell 的 keep-all 成词断行,长串无断点时 overflow-wrap:anywhere 兜底(那条也在 02-shell,与 keep-all 同一条规则 ——
+   这里曾另写一条 0,1,0 的 overflow-wrap,被 02-shell 0,2,0 的 normal 压住、静默不生效);单独要求单行的下拉(更高权重的 nowrap)不受影响。 */
+:global {
+	.ant-select-item-option-content {
+		white-space: normal;
+	}
+}
+
+/* 左栏「显示星体 / 宫位与黄道 / 显示与样式 / 快捷切换」两列按钮:放大档每钮只剩一百来 px,五字标签被裁掉尾字(单行 nowrap,省略号在放大档又退成 clip)。
+   放得下时单行(一字不变),放不下时在 44px 高的钮内折成两行。 */
+:global {
+	.horosa-workspace-shell .horosa-input-nav-stack .ant-btn > span:not(.anticon) {
+		white-space: normal;
+		overflow-wrap: break-word; overflow-wrap: anywhere;
+		text-align: center;
+	}
+}
+
+/* 空态提示:合盘两张盘未选齐(盘区正中,绝对定位不占版面)、八卦类象首启未选卦(顶部一行) */
+:global {
+	.horosa-workspace-shell .horosa-relative-empty-hint {
+		position: absolute;
+		left: 50%;
+		top: 40%;
+		transform: translate(-50%, -50%);
+		z-index: 2;
+		max-width: 80%;
+		color: var(--horosa-text-secondary);
+		text-align: center;
+		pointer-events: none;
+	}
+	.horosa-workspace-shell .horosa-guasym-empty-hint {
+		padding: 4px 2px 8px;
+		color: var(--horosa-text-secondary);
+	}
+}
+
+/* 小六壬六宫 / 九宫:正方形格只是「放得下时」的形状。窄盘(data-board-narrow,放大档中栏)里格内宫名 + 五行方位 + 关键词比正方形高,
+   引擎不按 min-content 撑开带 aspect-ratio 的格 → 字溢出格子、与上下格互叠;序标(一传 / 二传)绝对定位压在宫名上。
+   窄盘时格高按内容、序标回到文流(居中一行),常规宽度不挂属性,一字不变。 */
+:global {
+	.horosa-workspace-shell .horosa-huangji-redesign.horosa-xlr-page .horosa-cnx-board[data-board-narrow] .horosa-cnx-cell.horosa-cnx-cell-sq {
+		aspect-ratio: auto;
+		min-height: 0;
+	}
+	.horosa-workspace-shell .horosa-huangji-redesign.horosa-xlr-page .horosa-cnx-board[data-board-narrow] .horosa-cnx-cell-seqs {
+		position: static;
+		justify-content: center;
+		flex-wrap: wrap;
+	}
+}
+
+/* 三式右栏「六壬」页:内层六壬页签(大格 / 小局 / 毕法 …)原本整块放在会滚的卡身里 —— 切到该页时内层页签导航先按无滚动条的宽排一遍,
+   内容撑高后卡身冒出滚动条 → 导航变窄 → 页签组件在同一帧再量一次(放大档「ResizeObserver loop」报错的来源)。
+   改由内层内容区自己滚、卡身不滚:导航不在任何会冒滚动条的盒子里,宽度不再随内容高变。内容放得下时两种写法一样。
+   卡片由组件直接打类 .horosa-sanshi-subtabs-card(卡身直接装内层页签的那几张),不用 :has —— 旧 WebView(12.0–12.2)也生效、无需回退类。
+   「卡身不滚」必须同时给出新的滚动承担者:卡身是纵向 flex 定高框,内层页签吃满卡身(height 100%、min-height 0),内层内容区 flex 1 + 自己滚。
+   14-page-fixes 那组通用规则对 .horosa-sanshi-liureng-tabs 及其内容区写了 height:auto / overflow:visible 且带 !important(给「整卡一起滚」的旧写法用),
+   这里的覆盖必须同样 !important 且选择器严格更具体,否则内层内容区被压回 visible、内容整段落在卡身裁切框外够不着。
+   只对打了类的卡生效(太乙那组内层页签不在此列,仍由卡身滚)。 */
+:global {
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane > .ant-card.horosa-sanshi-subtabs-card > .ant-card-body {
+		overflow-y: hidden !important;
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+	}
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs .ant-card.horosa-sanshi-subtabs-card > .ant-card-body > .horosa-sanshi-liureng-tabs {
+		flex: 1 1 auto;
+		height: 100% !important;
+		min-height: 0;
+		overflow: hidden !important;
+	}
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs .ant-card.horosa-sanshi-subtabs-card > .ant-card-body > .horosa-sanshi-liureng-tabs > .ant-tabs-content-holder {
+		flex: 1 1 auto;
+		min-height: 0;
+		max-height: none !important;
+		overflow-x: hidden !important;
+		overflow-y: auto !important;
+	}
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs .ant-card.horosa-sanshi-subtabs-card > .ant-card-body > .horosa-sanshi-liureng-tabs > .ant-tabs-content-holder > .ant-tabs-content,
+	.horosa-workspace-shell .horosa-sanshi-redesign .horosa-sanshi-info-panel .horosa-sanshi-right-tabs .ant-card.horosa-sanshi-subtabs-card > .ant-card-body > .horosa-sanshi-liureng-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+		height: auto !important;
+	}
+}
+
+/* 黄道星释基点单选(两列):组宽 < 160px(放大档右栏)时符号与名称折行、行高随内容;常规宽度不挂属性,一字不变。行内 style 定高,故用 !important 覆盖。 */
+:global {
+	[data-zr-narrow] .horosa-zr-base-radio.ant-radio-wrapper {
+		height: auto !important;
+		min-height: 28px;
+		line-height: 18px !important;
+		white-space: normal !important;
+		padding: 5px 0;
+	}
+}
+
+/* 窄栏 / 放大档「固定 N 列网格」与「两字标签」同族(真内核 1.8 档逐页签巡检实抓):
+   ① 固定 repeat(N, 1fr) 的选项 / 卡片网格 → repeat(auto-fill, minmax(max(下限, 1/N 栏宽), 1fr)):栏宽够时仍是 N 等分(列下限 = 1/N 栏宽,逐像素同宽),
+      栏被压窄时列下限取「放得下整条标签」的定值、自动退列 —— 不再把两字标签挤成逐字竖排、把长标签裁掉;
+   ② 弹性行里的两字 / 短标签(运限名、部位、忌限、大运主星、「当前」徽、用宫序标、八字柱名、入相 / 离相、巴比伦吉凶徽)不收缩、不折行。
+   放得下时与此前一字不变。 */
+:global {
+	.horosa-workspace-shell .horosa-guazhan-toggle-grid {
+		grid-template-columns: repeat(auto-fill, minmax(~"max(76px, calc((100% - 16px) / 3 - 1px))", 1fr));
+	}
+	.horosa-workspace-shell .horosa-guazhan-toggle-grid.horosa-guazhan-toggle-grid-2,
+	.horosa-workspace-shell .horosa-guazhan-toggle-grid.horosa-tarot-toggle-grid {
+		grid-template-columns: repeat(auto-fill, minmax(~"max(76px, calc((100% - 8px) / 2 - 1px))", 1fr));
+	}
+	.horosa-workspace-shell .horosa-horary-option-card {
+		grid-template-columns: repeat(auto-fill, minmax(~"max(128px, calc((100% - 8px) / 2 - 1px))", 1fr));
+	}
+	.horosa-workspace-shell .horosa-ziwei-option-card {
+		grid-template-columns: repeat(auto-fill, minmax(~"max(112px, calc((100% - 8px) / 2 - 1px))", 1fr));
+	}
+	.horosa-workspace-shell .horosa-sanshi-select-grid {
+		grid-template-columns: repeat(auto-fill, minmax(~"max(120px, calc((100% - 8px) / 2 - 1px))", 1fr));
+	}
+	.horosa-workspace-shell .horosa-huangji-gua-grid {
+		grid-template-columns: repeat(auto-fill, minmax(~"max(64px, calc((100% - 32px) / 5 - 1px))", 1fr));
+	}
+	.horosa-workspace-shell .horosa-huangji-gua-grid.is-macro {
+		grid-template-columns: repeat(auto-fill, minmax(~"max(64px, calc((100% - 24px) / 4 - 1px))", 1fr));
+	}
+	.horosa-workspace-shell .horosa-huangji-gua-grid.is-xinyi {
+		grid-template-columns: repeat(auto-fill, minmax(~"max(64px, calc((100% - 16px) / 3 - 1px))", 1fr));
+	}
+	.horosa-workspace-shell .horosa-shenyishu-pillar-grid,
+	.horosa-workspace-shell .horosa-kinastro-pillar-grid {
+		grid-template-columns: repeat(auto-fill, minmax(~"max(76px, calc((100% - 30px) / 4 - 1px))", 1fr));
+	}
+	/* 弹性行里标签不收缩后,整行放不下时让行折到下一行(运限行「今」徽、起卦摇钱行的爻名),不再把行尾裁掉 */
+	.horosa-workspace-shell .horosa-cetian-xian-row,
+	.horosa-workspace-shell .horosa-castpad-toss-row {
+		flex-wrap: wrap;
+	}
+	.horosa-workspace-shell .horosa-jinkou-warn-banner strong,
+	.horosa-workspace-shell .horosa-wuzhao-board .horosa-wuzhao-title {
+		flex-shrink: 0;
+		white-space: nowrap;
+	}
+	.horosa-workspace-shell .horosa-jingjue-group-row {
+		grid-template-columns: minmax(min-content, 58px) minmax(max-content, 1fr) minmax(min-content, 54px);
+	}
+	.horosa-workspace-shell .horosa-cetian-xian-name,
+	.horosa-workspace-shell .horosa-cetian-xian-buwei,
+	.horosa-workspace-shell .horosa-cetian-xian-jibadge,
+	.horosa-workspace-shell .horosa-india-dasha-drill-lord strong,
+	.horosa-workspace-shell .horosa-india-dasha-cur-badge,
+	.horosa-workspace-shell .horosa-cnx-seq,
+	.horosa-workspace-shell .horosa-huangji-ganzhi-item em,
+	.horosa-workspace-shell .horosa-huangji-gua-card span,
+	.horosa-workspace-shell .horosa-aspect-phase,
+	.horosa-workspace-shell .horosa-babylon-badge {
+		flex-shrink: 0;
+		white-space: nowrap;
+	}
+}
+/* 印占「宫位相照」矩阵:行标是两字星座名(白羊 / 金牛),沿用 18px 的单字行标列会逐字竖排(100% 档即现)—— 这张矩阵的行标列给 28px 并不折行。 */
+:global {
+	.horosa-workspace-shell .horosa-india-bav-matrix.is-sign-rows .horosa-india-bav-row {
+		grid-template-columns: 28px repeat(12, minmax(15px, 1fr));
+	}
+	.horosa-workspace-shell .horosa-india-bav-matrix.is-sign-rows .horosa-india-bav-rowlabel {
+		white-space: nowrap;
+	}
+	.horosa-workspace-shell .horosa-india-maitri-table th {
+		white-space: nowrap;
+	}
+}
+/* 统摄法左栏卡片标题(「太阴·本体：☴风」)放不下时折行,不省略(antd 卡头缺省单行省略;放大档卡宽一百出头 px 时尾字被裁) */
+:global {
+	.horosa-workspace-shell .horosa-tongshefa-page .ant-card-head-title {
+		overflow: visible;
+		white-space: normal;
+	}
+}
+
+/* 换档帧(utils/zoomSyncRemeasure 在文档根挂 horosa-zoom-switching 的那两帧)不跑 CSS 过渡:版面随档位变时,带栅格列宽 / 宽高过渡的面板
+   会把新尺寸动画 0.28s,换档后好几帧才到终值(天文馆三栏实抓)。只压过渡,不碰关键帧动画;标志清掉时值已是终值,不会再起过渡。 */
+:global {
+	html.horosa-zoom-switching *,
+	html.horosa-zoom-switching *::before,
+	html.horosa-zoom-switching *::after {
+		transition: none !important;
+	}
+}
+
+/* 旧系统内核兼容(桌面包下限 macOS 12.0 = Safari 15.0;下限表与判据:scripts/legacy-engine-floor.js)。
+   ① antd 的「操作单元」混入把 :focus-visible 与 :hover 写在同一个选择器列表里(排版组件的链接 / 复制 / 编辑 / 展开、表格展开图标);
+      不认 :focus-visible 的内核(Safari 15.4 以前)整条丢弃,悬停色跟着没了。utils/legacyWebkitCompat 只在那类内核的文档根打
+      horosa-legacy-no-focus-visible,这里在它底下补单独成条的 :hover,声明与 antd 那条逐条相同;认 :focus-visible 的内核没有这个类,观感不变。
+      (样式里不能用 @supports selector(…) 判:构建链的前缀插件遇到它直接编译失败。)
+   ② 行内样式写了 overflowWrap: 'anywhere' 的元素带 horosa-legacy-wrap-anywhere 类:不认 anywhere 的内核(Safari 15.4 以前)退到 break-word。 */
+:global {
+	html.horosa-legacy-no-focus-visible {
+		.ant-typography a:hover,
+		a.ant-typography:hover {
+			color: var(--horosa-link-hover, #40a9ff);
+		}
+		.ant-typography-copy:hover,
+		.ant-typography-edit:hover,
+		.ant-typography-expand:hover {
+			color: var(--horosa-link-hover, #40a9ff);
+		}
+		.ant-table-row-expand-icon:hover {
+			color: var(--horosa-link-hover, #40a9ff);
+		}
+	}
+	@supports not (overflow-wrap: anywhere) {
+		.horosa-legacy-wrap-anywhere {
+			overflow-wrap: break-word;
+		}
+	}
+}

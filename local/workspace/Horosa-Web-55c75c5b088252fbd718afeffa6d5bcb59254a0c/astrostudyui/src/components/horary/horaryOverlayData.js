@@ -80,7 +80,7 @@ function compute(chartObj, extra, schoolId, sw){
 				if(T){ marks.push({ id: T, style: 'danger' }); }
 			}
 		}
-		// [H8] 并列路径:月亮独立成事径(moonPerfection 成而主径未成)→ 月亮→事项星虚线(kind: parallel)。
+		// 并列路径:月亮独立成事径(moonPerfection 成而主径未成)→ 月亮→事项星虚线(kind: parallel)。
 		const mp = j.moonPerfection;
 		if(mp && mp.perfects && !mp.destroyed && !(perf.perfects) && B){
 			const M = cid('moon');

@@ -1,37 +1,40 @@
 diff --git a/astrostudyui/src/components/lrzhan/LiuRengMain.js b/astrostudyui/src/components/lrzhan/LiuRengMain.js
-index 95d32aec..e4243983 100644
+index 2d9698e7..c22c8fd2 100644
 --- a/astrostudyui/src/components/lrzhan/LiuRengMain.js
 +++ b/astrostudyui/src/components/lrzhan/LiuRengMain.js
-@@ -1,8 +1,10 @@
+@@ -1,10 +1,13 @@
+ import { lockDayBoundary, dayBoundaryLockHeld } from '../../utils/dayBoundaryLock';
 -import { Component } from 'react';
 +import React, { Component } from 'react'; // horosa_liureng_render_slice_v1:模块级 JSX 常量需 React 在作用域(jest classic runtime)
- import { sideSectionIcon } from '../../constants/sideSectionIcons'; // [观象P1]
+ import { timeGeoFieldsChanged } from '../../utils/pendingTimeDraft';
+ import { sideSectionIcon } from '../../constants/sideSectionIcons';
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { safeLocalStorageSet } from '../../utils/safeStorage';
- import { definePageSettings } from '../../utils/pageSettingsStore';
+ import '../../utils/pageSettingsStore';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
 +import { markPanelReady } from '../../utils/perfMark';
++import { registerProcessCache } from '../../utils/processCacheRegistry';
  import { Modal, message, Tag } from 'antd';
  import { XQButton as Button, XQCard as Card, XQSelect as Select, XQTabs as Tabs, XQSwitch as Switch, XQSideSection  } from '../xq-ui';
  import XQIcon from '../xq-icons';
-@@ -28,7 +30,6 @@ import LiuRengChart from './LiuRengChart';
+@@ -29,7 +32,6 @@ import LiuRengChart from './LiuRengChart';
  import LiuRengInput from './LiuRengInput';
  import LiuRengBirthInput from './LiuRengBirthInput';
  import DateTime from '../comp/DateTime';
 -import { FreezeSubTab } from '../comp/FreezeInactive';
  import QuickDockBar from '../common/QuickDockBar';
- import { saveModuleAISnapshot, loadModuleAISnapshot } from '../../utils/moduleAiSnapshot';
- import { getKentangSavedCasePayload, caseFieldSnapshot, caseGenderValue } from '../../utils/kentangCaseSave';
-@@ -39,7 +40,7 @@ import {
- 	setLiurengRunyearLocalCache,
+ import { saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+ import { castSourceKey, castChartFor, castFailureKeeps } from '../../utils/derivedChartSource';
+@@ -43,7 +45,7 @@ import {
  } from '../../utils/localCalcCache';
- import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+ import { defaultLateZiHourUseNextDay } from '../../utils/dayBoundary';
+ import { resolveAfter23NewDay } from '../../utils/dayBoundaryResolve';
 -import { chartDrawGuardEnabled, stepPrefetchEnabled, stepSelectPrefetchEnabled } from '../../utils/perfFlags';
 +import { chartDrawGuardEnabled, stepPrefetchEnabled, stepSelectPrefetchEnabled, techniqueResultCacheEnabled } from '../../utils/perfFlags';
  // R4-B2(horosa_prefetch_registry_v1):/liureng/gods 步进预取登记 + 选步长武装(S3 收敛)。
  import { registerStepPrefetcher, unregisterStepPrefetcher } from '../../utils/stepPrefetch';
  import { armStepPrefetch } from '../../utils/stepPrefetchArm';
-@@ -48,6 +49,13 @@ import { armStepPrefetch } from '../../utils/stepPrefetchArm';
+@@ -82,9 +84,210 @@ export { buildLiuRengSnapshotText } from './main/snapshot';
  const {Option} = Select;
  const TabPane = Tabs.TabPane;
  
@@ -42,13 +45,6 @@ index 95d32aec..e4243983 100644
 +	<Option key={idx} value={item.elem}>十二长生：{item.elem}--{item.ganzi}</Option>
 +)));
 +
- // 签名数组逐元素严格相等(引用/值);用于 render 内派生缓存命中判定(只多算、绝不少算)。
- function sameLRSigArr(a, b){
- 	if(!a || !b || a.length !== b.length){
-@@ -4237,6 +4245,19 @@ function pushCache(map, key, val, max = 96){
- 	}
- }
- 
 +// horosa_kentang_result_cache_v1 —— /liureng/gods + /liureng/runyear 的结果缓存**提升到模块级**。
 +// 原为 per-instance(this.godsCache 等):每次切走六壬页 → 组件卸载 → 缓存连同在途 Promise 一起蒸发,
 +// 切回来整趟往返重付。这两个端点是确定性纯计算(key=genGodsParams/genRunYearParams 的 JSON,
@@ -61,13 +57,11 @@ index 95d32aec..e4243983 100644
 +const LIURENG_GODS_INFLIGHT = new Map();
 +const LIURENG_RUNYEAR_MEM = new Map();
 +const LIURENG_RUNYEAR_INFLIGHT = new Map();
++// 模块级共享后这四张表即「进程内同参复用」缓存:照上游惯例登记清空函数(只供审计仪器取样前清空;产品运行期从不调用,零行为变化)。
++registerProcessCache('liureng.godsRunyear', ()=>{ LIURENG_GODS_MEM.clear(); LIURENG_GODS_INFLIGHT.clear(); LIURENG_RUNYEAR_MEM.clear(); LIURENG_RUNYEAR_INFLIGHT.clear(); });
 +
- export function buildKeData(layout, chartObj){
- 	const result = {
- 		raw: [],
-@@ -4631,6 +4652,175 @@ export function buildLiuRengSnapshotText(params, liureng, runyear, chartObj, gui
- 	return lines.join('\n').trim();
- }
+ // 起课口径的 state 键(择日宿主经 hook.getCastOptions 取;变了经 onPageCalibreChange 告知宿主)
+ const LIURENG_CAST_STATE_KEYS = ['guireng', 'castMethod', 'yueJiangMethod', 'fenZhouYe', 'seHaiMethod', 'seHaiBoundary', 'shiRuKe', 'yearShenShaSort', 'yinyangSystem', 'tuWangShuai'];
  
 +// horosa_liureng_render_slice_v1(L3):左栏「六壬设置」输入面板(时间地点/出生时间/14 项起课选项,
 +// 内含十几个 antd Select 重组件)原内联在宿主 render 里 —— 宿主任意 setState(收课盘结果、切右栏
@@ -75,6 +69,8 @@ index 95d32aec..e4243983 100644
 +// sCU(全 props 逐键比较,函数型视为恒等,零手抄 key 清单 —— 详 utils/chartUpdateGuard):消费的
 +// 标量/引用未变 → 整面板跳过;任一真变(fields/birth 引用、任一选项标量)→ 照常重渲,绝不漏渲。
 +// kill-switch 同 chartSCU:关(horosa.perf.chartSCU=0)= wrapperPropsEqual 恒 false = 恒重渲旧行为。
++// 起课选项回调 prop 名取 onOptionChange(= 宿主 handleCastField(键, 值)):页面设置合同扫描器按 onOptionChange('键', …)
++// 认控件(切片里读的是 p.X 而非 this.state.X,换个名字它就认不出这些下拉,aiPageFacetControl 合同会把它们判成「页面上无控件」)。
 +class LiuRengInputPanel extends Component{
 +	shouldComponentUpdate(nextProps){
 +		return !wrapperPropsEqual(this.props, nextProps);
@@ -82,6 +78,9 @@ index 95d32aec..e4243983 100644
 +
 +	render(){
 +		const p = this.props;
++		// 择日锁定项(起课法):宿主的 zeriLocked / _zeriRestoredLocks 经 props 进入(切片内 this 不是宿主);
++		// 两者都是整体换引用的值(zeriRestoredLockMarks / clearZeriLockMarks 恒返新对象或 null),浅比 sCU 照常感知。
++		const castLock = zeriLockProps(p.zeriLocked, 'castMethod', p.castMethod, p.zeriRestoredLocks);
 +		return (
 +			<div className="horosa-liureng-input-stack">
 +				<div className="horosa-side-panel-heading">
@@ -127,31 +126,36 @@ index 95d32aec..e4243983 100644
 +									<Option value={4}>干合阳阴贵</Option>
 +								</Select>
 +							</label>
-+							{/* [Q-386/T-367] 起课时间算法:缺省真太阳时=后端历来口径(字节零回归);
-+							    选「直接时间」即与三式合一六壬层(时柱取自吃 timeAlg 的奇门)同口径。 */}
-+							<label className="horosa-liureng-select-field">
-+								<span>时间算法</span>
-+								<Select value={p.timeAlg} onChange={p.onTimeAlgChange} dropdownMatchSelectWidth={false}>
-+									<Option value={0}>真太阳时（默认）</Option>
-+									<Option value={1}>直接时间</Option>
-+								</Select>
-+							</label>
-+							<label className="horosa-liureng-select-field">
++							{/* 起课时间算法:缺省真太阳时=后端历来口径(字节零回归);
++							    选「直接时间」即与三式合一六壬层(时柱取自吃 timeAlg 的奇门)同口径。
++							    择日里内嵌的这份不出:扫描引擎恒按真太阳时判,内嵌盘改了只会「所见≠所判」。
++							    (切片子组件:宿主 usesSavedSettings() 经 p.showTimeAlg 传入) */}
++							{p.showTimeAlg ? (
++								<label className="horosa-liureng-select-field">
++									<span>时间算法</span>
++									<Select value={p.timeAlg} onChange={p.onTimeAlgChange} dropdownMatchSelectWidth={false}>
++										<Option value={0}>真太阳时（默认）</Option>
++										<Option value={1}>直接时间</Option>
++									</Select>
++								</label>
++							) : null}
++							<label className="horosa-liureng-select-field" title={castLock.title}>
 +								<span>起课法</span>
-+								<Select value={p.castMethod} onChange={p.onCastMethodChange} dropdownMatchSelectWidth={false}>
++								{/* 择日内嵌:扫描只按正时正将起课,宿主传 zeriLocked 置灰(点结果行时回写锁定值) */}
++								<Select value={p.castMethod} onChange={p.onCastMethodChange} dropdownMatchSelectWidth={false} disabled={!!castLock.disabled}>
 +									{QI_METHODS.map((m)=>(<Option key={m.key} value={m.key}>{m.name}</Option>))}
 +								</Select>
 +							</label>
 +							<label className="horosa-liureng-select-field">
 +								<span>换将</span>
-+								<Select value={p.yueJiangMethod} onChange={(v)=>p.onCastField('yueJiangMethod', v)} dropdownMatchSelectWidth={false}>
++								<Select value={p.yueJiangMethod} onChange={(v)=>p.onOptionChange('yueJiangMethod', v)} dropdownMatchSelectWidth={false}>
 +									{YUE_JIANG_METHODS.map((m)=>(<Option key={m.key} value={m.key}>{m.name}</Option>))}
 +								</Select>
 +							</label>
 +							{p.castMethod === 'xuanshi' ? (
 +							<label className="horosa-liureng-select-field horosa-liureng-select-field-wide">
 +								<span>选时·时辰</span>
-+								<Select value={p.xuanShiZhi || ''} onChange={(v)=>p.onCastField('xuanShiZhi', v)} dropdownMatchSelectWidth={false}>
++								<Select value={p.xuanShiZhi || ''} onChange={(v)=>p.onOptionChange('xuanShiZhi', v)} dropdownMatchSelectWidth={false}>
 +									<Option value=''>用正时</Option>
 +									{LRConst.ZiList.map((z)=>(<Option key={z} value={z}>{z}时</Option>))}
 +								</Select>
@@ -160,18 +164,18 @@ index 95d32aec..e4243983 100644
 +							{(p.castMethod === 'yanshu' || p.castMethod === 'baoshu') ? (
 +							<label className="horosa-liureng-select-field horosa-liureng-select-field-wide">
 +								<span>{p.castMethod === 'baoshu' ? '报数/字数/笔画' : '演数·随感之数'}</span>
-+								<input type='number' value={p.yanShuNum} onChange={(e)=>p.onCastField('yanShuNum', e.target.value)} placeholder='输入数字' style={{ width: '100%', padding: '4px 8px', borderRadius: 6, border: '1px solid var(--horosa-border, rgba(255,255,255,0.18))', background: 'transparent', color: 'var(--horosa-text, inherit)' }} />
++								<input type='number' value={p.yanShuNum} onChange={(e)=>p.onOptionChange('yanShuNum', e.target.value)} placeholder='输入数字' style={{ width: '100%', padding: '4px 8px', borderRadius: 6, border: '1px solid var(--horosa-border, rgba(255,255,255,0.18))', background: 'transparent', color: 'var(--horosa-text, inherit)' }} />
 +							</label>
 +							) : null}
 +							<label className="horosa-liureng-select-field">
 +								<span>分昼夜</span>
-+								<Select value={p.fenZhouYe} onChange={(v)=>p.onCastField('fenZhouYe', v)} dropdownMatchSelectWidth={false}>
++								<Select value={p.fenZhouYe} onChange={(v)=>p.onOptionChange('fenZhouYe', v)} dropdownMatchSelectWidth={false}>
 +									{FEN_ZHOU_YE_METHODS.map((m)=>(<Option key={m.key} value={m.key}>{m.name}</Option>))}
 +								</Select>
 +							</label>
 +							<label className="horosa-liureng-select-field">
 +								<span>涉害取舍</span>
-+								<Select value={p.seHaiMethod} onChange={(v)=>p.onCastField('seHaiMethod', v)} dropdownMatchSelectWidth={false}>
++								<Select value={p.seHaiMethod} onChange={(v)=>p.onOptionChange('seHaiMethod', v)} dropdownMatchSelectWidth={false}>
 +									<Option value="app">仅下贼上(默认)</Option>
 +									<Option value="standard">标准深浅两向</Option>
 +									<Option value="mengzhongji">直取孟仲季</Option>
@@ -179,7 +183,7 @@ index 95d32aec..e4243983 100644
 +							</label>
 +							<label className="horosa-liureng-select-field">
 +								<span>涉害起讫</span>
-+								<Select value={p.seHaiBoundary} onChange={(v)=>p.onCastField('seHaiBoundary', v)} dropdownMatchSelectWidth={false}>
++								<Select value={p.seHaiBoundary} onChange={(v)=>p.onOptionChange('seHaiBoundary', v)} dropdownMatchSelectWidth={false}>
 +									<Option value="app">计起点不计本家(默认)</Option>
 +									<Option value="both">两端皆计</Option>
 +									<Option value="neither">皆不计</Option>
@@ -187,7 +191,7 @@ index 95d32aec..e4243983 100644
 +							</label>
 +							<label className="horosa-liureng-select-field">
 +								<span>始入课</span>
-+								<Select value={p.shiRuKe ? '1' : '0'} onChange={(v)=>p.onCastField('shiRuKe', v === '1')} dropdownMatchSelectWidth={false}>
++								<Select value={p.shiRuKe ? '1' : '0'} onChange={(v)=>p.onOptionChange('shiRuKe', v === '1')} dropdownMatchSelectWidth={false}>
 +									<Option value='0'>并入重审(默认)</Option>
 +									<Option value='1'>单列·九法变十法</Option>
 +								</Select>
@@ -207,22 +211,22 @@ index 95d32aec..e4243983 100644
 +							</label>
 +							<label className="horosa-liureng-select-field">
 +								<span>年神排序</span>
-+								<Select value={p.yearShenShaSort} onChange={(v)=>p.onCastField('yearShenShaSort', v)} dropdownMatchSelectWidth={false}>
++								<Select value={p.yearShenShaSort} onChange={(v)=>p.onOptionChange('yearShenShaSort', v)} dropdownMatchSelectWidth={false}>
 +									<Option value="sanyuan">四利三元序(默认)</Option>
 +									<Option value="suigui">太岁排轮(太阴异)</Option>
 +								</Select>
 +							</label>
 +							<label className="horosa-liureng-select-field" title={p.guireng !== 0 ? '星历阳阴系只在贵人体系=六壬法贵人时生效(甲乙丙辛壬癸昼夜互换);当前贵人体系下两档恒同' : undefined}>
 +								<span>昼夜阳阴归属</span>
-+								{/* [Q-164/T-87·SS-19] 贵人≠六壬法时置灰:LRConst 只在 guirengType===0 时按此键互换昼夜 */}
-+								<Select value={p.yinyangSystem} disabled={p.guireng !== 0} onChange={(v)=>p.onCastField('yinyangSystem', v)} dropdownMatchSelectWidth={false}>
++								{/* 贵人≠六壬法时置灰:LRConst 只在 guirengType===0 时按此键互换昼夜 */}
++								<Select value={p.yinyangSystem} disabled={p.guireng !== 0} onChange={(v)=>p.onOptionChange('yinyangSystem', v)} dropdownMatchSelectWidth={false}>
 +									<Option value="danmu">旦暮系(默认)</Option>
 +									<Option value="yinyang">星历阳阴系</Option>
 +								</Select>
 +							</label>
 +							<label className="horosa-liureng-select-field">
 +								<span>土旺衰</span>
-+								<Select value={p.tuWangShuai} onChange={(v)=>p.onCastField('tuWangShuai', v)} dropdownMatchSelectWidth={false}>
++								<Select value={p.tuWangShuai} onChange={(v)=>p.onOptionChange('tuWangShuai', v)} dropdownMatchSelectWidth={false}>
 +									<Option value="siji">四季月土旺(默认)</Option>
 +									<Option value="huotu">火土同宫(土随火)</Option>
 +								</Select>
@@ -241,7 +245,7 @@ index 95d32aec..e4243983 100644
  class LiuRengMain extends Component{
  	constructor(props) {
  		super(props);
-@@ -4680,10 +4870,12 @@ class LiuRengMain extends Component{
+@@ -134,10 +337,12 @@ class LiuRengMain extends Component{
  		this.timeHook = {};
  		this.pendingFields = null;
  		this.birthYearGanZiCache = {};
@@ -258,7 +262,7 @@ index 95d32aec..e4243983 100644
  		// render 内派生缓存(单槽 last-result)。render() 每次都 buildLiuRengCastOverride(新对象!)+
  		// buildLiuRengReferenceBundle(~650行重算)。切右栏 tab(rightTab/activeTab 等)只改无关 state,却让二者整套重跑;
  		// 且 castOverride 每次新引用 → 透传给 LiuRengChart 的 CDU 恒判「变」→ d3 整树白重画(越用越卡的真凶)。
-@@ -4699,7 +4891,6 @@ class LiuRengMain extends Component{
+@@ -153,7 +358,6 @@ class LiuRengMain extends Component{
  		this.onCastMethodChange = this.onCastMethodChange.bind(this);
  		this.handleCastField = this.handleCastField.bind(this);
  		this.onChartTypeChange = this.onChartTypeChange.bind(this);
@@ -266,43 +270,7 @@ index 95d32aec..e4243983 100644
  		this.genGodsParams = this.genGodsParams.bind(this);
  		this.prefetchStepSelect = this.prefetchStepSelect.bind(this);
  		this.genRunYearParams = this.genRunYearParams.bind(this);
-@@ -4725,9 +4916,9 @@ class LiuRengMain extends Component{
- 				}
- 				this.startPaiPanByFields(fields || this.props.fields, chartObj || this.props.value);
- 			};
--			// [R3-A7] 并行预热:fetchByFields 等 /chart 前先把 /liureng/gods 打出去
--			// (silent,经 requestDedupe 在途共享)→ 页面总延迟 sum→max。构参走 genGodsParams
--			// 同源 → 与 hook 正式请求逐字节同键。失败静默,正式请求自兜底。
-+			// PERF-R9 Ship 7:/liureng/gods(四课三传的神将底数)只吃时间+地理,与主 /chart 无关 ——
-+			// 在 /chart 返回之前并行发出,latency = max 而非 sum。silent、丢结果、绝不 setState。
-+			// 闸:horosa.perf.prewarmRequests(关=此函数不被调用,逐字节旧序)。
- 			// [挂载自检 F-37] 择日宿主 pick 前回写工作台口径(贵人体系 guireng/月将法 yueJiangMethod/昼夜阴阳系 yinyangSystem)
- 			// 到本页起课选项,让 pick 后显示盘/母快照与命中判定同口径(此前宿主 fields 不透传三键,显示盘按左栏旧档起课)。
- 			this.props.hook.applyCastFields = (partial)=>new Promise((resolve)=>{
-@@ -4735,19 +4926,24 @@ class LiuRengMain extends Component{
- 				this.setState(partial, resolve);
- 			});
- 			this.props.hook.prewarmRequests = (flds)=>{
--				if(this.unmounted){ return; }
-+				if(this.unmounted){
-+					return;
-+				}
- 				try{
- 					const params = this.genGodsParams(flds || this.props.fields);
--					if(!params){ return; }
--					request(`${Constants.ServerRoot}/liureng/gods`, {
--						body: JSON.stringify(params),
--						silent: true,
--					}).catch(()=>null);
-+					if(params){
-+						request(`${Constants.ServerRoot}/liureng/gods`, {
-+							body: JSON.stringify(params),
-+							silent: true,
-+							retry: { retries: 0 },
-+						}).catch(()=>{ /* 预热静默 */ });
-+					}
- 				}catch(e){ /* 预热失败无害 */ }
- 			};
+@@ -236,6 +440,7 @@ class LiuRengMain extends Component{
  			// R4-B2(horosa_prefetch_registry_v1):/liureng/gods 是确定性纯计算(同时刻恒同神将)
  			// → 登记步进预取,武装线(选步长/settle/切页)±depth 全窗经共享调度器构造发出
  			// (享白名单闸/latest-wins/预算;S3 收敛:本地裸发路径退役为薄壳,见 prefetchStepSelect)。
@@ -310,7 +278,7 @@ index 95d32aec..e4243983 100644
  			if(stepPrefetchEnabled()){
  				this._liurengStepPrefetcher = (steppedFields)=>{
  					if(this.unmounted || !steppedFields){
-@@ -5291,7 +5487,12 @@ class LiuRengMain extends Component{
+@@ -823,7 +1028,12 @@ class LiuRengMain extends Component{
  		};
  
  		this.setState(st, ()=>{
@@ -324,7 +292,7 @@ index 95d32aec..e4243983 100644
  			this.saveLiuRengAISnapshot(params, result.liureng, this.state.runyear, wx, this.state.guireng);
  		});
  	}
-@@ -5341,41 +5542,52 @@ class LiuRengMain extends Component{
+@@ -877,44 +1087,54 @@ class LiuRengMain extends Component{
  		let result = fallbackRunYear ? { ...fallbackRunYear } : {};
  		const runyearKey = buildCacheKey(params);
  		try{
@@ -334,6 +302,7 @@ index 95d32aec..e4243983 100644
 -				serverRes = clonePlain(this.runYearServerCache.get(runyearKey)) || {};
 -			}else if(runyearKey && this.runYearServerInflight.has(runyearKey)){
 -				serverRes = clonePlain(await this.runYearServerInflight.get(runyearKey)) || {};
+-				if(stale()){ return; }
 -			}else if(localRunyearHit){
 -				serverRes = clonePlain(localRunyearHit) || {};
 -				pushCache(this.runYearServerCache, runyearKey, clonePlain(serverRes), 96);
@@ -391,20 +360,24 @@ index 95d32aec..e4243983 100644
 -					pushCache(this.runYearServerCache, runyearKey, clonePlain(serverRes), 96);
 -					setLiurengRunyearLocalCache(runyearKey, clonePlain(serverRes));
  				}
+-				if(stale()){ return; }
 -			}
 +				return serverRes;
 +			})();
 +			const [serverRes, birthGanZi] = await Promise.all([serverResPromise, this.requestBirthYearGanZi()]);
++			// 请求代次(同上游「每个 await 之后都判」):并行版两段取数只在这一个 await 点汇合,判据并在此处。
++			if(stale()){ return; }
  			result = {
  				...serverRes,
  				...result,
  			};
  			const guaGanZi = extractGanZi(params.guaYearGanZi) || resolveGuaYearGanZi(this.state.liureng);
 -			const birthGanZi = await this.requestBirthYearGanZi();
+-			if(stale()){ return; }
  			let localRunYear = calcRunYearLocal(
  				birthGanZi,
  				guaGanZi,
-@@ -5552,17 +5764,6 @@ class LiuRengMain extends Component{
+@@ -1108,17 +1328,6 @@ class LiuRengMain extends Component{
  		}
  	}
  
@@ -422,7 +395,7 @@ index 95d32aec..e4243983 100644
  	// WP-H-2 极速化:重 wrapper sCU —— 全 props 机械浅比(函数型跳过,详 wrapperPropsEqual);
  	// state 任一引用变照常重渲(setState 恒换引用,此比既完整又廉价)。
  	// 收益:宿主因无关状态重渲时,本重组件整树不再白跑。关 chartSCU 开关 = 恒重渲旧行为。
-@@ -5980,159 +6181,46 @@ class LiuRengMain extends Component{
+@@ -1549,163 +1758,49 @@ class LiuRengMain extends Component{
  		}
  	}
  
@@ -475,18 +448,22 @@ index 95d32aec..e4243983 100644
 -									<Option value={4}>干合阳阴贵</Option>
 -								</Select>
 -							</label>
--							{/* [Q-386/T-367] 起课时间算法:缺省真太阳时=后端历来口径(字节零回归);
--							    选「直接时间」即与三式合一六壬层(时柱取自吃 timeAlg 的奇门)同口径。 */}
--							<label className="horosa-liureng-select-field">
--								<span>时间算法</span>
--								<Select value={this.state.timeAlg} onChange={this.onTimeAlgChange} dropdownMatchSelectWidth={false}>
--									<Option value={0}>真太阳时（默认）</Option>
--									<Option value={1}>直接时间</Option>
--								</Select>
--							</label>
--							<label className="horosa-liureng-select-field">
+-							{/* 起课时间算法:缺省真太阳时=后端历来口径(字节零回归);
+-							    选「直接时间」即与三式合一六壬层(时柱取自吃 timeAlg 的奇门)同口径。
+-							    择日里内嵌的这份不出:扫描引擎恒按真太阳时判,内嵌盘改了只会「所见≠所判」。 */}
+-							{this.usesSavedSettings() ? (
+-								<label className="horosa-liureng-select-field">
+-									<span>时间算法</span>
+-									<Select value={this.state.timeAlg} onChange={this.onTimeAlgChange} dropdownMatchSelectWidth={false}>
+-										<Option value={0}>真太阳时（默认）</Option>
+-										<Option value={1}>直接时间</Option>
+-									</Select>
+-								</label>
+-							) : null}
+-							<label className="horosa-liureng-select-field" title={zeriLockProps(this.props.zeriLocked, 'castMethod', this.state.castMethod, this._zeriRestoredLocks).title}>
 -								<span>起课法</span>
--								<Select value={this.state.castMethod} onChange={this.onCastMethodChange} dropdownMatchSelectWidth={false}>
+-								{/* 择日内嵌:扫描只按正时正将起课,宿主传 zeriLocked 置灰(点结果行时回写锁定值) */}
+-								<Select value={this.state.castMethod} onChange={this.onCastMethodChange} dropdownMatchSelectWidth={false} disabled={!!zeriLockProps(this.props.zeriLocked, 'castMethod', this.state.castMethod, this._zeriRestoredLocks).disabled}>
 -									{QI_METHODS.map((m)=>(<Option key={m.key} value={m.key}>{m.name}</Option>))}
 -								</Select>
 -							</label>
@@ -562,7 +539,7 @@ index 95d32aec..e4243983 100644
 -							</label>
 -							<label className="horosa-liureng-select-field" title={this.state.guireng !== 0 ? '星历阳阴系只在贵人体系=六壬法贵人时生效(甲乙丙辛壬癸昼夜互换);当前贵人体系下两档恒同' : undefined}>
 -								<span>昼夜阳阴归属</span>
--								{/* [Q-164/T-87·SS-19] 贵人≠六壬法时置灰:LRConst 只在 guirengType===0 时按此键互换昼夜 */}
+-								{/* 贵人≠六壬法时置灰:LRConst 只在 guirengType===0 时按此键互换昼夜 */}
 -								<Select value={this.state.yinyangSystem} disabled={this.state.guireng !== 0} onChange={(v)=>this.handleCastField('yinyangSystem', v)} dropdownMatchSelectWidth={false}>
 -									<Option value="danmu">旦暮系(默认)</Option>
 -									<Option value="yinyang">星历阳阴系</Option>
@@ -596,7 +573,10 @@ index 95d32aec..e4243983 100644
 +				guireng={this.state.guireng}
 +				timeAlg={this.state.timeAlg}
 +				onTimeAlgChange={this.onTimeAlgChange}
++				showTimeAlg={this.usesSavedSettings()}
 +				castMethod={this.state.castMethod}
++				zeriLocked={this.props.zeriLocked}
++				zeriRestoredLocks={this._zeriRestoredLocks}
 +				yueJiangMethod={this.state.yueJiangMethod}
 +				xuanShiZhi={this.state.xuanShiZhi}
 +				yanShuNum={this.state.yanShuNum}
@@ -612,7 +592,7 @@ index 95d32aec..e4243983 100644
 +				onWuXingChange={this.onWuXingChange}
 +				onGuiRengChange={this.onGuiRengChange}
 +				onCastMethodChange={this.onCastMethodChange}
-+				onCastField={this.handleCastField}
++				onOptionChange={this.handleCastField}
 +				onToggleXiang={this.onToggleXiang}
 +				onZhanCategoryChange={this.onZhanCategoryChange}
 +				onStartPaiPan={this.clickStartPaiPan}
@@ -621,7 +601,7 @@ index 95d32aec..e4243983 100644
  		);
  	}
  
-@@ -6143,8 +6231,8 @@ class LiuRengMain extends Component{
+@@ -1716,8 +1811,8 @@ class LiuRengMain extends Component{
  			xiaojuMainItems,
  			xiaojuReferenceItems,
  			overviewItems,
@@ -632,7 +612,7 @@ index 95d32aec..e4243983 100644
  		} = refData;
  		const ctx = refBundle && refBundle.context ? refBundle.context : null;
  		// 「小局」已并入「格局」tab(旧 key 'xiaoju' 归一到 'dage',免旧状态落空白页)
-@@ -6156,8 +6244,14 @@ class LiuRengMain extends Component{
+@@ -1729,6 +1824,12 @@ class LiuRengMain extends Component{
  				onChange={(key)=>this.setState({ rightPanelTab: key })}
  				animated={false}
  			>
@@ -643,12 +623,9 @@ index 95d32aec..e4243983 100644
 +				    (DOM/实例/滚动位置/展开态全部保留,不卸载);切回 → 拿本轮最新 children 立刻渲一帧,
 +				    不重发请求、不闪烁、无陈旧。kill-switch horosa.perf.freezeSubTabs=0 即回旧行为。 */}
  				<TabPane tab="格局" key="dage">
--					<FreezeSubTab active={activeTabKey === 'dage'}>{() => (
-+					<FreezeSubTab active={activeTabKey === 'dage'}>{()=>(
+ 					<FreezeSubTab active={activeTabKey === 'dage'}>{() => (
  					<div className="horosa-liureng-reference-tab-body">
- 						{refSummary ? (
- 							<Card size='small' style={{ marginBottom: 8, background: 'var(--horosa-panel-soft, #fafafa)' }}>
-@@ -6206,7 +6300,11 @@ class LiuRengMain extends Component{
+@@ -1779,7 +1880,11 @@ class LiuRengMain extends Component{
  					)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="信息" key="meta">
@@ -661,7 +638,7 @@ index 95d32aec..e4243983 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{metaItems && metaItems.length ? metaItems.map((group)=>(
  							<Card key={`meta_${group.title}`} size='small' style={{ marginBottom: 8 }} title={group.title}>
-@@ -6225,13 +6323,16 @@ class LiuRengMain extends Component{
+@@ -1798,7 +1903,8 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -670,40 +647,9 @@ index 95d32aec..e4243983 100644
 +					}}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="毕法" key="bifa">
--					<FreezeSubTab active={activeTabKey === 'bifa'}>{() => this.renderBiFaTab(ctx)}</FreezeSubTab>
-+					<FreezeSubTab active={activeTabKey === 'bifa'}>{()=>(
-+					this.renderBiFaTab(ctx)
-+					)}</FreezeSubTab>
- 				</TabPane>
- 				<TabPane tab="参考" key="reference">
--					<FreezeSubTab active={activeTabKey === 'reference'}>{() => (
-+					<FreezeSubTab active={activeTabKey === 'reference'}>{()=>(
- 					<div className="horosa-liureng-reference-tab-body">
- 						{xiaojuReferenceItems.length ? xiaojuReferenceItems.map((item)=>(
- 							<Card key={`ref_${item.key}`} size='small' style={{ marginBottom: 8 }}>
-@@ -6255,7 +6356,7 @@ class LiuRengMain extends Component{
- 					)}</FreezeSubTab>
- 				</TabPane>
- 				<TabPane tab="概览" key="overview">
--					<FreezeSubTab active={activeTabKey === 'overview'}>{() => (
-+					<FreezeSubTab active={activeTabKey === 'overview'}>{()=>(
- 					<div className="horosa-liureng-reference-tab-body">
- 						{this.renderShenShaSection(ctx)}
- 						{overviewItems.length ? overviewItems.map((item, idx)=>(
-@@ -6282,13 +6383,21 @@ class LiuRengMain extends Component{
- 					)}</FreezeSubTab>
- 				</TabPane>
- 				<TabPane tab="占断" key="zhanduan">
--					<FreezeSubTab active={activeTabKey === 'zhanduan'}>{() => this.renderZhanDuanTab(ctx)}</FreezeSubTab>
-+					<FreezeSubTab active={activeTabKey === 'zhanduan'}>{()=>(
-+					this.renderZhanDuanTab(ctx)
-+					)}</FreezeSubTab>
- 				</TabPane>
- 				<TabPane tab="取象" key="xiang">
--					<FreezeSubTab active={activeTabKey === 'xiang'}>{() => this.renderXiangTab(ctx)}</FreezeSubTab>
-+					<FreezeSubTab active={activeTabKey === 'xiang'}>{()=>(
-+					this.renderXiangTab(ctx)
-+					)}</FreezeSubTab>
+ 					<FreezeSubTab active={activeTabKey === 'bifa'}>{() => this.renderBiFaTab(ctx)}</FreezeSubTab>
+@@ -1861,7 +1967,11 @@ class LiuRengMain extends Component{
+ 					<FreezeSubTab active={activeTabKey === 'xiang'}>{() => this.renderXiangTab(ctx)}</FreezeSubTab>
  				</TabPane>
  				<TabPane tab="七政" key="qizheng">
 -					<FreezeSubTab active={activeTabKey === 'qizheng'}>{() => (
@@ -715,7 +661,7 @@ index 95d32aec..e4243983 100644
  					<div className="horosa-liureng-reference-tab-body">
  						{qizhengItems && qizhengItems.length ? (
  							<Card size='small'>
-@@ -6342,7 +6451,8 @@ class LiuRengMain extends Component{
+@@ -1915,7 +2025,8 @@ class LiuRengMain extends Component{
  							</Card>
  						)}
  					</div>
@@ -725,7 +671,7 @@ index 95d32aec..e4243983 100644
  				</TabPane>
  			</Tabs>
  		);
-@@ -6528,13 +6638,12 @@ class LiuRengMain extends Component{
+@@ -2105,13 +2216,12 @@ class LiuRengMain extends Component{
  			refContext.sanChuanText ? `三传：${refContext.sanChuanText}` : '',
  			refContext.dayGanZi ? `日干支：${refContext.dayGanZi}` : '',
  		].filter(Boolean).join('；');
@@ -740,7 +686,7 @@ index 95d32aec..e4243983 100644
  						</div>
  						<div className="horosa-chart-stage horosa-chart-stage-redesign horosa-liureng-chart-panel xq-chart-renderer xq-chart-renderer-liureng">
  							<div className="horosa-liureng-chart-host">
-@@ -6562,14 +6671,18 @@ class LiuRengMain extends Component{
+@@ -2140,14 +2250,18 @@ class LiuRengMain extends Component{
  									<div className="horosa-side-panel-subtitle">大格、小局与参考条目</div>
  								</div>
  							</div>

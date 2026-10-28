@@ -90,7 +90,7 @@ describe('行动能力卡', ()=>{
 	});
 });
 
-describe('[进阶复查 D12·2026-09-08] 类别面板文案', ()=>{
+describe('类别面板文案', ()=>{
 	let host;
 	beforeEach(()=>{ window.localStorage.clear(); host = document.createElement('div'); document.body.appendChild(host); });
 	afterEach(()=>{ act(()=>{ ReactDOM.unmountComponentAtNode(host); }); host.remove(); document.body.innerHTML = ''; });

@@ -33,10 +33,8 @@ describe('账①②：AI 导出段登记 与 导出设置面板（同源 preset�
 			expect(PRESET).toContain(header);
 		});
 	});
-	it('preset 里的「风水·」段与全部流派一一对应，无多余无遗漏(+v51 形势图判=图像分析段,非流派段)', ()=>{
+	it('preset 里的「风水·」段与全部流派一一对应，无多余无遗漏', ()=>{
 		const inPreset = PRESET.filter((s)=>s.indexOf('风水·') === 0).sort();
-		// [v51] 「风水·形势图判」=AI 分析页图像分析工作台快照的整块包段(extractFengShuiContent 追加),
-		// 不属理气十六流派 → 单列白名单;流派段仍与 SCHOOL_CN 一一对应。
 		const expected = [...Object.keys(SCHOOL_CN).map((k)=>`风水·${SCHOOL_CN[k]}`)];
 		expected.sort();
 		expect(inPreset).toEqual(expected);
@@ -100,7 +98,7 @@ describe('账②：新增流派的老用户迁移（勾过风水的人必须补�
 		expect(n.sections.fengshui).toContain('风水·玄空飞星');
 		expect(n.sections.fengshui).not.toContain('风水·纳气盘');
 	});
-	it('[v52/v53/v54] v51 已自定义 → 大玄空+水龙+化煞段补入；旧勾选不丢、未勾旧段不复活', ()=>{
+	it('v51 已自定义 → 大玄空+水龙+化煞段补入；旧勾选不丢、未勾旧段不复活', ()=>{
 		const n = normalizeAIExportSettings({ version: 51, sections: { fengshui: ['风水·玄空飞星'] } });
 		expect(n.sections.fengshui).toContain('风水·大玄空');
 		expect(n.sections.fengshui).toContain('风水·水龙平洋');
@@ -109,7 +107,7 @@ describe('账②：新增流派的老用户迁移（勾过风水的人必须补�
 		expect(n.sections.fengshui).toContain('风水·玄空飞星');
 		expect(n.sections.fengshui).not.toContain('风水·纳气盘');
 	});
-	it('[v52] 未自定义（无 fengshui 键）不被 union 凭空造键', ()=>{
+	it('未自定义（无 fengshui 键）不被 union 凭空造键', ()=>{
 		const n = normalizeAIExportSettings({ version: 51, sections: {} });
 		expect(n.sections.fengshui).toBeUndefined();
 	});

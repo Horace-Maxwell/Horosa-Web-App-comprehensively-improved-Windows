@@ -1,10 +1,10 @@
-// [S6] 降级横幅行为锁:默认零 DOM;降级事件→显示「暂存内存/重启丢失/请导出」;可关闭。
+// 降级横幅行为锁:默认零 DOM;降级事件→显示「暂存内存/重启丢失/请导出」;可关闭。
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { act } from 'react-dom/test-utils';
 import LocalStoreHealthBanner from '../../components/common/LocalStoreHealthBanner';
 
-describe('[S6] LocalStoreHealthBanner', ()=>{
+describe('LocalStoreHealthBanner', ()=>{
 	let host;
 	beforeEach(()=>{
 		window.localStorage.clear();

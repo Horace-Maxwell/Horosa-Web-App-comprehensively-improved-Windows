@@ -89,7 +89,8 @@ def test_bare_sid_mode_call_sites_whitelist():
                         rel = os.path.relpath(path, root)
                         hits.add(rel)
     expected = {
-        os.path.join('astrostudy', 'perchart.py'),
+        # perchart_parts/su28_moira.py:_moira_ayanamsha(由 perchart.py 整段搬入,astrostudy.perchart 照旧可取)。
+        os.path.join('astrostudy', 'perchart_parts', 'su28_moira.py'),
         os.path.join('astrostudy', 'perpredict.py'),
         # acg/ACGraph.py:__init__ ayanamsa 恒星读数 — set_sid_mode→get_ayanamsa_ut 相邻两行(已评审符合 set/use 相邻约定;
         # 只取 ayanamsa 度数作标注,flatlib 主盘走 tropical 不受该全局态影响)。

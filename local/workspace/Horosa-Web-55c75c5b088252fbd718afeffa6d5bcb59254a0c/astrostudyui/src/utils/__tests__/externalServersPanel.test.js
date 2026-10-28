@@ -1,4 +1,4 @@
-// [进阶审计 C3] 外部 MCP 服务器子面板合同(桌面桥 mock):总开关 → 添加弹窗(HTTP:网址+令牌 / stdio:命令+参数)→ 保存只把令牌交给壳侧、
+// 外部 MCP 服务器子面板合同(桌面桥 mock):总开关 → 添加弹窗(HTTP:网址+令牌 / stdio:命令+参数)→ 保存只把令牌交给壳侧、
 // 页面正文永不回显 → 连接并检测(只读工具准入、写入拒绝、名字含删除类词的白名单项也拒)→ 工具目录出现 ext_ 前缀只读工具 → 断开注销 → 删除。
 import React from 'react';
 import ReactDOM from 'react-dom';
@@ -12,10 +12,11 @@ const bridge = { clients: [], connectTools: [] };
 jest.mock('../aiAnalysisDesktop', ()=>({
 	...jest.requireActual('../aiAnalysisDesktop'),
 	isDesktopBridgeAvailable: ()=>true,
-	// 与真壳同形:mcp_client_list_command 返回**数组**(Rust Vec),经 invokeOptional 包装 —— [D9] 此前 invokeOptional 把数组展开成索引键,面板读 .value 恒 undefined = 清单永远空
+	// 与真壳同形:mcp_client_list_command 返回**数组**(Rust Vec),经 invokeOptional 包装 —— 此前 invokeOptional 把数组展开成索引键,面板读 .value 恒 undefined = 清单永远空
 	desktopMcpClientList: jest.fn(async ()=>jest.requireActual('../aiAnalysisDesktop').__wrapOptionalForTests(bridge.clients.map((c)=>({ ...c, transport: c.transport && c.transport.headers ? { ...c.transport, headers: { Authorization: '***' } } : c.transport })))),
 	// 壳侧收 snake_case 合同(read_only_only / allow_tools / timeout_ms),清单回页面用 camelCase 行(与真壳 mcp_client_list 同形)
-	desktopMcpClientUpsert: jest.fn(async (spec)=>{ const i = bridge.clients.findIndex((c)=>c.id === spec.id); const rec = { enabled: spec.enabled !== false, connected: i >= 0 ? !!bridge.clients[i].connected : false, id: spec.id, name: spec.name, timeoutMs: spec.timeout_ms, readOnlyOnly: spec.read_only_only !== false, allowTools: spec.allow_tools || [], transport: spec.transport }; if(i >= 0){ bridge.clients[i] = rec; }else{ bridge.clients.push(rec); } return { available: true }; }),
+	// 与真壳同形:改了传输(命令 / 参数 / 环境 / 网址)⇒ 壳侧断开旧连接,回包 disconnected:true
+	desktopMcpClientUpsert: jest.fn(async (spec)=>{ const i = bridge.clients.findIndex((c)=>c.id === spec.id); const changed = i >= 0 && JSON.stringify(bridge.clients[i].transport) !== JSON.stringify(spec.transport); const disconnected = changed && !!bridge.clients[i].connected; const rec = { enabled: spec.enabled !== false, connected: i >= 0 ? (!!bridge.clients[i].connected && !changed) : false, id: spec.id, name: spec.name, timeoutMs: spec.timeout_ms, readOnlyOnly: spec.read_only_only !== false, allowTools: spec.allow_tools || [], transport: spec.transport }; if(i >= 0){ bridge.clients[i] = rec; }else{ bridge.clients.push(rec); } return { available: true, disconnected, transportChanged: changed }; }),
 	desktopMcpClientRemove: jest.fn(async (id)=>{ bridge.clients = bridge.clients.filter((c)=>c.id !== id); return { available: true }; }),
 	desktopMcpClientConnect: jest.fn(async (id)=>{ const c = bridge.clients.find((x)=>x.id === id); if(c){ c.connected = true; } return { available: true, value: { tools: bridge.connectTools } }; }),
 	desktopMcpClientDisconnect: jest.fn(async (id)=>{ const c = bridge.clients.find((x)=>x.id === id); if(c){ c.connected = false; } return { available: true }; }),
@@ -127,6 +128,18 @@ describe('外部 MCP 服务器子面板', ()=>{
 		expect(rejected.length).toBe(1);
 		expect(rejected[0].textContent).toContain('删除');
 		expect(listTools().some((t)=>t.name === 'ext_clock_get_current_time')).toBe(true);
+		// 编辑:只改显示名(传输不变)→ 工具留着;改了参数 → 壳侧断开旧连接,页面收回该服务器的外部工具
+		await click(host.querySelector('[data-ext-server-edit="clock"]'));
+		setInput(document.querySelector('[data-ext-server-name="1"]'), '时钟二');
+		await click(document.querySelector('[data-ext-server-save="1"]'));
+		expect(listTools().some((t)=>t.name === 'ext_clock_get_current_time')).toBe(true);
+		await click(host.querySelector('[data-ext-server-edit="clock"]'));
+		setInput(document.querySelector('[data-ext-server-args="1"]'), 'mcp-server-time --local-timezone=UTC');
+		await click(document.querySelector('[data-ext-server-save="1"]'));
+		expect(desktop.desktopMcpClientUpsert.mock.calls.pop()[0].transport.args).toEqual(['mcp-server-time', '--local-timezone=UTC']);
+		expect(listTools().some((t)=>t.name.indexOf('ext_clock_') === 0)).toBe(false);
+		await click(host.querySelector('[data-ext-server-connect="clock"]'));
+		expect(listTools().some((t)=>t.name === 'ext_clock_get_current_time')).toBe(true);
 		// 关总开关 → 一个外部工具都不留
 		await click(host.querySelector('[data-external-tools-switch="1"]'));
 		expect(isExternalToolsEnabled()).toBe(false);
@@ -134,7 +147,7 @@ describe('外部 MCP 服务器子面板', ()=>{
 	});
 });
 
-// [D9] invokeOptional 的数组包装合同:数组结果必须落 value(与真壳 mcp_client_list_command 的 Vec 同形);对象结果仍展开;标量落 value
+// invokeOptional 的数组包装合同:数组结果必须落 value(与真壳 mcp_client_list_command 的 Vec 同形);对象结果仍展开;标量落 value
 describe('invokeOptional 数组结果', ()=>{
 	test('🔴 数组 → {available, value:[…]};对象 → 展开;标量 → value', ()=>{
 		const { __wrapOptionalForTests } = jest.requireActual('../aiAnalysisDesktop');

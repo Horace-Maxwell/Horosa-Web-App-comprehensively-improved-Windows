@@ -69,7 +69,7 @@ describe('reportMarkdownNormalize', ()=>{
 		expect(out).toContain('正文 3-4');
 	});
 
-	// [E5] 行内代码与 URL 中的 ~ 受占位保护(此前无差别替换,`a ~ b` 与 /~user 路径被改写)。
+	// 行内代码与 URL 中的 ~ 受占位保护(此前无差别替换,`a ~ b` 与 /~user 路径被改写)。
 	test('行内代码/URL 中的 ~ 受保护,正文 ~ 照转', ()=>{
 		expect(normalizeMarkdown('25~34岁 与 `a ~ b` 及 1～3年'))
 			.toBe('25-34岁 与 `a ~ b` 及 1-3年');
@@ -78,7 +78,7 @@ describe('reportMarkdownNormalize', ()=>{
 	});
 });
 
-// [E5] 流式软闭合:未闭合 **/`/``` 末尾补齐(仅渲染路径;settle 后原文重渲染自愈)。
+// 流式软闭合:未闭合 **/`/``` 末尾补齐(仅渲染路径;settle 后原文重渲染自愈)。
 describe('closeStreamingInlineMd 流式软闭合', ()=>{
 	test('未闭合 ** 末尾补一枚;成对不动', ()=>{
 		expect(closeStreamingInlineMd('结论是**必成')).toBe('结论是**必成**');

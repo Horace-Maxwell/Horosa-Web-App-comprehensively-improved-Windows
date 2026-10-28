@@ -69,7 +69,7 @@ class AspectToMidpoint extends Component{
 			<div key={key} title={composeShort(asp.idA, asp.idB)}
 				style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
 					padding: '2px 10px', borderRadius: 6, lineHeight: 1.8,
-					background: alt ? 'var(--horosa-row-alt, rgba(120,120,120,0.06))' : 'transparent' }}>
+					background: alt ? 'var(--horosa-table-row-alt, rgba(120,120,120,0.06))' : 'transparent' }}>
 				<span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
 					{wrapWithMeaning(
 						<span style={{ fontFamily: AstroConst.AstroFont, fontWeight: 600, color: ASPECT_TONE[asp.aspect] || 'inherit' }}>{AstroText.AstroMsg['Asp' + asp.aspect]}</span>,
@@ -131,7 +131,7 @@ class AspectToMidpoint extends Component{
 
 		const height = this.props.height ? this.props.height : '100%';
 		const style = {
-			// [双滚动条根治 2026-09-18] 宿主传 100% 时走定高链(不再「工作区高−180」;1.8 档常数失真把右栏撑出第二条滚动条);传数值时保持旧算法。
+			// 宿主传 100% 时走定高链(不再「工作区高−180」;1.8 档常数失真把右栏撑出第二条滚动条);传数值时保持旧算法。
 			height: (typeof height === 'number') ? (height - 180) + 'px' : '100%',
 			overflowY: 'auto',
 			overflowX: 'hidden',

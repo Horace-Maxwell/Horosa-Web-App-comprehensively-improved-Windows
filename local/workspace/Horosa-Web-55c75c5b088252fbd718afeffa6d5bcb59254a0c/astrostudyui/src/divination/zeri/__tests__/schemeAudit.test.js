@@ -1,11 +1,10 @@
-// [F7 根修] 方案值域审计:方案树引用「已删条件类 / 已删选项值」时必须报出人话 issue。
+// 方案值域审计:方案树引用「已删条件类 / 已删选项值」时必须报出人话 issue。
 // 判别向量纪律:先证「病态输入必报」,再证「合法输入零报」——只测后者的审计器没有判别力。
 import fs from 'fs';
 import path from 'path';
 import { auditTreeAgainstRegistry, newLeaf, newGroup, CONDITION_TYPES } from '../conditionTypes';
 
-// ── 发行形态自适应(照 popupAlignStaticGuard 范式):private 技法注册表在精简发行版不存在,
-// 顶部裸 import 会让本套件在该形态直接炸;改为「文件在场才惰性 require」,缺席自动只测共享面。
+// ── 各家择日条件注册表惰性取(照 popupAlignStaticGuard 范式):对应文件不在则跳过,在场才 require。
 const SRC = path.resolve(__dirname, '..');
 function lazyRegistry(rel, exportName){
 	if(!fs.existsSync(path.join(SRC, `${rel}.js`))){ return null; }
@@ -19,9 +18,9 @@ const lrFactories = fs.existsSync(path.join(SRC, 'liurengZeriConditionTypes.js')
 	: null;
 const newLiurengLeaf = lrFactories ? lrFactories.newLiurengLeaf : null;
 const newLiurengGroup = lrFactories ? lrFactories.newLiurengGroup : null;
-// 「全注册表缺省叶零报」矩阵:登记全部 private 技法注册表(黄历/八字/太乙/紫微/六壬/奇门/
+// 「全注册表缺省叶零报」矩阵:登记各家择日条件注册表(黄历/八字/太乙/紫微/六壬/奇门/
 // 三式/七政/印度)——注册表自身 defaults×options 的自洽由此全员看守(此前只锚了 3 家)。
-const PRIVATE_REGISTRIES = [
+const CONDITION_REGISTRIES = [
 	['huangliZeriConditionTypes', 'HUANGLI_CONDITION_TYPES'],
 	['baziZeriConditionTypes', 'BAZI_CONDITION_TYPES'],
 	['taiyiZeriConditionTypes', 'TAIYI_CONDITION_TYPES'],
@@ -35,7 +34,7 @@ const PRIVATE_REGISTRIES = [
 
 describe('auditTreeAgainstRegistry(F7:载入方案静默恒假根修)', () => {
 	it('🔴 判别向量A:multiselect 含已删选项值 → 必报且点名字段与值', () => {
-		if(!LIURENG_CONDITION_TYPES){ return; }	// 精简发行形态:private 注册表缺席
+		if(!LIURENG_CONDITION_TYPES){ return; }	// 对应文件不在则跳过
 		const leaf = newLiurengLeaf('ke_name');
 		leaf.params = { values: ['元首课', '天魁课(已删)'] };
 		const root = { ...newLiurengGroup('all'), children: [leaf] };
@@ -93,14 +92,14 @@ describe('auditTreeAgainstRegistry(F7:载入方案静默恒假根修)', () => {
 	});
 
 	it('全技法注册表自洽:天星 + 在场的全部技法注册表,缺省叶全量零报', () => {
-		// 天星(共享面,任何发行形态必在)
+		// 天星(条件类主表)
 		Object.keys(CONDITION_TYPES).forEach((t) => {
 			const root = { ...newGroup('all'), children: [newLeaf(t)] };
 			const issues = auditTreeAgainstRegistry(root, CONDITION_TYPES);
 			expect({ t, issues }).toEqual({ t, issues: [] });
 		});
 		// 九家注册表(在场即锚;泛叶 params={} = 纯缺省形态)
-		PRIVATE_REGISTRIES.forEach(([name, reg]) => {
+		CONDITION_REGISTRIES.forEach(([name, reg]) => {
 			Object.keys(reg).forEach((t) => {
 				const root = { kind: 'group', joiner: 'all', negate: false, children: [{ kind: 'leaf', type: t, negate: false, joiner: 'all', params: {} }] };
 				const issues = auditTreeAgainstRegistry(root, reg);
@@ -109,9 +108,9 @@ describe('auditTreeAgainstRegistry(F7:载入方案静默恒假根修)', () => {
 		});
 	});
 
-	it('各家注册表矩阵不空转:本构建九家必须全在场(防 lazyRegistry 路径漂移致全 skip 假绿)', () => {
-		if(!fs.existsSync(path.join(SRC, 'liurengZeriConditionTypes.js'))){ return; }	// 精简形态跳过
-		expect(PRIVATE_REGISTRIES.map(([n]) => n).sort()).toEqual([
+	it('各家注册表矩阵不空转:九家必须全在场(防 lazyRegistry 路径漂移致全 skip 假绿)', () => {
+		if(!fs.existsSync(path.join(SRC, 'liurengZeriConditionTypes.js'))){ return; }	// 对应文件不在则跳过
+		expect(CONDITION_REGISTRIES.map(([n]) => n).sort()).toEqual([
 			'BAZI_CONDITION_TYPES', 'HUANGLI_CONDITION_TYPES', 'INDIA_CONDITION_TYPES',
 			'LIURENG_CONDITION_TYPES', 'QIMEN_CONDITION_TYPES', 'QIZHENG_CONDITION_TYPES',
 			'SANSHI_CONDITION_TYPES', 'TAIYI_CONDITION_TYPES', 'ZIWEI_CONDITION_TYPES',

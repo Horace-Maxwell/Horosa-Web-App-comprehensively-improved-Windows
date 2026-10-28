@@ -35,10 +35,7 @@ def validate_geo(data):
         # 非数值 gps 坐标:不在此误杀,lat/lon 预检在下方兜底。
         pass
     # ② lat/lon 可解析性 + 范围预检(与 GeoPos 同一解析器,行为恒一致)
-    try:
-        from flatlib import geopos as _geopos
-    except Exception:  # flatlib 不可用时不拦(极端环境下交给下游)
-        return None
+    from flatlib import geopos as _geopos
     for key, lo, hi in (('lat', -90.0, 90.0), ('lon', -180.0, 180.0)):
         raw = data.get(key, None)
         if raw is None or raw == '':

@@ -1,4 +1,4 @@
-// [A7] 活盘单击双义金标:huoPan 开=点宫同时落太极点+飞化宫(单 draw);同宫再点=双清;
+// 活盘单击双义金标:huoPan 开=点宫同时落太极点+飞化宫(单 draw);同宫再点=双清;
 // huoPan 关=taijiIdx 恒不动、飞化 toggle 照旧(零回归)。
 import ZWChart from '../ZWChart';
 import { ZWEngineOptions } from '../ziweiOptions';
@@ -17,7 +17,7 @@ function mkHouse(idx, ganzi){
 
 afterEach(()=>{ ZWEngineOptions.huoPan = false; });
 
-describe('[A7] clickHouse 状态机', ()=>{
+describe('clickHouse 状态机', ()=>{
 	test('🔴 huoPan 开:单击双义(太极点+飞化同落);draw 恰一次', ()=>{
 		ZWEngineOptions.huoPan = true;
 		const c = bareChart();

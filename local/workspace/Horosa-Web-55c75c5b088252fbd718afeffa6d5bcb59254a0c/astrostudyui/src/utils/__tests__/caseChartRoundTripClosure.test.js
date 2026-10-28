@@ -95,7 +95,7 @@ describe('闭环总锁 · 事盘 存→落库→列表原样→applyCase 还原'
 		expect(flds.gender).toBeUndefined();
 	});
 
-	it('[R4] 事盘备注 memo 全链:落库(present 才落)→读回;未填零落键', ()=>{
+	it('事盘备注 memo 全链:落库(present 才落)→读回;未填零落键', ()=>{
 		upsertLocalCase({
 			event: '闭环·带备注',
 			caseType: 'taiyi',

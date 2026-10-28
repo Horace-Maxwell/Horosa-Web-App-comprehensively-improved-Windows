@@ -9,7 +9,7 @@ import { AdvSwitchRow, advStyles as styles } from './chat/AdvCard';
 
 const EMPTY = { id: '', name: '', kind: 'stdio', url: '', authorization: '', command: '', args: '', enabled: true, readOnlyOnly: true, allowTools: '', editing: false, hasAuth: false };
 
-// [Q-294/M-109·AR-24] 行上「编辑」:从列表行(令牌已脱敏,只有 hasAuth)回填表单;令牌框留空 = 保留原令牌(与联网检索密钥同口径)
+// 行上「编辑」:从列表行(令牌已脱敏,只有 hasAuth)回填表单;令牌框留空 = 保留原令牌(与联网检索密钥同口径)
 function formFromRow(r){
 	const t = (r && r.transport) || {};
 	return { ...EMPTY, id: `${r.id || ''}`, name: `${r.name || ''}`, kind: t.kind === 'http' ? 'http' : 'stdio', url: `${t.url || ''}`, command: `${t.command || ''}`, args: (Array.isArray(t.args) ? t.args : []).join(' '), enabled: r.enabled !== false, readOnlyOnly: r.readOnlyOnly !== false, allowTools: (Array.isArray(r.allowTools) ? r.allowTools : []).join(' '), editing: true, hasAuth: !!t.hasAuth };
@@ -28,7 +28,7 @@ function specFromForm(f){
 
 export default function ExternalServersPanel({ onStatus }){
 	const [on, setOn] = React.useState(()=>isExternalToolsEnabled());
-	React.useEffect(()=>subscribeAgentPrefs(()=>setOn(isExternalToolsEnabled())), []);   // [AR-32] 跨窗口改键后重读(此前只挂载时读一次)
+	React.useEffect(()=>subscribeAgentPrefs(()=>setOn(isExternalToolsEnabled())), []);   // 跨窗口改键后重读(此前只挂载时读一次)
 	const [rows, setRows] = React.useState([]);
 	const [busy, setBusy] = React.useState('');
 	const [form, setForm] = React.useState(null);
@@ -41,7 +41,7 @@ export default function ExternalServersPanel({ onStatus }){
 	}, []);
 	React.useEffect(()=>{ reload().catch(()=>{}); }, [reload]);
 	const connectedCount = rows.filter((r)=>r && r.connected).length;
-	// [Q-294/M-109·AR-16] 壳侧「已连接」≠ 页面已把工具交给 AI(注册表是页面内存,刷新即空):没载入的按「待重载」标出
+	// 壳侧「已连接」≠ 页面已把工具交给 AI(注册表是页面内存,刷新即空):没载入的按「待重载」标出
 	const loadedCount = rows.filter((r)=>r && r.connected && externalToolsRegisteredFor(r) > 0).length;
 	const staleCount = connectedCount - loadedCount;
 	React.useEffect(()=>{
@@ -66,12 +66,18 @@ export default function ExternalServersPanel({ onStatus }){
 		const spec = specFromForm(form);
 		if(!spec.id){ message.warning('填一个服务器 id(英文短名)'); return; }
 		if(spec.transport.kind === 'http' ? !spec.transport.url : !spec.transport.command){ message.warning(spec.transport.kind === 'http' ? '填服务器网址' : '填本机命令'); return; }
-		// [AR-24] 编辑已带令牌的 http 服务器且令牌框留空 → 壳侧保留已存令牌
+		// 编辑已带令牌的 http 服务器且令牌框留空 → 壳侧保留已存令牌
 		const keepHeaders = !!(form.editing && form.hasAuth && spec.transport.kind === 'http' && !`${form.authorization || ''}`.trim());
 		setBusy('save');
 		try{
 			const r = await desktopMcpClientUpsert(spec, { keepHeaders });
 			if(!r || r.available === false){ message.error(`保存失败:${(r && r.reason) || '桌面桥缺席'}`); return; }
+			// 改了命令 / 参数 / 环境 / 网址:壳侧已断开旧连接(disconnected),这里收回该服务器的外部工具 —— 旧工具清单不再代表新命令
+			const saved = r.value !== undefined ? r.value : r;
+			if(saved && saved.disconnected){
+				unregisterExternalTools({ id: spec.id, name: spec.name });
+				message.info('连接方式有改动:旧连接已断开、工具已收回,点「连接并检测」确认新的命令后再用');
+			}
 			message.success('已保存(令牌只写入本机受保护文件)');
 			setForm(null); await reload();
 		}finally{ setBusy(''); }

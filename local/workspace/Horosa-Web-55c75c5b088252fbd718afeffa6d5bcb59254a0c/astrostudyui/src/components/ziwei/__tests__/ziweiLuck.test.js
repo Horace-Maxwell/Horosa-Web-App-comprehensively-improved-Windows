@@ -132,3 +132,26 @@ describe('运限状态机：流年小限合并 + 重置语义', () => {
 		expect(lnAges).toEqual(xxAges);
 	});
 });
+
+describe('运限芯片条:横向滚动条从首次排版就占位', () => {
+	// 用 auto 时滚动条在首次排版之后才出现(从展开版式切回紧凑即如此),WebKit 不把它补进条带高度,
+	// 滚动条从拉伸的芯片里扣掉 → 整行连层名一起被压扁,直到下一次重排
+	const path = require('path');
+	const { readSource } = require('../../../utils/__tests__/helpers/sourceSet');
+	const css = readSource(path.join(__dirname, '../../../layouts/app.less'));
+	const ruleOf = (sel) => {
+		const i = css.indexOf(`${sel} {`);
+		expect(i).toBeGreaterThanOrEqual(0);
+		return css.slice(i, css.indexOf('}', i));
+	};
+	it('紧凑版式:芯片条横向 scroll(不是 auto)', () => {
+		const body = ruleOf('.horosa-workspace-shell .horosa-ziwei-luck-axis');
+		expect(body).toMatch(/overflow-x:\s*scroll;/);
+		expect(body).not.toMatch(/overflow-x:\s*auto;/);
+	});
+	it('展开版式:芯片折行铺开、不滚动', () => {
+		const body = ruleOf('.horosa-workspace-shell .horosa-ziwei-luck.is-wrap .horosa-ziwei-luck-axis');
+		expect(body).toMatch(/flex-wrap:\s*wrap;/);
+		expect(body).toMatch(/overflow-x:\s*visible;/);
+	});
+});

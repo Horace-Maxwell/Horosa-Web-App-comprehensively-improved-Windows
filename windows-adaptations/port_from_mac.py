@@ -18,6 +18,7 @@ overlay 文件冲突交给 apply.sh + selfcheck 哨兵(本脚本只做「纯移�
 import os
 import subprocess
 import sys
+import time
 
 # Windows 控制台默认 cp1252/936 会让中文输出炸 UnicodeEncodeError —— 强制 UTF-8(输出仅供人读)。
 try:
@@ -53,18 +54,28 @@ def main():
         print("按 SKILL 铁律 2 / 存档 #29 桥接:在旧 clone 内 fetch 新历史后用旧 SHA 直连 diff。")
         return 1
 
-    ns = sh(["git", "-C", clone, "diff", "--name-status", base, target, "--", PREFIX], text=True)
+    # -z:路径原样(不转义)、NUL 分隔 —— 缺省输出会把非 ASCII 文件名转成 "\347\232\207…" 八进制串,
+    # 当成真实路径用就会写出一串乱码目录(v3.12.0 首撞:vendor/kinwangji/examples/ 下的中文文件名)。
+    ns = sh(["git", "-C", clone, "-c", "core.quotepath=false", "diff", "--name-status", "-z", base, target, "--", PREFIX])
+    tokens = [t.decode("utf-8") for t in ns.stdout.split(b"\0") if t]
     ported, deletions, renames = [], [], []
-    for line in ns.stdout.splitlines():
-        parts = line.split("\t")
-        st = parts[0]
-        if st.startswith("R"):
-            old, new = parts[1], parts[2]
-            renames.append((old, new))
-        elif st == "D":
-            deletions.append(parts[1])
+    i = 0
+    while i < len(tokens):
+        st = tokens[i]
+        if st[:1] in ("R", "C"):
+            old, new = tokens[i + 1], tokens[i + 2]
+            i += 3
+            if st[:1] == "R":
+                renames.append((old, new))
+            else:
+                ported.append(new)
+            continue
+        path = tokens[i + 1]
+        i += 2
+        if st == "D":
+            deletions.append(path)
         else:
-            ported.append(parts[1])
+            ported.append(path)
 
     print(f"delta {base[:9]}..{target[:9]}: port={len(ported)} rename={len(renames)} delete={len(deletions)}")
     for old, new in renames:
@@ -79,16 +90,30 @@ def main():
         print("\ndry-run(加 --apply 执行移植;删除永远手工确认)")
         return 0
 
+    def lp(p):
+        # 长路径(>260)在 LongPathsEnabled=0 的机器上需 \\?\ 前缀才能建目录 / 写文件
+        p = os.path.abspath(p)
+        return p if os.name != "nt" or p.startswith("\\\\?\\") else "\\\\?\\" + p
+
     for f in ported:
         rel = f[len(PREFIX):]
         dst = f"{WS}/{rel}"
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        os.makedirs(lp(os.path.dirname(dst)), exist_ok=True)
         blob = sh(["git", "-C", clone, "show", f"{target}:{f}"])
         if blob.returncode != 0:
             print(f"FATAL: cannot read {target}:{f}")
             return 1
-        with open(dst, "wb") as fh:
-            fh.write(blob.stdout)
+        # 刚写过的文件可能正被杀软 / 索引器瞬时占用(Windows 报 EINVAL / EACCES):有限次退避重试,仍失败才报错(#109 课七同型)
+        for attempt in range(1, 7):
+            try:
+                with open(lp(dst), "wb") as fh:
+                    fh.write(blob.stdout)
+                break
+            except OSError as e:
+                if attempt == 6:
+                    print(f"FATAL: cannot write {dst}: {e!r}")
+                    return 1
+                time.sleep(0.5 * attempt)
         print(f"ported {rel}")
 
     norm = lambda b: b.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
@@ -96,7 +121,7 @@ def main():
     for f in ported:
         rel = f[len(PREFIX):]
         mac = sh(["git", "-C", clone, "show", f"{target}:{f}"]).stdout
-        with open(f"{WS}/{rel}", "rb") as fh:
+        with open(lp(f"{WS}/{rel}"), "rb") as fh:
             win = fh.read()
         if norm(mac) != norm(win):
             print(f"VERIFY DIFF: {rel}")
@@ -106,6 +131,20 @@ def main():
         print("\n下列删除需手工镜像(逐条确认后执行):")
         for f in deletions:
             print(f"  rm '{WS}/{f[len(PREFIX):]}'")
+        # git 只删文件不删目录:上游整目录下架后留下的空目录会让上游的 existsSync 断言变红
+        # (v3.12.0 首撞:components/reader 等 47 个)。本机目录带只读属性时 RemoveDirectory 拒删,先去只读再删。
+        empty = set()
+        for f in deletions:
+            d = os.path.dirname(f"{WS}/{f[len(PREFIX):]}")
+            while d and os.path.isdir(lp(d)) and os.path.abspath(d) != os.path.abspath(WS):
+                if any(files for _, _, files in os.walk(lp(d))):
+                    break
+                empty.add(d)
+                d = os.path.dirname(d)
+        if empty:
+            print("\n镜像删除后已无文件的目录(与上游一致应一并删除;只读目录先去只读):")
+            for d in sorted(empty):
+                print(f"  rmdir '{d}'")
     return 1 if bad else 0
 
 

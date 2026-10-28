@@ -47,7 +47,7 @@ export function presetOf(school, opts, lastPicked){
 	return hit || 'custom';
 }
 
-// [D4] 盘面显示预设(完整/标准/精简):纯显示 LS 开关族的三档组合。
+// 盘面显示预设(完整/标准/精简):纯显示 LS 开关族的三档组合。
 // 有意不入本表的键(改前先读理由):ziweiSixEvilBlack(用色风格,非疏密取舍)、命宫/日干四化徽
 // (ziweiShowMingSihua/ziweiShowDaySihua,专业研判增量,预设不代拨)、范式B引擎键(flowShenshaOnChart
 // 等走 ZWEngineOptions/挂载语义,与纯显示 LS 族不同生命周期)。

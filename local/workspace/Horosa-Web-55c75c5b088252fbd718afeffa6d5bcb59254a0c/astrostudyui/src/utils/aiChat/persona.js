@@ -1,7 +1,7 @@
-// AI 对话·个人口径文件(A6;借鉴 CLAUDE.md / AGENTS.md / Kiro Steering):一份 ≤4000 字的本机口径(流派偏好/术语/禁忌/输出格式),
+// AI 对话·个人口径文件(A6):一份 ≤4000 字的本机口径(流派偏好/术语/禁忌/输出格式),
 // 「启用注入」开时每次对话以稳定层注入(priority 102:在守则之后、系统提示之前,与 memory 101 一起居首,前缀稳定吃缓存)。
 // 键 horosa.ai.persona.v1 = { text, enabled:false, memoryInject:false, memoryCapture:false, applyToReport:false };缺省全关=零字节变化。
-import { safeJsonParseFromStorage, safeJsonStringifyToStorage, safeLocalStorageRemove } from '../safeStorage';
+import { safeJsonParseFromStorage, safeJsonStringifyToStorage, safeLocalStorageRemove, noteSettingNotSaved } from '../safeStorage';
 import { composePersonaText } from './personaLayers';
 
 export const PERSONA_KEY = 'horosa.ai.persona.v1';
@@ -35,20 +35,21 @@ function emit(p){
 export function writePersona(patch){
 	const next = normalizePersona({ ...readPersona(), ...(patch || {}) });
 	if(!next.text && !next.enabled && !next.memoryInject && !next.memoryCapture && !next.applyToReport){ safeLocalStorageRemove(PERSONA_KEY); emit(next); return next; }
-	try{ safeJsonStringifyToStorage(PERSONA_KEY, next); }catch(e){ /* 配额 */ }
+	// 没写进(存储满)→ 按存储里实际的值广播与返回,并提示没能保存
+	if(safeJsonStringifyToStorage(PERSONA_KEY, next) !== true){ noteSettingNotSaved(PERSONA_KEY); const truth = readPersona(); emit(truth); return truth; }
 	emit(next);
 	return next;
 }
 
-// [Q-294/M-109·AR-18] 清空口径 = 只清文本与「启用注入」;记忆注入 / 自动沉淀 / 同时用于报告 三开关保留(此前整键删除连带关掉三开关,
-//   与按钮文案「记忆不受影响」相悖);三开关本就全关时 writePersona 自然删键(与从未设置同形)。
+// 清空口径 = 只清文本与「启用注入」;记忆注入 / 自动沉淀等开关保留(此前整键删除连带关掉这些开关,
+//   与按钮文案「记忆不受影响」相悖);开关本就全关时 writePersona 自然删键(与从未设置同形)。
 export function clearPersona(){ return writePersona({ text: '', enabled: false }); }
 
 export function subscribePersona(fn){
 	if(typeof window === 'undefined' || typeof fn !== 'function'){ return ()=>{}; }
 	const h = (e)=>fn(normalizePersona(e && e.detail ? e.detail : readPersona()));
 	window.addEventListener(PERSONA_EVENT, h);
-	// [进阶审计 D6·2026-09-07] 跨窗口:另一个窗口写了本键(或整个 storage 被清),本窗口的订阅者也要重读 —— storage 事件只在别的窗口触发,本窗口写入仍走上面的 CustomEvent
+	// 跨窗口:另一个窗口写了本键(或整个 storage 被清),本窗口的订阅者也要重读 —— storage 事件只在别的窗口触发,本窗口写入仍走上面的 CustomEvent
 	const sh = (e)=>{ const k = e && e.key != null ? `${e.key}` : ''; if(!k || k === PERSONA_KEY){ fn(normalizePersona(readPersona())); } };
 	window.addEventListener('storage', sh);
 	return ()=>{ window.removeEventListener(PERSONA_EVENT, h); window.removeEventListener('storage', sh); };
@@ -56,7 +57,7 @@ export function subscribePersona(fn){
 
 // 口径指令正文(不带标题;标题由层 title 承担);空文本 → ''
 
-// 口径层:enabled 才产;缺省 null(零变化)。[批二⑨] 带 ctx 时按 全局→命主→技法→会话 合成(ctx.layers/subjectCid/subjectTitle/techniqueKeys/techniqueLabels/sessionText);
+// 口径层:enabled 才产;缺省 null(零变化)。带 ctx 时按 全局→命主→技法→会话 合成(ctx.layers/subjectCid/subjectTitle/techniqueKeys/techniqueLabels/sessionText);
 // 不带 ctx = 只有全局文本(与批前逐字相同);enabled 但四层全空仍 null。
 export function personaLayer(persona, ctx){
 	const p = normalizePersona(persona);

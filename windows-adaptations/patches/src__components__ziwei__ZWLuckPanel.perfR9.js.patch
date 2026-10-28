@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/ziwei/ZWLuckPanel.js b/astrostudyui/src/components/ziwei/ZWLuckPanel.js
-index 20d15631..483fcf0f 100644
+index 45169a72..82eeabe0 100644
 --- a/astrostudyui/src/components/ziwei/ZWLuckPanel.js
 +++ b/astrostudyui/src/components/ziwei/ZWLuckPanel.js
 @@ -2,6 +2,7 @@ import { Component } from 'react';
@@ -10,7 +10,7 @@ index 20d15631..483fcf0f 100644
  import * as ZiWeiHelper from './ZiWeiHelper';
  import { parseYearFromDateStr } from '../../utils/dateStrSafe';
  import { ganzhiYearBase } from '../../utils/ganzhiYearBase';
-@@ -323,6 +324,35 @@ class ZWLuckPanel extends Component {
+@@ -319,6 +320,35 @@ class ZWLuckPanel extends Component {
  	pickLiuri(item) { this.change(luckSelectLiuri(this.props.chart || {}, item, this.sel())); }
  	pickLiushi(item) { this.change(luckSelectLiushi(this.props.chart || {}, item, this.sel())); }
  

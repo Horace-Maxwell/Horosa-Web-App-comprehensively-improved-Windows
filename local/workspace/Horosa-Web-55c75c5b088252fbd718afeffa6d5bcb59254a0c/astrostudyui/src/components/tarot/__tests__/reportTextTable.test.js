@@ -1,5 +1,7 @@
 // 塔罗 reportText [逐牌详解] 表化 · 数值不变证明(fact-multiset)。
 // baseline fixture = 表化前 buildReadingText 逐字输出(capture-if-missing,首跑于改造前)。
+// 「显示进阶对应」开着时占象格带叠层后缀(路径连 X–Y / 质点 / 象限;与页面卡片、牌义表同一函数 correspondenceCell):
+// 本基线用的托特牌组缺省开着,三格已按新输出补上后缀(Hod 荣耀 / 路径连 Yesod–Malkuth / Binah 理解),其余逐字未动。
 // 旧格式逐牌重复内联标签(占象/含义/尊位)→ 表化后升为表头一次:这些标签属「表头词」,按 paradigm 剔除后比多重集。
 // 断言:剥表头行/GFM 分隔行 + 剔内联标签词后,新旧事实多重集相等 → 逐牌盘面值零变化。
 import fs from 'fs';
@@ -11,23 +13,23 @@ import { buildReadingText } from '../engine/reportText.js';
 // 内联标签:旧格式每牌重复(占象:/含义:/尊位: 各恰 = 牌数,纯标签),表化后升为表头一次。按「剔表头词」从两侧剔除。
 // 仅这三个是「内联→表头」的坍缩标签;其余表头词(位置/牌/正逆/关键词)只在新表头出现,已由表头行剥离处理,
 // 不全局剔(避免误伤如统计行「正逆:正位3」这类真实数据 token)。
-// [Q-223/T-189·FT-31] 定局口径键 majority → 中文标签「多数」:同一事实的两种写法,两侧一并剔除(不是盘面值)。
+// 定局口径键 majority → 中文标签「多数」:同一事实的两种写法,两侧一并剔除(不是盘面值)。
 const INLINE_LABELS = new Set(['占象', '含义', '尊位', 'majority', '多数']);
 function extractFacts(text) {
 	const lines = `${text || ''}`.split('\n');
 	const isSep = (s) => { const t = `${s || ''}`.trim(); return t.startsWith('|') && /^[|\s:-]+$/.test(t) && t.indexOf('-') >= 0; };
 	const kept = [];
 	for (let i = 0; i < lines.length; i++) { if (isSep(lines[i])) { kept.pop(); continue; } kept.push(lines[i]); }
-	// [X1·P2-34] 计数链是表化之后新增的独立事实行(定局段),不属「逐牌详解表化不改事实」的比较域:
+	// 计数链是表化之后新增的独立事实行(定局段),不属「逐牌详解表化不改事实」的比较域:
 	// 基线为表化前冻结快照(不许含 GFM 表)无从含它,两侧一并剔除,守卫仍盯逐牌盘面值零变化。
 	const keptScoped = kept.filter((l) => {
 		const t = `${l}`.trim();
-		// [审计修] 自问句行同计数链:表化后新增独立事实行,不属比较域。
-		// [Q-223/T-189·FT-33③] 相邻串/镜像对/桥接(定局段牌间关系)同为表化后新增独立事实行,剔出比较域;正确性由 reportTextDeckCaps [Q-223] 覆盖。
+		// 自问句行同计数链:表化后新增独立事实行,不属比较域。
+		// 相邻串/镜像对/桥接(定局段牌间关系)同为表化后新增独立事实行,剔出比较域;正确性由 reportTextDeckCaps 覆盖。
 		return !t.startsWith('计数链:') && !t.startsWith('可就此牌自问') && !t.startsWith('　可就此牌自问')
 			&& !t.startsWith('相邻串:') && !t.startsWith('镜像对:') && !t.startsWith('桥接(首尾):') && !t.startsWith('澄清牌:');
 	});
-	// [审计修] 位义列(牌阵位含义+元素相合注)是表化之后新增的独立事实列:基线为表化前冻结快照
+	// 位义列(牌阵位含义+元素相合注)是表化之后新增的独立事实列:基线为表化前冻结快照
 	// 无从含它;新 7 列表行剔第 2 格(位义)后再比,守卫仍盯逐牌盘面值零变化(同 计数链 剔除范式)。
 	const keptCells = keptScoped.map((l) => {
 		const t = `${l}`.trim();

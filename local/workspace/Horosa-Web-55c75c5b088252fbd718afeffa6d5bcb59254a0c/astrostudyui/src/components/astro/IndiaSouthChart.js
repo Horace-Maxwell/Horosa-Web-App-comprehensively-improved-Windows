@@ -5,6 +5,8 @@ import { splitDegree } from './AstroHelper';
 import { sameDisplayList, shallowPropsEqual } from '../../utils/chartUpdateGuard';
 import { chartSCUEnabled } from '../../utils/perfFlags';
 import '../../css/styles.less';
+// 方盘格子变小时的紧凑版式开关与字号基准(直接量盘,布局域;见 utils/boxSizeVars)
+import { boxSizeVarsRef, indiaSquareSizeVars } from '../../utils/boxSizeVars';
 
 // 印度盘 sCU(根因 E):三种盘式(南/北/东)render 消费的「全部影响盘面输出 props」。
 // 逐项核(grep this.props.* 全集):value(盘数据,大对象引用比)/ planetDisplay·lotsDisplay(显示开关数组,内容比)
@@ -38,7 +40,8 @@ const SOUTH_INDIAN_SIGN_GRID = [
 	[9, 8, 7, 6],
 ];
 
-function buildChartHeightStyle(height){
+// 盘面高度 → CSS 变量 --india-chart-height(数字补 px;缺省 720)。南 / 北 / 东印盘与美术轮盘共用。
+export function buildChartHeightStyle(height){
 	const value = height || 720;
 	return {
 		'--india-chart-height': typeof value === 'number' ? `${value}px` : value,
@@ -419,11 +422,20 @@ export function getAspectedSignNumbers(chartObj, aspectSourceId, aspectParadigm)
 	}
 	if(aspectParadigm === 'kp'){
 		// KP:不画相位 —— 高亮该曜 significator 链所指诸宫的「座」(A>B>C>D ranked)。
-		const sig = chartObj.jyotish.kp && chartObj.jyotish.kp.significators;
+		const kpBlock = chartObj.jyotish.kp;
+		const sig = kpBlock && kpBlock.significators;
 		const row = sig && sig[aspectSourceId];
 		const houses = (row && Array.isArray(row.ranked)) ? row.ranked : [];
 		const hs = Array.isArray(chartObj.chart && chartObj.chart.houses) ? chartObj.chart.houses : [];
+		// KP 宫号按 Placidus 宫头区间(恒 D1):D1 视图下按该宫宫头所在座高亮;分盘视图回落按显示盘宫号。
+		const engineNum = chartObj.jyotish.engine && chartObj.jyotish.engine.chartnum;
+		const csl = (Number(engineNum || 1) === 1 && kpBlock && Array.isArray(kpBlock.cuspalSubLords)) ? kpBlock.cuspalSubLords : null;
 		houses.forEach((hnum)=>{
+			const cusp = csl ? csl.find((c)=>c && c.house === hnum) : null;
+			if(cusp && typeof cusp.cuspLon === 'number'){
+				set.add((Math.floor((cusp.cuspLon % 360) / 30) % 12) + 1);
+				return;
+			}
 			// 🔴 houses 数组非 House1..12 顺序(实测可从 House11 起排)——按 id 反查,
 			// 位置下标取宫会随盘偏移(同文件其余取宫处均已用 find(id))。
 			const h = hs.find((x)=>x && x.id === `House${hnum}`) || null;
@@ -572,7 +584,7 @@ class IndiaSouthChart extends Component{
 		this._aspectedSigns = getAspectedSignNumbers(chartObj, this.props.aspectSourceId, this.props.aspectParadigm);
 		return (
 			<div className="horosa-india-square-shell xq-chart-renderer xq-chart-renderer-india" style={chartHeightStyle}>
-				<div className="horosa-india-square-board xq-india-board">
+				<div className="horosa-india-square-board xq-india-board" ref={this._isqSizeRef || (this._isqSizeRef = boxSizeVarsRef(indiaSquareSizeVars))} data-clip-strict-text="">
 					{this.renderCells(ascSignNumber, objectsBySign, chartObj)}
 					<div className="horosa-india-square-center">
 						<div className="horosa-india-square-center-d">D{chartnum}</div>

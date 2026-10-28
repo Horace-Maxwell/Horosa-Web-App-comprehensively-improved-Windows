@@ -1,4 +1,4 @@
-// [批二⑥] 进度清单合同:note_progress 只读零落库;≤20 条整份替换;运行时把最近一份落到 trace.todos;守则第 8 条在位;标签在位。
+// 进度清单合同:note_progress 只读零落库;≤20 条整份替换;运行时把最近一份落到 trace.todos;守则第 8 条在位;标签在位。
 import { registerBuiltinTools, listTools } from '../aiTools';
 import { runTool, __resetToolsForTests } from '../aiTools/registry';
 import { createAgentTurn } from '../aiAgent/runtime';

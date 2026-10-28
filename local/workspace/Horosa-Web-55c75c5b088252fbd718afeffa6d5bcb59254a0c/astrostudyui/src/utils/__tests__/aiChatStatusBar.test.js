@@ -63,7 +63,7 @@ describe('ChatStatusBar', ()=>{
 		expect(onOpenMount).toHaveBeenCalledTimes(1);
 		expect(onOpenSubject).toHaveBeenCalledTimes(1);
 	});
-	it('🔴 [2026-09-11] 压缩芯片:给了 onViewCompact → 文案「查看」且点击走 onViewCompact(不再直接取消);没给 → 退化为「取消」走 onUncompact', ()=>{
+	it('🔴 压缩芯片:给了 onViewCompact → 文案「查看」且点击走 onViewCompact(不再直接取消);没给 → 退化为「取消」走 onUncompact', ()=>{
 		const onViewCompact = jest.fn(); const onUncompact = jest.fn();
 		render({ model: 'm', compact: { summary: '要点', coveredCount: 4 }, onViewCompact, onUncompact });
 		const chip = host.querySelector('[data-chip="compact"]');

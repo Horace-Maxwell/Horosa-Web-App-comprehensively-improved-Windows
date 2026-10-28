@@ -2,7 +2,8 @@
 // 成熟设计:圆角瓦片 + 吉凶柔色底 + 中宫暖金摘要 + 角标卦位。亮/暗双主题(--fs-*/--horosa-* 令牌)。
 import React, { useEffect, useRef, useState } from 'react';
 import { getEffectiveScale } from '../../../utils/zoomDomain';
-import { getLayoutViewportHeight } from '../../../utils/shellZoom';
+import { getPageLayoutHeight } from '../../../utils/shellZoom';   // 页面排版视口(地板到工作区包络 960 × 560)
+import { createDeferredResizeObserver } from '../../../utils/deferredResizeObserver';
 
 const GONG_CELL = { 4: [0, 0], 9: [0, 1], 2: [0, 2], 3: [1, 0], 5: [1, 1], 7: [1, 2], 8: [2, 0], 1: [2, 1], 6: [2, 2] };
 const JX_COLOR = { good: 'var(--fs-good,#2e9c5a)', bad: 'var(--fs-bad,#c0392b)', neutral: 'var(--fs-muted,#9aa)' };
@@ -49,17 +50,17 @@ export default function EightPalaceDisk({ palaces = [], centerLabel = '', size =
 		if(!el){ return undefined; }
 		const measure = ()=>{
 			const w = el.clientWidth || 0;
-			// [Tahoe 域混根修·2026-09-17 用户 APP 实报「放大后盘面不随之缩小、被下端遮挡」] 量容器只用布局域读数(clientWidth/clientHeight);rect 域在标准化 zoom 引擎下已×z,当布局 px 用=盘面大 z 倍被裁(旧引擎 rect=布局值故不显)。
+			// 量容器只用布局域读数(clientWidth/clientHeight);rect 域在标准化 zoom 引擎下已×z,当布局 px 用=盘面大 z 倍被裁(旧引擎 rect=布局值故不显)。
 			const zScale = getEffectiveScale() || 1;
 			const top = el.getBoundingClientRect().top / zScale;
-			const vh = typeof window !== 'undefined' ? getLayoutViewportHeight() : 0;
+			const vh = typeof window !== 'undefined' ? getPageLayoutHeight() : 0;
 			const byViewport = vh ? Math.max(0, vh - top - 28) : 0;   // 28:底部呼吸位
 			const next = Math.round(Math.min(w || size, byViewport || (w || size)));
 			setAvail((prev)=>(Math.abs(prev - next) > 2 ? next : prev));
 		};
 		measure();
 		let ro = null;
-		if(typeof ResizeObserver !== 'undefined'){ ro = new ResizeObserver(measure); ro.observe(el); }
+		if(typeof ResizeObserver !== 'undefined'){ ro = createDeferredResizeObserver(measure); ro.observe(el); }
 		if(typeof window !== 'undefined'){ window.addEventListener('resize', measure); }
 		return ()=>{
 			if(ro){ ro.disconnect(); }

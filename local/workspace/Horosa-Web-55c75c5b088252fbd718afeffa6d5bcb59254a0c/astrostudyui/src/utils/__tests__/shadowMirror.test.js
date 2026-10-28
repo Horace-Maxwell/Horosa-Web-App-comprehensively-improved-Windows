@@ -1,4 +1,4 @@
-// [V5-A3] 影子副本闸:白名单/no-op 安全/🔴 恢复语义(仅主存缺失时写回,绝不覆盖存在的主存)
+// 影子副本闸:白名单/no-op 安全/🔴 恢复语义(仅主存缺失时写回,绝不覆盖存在的主存)
 //   + 内核写路径 hook 在位(保存记录 → 镜像 invoke 真的发出)。
 jest.mock('../aiAnalysisDesktop', ()=>({
 	isDesktopBridgeAvailable: jest.fn(()=>false),
@@ -8,7 +8,7 @@ import { isDesktopBridgeAvailable, invokeDesktopCommand } from '../aiAnalysisDes
 import { mirrorShadowWrite, reconcileShadowOnBoot, SHADOW_MIRROR_KEYS } from '../shadowMirror';
 import { upsertLocalChart } from '../localcharts';
 
-describe('[V5-A3] 影子副本', ()=>{
+describe('影子副本', ()=>{
 	beforeEach(()=>{
 		window.localStorage.clear();
 		jest.clearAllMocks();

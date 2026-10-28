@@ -8,6 +8,8 @@ import { definePageSettings } from '../../utils/pageSettingsStore';
 import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markInteractionStart, markPanelReady } from '../../utils/perfMark';
 import LiqiWorkspace, { SCHOOL_CN } from './LiqiWorkspace';
+import { watchChartScript } from '../../utils/chartDrawGuard';
+import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
 
 const { TabPane } = XQTabs;
 
@@ -55,7 +57,7 @@ const LIQI_SET = new Set(LIQI_SCHOOLS);
 // 户型图、坐向度数、门向、家具标注、元运等是每一宅的输入,不保留(理气各派自己的方案库另管)。
 export const FENGSHUI_PAGE_SETTINGS = definePageSettings('horosa.fengshui.settings.v1', {
 	school: { def: 'naqi', oneOf: ['naqi', 'bagua'].concat(LIQI_SCHOOLS) },
-	diskSkin: { def: 'draw', oneOf: DISK_SKINS.map((s)=>s.key) },   // 罗盘的盘面样式(显示偏好;控件只在放了罗盘之后才出现,值住在画布引擎里)
+	diskSkin: { label: '盘面样式(罗盘)', def: 'draw', oneOf: DISK_SKINS.map((s)=>s.key) },   // 罗盘的盘面样式(显示偏好;控件只在放了罗盘之后才出现,值住在画布引擎里)
 });
 const SCHOOL_GROUPS = [
 	{ label: '户型图阳宅（标注）', items: [
@@ -110,16 +112,16 @@ const TIPS = [
 const BAGUA_TIPS = [
 	'先框选房屋（盘心＝整层正中／太极点），再填一个「正北方向」度数即可起盘。',
 	'点左栏角色或格局，再到户型图上点对应位置，自动判卦，无需填表。',
-	'成員以「在家中的名分」为准：有子女＝父/母，未婚长子女＝长子/长女，依兄姐婚况顺延。',
+	'成员以「在家中的名分」为准：有子女＝父/母，未婚长子女＝长子/长女，依兄姐婚况顺延。',
 	'卦象、应期、升降、四类象吉凶都会自动在右侧「卦象」面板生成。',
 ];
 
-const MEMBER_RULE = '成員以在家中的「名分」定卦（传统八卦阳宅法）：① 有子女→父(乾)/母(坤)（含已婚之夫/妻、未婚生子、离婚有子）；② 未婚第一子/女→长子(震)/长女(巽)；③ 自己未婚、上有 1 个未婚兄/姐→次子(坎)/次女(离)；④ 上有 2 个未婚兄/姐→三子(艮)/三女(兑)；⑤ 兄姐婚嫁后排序顺延（如姐出嫁，次女升长女）；⑥ 子女多于三者「三个一组」循环对应 1·4 / 2·5 / 3·6（即第 4 子当长子、第 4 女当长女）。';
+const MEMBER_RULE = '成员以在家中的「名分」定卦（传统八卦阳宅法）：① 有子女→父(乾)/母(坤)（含已婚之夫/妻、未婚生子、离婚有子）；② 未婚第一子/女→长子(震)/长女(巽)；③ 自己未婚、上有 1 个未婚兄/姐→次子(坎)/次女(离)；④ 上有 2 个未婚兄/姐→三子(艮)/三女(兑)；⑤ 兄姐婚嫁后排序顺延（如姐出嫁，次女升长女）；⑥ 子女多于三者「三个一组」循环对应 1·4 / 2·5 / 3·6（即第 4 子当长子、第 4 女当长女）。';
 
 // 传统八卦阳宅·判定方法与特例。
 const BAGUA_METHODS = [
 	'取卦法：名在上（人在家名分之本命卦）× 位在下（卧房在整层正中·太极点所看的方位卦）→ 得一 64 卦，依此卦之卦象读断其人事吉凶。',
-	'成員定義：有子女＝父(乾)/母(坤)；未婚第一子女＝长子(震)/长女(巽)；自己未婚、上有 1 未婚兄/姐＝次子(坎)/次女(离)，上有 2 个＝三子(艮)/三女(兑)；兄姐婚嫁后顺延。',
+	'成员定义：有子女＝父(乾)/母(坤)；未婚第一子女＝长子(震)/长女(巽)；自己未婚、上有 1 未婚兄/姐＝次子(坎)/次女(离)，上有 2 个＝三子(艮)/三女(兑)；兄姐婚嫁后顺延。',
 	'三个一组：子女多于三者按 1·4 / 2·5 / 3·6 循环对应——第 4 子当长子、第 4 女当长女，以此类推。',
 	'四个儿子之源：夫命有二子、妻命有二子，合为四子，故子或貌似父、或貌似母（命理统计之经验）。',
 	'成格逢三：3 天~3 月起效、3 月~3 年、最慢 6 年成格；凶宅多在第三年应灾（皆“三”字出头）。',
@@ -200,12 +202,14 @@ class FengShuiMain extends Component {
 		if (restoreBagua || savedSkin !== 'draw') { this.engine.initHistory(); this.engine.emit(); }
 		const host = canvas.parentElement;
 		if (host && 'ResizeObserver' in window) {
-			this.resizeObserver = new ResizeObserver(() => this.engine && this.engine.resize());
+			this.resizeObserver = createDeferredResizeObserver(() => this.engine && this.engine.resize());
 			this.resizeObserver.observe(host);
 		}
 		setTimeout(() => this.engine && this.engine.resize(), 0);
 		window.addEventListener('keydown', this.handleKeyDown);
 		window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
+		// 界面简繁切换:罗盘是 canvas 画的字,重画一遍
+		this._detachScript = watchChartScript(() => this.engine && this.engine.drawAll());
 	}
 
 	componentDidUpdate(prevProps, prevState) {
@@ -215,6 +219,7 @@ class FengShuiMain extends Component {
 	}
 
 	componentWillUnmount() {
+		if (this._detachScript) { this._detachScript(); this._detachScript = null; }
 		if (this.resizeObserver) this.resizeObserver.disconnect();
 		window.removeEventListener('keydown', this.handleKeyDown);
 		window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
@@ -274,7 +279,7 @@ class FengShuiMain extends Component {
 		}
 	}
 
-	// [Q-221/T-182·FT-15] 快捷键(⌘Z/⌘Y/⇧⌘Z/Esc)只在「风水为激活技法页 + 当前为画布派」时响应:技法页签常驻挂载,
+	// 快捷键(⌘Z/⌘Y/⇧⌘Z/Esc)只在「风水为激活技法页 + 当前为画布派」时响应:技法页签常驻挂载,
 	// 此前离开风水页在任何非输入焦点按 ⌘Z 都会撤销隐藏的画布;理气派(画布隐藏)下同样撤销。判据=画布真在可见页签里。
 	isCanvasActive() {
 		if (LIQI_SET.has(this.state.school)) return false;
@@ -316,7 +321,7 @@ class FengShuiMain extends Component {
 	// 流派切换：理气派走纯前端 LiqiWorkspace；户型图两法同步引擎 techMode 并重算画布尺寸。
 	onSchoolChange(v) {
 		this.beginSpan();   // horosa_panel_ready_v1 配对起点(换流派 = 改选项)
-		// [Q-221/T-182·FT-16] 记住最近一次理气派:切到纳气/八卦时理气工作区改为隐藏保活(display:none),18 派参数不再随卸载全部复位。
+		// 记住最近一次理气派:切到纳气/八卦时理气工作区改为隐藏保活(display:none),18 派参数不再随卸载全部复位。
 		FENGSHUI_PAGE_SETTINGS.save({ school: v });
 		this.setState(LIQI_SET.has(v) ? { school: v, lastLiqiSchool: v } : { school: v }, ()=> this.endSpan());
 		if (v === 'naqi' || v === 'bagua') {
@@ -350,7 +355,7 @@ class FengShuiMain extends Component {
 					<span className="horosa-fengshui-liqi-quickhint">理气起盘 · {SCHOOL_CN[this.state.school] || ''} — 在左栏设定坐向/元运即时排盘（无需户型图）</span>
 				)}
 				<div className="horosa-fengshui-quickbar-center">
-					<XQSelect size="small" value={this.state.school} onChange={(v) => this.onSchoolChange(v)} dropdownMatchSelectWidth={false} style={{ minWidth: 148 }}>
+					<XQSelect size="small" className="horosa-fengshui-school-select" value={this.state.school} onChange={(v) => this.onSchoolChange(v)} dropdownMatchSelectWidth={false} style={{ minWidth: 148 }}>
 						{SCHOOL_GROUPS.map((g) => (
 							<XQSelect.OptGroup key={g.label} label={g.label}>
 								{g.items.map((it) => <Option key={it.value} value={it.value}>{it.label}</Option>)}
@@ -461,7 +466,7 @@ class FengShuiMain extends Component {
 				<div className="horosa-fengshui-field">
 					<label>盘中心位置</label>
 					<XQSegmented value={vm.diskCenterMode} options={CENTER_OPTIONS} onChange={(ev) => e.setDiskCenterMode(ev.target.value)} />
-					<div className="horosa-fengshui-helper">自定义点：选「自定义」后按住 Shift 在画布点击设定。</div>
+					<div className="horosa-fengshui-helper">选「自定义点」后按住 Shift 在画布点击设定盘心。</div>
 				</div>
 				<div className="horosa-fengshui-field">
 					<label>运期模式</label>
@@ -472,7 +477,7 @@ class FengShuiMain extends Component {
 		);
 	}
 
-	// ── 八卦阳宅法 · 基础（极简：上传/朝向一度数/盘面/成員·格局调色板 + 导出）──
+	// ── 八卦阳宅法 · 基础（极简：上传/朝向一度数/盘面/成员·格局调色板 + 导出）──
 	renderBaguaBasePanel(vm) {
 		const e = this.engine;
 		const dis = !vm.imgLoaded;
@@ -505,7 +510,7 @@ class FengShuiMain extends Component {
 					<div className="horosa-fengshui-helper">盘旋转 <strong>{vm.diskRotationText}</strong>，盘心＝房屋正中（太极点）。盘面样式与透明度见「罗盘」页。</div>
 				</div>
 				<div className="horosa-fengshui-card-title" style={{ marginTop: 12 }}>
-					成員
+					成员
 					<Tooltip title={MEMBER_RULE} overlayStyle={{ maxWidth: 320 }}>
 						<span className="horosa-fengshui-help">?</span>
 					</Tooltip>
@@ -637,7 +642,7 @@ class FengShuiMain extends Component {
 		);
 	}
 
-	// ── 八卦阳宅法 · 卦象（成員卦象卡 + 四类象格局列表）──
+	// ── 八卦阳宅法 · 卦象（成员卦象卡 + 四类象格局列表）──
 	renderBaguaPanel(vm) {
 		const e = this.engine;
 		const bg = vm.bagua || { members: [], features: [] };
@@ -645,15 +650,15 @@ class FengShuiMain extends Component {
 		if (!hasAny) {
 			return (
 				<div className="horosa-fengshui-bagua-wrap">
-					{this.renderTips(BAGUA_TIPS, '怎么用（傻瓜式三步）')}
+					{this.renderTips(BAGUA_TIPS, '怎么用（四步）')}
 					<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="上传户型图 → 设正北 → 点左栏角色/格局并在图上标注" />
 				</div>
 			);
 		}
 		return (
 			<div className="horosa-fengshui-bagua-wrap">
-				{this.renderTips(BAGUA_TIPS, '怎么用（傻瓜式三步）')}
-				{bg.members && bg.members.length ? <div className="horosa-fengshui-section-title">成員卦象</div> : null}
+				{this.renderTips(BAGUA_TIPS, '怎么用（四步）')}
+				{bg.members && bg.members.length ? <div className="horosa-fengshui-section-title">成员卦象</div> : null}
 				<div className="horosa-fengshui-bagua-list">
 					{(bg.members || []).map((m) => {
 						if (!m.roomGua || !m.hex) {
@@ -742,9 +747,11 @@ class FengShuiMain extends Component {
 				{this.renderQuickbar(vm)}
 				{/* geo：画布户型图之几何输入，现取现用（含 gongAt，方位仍以画布为唯一真值源）。
 				    画布未画房屋框时为 null —— 宅断派几何检测整块落「未判」，不臆造。 */}
-				{/* [Q-221/T-182·FT-16] 理气工作区常驻挂载 + display:none 保活(与画布同形):切到纳气/八卦再切回,坐山/命主/八方砂水/形煞勾选等全部还在。 */}
+				{/* 理气工作区常驻挂载 + display:none 保活(与画布同形):切到纳气/八卦再切回,坐山/命主/八方砂水/形煞勾选等全部还在。
+				    显示态必须是 display:contents(不生成盒子):理气网格是外层纵向 flex 的子项,靠 flex:1 + min-height:0 收束到可视高、三栏各自滚动;
+				    包一层普通块盒会断掉这条高度链 —— 网格随内容撑高、被外层 overflow:hidden 裁掉,参数栏与解读末段滚不到。 */}
 				{(isLiqi || this.state.lastLiqiSchool) ? (
-					<div style={isLiqi ? undefined : { display: 'none' }}>
+					<div className="horosa-fengshui-liqi-keepalive" style={isLiqi ? { display: 'contents' } : { display: 'none' }}>
 						<LiqiWorkspace school={isLiqi ? this.state.school : this.state.lastLiqiSchool} active={isLiqi}
 							geo={this.engine ? this.engine.buildNeijuGeoInput() : null} />
 					</div>

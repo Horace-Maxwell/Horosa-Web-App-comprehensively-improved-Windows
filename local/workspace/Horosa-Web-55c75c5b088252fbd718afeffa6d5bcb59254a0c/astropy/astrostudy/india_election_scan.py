@@ -22,27 +22,27 @@ from astrostudy.election_scan import (
     _jd_from, _norm360, norm_intervals, iv_and, iv_or, iv_not, iv_xor,
     true_intervals, date_time_from_jd, _sidereal_offset,
 )
-from astrostudy.election_scan_kernel import GROUP_TYPES, make_validate, make_tree_evaluator
-# [W8 全谱轮] 择时判定面=主印度盘权威实现直调(muhurta_day 三十须臾表/jyotish_engine
+from astrostudy.astroextra_parts.common import zone_value
+from astrostudy.election_scan_kernel import GROUP_TYPES, make_validate, make_tree_evaluator, zone_days as _zone_days
+# 择时判定面=主印度盘权威实现直调(muhurta_day 三十须臾表/jyotish_engine
 # Choghadia 轮值表/shadbala hora 主曜——零平行实现)。
 from astrostudy.india.muhurta_day import day_muhurtas, night_muhurtas
-from astrostudy.india.jyotish_engine import CHOGHADIA_CYCLE, CHOGHADIA_DAY_FIRST
+from astrostudy.india.jyotish_parts.tables import choghadia_sequence
+from astrostudy.india.primitives import panchaka_remainder, PANCHAKA_TYPES as _PANCHAKA_TYPES
+from astrostudy.india.primitives import abhijit_auspicious, muhurta_effective_nature
+from astrostudy.india.primitives import segment_index
 from astrostudy.india import shadbala_bphs as _sb
 
 MAX_SPAN_DAYS = 93.0
 MAX_INTERVALS = 1000
 
 
-def _zone_days(zone):
-    """固定偏移 zone('+08:00'/'-05:30')→天数(墙钟分钟栅格对齐用)。"""
-    txt = str(zone or '+08:00')
-    neg = txt.startswith('-')
-    txt = txt.replace('+', '').replace('-', '')
-    parts = txt.split(':')
-    v = float(parts[0]) + (float(parts[1]) / 60.0 if len(parts) > 1 else 0.0)
-    return (-v if neg else v) / 24.0
-
 NAK_SIZE = 360.0 / 27.0
+
+
+def nak_pada_of(lon):
+    """恒星黄经 → 宿足 1..4:全周 108 足取序再模 4(扫描判据与解释回显同一函数;精确足界归后一足)。"""
+    return segment_index(float(lon) % 360.0, NAK_SIZE / 4.0, 108) % 4 + 1
 
 IN_BODIES = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Rahu', 'Ketu']
 _SWE = {
@@ -57,9 +57,21 @@ YAMA_GANDA_IDX = {0: 4, 1: 3, 2: 2, 3: 1, 4: 0, 5: 6, 6: 5}
 GULIKA_IDX = {0: 6, 1: 5, 2: 4, 3: 3, 4: 2, 5: 1, 6: 0}
 
 
+def _greg_local_ymd(jd, zone):
+    """UT 儒略日 → 当地格里历(天文年)年月日。日出方程按格里历年内日序取季节,属内部演算,
+    不经显示串(显示串是历史纪年 + 1582 以前儒略历,不能拿来做日序 / 星期算术)。"""
+    y, m, d, _h = swisseph.revjul(jd + zone_value(zone) / 24.0, swisseph.GREG_CAL)
+    return int(y), int(m), int(d)
+
+
+def _greg_local_jd(ymd, hour, zone):
+    """当地格里历(天文年)年月日 + 钟面小时 → UT 儒略日(_greg_local_ymd 的反函数)。"""
+    y, m, d = ymd
+    return swisseph.julday(y, m, d, hour, swisseph.GREG_CAL) - zone_value(zone) / 24.0
+
+
 def _vara_of_rise(rise_jd, zone):
-    rec = date_time_from_jd(rise_jd + 1e-6, zone)['datetime'][:10]
-    y, m, d = [int(x) for x in rec.split('-')]
+    y, m, d = _greg_local_ymd(rise_jd + 1e-6, zone)
     return (_dt.date(y, m, d).weekday() + 1) % 7   # Mon=0 → 周一=1;周日=0
 
 
@@ -99,8 +111,7 @@ class IndiaScanContext(object):
     def sunrise_bounds(self, jd):
         """jd 所在「吠陀日」的 (今日日出, 日落, 次日日出)(标准日出方程,当地钟表→jd)。
         vara/日凶段按日出界换日。"""
-        rec = date_time_from_jd(jd, self.zone)
-        dstr = rec['datetime'][:10]
+        dstr = _greg_local_ymd(jd, self.zone)
         cached = self._sunrise_cache.get(dstr)
         if cached is None:
             cached = self._day_bounds(dstr)
@@ -108,7 +119,7 @@ class IndiaScanContext(object):
         rise, set_, next_rise = cached
         if jd < rise:
             # 属前一吠陀日
-            prev = date_time_from_jd(jd - 1.0, self.zone)['datetime'][:10]
+            prev = _greg_local_ymd(jd - 1.0, self.zone)
             pc = self._sunrise_cache.get(prev)
             if pc is None:
                 pc = self._day_bounds(prev)
@@ -117,19 +128,18 @@ class IndiaScanContext(object):
         return cached
 
     def _day_bounds(self, dstr):
-        y, m, d = [int(x) for x in dstr.split('-')]
+        y, m, d = dstr
         rise = self._sun_event(y, m, d, True)
         set_ = self._sun_event(y, m, d, False)
         # 次日日出
-        jd_next = _jd_from(dstr, '12:00:00', self.zone, 1) + 1.0
-        nrec = date_time_from_jd(jd_next, self.zone)['datetime'][:10]
-        ny, nm, nd = [int(x) for x in nrec.split('-')]
+        jd_next = _greg_local_jd(dstr, 12.0, self.zone) + 1.0
+        ny, nm, nd = _greg_local_ymd(jd_next, self.zone)
         next_rise = self._sun_event(ny, nm, nd, True)
         return (rise, set_, next_rise)
 
     def _sun_event(self, y, m, d, is_rise):
         """标准日出/落方程(zenith 90.833°;返回该当地日事件的 jd)。极圈退化:钟表 06/18 时。"""
-        n0 = int((swisseph.julday(y, m, d) - swisseph.julday(y, 1, 1))) + 1
+        n0 = int((swisseph.julday(y, m, d, 12.0, swisseph.GREG_CAL) - swisseph.julday(y, 1, 1, 12.0, swisseph.GREG_CAL))) + 1
         gamma = 2.0 * math.pi / 365.0 * (n0 - 1)
         decl = (0.006918 - 0.399912 * math.cos(gamma) + 0.070257 * math.sin(gamma)
                 - 0.006758 * math.cos(2 * gamma) + 0.000907 * math.sin(2 * gamma)
@@ -146,8 +156,7 @@ class IndiaScanContext(object):
             ha = math.degrees(math.acos(cosh))
             noon_min = 720.0 - 4.0 * (self.lon - zone_h * 15.0) - eot
             hh = (noon_min + (-ha if is_rise else ha) * 4.0) / 60.0
-        dstr = '{0:04d}-{1:02d}-{2:02d}'.format(y, m, d)
-        base = _jd_from(dstr, '00:00:00', self.zone, 1)
+        base = _greg_local_jd((y, m, d), 0.0, self.zone)
         return base + hh / 24.0
 
     def _zone_hours(self):
@@ -186,7 +195,7 @@ class IndiaMoment(object):
         return _norm360(self.sid_lon(body) + self.ctx.ayan(self.jd))
 
     def nak(self, body):
-        return int(self.sid_lon(body) // NAK_SIZE) % 27 + 1   # 1..27
+        return segment_index(self.sid_lon(body), NAK_SIZE, 27) + 1   # 1..27(精确宿界归后一宿)
 
     def sign(self, body):
         return int(self.sid_lon(body) // 30.0) % 12           # 0..11
@@ -205,7 +214,7 @@ class IndiaMoment(object):
         return ['Bava', 'Balava', 'Kaulava', 'Taitila', 'Garaja', 'Vanija', 'Vishti'][(n - 1) % 7]
 
     def yoga(self):
-        return int(_norm360(self.sid_lon('Sun') + self.sid_lon('Moon')) // NAK_SIZE) % 27 + 1
+        return segment_index(_norm360(self.sid_lon('Sun') + self.sid_lon('Moon')), NAK_SIZE, 27) + 1
 
     def vara(self):
         """星期(0=周日;按当地日出界换日——吠陀日)。jd 整数取模法差一实抓(2026-01-01
@@ -228,7 +237,7 @@ _STEP_FAST = 2.0 / 24.0       # 日/水/金(日行 ≈1°,宿足 3°20′ 跨越
 
 
 def _step_for(body):
-    """[Q-463/T-425] 曜步长:月 20 分 / 日水金 2 小时 / 其余 6 小时。此前 nak_pada 曜≠月时引用未定义函数
+    """曜步长:月 20 分 / 日水金 2 小时 / 其余 6 小时。此前 nak_pada 曜≠月时引用未定义函数
     → NameError 越过 scan() 的 ValueError/TypeError/KeyError 捕获,整次搜索报 internal。"""
     if body == 'Moon':
         return _STEP_MOON
@@ -331,10 +340,6 @@ def _eval_day_kalam(params, ctx, domain):
     return ivs
 
 
-def _weekday_of_rise(rise_jd, zone):
-    return _vara_of_rise(rise_jd, zone)
-
-
 def _iter_days(ctx, domain):
     """逐印度日(日出界)迭代:yield (rise, set_, next_rise, vara0)。"""
     jd = domain[0]
@@ -354,15 +359,17 @@ def _eval_muhurta_seg(params, ctx, domain):
     day_tab = day_muhurtas()
     night_tab = night_muhurtas()
     out = []
-    for rise, set_, next_rise, _v in _iter_days(ctx, domain):
+    for rise, set_, next_rise, vara in _iter_days(ctx, domain):
         dslot = (set_ - rise) / 15.0
         nslot = (next_rise - set_) / 15.0
         if pick == 'abhijit':
-            s0 = rise + dslot * 7
-            out.append((s0, s0 + dslot))
+            # 唯吠陀日周三不取(与本命面板同一判据 primitives.abhijit_auspicious)
+            if abhijit_auspicious(vara):
+                s0 = rise + dslot * 7
+                out.append((s0, s0 + dslot))
             continue
         for i, row in enumerate(day_tab):
-            if str(row.get('nature', '')).lower() in grades:
+            if muhurta_effective_nature(row, vara) in grades:
                 s0 = rise + dslot * i
                 out.append((s0, s0 + dslot))
         for i, row in enumerate(night_tab):
@@ -374,22 +381,19 @@ def _eval_muhurta_seg(params, ctx, domain):
 
 
 def _eval_choghadia(params, ctx, domain):
-    """[W8] Choghadia 八段(jyotish_engine 同表同起排:昼首=CHOGHADIA_DAY_FIRST[vara],夜首=昼首+5)。"""
+    """[W8] Choghadia 八段:排法直调 tables.choghadia_sequence(与主盘面板同一函数,零平行实现)。"""
     wants = set(params.get('values') or [])
     natures = set(params.get('natures') or [])
     out = []
     for rise, set_, next_rise, vara in _iter_days(ctx, domain):
-        day_first = CHOGHADIA_DAY_FIRST[vara % 7]
-        night_first = (day_first + 5) % 7
+        day_seq, night_seq = choghadia_sequence(vara)
         dslot = (set_ - rise) / 8.0
         nslot = (next_rise - set_) / 8.0
-        for i in range(8):
-            c = CHOGHADIA_CYCLE[(day_first + i) % 7]
+        for i, c in enumerate(day_seq):
             if (wants and c['key'] in wants) or (natures and c['nature'] in natures):
                 s0 = rise + dslot * i
                 out.append((s0, s0 + dslot))
-        for i in range(8):
-            c = CHOGHADIA_CYCLE[(night_first + i) % 7]
+        for i, c in enumerate(night_seq):
             if (wants and c['key'] in wants) or (natures and c['nature'] in natures):
                 s0 = set_ + nslot * i
                 out.append((s0, s0 + nslot))
@@ -421,20 +425,60 @@ def _eval_hora_vedic(params, ctx, domain):
     return norm_intervals(out)
 
 
-PANCHAKA_TYPES = {1: 'Mrityu', 2: 'Agni', 4: 'Raja', 6: 'Chora', 8: 'Roga'}
+PANCHAKA_TYPES = {k: v[0] for k, v in _PANCHAKA_TYPES.items()}
+
+
+def _value_change_points(fn, jd0, jd1, step, iters=40):
+    """分段常值函数 fn(jd) 的换值点:按 step 粗扫相邻异值格 → 二分(单个分量在自身步长内至多换一次)。"""
+    out = []
+    n = max(1, int((jd1 - jd0) / step))   # segment-ok: 采样步数(时间),非段界取序
+    d0, v0 = jd0, fn(jd0)
+    for i in range(1, n + 2):
+        d1 = min(jd0 + i * step, jd1)
+        if d1 <= d0:
+            break
+        v1 = fn(d1)
+        if v1 != v0:
+            a, b = d0, d1
+            for _ in range(iters):
+                mid = 0.5 * (a + b)
+                if fn(mid) == v0:
+                    a = mid
+                else:
+                    b = mid
+            out.append(0.5 * (a + b))
+        d0, v0 = d1, v1
+        if d1 >= jd1:
+            break
+    return out
 
 
 def _eval_panchaka(params, ctx, domain):
-    """[W8] Panchaka 五忌(与 jyotish_engine 主盘同公式:((tithi+vara+1+nak+lagna)*2)%9)。
-    mode=avoid(默认)=避开五忌段;mode=free=取无忌段同义;values 可细选忌种(留空=全部五忌)。"""
+    """[W8] Panchaka 五忌(与主盘同一公式 primitives.panchaka_remainder:(tithi+vara+nak+lagna)%9,vara 周日=1)。
+    mode=avoid(默认)=避开五忌段;mode=free=取无忌段同义;values 可细选忌种(留空=全部五忌)。
+    🔴 四分量各自换值点取并集后逐段判(余数在两分量同时换值时可出几分钟的短段,整体粗扫会漏、
+    还会让中点落进短段而吞掉整段)。"""
     wants = set(params.get('values') or list(PANCHAKA_TYPES.values()))
+    a, b = domain
 
-    def pred(jd):
+    def rem_at(jd):
         m = ctx.moment(jd)
-        rem = ((m.tithi() + (m.vara() + 1) + m.nak('Moon') + (m.asc_sign() + 1)) * 2) % 9
-        t = PANCHAKA_TYPES.get(rem)
-        return t is not None and t in wants
-    ivs = true_intervals(pred, domain[0], domain[1], _asc_step(ctx.lat))
+        return panchaka_remainder(m.tithi(), m.vara(), m.nak('Moon'), m.asc_sign() + 1)
+    pts = set()
+    pts.update(_value_change_points(lambda jd: ctx.moment(jd).tithi(), a, b, _STEP_MOON))
+    pts.update(_value_change_points(lambda jd: ctx.moment(jd).nak('Moon'), a, b, _STEP_MOON))
+    pts.update(_value_change_points(lambda jd: ctx.moment(jd).vara(), a, b, 2.0 / 24.0))
+    pts.update(_value_change_points(lambda jd: ctx.moment(jd).asc_sign(), a, b, _asc_step(ctx.lat)))
+    edges = [a] + sorted(p for p in pts if a < p < b) + [b]
+    ivs = []
+    for i in range(len(edges) - 1):
+        s0, e0 = edges[i], edges[i + 1]
+        if e0 <= s0:
+            continue
+        t = PANCHAKA_TYPES.get(rem_at(0.5 * (s0 + e0)))
+        if t is not None and t in wants:
+            ivs.append((s0, e0))
+    ivs = norm_intervals(ivs)
     if (params.get('mode') or 'avoid') == 'avoid':
         return iv_not(ivs, domain)
     return ivs
@@ -447,7 +491,7 @@ def _eval_nak_pada(params, ctx, domain):
 
     def pred(jd):
         lon = ctx.moment(jd).sid_lon(body)
-        pada = int((lon % NAK_SIZE) // (NAK_SIZE / 4.0)) + 1
+        pada = nak_pada_of(lon)
         return pada in wants
     return true_intervals(pred, domain[0], domain[1], _STEP_MOON if body == 'Moon' else _step_for(body))
 
@@ -679,16 +723,16 @@ def explain_at(data):
             vara_txt = u'—'   # BC 域日出界不可算,actual 其余肢照常
         actual = u'tithi{0}·vara{1}·月宿{2}·yoga{3}·lagna{4}'.format(
             m.tithi(), vara_txt, m.nak('Moon'), m.yoga(), m.asc_sign() + 1)
-        # [W8] 新时段/派生类 actual 追加专属读数(详情面「实际」列可读)
+        # 新时段/派生类 actual 追加专属读数(详情面「实际」列可读)
         if ttype == 'nak_pada':
             body = (node.get('params') or {}).get('body') or 'Moon'
             lon = m.sid_lon(body)
-            actual = u'{0}·{1}宿足{2}'.format(actual, body, int((lon % NAK_SIZE) // (NAK_SIZE / 4.0)) + 1)
+            actual = u'{0}·{1}宿足{2}'.format(actual, body, nak_pada_of(lon))
         elif ttype == 'bhava_from_lagna':
             body = (node.get('params') or {}).get('body') or 'Jupiter'
             actual = u'{0}·{1}落第{2}宫'.format(actual, body, ((m.sign(body) - m.asc_sign()) % 12) + 1)
         elif ttype == 'panchaka':
-            rem = ((m.tithi() + (m.vara() + 1) + m.nak('Moon') + (m.asc_sign() + 1)) * 2) % 9
+            rem = panchaka_remainder(m.tithi(), m.vara(), m.nak('Moon'), m.asc_sign() + 1)
             actual = u'{0}·panchaka余{1}({2})'.format(actual, rem, PANCHAKA_TYPES.get(rem, u'无忌'))
         return {'kind': 'leaf', 'type': ttype, 'pass': ok, 'actual': actual}
 

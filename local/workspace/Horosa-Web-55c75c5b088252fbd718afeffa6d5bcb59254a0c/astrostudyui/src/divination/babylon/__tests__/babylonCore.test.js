@@ -417,7 +417,7 @@ describe('buildBabylonSnapshotText 微黄道段', () => {
 	});
 });
 
-// [Q-443/T-406] 三页签候选段(默认关):数理星历 / 吉日历 / 年历预测。
+// 三页签候选段(默认关):数理星历 / 吉日历 / 年历预测。
 describe('buildBabylonSnapshotText 三页签候选段(Q-443)', () => {
 	const { buildBabylonSnapshotText, buildBabylonEphemerisSection } = require('../../../utils/babylonAiSnapshot');
 	const { AI_EXPORT_PRESET_SECTIONS, getAIExportDefaultOffSet } = require('../../../utils/aiExport');

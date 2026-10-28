@@ -81,7 +81,7 @@ export function buildChartObjectLines(chartObj){
 	if(houses.length === 0){
 		return lines;
 	}
-	// [Q-455/T-418] 逆行列:盘面星体带 ℞ 标(lonspeed<0)而快照此前不带 → AI 不知逆行;无速度字段的星(角点/虚点)为 —。
+	// 逆行列:盘面星体带 ℞ 标(lonspeed<0)而快照此前不带 → AI 不知逆行;无速度字段的星(角点/虚点)为 —。
 	lines.push('| 宫位 | 星体 | 度 | 座 | 分 | 逆行 |');
 	lines.push('| --- | --- | --- | --- | --- | --- |');
 	houses.forEach((house)=>{
@@ -99,7 +99,7 @@ export function buildChartObjectLines(chartObj){
 	return lines;
 }
 
-// [Q-455/T-418] 两盘相位(盘面 AstroChart 画的相位线来自 chart.aspects.normalAsp)此前不进快照。
+// 两盘相位(盘面 AstroChart 画的相位线来自 chart.aspects.normalAsp)此前不进快照。
 // 行=(主体,相位,对象,相态,误差),相态:入相/离相(Exact 与 Separative 折为离相,同西占快照口径)/None 为 —。
 export function buildChartAspectLines(chartObj){
 	const chart = chartObj && chartObj.chart ? chartObj.chart : null;
@@ -135,7 +135,7 @@ function buildDiceSnapshotText(params, result, text){
 	lines.push(`日期：${params.date} ${params.time}`);
 	lines.push(`时区：${params.zone}`);
 	lines.push(`经纬度：${params.lon} ${params.lat}`);
-	// [Q-145/T-52] 说清作用域:tradition 只决定**掷出的那颗星**从哪个池里抽;后端 PerChart 不读该键,
+	// 说清作用域:tradition 只决定**掷出的那颗星**从哪个池里抽;后端 PerChart 不读该键,
 	//   背景盘面恒按完整星集绘制 —— 此前一句「传统模式:无三王星」让人以为整盘都不含三王星。
 	lines.push(`掷星星池：${params.tradition ? '传统七政 + 交点 / 虚点(不含三王星)' : '含三王星的完整星集'}(背景盘面仍按完整星集绘制)`);
 	lines.push(`问题：${text || '未填写'}`);
@@ -154,7 +154,7 @@ function buildDiceSnapshotText(params, result, text){
 	lines.push('[天象盘宫位与星体]');
 	lines.push(...buildChartObjectLines(skyChart));
 
-	// [Q-455/T-418] 两盘相位段(有相位数据才产段;缺数据时既有输出逐字不变)。
+	// 两盘相位段(有相位数据才产段;缺数据时既有输出逐字不变)。
 	const diceAsp = buildChartAspectLines(diceChart);
 	if(diceAsp.length){
 		lines.push('');
@@ -172,8 +172,15 @@ function buildDiceSnapshotText(params, result, text){
 }
 
 
+
+// 写槽 meta 单一来源(起课时地):平时写槽与刷新应答共用
+function diceSnapshotMeta(params){
+	const p = params || {};
+	return { date: p.date, time: p.time, zone: p.zone, lon: p.lon, lat: p.lat };
+}
+
 class DiceMain extends Component{
-	// [R3-A6] 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
+	// 渲染守卫:宿主无关 dispatch 不再全树重渲(nextState 引用变照常放行;
 	// 开关 horosa.perf.chartSCU,语义详 chartUpdateGuard.wrapperPropsEqual)。
 	shouldComponentUpdate(nextProps, nextState){
 		if(nextState !== this.state){
@@ -239,7 +246,7 @@ class DiceMain extends Component{
 					return;
 				}
 				let fld = fields;
-				// [Q-151/AX-19①] 宿主每次切子页签都调本钩:此前无条件以本命 fields 回填 → 骰子页手改过的经纬/时区/三王星被覆盖。
+				// 宿主每次切子页签都调本钩:此前无条件以本命 fields 回填 → 骰子页手改过的经纬/时区/三王星被覆盖。
 				//   现只回填**未在本页手改过**的组(geo / zone / tradition;改过的保留本页值)。
 				const touched = this._localTouched || {};
 				const patch = {
@@ -266,7 +273,7 @@ class DiceMain extends Component{
 	}
 
 	genParams(){
-		// [Q-140/T-47] 「此刻」按页面所选时区(含选地点自动校正)取墙钟:此前 new DateTime() 取本机本地时间却硬编码 +08:00,
+		// 「此刻」按页面所选时区(含选地点自动校正)取墙钟:此前 new DateTime() 取本机本地时间却硬编码 +08:00,
 		// 时区下拉是死开关,且本机不在东八区时盘按「本机墙钟 + 东八区」换算,起盘瞬间错开 |本机时区−8| 小时。
 		const _zone = this.state.zone || '+08:00';
 		const _m = moment().utcOffset(_zone);
@@ -296,7 +303,7 @@ class DiceMain extends Component{
 			sign: AstroConst.LIST_SIGNS[ranSign],
 			house: ranHouse,
 			planet: planet,
-			// [SURF-5] 古典设置单源接入(骰子盘无 fields,直读全局仓;/predict/dice 装饰器统一 push)。
+			// 古典设置单源接入(骰子盘无 fields,直读全局仓;/predict/dice 装饰器统一 push)。
 			...classicalBackendOverrides(classicalGlobalValue),
 		};
 		return params;
@@ -308,7 +315,7 @@ class DiceMain extends Component{
 	}
 
 	async requestDirection(params){
-		// [SURF-R5d] 连掷乱序防:每掷=独立随机占,快速连掷两在途,先掷后回会覆盖后掷(显示与
+		// 连掷乱序防:每掷=独立随机占,快速连掷两在途,先掷后回会覆盖后掷(显示与
 		// _lastDiceSnapshotInput/AI 快照全取旧占)。代际失配即弃+unmounted 守卫补齐。
 		const seq = ++this._diceSeq || (this._diceSeq = 1);
 		const data = await request(`${Constants.ServerRoot}/predict/dice`, {
@@ -331,13 +338,7 @@ class DiceMain extends Component{
 		this.setState(st, ()=>{ markPanelReady('auxchart'); });
 		const diceTxt = this.state.txt;
 		this._lastDiceSnapshotInput = { params, result, text: diceTxt };
-		saveModuleAISnapshotLazy('otherbu', ()=>buildDiceSnapshotText(params, result, diceTxt), {
-			date: params.date,
-			time: params.time,
-			zone: params.zone,
-			lon: params.lon,
-			lat: params.lat,
-		});
+		saveModuleAISnapshotLazy('otherbu', ()=>buildDiceSnapshotText(params, result, diceTxt), diceSnapshotMeta(params));
 	}
 
 	submit(){
@@ -410,7 +411,7 @@ class DiceMain extends Component{
 	}
 
     changeGeo(geo){
-		this.markLocalTouched('geo');   // [Q-151/AX-19①]
+		this.markLocalTouched('geo');
         let gps = {
             lat: geo.gpsLat,
             lon: geo.gpsLng,
@@ -445,7 +446,7 @@ class DiceMain extends Component{
 	}
 
 	markLocalTouched(group){
-		this._localTouched = { ...(this._localTouched || {}), [group]: true };   // [Q-151/AX-19①]
+		this._localTouched = { ...(this._localTouched || {}), [group]: true };
 	}
 
 	changeLat(value){
@@ -605,7 +606,7 @@ class DiceMain extends Component{
 			text = '';
 		}
 		if(text){
-			saveModuleAISnapshot('otherbu', text);
+			saveModuleAISnapshot('otherbu', text, diceSnapshotMeta(last.params));   // 刷新应答与平时写槽同一份时地 meta
 			if(evt && evt.detail && typeof evt.detail === 'object'){
 				evt.detail.snapshotText = text;
 			}
@@ -722,7 +723,7 @@ class DiceMain extends Component{
 							<Row gutter={6}>
 								<Col span={12}>
 									<Select value={this.state.tradition} onChange={this.changeTradition} style={{width: '100%'}} size='small'>
-										{/* [Q-145/T-52] 只影响掷星的抽签池,不影响背景盘面 */}
+										{/* 只影响掷星的抽签池,不影响背景盘面 */}
 										<Option value={0}>掷星含三王星</Option>
 										<Option value={1}>掷星不含三王星</Option>
 									</Select>

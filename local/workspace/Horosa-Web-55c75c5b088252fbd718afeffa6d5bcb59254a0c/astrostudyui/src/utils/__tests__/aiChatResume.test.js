@@ -1,4 +1,4 @@
-// [批二⑪] resume 合同:缺省不记(uiPrefs 不多字段);开关开才写 lastConversationId;关=删两字段;近 5 排序去归档;pickResume 只认上次 id 且未归档;/resume 浮层打开不写键、拨开关才写。
+// resume 合同:缺省不记(uiPrefs 不多字段);开关开才写 lastConversationId;关=删两字段;近 5 排序去归档;pickResume 只认上次 id 且未归档;/resume 浮层打开不写键、拨开关才写。
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { act } from 'react-dom/test-utils';

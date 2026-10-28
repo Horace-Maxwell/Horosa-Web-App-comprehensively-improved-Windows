@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroDoubleChartMain.js b/astrostudyui/src/components/astro/AstroDoubleChartMain.js
-index c87352d..0de7aef 100644
+index 9a537a78..1a3bf6e7 100644
 --- a/astrostudyui/src/components/astro/AstroDoubleChartMain.js
 +++ b/astrostudyui/src/components/astro/AstroDoubleChartMain.js
 @@ -9,6 +9,7 @@ import AntisciaInfo from '../relative/AntisciaInfo';

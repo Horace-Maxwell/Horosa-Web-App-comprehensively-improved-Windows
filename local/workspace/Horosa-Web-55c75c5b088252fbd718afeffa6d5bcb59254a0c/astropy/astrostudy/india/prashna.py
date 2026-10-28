@@ -11,7 +11,7 @@
     kp_subdivide 可能翻到前一 sub,破坏最强不变量 CSL(house1).subLord==问数子主。
   · KP 框架强制(§12.8-1):KP Ayanamsa + Placidus,与页面岁差选择解耦,回显供 UI 提示。
   · 宫归属:cusp 是宫**起点**非中点,自算 house_of_lon;宫主按 **cusp 落座**定
-    (ownHousesBasis='cusp',KP 标准;本命 kp() 的整宫偏移口径保持不动)。
+    (ownHousesBasis='cusp',KP 标准;本命 kp() 与问时盘共用 assemble_kp_significators)。
   · A3:节点代理「合相」= **同座**(权威未给容许度,不臆造)。
   · A4:多宫宫组的主判宫头默认 财11/事业10/外出9,UI 可手改。
   · A6:应期不做 RP∩/∪ 二值判定(权威未定义),改逐级打分排序取 top-K。
@@ -143,7 +143,7 @@ def house_of_lon(lon, cusps):
 
 def own_houses_by_cusp(cusps):
     """KP 标准宫主:按**宫始落座**之主定其所主之宫 → {planet_key: [houses]}。
-    (本命 kp() 用整宫偏移口径,保持不动;问时侧显式标 ownHousesBasis='cusp'。)"""
+    本命 kp() 与问事盘同经 assemble_kp_significators 组装,宫主口径一致;回显 ownHousesBasis='cusp'。"""
     out = {k: [] for k in NINE_KEYS}
     if not cusps or len(cusps) < 12:
         return out
@@ -167,6 +167,49 @@ def node_proxy_houses(node_key, same_sign_planets, node_sign_lord, node_star_lor
         if got:
             return src, sorted(got)
     return None, []
+
+
+# ── KP 意义星统一组装(本命 kp() 与问时盘共用,唯一入口)──────────────────────
+def assemble_kp_significators(planet_lons, cusps):
+    """九曜经度 + 12 宫头 → KP 四重意义星(KP 标准框架)。
+
+    planet_lons: {kp_key 或 chart id: 恒星经度}(chart id 'North Node'/'South Node' 内部统一转 KP 键)。
+    cusps      : 12 个宫**起点**经度(Placidus 宫头;降级时等宫)。
+    占宫 = 宫头区间(house_of_lon);所主宫 = 宫头落座之主(own_houses_by_cusp);
+    罗计不主座 → 节点代理(同座合相星 > 座主 > 宿主,首个非空)所司之宫作其「所主」(ownHousesBasis='node_proxy')。
+    返回 {planetData, significators, nodeProxy, housesByPlanet, ownHouses}(全部 KP 键)。
+    """
+    lons = {}
+    for k, v in (planet_lons or {}).items():
+        if v is not None:
+            lons[to_kp_key(k)] = float(v)
+    own = own_houses_by_cusp(cusps)
+    planet_data, same_sign = {}, {}
+    for key, lon in lons.items():
+        h = house_of_lon(lon, cusps)
+        sign_no = int((lon % 360.0) // 30.0) + 1
+        planet_data[key] = {'sign': sign_no, 'house': h,
+                            'starLord': kp_levels(lon, depth=1).get('Nak'),
+                            'ownHouses': list(own.get(key) or [])}
+        same_sign.setdefault(sign_no, []).append(key)
+    houses_by_planet = {k: (set([d['house']]) if d['house'] else set()) | set(d['ownHouses'])
+                        for k, d in planet_data.items()}
+    node_proxy = {}
+    for nk in ('Rahu', 'Ketu'):
+        pd = planet_data.get(nk)
+        if not pd:
+            continue
+        conj = [p for p in same_sign.get(pd['sign'], []) if p not in ('Rahu', 'Ketu')]
+        src, houses = node_proxy_houses(
+            nk, conj, SIGN_LORDS[pd['sign'] - 1], pd.get('starLord'), houses_by_planet)
+        node_proxy[nk] = {'basis': src, 'houses': houses}
+        if houses:
+            pd['ownHouses'] = sorted(set(pd['ownHouses']) | set(houses))
+            pd['ownHousesBasis'] = 'node_proxy'
+            houses_by_planet[nk] = houses_by_planet.get(nk, set()) | set(houses)
+    sig = significators(planet_data)
+    return {'planetData': planet_data, 'significators': sig, 'nodeProxy': node_proxy,
+            'housesByPlanet': houses_by_planet, 'ownHouses': own}
 
 
 # ── 事项宫组(§12.5 逐字;A4 主判宫头默认;婚组独有 negation)──────────────
@@ -319,34 +362,11 @@ def assemble_kp_horary(number, matter, cusps, cusp_mode, planet_lons, question_d
     if seg is None or not cusps:
         return {'available': False, 'reason': 'invalid_number_or_cusps'}
     csl = cuspal_sublords(cusps)
-    own = own_houses_by_cusp(cusps)
-    # 逐曜:占宫 + 宿主 + 所主宫 → significators
-    planet_data = {}
-    houses_by_planet = {}
-    same_sign = {}
-    for key, lon in planet_lons.items():
-        if lon is None:
-            continue
-        h = house_of_lon(lon, cusps)
-        levels = kp_levels(lon, depth=2)
-        sign_no = int((float(lon) % 360.0) // 30.0) + 1
-        planet_data[key] = {'sign': sign_no, 'house': h,
-                            'starLord': levels.get('Nak'), 'ownHouses': own.get(key) or []}
-        houses_by_planet[key] = set([h] if h else []) | set(own.get(key) or [])
-        same_sign.setdefault(sign_no, []).append(key)
-    sig = significators(planet_data)
-    # 节点代理(A3 同座为合)
-    node_proxy = {}
-    for nk in ('Rahu', 'Ketu'):
-        pd = planet_data.get(nk)
-        if not pd:
-            continue
-        conj = [p for p in same_sign.get(pd['sign'], []) if p != nk]
-        src, houses = node_proxy_houses(
-            nk, conj, SIGN_LORDS[pd['sign'] - 1], pd.get('starLord'), houses_by_planet)
-        node_proxy[nk] = {'basis': src, 'houses': houses}
-        if houses:
-            houses_by_planet[nk] = houses_by_planet.get(nk, set()) | set(houses)
+    # 意义星 / 节点代理 / 每曜所司宫集:与本命 kp() 同一组装(assemble_kp_significators)。
+    asm = assemble_kp_significators(planet_lons, cusps)
+    sig = asm['significators']
+    node_proxy = asm['nodeProxy']
+    houses_by_planet = asm['housesByPlanet']
     # 主判宫 CSL → 其指示宫(CSL 星按其占/主/宿主宫集 —— 用 significators 行)
     grp = PRASHNA_HOUSE_GROUPS.get(matter) or PRASHNA_HOUSE_GROUPS['general']
     ph = int(primary_house) if primary_house else grp['primary']
@@ -362,7 +382,7 @@ def assemble_kp_horary(number, matter, cusps, cusp_mode, planet_lons, question_d
     judgement = judge_matter(matter, csl_sig_houses, primary_house=ph)
     if judgement.get('available') and csl_lord:
         judgement['chain'].insert(1, '第 %d 宫 CSL = %s' % (ph, csl_lord))
-        # 四重强度分层随判决出参:A(宿主)最强 → D(受影响者)最弱。命中落在哪一级由此可查,
+        # 四重强度分层随判决出参:A(星主所占)最强 → D(自身所主)最弱。命中落在哪一级由此可查,
         # 不把「D 层算不算意义」这种学理取舍写死在裁决里(判决用全集,强度交给阅读者)。
         tiers = {t: list(csl_row_sig.get(t) or ()) for t in ('A', 'B', 'C', 'D')}
         judgement['cslSigTiers'] = tiers

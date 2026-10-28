@@ -1,0 +1,14 @@
+diff --git a/astrostudyui/src/components/help/AIAnalysisHelpDoc.js b/astrostudyui/src/components/help/AIAnalysisHelpDoc.js
+index 78cce576..91d1616d 100644
+--- a/astrostudyui/src/components/help/AIAnalysisHelpDoc.js
++++ b/astrostudyui/src/components/help/AIAnalysisHelpDoc.js
+@@ -364,7 +364,8 @@ class AIAnalysisHelpDoc extends Component{
+ 								{kv('外部能做什么', '读:档案、各技法快照、合盘数据、天星与各流派择日(黄历 / 八字 / 紫微 / 六壬 / 太乙 / 奇门 / 七政 / 印度)、名人库(约 5.9 万位名人的出生资料与简介)、玄学史、当前页正文、技法操作手册、后台任务;写(只增、可撤销):建命盘 / 事盘、把名人存成命盘、按你报出的起卦结果存事盘、加星标 / 标签、追加断事日志、关联档案、改设置(作用范围同上「总开关」一条);改档案与归档只能提议,在任务中心等你采纳;对话记录与备注默认不给,要开「私人内容可读」;命主实况还要你对那张命盘打开了「发送」才给')}
+ 								{kv('界面类也要确认', '缺省关:外部程序切换技法页、合盘配对会直接执行(动作条可回退);打开后这些动作也先弹到审批台。设对话挂载按写入走上面的审批档(只读档下不可用)')}
+ 								{kv('REST 接口', '缺省关,要先开本机 MCP 服务:打开后同一端口多出 /api/v1,本机脚本(curl、Python、自动化工具)用同一令牌按普通 HTTP 调同一套工具,审批与上限同外部客户端策略。GET /api/v1/tools 列工具,POST /api/v1/tools/<工具名> 以 JSON 请求体传参;常用读操作有 GET 简写(/records、/tasks、/proposals、/context、/actions、/materials,查询串即参数);GET /api/v1/openapi.json 是现生成的接口文档;加 ?stream=1 可收进度。面板上「复制 curl 示例」带好了令牌')}
+-								{kv('终端命令', '在「进阶 → AI 助手行动能力 → 本机 MCP 服务」里装好「终端命令 horosa」后,终端里可用:horosa status(服务状态)· horosa tools(列工具)· horosa describe <工具>(参数说明)· horosa call <工具> k=v …(调用任意工具;k:=JSON 传数字 / 数组 / 对象,- 从标准输入读 JSON)· horosa records 张、tasks、context(常用简写)· horosa read <资源地址> · horosa prompts。加 --json 输出机器可读结果,--progress 显示进度;按 Ctrl-C 会取消星阙里正在跑的那次调用。审批与上限同外部客户端策略;要先开本机 MCP 服务。终端找不到 horosa 时把 ~/.local/bin 加进 PATH,或用「复制示例命令」给的全路径')}
++								{/* horosa_win_shell_copy_v1:Windows 版终端命令是 resources\bin\horosa.cmd + 当前用户 PATH(不是 ~/.local/bin) */}
++								{kv('终端命令', '在「进阶 → AI 助手行动能力 → 本机 MCP 服务」里装好「终端命令 horosa」后,终端里可用:horosa status(服务状态)· horosa tools(列工具)· horosa describe <工具>(参数说明)· horosa call <工具> k=v …(调用任意工具;k:=JSON 传数字 / 数组 / 对象,- 从标准输入读 JSON)· horosa records 张、tasks、context(常用简写)· horosa read <资源地址> · horosa prompts。加 --json 输出机器可读结果,--progress 显示进度;按 Ctrl-C 会取消星阙里正在跑的那次调用。审批与上限同外部客户端策略;要先开本机 MCP 服务。终端找不到 horosa 时新开一个终端窗口(安装会把 horosa.cmd 所在目录写进当前用户的 PATH,卸载时一并移除),或用「复制示例命令」给的全路径')}
+ 								{kv('不开 App 用', '另有不开 App 也能用同一套工具的无头方式,面向开发者,说明见项目仓库里的 HEADLESS 文档')}
+ 								{kv('外部服务器', '接入外部工具服务器(网络或本机命令两种形态),只自动接纳声明为只读的工具,其余需你逐个放行;令牌只存本机不回显')}
+ 								{kv('联网检索 / 网页读取', '缺省关;开启后 AI 可检索与读取网页,结果一律标「未经核实」只作数据;本机与内网地址(含解析到内网的域名)不允许读取')}

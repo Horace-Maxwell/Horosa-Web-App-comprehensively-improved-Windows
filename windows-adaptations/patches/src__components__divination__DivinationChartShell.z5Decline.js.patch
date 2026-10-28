@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/divination/DivinationChartShell.js b/astrostudyui/src/components/divination/DivinationChartShell.js
-index 48054d03..0647c4ff 100644
+index 14d52c11..a925b786 100644
 --- a/astrostudyui/src/components/divination/DivinationChartShell.js
 +++ b/astrostudyui/src/components/divination/DivinationChartShell.js
-@@ -265,6 +265,9 @@ class DivinationChartShell extends Component{
+@@ -240,6 +240,9 @@ class DivinationChartShell extends Component{
  	// 盘面美术 / 外环样式,app model 变了而本页不动(左栏下拉也仍显旧值),要重挂载才跟上。
  	// 改为订阅宿主透传的全局值——只在全局值本身发生变化(prev→next)时同步,页内手动改的档位不被回冲。
  	componentDidUpdate(prevProps){

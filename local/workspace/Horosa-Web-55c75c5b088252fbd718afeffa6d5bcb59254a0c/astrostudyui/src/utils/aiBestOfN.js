@@ -1,4 +1,4 @@
-// AI 对话·多模型对比 Best-of-N(C5;借鉴 Cursor 3.0):一问同时发给 2-4 个候选(不同模型,或同一模型四个视角)并排流式出字,判官打分选优,可采用/合并;
+// AI 对话·多模型对比 Best-of-N(C5):一问同时发给 2-4 个候选(不同模型,或同一模型四个视角)并排流式出字,判官打分选优,可采用/合并;
 // 候选流**不带工具**(对比模式只回答不执行动作);采用的成为正文,其余折叠保留在 message.candidates;历史只带采用稿(historyContentOf)。
 // 本文件纯函数:候选计划 / 成本估算 / 判官与合并提示词 + 严格 schema / 判官解析 / 历史内容取值。
 import { estimateUsageCost, parseModelSelection } from './aiAnalysisProviders';
@@ -58,7 +58,7 @@ export const JUDGE_SCHEMA = {
 	},
 };
 
-// [Q-331/M-52] 候选正文进判官 / 合并 prompt 前的截断:此前固定 slice(0, 6000) 且**无标注** ——
+// 候选正文进判官 / 合并 prompt 前的截断:此前固定 slice(0, 6000) 且**无标注** ——
 //   长候选被砍掉尾部,判官照样打分、合并稿照样采用,用户看不出「后半段根本没进去」。
 //   现在:① 上限按本次槽预算动态(候选越多每份越短,缺省仍 6000 字保持旧行为);② 截断处写明原长度,
 //   让判官/总编知道这份是节选、别把「结论缺失」当扣分点;③ 调用方可据 candidateOverflow 提示用户。
@@ -84,7 +84,7 @@ export function candidateOverflow(candidates, charBudget){
 }
 
 export function buildJudgePrompt({ question, candidates, charBudget }){
-	const sys = [BESTOF_JUDGE_MARKER, '你是命理分析回答的评审。同一问题有若干候选回答,请按「依据充分、自洽 > 覆盖充分 > 表达清楚」排序并打分(1-10)。'   /* [Q-332① 裁决 2026-09-18] 判官请求不带挂载数据,判据不再写「忠于挂载数据」 */,
+	const sys = [BESTOF_JUDGE_MARKER, '你是命理分析回答的评审。同一问题有若干候选回答,请按「依据充分、自洽 > 覆盖充分 > 表达清楚」排序并打分(1-10)。'   /* 判官请求不带挂载数据,判据不再写「忠于挂载数据」 */,
 		`只输出一个 JSON:{"best":"候选id","ranking":["id",...],"reasons":[{"id":"id","score":1-10,"reason":"一句话"}]}。候选 id 只能取:${(candidates || []).map((c)=>c.id).join(', ')}。`].join('\n');
 	const user = [`【问题】\n${`${question || ''}`.slice(0, 2000)}`].concat((candidates || []).map((c)=>`【候选 ${c.id}(${c.label})】\n${clipCandidateText(c.text, candidateCharCap({ count: (candidates || []).length, charBudget }))}`)).join('\n\n');
 	return { system: sys, user };

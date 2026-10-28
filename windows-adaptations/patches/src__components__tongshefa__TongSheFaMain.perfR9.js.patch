@@ -1,25 +1,17 @@
 diff --git a/astrostudyui/src/components/tongshefa/TongSheFaMain.js b/astrostudyui/src/components/tongshefa/TongSheFaMain.js
-index 1a23eca8..13e43cbe 100644
+index b9fd820b..41032e5d 100644
 --- a/astrostudyui/src/components/tongshefa/TongSheFaMain.js
 +++ b/astrostudyui/src/components/tongshefa/TongSheFaMain.js
-@@ -17,6 +17,8 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
- import { sideSectionIcon } from '../../constants/sideSectionIcons';
+@@ -19,6 +19,8 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';
  import { subscribeRemoteNongli, timePatchFromDateTime, geoPatchFromRec } from '../../utils/divinationTimeDraft';
  import styles from '../../css/styles.less';
+ import { withLabelCell } from '../../utils/labelCell';
 +import { markPanelReady } from '../../utils/perfMark';
 +import { FreezeSubTab } from '../comp/FreezeInactive';
  
  const { Option } = Select;
  const { TabPane } = Tabs;
-@@ -1128,6 +1130,7 @@ class TongSheFaMain extends Component{
- 		}
- 	}
- 
-+
- 	componentDidMount(){
- 		this._unsubNongli = subscribeRemoteNongli(() => this.forceUpdate());
- 		this.restoreFromCurrentCase(true);
-@@ -1138,6 +1141,13 @@ class TongSheFaMain extends Component{
+@@ -1140,6 +1142,13 @@ class TongSheFaMain extends Component{
  	}
  
  	componentDidUpdate(prevProps, prevState){
@@ -33,7 +25,7 @@ index 1a23eca8..13e43cbe 100644
  		if(prevState.selected !== this.state.selected){
  			this.saveSnapshot();
  		}
-@@ -2007,6 +2017,8 @@ class TongSheFaMain extends Component{
+@@ -2012,6 +2021,8 @@ class TongSheFaMain extends Component{
  								</Select>
  							</Col>
  						</Row>
@@ -42,7 +34,7 @@ index 1a23eca8..13e43cbe 100644
  						<Tabs
  							activeKey={this.state.detailTab}
  							defaultActiveKey='observe32'
-@@ -2016,16 +2028,16 @@ class TongSheFaMain extends Component{
+@@ -2021,16 +2032,16 @@ class TongSheFaMain extends Component{
  								style={tabheight ? { height: tabheight } : undefined}
  							>
  							<TabPane tab='三十二观' key='observe32'>

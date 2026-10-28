@@ -6,6 +6,8 @@ import { toolLabel } from './labels';
 
 const WRITE_ORDER = ['records', 'settings', 'workspace', 'tasks'];
 
+let TASK_SWITCH_NOTE = '';
+
 export function agentAbilityCopy(defs){
 	const list = Array.isArray(defs) ? defs.filter((d)=>d && d.origin !== 'external') : [];
 	const writes = list.filter((d)=>d.level === 'additive');
@@ -17,12 +19,12 @@ export function agentAbilityCopy(defs){
 	const parts = groups.map((g)=>g.join(' / '));
 	if(uiReads.length){ parts.push(`${uiReads.map((d)=>toolLabel(d.name)).join(' / ')}(界面动作,不落盘)`); }
 	const exempt = writes.filter((d)=>Object.prototype.hasOwnProperty.call(UNDO_EXEMPT, d.name)).map((d)=>toolLabel(d.name));
-	// [Q-294/AR-27 裁决 2026-09-18] 任务类(目标 / 定时)缺省立即开跑,「撤销」只对尚未开跑的有效 → 文案如实
-	const undoPart = (exempt.length ? `除「${exempt.join('、')}」外每个写入都可在对话里一键撤销` : '每个写入都可在对话里一键撤销') + '（目标任务 / 定时任务缺省立即开跑，只有尚未开跑的可撤销；生成报告随「目标任务」开关一并开启）';
+	// 任务类(目标 / 定时)缺省立即开跑,「撤销」只对尚未开跑的有效 → 文案如实
+	const undoPart = (exempt.length ? `除「${exempt.join('、')}」外每个写入都可在对话里一键撤销` : '每个写入都可在对话里一键撤销') + `（目标任务 / 定时任务缺省立即开跑，只有尚未开跑的可撤销${TASK_SWITCH_NOTE}）`;
 	return `AI 可在你明确要求时${parts.join('、')};所有写入只增不删,${undoPart}`;
 }
 
-// [Q-294/M-109·AR-26] 本机 MCP 服务首开确认文案同样从目录派生(只取对 origin=mcp 开放的工具):此前手写只列「新增命盘/事盘、无头起盘与读取快照」
+// 本机 MCP 服务首开确认文案同样从目录派生(只取对 origin=mcp 开放的工具):此前手写只列「新增命盘/事盘、无头起盘与读取快照」
 //   并称「不会删除或覆盖任何数据」,而目录里还有改设置 / 收藏·置顶·打标签 / 切换界面 / 建任务 / 出网检索等。外部客户端的审批档独立于应用内三档。
 export function mcpConfirmCopy(defs){
 	const list = (Array.isArray(defs) ? defs : []).filter((d)=>d && d.origin !== 'external' && (!Array.isArray(d.origins) || d.origins.indexOf('mcp') >= 0));

@@ -1,4 +1,4 @@
-// [挂载自检 J-1/J-2·P0] 节气盘:jieqi_current 非盘页签真清槽;整年 charts 合并时按种子参数丢弃其它节气旧盘。
+// 节气盘:jieqi_current 非盘页签真清槽;整年 charts 合并时按种子参数丢弃其它节气旧盘。
 import { saveModuleAISnapshot, loadModuleAISnapshot, clearModuleAISnapshot } from '../moduleAiSnapshot';
 import { mergeJieQiCharts, isJieQiChartCompatible } from '../../components/jieqi/JieQiChartsMain';
 import fs from 'fs';

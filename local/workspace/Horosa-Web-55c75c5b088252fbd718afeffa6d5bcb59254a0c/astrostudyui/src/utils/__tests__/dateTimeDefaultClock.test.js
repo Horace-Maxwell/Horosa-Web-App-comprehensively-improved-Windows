@@ -1,4 +1,4 @@
-// [Q-141 裁决 2026-09-18] `new DateTime()` 缺省钟面 = 真实此刻换算到缺省时区(+08:00),不再把本机墙钟数字硬贴 +08:00。
+// `new DateTime()` 缺省钟面 = 真实此刻换算到缺省时区(+08:00),不再把本机墙钟数字硬贴 +08:00。
 //   修前:UTC-4 本机在 2026-09-18T03:30Z 得「2026-09-17 23:30 +08:00」(错 12 小时);修后得「2026-09-18 11:30 +08:00」。
 //   东八区本机与传入完整 opt 的构造逐字不变;nowInZone 与缺省钟面同口径。
 //   (jest 沙箱里 process.env.TZ 改不了 Node 的时区缓存,故期望值按固定瞬时 + 固定时区算术给出,与本机时区无关。)
@@ -8,7 +8,7 @@ import DateTime from '../../components/comp/DateTime';
 const INSTANT = '2026-09-18T03:30:00Z';   // = 2026-09-18 11:30 @ +08:00
 const fieldsOf = (d)=>[d.ad, d.zone, d.year, d.month, d.date, d.hour, d.minute, d.second];
 
-describe('[Q-141] DateTime 缺省钟面 = 真实此刻 @ +08:00', ()=>{
+describe('DateTime 缺省钟面 = 真实此刻 @ +08:00', ()=>{
 	beforeEach(()=>{ jest.useFakeTimers('modern'); jest.setSystemTime(new Date(INSTANT)); });
 	afterEach(()=>{ jest.useRealTimers(); });
 

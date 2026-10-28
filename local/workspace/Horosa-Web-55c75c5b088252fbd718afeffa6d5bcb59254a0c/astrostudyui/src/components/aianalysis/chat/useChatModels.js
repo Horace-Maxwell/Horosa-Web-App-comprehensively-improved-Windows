@@ -24,7 +24,7 @@ export function useChatModels(deps){
 		const r = routesRef.current;
 		const agentEnabled = !!(agent && agent.enabled);
 		const closing = agentEnabled && typeof agent.isClosing === 'function' ? agent.isClosing() : false;
-		const ro = readRouteOptions();   // [批二⑩] 按槽思考档:每轮直接读键(缺省不存在 = 零变化)
+		const ro = readRouteOptions();   // 按槽思考档:每轮直接读键(缺省不存在 = 零变化)
 		if(!hasAnyRoute(r) && !hasAnyRouteOption(ro)){
 			if(agentEnabled && typeof agent.setRoundModel === 'function'){ agent.setRoundModel(model); }
 			return { profile, model, providerOptions, routed: false, slot: roundSlot({ agentEnabled, closing }) };

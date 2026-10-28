@@ -9,6 +9,10 @@
 // test/threeJestStub.js 头注 —— .cjs 被 file transformer 当资产/ESM 构建带 ES2022
 // static class blocks 超出捆绑 babel 能力/全仓仅 astro3d 用 three 且 jsdom 永不实例化)。
 module.exports = {
+	// 无头模式的服务 / 终端命令合同(headless/test/*.test.js)是 node --test 用例(要 Node 自带的 fetch / AbortController 与真端口),
+	// 不是 jest 用例:默认匹配规则会把它捡进来、在 jest 里必红。由 ./horosa selftest 与发布自检用 node --test 跑。
+	// 函数形 = 在 umi-test 缺省忽略表(/node_modules/、/fixtures/)上追加,不覆盖。
+	testPathIgnorePatterns: (defaults)=>(Array.isArray(defaults) ? defaults : ['/node_modules/', '/fixtures/']).concat(['<rootDir>/headless/']),
 	moduleNameMapper: {
 		'^node:(.*)$': '$1',
 		'^three$': '<rootDir>/test/threeJestStub.js',

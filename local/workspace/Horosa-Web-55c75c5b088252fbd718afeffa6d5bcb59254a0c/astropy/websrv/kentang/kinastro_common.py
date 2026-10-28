@@ -2,9 +2,35 @@
 
 import os
 import sys
-from dataclasses import asdict, is_dataclass
-from datetime import date, datetime
-from numbers import Integral, Real
+
+import swisseph
+
+from astrostudy.civil_calendar import (  # noqa: F401  civil_ymd_valid / CivilDateTime 由各 kinastro 适配器经本模块导入
+    CivilDateTime,
+    astro_year,
+    civil_datetime,
+    civil_julday_display,
+    civil_revjul,
+    civil_ymd_valid,
+    display_year,
+    format_civil_date,
+)
+
+# 与适配层通用工具同一来源(本模块只自留依赖 display_text / 全域时间承载 / vendor 路径的那部分)。
+from websrv.horosa_engine_common import (  # noqa: F401  下列名字由各 kinastro 适配器经本模块导入
+    DISPLAY_REPLACEMENTS,
+    annotate_day_boundary,
+    day_boundary_of,
+    build_snapshot,
+    clean_text,
+    coord_to_float,
+    gender_cn,
+    json_safe,
+    parse_datetime_fields,
+    timezone_to_float,
+    to_float,
+    to_int,
+)
 
 try:
     from zhconv import convert as zh_convert
@@ -79,185 +105,6 @@ KINASTRO_SRC = os.path.join(WEB_ROOT_DIR, "vendor", "kinastro")
 def ensure_kinastro_path():
     if KINASTRO_SRC not in sys.path:
         sys.path.insert(0, KINASTRO_SRC)
-
-
-def to_int(value, default=0):
-    try:
-        if value is None or value == "":
-            return default
-        return int(value)
-    except Exception:
-        return default
-
-
-def to_float(value, default=0.0):
-    try:
-        if value is None or value == "":
-            return default
-        return float(value)
-    except Exception:
-        return default
-
-
-def clean_text(value, default=""):
-    if value is None:
-        return default
-    text = str(value).strip()
-    return text if text else default
-
-
-def json_safe(value):
-    if isinstance(value, (datetime, date)):
-        return value.isoformat()
-    if is_dataclass(value):
-        return json_safe(asdict(value))
-    if isinstance(value, dict):
-        return {clean_text(key): json_safe(val) for key, val in value.items()}
-    if isinstance(value, (list, tuple, set)):
-        return [json_safe(item) for item in value]
-    if isinstance(value, Integral) and not isinstance(value, bool):
-        return int(value)
-    if isinstance(value, Real) and not isinstance(value, bool):
-        return float(value)
-    if hasattr(value, "item"):
-        try:
-            return json_safe(value.item())
-        except Exception:
-            return clean_text(value)
-    return value
-
-
-DISPLAY_REPLACEMENTS = {
-    "萬": "万",
-    "數": "数",
-    "條": "条",
-    "鑰": "钥",
-    "體": "体",
-    "傳": "传",
-    "陰": "阴",
-    "陽": "阳",
-    "宮": "宫",
-    "時": "时",
-    "節": "节",
-    "曆": "历",
-    "歲": "岁",
-    "貴": "贵",
-    "賤": "贱",
-    "祿": "禄",
-    "權": "权",
-    "庫": "库",
-    "壽": "寿",
-    "屬": "属",
-    "點": "点",
-    "後": "后",
-    "運": "运",
-    "順": "顺",
-    "逆": "逆",
-    "極": "极",
-    "碼": "码",
-    "圖": "图",
-    "評": "评",
-    "斷": "断",
-    "靈": "灵",
-    "應": "应",
-    "對": "对",
-    "請": "请",
-    "異": "异",
-    "滿": "满",
-    "執": "执",
-    "開": "开",
-    "閉": "闭",
-    "張": "张",
-    "翌": "翼",
-    "軫": "轸",
-    "婁": "娄",
-    "畢": "毕",
-    "龍": "龙",
-    "馬": "马",
-    "雞": "鸡",
-    "豬": "猪",
-    "離": "离",
-    "虛": "虚",
-    "飛": "飞",
-    "啗": "啖",
-    "戰": "战",
-    "體": "体",
-    "兌": "兑",
-    "鐵": "铁",
-    "財": "财",
-    "遷": "迁",
-    "祿": "禄",
-    "雙": "双",
-    "總": "总",
-    "計": "计",
-    "親": "亲",
-    "姊": "姐",
-    "參": "参",
-    "來": "来",
-    "無": "无",
-    "鳥": "鸟",
-    "風": "风",
-    "黃": "黄",
-    "鵲": "鹊",
-    "聲": "声",
-    "書": "书",
-    "過": "过",
-    "機": "机",
-    "傷": "伤",
-    "種": "种",
-    "結": "结",
-    "發": "发",
-    "記": "记",
-    "講": "讲",
-    "間": "间",
-    "內": "内",
-    "尋": "寻",
-    "單": "单",
-    "榮": "荣",
-    "華": "华",
-    "興": "兴",
-    "緣": "缘",
-    "為": "为",
-    "鮮": "鲜",
-    "歸": "归",
-    "飄": "飘",
-    "別": "别",
-    "丟": "丢",
-    "喪": "丧",
-    "該": "该",
-    "讓": "让",
-    "選": "选",
-    "變": "变",
-    "關": "关",
-    "難": "难",
-    "羅": "罗",
-    "氣": "气",
-    "業": "业",
-    "強": "强",
-    "門": "门",
-    "澤": "泽",
-    "綿": "绵",
-    "職": "职",
-    "邊": "边",
-    "豐": "丰",
-    "凜": "凛",
-    "聖": "圣",
-    "學": "学",
-    "類": "类",
-    "婦": "妇",
-    "兒": "儿",
-    "樂": "乐",
-    "罷": "罢",
-    "鄉": "乡",
-    "輩": "辈",
-    "顯": "显",
-    "賢": "贤",
-    "國": "国",
-    "紅": "红",
-    "綠": "绿",
-    "廟": "庙",
-    "剋": "克",
-}
 
 
 # horosa_display_trans_v1:DISPLAY_REPLACEMENTS
@@ -344,65 +191,71 @@ def row(label, value, extra=None):
     return item
 
 
-class ExtremeDateTime:
-    """全年份域轻量时间承载(stdlib datetime 域限 1~9999;BC/万年后用本类)。
-
-    只承诺 kinastro 系 srv 实际消费面:year/month/day/hour/minute/second 属性 +
-    strftime(%Y/%m/%d/%H/%M/%S,%Y 带符号原样)。域内仍返 stdlib datetime,行为零变。
-    """
-
-    def __init__(self, year, month, day, hour=0, minute=0, second=0):
-        self.year = year
-        self.month = month
-        self.day = day
-        self.hour = hour
-        self.minute = minute
-        self.second = second
-
-    def strftime(self, fmt):
-        out = fmt.replace("%Y", str(self.year))
-        out = out.replace("%m", "%02d" % self.month).replace("%d", "%02d" % self.day)
-        out = out.replace("%H", "%02d" % self.hour).replace("%M", "%02d" % self.minute)
-        return out.replace("%S", "%02d" % self.second)
+# 全年份域时刻承载 = astrostudy.civil_calendar.CivilDateTime(单一来源;旧名保留给既有导入方)。
+ExtremeDateTime = CivilDateTime
 
 
 def parse_datetime(data):
-    date_text = clean_text(data.get("date")).replace("/", "-")
-    time_text = clean_text(data.get("time"))
-    if date_text:
-        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
-            try:
-                source = f"{date_text} {time_text}".strip() if "%H" in fmt else date_text
-                return datetime.strptime(source, fmt)
-            except Exception:
-                pass
-    year = to_int(data.get("year"), 2025)
-    month = max(1, min(12, to_int(data.get("month"), 1)))
-    day = max(1, min(31, to_int(data.get("day"), 1)))
-    hour = max(0, min(23, to_int(data.get("hour"), 0)))
-    minute = max(0, min(59, to_int(data.get("minute"), 0)))
-    second = max(0, min(59, to_int(data.get("second"), 0)))
-    if year < 1 or year > 9999:
-        # BC/万年后:stdlib datetime 越域,轻量承载(带符号年直传引擎;strftime 面已覆盖)
-        return ExtremeDateTime(year, month, day, hour, minute, second)
+    """与卜类后端同一入口:解析 = horosa_engine_common.parse_datetime_fields(公元前 '-Y-MM-DD'、ad=-1、1~5 位年;
+    缺日期报错,不回落写死年份);承载 = civil_calendar.civil_datetime(1582-10-15 ~ 9999 年 stdlib datetime,
+    其余 CivilDateTime;不存在的日期报错,绝不改成当月 1 日)。"""
+    year, month, day, hour, minute, second = parse_datetime_fields(data)
+    return civil_datetime(year, month, day, hour, minute, second)
+
+
+# ── vendor 引擎的历法换算(单一入口)──────────────────────────────────────────────
+# 部分 vendor 引擎(如七政)拿到年月日后自己调 swe.julday,不带历法参数 = 恒按外推格里历 + 天文年读;
+# 而用户日期按全站口径是民用历(1582-10-15 以前儒略历、历史纪年)。原样交进去,1582 年以前差 10 天起。
+# 适配层喂这类引擎前一律经 vendor_greg_ymd 换成「同一天的格里历年月日」(vendor 源码不动、可整包替换);
+# 引擎回写的日期(格里历)经 vendor_civil_ymd / vendor_civil_date 换回民用历再显示。
+# 1582-10-15 以后两者都是恒等(同一组整数),结果逐位不变。静态守卫:tests/test_civil_calendar_guard.py。
+
+def vendor_greg_ymd(year, month, day, add_days=0):
+    """民用日期(历史纪年)+ 偏移天数 → 同一天的外推格里历 (天文年, 月, 日),交给按格里历读日期的 vendor 引擎。"""
+    jd0 = civil_julday_display(year, month, day, 0.0) + int(add_days)
+    gy, gm, gd, _h = swisseph.revjul(jd0, swisseph.GREG_CAL)
+    return int(gy), int(gm), int(gd)
+
+
+def vendor_civil_ymd(greg_year, greg_month, greg_day):
+    """vendor 引擎回写的外推格里历 (天文年, 月, 日) → 民用 (历史纪年, 月, 日)。"""
+    jd_noon = swisseph.julday(int(greg_year), int(greg_month), int(greg_day), 12.0, swisseph.GREG_CAL)
+    y, m, d, _h = civil_revjul(jd_noon)
+    return display_year(y), int(m), int(d)
+
+
+def vendor_civil_date(text):
+    """vendor 引擎回写的格里历日期串('1500-01-10' / '-299-07-05',天文年)→ 民用日期串(与 format_civil_date 同形)。
+    读不出的原样返回。"""
+    raw = clean_text(text)
+    if not raw:
+        return text
+    head = raw.split(" ")[0]
+    neg = head.startswith("-")
+    parts = head.lstrip("-").split("-")
     try:
-        dt = datetime(year, month, day, hour, minute, second)
-    except ValueError:
-        dt = datetime(year, month, 1, hour, minute, second)
-    return dt
-
-
-def gender_cn(value, default="男"):
-    text = clean_text(value)
-    if text in ("0", "2", "女", "female", "F", "f"):
-        return "女"
-    if text in ("1", "男", "male", "M", "m"):
-        return "男"
-    return default
+        gy, gm, gd = int(parts[0]), int(parts[1]), int(parts[2])
+    except Exception:
+        return text
+    y, m, d = vendor_civil_ymd(-gy if neg else gy, gm, gd)
+    out = format_civil_date(astro_year(y), m, d)
+    return out + raw[len(head):]
 
 
 def gender_mf(value, default="M"):
     return "F" if gender_cn(value, "男") == "女" else "M"
+
+
+GANZHI_STEMS = "甲乙丙丁戊己庚辛壬癸"
+GANZHI_BRANCHES = "子丑寅卯辰巳午未申酉戌亥"
+
+
+def normalize_ganzhi(value, fallback):
+    """两字干支(天干 + 地支)原样返回,其余一律回 fallback。"""
+    text = clean_text(value)
+    if len(text) == 2 and text[0] in GANZHI_STEMS and text[1] in GANZHI_BRANCHES:
+        return text
+    return fallback
 
 
 def authoritative_pillars(dt, data=None):
@@ -415,9 +268,10 @@ def authoritative_pillars(dt, data=None):
 
     日界(23 点是否进次日)与晚子时(时干取次日)语义随参数透传,不因换权威而丢失;
     月柱要用真太阳黄经定气,故时区也一并传入。取不到权威实现时返回 None ——
-    由调用方保留各自旧值,不让整张盘失败。
+    由调用方保留各自旧值,不让整张盘失败 —— 调用方须把「未取到权威四柱」记进回包 partialErrors(不静默顶替)。
     """
     d = data or {}
+    db = day_boundary_of(d)   # 日界单源:缺键按出厂缺省,并由调用方经 annotate_day_boundary 写进回包
     try:
         from kin_year_domain import extreme_pillars
     except Exception:
@@ -425,8 +279,8 @@ def authoritative_pillars(dt, data=None):
     try:
         y, m, dd, h, _zi = extreme_pillars(
             dt.year, dt.month, dt.day, dt.hour, getattr(dt, "minute", 0) or 0,
-            after23=to_int(d.get("after23NewDay"), 1),
-            hour_gan_next=to_int(d.get("lateZiHourUseNextDay"), 1),
+            after23=db["after23NewDay"],
+            hour_gan_next=db["lateZiHourUseNextDay"],
             zone_hours=timezone_to_float(d.get("zone"), 8.0),
         )
     except Exception:
@@ -434,47 +288,6 @@ def authoritative_pillars(dt, data=None):
     if not (y and m and dd and h):
         return None
     return {"year": y, "month": m, "day": dd, "hour": h}
-
-
-def timezone_to_float(value, default=8.0):
-    text = clean_text(value)
-    if not text:
-        return default
-    try:
-        return float(text)
-    except Exception:
-        pass
-    text = text.upper().replace("UTC", "").replace("GMT", "").strip()
-    if not text:
-        return default
-    sign = -1 if text.startswith("-") else 1
-    text = text.lstrip("+-")
-    if ":" in text:
-        h, m = text.split(":", 1)
-        return sign * (to_float(h, default) + to_float(m, 0) / 60.0)
-    return sign * to_float(text, default)
-
-
-def coord_to_float(value, default=0.0):
-    text = clean_text(value)
-    if not text:
-        return default
-    lower = text.lower()
-    if not any(mark in lower for mark in ("e", "w", "n", "s", "°", "'", '"')):
-        try:
-            return float(text)
-        except Exception:
-            pass
-    sign = -1 if ("w" in lower or "s" in lower or lower.startswith("-")) else 1
-    for mark in ("e", "w", "n", "s", "°", "d"):
-        lower = lower.replace(mark, " ")
-    parts = [p for p in lower.replace("'", " ").replace('"', " ").split() if p]
-    if not parts:
-        return default
-    deg = abs(to_float(parts[0], default))
-    minute = abs(to_float(parts[1], 0.0)) if len(parts) > 1 else 0.0
-    second = abs(to_float(parts[2], 0.0)) if len(parts) > 2 else 0.0
-    return sign * (deg + minute / 60.0 + second / 3600.0)
 
 
 def read_vendor_text(filename, fallback=""):
@@ -508,13 +321,3 @@ def kinastro_source_sections(system_name, description):
             },
         ],
     }
-
-
-def build_snapshot(pan):
-    lines = []
-    for section in pan.get("sections", []):
-        lines.append(f"[{section.get('title', '')}]")
-        for item in section.get("rows", []):
-            lines.append(f"{item.get('label')}：{item.get('value')}")
-        lines.append("")
-    return "\n".join(lines).strip()

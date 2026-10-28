@@ -83,7 +83,7 @@ test('① src 代码里无裸 vh/vw(var(--horosa-lv?, 1v?) 回落值除外;注�
 		while((m = TOKEN.exec(text))){
 			if(mask[m.index]){ continue; }
 			const ctx = text.slice(Math.max(0, m.index - 24), m.index + m[0].length + 1);
-			if(/var\(--horosa-lv[wh], 1v[wh]\)/.test(ctx)){ continue; }
+			if(/var\(--horosa-lv[wh](?:-raw)?, 1v[wh]\)/.test(ctx)){ continue; }
 			offenders.push(`${path.relative(UI_ROOT, p)}:${lineOf(text, m.index)}: ${m[0]}`);
 		}
 	}

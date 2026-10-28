@@ -29,8 +29,12 @@ import { clearStore, AI_ANALYSIS_STORES } from '../aiAnalysisStore';
 jest.mock('../aiAnalysisDesktop', ()=>({
 	...jest.requireActual('../aiAnalysisDesktop'),
 	isDesktopBridgeAvailable: ()=>true,
-	desktopMcpServerStatus: jest.fn(async ()=>({ available: true, running: true, enabled: true, url: 'http://127.0.0.1:39991/mcp', port: 39991, endpointFile: '/tmp/horosa-mcp-endpoint.json', binaryPath: '/Applications/X.app/Contents/MacOS/X' })),
+	desktopMcpServerStatus: jest.fn(async ()=>({ available: true, running: true, enabled: true, url: 'http://127.0.0.1:39991/mcp', port: 39991, endpointFile: '/tmp/horosa-mcp-endpoint.json', binaryPath: '/Applications/X.app/Contents/MacOS/X', restEnabled: true, restUrl: 'http://127.0.0.1:39991/api/v1' })),
 	desktopMcpServerSetEnabled: jest.fn(async ()=>({ available: true })),
+	desktopMcpServerSetRestEnabled: jest.fn(async ()=>({ available: true })),
+	desktopCliShimStatus: jest.fn(async ()=>({ available: true, path: '/Users/x/.local/bin/horosa', installed: false, current: false, foreign: false, binaryPath: '/Applications/X.app/Contents/MacOS/X' })),
+	desktopCliShimInstall: jest.fn(async ()=>({ available: true })),
+	desktopCliShimRemove: jest.fn(async ()=>({ available: true })),
 	desktopMcpServerRotateToken: jest.fn(async ()=>({ available: true })),
 	desktopMcpServerRevealToken: jest.fn(async ()=>({ available: true, token: 't' })),
 	desktopNotifyHookStatus: jest.fn(async ()=>({ available: true, enabled: true, valid: true, path: '/Users/x/bin/notify.sh' })),

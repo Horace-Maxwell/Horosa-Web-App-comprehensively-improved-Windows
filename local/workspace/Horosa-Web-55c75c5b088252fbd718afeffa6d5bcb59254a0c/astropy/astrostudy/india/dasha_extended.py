@@ -30,6 +30,7 @@ from flatlib import const
 from astrostudy.nakshatra import NAKSHATRAS  # 27 宿(名, 中文, 宿主)
 from astrostudy.india.primitives import (
     SIGNS, SIGN_INDEX, ODD_SIGNS, index_of, sign_at, offset_sign, quality,
+    SIGN_CN as _SIGN_LABEL,
 )
 from astrostudy.india.rasi_dasha import (
     SIGN_LORDS, _stronger_lord, is_exalted_in, is_debilitated_in,
@@ -555,13 +556,6 @@ def _chara_antardashas(dasa_sign, direction, planet_signs, planet_lons=None,
             'lord': _chara_lord(s, planet_signs, planet_lons),
         })
     return out
-
-
-_SIGN_LABEL = {
-    const.ARIES: '白羊', const.TAURUS: '金牛', const.GEMINI: '双子', const.CANCER: '巨蟹',
-    const.LEO: '狮子', const.VIRGO: '处女', const.LIBRA: '天秤', const.SCORPIO: '天蝎',
-    const.SAGITTARIUS: '射手', const.CAPRICORN: '摩羯', const.AQUARIUS: '水瓶', const.PISCES: '双鱼',
-}
 
 
 # 奇足(Visama-pada)/偶足(Sama-pada)集(权威口径:奇足 = 白羊·金牛·双子·天秤·天蝎·人马)。

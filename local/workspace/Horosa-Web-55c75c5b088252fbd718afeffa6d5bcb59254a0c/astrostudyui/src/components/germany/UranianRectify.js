@@ -60,7 +60,7 @@ export default class UranianRectify extends Component {
 		const glyphOf = this.props.glyphOf || ((id) => <span>{id}</span>);
 		const base = this.props.base || 90;
 		const orb = this.props.orb || 1;
-		const rate = SA_RATE[this.props.saKey] || SA_RATE.naibod;   // [Q-147/T-54] 三档(含 Cardan)同 SA_RATE 单源
+		const rate = SA_RATE[this.props.saKey] || SA_RATE.naibod;   // 三档(含 Cardan)同 SA_RATE 单源
 		const natalPts = Array.isArray(this.props.natalPts) ? this.props.natalPts : [];
 		// 本命 MC/Asc(Asc 叠加微调);缺角则该轴不参与。
 		const mc = Number.isFinite(Number(this.props.mc)) ? Number(this.props.mc) : null;
@@ -104,7 +104,7 @@ export default class UranianRectify extends Component {
 			<div>
 				<div style={{ fontSize: 11, ...soft, marginBottom: 8, lineHeight: 1.7 }}>
 					录入已知人生事件 → 推进 MC/Asc 看是否触动本命因子(只预览，不改盘)。
-					换算：1°MC≈4 分；1°弧≈1 年（{({ oneDeg: '1°/年', cardan: 'Cardan', naibod: 'Naibod' })[this.props.saKey] || 'Naibod'}）。
+					换算：1°MC≈4 分；1°弧≈1 年（{({ oneDeg: '1°/年', cardan: '59′12″', naibod: '均日弧' })[this.props.saKey] || '均日弧'}）。
 				</div>
 
 				{events.length === 0

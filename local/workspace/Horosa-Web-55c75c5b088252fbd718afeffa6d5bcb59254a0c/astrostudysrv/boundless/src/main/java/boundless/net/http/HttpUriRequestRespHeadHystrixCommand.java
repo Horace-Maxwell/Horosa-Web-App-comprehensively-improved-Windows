@@ -60,7 +60,7 @@ public class HttpUriRequestRespHeadHystrixCommand extends HystrixCommand<Map<Str
 	public static Map<String, String> doCmd(String user, String password, HttpUriRequest request,
 			Map<String, String> headers, String contenttype, int timeoutMS){
 		try{
-			RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(HttpClientUtility.getHttpHost()).build();
+			RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeoutMS).setSocketTimeout(timeoutMS).setProxy(HttpClientUtility.getHttpHostFor(request.getURI())).build();
 			HttpClientBuilder builder = null;
 			if(BraveHelper.existZipkin()){
 				builder = BraveHelper.getHttpClientBuilder(request.getURI().toString());
@@ -105,7 +105,7 @@ public class HttpUriRequestRespHeadHystrixCommand extends HystrixCommand<Map<Str
 
 				return map;
 			}catch(Exception e){
-				HttpClientUtility.log.error("请求{}失败, cause:{}", request.getURI().toString(), e.getMessage());
+				HttpClientUtility.log.error("请求{}失败, cause:{}", boundless.utility.SecretRedactor.redactText(request.getURI().toString()), boundless.utility.SecretRedactor.redactText(e.getMessage()));
 				throw e;
 			}finally{
 				try{

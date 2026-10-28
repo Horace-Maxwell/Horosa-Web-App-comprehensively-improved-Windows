@@ -1,7 +1,7 @@
 // 输入框命令面板(A3):输入框第一个字符打 `/` 弹出命令菜单;↑↓ 选、Enter/Tab 用、Esc 关;中文输入法组合期间(isComposing)不拦任何键。
 // 实现:挂在 composer 气泡内,从 wrapper.parentElement 找到 textarea,以 **capture** 阶段原生 keydown 拦截(先于 antd 的 onPressEnter);
 // 菜单关着时:输入本身是完整命令且按 Enter → 交给 onRun(不发送);其它一律不拦(页面行为与缺席本组件时相同)。
-// [2026-09-11 补完] 两个菜单都按组渲染分组小标题(命令:盘面与分析/会话/模型与协作/技能;@:命盘/事盘/资料/组合/模板/技法/技法段),
+// 两个菜单都按组渲染分组小标题(命令:盘面与分析/会话/模型与协作/技能;@:命盘/事盘/资料/组合/模板/技法/技法段),
 // 尾部脚注给出条数与键位提示;不可用项(缺前提/开关未开/技法不适用当前案例)灰显并写明原因;键盘导航仍走扁平 list(首项不变)。
 import React from 'react';
 import { parseSlashInput, groupCommandItems } from '../../../utils/aiChat/commands';
@@ -21,10 +21,10 @@ function groupBy(list, keyOf){
 	return Array.from(by.entries()).sort((a, b)=>(a[1].rank - b[1].rank) || (a[1].first - b[1].first)).map(([group, e])=>({ group, rows: e.rows }));
 }
 
-export default function ComposerAssist({ prompt, setPrompt, items, onRun, mentionItems, enabled = true, canSteer = false, onSteer }){
+export default function ComposerAssist({ prompt, setPrompt, items, onRun, mentionItems, argItems, enabled = true, canSteer = false, onSteer }){
 	const wrapRef = React.useRef(null);
 	const [active, setActive] = React.useState(0);
-	// [A4] @引用:跟踪光标,光标处是 @查询 → 弹候选(与 / 菜单互斥:/ 菜单优先)
+	// @引用:跟踪光标,光标处是 @查询 → 弹候选(与 / 菜单互斥:/ 菜单优先)
 	const [caret, setCaret] = React.useState(0);
 	const pendingCaretRef = React.useRef(null);
 	const text = `${prompt || ''}`;
@@ -37,19 +37,23 @@ export default function ComposerAssist({ prompt, setPrompt, items, onRun, mentio
 	const mentionList = Array.isArray(mentionRaw) ? mentionRaw : (Array.isArray(mentionRaw.items) ? mentionRaw.items : []);
 	const mentionMeta = Array.isArray(mentionRaw) ? { hiddenCount: 0, total: mentionRaw.length, bestIndex: 0 } : { hiddenCount: mentionRaw.hiddenCount || 0, total: mentionRaw.total || mentionList.length, bestIndex: Number.isFinite(mentionRaw.bestIndex) ? mentionRaw.bestIndex : 0 };
 	const mentionOpen = !!(mq && mentionList.length);
-	const list = menuOpen ? items : (mentionOpen ? mentionList : []);
+	// 参数补全:命令名后打了空格、光标在末尾、不在 @ 查询里 → 按命令的参数类型出候选(Esc 关掉后同一段文字不再弹)
+	const [argDismissed, setArgDismissed] = React.useState(null);
+	const argRaw = enabled && !menuOpen && !mentionOpen && parsed && caret >= text.length && typeof argItems === 'function' ? argItems(text) : null;
+	const argOpen = !!(argRaw && argRaw.items && argRaw.items.length && argDismissed !== text);
+	const list = menuOpen ? items : (mentionOpen ? mentionList : (argOpen ? argRaw.items : []));
 	const stateRef = React.useRef({});
-	stateRef.current = { menuOpen, mentionOpen, mq, list, active, parsed, prompt, setPrompt, onRun };
+	stateRef.current = { menuOpen, mentionOpen, argOpen, argRaw, mq, list, active, parsed, prompt, setPrompt, onRun };
 
 	// 默认高亮:@ 菜单带关键字时落在最佳命中(mentions.bestIndex;组序只管视觉分组),/ 菜单与空关键字落首项
 	const initialActive = mentionOpen && mentionMeta.bestIndex > 0 && mentionMeta.bestIndex < list.length ? mentionMeta.bestIndex : 0;
-	React.useEffect(()=>{ setActive(initialActive); }, [menuOpen, mentionOpen, list.length, mq && mq.query, initialActive]);
+	React.useEffect(()=>{ setActive(initialActive); }, [menuOpen, mentionOpen, argOpen, list.length, mq && mq.query, initialActive]);
 	// 高亮项随键盘滚入视野(分组列表可能超出 maxHeight;行上 scrollMarginTop 留出粘性组头的高度,↑ 到组首行不被组头盖住)
 	React.useEffect(()=>{
 		const wrap = wrapRef.current; if(!wrap){ return; }
 		const el = wrap.querySelector('[role="option"][aria-selected="true"]');
 		if(el && typeof el.scrollIntoView === 'function'){ try{ el.scrollIntoView({ block: 'nearest' }); }catch(e){ /* noop */ } }
-	}, [active, menuOpen, mentionOpen]);
+	}, [active, menuOpen, mentionOpen, argOpen]);
 	// 选中候选后把光标放到标记之后(受控 TextArea 重渲后)
 	React.useEffect(()=>{
 		if(pendingCaretRef.current == null){ return; }
@@ -95,6 +99,18 @@ export default function ComposerAssist({ prompt, setPrompt, items, onRun, mentio
 				}
 				return;
 			}
+			if(st.argOpen){
+				if(e.key === 'ArrowDown'){ e.preventDefault(); e.stopPropagation(); setActive((a)=>(a + 1) % st.list.length); return; }
+				if(e.key === 'ArrowUp'){ e.preventDefault(); e.stopPropagation(); setActive((a)=>(a - 1 + st.list.length) % st.list.length); return; }
+				if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); setArgDismissed(st.prompt); return; }
+				if((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey){
+					const it = st.list[st.active] || st.list[0];
+					const next = it ? `${st.argRaw.prefix}${it.value}` : '';
+					// 高亮候选与已打的参数不同 → 填进去(不执行);相同 = 参数已就绪,Enter 落到下面执行、Tab 什么都不做
+					if(it && next !== `${st.prompt}`.replace(/\s+$/, '')){ e.preventDefault(); e.stopPropagation(); st.setPrompt(next); return; }
+					if(e.key === 'Tab'){ e.preventDefault(); e.stopPropagation(); return; }
+				}
+			}
 			if(st.parsed && e.key === 'Enter' && !e.shiftKey){
 				e.preventDefault(); e.stopPropagation();
 				if(typeof st.onRun === 'function'){ st.onRun(st.prompt); }
@@ -104,11 +120,11 @@ export default function ComposerAssist({ prompt, setPrompt, items, onRun, mentio
 		return ()=>{ ta.removeEventListener('keydown', onKey, true); ta.removeEventListener('keyup', syncCaret); ta.removeEventListener('click', syncCaret); ta.removeEventListener('input', syncCaret); };
 	}, []);
 
-	// [批二⑤] 插话芯片:生成中(行动能力开)且输入框有字 → 显示「插话 ↵」;点击=排队到下一轮工具回合(回车同效)
+	// 插话芯片:生成中(行动能力开)且输入框有字 → 显示「插话 ↵」;点击=排队到下一轮工具回合(回车同效)
 	const steerChip = canSteer ? (
 		<div data-composer-steer-wrap="1" style={{ position: 'absolute', right: 8, bottom: 4, zIndex: 21 }}>
 			<button type="button" data-composer-steer="1" onMouseDown={(e)=>{ e.preventDefault(); }} onClick={()=>{ if(typeof onSteer === 'function'){ onSteer(); } }}
-				style={{ fontSize: 12, lineHeight: '20px', padding: '0 8px', borderRadius: 10, border: '1px solid var(--horosa-border, #e5e7eb)', background: 'var(--horosa-primary-soft, rgba(24,144,255,0.12))', color: 'inherit', cursor: 'pointer' }}
+				style={{ fontSize: 12, lineHeight: '20px', padding: '0 8px', borderRadius: 10, border: '1px solid var(--horosa-border, #e5e7eb)', background: 'var(--horosa-accent-soft, rgba(24,144,255,0.12))', color: 'inherit', cursor: 'pointer' }}
 				title="生成中:把这句话排到 AI 下一轮工具回合(回车同效)">插话 ↵</button>
 		</div>
 	) : null;
@@ -125,7 +141,7 @@ export default function ComposerAssist({ prompt, setPrompt, items, onRun, mentio
 								<div key={`${it.kind}:${it.id}`} role="option" aria-selected={i === active} data-mention-item={it.id} data-mention-kind={it.kind} data-available={it.available === false ? '0' : '1'}
 									title={it.available === false && it.why ? it.why : undefined}
 									onMouseDown={(e)=>{ e.preventDefault(); const st = stateRef.current; const r = insertMentionAtCaret(st.prompt, st.mq.start, caret, candidateToken(it)); pendingCaretRef.current = r.caret; setPrompt(r.text); }}
-									style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '5px 8px', borderRadius: 6, cursor: 'pointer', scrollMarginTop: 26, background: i === active ? 'var(--horosa-primary-soft, rgba(24,144,255,0.12))' : 'transparent', opacity: it.available === false ? 0.55 : 1 }}>
+									style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '5px 8px', borderRadius: 6, cursor: 'pointer', scrollMarginTop: 26, background: i === active ? 'var(--horosa-accent-soft, rgba(24,144,255,0.12))' : 'transparent', opacity: it.available === false ? 0.55 : 1 }}>
 									<span style={{ flex: '1 1 auto' }}>{it.label}</span>
 									{it.available === false && it.why ? <span style={{ fontSize: 11, color: 'var(--horosa-text-soft, #8a8f99)' }}>{it.why}</span> : null}
 									{it.key && it.kind === 'technique' ? <span style={{ fontSize: 11, fontFamily: 'ui-monospace, Menlo, monospace', color: 'var(--horosa-text-soft, #8a8f99)' }}>{it.key}</span> : null}
@@ -136,6 +152,25 @@ export default function ComposerAssist({ prompt, setPrompt, items, onRun, mentio
 					<div data-mention-foot="1" style={FOOT_STYLE}>
 						{`共 ${mentionMeta.total || list.length} 项`}{mentionMeta.hiddenCount ? (mq && mq.query ? `,还有 ${mentionMeta.hiddenCount} 条未显示,再多打几个字筛选` : `,命盘 / 资料等还有 ${mentionMeta.hiddenCount} 条未显示,输入名字筛选`) : ''}{list.some((it)=>it.kind === 'technique') ? (mq && mq.query ? ' · 技法可搜中文 / 英文键 / 拼音首字母;`@技法名/` 列它的内容段' : ' · 技法已全部列出(中文 / 英文键 / 拼音首字母都可搜;`@技法名/` 列它的内容段)') : ''}{unavailable ? ' · 灰色 = 当前案例不适用' : ''}{' · ↑↓ 选 · Enter 插入 · Esc 关'}
 					</div>
+				</div>
+			</div>
+		);
+	}
+	if(argOpen){
+		const cmdName = argRaw.cmd ? argRaw.cmd.name : '';
+		return (
+			<div ref={wrapRef} data-composer-assist="args" style={HOST_STYLE}>
+				{steerChip}
+				<div role="listbox" data-command-arg-count={list.length} data-command-arg-of={cmdName} style={LIST_STYLE}>
+					{list.map((it, i)=>(
+						<div key={`${i}:${it.value}`} role="option" aria-selected={i === active} data-command-arg={it.value}
+							onMouseDown={(e)=>{ e.preventDefault(); setActive(i); setPrompt(`${argRaw.prefix}${it.value}`); }}
+							style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '5px 8px', borderRadius: 6, cursor: 'pointer', background: i === active ? 'var(--horosa-accent-soft, rgba(24,144,255,0.12))' : 'transparent' }}>
+							<span style={{ flex: '1 1 auto' }}>{it.label}</span>
+							{it.hint ? <span style={{ fontSize: 11, color: 'var(--horosa-text-soft, #8a8f99)' }}>{it.hint}</span> : null}
+						</div>
+					))}
+					<div data-command-arg-foot="1" style={FOOT_STYLE}>{`/${cmdName} 的参数 · ↑↓ 选 · Enter / Tab 填入(已填好再按 Enter 执行)· Esc 关`}</div>
 				</div>
 			</div>
 		);
@@ -155,7 +190,7 @@ export default function ComposerAssist({ prompt, setPrompt, items, onRun, mentio
 						{g.rows.map(({ it, i })=>(
 							<div key={`${it.kind}:${it.name}`} role="option" aria-selected={i === active} data-command-item={it.name} data-available={it.available ? '1' : '0'}
 								onMouseDown={(e)=>{ e.preventDefault(); setActive(i); if(it.argsHint){ setPrompt(`/${it.name} `); } else if(typeof onRun === 'function'){ onRun(`/${it.name}`); } }}
-								style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '5px 8px', borderRadius: 6, cursor: 'pointer', scrollMarginTop: 26, background: i === active ? 'var(--horosa-primary-soft, rgba(24,144,255,0.12))' : 'transparent', opacity: it.available ? 1 : 0.55 }}>
+								style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '5px 8px', borderRadius: 6, cursor: 'pointer', scrollMarginTop: 26, background: i === active ? 'var(--horosa-accent-soft, rgba(24,144,255,0.12))' : 'transparent', opacity: it.available ? 1 : 0.55 }}>
 								<span style={{ fontFamily: 'ui-monospace, Menlo, monospace', minWidth: 96 }}>/{it.name}{it.argsHint ? ` ${it.argsHint}` : ''}</span>
 								<span style={{ flex: '1 1 auto', color: 'var(--horosa-text-soft, #8a8f99)' }}>{it.help}{it.available ? '' : ` · ${it.why}`}</span>
 								{it.kind === 'skill' ? <span style={{ fontSize: 11, color: 'var(--horosa-text-soft, #8a8f99)' }}>技能</span> : null}

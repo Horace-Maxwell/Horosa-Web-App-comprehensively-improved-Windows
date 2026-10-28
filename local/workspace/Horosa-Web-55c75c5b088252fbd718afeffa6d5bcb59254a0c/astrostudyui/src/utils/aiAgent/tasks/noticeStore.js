@@ -1,8 +1,8 @@
 // AI 助手·通知中心(P1):任务完成/失败/需要你 等事件落 IndexedDB agent_notices(封顶 500,旧的先删);
 // 桌面横幅只在 localStorage['horosa.notify.desktop']==='1' 且桌面桥可用时经壳命令弹出。
-// [压测二轮·N1] 页面侧先自己限流:桌面横幅令牌桶 DESKTOP_BANNER_PER_MINUTE/分钟 + 同文 DESKTOP_BANNER_DEDUPE_MS 去重
+// 页面侧先自己限流:桌面横幅令牌桶 DESKTOP_BANNER_PER_MINUTE/分钟 + 同文 DESKTOP_BANNER_DEDUPE_MS 去重
 //   (壳侧再限流只是第二道;它管不到 IDB 落库量,也管不到用户看到的 100 个横幅动画)。限的是横幅,通知本身照常全部落库。
-// [压测二轮·K4] listNotices 走 createdAt 索引游标(倒序取 limit 条),不再整表 getAll + 全量归一 + 全表排序。
+// listNotices 走 createdAt 索引游标(倒序取 limit 条),不再整表 getAll + 全量归一 + 全表排序。
 import { reportBackgroundFailure } from '../bgSink';
 import { AI_ANALYSIS_STORES, putStoreRecord, listStoreRecordsByIndexCursor, deleteStoreRecord } from '../../aiAnalysisStore';
 import { isDesktopBridgeAvailable, desktopShowNotification } from '../../aiAnalysisDesktop';

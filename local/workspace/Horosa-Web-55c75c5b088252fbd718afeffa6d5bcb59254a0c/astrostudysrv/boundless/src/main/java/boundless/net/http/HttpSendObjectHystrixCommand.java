@@ -56,7 +56,7 @@ public class HttpSendObjectHystrixCommand extends HystrixCommand<HttpResult>{
 		try{
 			URL address = new URL(url);
 			HttpURLConnection connection;
-			Proxy proxy = HttpClientUtility.getProxy();
+			Proxy proxy = HttpClientUtility.getProxyFor(url);
 			if(proxy != null) {
 				connection = (HttpURLConnection) address.openConnection(proxy);
 			}else {

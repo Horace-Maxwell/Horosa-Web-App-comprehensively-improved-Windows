@@ -1,4 +1,4 @@
-// [进阶审计 D1] 短调用消费方的单源 providerOptionsForSlot:槽空 = 今日字节(applyThinkingLevel({...providerOptions}, 'off'));
+// 短调用消费方的单源 providerOptionsForSlot:槽空 = 今日字节(applyThinkingLevel({...providerOptions}, 'off'));
 // 设了槽档/槽参才施加;推理模型不发温度、reasoning_effort 仅 OpenAI 家族;缺 profile/model 原样返回不抛。
 import { providerOptionsForSlot, providerOptionsForRoute, writeRouteOptions, clearRouteOptions, readRouteOptions, ROUTE_SLOTS } from '../aiModelRouting';
 import { applyThinkingLevel } from '../aiAnalysisProviders';
@@ -47,7 +47,7 @@ it('推理模型:温度省略、reasoning_effort 仅 OpenAI 家族;输出上限�
 	const o = providerOptionsForSlot('planner', pOpenai, 'o3-mini', { applyThinkingLevel });
 	expect(o.temperature).toBeUndefined();
 	expect(o.reasoning_effort).toBe('high');
-	// [D7] o 系不收 max_tokens(400 unsupported_parameter):槽上限必须落 max_completion_tokens
+	// o 系不收 max_tokens(400 unsupported_parameter):槽上限必须落 max_completion_tokens
 	expect(o.max_completion_tokens).toBe(999);
 	expect(o.max_tokens).toBeUndefined();
 	const a = providerOptionsForSlot('planner', pAnthropic, 'claude-x', { applyThinkingLevel });
@@ -66,9 +66,9 @@ it('缺 profile/model ⇒ 原样返回不抛;显式 routeOptions 优先于存储
 	expect(noFn.top_p).toBe(0.9);
 });
 
-// [进阶审计 D7] 输出上限键按「协议家族 × 模型代际」单源:此前一律写 max_tokens → 聊天路径为推理模型预注入的
+// 输出上限键按「协议家族 × 模型代际」单源:此前一律写 max_tokens → 聊天路径为推理模型预注入的
 // max_completion_tokens(兜底 10096)压过槽值,路由表「输出上限」对 o 系 / gemini / ollama 从未生效(端到端用例 S105 实抓)。
-it('🔴 [D7] 槽上限写家族正确键并清掉其它输出键:o 系底带 max_completion_tokens 兜底 → 槽 999 覆盖之;gemini → maxOutputTokens;ollama → num_predict;anthropic/普通 openai → max_tokens', ()=>{
+it('🔴 槽上限写家族正确键并清掉其它输出键:o 系底带 max_completion_tokens 兜底 → 槽 999 覆盖之;gemini → maxOutputTokens;ollama → num_predict;anthropic/普通 openai → max_tokens', ()=>{
 	writeRouteOptions({ toolRounds: { maxTokens: 999 } });
 	const base = { top_p: 0.9, max_completion_tokens: 10096 };   // 聊天路径对推理模型的兜底注入(effectiveMaxTokensForModel(model, 4096))
 	const o = providerOptionsForRoute({ profile: pOpenai, model: 'o3-mini', routed: false, slot: 'toolRounds' }, base, { profile: pOpenai, model: 'o3-mini', thinkingLevel: 'off', applyThinkingLevel, routeOptions: readRouteOptions() });
@@ -89,7 +89,7 @@ it('🔴 [D7] 槽上限写家族正确键并清掉其它输出键:o 系底带 ma
 	clearRouteOptions();
 });
 
-describe('[Q-399 裁决 2026-09-18] 推理档判据与对话页同源', ()=>{
+describe('推理档判据与对话页同源', ()=>{
 	it('reasoningEffort 只对 OpenAI o / gpt-5+ 代际写 reasoning_effort;deepseek-reasoner / *-r1 走 openai 家族也不写', ()=>{
 		const { applySlotParams } = require('../aiModelRouting');
 		const so = { reasoningEffort: 'high' };

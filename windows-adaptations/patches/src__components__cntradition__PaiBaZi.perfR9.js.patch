@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/cntradition/PaiBaZi.js b/astrostudyui/src/components/cntradition/PaiBaZi.js
-index 2f2bd707..76ee1e8d 100644
+index 58504e8d..140c25db 100644
 --- a/astrostudyui/src/components/cntradition/PaiBaZi.js
 +++ b/astrostudyui/src/components/cntradition/PaiBaZi.js
-@@ -7,6 +7,9 @@ import BaZiAncientChart from './BaZiAncientChart';
+@@ -8,6 +8,9 @@ import BaZiAncientChart from './BaZiAncientChart';
  import { BaZiMsg } from '../../msg/bazimsg';
  import { randomStr,} from '../../utils/helper';
  import styles from '../../css/styles.less';
@@ -12,7 +12,7 @@ index 2f2bd707..76ee1e8d 100644
  
  export const BAZI_CHART_STYLE_KEY = 'baziChartStyle';
  
-@@ -104,12 +107,12 @@ class PaiBaZi extends Component{
+@@ -105,12 +108,12 @@ class PaiBaZi extends Component{
  			}
  		}
  		let row0 = (
@@ -27,7 +27,7 @@ index 2f2bd707..76ee1e8d 100644
  				<Row>{dirdoms1}</Row>
  			</Col>
  		)
-@@ -164,7 +167,11 @@ class PaiBaZi extends Component{
+@@ -165,7 +168,11 @@ class PaiBaZi extends Component{
  		}
  		extraLine = [extraLine, tiaohou].filter(Boolean).join(' ');
  

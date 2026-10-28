@@ -36,10 +36,6 @@ function makeDefaults() {
 	};
 }
 
-export function getXuanShiDefaults() {
-	return makeDefaults();
-}
-
 export function loadXuanShiState() {
 	const base = makeDefaults();
 	try {

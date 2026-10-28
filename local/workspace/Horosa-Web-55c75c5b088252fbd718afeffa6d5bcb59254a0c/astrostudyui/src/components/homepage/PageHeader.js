@@ -10,11 +10,13 @@ import {
 	LIGHT_FLAVOR_CLASSIC,
 	LIGHT_FLAVOR_PAPER,
 	applyLightFlavorToDocument,
+	currentLightFlavor,
+	LIGHT_FLAVOR_APPLIED_EVENT,
 	getLightFlavorLabel,
 	getStoredLightFlavor,
 } from '../../utils/appearance';
 import { isDesktopBridgeAvailable as hasUpdateBridge, appVersionLocal } from '../../utils/aiAnalysisDesktop';
-import { getTechniqueHelpDoc } from '../help/techniqueHelpRegistry';
+import { getTechniqueHelpDoc, currentHostTechnique } from '../help/techniqueHelpRegistry';
 import {
 	runAIExport,
 	loadAIExportSettings,
@@ -37,7 +39,8 @@ import {
 	XQSelect,
 	XQToolbar, XQInputNumber, } from '../xq-ui';
 import XQIcon from '../xq-icons';
-import { normalizeDayBoundary, DAY_BOUNDARY_AFTER23, DAY_BOUNDARY_AFTER24, normalizeLateZiHourMode, LATE_ZI_HOUR_NEXT_DAY, LATE_ZI_HOUR_TODAY, lateZiHourModeToBit } from '../../utils/dayBoundary';
+import { SCRIPT_HANT, SCRIPT_APPLIED_EVENT, currentScriptMode, setScriptMode } from '../../utils/scriptMode';
+import { normalizeDayBoundary, DAY_BOUNDARY_AFTER23, DAY_BOUNDARY_AFTER24, normalizeLateZiHourMode, LATE_ZI_HOUR_NEXT_DAY, LATE_ZI_HOUR_TODAY, announceDayBoundaryChange, announceLateZiHourChange } from '../../utils/dayBoundary';
 import { normalizeZeriSnapshotMaxRows, normalizeZeriSnapshotExplainRows, ZERI_SNAPSHOT_MAX_ROWS_MIN, ZERI_SNAPSHOT_MAX_ROWS_MAX, ZERI_SNAPSHOT_EXPLAIN_ROWS_MIN, ZERI_SNAPSHOT_EXPLAIN_ROWS_MAX } from '../../utils/zeriSnapshotPrefs';
 import { openExternalUrl, hasTauriInvoke, invokeDesktopCommand } from '../../utils/aiAnalysisDesktop';
 import styles from './PageHeader.less';
@@ -48,12 +51,10 @@ const HOROSA_OFFICIAL_REPO = 'https://github.com/Horace-Maxwell/Horosa-Web-App-c
 const HOROSA_LEGAL_URL = `${HOROSA_OFFICIAL_REPO}/tree/main/docs/legal`;
 const HOROSA_RELEASES_URL = `${HOROSA_OFFICIAL_REPO}/releases`;
 function openHorosaLink(url){
-	if(typeof window === 'undefined' || !url){ return; }
-	// [Q-305/T-297] 桌面 webview 无新窗口处理,window.open 被吞 → 点了无反应;走壳 open_external_url_command(数据库页同款),失败回落 window.open。
-	Promise.resolve().then(()=>openExternalUrl(url)).then((ok)=>{
-		if(ok){ return; }
-		try{ window.open(url, '_blank', 'noopener,noreferrer'); }catch(e){ /* noop */ }
-	}).catch(()=>{ try{ window.open(url, '_blank', 'noopener,noreferrer'); }catch(e){ /* noop */ } });
+	if(!url){ return; }
+	// 桌面 webview 无新窗口处理,window.open 被吞 → 点了无反应;走壳 open_external_url_command(数据库页同款)。
+	// 壳命令失败 / 网页端的 window.open 回落都在 openExternalUrl 里,它从不 reject。
+	openExternalUrl(url);
 }
 
 const Option = XQSelect.Option;
@@ -76,14 +77,11 @@ const PAGE_LABELS = {
 	taiyi: '太乙',
 	jieqichart: '分至',
 	fengshui: '风水',
-	tarot: '塔罗',   // [Q-309/T-313] 塔罗升一级导航后漏登 → 页头曾显示「导航」、帮助标题「导航 · 操作手册」
+	tarot: '塔罗',   // 塔罗升一级导航后漏登 → 页头曾显示「导航」、帮助标题「导航 · 操作手册」
 	cnyibu: '其他',
 	aianalysis: 'AI分析',
 	calendar: '黄历',
 	cntradition: '辅助',
-	astroreader: '书籍阅读',
-	liveplayer: '星阙直播',
-	admintools: '管理工具',
 	// 2026-07-16 补缺:以下五键此前漏登 → 页头模块名 fallback 显示「导航」(与 navigationPages 对齐)
 	astrochart3D: '3D星盘',
 	planetarium: '天文馆',
@@ -98,15 +96,15 @@ function PageHeader(props){
 	const [astroHelpVisible, setAstroHelpVisible] = React.useState(false);
 	const [aboutVisible, setAboutVisible] = React.useState(false);
 	const [aboutVersion, setAboutVersion] = React.useState('');
-	// [Q-417/T-380] useState 实参每次渲染都急切求值:listAIExportTechniqueSettings 遍历全部技法并解析快照缓存,
+	// useState 实参每次渲染都急切求值:listAIExportTechniqueSettings 遍历全部技法并解析快照缓存,
 	//   页头无 memo 且订阅整状态 → 任意盘面状态变化都白跑一遍。改惰性初始化(只在首帧算一次,返回值不变)。
 	const [aiSettingData, setAiSettingData] = React.useState(()=>loadAIExportSettings());
 	const aiSettingDataRef = React.useRef(aiSettingData);
-	const aiSettingOpenedRef = React.useRef(null);   // [Q-309/T-307] 打开弹窗时的设置快照(取消回滚用)
+	const aiSettingOpenedRef = React.useRef(null);   // 打开弹窗时的设置快照(取消回滚用)
 	const [aiSettingTechs, setAiSettingTechs] = React.useState(()=>listAIExportTechniqueSettings());
 	const [aiSettingKey, setAiSettingKey] = React.useState('astrochart');
 
-	// [Q-417/T-380] 分组只在弹窗打开时按 aiSettingTechs 算一次(此前 render 里直接调 listAIExportTechniqueSettingGroups(),
+	// 分组只在弹窗打开时按 aiSettingTechs 算一次(此前 render 里直接调 listAIExportTechniqueSettingGroups(),
 	//   弹窗开过一次后每次渲染都重算整套快照选项);数据真值仍是 aiSettingTechs。
 	const aiSettingGroups = React.useMemo(()=>(aiSettingVisible ? listAIExportTechniqueSettingGroups() : []), [aiSettingVisible, aiSettingTechs]);
 	const currentSettingTech = aiSettingTechs.find((item)=>item.key === aiSettingKey) || null;
@@ -179,10 +177,34 @@ function PageHeader(props){
 		recordNewChartSeeds({ timeAlg: [0, 1, 2, 3].indexOf(v) >= 0 ? v : 0 });
 		setDefaultTimeAlg(newChartSeedValue('timeAlg'));
 	}
+	// 界面简繁(显示层,见 utils/scriptMode.js):菜单文字只随「页面实际所处的档」(开机回放 / 加载失败 / 别的窗口改了都会广播)
+	const [scriptMode, setScriptModeState] = React.useState(()=>currentScriptMode());
+	React.useEffect(()=>{
+		const onApplied = (e)=>setScriptModeState((e && e.detail && e.detail.mode) || currentScriptMode());
+		window.addEventListener(SCRIPT_APPLIED_EVENT, onApplied);
+		setScriptModeState(currentScriptMode());
+		return ()=>window.removeEventListener(SCRIPT_APPLIED_EVENT, onApplied);
+	}, []);
+	function toggleScript(){
+		const want = currentScriptMode() === SCRIPT_HANT ? 'hans' : SCRIPT_HANT;
+		setScriptMode(want).then(({ mode: actual, persisted })=>{
+			setScriptModeState(actual);
+			if(actual !== want){ message.error('繁体字库加载失败,界面保持简体'); }
+			else if(!persisted){ message.warning('设置没能保存(本机存储写不进去),重启后会恢复原样'); }
+		});
+	}
+	// 下一档按页面上实际生效的那档算(组件 state 可能是旧的:别的窗口改过 / 恢复备份后还没刷新)
+	React.useEffect(()=>{
+		const onApplied = (e)=>setLightFlavor((e && e.detail && e.detail.flavor) || currentLightFlavor());
+		window.addEventListener(LIGHT_FLAVOR_APPLIED_EVENT, onApplied);
+		return ()=>window.removeEventListener(LIGHT_FLAVOR_APPLIED_EVENT, onApplied);
+	}, []);
 	function cycleLightFlavor(){
-		const next = lightFlavor === LIGHT_FLAVOR_CLASSIC ? LIGHT_FLAVOR_PAPER : LIGHT_FLAVOR_CLASSIC;
+		const next = currentLightFlavor() === LIGHT_FLAVOR_CLASSIC ? LIGHT_FLAVOR_PAPER : LIGHT_FLAVOR_CLASSIC;
 		setLightFlavor(next);
-		applyLightFlavorToDocument(next);
+		if(!applyLightFlavorToDocument(next)){
+			message.warning('浅色配色没能保存（本机存储写不进），这次照常生效，重启后会回到原来那档');
+		}
 	}
 
 	function changeDayBoundary(value){
@@ -193,20 +215,11 @@ function PageHeader(props){
 				payload: { dayBoundary: normalized },
 			});
 		}
-		// 即时同步: 广播事件,让各技法立即更新自己的 after23NewDay(下拉/options 立即变,下次操作即取新值;不主动 re-fetch 已渲染盘)
-		try {
-			if(typeof window !== 'undefined' && typeof window.dispatchEvent === 'function'){
-				const after23NewDay = normalized === 'after24' ? 0 : 1;
-				window.dispatchEvent(new CustomEvent('horosa:day-boundary-changed', {
-					detail: { dayBoundary: normalized, after23NewDay }
-				}));
-			}
-		} catch (e) {
-			// silently ignore
-		}
+		// 即时同步: 广播事件,让各技法立即更新自己的 after23NewDay(派发单源,与 AI 设置工具 / 跨窗口跟随同一通道)
+		announceDayBoundaryChange(normalized);
 	}
 
-	// [Q-452/Q-453] 择日 AI 快照命中清单:上限 / 附判读树行数(app 仓 → globalSetup 持久化;builder 直读同键)。
+	// 择日 AI 快照命中清单:上限 / 附判读树行数(app 仓 → globalSetup 持久化;builder 直读同键)。
 	function changeZeriSnapshotPref(key, value){
 		if(!props.dispatch){ return; }
 		const normalized = key === 'zeriSnapshotMaxRows' ? normalizeZeriSnapshotMaxRows(value) : normalizeZeriSnapshotExplainRows(value);
@@ -221,16 +234,7 @@ function PageHeader(props){
 				payload: { lateZiHourMode: normalized },
 			});
 		}
-		try {
-			if(typeof window !== 'undefined' && typeof window.dispatchEvent === 'function'){
-				const lateZiHourUseNextDay = lateZiHourModeToBit(normalized);
-				window.dispatchEvent(new CustomEvent('horosa:late-zi-hour-mode-changed', {
-					detail: { lateZiHourMode: normalized, lateZiHourUseNextDay }
-				}));
-			}
-		} catch (e) {
-			// silently ignore
-		}
+		announceLateZiHourChange(normalized);
 	}
 
     function openDrawer(key){
@@ -290,7 +294,7 @@ function PageHeader(props){
 		setAiSettingData(settings);
 		setAiSettingTechs(techs);
 		setAiSettingKey(key);
-		// [Q-309/T-307] 记住打开时的设置:弹窗内每次改动即时落盘(下方 effect,供导出实时预览),
+		// 记住打开时的设置:弹窗内每次改动即时落盘(下方 effect,供导出实时预览),
 		// 「取消 / 关闭」须回滚到打开时的快照,否则以为放弃的改动已生效、「保存设置」形同虚设。
 		try{ aiSettingOpenedRef.current = JSON.parse(JSON.stringify(settings)); }catch(e){ aiSettingOpenedRef.current = settings; }
 		setAiSettingVisible(true);
@@ -340,7 +344,7 @@ function PageHeader(props){
 		onAISettingOptionsChange(next);
 	}
 
-	// [v2 底座] 全局导出偏好(格式 v1/v2 · PDF/Word 附页面截图):非 per-technique,随设置对象整体保存。
+	// 全局导出偏好(格式 v1/v2 · PDF/Word 附页面截图):非 per-technique,随设置对象整体保存。
 	function onAISettingPrefChange(patch){
 		setAiSettingData((prev)=>{
 			const next = {
@@ -450,7 +454,7 @@ function PageHeader(props){
 		saveAIExportSettings(aiSettingData);
 	}, [aiSettingData, aiSettingVisible]);
 
-	// [Q-305/T-296] 此前判 window.horosaDesktop.exportDiagnostics(全仓无定义)→ 菜单项永不出现;改判壳 invoke 可用(与存储健康弹窗同一命令)。
+	// 此前判 window.horosaDesktop.exportDiagnostics(全仓无定义)→ 菜单项永不出现;改判壳 invoke 可用(与存储健康弹窗同一命令)。
 	function hasDesktopBridge(){
 		return hasTauriInvoke();
 	}
@@ -460,7 +464,7 @@ function PageHeader(props){
 			message.warning('当前不是桌面 App 环境，无法导出诊断报告。');
 			return;
 		}
-		// [Q-305/T-296] 壳命令 export_diagnostics_bundle(存储健康弹窗同款;由壳自行收集日志/环境,不再前端自拼含 AI 快照原文的载荷)。
+		// 壳命令 export_diagnostics_bundle(存储健康弹窗同款;由壳自行收集日志/环境,不再前端自拼含 AI 快照原文的载荷)。
 		try{
 			const path = await invokeDesktopCommand('export_diagnostics_bundle', {});
 			message.success(path ? `诊断报告已导出：${path}` : '诊断报告导出成功');
@@ -485,7 +489,7 @@ function PageHeader(props){
 		key: 'caselist',
 		label: menuLabel('note', '管理事盘')
 	},{
-		// [Q-417/T-378 裁决 2026-09-18] 分布入口从不可达的登录态菜单移到公共菜单(数据源已改本机命盘库)
+		// 分布入口从不可达的登录态菜单移到公共菜单(数据源已改本机命盘库)
 		key: 'chartsgps',
 		label: menuLabel('locastro', '命盘分布')
 	},{
@@ -594,6 +598,9 @@ function PageHeader(props){
 	},{
 		key: 'globalsettings',
 		label: menuLabel('settings', '全局设置')
+	},{
+		key: 'toggleScript',
+		label: menuLabel('script', scriptMode === SCRIPT_HANT ? '切换简体' : '切换繁体')
 	}].concat(hasUpdateBridge() ? [{
 		key: 'checkUpdate',
 		label: menuLabel('sync', '检查更新')
@@ -606,6 +613,10 @@ function PageHeader(props){
 	}]);
 
 	function onAstroSettingsClick({key}){
+		if(key === 'toggleScript'){
+			toggleScript();
+			return;
+		}
 		if(key === 'globalsettings'){
 			setGlobalSettingVisible(true);
 			return;
@@ -626,7 +637,7 @@ function PageHeader(props){
 		}
 		if(key === 'about'){
 			setAboutVisible(true);
-			// [Q-308/M-105] 只取本地版本号:此前调 updateCheckSilent —— 打开「关于」即联网查更新,
+			// 只取本地版本号:此前调 updateCheckSilent —— 打开「关于」即联网查更新,
 			//   无视「自动检查更新」偏好、把「有新版」结果丢掉、还刷新 4 小时节流窗(启动时该弹的提示被推迟),
 			//   且离线时请求失败连版本号都显示不出来。
 			if(hasUpdateBridge()){
@@ -653,6 +664,13 @@ function PageHeader(props){
 	function onAstroNewChartMenuClick({key}){
 		if(key === 'now'){
 			recalcChart();
+			return;
+		}
+		if(key === 'chartadd'){
+			// 「存为命盘」= 把当前这张另存:批注随之带上(菜单「新增命盘」录的是别人,不带)
+			if(props.dispatch){
+				props.dispatch({ type: 'astro/openDrawer', payload: { key: 'chartadd', fromCurrent: true } });
+			}
 			return;
 		}
 		openDrawer(key);
@@ -731,7 +749,7 @@ function PageHeader(props){
 					)}
 				>
 					<div className={styles.astroHelpBody} style={{ maxHeight: 'calc(74 * var(--horosa-lvh, 1vh))', overflowY: 'auto' }}>
-						{(()=>{ const HelpDoc = getTechniqueHelpDoc(props.currentTab, props.currentSubTab); return HelpDoc ? <HelpDoc /> : (
+						{(()=>{ const HelpDoc = getTechniqueHelpDoc(props.currentTab, props.currentSubTab, currentHostTechnique(props.currentTab)); return HelpDoc ? <HelpDoc /> : (
 							<>
 								<p>左侧为排盘输入与显示设置，中间为盘面绘制，右侧分页查看信息、相位、行星与判读。</p>
 								<p>底部快捷功能跳转到对应技法或抽屉；切换任一设置即时全组合重算。</p>
@@ -768,7 +786,7 @@ function PageHeader(props){
 							>
 								PDF/Word 附当前页面截图
 							</XQCheckItem>
-							{/* [Q-309/T-308] 图例只在 v2 格式下拼装:v1 时置灰并注明,免「勾了不带图例」的哑弹。 */}
+							{/* 图例只在 v2 格式下拼装:v1 时置灰并注明,免「勾了不带图例」的哑弹。 */}
 							<XQCheckItem
 								compact
 								data-ai-export-legend="1"
@@ -778,6 +796,16 @@ function PageHeader(props){
 								onClick={()=>{ if((aiSettingData && aiSettingData.prefs && aiSettingData.prefs.format) !== 'v2'){ return; } onAISettingPrefChange({ legend: !(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.legend === true) }); }}
 							>
 								AI 导出附[图例]术语速查(紫微/八字/星盘){(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.format) !== 'v2' ? '（仅 v2 格式）' : ''}
+							</XQCheckItem>
+							{/* 命主实况:当前命盘本人填写的问卷与断事日志等,缺省不附;只附在这张命盘本人的导出上 */}
+							<XQCheckItem
+								compact
+								data-ai-export-subject-facts="1"
+								title="当前载入的是已存命盘时,把你为这张盘填写的「命主实况」附在导出末尾;卜卦、择日、占卜术数等导出不附"
+								checked={!!(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.subjectFacts === true)}
+								onClick={()=>onAISettingPrefChange({ subjectFacts: !(aiSettingData && aiSettingData.prefs && aiSettingData.prefs.subjectFacts === true) })}
+							>
+								AI 导出附「命主实况」(缺省不附)
 							</XQCheckItem>
 						</XQCheckList>
 						<XQSectionTitle>选择技法</XQSectionTitle>
@@ -913,7 +941,7 @@ function PageHeader(props){
 						/>
 						<div className={styles.aiSettingEmpty}>晚子时＝23:00–24:00。「按次日日柱计算」（默认）= 时干用次日日干起子时；「按当日柱计算」= 时干用今日日干起子时。这跟日柱开关独立——只在 23:00–23:59 时段影响时干。</div>
 
-						{/* [Q-452 裁决 A / Q-453 裁决 2026-09-18] 择日九宿主 + 天星快照「命中清单」上限与判读树行数全局可配 */}
+						{/* 择日九宿主 + 天星快照「命中清单」上限与判读树行数全局可配 */}
 						<XQSectionTitle>择日 AI 快照·命中清单</XQSectionTitle>
 						<div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center' }}>
 							<span>最多列出 <XQInputNumber size="small" min={ZERI_SNAPSHOT_MAX_ROWS_MIN} max={ZERI_SNAPSHOT_MAX_ROWS_MAX} precision={0} style={{ width: 84 }} value={normalizeZeriSnapshotMaxRows(props.zeriSnapshotMaxRows)} onChange={(v)=>changeZeriSnapshotPref('zeriSnapshotMaxRows', v)} /> 段</span>

@@ -26,8 +26,11 @@ import { FreezeSubTab } from '../comp/FreezeInactive';
 import { newLeaf, newGroup, compileTree } from '../../divination/zeri/conditionTypes';
 import { runScan } from '../../divination/zeri/scanOrchestrator';
 import { pushHistory } from '../../divination/zeri/schemeStore';
+import { beginScanRun, scanRunIsCurrent, canonicalJson } from './zeriCaseRestore';
 import { buildTianxingSnapshot } from '../../divination/zeri/tianxingSnapshot';
 import ConditionBuilderModal from './ConditionBuilderModal';
+import { defaultAfter23NewDay } from '../../utils/dayBoundary';
+import { toSlashDate, datePartOf } from '../../utils/dateStrSafe';
 
 const TabPane = XQTabs.TabPane;
 
@@ -127,7 +130,7 @@ export default class TianxingElectionMain extends Component{
 	}
 
 	componentWillUnmount(){
-		this._unmounted = true;   // [Q-453] 预取判读树回调守卫
+		this._unmounted = true;   // 预取判读树回调守卫
 		if(this._abort){
 			this._abort.abort();
 		}
@@ -160,9 +163,9 @@ export default class TianxingElectionMain extends Component{
 	buildScanBase(){
 		const cfg = this.state.cfg;
 		return {
-			startDate: cfg.startDate.replace(/-/g, '/'),
+			startDate: toSlashDate(cfg.startDate),
 			startTime: `${cfg.startTime || '00:00'}:00`,
-			endDate: cfg.endDate.replace(/-/g, '/'),
+			endDate: toSlashDate(cfg.endDate),
 			endTime: `${cfg.endTime || '23:59'}:59`,
 			zone: cfg.zone || '+08:00',
 			gpsLat: cfg.gpsLat,
@@ -170,15 +173,32 @@ export default class TianxingElectionMain extends Component{
 			hsys: Number(cfg.hsys || 0),
 			zodiacal: Number(cfg.zodiacal || 0),
 			siderealAyanamsa: cfg.siderealAyanamsa || undefined,
-			// [0d/0g] 古典口径全段随全局设置透传(此前只带 houseCuspAdvance 一键——界系/三分/三态阈/
+			// 古典口径全段随全局设置透传(此前只带 houseCuspAdvance 一键——界系/三分/三态阈/
 			// 空亡等在扫描侧全走默认,与主排盘口径分叉)。全局仓全量值经请求体单源判非默认+键名映射;
 			// 默认态恒 {}=零回归(引擎缺省=主排盘同律;此前 houseCuspAdvance 恒发默认 5,归正为默认不发)。
-			// [SURF-R5t] 并入页面 siderealAyanamsa:全局仓无此键,R4u user 三元段判 p.siderealAyanamsa
+			// 并入页面 siderealAyanamsa:全局仓无此键,R4u user 三元段判 p.siderealAyanamsa
 			// ==='user' 在纯仓形态恒不触发 → 'user' 档扫描请求缺 T0/Deg 静默回落 lahiri,与主排盘分叉。
-			...natalClassicalParams({ ...getClassicalChartGlobals(), siderealAyanamsa: cfg.siderealAyanamsa }),
+			...this.scanClassicalParams(cfg),
 			ad: 1,
 			precision: 'minute',
 		};
+	}
+
+	// 扫描所用的全局古典口径(界系 / 三分 / 交点真平 / 昼夜缓冲 …,随全局设置单例)—— 扫描构参与过期指纹同一来源
+	scanClassicalParams(scanCfg){
+		const cfg = scanCfg || this.state.cfg || {};
+		return natalClassicalParams({ ...getClassicalChartGlobals(), siderealAyanamsa: cfg.siderealAyanamsa });
+	}
+
+	// 过期判据的指纹(纯函数):时段 / 地点 / 黄道 / 宫制(cfg)+ 条件树 + 全局古典口径。扫描读全局设置单例,
+	// 扫完在设置里改了古典口径,结果行起出的盘与浮窗按新口径、判读按旧口径 —— 指纹含它,「结果已过期」照亮
+	uiJsonOf(parts){
+		const q = parts || {};
+		return canonicalJson({ cfg: q.cfg, tree: q.tree, classical: q.classical });
+	}
+
+	currentUiJson(){
+		return this.uiJsonOf({ cfg: this.state.cfg, tree: this.state.tree, classical: this.scanClassicalParams(this.state.cfg) });
 	}
 
 	async runSearch(){
@@ -210,10 +230,12 @@ export default class TianxingElectionMain extends Component{
 		// 代际+UI 树指纹:详情缓存按代际隔离(旧搜索的判读绝不复用到新结果);
 		// 树被改而未重搜时结果页亮黄条(结果↔条件失配防呆,用户实抓旧判读串行)。
 		this._scanEpoch = (this._scanEpoch || 0) + 1;
-		// [Q-271/ZC-24] 冻结 UI 树(详情面「设定」列配冻结判读树)+ 失配指纹并入 cfg(改时间段/地点/黄道/宫制也亮黄条,九家同律)
+		// 冻结 UI 树(详情面「设定」列配冻结判读树)+ 失配指纹并入 cfg(改时间段/地点/黄道/宫制也亮黄条,九家同律)
 		this._scanUiTree = JSON.parse(JSON.stringify(this.state.tree));
-		this._scanUiJson = JSON.stringify({ cfg: this.state.cfg, tree: this.state.tree });
+		this._scanUiJson = this.currentUiJson();
 		pushHistory(this.state.cfg, this.state.tree);
+		// 运行代次:只认最后一次开始的扫描(取消后立刻重扫、或卸载后,上一轮晚到的进度 / 结果 / 收尾不再写)
+		const run = beginScanRun(this);
 		this._abort = new AbortController();
 		this.setState({ scanning: true, scanErr: '', progress: null, results: null, truncated: false });
 		try{
@@ -222,15 +244,18 @@ export default class TianxingElectionMain extends Component{
 				tree,
 				signal: this._abort.signal,
 				onProgress: (p) => {
+					if(this._unmounted || !scanRunIsCurrent(this, run)){ return; }
 					// 流式:部分区间边扫边上屏(重叶多段扫描时结果区不再空白)
 					const patch = { progress: p };
 					if(p && p.partial){ patch.results = p.partial; }
 					this.setState(patch);
 				},
 			});
+			if(this._unmounted || !scanRunIsCurrent(this, run)){ return; }
 			this.setState({ scanning: false, results: out.intervals, truncated: out.truncated, progress: null, snapshotExplains: null });
-			this.prefetchSnapshotExplains(out.intervals);   // [Q-453] 服务端判读预取前 N 行进快照
+			this.prefetchSnapshotExplains(out.intervals);   // 服务端判读预取前 N 行进快照
 		}catch(e){
+			if(this._unmounted || !scanRunIsCurrent(this, run)){ return; }
 			if(e && e.name === 'AbortError'){
 				this.setState({ scanning: false, progress: null });
 				return;
@@ -315,7 +340,7 @@ export default class TianxingElectionMain extends Component{
 		// 主页的 −100 与辅盘的 −56 折扣都是各自 chrome 的遗产,照抄会在页签底部留等高空白带——用户圈报)。
 		const tabHeight = (this.props.height || 760) - 15;
 		if(!chartObj){
-			return <div style={{ padding: 16, opacity: 0.6 }}>排盘中…</div>;
+			return <div style={{ padding: 16, color: 'var(--horosa-text-secondary)' }}>排盘中…</div>;
 		}
 		// horosa_zeri_render_slice_v1(W3b-Z2):页签受控化 + FreezeSubTab thunk(照 3D 页
 		// :498 式样)—— 未激活过的签零构造,激活过的在非激活期跳过 re-render,切回拿本轮
@@ -413,7 +438,7 @@ export default class TianxingElectionMain extends Component{
 		);
 	}
 
-	// [Q-453 裁决 2026-09-18] 判读树是服务端异步:扫描完成后预取前 N 行(全局可配,缺省 3)存 state,buildAiSnapshot 闭包按需读取
+	// 判读树是服务端异步:扫描完成后预取前 N 行(全局可配,缺省 3)存 state,buildAiSnapshot 闭包按需读取
 	// (壳在存档 / 刷新请求时现算快照,不必重存);新一轮扫描作废旧批。
 	prefetchSnapshotExplains = (rows) => {
 		const n = Math.min(readGlobalZeriSnapshotExplainRows(), Array.isArray(rows) ? rows.length : 0);
@@ -428,7 +453,7 @@ export default class TianxingElectionMain extends Component{
 	explainInterval = async (row) => {
 		const { fetchElectionExplain } = require('../../services/electionScan');
 		const base = this._scanBase || this.buildScanBase();
-		const t = String(row.pick || `${row.start}:00`).replace(/-/g, '/');
+		const t = toSlashDate(String(row.pick || `${row.start}:00`));
 		return fetchElectionExplain({ ...base, conditions: this._scanTree, t });
 	};
 
@@ -439,7 +464,7 @@ export default class TianxingElectionMain extends Component{
 		const text = raw.length === 16 ? `${raw}:00` : raw;
 		return {
 			ad: 1,
-			date: text.slice(0, 10).replace(/-/g, '/'),
+			date: toSlashDate(datePartOf(text)),
 			time: text.slice(11),
 			zone: this._scanZone || '+08:00',
 			gpsLat: geo.gpsLat, gpsLon: geo.gpsLon,
@@ -451,8 +476,8 @@ export default class TianxingElectionMain extends Component{
 			siderealAyanamsa: chart.siderealAyanamsa || '',
 			tradition: 1, southchart: 0, doubingSu28: 0, strongRecption: 0,
 			simpleAsp: 0, virtualPointReceiveAsp: 1, predictive: 0,
-			pdaspects: [0, 60, 90, 120, 180], after23NewDay: 1,
-			// [Q-419/T-382][Q-268/T-254] 浮窗与扫描同源构参:全局古典口径(界系/三分/交点真平/昼夜缓冲/福点反转/落宫前移…)
+			pdaspects: [0, 60, 90, 120, 180], after23NewDay: defaultAfter23NewDay(),   // 日界取全局现值(此前写死 1)
+			// 浮窗与扫描同源构参:全局古典口径(界系/三分/交点真平/昼夜缓冲/福点反转/落宫前移…)
 			// 与 'user' 档历元两键——此前浮窗只带时地/宫制/黄道,非缺省全局口径下浮窗盘与扫描判定、主盘三者不同形。
 			...natalClassicalParams({ ...getClassicalChartGlobals(), siderealAyanamsa: chart.siderealAyanamsa }),
 		};
@@ -481,7 +506,7 @@ export default class TianxingElectionMain extends Component{
 						tree: this.state.tree,
 						results: this.state.results,
 						truncated: this.state.truncated,
-						explainAt: (row, i)=>(this.state.snapshotExplains ? this.state.snapshotExplains[i] || null : null),   // [Q-453] 预取缓存
+						explainAt: (row, i)=>(this.state.snapshotExplains ? this.state.snapshotExplains[i] || null : null),   // 预取缓存
 					})}
 					renderLeftExtra={(args) => this.renderLeftExtra(args)}
 					renderRight={(args) => this.renderRight(args)}
@@ -501,8 +526,7 @@ export default class TianxingElectionMain extends Component{
 					onPreviewParams={this.previewChartParams}
 					scanEpoch={this._scanEpoch || 0}
 					frozenTree={this._scanUiTree}
-					resultsStale={!!(this.state.results && this._scanUiJson
-						&& JSON.stringify({ cfg: this.state.cfg, tree: this.state.tree }) !== this._scanUiJson)}
+					resultsStale={!!(this.state.results && this._scanUiJson && this.currentUiJson() !== this._scanUiJson)}
 					previewDisplay={this.getPreviewDisplay()}
 					scanning={this.state.scanning}
 					progress={this.state.progress}

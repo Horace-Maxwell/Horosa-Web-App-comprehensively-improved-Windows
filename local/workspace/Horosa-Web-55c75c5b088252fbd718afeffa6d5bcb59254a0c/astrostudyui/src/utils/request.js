@@ -9,12 +9,13 @@ import { markServiceOnline, markServiceOffline, isBackendUnreachableError } from
 import { renegotiateLocalServerRoot } from './backendIdentity';
 import { waitForBackendBoot } from './backendBootGate';
 // 失败分类 + 统一留痕:silent 与否都进环形缓冲(供诊断文本 / 壳侧账本消费),静默失败另打一行 warn。
-import { classifyRequestFailure } from './requestFailure';
+import { classifyRequestFailure, isEngineLinkFailure, ENGINE_LINK_ERROR_KEY } from './requestFailure';
 import { recordRequestFailure, stripUrlQuery } from './requestTelemetry';
+import { getLocalStorageSafe, safeStorageSetOn } from './safeStorage';
 // horosa_prefetch_runtime_whitelist_v1(R4-B1):预取作用域内的 URL 闸(纵深防御)。
 // 非预取作用域恒放行 —— 用户真实请求逐字节零行为变化。
 import { guardPrefetchUrl, isInPrefetchScope } from './stepPrefetch';
-import { tagRequestPriority } from './requestPriority';   // [R5 T5] 后台预取请求带优先级头
+import { tagRequestPriority } from './requestPriority';   // 后台预取请求带优先级头
 
 var tmDelta = 0;
 // eslint-disable-next-line import/no-cycle
@@ -32,20 +33,6 @@ let lastErrorToast = {
 	ts: 0,
 };
 
-function getLocalStorageSafe(){
-	try{
-		if(typeof window !== 'undefined' && window.localStorage){
-			return window.localStorage;
-		}
-		if(typeof localStorage !== 'undefined'){
-			return localStorage;
-		}
-	}catch(e){
-		return null;
-	}
-	return null;
-}
-
 function safeGetLocalItem(key, defVal = null){
 	const storage = getLocalStorageSafe();
 	if(!storage){
@@ -60,41 +47,30 @@ function safeGetLocalItem(key, defVal = null){
 }
 
 function safeSetLocalItem(key, value){
+	// 经存储单源:配额满先清可再生缓存再重试
 	const storage = getLocalStorageSafe();
 	if(!storage){
 		return false;
 	}
-	try{
-		storage.setItem(key, value);
-		return true;
-	}catch(e){
-		return false;
-	}
-}
-
-function safeRemoveLocalItem(key){
-	const storage = getLocalStorageSafe();
-	if(!storage){
-		return false;
-	}
-	try{
-		storage.removeItem(key);
-		return true;
-	}catch(e){
-		return false;
-	}
+	return safeStorageSetOn(storage, key, value);
 }
 
 // 后端异常原文(Java 堆栈/连接异常/类名)绝不直接弹给用户:既看不懂,又暴露内部端口与技术栈。
 // 判为技术异常 → 换成可行动的中文提示;业务型中文 message 原样透出(不改既有行为)。
 const TECH_EXCEPTION_RE = /(^|\s)(org\.|java\.|javax\.|com\.sun\.)|Exception[:\s]|Throwable|StackTrace|\bat\s+[\w$.]+\(|Connect(ion)? (to|refused|timed out)|SocketTimeout|ECONNREFUSED/i;
 
-function humanizeBackendError(text){
+const PROXY_HANDSHAKE_RE = /SOCKS|Unable to tunnel|\bproxy (server|returns|authentication|refused|error)|\bconnect(ion)? to (the )?proxy|Proxy-Authenticat/i;
+
+export function humanizeBackendError(text){
 	const raw = `${text || ''}`.trim();
 	if(!raw || !TECH_EXCEPTION_RE.test(raw)){
 		return raw;
 	}
-	// 连接类 → 明确指向本地服务;其余技术异常 → 通用可行动提示。两者都不回显原始堆栈。
+	// 代理握手类(SOCKS 回包不对 / 代理拒绝)→ 指向系统代理;连接类 → 明确指向本地服务;其余技术异常 → 通用可行动提示。
+	// 都不回显原始堆栈。代理判据只认握手字样:类名里带 Proxy 的(动态代理 $Proxy、…ProxyService)不算,否则把用户引到错误方向
+	if(PROXY_HANDSHAKE_RE.test(raw)){
+		return '连接被系统代理拦截，请检查系统代理或加速器设置后重试。';
+	}
 	if(/Connect(ion)? (to|refused|timed out)|SocketTimeout|ECONNREFUSED|HttpHostConnect/i.test(raw)){
 		return '本地计算服务未响应，请稍候重试；若持续如此，请重启应用让服务重新就绪。';
 	}
@@ -115,6 +91,13 @@ function safeErrorToast(text, cooldownMs){
 		ts: now,
 	};
 	message.error(msg);
+}
+
+// 后端连不上本地排盘引擎:所有排盘都会空白,哪怕本次请求是 silent(不弹错的后台 / 面板请求)也要让用户看得见。
+// 同一句话按长冷却去重,一波并发失败只弹一次。
+const ENGINE_LINK_TOAST_COOLDOWN_MS = 15000;
+export function surfaceEngineLinkFailure(){
+	safeErrorToast(getErrMsg(ENGINE_LINK_ERROR_KEY), ENGINE_LINK_TOAST_COOLDOWN_MS);
 }
 
 function normalizeFetchCacheOption(opts){
@@ -259,6 +242,20 @@ export function signRequest(body){
     return sign(usrtoken, headers, body);
 }
 
+// 后端写 Result 头一律经 URLEncoder(空格成 +,保留字符成 %XX;Java 侧 ResultHeader 单源):这里按同一口径还原。
+// decodeURI 不还原 + 与 %3A 这类保留字符,原文里有裸 % 时还会抛 URIError(之后带 status 的错误对象就丢了)—— 解不开就原样回。
+export function decodeResultHeader(raw){
+    if(raw === null || raw === undefined){
+        return raw;
+    }
+    const text = `${raw}`;
+    try{
+        return decodeURIComponent(text.replace(/\+/g, ' '));
+    }catch(e){
+        return text;
+    }
+}
+
 export function getResponseHeaders(response){
     const respheaders = {};
     let headerErrCode = 0;
@@ -267,7 +264,7 @@ export function getResponseHeaders(response){
         headerErrCode = parseInt(response.headers.get(Constants.ResultCodeKey), 10);
     }
     if (response.headers.get(Constants.ResultMessageKey)) {
-        headerErrMsg = decodeURI(response.headers.get(Constants.ResultMessageKey));
+        headerErrMsg = decodeResultHeader(response.headers.get(Constants.ResultMessageKey));
     }
     respheaders[Constants.ResultCodeKey] = headerErrCode;
     respheaders[Constants.ResultMessageKey] = headerErrMsg;
@@ -303,16 +300,16 @@ export function buildSignedFetchOptions(options) {
     let opts = {
         ...(options || {}),
     };
-    if(opts && opts.silent !== undefined){
+    if(opts.silent !== undefined){
         delete opts.silent;
     }
-    if(opts && opts.disableLoading !== undefined){
+    if(opts.disableLoading !== undefined){
         delete opts.disableLoading;
     }
-    if(opts && opts.timeoutMs !== undefined){
+    if(opts.timeoutMs !== undefined){
         delete opts.timeoutMs;
     }
-    if(opts && opts.retry !== undefined){
+    if(opts.retry !== undefined){
         delete opts.retry;
     }
     normalizeFetchCacheOption(opts);
@@ -334,7 +331,7 @@ export function buildSignedFetchOptions(options) {
         ClientVer: Constants.ClientVer,
     };
     opts.headers.Signature = sign(usrtoken, opts.headers, opts.body);
-    // [R5 T0] 声明响应加密能力(会话钥 GCM):不参与签名(签名只含 Channel/App/Ver + 正文),服务端不认识就照旧
+    // 声明响应加密能力(会话钥 GCM):不参与签名(签名只含 Channel/App/Ver + 正文),服务端不认识就照旧
     if(Constants.NeedEncrypt && typeof responseCryptoCapability === 'function'){
         let cap = null;
         try{ cap = responseCryptoCapability(); }catch(e){ cap = null; }
@@ -356,17 +353,7 @@ function encrypt(str){
     return encryptRSA(str, tm);
 }
 
-function encryptNoTimestamp(str){
-    if(!Constants.NeedEncrypt || str === undefined || str === null || str === ''){
-        return str;
-    }
-    let dt = new Date();
-    let tmS = dt.getTime();
-    let tm = tmS - tmDelta + 3600000*24;
-    return encryptRSA(str, tm);
-}
-
-// [R5 T0] 响应解密单一出口:Encrypted: 2 = 会话钥 AES-GCM(WebCrypto 异步)/ 1 = 旧 RSA 信封 / 其它 = 明文
+// 响应解密单一出口:Encrypted: 2 = 会话钥 AES-GCM(WebCrypto 异步)/ 1 = 旧 RSA 信封 / 其它 = 明文
 export async function decryptResponse(str, response){
     if(str === undefined || str === null || str === ''){
         return str;
@@ -427,15 +414,27 @@ function fetchWithTimeout(url, opts, timeoutMs){
 	};
 	let controller = null;
 	const externalSignal = reqOpts.signal;
+	let onExternalAbort = null;
 	if(typeof AbortController !== 'undefined'){
 		controller = new AbortController();
 		reqOpts.signal = controller.signal;
-		if(externalSignal && typeof externalSignal.addEventListener === 'function'){
-			externalSignal.addEventListener('abort', ()=>{
+		if(externalSignal && externalSignal.aborted){
+			// 调用前就已取消:abort 事件不会再来,直接把内部信号置为已取消(fetch 立即以 AbortError 拒绝,不发请求)
+			controller.abort();
+		}else if(externalSignal && typeof externalSignal.addEventListener === 'function'){
+			onExternalAbort = ()=>{
 				controller.abort();
-			}, { once: true });
+			};
+			externalSignal.addEventListener('abort', onExternalAbort, { once: true });
 		}
 	}
+	// 请求结束就解绑外部信号上的监听:长寿 signal(整页共用的控制器)上不再挂着已结束请求的闭包
+	const detachExternal = ()=>{
+		if(onExternalAbort && externalSignal && typeof externalSignal.removeEventListener === 'function'){
+			try{ externalSignal.removeEventListener('abort', onExternalAbort); }catch(e){ /* noop */ }
+		}
+		onExternalAbort = null;
+	};
 	return new Promise((resolve, reject)=>{
 		let settled = false;
 		let timer = null;
@@ -447,6 +446,7 @@ function fetchWithTimeout(url, opts, timeoutMs){
 			if(timer){
 				clearTimeout(timer);
 			}
+			detachExternal();
 			handler(payload);
 		};
 		timer = setTimeout(()=>{
@@ -543,22 +543,23 @@ export default async function request(url, options) {
     if (!guardPrefetchUrl(url)) {
         return undefined;
     }
-    // [R5 T5] 后台预取(步进预取作用域 / 空闲预热作用域 / 显式 priority)必须在【任何 await 之前】按同步作用域判定并打头:
+    // 后台预取(步进预取作用域 / 空闲预热作用域 / 显式 priority)必须在【任何 await 之前】按同步作用域判定并打头:
     // 去重层的 runner 要等 L3 读(await)之后才调 requestCore,放在那里判定会读到已退出的作用域 ——
     // 可去重端点(/chart 等,恰是预取的主战场)就永远不带头。去重键只含 url + body、不含请求头,
     // 前台同参请求照旧复用在途的预取往返。
     options = tagRequestPriority(options, isInPrefetchScope());
     // 计算类幂等端点:同参进行中共享一次往返 + 30s 会话缓存(白名单内;返回深拷贝;
     // perfFlag horosa.perf.requestDedupe 可关)。白名单外 100% 走原路径零差异。
+    // 去重层把同参请求并成一程:网络请求用这一程的共享取消信号(全部参与方都取消才取消),不用发起方自己的 signal。
     if (dedupeEligible(url, options)) {
-        return dedupedRequest(url, options, () => requestCore(url, options));
+        return dedupedRequest(url, options, (sharedSignal) => requestCore(url, sharedSignal ? { ...options, signal: sharedSignal } : options));
     }
     return requestCore(url, options);
 }
 
 async function requestCore(url, options) {
-    // [R5 T5] 优先级头已在 request() 入口按同步作用域打好(见上),此处不再判定。
-    // [B1] 桌面壳提前导航(URL 带 early=1)时,后端可能尚未监听:发 fetch 前按目标根探活排队。
+    // 优先级头已在 request() 入口按同步作用域打好(见上),此处不再判定。
+    // 桌面壳提前导航(URL 带 early=1)时,后端可能尚未监听:发 fetch 前按目标根探活排队。
     // 非 early 模式同步 no-op;L1/L2/L3 缓存命中在 dedupedRequest 层先返回,不经此门。
     await waitForBackendBoot(url);
     const silent = !!(options && (options.silent || options.disableLoading));
@@ -574,22 +575,17 @@ async function requestCore(url, options) {
         let opts = {
             ...options,
         };
-        if(opts && opts.silent !== undefined){
-            delete opts.silent;
-        }
-        if(opts && opts.disableLoading !== undefined){
-            delete opts.disableLoading;
-        }
-        if(opts && opts.__horosaHealed !== undefined){
+        // silent / disableLoading 由 buildSignedFetchOptions 统一剥离;__horosaHealed 只在这里剥。
+        if(opts.__horosaHealed !== undefined){
             delete opts.__horosaHealed;
         }
 		let timeoutMs = null;
-		if(opts && opts.timeoutMs !== undefined){
+		if(opts.timeoutMs !== undefined){
 			timeoutMs = opts.timeoutMs;
 			delete opts.timeoutMs;
 		}
 		let retryCfg = null;
-		if(opts && opts.retry !== undefined){
+		if(opts.retry !== undefined){
 			retryCfg = opts.retry;
 			delete opts.retry;
 		}
@@ -666,7 +662,7 @@ async function requestCore(url, options) {
             return data;
         }    
     }catch(e){
-		// [R4-B5b] abort 短路(必须在 healAndRetryOnce 之前):主链新请求已 abort 旧请求——
+		// abort 短路(必须在 healAndRetryOnce 之前):主链新请求已 abort 旧请求——
 		// 旧信道的失败既不触发身份再协商/地址自愈,也不 surface(离线横幅/错误弹窗),
 		// 原样上抛由调用方按 AbortError 静默忽略。
 		if(options && options.signal && options.signal.aborted){
@@ -689,16 +685,17 @@ async function requestCore(url, options) {
 		}else{
 			// 修(HIGH-3):silent:true 时不可 surface 错误(原代码非超时分支无条件调 innerHandleError →
 			// silent 守不住)。AI 挂载/导出的 silent 抓取曾让 miss.date 等后端校验错弹到顶栏红 badge。
+			// 唯一例外:后端连不上本地排盘引擎(系统性故障,不提示 = 界面空白却不报错)。
 			if(!silent){
 				innerHandleError(e);
+			}else if(isEngineLinkFailure(e)){
+				surfaceEngineLinkFailure();
 			}
 		}
 		// 静默失败另打一行 warn(不进 UI):吞错 resolve undefined 是本函数既有语义,但零日志
 		// 让「起盘静默变缺失」类故障只能盲猜(AI 助手 cast_technique 压测实抓)。
 		if(silent){
-			try{
-				console.warn('[request] silent failure', stripUrlQuery(url), failure.kind, failName, failMessage);
-			}catch(_e){ /* 日志失败无害 */ }
+			console.warn('[request] silent failure', stripUrlQuery(url), failure.kind, failName, failMessage);
 		}
     }finally{
         if(dispatch && !silent){
@@ -728,22 +725,17 @@ export async function requestRaw(url, options) {
         let opts = {
             ...options,
         };
-        if(opts && opts.silent !== undefined){
-            delete opts.silent;
-        }
-        if(opts && opts.disableLoading !== undefined){
-            delete opts.disableLoading;
-        }
-        if(opts && opts.__horosaHealed !== undefined){
+        // silent / disableLoading 由 buildSignedFetchOptions 统一剥离;__horosaHealed 只在这里剥。
+        if(opts.__horosaHealed !== undefined){
             delete opts.__horosaHealed;
         }
 		let timeoutMs = null;
-		if(opts && opts.timeoutMs !== undefined){
+		if(opts.timeoutMs !== undefined){
 			timeoutMs = opts.timeoutMs;
 			delete opts.timeoutMs;
 		}
 		let retryCfg = null;
-		if(opts && opts.retry !== undefined){
+		if(opts.retry !== undefined){
 			retryCfg = opts.retry;
 			delete opts.retry;
 		}
@@ -785,7 +777,7 @@ export async function requestRaw(url, options) {
         }
 
     }catch(e){
-		// [R4-B5b] abort 短路(与 requestCore 同构,在自愈之前)。
+		// abort 短路(与 requestCore 同构,在自愈之前)。
 		if(options && options.signal && options.signal.aborted){
 			throw e;
 		}
@@ -806,14 +798,15 @@ export async function requestRaw(url, options) {
 		}else{
 			// 修(HIGH-3):silent:true 时不可 surface 错误(原代码非超时分支无条件调 innerHandleError →
 			// silent 守不住)。AI 挂载/导出的 silent 抓取曾让 miss.date 等后端校验错弹到顶栏红 badge。
+			// 唯一例外:后端连不上本地排盘引擎(系统性故障,不提示 = 界面空白却不报错)。
 			if(!silent){
 				innerHandleError(e);
+			}else if(isEngineLinkFailure(e)){
+				surfaceEngineLinkFailure();
 			}
 		}
 		if(silent){
-			try{
-				console.warn('[request] silent failure', stripUrlQuery(url), failure.kind, failName, failMessage);
-			}catch(_e){ /* 日志失败无害 */ }
+			console.warn('[request] silent failure', stripUrlQuery(url), failure.kind, failName, failMessage);
 		}
     }finally{
         if(dispatch && !silent){
@@ -845,7 +838,7 @@ export async function requestStream(url, options) {
             ...(options || {}),
         };
         let timeoutMs = null;
-        if(opts && opts.timeoutMs !== undefined){
+        if(opts.timeoutMs !== undefined){
             timeoutMs = opts.timeoutMs;
             delete opts.timeoutMs;
         }
@@ -863,16 +856,11 @@ export async function requestStream(url, options) {
         const failMessage = (e && (e.message || e[Constants.ResultMessageKey])) || '';
         recordRequestFailure({ url, kind: `stream:${failure.kind}`, silent, name: failName, message: failMessage, status: failure.status, code: failure.code });
         if(silent){
-            try{
-                console.warn('[request] silent failure', stripUrlQuery(url), `stream:${failure.kind}`, failName, failMessage);
-            }catch(_e){ /* 日志失败无害 */ }
+            console.warn('[request] silent failure', stripUrlQuery(url), `stream:${failure.kind}`, failName, failMessage);
         }
-        if(isTimeoutLikeError(e)){
-            if(!silent){
-                innerHandleError(buildTimeoutError());
-            }
-        }else{
-            innerHandleError(e);
+        // silent:true 一律不 surface(与 request / requestRaw 同口径;此前非超时分支无条件弹错)
+        if(!silent){
+            innerHandleError(isTimeoutLikeError(e) ? buildTimeoutError() : e);
         }
         throw e;
     }finally{
@@ -886,123 +874,4 @@ export async function requestStream(url, options) {
             safeSetLocalItem('forceChange', '1');
         }
     }
-}
-
-export async function uploadFile(obj, onUploadComplete){
-    if(obj.file === undefined || obj.file === null){
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append(obj.filename, obj.file);
-
-    const response = await fetch(obj.action, {
-        method: 'POST',
-        headers: obj.headers,
-        body: formData,
-    });
-
-    const respheaders = getResponseHeaders(response);
-    let rsptxt = await response.text();
-    rsptxt = await decryptResponse(rsptxt, response);
-    let data = null;
-    let ret = null;
-    let simpledt = response.headers.get('SimpleData');
-    if(simpledt && simpledt === '1'){
-        ret = rsptxt;
-    }else{
-        data = JSON.parse(rsptxt);
-        ret = {
-            ...data,
-            headers: respheaders,
-        };
-    }
-
-    if(onUploadComplete){
-        onUploadComplete(ret);
-    }
-
-}
-
-export function downloadUrl(url, options, ignoreTM){
-    try{
-        let opts = {
-            ...options,
-        };
- 
-        let headers = opts.headers;
-        if(headers === undefined || headers === null){
-            headers = {};
-        }
-        
-        if(opts.method === undefined){
-            opts.method = 'POST'
-        }
-    
-        const usrtoken = safeGetLocalItem(Constants.TokenKey, '');
-        opts.headers = {
-            ...headers,
-            Token: usrtoken, 
-            'Content-Type': 'application/json; charset=UTF-8', 
-            ClientChannel: Constants.ClientChannel,
-            ClientApp: Constants.ClientApp,
-            ClientVer: Constants.ClientVer,
-        };
-        opts.headers.Signature = sign(usrtoken, opts.headers, opts.body);
-        if(ignoreTM){
-            opts.body = encryptNoTimestamp(opts.body);
-        }else{
-            opts.body = encrypt(opts.body);
-        }
-    
-        let hd = JSON.stringify(opts.headers);
-        if(ignoreTM){
-            hd = encryptNoTimestamp(hd);
-        }else{
-            hd = encrypt(hd);
-        }
-        hd = encodeURIComponent(hd);
-        let body = encodeURIComponent(opts.body);
-        let resurl = `${url}?__clientapp__=${Constants.ClientApp}&__header__=${hd}&__body__=${body}`;
-        return resurl;
-    
-    }catch(e){
-        innerHandleError(e);
-    }finally{
-    }
-
-}
-
-export function encodeUrl(url, params, notimestamp){
-    try{
-        const usrtoken = safeGetLocalItem(Constants.TokenKey, '');
-        let opts = {
-            headers: {
-                Token: usrtoken, 
-                'Content-Type': 'application/json; charset=UTF-8', 
-                ClientChannel: Constants.ClientChannel,
-                ClientApp: Constants.ClientApp,
-                ClientVer: Constants.ClientVer,    
-            },
-            body: JSON.stringify(params),
-        };
-     
-        opts.headers.Signature = sign(usrtoken, opts.headers, opts.body);
-    
-        let txt = JSON.stringify(opts);
-        let coded = null;
-        if(notimestamp){
-            coded = encryptNoTimestamp(txt);
-        }else{
-            coded = encrypt(txt);
-        }
-        coded = encodeURIComponent(coded);
-        let resurl = `${url}?_code_=${coded}`;
-        return resurl;
-    
-    }catch(e){
-        throw e;
-    }finally{
-    }
-
 }

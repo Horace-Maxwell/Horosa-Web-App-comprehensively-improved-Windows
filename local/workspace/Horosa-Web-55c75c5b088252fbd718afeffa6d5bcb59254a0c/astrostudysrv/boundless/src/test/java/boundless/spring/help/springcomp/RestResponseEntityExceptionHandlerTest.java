@@ -25,7 +25,7 @@ public class RestResponseEntityExceptionHandlerTest {
 		assertFalse(sanitized.contains("sk-secret-value"));
 		assertFalse(sanitized.contains("secret-token"));
 		assertFalse(sanitized.contains("top-secret"));
-		assertTrue(sanitized.contains("[REDACTED]"));
+		assertTrue(sanitized.contains(boundless.utility.SecretRedactor.MASK));
 	}
 
 	@Test
@@ -35,6 +35,6 @@ public class RestResponseEntityExceptionHandlerTest {
 
 		assertFalse(sanitized.contains("sk-secret-value"));
 		assertFalse(sanitized.contains("abc123"));
-		assertTrue(sanitized.contains("[REDACTED]"));
+		assertTrue(sanitized.contains(boundless.utility.SecretRedactor.MASK));
 	}
 }
