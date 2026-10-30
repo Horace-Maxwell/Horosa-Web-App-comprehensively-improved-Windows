@@ -10,19 +10,18 @@
 
 ## 本版验收头
 
-- version: 3.12.0
-- build: release(v3.12.0 = **Mac v3.12.0 同步(界面简繁 / AI 对话双盘挂载 / 外部连接 REST 与终端命令 / 1582 年以前与公元前历法校正 /
-  系统代理下本机直连 / 后端删 8 个未用模块与云 SDK,gotcha #113)+ 维护轮 #112**;Windows 侧性能面本轮只动一处 = 运行时 uber 合并下限
-  对位后端瘦身(200MB → 32MB,否则 uber 类路径与静态 CDS 阶梯整条不启用,#113 课二十),PERF-R13 八项全部保留。
-  金标 54 漂移逐叶裁定为上游「结果会变」条后重钉零漂(#113 课十八)。
-- date: 2026-10-28(v3.12.0 同步发布轮;**新机首轮** —— 本轮四段对照一律同机背靠背 A/B:A = v3.11.3 发货件 win-unpacked,B = 本构建;
-  新机数字不与旧机历史行跨机比)
-- commit: 见本轮发布 commit(feat 9c5262b1 + chore)
-- 机器态: 新机(Windows 11 Home 26200);CurrentClockSpeed **2000 == MaxClockSpeed 2000** + MuMu 常驻(owner 应用,未动);
-  owner 常驻 3.11.3 占 8899/9999(其 :9999 本轮挂死,未动)—— #64 特征在,两臂同机同态,只比相对值。
-- 台架: 隔离打包件(win-unpacked,LOCALAPPDATA/APPDATA 双隔离 + 端口基址 48899/49999 / 18899/19999,
-  绝不触碰 owner 常驻 app)+ CDP 真实输入事件(HOROSA_PERF_DEBUG_PORT=9333, connect-only);perf-r13 三探针本轮加
-  `-Exe` / `HOROSA_PERF_EXE` 换臂(同机背靠背旧版臂,#64)。
+- version: 3.13.0
+- build: release(v3.13.0 = **Mac v3.13.0 同步(主限法全面重做 / 星运精确算法 / 量化盘中点坐标、公式求解与次限推运层 / AI 型号表 / 繁体用字,
+  gotcha #114)**;Windows 侧性能面本轮零新增改动 —— PERF-R8 主限法请求「纯函数复制体」改借类方法外观(行为同源,预热 / 预取与界面请求
+  逐字段相同)、主限天球 sCU 的 pdExtra 键改按值比(宿主每次 render 现建对象会让引用比较恒放行)、量化盘环签名补上游新输入;PERF-R13 八项全部保留。
+  金标 90 漂移逐叶裁定后重钉零漂(#114 课六)。
+- date: 2026-10-30(v3.13.0 同步发布轮;四段对照一律同机背靠背:A = v3.12.0 发货件 win-unpacked,B = 本构建;两链顺序 AB + BA 互抵,
+  温启另做「每臂独立 TEMP / 档案」的逐次交替 6 对,首启另做清缓存交替 4 次)
+- commit: 见本轮发布 commit(feat 7d09acb4 + chore)
+- 机器态: 同上一版新机(Windows 11 Home 26200);CurrentClockSpeed **2000 == MaxClockSpeed 2000** + MuMu 常驻(owner 应用,未动);
+  owner 常驻 Horosa Skill runtime 占 8899/9999(未动)—— #64 特征在,两臂同机同态,只比相对值。
+- 台架: 隔离打包件(win-unpacked,LOCALAPPDATA/APPDATA 双隔离 + 端口基址 48899/49999)+ CDP 真实输入事件(connect-only);
+  perf-r13 三探针 `-Exe` / `HOROSA_PERF_EXE` 换臂。
 
 ## 口径(与 perf_acceptance.cjs 字面锁步)
 
@@ -196,6 +195,27 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.13.0(2026-10-30 同步轮·同机背靠背 A/B:A = v3.12.0 发货件 / B = 本构建;horosa_warm_ab_stamp_v1)
+
+- **★温启(阶梯态)**:链一(先 A 后 B)totalMs A **2475 / 2190 / 2246** vs B **2438 / 2219 / 2196**;链二(先 B 后 A)A 2314 / 2211 / 2163 vs
+  B 2364 / 2264 / 2274 —— 两链里**后跑的那臂都更快**(顺序 / 机器热态偏置,非版本差)。判据改用**逐次交替**:每臂独立 TEMP(各自的载荷缓存 +
+  CDS 档)与档案,阶梯各建一次、各弃首温一次后 A,B / B,A 交替 6 对:A **2232 / 2137 / 2190 / 2178 / 2270 / 2237**(中位 2211)vs
+  B **2203 / 2178 / 2168 / 2155 / 2256 / 2286**(中位 2190)—— **持平(−1%)**。分相 spawn→ports A 1911-2036 vs B 1943-2163,uber / 静态 CDS 两臂皆就位。
+- **首启(载荷物化,冷)**:链内首跑会替上一臂删掉 1.3 GB 旧载荷树(载荷换代清理,谁后跑谁背)⇒ 链一 B 19.4s / 链二 A 27.7s 都是顺序伪差;
+  清两臂缓存后交替 B,A,B,A:B **17.4 / 16.8s** vs A **18.7 / 16.0s**(持平;均在 <20s 硬线内)。
+- **导航切页**:settle 中位 链一 A 282 / 269 vs B 287 / 272;链二 A 278 / 267 vs B 287 / 270ms(±3% 噪声带,零 skipped)。
+- **技法内步进 / 改选项(perf_acceptance repeat 10,两链)**:无一行 B 比 A 慢 >25%+30ms;最大 p95 410 / 348ms(owner 1s 判据全达标)。
+  两链同向偏慢的只有三式合一 step(p50 109→186 / 124→151)与六壬 step p95(246→265 / 213→262),两者本轮代码零改动 ⇒ **定向复核**
+  (repeat 30,每臂独立 TEMP,A,B,A,B 交替):三式合一 p50 A 219 / 154 vs B 220 / 234、p95 249 / 339 vs 269 / 334;六壬 p50 A 213 / 212 vs
+  B 197 / 217、p95 262 / 259 vs 242 / 262 —— A 臂自身两腿相差 65ms > 两臂差,与 v3.12.0 记档的三式合一噪声带(p50 156-235)同形;**判持平**。
+  长连步两臂都 MISS = R13 已记的「12 任务串行泵结构性欠吞吐」,与版本无关。
+- **主限法计算(Python 引擎同机交替,A = 物化 v3.12.0 树 / B = 工作区)**:缺省 Ptolemy 47.9 vs 45.9ms(30 次中位,持平);Placidus 2,072 → 46ms、
+  世俗 Placidus 915 → 38ms、Regiomontanus / Campanus 58 / 62 → 50 / 54ms;Topocentric / Morinus 持平;特罗姆瑟高纬 5,507 vs 5,468ms。
+- **敌意环境**:双码页 ready 16.6 / 16.8s(GBK / UTF-8)。
+- **★增量更新**:差量 vs LIVE v3.12.0 下载 **8 MB(1.3%)/ 复用 98.7%**(真变 17 MB,预算 76 MB);CDS 档字节同 3.12.0;发货 Python 95 包 == 锁。
+- 工件:`docs/perf-artifacts/2026-10-30-v3.13.0/`(r1_* / r2_* 两链 warm / accept / nav 各 A/B;`focus_*` 定向复核四腿;`warm_interleaved.log`;
+  `first_start_ab.log`;`pd_timing_ab.py`)。
+
 ### 温启对照 v3.12.0(2026-10-28 同步轮·新机首轮同机背靠背 A/B:A = v3.11.3 发货件 / B = 本构建;horosa_warm_ab_stamp_v1)
 
 - **★温启(阶梯态:同一隔离档案,首轮建阶梯后 3 轮;`warm_phase_probe.ps1 -Exe`)**:史 totalMs A **2511 / 2421 / 2334** vs
