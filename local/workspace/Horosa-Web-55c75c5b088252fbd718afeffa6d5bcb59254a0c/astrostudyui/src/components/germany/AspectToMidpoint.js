@@ -4,11 +4,8 @@ import * as AstroText from '../../constants/AstroText';
 import { buildMeaningTipByCategory, buildAspectMeaningTip, } from '../astro/AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover';
 import { composeShort } from '../../data/uranianMeanings';
-import { tnpGlyph } from './UranianGlyphs';
+import { midpointGlyph } from './midpointGlyph';
 import styles from '../../css/styles.less';
-// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
-// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
-// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
 
 // 中点相位(「行星中点」Tab 右栏「相位」页):按目标因子分组的卡片行——
 //   组头 = 因子字形 + 中文名 + 命中数徽章;行 = 相位符号(合金/刑冲红) + (A/B 中点对) ↔ 误差(等宽数字,右对齐)。
@@ -47,18 +44,7 @@ class AspectToMidpoint extends Component{
 	}
 
 	glyph(id){
-		// 与 Midpoint.js 同修:虚星在字体无字符致空白 → SVG 字形优先 → 字体 → 缩写兜底。
-		const svg = tnpGlyph(id, 14);
-		const node = svg
-			? <span style={{ display: 'inline-flex', alignItems: 'center', verticalAlign: '-0.15em' }}>{svg}</span>
-			: (AstroText.AstroMsg[id]
-				? <span style={{ fontFamily: AstroConst.AstroFont }}>{AstroText.AstroMsg[id]}</span>
-				: <span style={{ fontWeight: 600, letterSpacing: '0.3px', fontSize: 12 }}>{AstroText.isUranian(id) ? AstroText.uranianGlyph(id) : (AstroText.AstroMsgCN[id] || id)}</span>);
-		return wrapWithMeaning(
-			node,
-			this.showMeaning(),
-			buildMeaningTipByCategory('planet', id)
-		);
+		return midpointGlyph(id, this.showMeaning());
 	}
 
 	aspRow(targetId, asp, key, alt){

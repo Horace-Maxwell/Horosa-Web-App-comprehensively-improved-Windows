@@ -9,7 +9,8 @@ pd_engine.py — 主限法(primary directions)通用推运引擎(自研)。
      这是各闭式的「地面真值」。
   2) 各系统的闭式公式(closed forms),用基础球面三角直接算(向四轴 / Placidus 半弧 /
      Regiomontanus 位置圈 / Campanus(=Regio body→body) / Topocentric 极)。
-  3) 时间钥匙:Ptolemy / Naibod / Cardan / Placidus(真太阳弧,逐盘动态)。
+  3) 时间钥匙的动态 / 每盘常数部分:真太阳弧(赤经 / 黄经)、生日太阳日行、真午夜太阳日行、上升弧 / 垂直弧计时;
+     静态比例常数在 perpredict.STATIC_TIME_KEY_SCALES。
   4) 允星扩展:黄道相位 / 世俗相位 / 映点 antiscia / 界 terms。
 
 约定:
@@ -243,15 +244,12 @@ def pole_regiomontanus(ra, dec, ramc, phi):
 
 
 def pole_topocentric(ra, dec, ramc, phi):
-    """Topocentric(Marr):tan p = tanφ·|MD/SA|。MD/SA 按地平上/下分别取
-    (RA−RAMC)/SDA 或 (RA−RAIC)/SNA(旧版恒用相对 MC 的时角配当前半弧,
-    地平下的点错配 → 丘吉尔 ☉→☿ 出 5.8°,Marr 权威值 24°04′)。"""
-    if is_above_horizon(ra, dec, ramc, phi):
-        r = meridian_distance(ra, ramc) / semiarc(dec, phi, True)
-    else:
-        sa = semiarc(dec, phi, False)
-        r = (norm180(ra - (ramc + 180.0)) / sa) if sa else 0.0
-    return atand(abs(r) * tand(phi))
+    """Topocentric(Polich–Page / Marr):tan p = tanφ·|MD/SA|,MD/SA 按地平上 / 下分别从 MC / IC 量、除以昼 / 夜半弧;
+    东半取正(斜升)、西半取负(斜降)—— 西半的位置圈是斜降圈,恒取正极会把西半的点量到东半那一支上。
+    单一来源:pd_semiarc_pole.topocentric_pole。"""
+    from astrostudy import pd_semiarc_pole as _sp
+    p = _sp.topocentric_pole(ra, dec, ramc, phi)
+    return 0.0 if p is None else p
 
 
 def arc_regiomontanus(sig, prom, ramc, phi, eps, zodiacal=False):
@@ -349,38 +347,56 @@ def _sun_ra(jd):
     return swisseph.calc_ut(jd, swisseph.SUN, swisseph.FLG_EQUATORIAL)[0][0]
 
 
-def key_placidus_true_solar_arc(arc, natal_jd):
-    """真太阳弧:把 arc 加到本命太阳赤经,求真太阳走到该赤经的天数;1 天 = 1 年。"""
-    ra0 = _sun_ra(natal_jd)
-    target = ra0 + arc
+def _sun_ra_mean_obliquity(jd):
+    """太阳视黄经 / 黄纬按平黄赤交角(不计交角章动)换成的赤经 —— 「经典」真太阳弧的写法(与真交角下的视赤经差到 1″ 量级)。"""
+    lon, lat = swisseph.calc_ut(jd, swisseph.SUN)[0][:2]
+    eps0 = math.radians(swisseph.calc_ut(jd, swisseph.ECL_NUT)[0][1])
+    l, b = math.radians(lon), math.radians(lat)
+    return math.degrees(math.atan2(math.sin(l) * math.cos(eps0) - math.tan(b) * math.sin(eps0), math.cos(l))) % 360.0
+
+
+def key_placidus_true_solar_arc(arc, natal_jd, regressive=False, mean_obliquity=False):
+    """真太阳弧(赤经):求太阳赤经累计走过 |arc| 所需的天数;1 天 = 1 年。
+    缺省正负弧都看出生后的太阳(主限弧本身就是出生后的岁月度量);
+    regressive=True 时负弧改看出生前倒行的太阳(另一种通行口径,只对负弧有别)。返回值带原弧符号。
+    mean_obliquity=True:太阳赤经按平黄赤交角换算(经典写法,见 _sun_ra_mean_obliquity)。"""
+    ra_of = _sun_ra_mean_obliquity if mean_obliquity else _sun_ra
+    a = abs(float(arc))
+    back = bool(regressive) and float(arc) < 0
+    sgn = -1.0 if back else 1.0
+    ra0 = ra_of(natal_jd)
+    target = ra0 + sgn * a
 
     def acc_ra(days):
-        ra = _sun_ra(natal_jd + days)
+        ra = ra_of(natal_jd + sgn * days)
         k = round((target - ra) / 360.0)
         return ra + 360.0 * k
 
-    d0, d1 = arc * 0.98, arc * 1.05 + 0.5
-    f0 = acc_ra(d0) - target
-    f1 = acc_ra(d1) - target
+    d0, d1 = a * 0.98, a * 1.05 + 0.5
+    f0 = sgn * (acc_ra(d0) - target)
+    f1 = sgn * (acc_ra(d1) - target)
     for _ in range(60):
         if abs(f1 - f0) < 1e-12:
             break
         d2 = d1 - f1 * (d1 - d0) / (f1 - f0)
         d0, f0 = d1, f1
-        d1, f1 = d2, acc_ra(d2) - target
+        d1, f1 = d2, sgn * (acc_ra(d2) - target)
         if abs(f1) < 1e-9:
             break
-    return d1
+    return d1 if float(arc) >= 0 else -d1
 
 
-def solar_arc_for_years(years, natal_jd):
-    """真太阳弧的逆:给定流逝年数,求该旋转对应的赤经弧(度)。
-    主限法「盘」用(date→弧);与 key_placidus_true_solar_arc(弧→年)互逆,确保盘与表格对 TrueSolarArc 一致。"""
-    ra0 = _sun_ra(natal_jd)
-    ra1 = _sun_ra(natal_jd + float(years))
-    arc = ra1 - ra0
+def solar_arc_for_years(years, natal_jd, backward=False, mean_obliquity=False):
+    """真太阳弧的逆:给定流逝年数,求太阳赤经走过的弧(度,≥0)。
+    主限法「盘」用(date→弧);与 key_placidus_true_solar_arc(弧→年)互逆,确保盘与表格对真太阳弧一致。
+    backward=True = 出生前倒行的太阳(逆向弧的另一口径);mean_obliquity 同 key_placidus_true_solar_arc。"""
+    ra_of = _sun_ra_mean_obliquity if mean_obliquity else _sun_ra
+    y = float(years)
+    ra0 = ra_of(natal_jd)
+    ra1 = ra_of(natal_jd - y) if backward else ra_of(natal_jd + y)
+    arc = (ra0 - ra1) if backward else (ra1 - ra0)
     # 连续化到最接近 years 的等价值,消除 ±360 wrap(太阳日行≈1°,arc≈years)。
-    k = round((float(years) - arc) / 360.0)
+    k = round((y - arc) / 360.0)
     return arc + 360.0 * k
 
 
@@ -422,6 +438,108 @@ def symbolic_solar_arc_for_years(years, natal_jd):
     arc = lo1 - lo0
     k = round((float(years) - arc) / 360.0)
     return arc + 360.0 * k
+
+
+def _wrap360(x):
+    return float(x) % 360.0
+
+
+def birthday_sun_motion(natal_jd, equatorial=True):
+    """生日太阳日行:出生当天世界时 0 时到次日 0 时太阳走过的度数(赤经或黄经)。
+    一年 = 这一天的行度,同一盘内恒定。"""
+    j0 = math.floor(float(natal_jd) - 0.5) + 0.5
+    if equatorial:
+        return _wrap360(_sun_ra(j0 + 1.0) - _sun_ra(j0))
+    return _wrap360(_sun_lon(j0 + 1.0) - _sun_lon(j0))
+
+
+def _sun_hour_angle_from_lower(jd, geolon):
+    """太阳离下中天(真午夜)的时角(度,-180..180):LAST − RA☉ − 180。"""
+    last = swisseph.sidtime(float(jd)) * 15.0 + float(geolon)
+    return ((last - _sun_ra(jd) - 180.0 + 180.0) % 360.0) - 180.0
+
+
+def _sun_lower_culmination_near(jd_guess, geolon):
+    """在 jd_guess 附近求太阳下中天(真午夜)时刻:时角 LAST − RA☉ = 180°。"""
+    t = float(jd_guess)
+    for _ in range(12):
+        h = _sun_hour_angle_from_lower(t, geolon)
+        if abs(h) < 1e-9:
+            break
+        t -= h / 359.0147   # 太阳时角日变率 ≈ 360.9856 − 太阳赤经日行(≈0.9856)
+    return t
+
+
+def true_midnight_sun_ra_motion(natal_jd, geolon):
+    """真午夜太阳日行(赤经):出生前一个真午夜到出生后一个真午夜(出生地太阳下中天)之间太阳走过的赤经。
+    一年 = 这一「真日」的赤经行度,同一盘内恒定。"""
+    jd = float(natal_jd)
+    h = _sun_hour_angle_from_lower(jd, geolon) % 360.0   # 出生距上一个真午夜的时角
+    t_before = _sun_lower_culmination_near(jd - h / 359.0147, geolon)
+    if t_before > jd:
+        t_before = _sun_lower_culmination_near(t_before - 1.0, geolon)
+    t_after = _sun_lower_culmination_near(t_before + 1.0, geolon)
+    if t_after <= jd:
+        t_after = _sun_lower_culmination_near(t_after + 1.0, geolon)
+    return _wrap360(_sun_ra(t_after) - _sun_ra(t_before))
+
+
+def true_midnight_sun_ra_motion_next_day(natal_jd, geolon):
+    """真午夜太阳日行(赤经)「经典」写法:出生后第一个真午夜到再下一个真午夜(出生地太阳下中天)之间太阳走过的赤经,
+    即出生之后那一整个真太阳日(改进 = 包含出生时刻的那一个真太阳日,见 true_midnight_sun_ra_motion)。"""
+    jd = float(natal_jd)
+    h = _sun_hour_angle_from_lower(jd, geolon) % 360.0   # 出生距上一个真午夜的时角
+    t_first = _sun_lower_culmination_near(jd + (360.0 - h) / 359.0147, geolon)
+    if t_first <= jd:
+        t_first = _sun_lower_culmination_near(t_first + 1.0, geolon)
+    t_next = _sun_lower_culmination_near(t_first + 1.0, geolon)
+    return _wrap360(_sun_ra(t_next) - _sun_ra(t_first))
+
+
+def _angle_from_armc(armc, phi, eps, point):
+    """出生纬度下、给定赤经中天时的上升点(asc)或宿命点(vertex,西侧卯酉圈与黄道交点)黄经。"""
+    ascmc = swisseph.houses_armc(_wrap360(armc), float(phi), float(eps), b'O')[1]
+    return float(ascmc[3] if point == 'vertex' else ascmc[0])
+
+
+def _angle_forward_change(armc, phi, eps, point, arc):
+    """赤经中天前进 arc(≥0)度时,上升点 / 宿命点黄经的连续前向变化(逐步展开,不丢整圈)。"""
+    a = float(arc)
+    if a <= 0:
+        return 0.0
+    steps = max(1, int(math.ceil(a / 2.0)))
+    prev = _angle_from_armc(armc, phi, eps, point)
+    total = 0.0
+    for i in range(1, steps + 1):
+        cur = _angle_from_armc(armc + a * i / steps, phi, eps, point)
+        total += ((cur - prev + 180.0) % 360.0) - 180.0
+        prev = cur
+    return abs(total)
+
+
+def key_angle_arc(arc, natal_jd, armc, phi, eps, point='asc'):
+    """上升弧 / 垂直弧计时:赤经中天前进 |arc| 后,上升点(或宿命点)沿黄道前移 Δλ;
+    再求出生后太阳黄经前进 Δλ 的天数,1 天 = 1 年。返回值带原弧符号。"""
+    dl = _angle_forward_change(armc, phi, eps, point, abs(float(arc)))
+    days = abs(key_symbolic_solar_arc(dl, natal_jd)) if dl > 0 else 0.0
+    return days if float(arc) >= 0 else -days
+
+
+def angle_arc_for_years(years, natal_jd, armc, phi, eps, point='asc'):
+    """上升弧 / 垂直弧计时的逆(盘 date→弧):流逝年数 → 太阳黄经前移 Δλ → 使角点前移 Δλ 的赤经中天弧。"""
+    dl = abs(symbolic_solar_arc_for_years(float(years), natal_jd))
+    if dl <= 0:
+        return 0.0
+    turns = math.floor(dl / 360.0)
+    rem = dl - 360.0 * turns
+    lo, hi = 0.0, 360.0
+    for _ in range(60):
+        mid = (lo + hi) / 2.0
+        if _angle_forward_change(armc, phi, eps, point, mid) < rem:
+            lo = mid
+        else:
+            hi = mid
+    return 360.0 * turns + (lo + hi) / 2.0
 
 
 # ---------------------------------------------------------------------------
@@ -605,10 +723,11 @@ def build_directions(bodies, angles, ramc, phi, eps, method,
                      max_arc=100.0, zodiacal=True, converse=False,
                      include_antiscia=False, include_terms=False,
                      include_parallels=False, include_rapt=False,
-                     terms_variant=0):
+                     terms_variant=0, sig_bodies=None):
     """
     主限法表格:对 {significator} × {promissor 本体 + 相位(+映点/界)} 算弧,产出 Horosa pdlist 行。
       bodies:  {name: {'lon':, 'lat':}}(行星/虚点),name 用 flatlib const 名。
+      sig_bodies: 应星取点表(缺省 = bodies);取点设置让应星、迫星位置不同时由调用方分开给。
       angles:  {name: lon}(Asc/MC/Desc/IC,lat=0)。
       zodiacal: True=黄道向运(in zodiaco,弃黄纬,相位为黄道点);False=世俗向运(in mundo,带黄纬,相位在房屋空间——此处 Regio≠Campanus)。
       converse: True=逆向(promissor 反向到 significator);False=顺向。
@@ -619,6 +738,7 @@ def build_directions(bodies, angles, ramc, phi, eps, method,
         return []
     rows = []
     cat = 'Z' if zodiacal else 'M'
+    sbodies = bodies if sig_bodies is None else sig_bodies
     for sname in significators:
         is_angle = sname in ANGLE_NAMES
         angle_name = ANGLE_NAMES.get(sname)
@@ -626,11 +746,11 @@ def build_directions(bodies, angles, ramc, phi, eps, method,
             if sname not in angles:
                 continue
             sig = {'lon': angles[sname], 'lat': 0.0}
-        elif sname in bodies:
+        elif sname in sbodies:
             # 位置圈双支法(Campanus/Regiomontanus)即使黄道向运也用应星真黄纬(参考口径)。
             sig_beta = (not zodiacal) or (method in POSITION_CIRCLE_DUAL)
-            sig = {'lon': bodies[sname]['lon'],
-                   'lat': bodies[sname].get('lat', 0.0) if sig_beta else 0.0}
+            sig = {'lon': sbodies[sname]['lon'],
+                   'lat': sbodies[sname].get('lat', 0.0) if sig_beta else 0.0}
         else:
             continue
         sig_id = 'N_%s_0' % sname
@@ -838,3 +958,48 @@ def position_circle_samples(sig, method, armc, phi, eps, n=64, tol=1e-9):
     if current:
         segments.append(current)
     return segments
+
+
+def pole_circle_samples(sig, pole_kind, armc, phi, eps, n=64):
+    """Topocentric / Placidus 极下法 / Horizontal / Koch 的位置圈采样(主限法 3D 天球用)。
+    这两法的位置圈是天球大圆:过应星、极为应星自己的极 p(东正西负),圈上的点满足 RA − asin(tan p·tan δ) = 常数
+    (与表格内核 pd_semiarc_pole.under_pole_arc 同一个圆);赤纬取 ±(90° − |p|) 之内等距 n 点。
+    返回:[segment];segment = [{'ra','decl','lon','lat'}, ...](赤纬升序);取不到极时返回 []。"""
+    from astrostudy import pd_semiarc_pole as _sp
+    ra_s, dec_s = ecl_to_eq(float(sig['lon']), float(sig.get('lat', 0.0) or 0.0), eps)
+    if pole_kind == 'horizontal':
+        # Horizontal 的位置圈是过应星方位的那半条地平经圈(天底 → 地平 → 天顶),按高度直接取点
+        az = _sp.azimuth(ra_s, dec_s, armc, phi)
+        n = max(8, int(n))
+        seg = []
+        for i in range(n):
+            alt = -89.0 + 178.0 * i / (n - 1.0)
+            ra, dec = _sp.horizon_to_eq(az, alt, armc, phi)
+            lon, lat = eq_to_ecl(ra, dec, eps)
+            seg.append({'ra': ra, 'decl': dec, 'lon': lon, 'lat': lat})
+        seg.sort(key=lambda q: q['decl'])
+        return [seg]
+    pole_fn = {'topocentric': _sp.topocentric_pole, 'placidus_pole': _sp.placidus_pole,
+               'horizontal': _sp.horizontal_pole, 'koch': _sp.koch_pole}.get(pole_kind)
+    if pole_fn is None:
+        return []
+    p = pole_fn(ra_s, dec_s, armc, phi)
+    if p is None:
+        return []
+    tp = tand(p)
+    x0 = tp * tand(dec_s)
+    if abs(x0) >= 1.0:
+        return []
+    oa = ra_s - asind(x0)
+    limit = 89.0 if abs(tp) < 1e-12 else min(89.0, 90.0 - abs(p) - 1e-6)
+    n = max(8, int(n))
+    seg = []
+    for i in range(n):
+        dec = -limit + 2.0 * limit * i / (n - 1.0)
+        x = tp * tand(dec)
+        if abs(x) >= 1.0:
+            continue
+        ra = norm360(oa + asind(x))
+        lon, lat = eq_to_ecl(ra, dec, eps)
+        seg.append({'ra': ra, 'decl': dec, 'lon': lon, 'lat': lat})
+    return [seg] if seg else []

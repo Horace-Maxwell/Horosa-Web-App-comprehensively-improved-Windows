@@ -11,13 +11,13 @@
 
 Three workspaces — **Fate (命) · Divination (卜) · Tools (工具)** — **26 primary disciplines, 60+ sub-techniques and schools** (full catalog in [What's Inside](#3-whats-inside))
 
-[![Version](https://img.shields.io/badge/version-3.12.0-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.12.0)
+[![Version](https://img.shields.io/badge/version-3.13.0-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.0)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.12.0)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.12.0)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.0)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.0)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[Download the installer](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.12.0/Horosa-Setup-3.12.0.exe) ·
+[Download the installer](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.13.0/Horosa-Setup-3.13.0.exe) ·
 [Chinese portal](README.md) ·
 [中文详版](README_ZH.md) ·
 [All releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -47,9 +47,9 @@ Horosa is a desktop workstation for metaphysics and divination that puts almost 
 
 The goal: **stop hopping between a dozen single-purpose web chart calculators, and never hand-assemble the Python / Java / ephemeris runtime underneath.** Download one offline installer and open a finished app.
 
-This repository is the Windows delivery of that app: the application source, the shared runtime, the Windows adaptation layer, and the offline NSIS installer for end users (`Horosa-Setup-3.12.0.exe`).
+This repository is the Windows delivery of that app: the application source, the shared runtime, the Windows adaptation layer, and the offline NSIS installer for end users (`Horosa-Setup-3.13.0.exe`).
 
-- **Current version**: 3.12.0 (runtime `3.12.0-runtime1`)
+- **Current version**: 3.13.0 (runtime `3.13.0-runtime1`)
 - **Platform**: Windows 10 / 11 (`x64`)
 - **License**: AGPL-3.0-only
 
@@ -123,10 +123,11 @@ The strength of this layer is continuity: read a natal chart, walk it forward th
 
 #### Timing (the directions hub)
 - **Primary directions**:
-  - **Core methods**: Alcabitius (default) / Meridian / Porphyry / Equal Ecliptic / Equal Hour Circle.
-  - **Direction types**: in zodiaco (default) / in mundo.
+  - **Methods (arc algorithms)**: Ptolemy (semi-arc proportion, default) / Alcabitius / Meridian / Porphyry / Equal (ecliptic) / Equal (hour circle) / Placidus / Regiomontanus / Campanus / Topocentric / Morinus / Horizontal / Koch / Along-Ecliptic / Edmund Jones and more, each implemented from its geometric definition; where the two readings really differ, a method is offered as "(improved)" (strict spherical geometry, default) and "(classic)" (the traditional program convention).
+  - **Direction types**: in zodiaco (default) / in mundo (each method's own mundane position, with mundane meridian / horizon parallels and rapt parallels) / field plane.
+  - **Point and direction settings**: aspect side, ignore significator / promissor latitude, traditional converse, lunar parallax, true position, aspect-point latitude (five modes), date year length, fixed-star promissors; settings with no effect in the current combination are greyed out with the reason.
   - **Motion**: direct / converse / both; **promissors**: antiscia / terms (bounds).
-  - **Time keys**: Ptolemy (default), Naibod, Cardano, Umar, Wöllner, Plantiko, true solar arc, symbolic solar arc, synodic year, Kepler, Brahe and more.
+  - **Time keys (38)**: Ptolemy (default), Naibod, Cardano, Umar, Wöllner, Plantiko, true solar arc, Simmonite, Kepler, Brahe, ascendant-arc / vertical-arc timing and more, each implemented from its definition, plus 7 "(classic)" traditional variants.
 - **Other timing techniques** (each on its own sub-page or tab): solar arc, Firdaria, profections, solar return, lunar return, decennials, decennial segments, zodiacal releasing, planetary ages, Vedic progressions, Jaynes secondary progressions, planetary arc, Persian directions, the 129-year system, Balbillus, triplicity lords, key points, lunar-phase progressions, other returns, prenatal syzygy, the secondary-progression hub, return timeline, distributions, age-point, and the ephemeris.
 
 #### Bazi (Four Pillars)
@@ -155,7 +156,7 @@ The strength of this layer is continuity: read a natal chart, walk it forward th
 - Automatic Yoga detection, 27 Nakshatras, Shadbala, Ashtakavarga, Vimsopaka, KP (true Placidus system with corrections), Tajika / Argala / Gochara, Muhurta / Choghadia electional timing, octants, six-seat progressions, multi-school toolkits.
 
 #### Auxiliary charts
-- **Quantitative / Hamburg school**: four schools = classic / pure / Uranian (American symmetrical) / cosmobiology; 90° (or 45°) dial, midpoint trees, midpoint aspects, six-house frames, graphic ephemeris, trans-Neptunian points (TNPs), rectification, cosmogram.
+- **Quantitative / Hamburg school**: four schools = classic / pure / Uranian (American symmetrical) / cosmobiology; 90° (or 45°) dial (22 dial bases), midpoint trees, midpoint aspects, midpoints in right ascension / declination, a formula solver with a focus factor, six-house frames, graphic ephemeris, trans-Neptunian points (TNPs), a secondary-progression layer, rectification, cosmogram.
 - **Hellenistic**: the thirteen-division chart (13th harmonic; bounds / Arabic parts).
 - **Twelfth-parts, astrocartography / relocation chart, harmonic charts (N-th), Draconic chart, horary charts (five schools), electional charts, mundane charts.**
 
@@ -245,7 +246,7 @@ The Yi and the Three Formulae are more than independent tabs: Sanshi United is a
 
 Regular users should go straight to the offline installer and open Horosa like any other Windows app.
 
-**[⬇︎ Horosa-Setup-3.12.0.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.12.0/Horosa-Setup-3.12.0.exe)**
+**[⬇︎ Horosa-Setup-3.13.0.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.13.0/Horosa-Setup-3.13.0.exe)**
 
 Best for:
 
@@ -284,13 +285,13 @@ Every Horosa AI tool (records, chart casting, synastry data, election by school,
 ## 6. FAQ
 
 **Do I need to clone the repository to use Horosa?**
-No. Download `Horosa-Setup-3.12.0.exe` from the latest release.
+No. Download `Horosa-Setup-3.13.0.exe` from the latest release.
 
 **Do I need to install Python or Java myself?**
 No. The Windows installer carries the runtime the released app needs. The first launch is a little slower while those pieces are extracted and verified locally; later launches reuse the cache.
 
 **Why are there other files in the release?**
-`latest.yml`, `.blockmap`, `SHA256SUMS.txt` and `horosa-update.sig` support the in-app updater and verification. For end users, `Horosa-Setup-3.12.0.exe` is the only thing that matters.
+`latest.yml`, `.blockmap`, `SHA256SUMS.txt` and `horosa-update.sig` support the in-app updater and verification. For end users, `Horosa-Setup-3.13.0.exe` is the only thing that matters.
 
 **Will updates remove my data?**
 No. Application and runtime updates replace the program and the shared runtime; they are not designed to erase your saved charts and cases.

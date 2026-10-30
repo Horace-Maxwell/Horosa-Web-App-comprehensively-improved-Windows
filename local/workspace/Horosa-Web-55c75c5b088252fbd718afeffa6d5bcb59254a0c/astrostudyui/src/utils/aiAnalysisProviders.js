@@ -19,8 +19,9 @@ export const PROVIDER_PRESETS = {
 		label: 'OpenAI',
 		protocolFamily: 'openai-compatible',
 		baseUrl: 'https://api.openai.com/v1',
-		// 2026-07 现役:gpt-5.6 家族(sol/terra/luna,gpt-5.6=sol 别名)7/9 GA;5.5 仍在价表。
-		defaultChatModels: ['gpt-5.6', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5', 'gpt-4.1-mini'],
+		// 2026-10 现役(官方价目页):gpt-6 家族(6.1-sol / 6-astra / 6.1-terra / 6-luna)置顶;gpt-5.6-sol、5.5 仍在价表。
+		// 价目页已无裸名 gpt-5.6,新建档种子改用完整名。
+		defaultChatModels: ['gpt-6.1-sol', 'gpt-6-astra', 'gpt-6.1-terra', 'gpt-6-luna', 'gpt-5.6-sol', 'gpt-5.5', 'gpt-4.1-mini'],
 		defaultEmbeddingModels: ['text-embedding-3-small'],
 		requestTimeoutMs: 120000,
 	},
@@ -28,9 +29,9 @@ export const PROVIDER_PRESETS = {
 		label: 'DeepSeek',
 		protocolFamily: 'openai-compatible',
 		baseUrl: 'https://api.deepseek.com',
-		// 2026-07 现役:deepseek-v4-flash/pro;deepseek-chat/reasoner 为其别名(官方 2026-07-24 弃用,暂留兼容)。
-		// 2026-09-11 真模型实测:官方 /models 已改列 deepseek-flash(去掉 v4 字样)+ deepseek-v4-pro,故把新名放首位。
-		defaultChatModels: ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'],
+		// 2026-10 官方文档现役:deepseek-flash + deepseek-v4-pro;deepseek-v4-flash 仍收(由新版 Flash 代答)。
+		// deepseek-chat / reasoner 已过 2026-07-24 弃用期、官方文档不再列,新建档种子不再给(已存档的不动)。
+		defaultChatModels: ['deepseek-flash', 'deepseek-v4-pro', 'deepseek-v4-flash'],
 		defaultEmbeddingModels: [],
 		requestTimeoutMs: 120000,
 	},
@@ -38,8 +39,9 @@ export const PROVIDER_PRESETS = {
 		label: 'Anthropic',
 		protocolFamily: 'anthropic',
 		baseUrl: 'https://api.anthropic.com',
-		// 2026-07 现役四档(此前种子为空=新建档下拉空白):Fable 5 / Opus 4.8 / Sonnet 5 / Haiku 4.5。
-		defaultChatModels: ['claude-fable-5', 'claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5-20251001'],
+		// 2026-10 现役(官方模型表):Opus 5.5(缺省)/ Fable 5.1 / Sonnet 5.5 / Haiku 5.5;上一代 Fable 5 / Opus 4.8 仍在服务,留作可选。
+		// 只是新建档的种子,已存档的模型名不动。
+		defaultChatModels: ['claude-opus-5-5', 'claude-fable-5-1', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-fable-5', 'claude-opus-4-8'],
 		defaultEmbeddingModels: [],
 		requestTimeoutMs: 120000,
 		anthropicApiVersion: '2023-06-01',
@@ -53,10 +55,11 @@ export const PROVIDER_PRESETS = {
 		label: 'Gemini',
 		protocolFamily: 'gemini',
 		baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-		// 2026-07 现役:3.1-pro/3.5-flash/3-flash/3.1-flash-lite;2.5 官方 2026-10-16 退役,暂留。
-		defaultChatModels: ['gemini-3.1-pro', 'gemini-3.5-flash', 'gemini-3-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro'],
-		// text-embedding-004 已于 2026-01-14 关停,官方迁移目标 gemini-embedding-001。
-		defaultEmbeddingModels: ['gemini-embedding-001'],
+		// 2026-10 官方弃用表 / 价目页:3.8-flash 最新、3.6-flash、3.5-flash-lite、3.1-flash-lite 现役;3.1 Pro 只有 -preview 名
+		// (此前种子写的 gemini-3.1-pro / gemini-3-flash 价目页查无此名);3.5-flash 已被 3.6-flash 取代;2.5 未弃用。
+		defaultChatModels: ['gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash'],
+		// text-embedding-004 已于 2026-01-14 关停;官方现役 gemini-embedding-2(gemini-embedding-001 至 2028-05-14)。
+		defaultEmbeddingModels: ['gemini-embedding-2', 'gemini-embedding-001'],
 		requestTimeoutMs: 120000,
 	},
 	openrouter: {
@@ -307,9 +310,9 @@ const MODEL_PRICING = [
 	{ prefix: 'claude-3-sonnet', in: 0.003, out: 0.015, cacheIn: 0.0003, cacheWrite: 0.00375 },
 	{ prefix: 'claude-3-haiku', in: 0.00025, out: 0.00125, cacheIn: 0.00003, cacheWrite: 0.0003 },
 	// Gemini
-	{ prefix: 'gemini-2.5-pro', in: 0.00125, out: 0.005 },
+	{ prefix: 'gemini-2.5-pro', in: 0.00125, out: 0.010, cacheIn: 0.000125 },   // 官方 $1.25/$10(≤200K;此前输出写成 $5)
 	// 2.5 Flash 官方 $0.30/$2.50 per 1M(此前照抄 1.5 Flash 的 $0.075/$0.30,低了 4~8 倍)
-	{ prefix: 'gemini-2.5-flash', in: 0.0003, out: 0.0025 },
+	{ prefix: 'gemini-2.5-flash', in: 0.0003, out: 0.0025, cacheIn: 0.00003 },
 	{ prefix: 'gemini-2.0-flash', in: 0.00010, out: 0.0004 },
 	{ prefix: 'gemini-1.5-pro', in: 0.00125, out: 0.005 },
 	{ prefix: 'gemini-1.5-flash', in: 0.000075, out: 0.0003 },
@@ -322,21 +325,51 @@ const MODEL_PRICING = [
 	{ prefix: 'deepseek-reasoner', in: 0.00014, out: 0.00028, cacheIn: 0.000014 },
 	{ prefix: 'deepseek-chat', in: 0.00014, out: 0.00028, cacheIn: 0.000014 },
 	// —— 2026-07 现役代(WebSearch 校核 2026-07-19;价目会漂移,UI 恒标「估算」)——
-	// Anthropic Claude 5 / 4.8 代(缓存读=0.1×in / 写=1.25×in)
+	// Anthropic Claude 5 / 4.x 代(官方模型表 2026-10;缓存读=0.1×in / 写=1.25×in,另注者按官方)
+	{ prefix: 'claude-fable-5-1', in: 0.010, out: 0.050, cacheIn: 0.00025, cacheWrite: 0.0125 },   // Fable 5.1 缓存读 $0.25/1M
 	{ prefix: 'claude-fable-5', in: 0.010, out: 0.050, cacheIn: 0.001, cacheWrite: 0.0125 },
+	{ prefix: 'claude-mythos-5', in: 0.010, out: 0.050, cacheIn: 0.001, cacheWrite: 0.0125 },
+	{ prefix: 'claude-opus-5-5', in: 0.004, out: 0.020, cacheIn: 0.0002, cacheWrite: 0.005 },
+	{ prefix: 'claude-opus-5', in: 0.005, out: 0.025, cacheIn: 0.0005, cacheWrite: 0.00625 },
 	{ prefix: 'claude-opus-4-8', in: 0.005, out: 0.025, cacheIn: 0.0005, cacheWrite: 0.00625 },
-	// Sonnet 5 官方 $2/$10 per 1M(此前照抄 Sonnet 4 的 $3/$15)
+	{ prefix: 'claude-opus-4-7', in: 0.005, out: 0.025, cacheIn: 0.0005, cacheWrite: 0.00625 },
+	{ prefix: 'claude-opus-4-6', in: 0.005, out: 0.025, cacheIn: 0.0005, cacheWrite: 0.00625 },
+	// Sonnet 5 / 5.5 官方 $2/$10 per 1M(此前照抄 Sonnet 4 的 $3/$15);Sonnet 4.6 $3/$15
 	{ prefix: 'claude-sonnet-5', in: 0.002, out: 0.010, cacheIn: 0.0002, cacheWrite: 0.0025 },
+	{ prefix: 'claude-sonnet-4-6', in: 0.003, out: 0.015, cacheIn: 0.0003, cacheWrite: 0.00375 },
+	// Haiku 5.5 $0.10/$0.50(提示 ≤100K;超出按 $0.50/$2.50,此处按常用档估)
+	{ prefix: 'claude-haiku-5', in: 0.0001, out: 0.0005, cacheIn: 0.00001, cacheWrite: 0.000125 },
 	{ prefix: 'claude-haiku-4-5', in: 0.001, out: 0.005, cacheIn: 0.0001, cacheWrite: 0.00125 },
-	// OpenAI gpt-5.x 代(gpt-5.6=sol 别名)
-	{ prefix: 'gpt-5.6-terra', in: 0.0025, out: 0.015 },
-	{ prefix: 'gpt-5.6-luna', in: 0.001, out: 0.006 },
-	{ prefix: 'gpt-5.6', in: 0.005, out: 0.030 },
+	// OpenAI gpt-6 / gpt-5.x 代(官方价目页 2026-10,标准档短上下文;gpt-5.6-sol 为至 2026-11-21 的促销价)
+	{ prefix: 'gpt-6-astra', in: 0.010, out: 0.050, cacheIn: 0.001 },
+	{ prefix: 'gpt-6.1-sol', in: 0.002, out: 0.010, cacheIn: 0.0001 },
+	{ prefix: 'gpt-6.1-terra', in: 0.001, out: 0.005, cacheIn: 0.00005 },
+	{ prefix: 'gpt-6-sol', in: 0.002, out: 0.010, cacheIn: 0.0002 },
+	{ prefix: 'gpt-6-luna', in: 0.0001, out: 0.0005, cacheIn: 0.00001 },
+	{ prefix: 'gpt-5.6-terra', in: 0.002, out: 0.012, cacheIn: 0.0002 },
+	{ prefix: 'gpt-5.6-luna', in: 0.0002, out: 0.0012, cacheIn: 0.00002 },
+	{ prefix: 'gpt-5.6', in: 0.004, out: 0.020, cacheIn: 0.0004 },   // gpt-5.6 / gpt-5.6-sol
 	{ prefix: 'gpt-5.5-pro', in: 0.030, out: 0.180 },
-	{ prefix: 'gpt-5.5', in: 0.005, out: 0.030 },
-	{ prefix: 'gpt-5.1', in: 0.00125, out: 0.010 },
-	// Gemini 3.x 代
-	{ prefix: 'gemini-3.1-pro', in: 0.002, out: 0.012 },
+	{ prefix: 'gpt-5.5', in: 0.005, out: 0.030, cacheIn: 0.0005 },
+	{ prefix: 'gpt-5.4-pro', in: 0.030, out: 0.180 },
+	{ prefix: 'gpt-5.4-mini', in: 0.00075, out: 0.0045, cacheIn: 0.000075 },
+	{ prefix: 'gpt-5.4-nano', in: 0.0002, out: 0.00125, cacheIn: 0.00002 },
+	{ prefix: 'gpt-5.4', in: 0.0025, out: 0.015, cacheIn: 0.00025 },
+	{ prefix: 'gpt-5.2-pro', in: 0.021, out: 0.168 },
+	{ prefix: 'gpt-5.2', in: 0.00175, out: 0.014, cacheIn: 0.000175 },
+	{ prefix: 'gpt-5.1', in: 0.00125, out: 0.010, cacheIn: 0.000125 },
+	{ prefix: 'gpt-5-pro', in: 0.015, out: 0.120 },
+	{ prefix: 'gpt-5-mini', in: 0.00025, out: 0.002, cacheIn: 0.000025 },
+	{ prefix: 'gpt-5-nano', in: 0.00005, out: 0.0004, cacheIn: 0.000005 },
+	{ prefix: 'gpt-5', in: 0.00125, out: 0.010, cacheIn: 0.000125 },
+	{ prefix: 'o4-mini', in: 0.0011, out: 0.0044, cacheIn: 0.000275 },
+	{ prefix: 'o3-pro', in: 0.020, out: 0.080 },
+	{ prefix: 'o3', in: 0.002, out: 0.008, cacheIn: 0.0005 },
+	// Gemini 3.x 代(官方价目页 2026-10;3.8 / 3.6 Flash 2027-01-01 起涨到 $1.50/$7.50)
+	{ prefix: 'gemini-3.8-flash', in: 0.00075, out: 0.00375, cacheIn: 0.000075 },
+	{ prefix: 'gemini-3.6-flash', in: 0.00075, out: 0.00375, cacheIn: 0.000075 },
+	{ prefix: 'gemini-3.5-flash-lite', in: 0.0003, out: 0.0025, cacheIn: 0.00003 },
+	{ prefix: 'gemini-3.1-pro', in: 0.002, out: 0.012, cacheIn: 0.0002 },
 	{ prefix: 'gemini-3.5-flash', in: 0.0015, out: 0.009 },
 	{ prefix: 'gemini-3.1-flash-lite', in: 0.00025, out: 0.0015 },
 	{ prefix: 'gemini-3-flash', in: 0.0005, out: 0.003 },
@@ -440,7 +473,16 @@ export function maxTokensKeyForModel(protoFamily, model){
 export const MODEL_CONTEXT_WINDOWS = [
 	// contextWindowForModel 取**数组里第一条命中**(不是最长匹配),所以细分档必须排在
 	// 兜底的 `claude-` 之前;此前 claude 一律按 200K,Sonnet 5 的 1M 窗口被砍成 200K ⇒ 挂载预算凭空少一大截。
+	// Anthropic 1M 窗口(官方模型表):Fable / Mythos / Opus 4.6 起 / Sonnet 4.6 起 / Haiku 5 起;其余(Haiku 4.5、4.5 及更早)200K
 	{ match: 'claude-sonnet-5', tokens: 1000000 },
+	{ match: 'claude-sonnet-4-6', tokens: 1000000 },
+	{ match: 'claude-opus-5', tokens: 1000000 },
+	{ match: 'claude-opus-4-6', tokens: 1000000 },
+	{ match: 'claude-opus-4-7', tokens: 1000000 },
+	{ match: 'claude-opus-4-8', tokens: 1000000 },
+	{ match: 'claude-fable', tokens: 1000000 },
+	{ match: 'claude-mythos', tokens: 1000000 },
+	{ match: 'claude-haiku-5', tokens: 1000000 },
 	{ match: 'claude-', tokens: 200000 },
 	// [Windows #80] gpt-6 家族(astra 等):用户实测标称 1,050,000。此前表里最新只到 gpt-5,`gpt-6-astra`
 	//   对 13 条 match 全不命中 → contextWindowForModel 回 null → 挂载预算掉到地板 20000 字,
@@ -555,7 +597,8 @@ function applyDeepseekThinking(o, on, effLevel, providerType, budget){
 	return o;
 }
 // Anthropic 思考形态按型号(官方每型号表):
-//   'adaptive' = Opus 4.7 起(4.7/4.8/5)、Sonnet 5、Fable 5/5.1、Mythos 5/5.1 —— thinking:{type:'adaptive'} + output_config.effort,不接受采样参数;
+//   'adaptive' = Opus 4.7 起(4.7/4.8/5/5.5)、Sonnet 5 起(5/5.5)、Haiku 5 起(5.5)、Fable 5/5.1、Mythos 5/5.1 ——
+//                thinking:{type:'adaptive'} + output_config.effort,不接受采样参数(Haiku 5.5 / Sonnet 5.5 发非缺省值即 400;budget_tokens 400);
 //   'budget'   = Haiku 4.5、Sonnet 4.x、Opus 4.6 及更早、Claude 3.x —— thinking:{type:'enabled',budget_tokens},max_tokens 须 > budget。
 export const ANTHROPIC_FAMILY_RE = /^claude-(opus|sonnet|haiku)-(\d+)(?:[-.](\d{1,2})(?!\d))?/;
 export function anthropicThinkingMode(model){
@@ -567,19 +610,26 @@ export function anthropicThinkingMode(model){
 	const mm = ANTHROPIC_FAMILY_RE.exec(m);
 	if(!mm){ return 'budget'; }
 	const fam = mm[1]; const major = Number(mm[2]); const minor = mm[3] !== undefined ? Number(mm[3]) : 0;
-	if(major >= 5){ return fam === 'haiku' ? 'budget' : 'adaptive'; }
+	if(major >= 5){ return 'adaptive'; }
 	if(fam === 'opus' && major === 4 && minor >= 7){ return 'adaptive'; }
 	return 'budget';
 }
-// 「关闭」语义(Q-050 ①):Fable/Mythos 思考恒开不可关(省略字段 + effort 最低);Opus 4.7/4.8 缺省关不发字段;
-// Sonnet 5 / Opus 5 可发 disabled;预算型号不发字段。
+// 「关闭」语义(Q-050 ①,按官方每型号表):
+//   'always'        = 思考不可关:Fable / Mythos、Opus 5.5 起(disabled 在任何档都 400)→ 不发字段 + effort 最低;
+//   'between_tools' = Sonnet 5.5 起:disabled 400,关思考改发 {type:'between_tools'}(不得带其它字段、不得配 xhigh / max);
+//   'disabled'      = Sonnet 5 / Opus 5 / Haiku 5.5:可发 disabled(须配 high 及以下的 effort,关闭档不发 effort);
+//   'omit'          = Opus 4.7 / 4.8 缺省关,预算型号不发字段即关。
 export function anthropicThinkingOffForm(model){
 	const m = `${model || ''}`.toLowerCase().replace(/^.*\//, '');
 	if(/^claude-(fable|mythos)/.test(m)){ return 'always'; }
 	if(anthropicThinkingMode(m) !== 'adaptive'){ return 'omit'; }
-	const mm = /^claude-(opus|sonnet)-(\d+)/.exec(m);
-	if(mm && Number(mm[2]) >= 5){ return 'disabled'; }
-	return 'omit';   // opus 4.7 / 4.8:缺省关
+	const mm = ANTHROPIC_FAMILY_RE.exec(m);
+	if(!mm || Number(mm[2]) < 5){ return 'omit'; }   // opus 4.7 / 4.8:缺省关
+	const fam = mm[1]; const major = Number(mm[2]); const minor = mm[3] !== undefined ? Number(mm[3]) : 0;
+	const atLeast55 = major > 5 || minor >= 5;
+	if(fam === 'opus' && atLeast55){ return 'always'; }
+	if(fam === 'sonnet' && atLeast55){ return 'between_tools'; }
+	return 'disabled';
 }
 const ANTHROPIC_EFFORT_BY_LEVEL = { low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' };
 function stripAnthropicThinkingKeys(o){
@@ -594,6 +644,7 @@ export function applyThinkingLevel(opts, level, providerType, model, maxTokens){
 			const o0 = stripAnthropicThinkingKeys({ ...(opts || {}) });
 			const off = anthropicThinkingOffForm(model);
 			if(off === 'disabled'){ o0.thinking = { type: 'disabled' }; }
+			else if(off === 'between_tools'){ o0.thinking = { type: 'between_tools' }; }
 			else if(off === 'always'){ o0.output_config = { effort: 'low' }; }
 			return o0;
 		}

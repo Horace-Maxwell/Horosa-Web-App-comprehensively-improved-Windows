@@ -1,12 +1,13 @@
 // [三式择日 压测] 51 类合并注册表全取值×共享参数矩阵×跨家随机树 fuzz 恒等对拍(zeriStressKit)。
 // 三家 plateKey 拼接(L‖Q‖T)+异质时基并集是主战场;S1 全取值天然覆盖 lr_/qm_/ty_ 三前缀族。
+// 全集按序号取模分到 SANSHI_STRESS_SHARDS 个文件 sanshiZeriStress.<k>.test.js 并行跑(单文件串行约 38 分钟)。
 import { scanSanshi, computeSanshiScanPan, evaluateSanshiTree, sanshiPlateKeyOf, sanshiKeyMaskOf } from '../sanshiZeriScanEngine';
 import { SANSHI_CONDITION_TYPES, newSanshiLeaf, newSanshiGroup, compileSanshiTree } from '../sanshiZeriConditionTypes';
 import { zoneOffsetMinutes } from '../hourlyScanEngine';
 import { buildQimenScanSeeds } from '../qimenScanEngine';
-import { makeZeriStressKit } from './zeriStressKit';
+import { makeZeriStressKit, defineStressShard } from './zeriStressKit';
 
-jest.setTimeout(1200000);
+export const SANSHI_STRESS_SHARDS = 8;
 
 const ZONE = '+08:00';
 const GEO = { zone: ZONE, lon: '120e00', lat: '30n00', gpsLon: 120, gpsLat: 30, ad: 1, gender: 1 };
@@ -27,34 +28,17 @@ function scanCtxFor(dateStr){
 	return seedsCache.get(key);
 }
 
-const kit = makeZeriStressKit({
-	name: 'sanshi',
-	scan: (args)=>scanSanshi({ ...args, options: { ...args.options, _natal: NATAL } }),
-	panAt: (geo, options, d, t)=>computeSanshiScanPan(scanCtxFor(d), geo, options, d, t),
-	evaluateTree: (compiled, pan)=>evaluateSanshiTree(compiled, pan, null, false),
-	compileTree: compileSanshiTree,
-	plateKeyOf: sanshiPlateKeyOf,
-	keyMaskOf: sanshiKeyMaskOf,
-	offsetMin: zoneOffsetMinutes(ZONE),
-	geo: GEO,
-	baseOptions: BASE_OPTIONS,
-	defaultCfg: WIN12,
-	stepMs: 3600e3,
-});
+function buildCases(kit){
+	const cases = [];
+	const add = (group, name, run)=>cases.push({ group, name, run });
 
-afterAll(kit.printSummary);
-
-describe('S1 51 类全取值穷举(lr_/qm_/ty_ 三前缀族全覆盖)', ()=>{
-	// multiselect 值域大的类限前 6 值(总行数控制在数百;每类每字段至少 6 值恒等)
-	const cases = kit.enumerateTypeValueCases(SANSHI_CONDITION_TYPES, newSanshiLeaf, newSanshiGroup, 4);
-	cases.forEach((c)=>{
-		it(`S1·${c.id}`, async ()=>{
-			await kit.scanAndSweep(`S1·${c.id}`, c.root);
-		});
+	// S1 51 类全取值穷举:multiselect 值域大的类限前 4 值(每类每字段至少 4 值恒等)
+	const S1 = 'S1 51 类全取值穷举(lr_/qm_/ty_ 三前缀族全覆盖)';
+	kit.enumerateTypeValueCases(SANSHI_CONDITION_TYPES, newSanshiLeaf, newSanshiGroup, 4).forEach((c)=>{
+		add(S1, `S1·${c.id}`, ()=>kit.scanAndSweep(`S1·${c.id}`, c.root));
 	});
-});
 
-describe('S2 共享/家系参数矩阵', ()=>{
+	const S2 = 'S2 共享/家系参数矩阵';
 	const root = ()=>({ ...newSanshiGroup('all'), children: [newSanshiLeaf('lr_ke_name')] });
 	const tyRoot = ()=>({ ...newSanshiGroup('all'), children: [newSanshiLeaf('ty_geju_kind')] });
 	const AXES = [
@@ -66,26 +50,23 @@ describe('S2 共享/家系参数矩阵', ()=>{
 	];
 	AXES.forEach(([key, vals, mk])=>{
 		vals.forEach((v)=>{
-			it(`S2·${key}=${v}`, async ()=>{
-				await kit.scanAndSweep(`S2·${key}=${v}`, mk(), { [key]: v });
-			});
+			add(S2, `S2·${key}=${v}`, ()=>kit.scanAndSweep(`S2·${key}=${v}`, mk(), { [key]: v }));
 		});
 	});
-});
 
-describe('S4 跨立春窗(三家拼接 plateKey 的跨节面;复审 F11 补)', ()=>{
+	const S4 = 'S4 跨立春窗(三家拼接 plateKey 的跨节面;复审 F11 补)';
 	const WIN_LICHUN = { startDate: '2027-02-03', startTime: '18:00', endDate: '2027-02-04', endTime: '05:59' };
-	it('S4·lichun·lr_taisui(六壬家年支翻转经拼接 key 正确分行)', async ()=>{
+	add(S4, 'S4·lichun·lr_taisui(六壬家年支翻转经拼接 key 正确分行)', ()=>{
 		const leaf = newSanshiLeaf('lr_taisui_god_at');
-		await kit.scanAndSweep('S4·lichun·lr_taisui', { ...newSanshiGroup('all'), children: [leaf] }, {}, WIN_LICHUN);
+		return kit.scanAndSweep('S4·lichun·lr_taisui', { ...newSanshiGroup('all'), children: [leaf] }, {}, WIN_LICHUN);
 	});
-	it('S4·lichun·ty_geju(太乙家跨节)', async ()=>{
+	add(S4, 'S4·lichun·ty_geju(太乙家跨节)', ()=>{
 		const leaf = newSanshiLeaf('ty_geju_kind');
-		await kit.scanAndSweep('S4·lichun·ty_geju', { ...newSanshiGroup('all'), children: [leaf] }, {}, WIN_LICHUN);
+		return kit.scanAndSweep('S4·lichun·ty_geju', { ...newSanshiGroup('all'), children: [leaf] }, {}, WIN_LICHUN);
 	});
-});
 
-describe('S3 跨家随机树 fuzz(三前缀混排)', ()=>{
+	// S3 跨家随机树:树在建全集时按固定种子依序生成(与逐条串行跑时同序取随机数),分到哪个文件都是同一棵
+	const S3 = 'S3 跨家随机树 fuzz(三前缀混排)';
 	let seed = 20260829;
 	const rnd = ()=>{ seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
 	const types = Object.keys(SANSHI_CONDITION_TYPES);
@@ -109,17 +90,36 @@ describe('S3 跨家随机树 fuzz(三前缀混排)', ()=>{
 		return leaf;
 	};
 	for(let i = 0; i < 10; i++){
-		it(`S3·crossfam#${i}`, async ()=>{
-			// 每树必跨至少两家(三式合参语义主路)
-			const famA = fams[i % 3];
-			const famB = fams[(i + 1) % 3];
-			const root = { ...newSanshiGroup('all'), children: [leafFrom(famA), leafFrom(famB)] };
+		// 每树必跨至少两家(三式合参语义主路)
+		const fuzzRoot = { ...newSanshiGroup('all'), children: [leafFrom(fams[i % 3]), leafFrom(fams[(i + 1) % 3])] };
+		add(S3, `S3·crossfam#${i}`, ()=>{
 			try{
-				compileSanshiTree(root);
+				compileSanshiTree(fuzzRoot);
 			}catch(e){
-				return;	// 随机参数撞 validate=非判定面
+				return undefined;	// 随机参数撞 validate=非判定面
 			}
-			await kit.scanAndSweep(`S3·crossfam#${i}`, root);
+			return kit.scanAndSweep(`S3·crossfam#${i}`, fuzzRoot);
 		});
 	}
-});
+	return cases;
+}
+
+export function defineSanshiStressShard(shard){
+	jest.setTimeout(1200000);
+	const kit = makeZeriStressKit({
+		name: `sanshi ${shard}/${SANSHI_STRESS_SHARDS}`,
+		scan: (args)=>scanSanshi({ ...args, options: { ...args.options, _natal: NATAL } }),
+		panAt: (geo, options, d, t)=>computeSanshiScanPan(scanCtxFor(d), geo, options, d, t),
+		evaluateTree: (compiled, pan)=>evaluateSanshiTree(compiled, pan, null, false),
+		compileTree: compileSanshiTree,
+		plateKeyOf: sanshiPlateKeyOf,
+		keyMaskOf: sanshiKeyMaskOf,
+		offsetMin: zoneOffsetMinutes(ZONE),
+		geo: GEO,
+		baseOptions: BASE_OPTIONS,
+		defaultCfg: WIN12,
+		stepMs: 3600e3,
+	});
+	afterAll(kit.printSummary);
+	defineStressShard(buildCases(kit), shard, SANSHI_STRESS_SHARDS);
+}

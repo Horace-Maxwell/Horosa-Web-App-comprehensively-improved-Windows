@@ -12,6 +12,7 @@ import UranianModulusDial from './UranianModulusDial';
 import UranianCosmogram from './UranianCosmogram';
 import UranianRectify from './UranianRectify';
 import { midpointTree, planetaryPictures, midpointList, spiegelContacts, solarArcDirections, crossContacts, compositeChart, midpointHubs, SA_RATE } from '../../utils/uranianDial';
+import { solveFormula } from '../../utils/uranianFormula';
 import { factorLabel, composeShort, pairKey, FACTOR_MEANINGS, PAIR_MEANINGS, CLASSIC_PAIR_MEANINGS, PICTURE_MEANINGS, MEDICAL_MIDPOINTS } from '../../data/uranianMeanings';
 import { tnpReferenceList, TNP_CALIBRE_NOTE, TNP_GROUP_LABEL } from '../../data/uranianTnpReference';
 import { getStoredUranianDisplay, saveUranianDisplay, URANIAN_DIAL_BASES, dialBaseLabel } from './UranianDialStyle';
@@ -294,6 +295,8 @@ export default class UranianDialMain extends Component {
 			natalTnp: [],
 			natalDecl: null,       // WP-11 赤纬接触:本命 declination 响应字段(后端缺则 null)
 			transitPoints: null,
+			progressedPoints: null, // 次限推运层:/astroextra/progressions 的 secondary 推运位置
+			progTime: null,         // 推运目标时刻(moment;null = 此刻)
 			// WP-9 合盘叠盘:已选叠盘人(名数组)+ 各人盘点缓存(name → [{id,lon}]);上限 SYN_MAX。
 			synastryPeople: Array.isArray(disp.synastryPeople) ? disp.synastryPeople.slice(0, SYN_MAX) : [],
 			synastryPersonPoints: {},
@@ -326,13 +329,14 @@ export default class UranianDialMain extends Component {
 		this._measure = this._measure.bind(this);
 		this.requestNatalTnp = this.requestNatalTnp.bind(this);
 		this.requestTransit = this.requestTransit.bind(this);
+		this.requestProgressed = this.requestProgressed.bind(this);
 		this.requestPersonChart = this.requestPersonChart.bind(this);
 		this.changeSynastryPeople = this.changeSynastryPeople.bind(this);
 		this.onRectifyEventsChange = this.onRectifyEventsChange.bind(this);
 		this.onReadout = this.onReadout.bind(this);
 		this.onSaArc = this.onSaArc.bind(this);
 		this._onResize = this._onResize.bind(this);
-		if (this.props.hook) this.props.hook.fun = () => { if (!this.unmounted) { this.requestNatalTnp(); if (this.state.showTransit) this.requestTransit(); this._measure(); } };
+		if (this.props.hook) this.props.hook.fun = () => { if (!this.unmounted) { this.requestNatalTnp(); if (this.state.showTransit) this.requestTransit(); if (this.state.showProgressed) this.requestProgressed(); this._measure(); } };
 	}
 
 	shouldComponentUpdate(nextProps, nextState){
@@ -345,6 +349,7 @@ export default class UranianDialMain extends Component {
 		this.unmounted = false;
 		this.requestNatalTnp();
 		if (this.state.showTransit) this.requestTransit();
+		if (this.state.showProgressed) this.requestProgressed();
 		this.loadSynastryCharts(false); // WP-9:恢复持久化的叠盘人 → 拉其盘点
 		if (typeof window !== 'undefined') window.addEventListener('resize', this._onResize);
 		// 监听中间盘列尺寸变化(含 tab 由隐藏→显示时 0→真实尺寸),据此最大化盘 size。
@@ -374,6 +379,8 @@ export default class UranianDialMain extends Component {
 			this.setState({ saArcDirected: 0, saAge: 0, transitLat: null, transitLon: null });
 			this.requestNatalTnp();
 			if (this.state.showTransit) this.requestTransit();
+			if (this.state.showProgressed) this.requestProgressed();
+		if (this.state.showProgressed) this.requestProgressed();
 		}
 		// WP-9:本命/页面 fieldsAry 变 → 叠盘人盘点失效,强制重拉(同 transit 因 school 换算也需重发)。
 		if (prev.fields !== this.props.fields || prev.fieldsAry !== this.props.fieldsAry) {
@@ -488,6 +495,30 @@ export default class UranianDialMain extends Component {
 		} catch (e) { /* 静默 */ }
 	}
 
+	// 次限推运层:与星运「推运」页同一出口(/astroextra/progressions 的 secondary;一天 = 一年),取推运后的行星与四轴。
+	async requestProgressed(){
+		const base = fieldsToParams(this.props.fields);
+		if (dialParamsError(base)) return;
+		const tt = this.state.progTime;
+		const now = tt ? null : DateTime.wallClockForChart(base.zone); // 「此刻」= 本盘时区钟面(同 requestTransit)
+		const targetDate = tt ? tt.format('YYYY-MM-DD') : `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+		const targetTime = tt ? tt.format('HH:mm:ss') : `${pad(now.getHours())}:${pad(now.getMinutes())}:00`;
+		const seq = ++this._progSeq || (this._progSeq = 1);
+		try {
+			const data = await request(`${Constants.ServerRoot}/astroextra/progressions`, {
+				body: JSON.stringify({ ...base, targetDate, targetTime, orb: 1.5 }), silent: true, timeoutMs: 45000,
+			});
+			const res = data && data[Constants.ResultKey] ? data[Constants.ResultKey] : null;
+			const sec = res && Array.isArray(res.methods) ? res.methods.find((m) => m.method === 'secondary') : null;
+			const pts = sec && Array.isArray(sec.positions)
+				? sec.positions.filter((p) => p && Number.isFinite(Number(p.lon))).map((p) => ({ id: p.id, lon: Number(p.lon), speed: Number.isFinite(Number(p.lonspeed)) ? Number(p.lonspeed) : null }))
+				: null;
+			if (!this.unmounted && seq === this._progSeq) this.setState({ progressedPoints: pts && pts.length ? pts : null, progressedDate: sec ? sec.progressedDate : null });
+		} catch (e) { /* 静默 */ }
+	}
+
+	toggleProgressed(v){ this.saveDisp({ showProgressed: v }); if (v) this.requestProgressed(); }
+
 	// WP-9:取某「叠盘人」(当前页盘或命盘库盘)的盘点(行星+三王+交点+Asc/MC + TNP)。
 	// 复用 requestTransit 同款 /chart + /germany/midpoint(后端零碰);params 已由调用方按来源构好
 	//   (当前盘→fieldsToParams / 库盘→libraryChartParams),此处只管发请求落盘点。
@@ -574,6 +605,10 @@ export default class UranianDialMain extends Component {
 		if (this.state.showTransit && this.state.transitPoints) {
 			rings.push({ key: 'transit', label: '行运', points: filterByTnp(this.state.transitPoints, this.state.showTnp) });
 		}
+		// 次限推运:推运后的行星与四轴各成一环(可拖动、读数、接触与其他层同一套)。
+		if (this.state.showProgressed && this.state.progressedPoints) {
+			rings.push({ key: 'progressed', label: '次限推运', points: this.state.progressedPoints });
+		}
 		// 太阳弧=交互式向运盘：初始贴本命(不预移)，拖动该环=向运,环旋转量即定向弧→反推年龄(见 onSaArc)。
 		if (this.state.showSolarArc) {
 			rings.push({ key: 'solararc', label: '太阳弧', points: natalPts });
@@ -644,6 +679,8 @@ export default class UranianDialMain extends Component {
 		this.setState(patch, () => {
 			this.requestNatalTnp();
 			if (this.state.showTransit) this.requestTransit();
+			if (this.state.showProgressed) this.requestProgressed();
+		if (this.state.showProgressed) this.requestProgressed();
 		});
 		saveUranianDisplay(patch);
 		// ephemBase 接线(原死字段):切派把该派图形星历盘基写入 gephem 仓并广播——
@@ -689,6 +726,7 @@ export default class UranianDialMain extends Component {
 			{ key: 'natal', label: '本命', dot: 'var(--horosa-text-soft)', info: `出生 ${birthText}`, locked: true, on: true },
 			{ key: 'transit', label: '行运', dot: 'var(--horosa-jx-xiong)', info: transitText, on: this.state.showTransit, toggle: (v) => this.toggleTransit(v) },
 			{ key: 'solararc', label: '太阳弧', dot: 'var(--horosa-jade)', info: `弧 ${saArc.toFixed(1)}° → 约 ${saAge.toFixed(1)} 岁（${saKeyLabel}）`, on: this.state.showSolarArc, toggle: (v) => this.toggleSolarArc(v) },
+			{ key: 'progressed', label: '次限推运', dot: 'var(--horosa-hue-brown)', info: `推至 ${this.state.progTime ? this.state.progTime.format('YYYY-MM-DD HH:mm') : `此刻 ${nowText}`}${this.state.progressedDate && this.state.progressedDate.date ? ` · 推运日 ${this.state.progressedDate.date}` : ''}(一天 = 一年)`, on: !!this.state.showProgressed, toggle: (v) => this.toggleProgressed(v) },
 			{ key: 'composite', label: '组合盘', dot: 'var(--horosa-gold, #b8860b)', info: synReady ? '与第一位叠盘人逐因子取中点 · 关系本身之盘' : '需先选「合盘叠加」对象', on: !!this.state.showComposite, toggle: (v) => this.toggleComposite(v), disabled: !synReady },
 			{ key: 'davison', label: '戴维森', dot: 'var(--horosa-cinnabar, #e2603f)', info: synReady ? '时空中点真实起盘 · 真实行星位置' : '需先选「合盘叠加」对象', on: !!this.state.showDavison, toggle: (v) => this.toggleDavison(v), disabled: !synReady },
 		];
@@ -746,7 +784,7 @@ export default class UranianDialMain extends Component {
 		// 键=全部真实输入的引用/标量:报告点名七项(fieldsAry/synastryPeople/synastryPersonPoints/
 		// dialBase/showTnp/showTransit/saArcDirected)+ 其余真依赖(chart/natalTnp/transitPoints/
 		// davisonData/natalEastPoint/natalVertex/showSolarArc/showComposite/showDavison/
-		// showEastPoint/showVertex —— 缺任一则 TNP/行运点异步到货后盘面不更新)+ 命盘库写版本
+		// showEastPoint/showVertex/showProgressed/progressedPoints —— 缺任一则 TNP/行运/推运点异步到货后盘面不更新)+ 命盘库写版本
 		// localChartsVersion()(writeRawCharts 写点自增 → 库增删改即失效:写驱动,零轮询)。
 		// 命中 ⇒ 三者引用稳定,盘组件识别「没变」跳过重画;任一键变 ⇒ 重算,值与逐帧重建完全相同。
 		// 纯函数契约已核:三盘组件/右栏扫描器/校时 rectificationHits 对 rings/points 只 filter/map/读。
@@ -757,6 +795,9 @@ export default class UranianDialMain extends Component {
 			this.state.natalTnp, this.state.transitPoints, this.state.showSolarArc,
 			this.state.showComposite, this.state.showDavison, this.state.davisonData,
 			this.state.showEastPoint, this.state.natalEastPoint, this.state.showVertex, this.state.natalVertex,
+			// v3.13.0 上游新增次限推运层(buildRings 读 showProgressed + progressedPoints)—— 漏这两键 = 打开该层 / 推运点到货后
+			// 命中旧签名、褐色环永不出现;覆盖面由 uranianRingsMemoKeyCoverage 用例逐方法核(buildRings 及其 this.* 被调方)。
+			this.state.showProgressed, this.state.progressedPoints,
 		]) : null;
 		let ringsMemoVal = ringsKey === null ? undefined : this._ringsMemo.get(ringsKey);
 		if (ringsMemoVal === undefined){
@@ -785,10 +826,18 @@ export default class UranianDialMain extends Component {
 		const treeOpts = { personal: personalSet, onlyPersonal: this.state.onlyPersonal, orbPersonal: this.state.orbPersonal };
 		// 行星图(A+B−C=D)/中点列表/映点接触:都在本命点集上算(锚点=个人点∪TNP,排序同优先级)。
 		const scanOpts = { personal: personalSet, uranian: URANIAN_SET, orbPersonal: this.state.orbPersonal };
-		// horosa_lazy_right_panels_v1:以下六项全部改惰性 —— 表达式与开关判断逐字未动,
+		// horosa_lazy_right_panels_v1:以下各项全部改惰性 —— 表达式与开关判断逐字未动,
 		// 只是推迟到「该组 Tab 真的要渲染」的那一刻才求值(未激活组由 FreezeSubTab 跳过)。
 		const getTree = lazyOnce(()=> (this.state.showPicture ? midpointTree(natalPts, this.state.dialBase, this.state.orb, treeOpts) : {}));
-		const getPictures = lazyOnce(()=> (this.state.showPlanetPicture ? planetaryPictures(natalPts, this.state.dialBase, this.state.orb, { ...scanOpts, limit: 40 }) : []));
+		// 聚焦因子:行星图只留含该因子的图(取前 40 张之前先筛,避免被截掉)
+		const focus = this.state.focusFactor && natalPts.some((p) => p.id === this.state.focusFactor) ? this.state.focusFactor : '';
+		const getPictures = lazyOnce(()=> (this.state.showPlanetPicture
+			? (focus
+				? planetaryPictures(natalPts, this.state.dialBase, this.state.orb, { ...scanOpts, limit: 100000 }).filter((p) => [p.a, p.b, p.c, p.d].indexOf(focus) >= 0).slice(0, 40)
+				: planetaryPictures(natalPts, this.state.dialBase, this.state.orb, { ...scanOpts, limit: 40 }))
+			: []));
+		// 公式求解(手输敏感点公式;空 = 不求解,零开销)
+		const getFormulaRes = lazyOnce(()=> (this.state.formula ? solveFormula(this.state.formula, natalPts, this.state.dialBase, this.state.orb, { focus }) : null));
 		const getMpList = lazyOnce(()=> (this.state.showMidpointList ? midpointList(natalPts, this.state.dialBase, scanOpts) : []));
 		const getSpiegel = lazyOnce(()=> (this.state.showAntiscia ? spiegelContacts(natalPts, this.state.dialBase, this.state.orb, { ...scanOpts, extendedAxes: !!this.state.extendedAxes }) : []));
 		// WP-3 差值表:本命点集的太阳弧到期(全/半/倍 + 单因子白羊档),按 saKey 换算到期年龄,命中目标年龄高亮。
@@ -815,7 +864,7 @@ export default class UranianDialMain extends Component {
 		const natalAsc = natalAngleLon(AstroConst.ASC);
 		const birthMoment = (() => { const ms = birthEpochMs(this.props.fields && this.props.fields.date ? this.props.fields.date.value : null); return Number.isFinite(ms) ? moment(ms) : null; })();
 		// 环色令牌化:本命=主文字色,行运=凶红,太阳弧=玉绿(全用 --horosa-* 语义令牌,暗黑/明亮自适应)。
-		const ringTone = { 本命: 'var(--horosa-text)', 行运: 'var(--horosa-jx-xiong)', 太阳弧: 'var(--horosa-jade)', 组合盘: 'var(--horosa-gold, #b8860b)', 戴维森: 'var(--horosa-cinnabar, #e2603f)' };
+		const ringTone = { 本命: 'var(--horosa-text)', 行运: 'var(--horosa-jx-xiong)', 太阳弧: 'var(--horosa-jade)', 次限推运: 'var(--horosa-hue-brown)', 组合盘: 'var(--horosa-gold, #b8860b)', 戴维森: 'var(--horosa-cinnabar, #e2603f)' };
 		// WP-9:合盘人环按其人名上色(与盘 RING_TONE syn0..3 同族);ringTone 按【显示名】键控
 		//   (读数 tag [ring.label] 用同一文案查色),环标签即 personLabelById[id]。
 		(this.state.synastryPeople || []).slice(0, SYN_MAX).forEach((id, idx) => { ringTone[personLabelById[id] || id] = SYN_TONE[idx] || SYN_TONE[0]; });
@@ -891,6 +940,14 @@ export default class UranianDialMain extends Component {
 								placeholder="此刻" style={{ width: '100%' }}
 								onChange={(v) => this.setState({ transitTime: v }, () => this.requestTransit())} />
 							<div style={{ marginTop: 6 }}>{this.renderLocOverride('transitLat', 'transitLon', () => this.requestTransit())}</div>
+						</div>
+					) : null}
+					{this.state.showProgressed ? (
+						<div style={{ marginTop: 8 }}>
+							<div style={{ fontSize: 11, color: 'var(--horosa-text-soft)', marginBottom: 3 }}>推运目标时刻</div>
+							<XQDatePicker size="small" showTime format="YYYY-MM-DD HH:mm" value={this.state.progTime}
+								placeholder="此刻" style={{ width: '100%' }}
+								onChange={(v) => this.setState({ progTime: v }, () => this.requestProgressed())} />
 						</div>
 					) : null}
 					{this.state.showSolarArc ? (
@@ -1002,6 +1059,31 @@ export default class UranianDialMain extends Component {
 					{glyphOf(p.a)}<span style={soft}> + </span>{glyphOf(p.b)}<span style={soft}> − </span>{glyphOf(p.c)}<span style={soft}> = </span><b>{glyphOf(p.d)}</b><span style={soft}> · {p.sep.toFixed(2)}°</span>
 				</div>
 			)); };
+		// 公式求解:输入框 + 聚焦因子 + 敏感点与落点。
+		const focusOptions = [{ value: '', label: '不筛' }].concat(natalPts.map((p) => ({ value: p.id, label: factorLabel(p.id) })));
+		const formulaBody = ()=>{ const formulaRes = getFormulaRes(); return (
+			<div>
+				<Input size="small" allowClear placeholder="如 日+月−火、日/月、上升+天顶−日、15°30′" value={this.state.formula}
+					onChange={(e) => this.saveDisp({ formula: `${e.target.value || ''}`.slice(0, 120) })} style={{ marginBottom: 6 }} />
+				<div style={{ ...rowSty, marginBottom: 6 }}>
+					<span style={{ fontSize: 12, color: 'var(--horosa-text-soft)' }}>聚焦因子</span>
+					<XQSelect size="small" value={focus} onChange={(v) => this.saveDisp({ focusFactor: v || '' })} style={{ width: 120 }} options={focusOptions} />
+				</div>
+				{!this.state.formula ? empty('写一个公式求敏感点;「/」= 中点,加减 = 和差;聚焦因子同时筛下方行星图')
+					: (!formulaRes.ok ? <div style={{ color: 'var(--horosa-danger, #c0392b)', fontSize: 12 }}>{formulaRes.error}</div>
+						: (
+							<div>
+								<div style={{ fontSize: 12, marginBottom: 4 }}>敏感点 <b>{formulaRes.lon.toFixed(2)}°</b><span style={soft}> · 盘基 {dialBaseLabel(this.state.dialBase)} · 容许 {this.state.orb}°</span></div>
+								{formulaRes.hits.length === 0 ? empty('容许度内没有因子或中点落在敏感点上')
+									: formulaRes.hits.map((h, i) => (
+										<div key={i} style={rowLine}>
+											{h.kind === 'mid' ? <>{glyphOf(h.a)}<span style={soft}>/</span>{glyphOf(h.b)}</> : glyphOf(h.a)}<span style={soft}> · {h.sep.toFixed(2)}°</span>
+										</div>
+									))}
+							</div>
+						))}
+			</div>
+		); };
 		// 中点扁平列表(含个人点 > TNP > 其他):显中点黄经位。
 		// B6:两大最重中点(日/月「内在婚姻」与 Asc/MC)固定置顶加 ★。
 		const topPairKeys = new Set([pairKey(AstroConst.SUN, AstroConst.MOON), pairKey(AstroConst.ASC, AstroConst.MC)]);
@@ -1224,7 +1306,8 @@ export default class UranianDialMain extends Component {
 			{ key: 'readout', group: 'reading', header: ()=>hdr('指针读数', null, this.state.readout.length || null), body: readoutBody, mh: 0.5 },
 			{ key: 'tree', group: 'reading', header: ()=>hdr('中点树', null, getTreeData().length || null), body: treeBody, mh: 0.42 },
 			this.state.showMidpointList && { key: 'list', group: 'midpoint', header: ()=>hdr('中点列表', null, getMpList().length), body: mpListBody, mh: 0.4 },
-			this.state.showPlanetPicture && { key: 'pic', group: 'midpoint', header: ()=>hdr('行星图', 'A+B−C=D', getPictures().length), body: pictureBody, mh: 0.4 },
+			{ key: 'formula', group: 'midpoint', header: ()=>{ const formulaRes = getFormulaRes(); return hdr('公式求解', focus ? `聚焦 ${factorLabel(focus)}` : '敏感点', formulaRes && formulaRes.ok ? formulaRes.hits.length : null); }, body: formulaBody, mh: 0.36 },
+			this.state.showPlanetPicture && { key: 'pic', group: 'midpoint', header: ()=>hdr('行星图', focus ? `A+B−C=D · 聚焦 ${factorLabel(focus)}` : 'A+B−C=D', getPictures().length), body: pictureBody, mh: 0.4 },
 			this.state.showAntiscia && { key: 'spiegel', group: 'midpoint', header: ()=>hdr('映点', this.state.extendedAxes ? 'Spiegelpunkt · 含15°固定轴(仅360°盘有别)' : 'Spiegelpunkt', getSpiegel().length), body: spiegelBody, mh: 0.36 },
 			this.state.showDiffList && { key: 'diff', group: 'solararc', header: ()=>hdr('差值表', '太阳弧到期', getDiffRows().length), body: diffBody, mh: 0.5 },
 			rings.length >= 2 && { key: 'contact', group: 'contact', header: ()=>hdr('合盘接触', null, getSynCount() || null), body: contactBody, mh: 0.5 },
@@ -1235,11 +1318,11 @@ export default class UranianDialMain extends Component {
 			{ key: 'tnpref', group: 'tnp', header: ()=>hdr('虚星参考', '三套周期并列', 8), body: ()=>tnpRefBody, mh: 0.55 },
 			{ key: 'lexicon', group: 'tnp', header: ()=>hdr('含义词典', '检索', lexCount || null), body: ()=>lexiconBody, mh: 0.55 },
 		].filter(Boolean);
-		const openKeys = Array.isArray(this.state.openPanels) ? this.state.openPanels : ['readout', 'tree', 'pic', 'list', 'spiegel', 'diff', 'contact', 'parallel', 'rectify', 'tnpref', 'lexicon'];
+		const openKeys = Array.isArray(this.state.openPanels) ? this.state.openPanels : ['readout', 'tree', 'formula', 'pic', 'list', 'spiegel', 'diff', 'contact', 'parallel', 'rectify', 'tnpref', 'lexicon'];
 		// 分组 Tab 定义(顺序固定);某卡片受开关控制为空时,对应 Tab 显空提示而非报错。
 		const RIGHT_TABS = [
 			{ key: 'reading', label: '读数', hint: '指针读数与中点树' },
-			{ key: 'midpoint', label: '中点', hint: '开启「中点列表 / 行星图 / 映点」开关后在此查看' },
+			{ key: 'midpoint', label: '中点', hint: '公式求解;开启「中点列表 / 行星图 / 映点」开关后另有对应卡片' },
 			{ key: 'solararc', label: '太阳弧', hint: '开启「差值表」开关后在此查看太阳弧到期' },
 			{ key: 'contact', label: '接触', hint: '开启行运/太阳弧/合盘叠加或「赤纬接触」后在此查看' },
 			{ key: 'rectify', label: '校时', hint: '添加生平事件→反推生时(只读预览,不改盘)' },

@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/germany/AstroMidpoint.js b/astrostudyui/src/components/germany/AstroMidpoint.js
-index 73acde02..c98b224c 100644
+index 387e21c1..965ae0a3 100644
 --- a/astrostudyui/src/components/germany/AstroMidpoint.js
 +++ b/astrostudyui/src/components/germany/AstroMidpoint.js
-@@ -18,6 +18,7 @@ import { personalSetForSchool, schoolToBackendParams, SCHOOL_OPTIONS, germanyMid
+@@ -19,6 +19,7 @@ import { personalSetForSchool, schoolToBackendParams, SCHOOL_OPTIONS, germanyMid
  import { medicalMeaning, factorLabel } from '../../data/uranianMeanings';
  import { tnpReferenceList, TNP_CALIBRE_NOTE, TNP_GROUP_LABEL } from '../../data/uranianTnpReference';
  import { chartToPoints, firstSynastryPartnerParams } from './UranianDialMain';
@@ -10,7 +10,7 @@ index 73acde02..c98b224c 100644
  
  // AI 快照口径:个人点集随「90°中点盘」当前流派派生(与盘交互层一致,防口径分叉);TNP 集恒定。
  const SNAP_URANIAN = new Set(AstroConst.LIST_URANIAN);
-@@ -244,6 +245,29 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
+@@ -245,6 +246,29 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
  	return out;
  }
  
@@ -40,7 +40,7 @@ index 73acde02..c98b224c 100644
  // /germany/midpoint 的显示口径出参单源在 UranianSchools(中点页 / 90° 中点盘 / AI 无头重算三路共用;此处转出,旧引用路径不变)。
  export { germanyMidpointRequestParams };
  
-@@ -616,9 +640,53 @@ class AstroMidpoint extends Component{
+@@ -663,9 +687,53 @@ class AstroMidpoint extends Component{
  			midpoints: result,
  		};
  
@@ -96,7 +96,7 @@ index 73acde02..c98b224c 100644
  	}
  
  	midpointDisplayParams(){
-@@ -654,6 +722,8 @@ class AstroMidpoint extends Component{
+@@ -701,6 +769,8 @@ class AstroMidpoint extends Component{
  		if(!evt || !evt.detail || evt.detail.module !== 'germany'){
  			return;
  		}
@@ -105,7 +105,7 @@ index 73acde02..c98b224c 100644
  		const snapshotText = this.saveGermanySnapshot();
  		if(snapshotText && evt.detail && typeof evt.detail === 'object'){
  			evt.detail.snapshotText = snapshotText;
-@@ -697,6 +767,9 @@ class AstroMidpoint extends Component{
+@@ -744,6 +814,9 @@ class AstroMidpoint extends Component{
  			// 改的若是要后端重算的项(流派 / 容许度 / 赤纬 / 六宫框 / 东点 / 严格因子集 / 戴维森),只重存会让正文按新口径、
  			// 中点 / 相位 / 赤纬 / 宫框数据仍是旧请求的(一份快照两套口径;关过再开的赤纬 / 六宫框整段缺)→ 出参变了就重取。
  			this._onUranianDisplay = ()=>{
@@ -115,7 +115,7 @@ index 73acde02..c98b224c 100644
  				clearTimeout(this._dispSnapTimer);
  				this._dispSnapTimer = setTimeout(()=>{
  					if(this.unmounted){ return; }
-@@ -709,7 +782,7 @@ class AstroMidpoint extends Component{
+@@ -756,7 +829,7 @@ class AstroMidpoint extends Component{
  			};
  			window.addEventListener(URANIAN_DISPLAY_EVENT, this._onUranianDisplay);
  		}
@@ -124,7 +124,7 @@ index 73acde02..c98b224c 100644
  	}
  
  	componentDidUpdate(prevProps, prevState){
-@@ -718,11 +791,12 @@ class AstroMidpoint extends Component{
+@@ -765,11 +838,12 @@ class AstroMidpoint extends Component{
  			|| prevProps.chart !== this.props.chart
  			|| prevProps.fields !== this.props.fields
  		){

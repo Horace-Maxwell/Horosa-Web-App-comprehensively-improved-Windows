@@ -44,9 +44,27 @@ describe('主限法流派预设 · presetOf 反查', ()=>{
 	});
 
 	it('六档维度组合互不相同(无档间撞车)', ()=>{
-		const sig = (p)=>[p.pdProjection, p.pdFrame, p.pdtype, p.pdDirect, p.pdConverse, p.pdTimeKey, p.pdFramework, p.pdParallel].join('|');
+		const sig = (p)=>[p.pdProjection, p.pdFrame, p.pdtype, p.pdDirect, p.pdConverse, p.pdTimeKey, p.pdFramework, p.pdParallel, p.pdPromAspectLat].join('|');
 		const sigs = Object.values(PD_SCHOOL_PRESETS).map(sig);
 		expect(new Set(sigs).size).toBe(sigs.length);
+	});
+});
+
+describe('主限法流派预设 · 第九维相位点黄纬(Gouchon 档)', ()=>{
+	it('Gouchon = Regiomontanus 黄道主限 × 真太阳弧 × 顺逆双开 × 合冲带黄纬;其余档相位点黄纬 = 缺省 0', ()=>{
+		const g = PD_SCHOOL_PRESETS.gouchon;
+		expect([g.pdProjection, g.pdFrame, g.pdtype, g.pdDirect, g.pdConverse, g.pdTimeKey, g.pdFramework, g.pdParallel, g.pdPromAspectLat])
+			.toEqual(['regiomontanus', 'regiomontanus', 0, 1, 1, 'TrueSolarArc', 'aspect', 0, 1]);
+		Object.keys(PD_SCHOOL_PRESETS).filter((k)=>k !== 'gouchon').forEach((k)=>{
+			expect(PD_SCHOOL_PRESETS[k].pdPromAspectLat).toBe(0);
+		});
+	});
+	it('相位点黄纬被单独改 → 自定;不传(老调用方)按 0 补齐', ()=>{
+		expect(pdPresetOf({ ...PD_SCHOOL_PRESETS.horosa, pdPromAspectLat: 2 })).toBe(PD_SCHOOL_PRESET_CUSTOM);
+		expect(pdPresetOf({ ...PD_SCHOOL_PRESETS.gouchon, pdPromAspectLat: 0 })).toBe(PD_SCHOOL_PRESET_CUSTOM);
+		const { pdPromAspectLat, ...noLat } = PD_SCHOOL_PRESETS.lilly_morin;
+		expect(pdPromAspectLat).toBe(0);
+		expect(pdPresetOf(noLat)).toBe('lilly_morin');
 	});
 });
 

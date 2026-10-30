@@ -188,7 +188,9 @@ async function main(){
 		check('接口密钥密文落盘(明文不在盘上)', stores.indexOf(KEY) < 0 && /aesgcm\.v1:/.test(stores) && (fs.statSync(path.join(HOME, 'headless', 'master.key')).mode & 0o777) === 0o600);
 		const pinged = await runCli(['ai', 'test']);
 		check('终端 ai test(经后端代理到上游,带对鉴权头)', pinged.code === 0 && up.log.some((x)=>x.auth === `Bearer ${KEY}` && !x.stream), clip(pinged.err || pinged.out));
-		const on = await runCli(['config', 'headless-analysis', 'on']);
+		// 打开无头分析出口 = 放宽外部访问,非交互环境下是人工操作(要 --yes + HOROSA_ALLOW_UNATTENDED_APPROVAL=1,见 cli.js loosensPolicy);
+		// 自测跑在临时数据目录里,由自测自己显式放行(此前漏带 → 开关没开 → run_analysis「未知工具」,该项恒红)
+		const on = await runCli(['config', 'headless-analysis', 'on', '--yes'], '', { HOROSA_ALLOW_UNATTENDED_APPROVAL: '1' });
 		const ra = await mcp({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'run_analysis', arguments: { question: '今年事业如何', recordId: cid, techniques: ['bazi'] } } });
 		const raText = ra.result && ra.result.structuredContent ? `${ra.result.structuredContent.content || ''}` : '';
 		check('run_analysis 全链(挂八字盘 · 流式 · 经后端代理)', on.code === 0 && /MOCK-OK mock-a/.test(raText) && up.log.some((x)=>x.stream), clip(raText || JSON.stringify(ra).slice(0, 200)));

@@ -5,9 +5,10 @@ import * as AstroText from '../../constants/AstroText';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import {
 	buildBalbillusContext, buildBalbillusRoots, buildBalbillusChildren,
-	buildBalbillusSnapshotText, BALBILLUS_YEAR_TYPES, BALBILLUS_MODES, BALBILLUS_DEFAULT_OPTS,
+	buildBalbillusSnapshotText, BALBILLUS_YEAR_TYPES, BALBILLUS_MODES, BALBILLUS_SUB_RULES, BALBILLUS_DEFAULT_OPTS,
 } from '../../utils/balbillus';
 import { symbolWithMeaning } from './AstroExtraCommon';
+import { appendPlanetHouseInfoById, splitPlanetHouseInfoText } from '../../utils/planetHouseInfo';
 import { XQSelect as Select } from '../xq-ui';
 import styles from '../../css/styles.less';
 import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
@@ -31,7 +32,7 @@ class AstroBalbillus extends Component{
 	constructor(props){
 		super(props);
 		this.state = {
-			opts: (()=>{ const sv = DIRECTION_PAGE_SETTINGS.load(); return { ...BALBILLUS_DEFAULT_OPTS, startPlanet: sv.balbillusStartPlanet, yearType: sv.balbillusYearType, mode: sv.balbillusMode }; })(),   // 上次亲手设的三项口径
+			opts: (()=>{ const sv = DIRECTION_PAGE_SETTINGS.load(); return { ...BALBILLUS_DEFAULT_OPTS, startPlanet: sv.balbillusStartPlanet, yearType: sv.balbillusYearType, mode: sv.balbillusMode, subRule: sv.balbillusSubRule }; })(),   // 上次亲手设的四项口径
 			treeData: [],
 		};
 		this.ctx = null;
@@ -53,7 +54,7 @@ class AstroBalbillus extends Component{
 	}
 
 	componentDidUpdate(prevProps){
-		if(prevProps.value !== this.props.value || prevProps.showAstroMeaning !== this.props.showAstroMeaning){
+		if(prevProps.value !== this.props.value || prevProps.showAstroMeaning !== this.props.showAstroMeaning || prevProps.showPlanetHouseInfo !== this.props.showPlanetHouseInfo){
 			this.rebuild();
 			if(prevProps.value !== this.props.value){
 				// horosa_panel_ready_v1:本技法无自有请求,数据整份派生自 chartObj —— 「落定」= 拿到新盘那次提交。
@@ -102,11 +103,12 @@ class AstroBalbillus extends Component{
 
 	titleOf(node){
 		const cn = AstroText.AstroTxtMsg[node.planet] || node.planet;
+		const house = splitPlanetHouseInfoText(appendPlanetHouseInfoById(cn, this.props.value, node.planet, this.props.showPlanetHouseInfo)).info;   // 「行星后显示宫位」开时带落宫
 		return (
 			<span className={`horosa-balbillus-node horosa-balbillus-node--l${node.level}`}>
 				<span className="bb-planet">
 					{symbolWithMeaning(node.planet, this.props.showAstroMeaning)}
-					<span className="bb-name" style={{ fontFamily: AstroConst.NormalFont }}>{cn}</span>
+					<span className="bb-name" style={{ fontFamily: AstroConst.NormalFont }}>{cn}{house ? `(${house})` : ''}</span>
 				</span>
 				<span className="bb-date">{node.startDate || '-'}</span>
 				<span className="bb-dur" style={{ fontFamily: AstroConst.NormalFont }}>{node.durYears.toFixed(2)} 年</span>
@@ -115,7 +117,7 @@ class AstroBalbillus extends Component{
 	}
 
 	changeOpt(key, val){
-		const persistAs = { startPlanet: 'balbillusStartPlanet', yearType: 'balbillusYearType', mode: 'balbillusMode' }[key];
+		const persistAs = { startPlanet: 'balbillusStartPlanet', yearType: 'balbillusYearType', mode: 'balbillusMode', subRule: 'balbillusSubRule' }[key];
 		if(persistAs){ DIRECTION_PAGE_SETTINGS.save({ [persistAs]: val }); }
 		const opts = { ...this.state.opts, [key]: val };
 		this.setState({ opts }, () => { this.rebuild(); this.saveAISnapshot(); });
@@ -141,25 +143,31 @@ class AstroBalbillus extends Component{
 						Balbillus 法<span className="horosa-balbillus-sub">129 年系统 · 旺距削减</span>
 					</div>
 					<div className="horosa-balbillus-desc">
-						主限长度 = 小年 × (1 − 离擢升度角距 ⁄ 360)（「最近角距」档下日 / 月 / 火三星另按经验系数校正角距）；七星按本命黄经序自起始星铺开。子限不按 129 权重递归，而是以「子星削减年数 × 本层时间单位（第二层=月）」顺序铺开、末段填满父期。点节点可展开下一层。
+						主限长度 = N′ ×（360 − d）⁄ 360 年：d 为本命星所在度（黄经取整加一）离其擢升度的整度角距，N′ = 水 20 / 金 8 / 木 12 / 土 30 / 日 18 / 月 24 / 火 14。七星按本命黄经序从起始星铺开。子限从父期主星起按同一次序，每颗 = 该星上一层时长 ÷ 12；点节点可展开下一层。
 					</div>
 					<Row gutter={12} className="horosa-balbillus-controls">
-						<Col span={8}>
+						<Col span={6}>
 							<div className="horosa-balbillus-label">起始星</div>
 							<Select value={opts.startPlanet} onChange={(v) => this.changeOpt('startPlanet', v)} style={{ width: '100%' }}>
 								{PLANET_OPTIONS.map((p) => <Option value={p} key={p}>{planetLabel(p)}</Option>)}
 							</Select>
 						</Col>
-						<Col span={8}>
+						<Col span={6}>
 							<div className="horosa-balbillus-label">年制</div>
 							<Select value={opts.yearType} onChange={(v) => this.changeOpt('yearType', v)} style={{ width: '100%' }}>
 								{Object.keys(BALBILLUS_YEAR_TYPES).map((k) => <Option value={k} key={k}>{BALBILLUS_YEAR_TYPES[k].label}</Option>)}
 							</Select>
 						</Col>
-						<Col span={8}>
+						<Col span={6}>
 							<div className="horosa-balbillus-label">距离口径</div>
 							<Select value={opts.mode} onChange={(v) => this.changeOpt('mode', v)} style={{ width: '100%' }}>
 								{Object.keys(BALBILLUS_MODES).map((k) => <Option value={k} key={k}>{BALBILLUS_MODES[k]}</Option>)}
+							</Select>
+						</Col>
+						<Col span={6}>
+							<div className="horosa-balbillus-label">子限铺法</div>
+							<Select value={opts.subRule} onChange={(v) => this.changeOpt('subRule', v)} style={{ width: '100%' }}>
+								{Object.keys(BALBILLUS_SUB_RULES).map((k) => <Option value={k} key={k}>{BALBILLUS_SUB_RULES[k]}</Option>)}
 							</Select>
 						</Col>
 					</Row>

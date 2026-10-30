@@ -52,7 +52,7 @@ describe('主限法计算回写主盘 fields 保留命盘身份', ()=>{
 			const fields = { ...fieldsSchemaBaseline(), cid: { name: ['cid'], value: 'rec-777' } };
 			const value = { ...CHART, params: { ...CHART.params, pdtype: 1 } };
 			inst.props = { dispatch: (a)=>dispatched.push(a), fields, value };
-			inst.state = { pdMethodTouched: true };
+			inst.state = { pdProjectionValue: 'placidus', pdFrameValue: 'placidus' };
 			inst.requestSeq = 0;
 			inst.getSelectedPdMethod = ()=>'placidus';
 			inst.getTablePdTimeKey = ()=>'Naibod';
@@ -95,7 +95,8 @@ describe('主限盘栏「计算」写回当前盘的投影 / 分宫与本次请�
 		expect(g.pdParallel.value).toBe(1);
 	});
 
-	async function compute(touched, method){
+	// 本页直接选弧算法 / 盘面宫制(与表格同一套两维),不再由旧单维方法推导
+	async function compute(projection, frame, method = 'core_alchabitius'){
 		const req = require('../request');
 		const bodies = [];
 		const spy = jest.spyOn(req, 'default').mockImplementation(async (url, opt)=>{ bodies.push(JSON.parse(opt.body)); return { Result: { pd: [] } }; });
@@ -107,7 +108,7 @@ describe('主限盘栏「计算」写回当前盘的投影 / 分宫与本次请�
 			const inst = Object.create(Chart.prototype);
 			const fields = { ...fieldsSchemaBaseline(), pdProjection: { name: ['pdProjection'], value: 'ptolemy' }, pdFrame: { name: ['pdFrame'], value: 'alcabitius' } };
 			inst.props = { dispatch: (a)=>dispatched.push(a), fields, value: CHART };
-			inst.state = { pdMethodTouched: touched };
+			inst.state = { pdProjectionValue: projection, pdFrameValue: frame };
 			inst.requestSeq = 0;
 			inst.getSelectedPdMethod = ()=>method;
 			inst.getTablePdTimeKey = ()=>'Ptolemy';
@@ -120,18 +121,62 @@ describe('主限盘栏「计算」写回当前盘的投影 / 分宫与本次请�
 	}
 
 	test('改成 Placidus 并计算:当前盘 fields 的投影 / 分宫跟请求一起换成 Placidus', async ()=>{
-		const { body, fields } = await compute(true, 'placidus');
+		const { body, fields } = await compute('placidus', 'koch');
 		expect(body.pdProjection).toBe('placidus');
-		expect(fields.pdMethod.value).toBe('placidus');
+		expect(body.pdFrame).toBe('koch');
 		expect(fields.pdProjection.value).toBe(body.pdProjection);
 		expect(fields.pdFrame.value).toBe(body.pdFrame);
 	});
 
-	test('没改方法:投影 / 分宫照现值透传(默认路径不变)', async ()=>{
-		const { body, fields } = await compute(false, 'core_alchabitius');
+	test('没改:投影 / 分宫照现值透传(默认路径不变)', async ()=>{
+		const { body, fields } = await compute('ptolemy', 'alcabitius');
 		expect(body.pdProjection).toBe('ptolemy');
 		expect(fields.pdProjection.value).toBe('ptolemy');
 		expect(fields.pdFrame.value).toBe('alcabitius');
 		expect(fields.pdParallel.value).toBe(0);
+	});
+});
+
+describe('主限法盘外圈宫头按所选盘面宫制(不再被旧单维方法打回 Alcabitius)', ()=>{
+	test('方法停在缺省,宫制选 Koch → 外圈请求带 koch;几何口径随「计算」进表格请求', ()=>{
+		const Chart = require('../../components/astro/AstroPrimaryDirectionChart').default;
+		const inst = new Chart({ value: CHART, pdMethod: 'core_alchabitius', pdProjection: 'ptolemy', pdFrame: 'alcabitius' });
+		inst.setState = (o)=>{ inst.state = { ...inst.state, ...(typeof o === 'function' ? o(inst.state) : o) }; };
+		inst.handlePdFrameChange('koch');
+		inst.handlePdProjectionChoiceChange('placidus|classic');
+		const dial = inst.buildRequestParams();
+		expect(dial.pdFrame).toBe('koch');
+		expect(dial.pdProjection).toBe('placidus');
+		const table = inst.buildChartRequestParams();
+		expect(table.pdFrame).toBe('koch');
+		expect(table.pdProjection).toBe('placidus');
+		expect(table.pdGeometry).toBe('classic');
+		expect(inst.needsPdRecompute()).toBe(true);
+	});
+});
+
+describe('主限盘「选时刻 → 年 → 弧」随本盘的日期年长 / 逆向弧口径', ()=>{
+	const mkInst = (params, pdExtra)=>{
+		const DateTime = require('../../components/comp/DateTime').default;
+		const Chart = require('../../components/astro/AstroPrimaryDirectionChart').default;
+		const inst = Object.create(Chart.prototype);
+		inst.props = { value: { ...CHART, params: { ...CHART.params, ...params } }, pdExtra };
+		const dt = new DateTime();
+		inst.state = { datetime: dt, pdDirectionValue: 'direct' };
+		inst.getSelectedPdMethod = ()=>'core_alchabitius';
+		inst.getSelectedPdProjection = ()=>'ptolemy';
+		inst.getSelectedPdFrame = ()=>'alcabitius';
+		inst.getSelectedPdTimeKey = ()=>'Ptolemy';
+		inst.getSelectedPdTimeKeyCustom = ()=>null;
+		return inst;
+	};
+	test('缺省不发;本盘选了「实际天数」/ 逆向弧用出生前太阳 → 请求带上,其余扩展项不带', ()=>{
+		expect(mkInst({}).buildRequestParams().pdYearDays).toBeUndefined();
+		const req = mkInst({ pdYearDays: 1, pdSolarArcRegressive: 1, pdTruePosition: 1 }).buildRequestParams();
+		expect(req.pdYearDays).toBe(1);
+		expect(req.pdSolarArcRegressive).toBe(1);
+		expect(req.pdTruePosition).toBeUndefined();
+		// 本盘参数没有时取页面传入的扩展设置
+		expect(mkInst({}, { pdYearDays: 1 }).buildRequestParams().pdYearDays).toBe(1);
 	});
 });

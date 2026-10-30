@@ -85,9 +85,25 @@ class GreatCircleCurve extends THREE.Curve{
 	}
 }
 
-/** 点位短名(名牌用):行星走 ywastrochart 字形(与 2D/3D 盘同源),宫/无字形词条回退中文 */
-function pointGlyphOf(baseId){
+/** 本盘的恒星本体名(FS_/FSD_/FSS_ 迫星与 kind=star 的点):名牌一律保英文名,与表格 / 时间轴同源 */
+export function pdStarBaseIds(points){
+	const out = new Set();
+	Object.keys(points || {}).forEach((pid)=>{
+		const pt = points[pid] || {};
+		if(/^FS[DS]?_/.test(pid) || pt.kind === 'star'){
+			out.add(basePointIdOf(pid));
+		}
+	});
+	return out;
+}
+
+/** 点位短名(名牌用):行星走 ywastrochart 字形(与 2D/3D 盘同源),宫/无字形词条回退中文;
+ *  恒星(starBases 里的名字)保英文名 —— 字形表里只有部分恒星有三字以内的中文名,不分开会中英混排 */
+export function pointGlyphOf(baseId, starBases){
 	const b = `${baseId}`;
+	if(starBases && starBases.has(b)){
+		return { text: b, astroFont: false };
+	}
 	if(b.indexOf('House') === 0){
 		return { text: `${b.slice(5)}宫`, astroFont: false };
 	}
@@ -393,6 +409,7 @@ class PDSphereEngine{
 			this._lastDataSig = sig;
 		}
 		this.res = res;
+		this._starBases = pdStarBaseIds(res.points);
 		this._playToken += 1;   // 作废在途播放/补间
 		this._tweenActive = false;
 		this.clearSelection();
@@ -965,7 +982,7 @@ class PDSphereEngine{
 			if(isVirtual && pt.kind === 'aspect'){
 				// 相位点=「本体 glyph + 相位 glyph」(用户定案:一堆白点没意义,须按标准标注)。
 				// id 形如 D_Saturn_60/S_Sun_90/N_Moon_180;末段数=相位度,合(0)只出本体 glyph。
-				const glyph = pointGlyphOf(baseId);
+				const glyph = pointGlyphOf(baseId, this._starBases);
 				const aspM = /^[DSN]_.+_(\d+)$/.exec(`${pid}`);
 				const aspDeg = aspM ? aspM[1] : null;
 				const aspChar = (aspDeg && aspDeg !== '0') ? AstroText.AstroMsg[`Asp${aspDeg}`] : null;
@@ -994,7 +1011,7 @@ class PDSphereEngine{
 				// 发光 glyph 精灵直接落在 (ra,decl) 位置本身。底稿恒白字烘焙,行星色经
 				// liftLuma 抬亮后由 material 乘性染色 —— 选中/悬停重染方向色时得纯正色
 				// (彩字×金=浑浊;白字×任意色=该色,连同光晕同色随染)。
-				const glyph = pointGlyphOf(baseId);
+				const glyph = pointGlyphOf(baseId, this._starBases);
 				const cssBase = typeof color === 'string' ? color : `#${(color >>> 0).toString(16).padStart(6, '0')}`;
 				tint = parseInt(liftLuma(cssBase, 0.6).slice(1), 16);
 				// 恒星点 ★ 前缀标识 + 收敛字号(星名长,等高会撑太宽);宫头/阿点走默认短标。
@@ -1137,7 +1154,7 @@ class PDSphereEngine{
 			if(promAtBody && base === promBase){
 				return;   // 合相/本体迫星:②的真位双影即其真位,本体重复画会叠字
 			}
-			const glyph = pointGlyphOf(base);
+			const glyph = pointGlyphOf(base, this._starBases);
 			const spr = makeTextSprite(glyph.text, {
 				worldSize: Math.max(7, R * 0.05), color: '#ffffff', glow: true,
 				...(glyph.astroFont ? { fontFamily: 'ywastrochart' } : {}),
@@ -1156,7 +1173,7 @@ class PDSphereEngine{
 			if(mu){
 				const mundo = `${row.cat || ''}` === 'M';
 				const latUse = mundo ? (Number(promPt.lat) || 0) : 0;
-				const bodyGlyph = pointGlyphOf(promBase);
+				const bodyGlyph = pointGlyphOf(promBase, this._starBases);
 				const aspChar = (promAspM && promAspM[1] !== '0') ? AstroText.AstroMsg[`Asp${promAspM[1]}`] : null;
 				const txt = (bodyGlyph.astroFont && aspChar) ? `${bodyGlyph.text}${aspChar}` : bodyGlyph.text;
 				const twin = makeTextSprite(txt, {
@@ -1384,13 +1401,13 @@ class PDSphereEngine{
 		let marker = null;
 		if(moverPt){
 			if(mover === 'sig'){
-				const sigGlyph = pointGlyphOf(sigBaseId);
+				const sigGlyph = pointGlyphOf(sigBaseId, this._starBases);
 				marker = tintSprite(makeTextSprite(sigGlyph.text, {
 					worldSize: Math.max(8.5, R * 0.06), color: '#ffffff', glow: true,
 					...(sigGlyph.astroFont ? { fontFamily: 'ywastrochart' } : {}),
 				}));
 			}else{
-				const bodyGlyph = pointGlyphOf(promBaseId);
+				const bodyGlyph = pointGlyphOf(promBaseId, this._starBases);
 				if(promPt.kind === 'aspect' && bodyGlyph.astroFont && aspGlyphChar && aspRawDeg !== '0'){
 					marker = tintSprite(makeTextSprite(`${bodyGlyph.text}${aspGlyphChar}`, {
 						worldSize: Math.max(8.5, R * 0.06), color: '#ffffff', glow: true, fontFamily: 'ywastrochart',
@@ -1461,7 +1478,7 @@ class PDSphereEngine{
 				pulseTargets.push({ material: tube.material, mode: 'emissive' });
 			}
 		}else if(render === 'polyline' && circle){
-			// Placidus/Topocentric/legacy:采样多段线,断段自然断开(极圈不可解区间零连线)
+			// Placidus / legacy:半弧比例等值线采样;Topocentric / Placidus 极下法:按应星的极精确采样的大圆;断段自然断开(极圈不可解区间零连线)
 			// polyline 圈选中期粗管化:细线在满盘同色系里不显眼(用户实读「没碰到」),
 			// 段多段线走 CatmullRom(tension 0 过点)Tube;段仍自然断开(极圈不可解区间零管)。
 			(circle.points || []).forEach((seg)=>{
@@ -1528,7 +1545,7 @@ class PDSphereEngine{
 			promSideGrp.add(promCard);
 			// mover='sig' 时相位点本身要有静止标(动方标已让位给应星):组合 glyph 钉在相位点位
 			if(mover === 'sig'){
-				const bodyGlyphS = pointGlyphOf(promBaseId);
+				const bodyGlyphS = pointGlyphOf(promBaseId, this._starBases);
 				const aspPtMark = (promPt.kind === 'aspect' && bodyGlyphS.astroFont && aspGlyphChar && aspRawDeg !== '0')
 					? tintSprite(makeTextSprite(`${bodyGlyphS.text}${aspGlyphChar}`, {
 						worldSize: Math.max(8, R * 0.055), color: '#ffffff', glow: true, fontFamily: 'ywastrochart',
@@ -1592,7 +1609,7 @@ class PDSphereEngine{
 				if(bodyPt){
 					const bodyEq = effectiveEq(bodyPt, row.cat);
 					// 本体星 glyph 副本(白字+方向色染;略小于被引导点标)
-					const bodyGlyphB = pointGlyphOf(promBaseId);
+					const bodyGlyphB = pointGlyphOf(promBaseId, this._starBases);
 					const bodySprite = tintSprite(makeTextSprite(bodyGlyphB.text, {
 						worldSize: Math.max(7, R * 0.05), color: '#ffffff', glow: true,
 						...(bodyGlyphB.astroFont ? { fontFamily: 'ywastrochart' } : {}),

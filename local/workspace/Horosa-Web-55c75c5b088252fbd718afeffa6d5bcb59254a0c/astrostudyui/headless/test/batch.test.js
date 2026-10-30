@@ -390,6 +390,37 @@ describe('⑧ 连按两次 Ctrl-C · 多套计算服务中途挂一套', ()=>{
 	});
 });
 
+describe('⑧b 往刚退出的子进程发消息(EPIPE)不崩父进程', ()=>{
+	// 第二次 Ctrl-C 强杀 / 整例超时重启的空档里,子进程对象 connected 还是 true、写管道却已断:send 的失败是异步的,
+	// 没给回调时 Node 抛 'error' 事件 → 父进程 EPIPE 崩掉。发送点带回调后各自收尾,不挂住、不崩。
+	const { EventEmitter } = require('events');
+	const fakeWorker = ()=>{
+		const child = new EventEmitter();
+		child.connected = true;
+		child.send = (m, cb)=>{ setImmediate(()=>{ const e = Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }); if(cb){ cb(e); }else{ child.emit('error', e); } }); return true; };
+		child.kill = ()=>true;
+		return { slot: 0, child, busy: null, served: 0, ready: true, dead: false };
+	};
+	it('🔴 run:发送失败立即按「子进程崩了」收尾(不等整例超时)', async ()=>{
+		const { createPool } = require('../batch');
+		const pool = createPool(0, { tmpRoot: os.tmpdir() });
+		const t0 = Date.now();
+		const r = await pool.run(fakeWorker(), { id: 'x' }, 60000);
+		assert.equal(r.crashed, true);
+		assert.ok(Date.now() - t0 < 5000);
+	});
+	it('🔴 ask:发送失败回空答复', async ()=>{
+		const { createPool } = require('../batch');
+		const pool = createPool(0, { tmpRoot: os.tmpdir() });
+		assert.deepEqual(await pool.ask(fakeWorker(), { type: 'usage' }), {});
+	});
+	it('🔴 每个子进程都挂了 error 监听(其余发送点的兜底)', ()=>{
+		const src = fs.readFileSync(path.join(__dirname, '..', 'batch.js'), 'utf8');
+		const spawn = src.slice(src.indexOf('const spawnOne ='), src.indexOf('let seq = 1;'));
+		assert.match(spawn, /child\.on\('error'/);
+	});
+});
+
 describe('⑥ 命令行入口退出前等输出写完(接管道时大回包不被截断)', ()=>{
 	const big = (mode)=>new Promise((resolve)=>{
 		const code = mode === 'flush'

@@ -76,7 +76,8 @@ describe('🔴 主限法扩展面板 · 单点契约', ()=>{
 		expect(PANEL).toContain("title='迫星扩展'");
 		expect(PANEL).toContain('onSignificatorsChange');
 		expect(PANEL).toContain('onPromissorTypesChange');
-		expect(PANEL).toContain('onChange(options.map((o)=>o.value))');	// 全选
+		// 全选:当前方向 / 弧算法下置灰(不起作用)的选项不勾,已勾的保留
+		expect(PANEL).toContain('onChange(options.filter((o)=>!reasonOf(o.value) || sel.indexOf(o.value) >= 0).map((o)=>o.value))');
 		expect(PANEL).toContain('onChange([])');							// 清空
 	});
 });

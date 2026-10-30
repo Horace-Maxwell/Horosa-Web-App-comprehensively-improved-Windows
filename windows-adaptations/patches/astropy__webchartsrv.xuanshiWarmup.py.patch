@@ -1,5 +1,5 @@
 diff --git a/astropy/websrv/webchartsrv.py b/astropy/websrv/webchartsrv.py
-index 8bab870c..b76587b2 100644
+index c179683c..c9dcdde2 100644
 --- a/astropy/websrv/webchartsrv.py
 +++ b/astropy/websrv/webchartsrv.py
 @@ -85,6 +85,31 @@ CORE_SERVICE_SPECS = [
@@ -70,7 +70,7 @@ index 8bab870c..b76587b2 100644
  
  
  
-@@ -631,6 +680,27 @@ def _request_targets_kentang(req):
+@@ -634,6 +683,27 @@ def _request_targets_kentang(req):
      return (getattr(req, 'script_name', '') or '') in _KENTANG_MOUNTS
  
  
@@ -98,7 +98,7 @@ index 8bab870c..b76587b2 100644
  _GATE_FIRST_WAIT_LOGGED = [False]
  
  
-@@ -677,11 +747,19 @@ def _startup_gate_tool():
+@@ -680,11 +750,19 @@ def _startup_gate_tool():
      req = cherrypy.request
      if req.method in ('GET', 'OPTIONS', 'HEAD'):
          return  # 探活/预检不碰计算与 sid_mode
@@ -119,7 +119,7 @@ index 8bab870c..b76587b2 100644
          # 核心门 60 秒都没开 = warmup 挂死,兜底放行(同旧);开了就再给卜类段剩余的宽限
          if CORE_GATE.wait(timeout=60):
              _opened = _CORE_GATE_OPENED_AT[0]
-@@ -729,16 +807,17 @@ def _warmup_stage_pd():
+@@ -732,16 +810,17 @@ def _warmup_stage_pd():
          traceback.print_exc()
  
  
@@ -142,7 +142,7 @@ index 8bab870c..b76587b2 100644
      except Exception:
          traceback.print_exc()
  
-@@ -796,13 +875,31 @@ def _run_warmups():
+@@ -799,13 +878,31 @@ def _run_warmups():
      elif _par_env == '1':
          _parallel = True
      else:
@@ -176,7 +176,7 @@ index 8bab870c..b76587b2 100644
          # 冷启/untrusted 并行档:四段真并行,门开时刻 sum(pd+3段) → max(4段)
          # (R3 三段并行已证 sum→max 大赢;PD ~370-570ms 原恒串行前置,并入再省一段)。
          _stages = (_warmup_stage_pd, _warmup_stage_core, _warmup_stage_india, _warmup_stage_kentang)
-@@ -831,6 +928,68 @@ def _run_warmups():
+@@ -834,6 +931,68 @@ def _run_warmups():
      # 门开绝对时刻显式化(改前基线里门开时刻要靠 warmup 末段推算)。
      ledger_mark('py.gate_open', t0=_PY_T0)
      STARTUP_GATE.set()
@@ -245,7 +245,7 @@ index 8bab870c..b76587b2 100644
  
  
  if __name__ == '__main__':
-@@ -865,6 +1024,7 @@ if __name__ == '__main__':
+@@ -868,6 +1027,7 @@ if __name__ == '__main__':
      if not _warmup_sync:
          threading.Thread(target=_run_warmups, name='horosa-warmup', daemon=True).start()
      else:

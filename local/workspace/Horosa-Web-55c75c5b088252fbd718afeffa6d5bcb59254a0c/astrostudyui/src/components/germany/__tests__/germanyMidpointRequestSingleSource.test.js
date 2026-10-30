@@ -15,7 +15,7 @@ import AstroMidpoint, { germanyMidpointRequestParams, buildGermanySnapshotForFie
 import { getStoredUranianDisplay, saveUranianDisplay } from '../UranianDialStyle';
 import moment from 'moment';
 
-const KEYS = ['school', 'orb', 'personalOrb', 'declination', 'frames', 'strictFactors', 'davison'];
+const KEYS = ['school', 'orb', 'personalOrb', 'declination', 'frames', 'strictFactors', 'davison', 'mpCoord'];
 const pick = (b) => KEYS.reduce((o, k) => { if(b && b[k] !== undefined){ o[k] = b[k]; } return o; }, {});
 const fields = () => {
 	const v = (x) => ({ value: x });
@@ -26,7 +26,7 @@ const midpointBody = () => (mockBodies.filter((r) => /\/germany\/midpoint$/.test
 
 describe('量化盘 /germany/midpoint 显示口径出参单源', () => {
 	beforeEach(() => { mockBodies = []; try{ localStorage.clear(); }catch(e){ /* ignore */ } });
-	[{}, { showDeclination: false }, { showHouseFrames: false }, { showHouseFrames: false, showEastPoint: true }, { school: 'cosmo', strictFactors: true, orb: 2 }].forEach((disp) => {
+	[{}, { showDeclination: false }, { showHouseFrames: false }, { showHouseFrames: false, showEastPoint: true }, { school: 'cosmo', strictFactors: true, orb: 2 }, { mpCoord: 'ra' }, { mpCoord: 'decl' }].forEach((disp) => {
 		it(`中点页与无头重算出参一致:${JSON.stringify(disp)}`, async () => {
 			saveUranianDisplay(disp);
 			const want = germanyMidpointRequestParams(getStoredUranianDisplay(), null);
@@ -56,5 +56,20 @@ describe('量化盘 /germany/midpoint 显示口径出参单源', () => {
 		const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'UranianDialMain.js'), 'utf8');
 		expect(src).toMatch(/return germanyMidpointRequestParams\(state, null\);/);
 		expect(src).not.toMatch(/declination:\s*state\.showDeclination/);
+	});
+});
+
+describe('挂载齿轮「中点坐标」', () => {
+	beforeEach(() => { mockBodies = []; try{ localStorage.clear(); }catch(e){ /* ignore */ } });
+	[['', undefined], ['lon', undefined], ['ra', 'ra'], ['decl', 'decl']].forEach(([gear, sent]) => {
+		it(`齿轮中点坐标 = ${gear || '随全局'}:无头重算下发 mpCoord = ${sent || '(不带)'}`, async () => {
+			await buildGermanySnapshotForFields(fields(), gear ? { mpCoord: gear } : undefined);
+			expect(midpointBody().mpCoord).toBe(sent);
+		});
+	});
+	it('齿轮覆盖全局:全局存赤经、齿轮选黄经 → 不带 mpCoord(黄经 = 原中点表)', async () => {
+		saveUranianDisplay({ mpCoord: 'ra' });
+		await buildGermanySnapshotForFields(fields(), { mpCoord: 'lon' });
+		expect(midpointBody().mpCoord).toBeUndefined();
 	});
 });

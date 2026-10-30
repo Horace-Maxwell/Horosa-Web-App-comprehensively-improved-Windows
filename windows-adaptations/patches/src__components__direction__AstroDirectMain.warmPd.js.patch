@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/direction/AstroDirectMain.js b/astrostudyui/src/components/direction/AstroDirectMain.js
-index 2610fec3..82a9a306 100644
+index 8e27784e..b579c4b9 100644
 --- a/astrostudyui/src/components/direction/AstroDirectMain.js
 +++ b/astrostudyui/src/components/direction/AstroDirectMain.js
 @@ -1,5 +1,11 @@
@@ -14,171 +14,23 @@ index 2610fec3..82a9a306 100644
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { readPdSphereStamp } from '../../utils/pdSphereStamp';
  import { recordNewChartSeeds } from '../../utils/newChartSeeds';
-@@ -688,6 +694,189 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
+@@ -711,6 +717,41 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
  	return fields;
  }
  
-+// PERF-R8 P2:主限配置/请求构造抽为模块级纯函数 —— 原类方法逻辑逐字搬移(解析顺序
-+// override → chart.params → fields → 默认 不变),类方法纯委托。数据层预热复用同一构造,
-+// key/body 与真实首点逐字节一致。
-+function getDesiredPdConfigPure(chartObj, fields, override = {}){
-+	const chart = chartObj || {};
-+	const params = chart.params || {};
-+	const flds = fields || {};
-+	const pick = (key)=>{
-+		if(override[key] !== undefined && override[key] !== null){
-+			return override[key];
-+		}
-+		if(params[key] !== undefined && params[key] !== null){
-+			return params[key];
-+		}
-+		if(flds[key] && flds[key].value !== undefined && flds[key].value !== null){
-+			return flds[key].value;
-+		}
-+		return undefined;
-+	};
-+	const toFlag = (v)=>(v === true || v === 1 || v === '1' || v === 'true') ? 1 : 0;
-+	// 顺向 / 逆向 默认都开(用户偏好「顺逆都开」):仅显式 0/false 才关。
-+	const offIf = (v)=>(v === 0 || v === '0' || v === false || v === 'false') ? 0 : 1;
-+	const pdDirect = offIf(pick('pdDirect'));
-+	const pdConverse = offIf(pick('pdConverse'));
-+	return {
-+		pdMethod: override.pdMethod || (params.pdMethod
-+			? params.pdMethod
-+			: (flds.pdMethod ? flds.pdMethod.value : DEFAULT_PD_METHOD)),
-+		pdTimeKey: override.pdTimeKey || (params.pdTimeKey
-+			? params.pdTimeKey
-+			: (flds.pdTimeKey ? flds.pdTimeKey.value : DEFAULT_PD_TIME_KEY)),
-+		pdYears: normalizePdYears(override.pdYears !== undefined && override.pdYears !== null ? override.pdYears
-+			: (params.pdYears !== undefined && params.pdYears !== null ? params.pdYears
-+			: (flds.pdYears ? flds.pdYears.value : 100))),
-+		pdtype: toFlag(pick('pdtype')),
-+		pdDirect,
-+		pdConverse,
-+		pdAntiscia: toFlag(pick('pdAntiscia')),
-+		pdTerms: toFlag(pick('pdTerms')),
-+		// P0 解耦补齐维:投影/定局/框架/平行×2/自定义率/S·P 清单/界系(默认=引擎缺省)。
-+		pdProjection: pick('pdProjection') || 'ptolemy',
-+		pdFrame: pick('pdFrame') || 'alcabitius',
-+		pdFramework: pick('pdFramework') || 'aspect',
-+		pdParallel: toFlag(pick('pdParallel')),
-+		pdRaptParallel: toFlag(pick('pdRaptParallel')),
-+		pdTimeKeyCustom: (()=>{ const v = pick('pdTimeKeyCustom'); const n = Number(v); return (v !== undefined && Number.isFinite(n) && n > 0) ? n : null; })(),
-+		pdSignificators: Array.isArray(pick('pdSignificators')) && pick('pdSignificators').length ? pick('pdSignificators') : null,
-+		pdPromissorTypes: Array.isArray(pick('pdPromissorTypes')) && pick('pdPromissorTypes').length ? pick('pdPromissorTypes') : null,
-+		termsVariant: (()=>{ const v = Number(pick('termsVariant')); return (v >= 1 && v <= 4) ? v : 0; })(),
-+	};
-+}
-+
++// PERF-R8 P2:数据层预热 / 步进预取与真实首点必须同一构造(url + body 逐字节一致才命中 requestDedupe)。
++// horosa_pd_request_facade_v1(v3.13.0):不再保留「纯函数复制体 + 类方法委托」—— 直接借类方法本体
++// (getDesiredPdConfig / buildPrimaryDirectionRequest 只读 this.props.chartObj / this.props.fields,
++// 后者另调 this.getDesiredPdConfig),上游每次扩维度都自动随行。复制体两度静默劣化:v3.6.0 丢 6 个字段
++// (issue #59,界面选了发不出去)、v3.13.0 把 Field Plane 方向类型压成 0 并整组丢掉 pdExtra 新设置(gotcha #83④ / #114)。
++// 外观对象只给这两样;上游若让这两个方法读别的 this 成员,预热会在 warm 的 try/catch 里静默落空
++// (首点回到冷即付),绝不影响页面本身 —— 页面走的始终是类方法原样。
 +function buildPrimaryDirectionRequestPure(chartObj, fields, override = {}){
-+	const chart = chartObj || {};
-+	// 与原类方法逐字对齐:配置解析用「组件 props.fields 对应位」(本参数 fields),
-+	// fetch-fields 基底允许 override.fields 覆盖 —— 两处兜底语义不合并。
-+	const desired = getDesiredPdConfigPure(chart, fields, override);
-+	const nextFields = buildPrimaryDirectionFetchFields(
-+		override.fields || fields,
-+		chart,
-+		desired.pdMethod,
-+		desired.pdTimeKey,
-+		desired.pdYears,
-+		{
-+			pdtype: desired.pdtype,
-+			direct: desired.pdDirect === 1,
-+			converse: desired.pdConverse === 1,
-+			antiscia: desired.pdAntiscia === 1,
-+			terms: desired.pdTerms === 1,
-+		}
-+	);
-+	const dateValue = nextFields.date && nextFields.date.value;
-+	const timeValue = nextFields.time && nextFields.time.value;
-+	if(!dateValue || !timeValue || !dateValue.format || !timeValue.format){
-+		return null;
-+	}
-+	const dateStr = dateValue.format('YYYY/MM/DD');
-+	const timeStr = timeValue.format('HH:mm:ss');
-+	// 畸形日期(NaN)绝不发请求——否则后端 Datetime 抛错弹「param error」。
-+	if(`${dateStr}`.indexOf('NaN') >= 0 || `${timeStr}`.indexOf('NaN') >= 0){
-+		return null;
-+	}
-+	return {
-+		date: dateStr,
-+		time: timeStr,
-+		ad: nextFields.ad && nextFields.ad.value !== undefined ? nextFields.ad.value : (dateValue.ad !== undefined ? dateValue.ad : 1),
-+		zone: nextFields.zone ? nextFields.zone.value : undefined,
-+		lat: nextFields.lat ? nextFields.lat.value : undefined,
-+		lon: nextFields.lon ? nextFields.lon.value : undefined,
-+		gpsLat: nextFields.gpsLat ? nextFields.gpsLat.value : undefined,
-+		gpsLon: nextFields.gpsLon ? nextFields.gpsLon.value : undefined,
-+		hsys: nextFields.hsys ? nextFields.hsys.value : 0,
-+		southchart: nextFields.southchart ? nextFields.southchart.value : 0,
-+		zodiacal: nextFields.zodiacal ? nextFields.zodiacal.value : 0, siderealAyanamsa: nextFields.siderealAyanamsa ? nextFields.siderealAyanamsa.value : '',
-+		tradition: nextFields.tradition ? nextFields.tradition.value : 0,
-+		strongRecption: nextFields.strongRecption ? nextFields.strongRecption.value : 0,
-+		simpleAsp: nextFields.simpleAsp ? nextFields.simpleAsp.value : 0,
-+		virtualPointReceiveAsp: nextFields.virtualPointReceiveAsp ? nextFields.virtualPointReceiveAsp.value : 0,
-+		doubingSu28: nextFields.doubingSu28 ? nextFields.doubingSu28.value : 0,
-+		predictive: true,
-+		includePrimaryDirection: true,
-+		showPdBounds: nextFields.showPdBounds ? nextFields.showPdBounds.value : 1,
-+		pdtype: desired.pdtype,
-+		pdMethod: desired.pdMethod,
-+		pdTimeKey: desired.pdTimeKey,
-+		pdYears: desired.pdYears,
-+		pdDirect: desired.pdDirect,
-+		pdConverse: desired.pdConverse,
-+		pdAntiscia: desired.pdAntiscia,
-+		pdTerms: desired.pdTerms,
-+		pdProjection: desired.pdProjection,
-+		pdFrame: desired.pdFrame,
-+		pdFramework: desired.pdFramework,
-+		pdParallel: desired.pdParallel,
-+		pdRaptParallel: desired.pdRaptParallel,
-+		...(desired.pdTimeKeyCustom ? { pdTimeKeyCustom: desired.pdTimeKeyCustom } : {}),
-+		...(desired.pdSignificators ? { pdSignificators: desired.pdSignificators } : {}),
-+		...(desired.pdPromissorTypes ? { pdPromissorTypes: desired.pdPromissorTypes } : {}),
-+		termsVariant: desired.termsVariant,
-+		// 古典设置单源接入(此前仅 termsVariant 手拼=其余古典档对主限族空转;
-+		// /predict/pd 装饰器统一 push,条件发送保默认态字节不变=golden 540 天然守护)。
-+		// 页面显式界系必须胜出:desired.termsVariant 的真值序=override(本次对话框
-+		// 选择)>params(已落库)>fields,而 spread 在其后会用 fields 值静默覆盖——全局仓非默认
-+		// 时主限页任何异档选择「永不可达」。剔除 spread 里的 termsVariant(delete 法保键序=
-+		// 不翻缓存键);非自定义界(≠4)时连剔表体伴生键,防已废 12 座表随请求。
-+		...(()=>{
-+			const cls = classicalBackendOverridesFromFields(nextFields || {});
-+			delete cls.termsVariant;
-+			if(desired.termsVariant !== 4){
-+				delete cls.customTermsDay; delete cls.customTermsNight;
-+			}else if(!cls.customTermsDay){
-+				// 页面显式选自定义界(4)而 fields≠4:spread 无从附表(WP-7 触发条件=
-+				// fields 值为 4)——裸发 4 后端静默回落埃及,而 UI/params/快照全标「自定义界表」
-+				// 且 needsPrimaryDirectionLoad 判 4===4 永久停错档。随盘 fields 表体优先,
-+				// 回落本机编辑器仓;仍无表=照 chartRequest.js WP-7 口径降级不发 4。
-+				const fDay = nextFields && nextFields.customTermsDay ? nextFields.customTermsDay.value : undefined;
-+				const fNight = nextFields && nextFields.customTermsNight ? nextFields.customTermsNight.value : undefined;
-+				let day = Array.isArray(fDay) && fDay.length === 12 ? fDay : null;
-+				let night = Array.isArray(fNight) && fNight.length === 12 ? fNight : null;
-+				if(!day){
-+					try{
-+						const t = require('../../utils/customCalibreStores').loadCustomTerms();
-+						if(t && Array.isArray(t.day) && t.day.length === 12){ day = t.day; night = Array.isArray(t.night) && t.night.length === 12 ? t.night : night; }
-+					}catch(e){ /* 无编辑器仓=降级 */ }
-+				}
-+				if(day){
-+					cls.customTermsDay = day;
-+					if(night){ cls.customTermsNight = night; }
-+				}else{
-+					// 无表降级埃及:手写 termsVariant 行在本 IIFE 之前已求值(对象字面量按序),
-+					// 改 desired 无效——由 spread 同名键覆盖(spread 在后=后者胜)。
-+					cls.termsVariant = 0;
-+				}
-+			}
-+			return cls;
-+		})(),
-+		pdaspects: nextFields.pdaspects ? nextFields.pdaspects.value : [0, 60, 90, 120, 180],
-+		name: nextFields.name ? nextFields.name.value : null,
-+		pos: nextFields.pos ? nextFields.pos.value : null,
-+		cid: null,
++	const facade = {
++		props: { chartObj, fields },
++		getDesiredPdConfig: AstroDirectMain.prototype.getDesiredPdConfig,
 +	};
++	return AstroDirectMain.prototype.buildPrimaryDirectionRequest.call(facade, chartObj, override);
 +}
 +
 +// PERF-R8 P2(数据层空闲预热):按当前盘+默认主限配置预热 /predict/pd —— 与星运首点
@@ -204,7 +56,7 @@ index 2610fec3..82a9a306 100644
  function unwrapPredictiveResponse(data){
  	if(!data || typeof data !== 'object'){
  		return null;
-@@ -835,6 +1024,41 @@ class AstroDirectMain extends Component{
+@@ -858,6 +899,41 @@ class AstroDirectMain extends Component{
  					hook[this.state.currentTab].fun(chartobj);
  				}
  			};
@@ -246,174 +98,7 @@ index 2610fec3..82a9a306 100644
  		}
  
  	}
-@@ -856,162 +1080,13 @@ class AstroDirectMain extends Component{
- 	}
- 
- 	getDesiredPdConfig(chartObj, override = {}){
--		const chart = chartObj || this.props.chartObj || {};
--		const params = chart.params || {};
--		const fields = this.props.fields || {};
--		// 解析顺序:override(本次「计算」选择) → chart.params(已落库) → fields(表单) → 默认。
--		const pick = (key)=>{
--			if(override[key] !== undefined && override[key] !== null){
--				return override[key];
--			}
--			if(params[key] !== undefined && params[key] !== null){
--				return params[key];
--			}
--			if(fields[key] && fields[key].value !== undefined && fields[key].value !== null){
--				return fields[key].value;
--			}
--			return undefined;
--		};
--		const toFlag = (v)=>(v === true || v === 1 || v === '1' || v === 'true') ? 1 : 0;
--		// 顺向 / 逆向 默认都开(用户偏好「顺逆都开」):仅显式 0/false 才关。
--		const offIf = (v)=>(v === 0 || v === '0' || v === false || v === 'false') ? 0 : 1;
--		const pdDirect = offIf(pick('pdDirect'));
--		const pdConverse = offIf(pick('pdConverse'));
--		return {
--			pdMethod: override.pdMethod || (params.pdMethod
--				? params.pdMethod
--				: (fields.pdMethod ? fields.pdMethod.value : DEFAULT_PD_METHOD)),
--			pdTimeKey: override.pdTimeKey || (params.pdTimeKey
--				? params.pdTimeKey
--				: (fields.pdTimeKey ? fields.pdTimeKey.value : DEFAULT_PD_TIME_KEY)),
--			pdYears: normalizePdYears(override.pdYears !== undefined && override.pdYears !== null ? override.pdYears
--				: (params.pdYears !== undefined && params.pdYears !== null ? params.pdYears
--				: (fields.pdYears ? fields.pdYears.value : 100))),
--			pdtype: toFlag(pick('pdtype')),
--			pdDirect,
--			pdConverse,
--			pdAntiscia: toFlag(pick('pdAntiscia')),
--			pdTerms: toFlag(pick('pdTerms')),
--			// P0 解耦补齐维:投影/定局/框架/平行×2/自定义率/S·P 清单/界系(默认=引擎缺省)。
--			pdProjection: pick('pdProjection') || 'ptolemy',
--			pdFrame: pick('pdFrame') || 'alcabitius',
--			pdFramework: pick('pdFramework') || 'aspect',
--			pdParallel: toFlag(pick('pdParallel')),
--			pdRaptParallel: toFlag(pick('pdRaptParallel')),
--			pdTimeKeyCustom: (()=>{ const v = pick('pdTimeKeyCustom'); const n = Number(v); return (v !== undefined && Number.isFinite(n) && n > 0) ? n : null; })(),
--			pdSignificators: Array.isArray(pick('pdSignificators')) && pick('pdSignificators').length ? pick('pdSignificators') : null,
--			pdPromissorTypes: Array.isArray(pick('pdPromissorTypes')) && pick('pdPromissorTypes').length ? pick('pdPromissorTypes') : null,
--			termsVariant: (()=>{ const v = Number(pick('termsVariant')); return (v >= 1 && v <= 4) ? v : 0; })(),
--		};
-+		// PERF-R8 P2:逻辑原样抽为模块级纯函数(预热复用同一构造 → key/body 逐字节一致);
-+		// 本方法保持既有签名与解析语义(chartObj/props 兜底),纯委托零行为变化。
-+		return getDesiredPdConfigPure(chartObj || this.props.chartObj, this.props.fields, override);
- 	}
- 
- 	buildPrimaryDirectionRequest(chartObj, override = {}){
--		const chart = chartObj || this.props.chartObj || {};
--		const desired = this.getDesiredPdConfig(chart, override);
--		const nextFields = buildPrimaryDirectionFetchFields(
--			override.fields || this.props.fields,
--			chart,
--			desired.pdMethod,
--			desired.pdTimeKey,
--			desired.pdYears,
--			{
--				pdtype: desired.pdtype,
--				direct: desired.pdDirect === 1,
--				converse: desired.pdConverse === 1,
--				antiscia: desired.pdAntiscia === 1,
--				terms: desired.pdTerms === 1,
--			}
--		);
--		const dateValue = nextFields.date && nextFields.date.value;
--		const timeValue = nextFields.time && nextFields.time.value;
--		if(!dateValue || !timeValue || !dateValue.format || !timeValue.format){
--			return null;
--		}
--		const dateStr = dateValue.format('YYYY/MM/DD');
--		const timeStr = timeValue.format('HH:mm:ss');
--		// 畸形日期(NaN)绝不发请求——否则后端 Datetime 抛错弹「param error」。
--		if(`${dateStr}`.indexOf('NaN') >= 0 || `${timeStr}`.indexOf('NaN') >= 0){
--			return null;
--		}
--		return {
--			date: dateStr,
--			time: timeStr,
--			ad: nextFields.ad && nextFields.ad.value !== undefined ? nextFields.ad.value : (dateValue.ad !== undefined ? dateValue.ad : 1),
--			zone: nextFields.zone ? nextFields.zone.value : undefined,
--			lat: nextFields.lat ? nextFields.lat.value : undefined,
--			lon: nextFields.lon ? nextFields.lon.value : undefined,
--			gpsLat: nextFields.gpsLat ? nextFields.gpsLat.value : undefined,
--			gpsLon: nextFields.gpsLon ? nextFields.gpsLon.value : undefined,
--			hsys: nextFields.hsys ? nextFields.hsys.value : 0,
--			southchart: nextFields.southchart ? nextFields.southchart.value : 0,
--			zodiacal: nextFields.zodiacal ? nextFields.zodiacal.value : 0, siderealAyanamsa: nextFields.siderealAyanamsa ? nextFields.siderealAyanamsa.value : '',
--			tradition: nextFields.tradition ? nextFields.tradition.value : 0,
--			strongRecption: nextFields.strongRecption ? nextFields.strongRecption.value : 0,
--			simpleAsp: nextFields.simpleAsp ? nextFields.simpleAsp.value : 0,
--			virtualPointReceiveAsp: nextFields.virtualPointReceiveAsp ? nextFields.virtualPointReceiveAsp.value : 0,
--			doubingSu28: nextFields.doubingSu28 ? nextFields.doubingSu28.value : 0,
--			predictive: true,
--			includePrimaryDirection: true,
--			showPdBounds: nextFields.showPdBounds ? nextFields.showPdBounds.value : 1,
--			pdtype: desired.pdtype,
--			pdMethod: desired.pdMethod,
--			pdTimeKey: desired.pdTimeKey,
--			pdYears: desired.pdYears,
--			pdDirect: desired.pdDirect,
--			pdConverse: desired.pdConverse,
--			pdAntiscia: desired.pdAntiscia,
--			pdTerms: desired.pdTerms,
--			pdProjection: desired.pdProjection,
--			pdFrame: desired.pdFrame,
--			pdFramework: desired.pdFramework,
--			pdParallel: desired.pdParallel,
--			pdRaptParallel: desired.pdRaptParallel,
--			...(desired.pdTimeKeyCustom ? { pdTimeKeyCustom: desired.pdTimeKeyCustom } : {}),
--			...(desired.pdSignificators ? { pdSignificators: desired.pdSignificators } : {}),
--			...(desired.pdPromissorTypes ? { pdPromissorTypes: desired.pdPromissorTypes } : {}),
--			termsVariant: desired.termsVariant,
--			// 古典设置单源接入(此前仅 termsVariant 手拼=其余古典档对主限族空转;
--			// /predict/pd 装饰器统一 push,条件发送保默认态字节不变=golden 540 天然守护)。
--			// 页面显式界系必须胜出:desired.termsVariant 的真值序=override(本次对话框
--			// 选择)>params(已落库)>fields,而 spread 在其后会用 fields 值静默覆盖——全局仓非默认
--			// 时主限页任何异档选择「永不可达」。剔除 spread 里的 termsVariant(delete 法保键序=
--			// 不翻缓存键);非自定义界(≠4)时连剔表体伴生键,防已废 12 座表随请求。
--			...(()=>{
--				const cls = classicalBackendOverridesFromFields(nextFields || {});
--				delete cls.termsVariant;
--				if(desired.termsVariant !== 4){
--					delete cls.customTermsDay; delete cls.customTermsNight;
--				}else if(!cls.customTermsDay){
--					// 页面显式选自定义界(4)而 fields≠4:spread 无从附表(WP-7 触发条件=
--					// fields 值为 4)——裸发 4 后端静默回落埃及,而 UI/params/快照全标「自定义界表」
--					// 且 needsPrimaryDirectionLoad 判 4===4 永久停错档。随盘 fields 表体优先,
--					// 回落本机编辑器仓;仍无表=照 chartRequest.js WP-7 口径降级不发 4。
--					const fDay = nextFields && nextFields.customTermsDay ? nextFields.customTermsDay.value : undefined;
--					const fNight = nextFields && nextFields.customTermsNight ? nextFields.customTermsNight.value : undefined;
--					let day = Array.isArray(fDay) && fDay.length === 12 ? fDay : null;
--					let night = Array.isArray(fNight) && fNight.length === 12 ? fNight : null;
--					if(!day){
--						try{
--							const t = require('../../utils/customCalibreStores').loadCustomTerms();
--							if(t && Array.isArray(t.day) && t.day.length === 12){ day = t.day; night = Array.isArray(t.night) && t.night.length === 12 ? t.night : night; }
--						}catch(e){ /* 无编辑器仓=降级 */ }
--					}
--					if(day){
--						cls.customTermsDay = day;
--						if(night){ cls.customTermsNight = night; }
--					}else{
--						// 无表降级埃及:手写 termsVariant 行在本 IIFE 之前已求值(对象字面量按序),
--						// 改 desired 无效——由 spread 同名键覆盖(spread 在后=后者胜)。
--						cls.termsVariant = 0;
--					}
--				}
--				return cls;
--			})(),
--			pdaspects: nextFields.pdaspects ? nextFields.pdaspects.value : [0, 60, 90, 120, 180],
--			name: nextFields.name ? nextFields.name.value : null,
--			pos: nextFields.pos ? nextFields.pos.value : null,
--			cid: null,
--		};
-+		return buildPrimaryDirectionRequestPure(chartObj || this.props.chartObj, override.fields || this.props.fields, override);
- 	}
- 
- 	needsPrimaryDirectionLoad(chartObj){
-@@ -1284,6 +1359,8 @@ class AstroDirectMain extends Component{
+@@ -1319,6 +1395,8 @@ class AstroDirectMain extends Component{
  		this.syncCurrentSubTab();
  		this.ensurePrimaryDirectionReady();
  		this.saveDirectionSnapshot();

@@ -292,12 +292,28 @@ public class RequestHeaderInterceptor implements AsyncHandlerInterceptor {
 		}
 	}
 	
+	static boolean isProbeMethod(HttpServletRequest request){
+		String m = request == null ? "" : request.getMethod();
+		return "GET".equalsIgnoreCase(m) || "HEAD".equalsIgnoreCase(m) || "OPTIONS".equalsIgnoreCase(m);
+	}
+
+	/** 存活探针(启动门 / 服务异常弹窗):裸 GET /heartbeat 不带应用头与登录态,只回 ONLINE、无业务数据。
+	 *  验签 / 应用鉴权 / 登录权限三道拦截器共用这一判据放行;写状态文件的 PUT 等照旧全过。 */
+	public static boolean isHeartbeatProbe(HttpServletRequest request, String transOrPath){
+		return "/heartbeat".equals(transOrPath) && isProbeMethod(request);
+	}
+
 	private void checkSignature(HttpServletRequest request, Map<String, Object> header, String body){
 		if(!checkSign){
 			return;
 		}
 				
 		String trans = (String) header.get(KeyConstants.TransCode);
+		// 存活探针(启动门 / 服务异常弹窗):裸 GET 不带应用头,只回 ONLINE、无业务数据 → 免验签。
+		// 此前被拦成 500「no.register.app…」:探针照样判在线,但每次启动控制台都留一条 500。写状态的 PUT 仍要验签。
+		if(isHeartbeatProbe(request, trans)) {
+			return;
+		}
 		if(excludeCheckSig != null) {
 			if(trans != null && excludeCheckSig.contains(trans)) {
 				return;

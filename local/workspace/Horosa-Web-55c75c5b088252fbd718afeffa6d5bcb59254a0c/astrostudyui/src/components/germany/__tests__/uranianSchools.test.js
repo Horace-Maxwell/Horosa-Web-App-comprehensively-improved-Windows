@@ -67,3 +67,20 @@ describe('UranianSchools 四流派预设', () => {
     expect(presetForSchool('nonsense')).toBe(SCHOOL_PRESETS.classic);
   });
 });
+
+// 跨层锁:前端发往 /germany/midpoint 的每个键都必须在 Java 白名单(GermanyTechController)里放行,
+// 否则 Java 静默剥掉 —— 「中点坐标」就这样选了赤经仍只回黄经表(直连 Python 的单测看不出来)。
+describe('germanyMidpointRequestParams × Java 白名单', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const JAVA = path.join(__dirname, '../../../../../astrostudysrv/astrostudy/src/main/java/spacex/astrostudy/controller/GermanyTechController.java');
+  it('全开时下发的每个键 Java 都放行', () => {
+    const src = fs.readFileSync(JAVA, 'utf8');
+    const allowed = new Set([...src.matchAll(/containsParam\("([^"]+)"\)/g)].map((m) => m[1]));
+    const { germanyMidpointRequestParams } = require('../UranianSchools');
+    ['ra', 'decl'].forEach((mpCoord) => {
+      const keys = Object.keys(germanyMidpointRequestParams({ school: 'uranian', orb: 1, orbPersonal: 2, strictFactors: true, mpCoord }, { date: '2000/01/01' }));
+      expect(keys.filter((k) => !allowed.has(k))).toEqual([]);
+    });
+  });
+});

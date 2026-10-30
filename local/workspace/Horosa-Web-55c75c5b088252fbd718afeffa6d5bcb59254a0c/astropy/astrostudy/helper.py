@@ -2,7 +2,7 @@ from flatlib import const
 
 from astrostudy.guostarsect.guostarsect import GuoStarSect
 
-PD_SYNC_REV = 'pd_method_sync_v15'
+PD_SYNC_REV = 'pd_method_sync_v26'
 
 
 def includePrimaryDirection(data):
@@ -21,7 +21,6 @@ def getPredictivesObj(data, perchart):
     perpredict = perchart.getPredict()
     predictives = {
         'firdaria': perpredict.getFirdaria(),
-        'yearsystem129': perpredict.getYearSystem129()
     }
     if includePrimaryDirection(data):
         predictives['primaryDirection'] = perpredict.getPrimaryDirection()

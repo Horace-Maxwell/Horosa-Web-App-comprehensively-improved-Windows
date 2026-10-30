@@ -1,0 +1,4 @@
+// [三式择日 压测] 分片 3/8:用例全集与分片规则见 sanshiZeriStressCases.js。
+import { defineSanshiStressShard } from './sanshiZeriStressCases';
+
+defineSanshiStressShard(3);

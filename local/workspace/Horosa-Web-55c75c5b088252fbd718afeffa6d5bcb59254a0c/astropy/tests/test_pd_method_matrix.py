@@ -147,18 +147,19 @@ def test_static_time_key_scales_contain_required_keys():
         assert 0.5 < v < 1.5, f'{key} scale {v} out of sane PD range'
     # Iron Rule ①: Ptolemy must be exactly 1.0 (not 1.0000... approximation)
     assert STATIC_TIME_KEY_SCALES['Ptolemy'] == 1.0
-    # v12：静态常数标度集合。每一项都是有明确定义的古典/符号时间钥匙,其常数标度跨 30 例
-    # 捕获语料逐键验证(spread≈0=真·静态;Kündig 实测恒 1.0 与 SymbolicDegree 同义)。
-    # Simmonite/Kepler/Brahe 经数据证明为「每盘常数」型(标度=本命太阳日运动),已迁出
-    # 静态表 → PER_CHART_TIME_KEY_FALLBACK + _pdTimeKeyScale 逐盘真算。
+    # 静态常数标度集合:每一项都是有明确定义的古典 / 符号时间钥匙(取值按定义的精确式,见 test_pd_time_key_definitions)。
+    # Simmonite / 生日黄经日行 / Kepler / Brahe 是「每盘常数」型(一年 = 本命某一日的太阳行度),
+    # 真太阳弧 / Van Dam / 太阳弧(黄经)/ 上升弧 / 垂直弧是逐弧求根的动态钥匙,都不在静态表。
     # 锁定确切集合,防误增(拟合值混入)/误删(钥匙掉出白名单→UI 选了被回退默认)。
     EXPECTED_V12_STATIC_KEYS = {
         'Ptolemy', 'Naibod', 'Cardano', 'Umar', 'Wollner', 'Plantiko',
         'SynodicYear', 'Kundig', 'SymbolicDegree', 'SymbolicYear',
         'SymbolicMoon', 'SymbolicMonth', 'Quarterly', 'Quinary', 'Duodenary',
-        'Novenary', 'SelfMeasure',
-        # P0-6 有意扩表:Naibod-in-RA 命名对齐 + Ascendant-arc(界行自洽,1 上升度/年)
-        'NaibodRA', 'AscendantArc',
+        'Novenary', 'SelfMeasure', 'NaibodRA',
+        # 符号量度「每座 N 年」族补齐 + 1° = 7 年
+        'Septenary', 'SubDuodenary', 'SymbolicWeek',
+        # 「经典」档:传统程序常用的截断常数(与精确式并列,见 test_pd_time_key_definitions)
+        'WollnerClassic', 'SynodicYearClassic', 'NovenaryClassic', 'SymbolicMoonClassic',
     }
     assert set(STATIC_TIME_KEY_SCALES.keys()) == EXPECTED_V12_STATIC_KEYS, (
         f'STATIC_TIME_KEY_SCALES drifted from the v12 set: '
@@ -173,19 +174,20 @@ def test_static_time_key_scales_contain_required_keys():
 
 
 def test_per_chart_time_keys_follow_natal_sun_motion():
-    """Simmonite/Kepler/Brahe 标度=本命太阳日运动(每盘常数型,数据 30 例逐盘 iqr≈3e-5 实证):
-    Simmonite=出生时刻黄经瞬时日速;Kepler/Brahe=生日前向差分 λ☉(jd0+1)−λ☉(jd0)。"""
+    """每盘常数型:Simmonite = 出生当天世界时 0 时 → 次日 0 时太阳赤经行度;生日黄经日行 = 同一天的黄经行度;
+    Kepler = Brahe = 出生前后两个真午夜之间的太阳赤经行度(逐项独立复核见 test_pd_time_key_definitions)。"""
     import swisseph as _swe
     from astrostudy.perpredict import _pdTimeKeyScale, PER_CHART_TIME_KEY_FALLBACK
     pc = perchart.PerChart(dict(SAMPLE_CHARTS[0]))
     chart = pc.getChart()
     jd = float(chart.date.jd)
-    inst = float(_swe.calc_ut(jd, _swe.SUN)[0][3])
-    fwd = (float(_swe.calc_ut(jd + 1.0, _swe.SUN)[0][0])
-           - float(_swe.calc_ut(jd, _swe.SUN)[0][0])) % 360.0
-    assert abs(_pdTimeKeyScale('Simmonite', chart=chart) - inst) < 1e-9
-    assert abs(_pdTimeKeyScale('Kepler', chart=chart) - fwd) < 1e-9
-    assert _pdTimeKeyScale('Kepler', chart=chart) == _pdTimeKeyScale('Brahe', chart=chart)
+    import math as _m
+    j0 = _m.floor(jd - 0.5) + 0.5
+    ra = lambda t: float(_swe.calc_ut(t, _swe.SUN, _swe.FLG_EQUATORIAL)[0][0])
+    lo = lambda t: float(_swe.calc_ut(t, _swe.SUN)[0][0])
+    assert abs(_pdTimeKeyScale('Simmonite', chart=chart) - (ra(j0 + 1.0) - ra(j0)) % 360.0) < 1e-9
+    assert abs(_pdTimeKeyScale('BirthdaySunLon', chart=chart) - (lo(j0 + 1.0) - lo(j0)) % 360.0) < 1e-9
+    assert _pdTimeKeyScale('Kepler', chart=chart, geolon=116.4) == _pdTimeKeyScale('Brahe', chart=chart, geolon=116.4)
     # chart 缺席时回退近似常数(防御路径)
     for k, v in PER_CHART_TIME_KEY_FALLBACK.items():
         assert _pdTimeKeyScale(k, chart=None) == v
@@ -336,3 +338,34 @@ def test_pd_years_3000_multi_revolution():
 
     r_direct = rows_for(3000, pdConverse=0)
     assert all(r[0] > 0 for r in r_direct), 'direct-only must filter sign-flipped recurrences'
+
+
+@pytest.mark.parametrize('pd_method', ['placidus', 'regiomontanus', 'campanus', 'morinus', 'in_zodiaco_abs'])
+def test_position_circle_methods_keep_extension_switches(pd_method):
+    """位置圈 / Edmund Jones 方位法沿用核心核的扩展开关:映点 / 界 / 平行促发星默认不出、开了才出;
+    pdYears>360 出多圈复发行。Edmund Jones 的相位标签随年龄窗变(半弧支只在窗内取),
+    故 100 年 ⊂ 3000 年只对其余方位法断言。"""
+    cd = dict(SAMPLE_CHARTS[0])
+    cd['pdMethod'] = pd_method
+    cd['pdTimeKey'] = 'Ptolemy'
+
+    angle_sigs = {'N_Asc_0', 'N_MC_0', 'N_Desc_0', 'N_IC_0', 'N_Vertex_0'}
+
+    def rows_for(**over):
+        # 只看本体应星行:轴行取自核心核,本就带扩展点与复发行,会掩盖本法路径的缺口
+        d = dict(cd)
+        d.update(over)
+        return [r for r in perpredict.PerPredict(perchart.PerChart(d)).getPrimaryDirection()
+                if r[2] not in angle_sigs]
+
+    ext = {'A', 'C', 'T', 'PD', 'PC'}
+    base = rows_for()
+    assert base
+    assert not (ext & {r[1].split('_')[0] for r in base})
+    with_ext = rows_for(pdAntiscia=1, pdTerms=1, pdParallel=1)
+    assert ext <= {r[1].split('_')[0] for r in with_ext}
+    r3000 = rows_for(pdYears=3000)
+    assert max(abs(r[0]) for r in r3000) > 360.0
+    if pd_method != 'in_zodiaco_abs':
+        keys = {(round(r[0], 9), r[1], r[2]) for r in r3000}
+        assert all((round(r[0], 9), r[1], r[2]) in keys for r in base)

@@ -254,3 +254,11 @@ describe('盘面 sCU:量化中点盘 MidpointMain', ()=>{
 		expect(scu(c, { ...c.props })).toBe(true);
 	});
 });
+
+describe('盘面 sCU:MidpointMain 自身状态(中点坐标下拉)', ()=>{
+	it('坐标改了 → true(props 白名单管不到的本地状态不能被拦)', ()=>{
+		const c = new MidpointMain({ value: null, fields: {} });
+		expect(c.shouldComponentUpdate(c.props, { ...c.state, mpCoord: 'ra' })).toBe(true);
+		expect(c.shouldComponentUpdate(c.props, { ...c.state })).toBe(false);
+	});
+});

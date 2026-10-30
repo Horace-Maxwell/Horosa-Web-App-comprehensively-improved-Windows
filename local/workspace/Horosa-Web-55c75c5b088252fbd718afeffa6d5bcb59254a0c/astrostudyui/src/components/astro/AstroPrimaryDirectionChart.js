@@ -21,14 +21,24 @@ import {
 	DEFAULT_PD_TYPE,
 	SUPPORTED_PD_METHODS,
 	SUPPORTED_PD_TIME_KEYS,
+	SUPPORTED_PD_PROJECTIONS,
+	SUPPORTED_PD_FRAMES,
+	DEFAULT_PD_PROJECTION,
+	DEFAULT_PD_FRAME,
 	PD_TIME_KEY_LABELS,
-	PD_METHOD_LABELS,
-	pdPairOfMethod,
-	pdMethodOfPair,
-	pdPairParamsFor,
+	PD_FRAME_LABELS,
 	mergePrimaryDirectionChartObj,
-	getPdMethodLabel,
 	getPdTimeKeyLabel,
+	pdProjectionChoiceOptions,
+	pdProjectionChoiceValue,
+	parsePdProjectionChoice,
+	pdProjectionLabelWithGeometry,
+	normalizePdType as normalizePdTypeValue,
+	pickPdExtraSettings,
+	pdExtraRequestParams,
+	pdChartDateRequestParams,
+	pdExtraSettingValueLabel,
+	PD_EXTRA_SETTING_SPECS, pdDisplayMethod,
 } from '../../utils/primaryDirectionSync';
 import { XQButton as Button, XQInputNumber as InputNumber, XQSelect as Select } from '../xq-ui';
 import { classicalBackendOverridesFromPlain } from '../../utils/classicalChartGlobals';
@@ -38,7 +48,6 @@ import { markPanelReady } from '../../utils/perfMark';
 
 const Option = Select.Option;
 // 方法下拉的「无单维等价」占位档:表格 pane 的正交自由组合(投影×分宫)回显用,禁选。
-const PD_METHOD_CUSTOM_VALUE = '__pd_pair_custom__';
 const PD_DISPLAY_ZONE = '+00:00';
 const CORE_PD_SUPPORTED_BASE_IDS = new Set([
 	AstroConst.SUN,
@@ -328,6 +337,8 @@ function buildAscTermHighlight(dirChart){
 	return null;
 }
 
+const PD_YEAR_DAYS_SPEC = PD_EXTRA_SETTING_SPECS.find((s)=>s.key === 'pdYearDays');
+
 function buildSnapshotText(chartObj, currentDt, currentArc, dirChart){
 	const params = chartObj && chartObj.params ? chartObj.params : {};
 	const chart = chartObj && chartObj.chart ? chartObj.chart : {};
@@ -350,9 +361,13 @@ function buildSnapshotText(chartObj, currentDt, currentArc, dirChart){
 	lines.push('');
 	lines.push('[主限法盘设置]');
 	lines.push(`时间选择：${currentDt ? currentDt.format('YYYY-MM-DD HH:mm:ss') : '无'}`);
-		lines.push(`推运方法：${getPdMethodLabel(params.pdMethod)}`);
+		// 弧算法只用于主限法表(本页「计算」会重算它);外圈按主限弧在赤经上整体推进,宫头随盘面宫制
+		lines.push(`弧算法（主限法表用）：${pdProjectionLabelWithGeometry(params, params.pdGeometry) || 'Ptolemy（半弧）'}`);
+		lines.push(`盘面宫制（外圈宫头）：${PD_FRAME_LABELS[params.pdFrame] || params.pdFrame || 'Alcabitius'}`);
 		lines.push(`度数换算：${getPdTimeKeyLabel(params.pdTimeKey)}`);
 		lines.push(`向运方向：${params.direction === 'converse' ? '逆向 Converse' : '顺向 Direct'}`);
+		// 选的时刻按这一档折成年数(与主限法表的日期同一换算)
+		lines.push(`${PD_YEAR_DAYS_SPEC.label}：${pdExtraSettingValueLabel(PD_YEAR_DAYS_SPEC, pickPdExtraSettings(params).pdYearDays)}`);
 	lines.push(`当前Arc：${splitDegreeText(currentArc)}`);
 	lines.push('');
 	// 本命盘配置(内圈):行星落座 + 宫位宫头
@@ -379,7 +394,7 @@ function buildSnapshotText(chartObj, currentDt, currentArc, dirChart){
 
 // 回写主盘的 fields:只换主限法口径与排盘回显,不动命盘身份(cid)—— 请求体里另置 cid:null(不让后端按 cid 取档),
 // 但写回全局的 fields 若也清 cid,载入的命盘就和命盘库断开(保存另生副本、温启不钉住、七政首开按本机偏好播种)。
-// extra.pdtype:本次请求实际用的方向类型(In Zodiaco 0 / In Mundo 1),与盘上 params 同口径。
+// extra.pdtype:本次请求实际用的方向类型(In Zodiaco 0 / In Mundo 1 / Field Plane 4),与盘上 params 同口径。
 // extra.pdProjection / pdFrame / pdFramework / pdParallel / pdRaptParallel:本次请求实际用的投影 / 分宫 / 框架 / 平行
 // (改了推运方法时由方法派生),一并写回 —— 否则当前盘的方法是新的、投影还是旧的:之后重排 / 存盘再载入,
 // 主盘按旧投影显式下发(后端显式投影优先),主限表与主限盘口径分叉。没改方法时就是透传现值。
@@ -437,7 +452,7 @@ export function buildFieldsFromChartObj(baseFields, chartObj, pdMethod, pdTimeKe
 	assign('doubingSu28', params.doubingSu28, fields.doubingSu28 ? fields.doubingSu28.value : 0);
 	assign('predictive', 1, 1);
 	assign('showPdBounds', params.showPdBounds === 0 ? 0 : 1, 1);
-	assign('pdtype', extra && extra.pdtype === 1 ? 1 : 0, 0);
+	assign('pdtype', normalizePdTypeValue(extra && extra.pdtype), 0);
 	assign('pdMethod', pdMethod, DEFAULT_PD_METHOD);
 	assign('pdTimeKey', pdTimeKey, DEFAULT_PD_TIME_KEY);
 	const ex = extra || {};
@@ -470,7 +485,7 @@ export function defaultPdChartDateTime(chartObj){
 	const birthDt = buildBirthDateTime(chartObj);
 	const params = chartObj && chartObj.params ? chartObj.params : {};
 	let rows = [];
-	try{ rows = buildDisplayRows(chartObj || {}, params.pdMethod || DEFAULT_PD_METHOD, params.showPdBounds) || []; }catch(_e){ rows = []; }
+	try{ rows = buildDisplayRows(chartObj || {}, pdDisplayMethod(params.pdMethod || DEFAULT_PD_METHOD, params.pdProjection), params.showPdBounds) || []; }catch(_e){ rows = []; }
 	for(let i = 0; i < rows.length; i++){
 		const dt = parseDisplayDateTime(rows[i].Date, PD_DISPLAY_ZONE);
 		if(dt){ return dt; }
@@ -497,7 +512,10 @@ class AstroPrimaryDirectionChart extends Component{
 			datetime: initialDateTime,
 			birthKey: this.buildBirthKey(props.value),
 			pdMethodValue: this.normalizePdMethod(props.pdMethod),
-			pdMethodTouched: false,   // 用户是否在本 pane 显式改过方法(决定是否改写投影/分宫两维)
+			// 弧算法 / 盘面宫制 / 几何口径:与主限法表格同一套两维(本页改动点「计算」时一并重算表格)
+			pdProjectionValue: this.normalizePdProjection(props.pdProjection),
+			pdFrameValue: this.normalizePdFrame(props.pdFrame),
+			pdGeometryValue: pickPdExtraSettings(props.pdExtra).pdGeometry,
 			pdTimeKeyValue: this.normalizePdTimeKey(props.pdTimeKey),
 			pdTimeKeyCustomValue: null,
 			pdDirectionValue: 'direct', // 向运方向：direct(默认) / converse
@@ -505,8 +523,8 @@ class AstroPrimaryDirectionChart extends Component{
 		};
 
 		this.handleTimeChanged = this.handleTimeChanged.bind(this);
-		this.handlePdMethodChange = this.handlePdMethodChange.bind(this);
-		this.getChartMethodSelectValue = this.getChartMethodSelectValue.bind(this);
+		this.handlePdProjectionChoiceChange = this.handlePdProjectionChoiceChange.bind(this);
+		this.handlePdFrameChange = this.handlePdFrameChange.bind(this);
 		this.getSelectedPdTimeKeyCustom = this.getSelectedPdTimeKeyCustom.bind(this);
 		this.handlePdTimeKeyCustomChange = this.handlePdTimeKeyCustomChange.bind(this);
 		this.handlePdTimeKeyChange = this.handlePdTimeKeyChange.bind(this);
@@ -566,9 +584,15 @@ class AstroPrimaryDirectionChart extends Component{
 	componentDidUpdate(prevProps, prevState){
 		const nextMethod = this.normalizePdMethod(this.props.pdMethod);
 		const nextTimeKey = this.normalizePdTimeKey(this.props.pdTimeKey);
-		// 解耦维(投影/定局)变化 → 盘面宫始点随 frame 重排,直接重取。
-		if(prevProps.pdProjection !== this.props.pdProjection || prevProps.pdFrame !== this.props.pdFrame){
-			this.requestDirectedChart();
+		// 表格侧(或载入命盘)改了两维 / 几何口径 → 本页选择跟着回填;宫制变了外圈宫头随之重取(见下方 prevState 比较)
+		const nextGeometry = pickPdExtraSettings(this.props.pdExtra).pdGeometry;
+		if(prevProps.pdProjection !== this.props.pdProjection || prevProps.pdFrame !== this.props.pdFrame
+			|| pickPdExtraSettings(prevProps.pdExtra).pdGeometry !== nextGeometry){
+			this.setState({
+				pdProjectionValue: this.normalizePdProjection(this.props.pdProjection),
+				pdFrameValue: this.normalizePdFrame(this.props.pdFrame),
+				pdGeometryValue: nextGeometry,
+			});
 		}
 		if(prevProps.pdMethod !== this.props.pdMethod || prevProps.pdTimeKey !== this.props.pdTimeKey){
 			if(this.state.pdMethodValue !== nextMethod || this.state.pdTimeKeyValue !== nextTimeKey){
@@ -598,6 +622,7 @@ class AstroPrimaryDirectionChart extends Component{
 			|| prevState.pdMethodValue !== this.state.pdMethodValue
 			|| prevState.pdTimeKeyValue !== this.state.pdTimeKeyValue
 			|| prevState.pdDirectionValue !== this.state.pdDirectionValue
+			|| prevState.pdFrameValue !== this.state.pdFrameValue
 		){
 			this.requestDirectedChart();
 		}
@@ -610,6 +635,9 @@ class AstroPrimaryDirectionChart extends Component{
 			|| prevState.pdTimeKeyValue !== this.state.pdTimeKeyValue
 			|| prevState.datetime !== this.state.datetime
 			|| prevState.dirChart !== this.state.dirChart
+			|| prevState.pdProjectionValue !== this.state.pdProjectionValue
+			|| prevState.pdFrameValue !== this.state.pdFrameValue
+			|| prevState.pdGeometryValue !== this.state.pdGeometryValue
 		){
 			this.saveSnapshot();
 		}
@@ -651,11 +679,38 @@ class AstroPrimaryDirectionChart extends Component{
 	}
 
 	normalizePdType(value){
-		const num = Number(value);
-		if(Number.isNaN(num)){
-			return DEFAULT_PD_TYPE;
-		}
-		return num;
+		return normalizePdTypeValue(value);
+	}
+
+	normalizePdProjection(value){
+		return SUPPORTED_PD_PROJECTIONS.indexOf(value) >= 0 ? value : DEFAULT_PD_PROJECTION;
+	}
+
+	normalizePdFrame(value){
+		return SUPPORTED_PD_FRAMES.indexOf(value) >= 0 ? value : DEFAULT_PD_FRAME;
+	}
+
+	getSelectedPdProjection(){
+		return this.normalizePdProjection(this.state.pdProjectionValue);
+	}
+
+	getSelectedPdFrame(){
+		return this.normalizePdFrame(this.state.pdFrameValue);
+	}
+
+	getSelectedPdGeometry(){
+		return pickPdExtraSettings({ pdGeometry: this.state.pdGeometryValue }).pdGeometry;
+	}
+
+	// 「弧算法」下拉的上下文:哪些方法列「改进 / 经典」两项由表格的方向、本页宫制、平行决定(见 PD_GEOMETRY_APPLIES)
+	pdProjectionChoiceContext(){
+		const params = (this.props.value && this.props.value.params) || {};
+		return {
+			pdtype: params.pdtype,
+			pdProjection: this.getSelectedPdProjection(),
+			pdFrame: this.getSelectedPdFrame(),
+			pdParallel: params.pdParallel,
+		};
 	}
 
 	getSelectedPdMethod(){
@@ -697,12 +752,12 @@ class AstroPrimaryDirectionChart extends Component{
 		if(this.getSelectedPdMethod() !== applied.pdMethod || this.getTablePdTimeKey() !== applied.pdTimeKey){
 			return true;
 		}
-		// 方法下拉动过但派生的两维与已落库不同 → 仍需重算(单维档写两维,pdMethod 键本身可能没变)。
-		if(this.state.pdMethodTouched){
+		// 本页改了弧算法 / 盘面宫制 / 几何口径,与已落库不同 → 需重算
+		{
 			const params = (this.props.value && this.props.value.params) || {};
-			const [dProj, dFrame] = pdPairOfMethod(this.getSelectedPdMethod());
-			if((params.pdProjection || 'ptolemy') !== dProj
-				|| (dFrame && (params.pdFrame || 'alcabitius') !== dFrame)){
+			if(this.getSelectedPdProjection() !== this.normalizePdProjection(params.pdProjection || this.props.pdProjection)
+				|| this.getSelectedPdFrame() !== this.normalizePdFrame(params.pdFrame || this.props.pdFrame)
+				|| this.getSelectedPdGeometry() !== pickPdExtraSettings(params, this.props.pdExtra).pdGeometry){
 				return true;
 			}
 		}
@@ -734,28 +789,14 @@ class AstroPrimaryDirectionChart extends Component{
 		}
 	}
 
-	/** 方法下拉回显值:优先由已落库的 (投影,分宫) 反查单维等价档;
-	 *  正交自由组合(表格 pane 可产出)无等价 → 'custom' 占位档。 */
-	getChartMethodSelectValue(){
-		if(this.state.pdMethodTouched){
-			return this.normalizePdMethod(this.state.pdMethodValue);
-		}
-		const params = (this.props.value && this.props.value.params) || {};
-		const proj = params.pdProjection || this.props.pdProjection;
-		const frame = params.pdFrame || this.props.pdFrame;
-		if(proj || frame){
-			const hit = pdMethodOfPair(proj, frame);
-			return hit || PD_METHOD_CUSTOM_VALUE;
-		}
-		return this.normalizePdMethod(this.state.pdMethodValue);
+	// 选中项同时定弧算法与几何口径(只列一项的方法口径回缺省),与主限法表格同一套选项
+	handlePdProjectionChoiceChange(value){
+		const { pdProjection, pdGeometry } = parsePdProjectionChoice(value);
+		this.setState({ pdProjectionValue: pdProjection, pdGeometryValue: pdGeometry });
 	}
 
-	/** 用户是否在本 pane 显式改过方法(决定计算时是否改写两维;未改则透传不 clobber)。 */
-	handlePdMethodChange(value){
-		this.setState({
-			pdMethodValue: value,
-			pdMethodTouched: true,
-		});
+	handlePdFrameChange(value){
+		this.setState({ pdFrameValue: this.normalizePdFrame(value) });
 	}
 
 	handlePdTimeKeyChange(value){
@@ -830,22 +871,16 @@ class AstroPrimaryDirectionChart extends Component{
 			...classicalBackendOverridesFromPlain(params),
 			showPdBounds: params.showPdBounds === 0 ? 0 : 1,
 			// 盘的「计算」会重算表格,须保留表格侧的进阶设置(方向类型/顺逆/映点/界),否则会被 clobber 回默认。
-			pdtype: params.pdtype === 1 ? 1 : DEFAULT_PD_TYPE,
+			pdtype: normalizePdTypeValue(params.pdtype),
 			pdDirect: params.pdDirect === 0 ? 0 : 1,
 			pdConverse: params.pdConverse ? 1 : 0,
 			pdAntiscia: params.pdAntiscia ? 1 : 0,
 			pdTerms: params.pdTerms ? 1 : 0,
 			// P0/P2 九新键同样透传现值(与 AstroDirectMain desired 同口径),
 			// 漏传=盘 pane 重算后投影/分宫/平行/扩展全被 clobber 回默认。
-			// 🔴 但用户在本 pane 动过「推运方法」时,两维必须由该单维档派生 —— 否则
-			// 显式 pdProjection 在后端优先于 pdMethod,方法下拉成死开关(选了没反应)。
-			...(()=>{
-				if(this.state.pdMethodTouched){
-					const [dProj, dFrame] = pdPairOfMethod(this.getSelectedPdMethod());
-					return { pdProjection: dProj, pdFrame: dFrame || params.pdFrame || 'alcabitius' };
-				}
-				return { pdProjection: params.pdProjection || 'ptolemy', pdFrame: params.pdFrame || 'alcabitius' };
-			})(),
+			// 两维与几何口径取本页所选(与表格同一套控件)
+			pdProjection: this.getSelectedPdProjection(),
+			pdFrame: this.getSelectedPdFrame(),
 			pdFramework: params.pdFramework || 'aspect',
 			pdParallel: params.pdParallel ? 1 : 0,
 			pdRaptParallel: params.pdRaptParallel ? 1 : 0,
@@ -858,6 +893,8 @@ class AstroPrimaryDirectionChart extends Component{
 			...(Array.isArray(params.pdSignificators) && params.pdSignificators.length ? { pdSignificators: params.pdSignificators } : {}),
 			...(Array.isArray(params.pdPromissorTypes) && params.pdPromissorTypes.length ? { pdPromissorTypes: params.pdPromissorTypes } : {}),
 			termsVariant: (()=>{ const n = Number(params.termsVariant); return (Number.isFinite(n) && n >= 0 && n <= 4) ? n : 0; })(),
+			// 设置项登记表的键同样透传现值(只发非缺省),否则盘 pane 重算把表格侧设置 clobber 回默认
+			...pdExtraRequestParams({ ...pickPdExtraSettings(params, this.props.pdExtra), pdGeometry: this.getSelectedPdGeometry() }),
 			pdMethod: this.getSelectedPdMethod(),
 			pdTimeKey: this.getTablePdTimeKey(),
 			pdaspects: params.pdaspects || [0, 60, 90, 120, 180],
@@ -943,6 +980,7 @@ class AstroPrimaryDirectionChart extends Component{
 			...(req.pdTimeKeyCustom !== undefined ? { pdTimeKeyCustom: req.pdTimeKeyCustom } : {}),
 			...(Array.isArray(req.pdSignificators) ? { pdSignificators: req.pdSignificators } : {}),
 			...(Array.isArray(req.pdPromissorTypes) ? { pdPromissorTypes: req.pdPromissorTypes } : {}),
+			pdExtra: pickPdExtraSettings(req),
 			termsVariant: req.termsVariant,
 			name: req.name,
 			pos: req.pos,
@@ -953,7 +991,7 @@ class AstroPrimaryDirectionChart extends Component{
 		recordNewChartSeeds({
 			pdMethod: this.getSelectedPdMethod(),
 			pdTimeKey: this.getTablePdTimeKey(),
-			pdtype: req.pdtype === 1 ? 1 : 0,
+			pdtype: normalizePdTypeValue(req.pdtype),
 			...(req.pdProjection ? { pdProjection: req.pdProjection } : {}),
 			...(req.pdFrame ? { pdFrame: req.pdFrame } : {}),
 			...(req.pdFramework ? { pdFramework: req.pdFramework } : {}),
@@ -1009,15 +1047,16 @@ class AstroPrimaryDirectionChart extends Component{
 			tradition: params.tradition,
 			pdtype: DEFAULT_PD_TYPE,
 			pdMethod: this.getSelectedPdMethod(),
-			// 解耦维:盘面宫始点由 pdFrame 决定(后端 _pdChartHouseSystem 按 resolved frame 解析),
-			// projection 一并带上保 resolve 完整;props 由 AstroDirectMain 统一下传。
-			// 请求恒显式带 pdFrame 时后端 frame 优先 → 本页改「方法」对外圈宫头零效果。改:props 的(投影,分宫)只在
-			// 与所选方法一致(pdMethodOfPair 反查等于该方法,或方法无单维等价)时沿用;否则按所选方法推导(PD_METHOD_TO_PAIR 单源)。
-			...pdPairParamsFor(this.getSelectedPdMethod(), this.props.pdProjection, this.props.pdFrame),
+			// 外圈宫头由盘面宫制决定(后端 _pdChartHouseSystem 按 frame 解析),两维取本页所选、显式发送。
+			// 不能由单维方法反推:方法停在缺省 Alcabitius 时会把表格里选的宫制打回 Alcabitius。
+			pdProjection: this.getSelectedPdProjection(),
+			pdFrame: this.getSelectedPdFrame(),
 			pdTimeKey: this.getSelectedPdTimeKey(),
 			// User 档自定义钥匙率随请求(此前不带 → 后端回落 1.0,数值框拨任何值外圈盘不动)
 			...(this.getSelectedPdTimeKey() === 'User' && Number(this.getSelectedPdTimeKeyCustom()) > 0 ? { pdTimeKeyCustom: Number(this.getSelectedPdTimeKeyCustom()) } : {}),
 			showPdBounds: params.showPdBounds,
+			// 「日期 → 年」随本盘在主限法表扩展里选的日期年长 / 逆向弧口径(与表格同一换算;缺省不发)
+			...pdChartDateRequestParams(params, this.props.pdExtra),
 			datetime: currentDt.format('YYYY-MM-DD HH:mm:ss'),
 			direction: this.state.pdDirectionValue, // 向运方向：direct / converse（复用已白名单的 direction 参）
 		};
@@ -1136,6 +1175,9 @@ class AstroPrimaryDirectionChart extends Component{
 			params: {
 				...(chartObj.params || {}),
 				pdMethod: this.getSelectedPdMethod(),
+				pdProjection: this.getSelectedPdProjection(),
+				pdFrame: this.getSelectedPdFrame(),
+				pdGeometry: this.getSelectedPdGeometry(),
 				pdTimeKey: this.getSelectedPdTimeKey(),
 				direction: this.state.pdDirectionValue,
 			},
@@ -1147,6 +1189,7 @@ class AstroPrimaryDirectionChart extends Component{
 		saveModuleAISnapshot('primarydirchart', txt, {
 			tab: 'primarydirchart',
 			pdMethod: this.getAppliedPdState().pdMethod,
+			pdFrame: this.getSelectedPdFrame(),
 			pdTimeKey: this.getAppliedPdState().pdTimeKey,
 			direction: this.state.pdDirectionValue,
 			datetime: derived.currentDt ? derived.currentDt.format('YYYY-MM-DD HH:mm:ss') : '',
@@ -1185,11 +1228,18 @@ class AstroPrimaryDirectionChart extends Component{
 		const applied = this.getAppliedPdState();
 		const dirty = this.needsPdRecompute();
 		const buttonText = dirty ? (applied.hasCompleteParams ? '重新计算' : '计算') : '已同步';
-		const selectedPdMethod = this.getSelectedPdMethod();
 		const selectedPdTimeKey = this.getSelectedPdTimeKey();
 		const ascTermHighlight = buildAscTermHighlight(derived.dirChart);
-		const pdMethodLabel = getPdMethodLabel(selectedPdMethod);
-		const appliedMethodLabel = getPdMethodLabel(applied.pdMethod);
+		// 弧算法名带「（改进）/（经典）」(受影响时),与下拉同名
+		const appliedParams = (chartObj && chartObj.params) || {};
+		const projLabelOf = (proj, frame, geometry)=>pdProjectionLabelWithGeometry({
+			pdtype: appliedParams.pdtype, pdProjection: proj, pdFrame: frame, pdParallel: appliedParams.pdParallel }, geometry);
+		const pdProjLabel = projLabelOf(this.getSelectedPdProjection(), this.getSelectedPdFrame(), this.getSelectedPdGeometry());
+		const pdFrameLabel = PD_FRAME_LABELS[this.getSelectedPdFrame()] || this.getSelectedPdFrame();
+		const appliedFrame = this.normalizePdFrame(appliedParams.pdFrame || this.props.pdFrame);
+		const appliedProjLabel = projLabelOf(this.normalizePdProjection(appliedParams.pdProjection || this.props.pdProjection),
+			appliedFrame, pickPdExtraSettings(appliedParams, this.props.pdExtra).pdGeometry);
+		const appliedFrameLabel = PD_FRAME_LABELS[appliedFrame] || appliedFrame;
 		const sectionGapStyle = {marginTop: 6};
 		const hintStyle = {
 			color: 'var(--horosa-text-soft)',
@@ -1228,22 +1278,27 @@ class AstroPrimaryDirectionChart extends Component{
 							<Divider orientation='left'>主限法设置</Divider>
 							<Row gutter={12} style={sectionGapStyle}>
 								<Col span={12}>
-									<div style={{marginBottom: 8}}>推运方法</div>
-									{/* 单维快捷法 = (投影×分宫) 组合的命名档;白名单与 label 均取 sync 单一真值源。
-									    表格 pane 的正交自由组合无单维等价时,回显「自定(投影×分宫)」占位档(禁选),
-									    此时点计算不改写两维(不 clobber 用户的正交选择)。 */}
-									<Select value={this.getChartMethodSelectValue()} onChange={this.handlePdMethodChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
-										{SUPPORTED_PD_METHODS.map((m)=>(
-											<Option key={m} value={m}>{PD_METHOD_LABELS[m] || m}</Option>
+									<div style={{marginBottom: 8}} title='决定主限法表的弧与应期(本页「计算」时一并重算表格);外圈按主限弧在赤经上整体推进,与弧算法无关'>弧算法</div>
+									{/* 与主限法表格同一套选项:受几何口径影响的方法各列「（改进）/（经典）」两项 */}
+									<Select value={pdProjectionChoiceValue(this.pdProjectionChoiceContext(), this.getSelectedPdGeometry())} onChange={this.handlePdProjectionChoiceChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
+										{pdProjectionChoiceOptions(this.pdProjectionChoiceContext()).map((o)=>(
+											<Option key={o.value} value={o.value}>{o.label}</Option>
 										))}
-										{this.getChartMethodSelectValue() === PD_METHOD_CUSTOM_VALUE ? (
-											<Option value={PD_METHOD_CUSTOM_VALUE} disabled>自定（投影×分宫）</Option>
-										) : null}
 									</Select>
 								</Col>
 								<Col span={12}>
+									<div style={{marginBottom: 8}} title='决定外圈(与主限法表盘面)的宫头'>盘面宫制</div>
+									<Select value={this.getSelectedPdFrame()} onChange={this.handlePdFrameChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
+										{SUPPORTED_PD_FRAMES.map((v)=>(
+											<Option key={v} value={v}>{PD_FRAME_LABELS[v] || v}</Option>
+										))}
+									</Select>
+								</Col>
+							</Row>
+							<Row gutter={12} style={{marginTop: 16}}>
+								<Col span={12}>
 									<div style={{marginBottom: 8}}>度数换算</div>
-									{/* 钥匙全域取 sync 单一真值源(26 键含 NaibodRA/AscendantArc/VanDam/User);
+									{/* 钥匙全域取 sync 单一真值源(与主限法表同一份清单);
 									    此前手写 22 键副本 → 表格设的新钥匙到盘 pane 被静默打回 Ptolemy。 */}
 									<Select value={this.getSelectedPdTimeKey()} onChange={this.handlePdTimeKeyChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
 										{SUPPORTED_PD_TIME_KEYS.map((k)=>(
@@ -1262,9 +1317,7 @@ class AstroPrimaryDirectionChart extends Component{
 										/>
 									) : null}
 								</Col>
-							</Row>
-							<Row gutter={12} style={{marginTop: 16}}>
-								<Col span={24}>
+								<Col span={12}>
 									<div style={{marginBottom: 8}}>向运方向</div>
 									<Select value={this.state.pdDirectionValue} onChange={this.handlePdDirectionChange} style={{width: '100%'}}>
 										<Option value='direct'>顺向 Direct（随时间正推）</Option>
@@ -1281,10 +1334,12 @@ class AstroPrimaryDirectionChart extends Component{
 							</Row>
 							<Divider orientation='left'>当前状态</Divider>
 							<div style={{lineHeight: 1.9}}>
-								<div>当前盘面方法：{pdMethodLabel}</div>
+								<div>当前弧算法：{pdProjLabel}</div>
+								<div>当前盘面宫制：{pdFrameLabel}</div>
 								<div>当前盘面度数换算：{PD_TIME_KEY_LABELS[selectedPdTimeKey] || selectedPdTimeKey}</div>
+								<div>日期年长（随主限法表「扩展」）：{pdExtraSettingValueLabel(PD_YEAR_DAYS_SPEC, pickPdExtraSettings(((this.props.value || {}).params) || {}, this.props.pdExtra).pdYearDays)}</div>
 								<div>当前向运方向：{this.state.pdDirectionValue === 'converse' ? '逆向 Converse' : '顺向 Direct'}</div>
-								{dirty ? <div>主限法表格已应用方法：{appliedMethodLabel} / {PD_TIME_KEY_LABELS[applied.pdTimeKey] || applied.pdTimeKey}</div> : null}
+								{dirty ? <div>主限法表格已应用：{appliedProjLabel} · {appliedFrameLabel} / {PD_TIME_KEY_LABELS[applied.pdTimeKey] || applied.pdTimeKey}</div> : null}
 								<div>当前主限法年龄：{splitDegreeText(derived.currentArc)}</div>
 								<div>外圈时间：{derived.currentDt ? derived.currentDt.format('YYYY-MM-DD HH:mm:ss') : '无'}</div>
 								{ascTermHighlight ? (
@@ -1299,11 +1354,11 @@ class AstroPrimaryDirectionChart extends Component{
 									左侧双盘内圈为本命盘，外圈为按当前主限法设置和所选时间推导出的主限法盘位置。
 								</div>
 								<div>
-									外圈位置会先按右侧时间换算主限年龄弧，再按后台主限法算法推进各星曜与虚点，并统一投影到黄道后与本命盘套盘显示。
+									外圈位置：先按右侧时间与度数换算求出主限弧，再把全天各星曜与虚点在赤经上一起推进这个弧（赤纬不变），换回黄道后与本命盘套盘显示；外圈宫头按所选盘面宫制排。弧算法不影响外圈，只决定主限法表里的弧与应期。
 								</div>
 								<div>
 									{dirty
-										? '左侧主限法盘会立即按右侧所选方法与时间换算重绘；点击“计算/重新计算”后，主限法表格也会同步到同一套设置。'
+										? '左侧主限法盘会立即按右侧所选宫制、度数换算与时间重绘；点击“计算/重新计算”后，主限法表格也会同步到同一套设置（含弧算法）。'
 										: '当前页面已与“主限法”同步，切换时间后会继续按当前设置推演任意时刻的外圈位置。'}
 								</div>
 							</div>

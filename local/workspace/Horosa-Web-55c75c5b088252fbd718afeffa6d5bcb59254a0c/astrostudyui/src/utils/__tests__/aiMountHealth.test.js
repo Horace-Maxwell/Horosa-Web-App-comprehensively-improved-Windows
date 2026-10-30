@@ -10,10 +10,15 @@ import {
 
 describe('contextWindowForModel / contextCharBudgetForModel', ()=>{
 	test('现役四家命中窗口;未知模型 null', ()=>{
-		expect(contextWindowForModel('claude-fable-5')).toBe(200000);
-		// Sonnet 5 官方 1M 窗口:细分档排在兜底 `claude-` 之前才命中(find 取第一条命中,不是最长匹配)
+		// 官方模型表(2026-10):Fable / Mythos / Opus 4.6 起 / Sonnet 4.6 起 / Haiku 5 起 1M;
+		// 细分档排在兜底 `claude-` 之前才命中(find 取第一条命中,不是最长匹配)
+		expect(contextWindowForModel('claude-fable-5')).toBe(1000000);
 		expect(contextWindowForModel('claude-sonnet-5')).toBe(1000000);
-		expect(contextWindowForModel('claude-opus-5')).toBe(200000);   // 判别向量:其余 claude 仍走兜底 200K
+		expect(contextWindowForModel('claude-opus-5-5')).toBe(1000000);
+		expect(contextWindowForModel('claude-haiku-5-5')).toBe(1000000);
+		expect(contextWindowForModel('anthropic/claude-opus-4-8')).toBe(1000000);
+		expect(contextWindowForModel('claude-haiku-4-5-20251001')).toBe(200000);   // 判别向量:Haiku 4.5 与 4.5 前各代仍走兜底 200K
+		expect(contextWindowForModel('claude-sonnet-4-5')).toBe(200000);
 		expect(contextWindowForModel('gpt-5.6')).toBe(400000);
 		expect(contextWindowForModel('gemini-3.1-pro')).toBe(1048576);
 		expect(contextWindowForModel('deepseek-v4-flash')).toBe(131072);

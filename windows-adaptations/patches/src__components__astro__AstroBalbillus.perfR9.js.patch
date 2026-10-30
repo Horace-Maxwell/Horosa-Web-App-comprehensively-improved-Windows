@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/astro/AstroBalbillus.js b/astrostudyui/src/components/astro/AstroBalbillus.js
-index 20dd26cd..3cacb017 100644
+index 71bb8e5f..ecad760f 100644
 --- a/astrostudyui/src/components/astro/AstroBalbillus.js
 +++ b/astrostudyui/src/components/astro/AstroBalbillus.js
-@@ -11,6 +11,7 @@ import { symbolWithMeaning } from './AstroExtraCommon';
+@@ -12,6 +12,7 @@ import { appendPlanetHouseInfoById, splitPlanetHouseInfoText } from '../../utils
  import { XQSelect as Select } from '../xq-ui';
  import styles from '../../css/styles.less';
  import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
@@ -10,9 +10,9 @@ index 20dd26cd..3cacb017 100644
  
  const Option = Select.Option;
  const PLANET_OPTIONS = [
-@@ -54,7 +55,11 @@ class AstroBalbillus extends Component{
+@@ -55,7 +56,11 @@ class AstroBalbillus extends Component{
  	componentDidUpdate(prevProps){
- 		if(prevProps.value !== this.props.value || prevProps.showAstroMeaning !== this.props.showAstroMeaning){
+ 		if(prevProps.value !== this.props.value || prevProps.showAstroMeaning !== this.props.showAstroMeaning || prevProps.showPlanetHouseInfo !== this.props.showPlanetHouseInfo){
  			this.rebuild();
 -			if(prevProps.value !== this.props.value){ this.saveAISnapshot(); }
 +			if(prevProps.value !== this.props.value){

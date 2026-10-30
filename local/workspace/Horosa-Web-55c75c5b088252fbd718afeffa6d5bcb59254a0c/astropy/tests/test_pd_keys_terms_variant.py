@@ -2,7 +2,7 @@
 """主限法 钥匙补齐 + 界系变体守卫(P0-6 / P0-7)。
 
   User 自定义钥匙:每年度数由 pdTimeKeyCustom 承载(弧不变,日期随 rate 变)。
-  Kepler/VanDam 升逐年真行动态(与 Placidus 真太阳弧同设施);NaibodRA/AscendantArc 命名对齐。
+  Van Dam 与真太阳弧同为逐年真行动态,Kepler 为每盘常数(真午夜太阳赤经日行);NaibodRA 命名对齐,AscendantArc 为上升弧计时(动态)。
   界系变体 termsVariant(0 埃及默认/1 托勒密/2 莉莉)贯通 PD 界行(T_ 行)与分配星时间线。
   默认全部 = 现状(字节零回归,golden 另行看守)。
 """
@@ -30,7 +30,7 @@ def _rows(**over):
 
 def test_static_table_new_keys():
     assert STATIC_TIME_KEY_SCALES['NaibodRA'] == STATIC_TIME_KEY_SCALES['Naibod']
-    assert STATIC_TIME_KEY_SCALES['AscendantArc'] == 1.0
+    assert 'AscendantArc' not in STATIC_TIME_KEY_SCALES   # 上升弧计时是动态钥匙,不以 1°/年冒充
     assert STATIC_TIME_KEY_SCALES['Ptolemy'] == 1.0     # 铁律字面量
 
 
@@ -48,9 +48,9 @@ def test_user_key_changes_dates_not_arcs():
     assert [r[4] for r in u1[:5]] != [r[4] for r in u2[:5]]
 
 
-def test_kepler_vandam_are_dynamic():
+def test_kepler_vandam_ascendant_change_dates_not_arcs():
     p = _rows()
-    for key in ('Kepler', 'VanDam'):
+    for key in ('Kepler', 'VanDam', 'AscendantArc', 'VerticalArc'):
         k = _rows(pdTimeKey=key)
         assert [r[0] for r in k] == [r[0] for r in p]           # 弧不动
         assert [r[4] for r in k[:5]] != [r[4] for r in p[:5]]   # 日期动态

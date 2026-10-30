@@ -230,67 +230,126 @@ def compute_barbault(data):
     }
 
 
+# 回归扫描:各体地心「回到本命黄经」的平均间隔(天,只用于定扫描终点;水金地心平均也是一年)
+# 与采样步长(天,须短于两次留之间的最短间隔,留点由步长内速度变号再二分精确定)。
+_RETURN_SPAN_DAYS = {
+    swisseph.SUN: 365.2422, swisseph.MOON: 27.3216, swisseph.MERCURY: 365.2422, swisseph.VENUS: 365.2422,
+    swisseph.MARS: 686.98, swisseph.JUPITER: 4332.59, swisseph.SATURN: 10759.22, swisseph.URANUS: 30688.5,
+    swisseph.NEPTUNE: 60182.0, swisseph.PLUTO: 90560.0, swisseph.TRUE_NODE: 6798.38, swisseph.MEAN_NODE: 6798.38,
+}
+_RETURN_STEP_DAYS = {
+    swisseph.SUN: 2.0, swisseph.MOON: 0.25, swisseph.MERCURY: 0.5, swisseph.VENUS: 1.0, swisseph.MARS: 1.0,
+    swisseph.JUPITER: 3.0, swisseph.SATURN: 4.0, swisseph.URANUS: 5.0, swisseph.NEPTUNE: 5.0, swisseph.PLUTO: 5.0,
+    swisseph.TRUE_NODE: 0.25, swisseph.MEAN_NODE: 5.0,
+}
+
+
 def compute_planet_return(data):
-    """ 多重回归（C5）：行星返照到本命黄经的时刻列表。
-        params: date/time/zone/lat/lon(本命) + body(星名) + count(几次)。 """
-    date = data.get('date')
-    time = data.get('time', '12:00:00')
-    zone = data.get('zone', '+00:00')
-    body = _SWE_PLANET_BY_NAME.get(str(data.get('body', 'Saturn')), swisseph.SATURN)
-    count = _int_arg(data, 'count', 3)
-    count = max(1, min(12, count))
-    natal_dt = Datetime(date, time, zone)
-    natal_jd = natal_dt.jd
-    natal_lon = swisseph.calc_ut(natal_jd, body)[0][0] % 360.0
-    mean_days = _MEAN_PERIOD_DAYS.get(body, 4332.59)
+    """ 多重回归（C5）：行星回到本命黄经的时刻,第 n 回 = 黄经走满 n 圈(逆行体反向走满)那一次。
+        params: date/time/zone/lat/lon(本命) + body(星名) + count(几回),盘的黄道(回归 / 恒星 + 岁差)
+        与月交点真平(westNodeType / guolaoNodeType,缺省平交点)随盘 —— 本命黄经与扫描同一框架。
+        算法:按步长采样黄经与速度,速度变号处二分出留点,把时间切成单调段;每段内黄经展开后
+        对每个「本命黄经 + 360°·k」二分求解(单调段内唯一)。同一圈 k 的各次经过(逆行三过)归为同一回,
+        顶层日期取首过,全部经过放 passes。扫到终点仍没齐的回不编造日期(found=False)。 """
+    from astrostudy.perchart import PerChart
+    from astrostudy.astroextra_parts.common import base_params
+    from flatlib import const as fconst
+    params = base_params(data)
+    body_name = str(params.get('body', 'Saturn'))
+    count = max(1, min(12, _int_arg(params, 'count', 3)))
+    perchart = PerChart(params)
+    chart = perchart.getChart()
+    flags = getattr(chart, 'flags', swisseph.FLG_SWIEPH | swisseph.FLG_SPEED) | swisseph.FLG_SPEED
+    if body_name == 'Node':
+        node_true = (params.get('westNodeType', 'mean') == 'true' or params.get('guolaoNodeType', 'mean') == 'true')
+        body = swisseph.TRUE_NODE if node_true else swisseph.MEAN_NODE
+    else:
+        body = _SWE_PLANET_BY_NAME.get(body_name, swisseph.SATURN)
+    zone = params.get('zone', '+00:00')
+    natal_jd = perchart.dateTime.jd
 
-    def _diff(jd_):
-        d = swisseph.calc_ut(jd_, body)[0][0] - natal_lon
-        return ((d + 180.0) % 360.0) - 180.0
+    def calc(jd_):
+        with chart._siderealContext():
+            r = swisseph.calc_ut(jd_, body, flags)[0]
+        return float(r[0]) % 360.0, float(r[3])
 
+    natal_lon, _natal_speed = calc(natal_jd)
+    span = _RETURN_SPAN_DAYS.get(body, 4332.59)
+    step = _RETURN_STEP_DAYS.get(body, 2.0)
+    end_jd = natal_jd + (count + 0.6) * span
+    # 采样 + 黄经展开(相邻步长内位移恒 < 180°)
+    samples = []
+    jd, prev_lon, unwrapped = natal_jd, None, None
+    while True:
+        try:
+            lon, spd = calc(jd)
+        except Exception:   # 超出星历范围:算到这里为止,后面的回标 found=False
+            break
+        if prev_lon is None:
+            unwrapped = lon
+        else:
+            unwrapped += ((lon - prev_lon + 180.0) % 360.0) - 180.0
+        samples.append((jd, unwrapped, spd))
+        prev_lon = lon
+        if jd >= end_jd:
+            break
+        jd = min(end_jd, jd + step)
+
+    def unwrapped_at(jd_, ref_jd, ref_unw):
+        lon, _ = calc(jd_)
+        return ref_unw + ((lon - (ref_unw % 360.0) + 180.0) % 360.0) - 180.0
+
+    # 单调段端点:采样点 + 速度变号处二分出的留点
+    knots = [samples[0]]
+    for (j0, u0, s0), (j1, u1, s1) in zip(samples, samples[1:]):
+        if (s0 < 0) != (s1 < 0):
+            lo, hi = j0, j1
+            for _ in range(60):
+                mid = (lo + hi) / 2.0
+                if (calc(mid)[1] < 0) == (s0 < 0):
+                    lo = mid
+                else:
+                    hi = mid
+            js = (lo + hi) / 2.0
+            knots.append((js, unwrapped_at(js, j0, u0), 0.0))
+        knots.append((j1, u1, s1))
+    # 圈数方向按平均运动(行星顺行、交点逆行),不按本命瞬时速度:本命正逆行时同样是往后数圈
+    direction = -1.0 if body in (swisseph.TRUE_NODE, swisseph.MEAN_NODE) else 1.0
+    passes_by_k = {}
+    for (j0, u0, _s0), (j1, u1, _s1) in zip(knots, knots[1:]):
+        lo_u, hi_u = min(u0, u1), max(u0, u1)
+        k_lo = int((lo_u - natal_lon) // 360.0)
+        for k in range(k_lo, k_lo + 3):
+            target = natal_lon + 360.0 * k
+            if not (lo_u < target <= hi_u) or k == 0:
+                continue
+            a, b = j0, j1
+            for _ in range(60):
+                mid = (a + b) / 2.0
+                um = unwrapped_at(mid, j0, u0)
+                if (um < target) == (u0 < target):
+                    a = mid
+                else:
+                    b = mid
+            jc = (a + b) / 2.0
+            passes_by_k.setdefault(int(round(k * direction)), []).append(jc)
     results = []
     for which in range(1, count + 1):
-        center = natal_jd + which * mean_days
-        span = mean_days * 0.2
-        step = max(0.5, mean_days / 240.0)
-        jd = center - span
-        prev = _diff(jd)
-        # 同一回内列全逆行三过:窗内每次过零都收(此前遇首个即 break,土木逆行造成的三次回归只报第一次)。
-        # abs(cur-prev)<180 排除 ±180 回绕伪交叉;首过仍写在顶层字段(旧消费方零变),全部过程另放 passes。
-        crossings = []
-        scan = jd + step
-        while scan <= center + span:
-            cur = _diff(scan)
-            if ((prev <= 0 <= cur) or (prev >= 0 >= cur)) and abs(cur - prev) < 180.0 and cur != prev:
-                lo, hi = scan - step, scan
-                base_neg = prev <= 0
-                for _ in range(50):
-                    mid = (lo + hi) / 2.0
-                    dm = _diff(mid)
-                    if (dm <= 0) == base_neg:
-                        lo = mid
-                    else:
-                        hi = mid
-                crossings.append((lo + hi) / 2.0)
-            prev = cur
-            jd = scan
-            scan += step
-        if not crossings:
-            crossings = [center]
-        found = crossings[0]
-        det = date_time_from_jd(found, zone)
+        ps = sorted(passes_by_k.get(which, []))
+        if not ps:
+            results.append({'which': which, 'found': False})
+            continue
+        det = date_time_from_jd(ps[0], zone)
         det['which'] = which
-        det['jd'] = round(found, 4)
+        det['jd'] = round(ps[0], 4)
+        det['found'] = True
         passes = []
-        for i, cj in enumerate(crossings):
+        for i, cj in enumerate(ps):
             p = date_time_from_jd(cj, zone)
             p['jd'] = round(cj, 4)
             p['pass'] = i + 1
-            try:
-                p['retrograde'] = bool(swisseph.calc_ut(cj, body)[0][3] < 0)
-            except Exception:
-                p['retrograde'] = False
+            p['retrograde'] = bool(calc(cj)[1] < 0)
             passes.append(p)
         det['passes'] = passes
         results.append(det)
-    return {'returns': results, 'natalLon': round(natal_lon, 3), 'body': str(data.get('body', 'Saturn'))}
+    return {'returns': results, 'natalLon': round(natal_lon, 3), 'body': body_name}

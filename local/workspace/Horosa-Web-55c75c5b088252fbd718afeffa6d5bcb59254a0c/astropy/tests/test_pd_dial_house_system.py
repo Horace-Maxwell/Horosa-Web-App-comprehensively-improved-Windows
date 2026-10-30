@@ -136,3 +136,52 @@ def test_unknown_method_normalizes_to_alcabitius():
     pc, chart = _dial(cd, 'totally_made_up_method')
     assert pc.pdMethod == 'core_alchabitius'
     assert chart['houses'][0]['hsys'] == 'Alcabitus'
+
+
+# 盘面宫制(pdFrame,外圈宫头)显式选择:每档 → 该宫制的 swisseph 标签;整宫 / 等宫另验宫头几何。
+FRAME_EXPECTED = {
+    'alcabitius': 'Alcabitus',
+    'placidus': 'Placidus',
+    'regiomontanus': 'Regiomontanus',
+    'campanus': 'Campanus',
+    'topocentric': 'Polich Page',
+    'meridian': 'Meridian',
+    'porphyry': 'Porphyrius',
+    'equal': 'Equal',
+    'wholesign': 'Whole Sign',
+    'morinus': 'Morinus',
+    'koch': 'Koch',
+    'equal_hour_circle': 'Meridian',   # 赤道等分沿时圈投到黄道 == Meridian 宫
+}
+
+
+def _dial_frame(chart_data, frame):
+    cd = dict(chart_data)
+    cd['pdProjection'] = 'ptolemy'
+    cd['pdFrame'] = frame
+    cd['pdTimeKey'] = 'Ptolemy'
+    pc = perchart.PerChart(cd)
+    out = perpredict.PerPredict(pc).getPrimaryDirectionChartByDate(DIAL_DATE)
+    return out['chart']
+
+
+def test_dial_frame_selects_house_system():
+    """每个盘面宫制档 = 外圈宫头按该宫制;弧算法维固定 ptolemy,只拨宫制。"""
+    cd = _first_case()['chart_data']
+    for frame, expected in FRAME_EXPECTED.items():
+        got = _dial_frame(cd, frame)['houses'][0]['hsys']
+        assert got == expected, f'{frame}: dial hsys={got!r} expected={expected!r}'
+
+
+def test_dial_frame_cusp_geometry():
+    """整宫:宫头落在星座起点(30° 整倍数);等宫:宫头 = 上升 + 30°·k。ASC 与宫制无关。"""
+    cd = _first_case()['chart_data']
+    whole = _dial_frame(cd, 'wholesign')
+    for h in whole['houses']:
+        assert abs(float(h['lon']) % 30.0) < 1e-6 or abs(float(h['lon']) % 30.0 - 30.0) < 1e-6
+    equal = _dial_frame(cd, 'equal')
+    asc = _asc_lon(equal)
+    for k, h in enumerate(equal['houses']):
+        d = (float(h['lon']) - asc - 30.0 * k) % 360.0
+        assert min(d, 360.0 - d) < 1e-4, f'equal cusp {k + 1}: {h["lon"]} vs asc {asc}'
+    assert _asc_lon(whole) == asc

@@ -2,23 +2,16 @@
 // 逐流派/用制写清「怎么算 + 差在哪」;中性表述,纯展示零后端。规则与排盘置宿、七政数据表一致。
 import { Component } from 'react';
 import { Tabs } from 'antd';
+import { MUTED, h, p, ul, li, card, ct, body, title } from '../help/helpDocStyle';
 
 const { TabPane } = Tabs;
-const MUTED = 'var(--horosa-muted, #999)';
-const h = { fontWeight: 700, fontSize: 13.5, margin: '10px 0 3px' };
-const p = { margin: '0 0 5px', lineHeight: 1.7 };
-const ul = { margin: '0 0 6px', paddingLeft: 18 };
-const li = { margin: '0 0 3px', lineHeight: 1.6 };
-const card = { border: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', borderRadius: 6, padding: '7px 9px', margin: '0 0 7px' };
-const ct = { fontWeight: 700, marginBottom: 2 };
 const kv = (k, v) => <div style={{ margin: '1px 0', lineHeight: 1.55 }}><span style={{ color: MUTED }}>{k}：</span>{v}</div>;
-const body = { maxHeight: 'calc(56 * var(--horosa-lvh, 1vh))', overflowY: 'auto', fontSize: 13, paddingRight: 4 };
 
 class GuoLaoHelpDoc extends Component{
 	render(){
 		return (
 			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 8 }}>
-				<div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>七政四余 · 操作手册</div>
+				<div style={title}>七政四余 · 操作手册</div>
 				<Tabs defaultActiveKey="overview" size="small">
 					<TabPane tab="总览" key="overview">
 						<div style={body}>

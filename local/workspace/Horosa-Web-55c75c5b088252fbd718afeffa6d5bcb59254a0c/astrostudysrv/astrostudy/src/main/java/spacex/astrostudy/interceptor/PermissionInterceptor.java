@@ -12,6 +12,7 @@ import org.springframework.web.servlet.ModelAndView;
 
 import boundless.exception.AccessDenyException;
 import boundless.exception.NeedLoginException;
+import boundless.spring.help.interceptor.RequestHeaderInterceptor;
 import boundless.spring.help.interceptor.TransData;
 import boundless.types.ICache;
 import boundless.utility.CalculatePool;
@@ -36,6 +37,10 @@ public class PermissionInterceptor implements HandlerInterceptor {
 		path = path.substring(ctx.length());
 
 		if(path.equals("/") || StringUtility.isNullOrEmpty(path) || TransUrlUtility.isCommonPass(path)){
+			return true;
+		}
+		// 存活探针裸 GET /heartbeat 不带登录态(与验签 / 应用鉴权同一判据);PUT 等照旧要登录
+		if(RequestHeaderInterceptor.isHeartbeatProbe(request, path)){
 			return true;
 		}
 		

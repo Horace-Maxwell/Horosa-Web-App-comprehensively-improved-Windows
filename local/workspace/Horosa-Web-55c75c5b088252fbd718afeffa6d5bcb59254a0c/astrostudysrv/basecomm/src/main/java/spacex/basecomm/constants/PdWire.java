@@ -14,7 +14,17 @@ package spacex.basecomm.constants;
  * 禁止 pd_method_sync_ 字面量出现在本文件之外的 Java 源里。
  */
 public final class PdWire {
-	public static final String REV = "pd_method_sync_v15";
+	public static final String REV = "pd_method_sync_v26";
+
+	/**
+	 * 主限法设置项登记表的键(与前端 primaryDirectionSync.PD_EXTRA_SETTING_KEYS、Python perchart 同名):
+	 * 几何口径 / 相位侧 / 传统逆向 / 忽略应星黄纬 / 忽略迫星黄纬 / 月亮视差 / 真位置 / 真太阳弧逆向用出生前太阳 / 日期年长 / 相位点黄纬。
+	 * 各控制器透传 / 回显都循环本表,不再逐键手抄;前端只发非缺省值 → 缺省请求体与缓存键不变。
+	 */
+	public static final String[] SETTING_KEYS = new String[] {
+		"pdGeometry", "pdAspectSide", "pdTradConverse", "pdIgnoreSigLat", "pdIgnorePromLat", "pdLunarParallax", "pdTruePosition",
+		"pdSolarArcRegressive", "pdYearDays", "pdPromAspectLat",
+	};
 
 	private PdWire() {
 	}

@@ -100,6 +100,10 @@ public class GermanyTechController {
 		if(TransData.containsParam("strictFactors")) {
 			params.put("strictFactors", TransData.getValueAsBool("strictFactors", false));
 		}
+		// 中点坐标:ra | decl 时 Python 另算 coordMidpoints;缺省不发(黄经)=零回归。不登记则下拉选了也只回黄经表。
+		if(TransData.containsParam("mpCoord")) {
+			params.put("mpCoord", TransData.getValueAsString("mpCoord"));
+		}
 		// 戴维森盘(A5):含第二人出生数据的对象,原样透传给 Python;缺省不发=零回归。
 		if(TransData.containsParam("davison")) {
 			params.put("davison", TransData.get("davison"));

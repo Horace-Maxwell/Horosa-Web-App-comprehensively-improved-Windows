@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/models/astro.js b/astrostudyui/src/models/astro.js
-index fb641a65..7dcff833 100644
+index d9465813..3f06fcde 100644
 --- a/astrostudyui/src/models/astro.js
 +++ b/astrostudyui/src/models/astro.js
 @@ -8,11 +8,13 @@ import {randomStr,} from '../utils/helper';
@@ -18,7 +18,7 @@ index fb641a65..7dcff833 100644
  // R4-B5(horosa_option_prefetch_v1):选项 Hamming-1 投机 —— 构参注入同 arm,settle 尾空闲投机。
  import { registerOptionChartTaskBuilder, speculateChartOptions } from '../utils/optionPrefetch';
  import { perfBegin } from '../utils/perfMark';
-@@ -31,6 +33,24 @@ let dtm = new DateTime();
+@@ -32,6 +34,24 @@ let dtm = new DateTime();
  // recordFieldsRestore 不能反向 import 本模型)。捕获逻辑与还原清单同居 recordFieldsRestore。
  registerFieldsBaselineFactory(()=>newEmptyFields());
  
@@ -43,7 +43,7 @@ index fb641a65..7dcff833 100644
  function newEmptyFields(){
  	const fields = {
  		cid: {
-@@ -658,9 +678,29 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
+@@ -662,9 +682,29 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
  	let plan;
  	if(stepHint && stepHint.dir){
  		const d = Math.max(2, depth || 2);
@@ -76,7 +76,7 @@ index fb641a65..7dcff833 100644
  		}
  	}else if(depth > 0){
  		plan = [];
-@@ -748,28 +788,18 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
+@@ -752,28 +792,18 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
  	return tasks;
  }
  
@@ -116,7 +116,7 @@ index fb641a65..7dcff833 100644
  });
  
  // R4-B2:把任务构造器注入武装模块(utils 不反向 import models)。
-@@ -1295,6 +1325,40 @@ const model = {
+@@ -1299,6 +1329,40 @@ const model = {
  		},
  
  
@@ -157,7 +157,7 @@ index fb641a65..7dcff833 100644
  		*fetch({ payload: values }, { call, put, select }){
  			const commitTicket = takeChartCommitTicket();   // 第一个 yield 之前取号(主盘提交代次)
  			const param = {
-@@ -1328,11 +1392,12 @@ const model = {
+@@ -1332,11 +1396,12 @@ const model = {
  
              yield put({
                  type: 'save',
@@ -171,7 +171,7 @@ index fb641a65..7dcff833 100644
  
  			if(values.nohook){
  				return;
-@@ -1493,7 +1558,7 @@ const model = {
+@@ -1497,7 +1562,7 @@ const model = {
  			}
  			yield put({
                  type: 'save',
@@ -180,7 +180,7 @@ index fb641a65..7dcff833 100644
  					chartObj: Result,
  					fields: fields,
  					byChartData: true,
-@@ -1511,6 +1576,7 @@ const model = {
+@@ -1515,6 +1580,7 @@ const model = {
  					...(values.__pendingCurrentChart ? { currentChart: values.__pendingCurrentChart, ...(values.drawerVisible ? { drawerVisible: values.drawerVisible } : {}) } : {}),
                  },
              });
@@ -188,7 +188,7 @@ index fb641a65..7dcff833 100644
  
  			if(values.nohook){
  				return;
-@@ -1656,11 +1722,12 @@ const model = {
+@@ -1660,11 +1726,12 @@ const model = {
  					type: 'save',
  					payload: { chartObj: Result },
  				});
@@ -203,7 +203,7 @@ index fb641a65..7dcff833 100644
  						submitStepPrefetch(buildStepPrefetchTasks(fieldValues, { ...stepHint, depth: stepPrefetchDepth() }, astroState));
  					}else if(stepPrefetchArmEnabled() && shouldArmForTab(astroState.currentTab)){
  						// R4-B2:无向 settle(初盘/确定/改设置/切回)也武装当前档位 ±depth ——
-@@ -1676,11 +1743,12 @@ const model = {
+@@ -1680,11 +1747,12 @@ const model = {
  
              yield put({
                  type: 'save',
@@ -217,7 +217,7 @@ index fb641a65..7dcff833 100644
  
  			if(values.nohook){
  				return;
-@@ -1698,7 +1766,7 @@ const model = {
+@@ -1702,7 +1770,7 @@ const model = {
  			// 同快车道分支:优化整块 try,异常静默不碰主流程。
  			try{
  				if(stepHint){

@@ -11,10 +11,14 @@
 //   variant='theme' 表格用。跟随 App 主题(它所在的右栏报表区就是跟随主题的)——
 //                   零额外 less:继承通用 popover 的 var(--horosa-text) 本来就是对的。
 // 两档的字号 / 间距 / 描边 / 标题层级完全一致,由本文件的常量单点决定。
-import { Popover, Checkbox, Button } from 'antd';
+import { Popover, Checkbox, Button, Select } from 'antd';
 import {
 	PD_SIGNIFICATOR_OPTIONS,
 	PD_PROMISSOR_TYPE_OPTIONS,
+	PD_EXTRA_SETTING_SPECS,
+	pickPdExtraSettings,
+	pdSettingInertReason,
+	pdExtensionOptionInertReason,
 } from '../../utils/primaryDirectionSync';
 
 // 字号阶梯(全站主限法面板共用):11 仅角标 / 12 正文与组标题 / 13 强调。
@@ -34,11 +38,18 @@ const headStyle = {
 	alignItems: 'baseline',
 };
 
+// 当前方向 / 弧算法下不起作用的项:置灰 + 悬停说明原因(规则单源 pdSettingInertReason)。
+// 只在取值仍是缺省时禁用;已改离缺省的保持可点,方便改回(否则被禁用的旧值永远改不掉)。
+const INERT_STYLE = { opacity: 0.5 };
+
 /** 一组勾选(标题 + 全选/清空 + 选项列表)。 */
-function Group({ title, options, selected, onChange, minWidth, headClassName }){
+function Group({ title, options, selected, onChange, minWidth, headClassName, optionInertReason }){
 	const sel = Array.isArray(selected) ? selected : [];
+	const reasonOf = (value)=>(optionInertReason ? optionInertReason(value) : '');
+	const allInert = options.every((o)=>!!reasonOf(o.value));
+	const inertReason = allInert ? reasonOf(options[0].value) : '';
 	return (
-		<div style={{ display: 'flex', flexDirection: 'column', gap: 7, minWidth }}>
+		<div style={{ display: 'flex', flexDirection: 'column', gap: 7, minWidth, ...(inertReason ? INERT_STYLE : null) }} title={inertReason || undefined}>
 			<span className={headClassName} style={headStyle}>
 				{title}
 				<span style={{ fontWeight: 400, fontSize: FS_LINK }}>
@@ -46,16 +57,20 @@ function Group({ title, options, selected, onChange, minWidth, headClassName }){
 					    3.24:1(不达 AA 4.5)。horosa-pd-ext-link 取 --horosa-accent-strong
 					    (亮色主题 6.75:1,暗主题该 token 自动变亮);dark 档另有更高特异度规则
 					    盖成亮金 #d8ab52(暗底 8.85:1),两档同色系不同明度档。 */}
-					<a className='horosa-pd-ext-link' onClick={()=>onChange(options.map((o)=>o.value))}>全选</a>
+					<a className='horosa-pd-ext-link' onClick={()=>onChange(options.filter((o)=>!reasonOf(o.value) || sel.indexOf(o.value) >= 0).map((o)=>o.value))}>全选</a>
 					<span style={{ color: 'var(--horosa-text-secondary)', margin: '0 4px' }}>|</span>
 					<a className='horosa-pd-ext-link' onClick={()=>onChange([])}>清空</a>
 				</span>
 			</span>
-			{options.map((o)=>(
+			{options.map((o)=>{
+				const reason = allInert ? '' : reasonOf(o.value);
+				const on = sel.indexOf(o.value) >= 0;
+				return (
 				<Checkbox
 					key={o.value}
-					style={{ marginLeft: 0 }}
-					checked={sel.indexOf(o.value) >= 0}
+					style={{ marginLeft: 0, ...(reason ? INERT_STYLE : null) }}
+					disabled={!!(reason || inertReason) && !on}
+					checked={on}
 					onChange={(e)=>{
 						const cur = sel.slice();
 						const idx = cur.indexOf(o.value);
@@ -63,8 +78,53 @@ function Group({ title, options, selected, onChange, minWidth, headClassName }){
 						if(!e.target.checked && idx >= 0){ cur.splice(idx, 1); }
 						onChange(cur);
 					}}
-				>{o.label}</Checkbox>
-			))}
+				><span title={reason ? `当前不起作用:${reason}` : undefined}>{o.label}</span></Checkbox>
+				);
+			})}
+		</div>
+	);
+}
+
+// 本面板列的设置项:几何口径在「弧算法」下拉里选(inProjection),不在这里重复
+const PANEL_SETTING_SPECS = PD_EXTRA_SETTING_SPECS.filter((s)=>!s.inProjection);
+
+/** 「取点与方向」组:控件按 primaryDirectionSync 的设置项登记表生成(开关 = 勾选,相位侧 = 下拉;说明放悬停提示)。 */
+function SettingsGroup({ values, onChange, headClassName, dark, inertContext }){
+	const v = pickPdExtraSettings(values);
+	const reasonOf = (key)=>(inertContext ? pdSettingInertReason(key, { ...inertContext, values: v }) : '');
+	const titleOf = (spec, reason)=>(reason ? `当前不起作用:${reason}` + (spec.help ? `\n${spec.help}` : '') : (spec.help || ''));
+	return (
+		<div style={{ display: 'flex', flexDirection: 'column', gap: 7, minWidth: 128 }}>
+			<span className={headClassName} style={headStyle}>取点与方向</span>
+			{PANEL_SETTING_SPECS.map((spec)=>{
+				const reason = reasonOf(spec.key);
+				const atDefault = v[spec.key] === spec.default;
+				return spec.type === 'switch' ? (
+				<Checkbox
+					key={spec.key}
+					data-pd-setting={spec.key}
+					style={{ marginLeft: 0, ...(reason ? INERT_STYLE : null) }}
+					disabled={!!reason && atDefault}
+					checked={v[spec.key] === 1}
+					onChange={(e)=>onChange(spec.key, e.target.checked ? 1 : 0)}
+				><span title={titleOf(spec, reason)}>{spec.label}</span></Checkbox>
+			) : (
+				<span key={spec.key} data-pd-setting={spec.key} title={titleOf(spec, reason)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...(reason ? INERT_STYLE : null) }}>
+					<span>{spec.label}</span>
+					<Select
+						size='small'
+						style={{ width: spec.selectWidth || 96 }}
+						disabled={!!reason && atDefault}
+						value={v[spec.key]}
+						onChange={(val)=>onChange(spec.key, val)}
+						dropdownMatchSelectWidth={false}
+						getPopupContainer={(t)=>t.parentNode}
+						popupClassName={dark ? 'horosa-pdsphere-ext-pop' : undefined}
+						options={spec.options}
+					/>
+				</span>
+			);
+			})}
 		</div>
 	);
 }
@@ -76,6 +136,8 @@ function Group({ title, options, selected, onChange, minWidth, headClassName }){
  * @param extraSection 第三组插槽(可选;未传不渲染,天球调用方零改动零回归)——宿主把
  *        「附加促发」等自带 disabled/条件控件的既有 JSX 原样平移进来,逻辑零改。
  * @param extraSectionTitle 插槽组标题(默认「附加促发」);extraCount 插槽勾选数(并入按钮徽标)
+ * @param extraSettings / onExtraSettingChange 「取点与方向」组的值与回调(key, value);未传不渲染
+ * @param inertContext { pdtype, projection, geometry, timeKey }:传了就按 pdSettingInertReason 把当前不起作用的项置灰并说明原因
  * @param placement Popover 位置;buttonStyle 触发按钮内联样式(两处按钮本就不同,保留各自的)
  */
 export default function PdExtensionPanel({
@@ -87,6 +149,9 @@ export default function PdExtensionPanel({
 	extraSection,
 	extraSectionTitle = '附加促发',
 	extraCount = 0,
+	extraSettings,
+	onExtraSettingChange,
+	inertContext,
 	placement = 'bottom',
 	buttonStyle,
 	buttonSize = 'small',
@@ -94,7 +159,11 @@ export default function PdExtensionPanel({
 	const sig = Array.isArray(significators) ? significators : [];
 	const prom = Array.isArray(promissorTypes) ? promissorTypes : [];
 	const dark = variant === 'dark';
-	const count = sig.length + prom.length + (Number.isFinite(extraCount) ? extraCount : 0);
+	const settingsOn = !!onExtraSettingChange;
+	const settingsChanged = settingsOn
+		? (()=>{ const v = pickPdExtraSettings(extraSettings); return PANEL_SETTING_SPECS.filter((s)=>v[s.key] !== s.default).length; })()
+		: 0;
+	const count = sig.length + prom.length + (Number.isFinite(extraCount) ? extraCount : 0) + settingsChanged;
 
 	const content = (
 		<div style={{ display: 'flex', gap: 16 }}>
@@ -105,6 +174,7 @@ export default function PdExtensionPanel({
 				onChange={onSignificatorsChange}
 				minWidth={168}
 				headClassName={dark ? 'horosa-pdsphere-ext-head' : undefined}
+				optionInertReason={inertContext ? (value)=>pdExtensionOptionInertReason('pdSignificators', value, inertContext) : null}
 			/>
 			<div style={{ width: 1, alignSelf: 'stretch', background: GOLD_DIVIDER }} />
 			<Group
@@ -114,7 +184,20 @@ export default function PdExtensionPanel({
 				onChange={onPromissorTypesChange}
 				minWidth={128}
 				headClassName={dark ? 'horosa-pdsphere-ext-head' : undefined}
+				optionInertReason={inertContext ? (value)=>pdExtensionOptionInertReason('pdPromissorTypes', value, inertContext) : null}
 			/>
+			{settingsOn ? (
+				<>
+					<div style={{ width: 1, alignSelf: 'stretch', background: GOLD_DIVIDER }} />
+					<SettingsGroup
+						values={extraSettings}
+						onChange={onExtraSettingChange}
+						headClassName={dark ? 'horosa-pdsphere-ext-head' : undefined}
+						dark={dark}
+						inertContext={inertContext}
+					/>
+				</>
+			) : null}
 			{extraSection ? (
 				<>
 					<div style={{ width: 1, alignSelf: 'stretch', background: GOLD_DIVIDER }} />

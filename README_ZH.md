@@ -11,13 +11,13 @@
 
 命 · 卜 · 工具 三区 —— **26 门主技法 · 60+ 子技法流派**（完整清单见[全功能清单](#三全功能清单)）
 
-[![Version](https://img.shields.io/badge/version-3.12.0-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.12.0)
+[![Version](https://img.shields.io/badge/version-3.13.0-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.0)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.12.0)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.12.0)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.0)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.0)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.12.0/Horosa-Setup-3.12.0.exe) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.13.0/Horosa-Setup-3.13.0.exe) ·
 [中文首页](README.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -47,9 +47,9 @@
 
 目标是：**不再在十几个单一用途的网页排盘器之间来回切换，也不用手工拼装底层的 Python / Java / 星历运行时**。下载一个离线的安装包，打开就是成品。
 
-本仓承担 Windows 这一侧的交付：应用源码、共享运行时、Windows 适配层，以及面向最终用户的 NSIS 离线安装包（`Horosa-Setup-3.12.0.exe`）发布。
+本仓承担 Windows 这一侧的交付：应用源码、共享运行时、Windows 适配层，以及面向最终用户的 NSIS 离线安装包（`Horosa-Setup-3.13.0.exe`）发布。
 
-- **当前版本**：3.12.0（运行时 `3.12.0-runtime1`）
+- **当前版本**：3.13.0（运行时 `3.13.0-runtime1`）
 - **平台**：Windows 10 / 11（`x64`）
 - **许可**：AGPL-3.0-only
 
@@ -123,10 +123,11 @@
 
 #### 星运（推运总台）
 - **主限法（Primary Directions）**：
-  - **核心方位法**：Alcabitius（默认）/ Meridian / Porphyry / Equal Ecliptic / Equal Hour Circle。
-  - **方向类型**：In Zodiaco（黄道，默认）/ In Mundo（世俗）。
+  - **方位法（弧算法）**：Ptolemy（半弧比例，默认）/ Alcabitius / Meridian / Porphyry / Equal（黄道）/ Equal（时圈）/ Placidus / Regiomontanus / Campanus / Topocentric / Morinus / Horizontal / Koch / Along-Ecliptic / Edmund Jones 等，均按几何定义实现；两种写法结果确有不同的方法分「（改进）」（严格球面几何，默认）与「（经典）」（传统程序的写法）两项。
+  - **方向类型**：In Zodiaco（黄道，默认）/ In Mundo（世俗，各方位法按自身世俗位置定义，含世俗子午 / 地平平行与急动平行）/ Field Plane（场平面）。
+  - **取点与方向设置**：相位侧、忽略应星 / 迫星黄纬、传统逆向、月亮视差、真位置、相位点黄纬（五档）、日期年长、恒星迫星；当前组合下不起作用的设置置灰并说明原因。
   - **向运方向**：顺向 Direct / 逆向 Converse / 顺逆合展；**迫星**：映点迫星（antiscia）/ 界限迫星（terms）。
-  - **时间换算（time keys）**：Ptolemy（默认）、Naibod、Cardano、Umar、Wöllner、Plantiko、TrueSolarArc、SymbolicSolarArc、SynodicYear、Kepler、Brahe 等。
+  - **时间换算（time keys，38 档）**：Ptolemy（默认）、Naibod、Cardano、Umar、Wöllner、Plantiko、真太阳弧、Simmonite、Kepler、Brahe、上升弧 / 垂直弧计时等，逐档按定义实现，另有 7 档「（经典）」传统写法。
 - **其它推运法**（各独立子页 / 页签）：太阳弧、法达（Firdaria）、小限（Profections）、太阳返照、太阴返照、十年法、十年分段、黄道星释（Zodiacal Releasing）、行星年龄、印占推运、Jaynes 二次推运、行星弧、波斯向运、129 年体系、Balbillus、三分主星、关键点、月相推运、其它回归、产前朔望、二次推运总台、返照时间线、分布、年龄推进点、星历。
 
 #### 八字（四柱）
@@ -155,7 +156,7 @@
 - Yoga 自动识别、27 Nakshatra、Shadbala、Ashtakavarga、Vimsopaka、KP（真 Placidus 体系 + 订正）、Tajika / Argala / Gochara、Muhurta / Choghadia 择时、八分点、六座运、多流派器。
 
 #### 辅盘
-- **量化盘 / 汉堡学派**：四派 = classic / pure / uranian 美国对称 / cosmo 宇宙生物学；90°（或 45°）拨盘、中点树、中点相位、六宫框、图形星历、超海王星虚星（TNP）、校时、宇宙图。
+- **量化盘 / 汉堡学派**：四派 = classic / pure / uranian 美国对称 / cosmo 宇宙生物学；90°（或 45°）拨盘（盘基共 22 档）、中点树、中点相位、中点赤经 / 赤纬坐标、公式求解与聚焦因子、六宫框、图形星历、超海王星虚星（TNP）、次限推运层、校时、宇宙图。
 - **希腊星术**：十三分盘（13 次谐波，界限 / 阿拉伯点）。
 - **十二分盘、占星地图 / 重置盘、谐波盘（N 次）、龙盘（Draconic）、卜卦盘（五流派）、择日盘、世俗盘**。
 
@@ -245,7 +246,7 @@
 
 普通用户直接下载离线安装包，像任何 Windows 软件一样安装、打开即可。
 
-**[⬇︎ Horosa-Setup-3.12.0.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.12.0/Horosa-Setup-3.12.0.exe)**
+**[⬇︎ Horosa-Setup-3.13.0.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.13.0/Horosa-Setup-3.13.0.exe)**
 
 适合场景：
 
@@ -286,13 +287,13 @@
 ## 六、常见问题
 
 **我只是普通用户，需要克隆仓库吗？**
-不需要。直接在最新 release 里下载 `Horosa-Setup-3.12.0.exe` 即可。
+不需要。直接在最新 release 里下载 `Horosa-Setup-3.13.0.exe` 即可。
 
 **安装完还要自己装 Python 或 Java 吗？**
 不需要。Windows 安装器已经把发布版所需的运行时纳入流程；首次启动会因本地解包和校验稍慢，后续复用缓存。
 
 **为什么 release 里还有别的文件？**
-`latest.yml`、`.blockmap`、`SHA256SUMS.txt` 与 `horosa-update.sig` 用于应用内更新和校验。对普通用户来说，真正要点的只有 `Horosa-Setup-3.12.0.exe`。
+`latest.yml`、`.blockmap`、`SHA256SUMS.txt` 与 `horosa-update.sig` 用于应用内更新和校验。对普通用户来说，真正要点的只有 `Horosa-Setup-3.13.0.exe`。
 
 **更新时会删掉我的数据吗？**
 不会。应用更新与运行时切换替换的是程序与共享运行时，不会清空你保存的命例与事盘。

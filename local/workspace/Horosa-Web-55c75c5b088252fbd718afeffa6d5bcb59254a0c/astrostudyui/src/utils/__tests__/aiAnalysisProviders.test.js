@@ -69,8 +69,8 @@ describe('aiAnalysisProviders', ()=>{
 		expect(preset.baseUrl).toBe('https://api.deepseek.com');
 		expect(getProviderDisplayName('deepseek')).toBe('DeepSeek');
 		expect(getProviderProtocolFamily('deepseek')).toBe('openai-compatible');
-		// 2026-07 现役目录:v4 直连置顶,chat/reasoner 别名暂留兼容(官方 2026-07-24 弃用);2026-09-11 官方 /models 改列 deepseek-flash(无 v4 字样)置首。
-		expect(getProviderDefaultChatModels('deepseek')).toEqual(['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner']);
+		// 2026-10 官方文档现役:deepseek-flash + deepseek-v4-pro(v4-flash 仍收);chat / reasoner 已过弃用期不再作种子。
+		expect(getProviderDefaultChatModels('deepseek')).toEqual(['deepseek-flash', 'deepseek-v4-pro', 'deepseek-v4-flash']);
 		expect(getProviderDefaultEmbeddingModels('deepseek')).toEqual([]);
 	});
 
@@ -95,10 +95,10 @@ describe('aiAnalysisProviders', ()=>{
 		const preset = getProviderPreset('gemini');
 		expect(preset.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta');
 		expect(getProviderProtocolFamily('gemini')).toBe('gemini');
-		// 3.x 现役置顶;2.5 官方 2026-10-16 退役前暂留。
-		expect(getProviderDefaultChatModels('gemini')).toEqual(['gemini-3.1-pro', 'gemini-3.5-flash', 'gemini-3-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro']);
-		// text-embedding-004 已于 2026-01-14 关停,官方迁移目标 gemini-embedding-001。
-		expect(getProviderDefaultEmbeddingModels('gemini')).toEqual(['gemini-embedding-001']);
+		// 2026-10 官方表:3.8-flash 置顶;3.1 Pro 只有 -preview 名;2.5 未弃用仍留。
+		expect(getProviderDefaultChatModels('gemini')).toEqual(['gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash']);
+		expect(getProviderDefaultChatModels('gemini')).not.toContain('gemini-3.1-pro');   // 价目页查无此名(只有 -preview)
+		expect(getProviderDefaultEmbeddingModels('gemini')).toEqual(['gemini-embedding-2', 'gemini-embedding-001']);
 	});
 
 	test('splitProviderModels separates embedding-like ids', ()=>{

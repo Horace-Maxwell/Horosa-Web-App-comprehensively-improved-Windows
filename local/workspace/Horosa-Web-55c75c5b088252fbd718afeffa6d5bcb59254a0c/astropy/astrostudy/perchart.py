@@ -263,6 +263,25 @@ def pop_classical_request(tokens):
     pop_request_terms(tokens[0])
 
 
+# 主限法设置项登记表的键(与前端 primaryDirectionSync.PD_EXTRA_SETTING_KEYS、Java PdWire.SETTING_KEYS 同名同序)
+PD_EXTRA_SETTING_KEYS = ('pdGeometry', 'pdAspectSide', 'pdTradConverse', 'pdIgnoreSigLat', 'pdIgnorePromLat',
+                         'pdLunarParallax', 'pdTruePosition', 'pdSolarArcRegressive', 'pdYearDays', 'pdPromAspectLat')
+
+
+def pd_extra_settings_echo(perchart):
+    """回显设置项登记表的键(全套归一值),前端据此判断已落库的结果是否按当前设置算的。"""
+    out = {}
+    for key in PD_EXTRA_SETTING_KEYS:
+        v = getattr(perchart, key, None)
+        if key == 'pdGeometry':
+            out[key] = v or 'improved'
+        elif key in ('pdAspectSide', 'pdYearDays', 'pdPromAspectLat'):
+            out[key] = int(v or 0)
+        else:
+            out[key] = 1 if v else 0
+    return out
+
+
 class PerChart(Su28Mixin, HousesMixin, PlanetsMixin, LotsMixin, AspectsMixin, BesiegeMixin, TimingMixin):
 
     def __init__(self, data):
@@ -350,6 +369,16 @@ class PerChart(Su28Mixin, HousesMixin, PlanetsMixin, LotsMixin, AspectsMixin, Be
         self.pdAntiscia = False   # 映点/反映点作 promissor
         self.pdTerms = False      # 界(terms)边界作 promissor
         self.pdParallel = False       # 赤纬平行/反平行(映点法);pdtype=1 时为世界平行
+        self.pdAspectSide = 0
+        self.pdIgnoreSigLat = False
+        self.pdIgnorePromLat = False
+        self.pdTradConverse = True
+        self.pdLunarParallax = False
+        self.pdTruePosition = False
+        self.pdSolarArcRegressive = False   # 真太阳弧 / Van Dam:负弧改看出生前倒行的太阳(缺省关 = 正负弧都看出生后)
+        self.pdYearDays = 0   # 年 → 日期的年内零头:0 = 到下一周年日的实际天数(缺省)/ 1 = 365 / 366 定长年
+        self.pdPromAspectLat = 0   # 黄道制迫星相位点黄纬:0 在黄道上(缺省)/ 1 合冲带黄纬 / 2 余弦递减 / 3 线性递减 / 4 按宫位(pd_aspect_latitude)
+        self.pdGeometry = 'improved'   # 几何口径:improved 改进(严格球面几何)/ classic 经典(传统程序写法)
         self.pdRaptParallel = False   # 急动平行(双动求根;仅世界主限)
         self.pdFramework = 'aspect'   # 框架:aspect 相位主限(默认)/bounds 界行/release 释放(hyleg)
         # S/P 清单扩展(默认 None=现状集,零回归):
@@ -419,7 +448,7 @@ class PerChart(Su28Mixin, HousesMixin, PlanetsMixin, LotsMixin, AspectsMixin, Be
             v = '{0}'.format(data['pdProjection'] or '')
             if v in ('ptolemy', 'placidus', 'regiomontanus', 'campanus', 'topocentric',
                      'zodiacal', 'ra_direct', 'in_zodiaco_lon', 'in_zodiaco_abs', 'horosa_legacy',
-                     'placidus_under_pole'):
+                     'placidus_under_pole', 'morinus', 'horizontal', 'koch'):
                 self.pdProjection = v
         if 'pdFrame' in data.keys():
             v = '{0}'.format(data['pdFrame'] or '')
@@ -454,6 +483,36 @@ class PerChart(Su28Mixin, HousesMixin, PlanetsMixin, LotsMixin, AspectsMixin, Be
             self.pdParallel = _truthy(data['pdParallel'])
         if 'pdRaptParallel' in data.keys():
             self.pdRaptParallel = _truthy(data['pdRaptParallel'])
+        # 相位侧:0 = 全部(默认)/ 1 = 只出右旋 / 2 = 只出左旋;忽略应星 / 迫星黄纬(默认关)
+        if 'pdAspectSide' in data.keys():
+            try:
+                v = int(data['pdAspectSide'] or 0)
+            except (TypeError, ValueError):
+                v = 0
+            self.pdAspectSide = v if v in (0, 1, 2) else 0
+        if 'pdIgnoreSigLat' in data.keys():
+            self.pdIgnoreSigLat = _truthy(data['pdIgnoreSigLat'])
+        if 'pdIgnorePromLat' in data.keys():
+            self.pdIgnorePromLat = _truthy(data['pdIgnorePromLat'])
+        if 'pdLunarParallax' in data.keys():
+            self.pdLunarParallax = _truthy(data['pdLunarParallax'])
+        if 'pdTruePosition' in data.keys():
+            self.pdTruePosition = _truthy(data['pdTruePosition'])
+        if 'pdSolarArcRegressive' in data.keys():
+            self.pdSolarArcRegressive = _truthy(data['pdSolarArcRegressive'])
+        if 'pdYearDays' in data.keys():
+            from astrostudy.signasctime import normalize_year_days
+            self.pdYearDays = normalize_year_days(data['pdYearDays'])
+        if 'pdPromAspectLat' in data.keys():
+            from astrostudy.pd_aspect_latitude import normalize_mode
+            self.pdPromAspectLat = normalize_mode(data['pdPromAspectLat'])
+        if 'pdGeometry' in data.keys():
+            from astrostudy.pd_geometry import normalize_variant
+            self.pdGeometry = normalize_variant(data['pdGeometry'])
+        # 传统逆向(默认开;同顺向,仅显式传 0/false 才关):关 = 新式逆向
+        if 'pdTradConverse' in data.keys():
+            v = data['pdTradConverse']
+            self.pdTradConverse = not (v is False or v == 0 or v == '0' or v == 'false')
         if 'pdFramework' in data.keys():
             v = '{0}'.format(data['pdFramework'] or '')
             if v in ('aspect', 'bounds', 'release'):

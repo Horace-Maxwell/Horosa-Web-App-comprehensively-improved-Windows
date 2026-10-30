@@ -347,6 +347,11 @@ public class ChartController {
 			if(args.containsKey("pdPromissorTypes")) {
 				reqparams.put("pdPromissorTypes", args.get("pdPromissorTypes"));
 			}
+			for(String key : spacex.basecomm.constants.PdWire.SETTING_KEYS) {
+				if(args.containsKey(key)) {
+					reqparams.put(key, args.get(key));
+				}
+			}
 			// 回显主限进阶参数,便于前端 needsPdRecompute 比对已落库值(否则 pdYears 改后会被判为"需重算"反复 fetch)。
 			if(args.containsKey("pdYears")) {
 				reqparams.put("pdYears", args.get("pdYears"));
@@ -508,6 +513,11 @@ public class ChartController {
 		}
 		if(TransData.containsParam("pdPromissorTypes")) {
 			params.put("pdPromissorTypes", TransData.get("pdPromissorTypes"));
+		}
+		for(String key : spacex.basecomm.constants.PdWire.SETTING_KEYS) {
+			if(TransData.containsParam(key)) {
+				params.put(key, TransData.get(key));
+			}
 		}
 		// (termsVariant 透传在本方法前段已做,此处曾有幂等重复的第二份,已并去)
 		// 主限法进阶参数:推算年数 + 顺逆/映点/界。/chart(含 includePrimaryDirection)内部走

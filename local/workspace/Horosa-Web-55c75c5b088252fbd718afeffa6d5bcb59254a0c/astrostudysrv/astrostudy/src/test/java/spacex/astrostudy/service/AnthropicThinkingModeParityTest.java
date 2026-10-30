@@ -44,6 +44,11 @@ public class AnthropicThinkingModeParityTest {
 			if(!cols[1].trim().equals(got)){
 				bad.add(cols[0] + " 期望 " + cols[1] + " 实得 " + got);
 			}
+			// 第 4 列:关闭形态(与前端 anthropicThinkingOffForm 同表)
+			String off = AIAnalysisProxyService.anthropicThinkingOffForm(cols[0]);
+			if(cols.length < 4 || !cols[3].trim().equals(off)){
+				bad.add(cols[0] + " 关闭形态期望 " + (cols.length < 4 ? "(缺列)" : cols[3]) + " 实得 " + off);
+			}
 		}
 		assertTrue("用例表应有内容", n >= 15);
 		assertEquals(new ArrayList<String>(), bad);

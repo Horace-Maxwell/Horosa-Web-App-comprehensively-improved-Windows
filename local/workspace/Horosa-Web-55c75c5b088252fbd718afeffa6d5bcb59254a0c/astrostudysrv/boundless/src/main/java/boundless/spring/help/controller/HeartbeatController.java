@@ -64,14 +64,16 @@ public class HeartbeatController {
 		return healthy;
 	}
 
-	private void crossdomain(HttpServletRequest request, HttpServletResponse response) {
+	// 全站 CORS 过滤器已先写过这两个头时不再追加:浏览器见到两个 Access-Control-Allow-Origin 即判跨域失败
+	// (探针放行后实测页面 fetch /heartbeat 由此 Failed to fetch);没有过滤器的部署照旧由这里补上。
+	static void crossdomain(HttpServletRequest request, HttpServletResponse response) {
 		String origin = request.getHeader("Origin");
-		if (origin != null && !origin.isEmpty()) {
+		if (origin != null && !origin.isEmpty() && !response.containsHeader("Access-Control-Allow-Origin")) {
 			response.addHeader("Access-Control-Allow-Origin", origin);
 		}
 
 		String headers = request.getHeader("Access-Control-Request-Headers");
-		if (headers != null && !headers.isEmpty()) {
+		if (headers != null && !headers.isEmpty() && !response.containsHeader("Access-Control-Allow-Headers")) {
 			response.addHeader("Access-Control-Allow-Headers", headers);
 		}
 

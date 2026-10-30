@@ -26,6 +26,7 @@ import { classicalGlobalValue, classicalGlobalOverrides, classicalBackendOverrid
 // 「新盘种子」:随盘键(黄道 / 宫制 / 时间算法 / 八字长生·神煞 / 宿法 / 印占 / 主限法口径)的新命盘缺省 = 上次亲手设的值;
 // 没存过 = 内建默认逐字节零回归;载入记录时由 recordFieldsRestore 先复位到内建默认(记录自带口径永远优先)。
 import { newChartSeedValue, newChartSeedExtraEntries } from '../utils/newChartSeeds';
+import { PD_EXTRA_SETTING_KEYS, pdExtraRequestParams } from '../utils/primaryDirectionSync';
 
 let dtm = new DateTime();
 
@@ -371,7 +372,7 @@ function newEmptyFields(){
 			name: ['pdParallel'],
 		},
 		pdRaptParallel: {
-			value: 0,
+			value: newChartSeedValue('pdRaptParallel'),   // 新盘种子(缺省 0)
 			name: ['pdRaptParallel'],
 		},
 		pdTimeKeyCustom: {
@@ -379,13 +380,15 @@ function newEmptyFields(){
 			name: ['pdTimeKeyCustom'],
 		},
 		pdSignificators: {
-			value: null,
+			value: newChartSeedValue('pdSignificators'),   // 新盘种子(缺省 null = 不扩展)
 			name: ['pdSignificators'],
 		},
 		pdPromissorTypes: {
-			value: null,
+			value: newChartSeedValue('pdPromissorTypes'),   // 新盘种子(缺省 null = 不扩展)
 			name: ['pdPromissorTypes'],
 		},
+		// 主限法设置项登记表(相位侧 / 传统逆向 / 取点四项):新盘种子,缺省 = 登记表缺省
+		...Object.fromEntries(PD_EXTRA_SETTING_KEYS.map((key)=>[key, { value: newChartSeedValue(key), name: [key] }])),
 		pdaspects: {
 			value: [0, 60, 90, 120, 180],
 			name: ['pdaspects'],
@@ -537,6 +540,7 @@ function fieldsToParams(fields){
 		...(fields.pdTimeKeyCustom && fields.pdTimeKeyCustom.value ? { pdTimeKeyCustom: fields.pdTimeKeyCustom.value } : {}),
 		...(fields.pdSignificators && Array.isArray(fields.pdSignificators.value) && fields.pdSignificators.value.length ? { pdSignificators: fields.pdSignificators.value } : {}),
 		...(fields.pdPromissorTypes && Array.isArray(fields.pdPromissorTypes.value) && fields.pdPromissorTypes.value.length ? { pdPromissorTypes: fields.pdPromissorTypes.value } : {}),
+		...pdExtraRequestParams(Object.fromEntries(PD_EXTRA_SETTING_KEYS.map((key)=>[key, fields[key] ? fields[key].value : undefined]))),
 		pdaspects: fields.pdaspects.value,
 		name: fields.name.value,
 		pos: fields.pos.value,

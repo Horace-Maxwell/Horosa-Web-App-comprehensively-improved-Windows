@@ -2,7 +2,7 @@
 // 后端 JUnit OpenAIReasoningGenerationParityTest 读同一份文件)。此前前后端各写死 gpt-5/6/7、o1/3–7 名单,gpt-8 / o8 上线即漏判。
 import fs from 'fs';
 import path from 'path';
-import { isOpenAIReasoningModel, isReasoningModel, applyThinkingLevel, anthropicThinkingMode, gptMajorOf, ANTHROPIC_FAMILY_RE } from '../aiAnalysisProviders';
+import { isOpenAIReasoningModel, isReasoningModel, applyThinkingLevel, anthropicThinkingMode, gptMajorOf, ANTHROPIC_FAMILY_RE, anthropicThinkingOffForm } from '../aiAnalysisProviders';
 
 const CASES = fs.readFileSync(path.join(__dirname, 'fixtures', 'openaiReasoningGenerationCases.tsv'), 'utf8')
 	.split('\n').map((l)=>l.trim()).filter((l)=>l && !l.startsWith('#')).map((l)=>{ const [m, v] = l.split('\t'); return [m, v === 'true']; });
@@ -32,8 +32,23 @@ describe('Anthropic 思考形态族(与后端共用用例表)', ()=>{
 		expect(ANTH.some((r)=>r[0] === 'claude-opus-4-20250514' && r[1] === 'budget')).toBe(true);
 		expect(ANTH.some((r)=>/\//.test(r[0]))).toBe(true);
 	});
-	ANTH.forEach(([model, want, note])=>{
-		it(`${model || '(空)'} → ${want}(${note})`, ()=>{ expect(anthropicThinkingMode(model)).toBe(want); });
+	ANTH.forEach(([model, want, note, off])=>{
+		it(`${model || '(空)'} → ${want} / 关闭 ${off}(${note})`, ()=>{
+			expect(anthropicThinkingMode(model)).toBe(want);
+			expect(anthropicThinkingOffForm(model)).toBe(`${off || ''}`.trim());
+		});
+	});
+	it('🔴 关闭档请求形态逐型号(Opus 5.5 不发 disabled、Sonnet 5.5 发 between_tools 且不带别的键、Haiku 5.5 不发 budget_tokens)', ()=>{
+		const o55 = applyThinkingLevel({}, 'off', 'anthropic', 'claude-opus-5-5', 8192);
+		expect(o55.thinking).toBeUndefined();
+		expect(o55.output_config).toEqual({ effort: 'low' });
+		const s55 = applyThinkingLevel({ thinking: { type: 'adaptive' }, output_config: { effort: 'max' } }, 'off', 'anthropic', 'claude-sonnet-5-5', 8192);
+		expect(s55.thinking).toEqual({ type: 'between_tools' });
+		expect(s55.output_config).toBeUndefined();
+		const h55 = applyThinkingLevel({}, 'high', 'anthropic', 'claude-haiku-5-5', 8192);
+		expect(h55.thinking).toEqual({ type: 'adaptive' });
+		expect(h55.output_config).toEqual({ effort: 'high' });
+		expect(applyThinkingLevel({}, 'off', 'anthropic', 'claude-haiku-5-5', 8192).thinking).toEqual({ type: 'disabled' });
 	});
 	it('🔴 开思考档时日期型号 Opus 4 发预算形态(enabled + budget_tokens),不发 adaptive', ()=>{
 		const o = applyThinkingLevel({}, 'medium', 'anthropic', 'claude-opus-4-20250514', 8192);

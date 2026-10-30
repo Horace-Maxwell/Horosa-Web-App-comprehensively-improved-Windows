@@ -114,6 +114,7 @@ AstroMsgCN[AstroConst.SOUTH_NODE] = '南交';
 AstroMsgCN[AstroConst.SYZYGY] = '月亮朔望点';
 AstroMsgCN[AstroConst.PARS_FORTUNA] = '福点';
 AstroMsgCN[AstroConst.VERTEX] = '宿命点';
+AstroMsgCN[AstroConst.ANTIVERTEX] = '反宿命点';
 AstroMsgCN[AstroConst.EAST_POINT] = '东点';
 AstroMsgCN[AstroConst.DARKMOON] = '莉莉丝(暗月)';
 AstroMsgCN[AstroConst.PURPLE_CLOUDS] = '紫气-木余';
@@ -181,6 +182,7 @@ AstroMsg[AstroConst.PURPLE_CLOUDS] = 'w';
 AstroMsg[AstroConst.PARS_FORTUNA] = 'p';
 // 宿命点无专属字形,直接中文(字形字体缺 CJK 自动回退系统字体,先例 AstroMsg['ruler']='本垣')。
 AstroMsg[AstroConst.VERTEX] = '宿命点';
+AstroMsg[AstroConst.ANTIVERTEX] = '反宿命点';
 AstroMsg[AstroConst.SYZYGY] = 'z';
 AstroMsg[AstroConst.CHIRON] = 'y';
 
@@ -393,6 +395,7 @@ AstroTxtMsg[AstroConst.DARKMOON] = '暗月';
 AstroTxtMsg[AstroConst.PURPLE_CLOUDS] = '紫气';
 AstroTxtMsg[AstroConst.PARS_FORTUNA] = '福点';
 AstroTxtMsg[AstroConst.VERTEX] = '宿命点';
+AstroTxtMsg[AstroConst.ANTIVERTEX] = '反宿命点';
 AstroTxtMsg[AstroConst.CHIRON] = '凯龙';
 AstroTxtMsg[AstroConst.SYZYGY] = '月亮朔望点';
 AstroTxtMsg[AstroConst.INTP_APOG] = '月亮平均远地点';
@@ -472,5 +475,5 @@ export const UranianAbbr = {
 };
 export function isUranian(id){ return UranianAbbr[id] !== undefined; }
 export function uranianGlyph(id){ return UranianAbbr[id] || AstroMsg[id] || id; }
-// 虚星含义已迁入含义词典单一真值源(物理唯一份),此处仅 re-export,既有读取处不破。
-export { URANIAN_MEANING } from '../data/uranianMeanings';
+// 虚星含义住在含义词典单一真值源 data/uranianMeanings(URANIAN_MEANING);此处不再转出(全仓已无读取处,
+// 且转出会让常量层反依赖含义词典,与 factorLabel 取本表中文名构成导入环)。

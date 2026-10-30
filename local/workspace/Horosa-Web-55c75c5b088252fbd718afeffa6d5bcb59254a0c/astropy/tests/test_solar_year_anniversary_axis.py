@@ -8,8 +8,11 @@
 - 1582-10-15 以后出生:与「按民用历月日取周年日」的参照实现逐位相同(主限 540 例金标另锁);
 - 小限年表第 k 行转角 = 30k(1570 年出生跨改历、公元前出生、现代随机出生,k = 1..99);
 - 2 月 29 日生、平年两种口径并存且各有出处:主限取 2 月 28 日(Core),年表取 3 月 1 日(起盘引擎读法)。
+主限法年内零头(设置项 pdYearDays):缺省 = 到下一周年日的实际天数(上面几条参照的就是这一档);另一档 365 / 366 定长年
+(周年时刻按世界时、年长按日历写法,独立参照实现逐行比);两档最多差 1 天,反函数(主限法盘「日期 → 年」)与正向互逆。
 """
 import datetime as _dt
+import math
 import random
 
 import pytest
@@ -17,13 +20,13 @@ import pytest
 from astrostudy.civil_calendar import (
     LEAP_DAY_FEB28, LEAP_DAY_MAR1, civil_jdn_display, greg_jdn_of_ymd, greg_ymd_of_jdn, solar_anniversary_jdn,
 )
-from astrostudy.signasctime import SignAscTime
+from astrostudy.signasctime import SignAscTime, YEAR_DAYS_ACTUAL, YEAR_DAYS_CALENDAR, calendar_year_days
 
 TROPICAL_YEAR = 365.2421904
 
 
-def _sat(date, time='12:00:00', zone='+01:00'):
-    return SignAscTime(date, time, 1, 40.0, zone)
+def _sat(date, time='12:00:00', zone='+01:00', year_days=YEAR_DAYS_CALENDAR):
+    return SignAscTime(date, time, 1, 40.0, zone, year_days=year_days)
 
 
 @pytest.mark.parametrize('year', list(range(1500, 1581, 10)) + [-300, 1200])
@@ -63,7 +66,7 @@ def test_modern_births_identical_to_civil_anniversary_reference():
         if i % 20 == 0:
             y, m, d = 1932 + 4 * rnd.randint(0, 39), 2, 29
         tm = '%02d:%02d:%02d' % (rnd.randint(0, 23), rnd.randint(0, 59), rnd.randint(0, 59))
-        sat = _sat('%04d/%02d/%02d' % (y, m, d), tm, rnd.choice(zones))
+        sat = _sat('%04d/%02d/%02d' % (y, m, d), tm, rnd.choice(zones), year_days=YEAR_DAYS_ACTUAL)
         birth = _dt.date(y, m, d)
         for arc in (0.0, 0.5, 1.0, 12.3456, 30.0, 59.99, 88.1, 99.5):
             whole = int(arc)
@@ -71,6 +74,143 @@ def test_modern_births_identical_to_civil_anniversary_reference():
             nxt = _civil_anniversary_reference(y, m, d, whole + 1)
             expect = sat.birth.jd + float((cur - birth).days) + (arc - whole) * float((nxt - cur).days)
             assert sat.getJDFromPDArc(arc) == expect, (y, m, d, tm, arc)
+
+
+# ── 年内零头 365 / 366 定长年(pdYearDays = 1)──
+def _gleap(x):
+    return x % 4 == 0 and (x % 100 != 0 or x % 400 == 0)
+
+
+def _jd_ut(t):
+    """世界时 datetime(外推格里历)→ 儒略日,Meeus 式,与引擎的整数算术无关。"""
+    y, m = t.year, t.month
+    if m <= 2:
+        y, m = y - 1, m + 12
+    a = y // 100
+    b = 2 - a + a // 4
+    day = t.day + (t.hour + t.minute / 60.0 + (t.second + t.microsecond / 1e6) / 3600.0) / 24.0
+    return math.floor(365.25 * (y + 4716)) + math.floor(30.6001 * (m + 1)) + day + b - 1524.5
+
+
+def _calendar_reference(birth_ut, years):
+    """参照实现:出生世界时加 n 个公历年(2 月 29 日生、平年取 28 日)得周年时刻 a,J = ⌊a 的儒略日⌋,
+    Y = a + 12 小时所在的公历年(= 儒略日数 J + 1 那天的年);J + Y 合格里历闰年判据则零头 × 366,否则 × 365。"""
+    n = int(math.floor(years))
+    try:
+        a = birth_ut.replace(year=birth_ut.year + n)
+    except ValueError:
+        a = birth_ut.replace(year=birth_ut.year + n, day=28)
+    ja = _jd_ut(a)
+    length = 366 if _gleap(int(math.floor(ja)) + (a + _dt.timedelta(hours=12)).year) else 365
+    return ja + (years - n) * length
+
+
+def _random_births(seed, count):
+    rnd = random.Random(seed)
+    zones = ['+08:00', '-05:00', '+05:30', '+00:00', '-03:30', '+13:00', '-10:00']
+    for i in range(count):
+        y, m, d = rnd.randint(1800, 2090), rnd.randint(1, 12), rnd.randint(1, 28)
+        if i % 25 == 0:
+            y, m, d = 1804 + 4 * rnd.randint(0, 70), 2, 29
+        zone = rnd.choice(zones)
+        tm = '%02d:%02d:%02d' % (rnd.randint(0, 23), rnd.randint(0, 59), rnd.randint(0, 59))
+        yield '%04d/%02d/%02d' % (y, m, d), tm, zone, rnd
+
+
+def test_calendar_year_days_match_independent_reference():
+    for date, tm, zone, rnd in _random_births(366, 300):
+        sat = _sat(date, tm, zone)
+        y, m, d, h = __import__('swisseph').revjul(sat.birth.jd, 1)
+        birth_ut = _dt.datetime(y, m, d) + _dt.timedelta(hours=h)
+        for years in [0.0, 1.0, 99.0] + [rnd.uniform(0, 110) for _ in range(12)]:
+            assert abs(sat.getJDFromPDArc(years) - _calendar_reference(birth_ut, years)) < 1e-6, (date, tm, zone, years)
+            assert sat.getJDFromPDArc(-years) == sat.getJDFromPDArc(years)
+
+
+def test_calendar_year_length_is_not_the_feb29_rule():
+    # 同一天差 0.1 天就换档(J 变了):2000-01-01 12:00 UT 起的一年按 365,之前 0.1 天起的按 366;
+    # 这一年实际有 2 月 29 日。年长只看「J + 次日公历年」,与有没有闰日无关。
+    assert calendar_year_days(2451545.0) == 365.0
+    assert calendar_year_days(2451544.9) == 366.0
+    sat = _sat('1990/05/18', '12:00:00', '+00:00')
+    short = longer = 0
+    for n in range(200):
+        a = sat._calendar_anniversary_jd(n)
+        actual = sat._calendar_anniversary_jd(n + 1) - a
+        length = calendar_year_days(a)
+        assert length in (365.0, 366.0) and actual in (365.0, 366.0)
+        short += (length == 365.0 and actual == 366.0)
+        longer += (length == 366.0 and actual == 365.0)
+    assert short > 10 and longer > 10
+
+
+def test_two_year_day_modes_differ_by_at_most_one_day():
+    differ = 0
+    for date, tm, zone, rnd in _random_births(29, 200):
+        cal, act = _sat(date, tm, zone), _sat(date, tm, zone, year_days=YEAR_DAYS_ACTUAL)
+        for years in [rnd.uniform(0, 100) for _ in range(10)]:
+            gap = cal.getJDFromPDArc(years) - act.getJDFromPDArc(years)
+            assert abs(gap) <= 1.0 + 1e-9, (date, tm, zone, years)
+            differ += abs(gap) > 1e-6
+        if not date.endswith(('/02/28', '/02/29', '/03/01')):
+            for n in (1, 30, 77):
+                assert cal.getJDFromPDArc(float(n)) == act.getJDFromPDArc(float(n))
+    assert differ > 300
+
+
+def test_calendar_inverse_round_trip():
+    for date, tm, zone, rnd in _random_births(17, 120):
+        sat = _sat(date, tm, zone)
+        for _ in range(12):
+            years = rnd.uniform(0, 100)
+            jd = sat.getJDFromPDArc(years)
+            back = sat.getPDArcFromDate(jd)
+            # 正向不单调只在「定长 366、实际 365」那一天:日期同时落在下一周年后,反函数取下一周年那支
+            assert abs(sat.getJDFromPDArc(back) - jd) < 1e-6, (date, tm, zone, years, back)
+            assert abs(back - years) < 1e-9 or (math.floor(back) == math.floor(years) + 1 and back - years < 0.003)
+            # 正向取不到的那一天(定长 365、实际 366):记为下一周年
+            n = int(years)
+            nxt = sat._calendar_anniversary_jd(n + 1)
+            if calendar_year_days(sat._calendar_anniversary_jd(n)) == 365.0 and nxt - sat._calendar_anniversary_jd(n) == 366.0:
+                assert sat.getPDArcFromDate(nxt - 0.5) == n + 1.0
+    assert _sat('1990/05/18').getPDArcFromDate(0.0) == 0.0
+
+
+def test_year_days_setting_reaches_table_and_dial():
+    from astrostudy.perchart import PerChart, pd_extra_settings_echo
+    from astrostudy.perpredict import PerPredict
+    base = {'date': '1985/07/09', 'time': '06:40:00', 'zone': '+08:00', 'lat': '31n14', 'lon': '121e28',
+            'hsys': 1, 'zodiacal': 0, 'pdYears': 100, 'pdaspects': [0, 60, 90, 120, 180]}
+    rows = {}
+    for mode in (None, 0, 1, '1', 'x', 7):
+        data = dict(base) if mode is None else dict(base, pdYearDays=mode)
+        pc = PerChart(data)
+        rows[mode] = PerPredict(pc).getPrimaryDirection()
+        assert pd_extra_settings_echo(pc)['pdYearDays'] == (1 if mode in (1, '1') else 0)
+    assert rows[None] == rows[0] == rows['x'] == rows[7]
+    assert rows[1] == rows['1']
+    assert [r[:4] for r in rows[0]] == [r[:4] for r in rows[1]]
+    assert any(a[4] != b[4] for a, b in zip(rows[0], rows[1]))
+    from flatlib.datetime import Datetime
+    for mode in (0, 1):
+        pp = PerPredict(PerChart(dict(base, pdYearDays=mode)))
+        sat = SignAscTime(base['date'], base['time'], 1, 31.0, base['zone'], year_days=mode)
+        other = SignAscTime(base['date'], base['time'], 1, 31.0, base['zone'], year_days=1 - mode)
+        checked = distinct = 0
+        for r in rows[mode]:
+            if r[0] <= 0.5 or r[0] > 80:
+                continue
+            # 主限法盘(日期 → 年 → 弧)对表格同一行的日期(UT 显示)回到同一个弧,且走的是本档的反函数
+            day, clock = r[4].replace('-', '/').split(' ')
+            jd = Datetime(day, clock, '+00:00').jd
+            chart = pp.getPrimaryDirectionChartByDate(r[4].replace('-', '/'), zone='+00:00')
+            assert abs(chart['arc'] - sat.getPDArcFromDate(jd)) < 1e-9, (mode, r)
+            assert abs(chart['arc'] - r[0]) < 0.003, (mode, r)
+            distinct += abs(other.getPDArcFromDate(jd) - chart['arc']) > 1e-5
+            checked += 1
+            if checked >= 40:
+                break
+        assert checked >= 40 and distinct >= 5
 
 
 def test_axis_is_civil_after_reform_and_continuous_before():

@@ -13,7 +13,8 @@ import moment from 'moment';
 import { momentOfCivilDateTimeStr } from '../../utils/civilMoment';
 // 太阳弧速率三档人话(与 90°盘工具条同名;naibod 为缺省不成行)。
 const SA_KEY_LABEL = { naibod: '均日弧(0°59′08″/年)', oneDeg: '1°/年', cardan: '59′12″(0°59′12″/年)' };   // 与左栏「太阳弧换算」同名
-import { getStoredUranianDisplay, URANIAN_DISPLAY_EVENT } from './UranianDialStyle';
+import { getStoredUranianDisplay, URANIAN_DISPLAY_EVENT, dialBaseDegText, dialBaseLabel } from './UranianDialStyle';
+import { solveFormula, formulaHitText } from '../../utils/uranianFormula';
 import { personalSetForSchool, schoolToBackendParams, SCHOOL_OPTIONS, germanyMidpointRequestParams } from './UranianSchools';
 import { medicalMeaning, factorLabel } from '../../data/uranianMeanings';
 import { tnpReferenceList, TNP_CALIBRE_NOTE, TNP_GROUP_LABEL } from '../../data/uranianTnpReference';
@@ -159,7 +160,7 @@ export function buildHamburgLines(disp, dialPoints, result, snapOrb, extras){
 		const dialBase = Number(disp.dialBase) > 0 ? Number(disp.dialBase) : 90;
 		const diffs = solarArcDirections(pts, dialBase, { saKey, targetAge, win: 1, maxAge: 90 });
 		if(diffs && diffs.length){
-			out.push(`差值表(太阳弧到期${saKey !== 'naibod' ? `·${SA_KEY_LABEL[saKey]}` : ''}${dialBase !== 90 ? `·${dialBase}°盘` : ''}，目标年龄${targetAge}岁)：`);
+			out.push(`差值表(太阳弧到期${saKey !== 'naibod' ? `·${SA_KEY_LABEL[saKey]}` : ''}${dialBase !== 90 ? `·${dialBaseDegText(dialBase)}盘` : ''}，目标年龄${targetAge}岁)：`);
 			diffs.slice(0, 8).forEach((d)=>{
 				const due = d.due ? ' ★到期' : '';
 				out.push(`  ${factorLabel(d.a)}∠${factorLabel(d.b)} 弧${Number(d.arc).toFixed(2)}° → ${Number(d.age).toFixed(1)}岁${due}`);
@@ -379,6 +380,42 @@ export function buildHouseFramesSection(disp, result, dialPoints){
 // 校时预览段:与「校时」页签同一纯函数 rectificationHits(事件日期→弧年×速率→推进 MC/Asc→命中本命因子);
 // 有待校事件才产段。Asc 微调滑块是即时预览态(松手即弃),不进快照;命中表按 0 微调。
 const RECTIFY_TYPE_CN = { marriage: '婚姻', children: '生育', career: '事业', move: '迁居', loss: '丧亲', accident: '意外', other: '其他' };
+// 中点坐标:行星中点页选了赤经 / 赤纬时,后端 coordMidpoints 的接触全表进快照(与页面同一份数据;黄经缺省不成段)。
+export function buildCoordMidpointSection(disp, result){
+	const coord = disp && (disp.mpCoord === 'ra' || disp.mpCoord === 'decl') ? disp.mpCoord : null;
+	const cm = result && result.coordMidpoints ? result.coordMidpoints : null;
+	if(!coord || !cm || cm.coord !== coord){ return []; }
+	const unit = coord === 'ra' ? '赤经' : '赤纬';
+	const out = ['[中点坐标]', `坐标：${unit}(${coord === 'ra' ? '赤经近轴中点,合 / 刑 / 冲' : '两点赤纬平均,平行 / 反平行'})`];
+	const asp = (a)=>(a === 'parallel' ? '平行' : (a === 'contraParallel' ? '反平行' : `${a}°`));
+	const rows = Array.isArray(cm.contacts) ? cm.contacts : [];
+	if(!rows.length){
+		out.push(`容许度内没有星体落在${unit}中点上`);
+		return out;
+	}
+	rows.slice(0, 80).forEach((c)=>out.push(`${msg(c.id)} ${asp(c.aspect)} ${msg(c.idA)}/${msg(c.idB)} · 差 ${Number(c.delta).toFixed(2)}°`));
+	return out;
+}
+
+// 公式求解:90°中点盘右栏写了公式就进快照(不受汉堡门控;与盘面同一函数、同一盘基 / 容许度 / 聚焦因子)。
+export function buildFormulaSection(disp, dialPoints){
+	const formula = disp && typeof disp.formula === 'string' ? disp.formula.trim() : '';
+	if(!formula){ return []; }
+	const pts = Array.isArray(dialPoints) ? dialPoints : [];
+	const base = Number(disp.dialBase) > 0 ? Number(disp.dialBase) : 90;
+	const orb = Number.isFinite(Number(disp.orb)) && Number(disp.orb) > 0 ? Number(disp.orb) : 1;
+	const focus = disp.focusFactor && pts.some((p)=>p.id === disp.focusFactor) ? disp.focusFactor : '';
+	const r = solveFormula(formula, pts, base, orb, { focus });
+	const out = ['[公式求解]'];
+	if(!r.ok){
+		out.push(`公式：${formula}(无法求值:${r.error})`);
+		return out;
+	}
+	out.push(`公式：${formula} → 敏感点 ${r.lon.toFixed(2)}° · 盘基 ${dialBaseLabel(base)} · 容许 ${orb}°${focus ? ` · 聚焦 ${factorLabel(focus)}` : ''}`);
+	out.push(r.hits.length ? `落点：${r.hits.map(formulaHitText).join('；')}` : '落点：容许度内没有因子或中点落在敏感点上');
+	return out;
+}
+
 export function buildRectifySection(disp, params, dialPoints){
 	const out = [];
 	const events = disp && Array.isArray(disp.rectifyEvents) ? disp.rectifyEvents.filter((e)=>e && e.date) : [];
@@ -402,7 +439,7 @@ export function buildRectifySection(disp, params, dialPoints){
 	});
 	const results = rectificationHits(evInput, angles, pts, base, orb, SA_RATE[saKey]);
 	out.push('[校时预览]');
-	out.push(`（已录事件推进 MC/Asc 看是否触动本命因子，只预览不改盘；盘基 ${base}°·容许 ${orb}°·太阳弧 ${({ oneDeg: '1°/年', cardan: '59′12″', naibod: '均日弧' })[saKey] || '均日弧'}；1°MC≈4 分钟出生时间）`);
+	out.push(`（已录事件推进 MC/Asc 看是否触动本命因子，只预览不改盘；盘基 ${dialBaseDegText(base)}·容许 ${orb}°·太阳弧 ${({ oneDeg: '1°/年', cardan: '59′12″', naibod: '均日弧' })[saKey] || '均日弧'}；1°MC≈4 分钟出生时间）`);
 	out.push('| 事件 | 类型 | 日期 | 弧° | 命中(轴→本命因子·角距) |');
 	out.push('| --- | --- | --- | --- | --- |');
 	results.forEach((r, i)=>{
@@ -583,6 +620,16 @@ export function buildGermanySnapshotText(params, chartObj, result, fields, extra
 	if(rectifySection.length){
 		lines.push('');
 		lines.push(...rectifySection);
+	}
+	const coordSection = buildCoordMidpointSection(disp, result);
+	if(coordSection.length){
+		lines.push('');
+		lines.push(...coordSection);
+	}
+	const formulaSection = buildFormulaSection(disp, dialPoints);
+	if(formulaSection.length){
+		lines.push('');
+		lines.push(...formulaSection);
 	}
 
 	// 汉堡学派要素(WP-8):流派/六宫框/差值/医学,仅用户介入汉堡功能时附加(默认 classic 零回归)。

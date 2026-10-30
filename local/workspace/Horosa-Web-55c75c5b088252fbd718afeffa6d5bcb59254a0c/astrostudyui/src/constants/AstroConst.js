@@ -40,6 +40,7 @@ export const SOUTH_NODE = 'South Node'
 export const SYZYGY = 'Syzygy'
 export const PARS_FORTUNA = 'Pars Fortuna'
 export const VERTEX = 'Vertex'
+export const ANTIVERTEX = 'Antivertex'  // 卯酉圈与黄道的东交点(宿命点对点);主限法世俗盘轴应星
 export const EAST_POINT = 'EastPoint'  // 赤道上升(子午局 1 宫头);量化盘可选点,读后端 houseFrames.eastPoint
 export const DARKMOON = 'Dark Moon'
 export const PURPLE_CLOUDS = 'Purple Clouds'

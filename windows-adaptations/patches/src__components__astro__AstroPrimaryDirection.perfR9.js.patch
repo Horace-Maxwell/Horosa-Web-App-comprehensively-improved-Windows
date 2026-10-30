@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroPrimaryDirection.js b/astrostudyui/src/components/astro/AstroPrimaryDirection.js
-index a3e69ded..cf1c84db 100644
+index 4ba0afad..8cc02ace 100644
 --- a/astrostudyui/src/components/astro/AstroPrimaryDirection.js
 +++ b/astrostudyui/src/components/astro/AstroPrimaryDirection.js
 @@ -1,4 +1,5 @@
@@ -8,7 +8,7 @@ index a3e69ded..cf1c84db 100644
  import { Component } from 'react';
  import { fetchPd3D } from '../../services/astroPd3d'; // pd3d 调试透镜(hover 显示引擎坐标,零后端改动)
  import { safeLocalStorageSet } from '../../utils/safeStorage';
-@@ -332,6 +333,11 @@ class AstroPrimaryDirection extends Component{
+@@ -365,6 +366,11 @@ class AstroPrimaryDirection extends Component{
  	}
  
  	componentDidUpdate(prevProps){

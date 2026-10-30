@@ -4,7 +4,30 @@ from datetime import timedelta, timezone
 from flatlib.datetime import Datetime
 from flatlib import const
 from astrostudy import helper
-from astrostudy.civil_calendar import LEAP_DAY_FEB28, solar_anniversary_jdn
+from astrostudy.civil_calendar import LEAP_DAY_FEB28, greg_is_leap, greg_ymd_of_jdn, solar_anniversary_jdn
+
+# 主限法「年 → 日期」的年内零头怎样折成天数(设置项 pdYearDays):
+#   YEAR_DAYS_ACTUAL(缺省)= 零头 × 到下一周年日的实际天数(有 2 月 29 日就是 366);
+#   YEAR_DAYS_CALENDAR = 365 / 366 定长年:整年按公历加到第 N 个周年时刻(出生时刻按世界时),
+#     零头 × L;J = 该周年时刻儒略日的整数部分、Y = 儒略日数 J + 1 那天的公历年,J + Y 合格里历闰年判据时 L = 366,否则 365。
+#     这是日历写法的约定(与该年有没有 2 月 29 日无关,366 天约占 24%)。两档同一时刻最多差 1 天,弧不变。
+YEAR_DAYS_ACTUAL = 0
+YEAR_DAYS_CALENDAR = 1
+
+
+def normalize_year_days(value):
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        return YEAR_DAYS_ACTUAL
+    return v if v in (YEAR_DAYS_ACTUAL, YEAR_DAYS_CALENDAR) else YEAR_DAYS_ACTUAL
+
+
+def calendar_year_days(anniversary_jd):
+    """定长年口径下,从这个周年时刻起的一年按多少天折算(365 或 366)。"""
+    j = int(math.floor(anniversary_jd))
+    y = greg_ymd_of_jdn(j + 1)[0]
+    return 366.0 if greg_is_leap(j + y) else 365.0
 
 # table of ascensional arcs of zodiacal signs
 
@@ -151,7 +174,7 @@ def getAscSignTime(lat, fromLon, toLon):
 
 class SignAscTime:
 
-    def __init__(self, birthday, birthtime, ascSign, lat, zone):
+    def __init__(self, birthday, birthtime, ascSign, lat, zone, year_days=YEAR_DAYS_ACTUAL):
         self.birth = Datetime(birthday, birthtime, zone)
         self.ascSign = ascSign
         self.lat = lat
@@ -159,6 +182,9 @@ class SignAscTime:
         self._parse_offset_tz(zone)   # 时区串照旧校验(坏串报错)
         # 出生当地民用日的儒略日数(flatlib Date:历史纪年、1582 以前儒略历,全年份域)
         self._birth_jdn = int(self.birth.date.jdn)
+        self.year_days = normalize_year_days(year_days)
+        # 出生时刻的世界时民用日(儒略日数;定长年口径的周年时刻按世界时取)
+        self._birth_ut_jdn = int(math.floor(float(self.birth.jd) + 0.5))
 
     def _parse_offset_tz(self, zone):
         if isinstance(zone, (int, float)):
@@ -186,12 +212,17 @@ class SignAscTime:
         # 1582 年以前出生的周年日整体落后太阳年约 10 天、跨改历那一「年」只有 355 天。
         # 1582-10-15 以后出生与按民用历取逐位相同(两种历法是同一天,整天差是同一个整数)。
         # 全年份域同一口径(公元前 / 万年以后不再换成回归年常数);2 月 29 日生、平年取 2 月 28 日(Core)。
+        # 年内零头:缺省 × 到下一周年日的实际天数(周年日按当地民用日取);
+        # year_days = YEAR_DAYS_CALENDAR 时 × 定长年(365 / 366,见 calendar_year_days;周年时刻按世界时取)。
         magnitude = abs(float(arc))
         if not math.isfinite(magnitude):
             return self.birth.jd + magnitude * 365.2421904
 
         years = int(math.floor(magnitude + 1e-12))
         fraction = magnitude - years
+        if self.year_days == YEAR_DAYS_CALENDAR:
+            anniversary = self._calendar_anniversary_jd(years)
+            return anniversary + fraction * calendar_year_days(anniversary)
         birth_jdn = self._birth_jdn
         current_jdn = solar_anniversary_jdn(birth_jdn, years, LEAP_DAY_FEB28)
         next_jdn = solar_anniversary_jdn(birth_jdn, years + 1, LEAP_DAY_FEB28)
@@ -211,6 +242,8 @@ class SignAscTime:
         birth_jd = float(self.birth.jd)
         if not math.isfinite(target_jd) or target_jd <= birth_jd:
             return 0.0
+        if self.year_days == YEAR_DAYS_CALENDAR:
+            return self._calendar_years_of_jd(target_jd)
 
         low = 0.0
         high = max(1.0, math.ceil((target_jd - birth_jd) / 365.0) + 2.0)
@@ -228,6 +261,22 @@ class SignAscTime:
                 high = mid
 
         return (low + high) / 2.0
+
+    def _calendar_anniversary_jd(self, years):
+        # 出生时刻按世界时民用日(外推格里历)加 years 个公历年、日内时刻不变;2 月 29 日生、平年取 2 月 28 日
+        j0 = self._birth_ut_jdn
+        return float(self.birth.jd) + float(solar_anniversary_jdn(j0, years, LEAP_DAY_FEB28) - j0)
+
+    def _calendar_years_of_jd(self, target_jd):
+        # 定长年口径的反函数:先找 target 所在的周年区间 [第 n 个, 第 n + 1 个),零头 = 天数 / 该年定长。
+        # 定长短于实际(365 对 366)时区间末一天正向取不到,记为下一周年;长于实际时取后一个周年(两处都与正向相差不到一天)。
+        n = max(0, int(math.floor((target_jd - float(self.birth.jd)) / 365.2425)))
+        while n > 0 and self._calendar_anniversary_jd(n) > target_jd:
+            n -= 1
+        while self._calendar_anniversary_jd(n + 1) <= target_jd:
+            n += 1
+        anniversary = self._calendar_anniversary_jd(n)
+        return n + min(1.0, (target_jd - anniversary) / calendar_year_days(anniversary))
 
     def getDateFromPDArc(self, arc):
         jd = self.getJDFromPDArc(arc)

@@ -7,6 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 import { RECORD_FIELDS_RESTORE_MANIFEST, applyRecordToFields } from '../recordFieldsRestore';
+import { PD_EXTRA_SETTING_KEYS } from '../primaryDirectionSync';
 
 const SRC_ROOT = path.join(__dirname, '..', '..');
 const read = (rel)=>fs.readFileSync(path.join(SRC_ROOT, rel), 'utf8');
@@ -27,26 +28,34 @@ function extractAll(text, regex){
 	return out;
 }
 
+// 主限法设置项登记表(primaryDirectionSync.PD_EXTRA_SETTING_SPECS)在保存 / 消费 / schema 三处都以展开式接入,
+// 字面键名不出现:切片里必须有对应的展开锚(被删即红),有锚则把登记表的键并入集合。
+function withPdExtraRegistry(keys, slice, anchor){
+	expect(slice).toContain(anchor);
+	PD_EXTRA_SETTING_KEYS.forEach((k)=>keys.add(k));
+	return keys;
+}
+
 // ── 三集合机械推导（带最小数量守卫：regex 漂移导致集合塌缩时必红，不静默放行）──────────
 const savedKeys = (()=>{
 	const slice = sliceBetween(read('utils/localcharts.js'), 'export function buildLocalChartRecord', 'return record;');
 	const keys = extractAll(slice, /^\t\t(\w+):/gm);
 	expect(keys.size).toBeGreaterThan(70);
-	return keys;
+	return withPdExtraRegistry(keys, slice, '...Object.fromEntries(PD_EXTRA_SETTING_KEYS.map((key)=>[key,');
 })();
 
 const paramsConsumedKeys = (()=>{
 	const slice = sliceBetween(read('models/astro.js'), 'function fieldsToParams(fields){', 'function shouldIncludePrimaryDirection');
 	const keys = extractAll(slice, /fields\.(\w+)/g);
 	expect(keys.size).toBeGreaterThan(30);
-	return keys;
+	return withPdExtraRegistry(keys, slice, '...pdExtraRequestParams(Object.fromEntries(PD_EXTRA_SETTING_KEYS.map(');
 })();
 
 const schemaKeys = (()=>{
 	const slice = sliceBetween(read('models/astro.js'), 'function newEmptyFields(){', 'return fields;');
 	const keys = extractAll(slice, /^\s+(\w+):\s*\{/gm);
 	expect(keys.size).toBeGreaterThan(50);
-	return keys;
+	return withPdExtraRegistry(keys, slice, '...Object.fromEntries(PD_EXTRA_SETTING_KEYS.map((key)=>[key, { value: newChartSeedValue(key)');
 })();
 
 const manifestKeys = new Set(RECORD_FIELDS_RESTORE_MANIFEST.map((item)=>item.key));
@@ -72,8 +81,6 @@ const AI_BUILDER_EXEMPT = {
 	school: '八字断命流派：builder 据 record.school 切主标注，页面选择器自持',
 	coordSystem: 'AI-builder 从 record 直读组 opts，页面自持（非 fields 消费面）', windowMonths: '同 coordSystem',
 	marketPreset: '同 coordSystem',
-	pdDirect: '主限法顺逆：星运页自有 options 驱动（buildPrimaryDirectionFetchFields），仅 buildFieldObject 从 record 读',
-	pdConverse: '主限法逆向（同上）', pdAntiscia: '主限法映点（同上）', pdTerms: '主限法界（同上）',
 };
 // 元数据信封：非排盘计算输入，由 user/setCurrentChart 镜像进 user.currentChart。
 const METADATA_EXEMPT = {

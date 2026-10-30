@@ -5,11 +5,12 @@ import { memoEnabled } from '../../utils/memoBySignature';
 
 const KEY = 'horosa.uranian.dial.v1';
 // 谐波盘基 H1..H512（窗口 W = 360/H）。折叠/模数皆按 W 计算，刻度自适应。
-const VALID_BASES = [360, 180, 120, 90, 60, 45, 30, 22.5, 15, 7.5, 5.625, 3.75, 2.8125, 1.875, 1.40625, 0.9375, 0.703125];
+// 除 2ⁿ·3 系列外另收谐波占星常用的 H5 72° / H7 51°26′ / H9 40° / H10 36° 与宇宙生物学常用的 H32 11°15′(H 均整除 360,模数盘环数为整数)。
+const VALID_BASES = [360, 180, 120, 90, 72, 60, 360 / 7, 45, 40, 36, 30, 22.5, 15, 11.25, 7.5, 5.625, 3.75, 2.8125, 1.875, 1.40625, 0.9375, 0.703125];
 // 盘基 → 谐波号(Hn)标签。
 export const DIAL_BASE_HARMONIC = {
-	360: 'H1', 180: 'H2', 120: 'H3', 90: 'H4', 60: 'H6', 45: 'H8', 30: 'H12', 22.5: 'H16',
-	15: 'H24', 7.5: 'H48', 5.625: 'H64', 3.75: 'H96', 2.8125: 'H128', 1.875: 'H192',
+	360: 'H1', 180: 'H2', 120: 'H3', 90: 'H4', 72: 'H5', 60: 'H6', [360 / 7]: 'H7', 45: 'H8', 40: 'H9', 36: 'H10',
+	30: 'H12', 22.5: 'H16', 15: 'H24', 11.25: 'H32', 7.5: 'H48', 5.625: 'H64', 3.75: 'H96', 2.8125: 'H128', 1.875: 'H192',
 	1.40625: 'H256', 0.9375: 'H384', 0.703125: 'H512',
 };
 // 盘基 → 显示文案(度分秒)。
@@ -23,6 +24,11 @@ export function dialBaseLabel(b){
 	if (min || sec) dms += `${min}′`;
 	if (sec) dms += `${sec}″`;
 	return `${h} ${dms}`;
+}
+
+// 盘基度数文案:有限小数照原样写 `${b}°`(既有档文字逐字不变);H7 这类无限小数改写度分秒(51°25′43″),不出长串小数。
+export function dialBaseDegText(b){
+	return `${b}`.length > 9 ? dialBaseLabel(b).replace(/^H\d+ /, '') : `${b}°`;
 }
 
 const DEFAULTS = {
@@ -61,6 +67,10 @@ const DEFAULTS = {
 	synastryPeople: [],        // [name,...] 当前叠加的合盘人名(对应 fieldsAry 条目)
 	// —— WP-10 校时(只读预览):待校事件列表 ——
 	rectifyEvents: [],         // [{label, date(ISO), type}] 校时事件(date 反推年龄→弧)
+	formula: '',          // 公式求解:手输敏感点公式(如 日+月−火);空 = 不求解
+	showProgressed: false, // 叠盘层「次限推运」(一天 = 一年;与星运「推运」页同一后端出口)
+	mpCoord: 'lon',        // 行星中点页「坐标」:lon 黄经(缺省)/ ra 赤经 / decl 赤纬(后两者由后端 coordMidpoints 下发)
+	focusFactor: '',      // 聚焦因子:公式命中与行星图只留含该因子的项;空 = 不筛
 };
 
 // dialStyle 三态:folded / modulus / cosmogram(其余非法值回退默认 folded)。
@@ -125,6 +135,10 @@ export function getStoredUranianDisplay(){
 			synastryPeople: Array.isArray(obj.synastryPeople) ? obj.synastryPeople.filter((x) => typeof x === 'string').slice(0, 4) : DEFAULTS.synastryPeople,
 			// —— WP-10 校时事件:[{label,date,type}] 数组;非数组回退空(date 为 ISO 串,解析交给组件)。
 			rectifyEvents: Array.isArray(obj.rectifyEvents) ? obj.rectifyEvents.filter((x) => x && typeof x === 'object') : DEFAULTS.rectifyEvents,
+			formula: typeof obj.formula === 'string' ? obj.formula.slice(0, 120) : DEFAULTS.formula,
+			showProgressed: obj.showProgressed === undefined ? DEFAULTS.showProgressed : !!obj.showProgressed,
+			mpCoord: (obj.mpCoord === 'ra' || obj.mpCoord === 'decl') ? obj.mpCoord : DEFAULTS.mpCoord,
+			focusFactor: typeof obj.focusFactor === 'string' ? obj.focusFactor : DEFAULTS.focusFactor,
 		};
 		if (memoEnabled()){
 			_dispCache = parsed;

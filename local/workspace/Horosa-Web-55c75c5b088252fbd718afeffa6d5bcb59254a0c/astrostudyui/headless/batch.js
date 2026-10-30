@@ -646,6 +646,12 @@ function createPool(n, init, hooks){
 			if(m.type === 'fatal'){ reject(new BatchError(EXIT.FAILED, `子进程起不来:${m.message}`)); return; }
 			if(m.type === 'result' && w.busy && m.seq === w.busy.seq){ const b = w.busy; w.busy = null; clearTimeout(b.timer); b.resolve(m.out); }
 		});
+		// 往刚退出的子进程发消息(第二次 Ctrl-C 强杀 / 整例超时重启的空档)失败是异步的:没给回调时 Node 在子进程对象上抛
+		// 'error' 事件,无人接即整个父进程 EPIPE 崩掉(try/catch 接不住)。这里兜底接住,各发送点另带回调各自收尾。
+		child.on('error', (e)=>{
+			if(!w.ready){ reject(new BatchError(EXIT.FAILED, `子进程起不来:${e && e.message ? e.message : e}`)); return; }
+			w.dead = w.dead || !child.connected;
+		});
 		child.on('exit', (code, sig)=>{
 			removeTree(home);
 			if(!w.ready){ reject(new BatchError(EXIT.FAILED, `子进程启动时退出了(${sig || code});看 ${init.logFile}`)); return; }
@@ -678,7 +684,10 @@ function createPool(n, init, hooks){
 				}, hardMs);
 				w.busy = { seq: s, resolve, timer };
 				w.served += 1;
-				w.child.send({ type: 'task', seq: s, task });
+				const sendFailed = ()=>{
+					if(w.busy && w.busy.seq === s){ const b = w.busy; w.busy = null; clearTimeout(b.timer); b.resolve({ crashed: true, message: '子进程通道已断' }); }
+				};
+				try{ w.child.send({ type: 'task', seq: s, task }, (e)=>{ if(e){ sendFailed(); } }); }catch(e){ sendFailed(); }
 			});
 		},
 		// 子进程已退出 / 通道已断(第二次 Ctrl-C 强杀后)→ 回空答复,不往断了的通道上发(那会让父进程抛错退出)
@@ -689,7 +698,7 @@ function createPool(n, init, hooks){
 				const onMsg = (m)=>{ if(m && m.type === `${msg.type}:reply`){ done(m); } };
 				const onExit = ()=>done({});
 				w.child.on('message', onMsg); w.child.once('exit', onExit);
-				try{ w.child.send(msg); }catch(e){ done({}); }
+				try{ w.child.send(msg, (e)=>{ if(e){ done({}); } }); }catch(e){ done({}); }
 			});
 		},
 		// 收掉全部子进程;回一个等它们都退出的 Promise(5 秒没退就强杀),之后才能删临时目录
@@ -1103,7 +1112,7 @@ async function main(argv, ioIn){
 	}
 }
 
-module.exports = { main, usage, parseBatchArgs, parseCoord, parseZone, parseGender, resolveColumns, rowToTask, csvRows, csvRecords, jsonlRows, taskStream, prepareOutput, summarize, shapeResult, runCase, FIELD_ALIASES, EXIT, MAX_CHARS_CAP, PROBE_CASE, BatchError };
+module.exports = { main, usage, createPool, parseBatchArgs, parseCoord, parseZone, parseGender, resolveColumns, rowToTask, csvRows, csvRecords, jsonlRows, taskStream, prepareOutput, summarize, shapeResult, runCase, FIELD_ALIASES, EXIT, MAX_CHARS_CAP, PROBE_CASE, BatchError };
 
 if(require.main === module){
 	if(process.argv.includes('--batch-worker')){ workerMain(); }

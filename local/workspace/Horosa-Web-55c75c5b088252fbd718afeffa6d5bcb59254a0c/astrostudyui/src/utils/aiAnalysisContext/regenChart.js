@@ -5,7 +5,8 @@ import DateTime from '../../components/comp/DateTime';
 // 列源,曾因 import 本文件连带整座 AI 核(~50 技法构建器)进自己的 chunk(46/47 回灌案)。
 // 此处 import 供本文件其余函数继续使用,listAnalysisSources 在文件尾 re-export 保旧路径兼容。
 import { parseRecordPayload } from '../aiAnalysisSources';
-import { scrubForeignFlatValues } from '../techniqueMountSettings';
+import { scrubForeignFlatValues, fillPageBoundDefaults } from '../techniqueMountSettings';
+import { PD_EXTRA_SETTING_KEYS, pickPdExtraSettings } from '../primaryDirectionSync';
 import { loadFreshModuleAISnapshot } from '../moduleSnapshotRefresh';
 import { buildBaziSnapshotForParams } from '../../components/cntradition/BaZi';
 import { buildZiweiSnapshotForParams } from '../../components/ziwei/ZiWeiMain';
@@ -24,7 +25,7 @@ import { buildTriplicityRulersSnapshotText } from '../triplicityRulers';
 import { buildKeypointsSnapshotText } from '../keypoints120';
 import { buildLunationPhaseSnapshotText } from '../lunationPhase';
 import { buildExtraReturnsSnapshotText } from '../../components/astro/AstroExtraReturns';
-import { buildYearSystem129SnapshotText } from '../../components/astro/AstroYearSystem129';
+import { buildYearSystem129SnapshotText } from '../yearSystem129';
 import { buildPlanetaryArcSnapshotText } from '../../components/astro/AstroPlanetaryArc';
 import { buildPersianDirectedSnapshotText } from '../../components/astro/AstroPersianDirected';
 import { buildJaynesProgSnapshotText } from '../../components/astro/AstroJaynesProgressions';
@@ -149,6 +150,8 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 	}
 	// 撞名平铺键(school / method / mode / direction)只认本技法值域:别的技法写进记录的值当没设(各分支不必各设白名单)
 	record = scrubForeignFlatValues(normalizeTechniqueKey(key), record);
+	// 星运族:记录里没设的口径字段按星运页保存值补(与挂载齿轮的现状默认同一份)
+	record = fillPageBoundDefaults(normalizeTechniqueKey(key), record);
 	try{
 		switch(normalizeTechniqueKey(key)){
 		case 'bazi':
@@ -173,14 +176,16 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 			return chartObj ? (buildFirdariaSnapshotText(chartObj) || '') : '';
 		}
 		case 'distributions': {
-			// 界推运：上升点经主限运动穿越埃及界，分配星(界主)+参与星。内部 fetch /predict/dist。
+			// 界推运：发放点顺黄道经过其后各界，分配星(界主) + 伙伴星期。内部 fetch /predict/dist。
+			// 挂载齿轮可调 发放点/时间算法/年长/年限 → record.dist* → opts（未改时 undefined，请求不带 = 出厂口径）。
 			const chartObj = await fetchChartResultForRecord(record);
-			return chartObj ? (await buildDistributionsSnapshotText(chartObj) || '') : '';
+			return chartObj ? (await buildDistributionsSnapshotText(chartObj, { distReleaser: record.distReleaser, distMethod: record.distMethod, distYear: record.distYear, distYears: record.distYears }) || '') : '';
 		}
 		case 'agepoint': {
-			// 年龄推进点（Huber）：年龄点自上升点起沿 Koch 宫顺行。内部 fetch /predict/agepoint。
+			// 年龄推进点：年龄点自上升点起逐宫顺行(Koch 宫 / 等速 5°/年)。内部 fetch /predict/agepoint。
+			// 挂载齿轮可调 推进方式/事件/年长/年限 → record.ap* → opts（未改时 undefined，请求不带 = 出厂口径）。
 			const chartObj = await fetchChartResultForRecord(record);
-			return chartObj ? (await buildAgePointSnapshotText(chartObj) || '') : '';
+			return chartObj ? (await buildAgePointSnapshotText(chartObj, { apMethod: record.apMethod, apEvents: record.apEvents, apYear: record.apYear, apMaxAge: record.apMaxAge }) || '') : '';
 		}
 		case 'planetaryages': {
 			// 行星年龄（托勒密人生七阶）：纯前端固定七阶表，读本命盘。
@@ -231,9 +236,9 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 		}
 		case 'balbillus': {
 			// Balbillus：十年大运月制族变体（旺距削减），纯前端独立引擎，读本命盘。
-			// 挂载齿轮可调 起始星/年制/距离口径 → record.* → opts（未改时 undefined，builder normalize 回默认=现状）。
+			// 挂载齿轮可调 起始星/年制/距离口径/子限铺法 → record.* → opts（未改时 undefined，builder normalize 回默认）。
 			const chartObj = await fetchChartResultForRecord(record);
-			return chartObj ? (buildBalbillusSnapshotText(chartObj, { startPlanet: record.startPlanet, yearType: record.yearType, mode: record.mode }) || '') : '';
+			return chartObj ? (buildBalbillusSnapshotText(chartObj, { startPlanet: record.startPlanet, yearType: record.yearType, mode: record.mode, subRule: record.subRule }) || '') : '';
 		}
 		case 'triplicityrulers': {
 			// 三分主星推运：区间光体三分主星分掌人生阶段。挂载齿轮可调 三分体系/划分法/寿命基准（年龄上限）。
@@ -256,9 +261,10 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 			return chartObj ? (await buildExtraReturnsSnapshotText(chartObj) || '') : '';
 		}
 		case 'yearsystem129': {
-			// 129 年系统：七政小年序列（仿 firdaria），随盘 predictive 返回。
+			// 129 年系统：七政小年序列，纯前端引擎(utils/yearSystem129)读本命盘。
+			// 挂载齿轮可调 起始星/次序/年制/子限铺法 → record.ys129* → opts（未改时 undefined，引擎回默认）。
 			const chartObj = await fetchChartResultForRecord(record);
-			return chartObj ? (buildYearSystem129SnapshotText(chartObj) || '') : '';
+			return chartObj ? (buildYearSystem129SnapshotText(chartObj, { startPlanet: record.ys129StartPlanet, order: record.ys129Order, yearType: record.ys129YearType, subRule: record.ys129SubRule }) || '') : '';
 		}
 		case 'planetaryarc': {
 			// 行星弧：solararc 引擎换弧源（默认月亮弧）。内部 fetch /predict/planetaryarc。
@@ -319,10 +325,11 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 					pdMethod: pdFields.pdMethod.value,
 					pdTimeKey: pdFields.pdTimeKey.value,
 					pdtype: pdFields.pdtype.value,
-					pdDirect: pdFields.pdDirect.value,
-					pdConverse: pdFields.pdConverse.value,
-					pdAntiscia: pdFields.pdAntiscia.value,
-					pdTerms: pdFields.pdTerms.value,
+					// 记录没存 = 存盘时为缺省(顺逆都开、映点 / 界关)
+					pdDirect: pdFields.pdDirect.value !== undefined ? pdFields.pdDirect.value : 1,
+					pdConverse: pdFields.pdConverse.value !== undefined ? pdFields.pdConverse.value : 1,
+					pdAntiscia: pdFields.pdAntiscia.value !== undefined ? pdFields.pdAntiscia.value : 0,
+					pdTerms: pdFields.pdTerms.value !== undefined ? pdFields.pdTerms.value : 0,
 					// 解耦八键同步回填:否则 [主限法设置] 段的「弧算法/盘面宫制/框架/平行…」恒显默认,
 					// 与真正参与复算的 fieldParams 口径不一致(显示≠所算)。
 					pdProjection: pdFields.pdProjection.value !== undefined ? pdFields.pdProjection.value : 'ptolemy',
@@ -333,14 +340,16 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 					pdTimeKeyCustom: pdFields.pdTimeKeyCustom.value !== undefined ? pdFields.pdTimeKeyCustom.value : 0,
 					pdSignificators: Array.isArray(pdFields.pdSignificators.value) ? pdFields.pdSignificators.value : [],
 					pdPromissorTypes: Array.isArray(pdFields.pdPromissorTypes.value) ? pdFields.pdPromissorTypes.value : [],
+					// 设置项登记表的键同步回填([主限法设置] 段与实算同口径)
+					...pickPdExtraSettings(Object.fromEntries(PD_EXTRA_SETTING_KEYS.map((key)=>[key, pdFields[key] ? pdFields[key].value : undefined]))),
 				},
 			};
 			return buildPrimaryDirectSnapshotText(snapshotChartObj) || '';
 		}
 		case 'primarydirchart': {
 			// 主限法·盘（P5 从表格 fallthrough 拆出）：取本命西洋盘 → 把「所选时刻」换算成主限年龄弧 → 出真盘快照
-			// （[主限法盘设置] 段，含时间选择/推运方法/度数换算/向运方向/当前Arc）。修原盘喂表格的 Bug。
-			// 挂载齿轮可调 时间(datetime,空=此刻)/方位法/度数换算/向运方向 → record.* → opts（缺省=现状）。
+			// （[主限法盘设置] 段，含时间选择/弧算法/盘面宫制/度数换算/向运方向/当前Arc）。修原盘喂表格的 Bug。
+			// 挂载齿轮可调 时间(datetime,空=此刻)/盘面宫制/度数换算/向运方向 → record.* → opts（缺省=现状）。
 			const chartObj = await fetchChartResultForRecord(record);
 			if(!chartObj){
 				return '';
@@ -348,6 +357,9 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 			return (await buildPrimaryDirChartSnapshotText(chartObj, {
 				datetime: record.datetime,
 				pdMethod: record.pdMethod,
+				pdProjection: record.pdProjection,
+				pdFrame: record.pdFrame,
+				pdGeometry: record.pdGeometry,
 				pdTimeKey: record.pdTimeKey,
 				direction: record.direction,
 			})) || '';
@@ -432,6 +444,7 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 				const v = record[k];
 				if(v !== undefined && v !== null && v !== ''){ gOv[k] = (v === 1 || v === '1' || v === true); }
 			});
+			if(['lon', 'ra', 'decl'].indexOf(record.mpCoord) >= 0){ gOv.mpCoord = record.mpCoord; }
 			return await buildGermanySnapshotForFields(buildFieldObject(record), Object.keys(gOv).length ? gOv : undefined);
 		}
 		case 'babylon': {

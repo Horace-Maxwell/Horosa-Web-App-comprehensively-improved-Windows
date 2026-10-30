@@ -1,82 +1,48 @@
 import { Component } from 'react';
-import { Row, Col, Divider, } from 'antd';
+import { Row, Col, Tree } from 'antd';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
-import { appendPlanetHouseInfoById, splitPlanetHouseInfoText, } from '../../utils/planetHouseInfo';
-import { buildMeaningTipByCategory, } from './AstroMeaningData';
-import { isMeaningEnabled, wrapWithMeaning, } from './AstroMeaningPopover';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-import { markPanelReady } from '../../utils/perfMark';
-// [YB] 三段补厚共享 helper(起盘信息/当前时点/方法说明)。namespace import + typeof 守卫:
-// 测试环境可能部分 mock astroAiSnapshot(只留 buildAstroSnapshotContent 等),缺函数时回 [] 保底。
-import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
-
-const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
-const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
-const methodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
+import {
+	computeYearSystem129, buildYearSystem129SnapshotText, yearSystem129OptionsLine, yearSystem129StartLabel,
+	YS129_START_OPTIONS, YS129_SECT_START, YS129_ORDERS, YS129_YEAR_TYPES, YS129_SUB_RULES,
+} from '../../utils/yearSystem129';
+import { symbolWithMeaning } from './AstroExtraCommon';
+import { appendPlanetHouseInfoById, splitPlanetHouseInfoText } from '../../utils/planetHouseInfo';
+import { XQSelect as Select } from '../xq-ui';
 import styles from '../../css/styles.less';
-import { XQTable as Table } from '../xq-ui';
-// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
-// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
-// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
+import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
+import { markPanelReady } from '../../utils/perfMark';
 
-// 129 年系统 AI 快照（同步，读 chartObj.predictives.yearsystem129）。无数据返回 ''。
-export function buildYearSystem129SnapshotText(chartObj){
-	const obj = chartObj || {};
-	const predictives = obj.predictives || {};
-	const data = Array.isArray(predictives.yearsystem129) ? predictives.yearsystem129 : [];
-	if(data.length === 0){ return ''; }
-	const cn = (id) => (AstroText.AstroTxtMsg[id] || `${id}`);
-	const lines = [];
-	// [YB] 头部盘主生辰([起盘信息];无数据 helper 自返 [],不产空段头)。
-	lines.push(...birthHeaderLines(chartObj));
-	lines.push('[129年系统表格]');
-	lines.push('七政各管其小年（土30木12火15日19金8水20月25 = 129 年一轮），按 sect 起始、含子限。（succession 序实验性，待校准）');
-	lines.push('');
-	lines.push('| 主限 | 子限 | 日期 |');
-	lines.push('| --- | --- | --- |');
-	data.forEach((main) => {
-		const subs = Array.isArray(main.subDirect) ? main.subDirect : [];
-		if(subs.length === 0){
-			lines.push(`| ${cn(main.mainDirect)} | - | - |`);
-			return;
-		}
-		subs.forEach((sub) => {
-			lines.push(`| ${cn(main.mainDirect)} | ${cn(sub.subDirect)} | ${sub.date || '-'} |`);
-		});
-	});
-	// [YB] 尾部 [当前时点]+[方法说明](表内日期即应期窗口,按导出时刻自查,不另加定位行)。
-	const tail = [...currentMomentLines(chartObj), ...methodNoteLines('yearsystem129')];
-	if(tail.length){
-		lines.push('');
-		lines.push(...tail);
-	}
-	return lines.join('\n');
-}
+// 快照构造器住在 utils/yearSystem129(页面 / AI 重算等各处同一来源);这里转出给旧引用方。
+export { buildYearSystem129SnapshotText };
+
+const Option = Select.Option;
+
+// 页面上的四项口径 ↔ 引擎选项名
+const OPT_OF_STATE = { ys129StartPlanet: 'startPlanet', ys129Order: 'order', ys129YearType: 'yearType', ys129SubRule: 'subRule' };
 
 class AstroYearSystem129 extends Component{
 	constructor(props){
 		super(props);
-		const columns = [{
-			title: '主限', dataIndex: 'mainDirect', key: 'mainDirect', width: '20%',
-			render: (text) => this.planetText(text),
-		}, {
-			title: '子限', dataIndex: 'subDirect', key: 'subDirect', width: '20%',
-			render: (text) => this.planetText(text),
-		}, {
-			title: '日期', dataIndex: 'date', key: 'date', width: '60%',
-			render: (text) => text,
-		}];
-		this.state = { columns };
-		this.convertToDataSource = this.convertToDataSource.bind(this);
-		this.genDom = this.genDom.bind(this);
-		this.planetText = this.planetText.bind(this);
-		this.showMeaning = this.showMeaning.bind(this);
+		const sv = DIRECTION_PAGE_SETTINGS.load();   // 上次亲手设的四项口径
+		this.state = {
+			ys129StartPlanet: sv.ys129StartPlanet,
+			ys129Order: sv.ys129Order,
+			ys129YearType: sv.ys129YearType,
+			ys129SubRule: sv.ys129SubRule,
+			treeData: [],
+		};
+		this.engineOpts = this.engineOpts.bind(this);
+		this.rebuild = this.rebuild.bind(this);
+		this.titleOf = this.titleOf.bind(this);
+		this.changeOpt = this.changeOpt.bind(this);
 		this.saveAISnapshot = this.saveAISnapshot.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 	}
 
 	componentDidMount(){
+		this.rebuild();
 		this.saveAISnapshot();
 		if(typeof window !== 'undefined'){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
@@ -84,11 +50,14 @@ class AstroYearSystem129 extends Component{
 	}
 
 	componentDidUpdate(prevProps){
-		if(prevProps.value !== this.props.value){
-			// horosa_panel_ready_v1:本技法无自有请求 —— 表格整份来自 chartObj.predictives.yearsystem129,
-			// 「数据落定」就是拿到新盘对象后的这一次渲染提交,与带回调的技法同口径。
-			markPanelReady('direction');
-			this.saveAISnapshot();
+		if(prevProps.value !== this.props.value || prevProps.showAstroMeaning !== this.props.showAstroMeaning || prevProps.showPlanetHouseInfo !== this.props.showPlanetHouseInfo){
+			this.rebuild();
+			if(prevProps.value !== this.props.value){
+				// horosa_panel_ready_v1:本技法无自有请求 —— 主限 / 子限树整份由前端引擎 computeYearSystem129
+				// 从新盘对象同步派生(rebuild 里 setState),「数据落定」就是拿到新盘对象后的这一次渲染提交,与带回调的技法同口径。
+				markPanelReady('direction');
+				this.saveAISnapshot();
+			}
 		}
 	}
 
@@ -98,79 +67,120 @@ class AstroYearSystem129 extends Component{
 		}
 	}
 
+	engineOpts(){
+		const o = {};
+		Object.keys(OPT_OF_STATE).forEach((k) => { o[OPT_OF_STATE[k]] = this.state[k]; });
+		return o;
+	}
+
 	saveAISnapshot(){
-		const txt = buildYearSystem129SnapshotText(this.props.value);
+		const txt = buildYearSystem129SnapshotText(this.props.value, this.engineOpts());
 		saveModuleAISnapshot('yearsystem129', txt, { tab: 'yearsystem129' });
 		return txt;
 	}
 
 	handleSnapshotRefreshRequest(evt){
-		if(!evt || !evt.detail || evt.detail.module !== 'yearsystem129'){
-			return;
-		}
+		if(!evt || !evt.detail || evt.detail.module !== 'yearsystem129'){ return; }
 		const txt = this.saveAISnapshot();
-		if(txt){
-			evt.detail.snapshotText = txt;
-		}
+		if(txt){ evt.detail.snapshotText = txt; }
 	}
 
-	showMeaning(){
-		return isMeaningEnabled(this.props.showAstroMeaning);
+	rebuild(){
+		const chartObj = this.props.value;
+		if(!chartObj || !chartObj.chart){ this.setState({ treeData: [] }); return; }
+		const { rows } = computeYearSystem129(chartObj, this.engineOpts());
+		const treeData = rows.map((r, i) => ({
+			key: `m${i}`,
+			title: this.titleOf(r.mainDirect, 1, r.startDate, r.durYears),
+			children: r.subDirect.map((s, k) => ({ key: `m${i}s${k}`, isLeaf: true, title: this.titleOf(s.subDirect, 2, s.date, s.durYears) })),
+		}));
+		this.setState({ treeData });
 	}
 
-	planetText(id){
-		const base = AstroText.AstroMsg[id] ? AstroText.AstroMsg[id] : `${id || ''}`;
-		const text = appendPlanetHouseInfoById(base, this.props.value, id, this.props.showPlanetHouseInfo);
-		const one = splitPlanetHouseInfoText(text);
-		const labelNode = (
-			<span>
-				<span style={{ fontFamily: AstroConst.AstroFont }}>{one.label}</span>
-				{one.info ? <span style={{ fontFamily: AstroConst.NormalFont }}>{`(${one.info})`}</span> : null}
+	titleOf(planet, level, date, years){
+		const cn = AstroText.AstroTxtMsg[planet] || planet;
+		const house = splitPlanetHouseInfoText(appendPlanetHouseInfoById(cn, this.props.value, planet, this.props.showPlanetHouseInfo)).info;   // 「行星后显示宫位」开时带落宫
+		return (
+			<span className={`horosa-balbillus-node horosa-balbillus-node--l${level}`}>
+				<span className="bb-planet">
+					{symbolWithMeaning(planet, this.props.showAstroMeaning)}
+					<span className="bb-name" style={{ fontFamily: AstroConst.NormalFont }}>{cn}{house ? `(${house})` : ''}</span>
+				</span>
+				<span className="bb-date">{date || '-'}</span>
+				<span className="bb-dur" style={{ fontFamily: AstroConst.NormalFont }}>{years.toFixed(2)} 年</span>
 			</span>
 		);
-		return wrapWithMeaning(labelNode, this.showMeaning(), buildMeaningTipByCategory('planet', id));
 	}
 
-	convertToDataSource(item){
-		if(item === undefined || item === null){ return null; }
-		const ds = [];
-		const subs = Array.isArray(item.subDirect) ? item.subDirect : [];
-		for(let i = 0; i < subs.length; i++){
-			ds.push({ mainDirect: item.mainDirect, subDirect: subs[i].subDirect, date: subs[i].date });
-		}
-		return ds;
-	}
-
-	genDom(ds, idx){
-		return (
-			<Table key={`ys129-${idx}`} dataSource={ds} columns={this.state.columns} rowKey='date' pagination={false} bordered size='small' />
-		);
+	changeOpt(key, val){
+		DIRECTION_PAGE_SETTINGS.save({ [key]: val });
+		this.setState({ [key]: val }, () => { this.rebuild(); this.saveAISnapshot(); });
 	}
 
 	render(){
-		const chart = this.props.value ? this.props.value : {};
-		const predictives = chart.predictives ? chart.predictives : {};
-		const data = predictives.yearsystem129 ? predictives.yearsystem129 : [];
-		// 零常数:面板已由星运页 Tabs 内容链定高,列表盒铺满面板(原 (height−70)px 在面板底恒留 70px 死带;见 AstroFirdaria 同名注)。
+		const planetLabel = (p) => {
+			if(p === YS129_SECT_START){ return <span style={{ fontFamily: AstroConst.NormalFont }}>{yearSystem129StartLabel(p)}</span>; }
+			const glyph = AstroText.AstroMsg[p];
+			return (
+				<span>
+					{glyph ? <span style={{ fontFamily: AstroConst.AstroFont }}>{glyph}</span> : null}
+					<span style={{ fontFamily: AstroConst.NormalFont }}> {yearSystem129StartLabel(p)}</span>
+				</span>
+			);
+		};
+		// 零常数:面板已由星运页 Tabs 内容链定高,列表盒铺满面板(见 AstroFirdaria 同名注)。
 		const style = { height: '100%', maxHeight: '100%', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden' };
-
-		const doms = [];
-		const rows = [];
-		let rowobj = null;
-		for(let i = 0; i < data.length; i++){
-			if(i % 3 === 0){ rowobj = []; rows.push(rowobj); }
-			rowobj.push(this.genDom(this.convertToDataSource(data[i]), i));
-		}
-		for(let i = 0; i < rows.length; i++){
-			const cols = rows[i].map((d, ci) => <Col key={ci} span={8}>{d}</Col>);
-			doms.push(<Row key={`s3-${i}`} gutter={12}>{cols}</Row>);
-			if(i < rows.length - 1){ doms.push(<Divider key={`s4-${i}`} dashed={true} />); }
-		}
-
+		const chartObj = this.props.value;
 		return (
-			<div className={styles.scrollbar} style={style}>
-				<Divider orientation="left">129 年系统（七政小年序列）</Divider>
-				{doms}
+			<div className={`${styles.scrollbar} horosa-balbillus-shell`} style={style}>
+				<div className="horosa-balbillus-head">
+					<div className="horosa-balbillus-title">
+						129 年系统<span className="horosa-balbillus-sub">七星小年 · 土 30 木 12 火 15 日 19 金 8 水 20 月 25</span>
+					</div>
+					<div className="horosa-balbillus-desc">
+						主限长度 = 该星小年 × 年长；七星按所选次序从起始星铺开，一轮 129 年后循环。子限从本主限星起按同一次序；点主限可展开子限。
+						{chartObj && chartObj.chart ? <span>（当前：{yearSystem129OptionsLine(chartObj, this.engineOpts())}）</span> : null}
+					</div>
+					<Row gutter={12} className="horosa-balbillus-controls">
+						<Col span={6}>
+							<div className="horosa-balbillus-label">起始星</div>
+							<Select value={this.state.ys129StartPlanet} onChange={(v) => this.changeOpt('ys129StartPlanet', v)} style={{ width: '100%' }}>
+								{YS129_START_OPTIONS.map((p) => <Option value={p} key={p}>{planetLabel(p)}</Option>)}
+							</Select>
+						</Col>
+						<Col span={6}>
+							<div className="horosa-balbillus-label">次序</div>
+							<Select value={this.state.ys129Order} onChange={(v) => this.changeOpt('ys129Order', v)} style={{ width: '100%' }}>
+								{Object.keys(YS129_ORDERS).map((k) => <Option value={k} key={k}>{YS129_ORDERS[k]}</Option>)}
+							</Select>
+						</Col>
+						<Col span={6}>
+							<div className="horosa-balbillus-label">年制</div>
+							<Select value={this.state.ys129YearType} onChange={(v) => this.changeOpt('ys129YearType', v)} style={{ width: '100%' }}>
+								{Object.keys(YS129_YEAR_TYPES).map((k) => <Option value={k} key={k}>{YS129_YEAR_TYPES[k].label}</Option>)}
+							</Select>
+						</Col>
+						<Col span={6}>
+							<div className="horosa-balbillus-label">子限铺法</div>
+							<Select value={this.state.ys129SubRule} onChange={(v) => this.changeOpt('ys129SubRule', v)} style={{ width: '100%' }}>
+								{Object.keys(YS129_SUB_RULES).map((k) => <Option value={k} key={k}>{YS129_SUB_RULES[k]}</Option>)}
+							</Select>
+						</Col>
+					</Row>
+				</div>
+				<div className="horosa-balbillus-colhead">
+					<span className="bb-planet">主限星 / 子限星</span>
+					<span className="bb-date">起始日期</span>
+					<span className="bb-dur">时长</span>
+				</div>
+				<div className="horosa-balbillus-tree">
+					<Tree
+						treeData={this.state.treeData}
+						showLine={{ showLeafIcon: false }}
+						selectable={false}
+						blockNode={true}
+					/>
+				</div>
 			</div>
 		);
 	}

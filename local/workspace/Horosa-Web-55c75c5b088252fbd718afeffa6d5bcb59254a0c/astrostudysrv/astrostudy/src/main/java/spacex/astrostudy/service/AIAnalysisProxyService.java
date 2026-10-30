@@ -1779,19 +1779,33 @@ public class AIAnalysisProxyService {
 					thinkingObj = en;
 					budgetForMax = budget;
 				}
-			} else if("disabled".equals(thType)) {
-				if(alwaysThinking) {
-					// Fable/Mythos 思考不可关:不发字段;无显式 effort 时给 low
+			} else if("disabled".equals(thType) || "between_tools".equals(thType)) {
+				// 关闭档按型号给官方允许的形态(与前端 anthropicThinkingOffForm 同一张表,共用对拍用例表):
+				//   always(Fable / Mythos / Opus 5.5 起,disabled 任何档都 400)→ 不发字段,无显式 effort 时给 low;
+				//   between_tools(Sonnet 5.5 起,disabled 400)→ {type:between_tools},不带别的键、effort 不高于 high;
+				//   disabled(Sonnet 5 / Opus 5 / Haiku 5.5)→ 透传,effort 不高于 high(xhigh / max 配 disabled 即 400);
+				//   omit(Opus 4.7 / 4.8 缺省关、预算族)→ 预算族不发即关闭(与旧金标逐键相同),Opus 4.7 / 4.8 透传 disabled。
+				String off = anthropicThinkingOffForm(model);
+				if("always".equals(off)) {
 					thinkingObj = null;
 					if(!(outputCfg instanceof Map)) {
 						Map<String, Object> oc = new LinkedHashMap<String, Object>();
 						oc.put("effort", "low");
 						outputCfg = oc;
 					}
+				} else if("between_tools".equals(off)) {
+					Map<String, Object> bt = new LinkedHashMap<String, Object>();
+					bt.put("type", "between_tools");
+					thinkingObj = bt;
+					outputCfg = anthropicCapEffortAtHigh(outputCfg);
+				} else if("disabled".equals(off)) {
+					Map<String, Object> dis = new LinkedHashMap<String, Object>();
+					dis.put("type", "disabled");
+					thinkingObj = dis;
+					outputCfg = anthropicCapEffortAtHigh(outputCfg);
 				} else if(!adaptiveFamily) {
-					thinkingObj = null;   // 预算族:不发即关闭(与旧金标逐键相同)
+					thinkingObj = null;
 				}
-				// Sonnet 5 / Opus 5 / Opus 4.7-4.8:透传 disabled
 			}
 			if(thinkingObj != null) { body.put("thinking", thinkingObj); }
 		}
@@ -1809,8 +1823,9 @@ public class AIAnalysisProxyService {
 		}
 		if(outputCfg instanceof Map) { body.put("output_config", outputCfg); }
 		body.put("max_tokens", maxTokens);
-		if(thinkingEnabled || adaptiveFamily) {
-			// 思考开启(或自适应族,其根本不接受采样参数):不发 temperature、剔除 top_p / top_k。
+		if(thinkingEnabled || adaptiveFamily || anthropicApiVersionDropsSampling(params)) {
+			// 思考开启(或自适应族,其根本不接受采样参数;或档案选了 2026-10-21 起的 API 版本,该版本任何型号收到采样参数都 400):
+			// 不发 temperature、剔除 top_p / top_k。
 			aprov.remove("temperature");
 			aprov.remove("top_p");
 			aprov.remove("top_k");
@@ -1866,9 +1881,42 @@ public class AIAnalysisProxyService {
 		String fam = mm.group(1);
 		int major = Integer.parseInt(mm.group(2));
 		int minor = mm.group(3) == null ? 0 : Integer.parseInt(mm.group(3));
-		if(major >= 5) { return "haiku".equals(fam) ? "budget" : "adaptive"; }
+		if(major >= 5) { return "adaptive"; }   // Haiku 5.5 起同为 adaptive(只收 adaptive,budget_tokens 400)
 		if("opus".equals(fam) && major == 4 && minor >= 7) { return "adaptive"; }
 		return "budget";
+	}
+
+	/** 关闭思考时官方允许的形态(与前端 anthropicThinkingOffForm 同一张表):always / between_tools / disabled / omit。 */
+	static String anthropicThinkingOffForm(String model){
+		String m = anthropicModelKey(model);
+		if(m.startsWith("claude-fable") || m.startsWith("claude-mythos")) { return "always"; }
+		if(!"adaptive".equals(anthropicThinkingMode(m))) { return "omit"; }
+		java.util.regex.Matcher mm = ANTHROPIC_FAMILY_RE.matcher(m);
+		if(!mm.find()) { return "omit"; }
+		int major = Integer.parseInt(mm.group(2));
+		if(major < 5) { return "omit"; }   // Opus 4.7 / 4.8:缺省关
+		int minor = mm.group(3) == null ? 0 : Integer.parseInt(mm.group(3));
+		boolean atLeast55 = major > 5 || minor >= 5;
+		String fam = mm.group(1);
+		if("opus".equals(fam) && atLeast55) { return "always"; }
+		if("sonnet".equals(fam) && atLeast55) { return "between_tools"; }
+		return "disabled";
+	}
+
+	/** effort xhigh / max 与 disabled / between_tools 同发即 400:封顶 high(其余档原样)。 */
+	@SuppressWarnings("unchecked")
+	static Object anthropicCapEffortAtHigh(Object outputCfg){
+		if(!(outputCfg instanceof Map)) { return outputCfg; }
+		Map<String, Object> oc = new LinkedHashMap<String, Object>((Map<String, Object>) outputCfg);
+		String eff = stringFromAny(oc.get("effort"));
+		if("xhigh".equals(eff) || "max".equals(eff)) { oc.put("effort", "high"); }
+		return oc;
+	}
+
+	/** API 版本 2026-10-21 起,Messages 请求带 temperature / top_p / top_k 在任何型号上都 400(版本串按日期比较)。 */
+	static boolean anthropicApiVersionDropsSampling(Map<String, Object> params){
+		String v = stringFromAny(providerOptionsMap(params).get("apiVersion")).trim();
+		return v.matches("\\d{4}-\\d{2}-\\d{2}") && v.compareTo("2026-10-21") >= 0;
 	}
 	/** Fable / Mythos:思考恒开、不可 disabled。 */
 	/** 本次请求思考是否生效:body 已带 thinking 则看其 type(disabled=关),未带则按型号缺省(anthropicThinkingDefaultOn)。 */
@@ -1887,15 +1935,15 @@ public class AIAnalysisProxyService {
 		if(anthropicAlwaysThinking(model)) { return true; }
 		String m = model == null ? "" : model.trim().toLowerCase();
 		if(!"adaptive".equals(anthropicThinkingMode(m))) { return false; }
-		java.util.regex.Matcher mm = java.util.regex.Pattern.compile("claude-(opus|sonnet)-(\\d+)").matcher(m);
+		java.util.regex.Matcher mm = java.util.regex.Pattern.compile("claude-(opus|sonnet|haiku)-(\\d+)").matcher(m);
 		if(!mm.find()) { return false; }
 		int major = Integer.parseInt(mm.group(2));
 		return major >= 5;
 	}
 
+	/** 思考不可关:Fable / Mythos、Opus 5.5 起(与关闭形态 always 同一判据)。 */
 	static boolean anthropicAlwaysThinking(String model){
-		String m = anthropicModelKey(model);
-		return m.startsWith("claude-fable") || m.startsWith("claude-mythos");
+		return "always".equals(anthropicThinkingOffForm(model));
 	}
 	/** Haiku 4.5:temperature 与 top_p 只能二选一。 */
 	static boolean anthropicSamplingExclusive(String model){

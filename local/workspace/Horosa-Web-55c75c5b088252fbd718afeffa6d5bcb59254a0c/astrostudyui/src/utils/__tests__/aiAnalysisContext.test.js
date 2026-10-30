@@ -693,6 +693,7 @@ describe('aiAnalysisContext', ()=>{
 			firdaria: '',
 			planetaryages: '',
 			balbillus: '',
+			yearsystem129: '',   // 本地引擎读本命七星(同 Balbillus),不再依赖随盘 predictives
 			bazi: '八字结构化快照',
 			ziwei: '紫微斗数结构化快照',
 			suzhan: '宿占结构化快照',

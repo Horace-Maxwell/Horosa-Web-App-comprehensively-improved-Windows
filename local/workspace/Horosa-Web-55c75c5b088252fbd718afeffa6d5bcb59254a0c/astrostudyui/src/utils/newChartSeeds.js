@@ -19,7 +19,8 @@ import { safeJsonParseFromStorage, safeJsonStringifyToStorage, safeLocalStorageR
 import * as AstroConst from '../constants/AstroConst';
 import {
 	DEFAULT_PD_METHOD, DEFAULT_PD_PROJECTION, DEFAULT_PD_FRAME, DEFAULT_PD_FRAMEWORK, DEFAULT_PD_TIME_KEY, DEFAULT_PD_TYPE,
-	SUPPORTED_PD_METHODS, SUPPORTED_PD_PROJECTIONS, SUPPORTED_PD_FRAMES, SUPPORTED_PD_FRAMEWORKS,
+	SUPPORTED_PD_METHODS, SUPPORTED_PD_PROJECTIONS, SUPPORTED_PD_FRAMES, SUPPORTED_PD_FRAMEWORKS, SUPPORTED_PD_TYPES,
+	PD_EXTRA_SETTING_SPECS, PD_SIGNIFICATOR_OPTIONS, PD_PROMISSOR_TYPE_OPTIONS,
 } from './primaryDirectionSync';
 
 export const NEW_CHART_SEEDS_STORAGE_KEY = 'horosa.chart.newChartSeeds.v1';
@@ -27,6 +28,9 @@ export const NEW_CHART_SEEDS_EVENT = 'horosa:new-chart-seeds-changed';
 
 const HSYS_VALUES = AstroConst.HOUSE_SYSTEM_OPTIONS.map((o)=>o.value);
 const isStr = (v, max)=>typeof v === 'string' && v.length <= max;
+// 主限法扩展清单:非空、无重复、每项都在选项表里(空清单 = 缺省 null,不存成种子)
+const isPdList = (v, options)=>Array.isArray(v) && v.length > 0 && new Set(v).size === v.length
+	&& v.every((x)=>options.some((o)=>o.value === x));
 const isJsonObjectText = (v)=>{
 	if(!isStr(v, 4000) || !v.trim()){ return false; }
 	try{ const o = JSON.parse(v); return !!o && typeof o === 'object' && !Array.isArray(o); }catch(e){ return false; }
@@ -70,11 +74,22 @@ export const NEW_CHART_SEED_SPEC = {
 	// 主限法口径(方法 / 时间钥匙 / In Zodiaco·Mundo / 流派预设所写的投影·定局·框架·平行)
 	pdMethod: { def: DEFAULT_PD_METHOD, inSchema: true, group: 'pd', check: (v)=>SUPPORTED_PD_METHODS.indexOf(v) >= 0 },
 	pdTimeKey: { def: DEFAULT_PD_TIME_KEY, inSchema: true, group: 'pd', check: (v)=>isStr(v, 40) && v.length > 0 },
-	pdtype: { def: DEFAULT_PD_TYPE, inSchema: true, group: 'pd', check: (v)=>v === 0 || v === 1 },
+	pdtype: { def: DEFAULT_PD_TYPE, inSchema: true, group: 'pd', check: (v)=>SUPPORTED_PD_TYPES.indexOf(v) >= 0 },
 	pdProjection: { def: DEFAULT_PD_PROJECTION, inSchema: true, group: 'pd', check: (v)=>SUPPORTED_PD_PROJECTIONS.indexOf(v) >= 0 },
 	pdFrame: { def: DEFAULT_PD_FRAME, inSchema: true, group: 'pd', check: (v)=>SUPPORTED_PD_FRAMES.indexOf(v) >= 0 },
 	pdFramework: { def: DEFAULT_PD_FRAMEWORK, inSchema: true, group: 'pd', check: (v)=>SUPPORTED_PD_FRAMEWORKS.indexOf(v) >= 0 },
 	pdParallel: { def: 0, inSchema: true, group: 'pd', check: (v)=>v === 0 || v === 1 },
+	// 「扩展」弹层:应星 / 迫星扩展清单、附加促发(映点 / 界 / 急动;平行见上、界系是全局古典设置)同属主限法口径
+	pdRaptParallel: { def: 0, inSchema: true, group: 'pd', check: (v)=>v === 0 || v === 1 },
+	pdSignificators: { def: null, inSchema: true, group: 'pd', check: (v)=>isPdList(v, PD_SIGNIFICATOR_OPTIONS) },
+	pdPromissorTypes: { def: null, inSchema: true, group: 'pd', check: (v)=>isPdList(v, PD_PROMISSOR_TYPE_OPTIONS) },
+	pdAntiscia: { def: 0, inSchema: false, group: 'pd', check: (v)=>v === 0 || v === 1 },
+	pdTerms: { def: 0, inSchema: false, group: 'pd', check: (v)=>v === 0 || v === 1 },
+	// 主限法设置项登记表(相位侧 / 传统逆向 / 取点四项)同属主限法口径
+	...Object.fromEntries(PD_EXTRA_SETTING_SPECS.map((spec)=>[spec.key, {
+		def: spec.default, inSchema: true, group: 'pd',
+		check: spec.type === 'switch' ? (v)=>v === 0 || v === 1 : (v)=>spec.options.some((o)=>o.value === v),
+	}])),
 };
 export const NEW_CHART_SEED_KEYS = Object.keys(NEW_CHART_SEED_SPEC);
 

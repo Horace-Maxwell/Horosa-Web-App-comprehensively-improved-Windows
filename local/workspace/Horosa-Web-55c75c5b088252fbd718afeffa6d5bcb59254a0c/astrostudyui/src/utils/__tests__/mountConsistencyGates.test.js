@@ -16,6 +16,7 @@
 import fs from 'fs';
 import path from 'path';
 import { TECHNIQUE_SETTINGS_SCHEMA } from '../techniqueMountSettings';
+import { PD_EXTRA_SETTING_KEYS } from '../primaryDirectionSync';
 const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
 const UI_ROOT = path.join(__dirname, '..', '..');
@@ -68,6 +69,9 @@ reg('components/geomancy/GeomancyMain.js', ['readingScope', 'zodiacSystem', 'hou
 // 灵棋经:六家注键为模板拼键 g[`zhu_${k}`](lingqiSnapshot:143),anchor 用前缀串。
 reg('components/lingqi/lingqiSnapshot.js', ['zhu_yan', 'zhu_he', 'zhu_chen', 'zhu_liu', 'zhu_ke', 'zhu_shi'], 'zhu_');
 reg('components/lingqi/lingqiSnapshot.js', ['category']);
+// 主限法设置项登记表:键由 PD_EXTRA_SETTING_SPECS 单源生成,AI 链在 fieldParams 以同一展开式下发(字面键名不出现)。
+reg('utils/aiAnalysisContext/recordFields.js', PD_EXTRA_SETTING_KEYS.map((k)=>`primarydirect.${k}`),
+	'...pdExtraRequestParams(Object.fromEntries(PD_EXTRA_SETTING_KEYS.map(');
 
 const remoteFileCache = {};
 function remoteSrc(file){

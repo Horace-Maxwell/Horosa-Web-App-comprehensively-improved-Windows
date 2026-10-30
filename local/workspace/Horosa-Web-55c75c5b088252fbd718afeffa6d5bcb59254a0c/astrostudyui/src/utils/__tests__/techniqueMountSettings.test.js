@@ -230,7 +230,7 @@ describe('本轮缺漏修复——每技法选项与主页面对齐(防"对不�
 		// 三键齿轮差分实测正文不变(12 次),已从齿轮表撤下;此处同步锁住「不得再出现」。
 		const names = getTechniqueSettingsSchema('germany').fields.map((f)=>f.name).sort();
 		expect(names).toEqual([
-			'hsys', 'orb', 'orbPersonal', 'school', 'showDeclination', 'showEastPoint', 'showHouseFrames',
+			'hsys', 'mpCoord', 'orb', 'orbPersonal', 'school', 'showDeclination', 'showEastPoint', 'showHouseFrames',
 			'siderealAyanamsa', 'strictFactors', 'virtualPointReceiveAsp', 'zodiacal',
 		]);
 		['tradition', 'strongRecption', 'simpleAsp'].forEach((dead)=>{ expect(names).not.toContain(dead); });
@@ -841,7 +841,10 @@ describe('批B P5 主限法 盘/表格 字段拆分', ()=>{
 		expect(hasField('primarydirchart', 'pdYears')).toBe(false);
 		// 拆分后盘有独立的「向运方向」(direct 默认/converse)。
 		expect(defOf('primarydirchart', 'direction')).toBe('direct');
-		expect(hasField('primarydirchart', 'pdMethod')).toBe(true);
+		// 外圈宫头由盘面宫制定(与表格同键 pdFrame);弧算法不影响外圈,不在盘的齿轮里;旧单维「推运方法」已撤
+		expect(hasField('primarydirchart', 'pdFrame')).toBe(true);
+		expect(defOf('primarydirchart', 'pdFrame')).toBe('alcabitius');
+		expect(hasField('primarydirchart', 'pdMethod')).toBe(false);
 		expect(hasField('primarydirchart', 'pdTimeKey')).toBe(true);
 	});
 

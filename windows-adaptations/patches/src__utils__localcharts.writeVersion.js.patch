@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/utils/localcharts.js b/astrostudyui/src/utils/localcharts.js
-index e28a5015..14328398 100644
+index a75e6a77..dbf31f99 100644
 --- a/astrostudyui/src/utils/localcharts.js
 +++ b/astrostudyui/src/utils/localcharts.js
-@@ -26,6 +26,14 @@ export function listLocalCharts(filter){
+@@ -27,6 +27,14 @@ export function listLocalCharts(filter){
  	return store.list(filter);
  }
  

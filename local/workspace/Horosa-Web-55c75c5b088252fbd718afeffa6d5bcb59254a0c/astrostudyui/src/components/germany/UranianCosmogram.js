@@ -7,6 +7,7 @@ import * as AstroText from '../../constants/AstroText';
 import { projectToDial, cursorReadout, spreadDialAngles, antiscion } from '../../utils/uranianDial';
 import { TNP_GLYPH_PATHS, appendTnpGlyphD3 } from './UranianGlyphs';
 import { TAU, norm360, polar, glyphTip } from './uranianDialShared';
+import { dialBaseDegText } from './UranianDialStyle';
 
 // 宇宙图(Cosmogram)= 量化盘第三盘式:外环按真实黄经(360°)画行星(=模数盘几何),
 // 内侧再叠一圈「折叠记号环」——把每个真位 projectToDial 到所选盘基(默认 90°)的折叠位,
@@ -16,6 +17,8 @@ import { TAU, norm360, polar, glyphTip } from './uranianDialShared';
 const RING_TONE = { natal: 'currentColor', transit: '#c0392b', solararc: '#1f7a5a',
 	// WP-9 合盘叠盘人(最多 4):取应用既有强调色族,四人以蓝/紫/青/琥珀区分(与本命 currentColor/行运红/太阳弧绿 不撞)。
 	syn0: 'var(--horosa-accent, #2f7df1)', syn1: 'var(--horosa-hue-purple)', syn2: 'var(--horosa-hue-teal)', syn3: 'var(--horosa-warn)',   // 明暗成对(旧写死琥珀 #c08a2f 在亮盘底 2.7:1)
+	// 次限推运层:褐色,与行运红 / 太阳弧绿 / 合盘四色 / 组合金 / 戴维森朱均不撞。
+	progressed: 'var(--horosa-hue-brown)',
 	// B5:组合盘=暗金 / 戴维森=朱橘(与行运凶红、合盘四色均不撞;图例经既有 RING_TONE 机制自动带出)。
 	composite: 'var(--horosa-gold, #b8860b)', davison: 'var(--horosa-cinnabar, #e2603f)' };
 const POINTER_COLOR = '#e23b3b';
@@ -297,7 +300,7 @@ export default class UranianCosmogram extends Component {
 			root.append('line').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2).attr('stroke', stroke).attr('stroke-width', 1).attr('opacity', 0.7);
 			const [nx, ny] = polar(cx, cy, RfoldDisk - 17, a); root.append('text').attr('x', nx).attr('y', ny).attr('dy', '0.35em').attr('text-anchor', 'middle').attr('font-size', 8.5).attr('fill', stroke).attr('opacity', 0.65).text(fmtFold(v));
 		});
-		root.append('text').attr('x', cx).attr('y', cy - 7).attr('text-anchor', 'middle').attr('font-size', 10).attr('fill', stroke).attr('opacity', 0.5).text(`${base}° 折叠`);
+		root.append('text').attr('x', cx).attr('y', cy - 7).attr('text-anchor', 'middle').attr('font-size', 10).attr('fill', stroke).attr('opacity', 0.5).text(`${dialBaseDegText(base)} 折叠`);
 		this._degText = root.append('text').attr('x', cx).attr('y', cy + 9).attr('text-anchor', 'middle').attr('font-size', 11).attr('font-weight', 600).attr('fill', POINTER_COLOR).attr('opacity', 0.9);
 
 		// —— 可拖红指针(贯穿真位环 → 中央折叠盘)——

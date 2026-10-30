@@ -14,6 +14,7 @@ import { EGYPT_RECORD_KEYS } from '../../divination/data/egyptianSchools';
 // 列源,曾因 import 本文件连带整座 AI 核(~50 技法构建器)进自己的 chunk(46/47 回灌案)。
 // 此处 import 供本文件其余函数继续使用,listAnalysisSources 在文件尾 re-export 保旧路径兼容。
 import { normalizeTags } from '../aiAnalysisSources';
+import { normalizePdType, PD_EXTRA_SETTING_KEYS, pdExtraRequestParams } from '../primaryDirectionSync';
 import { saveModuleAISnapshot } from '../moduleAiSnapshot';
 import { GUOLAO_RECORD_FACTORY_DEFAULTS } from '../../components/guolao/GuoLaoChartStyle';   // 覆盖作用域
 import { DEFAULT_PD_ASPECTS } from './catalog';
@@ -74,6 +75,7 @@ function guolaoRecordMissing(record, key){
 // 其余清单键缺席(主限法解耦键 / 印占 / 八字 / 日界 / 宿占……):同一个单源。value 档 = 页面载入后的值;
 // drop 档(页面撤出)= undefined 不下发;旧记录 = legacy(各键既有回落,不变)
 const missing = (record, key, legacy)=>recordMissingOr(record, key, legacy, undefined);
+const has = (v)=>v !== undefined && v !== null;
 
 export function buildFieldObject(record){
 	// 起课时间合成的 timepoint record 用 divTime 不用 birth(参 AIAnalysisMain.js:1029),
@@ -178,16 +180,17 @@ export function buildFieldObject(record){
 		houseStartMode: { value: record.houseStartMode !== undefined && record.houseStartMode !== null ? Number(record.houseStartMode) : missing(record, 'houseStartMode', ()=>newChartSeedRecordMissingValue('houseStartMode')) },
 		predictive: { value: 1 },
 		showPdBounds: { value: 1 },
-		pdtype: { value: (record.pdtype === undefined || record.pdtype === null ? missing(record, 'pdtype', 0) : record.pdtype) === 1 ? 1 : 0 },
+		pdtype: { value: normalizePdType(record.pdtype === undefined || record.pdtype === null ? missing(record, 'pdtype', 0) : record.pdtype) },
 		// P0 起 record 可能持久化用户实选 (placidus / 其它 timeKey)；优先读 record，
 		// 不存在时回退到默认 Alcabitius+Ptolemy (守 v2.5.3 默认路径字节级一致)。
 		pdMethod: { value: record.pdMethod || missing(record, 'pdMethod', 'core_alchabitius') || 'core_alchabitius' },
 		pdTimeKey: { value: record.pdTimeKey || missing(record, 'pdTimeKey', 'Ptolemy') || 'Ptolemy' },
 		// 主限法进阶开关(向运顺逆 / 映点 / 界):顺逆默认都开(用户偏好),映点/界默认关。
-		pdDirect: { value: record.pdDirect === 0 ? 0 : 1 },
-		pdConverse: { value: record.pdConverse === 0 ? 0 : 1 },
-		pdAntiscia: { value: record.pdAntiscia ? 1 : 0 },
-		pdTerms: { value: record.pdTerms ? 1 : 0 },
+		// 记录缺键与页面载入同一取值规则(单源 recordMissingValue):没存 = 存盘时为缺省(顺逆都开、映点 / 界关)
+		pdDirect: { value: has(record.pdDirect) ? (record.pdDirect === 0 ? 0 : 1) : missing(record, 'pdDirect', 1) },
+		pdConverse: { value: has(record.pdConverse) ? (record.pdConverse === 0 ? 0 : 1) : missing(record, 'pdConverse', 1) },
+		pdAntiscia: { value: has(record.pdAntiscia) ? (record.pdAntiscia ? 1 : 0) : missing(record, 'pdAntiscia', 0) },
+		pdTerms: { value: has(record.pdTerms) ? (record.pdTerms ? 1 : 0) : missing(record, 'pdTerms', 0) },
 		// 主限推算年数:挂载「每技法设置」可经 record.pdYears 覆盖(默认 100、范围 1–3000,
 		// 与 AstroPrimaryDirection.normalizePdYears / perchart.py 兜底一致;>360 走多圈复发行)。缺省→100=现状字节级一致。
 		pdYears: { value: normalizePdYearsValue(record.pdYears) },
@@ -202,6 +205,10 @@ export function buildFieldObject(record){
 		pdTimeKeyCustom: { value: record.pdTimeKeyCustom !== undefined && record.pdTimeKeyCustom !== null ? record.pdTimeKeyCustom : missing(record, 'pdTimeKeyCustom', undefined) },
 		pdSignificators: { value: Array.isArray(record.pdSignificators) ? record.pdSignificators : (record.pdSignificators === undefined || record.pdSignificators === null ? missing(record, 'pdSignificators', undefined) : undefined) },
 		pdPromissorTypes: { value: Array.isArray(record.pdPromissorTypes) ? record.pdPromissorTypes : (record.pdPromissorTypes === undefined || record.pdPromissorTypes === null ? missing(record, 'pdPromissorTypes', undefined) : undefined) },
+		// 主限法设置项登记表的键:记录里有就用,没有走记录缺键口径(缺省 undefined → 不下发 = 默认路径零回归)
+		...Object.fromEntries(PD_EXTRA_SETTING_KEYS.map((key)=>[key, {
+			value: record[key] !== undefined && record[key] !== null ? record[key] : missing(record, key, undefined),
+		}])),
 		pdaspects: { value: DEFAULT_PD_ASPECTS.slice(0) },
 		// 时间算法(0=真太阳时按经度校正 / 1=直接时间用钟表时)+ 晚子时口径须从存盘读取,
 		// 否则 canping/heluo 等八字类快照会对「直接时间」盘错用真太阳时校正、忽略晚子时设置(口径与显示不一致)。
@@ -315,10 +322,11 @@ export function fieldParams(fields){
 		pdtype: fields.pdtype.value,
 		pdMethod: fields.pdMethod.value,
 		pdTimeKey: fields.pdTimeKey.value,
-		pdDirect: fields.pdDirect ? fields.pdDirect.value : 1,
-		pdConverse: fields.pdConverse ? fields.pdConverse.value : 0,
-		pdAntiscia: fields.pdAntiscia ? fields.pdAntiscia.value : 0,
-		pdTerms: fields.pdTerms ? fields.pdTerms.value : 0,
+		// 字段缺席或值未定义 = 缺省(顺逆都开、映点 / 界关;与页面、后端同)
+		pdDirect: fields.pdDirect && has(fields.pdDirect.value) ? fields.pdDirect.value : 1,
+		pdConverse: fields.pdConverse && has(fields.pdConverse.value) ? fields.pdConverse.value : 1,
+		pdAntiscia: fields.pdAntiscia && has(fields.pdAntiscia.value) ? fields.pdAntiscia.value : 0,
+		pdTerms: fields.pdTerms && has(fields.pdTerms.value) ? fields.pdTerms.value : 0,
 		pdYears: fields.pdYears ? fields.pdYears.value : 100,
 		// 主限法解耦八键条件透传(照抄 models/astro.js fieldsToParams,默认不下发零回归):
 		...(fields.pdProjection && fields.pdProjection.value && fields.pdProjection.value !== 'ptolemy' ? { pdProjection: fields.pdProjection.value } : {}),
@@ -329,6 +337,7 @@ export function fieldParams(fields){
 		...(fields.pdTimeKeyCustom && fields.pdTimeKeyCustom.value ? { pdTimeKeyCustom: fields.pdTimeKeyCustom.value } : {}),
 		...(fields.pdSignificators && Array.isArray(fields.pdSignificators.value) && fields.pdSignificators.value.length ? { pdSignificators: fields.pdSignificators.value } : {}),
 		...(fields.pdPromissorTypes && Array.isArray(fields.pdPromissorTypes.value) && fields.pdPromissorTypes.value.length ? { pdPromissorTypes: fields.pdPromissorTypes.value } : {}),
+		...pdExtraRequestParams(Object.fromEntries(PD_EXTRA_SETTING_KEYS.map((key)=>[key, fields[key] ? fields[key].value : undefined]))),
 		pdaspects: fields.pdaspects.value,
 		// 容许度（对齐 models/astro.js fieldsToParams:248-249）：falsy → undefined（不下发=后端零回归）。
 		orbs: (fields.orbs && fields.orbs.value) ? fields.orbs.value : undefined,

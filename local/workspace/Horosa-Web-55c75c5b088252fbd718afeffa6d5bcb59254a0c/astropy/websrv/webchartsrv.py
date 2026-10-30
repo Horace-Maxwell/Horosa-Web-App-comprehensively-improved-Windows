@@ -48,7 +48,7 @@ for _cand in reversed(_FLATLIB_CANDIDATES):
     if os.path.isdir(os.path.join(_cand, "flatlib")) and _cand not in sys.path:
         sys.path.insert(0, _cand)
 
-from astrostudy.perchart import PerChart, parse_terms_variant, push_classical_request, pop_classical_request
+from astrostudy.perchart import PerChart, parse_terms_variant, push_classical_request, pop_classical_request, pd_extra_settings_echo
 from astrostudy.guostarsect.guostarsect import GuoStarSect
 from astrostudy.thirteenthchart import ThirteenthChart, HarmonicChart, DodecatemoriaChart
 from astrostudy.helper import getPredictivesObj
@@ -181,7 +181,7 @@ _CLASSICAL_ECHO_KEYS = (
 
 class WebChartSrv:
     exposed = True
-    PD_SYNC_REV = 'pd_method_sync_v15'
+    PD_SYNC_REV = 'pd_method_sync_v26'
     WARMED = False  # PD warmup 完成置 True;/healthz 据此报「真就绪」(P0 启动稳健化,纯增量)
     PD_WARMUP_SAMPLE = {
         'date': '2028/04/06',
@@ -294,6 +294,7 @@ class WebChartSrv:
                     'pdConverse': 1 if perchart.pdConverse else 0,
                     'pdAntiscia': 1 if perchart.pdAntiscia else 0,
                     'pdTerms': 1 if perchart.pdTerms else 0,
+                    **pd_extra_settings_echo(perchart),
                     'pdSyncRev': self.PD_SYNC_REV,
                 },
                 'chart': perchart.getChartObj(),
@@ -395,6 +396,7 @@ class WebChartSrv:
                     'pdConverse': 1 if perchart.pdConverse else 0,
                     'pdAntiscia': 1 if perchart.pdAntiscia else 0,
                     'pdTerms': 1 if perchart.pdTerms else 0,
+                    **pd_extra_settings_echo(perchart),
                     'pdSyncRev': self.PD_SYNC_REV,
                 },
                 'chart': perchart.getChartObj(),
@@ -477,6 +479,7 @@ class WebChartSrv:
                     'pdConverse': 1 if perchart.pdConverse else 0,
                     'pdAntiscia': 1 if perchart.pdAntiscia else 0,
                     'pdTerms': 1 if perchart.pdTerms else 0,
+                    **pd_extra_settings_echo(perchart),
                     'pdSyncRev': self.PD_SYNC_REV,
                 },
                 'chart': perchart.getChartObj(),

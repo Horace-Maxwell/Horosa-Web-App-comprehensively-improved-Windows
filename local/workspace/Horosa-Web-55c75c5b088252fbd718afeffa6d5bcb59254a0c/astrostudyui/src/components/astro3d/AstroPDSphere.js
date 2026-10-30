@@ -18,7 +18,7 @@ import { PD_SIGNIFICATOR_OPTIONS, PD_PROMISSOR_TYPE_OPTIONS } from '../../utils/
 import PDSphereEngine from './PDSphereEngine';
 import { fetchPd3D } from '../../services/astroPd3d';
 import * as AstroText from '../../constants/AstroText';
-import { getPdMethodLabel, getPdTimeKeyLabel, PD_PROJECTION_LABELS } from '../../utils/primaryDirectionSync';
+import { getPdMethodLabel, getPdTimeKeyLabel, PD_PROJECTION_LABELS, normalizePdType, pdTypeBaselineNote, pdStarPointShort, pickPdExtraSettings, pdExtraSettingsKey, pdProjectionLabelWithGeometry } from '../../utils/primaryDirectionSync';
 import { pointerLocalRatio } from '../../utils/zoomDomain';
 import {
 	rowAgeYears, rowDateMs, isConverseRow, nearestRowIndexByAge, moverOfRow,
@@ -66,6 +66,10 @@ function pdPointShortName(pid){
 		}
 		return AstroText.AstroTxtMsg[id] || AstroText.AstroMsgCN[id] || `${id || ''}`;
 	};
+	const starShort = pdStarPointShort(text, cn);
+	if(starShort){
+		return starShort;
+	}
 	if(parts.length < 2){
 		return text;
 	}
@@ -100,9 +104,6 @@ function pdPointShortName(pid){
 	if(parts[0] === 'MP' || parts[0] === 'RP'){
 		const axis = { '0': 'MC', '90': 'ASC', '180': 'IC', '270': 'DSC' }[parts[2]] || parts[2];
 		return `${cn(parts[1])}${parts[0] === 'MP' ? '世平行' : '急平行'}·${axis}`;
-	}
-	if(parts[0] === 'FS'){
-		return `★${cn(parts[1])}`;
 	}
 	if(parts[0] === 'LT'){
 		return `${`${cn(parts[1])}`.replace(/^Pars /, '')}点`;
@@ -173,6 +174,7 @@ function computeReqKey(req){
 			pdSignificators: req.pdSignificators,
 			pdPromissorTypes: req.pdPromissorTypes,
 			termsVariant: req.termsVariant,
+			pdExtra: pdExtraSettingsKey(req),
 			pdaspects: req.pdaspects,
 		});
 	}catch(e){
@@ -181,7 +183,8 @@ function computeReqKey(req){
 }
 
 // horosa_shallow_scu_v1:逐键浅比较。**未知即"变了"** —— 键数不同 / 任一键引用不同 → false。
-function shallowSame(a, b){
+// comparators 只给「宿主每次 render 现建、本组件只按值读」的键改按值比(其余键一律按引用)。
+function shallowSame(a, b, comparators){
 	if(a === b){ return true; }
 	if(!a || !b || typeof a !== 'object' || typeof b !== 'object'){ return false; }
 	const ka = Object.keys(a);
@@ -190,10 +193,23 @@ function shallowSame(a, b){
 	for(let i=0; i<ka.length; i++){
 		const k = ka[i];
 		if(!Object.prototype.hasOwnProperty.call(b, k)){ return false; }
+		const same = comparators && comparators[k];
+		if(same){
+			if(!same(a[k], b[k])){ return false; }
+			continue;
+		}
 		if(a[k] !== b[k]){ return false; }
 	}
 	return true;
 }
+
+// v3.13.0:上游新增 prop pdExtra(主限设置登记表的归一值)由宿主 AstroDirectMain 每次 render 经
+// getDesiredPdConfig → pickPdExtraSettings 现建 ⇒ 引用恒新,按引用比会让上面的 sCU 永远放行(时间轴
+// packLanes 与工具条随宿主每次重渲)。本组件对它只按值读(pickPdExtraSettings / pdExtraSettingsKey),
+// 故按归一键比:设置真变了才重渲,值相同的新对象照旧跳过。
+const PD_SPHERE_PROP_COMPARATORS = {
+	pdExtra: (a, b)=>pdExtraSettingsKey(a) === pdExtraSettingsKey(b),
+};
 
 // 表行不出自当前命主时给的空表(同一个引用)
 const NO_PD_ROWS = Object.freeze([]);
@@ -257,7 +273,7 @@ class AstroPDSphere extends Component{
 	// 注意与 componentDidUpdate 的关系:跳过时 componentDidUpdate 不跑,故 fetchData 不被调用 ——
 	// 但那一次本来 props 也没变,fetchData 会被 lastReqKey 短路,行为完全一致。
 	shouldComponentUpdate(nextProps, nextState){
-		if(!shallowSame(this.props, nextProps)){ return true; }
+		if(!shallowSame(this.props, nextProps, PD_SPHERE_PROP_COMPARATORS)){ return true; }
 		if(!shallowSame(this.state, nextState)){ return true; }
 		return false;
 	}
@@ -554,7 +570,8 @@ class AstroPDSphere extends Component{
 	//    AstroDirectMain.buildPrimaryDirectSnapshotText 读取后附「当前动画所指」段。
 	//    零再推导 —— 全部字段来自 row 本身(rowSummary+cat 口径字样)。
 	_stampAiCurrentRow(row){
-		const catTxt = row.cat === 'M' ? '世俗 In Mundo' : (row.cat === 'T' ? '界推运' : '黄道 In Zodiaco');
+		const catTxt = row.cat === 'M' ? '世俗 In Mundo' : (row.cat === 'T' ? '界推运'
+			: (normalizePdType(this.props.pdType) === 4 ? '场平面 Field Plane' : '黄道 In Zodiaco'));
 		// 盖章带盘签名(props.value.params = /chart 回显),读取方只认同一张盘。
 		writePdSphereStamp((this.props.value && this.props.value.params) || {}, `${rowSummary(row)}（${catTxt}口径）`);
 	}
@@ -894,9 +911,13 @@ class AstroPDSphere extends Component{
 		// 顶栏「弧算法」回显此前取旧单维 pdMethod(与主限法页实选的弧算法 pdProjection 脱钩):
 		// 有 pdProjection 时按投影表回显(自由组合的 (投影,分宫) 无单维方法名可反查),世界主限下非定局四法照主限页同注;缺 pdProjection 才回退方法名。
 		const _proj = this.props.pdProjection;
-		let methodLabel = _proj && PD_PROJECTION_LABELS[_proj] ? PD_PROJECTION_LABELS[_proj] : getPdMethodLabel(this.props.pdMethod);
-		if(_proj && PD_PROJECTION_LABELS[_proj] && Number(this.props.pdType) === 1 && ['placidus', 'regiomontanus', 'campanus', 'topocentric'].indexOf(_proj) < 0){
-			methodLabel += '（世界主限下走核内基线）';
+		// 受几何口径影响的方法带「（改进）/（经典）」,与主限法页弧算法下拉同名
+		let methodLabel = _proj && PD_PROJECTION_LABELS[_proj]
+			? pdProjectionLabelWithGeometry({ pdtype: this.props.pdType, pdProjection: _proj, pdFrame: this.props.pdFrame,
+				pdParallel: this.props.pdParallel }, pickPdExtraSettings(this.props.pdExtra).pdGeometry)
+			: getPdMethodLabel(this.props.pdMethod);
+		if(_proj && PD_PROJECTION_LABELS[_proj]){
+			methodLabel += pdTypeBaselineNote(this.props.pdType, _proj, this.props.pdFrame);
 		}
 		const timeKeyLabel = getPdTimeKeyLabel(this.props.pdTimeKey);
 
@@ -909,9 +930,9 @@ class AstroPDSphere extends Component{
 					gap: '4px 12px', padding: '4px 12px', color: '#c8d4e8', fontSize: 12,
 					borderBottom: '1px solid rgba(120,145,185,0.18)',
 				}}>
-					{/* 徽章二态化:pdtype 全链只有 0/1(2/3 从未下发,原四态映射的界支=死支);
+					{/* 徽章三态:pdtype 前端只下发 0 / 1 / 4(2/3 是后端界推运内部值);
 				    界不是独立 pdtype 而是 pdTerms 开关(行级 cat='T'),故以尾缀「+界」呈现。 */}
-				<span style={{ color: '#d8ab52', fontWeight: 600 }}>{(Number(this.props.pdType) === 1 ? 'In Mundo·世俗向运' : 'In Zodiaco·黄道向运') + (Number(this.props.pdTerms) ? ' +界' : '')}</span>
+				<span style={{ color: '#d8ab52', fontWeight: 600 }}>{({ 1: 'In Mundo·世俗向运', 4: 'Field Plane·场平面向运' }[normalizePdType(this.props.pdType)] || 'In Zodiaco·黄道向运') + (Number(this.props.pdTerms) ? ' +界' : '')}</span>
 					<span style={{ color: '#8fa3c2' }}>{methodLabel} · {timeKeyLabel}</span>
 					{(()=>{
 						// 工具条定高(下方 3D 舞台按它扣高),这一行只能单行:放不下时省略,全文进悬停提示 ——
@@ -963,9 +984,9 @@ class AstroPDSphere extends Component{
 						const sig = Array.isArray(this.props.pdSignificators) ? this.props.pdSignificators : [];
 						const prom = Array.isArray(this.props.pdPromissorTypes) ? this.props.pdPromissorTypes : [];
 						// 全量透传现值,仅换 S/P 扩展 → 主链重算,天球行/时间轴随 predictives 回流
-						const apply = (nextSig, nextProm)=>{
+						const apply = (nextSig, nextProm, nextExtra)=>{
 							this.props.onPdConfigApply(this.props.pdMethod, this.props.pdTimeKey, this.props.pdYears, {
-								pdtype: this.props.pdType === 1 ? 1 : 0,
+								pdtype: normalizePdType(this.props.pdType),
 								direct: this.props.pdDirect !== 0,
 								converse: this.props.pdConverse === 1,
 								antiscia: this.props.pdAntiscia === 1,
@@ -979,6 +1000,7 @@ class AstroPDSphere extends Component{
 								significators: nextSig,
 								promissorTypes: nextProm,
 								termsVariant: this.props.termsVariant,
+								extra: nextExtra || pickPdExtraSettings(this.props.pdExtra),
 							});
 						};
 						// 面板本体与表格 pane 共用(components/astro/PdExtensionPanel.js)——
@@ -990,6 +1012,10 @@ class AstroPDSphere extends Component{
 								promissorTypes={prom}
 								onSignificatorsChange={(next)=>apply(next, prom)}
 								onPromissorTypesChange={(next)=>apply(sig, next)}
+								extraSettings={this.props.pdExtra}
+								onExtraSettingChange={(k, v)=>apply(sig, prom, pickPdExtraSettings({ ...pickPdExtraSettings(this.props.pdExtra), [k]: v }))}
+								inertContext={{ pdtype: normalizePdType(this.props.pdType), projection: this.props.pdProjection,
+									geometry: pickPdExtraSettings(this.props.pdExtra).pdGeometry, timeKey: this.props.pdTimeKey }}
 								buttonStyle={BTN_DARK}
 							/>
 						);

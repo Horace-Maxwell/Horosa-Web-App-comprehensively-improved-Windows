@@ -113,13 +113,34 @@ describe('P5 主限法盘 primarydirchart round-trip', () => {
 		expect(ctx.content).not.toContain('主限法表格快照(占位)');
 	});
 
-	it('盘空 datetime（仅改方位法）→ 仍出盘快照、时间取「此刻」（不破现状路径）', async () => {
+	it('盘空 datetime（仅改盘面宫制）→ 仍出盘快照、时间取「此刻」;外圈请求带所选宫制', async () => {
 		const ctx = await getAnalysisTechniqueContextWithOptions(SOURCE, 'primarydirchart', {
-			pdMethod: 'meridian',
+			pdFrame: 'meridian',
 		});
 		expect(ctx).toBeTruthy();
 		expect(ctx.content).toContain('[主限法盘设置]');
+		expect(ctx.content).toContain('盘面宫制（外圈宫头）：Meridian');
+		const pdc = mockRequestCalls.filter((c) => String(c.url).includes('/predict/pdchart')).pop();
+		expect(pdc.body.pdFrame).toBe('meridian');
 		expect(ctx.content).not.toContain('主限法表格快照(占位)');
+	});
+
+	it('日期年长随本盘(主限法表扩展里选的):快照写明、外圈请求同带;缺省不发', async () => {
+		const ctx0 = await getAnalysisTechniqueContextWithOptions(SOURCE, 'primarydirchart', { datetime: '2025-06-05 10:00' });
+		expect(ctx0.content).toContain('日期年长：实际天数');
+		const pdc0 = mockRequestCalls.filter((c) => String(c.url).includes('/predict/pdchart')).pop();
+		expect(pdc0.body.pdYearDays).toBeUndefined();
+		const astro = require('../../services/astro');
+		const base = await astro.fetchChart({});
+		astro.fetchChart.mockImplementationOnce(async () => ({
+			Result: { ...base.Result, params: { ...base.Result.params, pdYearDays: 1, pdSolarArcRegressive: 1 } },
+		}));
+		const ctx1 = await getAnalysisTechniqueContextWithOptions({ ...SOURCE, id: 'chart-pdc-yd', record: { ...SOURCE.record, cid: 'chart-pdc-yd' } },
+			'primarydirchart', { datetime: '2025-06-05 10:00' });
+		expect(ctx1.content).toContain('日期年长：365 / 366');
+		const pdc1 = mockRequestCalls.filter((c) => String(c.url).includes('/predict/pdchart')).pop();
+		expect(pdc1.body.pdYearDays).toBe(1);
+		expect(pdc1.body.pdSolarArcRegressive).toBe(1);
 	});
 
 	it('盘 fetch 不带 includePrimaryDirection（盘快照纯文本算 arc，不需 predictives）', async () => {

@@ -1,13 +1,14 @@
 diff --git a/astrostudyui/src/components/astro3d/AstroPDSphere.js b/astrostudyui/src/components/astro3d/AstroPDSphere.js
-index 4595c62c..7453b800 100644
+index 5b9d8fe2..309d815d 100644
 --- a/astrostudyui/src/components/astro3d/AstroPDSphere.js
 +++ b/astrostudyui/src/components/astro3d/AstroPDSphere.js
-@@ -180,6 +180,21 @@ function computeReqKey(req){
+@@ -182,6 +182,35 @@ function computeReqKey(req){
  	}
  }
  
 +// horosa_shallow_scu_v1:逐键浅比较。**未知即"变了"** —— 键数不同 / 任一键引用不同 → false。
-+function shallowSame(a, b){
++// comparators 只给「宿主每次 render 现建、本组件只按值读」的键改按值比(其余键一律按引用)。
++function shallowSame(a, b, comparators){
 +	if(a === b){ return true; }
 +	if(!a || !b || typeof a !== 'object' || typeof b !== 'object'){ return false; }
 +	const ka = Object.keys(a);
@@ -16,15 +17,28 @@ index 4595c62c..7453b800 100644
 +	for(let i=0; i<ka.length; i++){
 +		const k = ka[i];
 +		if(!Object.prototype.hasOwnProperty.call(b, k)){ return false; }
++		const same = comparators && comparators[k];
++		if(same){
++			if(!same(a[k], b[k])){ return false; }
++			continue;
++		}
 +		if(a[k] !== b[k]){ return false; }
 +	}
 +	return true;
 +}
 +
++// v3.13.0:上游新增 prop pdExtra(主限设置登记表的归一值)由宿主 AstroDirectMain 每次 render 经
++// getDesiredPdConfig → pickPdExtraSettings 现建 ⇒ 引用恒新,按引用比会让上面的 sCU 永远放行(时间轴
++// packLanes 与工具条随宿主每次重渲)。本组件对它只按值读(pickPdExtraSettings / pdExtraSettingsKey),
++// 故按归一键比:设置真变了才重渲,值相同的新对象照旧跳过。
++const PD_SPHERE_PROP_COMPARATORS = {
++	pdExtra: (a, b)=>pdExtraSettingsKey(a) === pdExtraSettingsKey(b),
++};
++
  // 表行不出自当前命主时给的空表(同一个引用)
  const NO_PD_ROWS = Object.freeze([]);
  
-@@ -235,6 +250,18 @@ class AstroPDSphere extends Component{
+@@ -237,6 +266,18 @@ class AstroPDSphere extends Component{
  		this.setTlZoom = this.setTlZoom.bind(this);
  	}
  
@@ -35,7 +49,7 @@ index 4595c62c..7453b800 100644
 +	// 注意与 componentDidUpdate 的关系:跳过时 componentDidUpdate 不跑,故 fetchData 不被调用 ——
 +	// 但那一次本来 props 也没变,fetchData 会被 lastReqKey 短路,行为完全一致。
 +	shouldComponentUpdate(nextProps, nextState){
-+		if(!shallowSame(this.props, nextProps)){ return true; }
++		if(!shallowSame(this.props, nextProps, PD_SPHERE_PROP_COMPARATORS)){ return true; }
 +		if(!shallowSame(this.state, nextState)){ return true; }
 +		return false;
 +	}

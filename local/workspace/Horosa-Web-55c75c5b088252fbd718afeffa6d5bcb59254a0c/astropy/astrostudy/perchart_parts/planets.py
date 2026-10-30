@@ -6,6 +6,17 @@ from flatlib.ephem import swe
 from astrostudy.perchart_parts.chart_tables import ARCUS_VISIONIS
 
 
+def _nodes_in_dignity_table():
+    """当前尊贵表(请求级可被古典口径换表)里占了擢升 / 落位的交点。"""
+    hit = set()
+    for row in essential.TABLE.values():
+        for key in ('exalt', 'fall'):
+            v = row.get(key) if isinstance(row, dict) else None
+            if v and v[0] in (const.NORTH_NODE, const.SOUTH_NODE):
+                hit.add(v[0])
+    return [n for n in (const.NORTH_NODE, const.SOUTH_NODE) if n in hit]
+
+
 class PlanetsMixin:
     """行星状态与尊贵:燃烧之路 / 出界 / 偕日相 / 野逸 / 喜乐 / 宗派 / 留驻 / 站心月 / 区分昼夜 / 得时 / 必然尊贵 / 祝融星。"""
 
@@ -361,6 +372,21 @@ class PlanetsMixin:
             if itemA == const.MOON:
                 obj.isVOC = self.dynchart.isVOC(itemA, self._vocMode, self._vocIncludeOuter)
                 obj.moonPhase = self.chart.getMoonPhase()
+
+        # 交点入旺(古典口径开关,classical_request.push_request_exalt_variants)开着时,当前尊贵表把交点排进
+        # 双子 / 射手的擢升与落位:落在这两座的交点给出自身禀赋(擢升 / 落)与分值(按当前分值表,缺省 ±4)。
+        # 交点没有本垣 / 三分 / 界 / 面,不在这两座时不给禀赋(不显示成「游走」);开关关着时交点不进尊贵计算(零回归)。
+        for node in _nodes_in_dignity_table():
+            try:
+                obj = self.chart.get(node)
+            except Exception:
+                continue
+            dig = essential.getInfo(obj.sign, obj.signlon)
+            own = self.takePlanetDignity(node, dig)
+            if own:
+                obj.dignities = dig
+                obj.selfDignity = own
+                obj.score = essential.score(node, obj.sign, obj.signlon)
 
     def takePlanetDignity(self, planetId, dignities):
         res = []

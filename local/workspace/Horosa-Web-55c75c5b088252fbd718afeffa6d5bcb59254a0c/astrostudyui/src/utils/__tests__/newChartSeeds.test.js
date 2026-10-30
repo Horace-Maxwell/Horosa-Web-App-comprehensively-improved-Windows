@@ -9,7 +9,7 @@ import {
 	resetNewChartSeedKeysToInternalDefaults, subscribeNewChartSeeds, __resetNewChartSeedsForTest,
 } from '../newChartSeeds';
 import { fieldsSchemaBaseline, applyRecordToFields, captureNonDefaultTechniqueFields, markFieldsCaptured, RECORD_FIELDS_RESTORE_MANIFEST } from '../recordFieldsRestore';
-import { DEFAULT_PD_METHOD, DEFAULT_PD_TIME_KEY, DEFAULT_PD_TYPE, DEFAULT_PD_PROJECTION, DEFAULT_PD_FRAME, DEFAULT_PD_FRAMEWORK } from '../primaryDirectionSync';
+import { DEFAULT_PD_METHOD, DEFAULT_PD_TIME_KEY, DEFAULT_PD_TYPE, DEFAULT_PD_PROJECTION, DEFAULT_PD_FRAME, DEFAULT_PD_FRAMEWORK, PD_EXTRA_SETTING_KEYS } from '../primaryDirectionSync';
 import '../../models/astro';   // 注册 schema 初值工厂(newEmptyFields)
 const { readSource } = require('./helpers/sourceSet');   // 拆成子模块的大文件按「门面 + 子模块」全集读,其余文件原样读
 
@@ -166,7 +166,10 @@ describe('④ 存盘捕获按内建默认判非默认', ()=>{
 describe('⑤ 源码合同:各页只在亲手改动入口记种子;内嵌宿主不记', ()=>{
 	it('模型 / 还原件接线在位', ()=>{
 		const model = read('models/astro.js');
-		NEW_CHART_SEED_KEYS.filter((k)=>NEW_CHART_SEED_SPEC[k].inSchema).forEach((k)=>expect(model).toContain(`value: newChartSeedValue('${k}')`));
+		// 主限法设置项登记表的键由同一条展开式接进 schema(字面键名不出现),其余逐键字面在位
+		NEW_CHART_SEED_KEYS.filter((k)=>NEW_CHART_SEED_SPEC[k].inSchema && PD_EXTRA_SETTING_KEYS.indexOf(k) < 0)
+			.forEach((k)=>expect(model).toContain(`value: newChartSeedValue('${k}')`));
+		expect(model).toContain('...Object.fromEntries(PD_EXTRA_SETTING_KEYS.map((key)=>[key, { value: newChartSeedValue(key), name: [key] }])),');
 		expect(model).toContain('...newChartSeedExtraEntries(),');
 		const app = read('models/app.js');
 		expect(app).toContain("pdMethod: newChartSeedValue('pdMethod')");
@@ -195,7 +198,7 @@ describe('⑤ 源码合同:各页只在亲手改动入口记种子;内嵌宿主�
 		// 载入记录 / 新命盘(cid 变)时 fields 里缺席的印占键回出厂值:否则 schema 本没有的种子键在载入记录后仍留着种子值(普查实抓)
 		expect(india).toContain('if(cidOf(this.props.fields) !== cidOf(prevProps.fields) && this._indiaOptionStateDefaults){');
 		expect(india).toContain('this._indiaOptionStateDefaults[state] = Array.isArray(v) ? v.slice()');
-		expect(read('components/direction/AstroDirectMain.js')).toContain('pdMethod, pdTimeKey, pdtype: opt.pdtype === 1 ? 1 : 0,');
+		expect(read('components/direction/AstroDirectMain.js')).toContain('pdMethod, pdTimeKey, pdtype: normalizePdType(opt.pdtype),');
 		// 八字左栏的「时间算法」仍是本页覆盖层:BaZi 不把 timeAlg 记成种子
 		expect(bazi).not.toMatch(/recordNewChartSeeds\(\{[^}]*timeAlg/);
 	});

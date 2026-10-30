@@ -89,6 +89,8 @@ export function germanyMidpointRequestParams(disp, partnerParams){
 		declination: d.showDeclination !== false,
 		frames: d.showHouseFrames !== false || !!d.showEastPoint,
 		...(d.strictFactors ? { strictFactors: true } : {}),
+		// 中点坐标:赤经 / 赤纬才下发(后端另算 coordMidpoints);缺省黄经不带此键 = 请求逐字同旧
+		...(d.mpCoord === 'ra' || d.mpCoord === 'decl' ? { mpCoord: d.mpCoord } : {}),
 		...(partnerParams ? { davison: partnerParams } : {}),
 	};
 }

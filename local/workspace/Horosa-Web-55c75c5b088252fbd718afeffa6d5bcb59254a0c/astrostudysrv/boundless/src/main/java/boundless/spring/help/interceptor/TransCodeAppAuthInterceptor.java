@@ -134,6 +134,12 @@ public class TransCodeAppAuthInterceptor implements HandlerInterceptor {
 		if(!needCheck) {
 			return true;
 		}
+		// 存活探针(启动门 / 服务异常弹窗):裸 GET /heartbeat 不带应用头,只回 ONLINE、无业务数据 → 免应用鉴权,
+		// 与 RequestHeaderInterceptor 免验签同一判据(只认读类方法;写状态文件的 PUT 仍要鉴权)。
+		// 此前只免了验签,本拦截器照样拦成 500 access_deny。
+		if(RequestHeaderInterceptor.isHeartbeatProbe(request, TransData.getTransCode())) {
+			return true;
+		}
 
 		String app = TransData.getClientApp();
 		if(superApps.contains(app) || superApps.contains(app.toLowerCase())) {

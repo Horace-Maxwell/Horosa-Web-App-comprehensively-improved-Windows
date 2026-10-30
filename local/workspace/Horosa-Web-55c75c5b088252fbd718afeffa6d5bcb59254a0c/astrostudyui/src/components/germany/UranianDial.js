@@ -22,6 +22,8 @@ const SECTORS = [
 const RING_TONE = { natal: 'currentColor', transit: 'var(--horosa-jx-xiong, #c0392b)', solararc: 'var(--horosa-jade, #1f7a5a)',
 	// WP-9 合盘叠盘人(最多 4):取应用既有强调色族,四人以蓝/紫/青/琥珀区分(与本命 currentColor/行运红/太阳弧绿 不撞)。
 	syn0: 'var(--horosa-accent, #2f7df1)', syn1: 'var(--horosa-hue-purple)', syn2: 'var(--horosa-hue-teal)', syn3: 'var(--horosa-warn)',   // 明暗成对(旧写死琥珀 #c08a2f 在亮盘底 2.7:1)
+	// 次限推运层:褐色,与行运红 / 太阳弧绿 / 合盘四色 / 组合金 / 戴维森朱均不撞。
+	progressed: 'var(--horosa-hue-brown)',
 	// B5:组合盘=暗金 / 戴维森=朱橘(与行运凶红、合盘四色均不撞;图例经既有 RING_TONE 机制自动带出)。
 	composite: 'var(--horosa-gold, #b8860b)', davison: 'var(--horosa-cinnabar, #e2603f)' };
 const POINTER_COLOR = '#e23b3b';

@@ -97,7 +97,9 @@ describe('页面已撤 / 页面没有的项:只在存档已是它时列出(照�
 		expect(visible('primarydirect', 'pdMethod', {})).toBe(false);
 		const other = pm.options.map((o)=>o.value).find((v)=>`${v}` !== `${pm.default}`);
 		expect(visible('primarydirect', 'pdMethod', { pdMethod: other })).toBe(true);
-		expect(visible('primarydirchart', 'pdMethod', {})).toBe(true);   // 主限盘页本身有「推运方法」
+		// 主限盘页改成「弧算法 + 盘面宫制」:挂载只列影响外圈的盘面宫制(弧算法不影响外圈)
+		expect(getTechniqueSettingsSchema('primarydirchart').fields.some((x)=>x.name === 'pdMethod')).toBe(false);
+		expect(visible('primarydirchart', 'pdFrame', {})).toBe(true);
 	});
 	test('🔴 星盘强互容 / 简化相位 / 虚点接纳相位:没开过不列,开着的照列', ()=>{
 		['strongRecption', 'simpleAsp', 'virtualPointReceiveAsp'].forEach((n)=>{

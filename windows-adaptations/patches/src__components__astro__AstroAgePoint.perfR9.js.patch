@@ -1,18 +1,18 @@
 diff --git a/astrostudyui/src/components/astro/AstroAgePoint.js b/astrostudyui/src/components/astro/AstroAgePoint.js
-index f8fcf6df..50f314be 100644
+index 10aa7e94..6f867209 100644
 --- a/astrostudyui/src/components/astro/AstroAgePoint.js
 +++ b/astrostudyui/src/components/astro/AstroAgePoint.js
-@@ -12,6 +12,7 @@ import * as AstroText from '../../constants/AstroText';
+@@ -17,6 +17,7 @@ import { AP_METHODS, AP_EVENTS, AP_YEARS, AP_SPANS, normalizeApSettings, apReque
  // 测试环境可能部分 mock astroAiSnapshot(只留 buildAstroSnapshotContent 等),缺函数时回 [] 保底。
  import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
  import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 +import { markPanelReady } from '../../utils/perfMark';
  
+ const Option = Select.Option;
  const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
- const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
-@@ -149,7 +150,8 @@ class AstroAgePoint extends Component {
- 			});
- 			if(!this._mounted || seq !== this._loadSeq) return;
+@@ -197,7 +198,8 @@ class AstroAgePoint extends Component {
+ 				return;
+ 			}
  			clearLoadFailure(this);
 -			this.setState({ result: unwrapResult(data) || {}, resultSig, loading: false, requestKey: k });
 +			// horosa_panel_ready_v1:年龄推进点表(本技法唯一可见内容)落定的那一次 setState。

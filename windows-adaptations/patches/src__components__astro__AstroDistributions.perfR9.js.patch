@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/astro/AstroDistributions.js b/astrostudyui/src/components/astro/AstroDistributions.js
-index 4384b445..569f5120 100644
+index f7fbaebe..579e6d26 100644
 --- a/astrostudyui/src/components/astro/AstroDistributions.js
 +++ b/astrostudyui/src/components/astro/AstroDistributions.js
-@@ -14,6 +14,7 @@ import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
+@@ -21,6 +21,7 @@ import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
  import UpdatingBadge from '../common/UpdatingBadge';
  import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
  import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 +import { markPanelReady } from '../../utils/perfMark';
  
+ const Option = Select.Option;
  const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
- const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
-@@ -133,7 +134,8 @@ class AstroDistributions extends Component {
+@@ -196,7 +197,8 @@ class AstroDistributions extends Component {
  				return;
  			}
  			clearLoadFailure(this);

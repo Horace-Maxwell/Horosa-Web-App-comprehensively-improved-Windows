@@ -7,6 +7,7 @@
 //    界/映点/宫缀中文 —— 段结构 [{t, astro}] 供 SVG tspan 分字体渲染;
 //  - 车道装箱:按 x 升序区间防撞,放不下落「结束最早」车道(重叠最少)。
 import * as AstroText from '../../constants/AstroText';
+import { parsePdStarPointId } from '../../utils/primaryDirectionSync';
 
 export const TL_ZOOM_MIN = 2;        // px/年 下限(百年盘 200px 也画得下)
 export const TL_ZOOM_MAX = 4000;   // 扩展全开(单泳道数千行)时章档需 spacing≥17px:400 上限拉不回 glyph,提至 4000      // px/年 上限(逐月/逐日级细看;用户要求能放更大)
@@ -78,8 +79,14 @@ export function glyphSegsOf(pid){
 		const ax = { '0': 'MC', '90': 'ASC', '180': 'IC', '270': 'DSC' }[parts[2]] || '';
 		return [seg(parts[1]), { t: `${head === 'MP' ? '世平' : '急动'}${ax}`, astro: false }];
 	}
-	if(head === 'FS'){
-		return [{ t: `★${parts[1]}`, astro: false }];
+	const star = parsePdStarPointId(text);
+	if(star){
+		const segs = [{ t: `★${star.name}`, astro: false }];
+		if(star.deg){
+			const g = AstroText.AstroMsg[`Asp${star.deg}`];
+			segs.push(g ? { t: `${g}`, astro: true } : { t: `${star.deg}°`, astro: false });
+		}
+		return segs;
 	}
 	if(head === 'LT'){
 		return [{ t: `${`${parts[1] || ''}`.replace(/^Pars /, '')}点`, astro: false }];

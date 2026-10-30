@@ -22,7 +22,6 @@ from astrostudy.civil_calendar import (
 from astrostudy import solararc
 from astrostudy import firdaria
 from astrostudy import zreleasing
-from astrostudy import yearsystem129
 from astrostudy.termdirection import TermDirection
 
 MAX_ERROR = 0.0003
@@ -73,6 +72,8 @@ CORE_PD_SIGNIFICATOR_IDS = [
 ]
 # 宿命点(Vertex)应星:卯酉圈与黄道的西交点。表行 id 走 'N_Vertex_0' 应星编码。
 CORE_PD_VERTEX_ID = 'Vertex'
+# 东点(卯酉圈与黄道的东交点,宿命点的对点):In Mundo 轴应星。
+CORE_PD_ANTIVERTEX_ID = 'Antivertex'
 
 
 
@@ -140,8 +141,8 @@ _PD_METHOD_REGISTRY = {
     'porphyry': 'getPrimaryDirectionByZCoreKernel',
     'equal_ecliptic': 'getPrimaryDirectionByZCoreKernel',
     'equal_hour_circle': 'getPrimaryDirectionByZCoreKernel',
-    # 近 core 但有 ~2° 专属修正(确切式待续)，暂以 core 近似：
-    'morinus': 'getPrimaryDirectionByZCoreKernel',
+    # 黄极圈位置圈(过黄极与迫星相位点的大圆):
+    'morinus': 'getPrimaryDirectionByZMorinus',
     # 独立闭式(已实测)：黄经差 / |RA差|
     'in_zodiaco_lon': 'getPrimaryDirectionByZAlongEcliptic',
     'in_zodiaco_abs': 'getPrimaryDirectionByZEdmundJones',
@@ -182,7 +183,7 @@ _PD_METHOD_TO_PAIR = {
     'porphyry': ('ptolemy', 'porphyry'),
     'equal_ecliptic': ('ptolemy', 'equal'),
     'equal_hour_circle': ('ptolemy', 'equal_hour_circle'),
-    'morinus': ('ptolemy', 'morinus'),
+    'morinus': ('morinus', 'morinus'),
     'in_zodiaco_lon': ('in_zodiaco_lon', None),
     'in_zodiaco_abs': ('in_zodiaco_abs', None),
     'horosa_legacy': ('horosa_legacy', None),
@@ -196,12 +197,16 @@ _PD_PROJECTION_REGISTRY = {
     'regiomontanus': 'getPrimaryDirectionByZRegiomontanus',
     'campanus': 'getPrimaryDirectionByZCampanus',
     'topocentric': 'getPrimaryDirectionByZTopocentric',
+    'morinus': 'getPrimaryDirectionByZMorinus',
     'zodiacal': 'getPrimaryDirectionByZZodiacalOA',
     'placidus_under_pole': 'getPrimaryDirectionByZPlacidusUnderPole',
     'ra_direct': 'getPrimaryDirectionByZRaDirect',
     'in_zodiaco_lon': 'getPrimaryDirectionByZAlongEcliptic',
     'in_zodiaco_abs': 'getPrimaryDirectionByZEdmundJones',
     'horosa_legacy': 'getPrimaryDirectionByZLegacy',
+    # 地平经圈(过天顶)/ 出生地斜升圈(Koch)位置圈,与极下族同一内核
+    'horizontal': 'getPrimaryDirectionByZHorizontal',
+    'koch': 'getPrimaryDirectionByZKoch',
 }
 
 # 定局 frame → 盘面宫制。
@@ -244,46 +249,63 @@ _PD_MUNDO_LEGACY_METHODS = ('morinus', 'in_zodiaco_lon', 'in_zodiaco_abs', 'horo
 # 中点=0°59'34" 等)均有公式定义，但需逐盘计算或更多接线，留后续批次按公式实现，
 # 不在此处放任何拟合值。未识别 key 一律 fallback Ptolemy=1.0。
 STATIC_TIME_KEY_SCALES = {
-    # 每个 key 的「年度赤经度量」(1 年对应多少度赤经弧)；arc→日期 = arc / scale。
-    'Ptolemy': 1.0,             # 1° RA = 1 年(古典定义)
-    'Naibod': 0.9856473354,     # 太阳平均周日运动 0°59'08"
-    'Cardano': 0.98667,
-    'Umar': 0.98631,            # Umar al-Tabari
-    'Wollner': 0.98604,         # Wöllner
-    'Plantiko': 1.01180,
-    'SynodicYear': 0.98436,
-    # Simmonite/Kepler/Brahe 已迁出静态表 → 「每盘常数」型(见 PER_CHART_TIME_KEY_FALLBACK)。
-    'NaibodRA': 0.9856473354,   # Naibod-in-RA:同值,严格沿赤经度量(命名对齐)
-    'AscendantArc': 1.0,        # Ascendant-arc key:1 年=ASC 斜升 1°(界行自洽)
-    'SymbolicDegree': 1.0,      # 1°/年(=Ptolemy)
-    'Kundig': 1.0,              # Kündig:30 例数据逐盘 spread=0,与 SymbolicDegree 同为 1°/年
-    'SymbolicYear': 0.98563,
-    'SymbolicMoon': 13.16996,   # 月亮平均周日运动度数/年
+    # 每个 key 的「年度赤经度量」(1 年对应多少度弧);arc→年 = arc / scale。值一律取其定义的精确式。
+    'Ptolemy': 1.0,                     # 1° = 1 年(古典定义;铁律字面量,护住默认路径字节级一致)
+    'Naibod': 0.9856473354,             # 太阳平均日行 0°59'08"
+    'NaibodRA': 0.9856473354,           # Naibod-in-RA:同值,严格沿赤经度量(命名对齐)
+    'Cardano': 74.0 / 75.0,             # 0°59'12"
+    'Umar': 72.0 / 73.0,                # Umar al-Tabari:73 年走 72°
+    'Wollner': 0.98604,                 # Wöllner
+    'Plantiko': 60.0 / 59.3,            # 1 年 ≈ 1.01180°(1° = 59.3/60 年)
+    'SynodicYear': 12.0 * 29.530588853 / 360.0,   # 太阴年(12 朔望月)÷ 360
+    'SymbolicDegree': 1.0,              # 1°/年(=Ptolemy)
+    'Kundig': 1.0,                      # Kündig:1°/年(与 SymbolicDegree 同值)
+    'SymbolicYear': 360.0 / 365.25,     # 360° 摊到一儒略年
+    'SymbolicMoon': 13.0 + 10.0 / 60.0 + 35.0 / 3600.0,   # 月亮平均日行 13°10'35"
     'SymbolicMonth': 4.0,
     'Quarterly': 0.25,
-    'Quinary': 6.0,
-    'Duodenary': 2.5,
-    'Novenary': 3.33337,
-    'SelfMeasure': 1.85716,
+    'SelfMeasure': 13.0 / 7.0,
+    # 符号量度「每座 N 年」族:每年 30°/N
+    'Quinary': 30.0 / 5.0,
+    'Septenary': 30.0 / 7.0,
+    'Novenary': 30.0 / 9.0,
+    'Duodenary': 30.0 / 12.0,
+    'SubDuodenary': 30.0 / 144.0,       # 12'30"/年
+    'SymbolicWeek': 1.0 / 7.0,          # 1° = 7 年
+    # 「经典」档:传统程序常用的截断常数(只取到角分等),与上面的精确式并列可选
+    'WollnerClassic': 0.9860361213,     # = 1° − 50.27″(1° 减一年岁差)
+    'SynodicYearClassic': 0.98435,      # 太阴年常数只取 5 位
+    'NovenaryClassic': 3.3333,          # 30°/9 截到 4 位
+    'SymbolicMoonClassic': 13.167,      # 月亮平均日行只取到 13°10′
 }
 
-# 每盘常数型钥匙:标度 = 本命太阳日运动(30 例数据逐盘 iqr≈3e-5 实证为盘内恒定):
-#   Simmonite     = 出生时刻太阳黄经瞬时日速(星历 speed 分量)
-#   Kepler/Brahe  = 生日向前差分 λ☉(jd0+1) − λ☉(jd0)(二者参考输出逐位相同)
-# 旧版曾以单一常数近似(0.9847/0.98396),对远期盘有可见日期偏差,已换真式。
+# 每盘常数型钥匙:一年 = 本命某一日的太阳行度(同一盘内恒定、不同盘略异)。
+#   Simmonite      = 出生当天世界时 0 时 → 次日 0 时太阳赤经行度
+#   BirthdaySunLon = 同一天的太阳黄经行度(生日黄经日行)
+#   Kepler / Brahe = 出生前一个真午夜 → 出生后一个真午夜(出生地太阳下中天)太阳赤经行度;两名同指一法
+#   KeplerClassic / BraheClassic = 「经典」写法:出生后第一个真午夜 → 再下一个真午夜(出生之后那一整个真太阳日)
 # chart 不可用时回退下列近似常数(防御性,正常路径恒有 chart)。
 PER_CHART_TIME_KEY_FALLBACK = {
-    'simmonite': 0.9847,
-    'kepler': 0.98396,
-    'brahe': 0.98396,
+    'simmonite': 0.9856473354,
+    'birthdaysunlon': 0.9856473354,
+    'kepler': 0.9856473354,
+    'brahe': 0.9856473354,
+    'keplerclassic': 0.9856473354,
+    'braheclassic': 0.9856473354,
 }
 
+# 动态钥匙(逐弧求根,非比例换算)
+_PD_DYNAMIC_SOLAR_RA_KEYS = ('truesolararc', 'placidus_key', 'vandam', 'truesolararcmean')   # 真太阳弧(赤经)
+_PD_MEAN_OBLIQUITY_SOLAR_KEYS = ('truesolararcmean',)                     # 「经典」:太阳赤经按平黄赤交角换算
+_PD_DYNAMIC_SOLAR_LON_KEYS = ('symbolicsolararc',)                       # 太阳弧(黄经)
+_PD_ANGLE_ARC_KEYS = {'ascendantarc': 'asc', 'verticalarc': 'vertex'}    # 上升弧 / 垂直弧计时
 
-def _pdTimeKeyScale(time_key, chart=None, age=None, custom=None):
+
+def _pdTimeKeyScale(time_key, chart=None, age=None, custom=None, geolon=None):
     """
     返回从「原始 PD 弧 (1°/年 符号年)」到「指定 time key 下的缩放弧」的倍数。
-    static 键查 STATIC_TIME_KEY_SCALES;Simmonite/Kepler/Brahe 为「每盘常数」型,
-    按本命太阳日运动逐盘取值;未识别 key 一律 fallback 到 Ptolemy = 1.0，
+    static 键查 STATIC_TIME_KEY_SCALES;Simmonite / 生日黄经日行 / Kepler / Brahe 为「每盘常数」型,
+    按本命太阳日行逐盘取值(Kepler / Brahe 要出生地经度 geolon 定真午夜);未识别 key 一律 fallback 到 Ptolemy = 1.0，
     护住默认路径字节级一致 (高优铁律)。
     """
     if not time_key:
@@ -302,12 +324,15 @@ def _pdTimeKeyScale(time_key, chart=None, age=None, custom=None):
     if kl in PER_CHART_TIME_KEY_FALLBACK:
         if chart is not None:
             try:
+                from astrostudy import pd_engine
                 jd = float(chart.date.jd)
                 if kl == 'simmonite':
-                    return float(swisseph.calc_ut(jd, swisseph.SUN)[0][3])
-                lo0 = float(swisseph.calc_ut(jd, swisseph.SUN)[0][0])
-                lo1 = float(swisseph.calc_ut(jd + 1.0, swisseph.SUN)[0][0])
-                return (lo1 - lo0) % 360.0
+                    return pd_engine.birthday_sun_motion(jd, equatorial=True)
+                if kl == 'birthdaysunlon':
+                    return pd_engine.birthday_sun_motion(jd, equatorial=False)
+                if kl in ('keplerclassic', 'braheclassic'):
+                    return pd_engine.true_midnight_sun_ra_motion_next_day(jd, float(geolon or 0.0))
+                return pd_engine.true_midnight_sun_ra_motion(jd, float(geolon or 0.0))
             except Exception:
                 pass
         return PER_CHART_TIME_KEY_FALLBACK[kl]
@@ -431,49 +456,83 @@ class PerPredict:
         return tdlist
 
     def getDistributions(self):
-        """ 界推运（Distributions）：上升点经主限运动依次穿过各埃及界。
-        分配星(distributor)=该界主星；其期间内上升点又触及某行星→该行星为参与星(participant)。
-        建于 TermDirection（与界限法同源、同 signasctime 时间换算）。 """
+        """ 界推运(Distributions):发放点随周日运动依次经过其后(黄经递增)的各界,见 astrostudy.distributions。
+        设置(请求键,缺省 = 上升 / 上升时间 / 回归年 / 100 年):distReleaser / distMethod / distYear / distYears;
+        界系随全局设置。返回分配星期(兼容旧字段 distributor / sign / startDate / endDate / participants)
+        与伙伴星期 partners。"""
+        from astrostudy import distributions as _dist
+        from astrostudy.astroextra_parts.common import date_time_from_jd
+        data = self.perchart.data if isinstance(getattr(self.perchart, 'data', None), dict) else {}
+        st = _dist.normalize(data)
         chart = self.perchart.getChart()
-        td = TermDirection(chart, True, terms_variant=getattr(self.perchart, 'termsVariant', 0))
-        cusps = sorted(td._terms(), key=lambda c: c['dist'])
-        sigAsc = td.N(const.ASC, 0)
-        proms = td._elements(td.SIG_OBJECTS, td.N, [0])
-        contacts = []
-        for p in proms:
-            if p['id'] == sigAsc['id']:
+        start_lon = self._distReleaserLon(chart, st['distReleaser'])
+        partners = []
+        for pid in _dist.PARTNER_PLANETS:   # 七颗古典行星恒在盘上(不随显示设置裁剪)
+            if pid == st['distReleaser']:
                 continue
-            arc = td._arc(p, sigAsc)
-            if 0 < arc < td.MAX_ARC:
-                pid = p['id'].split('_')
-                contacts.append((arc, pid[1] if len(pid) >= 2 else p['id']))
-        contacts.sort()
-        rows = []
-        for c in cusps:
-            parts = c['id'].split('_')
-            lord = parts[1] if len(parts) >= 2 else c['id']
-            sign = parts[2] if len(parts) >= 3 else ''
-            rows.append([c['dist'], lord, sign, 'DIST'])
-        self.appendDateStr(rows, False)
-        res = []
-        for i, c in enumerate(cusps):
-            startArc = c['dist']
-            endArc = cusps[i + 1]['dist'] if i + 1 < len(cusps) else td.MAX_ARC
-            ppts = [pid for (a, pid) in contacts if startArc <= a < endArc]
-            res.append({
-                'startArc': round(startArc, 2),
-                'endArc': round(endArc, 2),
-                'distributor': rows[i][1],
-                'sign': rows[i][2],
-                'startDate': rows[i][4] if len(rows[i]) > 4 else '',
-                'endDate': rows[i + 1][4] if (i + 1 < len(rows) and len(rows[i + 1]) > 4) else '',
-                'participants': ppts,
+            partners.append((pid, float(chart.get(pid).lon)))
+        phi = self._coreParseCoord(getattr(self.perchart, 'lat', 0.0))
+        eps = float(swisseph.calc_ut(chart.date.jd, swisseph.ECL_NUT)[0][1])   # 当日平黄赤交角
+        dists, periods = _dist.compute(start_lon, partners, st, phi, eps, getattr(self.perchart, 'termsVariant', 0))
+        jd0 = float(chart.date.jd)
+        zone = getattr(self.perchart, 'zone', '+00:00')
+        year_days = _dist.YEAR_DAYS[st['distYear']]
+
+        def stamp(years):
+            dt = date_time_from_jd(jd0 + years * year_days, zone)
+            return '%s %s' % (dt['date'], dt['time'])
+
+        partner_rows = []
+        for p in periods:
+            partner_rows.append({
+                'planet': p['planet'], 'aspect': p['aspect'], 'side': p['side'], 'lon': round(p['lon'], 4),
+                'startYears': round(p['y0'], 4), 'years': round(p['y1'] - p['y0'], 4),
+                'startDate': stamp(p['y0']), 'endDate': stamp(p['y1']),
             })
+        res = []
+        for d in dists:
+            inside = [p for p in partner_rows if d['y0'] <= p['startYears'] < d['y1']]
+            res.append({
+                'startArc': round(d['y0'], 2), 'endArc': round(d['y1'], 2),
+                'startYears': round(d['y0'], 4), 'years': round(d['y1'] - d['y0'], 4),
+                'distributor': d['ruler'], 'sign': const.LIST_SIGNS[d['signIdx']],
+                'startDate': stamp(d['y0']), 'endDate': stamp(d['y1']),
+                'participants': [p['planet'] for p in inside],
+                'partnerDetail': [{'planet': p['planet'], 'aspect': p['aspect'], 'side': p['side']} for p in inside],
+            })
+        self._distSettings = dict(st, releaserLon=round(start_lon, 4))
+        self._distPartners = partner_rows
         return res
 
+    def getDistributionsMeta(self):
+        """getDistributions 之后取:设置回显 + 伙伴星期全表。"""
+        return getattr(self, '_distSettings', None), getattr(self, '_distPartners', [])
+
+    def _distReleaserLon(self, chart, releaser):
+        """发放点黄经:四轴 / 行星 / 北交(随盘真平) / 宿命点 / 福点 / 精神点 / 产前朔望。"""
+        if releaser in (const.ASC, const.MC, const.DESC, const.IC):
+            return float(chart.get(releaser).lon)
+        if releaser == 'Vertex':
+            geo_lat = self._coreParseCoord(getattr(self.perchart, 'lat', 0.0))
+            geo_lon = self._coreParseCoord(getattr(self.perchart, 'lon', 0.0))
+            return float(_polarSafeHousesEx(chart.date.jd, geo_lat, geo_lon, b'P')[1][3]) % 360.0
+        if releaser == 'Spirit':
+            asc, sun, moon = (float(chart.get(x).lon) for x in (const.ASC, const.SUN, const.MOON))
+            return angle.norm(asc + sun - moon if chart.isDiurnal() else asc + moon - sun)
+        if releaser == 'Syzygy':
+            from astrostudy.astroextra import compute_prenatal_syzygy
+            syz = compute_prenatal_syzygy({
+                'date': getattr(self.perchart, 'date', None), 'time': getattr(self.perchart, 'time', '12:00:00'),
+                'zone': getattr(self.perchart, 'zone', '+00:00'),
+                'lat': self._coreParseCoord(getattr(self.perchart, 'lat', 0.0)),
+                'lon': self._coreParseCoord(getattr(self.perchart, 'lon', 0.0))})
+            return angle.norm(float(syz['hylegDegree']))
+        return float(chart.get(releaser).lon)
+
     def getAgePoint(self):
+        """年龄推进点;推进方式 / 事件 / 年长 / 年限取请求键 apMethod / apEvents / apYear / apMaxAge(见 astrostudy.agepoint)。"""
         from astrostudy import agepoint
-        return agepoint.compute(self.perchart, 72)
+        return agepoint.compute(self.perchart)
 
     def getPrimaryDirection(self):
         # 框架维:aspect=相位主限(默认,零回归)/bounds=界行(ASC×界分界线)/
@@ -484,10 +543,8 @@ class PerPredict:
         if framework == 'bounds':
             return self.getPrimaryDirectionBounds()
         pdtype = self.perchart.pdtype
-        if pdtype == 0:
-            return self.getPrimaryDirectionByZ()
-        elif pdtype == 1:
-            return self.getPrimaryDirectionByM()
+        if pdtype in (0, 1, 4):
+            return self._pdAspectRows(pdtype)
         elif pdtype == 2:
             return self.getTermDirection(True)
         elif pdtype == 3:
@@ -606,14 +663,55 @@ class PerPredict:
                 continue
         return out
 
-    def _pdExtraCuspPromissorPoints(self, chart):
-        """P 清单扩展(pdPromissorTypes):cusps=中间宫始点(HC_)/stars=恒星(FS_)/lots=阿拉伯点(LT_)。"""
+    # 恒星迫星的行编号:内核里与行星同用 N_/D_/S_(相位、顺逆、相位侧、新式逆向的逻辑全部照用),
+    # 出表时改成 FS_(合 / 冲)/ FSD_(右相位)/ FSS_(左相位),下游据前缀认出恒星。
+    _PD_STAR_PROM_PREFIX = {'N': 'FS', 'D': 'FSD', 'S': 'FSS'}
+
+    def _pdStarPromissorPoints(self, aspects, public=False):
+        """恒星作迫星:与行星同一套相位点(合 λ、冲 λ+180、右 λ−θ、左 λ+θ),黄纬取恒星本身黄纬。"""
+        base = self._pdFixedStarPoints('N')
+        asps = [0.0] if not aspects else [abs(float(a)) for a in aspects]
+        out = []
+        for pt in base:
+            name = self._baseDirectionObjectId(pt['id'])
+            lon, lat = float(pt['lon']), float(pt.get('lat', 0.0) or 0.0)
+            for a in asps:
+                tok = int(a) if float(a).is_integer() else a
+                if a < 1e-9 or abs(a - 180.0) < 1e-9:
+                    out.append({'id': 'N_%s_%s' % (name, tok), 'lon': angle.norm(lon + a), 'lat': lat})
+                else:
+                    out.append({'id': 'D_%s_%s' % (name, tok), 'lon': angle.norm(lon - a), 'lat': lat})
+                    out.append({'id': 'S_%s_%s' % (name, tok), 'lon': angle.norm(lon + a), 'lat': lat})
+        if public:
+            out = [dict(o, id=self._pdPublicStarId(o['id'])) for o in out]
+        return out
+
+    def _pdPublicStarId(self, pid):
+        parts = '{0}'.format(pid if pid is not None else '').split('_')
+        if len(parts) >= 3 and parts[0] in self._PD_STAR_PROM_PREFIX \
+                and self._baseDirectionObjectId(pid) in self._PD_STAR_ROSTER:
+            return '_'.join([self._PD_STAR_PROM_PREFIX[parts[0]]] + parts[1:])
+        return pid
+
+    def _pdPublicStarRows(self, rows):
+        out = []
+        for it in rows:
+            pid = self._pdPublicStarId(it[1])
+            if pid != it[1]:
+                it = list(it)
+                it[1] = pid
+            out.append(it)
+        return out
+
+    def _pdExtraCuspPromissorPoints(self, chart, aspects=None, public=False):
+        """P 清单扩展(pdPromissorTypes):cusps=中间宫始点(HC_)/stars=恒星/lots=阿拉伯点(LT_)。
+        恒星按 aspects 出整套相位点(None = 只出合相点,供自己生成相位的核用);public 时直接用出表编号。"""
         types = getattr(self.perchart, 'pdPromissorTypes', None) or []
         out = []
         if 'cusps' in types:
             out.extend(self._pdIntermediateCuspPoints(chart, 'HC'))
         if 'stars' in types:
-            out.extend(self._pdFixedStarPoints('FS'))
+            out.extend(self._pdStarPromissorPoints(aspects, public=public))
         if 'lots' in types:
             out.extend(self._pdLotPoints(chart, 'LT'))
         return out
@@ -669,15 +767,19 @@ class PerPredict:
         geo_lon = self._coreParseCoord(getattr(self.perchart, 'lon', 0.0))
         eps = float(swisseph.calc_ut(chart.date.jd, swisseph.ECL_NUT)[0][1])
         armc = float(_polarSafeHousesEx(chart.date.jd, geo_lat, geo_lon, b'P')[1][2])
+        from astrostudy import pd_semiarc_pole as _sp
         pole_fn = {'regiomontanus': pd_engine.pole_regiomontanus,
                    'campanus': pd_engine.pole_regiomontanus,
-                   'topocentric': pd_engine.pole_topocentric}.get(proj, pd_engine.pole_placidus_approx)
-        zodiacal = (getattr(self.perchart, 'pdtype', 0) or 0) == 0
+                   'topocentric': pd_engine.pole_topocentric,
+                   'horizontal': _sp.horizontal_pole,
+                   'koch': _sp.koch_pole}.get(proj, pd_engine.pole_placidus_approx)
+        zodiacal = (getattr(self.perchart, 'pdtype', 0) or 0) in (0, 4)   # Field Plane 属黄道向运
         poles = {'Asc': round(geo_lat, 4), 'MC': 0.0, 'Desc': round(geo_lat, 4), 'IC': 0.0}
         names = list(self._PD_ENGINE_SIGNIFICATORS)
         for pt in self._pdExtraSignificatorPoints(chart):
             names.append(pt['id'].split('_')[1])
         seen = set()
+        sig_pts = []
         for name in names:
             if name in seen or name in ('Asc', 'MC', 'Desc', 'IC'):
                 continue
@@ -691,9 +793,15 @@ class PerPredict:
                 if not pt:
                     continue
                 lon, lat = pt['lon'], (0.0 if zodiacal else pt['lat'])
+            sig_pts.append({'id': 'N_%s_0' % name, '_name': name, 'lon': lon, 'lat': lat})
+        # 点表设置项(真位置 / 忽略应星黄纬)与表格同口径:极点按算弧时的应星位置取
+        sig_pts = self._pdApplyLatitudeOptions(sig_pts, [])[0]
+        for sp in sig_pts:
+            lon = float(sp['lon'])
+            lat = 0.0 if zodiacal else float(sp.get('lat', 0.0) or 0.0)
             try:
                 ra, dec = pd_engine.ecl_to_eq(lon, lat, eps)
-                poles[name] = round(float(pole_fn(ra, dec, armc, geo_lat)), 4)
+                poles[sp['_name']] = round(float(pole_fn(ra, dec, armc, geo_lat)), 4)
             except Exception:
                 continue
         return {'projection': proj, 'poles': poles}
@@ -745,7 +853,7 @@ class PerPredict:
             return pdlist
         proj, _frame = self._pdResolveProjectionFrame()
         method = proj if proj in pd_engine.CLOSED else 'placidus'
-        zodiacal = (getattr(self.perchart, 'pdtype', 0) or 0) == 0
+        zodiacal = (getattr(self.perchart, 'pdtype', 0) or 0) in (0, 4)   # Field Plane 属黄道向运
         geo_lat = self._coreParseCoord(getattr(self.perchart, 'lat', 0.0))
         geo_lon = self._coreParseCoord(getattr(self.perchart, 'lon', 0.0))
         eps = float(swisseph.calc_ut(chart.date.jd, swisseph.ECL_NUT)[0][1])
@@ -846,14 +954,9 @@ class PerPredict:
     # 这些方位法走 astrostudy.pd_engine(通用球面三角 + swisseph 原语),与默认 Alcabitius
     # 完全独立;Alcabitius+Ptolemy 字节级路径绝不受影响(铁律①)。
 
-    _PD_ENGINE_SIGNIFICATORS = [
-        const.ASC, const.MC, const.SUN, const.MOON, const.MERCURY,
-        const.VENUS, const.MARS, const.JUPITER, const.SATURN,
-    ]
-    _PD_ENGINE_PROMISSORS = [
-        const.SUN, const.MOON, const.MERCURY, const.VENUS, const.MARS,
-        const.JUPITER, const.SATURN, const.URANUS, const.NEPTUNE, const.PLUTO,
-    ]
+    # 点集与核心族同一份(十二星点含北交、福点;应星另加上升 / 天顶):换方法不该换掉哪些星出行。
+    _PD_ENGINE_SIGNIFICATORS = [const.ASC, const.MC] + list(CORE_PD_SIGNIFICATOR_IDS)
+    _PD_ENGINE_PROMISSORS = list(CORE_PD_PROMISSOR_IDS)
 
     def _pdEngineChartData(self):
         """从本命盘取 pd_engine 所需:bodies/angles/armc/phi/eps/jd。"""
@@ -918,6 +1021,8 @@ class PerPredict:
             _nm = _pt['id'].split('_')[1]
             bodies.setdefault(_nm, {'lon': _pt['lon'], 'lat': _pt['lat']})
             prom_names.append(_nm)
+        # 点表设置项(真位置 / 月亮视差 / 忽略应星·迫星黄纬):与核心族同口径
+        sig_bodies, bodies = self._pdEngineOptionBodies(bodies, sig_names, prom_names)
         max_arc = float(getattr(self.perchart, 'pdYears', 100) or 100)
         include_antiscia = bool(getattr(self.perchart, 'pdAntiscia', False))
         include_terms = bool(getattr(self.perchart, 'pdTerms', False))
@@ -938,7 +1043,8 @@ class PerPredict:
                 converse=converse, include_antiscia=include_antiscia,
                 include_terms=include_terms,
                 include_parallels=include_parallels, include_rapt=include_rapt,
-                terms_variant=getattr(self.perchart, 'termsVariant', 0))
+                terms_variant=getattr(self.perchart, 'termsVariant', 0),
+                sig_bodies=sig_bodies)
 
         rows = []
         if want_direct:
@@ -955,6 +1061,294 @@ class PerPredict:
         # 年龄 ∝ |arc|(同一时间钥匙下 |弧|越大日期越晚),故按 |arc| 升序统一排序。
         rows.sort(key=lambda r: (abs(r[0]), r[0], r[1], r[2]))
         return rows
+
+    def _pdLunarParallaxShift(self):
+        """月亮视差:出生地站心月亮与地心月亮的 (Δ黄经, Δ黄纬),海拔取 0。"""
+        chart = self.perchart.getChart()
+        jd = float(chart.date.jd)
+        geo_lat = self._coreParseCoord(getattr(self.perchart, 'lat', 0.0))
+        geo_lon = self._coreParseCoord(getattr(self.perchart, 'lon', 0.0))
+        flags = self._coreEphemerisFlags()
+        geo = swisseph.calc_ut(jd, swisseph.MOON, flags)[0]
+        # ⚠️ swisseph 全局态:set_topo→calc_ut 两行必须相邻直线
+        swisseph.set_topo(float(geo_lon), float(geo_lat), 0.0)
+        topo = swisseph.calc_ut(jd, swisseph.MOON, flags | swisseph.FLG_TOPOCTR)[0]
+        return self._norm180(float(topo[0]) - float(geo[0])), float(topo[1]) - float(geo[1])
+
+    def _pdTruePositionPointMap(self, chart):
+        """真位置:各本体由视位置换成几何位置(不计光行时、光行差、光线偏折)的 (Δ黄经, Δ黄纬);
+        福点随日月同步(昼 Δ月 − Δ日,夜 Δ日 − Δ月),交点用真交点。轴不动。"""
+        jd = float(chart.date.jd)
+        flags = self._coreEphemerisFlags()
+
+        def dpos(swe_id):
+            p0 = swisseph.calc_ut(jd, swe_id, flags)[0]
+            p1 = swisseph.calc_ut(jd, swe_id, flags | swisseph.FLG_TRUEPOS)[0]
+            return (angle.closestdistance(float(p0[0]), float(p1[0])), float(p1[1]) - float(p0[1]))
+
+        dmap = {base_id: dpos(info[1]) for base_id, info in CORE_PD_VIRTUAL_BODY_CORR_MODELS.items()}
+        dn = dpos(swisseph.TRUE_NODE)[0]
+        dmap[const.NORTH_NODE] = (dn, 0.0)
+        dmap[const.SOUTH_NODE] = (dn, 0.0)
+        dmoon, dsun = dmap[const.MOON][0], dmap[const.SUN][0]
+        diurnal = bool(getattr(self.perchart, 'isDiurnal', True))
+        dmap[const.PARS_FORTUNA] = ((dmoon - dsun) if diurnal else (dsun - dmoon), 0.0)
+        return dmap
+
+    def _pdApplyLatitudeOptions(self, significators, promissors, ignore_prom_lat=None):
+        """点表设置项(默认都关,原样返回),依次:
+        - 真位置:本体取几何位置(见 _pdTruePositionPointMap),应星迫星同改。
+        - 月亮视差:月亮作迫星时(含其各相位点)用出生地站心位置;作应星不变。
+        - 「忽略应星黄纬」「忽略迫星黄纬」:对应点表的黄纬置 0(最后做)。
+        ignore_prom_lat 由调用方另定时传入(Field Plane 经典口径下迫星黄纬不清零),缺省读设置。"""
+        if bool(getattr(self.perchart, 'pdTruePosition', False)):
+            tp_map = self._pdTruePositionPointMap(self.perchart.getChart())
+            significators = [self._coreShiftPointByDeltaT(o, tp_map) for o in significators]
+            promissors = [self._coreShiftPointByDeltaT(o, tp_map) for o in promissors]
+        if bool(getattr(self.perchart, 'pdLunarParallax', False)):
+            d_lon, d_lat = self._pdLunarParallaxShift()
+            shifted = []
+            for o in promissors:
+                if self._baseDirectionObjectId(o.get('id')) == const.MOON and o.get('lon') is not None:
+                    o = dict(o, lon=angle.norm(float(o['lon']) + d_lon), lat=float(o.get('lat', 0.0) or 0.0) + d_lat)
+                shifted.append(o)
+            promissors = shifted
+        if bool(getattr(self.perchart, 'pdIgnoreSigLat', False)):
+            significators = [dict(o, lat=0.0) for o in significators]
+        if ignore_prom_lat is None:
+            ignore_prom_lat = bool(getattr(self.perchart, 'pdIgnorePromLat', False))
+        if ignore_prom_lat:
+            promissors = [dict(o, lat=0.0) for o in promissors]
+        mode = int(getattr(self.perchart, 'pdPromAspectLat', 0) or 0)
+        if mode:
+            from astrostudy.pd_aspect_latitude import HOUSE_POSITION_MODE
+            metric = self._pdHousePositionMetric() if mode == HOUSE_POSITION_MODE else None
+            if mode != HOUSE_POSITION_MODE or metric is not None:
+                promissors = [self._pdWithAspectLatitude(o, mode, metric) for o in promissors]
+        return significators, promissors
+
+    def _pdWithAspectLatitude(self, point, mode, metric=None):
+        """黄道制迫星相位点的黄纬口径(pd_aspect_latitude):把按口径算出的黄纬记在 latZ,
+        _corePointEqCoords(zero_lat=True)取「黄道上的相位点」时用它(缺省口径不写 latZ = 黄纬 0,逐位同旧)。
+        按宫位档(4)要所选方位法的宫位度量 metric,相位带符号(右旋 D 取负),迫星黄经 = 相位点黄经 − 相位。"""
+        parts = '{0}'.format(point.get('id', '')).split('_')
+        if len(parts) < 3 or parts[0] not in ('N', 'D', 'S'):
+            return point
+        try:
+            asp = abs(float(parts[-1]))
+        except ValueError:
+            return point
+        from astrostudy import pd_aspect_latitude as _al
+        if mode == _al.HOUSE_POSITION_MODE:
+            if metric is None or point.get('lon') is None:
+                return point
+            signed = -asp if parts[0] == 'D' else asp
+            lam_p = (float(point['lon']) - signed) % 360.0
+            return dict(point, latZ=_al.house_position_latitude(lam_p, point.get('lat', 0.0), signed, metric))
+        return dict(point, latZ=_al.aspect_point_latitude(mode, point.get('lat', 0.0), asp))
+
+    # 按宫位档用的宫位度量:投影 / 定局 → pd_aspect_latitude.house_position_metric 的 kind
+    _PD_HOUSE_POSITION_KIND = {'placidus': 'placidus', 'placidus_under_pole': 'placidus',
+                               'regiomontanus': 'regiomontanus', 'campanus': 'campanus',
+                               'horizontal': 'horizontal', 'koch': 'koch',
+                               'topocentric': 'topocentric'}
+
+    def _pdHousePositionMetric(self):
+        """按宫位档(只对黄道制):所选方位法的宫位度量 U(λ, b);宫位只由黄经定或没有宫位度量的方法返回 None。"""
+        if int(getattr(self.perchart, 'pdtype', 0) or 0) != 0:
+            return None
+        from astrostudy import pd_aspect_latitude as _al
+        proj, frame = self._pdResolveProjectionFrame()
+        kind = self._PD_HOUSE_POSITION_KIND.get(proj)
+        if kind is None and proj == 'ptolemy' and frame in ('alcabitius', 'meridian'):
+            kind = frame
+        if kind is None:
+            return None
+        chart = self.perchart.getChart()
+        eps = self._coreMeanObliquity(chart)
+        geo_lat = float(self._coreParseCoord(getattr(self.perchart, 'lat', 0.0)))
+        geo_lon = self._coreParseCoord(getattr(self.perchart, 'lon', 0.0))
+        ascmc = _polarSafeHousesEx(chart.date.jd, geo_lat, geo_lon, b'P')[1]
+        dsa_asc = ad_mc = None
+        if kind == 'alcabitius':
+            asc_decl = self._coreEqCoords(float(ascmc[0]), 0.0, eps)[1]
+            dsa_asc = 90.0 + float(utils.ascdiff(float(asc_decl), geo_lat))
+        if kind == 'koch':
+            ad_mc = float(utils.ascdiff(float(self._coreEqCoords(float(ascmc[1]), 0.0, eps)[1]), geo_lat))
+        return _al.house_position_metric(kind, float(ascmc[2]), geo_lat, eps,
+                                         lambda lon, b: self._coreEqCoords(lon, b, eps), dsa_asc, ad_mc)
+
+    _PD_POINT_OPTION_KEYS = ('pdTruePosition', 'pdLunarParallax', 'pdIgnoreSigLat', 'pdIgnorePromLat', 'pdPromAspectLat')
+
+    def _pdEngineOptionBodies(self, bodies, sig_names, prom_names):
+        """引擎族(pd_engine)的本体表套点表设置项,与核心族同一个 _pdApplyLatitudeOptions。
+        返回 (应星本体表, 迫星本体表);设置项全关时两者都是原表(逐位不变)。"""
+        if not any(bool(getattr(self.perchart, k, False)) for k in self._PD_POINT_OPTION_KEYS):
+            return bodies, bodies
+
+        def as_points(names):
+            out, seen = [], set()
+            for nm in names:
+                if nm in bodies and nm not in seen:
+                    seen.add(nm)
+                    b = bodies[nm]
+                    out.append({'id': 'N_%s_0' % nm, '_name': nm,
+                                'lon': float(b['lon']), 'lat': float(b.get('lat', 0.0) or 0.0)})
+            return out
+
+        def as_table(points):
+            table = dict(bodies)
+            for o in points:
+                table[o['_name']] = {'lon': float(o['lon']), 'lat': float(o.get('lat', 0.0) or 0.0)}
+            return table
+
+        sigs, proms = self._pdApplyLatitudeOptions(as_points(sig_names), as_points(prom_names))
+        return as_table(sigs), as_table(proms)
+
+    def _pdAspectRows(self, pdtype):
+        """相位主限表行(表格 / 天球共用一个出口):盘类内核 → 传统 / 新式逆向 → 相位侧 → 恒星迫星出表编号。"""
+        if not bool(getattr(self.perchart, 'pdTradConverse', True)):
+            rows = self._pdNeoConverse(pdtype)
+        elif pdtype == 0:
+            rows = self._pdFilterAspectSide(self.getPrimaryDirectionByZ())
+        elif pdtype == 1:
+            rows = self._pdFilterAspectSide(self.getPrimaryDirectionByM())
+        else:
+            rows = self._pdFilterAspectSide(self.getPrimaryDirectionByF())
+        return self._pdPublicStarRows(rows)
+
+    def _pdGeometry(self):
+        """几何口径(改进 / 经典)对应的整套函数,见 pd_geometry。"""
+        from astrostudy import pd_geometry
+        return pd_geometry.functions(getattr(self.perchart, 'pdGeometry', pd_geometry.DEFAULT_VARIANT))
+
+    def _pdPromissorMoves(self):
+        """「传统逆向」关:迫星(相位点)被周日运动带到应星本命位置计弧(新式逆向)。默认开 = 应星被带到迫星相位点。"""
+        return not bool(getattr(self.perchart, 'pdTradConverse', True))
+
+    def _pdNeoConverse(self, pdtype):
+        """传统逆向关时的行变换。内核先按顺逆两向出全表,按各方法的运动约定换算,最后才套顺 / 逆勾选:
+        - In Zodiaco:赤经类核心法、纯黄道(斜升差)、赤经直推与 Along-Ecliptic 的本体行变号(弧都是两点对称的差值,
+          换谁动只差一个符号);半弧 / 极下 / 黄极圈在内核里改为迫星点动;
+          Edmund Jones 不变;轴应星本就是迫星点动,不变。
+        - In Mundo:带符号的轴行(上升 / 下降 / 宿命点 / 反宿命点)变号,天顶 / 天底取绝对值不变;
+          本体行 Alcabitius 本就是迫星动不变、Placidus 在内核里互换角色,其余世俗法变号。
+        - Field Plane:相位点本就是迫星动,不变。"""
+        pc = self.perchart
+        want_direct = getattr(pc, 'pdDirect', True)
+        want_direct = True if want_direct is None else bool(want_direct)
+        want_converse = bool(getattr(pc, 'pdConverse', True))
+        if not want_direct and not want_converse:
+            want_direct = True
+        pc.pdDirect, pc.pdConverse = True, True
+        try:
+            if pdtype == 0:
+                rows = self.getPrimaryDirectionByZ()
+            elif pdtype == 1:
+                rows = self.getPrimaryDirectionByM()
+            else:
+                rows = self.getPrimaryDirectionByF()
+        finally:
+            pc.pdDirect, pc.pdConverse = want_direct, want_converse
+        proj, frame = self._pdResolveProjectionFrame()
+        method = getattr(pc, 'pdMethod', 'core_alchabitius') or 'core_alchabitius'
+        axes = (const.ASC, const.MC, const.DESC, const.IC, CORE_PD_VERTEX_ID, CORE_PD_ANTIVERTEX_ID)
+        signed_axes = (const.ASC, const.DESC, CORE_PD_VERTEX_ID, CORE_PD_ANTIVERTEX_ID)
+        if pdtype == 0:
+            flip_body = proj in ('ptolemy', 'in_zodiaco_lon', 'zodiacal', 'ra_direct')
+            flip_axes = False
+        elif pdtype == 1:
+            # 与 getPrimaryDirectionByM 的分派一一对应:迫星本就在动的核(Alcabitius)不变,Placidus 在核内互换,
+            # 极下族与旧 flatlib 'M' 路径维持原样;应星在动的核(Meridian / Equal 时圈 / Morinus / 世界经度核)变号。
+            explicit_proj = getattr(pc, 'pdProjection', None) is not None
+            legacy_m = not explicit_proj and method in _PD_MUNDO_LEGACY_METHODS
+            if proj in ('placidus', 'regiomontanus', 'campanus', 'topocentric', 'horizontal', 'koch'):
+                flip_body = False
+            elif proj == 'morinus':
+                flip_body = True
+            elif proj == 'ptolemy' and frame == 'alcabitius':
+                flip_body = False
+            elif proj == 'ptolemy' and frame in ('equal_hour_circle', 'meridian', 'porphyry', 'equal'):
+                flip_body = True
+            else:
+                flip_body = not legacy_m
+            flip_axes = True
+        else:
+            flip_body = flip_axes = False
+        out = []
+        for it in rows:
+            it = list(it)
+            base = self._baseDirectionObjectId(it[2])
+            if base in axes:
+                if flip_axes and base in signed_axes:
+                    it[0] = -float(it[0])
+            elif flip_body:
+                it[0] = -float(it[0])
+            out.append(it)
+        if not (pdtype == 0 and proj == 'in_zodiaco_abs'):
+            # Edmund Jones 的弧不分方向,顺 / 逆勾选对它不起作用
+            out = [it for it in out if (it[0] > 0 and want_direct) or (it[0] < 0 and want_converse)]
+        out.sort(key=lambda item: (abs(item[0]), item[0], item[1], item[2]))
+        return self._pdFilterAspectSide(out)
+
+    def _pdFilterAspectSide(self, pdlist):
+        """相位侧开关:1 = 只出右旋(本体应星不出合相),2 = 只出左旋(含合相);冲两侧都出;
+        轴应星(ASC/MC/DSC/IC/Vertex/东点)的合相与冲两侧都出。"""
+        side = getattr(self.perchart, 'pdAspectSide', 0) or 0
+        if side not in (1, 2):
+            return pdlist
+        axes = (const.ASC, const.MC, const.DESC, const.IC, CORE_PD_VERTEX_ID, CORE_PD_ANTIVERTEX_ID)
+        out = []
+        for it in pdlist:
+            parts = '{0}'.format(it[1]).split('_')
+            prefix = parts[0] if parts else ''
+            try:
+                asp = abs(float(parts[-1])) if prefix in ('N', 'D', 'S') else 0.0
+            except ValueError:
+                asp = 0.0
+            if prefix == 'D':
+                keep = side == 1
+            elif prefix == 'S':
+                keep = side == 2
+            elif abs(asp - 180.0) < 1e-9:
+                keep = True
+            else:
+                keep = side == 2 or self._baseDirectionObjectId(it[2]) in axes
+            if keep:
+                out.append(it)
+        return out
+
+    def _corePdMirrorTermPromissors(self, promissors):
+        """映点(A_/C_)、赤纬平行(PD_/PC_)、界(T_)促发星扩展点,对应开关开才有(默认空,零追加)。
+        与核心核同口径:均作黄道合相点(lat=0),本体 lon 取已真交点重建 + ΔT 平移后的 N_*_0。"""
+        want_anti = bool(getattr(self.perchart, 'pdAntiscia', False))
+        want_terms = bool(getattr(self.perchart, 'pdTerms', False))
+        want_par = bool(getattr(self.perchart, 'pdParallel', False))
+        if not (want_anti or want_terms or want_par):
+            return []
+        from astrostudy import pd_engine as _pde
+        base_lons = {}
+        for p in promissors:
+            parts = '{0}'.format(p.get('id') or '').split('_')
+            if len(parts) == 3 and parts[0] == 'N' and parts[2] == '0':
+                base_lons[parts[1]] = p.get('lon')
+        mirror_specs = []
+        if want_anti:
+            mirror_specs += [(_pde.antiscion, 'A'), (_pde.contra_antiscion, 'C')]
+        if want_par:
+            mirror_specs += [(_pde.antiscion, 'PD'), (_pde.contra_antiscion, 'PC')]
+        extra = []
+        for bn, bl in base_lons.items():
+            if bl is None:
+                continue
+            for fn, pre in mirror_specs:
+                extra.append({'id': '{0}_{1}_0'.format(pre, bn), 'lon': angle.norm(fn(float(bl))), 'lat': 0.0})
+        if want_terms:
+            for ruler, sign, tlon in _pde.term_boundaries(getattr(self.perchart, 'termsVariant', 0)):
+                rname = _pde.TERM_RULER_FULL.get(ruler, ruler)
+                sname = _pde.TERM_SIGN_NAMES[int(sign) % 12]
+                extra.append({'id': 'T_{0}_{1}'.format(rname, sname), 'lon': angle.norm(float(tlon)), 'lat': 0.0})
+        return extra
 
     def _extendCorePdRecurrences(self, pdlist, max_arc):
         """主限弧的整圈复发/互补统一扩展:同一次穿越的全部等价弧 = 基弧 + 360·m(m∈ℤ)。
@@ -982,20 +1376,121 @@ class PerPredict:
         return pdlist
 
     def getPrimaryDirectionByZPlacidus(self):
-        return self.getPrimaryDirectionByZEngine('placidus')
+        return self._getPrimaryDirectionByZSemiarcPole('semiarc')
 
     def getPrimaryDirectionByZRegiomontanus(self):
-        return self.getPrimaryDirectionByZEngine('regiomontanus')
+        return self._getPrimaryDirectionByZSemiarcPole('pole')
 
     def getPrimaryDirectionByZCampanus(self):
-        return self.getPrimaryDirectionByZEngine('campanus')
+        # Campanus 与 Regiomontanus 的位置圈同为过地平南北点的大圆,本体弧相同。
+        return self._getPrimaryDirectionByZSemiarcPole('pole')
+
+    def getPrimaryDirectionByZMorinus(self):
+        return self._getPrimaryDirectionByZSemiarcPole('ecliptic_pole')
+
+    def getPrimaryDirectionByZHorizontal(self):
+        # Horizontal:位置圈 = 过天顶与目标点的地平经圈(那半条),应星沿周日圈走到它上面
+        return self._getPrimaryDirectionByZSemiarcPole('horizontal')
+
+    def getPrimaryDirectionByZKoch(self):
+        # Koch(出生地法):位置圈 = 过目标点的出生地斜升圈(东 +φ、西 −φ)
+        return self._getPrimaryDirectionByZSemiarcPole('koch')
+
+    def _getPrimaryDirectionByZSemiarcPole(self, kind):
+        """半弧法(Placidus)/ 极下法(Regiomontanus · Campanus)/ 黄极圈法(Morinus),In Zodiaco,传统逆向口径。
+        - 本体应星:见 pd_semiarc_pole(应星被周日运动带到迫星相位点的位置圈上;半弧 / 极下带真黄纬,
+          黄极圈法取黄经点、黄纬 0)。
+        - 轴应星(ASC/MC/Vertex/DSC/IC):轴只随周日旋转移动,与方位法无关,直接复用核心核的轴行。
+        取点(相位点、真交点重建、ΔT 平移、扩展点)与核心核同口径。"""
+        from astrostudy import pd_semiarc_pole as _sp
+        _ANGLE_SIGS = (const.ASC, const.MC, const.DESC, const.IC, CORE_PD_VERTEX_ID)
+        angle_rows = [it for it in self.getPrimaryDirectionByZCoreKernel()
+                      if self._baseDirectionObjectId(it[2]) in _ANGLE_SIGS]
+        chart = self.perchart.getChart()
+        pd = PrimaryDirections(chart)
+        aspList = self.perchart.pdaspects
+        sig_objs = pd._elements(CORE_PD_SIGNIFICATOR_IDS, pd.N, [0])
+        promissors = pd._elements(CORE_PD_PROMISSOR_IDS, pd.N, aspList)
+        node_base_lons = self._coreTrueNodeBaseLons(chart)
+        significators = [self._rebuildCoreNodePoint(pd, obj, node_base_lons) for obj in sig_objs]
+        promissors = [self._rebuildCoreNodePoint(pd, obj, node_base_lons) for obj in promissors]
+        _dt_dmap = self._corePdDeltaTPointMap(chart)
+        if _dt_dmap:
+            significators = [self._coreShiftPointByDeltaT(o, _dt_dmap) for o in significators]
+            promissors = [self._coreShiftPointByDeltaT(o, _dt_dmap) for o in promissors]
+        significators, promissors = self._pdApplyLatitudeOptions(significators, promissors)
+        promissors.extend(self._corePdMirrorTermPromissors(promissors))
+        significators.extend(self._pdExtraSignificatorPoints(chart))
+        promissors.extend(self._pdExtraCuspPromissorPoints(chart, aspects=aspList))
+        eps_mean = self._coreMeanObliquity(chart)
+        geo_lat = self._coreParseCoord(getattr(self.perchart, 'lat', 0.0))
+        geo_lon = self._coreParseCoord(getattr(self.perchart, 'lon', 0.0))
+        ramc = float(_polarSafeHousesEx(chart.date.jd, geo_lat, geo_lon, b'P')[1][2])
+        geo = self._pdGeometry()
+        arc_fn = {'semiarc': geo.semiarc_arc, 'topocentric': geo.topocentric_arc,
+                  'horizontal': geo.horizontal_arc, 'koch': geo.koch_arc,
+                  'placidus_pole': _sp.placidus_pole_arc}.get(kind, geo.pole_circle_arc)
+        sig_zero_lat = kind == 'ecliptic_pole'
+        prom_moves = self._pdPromissorMoves()
+        max_arc = float(getattr(self.perchart, 'pdYears', 100) or 100)
+        tiny = 1e-12
+        pdlist = []
+        for prom in promissors:
+            prom_id = prom.get('id')
+            ra_p, decl_p = self._corePointEqCoords(prom, eps_mean, zero_lat=True)
+            if prom_id is None or ra_p is None:
+                continue
+            for sig in significators:
+                sig_id = sig.get('id')
+                if sig_id is None or prom_id == sig_id:
+                    continue
+                if self._baseDirectionObjectId(sig_id) in _ANGLE_SIGS:
+                    continue
+                if self._baseDirectionObjectId(prom_id) == self._baseDirectionObjectId(sig_id):
+                    continue
+                if prom_moves:
+                    # 新式逆向:迫星相位点(黄纬 0)被带到应星本命位置(真黄纬;黄极圈法用应星黄经圈)
+                    ra_s, decl_s = self._corePointEqCoords(sig, eps_mean, zero_lat=False)
+                    if ra_s is None or sig.get('lon') is None:
+                        continue
+                    if kind == 'ecliptic_pole':
+                        arc = _sp.ecliptic_pole_circle_arc(float(sig['lon']), float(ra_p), float(decl_p), eps_mean)
+                    else:
+                        arc = arc_fn(float(ra_s), float(decl_s), float(ra_p), float(decl_p), ramc, geo_lat)
+                    if arc is None or abs(arc) <= tiny or abs(arc) >= max_arc:
+                        continue
+                    pdlist.append([arc, prom_id, sig_id, 'Z'])
+                    continue
+                ra_s, decl_s = self._corePointEqCoords(sig, eps_mean, zero_lat=sig_zero_lat)
+                if ra_s is None:
+                    continue
+                if kind == 'ecliptic_pole':
+                    arc = _sp.ecliptic_pole_circle_arc(float(prom['lon']), float(ra_s), float(decl_s), eps_mean)
+                else:
+                    arc = arc_fn(float(ra_p), float(decl_p), float(ra_s), float(decl_s), ramc, geo_lat)
+                if arc is None or abs(arc) <= tiny or abs(arc) >= max_arc:
+                    continue
+                pdlist.append([arc, prom_id, sig_id, 'Z'])
+        pdlist = self._extendCorePdRecurrences(pdlist, max_arc) + angle_rows
+        want_direct = getattr(self.perchart, 'pdDirect', True)
+        want_direct = True if want_direct is None else bool(want_direct)
+        want_converse = bool(getattr(self.perchart, 'pdConverse', True))
+        if not want_direct and not want_converse:
+            want_direct = True
+        if not (want_direct and want_converse):
+            pdlist = [it for it in pdlist
+                      if (it[0] > 0 and want_direct) or (it[0] < 0 and want_converse)]
+        pdlist.sort(key=lambda item: (abs(item[0]), item[0], item[1], item[2]))
+        return pdlist
 
     def getPrimaryDirectionByZTopocentric(self):
-        return self.getPrimaryDirectionByZEngine('topocentric')
+        # Topocentric(Polich–Page):位置圈取目标点自己的 Topocentric 极(东正西负),其余取点 / 轴行 / 逆向口径与极下族同一内核
+        return self._getPrimaryDirectionByZSemiarcPole('topocentric')
 
     def getPrimaryDirectionByZPlacidusUnderPole(self):
-        # Placidus under-the-pole(普氏位置半圆近似):极点式,略异严密半弧。
-        return self.getPrimaryDirectionByZEngine('placidus_under_pole')
+        # Placidus 极下法:目标点的 Placidus 位置所在位置圈取其极(东正西负),在这个极下比斜升 / 斜降;
+        # 与半弧比例法(Placidus)的差别只在动点按目标点的极而非自己的半弧比例计,两者是两种算法而非近似关系
+        return self._getPrimaryDirectionByZSemiarcPole('placidus_pole')
 
     def getPrimaryDirectionByZZodiacalOA(self):
         # 纯黄道斜升差直推(古法):全点投黄道,弧 = OA 差(满 φ)。
@@ -1041,7 +1536,8 @@ class PerPredict:
 
     def _corePointEqCoords(self, point, obliquity, zero_lat=False):
         lon = point.get('lon')
-        lat = 0.0 if zero_lat else point.get('lat', 0.0)
+        # zero_lat = 取黄道上的点;迫星相位点按「相位点黄纬」口径另有 latZ 时用它(缺省口径没有 latZ = 0)
+        lat = float(point.get('latZ', 0.0) or 0.0) if zero_lat else point.get('lat', 0.0)
         if lon is None:
             return (None, None)
         return self._coreEqCoords(lon, lat, obliquity)
@@ -1364,23 +1860,12 @@ class PerPredict:
         current_dt = Datetime(date, tm, zone)
         chart = self.perchart.getChart()
         asc = chart.get(const.ASC)
-        asctime = SignAscTime(self.perchart.date, self.perchart.time, asc.sign, self.perchart.lat, self.perchart.zone)
+        asctime = SignAscTime(self.perchart.date, self.perchart.time, asc.sign, self.perchart.lat, self.perchart.zone,
+                              year_days=getattr(self.perchart, 'pdYearDays', 0))
         current_arc = asctime.getPDArcFromDate(current_dt)
-        # 度数换算 key：统一走 _pdTimeKeyScale 注册表 (见模块顶部 STATIC_TIME_KEY_SCALES)。
-        # Ptolemy 缩放 == 1.0，护住默认路径字节级一致；其它 static key 按表缩放弧 (不碰表格)。
-        pd_time_key = '{0}'.format(getattr(self.perchart, 'pdTimeKey', 'Ptolemy') or 'Ptolemy')
-        # 真太阳弧(动态钥匙):盘也要逐盘真算,用 key 的逆 solar_arc_for_years(年→赤经弧),
-        # 与表格 getDateFromPDArc(弧→年) round-trip 一致;否则盘会把它当 Ptolemy(scale 1.0)致盘表不符。
-        if pd_time_key.lower() in ('truesolararc', 'placidus_key', 'kepler', 'vandam'):
-            from astrostudy import pd_engine
-            current_arc = float(pd_engine.solar_arc_for_years(float(current_arc), float(chart.date.jd)))
-        elif pd_time_key.lower() == 'symbolicsolararc':
-            from astrostudy import pd_engine
-            current_arc = float(pd_engine.symbolic_solar_arc_for_years(float(current_arc), float(chart.date.jd)))
-        else:
-            current_arc = current_arc * _pdTimeKeyScale(
-                pd_time_key, chart=chart,
-                custom=getattr(self.perchart, 'pdTimeKeyCustom', None))
+        # 度数换算:与表格共用 _pdTimeKeyConverter(年→弧,与表格的弧→年互逆;Ptolemy 乘 1.0 字节级不变)。
+        _years_of_arc, _arc_of_years = self._pdTimeKeyConverter(chart)
+        current_arc = float(_arc_of_years(float(current_arc), bool(converse)))
         # 向运方向：direct=随时间逆时针(默认现状)；converse=按时间反向(顺时针)推进，即弧反号。
         directed_arc = -current_arc if converse else current_arc
         # 统一用当日 mean 黄赤交角（与表格口径一致；弃非 core 旧固定 23.44）。
@@ -1476,6 +1961,7 @@ class PerPredict:
         if _dt_dmap:
             significators = [self._coreShiftPointByDeltaT(o, _dt_dmap) for o in significators]
             promissors = [self._coreShiftPointByDeltaT(o, _dt_dmap) for o in promissors]
+        significators, promissors = self._pdApplyLatitudeOptions(significators, promissors)
         # 映点(antiscia)/界(terms) 促发星扩展 —— 与 pd_engine build_directions 同口径，
         # 补全 core 方位法(Alcabitius/Meridian/Porphyry/Equal…) 的「映点/界」开关，使其与
         # placidus 族一致可用。均作黄道合相点(lat=0)；本体 lon 取已 node 重建 + ΔT 平移后的 N_*_0。
@@ -1524,7 +2010,7 @@ class PerPredict:
                               'lon': core_vertex_lon, 'lat': 0.0})
         # S/P 清单扩展(默认 None=零追加,字节零回归)
         significators.extend(self._pdExtraSignificatorPoints(chart))
-        promissors.extend(self._pdExtraCuspPromissorPoints(chart))
+        promissors.extend(self._pdExtraCuspPromissorPoints(chart, aspects=aspList))
 
         max_arc = float(getattr(self.perchart, 'pdYears', 100) or 100)
         eps = 1e-12
@@ -1629,9 +2115,16 @@ class PerPredict:
         return pdlist
 
     def getPrimaryDirectionByZAlongEcliptic(self):
-        """Along-Ecliptic 方位法(In Zodiaco)：arc = 黄经差 norm180(λ_sig − λ_prom_asp)。
-        **合相(asp=0)逐位精确(median 0.00006°)**；非合相相位走不同口径(非黄经，似世俗，
-        待分析，同 In-Mundo 相位口径)，此处暂以黄经相位近似。强制 In Zodiaco。"""
+        """Along-Ecliptic 方位法(In Zodiaco)。强制 In Zodiaco。
+        - 本体应星(行星/交点/福点):迫星本体沿黄道行至应星的相位点,
+          arc = norm180(λ_sig − (λ_prom ∓ asp)) —— 相位取在应星一侧,故与迫星侧的
+          D/S 相位点互为镜像(D_x_a 用 λ_x + a,S_x_a 用 λ_x − a;合/冲不变)。
+        - 轴应星(ASC/MC/Vertex/DSC/IC):轴不沿黄道走,只随周日旋转移动,
+          弧 = 把该轴转到迫星相位点所需的赤经转角,即与核心法同一组轴闭式,直接复用核心核的轴行。"""
+        _ANGLE_SIGS = (const.ASC, const.MC, const.DESC, const.IC, CORE_PD_VERTEX_ID)
+        core_rows = self.getPrimaryDirectionByZCoreKernel()
+        angle_rows = [it for it in core_rows
+                      if self._baseDirectionObjectId(it[2]) in _ANGLE_SIGS]
         chart = self.perchart.getChart()
         pd = PrimaryDirections(chart)
         aspList = self.perchart.pdaspects
@@ -1647,24 +2140,56 @@ class PerPredict:
         if _dt:
             significators = [self._coreShiftPointByDeltaT(o, _dt) for o in significators]
             promissors = [self._coreShiftPointByDeltaT(o, _dt) for o in promissors]
+        significators, promissors = self._pdApplyLatitudeOptions(significators, promissors)
+        promissors.extend(self._corePdMirrorTermPromissors(promissors))
+        significators.extend(o for o in self._pdExtraSignificatorPoints(chart)
+                             if self._baseDirectionObjectId(o.get('id')) not in _ANGLE_SIGS)
+        promissors.extend(self._pdExtraCuspPromissorPoints(chart, aspects=aspList))
         max_arc = float(getattr(self.perchart, 'pdYears', 100) or 100)
         tiny = 1e-12
         pdlist = []
+        base_lons = {}
+        for prom in promissors:
+            _parts = '{0}'.format(prom.get('id') or '').split('_')
+            if len(_parts) == 3 and _parts[0] == 'N' and _parts[2] == '0' and prom.get('lon') is not None:
+                base_lons[_parts[1]] = float(prom['lon'])
         for prom in promissors:
             prom_id = prom.get('id')
             plon = prom.get('lon')
             if prom_id is None or plon is None:
                 continue
+            # 相位取在应星一侧 ⇔ 迫星侧相位点镜像:D(λ−a)→λ+a、S(λ+a)→λ−a。
+            # 相位点不归一(λ取 [0,360) 后直接 ± a):行星对显示窗判在这个原差上,归一后跨 0° 会误杀。
+            # 冲:λ+180 与 λ−180 两个原值里落窗的那一支。
+            _parts = '{0}'.format(prom_id).split('_')
+            targets = [float(plon)]
+            _base = base_lons.get(self._baseDirectionObjectId(prom_id))
+            if len(_parts) >= 3 and _base is not None:
+                try:
+                    _a = abs(float(_parts[-1]))
+                except ValueError:
+                    _a = None
+                if _a is not None and _parts[0] == 'D':
+                    targets = [_base + _a]
+                elif _a is not None and _parts[0] == 'S':
+                    targets = [_base - _a]
+                elif _a is not None and _parts[0] == 'N' and abs(_a - 180.0) < 1e-9:
+                    targets = [_base + 180.0, _base - 180.0]
             for sig in significators:
                 sig_id = sig.get('id')
                 if sig_id is None or prom_id == sig_id:
+                    continue
+                if self._baseDirectionObjectId(sig_id) in _ANGLE_SIGS:
                     continue
                 if self._baseDirectionObjectId(prom_id) == self._baseDirectionObjectId(sig_id):
                     continue
                 slon = sig.get('lon')
                 if slon is None:
                     continue
-                raw_arc_delta = float(slon) - float(plon)
+                raws = [float(slon) - t for t in targets]
+                raw_arc_delta = raws[0]
+                if len(raws) > 1:
+                    raw_arc_delta = min(raws, key=abs)
                 arc = self._norm180(raw_arc_delta)
                 if abs(arc) <= tiny or abs(arc) > max_arc:
                     continue
@@ -1674,6 +2199,7 @@ class PerPredict:
                         continue
                 pdlist.append([arc, prom_id, sig_id, 'Z'])
         pdlist = self._extendCorePdRecurrences(pdlist, max_arc)
+        pdlist = pdlist + angle_rows
         want_direct = getattr(self.perchart, 'pdDirect', True)
         want_direct = True if want_direct is None else bool(want_direct)
         want_converse = bool(getattr(self.perchart, 'pdConverse', True))
@@ -1686,18 +2212,98 @@ class PerPredict:
         return pdlist
 
     def getPrimaryDirectionByZEdmundJones(self):
-        """Edmund Jones 方位法(In Zodiaco)：≈|Alcabitius 弧|(=|RA差|)，禁 converse(恒正)。
-        **合相逐位精确(median 0.00004°)**；非合相相位走不同口径(同 In-Mundo，待分析)，暂近似。"""
-        rows = self.getPrimaryDirectionByZCoreKernel()
-        best = {}
-        for r in rows:
-            key = (r[1], r[2])
-            a = abs(float(r[0]))
-            if key not in best or a < best[key][0]:
-                best[key] = [a, r[1], r[2], r[3]]
-        out = list(best.values())
-        out.sort(key=lambda it: (abs(it[0]), it[0], it[1], it[2]))
-        return out
+        """Edmund Jones(In Zodiaco)。每个 (迫星, 应星, 相位 θ≥0) 只出一行,相位点 Q = (λ迫 − θ, β=0):
+        - 赤经式 B = |RA应 − RA_Q − θ|(合相即 |RA应 − RA迫|,冲与合同值);
+        - 半弧式 C = Q 沿自身周日圈被带到应星本命位置的半弧法弧(应星带真黄纬为目标,见 pd_semiarc_pole);
+        θ≠0 且 |C| 在年龄窗内 → 出半弧行(相位记右旋 D_*),否则出赤经行(相位记左旋 S_*);冲两支同记 N_*_180。
+        行标的左右只表示用了哪个式子,不是相位侧:相位侧选「只出左旋」时改为按真正的左旋相位点 Q = λ迫 + θ
+        一律用赤经式 |RA应 − RA_Q + θ|;「只出右旋」= 上面的半弧行 + 冲。
+        弧取绝对值、不分方向,顺 / 逆勾选对本法不起作用(否则「只出逆向」时整表几乎为空)。
+        轴应星(ASC/MC/Vertex/DSC/IC)沿用核心核的周日旋转弧。取点(真交点重建、ΔT 平移、扩展点)与核心核同口径。"""
+        from astrostudy import pd_semiarc_pole as _sp
+        _ANGLE_SIGS = (const.ASC, const.MC, const.DESC, const.IC, CORE_PD_VERTEX_ID)
+        # 顺 / 逆勾选对本法不起作用:轴行借核心核时临时两向都出
+        pc = self.perchart
+        saved = (getattr(pc, 'pdDirect', True), getattr(pc, 'pdConverse', True))
+        pc.pdDirect, pc.pdConverse = True, True
+        try:
+            angle_rows = [it for it in self.getPrimaryDirectionByZCoreKernel()
+                          if self._baseDirectionObjectId(it[2]) in _ANGLE_SIGS]
+        finally:
+            pc.pdDirect, pc.pdConverse = saved
+        chart = self.perchart.getChart()
+        pd = PrimaryDirections(chart)
+        aspList = self.perchart.pdaspects
+        sig_objs = pd._elements(CORE_PD_SIGNIFICATOR_IDS, pd.N, [0])
+        sinister = (getattr(self.perchart, 'pdAspectSide', 0) or 0) == 2
+        drop = 'D_' if sinister else 'S_'
+        promissors = [o for o in pd._elements(CORE_PD_PROMISSOR_IDS, pd.N, aspList)
+                      if not '{0}'.format(o.get('id') or '').startswith(drop)]
+        node_base_lons = self._coreTrueNodeBaseLons(chart)
+        significators = [self._rebuildCoreNodePoint(pd, obj, node_base_lons) for obj in sig_objs]
+        promissors = [self._rebuildCoreNodePoint(pd, obj, node_base_lons) for obj in promissors]
+        _dt_dmap = self._corePdDeltaTPointMap(chart)
+        if _dt_dmap:
+            significators = [self._coreShiftPointByDeltaT(o, _dt_dmap) for o in significators]
+            promissors = [self._coreShiftPointByDeltaT(o, _dt_dmap) for o in promissors]
+        significators, promissors = self._pdApplyLatitudeOptions(significators, promissors)
+        promissors.extend(self._corePdMirrorTermPromissors(promissors))
+        significators.extend(self._pdExtraSignificatorPoints(chart))
+        # Edmund Jones 每个 (迫星, 应星, θ) 只出一行:恒星相位点同样只取右旋点
+        promissors.extend(o for o in self._pdExtraCuspPromissorPoints(chart, aspects=aspList)
+                          if not '{0}'.format(o.get('id') or '').startswith(drop))
+        eps_mean = self._coreMeanObliquity(chart)
+        geo_lat = self._coreParseCoord(getattr(self.perchart, 'lat', 0.0))
+        geo_lon = self._coreParseCoord(getattr(self.perchart, 'lon', 0.0))
+        ramc = float(_polarSafeHousesEx(chart.date.jd, geo_lat, geo_lon, b'P')[1][2])
+        max_arc = float(getattr(self.perchart, 'pdYears', 100) or 100)
+        tiny = 1e-12
+        pdlist = []
+        for prom in promissors:
+            prom_id = prom.get('id')
+            ra_q, decl_q = self._corePointEqCoords(prom, eps_mean, zero_lat=True)
+            if prom_id is None or ra_q is None:
+                continue
+            parts = '{0}'.format(prom_id).split('_')
+            theta = 0.0
+            if len(parts) >= 3 and parts[0] in ('N', 'D', 'S'):
+                try:
+                    theta = abs(float(parts[-1]))
+                except ValueError:
+                    theta = 0.0
+            body = self._baseDirectionObjectId(prom_id)
+            true_sinister = sinister   # 只出左旋:左旋相位点、合、冲一律用赤经式
+            for sig in significators:
+                sig_id = sig.get('id')
+                if sig_id is None or prom_id == sig_id:
+                    continue
+                if self._baseDirectionObjectId(sig_id) in _ANGLE_SIGS:
+                    continue
+                if body == self._baseDirectionObjectId(sig_id):
+                    continue
+                ra_s, decl_s = self._corePointEqCoords(sig, eps_mean, zero_lat=False)
+                if ra_s is None:
+                    continue
+                if true_sinister:
+                    # 真正的左旋相位点 Q = λ迫 + θ(合 / 冲亦同):赤经式,不取半弧式
+                    arc = abs(self._norm180(float(ra_s) - float(ra_q) + theta))
+                    if abs(arc) <= tiny or abs(arc) >= max_arc:
+                        continue
+                    pdlist.append([arc, prom_id, sig_id, 'Z'])
+                    continue
+                arc = abs(self._norm180(float(ra_s) - float(ra_q) - theta))
+                row_id = 'S_%s_%s' % (body, parts[-1]) if parts[0] == 'D' else prom_id
+                if theta > 0.0:
+                    c = self._pdGeometry().semiarc_arc(float(ra_s), float(decl_s), float(ra_q), float(decl_q), ramc, geo_lat)
+                    if c is not None and abs(c) < max_arc:
+                        arc, row_id = c, prom_id
+                if abs(arc) <= tiny or abs(arc) >= max_arc:
+                    continue
+                pdlist.append([arc, row_id, sig_id, 'Z'])
+        pdlist = self._extendCorePdRecurrences(pdlist, max_arc) + angle_rows
+        # 弧取绝对值、不分方向:顺 / 逆勾选对本法不起作用
+        pdlist.sort(key=lambda item: (abs(item[0]), item[0], item[1], item[2]))
+        return pdlist
 
     @staticmethod
     def _coreWorldLongitude(ra, dec, ramc, phi):
@@ -1746,6 +2352,7 @@ class PerPredict:
         if _dt:
             significators = [self._coreShiftPointByDeltaT(o, _dt) for o in significators]
             promissors = [self._coreShiftPointByDeltaT(o, _dt) for o in promissors]
+        significators, promissors = self._pdApplyLatitudeOptions(significators, promissors)
         # 映点/界 促发星扩展(与 In-Zodiaco 核同口径,补全 In-Mundo 核的开关)。
         _want_anti = bool(getattr(self.perchart, 'pdAntiscia', False))
         _want_terms = bool(getattr(self.perchart, 'pdTerms', False))
@@ -1786,7 +2393,7 @@ class PerPredict:
         significators.append({'id': 'N_{0}_0'.format(CORE_PD_VERTEX_ID),
                               'lon': angle.norm(float(_m_ascmc[3])), 'lat': 0.0})
         significators.extend(self._pdExtraSignificatorPoints(chart))
-        promissors.extend(self._pdExtraCuspPromissorPoints(chart))
+        promissors.extend(self._pdExtraCuspPromissorPoints(chart, aspects=aspList))
         core_ramc_m = float(_m_ascmc[2])
         max_arc = float(getattr(self.perchart, 'pdYears', 100) or 100)
         tiny = 1e-12
@@ -1930,6 +2537,375 @@ class PerPredict:
         pdlist.sort(key=lambda item: (abs(item[0]), item[0], item[1], item[2]))
         return pdlist
 
+    def getPrimaryDirectionByMAlcabitius(self):
+        return self._getPrimaryDirectionByMFrame('alcabitius')
+
+    def getPrimaryDirectionByMMorinus(self):
+        return self._getPrimaryDirectionByMFrame('morinus')
+
+    def getPrimaryDirectionByMMeridian(self):
+        return self._getPrimaryDirectionByMFrame('meridian')
+
+    def getPrimaryDirectionByMPlacidus(self):
+        return self._getPrimaryDirectionByMFrame('placidus')
+
+    def getPrimaryDirectionByMEqualHourCircle(self):
+        return self._getPrimaryDirectionByMFrame('equal_hour')
+
+    def _getPrimaryDirectionByMFrame(self, kind):
+        """In Mundo(世俗位置见 pd_mundane)。
+        - 本体应星(行星 / 真交点 / 福点):迫星本体(真黄纬)沿周日运动走到应星世俗位置 + 相位处。
+          Alcabitius:arc = wrap180(RA迫 − RAMC − h),h 为该世俗角对应的距 MC 赤经差;
+          Morinus:目标黄经圈 = 应星黄道升 + 相位,arc = 迫星赤纬圈与该黄经圈交点赤经 − RA迫;
+          Meridian:宫圈为自 RAMC 每 30° 的时圈,世俗位置即赤经;应星被带到迫星世俗位置 − 相位处,
+          arc = wrap180(RA应 − RA迫 + 相位);
+          Placidus:应星被带到迫星半弧比例位置 + 相位处(pd_mundane.placidus_mundane_arc);
+          Regiomontanus / Campanus:世俗角取过地平南北点的位置圈与赤道 / 卯酉圈交点的角度,应星被带到
+          迫星世俗角 + 相位的那个位置半圆上(pd_mundane.position_circle_mundane_arc);
+          Equal(时圈):应星时圈与黄道交点黄经 + 相位处的黄道点走到迫星赤经处(pd_mundane.equal_hour_mundane_arc);
+          Porphyry / Equal(黄道):世俗角 = 黄经在本命象限内的比例(等宫即自上升起的黄经),目标黄经 = 应星世俗角 + 相位
+          换回的黄经,迫星沿赤纬圈走到该黄经圈(与 Morinus 同一几何)。
+        - 轴应星只出合相:上升 / 下降 / 宿命点 / 东点(卯酉圈东交点)= 迫星(真黄纬)穿越真实地平或卯酉圈的
+          斜升 / 斜降之差,轴向迫星计、符号取 轴 − 迫星;天顶 / 天底 = |RA迫 − RA轴|。"""
+        from astrostudy import pd_mundane as _pm
+        from astrostudy import pd_semiarc_pole as _sp
+        prom_moves = self._pdPromissorMoves()
+        geo = self._pdGeometry()
+        chart = self.perchart.getChart()
+        pd = PrimaryDirections(chart)
+        aspList = [float(a) for a in (self.perchart.pdaspects or [0])]
+        significators = pd._elements(CORE_PD_SIGNIFICATOR_IDS, pd.N, [0])
+        promissors = pd._elements(CORE_PD_PROMISSOR_IDS, pd.N, [0])
+        node_base_lons = self._coreTrueNodeBaseLons(chart)
+        significators = [self._rebuildCoreNodePoint(pd, obj, node_base_lons) for obj in significators]
+        promissors = [self._rebuildCoreNodePoint(pd, obj, node_base_lons) for obj in promissors]
+        _dt_dmap = self._corePdDeltaTPointMap(chart)
+        if _dt_dmap:
+            significators = [self._coreShiftPointByDeltaT(o, _dt_dmap) for o in significators]
+            promissors = [self._coreShiftPointByDeltaT(o, _dt_dmap) for o in promissors]
+        significators, promissors = self._pdApplyLatitudeOptions(significators, promissors)
+        promissors.extend(self._corePdMirrorTermPromissors(promissors))
+        _axis_names = (const.ASC, const.MC, const.DESC, const.IC, CORE_PD_VERTEX_ID, CORE_PD_ANTIVERTEX_ID)
+        significators.extend(o for o in self._pdExtraSignificatorPoints(chart)
+                             if self._baseDirectionObjectId(o.get('id')) not in _axis_names)
+        promissors.extend(self._pdExtraCuspPromissorPoints(chart))
+        eps_mean = self._coreMeanObliquity(chart)
+        geo_lat = float(self._coreParseCoord(getattr(self.perchart, 'lat', 0.0)))
+        geo_lon = self._coreParseCoord(getattr(self.perchart, 'lon', 0.0))
+        ascmc = _polarSafeHousesEx(chart.date.jd, geo_lat, geo_lon, b'P')[1]
+        ramc = float(ascmc[2])
+        _asc_ra, asc_decl = self._coreEqCoords(float(ascmc[0]), 0.0, eps_mean)
+        dsa_asc = 90.0 + float(utils.ascdiff(float(asc_decl), geo_lat))
+        # Koch 世俗角按天顶度数的昼半弧量(pd_mundane.koch_mundane_position)
+        ad_mc = float(utils.ascdiff(float(self._coreEqCoords(float(ascmc[1]), 0.0, eps_mean)[1]), geo_lat))
+        max_arc = float(getattr(self.perchart, 'pdYears', 100) or 100)
+        tiny = 1e-12
+        want_mpar = bool(getattr(self.perchart, 'pdParallel', False))
+        want_rapt = bool(getattr(self.perchart, 'pdRaptParallel', False))
+        # 地平轴所在时圈:Alcabitius / Porphyry / 黄道等宫取上升点的时圈,Meridian / 时圈等宫 / Morinus 取 RAMC + 90°
+        horizon_axis_ra = float(_asc_ra) if kind in ('alcabitius', 'porphyry', 'equal_ecliptic') else (ramc + 90.0) % 360.0
+        offsets = []
+        for a in aspList:
+            a = abs(a)
+            if a < 1e-9:
+                offsets.append(('N', 0, 0.0))
+            elif abs(a - 180.0) < 1e-9:
+                offsets.append(('N', 180, 180.0))
+            else:
+                ai = int(a) if float(a).is_integer() else a
+                offsets.append(('D', ai, -a))
+                offsets.append(('S', ai, a))
+
+        def _ad(decl, lat):
+            x = math.tan(math.radians(decl)) * math.tan(math.radians(lat))
+            return None if abs(x) >= 1.0 else math.degrees(math.asin(x))
+
+        pdlist = []
+        for prom in promissors:
+            prom_id = prom.get('id')
+            ra_p, decl_p = self._corePointEqCoords(prom, eps_mean, zero_lat=False)
+            if prom_id is None or ra_p is None:
+                continue
+            ra_p, decl_p = float(ra_p), float(decl_p)
+            body = self._baseDirectionObjectId(prom_id)
+            is_body = '{0}'.format(prom_id).startswith('N_')
+            for sig in significators:
+                sig_id = sig.get('id')
+                if sig_id is None or body == self._baseDirectionObjectId(sig_id):
+                    continue
+                ra_s, decl_s = self._corePointEqCoords(sig, eps_mean, zero_lat=False)
+                if ra_s is None or sig.get('lon') is None:
+                    continue
+                if want_mpar and is_body and self._baseDirectionObjectId(sig_id) not in _axis_names:
+                    # 世俗平行(子午):Placidus = 应星走到迫星关于子午圈的半弧比例镜像;Regiomontanus / Campanus = 应星走到
+                    # 迫星位置圈世俗角的子午镜像;其余方位法按赤经镜像(子午距相等、东西相反)
+                    if kind == 'horizontal':
+                        par = _pm.horizontal_parallel_arc(ra_p, decl_p, float(ra_s), float(decl_s), ramc, geo_lat, 'MER')
+                    elif kind == 'koch':
+                        par = _pm.koch_parallel_arc(ra_p, decl_p, float(ra_s), float(decl_s), ramc, geo_lat, ad_mc, 'MER')
+                    elif kind == 'placidus':
+                        par = geo.placidus_meridian_parallel_arc(ra_p, decl_p, float(ra_s), float(decl_s), ramc, geo_lat)
+                    elif kind in ('regiomontanus', 'campanus'):
+                        par = geo.position_circle_meridian_parallel_arc(ra_p, decl_p, float(ra_s), float(decl_s), ramc,
+                                                                        geo_lat, kind)
+                    elif kind == 'morinus':
+                        par = geo.morinus_meridian_parallel_arc(ra_p, decl_p, float(sig['lon']), float(ra_s), ramc, eps_mean)
+                    else:
+                        par = geo.meridian_parallel_arc(ra_p, float(ra_s), ramc)
+                    if par is not None and tiny < abs(par) <= max_arc:
+                        pdlist.append([par, 'MP_%s_MER' % body, sig_id, 'M'])
+                    # 世俗平行(地平):同一构造换地平轴。Regiomontanus / Campanus = 世俗角 U ↦ 180 − U;
+                    # 其余(Placidus 除外,见下)按地平轴所在时圈的平面镜像
+                    if kind != 'placidus':
+                        if kind == 'horizontal':
+                            par_h = _pm.horizontal_parallel_arc(ra_p, decl_p, float(ra_s), float(decl_s), ramc, geo_lat, 'HOR')
+                        elif kind == 'koch':
+                            par_h = _pm.koch_parallel_arc(ra_p, decl_p, float(ra_s), float(decl_s), ramc, geo_lat, ad_mc, 'HOR')
+                        elif kind in ('regiomontanus', 'campanus'):
+                            par_h = _pm.position_circle_horizon_parallel_arc(ra_p, decl_p, float(ra_s), float(decl_s),
+                                                                             ramc, geo_lat, kind)
+                        else:
+                            par_h = _pm.axis_plane_parallel_arc(ra_p, float(ra_s), horizon_axis_ra)
+                        if par_h is not None and tiny < abs(par_h) <= max_arc:
+                            pdlist.append([par_h, 'MP_%s_HOR' % body, sig_id, 'M'])
+                if want_rapt and is_body and kind != 'placidus' and self._baseDirectionObjectId(sig_id) not in _axis_names:
+                    # 急动平行:两者同被周日运动带动,走到关于子午 / 地平轴互为镜像处(度量同上)
+                    for axis_name, axis_ra, axis_u in (('MER', ramc, 0.0), ('HOR', horizon_axis_ra, 90.0)):
+                        if kind == 'horizontal':
+                            rapts = _pm.horizontal_rapt_arcs(ra_p, decl_p, float(ra_s), float(decl_s), ramc, geo_lat,
+                                                             axis_name, span=min(179.0, max_arc + 10.0))
+                        elif kind == 'koch':
+                            rapts = _pm.koch_rapt_arcs(ra_p, decl_p, float(ra_s), float(decl_s), ramc, geo_lat, ad_mc,
+                                                       axis_name, span=min(179.0, max_arc + 10.0))
+                        elif kind in ('regiomontanus', 'campanus'):
+                            rapts = _pm.position_circle_rapt_arcs(ra_p, decl_p, float(ra_s), float(decl_s), ramc, geo_lat,
+                                                                  kind, axis_u, span=min(179.0, max_arc + 10.0))
+                        else:
+                            rapts = _pm.axis_plane_rapt_arcs(ra_p, float(ra_s), axis_ra)
+                        for rp in rapts:
+                            if tiny < abs(rp) <= max_arc:
+                                pdlist.append([rp, 'RP_%s_%s' % (body, axis_name), sig_id, 'M'])
+                for pre, a, signed in (offsets if is_body else [('N', 0, 0.0)]):
+                    if kind == 'horizontal':
+                        if prom_moves:
+                            arc = geo.horizontal_mundane_arc(float(ra_s), float(decl_s), ra_p, decl_p, ramc, geo_lat, signed)
+                        else:
+                            arc = geo.horizontal_mundane_arc(ra_p, decl_p, float(ra_s), float(decl_s), ramc, geo_lat, signed)
+                    elif kind == 'koch':
+                        if prom_moves:
+                            arc = _pm.koch_mundane_arc(float(ra_s), float(decl_s), ra_p, decl_p, ramc, geo_lat, ad_mc, signed)
+                        else:
+                            arc = _pm.koch_mundane_arc(ra_p, decl_p, float(ra_s), float(decl_s), ramc, geo_lat, ad_mc, signed)
+                    elif kind == 'equal_hour':
+                        arc = _pm.equal_hour_mundane_arc(ra_p, float(ra_s), signed, eps_mean)
+                    elif kind in ('regiomontanus', 'campanus'):
+                        if prom_moves:
+                            arc = geo.position_circle_mundane_arc(float(ra_s), float(decl_s), ra_p, decl_p, ramc, geo_lat, signed, kind)
+                        else:
+                            arc = geo.position_circle_mundane_arc(ra_p, decl_p, float(ra_s), float(decl_s), ramc, geo_lat, signed, kind)
+                    elif kind == 'placidus' and prom_moves:
+                        arc = geo.placidus_mundane_arc(float(ra_s), float(decl_s), ra_p, decl_p, ramc, geo_lat, signed)
+                    elif kind == 'placidus':
+                        arc = geo.placidus_mundane_arc(ra_p, decl_p, float(ra_s), float(decl_s), ramc, geo_lat, signed)
+                    elif kind == 'meridian':
+                        arc = self._norm180(float(ra_s) - ra_p + signed)
+                    elif kind in ('morinus', 'porphyry', 'equal_ecliptic'):
+                        if kind == 'morinus':
+                            lon_t = _pm.morinus_mundane_target_lon(float(sig['lon']), signed, eps_mean)
+                        elif kind == 'porphyry':
+                            lon_t = geo.porphyry_mundane_target_lon(float(sig['lon']), signed, ramc, geo_lat, eps_mean)
+                        else:
+                            lon_t = _pm.equal_mundane_target_lon(float(sig['lon']), signed)
+                        arc = _sp.ecliptic_pole_circle_arc(lon_t, ra_p, decl_p, eps_mean)
+                        arc = None if arc is None else -arc
+                    else:
+                        arc = geo.alcabitius_mundane_arc(ra_p, float(ra_s), ramc, dsa_asc, signed)
+                    if arc is None or abs(arc) <= tiny or abs(arc) > max_arc:
+                        continue
+                    rid = '%s_%s_%s' % (pre, body, a) if is_body else prom_id
+                    pdlist.append([arc, rid, sig_id, 'M'])
+            # 轴应星(只出合相)
+            ad = _ad(decl_p, geo_lat)
+            adc = _ad(decl_p, 90.0 - geo_lat)
+            axis_arcs = [(const.MC, abs(self._norm180(ra_p - ramc))),
+                         (const.IC, abs(self._norm180(ra_p - ramc - 180.0)))]
+            if ad is not None:
+                axis_arcs += [(const.ASC, -self._norm180(ra_p - ad - (ramc + 90.0))),
+                              (const.DESC, -self._norm180(ra_p + ad - (ramc + 270.0)))]
+            if adc is not None:
+                axis_arcs += [(CORE_PD_VERTEX_ID, -self._norm180(ra_p - adc - (ramc + 270.0))),
+                              (CORE_PD_ANTIVERTEX_ID, -self._norm180(ra_p + adc - (ramc + 90.0)))]
+            for axis, arc in axis_arcs:
+                if abs(arc) <= tiny or abs(arc) > max_arc:
+                    continue
+                pdlist.append([arc, prom_id, 'N_%s_0' % axis, 'M'])
+        pdlist = self._extendCorePdRecurrences(pdlist, max_arc)
+        if kind == 'placidus' and (want_mpar or want_rapt):
+            # Placidus 的地平平行与急动平行走 pd_engine 世俗族(半弧比例镜像,已含复发行);子午平行由上面的循环直接给出
+            legacy = self.getPrimaryDirectionByZEngine('placidus', zodiacal=False)
+            for it in legacy:
+                parts = '{0}'.format(it[1]).split('_')
+                if parts[0] == 'RP' or (parts[0] == 'MP' and want_mpar and parts[-1] != 'MER'):
+                    pdlist.append(list(it[:4]))
+        want_direct = getattr(self.perchart, 'pdDirect', True)
+        want_direct = True if want_direct is None else bool(want_direct)
+        want_converse = bool(getattr(self.perchart, 'pdConverse', True))
+        if not want_direct and not want_converse:
+            want_direct = True
+        if not (want_direct and want_converse):
+            pdlist = [it for it in pdlist
+                      if (it[0] > 0 and want_direct) or (it[0] < 0 and want_converse)]
+        pdlist.sort(key=lambda item: (abs(item[0]), item[0], item[1], item[2]))
+        return pdlist
+
+    def getPrimaryDirectionByF(self):
+        """Field Plane:相位点黄经 λ迫 ± 相位,黄纬借用迫星出生后第一次走到该黄经时的黄纬(见 pd_fieldplane);
+        合相点用本命黄纬。弧按方位法:
+          核心族 = wrap180(RA相位点 − RA应);Placidus = 相位点沿自身周日圈走到应星本命半弧比例位置;
+          Regiomontanus / Campanus = 相位点在应星位置圈的极下;Morinus = 相位点沿赤纬圈走到应星黄经圈。
+        轴应星:上升 = OA相位点 − OA上升、天顶 = |RA相位点 − RAMC|、宿命点 = 余纬框架斜升差。
+        Along-Ecliptic 只用黄经,与 In Zodiaco 相同;Edmund Jones 同 In Zodiaco 的二选一规则,
+        相位点 Q = (λ迫 − θ, 借用黄纬)。"""
+        from astrostudy import pd_fieldplane as _fp
+        from astrostudy import pd_semiarc_pole as _sp
+        from astrostudy import pd_geometry as _pg
+        geo = self._pdGeometry()
+        # 经典口径(传统程序的写法):合相点也按「第一次走到该黄经」借黄纬;「忽略迫星黄纬」在 Field Plane 不起作用。
+        # 改进口径:合相点 = 迫星本身(本命黄纬),忽略迫星黄纬照常清零
+        fp_classic = _pg.normalize_variant(getattr(self.perchart, 'pdGeometry', None)) == 'classic'
+        ignore_prom = bool(getattr(self.perchart, 'pdIgnorePromLat', False)) and not fp_classic
+        proj, _frame = self._pdResolveProjectionFrame()
+        if proj == 'in_zodiaco_lon':
+            pdlist = self.getPrimaryDirectionByZAlongEcliptic()
+            self.appendDateStr(pdlist)
+            return pdlist
+        edmund = proj == 'in_zodiaco_abs'
+        chart = self.perchart.getChart()
+        pd = PrimaryDirections(chart)
+        aspList = self.perchart.pdaspects
+        significators = pd._elements(CORE_PD_SIGNIFICATOR_IDS, pd.N, [0])
+        promissors = pd._elements(CORE_PD_PROMISSOR_IDS, pd.N, aspList)
+        if edmund:
+            # Edmund Jones 每个 (迫星, 应星, θ) 只出一行,相位点一律取 λ迫 − θ(右旋点)
+            promissors = [o for o in promissors if not '{0}'.format(o.get('id') or '').startswith('S_')]
+        node_base_lons = self._coreTrueNodeBaseLons(chart)
+        significators = [self._rebuildCoreNodePoint(pd, obj, node_base_lons) for obj in significators]
+        promissors = [self._rebuildCoreNodePoint(pd, obj, node_base_lons) for obj in promissors]
+        _dt_dmap = self._corePdDeltaTPointMap(chart)
+        if _dt_dmap:
+            significators = [self._coreShiftPointByDeltaT(o, _dt_dmap) for o in significators]
+            promissors = [self._coreShiftPointByDeltaT(o, _dt_dmap) for o in promissors]
+        significators, promissors = self._pdApplyLatitudeOptions(significators, promissors, ignore_prom_lat=ignore_prom)
+        promissors.extend(self._corePdMirrorTermPromissors(promissors))
+        significators.extend(self._pdExtraSignificatorPoints(chart))
+        promissors.extend(o for o in self._pdExtraCuspPromissorPoints(chart, aspects=aspList)
+                          if not (edmund and '{0}'.format(o.get('id') or '').startswith('S_')))
+        eps_mean = self._coreMeanObliquity(chart)
+        geo_lat = float(self._coreParseCoord(getattr(self.perchart, 'lat', 0.0)))
+        geo_lon = self._coreParseCoord(getattr(self.perchart, 'lon', 0.0))
+        ramc = float(_polarSafeHousesEx(chart.date.jd, geo_lat, geo_lon, b'P')[1][2])
+        jd_ut = float(chart.date.jd)
+        flags = self._coreEphemerisFlags()
+        max_arc = float(getattr(self.perchart, 'pdYears', 100) or 100)
+        tiny = 1e-12
+        _ANGLE_SIGS = (const.ASC, const.MC, const.DESC, const.IC, CORE_PD_VERTEX_ID)
+
+        def _ad(decl, lat):
+            x = math.tan(math.radians(decl)) * math.tan(math.radians(lat))
+            return None if abs(x) >= 1.0 else math.degrees(math.asin(x))
+
+        lat_cache = {}
+        self._pdFieldPlaneLatitudes = {}
+        pdlist = []
+        for prom in promissors:
+            prom_id = prom.get('id')
+            lon = prom.get('lon')
+            if prom_id is None or lon is None:
+                continue
+            parts = '{0}'.format(prom_id).split('_')
+            body = self._baseDirectionObjectId(prom_id)
+            offset = 0.0
+            aspect_point = len(parts) >= 3 and parts[0] in ('N', 'D', 'S')
+            if aspect_point:
+                try:
+                    offset = abs(float(parts[-1]))
+                except ValueError:
+                    offset = 0.0
+            beta = float(prom.get('lat', 0.0) or 0.0)
+            if (offset > 1e-9 or (fp_classic and aspect_point)) and not ignore_prom and body not in self._PD_STAR_ROSTER:
+                # 恒星不随时间移动黄纬(岁差另计),相位点黄纬即恒星本身黄纬,不借用
+                model = CORE_PD_VIRTUAL_BODY_CORR_MODELS.get(body)
+                if model is None:
+                    if offset > 1e-9:
+                        beta = 0.0
+                else:
+                    key = (body, round(float(lon), 9), offset <= 1e-9)
+                    if key not in lat_cache:
+                        lat_cache[key] = _fp.first_arrival_latitude(jd_ut, model[1], float(lon), flags,
+                                                                    start_days=1.0 if offset <= 1e-9 else 1.0 / 86400.0)
+                    if lat_cache[key] is not None:
+                        beta = lat_cache[key]
+                    elif offset > 1e-9:
+                        continue
+            self._pdFieldPlaneLatitudes[prom_id] = beta
+            ra_q, decl_q = self._coreEqCoords(float(lon), beta, eps_mean)
+            ra_q, decl_q = float(ra_q), float(decl_q)
+            for sig in significators:
+                sig_id = sig.get('id')
+                if sig_id is None or body == self._baseDirectionObjectId(sig_id):
+                    continue
+                if self._baseDirectionObjectId(sig_id) in _ANGLE_SIGS:
+                    continue
+                ra_s, decl_s = self._corePointEqCoords(sig, eps_mean, zero_lat=False)
+                if ra_s is None or sig.get('lon') is None:
+                    continue
+                ra_s, decl_s = float(ra_s), float(decl_s)
+                if edmund:
+                    row_id = 'S_%s_%s' % (body, parts[-1]) if parts[0] == 'D' else prom_id
+                    arc = abs(self._norm180(ra_s - ra_q - offset))
+                    if offset > 1e-9:
+                        c = geo.semiarc_arc(ra_s, decl_s, ra_q, decl_q, ramc, geo_lat)
+                        if c is not None and abs(c) < max_arc:
+                            arc, row_id = c, prom_id
+                    if abs(arc) <= tiny or abs(arc) >= max_arc:
+                        continue
+                    pdlist.append([arc, row_id, sig_id, 'Z'])
+                    continue
+                if proj == 'placidus':
+                    arc = geo.semiarc_arc(ra_s, decl_s, ra_q, decl_q, ramc, geo_lat)
+                elif proj in ('regiomontanus', 'campanus'):
+                    arc = geo.pole_circle_arc(ra_s, decl_s, ra_q, decl_q, ramc, geo_lat)
+                elif proj == 'morinus':
+                    arc = _sp.ecliptic_pole_circle_arc(float(sig['lon']), ra_q, decl_q, eps_mean)
+                else:
+                    arc = self._norm180(ra_q - ra_s)
+                if arc is None or abs(arc) <= tiny or abs(arc) >= max_arc:
+                    continue
+                pdlist.append([arc, prom_id, sig_id, 'Z'])
+            ad = _ad(decl_q, geo_lat)
+            adc = _ad(decl_q, 90.0 - geo_lat)
+            axis_arcs = [(const.MC, abs(self._norm180(ra_q - ramc)))]
+            if ad is not None:
+                axis_arcs.append((const.ASC, self._norm180(ra_q - ad - (ramc + 90.0))))
+            if adc is not None:
+                axis_arcs.append((CORE_PD_VERTEX_ID, self._norm180(ra_q - adc - (ramc + 270.0))))
+            for axis, arc in axis_arcs:
+                if abs(arc) <= tiny or abs(arc) >= max_arc:
+                    continue
+                pdlist.append([arc, prom_id, 'N_%s_0' % axis, 'Z'])
+        pdlist = self._extendCorePdRecurrences(pdlist, max_arc)
+        want_direct = getattr(self.perchart, 'pdDirect', True)
+        want_direct = True if want_direct is None else bool(want_direct)
+        want_converse = bool(getattr(self.perchart, 'pdConverse', True))
+        if not want_direct and not want_converse:
+            want_direct = True
+        if not (want_direct and want_converse):
+            pdlist = [it for it in pdlist
+                      if (it[0] > 0 and want_direct) or (it[0] < 0 and want_converse)]
+        pdlist.sort(key=lambda item: (abs(item[0]), item[0], item[1], item[2]))
+        self.appendDateStr(pdlist)
+        return pdlist
+
     def getPrimaryDirectionByM(self):
         # 世俗向运(in mundo)。placidus 等走 pd_engine；core 走纯公式世俗核；legacy 仍走 flatlib 'M'。
         # 分发按 resolved projection;旧 morinus/in_zodiaco_lon/in_zodiaco_abs/horosa_legacy 在
@@ -1937,8 +2913,40 @@ class PerPredict:
         proj, _frame = self._pdResolveProjectionFrame()
         method = getattr(self.perchart, 'pdMethod', 'core_alchabitius') or 'core_alchabitius'
         explicit_proj = getattr(self.perchart, 'pdProjection', None) is not None
-        if proj in ('placidus', 'regiomontanus', 'campanus', 'topocentric'):
+        if proj == 'placidus':
+            pdlist = self.getPrimaryDirectionByMPlacidus()
+            self.appendDateStr(pdlist)
+            return pdlist
+        if proj in ('regiomontanus', 'campanus'):
+            pdlist = self._getPrimaryDirectionByMFrame(proj)
+            self.appendDateStr(pdlist)
+            return pdlist
+        if proj == 'topocentric':
             pdlist = self.getPrimaryDirectionByZEngine(proj, zodiacal=False)
+            self.appendDateStr(pdlist)
+            return pdlist
+        if proj == 'ptolemy' and _frame == 'alcabitius' and (explicit_proj or method not in _PD_MUNDO_LEGACY_METHODS):
+            pdlist = self.getPrimaryDirectionByMAlcabitius()
+            self.appendDateStr(pdlist)
+            return pdlist
+        if proj == 'ptolemy' and _frame == 'equal_hour_circle':
+            pdlist = self.getPrimaryDirectionByMEqualHourCircle()
+            self.appendDateStr(pdlist)
+            return pdlist
+        if proj == 'ptolemy' and _frame == 'meridian':
+            pdlist = self.getPrimaryDirectionByMMeridian()
+            self.appendDateStr(pdlist)
+            return pdlist
+        if proj == 'morinus':
+            pdlist = self.getPrimaryDirectionByMMorinus()
+            self.appendDateStr(pdlist)
+            return pdlist
+        if proj in ('horizontal', 'koch'):
+            pdlist = self._getPrimaryDirectionByMFrame(proj)
+            self.appendDateStr(pdlist)
+            return pdlist
+        if proj == 'ptolemy' and _frame in ('porphyry', 'equal'):
+            pdlist = self._getPrimaryDirectionByMFrame('porphyry' if _frame == 'porphyry' else 'equal_ecliptic')
             self.appendDateStr(pdlist)
             return pdlist
         if explicit_proj or method not in _PD_MUNDO_LEGACY_METHODS:
@@ -1971,38 +2979,51 @@ class PerPredict:
         self.appendDateStr(list)
         return list
 
+    def _pdTimeKeyConverter(self, chart):
+        """度数换算单一出口:返回 (years_of_arc(arc), arc_of_years(years, converse))。
+        表格走前者(弧 → 年),主限法盘走后者(年 → 弧),两者互逆。
+          · 真太阳弧(赤经)/ Van Dam:逐弧求太阳赤经走过 |弧| 的天数;「逆向弧用出生前太阳」开时负弧改看出生前倒行的太阳
+          · 太阳弧(黄经):逐弧求太阳黄经走过 |弧| 的天数
+          · 上升弧 / 垂直弧:赤经中天前进 |弧| → 上升点 / 宿命点沿黄道前移 Δλ → 太阳黄经走过 Δλ 的天数
+          · 其余:按 _pdTimeKeyScale 比例换算(静态常数 / 每盘常数 / 自定义)。"""
+        from astrostudy import pd_engine
+        key = '{0}'.format(getattr(self.perchart, 'pdTimeKey', 'Ptolemy') or 'Ptolemy')
+        kl = key.strip().lower()
+        jd = float(chart.date.jd)
+        if kl in _PD_DYNAMIC_SOLAR_RA_KEYS:
+            regressive = bool(getattr(self.perchart, 'pdSolarArcRegressive', 0))
+            mean_eps = kl in _PD_MEAN_OBLIQUITY_SOLAR_KEYS
+            return (lambda arc: float(pd_engine.key_placidus_true_solar_arc(float(arc), jd, regressive, mean_obliquity=mean_eps)),
+                    lambda years, converse: float(pd_engine.solar_arc_for_years(years, jd, backward=(regressive and converse),
+                                                                                mean_obliquity=mean_eps)))
+        if kl in _PD_DYNAMIC_SOLAR_LON_KEYS:
+            return (lambda arc: float(pd_engine.key_symbolic_solar_arc(float(arc), jd)),
+                    lambda years, converse: float(pd_engine.symbolic_solar_arc_for_years(years, jd)))
+        geo_lon = self._coreParseCoord(getattr(self.perchart, 'lon', 0.0))
+        if kl in _PD_ANGLE_ARC_KEYS:
+            point = _PD_ANGLE_ARC_KEYS[kl]
+            geo_lat = self._coreParseCoord(getattr(self.perchart, 'lat', 0.0))
+            armc = float(_polarSafeHousesEx(jd, geo_lat, geo_lon, b'P')[1][2])
+            eps = self._coreMeanObliquity(chart)
+            return (lambda arc: float(pd_engine.key_angle_arc(float(arc), jd, armc, geo_lat, eps, point)),
+                    lambda years, converse: float(pd_engine.angle_arc_for_years(years, jd, armc, geo_lat, eps, point)))
+        scale = _pdTimeKeyScale(key, chart=chart, custom=getattr(self.perchart, 'pdTimeKeyCustom', None), geolon=geo_lon)
+        return ((lambda arc: (arc / scale) if scale and scale != 1.0 else arc),
+                (lambda years, converse: years * scale))
+
     def appendDateStr(self, pdlist, usePD=True):
         chart = self.perchart.getChart()
-        # 度数换算 key：统一走 _pdTimeKeyScale (见模块顶部 STATIC_TIME_KEY_SCALES)。
-        # 表格是「弧→日期」(盘是「日期→弧」的逆)，故按 scale 除弧 (同弧需更多年)，
-        # 与盘的 getPrimaryDirectionChartByDate 乘 scale 互逆、可 round-trip。
-        # 仅缩放日期、不动弧/动星/应星；Ptolemy scale == 1.0 逐字节不变，
-        # 护住已验证的 Ptolemy+Alchabitius 表格。
-        pd_time_key = '{0}'.format(getattr(self.perchart, 'pdTimeKey', 'Ptolemy') or 'Ptolemy')
-        # 真太阳弧(Placidus key)/太阳弧(黄经)是动态钥匙:逐弧查星历求真太阳走到目标位置的
-        # 天数(1天=1年),非静态缩放。Ptolemy/Naibod 等仍走 _pdTimeKeyScale(Ptolemy 锁 1.0 字节级一致)。
-        # Kepler(太阳真行赤经)/Van Dam(Placidus 改良度量)升逐年真行动态,
-        # 与 Placidus 真太阳弧同设施(key_placidus_true_solar_arc)。
-        use_solar_arc = pd_time_key.lower() in ('truesolararc', 'placidus_key', 'kepler', 'vandam')
-        use_sym_solar_arc = pd_time_key.lower() == 'symbolicsolararc'
-        natal_jd = float(chart.date.jd) if (use_solar_arc or use_sym_solar_arc) else None
-        scale = _pdTimeKeyScale(pd_time_key, chart=chart,
-                                 custom=getattr(self.perchart, 'pdTimeKeyCustom', None))
+        # 表格是「弧→日期」(盘是「日期→弧」的逆):度数换算走单一出口 _pdTimeKeyConverter,
+        # 只换日期、不动弧 / 迫星 / 应星;Ptolemy 原值直出,护住已验证的 Ptolemy+Alchabitius 表格字节级一致。
+        _years_of_arc, _arc_of_years = self._pdTimeKeyConverter(chart)
+        asc = chart.angles.get(const.ASC)
+        asctime = SignAscTime(self.perchart.date, self.perchart.time, asc.sign, self.perchart.lat, self.perchart.zone,
+                              year_days=getattr(self.perchart, 'pdYearDays', 0))
         for item in pdlist:
-            asc = chart.angles.get(const.ASC)
-            asctime = SignAscTime(self.perchart.date, self.perchart.time, asc.sign, self.perchart.lat, self.perchart.zone)
             datestr = None
             if usePD:
-                if use_solar_arc:
-                    from astrostudy import pd_engine
-                    # 真太阳弧:把方向弧换算为年(Ptolemy 等效 1°=1年),再走同一日期函数。
-                    arc_for_date = float(pd_engine.key_placidus_true_solar_arc(float(item[0]), natal_jd))
-                elif use_sym_solar_arc:
-                    from astrostudy import pd_engine
-                    arc_for_date = float(pd_engine.key_symbolic_solar_arc(float(item[0]), natal_jd))
-                else:
-                    arc_for_date = (item[0] / scale) if scale and scale != 1.0 else item[0]
-                datestr = asctime.getDateFromPDArc(arc_for_date)
+                # 弧 → 年(日期函数按 1 年 = 1 单位走)
+                datestr = asctime.getDateFromPDArc(_years_of_arc(item[0]))
             else:
                 datestr = asctime.getDateFromTermDirArc(item[0])
             item.append(datestr)
@@ -2386,8 +3407,6 @@ class PerPredict:
     def getFirdaria(self):
         return firdaria.compute(self.perchart.chart)
 
-    def getYearSystem129(self):
-        return yearsystem129.compute(self.perchart.chart)
 
     def getZodiacalRelease(self, startSign, stopLevelIdx=3):
         return zreleasing.compute(self.perchart, startSign, stopLevelIdx)
@@ -2467,17 +3486,24 @@ class PerPredict:
     # =====================================================================
 
     # pd_engine 数值/闭式引擎族(点位构造走 _pdEngineChartData 同路)
-    _PD3D_ENGINE_METHODS = ('placidus', 'regiomontanus', 'campanus', 'topocentric')
+    # placidus / regiomontanus / campanus 与 In Zodiaco 的 topocentric / Placidus 极下法,表行与核心核同一套取点
+    # (见 _getPrimaryDirectionByZSemiarcPole),3D 点位随之走核心点表;In Mundo 的 topocentric 表行仍出自 pd_engine,
+    # 点位走 pd_engine 点表(世俗向运带真黄纬)。
+    _PD3D_ENGINE_METHODS = ('topocentric',)
     # 位置圈需后端采样多段线的方位法 → 采样所用 house_pos 系统。
     # Placidus 比例圈 / Topocentric 极圈都不是天球大圆(前端三点叉积画不动)→ 后端采样;
     # horosa_legacy 即 flatlib 比例半弧法,几何上=Placidus 世俗位置等值线,同享采样。
     # 其余方法(core 核族/Regio/Campanus 等)返回语义型标记,由前端画大圆。
     _PD3D_SAMPLED_CIRCLE_SYSTEM = {
         'placidus': 'placidus',
-        'topocentric': 'topocentric',
         'horosa_legacy': 'placidus',
-        # under-pole 属普拉西德家族(半圆近似):位置圈按 placidus 采样。
-        'placidus_under_pole': 'placidus',
+    }
+    # 极下式(Topocentric / Placidus 极下法):位置圈是过应星、以应星自己的极为倾角的大圆,按该圆精确采样
+    _PD3D_POLE_CIRCLE_KIND = {
+        'topocentric': 'topocentric',
+        'placidus_under_pole': 'placidus_pole',
+        'horizontal': 'horizontal',
+        'koch': 'koch',
     }
 
     def _pd3dKindOf(self, pid):
@@ -2506,7 +3532,7 @@ class PerPredict:
             return 'node'
         if base == const.PARS_FORTUNA:
             return 'lot'
-        if base == CORE_PD_VERTEX_ID:
+        if base in (CORE_PD_VERTEX_ID, CORE_PD_ANTIVERTEX_ID):
             return 'vertex'
         if base.startswith('House'):
             return 'house'
@@ -2558,10 +3584,14 @@ class PerPredict:
         直算。返回 (pts{id:(point,kind)}, armc, phi, eps_mean, jd)。"""
         from astrostudy import pd_engine
         bodies, angles, armc, phi, eps, jd = self._pdEngineChartData()
+        sig_bodies, bodies = self._pdEngineOptionBodies(bodies, self._PD_ENGINE_SIGNIFICATORS,
+                                                        self._PD_ENGINE_PROMISSORS)
         aspects = list(self.perchart.pdaspects) if self.perchart.pdaspects else [0, 60, 90, 120, 180]
         include_antiscia = bool(getattr(self.perchart, 'pdAntiscia', False))
         include_terms = bool(getattr(self.perchart, 'pdTerms', False))
         pts = {}
+        # In Mundo(pdtype=1)本体带真黄纬,与 getPrimaryDirectionByM → build_directions(zodiacal=False)同口径
+        mundo = (getattr(self.perchart, 'pdtype', 0) or 0) == 1
         # 应星(significators):四轴 lat=0;体点在 In-Zodiaco 下 lat=0,位置圈双支法
         # (Campanus/Regiomontanus)例外用真黄纬 —— 与 build_directions 完全同口径。
         for sname in self._PD_ENGINE_SIGNIFICATORS:
@@ -2570,10 +3600,10 @@ class PerPredict:
                 if sname not in angles:
                     continue
                 pts[sid] = ({'lon': float(angles[sname]), 'lat': 0.0}, 'angle')
-            elif sname in bodies:
-                sig_beta = method in pd_engine.POSITION_CIRCLE_DUAL
-                pts[sid] = ({'lon': bodies[sname]['lon'],
-                             'lat': bodies[sname].get('lat', 0.0) if sig_beta else 0.0},
+            elif sname in sig_bodies:
+                sig_beta = mundo or (method in pd_engine.POSITION_CIRCLE_DUAL)
+                pts[sid] = ({'lon': sig_bodies[sname]['lon'],
+                             'lat': sig_bodies[sname].get('lat', 0.0) if sig_beta else 0.0},
                             self._pd3dKindOf(sid))
         # 迫星(promissors):本体黄道点 + 黄道相位虚点(id 编码与 build_directions 同式)。
         # 同 id 已存(应星先写)则跳过 —— 双支法下应星带真β,展示以应星取数为准。
@@ -2588,7 +3618,7 @@ class PerPredict:
                     if pid in pts:
                         continue
                     if asp == 0:
-                        pt = {'lon': base['lon'], 'lat': 0.0}
+                        pt = {'lon': base['lon'], 'lat': base.get('lat', 0.0) if mundo else 0.0}
                     else:
                         pt = pd_engine.zodiacal_aspect_point(base['lon'], asp, sgn)
                     pts[pid] = (pt, self._pd3dKindOf(pid))
@@ -2627,6 +3657,7 @@ class PerPredict:
         if _dt:
             significators = [self._coreShiftPointByDeltaT(o, _dt) for o in significators]
             promissors = [self._coreShiftPointByDeltaT(o, _dt) for o in promissors]
+        significators, promissors = self._pdApplyLatitudeOptions(significators, promissors)
         # 映点(antiscia)/界(terms)促发星扩展 —— 与 kernel 同口径:本体 lon 取已
         # 真交点重建 + ΔT 平移后的 N_*_0。
         _want_anti = bool(getattr(self.perchart, 'pdAntiscia', False))
@@ -2664,6 +3695,11 @@ class PerPredict:
         # 宿命点(Vertex)应星:点位取 ascmc[3],与 kernel 展示口径同源。
         significators.append({'id': 'N_{0}_0'.format(CORE_PD_VERTEX_ID),
                               'lon': angle.norm(float(ascmc[3])), 'lat': 0.0})
+        # In Mundo 另有下降 / 天底 / 东点(宿命点对点)轴应星。
+        significators.append({'id': 'N_{0}_0'.format(const.DESC), 'lon': angle.norm(float(ascmc[0]) + 180.0), 'lat': 0.0})
+        significators.append({'id': 'N_{0}_0'.format(const.IC), 'lon': angle.norm(float(ascmc[1]) + 180.0), 'lat': 0.0})
+        significators.append({'id': 'N_{0}_0'.format(CORE_PD_ANTIVERTEX_ID),
+                              'lon': angle.norm(float(ascmc[3]) + 180.0), 'lat': 0.0})
         pts = {}
         # 应星在后写:同 id(如 N_Sun_0 既作迫星又作应星)以应星构造取数为准
         # (core 族两者本就同点,此序仅为约定一致)。
@@ -2726,12 +3762,11 @@ class PerPredict:
         # 界推运(2,3)时 2D 表=ByM/界、3D 球=ByZ,弧/应期/事件全不同且无告警(体检定谳第5项)。
         # rows 与 2D 表逐位同源;golden 路径(/predict/pd)零触碰。
         pdtype = getattr(self.perchart, 'pdtype', 0) or 0
-        if pdtype == 1:
-            pdlist = self.getPrimaryDirectionByM()
-        elif pdtype in (2, 3):
+        if pdtype in (2, 3):
             pdlist = self.getTermDirection(pdtype == 2)
         else:
-            pdlist = self.getPrimaryDirectionByZ()
+            # 与表格同一个出口(传统 / 新式逆向、相位侧、恒星迫星编号逐行一致)
+            pdlist = self._pdAspectRows(pdtype if pdtype in (1, 4) else 0)
         rows = []
         for i, it in enumerate(pdlist):
             rows.append({
@@ -2742,13 +3777,20 @@ class PerPredict:
                 'cat': it[3] if len(it) > 3 else 'Z',
                 'date': it[4] if len(it) > 4 else '',
             })
-        engine_family = method in self._PD3D_ENGINE_METHODS
+        proj_e, _fe = self._pdResolveProjectionFrame()
+        engine_family = pdtype == 1 and (proj_e in self._PD3D_ENGINE_METHODS or method in self._PD3D_ENGINE_METHODS)
         if engine_family:
-            pts, armc, phi, eps_mean, jd = self._pd3dEnginePointList(method)
+            pts, armc, phi, eps_mean, jd = self._pd3dEnginePointList(proj_e if proj_e in self._PD3D_ENGINE_METHODS else method)
         elif method == 'horosa_legacy':
             pts, armc, phi, eps_mean, jd = self._pd3dLegacyPointList()
         else:
             pts, armc, phi, eps_mean, jd = self._pd3dCorePointList()
+        if pdtype == 4:
+            # Field Plane:相位点按借用黄纬落位(与表格同一次计算的结果)
+            for pid, beta in (getattr(self, '_pdFieldPlaneLatitudes', None) or {}).items():
+                if pid in pts and beta is not None:
+                    pt, kind = pts[pid]
+                    pts[pid] = (dict(pt, lat=float(beta)), kind)
         # 只回传表行实际引用到的 id(join 封闭:凡 rows 引用必有点位)。
         used = []
         seen = set()
@@ -2787,7 +3829,7 @@ class PerPredict:
         try:
             _ch_extra = self.perchart.getChart()
             for _pt in (self._pdExtraSignificatorPoints(_ch_extra)
-                        + self._pdExtraCuspPromissorPoints(_ch_extra)):
+                        + self._pdExtraCuspPromissorPoints(_ch_extra, aspects=self.perchart.pdaspects, public=True)):
                 extra_point_map.setdefault(_pt['id'], _pt)
         except Exception:
             extra_point_map = {}
@@ -2827,6 +3869,7 @@ class PerPredict:
         proj_c, _cf = self._pdResolveProjectionFrame()
         sampled_system = (self._PD3D_SAMPLED_CIRCLE_SYSTEM.get(proj_c)
                           or self._PD3D_SAMPLED_CIRCLE_SYSTEM.get(method))
+        pole_kind = self._PD3D_POLE_CIRCLE_KIND.get(proj_c) or self._PD3D_POLE_CIRCLE_KIND.get(method)
         for r in rows:
             sid = r['sig']
             if sid in circles:
@@ -2838,6 +3881,12 @@ class PerPredict:
                 circles[sid] = {'type': 'meridian'}
             elif base == CORE_PD_VERTEX_ID:
                 circles[sid] = {'type': 'prime-vertical'}
+            elif pole_kind is not None and sid in pts:
+                from astrostudy import pd_engine
+                sig_src = pts[sid][0]
+                circles[sid] = {'type': 'sampled', 'points': pd_engine.pole_circle_samples(
+                    {'lon': float(sig_src.get('lon', 0.0)), 'lat': float(sig_src.get('lat', 0.0))},
+                    pole_kind, armc, phi, eps_mean, n=64)}
             elif sampled_system is not None and sid in pts:
                 from astrostudy import pd_engine
                 sig_src = pts[sid][0]

@@ -203,3 +203,38 @@ describe('量化盘 中点页 · 显示偏好变化的快照刷新', () => {
 		inst.componentWillUnmount();
 	});
 });
+
+describe('公式求解段(写了公式才进,不受汉堡门控)', ()=>{
+	const { buildFormulaSection } = require('../AstroMidpoint');
+	const AC = require('../../../constants/AstroConst');
+	const pts = [{ id: AC.SUN, lon: 10 }, { id: AC.MOON, lon: 100 }, { id: AC.MARS, lon: 350 }, { id: AC.MC, lon: 30.4 }];
+	it('缺省(没写公式)不成段', ()=>{
+		expect(buildFormulaSection({ school: 'classic' }, pts)).toEqual([]);
+		expect(buildFormulaSection({ school: 'classic', formula: '  ' }, pts)).toEqual([]);
+	});
+	it('写了公式:敏感点 + 落点,与盘面同一函数(90° 盘 120 ≡ 30,天顶 30.4 差 0.4)', ()=>{
+		const lines = buildFormulaSection({ school: 'classic', formula: '日+月−火', dialBase: 90, orb: 1 }, pts);
+		expect(lines[0]).toBe('[公式求解]');
+		expect(lines[1]).toBe('公式：日+月−火 → 敏感点 120.00° · 盘基 H4 90° · 容许 1°');
+		expect(lines[2]).toBe('落点：天顶 0.40°');
+	});
+	it('写错时照实报原因', ()=>{
+		expect(buildFormulaSection({ formula: '日+' }, pts)[1]).toMatch(/无法求值/);
+	});
+});
+
+describe('中点坐标段(选了赤经 / 赤纬且后端按该坐标回数才进)', ()=>{
+	const { buildCoordMidpointSection } = require('../AstroMidpoint');
+	const result = { coordMidpoints: { coord: 'decl', midpoints: [], contacts: [{ idA: 'Sun', idB: 'Moon', id: 'Mars', aspect: 'contraParallel', delta: 0.31 }] } };
+	it('缺省黄经 / 坐标不符 / 没有数据都不成段', ()=>{
+		expect(buildCoordMidpointSection({ mpCoord: 'lon' }, result)).toEqual([]);
+		expect(buildCoordMidpointSection({ mpCoord: 'ra' }, result)).toEqual([]);
+		expect(buildCoordMidpointSection({ mpCoord: 'decl' }, {})).toEqual([]);
+	});
+	it('赤纬:逐条列接触', ()=>{
+		const lines = buildCoordMidpointSection({ mpCoord: 'decl' }, result);
+		expect(lines[0]).toBe('[中点坐标]');
+		expect(lines[1]).toMatch(/^坐标：赤纬/);
+		expect(lines[2]).toMatch(/反平行 .*\/.* · 差 0\.31°$/);
+	});
+});

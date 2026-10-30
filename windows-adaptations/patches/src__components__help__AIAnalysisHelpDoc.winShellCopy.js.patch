@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/help/AIAnalysisHelpDoc.js b/astrostudyui/src/components/help/AIAnalysisHelpDoc.js
-index 78cce576..91d1616d 100644
+index a4211558..12611bb1 100644
 --- a/astrostudyui/src/components/help/AIAnalysisHelpDoc.js
 +++ b/astrostudyui/src/components/help/AIAnalysisHelpDoc.js
-@@ -364,7 +364,8 @@ class AIAnalysisHelpDoc extends Component{
+@@ -373,7 +373,8 @@ class AIAnalysisHelpDoc extends Component{
  								{kv('外部能做什么', '读:档案、各技法快照、合盘数据、天星与各流派择日(黄历 / 八字 / 紫微 / 六壬 / 太乙 / 奇门 / 七政 / 印度)、名人库(约 5.9 万位名人的出生资料与简介)、玄学史、当前页正文、技法操作手册、后台任务;写(只增、可撤销):建命盘 / 事盘、把名人存成命盘、按你报出的起卦结果存事盘、加星标 / 标签、追加断事日志、关联档案、改设置(作用范围同上「总开关」一条);改档案与归档只能提议,在任务中心等你采纳;对话记录与备注默认不给,要开「私人内容可读」;命主实况还要你对那张命盘打开了「发送」才给')}
  								{kv('界面类也要确认', '缺省关:外部程序切换技法页、合盘配对会直接执行(动作条可回退);打开后这些动作也先弹到审批台。设对话挂载按写入走上面的审批档(只读档下不可用)')}
  								{kv('REST 接口', '缺省关,要先开本机 MCP 服务:打开后同一端口多出 /api/v1,本机脚本(curl、Python、自动化工具)用同一令牌按普通 HTTP 调同一套工具,审批与上限同外部客户端策略。GET /api/v1/tools 列工具,POST /api/v1/tools/<工具名> 以 JSON 请求体传参;常用读操作有 GET 简写(/records、/tasks、/proposals、/context、/actions、/materials,查询串即参数);GET /api/v1/openapi.json 是现生成的接口文档;加 ?stream=1 可收进度。面板上「复制 curl 示例」带好了令牌')}

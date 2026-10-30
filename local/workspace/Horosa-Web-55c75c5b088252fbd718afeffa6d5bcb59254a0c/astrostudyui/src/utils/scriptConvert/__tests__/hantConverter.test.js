@@ -224,6 +224,151 @@ describe('原文已是繁体则不改(转两次与转一次相同)', () => {
 	});
 });
 
+describe('全仓文案复核(2026-10-29):词典跨词误配 / 该转没转', () => {
+	it('「回」:轮回答 / 盘回收 / 星回到 / 迟回报 不切成「迴」;轮回 / 迂回 / 回避 照旧', () => {
+		expect(toHant('首轮回答完成后')).toBe('首輪回答完成後');
+		expect(toHant('与工具轮回放各档')).toBe('與工具輪回放各檔');
+		expect(toHant('命盘回收站')).toBe('命盤回收站');
+		expect(toHant('事盘回收站')).toBe('事盤回收站');
+		expect(toHant('实由排盘回传')).toBe('實由排盤回傳');
+		expect(toHant('延迟回报')).toBe('延遲回報');
+		expect(toHant('延迟回应这呼唤')).toBe('延遲回應這呼喚');
+		expect(toHant('行星回到本命黄经')).toBe('行星回到本命黃經');
+		expect(toHant('本卦星回宫九年一')).toBe('本卦星回宮九年一');
+		expect(toHant('≈57 会合 + 2 恒星回')).toBe('≈57 會合 + 2 恆星回');
+		expect(toHant('重启轮回之象')).toBe('重啟輪迴之象');
+		expect(toHant('迂回')).toBe('迂迴');
+		expect(toHant('凶方回避')).toBe('凶方迴避');
+	});
+	it('「制」:宫制 / 宿度制 / 旬主星制 / 凌制 / 制约 / 内制外 不作「製」;绘制 / 复制 / 制作 照旧', () => {
+		expect(toHant('盘面宫制取值')).toBe('盤面宮制取值');
+		expect(toHant('段含整宫制表与判读')).toBe('段含整宮制表與判讀');
+		expect(toHant('宿度制为恒星制')).toBe('宿度制為恆星制');
+		expect(toHant('当前旬主星制为三分性制')).toBe('當前旬主星制為三分性制');
+		expect(toHant('优位四分三分凌制')).toBe('優位四分三分凌制');
+		expect(toHant('日木制约凶减半')).toBe('日木制約凶減半');
+		expect(toHant('外虚，内制外否')).toBe('外虛，內制外否');
+		expect(toHant('，内否外制')).toBe('，內否外制');
+		expect(toHant('辰来日制身')).toBe('辰來日制身');
+		expect(toHant('含编制个人星盘')).toBe('含編製個人星盤');
+		expect(toHant('盘面绘制 复制全文 制作护符')).toBe('盤面繪製 複製全文 製作護符');
+	});
+	it('「须」:必须义作「須」,须眉 / 胡须义作「鬚」', () => {
+		expect(toHant('真实时长须按当地日')).toBe('真實時長須按當地日');
+		expect(toHant('时紫白须先出日紫白')).toBe('時紫白須先出日紫白');
+		expect(toHant('青龙须防走穴')).toBe('青龍須防走穴');
+		expect(toHant('贼云须认鬼生乡')).toBe('賊云須認鬼生鄉');
+		expect(toHant('秃顶，胡须美')).toBe('禿頂，鬍鬚美');
+		expect(toHant('丝毫不让须眉')).toBe('絲毫不讓鬚眉');
+		expect(toHant('一长须男子之形')).toBe('一長鬚男子之形');
+		expect(toHant('眼大口须长')).toBe('眼大口鬚長');
+		expect(toHant('须发生在')).toBe('須發生在');
+	});
+	it('「周历」(一周七日)作「週曆」,与「周期 → 週期」一致;姓氏 / 朝代「周」不动', () => {
+		expect(toHant('年度牌阵(12月) / 周历(7张) / 月相牌阵')).toBe('年度牌陣(12月) / 週曆(7張) / 月相牌陣');
+		expect(toHant('按七曜周历机制,一日一换')).toBe('按七曜週曆機制,一日一換');
+		expect(toHant('10 周期终始')).toBe('10 週期終始');
+		expect(toHant('王朴(后周人)')).toBe('王朴(後周人)');
+		expect(toHant('周易')).toBe('周易');
+	});
+	it('「格里历」(公历)的「里」不作「裡」:词典先切「合格」时也一样', () => {
+		expect(toHant('J + Y 合格里历闰年规则')).toBe('J + Y 合格里曆閏年規則');
+		expect(toHant('符合格里历闰年规则')).toBe('符合格里曆閏年規則');
+		expect(toHant('儒略历与格里历')).toBe('儒略曆與格里曆');
+		expect(toHant('下拉里只列一项')).toBe('下拉裡只列一項');
+	});
+	it('音译名 / 地名(城市库全量逐条对过):词典按字转错的整名钉回,正文同字照旧', () => {
+		expect(toHant('岁差缺省拉希里。')).toBe('歲差缺省拉希里。');
+		expect(toHant('吕底亚、奇里乞亚、潘菲利亚')).toBe('呂底亞、奇里乞亞、潘菲利亞');
+		expect(toHant('比提尼亚、弗里吉亚')).toBe('比提尼亞、弗里吉亞');
+		['埃里温→埃里溫', '帕拉马里博→帕拉馬里博', '库里蒂巴→庫里蒂巴', '普里什蒂纳→普里什蒂納', '波德戈里察→波德戈里察',
+			'贝洛奥里藏特→貝洛奧里藏特', '里安市→里安市', '湖里区→湖里區', '湾里区→灣里區',
+			'历下区→歷下區', '历城区→歷城區', '腾冲市→騰衝市', '云城区→雲城區', '谷城县→谷城縣', '巨野县→巨野縣', '巨鹿县→巨鹿縣',
+			'沈北新区→瀋北新區', '岳塘区→岳塘區', '岳普湖县→岳普湖縣', '岳池县→岳池縣', '岳西县→岳西縣', '岳口镇→岳口鎮',
+		].forEach((pair)=>{ const [a, b] = pair.split('→'); expect(toHant(a)).toBe(b); });
+		// 同字正文照旧随词典 / 本域缺省
+		expect(toHant('日历下拉')).toBe('日曆下拉');
+		expect(toHant('南岳区')).toBe('南嶽區');
+		expect(toHant('沈阳市')).toBe('瀋陽市');
+		expect(toHant('阳谷县')).toBe('陽穀縣');
+		expect(toHant('心里')).toBe('心裡');
+		expect(toHant('六冲')).toBe('六沖');
+	});
+	it('名人库「出生地:」分类标签整串是音译地名:音译用字(里托克布扎于采范)取原字;蘇 / 麥 / 傑 照转;别处同字照旧', () => {
+		expect(toHant('出生地:特罗布里奇, 英格兰')).toBe('出生地:特羅布里奇, 英格蘭');
+		expect(toHant('出生地:里瓦, 意大利')).toBe('出生地:里瓦, 意大利');
+		expect(toHant('出生地:孔塞桑杜卡斯特卢, 圣埃斯皮里图州')).toBe('出生地:孔塞桑杜卡斯特盧, 聖埃斯皮里圖州');
+		expect(toHant('出生地：梅泰里, 路易斯安那州')).toBe('出生地：梅泰里, 路易斯安那州');
+		expect(toHant('出生地:阿克托别, 哈萨克斯坦')).toBe('出生地:阿克托別, 哈薩克斯坦');
+		expect(toHant('出生地:列克星敦, 北卡罗来纳州')).toBe('出生地:列克星敦, 北卡羅來納州');
+		expect(toHant('出生地:布雷斯劳, 德国')).toBe('出生地:布雷斯勞, 德國');
+		expect(toHant('出生地:韦尔河畔卡于扎克, 法国')).toBe('出生地:韋爾河畔卡于扎克, 法國');
+		expect(toHant('出生地:格利维采, 波兰')).toBe('出生地:格利維采, 波蘭');
+		expect(toHant('出生地:马扎甘, 摩洛哥')).toBe('出生地:馬扎甘, 摩洛哥');
+		expect(toHant('出生地:范德拜尔帕克, 南非')).toBe('出生地:范德拜爾帕克, 南非');
+		expect(toHant('出生地:梅尔罗斯, 苏格兰')).toBe('出生地:梅爾羅斯, 蘇格蘭');
+		expect(toHant('里瓦')).toBe('裡瓦');                 // 无标签前缀不作地名判
+		expect(toHant('在下拉里选出生地')).toBe('在下拉裡選出生地');
+		expect(toHant('金克木')).toBe('金剋木');              // 生克义照旧走「克」规则
+	});
+	it('「征」:易「征凶 / 征吉」、出征 / 征南 / 征人 作「征」;象征 / 特征 / 征召 作「徵」', () => {
+		expect(toHant('有悔。征吉。')).toBe('有悔。征吉。');
+		expect(toHant('君子征凶')).toBe('君子征凶');
+		expect(toHant('王用出征')).toBe('王用出征');
+		expect(toHant('征南怕犬')).toBe('征南怕犬');
+		expect(toHant('向外征旅')).toBe('向外征旅');
+		expect(toHant('高飞捉征雁')).toBe('高飛捉征雁');
+		expect(toHant('象征人的交朋')).toBe('象徵人的交朋');
+		expect(toHant('己方象征不显弱')).toBe('己方象徵不顯弱');
+		expect(toHant('三大征象皆安全')).toBe('三大徵象皆安全');
+		expect(toHant('主诏命征召')).toBe('主詔命徵召');
+	});
+	it('「托」:手托 / 托举 / 承托 / 护托 与译名作「托」;委托 / 托名 / 推托 作「託」', () => {
+		expect(toHant('左手托向日葵')).toBe('左手托向日葵');
+		expect(toHant('两翼是托举中心')).toBe('兩翼是托舉中心');
+		expect(toHant('朝拱承托准头')).toBe('朝拱承托準頭');
+		expect(toHant('穴后护托之山')).toBe('穴後護托之山');
+		expect(toHant('墨卡托 阿德墨托斯')).toBe('墨卡托 阿德墨托斯');
+		expect(toHant('所托非人 多托名 推托')).toBe('所託非人 多託名 推託');
+	});
+	it('「发 / 注 / 复 / 折」:词典把「金发 / 断发 / 加注 / 中复 / 一折」当词', () => {
+		expect(toHant('鬼爻属金发动')).toBe('鬼爻屬金發動');
+		expect(toHant('都不阻断发送')).toBe('都不阻斷發送');
+		expect(toHant('不可便断发福发财')).toBe('不可便斷發福發財');
+		expect(toHant('用贵人被发用相害')).toBe('用貴人被發用相害');
+		expect(toHant('外伤与骤发状况')).toBe('外傷與驟發狀況');
+		expect(toHant('金发白肤 头发浓')).toBe('金髮白膚 頭髮濃');
+		expect(toHant('须加注意')).toBe('須加注意');
+		expect(toHant('标注意义')).toBe('標註意義');
+		expect(toHant('并在卡下注明')).toBe('並在卡下註明');
+		expect(toHant('败中复成')).toBe('敗中復成');
+		expect(toHant('土天复现锚年')).toBe('土天復現錨年');
+		expect(toHant('只重折算')).toBe('只重折算');
+		expect(toHant('统一折叠成十四')).toBe('統一摺疊成十四');
+	});
+	it('其余逐词:划子限 / 刮去 / 血症 / 借贷 / 立向 / 向导 / 王朴 / 范騋 / 文采 / 余氏 / 面包屑 / 吊客 / 不准入 / 布施 / 鱼游 / 系 / 辟咎', () => {
+		expect(toHant('主限内再按所选铺法划子限')).toBe('主限內再按所選鋪法劃子限');
+		expect(toHant('气薄者刮去表皮')).toBe('氣薄者刮去表皮');
+		expect(toHant('之儿、血症、血光灾')).toBe('之兒、血症、血光災');
+		expect(toHant('方为元素借贷')).toBe('方為元素借貸');
+		expect(toHant('分金，立向应位于丙')).toBe('分金，立向應位於丙');
+		expect(toHant('走六步向导')).toBe('走六步嚮導');
+		expect(toHant('托名后周王朴')).toBe('託名後周王朴');
+		expect(toHant('清·范騋')).toBe('清·范騋');
+		expect(toHant('文高采华')).toBe('文高采華');
+		expect(toHant('蘭房再配余氏女')).toBe('蘭房再配余氏女');
+		expect(toHant('页顶部有面包屑')).toBe('頁頂部有麵包屑');
+		expect(toHant('十一吊客')).toBe('十一弔客');
+		expect(toHant('只读档不准入')).toBe('只讀檔不准入');
+		expect(toHant('前世行法布施')).toBe('前世行法布施');
+		expect(toHant('即鱼游静水之象')).toBe('即魚游靜水之象');
+		expect(toHant('以《易隐》系为准')).toBe('以《易隱》系為準');
+		expect(toHant('故此系另列十一式')).toBe('故此系另列十一式');
+		expect(toHant('以辟咎也')).toBe('以辟咎也');
+		expect(toHant('微黄卷发')).toBe('微黃捲髮');
+	});
+});
+
 describe('核心名词整表', () => {
 	it('六十甲子原样(只换简繁,不动干支)', () => {
 		const G = '甲乙丙丁戊己庚辛壬癸';
@@ -253,6 +398,6 @@ describe('逐位校正本身', () => {
 		expect(applyHantDomainRules('干支', '幹')).toBe('幹');
 	});
 	it('白名单词逐字等长、落在规则字上', () => {
-		expect(HANT_DOMAIN_CHARS).toEqual(expect.arrayContaining(['干', '丑', '斗', '占', '冲', '历', '云', '凶', '钟', '表', '克', '咸', '后', '合', '回', '杯', '台', '发', '卷', '升', '系', '辟', '于', '朴', '只']));
+		expect(HANT_DOMAIN_CHARS).toEqual(expect.arrayContaining(['干', '丑', '斗', '占', '冲', '历', '云', '凶', '钟', '表', '克', '咸', '后', '合', '回', '杯', '台', '发', '卷', '升', '系', '辟', '于', '朴', '只', '须', '制', '征', '托', '注', '复', '折', '周', '谷', '巨', '沈', '岳']));
 	});
 });

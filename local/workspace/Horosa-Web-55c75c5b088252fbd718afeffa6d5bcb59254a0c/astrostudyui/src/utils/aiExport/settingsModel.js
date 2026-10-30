@@ -9,7 +9,7 @@ import {
 	AI_EXPORT_V54_UNION_VERSION, AI_EXPORT_V54_SECTION_UNION, AI_EXPORT_V55_UNION_VERSION,
 	AI_EXPORT_V55_SECTION_UNION, AI_EXPORT_V56_UNION_VERSION, AI_EXPORT_V56_SECTION_UNION,
 	AI_EXPORT_V57_UNION_VERSION, AI_EXPORT_V57_SECTION_UNION, AI_EXPORT_V58_UNION_VERSION,
-	AI_EXPORT_V58_SECTION_UNION, AI_EXPORT_V59_UNION_VERSION, AI_EXPORT_V59_SECTION_UNION, AI_EXPORT_V45_SECTION_UNION, AI_EXPORT_FORMAT_DEFAULT, isAstroLikeExportKey,
+	AI_EXPORT_V58_SECTION_UNION, AI_EXPORT_V59_UNION_VERSION, AI_EXPORT_V59_SECTION_UNION, AI_EXPORT_V60_UNION_VERSION, AI_EXPORT_V60_SECTION_UNION, AI_EXPORT_V45_SECTION_UNION, AI_EXPORT_FORMAT_DEFAULT, isAstroLikeExportKey,
 	AI_EXPORT_SECTION_MIGRATION_KEYS, AI_EXPORT_PLANET_INFO_DEFAULT, AI_EXPORT_ASTRO_MEANING_DEFAULT,
 	AI_EXPORT_PLANET_INFO_TECHNIQUES, AI_EXPORT_ASTRO_MEANING_TECHNIQUES, AI_EXPORT_HOVER_MEANING_TECHNIQUES,
 	JIEQI_SPLIT_SETTING_KEYS, AI_EXPORT_PRESET_SECTIONS,
@@ -346,6 +346,19 @@ export function normalizeAIExportSettings(settings){
 			normalized.sections[key] = uniqueArray([
 				...existing,
 				...AI_EXPORT_V59_SECTION_UNION[key].map((item)=>normalizeSectionTitle(item)).filter(Boolean),
+			]);
+		});
+	}
+	// 同机制的下一窗(量化盘「中点坐标」「公式求解」两个独立段)。
+	if(sourceVersion < AI_EXPORT_V60_UNION_VERSION){
+		Object.keys(AI_EXPORT_V60_SECTION_UNION).forEach((key)=>{
+			const existing = normalized.sections[key];
+			if(!Array.isArray(existing) || !existing.length){
+				return;
+			}
+			normalized.sections[key] = uniqueArray([
+				...existing,
+				...AI_EXPORT_V60_SECTION_UNION[key].map((item)=>normalizeSectionTitle(item)).filter(Boolean),
 			]);
 		});
 	}

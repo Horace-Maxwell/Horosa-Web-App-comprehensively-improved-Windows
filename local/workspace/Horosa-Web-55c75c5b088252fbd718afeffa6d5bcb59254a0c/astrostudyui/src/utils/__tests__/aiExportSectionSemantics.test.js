@@ -280,10 +280,16 @@ describe('分宫制宫神星表 union 迁移(九个西占键)', ()=>{
 		expect(normalizeAIExportSettings({ version: 57, sections: { sanshiunited: [] } }).sections.sanshiunited).toEqual([]);
 		expect(normalizeAIExportSettings({ version: 57, sections: { astrochart: ['起盘信息'] } }).sections.sanshiunited).toBeUndefined();
 		// 下一窗:量化盘「赤纬接触」独立段(自汉堡段拆出);只补已自定义过量化盘的用户,显式全清仍是全清,v59 起不再重跑
-		expect(normalizeAIExportSettings({ version: 58, sections: { germany: ['中点', '六宫框落宫'] } }).sections.germany).toEqual(['中点', '六宫框落宫', '赤纬接触']);
+		// (v58 存档同时吃到 v59 窗与 v60 窗:赤纬接触 + 中点坐标 / 公式求解)
+		expect(normalizeAIExportSettings({ version: 58, sections: { germany: ['中点', '六宫框落宫'] } }).sections.germany).toEqual(['中点', '六宫框落宫', '赤纬接触', '中点坐标', '公式求解']);
 		expect(normalizeAIExportSettings({ version: 58, sections: { germany: [] } }).sections.germany).toEqual([]);
 		expect(normalizeAIExportSettings({ version: 58, sections: { astrochart: ['起盘信息'] } }).sections.germany).toBeUndefined();
 		expect(CUR).toBeGreaterThanOrEqual(59);
+		// 再下一窗:量化盘「中点坐标」「公式求解」两新段;v59 存档只补这两段,显式全清仍是全清,v60 起不再重跑
+		expect(normalizeAIExportSettings({ version: 59, sections: { germany: ['中点'] } }).sections.germany).toEqual(['中点', '中点坐标', '公式求解']);
+		expect(normalizeAIExportSettings({ version: 59, sections: { germany: [] } }).sections.germany).toEqual([]);
+		expect(normalizeAIExportSettings({ version: 60, sections: { germany: ['中点'] } }).sections.germany).toEqual(['中点']);
+		expect(CUR).toBeGreaterThanOrEqual(60);
 		expect(normalizeAIExportSettings({ version: CUR, sections: { germany: ['中点'] } }).sections.germany).toEqual(['中点']);
 		const g = AI_EXPORT_PRESET_SECTIONS.germany;
 		expect(g[g.indexOf('六宫框落宫') + 1]).toBe('赤纬接触');   // 段序 = builder 文档序(六宫框之后、校时预览之前)

@@ -12,6 +12,7 @@
    "astrostudyui/src/components/germany/AstroGermany.js": 1,
    "astrostudyui/src/components/germany/UranianDialMain.js": 3,
    "astrostudyui/src/components/germany/UranianDialStyle.js": 1,
+   "astrostudyui/src/components/germany/__tests__/uranianRingsMemoKeyCoverage.test.js": 1,
    "astrostudyui/src/utils/localRecordStore.js": 1,
    "astrostudyui/src/utils/localcharts.js": 1
   },
@@ -362,6 +363,10 @@
    "astrostudyui/src/components/calendar/TongshuMain.js": 1,
    "astrostudyui/src/components/fengshui/FengShuiMain.js": 2
   },
+  "horosa_pd_request_facade_v1": {
+   "astrostudyui/src/components/direction/AstroDirectMain.js": 1,
+   "astrostudyui/src/components/direction/__tests__/pdWarmRequestParity.test.js": 1
+  },
   "horosa_pdsphere_lazy_v1": {
    "astrostudyui/src/components/direction/AstroDirectMain.js": 1
   },
@@ -450,6 +455,7 @@
   },
   "horosa_shallow_scu_v1": {
    "astrostudyui/src/components/astro3d/AstroPDSphere.js": 2,
+   "astrostudyui/src/components/astro3d/__tests__/pdSphereScuPdExtra.test.js": 1,
    "astrostudyui/src/components/jieqi/JieQiChartsMain.js": 2
   },
   "horosa_shusuan_native_scu_v1": {
@@ -469,7 +475,6 @@
    "astrostudyui/src/components/astro/AstroProfection.js": 1,
    "astrostudyui/src/components/astro/AstroSolarArc.js": 1,
    "astrostudyui/src/components/astro/AstroSolarReturn.js": 1,
-   "astrostudyui/src/components/astro/AstroYearSystem129.js": 1,
    "astrostudyui/src/components/cntradition/Gods.js": 1,
    "astrostudyui/src/components/cntradition/MDSYear.js": 1,
    "astrostudyui/src/components/cntradition/MainDirection.js": 1,
@@ -478,7 +483,6 @@
    "astrostudyui/src/components/commtools/BaziPithy.js": 1,
    "astrostudyui/src/components/comp/EditableTags.js": 1,
    "astrostudyui/src/components/comp/TipsBoard.js": 1,
-   "astrostudyui/src/components/germany/AspectToMidpoint.js": 1,
    "astrostudyui/src/components/gua/GuaSym.js": 1,
    "astrostudyui/src/components/guazhan/GuaDesc.js": 1,
    "astrostudyui/src/components/relative/AntisciaInfo.js": 1,

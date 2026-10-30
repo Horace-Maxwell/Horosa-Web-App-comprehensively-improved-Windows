@@ -6,6 +6,7 @@ from websrv.helper import enable_crossdomain
 from astrostudy.germany.midpoint import MidPoint
 from astrostudy.germany.houseframes import compute_house_frames
 from astrostudy.germany.declination import compute_declination
+from astrostudy.germany.coord_midpoint import coord_midpoints
 from flatlib import const
 from flatlib.ephem import ephem as flatlib_ephem
 
@@ -95,6 +96,15 @@ class GermanyAstroSrv:
                     mids['tnpError'] = tnpErr
             else:
                 mids['tnp'] = []
+
+            # 中点坐标:mpCoord=ra|decl 时【新增】 coordMidpoints(赤经 / 赤纬中点与接触);缺省 lon 不算、字节零回归。
+            mp_coord = '{0}'.format(data.get('mpCoord', 'lon') or 'lon').strip()
+            if mp_coord in ('ra', 'decl'):
+                try:
+                    mids['coordMidpoints'] = coord_midpoints(midpoint.objects, mp_coord, orb, perchart.chart.date.jd)
+                except Exception as e:
+                    traceback.print_exc()
+                    mids['coordMidpointsError'] = '{0}'.format(e)
 
             # 六大宫框(定局法 WP-2):frames 缺省 True → 只【新增】 houseFrames 字段,不改既有响应。
             #   pts = midpoint.objects 口径(行星+Asc/MC+8 TNP)+ 白羊点(固定黄经 0°)。

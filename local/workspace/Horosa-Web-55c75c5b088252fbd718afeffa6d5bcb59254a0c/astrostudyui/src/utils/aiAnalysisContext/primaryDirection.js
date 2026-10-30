@@ -6,8 +6,14 @@ import * as Constants from '../constants';
 import { buildStarAndLotPositionLines, buildHouseCuspLines } from '../astroAiSnapshot';
 import * as AstroConst from '../../constants/AstroConst';   // 主限法盘无头快照的黄道/宫制标签(纯常量,零组件依赖)
 import { defaultPdChartDateTime } from '../../components/astro/AstroPrimaryDirectionChart';
-// P5 主限法盘快照：方位法/度数换算的中文标签 + 默认（纯 util，无组件依赖、不回环 aiAnalysisContext）。
-import { getPdMethodLabel, getPdTimeKeyLabel, DEFAULT_PD_METHOD, DEFAULT_PD_TIME_KEY, DEFAULT_PD_TYPE, pdPairParamsFor } from '../primaryDirectionSync';
+// P5 主限法盘快照：弧算法 / 盘面宫制 / 度数换算的中文标签 + 默认（纯 util，无组件依赖、不回环 aiAnalysisContext）。
+import {
+	getPdTimeKeyLabel, DEFAULT_PD_METHOD, DEFAULT_PD_TIME_KEY, DEFAULT_PD_TYPE, DEFAULT_PD_PROJECTION, DEFAULT_PD_FRAME,
+	PD_FRAME_LABELS, pickPdExtraSettings, pdProjectionLabelWithGeometry,
+	PD_EXTRA_SETTING_SPECS, pdExtraSettingValueLabel, pdChartDateRequestParams,
+} from '../primaryDirectionSync';
+
+const PD_YEAR_DAYS_SPEC = PD_EXTRA_SETTING_SPECS.find((s)=>s.key === 'pdYearDays');
 
 // P5 主限法盘快照（无头）：取含主限法的西洋盘 → 把「所选时刻」换算成主限年龄弧 → 出 [主限法盘设置] 段。
 // 搬自 AstroPrimaryDirectionChart.js 的盘快照逻辑（buildSnapshotText + getPdArcFromDate）——纯文本快照，
@@ -133,6 +139,10 @@ export async function buildPrimaryDirChartSnapshotText(chartObj, opts){
 		return '';
 	}
 	const pdMethod = `${o.pdMethod || params.pdMethod || DEFAULT_PD_METHOD}`;
+	// 两维取显式值(与主限法表、主限法盘页同口径);外圈宫头只看盘面宫制,弧算法只作自陈
+	const pdProjection = `${o.pdProjection || params.pdProjection || DEFAULT_PD_PROJECTION}`;
+	const pdFrame = `${o.pdFrame || params.pdFrame || DEFAULT_PD_FRAME}`;
+	const pdGeometry = pickPdExtraSettings({ pdGeometry: o.pdGeometry !== undefined ? o.pdGeometry : params.pdGeometry }).pdGeometry;
 	const pdTimeKey = `${o.pdTimeKey || params.pdTimeKey || DEFAULT_PD_TIME_KEY}`;
 	// User 档自定义钥匙率:齿轮 > 存档;缺=不带(后端回落 1.0)
 	const pdTimeKeyCustomRaw = (o.pdTimeKeyCustom !== undefined && o.pdTimeKeyCustom !== null && `${o.pdTimeKeyCustom}` !== '') ? o.pdTimeKeyCustom : params.pdTimeKeyCustom;
@@ -161,9 +171,13 @@ export async function buildPrimaryDirChartSnapshotText(chartObj, opts){
 	lines.push('');
 	lines.push('[主限法盘设置]');
 	lines.push(`时间选择：${currentDt ? currentDt.format('YYYY-MM-DD HH:mm:ss') : '无'}`);
-	lines.push(`推运方法：${getPdMethodLabel(pdMethod)}`);
+	lines.push(`弧算法（主限法表用）：${pdProjectionLabelWithGeometry({ ...params, pdProjection, pdFrame }, pdGeometry) || 'Ptolemy（半弧）'}`);
+	lines.push(`盘面宫制（外圈宫头）：${PD_FRAME_LABELS[pdFrame] || pdFrame}`);
 	lines.push(`度数换算：${getPdTimeKeyLabel(pdTimeKey)}`);
 	lines.push(`向运方向：${direction === 'converse' ? '逆向 Converse' : '顺向 Direct'}`);
+	// 日期年长(与页面同一行;外圈请求同带)
+	const dateSettings = pdChartDateRequestParams(o, params);
+	lines.push(`${PD_YEAR_DAYS_SPEC.label}：${pdExtraSettingValueLabel(PD_YEAR_DAYS_SPEC, pickPdExtraSettings(dateSettings).pdYearDays)}`);
 	// 「当前Arc」页面优先取推导盘回的 arc(经度数换算 pdTimeKey),无则按日期反解。
 	// 无头旧实现只会反解 → 非 Ptolemy 钥匙时快照 Arc 与页面对不上。先占位,取回推导盘后改写本行。
 	const currentArcLineIdx = lines.length;
@@ -202,11 +216,13 @@ export async function buildPrimaryDirChartSnapshotText(chartObj, opts){
 			tradition: params.tradition,
 			pdtype: DEFAULT_PD_TYPE,
 			pdMethod,
-			// (投影,分宫)与齿轮所选方法一致(单源 pdPairParamsFor;此前恒带存档 pdFrame → 齿轮改方法宫头不动而快照标新方法)
-			...pdPairParamsFor(pdMethod, params.pdProjection, params.pdFrame),
+			// 两维显式发送(曾经经旧单维方法推导:方法停在缺省时宫制一律被打回 Alcabitius)
+			pdProjection,
+			pdFrame,
 			pdTimeKey,
 			...(pdTimeKeyCustom ? { pdTimeKeyCustom } : {}),
 			showPdBounds: params.showPdBounds,
+			...dateSettings,
 			datetime: currentDt ? currentDt.format('YYYY-MM-DD HH:mm:ss') : '',
 			direction,
 		};

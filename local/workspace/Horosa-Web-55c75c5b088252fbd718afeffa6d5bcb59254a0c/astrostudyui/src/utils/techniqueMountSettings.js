@@ -47,6 +47,10 @@ import {
 	PD_FRAME_LABELS,
 	DEFAULT_PD_METHOD,
 	DEFAULT_PD_TIME_KEY,
+	PD_EXTRA_SETTING_SPECS,
+	PD_SIGNIFICATOR_OPTIONS,
+	PD_PROMISSOR_TYPE_OPTIONS,
+	pdGeometryApplies,
 } from './primaryDirectionSync';
 import { defaultAfter23NewDay, defaultLateZiHourUseNextDay } from './dayBoundary';
 import {
@@ -120,7 +124,10 @@ import { GANZHI_60 } from '../components/fengshui/fengshuiData';
 import { SIGNS, SIGN_ORDER } from '../divination/data/signs';
 // 推运 builder 的官方选项常量 + 默认 opts（三分主星 / Balbillus / 关键点）——纯 util，无循环，直接复用。
 import { TRIPLICITY_DIVISIONS, TRIPLICITY_SYSTEMS, TRIPLICITY_DEFAULT_OPTS } from './triplicityRulers';
-import { BALBILLUS_YEAR_TYPES, BALBILLUS_MODES, BALBILLUS_DEFAULT_OPTS } from './balbillus';
+import { BALBILLUS_YEAR_TYPES, BALBILLUS_MODES, BALBILLUS_SUB_RULES, BALBILLUS_DEFAULT_OPTS } from './balbillus';
+import { YS129_START_OPTIONS, YS129_ORDERS, YS129_YEAR_TYPES, YS129_SUB_RULES, YS129_DEFAULT_OPTS, yearSystem129StartLabel } from './yearSystem129';
+import { DIST_RELEASERS, DIST_METHODS, DIST_YEARS, DIST_SPANS, DIST_DEFAULTS } from './distributionsOptions';
+import { AP_METHODS, AP_EVENTS, AP_YEARS, AP_SPANS, AP_DEFAULTS } from './agePointOptions';
 import { RELEASE_MODES, KEYPOINTS_DEFAULT_OPTS } from './keypoints120';
 // 批3 推运 builder 导出的官方选项常量（黄道星释 / 十年大运 / 行星弧 / 波斯向运）。
 // 这些定义在 components/astro/* 组件文件内，但只导出「纯常量」(不含组件 init 依赖)，且这些文件不 import aiAnalysisContext
@@ -146,6 +153,7 @@ import {
 } from '../components/ziwei/ziweiOptions';
 import { directionAsporbOptions } from '../constants/directionAspOrb';
 import { tiebanKeOptions, clampTiebanKe } from './tiebanFrameworkLocal';
+import { DIRECTION_PAGE_SETTINGS } from './directionPageSettings';
 import { BEIJI_KE_OPTIONS, NANJI_SECTION_OPTIONS, NANJI_JIANCHU_OPTIONS, NANJI_XIU_OPTIONS, NANJI_PASSWORD_OPTIONS, NANJI_CHART_OPTIONS, CHUNZI_KE_OPTIONS, CHUNZI_RESULT_LIMIT_OPTIONS, CHUNZI_MANSION_OPTIONS, SHAOZI_KE_OPTIONS, ZC_SOUNDS, ZC_KE, ZC_GONG, ZC_DAY_ZHI, zcEnvOptionsFor, zcEnvShown } from '../components/kinastro/kinastroOptions';
 import { BABYLON_SCHEMES, SCHEME_ORDER as BABYLON_SCHEME_ORDER } from '../divination/babylon/babylonSchools';
 // 注：卜卦/择日/六壬起课的选项常量定义在「大组件」(HoraryMain/ElectionMain/LiuRengMain) 内，它们与 aiAnalysisContext
@@ -1248,6 +1256,7 @@ const PRIMARY_DIRECT_TABLE_FIELDS = [
 	{ name: 'pdtype', label: '方向', type: 'select', default: 0, group: '方位法', options: [   // 标签与主限法页工具条同
 		{ value: 0, label: 'In Zodiaco（默认）' },
 		{ value: 1, label: 'In Mundo' },
+		{ value: 4, label: 'Field Plane' },
 	] },
 	// 页面工具条的「顺 / 逆」:写 Direct / Converse,不写 zodiacal(那是主限法 In Zodiaco 的另一个概念)
 	{ name: 'pdDirect', label: '顺向（Direct）', type: 'switch', options: ON_OFF, default: 1, group: '方向' },
@@ -1279,22 +1288,25 @@ const PRIMARY_DIRECT_TABLE_FIELDS = [
 	// P2 长尾三键(与工具条「度数Key=自定义 / 扩展 Popover」同域;默认空=零回归):
 	// 缺登记 = 用户在表格勾了扩展,AI 分析里重算却按默认无扩展,两侧口径不一致。
 	{ name: 'pdTimeKeyCustom', label: '自定义钥匙率（度/年，仅 User 档）', type: 'number', default: 0, min: 0, max: 30, group: '范围', showWhen: (d)=>d.pdTimeKey === 'User' },
-	{ name: 'pdSignificators', label: '应星扩展', type: 'multiselect', default: [], group: '扩展', options: [
-		{ value: 'Desc', label: '下降 DSC' }, { value: 'IC', label: '天底 IC' },
-		{ value: 'Syzygy', label: '产前朔望' }, { value: 'Spirit', label: '精神点' },
-		{ value: 'Cusps', label: '中间宫始点' }, { value: 'Stars', label: '恒星（王星+比尼）' },
-		{ value: 'Lots', label: '阿拉伯点（全目录）' },
-	] },
-	{ name: 'pdPromissorTypes', label: '迫星扩展', type: 'multiselect', default: [], group: '扩展', options: [
-		{ value: 'cusps', label: '宫始点' }, { value: 'stars', label: '恒星' }, { value: 'lots', label: '阿拉伯点' },
-	] },
+	// 选项与页面扩展面板同一份(primaryDirectionSync)
+	{ name: 'pdSignificators', label: '应星扩展', type: 'multiselect', default: [], group: '扩展', options: PD_SIGNIFICATOR_OPTIONS },
+	{ name: 'pdPromissorTypes', label: '迫星扩展', type: 'multiselect', default: [], group: '扩展', options: PD_PROMISSOR_TYPE_OPTIONS },
+	// 设置项登记表(相位侧 / 传统逆向 / 取点四项):与页面扩展面板同源生成,缺省不下发 = 零回归
+	// 几何口径(inProjection)只在当前方向 / 弧算法 / 宫制 / 平行组合真有差别时列出(页面上它并在弧算法下拉里)
+	...PD_EXTRA_SETTING_SPECS.map((spec)=>(spec.type === 'switch'
+		? { name: spec.key, label: spec.label, type: 'switch', options: ON_OFF, default: spec.default, group: spec.group }
+		: { name: spec.key, label: spec.label, type: 'select', default: spec.default, group: spec.group, options: spec.options,
+			...(spec.inProjection ? { showWhen: (d)=>pdGeometryApplies(d || {}) } : {}) })),
 ];
 // 主限法·盘（primarydirchart）：选一准确「时刻」→ 换算成主限年龄弧 → 出真盘快照。
-// 方位法 + 度数换算 + 时间(datetime,default '') + 向运方向；无 pdYears（盘是「单一时刻」不是「年限范围」）。
+// 盘面宫制 + 度数换算 + 时间(datetime,default '') + 向运方向；无 pdYears（盘是「单一时刻」不是「年限范围」）。
+// 外圈 = 全天按主限弧在赤经上整体推进,与弧算法无关(弧算法只决定主限法表)→ 这里不设弧算法;宫头由盘面宫制定,
+// 与主限法表同键 pdFrame(record 型:齿轮直接读写命盘记录的字段)。
 // datetime default 恒 ''（空→builder 取此刻；不破 prune-empty 铁律）。
 const PRIMARY_DIRECT_CHART_FIELDS = [
 	{ name: 'datetime', label: '时间选择(空=此刻)', type: 'datetime', default: '', group: '时间' },
-	{ name: 'pdMethod', label: '推运方法', type: 'select', options: PD_METHOD_OPTIONS, default: DEFAULT_PD_METHOD, group: '方位法' },   // 与主限盘页同名
+	{ name: 'pdFrame', label: '盘面宫制（外圈宫头）', type: 'select', default: 'alcabitius', group: '方位法',
+		options: SUPPORTED_PD_FRAMES.map((v)=>({ value: v, label: PD_FRAME_LABELS[v] || v })) },   // 与主限盘页同名
 	{ name: 'pdTimeKey', label: '度数换算', type: 'select', options: PD_TIME_KEY_OPTIONS, default: DEFAULT_PD_TIME_KEY, group: '方位法' },
 	// User 档自定义钥匙率(与主限法表格齿轮同键;缺省 0=不带,后端回落 1.0)
 	{ name: 'pdTimeKeyCustom', label: '自定义钥匙率（度/年，仅 User 档）', type: 'number', default: 0, min: 0, max: 30, group: '方位法', showWhen: (d)=>d.pdTimeKey === 'User' },
@@ -1400,7 +1412,7 @@ const GUOLAO_FIELDS = [
 // 拨到任何值,挂载正文逐字节不变(齿轮差分网 12 次实测),挂上去就是三个空齿轮。故按「有载体才暴露」撤下。
 // filter 面=真下发键 ∩ 快照有载体(hsys/zodiacal/siderealAyanamsa/虚点);
 // 旧注「TNP/中点/orb 是内部常量」已过时:builder 亲读 getStoredUranianDisplay() 的
-// school/orb/orbPersonal/strictFactors/showDeclination/frames → /germany/midpoint,故一并入齿轮
+// school/orb/orbPersonal/strictFactors/showDeclination/frames/mpCoord → /germany/midpoint,故一并入齿轮
 // (''=随全局显示设置,prune 剪掉零回归;非空经 case 'germany' 组 dispOverride 覆盖)。
 // showDavison/showComposite 依赖 synastryPeople(合盘人名→fieldsAry 查档,内容型)不入齿轮,恒随全局。
 // 量化盘流派预设 → 齿轮四键(值域与页面 changeSchool 同:容许度数值、六宫框 / 严格因子集 0/1)
@@ -1433,6 +1445,10 @@ const GERMANY_FIELDS = [
 	{ name: 'showEastPoint', label: '东点（六宫框关时才独立生效；开六宫框恒含东点）', type: 'select', default: '', group: '量化盘', options: [   /* AstroMidpoint frames = showHouseFrames!==false || showEastPoint */
 		{ value: '', label: '随全局（默认）' }, { value: 1, label: '开' }, { value: 0, label: '关' },
 	] },
+	// 中点坐标(同行星中点页下拉):赤经 / 赤纬才让后端另算坐标中点,快照多出「中点坐标」段;黄经 = 不下发 = 现状
+	{ name: 'mpCoord', label: '中点坐标', type: 'select', default: '', group: '量化盘', options: [
+		{ value: '', label: '随全局（默认）' }, { value: 'lon', label: '黄经' }, { value: 'ra', label: '赤经' }, { value: 'decl', label: '赤纬' },
+	] },
 ];
 
 
@@ -1460,6 +1476,45 @@ const BALBILLUS_FIELDS = [
 		options: Object.keys(BALBILLUS_YEAR_TYPES).map((k)=>({ value: k, label: BALBILLUS_YEAR_TYPES[k].label })) },
 	{ name: 'mode', label: '距离口径', type: 'select', default: BALBILLUS_DEFAULT_OPTS.mode, group: '起运',
 		options: Object.keys(BALBILLUS_MODES).map((k)=>({ value: k, label: BALBILLUS_MODES[k] })) },
+	{ name: 'subRule', label: '子限铺法', type: 'select', default: BALBILLUS_DEFAULT_OPTS.subRule, group: '起运',
+		options: Object.keys(BALBILLUS_SUB_RULES).map((k)=>({ value: k, label: BALBILLUS_SUB_RULES[k] })) },
+];
+
+// 推运·界推运:发放点 / 时间算法 / 年长 / 年限(与页面同四项、同一请求键,builder 收 opts)。
+const DISTRIBUTIONS_FIELDS = [
+	{ name: 'distReleaser', label: '发放点', type: 'select', default: DIST_DEFAULTS.distReleaser, group: '分配',
+		options: DIST_RELEASERS.map((o)=>({ value: o.value, label: o.label })) },
+	{ name: 'distMethod', label: '时间算法', type: 'select', default: DIST_DEFAULTS.distMethod, group: '分配',
+		options: DIST_METHODS.map((o)=>({ value: o.value, label: o.label })) },
+	{ name: 'distYear', label: '年长', type: 'select', default: DIST_DEFAULTS.distYear, group: '分配',
+		options: DIST_YEARS.map((o)=>({ value: o.value, label: o.label })) },
+	{ name: 'distYears', label: '年限', type: 'select', default: DIST_DEFAULTS.distYears, group: '分配',
+		options: DIST_SPANS.map((n)=>({ value: n, label: `${n} 年` })) },
+];
+
+// 推运·年龄推进点:推进方式 / 事件 / 年长 / 年限(与页面同四项、同一请求键,builder 收 opts)。
+const AGEPOINT_FIELDS = [
+	{ name: 'apMethod', label: '推进方式', type: 'select', default: AP_DEFAULTS.apMethod, group: '推进',
+		options: AP_METHODS.map((o)=>({ value: o.value, label: o.label })) },
+	{ name: 'apEvents', label: '事件', type: 'select', default: AP_DEFAULTS.apEvents, group: '推进',
+		options: AP_EVENTS.map((o)=>({ value: o.value, label: o.label })) },
+	{ name: 'apYear', label: '年长', type: 'select', default: AP_DEFAULTS.apYear, group: '推进',
+		options: AP_YEARS.map((o)=>({ value: o.value, label: o.label })) },
+	{ name: 'apMaxAge', label: '年限', type: 'select', default: AP_DEFAULTS.apMaxAge, group: '推进',
+		options: AP_SPANS.map((n)=>({ value: n, label: `${n} 岁` })) },
+];
+
+// 推运·129 年系统:起始星 / 次序 / 年制 / 子限铺法(与页面同四项、同一引擎 utils/yearSystem129)。
+// 键名带 ys129 前缀(= 页面保存键):起始星 / 年制 / 子限铺法与 Balbillus 同义不同值域,平铺进记录不许撞名。
+const YEARSYSTEM129_FIELDS = [
+	{ name: 'ys129StartPlanet', label: '起始星', type: 'select', default: YS129_DEFAULT_OPTS.startPlanet, group: '起运',
+		options: YS129_START_OPTIONS.map((p)=>({ value: p, label: yearSystem129StartLabel(p) })) },
+	{ name: 'ys129Order', label: '次序', type: 'select', default: YS129_DEFAULT_OPTS.order, group: '起运',
+		options: Object.keys(YS129_ORDERS).map((k)=>({ value: k, label: YS129_ORDERS[k] })) },
+	{ name: 'ys129YearType', label: '年制', type: 'select', default: YS129_DEFAULT_OPTS.yearType, group: '起运',
+		options: Object.keys(YS129_YEAR_TYPES).map((k)=>({ value: k, label: YS129_YEAR_TYPES[k].label })) },
+	{ name: 'ys129SubRule', label: '子限铺法', type: 'select', default: YS129_DEFAULT_OPTS.subRule, group: '起运',
+		options: Object.keys(YS129_SUB_RULES).map((k)=>({ value: k, label: YS129_SUB_RULES[k] })) },
 ];
 
 // 推运·关键点（120 年）：释放点 命/身。builder buildKeypointsSnapshotText(chartObj,opts) 已收 opts。
@@ -1930,6 +1985,9 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	// 这三者的 standalone builder 已收 (chartObj,opts)；regen 据 record.* 组 opts 传入（见 aiAnalysisContext）。
 	triplicityrulers: { kind: 'record', fields: TRIPLICITY_FIELDS },
 	balbillus: { kind: 'record', fields: BALBILLUS_FIELDS },
+	yearsystem129: { kind: 'record', fields: YEARSYSTEM129_FIELDS },
+	distributions: { kind: 'record', fields: DISTRIBUTIONS_FIELDS },
+	agepoint: { kind: 'record', fields: AGEPOINT_FIELDS },
 	keypoints: { kind: 'record', fields: KEYPOINTS_FIELDS },
 	// 批3：以下推运 builder 加了 opts 形参 + regen 据 record.* 传入（见 aiAnalysisContext regenerateChartTechniqueSnapshot）。
 	zodialrelease: { kind: 'record', fields: ZODIAL_RELEASE_FIELDS },
@@ -2658,8 +2716,8 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 // 批3 已为 zodialrelease/decennials/planetaryarc/persiandirected/vedicprog/jaynesprog/profection/solararc/
 //   solarreturn/lunarreturn/givenyear 配了真 fields（上方显式登记），故从空集移除。
 const PROGRESSION_EMPTY_KEYS = [
-	'firdaria', 'distributions', 'agepoint', 'planetaryages',
-	'lunationphase', 'extrareturns', 'yearsystem129',
+	'firdaria', 'planetaryages',
+	'lunationphase', 'extrareturns',
 	'ephemeris', 'returntimeline', 'prenatalsyzygy',   // 三页区间/年数为页面查询参数,非挂载齿轮
 ];
 PROGRESSION_EMPTY_KEYS.forEach((key)=>{
@@ -2671,6 +2729,74 @@ PROGRESSION_EMPTY_KEYS.forEach((key)=>{
 		};
 	}
 });
+
+// 星运族的口径只有一套(星运页保存值,utils/directionPageSettings):这些齿轮字段的「现状默认」= 星运页保存的值
+// (没保存过 = 出厂默认),AI 重算缺键时回落同一份(fillPageBoundDefaults)。此前齿轮基线与重算都只认出厂默认:
+// 页面上把界推运发放点改成天顶,AI 分析 / 报告里仍按上升算,而且是否读到页面口径还取决于有没有打开过那一页。
+// 键:技法 → { 齿轮字段: 星运页字段 };开关字段(交点逆移)页面存布尔、齿轮用 0/1。
+export const DIRECTION_PAGE_BOUND_FIELDS = {
+	persiandirected: { rateKey: 'persianRateKey', direction: 'persianDirection', maxYears: 'persianMaxYears' },
+	decennials: { startMode: 'decennialStartMode', orderType: 'decennialOrderType', dayMethod: 'decennialDayMethod', calendarType: 'decennialCalendarType' },
+	triplicityrulers: { division: 'triplicityDivision', lifespan: 'triplicityLifespan' },
+	keypoints: { mode: 'keypointsMode' },
+	prog: { minorVariant: 'minorVariant' },
+	vedicprog: { minorVariant: 'minorVariant' },
+	jaynesprog: { minorVariant: 'minorVariant' },
+	profection: { nodeRetrograde: 'nodeRetrograde', profGrain: 'profGrain', profStart: 'profStart' },
+	solararc: { nodeRetrograde: 'nodeRetrograde' },
+	planetaryarc: { nodeRetrograde: 'nodeRetrograde' },
+	balbillus: { startPlanet: 'balbillusStartPlanet', yearType: 'balbillusYearType', mode: 'balbillusMode', subRule: 'balbillusSubRule' },
+	yearsystem129: { ys129StartPlanet: 'ys129StartPlanet', ys129Order: 'ys129Order', ys129YearType: 'ys129YearType', ys129SubRule: 'ys129SubRule' },
+	distributions: { distReleaser: 'distReleaser', distMethod: 'distMethod', distYear: 'distYear', distYears: 'distYears' },
+	agepoint: { apMethod: 'apMethod', apEvents: 'apEvents', apYear: 'apYear', apMaxAge: 'apMaxAge' },
+};
+
+function directionPageValue(field, pageKey){
+	const v = DIRECTION_PAGE_SETTINGS.load()[pageKey];
+	if(v === undefined || v === null){
+		return undefined;
+	}
+	return field.type === 'switch' ? (v ? 1 : 0) : v;
+}
+
+Object.keys(DIRECTION_PAGE_BOUND_FIELDS).forEach((key)=>{
+	const schema = TECHNIQUE_SETTINGS_SCHEMA[key];
+	if(!schema || !Array.isArray(schema.fields)){
+		return;
+	}
+	const map = DIRECTION_PAGE_BOUND_FIELDS[key];
+	// 字段对象可能被几门技法共用:复制一份再挂 globalCurrent,不改动共用的那份
+	schema.fields = schema.fields.map((field)=>{
+		const pageKey = map[field.name];
+		if(!pageKey){
+			return field;
+		}
+		const bound = { ...field, pageBoundKey: pageKey };
+		bound.globalCurrent = ()=>directionPageValue(bound, pageKey);
+		return bound;
+	});
+});
+
+// AI 重算入口:记录里缺的星运页口径字段按星运页保存值补上(齿轮覆盖 / 记录已有的值不动)。
+export function fillPageBoundDefaults(key, record){
+	const map = DIRECTION_PAGE_BOUND_FIELDS[`${key || ''}`];
+	const schema = TECHNIQUE_SETTINGS_SCHEMA[`${key || ''}`];
+	if(!map || !schema || !record || typeof record !== 'object'){
+		return record;
+	}
+	let out = record;
+	schema.fields.forEach((field)=>{
+		if(!field.pageBoundKey || (record[field.name] !== undefined && record[field.name] !== null && record[field.name] !== '')){
+			return;
+		}
+		const v = fieldCurrentDefault(field);
+		if(v !== undefined && v !== null){
+			if(out === record){ out = { ...record }; }
+			out[field.name] = v;
+		}
+	});
+	return out;
+}
 
 // ---- 取 schema / 默认值 ----
 

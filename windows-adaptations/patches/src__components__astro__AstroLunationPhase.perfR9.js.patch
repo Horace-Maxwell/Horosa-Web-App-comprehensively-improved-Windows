@@ -1,10 +1,10 @@
 diff --git a/astrostudyui/src/components/astro/AstroLunationPhase.js b/astrostudyui/src/components/astro/AstroLunationPhase.js
-index 1093fafd..ea1db1c5 100644
+index f6caec4a..0f1daa32 100644
 --- a/astrostudyui/src/components/astro/AstroLunationPhase.js
 +++ b/astrostudyui/src/components/astro/AstroLunationPhase.js
 @@ -4,6 +4,7 @@ import { birthMomentOfChart } from '../../utils/civilMoment';
  import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
- import { buildLunationPhases, buildLunationPhaseSnapshotText, phaseAtAge, PHASES_8, LUNATION_DEFAULT_OPTS } from '../../utils/lunationPhase';
+ import { buildLunationPhases, buildLunationPhaseSnapshotText, progressedElongAtAge, computeLunationPhase, PHASES_8, LUNATION_DEFAULT_OPTS } from '../../utils/lunationPhase';
  import styles from '../../css/styles.less';
 +import { markPanelReady } from '../../utils/perfMark';
  

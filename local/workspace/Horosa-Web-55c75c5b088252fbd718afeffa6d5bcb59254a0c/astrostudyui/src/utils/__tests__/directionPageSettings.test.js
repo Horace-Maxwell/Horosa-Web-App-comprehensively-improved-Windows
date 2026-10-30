@@ -35,7 +35,10 @@ describe('directionPageSettings', ()=>{
 			persianRateKey: 'persian', persianDirection: 'direct', persianMaxYears: 90,
 			decennialStartMode: 'sect_light', decennialOrderType: 'zodiacal', decennialDayMethod: 'valens', decennialCalendarType: 'calendar_360',
 			profGrain: 'y', profStart: 'asc',
-			balbillusStartPlanet: 'Sun', balbillusYearType: 'solar', balbillusMode: 'nearest', keypointsMode: 'soul',
+			balbillusStartPlanet: 'Sun', balbillusYearType: 'solar', balbillusMode: 'nearest', balbillusSubRule: 'once', keypointsMode: 'soul',
+			ys129StartPlanet: 'Sun', ys129Order: 'zodiacal', ys129YearType: 'solar', ys129SubRule: 'days',
+			distReleaser: 'Asc', distMethod: 'classical', distYear: 'tropical', distYears: 100,
+			apMethod: 'koch', apEvents: 'full', apYear: 'tropical', apMaxAge: 72,
 		});
 	});
 

@@ -290,13 +290,16 @@ final class AIToolCallSupport {
 	 *  与档案里写不写 thinking 无关 —— 三者的带 tool_use 回合都必须回放签名 thinking 块(上游硬约束)。 */
 	@SuppressWarnings("rawtypes")
 	static boolean anthropicThinkingEnabled(Map<String, Object> providerOptions, String model){
-		if(AIAnalysisProxyService.anthropicAlwaysThinking(model)) { return true; }
+		// 思考不可关(Fable / Mythos / Opus 5.5 起)与关闭档改发 between_tools 的(Sonnet 5.5 起,工具之间照样回进度思考块):
+		//   一律回放。官方:思考块原样回放永远安全(当前型号读不了的块由上游丢弃、不计费),漏回放才会 400。
+		String off = AIAnalysisProxyService.anthropicThinkingOffForm(model);
+		if("always".equals(off) || "between_tools".equals(off)) { return true; }
 		Object th = providerOptions == null ? null : providerOptions.get("thinking");
 		// 不带 thinking 字段 ≠ 关闭:Sonnet 5 / Opus 5 官方缺省即开思考(工具回合会回签名块),此前按「未开启」不回放 →
 		//   多轮工具回合丢块。按型号缺省判(Opus 4.6–4.8 / Sonnet 4.6 缺省关;预算族不带即关);显式 disabled 才是关。
 		if(!(th instanceof Map)) { return AIAnalysisProxyService.anthropicThinkingDefaultOn(model); }
 		String type = str(((Map) th).get("type"));
-		return "enabled".equals(type) || "adaptive".equals(type);
+		return "enabled".equals(type) || "adaptive".equals(type) || "between_tools".equals(type);
 	}
 
 	/** assistant 内容块:[thinking/redacted_thinking(思考档开启且有签名块时)] + text(非空) + tool_use。 */

@@ -17,6 +17,11 @@ import spacex.astrostudy.helper.AstroHelper;
 @RequestMapping("/predict")
 public class PredictiveController {
 
+	static final String[] TECHNIQUE_OPTION_KEYS = new String[] {
+		"distReleaser", "distMethod", "distYear", "distYears",
+		"apMethod", "apEvents", "apYear", "apMaxAge",
+	};
+
 	private Map<String, Object> getParams(){
 		Map<String, Object> params = new HashMap<String, Object>();
 		if(!TransData.containsParam("date")) {
@@ -120,6 +125,17 @@ public class PredictiveController {
 		}
 		if(TransData.containsParam("pdPromissorTypes")) {
 			params.put("pdPromissorTypes", TransData.get("pdPromissorTypes"));
+		}
+		// 星运各技法的页面设置(界推运 / 年龄推进点):缺省不发 = 后端出厂口径;没登记的键会在这里被静默丢掉
+		for(String key : TECHNIQUE_OPTION_KEYS) {
+			if(TransData.containsParam(key)) {
+				params.put(key, TransData.get(key));
+			}
+		}
+		for(String key : spacex.basecomm.constants.PdWire.SETTING_KEYS) {
+			if(TransData.containsParam(key)) {
+				params.put(key, TransData.get(key));
+			}
 		}
 		if(TransData.containsParam("termsVariant")) {
 			params.put("termsVariant", TransData.get("termsVariant"));

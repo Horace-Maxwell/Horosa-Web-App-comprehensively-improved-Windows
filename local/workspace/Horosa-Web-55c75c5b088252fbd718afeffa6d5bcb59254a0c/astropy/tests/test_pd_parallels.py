@@ -83,7 +83,8 @@ def test_mundane_and_rapt_parallels_in_mundo_only():
 
 
 def test_mundane_parallel_mirror_equation_residual():
-    # 取一行 MP_,复核镜像方程 W_P(RAMC+arc) + W_S(RAMC) ≡ 2·axis(残差角分级)
+    # 取一行 MP_,复核镜像方程(残差角分级):子午平行 = 应星被带到迫星的镜像,W_S(RAMC+arc) + W_P(RAMC) ≡ 2·axis;
+    # 地平平行 = 迫星走到应星的镜像,W_P(RAMC+arc) + W_S(RAMC) ≡ 2·axis
     cd = dict(BASE)
     cd.update({'pdProjection': 'placidus', 'pdtype': 1, 'pdParallel': True})
     pc = perchart.PerChart(cd)
@@ -100,10 +101,11 @@ def test_mundane_parallel_mirror_equation_residual():
         sig_name = r[2].split('_')[1]
         if pname not in bodies or sig_name not in bodies:
             continue
+        moved_s = axis == 'MER'
         w_s = pd_engine.mundane_pos(bodies[sig_name]['lon'], bodies[sig_name]['lat'],
-                                    armc, phi, eps, 'placidus')
+                                    pd_engine.norm360(armc + r[0]) if moved_s else armc, phi, eps, 'placidus')
         w_p = pd_engine.mundane_pos(bodies[pname]['lon'], bodies[pname]['lat'],
-                                    pd_engine.norm360(armc + r[0]), phi, eps, 'placidus')
+                                    armc if moved_s else pd_engine.norm360(armc + r[0]), phi, eps, 'placidus')
         resid = pd_engine.norm180(w_p + w_s - 2.0 * AX[axis])
         assert abs(resid) < 0.05, (r, resid)
         checked += 1

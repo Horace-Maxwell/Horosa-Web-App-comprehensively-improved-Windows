@@ -18,6 +18,7 @@
 
 // parse: 'int'|'num'|'str'|'raw'|'object' —— 与 buildLocalChartRecord 保存侧强转一一对应。
 // fixed(可选):已停用的键,载入时无论记录存的是什么一律还原成这个值。
+import { PD_EXTRA_SETTING_SPECS } from './primaryDirectionSync';
 import { isNewChartSeedKey, newChartSeedIsInSchema, newChartSeedInternalDefault, newChartSeedRecordMissingValue, newChartSeedAlwaysCaptured, resetNewChartSeedKeysToInternalDefaults } from './newChartSeeds';
 import { ZIWEI_SETTINGS_GEN_KEY, ZIWEI_SETTINGS_GEN } from './ziweiRecordSettings';
 import { GUOLAO_RECORD_FACTORY_DEFAULTS } from '../components/guolao/GuoLaoChartStyle';
@@ -112,6 +113,14 @@ export const RECORD_FIELDS_RESTORE_MANIFEST = [
 	{ key: 'pdTimeKeyCustom', parse: 'raw' },
 	{ key: 'pdSignificators', parse: 'raw' },
 	{ key: 'pdPromissorTypes', parse: 'raw' },
+	// 顺 / 逆 / 映点 / 界:存盘一直落库(localcharts)、AI 挂载按记录读,页面载入却不还原 —— 载入的盘按上一张盘或缺省算,
+	// 与挂载结果不一致;上一张盘的值还会串进下一张没存这几键的盘。现与其余主限键同一还原口径
+	{ key: 'pdDirect', parse: 'int' },
+	{ key: 'pdConverse', parse: 'int' },
+	{ key: 'pdAntiscia', parse: 'int' },
+	{ key: 'pdTerms', parse: 'int' },
+	// 主限法设置项登记表(相位侧 / 传统逆向 / 取点四项):与 localcharts 落库键成对
+	...PD_EXTRA_SETTING_SPECS.map((spec)=>({ key: spec.key, parse: typeof spec.default === 'number' ? 'int' : 'raw' })),
 	// ── 埃及流派七轴(egypt_*):快照链 egyptSchoolFromFields 消费,页面不受钳制 ──
 	{ key: 'egypt_decanRuler', parse: 'raw' },
 	{ key: 'egypt_decanAnchor', parse: 'raw' },

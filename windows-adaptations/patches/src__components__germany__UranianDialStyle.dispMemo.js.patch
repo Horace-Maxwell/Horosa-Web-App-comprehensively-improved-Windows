@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/germany/UranianDialStyle.js b/astrostudyui/src/components/germany/UranianDialStyle.js
-index 852ce9a8..85026d5e 100644
+index 8937bc51..8529b34d 100644
 --- a/astrostudyui/src/components/germany/UranianDialStyle.js
 +++ b/astrostudyui/src/components/germany/UranianDialStyle.js
 @@ -1,4 +1,5 @@
@@ -8,7 +8,7 @@ index 852ce9a8..85026d5e 100644
  // 汉堡 90°中点盘显示偏好 = 组件 state + 专用 localStorage（镜像 GuoLaoChartStyle）。
  // 显示偏好不进 app.js globalSetup（那是跨技法全局开关专用）；切换即时重绘、不触发后端重取。
  
-@@ -69,12 +70,26 @@ function parseDialStyle(v){
+@@ -79,12 +80,26 @@ function parseDialStyle(v){
  // 流派合法集;非法回退 classic。
  const SCHOOL_SET = new Set(['classic', 'pure', 'uranian', 'cosmo']);
  
@@ -36,9 +36,9 @@ index 852ce9a8..85026d5e 100644
  			dialStyle: parseDialStyle(obj.dialStyle),
  			dialBase: VALID_BASES.indexOf(Number(obj.dialBase)) >= 0 ? Number(obj.dialBase) : DEFAULTS.dialBase,
  			showTnp: obj.showTnp === undefined ? DEFAULTS.showTnp : !!obj.showTnp,
-@@ -111,7 +126,13 @@ export function getStoredUranianDisplay(){
- 			// —— WP-10 校时事件:[{label,date,type}] 数组;非数组回退空(date 为 ISO 串,解析交给组件)。
- 			rectifyEvents: Array.isArray(obj.rectifyEvents) ? obj.rectifyEvents.filter((x) => x && typeof x === 'object') : DEFAULTS.rectifyEvents,
+@@ -125,7 +140,13 @@ export function getStoredUranianDisplay(){
+ 			mpCoord: (obj.mpCoord === 'ra' || obj.mpCoord === 'decl') ? obj.mpCoord : DEFAULTS.mpCoord,
+ 			focusFactor: typeof obj.focusFactor === 'string' ? obj.focusFactor : DEFAULTS.focusFactor,
  		};
 +		if (memoEnabled()){
 +			_dispCache = parsed;

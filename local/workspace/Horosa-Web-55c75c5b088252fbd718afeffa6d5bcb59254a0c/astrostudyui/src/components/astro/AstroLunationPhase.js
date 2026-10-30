@@ -2,7 +2,7 @@ import { Component } from 'react';
 import moment from 'moment';
 import { birthMomentOfChart } from '../../utils/civilMoment';
 import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
-import { buildLunationPhases, buildLunationPhaseSnapshotText, phaseAtAge, PHASES_8, LUNATION_DEFAULT_OPTS } from '../../utils/lunationPhase';
+import { buildLunationPhases, buildLunationPhaseSnapshotText, progressedElongAtAge, computeLunationPhase, PHASES_8, LUNATION_DEFAULT_OPTS } from '../../utils/lunationPhase';
 import styles from '../../css/styles.less';
 import { markPanelReady } from '../../utils/perfMark';
 
@@ -53,18 +53,19 @@ class AstroLunationPhase extends Component{
 	currentAge(){
 		const m = birthMomentOfChart(this.props.value);   // 出生时刻单源(全年份域)
 		if(!m){ return null; }
-		return moment().diff(m, 'years', true);
+		return moment().diff(m, 'days', true) / 365.2422;   // 与推运引擎同一年长(次限一日 = 一回归年)
 	}
 
 	render(){
 		const height = this.props.height ? this.props.height : 760;
 		const d = this.state.data;
 		const curAge = this.currentAge();
-		const curPhase = (curAge != null) ? phaseAtAge(this.props.value, curAge) : null;
+		const curElong = (curAge != null) ? progressedElongAtAge(this.props.value, curAge) : null;
+		const curPhase = curElong != null ? computeLunationPhase(curElong) : null;
 		return (
 			<div className={`${styles.scrollbar}`} style={{ height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', padding: '4px 8px 12px' }}>
 				<div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>月相推运<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', marginLeft: 8, fontWeight: 400 }}>次限日月八相 · 约 29.5 年一轮</span></div>
-				<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: '17px', marginBottom: 10 }}>由本命日月黄经差按次限推进率推算推运月相；八相各 45°，主导人生节律的「萌发—显化—释放」循环阶段。</div>
+				<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: '17px', marginBottom: 10 }}>次限「一日为一年」:N 岁的推运日月差 = 出生后第 N 天真实的月日黄经差(按星历逐日精算,月亮快慢都算进去);八相各 45°,主导人生节律的「萌发—显化—释放」循环阶段。</div>
 				{d && d.natalPhase ? (
 					<div>
 						<div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -77,7 +78,7 @@ class AstroLunationPhase extends Component{
 								<div style={{ flex: 1, minWidth: 130, padding: '10px 14px', border: '1px solid var(--horosa-accent, rgba(184,134,11,0.4))', borderRadius: 8, background: 'var(--horosa-accent-soft, rgba(184,134,11,0.10))' }}>
 									<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)' }}>当前推运月相（{curAge.toFixed(1)} 岁）</div>
 									<div style={{ fontSize: 16, fontWeight: 700, color: 'var(--horosa-accent, #b8860b)' }}>{curPhase.name}</div>
-									<div style={{ fontSize: 11, opacity: 0.7 }}>{curPhase.keyword}</div>
+									<div style={{ fontSize: 11, opacity: 0.7 }}>{curPhase.keyword} · 推运日月差 {(((curElong % 360) + 360) % 360).toFixed(1)}°</div>
 								</div>
 							) : null}
 						</div>
@@ -100,7 +101,7 @@ class AstroLunationPhase extends Component{
 								const on = curPhase && i < d.timeline.length - 1 && curAge != null && curAge >= t.age && curAge < d.timeline[i + 1].age;
 								return (
 									<div key={i} style={{ display: 'flex', gap: 8, padding: '5px 10px', fontSize: 11.5, borderTop: i ? '1px solid rgba(128,128,128,0.06)' : 'none', background: on ? 'var(--horosa-accent-soft, rgba(184,134,11,0.12))' : 'transparent' }}>
-										<span style={{ width: 70, opacity: 0.7 }}>{t.age.toFixed(1)} 岁{t.isStart ? '·本命' : ''}</span>
+										<span style={{ width: 76, opacity: 0.7, whiteSpace: 'nowrap' }}>{t.age.toFixed(2)} 岁{t.isStart ? '·本命' : ''}</span>
 										<span style={{ width: 86, color: 'var(--horosa-text-secondary)' }}>{t.date || '-'}</span>
 										<span style={{ flex: 1, fontWeight: 500 }}>{t.phase.name}</span>
 									</div>

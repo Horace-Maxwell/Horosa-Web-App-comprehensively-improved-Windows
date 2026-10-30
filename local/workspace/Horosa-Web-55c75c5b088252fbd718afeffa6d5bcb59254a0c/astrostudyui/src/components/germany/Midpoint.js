@@ -5,7 +5,7 @@ import * as AstroHelper from '../astro/AstroHelper';
 import { buildMeaningTipByCategory, } from '../astro/AstroMeaningData';
 import { isMeaningEnabled, wrapWithMeaning, } from '../astro/AstroMeaningPopover';
 import { composeShort } from '../../data/uranianMeanings';
-import { tnpGlyph } from './UranianGlyphs';
+import { midpointGlyph } from './midpointGlyph';
 import { signElementInk } from '../../utils/signElementInk';
 import styles from '../../css/styles.less';
 
@@ -35,19 +35,7 @@ class Midpoint extends Component{
 	}
 
 	glyph(id){
-		// 虚星(TNP)在 ywastro 字体无字符 → AstroMsg[id] 为 undefined 渲染成空白;
-		// 与 90°盘 glyphOf 同链:SVG 字形优先 → 字体字形 → 缩写兜底,任何 id 不再留白。
-		const svg = tnpGlyph(id, 14);
-		const node = svg
-			? <span style={{ display: 'inline-flex', alignItems: 'center', verticalAlign: '-0.15em' }}>{svg}</span>
-			: (AstroText.AstroMsg[id]
-				? <span style={{ fontFamily: AstroConst.AstroFont }}>{AstroText.AstroMsg[id]}</span>
-				: <span style={{ fontWeight: 600, letterSpacing: '0.3px', fontSize: 12 }}>{AstroText.isUranian(id) ? AstroText.uranianGlyph(id) : (AstroText.AstroMsgCN[id] || id)}</span>);
-		return wrapWithMeaning(
-			node,
-			this.showMeaning(),
-			buildMeaningTipByCategory('planet', id)
-		);
+		return midpointGlyph(id, this.showMeaning());
 	}
 
 	rowDom(obj, key, alt){

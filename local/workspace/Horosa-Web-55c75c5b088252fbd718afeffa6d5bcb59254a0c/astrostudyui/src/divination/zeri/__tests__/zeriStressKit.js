@@ -181,3 +181,24 @@ export function makeZeriStressKit({
 
 	return { scanAndSweep, printSummary, wallMs, msWall, matrix, enumerateTypeValueCases, passAt, cachedPanAt };
 }
+
+// 分片:一份用例全集 [{ group, name, run }](数组顺序即全集顺序)按序号取模分给 shards 个测试文件并行跑;
+// shard 从 1 起,与文件名 <技法>ZeriStress.<shard>.test.js 同号。用例、判据、随机树与不分片时逐条相同,只是分到不同文件。
+export function defineStressShard(cases, shard, shards){
+	const groups = [];
+	cases.filter((c, i)=>i % shards === shard - 1).forEach((c)=>{
+		let g = groups.find((x)=>x.name === c.group);
+		if(!g){
+			g = { name: c.group, cases: [] };
+			groups.push(g);
+		}
+		g.cases.push(c);
+	});
+	groups.forEach((g)=>{
+		describe(g.name, ()=>{
+			g.cases.forEach((c)=>{
+				it(c.name, c.run);
+			});
+		});
+	});
+}

@@ -2,6 +2,7 @@ import { currentEgyptSchool, egyptSchoolToRecordValues } from '../divination/dat
 import { emitAutomationEvent } from './aiAgent/automation/events';
 import { createLocalRecordStore, nowStr, normalizeGroup, normalizePayload, TRASH_CAP } from './localRecordStore';
 import { resolveAfter23NewDay } from './dayBoundaryResolve';
+import { PD_EXTRA_SETTING_KEYS, pickPdExtraSettings } from './primaryDirectionSync';
 
 const LocalChartsKey = 'horosa.localCharts.v1';
 
@@ -128,6 +129,9 @@ export function buildLocalChartRecord(values){
 		pdTimeKeyCustom: values.pdTimeKeyCustom !== undefined && values.pdTimeKeyCustom !== null ? Number(values.pdTimeKeyCustom) : undefined,
 		pdSignificators: Array.isArray(values.pdSignificators) && values.pdSignificators.length ? values.pdSignificators : undefined,
 		pdPromissorTypes: Array.isArray(values.pdPromissorTypes) && values.pdPromissorTypes.length ? values.pdPromissorTypes : undefined,
+		// 主限法设置项登记表的键(相位侧 / 传统逆向 / 取点四项):提供了才落库,归一后存
+		...Object.fromEntries(PD_EXTRA_SETTING_KEYS.map((key)=>[key,
+			values[key] !== undefined && values[key] !== null ? pickPdExtraSettings({ [key]: values[key] })[key] : undefined])),
 		// (termsVariant 曾在此重复枚举一份 —— 与下方古典参数块的正主逐字相同,后者覆盖前者,纯冗余已删)
 		// AI 挂载「每技法设置」可调的占星排盘开关 + 数算/八字取用 + 七政命度模式:仅在 values 提供时落库
 		// (present 才落库,对齐 pd* 写法),否则 buildFieldObject 回退现状默认 → 不破坏既有命盘。

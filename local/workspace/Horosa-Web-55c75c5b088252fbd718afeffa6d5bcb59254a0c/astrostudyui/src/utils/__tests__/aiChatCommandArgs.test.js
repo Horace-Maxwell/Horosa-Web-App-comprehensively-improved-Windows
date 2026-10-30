@@ -19,11 +19,14 @@ const lisi4 = { id: 'local-3', sourceType: 'chart', title: '李四四', record: 
 const li5 = { id: 'local-4', sourceType: 'chart', title: '李五', record: { name: '李五', updatedAt: '2026-01-04T00:00:00Z' } };
 // horosa_win_timer_granularity_v1(Windows 侧移植适配;建议上游化):Windows 缺省系统计时器粒度 ≈15.6ms ——
 // 本机实测 Node setTimeout(0) 中位 15.5ms(macOS ≈1ms)。带 @ 的技能命令在 handleSend 前要走两拍 setTimeout(0)
-// (useChatAssist:runCommand「让切源 / 对方 / 技法落地」+ runSkill「让切源 / 套组合落地」),合计 ≈31ms > 原 15ms 的 flush
-// ⇒ 断言时 handleSend 还没被调,两条带 @ 的 /流年 用例每次全量随机红一条(macOS 上两拍 ≈2ms,恒绿)。
-// 保留原 15ms 墙钟等待,再追加 3 拍宏任务:同时长定时器先进先出,每追加一拍至少放行产品侧一拍 setTimeout(0),与计时器粒度无关。
-// macOS 上只多等约 3ms;「不应调用」类断言只会更严,判据零放宽。
+// (useChatAssist:runCommand「让切源 / 对方 / 技法落地」+ runSkill「让切源 / 套组合落地」),合计 ≈31ms > 15ms。
+// v3.13.0 起上游用下面的 settle() 等「应调用 / 应打开」类断言成立,正向用例的随机红已由上游根治;
+// 剩下仍用 flush() 的全是「不应调用 / 恰调用一次」类断言 —— Windows 上 15ms 墙钟可能在产品侧那两拍跑完之前就断言,
+// 断言因错误的原因通过。故保留原 15ms 墙钟等待再追加 3 拍宏任务(同时长定时器先进先出,每拍至少放行产品侧一拍
+// setTimeout(0),与计时器粒度无关):macOS 上只多等约 3ms,反向断言只会更严,判据零放宽。
 const flush = async ()=>{ await new Promise((r)=>setTimeout(r, 15)); for(let i = 0; i < 3; i++){ await new Promise((r)=>setTimeout(r, 0)); } };
+// 等到条件成立(最多 2 秒):命令执行链里有几拍 setTimeout,全量并跑抢核时固定 15 ms 会等不到
+const settle = async (pred, ms = 2000)=>{ const t0 = Date.now(); while(!pred() && Date.now() - t0 < ms){ await new Promise((r)=>setTimeout(r, 5)); } };
 let host;
 beforeEach(()=>{ window.localStorage.clear(); host = document.createElement('div'); document.body.appendChild(host); });
 afterEach(()=>{ act(()=>{ ReactDOM.unmountComponentAtNode(host); }); host.remove(); });
@@ -87,7 +90,7 @@ describe('命令参数里的 @', ()=>{
 		const deps = baseDeps();
 		const a = mount(deps);
 		expect(a.interceptSend('/流年 @[命盘:李四] 2027年')).toBe(true);
-		await flush();
+		await settle(()=>deps.handleSend.mock.calls.length > 0);
 		expect(deps.setSelectedSourceId).toHaveBeenCalledWith(li.id);
 		expect(deps.handleSend).toHaveBeenCalledTimes(1);
 		const text = deps.handleSend.mock.calls[0][0];
@@ -107,7 +110,7 @@ describe('命令参数里的 @', ()=>{
 		const deps = baseDeps();
 		const a = mount(deps);
 		expect(a.interceptSend('/合盘 李四')).toBe(true);
-		await flush();
+		await settle(()=>deps.handleSend.mock.calls.length > 0);
 		expect(deps.setPartnerSourceId).toHaveBeenLastCalledWith(li.id);
 		expect(deps.handleSend).toHaveBeenCalledTimes(1);
 		expect(a.interceptSend('/合盘 李')).toBe(true);
@@ -121,11 +124,11 @@ describe('命令参数里的 @', ()=>{
 		const deps = baseDeps({ activeSource: null });
 		const a = mount(deps);
 		expect(a.interceptSend('/side @[命盘:李四] 的事业怎样')).toBe(true);
-		await flush();
+		await settle(()=>api.overlays.side.open === true);
 		expect(api.overlays.side.open).toBe(true);
 		expect(api.overlays.side.initialQuestion).toBe('李四 的事业怎样');
 		expect(a.interceptSend('/流年 @[命盘:李四] 明年')).toBe(true);
-		await flush();
+		await settle(()=>deps.handleSend.mock.calls.length > 0);
 		expect(deps.setSelectedSourceId).toHaveBeenLastCalledWith(li.id);
 		expect(deps.handleSend).toHaveBeenCalledTimes(1);
 		expect(deps.handleSend.mock.calls[0][0]).toContain(`李四在 ${new Date().getFullYear() + 1} 年`);
@@ -137,7 +140,7 @@ describe('/help', ()=>{
 		const deps = baseDeps({ sending: true });
 		const a = mount(deps);
 		expect(a.interceptSend('/help')).toBe(true);
-		await flush();
+		await settle(()=>api.overlays.help.open === true);
 		expect(api.overlays.help.open).toBe(true);
 		expect(api.overlays.help.items.length).toBeGreaterThanOrEqual(BUILTIN_COMMANDS.length);
 		const box = document.createElement('div'); document.body.appendChild(box);

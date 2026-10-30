@@ -443,6 +443,14 @@ cp "$OV/files/astrostudyui/src/components/astro3d/__tests__/fullscreenState.test
 #    现读(上游新增技法页自动入覆盖面),逐页 jsdom 真挂载;全仓此前无一用例 mount 过技法主面板(#98/#83 同一个洞)。
 mkdir -p "$WS/astrostudyui/src/pages/__tests__"
 cp "$OV/files/astrostudyui/src/pages/__tests__/techniqueOpenSmoke.test.js" "$WS/astrostudyui/src/pages/__tests__/techniqueOpenSmoke.test.js" && ok "techniqueOpenSmoke.test.js"
+# ④ v3.13.0(gotcha #114):两个「我方键 / 构造跟不上上游新输入」的常设守卫(纯新增测试文件)。
+#    pdWarmRequestParity —— 星运页预热 / 步进预取的 /predict/pd 请求体 == 页面类方法构造(Field Plane + 设置登记表非缺省值);
+#    uranianRingsMemoKeyCoverage —— 90° 中点盘环装配签名(ringsKey)盖住 buildRings 及其被调方读到的全部输入(源码现读)。
+mkdir -p "$WS/astrostudyui/src/components/direction/__tests__" "$WS/astrostudyui/src/components/germany/__tests__"
+cp "$OV/files/astrostudyui/src/components/direction/__tests__/pdWarmRequestParity.test.js" "$WS/astrostudyui/src/components/direction/__tests__/pdWarmRequestParity.test.js" && ok "pdWarmRequestParity.test.js"
+cp "$OV/files/astrostudyui/src/components/germany/__tests__/uranianRingsMemoKeyCoverage.test.js" "$WS/astrostudyui/src/components/germany/__tests__/uranianRingsMemoKeyCoverage.test.js" && ok "uranianRingsMemoKeyCoverage.test.js"
+#    pdSphereScuPdExtra —— 主限天球 sCU 对上游新 prop pdExtra(宿主每次 render 现建)按归一键比,值同即跳过、值变即重渲。
+cp "$OV/files/astrostudyui/src/components/astro3d/__tests__/pdSphereScuPdExtra.test.js" "$WS/astrostudyui/src/components/astro3d/__tests__/pdSphereScuPdExtra.test.js" && ok "pdSphereScuPdExtra.test.js"
 
 echo "== 26. PERF-R9 前端:交互跨度观测 + L1 真 LRU(纯观测/纯修 bug,功能零降级;跨平台,建议上游化 Mac) =="
 # ① horosa_interaction_span_v1 —— 端到端「点击 → 中栏+右栏画完」测量。改之前这套观测**量不出**
@@ -563,7 +571,8 @@ apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/comm
 # [#109 退役,v3.11.2] src__components__commtools__NaYing.perfR9.js.patch —— FE-1
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/comp/EditableTags.js               src__components__comp__EditableTags.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/comp/TipsBoard.js                  src__components__comp__TipsBoard.perfR9.js.patch
-apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/germany/AspectToMidpoint.js        src__components__germany__AspectToMidpoint.perfR9.js.patch
+# (germany/AspectToMidpoint.js 的稳定 key 补丁已退役(v3.13.0,gotcha #114):上游自 v3.12.0 起即用内容派生 key、不再有 randomStr,
+#  补丁只剩一段携带守卫 marker 的注释;哨兵改钉上游 key 形 + randomStr 负锚,见 README row 115。)
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/gua/GuaSym.js                      src__components__gua__GuaSym.perfR9.js.patch
 # [#109 退役,v3.11.2] src__components__gua__MeiyiGuaSym.perfR9.js.patch —— FE-1
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/guazhan/GuaDesc.js                 src__components__guazhan__GuaDesc.perfR9.js.patch

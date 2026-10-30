@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/__tests__/chartSCU.test.js b/astrostudyui/src/components/astro/__tests__/chartSCU.test.js
-index b579fed9..b9cabefe 100644
+index 85cf443e..d471b68a 100644
 --- a/astrostudyui/src/components/astro/__tests__/chartSCU.test.js
 +++ b/astrostudyui/src/components/astro/__tests__/chartSCU.test.js
 @@ -184,27 +184,43 @@ describe('盘面 sCU:量化中点盘 MidpointMain', ()=>{
@@ -50,7 +50,7 @@ index b579fed9..b9cabefe 100644
  	});
  
  	const MUT = {
-@@ -222,19 +238,19 @@ describe('盘面 sCU:量化中点盘 MidpointMain', ()=>{
+@@ -222,20 +238,20 @@ describe('盘面 sCU:量化中点盘 MidpointMain', ()=>{
  	Object.keys(MUT).forEach((key)=>{
  		it(`prop「${key}」变 → true`, ()=>{
  			const c = new MidpointMain(baseProps());
@@ -73,3 +73,4 @@ index b579fed9..b9cabefe 100644
 +		expect(scu(c, { ...c.props })).toBe(true);
  	});
  });
+ 

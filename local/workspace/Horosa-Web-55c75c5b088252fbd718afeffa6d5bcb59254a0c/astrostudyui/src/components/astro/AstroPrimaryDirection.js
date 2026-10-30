@@ -20,11 +20,21 @@ import { getLayoutViewportHeight, getLayoutViewportWidth } from '../../utils/she
 import { matchesUserQuery } from '../../utils/scriptMode';
 import { SUPPORTED_PD_METHODS,
 	SUPPORTED_PD_PROJECTIONS, SUPPORTED_PD_FRAMES, SUPPORTED_PD_FRAMEWORKS,
-	PD_PROJECTION_LABELS, PD_FRAME_LABELS, PD_FRAMEWORK_LABELS ,
+	PD_FRAME_LABELS, PD_FRAMEWORK_LABELS ,
 	PD_SIGNIFICATOR_OPTIONS,
 	PD_PROMISSOR_TYPE_OPTIONS,
 	SUPPORTED_PD_TIME_KEYS,
+	PD_TIME_KEY_LABELS,
 	PD_SYNC_REV,
+	normalizePdType as normalizePdTypeValue,
+	parsePdStarPointId,
+	pickPdExtraSettings,
+	pdExtraSettingsKey,
+	pdExtraRequestParams,
+	pdProjectionChoiceOptions,
+	pdProjectionChoiceValue,
+	parsePdProjectionChoice, pdDisplayMethod, isPdExtensionPromissorId,
+	pdSettingInertReason,
 } from '../../utils/primaryDirectionSync';
 import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver';
 import { toSlashDate, civilWallMsOfStr, civilDateStrOfMs, yearMonthKey } from '../../utils/dateStrSafe';
@@ -65,6 +75,13 @@ const PD_AXIS_LABEL = { MER: '子午轴', HOR: '地平轴' };
 
 // 迫星 ID → 类型标签(Aspect / Type 列)。ID 语法 <prefix>_<body>_<third>。
 function pdRowTypeLabel(promId){
+	const star = parsePdStarPointId(promId);
+	if(star){
+		if(star.head === 'D' || star.head === 'S'){
+			return `${PD_ASPECT_GLYPHS[star.deg] || ''} 恒星相位${star.deg}°（${star.head === 'D' ? '右' : '左'}）`;
+		}
+		return star.deg === 180 ? '☍ 恒星冲' : '恒星';
+	}
 	const parts = `${promId || ''}`.split('_');
 	const prefix = parts[0] || '';
 	const third = parts.length >= 3 ? parts[2] : '0';
@@ -93,8 +110,9 @@ function pdRowTypeLabel(promId){
 // 迫星行相位 glyph(融合进迫星列;合/冲走 N 前缀单点,60/90/120 走 D/S 双侧)
 function pdRowAspectGlyph(promId){
 	const parts = `${promId || ''}`.split('_');
-	const prefix = parts[0] || '';
-	const asp = Number(parts.length >= 3 ? parts[2] : 0);
+	const star = parsePdStarPointId(promId);
+	const prefix = star ? star.head : (parts[0] || '');
+	const asp = star ? star.deg : Number(parts.length >= 3 ? parts[2] : 0);
 	if(prefix === 'N' && asp === 0){ return '☌'; }
 	if(prefix === 'N' && asp === 180){ return '☍'; }
 	if((prefix === 'D' || prefix === 'S') && PD_ASPECT_GLYPHS[asp]){ return PD_ASPECT_GLYPHS[asp]; }
@@ -120,8 +138,10 @@ const PD_PROM_FILTER_EXTRA = [
 
 export function pdPromFilterMatch(value, promId){
 	const parts = `${promId || ''}`.split('_');
-	const prefix = parts[0] || '';
-	const asp = Number(parts.length >= 3 ? parts[2] : 0);
+	const star = parsePdStarPointId(promId);
+	// 恒星行按其相位参与「相位 / 方向」筛选,类型筛选另认 star
+	const prefix = star ? star.head : (parts[0] || '');
+	const asp = star ? star.deg : Number(parts.length >= 3 ? parts[2] : 0);
 	if(`${value}`.indexOf('ASP:') === 0){
 		const want = Number(`${value}`.slice(4));
 		if(want === 0){ return prefix === 'N' && asp === 0; }
@@ -135,7 +155,7 @@ export function pdPromFilterMatch(value, promId){
 	if(value === 'TYPE:par'){ return prefix === 'PD' || prefix === 'PC' || prefix === 'MP' || prefix === 'RP'; }
 	if(value === 'TYPE:term'){ return prefix === 'T'; }
 	if(value === 'TYPE:cusp'){ return prefix === 'HC'; }
-	if(value === 'TYPE:star'){ return prefix === 'FS'; }
+	if(value === 'TYPE:star'){ return !!star; }
 	if(value === 'TYPE:lot'){ return prefix === 'LT'; }
 	return null;   // 非扩展值 → 交回星名 indexOf
 }
@@ -164,6 +184,10 @@ const PD_PAGE_SIZE_OPTIONS = ['20', '50', '100', '200'];
 // (下方 D()/S() 的「右相位处/左相位处」)同一前缀源,天然零分叉;其余(N_/A_/C_/T_)无方向。
 // 消费方=迫星列筛选 pdPromFilterMatch 的 HAND: 分支(用户点单:筛选入口在列头下拉)。
 export function directionRowAspectHand(promittor){
+	const star = parsePdStarPointId(promittor);
+	if(star){
+		return star.head === 'D' ? 'dexter' : (star.head === 'S' ? 'sinister' : null);
+	}
 	const id = `${promittor || ''}`;
 	if(id.indexOf('D_') === 0){ return 'dexter'; }
 	if(id.indexOf('S_') === 0){ return 'sinister'; }
@@ -213,6 +237,9 @@ function readPdPageSize(){
 	return 50;
 }
 
+// 数组型设置(应星 / 迫星扩展)按内容比较:同内容的新数组不算变化
+const arrKey = (v)=>(Array.isArray(v) ? v.join('|') : '');
+
 class AstroPrimaryDirection extends Component{
 
 	constructor(props) {
@@ -224,7 +251,7 @@ class AstroPrimaryDirection extends Component{
 			pdTimeKeyValue: props.pdTimeKey ? props.pdTimeKey : 'Ptolemy',
 			pdYearsValue: props.pdYears ? props.pdYears : 100,
 			// 方向类型(0黄道/1世俗 in mundo)、向运(顺 direct / 逆 converse,可同时选)、映点、界 — 进阶开关。
-			pdTypeValue: props.pdType === 1 ? 1 : 0,
+			pdTypeValue: normalizePdTypeValue(props.pdType),
 			// 顺逆默认都开(用户偏好):仅显式 0 才关。
 			pdDirectValue: props.pdDirect === 0 ? 0 : 1,
 			pdConverseValue: props.pdConverse === 0 ? 0 : 1,
@@ -239,6 +266,8 @@ class AstroPrimaryDirection extends Component{
 			pdTimeKeyCustomValue: (props.pdTimeKeyCustom && Number(props.pdTimeKeyCustom) > 0) ? Number(props.pdTimeKeyCustom) : null,
 			pdSignificatorsValue: Array.isArray(props.pdSignificators) ? props.pdSignificators : [],
 			pdPromissorTypesValue: Array.isArray(props.pdPromissorTypes) ? props.pdPromissorTypes : [],
+			// 设置项登记表(相位侧 / 传统逆向 / 取点四项):全套归一值
+			pdExtraValue: pickPdExtraSettings(props.pdExtra),
 			termsVariantValue: (()=>{ const n = Number(props.termsVariant); return (Number.isFinite(n) && n >= 0 && n <= 4) ? n : 0; })(),
 			// 分页大小受控+持久化:antd4 在 total>50 时自动显示「X 条/页」选择器,此前 pageSize 写死 50
 			// 又无 onChange → 用户改完被立即重置(「点了没反应」)。
@@ -288,6 +317,10 @@ class AstroPrimaryDirection extends Component{
 		this.handlePdConverseChange = this.handlePdConverseChange.bind(this);
 		this.handlePdAntisciaChange = this.handlePdAntisciaChange.bind(this);
 		this.handlePdTermsChange = this.handlePdTermsChange.bind(this);
+		// 扩展面板的应星 / 迫星勾选以方法引用传给 PdExtensionPanel,不绑定则回调里 this 为空、一勾选就崩
+		this.handlePdSignificatorsChange = this.handlePdSignificatorsChange.bind(this);
+		this.handlePdPromissorTypesChange = this.handlePdPromissorTypesChange.bind(this);
+		this.handlePdExtraSettingChange = this.handlePdExtraSettingChange.bind(this);
 		this.getSelectedPdType = this.getSelectedPdType.bind(this);
 		this.getSelectedPdDirect = this.getSelectedPdDirect.bind(this);
 		this.getSelectedPdConverse = this.getSelectedPdConverse.bind(this);
@@ -356,13 +389,19 @@ class AstroPrimaryDirection extends Component{
 			&& prevProps.pdDirect === this.props.pdDirect
 			&& prevProps.pdConverse === this.props.pdConverse
 			&& prevProps.pdAntiscia === this.props.pdAntiscia
-			&& prevProps.pdTerms === this.props.pdTerms){
+			&& prevProps.pdTerms === this.props.pdTerms
+			&& pdExtraSettingsKey(prevProps.pdExtra) === pdExtraSettingsKey(this.props.pdExtra)
+			// 应星 / 迫星扩展与自定义钥匙率同样会在别处改(3D 天球的扩展面板、载入命盘):漏了这三项,
+			// 天球那边取消的勾选回到表格页仍是旧勾选,表格还误报「待计算」
+			&& arrKey(prevProps.pdSignificators) === arrKey(this.props.pdSignificators)
+			&& arrKey(prevProps.pdPromissorTypes) === arrKey(this.props.pdPromissorTypes)
+			&& prevProps.pdTimeKeyCustom === this.props.pdTimeKeyCustom){
 			return;
 		}
 		const nextMethod = this.normalizePdMethod(this.props.pdMethod);
 		const nextTimeKey = this.normalizePdTimeKey(this.props.pdTimeKey);
 		const nextYears = this.normalizePdYears(this.props.pdYears);
-		const nextType = this.props.pdType === 1 ? 1 : 0;
+		const nextType = normalizePdTypeValue(this.props.pdType);
 		const nextDirect = this.props.pdDirect === 0 ? 0 : 1;
 		const nextConverse = this.props.pdConverse === 0 ? 0 : 1;
 		const nextAntiscia = this.props.pdAntiscia ? 1 : 0;
@@ -373,7 +412,15 @@ class AstroPrimaryDirection extends Component{
 		const nextParallel = this.props.pdParallel ? 1 : 0;
 		const nextRapt = this.props.pdRaptParallel ? 1 : 0;
 		const nextTermsVariant = (()=>{ const n = Number(this.props.termsVariant); return (Number.isFinite(n) && n >= 0 && n <= 4) ? n : 0; })();
+		const nextExtra = pickPdExtraSettings(this.props.pdExtra);
+		const nextSignificators = Array.isArray(this.props.pdSignificators) ? this.props.pdSignificators : [];
+		const nextPromissorTypes = Array.isArray(this.props.pdPromissorTypes) ? this.props.pdPromissorTypes : [];
+		const nextTimeKeyCustom = (this.props.pdTimeKeyCustom && Number(this.props.pdTimeKeyCustom) > 0) ? Number(this.props.pdTimeKeyCustom) : null;
 		if(this.state.pdMethodValue !== nextMethod
+			|| pdExtraSettingsKey(this.state.pdExtraValue) !== pdExtraSettingsKey(nextExtra)
+			|| arrKey(this.state.pdSignificatorsValue) !== arrKey(nextSignificators)
+			|| arrKey(this.state.pdPromissorTypesValue) !== arrKey(nextPromissorTypes)
+			|| (this.state.pdTimeKeyCustomValue || null) !== nextTimeKeyCustom
 			|| this.state.pdTimeKeyValue !== nextTimeKey
 			|| this.state.pdYearsValue !== nextYears
 			|| this.state.pdTypeValue !== nextType
@@ -402,6 +449,10 @@ class AstroPrimaryDirection extends Component{
 				pdConverseValue: nextConverse,
 				pdAntisciaValue: nextAntiscia,
 				pdTermsValue: nextTerms,
+				pdExtraValue: nextExtra,
+				pdSignificatorsValue: nextSignificators,
+				pdPromissorTypesValue: nextPromissorTypes,
+				pdTimeKeyCustomValue: nextTimeKeyCustom,
 			});
 		}
 	}
@@ -461,7 +512,7 @@ class AstroPrimaryDirection extends Component{
 		// 用户显式开启的扩展/平行行:按前缀与扩展体名放行(与引擎产出前缀一一对应)
 		const prom = `${pd && pd[1] || ''}`;
 		const sig = `${pd && pd[2] || ''}`;
-		if(/^(HC|FS|LT|PD|PC|MP|RP)_/.test(prom)){ return true; }
+		if(isPdExtensionPromissorId(prom)){ return true; }
 		const st = appliedPdState || {};
 		const sigKeys = Array.isArray(st.pdSignificators) ? st.pdSignificators : [];
 		if(sigKeys.length){
@@ -619,7 +670,7 @@ class AstroPrimaryDirection extends Component{
 	}
 
 	handlePdTypeChange(value){
-		this.setState({ pdTypeValue: value === 1 ? 1 : 0, });
+		this.setState({ pdTypeValue: normalizePdTypeValue(value), });
 	}
 
 	handlePdDirectChange(e){
@@ -648,7 +699,7 @@ class AstroPrimaryDirection extends Component{
 	}
 
 	getSelectedPdType(){
-		return this.state.pdTypeValue === 1 ? 1 : 0;
+		return normalizePdTypeValue(this.state.pdTypeValue);
 	}
 
 	getSelectedPdDirect(){
@@ -701,7 +752,7 @@ class AstroPrimaryDirection extends Component{
 		return (Number.isFinite(v) && v > 0) ? v : null;
 	}
 
-	// 当前九维的 preset 反查(受控显示;单项被改 → 'custom')。
+	// 当前九维的 preset 反查(受控显示;单项被改 → 'custom')。相位点黄纬住在扩展设置里。
 	getSelectedPdPreset(){
 		return pdPresetOf({
 			pdProjection: this.getSelectedPdProjection(),
@@ -712,6 +763,7 @@ class AstroPrimaryDirection extends Component{
 			pdTimeKey: this.getSelectedPdTimeKey(),
 			pdFramework: this.getSelectedPdFramework(),
 			pdParallel: this.state.pdParallelValue === 1 ? 1 : 0,
+			pdPromAspectLat: (this.state.pdExtraValue || {}).pdPromAspectLat,
 		});
 	}
 
@@ -721,7 +773,7 @@ class AstroPrimaryDirection extends Component{
 		if(!p){
 			return;
 		}
-		this.setState({
+		this.setState((st)=>({
 			pdProjectionValue: p.pdProjection,
 			pdFrameValue: p.pdFrame,
 			pdTypeValue: p.pdtype,
@@ -730,11 +782,31 @@ class AstroPrimaryDirection extends Component{
 			pdTimeKeyValue: p.pdTimeKey,
 			pdFrameworkValue: p.pdFramework,
 			pdParallelValue: p.pdParallel,
-		});
+			pdExtraValue: pickPdExtraSettings({ ...(st.pdExtraValue || {}), pdPromAspectLat: p.pdPromAspectLat || 0 }),
+		}));
 	}
 
 	handlePdProjectionChange(value){
 		this.setState({ pdProjectionValue: SUPPORTED_PD_PROJECTIONS.indexOf(value) >= 0 ? value : 'ptolemy' });
+	}
+
+	// 「弧算法」下拉的上下文:哪些方法列「改进 / 经典」两项由盘类、宫制、平行决定(见 PD_GEOMETRY_APPLIES)
+	pdProjectionChoiceContext(){
+		return {
+			pdtype: this.getSelectedPdType(),
+			pdProjection: this.getSelectedPdProjection(),
+			pdFrame: this.getSelectedPdFrame(),
+			pdParallel: this.getSelectedPdParallel(),
+		};
+	}
+
+	// 选中项同时定弧算法与几何口径(只列一项的方法口径回缺省)
+	handlePdProjectionChoiceChange(value){
+		const { pdProjection, pdGeometry } = parsePdProjectionChoice(value);
+		this.setState((st)=>({
+			pdProjectionValue: pdProjection,
+			pdExtraValue: pickPdExtraSettings({ ...(st.pdExtraValue || {}), pdGeometry }),
+		}));
 	}
 
 	handlePdFrameChange(value){
@@ -770,6 +842,10 @@ class AstroPrimaryDirection extends Component{
 		this.setState({ pdPromissorTypesValue: Array.isArray(vals) ? vals : [] });
 	}
 
+	handlePdExtraSettingChange(key, value){
+		this.setState((st)=>({ pdExtraValue: pickPdExtraSettings({ ...(st.pdExtraValue || {}), [key]: value }) }));
+	}
+
 	// Pole 列请求体(盘 + 投影 + 定局 + S 集):既是请求,也是结果的来源键(结果只在键一致时用)
 	pdPolesRequestBody(){
 		const chart = this.props.value || {};
@@ -785,6 +861,8 @@ class AstroPrimaryDirection extends Component{
 			pdProjection: applied.pdProjection, pdFrame: applied.pdFrame,
 			pdtype: applied.pdtype,
 			...(Array.isArray(params.pdSignificators) && params.pdSignificators.length ? { pdSignificators: params.pdSignificators } : {}),
+			// 点表设置项(真位置 / 忽略应星黄纬)改变应星位置 → 极点跟着变
+			...pdExtraRequestParams(applied.pdExtra),
 		};
 		return body;
 	}
@@ -839,6 +917,7 @@ class AstroPrimaryDirection extends Component{
 					significators: this.state.pdSignificatorsValue,
 					promissorTypes: this.state.pdPromissorTypesValue,
 					termsVariant: this.getSelectedTermsVariant(),
+					extra: this.state.pdExtraValue,
 				}
 			);
 		}
@@ -863,11 +942,7 @@ class AstroPrimaryDirection extends Component{
 	}
 
 	normalizePdType(value){
-		const num = Number(value);
-		if(Number.isNaN(num)){
-			return DEFAULT_PD_TYPE;
-		}
-		return num;
+		return normalizePdTypeValue(value);
 	}
 
 	getSelectedPdMethod(){
@@ -876,6 +951,21 @@ class AstroPrimaryDirection extends Component{
 
 	getSelectedPdTimeKey(){
 		return this.normalizePdTimeKey(this.state.pdTimeKeyValue);
+	}
+
+	// 当前选择下不起作用的设置置灰 + 说明(规则单源 pdSettingInertReason;扩展面板与工具条共用这份上下文)
+	getPdInertContext(){
+		return {
+			pdtype: this.getSelectedPdType(),
+			projection: this.getSelectedPdProjection(),
+			geometry: (this.state.pdExtraValue || {}).pdGeometry,
+			timeKey: this.getSelectedPdTimeKey(),
+			values: this.state.pdExtraValue,
+		};
+	}
+
+	pdInertReason(key){
+		return pdSettingInertReason(key, this.getPdInertContext());
 	}
 
 	normalizePdYears(value){
@@ -902,7 +992,7 @@ class AstroPrimaryDirection extends Component{
 			hasCompleteParams,
 			pdMethod: this.normalizePdMethod(hasMethod ? params.pdMethod : this.props.pdMethod),
 			pdTimeKey: this.normalizePdTimeKey(hasTimeKey ? params.pdTimeKey : this.props.pdTimeKey),
-			pdtype: this.normalizePdType(hasPdType ? params.pdtype : (this.props.pdType === 1 ? 1 : DEFAULT_PD_TYPE)),
+			pdtype: this.normalizePdType(hasPdType ? params.pdtype : normalizePdTypeValue(this.props.pdType)),
 			pdDirect: ((params.pdDirect !== undefined && params.pdDirect !== null ? params.pdDirect : (this.props.pdDirect !== undefined ? this.props.pdDirect : 1)) === 0) ? 0 : 1,
 			pdConverse: (params.pdConverse !== undefined && params.pdConverse !== null ? params.pdConverse : this.props.pdConverse) ? 1 : 0,
 			pdAntiscia: (params.pdAntiscia !== undefined && params.pdAntiscia !== null ? params.pdAntiscia : this.props.pdAntiscia) ? 1 : 0,
@@ -920,6 +1010,7 @@ class AstroPrimaryDirection extends Component{
 			pdSignificators: Array.isArray(params.pdSignificators) ? params.pdSignificators : (Array.isArray(this.props.pdSignificators) ? this.props.pdSignificators : []),
 			pdPromissorTypes: Array.isArray(params.pdPromissorTypes) ? params.pdPromissorTypes : (Array.isArray(this.props.pdPromissorTypes) ? this.props.pdPromissorTypes : []),
 			pdTimeKeyCustom: (()=>{ const v = Number(params.pdTimeKeyCustom !== undefined && params.pdTimeKeyCustom !== null ? params.pdTimeKeyCustom : this.props.pdTimeKeyCustom); return (Number.isFinite(v) && v > 0) ? v : null; })(),
+			pdExtra: pickPdExtraSettings(params, this.props.pdExtra),
 			syncRev,
 		};
 	}
@@ -953,6 +1044,7 @@ class AstroPrimaryDirection extends Component{
 		if(JSON.stringify(this.state.pdSignificatorsValue || []) !== JSON.stringify(appliedPdState.pdSignificators || [])){ return true; }
 		if(JSON.stringify(this.state.pdPromissorTypesValue || []) !== JSON.stringify(appliedPdState.pdPromissorTypes || [])){ return true; }
 		if((this.getSelectedPdTimeKeyCustom() || null) !== (appliedPdState.pdTimeKeyCustom || null)){ return true; }
+		if(pdExtraSettingsKey(this.state.pdExtraValue) !== pdExtraSettingsKey(appliedPdState.pdExtra)){ return true; }
 		if(this.getSelectedPdDirect() !== appliedPdState.pdDirect){
 			return true;
 		}
@@ -974,34 +1066,30 @@ class AstroPrimaryDirection extends Component{
 
 	// pd3d 调试透镜:首次 hover 懒拉一次 pd3d(与主限天球同引擎同参),Popover 显示
 	// 该行迫星/应星的引擎坐标(λ/β/α/δ 双口径)。失败静默(透镜是调试辅助,不打扰主表)。
-	// 透镜坐标必须跟着「这张盘」走:本组件在星运页不带 key,改生辰或换盘时不重挂载,
-	// 旧实现只以「lensPoints 已有值」短路 → 表格已重算、悬停浮层还在报上一张盘的 λβαδ,
-	// 而脚注偏偏写着「与主限天球/表格同源」。改为按盘参签名缓存:签名一变即作废重拉。
-	lensSignature(){
-		const chart = this.props.value || {};
-		const p = chart.params || {};
-		return JSON.stringify([
-			p.birth || '', p.date || '', p.time || '', p.ad, p.zone, p.lat, p.lon, p.gpsLat, p.gpsLon,
-			p.hsys, p.southchart, p.zodiacal, p.siderealAyanamsa,
-			this.props.pdType, this.props.pdMethod, this.props.pdTimeKey, this.props.pdYears,
-			this.props.pdAntiscia, this.props.pdTerms,
-		]);
+	// 透镜坐标必须跟着「这张盘 + 这套设置」走(本组件换盘不重挂载):签名 = 请求本身,一变即作废重拉。
+	// 请求优先用宿主的构参函数(buildRequest = AstroDirectMain.buildPrimaryDirectionRequest,与主限天球、
+	// /predict/pd 同一个,与天球同参还直接命中 pd3d 缓存);独立挂载时按已应用设置自拼全套键。
+	// 曾手拼一份漏了应星 / 迫星扩展与投影定局,恒星等扩展迫星一律「引擎点表无此 id」。
+	// 同一份 props 只构一次(每行渲染都要读签名)。
+	lensRequest(){
+		if(this._lensReqProps !== this.props){
+			this._lensReqProps = this.props;
+			this._lensReq = this.buildLensRequest();
+			this._lensReqSig = this._lensReq ? JSON.stringify(this._lensReq) : '';
+		}
+		return this._lensReq;
 	}
 
-	ensureLensPoints(){
-		const sig = this.lensSignature();
-		if(this._lensSig !== sig){
-			// 盘换了:作废旧坐标(并让在途请求的回包按签名自弃),下面重新拉一次。
-			this._lensSig = sig;
-			this._lensLoading = false;
-			// 旧坐标由 shownLensPoints 按签名自动作废(不必再清 state)
-		}
-		if(this._lensLoading || this.shownLensPoints()){ return; }
+	buildLensRequest(){
 		const chart = this.props.value || {};
+		if(typeof this.props.buildRequest === 'function'){
+			return this.props.buildRequest(chart) || null;
+		}
 		const p = chart.params || {};
-		if(!p.birth && !p.date){ return; }
+		if(!p.birth && !p.date){ return null; }
+		const a = this.getAppliedPdState();
 		const birthParts = `${p.birth || ''}`.trim().split(/\s+/);
-		const req = {
+		return {
 			date: (p.date || toSlashDate(birthParts[0] || '')),
 			time: (p.time || birthParts[1] || '12:00:00'),
 			ad: p.ad !== undefined ? p.ad : 1,
@@ -1010,14 +1098,35 @@ class AstroPrimaryDirection extends Component{
 			zodiacal: p.zodiacal || 0, siderealAyanamsa: p.siderealAyanamsa || '',
 			tradition: 0, predictive: true, includePrimaryDirection: true,
 			showPdBounds: 1,
-			pdtype: this.props.pdType || 0,
-			pdMethod: this.props.pdMethod || 'core_alchabitius',
-			pdTimeKey: this.props.pdTimeKey || 'Ptolemy',
-			pdYears: this.props.pdYears || 100,
+			pdtype: a.pdtype, pdMethod: a.pdMethod, pdTimeKey: a.pdTimeKey, pdYears: a.pdYears,
 			pdDirect: 1, pdConverse: 1,
-			pdAntiscia: this.props.pdAntiscia || 0, pdTerms: this.props.pdTerms || 0,
+			pdAntiscia: a.pdAntiscia, pdTerms: a.pdTerms,
+			pdProjection: a.pdProjection, pdFrame: a.pdFrame, pdFramework: a.pdFramework,
+			pdParallel: a.pdParallel, pdRaptParallel: a.pdRaptParallel,
+			...(a.pdTimeKeyCustom ? { pdTimeKeyCustom: a.pdTimeKeyCustom } : {}),
+			...(Array.isArray(a.pdSignificators) && a.pdSignificators.length ? { pdSignificators: a.pdSignificators } : {}),
+			...(Array.isArray(a.pdPromissorTypes) && a.pdPromissorTypes.length ? { pdPromissorTypes: a.pdPromissorTypes } : {}),
+			...pdExtraRequestParams(a.pdExtra),
+			termsVariant: a.termsVariant,
 			pdaspects: [0, 60, 90, 120, 180],
 		};
+	}
+
+	lensSignature(){
+		this.lensRequest();
+		return this._lensReqSig;
+	}
+
+	ensureLensPoints(){
+		const req = this.lensRequest();
+		const sig = this._lensReqSig;
+		if(this._lensSig !== sig){
+			// 盘或设置换了:作废旧坐标(并让在途请求的回包按签名自弃),下面重新拉一次。
+			this._lensSig = sig;
+			this._lensLoading = false;
+			// 旧坐标由 shownLensPoints 按签名自动作废(不必再清 state)
+		}
+		if(!req || this._lensLoading || this.shownLensPoints()){ return; }
 		this._lensLoading = true;
 		const reqSig = this._lensSig;
 		fetchPd3D(req).then((res)=>{
@@ -1057,10 +1166,10 @@ class AstroPrimaryDirection extends Component{
 	convertToDataSource(pds){
 		let filterKeys = new Set();
 		const showPdBounds = !(this.props.showPdBounds === 0 || this.props.showPdBounds === false);
-		const appliedPdMethod = this.props.pdMethod ? this.props.pdMethod : 'core_alchabitius';
 		// 用户显式勾选「映点 / 界」后,core_alchabitius 也须显示对应行(纯公式核现已支持,
 		// 不再像旧核那样恒滤——否则勾了开关却看不到任何变化)。
 		const appliedPdState = this.getAppliedPdState();
+		const appliedPdMethod = pdDisplayMethod(this.props.pdMethod, appliedPdState.pdProjection);
 		const appliedAntiscia = appliedPdState.pdAntiscia === 1;
 		const appliedTerms = appliedPdState.pdTerms === 1;
 		const hideAntisciaRows = appliedPdMethod === 'core_alchabitius' && !appliedAntiscia;
@@ -1209,8 +1318,8 @@ class AstroPrimaryDirection extends Component{
 			txt = this.MundaneParallel(parts, '世界平行');
 		}else if(parts[0] === 'RP'){
 			txt = this.MundaneParallel(parts, '急动平行');
-		}else if(parts[0] === 'FS'){
-			txt = this.FixedStarPoint(parts);
+		}else if(parsePdStarPointId(text)){
+			txt = this.FixedStarPoint(text);
 		}else if(parts[0] === 'LT'){
 			txt = this.LotPoint(parts);
 		}else if(parts[0] === 'HC'){
@@ -1235,10 +1344,13 @@ class AstroPrimaryDirection extends Component{
 			</div>
 		);
 	}
-	FixedStarPoint(parts){
+	FixedStarPoint(id){
+		const sp = parsePdStarPointId(id);
+		const hand = sp.head === 'D' ? '右' : (sp.head === 'S' ? '左' : '');
 		return (
 			<div style={{whiteSpace: 'nowrap'}}>
-				恒星·<span style={{fontFamily: AstroConst.NormalFont}}>{parts[1]}</span>
+				恒星·<span style={{fontFamily: AstroConst.NormalFont}}>{sp.name}</span>
+				{sp.deg ? <span>&nbsp;的{sp.deg}度{hand}相位处</span> : null}
 			</div>
 		);
 	}
@@ -1273,7 +1385,7 @@ class AstroPrimaryDirection extends Component{
 		let chart = this.props.value ? this.props.value : {};
 		let predictives = chart.predictives ? chart.predictives : {};
 		let pds = predictives.primaryDirection ? predictives.primaryDirection : [];
-		const appliedPdMethod = this.props.pdMethod ? this.props.pdMethod : 'core_alchabitius';
+		const appliedPdMethod = pdDisplayMethod(this.props.pdMethod, this.getAppliedPdState().pdProjection);
 		const isHorosaLegacy = appliedPdMethod === 'horosa_legacy';
 		const viewportWidth = typeof document !== 'undefined' && document.documentElement
 			? getLayoutViewportWidth()
@@ -1315,7 +1427,7 @@ class AstroPrimaryDirection extends Component{
 		let filterKeys = dsres.filterKeys;
 		const appliedPdState = this.getAppliedPdState();
 		const appliedPdTimeKey = appliedPdState.pdTimeKey;
-		const tableKey = `${chart.chartId ? chart.chartId : 'pd'}:${appliedPdMethod}:${appliedPdTimeKey}:${appliedPdState.pdtype}:${appliedPdState.pdDirect}:${appliedPdState.pdConverse}:${appliedPdState.pdAntiscia}:${appliedPdState.pdTerms}:${this.props.showPdBounds === 0 || this.props.showPdBounds === false ? 0 : 1}:${appliedPdState.pdProjection}:${appliedPdState.pdFrame}:${appliedPdState.pdFramework}:${appliedPdState.pdParallel}:${appliedPdState.pdRaptParallel}:${appliedPdState.termsVariant}:${(appliedPdState.pdSignificators || []).join('.')}:${(appliedPdState.pdPromissorTypes || []).join('.')}:${appliedPdState.pdTimeKeyCustom || ''}:${appliedPdState.syncRev || 'nosync'}`;
+		const tableKey = `${chart.chartId ? chart.chartId : 'pd'}:${appliedPdMethod}:${appliedPdTimeKey}:${appliedPdState.pdtype}:${appliedPdState.pdDirect}:${appliedPdState.pdConverse}:${appliedPdState.pdAntiscia}:${appliedPdState.pdTerms}:${this.props.showPdBounds === 0 || this.props.showPdBounds === false ? 0 : 1}:${appliedPdState.pdProjection}:${appliedPdState.pdFrame}:${appliedPdState.pdFramework}:${appliedPdState.pdParallel}:${appliedPdState.pdRaptParallel}:${appliedPdState.termsVariant}:${(appliedPdState.pdSignificators || []).join('.')}:${(appliedPdState.pdPromissorTypes || []).join('.')}:${appliedPdState.pdTimeKeyCustom || ''}:${pdExtraSettingsKey(appliedPdState.pdExtra)}:${appliedPdState.syncRev || 'nosync'}`;
 		const isPdConfigDirty = (
 			this.getSelectedPdMethod() !== appliedPdState.pdMethod
 			|| this.getSelectedPdTimeKey() !== appliedPdState.pdTimeKey
@@ -1331,6 +1443,7 @@ class AstroPrimaryDirection extends Component{
 			|| this.getSelectedPdParallel() !== appliedPdState.pdParallel
 			|| this.getSelectedPdRaptParallel() !== appliedPdState.pdRaptParallel
 			|| this.getSelectedTermsVariant() !== appliedPdState.termsVariant
+			|| pdExtraSettingsKey(this.state.pdExtraValue) !== pdExtraSettingsKey(appliedPdState.pdExtra)
 			|| !appliedPdState.hasCompleteParams
 		);
 		const needsPdRecompute = this.needsPdRecompute();
@@ -1367,7 +1480,8 @@ class AstroPrimaryDirection extends Component{
 			flex: '0 0 auto',
 		};
 		// 方位法名称最长,给稍宽;其余收窄到刚好不遮文字。
-		const methodSelectStyle = { width: compactControls ? 108 : 124, flex: '0 0 auto', };
+		// 宽度随选中项:受影响的方法带「（改进）/（经典）」后缀,定宽会把后缀截成省略号
+		const methodSelectStyle = { width: 'auto', minWidth: compactControls ? 108 : 124, maxWidth: 260, flex: '0 0 auto', };
 		const timeKeySelectStyle = { width: compactControls ? 88 : 96, flex: '0 0 auto', };
 		// 方向类型显示英文 In Zodiaco / In Mundo,稍加宽避免截断。
 		const typeSelectStyle = { width: compactControls ? 90 : 100, flex: '0 0 auto', };
@@ -1516,21 +1630,22 @@ class AstroPrimaryDirection extends Component{
 					{/* 正名:旧「方位法」在占星语境常被读成宫制,而它其实只决定弧;
 					    宫制另有其维 → 两个标签各自点名作用域(完整解释走 title,不占横向空间)。 */}
 					<span style={groupStyle}>
-						<span style={labelStyle} title='决定主限弧:表格 Arc 与应期日期随它变;盘面宫头不受影响'>弧算法</span>
+						<span style={labelStyle} title='决定主限弧:表格 Arc 与应期日期随它变;盘面宫头不受影响。受几何口径影响的方法各列「（改进）/（经典）」两项'>弧算法</span>
+						{/* 值为「弧算法|口径」(受影响的方法)或弧算法本身(其余) */}
 						<Select
 							size='small'
 							style={methodSelectStyle}
-							value={this.getSelectedPdProjection()}
-							onChange={(v)=>this.handlePdProjectionChange(v)}
+							value={pdProjectionChoiceValue(this.pdProjectionChoiceContext(), (this.state.pdExtraValue || {}).pdGeometry)}
+							onChange={(v)=>this.handlePdProjectionChoiceChange(v)}
 							dropdownMatchSelectWidth={false}
 						>
-							{SUPPORTED_PD_PROJECTIONS.map((v)=>(
-								<Option key={v} value={v}>{PD_PROJECTION_LABELS[v] || v}</Option>
+							{pdProjectionChoiceOptions(this.pdProjectionChoiceContext()).map((o)=>(
+								<Option key={o.value} value={o.value}>{o.label}</Option>
 							))}
 						</Select>
 					</span>
 					<span style={groupStyle}>
-						<span style={labelStyle} title='只决定盘面与天球的宫头位置;主限弧与应期日期不随它变(与弧算法正交)'>盘面宫制</span>
+						<span style={labelStyle} title='决定盘面与天球的宫头位置;In Zodiaco / Field Plane 下主限弧与应期日期不随它变。In Mundo 选 Ptolemy 弧算法时,它同时决定世俗位置按哪一法分(Alcabitius / Porphyry / Meridian / Equal 等),弧随之变'>盘面宫制</span>
 						<Select
 							size='small'
 							style={{ width: compactControls ? 104 : 118, flex: '0 0 auto' }}
@@ -1552,32 +1667,10 @@ class AstroPrimaryDirection extends Component{
 							onChange={this.handlePdTimeKeyChange}
 							dropdownMatchSelectWidth={false}
 						>
-							<Option value='Ptolemy'>Ptolemy</Option>
-							<Option value='Naibod'>Naibod</Option>
-							<Option value='TrueSolarArc'>真太阳弧</Option>
-							<Option value='SymbolicSolarArc'>太阳弧（黄经）</Option>
-							<Option value='Cardano'>Cardano</Option>
-							<Option value='Umar'>Umar al-Tabari</Option>
-							<Option value='Wollner'>Wöllner</Option>
-							<Option value='Plantiko'>Plantiko</Option>
-							<Option value='Simmonite'>Simmonite</Option>
-							<Option value='SynodicYear'>Synodic Year</Option>
-							<Option value='Kepler'>Kepler</Option>
-							<Option value='Brahe'>Brahe</Option>
-							<Option value='Kundig'>Kündig</Option>
-							<Option value='SymbolicDegree'>Symbolic Degree</Option>
-							<Option value='SymbolicYear'>Symbolic Year</Option>
-							<Option value='SymbolicMoon'>Symbolic Moon</Option>
-							<Option value='SymbolicMonth'>Symbolic Month</Option>
-							<Option value='Quarterly'>Quarterly</Option>
-							<Option value='Quinary'>Quinary</Option>
-							<Option value='Duodenary'>Duodenary</Option>
-							<Option value='Novenary'>Novenary</Option>
-							<Option value='SelfMeasure'>Self-Measure</Option>
-							<Option value='NaibodRA'>Naibod-in-RA</Option>
-							<Option value='AscendantArc'>Ascendant-arc（界行）</Option>
-							<Option value='VanDam'>Van Dam（真弧）</Option>
-							<Option value='User'>自定义（每年度数）</Option>
+							{/* 钥匙全域取 sync 单一真值源(与主限法盘同一份列表与名字) */}
+							{SUPPORTED_PD_TIME_KEYS.map((k)=>(
+								<Option key={k} value={k}>{PD_TIME_KEY_LABELS[k] || k}</Option>
+							))}
 						</Select>
 						{this.getSelectedPdTimeKey() === 'User' ? (
 							<InputNumber
@@ -1602,20 +1695,21 @@ class AstroPrimaryDirection extends Component{
 						>
 							<Option value={0}>In Zodiaco</Option>
 							<Option value={1}>In Mundo</Option>
+							<Option value={4}>Field Plane</Option>
 						</Select>
 					</span>
 					<span style={checkGroupStyle}>
 						<span style={labelStyle}>向运</span>
 						<Checkbox
-							style={checkboxStyle}
+							style={{ ...checkboxStyle, ...(this.pdInertReason('pdDirect') ? { opacity: 0.5 } : null) }}
 							checked={this.getSelectedPdDirect() === 1}
 							onChange={this.handlePdDirectChange}
-						>顺</Checkbox>
+						><span title={this.pdInertReason('pdDirect') ? `当前不起作用:${this.pdInertReason('pdDirect')}` : ''}>顺</span></Checkbox>
 						<Checkbox
-							style={checkboxStyle}
+							style={{ ...checkboxStyle, ...(this.pdInertReason('pdConverse') ? { opacity: 0.5 } : null) }}
 							checked={this.getSelectedPdConverse() === 1}
 							onChange={this.handlePdConverseChange}
-						>逆</Checkbox>
+						><span title={this.pdInertReason('pdConverse') ? `当前不起作用:${this.pdInertReason('pdConverse')}` : ''}>逆</span></Checkbox>
 					</span>
 					<span style={groupStyle}>
 						<span style={labelStyle}>年数</span>
@@ -1644,6 +1738,9 @@ class AstroPrimaryDirection extends Component{
 						promissorTypes={this.state.pdPromissorTypesValue}
 						onSignificatorsChange={this.handlePdSignificatorsChange}
 						onPromissorTypesChange={this.handlePdPromissorTypesChange}
+						extraSettings={this.state.pdExtraValue}
+						onExtraSettingChange={(k, v)=>this.handlePdExtraSettingChange(k, v)}
+						inertContext={this.getPdInertContext()}
 						extraCount={(this.getSelectedPdAntiscia() === 1 ? 1 : 0)
 							+ (this.getSelectedPdTerms() === 1 ? 1 : 0)
 							+ (this.getSelectedPdParallel() === 1 ? 1 : 0)
@@ -1653,15 +1750,17 @@ class AstroPrimaryDirection extends Component{
 								{/* 原工具栏「附加」四开关平移(用户点单):handlers/勾选态/禁用逻辑逐字保留,
 								    仅排布从工具栏横排改面板竖排(与左侧两组 Group 同款节奏)。 */}
 								<Checkbox
-									style={{ marginLeft: 0 }}
+									style={{ marginLeft: 0, ...(this.pdInertReason('pdAntiscia') ? { opacity: 0.5 } : null) }}
+									disabled={!!this.pdInertReason('pdAntiscia') && this.getSelectedPdAntiscia() !== 1}
 									checked={this.getSelectedPdAntiscia() === 1}
 									onChange={this.handlePdAntisciaChange}
-								>映点</Checkbox>
+								><span title={this.pdInertReason('pdAntiscia') ? `当前不起作用:${this.pdInertReason('pdAntiscia')}` : ''}>映点</span></Checkbox>
 								<Checkbox
-									style={{ marginLeft: 0 }}
+									style={{ marginLeft: 0, ...(this.pdInertReason('pdTerms') ? { opacity: 0.5 } : null) }}
+									disabled={!!this.pdInertReason('pdTerms') && this.getSelectedPdTerms() !== 1}
 									checked={this.getSelectedPdTerms() === 1}
 									onChange={this.handlePdTermsChange}
-								>界</Checkbox>
+								><span title={this.pdInertReason('pdTerms') ? `当前不起作用:${this.pdInertReason('pdTerms')}` : ''}>界</span></Checkbox>
 								{this.getSelectedPdTerms() === 1 ? (
 									<Select
 										size='small'
@@ -1678,10 +1777,11 @@ class AstroPrimaryDirection extends Component{
 									</Select>
 								) : null}
 								<Checkbox
-									style={{ marginLeft: 0 }}
+									style={{ marginLeft: 0, ...(this.pdInertReason('pdParallel') ? { opacity: 0.5 } : null) }}
+									disabled={!!this.pdInertReason('pdParallel') && this.getSelectedPdParallel() !== 1}
 									checked={this.getSelectedPdParallel() === 1}
 									onChange={(e)=>this.handlePdParallelChange(e)}
-								>{this.getSelectedPdType() === 1 ? '世界平行' : '平行'}</Checkbox>
+								><span title={this.pdInertReason('pdParallel') ? `当前不起作用:${this.pdInertReason('pdParallel')}` : ''}>{this.getSelectedPdType() === 1 ? '世界平行' : '平行'}</span></Checkbox>
 								<Checkbox
 									style={{ marginLeft: 0 }}
 									checked={this.getSelectedPdRaptParallel() === 1}

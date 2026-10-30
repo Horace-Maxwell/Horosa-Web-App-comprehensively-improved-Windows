@@ -604,6 +604,49 @@ public class AIAnalysisProxyServiceTest {
 	}
 
 	@Test
+	@SuppressWarnings("rawtypes")
+	public void anthropic2026ModelsOffFormsAndSamplingFollowOfficialTable() {
+		java.util.List<Map<String, Object>> none = new java.util.ArrayList<Map<String, Object>>();
+		// Opus 5.5:思考不可关(disabled 任何档 400)→ 不发 thinking、effort=low、不发采样参数
+		Map<String, Object> o55 = AIAnalysisProxyService.buildAnthropicBody("claude-opus-5-5", buildMap("temperature", 0.7, "maxTokens", 2048,
+			"providerOptions", buildMap("thinking", buildMap("type", "disabled"))), none, true);
+		assertFalse(o55.containsKey("thinking"));
+		assertEquals(buildMap("effort", "low"), o55.get("output_config"));
+		assertFalse(o55.containsKey("temperature"));
+		assertTrue(AIAnalysisProxyService.anthropicAlwaysThinking("claude-opus-5-5"));
+		// Sonnet 5.5:disabled 400 → between_tools,不带 display;同发的 xhigh / max 封顶 high
+		Map<String, Object> s55 = AIAnalysisProxyService.buildAnthropicBody("claude-sonnet-5-5", buildMap("temperature", 0.7, "maxTokens", 2048,
+			"providerOptions", buildMap("thinking", buildMap("type", "disabled"), "output_config", buildMap("effort", "max"))), none, true);
+		assertEquals(buildMap("type", "between_tools"), s55.get("thinking"));
+		assertEquals(buildMap("effort", "high"), s55.get("output_config"));
+		assertFalse(s55.containsKey("temperature"));
+		// Haiku 5.5:只收 adaptive(旧档 enabled+budget 转 adaptive + effort,不发 budget_tokens / 采样参数);可发 disabled
+		Map<String, Object> h55 = AIAnalysisProxyService.buildAnthropicBody("claude-haiku-5-5", buildMap("temperature", 0.7, "maxTokens", 20000,
+			"providerOptions", buildMap("thinking", buildMap("type", "enabled", "budget_tokens", 8000), "top_k", 40)), none, true);
+		assertEquals("adaptive", ((Map) h55.get("thinking")).get("type"));
+		assertFalse(((Map) h55.get("thinking")).containsKey("budget_tokens"));
+		assertEquals(buildMap("effort", "medium"), h55.get("output_config"));
+		assertFalse(h55.containsKey("temperature"));
+		assertFalse(h55.containsKey("top_k"));
+		Map<String, Object> h55off = AIAnalysisProxyService.buildAnthropicBody("claude-haiku-5-5", buildMap("maxTokens", 2048,
+			"providerOptions", buildMap("thinking", buildMap("type", "disabled"))), none, true);
+		assertEquals(buildMap("type", "disabled"), h55off.get("thinking"));
+		assertFalse(h55off.containsKey("temperature"));
+		assertTrue(AIAnalysisProxyService.anthropicThinkingDefaultOn("claude-haiku-5-5"));
+		// 工具回合:Opus 5.5 档案写着 disabled、Sonnet 5.5 的 between_tools 照样回放签名思考块
+		assertTrue(AIToolCallSupport.anthropicThinkingEnabled(buildMap("thinking", buildMap("type", "disabled")), "claude-opus-5-5"));
+		assertTrue(AIToolCallSupport.anthropicThinkingEnabled(buildMap("thinking", buildMap("type", "disabled")), "claude-sonnet-5-5"));
+		// 档案选 2026-10-21 起的 API 版本:预算族也不发采样参数(该版本任何型号带采样参数即 400);旧版本照旧
+		Map<String, Object> v2026 = AIAnalysisProxyService.buildAnthropicBody("claude-haiku-4-5", buildMap("temperature", 0.6, "maxTokens", 1024,
+			"providerOptions", buildMap("apiVersion", "2026-10-21", "top_p", 0.9)), none, false);
+		assertFalse(v2026.containsKey("temperature"));
+		assertFalse(v2026.containsKey("top_p"));
+		Map<String, Object> v2023 = AIAnalysisProxyService.buildAnthropicBody("claude-sonnet-4-5", buildMap("temperature", 0.6, "maxTokens", 1024,
+			"providerOptions", buildMap("apiVersion", "2023-06-01")), none, false);
+		assertEquals(0.6d, v2023.get("temperature"));
+	}
+
+	@Test
 	public void anthropicBudgetCapClampsAndMaxTokensCorrectedAfterPutAll() {
 		// 档案 thinking_budget_cap 夹逼预算、本身绝不下发;extraBody.max_tokens 盖回 ≤ budget 时终点再校正;下限 1024。
 		Map<String, Object> params = buildMap("maxTokens", 20000,

@@ -1,22 +1,29 @@
-# Anthropic 思考形态族对拍用例(前端 aiAnalysisProviders.anthropicThinkingMode 与后端 AIAnalysisProxyService.anthropicThinkingMode 共用)
-# 列:模型名<TAB>期望(adaptive / budget)<TAB>说明。8 位日期段永远是日期后缀,不是小版本号。
-claude-opus-4-20250514	budget	Opus 4 正式日期型号:8 位日期段不是小版本
-anthropic/claude-opus-4-20250514	budget	网关前缀形
-claude-sonnet-4-20250514	budget	Sonnet 4 日期型号
-claude-opus-4-1-20250805	budget	Opus 4.1 + 日期
-claude-opus-4-0	budget	Opus 4.0 别名
-claude-opus-4-6	budget	Opus 4.6
-claude-opus-4-7	adaptive	Opus 4.7 起 adaptive
-claude-opus-4-8	adaptive	Opus 4.8
-claude-opus-4-7-20260101	adaptive	Opus 4.7 + 日期
-claude-sonnet-5-20260301	adaptive	Sonnet 5 + 日期
-claude-sonnet-5	adaptive	Sonnet 5
-claude-opus-5	adaptive	Opus 5
-claude-haiku-4-5-20251001	budget	Haiku 4.5 + 日期
-claude-haiku-5	budget	Haiku 恒预算族
-claude-sonnet-4-6	budget	Sonnet 4.6
-claude-3-5-sonnet-20241022	budget	3.x 旧命名
-openrouter/anthropic/claude-opus-4-7	adaptive	多段网关前缀
-claude-fable-5	adaptive	Fable
-claude-mythos-5-1	adaptive	Mythos
-	budget	空串
+# Anthropic 思考形态族对拍用例(前端 aiAnalysisProviders.anthropicThinkingMode / anthropicThinkingOffForm 与后端 AIAnalysisProxyService 同名函数共用)
+# 列:模型名<TAB>形态族(adaptive / budget)<TAB>说明<TAB>关闭形态(always / between_tools / disabled / omit)。8 位日期段永远是日期后缀,不是小版本号。
+claude-opus-4-20250514	budget	Opus 4 正式日期型号:8 位日期段不是小版本	omit
+anthropic/claude-opus-4-20250514	budget	网关前缀形	omit
+claude-sonnet-4-20250514	budget	Sonnet 4 日期型号	omit
+claude-opus-4-1-20250805	budget	Opus 4.1 + 日期	omit
+claude-opus-4-0	budget	Opus 4.0 别名	omit
+claude-opus-4-6	budget	Opus 4.6	omit
+claude-opus-4-7	adaptive	Opus 4.7 起 adaptive(缺省关)	omit
+claude-opus-4-8	adaptive	Opus 4.8	omit
+claude-opus-4-7-20260101	adaptive	Opus 4.7 + 日期	omit
+claude-sonnet-5-20260301	adaptive	Sonnet 5 + 日期	disabled
+claude-sonnet-5	adaptive	Sonnet 5:可发 disabled	disabled
+claude-opus-5	adaptive	Opus 5:可发 disabled(effort 不高于 high)	disabled
+claude-opus-5-5	adaptive	Opus 5.5:思考不可关(disabled 任何档 400)	always
+claude-sonnet-5-5	adaptive	Sonnet 5.5:关思考改发 between_tools	between_tools
+anthropic/claude-sonnet-5-5	adaptive	网关前缀形	between_tools
+claude-haiku-5-5	adaptive	Haiku 5.5:只收 adaptive(budget_tokens 400),可发 disabled	disabled
+claude-haiku-5	adaptive	Haiku 5 起 adaptive	disabled
+claude-haiku-4-5-20251001	budget	Haiku 4.5 + 日期	omit
+claude-sonnet-4-6	budget	Sonnet 4.6	omit
+claude-3-5-sonnet-20241022	budget	3.x 旧命名	omit
+openrouter/anthropic/claude-opus-4-7	adaptive	多段网关前缀	omit
+claude-fable-5	adaptive	Fable:思考恒开	always
+claude-fable-5-1	adaptive	Fable 5.1	always
+claude-mythos-5-1	adaptive	Mythos	always
+claude-opus-6	adaptive	后续代际:Opus 6 按 5.5 起规则	always
+claude-sonnet-6	adaptive	后续代际:Sonnet 6 按 5.5 起规则	between_tools
+	budget	空串	omit

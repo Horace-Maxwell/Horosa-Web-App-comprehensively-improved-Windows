@@ -12,7 +12,7 @@ const kv = (k, v) => <div style={{ margin: '1px 0', lineHeight: 1.55 }}><span st
 class JieqiHelpDoc extends Component{
 	render(){
 		return (
-			<div style={{ marginTop: 6, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 8 }}>
+			<div style={{ marginTop: 10, borderTop: '1px solid var(--horosa-border, rgba(120,120,120,0.25))', paddingTop: 8 }}>
 				<div style={title}>分至盘 · 操作手册</div>
 				<Tabs defaultActiveKey="overview" size="small">
 

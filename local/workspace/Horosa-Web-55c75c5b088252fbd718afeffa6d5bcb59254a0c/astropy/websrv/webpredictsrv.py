@@ -419,8 +419,12 @@ class PredictSrv:
                 return jsonpickle.encode(_geoerr, unpicklable=False)
             perchart = PerChart(data)
             predict = perchart.getPredict()
+            rows = predict.getDistributions()
+            settings, partners = predict.getDistributionsMeta()
             obj = {
-                'dist': predict.getDistributions()
+                'dist': rows,
+                'distSettings': settings,
+                'distPartners': partners,
             }
             return jsonpickle.encode(obj, unpicklable=False)
         except:

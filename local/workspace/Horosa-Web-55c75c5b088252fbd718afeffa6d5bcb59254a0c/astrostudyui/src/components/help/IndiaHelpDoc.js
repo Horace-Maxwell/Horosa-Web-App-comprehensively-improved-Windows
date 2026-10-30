@@ -89,18 +89,18 @@ class IndiaHelpDoc extends Component {
 								{kv('数量', '五大组共 47 制（印度主流 11 / 真星·古典 12 / 西占恒星 3 / 银道·银心 9 / 历史·历元 12）')}
 								{kv('默认', 'Lahiri / Chitrapaksha（印度官方主流）')}
 								{kv('含义', '决定恒星黄道零点位置，即把回归黄经扣除多少岁差。不同岁差制令全盘黄经整体平移，临界度数的行星可能跨座/跨宿/跨脚')}
-								{kv('印度主流', 'Lahiri 族（含官定 ICRC 2022、1940、VP285）/ Raman / Krishnamurti(KP) / Yukteshwar / J.N.Bhasin / Usha-Shashi / De Luce 等')}
-								{kv('真星·古典', 'True Citra（角宿真星定标）/ True Revati（娄宿）/ True Pushya / True Mula / Surya Siddhanta / Aryabhata 系——以某颗恒星或古历法书为零点锚')}
-								{kv('西占恒星', 'Fagan/Bradley / Djwhal Khul / Vettius Valens——西方恒星占星常用')}
-								{kv('银道/银心', 'Galactic Center 0°Sag / Galactic Equator(IAU1958/true/mid-Mula) 等——以银河系结构为零点锚')}
-								{kv('历史/历元', 'Hipparchos / Sassanian / Babylonian(Kugler/Huber/Britton) / J2000 / J1900 / B1950——天文历元或历史古零点')}
+								{kv('印度主流（11）', 'Lahiri / Chitrapaksha（默认）、Lahiri ICRC（官定 2022）、Lahiri 1940、Lahiri VP285、Raman、Krishnamurti / KP、KP-Senthilathiban（VP291）、Yukteshwar、J.N. Bhasin、Usha / Shashi、De Luce')}
+								{kv('真星·古典（12）', 'True Citra（角宿真星定标）、True Revati（娄宿真星）、True Pushya / 普舍亚、True Mula（Chandra Hari）、Vedic / Sheoran、SS Citra、SS Revati、Surya Siddhanta、Surya Siddhanta（mean Sun）、Aryabhata、Aryabhata（mean Sun）、Aryabhata 522——以某颗恒星或古历法书为零点锚')}
+								{kv('西占恒星（3）', 'Fagan / Bradley、Djwhal Khul、Vettius Valens——西方恒星占星常用')}
+								{kv('银道/银心（9）', 'Galactic Center 0°Sag（银心）、Galactic Center（Gil Brand）、Galactic Center / Mula（Wilhelm）、Galactic Center（Cochrane）、Galactic Equator（IAU1958）、Galactic Equator（true）、Galactic Equator（mid-Mula）、Galactic Equator（Fiorenza）、Skydram（Mardyks）——以银河系结构为零点锚')}
+								{kv('历史/历元（12）', 'Hipparchos、Sassanian、Aldebaran 15°Tau、Babylonian / Kugler 1、Kugler 2、Kugler 3、Babylonian / Huber、Babylonian / Eta Piscium、Babylonian / Britton、J2000、J1900、B1950——天文历元或历史古零点')}
 								{kv('提示', 'Lahiri 与 KP 零点只差几角分;Raman 比 Lahiri 小约 1°27′(足以让临界度数换座 / 换宿);跨大组(如银道)可差数度')}</div>
 
 							<div style={card}><div style={ct}>分宫制（House System）</div>
 								{kv('数量', '两组共 24 制（Vedic 常用 6 / 其他象限·等分制 18）')}
 								{kv('默认', '整宫制 Whole Sign（整座为一宫，吠陀传统主流）')}
-								{kv('Vedic 常用', '整宫制 / 等宫·命起宫 Equal / Vehlow 等宫·命居宫中 / Sripati（Bhāva Chalit）/ Porphyry 波菲 / KP·Placidus')}
-								{kv('其他象限·等分', 'Koch / Campanus / Regiomontanus / Alcabitus / Morinus / Meridian / Polich-Page / Equal MC / Azimuthal 等多种')}
+								{kv('Vedic 常用（6）', '整宫制 Whole Sign（默认）/ 等宫·命起宫 Equal / Vehlow 等宫·命居宫中 / Sripati（Bhāva Chalit）/ Porphyry 波菲 / KP / Placidus')}
+								{kv('其他象限·等分（18）', 'Koch / Campanus / Regiomontanus / Alcabitus / Morinus / Meridian / Axial / Polich-Page / Topocentric / Equal MC / Azimuthal / Horizon / Carter Poli-Equatorial / Sunshine / Sunshine Alt / Krusinski / Pullen SD / Pullen SR / APC Houses / Savard-A / Equal 2(其中 Meridian 与 Axial、Polich-Page 与 Topocentric、Azimuthal 与 Horizon 各为同一制的两个名字,共一项)')}
 								{kv('整宫制', '宫界=星座界，一座即一宫，行星所在座即所在宫。吠陀第一选择')}
 								{kv('Sripati/Bhāva Chalit', '按度均分的不等宫：宫头 cusp 落在座中而非座界，居星可能因 cusp 重归到相邻宫')}
 								{kv('KP·Placidus', '真象限分宫：按上升、天顶分割时间弧。KP 派必用，宫头次主星（CSL）即据此真 cusp 求得')}</div>
@@ -164,8 +164,8 @@ class IndiaHelpDoc extends Component {
 								{kv('另一隐藏条件', '中栏盘面须为「本命盘」;切到 SBC / 三旗盘时本项也不显示')}</div>
 
 							<div style={card}><div style={ct}>「流派与算法」分区（左栏第三区 · 默认折叠）</div>
-								{kv('内容', '宿数口径(27 / 28) + 22 项大运流派开关(左栏连续排列,本手册「流派分歧」标签按 5 组列出) + 4 项分盘变体(D2/D3/D24/D30) + Chara Kāraka 方案 + 星曜战判据')}
-								{kv('标记', '22 项大运流派开关被改成非默认值时,该项标签后出现金色小标「·改」,便于回查改过哪些;宿数口径、四个分盘变体、Chara Kāraka 方案、星曜战判据不带此标记')}
+								{kv('内容', '宿数口径(27 / 28) + 23 项大运流派开关(左栏连续排列,本手册「流派分歧」标签按 6 组列出) + 4 项分盘变体(D2/D3/D24/D30) + Chara Kāraka 方案 + 星曜战判据')}
+								{kv('标记', '23 项大运流派开关被改成非默认值时,该项标签后出现金色小标「·改」,便于回查改过哪些;宿数口径、四个分盘变体、Chara Kāraka 方案、星曜战判据不带此标记')}
 								{kv('默认', '全部保持默认时,结果与本软件一贯的算法相同;界面上标「文献默认 / 文献推荐 / 主流」的档是另一派在文献中的主流口径,并非本软件默认。改任一项(「宿数口径」除外)都会重新计算')}
 								{kv('置灰', '当前流派没显示某个右栏标签时,只作用于那一页的开关会置灰(鼠标停上去可见原因)。切到含该页的流派即可恢复')}
 								{kv('全量对照', '每一项的取值、含义与默认见「流派分歧」标签')}</div>
@@ -705,11 +705,11 @@ class IndiaHelpDoc extends Component {
 								{kv('默认', '标准 Parāśara;可选 Kashinatha/Jagannatha/Somanatha/等分等变体;D5 另有「Parāśara 主星序」(奇座 白羊 水瓶 射手 双子 天秤、偶座 金牛 处女 双鱼 摩羯 天蝎),D11 另有「连续循环」')}
 								{kv('影响', '换法即重排该分盘主盘与右栏,Vargottama/Viṃśopaka 等派生量随变')}</div>
 							<div style={card}><div style={ct}>大运流派开关(左栏「流派与算法」)</div>
-								{kv('范围', 'Aṣṭottarī 子型/Chara 方向与尊位/判据序/中运首座与分割/Chakra 起座/Kālachakra 换接与适用/Naisargika 排序/过运 Vedha 遮蔽者/寿命六项/年盘四项/Varṇada 期长,共 22 项')}
+								{kv('范围', 'Aṣṭottarī 子型/Chara 方向与尊位/判据序/中运首座与分割/Chakra 起座/Kālachakra 换接与适用/Naisargika 排序/过运 Vedha 遮蔽者/寿命六项/年盘四项/Varṇada 期长/Dīptādi 凶恶归属,共 23 项')}
 								{kv('默认', '全部保持默认时,结果与本软件一贯的算法相同;标「文献推荐」的为另一派主流口径,改任一项都会重新计算')}</div>
 
-							<div style={h}>22 项大运流派开关 · 全量对照（首项为默认）</div>
-							<p style={{ ...p, color: MUTED }}>左栏里 22 项连续排列，这里按 5 组列出。改任一项都会重新计算；改过的项在左栏标签后出现金色小标「·改」。</p>
+							<div style={h}>23 项大运流派开关 · 全量对照（首项为默认）</div>
+							<p style={{ ...p, color: MUTED }}>左栏里 23 项连续排列，这里按 6 组列出。改任一项都会重新计算；改过的项在左栏标签后出现金色小标「·改」。</p>
 							<div style={card}><div style={ct}>星宿大运组（1 项）</div>
 								{kv('Aṣṭottarī 子型', 'Ārdrā 起（默认）/ Kṛttikā 起 / 依罗睺位自动（文献推荐）。改宿→曜的映射锚与所辖弧;「自动」= 罗睺自上升落三角位（第 5 或 9 座）则取 Kṛttikā 型,否则 Ārdrā 型')}</div>
 							<div style={card}><div style={ct}>座运 Jaimini 组（7 项）</div>
@@ -737,6 +737,8 @@ class IndiaHelpDoc extends Component {
 								{kv('Patyāyinī 年常量', '365.2425（默认）/ 365（文献默认）/ 365.2563 / 360')}
 								{kv('Patyāyinī 上升取点', '座内度数（默认）/ 宫首 0°（文献默认）')}
 								{kv('Hadda 界法', '埃及界（默认,不等界,日月永不为界主）/ 等 6° 五分')}</div>
+							<div style={card}><div style={ct}>情态组（1 项）</div>
+								{kv('Dīptādi 凶恶 / 困弱归属', '落恶曜之座为凶恶（默认）/ 落陷为凶恶（BPHS 通行）。默认 = 落恶曜所主之座记「凶恶」(Khala)、落陷与中性座记「困弱」(Dīna);BPHS 通行 = 落陷记「凶恶」、中性座记「困弱」,「落恶曜之座」不另成一态')}</div>
 
 							<div style={card}><div style={ct}>另外 5 个不在上表的独立开关</div>
 								{kv('Chara Kāraka 方案', '8 卡拉卡（默认·含罗睺,罗睺按逆量计度）/ 7 卡拉卡（古典·无罗睺,不出 PiK）')}
