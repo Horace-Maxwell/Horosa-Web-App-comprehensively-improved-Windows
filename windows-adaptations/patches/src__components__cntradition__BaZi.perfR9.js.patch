@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZi.js b/astrostudyui/src/components/cntradition/BaZi.js
-index 344b19a0..3a7b1b28 100644
+index e08d0561..a7fc2869 100644
 --- a/astrostudyui/src/components/cntradition/BaZi.js
 +++ b/astrostudyui/src/components/cntradition/BaZi.js
 @@ -1,4 +1,4 @@
@@ -34,7 +34,7 @@ index 344b19a0..3a7b1b28 100644
  const BaZiOptKey = BAZI_OPT_STORAGE_KEY;   // 键名单源(挂载重算回落页面保存值读同一把键)
  // 本页「年龄」档(虚岁 nominal / 周岁 real),供其他模块换算岁数时同口径;读不到按虚岁(缺省)。
  export function loadBaziAgeStyle(){
-@@ -1041,9 +1053,18 @@ class BaZi extends Component{
+@@ -1049,9 +1061,18 @@ class BaZi extends Component{
  		});
  	}
  
@@ -54,7 +54,7 @@ index 344b19a0..3a7b1b28 100644
  		});
  	}
  
-@@ -1078,6 +1099,36 @@ class BaZi extends Component{
+@@ -1088,6 +1109,36 @@ class BaZi extends Component{
  		return params;
  	}
  
@@ -91,7 +91,7 @@ index 344b19a0..3a7b1b28 100644
  	async prefetchBazi(fields){
  		if(fields === undefined || fields === null){
  			return;
-@@ -1115,7 +1166,14 @@ class BaZi extends Component{
+@@ -1125,7 +1176,14 @@ class BaZi extends Component{
  			flowSelection: this.state.currentBaziKey === currentBaziKey ? this.state.flowSelection : null,
  		};
  
@@ -107,7 +107,7 @@ index 344b19a0..3a7b1b28 100644
  		this.saveBaziSnapshot(params, result);
  	}
  
-@@ -1279,11 +1337,11 @@ class BaZi extends Component{
+@@ -1289,11 +1347,11 @@ class BaZi extends Component{
  		}
  		let tabHeight = height - 20;
  
@@ -122,7 +122,7 @@ index 344b19a0..3a7b1b28 100644
  		const isFineChart = this.state.chartStyle === 'fine' || this.state.chartStyle === 'ancient';
  		const isLegacyUi = this.state.baziOpt && this.state.baziOpt.uiMode === 'legacy';
  		// 盘槽高度只由主栈的网格行决定(样式单源),盘的滚动盒一律 100% 贴槽 —— 此前 JS 另按「工作区高 × 0.62」给滚动盒 px 高,
-@@ -1298,7 +1356,7 @@ class BaZi extends Component{
+@@ -1308,7 +1366,7 @@ class BaZi extends Component{
  						<div className="horosa-astro-context-panel horosa-astro-input-panel horosa-bazi-input-panel">
  							{/* [择日宿主] 左栏插槽:择日入口板块(主八字页不传=零渲染) */}
  							{typeof this.props.renderLeftExtra === 'function' ? this.props.renderLeftExtra() : null}
@@ -131,7 +131,7 @@ index 344b19a0..3a7b1b28 100644
  								fields={this.effFields()}
  								baziOpt={this.state.baziOpt}
  								chartStyle={this.state.chartStyle}   /* 左栏据此判「古法盘下这项不画」 */
-@@ -1324,7 +1382,7 @@ class BaZi extends Component{
+@@ -1334,7 +1392,7 @@ class BaZi extends Component{
  										/>
  									</div>
  									<div className="horosa-bazi-main-flow-slot">

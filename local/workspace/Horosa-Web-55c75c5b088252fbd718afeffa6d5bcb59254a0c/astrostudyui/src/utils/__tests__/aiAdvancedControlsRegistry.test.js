@@ -18,6 +18,10 @@ import ExternalServersPanel from '../../components/aianalysis/ExternalServersPan
 import WebSearchPanel from '../../components/aianalysis/WebSearchPanel';
 import AutomationRulesPanel from '../../components/aianalysis/AutomationRulesPanel';
 import ActionLedgerPanel from '../../components/aianalysis/ActionLedgerPanel';
+import SystemOnePanel from '../../components/aianalysis/chat/SystemOnePanel';
+import { setSystemOneEnabled } from '../systemOne/prefs';
+import { saveSystemOneProfile } from '../../integrations/systemOne';
+import { __setCalibrationForTest } from '../systemOne/calibrationStore';
 import { setAgentEnabled, setExternalToolsEnabled, setWebSearchEnabled } from '../aiAgent/prefs';
 import { writeModelRoutes, saveRouteProfile } from '../aiModelRouting';
 import { writePersonaLayer } from '../aiChat/personaLayers';
@@ -95,6 +99,7 @@ function elementFor(file, seeds){
 		case 'WebSearchPanel.js': return <WebSearchPanel />;
 		case 'AutomationRulesPanel.js': return <AutomationRulesPanel />;
 		case 'ActionLedgerPanel.js': return <ActionLedgerPanel />;
+		case 'chat/SystemOnePanel.js': return <SystemOnePanel />;
 		default: throw new Error(`未知面板文件 ${file}`);
 	}
 }
@@ -111,6 +116,8 @@ async function seed(kind){
 		case 'rule-row': await saveRule({ name: '测试规则', event: 'record.saved', enabled: true, cooldownMs: 60000, match: {}, actions: [{ type: 'select-source' }] }); return;
 		case 'ledger-rows': for(let i = 0; i < 25; i += 1){ appendAction({ id: `a-${i}`, origin: ['in-app', 'mcp', 'goal', 'scheduled', 'automation'][i % 5], tool: 'create_chart_record', summary: `建档 ${i}`, undo: { kind: 'restore-record-flag' } }); } return;
 		case 'websearch-profile': return;  // 走 mock
+		case 'systemone-profile': await saveSystemOneProfile({ apiKey: 'ts-test-key', baseUrl: '', model: 'jev-latest' }); return;
+		case 'systemone-calibration': __setCalibrationForTest('jev-2026-test', ['A2']); return;
 		default: throw new Error(`未知 seed ${kind}`);
 	}
 }
@@ -182,7 +189,7 @@ describe('进阶页控件登记表 reveal 合同', ()=>{
 			const reveal = c.reveal || [];
 			const seeds = new Set(reveal.filter((r)=>r.indexOf('seed:') === 0).map((r)=>r.slice(5)));
 			if(reveal.indexOf('agent-on') >= 0 || c.card.indexOf('adv-agent') === 0){ setAgentEnabled(true); }
-			reveal.filter((r)=>r.indexOf('pref:') === 0).forEach((r)=>{ const k = r.slice(5); if(k === 'externalTools'){ setExternalToolsEnabled(true); } else if(k === 'webSearch'){ setWebSearchEnabled(true); } else { throw new Error(`未知 pref ${k}`); } });
+			reveal.filter((r)=>r.indexOf('pref:') === 0).forEach((r)=>{ const k = r.slice(5); if(k === 'externalTools'){ setExternalToolsEnabled(true); } else if(k === 'webSearch'){ setWebSearchEnabled(true); } else if(k === 'systemOne'){ setSystemOneEnabled(true); } else { throw new Error(`未知 pref ${k}`); } });
 			for(const s of seeds){ await seed(s); }
 			await act(async ()=>{ ReactDOM.render(elementFor(c.file, seeds), host); await new Promise((r)=>setTimeout(r, 0)); });
 			await flush();
@@ -194,13 +201,13 @@ describe('进阶页控件登记表 reveal 合同', ()=>{
 		});
 	});
 
-	test('🔴 打开整页(六卡 + 行动能力开)不写任何登记的 localStorage 存储键', async ()=>{
+	test('🔴 打开整页(七卡 + 行动能力开)不写任何登记的 localStorage 存储键', async ()=>{
 		setAgentEnabled(true);
 		const before = new Set(Object.keys(window.localStorage));
 		await act(async ()=>{ ReactDOM.render(
 			<AdvancedPane>
 				{[<ChatContextPolicyPanel key="context-policy" model="deepseek-chat" />, <ChatModelRoutesPanel key="model-routes" providerProfiles={profiles} />, <SkillPackPanel key="skill-packs" bundles={[]} materials={[]} reloadBundles={()=>{}} />,
-					<PersonaMemoryPanel key="persona-memory" activeSource={activeSource} activeConversation={null} onInit={()=>{}} onExtract={()=>{}} />, <BestOfPanel key="best-of" providerProfiles={profiles} />]}
+					<PersonaMemoryPanel key="persona-memory" activeSource={activeSource} activeConversation={null} onInit={()=>{}} onExtract={()=>{}} />, <BestOfPanel key="best-of" providerProfiles={profiles} />, <SystemOnePanel key="systemone" />]}
 				<AgentAbilityPanel />
 			</AdvancedPane>, host); await new Promise((r)=>setTimeout(r, 0)); });
 		await flush();

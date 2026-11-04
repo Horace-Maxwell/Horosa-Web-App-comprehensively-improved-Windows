@@ -95,6 +95,7 @@ function normalizeChartParams(input){
 		siderealAyanamsa: src.siderealAyanamsa ? `${src.siderealAyanamsa}` : '',   // G2 恒星制岁差进缓存键(否则切 ayan 命中旧盘)
 		guolaoTrueSolarTime: (src.trueSolarTime === 'mean' || src.trueSolarTime === 'off') ? src.trueSolarTime : 'true',  // G6 报时星太阳时进缓存键
 		planetaryHourMethod: (src.planetaryHourMethod === 'unequal' || src.planetaryHourMethod === 'equal24') ? src.planetaryHourMethod : 'sunrise',  // 行星时制式进缓存键(否则切制式命中旧报时星)
+		sunriseMode: src.sunriseMode === 'apparent' ? 'apparent' : 'center',  // 日出口径进缓存键(否则切口径命中旧日出安命 / 报时星)
 		guolaoNodeType: src.guolaoNodeType === 'true' ? 'true' : 'mean',      // G10 罗计交点 真/平
 		guolaoLilithType: src.guolaoLilithType === 'true' ? 'true' : 'mean',  // G11 月孛远地点 真/平
 		guolaoZiqiMode: 'real',  // G12 紫炁仅今法真算;'tablet'(28年立成)假档已隐藏,旧快照残留一律归一回 real

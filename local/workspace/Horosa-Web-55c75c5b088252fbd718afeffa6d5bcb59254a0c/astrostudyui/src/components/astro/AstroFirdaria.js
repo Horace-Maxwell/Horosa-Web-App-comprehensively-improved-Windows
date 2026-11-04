@@ -181,8 +181,17 @@ class AstroFirdaria extends Component{
 			}
 		}
 
+		// 与界推运等表页同一套头卡(标题 · 副标题 · 说明),顶部留安全距离
 		return (
-			<div className={styles.scrollbar} style={style} >
+			<div className={`${styles.scrollbar} horosa-balbillus-shell`} style={{ ...style, paddingRight: 8 }} >
+				<div className="horosa-balbillus-head">
+					<div className="horosa-balbillus-title">
+						法达星限<span className="horosa-balbillus-sub">Firdaria · 主限 · 子限{firdaria.length ? ` · 共 ${firdaria.length} 段主限` : ''}</span>
+					</div>
+					<div className="horosa-balbillus-desc" style={{ marginBottom: 0 }}>
+						按昼夜生定起始星:昼生自太阳、夜生自月亮,依迦勒底序轮掌人生各期(另含南北交两段);每段主限再按同序七分为子限;每张表是一段主限。
+					</div>
+				</div>
 				{doms}
 			</div>
 		);

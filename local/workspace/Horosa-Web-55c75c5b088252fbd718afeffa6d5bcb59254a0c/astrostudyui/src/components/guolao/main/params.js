@@ -26,6 +26,14 @@ export function guolaoPlanetaryHourMethod(fields){
 	return (v === 'unequal' || v === 'equal24') ? v : 'sunrise';
 }
 
+// 日出 / 日没口径(星盘设置里的全局「日出 / 日没口径」;随盘存过的以盘为准):'center' 日心 · 不计折射(缺省)/
+// 'apparent' 日面上缘 · 含大气折射。日出安命(命宫 / 命度)与报时星都按这一刻;页面、缓存键、快照同读此函数。
+export function guolaoSunriseMode(fields){
+	const fv = fields && fields.sunriseMode ? fields.sunriseMode.value : undefined;
+	const v = (fv !== undefined && fv !== null && `${fv}` !== '') ? `${fv}` : `${classicalGlobalValue('sunriseMode') || 'center'}`;
+	return v === 'apparent' ? 'apparent' : 'center';
+}
+
 // 七政首开「补空」的纯计算:给定 fields,返回要播进去的全局仓值({} = 不用播)。页面首开(ensureGuolaoDefaults)与
 // 空闲预热(warmGuolaoNatal)同用这一份 —— 预热要构出与首点逐字节相同的键,口径存过非出厂值的用户若按出厂值预热就是白跑一趟。
 export function computeGuolaoSeedPatch(fields, opts){
@@ -162,6 +170,10 @@ export function fieldsToParams(fields){
 	const hourMethod = guolaoPlanetaryHourMethod(fields);
 	if(hourMethod !== 'sunrise'){
 		params.planetaryHourMethod = hourMethod;
+	}
+	// 日出 / 日没口径:非缺省(上缘 + 折射)才透传 → 日出安命与报时星按视日出;缺省不发 = 零回归。
+	if(guolaoSunriseMode(fields) === 'apparent'){
+		params.sunriseMode = 'apparent';
 	}
 	// G10-13 四余取法:仅非默认才透传(罗计/月孛默认平 mean),默认=零回归。
 	// 紫炁取法只有「今法真算」一档生效('tablet' 假档已隐藏),故永不透传 guolaoZiqiMode → 后端始终走真算。

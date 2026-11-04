@@ -356,17 +356,6 @@
 	}
 }
 
-/* 黄道星释基点单选(两列):组宽 < 160px(放大档右栏)时符号与名称折行、行高随内容;常规宽度不挂属性,一字不变。行内 style 定高,故用 !important 覆盖。 */
-:global {
-	[data-zr-narrow] .horosa-zr-base-radio.ant-radio-wrapper {
-		height: auto !important;
-		min-height: 28px;
-		line-height: 18px !important;
-		white-space: normal !important;
-		padding: 5px 0;
-	}
-}
-
 /* 窄栏 / 放大档「固定 N 列网格」与「两字标签」同族(真内核 1.8 档逐页签巡检实抓):
    ① 固定 repeat(N, 1fr) 的选项 / 卡片网格 → repeat(auto-fill, minmax(max(下限, 1/N 栏宽), 1fr)):栏宽够时仍是 N 等分(列下限 = 1/N 栏宽,逐像素同宽),
       栏被压窄时列下限取「放得下整条标签」的定值、自动退列 —— 不再把两字标签挤成逐字竖排、把长标签裁掉;

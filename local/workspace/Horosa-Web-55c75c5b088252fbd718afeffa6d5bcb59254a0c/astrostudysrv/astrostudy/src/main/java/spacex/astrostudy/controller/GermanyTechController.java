@@ -112,7 +112,7 @@ public class GermanyTechController {
 		// 古典口径键透传(照 PredictiveController classicalKeys 范式):此前本白名单
 		// 静默剥离全部古典键 → 中点/TNP/戴维森腿与同页 /chart 腿口径分叉(盘面吃档、中点树不吃)。
 		String[] classicalKeys = new String[] {
-			"termsVariant", "geminiBoundEmended", "leoBoundFirst", "triplicity", "lotReversal", "westNodeType", "sectBuffer",
+			"termsVariant", "geminiBoundEmended", "leoBoundFirst", "triplicity", "lotReversal", "westNodeType", "sectBuffer", "sunriseMode",
 			"houseCuspAdvance", "cazimiOrb", "combustOrb", "underBeamsOrb", "vocMode", "vocIncludeOuter",
 			"starOrb", "starOrbMode", "antisciaOrb", "viaCombustaVariant",
 			"lotsDocReverse", "nodeExaltation",

@@ -18,9 +18,11 @@ export default class YanQinControls extends Component {
 	render() {
 		const s = getYanqinSettings();
 		const { advOpen } = this.state;
+		// 已并入的旧档(hidden,如参筹 = 江西派)在旧记录里仍是当前值:列出它,否则选择框显示原始键
+		const hiddenCur = YANQIN_PRESETS[s.school] && YANQIN_PRESETS[s.school].hidden ? [{ value: s.school, label: YANQIN_PRESETS[s.school].label }] : [];
 		const schoolOptions = s.school === 'custom'
 			? YANQIN_SCHOOL_OPTIONS.concat([{ value: 'custom', label: '自定义' }])
-			: YANQIN_SCHOOL_OPTIONS;
+			: YANQIN_SCHOOL_OPTIONS.concat(hiddenCur);
 		return (
 			<div className="horosa-kinastro-xianqin-yanfa-controls">
 				{/* [左栏统一] 收编 XQSideSection(可折叠;裸标题退役) */}

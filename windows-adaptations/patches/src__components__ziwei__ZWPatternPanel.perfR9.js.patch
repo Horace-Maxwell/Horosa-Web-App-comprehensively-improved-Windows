@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/ziwei/ZWPatternPanel.js b/astrostudyui/src/components/ziwei/ZWPatternPanel.js
-index d9c25f0e..2c4bba84 100644
+index 1dcf169a..74e43add 100644
 --- a/astrostudyui/src/components/ziwei/ZWPatternPanel.js
 +++ b/astrostudyui/src/components/ziwei/ZWPatternPanel.js
 @@ -1,4 +1,5 @@
@@ -8,7 +8,7 @@ index d9c25f0e..2c4bba84 100644
  
  const CAT_ORDER = ['富贵', '文贵', '武贵', '破格'];
  const CAT_CLASS = { 富贵: 'fugui', 文贵: 'wengui', 武贵: 'wugui', 破格: 'poge' };
-@@ -71,6 +72,37 @@ class ZWPatternPanel extends Component {
+@@ -79,6 +80,37 @@ class ZWPatternPanel extends Component {
  		this.setState((s) => ({ expanded: { ...s.expanded, [name]: !s.expanded[name] } }));
  	}
  

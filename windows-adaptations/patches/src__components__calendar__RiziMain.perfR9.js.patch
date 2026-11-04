@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/calendar/RiziMain.js b/astrostudyui/src/components/calendar/RiziMain.js
-index 02bbc673..de890286 100644
+index 9215375d..599e8667 100644
 --- a/astrostudyui/src/components/calendar/RiziMain.js
 +++ b/astrostudyui/src/components/calendar/RiziMain.js
 @@ -10,6 +10,8 @@ import { buildRiziSnapshotText } from './riziSnapshot';
@@ -98,7 +98,7 @@ index 02bbc673..de890286 100644
  		this.deferRecompute = this.deferRecompute.bind(this);
  		this.saveAISnapshot = this.saveAISnapshot.bind(this);
  		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
-@@ -100,22 +156,41 @@ class RiziMain extends Component {
+@@ -102,22 +158,41 @@ class RiziMain extends Component {
  			// 选中：保留当前选择（若仍在榜），否则取榜首。
  			const list = result.list || [];
  			const keep = this.state.selectedYmd && list.some((d)=> d.ymd === this.state.selectedYmd);
@@ -144,7 +144,7 @@ index 02bbc673..de890286 100644
  
  	saveAISnapshot() {
  		const persons = this.state.personsWithBazi || this.state.persons.map((p)=> ({ ...p, bazi: this.baziOf(p) }));
-@@ -140,9 +215,19 @@ class RiziMain extends Component {
+@@ -142,9 +217,19 @@ class RiziMain extends Component {
  		if (this._recomputeTimer) { clearTimeout(this._recomputeTimer); this._recomputeTimer = null; }
  	}
  
@@ -165,7 +165,7 @@ index 02bbc673..de890286 100644
  		if (this.state.computing && !list.length) { return <div className='horosa-empty-hint'>正在计算全年吉日…</div>; }
  		if (!list.length) { return <div className='horosa-empty-hint'>请输入当事人生辰，或本年该事项无合适吉日</div>; }
  		const total = result.count || list.length;
-@@ -159,50 +244,13 @@ class RiziMain extends Component {
+@@ -161,50 +246,13 @@ class RiziMain extends Component {
  						) : null}
  					</span>
  				</div>

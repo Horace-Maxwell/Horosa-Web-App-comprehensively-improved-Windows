@@ -446,6 +446,7 @@ function buildBaziSnapshotText(params, result){
 
 	lines.push('');
 	lines.push('[神煞（四柱与三元）]');
+	lines.push(`天医口径：${params && params.tianyiSchool === 'ziping' ? '子平（月支退一位，无地医）' : '协纪辨方书（正月起戌顺行，地医为其对冲）'}`);
 	lines.push(`年柱：${gzGodText(four.year)}`);
 	lines.push(`月柱：${gzGodText(four.month)}`);
 	lines.push(`日柱：${gzGodText(four.day)}`);
@@ -956,6 +957,7 @@ class BaZi extends Component{
 			// 不再写共享 fields 也不再锁死全局同步 → 紫微 / 七政 / 六壬 / 金口诀 / 导出头不跟着八字左栏变;新命盘 / 载入命盘时复位。
 			// 择日宿主内嵌:改动交给宿主的覆盖层(宿主用新 fields 调 hook 重排),不写主盘(见 utils/scopedFieldsSink)。
 			let sharedPatch = patch;
+			let calibreOverride = this.props.baziCalibreOverride;
 			if(!this.props.techniqueScope){
 				// 「新盘种子」:长生 / 神煞查法的亲手改动 = 新命盘缺省(时间算法是本页覆盖层,复位到全局缺省,不在此记)
 				if(patch.phaseType !== undefined || patch.godKeyPos !== undefined){
@@ -965,6 +967,7 @@ class BaZi extends Component{
 				if(Object.keys(split.calibre).length){
 					this.props.dispatch({ type: 'astro/setBaziCalibreOverride', payload: { override: split.calibre } });
 					sharedPatch = split.rest;
+					calibreOverride = { ...(calibreOverride || {}), ...split.calibre };
 				}
 			}
 			if(sendScopedFields(this.props, sharedPatch, { recompute: confirmed })){
@@ -980,6 +983,9 @@ class BaZi extends Component{
 				type: 'astro/saveUserFields',
 				payload: flds
 			});
+			// 重取用本页所见 fields(共享层 + 覆盖层):三键刚拆进覆盖层,只拿共享层重取 = 还按旧口径排盘,
+			// 左栏下拉变了、四柱不动(晚子时 / 时间算法 死开关)。覆盖层 dispatch 后的 props 本轮还没到,这里直接合上。
+			const reqFields = applyBaziCalibreOverride(flds.fields, calibreOverride);
 			if(!confirmed){
 				if(this.prefetchTimer){
 					clearTimeout(this.prefetchTimer);
@@ -989,7 +995,7 @@ class BaZi extends Component{
 					if(this.unmounted){
 						return;
 					}
-					this.prefetchBazi(flds.fields).catch(()=>{
+					this.prefetchBazi(reqFields).catch(()=>{
 						return null;
 					});
 				}, 240);
@@ -999,7 +1005,7 @@ class BaZi extends Component{
 				clearTimeout(this.prefetchTimer);
 				this.prefetchTimer = null;
 			}
-			this.requestBazi(flds.fields, {
+			this.requestBazi(reqFields, {
 				silent: true,
 			});
 		}
@@ -1013,7 +1019,8 @@ class BaZi extends Component{
 				|| (prev.fenyeVersion || 'common') !== (opt.fenyeVersion || 'common')
 				|| (prev.southMonth || 'none') !== (opt.southMonth || 'none')
 				|| (prev.cangVersion || 'common') !== (opt.cangVersion || 'common')
-				|| (prev.dayunPrecision || 'precise') !== (opt.dayunPrecision || 'precise');
+				|| (prev.dayunPrecision || 'precise') !== (opt.dayunPrecision || 'precise')
+				|| (prev.tianyiSchool || 'xieji') !== (opt.tianyiSchool || 'xieji');   // 天医口径:换天医 / 地医落支(起盘时算进四柱神煞)
 		const patch = { baziOpt: opt };
 		// 纳音古法派 → 自动配古法盘(临时视图,不落 localStorage);离开纳音恢复原样式。
 		// 用户本会话手动点过样式按钮(userStyleTouched)即视为覆盖,不再自动切。
@@ -1038,7 +1045,8 @@ class BaZi extends Component{
 			}
 			// 起盘口径变了 → 告知择日宿主(扫描口径指纹含页面键,「结果已过期」随之亮)
 			const calibreChanged = (prev.southMonth || 'none') !== (opt.southMonth || 'none')
-				|| (prev.minggongMethod || 'tongxing') !== (opt.minggongMethod || 'tongxing');
+				|| (prev.minggongMethod || 'tongxing') !== (opt.minggongMethod || 'tongxing')
+				|| (prev.tianyiSchool || 'xieji') !== (opt.tianyiSchool || 'xieji');
 			if(calibreChanged && typeof this.props.onPageCalibreChange === 'function'){ this.props.onPageCalibreChange(); }
 			if(typeof done === 'function'){ done(); }
 		});
@@ -1095,6 +1103,8 @@ class BaZi extends Component{
 			// 藏干版本（分野加权 fenye / 通行版 common）：影响五行力量打分（月柱当令司令加权）→ 进 params 让缓存键随之失效并重算。
 			cangVersion: (this.state.baziOpt && this.state.baziOpt.cangVersion) || 'common',
 			dayunPrecision: (this.state.baziOpt && this.state.baziOpt.dayunPrecision) || 'precise',
+			// 天医口径(协纪 xieji 缺省 / 子平 ziping):进 params,缓存键随之失效
+			tianyiSchool: (this.state.baziOpt && this.state.baziOpt.tianyiSchool) || 'xieji',
 		}
 		return params;
 	}
@@ -1403,7 +1413,7 @@ class BaZi extends Component{
 							{isLegacyUi ? (
 								<BaZiLegacyInfoPanel value={bazi} fields={this.effFields()} height={tabHeight} ageStyle={(this.state.baziOpt && this.state.baziOpt.ageStyle) || 'nominal'} />
 							) : (
-								<BaZiAppInfoPanel value={bazi} fields={this.effFields()} height={tabHeight} showShenSha={!(this.state.baziOpt && this.state.baziOpt.showShenSha === false)} shenshaGroups={this.state.baziOpt && this.state.baziOpt.shenshaGroups} zodiacBoundary={(this.state.baziOpt && this.state.baziOpt.zodiacBoundary) || 'lichun'} school={(this.state.baziOpt && this.state.baziOpt.school) || 'zonghe'} flowSelection={this.state.flowSelection} />
+								<BaZiAppInfoPanel value={bazi} fields={this.effFields()} height={tabHeight} showShenSha={!(this.state.baziOpt && this.state.baziOpt.showShenSha === false)} shenshaGroups={this.state.baziOpt && this.state.baziOpt.shenshaGroups} zodiacBoundary={(this.state.baziOpt && this.state.baziOpt.zodiacBoundary) || 'lichun'} tianyiSchool={(this.state.baziOpt && this.state.baziOpt.tianyiSchool) || 'xieji'} school={(this.state.baziOpt && this.state.baziOpt.school) || 'zonghe'} flowSelection={this.state.flowSelection} />
 							)}
 						</div>
 					</div>

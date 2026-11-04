@@ -202,10 +202,10 @@ const RULES = {
 	'布': { def: null, words: { '布施': '布施', '布政': '布政' } },          // 布施 / 布政(使)不作「佈」
 	'游': { def: null, words: { '鱼游': '魚游' } },                        // 鱼游(游水)不作「遊」
 	// 「里」:缺省随词典(里程 / 千里 / 故里 / 邻里 作「里」,心里 / 这里 作「裡」);词典把「乐里」「本里」「日里」当词,
-	// 「乐里悲」(毕法)「账本里 / 副本里 / 文本里」「择日里」「找不回里面」「下拉里」(界面:下拉框里面)里的「里」= 里面,作「裡」
+	// 「乐里悲」(毕法)「账本里 / 副本里 / 文本里」「择日里」「找不回里面」「下拉里」(界面:下拉框里面)「核验里」「十神里」里的「里」= 里面,作「裡」
 	// (只收整词「下拉里」,不收「拉里」—— 那会误伤音译人名 / 地名)
 	// 「格里历」(公历):词典先切「合格」时(「Y 合格里历闰年规则」)剩下「里历」→ 裡曆,钉回「里」
-	'里': { def: null, words: { '乐里': '樂裡', '本里': '本裡', '日里': '日裡', '回里面': '回裡面', '下拉里': '下拉裡', '格里历': '格里曆',
+	'里': { def: null, words: { '乐里': '樂裡', '本里': '本裡', '日里': '日裡', '回里面': '回裡面', '下拉里': '下拉裡', '验里': '驗裡', '神里': '神裡', '格里历': '格里曆',
 		// 音译人名 / 地名的「里」(词典逐字作「裡」):拉希里(Lahiri 岁差)、古地名奇里乞亚 / 弗里吉亚、城市库外国城市与厦门湖里 / 南昌湾里
 		'拉希里': '拉希里', '奇里乞亚': '奇里乞亞', '弗里吉亚': '弗里吉亞', '埃里温': '埃里溫', '帕拉马里博': '帕拉馬里博', '库里蒂巴': '庫里蒂巴',
 		'普里什蒂纳': '普里什蒂納', '波德戈里察': '波德戈里察', '奥里藏特': '奧里藏特', '里安市': '里安市', '湖里区': '湖里區', '湾里区': '灣里區',
@@ -362,7 +362,7 @@ const KE_CONTEXT = {
 		+ '何宜气合戌变龙也及处成男文柔哪乃后卯物亡胜福和药忧原凑课较同总第于对祸众末中符甲空密庚鹤厄照猴格交削八黄间怪看庶战婚翁救'
 		+ '姻损解饿带吏书剥稍印皆宗庙惊震否得艮勾反蛇言决兴减恶遇临象田费阻谁医卜岁女流乘转兆仍过此等随座补颂序百紧妇尊虚武畜劳绝眼'
 		+ '寅亦助坐盗传盘最白罪幕都远备俱往某刚德宿禽按严面视更双耗功组儿贫权艺长小免老胎从详部规推乙丙丁戊辛壬癸败现口形巳午申酉亥'
-		+ '丑力'
+		+ '丑力见'   // 见:「见生便喜、见克便忧」(六爻古断)
 	)),
 	foreign: new Set(Array.from(''
 		+ '萨孜斯罗洛鲁雷莱尔林莉拉兰塞瑙苏阿麦蒂皮尼奥勒弗迪柯坦纳瓦凯逊什特托巴布牙努基科隆卢雅肖达赛里鄂遂济尽捷㨗俭勤恭服敌复杰'
@@ -485,6 +485,35 @@ function contextDecides(ctx, s, i){
 }
 
 // src = 原文,conv = 通用词典的转换结果;回逐位校正后的繁体。
+// 古籍转换档(opts.classic):玄学史古籍原文 / 引文区域专用。古籍里「范」多是姓氏 / 地名(范曄、范明友、范陽),「里」多是里坊 / 乡里
+// (昭國里、太平里、鄰里、步里客談);通用词典按现代用法缺省取 範 / 裡,恰好相反。本档下这两字缺省保留原字,只在下表整词里取 範 / 裡。
+// 界面文案(非古籍区域)不走本档,逐字不变(「时间范围」靠通用档转成「範圍」)。
+const CLASSIC_RULES = {
+	'范': ['洪范', '垂范', '规范', '模范', '典范', '师范', '风范', '仪范', '懿范', '闺范', '遗范', '世范', '范围', '范畴', '示范', '防范', '就范', '轨范', '矩范'],   // 不收 范文 / 范本 / 范例 / 范式:古籍少用,却会撞人名(范文正公 = 范仲淹)
+	'里': ['里面', '里头', '里边', '心里', '这里', '那里', '哪里', '夜里', '家里', '手里', '眼里', '梦里', '暗里', '私里', '肚里', '城里', '屋里', '怀里', '口里', '耳里', '水里', '土里', '府里', '宫里', '袖里', '背地里', '表里', '里外'],
+};
+const CLASSIC_INDEX = {};
+Object.keys(CLASSIC_RULES).forEach((ch)=>{
+	const to = ch === '范' ? '範' : '裡';
+	CLASSIC_INDEX[ch] = CLASSIC_RULES[ch].map((w)=>[Array.from(w), Array.from(w).indexOf(ch), to]).sort((a, b)=>b[0].length - a[0].length);
+});
+// 右邻否决:「范阳」是地名(…大师范阳人 不能按「师范」取 範)
+const CLASSIC_NOT_RIGHT = { '范': new Set(['阳', '陽']) };
+function classicCharAt(s, i){
+	const cands = CLASSIC_INDEX[s[i]];
+	if(!cands){ return null; }
+	if(CLASSIC_NOT_RIGHT[s[i]] && CLASSIC_NOT_RIGHT[s[i]].has(s[i + 1])){ return s[i]; }
+	for(let k = 0; k < cands.length; k += 1){
+		const [w, off, to] = cands[k];
+		const st = i - off;
+		if(st < 0 || st + w.length > s.length){ continue; }
+		let ok = true;
+		for(let j = 0; j < w.length; j += 1){ if(s[st + j] !== w[j]){ ok = false; break; } }
+		if(ok){ return to; }
+	}
+	return s[i];   // 不在整词表 → 保留原字(姓氏范 / 里坊里)
+}
+
 // opts.isTradOnly(ch):ch 是否繁体专用字(简体原文里不会出现);opts.isTradChar(ch):ch 在繁体里是否通行。
 // 缺省一律否(纯规则测试用,等于不启用「原文已是繁体则不改」)。
 // opts.trace(数组,测试用):逐个校正位记下 [位, 字, 依据, 白名单词的 [起位, 长度] 或 null](依据:word / guard / trad / ctx-domain / ctx-dict / quote / def / place)。
@@ -497,7 +526,14 @@ export function applyHantDomainRules(src, conv, opts){
 	const inTradText = (i)=>((s[i - 1] !== undefined && isTradOnly(s[i - 1])) || (s[i + 1] !== undefined && isTradOnly(s[i + 1])));
 	const trace = (opts && Array.isArray(opts.trace)) ? opts.trace : null;
 	const placeLabel = PLACE_LABEL_RE.test(s.slice(0, 4).join(''));
+	const classic = !!(opts && opts.classic);
 	for(let i = 0; i < s.length; i += 1){
+		if(classic && CLASSIC_INDEX[s[i]]){
+			const c = classicCharAt(s, i);
+			if(trace){ trace.push([i, s[i], 'classic', null]); }
+			t[i] = c;
+			continue;
+		}
 		if(placeLabel && PLACE_KEEP.has(s[i])){
 			if(trace){ trace.push([i, s[i], 'place', null]); }
 			t[i] = s[i];

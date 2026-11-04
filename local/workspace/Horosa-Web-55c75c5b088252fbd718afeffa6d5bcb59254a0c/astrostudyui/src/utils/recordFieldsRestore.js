@@ -92,6 +92,7 @@ export const RECORD_FIELDS_RESTORE_MANIFEST = [
 	{ key: 'virtualPointReceiveAsp', parse: 'int' },
 	{ key: 'westNodeType', parse: 'str' },
 	{ key: 'sectBuffer', parse: 'str' },
+	{ key: 'sunriseMode', parse: 'str' },
 	{ key: 'leoBoundFirst', parse: 'int' },
 	{ key: 'triplicity', parse: 'str' },
 	{ key: 'lotReversal', parse: 'int' },

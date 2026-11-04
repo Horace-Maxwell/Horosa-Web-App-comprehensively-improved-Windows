@@ -435,7 +435,9 @@ describe('WP-9 盘式变体包接线锁', ()=>{
 		expect(ap.includes("this.props.planetListStyle === 'degreeOnly' || this.props.planetListStyle === 'glyphOnly'")).toBe(true);
 		// 宿主接线:AstroChartMain 给 AstroPlanet 与 ChartDisplaySelector 都传了 prop
 		const main = read('../AstroChartMain.js');
-		expect((main.match(/planetListStyle=\{this\.props\.planetListStyle\}/g) || []).length).toBe(2);
+		// [Windows-only] horosa_slice_prop_cover_v1:右栏内容在 Windows 是渲染切片 AstroContentPanel,宿主 → 切片多一跳透传(第三处同形);
+		// 判据不放宽:有切片则恰 3 处,无切片则恰 2 处(上游原形)
+		expect((main.match(/planetListStyle=\{this\.props\.planetListStyle\}/g) || []).length).toBe(main.includes('class AstroContentPanel extends') ? 3 : 2);
 		// pages/index:AstroChartMain 壳传 app.planetListStyle(插错组件曾致 prop 链断,真机 fiber 抓获)
 		const idx = read('../../../pages/index.js');
 		expect((idx.match(/planetListStyle=\{app\.planetListStyle\}/g) || []).length >= 2).toBe(true);

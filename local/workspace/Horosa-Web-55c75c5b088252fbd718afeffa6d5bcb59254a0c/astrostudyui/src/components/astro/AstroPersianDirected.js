@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import React, { Component } from 'react';
 import { Row, Col, Divider } from 'antd';
 import moment from 'moment';
 import { momentOfCivilDateTimeStr, civilDateAfterDays } from '../../utils/civilMoment';
@@ -15,12 +15,12 @@ import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
 const birthHeaderLines = (c) => (typeof astroAiSnapshot.buildPredictiveBirthHeaderLines === 'function' ? astroAiSnapshot.buildPredictiveBirthHeaderLines(c) : []);
 const currentMomentLines = (c, x) => (typeof astroAiSnapshot.buildCurrentMomentLines === 'function' ? astroAiSnapshot.buildCurrentMomentLines(c, x) : []);
 const methodNoteLines = (k) => (typeof astroAiSnapshot.buildMethodNoteLines === 'function' ? astroAiSnapshot.buildMethodNoteLines(k) : []);
-import { SmallTable, symbolWithMeaning, natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
+import { SmallTable, symbolWithMeaning, natalClassicalParams, transitOrbDefault, followTransitOrb } from './AstroExtraCommon';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
-import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
-import PlusMinusTime from './PlusMinusTime';
+import CompactTimeField from '../comp/CompactTimeField';
+import { SideColumn, SidePanelHead, WheelSplit } from './progPageLayout';
 import { XQSelect as Select } from '../xq-ui';
 import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { markPanelReady } from '../../utils/perfMark';
@@ -215,6 +215,7 @@ class AstroPersianDirected extends Component{
 
 	componentDidMount(){
 		this._mounted = true;
+		this._detachTransitOrb = followTransitOrb(this);
 		this.requestData();
 		this.saveSnapshot();
 		if(typeof window !== 'undefined'){
@@ -241,6 +242,7 @@ class AstroPersianDirected extends Component{
 
 	componentWillUnmount(){
 		this._mounted = false;
+		if(this._detachTransitOrb){ this._detachTransitOrb(); }
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
@@ -404,82 +406,89 @@ class AstroPersianDirected extends Component{
 		const style = { height: (height - 20) + 'px', overflowY: 'auto', overflowX: 'hidden', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' };   // 内距计入高度,不再比面板高 5px
 		return (
 			<div>
-				<Row gutter={6}>
-					<Col span={17}>
-						<AstroDoubleChart value={chartObj} height={height}
-							planetDisplay={this.props.planetDisplay} lotsDisplay={this.props.lotsDisplay}
-							chartDisplay={this.props.chartDisplay} showAstroMeaning={this.props.showAstroMeaning} />
-					</Col>
-					<Col span={7}>
-						<div className={styles.scrollbar} style={style}>
-							<Row gutter={8} style={{ marginBottom: 8 }}>
-								<Col span={12}>
-									<div style={{ marginBottom: 4 }}>向运速率</div>
-									<Select value={rateKey} onChange={this.changeRate} style={{ width: '100%' }}>
-										{Object.keys(RATE).map((k) => <Option value={k} key={k}>{RATE_LABEL[k]}</Option>)}
-									</Select>
-								</Col>
-								<Col span={12}>
-									<div style={{ marginBottom: 4 }}>向运方向</div>
-									<Select value={direction} onChange={this.changeDirection} style={{ width: '100%' }}>
-										<Option value="direct">Direct（逆时针，黄经 +°/年）</Option>
-										<Option value="converse">Converse（顺时针，黄经 −°/年）</Option>
-									</Select>
-								</Col>
-							</Row>
-							<Row gutter={8} style={{ marginBottom: 8 }}>
-								<Col span={12}>
-									<div style={{ marginBottom: 4 }}>应期年数</div>
-									<Select value={maxYears} onChange={this.changeMaxYears} style={{ width: '100%' }}>
-										{[50, 90, 120, 150, 200].map((y) => <Option value={y} key={y}>{y} 年</Option>)}
-									</Select>
-								</Col>
-							</Row>
-							<div style={{ marginBottom: 8 }}>
-								<div style={{ marginBottom: 4 }}>推运时间（驱动左盘）</div>
-								<PlusMinusTime
+				{/* 盘大小与右栏宽度与星运其它带盘页同一套算法(progPageLayout.WheelSplit) */}
+				<WheelSplit style={{ height: height - 10 }} renderWheel={(wheelSize, wheelH)=>(
+					<div style={{ width: wheelSize, height: wheelH }}>
+							<AstroDoubleChart value={chartObj} height={wheelH}
+								planetDisplay={this.props.planetDisplay} lotsDisplay={this.props.lotsDisplay}
+								chartDisplay={this.props.chartDisplay} showAstroMeaning={this.props.showAstroMeaning} />
+					</div>
+				)} side={(
+					<React.Fragment>
+							{/* 右栏与星运其它带盘页同一个件:固定头(时间选择 + 设置,不随滚动)+ 下半两张应期表各自滚动;顶部留安全距离 */}
+							<SideColumn style={{ height: '100%' }} head={(
+								<div>
+								<SidePanelHead title="波斯向运" sub={currentAge != null ? `当前推运 ${currentAge.toFixed(1)} 岁` : ''} desc="左侧双盘:内圈本命、外圈向运(宫头固定本命)。向运星按所选速率在黄道上均匀推进,与本命点成相位即为应期;调时间即推运左盘。" />
+								<Divider orientation="left" className="horosa-prog-side-divider">时间选择<span className="horosa-prog-side-divider-extra">驱动左盘 · 时区随本命</span></Divider>
+								<CompactTimeField
+									inline
+									label={null}
 									value={curDt}
 									startTime={birthDt || undefined}
 									needZone={false}
 									showZone={false}      /* 请求只到分、时区随本命:时区/秒两列此前是死下拉(拨了零后果且回弹),不再渲染 */
 									showSeconds={false}
-									showAdjust={true}
-									onAfterChanged={this.handleTimeChanged}
+									onChange={this.handleTimeChanged}
 									onStepSelect={()=>{ /* R4-B4 错轴止血:本页时间轴=波斯向运时刻,全局选步长
 										handler 预取的是 natal /chart(与本轴无关=纯空烧);函数型 prop 屏蔽全局。
 										正轴(/predict/persian 族)预取待实测价值后补。 */ }}
 								/>
-							</div>
-							<div style={{ fontSize: 12, color: 'var(--horosa-muted, #666)', marginBottom: 6 }}>
-								左侧双盘：内圈本命、外圈向运（宫头固定本命）。调上方时间即推运左盘。
-								{currentAge != null ? <span style={{ marginLeft: 6 }}>当前推运 <b>{currentAge.toFixed(1)}</b> 岁。</span> : null}
-							</div>
-							<Divider orientation="left">邻近应期（距此刻最近）</Divider>
-							{nearbyHits.length ? (
-								/* 邻近应期表不封顶(13 行 ≈400px)会把终生应期表挤到最小、整列再滚 → 两表按 1:2 分摊余高,各自滚动、列不滚(单层) */
-								<div style={{ flex: '1 1 0', minHeight: 120, overflowY: 'auto', overflowX: 'hidden' }}>
-									<SmallTable rowKey={(r, i) => `n${i}`} rows={nearbyHits} columns={nearbyColumns} />
+								<Divider orientation="left" className="horosa-prog-side-divider">波斯向运设置</Divider>
+								<Row gutter={8} style={{ marginBottom: 8 }}>
+									<Col span={12}>
+										<div style={{ marginBottom: 4 }}>向运速率</div>
+										<Select value={rateKey} onChange={this.changeRate} style={{ width: '100%' }}>
+											{Object.keys(RATE).map((k) => <Option value={k} key={k}>{RATE_LABEL[k]}</Option>)}
+										</Select>
+									</Col>
+									<Col span={12}>
+										<div style={{ marginBottom: 4 }}>向运方向</div>
+										<Select value={direction} onChange={this.changeDirection} style={{ width: '100%' }} optionLabelProp="label">
+											<Option value="direct" label="顺向 Direct">Direct（逆时针，黄经 +°/年）</Option>
+											<Option value="converse" label="逆向 Converse">Converse（顺时针，黄经 −°/年）</Option>
+										</Select>
+									</Col>
+								</Row>
+								<Row gutter={8} style={{ marginBottom: 8 }}>
+									<Col span={12}>
+										<div style={{ marginBottom: 4 }}>应期年数</div>
+										<Select value={maxYears} onChange={this.changeMaxYears} style={{ width: '100%' }}>
+											{[50, 90, 120, 150, 200].map((y) => <Option value={y} key={y}>{y} 年</Option>)}
+										</Select>
+									</Col>
+								</Row>
 								</div>
-							) : (
-								<div style={{ fontSize: 12, color: 'var(--horosa-muted, #666)', marginBottom: 6 }}>（调上方「推运时间」即可定位到此刻邻近的向运应期；无生时则不聚焦。）</div>
-							)}
-							<Divider orientation="left">终生应期（向运 → 本命）</Divider>
-							<div ref={(node) => { this.fullListRef = node; }}
-								style={{ position: 'relative', flex: '2 1 0', minHeight: 160, overflowY: 'auto', overflowX: 'hidden', border: '1px solid rgba(148,163,184,.18)', borderRadius: 4 }}>
-								<SmallTable
-									rowKey={(r, i) => i}
-									rows={fullHits}
-									rowStyle={fullRowStyle}
-									rowRef={this.captureAnchorRow}
-									columns={fullColumns}
-								/>
-							</div>
-							{hits.length > fullHits.length ? (
-								<div style={{ fontSize: 12, color: 'var(--horosa-muted, #666)', marginTop: 4 }}>应期过多，已显示前 {fullHits.length} 条（调小「应期年数」以聚焦）。</div>
-							) : null}
-						</div>
-					</Col>
-				</Row>
+							)}>
+								<div style={{ fontSize: 12, color: 'var(--horosa-muted, #666)', marginBottom: 6 }}>
+									左侧双盘：内圈本命、外圈向运（宫头固定本命）。调上方时间即推运左盘。
+									{currentAge != null ? <span style={{ marginLeft: 6 }}>当前推运 <b>{currentAge.toFixed(1)}</b> 岁。</span> : null}
+								</div>
+								<Divider orientation="left" style={{ margin: '4px 0 8px' }}>邻近应期（距此刻最近）</Divider>
+								{nearbyHits.length ? (
+									/* 邻近应期表不封顶(13 行 ≈400px)会把终生应期表挤到最小、整列再滚 → 两表按 1:2 分摊余高,各自滚动、列不滚(单层) */
+									<div style={{ flex: '1 1 0', minHeight: 120, overflowY: 'auto', overflowX: 'hidden' }}>
+										<SmallTable rowKey={(r, i) => `n${i}`} rows={nearbyHits} columns={nearbyColumns} />
+									</div>
+								) : (
+									<div style={{ fontSize: 12, color: 'var(--horosa-muted, #666)', marginBottom: 6 }}>（调上方「推运时间」即可定位到此刻邻近的向运应期；无生时则不聚焦。）</div>
+								)}
+								<Divider orientation="left">终生应期（向运 → 本命）</Divider>
+								<div ref={(node) => { this.fullListRef = node; }}
+									style={{ position: 'relative', flex: '2 1 0', minHeight: 160, overflowY: 'auto', overflowX: 'hidden', border: '1px solid rgba(148,163,184,.18)', borderRadius: 4 }}>
+									<SmallTable
+										rowKey={(r, i) => i}
+										rows={fullHits}
+										rowStyle={fullRowStyle}
+										rowRef={this.captureAnchorRow}
+										columns={fullColumns}
+									/>
+								</div>
+								{hits.length > fullHits.length ? (
+									<div style={{ fontSize: 12, color: 'var(--horosa-muted, #666)', marginTop: 4 }}>应期过多，已显示前 {fullHits.length} 条（调小「应期年数」以聚焦）。</div>
+								) : null}
+							</SideColumn>
+					</React.Fragment>
+				)} />
 			</div>
 		);
 	}

@@ -195,6 +195,10 @@ function newEmptyFields(){
 			value: classicalGlobalValue('sectBuffer'),
 			name: ['sectBuffer'],
 		},
+		sunriseMode: {
+			value: classicalGlobalValue('sunriseMode'),   // 日出 / 日没口径(播种全局;主盘构参只读 fields,缺此键重启后主盘回日心口径)
+			name: ['sunriseMode'],
+		},
 		leoBoundFirst: {
 			value: classicalGlobalValue('leoBoundFirst'),
 			name: ['leoBoundFirst'],

@@ -362,6 +362,12 @@
         color: var(--horosa-accent);
     }
 
+    // 星运树(十年大运 / 黄道星释)里的「常规字」:常量 NormalFont='Helvetica Light' 没有后备字体,不按全名匹配的内核会退成衬线体;
+    // 这里补后备链(按全名能匹配的内核里第一项照旧生效,逐字不变)
+    .horosa-workspace-shell .horosa-direction-tree [style*="Helvetica Light"] {
+        font-family: 'Helvetica Light', 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', sans-serif !important;
+    }
+
     .horosa-workspace-shell .horosa-direction-tree-scroll {
         border: 1px solid rgba(184, 137, 63, 0.14);
         border-radius: 8px;
@@ -621,6 +627,36 @@
     .horosa-workspace-shell .horosa-direction-page .horosa-geo-inline-row .xq-select,
     .horosa-workspace-shell .horosa-direction-page .horosa-geo-inline-row .xq-input-number {
         width: 100% !important;
+    }
+
+    // 右栏地点:纬度 / 经度并排一行(AstroDirectionForm .horosa-geo-pair);每组收紧到 方向 56 / 度 50 / 分 56 / 单位 14 ≈ 206px,
+    // 两组 + 间距 ≈ 424px,1440 档右栏(≈ 430px)也放得下;更窄时自动折行
+    .horosa-workspace-shell .horosa-direction-page .horosa-geo-pair {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 12px;
+        margin-bottom: 8px;
+    }
+    .horosa-workspace-shell .horosa-direction-page .horosa-geo-pair > .horosa-geo-inline-input {
+        flex: 1 1 210px;
+        min-width: 210px;
+    }
+    .horosa-workspace-shell .horosa-direction-page .horosa-geo-pair .horosa-geo-inline-row {
+        grid-template-columns: minmax(~"min(60px, 30%)", 1fr) 50px 14px 56px 14px;
+    }
+    // 窄格里的下拉:收内距、箭头贴边,两位数「04 / 19」完整显示(此前被裁)
+    .horosa-workspace-shell .horosa-direction-page .horosa-geo-pair .ant-select:not(.ant-select-customize-input) .ant-select-selector {
+        padding: 0 20px 0 8px !important;
+    }
+    .horosa-workspace-shell .horosa-direction-page .horosa-geo-pair .ant-select-arrow {
+        right: 6px;
+    }
+    .horosa-workspace-shell .horosa-direction-page .horosa-geo-pair .ant-select-selection-item {
+        padding-right: 0 !important;
+        text-overflow: clip;
+    }
+    .horosa-workspace-shell .horosa-direction-page .horosa-geo-pair .horosa-geo-unit {
+        min-width: 14px;
     }
 
     .horosa-workspace-shell .horosa-direction-page .horosa-geo-unit {
@@ -1096,6 +1132,59 @@
     .ant-picker-cell-in-view.ant-picker-cell-range-end .ant-picker-cell-inner {
         background: var(--horosa-accent);
         color: var(--horosa-on-accent, #fff);
+    }
+
+    /* 分页器:跳页「•••」悬停时的双箭头、当前页、悬停页 —— antd 缺省蓝,统一成主题金 */
+    .ant-pagination-jump-prev .ant-pagination-item-container,
+    .ant-pagination-jump-next .ant-pagination-item-container,
+    .ant-pagination-jump-prev .ant-pagination-item-container .ant-pagination-item-link-icon,
+    .ant-pagination-jump-next .ant-pagination-item-container .ant-pagination-item-link-icon,
+    .ant-pagination-item:hover a,
+    .ant-pagination-prev:hover .ant-pagination-item-link,
+    .ant-pagination-next:hover .ant-pagination-item-link,
+    .ant-pagination-item-active a {
+        color: var(--horosa-accent-strong);
+    }
+    .ant-pagination-item-active,
+    .ant-pagination-item:hover,
+    .ant-pagination-prev:hover .ant-pagination-item-link,
+    .ant-pagination-next:hover .ant-pagination-item-link {
+        border-color: var(--horosa-accent);
+    }
+
+    /* 日期 / 时间弹层底栏:「此刻」链接、「确定」主按钮、今天的描边、范围选择下划线 —— antd 缺省是蓝,全站统一成主题金(亮暗都吃 token)。 */
+    .ant-picker-dropdown .ant-picker-now-btn,
+    .ant-picker-dropdown .ant-picker-now > a {
+        color: var(--horosa-accent-strong);
+    }
+    .ant-picker-dropdown .ant-picker-now-btn:hover,
+    .ant-picker-dropdown .ant-picker-now > a:hover {
+        color: var(--horosa-accent);
+    }
+    .ant-picker-dropdown .ant-picker-ok .ant-btn-primary {
+        border-color: var(--horosa-accent);
+        background: var(--horosa-accent);
+        color: var(--horosa-on-accent, #fff);
+        box-shadow: none;
+        text-shadow: none;
+    }
+    .ant-picker-dropdown .ant-picker-ok .ant-btn-primary:hover,
+    .ant-picker-dropdown .ant-picker-ok .ant-btn-primary:focus {
+        border-color: var(--horosa-accent-strong);
+        background: var(--horosa-accent-strong);
+        color: var(--horosa-on-accent, #fff);
+    }
+    .ant-picker-dropdown .ant-picker-ok .ant-btn-primary[disabled],
+    .ant-picker-dropdown .ant-picker-ok .ant-btn-primary[disabled]:hover {
+        border-color: var(--horosa-border);
+        background: var(--horosa-panel-soft);
+        color: var(--horosa-muted);
+    }
+    .ant-picker-dropdown .ant-picker-cell-in-view.ant-picker-cell-today .ant-picker-cell-inner::before {
+        border-color: var(--horosa-accent);
+    }
+    .ant-picker-range .ant-picker-active-bar {
+        background: var(--horosa-accent);
     }
 
     .ant-tooltip-arrow-content,

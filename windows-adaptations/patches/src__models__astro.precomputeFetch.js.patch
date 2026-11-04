@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/models/astro.js b/astrostudyui/src/models/astro.js
-index d9465813..3f06fcde 100644
+index ded7f6d5..da8f6088 100644
 --- a/astrostudyui/src/models/astro.js
 +++ b/astrostudyui/src/models/astro.js
 @@ -8,11 +8,13 @@ import {randomStr,} from '../utils/helper';
@@ -43,7 +43,7 @@ index d9465813..3f06fcde 100644
  function newEmptyFields(){
  	const fields = {
  		cid: {
-@@ -662,9 +682,29 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
+@@ -666,9 +686,29 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
  	let plan;
  	if(stepHint && stepHint.dir){
  		const d = Math.max(2, depth || 2);
@@ -76,7 +76,7 @@ index d9465813..3f06fcde 100644
  		}
  	}else if(depth > 0){
  		plan = [];
-@@ -752,28 +792,18 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
+@@ -756,28 +796,18 @@ function buildStepPrefetchTasks(fieldValues, stepHint, astroState){
  	return tasks;
  }
  
@@ -116,7 +116,7 @@ index d9465813..3f06fcde 100644
  });
  
  // R4-B2:把任务构造器注入武装模块(utils 不反向 import models)。
-@@ -1299,6 +1329,40 @@ const model = {
+@@ -1303,6 +1333,40 @@ const model = {
  		},
  
  
@@ -157,7 +157,7 @@ index d9465813..3f06fcde 100644
  		*fetch({ payload: values }, { call, put, select }){
  			const commitTicket = takeChartCommitTicket();   // 第一个 yield 之前取号(主盘提交代次)
  			const param = {
-@@ -1332,11 +1396,12 @@ const model = {
+@@ -1336,11 +1400,12 @@ const model = {
  
              yield put({
                  type: 'save',
@@ -171,7 +171,7 @@ index d9465813..3f06fcde 100644
  
  			if(values.nohook){
  				return;
-@@ -1497,7 +1562,7 @@ const model = {
+@@ -1501,7 +1566,7 @@ const model = {
  			}
  			yield put({
                  type: 'save',
@@ -180,7 +180,7 @@ index d9465813..3f06fcde 100644
  					chartObj: Result,
  					fields: fields,
  					byChartData: true,
-@@ -1515,6 +1580,7 @@ const model = {
+@@ -1519,6 +1584,7 @@ const model = {
  					...(values.__pendingCurrentChart ? { currentChart: values.__pendingCurrentChart, ...(values.drawerVisible ? { drawerVisible: values.drawerVisible } : {}) } : {}),
                  },
              });
@@ -188,7 +188,7 @@ index d9465813..3f06fcde 100644
  
  			if(values.nohook){
  				return;
-@@ -1660,11 +1726,12 @@ const model = {
+@@ -1664,11 +1730,12 @@ const model = {
  					type: 'save',
  					payload: { chartObj: Result },
  				});
@@ -203,7 +203,7 @@ index d9465813..3f06fcde 100644
  						submitStepPrefetch(buildStepPrefetchTasks(fieldValues, { ...stepHint, depth: stepPrefetchDepth() }, astroState));
  					}else if(stepPrefetchArmEnabled() && shouldArmForTab(astroState.currentTab)){
  						// R4-B2:无向 settle(初盘/确定/改设置/切回)也武装当前档位 ±depth ——
-@@ -1680,11 +1747,12 @@ const model = {
+@@ -1684,11 +1751,12 @@ const model = {
  
              yield put({
                  type: 'save',
@@ -217,7 +217,7 @@ index d9465813..3f06fcde 100644
  
  			if(values.nohook){
  				return;
-@@ -1702,7 +1770,7 @@ const model = {
+@@ -1706,7 +1774,7 @@ const model = {
  			// 同快车道分支:优化整块 try,异常静默不碰主流程。
  			try{
  				if(stepHint){

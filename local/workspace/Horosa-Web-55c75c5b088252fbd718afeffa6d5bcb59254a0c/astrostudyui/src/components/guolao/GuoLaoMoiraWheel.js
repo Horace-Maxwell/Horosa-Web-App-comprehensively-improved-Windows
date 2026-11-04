@@ -176,6 +176,69 @@ const MOIRA_ASPECTS = [
 ];
 const MOIRA_DEFAULT_ASPECTS = ['會', '衝', '刑', '合', '半合'];
 
+// 七政相位单源(盘面连线 / 右栏「相位」页 / AI 快照同用):会照角度按盘面显示口径(黄仪取黄经、赤仪取赤经),
+// 只认已勾选的相位药丸(aspectSet)与容许度设置(aspectOrbs,缺项取上表内置值);隐藏的曜不参与。
+// 一对星按上表次序取第一个命中的相位(與盘面连线逐条一致)。状态(入相 / 离相)按两星日速推下一时刻误差增减判,无速度给「—」;
+// 日速与位置同口径:黄仪取黄经日速 lonspeed,赤仪取赤经日速 raspeed(曾赤仪也拿黄经日速推赤经位置,近合 / 慢星对子会判反)。
+function moiraHiddenIds(hiddenPlanets){
+	const hidden = hiddenPlanets || [];
+	if(!hidden.length){ return null; }
+	const ids = new Set();
+	PLANET_DEFS.forEach((def)=>{ if(hidden.indexOf(def.label) >= 0){ ids.add(def.id); } });
+	return ids;
+}
+function moiraObjSpeed(obj, preferLon = false){
+	if(!obj){ return null; }
+	const lonSpeed = Number(obj.lonspeed !== undefined ? obj.lonspeed : obj.speed);
+	if(!preferLon && obj.raspeed !== undefined && obj.raspeed !== null){
+		const raSpeed = Number(obj.raspeed);
+		// 后端合成点(福点 / 紫炁等)raspeed 恒写 0、不是真日速:此时若有黄经日速就退回黄经日速。
+		if(Number.isFinite(raSpeed) && (raSpeed !== 0 || !Number.isFinite(lonSpeed) || lonSpeed === 0)){ return raSpeed; }
+	}
+	return Number.isFinite(lonSpeed) ? lonSpeed : null;
+}
+export function computeMoiraAspectPairs(chart, opts){
+	const o = opts || {};
+	const set = o.aspectSet || MOIRA_DEFAULT_ASPECTS;
+	if(!set || !set.length){ return []; }
+	const objects = (chart && chart.objects) || [];
+	const preferLon = isEclipticDisplayChart(chart);
+	const hiddenIds = moiraHiddenIds(o.hiddenPlanets);
+	const orbs = o.aspectOrbs || {};
+	const items = PLANET_DEFS.map((def)=>{
+		if(hiddenIds && hiddenIds.has(def.id)){ return null; }
+		const obj = objects.find((x)=>x && x.id === def.id);
+		const deg = objectRa(obj, preferLon);
+		return (obj && deg !== null) ? { id: def.id, label: def.label, deg: norm(deg), speed: moiraObjSpeed(obj, preferLon) } : null;
+	}).filter(Boolean);
+	const sepOf = (a, b)=>{ let g = Math.abs(a - b) % 360; if(g > 180){ g = 360 - g; } return g; };
+	const out = [];
+	for(let i = 0; i < items.length; i++){
+		for(let j = i + 1; j < items.length; j++){
+			const gap = sepOf(items[i].deg, items[j].deg);
+			let hit = null;
+			let target = 0;
+			for(let k = 0; k < MOIRA_ASPECTS.length; k++){
+				const sp = MOIRA_ASPECTS[k];
+				if(set.indexOf(sp.key) < 0){ continue; }
+				const orb = Number.isFinite(Number(orbs[sp.key])) ? Number(orbs[sp.key]) : sp.orb;
+				if(Math.abs(gap - sp.angle) <= orb){ hit = sp; target = sp.angle; break; }
+				if(sp.alt !== undefined && Math.abs(gap - sp.alt) <= orb){ hit = sp; target = sp.alt; break; }
+			}
+			if(!hit){ continue; }
+			const err = Math.abs(gap - target);
+			let state = '—';
+			if(items[i].speed !== null && items[j].speed !== null){
+				const dt = 0.01;   // 天
+				const next = Math.abs(sepOf(items[i].deg + items[i].speed * dt, items[j].deg + items[j].speed * dt) - target);
+				state = err < 1e-6 ? '精确' : (next < err ? '入相' : '离相');
+			}
+			out.push({ a: items[i], b: items[j], aspect: hit, angle: target, gap, orb: err, state });
+		}
+	}
+	return out;
+}
+
 function r(idx){
 	return ACTIVE_RING_POS[idx] * R;
 }
@@ -2031,10 +2094,10 @@ class GuoLaoMoiraWheel extends Component{
 		if(!set || !set.length){
 			return null;
 		}
+		const pairs = computeMoiraAspectPairs(chart, { aspectSet: set, aspectOrbs: this.props.aspectOrbs, hiddenPlanets: this.props.hiddenPlanets });
 		const objects = (chart && chart.objects) || [];
 		const preferLon = isEclipticDisplayChart(chart);
 		const hiddenIds = this.hiddenPlanetIds();
-		const orbs = this.props.aspectOrbs || {};
 		const items = PLANET_DEFS.map((def)=>{
 			if(hiddenIds && hiddenIds.has(def.id)){ return null; }
 			const obj = objects.find((o)=>o && o.id === def.id);
@@ -2045,7 +2108,6 @@ class GuoLaoMoiraWheel extends Component{
 		// aspects 模式:相位网画满中心腔,锚点小实心圆列在腔缘(Moira circle_offset 观感),
 		// 行星向锚点引点线;常规模式保持原内圈细线(开关关闭时零变化)。
 		// aspects:连线端锚在腔缘 r(0)(=aspects_ring 0.38),锚点圆在锚点带([0.38,0.42))中点 0.40(Moira circle_offset)。
-		// Moira 原样:相位连线端锚在腔缘 r(0)(=0.38),锚点圆在锚带([0.38,0.42))中点 0.40(circle_offset)。
 		const R0 = aspectsMode ? r(0) : r(0) * 0.92;
 		const anchorR = aspectsMode ? (rs('anchor', 0) + rs('anchor', 1)) / 2 : R0;
 		const lines = [];
@@ -2056,28 +2118,13 @@ class GuoLaoMoiraWheel extends Component{
 				lines.push(<circle key={`asp-dot-${it.id}`} cx={p.x} cy={p.y} r="4.6" fill={BLACK} />);
 			});
 		}
-		for(let i = 0; i < items.length; i++){
-			for(let j = i + 1; j < items.length; j++){
-				let gap = Math.abs(items[i].deg - items[j].deg);
-				if(gap > 180){ gap = 360 - gap; }
-				let hit = null;
-				for(let k = 0; k < MOIRA_ASPECTS.length; k++){
-					const sp = MOIRA_ASPECTS[k];
-					if(set.indexOf(sp.key) < 0){ continue; }
-					const orb = Number.isFinite(Number(orbs[sp.key])) ? Number(orbs[sp.key]) : sp.orb;
-					if(Math.abs(gap - sp.angle) <= orb || (sp.alt !== undefined && Math.abs(gap - sp.alt) <= orb)){
-						hit = sp;
-						break;
-					}
-				}
-				if(!hit){ continue; }
-				const a = point(R0, moiraThetaFromDegree(items[i].deg));
-				const b = point(R0, moiraThetaFromDegree(items[j].deg));
-				lines.push(
-					<line key={`asp-${items[i].id}-${items[j].id}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={hit.color} strokeWidth="1.05" strokeDasharray={hit.dash || undefined} opacity="0.8" />
-				);
-			}
-		}
+		pairs.forEach((pr)=>{
+			const a = point(R0, moiraThetaFromDegree(pr.a.deg));
+			const b = point(R0, moiraThetaFromDegree(pr.b.deg));
+			lines.push(
+				<line key={`asp-${pr.a.id}-${pr.b.id}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={pr.aspect.color} strokeWidth="1.05" strokeDasharray={pr.aspect.dash || undefined} opacity="0.8" />
+			);
+		});
 		return <g className="moira-aspect-layer">{lines}</g>;
 	}
 

@@ -142,7 +142,7 @@ export default class XuanShiMicro extends React.Component {
 											{e.history ? <span className="xuanshi-chip is-ink">《{e.history}》{e.volume_no ? `卷${e.volume_no}` : ''}</span> : null}
 										</div>
 										<div className="xuanshi-evrow-title" style={{ whiteSpace: 'normal' }}>{e.date_phrase || e.title || '—'}</div>
-										{e.original ? <p className="xuanshi-evrow-sum" style={{ fontFamily: 'var(--xs-serif)' }}>{collapseSoftBreaks(e.original)}</p> : null}
+										{e.original ? <p className="xuanshi-evrow-sum horosa-script-classic" style={{ fontFamily: 'var(--xs-serif)' }}>{collapseSoftBreaks(e.original)}</p> : null}
 										{e.interpretation ? <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'var(--jade)' }}>→ {e.interpretation}</p> : null}
 									</div>
 								))}
@@ -157,7 +157,7 @@ export default class XuanShiMicro extends React.Component {
 					<div className="xuanshi-micro-hover" style={this.state.hoverPos ? { left: this.state.hoverPos.left, top: this.state.hoverPos.top } : undefined}>
 						{this.state.hover.omen ? <span className="xuanshi-chip is-jade" style={{ marginBottom: 8, display: 'inline-block' }}>{this.state.hover.omen}</span> : null}
 						<div className="xuanshi-mh-field"><div className="k">日期</div><div className="v">{this.state.hover.date_phrase || '—'}{this.state.hover.modern_date_disp ? ` · ${celestialDateWithCalendar(this.state.hover, { prefix: true })}` : ''}</div></div>
-						{this.state.hover.original ? <div className="xuanshi-mh-field"><div className="k">原文</div><div className="v" style={{ fontFamily: 'var(--xs-serif)' }}>{collapseSoftBreaks(this.state.hover.original)}</div></div> : null}
+						{this.state.hover.original ? <div className="xuanshi-mh-field"><div className="k">原文</div><div className="v horosa-script-classic" style={{ fontFamily: 'var(--xs-serif)' }}>{collapseSoftBreaks(this.state.hover.original)}</div></div> : null}
 						{this.state.hover.interpretation ? <div className="xuanshi-mh-field"><div className="k">白话译文</div><div className="v" style={{ borderLeft: '3px solid var(--jade)', paddingLeft: 8 }}>{collapseSoftBreaks(this.state.hover.interpretation)}</div></div> : null}
 						<div className="xuanshi-mh-meta">{this.state.hover.history ? `来源 《${this.state.hover.history}》` : ''}{this.state.hover.event_id ? `${this.state.hover.history ? ' · ' : ''}事件ID ${this.state.hover.event_id}` : ''}</div>
 					</div>

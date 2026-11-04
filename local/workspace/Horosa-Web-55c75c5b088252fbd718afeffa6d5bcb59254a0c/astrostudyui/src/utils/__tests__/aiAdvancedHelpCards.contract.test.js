@@ -1,4 +1,4 @@
-// 应用内手册「进阶」页签 ≡ 进阶页六卡(导轨常量 ADV_SECTIONS 单源);手册里写的数字必须来自常量插值,旧假话不得回潮。
+// 应用内手册「进阶」页签 ≡ 进阶页七卡(导轨常量 ADV_SECTIONS 单源;2026-09-22 +决策层(实验));手册里写的数字必须来自常量插值,旧假话不得回潮。
 const fs = require('fs');
 const path = require('path');
 import { ADV_SECTIONS } from '../../components/aianalysis/chat/AdvancedPane';
@@ -9,10 +9,10 @@ import { DEFAULT_STREAM_STALL_MS, DEFAULT_STREAM_MAX_MS } from '../aiStreamLimit
 const HELP = path.resolve(__dirname, '..', '..', 'components', 'help', 'AIAnalysisHelpDoc.js');
 const src = ()=>fs.readFileSync(HELP, 'utf8');
 
-it('🔴 进阶页六卡标签逐一出现在手册「进阶」页签;六卡 id 与分区锚顶层六键恒等', ()=>{
+it('🔴 进阶页七卡标签逐一出现在手册「进阶」页签;七卡 id 与分区锚顶层七键恒等', ()=>{
 	const s = src();
-	expect(ADV_SECTIONS.length).toBe(6);
-	expect(ADV_SECTIONS.map((x)=>x.id)).toEqual([ADV_SECTION_IDS.context, ADV_SECTION_IDS.bestof, ADV_SECTION_IDS.routes, ADV_SECTION_IDS.persona, ADV_SECTION_IDS.skills, ADV_SECTION_IDS.agent]);
+	expect(ADV_SECTIONS.length).toBe(7);
+	expect(ADV_SECTIONS.map((x)=>x.id)).toEqual([ADV_SECTION_IDS.context, ADV_SECTION_IDS.bestof, ADV_SECTION_IDS.routes, ADV_SECTION_IDS.persona, ADV_SECTION_IDS.skills, ADV_SECTION_IDS.systemone, ADV_SECTION_IDS.agent]);
 	const tab = s.slice(s.indexOf('<TabPane tab="进阶"'), s.indexOf('</TabPane>', s.indexOf('<TabPane tab="进阶"')));
 	expect(tab.length).toBeGreaterThan(500);
 	ADV_SECTIONS.forEach((x)=>expect(tab).toContain(x.label));

@@ -1,13 +1,16 @@
-import { Component } from 'react';
-import { Spin, Row, Col } from 'antd';
-import { unwrapResult, symbolWithMeaning, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
+import React, { Component } from 'react';
+import { unwrapResult, symbolWithMeaning, fmtDegree, fmtNum, chartParams, chartRequestKey, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
+import { ZODIAC_ASPECT_LABELS, pointName } from '../../utils/directedFigures';
+import { XQSelect, XQSegmented } from '../xq-ui';
+import { WheelSplit, SidePanelHead, SideSection, ControlCol, ControlGrid, TargetTimeControl, FillCard, EmptyWheel, MUTED } from './progPageLayout';
+import styles from '../../css/styles.less';
 import { fetchChart } from '../../services/astro';
 import AstroDoubleChart from './AstroDoubleChart';
 import AstroDeclinationLadder from './AstroDeclinationLadder';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 
-// 推运「单层方法面板」：直接嵌入已有 赤纬/恒星/推运 三个 tab 的「二次/三次/小推运」子 tab。
-// 选了某子 tab → 左固定盘 + 右可滚动表格（用户要求：左盘固定、只右表滚动）。
+// 推运「单层方法面板」：赤纬/恒星/推运 三个 tab 共用。版式与主限法盘同一个(progPageLayout):
+// 左边整列是盘,右栏 = 宿主给的 side(标题 · 时间选择 · 设置,见 ProgPageSide)+ 位置表 + 相位 / 平行表。
 // mode：
 //   tropical(推运)    — 左=回归黄道双盘(本命内圈+推运外圈，沿用主盘 zodiacal)。
 //   sidereal(恒星推运) — 左=恒星黄道双盘：本命与推运两圈都强制 zodiacal:1 重取，避免内圈回归/外圈恒星混坐标。
@@ -101,8 +104,9 @@ class ProgMethodPanel extends Component{
 		}
 	}
 
-	renderChart(height){
+	renderChart(size, height){
 		const decl = this.props.mode === 'declination';
+		if(!this.props.method){ return <EmptyWheel text="起盘后显示推运双盘" />; }
 		if(decl){
 			const m = this.props.method || {};
 			return (
@@ -120,12 +124,13 @@ class ProgMethodPanel extends Component{
 		const dirChart = pickKeyedDerived(this.state.dirChart, this.state.dirChartSig, curSig);
 		const natal = this.props.mode === 'sidereal' ? pickKeyedDerived(this.state.natalChart, this.state.dirChartSig, curSig) : this.props.value;
 		if(!natal || !dirChart){
-			return <div style={{ ...cardStyle, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--horosa-text-soft)' }}>起盘后显示推运双盘</div>;
+			return <EmptyWheel text="起盘后显示推运双盘" />;
 		}
 		const wrap = { natualChart: natal, dirChart: { ...dirChart, natalChart: natal }, inverse: false };
 		return (
 			<AstroDoubleChart
 				value={wrap}
+				width={size}
 				height={height}
 				planetDisplay={this.props.planetDisplay}
 				lotsDisplay={this.props.lotsDisplay}
@@ -137,71 +142,84 @@ class ProgMethodPanel extends Component{
 
 	render(){
 		const m = this.props.method || {};
-		const height = this.props.height || 640;
 		const decl = this.props.mode === 'declination';
-		const sm = (v)=>symbolWithMeaning(v, this.props.showAstroMeaning);
+		// 点 = 定宽字形盒 + 中文名(与推运图族各页同一写法);相位写名称(合 / 六合 / 刑 / 拱 / 冲),其它角度写度数
+		const sm = (v)=>(<span style={{ whiteSpace: 'nowrap' }}><span style={{ display: 'inline-block', width: 16, textAlign: 'center', whiteSpace: 'nowrap' }}>{symbolWithMeaning(v, this.props.showAstroMeaning)}</span> {pointName(v)}</span>);
+		const aspName = (v)=>{ const n = Math.round(Number(v)); return ZODIAC_ASPECT_LABELS[n] || `${fmtNum(v, 0)}°`; };
+		const posRows = decl ? (m.declinations || []) : (m.positions || []).filter((it)=>EVENT_POINTS.indexOf(it.id) >= 0);
+		const aspRows = ((decl ? m.parallels : m.aspectsToNatal) || []).slice(0, 120);
 		return (
-			<Spin spinning={this.state.loading}>
-				<Row gutter={6} style={{ height }}>
-					<Col span={17} style={{ height: '100%' }}>
-						{this.renderChart(height)}
-					</Col>
-					<Col span={7} className="horosa-scrollbar" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', paddingRight: 6 }}>
-						<div style={cardStyle}>
-							<div className="horosa-info-card-title">{m.label || '推运'}{decl ? '（赤纬）' : ''}{this.props.targetDate ? `：目标 ${this.props.targetDate}${this.props.targetTime ? ` ${this.props.targetTime}` : ''}` : (m.progressedDate ? `：${m.progressedDate.datetime}` : '')}</div>
-							{this.props.targetDate && m.progressedDate ? (
-								<div style={{ fontSize: '0.85em', color: 'var(--horosa-text-soft)', margin: '2px 0 6px' }}>
-									推运时刻：{m.progressedDate.datetime}{METHOD_RATE_NOTE[m.method] ? `（${METHOD_RATE_NOTE[m.method]}，由目标日期折算）` : '（由目标日期折算）'}
-								</div>
-							) : null}
-							{decl ? (
-								<SmallTable
-									rows={m.declinations || []}
-									columns={[
-										{ key: 'id', title: '点', render: (v)=>sm(v) },
-										{ key: 'decl', title: '赤纬', render: (v)=>`${fmtNum(v, 2)}°` },
-									]}
-								/>
-							) : (
-								<SmallTable
-									rows={(m.positions || []).filter((it)=>EVENT_POINTS.indexOf(it.id) >= 0)}
-									columns={[
-										{ key: 'id', title: '点', render: (v)=>sm(v) },
-										{ key: 'sign', title: '推运位置', render: (_v, row)=>fmtDegree(row) },
-										{ key: 'lonspeed', title: '速度', render: (v)=>fmtNum(v, 4) },
-									]}
-								/>
-							)}
-						</div>
-						<div style={cardStyle}>
-							<div className="horosa-info-card-title">{decl ? '赤纬平行 / 反平行' : '与本命相位'}</div>
-							{decl ? (
-								<SmallTable
-									rows={(m.parallels || []).slice(0, 120)}
-									columns={[
-										{ key: 'a', title: '推运点', render: (v)=>sm(v) },
-										{ key: 'type', title: '类型', render: (v)=>typeLabel(v) },
-										{ key: 'b', title: '本命点', render: (v)=>sm(v) },
-										{ key: 'orb', title: '误差', render: (v)=>fmtNum(v, 3) },
-									]}
-								/>
-							) : (
-								<SmallTable
-									rows={(m.aspectsToNatal || []).slice(0, 120)}
-									columns={[
-										{ key: 'a', title: '推运点', render: (v)=>sm(v) },
-										{ key: 'aspect', title: '相位', render: (v)=>`${fmtNum(v, 0)}°` },
-										{ key: 'b', title: '本命点', render: (v)=>sm(v) },
-										{ key: 'orb', title: '误差', render: (v)=>fmtNum(v, 3) },
-									]}
-								/>
-							)}
-						</div>
-					</Col>
-				</Row>
-			</Spin>
+			<WheelSplit head={this.props.side} renderWheel={(size, h)=>this.renderChart(size, h)}>
+				{this.props.method ? [
+					<FillCard key="pos" title={decl ? '推运赤纬' : '推运位置'} extra="七政与上升 / 天顶(与 AI 导出同)">
+						{decl ? (
+							<SmallTable rows={posRows} fill scrollClassName={styles.scrollbar} columns={[
+								{ key: 'id', title: '点', width: '34%', render: (v)=>sm(v) },
+								{ key: 'decl', title: '赤纬', width: '22%', align: 'right', render: (v)=>`${fmtNum(v, 2)}°` },
+								{ key: 'side', title: '', render: (_v, row)=><span style={MUTED}>{Number(row.decl) >= 0 ? '北' : '南'}</span> },
+							]} />
+						) : (
+							<SmallTable rows={posRows} fill scrollClassName={styles.scrollbar} columns={[
+								{ key: 'id', title: '点', width: '32%', render: (v)=>sm(v) },
+								{ key: 'sign', title: '推运位置', width: '38%', render: (_v, row)=><span style={{ whiteSpace: 'nowrap' }}>{fmtDegree(row)}</span> },
+								{ key: 'lonspeed', title: '速度', align: 'right', render: (v)=>fmtNum(v, 4) },
+							]} />
+						)}
+					</FillCard>,
+					<FillCard key="asp" grow style={aspRows.length ? undefined : { minHeight: 0 }} title={decl ? '赤纬平行 / 反平行' : '与本命相位'}>
+						{!aspRows.length ? <div style={{ ...MUTED, fontSize: 12, padding: '6px 4px' }}>{decl ? '无平行 / 反平行' : '无相位'}</div> : (decl ? (
+							<SmallTable rows={aspRows} fill scrollClassName={styles.scrollbar} columns={[
+								{ key: 'a', title: '推运点', width: '31%', render: (v)=>sm(v) },
+								{ key: 'type', title: '类型', width: '16%', render: (v)=>typeLabel(v) },
+								{ key: 'b', title: '本命点', width: '31%', render: (v)=>sm(v) },
+								{ key: 'orb', title: '误差', align: 'right', render: (v)=>fmtNum(v, 3) },
+							]} />
+						) : (
+							<SmallTable rows={aspRows} fill scrollClassName={styles.scrollbar} columns={[
+								{ key: 'a', title: '推运点', width: '31%', render: (v)=>sm(v) },
+								{ key: 'aspect', title: '相位', width: '16%', render: (v)=>aspName(v) },
+								{ key: 'b', title: '本命点', width: '31%', render: (v)=>sm(v) },
+								{ key: 'orb', title: '误差', align: 'right', render: (v)=>fmtNum(v, 3) },
+							]} />
+						))}
+					</FillCard>,
+				] : null}
+			</WheelSplit>
 		);
 	}
+}
+
+// 三个推运页右栏上半(标题 · 时间选择 · 设置),三页同一个:
+//   title 页名;result 后端回包(含 ageDays / methods);method 当前所选推运法;methodLabel = astroProgSnapshot.methodTab
+//   (宿主传入:本文件被 astroProgSnapshot 引用,反向引会成导入环);onTime(date, time) / onMinor(v) / onMethod(v)
+export function ProgPageSide({ title, desc, result, method, methodLabel, targetDate, targetTime, zone, minorVariant, onTime, onMinor, onMethod }){
+	const r = result || {};
+	const methods = Array.isArray(r.methods) ? r.methods : [];
+	const m = method || {};
+	const ageDays = Number(r.ageDays);
+	const age = Number.isFinite(ageDays) ? `${(ageDays / 365.2425).toFixed(2)} 岁` : '';
+	const when = m.progressedDate && m.progressedDate.datetime ? `推运时刻 ${`${m.progressedDate.datetime}`.replace(/(\d{1,2}:\d{2}):\d{2}(\.\d+)?$/, '$1')}` : '';   // 去秒(到分钟):标题行不折两行;不按位置截(公元前日期带负号)
+	const rate = METHOD_RATE_NOTE[m.method];
+	return (
+		<SidePanelHead title={title} sub={[age, when, rate ? `${rate}折算` : ''].filter(Boolean).join(' · ')} desc={desc}>
+			<SideSection title="时间选择" extra={zone ? `本盘时区 ${zone}` : null}>
+				<TargetTimeControl date={targetDate} time={targetTime} zone={zone} onChange={onTime} />
+			</SideSection>
+			<SideSection title="推运设置">
+				<ControlGrid>
+					<ControlCol inline label="推运法">
+						<XQSegmented value={m.method} onChange={(e)=>onMethod(e.target.value)}
+							options={(methods.length ? methods : [{ method: 'secondary' }, { method: 'tertiary' }, { method: 'minor' }]).map((x)=>({ value: x.method, label: methodLabel(x) }))} />
+					</ControlCol>
+					<ControlCol inline label="小推运月长">
+						<XQSelect style={{ width: '100%' }} value={minorVariant} onChange={onMinor}>
+							{MINOR_VARIANT_OPTIONS.map((o)=>(<XQSelect.Option key={o.value} value={o.value}>{o.label}</XQSelect.Option>))}
+						</XQSelect>
+					</ControlCol>
+				</ControlGrid>
+			</SideSection>
+		</SidePanelHead>
+	);
 }
 
 export default ProgMethodPanel;

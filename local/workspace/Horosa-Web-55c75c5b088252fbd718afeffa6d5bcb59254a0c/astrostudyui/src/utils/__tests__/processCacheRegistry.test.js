@@ -30,7 +30,7 @@ describe('进程内结果缓存登记处', ()=>{
 		expect(registeredProcessCacheNames()).not.toContain('test.notfn');
 	});
 	it('设置差分闸:每次取样前经登记处清空;缺省两遍端点多重集不一致即判红(不许静默当噪声)', ()=>{
-		const src = fs.readFileSync(path.join(__dirname, 'mountSettingsDiffAll.test.js'), 'utf8');
+		const src = fs.readFileSync(path.join(__dirname, 'mountSettingsDiffAllSuite.js'), 'utf8');
 		expect(src).toMatch(/function resetRequestCaches\(\)\{\s*clearRegisteredProcessCaches\(\);\s*\}/);
 		expect((src.match(/resetRequestCaches\(\)/g) || []).length).toBeGreaterThanOrEqual(3);   // 定义 + runCtx + runBase 事盘兜底
 		expect((src.match(/baselineLeak\(b1, b2\)/g) || []).length).toBeGreaterThanOrEqual(2);   // 盘变体基线 + 扫描点基线

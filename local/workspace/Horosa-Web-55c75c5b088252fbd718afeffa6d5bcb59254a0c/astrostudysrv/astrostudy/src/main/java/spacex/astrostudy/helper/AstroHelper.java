@@ -83,6 +83,10 @@ public class AstroHelper {
 	public static final String AstroExtraEphemeris = PropertyPlaceholder.getProperty("astroextra.ephemeris", "/astroextra/ephemeris");
 	public static final String AstroExtraProgressions = PropertyPlaceholder.getProperty("astroextra.progressions", "/astroextra/progressions");
 	public static final String AstroExtraJaynesProg = PropertyPlaceholder.getProperty("astroextra.jaynesprog", "/astroextra/jaynesprog");
+	public static final String AstroExtraNeroman = PropertyPlaceholder.getProperty("astroextra.neroman", "/astroextra/neroman");
+	public static final String AstroExtraBezzaFigure = PropertyPlaceholder.getProperty("astroextra.bezzafigure", "/astroextra/bezzafigure");
+	public static final String AstroExtraJayProfection = PropertyPlaceholder.getProperty("astroextra.jayprofection", "/astroextra/jayprofection");
+	public static final String AstroExtraMichon = PropertyPlaceholder.getProperty("astroextra.michon", "/astroextra/michon");
 	public static final String AstroExtraReturns = PropertyPlaceholder.getProperty("astroextra.returns", "/astroextra/returns");
 	public static final String AstroExtraHarmonic = PropertyPlaceholder.getProperty("astroextra.harmonic", "/astroextra/harmonic");
 	public static final String AstroExtraDraconic = PropertyPlaceholder.getProperty("astroextra.draconic", "/astroextra/draconic");
@@ -322,6 +326,22 @@ public class AstroHelper {
 		return request(AstroExtraJaynesProg, params);
 	}
 
+	public static Map<String, Object> getAstroExtraNeroman(Map<String, Object> params){
+		return request(AstroExtraNeroman, params);
+	}
+
+	public static Map<String, Object> getAstroExtraBezzaFigure(Map<String, Object> params){
+		return request(AstroExtraBezzaFigure, params);
+	}
+
+	public static Map<String, Object> getAstroExtraJayProfection(Map<String, Object> params){
+		return request(AstroExtraJayProfection, params);
+	}
+
+	public static Map<String, Object> getAstroExtraMichon(Map<String, Object> params){
+		return request(AstroExtraMichon, params);
+	}
+
 	public static Map<String, Object> getAstroExtraReturns(Map<String, Object> params){
 		return request(AstroExtraReturns, params);
 	}
@@ -359,6 +379,9 @@ public class AstroHelper {
 	}
 
 	public static Map<String, Object> getAstroExtraRelative(Map<String, Object> params){
+		// 关系量化代次盐:同一跨盘相位改为只计一次、误差衰减按跨盘容许度(1°)折算 —— 请求体不变、语义变了,
+		// 旧缓存键必须整体失效(否则升级后 24 小时内同一对盘仍返回双计的旧分)。今后关系量化语义变更时升盐。
+		params.put("_v", "q2");
 		return request(AstroExtraRelative, params);
 	}
 

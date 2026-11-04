@@ -60,6 +60,9 @@ export function subscribeAppearance(fn){
             const now = currentChartThemeKey();
             if(now === last){ return; }
             last = now;
+            // 重画前先让盘面调色板对齐根属性:应用路径(applyAppearanceToDocument)已先切好,这里幂等不变;
+            // 根属性被别的途径直接改了(别的窗口 / 脚本 / 测试)时,不对齐就会按旧调色板重画 →「界面亮、盘面暗」
+            syncChartPalette(currentAppearance());
             try{ fn(currentAppearance()); }catch(e){ /* 订阅方重画失败不上抛:下一次真实更新仍会画 */ }
         });
     };

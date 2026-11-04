@@ -2,7 +2,7 @@
 // 纯前端派生,零后端,零回归:只读现成 chartObj 出生纬度(params.lat / fields.lat 的 "NNnMM" 串)。
 // 计算层(七带表/纬度解析/归带/斜升闭式)住 utils/astroClassicalDerived 单源(AI 快照 [古典·气候带] 段同引)。
 // ① 7 气候带固定常量(带/城/纬度/最长昼),高亮当前纬度所在带;② 当前纬度 12 座斜升时度(闭式,座和=360);
-// ③ Valens 上升时度半圆累计级数标当前带。气候带为地理/术语固定值;中性表述。
+// ③ 巨蟹至射手半圆上升时度(= 15 × 最长昼)标当前带。气候带为地理/术语固定值;中性表述。
 import { Component } from 'react';
 import { SmallTable } from './AstroExtraCommon';
 import { SIGN_CN } from '../../divination/data/hellenisticData';
@@ -39,6 +39,7 @@ class AstroKlimata extends Component{
 		return (
 			<div className="horosa-info-card horosa-classical-card">
 				<div className="horosa-classical-card-title" style={{ cursor: 'pointer', justifyContent: 'space-between' }}
+					role="button" aria-expanded={open}
 					onClick={()=>this.setState({ open: !open })}>
 					<span style={{ display: 'flex', alignItems: 'baseline', gap: 7, minWidth: 0 }}>
 						<span className="horosa-classical-zh">七气候带</span>
@@ -65,11 +66,11 @@ class AstroKlimata extends Component{
 								{ key: 'cityCn', title: '标志地', render: (v, r)=>(<span>{v}<span style={{ color: MUTED }}> · {r.cityEn}</span></span>) },
 								{ key: 'latStr', title: '纬度', render: (v)=>v },
 								{ key: 'longestDay', title: '最长昼', render: (v)=>`${v}h` },
-								{ key: 'valens', title: '半圆级数', render: (v, r)=>(<span style={{ color: r._cur ? GOLD : 'inherit' }}>{v}</span>) },
+								{ key: 'valens', title: '半圆上升时度', render: (v, r)=>(<span style={{ color: r._cur ? GOLD : 'inherit' }}>{v}</span>) },
 							]}
 						/>
 						<div style={{ color: MUTED, fontSize: 11, marginTop: 3 }}>
-							半圆级数:自上升起半周(180°方向)上升时度的累计基准值,每带递增 4(210 → 234)。
+							半圆上升时度:巨蟹至射手六座上升时度之和 = 15 × 最长昼(夏至日这半圈恰在白昼内升完),逐带 195 → 240、每带 +7.5。
 						</div>
 
 						<div style={{ fontSize: 12, fontWeight: 600, margin: '12px 0 2px' }}>当前纬度 · 十二座斜升时度</div>

@@ -120,3 +120,14 @@ describe('已挂进 normalizeMarkdown(渲染与四种导出的共同上游)', ()
 		expect(out).toContain('x = ** 不该动 **');
 	});
 });
+
+describe('⑥ 紧挨的两段加粗合成一段', ()=>{
+	test('`**甲****乙**` → `**甲乙**`;三段连写同样收拢', ()=>{
+		expect(repairInlineEmphasis('在**2027年****丁未年**宜守')).toBe('在**2027年丁未年**宜守');
+		expect(repairInlineEmphasis('**甲****乙****丙**')).toBe('**甲乙丙**');
+	});
+	test('中间有空格 / 文字的不合并;空内容不造字', ()=>{
+		expect(repairInlineEmphasis('**甲** **乙**')).toBe('**甲** **乙**');
+		expect(repairInlineEmphasis('**甲**和**乙**')).toBe('**甲**和**乙**');
+	});
+});

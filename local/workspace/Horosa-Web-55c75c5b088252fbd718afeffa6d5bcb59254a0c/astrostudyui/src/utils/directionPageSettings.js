@@ -17,12 +17,15 @@
 //   dist*                 界推运的发放点 / 时间算法 / 年长 / 年限
 //   ap*                   年龄推进点的推进方式 / 事件 / 年长 / 年限
 //   profGrain / profStart 小限法摘要的粒度(年 / 月 / 日)与起点(上升 / 区分光 / 福点 / 月亮 / 天顶)
+//   ner* / bezzaOrb / jayFrom / michon*  推运图族:演进推运的弧常数 / 出生前年数 / 换到赤道 / 容许度;推运图的接触窗;
+//                         周日小限的起始年龄;双黄道的容许度 / 水金互换 / 等宫
 // 不收:各页的目标日期 / 目标年份 / 地点(输入);「行运星与本命星交角容许度」(初值归「星盘设置」的全局行运容许度管,
 // 页内改动只覆盖本会话);三分主星的「三分体系」(初值随本盘排盘口径 / 流派预设)。
 //
 // 月长算法 / 年数档的候选值在这里写死而不 import 组件常量:那些常量住在重组件文件里,反向 import 会成环。
 // 与组件常量的一致性由测试逐个比对(directionPageSettings.test.js)。
 import { definePageSettings } from './pageSettingsStore';
+import { NEROMAN_DEFAULTS, BEZZA_DEFAULTS, JAY_DEFAULTS, MICHON_DEFAULTS } from './directedFigures';
 import { TRIPLICITY_DIVISIONS, TRIPLICITY_LIFESPAN_DEFAULT } from './triplicityRulers';
 import { PROFECTION_GRAIN_OPTIONS, PROFECTION_START_OPTIONS } from './profectionSummary';
 import { BALBILLUS_YEARS, BALBILLUS_YEAR_TYPES, BALBILLUS_MODES, BALBILLUS_SUB_RULES, BALBILLUS_DEFAULT_OPTS } from './balbillus';
@@ -68,4 +71,13 @@ export const DIRECTION_PAGE_SETTINGS = definePageSettings('horosa.direction.sett
 	decennialOrderType: { label: '十年大运·分配次序', def: DECENNIAL_ORDER_ZODIACAL, oneOf: [DECENNIAL_ORDER_ZODIACAL, DECENNIAL_ORDER_CHALDEAN] },
 	decennialDayMethod: { label: '十年大运·日限体系', def: DECENNIAL_DAY_METHOD_VALENS, oneOf: [DECENNIAL_DAY_METHOD_VALENS, DECENNIAL_DAY_METHOD_HEPHAISTIO] },
 	decennialCalendarType: { label: '十年大运·时间口径', def: DECENNIAL_CALENDAR_TRADITIONAL, oneOf: [DECENNIAL_CALENDAR_TRADITIONAL, DECENNIAL_CALENDAR_ACTUAL] },
+	nerK: { label: '演进推运·弧常数', def: NEROMAN_DEFAULTS.k, type: 'number', min: 1, max: 5000 },
+	nerT0: { label: '演进推运·出生前年数', def: NEROMAN_DEFAULTS.t0, type: 'number', min: 0.01, max: 10 },
+	nerKeepDec: { label: '演进推运·换到赤道(开 = 保留本命赤纬;关 = 按黄经度数)', def: NEROMAN_DEFAULTS.keepDec },
+	nerOrb: { label: '演进推运·相位容许度（度）', def: NEROMAN_DEFAULTS.orb, oneOf: [0.5, 1, 2, 3] },
+	bezzaOrb: { label: '推运图·接触窗（当前弧 ± 度）', def: BEZZA_DEFAULTS.orb, oneOf: [0.5, 1, 2, 3, 5] },
+	jayFrom: { label: '周日小限·起始年龄(−1 = 当前所在的十二年一轮)', def: JAY_DEFAULTS.from, oneOf: [-1, 0, 12, 24, 36, 48, 60, 72, 84, 96, 108, 120] },
+	michonOrb: { label: '双黄道·容许度（度）', def: MICHON_DEFAULTS.orb, oneOf: [0.5, 1, 1.5, 2] },
+	michonSwap: { label: '双黄道·水金互换守护', def: MICHON_DEFAULTS.swap },
+	michonEqual: { label: '双黄道·等宫(上升居第一宫正中)', def: MICHON_DEFAULTS.equal },
 });

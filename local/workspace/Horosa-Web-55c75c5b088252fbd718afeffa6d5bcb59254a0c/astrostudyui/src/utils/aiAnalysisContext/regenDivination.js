@@ -258,7 +258,9 @@ function buildQimenSeedContext(fields){
 	}
 }
 
-export async function regenerateQimenSnapshot(record, payload){
+// 按存档(+ 齿轮合并后的 payload)无头重排奇门盘,返回盘对象;取不到农历返 null。
+// 快照(regenerateQimenSnapshot)与其他只要盘对象的调用方同用这一份,口径不分叉。
+export async function computeQimenPanForCase(record, payload){
 	// 兼容事盘(payload.options/faRelatedPeople)与命盘(payload.qimen.{options,faRelatedPeople})两种结构。
 	const qs = payload && payload.qimen && typeof payload.qimen === 'object' ? payload.qimen : payload;
 	const chartShape = qs !== payload;
@@ -273,7 +275,7 @@ export async function regenerateQimenSnapshot(record, payload){
 	const params = buildCaseSnapshotParams(rec, gearOpt ? { ...(qsBase || {}), ...gearOpt } : qsBase, { withTimeAlg: true });
 	const nongli = await fetchPreciseNongli(params);
 	if(!nongli){
-		return '';
+		return null;
 	}
 	// 直接时间档下农历的 birth 是钟表时 → 像页面一样另取一次真太阳时只作显示(DunJiaMain.resolveDisplaySolarTime 同口径)
 	let displaySolarTime = nongli.birth;
@@ -309,7 +311,12 @@ export async function regenerateQimenSnapshot(record, payload){
 	const pan = calcDunJia(fields, nongli, options, { ...buildQimenSeedContext(fields), displaySolarTime });
 	// 显式还原相关人员(空[]也算显式、覆盖全局兜底)，使八门化气大阵生年干随已存记录一致(AI 挂载/储存四同步)。
 	pan.faRelatedPeople = qs && Array.isArray(qs.faRelatedPeople) ? qs.faRelatedPeople : [];
-	return buildDunJiaSnapshotText(pan);
+	return pan;
+}
+
+export async function regenerateQimenSnapshot(record, payload){
+	const pan = await computeQimenPanForCase(record, payload);
+	return pan ? buildDunJiaSnapshotText(pan) : '';
 }
 
 export async function regenerateTaiyiSnapshot(record, payload){

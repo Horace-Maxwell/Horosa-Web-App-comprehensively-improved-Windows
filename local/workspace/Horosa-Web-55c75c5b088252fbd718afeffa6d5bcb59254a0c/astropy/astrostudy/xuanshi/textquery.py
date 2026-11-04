@@ -39,11 +39,23 @@ def _converters() -> tuple:
             from zhconv import convert as _zh
 
             t2s = lambda x: _zh(x, "zh-hans")  # noqa: E731
-            s2t = lambda x: _zh(x, "zh-hant")  # noqa: E731
+            s2t = lambda x: _keep_one_to_many(x, _zh(x, "zh-hant"))  # noqa: E731
         except Exception:  # noqa: BLE001
             t2s = s2t = None
     _CONVERTERS = (t2s, s2t)
     return _CONVERTERS
+
+
+# 退路(zhconv)的词组表比 OpenCC 小:OpenCC 认得「天干」不转、「干燥」→乾、「树干」→幹,zhconv 遇到词表外的
+# 「天干 / 干支 / 十干」会落到单字默认「幹」——术数检索里「干」几乎都是天干,这个默认恰恰错。退路里「干」保留原字
+# (少一个写法只少召回,错写法是噪声);别的一对多字 zhconv 词组表转得对(历法→曆法),不动。
+_ONE_TO_MANY = set("干")
+
+
+def _keep_one_to_many(src: str, conv: str) -> str:
+    if not conv or len(conv) != len(src):
+        return conv
+    return "".join(a if a in _ONE_TO_MANY else b for a, b in zip(src, conv))
 
 
 def script_variants(s: Optional[str]) -> list[str]:

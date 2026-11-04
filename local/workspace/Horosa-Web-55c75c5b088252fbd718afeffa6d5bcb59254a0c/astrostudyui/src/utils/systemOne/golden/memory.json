@@ -1,0 +1,232 @@
+{
+ "_doc": "决策层金标集 · 记忆候选复评 C1(truth = { keep, bucket })",
+ "sets": {
+  "C1": [
+   {
+    "inputs": {
+     "sentence": "我妻子叫李四,她是 1990 年生的"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "user"
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "我不看流年只看大运,以后都按这个来"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "user"
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "我是做外贸的,常年在深圳"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "user"
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "我信北派紫微,不要用中州派解"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "user"
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "我对「死亡」这类字眼很敏感,请委婉"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "user"
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "我有两个孩子,老大属虎"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "user"
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "这位客户姓王,是我表哥,他做建材生意"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "chart"
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "盘主是我妈妈,她去年做过心脏手术"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "chart"
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "这张盘是我同事小陈的,她刚离婚"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "chart"
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "张三是我的合伙人,负责财务"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "chart"
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "以后所有回答都先给结论再给理由"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "global"
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "回答一律用繁体字"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "global"
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "不管看谁的盘,都不要提寿命"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "global"
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "每次回答都要附一段免责声明"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "global"
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "我明年运势怎么样"
+    },
+    "truth": {
+     "keep": false,
+     "bucket": null
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "这张盘的夫妻宫怎么解"
+    },
+    "truth": {
+     "keep": false,
+     "bucket": null
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "今天有点累"
+    },
+    "truth": {
+     "keep": false,
+     "bucket": null
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "帮我把宫制改成整宫制"
+    },
+    "truth": {
+     "keep": false,
+     "bucket": null
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "刚才那段再讲一遍"
+    },
+    "truth": {
+     "keep": false,
+     "bucket": null
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "谢谢,很有帮助"
+    },
+    "truth": {
+     "keep": false,
+     "bucket": null
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "这个月我比较忙"
+    },
+    "truth": {
+     "keep": false,
+     "bucket": null
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "看看 2027 年"
+    },
+    "truth": {
+     "keep": false,
+     "bucket": null
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "我打算今晚早点睡"
+    },
+    "truth": {
+     "keep": false,
+     "bucket": null
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "我是左撇子"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "user"
+    }
+   },
+   {
+    "inputs": {
+     "sentence": "我先生叫陈明,他属马"
+    },
+    "truth": {
+     "keep": true,
+     "bucket": "user"
+    }
+   }
+  ]
+ }
+}

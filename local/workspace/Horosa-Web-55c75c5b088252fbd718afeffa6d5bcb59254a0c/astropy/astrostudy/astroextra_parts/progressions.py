@@ -438,9 +438,11 @@ def build_draconic(data):
         # 供前端复用量化盘的 AstroChart 直接绘制。纯 Python，无需重编 jar 的计算逻辑。
         chart_obj = None
         try:
-            DraconicChart(perchart).apply()
+            house_mode = 'shift' if data.get('draconicHouses') == 'shift' else 'whole'
+            DraconicChart(perchart, house_mode).apply()
             chart_obj = {
                 'params': {
+                    'draconicHouses': house_mode,
                     'birth': perchart.getBirthStr(),
                     'ad': -1 if getattr(perchart, 'isBC', False) else 1,
                     'lat': params.get('lat'),

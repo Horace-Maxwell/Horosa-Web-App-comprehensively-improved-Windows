@@ -64,8 +64,10 @@ describe('互锁开关逐个「真实生效」(两取值→输出必不同)', ()
 });
 
 describe('穷举:预设 / 开关取值 / 笛卡尔组合 均不抛', () => {
-	test('7 流派预设 applyPreset 全合法、含 school 键', () => {
-		expect(YANQIN_SCHOOL_OPTIONS.length).toBe(7);
+	test('7 流派预设 applyPreset 全合法、含 school 键(参筹并入江西派后选择器列 6 档)', () => {
+		expect(YANQIN_SCHOOL_OPTIONS.length).toBe(6);
+		expect(YANQIN_SCHOOL_OPTIONS.map((o) => o.value)).not.toContain('canchou');
+		expect(applyPreset('canchou')).toEqual({ ...applyPreset('jiangxi'), school: 'canchou' });   // 旧记录仍解析、口径同江西
 		Object.keys(YANQIN_PRESETS).forEach((k) => {
 			const s = applyPreset(k);
 			expect(s.school).toBe(k);

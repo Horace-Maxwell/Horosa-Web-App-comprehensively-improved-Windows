@@ -397,6 +397,8 @@ apply_patch horosa_win_pathsep_posix_v1  astrostudyui/src/utils/__tests__/helper
 # [#113,v3.12.0] Windows 缺省计时器粒度 ≈15.6ms(Node setTimeout(0) 中位 15.5ms,macOS ≈1ms):上游 aiChatCommandArgs 的 flush 固定等 15ms,
 # 带 @ 的技能命令在 handleSend 前走两拍 setTimeout(0) ≈31ms ⇒ 全量随机红一条。保留 15ms 再追加 3 拍宏任务(先进先出,与粒度无关);判据零放宽。
 apply_patch horosa_win_timer_granularity_v1 astrostudyui/src/utils/__tests__/aiChatCommandArgs.test.js src__utils____tests____aiChatCommandArgs.winTimerGranularity.test.js.patch
+# [#115,v3.13.1] 同族第二例:aiChatComposer 的 flush 也是单拍 15ms,`/合盘 @[命盘:…]` 恰调用一次断言在全量并跑时偶发看到 0 次(单跑 3/3 绿)。同法。
+apply_patch horosa_win_timer_granularity_v1 astrostudyui/src/utils/__tests__/aiChatComposer.test.js src__utils____tests____aiChatComposer.winTimerGranularity.test.js.patch
 # Mac v3.9.5 新增的两个 CSS-zoom 浮层守卫:同族第 6 例,但**机制是新的 —— shell 引号,不是路径分隔符**。
 # 它们 execSync 外壳调 POSIX 工具:①静态哨兵 `grep -rnaE … JSON.stringify(pattern)` —— Windows 的
 # execSync 走 cmd.exe,双引号内的反斜杠不按 POSIX 规则处理 ⇒ 正则被吃成括号不配对,grep 报
@@ -451,6 +453,9 @@ cp "$OV/files/astrostudyui/src/components/direction/__tests__/pdWarmRequestParit
 cp "$OV/files/astrostudyui/src/components/germany/__tests__/uranianRingsMemoKeyCoverage.test.js" "$WS/astrostudyui/src/components/germany/__tests__/uranianRingsMemoKeyCoverage.test.js" && ok "uranianRingsMemoKeyCoverage.test.js"
 #    pdSphereScuPdExtra —— 主限天球 sCU 对上游新 prop pdExtra(宿主每次 render 现建)按归一键比,值同即跳过、值变即重渲。
 cp "$OV/files/astrostudyui/src/components/astro3d/__tests__/pdSphereScuPdExtra.test.js" "$WS/astrostudyui/src/components/astro3d/__tests__/pdSphereScuPdExtra.test.js" && ok "pdSphereScuPdExtra.test.js"
+# ⑤ v3.13.1(gotcha #115):果老 memoTransitParams 的记忆键含「有效日出口径」(上游新输入,fields 缺省时回落全局古典设置)。
+mkdir -p "$WS/astrostudyui/src/components/guolao/__tests__"
+cp "$OV/files/astrostudyui/src/components/guolao/__tests__/guolaoTransitMemoSunrise.test.js" "$WS/astrostudyui/src/components/guolao/__tests__/guolaoTransitMemoSunrise.test.js" && ok "guolaoTransitMemoSunrise.test.js"
 
 echo "== 26. PERF-R9 前端:交互跨度观测 + L1 真 LRU(纯观测/纯修 bug,功能零降级;跨平台,建议上游化 Mac) =="
 # ① horosa_interaction_span_v1 —— 端到端「点击 → 中栏+右栏画完」测量。改之前这套观测**量不出**
@@ -546,12 +551,12 @@ echo "== 30. PERF-R9 前端渲染 + 技法结果缓存 + 载荷按需(功能零�
 # 仓库级门 check_no_random_react_keys 永久禁止它回来。
 # [#109 退役,v3.11.2] src__components__astro__AstroAspect.perfR9.js.patch —— FE-1 稳定 key:上游已全转
 apply_patch horosa_panel_ready_v1               astrostudyui/src/components/astro/AstroFirdaria.js             src__components__astro__AstroFirdaria.perfR9.js.patch
-apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/astro/AstroGivenYear.js            src__components__astro__AstroGivenYear.perfR9.js.patch
+apply_patch horosa_panel_ready_v1               astrostudyui/src/components/astro/AstroGivenYear.js            src__components__astro__AstroGivenYear.perfR9.js.patch
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/astro/AstroInfo.js                 src__components__astro__AstroInfo.perfR9.js.patch
-apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/astro/AstroLunarReturn.js          src__components__astro__AstroLunarReturn.perfR9.js.patch
-apply_patch horosa_aspect_dom_memo_v1           astrostudyui/src/components/astro/AstroProfection.js           src__components__astro__AstroProfection.perfR9.js.patch
-apply_patch horosa_aspect_dom_memo_v1           astrostudyui/src/components/astro/AstroSolarArc.js             src__components__astro__AstroSolarArc.perfR9.js.patch
-apply_patch horosa_freeze_subtabs_v1            astrostudyui/src/components/astro/AstroSolarReturn.js          src__components__astro__AstroSolarReturn.perfR9.js.patch
+apply_patch horosa_panel_ready_v1               astrostudyui/src/components/astro/AstroLunarReturn.js          src__components__astro__AstroLunarReturn.perfR9.js.patch
+apply_patch horosa_panel_ready_v1               astrostudyui/src/components/astro/AstroProfection.js           src__components__astro__AstroProfection.perfR9.js.patch
+apply_patch horosa_panel_ready_v1               astrostudyui/src/components/astro/AstroSolarArc.js             src__components__astro__AstroSolarArc.perfR9.js.patch
+apply_patch horosa_panel_ready_v1               astrostudyui/src/components/astro/AstroSolarReturn.js          src__components__astro__AstroSolarReturn.perfR9.js.patch
 apply_patch horosa_panel_ready_v1               astrostudyui/src/components/astro/AstroYearSystem129.js        src__components__astro__AstroYearSystem129.perfR9.js.patch
 # [#109 退役,v3.11.2] src__components__cntradition__GanHeCong.perfR9.js.patch —— FE-1
 apply_patch horosa_stable_react_keys_v1         astrostudyui/src/components/cntradition/Gods.js                src__components__cntradition__Gods.perfR9.js.patch
@@ -792,7 +797,7 @@ apply_patch horosa_panel_ready_v1                astrostudyui/src/components/ast
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/astro/AstroDoubleChartMain.js       src__components__astro__AstroDoubleChartMain.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/astro/AstroEphemeris.js             src__components__astro__AstroEphemeris.perfR9.js.patch
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/astro/AstroExtraReturns.js          src__components__astro__AstroExtraReturns.perfR9.js.patch
-apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/astro/AstroJaynesProgressions.js    src__components__astro__AstroJaynesProgressions.perfR9.js.patch
+apply_patch horosa_panel_ready_v1                astrostudyui/src/components/astro/AstroJaynesProgressions.js    src__components__astro__AstroJaynesProgressions.perfR9.js.patch
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/astro/AstroKeypoints.js             src__components__astro__AstroKeypoints.perfR9.js.patch
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/astro/AstroLunationPhase.js         src__components__astro__AstroLunationPhase.perfR9.js.patch
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/astro/AstroPersianDirected.js       src__components__astro__AstroPersianDirected.perfR9.js.patch
@@ -801,11 +806,11 @@ apply_patch horosa_panel_ready_v1                astrostudyui/src/components/ast
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/astro/AstroPrenatalSyzygy.js        src__components__astro__AstroPrenatalSyzygy.perfR9.js.patch
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/astro/AstroPrimaryDirection.js      src__components__astro__AstroPrimaryDirection.perfR9.js.patch
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/astro/AstroPrimaryDirectionChart.js src__components__astro__AstroPrimaryDirectionChart.perfR9.js.patch
-apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/astro/AstroProgressions.js          src__components__astro__AstroProgressions.perfR9.js.patch
+apply_patch horosa_panel_ready_v1                astrostudyui/src/components/astro/AstroProgressions.js          src__components__astro__AstroProgressions.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/astro/AstroRelative.js              src__components__astro__AstroRelative.perfR9.js.patch
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/astro/AstroReturnTimeline.js        src__components__astro__AstroReturnTimeline.perfR9.js.patch
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/astro/AstroTriplicityRulers.js      src__components__astro__AstroTriplicityRulers.perfR9.js.patch
-apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/astro/AstroVedicProgressions.js     src__components__astro__AstroVedicProgressions.perfR9.js.patch
+apply_patch horosa_panel_ready_v1                astrostudyui/src/components/astro/AstroVedicProgressions.js     src__components__astro__AstroVedicProgressions.perfR9.js.patch
 apply_patch horosa_panel_ready_v1                astrostudyui/src/components/astro/AstroZR.js                    src__components__astro__AstroZR.perfR9.js.patch
 apply_patch "c.shouldComponentUpdate(nextProps," astrostudyui/src/components/astro/__tests__/chartSCU.test.js    src__components__astro____tests____chartSCU.test.perfR9.js.patch
 apply_patch horosa_freeze_subtabs_v1             astrostudyui/src/components/astro3d/AstroChartMain3D.js         src__components__astro3d__AstroChartMain3D.perfR9.js.patch

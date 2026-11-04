@@ -15,5 +15,6 @@
 	"/aianalysis/materials/extract",
 	"/aianalysis/websearch",
 	"/aianalysis/webfetch",
-	"/aianalysis/embeddings"
+	"/aianalysis/embeddings",
+	"/aianalysis/systemone"
 ]

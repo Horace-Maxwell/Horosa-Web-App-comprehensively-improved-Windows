@@ -14,6 +14,7 @@ export const ADV_SECTION_IDS = {
 	routes: 'adv-routes',
 	persona: 'adv-persona',
 	skills: 'adv-skills',
+	systemone: 'adv-systemone',
 	agent: 'adv-agent',
 	agentMcp: 'adv-agent-mcp',
 	agentServers: 'adv-agent-servers',

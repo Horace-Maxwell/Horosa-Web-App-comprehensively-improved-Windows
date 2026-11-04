@@ -79,17 +79,20 @@ class AstroKeypoints extends Component{
 		const d = this.state.data;
 		const curAge = this.currentAge();
 		return (
-			<div className={`${styles.scrollbar}`} style={{ height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', padding: '4px 8px 12px' }}>
-				<div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>数字相位推运<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', marginLeft: 8, fontWeight: 400 }}>120 年关键点 · 小年因数激活</span></div>
-				<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: '17px', marginBottom: 10 }}>各星与「自释放点起第 k 个星座」挂钩数字 k；凡年龄为 k 或其小年之倍数即激活（过运传递：释放点 → 该星），两端星体组合于该年被引动。</div>
+			<div className={`${styles.scrollbar} horosa-balbillus-shell`} style={{ height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', paddingRight: 8 }}>
+				{/* 与界推运等表页同一套头卡(标题 · 副标题 · 说明 · 控件) */}
+				<div className="horosa-balbillus-head">
+				<div className="horosa-balbillus-title">数字相位推运<span className="horosa-balbillus-sub">120 年关键点 · 小年因数激活</span></div>
+				<div className="horosa-balbillus-desc" style={{ marginBottom: 10 }}>各星与「自释放点起第 k 个星座」挂钩数字 k；凡年龄为 k 或其小年之倍数即激活（过运传递：释放点 → 该星），两端星体组合于该年被引动。</div>
 				<Row gutter={12} style={{ marginBottom: 12 }}>
 					<Col span={12}>
-						<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', marginBottom: 4 }}>释放点</div>
+						<div className="horosa-balbillus-label">释放点</div>
 						<Select value={opts.mode} onChange={(v) => this.changeOpt('mode', v)} style={{ width: '100%' }}>
 							{Object.keys(RELEASE_MODES).map((k) => <Option value={k} key={k}>{RELEASE_MODES[k]}</Option>)}
 						</Select>
 					</Col>
 				</Row>
+				</div>
 				{d && d.positions && d.positions.length ? (
 					<div style={{ fontSize: 11.5, opacity: 0.8, marginBottom: 10, padding: '8px 10px', border: '1px solid rgba(128,128,128,0.12)', borderRadius: 8 }}>
 						<div style={{ fontWeight: 600, marginBottom: 4 }}>星位挂钩</div>

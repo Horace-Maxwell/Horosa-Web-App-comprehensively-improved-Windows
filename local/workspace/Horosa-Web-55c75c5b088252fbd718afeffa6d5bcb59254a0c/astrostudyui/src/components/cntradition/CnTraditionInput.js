@@ -38,6 +38,7 @@ class CnTraditionInput extends Component{
 		this.onShowRelationsChange = this.onShowRelationsChange.bind(this);
 		this.onShowSchoolMarksChange = this.onShowSchoolMarksChange.bind(this);
 		this.onMingGongMethodChange = this.onMingGongMethodChange.bind(this);
+		this.onTianyiSchoolChange = this.onTianyiSchoolChange.bind(this);
 		this.onShowShenShaChange = this.onShowShenShaChange.bind(this);
 		this.onFenyeVersionChange = this.onFenyeVersionChange.bind(this);
 		this.onSouthMonthChange = this.onSouthMonthChange.bind(this);
@@ -100,6 +101,12 @@ class CnTraditionInput extends Component{
 		};
 		if(this.props.onBaziOptChange){
 			this.props.onBaziOptChange(opt);
+		}
+	}
+
+	onTianyiSchoolChange(val){
+		if(this.props.onBaziOptChange){
+			this.props.onBaziOptChange({ ...this.props.baziOpt, tianyiSchool: val });
 		}
 	}
 
@@ -548,6 +555,13 @@ class CnTraditionInput extends Component{
 								<Option value='年'>按年柱查</Option>
 								<Option value='日'>按日柱查</Option>
 								<Option value='年日'>年柱日柱都查</Option>
+							</Select>
+						</div>
+						<div className="horosa-field-block">
+							<div className="horosa-field-label" title="天医两家起法只取其一:协纪辨方书正月起戌顺行、地医为其对冲;子平月支退一位(正月见丑)、无地医">天医口径</div>
+							<Select value={(this.props.baziOpt && this.props.baziOpt.tianyiSchool) || 'xieji'} onChange={this.onTianyiSchoolChange} size='small' style={{width:'100%'}} dropdownMatchSelectWidth={false} dropdownClassName="horosa-bazi-field-dropdown">
+								<Option value="xieji">协纪辨方书(兼地医)</Option>
+								<Option value="ziping">子平(月支退一位)</Option>
 							</Select>
 						</div>
 						<div className="horosa-field-block">

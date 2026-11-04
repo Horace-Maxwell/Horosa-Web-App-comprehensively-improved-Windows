@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/guice/GuiceMain.js b/astrostudyui/src/components/guice/GuiceMain.js
-index 1ec9ef7e..3bb9fb20 100644
+index 83ac36b1..5f44b406 100644
 --- a/astrostudyui/src/components/guice/GuiceMain.js
 +++ b/astrostudyui/src/components/guice/GuiceMain.js
 @@ -20,6 +20,7 @@ import { XQSideSection } from '../xq-ui';
@@ -10,10 +10,10 @@ index 1ec9ef7e..3bb9fb20 100644
  
  const STORE_KEY = 'horosa.guice.settings.v1';
  // 八卦 → 其三爻（自下而上）。取仓内既有之 Gua8.value，不另造一份（两份必漂）。
-@@ -258,7 +259,9 @@ class GuiceMain extends Component {
- 		});
- 		if (!r) return this.setState({ error: '所需之输入未足 —— 本法不可起卦', gua: null, frozenCtx: null });
- 		if (r.error) return this.setState({ error: r.error, gua: null, frozenCtx: null });
+@@ -259,7 +260,9 @@ class GuiceMain extends Component {
+ 		// 起卦不成 → 盘面清空,AI 快照槽同清(此前留着上一卦:屏上「不可起卦」,交给 AI 的却是旧卦)
+ 		if (!r) { clearModuleAISnapshot('guice'); return this.setState({ error: '所需之输入未足 —— 本法不可起卦', gua: null, frozenCtx: null }); }
+ 		if (r.error) { clearModuleAISnapshot('guice'); return this.setState({ error: r.error, gua: null, frozenCtx: null }); }
 -		this.setState({ gua: r, error: '', frozenCtx: null });
 +		// horosa_panel_ready_v1:gua 落定 = 卦体(中栏)与演数/断法(右栏)画完的那一次 setState。
 +		// 本处原无回调 —— 补一个只为埋点,不改任何既有语义。

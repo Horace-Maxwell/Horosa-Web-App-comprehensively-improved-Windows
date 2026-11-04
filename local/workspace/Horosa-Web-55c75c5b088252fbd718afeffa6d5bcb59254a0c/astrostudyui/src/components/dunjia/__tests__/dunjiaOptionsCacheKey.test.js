@@ -54,6 +54,17 @@ describe('奇门盘缓存键维度完备哨兵(L3)', ()=>{
 		expect(missing).toEqual([]);
 	});
 
+	test('🔴 三式:getQimenOptions() 交给起盘的每个键都进缓存键(盘类 / 相关人员曾漏 → 切盘类命中旧盘)', ()=>{
+		const i = sm.indexOf('getQimenOptions(overrideOptions){');
+		const seg = sm.slice(i, sm.indexOf('\n\t}\n', i));
+		const passed = [];
+		const re = /^\t\t\t(\w+):/gm;
+		let m;
+		while((m = re.exec(seg))){ passed.push(m[1]); }
+		expect(passed.length).toBeGreaterThanOrEqual(35);
+		expect(passed.filter((k)=>!smRefs.has(k))).toEqual([]);
+	});
+
 	test('H 批新键点名入键(两侧)', ()=>{
 		['godsPreset', 'jiGongMode', 'anGanMode', 'showAnZhi', 'fullNameTips',
 		 'feiXingShun', 'feiMenShun', 'feiShenShun', 'feiMenZhongCan', 'feiMenZhongShow',

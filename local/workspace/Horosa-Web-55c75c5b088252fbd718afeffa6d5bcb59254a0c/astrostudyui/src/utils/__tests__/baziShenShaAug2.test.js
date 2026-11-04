@@ -4,7 +4,7 @@
  */
 import {
 	BAZI_DAY_YEAR_STEMS, BAZI_YEAR_BRANCH, BAZI_MONTH_STEMS,
-	calcPillarShenSha, calcFourPillarShenSha,
+	calcPillarShenSha, calcFourPillarShenSha, calcFlowShenSha,
 } from '../baziShenShaLocal';
 
 function P(gz){ return { stem: { cell: gz.charAt(0) }, branch: { cell: gz.charAt(1) } }; }
@@ -72,5 +72,37 @@ describe('零回归：既有条目不删不改', () => {
 	});
 	test('新名只增不substitute：戊丑=天乙+太极+国印三名并存', () => {
 		expect(BAZI_DAY_YEAR_STEMS['戊丑']).toEqual(expect.arrayContaining(['天乙贵人', '太极贵人', '国印贵人']));
+	});
+});
+
+// 2026-10-31 八字板块巡检:三处确定性错漏(口诀与 Java gods.json 两证一致)
+describe('天德 / 月德 起法(月令系)', () => {
+	// 天德:正丁二申宫,三壬四辛同,五亥六甲上,七癸八寅逢,九丙十居乙,子巳丑庚中
+	const TIANDE = { 寅: '丁', 卯: '申', 辰: '壬', 巳: '辛', 午: '亥', 未: '甲', 申: '癸', 酉: '寅', 戌: '丙', 亥: '乙', 子: '巳', 丑: '庚' };
+	const STEMS = '甲乙丙丁戊己庚辛壬癸';
+	const BRANCH_FOR = { 甲: '子', 乙: '丑', 丙: '寅', 丁: '卯', 戊: '辰', 己: '巳', 庚: '午', 辛: '未', 壬: '申', 癸: '酉' };
+	test('十二个月天德都查得到:落天干的八个月看柱干、落地支的四个月看柱支(此前八个干月恒不出)', () => {
+		Object.keys(TIANDE).forEach((mz) => {
+			const v = TIANDE[mz];
+			const isStem = STEMS.indexOf(v) >= 0;
+			const dayGz = isStem ? v + BRANCH_FOR[v] : '甲' + v;
+			const month = '甲' + mz;
+			const r = calcFourPillarShenSha(four('甲子', month, dayGz, '甲子'));
+			expect([mz, r.day]).toEqual([mz, expect.arrayContaining(['天德贵人'])]);
+			expect(calcPillarShenSha({ monthZhi: mz }, { gan: dayGz.charAt(0), zhi: dayGz.charAt(1) })).toContain('天德贵人');
+			expect(calcFlowShenSha(four('甲子', month, '甲子', '甲子'), dayGz.charAt(0), dayGz.charAt(1))).toContain('天德贵人');
+		});
+	});
+	test('天德不误标:寅月天德在丁,丙干不出', () => {
+		expect(calcFourPillarShenSha(four('甲子', '丙寅', '丙子', '甲子')).day).not.toContain('天德贵人');
+	});
+	test('卯月月德在甲(亥卯未在甲;此前误为「卯申」,卯月月德恒不出)', () => {
+		expect(BAZI_MONTH_STEMS['卯甲']).toEqual(expect.arrayContaining(['月德贵人', '德秀贵人']));
+		expect(BAZI_MONTH_STEMS['卯申']).toBeUndefined();
+		expect(calcFourPillarShenSha(four('丙子', '辛卯', '甲午', '丙寅')).day).toContain('月德贵人');
+	});
+	test('年柱也按日支查(破碎:子日见巳);此前误拿年干去查支表,年柱恒不中', () => {
+		expect(calcFourPillarShenSha(four('丁巳', '甲辰', '甲子', '甲子'), '日').year).toContain('破碎');
+		expect(calcFourPillarShenSha(four('丁巳', '甲辰', '甲子', '甲子'), '年').year).not.toContain('破碎');
 	});
 });

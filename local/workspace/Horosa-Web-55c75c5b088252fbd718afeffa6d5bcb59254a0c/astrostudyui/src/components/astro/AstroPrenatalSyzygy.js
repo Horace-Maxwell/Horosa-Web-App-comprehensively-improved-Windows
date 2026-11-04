@@ -1,5 +1,6 @@
 import { Component } from 'react';
-import { Spin, Row, Col } from 'antd';
+import { Spin } from 'antd';
+import { ProgPageShell, WheelSplit, SidePanelHead, FillCard } from './progPageLayout';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { fetchChart } from '../../services/astro';
@@ -152,10 +153,9 @@ class AstroPrenatalSyzygy extends Component{
 		const sm = (id)=>symbolWithMeaning(id, this.props.showAstroMeaning);
 		if(!s || !s.type){
 			return (
-				<div style={cardStyle}>
-					<div className="horosa-info-card-title">产前朔望</div>
+				<FillCard grow title="产前朔望">
 					<div style={{color: 'var(--horosa-text-secondary)'}}>未能求得产前朔望（极区或星历不可用）。</div>
-				</div>
+				</FillCard>
 			);
 		}
 		const rows = [
@@ -164,9 +164,9 @@ class AstroPrenatalSyzygy extends Component{
 			{ k: '出生前', v: s.daysBeforeBirth != null ? `${fmtNum(s.daysBeforeBirth, 2)} 天` : '—' },
 		];
 		return (
-			<div style={cardStyle}>
-				<div className="horosa-info-card-title">产前朔望</div>
+			<FillCard title="产前朔望">
 				<SmallTable
+					fill
 					rows={rows}
 					rowKey={(r)=>r.k}
 					columns={[
@@ -179,7 +179,7 @@ class AstroPrenatalSyzygy extends Component{
 					<div>{sm('Sun')} <span style={{opacity: 0.8}}>太阳</span> {fmtDegree(signItemOfLon(s.sunLon))}</div>
 					<div>{sm('Moon')} <span style={{opacity: 0.8}}>月亮</span> {fmtDegree(signItemOfLon(s.moonLon))}</div>
 				</div>
-			</div>
+			</FillCard>
 		);
 	}
 
@@ -188,8 +188,7 @@ class AstroPrenatalSyzygy extends Component{
 		if(!s || !s.type){ return null; }
 		const sm = (id)=>symbolWithMeaning(id, this.props.showAstroMeaning);
 		return (
-			<div style={cardStyle}>
-				<div className="horosa-info-card-title">取度（发光体）</div>
+			<FillCard title="取度（发光体）">
 				<div style={{fontSize: 12.5, lineHeight: 2}}>
 					<div>
 						<span style={{opacity: 0.8}}>取度发光体：</span>{sm(s.hylegBody)}
@@ -197,7 +196,29 @@ class AstroPrenatalSyzygy extends Component{
 					</div>
 					<div><span style={{opacity: 0.8}}>取度：</span>{fmtDegree({ sign: s.hylegSign, signlon: s.hylegSignlon })}</div>
 				</div>
-			</div>
+			</FillCard>
+		);
+	}
+
+	// 朔望盘位置表(主卡,吃掉右栏余量;此前「取度」两行字被拉满整栏 = 大块空白):左图那一刻各星的座度、宫与逆行
+	renderPositions(){
+		const chart = this.shownChart();
+		const objs = (chart && chart.chart && Array.isArray(chart.chart.objects)) ? chart.chart.objects : [];
+		if(!objs.length){ return null; }
+		const ORDER = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto', 'North Node', 'Asc', 'MC'];
+		const byId = {};
+		objs.forEach((o)=>{ if(o && o.id){ byId[o.id] = o; } });
+		const rows = ORDER.map((id)=>byId[id]).filter((o)=>o && o.sign !== undefined);
+		const houseNo = (h)=>{ const n = `${h || ''}`.replace(/\D/g, ''); return n ? `${n} 宫` : '—'; };
+		return (
+			<FillCard grow title="朔望盘位置" extra="左图那一刻各星的座度、宫位与逆行">
+				<SmallTable fill rows={rows} rowKey={(o)=>o.id} columns={[
+					{ key: 'id', title: '点', width: '30%', render: (v)=><span style={{ whiteSpace: 'nowrap' }}><span style={{ display: 'inline-block', width: 16, textAlign: 'center', whiteSpace: 'nowrap' }}>{symbolWithMeaning(v, this.props.showAstroMeaning)}</span> {(AstroText.AstroTxtMsg && AstroText.AstroTxtMsg[v]) || v}</span> },
+					{ key: 'sign', title: '位置', width: '34%', render: (_v, o)=><span style={{ whiteSpace: 'nowrap' }}>{fmtDegree(o)}</span> },
+					{ key: 'house', title: '宫', width: '18%', render: (v)=>houseNo(v) },
+					{ key: 'lonspeed', title: '逆行', render: (v)=>(Number(v) < 0 ? '逆' : '—') },
+				]} />
+			</FillCard>
 		);
 	}
 
@@ -236,17 +257,21 @@ class AstroPrenatalSyzygy extends Component{
 
 	render(){
 		const height = this.props.height || 640;
+		const s = this.shownSyzygy();
+		const shown = !!this.shownChart();
+		// 与星运其它带盘页同一套(progPageLayout):左整列是盘,右栏标题行 + 卡片(高度按内容分配);keep-stale
 		return (
-			<Spin spinning={this.state.loading}>
-				<Row gutter={6} style={{ height }}>
-					<Col span={17} style={{ height: '100%' }}>
-						{this.renderChart(height)}
-					</Col>
-					<Col span={7} className="horosa-scrollbar" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', paddingRight: 6 }}>
+			<Spin spinning={this.state.loading && !shown}>
+				<ProgPageShell height={height - 10} updating={this.state.loading && shown}>
+					<WheelSplit
+						head={<SidePanelHead title="产前朔望" sub={s && s.type ? `${SYZYGY_TYPE_CN[s.type] || s.type} · ${s.datetime || ''}` : ''} desc="出生前最近的一次朔(新月)或望(满月);左图为那一刻的完整星盘。朔取日月合相度,望取当时在地平之上的发光体所在度,作为取度。" />}
+						renderWheel={(size, h)=>this.renderChart(h)}
+					>
 						{this.renderSummary()}
 						{this.renderHyleg()}
-					</Col>
-				</Row>
+						{this.renderPositions()}
+					</WheelSplit>
+				</ProgPageShell>
 			</Spin>
 		);
 	}

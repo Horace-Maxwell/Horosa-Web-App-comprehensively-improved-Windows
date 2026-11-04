@@ -1,12 +1,16 @@
 import { Component } from 'react';
-import { Spin, Checkbox } from 'antd';
-import { XQButton as Button, XQTabs as Tabs } from '../xq-ui';
+import { Spin, Row, Col } from 'antd';
+import { XQTabs as Tabs, XQDatePicker, XQSelect as Select } from '../xq-ui';
+import UpdatingBadge from '../common/UpdatingBadge';
+import styles from '../../css/styles.less';
+import { labelMomentOfCivilDateStr } from '../../utils/civilMoment';
 import request from '../../utils/request';
 import DateTime from '../comp/DateTime';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
 import { classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
 import * as AstroText from '../../constants/AstroText';
+import * as AstroConst from '../../constants/AstroConst';
 import * as astroAiSnapshot from '../../utils/astroAiSnapshot';
 import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
@@ -61,25 +65,25 @@ export async function buildEphemerisSnapshotText(chartObj, opts){
 	lines.push('| 时间 | 星体 | 进入 | 位置 |');
 	lines.push('| --- | --- | --- | --- |');
 	if(!ing.length){ lines.push('| — | — | — | — |'); }
-	ing.slice(0, CAP).forEach((e)=>lines.push(`| ${e.datetime || '-'} | ${ephName(e.body)} | ${ephName(e.toSign)} | ${fmtDegree(e)} |`));
+	ing.slice(0, CAP).forEach((e)=>lines.push(`| ${e.datetime || '-'} | ${ephName(e.body)} | ${ephName(e.toSign)} | ${ephDegree(e)} |`));
 	lines.push('');
 	lines.push('留与顺逆转向：');
 	lines.push('| 时间 | 星体 | 方向 | 位置 |');
 	lines.push('| --- | --- | --- | --- |');
 	if(!sta.length){ lines.push('| — | — | — | — |'); }
-	sta.slice(0, CAP).forEach((e)=>lines.push(`| ${e.datetime || '-'} | ${ephName(e.body)} | ${e.direction || '-'} | ${fmtDegree(e)} |`));
+	sta.slice(0, CAP).forEach((e)=>lines.push(`| ${e.datetime || '-'} | ${ephName(e.body)} | ${e.direction || '-'} | ${ephDegree(e)} |`));
 	lines.push('');
 	lines.push('朔望弦：');
 	lines.push('| 时间 | 月相 | 月亮位置 |');
 	lines.push('| --- | --- | --- |');
 	if(!ph.length){ lines.push('| — | — | — |'); }
-	ph.slice(0, CAP).forEach((e)=>lines.push(`| ${e.datetime || '-'} | ${e.phase || '-'} | ${fmtDegree(e)} |`));
+	ph.slice(0, CAP).forEach((e)=>lines.push(`| ${e.datetime || '-'} | ${e.phase || '-'} | ${ephDegree(e)} |`));
 	lines.push('');
 	lines.push('食相：');
 	lines.push('| 时间 | 类型 | 细分 | 位置 | 食分 |');
 	lines.push('| --- | --- | --- | --- | --- |');
 	if(!ecl.length){ lines.push('| — | — | — | — | — |'); }
-	ecl.slice(0, CAP).forEach((e)=>lines.push(`| ${e.datetime || '-'} | ${e.type || '-'} | ${e.eclipseType || '-'} | ${fmtDegree(e)} | ${e.digit == null ? '—' : `${fmtNum(e.digit)}${e.band ? ' ' + e.band : ''}`} |`));
+	ecl.slice(0, CAP).forEach((e)=>lines.push(`| ${e.datetime || '-'} | ${e.type || '-'} | ${e.eclipseType || '-'} | ${ephDegree(e)} | ${e.digit == null ? '—' : `${fmtNum(e.digit)}${e.band ? ' ' + e.band : ''}`} |`));
 	lines.push('');
 	lines.push('[行运触发本命]');
 	if(o.includeTransits === false){
@@ -107,6 +111,23 @@ function fmtDate(date){
 	const d = `${date.getDate()}`.padStart(2, '0');
 	return `${y}-${m}-${d}`;
 }
+
+// 事件位置(单源:页面表格与 AI 快照同用):后端入座行只带 toSign + lon(无 sign)、留行只带 lon —— 直接交 fmtDegree 会显示
+// 「- 30.00°」(座名缺、求根落在边界下侧 29.9999° 又被四舍五入成 30.00)。入座行座名取进入的星座,度数按该座起量;
+// 其余行按黄经取座;座内度数夹在 [0, 29.99](不让四舍五入跨座)。
+function ephPos(e){
+	if(!e){ return null; }
+	if(e.sign){ return e; }
+	const lon = Number(e.lon);
+	if(!Number.isFinite(lon)){ return null; }
+	const x = ((lon % 360) + 360) % 360;
+	let idx = e.toSign ? AstroConst.LIST_SIGNS.indexOf(e.toSign) : -1;
+	if(idx < 0){ idx = Math.floor(x / 30) % 12; }
+	let deg = ((x - idx * 30) % 360 + 360) % 360;
+	if(deg >= 30){ deg = deg > 345 ? 0 : 29.99; }   // 入座刚过边界 / 逆行入座在该座 29.99°
+	return { sign: AstroConst.LIST_SIGNS[idx], signlon: Math.min(deg, 29.99) };
+}
+const ephDegree = (e)=>fmtDegree(ephPos(e));
 
 // 后端 date_time_from_jd 形态 {date,time,datetime,jd} → 'YYYY-MM-DD'(缺则 '-')
 function fmtDateOf(item){
@@ -243,13 +264,39 @@ class AstroEphemeris extends Component{
 		);
 	}
 
+	// 与界推运等表页同一套头卡;起止日期 / 行运触发本命改了即重算(请求键含这三项),不再要「刷新」按钮
 	renderToolbar(){
+		const d0 = labelMomentOfCivilDateStr(this.state.startDate);
+		const d1 = labelMomentOfCivilDateStr(this.state.endDate);
 		return (
-			<div style={{...cardStyle, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center'}}>
-				<label>开始 <input type="date" value={this.state.startDate} onChange={(e)=>this.change('startDate', e.target.value)} /></label>
-				<label>结束 <input type="date" value={this.state.endDate} onChange={(e)=>this.change('endDate', e.target.value)} /></label>
-				<Checkbox checked={this.state.includeTransits} onChange={(e)=>this.change('includeTransits', e.target.checked)}>行运触发本命</Checkbox>
-				<Button size="small" onClick={this.load}>刷新星历</Button>
+			<div className="horosa-balbillus-head">
+				<div className="horosa-balbillus-title">
+					星历<span className="horosa-balbillus-sub">入座 · 逆行停滞 · 日月食 · 月相{this.state.includeTransits ? ' · 行运触发本命' : ''}</span>
+				</div>
+				<div className="horosa-balbillus-desc">
+					所选日期区间内的天象事件表:行星入座、逆行与停滞、日食月食、新月满月;勾选「行运触发本命」时另列行运星对本命点的相位时刻。
+				</div>
+				<Row gutter={12} className="horosa-balbillus-controls">
+					<Col span={7}>
+						<div className="horosa-balbillus-label">开始</div>
+						<XQDatePicker style={{ width: '100%' }} allowClear={false} format="YYYY-MM-DD"
+							value={d0.isValid() ? d0 : null}
+							onChange={(v)=>{ if(v){ this.change('startDate', v.format('YYYY-MM-DD')); } }} />
+					</Col>
+					<Col span={7}>
+						<div className="horosa-balbillus-label">结束</div>
+						<XQDatePicker style={{ width: '100%' }} allowClear={false} format="YYYY-MM-DD"
+							value={d1.isValid() ? d1 : null}
+							onChange={(v)=>{ if(v){ this.change('endDate', v.format('YYYY-MM-DD')); } }} />
+					</Col>
+					<Col span={7}>
+						<div className="horosa-balbillus-label">行运触发本命</div>
+						<Select style={{ width: '100%' }} value={!!this.state.includeTransits} onChange={(v)=>this.change('includeTransits', v)}>
+							<Select.Option value={true}>列出</Select.Option>
+							<Select.Option value={false}>不列</Select.Option>
+						</Select>
+					</Col>
+				</Row>
 			</div>
 		);
 	}
@@ -296,8 +343,10 @@ class AstroEphemeris extends Component{
 		const height = this.props.height ? this.props.height - 20 : 720;
 		const viewTab = this.state.viewTab || 'events';
 		return (
-			<Spin spinning={this.state.loading}>
-				<div style={{height, overflow: 'auto', paddingRight: 8}}>
+			<Spin spinning={this.state.loading && !this.shownResult()}>
+				<div style={{ position: 'relative' }}>
+				{this.state.loading && this.shownResult() ? <UpdatingBadge /> : null}
+				<div className={`${styles.scrollbar} horosa-balbillus-shell`} style={{height, overflow: 'auto', paddingRight: 8}}>
 					{this.renderToolbar()}
 					{this.renderLimitsNotice()}
 					{/* horosa_freeze_subtabs_v1:四个子页签此前全部常驻渲染 —— 其中「每日位置」最多 1500 行
@@ -315,7 +364,7 @@ class AstroEphemeris extends Component{
 									{key: 'datetime', title: '时间'},
 									{key: 'body', title: '星体', render: (v)=>astroSymbol(v)},
 									{key: 'toSign', title: '进入', render: (v)=>astroSymbol(v)},
-									{key: 'sign', title: '位置', render: (_v, row)=>fmtDegree(row)},
+									{key: 'sign', title: '位置', render: (_v, row)=>ephDegree(row)},
 								])}
 							</div>
 							<div style={cardStyle}>
@@ -324,7 +373,7 @@ class AstroEphemeris extends Component{
 									{key: 'datetime', title: '时间'},
 									{key: 'body', title: '星体', render: (v)=>astroSymbol(v)},
 									{key: 'direction', title: '方向'},
-									{key: 'sign', title: '位置', render: (_v, row)=>fmtDegree(row)},
+									{key: 'sign', title: '位置', render: (_v, row)=>ephDegree(row)},
 								])}
 							</div>
 							<div style={cardStyle}>
@@ -332,7 +381,7 @@ class AstroEphemeris extends Component{
 								{this.renderEvents(result.lunarPhases, [
 									{key: 'datetime', title: '时间'},
 									{key: 'phase', title: '月相'},
-									{key: 'sign', title: '月亮位置', render: (_v, row)=>fmtDegree(row)},
+									{key: 'sign', title: '月亮位置', render: (_v, row)=>ephDegree(row)},
 								])}
 							</div>
 							<div style={cardStyle}>
@@ -341,7 +390,7 @@ class AstroEphemeris extends Component{
 									{key: 'datetime', title: '时间'},
 									{key: 'type', title: '类型'},
 									{key: 'eclipseType', title: '细分'},
-									{key: 'sign', title: '位置', render: (_v, row)=>fmtDegree(row)},
+									{key: 'sign', title: '位置', render: (_v, row)=>ephDegree(row)},
 									{key: 'digit', title: '食分', render: (v, row)=> (v == null ? '—' : <span>{fmtNum(v)}<span style={{color: 'var(--horosa-text-secondary)', fontSize: 11, marginLeft: 4}}>{row.band || ''}</span></span>)},
 								])}
 							</div>
@@ -398,6 +447,7 @@ class AstroEphemeris extends Component{
 							</>)}</FreezeSubTab>
 						</TabPane>
 					</Tabs>
+				</div>
 				</div>
 			</Spin>
 		);

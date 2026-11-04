@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js b/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js
-index ce9b9b67..a9fc6377 100644
+index ed513865..d2683629 100644
 --- a/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js
 +++ b/astrostudyui/src/components/xiaoliuren/XiaoLiuRenMain.js
 @@ -19,6 +19,8 @@ import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel'
@@ -14,7 +14,7 @@ index ce9b9b67..a9fc6377 100644
 @@ -223,8 +225,9 @@ class XiaoLiuRenMain extends Component {
  		}
  		const ke = qiKe({ m, d, h, school: settings.school });
- 		if(!ke){ return this.setState({ error: '三数非法,不可起课', ke: null }); }
+ 		if(!ke){ clearModuleAISnapshot('xiaoliuren'); return this.setState({ error: '三数非法,不可起课', ke: null }); }
 +		// horosa_panel_ready_v1:ke 落定 = 六宫课盘(中栏)与三传断语(右栏)画完的那一次 setState。
  		// 起课当下记下三数来源(占时/手录),随快照与存档走;载档只重排、不改此来因。
 -		this.setState({ ke, error: '', numsFrom: inputs.useTime ? 'time' : 'manual' }, ()=>this.saveSnap());

@@ -28,6 +28,7 @@ RELATIVE_BODY_WEIGHT = {
 
 def score_relative_comp(comp, body_weight=None):
     """由 ChartComp 结果算关系量化分：impact = 相位类型权 × 两端天体权之积 × 容许度衰减；
+    每个跨盘相位只计一次；衰减 = max(0.2, 1 − 误差 / 跨盘容许度)。
     基础分 50、结果 clamp[0,100]。纯函数（喂合成 comp 即可测），不触星历。"""
     if body_weight is None:
         body_weight = RELATIVE_BODY_WEIGHT
@@ -35,10 +36,14 @@ def score_relative_comp(comp, body_weight=None):
     def bw(name):
         return body_weight.get(name, RELATIVE_BODY_WEIGHT_DEFAULT)
 
+    from astrostudy.modern.chartcomp import CROSS_ASPECT_ORB
     score = 50
     highlights = []
     challenges = []
     flat = []
+    # 同一跨盘相位只计一次:outToIn(B 星 → A 星)与 inToOut(A 星 → B 星)由 chartcomp 对称生成、误差相同,
+    # 曾两组逐条累加 → 每个相位计两次、偏离 50 的幅度翻倍,清单也成对重复。按 (B 星, A 星, 相位) 归一去重。
+    seen = set()
     for group_key in ('outToInAsp', 'inToOutAsp'):
         for row in (comp.get(group_key) or []):
             key = row.get('id')
@@ -46,9 +51,14 @@ def score_relative_comp(comp, body_weight=None):
                 deg = int(asp.get('aspect', -999))
                 weight = RELATIVE_ASPECT_WEIGHT.get(deg, 0)
                 bId = asp.get('id') or asp.get('idB') or asp.get('obj') or ''
+                pair = (key, bId, deg) if group_key == 'outToInAsp' else (bId, key, deg)
+                if pair in seen:
+                    continue
+                seen.add(pair)
                 orb = safe_float(asp.get('orb', asp.get('delta', 0)), 0)
                 body_mult = bw(key) * bw(bId)
-                impact = weight * body_mult * max(0.2, 1.0 - min(orb, 8) / 8.0)
+                # 误差衰减按跨盘相位的实际容许度折算(曾按 8° 折:容许度只有 1°,系数恒在 0.875–1,「误差越小分量越足」体现不出)
+                impact = weight * body_mult * max(0.2, 1.0 - min(orb, CROSS_ASPECT_ORB) / CROSS_ASPECT_ORB)
                 score += impact
                 item = {
                     'a': key,

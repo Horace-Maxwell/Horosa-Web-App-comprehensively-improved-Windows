@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/cntradition/BaZiAppInfoPanel.js b/astrostudyui/src/components/cntradition/BaZiAppInfoPanel.js
-index 7bef8265..6076e472 100644
+index 2072793c..674233de 100644
 --- a/astrostudyui/src/components/cntradition/BaZiAppInfoPanel.js
 +++ b/astrostudyui/src/components/cntradition/BaZiAppInfoPanel.js
 @@ -1,5 +1,6 @@
@@ -44,7 +44,7 @@ index 7bef8265..6076e472 100644
  	renderBasic(bazi, fields){
  		const nongli = bazi.nongli || {};
  		const name = fields && fields.name ? fields.name.value : '';
-@@ -304,6 +331,78 @@ class BaZiAppInfoPanel extends Component{
+@@ -304,6 +331,80 @@ class BaZiAppInfoPanel extends Component{
  		);
  	}
  
@@ -117,13 +117,15 @@ index 7bef8265..6076e472 100644
 +		}
 +		return nextProps.value !== this.props.value
 +			|| nextProps.flowSelection !== this.props.flowSelection
-+			|| nextProps.shenshaGroups !== this.props.shenshaGroups;
++			|| nextProps.shenshaGroups !== this.props.shenshaGroups
++			// horosa_slice_prop_cover_v1:上游 v3.13.1 起 renderFlowGods 读天医口径,切片必须收到并比较它
++			|| nextProps.tianyiSchool !== this.props.tianyiSchool;
 +	}
 +
  	renderFlowGods(bazi){
  		// 神煞面板显示「当前所选 大运/流年/流月/流日」之神煞（四柱神煞已在细盘呈现，此处不重复）。
  		const four = bazi.fourColumns || {};
-@@ -334,6 +433,19 @@ class BaZiAppInfoPanel extends Component{
+@@ -334,6 +435,19 @@ class BaZiAppInfoPanel extends Component{
  		);
  	}
  
@@ -143,7 +145,7 @@ index 7bef8265..6076e472 100644
  	renderAux(four){
  		const aux = [
  			['胎元', four.tai],
-@@ -356,66 +468,32 @@ class BaZiAppInfoPanel extends Component{
+@@ -356,66 +470,33 @@ class BaZiAppInfoPanel extends Component{
  		);
  	}
  
@@ -225,6 +227,7 @@ index 7bef8265..6076e472 100644
 +						value={this.props.value}
 +						flowSelection={this.props.flowSelection}
 +						shenshaGroups={this.props.shenshaGroups}
++						tianyiSchool={this.props.tianyiSchool}
 +					/>
 +				)}
 +				<BaZiInfoAuxSection value={this.props.value} />

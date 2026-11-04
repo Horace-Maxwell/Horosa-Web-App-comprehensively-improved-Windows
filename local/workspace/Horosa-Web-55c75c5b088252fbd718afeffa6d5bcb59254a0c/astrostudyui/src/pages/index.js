@@ -1173,6 +1173,7 @@ function AstroIndex({dispatch, astro, app, user, rules, }){
                   <FreezeInactive active={activeMainTab === "zeri"}>
                     <ZeriMain
                         wheelArt={wheelArt}
+                        indiaChartStyle={indiaChartStyle}
                         chart={chartObj}
                         height={height}
                         fields={fields}

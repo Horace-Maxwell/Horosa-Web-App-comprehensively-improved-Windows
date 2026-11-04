@@ -1,6 +1,8 @@
 import { Component } from 'react';
-import { Spin } from 'antd';
-import { XQButton as Button } from '../xq-ui';
+import { Spin, Row, Col } from 'antd';
+import { XQInputNumber } from '../xq-ui';
+import UpdatingBadge from '../common/UpdatingBadge';
+import styles from '../../css/styles.less';
 import request from '../../utils/request';
 import DateTime from '../comp/DateTime';
 import * as Constants from '../../utils/constants';
@@ -125,28 +127,49 @@ class AstroReturnTimeline extends Component{
 
 	render(){
 		this.ensureLoaded();
-		const rows = this.shownResult() && this.shownResult().rows ? this.shownResult().rows : [];
+		const shown = this.shownResult();
+		const rows = shown && shown.rows ? shown.rows : [];
+		const height = this.props.height || 700;
+		const setNum = (field, min, max)=>(v)=>{ const n = Math.round(Number(v)); if(Number.isFinite(n) && n >= min && n <= max){ this.setState({ [field]: n }); } };
+		// 与界推运等表页同一套头卡;改起始年 / 年数即重算(componentDidUpdate 按请求键),不再要「生成」按钮;
+		// keep-stale:首次加载才转圈,重取期间旧表留着,右上角「更新中…」
 		return (
-			<Spin spinning={this.state.loading}>
-				<div style={{height: this.props.height || 700, overflow: 'auto', paddingRight: 8}}>
-					<div style={{...cardStyle, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center'}}>
-						<label>起始年 <input type="number" value={this.state.startYear} onChange={(e)=>this.setState({startYear: e.target.value})} /></label>
-						<label>年数 <input type="number" min="1" max="40" value={this.state.count} onChange={(e)=>this.setState({count: e.target.value})} /></label>
-						<Button size="small" onClick={this.load}>生成时间轴</Button>
+			<Spin spinning={this.state.loading && !shown}>
+				<div style={{ position: 'relative' }}>
+				{this.state.loading && shown ? <UpdatingBadge /> : null}
+				<div className={`${styles.scrollbar} horosa-balbillus-shell`} style={{ height, overflow: 'auto', paddingRight: 8 }}>
+					<div className="horosa-balbillus-head">
+						<div className="horosa-balbillus-title">
+							回归轴<span className="horosa-balbillus-sub">太阳 / 月亮返照时间轴 · {Number(this.state.startYear)} – {Number(this.state.startYear) + Number(this.state.count) - 1} 年</span>
+						</div>
+						<div className="horosa-balbillus-desc">
+							逐年列出太阳返照的时刻、该年第一次月亮返照的时刻,以及两张返照盘各自的上升。改起始年或年数即重算。
+						</div>
+						<Row gutter={12} className="horosa-balbillus-controls">
+							<Col span={6}>
+								<div className="horosa-balbillus-label">起始年</div>
+								<XQInputNumber style={{ width: '100%' }} min={-12999} max={16799} step={1} value={Number(this.state.startYear)} onChange={setNum('startYear', -12999, 16799)} />
+							</Col>
+							<Col span={6}>
+								<div className="horosa-balbillus-label">年数</div>
+								<XQInputNumber style={{ width: '100%' }} min={1} max={40} step={1} value={Number(this.state.count)} onChange={setNum('count', 1, 40)} />
+							</Col>
+						</Row>
 					</div>
 					<div style={cardStyle}>
-						<div className="horosa-info-card-title">太阳/月亮返照时间轴</div>
+						<div className="horosa-info-card-title">太阳 / 月亮返照时间轴</div>
 						<SmallTable
 							rows={rows}
 							columns={[
-								{key: 'year', title: '年份'},
-								{key: 'solarReturn', title: '太阳返照', render: (v)=>v && v.datetime ? v.datetime : '-'},
-								{key: 'lunarReturn', title: '首个月亮返照', render: (v)=>v && v.datetime ? v.datetime : '-'},
-								{key: 'solarAsc', title: '太阳返照上升', render: (v)=>fmtDegree(v)},
+								{key: 'year', title: '年份', width: '10%', align: 'right'},
+								{key: 'solarReturn', title: '太阳返照', width: '25%', render: (v)=>(v && v.datetime ? v.datetime : '-')},
+								{key: 'lunarReturn', title: '首个月亮返照', width: '25%', render: (v)=>(v && v.datetime ? v.datetime : '-')},
+								{key: 'solarAsc', title: '太阳返照上升', width: '20%', render: (v)=>fmtDegree(v)},
 								{key: 'lunarAsc', title: '月亮返照上升', render: (v)=>fmtDegree(v)},
 							]}
 						/>
 					</div>
+				</div>
 				</div>
 			</Spin>
 		);

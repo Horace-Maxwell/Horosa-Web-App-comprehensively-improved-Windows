@@ -1,16 +1,16 @@
 diff --git a/astrostudyui/src/components/astro/AstroPlanetaryArc.js b/astrostudyui/src/components/astro/AstroPlanetaryArc.js
-index 32885d41..49fccbbc 100644
+index 6545b5e9..653c8ab2 100644
 --- a/astrostudyui/src/components/astro/AstroPlanetaryArc.js
 +++ b/astrostudyui/src/components/astro/AstroPlanetaryArc.js
-@@ -12,6 +12,7 @@ import { buildStarAndLotPositionLines, buildHouseCuspLines, buildPredictiveBirth
- import styles from '../../css/styles.less';
- import DateTime from '../comp/DateTime';
- import { XQSelect as Select } from '../xq-ui';
-+import { markPanelReady } from '../../utils/perfMark';
- import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
+@@ -16,6 +16,7 @@ import { natalClassicalParams, transitOrbDefault, followTransitOrb } from './Ast
  import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
  import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
-@@ -206,6 +207,8 @@ class AstroPlanetaryArc extends Component{
+ import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
++import { markPanelReady } from '../../utils/perfMark';
+ 
+ const Option = Select.Option;
+ export const ARC_SOURCES = [AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS, AstroConst.JUPITER, AstroConst.SATURN, AstroConst.SUN];
+@@ -208,6 +209,8 @@ class AstroPlanetaryArc extends Component{
  		if(params.dirZone){ dt.setZone(params.dirZone); }
  		if(!this._mounted) return;
  		this.setState({ dirChart: result, dirChartSig, params: { ...params, datetime: dt } }, () => {

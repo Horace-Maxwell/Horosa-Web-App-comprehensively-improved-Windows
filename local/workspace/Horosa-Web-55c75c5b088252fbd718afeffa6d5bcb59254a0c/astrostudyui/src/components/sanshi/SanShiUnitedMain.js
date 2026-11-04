@@ -763,6 +763,11 @@ function getQimenOptionsKey(options){
 		options.keZiZhengHuanShi ? 1 : 0,
 		safe(options.jinhanMenPai),
 		safe(options.yearJiaJu),
+		// 三式把盘类 / 相关人员 / 时间算法也交给起盘(法奇门读 pan.options.chartCategory 定日干内心↔实质);
+		// 曾漏入键 → 切「盘类」命中旧盘,判读口径纹丝不动(独立页这两项走组件 ctx,不经此键)
+		safe(options.timeAlg),
+		safe(options.chartCategory),
+		safe(options.faRelatedPeople),
 	].join('|');
 }
 
@@ -4220,6 +4225,7 @@ class SanShiUnitedMain extends Component{
 			`${safe(mergedOptions.taiyiAccum)}`,
 			`${safe(mergedOptions.gameTheory)}`,
 			mergedOptions.taiyiSchool ? JSON.stringify(normalizeTaiyiSchool(mergedOptions.taiyiSchool)) : '',
+			`${safe(mergedOptions.taiyiTimeBasis)}`,   // 曾漏:改太乙时间基准签名不变 → 去重直接不重算
 			lrCastKey,
 			`${safe(mergedOptions.yearShenShaSort)}`,
 			`${safe(mergedOptions.tuWangShuai)}`,
@@ -4248,6 +4254,10 @@ class SanShiUnitedMain extends Component{
 			`${safe(mergedOptions.sex)}`,
 			`${safe(mergedOptions.gameTheory)}`,
 			mergedOptions.taiyiSchool ? JSON.stringify(normalizeTaiyiSchool(mergedOptions.taiyiSchool)) : '',
+			// getKintaiyiPan 读的键须全入(时间基准曾漏 → 切「真太阳时」命中旧盘;换日两项同理补齐)
+			`${safe(mergedOptions.taiyiTimeBasis)}`,
+			`${safe(mergedOptions.after23NewDay)}`,
+			`${safe(mergedOptions.lateZiHourUseNextDay)}`,
 		].join('|');
 		const taiyiCached = this.taiyiCache.get(taiyiCacheKey);
 		const dunjiaPromise = this.getKinqimenDunJia(

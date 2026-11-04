@@ -12,6 +12,41 @@ import { createDeferredResizeObserver } from '../../utils/deferredResizeObserver
 
 const Option = Select.Option;
 
+// 按住年 / 月 / 日 / 时 / 分 / 秒任一格拖动 = 连续调这一个单位:往上 / 往右加,往下 / 往左减;每档像素按单位定(SCRUB_PITCH),
+// 年 / 分 / 秒快划会加速(一划能跨几十档,不受屏幕高度限制),跨位照常进位。拖动中只在本格即时刷新数字,
+// 向宿主提交节流到每 SCRUB_EMIT_MS 一次、松手补最后一次(宿主重算整盘很重,逐档提交会卡)。
+// 移动不到 SCRUB_START_PX 就松开 = 普通点击(下拉照常展开、年份框照常聚焦)。按下时不放出 mousedown,所以下拉不会先闪开再收起。
+// 每档像素与是否加速按单位分:档数少的(月 12 / 日 31 / 时 24)每档宽、不加速,慢拖每一档都停得住;
+// 年 / 分 / 秒档数多,每档窄,只在快划时加速
+const SCRUB_PITCH = { y: 6, M: 18, d: 12, h: 12, m: 6, s: 6 };
+const SCRUB_ACCEL = { y: true, M: false, d: false, h: false, m: true, s: true };
+const SCRUB_START_PX = 3;
+const SCRUB_EMIT_MS = 150;
+const SCRUB_TITLE = '按住上下 / 左右拖动可连续调整';
+function scrubGain(dist){
+	// 单次移动的像素距离 → 倍率:正常速度逐档,快划才加速
+	if(dist >= 30){ return 4; }
+	if(dist >= 18){ return 2; }
+	return 1;
+}
+const SCRUB_UNIT_LABEL = { y: (dt)=>`${dt.ad < 0 ? '前' : ''}${dt.year} 年`, M: (dt)=>`${dt.month} 月`, d: (dt)=>`${dt.date} 日`, h: (dt)=>`${dt.hour} 时`, m: (dt)=>`${dt.minute} 分`, s: (dt)=>`${dt.second} 秒` };
+// 年 / 月加减保持「几号」不溢出:先落到 1 号再加,再把日夹到目标月的天数(10-31 加一月 = 11-30,不是 12-01;
+// 闰日加一年 = 2-28)。DateTime.addMonth 会让 31 号溢出到下下月,逐档拖 / 步进时 11 月就永远到不了。
+function addMonthsKeepDay(dt, n, years){
+	const d0 = dt.date;
+	dt.date = 1;
+	if(years){ dt.addYear(n); }else{ dt.addMonth(n); }
+	const max = dt.getMonthDays(dt.year * dt.ad, dt.month);
+	dt.date = Math.min(d0, max);
+	dt.calcJdn();
+	return dt;
+}
+function addUnit(dt, unit, n){
+	if(unit === 'y'){ addMonthsKeepDay(dt, n, true); }else if(unit === 'M'){ addMonthsKeepDay(dt, n, false); }else if(unit === 'd'){ dt.addDate(n); }
+	else if(unit === 'h'){ dt.addHour(n); }else if(unit === 'm'){ dt.addMinute(n); }else if(unit === 's'){ dt.addSecond(n); }
+	return dt;
+}
+
 class DateTimeSelector extends Component{
 	constructor(props) {
 		super(props);
@@ -35,7 +70,13 @@ class DateTimeSelector extends Component{
 			// 年份输入草稿:输入期间不提交(旧行为每键立即重排盘,4/5 位年被打断截半,
 			// 如输 7040 只吃到 70)。失焦/回车才 flush 到 changeYear。
 			yearDraft: null,
+			scrubUnit: null,   // 正在拖动调整的那一格(描金边)
 		};
+		this._scrub = null;
+		this.scrubMove = this.scrubMove.bind(this);
+		this.scrubEmit = this.scrubEmit.bind(this);
+		this.scrubUp = this.scrubUp.bind(this);
+		this.scrubClickGuard = this.scrubClickGuard.bind(this);
 
 		this.datetime = new DateTime();
 		this.changing = false;
@@ -254,9 +295,9 @@ class DateTimeSelector extends Component{
 		let ctype = this.effectiveTimeType();
 		let dt = this.datetime.clone();
 		if(ctype === 'y'){
-			dt.addYear(-1);
+			addMonthsKeepDay(dt, -1, true);
 		}else if(ctype === 'M'){
-			dt.addMonth(-1);
+			addMonthsKeepDay(dt, -1, false);
 		}else if(ctype === 'd'){
 			dt.addDate(-1);
 		}else if(ctype === 'h'){
@@ -278,9 +319,9 @@ class DateTimeSelector extends Component{
 		let ctype = this.effectiveTimeType();
 		let dt = this.datetime.clone();
 		if(ctype === 'y'){
-			dt.addYear(1);
+			addMonthsKeepDay(dt, 1, true);
 		}else if(ctype === 'M'){
-			dt.addMonth(1);
+			addMonthsKeepDay(dt, 1, false);
 		}else if(ctype === 'd'){
 			dt.addDate(1);
 		}else if(ctype === 'h'){
@@ -413,7 +454,7 @@ class DateTimeSelector extends Component{
 			</Select>
 		)
 
-		return dom;
+		return this.scrubCell('M', dom);
 	}
 
 	genDate(){
@@ -437,7 +478,7 @@ class DateTimeSelector extends Component{
 			</Select>
 		)
 
-		return dom;
+		return this.scrubCell('d', dom);
 	}
 
 
@@ -504,7 +545,7 @@ class DateTimeSelector extends Component{
 			</Select>
 		)
 
-		return dom;
+		return this.scrubCell('h', dom);
 	}
 
 	genMinute(){
@@ -528,7 +569,7 @@ class DateTimeSelector extends Component{
 			</Select>
 		)
 
-		return dom;
+		return this.scrubCell('m', dom);
 	}
 
 	genSecond(){
@@ -552,7 +593,7 @@ class DateTimeSelector extends Component{
 			</Select>
 		)
 
-		return dom;
+		return this.scrubCell('s', dom);
 	}
 
 	genZone(){
@@ -614,6 +655,116 @@ class DateTimeSelector extends Component{
 	componentWillUnmount(){
 		if(this._narrowRO){ try{ this._narrowRO.disconnect(); }catch(e){ /* ignore */ } this._narrowRO = null; }
 		this._unmounted = true;
+		this.scrubDetach();
+	}
+
+	// ---- 按住拖动调单位 ----
+	scrubCell(unit, child){
+		return (
+			<div className={`xq-dt-scrub${this.state.scrubUnit === unit ? ' xq-dt-scrubbing' : ''}`} data-scrub-unit={unit} title={SCRUB_TITLE}
+				onPointerDownCapture={(e)=>this.scrubDown(e, unit)} onClickCapture={this.scrubClickGuard}>
+				{child}
+				{this.state.scrubUnit === unit ? <span className="xq-dt-scrub-bubble" aria-hidden="true">{SCRUB_UNIT_LABEL[unit](this.datetime)}</span> : null}
+			</div>
+		);
+	}
+
+	scrubDown(e, unit){
+		if(e.button !== 0 || this.props.disabled || this._scrub){ return; }
+		const host = e.currentTarget;
+		const input = host.querySelector('input');
+		// 年份框正在打字 / 下拉已经展开:不接管,照常选字、选项
+		if(host.querySelector('.ant-select-open') || (unit === 'y' && input && typeof document !== 'undefined' && document.activeElement === input)){ return; }
+		e.preventDefault();
+		this._scrub = { unit, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, acc: 0, base: this.datetime.clone(), steps: 0, active: false, host, pid: e.pointerId, emittedKey: this.keyOf(this.datetime) };
+		try{ host.setPointerCapture(e.pointerId); }catch(err){ /* 不支持捕获时靠窗口监听 */ }
+		window.addEventListener('pointermove', this.scrubMove);
+		window.addEventListener('pointerup', this.scrubUp);
+		window.addEventListener('pointercancel', this.scrubUp);
+	}
+
+	scrubMove(e){
+		const s = this._scrub;
+		if(!s){ return; }
+		const mx = e.clientX - s.x;
+		const my = e.clientY - s.y;
+		s.x = e.clientX;
+		s.y = e.clientY;
+		if(!s.active){
+			if(Math.abs(e.clientX - s.x0) < SCRUB_START_PX && Math.abs(e.clientY - s.y0) < SCRUB_START_PX){ return; }
+			s.active = true;
+			if(typeof document !== 'undefined' && document.body){ document.body.classList.add('xq-dt-scrub-active'); }
+		}
+		// 上 / 右为正;按这一下移动的距离加速
+		const raw = mx - my;
+		const pitch = SCRUB_PITCH[s.unit] || 8;
+		s.acc += raw * (SCRUB_ACCEL[s.unit] ? scrubGain(Math.hypot(mx, my)) : 1);
+		const steps = s.acc >= 0 ? Math.floor(s.acc / pitch) : Math.ceil(s.acc / pitch);
+		if(steps === s.steps){ return; }
+		const dt = addUnit(s.base.clone(), s.unit, steps);
+		if(this.props.startTime && this.props.disablePreStartTime && dt.jdn < this.props.startTime.jdn){
+			s.acc = s.steps * pitch;   // 顶到起点:不再往下累计,回拖立即生效
+			return;
+		}
+		s.steps = steps;
+		// 本格即时刷新(不等宿主);提交节流
+		this.datetime = dt;
+		this.changing = true;
+		this.setState({ scrubUnit: s.unit, yearDraft: null, tik: this.state.tik + 1 });
+		if(!this._scrubTimer){
+			this._scrubTimer = setTimeout(()=>{ this._scrubTimer = null; this.scrubEmit(); }, SCRUB_EMIT_MS);
+		}
+	}
+
+	scrubEmit(){
+		const s = this._scrub || this._scrubLast;
+		const key = this.keyOf(this.datetime);
+		if(!s || key === s.emittedKey){ return; }
+		s.emittedKey = key;
+		this.onChanged(this.datetime.clone(), { unit: s.unit, dir: s.steps > 0 ? 1 : -1 });
+	}
+
+	scrubUp(){
+		const s = this._scrub;
+		this.scrubDetach();
+		if(!s){ return; }
+		try{ s.host.releasePointerCapture(s.pid); }catch(err){ /* 已释放 */ }
+		if(s.active){
+			if(this._scrubTimer){ clearTimeout(this._scrubTimer); this._scrubTimer = null; }
+			this._scrubLast = s;
+			this.scrubEmit();   // 松手补最后一次
+			this._scrubLast = null;
+			// 拖完松手不再触发一次点击(否则下拉会被点开)
+			this._suppressClick = true;
+			setTimeout(()=>{ this._suppressClick = false; }, 0);
+			if(!this._unmounted){ this.setState({ scrubUnit: null }); }
+			return;
+		}
+		// 没拖动 = 普通点击:年份框聚焦全选,下拉展开(按下时拦了 mousedown,这里补一次)
+		const input = s.host.querySelector('input');
+		if(s.unit === 'y'){
+			if(input){ input.focus(); if(input.select){ input.select(); } }
+			return;
+		}
+		const sel = s.host.querySelector('.ant-select-selector');
+		if(sel && typeof MouseEvent !== 'undefined'){
+			sel.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, view: window }));
+		}
+	}
+
+	scrubClickGuard(e){
+		if(this._suppressClick){ e.stopPropagation(); e.preventDefault(); }
+	}
+
+	scrubDetach(){
+		this._scrub = null;
+		if(this._unmounted && this._scrubTimer){ clearTimeout(this._scrubTimer); this._scrubTimer = null; }
+		if(typeof window !== 'undefined'){
+			window.removeEventListener('pointermove', this.scrubMove);
+			window.removeEventListener('pointerup', this.scrubUp);
+			window.removeEventListener('pointercancel', this.scrubUp);
+		}
+		if(typeof document !== 'undefined' && document.body){ document.body.classList.remove('xq-dt-scrub-active'); }
 	}
 
 	syncNarrow(){
@@ -797,6 +948,11 @@ class DateTimeSelector extends Component{
 				</Col>
 			</Row>
 		);
+		// 紧凑时间块的步进行(adjustOnly)一律是 ⊖ / 步长 / ⊕ / 此刻 / 确定 五格(时区在单击打开的编辑器里改);
+		// 只按年 / 按年月的专用排法只用在完整编辑器里
+		if(this.props.adjustOnly){
+			return row;
+		}
 		if(this.props.onlyYear){
 			row = (
 				<Row>
@@ -916,17 +1072,19 @@ class DateTimeSelector extends Component{
 						</Col>
 
 						<Col lg={yearspan} xl={yearspanLg}>
-							<InputNumber
-								style={{width: '100%'}}
-								size='small'
-								min={1}
-								max={this.datetime.ad < 0 ? 12999 : 16799}
-								value={this.state.yearDraft !== null ? this.state.yearDraft : this.datetime.year}
-								onChange={this.stageYear}
-								onBlur={this.flushYear}
-								onPressEnter={this.flushYear}
-								placeholder='年'
-							/>
+							{this.scrubCell('y', (
+								<InputNumber
+									style={{width: '100%'}}
+									size='small'
+									min={1}
+									max={this.datetime.ad < 0 ? 12999 : 16799}
+									value={this.state.yearDraft !== null ? this.state.yearDraft : this.datetime.year}
+									onChange={this.stageYear}
+									onBlur={this.flushYear}
+									onPressEnter={this.flushYear}
+									placeholder='年'
+								/>
+							))}
 						</Col>
 						{mdDom}
 					</Row>

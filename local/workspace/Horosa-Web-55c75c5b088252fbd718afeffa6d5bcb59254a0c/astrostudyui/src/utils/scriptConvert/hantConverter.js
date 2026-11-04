@@ -79,6 +79,19 @@ export function toHant(text){
 	return out;
 }
 
+// 古籍转换档(玄学史古籍原文 / 引文区域,见 hantRules 的 opts.classic):「范 / 里」缺省保留原字。缓存与通用档分开。
+let classicCache = new Map();
+export function toHantClassic(text){
+	const s = `${text === undefined || text === null ? '' : text}`;
+	if(!s || !HAN_RE.test(s)){ return s; }
+	const hit = classicCache.get(s);
+	if(hit !== undefined){ return hit; }
+	const out = applyHantDomainRules(s, base(s), { ...RULE_OPTS, classic: true });
+	if(classicCache.size >= CACHE_LIMIT){ classicCache = new Map(); }
+	classicCache.set(s, out);
+	return out;
+}
+
 // 一简多繁 / 繁 → 简 的逐字对照(由通用词典的词条按位对齐得出,惰性建一次):
 //   hant:简体字 → 它在各词里的繁体写法(历 → 曆 / 歷,发 → 發 / 髮,钟 → 鐘 / 鍾,里 → 裏 / 裡)
 //   hans:繁体字 → 它对应的简体字(鍾 → 钟 / 锺,後 → 后)

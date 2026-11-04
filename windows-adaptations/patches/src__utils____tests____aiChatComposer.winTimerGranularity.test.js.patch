@@ -1,0 +1,17 @@
+diff --git a/astrostudyui/src/utils/__tests__/aiChatComposer.test.js b/astrostudyui/src/utils/__tests__/aiChatComposer.test.js
+index 1e7ccd08..6a374ada 100644
+--- a/astrostudyui/src/utils/__tests__/aiChatComposer.test.js
++++ b/astrostudyui/src/utils/__tests__/aiChatComposer.test.js
+@@ -16,7 +16,11 @@ const { createGoalTask } = require('../aiAgent/goalRunner');
+ 
+ const chart = { id: 'local-1', sourceType: 'chart', title: '张三', record: { name: '张三' } };
+ const other = { id: 'local-2', sourceType: 'chart', title: '李四', record: { name: '李四' } };
+-const flush = ()=>new Promise((r)=>setTimeout(r, 15));
++// horosa_win_timer_granularity_v1(Windows 侧移植适配,同 aiChatCommandArgs;建议上游化):Windows 缺省计时器粒度 ≈15.6ms
++// (Node setTimeout(0) 中位 15.5ms,macOS ≈1ms)。`/合盘 @[命盘:…]` 在 handleSend 前要走两拍 setTimeout(0)(useChatAssist:
++// runCommand 先让切源 / 对方落地),合计 ≈31ms > 15ms ⇒ 全量并跑时「恰调用一次」类断言偶发看到 0 次(v3.13.1 全量实撞,单跑 3/3 绿)。
++// 保留原 15ms 墙钟再追加 3 拍宏任务(每拍至少放行产品侧一拍 setTimeout(0)):macOS 上只多等约 3ms,断言一字不改,判据零放宽。
++const flush = async ()=>{ await new Promise((r)=>setTimeout(r, 15)); for(let i = 0; i < 3; i++){ await new Promise((r)=>setTimeout(r, 0)); } };
+ let host;
+ beforeEach(()=>{ window.localStorage.clear(); host = document.createElement('div'); document.body.appendChild(host); });
+ afterEach(()=>{ act(()=>{ ReactDOM.unmountComponentAtNode(host); }); host.remove(); });

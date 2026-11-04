@@ -849,7 +849,11 @@ class ZiWeiInput extends Component{
 						</Tooltip>
 						<Checkbox checked={this.state.showLaiyin} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowLaiyin', 'showLaiyin', e.target.checked)}>来因标记</Checkbox>
 						<Checkbox checked={this.state.showBodyPalace} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowBodyPalace', 'showBodyPalace', e.target.checked)}>身宫标记</Checkbox>
-						<Checkbox checked={this.state.showSfszLine} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowSfszLine', 'showSfszLine', e.target.checked)}>对宫指示线</Checkbox>
+						{/* 对宫指示线同属三合盘专属(ZWCenterHouse.drawSanFanSiZeng 只在三合盘画),四化盘照庙旺标注置灰 */}
+						<Tooltip title={zwchart === ZWCont.ZWChart_SiHua ? '四化盘不画对宫指示线;「盘式」切到三合盘后点宫生效' : ''}>
+							<Checkbox checked={this.state.showSfszLine} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowSfszLine', 'showSfszLine', e.target.checked)}
+								disabled={zwchart === ZWCont.ZWChart_SiHua}>对宫指示线</Checkbox>
+						</Tooltip>
 						<Checkbox checked={this.state.zihuaAlways} onChange={(e)=>this.onDisplayFlagToggle('ziweiZihuaAlways', 'zihuaAlways', e.target.checked)}>自化常显</Checkbox>
 						<Checkbox checked={this.state.sixEvilBlack} onChange={(e)=>this.onDisplayFlagToggle('ziweiSixEvilBlack', 'sixEvilBlack', e.target.checked)}>六煞黑字</Checkbox>
 						<Checkbox checked={this.state.showShaHuagai} onChange={(e)=>this.onDisplayFlagToggle('ziweiShowShaHuagai', 'showShaHuagai', e.target.checked)}>盖劫咸池</Checkbox>

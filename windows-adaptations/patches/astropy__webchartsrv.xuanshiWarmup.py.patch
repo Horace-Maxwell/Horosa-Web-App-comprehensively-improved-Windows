@@ -1,5 +1,5 @@
 diff --git a/astropy/websrv/webchartsrv.py b/astropy/websrv/webchartsrv.py
-index c179683c..c9dcdde2 100644
+index cbf497c1..b1b38bab 100644
 --- a/astropy/websrv/webchartsrv.py
 +++ b/astropy/websrv/webchartsrv.py
 @@ -85,6 +85,31 @@ CORE_SERVICE_SPECS = [

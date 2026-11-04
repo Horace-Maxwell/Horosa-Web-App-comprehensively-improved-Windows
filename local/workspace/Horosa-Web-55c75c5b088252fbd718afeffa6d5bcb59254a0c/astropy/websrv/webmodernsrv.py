@@ -55,7 +55,7 @@ class ModernAstroSrv:
                         'starOrb', 'starOrbMode', 'antisciaOrb', 'viaCombustaVariant',
                         # WP-2~8 per-chart 实例键(perchart 从每盘 data dict 读;缺省不塞=零变)
                         'combustOwnChariotExempt', 'westLilithType', 'topocentricMoon',
-                        'stationMarking', 'planetaryHourMethod', 'vulcanCalc',
+                        'stationMarking', 'planetaryHourMethod', 'sunriseMode', 'vulcanCalc',
                         'hermeticLotsReversal', 'erosConstruction', 'lotFortuneVariant',
                         'lotFatherCombustAlt', 'lotProjection',
                         'siderealAyanamsa', 'userAyanT0', 'userAyanDeg',

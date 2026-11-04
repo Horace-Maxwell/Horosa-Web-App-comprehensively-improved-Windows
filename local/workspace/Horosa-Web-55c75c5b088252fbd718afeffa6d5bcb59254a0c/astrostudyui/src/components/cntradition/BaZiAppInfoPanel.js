@@ -400,7 +400,9 @@ class BaZiFlowGodsSection extends Component{
 		}
 		return nextProps.value !== this.props.value
 			|| nextProps.flowSelection !== this.props.flowSelection
-			|| nextProps.shenshaGroups !== this.props.shenshaGroups;
+			|| nextProps.shenshaGroups !== this.props.shenshaGroups
+			// horosa_slice_prop_cover_v1:上游 v3.13.1 起 renderFlowGods 读天医口径,切片必须收到并比较它
+			|| nextProps.tianyiSchool !== this.props.tianyiSchool;
 	}
 
 	renderFlowGods(bazi){
@@ -425,7 +427,7 @@ class BaZiFlowGodsSection extends Component{
 						const gan = pgan(p);
 						const zhi = pzhi(p);
 						if(!gan && !zhi){ return null; }
-						const gods = filterShenShaByGroups(calcFlowShenSha(four, gan, zhi), this.props.shenshaGroups);
+						const gods = filterShenShaByGroups(calcFlowShenSha(four, gan, zhi, { tianyiSchool: this.props.tianyiSchool }), this.props.shenshaGroups);
 						return <p key={label}><span className="horosa-bazi-flow-key">{label}<b>{gan}{zhi}</b></span><span className="horosa-bazi-flow-gods">{gods.length ? gods.join('、') : '—'}</span></p>;
 					}) : <p className="horosa-bazi-flow-empty">在下方大运/流年/流月/流日栏点选，查看其神煞。</p>}
 				</div>
@@ -491,6 +493,7 @@ class BaZiAppInfoPanel extends Component{
 						value={this.props.value}
 						flowSelection={this.props.flowSelection}
 						shenshaGroups={this.props.shenshaGroups}
+						tianyiSchool={this.props.tianyiSchool}
 					/>
 				)}
 				<BaZiInfoAuxSection value={this.props.value} />

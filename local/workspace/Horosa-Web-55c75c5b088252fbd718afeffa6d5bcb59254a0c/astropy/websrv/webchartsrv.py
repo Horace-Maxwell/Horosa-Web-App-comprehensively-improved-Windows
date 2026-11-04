@@ -162,7 +162,7 @@ _PY_CHART_TIMING = os.environ.get('HOROSA_PY_CHART_TIMING', '0').lower() in ('1'
 # 三端点(/chart /chart13 /chart12)与 helper.getChartObj 同清单;缺谁谁在派生链静默回默认。
 _CLASSICAL_ECHO_KEYS = (
     'termsVariant', 'leoBoundFirst', 'geminiBoundEmended',
-    'triplicity', 'lotReversal', 'westNodeType', 'sectBuffer',
+    'triplicity', 'lotReversal', 'westNodeType', 'sectBuffer', 'sunriseMode',
     'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb',
     'vocMode', 'vocIncludeOuter', 'starOrb', 'starOrbMode',
     'antisciaOrb', 'viaCombustaVariant',

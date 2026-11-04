@@ -117,26 +117,29 @@ class AstroTriplicityRulers extends Component{
 		const opts = this.state.opts;
 		const d = this.state.data;
 		return (
-			<div className={`${styles.scrollbar}`} style={{ height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', padding: '4px 8px 12px' }}>
-				<div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>三分主星推运<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', marginLeft: 8, fontWeight: 400 }}>区间光体三分主星 · 人生阶段</span></div>
-				<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: '17px', marginBottom: 10 }}>昼生看太阳所在座、夜生看月亮所在座，取该座三颗三分主星按昼夜换序分掌人生各阶段；落角宫主鼎盛、果宫主衰减。</div>
+			<div className={`${styles.scrollbar} horosa-balbillus-shell`} style={{ height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', paddingRight: 8 }}>
+				{/* 与界推运等表页同一套头卡(标题 · 副标题 · 说明 · 控件) */}
+				<div className="horosa-balbillus-head">
+				<div className="horosa-balbillus-title">三分主星推运<span className="horosa-balbillus-sub">区间光体三分主星 · 人生阶段</span></div>
+				<div className="horosa-balbillus-desc" style={{ marginBottom: 10 }}>昼生看太阳所在座、夜生看月亮所在座，取该座三颗三分主星按昼夜换序分掌人生各阶段；落角宫主鼎盛、果宫主衰减。</div>
 				<div style={{ marginBottom: 12 }}>
-					<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', marginBottom: 4 }}>三分体系</div>
+					<div className="horosa-balbillus-label">三分体系</div>
 					<XQSegmented value={opts.system} options={TRIP_SYSTEM_OPTIONS} onChange={(e) => this.changeOpt('system', e && e.target ? e.target.value : e)} />
 					<div style={{ fontSize: 11, color: 'var(--horosa-text-secondary)', lineHeight: '16px', marginTop: 6 }}>{TRIPLICITY_SYSTEM_HINTS[opts.system] || TRIPLICITY_SYSTEM_HINTS.Dorothean}</div>
 				</div>
 				<Row gutter={12} style={{ marginBottom: 12 }}>
 					<Col span={14}>
-						<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', marginBottom: 4 }}>划分法</div>
+						<div className="horosa-balbillus-label">划分法</div>
 						<Select value={opts.division} onChange={(v) => this.changeOpt('division', v)} style={{ width: '100%' }}>
 							{Object.keys(TRIPLICITY_DIVISIONS).map((k) => <Option value={k} key={k}>{TRIPLICITY_DIVISIONS[k]}</Option>)}
 						</Select>
 					</Col>
 					<Col span={10}>
-						<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', marginBottom: 4 }}>寿命基准（岁）</div>
+						<div className="horosa-balbillus-label">寿命基准（岁）</div>
 						<InputNumber value={opts.lifespan} min={30} max={120} style={{ width: '100%' }} onChange={(v) => this.changeOpt('lifespan', v)} />
 					</Col>
 				</Row>
+				</div>
 				{d && d.periods && d.periods.length ? (
 					<div>
 						<div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>{d.isDiurnal ? '昼' : '夜'}生盘 · 区间光体 <b>{d.sectLightCn}</b>（{d.signCn}）</div>

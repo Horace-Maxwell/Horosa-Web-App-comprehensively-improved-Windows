@@ -328,6 +328,7 @@ const CLS_CALIBRE_LABELS = {
 	triplicity: { label: '三分集', map: { Ptolemaic: '托勒密二主', PtolemaicWaterVariant: '托勒密·水象变体' } },
 	westNodeType: { label: '月交点', map: { true: '真交点' } },
 	sectBuffer: { label: '区分判定', map: { ptolemy5: 'Ptolemy 5°缓冲', apparent: '视地平(含折射)' } },
+	sunriseMode: { label: '日出 / 日没口径', map: { apparent: '日面上缘·含大气折射' } },
 	lotReversal: { label: '福点', map: { 0: '恒昼式(不随昼夜反转)' } },
 	houseCuspAdvance: { label: '落宫宫头前移', fmt: (v) => `${v}°` },
 	cazimiOrb: { label: '日心 cazimi', fmt: (v) => `${Math.round(Number(v) * 60)}′` },
@@ -372,7 +373,7 @@ const CLS_CALIBRE_LABELS = {
 // 头七键的「默认值」(与 classicalChartGlobals 同表;数值键由 helper 判非默认,此表只管头键)。
 const CLS_CALIBRE_HEAD_DEFAULTS = {
 	termsVariant: 0, geminiBoundEmended: 0, leoBoundFirst: 0, triplicity: 'Dorothean',
-	westNodeType: 'mean', sectBuffer: 'geo', lotReversal: 1,
+	westNodeType: 'mean', sectBuffer: 'geo', sunriseMode: 'center', lotReversal: 1,
 };
 
 function classicalCalibrePhrase(key, value){
@@ -2125,6 +2126,30 @@ export const PREDICTIVE_METHOD_NOTES = {
 		// 后端只求**整回归**时刻,不产 1/4、1/2 周期行。
 		'多重回归：土星 / 木星 / 月交回到本命黄经的整回归时刻表(第 n 回 = 走满 n 圈;逆行同一回三过逐过列出;黄道与平 / 真交点随本盘)。',
 		'读法：整回归=大周期重启(如土星回归约 29.5 岁);两次回归之间可自行取中点作阶段参照,表内不列。',
+	],
+	neroman: [
+		// 实现 = astrostudy/directed_figures:弧 = K·ln(1 + t ⁄ t0),t 为回归年年龄;赤黄换算用平黄赤交角。
+		'演进推运(Néroman)：对数时标的推运,弧 = K × ln(1 + 年龄 ⁄ t0)(缺省 K = 273.18、t0 = 0.75 年即孕期),出生时每年约 364°、越老越慢;全部点赤经逆行减弧再换回黄道,天顶称 Fatum、上升称 Sensitif。',
+		'换到赤道两档:按黄经度数 = 把点当黄道度数取赤经、减弧换回黄经(黄纬留本命值);保留本命赤纬 = 真实赤经减弧、赤纬不变换回黄经黄纬。上升 / 天顶两档都按黄经度数。',
+		'读法：演进天顶 / 上升过本命星与四轴的年龄为人生节点(天顶约 2 / 10 / 38 岁回本位);演进星对本命星成相位为该段主题。',
+	],
+	bezzafigure: [
+		// 实现 = astrostudy/directed_figures:真太阳弧(赤经)= 年龄对应的太阳赤经走过量;时位 = Placidus 世俗位置以时计。
+		'推运图(Bezza)：以真太阳弧(赤经)为推运弧,整张盘随周日运动推进;每点按自身半弧走(地平上用昼半弧、地平下用夜半弧,每时 = 半弧的六分之一),时位天顶 0、下降 6、天底 12、上升 18。',
+		'福点 / 精神点取在世俗时位上(上升 18 时 ± 月日时位差),推进时按天赤道上的点走(每时 15°)。接触四类:世俗相位(动点推进后与本命点时位差 0 / 4 / 6 / 8 / 12 时)、黄道相位(本命星的黄道相位点推进到某点本命时位)、子午映点 / 地平映点(两点时位对子午轴 / 地平轴对称)。',
+		'读法：当前弧前后容许度内的接触即近期应期;弧换年龄按真太阳弧逆算。',
+	],
+	jayprofection: [
+		// 实现 = astrostudy/directed_figures:RAMC_n = RAMC + 30°·n,宫制固定 Placidus(与盘面宫制无关)。
+		'周日小限(Jay)：天球按周日运动每年转一宫(赤经中天 +30°,十二年一周),上升 / 天顶取转动后的轴;诸星保持本命 Placidus 世俗位置随天球转动,取同一世俗位置的黄道点;福点按世俗时位取。',
+		'落宫 = 小限上升落在本命盘第几宫(按本盘宫制)。非整年按回归年年龄连续转动。',
+		'读法：小限上升 / 天顶所临本命宫与所遇本命星定该年主题;满十二年重返本命位置。',
+	],
+	michon: [
+		// 实现 = astrostudy/directed_figures:恒星黄道 = J2000.0 时 26°37′18″ + 标准岁差;五族按谐波。
+		'双黄道(Michon)：回归黄道与恒星黄道叠在一起看,回归第 k 座叠恒星第 k − 1 座(回归白羊 ↔ 恒星双鱼 …);每个叠合的两颗守护星(现代守护)本命距角落在哪一谐波族即该叠合的「色」。',
+		'五族:12 谐(30° 倍数)、18 谐(20° 倍数)、20 谐(18° 倍数)、14 谐(360°⁄14 倍数)、24 谐奇族(15° 奇数倍);容许度内多族同中取偏差最小者。互动 = 两个叠合之间回归守护对与恒星守护对各自的族,共 66 组。',
+		'读法：有族的叠合 / 互动为盘中被点亮的主题;水金互换开时金牛 / 天秤与双子 / 处女的守护对调。',
 	],
 };
 

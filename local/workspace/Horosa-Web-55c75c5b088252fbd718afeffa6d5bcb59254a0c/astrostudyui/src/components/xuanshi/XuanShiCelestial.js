@@ -284,7 +284,7 @@ export default class XuanShiCelestial extends React.Component {
 									<div key={e.event_id} className="xuanshi-card is-link" style={{ padding: '7px 11px', display: 'flex', alignItems: 'center', gap: 10 }} onClick={() => this.setState({ selected: e })}>
 										<span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--vermilion)', fontFamily: 'var(--xs-serif)', minWidth: 64, fontSize: 13 }}>{e.modern_date_disp || (e.year != null ? (e.year < 0 ? `前${-e.year}` : e.year) : '—')}</span>
 										<span className="xuanshi-chip is-vermilion">{e.omen}</span>
-										<span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--ink-soft)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.original || e.date_phrase || e.interpretation || ''}</span>
+										<span className={e.original ? 'horosa-script-classic' : undefined} style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--ink-soft)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.original || e.date_phrase || e.interpretation || ''}</span>
 										{e.history ? <span className="xuanshi-chip is-ink">{`《${e.history}》`}</span> : null}
 									</div>
 								))}
@@ -341,7 +341,7 @@ export default class XuanShiCelestial extends React.Component {
 		const field = (label, val) => (val ? (
 			<div style={{ marginBottom: 13 }}>
 				<div className="xuanshi-stat-label" style={{ textAlign: 'left' }}>{label}</div>
-				<div className="xuanshi-prose" style={{ marginTop: 4 }} dangerouslySetInnerHTML={{ __html: marked.parse(collapseSoftBreaks(String(val)), { gfm: true, breaks: false }) }} />
+				<div className={`xuanshi-prose${label === '原文' ? ' horosa-script-classic' : ''}`} style={{ marginTop: 4 }} dangerouslySetInnerHTML={{ __html: marked.parse(collapseSoftBreaks(String(val)), { gfm: true, breaks: false }) }} />
 			</div>
 		) : null);
 		const metaText = (label, val) => (val && String(val).trim() ? (
@@ -482,7 +482,7 @@ export default class XuanShiCelestial extends React.Component {
 										{e.dynasty ? <span className="xuanshi-chip is-ink">{e.dynasty}</span> : null}
 										{e.modern_date_disp ? <span className="xuanshi-chip is-gold" title={celestialCalendarLabel(e) === '儒略历' ? '史料所载儒略历日期(1582-10-15 改历之前);带儒略日的条目才是格里历' : undefined}>{celestialDateWithCalendar(e)}</span> : null}
 									</div>
-									<div className="xuanshi-stat-sub" style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--ink-soft)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+									<div className={`xuanshi-stat-sub${e.original ? ' horosa-script-classic' : ''}`} style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--ink-soft)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
 										{e.original || e.interpretation || e.date_phrase || ''}
 									</div>
 								</div>
@@ -501,7 +501,7 @@ export default class XuanShiCelestial extends React.Component {
 					<div className="xuanshi-micro-hover" style={this.state.hoverPos ? { left: this.state.hoverPos.left, top: this.state.hoverPos.top } : undefined}>
 						{this.state.hover.omen ? <span className="xuanshi-chip is-jade" style={{ marginBottom: 8, display: 'inline-block' }}>{this.state.hover.omen}</span> : null}
 						<div className="xuanshi-mh-field"><div className="k">日期</div><div className="v">{this.state.hover.date_phrase || '—'}{this.state.hover.modern_date_disp ? ` · ${celestialDateWithCalendar(this.state.hover, { prefix: true })}` : ''}</div></div>
-						{this.state.hover.original ? <div className="xuanshi-mh-field"><div className="k">原文</div><div className="v" style={{ fontFamily: 'var(--xs-serif)' }}>{collapseSoftBreaks(this.state.hover.original)}</div></div> : null}
+						{this.state.hover.original ? <div className="xuanshi-mh-field"><div className="k">原文</div><div className="v horosa-script-classic" style={{ fontFamily: 'var(--xs-serif)' }}>{collapseSoftBreaks(this.state.hover.original)}</div></div> : null}
 						{this.state.hover.modern && !nearSame(this.state.hover.modern, this.state.hover.original) ? <div className="xuanshi-mh-field"><div className="k">白话译文</div><div className="v" style={{ borderLeft: '3px solid var(--jade)', paddingLeft: 8 }}>{collapseSoftBreaks(this.state.hover.modern)}</div></div> : null}
 						{this.state.hover.interpretation ? <div className="xuanshi-mh-field"><div className="k">解读</div><div className="v" style={{ color: 'var(--jade)' }}>{collapseSoftBreaks(this.state.hover.interpretation)}</div></div> : null}
 						<div className="xuanshi-mh-meta">{this.state.hover.source_label || (this.state.hover.history ? `《${this.state.hover.history}》` : '')}{this.state.hover.event_id ? `${(this.state.hover.source_label || this.state.hover.history) ? ' · ' : ''}事件ID ${this.state.hover.event_id}` : ''}</div>

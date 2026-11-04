@@ -55,7 +55,7 @@ const DEFAULT_GLOBAL_SYNC_KEYS = ['termsVariant', 'geminiBoundEmended', 'westNod
 	// 天文口径批(同为非流派绑定键)
 	'combustOwnChariotExempt', 'westLilithType', 'topocentricMoon', 'stationMarking',
 	'hermeticLotsReversal', 'erosConstruction', 'lotFortuneVariant', 'lotFatherCombustAlt', 'lotProjection',
-	'dignityDebilities', 'almutenTripMode', 'planetaryHourMethod',
+	'dignityDebilities', 'almutenTripMode', 'planetaryHourMethod', 'sunriseMode',
 	'orbSystem', 'luminaryOrbBonus',
 	'aspectIncludeCusps', 'aspectIncludeLots', 'aspectIncludeMidpoints',
 	'solarReturnVariant', 'returnLatitudeMode',

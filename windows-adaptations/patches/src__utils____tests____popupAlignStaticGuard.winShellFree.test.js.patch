@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js b/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js
-index 2d6021ad..b60a8643 100644
+index 3bb7a86d..babd1137 100644
 --- a/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js
 +++ b/astrostudyui/src/utils/__tests__/popupAlignStaticGuard.test.js
 @@ -28,22 +28,49 @@ const EXEMPT = [
@@ -67,8 +67,8 @@ index 2d6021ad..b60a8643 100644
  }
  
  // 🔴 判定必须按**写回点**粒度,不能按行。
-@@ -155,16 +182,21 @@ const POINTER_EXEMPT = {
- 	'components/germany/UranianModulusDial.js': '同 UranianCosmogram',
+@@ -156,16 +183,21 @@ const POINTER_EXEMPT = {
+ 	'components/comp/DateTimeSelector.js': '按住拖动调时间单位:只取同一指针前后两次 clientX / clientY 之差计档(两端同域相减),换域只改每档手感、不影响落到哪个值',
  };
  
 +// horosa_win_shell_free_scan_v1(第二处,v3.11.0 上游新增的 T6 指针读数扫描同病同修:grep 外壳在 Windows 必失效 ⇒ 空集假绿)。
@@ -97,7 +97,7 @@ index 2d6021ad..b60a8643 100644
  	});
  	return files;
  }
-@@ -229,8 +261,15 @@ describe('T6 指针 / 物理视口读数必须过换域件', () => {
+@@ -230,8 +262,15 @@ describe('T6 指针 / 物理视口读数必须过换域件', () => {
  	});
  
  	it('🔴 可拖动对话框只许用本仓的 comp/DragModal(第三方同名小件把视觉域位移直接写进 translate,缩放档下不跟手)', () => {

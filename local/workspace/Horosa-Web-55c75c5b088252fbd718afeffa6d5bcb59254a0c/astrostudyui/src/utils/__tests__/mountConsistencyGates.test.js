@@ -53,6 +53,8 @@ reg('components/dunjia/DunJiaCalc.js', ['godsPreset', 'anGanMode', 'feiXingShun'
 // 龟策:流派/起卦/大定表在 guiceSchools+engine 消费。
 reg('components/guice/guiceSchools.js', ['yanshuFa', 'qiguaShu', 'shiyingSet', 'dadingTable', 'shuXi', 'shiFang', 'shenSha']);
 reg('components/xiaoliuren/XiaoLiuRenMain.js', ['showOneThree']);
+// 推运图族四法:重算分派(regenChart)把记录交给 directedFigureOptsFromSettings,齿轮键在那里逐个读成请求设置。
+reg('components/astro/AstroDirectedFigures.js', ['nerK', 'nerT0', 'nerKeepDec', 'nerOrb', 'bezzaOrb', 'jayFrom', 'michonOrb', 'michonSwap', 'michonEqual']);
 reg('components/xiaochengtu/XiaoChengTuMain.js', ['yongGong', 'piKoujing']);
 reg('components/feigong/FeiGongMain.js', ['mingAge', 'mingGender', 'liuYueMonth', 'koujing']);
 // 通书:列宿用法在 tongshuSchools,命年在玄空层。

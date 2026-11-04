@@ -231,6 +231,7 @@ const TECHNIQUE_CONFIG = {
 			{ key: 'palaces', label: '宫位' },
 			{ key: 'stars', label: '星禽' },
 			{ key: 'swallow', label: '吞啖' },
+			{ key: 'xqYunxian', label: '运限' },
 			{ key: 'yanfa', label: '演法' },
 		],
 	},
@@ -3547,7 +3548,8 @@ class KinAstroMain extends Component{
 			return sectionByTitle(sections, ['四位起数', '河洛纳音', '完整结构', '64钥匙']);
 		}
 		if(tabKey === 'core'){
-			return sectionByTitle(sections, ['命身刻分', '神数号码', '算盘定部', '计算摘要']);
+			// 六亲佐证=铁板左栏六亲四项的考刻资料回显(扣入法据父母生年调刻 / 分,与命身刻分同看);曾无页签收,填了屏上不见
+			return sectionByTitle(sections, ['命身刻分', '神数号码', '算盘定部', '计算摘要', '六亲佐证']);
 		}
 		if(tabKey === 'twoGan'){
 			return sectionByTitle(sections, ['两头钳']);
@@ -3580,7 +3582,8 @@ class KinAstroMain extends Component{
 			return sectionByTitle(sections, ['条文', '64钥匙', '元会运世']);
 		}
 		if(tabKey === 'palaces'){
-			return sectionByTitle(sections, ['三宫', '十二宫', '十二宫条文'].concat((sections || []).map((s)=>s.title).filter((title)=>/[宫宮]$/.test(title))));
+			// 紫微安星(扣入法各星落支)名不以「宫」收尾,曾被下方按名尾收宫的规则漏掉
+			return sectionByTitle(sections, ['三宫', '十二宫', '十二宫条文', '紫微安星'].concat((sections || []).map((s)=>s.title).filter((title)=>/[宫宮]$/.test(title))));
 		}
 		if(tabKey === 'verses'){
 			return sectionByTitle(sections, ['条文', '十二宫条文', '条文库', '判断', '六段断语']);
@@ -3607,7 +3610,12 @@ class KinAstroMain extends Component{
 			return sectionByTitle(sections, ['代码查询', '批量代码查询']);
 		}
 		if(tabKey === 'stars'){
-			return sectionByTitle(sections, ['三星', '衍生星', '二十八宿禽']);
+			// 后端「三星」已改名「三星·元辰」(加元辰禽),旧名留作兼容
+			return sectionByTitle(sections, ['三星', '三星·元辰', '衍生星', '二十八宿禽']);
+		}
+		if(tabKey === 'xqYunxian'){
+			// 演禽系统A禄命:大限 / 流年小限 / 孤辰寡宿(神煞·待校)——后端新增后页签映射曾没跟上,只进 AI 快照、屏上不见
+			return sectionByTitle(sections, ['大限', '流年小限', '神煞·待校']);
 		}
 		if(tabKey === 'swallow'){
 			return sectionByTitle(sections, ['吞啖合战', '情性与格局']);

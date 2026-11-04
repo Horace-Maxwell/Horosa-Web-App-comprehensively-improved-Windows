@@ -56,6 +56,14 @@ export function opToText(cond) {
 			return `迁移宫（对宫）有 ${joinStars(cond.stars)}`;
 		case 'sandwichHua':
 			return `命宫被生年${HUA_NAMES[cond.hua] || ('化' + cond.hua)}相夹`;
+		case 'noneInTrine':
+			return `${joinStars(cond.stars)} 皆不会命三方`;
+		case 'notInMing':
+			return `${cond.star}不在命宫`;
+		case 'yearGan':
+			return `生年天干为 ${joinStars(cond.gans)}`;
+		case 'female':
+			return '女命';
 		default:
 			return '';
 	}

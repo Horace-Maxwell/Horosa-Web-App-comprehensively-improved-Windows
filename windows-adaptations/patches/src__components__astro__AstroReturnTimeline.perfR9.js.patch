@@ -1,8 +1,8 @@
 diff --git a/astrostudyui/src/components/astro/AstroReturnTimeline.js b/astrostudyui/src/components/astro/AstroReturnTimeline.js
-index 67f96dd2..1665576f 100644
+index 144796a2..efa8d50c 100644
 --- a/astrostudyui/src/components/astro/AstroReturnTimeline.js
 +++ b/astrostudyui/src/components/astro/AstroReturnTimeline.js
-@@ -41,6 +41,7 @@ export async function buildReturnTimelineSnapshotText(chartObj, opts){
+@@ -43,6 +43,7 @@ export async function buildReturnTimelineSnapshotText(chartObj, opts){
  	if(tail.length){ lines.push(''); lines.push(...tail); }
  	return lines.join('\n');
  }
@@ -10,7 +10,7 @@ index 67f96dd2..1665576f 100644
  
  class AstroReturnTimeline extends Component{
  	constructor(props){
-@@ -108,7 +109,8 @@ class AstroReturnTimeline extends Component{
+@@ -110,7 +111,8 @@ class AstroReturnTimeline extends Component{
  			});
  			if(!this._mounted || seq !== this._loadSeq) return;
  			clearLoadFailure(this);

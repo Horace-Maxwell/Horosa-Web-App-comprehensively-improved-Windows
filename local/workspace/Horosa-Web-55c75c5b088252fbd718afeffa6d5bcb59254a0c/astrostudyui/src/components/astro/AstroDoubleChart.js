@@ -156,7 +156,7 @@ class AstroDoubleChart extends Component{
 		// 切回 tab 又无 React 更新可触发重画 → 表新盘旧;尺寸变化(含 0→非0)时补一次 drawChart。
 		this._detachSvgResize = watchChartSvgResize(this.state.chartid, this.drawChart);
 		// 主题重画(单源订阅):componentDidUpdate 会 drawChart(签名含主题指纹,必真重画)
-		this._detachAppearance = watchChartAppearance(()=>{ this._lastDrawnSig = null; this.forceUpdate(); });
+		this._detachAppearance = watchChartAppearance(()=>{ this._lastDrawSig = null; this.forceUpdate(); });   // 签名字段是 _lastDrawSig(此前清错了名字,只靠签名里的主题指纹兜着)
 	}
 
 	componentDidUpdate(){

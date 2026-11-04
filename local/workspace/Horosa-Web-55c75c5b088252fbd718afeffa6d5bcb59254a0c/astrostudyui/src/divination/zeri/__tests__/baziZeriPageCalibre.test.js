@@ -65,13 +65,13 @@ describe('宿主:冻结 / 回写 / 方案', ()=>{
 		page.southMonth = 'none';   // 扫描之后内嵌页又改了
 		h.onPickInterval({ start: '2026-01-15 10:00', pick: '2026-01-15 10:00' });
 		await Promise.resolve(); await Promise.resolve();
-		expect(applied[applied.length - 1]).toEqual({ southMonth: 'chong', minggongMethod: 'tongxing' });
+		expect(applied[applied.length - 1]).toEqual({ southMonth: 'chong', minggongMethod: 'tongxing', tianyiSchool: 'xieji' });
 		expect(h.baziHook.fun).toHaveBeenCalled();
 	});
-	test('方案:带页面键照方案回写;旧方案一个页面键都没带 → 出厂值;单改工作台参数不碰页面', ()=>{
-		const { h, applied } = mkHost({ southMonth: 'chong', minggongMethod: 'shufa' });
+	test('方案:带页面键照方案回写、缺的页面键逐键回出厂值;旧方案一个页面键都没带 → 全出厂值;单改工作台参数不碰页面', ()=>{
+		const { h, applied } = mkHost({ southMonth: 'chong', minggongMethod: 'shufa', tianyiSchool: 'ziping' });
 		h.onWorkbenchOptionsChange({ timeAlg: 1, southMonth: 'chong' }, { source: 'scheme' });
-		expect(applied.pop()).toEqual({ southMonth: 'chong' });
+		expect(applied.pop()).toEqual({ ...BAZI_PAGE_FACTORY, southMonth: 'chong' });   // 天医口径(方案里没有)回协纪,不沿用页面的子平
 		expect(h.state.options.southMonth).toBeUndefined();   // 页面键不住在工作台参数里
 		h.onWorkbenchOptionsChange({ timeAlg: 1 }, { source: 'scheme' });
 		expect(applied.pop()).toEqual(BAZI_PAGE_FACTORY);

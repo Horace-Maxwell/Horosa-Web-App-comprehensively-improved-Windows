@@ -54,13 +54,14 @@ export const PAGE_FACET_LOADERS = {
 	guazhan: ()=>import('../../components/guazhan/GuaZhanMain'),
 	acg: ()=>import('../../components/acg/AstroAcg'),
 	babylon: ()=>import('../../components/babylon/BabylonMain'),
+	draconic: ()=>import('../../components/auxchart/AstroDraconicLab'),
 	fengshui: ()=>import('../../components/fengshui/FengShuiMain'),
 };
 // 页面面的中文页名(审批卡标题 / 执行后的动作条摘要 / 账本同一套;合同看守:与载入表逐页对齐)
 export const PAGE_FACET_TITLES = {
 	liureng: '六壬', dunjia: '遁甲', taiyi: '太乙', sanshiunited: '三式', jinkou: '金口诀', wuzhao: '五兆', geomancy: '地占', tarot: '塔罗',
 	kinastro: '数算 / 其他命术(策天 · 演禽 · 一掌经等)', horary: '辅盘·卜卦盘', mundane: '辅盘·世俗盘', election: '辅盘·择日盘', tianxingzeri: '天星择日',
-	direction: '星运', guazhan: '六爻', acg: '辅盘·占星地图', babylon: '辅盘·巴比伦', fengshui: '风水',
+	direction: '星运', guazhan: '六爻', acg: '辅盘·占星地图', babylon: '辅盘·巴比伦', draconic: '辅盘·龙盘', fengshui: '风水',
 };
 // 不进页面面的页(须写理由;合同看守:载入表 ∪ 本表 = 登记表)
 export const PAGE_FACET_EXCLUDED = {

@@ -70,6 +70,7 @@ import { useChatOrchestrate } from './useChatOrchestrate';
 import OrchestrationPanel from './OrchestrationPanel';
 import BestOfCards from './BestOfCards';
 import BestOfPanel from './BestOfPanel';
+import SystemOnePanel from './SystemOnePanel';
 
 export const CHAT_ASSIST_VERSION = 1;
 
@@ -734,7 +735,7 @@ export function useChatAssist(deps){
 		return v > 0 ? v : undefined;
 	})();
 	// 按任务用模型:六槽全空=现状;卡片只读渲染,改动才写键
-	const settingsPanels = [<ChatContextPolicyPanel key="context-policy" model={model} numCtx={numCtx} />, <ChatModelRoutesPanel key="model-routes" providerProfiles={depsRef.current.providerProfiles} />, <SkillPackPanel key="skill-packs" bundles={depsRef.current.bundles} materials={depsRef.current.materials} reloadBundles={depsRef.current.reloadBundles} />, <PersonaMemoryPanel key="persona-memory" onInit={runInit} initDraft={initDraft} onExtract={runExtract} extracting={extracting} activeSource={depsRef.current.activeSource} activeConversation={depsRef.current.activeConversation} selectedTechniqueKeys={depsRef.current.selectedTechniqueKeys} onSaveSessionPersona={saveSessionPersona} />, <BestOfPanel key="best-of" providerProfiles={depsRef.current.providerProfiles} />];
+	const settingsPanels = [<ChatContextPolicyPanel key="context-policy" model={model} numCtx={numCtx} />, <ChatModelRoutesPanel key="model-routes" providerProfiles={depsRef.current.providerProfiles} />, <SkillPackPanel key="skill-packs" bundles={depsRef.current.bundles} materials={depsRef.current.materials} reloadBundles={depsRef.current.reloadBundles} />, <PersonaMemoryPanel key="persona-memory" onInit={runInit} initDraft={initDraft} onExtract={runExtract} extracting={extracting} activeSource={depsRef.current.activeSource} activeConversation={depsRef.current.activeConversation} selectedTechniqueKeys={depsRef.current.selectedTechniqueKeys} onSaveSessionPersona={saveSessionPersona} />, <BestOfPanel key="best-of" providerProfiles={depsRef.current.providerProfiles} />, <SystemOnePanel key="systemone" />];
 
 	// 状态栏(A2):全部数字与气泡同口径(computeSessionStats/estimateContextPct);审批档订阅 prefs 事件;uiPrefs chatAssist.statusBar=false 可关
 	const [agentState, setAgentState] = React.useState(()=>({ enabled: isAgentEnabled(), approval: getAgentApprovalMode() }));

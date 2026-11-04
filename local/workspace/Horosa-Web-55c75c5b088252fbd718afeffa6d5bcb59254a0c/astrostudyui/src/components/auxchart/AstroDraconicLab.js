@@ -8,32 +8,53 @@ function nodeTypeLabel(chartObj){
 import { Component } from 'react';
 import { saveDerivedAstroSnapshot } from '../../utils/derivedAstroSnapshot';
 import { Row, Col } from 'antd';
-import { XQButton as Button } from '../xq-ui';
+import { XQButton as Button, XQSelect as Select } from '../xq-ui';
 import AstroChart from '../astro/AstroChart';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from '../astro/AstroExtraCommon';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { markPanelReady } from '../../utils/perfMark';
+import { definePageSettings } from '../../utils/pageSettingsStore';
+
+// 宫位口径(两家):whole = 按龙盘上升所在整座等分(与调波 / 十二分 / 十三分盘同法,缺省);
+// shift = 本命宫头(按所选分宫制)一并减去北交点黄经 —— 整盘平移,每颗星的落宫与本命一致,只换星座。
+export const DRACONIC_HOUSE_MODES = ['whole', 'shift'];
+const DRACONIC_HOUSE_LABELS = { whole: '整宫(随龙盘上升)', shift: '本命宫头平移(保留分宫制)' };
+export const DRACONIC_PAGE_SETTINGS = definePageSettings('horosa.draconic.settings.v1', {
+	houseMode: { label: '宫位口径', def: 'whole', oneOf: DRACONIC_HOUSE_MODES },
+});
 
 class AstroDraconicLab extends Component {
 	constructor(props){
 		super(props);
-		this.state = { loading: false, result: null, requestKey: '' };
+		this.state = { loading: false, result: null, requestKey: '', houseMode: DRACONIC_PAGE_SETTINGS.load().houseMode };
 		this.load = this.load.bind(this);
+		this.changeHouseMode = this.changeHouseMode.bind(this);
 	}
 
 	componentDidMount(){ this._mounted = true; this.load(); }
 
 	componentWillUnmount(){ this._mounted = false; }
 
+	// 请求键带宫位口径:改口径即重取(宫位由后端按口径排)
+	requestKey(){
+		const base = chartRequestKey(this.props.value, 'draconic');
+		return base ? `${base}|houses=${this.state.houseMode}` : base;
+	}
+
+	changeHouseMode(houseMode){
+		DRACONIC_PAGE_SETTINGS.save({ houseMode });
+		this.setState({ houseMode }, ()=>this.load());
+	}
+
 	componentDidUpdate(){
-		const key = chartRequestKey(this.props.value, 'draconic');
+		const key = this.requestKey();
 		if(key && key !== this.state.requestKey && !this.state.loading){ this.load(); }
 	}
 
 	ensureLoaded(){
-		const key = chartRequestKey(this.props.value, 'draconic');
+		const key = this.requestKey();
 		if(key && key !== this.state.requestKey && !this.state.loading && !loadParked(this, key)){ setTimeout(this.load, 0); }
 	}
 
@@ -41,11 +62,12 @@ class AstroDraconicLab extends Component {
 		const seq = ++this._loadSeq || (this._loadSeq = 1);   // 只认最后一次:换盘 / 改参连发时先发的晚回不覆盖
 		const resultSig = natalSourceKey(this.props.value);   // 本次结果出自哪位命主(读时与当前盘比)
 		if(!this.props.value){ return; }
-		const key = chartRequestKey(this.props.value, 'draconic');
+		const key = this.requestKey();
+		const houseMode = this.state.houseMode;
 		this.setState({ loading: true });
 		try{
 			const data = await request(`${Constants.ServerRoot}/astroextra/draconic`, {
-				body: JSON.stringify({ ...chartParams(this.props.value), orb: 2 }),
+				body: JSON.stringify({ ...chartParams(this.props.value), orb: 2, draconicHouses: houseMode }),
 				timeoutMs: 30000,
 			});
 			if(!this._mounted || seq !== this._loadSeq) return;
@@ -60,6 +82,7 @@ class AstroDraconicLab extends Component {
 			saveDerivedAstroSnapshot('draconic', res.chart, this.props.fields, ()=>{
 				const out = ['[龙盘]'];
 				if(res.nodeLon != null){ out.push(`北交点 ${Number(res.nodeLon).toFixed(2)}°（${nodeTypeLabel(this.props.value)}） → 归零白羊 0°（龙盘基准）`); }   // 注明真 / 平交点
+				out.push(`宫位口径：${DRACONIC_HOUSE_LABELS[houseMode] || DRACONIC_HOUSE_LABELS.whole}${houseMode === 'shift' ? '，各星落宫与本命一致' : ''}`);
 				(res.positions || []).forEach((row)=>{
 					if(row && row.id){ out.push(`${row.id}：本命黄经 ${row.natalLon != null ? Number(row.natalLon).toFixed(2) : '—'}° → 龙盘 ${row.sign || ''}${row.signlon != null ? Number(row.signlon).toFixed(2) + '°' : ''}`); }
 				});
@@ -116,6 +139,11 @@ class AstroDraconicLab extends Component {
 								<div style={{ ...cardStyle, width: '100%', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
 									<span style={{ fontWeight: 600 }}>龙盘（Draconic）</span>
 									<span style={{ fontSize: 12, opacity: 0.7 }}>北交点 {result.nodeLon != null ? `${fmtNum(result.nodeLon)}°` : '-'}（{nodeTypeLabel(this.props.value)}） → 归零白羊 0°</span>
+									<label style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', fontSize: 12 }}>
+										<span>宫位口径</span>
+										<Select size="small" style={{ flex: 1 }} value={this.state.houseMode} onChange={this.changeHouseMode} dropdownMatchSelectWidth={false}
+											options={DRACONIC_HOUSE_MODES.map((v)=>({ value: v, label: DRACONIC_HOUSE_LABELS[v] }))} />
+									</label>
 								</div>
 								<div style={{ ...cardStyle, width: '100%' }}>
 									<div className="horosa-info-card-title">龙盘位置</div>

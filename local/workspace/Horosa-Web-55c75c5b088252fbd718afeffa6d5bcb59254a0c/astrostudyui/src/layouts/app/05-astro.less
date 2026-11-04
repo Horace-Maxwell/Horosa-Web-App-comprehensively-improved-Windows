@@ -1987,6 +1987,20 @@
         font-size: 12px;
         margin-left: auto;
     }
+    // 每阶主题另起一行(与年龄区间左缘对齐)
+    // 不用 :has(macOS 12 的 WebKit 不一定支持):整行本就放得下一行,允许折行只让主题行另起
+    .horosa-age-band {
+        flex-wrap: wrap;
+        row-gap: 2px;
+    }
+    .horosa-age-band .horosa-age-theme {
+        flex: 0 0 100%;
+        padding-left: 74px;
+        color: var(--horosa-text-soft);
+        font-size: 12px;
+        font-weight: 400;
+        line-height: 1.5;
+    }
 
     .horosa-workspace-shell .horosa-astro-content-scroll {
         display: grid;
@@ -2218,9 +2232,139 @@
         margin-bottom: 6px;
     }
 
+    // ===== 星运带盘子页右栏(progPageLayout:标题行 / 分节 / 单项设置同行;亮暗两套都只吃主题变量)=====
+    .horosa-workspace-shell .horosa-prog-side-title {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 4px 10px;
+        min-width: 0;
+    }
+    .horosa-workspace-shell .horosa-prog-side-name {
+        color: var(--horosa-text);
+        font-size: 16px;
+        font-weight: 680;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+    }
+    .horosa-workspace-shell .horosa-prog-side-sub {
+        color: var(--horosa-text-soft);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+    }
+    .horosa-workspace-shell .horosa-prog-side-note {
+        margin-left: auto;
+        color: var(--horosa-text-soft);
+        font-size: 12px;
+        white-space: nowrap;
+        cursor: help;
+        text-decoration: underline dotted;
+        text-underline-offset: 3px;
+    }
+    .horosa-workspace-shell .horosa-prog-side-note:hover {
+        color: var(--horosa-accent-strong);
+    }
+    // 分节线压薄:右栏固定头越矮,表格区越高(1440×900 下多露 2–3 行)
+    .horosa-workspace-shell .ant-divider.horosa-prog-side-divider {
+        margin: 8px 0 6px;
+        font-size: 12px;
+        line-height: 18px;
+    }
+    .horosa-workspace-shell .ant-divider.horosa-prog-side-divider .ant-divider-inner-text {
+        padding: 0 8px;
+    }
+    .horosa-workspace-shell .horosa-prog-side-divider-extra {
+        margin-left: 8px;
+        color: var(--horosa-text-soft);
+        font-size: 11px;
+        font-weight: 400;
+    }
+    .horosa-workspace-shell .horosa-prog-side .horosa-compact-time .horosa-field-hint {
+        margin: 3px 0 4px;
+        line-height: 16px;
+    }
+    .horosa-workspace-shell .horosa-prog-side .horosa-balbillus-label {
+        margin-bottom: 3px;
+    }
+    // 右栏紧凑时间块单行版(CompactTimeField inline):时间字段与步进行同一行,窄了自动折行;两者等高 32px
+    .horosa-workspace-shell .horosa-compact-time-inline {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 8px;
+    }
+    // 时间字段放得下「2026-11-01 07:41:00」+ 图标要 ≈ 182px(此前 168 → 1440 档秒位被 ⊖ 压住)
+    .horosa-workspace-shell .horosa-compact-time-inline > .horosa-compact-time-field {
+        flex: 1 1 186px;
+        min-width: 186px;
+    }
+    // 步进行最小宽 = ⊖30 + 步长 70(「四分钟」+ 箭头)+ ⊕30 + 此刻 44 + 确定 44 + 间距 → 约 234px;右栏 ≥ 428px 时与时间字段同一行
+    .horosa-workspace-shell .horosa-compact-time-inline > .horosa-time-adjust-inline {
+        flex: 1 1 234px;
+        min-width: 234px;
+        padding-top: 0;
+    }
+    .horosa-workspace-shell .horosa-compact-time-inline .horosa-time-adjust-inline .xq-datetime-adjust-only > .ant-col > .ant-row > .ant-col:nth-child(2) {
+        flex: 1 1 70px !important;
+        min-width: 70px !important;
+    }
+    .horosa-workspace-shell .horosa-compact-time-inline .horosa-time-adjust-inline .xq-datetime-adjust-only > .ant-col > .ant-row > .ant-col:nth-child(4),
+    .horosa-workspace-shell .horosa-compact-time-inline .horosa-time-adjust-inline .xq-datetime-adjust-only > .ant-col > .ant-row > .ant-col:nth-child(5) {
+        flex: 1 1 44px !important;
+        min-width: 44px !important;
+    }
+    .horosa-workspace-shell .horosa-compact-time-inline .horosa-unified-field {
+        padding: 0 8px;
+        gap: 6px;
+    }
+    .horosa-workspace-shell .horosa-compact-time-inline .horosa-unified-field {
+        min-height: 32px;
+        height: 32px;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+    }
+    // 紧凑档(SideColumn 判各表合计只超出一点时挂 .horosa-prog-dense):行距与卡内距收一档,让表放下而不是只滚几十像素
+    .horosa-workspace-shell .horosa-prog-dense .horosa-prog-card {
+        padding: 9px 10px !important;
+    }
+    .horosa-workspace-shell .horosa-prog-dense .horosa-prog-card .horosa-info-card-title {
+        margin-bottom: 6px;
+    }
+    .horosa-workspace-shell .horosa-prog-dense .horosa-small-table-scroll td,
+    .horosa-workspace-shell .horosa-prog-dense .horosa-small-table-scroll th {
+        padding-top: 3px !important;
+        padding-bottom: 3px !important;
+    }
+    .horosa-workspace-shell .horosa-prog-dense .horosa-age-band {
+        padding-top: 2px;
+        padding-bottom: 2px;
+    }
+
+    .horosa-workspace-shell .horosa-prog-control-inline {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+    .horosa-workspace-shell .horosa-prog-control-inline:last-child {
+        margin-bottom: 0;
+    }
+    .horosa-workspace-shell .horosa-prog-control-inline .horosa-balbillus-label {
+        flex: 0 0 auto;
+        min-width: 72px;
+        margin: 0;
+        white-space: nowrap;
+    }
+    .horosa-workspace-shell .horosa-prog-control-body {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
     // ===== Balbillus 树（v2.5.0 高标准美化）=====
+    // 顶部 12px 安全距离:与星运带盘页右栏(progPageLayout SIDE_TOP_PAD)同一档,头卡不贴页签栏
     .horosa-workspace-shell .horosa-balbillus-shell {
-        padding: 2px 12px 14px;
+        padding: 12px 12px 14px;
+        box-sizing: border-box;
     }
     .horosa-workspace-shell .horosa-balbillus-head {
         padding: 13px 15px;

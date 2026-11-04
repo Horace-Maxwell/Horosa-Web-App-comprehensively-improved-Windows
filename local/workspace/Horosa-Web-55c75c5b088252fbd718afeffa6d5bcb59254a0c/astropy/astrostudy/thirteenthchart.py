@@ -164,10 +164,15 @@ class DraconicChart:
     newlon = (lon - 北交点黄经) % 360。北交点自身落 0° 白羊（定义不变量）。
     """
 
-    def __init__(self, perchart: PerChart):
+    # 宫位口径:whole = 按龙盘上升所在整座等分(缺省,与调波 / 十二分 / 十三分盘同法);
+    # shift = 本命宫头(按请求的分宫制)一并减去北交点黄经 —— 整盘平移,每颗星的落宫与本命一致,只换星座。
+    HOUSE_MODES = ('whole', 'shift')
+
+    def __init__(self, perchart: PerChart, house_mode='whole'):
         self.perchart = perchart
         node = perchart.chart.getObject(const.NORTH_NODE)
         self.nodeLon = node.lon
+        self.houseMode = house_mode if house_mode in self.HOUSE_MODES else 'whole'
 
     def draconicObject(self, point):
         newlon = (point.lon - self.nodeLon) % 360
@@ -188,6 +193,14 @@ class DraconicChart:
         mclon = self.draconicObject(mc)
         desc.relocate((asclon + 180) % 360)
         ic.relocate((mclon + 180) % 360)
+
+        if self.houseMode == 'shift':
+            # 宫头随交点平移:宫宽与分宫制标记不变(inHouse 的整宫偏移判定照旧),不打 hsysDerived ——
+            # 前端照所选分宫制回显即是实情
+            for obj in self.perchart.chart.houses:
+                self.draconicObject(obj)
+            self.perchart.reinit()
+            return
 
         house1lon = (int(asclon / 30) % 12) * 30
 

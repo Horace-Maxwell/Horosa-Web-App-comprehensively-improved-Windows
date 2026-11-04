@@ -69,6 +69,10 @@ export const AI_EXPORT_CONTENT_AUDIT = {
 	keypoints: { at: 'v56', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
 	lunationphase: { at: 'v56', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
 	extrareturns: { at: 'v56', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
+	neroman: { at: 'v60', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
+	bezzafigure: { at: 'v60', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
+	jayprofection: { at: 'v60', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
+	michon: { at: 'v60', t1: 'ok:同源', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
 	/* ── kentang 后端族(sections 同源透传) ── */
 	shaozi: { at: 'v56', t1: 'ok:透传', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },
 	tieban: { at: 'v56', t1: 'ok:透传+框架段已入', t2: 'ok', t3: 'ok', t5: 'ok', note: '' },

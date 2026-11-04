@@ -3,6 +3,10 @@ from astrostudy.perchart import PerChart
 from astrostudy import helper
 from astrostudy.germany.midpoint import MidPoint
 
+
+# 跨盘五相位(合 / 六合 / 四分 / 三分 / 对冲)的容许度:两个方向同用这一个值。合盘关系量化的误差衰减按它折算(relative.score_relative_comp)。
+CROSS_ASPECT_ORB = 1.0
+
 class ChartComp:
 
     def __init__(self, inner, outer):
@@ -35,19 +39,19 @@ class ChartComp:
                 delta = abs(obj.lon - innerObj.lon)
                 if delta > 180:
                     delta = 360 - delta
-                if delta < 1:
+                if delta < CROSS_ASPECT_ORB:
                     natasp['aspect'] = 0
                     natasp['delta'] = delta
-                elif abs(delta - 60) < 1:
+                elif abs(delta - 60) < CROSS_ASPECT_ORB:
                     natasp['aspect'] = 60
                     natasp['delta'] = abs(delta - 60)
-                elif abs(delta - 90) < 1:
+                elif abs(delta - 90) < CROSS_ASPECT_ORB:
                     natasp['aspect'] = 90
                     natasp['delta'] = abs(delta - 90)
-                elif abs(delta - 120) < 1:
+                elif abs(delta - 120) < CROSS_ASPECT_ORB:
                     natasp['aspect'] = 120
                     natasp['delta'] = abs(delta - 120)
-                elif abs(delta - 180) < 1:
+                elif abs(delta - 180) < CROSS_ASPECT_ORB:
                     natasp['aspect'] = 180
                     natasp['delta'] = abs(delta - 180)
                 if natasp['aspect'] >= 0:
@@ -68,19 +72,19 @@ class ChartComp:
                 delta = abs(obj.lon - outerObj.lon)
                 if delta > 180:
                     delta = 360 - delta
-                if delta < 1:
+                if delta < CROSS_ASPECT_ORB:
                     natasp['aspect'] = 0
                     natasp['delta'] = delta
-                elif abs(delta - 60) < 1:
+                elif abs(delta - 60) < CROSS_ASPECT_ORB:
                     natasp['aspect'] = 60
                     natasp['delta'] = abs(delta - 60)
-                elif abs(delta - 90) < 1:
+                elif abs(delta - 90) < CROSS_ASPECT_ORB:
                     natasp['aspect'] = 90
                     natasp['delta'] = abs(delta - 90)
-                elif abs(delta - 120) < 1:
+                elif abs(delta - 120) < CROSS_ASPECT_ORB:
                     natasp['aspect'] = 120
                     natasp['delta'] = abs(delta - 120)
-                elif abs(delta - 180) < 1:
+                elif abs(delta - 180) < CROSS_ASPECT_ORB:
                     natasp['aspect'] = 180
                     natasp['delta'] = abs(delta - 180)
                 if natasp['aspect'] >= 0:

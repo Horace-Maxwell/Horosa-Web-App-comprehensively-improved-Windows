@@ -1,7 +1,6 @@
 import React, { Component } from 'react';
 import GeoCoordModal from '../amap/GeoCoordModal';
-import TimeFieldTrigger from './QuickTimeField';
-import PlusMinusTime from '../astro/PlusMinusTime';
+import CompactTimeField from './CompactTimeField';
 import XQIcon from '../xq-icons';
 import DateTime from './DateTime';
 
@@ -37,18 +36,6 @@ export function formatSpaceTime(fields, fallback = ''){
 }
 
 class SpaceTimePanel extends Component{
-	constructor(props){
-		super(props);
-		this.onQuickCommit = this.onQuickCommit.bind(this);
-	}
-
-	// 双击键入 14 位数字后的提交:与弹窗「确定」同一条路(宿主 onTimeChange,confirmed=true 即重算)
-	onQuickCommit(dt){
-		if(this.props.onTimeChange){
-			this.props.onTimeChange({ time: dt, ad: dt.ad, confirmed: true });
-		}
-	}
-
 	render(){
 		const fields = this.props.fields || {};
 		const value = this.props.value || buildDateTimeFromFields(fields);
@@ -60,31 +47,19 @@ class SpaceTimePanel extends Component{
 		const gpsLon = fieldValue(fields, 'gpsLon', undefined);
 		const needZone = this.props.needZone;
 		const showLocation = this.props.showLocation !== false;
-		const timeEditor = (
-			<div className="horosa-time-popover">
-				<PlusMinusTime value={value} onChange={this.props.onTimeChange} needZone={needZone}
-					onStepSelect={this.props.onStepSelect} />
-			</div>
-		);
 
 		return (
 			<div className={`horosa-spacetime-panel ${this.props.className || ''}`}>
-				<div className="horosa-field-block">
-					<div className="horosa-field-label">时间</div>
-					<TimeFieldTrigger value={value} timeText={timeText} popoverContent={timeEditor} onQuickCommit={this.onQuickCommit} />
-					<div className="horosa-field-hint">当地时间</div>
-					<div className="horosa-time-adjust-inline">
-						<PlusMinusTime
-							value={value}
-							onChange={this.props.onTimeChange}
-							hook={this.props.timeHook}
-							adjustOnly
-							confirmOnAdjust={this.props.confirmOnAdjust !== false}
-							needZone={needZone}
-							onStepSelect={this.props.onStepSelect}
-						/>
-					</div>
-				</div>
+				{/* 时间块与星运各页右上角同一个件(CompactTimeField:单击编辑器 / 双击键入 / 拖动调单位 / 步进行) */}
+				<CompactTimeField
+					value={value}
+					timeText={timeText}
+					onChange={this.props.onTimeChange}
+					timeHook={this.props.timeHook}
+					needZone={needZone}
+					onStepSelect={this.props.onStepSelect}
+					confirmOnAdjust={this.props.confirmOnAdjust}
+				/>
 				{showLocation ? (
 					<div className="horosa-field-block">
 						<div className="horosa-field-label">地点</div>

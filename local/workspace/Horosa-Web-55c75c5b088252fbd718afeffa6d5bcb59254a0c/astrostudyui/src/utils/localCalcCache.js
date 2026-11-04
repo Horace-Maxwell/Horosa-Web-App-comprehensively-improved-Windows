@@ -9,8 +9,8 @@ import { safeLocalStorageRemove } from './safeStorage';
 import { registerProcessCache } from './processCacheRegistry';
 const LOCAL_CALC_PREFIX = 'horosa.localcalc.';
 const NONG_LI_NS = 'horosa.localcalc.nongli.v1';
-const JIE_QI_NS = 'horosa.localcalc.jieqi.v2';
-const JIE_QI_YEAR_NS = 'horosa.localcalc.jieqiYear.v2';
+const JIE_QI_NS = 'horosa.localcalc.jieqi.v3';   // v3:冬至日柱曾按节气名错捡上年那天(v2 存的种子冬至干支错一年)
+const JIE_QI_YEAR_NS = 'horosa.localcalc.jieqiYear.v3';
 const BIRTH_GANZI_NS = 'horosa.localcalc.birthGanzhi.v1';
 const LIURENG_RUNYEAR_NS = 'horosa.localcalc.liureng.runyear.v1';
 const MAX_NONG_LI = 512;

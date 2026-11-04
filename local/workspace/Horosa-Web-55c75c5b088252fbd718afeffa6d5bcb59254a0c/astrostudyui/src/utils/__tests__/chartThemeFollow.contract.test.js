@@ -70,6 +70,22 @@ describe('源码级三锁', ()=>{
 		expect(callers).toEqual([]);
 		['layouts/app.js', 'pages/index.js'].forEach((rel)=>expect({ rel, sync: /syncChartPalette\(resolvedAppearance\)/.test(fs.readFileSync(path.join(SRC, rel), 'utf8')) }).toEqual({ rel, sync: true }));
 	});
+	it('🔴 ⑦ 主题回调里清掉的签名字段,必须真是本组件「跳过重画」比较用的那个(清错名字 = 只靠签名里的主题指纹侥幸兜着)', ()=>{
+		const bad = [];
+		census().forEach((rel)=>{
+			const s = readSource(path.join(SRC, rel));
+			const re = /watchChartAppearance\(\s*\(\)\s*=>\s*\{([^}]*)\}/g;
+			let m;
+			while((m = re.exec(s))){
+				const cleared = [...m[1].matchAll(/this\.(_\w*[Ss]ig)\s*=\s*null/g)].map((x)=>x[1]);
+				cleared.forEach((f)=>{
+					const compared = new RegExp(`same\\w*\\([^)]*this\\.${f}\\b|\\b${f}\\b[^\\n]*\\n?[^\\n]*same\\w*\\(|const \\w+ = this\\.${f};`).test(s);
+					if(!compared){ bad.push(`${rel}: 清 ${f},但比较里没用到它`); }
+				});
+			}
+		});
+		expect(bad).toEqual([]);
+	});
 	it('主题按钮带审计锚(真机审计按真实路径点)', ()=>{
 		expect(fs.readFileSync(path.join(COMPONENTS, 'homepage', 'PageHeader.js'), 'utf8')).toContain('data-appearance-toggle="1"');
 	});
@@ -116,6 +132,26 @@ describe('行为', ()=>{
 		applyAppearanceToDocument('dark', 'dark');
 		await flush();
 		expect(calls).toEqual(['dark', 'light']);
+	});
+	it('🔴 直改根属性(不走应用路径)时,订阅方重画那一刻读到的调色板已与属性一致(不出现「界面亮、盘面暗」)', async ()=>{
+		applyAppearanceToDocument('light', 'light');
+		await flush();
+		const seen = [];
+		const off = subscribeAppearance((a)=>seen.push(`${a}:${AstroConst.AstroColor.ChartBackgroud}`));
+		try{
+			const lightBg = AstroConst.AstroColor.ChartBackgroud;
+			document.documentElement.setAttribute('data-horosa-appearance', 'dark');   // 只改属性、不切调色板
+			await flush();
+			expect(seen.length).toBe(1);
+			expect(seen[0].startsWith('dark:')).toBe(true);
+			expect(seen[0]).not.toBe(`dark:${lightBg}`);
+			document.documentElement.setAttribute('data-horosa-appearance', 'light');
+			await flush();
+			expect(seen[1]).toBe(`light:${lightBg}`);
+		}finally{
+			off();
+			applyAppearanceToDocument('light', 'light');
+		}
 	});
 	it('🔴 浅色配色档(宣纸 ↔ 经典白)也算主题变化:亮色下切档回调一次、同档不回调;暗色下切档不回调', async ()=>{
 		applyAppearanceToDocument('light', 'light');

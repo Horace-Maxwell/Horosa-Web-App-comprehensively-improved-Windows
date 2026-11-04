@@ -29,13 +29,51 @@ class TimingMixin:
             self._sunRiseCache = self._computeSunRiseTime()
         return self._sunRiseCache
 
+    # 停步阈值:dist 是「半个角距」,旧 0.5 = 日心与上升点差到 1° 就停,时刻差 1~2.5 分钟(中纬实测,
+    # 对照 swisseph 日心无折射);七政日出安命按日出时刻定命宫,出生近两小时界会落错宫。0.002 ≈ 1 秒,≤18 步收敛。
+    _SUN_HORIZON_TOL = 0.002
+
+    # 日出 / 日没口径(请求键 sunriseMode,古典全局设置):'center' = 日心落东 / 西地平、不计折射(缺省,下方迭代);
+    # 'apparent' = 日面上缘 + 大气折射(天文台 / 历书口径,swisseph rise_trans 缺省口径),中纬约早 5 分钟升、晚 5 分钟落,
+    # 高纬可差二十多分钟。消费:七政日出安命、报时星(行星时制式为「日出起算」时;「昼夜不等时」档恒用视日出没)、星盘信息日出 / 日没。
+    # 印占不经此处:IndiaChartKernel 自有 getSunRiseTime,恒按 rise_trans 视口径。
+    def _sunriseMode(self):
+        data = self.data if isinstance(self.data, dict) else {}
+        return 'apparent' if data.get('sunriseMode') == 'apparent' else 'center'
+
+    def _apparentSunEvent(self, which, start_jd):
+        """start_jd 之后第一次视日出 / 视日没(UT JD);极昼极夜无解或星历异常 → None(调用方回落日心口径)。"""
+        try:
+            if hasattr(swe, 'ensureEphePath'):
+                swe.ensureEphePath()
+            geopos = (float(self.pos.lon), float(self.pos.lat), 0.0)
+            res, tret = swe.swisseph.rise_trans(start_jd, swe.swisseph.SUN, which, geopos)
+            if res == 0 and tret and tret[0] > start_jd:
+                return tret[0]
+        except Exception:
+            pass
+        return None
+
+    def _timeResult(self, dt):
+        parts = dt.toCNString().split(' ')
+        return {'datetime': dt, 'timeStr': parts[1]}
+
+    def _apparentSunRise(self):
+        midnight = Datetime(self.date, "00:00:00", self.zone)
+        jd = self._apparentSunEvent(swe.swisseph.CALC_RISE, midnight.jd)
+        return Datetime.fromJD(jd, self.zone) if jd is not None else None
+
     def _computeSunRiseTime(self):
+        if self._sunriseMode() == 'apparent':
+            dt = self._apparentSunRise()
+            if dt is not None:
+                return self._timeResult(dt)
         dt = Datetime(self.date, "05:00:00", self.zone)
         dist = 99
         speed = 1 / (4 / 60 / 24)
         count = 1
         thredholds = 50
-        while abs(dist) > 0.5 and count < thredholds:
+        while abs(dist) > self._SUN_HORIZON_TOL and count < thredholds:
             chart = Chart(dt, self.pos, self.zodiacal, hsys=self.house, IDs=[const.SUN], needpars=False)
             asc = chart.getAngle(const.ASC)
             sun = chart.getObject(const.SUN)
@@ -58,12 +96,19 @@ class TimingMixin:
 
     def getSunSetTime(self):
         # 日没:太阳落在下降点(西方地平)。算法同 getSunRiseTime 迭代法,改以 DESC 为目标、起 17:00。
+        # 视口径(sunriseMode=apparent):当日视日出之后第一次视日没;求不出回落下方日心迭代。
+        if self._sunriseMode() == 'apparent':
+            rise = self._apparentSunRise()
+            start = rise.jd if rise is not None else Datetime(self.date, "00:00:00", self.zone).jd
+            jd = self._apparentSunEvent(swe.swisseph.CALC_SET, start)
+            if jd is not None:
+                return self._timeResult(Datetime.fromJD(jd, self.zone))
         dt = Datetime(self.date, "17:00:00", self.zone)
         dist = 99
         speed = 1 / (4 / 60 / 24)
         count = 1
         thredholds = 50
-        while abs(dist) > 0.5 and count < thredholds:
+        while abs(dist) > self._SUN_HORIZON_TOL and count < thredholds:
             chart = Chart(dt, self.pos, self.zodiacal, hsys=self.house, IDs=[const.SUN], needpars=False)
             desc = chart.getAngle(const.DESC)
             sun = chart.getObject(const.SUN)

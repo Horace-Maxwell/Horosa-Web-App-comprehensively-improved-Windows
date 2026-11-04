@@ -1,0 +1,29 @@
+{
+ "_doc": "全量 jest 里的重套件登记表(Horosa_Desktop_Installer/scripts/jest_heavy_reuse.js 读):每族的测试文件按依赖闭包内容判是否复用上次的通过结果。tests = 相对 astrostudyui 的 glob;sample = 每次固定轮换真跑的片数;externalInputs = 闭包之外也会改变结果的输入(相对仓根的 glob,按 git 跟踪 + 未忽略新文件逐个哈希);globalInputs 任一变 = 全部重跑;envKeys = 会改变结果的环境变量。新加的大压测 / 全谱网照此登记(先按序号分片,别让单文件成为全量 jest 的墙钟)。",
+ "maxAgeDays": 7,
+ "globalInputs": [
+  "Horosa-Web/astrostudyui/package.json",
+  "Horosa-Web/astrostudyui/package-lock.json",
+  "Horosa-Web/astrostudyui/jest.config.js",
+  "Horosa-Web/astrostudyui/.umirc.js",
+  "Horosa-Web/astrostudyui/test/**",
+  "Horosa-Web/astrostudyui/scripts/jest-heavy-suites.json",
+  "Horosa_Desktop_Installer/scripts/jest_heavy_reuse.js"
+ ],
+ "envKeys": ["HOROSA_DIFFNET_OFFLINE", "HOROSA_DIFFNET_ONLY", "HOROSA_FIXED_NOW", "TZ"],
+ "families": [
+  { "id": "sanshiZeriStress", "tests": "src/divination/zeri/__tests__/sanshiZeriStress.*.test.js", "sample": 1 },
+  { "id": "taiyiZeriStress", "tests": "src/divination/zeri/__tests__/taiyiZeriStress.*.test.js", "sample": 1 },
+  {
+   "id": "diffnet",
+   "tests": "src/utils/__tests__/mountSettingsDiffAll.*.test.js",
+   "sample": 1,
+   "externalInputs": [
+    "Horosa-Web/astropy/**",
+    "Horosa-Web/flatlib-ctrad2/**",
+    "Horosa-Web/vendor/**",
+    "Horosa-Web/astrostudysrv/**"
+   ]
+  }
+ ]
+}

@@ -1,7 +1,8 @@
 import { Component } from 'react';
 import { claimTrigger, identityOf } from '../../utils/singleTrigger';   // 双触发收敛
-import { Row, Col, Divider, Tree } from 'antd';
+import { Row, Col, Tree } from 'antd';
 import AstroChart from './AstroChart';
+import { ProgPageShell, WheelSplit, SidePanelHead, SideSection, FillCard } from './progPageLayout';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import {
@@ -669,49 +670,49 @@ class AstroDecennials extends Component{
 		const selected = resolveSelectedNodes(this.state.list, this.state);
 
 		return (
-			<div>
-				<div style={{ marginBottom: 8 }}>
-					<div style={{ marginBottom: 4 }}>输出范围</div>
-					<Select size='small' value={this.state.aiMode} style={{ width: '100%' }} onChange={this.changeAIMode}>
+			<Row gutter={12}>
+				<Col span={24} style={{ marginBottom: 8 }}>
+					<div className="horosa-balbillus-label">输出范围</div>
+					<Select value={this.state.aiMode} style={{ width: '100%' }} onChange={this.changeAIMode}>
 						{AI_MODE_ITEMS.map((item)=>(
 							<Option value={item.value} key={item.value}>{item.label}</Option>
 						))}
 					</Select>
-				</div>
+				</Col>
 
 				{this.state.aiMode !== AI_MODE_L1_ALL && (
-					<div style={{ marginBottom: 8 }}>
-						<div style={{ marginBottom: 4 }}>L1选择</div>
-						<Select size='small' value={`${selected.l1Idx}`} style={{ width: '100%' }} onChange={this.changeAIL1}>
+					<Col span={24} style={{ marginBottom: 8 }}>
+						<div className="horosa-balbillus-label">L1选择</div>
+						<Select value={`${selected.l1Idx}`} style={{ width: '100%' }} onChange={this.changeAIL1}>
 							{selected.l1List.map((item, idx)=>(
 								<Option value={`${idx}`} key={`l1_${idx}`}>{`L1-${idx + 1} ${nodeLine(item, this.state.settings.calendarType)}`}</Option>
 							))}
 						</Select>
-					</div>
+					</Col>
 				)}
 
 				{(this.state.aiMode === AI_MODE_L3_IN_L2 || this.state.aiMode === AI_MODE_L4_IN_L3) && (
-					<div style={{ marginBottom: 8 }}>
-						<div style={{ marginBottom: 4 }}>L2选择</div>
-						<Select size='small' value={`${selected.l2Idx}`} style={{ width: '100%' }} onChange={this.changeAIL2}>
+					<Col span={24} style={{ marginBottom: 8 }}>
+						<div className="horosa-balbillus-label">L2选择</div>
+						<Select value={`${selected.l2Idx}`} style={{ width: '100%' }} onChange={this.changeAIL2}>
 							{selected.l2List.map((item, idx)=>(
 								<Option value={`${idx}`} key={`l2_${idx}`}>{`L2-${idx + 1} ${nodeLine(item, this.state.settings.calendarType)}`}</Option>
 							))}
 						</Select>
-					</div>
+					</Col>
 				)}
 
 				{this.state.aiMode === AI_MODE_L4_IN_L3 && (
-					<div style={{ marginBottom: 8 }}>
-						<div style={{ marginBottom: 4 }}>L3选择</div>
-						<Select size='small' value={`${selected.l3Idx}`} style={{ width: '100%' }} onChange={this.changeAIL3}>
+					<Col span={24} style={{ marginBottom: 8 }}>
+						<div className="horosa-balbillus-label">L3选择</div>
+						<Select value={`${selected.l3Idx}`} style={{ width: '100%' }} onChange={this.changeAIL3}>
 							{selected.l3List.map((item, idx)=>(
 								<Option value={`${idx}`} key={`l3_${idx}`}>{`L3-${idx + 1} ${nodeLine(item, this.state.settings.calendarType)}`}</Option>
 							))}
 						</Select>
-					</div>
+					</Col>
 				)}
-			</div>
+			</Row>
 		);
 	}
 
@@ -726,66 +727,61 @@ class AstroDecennials extends Component{
 		];
 
 		return (
-			<div>
-				<div style={{ marginBottom: 8 }}>
-					<div style={{ marginBottom: 4 }}>起运主星</div>
-					<Select size='small' value={this.state.settings.startMode} style={{ width: '100%' }} onChange={this.changeStartMode}>
+			<Row gutter={12}>
+				<Col span={12} style={{ marginBottom: 8 }}>
+					<div className="horosa-balbillus-label">起运主星</div>
+					<Select value={this.state.settings.startMode} style={{ width: '100%' }} onChange={this.changeStartMode}>
 						{startOptions.map((item)=>(
 							<Option value={item.value} key={item.value}>{item.label}</Option>
 						))}
 					</Select>
-					<div style={{ marginTop: 4, color: 'var(--horosa-muted, #666)', fontSize: 12 }}>
-						{`当前实际起运：${getDecennialPlanetLongName(resolved)}`}
-					</div>
-				</div>
+				</Col>
 
-				<div style={{ marginBottom: 8 }}>
-					<div style={{ marginBottom: 4 }}>分配次序</div>
-					<Select size='small' value={this.state.settings.orderType} style={{ width: '100%' }} onChange={this.changeOrderType}>
+				<Col span={12} style={{ marginBottom: 8 }}>
+					<div className="horosa-balbillus-label">分配次序</div>
+					<Select value={this.state.settings.orderType} style={{ width: '100%' }} onChange={this.changeOrderType}>
 						<Option value={DECENNIAL_ORDER_ZODIACAL}>实际黄道次序</Option>
 						<Option value={DECENNIAL_ORDER_CHALDEAN}>迦勒底星序</Option>
 					</Select>
-				</div>
+				</Col>
 
-				<div style={{ marginBottom: 8 }}>
-					<div style={{ marginBottom: 4 }}>日限体系</div>
-					<Select size='small' value={this.state.settings.dayMethod} style={{ width: '100%' }} onChange={this.changeDayMethod}>
+				<Col span={24} style={{ marginBottom: 8 }}>
+					<div className="horosa-balbillus-label">日限体系</div>
+					<Select value={this.state.settings.dayMethod} style={{ width: '100%' }} onChange={this.changeDayMethod}>
 						<Option value={DECENNIAL_DAY_METHOD_VALENS}>Valens（精确）</Option>
 						<Option value={DECENNIAL_DAY_METHOD_HEPHAISTIO}>Hephaistio（原表日数）</Option>
 					</Select>
-				</div>
+				</Col>
 
-				<div style={{ marginBottom: 8 }}>
-					<div style={{ marginBottom: 4 }}>时间口径</div>
-					<Select size='small' value={this.state.settings.calendarType} style={{ width: '100%' }} onChange={this.changeCalendarType}>
+				<Col span={24} style={{ marginBottom: 8 }}>
+					<div className="horosa-balbillus-label">时间口径</div>
+					<Select value={this.state.settings.calendarType} style={{ width: '100%' }} onChange={this.changeCalendarType}>
 						{/* 档名与快照 / 挂载齿轮同一份(getDecennialCalendarLabel):365.25 天是儒略年,不是回归年 */}
 						{DECENNIALS_CALENDAR_TYPES.map((o)=><Option key={o.value} value={o.value}>{o.label}</Option>)}
 					</Select>
-					<div style={{ marginTop: 4, color: 'var(--horosa-muted, #666)', fontSize: 12 }}>
-						{this.state.settings.calendarType === DECENNIAL_CALENDAR_TRADITIONAL
-							? '当前显示：具体日期；下方附带文档名义区间'
-							: `当前显示：${getDecennialCalendarLabel(this.state.settings.calendarType)}`}
-					</div>
-				</div>
-			</div>
+				</Col>
+			</Row>
 		);
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		// 树列原写死「工作区高−20」,再加上方分割线 ~37px 就比面板高 → 外层面板长出第二条滚动条。
-		// 改成:根/行/列定高链(100%),树滚动区 flex 吃余高,零常数。
-		const style = {
-			flex: '1 1 auto',
-			minHeight: 0,
-			overflowY: 'auto',
-			overflowX: 'hidden',
-		};
+		const height = this.props.height ? this.props.height : 760;
 		const resolved = this.state.timelineMeta.resolvedStartPlanet || AstroConst.SUN;
+		const calendarNote = this.state.settings.calendarType === DECENNIAL_CALENDAR_TRADITIONAL
+			? '显示具体日期(下附文档名义区间)'
+			: `显示:${getDecennialCalendarLabel(this.state.settings.calendarType)}`;
+		// 与星运其它带盘页同一套(progPageLayout):左整列是盘;右栏固定头 = 标题行 + 设置 + AI 输出选择,下面大运树一张卡铺到底
 		return (
-			<div style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-				<Row gutter={6} style={{ flex: '1 1 auto', minHeight: 0 }}>
-					<Col span={14} style={{ height: '100%' }}>
+			<ProgPageShell height={height - 10}>
+				<WheelSplit
+					head={(
+						<SidePanelHead title="十年大运" sub={`当前起运 ${getDecennialPlanetLongName(resolved)} · ${calendarNote}`}
+							desc="Decennials:自起运主星起,七星依次各掌一段(L1),每段内再按同一次序细分 L2 / L3 / L4;起运主星缺省取得时光体(昼生太阳、夜生月亮)。">
+							<SideSection title="十年大运设置">{this.genSettingsDom()}</SideSection>
+							<SideSection title="AI 输出选择">{this.genAIOutputDom()}</SideSection>
+						</SidePanelHead>
+					)}
+					renderWheel={(size, h)=>(
 						<AstroChart
 							wheelArt={this.props.wheelArt}
 							value={this.props.value}
@@ -793,12 +789,13 @@ class AstroDecennials extends Component{
 							planetDisplay={this.props.planetDisplay}
 							lotsDisplay={this.props.lotsDisplay}
 							showAstroMeaning={this.props.showAstroMeaning}
-							height="100%"
+							height={h}
 						/>
-					</Col>
-					<Col span={6} style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-						<Divider style={{ flex: '0 0 auto' }}>{`基于${getDecennialPlanetShortName(resolved)}起运`}</Divider>
-						<div className={`${styles.scrollbar} horosa-direction-tree-scroll horosa-decennials-tree-scroll`} style={style}>
+					)}
+				>
+					<FillCard grow title="大运树" extra={`基于${getDecennialPlanetShortName(resolved)}起运 · 点箭头展开下一层`}>
+						{/* 与表盒同一个类:右栏量完整内容高时按树本身算 */}
+						<div className={`${styles.scrollbar} horosa-small-table-scroll horosa-direction-tree-scroll horosa-decennials-tree-scroll`} style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
 							<Tree
 								className="horosa-direction-tree horosa-decennials-tree"
 								expandedKeys={this.state.expandedKeys}
@@ -808,22 +805,9 @@ class AstroDecennials extends Component{
 								{this.genTreeNodes(this.state.list)}
 							</Tree>
 						</div>
-					</Col>
-					<Col span={4} style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-						{/* 设置列同样走 flex 列:滚动区吃余高,内容再长也只在列内滚,不把外层面板撑出第二条滚动条(1.8 档实抓 82px) */}
-						<div className={styles.scrollbar} style={style}>
-							<Row>
-								<Col span={24}>
-									<Divider>设置</Divider>
-									{this.genSettingsDom()}
-									<Divider>AI输出选择</Divider>
-									{this.genAIOutputDom()}
-								</Col>
-							</Row>
-						</div>
-					</Col>
-				</Row>
-			</div>
+					</FillCard>
+				</WheelSplit>
+			</ProgPageShell>
 		);
 	}
 }

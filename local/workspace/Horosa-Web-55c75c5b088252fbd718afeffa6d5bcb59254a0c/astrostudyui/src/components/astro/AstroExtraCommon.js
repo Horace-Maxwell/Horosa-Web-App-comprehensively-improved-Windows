@@ -1,6 +1,6 @@
 import React from 'react';
 import * as AstroText from '../../constants/AstroText';
-import { classicalBackendOverridesFromPlain, classicalGlobalValue } from '../../utils/classicalChartGlobals';
+import { classicalBackendOverridesFromPlain, classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';
 import * as AstroConst from '../../constants/AstroConst';
 import { SIGNS } from '../../divination/data/signs';
 import { buildMeaningTipByCategory } from './AstroMeaningData';
@@ -99,6 +99,25 @@ export function fmtDegree(item){
 export function transitOrbDefault(){
 	const v = Number(classicalGlobalValue('transitOrb'));
 	return Number.isFinite(v) && v > 0 ? v : 1;
+}
+
+// 已开过的推运页跟随全局 transitOrb:星运各页挂着不卸,构造时读一次初值 = 会话里改了全局,
+// 开过的页恒旧值(看着像死开关)。页内容许度仍等于上一次全局值(没亲手改过)才跟着换并重算,亲手改过的保留。
+// 宿主:state.params.asporb + requestData();componentDidMount 挂、componentWillUnmount 调返回值卸。
+export function followTransitOrb(comp){
+	if(typeof window === 'undefined'){ return () => {}; }
+	let last = transitOrbDefault();
+	const onGlobals = () => {
+		const next = transitOrbDefault();
+		if(next === last){ return; }
+		const prev = last;
+		last = next;
+		const params = comp.state && comp.state.params;
+		if(!params || Number(params.asporb) !== prev){ return; }
+		comp.setState({ params: { ...params, asporb: next } }, () => comp.requestData());
+	};
+	window.addEventListener(CLASSICAL_GLOBALS_EVENT, onGlobals);
+	return () => window.removeEventListener(CLASSICAL_GLOBALS_EVENT, onGlobals);
 }
 
 export function natalClassicalParams(params){
@@ -235,13 +254,22 @@ export const gridStyle = {
 // 短标签(≤ 4 字的纯文本,如「10宫」「宫主」「触发点」)整段不折行、带括号的标签(「宫主落宫(整宫)」)只在括号处换行:
 // 表被压窄(放大档右栏)时此前逐字竖排;长文本照常折行。口径单源 utils/labelCell(全站表格同一条)
 const shortCellStyle = labelCellStyle;
-export function SmallTable({columns, rows, rowKey, rowStyle, rowRef, scrollX}){
+// 可选(缺省不传 = 旧表逐像素不变):
+//   col.align  表头与单元格按它对齐并用等宽数字;右对齐列右侧多留 14px,不和下一列左对齐的文字贴在一起
+//   col.width  列定宽(宽表把多余宽度留到行尾,不平摊到行中间)
+//   maxHeight / scrollClassName  外包盒定高纵向滚动、表头吸顶(吸顶底色走主题变量,明暗两套都对);maxHeight 可给 '100%'(外层定高)
+//   onRowClick(row, idx)  行可点(手形光标)
+//   fill  外包盒作 flex 子项吃满父容器剩余高(父须 display:flex 纵向),表在盒内滚动、表头吸顶
+const alignPad = (col)=>(col.align === 'right' ? { paddingRight: 14 } : null);
+export function SmallTable({columns, rows, rowKey, rowStyle, rowRef, scrollX, maxHeight, scrollClassName, onRowClick, fill}){
+	// 合并边框下吸顶的 th 底线不跟着走,用内阴影补一条
+	const sticky = (maxHeight || fill) ? { position: 'sticky', top: 0, zIndex: 1, background: 'var(--horosa-surface-solid, #1b1d22)', boxShadow: 'inset 0 -1px 0 rgba(148,163,184,.35)' } : null;
 	const table = (
 		<table style={scrollX ? {borderCollapse: 'collapse', fontSize: 12, whiteSpace: 'nowrap'} : {width: '100%', borderCollapse: 'collapse', fontSize: 12}}>
 			<thead>
 				<tr>
 					{columns.map((col)=>(
-						<th key={col.key} style={{textAlign: 'left', borderBottom: '1px solid rgba(148,163,184,.35)', padding: '6px 4px', ...shortCellStyle(col.title)}}>
+						<th key={col.key} style={{textAlign: col.align || 'left', borderBottom: '1px solid rgba(148,163,184,.35)', padding: '6px 4px', ...shortCellStyle(col.title), ...alignPad(col), ...(col.width ? { width: col.width } : null), ...sticky}}>
 							{col.title}
 						</th>
 					))}
@@ -251,11 +279,12 @@ export function SmallTable({columns, rows, rowKey, rowStyle, rowRef, scrollX}){
 				{(rows || []).map((row, idx)=>(
 					<tr key={rowKey ? rowKey(row, idx) : idx}
 						ref={rowRef ? (node)=>rowRef(node, row, idx) : undefined}
-						style={rowStyle ? rowStyle(row, idx) : undefined}>
+						onClick={onRowClick ? ()=>onRowClick(row, idx) : undefined}
+						style={onRowClick ? { cursor: 'pointer', ...(rowStyle ? rowStyle(row, idx) : null) } : (rowStyle ? rowStyle(row, idx) : undefined)}>
 						{columns.map((col)=>{
 							const content = col.render ? col.render(row[col.key], row, idx) : row[col.key];
 							return (
-								<td key={col.key} style={{borderBottom: '1px solid rgba(148,163,184,.16)', padding: '6px 4px', verticalAlign: 'top', ...shortCellStyle(content)}}>
+								<td key={col.key} style={{borderBottom: '1px solid rgba(148,163,184,.16)', padding: '6px 4px', verticalAlign: 'top', ...shortCellStyle(content), ...(col.align ? { textAlign: col.align, fontVariantNumeric: 'tabular-nums' } : null), ...alignPad(col)}}>
 									{content}
 								</td>
 							);
@@ -267,5 +296,8 @@ export function SmallTable({columns, rows, rowKey, rowStyle, rowRef, scrollX}){
 	);
 	// 两种写法都外包一层横向可滚:表被压得比列的最小内容还窄时(放大档右栏)横滚,不再被外层 overflow-x:hidden 裁掉右边几列;
 	// 放得下时 width:100% 的表与外包盒同宽,与不包逐像素相同
-	return <div className="horosa-small-table-scroll" style={{overflowX: 'auto', maxWidth: '100%'}}>{table}</div>;
+	return (
+		<div className={`horosa-small-table-scroll${scrollClassName ? ` ${scrollClassName}` : ''}`}
+			style={fill ? {overflowX: 'auto', overflowY: 'auto', maxWidth: '100%', flex: '1 1 auto', minHeight: 0} : (maxHeight ? {overflowX: 'auto', overflowY: 'auto', maxWidth: '100%', maxHeight} : {overflowX: 'auto', maxWidth: '100%'})}>{table}</div>
+	);
 }

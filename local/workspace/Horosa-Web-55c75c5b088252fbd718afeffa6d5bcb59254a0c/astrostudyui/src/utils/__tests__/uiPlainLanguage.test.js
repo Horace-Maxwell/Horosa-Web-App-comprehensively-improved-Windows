@@ -9,7 +9,8 @@ const R = (f) => readSource(path.resolve(__dirname, '../../', f));
 describe('界面文字白话化', () => {
 	test('主限法:「当前状态」显示度数换算中文名;空态提示指向真实入口;日期筛选提示「输入年份」', () => {
 		const chart = R('components/astro/AstroPrimaryDirectionChart.js');
-		expect(chart).toContain('当前盘面度数换算：{PD_TIME_KEY_LABELS[selectedPdTimeKey] || selectedPdTimeKey}');
+		// 「当前状态」卡(项目 / 当前值表):度数换算一行显示中文名
+		expect(chart).toContain("{ k: '盘面度数换算', v: PD_TIME_KEY_LABELS[selectedPdTimeKey] || selectedPdTimeKey }");
 		expect(chart).toContain('{PD_TIME_KEY_LABELS[applied.pdTimeKey] || applied.pdTimeKey}');
 		const { PD_TIME_KEY_LABELS } = require('../primaryDirectionSync');
 		expect(PD_TIME_KEY_LABELS.TrueSolarArc).toBe('真太阳弧');

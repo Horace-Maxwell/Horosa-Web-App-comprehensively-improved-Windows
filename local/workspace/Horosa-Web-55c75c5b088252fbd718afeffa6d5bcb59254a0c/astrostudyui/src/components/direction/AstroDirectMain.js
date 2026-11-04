@@ -49,6 +49,7 @@ import AstroYearSystem129 from '../astro/AstroYearSystem129';
 import AstroPlanetaryArc from '../astro/AstroPlanetaryArc';
 import AstroPersianDirected from '../astro/AstroPersianDirected';
 import AstroJaynesProgressions from '../astro/AstroJaynesProgressions';
+import { AstroNeroman, AstroBezzaFigure, AstroJayProfection, AstroMichon } from '../astro/AstroDirectedFigures';
 import AstroEphemeris from '../astro/AstroEphemeris';
 import AstroProgressions from '../astro/AstroProgressions';
 import AstroReturnTimeline from '../astro/AstroReturnTimeline';
@@ -841,6 +842,18 @@ class AstroDirectMain extends Component{
 					fun: null
 				},
 				extrareturns:{
+					fun: null
+				},
+				neroman:{
+					fun: null
+				},
+				bezzafigure:{
+					fun: null
+				},
+				jayprofection:{
+					fun: null
+				},
+				michon:{
 					fun: null
 				},
 				yearsystem129:{
@@ -1861,6 +1874,30 @@ class AstroDirectMain extends Component{
 							/>
 						</FreezeInactive>
 					</TabPane>
+						<TabPane tab="演进推运" key="neroman">
+							<FreezeInactive active={this.state.currentTab === "neroman"}>
+							<AstroNeroman
+								value={this.props.chartObj}
+								height={height}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}
+								showAstroMeaning={this.props.showAstroMeaning}
+							/>
+							</FreezeInactive>
+						</TabPane>
+						<TabPane tab="Bezza 推运图" key="bezzafigure">
+							<FreezeInactive active={this.state.currentTab === "bezzafigure"}>
+							<AstroBezzaFigure
+								value={this.props.chartObj}
+								height={height}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}
+								showAstroMeaning={this.props.showAstroMeaning}
+							/>
+							</FreezeInactive>
+						</TabPane>
 
 					<TabPane tab="波斯向运" key="persiandirected">
 						<FreezeInactive active={this.state.currentTab === "persiandirected"}>
@@ -1903,6 +1940,18 @@ class AstroDirectMain extends Component{
 
 						</FreezeInactive>
 					</TabPane>
+						<TabPane tab="周日小限" key="jayprofection">
+							<FreezeInactive active={this.state.currentTab === "jayprofection"}>
+							<AstroJayProfection
+								value={this.props.chartObj}
+								height={height}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}
+								showAstroMeaning={this.props.showAstroMeaning}
+							/>
+							</FreezeInactive>
+						</TabPane>
 
 					<TabPane tab="太阳弧" key="solararc">
 						<FreezeInactive active={this.state.currentTab === "solararc"}>
@@ -2100,6 +2149,22 @@ class AstroDirectMain extends Component{
 							<AstroExtraReturns
 								value={this.props.chartObj}
 								height={height}
+								showAstroMeaning={this.props.showAstroMeaning}
+							/>
+							</FreezeInactive>
+						</TabPane>
+
+
+
+
+						<TabPane tab="双黄道" key="michon">
+							<FreezeInactive active={this.state.currentTab === "michon"}>
+							<AstroMichon
+								value={this.props.chartObj}
+								height={height}
+								chartDisplay={this.props.chartDisplay}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}
 								showAstroMeaning={this.props.showAstroMeaning}
 							/>
 							</FreezeInactive>

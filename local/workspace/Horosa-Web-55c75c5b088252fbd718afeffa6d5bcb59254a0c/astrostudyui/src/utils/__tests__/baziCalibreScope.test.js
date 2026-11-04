@@ -55,6 +55,13 @@ describe('astro model:覆盖层 reducer 与全局同步钉住', ()=>{
 		expect(bazi).not.toMatch(/astro\/setAfter23BoundaryUserOverrode/);
 		expect(bazi).toMatch(/astro\/setBaziCalibreOverride/);
 		expect(bazi).toMatch(/fields=\{this\.effFields\(\)\}/);
+		// 左栏改三键后的即时重取必须带上覆盖层:只拿共享层重取 = 按旧口径排盘(晚子时 / 时间算法 下拉变了四柱不动,2026-10-31 实测)
+		const onFields = bazi.slice(bazi.indexOf('onFieldsChange(field){'), bazi.indexOf('onBaziOptChange(opt, done){'));
+		expect(onFields).toMatch(/calibreOverride = \{ \.\.\.\(calibreOverride \|\| \{\}\), \.\.\.split\.calibre \}/);
+		expect(onFields).toMatch(/const reqFields = applyBaziCalibreOverride\(flds\.fields, calibreOverride\)/);
+		expect(onFields).toMatch(/this\.requestBazi\(reqFields/);
+		expect(onFields).toMatch(/this\.prefetchBazi\(reqFields\)/);
+		expect(onFields).not.toMatch(/this\.(requestBazi|prefetchBazi)\(flds\.fields/);
 		const index = fs.readFileSync(path.join(__dirname, '../../pages/index.js'), 'utf8');
 		expect(index).toMatch(/baziCalibreOverride=\{baziCalibreOverride\}/);
 		const model = fs.readFileSync(path.join(__dirname, '../../models/astro.js'), 'utf8');

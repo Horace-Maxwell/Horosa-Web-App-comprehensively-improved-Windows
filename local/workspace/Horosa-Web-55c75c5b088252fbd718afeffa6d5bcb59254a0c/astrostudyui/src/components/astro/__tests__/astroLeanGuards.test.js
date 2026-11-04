@@ -6,7 +6,7 @@ import path from 'path';
 jest.mock('../../../utils/request', () => jest.fn());
 
 const request = require('../../../utils/request');
-const { fmtDegree, transitOrbDefault } = require('../AstroExtraCommon');
+const { fmtDegree, transitOrbDefault, followTransitOrb } = require('../AstroExtraCommon');
 const { setClassicalChartGlobal } = require('../../../utils/classicalChartGlobals');
 const { buildReturnTimelineSnapshotText } = require('../AstroReturnTimeline');
 const { buildEphemerisSnapshotText } = require('../AstroEphemeris');
@@ -65,8 +65,42 @@ describe('相位表离相过滤 / 推运容许度默认', () => {
 		expect(transitOrbDefault()).toBe(1);
 		setClassicalChartGlobal('transitOrb', 1);
 		const src = code('components/astro/AstroExtraCommon.js');
-		expect(src).toContain("import { classicalBackendOverridesFromPlain, classicalGlobalValue } from '../../utils/classicalChartGlobals';");
+		expect(src).toContain("import { classicalBackendOverridesFromPlain, classicalGlobalValue, CLASSICAL_GLOBALS_EVENT } from '../../utils/classicalChartGlobals';");
 		expect(src).not.toContain("require('../../utils/classicalChartGlobals')");
+	});
+	test('返照 / 流年三页「内外盘」只在双圈视图可选(单盘视图下拨了没反应 → 置灰带说明)', () => {
+		[['AstroSolarReturn', "disabled={(this.state.chartView || 'singlechart') !== 'doublechart'}"],
+			['AstroGivenYear', "disabled={(this.state.chartView || 'doublechart') !== 'doublechart'}"],
+			['AstroLunarReturn', "disabled={['doublechart', 'secdoublechart'].indexOf(this.state.chartView || 'singlechart') < 0}"]].forEach(([f, guard]) => {
+			const c = code(`components/astro/${f}.js`);
+			expect(c).toContain(guard);
+			expect(c).toMatch(/只在「对比盘」/);
+		});
+	});
+	test('followTransitOrb:已开着的推运页随全局换容许度并重算;页内亲手改过的不动;卸载后不再跟', () => {
+		const mk = (asporb) => {
+			const comp = { state: { params: { asporb, date: 'd' } }, requestData: jest.fn() };
+			comp.setState = (patch, cb) => { comp.state = { ...comp.state, ...patch }; if(cb){ cb(); } };
+			return comp;
+		};
+		const follow = mk(1);
+		const kept = mk(2);
+		const offFollow = followTransitOrb(follow);
+		const offKept = followTransitOrb(kept);
+		setClassicalChartGlobal('transitOrb', 3);
+		expect(follow.state.params).toEqual({ asporb: 3, date: 'd' });
+		expect(follow.requestData).toHaveBeenCalledTimes(1);
+		expect(kept.state.params.asporb).toBe(2);
+		expect(kept.requestData).not.toHaveBeenCalled();
+		offFollow(); offKept();
+		setClassicalChartGlobal('transitOrb', 1);
+		expect(follow.state.params.asporb).toBe(3);
+		// 七个推运页都挂 / 卸
+		['AstroProfection', 'AstroGivenYear', 'AstroLunarReturn', 'AstroSolarArc', 'AstroSolarReturn', 'AstroPersianDirected', 'AstroPlanetaryArc'].forEach((f) => {
+			const c = code(`components/astro/${f}.js`);
+			expect(c).toContain('this._detachTransitOrb = followTransitOrb(this);');
+			expect(c).toContain('if(this._detachTransitOrb){ this._detachTransitOrb(); }');
+		});
 	});
 	test('流派预设同写全局仓:不再包一层 try(setClassicalChartGlobal 内部已兜底)', () => {
 		const src = code('components/astro/AstroChartMain.js');

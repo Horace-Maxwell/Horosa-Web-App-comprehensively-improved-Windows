@@ -29,6 +29,7 @@ import { buildYearSystem129SnapshotText } from '../yearSystem129';
 import { buildPlanetaryArcSnapshotText } from '../../components/astro/AstroPlanetaryArc';
 import { buildPersianDirectedSnapshotText } from '../../components/astro/AstroPersianDirected';
 import { buildJaynesProgSnapshotText } from '../../components/astro/AstroJaynesProgressions';
+import { buildDirectedFigureSnapshotText, directedFigureOptsFromSettings } from '../../components/astro/AstroDirectedFigures';
 import { buildZodialReleaseSnapshotText } from '../../components/astro/AstroZR';
 import { buildDecennialsSnapshotText } from '../../components/astro/AstroDecennials';
 import { buildKinAstroSnapshotForFields } from '../../components/kinastro/KinAstroMain';
@@ -254,6 +255,18 @@ export async function regenerateChartTechniqueSnapshot(record, key, opts){
 			// 月相推运：次限日月八相，纯前端读本命盘。
 			const chartObj = await fetchChartResultForRecord(record);
 			return chartObj ? (buildLunationPhaseSnapshotText(chartObj) || '') : '';
+		}
+		case 'neroman':
+		case 'bezzafigure':
+		case 'jayprofection':
+		case 'michon': {
+			// 推运图族四法:请求型(/astroextra/<接口>)。挂载齿轮字段名 = 星运页保存键 → 同一映射取 opts;
+			// 齿轮未改的键为 undefined,builder 回落星运页保存值(与页面同口径)。目标时刻空 = 本盘时区今日 12:00。
+			const chartObj = await fetchChartResultForRecord(record);
+			if(!chartObj){ return ''; }
+			const dfKey = normalizeTechniqueKey(key);
+			const opts = { ...directedFigureOptsFromSettings(dfKey, record), targetDate: record.targetDate, targetTime: record.targetTime };
+			return (await buildDirectedFigureSnapshotText(dfKey, chartObj, opts)) || '';
 		}
 		case 'extrareturns': {
 			// 多重回归：土/木/月交返照，请求型(内部拉 /astroextra/planetreturn)。

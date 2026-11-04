@@ -525,7 +525,7 @@ class IndiaHelpDoc extends Component {
 							<div style={h}>民用择时（右栏「KP/择时」标签）</div>
 							<div style={card}><div style={ct}>Muhurta 与时段</div>
 								{kv('哪一天', '全部按「出生所在吠陀日」:该日日出 → 次日日出(子夜后、日出前出生仍属前一日),星期取该日;面板标出所取日期')}
-								{kv('日出日落', '当日真日出/日落时刻')}
+								{kv('日出日落', '当日真日出/日落时刻(日面上缘、含大气折射,吠陀通行口径;不随星盘设置里的「日出 / 日没口径」)')}
 								{kv('凶时段', 'Rahu Kalam / Yamaganda / Gulika 三段不利时')}
 								{kv('出生须臾', '出生落第几须臾及吉/凶（Abhijit 为大吉）')}
 								{kv('Panchaka 五忌', '(Tithi + 星期(周日=1) + 月宿 + 上升座) 除 9:余 1 死 / 2 火 / 4 王 / 6 盗 / 8 病为忌,余 0 / 3 / 5 / 7 无忌;上升恒按 D1')}</div>
@@ -721,7 +721,7 @@ class IndiaHelpDoc extends Component {
 								{kv('Varṇada 期长', '数到座主（默认,Nārāyaṇa 同式）/ 等长（每座首轮恒 9 年,总 108;二轮 3 年）')}
 								{kv('Chakra 昼夜起座', '古典:夜=上升座、昼=上升主所在座（默认）/ 反转变体。黄昏窗权威未详,按昼夜二分近似')}</div>
 							<div style={card}><div style={ct}>Kālachakra 组（2 项）</div>
-								{kv('周期换接法', '进位（默认）/ 循环 / 同宿进位 / 归零。paramāyus 用尽后如何续轮;进位绝不跨 savya↔apasavya 组;差异只在首轮之后显现')}
+								{kv('周期换接法', '进位（默认）/ 循环 / 同宿进位 / 归零（目前与「循环」同果,下拉里已注明）。paramāyus 用尽后如何续轮;进位绝不跨 savya↔apasavya 组;差异只在首轮之后显现')}
 								{kv('适用条件', '普适（默认）/ 月 navāṁśa 强才主用。后者只加适用性标注,不禁算')}</div>
 							<div style={card}><div style={ct}>行星运组（2 项）</div>
 								{kv('Naisargika 排序', '固定自然序（默认）/ kendra 强度序。后者自月亮起、余曜按角宫→续宫→果宫组序;年数不变,只换排序')}

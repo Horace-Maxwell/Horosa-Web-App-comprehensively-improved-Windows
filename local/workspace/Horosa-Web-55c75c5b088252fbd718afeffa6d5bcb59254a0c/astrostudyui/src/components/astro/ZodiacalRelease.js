@@ -86,6 +86,21 @@ class ZodiacalRelease extends Component{
 
 
 	render(){
+		// fill:吃满父卡(星运右栏 FillCard,高度由右栏分配);带上表盒同一个类,右栏量完整内容高时按树本身算
+		if(this.props.fill){
+			let fdom = null;
+			if(this.props.value){
+				this._keySign = {};
+				fdom = this.genZRSubLevelDom(this.props.value, -1, 'zr');
+			}
+			return (
+				<div className={`${styles.scrollbar} horosa-small-table-scroll horosa-direction-tree-scroll horosa-zodiacal-release-tree-scroll`} style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+					<Tree className="horosa-direction-tree horosa-zodiacal-release-tree" onSelect={this.handleSelect}>
+						{fdom}
+					</Tree>
+				</div>
+			);
+		}
 		let height = this.props.height ? this.props.height : '100%';
 		let mainCont = document.getElementById('mainContent');
 		if(mainCont){

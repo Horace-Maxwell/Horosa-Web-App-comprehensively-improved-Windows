@@ -110,7 +110,7 @@ export default class XuanShiEvents extends React.Component {
 				<div className="xuanshi-field-label">{label}</div>
 				{isMd
 					? <div className="xuanshi-field-body" dangerouslySetInnerHTML={{ __html: md(val) }} />
-					: <div className="xuanshi-field-body" style={{ whiteSpace: 'pre-line', fontFamily: 'var(--xs-serif)' }}>{val}</div>}
+					: <div className={`xuanshi-field-body${variant === 'original' ? ' horosa-script-classic' : ''}`} style={{ whiteSpace: 'pre-line', fontFamily: 'var(--xs-serif)' }}>{val}</div>}   {/* 原文走古籍转换档(繁体下 范 / 里 保留原字) */}
 			</div>
 		) : null);
 		const isYezai = d.tradition === '野载';
@@ -385,7 +385,7 @@ export default class XuanShiEvents extends React.Component {
 									{e.history ? <span className="xuanshi-evrow-src">《{e.history}》{e.volume_no ? `卷${e.volume_no}` : ''}</span> : null}
 								</div>
 								{(e.modern_text || e.original_text) ? (
-									<p className="xuanshi-evrow-sum">{e.modern_text ? collapseSoftBreaks(e.modern_text) : `${(e.original_text || '').slice(0, 200)}…`}</p>
+									<p className={`xuanshi-evrow-sum${e.modern_text ? '' : ' horosa-script-classic'}`}>{e.modern_text ? collapseSoftBreaks(e.modern_text) : `${(e.original_text || '').slice(0, 200)}…`}</p>
 								) : null}
 							</div>
 						))}

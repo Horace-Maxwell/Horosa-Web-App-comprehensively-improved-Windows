@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/guolao/GuoLaoChartMain.js b/astrostudyui/src/components/guolao/GuoLaoChartMain.js
-index af4ec394..a99a7016 100644
+index 87bb96d9..4ff5e675 100644
 --- a/astrostudyui/src/components/guolao/GuoLaoChartMain.js
 +++ b/astrostudyui/src/components/guolao/GuoLaoChartMain.js
 @@ -1,10 +1,12 @@
@@ -35,6 +35,15 @@ index af4ec394..a99a7016 100644
  import { getMagneticDeclination } from './electionGeomag';
  import { GuoLaoElectionTable, GuoLaoElectionSearch } from './GuoLaoElectionTable';
  import { saveModuleAISnapshot, saveModuleAISnapshotLazy, } from '../../utils/moduleAiSnapshot';
+@@ -56,7 +58,7 @@ import {
+ } from './main/format';
+ import { buildGuolaoAspectRows, clonePlain, applyGuolaoNodeMode, hasGuolaoRiseSetFields } from './main/aspectsNodeMode';
+ import { GUOLAO_SU28_CACHE_REV, guolaoMem, pushCache, buildGuolaoKey, isChartObjMatchParams, isChartObjSameNatal, fetchGuolaoChartCached } from './main/chartCache';
+-import { computeGuolaoSeedPatch, fieldsToParams, makeDefaultMoiraTransitTime, paramsWithMoiraTransit } from './main/params';
++import { computeGuolaoSeedPatch, fieldsToParams, makeDefaultMoiraTransitTime, paramsWithMoiraTransit, guolaoSunriseMode } from './main/params';
+ import {
+ 	stemBranchForYear, yearFromParams, baziStemBranch, baziText, lunarText, buildQuickPlanetRows,
+ 	buildGodRowsFromChart, buildLocalMoiraRules, normalizeGodRows, buildGuolaoSnapshotTextV2,
 @@ -82,6 +84,144 @@ function guolaoSnapshotMeta(p){
  	return { date: q.date, time: q.time, zone: q.zone, lon: q.lon, lat: q.lat };
  }
@@ -314,7 +323,7 @@ index af4ec394..a99a7016 100644
  			return true;
  		}
  		return !wrapperPropsEqual(this.props, nextProps);
-@@ -1597,8 +1777,40 @@ class GuoLaoChartMain extends Component{
+@@ -1598,8 +1778,44 @@ class GuoLaoChartMain extends Component{
  		});
  	}
  
@@ -326,11 +335,15 @@ index af4ec394..a99a7016 100644
 +	memoTransitParams(){
 +		const fields = this.props.fields;
 +		const tm = this.state.moiraTransitTime;
-+		if(this._tpValue && this._tpFields === fields && this._tpTime === tm){
++		// horosa_slice_prop_cover_v1:上游 v3.13.1 起 paramsWithMoiraTransit 还读「日出口径」—— fields 里没有时回落全局设置,
++		// 全局改了而 fields 引用不变(嵌入宿主不回写)时只按 (fields, time) 记会一直给旧口径,故有效口径一并入键
++		const sm = guolaoSunriseMode(fields);
++		if(this._tpValue && this._tpFields === fields && this._tpTime === tm && this._tpSun === sm){
 +			return this._tpValue;
 +		}
 +		this._tpFields = fields;
 +		this._tpTime = tm;
++		this._tpSun = sm;
 +		this._tpValue = paramsWithMoiraTransit(fields, tm);
 +		return this._tpValue;
 +	}
@@ -355,7 +368,7 @@ index af4ec394..a99a7016 100644
  		const ele = this.state.electionOptions || {};
  		if(ele.adjNorth === false){
  			if(this.state.electionDeclOutOfRange){
-@@ -1652,10 +1864,34 @@ class GuoLaoChartMain extends Component{
+@@ -1653,10 +1869,34 @@ class GuoLaoChartMain extends Component{
  
  	// 化曜/虚实/命曜/流曜/相位 五类信息面板原本没有——注入为右栏常驻 tab(信息不得仅在
  	// 快捷弹层可见);格局/神煞面板已有同源信息,不重复注入(格局弹窗仍留盘面徽标入口)。
@@ -391,7 +404,7 @@ index af4ec394..a99a7016 100644
  				<GuoLaoElectionTable
  					electionData={this.state.electionData}
  					transitChartObj={this.shownMoiraTransitChartObj()}
-@@ -1664,20 +1900,23 @@ class GuoLaoChartMain extends Component{
+@@ -1665,20 +1905,23 @@ class GuoLaoChartMain extends Component{
  					declination={this.resolveElectionDeclination()}
  				/>
  			) },
@@ -419,7 +432,7 @@ index af4ec394..a99a7016 100644
  	}
  
  	renderMoiraQuickModal(){
-@@ -1807,20 +2046,27 @@ class GuoLaoChartMain extends Component{
+@@ -1808,20 +2051,27 @@ class GuoLaoChartMain extends Component{
  		const options = this.state.kinastroOptions || {};
  		const zhangguo = safeMap(qz.zhangguo);
  		const mingGong = safeMap(qz.mingGong);
@@ -459,7 +472,7 @@ index af4ec394..a99a7016 100644
  				<div className="horosa-qizheng-kin-info-stack">
  					{this.renderQizhengKinReadingCards(sectionByTitle.get('张果断语') || {title: '张果断语', rows: []})}
  					<div className="horosa-qizheng-kin-info-card">
-@@ -1833,9 +2079,9 @@ class GuoLaoChartMain extends Component{
+@@ -1834,9 +2084,9 @@ class GuoLaoChartMain extends Component{
  					</div>
  				</div>
  			)},
@@ -472,7 +485,7 @@ index af4ec394..a99a7016 100644
  				<div className="horosa-qizheng-kin-info-stack">
  					{sections.filter((item)=>/宿度$/.test(item.title)).map((item)=>this.renderQizhengKinSection(item))}
  				</div>
-@@ -1853,12 +2099,12 @@ class GuoLaoChartMain extends Component{
+@@ -1854,12 +2104,12 @@ class GuoLaoChartMain extends Component{
  			>
  				{tabs.map((item)=>(
  					<TabPane tab={item.label} key={item.key}>
@@ -490,7 +503,7 @@ index af4ec394..a99a7016 100644
  						</FreezeSubTab>
  					</TabPane>
  				))}
-@@ -1890,20 +2136,33 @@ class GuoLaoChartMain extends Component{
+@@ -1891,20 +2141,33 @@ class GuoLaoChartMain extends Component{
  		);
  	}
  
@@ -532,7 +545,7 @@ index af4ec394..a99a7016 100644
  		// 与盘面绝对同源:盘面神煞环已切到 rules 引擎(godHits/transitGodHits,Moira prop 规则本尊),
  		// 清单从同一 hits 收集(全集 ~107 字,勾选与盘一一联动);rules 未到回退历法 ziGods。
  		const rules = this.state.moiraRules || {};
-@@ -1942,6 +2201,21 @@ class GuoLaoChartMain extends Component{
+@@ -1943,6 +2206,21 @@ class GuoLaoChartMain extends Component{
  		};
  	}
  
@@ -554,7 +567,7 @@ index af4ec394..a99a7016 100644
  	render(){
  		let height = this.props.height ? this.props.height : 760;
  		if(height === '100%'){
-@@ -1951,16 +2225,21 @@ class GuoLaoChartMain extends Component{
+@@ -1952,16 +2230,21 @@ class GuoLaoChartMain extends Component{
  		}
  
  		let chartObj = this.state.chartObj;
@@ -580,7 +593,7 @@ index af4ec394..a99a7016 100644
  
  		return (
  			<div className={`horosa-guolao-page horosa-astro-redesign horosa-guolao-redesign${useKinastroQizheng ? ' horosa-qizheng-kin-page' : ''}`}>
-@@ -1997,74 +2276,27 @@ class GuoLaoChartMain extends Component{
+@@ -1998,74 +2281,27 @@ class GuoLaoChartMain extends Component{
  							/>
  						</div>
  						<div className={`horosa-chart-stage horosa-chart-stage-redesign horosa-guolao-chart-panel xq-chart-renderer xq-chart-renderer-guolao${useMoiraLikeWheel ? ' horosa-guolao-chart-panel-moira' : ''}`}>

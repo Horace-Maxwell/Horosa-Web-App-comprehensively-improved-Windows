@@ -242,7 +242,7 @@ def getChartObj(data, perchart):
     # 白名单缺谁,谁在派生链就静默回落后端默认 —— 主盘改「三分集/福点反转/空亡口径/恒星
     # 容许度/文档序反转…」后派生盘全部与主盘分叉,且缓存键同因丢维不重取。
     for _vk in ('termsVariant', 'leoBoundFirst', 'geminiBoundEmended',
-                'triplicity', 'lotReversal', 'westNodeType', 'sectBuffer',
+                'triplicity', 'lotReversal', 'westNodeType', 'sectBuffer', 'sunriseMode',
                 'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb',
                 'vocMode', 'vocIncludeOuter', 'starOrb', 'starOrbMode',
                 'antisciaOrb', 'viaCombustaVariant',

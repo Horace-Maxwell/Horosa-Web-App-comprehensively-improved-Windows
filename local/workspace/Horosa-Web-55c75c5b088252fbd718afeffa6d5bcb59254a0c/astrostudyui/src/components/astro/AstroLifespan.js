@@ -111,9 +111,11 @@ class AstroLifespan extends Component {
 					<div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
 						<span style={{ fontWeight: 600, fontSize: 13 }}>寿命格局 <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--horosa-text-secondary)' }}>Length of Life</span></span>
 						<span style={{ fontSize: 12, opacity: 0.7 }}>取主法：</span>
+						<span role="radiogroup" aria-label="取主法" style={{ display: 'inline-flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
 						{METHODS.map((m) => (
 							<span
 								key={m.value}
+								role="radio" aria-checked={this.state.method === m.value}
 								onClick={() => { this.setState({ method: m.value }); safeLocalStorageSet('horosa.lifespan.method', m.value); }}
 								style={{
 									cursor: 'pointer', fontSize: 12, padding: '2px 10px', borderRadius: 6,
@@ -124,6 +126,7 @@ class AstroLifespan extends Component {
 								}}
 							>{m.label}<span style={{ fontSize: 10, opacity: 0.7, marginLeft: 4 }}>{m.en}</span></span>
 						))}
+						</span>
 						<span style={{ fontSize: 12, opacity: 0.7, marginLeft: 'auto' }}>
 							{res.isDiurnal ? '日生盘' : '夜生盘'} · {res.birthType === 'conjunctional' ? '朔月型' : '望月型'}
 						</span>
@@ -241,6 +244,7 @@ class AstroLifespan extends Component {
 		const open = this.state.timelineOpen;
 		const head = (
 			<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+				role="button" aria-expanded={open}
 				onClick={() => this.setState({ timelineOpen: !open })}>
 				<span style={{ fontWeight: 700 }}>向运至杀星 · 寿命时间轴 <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--horosa-text-secondary)' }}>Direction to Anareta</span></span>
 				<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', flex: '0 0 auto', whiteSpace: 'nowrap' }}>{open ? '收起 ▲' : '展开 ▼'}</span>

@@ -1,7 +1,8 @@
-import { Component } from 'react';
-import { Row, Col, Divider } from 'antd';
+import React, { Component } from 'react';
+import { Col} from 'antd';
 import AstroDoubleChart from './AstroDoubleChart';
 import AstroDirectionForm from './AstroDirectionForm';
+import { SideColumn, SidePanelHead, AspectTable, WheelSplit, FillCard } from './progPageLayout';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import request from '../../utils/request';
@@ -9,14 +10,13 @@ import * as Constants from '../../utils/constants';
 import { convertToArray } from '../../utils/helper';
 import { saveModuleAISnapshotLazy, } from '../../utils/moduleAiSnapshot';
 import { buildStarAndLotPositionLines, buildHouseCuspLines, buildPredictiveBirthLines, buildCurrentMomentLines, buildMethodNoteLines, } from '../../utils/astroAiSnapshot';
-import styles from '../../css/styles.less';
 import DateTime from '../comp/DateTime';
 import { XQSelect as Select } from '../xq-ui';
-import { markPanelReady } from '../../utils/perfMark';
-import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
+import { natalClassicalParams, transitOrbDefault, followTransitOrb } from './AstroExtraCommon';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
 import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
+import { markPanelReady } from '../../utils/perfMark';
 
 const Option = Select.Option;
 export const ARC_SOURCES = [AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS, AstroConst.JUPITER, AstroConst.SATURN, AstroConst.SUN];
@@ -148,6 +148,7 @@ class AstroPlanetaryArc extends Component{
 
 	componentDidMount(){
 		this._mounted = true;
+		this._detachTransitOrb = followTransitOrb(this);
 		this.requestData();
 		if(typeof window !== 'undefined'){
 			window.addEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
@@ -156,6 +157,7 @@ class AstroPlanetaryArc extends Component{
 
 	componentWillUnmount(){
 		this._mounted = false;
+		if(this._detachTransitOrb){ this._detachTransitOrb(); }
 		if(typeof window !== 'undefined'){
 			window.removeEventListener('horosa:refresh-module-snapshot', this.handleSnapshotRefreshRequest);
 		}
@@ -267,27 +269,40 @@ class AstroPlanetaryArc extends Component{
 		const style = { height: (height - 20) + 'px', overflowY: 'auto', overflowX: 'hidden', boxSizing: 'border-box' };   // 内距计入高度,不再比面板高 5px
 		return (
 			<div>
-				<Row gutter={6}>
-					<Col span={17}>
-						<AstroDoubleChart value={chartObj} height={height}
-							planetDisplay={this.props.planetDisplay} lotsDisplay={this.props.lotsDisplay}
-							chartDisplay={this.props.chartDisplay} showAstroMeaning={this.props.showAstroMeaning} />
-					</Col>
-					<Col span={7}>
-						<div className={styles.scrollbar} style={style}>
-							<div style={{ marginBottom: 8 }}>
-								<div style={{ marginBottom: 4 }}>弧源天体（月亮弧 / 行星弧）</div>
-								<Select value={param.arcSource} onChange={this.changeArcSource} style={{ width: '100%' }}>
-									{ARC_SOURCES.map((id) => <Option value={id} key={id}>{AstroText.AstroTxtMsg[id] || id}</Option>)}
-								</Select>
-							</div>
-							{/* 同太阳弧:-1 档在弧类等同 1°,隐掉 */}
-							<AstroDirectionForm {...fields} fieldsAry={fieldsary} hideMeanOrb onFieldsChange={this.fieldsChanged} onSubmit={this.submit} />
-							<Divider orientation="left">向运星 → 本命 相位</Divider>
-							<div style={{ fontSize: 12, color: 'var(--horosa-muted, #666)' }}>左侧双盘：内圈本命、外圈行星弧向运。</div>
-						</div>
-					</Col>
-				</Row>
+				{/* 盘大小与右栏宽度与星运其它带盘页同一套算法(progPageLayout.WheelSplit) */}
+				<WheelSplit style={{ height: height - 10 }} renderWheel={(wheelSize, wheelH)=>(
+					<div style={{ width: wheelSize, height: wheelH }}>
+							<AstroDoubleChart value={chartObj} height={wheelH}
+								planetDisplay={this.props.planetDisplay} lotsDisplay={this.props.lotsDisplay}
+								chartDisplay={this.props.chartDisplay} showAstroMeaning={this.props.showAstroMeaning} />
+					</div>
+				)} side={(
+					<React.Fragment>
+							{/* 右栏与星运其它带盘页同一个件:固定头(时间与设置,不随滚动)+ 下半整体滚动;顶部留安全距离 */}
+							<SideColumn style={{ height: '100%' }} head={(
+								<div>
+									<SidePanelHead title="行星弧" desc="以所选天体(月亮 / 行星)的推运行度作为弧,全盘同推;外圈为向运位置。" />
+									{/* 同太阳弧:-1 档在弧类等同 1°,隐掉 */}
+									<AstroDirectionForm {...fields} fieldsAry={fieldsary} hideMeanOrb onFieldsChange={this.fieldsChanged} onSubmit={this.submit}
+										settingsTitle="行星弧设置"
+										extraControls={(
+											<Col span={12}>
+												<div className="horosa-balbillus-label">弧源天体</div>
+												<Select value={param.arcSource} onChange={this.changeArcSource} style={{ width: '100%' }}>
+													{ARC_SOURCES.map((id) => <Option value={id} key={id}>{AstroText.AstroTxtMsg[id] || id}</Option>)}
+												</Select>
+											</Col>
+										)}
+									/>
+								</div>
+							)}>
+								{/* 此前这里只有一行说明、相位从没画出来(AI 快照有同一份表):与太阳弧等页同一个相位表 */}
+								<FillCard grow title="向运星 → 本命 相位" note="左侧双盘:内圈本命、外圈行星弧向运。">
+									<AspectTable chart={this.shownDirChart()} moverTitle="向运星" showAstroMeaning={this.props.showAstroMeaning} />
+								</FillCard>
+							</SideColumn>
+					</React.Fragment>
+				)} />
 			</div>
 		);
 	}

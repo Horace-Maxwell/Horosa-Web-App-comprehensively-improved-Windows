@@ -14,7 +14,10 @@
 //   条件依赖:CONTEXT 表显式给出父条件(区间扫描要末点+步长联合、正传分支随流派、紫微小限随流年…),
 //     showWhen 字段自动在兄弟字段里搜一枚令条件成立的上下文;还没有强证据的齿轮再穷举单兄弟上下文与 16 个日期兜底;
 //   可观测性:后端(:9999/:8899)离线时只做①与 C 类,其余记 UNVERIFIED(不判红也不判绿);HOROSA_DIFFNET_OFFLINE=1 强制离线。
-// 产物:HOROSA_DIFFNET_OUT=/abs/path.json 落全部齿轮判定(verdict/via/tries),供审计报告引用。
+// 产物:HOROSA_DIFFNET_OUT=/abs/path.json 落全部齿轮判定(verdict/via/tries/ms),每片一份 path.shard<k>of<N>.json,供审计报告引用 / 重生成耗时表。
+// 分片(2026-10-30):本文件是全谱差分闸的套件本体(非 .test.js),由 mountSettingsDiffAll.<k>.test.js(k = 1..N)各跑一片;
+//   单位 = 「技法 × 齿轮」,分法与覆盖合同见 mountSettingsDiffAllPlan.js。各齿轮判定逻辑与分片前逐字相同,只是每片只跑分给它的齿轮。
+//   单跑一个技法:HOROSA_DIFFNET_ONLY=<技法键> 跑全部分片文件(计划只在这些技法的齿轮里分)。
 jest.setTimeout(3600000);
 // jest.mock 工厂只许引用 mock* 前缀的惰性变量:捕获器用 var + 函数声明(提升),请求发生时才真访问
 var mockCap = { bodies: [], storage: [], args: [] };
@@ -96,6 +99,9 @@ import { TECHNIQUE_SETTINGS_SCHEMA, effectiveMountBaseline, pruneOptionsToNonDef
 import { installFixedNow } from './fixtures/fixedNow';
 import { classifyContentDelta, evidenceIsStrong } from './fixtures/diffEvidence';
 import { clearRegisteredProcessCaches } from '../processCacheRegistry';
+import { DIFFNET_SHARDS, shardUnits } from './mountSettingsDiffAllPlan';
+// HOROSA_DIFFNET_OUT=/abs/x.json → 每片落 /abs/x.shard<k>of<N>.json(合并:node scripts/diffnet_costs.js --merge …)
+function diffnetOutPath(out, k){ return `${out}`.replace(/(\.json)?$/, `.shard${k}of${DIFFNET_SHARDS}.json`); }
 function resetRequestCaches(){
 	clearRegisteredProcessCaches();
 }
@@ -320,20 +326,25 @@ async function runBase(src, key, ctxOv){
 	return { content: `${txt || ''}`.trim(), status: txt ? 'regen-base' : 'missing', err, req: entriesOf(CAP.bodies), reqN: CAP.bodies.length, urls: CAP.bodies.map((r)=>r.url), args: entriesOf(CAP.args), argsN: CAP.args.length, argUrls: CAP.args.map((r)=>r.url), storage: CAP.storage.slice() };
 }
 
-const KEYS = Object.keys(TECHNIQUE_SETTINGS_SCHEMA).filter((k)=>{ const s = TECHNIQUE_SETTINGS_SCHEMA[k]; return s && s.kind !== 'sectionsOnly' && Array.isArray(s.fields) && s.fields.length; });
 const ONLY = process.env.HOROSA_DIFFNET_ONLY ? process.env.HOROSA_DIFFNET_ONLY.split(',') : null;
 const RESULTS = [];
 
-describe('🔴 全技法齿轮差分闸(表驱动;后端在线时正文/请求/入参级,离线时只判蒸发)', ()=>{
-	KEYS.filter((k)=>!ONLY || ONLY.includes(k)).forEach((key)=>{
+// 第 k 片(1..DIFFNET_SHARDS):只跑计划分给本片的齿轮;技法顺序与片内齿轮顺序同登记表
+export function defineDiffNetShard(k){
+	const mine = shardUnits(k, DIFFNET_SHARDS, ONLY);
+	const mineByKey = new Map();
+	mine.forEach((u)=>{ if(!mineByKey.has(u.key)){ mineByKey.set(u.key, new Set()); } mineByKey.get(u.key).add(u.name); });
+describe(`🔴 全技法齿轮差分闸(表驱动;后端在线时正文/请求/入参级,离线时只判蒸发)· 分片 ${k}/${DIFFNET_SHARDS}`, ()=>{
+	[...mineByKey.keys()].forEach((key)=>{
 		const schema = TECHNIQUE_SETTINGS_SCHEMA[key];
+		const mineFields = schema.fields.filter((f)=>mineByKey.get(key).has(f.name));
 		const isChart = ANALYSIS_CHART_TECHNIQUES.includes(key) && !ANALYSIS_CASE_TECHNIQUES.includes(key);
 		const chartLike = isChart || schema.kind === 'localStorage';
 		// 双栖技法(同时是命盘类与事盘类:宿占 / 皇极)按事盘源跑时缺省路径恒 missing、正文面不可观测(AM-09 仪器盲区)
 		// → 事盘变体之后追加命盘源变体,正文面才有基线可比(只增证据,判定口径不变)
 		const isDual = ANALYSIS_CHART_TECHNIQUES.includes(key) && ANALYSIS_CASE_TECHNIQUES.includes(key);
 		const variants = chartLike ? CHART_VARIANTS.map((v)=>chartSrc(v)) : CASE_VARIANTS.map((v, i)=>caseSrc(key, v, i)).concat(isDual ? CHART_VARIANTS.map((v)=>chartSrc(v)) : []);
-		it(`${key}(${schema.kind},${schema.fields.length} 齿轮)`, async ()=>{
+		it(`${key}(${schema.kind},${schema.fields.length} 齿轮;本片 ${mineFields.length})`, async ()=>{
 			const baseCache = {};
 			const leaks = [];
 			const baseFor = async (vi, ctxOv)=>{
@@ -393,10 +404,12 @@ describe('🔴 全技法齿轮差分闸(表驱动;后端在线时正文/请求/�
 				const via = (contentDiff && !labelOnly) ? 'content' : (orderDiff ? 'order' : (argsDiff ? 'args' : (labelOnly ? 'label' : (reqDiff ? 'request' : (storageHit ? 'storage' : '-')))));
 				return { hit: storageHit || contentDiff || orderDiff || reqDiff || argsDiff, strong, via, observable, contentObservable, sample: cls ? cls.sample : orderSample };
 			};
-			for(const field of schema.fields){
+			for(const field of mineFields){
 				const name = field.name;
 				const rec = { key, name, verdict: 'OK', via: '-', tries: 0, value: undefined };
 				RESULTS.push(rec);
+				// 逐齿轮耗时(真实时钟 process.hrtime —— 本文件钉住了 Date / Date.now;只记不判;落进 HOROSA_DIFFNET_OUT,供 scripts/diffnet_costs.js 重生成分片耗时表)
+				const gearT0 = process.hrtime(); try{
 				const baseline0 = effectiveMountBaseline(key, variants[0].record) || {};
 				const explicit = explicitContext(key, field, schema);
 				const ctxOv = explicit !== undefined ? explicit : autoContext(key, field, schema, baseline0);
@@ -493,6 +506,7 @@ describe('🔴 全技法齿轮差分闸(表驱动;后端在线时正文/请求/�
 						});
 					}catch(_e){ /* 落盘失败不影响判定 */ }
 				}
+				} finally { { const d = process.hrtime(gearT0); rec.ms = Math.round(d[0] * 1e3 + d[1] / 1e6); } }
 			}
 			const bad = RESULTS.filter((r)=>r.key === key && (r.verdict === 'FAIL-OVERRIDE' || r.verdict === 'FAIL-DEAD'));
 			expect([...bad.map((r)=>`${r.verdict} ${key}.${r.name}=${JSON.stringify(r.value)}`), ...leaks]).toEqual([]);
@@ -506,7 +520,9 @@ describe('🔴 全技法齿轮差分闸(表驱动;后端在线时正文/请求/�
 		RESULTS.filter((r)=>r.verdict !== 'OK').forEach((r)=>linesOut.push(`DIFF-NET ${r.verdict} ${r.key}.${r.name}=${JSON.stringify(r.value)} via=${r.via} tries=${r.tries}${r.note ? ' ' + r.note : ''}`));
 		// eslint-disable-next-line no-console
 		console.log(linesOut.join('\n'));
-		if(process.env.HOROSA_DIFFNET_OUT){ try{ fs.writeFileSync(process.env.HOROSA_DIFFNET_OUT, JSON.stringify({ online: ONLINE, counts, strengthCounts, results: RESULTS }, null, 1)); }catch(_e){ /* ignore */ } }
-		if(!ONLY){ expect(RESULTS.length).toBeGreaterThan(500); }
+		if(process.env.HOROSA_DIFFNET_OUT){ try{ fs.writeFileSync(diffnetOutPath(process.env.HOROSA_DIFFNET_OUT, k), JSON.stringify({ online: ONLINE, shard: k, shards: DIFFNET_SHARDS, counts, strengthCounts, results: RESULTS }, null, 1)); }catch(_e){ /* ignore */ } }
+		// 本片跑到的齿轮 = 计划分给本片的齿轮(逐个比 id;漏跑 / 多跑当场红)。全谱总数 > 500 由计划合同核(mountSettingsDiffAllPlan.test.js)
+		expect(RESULTS.map((r)=>`${r.key}.${r.name}`)).toEqual(mine.map((u)=>u.id));
 	});
 });
+}

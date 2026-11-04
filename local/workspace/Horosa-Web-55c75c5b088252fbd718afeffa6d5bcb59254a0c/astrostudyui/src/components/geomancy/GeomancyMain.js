@@ -1392,10 +1392,22 @@ class GeomancyMain extends Component{
 		return typeof v === 'boolean' ? String(v) : v;
 	}
 
-	// 后端回传的实际生效值(供「跟随预设」档标注当前到底是什么,避免用户蒙着点)。
-	effLabel(field){
+	// 「跟随预设」档标注的是**预设**取值(选回它会得到什么)。后端只回生效值:未覆盖时生效值即预设值,顺手记下;
+	// 已覆盖时生效值是覆盖值 —— 曾直接拿它标「跟随预设（现为：右起）」,选回去却得左起。故覆盖态改用记下的预设值,记不到就不标。
+	presetRaw(field){
 		const st = ((this.state.result || {}).reading || {}).settings || {};
 		const raw = st[field.backendKey];
+		const g = this.state.granular || {};
+		if(!this._presetEff){ this._presetEff = {}; }
+		if(g[field.key] === undefined || g[field.key] === null){
+			if(raw !== undefined && raw !== null){ this._presetEff[field.key] = raw; }
+			return raw;
+		}
+		return this._presetEff[field.key];
+	}
+
+	effLabel(field){
+		const raw = this.presetRaw(field);
 		if(raw === undefined || raw === null){ return ''; }
 		const k = typeof raw === 'boolean' ? String(raw) : raw;
 		const hit = (field.options || []).find((o)=>o.key === k);
@@ -1407,8 +1419,7 @@ class GeomancyMain extends Component{
 	//    —— 闭合态必被省略号吃掉,等于「选项被遮挡」。故闭合态显短名、下拉列表显全称(optionLabelProp),
 	//    并保留 title 悬浮全文;长值之项另改单列全宽,断无截断之理。
 	effShort(field){
-		const st = ((this.state.result || {}).reading || {}).settings || {};
-		const raw = st[field.backendKey];
+		const raw = this.presetRaw(field);
 		if(raw === undefined || raw === null){ return ''; }
 		const k = typeof raw === 'boolean' ? String(raw) : raw;
 		const hit = (field.options || []).find((o)=>o.key === k);
@@ -1436,6 +1447,7 @@ class GeomancyMain extends Component{
 	changeGeomancyOpt(key, value){
 		// 换流派预设 = 批量写默认:清空逐项覆盖,让新预设的默认值全面生效(用户可再逐项改写)。
 		const patch = key === 'tradition' ? { [key]: value, granular: {} } : { [key]: value };
+		if(key === 'tradition'){ this._presetEff = {}; }   // 换预设:记下的旧预设取值作废(见 presetRaw)
 		GEOMANCY_PAGE_SETTINGS.save(patch);   // 换预设连同「清空逐项覆盖」一起落盘
 		this.setState(patch, ()=>{
 			this.recastPinned();

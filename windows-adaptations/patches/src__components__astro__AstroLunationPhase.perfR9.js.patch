@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroLunationPhase.js b/astrostudyui/src/components/astro/AstroLunationPhase.js
-index f6caec4a..0f1daa32 100644
+index 163ebab7..e57f7893 100644
 --- a/astrostudyui/src/components/astro/AstroLunationPhase.js
 +++ b/astrostudyui/src/components/astro/AstroLunationPhase.js
 @@ -4,6 +4,7 @@ import { birthMomentOfChart } from '../../utils/civilMoment';

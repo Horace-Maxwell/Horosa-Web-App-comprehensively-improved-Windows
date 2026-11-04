@@ -158,3 +158,11 @@ def test_endpoint_events_q_only_matches_q_any(srv):
     both = _call(srv, "events", {"q": "熒惑", "q_any": ["荧惑"], "page_size": 1})["total"]
     single = len(xs_queries.filter_events(q="熒惑"))
     assert simp == trad == both > single
+
+
+def test_fallback_keeps_gan_as_is():
+    # zhconv 退路(运行时缺 OpenCC 时)逐字把「天干」转成「天幹」;退路里「干」保留原字,其余字照转
+    assert textquery._keep_one_to_many("天干", "天幹") == "天干"
+    assert textquery._keep_one_to_many("干支历法", "幹支曆法") == "干支曆法"
+    assert textquery._keep_one_to_many("荧惑", "熒惑") == "熒惑"
+    assert textquery._keep_one_to_many("天干", "") == ""   # 转换失败原样交回

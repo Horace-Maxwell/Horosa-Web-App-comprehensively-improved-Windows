@@ -426,6 +426,7 @@ export default class IndiaZeriMain extends Component{
 					hook={this.indiaHook}
 					height={this.props.height}
 					dispatch={this.props.dispatch}   /* 宿主此前不传 dispatch:22 项大运流派开关与盘式在宿主内全死(同 T-18 族第四宿主) */
+					indiaChartStyle={this.props.indiaChartStyle}   /* 盘式切换写全局 app.indiaChartStyle,须从宿主传回;此前不传 → 恒南印、北印 / 东印点了不变 */
 					onScopedFieldsChange={this.onEmbedFieldsChange}
 					renderLeftExtra={this.renderLeftExtra}
 					zeriLocked={INDIA_ZERI_LOCKED}

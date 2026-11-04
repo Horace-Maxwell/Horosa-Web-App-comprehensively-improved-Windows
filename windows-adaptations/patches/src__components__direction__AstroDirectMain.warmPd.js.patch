@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/direction/AstroDirectMain.js b/astrostudyui/src/components/direction/AstroDirectMain.js
-index 8e27784e..b579c4b9 100644
+index 100f5989..b591fa52 100644
 --- a/astrostudyui/src/components/direction/AstroDirectMain.js
 +++ b/astrostudyui/src/components/direction/AstroDirectMain.js
 @@ -1,5 +1,11 @@
@@ -14,7 +14,7 @@ index 8e27784e..b579c4b9 100644
  import { wrapperPropsEqual } from '../../utils/chartUpdateGuard';
  import { readPdSphereStamp } from '../../utils/pdSphereStamp';
  import { recordNewChartSeeds } from '../../utils/newChartSeeds';
-@@ -711,6 +717,41 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
+@@ -712,6 +718,41 @@ function buildPrimaryDirectionFetchFields(baseFields, chartObj, pdMethod, pdTime
  	return fields;
  }
  
@@ -56,7 +56,7 @@ index 8e27784e..b579c4b9 100644
  function unwrapPredictiveResponse(data){
  	if(!data || typeof data !== 'object'){
  		return null;
-@@ -858,6 +899,41 @@ class AstroDirectMain extends Component{
+@@ -871,6 +912,41 @@ class AstroDirectMain extends Component{
  					hook[this.state.currentTab].fun(chartobj);
  				}
  			};
@@ -98,7 +98,7 @@ index 8e27784e..b579c4b9 100644
  		}
  
  	}
-@@ -1319,6 +1395,8 @@ class AstroDirectMain extends Component{
+@@ -1332,6 +1408,8 @@ class AstroDirectMain extends Component{
  		this.syncCurrentSubTab();
  		this.ensurePrimaryDirectionReady();
  		this.saveDirectionSnapshot();

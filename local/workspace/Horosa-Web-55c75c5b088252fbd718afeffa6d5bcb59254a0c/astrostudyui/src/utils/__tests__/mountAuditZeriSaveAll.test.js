@@ -19,7 +19,7 @@ const FIVE = { HuangliZeriMain: 'huanglizeri', BaziZeriMain: 'bazizeri', ZiweiZe
 it('🔴 ZeriMain 把 dispatch 传给全部八宿主(此前五宿主不传=存档链根本不存在)', ()=>{
 	const zm = read('components/zeri/ZeriMain.js');
 	['HuangliZeriMain', 'BaziZeriMain', 'TaiyiZeriMain', 'ZiweiZeriMain', 'LiurengZeriMain', 'SanshiZeriMain', 'QizhengZeriMain', 'IndiaZeriMain'].forEach((h)=>{
-		expect(zm).toContain(`<${h} height={childHeight} dispatch={this.props.dispatch} />`);
+		expect(zm).toContain(`<${h} height={childHeight} dispatch={this.props.dispatch}`);   // 其后可另带属性(印度择日另传盘式)
 	});
 });
 

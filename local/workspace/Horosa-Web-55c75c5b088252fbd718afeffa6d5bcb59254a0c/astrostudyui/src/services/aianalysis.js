@@ -274,6 +274,12 @@ export function requestWebSearch(values, options){
 	return requestJson(`${ServerRoot}/aianalysis/websearch`, values, { timeoutMs: 25000, signal });
 }
 
+// 决策层(TypeSafe System One):key / 基址 / 问题 逐次带上,本地 Java 转发(后端不落库、不写日志);非 2xx 抛,由 utils/systemOne/client.js 接住永不外抛
+export function requestSystemOne(values, options){
+	const signal = options && options.signal;
+	return requestJson(`${ServerRoot}/aianalysis/systemone`, values, { timeoutMs: (options && options.timeoutMs) || 12000, signal });
+}
+
 // 网页读取:同联网检索一样只经 Java 端点(前端零直连;守卫/有界/转文本都在后端);30s + signal
 export function requestWebFetch(values, options){
 	const signal = options && options.signal ? options.signal : undefined;

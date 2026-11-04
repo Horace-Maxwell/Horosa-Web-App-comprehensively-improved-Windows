@@ -70,9 +70,10 @@ describe('八字 神煞补全（§5 完整对照表项）', () => {
 		expect(r.month).toContain('天乙贵人');
 	});
 
-	test('天医（§5.3 月支退一位）：寅月见丑支 → 天医', () => {
-		const r = calcFourPillarShenSha(four('辛丑', '庚寅', '甲子', '甲子'));
+	test('天医（子平口径 · 月支退一位）：寅月见丑支 → 天医;缺省协纪口径下丑不挂天医', () => {
+		const r = calcFourPillarShenSha(four('辛丑', '庚寅', '甲子', '甲子'), '年', { tianyiSchool: 'ziping' });
 		expect(r.year).toContain('天医'); // 月寅→天医丑，年支丑
+		expect(calcFourPillarShenSha(four('辛丑', '庚寅', '甲子', '甲子')).year).not.toContain('天医');   // 协纪:寅月天医在戌
 	});
 	test('月德合（§5.3 衍生）：寅(午戌局)月见辛干 → 月德合', () => {
 		const r = calcFourPillarShenSha(four('辛卯', '丙寅', '甲子', '己巳'));

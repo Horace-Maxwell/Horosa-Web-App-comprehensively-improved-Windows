@@ -286,6 +286,8 @@
 		}
 		return parts.join(' > ');
 	}
+	// 单选项是否选中:antd 靠 class(…-checked),自研组靠 aria-checked
+	function isChk(i) { return /checked/.test(i.className) || i.getAttribute('aria-checked') === 'true'; }
 	var SWITCHABLE = ['checkbox', 'switch', 'select', 'radio', 'chip', 'toggle', 'number', 'slider', 'date', 'time', 'quicktime', 'text', 'native-toggle', 'native-range', 'native-select', 'native-checkbox', 'native-radio', 'native-number', 'native-date', 'native-time', 'native-datetime', 'native-color'];
 	HDS.SWITCHABLE = SWITCHABLE;
 	function push(out, seen, kind, el, inner, extra) {
@@ -315,6 +317,12 @@
 				var items = [].slice.call(el.querySelectorAll('.ant-radio-button-wrapper, .ant-radio-wrapper')).filter(isVis);
 				if (items.length) { push(out, seen, 'radio', el, null, { items: items, segmented: el.classList.contains('xq-segmented'), 取值数: items.length }); items.forEach(function (i) { seen.add(i); }); }
 			});
+			// 自研单选组(role=radiogroup > role=radio[aria-checked]):项是 span/div,不进 antd 选择器
+			r.querySelectorAll('[role=radiogroup]').forEach(function (el) {
+				if (seen.has(el) || el.closest('.ant-radio-group')) { return; }
+				var items = [].slice.call(el.querySelectorAll('[role=radio]')).filter(isVis);
+				if (items.length) { push(out, seen, 'radio', el, null, { items: items, 取值数: items.length }); items.forEach(function (i) { seen.add(i); }); }
+			});
 			r.querySelectorAll('.ant-radio-button-wrapper, .ant-radio-wrapper').forEach(function (el) { if (!seen.has(el) && !el.closest('.ant-radio-group')) { push(out, seen, 'radio', el.parentElement || el, null, { items: [el], 取值数: 1 }); } });
 			// 🔴 自研控件必须单列:左栏四个入口按钮弹出的设置面板里,开关根本不是 antd 的
 			//    input[type=checkbox],而是 .xq-check-item / .xq-toggle 这类自研芯片。
@@ -342,7 +350,8 @@
 			r.querySelectorAll('input[type=color]').forEach(function (el) { push(out, seen, 'native-color', el, el); });
 			r.querySelectorAll('select').forEach(function (el) { push(out, seen, 'native-select', el, el); });
 			r.querySelectorAll('input[type=radio]').forEach(function (el) { if (!el.closest('.ant-radio-group, .ant-radio-wrapper, .ant-radio-button-wrapper')) { push(out, seen, 'native-radio', el.closest('label') || el, el); } });
-			r.querySelectorAll('button[aria-pressed], button.is-active, [role=button].is-active, button[class*="is-active"]').forEach(function (el) { push(out, seen, 'native-toggle', el, null); });
+			// aria-current = 指向当前所在页的导航项(单盘 / 多盘切换里亮着的那个),点了本就不动,不是开关
+			r.querySelectorAll('button[aria-pressed], [role=button][aria-pressed], button.is-active, [role=button].is-active, button[class*="is-active"]').forEach(function (el) { if (!el.hasAttribute('aria-current')) { push(out, seen, 'native-toggle', el, null); } });
 			r.querySelectorAll('button, .ant-btn').forEach(function (el) {
 				if (seen.has(el) || el.closest('.ant-select, .ant-picker, .ant-input-number, .ant-radio-group, .xq-side-section-header, .ant-tabs-nav, .hds-selftest-box')) { return; }
 				if (el.classList.contains('xq-toggle') || el.classList.contains('xq-check-item') || el.hasAttribute('aria-pressed')) { return; }
@@ -379,6 +388,9 @@
 	};
 	function selOpen(sel) { var s = sel.querySelector('.ant-select-selector') || sel; mouse(s, 'mousedown'); mouse(s, 'mouseup'); }
 	function selClose() { document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); document.body.click(); }
+	// allowClear 下拉原值为空(只显 placeholder):下拉里没有「空」这一项,按名找回必落空 → 点清除图标(rc-select 在 mousedown 上清值);
+	// 此前静默关面板、值停在拨过的项,后续控件都在脏态下测(placeholder 为「留空 / 选填」的可清空下拉实抓)
+	function selClear(sel) { var x = sel && sel.querySelector('.ant-select-clear'); if (!x) { return false; } clickEl(x); return true; }
 	function selCur(sel) { return [].slice.call(sel.querySelectorAll('.ant-select-selection-item')).map(function (e) { return (e.getAttribute('title') || e.textContent || '').trim(); }).join('|'); }
 
 	// ── 当前值(dumpState / 复原判据 / 导出)──
@@ -388,7 +400,7 @@
 			case 'checkbox': case 'native-checkbox': return !!(inner || el).checked;
 			case 'switch': return el.getAttribute('aria-checked') === 'true' || el.classList.contains('ant-switch-checked');
 			case 'select': return selCur(el);
-			case 'radio': { var ck = (c.items || []).filter(function (i) { return /checked/.test(i.className); })[0]; return ck ? txt(ck) : ''; }
+			case 'radio': { var ck = (c.items || []).filter(function (i) { return isChk(i); })[0]; return ck ? txt(ck) : ''; }
 			case 'chip': return el.classList.contains('xq-check-item-checked');
 			case 'toggle': return el.classList.contains('xq-toggle-active');
 			case 'number': case 'text': case 'date': case 'time': return inner ? inner.value : '';
@@ -418,7 +430,7 @@
 			}
 			case 'radio': {
 				var items = c.items || [];
-				var cur = items.filter(function (i) { return /checked/.test(i.className); })[0];
+				var cur = items.filter(function (i) { return isChk(i); })[0];
 				var others = items.filter(function (i) { return i !== cur && !/disabled/.test(i.className) && isVis(i); });
 				if (!others.length) { return { skip: '取值<2', n: items.length }; }
 				var other = others[tryIdx % others.length];
@@ -467,7 +479,7 @@
 							? list.filter(function (o) { return sameOption((o.getAttribute('title') || o.textContent), toTxt2); })[0]   // 多选:再点同项=取消
 							: ((fromFull && list.filter(function (o) { return String(o.getAttribute('title') || o.textContent || '').trim() === fromFull; })[0])
 								|| list.filter(function (o) { return sameOption((o.getAttribute('title') || o.textContent), from); })[0]);
-						if (back) { back.click(); } else { selClose(); }
+						if (back) { back.click(); } else { selClose(); if (!c.multiple && String(from == null ? '' : from) === '') { await sleep(120); selClear(el); } }
 						if (c.multiple) { await sleep(120); selClose(); }
 					},
 				};
@@ -634,15 +646,24 @@
 		}
 		var cols = vis('.ant-collapse-item:not(.ant-collapse-item-active) > .ant-collapse-header');
 		for (var k = 0; k < cols.length; k++) { cols[k].click(); opened++; await sleep(200); }
+		// 自研折叠卡头(div[role=button][aria-expanded=false]):收着时卡内读数 0 高,左栏开关改了它也「无反应」
+		var heads = vis('[role=button][aria-expanded="false"]').filter(function (h) { return !h.closest('.ant-select, .ant-picker, .ant-tabs-nav, .ant-dropdown-trigger'); });
+		for (var m = 0; m < heads.length; m++) { heads[m].click(); opened++; await sleep(200); }
 		return opened;
 	};
 
 	// 提交钮:PROFILE.commitText 非空时,拨值后与复原后各点一次(文本去空白全等的可见 button),再等 settle
+	function findCommitButton(want) {
+		var cands = vis('button').filter(function (b) { return !b.disabled && !b.classList.contains('xq-side-section-toggle'); });
+		var norm = function (b) { return (b.textContent || '').replace(/\s+/g, ''); };
+		return cands.filter(function (b) { return norm(b) === want; })[0] || cands.filter(function (b) { return norm(b).indexOf(want) === 0; })[0] || null;
+	}
 	async function commitIf(waitMs) {
 		if (!PROFILE.commitText) { return false; }
 		var want = String(PROFILE.commitText).replace(/\s+/g, '');
-		// 前缀匹配:按钮在脏态会改文案(如「重算」→「重算（有改动待生效）」),整串全等会漏点
-		var btn = vis('button').filter(function (b) { return (b.textContent || '').replace(/\s+/g, '').indexOf(want) === 0 && !b.disabled; })[0];
+		// 先全等、再前缀:前缀是为脏态改文案(「重算」→「重算（有改动待生效）」);但只做前缀会先命中左栏分区折叠钮
+		// (「起卦」命中「起卦参数」→ 每次「提交」其实是在收放分区、从不起卦,小成图 / 小六壬 / 皇极一批开关被误判无反应)
+		var btn = findCommitButton(want);
 		if (!btn) { return false; }
 		clickEl(btn); await settleAfter(waitMs);
 		await HDS.acceptConfirm(waitMs);
@@ -676,7 +697,7 @@
 				var dd = HDS.panelOf(fc.el);
 				if (!dd) { selClose(); return; }
 				var opt = [].slice.call(dd.querySelectorAll('.ant-select-item-option')).filter(function (o) { return sameOption((o.getAttribute('title') || o.textContent), from); })[0];
-				if (opt) { opt.click(); } else { selClose(); }
+				if (opt) { opt.click(); } else { selClose(); if (!fc.multiple && String(from == null ? '' : from) === '') { await sleep(120); selClear(fc.el); } }
 				return;
 			}
 			case 'native-number': case 'native-date': case 'native-time': case 'native-datetime': case 'native-color': {
@@ -722,8 +743,9 @@
 		var r = await actC(c, { waitMs: waitMs });
 		if (r.skip) { unmarkSelf(); return { ok: false, why: '不可拨:' + r.skip }; }
 		var want = PROFILE.commitText ? String(PROFILE.commitText).replace(/\s+/g, '') : null;
+		var hitBtn = want ? findCommitButton(want) : null;
 		var btns = want ? vis('button').filter(function (x) { return (x.textContent || '').replace(/\s+/g, '').indexOf(want) === 0; }).map(function (x) { return { text: (x.textContent || '').trim(), disabled: !!x.disabled, cls: String(x.className).slice(0, 60) }; }) : null;
-		var committed = !!(btns && btns.length); var spin = vis('.ant-spin-spinning').length;
+		var committed = !!hitBtn; var spin = vis('.ant-spin-spinning').length;
 		var a = await HDS.fpx(); var ta = Date.now() - t0;
 		await r.undo(); await sleep(waitMs);
 		var back = await HDS.fpx(); unmarkSelf();
@@ -1064,14 +1086,17 @@
 				try { c.el.scrollIntoView({ block: 'center', inline: 'center' }); } catch (e) { /* 老内核无 options */ }
 				await sleep(150);
 				// 时间输入旁的「步进单位」下拉(四分钟/年/月/日/时…):只改 ± 按钮一步走多少,不改排盘 → 记跳过并写明,不进无反应
-				if (c.kind === 'select' && c.name === '时间' && /^(四分钟|分钟|秒|时|日|月|年|世纪|十年)$/.test(String(valueOf(c)))) { row.skip = '步进单位(只改时间 ± 步长,不改排盘)'; out.push(row); continue; }
+				// 认法不靠标签名:推运图族等页的时间块没有「时间」标签,控件名退成当前值(「四分钟」)→ 同一行有「此 刻」钮即步进单位
+				var stepRow = c.el && c.el.closest ? c.el.closest('.ant-row') : null;
+				var isStepUnit = c.name === '时间' || !!(stepRow && /此\s*刻/.test(stepRow.innerText || ''));
+				if (c.kind === 'select' && isStepUnit && /^(四分钟|分钟|秒|小时|时|天|日|月|年|世纪|十年)$/.test(String(valueOf(c)))) { row.skip = '步进单位(只改时间 ± 步长,不改排盘)'; out.push(row); continue; }
 				// 单选组的项节点必须现取:前一控件拨值/复原会让条件渲染的行整体重挂,采集期缓存的项节点
 				// 已卸载(rect 全 0)→ 旧逻辑判「被遮挡」并令整页作废。
 				if (c.kind === 'radio' && c.el && c.el.isConnected) {
-					var liveItems = [].slice.call(c.el.querySelectorAll('.ant-radio-button-wrapper, .ant-radio-wrapper')).filter(isVis);
+					var liveItems = [].slice.call(c.el.querySelectorAll('.ant-radio-button-wrapper, .ant-radio-wrapper, [role=radio]')).filter(isVis);
 					if (liveItems.length) { c.items = liveItems; }
 				}
-				var hitEl = c.kind === 'radio' ? ((c.items || []).filter(function (x) { return !/checked/.test(x.className); })[0] || c.el) : c.el;
+				var hitEl = c.kind === 'radio' ? ((c.items || []).filter(function (x) { return !isChk(x); })[0] || c.el) : c.el;
 				if (!hittable(hitEl)) {
 					var ukind = HDS.unreachableKind(hitEl);
 					if (ukind === 'unmounted') {
@@ -1286,9 +1311,11 @@
 				return p.getBoundingClientRect().height > 40;
 			});
 			var key = String(btnName || '').replace(/\s+/g, '');
+			// 按钮面窄会缩写(「宫位与黄道」↔ 标题「宫位制与黄道」),互相包含判不出 → 再认「按钮名是标题的子序列」
+			var subseq = function (s, t) { var j = 0; for (var q = 0; q < t.length && j < s.length; q++) { if (t[q] === s[j]) { j++; } } return j === s.length; };
 			return cands.filter(function (p) {
 				var title = ((p.innerText || '').trim().split('\n')[0] || '').replace(/\s+/g, '');
-				return title && (title.indexOf(key) >= 0 || key.indexOf(title) >= 0);
+				return title && (title.indexOf(key) >= 0 || key.indexOf(title) >= 0 || (key.length >= 3 && subseq(key, title)));
 			})[0] || (cands.length === 1 ? cands[0] : null);
 		};
 		(async function () {

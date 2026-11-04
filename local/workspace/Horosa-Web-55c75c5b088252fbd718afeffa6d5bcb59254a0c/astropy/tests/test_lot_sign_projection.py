@@ -69,3 +69,20 @@ def test_default_projection_unchanged_and_victory_day_formula():
     else:
         expect = (asc.lon + spirit.lon - jup.lon) % 360.0
     assert abs(((victory.lon - expect + 180.0) % 360.0) - 180.0) < 1e-6
+
+
+def test_eros_day_night_formula_matches_lot_of_venus():
+    # Paulus ch.23:爱欲点昼「自精神数至金星」、夜反之 —— 七星点里金星点即爱欲点,两者同一张盘上必须同位(昼夜各验一次)
+    seen = set()
+    for when in ('10:00:00', '23:00:00'):
+        pc = PerChart({**BASE, 'time': when})
+        seen.add(bool(pc.isDiurnal))
+        ch = pc.chart
+        asc = ch.getAngle(const.ASC).lon
+        spirit = ch.get(ap.PARS_SPIRIT).lon
+        venus = ch.getObject(const.VENUS).lon
+        eros = ch.get(ap.PARS_EROS).lon
+        expect = (asc + venus - spirit) if pc.isDiurnal else (asc + spirit - venus)
+        assert abs((((eros - expect) % 360.0) + 180.0) % 360.0 - 180.0) < 1e-6, when
+        assert abs((((eros - ch.get(ap.PARS_VENUS).lon) % 360.0) + 180.0) % 360.0 - 180.0) < 1e-6, when
+    assert seen == {True, False}     # 昼夜两支都真跑到

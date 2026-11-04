@@ -128,6 +128,10 @@ class HuangLiMain extends Component {
 		this.setState({ days: result.days, prevDays: result.prevDays }, ()=>{
 			// 切换月份后：若尚无选择或选中日不在本月，则选本月内今天、否则当月首日。
 			const days = this.state.days || [];
+			const want = this._pickYmd;
+			this._pickYmd = null;
+			const wanted = want && days.find((x)=> x && `${x.birth}`.split(' ')[0] === want);
+			if (wanted) { this.selectByYmd(this.parseBirth(wanted.birth)); return; }
 			const sel = this.state.selectedYmd;
 			const inMonth = sel && days.some((x)=> x && `${x.birth}`.split(' ')[0] === `${sel.y}-${String(sel.m).padStart(2, '0')}-${String(sel.d).padStart(2, '0')}`);
 			// horosa_panel_ready_v1:选中日仍在本月 → 右栏日课卡不变,本帧网格画完即终态。
@@ -162,6 +166,8 @@ class HuangLiMain extends Component {
 
 	onTimeChanged(dt) {
 		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点
+		// 左上年 / 月 / 日改了 → 网格跳到该月并选中所选那天(此前只换网格月份,选中日与日课卡仍停在原日:改「日」纯死控件)
+		this._pickYmd = dt.value.format('YYYY-MM-DD');
 		this.setState({ date: dt.value }, ()=>{ this.requestMonth(); });
 	}
 

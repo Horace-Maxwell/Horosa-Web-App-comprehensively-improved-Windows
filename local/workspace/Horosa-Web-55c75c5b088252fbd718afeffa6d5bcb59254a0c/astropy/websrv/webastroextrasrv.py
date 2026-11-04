@@ -4,6 +4,7 @@ import cherrypy
 import jsonpickle
 
 from astrostudy import astroextra
+from astrostudy import directed_figures
 from websrv.helper import enable_crossdomain
 
 
@@ -176,5 +177,45 @@ class AstroExtraSrv:
         enable_crossdomain()
         try:
             return self._json(astroextra.build_relative_score(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def neroman(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(directed_figures.build_neroman(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def bezzafigure(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(directed_figures.build_bezza(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def jayprofection(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(directed_figures.build_jay(self._payload(params)))
+        except Exception:
+            return self._error()
+
+    @cherrypy.expose
+    @cherrypy.config(**{'tools.cors.on': True})
+    @cherrypy.tools.json_in()
+    def michon(self, **params):
+        enable_crossdomain()
+        try:
+            return self._json(directed_figures.build_michon(self._payload(params)))
         except Exception:
             return self._error()

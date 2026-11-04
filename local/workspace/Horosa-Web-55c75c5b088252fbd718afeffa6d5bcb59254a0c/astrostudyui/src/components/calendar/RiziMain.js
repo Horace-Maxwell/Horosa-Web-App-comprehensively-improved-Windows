@@ -139,9 +139,11 @@ class RiziMain extends Component {
 			// T-252 把时柱修对之后,23:00–23:59 出生的当事人日柱会与八字页差一天,冲煞与吉日榜随之不同。
 			// 时间算法不传:当事人只录了出生日期时刻、无经纬度,真太阳时档缺经度只会静默退化成钟表口径,
 			// 传了反而制造「设了却不生效」的假象(引擎自身也会 warn),故按「不放无效参数」不传。
+			// 时区要传:左栏生辰带时区,交节按绝对时刻判 —— 不传则按东八区算,节气前后出生者换了时区月柱 / 年柱不变(死控件且算错)
 			return personBazi({
 				date: dt.format('YYYY-MM-DD'),
 				time: dt.format('HH:mm:ss'),
+				zone: dt.zone,
 				gender: person.gender,
 				after23NewDay: defaultAfter23NewDay() ? 1 : 0,
 				lateZiHourUseNextDay: defaultLateZiHourUseNextDay() ? 1 : 0,

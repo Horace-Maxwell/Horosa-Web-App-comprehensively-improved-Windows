@@ -1,4 +1,4 @@
-// 八字页保存的选项(localStorage 'baziopt',八字页左栏写):断命流派 / 盘法四项 / 南半球月令 / 年龄口径 / 生肖归属。
+// 八字页保存的选项(localStorage 'baziopt',八字页左栏写):断命流派 / 盘法四项 / 南半球月令 / 年龄口径 / 生肖归属 / 天医口径。
 // 页面起盘、出快照都读它;AI 挂载按记录重算时,齿轮没设的项回落这一份(与页面同源),齿轮的「现值缺省」也读它。
 // 只认各项的合法档(值域与八字页左栏 / 挂载齿轮同表),坏值、别的技法写进来的同名值一律当没设。
 export const BAZI_OPT_STORAGE_KEY = 'baziopt';
@@ -12,6 +12,7 @@ export const BAZI_OPT_DOMAINS = {
 	cangVersion: ['common', 'fenye'],
 	ageStyle: ['nominal', 'real'],
 	zodiacBoundary: ['lichun', 'lunar'],
+	tianyiSchool: ['xieji', 'ziping'],   // 天医口径:协纪辨方书(缺省) / 子平
 };
 
 export function baziOptValueValid(key, value){

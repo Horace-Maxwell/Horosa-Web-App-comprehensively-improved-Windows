@@ -169,6 +169,26 @@ function lifeSignIndex(chart, fields){
 	return Math.floor((((lon % 360) + 360) % 360) / 30) % 12;
 }
 
+// 黄道上(黄纬 0)一点的黄经 → 赤经(度,0..360)。只用来定扇区(30° 粒度),取 J2000 平黄赤交角足够。
+const OBLIQUITY_J2000 = 23.4392911;
+export function eclipticLonToRa(lon){
+	const l = (((Number(lon) % 360) + 360) % 360) * Math.PI / 180;
+	const e = OBLIQUITY_J2000 * Math.PI / 180;
+	const ra = Math.atan2(Math.sin(l) * Math.cos(e), Math.cos(l)) * 180 / Math.PI;
+	return ((ra % 360) + 360) % 360;
+}
+
+// 天星择日内静盘命宫扇区(地支序 子=0):立命时刻(日出 / 正午 / 日落 / 自定)定命宫 ——
+// /qizheng/election 回包 lifeDeg = 该时刻上升黄经(照 Moira pick_choice)。此前回包有这个值、盘上从不读,
+// 左栏「立命时刻」怎么选命宫都不动(死开关)。赤仪显示时与静盘上升点同口径换成赤经;回包缺值回退静盘上升点;
+// 两者都缺返 null(调用方再回退命度)。
+export function pickInnerLifeSector(eleLifeDeg, staticAscDeg, eclipticDisplay){
+	const l = Number(eleLifeDeg);
+	const anchor = Number.isFinite(l) ? (eclipticDisplay ? l : eclipticLonToRa(l)) : Number(staticAscDeg);
+	if(!Number.isFinite(anchor)){ return null; }
+	return (10 - Math.floor((((anchor % 360) + 360) % 360) / 30) + 12) % 12;
+}
+
 function lifeSectorIndex(chart, fields){
 	const signIdx = lifeSignIndex(chart, fields);
 	return (10 - signIdx + 12) % 12;
@@ -435,9 +455,8 @@ class GuoLaoMoiraPickWheel extends Component{
 		const ascLonForHouses = ascObjForHouses
 			? Number(moiraIsEclipticDisplayChart(chart) ? (ascObjForHouses.lon !== undefined && ascObjForHouses.lon !== null ? ascObjForHouses.lon : ascObjForHouses.ra) : (ascObjForHouses.ra !== undefined && ascObjForHouses.ra !== null ? ascObjForHouses.ra : ascObjForHouses.lon))
 			: null;
-		const lifeSector = Number.isFinite(ascLonForHouses)
-			? (10 - Math.floor((((ascLonForHouses % 360) + 360) % 360) / 30) + 12) % 12
-			: lifeSectorIndex(chart, this.props.fields);
+		const pickSector = pickInnerLifeSector(this.props.electionData && this.props.electionData.lifeDeg, ascLonForHouses, moiraIsEclipticDisplayChart(chart));
+		const lifeSector = pickSector !== null ? pickSector : lifeSectorIndex(chart, this.props.fields);
 			for(let i = 0; i < 12; i++){
 				const start = i * 30;
 				const end = (i + 1) * 30;

@@ -146,6 +146,12 @@ function pickCustomProviderOptions(providerType, providerOptions){
 	return result;
 }
 
+// 存档里的数值原样回显:这几项保存时按「填了就存」(含 0),回显若用 `||` 会把 0 换成预设值,
+// 再存一次就把用户设的 0 覆盖掉(top_k=0 / repeat_penalty=0 等)。只在没存时才回退到预设。
+function storedOr(value, fallback){
+	return value === undefined || value === null || value === '' ? fallback : value;
+}
+
 export function buildProviderFormValues(profile){
 	const providerType = profile ? profile.providerType : 'openai';
 	const preset = getProviderPreset(providerType);
@@ -168,16 +174,16 @@ export function buildProviderFormValues(profile){
 		anthropicMaxTokens: providerOptions.max_tokens || preset.anthropicMaxTokens || '2048',
 		// 字段改义「思考档开启时的预算上限」:存 thinking_budget_cap(非 API 键);旧档 thinking.budget_tokens 形态读入兼容
 		anthropicThinkingBudget: providerOptions.thinking_budget_cap || (providerOptions.thinking && providerOptions.thinking.budget_tokens ? providerOptions.thinking.budget_tokens : ''),
-		anthropicTopP: providerOptions.top_p || '',
-		anthropicTopK: providerOptions.top_k || '',
+		anthropicTopP: storedOr(providerOptions.top_p, ''),
+		anthropicTopK: storedOr(providerOptions.top_k, ''),
 		geminiGenerationConfigText: JSON.stringify(providerOptions.generationConfig || {}, null, 2),
 		geminiSafetySettingsText: JSON.stringify(providerOptions.safetySettings || [], null, 2),
 		ollamaKeepAlive: providerOptions.keep_alive || preset.ollamaKeepAlive || '5m',
-		ollamaNumCtx: providerOptions.num_ctx || preset.ollamaNumCtx || '8192',
-		ollamaNumPredict: providerOptions.num_predict || preset.ollamaNumPredict || '1024',
-		ollamaTopK: providerOptions.top_k || preset.ollamaTopK || '40',
-		ollamaTopP: providerOptions.top_p || preset.ollamaTopP || '0.9',
-		ollamaRepeatPenalty: providerOptions.repeat_penalty || preset.ollamaRepeatPenalty || '1.1',
+		ollamaNumCtx: storedOr(providerOptions.num_ctx, preset.ollamaNumCtx || '8192'),
+		ollamaNumPredict: storedOr(providerOptions.num_predict, preset.ollamaNumPredict || '1024'),
+		ollamaTopK: storedOr(providerOptions.top_k, preset.ollamaTopK || '40'),
+		ollamaTopP: storedOr(providerOptions.top_p, preset.ollamaTopP || '0.9'),
+		ollamaRepeatPenalty: storedOr(providerOptions.repeat_penalty, preset.ollamaRepeatPenalty || '1.1'),
 		providerOptionsText: JSON.stringify(pickCustomProviderOptions(providerType, providerOptions), null, 2),
 		enabled: profile ? profile.enabled !== false : true,
 	};

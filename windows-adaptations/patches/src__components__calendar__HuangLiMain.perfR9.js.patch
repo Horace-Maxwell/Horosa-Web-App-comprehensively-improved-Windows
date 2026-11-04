@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/calendar/HuangLiMain.js b/astrostudyui/src/components/calendar/HuangLiMain.js
-index 6dffe49c..1588472d 100644
+index 10470993..a2488f6a 100644
 --- a/astrostudyui/src/components/calendar/HuangLiMain.js
 +++ b/astrostudyui/src/components/calendar/HuangLiMain.js
 @@ -13,24 +13,46 @@ import { buildHuangliDay } from './huangliDay';
@@ -87,8 +87,8 @@ index 6dffe49c..1588472d 100644
  		if (!(key in this.wutuCache)) { try { this.wutuCache[key] = wutuForDate({ y, m, d }); } catch (e) { this.wutuCache[key] = null; } }
  		return this.wutuCache[key];
  	}
-@@ -102,11 +130,14 @@ class HuangLiMain extends Component {
- 			const days = this.state.days || [];
+@@ -106,11 +134,14 @@ class HuangLiMain extends Component {
+ 			if (wanted) { this.selectByYmd(this.parseBirth(wanted.birth)); return; }
  			const sel = this.state.selectedYmd;
  			const inMonth = sel && days.some((x)=> x && `${x.birth}`.split(' ')[0] === `${sel.y}-${String(sel.m).padStart(2, '0')}-${String(sel.d).padStart(2, '0')}`);
 -			if (inMonth) { return; }
@@ -103,7 +103,7 @@ index 6dffe49c..1588472d 100644
  		});
  	}
  
-@@ -116,14 +147,26 @@ class HuangLiMain extends Component {
+@@ -120,16 +151,28 @@ class HuangLiMain extends Component {
  			selectedYmd: { y, m, d },
  			selectedDay: this.getHuangli(y, m, d),
  			focus,
@@ -123,6 +123,8 @@ index 6dffe49c..1588472d 100644
  
  	onTimeChanged(dt) {
 +		markInteractionStart('calendar');   // horosa_panel_ready_v1 配对起点
+ 		// 左上年 / 月 / 日改了 → 网格跳到该月并选中所选那天(此前只换网格月份,选中日与日课卡仍停在原日:改「日」纯死控件)
+ 		this._pickYmd = dt.value.format('YYYY-MM-DD');
  		this.setState({ date: dt.value }, ()=>{ this.requestMonth(); });
  	}
  
@@ -131,7 +133,7 @@ index 6dffe49c..1588472d 100644
  		this.selectByYmd(this.parseBirth(date.birth));
  	}
  
-@@ -215,6 +258,11 @@ class HuangLiMain extends Component {
+@@ -221,6 +264,11 @@ class HuangLiMain extends Component {
  		}
  	}
  

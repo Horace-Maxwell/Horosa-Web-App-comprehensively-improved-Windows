@@ -10,7 +10,7 @@ import { Tabs, Empty, Input, InputNumber, Radio, Button, Select, Tag, Collapse }
 import { qiGuaManual, qiGuaByNumbers, qiGuaByStock, qiGuaByDaYan, qiGuaByYaoQian, trigramByName } from './core/xiaochengtuQiGua';
 import { buildPan, zhengTui, zhengTuiText, pangTui, tuiDao, shuZhan, siXiang, siXiangOfHex, fuDu, zhangDie, sanFen, liangFen, liangFenZhi, yingQiTui, suggestGong, klineYongGong } from './core/xiaochengtuPan';
 import { YONG_GONG_OPTIONS, DI_PAN, GUA_GONG, ZHONG_GONG_NOTE, SI_XIANG_BASE, SI_XIANG_DEF_TEXT, PI_KOUJING_LABEL, STOCK_QI_GUA_TEXT, GONG_ZHU, GONG_INFO, YAN_PAN_RULES, SHENG_JIANG_TEXT, QU_BI_TEXT, HUI_LIN_TEXT, PANG_TUI_ZONG_TEXT, QI_GUA_TIANDI_TEXT, TIAN_DI_SHU_GAN, TIAN_DI_SHU_GUA, XIAN_TIAN_GUA } from './core/xiaochengtuConst';
-import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../utils/safeStorage';
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
@@ -256,27 +256,27 @@ class XiaoChengTuMain extends Component {
 		const ds = `${inputs.dongYaosText || ''}`.split(/[,，\s]+/).map((x)=>parseInt(x, 10)).filter((x)=>x >= 1 && x <= 6);
 		if(settings.qiguaFa === 'manual'){
 			qi = qiGuaManual({ up: inputs.up, lo: inputs.lo, dongYaos: ds });
-			if(!qi){ return this.setState({ error: '本卦上下卦非法', qi: null }); }
+			if(!qi){ clearModuleAISnapshot('xiaochengtu'); return this.setState({ error: '本卦上下卦非法', qi: null }); }
 		}else if(settings.qiguaFa === 'dayan'){
 			// 大衍蓍草:手录六爻(6/7/8/9)优先;否则以种子派生(未录则用当下时刻作种,一经起出即冻结可复现)。
 			const cs = `${inputs.countsText || ''}`.split(/[,，\s]+/).map((x)=>parseInt(x, 10)).filter((x)=>[6, 7, 8, 9].indexOf(x) >= 0);
 			const useManual = cs.length === 6;
 			const seed = inputs.seed != null && `${inputs.seed}` !== '' ? inputs.seed : Date.now();
 			qi = qiGuaByDaYan({ seed, manualCounts: useManual ? cs : undefined });
-			if(!qi){ return this.setState({ error: '大衍起卦失败', qi: null }); }
+			if(!qi){ clearModuleAISnapshot('xiaochengtu'); return this.setState({ error: '大衍起卦失败', qi: null }); }
 		}else if(settings.qiguaFa === 'yaoqian'){
 			// 摇钱三变:手录六爻(6/7/8/9)优先;否则以种子派生(同大衍之冻结可复现口径)。
 			const cs = `${inputs.countsText || ''}`.split(/[,，\s]+/).map((x)=>parseInt(x, 10)).filter((x)=>[6, 7, 8, 9].indexOf(x) >= 0);
 			const seed = inputs.seed != null && `${inputs.seed}` !== '' ? inputs.seed : Date.now();
 			qi = qiGuaByYaoQian({ seed, manualCounts: cs.length === 6 ? cs : undefined });
-			if(!qi){ return this.setState({ error: '摇钱起卦失败', qi: null }); }
+			if(!qi){ clearModuleAISnapshot('xiaochengtu'); return this.setState({ error: '摇钱起卦失败', qi: null }); }
 		}else if(settings.qiguaFa === 'number'){
-			if(!inputs.upNum || !inputs.loNum){ return this.setState({ error: '请录上下两数(≥1)', qi: null }); }
+			if(!inputs.upNum || !inputs.loNum){ clearModuleAISnapshot('xiaochengtu'); return this.setState({ error: '请录上下两数(≥1)', qi: null }); }
 			qi = qiGuaByNumbers({ upNum: inputs.upNum, loNum: inputs.loNum, qiguaShu: settings.qiguaShu, dongYaos: ds });
-			if(!qi){ return this.setState({ error: '两数非法,不可配卦', qi: null }); }
+			if(!qi){ clearModuleAISnapshot('xiaochengtu'); return this.setState({ error: '两数非法,不可配卦', qi: null }); }
 		}else{
 			qi = qiGuaByStock({ open: inputs.open, close: inputs.close });
-			if(!qi){ return this.setState({ error: '开收盘价非法(需含数字,如 1563.62)', qi: null }); }
+			if(!qi){ clearModuleAISnapshot('xiaochengtu'); return this.setState({ error: '开收盘价非法(需含数字,如 1563.62)', qi: null }); }
 		}
 		// horosa_panel_ready_v1:qi 落定 = 小成图(中栏)与断法(右栏)画完的那一次 setState。
 		this.setState({ qi, error: '' }, ()=>{ markPanelReady('cnyibu'); this.saveSnap(); });

@@ -100,5 +100,7 @@ def test_bare_sid_mode_call_sites_whitelist():
         # election_scan.py:_sidereal_offset — set_sid_mode→get_ayanamsa_ut 相邻两行(择日征象搜索
         # 恒星制只在星座/绝对黄经判定处减 ayanamsa,内部计算全走回归框架;已评审符合 set/use 相邻约定)。
         os.path.join('astrostudy', 'election_scan.py'),
+        # directed_figures.py:michon_ayanamsa — 双黄道的恒星黄道岁差,set_sid_mode→get_ayanamsa_ut 相邻两行(已评审)。
+        os.path.join('astrostudy', 'directed_figures.py'),
     }
     assert hits == expected, '裸 set_sid_mode 调用点集合漂移(新增点须过 set/use 相邻评审): %r' % sorted(hits)

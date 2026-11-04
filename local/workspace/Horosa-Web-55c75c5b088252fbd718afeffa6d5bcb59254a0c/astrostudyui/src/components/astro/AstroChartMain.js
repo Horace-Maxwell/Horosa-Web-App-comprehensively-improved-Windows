@@ -670,11 +670,11 @@ class AstroChartMain extends Component{
 				{relCtx ? (
 				<div className="horosa-chart-mode-switch">
 					<button type="button" onClick={()=>this.navigateFeature('astrochart')}>单盘</button>
-					<button type="button" className="is-active">多盘</button>
+					<button type="button" className="is-active" aria-current="page">多盘</button>
 				</div>
 				) : (
 				<div className="horosa-chart-mode-switch">
-					<button type="button" className="is-active">单盘</button>
+					<button type="button" className="is-active" aria-current="page">单盘</button>
 					<button type="button" onClick={()=>this.navigateFeature('relativechart')}>多盘</button>
 				</div>
 				)}
@@ -1187,6 +1187,8 @@ class AstroChartMain extends Component{
 							showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
 							voidClassical={this.props.voidClassical}
 							relativeContext={this.props.relativeContext}
+							/* horosa_slice_prop_cover_v1:切片的「行星」页读行星列表密度;不传则切片 sCU 拦住改动,要换盘才生效 */
+							planetListStyle={this.props.planetListStyle}
 						/>
 					</div>
 					{this.renderBottomQuickDock()}

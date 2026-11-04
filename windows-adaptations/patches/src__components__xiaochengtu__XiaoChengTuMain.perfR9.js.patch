@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js b/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js
-index f9f55d5f..d16f5913 100644
+index d19ed28f..c5f3aea7 100644
 --- a/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js
 +++ b/astrostudyui/src/components/xiaochengtu/XiaoChengTuMain.js
 @@ -18,6 +18,8 @@ import { sideSectionIcon } from '../../constants/sideSectionIcons';
@@ -13,7 +13,7 @@ index f9f55d5f..d16f5913 100644
  const STORE_KEY = 'horosa.xiaochengtu.settings.v1';
 @@ -276,7 +278,8 @@ class XiaoChengTuMain extends Component {
  			qi = qiGuaByStock({ open: inputs.open, close: inputs.close });
- 			if(!qi){ return this.setState({ error: '开收盘价非法(需含数字,如 1563.62)', qi: null }); }
+ 			if(!qi){ clearModuleAISnapshot('xiaochengtu'); return this.setState({ error: '开收盘价非法(需含数字,如 1563.62)', qi: null }); }
  		}
 -		this.setState({ qi, error: '' }, ()=>this.saveSnap());
 +		// horosa_panel_ready_v1:qi 落定 = 小成图(中栏)与断法(右栏)画完的那一次 setState。

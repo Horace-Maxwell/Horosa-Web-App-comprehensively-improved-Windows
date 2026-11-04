@@ -1,20 +1,17 @@
-import { Component } from 'react';
-import { Spin, Select } from 'antd';
-import { XQButton as Button, XQTabs as Tabs } from '../xq-ui';
+import React, { Component } from 'react';
+import { Spin } from 'antd';
 import request from '../../utils/request';
 import * as Constants from '../../utils/constants';
 import * as AstroText from '../../constants/AstroText';
-import { unwrapResult, fmtNum, chartParams, chartRequestKey, cardStyle, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
+import { unwrapResult, fmtNum, chartParams, chartRequestKey, parkLoadFailure, clearLoadFailure, loadParked } from './AstroExtraCommon';
 import { buildStarAndLotPositionLines, buildHouseCuspLines, buildPredictiveBirthLines, buildCurrentMomentLines, buildMethodNoteLines, } from '../../utils/astroAiSnapshot';
-import ProgMethodPanel, { MINOR_VARIANT_OPTIONS } from './AstroProgChart';
+import ProgMethodPanel, { MINOR_VARIANT_OPTIONS, ProgPageSide } from './AstroProgChart';
+import { ProgPageShell } from './progPageLayout';
 import { today, chartZone, methodTab } from './astroProgSnapshot';
 import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
-import { FreezeSubTab } from '../comp/FreezeInactive';
 import { markPanelReady } from '../../utils/perfMark';
 
-const TabPane = Tabs.TabPane;
-const { Option } = Select;
 
 function typeLabel(t){ return t === 'contraparallel' ? '反平行' : '平行'; }
 
@@ -116,9 +113,8 @@ export async function buildJaynesProgSnapshotText(chartObj, opts){
 class AstroJaynesProgressions extends Component{
 	constructor(props){
 		super(props);
-		this.state = { targetDate: today(chartZone(props.value)), targetTime: '12:00:00', minorVariant: DIRECTION_PAGE_SETTINGS.load().minorVariant, loading: false, result: null, requestKey: '', methodTab: 'secondary' };
+		this.state = { targetDate: today(chartZone(props.value)), targetTime: '12:00:00', minorVariant: DIRECTION_PAGE_SETTINGS.load().minorVariant, loading: false, result: null, requestKey: '', progMethod: 'secondary' };
 		this.load = this.load.bind(this);
-		this.changeMethodTab = this.changeMethodTab.bind(this);
 		this.handleSnapshotRefreshRequest = this.handleSnapshotRefreshRequest.bind(this);
 	}
 
@@ -153,10 +149,6 @@ class AstroJaynesProgressions extends Component{
 		if(key && key !== this.state.requestKey && !this.state.loading && !loadParked(this, key)){ setTimeout(this.load, 0); }
 	}
 
-	changeMethodTab(key){
-		this.setState({ methodTab: key });
-	}
-
 	async load(){
 		const seq = ++this._loadSeq || (this._loadSeq = 1);   // 只认最后一次:换盘 / 改参连发时先发的晚回不覆盖
 		const resultSig = natalSourceKey(this.props.value);   // 本次结果出自哪位命主(读时与当前盘比)
@@ -187,56 +179,45 @@ class AstroJaynesProgressions extends Component{
 
 	render(){
 		this.ensureLoaded();
-		const result = this.shownResult() || {};
-		const height = this.props.height || 700;
-		// 面板高不再用「工作区高−常数」估算(常数与真实工具条/页签高不等 → 多出的十几像素把外层面板撑出第二条滚动条);
-		// 内层 Tabs 走定高链(app.less .horosa-direction-page .ant-tabs-top …),面板 100% 跟随容器,任何缩放/字号/窗高零常数。
-		const panelH = '100%';
-		// 受控 activeKey:方法列表由后端结果决定,页签集合会随结果变化 —— 用户选过的键仍在就保持,
-		// 否则回落到 'secondary'(原 defaultActiveKey);再不在就取首个,绝不停在不存在的键上显示空白。
-		const methodKeys = (result.methods || []).map((m)=>m.method);
-		let methodKey = this.state.methodTab;
-		if(methodKeys.indexOf(methodKey) < 0){
-			methodKey = methodKeys.indexOf('secondary') >= 0 ? 'secondary' : methodKeys[0];
-		}
+		const shown = this.shownResult();
+		const result = shown || {};
+		const methods = result.methods || [];
+		const method = methods.find((m)=>m.method === this.state.progMethod) || methods[0] || null;
+		const height = this.props.height ? this.props.height - 10 : 700;
+		// 版式与主限法盘同一个:左边整列推运双盘,右栏标题 · 时间选择 · 设置 · 表(progPageLayout);改任何设置自动重算
+		const side = (
+			<ProgPageSide
+				title="赤纬推运"
+				desc="推运后看赤纬:推运星与本命星赤纬相同(同侧)为平行、等值异侧为反平行,作用类同合 / 冲。左图按赤纬画本命与推运两列并连出平行 / 反平行。"
+				result={result}
+				method={method}
+				methodLabel={methodTab}
+				targetDate={this.state.targetDate}
+				targetTime={this.state.targetTime}
+				zone={chartZone(this.props.value)}
+				minorVariant={this.state.minorVariant}
+				onTime={(targetDate, targetTime)=>this.setState({ targetDate, targetTime })}
+				onMinor={(v)=>{ DIRECTION_PAGE_SETTINGS.save({ minorVariant: v }); this.setState({ minorVariant: v }); }}
+				onMethod={(v)=>this.setState({ progMethod: v })}
+			/>
+		);
 		return (
-			<Spin spinning={this.state.loading}>
-				<div style={{ height, display: 'flex', flexDirection: 'column' }}>
-					<div style={{ ...cardStyle, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', flex: '0 0 auto' }}>
-						<span style={{ fontWeight: 600 }}>赤纬推运（平行 / 反平行）</span>
-						<label>目标日期 <input type="date" value={this.state.targetDate} onChange={(e) => this.setState({ targetDate: e.target.value })} /></label>
-						<label>时间 <input type="time" step="1" value={this.state.targetTime} onChange={(e) => this.setState({ targetTime: e.target.value })} /></label>
-						<label>月长算法 <Select size="small" style={{ width: 150 }} value={this.state.minorVariant} onChange={(v)=>{ DIRECTION_PAGE_SETTINGS.save({ minorVariant: v }); this.setState({ minorVariant: v }); }}>
-							{MINOR_VARIANT_OPTIONS.map((o)=>(<Option key={o.value} value={o.value}>{o.label}</Option>))}
-						</Select></label>
-						<Button size="small" onClick={this.load}>计算推运</Button>
-						<span>年龄天数：{fmtNum(result.ageDays, 1)}</span>
-					</div>
-					{/* horosa_freeze_subtabs_v1:每个推运法一张盘 + 一套表,此前**全部**方法常驻重渲
-					    (改目标日期/月长算法都把所有方法重画一遍)。改受控 + FreezeSubTab:只画前台那一个;
-					    切回时拿本轮最新 children 立即渲一帧,不卸载、不重发请求、不丢滚动位置。 */}
-					<Tabs activeKey={methodKey} onChange={this.changeMethodTab} tabPosition="top" style={{ flex: '1 1 auto', minHeight: 0 }}>
-						{(result.methods || []).map((method) => (
-							<TabPane tab={methodTab(method)} key={method.method}>
-								<FreezeSubTab active={methodKey === method.method}>
-								<ProgMethodPanel
-									value={this.props.value}
-									method={method}
-									targetDate={this.state.targetDate}
-									targetTime={this.state.targetTime}
-									mode="declination"
-									natalDeclinations={result.natalDeclinations}
-									height={panelH}
-									chartDisplay={this.props.chartDisplay}
-									planetDisplay={this.props.planetDisplay}
-									lotsDisplay={this.props.lotsDisplay}
-									showAstroMeaning={this.props.showAstroMeaning}
-								/>
-								</FreezeSubTab>
-							</TabPane>
-						))}
-					</Tabs>
-				</div>
+			<Spin spinning={this.state.loading && !methods.length}>
+				<ProgPageShell height={height} updating={this.state.loading && methods.length > 0}>
+					<ProgMethodPanel
+						value={this.props.value}
+						method={method}
+						side={side}
+						targetDate={this.state.targetDate}
+						targetTime={this.state.targetTime}
+						mode="declination"
+					natalDeclinations={result.natalDeclinations}
+						chartDisplay={this.props.chartDisplay}
+						planetDisplay={this.props.planetDisplay}
+						lotsDisplay={this.props.lotsDisplay}
+						showAstroMeaning={this.props.showAstroMeaning}
+					/>
+				</ProgPageShell>
 			</Spin>
 		);
 	}

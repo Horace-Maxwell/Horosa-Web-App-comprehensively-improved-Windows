@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroChartMain.js b/astrostudyui/src/components/astro/AstroChartMain.js
-index 0fbe8d62..559b0e70 100644
+index b77b3d57..97797358 100644
 --- a/astrostudyui/src/components/astro/AstroChartMain.js
 +++ b/astrostudyui/src/components/astro/AstroChartMain.js
 @@ -40,6 +40,8 @@ import XQIcon from '../xq-icons';
@@ -327,7 +327,7 @@ index 0fbe8d62..559b0e70 100644
  	render(){
  		let chartObj = this.props.value;
  		let fields = this.props.fields;
-@@ -1101,7 +1175,19 @@ class AstroChartMain extends Component{
+@@ -1101,7 +1175,21 @@ class AstroChartMain extends Component{
  									)
  								}
  						</div>
@@ -344,6 +344,8 @@ index 0fbe8d62..559b0e70 100644
 +							showOnlyRulExaltReception={this.props.showOnlyRulExaltReception}
 +							voidClassical={this.props.voidClassical}
 +							relativeContext={this.props.relativeContext}
++							/* horosa_slice_prop_cover_v1:切片的「行星」页读行星列表密度;不传则切片 sCU 拦住改动,要换盘才生效 */
++							planetListStyle={this.props.planetListStyle}
 +						/>
  					</div>
  					{this.renderBottomQuickDock()}

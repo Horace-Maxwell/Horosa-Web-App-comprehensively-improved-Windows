@@ -125,6 +125,7 @@ import { SIGNS, SIGN_ORDER } from '../divination/data/signs';
 // 推运 builder 的官方选项常量 + 默认 opts（三分主星 / Balbillus / 关键点）——纯 util，无循环，直接复用。
 import { TRIPLICITY_DIVISIONS, TRIPLICITY_SYSTEMS, TRIPLICITY_DEFAULT_OPTS } from './triplicityRulers';
 import { BALBILLUS_YEAR_TYPES, BALBILLUS_MODES, BALBILLUS_SUB_RULES, BALBILLUS_DEFAULT_OPTS } from './balbillus';
+import { NEROMAN_DEFAULTS, NEROMAN_EQUATOR_OPTIONS, BEZZA_DEFAULTS, JAY_DEFAULTS, MICHON_DEFAULTS } from './directedFigures';
 import { YS129_START_OPTIONS, YS129_ORDERS, YS129_YEAR_TYPES, YS129_SUB_RULES, YS129_DEFAULT_OPTS, yearSystem129StartLabel } from './yearSystem129';
 import { DIST_RELEASERS, DIST_METHODS, DIST_YEARS, DIST_SPANS, DIST_DEFAULTS } from './distributionsOptions';
 import { AP_METHODS, AP_EVENTS, AP_YEARS, AP_SPANS, AP_DEFAULTS } from './agePointOptions';
@@ -1020,6 +1021,7 @@ const ASTRO_CHART_FIELDS = [
 	// 调整后经 buildFieldObject→fieldsToParams→/chart 复算,AI 快照尊贵/界主/福点与所选口径一致。
 	{ name: 'westNodeType', label: '月交点（真 / 平 · 全盘随动）', type: 'select', options: WEST_NODE_OPTIONS_M, default: 'mean', globalCurrent: ()=>classicalGlobalValue('westNodeType'), group: '择宫' },
 	{ name: 'sectBuffer', label: '区分判定（昼 / 夜 · sect）', type: 'select', options: SECT_BUFFER_OPTIONS_M, default: 'geo', globalCurrent: ()=>classicalGlobalValue('sectBuffer'), group: '择宫' },
+	{ name: 'sunriseMode', label: '日出 / 日没口径', type: 'select', options: [{ value: 'center', label: '日心 · 不计折射（现行）' }, { value: 'apparent', label: '日面上缘 · 含大气折射（历书）' }], default: 'center', globalCurrent: ()=>classicalGlobalValue('sunriseMode'), group: '择宫' },
 	{ name: 'leoBoundFirst', label: '托勒密界 · 狮子土星优先', type: 'switch', options: ON_OFF, default: 0, globalCurrent: ()=>classicalGlobalValue('leoBoundFirst'), group: '择宫', showWhen: (d)=>Number(d.termsVariant) === 1 },   /* 仅校勘本界系生效(与古典口径表 enabledWhen 同) */
 	{ name: 'triplicity', label: '三分制（triplicity 主星体系）', type: 'select', options: TRIPLICITY_OPTIONS_M, default: 'Dorothean', globalCurrent: ()=>classicalGlobalValue('triplicity'), group: '择宫' },
 	{ name: 'lotReversal', label: '福点按昼夜反转（关则恒昼式）', type: 'switch', options: ON_OFF, default: 1, globalCurrent: ()=>classicalGlobalValue('lotReversal'), group: '择宫' },
@@ -1466,6 +1468,42 @@ const TRIPLICITY_FIELDS = [
 	{ name: 'lifespan', label: '寿命基准（岁）', type: 'number', default: TRIPLICITY_DEFAULT_OPTS.lifespan, min: 30, max: 120, group: '划分' },
 ];
 
+
+// 推运图族(utils/directedFigures + components/astro/AstroDirectedFigures):字段名 = 星运页保存键(directionPageSettings),
+// 平铺进记录不撞名;重算缺键时回落星运页保存值(见 DIRECTION_PAGE_BOUND_FIELDS)。双黄道与目标时刻无关,不收目标日期。
+const DF_BOOL = (v)=>(v === true || v === 1 || v === '1' || v === 'true');
+const DIRECTED_TARGET_FIELDS = [
+	{ name: 'targetDate', label: '目标日期(空=今日)', type: 'date', default: '', group: '目标' },
+	{ name: 'targetTime', label: '时间(空=12:00:00)', type: 'time', default: '', group: '目标' },
+];
+const NEROMAN_FIELDS = [
+	...DIRECTED_TARGET_FIELDS,
+	{ name: 'nerK', label: '弧常数', type: 'number', default: NEROMAN_DEFAULTS.k, min: 1, max: 5000, step: 1, group: '演进' },
+	{ name: 'nerT0', label: '出生前年数', type: 'number', default: NEROMAN_DEFAULTS.t0, min: 0.01, max: 10, step: 0.05, group: '演进' },
+	{ name: 'nerKeepDec', label: '换到赤道', type: 'select', default: NEROMAN_DEFAULTS.keepDec, group: '演进', normalize: DF_BOOL,
+		options: NEROMAN_EQUATOR_OPTIONS.map((o)=>({ value: o.value, label: o.label })) },
+	{ name: 'nerOrb', label: '相位容许度', type: 'select', default: NEROMAN_DEFAULTS.orb, group: '演进',
+		options: [0.5, 1, 2, 3].map((v)=>({ value: v, label: `${v}°` })) },
+];
+const BEZZA_FIELDS = [
+	...DIRECTED_TARGET_FIELDS,
+	{ name: 'bezzaOrb', label: '接触窗(当前弧 ±)', type: 'select', default: BEZZA_DEFAULTS.orb, group: '推运图',
+		options: [0.5, 1, 2, 3, 5].map((v)=>({ value: v, label: `${v}°` })) },
+];
+const JAY_FIELDS = [
+	...DIRECTED_TARGET_FIELDS,
+	{ name: 'jayFrom', label: '起始年龄', type: 'select', default: JAY_DEFAULTS.from, group: '周日小限',
+		options: [{ value: -1, label: '当前所在的一轮' }].concat(Array.from({ length: 11 }, (_x, i)=>({ value: i * 12, label: `${i * 12} 岁起` }))) },
+];
+const MICHON_FIELDS = [
+	{ name: 'michonOrb', label: '容许度', type: 'select', default: MICHON_DEFAULTS.orb, group: '双黄道',
+		options: [0.5, 1, 1.5, 2].map((v)=>({ value: v, label: `${v}°` })) },
+	{ name: 'michonSwap', label: '守护', type: 'select', default: MICHON_DEFAULTS.swap, group: '双黄道', normalize: DF_BOOL,
+		options: [{ value: false, label: '现代守护' }, { value: true, label: '水金互换' }] },
+	{ name: 'michonEqual', label: '宫位', type: 'select', default: MICHON_DEFAULTS.equal, group: '双黄道', normalize: DF_BOOL,
+		options: [{ value: false, label: '本盘宫制' }, { value: true, label: '等宫(上升居第一宫正中)' }] },
+];
+
 // 推运·Balbillus：起始星 / 年制 / 距离口径。builder buildBalbillusSnapshotText(chartObj,opts) 已收 opts。
 // 显示名与页面同(AstroText 中文名:日 / 月 / 水…)
 const SEVEN_PLANETS_OPTS = [AstroConst.SUN, AstroConst.MOON, AstroConst.MERCURY, AstroConst.VENUS, AstroConst.MARS, AstroConst.JUPITER, AstroConst.SATURN]
@@ -1684,7 +1722,7 @@ const SUZHAN_SIDEREAL_AYANAMSA_FIELD = (f)=>({
 const SUZHAN_DEAD_CLASSICAL_KEYS = ['termsVariant', 'sectBuffer', 'leoBoundFirst', 'triplicity', 'lotReversal', 'lotsDocReverse', 'nodeExaltation',
 	'geminiBoundEmended', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter', 'fixedStarOrbMode', 'fixedStarOrb', 'antisciaOrb',
 	'viaCombustaVariant', 'combustOwnChariotExempt', 'stationMarking', 'hermeticLotsReversal', 'erosConstruction', 'lotFortuneVariant', 'lotFatherCombustAlt',
-	'lotProjection', 'dignityDebilities', 'almutenTripMode', 'planetaryHourMethod', 'orbSystem', 'luminaryOrbBonus', 'aspectIncludeCusps', 'aspectIncludeLots',
+	'lotProjection', 'dignityDebilities', 'almutenTripMode', 'planetaryHourMethod', 'sunriseMode', 'orbSystem', 'luminaryOrbBonus', 'aspectIncludeCusps', 'aspectIncludeLots',
 	'aspectIncludeMidpoints', 'solarReturnVariant', 'returnLatitudeMode', 'vulcanCalc', 'strongRecption', 'simpleAsp', 'virtualPointReceiveAsp', 'orbScale', 'useStoredOrbs'];
 
 const SANSHI_UNITED_FIELDS = [
@@ -1998,6 +2036,11 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 	prog: { kind: 'record', fields: PROG_TARGET_FIELDS },
 	vedicprog: { kind: 'record', fields: PROG_TARGET_FIELDS },
 	jaynesprog: { kind: 'record', fields: PROG_TARGET_FIELDS },
+	// 推运图族四法:页面同一套设置(星运页保存值)
+	neroman: { kind: 'record', fields: NEROMAN_FIELDS },
+	bezzafigure: { kind: 'record', fields: BEZZA_FIELDS },
+	jayprofection: { kind: 'record', fields: JAY_FIELDS },
+	michon: { kind: 'record', fields: MICHON_FIELDS },
 	// 目标时刻型 5 法：共用 buildPredictivePeriodSnapshot(chartObj,key,opts)。profection/solararc 只 4 基项；
 	// 3 返照(solarreturn/lunarreturn/givenyear)另加 异地 dirLat/dirLon。
 	profection: { kind: 'record', fields: [...PREDICTIVE_PERIOD_BASE_FIELDS, ...PROFECTION_SUMMARY_FIELDS] },   // +小限粒度/起点
@@ -2075,6 +2118,11 @@ export const TECHNIQUE_SETTINGS_SCHEMA = {
 		{ name: 'zodiacBoundary', label: '生肖归属', type: 'select', default: 'lichun', globalCurrent: ()=>storedBaziOptValue('zodiacBoundary'), group: '盘法', options: [
 			{ value: 'lichun', label: '立春' },
 			{ value: 'lunar', label: '正月初一' },
+		] },
+		// 天医口径:换四柱 / 流运神煞里天医(与地医)的落支;缺省 = 八字页保存的档(起盘参数同名键)
+		{ name: 'tianyiSchool', label: '天医口径', type: 'select', default: 'xieji', globalCurrent: ()=>storedBaziOptValue('tianyiSchool'), group: '取用', options: [
+			{ value: 'xieji', label: '协纪辨方书(兼地医)' },
+			{ value: 'ziping', label: '子平(月支退一位)' },
 		] },
 		// 多运限(批A)：流年(逗号年份串) / 流月(节气月序1–12) / 流日(锚定首流年首流月,公历日1–31) / 流时(时辰序0–11)。
 		// 全空(默认)=不追加多运限段=现状(守「默认即现状」)。流月读现成 subDirect[].flowMonths；流日/流时调 buildFlowDays/Hours。
@@ -2749,6 +2797,10 @@ export const DIRECTION_PAGE_BOUND_FIELDS = {
 	yearsystem129: { ys129StartPlanet: 'ys129StartPlanet', ys129Order: 'ys129Order', ys129YearType: 'ys129YearType', ys129SubRule: 'ys129SubRule' },
 	distributions: { distReleaser: 'distReleaser', distMethod: 'distMethod', distYear: 'distYear', distYears: 'distYears' },
 	agepoint: { apMethod: 'apMethod', apEvents: 'apEvents', apYear: 'apYear', apMaxAge: 'apMaxAge' },
+	neroman: { nerK: 'nerK', nerT0: 'nerT0', nerKeepDec: 'nerKeepDec', nerOrb: 'nerOrb' },
+	bezzafigure: { bezzaOrb: 'bezzaOrb' },
+	jayprofection: { jayFrom: 'jayFrom' },
+	michon: { michonOrb: 'michonOrb', michonSwap: 'michonSwap', michonEqual: 'michonEqual' },
 };
 
 function directionPageValue(field, pageKey){

@@ -31,7 +31,7 @@ import {
 	MOIRA_OVERCOMING,
 } from './moiraConst';
 import { safeList, safeMap, isIncompleteMoiraRules, joinNames, normDegree } from './format';
-import { buildAspectRows, guolaoNodeModeFromFields, guolaoNodeModeName, applyGuolaoNodeMode } from './aspectsNodeMode';
+import { buildGuolaoAspectRows, guolaoNodeModeFromFields, guolaoNodeModeName, applyGuolaoNodeMode } from './aspectsNodeMode';
 import { signFromLon, guolaoLifeModeFromFields, guolaoSu28ModeFromFields, guolaoLifeModeName, computeAscSignIndex, houseFullLabel } from './fieldModes';
 import { fieldsToParams, guolaoFieldValue, paramsWithMoiraTransit } from './params';
 
@@ -1150,6 +1150,7 @@ function _buildGuolaoSnapshotTextV2Core(params, result, planetDisplay, fields, m
 	const _gHm = params && params.planetaryHourMethod === 'unequal' ? '昼夜不等时' : (params && params.planetaryHourMethod === 'equal24' ? '廿四时等分' : '日出起算 · 等长时');
 	lines.push(`报时星太阳时：${_gTs === 'off' ? '钟表时' : (_gTs === 'mean' ? '平太阳时(仅经度)' : '真太阳时(经度+均时差)')}（行星时制式：${_gHm}${_gHm === '日出起算 · 等长时' ? ',此制式下太阳时三档结果相同' : ''}）`);
 	lines.push(`罗计取法：${_gNt === 'true' ? '真交点' : '平交点'}；月孛取法：${_gLt === 'true' ? '真远地点' : '平远地点'}`);
+	if(params && params.sunriseMode === 'apparent'){ lines.push('日出口径：日面上缘 · 含大气折射(日出安命与报时星按此刻)'); }   // 缺省(日心不计折射)不加行 = 零回归
 	// G20/G22/G31/G3 身宫法/命主取法/行运法/宿度制 注入快照。身宫法读 fields(类A);命主取法/行运法读全局显示偏好(类B)。
 	const _gBody = guolaoFieldValue(fields, 'guolaoBodyMode', getStoredGuolaoBodyMode);
 // 命主取法/行运法/童限基数:fields(挂载齿轮/存档)优先,缺省回退全局显示偏好 ——
@@ -1217,7 +1218,7 @@ function _buildGuolaoSnapshotTextV2Core(params, result, planetDisplay, fields, m
 	lines.push(buildGuolaoPatternSection(result, fields, params) || '无');
 	lines.push('');
 	lines.push('[相位]');
-	lines.push(buildGuolaoAspectSection(result) || '无');
+	lines.push(buildGuolaoAspectSection(result, _gDisp) || '无');
 	return lines.join('\n').trim();
 }
 
@@ -1246,12 +1247,12 @@ function buildGuolaoPatternSection(result, fields, params){
 	}
 }
 
-// AI 快照·相位段（右栏「相位」面板已显示但此前未导出）：复用 buildAspectRows，与盘面的相位表同源；异常降级「无」。
-export function buildGuolaoAspectSection(result){
+// AI 快照·相位段:与右栏「相位」页、盘上的相位连线同一单源(buildGuolaoAspectRows → computeMoiraAspectPairs):
+// 七政相位、按显示偏好的相位勾选与容许度;异常降级「无」。displayPrefs 缺省 = 出厂(會衝刑合半合、内置容许度)。
+export function buildGuolaoAspectSection(result, displayPrefs){
 	try{
 		const chart = getChart(result);
-		const aspects = (chart && chart.aspects) || (result && result.aspects) || null;
-		const rows = buildAspectRows(aspects);
+		const rows = buildGuolaoAspectRows(chart, displayPrefs);
 		if(!rows || !rows.length){
 			return '无';
 		}

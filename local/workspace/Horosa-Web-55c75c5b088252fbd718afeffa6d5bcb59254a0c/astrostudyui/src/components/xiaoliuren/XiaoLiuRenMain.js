@@ -12,7 +12,7 @@ import {
 	MAIN_RING, MAIN_PALM, DAO_RING, DAO_NINE, DAO_YI, BAI_JIE, DAO_FA_TEXT, MAIN_FA_TEXT,
 	STAGE_ROLES, ACROSS_NOTE, TONG_SHEN_NOTE, BING_FU_DISCREPANCY_NOTE, SAN_JIE_TEXT,
 } from './core/xiaoliurenConst';
-import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../utils/safeStorage';
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
@@ -218,13 +218,13 @@ class XiaoLiuRenMain extends Component {
 		if(inputs.useTime){
 			const c = this.ctx();
 			m = c.lunarMonth; d = c.lunarDay; h = c.hourNum;
-			if(!m || !d || !h){ return this.setState({ error: '排盘未出农历月日时 —— 请先起盘,或改手动三数', ke: null }); }
+			if(!m || !d || !h){ clearModuleAISnapshot('xiaoliuren'); return this.setState({ error: '排盘未出农历月日时 —— 请先起盘,或改手动三数', ke: null }); }
 		}else{
 			m = inputs.m; d = inputs.d; h = inputs.h;
-			if(!m || !d || !h){ return this.setState({ error: '请录入三数(月/日/时,均 ≥1)', ke: null }); }
+			if(!m || !d || !h){ clearModuleAISnapshot('xiaoliuren'); return this.setState({ error: '请录入三数(月/日/时,均 ≥1)', ke: null }); }
 		}
 		const ke = qiKe({ m, d, h, school: settings.school });
-		if(!ke){ return this.setState({ error: '三数非法,不可起课', ke: null }); }
+		if(!ke){ clearModuleAISnapshot('xiaoliuren'); return this.setState({ error: '三数非法,不可起课', ke: null }); }
 		// horosa_panel_ready_v1:ke 落定 = 六宫课盘(中栏)与三传断语(右栏)画完的那一次 setState。
 		// 起课当下记下三数来源(占时/手录),随快照与存档走;载档只重排、不改此来因。
 		this.setState({ ke, error: '', numsFrom: inputs.useTime ? 'time' : 'manual' }, ()=>{ markPanelReady('cnyibu'); this.saveSnap(); });

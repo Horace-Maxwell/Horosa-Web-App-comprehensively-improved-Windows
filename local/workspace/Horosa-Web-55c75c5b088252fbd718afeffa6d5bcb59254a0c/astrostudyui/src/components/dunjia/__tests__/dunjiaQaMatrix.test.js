@@ -268,8 +268,10 @@ describe('挂载齿轮/导出/存档链', ()=>{
 
 	test('🔴 挂载重算合并制守卫:regenerateQimenSnapshot 必须 {...DEFAULT, ...存档 options} 全量透传(白名单制=丢新键)', ()=>{
 		const ctx = read('../../../utils/aiAnalysisContext.js');
-		const seg = fnBody(ctx, 'async function regenerateQimenSnapshot(');   // 只截这个函数自己(花括号配平;全集里后面接的是别的文件)
+		// 合并与排盘在 computeQimenPanForCase(盘对象单源);regenerateQimenSnapshot 只委托它出文本
+		const seg = fnBody(ctx, 'async function computeQimenPanForCase(');   // 只截这个函数自己(花括号配平;全集里后面接的是别的文件)
 		expect(seg).toBeTruthy();
+		expect(fnBody(ctx, 'async function regenerateQimenSnapshot(').includes('computeQimenPanForCase(record, payload)')).toBe(true);
 		expect(seg.includes('...DEFAULT_QIMEN_OPTIONS')).toBe(true);
 		expect(seg.includes('...(qs && qs.options ? qs.options : {})')).toBe(true);
 		expect(seg.includes('calcDunJia(fields, nongli, options')).toBe(true);

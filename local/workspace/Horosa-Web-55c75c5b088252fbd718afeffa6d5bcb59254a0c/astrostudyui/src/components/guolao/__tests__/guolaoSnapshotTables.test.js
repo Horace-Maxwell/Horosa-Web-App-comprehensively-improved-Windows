@@ -39,21 +39,6 @@ function factMultiset(input){
 	return Array.from(m.entries()).sort((a, b)=>(a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)).map(([t, c])=>`${t}×${c}`);
 }
 
-// [相位] 用元组集合：旧格式把 orb 粘成「误差2.535」整词(误差与数值间无分隔符 ⇒ 该 token 正则视作一 token)，
-// 剔表头词无法拆开 ⇒ 词袋不适用。新表逐行 | 主体 | 相位 | 对象 | 状态 | 误差 |，旧行 = 主体 相位 对象（状态[，误差orb]）。
-function newAspectTuples(text){
-	return text.split('\n').slice(2).map((l)=>{
-		const c = l.split('|').slice(1, -1).map((s)=>s.trim());
-		return [c[0], c[1], c[2], c[3], c[4] === '—' ? '' : c[4]].join('┃');
-	}).sort();
-}
-function oldAspectTuples(text){
-	return text.split('\n').map((l)=>{
-		const m = l.match(/^(\S+)\s+(.+)\s+(\S+)（([^，）]+)(?:，误差(.+))?）$/);
-		return [m[1], m[2], m[3], m[4], m[5] || ''].join('┃');
-	}).sort();
-}
-
 // (宫,宿,星串) 元组集合：新表逐行 = | 宫 | 宿 | 星串 |；旧格式 = 宫位:一行 + 其下多组「二十八宿:X」+「星曜:Y」，
 // 同宿多星按新表同款「；」相接，空宫 = (宫,'无','无')。
 function newHouseSuTuples(text){
@@ -97,10 +82,9 @@ describe('七政四余 AI 快照段·表化「值不变」证明（改后 builde
 		expect(factMultiset(out)).toEqual(factMultiset(baseline.gl_limit_dongwei));
 	});
 
-	test('[相位] 元组集合守恒 + GFM 5 列表', ()=>{
+	test('[相位] GFM 5 列表;七政相位口径(與盘面连线同源,见 guolaoAspectSingleSource)', ()=>{
 		const out = buildGuolaoAspectSection(GL_ASPECT_RESULT);
-		expect(out).toContain('| 主体 | 相位 | 对象 | 状态 | 误差 |');
-		expect(newAspectTuples(out)).toEqual(oldAspectTuples(baseline.gl_aspect));
+		expect(out === '无' || out.indexOf('| 主体 | 相位 | 对象 | 状态 | 误差 |') === 0).toBe(true);
 	});
 
 	test('[七政四余宫位与二十八宿星曜] 元组集合守恒 + GFM 3 列表', ()=>{

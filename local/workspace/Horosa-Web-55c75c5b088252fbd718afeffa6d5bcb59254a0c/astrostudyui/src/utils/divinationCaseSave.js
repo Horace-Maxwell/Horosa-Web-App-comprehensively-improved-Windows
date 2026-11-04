@@ -32,7 +32,7 @@ function caseDateTime(fields){
 // 实际还原侧漏 27 键(SURF 22 键+siderealAyanamsa+表体 4 键)=事盘重开回本机全局值、与挂载
 // 文本口径矛盾;自定义界表事盘换机静默变埃及界。三方自此 import 同一数组,合同机械看守。
 export const DIVINATION_CASE_SETTING_KEYS = [
-	'termsVariant', 'geminiBoundEmended', 'westNodeType', 'sectBuffer', 'leoBoundFirst', 'triplicity', 'lotReversal',
+	'termsVariant', 'geminiBoundEmended', 'westNodeType', 'sectBuffer', 'sunriseMode', 'leoBoundFirst', 'triplicity', 'lotReversal',
 	'lotsDocReverse', 'nodeExaltation',
 	'houseCuspAdvance', 'cazimiOrb', 'combustOrb', 'underBeamsOrb', 'vocMode', 'vocIncludeOuter', 'fixedStarOrb', 'fixedStarOrbMode', 'antisciaOrb',
 	'viaCombustaVariant',

@@ -14,7 +14,7 @@ import { getTechniqueSettingsSchema } from '../techniqueMountSettings';
 
 const NON_DEFAULT_SAMPLE = {
 	termsVariant: 3, geminiBoundEmended: 1, leoBoundFirst: 1, triplicity: 'Ptolemaic',
-	sectBuffer: 'ptolemy5', westNodeType: 'true', nodeExaltation: 1,
+	sectBuffer: 'ptolemy5', sunriseMode: 'apparent', westNodeType: 'true', nodeExaltation: 1,
 	cazimiOrb: 1, combustOrb: 8, underBeamsOrb: 15,
 	vocMode: 'kenodromia', vocIncludeOuter: 1, viaCombustaVariant: 'narrow',
 	lotReversal: 0, lotsDocReverse: 1,

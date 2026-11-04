@@ -83,10 +83,10 @@ export default class XuanShiSearch extends React.Component {
 			const filt = (a) => (!ql ? [] : (a || []).filter((x) => matchesUserQuery(`${x.name || ''}${x.one_liner || ''}${x.alt_names || ''}${x.title || ''}`, ql)));
 			const evItems = arr(evRes);
 			const groups = [
-				{ key: 'events', label: '玄学事件', total: (evRes && evRes.total) || evItems.length, items: evItems.map((x) => ({ id: x.event_id, title: x.title, sub: `${x.tradition || ''}${x.dynasty ? ' · ' + x.dynasty : ''}${x.history ? ' · 《' + x.history + '》' : ''}`, snip: x.modern_text || x.original_text, chips: [x.techniques ? `${x.techniques}`.split(/[;,、，]/)[0] : '', x.evidence === '高' ? '高证据' : ''].filter(Boolean) })) },
+				{ key: 'events', label: '玄学事件', total: (evRes && evRes.total) || evItems.length, items: evItems.map((x) => ({ id: x.event_id, title: x.title, sub: `${x.tradition || ''}${x.dynasty ? ' · ' + x.dynasty : ''}${x.history ? ' · 《' + x.history + '》' : ''}`, snip: x.modern_text || x.original_text, snipClassic: !x.modern_text && !!x.original_text, chips: [x.techniques ? `${x.techniques}`.split(/[;,、，]/)[0] : '', x.evidence === '高' ? '高证据' : ''].filter(Boolean) })) },
 				// 天象只取 20 条、人物只取 24 条:组标题与汇总行此前写的是「取回条数」,
 				// 被读成命中数(q=流星 实际命中 12071,标题却写 20)。两端本就回了 total,这里接上。
-				{ key: 'celestial', label: '天象', total: (cel && Number.isFinite(Number(cel.total))) ? Number(cel.total) : undefined, items: ((cel && cel.events) || []).map((x) => ({ title: `${x.omen || '天象'} · ${x.dynasty || ''}`, sub: celestialDateWithCalendar(x) || '', snip: x.original })) },
+				{ key: 'celestial', label: '天象', total: (cel && Number.isFinite(Number(cel.total))) ? Number(cel.total) : undefined, items: ((cel && cel.events) || []).map((x) => ({ title: `${x.omen || '天象'} · ${x.dynasty || ''}`, sub: celestialDateWithCalendar(x) || '', snip: x.original, snipClassic: !!x.original })) },
 				{ key: 'figures', label: '人物列传', total: (fig && Number.isFinite(Number(fig.total))) ? Number(fig.total) : undefined, items: ((fig && fig.items) || []).map((x) => ({ title: x.name, sub: x.dynasty || '', snip: x.one_liner })) },
 				{ key: 'stories', label: '故事专题', items: filt(refs.stories).map((x) => ({ title: x.title || x.name, sub: '', snip: x.one_liner || x.summary })) },
 				{ key: 'tech', label: '术数词条', items: filt(refs.techniques).map((x) => ({ title: x.name, sub: x.category || '', snip: x.one_liner })) },
@@ -173,7 +173,7 @@ export default class XuanShiSearch extends React.Component {
 												{it.sub ? <span className="xuanshi-chip is-ink">{it.sub}</span> : null}
 												{(it.chips || []).map((c) => <span key={c} className="xuanshi-chip is-jade">{c}</span>)}
 											</div>
-											{it.snip ? <div className="xuanshi-stat-sub" style={{ fontSize: 12, lineHeight: 1.6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{it.snip}</div> : null}
+											{it.snip ? <div className={`xuanshi-stat-sub${it.snipClassic ? ' horosa-script-classic' : ''}`} style={{ fontSize: 12, lineHeight: 1.6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{it.snip}</div> : null}
 										</div>
 									))}
 								</div>

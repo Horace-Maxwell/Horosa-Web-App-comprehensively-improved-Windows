@@ -1053,7 +1053,10 @@ class GuoLaoInput extends Component{
 							})}
 						</div>
 						<div className="horosa-guolao-toggle-grid">
-							<XQToggle size="small" iconName="sideSwitch" active={display.dignity !== false} onClick={()=>this.onDisplayToggle('dignity')}>庙旺标注</XQToggle>
+							{/* 天星择日双轮不画庙旺(只 Moira圆盘本命行星带标):该式置灰 + 说明,勾选值保留(切回 Moira圆盘即生效) */}
+							<XQToggle size="small" iconName="sideSwitch" active={display.dignity !== false} onClick={()=>this.onDisplayToggle('dignity')}
+								disabled={chartStyle === GUOLAO_CHART_STYLE_PICK}
+								title={chartStyle === GUOLAO_CHART_STYLE_PICK ? '天星择日盘不标庙旺;切到 Moira圆盘 后生效' : undefined}>庙旺标注</XQToggle>
 								{chartStyle !== GUOLAO_CHART_STYLE_PICK ? (
 								<XQToggle size="small" iconName="sideSwitch" active={display.showAspects === true} onClick={()=>this.onDisplayToggle('showAspects')}>显示相位</XQToggle>
 								) : null}

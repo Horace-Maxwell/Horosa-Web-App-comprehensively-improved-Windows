@@ -97,6 +97,7 @@ const SOFT = {
 	planetaryages: '行星年龄走后端 chart', prog: '二次推运走后端 chart(/astroextra/progressions)', vedicprog: '吠陀推运走后端 chart', balbillus: 'Balbillus 走后端 chart',
 	triplicityrulers: '三分主星走后端 chart', keypoints: '关键点走后端 chart', lunationphase: '月相推运走后端 chart',
 	extrareturns: '多重回归走后端 chart', yearsystem129: '129年系统走后端 chart', planetaryarc: '行星弧走后端 chart',
+	neroman: '演进推运走后端 /astroextra/neroman', bezzafigure: '推运图走后端 /astroextra/bezzafigure', jayprofection: '周日小限走后端 /astroextra/jayprofection', michon: '双黄道走后端 /astroextra/michon',
 	persiandirected: '波斯向运走后端 chart', jaynesprog: 'Jaynes 推运走后端 chart', primarydirect: '主限走后端 chart',
 };
 

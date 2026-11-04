@@ -1,28 +1,16 @@
 diff --git a/astrostudyui/src/components/astro/AstroProfection.js b/astrostudyui/src/components/astro/AstroProfection.js
-index 02e788d0..2c2622a0 100644
+index 28eba3d9..bbc3eac2 100644
 --- a/astrostudyui/src/components/astro/AstroProfection.js
 +++ b/astrostudyui/src/components/astro/AstroProfection.js
-@@ -7,7 +7,7 @@ import * as AstroText from '../../constants/AstroText';
- import * as AstroHelper from './AstroHelper';
- import request from '../../utils/request';
- import * as Constants from '../../utils/constants';
--import { randomStr, convertToArray} from '../../utils/helper';
-+import { convertToArray} from '../../utils/helper';
- import styles from '../../css/styles.less';
- import DateTime from '../comp/DateTime';
- import { saveModuleAISnapshotLazy, saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
-@@ -24,6 +24,10 @@ import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
- import { natalClassicalParams, transitOrbDefault } from './AstroExtraCommon';
+@@ -25,6 +25,7 @@ import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
+ import { natalClassicalParams, transitOrbDefault, followTransitOrb } from './AstroExtraCommon';
  import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
  import { DIRECTION_PAGE_SETTINGS } from '../../utils/directionPageSettings';
 +import { markPanelReady } from '../../utils/perfMark';
-+// horosa_stable_react_keys_v1(PERF-R9):本文件的 React key 已从 randomStr(8) 改为内容派生的稳定 key。
-+// 随机 key 每次渲染都变 → React 无法 diff → 整棵子树卸载重建。此标记供 apply.sh 的
-+// 幂等守卫与发布哨兵定位;删除它会让重同步后无法自动还原本改动。
  
  // ===== G9 月/日小限 + 多起点(纯前端派生) =====
  // 派生算法 + 选项/中文表已抽到 utils/profectionSummary.js 单源
-@@ -35,7 +39,9 @@ class AstroProfection extends Component{
+@@ -36,7 +37,9 @@ class AstroProfection extends Component{
  		super(props);
  		this.unmounted = false;
  
@@ -33,7 +21,7 @@ index 02e788d0..2c2622a0 100644
  		if(qryparam.birth){
  			let parts = qryparam.birth.split(' ');
  			qryparam.date = parts[0];
-@@ -128,7 +134,13 @@ class AstroProfection extends Component{
+@@ -128,7 +131,13 @@ class AstroProfection extends Component{
  	}
  
  	genNatalParams(chartObj){
@@ -48,7 +36,7 @@ index 02e788d0..2c2622a0 100644
  		if(qryparam.birth){
  			let parts = qryparam.birth.split(' ');
  			qryparam.date = parts[0];
-@@ -207,6 +219,8 @@ class AstroProfection extends Component{
+@@ -207,6 +216,8 @@ class AstroProfection extends Component{
  		};
  
  		this.setState(st, ()=>{
@@ -57,46 +45,3 @@ index 02e788d0..2c2622a0 100644
  			const chartValue = chartValueAtRequest;
  			saveModuleAISnapshotLazy('profection', ()=>buildPredictiveSnapshotText(chartValue, this.snapshotParams(st.params), result, 'profection'), this.snapshotMeta());
  		});
-@@ -259,7 +273,33 @@ class AstroProfection extends Component{
- 		});
- 	}
- 
-+	// horosa_aspect_dom_memo_v1(PERF-R9 Ship 6):右栏相位清单的输出**只**由三样东西决定 ——
-+	// shownDirChart()(推运结果对象,每次请求整体替换;v3.12.0 起按命主来源键配对)、props.value(本命盘)、props.showPlanetHouseInfo
-+	// (renderPlanetLabel 唯一读到的 prop)。三者引用全同 ⇒ 输出逐字节相同,直接复用上次的元素树:
-+	// 「更新中」角标开合、其它右栏控件(如小限粒度/起点)改动等与相位无关的重渲不再重建数百个 React 元素。
-+	// 任一引用变化(含内容整体替换)立即重建 —— 不存在陈旧,亦不依赖任何深比较。
- 	genAspectDom(){
-+		// v3.12.0 起派生盘按来源键配对(shownDirChart:换盘在途 / 新盘取盘失败时视为无盘),
-+		// 缓存键随之取「实际渲染的那张」而非 state.dirChart —— 否则换盘瞬间会把上一位命主的相位树当缓存命中。
-+		const dir = this.shownDirChart();
-+		const cache = this._aspectDomCache;
-+		if(cache
-+			&& cache.dir === dir
-+			&& cache.natal === this.props.value
-+			&& cache.phi === this.props.showPlanetHouseInfo){
-+			return cache.dom;
-+		}
-+		const dom = this.buildAspectDom();
-+		this._aspectDomCache = {
-+			dir: dir,
-+			natal: this.props.value,
-+			phi: this.props.showPlanetHouseInfo,
-+			dom: dom,
-+		};
-+		return dom;
-+	}
-+
-+	buildAspectDom(){
- 		if(this.shownDirChart() === undefined || this.shownDirChart() === null){
- 			return null;
- 		}
-@@ -319,7 +359,7 @@ class AstroProfection extends Component{
- 			cols.push(divs[i]);
- 		}
- 		rows.push((
--			<Row key={randomStr(8)}>
-+			<Row key="row-last">
- 				{cols}
- 			</Row>
- 		));

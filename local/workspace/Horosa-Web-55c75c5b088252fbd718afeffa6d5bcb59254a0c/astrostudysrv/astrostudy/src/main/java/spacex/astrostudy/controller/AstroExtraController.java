@@ -25,6 +25,8 @@ public class AstroExtraController {
 		// 此处缺键 → 调波盘 / 龙盘 / 重置盘的相位恒按默认容许度(ChartController、
 		// PredictiveController 均已转发,只有本族断)。缺省不发 = 零回归。
 		"orbs", "orbScale",
+		// 龙盘宫位口径(whole 整宫缺省 / shift 本命宫头随交点平移):缺键 = 整宫 = 零回归;漏登记会被静默丢弃(白名单)。
+		"draconicHouses",
 		// 食时刻口径(星历页食相表:'max' 食甚=现状默认/'syzygy' 精确朔望)。
 		"eclipseTimeMode",
 		// 古典设置全集透传:前端 chartParams 经 natalClassicalParams 早已全带,
@@ -33,7 +35,7 @@ public class AstroExtraController {
 		// lockstep(backendKey 口径:fixedStarOrb→starOrb/fixedStarOrbMode→starOrbMode);
 		// 合同 classicalSurfaceParity.test.js 机械看守,缺键即红。
 		"geminiBoundEmended", "leoBoundFirst", "triplicity", "dignityDebilities",
-		"almutenTripMode", "planetaryHourMethod", "sectBuffer", "westNodeType",
+		"almutenTripMode", "planetaryHourMethod", "sectBuffer", "sunriseMode", "westNodeType",
 		"nodeExaltation", "cazimiOrb", "combustOrb", "combustOwnChariotExempt",
 		"underBeamsOrb", "vocMode", "vocIncludeOuter", "westLilithType", "topocentricMoon",
 		"viaCombustaVariant", "lotReversal", "lotsDocReverse", "hermeticLotsReversal",
@@ -41,7 +43,9 @@ public class AstroExtraController {
 		"orbSystem", "luminaryOrbBonus", "aspectIncludeCusps", "aspectIncludeLots",
 		"aspectIncludeMidpoints", "antisciaOrb", "starOrb", "starOrbMode", "stationMarking",
 		"solarReturnVariant", "returnLatitudeMode", "houseCuspAdvance", "vulcanCalc",
-		"customTermsDay", "customTermsNight", "siderealAyanamsa", "userAyanT0", "userAyanDeg"
+		"customTermsDay", "customTermsNight", "siderealAyanamsa", "userAyanT0", "userAyanDeg",
+		// 推运图族(演进推运 / 推运图 / 周日小限 / 双黄道)的专属设置;缺省不发 = 引擎缺省。
+		"nerK", "nerT0", "nerKeepDec", "maxAge", "jayFrom", "mzSwap", "mzEqual"
 	};
 
 	private Map<String, Object> getBaseParams(){
@@ -153,6 +157,30 @@ public class AstroExtraController {
 	@RequestMapping("/jaynesprog")
 	public void jaynesprog(){
 		TransData.set(AstroHelper.getAstroExtraJaynesProg(getBaseParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/neroman")
+	public void neroman(){
+		TransData.set(AstroHelper.getAstroExtraNeroman(getBaseParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/bezzafigure")
+	public void bezzafigure(){
+		TransData.set(AstroHelper.getAstroExtraBezzaFigure(getBaseParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/jayprofection")
+	public void jayprofection(){
+		TransData.set(AstroHelper.getAstroExtraJayProfection(getBaseParams()));
+	}
+
+	@ResponseBody
+	@RequestMapping("/michon")
+	public void michon(){
+		TransData.set(AstroHelper.getAstroExtraMichon(getBaseParams()));
 	}
 
 	@ResponseBody

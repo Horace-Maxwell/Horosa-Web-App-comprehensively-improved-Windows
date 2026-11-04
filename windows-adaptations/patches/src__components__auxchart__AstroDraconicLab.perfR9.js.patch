@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/auxchart/AstroDraconicLab.js b/astrostudyui/src/components/auxchart/AstroDraconicLab.js
-index 714a8ed9..a7a1288f 100644
+index dbfe8e78..27f6c12b 100644
 --- a/astrostudyui/src/components/auxchart/AstroDraconicLab.js
 +++ b/astrostudyui/src/components/auxchart/AstroDraconicLab.js
 @@ -14,6 +14,7 @@ import request from '../../utils/request';
@@ -7,10 +7,10 @@ index 714a8ed9..a7a1288f 100644
  import { unwrapResult, astroSymbol, fmtDegree, fmtNum, chartParams, chartRequestKey, cardStyle, SmallTable, parkLoadFailure, clearLoadFailure, loadParked } from '../astro/AstroExtraCommon';
  import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 +import { markPanelReady } from '../../utils/perfMark';
+ import { definePageSettings } from '../../utils/pageSettingsStore';
  
- class AstroDraconicLab extends Component {
- 	constructor(props){
-@@ -50,7 +51,11 @@ class AstroDraconicLab extends Component {
+ // 宫位口径(两家):whole = 按龙盘上升所在整座等分(与调波 / 十二分 / 十三分盘同法,缺省);
+@@ -72,7 +73,11 @@ class AstroDraconicLab extends Component {
  			if(!this._mounted || seq !== this._loadSeq) return;
  			clearLoadFailure(this);
  			const res = unwrapResult(data) || {};

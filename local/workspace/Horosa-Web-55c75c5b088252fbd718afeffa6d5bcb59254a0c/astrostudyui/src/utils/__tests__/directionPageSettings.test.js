@@ -39,6 +39,7 @@ describe('directionPageSettings', ()=>{
 			ys129StartPlanet: 'Sun', ys129Order: 'zodiacal', ys129YearType: 'solar', ys129SubRule: 'days',
 			distReleaser: 'Asc', distMethod: 'classical', distYear: 'tropical', distYears: 100,
 			apMethod: 'koch', apEvents: 'full', apYear: 'tropical', apMaxAge: 72,
+			nerK: 273.18, nerT0: 0.75, nerKeepDec: false, nerOrb: 1, bezzaOrb: 1, jayFrom: -1, michonOrb: 1, michonSwap: false, michonEqual: false,
 		});
 	});
 

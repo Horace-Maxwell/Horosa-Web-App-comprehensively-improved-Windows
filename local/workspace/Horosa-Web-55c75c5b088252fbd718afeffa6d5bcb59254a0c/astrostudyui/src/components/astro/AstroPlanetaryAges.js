@@ -1,6 +1,6 @@
 import { Component } from 'react';
-import { Row, Col, Divider } from 'antd';
 import AstroChart from './AstroChart';
+import { ProgPageShell, WheelSplit, SidePanelHead, SideSection, FillCard } from './progPageLayout';
 import { symbolWithMeaning, astroSymbol, SmallTable } from './AstroExtraCommon';
 import { XQSegmented } from '../xq-ui';
 import * as AstroConst from '../../constants/AstroConst';
@@ -28,6 +28,17 @@ const YEAR_BAND_OPTIONS = [
 	{ value: 'greater', label: '大年' },
 	{ value: 'greatest', label: '极大' },
 ];
+
+// 托勒密人生七阶各阶主题(自写概括):每阶一行,让「人生七阶」不只是年龄区间
+const AGE_STAGE_THEME = {
+	Moon: '婴幼:身心未定、随境而变,生长与适应为主',
+	Mercury: '童年求学:心智开启,学习、模仿与语言能力成形',
+	Venus: '少年:情感与欲望萌发,审美、恋慕与享乐倾向',
+	Sun: '青壮:立身成名,志向、荣誉与主导一生事业的阶段',
+	Mars: '中年:辛劳与严峻,担当、奋争并察觉盛年将过',
+	Jupiter: '老成:持重节制,声望、体面与退守之年',
+	Saturn: '暮年:精力衰退、迟缓内收,总结与安顿',
+};
 
 class AstroPlanetaryAges extends Component{
 	constructor(props){
@@ -78,18 +89,7 @@ class AstroPlanetaryAges extends Component{
 				__band: sel,
 			};
 		});
-		return (
-			<div>
-				<Divider orientation="left">行星年四档</Divider>
-				<div style={{ marginBottom: 8, color: 'var(--horosa-muted, #666)', fontSize: 12, lineHeight: 1.6 }}>
-					七政各有四档通用年数：小年为传统定数（七政小年之和为 129），中年为小年与大年之平均，大年为五星各自所辖界度数之和（日取 120、月取 108），极大年为传统极数。下方选档将高亮对应一列。
-				</div>
-				<div style={{ marginBottom: 8 }}>
-					<XQSegmented value={this.state.yearBand} options={YEAR_BAND_OPTIONS} onChange={this.handleYearBandChange} />
-				</div>
-				<SmallTable columns={columns} rows={rows} rowKey={(r) => r.planet} />
-			</div>
-		);
+		return <SmallTable fill scrollClassName={styles.scrollbar} columns={columns} rows={rows} rowKey={(r) => r.planet} />;
 	}
 
 	componentDidMount(){
@@ -131,14 +131,21 @@ class AstroPlanetaryAges extends Component{
 
 	render(){
 		const height = this.props.height ? this.props.height : 760;
-		const style = { height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', boxSizing: 'border-box' };   // 内距计入高度,不再比面板高 5px
 		const { bands, curAge } = buildPlanetaryAges(this.props.value);
-		const glyph = (id) => AstroText.AstroMsg[id] || id;
 		const cn = (id) => (id ? (AstroText.AstroTxtMsg[id] || id) : '');
+		// 与星运其它带盘页同一套(progPageLayout):左整列是盘;右栏标题行 + 年数档选择,下面「人生七阶」「行星年四档」两张卡按内容分高
 		return (
-			<div>
-				<Row gutter={6}>
-					<Col span={16}>
+			<ProgPageShell height={height - 10}>
+				<WheelSplit
+					head={(
+						<SidePanelHead title="行星年龄" sub={`托勒密人生七阶${curAge !== null ? ` · 当前约 ${Math.floor(curAge)} 岁` : ''}`}
+							desc="托勒密把一生分成七阶,依次由月、水、金、日、火、木、土掌管;行星年四档:小年为传统定数(七政小年之和为 129),中年为小年与大年之平均,大年为五星各自所辖界度数之和(日取 120、月取 108),极大年为传统极数。">
+							<SideSection title="行星年四档">
+								<XQSegmented value={this.state.yearBand} options={YEAR_BAND_OPTIONS} onChange={this.handleYearBandChange} />
+							</SideSection>
+						</SidePanelHead>
+					)}
+					renderWheel={(size, h)=>(
 						<AstroChart
 							wheelArt={this.props.wheelArt}
 							value={this.props.value}
@@ -146,32 +153,35 @@ class AstroPlanetaryAges extends Component{
 							planetDisplay={this.props.planetDisplay}
 							lotsDisplay={this.props.lotsDisplay}
 							showAstroMeaning={this.props.showAstroMeaning}
-							height={height}
+							height={h}
 						/>
-					</Col>
-					<Col span={8}>
-						<div className={styles.scrollbar} style={style}>
-							<Divider orientation="left">行星年龄（托勒密人生七阶）</Divider>
-							{curAge !== null ? (
-								<div style={{ marginBottom: 8, color: 'var(--horosa-muted, #666)' }}>当前年龄：约 {Math.floor(curAge)} 岁</div>
-							) : null}
-							{bands.map((b, i) => {
-								const range = b.to === Infinity ? `${b.from}+ 岁` : `${b.from}–${b.to} 岁`;
-								const pos = b.sign ? `${cn(b.sign)}${(b.signlon !== null) ? (' ' + Math.floor(b.signlon) + '°') : ''}` : '';
-								return (
-									<div key={i} className={`horosa-age-band${b.active ? ' horosa-age-band--active' : ''}`}>
-										<span className="horosa-age-range" style={{ fontFamily: AstroConst.NormalFont }}>{range}</span>
-										<span className="horosa-age-glyph">{symbolWithMeaning(b.planet, this.props.showAstroMeaning)}</span>
-										<span style={{ fontFamily: AstroConst.NormalFont }}>{cn(b.planet)}{b.active ? ' · 当前' : ''}</span>
-										{pos ? <span className="horosa-age-pos" style={{ fontFamily: AstroConst.NormalFont }}>本命 {pos}</span> : null}
-									</div>
-								);
-							})}
-							{this.renderYearBandTable()}
+					)}
+				>
+					<FillCard title="人生七阶" extra="底色行 = 当前所在一阶">
+						<div className={`${styles.scrollbar} horosa-small-table-scroll`} style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+							{/* flow-root:子行的外边距算进这一层的高(右栏按它量完整内容高,否则差几像素出假滚动条) */}
+							<div style={{ display: 'flow-root' }}>
+								{bands.map((b, i) => {
+									const range = b.to === Infinity ? `${b.from}+ 岁` : `${b.from}–${b.to} 岁`;
+									const pos = b.sign ? `${cn(b.sign)}${(b.signlon !== null) ? (' ' + Math.floor(b.signlon) + '°') : ''}` : '';
+									return (
+										<div key={i} className={`horosa-age-band${b.active ? ' horosa-age-band--active' : ''}`}>
+											<span className="horosa-age-range" style={{ fontFamily: AstroConst.NormalFont }}>{range}</span>
+											<span className="horosa-age-glyph">{symbolWithMeaning(b.planet, this.props.showAstroMeaning)}</span>
+											<span style={{ fontFamily: AstroConst.NormalFont }}>{cn(b.planet)}{b.active ? ' · 当前' : ''}</span>
+											{pos ? <span className="horosa-age-pos" style={{ fontFamily: AstroConst.NormalFont }}>本命 {pos}</span> : null}
+											{AGE_STAGE_THEME[b.planet] ? <div className="horosa-age-theme">{AGE_STAGE_THEME[b.planet]}</div> : null}
+										</div>
+									);
+								})}
+							</div>
 						</div>
-					</Col>
-				</Row>
-			</div>
+					</FillCard>
+					<FillCard grow title="行星年四档" extra="高亮列 = 上方所选档">
+						{this.renderYearBandTable()}
+					</FillCard>
+				</WheelSplit>
+			</ProgPageShell>
 		);
 	}
 }

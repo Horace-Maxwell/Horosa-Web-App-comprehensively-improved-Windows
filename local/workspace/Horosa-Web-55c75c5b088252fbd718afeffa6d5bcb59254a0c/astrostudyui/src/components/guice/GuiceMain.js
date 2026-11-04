@@ -12,7 +12,7 @@ import { normalizeGuiceSettings, getGuiceOptionsKey, DEFAULT_GUICE_SETTINGS } fr
 import GuiceControls from './GuiceControls';
 import GuiceGuaGlyph from './GuiceGuaGlyph';
 import { Gua8 } from '../gua/GuaConst';
-import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { safeJsonParseFromStorage, safeJsonStringifyToStorage } from '../../utils/safeStorage';
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
@@ -257,8 +257,9 @@ class GuiceMain extends Component {
 			wuGuaNum: inputs.wuGuaNum, fangGuaNum: inputs.fangGuaNum, kind: inputs.kind,
 			qu: inputs.qu, shu2: inputs.shu2,
 		});
-		if (!r) return this.setState({ error: '所需之输入未足 —— 本法不可起卦', gua: null, frozenCtx: null });
-		if (r.error) return this.setState({ error: r.error, gua: null, frozenCtx: null });
+		// 起卦不成 → 盘面清空,AI 快照槽同清(此前留着上一卦:屏上「不可起卦」,交给 AI 的却是旧卦)
+		if (!r) { clearModuleAISnapshot('guice'); return this.setState({ error: '所需之输入未足 —— 本法不可起卦', gua: null, frozenCtx: null }); }
+		if (r.error) { clearModuleAISnapshot('guice'); return this.setState({ error: r.error, gua: null, frozenCtx: null }); }
 		// horosa_panel_ready_v1:gua 落定 = 卦体(中栏)与演数/断法(右栏)画完的那一次 setState。
 		// 本处原无回调 —— 补一个只为埋点,不改任何既有语义。
 		this.setState({ gua: r, error: '', frozenCtx: null }, ()=>{ markPanelReady('cnyibu'); });

@@ -584,6 +584,10 @@ public class ChartController {
 		if(TransData.containsParam("sectBuffer")) {
 			params.put("sectBuffer", TransData.get("sectBuffer"));
 		}
+		// 日出 / 日没口径(center 缺省不下发 / apparent 日面上缘 + 折射):七政日出安命 / 报时星 / 星盘信息日出日没
+		if(TransData.containsParam("sunriseMode")) {
+			params.put("sunriseMode", TransData.get("sunriseMode"));
+		}
 		if(TransData.containsParam("leoBoundFirst")) {
 			params.put("leoBoundFirst", TransData.get("leoBoundFirst"));
 		}

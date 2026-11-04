@@ -16,6 +16,7 @@ import boundless.utility.JsonUtility;
 import spacex.astrostudy.service.AIAnalysisMaterialService;
 import boundless.exception.ErrorCodeException;
 import spacex.astrostudy.service.AIAnalysisProxyService;
+import spacex.astrostudy.service.AISystemOneService;
 import spacex.astrostudy.service.AIWebFetchService;
 import spacex.astrostudy.service.AIWebSearchService;
 
@@ -34,6 +35,9 @@ public class AIAnalysisController {
 
 	@Autowired
 	private AIWebFetchService webFetchService;
+
+	@Autowired
+	private AISystemOneService systemOneService;
 
 	@RequestMapping("/providers/models")
 	@ResponseBody
@@ -112,6 +116,14 @@ public class AIAnalysisController {
 	@ResponseBody
 	public void webFetch(){
 		Map<String, Object> result = webFetchService.fetch(readParams());
+		TransData.set("Result", result);
+	}
+
+	// [决策层 出站④] TypeSafe System One:key / 基址 / 问题 逐次带上,本端点不落库、不写日志(交易日志已排除本路径);默认关,总开关未开时前端根本不调
+	@RequestMapping("/systemone")
+	@ResponseBody
+	public void systemOne(){
+		Map<String, Object> result = systemOneService.ask(readParams());
 		TransData.set("Result", result);
 	}
 

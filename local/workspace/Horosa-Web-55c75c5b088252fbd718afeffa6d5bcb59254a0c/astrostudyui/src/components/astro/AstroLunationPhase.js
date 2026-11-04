@@ -63,9 +63,12 @@ class AstroLunationPhase extends Component{
 		const curElong = (curAge != null) ? progressedElongAtAge(this.props.value, curAge) : null;
 		const curPhase = curElong != null ? computeLunationPhase(curElong) : null;
 		return (
-			<div className={`${styles.scrollbar}`} style={{ height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', padding: '4px 8px 12px' }}>
-				<div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>月相推运<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', marginLeft: 8, fontWeight: 400 }}>次限日月八相 · 约 29.5 年一轮</span></div>
-				<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: '17px', marginBottom: 10 }}>次限「一日为一年」:N 岁的推运日月差 = 出生后第 N 天真实的月日黄经差(按星历逐日精算,月亮快慢都算进去);八相各 45°,主导人生节律的「萌发—显化—释放」循环阶段。</div>
+			<div className={`${styles.scrollbar} horosa-balbillus-shell`} style={{ height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', paddingRight: 8 }}>
+				{/* 与界推运等表页同一套头卡(标题 · 副标题 · 说明 · 控件) */}
+				<div className="horosa-balbillus-head">
+				<div className="horosa-balbillus-title">月相推运<span className="horosa-balbillus-sub">次限日月八相 · 约 29.5 年一轮</span></div>
+				<div className="horosa-balbillus-desc" style={{ marginBottom: 10 }}>次限「一日为一年」:N 岁的推运日月差 = 出生后第 N 天真实的月日黄经差(按星历逐日精算,月亮快慢都算进去);八相各 45°,主导人生节律的「萌发—显化—释放」循环阶段。</div>
+				</div>
 				{d && d.natalPhase ? (
 					<div>
 						<div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>

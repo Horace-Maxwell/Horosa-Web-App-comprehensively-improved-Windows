@@ -89,7 +89,7 @@ function getCandidateExportKeys(context){
 		context && context.displayName ? context.displayName : '',
 		stateContext && stateContext.displayName ? stateContext.displayName : '',
 	].join(' ');
-	const predictiveKeys = ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'ephemeris', 'returntimeline', 'prenatalsyzygy', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns'];
+	const predictiveKeys = ['primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'distributions', 'agepoint', 'ephemeris', 'returntimeline', 'prenatalsyzygy', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns', 'neroman', 'bezzafigure', 'jayprofection', 'michon'];
 	const primaryIsPredictive = isPredictiveExportKey(primary);
 	const stateIsPredictive = isPredictiveExportKey(stateKey);
 	// 仅在上下文无法定位具体推运子模块时，才展开推运候选全量兜底；
@@ -220,7 +220,7 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 	}
 	if(topInfo.includes('星运') || topInfo.includes('推运盘') || topInfo.includes('主限法') || topInfo.includes('法达星限')
 		|| topInfo.includes('太阳弧') || topInfo.includes('太阳返照') || topInfo.includes('月亮返照')){
-		push('primarydirect', 'primarydirchart', 'firdaria', 'zodialrelease', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns');
+		push('primarydirect', 'primarydirchart', 'firdaria', 'zodialrelease', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials', 'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns', 'neroman', 'bezzafigure', 'jayprofection', 'michon');
 	}
 	if(topInfo.includes('三式合一')){
 		push('sanshiunited', 'qimen', 'jinkou', 'liureng', 'sixyao', 'tongshefa', 'taiyi', 'astrochart');
@@ -265,7 +265,7 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 		'astrochart', 'astrochart_like', 'indiachart',
 		'relative', 'germany', 'jieqi',
 		'primarydirect', 'primarydirchart', 'zodialrelease', 'firdaria', 'profection', 'solararc', 'solarreturn', 'lunarreturn', 'givenyear', 'decennials',
-		'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns',
+		'planetaryages', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns', 'neroman', 'bezzafigure', 'jayprofection', 'michon',
 		'sanshiunited', 'qimen', 'liureng', 'jinkou', 'sixyao', 'tongshefa', 'huangji', 'wuzhao', 'taixuan', 'jingjue', 'shenyishu', 'taiyi', 'suzhan',
 		'guolao', 'qizhengkin', 'shaozi', 'tieban', 'fendjing', 'beiji', 'nanji', 'chunzi', 'xianqin', 'cetian', 'otherbu', 'fengshui',
 		'bazi', 'ziwei',
@@ -275,7 +275,7 @@ function getRescueExportKeys(context, fallbackStateContext, triedKeys){
 
 // 「简单模块」预测技法：内容来自前端保存的模块快照(saveModuleAISnapshot)而非预测后端 payload。
 // 路由与自检共用此单一真值表 —— 防「登记进 predictive 却漏配 extractContentByKey 路由」(extrareturns 曾正是漏此条 → AI导出/挂载拿不到多重回归快照)。
-export const AI_EXPORT_SIMPLE_MODULE_KEYS = ['planetaryages', 'ephemeris', 'returntimeline', 'prenatalsyzygy', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns'];
+export const AI_EXPORT_SIMPLE_MODULE_KEYS = ['planetaryages', 'ephemeris', 'returntimeline', 'prenatalsyzygy', 'prog', 'vedicprog', 'jaynesprog', 'planetaryarc', 'persiandirected', 'yearsystem129', 'balbillus', 'triplicityrulers', 'keypoints', 'lunationphase', 'extrareturns', 'neroman', 'bezzafigure', 'jayprofection', 'michon'];
 
 async function extractContentByKey(exportKey, context){
 	if(exportKey === 'astrochart' || isAstroLikeExportKey(exportKey) || exportKey === 'indiachart'){

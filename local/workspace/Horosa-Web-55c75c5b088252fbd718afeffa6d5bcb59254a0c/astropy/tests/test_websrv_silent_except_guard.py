@@ -77,6 +77,7 @@ ASTROSTUDY_SILENT_EXCEPT_ALLOW = {
     ('astrostudy/perchart_parts/su28.py', 'getGufaLichengSu28'): (1, '年份读不出时不做岁差改正(古法锚点原值)'),
     ('astrostudy/perchart_parts/su28.py', 'fillPlanetSu28'): (1, '逐星落宿,缺星略过'),
     ('astrostudy/perchart_parts/timing.py', 'getTimerStar'): (2, '时主星两种求法逐级回退,都失败时不出时主'),
+    ('astrostudy/perchart_parts/timing.py', '_apparentSunEvent'): (1, '视日出没(上缘 + 折射)求不到(极昼极夜 / 星历异常)回 None,调用方回落日心口径迭代'),
     ('astrostudy/perpredict.py', '_fill_user_ayan'): (1, '自定义岁差附参缺失时按命名岁差'),
     ('astrostudy/perpredict.py', '_pdTimeKeyScale'): (1, '每盘常数型钥匙求日行失败时退回 Ptolemy 1.0'),
     ('astrostudy/perpredict.py', '_pdExtraSignificatorPoints'): (4, '附加应星(下降 / 天底 / 朔望 / 灵点)逐个可选,缺即不进表'),

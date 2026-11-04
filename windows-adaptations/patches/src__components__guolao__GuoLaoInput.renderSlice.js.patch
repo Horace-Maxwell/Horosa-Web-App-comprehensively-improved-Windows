@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/guolao/GuoLaoInput.js b/astrostudyui/src/components/guolao/GuoLaoInput.js
-index 7397992a..c0152b46 100644
+index c2777988..dfd96e60 100644
 --- a/astrostudyui/src/components/guolao/GuoLaoInput.js
 +++ b/astrostudyui/src/components/guolao/GuoLaoInput.js
 @@ -1,4 +1,5 @@

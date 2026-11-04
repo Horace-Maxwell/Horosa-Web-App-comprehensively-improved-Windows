@@ -244,6 +244,10 @@ export function resolveActiveContext(){
 		{ label: '数字相位', key: 'keypoints', name: '星运-数字相位' },
 		{ label: '月相推运', key: 'lunationphase', name: '星运-月相推运' },
 		{ label: '多重回归', key: 'extrareturns', name: '星运-多重回归' },
+		{ label: '演进推运', key: 'neroman', name: '星运-演进推运' },
+		{ label: '推运图', key: 'bezzafigure', name: '星运-推运图' },
+		{ label: '周日小限', key: 'jayprofection', name: '星运-周日小限' },
+		{ label: '双黄道', key: 'michon', name: '星运-双黄道' },
 	];
 	const predictiveByTop = predictiveLabelMap.find((item)=>topLabel && topLabel.includes(item.label));
 	if(predictiveByTop){
@@ -602,6 +606,10 @@ export function resolveContextByAstroState(){
 			keypoints: { key: 'keypoints', displayName: '星运-数字相位', domain: 'predictive_raw' },
 			lunationphase: { key: 'lunationphase', displayName: '星运-月相推运', domain: 'predictive_raw' },
 			extrareturns: { key: 'extrareturns', displayName: '星运-多重回归', domain: 'predictive_raw' },
+			neroman: { key: 'neroman', displayName: '星运-演进推运', domain: 'predictive_raw' },
+			bezzafigure: { key: 'bezzafigure', displayName: '星运-推运图', domain: 'predictive_raw' },
+			jayprofection: { key: 'jayprofection', displayName: '星运-周日小限', domain: 'predictive_raw' },
+			michon: { key: 'michon', displayName: '星运-双黄道', domain: 'predictive_raw' },
 		};
 		const auxchartMap = {
 			germanytech: { key: 'germany', displayName: '量化盘' },

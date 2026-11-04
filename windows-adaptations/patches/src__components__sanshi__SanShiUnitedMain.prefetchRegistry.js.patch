@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/sanshi/SanShiUnitedMain.js b/astrostudyui/src/components/sanshi/SanShiUnitedMain.js
-index 3298c9c5..14a8e159 100644
+index eeeda982..2ca71a55 100644
 --- a/astrostudyui/src/components/sanshi/SanShiUnitedMain.js
 +++ b/astrostudyui/src/components/sanshi/SanShiUnitedMain.js
 @@ -1,5 +1,5 @@
@@ -33,7 +33,7 @@ index 3298c9c5..14a8e159 100644
  import { matchBiFa, BIFA_LIST } from '../liureng/LRBiFaDoc';
  import { buildQimenXiangTipObj, } from '../dunjia/QimenXiangDoc';
  import {
-@@ -1887,2766 +1897,2872 @@ export function buildOuterStarMeaningTip(star){
+@@ -1892,2771 +1902,2877 @@ export function buildOuterStarMeaningTip(star){
  	return mergeMeaningTips(base, [ptip]);
  }
  
@@ -3099,6 +3099,7 @@ index 3298c9c5..14a8e159 100644
 -			`${safe(mergedOptions.taiyiAccum)}`,
 -			`${safe(mergedOptions.gameTheory)}`,
 -			mergedOptions.taiyiSchool ? JSON.stringify(normalizeTaiyiSchool(mergedOptions.taiyiSchool)) : '',
+-			`${safe(mergedOptions.taiyiTimeBasis)}`,   // 曾漏:改太乙时间基准签名不变 → 去重直接不重算
 -			lrCastKey,
 -			`${safe(mergedOptions.yearShenShaSort)}`,
 -			`${safe(mergedOptions.tuWangShuai)}`,
@@ -3127,6 +3128,10 @@ index 3298c9c5..14a8e159 100644
 -			`${safe(mergedOptions.sex)}`,
 -			`${safe(mergedOptions.gameTheory)}`,
 -			mergedOptions.taiyiSchool ? JSON.stringify(normalizeTaiyiSchool(mergedOptions.taiyiSchool)) : '',
+-			// getKintaiyiPan 读的键须全入(时间基准曾漏 → 切「真太阳时」命中旧盘;换日两项同理补齐)
+-			`${safe(mergedOptions.taiyiTimeBasis)}`,
+-			`${safe(mergedOptions.after23NewDay)}`,
+-			`${safe(mergedOptions.lateZiHourUseNextDay)}`,
 -		].join('|');
 -		const taiyiCached = this.taiyiCache.get(taiyiCacheKey);
 -		const dunjiaPromise = this.getKinqimenDunJia(
@@ -3319,15 +3324,15 @@ index 3298c9c5..14a8e159 100644
 -	prefetchJieqiSeedForFields(fields, overrideOptions){
 -		const flds = fields || this.state.localFields || this.props.fields;
 -		if(!flds || !flds.date || !flds.date.value){
--			return;
--		}
--		const qimenOptions = this.getQimenOptions(overrideOptions);
--		if(!needJieqiYearSeed(qimenOptions)){
 +	onFieldsChange(field, requestMode){
 +		// 择日宿主内嵌:改动交给宿主的覆盖层(宿主用新 fields 拉底盘重排),不写主盘
 +		if(sendScopedFields(this.props, field)){
  			return;
  		}
+-		const qimenOptions = this.getQimenOptions(overrideOptions);
+-		if(!needJieqiYearSeed(qimenOptions)){
+-			return;
+-		}
 -		const year = parseInt(flds.date.value.format('YYYY'), 10);
 -		if(!year || Number.isNaN(year)){
 -			return;
@@ -3599,10 +3604,19 @@ index 3298c9c5..14a8e159 100644
 -		this.lastKey = key;
 -		const params = this.genParams(fields);
 -		if(!params){
--			return;
 +		if(this.awaitingSyncTimer){
 +			clearTimeout(this.awaitingSyncTimer);
 +			this.awaitingSyncTimer = null;
++		}
++		// 草稿优先:onTimeChanged 每次改时间都把最新时刻写进 pendingTimeFields,而
++		//   timeHook.getValue() 读的是注册 hook 的那个控件实例(左栏内联 / 隐藏实例)的 value —— 未起盘时
++		//   在弹层里改完直接点「起盘」,它还是旧时刻,此前它排在前面就把草稿盖掉 = 按旧时刻起盘,
++		//   与「首盘必须显式点确定 / 起盘」的意图相反。selector 只在没有草稿时兜底。
++		const baseFields = this.pendingTimeFields || this.state.localFields || this.props.fields;
++		const timeFields = this.pendingTimeFields || this.getTimeFieldsFromSelector(baseFields);
++		const nextFields = timeFields || this.state.localFields || this.props.fields;
++		if(!nextFields){
+ 			return;
  		}
 -		const seq = ++this.refreshSeq;
 -		const refreshPromise = (async ()=>{
@@ -3737,16 +3751,6 @@ index 3298c9c5..14a8e159 100644
 -				if(this.pendingRefresh && this.pendingRefresh.seq === seq){
 -					this.pendingRefresh = null;
 -				}
-+		// 草稿优先:onTimeChanged 每次改时间都把最新时刻写进 pendingTimeFields,而
-+		//   timeHook.getValue() 读的是注册 hook 的那个控件实例(左栏内联 / 隐藏实例)的 value —— 未起盘时
-+		//   在弹层里改完直接点「起盘」,它还是旧时刻,此前它排在前面就把草稿盖掉 = 按旧时刻起盘,
-+		//   与「首盘必须显式点确定 / 起盘」的意图相反。selector 只在没有草稿时兜底。
-+		const baseFields = this.pendingTimeFields || this.state.localFields || this.props.fields;
-+		const timeFields = this.pendingTimeFields || this.getTimeFieldsFromSelector(baseFields);
-+		const nextFields = timeFields || this.state.localFields || this.props.fields;
-+		if(!nextFields){
-+			return;
-+		}
 +		const curFields = this.props.fields || {};
 +		const patchFields = {};
 +		const patchRaw = (key)=>{
@@ -3868,12 +3872,15 @@ index 3298c9c5..14a8e159 100644
 -	renderLeftBoard(height){
 -		if(!this.state.hasPlotted){
 -			return <Card bordered={false}>点击左侧“起盘”后显示三式合一盘</Card>;
--		}
--		if(!this.state.dunjia){
--			return <Card bordered={false}>暂无三式合一数据</Card>;
 +	clickSave(){
 +		if(!this.state.hasPlotted || !this.state.dunjia){
 +			message.warning('请先起盘后再保存');
++			return;
+ 		}
+-		if(!this.state.dunjia){
+-			return <Card bordered={false}>暂无三式合一数据</Card>;
++		const flds = this.state.plottedFields || this.state.localFields || this.props.fields;
++		if(!flds){
 +			return;
  		}
 -		const boardSize = this.calcBoardSize(height);
@@ -3910,10 +3917,6 @@ index 3298c9c5..14a8e159 100644
 -			datetm = datetm.parse(str, 'YYYY-MM-DD HH:mm:ss');
 -			if(fields.zone){
 -				datetm.setZone(fields.zone.value);
-+		const flds = this.state.plottedFields || this.state.localFields || this.props.fields;
-+		if(!flds){
-+			return;
-+		}
 +		if((this.state.options || {}).mode === 'ming'){
 +			// 命局存为命盘:与独立奇门页同口径代填起局时间(作生时)、经纬度 / 地名 / 时区与性别(此前开空白新建框)
 +			if(this.props.dispatch){
@@ -4869,6 +4872,7 @@ index 3298c9c5..14a8e159 100644
 +			`${safe(mergedOptions.taiyiAccum)}`,
 +			`${safe(mergedOptions.gameTheory)}`,
 +			mergedOptions.taiyiSchool ? JSON.stringify(normalizeTaiyiSchool(mergedOptions.taiyiSchool)) : '',
++			`${safe(mergedOptions.taiyiTimeBasis)}`,   // 曾漏:改太乙时间基准签名不变 → 去重直接不重算
 +			lrCastKey,
 +			`${safe(mergedOptions.yearShenShaSort)}`,
 +			`${safe(mergedOptions.tuWangShuai)}`,
@@ -4897,6 +4901,10 @@ index 3298c9c5..14a8e159 100644
 +			`${safe(mergedOptions.sex)}`,
 +			`${safe(mergedOptions.gameTheory)}`,
 +			mergedOptions.taiyiSchool ? JSON.stringify(normalizeTaiyiSchool(mergedOptions.taiyiSchool)) : '',
++			// getKintaiyiPan 读的键须全入(时间基准曾漏 → 切「真太阳时」命中旧盘;换日两项同理补齐)
++			`${safe(mergedOptions.taiyiTimeBasis)}`,
++			`${safe(mergedOptions.after23NewDay)}`,
++			`${safe(mergedOptions.lateZiHourUseNextDay)}`,
 +		].join('|');
 +		const taiyiCached = this.taiyiCache.get(taiyiCacheKey);
 +		const dunjiaPromise = this.getKinqimenDunJia(
@@ -5517,7 +5525,7 @@ index 3298c9c5..14a8e159 100644
  		);
  	}
  
-@@ -4850,14 +4966,6 @@ class SanShiUnitedMain extends Component{
+@@ -4860,14 +4976,6 @@ class SanShiUnitedMain extends Component{
  		const topHeight = 0;
  		const tabBodyHeight = Math.max(0, panelHeight - topHeight - 74);
  		const nestedTabBodyHeight = Math.max(140, tabBodyHeight - 110);
@@ -5532,7 +5540,7 @@ index 3298c9c5..14a8e159 100644
  		return (
  			<div ref={this.captureRightPanel} className="horosa-sanshi-right-shell" style={{ display: 'flex', flexDirection: 'column', height: panelHeight, overflow: 'hidden' }}>
  				{/* 原此处有一整块 display:none 的旧右栏控件(模式/时间算法/性别/贵人/排盘/日界/值使/月家/
-@@ -4866,6 +4974,7 @@ class SanShiUnitedMain extends Component{
+@@ -4876,6 +4984,7 @@ class SanShiUnitedMain extends Component{
  				    ② 与左栏共用 this.timeHook,隐藏实例把左栏实例的注册顶掉,起盘读到的是隐藏控件的旧时刻;
  				    ③ 污染死开关审计指纹(取 innerHTML,隐藏子树照样计入)→ 快轮「有反应」全是这块的假活。
  				    整块已删;三档改由左栏可见控件承接(太乙流派节的「盘式 / 古法公式」、选项节的「宫制」)。 */}
@@ -5540,7 +5548,7 @@ index 3298c9c5..14a8e159 100644
  				<Tabs
  					activeKey={rightPanelTab}
  					onChange={(key)=>this.setState({ rightPanelTab: key })}
-@@ -4874,7 +4983,15 @@ class SanShiUnitedMain extends Component{
+@@ -4884,7 +4993,15 @@ class SanShiUnitedMain extends Component{
  					className="horosa-sanshi-right-tabs"
  					style={{ marginTop: 8, flex: 1, minHeight: 0, overflow: 'hidden' }}
  				>
@@ -5556,7 +5564,7 @@ index 3298c9c5..14a8e159 100644
  						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
  							<div style={{ lineHeight: '26px' }}>
  								<div>局数：{pan ? pan.juText : '—'}</div>
-@@ -4901,8 +5018,10 @@ class SanShiUnitedMain extends Component{
+@@ -4911,8 +5028,10 @@ class SanShiUnitedMain extends Component{
  								</>
  							) : null}
  						</Card>
@@ -5567,7 +5575,7 @@ index 3298c9c5..14a8e159 100644
  						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }}>
  							<div style={{ lineHeight: '24px' }}>
  								{this.state.taiyi ? (()=>{
-@@ -4990,8 +5109,10 @@ class SanShiUnitedMain extends Component{
+@@ -5000,8 +5119,10 @@ class SanShiUnitedMain extends Component{
  								)}
  							</div>
  						</Card>
@@ -5578,7 +5586,7 @@ index 3298c9c5..14a8e159 100644
  						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }} className="horosa-sanshi-subtabs-card">
  							<Tabs
  								activeKey={this.state.liurengRefTab}
-@@ -5135,8 +5256,10 @@ class SanShiUnitedMain extends Component{
+@@ -5145,8 +5266,10 @@ class SanShiUnitedMain extends Component{
  								</TabPane>
  							</Tabs>
  						</Card>
@@ -5589,7 +5597,7 @@ index 3298c9c5..14a8e159 100644
  						<Card bordered={false} bodyStyle={{ padding: '10px 12px' }} className="horosa-sanshi-subtabs-card">
  							<Tabs
  								activeKey={this.state.bagongSubTab}
-@@ -5240,10 +5363,16 @@ class SanShiUnitedMain extends Component{
+@@ -5250,10 +5373,16 @@ class SanShiUnitedMain extends Component{
  								</TabPane>
  							</Tabs>
  						</Card>

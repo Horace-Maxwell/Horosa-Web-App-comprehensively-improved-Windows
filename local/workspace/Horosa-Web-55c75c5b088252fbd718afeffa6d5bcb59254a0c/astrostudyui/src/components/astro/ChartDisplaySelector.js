@@ -5,6 +5,9 @@ import { XQCheckItem, XQCheckList, XQSectionTitle, XQSegmented, XQSelect, XQButt
 import TermsEditor from './TermsEditor';
 import CustomAyanamsaManager from './CustomAyanamsaManager';
 import { setClassicalChartGlobal, classicalGlobalValue } from '../../utils/classicalChartGlobals';
+import { CLASSICAL_PARAM_SPEC } from '../../utils/classicalParamSpec';
+// 日出 / 日没口径两档(档位单源 = 规格表)
+const SUNRISE_MODE_OPTIONS = ((CLASSICAL_PARAM_SPEC.find((s)=>s.key === 'sunriseMode') || {}).options || []).map((o)=>({ value: o.value, label: o.label }));
 import { scheduleOptionDispatch } from '../../utils/optionDispatchScheduler';
 import { getDivinationJudgeGlobals, setDivinationJudgeGlobal } from '../../utils/divinationJudgeGlobals';
 
@@ -344,6 +347,7 @@ class ChartDisplaySelector extends Component{
 		const triplicity = this.fieldOr('triplicity') || 'Dorothean';
 		const westNodeType = this.fieldOr('westNodeType') === 'true' ? 'true' : 'mean';
 		const sectBuffer = (['ptolemy5', 'apparent'].indexOf(this.fieldOr('sectBuffer')) >= 0) ? this.fieldOr('sectBuffer') : 'geo';
+		const sunriseMode = this.fieldOr('sunriseMode') === 'apparent' ? 'apparent' : 'center';
 		// 天文口径批读值。
 		const ownChariotOn = (this.fieldOr('combustOwnChariotExempt') === 1 || this.fieldOr('combustOwnChariotExempt') === '1');
 		const westLilithType = this.fieldOr('westLilithType') === 'true' ? 'true' : 'mean';
@@ -541,6 +545,8 @@ class ChartDisplaySelector extends Component{
 						<div className="horosa-terms-grid">
 							{cell('区分判定（昼 / 夜 · sect）',
 								<XQSegmented value={sectBuffer} options={SECT_BUFFER_OPTIONS} onChange={(e)=>this.applyClassicalField('sectBuffer', e && e.target ? e.target.value : e, true)} />)}
+							{cell('日出 / 日没口径',
+								<XQSegmented value={sunriseMode} options={SUNRISE_MODE_OPTIONS} onChange={(e)=>this.applyClassicalField('sunriseMode', e && e.target ? e.target.value : e)} />)}
 							{cell('月交点（真 / 平 · 全盘随动）',
 								<XQSegmented value={westNodeType} options={WEST_NODE_OPTIONS} onChange={(e)=>this.applyClassicalField('westNodeType', e && e.target ? e.target.value : e, true)} />)}
 							{cell('主宰主星判法（Domicile Master）',

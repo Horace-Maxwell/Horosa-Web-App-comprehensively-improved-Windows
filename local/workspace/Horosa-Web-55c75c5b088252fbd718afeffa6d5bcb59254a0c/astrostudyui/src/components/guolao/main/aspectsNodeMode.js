@@ -1,60 +1,25 @@
-// 七政四余页 · 相位与罗计口径:相位中文名与相位行、纯对象深拷贝、罗睺 / 计都互换、罗计口径读取与套用、升落字段。
+// 七政四余页 · 相位与罗计口径:七政相位行、纯对象深拷贝、罗睺 / 计都互换、罗计口径读取与套用、升落字段。
 // 只被 components/guolao/GuoLaoChartMain.js 与同目录 main/ 下的兄弟模块引用。
 import * as AstroConst from '../../../constants/AstroConst';
 import { GUOLAO_NODE_MODE_NORTH_RAHU, getStoredGuolaoNodeMode, normalizeGuolaoNodeMode } from '../GuoLaoChartStyle';
-import * as AstroText from '../../../constants/AstroText';
 import { astroMsgPlainText as msg } from '../../astro/AstroHelper';
-import { safeList } from './format';
+import { computeMoiraAspectPairs } from '../GuoLaoMoiraWheel';
 
-// 🆕 中文相位名(含度数)用于 AI 挂载快照 + AI 导出 — 避免输出占星字体字形码(R/W/P/M 等)给 LLM 看成乱码。
-// UI 内部渲染走 AstroMsg 字形码 + 占星字体不受影响(各自管线分离)。
-const GUOLAO_ASPECT_LABEL_CN = {
-	Asp0: '合 (0°)',
-	Asp30: '半六合 (30°)',
-	Asp45: '半方 (45°)',
-	Asp60: '六合 (60°)',
-	Asp90: '方 (90°)',
-	Asp120: '三合 (120°)',
-	Asp135: '补半方 (135°)',
-	Asp150: '梅花 (150°)',
-	Asp180: '冲 (180°)',
-};
-function aspectName(deg){
-	if(GUOLAO_ASPECT_LABEL_CN[`Asp${deg}`]){ return GUOLAO_ASPECT_LABEL_CN[`Asp${deg}`]; }
-	if(AstroText.AstroTxtMsg && AstroText.AstroTxtMsg[`Asp${deg}`]){ return AstroText.AstroTxtMsg[`Asp${deg}`]; }
-	return Number.isFinite(Number(deg)) ? `${deg}°` : '';
-}
-
-export function buildAspectRows(aspects){
-	const normal = aspects && aspects.normalAsp ? aspects.normalAsp : aspects;
-	const rows = [];
-	if(!normal || typeof normal !== 'object'){
-		return rows;
-	}
-	Object.keys(normal).forEach((key)=>{
-		const bucket = normal[key] || {};
-		[
-			['Applicative', '入相'],
-			['Exact', '精确'],
-			['Separative', '离相'],
-			['None', '容许'],
-		].forEach(([field, state])=>{
-			safeList(bucket[field]).forEach((asp, idx)=>{
-				if(!asp || !asp.id){
-					return;
-				}
-				rows.push({
-					key: `${key}-${asp.id}-${field}-${idx}`,
-					from: msg(key),
-					to: msg(asp.id),
-					aspect: aspectName(asp.asp),
-					state,
-					orb: Number.isFinite(Number(asp.orb)) ? `${Math.round(Number(asp.orb) * 1000) / 1000}` : '',
-				});
-			});
-		});
-	});
-	return rows;
+// 七政相位行(右栏「相位」页与 AI 快照同用):与盘面连线同一单源 computeMoiraAspectPairs ——
+// 七种七政相位(會 0° / 衝 180° / 刑 90° / 合 120° / 半合 60° / 半刑 45°·135° / 四合 30°·150°),
+// 只列已勾选的相位药丸、按左栏容许度设置、隐藏的曜不列。曾按通用占星相位表列(合 = 0°,名称与容许度都与盘面不同)。
+// prefs = 七政显示偏好(guolaoDisplay:aspects / aspectOrbs / hiddenPlanets)。
+export function buildGuolaoAspectRows(chart, prefs){
+	const p = prefs || {};
+	const pairs = computeMoiraAspectPairs(chart, { aspectSet: p.aspects, aspectOrbs: p.aspectOrbs, hiddenPlanets: p.hiddenPlanets });
+	return pairs.map((pr)=>({
+		key: `${pr.a.id}-${pr.b.id}-${pr.aspect.key}`,
+		from: msg(pr.a.id),
+		to: msg(pr.b.id),
+		aspect: `${pr.aspect.key} ${pr.angle}°`,
+		state: pr.state,
+		orb: `${Math.round(pr.orb * 1000) / 1000}`,
+	}));
 }
 
 export function clonePlain(obj){

@@ -243,7 +243,9 @@ export default class BaziZeriMain extends Component{
 	// 载入的方案一个页面键都没带(页面口径进方案之前存的)→ 那时扫描按出厂口径 → 页面键回出厂值
 	onWorkbenchOptionsChange(options, meta){
 		const split = splitPageKeys(options || {}, BAZI_PAGE_SCAN_KEYS);
-		const page = (meta && meta.source === 'scheme' && !Object.keys(split.page).length) ? { ...BAZI_PAGE_FACTORY } : split.page;
+		// 载入方案:方案里缺的页面键逐键回出厂值(方案存于该键出现之前 = 当时就是出厂值;曾只在「一个都没带」时才整体复位,
+		// 带了南半球月令 / 命宫起法、没带天医口径的旧方案会沿用当前页面的天医口径)
+		const page = (meta && meta.source === 'scheme') ? { ...BAZI_PAGE_FACTORY, ...split.page } : split.page;
 		const h = this.baziHook;
 		if(Object.keys(page).length && h && typeof h.applyBaziOptions === 'function'){ h.applyBaziOptions(page); }
 		this.setState({ options: split.rest });

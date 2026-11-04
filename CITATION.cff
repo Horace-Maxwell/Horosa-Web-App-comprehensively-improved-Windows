@@ -2,8 +2,8 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 3.13.0
-date-released: 2026-10-30
+version: 3.13.1
+date-released: 2026-11-03
 authors:
   - given-names: Horace
     family-names: Maxwell
@@ -12,17 +12,23 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v3.13.0 beta is a local-first metaphysics workstation. This release rebuilds
+  Horosa for Windows v3.13.1 beta is a local-first metaphysics workstation. This release adds four
+  directed-figure techniques to the timing workspace (Neroman evolutive directions, Bezza figures, the
+  Jay diurnal profection and the Michon double zodiac), unifies the layout of every chart-bearing timing
+  page (same wheel size, fixed time and settings header, drag-to-adjust time fields), and follows a
+  site-wide settings review that makes every option actually change its result; new classical settings
+  cover the sunrise and sunset convention, the BaZi Tian Yi convention and draconic house placement, and
+  an experimental AI decision layer is added (off by default). It builds on v3.13.0, which rebuilt
   primary directions: every position method, every In Mundo variant and the new Field Plane direction
-  type are recomputed from their geometric definitions, Horizontal and Koch are added, methods whose
-  results differ offer an improved (strict spherical geometry, the default) and a classic (traditional
-  program) form, the time keys grow to 38 with each one implemented by definition, and new point and
-  direction settings are greyed out with the reason whenever they cannot affect the current
+  type were recomputed from their geometric definitions, Horizontal and Koch were added, methods whose
+  results differ gained an improved (strict spherical geometry, the default) and a classic (traditional
+  program) form, the time keys grew to 38 with each one implemented by definition, and new point and
+  direction settings were greyed out with the reason whenever they cannot affect the current
   combination. Multiple returns, distributions through the bounds, the 129-year system, Balbillus, the
-  age point and lunation-phase progressions move to exact algorithms; the Uranian dial adds
+  age point and lunation-phase progressions moved to exact algorithms; the Uranian dial added
   right-ascension and declination midpoint coordinates, sensitive-point formula solving, a secondary
   progression layer and five more dial bases; the AI model list, Traditional Chinese wording and the
-  backend liveness probe are updated. It builds on v3.12.0, which added a
+  backend liveness probe were updated; and on v3.12.0, which added a
   one-click Simplified / Traditional Chinese interface (context-aware character selection; the shell
   menus, dialogs, startup and update windows follow, while exports and AI input stay Simplified), let
   AI conversations mount two people's charts at once with Western synastry data, BaZi compatibility

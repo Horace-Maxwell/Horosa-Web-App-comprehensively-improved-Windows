@@ -137,6 +137,12 @@ export function repairInlineEmphasis(text){
 	t = t.split('\n').map(unnestBoldLine).join('\n');
 	// ①④⑤按段(空行分隔)配对修复 —— 跨行粗体要在同段内才配得上对
 	t = t.split(/(\n[ \t]*\n)/).map((blk, i)=> (i % 2 === 1 ? blk : repairBoldPairs(blk))).join('');
+	// ⑥紧挨的两段加粗合成一段(`**甲****乙**` → `**甲乙**`):四个星号连写在部分渲染器里会原样露出或打乱后续配对
+	for(let k = 0; k < 4 && t.indexOf('****') >= 0; k++){
+		const next = t.replace(/\*\*([^*\n]+)\*\*\*\*([^*\n]+)\*\*/g, '**$1$2**');
+		if(next === t){ break; }
+		t = next;
+	}
 	return t.replace(/\u0000M(\d+)\u0000/g, (_, i)=>keep[Number(i)]);
 }
 

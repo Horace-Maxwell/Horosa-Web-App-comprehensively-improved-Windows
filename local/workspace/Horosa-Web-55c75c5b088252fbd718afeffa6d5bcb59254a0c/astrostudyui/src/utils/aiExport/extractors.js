@@ -579,7 +579,8 @@ export async function extractGenericContent(context){
 	if(context.key === 'planetaryages' || context.key === 'prog' || context.key === 'vedicprog' || context.key === 'jaynesprog'
 		|| context.key === 'planetaryarc' || context.key === 'persiandirected' || context.key === 'yearsystem129'
 		|| context.key === 'balbillus' || context.key === 'triplicityrulers' || context.key === 'keypoints'
-		|| context.key === 'lunationphase' || context.key === 'extrareturns'){
+		|| context.key === 'lunationphase' || context.key === 'extrareturns'
+		|| context.key === 'neroman' || context.key === 'bezzafigure' || context.key === 'jayprofection' || context.key === 'michon'){
 		const cached = getModuleCachedContent(context.key);
 		if(cached){
 			return cached;

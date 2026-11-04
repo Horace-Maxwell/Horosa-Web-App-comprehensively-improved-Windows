@@ -38,9 +38,9 @@ class AstroDerivedHouses extends Component {
 		return (
 			<div className="horosa-info-card horosa-classical-card">
 				{this.renderTitle()}
-				<div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+				<div role="radiogroup" aria-label="转宫基点" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
 					{PRESETS.map((pr)=>(
-						<button key={pr.b} type="button"
+						<button key={pr.b} type="button" role="radio" aria-checked={base === pr.b}
 							onClick={()=>this.setState({ base: pr.b })}
 							style={{ fontSize: 12, padding: '2px 8px', borderRadius: 5, cursor: 'pointer',
 								border: `1px solid ${base === pr.b ? 'var(--horosa-gold,#b8860b)' : 'var(--horosa-border,rgba(120,120,120,.28))'}`,

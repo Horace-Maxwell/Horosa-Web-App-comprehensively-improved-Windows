@@ -170,6 +170,13 @@ No GPL-licensed source from Stellarium is incorporated; this notice is provided 
 - License: MIT License
 - Use in Horosa: pure-JavaScript, fully offline generation of selectable-text PDF export files (embedding the bundled CJK subset font above); no data leaves the machine.
 
+## TypeSafe SDK for JavaScript (type definitions only)
+
+- Project: `@typesafe-ai/sdk` (typesafe-sdk-js)
+- Repository: https://github.com/typesafe-ai/typesafe-sdk-js
+- License: MIT License
+- Use in Horosa: the SDK itself is **not** bundled or executed. Its published type definitions were used only as the reference for the shape of the app's outgoing decision-layer requests. The optional decision layer talks to the TypeSafe HTTP API through the local backend with the user's own key; it is off by default.
+
 ## dom-align (locally patched)
 
 - Project: dom-align

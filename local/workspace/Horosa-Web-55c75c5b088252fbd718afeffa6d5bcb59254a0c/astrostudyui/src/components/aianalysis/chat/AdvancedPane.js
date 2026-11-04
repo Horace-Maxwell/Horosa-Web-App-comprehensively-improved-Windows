@@ -11,14 +11,15 @@ import { readModelRoutes, subscribeModelRoutes, hasAnyRoute, readRouteOptions, s
 import { readPersona, subscribePersona } from '../../../utils/aiChat/persona';
 import { listMemories, subscribeMemory } from '../../../utils/aiChat/memory';
 import { isAgentEnabled, subscribeAgentPrefs } from '../../../utils/aiAgent/prefs';
+import { isSystemOneEnabled, subscribeSystemOnePrefs } from '../../../utils/systemOne/prefs';
 import { ADV_SECTION_IDS } from './AdvCard';
 import AdvSectionNav, { jumpToSection } from './AdvSectionNav';
 import useElementWidth from './useElementWidth';
 import { skillsOf, BUILTIN_SKILLS } from '../../../utils/aiChat/skills';
 
 const PRESET_LABEL = { legacy: '不裁', window: '窗口', economy: '经济', custom: '自定义' };
-// 版位:按 key 落格;顺序即页面顺序(策略 | 对比 → 路由(整宽)→ 口径 | 技能 → 行动能力(整宽,末尾))。未列入的 key 追加到末尾,无 key 的元素落到 agent 槽。
-const SLOTS = ['context-policy', 'best-of', 'model-routes', 'persona-memory', 'skill-packs'];
+// 版位:按 key 落格;顺序即页面顺序(策略 | 对比 → 路由(整宽)→ 口径 | 技能 → 决策层(整宽)→ 行动能力(整宽,末尾))。未列入的 key 追加到末尾,无 key 的元素落到 agent 槽。
+const SLOTS = ['context-policy', 'best-of', 'model-routes', 'persona-memory', 'skill-packs', 'systemone'];
 // 宽度档阈值(根节点 CSS px;缩放档下自然折算):<narrow 单列;≥wide 才出导轨。8px 滞回防抖。
 export const ADV_WIDTH_BANDS = { narrow: 860, wide: 1080, hysteresis: 8 };
 export const ADV_SECTIONS = [
@@ -27,6 +28,7 @@ export const ADV_SECTIONS = [
 	{ id: ADV_SECTION_IDS.routes, label: '按任务用模型', icon: 'ai' },
 	{ id: ADV_SECTION_IDS.persona, label: '口径与记忆', icon: 'user' },
 	{ id: ADV_SECTION_IDS.skills, label: '技能包', icon: 'tools' },
+	{ id: ADV_SECTION_IDS.systemone, label: '决策层(实验)', icon: 'target' },
 	{ id: ADV_SECTION_IDS.agent, label: '行动能力', icon: 'quickAi', danger: true },
 ];
 const AGENT_SUBSECTIONS = [
@@ -74,6 +76,7 @@ export default function AdvancedPane({ children, personaInjecting }){
 	const personaOn = typeof personaInjecting === 'boolean' ? personaInjecting : !!(persona.enabled && persona.text);
 	const [memoryCount, setMemoryCount] = React.useState(0);
 	const [agentOn, setAgentOn] = React.useState(()=>isAgentEnabled());
+	const [systemOneOn, setSystemOneOn] = React.useState(()=>isSystemOneEnabled());
 	React.useEffect(()=>subscribeContextPolicy((p)=>setPreset(contextPolicyPresetName(p))), []);
 	React.useEffect(()=>subscribeModelRoutes(()=>setRouted(routedNow())), []);
 	React.useEffect(()=>subscribeRouteOptions(()=>setRouted(routedNow())), []);
@@ -87,6 +90,7 @@ export default function AdvancedPane({ children, personaInjecting }){
 		return ()=>{ alive = false; if(typeof off === 'function'){ off(); } };
 	}, []);
 	React.useEffect(()=>subscribeAgentPrefs((d)=>setAgentOn(!!(d && d.enabled))), []);
+	React.useEffect(()=>subscribeSystemOnePrefs(()=>setSystemOneOn(isSystemOneEnabled())), []);
 
 	const rootRef = React.useRef(null);
 	const width = useElementWidth(rootRef);
@@ -123,6 +127,7 @@ export default function AdvancedPane({ children, personaInjecting }){
 					<Pill on={personaOn} target={ADV_SECTION_IDS.persona} onJump={jump} pillKey="persona">口径 · {personaOn ? '注入中' : '未注入'}</Pill>
 					<Pill on={memoryCount > 0} target={ADV_SECTION_IDS.persona} onJump={jump} pillKey="memory">记忆 · {memoryCount} 条</Pill>
 					<Pill on={skillCount > 0} target={ADV_SECTION_IDS.skills} onJump={jump} pillKey="skills">技能包 · {skillCount > 0 ? `${skillCount} 个` : `内置 ${BUILTIN_SKILLS.length}`}</Pill>
+					<Pill on={systemOneOn} target={ADV_SECTION_IDS.systemone} onJump={jump} pillKey="systemone">决策层 · {systemOneOn ? '开' : '关'}</Pill>
 					<Pill on={agentOn} target={ADV_SECTION_IDS.agent} onJump={jump} pillKey="agent">行动能力 · {agentOn ? '开' : '关'}</Pill>
 				</div>
 			</div>

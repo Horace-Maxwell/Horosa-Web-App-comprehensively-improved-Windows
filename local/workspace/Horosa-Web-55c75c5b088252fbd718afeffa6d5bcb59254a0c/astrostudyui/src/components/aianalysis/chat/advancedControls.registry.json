@@ -36,8 +36,8 @@
    "file": "chat/AdvancedPane.js",
    "anchor": "data-adv-pill",
    "kind": "pill",
-   "instances": 6,
-   "values": "context|routes|persona|memory|skills|agent",
+   "instances": 7,
+   "values": "context|routes|persona|memory|skills|systemone|agent",
    "store": "ui",
    "consumers": [
     "components/aianalysis/chat/AdvSectionNav.js#jumpToSection"
@@ -62,8 +62,8 @@
    "file": "chat/AdvSectionNav.js",
    "anchor": "data-adv-nav",
    "kind": "button",
-   "instances": 6,
-   "values": "六分区",
+   "instances": 7,
+   "values": "七分区",
    "store": "ui",
    "consumers": [
     "components/aianalysis/chat/AdvSectionNav.js#jumpToSection"
@@ -3357,6 +3357,395 @@
     "seed:ledger-rows"
    ],
    "desktop": false
+  },
+  {
+   "id": "systemone.switch",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-switch",
+   "kind": "switch",
+   "instances": 1,
+   "values": "bool",
+   "store": "localStorage:horosa.ai.systemone.enabled",
+   "consumers": [
+    "utils/systemOne/prefs.js#isSystemOneEnabled",
+    "utils/systemOne/prefs.js#pointOn"
+   ],
+   "jest": [
+    "systemOnePanel",
+    "systemOneGate"
+   ],
+   "l5": [
+    "S200_systemone_switch_disclosure_ui"
+   ],
+   "l5Twin": [
+    "S204_systemone_off_path_twin"
+   ],
+   "reveal": [],
+   "desktop": false
+  },
+  {
+   "id": "systemone.model",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-model",
+   "kind": "select",
+   "instances": 1,
+   "values": "jev-latest|jev-preview",
+   "store": "idb:integration_profiles",
+   "consumers": [
+    "integrations/systemOne.js#saveSystemOneProfile",
+    "utils/systemOne/wire.js#normalizeModelName"
+   ],
+   "jest": [
+    "systemOnePanel"
+   ],
+   "l5": [
+    "S201_systemone_profile_save_test_delete_ui"
+   ],
+   "reveal": [
+    "pref:systemOne"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "systemone.baseUrl",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-baseurl",
+   "kind": "text",
+   "instances": 1,
+   "values": "https://…(留空=官方地址)",
+   "store": "idb:integration_profiles",
+   "consumers": [
+    "integrations/systemOne.js#saveSystemOneProfile",
+    "integrations/systemOne.js#normalizeBaseUrl"
+   ],
+   "jest": [
+    "systemOnePanel"
+   ],
+   "l5": [
+    "S201_systemone_profile_save_test_delete_ui"
+   ],
+   "reveal": [
+    "pref:systemOne"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "systemone.apiKey",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-apikey",
+   "kind": "password",
+   "instances": 1,
+   "values": "不回显",
+   "store": "idb:integration_profiles(加密)",
+   "consumers": [
+    "integrations/systemOne.js#saveSystemOneProfile"
+   ],
+   "jest": [
+    "systemOnePanel"
+   ],
+   "l5": [
+    "S201_systemone_profile_save_test_delete_ui"
+   ],
+   "reveal": [
+    "pref:systemOne"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "systemone.save",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-save",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:integration_profiles",
+   "consumers": [
+    "integrations/systemOne.js#saveSystemOneProfile"
+   ],
+   "jest": [
+    "systemOnePanel"
+   ],
+   "l5": [
+    "S201_systemone_profile_save_test_delete_ui"
+   ],
+   "reveal": [
+    "pref:systemOne"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "systemone.test",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-test",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "ui",
+   "consumers": [
+    "utils/systemOne/client.js#smokeTestSystemOne"
+   ],
+   "jest": [
+    "systemOnePanel"
+   ],
+   "l5": [
+    "S201_systemone_profile_save_test_delete_ui"
+   ],
+   "reveal": [
+    "pref:systemOne"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "systemone.delete",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-delete",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "idb:integration_profiles",
+   "consumers": [
+    "integrations/systemOne.js#removeSystemOneProfile"
+   ],
+   "jest": [
+    "systemOnePanel"
+   ],
+   "l5": [
+    "S201_systemone_profile_save_test_delete_ui"
+   ],
+   "reveal": [
+    "pref:systemOne",
+    "seed:systemone-profile"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "systemone.calibrate",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-calibrate",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "localStorage:horosa.ai.systemone.calibration.v1",
+   "consumers": [
+    "utils/systemOne/calibration.js#runCalibration"
+   ],
+   "jest": [
+    "systemOnePanel",
+    "systemOneCalibration"
+   ],
+   "l5": [
+    "S202_systemone_calibrate_stub_ui"
+   ],
+   "reveal": [
+    "pref:systemOne"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "systemone.calibrationClear",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-calibration-clear",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "localStorage:horosa.ai.systemone.calibration.v1",
+   "consumers": [
+    "utils/systemOne/calibrationStore.js#clearCalibration"
+   ],
+   "jest": [
+    "systemOnePanel"
+   ],
+   "l5": [
+    "S202_systemone_calibrate_stub_ui"
+   ],
+   "reveal": [
+    "pref:systemOne",
+    "seed:systemone-calibration"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "systemone.pointMode",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-point-mode",
+   "kind": "radio",
+   "instances": 14,
+   "values": "off|on|shadow",
+   "store": "localStorage:horosa.ai.systemone.points.v1",
+   "consumers": [
+    "utils/systemOne/prefs.js#setPointMode",
+    "utils/systemOne/prefs.js#pointOn",
+    "utils/systemOne/prefs.js#pointShadow"
+   ],
+   "jest": [
+    "systemOnePanel",
+    "systemOneGate"
+   ],
+   "l5": [
+    "S203_systemone_point_modes_ui"
+   ],
+   "l5Twin": [
+    "S204_systemone_off_path_twin"
+   ],
+   "reveal": [
+    "pref:systemOne"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "systemone.thresholdPoint",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-threshold-point",
+   "kind": "select",
+   "instances": 1,
+   "values": "接入点 id",
+   "store": "ui",
+   "consumers": [
+    "utils/systemOne/prefs.js#readThresholds"
+   ],
+   "jest": [
+    "systemOnePanel"
+   ],
+   "l5": [
+    "S203_systemone_point_modes_ui"
+   ],
+   "reveal": [
+    "pref:systemOne"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "systemone.thresholdAct",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-threshold-act",
+   "kind": "number",
+   "instances": 1,
+   "values": "0–1",
+   "store": "localStorage:horosa.ai.systemone.thresholds.v1",
+   "consumers": [
+    "utils/systemOne/prefs.js#setThresholds",
+    "utils/systemOne/gate.js#tierOf"
+   ],
+   "jest": [
+    "systemOnePanel",
+    "systemOneGate"
+   ],
+   "l5": [
+    "S203_systemone_point_modes_ui"
+   ],
+   "reveal": [
+    "pref:systemOne",
+    "select:data-systemone-threshold-point=A2 ·"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "systemone.thresholdConfirm",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-threshold-confirm",
+   "kind": "number",
+   "instances": 1,
+   "values": "0–1",
+   "store": "localStorage:horosa.ai.systemone.thresholds.v1",
+   "consumers": [
+    "utils/systemOne/prefs.js#setThresholds",
+    "utils/systemOne/gate.js#tierOf"
+   ],
+   "jest": [
+    "systemOnePanel",
+    "systemOneGate"
+   ],
+   "l5": [
+    "S203_systemone_point_modes_ui"
+   ],
+   "reveal": [
+    "pref:systemOne",
+    "select:data-systemone-threshold-point=A2 ·"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "systemone.thresholdReset",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-threshold-reset",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "localStorage:horosa.ai.systemone.thresholds.v1",
+   "consumers": [
+    "utils/systemOne/prefs.js#setThresholds"
+   ],
+   "jest": [
+    "systemOnePanel"
+   ],
+   "l5": [
+    "S203_systemone_point_modes_ui"
+   ],
+   "reveal": [
+    "pref:systemOne",
+    "select:data-systemone-threshold-point=A2 ·"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "systemone.statsReset",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-stats-reset",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "localStorage:horosa.ai.systemone.stats.v1",
+   "consumers": [
+    "utils/systemOne/log.js#resetStats"
+   ],
+   "jest": [
+    "systemOnePanel"
+   ],
+   "l5": [
+    "S202_systemone_calibrate_stub_ui"
+   ],
+   "reveal": [
+    "pref:systemOne"
+   ],
+   "desktop": false
+  },
+  {
+   "id": "systemone.logClear",
+   "card": "adv-systemone",
+   "file": "chat/SystemOnePanel.js",
+   "anchor": "data-systemone-log-clear",
+   "kind": "button",
+   "instances": 1,
+   "values": "",
+   "store": "ui",
+   "consumers": [
+    "utils/systemOne/log.js#clearDecisions"
+   ],
+   "jest": [
+    "systemOnePanel"
+   ],
+   "l5": [
+    "S202_systemone_calibrate_stub_ui"
+   ],
+   "reveal": [
+    "pref:systemOne"
+   ],
+   "desktop": false
   }
  ],
  "markers": [
@@ -3631,6 +4020,54 @@
   {
    "anchor": "data-web-search-dirty",
    "file": "WebSearchPanel.js"
+  },
+  {
+   "anchor": "data-systemone-panel",
+   "file": "chat/SystemOnePanel.js"
+  },
+  {
+   "anchor": "data-tick",
+   "file": "chat/SystemOnePanel.js"
+  },
+  {
+   "anchor": "data-systemone-status",
+   "file": "chat/SystemOnePanel.js"
+  },
+  {
+   "anchor": "data-systemone-dirty",
+   "file": "chat/SystemOnePanel.js"
+  },
+  {
+   "anchor": "data-systemone-probe",
+   "file": "chat/SystemOnePanel.js"
+  },
+  {
+   "anchor": "data-systemone-progress",
+   "file": "chat/SystemOnePanel.js"
+  },
+  {
+   "anchor": "data-systemone-calibration",
+   "file": "chat/SystemOnePanel.js"
+  },
+  {
+   "anchor": "data-systemone-drift",
+   "file": "chat/SystemOnePanel.js"
+  },
+  {
+   "anchor": "data-systemone-point",
+   "file": "chat/SystemOnePanel.js"
+  },
+  {
+   "anchor": "data-systemone-point-state",
+   "file": "chat/SystemOnePanel.js"
+  },
+  {
+   "anchor": "data-systemone-stats",
+   "file": "chat/SystemOnePanel.js"
+  },
+  {
+   "anchor": "data-systemone-log",
+   "file": "chat/SystemOnePanel.js"
   }
  ]
 }

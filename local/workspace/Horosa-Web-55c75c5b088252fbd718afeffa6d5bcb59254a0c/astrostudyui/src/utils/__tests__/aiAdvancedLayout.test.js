@@ -51,16 +51,16 @@ describe('进阶页 · 导轨 / 宽度档 / 胶囊(jsdom 渲染)', ()=>{
 	beforeEach(()=>{ window.localStorage.clear(); FakeResizeObserver.instances = []; host = document.createElement('div'); document.body.appendChild(host); });
 	afterEach(()=>{ act(()=>{ ReactDOM.unmountComponentAtNode(host); }); host.remove(); global.ResizeObserver = realRO; window.location.hash = ''; });
 
-	test('无 ResizeObserver:data-adv-w 为空串(交 @media 兜底);导轨 6 项;胶囊 6 枚且都可跳', ()=>{
+	test('无 ResizeObserver:data-adv-w 为空串(交 @media 兜底);导轨 7 项;胶囊 7 枚且都可跳', ()=>{
 		delete global.ResizeObserver;
 		act(()=>{ ReactDOM.render(<AdvancedPane>{Sections()}<div data-slot="agent" /></AdvancedPane>, host); });
 		const pane = host.querySelector('[data-advanced-pane="1"]');
 		expect(pane.getAttribute('data-adv-w')).toBe('');
 		expect(host.querySelector('[data-advanced-nav="1"]')).toBeTruthy();
-		expect(host.querySelectorAll('[data-adv-nav]').length).toBe(6);
+		expect(host.querySelectorAll('[data-adv-nav]').length).toBe(7);
 		expect(host.querySelector('[data-advanced-grid="1"]')).toBeTruthy();
 		const pills = host.querySelectorAll('[data-advanced-pills="1"] > span');
-		expect(pills.length).toBe(6);
+		expect(pills.length).toBe(7);
 		pills.forEach((p)=>{ expect(p.getAttribute('data-adv-jump')).toBeTruthy(); expect(p.getAttribute('role')).toBe('button'); });
 	});
 
@@ -100,14 +100,14 @@ describe('进阶页 · 导轨 / 宽度档 / 胶囊(jsdom 渲染)', ()=>{
 		window.removeEventListener(ADV_OPEN_EVENT, on);
 	});
 
-	test('行动能力开 → 导轨挂 5 个子分区(11 项)', async ()=>{
+	test('行动能力开 → 导轨挂 5 个子分区(12 项)', async ()=>{
 		delete global.ResizeObserver;
 		act(()=>{ ReactDOM.render(<AdvancedPane>{Sections()}<div data-slot="agent" /></AdvancedPane>, host); });
 		await act(async ()=>{ setAgentEnabled(true); await new Promise((r)=>setTimeout(r, 0)); });
-		expect(host.querySelectorAll('[data-adv-nav]').length).toBe(11);
+		expect(host.querySelectorAll('[data-adv-nav]').length).toBe(12);
 		expect(host.querySelector(`[data-adv-nav="${ADV_SECTION_IDS.agentLedger}"]`)).toBeTruthy();
 		await act(async ()=>{ setAgentEnabled(false); await new Promise((r)=>setTimeout(r, 0)); });
-		expect(host.querySelectorAll('[data-adv-nav]').length).toBe(6);
+		expect(host.querySelectorAll('[data-adv-nav]').length).toBe(7);
 		await flush();
 	});
 

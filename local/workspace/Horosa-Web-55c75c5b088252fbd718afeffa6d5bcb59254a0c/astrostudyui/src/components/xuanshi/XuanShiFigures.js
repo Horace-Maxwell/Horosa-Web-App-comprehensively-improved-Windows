@@ -106,7 +106,7 @@ export default class XuanShiFigures extends React.Component {
 					<div className="xuanshi-ev-cols">
 						<div className="xuanshi-ev-col is-original">
 							<div className="xuanshi-ev-col-label">史书原文</div>
-							{e.original_text ? <div className="xuanshi-ev-col-body" style={{ fontFamily: 'var(--xs-serif)' }}>{e.original_text}</div> : <div className="xuanshi-stat-sub" style={{ fontStyle: 'italic' }}>原文待整理</div>}
+							{e.original_text ? <div className="xuanshi-ev-col-body horosa-script-classic" style={{ fontFamily: 'var(--xs-serif)' }}>{e.original_text}</div> : <div className="xuanshi-stat-sub" style={{ fontStyle: 'italic' }}>原文待整理</div>}
 						</div>
 						<div className="xuanshi-ev-col is-modern">
 							<div className="xuanshi-ev-col-label">白话译文</div>

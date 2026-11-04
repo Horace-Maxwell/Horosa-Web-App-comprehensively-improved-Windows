@@ -145,7 +145,7 @@ public class PredictiveController {
 		// 空亡/恒星/映点/燃烧之路/三流派开关在返照·推运·主限全族被静默丢弃(三层断链之 Java 层)。
 		// 前端仍是「非默认才发」,默认请求体零变化=缓存键零回归。
 		String[] classicalKeys = new String[] {
-			"geminiBoundEmended", "leoBoundFirst", "triplicity", "lotReversal", "westNodeType", "sectBuffer",
+			"geminiBoundEmended", "leoBoundFirst", "triplicity", "lotReversal", "westNodeType", "sectBuffer", "sunriseMode",
 			"houseCuspAdvance", "cazimiOrb", "combustOrb", "underBeamsOrb", "vocMode", "vocIncludeOuter",
 			"starOrb", "starOrbMode", "antisciaOrb", "viaCombustaVariant",
 			"lotsDocReverse", "nodeExaltation", "orbs", "orbScale",

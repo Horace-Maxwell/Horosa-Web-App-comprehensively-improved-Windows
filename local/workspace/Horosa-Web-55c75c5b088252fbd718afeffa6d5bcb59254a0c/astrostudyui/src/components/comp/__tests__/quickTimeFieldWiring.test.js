@@ -8,7 +8,9 @@ const { importBindings } = require('../../../utils/__tests__/helpers/importSpecs
 
 describe('快捷数字时间录入·接线', ()=>{
 	it('三主站点 + 两次级站点用 TimeFieldTrigger,手抄 Popover 时间块清零', ()=>{
-		['components/comp/SpaceTimePanel.js', 'components/astro/AstroChartMain.js', 'components/divination/DivinationChartShell.js', 'components/horary/HoraryMain.js', 'components/mundane/MundaneMain.js'].forEach((f)=>{
+		// 左栏「时间与地点」与星运各页右上角的时间块统一在 CompactTimeField(SpaceTimePanel 经它用 TimeFieldTrigger)
+		expect(src('components/comp/SpaceTimePanel.js').indexOf('<CompactTimeField') >= 0 ? 'ok' : 'SpaceTimePanel 未用 CompactTimeField').toBe('ok');
+		['components/comp/CompactTimeField.js', 'components/astro/AstroChartMain.js', 'components/divination/DivinationChartShell.js', 'components/horary/HoraryMain.js', 'components/mundane/MundaneMain.js'].forEach((f)=>{
 			const s = src(f);
 			expect(s.indexOf('<TimeFieldTrigger') >= 0 ? 'ok' : `${f} 未用 TimeFieldTrigger`).toBe('ok');
 			expect(/<Popover[^>]*content=\{timeEditor\}/.test(s) ? `${f} 仍有手抄块` : 'ok').toBe('ok');

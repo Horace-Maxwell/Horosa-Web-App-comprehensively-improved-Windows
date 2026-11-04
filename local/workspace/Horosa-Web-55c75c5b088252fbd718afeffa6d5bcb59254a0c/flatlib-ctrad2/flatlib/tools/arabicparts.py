@@ -209,10 +209,12 @@ FORMULAS[PARS_RADIX] = [
 ]
 
 # 赫尔墨斯界点（c + b − a；昼/夜反置）。标准公式（Paulus / R.Hand）：
-# 爱欲 Eros 日=Asc+精神−金星  夜=Asc+金星−精神
+# 爱欲 Eros 日=Asc+金星−精神  夜=Asc+精神−金星
+# Paulus ch.23:昼「自精神点数至金星」,同数自上升起;夜反之 —— 与同表金星点(PARS_VENUS,Paulus 七星点里
+# 金星点即爱欲点)同式。此前三元写成 [金星, 精神],等于昼盘用了夜式,爱欲点与金星点在同一张盘上分成两处。
 FORMULAS[PARS_EROS] = [
-    [const.VENUS, PARS_SPIRIT, const.ASC],
-    [PARS_SPIRIT, const.VENUS, const.ASC]
+    [PARS_SPIRIT, const.VENUS, const.ASC],
+    [const.VENUS, PARS_SPIRIT, const.ASC]
 ]
 # 必然 Necessity 日=Asc+福点−水星  夜=Asc+水星−福点
 FORMULAS[PARS_NECESSITY] = [

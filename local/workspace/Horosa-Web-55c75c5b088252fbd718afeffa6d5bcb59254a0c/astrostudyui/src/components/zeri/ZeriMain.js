@@ -170,7 +170,7 @@ export default class ZeriMain extends Component{
 							<QizhengZeriMain height={childHeight} dispatch={this.props.dispatch} />
 						</TabPane>
 						<TabPane tab="印度择日" key="indiazeri">
-							<IndiaZeriMain height={childHeight} dispatch={this.props.dispatch} />
+							<IndiaZeriMain height={childHeight} dispatch={this.props.dispatch} indiaChartStyle={this.props.indiaChartStyle} />
 						</TabPane>
 					</Tabs>
 				</div>

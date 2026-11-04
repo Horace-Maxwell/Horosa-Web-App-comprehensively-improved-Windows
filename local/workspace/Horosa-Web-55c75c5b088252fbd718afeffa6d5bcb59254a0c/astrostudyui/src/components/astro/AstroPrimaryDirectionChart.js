@@ -1,10 +1,12 @@
-import { Component } from 'react';
+import React, { Component } from 'react';
 import { singleTriggerPredictiveEnabled, stepPrefetchEnabled, stepSelectPrefetchEnabled } from '../../utils/perfFlags';
 // R4-B4:主限法推运轴选步长预取(正轴 /predict/pdchart,经共享调度器)。
 import { submitStepPrefetch } from '../../utils/stepPrefetch';
 import { Row, Col, Divider } from 'antd';
 import AstroDoubleChart from './AstroDoubleChart';
-import PlusMinusTime from './PlusMinusTime';
+import CompactTimeField from '../comp/CompactTimeField';
+import { SmallTable } from './AstroExtraCommon';
+import { SideColumn, SidePanelHead, WheelSplit, FillCard } from './progPageLayout';
 import * as AstroConst from '../../constants/AstroConst';
 import { termsTableForVariant } from '../../divination/data/hellenisticData';
 import * as AstroText from '../../constants/AstroText';
@@ -1248,123 +1250,132 @@ class AstroPrimaryDirectionChart extends Component{
 
 		return (
 			<div>
-				<Row gutter={6}>
-					<Col span={17}>
-							<AstroDoubleChart
-							value={chartWrap}
-							height={height}
-							planetDisplay={this.props.planetDisplay}
-							lotsDisplay={this.props.lotsDisplay}
-							chartDisplay={this.props.chartDisplay}
-							termHighlight={ascTermHighlight}
-							showAstroMeaning={this.props.showAstroMeaning}
-						/>
-					</Col>
-					<Col span={7}>
-						<div className={styles.scrollbar} style={style}>
-							<Divider orientation='left'>时间选择</Divider>
-							<Row>
-								<Col span={24}>
-									<PlusMinusTime
-										value={derived.currentDt}
-										startTime={derived.birthDt || undefined}
-										needZone={true}
-										showAdjust={true}
-										onAfterChanged={this.handleTimeChanged}
-										onStepSelect={(unit)=>this.prefetchPdStepSelect(unit)}
-									/>
-								</Col>
-							</Row>
-							<Divider orientation='left'>主限法设置</Divider>
-							<Row gutter={12} style={sectionGapStyle}>
-								<Col span={12}>
-									<div style={{marginBottom: 8}} title='决定主限法表的弧与应期(本页「计算」时一并重算表格);外圈按主限弧在赤经上整体推进,与弧算法无关'>弧算法</div>
-									{/* 与主限法表格同一套选项:受几何口径影响的方法各列「（改进）/（经典）」两项 */}
-									<Select value={pdProjectionChoiceValue(this.pdProjectionChoiceContext(), this.getSelectedPdGeometry())} onChange={this.handlePdProjectionChoiceChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
-										{pdProjectionChoiceOptions(this.pdProjectionChoiceContext()).map((o)=>(
-											<Option key={o.value} value={o.value}>{o.label}</Option>
-										))}
-									</Select>
-								</Col>
-								<Col span={12}>
-									<div style={{marginBottom: 8}} title='决定外圈(与主限法表盘面)的宫头'>盘面宫制</div>
-									<Select value={this.getSelectedPdFrame()} onChange={this.handlePdFrameChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
-										{SUPPORTED_PD_FRAMES.map((v)=>(
-											<Option key={v} value={v}>{PD_FRAME_LABELS[v] || v}</Option>
-										))}
-									</Select>
-								</Col>
-							</Row>
-							<Row gutter={12} style={{marginTop: 16}}>
-								<Col span={12}>
-									<div style={{marginBottom: 8}}>度数换算</div>
-									{/* 钥匙全域取 sync 单一真值源(与主限法表同一份清单);
-									    此前手写 22 键副本 → 表格设的新钥匙到盘 pane 被静默打回 Ptolemy。 */}
-									<Select value={this.getSelectedPdTimeKey()} onChange={this.handlePdTimeKeyChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
-										{SUPPORTED_PD_TIME_KEYS.map((k)=>(
-											<Option key={k} value={k}>{PD_TIME_KEY_LABELS[k] || k}</Option>
-										))}
-									</Select>
-									{this.getSelectedPdTimeKey() === 'User' ? (
-										<InputNumber
-											size='small'
-											min={0.001}
-											max={30}
-											step={0.01}
-											style={{ width: '100%', marginTop: 8 }}
-											value={this.getSelectedPdTimeKeyCustom()}
-											onChange={this.handlePdTimeKeyCustomChange}
-										/>
-									) : null}
-								</Col>
-								<Col span={12}>
-									<div style={{marginBottom: 8}}>向运方向</div>
-									<Select value={this.state.pdDirectionValue} onChange={this.handlePdDirectionChange} style={{width: '100%'}}>
-										<Option value='direct'>顺向 Direct（随时间正推）</Option>
-										<Option value='converse'>逆向 Converse（反推）</Option>
-									</Select>
-								</Col>
-							</Row>
-							<Row style={{marginTop: 16}}>
-								<Col span={24}>
-									<Button type='primary' disabled={!dirty} onClick={this.handlePdCalculate} style={{width: '100%'}}>
-										{buttonText}
-									</Button>
-								</Col>
-							</Row>
-							<Divider orientation='left'>当前状态</Divider>
-							<div style={{lineHeight: 1.9}}>
-								<div>当前弧算法：{pdProjLabel}</div>
-								<div>当前盘面宫制：{pdFrameLabel}</div>
-								<div>当前盘面度数换算：{PD_TIME_KEY_LABELS[selectedPdTimeKey] || selectedPdTimeKey}</div>
-								<div>日期年长（随主限法表「扩展」）：{pdExtraSettingValueLabel(PD_YEAR_DAYS_SPEC, pickPdExtraSettings(((this.props.value || {}).params) || {}, this.props.pdExtra).pdYearDays)}</div>
-								<div>当前向运方向：{this.state.pdDirectionValue === 'converse' ? '逆向 Converse' : '顺向 Direct'}</div>
-								{dirty ? <div>主限法表格已应用：{appliedProjLabel} · {appliedFrameLabel} / {PD_TIME_KEY_LABELS[applied.pdTimeKey] || applied.pdTimeKey}</div> : null}
-								<div>当前主限法年龄：{splitDegreeText(derived.currentArc)}</div>
-								<div>外圈时间：{derived.currentDt ? derived.currentDt.format('YYYY-MM-DD HH:mm:ss') : '无'}</div>
-								{ascTermHighlight ? (
-									<div>
-										当前ASC所在界：{ascTermHighlight.ownerLabel}界（{ascTermHighlight.signLabel} {splitDegreeText(ascTermHighlight.start)} - {splitDegreeText(ascTermHighlight.end)}）
+				{/* 盘大小与右栏宽度与星运其它带盘页同一套算法(progPageLayout.WheelSplit) */}
+				<WheelSplit style={{ height: height - 10 }} renderWheel={(wheelSize, wheelH)=>(
+					<div style={{ width: wheelSize, height: wheelH }}>
+								<AstroDoubleChart
+								value={chartWrap}
+								height={wheelH}
+								planetDisplay={this.props.planetDisplay}
+								lotsDisplay={this.props.lotsDisplay}
+								chartDisplay={this.props.chartDisplay}
+								termHighlight={ascTermHighlight}
+								showAstroMeaning={this.props.showAstroMeaning}
+							/>
+					</div>
+				)} side={(
+					<React.Fragment>
+							{/* 右栏与星运其它带盘页同一个件:固定头(时间选择 + 主限法设置,不随滚动)+ 下半(当前状态 / 说明)滚动;顶部留安全距离 */}
+							<SideColumn style={{ height: '100%' }} head={(
+								<div>
+								<SidePanelHead title="主限法盘" sub={`主限法年龄 ${splitDegreeText(derived.currentArc)}`} desc="内圈本命、外圈为按主限弧推进的全盘位置:先按时间与度数换算求出主限弧,全天各星与虚点在赤经上一起推进这段弧(赤纬不变)再换回黄道;外圈宫头按所选盘面宫制。弧算法不影响外圈,只决定主限法表里的弧与应期。" />
+								<Divider orientation='left' className="horosa-prog-side-divider">时间选择<span className="horosa-prog-side-divider-extra">当地时间</span></Divider>
+								<CompactTimeField
+									inline
+									label={null}
+									value={derived.currentDt}
+									startTime={derived.birthDt || undefined}
+									needZone={true}
+									onChange={this.handleTimeChanged}
+									onStepSelect={(unit)=>this.prefetchPdStepSelect(unit)}
+								/>
+								<Divider orientation='left' className="horosa-prog-side-divider">主限法设置</Divider>
+								<Row gutter={12} style={sectionGapStyle}>
+									<Col span={12}>
+										<div style={{marginBottom: 8}} title='决定主限法表的弧与应期(本页「计算」时一并重算表格);外圈按主限弧在赤经上整体推进,与弧算法无关'>弧算法</div>
+										{/* 与主限法表格同一套选项:受几何口径影响的方法各列「（改进）/（经典）」两项 */}
+										<Select value={pdProjectionChoiceValue(this.pdProjectionChoiceContext(), this.getSelectedPdGeometry())} onChange={this.handlePdProjectionChoiceChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
+											{pdProjectionChoiceOptions(this.pdProjectionChoiceContext()).map((o)=>(
+												<Option key={o.value} value={o.value}>{o.label}</Option>
+											))}
+										</Select>
+									</Col>
+									<Col span={12}>
+										<div style={{marginBottom: 8}} title='决定外圈(与主限法表盘面)的宫头'>盘面宫制</div>
+										<Select value={this.getSelectedPdFrame()} onChange={this.handlePdFrameChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
+											{SUPPORTED_PD_FRAMES.map((v)=>(
+												<Option key={v} value={v}>{PD_FRAME_LABELS[v] || v}</Option>
+											))}
+										</Select>
+									</Col>
+								</Row>
+								<Row gutter={12} style={{marginTop: 16}}>
+									<Col span={12}>
+										<div style={{marginBottom: 8}}>度数换算</div>
+										{/* 钥匙全域取 sync 单一真值源(与主限法表同一份清单);
+										    此前手写 22 键副本 → 表格设的新钥匙到盘 pane 被静默打回 Ptolemy。 */}
+										<Select value={this.getSelectedPdTimeKey()} onChange={this.handlePdTimeKeyChange} style={{width: '100%'}} dropdownMatchSelectWidth={false}>
+											{SUPPORTED_PD_TIME_KEYS.map((k)=>(
+												<Option key={k} value={k}>{PD_TIME_KEY_LABELS[k] || k}</Option>
+											))}
+										</Select>
+										{this.getSelectedPdTimeKey() === 'User' ? (
+											<InputNumber
+												size='small'
+												min={0.001}
+												max={30}
+												step={0.01}
+												style={{ width: '100%', marginTop: 8 }}
+												value={this.getSelectedPdTimeKeyCustom()}
+												onChange={this.handlePdTimeKeyCustomChange}
+											/>
+										) : null}
+									</Col>
+									<Col span={12}>
+										<div style={{marginBottom: 8}}>向运方向</div>
+										<Select value={this.state.pdDirectionValue} onChange={this.handlePdDirectionChange} style={{width: '100%'}} optionLabelProp="label">
+											<Option value='direct' label='顺向 Direct'>顺向 Direct（随时间正推）</Option>
+											<Option value='converse' label='逆向 Converse'>逆向 Converse（反推）</Option>
+										</Select>
+									</Col>
+								</Row>
+								<Row style={{marginTop: 8}}>
+									<Col span={24}>
+										<Button type='primary' disabled={!dirty} onClick={this.handlePdCalculate} style={{width: '100%'}}>
+											{buttonText}
+										</Button>
+									</Col>
+								</Row>
+								</div>
+							)}>
+								{/* 当前状态与说明做成卡片,参与右栏高度分配(此前是两段散文字,右栏底部空出一大块) */}
+								<FillCard title="当前状态">
+									<SmallTable fill scrollClassName={styles.scrollbar} rows={[
+										{ k: '弧算法', v: pdProjLabel },
+										{ k: '盘面宫制', v: pdFrameLabel },
+										{ k: '盘面度数换算', v: PD_TIME_KEY_LABELS[selectedPdTimeKey] || selectedPdTimeKey },
+										{ k: '日期年长', v: `${pdExtraSettingValueLabel(PD_YEAR_DAYS_SPEC, pickPdExtraSettings(((this.props.value || {}).params) || {}, this.props.pdExtra).pdYearDays)}(随主限法表「扩展」)` },
+										{ k: '向运方向', v: this.state.pdDirectionValue === 'converse' ? '逆向 Converse' : '顺向 Direct' },
+										...(dirty ? [{ k: '主限法表格已应用', v: `${appliedProjLabel} · ${appliedFrameLabel} / ${PD_TIME_KEY_LABELS[applied.pdTimeKey] || applied.pdTimeKey}` }] : []),
+										{ k: '主限法年龄', v: splitDegreeText(derived.currentArc) },
+										{ k: '外圈时间', v: derived.currentDt ? derived.currentDt.format('YYYY-MM-DD HH:mm:ss') : '无' },
+										...(ascTermHighlight ? [{ k: '当前上升所在界', v: `${ascTermHighlight.ownerLabel}界(${ascTermHighlight.signLabel} ${splitDegreeText(ascTermHighlight.start)} – ${splitDegreeText(ascTermHighlight.end)})` }] : []),
+									]} columns={[
+										{ key: 'k', title: '项目', width: '34%', render: (v)=><span style={{ color: 'var(--horosa-text-soft)', whiteSpace: 'nowrap' }}>{v}</span> },
+										{ key: 'v', title: '当前值' },
+									]} />
+								</FillCard>
+								<FillCard grow title="说明">
+									{/* 与表盒同一个类:右栏量完整内容高时按里面那层算(不按被拉高的盒子算) */}
+									<div className={`${styles.scrollbar} horosa-small-table-scroll`} style={{ ...hintStyle, flex: '1 1 auto', minHeight: 0, overflowY: 'auto' }}>
+										<div style={{ display: 'flow-root' }}>
+										<div>
+											左侧双盘内圈为本命盘，外圈为按当前主限法设置和所选时间推导出的主限法盘位置。
+										</div>
+										<div>
+											外圈位置：先按右侧时间与度数换算求出主限弧，再把全天各星曜与虚点在赤经上一起推进这个弧（赤纬不变），换回黄道后与本命盘套盘显示；外圈宫头按所选盘面宫制排。弧算法不影响外圈，只决定主限法表里的弧与应期。
+										</div>
+										<div>
+											{dirty
+												? '左侧主限法盘会立即按右侧所选宫制、度数换算与时间重绘；点击“计算/重新计算”后，主限法表格也会同步到同一套设置（含弧算法）。'
+												: '当前页面已与“主限法”同步，切换时间后会继续按当前设置推演任意时刻的外圈位置。'}
+										</div>
+										</div>
 									</div>
-								) : null}
-							</div>
-							<Divider orientation='left'>说明</Divider>
-							<div style={hintStyle}>
-								<div>
-									左侧双盘内圈为本命盘，外圈为按当前主限法设置和所选时间推导出的主限法盘位置。
-								</div>
-								<div>
-									外圈位置：先按右侧时间与度数换算求出主限弧，再把全天各星曜与虚点在赤经上一起推进这个弧（赤纬不变），换回黄道后与本命盘套盘显示；外圈宫头按所选盘面宫制排。弧算法不影响外圈，只决定主限法表里的弧与应期。
-								</div>
-								<div>
-									{dirty
-										? '左侧主限法盘会立即按右侧所选宫制、度数换算与时间重绘；点击“计算/重新计算”后，主限法表格也会同步到同一套设置（含弧算法）。'
-										: '当前页面已与“主限法”同步，切换时间后会继续按当前设置推演任意时刻的外圈位置。'}
-								</div>
-							</div>
-						</div>
-					</Col>
-				</Row>
+								</FillCard>
+							</SideColumn>
+					</React.Fragment>
+				)} />
 			</div>
 		);
 	}

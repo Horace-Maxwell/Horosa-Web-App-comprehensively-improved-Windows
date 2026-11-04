@@ -38,7 +38,11 @@ export function isPredictiveExportKey(key){
 		|| val === 'triplicityrulers'
 		|| val === 'keypoints'
 		|| val === 'lunationphase'
-		|| val === 'extrareturns';
+		|| val === 'extrareturns'
+		|| val === 'neroman'
+		|| val === 'bezzafigure'
+		|| val === 'jayprofection'
+		|| val === 'michon';
 }
 
 export function getTechniqueLabelByKey(key){

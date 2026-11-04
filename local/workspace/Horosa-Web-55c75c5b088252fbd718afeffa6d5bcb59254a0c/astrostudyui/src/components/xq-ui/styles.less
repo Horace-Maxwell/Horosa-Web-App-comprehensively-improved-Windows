@@ -532,6 +532,44 @@
         box-shadow: 0 0 0 3px var(--horosa-cyan-soft), inset 0 1px 0 rgba(255, 255, 255, 0.16);
     }
 
+    /* 时间选择器「按住上下拖动调单位」(DateTimeSelector.scrubCell):拖动中那一格描金边,全页光标换成上下箭头、不选中文字 */
+    .xq-dt-scrub {
+        position: relative;
+        touch-action: none;
+    }
+    .xq-dt-scrubbing .ant-select-selector,
+    .xq-dt-scrubbing.xq-dt-scrub .ant-input-number {
+        border-color: var(--horosa-accent) !important;
+        box-shadow: 0 0 0 2px var(--horosa-accent-soft) !important;
+    }
+    .xq-dt-scrubbing .ant-select-selection-item,
+    .xq-dt-scrubbing .ant-input-number-input {
+        color: var(--horosa-accent-strong);
+    }
+    .xq-dt-scrub-bubble {
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + 6px);
+        z-index: 1100;
+        transform: translateX(-50%);
+        padding: 2px 10px;
+        border: 1px solid var(--horosa-accent);
+        border-radius: 999px;
+        background: var(--horosa-surface-raised, var(--horosa-panel-bg));
+        color: var(--horosa-accent-strong);
+        font-size: 13px;
+        font-weight: 650;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        pointer-events: none;
+        box-shadow: var(--horosa-shadow);
+    }
+    body.xq-dt-scrub-active,
+    body.xq-dt-scrub-active * {
+        cursor: ns-resize !important;
+        user-select: none !important;
+    }
+
     .xq-date-picker-popup .ant-picker-panel-container {
         border: 1px solid var(--horosa-border);
         border-radius: var(--horosa-radius);
@@ -589,6 +627,14 @@
 
     .xq-tabs.ant-tabs .ant-tabs-tab:hover {
         color: var(--horosa-tab-hover-text, var(--horosa-text));
+    }
+
+    /* 页签按下 / 键盘聚焦时 antd 缺省把字染成蓝(#096dd9 / #40a9ff),统一成主题金 */
+    .xq-tabs.ant-tabs .ant-tabs-tab-btn:focus,
+    .xq-tabs.ant-tabs .ant-tabs-tab-btn:active,
+    .xq-tabs.ant-tabs .ant-tabs-tab-remove:focus,
+    .xq-tabs.ant-tabs .ant-tabs-tab-remove:active {
+        color: var(--horosa-tab-active-text, var(--horosa-accent-strong));
     }
 
     .xq-tabs.ant-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {

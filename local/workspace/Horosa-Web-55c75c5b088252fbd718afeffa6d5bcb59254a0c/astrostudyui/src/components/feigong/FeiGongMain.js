@@ -11,7 +11,7 @@ import {
 	ZHI, GAN, GONG_GUA, FANG_WEI_RING,
 	BA_MEN_JI_XIONG, YUAN_SHEN_JI_XIONG, TUI_DUAN, LIU_YUE_MONTH_NAMES,
 } from './core/feigongConst';
-import { saveModuleAISnapshot } from '../../utils/moduleAiSnapshot';
+import { saveModuleAISnapshot, clearModuleAISnapshot } from '../../utils/moduleAiSnapshot';
 import { openKentangCaseDrawer, getKentangSavedCasePayload } from '../../utils/kentangCaseSave';
 import { safeJsonStringifyToStorage, safeJsonParseFromStorage } from '../../utils/safeStorage';
 import SpaceTimePanel, { buildDateTimeFromFields } from '../comp/SpaceTimePanel';
@@ -274,7 +274,7 @@ class FeiGongMain extends Component {
 		const dayGan = inputs.useDayGZ ? c.dayGan : inputs.dayGan;
 		const dayZhi = inputs.useDayGZ ? c.dayZhi : inputs.dayZhi;
 		const ju = buildJu({ zhi: qz, dayGan, dayZhi });
-		if(!ju){ return this.setState({ error: '起支非法,不可定局', ju: null }); }
+		if(!ju){ clearModuleAISnapshot('feigong'); return this.setState({ error: '起支非法,不可定局', ju: null }); }
 		// horosa_panel_ready_v1:ju 落定 = 飞宫盘(中栏)与断语(右栏)画完的那一次 setState。
 		this.setState({ ju, error: '' }, ()=>{ markPanelReady('cnyibu'); this.saveSnap(); });
 	}

@@ -1,5 +1,5 @@
 diff --git a/astrostudyui/src/components/astro/AstroKeypoints.js b/astrostudyui/src/components/astro/AstroKeypoints.js
-index 382856c9..e730ab78 100644
+index d4fcb5eb..91912c29 100644
 --- a/astrostudyui/src/components/astro/AstroKeypoints.js
 +++ b/astrostudyui/src/components/astro/AstroKeypoints.js
 @@ -9,6 +9,7 @@ import { symbolWithMeaning } from './AstroExtraCommon';

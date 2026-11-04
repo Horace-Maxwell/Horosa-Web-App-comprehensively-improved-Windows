@@ -10,10 +10,10 @@ import {
 	setJieqiSeedLocalCache,
 } from './localCalcCache';
 import { buildLocalBaziResult } from './baziLunarLocal';
-import { buildLocalJieqiYearSeed } from './localNongliAdapter';
+import { buildLocalJieqiYearSeed, getDayGanZhi } from './localNongliAdapter';
 import { neighborPrefetchEnabled } from './perfFlags';
 import { registerProcessCache } from './processCacheRegistry';
-import { dateKeyOfStr } from './dateStrSafe';
+import { dateKeyOfStr, parseDateParts } from './dateStrSafe';
 import { normalizeZone } from './zoneText';
 
 const NONG_LI_KEYS = ['date', 'time', 'zone', 'lon', 'lat', 'gpsLat', 'gpsLon', 'ad', 'gender', 'after23NewDay', 'lateZiHourUseNextDay', 'timeAlg'];
@@ -241,7 +241,13 @@ function fillJieqiDayGanzhiFromLocal(result, params){
 		return result;
 	}
 	let localSeed = null;
-	const getLocalDayGanzhi = (term)=>{
+	const getLocalDayGanzhi = (term, time)=>{
+		// 按交节日自身的日期取日柱:本地节气表的「冬至」是上年 12 月那个,后端 /jieqi/year 的冬至是本年 12 月,
+		// 按节气名去本地表捡,冬至的日柱恒错一年(置闰至锚随之错、奇门本地路由局数跑偏)。
+		const dp = parseDateParts(safe(time));
+		if(dp && dp.year > 0 && Math.abs(dp.year - year) <= 1){
+			return getDayGanZhi(dp.year, dp.month, dp.day);
+		}
 		if(!localSeed){
 			localSeed = buildLocalJieqiYearSeed(year, params && params.zone);
 		}
@@ -253,7 +259,7 @@ function fillJieqiDayGanzhiFromLocal(result, params){
 		if(!term || normalizeDayGanzhi(entry)){
 			return entry;
 		}
-		const localDay = getLocalDayGanzhi(term);
+		const localDay = getLocalDayGanzhi(term, entry && entry.time);
 		if(!localDay){
 			return entry;
 		}

@@ -178,8 +178,8 @@ describe('放大档 / 窄栏自适应 · 源码闸', () => {
 		const gl = read('layouts/app/06-guolao-modules.less');
 		expect((gl.match(/repeat\(auto-fill, minmax\(~"max\(84px, calc\(\(100% - 8px\) \/ 2\)\)", 1fr\)\)/g) || []).length).toBe(2);
 		expect(gl).toMatch(/\.horosa-bazi-shensha-groups \.ant-checkbox-wrapper > span:last-child,[\s\S]{0,120}white-space: nowrap;/);
-		expect(read('components/astro/AstroZR.js')).toMatch(/ref=\{ownedBoxSizeRef\(this, 'zrBase', zrBaseNarrowVars\)\}/);
-		expect(read('layouts/app/22-tail-fixes.less')).toMatch(/\[data-zr-narrow\] \.horosa-zr-base-radio\.ant-radio-wrapper/);
+		// 黄道星释基点此前是两列 22 项单选(窄栏折行修复锁在这里);现改成分组下拉,下拉自带截断 / 展开全文,该修复与锁一并退役
+		expect(read('components/astro/AstroZR.js')).not.toMatch(/horosa-zr-base-radio/);
 	});
 
 	test('⑥ 工作区容器尺寸一变当帧同步工作区高(不走去抖)', () => {

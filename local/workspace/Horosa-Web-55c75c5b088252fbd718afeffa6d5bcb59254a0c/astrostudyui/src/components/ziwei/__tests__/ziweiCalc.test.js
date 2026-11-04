@@ -573,7 +573,8 @@ describe('流曜表单源', ()=>{
 			流魁: { 甲:'丑',乙:'子',丙:'亥',丁:'亥',戊:'丑',己:'子',庚:'丑',辛:'午',壬:'卯',癸:'卯' },
 			流钺: { 甲:'未',乙:'申',丙:'酉',丁:'酉',戊:'未',己:'申',庚:'未',辛:'寅',壬:'巳',癸:'巳' },
 			流昌: { 甲:'巳',乙:'午',丙:'申',丁:'酉',戊:'申',己:'酉',庚:'亥',辛:'子',壬:'寅',癸:'卯' },
-			流曲: { 甲:'酉',乙:'申',丙:'午',丁:'巳',戊:'午',己:'巳',庚:'寅',辛:'丑',壬:'戌',癸:'亥' },
+			// 流曲庚辛壬三格 2026-10-31 订正(旧表 庚寅/辛丑/壬戌 违「起酉逆行、不用四墓」,见下条)
+			流曲: { 甲:'酉',乙:'申',丙:'午',丁:'巳',戊:'午',己:'巳',庚:'卯',辛:'寅',壬:'子',癸:'亥' },
 		};
 		'甲乙丙丁戊己庚辛壬癸'.split('').forEach((g)=>{
 			const fs2 = ZiWeiHelper.getFlowStars(g, '子');
@@ -594,6 +595,34 @@ describe('流曜表单源', ()=>{
 			EO2.kuiYue = 'geng_xin_hu_ma';
 			expect(ZiWeiHelper.getFlowStars('辛', '酉').find((s)=>s.name === '流魁').zhi).toBe('寅');
 		}finally{ EO2.kuiYue = 'jia_wu_geng'; }
+	});
+	test('🔴 流昌流曲按歌诀推:流昌巳起甲顺行、流曲酉起甲逆行,皆不入四墓(辰戌丑未),丙戊同位、丁己同位', ()=>{
+		const Z = '子丑寅卯辰巳午未申酉戌亥';
+		const MU = '辰戌丑未';
+		const walk = (start, dir)=>{
+			const out = [];
+			let i = Z.indexOf(start);
+			while(out.length < 8){
+				if(MU.indexOf(Z[i]) < 0){ out.push(Z[i]); }
+				i = (i + dir + 12) % 12;
+			}
+			return out;   // 甲 乙 丙 丁 庚 辛 壬 癸 八个落点(戊随丙、己随丁)
+		};
+		const toStem = (seq)=>({ 甲: seq[0], 乙: seq[1], 丙: seq[2], 丁: seq[3], 戊: seq[2], 己: seq[3], 庚: seq[4], 辛: seq[5], 壬: seq[6], 癸: seq[7] });
+		const chang = toStem(walk('巳', 1));
+		const qu = toStem(walk('酉', -1));
+		'甲乙丙丁戊己庚辛壬癸'.split('').forEach((g)=>{
+			const fs2 = ZiWeiHelper.getFlowStars(g, '子');
+			expect(`${g}流昌:${fs2.find((s)=>s.name === '流昌').zhi}`).toBe(`${g}流昌:${chang[g]}`);
+			expect(`${g}流曲:${fs2.find((s)=>s.name === '流曲').zhi}`).toBe(`${g}流曲:${qu[g]}`);
+			// 同干流昌流曲以丑未线为对称轴(两支序数和恒 ≡ 2 mod 12)
+			expect((Z.indexOf(chang[g]) + Z.indexOf(qu[g])) % 12).toBe(2);
+		});
+		// 前后端同一份表(Java ZiWeiLuck 读 astrostudycn 资源里的孪生 JSON)
+		const fs4 = require('fs'); const path4 = require('path');
+		const fe = fs4.readFileSync(path4.resolve(__dirname, '..', 'data', 'tables', 'ziweiliuchangqu.json'), 'utf8');
+		const be = fs4.readFileSync(path4.resolve(__dirname, '../../../../../astrostudysrv/astrostudycn/src/main/java/spacex/astrostudycn/helper/ziweiliuchangqu.json'), 'utf8');
+		expect(be).toBe(fe);
 	});
 	test('禁字面量表回潮(源码断言:流曜段无十干硬编对象)', ()=>{
 		const fs3 = require('fs'); const path = require('path');

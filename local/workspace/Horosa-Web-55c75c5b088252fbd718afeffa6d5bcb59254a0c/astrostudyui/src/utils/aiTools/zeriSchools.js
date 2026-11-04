@@ -32,9 +32,9 @@ const SPECS = {
 		label: '八字择日', granularity: 'hour', where: true, natal: true,
 		async load(){
 			const [ct, eng, host, opt, cal] = await Promise.all([import('../../divination/zeri/baziZeriConditionTypes'), import('../../divination/zeri/baziZeriScanEngine'), import('../../components/zeri/BaziZeriMain'), import('../baziStoredOpt'), import('../../divination/zeri/zeriPageCalibre')]);
-			// 与八字择日宿主同一扫描口径:工作台出厂参数 + 八字页保存的南半球月令 / 命宫起法(内嵌八字页起盘就读这一份)
+			// 与八字择日宿主同一扫描口径:工作台出厂参数 + 八字页保存的南半球月令 / 命宫起法 / 天医口径(内嵌八字页起盘就读这一份)
 			const pageOpts = ()=>{ const o = {}; cal.BAZI_PAGE_SCAN_KEYS.forEach((k)=>{ o[k] = opt.storedBaziOptValue(k) || cal.BAZI_PAGE_FACTORY[k]; }); return o; };
-			const calibreOf = (o)=>{ const d = cal.BAZI_PAGE_SCAN_KEYS.filter((k)=>o[k] !== cal.BAZI_PAGE_FACTORY[k]); return d.length ? `工作台出厂参数;八字页设置:${d.map((k)=>({ southMonth: '南半球月令对冲', minggongMethod: '命宫子平数法' })[k] || k).join(' · ')}` : '工作台出厂参数;八字页设置全缺省'; };
+			const calibreOf = (o)=>{ const d = cal.BAZI_PAGE_SCAN_KEYS.filter((k)=>o[k] !== cal.BAZI_PAGE_FACTORY[k]); return d.length ? `工作台出厂参数;八字页设置:${d.map((k)=>({ southMonth: '南半球月令对冲', minggongMethod: '命宫子平数法', tianyiSchool: '天医子平口径' })[k] || k).join(' · ')}` : '工作台出厂参数;八字页设置全缺省'; };
 			return { registry: ct.BAZI_CONDITION_TYPES, compile: ct.compileBaziTree, scan: eng.scanBazi, explain: eng.explainBaziAt, resolveNatal: host.resolveNatal, defaults: ()=>({ ...host.baziZeriFullDefaultOptions(), ...pageOpts() }), calibreOf };
 		},
 	},

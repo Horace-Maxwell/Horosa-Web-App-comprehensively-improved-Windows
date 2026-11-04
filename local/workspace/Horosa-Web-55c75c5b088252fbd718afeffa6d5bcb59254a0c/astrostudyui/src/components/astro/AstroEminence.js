@@ -55,6 +55,7 @@ class AstroEminence extends Component{
 		return (
 			<div className="horosa-info-card horosa-classical-card">
 				<div className="horosa-classical-card-title" style={{ cursor: 'pointer', justifyContent: 'space-between' }}
+					role="button" aria-expanded={open}
 					onClick={() => this.setState({ open: !open })}>
 					<span style={{ display: 'flex', alignItems: 'baseline', gap: 7, minWidth: 0 }}>
 						<span className="horosa-classical-zh">显赫程度</span>

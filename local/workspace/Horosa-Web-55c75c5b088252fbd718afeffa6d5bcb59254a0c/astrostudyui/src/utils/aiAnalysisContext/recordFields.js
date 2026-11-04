@@ -121,6 +121,7 @@ export function buildFieldObject(record){
 		// 经 fieldsToParams 条件透传(默认不下发)→ /chart 复算 → AI 快照行星尊贵/界主/福点与盘面一致。
 		westNodeType: { value: record.westNodeType !== undefined && record.westNodeType !== null ? record.westNodeType : recordClassicalFallback(record, 'westNodeType') },
 		sectBuffer: { value: record.sectBuffer !== undefined && record.sectBuffer !== null ? record.sectBuffer : recordClassicalFallback(record, 'sectBuffer') },
+		sunriseMode: { value: record.sunriseMode !== undefined && record.sunriseMode !== null ? record.sunriseMode : recordClassicalFallback(record, 'sunriseMode') },
 		leoBoundFirst: { value: record.leoBoundFirst !== undefined && record.leoBoundFirst !== null ? record.leoBoundFirst : recordClassicalFallback(record, 'leoBoundFirst') },
 		triplicity: { value: record.triplicity !== undefined && record.triplicity !== null ? record.triplicity : recordClassicalFallback(record, 'triplicity') },
 		lotReversal: { value: record.lotReversal !== undefined && record.lotReversal !== null ? record.lotReversal : recordClassicalFallback(record, 'lotReversal') },

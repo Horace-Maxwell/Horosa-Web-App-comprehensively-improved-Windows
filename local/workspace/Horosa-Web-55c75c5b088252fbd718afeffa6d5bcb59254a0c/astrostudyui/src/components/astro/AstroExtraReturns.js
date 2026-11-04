@@ -165,9 +165,11 @@ class AstroExtraReturns extends Component{
 		const data = this.shownData();
 		const zodiacText = (this.props.value && this.props.value.params && Number(this.props.value.params.zodiacal) === 1) ? '恒星黄道' : '回归黄道';
 		return (
-			<div className={styles.scrollbar} style={{ height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', padding: '4px 8px 12px' }}>
-				<div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>多重回归<span style={{ fontSize: 12, color: 'var(--horosa-text-secondary)', marginLeft: 8, fontWeight: 400 }}>行星回到本命黄经的时刻 · 人生周期标记</span></div>
-				<div style={{ fontSize: 11.5, color: 'var(--horosa-text-secondary)', lineHeight: '17px', marginBottom: 10 }}>第 n 回 = 该星从出生起走满 n 圈、回到本命黄经那一次；逆行年份同一回会经过本命黄经三次，逐次列出。常用：土返≈29.5 年（成熟/责任/结构转折）、木返≈12 年（扩展/机遇）、月交返≈18.6 年（关系/方向循环）。</div>
+			<div className={`${styles.scrollbar} horosa-balbillus-shell`} style={{ height: `${height - 20}px`, overflowY: 'auto', overflowX: 'hidden', paddingRight: 8 }}>
+				{/* 与界推运等表页同一套头卡(标题 · 副标题 · 说明 · 控件) */}
+				<div className="horosa-balbillus-head">
+				<div className="horosa-balbillus-title">多重回归<span className="horosa-balbillus-sub">行星回到本命黄经的时刻 · 人生周期标记</span></div>
+				<div className="horosa-balbillus-desc" style={{ marginBottom: 10 }}>第 n 回 = 该星从出生起走满 n 圈、回到本命黄经那一次；逆行年份同一回会经过本命黄经三次，逐次列出。常用：土返≈29.5 年（成熟/责任/结构转折）、木返≈12 年（扩展/机遇）、月交返≈18.6 年（关系/方向循环）。</div>
 				<div style={{ display: 'flex', gap: 8, marginBottom: 12, maxWidth: 360 }}>
 					<Select value={this.state.body} onChange={this.changeBody} style={{ flex: 1 }}>
 						{BODIES.map((b) => <Option key={b.key} value={b.key}>{b.cn}（{b.period}）</Option>)}
@@ -175,6 +177,7 @@ class AstroExtraReturns extends Component{
 					<Select value={this.state.count} onChange={this.changeCount} style={{ width: 96 }}>
 						{COUNT_OPTIONS.map((n) => <Option key={n} value={n}>前 {n} 回</Option>)}
 					</Select>
+				</div>
 				</div>
 				<Spin spinning={this.state.loading}>
 					{rows.length ? (

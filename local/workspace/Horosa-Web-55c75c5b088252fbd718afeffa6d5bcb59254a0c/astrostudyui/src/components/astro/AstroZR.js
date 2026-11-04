@@ -1,7 +1,8 @@
 import { civilWallMsOfStr, civilDateStrOfMs } from '../../utils/dateStrSafe';
 import { Component } from 'react';
 import { singleTriggerPredictiveEnabled } from '../../utils/perfFlags';
-import { Row, Col, Radio, Divider, } from 'antd';
+import { Row, Col } from 'antd';
+import { ProgPageShell, WheelSplit, SidePanelHead, SideSection, FillCard } from './progPageLayout';
 import * as AstroConst from '../../constants/AstroConst';
 import * as AstroText from '../../constants/AstroText';
 import * as AstroHelper from './AstroHelper';
@@ -13,19 +14,14 @@ import { randomStr, } from '../../utils/helper';
 import { saveModuleAISnapshot, } from '../../utils/moduleAiSnapshot';
 import { buildCurrentMomentLines, buildMethodNoteLines, } from '../../utils/astroAiSnapshot';
 import { fetchChart } from '../../services/astro';
-import styles from '../../css/styles.less';
 import { XQSelect as Select } from '../xq-ui';
-import UpdatingBadge from '../common/UpdatingBadge';
 import { silentTechniquePanelsEnabled } from '../../utils/perfFlags';
 import { natalClassicalParams } from './AstroExtraCommon';
 import { pruneStaleClassicalParams } from '../../utils/classicalChartGlobals';
-import { ownedBoxSizeRef } from '../../utils/boxSizeVars';
 import { natalSourceKey, pickKeyedDerived } from '../../utils/derivedChartSource';
 import { markPanelReady } from '../../utils/perfMark';
 
-const zrBaseNarrowVars = (w)=>({ attrs: { 'data-zr-narrow': w < 160 } });
 
-const RadioGroup = Radio.Group;
 const Option = Select.Option;
 
 const AI_MODE_L1_ALL = 'l1_all';
@@ -780,44 +776,28 @@ class AstroZR extends Component{
 	}
 
 	genConditionDom(){
-		const radioStyle = {
-			display: 'block',
-			height: '28px',
-			lineHeight: '28px',
-			whiteSpace: 'nowrap',
-		};
-		const colHead = { fontSize: 11, color: 'var(--horosa-text-secondary)', marginBottom: 2, letterSpacing: '0.04em' };
-
-		let pnts = [
+		const pnts = [
 			AstroConst.PARS_FORTUNA, AstroConst.PARS_SPIRIT, AstroConst.PARS_MERCURY,
 			AstroConst.PARS_VENUS, AstroConst.PARS_MARS, AstroConst.PARS_JUPITER,
 			AstroConst.PARS_SATURN,
-			AstroConst.ASC, AstroConst.DESC, AstroConst.MC, AstroConst.IC
+			AstroConst.ASC, AstroConst.DESC, AstroConst.MC, AstroConst.IC,
 		];
-
-		const mkRadio = (item)=>(
-			<Radio style={radioStyle} className="horosa-zr-base-radio" value={item} key={`zrbp_${item}`}>
-				<span style={{fontFamily: AstroConst.AstroFont}}>{AstroText.AstroMsg[item]}&nbsp;</span>
-				<span style={{fontFamily: AstroConst.NormalFont}}>{AstroText.AstroTxtMsg[item]}</span>
-			</Radio>
+		const label = (item)=>(
+			<span style={{ whiteSpace: 'nowrap' }}>
+				<span style={{ fontFamily: AstroConst.AstroFont }}>{AstroText.AstroMsg[item]}&nbsp;</span>
+				<span style={{ fontFamily: AstroConst.NormalFont }}>{AstroText.AstroTxtMsg[item]}</span>
+			</span>
 		);
-
-		// 第二列:十二星座基点(glyph + 两字座名,如「白羊」),用户可从任意星座释放;不占额外纵向空间。
+		// 基点 22 项改分组下拉(此前两列单选占满右栏一整屏):福点 / 行星 / 四轴 + 十二星座(可从任意星座释放)
 		return (
-			// 两列基点单选:组宽量出来(布局域)不足 160px 时挂 data-zr-narrow,符号与名称折成两行(放大档右栏两列各只剩六十来 px,
-			// 单行会被栏的滚动盒横向裁掉);常规宽度不挂,一字不变
-			<RadioGroup onChange={this.changePoint} value={this.state.basePoint} style={{ width: '100%' }} ref={ownedBoxSizeRef(this, 'zrBase', zrBaseNarrowVars)}>
-				<Row gutter={6}>
-					<Col span={12}>
-						<div style={colHead}>福点 / 行星 / 四轴</div>
-						{pnts.map(mkRadio)}
-					</Col>
-					<Col span={12}>
-						<div style={colHead}>十二星座</div>
-						{AstroConst.LIST_SIGNS.map(mkRadio)}
-					</Col>
-				</Row>
-			</RadioGroup>
+			<Select value={this.state.basePoint} onChange={(v)=>this.changePoint({ target: { value: v } })} style={{ width: '100%' }}>
+				<Select.OptGroup label="福点 / 行星 / 四轴">
+					{pnts.map((item)=>(<Option value={item} key={`zrbp_${item}`}>{label(item)}</Option>))}
+				</Select.OptGroup>
+				<Select.OptGroup label="十二星座">
+					{AstroConst.LIST_SIGNS.map((item)=>(<Option value={item} key={`zrbp_${item}`}>{label(item)}</Option>))}
+				</Select.OptGroup>
+			</Select>
 		);
 	}
 
@@ -826,109 +806,88 @@ class AstroZR extends Component{
 		const selected = resolveSelectedNodes(annotated, this.state);
 
 		return (
-			<div>
-				<div style={{ marginBottom: 8 }}>
-					<div style={{ marginBottom: 4 }}>输出范围</div>
-					<Select size='small' value={this.state.aiMode} style={{ width: '100%' }} onChange={this.changeAIMode}>
+			<Row gutter={12}>
+				<Col span={24} style={{ marginBottom: 8 }}>
+					<div className="horosa-balbillus-label">输出范围</div>
+					<Select value={this.state.aiMode} style={{ width: '100%' }} onChange={this.changeAIMode}>
 						{AI_MODE_ITEMS.map((item)=>(
 							<Option value={item.value} key={item.value}>{item.label}</Option>
 						))}
 					</Select>
-				</div>
+				</Col>
 
 				{this.state.aiMode !== AI_MODE_L1_ALL && (
-					<div style={{ marginBottom: 8 }}>
-						<div style={{ marginBottom: 4 }}>L1选择</div>
-						<Select size='small' value={`${selected.l1Idx}`} style={{ width: '100%' }} onChange={this.changeAIL1}>
+					<Col span={24} style={{ marginBottom: 8 }}>
+						<div className="horosa-balbillus-label">L1选择</div>
+						<Select value={`${selected.l1Idx}`} style={{ width: '100%' }} onChange={this.changeAIL1}>
 							{selected.l1List.map((item, idx)=>(
 								<Option value={`${idx}`} key={`l1_${idx}`}>{`L1-${idx + 1} ${nodeLine(item)}`}</Option>
 							))}
 						</Select>
-					</div>
+					</Col>
 				)}
 
 				{(this.state.aiMode === AI_MODE_L3_IN_L2 || this.state.aiMode === AI_MODE_L4_IN_L3) && (
-					<div style={{ marginBottom: 8 }}>
-						<div style={{ marginBottom: 4 }}>L2选择</div>
-						<Select size='small' value={`${selected.l2Idx}`} style={{ width: '100%' }} onChange={this.changeAIL2}>
+					<Col span={24} style={{ marginBottom: 8 }}>
+						<div className="horosa-balbillus-label">L2选择</div>
+						<Select value={`${selected.l2Idx}`} style={{ width: '100%' }} onChange={this.changeAIL2}>
 							{selected.l2List.map((item, idx)=>(
 								<Option value={`${idx}`} key={`l2_${idx}`}>{`L2-${idx + 1} ${nodeLine(item)}`}</Option>
 							))}
 						</Select>
-					</div>
+					</Col>
 				)}
 
 				{this.state.aiMode === AI_MODE_L4_IN_L3 && (
-					<div style={{ marginBottom: 8 }}>
-						<div style={{ marginBottom: 4 }}>L3选择</div>
-						<Select size='small' value={`${selected.l3Idx}`} style={{ width: '100%' }} onChange={this.changeAIL3}>
+					<Col span={24} style={{ marginBottom: 8 }}>
+						<div className="horosa-balbillus-label">L3选择</div>
+						<Select value={`${selected.l3Idx}`} style={{ width: '100%' }} onChange={this.changeAIL3}>
 							{selected.l3List.map((item, idx)=>(
 								<Option value={`${idx}`} key={`l3_${idx}`}>{`L3-${idx + 1} ${nodeLine(item)}`}</Option>
 							))}
 						</Select>
-					</div>
+					</Col>
 				)}
-			</div>
+			</Row>
 		);
 	}
 
 	render(){
-		let height = this.props.height ? this.props.height : 760;
-		let style = {
-			height: (height - 20) + 'px',
-			overflowY: 'auto',
-			overflowX: 'hidden',
-		};
-
-		let condDom = null;
-		if(this.props.value){
-			condDom = this.genConditionDom(this.props.value);
-		}
-		const aiOutputDom = this.genAIOutputDom();
-
+		const height = this.props.height ? this.props.height : 760;
+		const listShown = this.shownList();
+		// 与星运其它带盘页同一套(progPageLayout):左整列是盘;右栏固定头 = 标题行 + 推运基点 + AI 输出选择,下面星释期一张卡铺到底
 		return (
-			<div>
-				<Row gutter={6}>
-					<Col span={14}>
-						{/* keep-stale 角标:重取期间旧期表留存,主盘右上角提示「更新中…」;首次加载(无旧期表)不显示 */}
-						<div style={{ position: 'relative' }}>
-							{this.state.updating && this.shownList() && this.shownList().length > 0 ? <UpdatingBadge /> : null}
-							<AstroChart value={this.wholeSignChartForDisplay()}
-								chartDisplay={this.props.chartDisplay}
-								planetDisplay={this.props.planetDisplay}
-								lotsDisplay={this.props.lotsDisplay}
-								showAstroMeaning={this.props.showAstroMeaning}
-								zrHighlightSign={this.state.selectedSign}
-								chartStyle={AstroConst.CHART_STYLE_ORIGINAL}
-								height={height}
-							/>
-						</div>
-
-					</Col>
-					<Col span={6}>
-						<Divider>基于{AstroText.AstroTxtMsg[this.state.basePoint]}推运</Divider>
+			<ProgPageShell height={height - 10} updating={this.state.updating && listShown && listShown.length > 0}>
+				<WheelSplit
+					head={(
+						<SidePanelHead title="黄道星释" sub={`基于${AstroText.AstroTxtMsg[this.state.basePoint] || ''}推运 · 整宫盘`}
+							desc="Zodiacal Releasing:自基点所在星座起,按各座小年依次释放,L1 为大段、其下逐层细分;点期表里的一段,左图对应星座高亮(主座金色,其四分 / 对冲座红色)。">
+							<SideSection title="推运基点">{this.genConditionDom()}</SideSection>
+							<SideSection title="AI 输出选择">{this.genAIOutputDom()}</SideSection>
+						</SidePanelHead>
+					)}
+					renderWheel={(size, h)=>(
+						<AstroChart value={this.wholeSignChartForDisplay()}
+							chartDisplay={this.props.chartDisplay}
+							planetDisplay={this.props.planetDisplay}
+							lotsDisplay={this.props.lotsDisplay}
+							showAstroMeaning={this.props.showAstroMeaning}
+							zrHighlightSign={this.state.selectedSign}
+							chartStyle={AstroConst.CHART_STYLE_ORIGINAL}
+							height={h}
+						/>
+					)}
+				>
+					<FillCard grow title="星释期" extra="点一段 = 左图高亮该座 · 点箭头展开下一层">
 						<ZodiacalRelease
-							height={height}
-							value={this.shownList()}
+							fill
+							value={listShown}
 							onSignClick={(sign)=>this.setState({ selectedSign: sign })}
 							selectedSign={this.state.selectedSign}
 						/>
-					</Col>
-					<Col span={4}>
-						<div className={styles.scrollbar} style={style}>
-							<Row>
-								<Col span={24}>
-									<Divider>推运基点选择</Divider>
-									{condDom}
-									<Divider>AI输出选择</Divider>
-									{aiOutputDom}
-								</Col>
-							</Row>
-						</div>
-					</Col>
-				</Row>
-
-			</div>
+					</FillCard>
+				</WheelSplit>
+			</ProgPageShell>
 		);
 	}
 }

@@ -238,6 +238,13 @@ public class ZiWeiPattern {
 		if ("notInMing".equals(op)) {
 			return ctx.idx(str(cond, "star")) != ctx.life;
 		}
+		// 生年干在列（巨机同临：乙辛己丙）、女命（巨机卯酉破荡专论女命）。与前端 ziweiPatterns.js 同义。
+		if ("yearGan".equals(op)) {
+			return ctx.yearGan != null && list(cond, "gans").contains(ctx.yearGan);
+		}
+		if ("female".equals(op)) {
+			return ctx.c.gender == spacex.astrostudycn.constants.BaZiGender.Female;
+		}
 		return false;
 	}
 

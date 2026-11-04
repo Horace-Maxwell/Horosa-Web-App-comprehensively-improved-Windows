@@ -100,7 +100,7 @@ describe('进阶页 · 外壳与设置卡(jsdom 渲染)', ()=>{
 		expect(window.localStorage.getItem('horosa.ai.chat.modelRoutes.v1')).toBe(null);
 	});
 
-	test('AdvancedPane:按 key 落版位、无 key 元素落到末尾行动能力槽;hero 六枚状态胶囊(2026-09-11 +技能包)', ()=>{
+	test('AdvancedPane:按 key 落版位、无 key 元素落到末尾行动能力槽;hero 七枚状态胶囊(2026-09-11 +技能包;2026-09-22 +决策层)', ()=>{
 		act(()=>{ ReactDOM.render(
 			<AdvancedPane>
 				{[<div key="skill-packs" data-slot="skills" />, <div key="context-policy" data-slot="policy" />, <div key="best-of" data-slot="bestof" />]}
@@ -109,14 +109,15 @@ describe('进阶页 · 外壳与设置卡(jsdom 渲染)', ()=>{
 		const slots = Array.from(host.querySelectorAll('[data-slot]')).map((el)=>el.getAttribute('data-slot'));
 		expect(slots).toEqual(['policy', 'bestof', 'skills', 'agent']);
 		expect(host.querySelector('[data-advanced-pane="1"]')).toBeTruthy();
-		expect(host.querySelectorAll('[data-advanced-pills="1"] > span').length).toBe(6);
+		expect(host.querySelectorAll('[data-advanced-pills="1"] > span').length).toBe(7);
 		expect(host.querySelector('[data-advanced-pills="1"]').textContent).toContain('上下文 · 窗口');
+		expect(host.querySelector('[data-adv-pill="systemone"]').textContent).toContain('决策层 · 关');
 		expect(host.querySelector('[data-advanced-pills="1"]').textContent).toContain('行动能力 · 关');
 		// 技能包胶囊:真值取技能包卡收到的 bundles;零自定义时显示「内置 N」
 		expect(host.querySelector('[data-adv-pill="skills"]').textContent).toContain('技能包 · 内置');
-		// 版式锚:导轨(六分区)/ 网格 / 未量宽时宽度档为空串(交 @media 兜底)
+		// 版式锚:导轨(七分区)/ 网格 / 未量宽时宽度档为空串(交 @media 兜底)
 		expect(host.querySelector('[data-advanced-nav="1"]')).toBeTruthy();
-		expect(host.querySelectorAll('[data-adv-nav]').length).toBe(6);
+		expect(host.querySelectorAll('[data-adv-nav]').length).toBe(7);
 		expect(host.querySelector('[data-advanced-grid="1"]')).toBeTruthy();
 		expect(host.querySelector('[data-advanced-pane="1"]').getAttribute('data-adv-w')).toBe('');
 	});

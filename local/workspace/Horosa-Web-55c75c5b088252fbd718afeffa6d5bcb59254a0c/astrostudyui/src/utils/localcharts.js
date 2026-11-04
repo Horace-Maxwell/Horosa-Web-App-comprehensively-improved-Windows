@@ -186,6 +186,7 @@ export function buildLocalChartRecord(values){
 		vulcanCalc: values.vulcanCalc !== undefined && values.vulcanCalc !== null ? (values.vulcanCalc + '') : undefined,
 		westNodeType: values.westNodeType !== undefined && values.westNodeType !== null ? (values.westNodeType + '') : undefined,
 		sectBuffer: values.sectBuffer !== undefined && values.sectBuffer !== null ? (values.sectBuffer + '') : undefined,
+		sunriseMode: values.sunriseMode !== undefined && values.sunriseMode !== null ? (values.sunriseMode + '') : undefined,
 		leoBoundFirst: values.leoBoundFirst !== undefined && values.leoBoundFirst !== null ? parseInt(values.leoBoundFirst + '', 10) : undefined,
 		triplicity: values.triplicity !== undefined && values.triplicity !== null ? (values.triplicity + '') : undefined,
 		lotReversal: values.lotReversal !== undefined && values.lotReversal !== null ? parseInt(values.lotReversal + '', 10) : undefined,

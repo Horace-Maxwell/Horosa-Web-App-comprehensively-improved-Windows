@@ -57,6 +57,7 @@ export function buildChartBaziParams(record){
 		//   缺省取与 BaZi.js 一致的默认 → 默认即现状字节级一致。直接读 record(与 school 同范式,不入 buildFieldObject)。
 		// 齿轮没设的项回落八字页保存值(页面起盘读的就是它),再回落缺省 —— 此前只认记录,页面改过盘法的用户 AI 恒按缺省
 		minggongMethod: baziOptFromRecord(record, 'minggongMethod', 'tongxing'),
+		tianyiSchool: baziOptFromRecord(record, 'tianyiSchool', 'xieji'),   // 天医口径:与页面起盘参数同名同值域
 		fenyeVersion: baziOptFromRecord(record, 'fenyeVersion', 'common'),
 		southMonth: baziOptFromRecord(record, 'southMonth', 'none'),
 		dayunPrecision: baziOptFromRecord(record, 'dayunPrecision', 'precise'),
