@@ -11,13 +11,13 @@
 
 命 · 卜 · 工具 三区 —— **26 门主技法 · 60+ 子技法流派**（完整清单见[全功能清单](#三全功能清单)）
 
-[![Version](https://img.shields.io/badge/version-3.13.1-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.1)
+[![Version](https://img.shields.io/badge/version-3.13.2-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.2)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.1)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.1)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.2)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.2)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.13.1/Horosa-Setup-3.13.1.exe) ·
+[下载安装包](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.13.2/Horosa-Setup-3.13.2.exe) ·
 [中文首页](README.md) ·
 [English Guide](README_EN.md) ·
 [所有版本](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -47,9 +47,9 @@
 
 目标是：**不再在十几个单一用途的网页排盘器之间来回切换，也不用手工拼装底层的 Python / Java / 星历运行时**。下载一个离线的安装包，打开就是成品。
 
-本仓承担 Windows 这一侧的交付：应用源码、共享运行时、Windows 适配层，以及面向最终用户的 NSIS 离线安装包（`Horosa-Setup-3.13.1.exe`）发布。
+本仓承担 Windows 这一侧的交付：应用源码、共享运行时、Windows 适配层，以及面向最终用户的 NSIS 离线安装包（`Horosa-Setup-3.13.2.exe`）发布。
 
-- **当前版本**：3.13.1（运行时 `3.13.1-runtime1`）
+- **当前版本**：3.13.2（运行时 `3.13.2-runtime1`）
 - **平台**：Windows 10 / 11（`x64`）
 - **许可**：AGPL-3.0-only
 
@@ -246,7 +246,7 @@
 
 普通用户直接下载离线安装包，像任何 Windows 软件一样安装、打开即可。
 
-**[⬇︎ Horosa-Setup-3.13.1.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.13.1/Horosa-Setup-3.13.1.exe)**
+**[⬇︎ Horosa-Setup-3.13.2.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.13.2/Horosa-Setup-3.13.2.exe)**
 
 适合场景：
 
@@ -287,13 +287,13 @@
 ## 六、常见问题
 
 **我只是普通用户，需要克隆仓库吗？**
-不需要。直接在最新 release 里下载 `Horosa-Setup-3.13.1.exe` 即可。
+不需要。直接在最新 release 里下载 `Horosa-Setup-3.13.2.exe` 即可。
 
 **安装完还要自己装 Python 或 Java 吗？**
 不需要。Windows 安装器已经把发布版所需的运行时纳入流程；首次启动会因本地解包和校验稍慢，后续复用缓存。
 
 **为什么 release 里还有别的文件？**
-`latest.yml`、`.blockmap`、`SHA256SUMS.txt` 与 `horosa-update.sig` 用于应用内更新和校验。对普通用户来说，真正要点的只有 `Horosa-Setup-3.13.1.exe`。
+`latest.yml`、`.blockmap`、`SHA256SUMS.txt` 与 `horosa-update.sig` 用于应用内更新和校验。对普通用户来说，真正要点的只有 `Horosa-Setup-3.13.2.exe`。
 
 **更新时会删掉我的数据吗？**
 不会。应用更新与运行时切换替换的是程序与共享运行时，不会清空你保存的命例与事盘。

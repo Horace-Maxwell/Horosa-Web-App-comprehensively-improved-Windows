@@ -5,6 +5,7 @@
 // (默认盘/日历等)会打到尚未监听的端口。本门在【发 fetch 之前】按目标根探活:
 //   · 有响应(任意状态码,no-cors opaque 也算)= 该根已监听 → 放行并永久记账(零后续开销);
 //   · 连接被拒/超时 = 未起 → 50ms 后重试(perfFlag bootGateFastRetry 关=350ms),直到就绪或 90s 兜底放行(交给既有离线横幅/自愈)。
+//   · 目标是后端(Java)时连排盘引擎(URL 的 chartSrv)一起等:后端的排盘接口要转给引擎,引擎没起就放行 = 首盘必报「引擎连不上」。
 //   · 壳的收尾 ready(同参不重载)会置 window.__horosaBackendConfirmed 并派 horosa:backend-confirmed 事件 → 全根立即放行。
 // 非 early 模式(dev/公网构建/旧壳/开关关)earlyMode=false,waitForBackendBoot 同步返回,
 // 全链路零行为变化。L1/L2/L3 缓存命中在 requestDedupe 层先于 runner 返回,不经本门——
@@ -93,8 +94,30 @@ function sleepOrConfirmed(ms){
 	});
 }
 let earlyModeCache = null;
+let chartRootCache = null;
 const readyRoots = new Set();
 const waiters = new Map();
+
+// 排盘引擎(Python)的根:壳经 URL 的 chartSrv 送来(只读一次;缺 / 坏 = 空串)。
+function chartRootFromUrl(){
+	if(chartRootCache !== null){
+		return chartRootCache;
+	}
+	let r = '';
+	try{
+		const c = new URLSearchParams(window.location.search || '').get('chartSrv');
+		if(c){ r = new URL(c).origin; }
+	}catch(e){ r = ''; }
+	chartRootCache = r;
+	return r;
+}
+
+// 本次请求要等哪些根:后端(Java)收到排盘请求要转给排盘引擎,目标不是引擎本身时两个根都在听才放行。
+// 更新后首启新原生库首次加载要过安全评估,引擎会比后端晚起数秒 —— 只看后端就放行,首个排盘请求被后端以「排盘引擎连不上」(200009)回掉。
+function requiredRoots(root){
+	const chart = chartRootFromUrl();
+	return chart && chart !== root ? [root, chart] : [root];
+}
 
 function shellConfirmed(){
 	try{
@@ -175,14 +198,16 @@ export async function waitForBackendBoot(url){
 			return;
 		}
 	}catch(e){ /* 照常设门 */ }
-	if(readyRoots.has(root)){
+	const roots = requiredRoots(root);
+	if(roots.every((r)=>readyRoots.has(r))){
 		return;
 	}
 	if(shellConfirmed()){
-		readyRoots.add(root);
+		roots.forEach((r)=>readyRoots.add(r));
 		return;
 	}
-	let waiter = waiters.get(root);
+	const key = roots.join(' ');
+	let waiter = waiters.get(key);
 	if(!waiter){
 		waiter = (async ()=>{
 			const t0 = Date.now();
@@ -192,9 +217,11 @@ export async function waitForBackendBoot(url){
 					via = 'confirmed';
 					break;
 				}
-				// eslint-disable-next-line no-await-in-loop
-				const up = await probeOnce(root);
-				if(up){
+				for(const r of roots.filter((x)=>!readyRoots.has(x))){
+					// eslint-disable-next-line no-await-in-loop
+					if(await probeOnce(r)){ readyRoots.add(r); }
+				}
+				if(roots.every((r)=>readyRoots.has(r))){
 					break;
 				}
 				if(Date.now() - t0 > currentGiveUpMs()){
@@ -204,12 +231,12 @@ export async function waitForBackendBoot(url){
 				// eslint-disable-next-line no-await-in-loop
 				await sleepOrConfirmed(currentRetryMs());
 			}
-			readyRoots.add(root);
-			waiters.delete(root);
+			roots.forEach((r)=>readyRoots.add(r));
+			waiters.delete(key);
 			// 首个根放行即「就绪门放行」段(startupLedger 自去重,只记第一次)
 			markWebLedger('web.boot_gate_open', { via, waitedMs: Date.now() - t0 });
 		})();
-		waiters.set(root, waiter);
+		waiters.set(key, waiter);
 	}
 	await waiter;
 }
@@ -223,6 +250,7 @@ export function __bootGateRetryMsForTest(){
 export function __resetBackendBootGateForTest(timing){
 	earlyModeCache = null;
 	bootContextCache = null;
+	chartRootCache = null;
 	readyRoots.clear();
 	waiters.clear();
 	retryMs = (timing && timing.retryMs) || null;

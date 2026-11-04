@@ -124,6 +124,49 @@ describe('backendBootGate', ()=>{
 		expect(Date.now() - t0).toBeLessThan(600);
 	});
 
+	// 更新后首启实况:后端(Java)几秒就应答,排盘引擎(Python)因新原生库首次加载评估晚起 —— 只看后端放行,
+	// 首个排盘请求被后端以「排盘引擎连不上」(200009)回掉、第二次启动才正常。门要连引擎一起等。
+	test('目标是后端时连排盘引擎(chartSrv)一起等:后端已应答、引擎拒连 → 不放行,引擎起了才放行', async ()=>{
+		__resetBackendBootGateForTest({ retryMs: 5, giveUpMs: 5000 });
+		const CHART_ROOT = 'http://127.0.0.1:8899';
+		setSearch(`?early=1&srv=${encodeURIComponent(JAVA_ROOT)}&chartSrv=${encodeURIComponent(CHART_ROOT)}`);
+		let chartRefusals = 2;
+		fetchMock.mockImplementation((u)=>{
+			if(String(u) === `${CHART_ROOT}/` && chartRefusals > 0){
+				chartRefusals -= 1;
+				return Promise.reject(new TypeError('Failed to fetch'));
+			}
+			return Promise.resolve({ ok: true, type: 'opaque' });
+		});
+		await waitForBackendBoot(`${JAVA_ROOT}/chart`);
+		const probed = fetchMock.mock.calls.map((c)=>String(c[0]));
+		expect(chartRefusals).toBe(0);
+		expect(probed.filter((u)=>u === `${CHART_ROOT}/`).length).toBe(3);
+		// 后端一旦应答就记账,此后只再探还没起的引擎
+		expect(probed.filter((u)=>u === `${JAVA_ROOT}/`).length).toBe(1);
+		// 两个根都已记账:后端与引擎的后续请求零探活直通
+		fetchMock.mockClear();
+		await waitForBackendBoot(`${JAVA_ROOT}/ziwei/birth`);
+		await waitForBackendBoot(`${CHART_ROOT}/qimen/pan`);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	test('负孪生:直连引擎的请求只等引擎;引擎持续拒连时后端请求走兜底放行,不永久卡死', async ()=>{
+		const CHART_ROOT = 'http://127.0.0.1:8899';
+		__resetBackendBootGateForTest({ retryMs: 5, giveUpMs: 5000 });
+		setSearch(`?early=1&chartSrv=${encodeURIComponent(CHART_ROOT)}`);
+		fetchMock.mockResolvedValue({ ok: true, type: 'opaque' });
+		await waitForBackendBoot(`${CHART_ROOT}/qimen/pan`);
+		expect(fetchMock.mock.calls.map((c)=>String(c[0]))).toEqual([`${CHART_ROOT}/`]);
+		__resetBackendBootGateForTest({ retryMs: 5, giveUpMs: 200 });
+		setSearch(`?early=1&chartSrv=${encodeURIComponent(CHART_ROOT)}`);
+		fetchMock.mockReset();
+		fetchMock.mockImplementation((u)=>(String(u) === `${CHART_ROOT}/` ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve({ ok: true, type: 'opaque' })));
+		const t0 = Date.now();
+		await waitForBackendBoot(`${JAVA_ROOT}/chart`);
+		expect(Date.now() - t0).toBeGreaterThanOrEqual(150);
+	});
+
 	// 重试间隔:缺省 50ms;perfFlag bootGateFastRetry=0 回旧 350ms;测试注入优先。
 	test('探活重试间隔按 perfFlag:缺省 50,关=350,注入优先', ()=>{
 		__resetBackendBootGateForTest();

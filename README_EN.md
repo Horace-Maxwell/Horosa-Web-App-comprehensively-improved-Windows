@@ -11,13 +11,13 @@
 
 Three workspaces — **Fate (命) · Divination (卜) · Tools (工具)** — **26 primary disciplines, 60+ sub-techniques and schools** (full catalog in [What's Inside](#3-whats-inside))
 
-[![Version](https://img.shields.io/badge/version-3.13.1-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.1)
+[![Version](https://img.shields.io/badge/version-3.13.2-2ea043?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.2)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-dc2626?style=flat-square)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.1)
-[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.1)
+[![Windows](https://img.shields.io/badge/Windows%2010%2F11-x64-111111?style=flat-square&logo=windows&logoColor=white)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.2)
+[![Installer](https://img.shields.io/badge/NSIS-bundled%20runtime-1f6feb?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/tag/v3.13.2)
 [![Stars](https://img.shields.io/github/stars/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows?style=flat-square)](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/stargazers)
 
-[Download the installer](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.13.1/Horosa-Setup-3.13.1.exe) ·
+[Download the installer](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.13.2/Horosa-Setup-3.13.2.exe) ·
 [Chinese portal](README.md) ·
 [中文详版](README_ZH.md) ·
 [All releases](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases)
@@ -47,9 +47,9 @@ Horosa is a desktop workstation for metaphysics and divination that puts almost 
 
 The goal: **stop hopping between a dozen single-purpose web chart calculators, and never hand-assemble the Python / Java / ephemeris runtime underneath.** Download one offline installer and open a finished app.
 
-This repository is the Windows delivery of that app: the application source, the shared runtime, the Windows adaptation layer, and the offline NSIS installer for end users (`Horosa-Setup-3.13.1.exe`).
+This repository is the Windows delivery of that app: the application source, the shared runtime, the Windows adaptation layer, and the offline NSIS installer for end users (`Horosa-Setup-3.13.2.exe`).
 
-- **Current version**: 3.13.1 (runtime `3.13.1-runtime1`)
+- **Current version**: 3.13.2 (runtime `3.13.2-runtime1`)
 - **Platform**: Windows 10 / 11 (`x64`)
 - **License**: AGPL-3.0-only
 
@@ -246,7 +246,7 @@ The Yi and the Three Formulae are more than independent tabs: Sanshi United is a
 
 Regular users should go straight to the offline installer and open Horosa like any other Windows app.
 
-**[⬇︎ Horosa-Setup-3.13.1.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.13.1/Horosa-Setup-3.13.1.exe)**
+**[⬇︎ Horosa-Setup-3.13.2.exe](https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows/releases/download/v3.13.2/Horosa-Setup-3.13.2.exe)**
 
 Best for:
 
@@ -285,13 +285,13 @@ Every Horosa AI tool (records, chart casting, synastry data, election by school,
 ## 6. FAQ
 
 **Do I need to clone the repository to use Horosa?**
-No. Download `Horosa-Setup-3.13.1.exe` from the latest release.
+No. Download `Horosa-Setup-3.13.2.exe` from the latest release.
 
 **Do I need to install Python or Java myself?**
 No. The Windows installer carries the runtime the released app needs. The first launch is a little slower while those pieces are extracted and verified locally; later launches reuse the cache.
 
 **Why are there other files in the release?**
-`latest.yml`, `.blockmap`, `SHA256SUMS.txt` and `horosa-update.sig` support the in-app updater and verification. For end users, `Horosa-Setup-3.13.1.exe` is the only thing that matters.
+`latest.yml`, `.blockmap`, `SHA256SUMS.txt` and `horosa-update.sig` support the in-app updater and verification. For end users, `Horosa-Setup-3.13.2.exe` is the only thing that matters.
 
 **Will updates remove my data?**
 No. Application and runtime updates replace the program and the shared runtime; they are not designed to erase your saved charts and cases.

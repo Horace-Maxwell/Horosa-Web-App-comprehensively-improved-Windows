@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: Horosa Web App Comprehensively Improved Windows
 message: If you use this repository in academic or technical work, please cite it.
 type: software
-version: 3.13.1
+version: 3.13.2
 date-released: 2026-11-03
 authors:
   - given-names: Horace
@@ -12,7 +12,10 @@ repository-code: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensivel
 url: https://github.com/Horace-Maxwell/Horosa-Web-App-comprehensively-improved-Windows
 license: AGPL-3.0-only
 abstract: >-
-  Horosa for Windows v3.13.1 beta is a local-first metaphysics workstation. This release adds four
+  Horosa for Windows v3.13.2 beta is a local-first metaphysics workstation. This release fixes the
+  first launch after an in-app update, where the home chart could report a chart error because the
+  interface sent chart requests before the chart engine had started; the interface now waits until the
+  backend and the chart engine both answer. It builds on v3.13.1, which adds four
   directed-figure techniques to the timing workspace (Neroman evolutive directions, Bezza figures, the
   Jay diurnal profection and the Michon double zodiac), unifies the layout of every chart-bearing timing
   page (same wheel size, fixed time and settings header, drag-to-adjust time fields), and follows a
