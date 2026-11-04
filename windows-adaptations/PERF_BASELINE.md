@@ -10,16 +10,14 @@
 
 ## 本版验收头
 
-- version: 3.13.0
-- build: release(v3.13.0 = **Mac v3.13.0 同步(主限法全面重做 / 星运精确算法 / 量化盘中点坐标、公式求解与次限推运层 / AI 型号表 / 繁体用字,
-  gotcha #114)**;Windows 侧性能面本轮零新增改动 —— PERF-R8 主限法请求「纯函数复制体」改借类方法外观(行为同源,预热 / 预取与界面请求
-  逐字段相同)、主限天球 sCU 的 pdExtra 键改按值比(宿主每次 render 现建对象会让引用比较恒放行)、量化盘环签名补上游新输入;PERF-R13 八项全部保留。
-  金标 90 漂移逐叶裁定后重钉零漂(#114 课六)。
-- date: 2026-10-30(v3.13.0 同步发布轮;四段对照一律同机背靠背:A = v3.12.0 发货件 win-unpacked,B = 本构建;两链顺序 AB + BA 互抵,
-  温启另做「每臂独立 TEMP / 档案」的逐次交替 6 对,首启另做清缓存交替 4 次)
-- commit: 见本轮发布 commit(feat 7d09acb4 + chore)
-- 机器态: 同上一版新机(Windows 11 Home 26200);CurrentClockSpeed **2000 == MaxClockSpeed 2000** + MuMu 常驻(owner 应用,未动);
-  owner 常驻 Horosa Skill runtime 占 8899/9999(未动)—— #64 特征在,两臂同机同态,只比相对值。
+- version: 3.13.1
+- build: release(v3.13.1 = **Mac v3.13.1 同步(星运推运图类四技法 / 19 个带盘页版式统一 / 全站选项复审修复 / 日出 · 天医 · 龙盘宫位口径 /
+  AI 决策层实验,gotcha #115)** + Windows 侧:非 ASCII 用户文件夹下 java / python 改用 UTF-8 代码页副本(只在实测需要时;ASCII 路径
+  零探测、启动参数逐字节不变)。退役:返照 / 流年 / 推运三页的 FreezeSubTab 接入与相位清单元素树记忆(上游改为只画选中 + 共用 AspectTable)。
+- date: 2026-11-04(v3.13.1 同步发布轮;同机背靠背:A = v3.13.0 发货件 win-unpacked,B = 本构建)
+- commit: 见本轮发布 commit(feat 8fe8bcf0 + fix)
+- 机器态: 同上一版(Windows 11 Home 26200);CurrentClockSpeed **2000 == MaxClockSpeed 2000**;owner 常驻 Horosa Skill runtime 占
+  8899/9999(未动);本轮中途「智能应用控制」自动转为强制,owner 已手动关闭后才跑本节全部数据。
 - 台架: 隔离打包件(win-unpacked,LOCALAPPDATA/APPDATA 双隔离 + 端口基址 48899/49999)+ CDP 真实输入事件(connect-only);
   perf-r13 三探针 `-Exe` / `HOROSA_PERF_EXE` 换臂。
 
@@ -195,6 +193,24 @@ shusuan/mingother p50 +30-50(唯二上移,同宿主组件,今晚机器态嫌疑 
 - 台架口径工作区可见:ON 1121/1140ms(dev electron,壳日志首行→load completed)——与打包件
   CDP 口径 637ms 是**两把尺**(锚点与壳形态不同),各自与各自的历史比;回归判别看
   workspaceVisibleBudgetMs=1500(OFF 臂 >4200 一抓一个准)。
+### 温启对照 v3.13.1(2026-11-04 同步轮·同机背靠背 A/B:A = v3.13.0 发货件 / B = 本构建;horosa_warm_ab_stamp_v1)
+
+- **★温启(两臂阶梯全就位)**:先跑的逐次交替 6 对里 A 臂从未拿到建阶梯的一跑(新档案首启 GPU 进程崩溃 0xC0000409 → 壳的软件渲染自愈
+  重启一次 ⇒ 探针看到的进程 2s 即退,静态 CDS 档一直没建,A 全程 uber-only:3.45-3.87s vs B 2.30-2.42s —— **不公平,不采信**)。补测:
+  不清两臂 TEMP,A 单独一跑保持到「Static CDS archive ready」,各弃首温一次后交替 4 对:A **2359 / 2420 / 2427 / 2411**(中位 2416)vs
+  B **2454 / 2397 / 2487 / 2421**(中位 2438)—— **持平(+0.9%,噪声带内)**;分相 spawn→ports A 2146-2186 vs B 2170-2261,uber / 静态 CDS 两臂皆就位。
+- **首启(载荷物化,冷)**:B **17.2 / 17.3s**(清缓存交替两次;<20s 硬线);A 两次被同一 GPU 自愈重启打断未取到读数 —— 以上一版同机记档
+  v3.13.0 **17.4 / 16.8s** 为参照,**持平**。
+- **导航切页**:settle 中位 A 330 / 310 vs B **266 / 249ms**,p90 530 / 458 vs **505 / 425**,单页最大 2698 / 3004 vs **998 / 848ms** —— **B 更快**(零 skipped)。
+- **技法内步进 / 改选项(perf_acceptance repeat 10)**:无一行 B 比 A 慢 >25%+30ms;B 最大 p95 **391ms**(owner 1s 判据全达标);
+  PASS A 16 → B 18(三式合一 step p95 261 → 201、命理其它 step 214 → 138 由 FAIL 转 PASS;果老 step p95 502 → 391、卦占 356 → 329)。
+  长连步两臂同 MISS = R13 已记的「12 任务串行泵结构性欠吞吐」,与版本无关。
+- **中文 / 非 ASCII 用户文件夹(本版新增修复的面)**:TEMP / APPDATA / LOCALAPPDATA 全在「星阙 测试 用户」下,B 22s 就绪(首启含物化)、
+  java-utf8 + python-utf8 双启用,安装版逐页 27/27;ASCII 档案下两副本零探测、零启用(启动参数与上一版逐字节同)。
+- **敌意环境(安装版)**:双码页 PASS(GBK / UTF-8)。
+- 工件:`docs/perf-artifacts/2026-11-04-v3.13.1/`(final1_* 一链 warm / accept / nav 各 A/B;`warm_interleaved.log`(不采信的首轮)+
+  `warm_ab2.log`(采信的补测);`first_start_ab.log` + 两臂探针日志)。
+
 ### 温启对照 v3.13.0(2026-10-30 同步轮·同机背靠背 A/B:A = v3.12.0 发货件 / B = 本构建;horosa_warm_ab_stamp_v1)
 
 - **★温启(阶梯态)**:链一(先 A 后 B)totalMs A **2475 / 2190 / 2246** vs B **2438 / 2219 / 2196**;链二(先 B 后 A)A 2314 / 2211 / 2163 vs
